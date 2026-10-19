@@ -422,6 +422,15 @@ add_custom_command(TARGET DriverCrate POST_BUILD
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RecordIndexBuildProfile.cmake"
     VERBATIM)
 
+# 明示build/実行だけで旧storeを認証移動する。通常ALL/packageへ含めない。
+add_executable(DriverCrateIndexStoreMigrator EXCLUDE_FROM_ALL
+    src/app/index_store_migration_main.cpp src/app/app.manifest)
+target_link_libraries(DriverCrateIndexStoreMigrator PRIVATE drivercrate_platform)
+drivercrate_apply_compiler_options(DriverCrateIndexStoreMigrator)
+drivercrate_apply_linker_options(DriverCrateIndexStoreMigrator)
+target_link_options(DriverCrateIndexStoreMigrator PRIVATE
+    "SHELL:/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
+
 if(DRIVERCRATE_BUILD_LOCAL_INDEX_SIGNER)
     # 明示操作だけで鍵を作る開発tool。通常本体・setup/packageには含めない。
     add_library(drivercrate_local_index_signing STATIC src/platform/local_index_signing.cpp)

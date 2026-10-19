@@ -140,5 +140,6 @@ mode、同意の受理条件は維持します。任意長や別PCでの動作�
 
 実正本bindと確認を伴う一回開始、実route／DNS／HTTP、日次七回・再起動後運用、
 別PCの移設・再開は未受入です。日次receipt／署名配布／Taskの開発入口は別の保護運用で、setup配置から
-自動接続しません。現在の保護日次Taskは旧metadata-only構成で、acquisition-v2への配備・切替は未承認です。
+自動接続しません。旧metadata-only日次Taskとsmoke Taskは停止中です。Publicには署名索引を配置済みですが、
+publisherのPrivate identity要求によりPublic向け日次は未対応です。Task再開・切替は別の明示操作です。
 通常アプリの実導入や外部配布の許可にもなりません。[テスト方針](testing.md)と[Release checklist](release-checklist.md)を参照してください。

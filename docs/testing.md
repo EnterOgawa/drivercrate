@@ -1,5 +1,51 @@
 # テスト方針
 
+## 現在の通常画面と公開索引の有限確認
+
+2026-10-19に、初回公開source 822 fileをローカルで検証して公開し、Publicへ署名索引の
+manifestと圧縮JSONを配置しました。通常アプリはローカル受入option OFFのまま、HTTP 200、
+manifest世代5と保存世代5を確認しています。旧検証用storeの実署名認証・用途別移動と元byte・
+世代下限の保全も確認しました。公開Releaseは索引assetだけで、アプリ・collectorのbinaryは未配布です。
+
+通常画面で対象を1 packageに固定し、40,477,087 byteを16.085秒で取得して内容検査へ到達しました。
+72 INFのうち57件が内容・署名検査に合格し、15件は未解析・未対応として分母に残っています。
+最初の個別不足は`0x80070032`です。system照合57組のうち3組が合格、判定不能0で、
+同じ1機器への標準INF旧版候補3件を発行しました。候補は未選択、実導入0です。
+全体部分結果・個別結果を保持し、archive全体、全機器、更新推奨、実導入成功へ換算しません。
+
+期待package hashは公開recordから別照合しましたが、補助readerが取得fileのdigestや個別CAT署名者を
+別採取した結果ではありません。内容入力到達は製品の封印・実byte/record hash照合経路を通った証拠です。
+結果保存後の補助readerにはclose済みchildを読む後処理raceが残りました。原exit 2を保持し、
+通常appのexit 0と保存済みの取得・検査結果を製品取得失敗へ読み替えていません。
+
+部分結果resourceの一律「導入経路は未接続」は候補別導入可否を確認する文言へ修正し、人工UI回帰で確認しました。
+同修正後の追加live取得は行わず、内容処理不変の根拠と元実測を分けています。
+公開変更ごとの固定snapshot全build/testと主担当確認は別途必要です。Public日次publisherはPrivate identity要求のため
+未対応で、旧日次・smoke Taskは停止中です。日次七回・再起動・別PC移設、実導入と必要Extensionの
+個別反映、有限対象外の対応不足は未確認として残します。
+
+## 変更箇所の決定的回帰
+
+署名索引の候補binding回帰は、`drivercrate_index_binding_tests`をDebug/Releaseで実行します。
+通常aggregateの`drivercrate_unit_tests --index-candidate-binding`からも同じ候補群へ到達します。
+人工の配布申告版1.2.3.4、現在版0.9.0.0／1.0.0.0／2.0.0.0、検証INF版1.0.0.0を分け、
+取得前行の版・日付・発行元・package状態が現在行から補完されず、端末表示情報だけを保持すること、
+取得後は検証INF値と更新・同版・旧版・初回の分類を保持することを確認します。
+同意前の導入拒否と既存の失効・部分結果の試験を維持し、人工成功を通常画面の実取得へ換算しません。
+
+`drivercrate_metadata_ui_binding_tests`は既存六条件に、発行済み候補を残した部分内容結果の表示条件を
+加えています。正常なfixture worker由来の一候補と、合格1/2 INF・未対応0x80070032の人工表示summaryを
+同じ通知で処理し、下部controlの部分結果、候補別導入可否、件数・HRESULT・未選択・導入前の状態を
+確認します。全件未接続の断定や導入成功への読み替えを拒否し、この追加条件ではfake導入も実行しません。
+
+署名索引storeの変更回帰は、通常の同一build treeで`drivercrate_unit_tests`をDebug/Releaseに
+buildし、各EXEの`--signed-index-store`で既存保護store群と認証移行群を実行できます。
+人工RAM署名と自作NTFS/DPAPI sandboxだけを使用し、固定ProgramData、実鍵store、通信、
+実driver導入を使いません。旧production/localの分類、元root消失後の再実行、既存先競合、
+暗号byte/identity/floor保全、期限切れ履歴、世代rollback/同世代衝突、未知鍵/破損、
+移動前後の中断、root/lock競合と旧store再出現guardを含みます。製品鍵の真署名や通常画面の
+受入をこの人工試験へ換算しません。実移行CLIはこの自動試験から実行しません。
+
 DriverCrateの決定的な試験はnetwork、実Windows Update、実driver導入に依存させません。
 Provider、復元ポイント、低位Windows APIのfakeを使い、人工のID・URL・packageを使用します。
 実端末のinventory、credential、取得payloadをfixtureへ入れません。
@@ -65,8 +111,7 @@ R123の実headerの九つの順序付き`@param`と`@return`は確認済みで�
 必須member集合gateの合格を一般warningゼロと呼びません。手動PowerShell五入口はNOT_RUNで、
 全入口成功や最新版installer受入へ換算しません。有限試験は全OS I/O、全race、全機器の保証ではありません。
 
-限定した実収集・取得と、INFを含むドライバー本体の内容検査には正常例があります。
-通常画面で実端末に照合した正常候補の表示・実取得を一連で確認する受入は未完了です。
+以下は長path修復前の受入当時の状態です。通常画面の後続実測は冒頭へ分けています。
 通常製品の固定配布公開鍵と独立revision1取得policyは
 sourceへ登録済みで、ローカル受入optionは既定OFFです。過去の受入profileの鍵・同意・期限を
 通常配布へ引き継ぎません。実driver導入、必要Extensionの個別反映、
@@ -167,14 +212,16 @@ py -3 -X utf8 -B scripts/test_daily_index_pipeline.py
 
 `scripts/check_public_source_closure.py`は候補一覧の静的なsource／fixture／import／固定payload依存を
 確認するtoolです。動的pathの完全証明やnative buildではありません。
-現在の822候補は、自動workflow一件を除きADR 0379一件を加えた集合です。同数の旧822候補とは異なります。
+現在の825候補は、初回公開822 fileへADR 0380と移行専用header／CLIの三件を加えた集合です。
 最終allowlistではなく、除外された私有履歴を追加して閉包を成立させません。
 
 ## 公開snapshotのローカル事前確認
 
 [ADR 0379](adr/0379-local-prepublication-verification-without-actions.md)に従い、公開前の確認をローカルで行います。
 Private working treeの既存build・増分試験の合格と、公開snapshotからの新しい検証は別に記録します。
-現在、独立した初回公開snapshotからのDebug／Release buildと全必要試験は未受入です。
+初回公開822 fileはDebug全72件の結合受入（元68件と条件変更後の直列4件）、Release全72件、
+Python43入口と必要source／PowerShell gateを確認済みです。Debugの元並列8による3 FAIL／1 TIMEOUTは
+履歴に残し、一回の全72件直列runと表現しません。変更後の公開snapshotへ自動継承せず再確認します。
 
 1. `scripts/public_source_export_manifest.json`の具体的file集合をレビューし、最終公開対象を固定します。
    `.git`、Actions workflow、work記録、鍵・credential、実inventory、driver本体、個人絶対path、
@@ -194,7 +241,7 @@ Private working treeの既存build・増分試験の合格と、公開snapshot�
    別途登録します。元source／構成／tool／入力pinはmetadataだけを保持し、旧buildをarchiveしません。
    cache・生成物の切替とclean、旧出力を合格証拠へ混入させない初回Debug／Release全target・必要試験、
    通常開発source／構成への復帰と確認までを登録します。別build treeの新設はしません。
-   具体的な切替・clean・復帰commandの確認と実行は未実施であり、この手順だけで実行可能とは扱いません。
+   初回公開ではこの切替・clean・復帰を実行しました。後続もその時点の入力と構成を固定して行います。
 4. 同じsnapshotで「必須source gate」の全commandと、変更範囲に必要なPython／PowerShell・UI試験を
    明示実行します。native／UI試験の実行場所は前項の唯一buildと確認済み手順へ結合します。
    `scripts/test-non-ai-build.ps1`は廃止AI option拒否の補助試験であり、
@@ -205,9 +252,8 @@ Private working treeの既存build・増分試験の合格と、公開snapshot�
 
 この手順の採用は実行済みを意味しません。静的checkerは全Markdown link、秘密情報、権利、動的依存を
 完全検証するtoolではありません。初回公開後の変更は公開側の履歴へ残し、remote反映とPublic化は
-各明示承認の対象とします。現在のローカルworkflow削除は、未反映のremote workflowを停止しません。
-実移行時には公開準備repoと旧開発repoの双方でActions不使用を確認します。現時点のremote無効化は
-未承認・保留であり、旧移行予算へ追加せず、必要な操作・予算を実移行前に再登録します。
+各明示承認の対象とします。現在の開発PrivateとPublicは双方Actions無効です。
+workflow削除だけをremote停止の証拠にせず、remote反映時には実設定も別途照合します。
 
 日次pipelineの[ADR 0373](adr/0373-acquisition-digest-and-legacy-day-entry.md)回帰は、実失敗経路の
 原JSON pinを保持したSHA-256値照合と、旧startのexact検証・取得用途の開始記録／公開出力の分離を
@@ -330,9 +376,10 @@ fixtureの最終公開privacy／権利・依存監査、更新exportとpackage�
 導入API、実状態を別集計します。原因・条件が同じ失敗は反復せず、独立に進められる確認を続けます。
 
 最新source・同梱READMEと一致するcollector packageの作成と有限な非通信確認は上記のとおりで、
-主担当の独立確認も完了しています。実収集→GitHub→通常画面の正常候補・目視・実取得／内容検査は未受入です。
-公開画像metadataと過去Git履歴の扱い、最終一覧、新しい公開用sourceからの独立Debug／Release buildと試験、
-Private push／readback、本人のPublic承認も残ります。
+主担当の独立確認も完了しています。Public索引から通常画面の実取得・内容検査・候補表示の有限実測は冒頭の範囲です。
+私有履歴は開発Privateに保持し、初回公開snapshotは分離して検証・公開済みです。
+変更後の公開source集合からのDebug／Release build・全必要試験・監査と主担当確認、
+承認範囲内の両repository追加反映は変更ごとに行います。
 保護record保存とTask切替も別操作です。日次七回・再起動後の運用、別PCの実移設、対応拡大・SDIO不足解消を
 現在の有限なローカル受入と混同しません。過去の詳細工程は保守側で原証拠を保持しています。
 [Release checklist](release-checklist.md)を参照してください。

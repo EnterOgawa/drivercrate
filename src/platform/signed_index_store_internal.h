@@ -2,7 +2,7 @@
 /**
  * @file signed_index_store_internal.h
  * @brief 自作の隔離fixture rootだけへ保存障害診断を限定します。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/11  実DPAPIとdiskを使う隔離test能力を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/10/19  旧head不変の移動を隔離rootで検証する能力を追加。
  * </pre>
  *
  * @note 製品rootへ使えず、成功や署名を注入しません。任意pathを受理しません。
@@ -42,6 +43,16 @@
 #include <windows.h>
 
 namespace drivercrate::signed_index_store_detail {
+
+/** @brief 自作sandbox内だけで使う固定三leafです。 */
+enum class NamespaceLeaf {
+	/// 移行前の共用名です。
+	LEGACY,
+	/// 完全公開pin付き検証用名です。
+	LOCAL,
+	/// 鍵更新でも変えない通常配布名です。
+	DISTRIBUTION
+} ;
 
 /** @brief Testが指定する有限な失敗点です。成功を返すhookはありません。 */
 enum class Fault {
@@ -89,6 +100,25 @@ private:
 
 /** @brief Native unit専用RAM trustと自作temp rootだけを扱う内部能力です。 */
 struct Access {
+	/** @brief 自作parentの固定三leafだけを通常と同じdomain規則で開きます。
+	 * @param[in] parent 自作隔離rootを所有するsandboxです。
+	 * @param[in] leaf 固定三名の選択です。
+	 * @param[in] trust 人工RAM公開鍵だけです。
+	 * @param[in] createMissing 初回作成を許可する場合trueです。
+	 * @return 保護/旧root guard成功時だけstoreです。
+	 */
+	[[nodiscard]] static IndexStoreOpenResult openNamespaceIsolated(
+		const SignedIndexStore &parent, NamespaceLeaf leaf,
+		std::span<const signed_index_detail::TrustKey> trust, bool createMissing = true) noexcept ;
+	/** @brief 自作namespaceで製品と同じ分類/移動/再実行を実行します。
+	 * @param[in,out] store Sandbox内の固定leaf所有です。同時呼出しを行いません。
+	 * @param[in] expectedHeadSha256 原ciphertextの完全pinです。
+	 * @param[in] nowUtc 現在UTCです。
+	 * @return 実移動と世代/拒否です。製品pathを受理しません。
+	 */
+	[[nodiscard]] static IndexStoreMigrationResult migrateNamespaceIsolated(
+		SignedIndexStore &store, std::string_view expectedHeadSha256,
+		std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
 	/** @brief 実作成と共通のSDDL生成規則をRAM fixtureへ返します。
 	 * @param[in] store Isolated能力とprocess SIDを持つstore。
 	 * @param[in] directory Directory用OICIを要求する場合true。
@@ -109,10 +139,21 @@ struct Access {
 															bool product) noexcept ;
 	/** @brief 一意な保護temp rootを自分で作成します。
 	 * @param[in] trust UnitのRAM public keyだけ。所有copyを作ります。
+	 * @param[in] migration 移動専用fixtureでrootのDELETE権限を要求する場合trueです。
 	 * @return 実保護初期化後だけstore。任意pathや製品storeを受理しません。
 	 */
 	[[nodiscard]] static IndexStoreOpenResult createIsolated(
-		std::span<const signed_index_detail::TrustKey> trust) noexcept ;
+		std::span<const signed_index_detail::TrustKey> trust, bool migration = false) noexcept ;
+	/** @brief 自作隔離rootを同親の固定suffixへ認証移動します。
+	 * @param[in,out] store 移動専用に自作した隔離storeです。
+	 * @param[in] expectedHeadSha256 原ciphertextの完全pinです。
+	 * @param[in] nowUtc 現在信頼UTCです。
+	 * @param[in] fault BEFORE_REPLACE/AFTER_REPLACEまたはNONEだけです。
+	 * @return 歴史認証と実rename結果。製品rootへ使用できません。
+	 */
+	[[nodiscard]] static IndexStoreMigrationResult migrateIsolated(
+		SignedIndexStore &store, std::string_view expectedHeadSha256,
+		std::optional<std::chrono::sys_seconds> nowUtc, Fault fault = Fault::NONE) noexcept ;
 	/** @brief 同じ隔離rootを指す別のstore ownerを作ります。
 	 * @param[in] store Isolated能力を持つstore。
 	 * @return 製品storeは拒否します。Headのauthorityをcopyしません。

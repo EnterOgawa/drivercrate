@@ -41,6 +41,27 @@ BIOS／UEFI／firmware、OEM utility、app、Windows software updateはdriver導
 ローカル受入optionは既定OFFです。検証用profileの人工試験や有限なローカル正常例を、実GitHubの
 通常配布の受入としません。公開鍵の登録、取得同意、保護runtime、実配布は別の確認です。
 
+通常配布の保護storeは`%ProgramData%\DriverCrate\SignedIndex-distribution-v1`、検証用は
+同親の`SignedIndex-local-<完全公開鍵SHA-256>-v1`です。domain間で世代下限を混ぜず、
+同じdomainのrollbackと同世代異内容は拒否します。旧共用`SignedIndex-v1`が残る間は
+通常のopen/reload/commitを`ERROR_REVISION_MISMATCH`で拒否し、旧productionの世代下限を
+無視した初期化を防ぎます。旧headの削除やresetを回復手順にしません。
+
+明示buildする`DriverCrateIndexStoreMigrator`は通常ALL/packageに含めません。
+事前確認した原headの完全SHA-256と実署名・gzip・全schemaを検証し、固定公開鍵に対応する
+用途別名へ同親directoryを移動します。旧pathは消失しますが、directory identity、DPAPI
+entropy、head/lock byteと世代下限を保持します。旧local公開鍵はこの歴史認証専用であり、
+通常manifest trustや取得認可へ追加しません。期限切れ履歴の移動は現在snapshot、
+attestationの期限延長、取得grant、導入許可を発行しません。
+
+移行中は旧アプリを終了します。最終再認証まで旧lockとheadを保持し、rename直前は子handleを
+閉じます。DELETE権限付き・DELETE非共有のroot handleは旧/新store ownerと両立せず、同じ
+directoryをpinし続けます。既存移動先、未知署名、破損、保護不整合、期待hash差を拒否します。
+rename失敗は結果不確定とし、自動rollbackしません。中断後は固定移動先の同pin/全履歴認証を
+確認した明示再実行だけをalready migratedと報告します。このPCでは旧検証用storeの実署名認証、
+原byte・世代下限を保った移動と通常配布storeへの世代5保存を有限に確認しました。
+他の旧storeや別PCの保証ではありません。[ADR 0380](adr/0380-signed-index-trust-domain-store-migration.md)を参照してください。
+
 ## Session、同意、復旧
 
 有限queueと単調増加するoperation／scan IDを使い、古いscan、未表示・未知・重複候補、Provider不一致を拒否します。
@@ -81,13 +102,18 @@ snapshot配置だけでTask・収集を開始せず、停止export／検証／im
 Taskの定義生成、新規登録、既存Action限定更新は実装済みですが、実切替許可と実運用受入は別です。
 現在userのInteractiveToken／HighestAvailableと保護runtime・config・祖先ACLを要求し、password保存、
 policy変更、任意Actionへの置換を認めません。
+Publicには署名索引のmanifestと圧縮JSONだけを配置済みです。現在のpublisherはPrivate identityを
+要求するためPublic日次運用は未対応で、旧日次・smoke Taskは停止中です。自動再開しません。
 
 ## 検証の限界
 
 必須品質gateと決定的unit／CLI／UIの技術受入は、実導入や全OS／全機器の保証ではありません。
 現行ソースに対応する未署名の収集用ローカルv5 packageは、このPCの配置・検査・保持／解除と非通信の
 初期化・検証・停止export／import・人工中断からのnative再開を有限に確認済みです。空のローカルmonitorでの
-確認に限り、実正本の結合・確認を伴うオンライン開始、実GitHub→通常画面の正常例、日次継続と別PC移設は未受入です。
-画像metadata、過去Git履歴の公開扱い、最終公開一覧、新しい公開用buildも未確定です。
-実導入、remote push／Release、Public化は必要な明示承認を得て行います。
+確認に限り、実正本の結合・確認を伴うオンライン開始、日次継続と別PC移設は未受入です。
+通常アプリではPublic索引のHTTP 200・世代5保存と、1 packageの実取得・内容検査を確認しました。
+72 INF中57件の内容・署名合格、15件の未解析・未対応を残し、同じ1機器への標準INF旧版候補3件は未選択です。
+全archiveや全機器の成功、実導入成功とは扱いません。公開sourceは私有履歴と分離して初回検証後に公開し、
+変更ごとに固定snapshotの再確認を行います。アプリ・collectorの公開binary Releaseと実導入は未確認です。
+実導入と今後のremote反映は必要な明示承認の範囲で行います。
 脆弱性報告は[SECURITY.md](../SECURITY.md)、試験の資格は[テスト方針](testing.md)を参照してください。

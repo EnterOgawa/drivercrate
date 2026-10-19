@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest_tests.cpp
  * @brief 非永続CNG RSA鍵の実署名でmanifest認証の拒否境界を検査します。
- * @version 01.11.02
+ * @version 01.12.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * Ver.01.11.00 Shunji Ogawa  2026/10/14  同v2署名snapshotへnative部分positive準備の正負を接続。
  * Ver.01.11.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.11.02 Shunji Ogawa  2026/10/16  製品固定公開pinとmanifest-only取得拒否を追加。
+ * Ver.01.12.00 Shunji Ogawa  2026/10/19  旧headの認証移動と世代/中断/拒否回帰を追加。
  * </pre>
  *
  * @note 秘密鍵はCNG handleのRAM内だけにあり、public blob以外をexportしません。
@@ -80,6 +81,7 @@
 #include "platform/signed_index_acquisition_adapter.h"
 #include "platform/signed_index_acquisition_adapter_internal.h"
 #include "platform/index_distribution_trust.h"
+#include "platform/index_legacy_migration_trust.h"
 #include "local_index_acceptance.h"
 #include "test_framework.h"
 
@@ -3475,6 +3477,398 @@ void runSignedIndexStoreTests( TestContext &context)
 	std::cout << "Signed index descriptor store assertions: "
 			  << context.assertionCount() - descriptorStoreStart
 			  << ", failures: " << context.failureCount() - descriptorStoreFailure << '\n' ;
+}
+
+namespace {
+
+/** @brief 固定domain名だけを借りた人工RAM署名の完全fixtureを作ります。
+ * @param[in] key 永続化しないRAM署名鍵です。
+ * @param[in] local 検証用IDへ署名する場合trueです。
+ * @param[in] generation Manifest世代です。
+ * @param[in] assetGeneration 原asset世代です。
+ * @return 架空の署名/byte/schema receiptです。製品鍵の署名ではありません。
+ */
+[[nodiscard]] StoreFixture makeDomainStoreFixture( const RamKey &key, const bool local,
+												  const std::uint64_t generation	  = 7U,
+												  const std::uint64_t assetGeneration = 7U)
+{
+	auto	   first = makeStoreFixture( key, generation, assetGeneration) ;	// 元の全schema正例です。
+	const auto id	 = local ? index_legacy_migration_trust::KEY_ID
+							 : index_distribution_trust::KEY_ID ;	// 実署名後の分類を検査します。
+	const auto raw	 = replaced( first.inputs.manifest.data().manifestBytes, "fixture-main",
+								id) ;						// 原manifestだけを人工再署名します。
+	auto	   outer = envelope( raw, key.sign( raw), id) ;	// 署名materialは人工RAM鍵です。
+	const std::array<signed_index_detail::TrustKey, 1U> trust{
+		{{id, key.publicBlob}}} ;	// 実製品の固定鍵を置換しません。
+	auto manifest = signed_index_detail::authenticateWithTrustKeys( outer, NOW, std::nullopt,
+																   trust) ;	// 実CNG認証です。
+	// 人工fixtureの不成立を移行拒否の成功にしません。
+	if( !manifest.manifest) {
+		throw std::runtime_error( "domain manifest fixture failed") ;
+	}
+
+	auto asset = authenticateIndexAssetBytes( *manifest.manifest, first.inputs.gzip,
+											 NOW) ;	// 原gzipを検証します。
+	// 前段が不成立の場合は残りのtestへ進みません。
+	if( !asset.receipt) {
+		throw std::runtime_error( "domain asset fixture failed") ;
+	}
+
+	auto records = readSignedIndexRecords( *asset.receipt, NOW) ;	// 原全schemaを検証します。
+	// Schema拒否を移動成功へ換算しません。
+	if( !records.receipt) {
+		throw std::runtime_error( "domain records fixture failed") ;
+	}
+
+	return {{std::move( *manifest.manifest), std::move( outer), std::move( first.inputs.gzip)},
+			std::move( *records.receipt)} ;
+}
+
+} // namespace
+
+/** @see signed_index_manifest_tests.h */
+void runSignedIndexStoreMigrationTests( TestContext &context)
+{
+	using signed_index_store_detail::Access ;
+	using signed_index_store_detail::Fault ;
+	const int initialAssertions = context.assertionCount() ;	// 新しい固定groupの分母だけです。
+	const int initialFailures	= context.failureCount() ;		// 元groupの失敗を分離します。
+	RamKey	  key ;												// 実署名秘密鍵はRAMだけです。
+	key.generate( 3072U) ;
+	const std::array<signed_index_detail::TrustKey, 1U> trust{
+		{{"fixture-main", key.publicBlob}}} ;					// 人工公開鍵だけです。
+	const auto first	  = makeStoreFixture( key) ;			// 署名世代7の全schema正例です。
+	const auto lower	  = makeStoreFixture( key, 6U, 6U) ;	// 同domain rollbackを確認します。
+	const auto conflict	  = makeStoreFixture( key, 7U, 6U) ;	// 同世代異manifestの正しい署名です。
+	const auto expiredNow = NOW + std::chrono::days{15} ;		// 現在snapshotを許可しない履歴移動です。
+	// 同じ実renameの前後中断を独立rootで確認し、原失敗を成功へ変更しません。
+	for( const Fault fault : {Fault::NONE, Fault::BEFORE_REPLACE, Fault::AFTER_REPLACE}) {
+		auto opened = Access::createIsolated( trust, true) ;	// DELETE権限付き自作rootだけです。
+		DRIVERCRATE_EXPECT( context, opened.store && opened.error == 0) ;
+		// Fixture生成不能では残りの検査を空成功にしません。
+		if( !opened.store) {
+			throw std::runtime_error( "migration store creation failed") ;
+		}
+
+		auto &store = *opened.store ;	// このloopだけが所有します。
+		DRIVERCRATE_EXPECT(
+			context, store.commit( first.receipt, first.inputs.envelope, first.inputs.gzip, NOW)
+						 .snapshot.has_value()) ;
+		const auto source = Access::isolatedRoot( store) ;					// 明示自作rootだけの旧名です。
+		const auto head	  = readStoreTestFile( source / L"head.bin") ;		// 旧暗号byteです。
+		const auto lock	  = readStoreTestFile( source / L"store.lock") ;	// 固定lock本文も保全します。
+		const auto pin	  = recordDigest( key, assetText( head)) ;			// 原ciphertextの完全pinです。
+		const auto result = Access::migrateIsolated( store, pin, expiredNow,
+													fault) ;	// 製品と同じhistory/renameです。
+		std::cout << "Migration fault=" << static_cast<unsigned>( fault)
+				  << " error=" << static_cast<std::uint32_t>( result.error)
+				  << " commit=" << static_cast<unsigned>( result.commit) << '\n' ;
+		// Commit前中断は旧名を保持し、同条件の通常retryとは区別します。
+		if( fault == Fault::BEFORE_REPLACE) {
+			DRIVERCRATE_EXPECT( context,
+							   result.error != 0 &&
+								   result.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
+			DRIVERCRATE_EXPECT( context, Access::isolatedRoot( store) == source &&
+											std::filesystem::exists( source)) ;
+			const auto resumed =
+				// 中断点を除いた明示再開です。
+				Access::migrateIsolated( store, pin, expiredNow) ;
+			DRIVERCRATE_EXPECT( context,
+							   resumed.error == 0 &&
+								   resumed.commit == IndexStoreCommitDisposition::COMMITTED) ;
+		} else {
+			DRIVERCRATE_EXPECT( context, result.commit == IndexStoreCommitDisposition::COMMITTED &&
+											result.generation == 7U) ;
+			DRIVERCRATE_EXPECT( context, (result.error == 0) == (fault == Fault::NONE)) ;
+		}
+
+		const auto destination = Access::isolatedRoot( store) ;	// identityを保った新名です。
+		DRIVERCRATE_EXPECT( context, destination != source && !std::filesystem::exists( source)) ;
+		DRIVERCRATE_EXPECT( context, readStoreTestFile( destination / L"head.bin") == head &&
+										readStoreTestFile( destination / L"store.lock") == lock) ;
+		const auto replay =
+			// 同pin/全認証の再実行だけです。
+			Access::migrateIsolated( store, pin, expiredNow) ;
+		DRIVERCRATE_EXPECT( context, replay.error == 0 && replay.alreadyMigrated &&
+										replay.commit == IndexStoreCommitDisposition::NO_CHANGE &&
+										replay.generation == 7U) ;
+		const auto expired = store.reload( expiredNow) ;	// 歴史移動で現在期限を延長しません。
+		DRIVERCRATE_EXPECT( context, expired.status == IndexStoreStatus::EXPIRED &&
+										expired.persistedGeneration == 7U && !expired.snapshot) ;
+		const auto rollback = store.commit( lower.receipt, lower.inputs.envelope, lower.inputs.gzip,
+										   NOW) ;	// 旧floorを保持します。
+		DRIVERCRATE_EXPECT( context, rollback.manifestStatus ==
+											SignedIndexManifestStatus::GENERATION_ROLLBACK &&
+										rollback.persistedGeneration == 7U) ;
+		const auto sameGeneration =
+			store.commit( conflict.receipt, conflict.inputs.envelope, conflict.inputs.gzip,
+						 NOW) ;	// 異内容の上書きを拒否します。
+		DRIVERCRATE_EXPECT( context, sameGeneration.manifestStatus ==
+											SignedIndexManifestStatus::GENERATION_CONFLICT &&
+										sameGeneration.persistedGeneration == 7U) ;
+	}
+
+	auto opened = Access::createIsolated( trust, true) ;	// 拒否群だけの自作rootです。
+	// 準備の失敗では移行拒否の検査へ進みません。
+	if( !opened.store) {
+		throw std::runtime_error( "migration rejection store failed") ;
+	}
+
+	auto &store = *opened.store ;	// 元ciphertextを保持して拒否を検査します。
+	DRIVERCRATE_EXPECT( context,
+					   store.commit( first.receipt, first.inputs.envelope, first.inputs.gzip, NOW)
+						   .snapshot.has_value()) ;
+	const auto source	= Access::isolatedRoot( store) ;				// 製品rootではありません。
+	const auto headPath = source / L"head.bin" ;						// 自作fixtureだけを書換えます。
+	const auto original = readStoreTestFile( headPath) ;				// 全拒否で保全を比較します。
+	const auto pin		= recordDigest( key, assetText( original)) ;	// 正しい原head pinです。
+	DRIVERCRATE_EXPECT( context,
+					   Access::migrateIsolated( store, std::string( 64U, '0'), NOW).error != 0) ;
+	DRIVERCRATE_EXPECT( context, Access::migrateIsolated( store, pin, std::nullopt).error != 0) ;
+	DRIVERCRATE_EXPECT( context,
+					   Access::migrateIsolated( store, pin, NOW - std::chrono::hours{2}).error != 0) ;
+	{
+		const auto held = Access::holdLock( store) ;	// 実share0競合を再現します。
+		DRIVERCRATE_EXPECT( context, static_cast<bool>( held)) ;
+		const auto busy = Access::migrateIsolated( store, pin, NOW) ;	// 待機/強制奪取しません。
+		DRIVERCRATE_EXPECT( context, busy.error == ERROR_SHARING_VIOLATION &&
+										busy.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
+	}
+
+	const auto destination =
+		// 固定suffixだけです。
+		source.parent_path() / (source.filename().native() + L"-migrated") ;
+	DRIVERCRATE_EXPECT( context, CreateDirectoryW( destination.c_str(), nullptr) != FALSE) ;
+	const auto existing = Access::migrateIsolated( store, pin, NOW) ;	// 空の既存先も上書きしません。
+	DRIVERCRATE_EXPECT( context, existing.error == ERROR_ALREADY_EXISTS &&
+									existing.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
+	DRIVERCRATE_EXPECT( context, RemoveDirectoryW( destination.c_str()) != FALSE) ;
+	DRIVERCRATE_EXPECT( context, readStoreTestFile( headPath) == original) ;
+	std::vector<std::byte> plain ;	// 人工wireだけをRAMへ保持します。
+	DRIVERCRATE_EXPECT( context, Access::readPlain( store, plain) == 0) ;
+	const auto originalPlain = plain ;	// 復旧用の自作fixture原wireです。
+	const auto position =
+		// 外側keyIdの未知鍵拒否を再現します。
+		assetText( plain).find( "fixture-main") ;
+	DRIVERCRATE_EXPECT( context, position != std::string::npos) ;
+	// 同長の未知IDへ変更し、DPAPI/digest整合だけでは信頼しないことを確認します。
+	if( position != std::string::npos) {
+		plain[position] = std::byte{'u'} ;
+		refreshStorePlainDigest( key, plain) ;
+		DRIVERCRATE_EXPECT( context, Access::replacePlain( store, plain) == 0) ;
+		const auto unknownHead = readStoreTestFile( headPath) ;	// 正しいDPAPIに包まれた未知鍵です。
+		const auto unknown	   = Access::migrateIsolated(
+			store, recordDigest( key, assetText( unknownHead)), NOW) ;	// 申告keyIdを信用しません。
+		DRIVERCRATE_EXPECT( context, unknown.error != 0 && !unknown.generation &&
+										unknown.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
+	}
+
+	plain = originalPlain ;
+	plain[0] ^= std::byte{1U} ;
+	refreshStorePlainDigest( key, plain) ;
+	DRIVERCRATE_EXPECT( context, Access::replacePlain( store, plain) == 0) ;
+	const auto malformedHead = readStoreTestFile( headPath) ;	// strict wire破損の独立ケースです。
+	DRIVERCRATE_EXPECT(
+		context,
+		Access::migrateIsolated( store, recordDigest( key, assetText( malformedHead)), NOW).error !=
+			0) ;
+	writeStoreTestFile( headPath, original) ;
+	auto other = Access::createIsolated( trust) ;	// 別root identityへ暗号byteをcopyします。
+	// 正常な別domainで同じ番号を独立受理できることも確認します。
+	if( !other.store) {
+		throw std::runtime_error( "independent domain fixture failed") ;
+	}
+
+	DRIVERCRATE_EXPECT(
+		context,
+		other.store->commit( conflict.receipt, conflict.inputs.envelope, conflict.inputs.gzip, NOW)
+			.snapshot.has_value()) ;
+	const auto foreignHead = readStoreTestFile( Access::isolatedRoot( *other.store) /
+											   L"head.bin") ;	// 他rootの正規暗号です。
+	writeStoreTestFile( headPath, foreignHead) ;
+	const auto binding = Access::migrateIsolated( store, recordDigest( key, assetText( foreignHead)),
+												 NOW) ;	// hash一致でもroot binding不成立です。
+	DRIVERCRATE_EXPECT( context, binding.error != 0 && !binding.generation &&
+									binding.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
+	writeStoreTestFile( headPath, original) ;
+	DRIVERCRATE_EXPECT( context, Access::isolatedRoot( store) == source &&
+									readStoreTestFile( headPath) == original) ;
+	const auto legacyPublic = std::string_view{
+		reinterpret_cast<const char *>( index_legacy_migration_trust::PUBLIC_BLOB.data()),
+		index_legacy_migration_trust::PUBLIC_BLOB
+			.size()} ;	// 固定非秘密blobだけを独立hashへ渡します。
+	DRIVERCRATE_EXPECT( context, recordDigest( key, legacyPublic) ==
+									index_legacy_migration_trust::PUBLIC_FINGERPRINT) ;
+	// 同じ製品namespace実装でlocal/productionの分類とsource absent再実行を確認します。
+	for( const bool local : {false, true}) {
+		using signed_index_store_detail::NamespaceLeaf ;
+		auto parent = Access::createIsolated( {}) ;	// 固定三leafを隔離する自作sandboxです。
+		const std::array<signed_index_detail::TrustKey, 2U> domainTrust{
+			{{index_distribution_trust::KEY_ID, key.publicBlob},
+			 {index_legacy_migration_trust::KEY_ID, key.publicBlob}}} ;	// 人工RAM鍵だけです。
+		const std::array<signed_index_detail::TrustKey, 1U> productionTrust{
+			{{index_distribution_trust::KEY_ID, key.publicBlob}}} ;	// 通常側はlocal鍵を持ちません。
+		// Sandbox作成不能を空成功へ補完しません。
+		if( !parent.store) {
+			throw std::runtime_error( "migration namespace parent failed") ;
+		}
+
+		auto	   legacy  = Access::openNamespaceIsolated( *parent.store, NamespaceLeaf::LEGACY,
+														   domainTrust) ;	// 固定旧名だけを作ります。
+		const auto fixture = makeDomainStoreFixture( key, local) ;			// 型名でなく真署名IDで分類します。
+		// 旧rootを用意できない場合は残りのtestへ進みません。
+		if( !legacy.store) {
+			throw std::runtime_error( "legacy namespace creation failed") ;
+		}
+
+		DRIVERCRATE_EXPECT(
+			context,
+			legacy.store->commit( fixture.receipt, fixture.inputs.envelope, fixture.inputs.gzip, NOW)
+				.snapshot.has_value()) ;
+		const auto oldPath =
+			// 後で消失と原byte保全を確認します。
+			Access::isolatedRoot( *legacy.store) ;
+		const auto oldHead = readStoreTestFile( oldPath / L"head.bin") ;	// 復号plainを保存しません。
+		const auto oldPin  = recordDigest( key, assetText( oldHead)) ;		// 事前確認した完全pinです。
+		DRIVERCRATE_EXPECT( context, Access::openNamespaceIsolated(
+										*parent.store, NamespaceLeaf::DISTRIBUTION, productionTrust)
+											.error == ERROR_REVISION_MISMATCH) ;
+		{
+			auto competing =
+				// 旧binary同等のroot ownerです。
+				Access::reopenIsolated( *legacy.store) ;
+			DRIVERCRATE_EXPECT( context, competing.store != nullptr) ;
+			const auto busy = Access::migrateNamespaceIsolated(
+				*legacy.store, oldPin, expiredNow) ;	// DELETE非共有root競合を拒否します。
+			DRIVERCRATE_EXPECT( context, busy.error == ERROR_SHARING_VIOLATION &&
+											busy.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
+		}
+
+		const auto migrated = Access::migrateNamespaceIsolated(
+			*legacy.store, oldPin, expiredNow) ;	// 本番と同じ分類/renameです。
+		DRIVERCRATE_EXPECT( context, migrated.error == 0 && migrated.localDomain == local &&
+										migrated.generation == 7U &&
+										migrated.commit == IndexStoreCommitDisposition::COMMITTED) ;
+		const auto newPath = Access::isolatedRoot( *legacy.store) ;	// 実署名IDから選んだ移動先です。
+		DRIVERCRATE_EXPECT( context, !std::filesystem::exists( oldPath) &&
+										readStoreTestFile( newPath / L"head.bin") == oldHead) ;
+		const auto expectedName =
+			local
+				? L"SignedIndex-local-68ab95e96e45db00c62a241d733d29a2e347ef074949aec01293ed2ab024f18d-v1"
+				: L"SignedIndex-distribution-v1" ;	// 完全fingerprintを省略しません。
+		DRIVERCRATE_EXPECT( context, newPath.filename() == expectedName) ;
+		auto production = Access::openNamespaceIsolated(
+			*parent.store, NamespaceLeaf::DISTRIBUTION,
+			productionTrust) ;	// 旧productionは同floor、旧localとは独立です。
+		// 通常domainを開けなければ後続の結果を成功にしません。
+		if( !production.store) {
+			throw std::runtime_error( "production namespace failed") ;
+		}
+
+		// 別domainの正しいgenesisを移行証拠へ昇格せず、local保全headだけを確認します。
+		if( local) {
+			const auto withGenesis = Access::migrateNamespaceIsolated(
+				*legacy.store, oldPin, expiredNow) ;	// source absentの途中再開です。
+			DRIVERCRATE_EXPECT( context, withGenesis.error == 0 && withGenesis.alreadyMigrated &&
+											withGenesis.localDomain) ;
+		}
+
+		const auto productionFixture =
+			// localと同番号でも別署名domainです。
+			makeDomainStoreFixture( key, false) ;
+		DRIVERCRATE_EXPECT( context, production.store
+										->commit( productionFixture.receipt,
+												 productionFixture.inputs.envelope,
+												 productionFixture.inputs.gzip, NOW)
+										.snapshot.has_value()) ;
+		const auto localFixture	 = makeDomainStoreFixture( key, true) ;	// 通常trustへ混入しません。
+		const auto localRejected = production.store->commit(
+			localFixture.receipt, localFixture.inputs.envelope, localFixture.inputs.gzip,
+			NOW) ;	// 移行用鍵は通常trustへ登録しません。
+		DRIVERCRATE_EXPECT( context,
+						   !localRejected.snapshot && localRejected.manifestStatus ==
+														  SignedIndexManifestStatus::UNKNOWN_KEY) ;
+		// 実通常profileも移行用公開pinをmanifest trustへ加えていません。
+		if( !local_index_profile::ENABLED) {
+			DRIVERCRATE_EXPECT( context, authenticateSignedIndexManifest(
+											localFixture.inputs.envelope, NOW, std::nullopt)
+												.status == SignedIndexManifestStatus::UNKNOWN_KEY) ;
+		}
+
+		const auto lowerProduction =
+			// 移動後の旧production floorを検査します。
+			makeDomainStoreFixture( key, false, 6U, 6U) ;
+		DRIVERCRATE_EXPECT(
+			context, production.store
+							 ->commit( lowerProduction.receipt, lowerProduction.inputs.envelope,
+									  lowerProduction.inputs.gzip, NOW)
+							 .manifestStatus == SignedIndexManifestStatus::GENERATION_ROLLBACK) ;
+		const auto conflictingProduction =
+			// 同番号異内容を維持します。
+			makeDomainStoreFixture( key, false, 7U, 6U) ;
+		DRIVERCRATE_EXPECT( context, production.store
+											->commit( conflictingProduction.receipt,
+													 conflictingProduction.inputs.envelope,
+													 conflictingProduction.inputs.gzip, NOW)
+											.manifestStatus ==
+										SignedIndexManifestStatus::GENERATION_CONFLICT) ;
+		const auto replay = Access::migrateNamespaceIsolated(
+			*legacy.store, oldPin, expiredNow) ;	// 元root absent経路を実行します。
+		DRIVERCRATE_EXPECT( context, replay.error == 0 && replay.alreadyMigrated &&
+										replay.localDomain == local && replay.generation == 7U) ;
+		DRIVERCRATE_EXPECT( context, Access::migrateNamespaceIsolated(
+										*legacy.store, std::string( 64U, '0'), expiredNow)
+											.error != 0) ;
+		// 別domainが壊れていれば、正しいlocal headがあっても再実行成功にしません。
+		if( local) {
+			const auto productionHead =
+				// 自作通常domainだけです。
+				Access::isolatedRoot( *production.store) / L"head.bin" ;
+			const auto stableProduction =
+				// 原ciphertextをRAMだけへ保持します。
+				readStoreTestFile( productionHead) ;
+			auto broken = stableProduction ;	// DPAPI拒否を別に再現します。
+			broken[0] ^= std::byte{1U} ;
+			writeStoreTestFile( productionHead, broken) ;
+			const auto corruptReplay = Access::migrateNamespaceIsolated(
+				*legacy.store, oldPin, expiredNow) ;	// 不完全な他domainを無視しません。
+			DRIVERCRATE_EXPECT( context,
+							   corruptReplay.error != 0 && !corruptReplay.alreadyMigrated &&
+								   corruptReplay.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
+			writeStoreTestFile( productionHead, stableProduction) ;
+		}
+
+		{
+			auto recreated =
+				Access::openNamespaceIsolated( *parent.store, NamespaceLeaf::LEGACY,
+											  domainTrust) ;	// 旧binary再出現を人工再現します。
+			// 新旧両方の存在を空のfixtureで省略しません。
+			if( !recreated.store) {
+				throw std::runtime_error( "recreated legacy namespace failed") ;
+			}
+
+			DRIVERCRATE_EXPECT( context, recreated.store
+											->commit( fixture.receipt, fixture.inputs.envelope,
+													 fixture.inputs.gzip, NOW)
+											.snapshot.has_value()) ;
+			const auto recreatedHead =
+				readStoreTestFile( Access::isolatedRoot( *recreated.store) /
+								  L"head.bin") ;	// 新しい原ciphertext pinです。
+			const auto rejected = Access::migrateNamespaceIsolated(
+				*recreated.store, recordDigest( key, assetText( recreatedHead)),
+				expiredNow) ;	// 既存先をmergeしません。
+			DRIVERCRATE_EXPECT( context,
+							   rejected.error == ERROR_ALREADY_EXISTS &&
+								   rejected.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
+			DRIVERCRATE_EXPECT( context,
+							   production.store->reload( NOW).error == ERROR_REVISION_MISMATCH) ;
+			DRIVERCRATE_EXPECT( context, readStoreTestFile( newPath / L"head.bin") == oldHead) ;
+		}
+	}
+
+	std::cout << "Signed index store migration assertions: "
+			  << context.assertionCount() - initialAssertions
+			  << ", failures: " << context.failureCount() - initialFailures << '\n' ;
 }
 
 namespace {

@@ -37,6 +37,7 @@
     "docs/adr/0376-verified-unsigned-presign-caller-refresh.md",
     "docs/adr/0377-asset-upload-length-and-pinned-draft-recovery.md",
     "docs/adr/0379-local-prepublication-verification-without-actions.md",
+    "docs/adr/0380-signed-index-trust-domain-store-migration.md",
     "docs/architecture.md",
     "docs/c_cpp_coding_standard.md",
     "docs/collector-setup-guide.md",
@@ -168,6 +169,7 @@
     "src/app/collector_setup.manifest",
     "src/app/collector_setup.rc",
     "src/app/collector_setup_main.cpp",
+    "src/app/index_store_migration_main.cpp",
     "src/app/local_driver_collector_main.cpp",
     "src/app/local_index_signing_main.cpp",
     "src/app/main.cpp",
@@ -305,6 +307,7 @@
     "src/platform/hp_update_provider.cpp",
     "src/platform/hp_update_provider.h",
     "src/platform/index_distribution_trust.h",
+    "src/platform/index_legacy_migration_trust.h",
     "src/platform/indexed_driver_package_inspection.cpp",
     "src/platform/indexed_driver_package_inspection.h",
     "src/platform/inf_dependency_native.cpp",
@@ -954,6 +957,11 @@
       "kind": "source-contract-document"
     },
     {
+      "owner": "src/platform/signed_index_store.cpp",
+      "input": "docs/adr/0380-signed-index-trust-domain-store-migration.md",
+      "kind": "source-contract-document"
+    },
+    {
       "owner": "scripts/package-collector.ps1",
       "input": "LICENSE",
       "kind": "collector-license"
@@ -1068,12 +1076,12 @@
     }
   ],
   "limitations": [
-    "ADR0379 replaces the automatic Actions workflow with local prepublication verification; the old 822-file snapshot must not be reused as the current candidate. Remote workflow removal and fresh snapshot acceptance are not performed here.",
-    "Candidate source list only; final allowlist approval and minimal public document/link curation are pending.",
+    "ADR0379 requires local prepublication verification. The initial 822-file public snapshot was accepted separately; it is not the current 825-file candidate with ADR0380 and the explicit migration sources.",
+    "Candidate source list only; finalAllowlist=false is the checker contract. A separate reviewer receipt must identify the exact current raw source pins and verification results.",
     "Static quoted includes/imports/literal CMake references and explicit package edges are checked; arbitrary dynamic path semantics are not proven.",
-    "Fresh native Debug/Release build, complete required tests and final source/license/secret/history audit remain NOT_RUN.",
+    "Fresh native Debug/Release build, required tests and source/license/secret audit results are recorded outside the published source for each fixed candidate; this manifest alone makes no acceptance claim.",
     "Live maintenance reference probes can require explicit historical evidence and are not deterministic required tests; no work inputs are exported.",
-    "Actual collector/setup package regeneration, protected runtime/Task deployment, ordinary app acceptance and GitHub/Public approval remain pending.",
+    "Public signed-index assets and bounded ordinary-app acquisition/inspection have been accepted separately. Application/collector binary releases, actual driver installation, Public daily publishing, daily continuity and another-PC transfer remain unaccepted; old daily/smoke tasks are disabled.",
     "Original FAIL/ERROR/NOT_RUN and unknown device applicability are not converted to success."
   ]
 }

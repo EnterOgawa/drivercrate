@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest_tests.h
  * @brief RAM内RSA署名によるmanifest認証試験を宣言します。
- * @version 01.04.00
+ * @version 01.05.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/11  署名済み配布recordの独立native groupを追加。
  * Ver.01.03.00 Shunji Ogawa  2026/10/11  隔離diskの保護head保存試験groupを追加。
  * Ver.01.04.00 Shunji Ogawa  2026/10/11  保存snapshotの有限read-only resolver groupを追加。
+ * Ver.01.05.00 Shunji Ogawa  2026/10/19  実DPAPI旧headの不変移動回帰を追加。
  * </pre>
  *
  * @note Test target専用です。秘密鍵をexport・保存・log出力せず、実deviceや通信を使いません。
@@ -56,6 +57,11 @@ void runSignedIndexRecordsTests( TestContext &context) ;
  * @note 製品store、network、実端末適合、実導入、process再起動は実行しません。
  */
 void runSignedIndexStoreTests( TestContext &context) ;
+/** @brief 実署名/DPAPIの隔離rootで履歴移動と世代/中断/拒否を検査します。
+ * @param[in,out] context 共通unit assertion集計先です。
+ * @note 固定ProgramData/実鍵/実通信へアクセスしません。
+ */
+void runSignedIndexStoreMigrationTests( TestContext &context) ;
 /** @brief 実署名・gzip・schema・隔離commit／reloadから公開ID照合seamを検査します。
  * @param[in,out] context 共通unit assertion集計先。
  * @note Fake resolverを使用し、実端末適合・通常worker／UI・取得導入へ接続しません。

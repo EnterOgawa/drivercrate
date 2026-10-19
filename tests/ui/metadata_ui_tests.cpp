@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_tests.cpp
  * @brief 製品と同じWin32画面の情報検索専用内部試験。
- * @version 01.30.01
+ * @version 01.30.02
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -58,6 +58,7 @@
  * Ver.01.29.00 Shunji Ogawa  2026/10/17  限定入口で独立control描画とGDI/WIC/PNG原pixelを比較。
  * Ver.01.30.00 Shunji Ogawa  2026/10/18  UI試験を専用非入力desktopで自己監督し所有終端を検査。
  * Ver.01.30.01 Shunji Ogawa  2026/10/18  子環境keyとmodal所有判定を限定し実観測契約を正確化。
+ * Ver.01.30.02 Shunji Ogawa  2026/10/19  部分内容結果と候補発行を併記し未導入を保持する表示を検証。
  * </pre>
  *
  * @note 明示optionでのみ起動し、実device・network・取得・復旧・導入へ接続しない。
@@ -2294,6 +2295,35 @@ struct MainWindowMetadataTestAccess {
 			GetWindowTextW( window.status_, buffer.data(), static_cast<int>( buffer.size())) ;
 		return copied > 0 ? std::wstring( buffer.data(), static_cast<std::size_t>( copied))
 						  : std::wstring{} ;
+	}
+
+	/**
+	 * @brief 部分内容合格でも候補を保持し、全件未接続や導入済みと表示しないことを確認します。
+	 * @param[in] window 同じ通知から候補と部分summaryを受理した本物Window。
+	 * @param[in,out] context 実controlと所有本文のassertion集計先。
+	 */
+	static void verifyPartialIndexPublication( const MainWindow &window, test::TestContext &context)
+	{
+		const auto status = indexStatusText( window) ;	// 実下部controlが保持する部分結果です。
+		DRIVERCRATE_EXPECT( context, status == window.loadString( IDS_INDEX_CONTENT_PARTIAL)) ;
+		DRIVERCRATE_EXPECT( context, status.find( L"拒否・不足") != std::wstring::npos) ;
+		DRIVERCRATE_EXPECT( context, status.find( L"導入経路は未接続") == std::wstring::npos) ;
+		DRIVERCRATE_EXPECT( context, status.find( L"候補ごとの導入可否") != std::wstring::npos) ;
+		DRIVERCRATE_EXPECT( context,
+						   status.find( L"インストールは実行していません") != std::wstring::npos) ;
+		DRIVERCRATE_EXPECT( context, window.preparationResultText_.find( L"3 / 2 / 1 / 0 / 1") !=
+										std::wstring::npos) ;
+		DRIVERCRATE_EXPECT( context,
+						   window.preparationResultText_.find( L"80070032") != std::wstring::npos) ;
+		DRIVERCRATE_EXPECT( context, window.preparationResultText_.find( window.loadString(
+										IDS_PREPARATION_AUDIT_READY)) != std::wstring::npos) ;
+		DRIVERCRATE_EXPECT( context,
+						   std::ranges::count_if( window.candidates_, []( const auto &candidate) {
+							   return candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
+									  candidate.installable ;
+						   }) == 1) ;
+		DRIVERCRATE_EXPECT( context, !IsWindowEnabled( window.installButton_) &&
+										window.checkedCandidateIndexes().empty()) ;
 	}
 
 	/**
@@ -4756,9 +4786,10 @@ void runSignedIndexBindingUiScenarios( TestContext &context)
 {
 	const auto		 before			= context.assertionCount() ;	// 新有限caseの開始assertion数です。
 	const auto		 beforeFailures = context.failureCount() ;		// 元失敗を保持する開始値です。
-	const std::array names{"P01-UI",		 "P05-UI",			"N20-UI-REPORT", "N23-UI-STAGE",
-						   "N26-UI-RESTORE", "N25-UI-DUPLICATE"} ;	// 事前固定した有限caseです。
-	// 六固定条件を一Window/一workerずつ直列に実行して全条件で終了します。
+	const std::array names{
+		"P01-UI",		  "P05-UI",			  "N20-UI-REPORT", "N23-UI-STAGE",
+		"N26-UI-RESTORE", "N25-UI-DUPLICATE", "P06-UI-PARTIAL"} ;	// 事前固定した有限caseです。
+	// 七固定条件を一Window/一workerずつ直列に実行して全条件で終了します。
 	for( unsigned mode = 0U; mode < names.size(); ++mode) {
 		std::cout << "BINDING_BEGIN case=" << names[mode] << " records=" << (mode == 1U ? 2U : 1U)
 				  << '\n' ;
@@ -4919,10 +4950,42 @@ void runSignedIndexBindingUiScenarios( TestContext &context)
 					break ;
 				}
 
+				// 候補発行済みでも一部INFが未対応となる表示入力を、既存六条件と分けて固定します。
+				if( mode == 6U) {
+					auto &summary =
+						// 表示用の人工部分結果です。
+						prepared->indexPreparation.items.front() ;
+					summary.inventoryFileCount		  = 3U ;
+					summary.infCount				  = 2U ;
+					summary.parsedInfCount			  = 1U ;
+					summary.signatureRejectedInfCount = 0U ;
+					summary.acceptedInfCount		  = 1U ;
+					summary.firstInfRejection =
+						static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) ;
+					auto &report = prepared->preparationResult.auditReports
+									   .front() ;	// 同対象の人工監査集計です。
+					report.infCount				 = 2U ;
+					report.firstContentRejection = summary.firstInfRejection ;
+				}
+
 				Access::dispatchIndex( window, *prepared) ;
 				DRIVERCRATE_EXPECT(
 					context, Access::controller( window).state() == ApplicationState::SCAN_READY &&
 								 Access::count( window) == rowsBefore + original.size()) ;
+				// 部分結果の候補を未選択で保持し、実行操作前の表示だけを検証して終了します。
+				if( mode == 6U) {
+					Access::verifyPartialIndexPublication( window, context) ;
+					const auto observed = bound.observe() ;	// 同workerの完全低位fakeだけです。
+					DRIVERCRATE_EXPECT( context, observed.stages == 0U && observed.installs == 0U &&
+													observed.restoreBegins == 0U &&
+													observed.restoreCompletes == 0U) ;
+					std::cout << "BINDING_PARTIAL case=" << names[mode]
+							  << " acceptedInf=1 infCount=2 firstInfRejection=0x80070032"
+							  << " published=" << original.size()
+							  << " selection=0 install=0 restore=0\n" ;
+					break ;
+				}
+
 				Access::dispatchIndex( window, *prepared) ;
 				DRIVERCRATE_EXPECT( context, Access::count( window) == rowsBefore + original.size()) ;
 				Access::verifyIndexSelectionBoundary( window, context, identities) ;

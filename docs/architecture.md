@@ -47,6 +47,11 @@ UIは種類→device→現在版／候補のtreeを表示し、基本driverに�
 必須条件が成立した計画だけを私有routingへcommitします。元archive、必要INF／CATと参照file、封印と
 handleを保持し、直前に再検証します。別sessionや同hashの別workspaceへの付替え、未知・重複・staleを拒否します。
 
+通常配布と検証用storeは用途別domainへ分離し、domainごとの世代下限を保持します。
+旧共用storeは削除・resetせず、明示CLIによる歴史署名認証と同親directory移動を必要とします。
+移行専用の旧公開鍵を通常manifest trustや取得認可へ追加しません。
+[ADR 0380](adr/0380-signed-index-trust-domain-store-migration.md)に契約を記載しています。
+
 標準INFは既存指定導入境界へ接続し、初回と必要Extension／componentを明示します。
 公式installerは専用の署名・publisher・作用範囲と対話引継ぎへ分岐し、INF rankや内容合格を合成しません。
 scan中のEXE／MSI実行や無関係なapp・firmware追加は行いません。
@@ -79,15 +84,19 @@ v5は正式原点へ結合した明示一回monitorを持ちます。実装・�
 ## 検証状態
 
 限定した実収集・取得と、INFを含むドライバー本体の内容検査には正常例があります。
-通常画面で実端末に照合した正常候補の表示・実取得を一連で確認する受入は未完了です。
+通常画面ではPublic索引のHTTP 200・世代5保存、1 packageの実取得・内容検査と端末内照合を確認しました。
+72 INF中57件が内容・署名検査に合格、15件は未解析・未対応で、全体は部分結果です。
+system照合57組のうち3組が合格し、同じ1機器に標準INFの旧版候補3件を発行しました。判定不能0、候補は未選択です。
 現在の必須source gateと決定的unit／CLI／UIは資格付きで技術受入済みです。
 実driver導入と必要Extensionの個別反映は未確認です。
 通常製品の固定配布公開鍵と独立revision1取得policyはsourceへ登録済みです。ローカル受入optionは
 既定OFFで、過去の受入profileの鍵・同意・期限を通常製品へ引き継ぎません。
 現行ソースに対応する収集用ローカルv5 packageの配置・検査・保持／解除と、非通信の初期化・検証・
 停止export／import・人工中断からのnative再開は、このPCで有限に受入済みです。空のローカルmonitorによる確認で、
-実正本の結合・オンライン開始、実GitHub→通常アプリの正常候補・取得、日次継続／再起動、別PC移設は未受入です。
-画像metadata、過去Git履歴、最終公開一覧と新しい公開用build、Private push／readback、本人のPublic承認も
-未完了です。814件のsource候補は最終allowlistではありません。
+実正本の結合・オンライン開始、日次継続／再起動、別PC移設は未受入です。
+公開sourceは私有履歴と分離し、初回822 fileのsnapshotをローカル検証して公開済みです。
+後続変更も固定snapshot自身を検証し、公開履歴へ追加します。manifestの`finalAllowlist=false`は
+候補契約であり、最終確認のreceiptとは別です。公開Releaseは署名索引だけで、アプリ・collectorのbinaryは未配布です。
+Public向け日次publisherは未対応で、旧日次・smoke Taskは停止中です。
 
 [セキュリティ設計](security.md)、[テスト方針](testing.md)、[Release checklist](release-checklist.md)を参照してください。

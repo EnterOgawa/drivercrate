@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_tests.cpp
  * @brief 真署名索引から通常候補とfake指定導入へ接続する有限fixtureを検証します。
- * @version 01.18.00
+ * @version 01.18.01
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -41,6 +41,7 @@
  * Ver.01.17.00 Shunji Ogawa  2026/10/15  fake復旧前同期とjoin後の非署名counter観測を追加。
  * Ver.01.17.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.18.00 Shunji Ogawa  2026/10/16  索引通信結果の可視導線と同版publicationの画面受入を追加。
+ * Ver.01.18.01 Shunji Ogawa  2026/10/19  取得前参照の欠損値と現在情報・検証INF情報の分離を確認。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -134,6 +135,8 @@ struct NativeFixtureState {
 	std::array<bool, 32>						   used{} ;
 	/// 本体へ通常propertyとして返す現在版です。
 	std::wstring								   currentVersion{L"0.9.0.0"} ;
+	/// 現在driverだけの発行元です。候補INFの発行元とは独立に固定します。
+	std::wstring								   currentProvider{L"Fixture Vendor"} ;
 	/// 固定個別失敗または再起動条件です。
 	unsigned									   mode{} ;
 	/// 一般NetまたはPortsの固定fixtureです。
@@ -1089,7 +1092,9 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 		// providerとmanufacturerの要求へ固定人工vendorを返します。
 		else if( sameKey( *key, DEVPKEY_Device_DriverProvider) ||
 				sameKey( *key, DEVPKEY_Device_Manufacturer)) {
-			text = L"Fixture Vendor" ;
+			text = sameKey( *key, DEVPKEY_Device_DriverProvider) && !updated
+					   ? activeNative->currentProvider
+					   : L"Fixture Vendor" ;
 		}
 		// Class要求へNetまたはPortsの固定classを返します。
 		else if( sameKey( *key, DEVPKEY_Device_Class)) {
@@ -1364,7 +1369,8 @@ BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 	}
 
 	driver->DriverDate = date( candidate || updated) ;
-	wcscpy_s( driver->ProviderName, L"Fixture Vendor") ;
+	wcscpy_s( driver->ProviderName,
+			 candidate || updated ? L"Fixture Vendor" : activeNative->currentProvider.c_str()) ;
 	wcscpy_s( driver->MfgName, L"Fixture Vendor") ;
 	wcscpy_s( driver->Description, L"Fixture Device") ;
 	driver->Reserved = 1U ;
@@ -2522,7 +2528,11 @@ void runSignedIndexCandidateBindingTests( TestContext						   &context,
 	// 開始時の失敗数。既存失敗を今回の結果へ加算しない。
 	const auto failures = context.failureCount() ;
 	// 元ZIPから採取した全memberの実hash期待値。
-	const auto files = signatureFiles( zip) ;
+	const auto files  = signatureFiles( zip) ;
+	const auto source = services.load( services.utc()) ;	// 実署名済みfixtureの元配布申告です。
+	DRIVERCRATE_EXPECT(
+		context, source.snapshot && source.snapshot->schemaReceipt().records().size() == 1U &&
+					 source.snapshot->schemaReceipt().records().front().version.value == "1.2.3.4") ;
 	DRIVERCRATE_EXPECT( context, !driver_store_inf_detail::Access::create(
 									{})) ;	// 不完全表のnative fallbackを拒否します。
 	const auto ownerInf = std::ranges::find_if( files, []( const auto &file) {
@@ -2556,12 +2566,13 @@ void runSignedIndexCandidateBindingTests( TestContext						   &context,
 	// Netは通常更新一回、Portsは版分類・失敗・再起動を別modeで確認します。
 	for( unsigned mode = 0U; mode < (network ? 1U : 6U); ++mode) {
 		// 同workerが寿命内だけ借用する低位API状態の共有所有者。
-		auto native			   = std::make_shared<NativeFixtureState>() ;
-		native->mode		   = mode ;
-		native->nativeCase	   = mode == 5U ? SignedIndexBindingNativeCase::INITIAL
-											: SignedIndexBindingNativeCase::NORMAL ;
-		native->network		   = network ;
-		native->currentVersion = mode == 1U ? L"1.0.0.0" : mode == 2U ? L"2.0.0.0" : L"0.9.0.0" ;
+		auto native				= std::make_shared<NativeFixtureState>() ;
+		native->mode			= mode ;
+		native->nativeCase		= mode == 5U ? SignedIndexBindingNativeCase::INITIAL
+											 : SignedIndexBindingNativeCase::NORMAL ;
+		native->network			= network ;
+		native->currentVersion	= mode == 1U ? L"1.0.0.0" : mode == 2U ? L"2.0.0.0" : L"0.9.0.0" ;
+		native->currentProvider = L"Current Fixture Vendor" ;
 		// 一modeのworker寿命へ固定する完全fake依存のcopy。
 		auto fixed	   = services ;
 		auto signature = std::make_shared<driver_package_signature_detail::ScopedFixture *>(
@@ -2618,6 +2629,53 @@ void runSignedIndexCandidateBindingTests( TestContext						   &context,
 				return candidate.providerId == SIGNED_INDEX_PROVIDER_ID && !candidate.installable ;
 			}) ;
 		DRIVERCRATE_EXPECT( context, references == 1) ;
+		const auto reference =
+			std::ranges::find_if( scanned->scanResult.candidates, []( const auto &candidate) {
+				return candidate.providerId == SIGNED_INDEX_PROVIDER_ID && !candidate.installable ;
+			}) ; // 内容検査前に通常画面へ渡された実参照行です。
+		// 参照が実在した場合だけ同deviceの現在観測と欠損情報を比較します。
+		if( reference != scanned->scanResult.candidates.end()) {
+			const auto current =
+				std::ranges::find_if( scanned->scanResult.candidates, [&]( const auto &candidate) {
+					return candidate.current &&
+						   candidate.deviceIdentity == reference->deviceIdentity ;
+				}) ; // 元scanが所有する現在行を変更せず借用します。
+			DRIVERCRATE_EXPECT( context, current != scanned->scanResult.candidates.end()) ;
+			// 現在版が既知の正例と未導入の正例を同じ参照規則で確認します。
+			if( current != scanned->scanResult.candidates.end()) {
+				DRIVERCRATE_EXPECT(
+					context,
+					current->version == (mode == 5U ? L"" : native->currentVersion) &&
+						current->version != L"1.2.3.4" &&
+						current->provider == (mode == 5U ? L"" : native->currentProvider) &&
+						(mode == 5U ||
+						 (!current->provider.empty() && !current->driverDate.empty()))) ;
+				DRIVERCRATE_EXPECT( context,
+								   reference->manufacturer == current->manufacturer &&
+									   reference->model == current->model &&
+									   reference->driverClass == current->driverClass &&
+									   reference->deviceClassGuid == current->deviceClassGuid &&
+									   reference->discoveryBus == current->discoveryBus) ;
+			}
+
+			DRIVERCRATE_EXPECT(
+				context,
+				reference->version.empty() && reference->provider.empty() &&
+					reference->driverDate.empty() && reference->displayDownloadSize.empty() &&
+					reference->maximumDownloadBytes == 0U && reference->packageIdentity.empty() &&
+					!reference->eulaAccepted && !reference->rebootMayBeRequired &&
+					!reference->browseOnly && reference->requiredExtensionCount == 0U &&
+					reference->requiredDriverComponentCount == 0U) ;
+			DRIVERCRATE_EXPECT(
+				context, !reference->current && !reference->installable &&
+							 !reference->recommended && !reference->allContentCached &&
+							 !reference->assessment && !reference->metadataDistribution &&
+							 !reference->deviceObservation &&
+							 !reference->releaseObservationDifference &&
+							 reference->action == DriverAction::NONE &&
+							 reference->defaultPreference == CandidateDefaultPreference::NONE) ;
+		}
+
 		// scanned所有eventから同期処理中だけ借用する原計画。
 		const auto &plan = *scanned->preparationPlan ;
 		DRIVERCRATE_EXPECT( context,
@@ -2685,6 +2743,10 @@ void runSignedIndexCandidateBindingTests( TestContext						   &context,
 							   controller.state() == ApplicationState::SCAN_READY) ;
 		// 非空を確認した同publication候補。導入終端まで借用する。
 		const auto &candidate = candidates.front() ;
+		DRIVERCRATE_EXPECT(
+			context, candidate.provider == L"Fixture Vendor" && candidate.version == L"1.0.0.0" &&
+						 candidate.provider != native->currentProvider &&
+						 candidate.version != L"1.2.3.4" && candidate.driverDate == L"2026/10/11") ;
 		DRIVERCRATE_EXPECT( context,
 						   candidate.installable && !candidate.recommended &&
 							   candidate.defaultPreference == CandidateDefaultPreference::NONE &&

@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding.cpp
  * @brief 索引の私有取得根拠とWindows指定bindingを原子的候補へ接続します。
- * @version 01.06.01
+ * @version 01.06.02
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * Ver.01.05.01 Shunji Ogawa  2026/10/15  全体内容INF件数をdevice別導入計画上限から分離。
  * Ver.01.06.00 Shunji Ogawa  2026/10/15  実選択Needs前提を追加INFと分離し候補評価へ接続。
  * Ver.01.06.01 Shunji Ogawa  2026/10/15  再検証成功時も元全体内容検査のHRESULTをreportへ維持。
+ * Ver.01.06.02 Shunji Ogawa  2026/10/19  取得前参照へ現在driverのpackage情報を継承しない。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -548,7 +549,13 @@ std::vector<UpdateCandidate> SignedIndexCandidateBindingSession::makeReferences(
 			continue ;
 		}
 
-		UpdateCandidate candidate = *current ;	// 表示metadataだけを同deviceへ保持します。
+		UpdateCandidate candidate ;	// 未取得packageの情報を現在driverから補完しません。
+		candidate.deviceIdentity  = current->deviceIdentity ;
+		candidate.manufacturer	  = current->manufacturer ;
+		candidate.model			  = current->model ;
+		candidate.driverClass	  = current->driverClass ;
+		candidate.deviceClassGuid = current->deviceClassGuid ;
+		candidate.discoveryBus	  = current->discoveryBus ;
 		candidate.identity		  = L"index-reference-" + std::to_wstring( relationIndex) ;
 		candidate.providerId	  = SIGNED_INDEX_PROVIDER_ID ;
 		candidate.packageIdentity.clear() ;

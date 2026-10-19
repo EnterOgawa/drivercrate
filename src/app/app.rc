@@ -2,7 +2,7 @@
 /**
  * @file app.rc
  * @brief DriverCrate Windows resource定義。
- * @version 01.13.00
+ * @version 01.13.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -85,6 +85,7 @@
  * Ver.01.11.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.12.00 Shunji Ogawa  2026/10/16  索引通信結果の可視導線と同版publicationの画面受入を追加。
  * Ver.01.13.00 Shunji Ogawa  2026/10/16  索引通信詳細の全文と数値末尾の実control観測を追加。
+ * Ver.01.13.01 Shunji Ogawa  2026/10/19  内容部分結果と候補別導入可否・未導入を区別する。
  * </pre>
  *
  * @note Application icon、executable version、manifest、および日本語UI文字列を定義します。
@@ -607,7 +608,7 @@ BEGIN
 	IDS_INDEX_CONTENT_COMPLETED "索引の共通内容検査は完了しました。個別INFの拒否と内容合格を別に示します。"
 	IDS_INDEX_CONTENT_FAILED "索引の内容検査は拒否・失敗または未実施です。取得結果とは独立しています。"
 	IDS_INDEX_CONTENT_COUNTS "通常file / 発見INF / 構造解析完了INF / 署名拒否INF / 内容署名合格INF: %1"
-	IDS_INDEX_CONTENT_PARTIAL "取得処理は終了しました。索引の内容に拒否・不足があり、導入経路は未接続です。個別結果を確認してください。"
+	IDS_INDEX_CONTENT_PARTIAL "取得処理は終了しました。索引の内容に拒否・不足があります。候補ごとの導入可否と個別結果を確認してください。インストールは実行していません。"
 	IDS_INDEX_CONTENT_ITEM "索引の取得対象 %1"
 	IDS_INDEX_TERMS_SUBJECT "規約の出典主体: %1"
 	IDS_INDEX_PREREQUISITE_CONFIRM "次の具体的な取得条件を確認しましたか。未確認の条件は取得を保留してください。"

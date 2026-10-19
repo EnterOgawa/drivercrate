@@ -2,7 +2,7 @@
 /**
  * @file test_main.cpp
  * @brief DriverCrate単体試験エントリーポイント。
- * @version 01.30.00
+ * @version 01.31.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -69,6 +69,7 @@
  * Ver.01.28.00 Shunji Ogawa  2026/10/16  固定GitHub refreshの完全fake回帰入口を追加。
  * Ver.01.29.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.30.00 Shunji Ogawa  2026/10/17  署名索引のHTTP・実容量三group限定入口を追加。
+ * Ver.01.31.00 Shunji Ogawa  2026/10/19  保護storeと認証移動の限定回帰入口を追加。
  * </pre>
  *
  * @note 全unit test groupを順に実行し、process終了codeを返します。
@@ -194,6 +195,15 @@ int main( const int argc, const char *const argv[])
 		drivercrate::test::runCandidateAuditTests( context) ;
 		// 通常aggregateは既存の全groupと限定optionをそのまま維持します。
 #else
+		// 実DPAPIの自作rootだけで旧store回帰と移動回帰を固定実行します。
+		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-store") {
+			drivercrate::test::runSignedIndexStoreTests( context) ;
+			drivercrate::test::runSignedIndexStoreMigrationTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
 		// RAM暗号・実容量・完全fake HTTPの三groupだけを固定順で実行します。
 		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-boundaries") {
 			const int manifestAssertions = context.assertionCount() ;	// Manifest群前の原件数です。
@@ -312,6 +322,7 @@ int main( const int argc, const char *const argv[])
 		drivercrate::test::runSignedIndexRefreshTests( context) ;
 		drivercrate::test::runSignedIndexRecordsTests( context) ;
 		drivercrate::test::runSignedIndexStoreTests( context) ;
+		drivercrate::test::runSignedIndexStoreMigrationTests( context) ;
 		drivercrate::test::runSignedIndexRecordLookupTests( context) ;
 		drivercrate::test::runProtectedInstallTests( context) ;
 		drivercrate::test::runNvidiaCatalogParserTests( context) ;

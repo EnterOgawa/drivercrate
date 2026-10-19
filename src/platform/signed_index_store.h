@@ -2,7 +2,7 @@
 /**
  * @file signed_index_store.h
  * @brief 保護headの原子保存後だけ発行する署名索引snapshotを定義します。
- * @version 01.01.00
+ * @version 01.02.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/11  原envelopeとgzipを一headへ保護保存する境界を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/11  通常workerの同scan署名索引読取り境界を接続。
+ * Ver.01.02.00 Shunji Ogawa  2026/10/19  用途別storeと旧head不変の明示移動を追加。
  * </pre>
  *
  * @note Workerで同期I/Oします。通常UI・通信・端末照合・導入許可を実装しません。
@@ -158,6 +159,20 @@ struct IndexStoreResult {
 
 struct IndexStoreOpenResult ;
 
+/** @brief 歴史認証だけの移動結果です。現在有効なsnapshotを発行しません。 */
+struct IndexStoreMigrationResult {
+	/// 成功0、拒否時の元Win32/HRESULTです。
+	NativeError					 error{} ;
+	/// Rename成功または結果不確定を独立して保持します。
+	IndexStoreCommitDisposition	 commit{IndexStoreCommitDisposition::NO_CHANGE} ;
+	/// 実署名と全schemaを認証した世代だけです。
+	std::optional<std::uint64_t> generation ;
+	/// 旧検証用domainへ保全した場合trueです。
+	bool						 localDomain{} ;
+	/// 同じ原headと全認証を移動先で再確認した明示再実行です。
+	bool						 alreadyMigrated{} ;
+} ;
+
 /** @brief 一つの固定rootをpinし、operationごとの実lockでheadを保護します。
  * @note 同時呼出しはshare0 lockで一つだけ成功します。Blocking I/Oをworkerで実行します。
  */
@@ -171,10 +186,19 @@ public:
 	[[nodiscard]] static IndexStoreResult reloadFixedExisting(
 		std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
 	/** @brief 固定ProgramData rootだけを保護して開きます。
-	 * @return 成功時store、失敗時元error。本番鍵集合は空のままです。
-	 * @note 初回だけ保護rootとgenesisを作ります。現工程の試験はこの入口を呼びません。
+	 * @return 成功時store、失敗時元error。通常と検証用の固定domainを分離します。
+	 * @note 旧共用rootが残る間はERROR_REVISION_MISMATCHで明示移行を要求します。
 	 */
-	[[nodiscard]] static IndexStoreOpenResult openFixedProtectedStore() noexcept ;
+	[[nodiscard]] static IndexStoreOpenResult	   openFixedProtectedStore() noexcept ;
+	/** @brief 旧共用rootを実署名認証し、同親の用途別名へhead不変で移動します。
+	 * @param[in] expectedHeadSha256 事前確認した原ciphertextの小文字完全SHA-256です。
+	 * @param[in] nowUtc 現在の信頼UTC。未来発行を履歴として許可しません。
+	 * @return 移動/再実行と元拒否。結果不確定では再読取りが必要です。
+	 * @note 任意path/trustを受理せず、通常scanから呼びません。旧pathは移動後消失します。
+	 */
+	[[nodiscard]] static IndexStoreMigrationResult migrateFixedLegacyStore(
+		std::string_view						expectedHeadSha256,
+		std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
 	/** @brief 保持directory handleを解放し、製品headを削除しません。 */
 	~SignedIndexStore() ;
 	/** @brief Storeの別名copyを禁止します。 */
