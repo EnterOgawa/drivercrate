@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--**************************************************************************-->
+<!--                                                                          -->
+<!--  プログラム名   : app.manifest                                           -->
+<!--  プログラム名称 : DriverCrate Windows manifest定義                       -->
+<!--  バージョン     : 0.1.0                                                  -->
+<!--  作成日         : 2026/09/01                                             -->
+<!--  会社名         : EnterSystem                                            -->
+<!--  作成者         : Shunji Ogawa                                           -->
+<!--                                                                          -->
+<!--**************************************************************************-->
+<!--                                                                          -->
+<!--  VerNo.  更新者名       更新日      コメント                             -->
+<!--  0.1.0   Shunji Ogawa   2026/09/01  新規作成                             -->
+<!--                                                                          -->
+<!--**************************************************************************-->
+<!--                                                                          -->
+<!--  備考                                                                    -->
+<!--      管理者権限、Common Controls v6、およびDPI awarenessを宣言します。   -->
+<!--      UAC promptを回避せず、起動時に利用者の同意を得ます。                -->
+<!--                                                                          -->
+<!--**************************************************************************-->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <assemblyIdentity
+      name="EnterOgawa.DriverCrate"
+      processorArchitecture="amd64"
+      type="win32"
+      version="0.1.0.0" />
+  <description>DriverCrate</description>
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity
+          name="Microsoft.Windows.Common-Controls"
+          processorArchitecture="amd64"
+          publicKeyToken="6595b64144ccf1df"
+          type="win32"
+          version="6.0.0.0" />
+    </dependentAssembly>
+  </dependency>
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">
+        PerMonitorV2,PerMonitor
+      </dpiAwareness>
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">
+        true
+      </longPathAware>
+    </windowsSettings>
+  </application>
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}" />
+    </application>
+  </compatibility>
+</assembly>

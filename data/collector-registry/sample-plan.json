@@ -1,0 +1,10 @@
+{
+  "schema": "dc-sample-acquisition-plan-v1",
+  "revision": "20261003-payload-01",
+  "items": [
+    {"recordId": "asix-ax88179-win11-driver", "format": "ZIP", "maximumBytes": 2097152, "preDownloadConsent": "NO_GATE_OBSERVED"},
+    {"recordId": "asix-ax88772c-win11-driver", "format": "ZIP", "maximumBytes": 2097152, "preDownloadConsent": "NO_GATE_OBSERVED"},
+    {"recordId": "prolific-pl2303g-dchu-1-0-0-1", "format": "ZIP", "maximumBytes": 8388608, "preDownloadConsent": "NO_GATE_OBSERVED"},
+    {"recordId": "focusrite-windows-4-150-0", "format": "EXE", "maximumBytes": 67108864, "preDownloadConsent": "NO_GATE_OBSERVED"}
+  ]
+}

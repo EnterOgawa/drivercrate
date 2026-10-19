@@ -1,0 +1,146 @@
+{
+  "schema": "dc-maintenance-driver-condition-reviews-v1",
+  "reviewDate": "2026-10-06",
+  "registrySha256": "de1aa2a861470afe59ea61c506f7ca3129392cf4164db9835e3ce4feedc2a794",
+  "researchOnly": true,
+  "publishable": false,
+  "installAuthorized": false,
+  "reviews": [
+    {
+      "sourceId": "brainboxes-us-windows-driver-docs",
+      "records": [{"recordId": "brainboxes-boost-usb-511320-driver", "versionField": "packageVersion", "version": "5.1.132.0"}],
+      "declaredOs": ["WINDOWS_10_X64", "WINDOWS_11_X64", "WINDOWS_SERVER_X64"],
+      "serverVersions": ["2016", "2019", "2022", "2025"],
+      "architectures": ["X64"],
+      "sizeDisplay": null,
+      "delivery": "ZIP_WITH_DOCUMENTED_SETUP",
+      "conditions": ["UNPLUG_DEVICE_BEFORE_SETUP", "CONNECT_DEVICE_AFTER_SETUP"],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "sourceId": "rme-windows-downloads",
+      "records": [
+        {"recordId": "rme-fireface-usb-1-277-win64", "versionField": "packageVersion", "version": "1.277"},
+        {"recordId": "rme-madiface-usb-1-0-26-win64", "versionField": "packageVersion", "version": "1.0.26"},
+        {"recordId": "rme-hdspe-4-62-win64", "versionField": "packageVersion", "version": "4.62"}
+      ],
+      "declaredOs": ["WINDOWS_10_X64", "WINDOWS_11_X64"],
+      "serverVersions": [],
+      "architectures": ["X64", "ARM64"],
+      "sizeDisplay": null,
+      "delivery": "ZIP_INSTALLER_MENTIONED",
+      "conditions": ["PACKAGE_README_REQUIRED", "FIRMWARE_LINKS_ARE_SEPARATE_RECORDS"],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "sourceId": "prolific-pl2303g-page",
+      "records": [{"recordId": "prolific-pl2303g-setup-4-10", "versionField": "packageVersion", "version": "4.10.0.0"}],
+      "declaredOs": ["WINDOWS_10_X64", "WINDOWS_11_X64", "WINDOWS_SERVER_X64"],
+      "serverVersions": ["2016", "2019", "2022"],
+      "architectures": ["X64", "X86"],
+      "sizeDisplay": null,
+      "delivery": "DOCUMENTED_INSTALLER",
+      "conditions": ["CHIP_VARIANT_AND_OS_DRIVER_VERSIONS_DIFFER", "SILENT_OPTION_IS_NOT_EXECUTION_AUTHORITY"],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "sourceId": "prolific-pl2303g-page",
+      "records": [{"recordId": "prolific-pl2303g-dchu-1-0-0-1", "versionField": "packageVersion", "version": "1.0.0.1"}],
+      "declaredOs": ["WINDOWS_10_X64", "WINDOWS_11_X64"],
+      "serverVersions": [],
+      "architectures": ["X64", "X86"],
+      "sizeDisplay": null,
+      "delivery": "INF_SETUP_DISTRIBUTION",
+      "conditions": ["CHIP_VARIANT_AND_OS_DRIVER_VERSIONS_DIFFER"],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "sourceId": "asix-ax88179a-page",
+      "records": [{"recordId": "asix-ax88179a-win10-driver", "versionField": "driverVersion", "version": "4.20.1.0"}],
+      "declaredOs": ["WINDOWS_10_X64"],
+      "serverVersions": [],
+      "architectures": ["X64"],
+      "sizeDisplay": "129.2 KB",
+      "delivery": "DRIVER_AND_INSTALLER_LISTED_SEPARATELY",
+      "conditions": ["SELECT_X64_NOT_ARM64", "INSTALLER_VERSION_IS_NOT_DRIVER_VERSION"],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "sourceId": "asix-ax88179a-page",
+      "records": [{"recordId": "asix-ax88179a-win11-driver", "versionField": "driverVersion", "version": "4.22.1.0"}],
+      "declaredOs": ["WINDOWS_11_X64"],
+      "serverVersions": [],
+      "architectures": ["X64"],
+      "sizeDisplay": "129.5 KB",
+      "delivery": "DRIVER_AND_INSTALLER_LISTED_SEPARATELY",
+      "conditions": ["SELECT_X64_NOT_ARM64", "INSTALLER_VERSION_IS_NOT_DRIVER_VERSION"],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "sourceId": "amd-chipset-8-08-12-551",
+      "records": [{"recordId": "amd-chipset-8-08-12-551-win64", "versionField": "packageVersion", "version": "8.08.12.551"}],
+      "declaredOs": ["WINDOWS_10_X64", "WINDOWS_11_X64"],
+      "serverVersions": [],
+      "architectures": ["X64"],
+      "sizeDisplay": null,
+      "delivery": "MULTI_DRIVER_INSTALLER",
+      "conditions": ["PRODUCT_SPECIFIC_OS_SUPPORT", "COMPONENT_SPECIFIC_OS_SUPPORT", "OLDER_INSTALLER_DOWNGRADE_REQUIRES_SEPARATE_REVIEW", "DOWNLOAD_EULA_REQUIRED"],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "sourceId": "nvidia-geforce-581-08-desktop",
+      "records": [{"recordId": "nvidia-geforce-581-08-desktop-win64", "versionField": "driverVersion", "version": "581.08"}],
+      "declaredOs": ["WINDOWS_10_X64", "WINDOWS_11_X64"],
+      "serverVersions": [],
+      "architectures": ["X64"],
+      "sizeDisplay": "853.78 MB",
+      "delivery": "LARGE_OFFICIAL_INSTALLER",
+      "conditions": ["NOT_A_CURRENT_LATEST_VERSION_CLAIM", "LARGE_PACKAGE_BUDGET_AND_MEMBER_CLOSURE_REQUIRED"],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": true
+    },
+    {
+      "sourceId": "intel-ethernet-win11",
+      "records": [{"recordId": "intel-wired-31-2-2-win11", "versionField": "packageVersion", "version": "31.2.2"}],
+      "declaredOs": ["WINDOWS_11_X64"],
+      "serverVersions": [],
+      "architectures": ["X64"],
+      "sizeDisplay": "38.6 MB",
+      "delivery": "ZIP_DRIVER_PACKAGE",
+      "conditions": ["DOWNLOAD_EULA_REQUIRED", "RELEASE_NOTES_AND_README_REQUIRED"],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "sourceId": "intel-wifi-current",
+      "records": [{"recordId": "intel-wifi-24-70-0", "versionField": "packageVersion", "version": "24.70.0"}],
+      "declaredOs": ["WINDOWS_10_X64", "WINDOWS_11_X64"],
+      "serverVersions": [],
+      "architectures": ["X64"],
+      "sizeDisplay": "51.9 MB",
+      "delivery": "DOCUMENTED_INSTALLER",
+      "conditions": ["DOWNLOAD_EULA_REQUIRED", "AX200_REQUIRES_SEPARATE_PACKAGE", "WIFI7_FEATURES_REQUIRE_WIN11_24H2"],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "sourceId": "intel-bluetooth-current",
+      "records": [{"recordId": "intel-bluetooth-24-70-0", "versionField": "packageVersion", "version": "24.70.0"}],
+      "declaredOs": ["WINDOWS_10_X64", "WINDOWS_11_X64"],
+      "serverVersions": [],
+      "architectures": ["X64"],
+      "sizeDisplay": "61.4 MB",
+      "delivery": "DOCUMENTED_INSTALLER",
+      "conditions": ["DOWNLOAD_EULA_REQUIRED", "AX200_REQUIRES_SEPARATE_PACKAGE", "9560_9462_9461_UPGRADE_FROM_23_10_TO_23_50_REQUIRES_UNPAIRING"],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    }
+  ]
+}

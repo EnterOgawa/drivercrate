@@ -1,0 +1,58 @@
+//------------------------------------------------------------------------------
+/**
+ * @file local_index_acceptance.h.in
+ * @brief 明示local profileだけの非秘密公開pinと独立能力を生成します。
+ * @version 01.00.02
+ * @date 2026/10/13
+ * @author Shunji Ogawa
+ * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
+ *
+ * @par ライセンス
+ * SPDX-License-Identifier: Apache-2.0
+ * 本ファイルには Apache License, Version 2.0 が適用されます。
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @par 会社名
+ * EnterSystem
+ *
+ * @par 更新履歴
+ * <pre>
+ * VerNo.       author        update      comment
+ * Ver.01.00.00 Shunji Ogawa  2026/10/13  Build固定のlocal公開pinと独立能力を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/10/13  同byte pinの生成元をsnake_caseへ整合。
+ * Ver.01.00.02 Shunji Ogawa  2026/10/16  通常配布profileとの排他的選択を明示。
+ * </pre>
+ *
+ * @note Runtime自己提示鍵を読みません。秘密鍵を含めず、OFFでは両集合は空です。
+ * @see docs/adr/0337-local-index-signing-and-build-pins.md
+ */
+//------------------------------------------------------------------------------
+#pragma once
+#include "platform/signed_index_manifest_internal.h"
+#include <array>
+#include <cstdint>
+#include <string_view>
+
+namespace drivercrate::local_index_profile {
+
+// Local受入と製品配布の信頼集合を和集合にしないための固定選択です。
+inline constexpr bool ENABLED = @drivercrate_local_index_enabled@;
+// 一度読んだ不変byteから完全fingerprintとshapeを確認したpublic byteだけです。
+inline constexpr std::array<std::uint8_t, @drivercrate_local_index_key_count@ * 411U> PUBLIC_BLOB{
+	@drivercrate_local_index_blob_values@
+};
+// 公開blobの完全SHA-256。通常profileでは空です。
+inline constexpr std::string_view PUBLIC_FINGERPRINT = "@drivercrate_local_index_fingerprint@";
+// Public fingerprintへ結合したlocal専用ID。通常profileでは空です。
+inline constexpr std::string_view KEY_ID = "@drivercrate_local_index_key_id@";
+// Manifest信頼だけの固定集合。取得能力を自動生成しません。
+inline constexpr std::array<signed_index_detail::TrustKey, @drivercrate_local_index_key_count@U> TRUST_KEYS{{
+	@drivercrate_local_index_trust_entry@
+}};
+// 独立optionでだけ登録したrevision1取得能力の固定集合です。
+inline constexpr std::array<std::string_view, @drivercrate_local_index_acquisition_count@U> ACQUISITION_KEYS{
+	@drivercrate_local_index_acquisition_entry@
+};
+
+} // namespace drivercrate::local_index_profile

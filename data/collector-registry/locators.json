@@ -1,0 +1,3525 @@
+{
+  "asOf": "2026-10-04T10:43:55Z",
+  "installAuthorized": false,
+  "locators": [
+    {
+      "id": "bixolon-locator-page-100",
+      "pageObservation": {
+        "bodyBytes": 90333,
+        "bodySha256": "ec500fd30c9c55ad5688065b71f2ea934354da91699eac0b0f97389dec2bc85c",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-100-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=100",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-101",
+      "pageObservation": {
+        "bodyBytes": 90581,
+        "bodySha256": "60e09b0e0c2608bcf0e00f76311169634dda37bce149ca5fc918102cd69d081d",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-101-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-77",
+        "bixolon-public-driver-79"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=101",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-102",
+      "pageObservation": {
+        "bodyBytes": 64530,
+        "bodySha256": "ae6ce73ffc1299d22e6b72c492b5840dad9255c2010935dfa95109a26509f72f",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-102-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-103"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=102",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-103",
+      "pageObservation": {
+        "bodyBytes": 64523,
+        "bodySha256": "123397bdf50e5080199b01bfde9d1f06422c1b87153d8a49d4c2c68160a4a8a3",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-103-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-104"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=103",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-12",
+      "pageObservation": {
+        "bodyBytes": 112698,
+        "bodySha256": "35d6492c9adc44e34fda99a822e52dd92b59961a268d666a7752bdbca693aa2c",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-12-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-163"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=12",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-13",
+      "pageObservation": {
+        "bodyBytes": 111589,
+        "bodySha256": "a0d4cee1e8d41f0d1d1faf06a4cd8d82cbe343e235b7faa48232387612572b81",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-13-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-163"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=13",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-131",
+      "pageObservation": {
+        "bodyBytes": 118904,
+        "bodySha256": "d8b8866652f8f7937ea3e88740020e309c061c66e8c8deab7752092cc5d02c39",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-131-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=131",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-132",
+      "pageObservation": {
+        "bodyBytes": 143755,
+        "bodySha256": "96aa240b787585a905fd0744117bd4cbff30fbea979b8254ce01c566666de78e",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-132-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=132",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-133",
+      "pageObservation": {
+        "bodyBytes": 137672,
+        "bodySha256": "72dd43f88884e4a7a18d8ac75cd6c802b3fd1c39c6c80aa9b9a79ca65529fab5",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-133-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=133",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-14",
+      "pageObservation": {
+        "bodyBytes": 112643,
+        "bodySha256": "a982071036ec84af30b32f309ac4da1647278bc8126482db0e8102e5d4317b35",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-14-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-163"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=14",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-140",
+      "pageObservation": {
+        "bodyBytes": 129474,
+        "bodySha256": "eb91d221f51aa31ce8a994d59c359afa37ba68d706d9293a1ccfae83ebed3b20",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-140-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=140",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-141",
+      "pageObservation": {
+        "bodyBytes": 118725,
+        "bodySha256": "afcd7c91eddd99d74349505efa0f514e41ea97f06bda9a06de49adac087c7089",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-141-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=141",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-142",
+      "pageObservation": {
+        "bodyBytes": 100457,
+        "bodySha256": "1f83e0c7a76e39e21a16eafa721cfaebc777d51db6a5a1ad17a11cf73ab5adbc",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-142-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-163"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=142",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-143",
+      "pageObservation": {
+        "bodyBytes": 80046,
+        "bodySha256": "636343af525af251aaf303c088026d4f65ac0c8e8a984645c72e50b03808e433",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-143-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-133"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=143",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-144",
+      "pageObservation": {
+        "bodyBytes": 125843,
+        "bodySha256": "e2d229d0d42c74d84c1a3483fca611cf57a7a05f06c96845a7b1b64964d2cfa5",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-144-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=144",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-149",
+      "pageObservation": {
+        "bodyBytes": 146364,
+        "bodySha256": "64119f82f5dc6fc84b5a663cc655f2345e57050c1f98814befe5e02c170cf552",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-149-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=149",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-15",
+      "pageObservation": {
+        "bodyBytes": 113413,
+        "bodySha256": "f292a4fb2c42dc6ac385ba7bf5a93db39a3c3a548744d0388ed2aa7f975c980c",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-15-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-163"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=15",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-150",
+      "pageObservation": {
+        "bodyBytes": 99553,
+        "bodySha256": "7d550ad931f875c773cbf93a535885b64d724299ac82293fb3be604f83e9f8b5",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-150-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=150",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-152",
+      "pageObservation": {
+        "bodyBytes": 141066,
+        "bodySha256": "80f064dc13d310a9003c37ac1fca8613eb6c2ac262c01515e44528e8051cd3be",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-152-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=152",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-16",
+      "pageObservation": {
+        "bodyBytes": 66361,
+        "bodySha256": "28a59c3a0976b675f12ceb49ae2ff8bdd68fdbcdb5e23860cda7f2784b06f563",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-16-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=16",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-162",
+      "pageObservation": {
+        "bodyBytes": 139772,
+        "bodySha256": "b629bef9df0c8877bcd8f858a029061b7bd69f02aeebffd1dc87a622da6b89f3",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-162-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=162",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-163",
+      "pageObservation": {
+        "bodyBytes": 146471,
+        "bodySha256": "23ea25eb5e923ced4c186635c829297a2bd20c4a8473ef435ff853032a96f1c3",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-163-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=163",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-164",
+      "pageObservation": {
+        "bodyBytes": 147425,
+        "bodySha256": "9303a2f48cac5469b036debe4d2e7d14dec42a1e9abebab73e1dd8ddd22a3e80",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-164-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=164",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-165",
+      "pageObservation": {
+        "bodyBytes": 147442,
+        "bodySha256": "4189ecce7495b95b5dbdce6df3e0c735c08ce6fc94bcc9c6d26a46b07742629b",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-165-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=165",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-167",
+      "pageObservation": {
+        "bodyBytes": 120645,
+        "bodySha256": "a2b88af212d6d4168fa0c64a5ff6a8609d9f5bb1118d161705b5fab0c5bdd2b1",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-167-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=167",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-169",
+      "pageObservation": {
+        "bodyBytes": 134403,
+        "bodySha256": "3f8b15c6aff0a61bfe220a0d62779f0b9ec88f9d449575bac1b37354b3c6c762",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-169-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=169",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-17",
+      "pageObservation": {
+        "bodyBytes": 148131,
+        "bodySha256": "3acb5414783c3c658e4c0ec6f91b45a1be4064dbaa14d1df301a987c9de4fdf5",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-17-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=17",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-170",
+      "pageObservation": {
+        "bodyBytes": 137252,
+        "bodySha256": "9967a53df7118944d7cd0f1240c3d2c689d478b01ffce83af22ee8fff47d8dae",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-170-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=170",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-172",
+      "pageObservation": {
+        "bodyBytes": 136103,
+        "bodySha256": "641155e779445c2da47976c188a5bc33fea4c807b109830ff62e7b1dea2e90d1",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-172-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=172",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-175",
+      "pageObservation": {
+        "bodyBytes": 141176,
+        "bodySha256": "9df5ea68f0230c37ae52c128925e2157099416ce38302241b1cab3bdbe3a5842",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-175-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=175",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-176",
+      "pageObservation": {
+        "bodyBytes": 115631,
+        "bodySha256": "42d73e75c4ece173e880c9efe1920f187f30fd24ec4f8746acc408c8dcd6c473",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-176-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=176",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-178",
+      "pageObservation": {
+        "bodyBytes": 135548,
+        "bodySha256": "add822042267f129271c3284a622d112f02865635d4aabfe73e68f7251b0624a",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-178-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162",
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=178",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-18",
+      "pageObservation": {
+        "bodyBytes": 133215,
+        "bodySha256": "b1bc3bcc92ea8895a89e3375542a96c2ff751a669ee6012510d743d4bf19feb3",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-18-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=18",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-182",
+      "pageObservation": {
+        "bodyBytes": 69216,
+        "bodySha256": "36ed89591c3ed1b977a366557ef030691aa97f1bc0b43ca8439a9cc4e04b7bef",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-182-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-179"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=182",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-185",
+      "pageObservation": {
+        "bodyBytes": 102262,
+        "bodySha256": "9706cd7755e95138862cd9ee8a4e4933b24c8c1689c846668fdf53fc4d030c7a",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-185-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=185",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-187",
+      "pageObservation": {
+        "bodyBytes": 114480,
+        "bodySha256": "d9f4f40c287a5de4d3818c8a2f468a6cf6f70300e22c9df3fc099d9088bae7b5",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-187-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-163"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=187",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-189",
+      "pageObservation": {
+        "bodyBytes": 101717,
+        "bodySha256": "8a90493681ac16e915faab7c03caf09b6811943d219ef76a0b2712bf78b345b5",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-189-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=189",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-19",
+      "pageObservation": {
+        "bodyBytes": 133246,
+        "bodySha256": "4004ee12024adaffc0af28b252ace16c71a6b2745c346cc77ffde0efcefcde12",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-19-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=19",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-190",
+      "pageObservation": {
+        "bodyBytes": 116728,
+        "bodySha256": "d45aafaf58bb93401e81e805af82b51403e11be334f7387f489b8f4badf8e66e",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-190-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=190",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-191",
+      "pageObservation": {
+        "bodyBytes": 117498,
+        "bodySha256": "92f8124d2292466bb39254ef95fe5763d0a07a0d1a890e43d948154cc6bc6dd4",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-191-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=191",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-192",
+      "pageObservation": {
+        "bodyBytes": 122266,
+        "bodySha256": "3269b691227210887b24322d9ea53622ba31910d0251ed420fc22c077d684692",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-192-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=192",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-193",
+      "pageObservation": {
+        "bodyBytes": 114491,
+        "bodySha256": "a74e61c453e894a863700169e6927c0caedfc23196454e41a2a6baed4060bdc2",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-193-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-163"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=193",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-194",
+      "pageObservation": {
+        "bodyBytes": 122975,
+        "bodySha256": "ba5bdb914f09d2457e9851aa4e6586233ce184e172dc82d84144a26098d9a745",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-194-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=194",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-196",
+      "pageObservation": {
+        "bodyBytes": 131841,
+        "bodySha256": "b94a52a41b52c327cda85931fc41d18fd21bf5c990cd558978dc8f3fbe030369",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-196-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=196",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-20",
+      "pageObservation": {
+        "bodyBytes": 125333,
+        "bodySha256": "1a4c628272007d6661aafa9dab4aefd2dd75729a9e39a7144542cbaac1f0acfb",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-20-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=20",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-200",
+      "pageObservation": {
+        "bodyBytes": 129942,
+        "bodySha256": "7eeca2a8c07bf8e281af0403965a3f378e09e7c5903d70e4223b998d4a3ec0d8",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-200-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=200",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-201",
+      "pageObservation": {
+        "bodyBytes": 105535,
+        "bodySha256": "78d4ad7cf458f7bdb1df2799f2cb59958da815d5e33e81c360459748f1b3be29",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-201-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=201",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-207",
+      "pageObservation": {
+        "bodyBytes": 117080,
+        "bodySha256": "ba4c98b4c6ed26a8b3e5f31bce6f537213071e5bb9379e84fdd4c56c2f0d444e",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-207-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=207",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-214",
+      "pageObservation": {
+        "bodyBytes": 115279,
+        "bodySha256": "4d7c84ba7660a3809e3a26ff220d98ea14cfdd21a04b89c32fb0719b77c1d370",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-214-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=214",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-219",
+      "pageObservation": {
+        "bodyBytes": 97105,
+        "bodySha256": "0b3b0affc25b2cc48550369d68f78bf1f80aa286a7db6d061ce796aab9e1271e",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-219-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=219",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-22",
+      "pageObservation": {
+        "bodyBytes": 132186,
+        "bodySha256": "deb0f2ac8dfb80c36d6bbc208acb1b68c80f45cebbfaa8e38a379247adf9caa4",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-22-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=22",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-220",
+      "pageObservation": {
+        "bodyBytes": 133541,
+        "bodySha256": "a35e378bb038eea091d7f17a02db64136edc20119db8f538d4b13697053fca8b",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-220-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=220",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-221",
+      "pageObservation": {
+        "bodyBytes": 133225,
+        "bodySha256": "e9d8aa2cd50a6c2b5033b1d6bb4a0c8a485017612e68076df17acf557cbc981b",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-221-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=221",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-222",
+      "pageObservation": {
+        "bodyBytes": 133340,
+        "bodySha256": "62b574ed74d229132fdfd204b8c7b5a7d6d737e48eff3d8f4805877f10e09d1d",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-222-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=222",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-224",
+      "pageObservation": {
+        "bodyBytes": 133352,
+        "bodySha256": "07bc403ec2969315574c5aeed84c946b01b2ab6c3ec8638469a753affe108272",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-224-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=224",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-225",
+      "pageObservation": {
+        "bodyBytes": 133668,
+        "bodySha256": "6a811c4cdc5df5174557bb8e8483a2cc2a434c138376cb13fb30f3348bd6a3d5",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-225-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=225",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-226",
+      "pageObservation": {
+        "bodyBytes": 123502,
+        "bodySha256": "e2f3d4bb5743bea1caf5626c2823cc68bd3e63f406713c08536ad76f47e413e5",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-226-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=226",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-228",
+      "pageObservation": {
+        "bodyBytes": 112204,
+        "bodySha256": "d63ec0f9040b4e86d0d7eddc1978026ce257e2e5874944ba9da82861d9380a6c",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-228-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=228",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-23",
+      "pageObservation": {
+        "bodyBytes": 134428,
+        "bodySha256": "54d11b099d2ac01499f2594b129bd696efb0b00db1b103638eb27447755c63ac",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-23-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=23",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-230",
+      "pageObservation": {
+        "bodyBytes": 112328,
+        "bodySha256": "0c5ccf1b743c1e5153adeb71929201569199fd786cb16649289ef4f3c5e3a6ee",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-230-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=230",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-236",
+      "pageObservation": {
+        "bodyBytes": 123440,
+        "bodySha256": "ad3d32157613c3d378bb35b180261948ea08534dfb3dcfd14bd3c01adedb0e29",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-236-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=236",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-237",
+      "pageObservation": {
+        "bodyBytes": 123530,
+        "bodySha256": "4c75e647c70238477a742aac3c3e3bafdd75fc28bd58acad94b89d25821ea16b",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-237-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=237",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-238",
+      "pageObservation": {
+        "bodyBytes": 117963,
+        "bodySha256": "46293750587beae5a2b12f63c1c1a793a72cac7bf51fb0e7b623083c3db81109",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-238-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=238",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-24",
+      "pageObservation": {
+        "bodyBytes": 112097,
+        "bodySha256": "8c74f064254befc23fa41c0931d235ba9b0fe947ad3a0a53001a5c5824982414",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-24-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=24",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-241",
+      "pageObservation": {
+        "bodyBytes": 127832,
+        "bodySha256": "14041de4d49784cb729a07afed3129ca467239fd531fa4a0406e987523a56fd4",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-241-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=241",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-242",
+      "pageObservation": {
+        "bodyBytes": 123547,
+        "bodySha256": "fc254e39f30640ea5621922b460ccf693cee1504cf972e0991fa97c69d66104d",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-242-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=242",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-25",
+      "pageObservation": {
+        "bodyBytes": 125713,
+        "bodySha256": "9f5076727e563229d6ed5384c1e1cb8de1797b3e6b97151d3e177bcbdf692ca8",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-25-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=25",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-26",
+      "pageObservation": {
+        "bodyBytes": 113765,
+        "bodySha256": "cc3e6614d78a2877cfa249985d58addbca80c3b63fb0cc95560ec2419c6dc22a",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-26-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-109"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=26",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-27",
+      "pageObservation": {
+        "bodyBytes": 134302,
+        "bodySha256": "19913b4c70bbfe0d191716fa7c23ef939603bcecd728d4d27b44ae64b8d80252",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-27-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=27",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-28",
+      "pageObservation": {
+        "bodyBytes": 126697,
+        "bodySha256": "c4140b40e0cb51579e9eff3ea87c37e65ccc331cd383575c568f05c1709207f2",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-28-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=28",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-29",
+      "pageObservation": {
+        "bodyBytes": 100291,
+        "bodySha256": "c37818c9e624a47de1a9bcb721b31a3f53fbb7d72a7b40ffaa15551eebc2d817",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-29-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=29",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-30",
+      "pageObservation": {
+        "bodyBytes": 97480,
+        "bodySha256": "887b1248105a3fc2c0795d993f9b8bdc7806070fdaafacd1c94aba1de35e203a",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-30-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-64"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=30",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-31",
+      "pageObservation": {
+        "bodyBytes": 119201,
+        "bodySha256": "7056d30d1d8159c5a024ddcf39baf874512eb3b2a6a1daae96fb2dc82126d070",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-31-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-89"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=31",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-32",
+      "pageObservation": {
+        "bodyBytes": 139261,
+        "bodySha256": "48050e4361290270f119d9b602553b1600223ff693147993d2925236641882a3",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-32-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=32",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-33",
+      "pageObservation": {
+        "bodyBytes": 138842,
+        "bodySha256": "45c35a5762b3a58fcf8a5f8fee025e7c94bdc70a4beec24ad207b1ac0ab9615a",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-33-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=33",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-34",
+      "pageObservation": {
+        "bodyBytes": 145391,
+        "bodySha256": "2041fe7c0aac7203230a45524da73b2297e8c637cf7369385f628a253f1f2a07",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-34-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=34",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-35",
+      "pageObservation": {
+        "bodyBytes": 139650,
+        "bodySha256": "cf1d572030370adea6bbbfc6c72dec9d21e865645214697b7938d027a33c946b",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-35-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=35",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-36",
+      "pageObservation": {
+        "bodyBytes": 139653,
+        "bodySha256": "dd8581d10dc178d88d043711d0a1aeb7f7fced2c9c6ba98010cb2abaae4063f1",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-36-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=36",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-37",
+      "pageObservation": {
+        "bodyBytes": 138058,
+        "bodySha256": "b343b8ef2037e032045040fad2112288b855b55b328750459829b18071a8c784",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-37-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=37",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-38",
+      "pageObservation": {
+        "bodyBytes": 124009,
+        "bodySha256": "afda21285d26f2a8aa69b2a1fa7102b0f3a62afb6a0a27268a2a57d709d23e08",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-38-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=38",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-39",
+      "pageObservation": {
+        "bodyBytes": 147330,
+        "bodySha256": "0c3c2280a6423d3283c902de7f9cbbe045f7c571a4d930bec965c63e03ec7e8f",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-39-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=39",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-40",
+      "pageObservation": {
+        "bodyBytes": 123380,
+        "bodySha256": "39285db9ff9a723f1305722ec1ff656733211faf3c383550a83db8c9b30f259d",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-40-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=40",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-42",
+      "pageObservation": {
+        "bodyBytes": 133554,
+        "bodySha256": "48e16a3ff2eb773e492834e9f12b9fffdbebf552ad958e6957a0ddcb2f39adba",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-42-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=42",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-43",
+      "pageObservation": {
+        "bodyBytes": 133656,
+        "bodySha256": "6b599dd85cc84cd86e0bd4bc34be742ef21d91178b83bd60866fd38132708ea0",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-43-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=43",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-44",
+      "pageObservation": {
+        "bodyBytes": 131988,
+        "bodySha256": "6d37eb2dd386702a120129fab222856e6d58aee37848fb99ae63dec65341f6e5",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-44-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=44",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-45",
+      "pageObservation": {
+        "bodyBytes": 110391,
+        "bodySha256": "77269fe495bc62a00ea3a58e68a5abf8d61c8d2501ab4d42aa9a34fd1b604158",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-45-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-180",
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=45",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-46",
+      "pageObservation": {
+        "bodyBytes": 102173,
+        "bodySha256": "9e4f2112c1a6b2aa1749069cafaff789e613eb7ce063ae1db2ef93ac55c98c15",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-46-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=46",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-69",
+      "pageObservation": {
+        "bodyBytes": 134452,
+        "bodySha256": "cd16634d5824c9869c21fc603b9b70bcca0561a2e68b765412e14038759d13f7",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-69-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=69",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-73",
+      "pageObservation": {
+        "bodyBytes": 112657,
+        "bodySha256": "8b8936e7067dd5bd96b9ee3ddf7d956e415f571ccde8798c83d82f3ee2e65e6b",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-73-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=73",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-79",
+      "pageObservation": {
+        "bodyBytes": 105891,
+        "bodySha256": "4006ace275a4671423b089c21f7f9551002d62103d81532eecf44a9f7358c5f3",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-79-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=79",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-81",
+      "pageObservation": {
+        "bodyBytes": 105888,
+        "bodySha256": "3f181eee606448a900629bca82556b89af9d555821cb5d9765b3dddcd965f1d9",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-81-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=81",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-82",
+      "pageObservation": {
+        "bodyBytes": 100873,
+        "bodySha256": "1b8450b2aa9da8e0ecf9c0e415282492f3afe611b1a1dd41b5581c6ec7fc9836",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-82-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=82",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-84",
+      "pageObservation": {
+        "bodyBytes": 69429,
+        "bodySha256": "ba7c0353e4cd0912a2b14687464003bda72826d27c79ce43504351a337c2c5db",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-84-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=84",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-85",
+      "pageObservation": {
+        "bodyBytes": 95054,
+        "bodySha256": "8d76e9169459acb62f9cb35956d38d8a611d13c62d4f132097c74eeab9be944f",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-85-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-163"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=85",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-86",
+      "pageObservation": {
+        "bodyBytes": 95259,
+        "bodySha256": "f57aec3b43c6747d0d29f50038724e42cb1461095e84ec28c1cbd17992365655",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-86-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-163"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=86",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-87",
+      "pageObservation": {
+        "bodyBytes": 102854,
+        "bodySha256": "6b380e4964de23d288352e5e5c10667b4c28b6165bfcde7095f3f62c7ae41cf6",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-87-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-148",
+        "bixolon-public-driver-163"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=87",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-88",
+      "pageObservation": {
+        "bodyBytes": 71000,
+        "bodySha256": "f2dd97c2dd84d80af1ebe13192151349dc4c45dda01d3e175a49857a52283253",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-88-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-71"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=88",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-89",
+      "pageObservation": {
+        "bodyBytes": 77951,
+        "bodySha256": "579a46cd8133432033d2cec9e75879358cfbfb59abd72eafb7b15b746a203e77",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-89-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-72"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=89",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-90",
+      "pageObservation": {
+        "bodyBytes": 69464,
+        "bodySha256": "4c7f0cd4613a1794406185422ee99e96b91e7d3c2796c5b30ee5fc70766f8871",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-90-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=90",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-91",
+      "pageObservation": {
+        "bodyBytes": 84324,
+        "bodySha256": "3ee3c41905cbeed14da20db4c5421ef4ae6bc6bcb6099c87f6b384a89a0cafae",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-91-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-109"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=91",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-92",
+      "pageObservation": {
+        "bodyBytes": 76323,
+        "bodySha256": "5c398f4d3a718c4cc39e103ddde70797c3a1fdeb6b3c4f2eacf020ff5f05d146",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-92-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=92",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-93",
+      "pageObservation": {
+        "bodyBytes": 86434,
+        "bodySha256": "33ff86364216fa8082e005621724b939e032b524ad1710cae24b8e1ac81a99a5",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-93-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-87"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=93",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-94",
+      "pageObservation": {
+        "bodyBytes": 73286,
+        "bodySha256": "bd43c208c1d189bae81b55d2dd068aa474ca4fc88c72a1fb58ecc5f832a30af6",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-94-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-75"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=94",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-95",
+      "pageObservation": {
+        "bodyBytes": 82026,
+        "bodySha256": "11519cf28040602413d4bba484e88fb00eedf1c903d1e17e787175cdc87a9fac",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-95-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-83",
+        "bixolon-public-driver-98"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=95",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-97",
+      "pageObservation": {
+        "bodyBytes": 86697,
+        "bodySha256": "899d2b5df23e517a84dcfc96864fd6bb1a983fe4e32df4e80f609be62b1f44bf",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-97-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-87"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=97",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-98",
+      "pageObservation": {
+        "bodyBytes": 68344,
+        "bodySha256": "ae6e034c58e9cbe4a8fe6d4fe29ffd5e3ccc9bbe4827b239568d86fa09ca401a",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-98-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "bixolon-public-driver-99"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=98",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-page-99",
+      "pageObservation": {
+        "bodyBytes": 71175,
+        "bodySha256": "d6a9f3755dcfe9241de54af1daa779d7779303b4e3b20be26271d52e6e6ad528",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [
+        "bixolon-locator-support-root"
+      ],
+      "productIds": [
+        "bixolon-product-99-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/download_view.php?idx=99",
+      "urlProfile": "PUBLIC_PAGE_ID"
+    },
+    {
+      "id": "bixolon-locator-payload-103",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-102"
+      ],
+      "productIds": [
+        "bixolon-product-102-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-103"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|103|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-104",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-103"
+      ],
+      "productIds": [
+        "bixolon-product-103-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-104"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|104|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-109",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-26",
+        "bixolon-locator-page-91"
+      ],
+      "productIds": [
+        "bixolon-product-26-print",
+        "bixolon-product-91-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-109"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|109|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-133",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-143"
+      ],
+      "productIds": [
+        "bixolon-product-143-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-133"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|133|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-148",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-87"
+      ],
+      "productIds": [
+        "bixolon-product-87-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-148"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|148|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-162",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-131",
+        "bixolon-locator-page-150",
+        "bixolon-locator-page-167",
+        "bixolon-locator-page-169",
+        "bixolon-locator-page-176",
+        "bixolon-locator-page-178",
+        "bixolon-locator-page-185",
+        "bixolon-locator-page-190",
+        "bixolon-locator-page-191",
+        "bixolon-locator-page-192",
+        "bixolon-locator-page-194",
+        "bixolon-locator-page-20",
+        "bixolon-locator-page-200",
+        "bixolon-locator-page-207",
+        "bixolon-locator-page-214",
+        "bixolon-locator-page-219",
+        "bixolon-locator-page-22",
+        "bixolon-locator-page-23",
+        "bixolon-locator-page-24",
+        "bixolon-locator-page-25",
+        "bixolon-locator-page-27",
+        "bixolon-locator-page-28",
+        "bixolon-locator-page-29",
+        "bixolon-locator-page-42",
+        "bixolon-locator-page-43",
+        "bixolon-locator-page-44",
+        "bixolon-locator-page-46",
+        "bixolon-locator-page-69",
+        "bixolon-locator-page-73"
+      ],
+      "productIds": [
+        "bixolon-product-131-print",
+        "bixolon-product-150-print",
+        "bixolon-product-167-print",
+        "bixolon-product-169-print",
+        "bixolon-product-176-print",
+        "bixolon-product-178-print",
+        "bixolon-product-185-print",
+        "bixolon-product-190-print",
+        "bixolon-product-191-print",
+        "bixolon-product-192-print",
+        "bixolon-product-194-print",
+        "bixolon-product-20-print",
+        "bixolon-product-200-print",
+        "bixolon-product-207-print",
+        "bixolon-product-214-print",
+        "bixolon-product-219-print",
+        "bixolon-product-22-print",
+        "bixolon-product-23-print",
+        "bixolon-product-24-print",
+        "bixolon-product-25-print",
+        "bixolon-product-27-print",
+        "bixolon-product-28-print",
+        "bixolon-product-29-print",
+        "bixolon-product-42-print",
+        "bixolon-product-43-print",
+        "bixolon-product-44-print",
+        "bixolon-product-46-print",
+        "bixolon-product-69-print",
+        "bixolon-product-73-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-162"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|162|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-163",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-12",
+        "bixolon-locator-page-13",
+        "bixolon-locator-page-14",
+        "bixolon-locator-page-142",
+        "bixolon-locator-page-15",
+        "bixolon-locator-page-187",
+        "bixolon-locator-page-193",
+        "bixolon-locator-page-85",
+        "bixolon-locator-page-86",
+        "bixolon-locator-page-87"
+      ],
+      "productIds": [
+        "bixolon-product-12-print",
+        "bixolon-product-13-print",
+        "bixolon-product-14-print",
+        "bixolon-product-142-print",
+        "bixolon-product-15-print",
+        "bixolon-product-187-print",
+        "bixolon-product-193-print",
+        "bixolon-product-85-print",
+        "bixolon-product-86-print",
+        "bixolon-product-87-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-163"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|163|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-179",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-182"
+      ],
+      "productIds": [
+        "bixolon-product-182-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-179"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|179|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-180",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-132",
+        "bixolon-locator-page-133",
+        "bixolon-locator-page-140",
+        "bixolon-locator-page-144",
+        "bixolon-locator-page-149",
+        "bixolon-locator-page-152",
+        "bixolon-locator-page-162",
+        "bixolon-locator-page-163",
+        "bixolon-locator-page-164",
+        "bixolon-locator-page-165",
+        "bixolon-locator-page-17",
+        "bixolon-locator-page-170",
+        "bixolon-locator-page-172",
+        "bixolon-locator-page-175",
+        "bixolon-locator-page-178",
+        "bixolon-locator-page-18",
+        "bixolon-locator-page-19",
+        "bixolon-locator-page-196",
+        "bixolon-locator-page-201",
+        "bixolon-locator-page-220",
+        "bixolon-locator-page-221",
+        "bixolon-locator-page-222",
+        "bixolon-locator-page-224",
+        "bixolon-locator-page-225",
+        "bixolon-locator-page-226",
+        "bixolon-locator-page-228",
+        "bixolon-locator-page-230",
+        "bixolon-locator-page-236",
+        "bixolon-locator-page-237",
+        "bixolon-locator-page-238",
+        "bixolon-locator-page-241",
+        "bixolon-locator-page-242",
+        "bixolon-locator-page-32",
+        "bixolon-locator-page-33",
+        "bixolon-locator-page-34",
+        "bixolon-locator-page-35",
+        "bixolon-locator-page-36",
+        "bixolon-locator-page-37",
+        "bixolon-locator-page-38",
+        "bixolon-locator-page-39",
+        "bixolon-locator-page-40",
+        "bixolon-locator-page-45"
+      ],
+      "productIds": [
+        "bixolon-product-132-print",
+        "bixolon-product-133-print",
+        "bixolon-product-140-print",
+        "bixolon-product-144-print",
+        "bixolon-product-149-print",
+        "bixolon-product-152-print",
+        "bixolon-product-162-print",
+        "bixolon-product-163-print",
+        "bixolon-product-164-print",
+        "bixolon-product-165-print",
+        "bixolon-product-17-print",
+        "bixolon-product-170-print",
+        "bixolon-product-172-print",
+        "bixolon-product-175-print",
+        "bixolon-product-178-print",
+        "bixolon-product-18-print",
+        "bixolon-product-19-print",
+        "bixolon-product-196-print",
+        "bixolon-product-201-print",
+        "bixolon-product-220-print",
+        "bixolon-product-221-print",
+        "bixolon-product-222-print",
+        "bixolon-product-224-print",
+        "bixolon-product-225-print",
+        "bixolon-product-226-print",
+        "bixolon-product-228-print",
+        "bixolon-product-230-print",
+        "bixolon-product-236-print",
+        "bixolon-product-237-print",
+        "bixolon-product-238-print",
+        "bixolon-product-241-print",
+        "bixolon-product-242-print",
+        "bixolon-product-32-print",
+        "bixolon-product-33-print",
+        "bixolon-product-34-print",
+        "bixolon-product-35-print",
+        "bixolon-product-36-print",
+        "bixolon-product-37-print",
+        "bixolon-product-38-print",
+        "bixolon-product-39-print",
+        "bixolon-product-40-print",
+        "bixolon-product-45-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-180"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|180|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-181",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-100",
+        "bixolon-locator-page-132",
+        "bixolon-locator-page-133",
+        "bixolon-locator-page-140",
+        "bixolon-locator-page-144",
+        "bixolon-locator-page-149",
+        "bixolon-locator-page-152",
+        "bixolon-locator-page-162",
+        "bixolon-locator-page-163",
+        "bixolon-locator-page-164",
+        "bixolon-locator-page-165",
+        "bixolon-locator-page-17",
+        "bixolon-locator-page-170",
+        "bixolon-locator-page-172",
+        "bixolon-locator-page-175",
+        "bixolon-locator-page-178",
+        "bixolon-locator-page-18",
+        "bixolon-locator-page-189",
+        "bixolon-locator-page-19",
+        "bixolon-locator-page-196",
+        "bixolon-locator-page-201",
+        "bixolon-locator-page-220",
+        "bixolon-locator-page-221",
+        "bixolon-locator-page-222",
+        "bixolon-locator-page-224",
+        "bixolon-locator-page-225",
+        "bixolon-locator-page-226",
+        "bixolon-locator-page-228",
+        "bixolon-locator-page-230",
+        "bixolon-locator-page-236",
+        "bixolon-locator-page-237",
+        "bixolon-locator-page-238",
+        "bixolon-locator-page-241",
+        "bixolon-locator-page-242",
+        "bixolon-locator-page-32",
+        "bixolon-locator-page-33",
+        "bixolon-locator-page-34",
+        "bixolon-locator-page-35",
+        "bixolon-locator-page-36",
+        "bixolon-locator-page-37",
+        "bixolon-locator-page-39",
+        "bixolon-locator-page-40",
+        "bixolon-locator-page-45",
+        "bixolon-locator-page-79",
+        "bixolon-locator-page-81",
+        "bixolon-locator-page-82"
+      ],
+      "productIds": [
+        "bixolon-product-100-print",
+        "bixolon-product-132-print",
+        "bixolon-product-133-print",
+        "bixolon-product-140-print",
+        "bixolon-product-144-print",
+        "bixolon-product-149-print",
+        "bixolon-product-152-print",
+        "bixolon-product-162-print",
+        "bixolon-product-163-print",
+        "bixolon-product-164-print",
+        "bixolon-product-165-print",
+        "bixolon-product-17-print",
+        "bixolon-product-170-print",
+        "bixolon-product-172-print",
+        "bixolon-product-175-print",
+        "bixolon-product-178-print",
+        "bixolon-product-18-print",
+        "bixolon-product-189-print",
+        "bixolon-product-19-print",
+        "bixolon-product-196-print",
+        "bixolon-product-201-print",
+        "bixolon-product-220-print",
+        "bixolon-product-221-print",
+        "bixolon-product-222-print",
+        "bixolon-product-224-print",
+        "bixolon-product-225-print",
+        "bixolon-product-226-print",
+        "bixolon-product-228-print",
+        "bixolon-product-230-print",
+        "bixolon-product-236-print",
+        "bixolon-product-237-print",
+        "bixolon-product-238-print",
+        "bixolon-product-241-print",
+        "bixolon-product-242-print",
+        "bixolon-product-32-print",
+        "bixolon-product-33-print",
+        "bixolon-product-34-print",
+        "bixolon-product-35-print",
+        "bixolon-product-36-print",
+        "bixolon-product-37-print",
+        "bixolon-product-39-print",
+        "bixolon-product-40-print",
+        "bixolon-product-45-print",
+        "bixolon-product-79-print",
+        "bixolon-product-81-print",
+        "bixolon-product-82-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-181"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|181|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-64",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-30"
+      ],
+      "productIds": [
+        "bixolon-product-30-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-64"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|64|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-71",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-88"
+      ],
+      "productIds": [
+        "bixolon-product-88-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-71"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|71|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-72",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-89"
+      ],
+      "productIds": [
+        "bixolon-product-89-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-72"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|72|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-75",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-94"
+      ],
+      "productIds": [
+        "bixolon-product-94-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-75"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|75|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-77",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-101"
+      ],
+      "productIds": [
+        "bixolon-product-101-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-77"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|77|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-79",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-101"
+      ],
+      "productIds": [
+        "bixolon-product-101-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-79"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|79|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-83",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-95"
+      ],
+      "productIds": [
+        "bixolon-product-95-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-83"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|83|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-87",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-93",
+        "bixolon-locator-page-97"
+      ],
+      "productIds": [
+        "bixolon-product-93-print",
+        "bixolon-product-97-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-87"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|87|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-89",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-31"
+      ],
+      "productIds": [
+        "bixolon-product-31-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-89"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|89|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-98",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-95"
+      ],
+      "productIds": [
+        "bixolon-product-95-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-98"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|98|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-payload-99",
+      "pageObservation": null,
+      "parentPageIds": [
+        "bixolon-locator-page-98"
+      ],
+      "productIds": [
+        "bixolon-product-98-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAYLOAD",
+      "recordIds": [
+        "bixolon-public-driver-99"
+      ],
+      "requestCondition": "CONSENT_REQUIRED",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/_lib/download_single.php?FILE_INFO=driver|driver_file|driver_idx|99|driver",
+      "urlProfile": "PUBLIC_DRIVER_SELECTOR"
+    },
+    {
+      "id": "bixolon-locator-support-root",
+      "pageObservation": {
+        "bodyBytes": 105941,
+        "bodySha256": "4c8575dfc029d5bfa1f45ee378490b874573519d90cc04c92f15bb96f0fec0f8",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [],
+      "productIds": [
+        "bixolon-product-100-print",
+        "bixolon-product-101-print",
+        "bixolon-product-102-print",
+        "bixolon-product-103-print",
+        "bixolon-product-12-print",
+        "bixolon-product-13-print",
+        "bixolon-product-131-print",
+        "bixolon-product-132-print",
+        "bixolon-product-133-print",
+        "bixolon-product-14-print",
+        "bixolon-product-140-print",
+        "bixolon-product-141-print",
+        "bixolon-product-142-print",
+        "bixolon-product-143-print",
+        "bixolon-product-144-print",
+        "bixolon-product-149-print",
+        "bixolon-product-15-print",
+        "bixolon-product-150-print",
+        "bixolon-product-152-print",
+        "bixolon-product-16-print",
+        "bixolon-product-162-print",
+        "bixolon-product-163-print",
+        "bixolon-product-164-print",
+        "bixolon-product-165-print",
+        "bixolon-product-167-print",
+        "bixolon-product-169-print",
+        "bixolon-product-17-print",
+        "bixolon-product-170-print",
+        "bixolon-product-172-print",
+        "bixolon-product-175-print",
+        "bixolon-product-176-print",
+        "bixolon-product-178-print",
+        "bixolon-product-18-print",
+        "bixolon-product-182-print",
+        "bixolon-product-185-print",
+        "bixolon-product-187-print",
+        "bixolon-product-189-print",
+        "bixolon-product-19-print",
+        "bixolon-product-190-print",
+        "bixolon-product-191-print",
+        "bixolon-product-192-print",
+        "bixolon-product-193-print",
+        "bixolon-product-194-print",
+        "bixolon-product-196-print",
+        "bixolon-product-20-print",
+        "bixolon-product-200-print",
+        "bixolon-product-201-print",
+        "bixolon-product-207-print",
+        "bixolon-product-214-print",
+        "bixolon-product-219-print",
+        "bixolon-product-22-print",
+        "bixolon-product-220-print",
+        "bixolon-product-221-print",
+        "bixolon-product-222-print",
+        "bixolon-product-224-print",
+        "bixolon-product-225-print",
+        "bixolon-product-226-print",
+        "bixolon-product-228-print",
+        "bixolon-product-23-print",
+        "bixolon-product-230-print",
+        "bixolon-product-236-print",
+        "bixolon-product-237-print",
+        "bixolon-product-238-print",
+        "bixolon-product-24-print",
+        "bixolon-product-241-print",
+        "bixolon-product-242-print",
+        "bixolon-product-25-print",
+        "bixolon-product-26-print",
+        "bixolon-product-27-print",
+        "bixolon-product-28-print",
+        "bixolon-product-29-print",
+        "bixolon-product-30-print",
+        "bixolon-product-31-print",
+        "bixolon-product-32-print",
+        "bixolon-product-33-print",
+        "bixolon-product-34-print",
+        "bixolon-product-35-print",
+        "bixolon-product-36-print",
+        "bixolon-product-37-print",
+        "bixolon-product-38-print",
+        "bixolon-product-39-print",
+        "bixolon-product-40-print",
+        "bixolon-product-42-print",
+        "bixolon-product-43-print",
+        "bixolon-product-44-print",
+        "bixolon-product-45-print",
+        "bixolon-product-46-print",
+        "bixolon-product-69-print",
+        "bixolon-product-73-print",
+        "bixolon-product-79-print",
+        "bixolon-product-81-print",
+        "bixolon-product-82-print",
+        "bixolon-product-84-print",
+        "bixolon-product-85-print",
+        "bixolon-product-86-print",
+        "bixolon-product-87-print",
+        "bixolon-product-88-print",
+        "bixolon-product-89-print",
+        "bixolon-product-90-print",
+        "bixolon-product-91-print",
+        "bixolon-product-92-print",
+        "bixolon-product-93-print",
+        "bixolon-product-94-print",
+        "bixolon-product-95-print",
+        "bixolon-product-97-print",
+        "bixolon-product-98-print",
+        "bixolon-product-99-print"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "bixolon-public-support",
+      "url": "https://www.bixolon.com/support.php",
+      "urlProfile": "QUERYLESS"
+    },
+    {
+      "id": "roland-locator-rubix-root",
+      "pageObservation": {
+        "bodyBytes": 67634,
+        "bodySha256": "de482360bb490238f2cd120a6a7249f273bbfadc1097818bf9dab52b11def8b9",
+        "checkedAt": "2026-10-04T01:27:21Z",
+        "httpStatus": 200,
+        "method": "LOCAL_HTTP"
+      },
+      "parentPageIds": [],
+      "productIds": [
+        "roland-rubix22-audio",
+        "roland-rubix24-audio",
+        "roland-rubix44-audio"
+      ],
+      "publicationCondition": "REVIEW_REQUIRED",
+      "purpose": "PAGE",
+      "recordIds": [
+        "roland-rubix-windows-107"
+      ],
+      "requestCondition": "PUBLIC_METADATA",
+      "sourceId": "roland-rubix-windows-support",
+      "url": "https://www.roland.com/us/support/by_product/rubix22/updates_drivers/3a8362ae-b4e3-473d-b325-2e88c689bd6a/",
+      "urlProfile": "QUERYLESS"
+    }
+  ],
+  "publishable": false,
+  "registry": {
+    "schema": "dc-public-driver-registry-v2",
+    "revision": "20261004-15",
+    "asOf": "2026-10-04T10:41:47Z",
+    "sha256": "de1aa2a861470afe59ea61c506f7ca3129392cf4164db9835e3ce4feedc2a794"
+  },
+  "researchOnly": true,
+  "revision": "20261004-15-locators",
+  "schema": "dc-public-driver-locators-v1"
+}

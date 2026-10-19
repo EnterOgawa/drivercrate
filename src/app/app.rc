@@ -1,0 +1,628 @@
+//------------------------------------------------------------------------------
+/**
+ * @file app.rc
+ * @brief DriverCrate Windows resource定義。
+ * @version 01.13.00
+ * @date 2026/09/01
+ * @author Shunji Ogawa
+ * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
+ *
+ * @par ライセンス
+ * SPDX-License-Identifier: Apache-2.0
+ * 本ファイルには Apache License, Version 2.0 が適用されます。
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @par 会社名
+ * EnterSystem
+ *
+ * @par 移行前更新履歴（製品版）
+ * <pre>
+ * VerNo.       author        update      comment
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  Intel staging失敗時の注意を追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  段階別scan計測の日本語表示を追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  Intel Server最終確認文字列を追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  候補発行状態と件数表示を追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Intel Ethernetの取得前提確認と選択取得を接続。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Release観測差分表示を追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  監査後の候補有無表示を正確化。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  監査合格候補の表示を追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得後監査の件数・状態表示を追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  Broadcom選択取得の状態説明を更新。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  EULA本文と取得再確認の境界を追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得確認と独立した操作状態を接続。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  共通配布情報とIntel公式検索を接続。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  NetXtreme-E表示専用検索を接続。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  WCH公式2経路とfamily別予算を追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  CP210x公式取得とserial共通化。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  公式serial取得と新版受入境界を更新。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  新規作成。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  TreeTable文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  復元ポイント文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  Application icon追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  推奨更新filter文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  一括選択文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  Operation進捗文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  Install後の結果保持表示追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  公式vendor catalog文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Provider取得元設定と状態文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  同一版取得元表示文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Provider coverage文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Local候補到達dialog文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Version情報の制作者表記統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Windows Server install文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  OEM未検証候補警告文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  公式探索経路表示文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Intel ZIP選択文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  Manufacturer intake表示文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Silicon Labs ZIP選択文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  利用者選択coverage文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Prolific ZIP選択文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  WCH ZIP選択文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  WCH CH342／CH343系文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  汎用署名済みINF ZIP文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  候補監査状態文字列追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * </pre>
+ *
+ * @par 更新履歴
+ * <pre>
+ * VerNo.       author        update      comment
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の条件・取消し・表示専用結果を接続。
+ * Ver.01.01.00 Shunji Ogawa  2026/09/14  種類別一覧の分類件数と失効表示を追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/09/15  観測・検証理由・導入方式の固定表示を追加。
+ * Ver.01.03.00 Shunji Ogawa  2026/09/15  共通package入力と内容検査の説明を更新。
+ * Ver.01.03.01 Shunji Ogawa  2026/09/15  内容署名と明示依存の未確認を分離して説明。
+ * Ver.01.04.00 Shunji Ogawa  2026/09/15  公式探索の一scan統一確認表示を追加。
+ * Ver.01.05.00 Shunji Ogawa  2026/09/15  通常scanの協調取消し表示を追加。
+ * Ver.01.06.00 Shunji Ogawa  2026/10/12  索引の取得・内容・未接続結果表示を追加。
+ * Ver.01.07.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
+ * Ver.01.08.00 Shunji Ogawa  2026/10/12  根拠付き初回導入の既存確認文へ操作名称を接続。
+ * Ver.01.09.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
+ * Ver.01.10.00 Shunji Ogawa  2026/10/13  必要構成の件数と適用未確認を明示する文言を追加。
+ * Ver.01.10.01 Shunji Ogawa  2026/10/15  未観測の個別queue完了表現を反映未確認へ整合。
+ * Ver.01.11.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
+ * Ver.01.12.00 Shunji Ogawa  2026/10/16  索引通信結果の可視導線と同版publicationの画面受入を追加。
+ * Ver.01.13.00 Shunji Ogawa  2026/10/16  索引通信詳細の全文と数値末尾の実control観測を追加。
+ * </pre>
+ *
+ * @note Application icon、executable version、manifest、および日本語UI文字列を定義します。
+ */
+//------------------------------------------------------------------------------
+
+#pragma code_page(65001)
+
+#include <Windows.h>
+#include <CommCtrl.h>
+
+#include "app/resource.h"
+#include "drivercrate_version.h"
+
+//------------------------------------------------------------------------------
+// Icon resource定義。
+//------------------------------------------------------------------------------
+IDI_DRIVERCRATE ICON "assets\\drivercrate.ico"
+
+// EULA本文は実行時のplain textだけを表示し、公式の全文をresourceへ同梱しない。
+IDD_PREPARATION_EULA DIALOGEX 0, 0, 560, 404
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "使用許諾の確認（今回の取得対象のみ）"
+FONT 10, "Segoe UI"
+BEGIN
+	LTEXT "以下の全文を確認してください。同意はこの対象・改訂版の今回の取得だけに適用します。",
+		  -1, 10, 9, 540, 26
+	LTEXT "改訂識別子:", -1, 10, 37, 70, 14
+	LTEXT "", IDC_PREPARATION_EULA_REVISION, 82, 37, 468, 14
+	CONTROL "", IDC_PREPARATION_EULA_TEXT, "Edit",
+			WS_BORDER | WS_TABSTOP | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
+			10, 56, 540, 255
+	LTEXT "本文に既存契約（CNDA等）・組織を代表する権限・用途制限などの条件があります。DriverCrateは条件への適合を判定しません。不明または満たさない場合は同意せず中止してください。",
+		  IDC_PREPARATION_PREREQUISITE_NOTE, 10, 317, 540, 30
+	CONTROL "本文記載の取得前提を満たすことを確認しました", IDC_PREPARATION_PREREQUISITES,
+			"Button", BS_AUTOCHECKBOX | WS_TABSTOP, 10, 351, 540, 18
+	PUSHBUTTON "全文に同意する", IDYES, 340, 376, 100, 20
+	DEFPUSHBUTTON "同意しない", IDCANCEL, 450, 376, 100, 20
+END
+
+// 毎回未選択の条件確認だけを行う。PayloadやEULAの承認dialogではない。
+IDD_METADATA_DETAILS DIALOGEX 0, 0, 520, 340
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "情報検索の結果・条件"
+FONT 9, "Segoe UI"
+BEGIN
+	LTEXT "表示専用の詳細と確認状態(&R)", -1, 10, 8, 500, 14
+	EDITTEXT IDC_METADATA_DETAIL_TEXT, 10, 24, 500, 278,
+		ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+	DEFPUSHBUTTON "閉じる(&C)", IDOK, 430, 314, 80, 18
+END
+
+IDD_METADATA_SEARCH DIALOGEX 0, 0, 520, 340
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "情報検索 — 今回の対象と通信条件"
+FONT 9, "Segoe UI"
+BEGIN
+	LTEXT "公式ページの配布情報だけを検索します。ドライバー本体は取得せず、検査用取得・インストール・EULA同意も行いません。現在のデバイス属性は端末内だけで照合します。", -1, 10, 8, 500, 32
+	LTEXT "検索対象(&P): 対応Providerだけ選択できます。毎回、未選択から開始します。", -1, 10, 43, 500, 14
+	CONTROL "", IDC_METADATA_PROVIDER_LIST, "SysListView32",
+		WS_BORDER | WS_TABSTOP | WS_VSCROLL | LVS_REPORT | LVS_SHOWSELALWAYS, 10, 59, 500, 130
+	LTEXT "本文上限: 1応答 2 MiB ／ Provider合計 4 MiB ／ 全体 32 MiB。失敗分とcache本文も計数します。Logical resource上限 2／18、明示送信上限 12／108（Provider／全体）。期限 90秒／300秒。同期API中は直ちに取り消せない場合があります。", -1, 10, 195, 500, 42
+	LTEXT "制限・未知回線では、以下に明示同意しない限り新しい通信を開始しません。通常catalog cacheを有限に読み書きします。これらの上限は回線課金総量の保証ではありません。", -1, 10, 239, 500, 32
+	CONTROL "制限・未知回線のmetadata通信を今回だけ許可する(&N)", IDC_METADATA_NETWORK_APPROVAL,
+		"Button", BS_AUTOCHECKBOX | WS_TABSTOP, 10, 275, 500, 17
+	LTEXT "", IDC_METADATA_SELECTION_STATUS, 10, 296, 500, 15
+	PUSHBUTTON "情報検索を開始(&M)", IDYES, 302, 315, 106, 18
+	DEFPUSHBUTTON "キャンセル", IDCANCEL, 416, 315, 94, 18
+END
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION DRIVERCRATE_VERSION_COMMA
+ PRODUCTVERSION DRIVERCRATE_VERSION_COMMA
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+/* Debug build の version resource にだけ debug 属性を付与する。 */
+#ifdef _DEBUG
+ FILEFLAGS VS_FF_DEBUG
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+	BLOCK "StringFileInfo"
+	BEGIN
+		BLOCK "041104B0"
+		BEGIN
+			VALUE "CompanyName", "EnterSystem"
+			VALUE "FileDescription", "DriverCrate - Windows driver update manager"
+			VALUE "FileVersion", DRIVERCRATE_VERSION_STRING
+			VALUE "InternalName", "DriverCrate"
+			VALUE "LegalCopyright", "Copyright (C) 2026 Shunji Ogawa"
+			VALUE "OriginalFilename", "DriverCrate.exe"
+			VALUE "ProductName", "DriverCrate"
+			VALUE "ProductVersion", DRIVERCRATE_VERSION_STRING
+		END
+	END
+	BLOCK "VarFileInfo"
+	BEGIN
+		VALUE "Translation", 0x0411, 1200
+	END
+END
+
+STRINGTABLE
+BEGIN
+	IDS_DEVICE_PRESENCE_UNKNOWN "現在ドライバー未確認"
+	IDS_DEVICE_PRESENCE_REGISTERED "登録済み"
+	IDS_DEVICE_PRESENCE_NOT_INSTALLED "未導入"
+	IDS_DEVICE_PROBLEM "Windows 問題コード %1"
+	IDS_DEVICE_OBSERVATION_MISSING "現在ドライバー未確認（観測未収集）"
+	IDS_DEVICE_STATUS_UNVERIFIED "問題状態を確認できませんでした"
+	IDS_DEVICE_ATTRIBUTE_FAILURE "属性の一部を確認できませんでした"
+	IDS_DEVICE_OBSERVATION_NOTE "検索時点の観測です。登録済みや問題コードなしは、正常動作・最新・導入適合性の保証ではありません。"
+	IDS_DEVICE_READ_NOT_READ "未照会"
+	IDS_DEVICE_READ_VALUE "値を取得"
+	IDS_DEVICE_READ_EMPTY "空の値"
+	IDS_DEVICE_READ_MISSING "属性なし"
+	IDS_DEVICE_READ_FAILED "読取り失敗"
+	IDS_DEVICE_READ_INVALID "型・内容が不正"
+	IDS_DEVICE_READ_LIMIT "容量上限・取得中のサイズ変化"
+	IDS_DEVICE_FIELD_FRIENDLY "表示名"
+	IDS_DEVICE_FIELD_DESCRIPTION "デバイス説明"
+	IDS_DEVICE_FIELD_MANUFACTURER "製造元"
+	IDS_DEVICE_FIELD_CLASS "クラス"
+	IDS_DEVICE_FIELD_KEY "ドライバー登録属性"
+	IDS_DEVICE_FIELD_INF "INF名の取得"
+	IDS_DEVICE_FIELD_PROVIDER "Provider名"
+	IDS_DEVICE_FIELD_VERSION "現在版"
+	IDS_DEVICE_FIELD_DATE "現在日付"
+	IDS_DEVICE_FIELD_IDENTITY "端末内ID解決"
+	IDS_DEVICE_FIELD_NODE "デバイスの問題状態"
+	IDS_DEVICE_ACCESS_DENIED "アクセス拒否"
+	IDS_DEVICE_DISAPPEARED "デバイス消失"
+	IDS_ASSESSMENT_UNCOLLECTED "詳細未収集（従来の検証範囲を表示）"
+	IDS_ASSESSMENT_TITLE "デバイスと候補の詳細"
+	IDS_ASSESSMENT_HINT "候補行で Enter またはダブルクリックすると詳細を表示します。"
+	IDS_ASSESSMENT_INCONSISTENT "観測・検証の結合を確認できません。再検索してください。"
+	IDS_ASSESSMENT_NEXT "観測を更新するには再検索してください。この画面の確認だけでは取得・導入を行いません。"
+	IDS_ASSESSMENT_STATE_NOT_CHECKED "未確認"
+	IDS_ASSESSMENT_STATE_PASSED "検証合格"
+	IDS_ASSESSMENT_STATE_REJECTED "条件不成立"
+	IDS_ASSESSMENT_STATE_FAILED "確認できませんでした"
+	IDS_ASSESSMENT_STATE_UNSUPPORTED "この検査・方式は未対応"
+	IDS_ASSESSMENT_STATE_NOT_APPLICABLE "検査範囲で非該当"
+	IDS_ASSESSMENT_STATE_WINDOWS "Windows管理"
+	IDS_ASSESSMENT_AXIS_ORIGIN "由来"
+	IDS_ASSESSMENT_AXIS_ACQUISITION "取得・参照ファイル"
+	IDS_ASSESSMENT_AXIS_SIGNATURE "署名"
+	IDS_ASSESSMENT_AXIS_APPLICABILITY "PnP・OS・x64適合"
+	IDS_ASSESSMENT_AXIS_SELECTION "Windowsの選択・順位"
+	IDS_ASSESSMENT_AXIS_DRIVER_ONLY "ドライバーのみの構成"
+	IDS_ASSESSMENT_AXIS_REQUIREMENTS "明示必須条件"
+	IDS_ASSESSMENT_AXIS_METHOD "導入方式"
+	IDS_ASSESSMENT_METHOD_UNKNOWN "方式未確定"
+	IDS_ASSESSMENT_METHOD_WINDOWS "Windows管理"
+	IDS_ASSESSMENT_METHOD_INF "標準INF"
+	IDS_ASSESSMENT_METHOD_INSTALLER "公式installer"
+	IDS_ASSESSMENT_METHOD_MANUAL "手動"
+	IDS_ASSESSMENT_EXECUTOR_AVAILABLE "実行経路あり（導入許可とは別）"
+	IDS_ASSESSMENT_EXECUTOR_UNAVAILABLE "実行経路なし"
+	IDS_ACTION_INITIAL_INSTALL "初回導入"
+	IDS_ASSESSMENT_REASON_NOT_EXAMINED "この詳細は未検査です"
+	IDS_ASSESSMENT_REASON_VALIDATED "当該軸を検証しました"
+	IDS_ASSESSMENT_REASON_WINDOWS "Windowsの管理処理に委譲します"
+	IDS_ASSESSMENT_REASON_API_FAILURE "APIが失敗し、合否を確認できませんでした"
+	IDS_ASSESSMENT_REASON_FORMAT "必要な形式の検査が未対応です。不適合の判定ではありません"
+	IDS_ASSESSMENT_REASON_ORIGIN_UNKNOWN "公式由来が未確認です"
+	IDS_ASSESSMENT_REASON_USER "利用者持込みです。公式由来は証明していません"
+	IDS_ASSESSMENT_REASON_ORIGIN_REJECTED "公式起点の検証で拒否されました"
+	IDS_ASSESSMENT_REASON_DELEGATION "公式recordから取得先への委譲が未確認です"
+	IDS_ASSESSMENT_REASON_NOT_ACQUIRED "検査対象は未取得です"
+	IDS_ASSESSMENT_REASON_MISSING_FILE "参照ファイルが不足しています"
+	IDS_ASSESSMENT_REASON_HASH "期待hashと内容が一致しません"
+	IDS_ASSESSMENT_REASON_SIGNATURE "Windows policyの署名検証で拒否されました"
+	IDS_ASSESSMENT_REASON_PUBLISHER "必要な署名者の根拠が未確認です"
+	IDS_ASSESSMENT_REASON_PNP "実PnP照合で一致しません"
+	IDS_ASSESSMENT_REASON_OS "対象OS条件が一致しません"
+	IDS_ASSESSMENT_REASON_ARCH "x64条件が一致しません"
+	IDS_ASSESSMENT_REASON_RANK "現在の順位を確認できていません"
+	IDS_ASSESSMENT_REASON_LEGACY "旧導入policyで保留中です。基礎適合とは別の判断です"
+	IDS_ASSESSMENT_REASON_SAME "現在driverから変更がありません"
+	IDS_ASSESSMENT_REASON_NOT_RECOMMENDED "Windowsの推奨選択ではありません"
+	IDS_ASSESSMENT_REASON_FIRMWARE "対象そのものがfirmwareです"
+	IDS_ASSESSMENT_REASON_MIXED "選択driverとfirmware更新を分離できません"
+	IDS_ASSESSMENT_REASON_NO_REQUIREMENT "確認した範囲に明示必須条件がありません"
+	IDS_ASSESSMENT_REASON_REQUIREMENT_MISSING "明示必須条件を満たしていません"
+	IDS_ASSESSMENT_REASON_REQUIREMENT_UNKNOWN "明示必須条件の必要値が未確認です"
+	IDS_ASSESSMENT_REASON_EXECUTOR "この方式の実行経路は未実装です"
+	IDS_ASSESSMENT_REASON_SCOPE "実行範囲が未確認です"
+	IDS_ASSESSMENT_REQUIRED "必須"
+	IDS_ASSESSMENT_OPTIONAL "任意・推奨（不足だけで導入を保留しません）"
+	IDS_ASSESSMENT_REQUIREMENT_SATISFIED "充足"
+	IDS_ASSESSMENT_REQUIREMENT_UNSATISFIED "不足"
+	IDS_ASSESSMENT_REQUIREMENT_UNVERIFIED "必要値未確認"
+	IDS_ASSESSMENT_ROLE_BASE "基本driver"
+	IDS_ASSESSMENT_ROLE_EXTENSION "extension INF"
+	IDS_ASSESSMENT_ROLE_COMPONENT "component"
+	IDS_ASSESSMENT_ROLE_UTILITY "utility"
+	IDS_ASSESSMENT_ROLE_FIRMWARE "NVM等の既存状態（更新指示ではありません）"
+	IDS_DIAGNOSTIC_WIN32 "Win32"
+	IDS_DIAGNOSTIC_CONFIGRET "CONFIGRET"
+	IDS_DIAGNOSTIC_HRESULT "HRESULT"
+	IDS_OFFICIAL_DISCOVERY_SCAN_TITLE "公式ドライバー探索（今回の検索のみ）"
+	IDS_OFFICIAL_DISCOVERY_SCAN_INSTRUCTION "取得する範囲を選択してください"
+	IDS_OFFICIAL_DISCOVERY_SCAN_CONTENT "対象Provider:\r\n%1\r\n\r\n公式metadataは固定HTTPS起点だけへ問い合わせます。固定上限は本文2 MiB/resource・4 MiB/Provider・32 MiB/検索全体、resource 2/20、送信112/120、期限90秒/300秒です。\r\n\r\n検査用取得を許可すると、driver packageだけを最大4 file・512 MiBまで取得し得ます。Firmware、utility、applicationは取得・導入しません。これはinstall、EULA同意、最新性・安全性・適合の保証ではありません。\r\n\r\nFresh cacheを使用し、取消し可能な段階で停止します。制限または状態不明回線は下の個別許可がなければ通信しません。"
+	IDS_OFFICIAL_DISCOVERY_METADATA_BUTTON "公式情報だけ確認（本体を取得しない）"
+	IDS_OFFICIAL_DISCOVERY_PACKAGE_BUTTON "ドライバー本体の検査用取得を許可"
+	IDS_OFFICIAL_DISCOVERY_RESTRICTED_NETWORK "この検索に限り、制限・課金制・状態不明回線の通信を許可する"
+	IDS_PROVIDER_PAYLOAD_NOT_APPROVED "公式情報のみ確認・ドライバー本体は未取得"
+	IDS_PROVIDER_NETWORK_NOT_APPROVED "制限または状態不明回線の今回許可なし・未実行"
+	IDS_OFFICIAL_DISCOVERY_FALLBACK "公式探索の取得範囲を選択する画面を表示できないため、検索を開始しません。Windowsの更新と再起動後にも改善しない場合は、診断コードを確認してください。"
+	IDS_SCAN_CANCEL_BUTTON "検索を取消し(&S)"
+	IDS_SCAN_CANCEL_WAIT_BUTTON "取消し待ち"
+	IDS_SCAN_CANCELLING "ドライバー検索の取消し待ち — 実行中のWindows APIまたはProviderが安全に終了した後に停止します。"
+	IDS_SCAN_CANCELLED "ドライバー検索を取り消しました。候補と導入権限は発行していません。"
+	IDS_SCAN_CLOSE "実行中のドライバー検索を取り消し、安全に終了するまで画面を維持します。終了を続けますか？"
+	IDS_METADATA_SEARCH_BUTTON "情報検索(&M)"
+	IDS_METADATA_CANCEL_BUTTON "検索を取消し(&M)"
+	IDS_METADATA_CANCELLING "情報検索の取消し待ち — 同期APIの終了後に停止します。"
+	IDS_METADATA_DIALOG_TITLE "情報検索（配布情報のみ・導入不可）"
+	IDS_METADATA_MODE_COLUMN "この情報検索での扱い"
+	IDS_METADATA_SUPPORTED "選択可: 配布情報のみ"
+	IDS_METADATA_UNSUPPORTED "このmodeは未対応（通常機能は別）"
+	IDS_METADATA_INVENTORY_DEPENDENCY "必須: 現在属性のみ（選択不要）"
+	IDS_METADATA_SELECTED_COUNT "今回の選択: %1 Provider。取得・導入は行いません。"
+	IDS_METADATA_SCANNING "情報検索 — 現在属性と公式配布情報のみ。ドライバー本体は取得しません。"
+	IDS_METADATA_COMPLETED "情報検索完了（適用性・最新性は未確認）"
+	IDS_METADATA_PARTIAL "情報検索は一部未完了 — 確認済み情報だけを保持しています。"
+	IDS_METADATA_CANCELLED "情報検索を取り消しました — 取消し前の確定情報だけを保持しています。"
+	IDS_METADATA_FAILED "情報検索に失敗しました。取得・導入は行っていません。通信条件と診断を確認し、必要なら明示的に再検索してください。"
+	IDS_METADATA_BUDGET_STOP "固定予算で停止"
+	IDS_METADATA_DEADLINE_STOP "期限到達で停止"
+	IDS_METADATA_NETWORK_BLOCKED "制限・未知回線の今回同意なし"
+	IDS_METADATA_NOT_RUN "全体停止後のため未実施"
+	IDS_METADATA_ROW "配布情報のみ・未取得・導入不可"
+	IDS_METADATA_DISTRIBUTION_VERSION "配布版（INF版ではありません）"
+	IDS_METADATA_DISTRIBUTION_COLUMN "配布版（現在行はINF版）"
+	IDS_METADATA_DISTRIBUTION_DATE "配布公開日（現在行はINF日付）"
+	IDS_METADATA_CLOSE "情報検索を取り消し、安全に停止してから終了しますか？\n\n同期APIから戻るまで待つ場合があります。ドライバー本体の取得・インストールは行っていません。"
+	IDS_METADATA_DETAILS "情報検索の結果・条件"
+	IDS_METADATA_SUMMARY "{0} — 現在 {1} 台／情報 {2} 行。表示専用・取得不可。適用性A／導入準備Iは未測定。"
+	IDS_METADATA_PROVIDER_USAGE "処理本文 {0} byte／probe {1} byte／resource {2}／明示送信 {3}"
+	IDS_METADATA_TERMS_UNKNOWN "許諾条件は未確定（同意していません）"
+	IDS_METADATA_TERMS_REQUIRED "別の取得操作で許諾全文の確認が必要（未同意）"
+	IDS_METADATA_TERMS_NOT_REQUIRED "Metadata上は取得前の同意不要（導入許可ではありません）"
+	IDS_METADATA_VIEW_ONLY "情報検索の表示専用snapshotです。取得・導入には通常検索を新しく実行し、別途確認・同意してください。"
+	IDS_METADATA_CANCEL_WAIT_BUTTON "取消し待ち"
+	IDS_METADATA_HEADER "配布情報のみ — 適用性未確認・導入不可"
+	IDS_METADATA_DETAIL_CONDITIONS "今回の制限・未知回線許可: {0}\r\n固定上限: 本文2 MiB/resource・4 MiB/Provider・32 MiB/session、resource 2/18、明示送信12/108、期限90秒/300秒。回線課金上限ではなく、同期APIの即時停止は保証しません。Catalog cacheの有限読み書きを使用し、配布観測snapshotは保存しません。"
+	IDS_METADATA_DETAIL_INVENTORY "現在属性列挙の完全性: {0}／経過 {1} ms"
+	IDS_METADATA_APPROVED "今回のみ許可"
+	IDS_METADATA_NOT_APPROVED "未同意（新規通信前にcostを再確認）"
+	IDS_METADATA_INVENTORY_COMPLETE "完全"
+	IDS_METADATA_INVENTORY_PARTIAL "不完全（全端末の母数とは限りません）"
+	IDS_METADATA_CURRENT_ROW "現在構成の属性観測（導入済みの保証ではありません）"
+	IDS_METADATA_RESULT_BUTTON "検索結果・条件(&R)"
+	IDS_METADATA_EXACT_BYTES "公表 %1 byte（正確値）"
+	IDS_METADATA_APPROXIMATE_SIZE "公表概算 %1"
+	IDS_SILABS_OFFICIAL_INSPECTION "Silicon Labs公式CP210xの検索では、検査用にZIPを最大32 MiB取得します。課金制・通信量制限付き・料金状態が不明なネットワークでも通信することに同意しますか？\n\n公式製品ページ（https://www.silabs.com/software-and-tools/usb-to-uart-bridge-vcp-drivers）の利用条件を事前に確認してください。\n\n取得後に署名・内容・PnP rankを検査します。この操作はインストールとEULAの同意ではありません。Windows client向けの標準CP210x系列だけが対象です。\n\nProlificも選択した場合、検査用ZIPは両者合計で最大64 MiBです。"
+	IDS_WCH_OFFICIAL_INSPECTION "WCH公式CH340／CH341の検索では、検査用にCH341SER ZIPを最大4 MiB取得します。課金制・通信量制限付き・料金状態が不明なネットワークでも通信することに同意しますか？\n\n公式ページ（https://www.wch.cn/downloads/CH341SER_ZIP.html）の利用条件を事前に確認してください。取得先は公式file.wch.cnです。\n\n既存の固定ハッシュ・署名・内容・PnP rank監査を行い、配布物が変わっていれば拒否します。この操作はインストールとEULAへの同意ではありません。Windows client向けの標準系列だけが対象です。\n\nWCHの2経路を選択した場合は最大8 MiB。ProlificとCP210xも含むserial 4経路すべてでは、検査用ZIPの合計上限は72 MiBです。"
+	IDS_WCH_MULTI_OFFICIAL_INSPECTION "WCH公式CH342／CH343系の検索では、検査用にCH343SER ZIPを最大4 MiB取得します。課金制・通信量制限付き・料金状態が不明なネットワークでも通信することに同意しますか？\n\n公式ページ（https://www.wch.cn/downloads/CH343SER_ZIP.html）の利用条件を事前に確認してください。取得先は公式file.wch.cnです。\n\n既存の固定ハッシュ・署名・内容・PnP rank監査を行い、配布物が変わっていれば拒否します。この操作はインストールとEULAへの同意ではありません。CH341SERの取得同意とも別です。Windows client向けの標準系列だけが対象です。\n\nWCHの2経路を選択した場合は最大8 MiB。ProlificとCP210xも含むserial 4経路すべてでは、検査用ZIPの合計上限は72 MiBです。"
+	IDS_PROLIFIC_OFFICIAL_INSPECTION "Prolific公式DCHU INFの検索では、検査用にZIPを最大32 MiB取得します。課金制・通信量制限付き・料金状態が不明なネットワークでも通信することに同意しますか？\n\n公式製品ページ（https://www.prolific.com.tw/portfolio-item/pl2303gt/）の利用条件を事前に確認してください。\n\n取得後に署名・内容・PnP rankを検査します。この操作はドライバーをインストールせず、インストールとEULAの同意にもなりません。\n\n対象はDCHU INF配布版です。同じページのEXE版より古い場合があります。"
+	IDS_APP_TITLE                 DRIVERCRATE_WINDOW_TITLE_STRING
+	IDS_HEADER_TEXT               "全デバイスを列挙し、Windows Update、公式メーカー、ローカル Driver Store の候補を取得元付きで表示します。"
+	IDS_SCAN_BUTTON               "更新を検索(&S)"
+	IDS_INSTALL_BUTTON            "選択した更新をインストール(&I)"
+	IDS_STATUS_IDLE               "デバイスとドライバー候補を検索してください。"
+	IDS_STATUS_SCANNING           "デバイス、Driver Store、Windows Update、公式メーカーの候補を確認しています…"
+	IDS_STATUS_DOWNLOADING        "選択したドライバー更新をダウンロードしています…"
+	IDS_STATUS_INSTALLING         "選択したドライバー更新をインストールしています。電源を切らないでください…"
+	IDS_STATUS_NO_UPDATES         "デバイスを列挙しました。現在選択できる別のドライバー候補はありません。"
+	IDS_STATUS_SCAN_COUNT         "%1 件の切替可能なドライバー候補があります。デバイスを展開して取得元と版を確認してください。"
+	IDS_STATUS_SCAN_WARNING       "%1 件の候補を表示しましたが、一部の取得元を確認できませんでした。"
+	IDS_STATUS_COMPLETED          "選択したドライバー更新の処理が完了しました。結果を表示しています。"
+	IDS_STATUS_FAILED             "ドライバー更新を完了できませんでした。結果欄を確認してください。"
+	IDS_ERROR_TITLE               "DriverCrate エラー"
+	IDS_SCAN_ERROR_PREFIX         "ドライバー更新の検索に失敗しました。\r\n\r\n"
+	IDS_INSTALL_ERROR_PREFIX      "ドライバー更新の処理に失敗しました。\r\n\r\n"
+	IDS_CONFIRM_TITLE             "ドライバー更新の確認"
+	IDS_CONFIRM_PREFIX            "次の %1 件をダウンロードしてインストールします。\r\n\r\n"
+	IDS_CONFIRM_SUFFIX            "\r\n続行前にWindowsの復元ポイントを作成します。失敗時はインストールしません。更新の使用許諾に同意し、処理中は電源を切らないでください。続行しますか？"
+	IDS_RESULT_SUCCESS            "選択したドライバー更新をインストールしました。"
+	IDS_RESULT_SUCCESS_REBOOT     "選択したドライバー更新をインストールしました。完了にはWindowsの再起動が必要です。"
+	IDS_RESULT_FAILURE            "一部または全てのドライバー更新をインストールできませんでした。結果欄を確認してください。"
+	IDS_CLOSE_TITLE               "DriverCrate を終了"
+	IDS_CLOSE_BUSY                "処理が実行中です。終了する場合も復元ポイントとドライバー更新の処理が安全に完了するまで待機します。終了しますか？"
+	IDS_STATUS_STOPPING           "実行中の復元ポイントとドライバー更新の処理が安全に完了するまで待機しています…"
+	IDS_COLUMN_UPDATE             "ドライバー更新"
+	IDS_COLUMN_MANUFACTURER       "製造元"
+	IDS_COLUMN_MODEL              "デバイス"
+	IDS_COLUMN_CLASS              "クラス"
+	IDS_COLUMN_PROVIDER           "製造元 / 提供元"
+	IDS_COLUMN_DATE               "日付"
+	IDS_COLUMN_SIZE               "最大サイズ"
+	IDS_COLUMN_RESULT             "状態 / 結果"
+	IDS_VALUE_UNKNOWN             "—"
+	IDS_VALUE_PENDING_CACHED      "未処理（Windows Update キャッシュあり）"
+	IDS_VALUE_PENDING_DOWNLOAD    "未処理（ダウンロードが必要）"
+	IDS_VALUE_OPTIONAL            "オプション"
+	IDS_DOWNLOAD_FAILED           "ダウンロード失敗: "
+	IDS_INSTALL_FAILED            "インストール失敗: "
+	IDS_INSTALL_SUCCEEDED         "完了（インストール成功）"
+	IDS_NOT_INSTALLED             "未インストール"
+	IDS_SELECTION_REQUIRED        "インストールするドライバー更新を一件以上選択してください。"
+	IDS_COMMON_CONTROLS_ERROR     "Windows common controls を初期化できませんでした。"
+	IDS_MAIN_WINDOW_ERROR         "DriverCrate のメインウィンドウを作成できませんでした。"
+	IDS_SOURCE_LABEL              "取得元"
+	IDS_VERSION_LABEL             "版"
+	IDS_CURRENT_DRIVER            "現在使用中"
+	IDS_RECOMMENDED_UPDATE        "推奨更新"
+	IDS_ACTION_UPDATE             "更新"
+	IDS_ACTION_REINSTALL          "再導入"
+	IDS_ACTION_DOWNGRADE          "旧版へ切替"
+	IDS_DOWNGRADE_WARNING         "\r\n警告: 選択には旧版への切替が含まれます。対象デバイスが動作しなくなる可能性があります。復旧手段を確認し、この操作を明示的に選んだ場合だけ続行してください。\r\n"
+	IDS_LOCAL_CACHED              "ローカル取得済み"
+	IDS_TREE_DEVICE_SUFFIX        "ドライバー候補"
+	IDS_CURRENT_VERSION_LABEL     "現在"
+	IDS_CURRENT_VERSION_UNMATCHED "未照合"
+	IDS_COLUMN_DEVICE_DRIVER      "種類 / デバイス / ドライバー"
+	IDS_COLUMN_CURRENT_VERSION    "現在版"
+	IDS_COLUMN_CANDIDATE_VERSION  "候補版"
+	IDS_COLUMN_SOURCE             "取得元 / 場所"
+	IDS_STATUS_CREATING_RESTORE_POINT "Windowsの復元ポイントを作成しています…"
+	IDS_RESTORE_POINT_ERROR_PREFIX "Windowsの復元ポイントを作成できないため、インストールを中止しました。システム保護を確認してください。\r\n\r\n"
+	IDS_RESTORE_POINT_FINALIZE_ERROR_PREFIX "ドライバー処理後に復元ポイントを終了できませんでした。処理結果を確認してください。\r\n\r\n"
+	IDS_RESTORE_POINT_NOT_CREATED "未インストール（復元ポイント作成失敗）"
+	IDS_RESTORE_POINT_CREATED     "Windowsの復元ポイントを作成しました（番号: %1）。"
+	IDS_RECOMMENDED_ONLY_FILTER   "推奨更新のみ表示(&R)"
+	IDS_STATUS_RECOMMENDED_COUNT  "%1 件の推奨更新を表示しています。全候補に戻すにはチェックを外してください。"
+	IDS_SELECT_ALL_RECOMMENDED    "推奨を全選択(&A)"
+	IDS_CLEAR_SELECTION           "選択を全解除(&C)"
+	IDS_STATUS_SCANNING_DEVICES   "デバイスとローカル Driver Store を確認しています…"
+	IDS_STATUS_SEARCHING_WINDOWS_UPDATE "Windows Update のドライバー候補を照会しています…"
+	IDS_STATUS_MERGING_CANDIDATES "取得した候補をデバイス単位へ統合しています…"
+	IDS_STATUS_SEARCHING_OFFICIAL_CATALOGS "ハードウェアメーカーの公式ドライバーカタログを照会しています…"
+	IDS_STATUS_FINALIZING_RESTORE_POINT "Windowsの復元ポイントを確定しています…"
+	IDS_PROVIDER_SOURCES          "取得元(&P)"
+	IDS_PROVIDER_DISABLED         "無効"
+	IDS_PROVIDER_NOT_APPLICABLE   "対象外"
+	IDS_PROVIDER_NO_CANDIDATES    "候補なし"
+	IDS_PROVIDER_CANDIDATES       "候補あり"
+	IDS_PROVIDER_FAILED           "検索失敗"
+	IDS_PROVIDER_METADATA_REJECTED "メタデータ拒否"
+	IDS_PROVIDER_SETTING_CHANGED  "取得元設定を変更しました。次回の「更新を検索」から反映します。"
+	IDS_EQUIVALENT_SOURCES        "同一版の取得元: %1"
+	IDS_PREFERRED_SOURCE          "既定取得元"
+	IDS_PROVIDER_COVERAGE         "対象 / 判定 / 候補: %1"
+	IDS_LOCAL_COVERAGE_MENU       "メーカー／クラス別の候補到達状況…"
+	IDS_LOCAL_COVERAGE_TITLE      "ローカル網羅性（候補到達状況）"
+	IDS_LOCAL_COVERAGE_SUMMARY    "PnP デバイス / メーカー・クラス組合せ: %1"
+	IDS_LOCAL_COVERAGE_EXPLANATION "候補が届いたdevice数です。審査状態や0件表示は、最新・正常・Provider対応・適用可能を意味しません。端末内表示だけに使用し、外部送信・保存しません。"
+	IDS_LOCAL_COVERAGE_COUNTS     "デバイス / 候補あり / 公式 / 利用者選択 / WUA / ローカル: %1"
+	IDS_LOCAL_COVERAGE_EXPAND     "メーカー／クラス別の内訳を表示"
+	IDS_LOCAL_COVERAGE_TRUNCATED  "残り %1 組合せは表示上限のため省略しました。"
+	IDS_LOCAL_COVERAGE_EMPTY      "現在のscan結果に集計可能なpresent deviceがありません。"
+	IDS_SERVER_CONFIRM_SUFFIX     "\r\nこのOSではSystem Restore APIが正式supportされないため、Windowsの復元ポイントは作成しません。DriverCrateはserver backupを作成しません。続行前にWindows Server Backupのsystem state／bare metal backup、または仮想化基盤の有効なcheckpointと復旧手順を確認してください。Service停止や起動不能の可能性を理解し、maintenance window内で続行しますか？"
+	IDS_STATUS_PREPARING_SERVER_INSTALL "Windows Server用の復元ポイントなしインストールを準備しています…"
+	IDS_SERVER_NO_RESTORE_POINT_RESULT "このWindows Server operationでは、Windowsの復元ポイントを作成していません。"
+	IDS_COMPONENT_GENERIC_WARNING "\r\n警告: 選択にはPCメーカー未検証のcomponent maker汎用ドライバーが含まれます。OEM固有の電源管理、firmware、audio機能等が失われる可能性があります。取得元と対象製品を確認し、この候補を明示的に選んだ場合だけ続行してください。\r\n"
+	IDS_DISCOVERY_LEVEL_A        "探索区分A: 公式構造化カタログ"
+	IDS_DISCOVERY_LEVEL_B        "探索区分B: 公式Webページ"
+	IDS_DISCOVERY_LEVEL_C        "探索区分C: 利用者指定パッケージ"
+	IDS_DISCOVERY_INDEX          "署名索引: 収集者確認（公式live探索・WUAの保証ではありません）"
+	IDS_RELAXED_DISCOVERY_WARNING "\r\n警告: 選択には探索区分BまたはCの候補が含まれます。候補の発見経路は構造化カタログより変更されやすいか、利用者が指定したファイルです。ドライバーパッケージの署名、発行元、PnP ID、OS、x64の検証は省略しませんが、取得元と対象製品を確認し、明示的に選んだ場合だけ続行してください。\r\n"
+	IDS_INTEL_PACKAGE_DIALOG_TITLE "Intel Wirelessの公式ドライバーZIPを選択"
+	IDS_INTEL_PACKAGE_FILTER_NAME "Intel WirelessドライバーZIP (*.zip)"
+	IDS_INTEL_PACKAGE_SELECTED    "ZIP選択済み"
+	IDS_INTEL_PACKAGE_DIALOG_ERROR "ファイル選択ダイアログを開けませんでした（診断値: %1）。"
+	IDS_INTEL_PACKAGE_FILTER_PATTERN "*.zip"
+	IDS_INTEL_PACKAGE_SELECTION_NOTICE "Intel公式サイトで対象製品、対象OS、注意事項、使用許諾を確認し、利用者自身が同意して取得したdriver-only ZIPだけを選択してください。DriverCrateは選択元サイトを証明できません。ZIP内のINF、CAT、全参照ファイル、署名、発行元、PnP ID、Windows x64適用性を端末内で検証し、不一致時は候補化しません。続行しますか？"
+	IDS_PROLIFIC_PACKAGE_DIALOG_TITLE "Prolific Serialの公式DCHUドライバーZIPを選択"
+	IDS_PROLIFIC_PACKAGE_FILTER_NAME "Prolific Serial DCHUドライバーZIP (*.zip)"
+	IDS_PROLIFIC_PACKAGE_SELECTION_NOTICE "Prolific公式製品ページでWindows 10/11用DCHU INF Setupの対象製品、注意事項、使用許諾を確認し、利用者自身が取得したZIPだけを選択してください。DriverCrateは選択元サイトを証明できません。外側ZIPとWindows 10/11用の内側ZIPを一段だけ安全に展開し、Ports class、Prolific Provider、公開済みVID/PID、INF、CAT、SYS、Windows driver署名を端末内で検証します。不一致時は候補化しません。続行しますか？"
+	IDS_WCH_PACKAGE_DIALOG_TITLE "WCH CH340/CH341の公式CH341SER.ZIPを選択"
+	IDS_WCH_PACKAGE_FILTER_NAME "WCH CH341SERドライバーZIP (*.zip)"
+	IDS_WCH_PACKAGE_SELECTION_NOTICE "WCH公式CH341SER.ZIPページでCH340/CH341対象製品、version 4.0、対象OS、注意事項、使用許諾を確認し、利用者自身が取得したZIPだけを選択してください。DriverCrateは選択元サイトを証明できません。審査済みZIPの固定SHA-256と全entryを検査し、現行Windows用CH341SER/WIN 1X配下だけを展開します。セットアップEXEと旧Win9x用fileは使用しません。Ports class、wch.cn Provider、固定VID/PID、INF/CAT署名、x64参照SYS/DLLの埋込み署名を端末内で検証し、別版や不一致fileは候補化しません。続行しますか？"
+	IDS_WCH_MULTI_PACKAGE_DIALOG_TITLE "WCH CH342/CH343系の公式CH343SER.ZIPを選択"
+	IDS_WCH_MULTI_PACKAGE_FILTER_NAME "WCH CH343SERドライバーZIP (*.zip)"
+	IDS_WCH_MULTI_PACKAGE_SELECTION_NOTICE "WCH公式CH343SER.ZIPページでCH342/CH343系対象製品、version 2.2、対象OS、注意事項、使用許諾を確認し、利用者自身が取得したZIPだけを選択してください。DriverCrateは選択元サイトを証明できません。審査済みZIPの固定SHA-256と全entryを検査し、CH343SER/Driver/WIN 1X配下だけを展開します。セットアップEXE、library、旧Windows用fileは使用しません。Ports class、wch.cn Provider、固定VID/PID/interface、INF/CAT署名、x64参照SYS/DLLの埋込み署名を端末内で検証し、別版や不一致fileは候補化しません。続行しますか？"
+	IDS_SILABS_PACKAGE_DIALOG_TITLE "Silicon Labs CP210xの公式UniversalドライバーZIPを選択"
+	IDS_SILABS_PACKAGE_FILTER_NAME "Silicon Labs CP210xドライバーZIP (*.zip)"
+	IDS_SILABS_PACKAGE_SELECTION_NOTICE "Silicon Labs公式CP210x VCP DriversページでUniversal Windows Driverのversion、対象製品、対象OS、注意事項、使用許諾を確認し、利用者自身が取得したZIPだけを選択してください。DriverCrateは選択元サイトを証明できず、使用許諾への同意を代理しません。ZIP全entryを検査し、Windows x64用silabser.inf、silabser.cat、x64/silabser.sysだけを展開します。設定用BAT/REGと別architecture fileは使用しません。Ports class、Silicon Laboratories Provider、固定14件の標準VID/PID/interface完全集合、有効なDriverVer（日付と4要素版）、INF/CAT/SYSのWindows driver署名とCAT member hashを端末内で検証し、不一致時は候補化しません。続行しますか？"
+	IDS_GENERIC_INF_DIALOG_TITLE "署名済みdriver-only ZIPを選択（取得元未証明）"
+	IDS_GENERIC_INF_FILTER_NAME "INFドライバーpackage (*.zip;*.cab)"
+	IDS_GENERIC_INF_FILTER_PATTERN "*.zip;*.cab"
+	IDS_ASSESSMENT_COMPONENT_ROLE "構成の役割"
+	IDS_ASSESSMENT_PACKAGE_SCOPE "条件の確認範囲はINFの静的構造です。明示依存の解決が未対応の場合はドライバーのみの構成・必須条件を未対応とし、署名・基礎適合の結果を独立して表示します。依存の充足や導入許可を意味しません。"
+	IDS_GENERIC_INF_SELECTION_NOTICE "利用者が取得したZIPまたはCABを端末内で検査します。この入力は公式の入手元、最新版、メーカー推奨を証明しません。使用許諾を確認したファイルを選択してください。INFごとに必要ファイル、Windows署名、CAT memberと現在deviceへの適合を確認し、無関係な同梱NVMやinstallerは実行しません。未対応形式・未解決の必須依存と不適合を区別します。現在の共通経路では候補表示までを行い、導入・installer起動は行いません。続行しますか？"
+	IDS_COVERAGE_REVIEWED         "審査表に記載"
+	IDS_COVERAGE_PLATFORM         "Windows標準"
+	IDS_COVERAGE_PENDING_INTAKE   "S63+未列挙"
+	IDS_COVERAGE_UNIDENTIFIED     "製造元不明"
+	IDS_LOCAL_COVERAGE_INTAKE_SUMMARY "S63+ 調査候補デバイス / メーカー・クラス組合せ: %1"
+	IDS_COLUMN_AUDIT                "監査 / 導入"
+	IDS_AUDIT_ORIGIN_PASSED         "公式由来確認済み"
+	IDS_AUDIT_ORIGIN_PENDING        "公式由来確認待ち"
+	IDS_AUDIT_DOWNLOAD_PASSED       "検査用download済み"
+	IDS_AUDIT_DOWNLOAD_PENDING      "検査用download待ち"
+	IDS_AUDIT_CONTENT_PASSED        "内容監査合格"
+	IDS_AUDIT_CONTENT_PENDING       "内容監査待ち"
+	IDS_AUDIT_SYSTEM_PASSED         "system監査合格"
+	IDS_AUDIT_SYSTEM_PENDING        "system監査待ち"
+	IDS_AUDIT_NOT_APPLICABLE        "対象外"
+	IDS_AUDIT_WINDOWS_MANAGED       "Windows管理"
+	IDS_AUDIT_PROVIDER_VALIDATED    "Provider照合済み"
+	IDS_AUDIT_USER_UNVERIFIED       "利用者指定・取得元未証明"
+	IDS_AUDIT_REJECTED              "監査拒否"
+	IDS_AUDIT_FAILED                "監査失敗"
+	IDS_INSTALL_READINESS_DISPLAY_ONLY "表示のみ"
+	IDS_INSTALL_READINESS_AUDIT_PENDING "導入前監査待ち"
+	IDS_INSTALL_READINESS_READY     "install可能"
+	IDS_INSTALL_READINESS_BLOCKED   "install不可"
+	IDS_PROVIDER_SOURCE_REJECTED    "公式origin拒否"
+	IDS_PROVIDER_DOWNLOAD_FAILED    "検査用download失敗"
+	IDS_PROVIDER_CONTENT_REJECTED   "driver内容拒否"
+	IDS_AUDIT_ORIGIN_LABEL         "取得元: "
+	IDS_AUDIT_DOWNLOAD_LABEL       "取得: "
+	IDS_AUDIT_CONTENT_LABEL        "内容: "
+	IDS_AUDIT_SYSTEM_LABEL         "適用: "
+	IDS_AUDIT_INSTALL_LABEL        "導入: "
+	IDS_OFFICIAL_RELEASE_DISCOVERY_STATE "公式配布情報・取得条件は取得準備で確認・内容／OS／PnP未監査"
+	IDS_PREPARATION_BUTTON "取得準備(&P)"
+	IDS_PREPARATION_BEGIN_ERROR "取得承認の開始条件を満たしません。再検索して対象を確認してください。開始拒否番号: %1"
+	IDS_PREPARATION_CANCEL "取得を取消し(&P)"
+	IDS_PREPARATION_CANCELLING "取得の取消し待ち"
+	IDS_PREPARATION_RESULT_BUTTON "取得結果(&P)"
+	IDS_PREPARATION_TITLE "取得準備（インストールなし）"
+	IDS_PREPARATION_INTRO "公式配布情報を基に、検査用の取得対象を確認します。取得成功だけでは監査合格・インストール可能とはなりません。\n関連デバイス数は適用性を確認した件数ではありません。容量は実サイズの見積もりではなく、転送を打ち切る予約上限です。"
+	IDS_PREPARATION_TARGET "対象 %1"
+	IDS_PREPARATION_REFERENCE "配布参照（照合用）: %1"
+	IDS_PREPARATION_DEVICES "関連デバイス数: %1"
+	IDS_PREPARATION_CAP "転送予約上限（byte）: %1"
+	IDS_PREPARATION_LIMITS "予約上限（byte: 1ファイル / 取得元 / 検索全体）: %1"
+	IDS_PREPARATION_FILES "予約件数上限（取得元 / 検索全体）: %1"
+	IDS_PREPARATION_UNRESOLVED "取得不可: 利用条件・EULAが未確定です。"
+	IDS_PREPARATION_EULA_BLOCKED "取得不可: EULA全文が確認できません。revisionだけでは同意できません。"
+	IDS_PREPARATION_EULA_READY "取得前にEULA全文と改訂識別子の確認・明示同意が必要です。"
+	IDS_PREPARATION_ELIGIBLE "Provider確認済み: 取得前のEULA同意は不要。取得するか個別に選択できます。"
+	IDS_PREPARATION_SELECT "取得対象に追加"
+	IDS_PREPARATION_SKIP "取得しない"
+	IDS_PREPARATION_NETWORK "この対象に限り、従量制課金または課金状態不明のネットワークでの取得を許可する"
+	IDS_PREPARATION_NONE "取得対象が選択されていません。通信は開始していません。"
+	IDS_PREPARATION_CONFIRM "選択した %1 件を検査用に取得します。インストールはしません。開始しますか？"
+	IDS_PREPARATION_PROGRESS "検査用取得の確定件数: %1"
+	IDS_PREPARATION_DONE "取得処理が終了しました。監査を実施した場合は個別結果を表示します。追加した監査合格候補も未選択です。"
+	IDS_PREPARATION_FAILED "取得準備に失敗しました。取得結果の診断値を確認し、必要なら手動で再検索してください。"
+	IDS_PREPARATION_CLOSE "取得を取り消して終了しますか？ 処理終了の通知まで画面を保持します。"
+	IDS_PREPARATION_ACQUIRED "検査用取得済み（監査結果は別表示・インストールなし）"
+	IDS_PREPARATION_NOT_SELECTED "未選択・取得なし"
+	IDS_PREPARATION_AWAITING_NETWORK "ネットワーク条件への同意不足・取得なし"
+	IDS_PREPARATION_CANCELLED "取消し"
+	IDS_PREPARATION_REJECTED "取得拒否"
+	IDS_PREPARATION_ITEM_FAILED "取得失敗"
+	IDS_PREPARATION_ERROR "承認エラー番号 / 制御エラー: %1"
+	IDS_PREPARATION_ACTUAL "取得byte数: %1"
+	IDS_PREPARATION_PLAN_ERROR "取得計画を作成できませんでした。ドライバー検索結果とは別のエラーです。\n%1"
+	IDS_PREPARATION_AUDIT_DISPLAY_ONLY "取得後監査の結果です。選択可能な候補は追加されませんでした。"
+	IDS_PREPARATION_AUDIT_READY "取得後監査に合格したINFを、未選択のインストール候補として一覧へ追加しました。"
+	IDS_PREPARATION_CANDIDATES "追加した選択可能候補数: %1"
+	IDS_PREPARATION_AUDIT_INF "内容監査の合格INF数 / 確認INF数: %1"
+	IDS_PREPARATION_AUDIT_PAIRS "INFとデバイスの合格組合せ数 / 照合数 / 判定不能数: %1"
+	IDS_PREPARATION_AUDITED_ROW "公式配布情報・取得済み・監査結果を確認"
+	IDS_RELEASE_OBSERVATION_FIRST "前回観測なし"
+	IDS_RELEASE_OBSERVATION_CHANGED "前回観測から公式配布情報が変更"
+	IDS_RELEASE_OBSERVATION_METADATA_SAME "前回と表示metadata一致・内容同一性未確認"
+	IDS_RELEASE_OBSERVATION_HASH_SAME "前回と公開hash一致・導入前監査は未実施"
+	IDS_RELEASE_OBSERVATION_REEVALUATED "前回観測を利用せず再評価"
+	IDS_PREPARATION_PUBLICATION_NOT_STARTED "候補発行は未着手です。監査状態と診断値を確認してください。"
+	IDS_PREPARATION_PUBLICATION_NONE "監査済みの組合せを確認しましたが、発行可能な候補はありませんでした。"
+	IDS_PREPARATION_PUBLICATION_FAILED "候補発行に失敗しました。候補は追加されていません。"
+	IDS_PREPARATION_PUBLICATION_COUNTS "候補発行の確認数 / 発行数 / 除外数: %1"
+	IDS_CONFIRM_ACTION_LABEL "操作"
+	IDS_INTEL_ETHERNET_SERVER_INSTALL_NOTICE "\r\nIntel Ethernet Server注意: 取得・監査済みのIntel公式base driverを使用します。OEM固有の設定や機能が変わる可能性があり、710系列では汎用のデバイス名と設定へ変わる場合があります。IntelがWindows Server 2025非対応と明示するHPE Synergy 4610C 10/25Gb Ethernet AdapterおよびHPE 10/25Gb Ethernet Adapterは候補から除外していますが、その他のOEM要件を保証しません。OEM、NVM、firmware、teaming、RDMA、SR-IOV等の必須条件を確認してください。対象NICに依存しないconsole等の復旧経路、有効なbackupまたはcheckpoint、復旧手順を準備してください。Driver Storeへの登録後にdevice導入が失敗した場合、登録済みdriver packageが残ることがあります。DriverCrateは失敗時にpackageを自動削除せず、NIC設定、NVM、firmware、backup、checkpointを作成または変更しません。\r\n"
+	IDS_ASIX_CLIENT_INSTALL_NOTICE "\r\nASIXネットワークドライバーの切替中は通信が切断される場合があります。対象アダプターに依存せず、このPCを操作して復旧できることを確認してください。OEM固有設定が変更される可能性があります。取得・監査済みのINFを使用し、導入前に復元ポイントを作成します。復元ポイントは完全なバックアップや復旧の保証ではありません。\r\n"
+	IDS_INSTALL_CONFIGURATION_INVALID "選択候補の取得元、操作、またはWindows Server条件を検証できないため、インストールを開始しません。候補を再検索してから選択し直してください。"
+	IDS_MEASUREMENT_NOT_MEASURED "未計測"
+	IDS_MEASUREMENT_UNAVAILABLE "取得不能"
+	IDS_MEASUREMENT_LOWER_BOUND "%1 以上"
+	IDS_MEASUREMENT_STAGES "対象 / 個別検索 / 情報 / 適用可能更新 / 導入準備完了: %1"
+	IDS_MEASUREMENT_RECORDS "未照合候補 / 情報レコード / 未照合レコード: %1"
+	IDS_MEASUREMENT_ACQUISITIONS "取得実績（network本文 / fresh cache / 304再検証 / 不明）: %1"
+	IDS_MEASUREMENT_SNAPSHOT "scan完了時点の計測（version / operation / session）: %1"
+	IDS_MEASUREMENT_INVENTORY "OS観測 / 一覧表現 / 未収録: %1"
+	IDS_MEASUREMENT_NETWORK_COMBINED "全network — %1"
+	IDS_MEASUREMENT_NETWORK_MANAGED "Windows管理 — %1"
+	IDS_MEASUREMENT_NETWORK_OFFICIAL "公式network — %1"
+	IDS_MEASUREMENT_EXPLANATION "件数は同一scan内のopaque deviceを重複排除した端末内表示です。未計測を0件とせず、下限値は未確認の残りを否定しません。取得・適用性・導入許可、世界全体の対応率または最新版を保証しません。準備操作で候補が増えても、この段階別件数はscan完了時点から再計算しません。"
+	IDS_MEASUREMENT_EXPIRED "このscan sessionは失効済みです。表示値は実行前scanの履歴であり、現在の導入可能数ではありません。"
+	IDS_MEASUREMENT_NO_SNAPSHOT "段階別計測: 未接続または検証不能"
+	IDS_MEASUREMENT_GROUP "段階別network — %1"
+	IDS_MEASUREMENT_PROVIDER "段階別計測 — %1"
+	IDS_MEASUREMENT_SCOPE_OUTCOME "範囲 / scan結果: %1"
+	IDS_MEASUREMENT_SCOPE_UNKNOWN "未接続"
+	IDS_MEASUREMENT_SCOPE_DEVICE "device別query"
+	IDS_MEASUREMENT_SCOPE_SYSTEM "system全体query"
+	IDS_TREE_CLASS_UNKNOWN "その他のデバイス"
+	IDS_TREE_CLASS_DEVICE_COUNT "（%1 デバイス）"
+	IDS_TREE_CLASS_UPDATE_COUNT "更新候補: %1 デバイス"
+	IDS_TREE_CLASS_INFORMATION_COUNT "配布情報: %1 デバイス"
+	IDS_TREE_CLASS_EXPIRED "検索結果は失効済み・再検索が必要"
+	IDS_INDEX_TRUST_UNAVAILABLE "署名索引の信頼設定は未配備です。索引候補・導入能力は未確認です。"
+	IDS_INDEX_SCAN_COMPLETE "署名索引の公開ID照合を読み取りました。Windows適合の合格ではありません。"
+	IDS_INDEX_SCAN_PARTIAL "署名索引は一部読取りまたは未判定です。残件を更新不要へ数えていません。"
+	IDS_INDEX_SCAN_UNAVAILABLE "署名索引の読取りは成立していません。取得・適用性は未確認です。"
+	IDS_INDEX_SCAN_COUNTS "処理record / 全record / 未判定関係: %1"
+	IDS_INDEX_REFRESHED "署名索引の更新と保存を確認しました。driverの適合性・導入成功ではありません。"
+	IDS_INDEX_REFRESH_CACHED "署名索引の更新には失敗しました。現在有効と再認証した保存索引を使用しています。"
+	IDS_INDEX_REFRESH_REJECTED "署名索引の更新は拒否・失敗です。候補0を最新・更新不要と判定していません。"
+	IDS_INDEX_REFRESH_CANCELLED "署名索引の更新を取り消しました。保存済みの事実と候補の使用可否は別です。"
+	IDS_INDEX_REFRESH_FACTS "HTTP: %1"
+	IDS_INDEX_REFRESH_DETAILS "署名索引の通信結果(&I)"
+	IDS_INDEX_REFRESH_HTTP_ERROR "元通信診断: %1"
+	IDS_INDEX_REFRESH_ERROR "更新診断: %1"
+	IDS_INDEX_REFRESH_COMMIT "commit区分: %1"
+	IDS_INDEX_REFRESH_ATTEMPTED "manifest世代: %1"
+	IDS_INDEX_REFRESH_PERSISTED "保存世代: %1"
+	IDS_INDEX_PLAN_COUNTS "索引取得対象 / 不足・未対応関係 / 保持枠超過: %1"
+	IDS_INDEX_ROUTING_PENDING "索引は収集者確認です。Windows適合・候補発行・指定導入の結果は個別表示を確認してください。取得や内容検査の完了は導入成功ではありません。"
+	IDS_INDEX_CONTENT_COMPLETED "索引の共通内容検査は完了しました。個別INFの拒否と内容合格を別に示します。"
+	IDS_INDEX_CONTENT_FAILED "索引の内容検査は拒否・失敗または未実施です。取得結果とは独立しています。"
+	IDS_INDEX_CONTENT_COUNTS "通常file / 発見INF / 構造解析完了INF / 署名拒否INF / 内容署名合格INF: %1"
+	IDS_INDEX_CONTENT_PARTIAL "取得処理は終了しました。索引の内容に拒否・不足があり、導入経路は未接続です。個別結果を確認してください。"
+	IDS_INDEX_CONTENT_ITEM "索引の取得対象 %1"
+	IDS_INDEX_TERMS_SUBJECT "規約の出典主体: %1"
+	IDS_INDEX_PREREQUISITE_CONFIRM "次の具体的な取得条件を確認しましたか。未確認の条件は取得を保留してください。"
+	IDS_INDEX_INSTALLER_WARNING "公式installerの対話画面へ引き継ぎます。原公式手順の申告では選択driverだけが予定範囲です。任意の追加appやfirmware操作へ同意しないでください。終了codeだけではdriver導入済みを確認できません。取得規約への同意とは別の実行操作です。"
+	IDS_INDEX_INSTALLER_COMPLETED "公式installerの引継ぎ終了・driver導入状態未確認"
+	IDS_INDEX_INSTALLER_FAILED "公式installerの引継ぎ失敗・driver導入状態未確認"
+	IDS_INDEX_INSTALLER_SELECTION "対話installer方式・標準INFのWindows順位は非該当"
+	IDS_INDEX_INSTALLER_SCOPE "選択driver限定手順の収集者申告・binary作用の実証ではありません"
+	IDS_INDEX_REQUIRED_PLAN "必要構成を基本driverと一つの計画で実行します。Extensionの反映はWindowsに委ね、stageまたは基本driverのAPI成功だけで完了にはしません。"
+	IDS_INDEX_ROLE_BASE "基本driver"
+	IDS_INDEX_ROLE_EXTENSION "必要Extension"
+	IDS_INDEX_ROLE_COMPONENT "必要driver component"
+	IDS_INDEX_ROLE_PENDING "適用未確認（Windows管理・個別反映は未確認）"
+	IDS_INDEX_ROLE_DIAGNOSTIC_MISSING "（指定API=FALSE、Windows診断欠落。表示コードは内部補完）"
+	IDS_INDEX_ROLE_API_COMPLETED "指定device API完了・実状態観測とは別"
+	IDS_INDEX_ROLE_STAGED "package登録のみ"
+	IDS_INDEX_PLAN_RESULTS "必要構成の個別結果"
+	END

@@ -1,0 +1,441 @@
+{
+  "schema": "dc-official-link-completion-batch-v1",
+  "asOf": "2026-10-06T09:08:39Z",
+  "registrySha256": "de1aa2a861470afe59ea61c506f7ca3129392cf4164db9835e3ce4feedc2a794",
+  "researchOnly": true,
+  "publishable": false,
+  "installAuthorized": false,
+  "rows": [
+    {
+      "recordId": "canon-generic-plus-pcl6-340-x64",
+      "recordSha256": "85a66f20e4e0f9ded3c6d697b30dcd2bb373bbf887ff50de06673d70342ee769",
+      "sourceId": "canon-generic-0101228401",
+      "officialPage": "https://ph.canon/en/support/0101228401",
+      "versionField": "packageVersion",
+      "version": "V3.40",
+      "downloadUrl": null,
+      "linkStatus": "PUBLIC_SELECTOR_REQUIRES_PROFILE",
+      "evidenceMethod": "LOCAL_HTTP_MANUAL_REVIEW",
+      "bodySha256": "d517e54b15c87a73f458f66f36ed0fb718f6dd93f11ade20b991f072e3ece769",
+      "publishedDriverVersion": null,
+      "publishedDate": null,
+      "declaredOs": [
+        "WINDOWS_10_X64",
+        "WINDOWS_11_X64",
+        "WINDOWS_SERVER_X64"
+      ],
+      "serverVersions": [
+        "2016",
+        "2019",
+        "2022",
+        "2025"
+      ],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": "37.70 MB",
+      "delivery": "DOCUMENTED_INSTALLER",
+      "conditions": [
+        "DOWNLOAD_DISCLAIMER_CONFIRMATION_REQUIRED",
+        "DISCONNECT_USB_BEFORE_SETUP",
+        "CONNECT_USB_AFTER_SETUP",
+        "VERIFY_MODEL_SUPPORT_AND_SETUP_INSTRUCTIONS"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "recordId": "canon-generic-plus-ps3-340-x64",
+      "recordSha256": "74cedae7fa52d16f1d09f503cfcc9881ee09c41fa81b82fb5fb5e8f5ba45cd2f",
+      "sourceId": "canon-generic-0101227701",
+      "officialPage": "https://ph.canon/en/support/0101227701",
+      "versionField": "packageVersion",
+      "version": "V3.40",
+      "downloadUrl": null,
+      "linkStatus": "PUBLIC_SELECTOR_REQUIRES_PROFILE",
+      "evidenceMethod": "LOCAL_HTTP_MANUAL_REVIEW",
+      "bodySha256": "f7fa217fdcaeeed2f6ac3309af0e23225ef5eff7a846446cb5ec7a60ffd2afad",
+      "publishedDriverVersion": null,
+      "publishedDate": null,
+      "declaredOs": [
+        "WINDOWS_10_X64",
+        "WINDOWS_11_X64",
+        "WINDOWS_SERVER_X64"
+      ],
+      "serverVersions": [
+        "2016",
+        "2019",
+        "2022",
+        "2025"
+      ],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": "35.31 MB",
+      "delivery": "DOCUMENTED_INSTALLER",
+      "conditions": [
+        "DOWNLOAD_DISCLAIMER_CONFIRMATION_REQUIRED",
+        "DISCONNECT_USB_BEFORE_SETUP",
+        "CONNECT_USB_AFTER_SETUP",
+        "VERIFY_MODEL_SUPPORT_AND_SETUP_INSTRUCTIONS"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "recordId": "canon-generic-plus-ufr-ii-340-x64",
+      "recordSha256": "43d39fd3a064b864cdab137552dbecafa6780cacc074c4d5c3f75434c603ce61",
+      "sourceId": "canon-generic-0101227001",
+      "officialPage": "https://ph.canon/en/support/0101227001",
+      "versionField": "packageVersion",
+      "version": "V3.40",
+      "downloadUrl": null,
+      "linkStatus": "PUBLIC_SELECTOR_REQUIRES_PROFILE",
+      "evidenceMethod": "LOCAL_HTTP_MANUAL_REVIEW",
+      "bodySha256": "2b35931c124a3a542fa490464335b82a8fce5c3f654f5a379c095135e9cff088",
+      "publishedDriverVersion": null,
+      "publishedDate": null,
+      "declaredOs": [
+        "WINDOWS_10_X64",
+        "WINDOWS_11_X64",
+        "WINDOWS_SERVER_X64"
+      ],
+      "serverVersions": [
+        "2016",
+        "2019",
+        "2022",
+        "2025"
+      ],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": "39.58 MB",
+      "delivery": "DOCUMENTED_INSTALLER",
+      "conditions": [
+        "DOWNLOAD_DISCLAIMER_CONFIRMATION_REQUIRED",
+        "DISCONNECT_USB_BEFORE_SETUP",
+        "CONNECT_USB_AFTER_SETUP",
+        "GENERIC_UFRII_INPLACE_UPGRADE_NOT_SUPPORTED",
+        "POINT_AND_PRINT_ADDIN_LIMITATIONS"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "recordId": "exp18-yamaha-fw-166-windows-x64",
+      "recordSha256": "e29ad605cedf4a1a12be7ca81c8220fb3c4f75c77f53147dd58946e88f35b70b",
+      "sourceId": "exp18-source-020",
+      "officialPage": "https://usa.yamaha.com/support/updates/yamaha_steinberg_fw_driver_win64.html",
+      "versionField": "packageVersion",
+      "version": "1.6.6",
+      "downloadUrl": "https://usa.yamaha.com/files/download/software/7/310637/win_fw_v166x64.zip",
+      "linkStatus": "DIRECT_LINK_CONFIRMED",
+      "evidenceMethod": "LOCAL_HTTP_MANUAL_REVIEW",
+      "bodySha256": "eaf5ccfe1a1e13893ecb936c5e69c320f194f8561877f3c99058dad97e50a103",
+      "publishedDriverVersion": null,
+      "publishedDate": null,
+      "declaredOs": [
+        "WINDOWS_10_X64",
+        "WINDOWS_11_X64"
+      ],
+      "serverVersions": [],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": null,
+      "delivery": "ZIP_INSTALLER_MENTIONED",
+      "conditions": [
+        "DOWNLOAD_EULA_REQUIRED",
+        "MODEL_DEPENDENT_OPTIONAL_FIREWIRE_BOARD_REQUIRED",
+        "MODEL_SPECIFIC_FIRMWARE_MINIMUM_REQUIRED",
+        "COMPATIBLE_IEEE1394_CHIPSET_REQUIRED"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "recordId": "exp18-yamaha-usb-213-windows-x64",
+      "recordSha256": "62298476dbe29ce3e35b8443e50b904c8349851eab55505ab12035573128f1f0",
+      "sourceId": "exp18-source-019",
+      "officialPage": "https://usa.yamaha.com/support/updates/yamaha_steinberg_usb_driver_v213_for_win.html",
+      "versionField": "packageVersion",
+      "version": "2.1.3",
+      "downloadUrl": "https://usa.yamaha.com/files/download/software/6/1588306/YSUSB_V213_Win.zip",
+      "linkStatus": "DIRECT_LINK_CONFIRMED",
+      "evidenceMethod": "LOCAL_HTTP_MANUAL_REVIEW",
+      "bodySha256": "c05cd78bba36f81b0dd9c6d6e96618f37d46333bb3ab8a2b2fad590628aa36dd",
+      "publishedDriverVersion": null,
+      "publishedDate": null,
+      "declaredOs": [
+        "WINDOWS_10_X64",
+        "WINDOWS_11_X64"
+      ],
+      "serverVersions": [],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": null,
+      "delivery": "ZIP_INSTALLER_MENTIONED",
+      "conditions": [
+        "DOWNLOAD_EULA_REQUIRED",
+        "PREVIOUS_RELEASE_NOT_CURRENT_LATEST",
+        "USB_INTERFACE_AND_SYSTEM_REQUIREMENTS"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "recordId": "intel-arc-32-0-101-9034-win64",
+      "recordSha256": "3477abb62316f453042f018737c891f35abb4f882785b050a1bafc01461dfca6",
+      "sourceId": "intel-arc-current",
+      "officialPage": "https://www.intel.com/content/www/us/en/download/785597/intel-arc-graphics-windows.html",
+      "versionField": "packageVersion",
+      "version": "32.0.101.9034",
+      "downloadUrl": null,
+      "linkStatus": "PAYLOAD_URL_NOT_OBSERVED",
+      "evidenceMethod": "WEB_REVIEW",
+      "bodySha256": null,
+      "publishedDriverVersion": null,
+      "publishedDate": null,
+      "declaredOs": [
+        "WINDOWS_10_X64",
+        "WINDOWS_11_X64"
+      ],
+      "serverVersions": [],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": "889.4 MB",
+      "delivery": "LARGE_OFFICIAL_INSTALLER",
+      "conditions": [
+        "DOWNLOAD_EULA_REQUIRED",
+        "WIN10_22H2_MINIMUM",
+        "OEM_CUSTOMIZATIONS_MAY_BE_REPLACED",
+        "LARGE_PACKAGE_BUDGET_AND_MEMBER_CLOSURE_REQUIRED"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": true
+    },
+    {
+      "recordId": "intel-arc-pro-32-0-101-8976-win64",
+      "recordSha256": "e228647c6ffb1ef8796a2f706242a85346fb6084fbe382c1fd92e1d845e1ed00",
+      "sourceId": "intel-arc-pro-current",
+      "officialPage": "https://www.intel.com/content/www/us/en/download/741626/intel-arc-pro-graphics-windows.html",
+      "versionField": "packageVersion",
+      "version": "32.0.101.8976",
+      "downloadUrl": null,
+      "linkStatus": "PAYLOAD_URL_NOT_OBSERVED",
+      "evidenceMethod": "WEB_REVIEW",
+      "bodySha256": null,
+      "publishedDriverVersion": null,
+      "publishedDate": null,
+      "declaredOs": [
+        "WINDOWS_10_X64",
+        "WINDOWS_11_X64"
+      ],
+      "serverVersions": [],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": "855 MB",
+      "delivery": "LARGE_OFFICIAL_INSTALLER",
+      "conditions": [
+        "DOWNLOAD_EULA_REQUIRED",
+        "WIN10_22H2_MINIMUM",
+        "OEM_CUSTOMIZATIONS_MAY_BE_REPLACED",
+        "LARGE_PACKAGE_BUDGET_AND_MEMBER_CLOSURE_REQUIRED"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": true
+    },
+    {
+      "recordId": "intel-bluetooth-24-70-0",
+      "recordSha256": "bb330d154efc3620cfebd4c00ea4802e912ead55e4b823d3e97294a50c7f9bc9",
+      "sourceId": "intel-bluetooth-current",
+      "officialPage": "https://www.intel.com/content/www/us/en/download/18649/intel-wireless-bluetooth-drivers-for-windows-10-and-windows-11.html",
+      "versionField": "packageVersion",
+      "version": "24.70.0",
+      "downloadUrl": null,
+      "linkStatus": "PAYLOAD_URL_NOT_OBSERVED",
+      "evidenceMethod": "WEB_REVIEW",
+      "bodySha256": null,
+      "publishedDriverVersion": "24.70.0.4",
+      "publishedDate": null,
+      "declaredOs": [
+        "WINDOWS_10_X64",
+        "WINDOWS_11_X64"
+      ],
+      "serverVersions": [],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": "61.4 MB",
+      "delivery": "DOCUMENTED_INSTALLER",
+      "conditions": [
+        "DOWNLOAD_EULA_REQUIRED",
+        "ALL_PRODUCT_VARIANTS_REQUIRE_INF_VERSION_CONFIRMATION",
+        "9560_9462_9461_UPGRADE_FROM_23_10_TO_23_50_REQUIRES_UNPAIRING"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "recordId": "intel-wifi-24-70-0",
+      "recordSha256": "15533f0b893c511d1a17104391de3524b24a356a2e5300664bc0d9225d874132",
+      "sourceId": "intel-wifi-current",
+      "officialPage": "https://www.intel.com/content/www/us/en/download/19351/intel-wireless-wi-fi-drivers-for-windows-10-and-windows-11.html",
+      "versionField": "packageVersion",
+      "version": "24.70.0",
+      "downloadUrl": null,
+      "linkStatus": "PAYLOAD_URL_NOT_OBSERVED",
+      "evidenceMethod": "WEB_REVIEW",
+      "bodySha256": null,
+      "publishedDriverVersion": "24.70.0.3",
+      "publishedDate": null,
+      "declaredOs": [
+        "WINDOWS_10_X64",
+        "WINDOWS_11_X64"
+      ],
+      "serverVersions": [],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": "51.9 MB",
+      "delivery": "DOCUMENTED_INSTALLER",
+      "conditions": [
+        "DOWNLOAD_EULA_REQUIRED",
+        "AX200_REQUIRES_SEPARATE_PACKAGE",
+        "WIFI7_FEATURES_REQUIRE_WIN11_24H2",
+        "ALL_PRODUCT_VARIANTS_REQUIRE_INF_VERSION_CONFIRMATION"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "recordId": "intel-wifi-ax200-24-20-2",
+      "recordSha256": "36f142374c043d7b583851a1f2bef91059a3911474147854497985a3454ee8de",
+      "sourceId": "intel-wifi-ax200-eol",
+      "officialPage": "https://www.intel.com/content/www/us/en/download/915475/intel-wireless-wi-fi-drivers-for-intel-wi-fi-6-ax200.html",
+      "versionField": "packageVersion",
+      "version": "24.20.2",
+      "downloadUrl": null,
+      "linkStatus": "PAYLOAD_URL_NOT_OBSERVED",
+      "evidenceMethod": "WEB_REVIEW",
+      "bodySha256": null,
+      "publishedDriverVersion": null,
+      "publishedDate": null,
+      "declaredOs": [
+        "WINDOWS_10_X64",
+        "WINDOWS_11_X64"
+      ],
+      "serverVersions": [],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": "44.2 MB",
+      "delivery": "DOCUMENTED_INSTALLER",
+      "conditions": [
+        "DOWNLOAD_EULA_REQUIRED",
+        "END_OF_LIFE_NO_FUTURE_SECURITY_FIXES",
+        "AX200_REQUIRES_SEPARATE_PACKAGE"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "recordId": "intel-wired-31-2-2-win11",
+      "recordSha256": "29f3827558639f6f32007660fd61895773b079548a30f2dcd59583a9b015cc57",
+      "sourceId": "intel-ethernet-win11",
+      "officialPage": "https://www.intel.com/content/www/us/en/download/727998/intel-network-adapter-driver-for-microsoft-windows-11.html",
+      "versionField": "packageVersion",
+      "version": "31.2.2",
+      "downloadUrl": null,
+      "linkStatus": "PAYLOAD_URL_NOT_OBSERVED",
+      "evidenceMethod": "WEB_REVIEW",
+      "bodySha256": null,
+      "publishedDriverVersion": null,
+      "publishedDate": null,
+      "declaredOs": [
+        "WINDOWS_11_X64"
+      ],
+      "serverVersions": [],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": "38.6 MB",
+      "delivery": "ZIP_DRIVER_PACKAGE",
+      "conditions": [
+        "DOWNLOAD_EULA_REQUIRED",
+        "RELEASE_NOTES_AND_README_REQUIRED",
+        "PACKAGE_VERSION_IS_NOT_PER_DEVICE_DRIVER_VERSION"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "recordId": "roland-rubix-windows-107",
+      "recordSha256": "ed8274be3add3179802291fced610dc1b755b045532435ab401fd376b4057d8c",
+      "sourceId": "roland-rubix-windows-support",
+      "officialPage": "https://www.roland.com/us/support/by_product/rubix22/updates_drivers/3a8362ae-b4e3-473d-b325-2e88c689bd6a/",
+      "versionField": "packageVersion",
+      "version": "1.0.7",
+      "downloadUrl": "https://static.roland.com/assets/media/exe/rubix_wind_v107.exe",
+      "linkStatus": "DIRECT_LINK_CONFIRMED",
+      "evidenceMethod": "LOCAL_HTTP_MANUAL_REVIEW",
+      "bodySha256": "425504bebf4f7889ab25b657d926e27de0fadbb0a3c5167af8b95f19ae87cff9",
+      "publishedDriverVersion": null,
+      "publishedDate": null,
+      "declaredOs": [
+        "WINDOWS_10_X64",
+        "WINDOWS_11_X64"
+      ],
+      "serverVersions": [],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": null,
+      "delivery": "DOCUMENTED_INSTALLER",
+      "conditions": [
+        "DOWNLOAD_EULA_REQUIRED",
+        "WIN10_1703_OR_LATER_MANUAL_INSTALL",
+        "OLDER_WIN10_USES_WINDOWS_UPDATE_DRIVER",
+        "SAMPLE_RATES_MUST_MATCH",
+        "VIRTUAL_WINDOWS_ENVIRONMENT_NOT_SUPPORTED",
+        "USB20_COMPATIBLE_PORT_REQUIRED"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    },
+    {
+      "recordId": "tp-link-archer-tx55e-v460-win-x64",
+      "recordSha256": "aff4e6f33555b7032b5f3099cf1b9650e2bffed15f433e3fa6bf4c79851a9cf8",
+      "sourceId": "tp-link-archer-tx55e-v460",
+      "officialPage": "https://www.tp-link.com/us/support/download/archer-tx55e/v4.60/",
+      "versionField": null,
+      "version": null,
+      "downloadUrl": "https://static.tp-link.com/upload/driver/2024/202411/20241104/00.034_240620.zip",
+      "linkStatus": "DIRECT_LINK_CONFIRMED",
+      "evidenceMethod": "LOCAL_HTTP_MANUAL_REVIEW",
+      "bodySha256": "557f6ed1cf5c9ee26db2416ea77cc2984459132f3b88b8d1e9b1b3a3ad6ca96f",
+      "publishedDriverVersion": null,
+      "publishedDate": "2024-11-04",
+      "declaredOs": [
+        "WINDOWS_10_X64",
+        "WINDOWS_11_X64"
+      ],
+      "serverVersions": [],
+      "architectures": [
+        "X64"
+      ],
+      "sizeDisplay": "36.49 MB",
+      "delivery": "ZIP_DRIVER_PACKAGE",
+      "conditions": [
+        "MATCH_US_REGION_AND_HARDWARE_V460",
+        "DRIVER_VERSION_REQUIRES_INF_INSPECTION",
+        "REVIEW_TERMS_BEFORE_PAYLOAD_REQUEST"
+      ],
+      "firmwareCoupling": "NOT_CHECKED",
+      "largePackagePathRequired": false
+    }
+  ]
+}

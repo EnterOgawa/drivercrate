@@ -1,0 +1,8 @@
+{
+  "schema": "dc-registry-monitor-policy-v1",
+  "revision": "20261003-monitor-01",
+  "heldSourceIds": [
+    "asus-catalog-legacy",
+    "intel-ethernet-win11"
+  ]
+}

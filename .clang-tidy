@@ -1,0 +1,20 @@
+# 自作宣言とその参照だけを解析する。外部API・override・文字列は改名対象にしない。
+Checks: '-*,readability-identifier-naming'
+HeaderFilterRegex: '.*[\\/](src|tests|docs[\\/]examples)[\\/].*'
+ExcludeHeaderFilterRegex: '.*[\\/](build[^\\/]*|third_party|_deps)[\\/].*'
+FormatStyle: none
+CheckOptions:
+  readability-identifier-naming.GetConfigPerFile: 'false'
+  readability-identifier-naming.FunctionCase: camelBack
+  readability-identifier-naming.MethodCase: camelBack
+  readability-identifier-naming.VirtualMethodCase: camelBack
+  readability-identifier-naming.ParameterCase: camelBack
+  readability-identifier-naming.VariableCase: camelBack
+  readability-identifier-naming.MemberCase: camelBack
+  readability-identifier-naming.PrivateMemberCase: camelBack
+  readability-identifier-naming.PrivateMemberSuffix: '_'
+  readability-identifier-naming.ConstexprVariableCase: UPPER_CASE
+  readability-identifier-naming.GlobalConstantCase: UPPER_CASE
+  readability-identifier-naming.StaticConstantCase: UPPER_CASE
+  readability-identifier-naming.EnumConstantCase: UPPER_CASE
+  readability-identifier-naming.FunctionIgnoredRegexp: '^(wWinMain|WinMain|wmain|main)$'

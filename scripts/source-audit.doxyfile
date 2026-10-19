@@ -1,0 +1,28 @@
+# 任意の文書契約監査。通常の // 宣言説明は別の字句検査で確認する。
+PROJECT_NAME = DriverCrate
+OUTPUT_DIRECTORY = work/tmp/source-style-analysis/doxygen
+INPUT = src tests docs/examples
+FILE_PATTERNS = *.h *.cpp
+RECURSIVE = YES
+INPUT_ENCODING = UTF-8
+EXTRACT_ALL = NO
+EXTRACT_PRIVATE = YES
+EXTRACT_STATIC = YES
+EXTRACT_LOCAL_CLASSES = YES
+EXTRACT_ANON_NSPACES = YES
+# Doxygen 1.10.0 の XML-only は契約の解析前に引数・戻り値欠落を警告する。
+# HTML の文書解析も通し、実欠落の WARN と XML 抽出をともに維持する。
+GENERATE_HTML = YES
+GENERATE_LATEX = NO
+GENERATE_XML = YES
+XML_PROGRAMLISTING = NO
+QUIET = YES
+WARNINGS = YES
+WARN_IF_UNDOCUMENTED = YES
+WARN_IF_DOC_ERROR = YES
+WARN_NO_PARAMDOC = YES
+WARN_LOGFILE = work/tmp/source-style-analysis/doxygen-warnings.log
+ENABLE_PREPROCESSING = YES
+MACRO_EXPANSION = NO
+SEARCH_INCLUDES = NO
+CLANG_ASSISTED_PARSING = NO

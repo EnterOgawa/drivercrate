@@ -1,0 +1,39 @@
+//------------------------------------------------------------------------------
+/**
+ * @file collector_setup.rc
+ * @brief 収集用セットアップの日本語確認文字列を定義します。
+ * @version 01.01.00
+ * @date 2026/09/30
+ * @author Shunji Ogawa
+ * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
+ *
+ * @par ライセンス
+ * SPDX-License-Identifier: Apache-2.0
+ * 本ファイルには Apache License, Version 2.0 が適用されます。
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @par 会社名
+ * EnterSystem
+ *
+ * @par 更新履歴
+ * <pre>
+ * VerNo.       author        update      comment
+ * Ver.01.00.00 Shunji Ogawa  2026/09/30  変更範囲とデータ保持の確認案内を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/10/03  同梱研究索引の境界と解除時保持を明示。
+ * </pre>
+ *
+ * @note UI文言はこのresourceを正本とします。
+ */
+//------------------------------------------------------------------------------
+#include <Windows.h>
+#pragma code_page(65001)
+
+STRINGTABLE
+BEGIN
+	101 "収集専用の手動セットアップpreviewを次の新規フォルダーへ配置します。\n収集・ドライバー導入・タスク登録・GitHub送信は開始しません。\n未署名の開発版です。配置しますか？"
+	102 "収集プログラムの管理ファイルを解除します。\n設定、同梱研究台帳・索引、work配下の収集データ、未知のファイル、セットアップEXEは残します。\n次のフォルダーのプログラムを解除しますか？"
+	103 "DriverCrate Collector セットアップpreview"
+	104 "操作を完了しました。\n導入後は配置先のValidate.cmdで入力を検査し、Collect.cmdで明示的に収集してください。\n解除の場合は設定・データ・セットアップEXE等を保持しています。"
+	105 "初期の研究台帳・索引も配置します。未署名の研究データであり、最新版・端末適合・導入許可ではありません。日次監視の自動実行はまだ有効になりません。"
+END

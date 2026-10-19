@@ -1,0 +1,17 @@
+{
+  "schema": "dc-collector-targets-v1",
+  "targets": [
+    {
+      "source": "ASUS_CATALOG",
+      "publicModel": "PRIME B760-PLUS D4",
+      "operatingSystem": "Windows 11 64-bit",
+      "category": "LAN"
+    },
+    {
+      "source": "INTEL_ETHERNET_WINDOWS11",
+      "publicModel": "",
+      "operatingSystem": "Windows 11 64-bit",
+      "category": ""
+    }
+  ]
+}
