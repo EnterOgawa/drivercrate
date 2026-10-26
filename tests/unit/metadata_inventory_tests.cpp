@@ -2,8 +2,8 @@
 /**
  * @file metadata_inventory_tests.cpp
  * @brief 現在属性列挙の上限・欠損・停止境界の決定的試験。
- * @version 01.04.02
- * @date 2026/09/12
+ * @version 01.05.01
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -27,6 +27,8 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/14  未知Classの必要ID欠損と部分一致非昇格の回帰を追加。
  * Ver.01.04.01 Shunji Ogawa  2026/10/16  未配備status fixtureを実製品root照会から隔離。
  * Ver.01.04.02 Shunji Ogawa  2026/10/17  Native IDの実空listと独立size・実byteの有限回帰を追加。
+ * Ver.01.05.00 Shunji Ogawa  2026/10/24  原公開PnPのcase等価と入力失敗/未照合を分離。
+ * Ver.01.05.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 現在属性とdevnodeの六APIを全てfakeへ置換し、実device列挙と導入を行わない。
@@ -1349,9 +1351,9 @@ private:
  * @param[in,out] worker 実command queueを持つworker。
  * @param[in] operationId 待つoperation。
  * @param[in] kind 待つ終端用途。
- * @return 同operationのowned event。期限後nulloptです。
+ * @return 同operationのheap所有event。期限後nullptrです。
  */
-[[nodiscard]] std::optional<WorkerEvent> indexWorkerEvent(
+[[nodiscard]] std::unique_ptr<WorkerEvent> indexWorkerEvent(
 	ProviderWorker &worker, OperationId operationId,
 	WorkerEventKind kind = WorkerEventKind::SCAN_COMPLETED)
 {
@@ -1362,14 +1364,14 @@ private:
 		for( const auto &event : events) {
 			// 別operationの古い通知を現結果へ適用しません。
 			if( event.operationId == operationId && event.kind == kind) {
-				return event ;
+				return std::make_unique<WorkerEvent>( event) ;
 			}
 		}
 
 		std::this_thread::sleep_for( std::chrono::milliseconds{1}) ;
 	}
 
-	return std::nullopt ;
+	return nullptr ;
 }
 
 /** @brief UTF-16の実要素だけをraw propertyへcopyし、終端を追加しません。
@@ -2027,6 +2029,7 @@ void runMetadataInventoryTests( TestContext &context)
 	testObservedKeyAndDate( context) ;
 }
 
+/** @see metadata_inventory_tests.h */
 void runDriverStoreIndexResolverTests( TestContext									   &context,
 									  std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
 									  const std::chrono::sys_seconds					nowUtc)
@@ -2038,8 +2041,10 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 	const int initialFailures = context.failureCount() ;				// 既存groupと失敗数を分離します。
 	constexpr std::string_view PUBLISHED_ID = "TESTBUS\\SYNTH_0001" ;	// 架空公表IDだけです。
 	constexpr std::string_view PUBLISHED_CLASS =
-		"{11111111-2222-3333-4444-555555555555}" ;				// 架空class。
-	InventoryCase			  unique ;							// 六API全部がfakeの実Providerです。
+		"{11111111-2222-3333-4444-555555555555}" ;	// 架空class。
+	const auto uniqueOwner =
+		std::make_unique<InventoryCase>() ;						// 同じscopeだけで大きなfixtureを所有する。
+	auto					 &unique  = *uniqueOwner ;			// 六API全部がfakeの実Providerです。
 	const auto				  scanned = unique.scanForIndex() ;	// 任意DTOでmapを作らない実capture。
 	IndexLookupContext		  active ;							// Factoryが発行するcontext。
 	std::vector<std::wstring> present ;							// 全present opaqueだけです。
@@ -2086,6 +2091,12 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 						 connected.lookup->relations()[1].state == IndexRecordMatchState::MATCHED) ;
 	}
 
+	const auto lower =
+		resolver->resolve( IndexPnpIdKind::HARDWARE, "testbus\\synth_0001", PUBLISHED_CLASS, active,
+						  present) ;	// 原公開caseだけの差です。
+	DRIVERCRATE_EXPECT( context,
+					   lower.completed && lower.error == 0U && lower.devices == hardware.devices) ;
+
 	// 全contextの三fieldを一つずつ変え、stale値から結果を作らせません。
 	for( unsigned field = 0U; field < 3U; ++field) {
 		auto stale = active ;	// 一fieldだけの不一致。
@@ -2114,12 +2125,18 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 		context,
 		resolver->resolve( IndexPnpIdKind::HARDWARE, PUBLISHED_ID, PUBLISHED_CLASS, active, reversed)
 			.completed) ;
-	// 非ASCII・UTF-8不正byte・小文字・空IDを入力拒否へ残します。
+	// 元四入力を保持し、case差の合法IDと不正文法を区別します。
 	for( const std::string_view invalid :
 		{"", "TESTBUS\\bad", "TESTBUS\\BAD\\TAIL", "TESTBUS\\\xff"}) {
 		const auto rejected = resolver->resolve( IndexPnpIdKind::HARDWARE, invalid, PUBLISHED_CLASS,
 												active, present) ;	// 元公開grammarの拒否。
-		DRIVERCRATE_EXPECT( context, !rejected.completed && rejected.error != 0U) ;
+		// 小文字は合法な原公開IDであり、不一致を入力失敗やdriverなしへ変換しません。
+		if( invalid == "TESTBUS\\bad") {
+			DRIVERCRATE_EXPECT( context, rejected.completed && rejected.error == 0U &&
+											rejected.devices.empty()) ;
+		} else {
+			DRIVERCRATE_EXPECT( context, !rejected.completed && rejected.error != 0U) ;
+		}
 	}
 
 	const auto badKind = resolver->resolve( static_cast<IndexPnpIdKind>( 99), PUBLISHED_ID,
@@ -2178,7 +2195,9 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 
 	// 同型二台、class相違、class欠損、表示欠損を独立の同scanで比較します。
 	for( unsigned mode = 0U; mode < 4U; ++mode) {
-		InventoryCase run ;	// 任意DTOへ置換しない同じcapture。
+		const auto runOwner =
+			std::make_unique<InventoryCase>() ;				// 同じscopeだけで大きなfixtureを所有する。
+		auto &run							  = *runOwner ;	// 任意DTOへ置換しない同じcapture。
 		run.fixture.sameHardware			  = true ;
 		run.fixture.differentClass			  = mode == 1U ;
 		run.fixture.unknownClass			  = mode == 2U ;
@@ -2225,7 +2244,9 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 
 	// 無関係なnodeの欠損と既知positiveを同居させ、query単位の完了軸を検証します。
 	for( unsigned mode = 0U; mode < 3U; ++mode) {
-		InventoryCase run ;	// Positiveはnode0、追加の必要情報はnode1です。
+		const auto runOwner =
+			std::make_unique<InventoryCase>() ;			// 同じscopeだけで大きなfixtureを所有する。
+		auto &run					   = *runOwner ;	// Positiveはnode0、追加の必要情報はnode1です。
 		run.fixture.differentClass	   = mode == 0U ;
 		run.fixture.unknownSecondClass = mode != 0U ;
 		run.fixture.faultKey		   = DEVPKEY_Device_HardwareIds ;
@@ -2253,7 +2274,9 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 
 	// 実観測の未知class ID欠損を再現し、部分一致を完了へ補完しません。
 	for( unsigned mode = 0U; mode < 4U; ++mode) {
-		InventoryCase run ;	// 二nodeとも六APIが完全fakeの同scanです。
+		const auto runOwner =
+			std::make_unique<InventoryCase>() ;			// 同じscopeだけで大きなfixtureを所有する。
+		auto &run					   = *runOwner ;	// 二nodeとも六APIが完全fakeの同scanです。
 		run.fixture.unknownSecondClass = mode != 2U ;
 		run.fixture.differentClass	   = mode == 2U ;
 		run.fixture.faultKey		   = DEVPKEY_Device_HardwareIds ;
@@ -2328,7 +2351,9 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 
 	// 公表INF側二役割とnative側二種別を独立に選び、四組合せ全てを実resolverで照合します。
 	for( unsigned combination = 0U; combination < 4U; ++combination) {
-		InventoryCase run ;	// 通信・実端末を使わない完全captureです。
+		const auto runOwner =
+			std::make_unique<InventoryCase>() ;				// 同じscopeだけで大きなfixtureを所有する。
+		auto &run							= *runOwner ;	// 通信・実端末を使わない完全captureです。
 		run.fixture.publishedIdInCompatible = combination >= 2U ;
 		static_cast<void>( run.scanForIndex()) ;
 		IndexLookupContext		  issued ;	// 組合せごとの元contextです。
@@ -2351,7 +2376,9 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 
 	// 同nodeの両集合重複は一device、旧逆node fixtureは二deviceの非一意として残します。
 	for( unsigned mode = 0U; mode < 2U; ++mode) {
-		InventoryCase run ;	// 元同文字列の役割を保ったままnode配置だけを変えます。
+		const auto runOwner =
+			std::make_unique<InventoryCase>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		auto &run = *runOwner ;					// 元同文字列の役割を保ったままnode配置だけを変えます。
 		run.fixture.publishedIdInBothKinds = mode == 0U ;
 		run.fixture.splitKindAcrossNodes   = mode == 1U ;
 		static_cast<void>( run.scanForIndex()) ;
@@ -2384,7 +2411,9 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 	}
 
 	{
-		InventoryCase run ;	// 013と同じ合法cross一致と別unknown nodeのHardware欠損です。
+		const auto runOwner =
+			std::make_unique<InventoryCase>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		auto &run = *runOwner ;					// 013と同じ合法cross一致と別unknown nodeのHardware欠損です。
 		run.fixture.publishedIdInCompatible = true ;
 		run.fixture.unknownSecondClass		= true ;
 		run.fixture.faultKey				= DEVPKEY_Device_HardwareIds ;
@@ -2489,7 +2518,10 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 		}
 	}
 
-	InventoryCase nativeForms ;	// 安全なbuslessとmatching IDが同居する実list。
+	const auto nativeFormsOwner =
+		std::make_unique<InventoryCase>() ;	// 同じscopeだけで大きなfixtureを所有する。
+
+	auto &nativeForms = *nativeFormsOwner ;	// 安全なbuslessとmatching IDが同居する実list。
 	nativeForms.fixture.extraNativeId = true ;
 	static_cast<void>( nativeForms.scanForIndex()) ;
 	IndexLookupContext		  nativeContext ;	// 同scanで発行したcontext。
@@ -2508,7 +2540,9 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 
 	// 不正Native byteや制御文字を正常不一致へ分類しません。
 	for( const std::wstring_view invalid : {L"TESTBUS\\BAD\x01", L"TESTBUS\\\xd800"}) {
-		InventoryCase run ;	// 生属性の破損だけを分離します。
+		const auto runOwner =
+			std::make_unique<InventoryCase>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		auto &run			= *runOwner ;		// 生属性の破損だけを分離します。
 		run.fixture.indexId = invalid ;
 		static_cast<void>( run.scanForIndex()) ;
 		IndexLookupContext		  issued ;	// 当該scan context。
@@ -2530,7 +2564,9 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 	IndexLookupContext					   expiredContext ;	// 元context。
 	std::vector<std::wstring>			   expiredPresent ;	// 元opaqueだけ。
 	{
-		InventoryCase run ;	// Scope終了で秘密stateを解放します。
+		const auto runOwner =
+			std::make_unique<InventoryCase>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		auto &run = *runOwner ;					// Scope終了で秘密stateを解放します。
 		static_cast<void>( run.scanForIndex()) ;
 		expired = run.provider.makeIndexPublicIdResolver( 897U, expiredContext, expiredPresent) ;
 	}
@@ -2545,7 +2581,9 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 		 PropertyFault::ODD_SIZE, PropertyFault::OVER_LIMIT, PropertyFault::GROWING,
 		 PropertyFault::OVER_REPORTED, PropertyFault::ZERO_RETURNED, PropertyFault::UNTERMINATED,
 		 PropertyFault::EMBEDDED_NULL}) {
-		InventoryCase run ;	// 一種別の失敗を他種別へ混ぜません。
+		const auto runOwner =
+			std::make_unique<InventoryCase>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		auto &run				  = *runOwner ;	// 一種別の失敗を他種別へ混ぜません。
 		run.fixture.faultKey	  = DEVPKEY_Device_HardwareIds ;
 		run.fixture.propertyFault = fault ;
 		static_cast<void>( run.scanForIndex()) ;
@@ -2577,7 +2615,9 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 
 	// 一巡目partial、二巡目消失、途中取消しは正常な空集合にしません。
 	for( unsigned mode = 0U; mode < 3U; ++mode) {
-		InventoryCase run ;	// 列挙の各停止点を分離します。
+		const auto runOwner =
+			std::make_unique<InventoryCase>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		auto &run				= *runOwner ;	// 列挙の各停止点を分離します。
 		run.fixture.failCountAt = mode == 0U ? 1U : std::numeric_limits<DWORD>::max() ;
 		run.fixture.disappearAt = mode == 1U ? 1U : std::numeric_limits<DWORD>::max() ;
 		// 最初のproperty後で停止し、partial captureを完了へ変換させません。

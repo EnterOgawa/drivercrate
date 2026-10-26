@@ -2,8 +2,8 @@
 /**
  * @file signed_index_manifest_tests.cpp
  * @brief 非永続CNG RSA鍵の実署名でmanifest認証の拒否境界を検査します。
- * @version 01.12.00
- * @date 2026/10/11
+ * @version 01.17.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -36,10 +36,19 @@
  * Ver.01.11.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.11.02 Shunji Ogawa  2026/10/16  製品固定公開pinとmanifest-only取得拒否を追加。
  * Ver.01.12.00 Shunji Ogawa  2026/10/19  旧headの認証移動と世代/中断/拒否回帰を追加。
+ * Ver.01.13.00 Shunji Ogawa  2026/10/23 実producer原byteをRAM認証/保存/通常workerへ接続。
+ * Ver.01.13.01 Shunji Ogawa  2026/10/24 現行仕様へ限定し旧版専用の入口・移動を整理。
+ * Ver.01.14.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
+ * Ver.01.15.00 Shunji Ogawa  2026/10/24  同公開集合の追加native recordを未照合のまま検査。
+ * Ver.01.16.00 Shunji Ogawa  2026/10/24  原Intel archiveと原期限のhistorical通常app試験を追加。
+ * Ver.01.16.01 Shunji Ogawa  2026/10/24  新規配布8日上限の秒境界を検証。
+ * Ver.01.16.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.17.00 Shunji Ogawa  2026/10/26 新metadata生成索引の原byteを通常reader/候補adapterへ接続。
  * </pre>
  *
  * @note 秘密鍵はCNG handleのRAM内だけにあり、public blob以外をexportしません。
- * Test材料を製品libraryのtrustへ配置せず、network・製品store・実device・導入を呼びません。
+ * Test材料を製品libraryのtrustへ配置せず、製品store・実device・導入を呼びません。
+ * 明示Intel原archive modeだけは標準Windows署名APIを実行し、証明書読取通信を許可します。
  * 保存試験は自作の隔離directoryだけへ実DPAPIとfile APIを使います。
  * @see docs/adr/0329-minimal-index-and-install-binding-contract.md
  */
@@ -47,6 +56,11 @@
 #include "signed_index_manifest_tests.h"
 #include "signed_index_candidate_binding_tests.h"
 #include "metadata_inventory_tests.h"
+#include "platform/official_download_workspace.h"
+#include "platform/official_file_verifier.h"
+#include "platform/driver_package_signature_internal.h"
+#include "platform/common_driver_package.h"
+#include "platform/com_raii.h"
 
 #include <array>
 #include <algorithm>
@@ -55,6 +69,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <new>
@@ -81,11 +96,20 @@
 #include "platform/signed_index_acquisition_adapter.h"
 #include "platform/signed_index_acquisition_adapter_internal.h"
 #include "platform/index_distribution_trust.h"
-#include "platform/index_legacy_migration_trust.h"
 #include "local_index_acceptance.h"
 #include "test_framework.h"
 
 namespace drivercrate::test {
+/** @brief 生成した同一原recordを通常取得候補adapterと完全fake terms HTTPへ通します。
+ * @param[in,out] context 共通assertion集計先です。
+ * @param[in] lookup 原manifest/GZipの隔離認証・保存・再読取から得たlookupです。
+ * @param[in] nowUtc 原発行と同じ信頼UTCです。
+ * @param[in] body 原recordがpinした人工許諾bodyです。実本文を渡しません。
+ */
+void runMetadataBoundAdapterFixtureTests( TestContext								   &context,
+										 std::shared_ptr<const SignedIndexRecordLookup> lookup,
+										 std::chrono::sys_seconds nowUtc, const std::string &body) ;
+
 /** @brief 真署名隔離storeを実worker取得fixtureへ渡します。
  * @param[in,out] context 共通assertion所有者。
  * @param[in] store 実原byte再認証する隔離store。
@@ -1238,10 +1262,10 @@ constexpr std::string_view RECORD_EVIDENCE_HASH =
 		std::string{RECORD_EVIDENCE_HASH} + R"json(","reason":""})json" ;	// 型だけを確認する元申告。
 	const std::string identity =
 		identityPublished
-			? R"json({"state":"PUBLISHED","kind":"INF","pnpIds":[{"kind":"HARDWARE","value":"TESTBUS\\SYNTH_0001"}],"classGuid":"{11111111-2222-3333-4444-555555555555}","infIdentity":"drivers/fixture.inf","modelSection":"Fixture.NTamd64","evidenceUrl":"https://vendor.example/fixture.inf","evidenceSha256":")json" +
+			? R"json({"state":"PUBLISHED","kind":"INF","pnpIds":[{"kind":"HARDWARE","value":"TESTBUS\\SYNTH_0001"}],"classGuid":"{11111111-2222-3333-4444-555555555555}","nestedArchiveIdentity":"","infIdentity":"drivers/fixture.inf","modelSection":"Fixture.NTamd64","evidenceUrl":"https://vendor.example/fixture.inf","evidenceSha256":")json" +
 				  std::string{RECORD_EVIDENCE_HASH} + R"json(","reason":""})json"
 			// 元公開identityか不足理由。
-			: R"json({"state":"UNKNOWN","kind":"UNKNOWN","pnpIds":[],"classGuid":"","infIdentity":"","modelSection":"","evidenceUrl":"","evidenceSha256":"","reason":"public INF identity missing"})json" ;
+			: R"json({"state":"UNKNOWN","kind":"UNKNOWN","pnpIds":[],"classGuid":"","nestedArchiveIdentity":"","infIdentity":"","modelSection":"","evidenceUrl":"","evidenceSha256":"","reason":"public INF identity missing"})json" ;
 	return "{\"schema\":\"driver-index-record-v1\",\"sourceId\":\"" + std::string{source} +
 		   "\",\"recordId\":\"" + std::string{id} + "\",\"product\":\"Synthetic fixture\"," +
 		   "\"targetOs\":" +
@@ -1583,7 +1607,8 @@ void runDescriptorCodecChecks( TestContext &context)
 	const auto &record = read.receipt->records()[0] ;		// Receipt寿命へ結合した所有record。
 	const auto &value  = *record.acquisitionDescriptor ;	// 全13fieldの型付き元申告。
 	DRIVERCRATE_EXPECT( context, record.recordSchemaVersion == 2U && record.originalBytes == raw &&
-									read.receipt->schemaPolicyVersion() == 3U &&
+									read.receipt->schemaPolicyVersion() ==
+										INDEX_RECORD_READER_POLICY_VERSION &&
 									record.acquisitionDescriptorUnavailableReason.empty()) ;
 	DRIVERCRATE_EXPECT(
 		context,
@@ -1727,7 +1752,7 @@ void runDescriptorCodecChecks( TestContext &context)
 		 {"2026-10-10T03:00:00Z", "2026-10-11T05:00:01Z"},
 		 {"2026-10-12T03:00:00Z", "2026-10-11T05:00:00Z"},
 		 {"2026-10-12T03:00:00Z", "2026-10-25T05:00:01Z"},
-		 {"2026-10-12T03:00:00Z", "2026-10-17T03:00:01Z"},
+		 {"2026-10-12T03:00:00Z", "2026-10-18T03:00:01Z"},
 		 {"2026-10-10T03:00:00Z", "2026-02-30T03:00:00Z"},
 		 {"\"textDocument\":null", "\"textDocument\":{}"},
 		 {"\"revisionKind\":\"NONE\"", "\"revisionKind\":\"VENDOR_LITERAL\""},
@@ -1879,6 +1904,13 @@ void runDescriptorCodecChecks( TestContext &context)
 															 "2026-10-17T03:00:00Z")))),
 		{1U, 1U, 1U, 0U, 0U}) ;	// 7日の構造境界は有効。
 	DRIVERCRATE_EXPECT( context, exactSevenDays.receipt.has_value()) ;
+	const auto exactEightDays = readRecordFixture(
+		key,
+		descriptorIndex( recordSource(), recordEntry( key, descriptorRecord( replaced(
+															 descriptor, "2026-10-12T03:00:00Z",
+															 "2026-10-18T03:00:00Z")))),
+		{1U, 1U, 1U, 0U, 0U}) ;	// 8日ちょうどと8日1秒の拒否を分けます。
+	DRIVERCRATE_EXPECT( context, exactEightDays.receipt.has_value()) ;
 	constexpr std::array<std::pair<std::string_view, IndexPayloadFormat>, 3U> FORMATS{
 		{{"CABINET", IndexPayloadFormat::CABINET},
 		 {"WINDOWS_EXE", IndexPayloadFormat::WINDOWS_EXE},
@@ -2090,7 +2122,8 @@ void runSignedIndexRecordsTests( TestContext &context)
 									receipt.actualQuality().metadataOnlyCount == 1U &&
 									receipt.actualQuality().contentInspectedCount == 1U &&
 									receipt.actualQuality().unconfirmedCount == 1U) ;
-	DRIVERCRATE_EXPECT( context, receipt.schemaPolicyVersion() == 3U) ;
+	DRIVERCRATE_EXPECT( context,
+					   receipt.schemaPolicyVersion() == INDEX_RECORD_READER_POLICY_VERSION) ;
 
 	expectRecordsRejected( context, readSignedIndexRecords( bytes, std::nullopt),
 						  IndexRecordsStatus::TIME_UNAVAILABLE) ;
@@ -2353,9 +2386,87 @@ void runSignedIndexRecordsTests( TestContext &context)
 	rejectDistributionRecord( context, key,
 							 replaced( metadata, "drivers/fixture.inf", "/fixture.inf"),
 							 IndexRecordsStatus::INVALID_EVIDENCE) ;
+	// flatは明示空、nestedは一段memberです。同じ現行10fieldを全値codecで読みます。
+	for( const std::string_view selector :
+		{"", "release+driver/package (x64).zip", "release/inner.CAB"}) {
+		const auto nested = replaced( metadata, "\"nestedArchiveIdentity\":\"\"",
+									 "\"nestedArchiveIdentity\":\"" + std::string{selector} +
+										 "\"") ;	// 元fieldを欠損補完しません。
+		const auto read =
+			readRecordFixture( key, distributionIndex( recordSource(), recordEntry( key, nested)),
+							  {1U, 1U, 1U, 0U, 0U}) ;	// 真RAM署名から共通codecへ渡します。
+		DRIVERCRATE_EXPECT(
+			context,
+			read.receipt &&
+				read.receipt->records().front().publishedIdentityEvidence.nestedArchiveIdentity ==
+					selector) ;
+	}
+
+	constexpr std::array<std::string_view, 17U> BAD_MEMBERS{
+		"../inner.zip", "/inner.zip",	 "a//inner.zip",	"a/./inner.zip", "a/../inner.zip",
+		"a/inner.zip/", "C:inner.zip",	 "a/inner.zip:ads", "a/CON.zip",	 "nul.zip",
+		"a/COM1.zip",	"a/LPT9.zip",	 "a./inner.zip",	"a /inner.zip",	 "a/inner.zip.",
+		"a/inner.exe",	"a\\\\inner.zip"} ;	// nativeと同じ拒否文法です。
+	// 各unsafe memberを同じ共通codecへ一度ずつ渡します。
+	for( const auto member : BAD_MEMBERS) {
+		rejectDistributionRecord(
+			context, key,
+			replaced( metadata, "\"nestedArchiveIdentity\":\"\"",
+					 "\"nestedArchiveIdentity\":\"" + std::string{member} + "\""),
+			IndexRecordsStatus::INVALID_EVIDENCE) ;
+	}
+
+	// 欠損/未知/重複/null selectorをflatの別表現として受理しません。
+	for( const std::string_view replacement :
+		{"", "\"nestedSelector\":\"\",",
+		 "\"nestedArchiveIdentity\":\"\",\"nestedArchiveIdentity\":\"\",",
+		 "\"nestedArchiveIdentity\":null,"}) {
+		rejectDistributionRecord( context, key,
+								 replaced( metadata, "\"nestedArchiveIdentity\":\"\",", replacement),
+								 IndexRecordsStatus::INVALID_RECORD) ;
+	}
+
+	rejectDistributionRecord( context, key,
+							 replaced( unknown, "\"nestedArchiveIdentity\":\"\"",
+									  "\"nestedArchiveIdentity\":\"inner.zip\""),
+							 IndexRecordsStatus::INVALID_EVIDENCE) ;
+	// INF memberも共通文法へ一致させ、通常名と予約名を同じ規則で扱います。
+	const auto plusInf =
+		replaced( metadata, "drivers/fixture.inf",
+				 "driver+release/fixture (x64).inf") ;	// 公開memberの文字を正規化しません。
+	DRIVERCRATE_EXPECT(
+		context,
+		readRecordFixture( key, distributionIndex( recordSource(), recordEntry( key, plusInf)),
+						  {1U, 1U, 1U, 0U, 0U})
+			.receipt.has_value()) ;
+	rejectDistributionRecord( context, key,
+							 replaced( metadata, "drivers/fixture.inf", "drivers/NUL.inf"),
+							 IndexRecordsStatus::INVALID_EVIDENCE) ;
 	rejectDistributionRecord( context, key, replaced( metadata, "Fixture.NTamd64", ""),
 							 IndexRecordsStatus::INVALID_EVIDENCE) ;
-	rejectDistributionRecord( context, key, replaced( metadata, "TESTBUS", "testbus"),
+	const auto lowerId = replaced( metadata, "TESTBUS", "testbus") ;	// 原caseのまま保持する正例です。
+	const auto lowerRead =
+		readRecordFixture( key, distributionIndex( recordSource(), recordEntry( key, lowerId)),
+						  {1U, 1U, 1U, 0U, 0U}) ;	// 同じstrict codecです。
+	DRIVERCRATE_EXPECT( context, lowerRead.receipt &&
+									lowerRead.receipt->records().front().originalBytes == lowerId &&
+									lowerRead.receipt->records()
+										.front()
+										.publishedIdentityEvidence.pnpIds.front()
+										.value.starts_with( "testbus")) ;
+	// kind付き等価集合でalias重複を拒否し、別ID欠損を件数だけで隠させません。
+	rejectDistributionRecord(
+		context, key,
+		replaced(
+			metadata, R"json([{"kind":"HARDWARE","value":"TESTBUS\\SYNTH_0001"}])json",
+			R"json([{"kind":"HARDWARE","value":"TESTBUS\\SYNTH_0001"},{"kind":"HARDWARE","value":"testbus\\synth_0001"}])json"),
+		IndexRecordsStatus::INVALID_EVIDENCE) ;
+	// nativeが未対応のUnicode memberをcodecだけで受理しません。
+	DRIVERCRATE_EXPECT( context, !isSafeOfficialArchiveMember( L"release/\u03a9.zip", L'/') &&
+									!isSafeOfficialArchiveMember( L"release\\\u03a9.zip", L'\\')) ;
+	rejectDistributionRecord( context, key,
+							 replaced( metadata, "\"nestedArchiveIdentity\":\"\"",
+									  "\"nestedArchiveIdentity\":\"release/\u03a9.zip\""),
 							 IndexRecordsStatus::INVALID_EVIDENCE) ;
 	rejectDistributionRecord( context, key,
 							 replaced( metadata, "\"kind\":\"HARDWARE\"", "\"kind\":\"INSTANCE\""),
@@ -2981,6 +3092,9 @@ private:
  */
 void runSignedIndexStoreTests( TestContext &context)
 {
+	// 各戻り値とtemporaryを短命なfactory内で生成し、元の検証期間はheapで所有する。
+	const auto ownResult = []( auto make) { return std::make_unique<decltype( make())>( make()) ; } ;
+
 	using signed_index_store_detail::Access ;
 	using signed_index_store_detail::Fault ;
 	static_assert( !std::is_default_constructible_v<AuthenticatedIndexSnapshot>) ;
@@ -2992,10 +3106,16 @@ void runSignedIndexStoreTests( TestContext &context)
 	RamKey	  key ;											// 署名秘密鍵はRAMのCNG handleだけです。
 	key.generate( 3072U) ;
 	const std::array<signed_index_detail::TrustKey, 1U> trust{
-		{{"fixture-main", key.publicBlob}}} ;			// 製品には配置しません。
-	const auto first = makeStoreFixture( key) ;			// 世代7、原asset7、旧成功観測です。
-	const auto newer = makeStoreFixture( key, 8U, 8U) ;	// Manifestと原assetを両方増やす正例です。
-	const auto restored =
+		{{"fixture-main", key.publicBlob}}} ;	// 製品には配置しません。
+	const auto firstOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return makeStoreFixture( key) ; }) ;
+	const auto &first = *firstOwner ;	// 世代7、原asset7、旧成功観測です。
+	const auto	newerOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return makeStoreFixture( key, 8U, 8U) ; }) ;
+	const auto &newer = *newerOwner ;	// Manifestと原assetを両方増やす正例です。
+	const auto	restored =
 		// 新manifestだけが旧固定assetを参照します。
 		makeStoreFixture( key, 9U, 7U) ;
 	auto opened = Access::createIsolated( trust) ;	// 実保護temp rootとgenesisです。
@@ -3036,13 +3156,18 @@ void runSignedIndexStoreTests( TestContext &context)
 						   !Access::acceptsProtectionSddl( store, unprotected, directory, true)) ;
 	}
 
-	const auto root	 = Access::isolatedRoot( store) ;	// 任意pathを作る能力はありません。
-	const auto head	 = root / L"head.bin" ;				// 実ciphertext比較対象です。
-	const auto empty = store.reload( NOW) ;				// 実genesis headを再読取りします。
+	const auto root = Access::isolatedRoot( store) ;	// 任意pathを作る能力はありません。
+	const auto head = root / L"head.bin" ;				// 実ciphertext比較対象です。
+	const auto emptyOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return store.reload( NOW) ; }) ;
+	const auto &empty = *emptyOwner ;	// 実genesis headを再読取りします。
 	DRIVERCRATE_EXPECT( context, empty.status == IndexStoreStatus::EMPTY_STORE &&
 									empty.persistedGeneration == 0U && !empty.snapshot) ;
-	const auto accepted = store.commit( first.receipt, first.inputs.envelope, first.inputs.gzip,
-									   NOW) ;	// 実一head commitです。
+	const auto	acceptedOwner = ownResult( [&] {
+		 return store.commit( first.receipt, first.inputs.envelope, first.inputs.gzip, NOW) ;
+	 }) ;										// 同じ元結果を単独所有する。
+	const auto &accepted	  = *acceptedOwner ;	// 実一head commitです。
 	DRIVERCRATE_EXPECT( context, accepted.status == IndexStoreStatus::SNAPSHOT_READY &&
 									accepted.snapshot &&
 									accepted.commit == IndexStoreCommitDisposition::COMMITTED) ;
@@ -3063,16 +3188,22 @@ void runSignedIndexStoreTests( TestContext &context)
 	}
 
 	expectStoredGeneration( context, *reopened.store, 7U) ;
-	const auto original = readStoreTestFile( head) ;	// 初回成功後の実暗号byteです。
-	const auto same		= store.commit( first.receipt, first.inputs.envelope, first.inputs.gzip,
-									   NOW) ;	// 同世代同原manifestは再利用です。
+	const auto	original  = readStoreTestFile( head) ;	// 初回成功後の実暗号byteです。
+	const auto	sameOwner = ownResult( [&] {
+		 return store.commit( first.receipt, first.inputs.envelope, first.inputs.gzip, NOW) ;
+	 }) ;								// 同じ元結果を単独所有する。
+	const auto &same	  = *sameOwner ;	// 同世代同原manifestは再利用です。
 	DRIVERCRATE_EXPECT( context, same.status == IndexStoreStatus::SNAPSHOT_READY &&
 									same.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
 	DRIVERCRATE_EXPECT( context, original == readStoreTestFile( head)) ;
-	const auto resigned = makeStoreFixture( key) ;	// 同じ原manifestへ別のPSS署名を生成します。
-	const auto sameOriginal =
-		store.commit( resigned.receipt, resigned.inputs.envelope, resigned.inputs.gzip,
-					 NOW) ;	// 元manifest identityで再利用します。
+	const auto resignedOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return makeStoreFixture( key) ; }) ;
+	const auto &resigned		  = *resignedOwner ;	// 同じ原manifestへ別のPSS署名を生成します。
+	const auto	sameOriginalOwner = ownResult( [&] {
+		 return store.commit( resigned.receipt, resigned.inputs.envelope, resigned.inputs.gzip, NOW) ;
+	 }) ;												// 同じ元結果を単独所有する。
+	const auto &sameOriginal	  = *sameOriginalOwner ;	// 元manifest identityで再利用します。
 	DRIVERCRATE_EXPECT( context,
 					   sameOriginal.snapshot &&
 						   sameOriginal.snapshot->originalEnvelope() == first.inputs.envelope) ;
@@ -3090,8 +3221,10 @@ void runSignedIndexStoreTests( TestContext &context)
 	auto conflictRecords =
 		// 全schemaも正当です。
 		readSignedIndexRecords( *conflictBytes.receipt, NOW) ;
-	const auto conflict = store.commit( *conflictRecords.receipt, conflictEnvelope,
-									   first.inputs.gzip, NOW) ;	// 最新headで原byte差を拒否します。
+	const auto	conflictOwner = ownResult( [&] {
+		 return store.commit( *conflictRecords.receipt, conflictEnvelope, first.inputs.gzip, NOW) ;
+	 }) ;										// 同じ元結果を単独所有する。
+	const auto &conflict	  = *conflictOwner ;	// 最新headで原byte差を拒否します。
 	expectStoreRejected( context, conflict, IndexStoreStatus::MANIFEST_REJECTED) ;
 	DRIVERCRATE_EXPECT( context,
 					   conflict.manifestStatus == SignedIndexManifestStatus::GENERATION_CONFLICT &&
@@ -3124,22 +3257,26 @@ void runSignedIndexStoreTests( TestContext &context)
 		const StoreTestFile denyDelete{
 			CreateFileW( head.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
 						OPEN_EXISTING, 0U, nullptr)} ;	// 旧headのrenameを実OSで拒否します。
-		const auto failedRename =
-			store.commit( newer.receipt, newer.inputs.envelope, newer.inputs.gzip,
-						 NOW) ;	// Flush後のMoveFileEx失敗です。
+		const auto	failedRenameOwner = ownResult( [&] {
+			 return store.commit( newer.receipt, newer.inputs.envelope, newer.inputs.gzip, NOW) ;
+		 }) ;												// 同じ元結果を単独所有する。
+		const auto &failedRename	  = *failedRenameOwner ;	// Flush後のMoveFileEx失敗です。
 		expectStoreRejected( context, failedRename, IndexStoreStatus::COMMIT_UNCERTAIN,
 							IndexStoreCommitDisposition::UNKNOWN) ;
 		DRIVERCRATE_EXPECT( context, !failedRename.persistedGeneration && failedRename.error != 0) ;
 	}
 	expectStoredGeneration( context, store, 7U) ;
 	DRIVERCRATE_EXPECT( context, original == readStoreTestFile( head)) ;
-	const auto advanced =
-		reopened.store->commit( newer.receipt, newer.inputs.envelope, newer.inputs.gzip,
-							   NOW) ;	// 別ownerから先に世代8を確定します。
+	const auto	advancedOwner = ownResult( [&] {
+		 return reopened.store->commit( newer.receipt, newer.inputs.envelope, newer.inputs.gzip, NOW) ;
+	 }) ;										// 同じ元結果を単独所有する。
+	const auto &advanced	  = *advancedOwner ;	// 別ownerから先に世代8を確定します。
 	DRIVERCRATE_EXPECT( context, advanced.snapshot &&
 									advanced.commit == IndexStoreCommitDisposition::COMMITTED) ;
-	const auto lower = store.commit( first.receipt, first.inputs.envelope, first.inputs.gzip,
-									NOW) ;	// 古いreceiptは最新head再読取りで拒否します。
+	const auto	lowerOwner = ownResult( [&] {
+		 return store.commit( first.receipt, first.inputs.envelope, first.inputs.gzip, NOW) ;
+	 }) ;								  // 同じ元結果を単独所有する。
+	const auto &lower	   = *lowerOwner ;	// 古いreceiptは最新head再読取りで拒否します。
 	expectStoreRejected( context, lower, IndexStoreStatus::MANIFEST_REJECTED) ;
 	DRIVERCRATE_EXPECT( context,
 					   lower.manifestStatus == SignedIndexManifestStatus::GENERATION_ROLLBACK &&
@@ -3151,9 +3288,10 @@ void runSignedIndexStoreTests( TestContext &context)
 						store.commit( movedSource, first.inputs.envelope, first.inputs.gzip, NOW),
 						IndexStoreStatus::INVALID_INPUT) ;
 	DRIVERCRATE_EXPECT( context, movedDestination.indexSha256() == first.receipt.indexSha256()) ;
-	const auto restoredResult =
-		store.commit( restored.receipt, restored.inputs.envelope, restored.inputs.gzip,
-					 NOW) ;	// 新世代9が旧固定asset7を参照します。
+	const auto	restoredResultOwner = ownResult( [&] {
+		 return store.commit( restored.receipt, restored.inputs.envelope, restored.inputs.gzip, NOW) ;
+	 }) ;													// 同じ元結果を単独所有する。
+	const auto &restoredResult		= *restoredResultOwner ;	// 新世代9が旧固定asset7を参照します。
 	DRIVERCRATE_EXPECT( context,
 					   restoredResult.snapshot && restoredResult.persistedGeneration == 9U) ;
 	DRIVERCRATE_EXPECT( context, restoredResult.snapshot && restoredResult.snapshot->schemaReceipt()
@@ -3182,27 +3320,42 @@ void runSignedIndexStoreTests( TestContext &context)
 		store.reload( std::nullopt) ;
 	expectStoreRejected( context, clockMissing, IndexStoreStatus::TIME_UNAVAILABLE) ;
 	DRIVERCRATE_EXPECT( context, clockMissing.persistedGeneration == 9U) ;
-	const auto future  = NOW + std::chrono::days{15} ;	// 旧headが明確に期限切れになる固定時刻です。
-	const auto expired = store.reload( future) ;		// Historical署名は正常でも現在期限が不成立です。
+	const auto future = NOW + std::chrono::days{15} ;	// 旧headが明確に期限切れになる固定時刻です。
+	const auto expiredOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return store.reload( future) ; }) ;
+	const auto &expired = *expiredOwner ;	// Historical署名は正常でも現在期限が不成立です。
 	expectStoreRejected( context, expired, IndexStoreStatus::EXPIRED) ;
 	DRIVERCRATE_EXPECT( context,
 					   expired.persistedGeneration == 9U && stable == readStoreTestFile( head)) ;
-	const auto early = store.reload( NOW - std::chrono::hours{2}) ;	// 発行前は候補へ渡しません。
+	const auto earlyOwner = ownResult(
+		[&] { return store.reload( NOW - std::chrono::hours{2}) ; }) ;	// 同じ元結果を単独所有する。
+	const auto &early = *earlyOwner ;									// 発行前は候補へ渡しません。
 	expectStoreRejected( context, early, IndexStoreStatus::NOT_YET_VALID) ;
 	DRIVERCRATE_EXPECT( context, early.persistedGeneration == 9U) ;
-	const auto fresh =
-		makeStoreFixture( key, 10U, 10U, future, "2026-10-26T05:00:00Z",
-						 "2026-11-01T05:00:00Z") ;	// 期限切れheadを新manifestだけで進めます。
+	const auto	freshOwner = ownResult( [&] {
+		 return makeStoreFixture( key, 10U, 10U, future, "2026-10-26T05:00:00Z",
+								 "2026-11-01T05:00:00Z") ;
+	 }) ;								  // 同じ元結果を単独所有する。
+	const auto &fresh	   = *freshOwner ;	// 期限切れheadを新manifestだけで進めます。
 	// 期限切れheadを最新の有効manifestで置換した実結果です。
-	const auto freshResult =
-		store.commit( fresh.receipt, fresh.inputs.envelope, fresh.inputs.gzip, future) ;
+	const auto	freshResultOwner = ownResult( [&] {
+		 return store.commit( fresh.receipt, fresh.inputs.envelope, fresh.inputs.gzip, future) ;
+	 }) ;											  // 同じ元結果を単独所有する。
+	const auto &freshResult		 = *freshResultOwner ;	// 元所有者と同じscopeだけで結果を借用する。
 	DRIVERCRATE_EXPECT( context, freshResult.snapshot && freshResult.persistedGeneration == 10U) ;
-	const auto freshLower =
-		makeStoreFixture( key, 8U, 7U, future, "2026-10-26T05:00:00Z",
-						 "2026-11-01T05:00:00Z") ;	// 有効期限だけ新しいrollbackです。
+	const auto	freshLowerOwner = ownResult( [&] {
+		 return makeStoreFixture( key, 8U, 7U, future, "2026-10-26T05:00:00Z",
+								 "2026-11-01T05:00:00Z") ;
+	 }) ;											// 同じ元結果を単独所有する。
+	const auto &freshLower		= *freshLowerOwner ;	// 有効期限だけ新しいrollbackです。
 	// 時計が進んでもhighwaterを下げない実拒否結果です。
-	const auto expiredRollback = store.commit( freshLower.receipt, freshLower.inputs.envelope,
-											  freshLower.inputs.gzip, future) ;
+	const auto	expiredRollbackOwner = ownResult( [&] {
+		 return store.commit( freshLower.receipt, freshLower.inputs.envelope, freshLower.inputs.gzip,
+							 future) ;
+	 }) ; // 同じ元結果を単独所有する。
+	const auto &expiredRollback =
+		*expiredRollbackOwner ;	// 元所有者と同じscopeだけで結果を借用する。
 	expectStoreRejected( context, expiredRollback, IndexStoreStatus::MANIFEST_REJECTED) ;
 	DRIVERCRATE_EXPECT( context, expiredRollback.manifestStatus ==
 										SignedIndexManifestStatus::GENERATION_ROLLBACK &&
@@ -3210,9 +3363,12 @@ void runSignedIndexStoreTests( TestContext &context)
 	// 各commit後診断はheadを実advanceし、snapshotだけを発行しません。
 	for( const Fault fault :
 		{Fault::AFTER_REPLACE, Fault::READBACK, Fault::AFTER_COMMIT_ALLOCATION}) {
-		auto	   local = Access::createIsolated( trust) ;	// 各診断を独立した実diskで検査します。
-		const auto saved = local.store->commit( first.receipt, first.inputs.envelope,
-											   first.inputs.gzip, NOW) ;	// 旧成功stateです。
+		auto		local = Access::createIsolated( trust) ;	// 各診断を独立した実diskで検査します。
+		const auto	savedOwner = ownResult( [&] {
+			 return local.store->commit( first.receipt, first.inputs.envelope, first.inputs.gzip,
+										NOW) ;
+		 }) ;								  // 同じ元結果を単独所有する。
+		const auto &saved	   = *savedOwner ;	// 旧成功stateです。
 		DRIVERCRATE_EXPECT( context, saved.snapshot.has_value()) ;
 		// Commit後の障害でもadvanceを維持する実結果です。
 		const auto failed = Access::commitWithFault(
@@ -3228,10 +3384,13 @@ void runSignedIndexStoreTests( TestContext &context)
 	}
 
 	{
-		auto	   local = Access::createIsolated( trust) ;	// 改変群だけの独立rootです。
+		auto		local = Access::createIsolated( trust) ;	// 改変群だけの独立rootです。
 		// 改変前に確定した実成功stateです。
-		const auto saved =
-			local.store->commit( first.receipt, first.inputs.envelope, first.inputs.gzip, NOW) ;
+		const auto	savedOwner = ownResult( [&] {
+			 return local.store->commit( first.receipt, first.inputs.envelope, first.inputs.gzip,
+										NOW) ;
+		 }) ;								  // 同じ元結果を単独所有する。
+		const auto &saved	   = *savedOwner ;	// 元所有者と同じscopeだけで結果を借用する。
 		DRIVERCRATE_EXPECT( context, saved.snapshot.has_value()) ;
 		const auto localHead =
 			// 改変は自作rootへ限定します。
@@ -3246,7 +3405,10 @@ void runSignedIndexStoreTests( TestContext &context)
 			plain[offset] ^= std::byte{1U} ;
 			refreshStorePlainDigest( key, plain) ;
 			DRIVERCRATE_EXPECT( context, Access::replacePlain( *local.store, plain) == 0) ;
-			const auto rejected = local.store->reload( NOW) ;	// Wire／署名／世代等の実拒否です。
+			const auto rejectedOwner =
+				// 同じ元結果を単独所有する。
+				ownResult( [&] { return local.store->reload( NOW) ; }) ;
+			const auto &rejected = *rejectedOwner ;	// Wire／署名／世代等の実拒否です。
 			expectStoreRejected( context, rejected, IndexStoreStatus::STATE_REJECTED) ;
 			DRIVERCRATE_EXPECT( context, !rejected.persistedGeneration) ;
 		}
@@ -3256,7 +3418,10 @@ void runSignedIndexStoreTests( TestContext &context)
 		plain[plain.size() - 33U] ^= std::byte{1U} ;
 		refreshStorePlainDigest( key, plain) ;
 		DRIVERCRATE_EXPECT( context, Access::replacePlain( *local.store, plain) == 0) ;
-		const auto badGzip = local.store->reload( NOW) ;	// DPAPIが正常でも原gzip hashで拒否します。
+		const auto badGzipOwner =
+			// 同じ元結果を単独所有する。
+			ownResult( [&] { return local.store->reload( NOW) ; }) ;
+		const auto &badGzip = *badGzipOwner ;	// DPAPIが正常でも原gzip hashで拒否します。
 		expectStoreRejected( context, badGzip, IndexStoreStatus::STATE_REJECTED) ;
 		DRIVERCRATE_EXPECT( context, badGzip.assetStatus == IndexAssetBytesStatus::HASH_MISMATCH) ;
 		const auto badIndex = replaced(
@@ -3265,7 +3430,10 @@ void runSignedIndexStoreTests( TestContext &context)
 		const auto badInputs = makeStoreInputs( key, badIndex) ;			// 実署名と圧縮hashは成立します。
 		const auto badPlain = makeStorePlain( key, badInputs, badIndex) ;	// Plain整合性も成立します。
 		DRIVERCRATE_EXPECT( context, Access::replacePlain( *local.store, badPlain) == 0) ;
-		const auto badRecords = local.store->reload( NOW) ;	// 最後のschema再認証で拒否します。
+		const auto badRecordsOwner =
+			// 同じ元結果を単独所有する。
+			ownResult( [&] { return local.store->reload( NOW) ; }) ;
+		const auto &badRecords = *badRecordsOwner ;	// 最後のschema再認証で拒否します。
 		expectStoreRejected( context, badRecords, IndexStoreStatus::STATE_REJECTED) ;
 		DRIVERCRATE_EXPECT( context, badRecords.recordsStatus == IndexRecordsStatus::INVALID_INDEX) ;
 		DRIVERCRATE_EXPECT( context, Access::replacePlain( *local.store, originalPlain) == 0) ;
@@ -3274,7 +3442,10 @@ void runSignedIndexStoreTests( TestContext &context)
 		auto	   corrupted   = validCipher ;						// DPAPI integrity自体の改変です。
 		corrupted[corrupted.size() / 2U] ^= std::byte{1U} ;
 		writeStoreTestFile( localHead, corrupted) ;
-		const auto dpapiRejected = local.store->reload( NOW) ;	// 実DPAPIまたはplain検査での拒否です。
+		const auto dpapiRejectedOwner =
+			// 同じ元結果を単独所有する。
+			ownResult( [&] { return local.store->reload( NOW) ; }) ;
+		const auto &dpapiRejected = *dpapiRejectedOwner ;	// 実DPAPIまたはplain検査での拒否です。
 		DRIVERCRATE_EXPECT( context, (dpapiRejected.status == IndexStoreStatus::PROTECTION_FAILURE ||
 									 dpapiRejected.status == IndexStoreStatus::STATE_REJECTED) &&
 										!dpapiRejected.snapshot) ;
@@ -3308,8 +3479,11 @@ void runSignedIndexStoreTests( TestContext &context)
 	{
 		auto local = Access::createIsolated( trust) ;	// 属性・ACL・hard link検査用の実rootです。
 		// 属性を変更する前に保存した実成功stateです。
-		const auto saved =
-			local.store->commit( first.receipt, first.inputs.envelope, first.inputs.gzip, NOW) ;
+		const auto	savedOwner = ownResult( [&] {
+			 return local.store->commit( first.receipt, first.inputs.envelope, first.inputs.gzip,
+										NOW) ;
+		 }) ;								  // 同じ元結果を単独所有する。
+		const auto &saved	   = *savedOwner ;	// 元所有者と同じscopeだけで結果を借用する。
 		DRIVERCRATE_EXPECT( context, saved.snapshot.has_value()) ;
 		const auto localRoot = Access::isolatedRoot( *local.store) ;	// 自作rootだけへ限定します。
 		const auto localHead = localRoot / L"head.bin" ;				// 単一linkを要求するfileです。
@@ -3372,22 +3546,34 @@ void runSignedIndexStoreTests( TestContext &context)
 			context,
 			local.store->commit( first.receipt, first.inputs.envelope, first.inputs.gzip, NOW),
 			IndexStoreStatus::MANIFEST_REJECTED) ;
-		const auto stillEmpty = local.store->reload( NOW) ;	// Test鍵の自己信頼でgenesisを進めません。
+		const auto stillEmptyOwner =
+			// 同じ元結果を単独所有する。
+			ownResult( [&] { return local.store->reload( NOW) ; }) ;
+		const auto &stillEmpty = *stillEmptyOwner ;	// Test鍵の自己信頼でgenesisを進めません。
 		DRIVERCRATE_EXPECT( context, stillEmpty.status == IndexStoreStatus::EMPTY_STORE &&
 										stillEmpty.persistedGeneration == 0U) ;
 	}
 	{
-		const auto maximum =
-			makeStoreFixture( key, 7U, 7U, NOW, "2026-10-11T05:00:00Z", "2026-10-25T05:00:00Z",
-							 // 実32MiB gzip境界です。
-							 static_cast<std::size_t>( INDEX_ASSET_MAX_BYTES)) ;
-		auto	   local = Access::createIsolated( trust) ;	// 通常と同じ実policyで保存します。
+		const auto	maximumOwner = ownResult( [&] {
+			 return makeStoreFixture( key, 7U, 7U, NOW, "2026-10-11T05:00:00Z",
+									 "2026-10-25T05:00:00Z",
+									 // 実32MiB gzip境界です。
+									 static_cast<std::size_t>( INDEX_ASSET_MAX_BYTES)) ;
+		 }) ;									  // 同じ元結果を単独所有する。
+		const auto &maximum		 = *maximumOwner ;				// 元所有者と同じscopeだけで結果を借用する。
+		auto		local = Access::createIsolated( trust) ;	// 通常と同じ実policyで保存します。
 		// 実上限gzipを一headへ保護保存した結果です。
-		const auto saved =
-			local.store->commit( maximum.receipt, maximum.inputs.envelope, maximum.inputs.gzip, NOW) ;
+		const auto	savedOwner = ownResult( [&] {
+			 return local.store->commit( maximum.receipt, maximum.inputs.envelope,
+										maximum.inputs.gzip, NOW) ;
+		 }) ;								  // 同じ元結果を単独所有する。
+		const auto &saved	   = *savedOwner ;	// 元所有者と同じscopeだけで結果を借用する。
 		DRIVERCRATE_EXPECT( context, saved.snapshot && saved.snapshot->originalGzip().size() ==
 														  INDEX_ASSET_MAX_BYTES) ;
-		const auto loaded = local.store->reload( NOW) ;	// 実上限原byteをDPAPIから再認証します。
+		const auto loadedOwner =
+			// 同じ元結果を単独所有する。
+			ownResult( [&] { return local.store->reload( NOW) ; }) ;
+		const auto &loaded = *loadedOwner ;	// 実上限原byteをDPAPIから再認証します。
 		DRIVERCRATE_EXPECT( context,
 						   loaded.snapshot && std::ranges::equal( loaded.snapshot->originalGzip(),
 																 maximum.inputs.gzip)) ;
@@ -3420,7 +3606,8 @@ void runSignedIndexStoreTests( TestContext &context)
 	DRIVERCRATE_EXPECT(
 		context,
 		legacyReload.snapshot &&
-			legacyReload.snapshot->schemaReceipt().schemaPolicyVersion() == 3U &&
+			legacyReload.snapshot->schemaReceipt().schemaPolicyVersion() ==
+				INDEX_RECORD_READER_POLICY_VERSION &&
 			legacyReload.snapshot->schemaReceipt().records()[0].recordSchemaVersion == 1U &&
 			!legacyReload.snapshot->schemaReceipt().records()[0].acquisitionDescriptor &&
 			legacyReload.persistedGeneration == 7U) ;
@@ -3449,9 +3636,11 @@ void runSignedIndexStoreTests( TestContext &context)
 		throw std::runtime_error( "descriptor store record fixture rejected") ;
 	}
 
-	const auto descriptorSaved = descriptorStore.store->commit(
-		*descriptorRecords.receipt, descriptorInputs.envelope, descriptorInputs.gzip,
-		NOW) ;	// 実一head transactionを再利用する。
+	const auto	descriptorSavedOwner = ownResult( [&] {
+		 return descriptorStore.store->commit( *descriptorRecords.receipt, descriptorInputs.envelope,
+											  descriptorInputs.gzip, NOW) ;
+	 }) ;													  // 同じ元結果を単独所有する。
+	const auto &descriptorSaved		 = *descriptorSavedOwner ;	// 実一head transactionを再利用する。
 	DRIVERCRATE_EXPECT( context,
 					   descriptorSaved.snapshot && descriptorSaved.persistedGeneration == 8U) ;
 	std::vector<std::byte> descriptorPlain ;	// 実headの保存wire互換値だけを検査する有限所有byte。
@@ -3464,7 +3653,8 @@ void runSignedIndexStoreTests( TestContext &context)
 	DRIVERCRATE_EXPECT(
 		context,
 		descriptorReload.snapshot &&
-			descriptorReload.snapshot->schemaReceipt().schemaPolicyVersion() == 3U &&
+			descriptorReload.snapshot->schemaReceipt().schemaPolicyVersion() ==
+				INDEX_RECORD_READER_POLICY_VERSION &&
 			descriptorReload.snapshot->schemaReceipt().records()[0].recordSchemaVersion == 2U &&
 			descriptorReload.snapshot->schemaReceipt().records()[0].originalBytes ==
 				descriptorRaw &&
@@ -3493,8 +3683,8 @@ namespace {
 												  const std::uint64_t assetGeneration = 7U)
 {
 	auto	   first = makeStoreFixture( key, generation, assetGeneration) ;	// 元の全schema正例です。
-	const auto id	 = local ? index_legacy_migration_trust::KEY_ID
-							 : index_distribution_trust::KEY_ID ;	// 実署名後の分類を検査します。
+	const auto id =
+		local ? "fixture-local" : index_distribution_trust::KEY_ID ;	// 実署名後の分類を検査します。
 	const auto raw	 = replaced( first.inputs.manifest.data().manifestBytes, "fixture-main",
 								id) ;						// 原manifestだけを人工再署名します。
 	auto	   outer = envelope( raw, key.sign( raw), id) ;	// 署名materialは人工RAM鍵です。
@@ -3502,7 +3692,7 @@ namespace {
 		{{id, key.publicBlob}}} ;	// 実製品の固定鍵を置換しません。
 	auto manifest = signed_index_detail::authenticateWithTrustKeys( outer, NOW, std::nullopt,
 																   trust) ;	// 実CNG認証です。
-	// 人工fixtureの不成立を移行拒否の成功にしません。
+	// 人工fixtureの不成立をdomain拒否の成功にしません。
 	if( !manifest.manifest) {
 		throw std::runtime_error( "domain manifest fixture failed") ;
 	}
@@ -3515,7 +3705,7 @@ namespace {
 	}
 
 	auto records = readSignedIndexRecords( *asset.receipt, NOW) ;	// 原全schemaを検証します。
-	// Schema拒否を移動成功へ換算しません。
+	// Schema拒否をdomain成功へ換算しません。
 	if( !records.receipt) {
 		throw std::runtime_error( "domain records fixture failed") ;
 	}
@@ -3527,348 +3717,85 @@ namespace {
 } // namespace
 
 /** @see signed_index_manifest_tests.h */
-void runSignedIndexStoreMigrationTests( TestContext &context)
+void runSignedIndexStoreDomainTests( TestContext &context)
 {
 	using signed_index_store_detail::Access ;
-	using signed_index_store_detail::Fault ;
-	const int initialAssertions = context.assertionCount() ;	// 新しい固定groupの分母だけです。
-	const int initialFailures	= context.failureCount() ;		// 元groupの失敗を分離します。
-	RamKey	  key ;												// 実署名秘密鍵はRAMだけです。
+	using signed_index_store_detail::NamespaceLeaf ;
+	const int initialAssertions = context.assertionCount() ;	// 現行domainだけの分母です。
+	RamKey	  key ;												// 人工署名鍵はRAMだけです。
 	key.generate( 3072U) ;
-	const std::array<signed_index_detail::TrustKey, 1U> trust{
-		{{"fixture-main", key.publicBlob}}} ;					// 人工公開鍵だけです。
-	const auto first	  = makeStoreFixture( key) ;			// 署名世代7の全schema正例です。
-	const auto lower	  = makeStoreFixture( key, 6U, 6U) ;	// 同domain rollbackを確認します。
-	const auto conflict	  = makeStoreFixture( key, 7U, 6U) ;	// 同世代異manifestの正しい署名です。
-	const auto expiredNow = NOW + std::chrono::days{15} ;		// 現在snapshotを許可しない履歴移動です。
-	// 同じ実renameの前後中断を独立rootで確認し、原失敗を成功へ変更しません。
-	for( const Fault fault : {Fault::NONE, Fault::BEFORE_REPLACE, Fault::AFTER_REPLACE}) {
-		auto opened = Access::createIsolated( trust, true) ;	// DELETE権限付き自作rootだけです。
-		DRIVERCRATE_EXPECT( context, opened.store && opened.error == 0) ;
-		// Fixture生成不能では残りの検査を空成功にしません。
-		if( !opened.store) {
-			throw std::runtime_error( "migration store creation failed") ;
-		}
-
-		auto &store = *opened.store ;	// このloopだけが所有します。
-		DRIVERCRATE_EXPECT(
-			context, store.commit( first.receipt, first.inputs.envelope, first.inputs.gzip, NOW)
-						 .snapshot.has_value()) ;
-		const auto source = Access::isolatedRoot( store) ;					// 明示自作rootだけの旧名です。
-		const auto head	  = readStoreTestFile( source / L"head.bin") ;		// 旧暗号byteです。
-		const auto lock	  = readStoreTestFile( source / L"store.lock") ;	// 固定lock本文も保全します。
-		const auto pin	  = recordDigest( key, assetText( head)) ;			// 原ciphertextの完全pinです。
-		const auto result = Access::migrateIsolated( store, pin, expiredNow,
-													fault) ;	// 製品と同じhistory/renameです。
-		std::cout << "Migration fault=" << static_cast<unsigned>( fault)
-				  << " error=" << static_cast<std::uint32_t>( result.error)
-				  << " commit=" << static_cast<unsigned>( result.commit) << '\n' ;
-		// Commit前中断は旧名を保持し、同条件の通常retryとは区別します。
-		if( fault == Fault::BEFORE_REPLACE) {
-			DRIVERCRATE_EXPECT( context,
-							   result.error != 0 &&
-								   result.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
-			DRIVERCRATE_EXPECT( context, Access::isolatedRoot( store) == source &&
-											std::filesystem::exists( source)) ;
-			const auto resumed =
-				// 中断点を除いた明示再開です。
-				Access::migrateIsolated( store, pin, expiredNow) ;
-			DRIVERCRATE_EXPECT( context,
-							   resumed.error == 0 &&
-								   resumed.commit == IndexStoreCommitDisposition::COMMITTED) ;
-		} else {
-			DRIVERCRATE_EXPECT( context, result.commit == IndexStoreCommitDisposition::COMMITTED &&
-											result.generation == 7U) ;
-			DRIVERCRATE_EXPECT( context, (result.error == 0) == (fault == Fault::NONE)) ;
-		}
-
-		const auto destination = Access::isolatedRoot( store) ;	// identityを保った新名です。
-		DRIVERCRATE_EXPECT( context, destination != source && !std::filesystem::exists( source)) ;
-		DRIVERCRATE_EXPECT( context, readStoreTestFile( destination / L"head.bin") == head &&
-										readStoreTestFile( destination / L"store.lock") == lock) ;
-		const auto replay =
-			// 同pin/全認証の再実行だけです。
-			Access::migrateIsolated( store, pin, expiredNow) ;
-		DRIVERCRATE_EXPECT( context, replay.error == 0 && replay.alreadyMigrated &&
-										replay.commit == IndexStoreCommitDisposition::NO_CHANGE &&
-										replay.generation == 7U) ;
-		const auto expired = store.reload( expiredNow) ;	// 歴史移動で現在期限を延長しません。
-		DRIVERCRATE_EXPECT( context, expired.status == IndexStoreStatus::EXPIRED &&
-										expired.persistedGeneration == 7U && !expired.snapshot) ;
-		const auto rollback = store.commit( lower.receipt, lower.inputs.envelope, lower.inputs.gzip,
-										   NOW) ;	// 旧floorを保持します。
-		DRIVERCRATE_EXPECT( context, rollback.manifestStatus ==
-											SignedIndexManifestStatus::GENERATION_ROLLBACK &&
-										rollback.persistedGeneration == 7U) ;
-		const auto sameGeneration =
-			store.commit( conflict.receipt, conflict.inputs.envelope, conflict.inputs.gzip,
-						 NOW) ;	// 異内容の上書きを拒否します。
-		DRIVERCRATE_EXPECT( context, sameGeneration.manifestStatus ==
-											SignedIndexManifestStatus::GENERATION_CONFLICT &&
-										sameGeneration.persistedGeneration == 7U) ;
+	const std::array<signed_index_detail::TrustKey, 1U> productionTrust{
+		{{index_distribution_trust::KEY_ID, key.publicBlob}}} ;	// 通常側はlocal鍵を持ちません。
+	const std::array<signed_index_detail::TrustKey, 1U> localTrust{
+		{{"fixture-local", key.publicBlob}}} ;	// 固定製品trustを変更しません。
+	auto parent = Access::createIsolated( {}) ;	// 自作sandboxだけを所有します。
+	// Fixture作成不能を空成功へ変換しません。
+	if( !parent.store) {
+		throw std::runtime_error( "domain parent failed") ;
 	}
 
-	auto opened = Access::createIsolated( trust, true) ;	// 拒否群だけの自作rootです。
-	// 準備の失敗では移行拒否の検査へ進みません。
-	if( !opened.store) {
-		throw std::runtime_error( "migration rejection store failed") ;
+	auto production = Access::openNamespaceIsolated( *parent.store, NamespaceLeaf::DISTRIBUTION,
+													productionTrust) ;	// 現行配布domainです。
+	auto local		= Access::openNamespaceIsolated( *parent.store, NamespaceLeaf::LOCAL,
+													localTrust) ;	// 独立local domainです。
+	// 両rootを作れない場合は後続の検査へ進みません。
+	if( !production.store || !local.store) {
+		throw std::runtime_error( "domain creation failed") ;
 	}
 
-	auto &store = *opened.store ;	// 元ciphertextを保持して拒否を検査します。
+	const auto distributionFixture = makeDomainStoreFixture( key, false) ;	// 真署名IDだけを使います。
+	const auto localFixture		   = makeDomainStoreFixture( key, true) ;	// 同世代で別trustです。
+	DRIVERCRATE_EXPECT( context, production.store
+									->commit( distributionFixture.receipt,
+											 distributionFixture.inputs.envelope,
+											 distributionFixture.inputs.gzip, NOW)
+									.snapshot.has_value()) ;
+	DRIVERCRATE_EXPECT( context, local.store
+									->commit( localFixture.receipt, localFixture.inputs.envelope,
+											 localFixture.inputs.gzip, NOW)
+									.snapshot.has_value()) ;
+	const auto productionPath = Access::isolatedRoot( *production.store) ;			// 自作rootだけです。
+	const auto localPath	  = Access::isolatedRoot( *local.store) ;				// 独立rootの同世代です。
+	const auto productionHead = readStoreTestFile( productionPath / L"head.bin") ;	// 原暗号byteです。
+	const auto localHead	  = readStoreTestFile( localPath / L"head.bin") ;		// 原byteを保持します。
+	DRIVERCRATE_EXPECT( context, productionPath != localPath) ;
+	DRIVERCRATE_EXPECT( context, !production.store
+									 ->commit( localFixture.receipt, localFixture.inputs.envelope,
+											  localFixture.inputs.gzip, NOW)
+									 .snapshot) ;
+	DRIVERCRATE_EXPECT( context, !local.store
+									 ->commit( distributionFixture.receipt,
+											  distributionFixture.inputs.envelope,
+											  distributionFixture.inputs.gzip, NOW)
+									 .snapshot) ;
+	const auto lower	= makeDomainStoreFixture( key, false, 6U, 6U) ;	// 原high-water未満です。
+	const auto rollback = production.store->commit( lower.receipt, lower.inputs.envelope,
+												   lower.inputs.gzip, NOW) ;	// 自動resetしません。
 	DRIVERCRATE_EXPECT( context,
-					   store.commit( first.receipt, first.inputs.envelope, first.inputs.gzip, NOW)
-						   .snapshot.has_value()) ;
-	const auto source	= Access::isolatedRoot( store) ;				// 製品rootではありません。
-	const auto headPath = source / L"head.bin" ;						// 自作fixtureだけを書換えます。
-	const auto original = readStoreTestFile( headPath) ;				// 全拒否で保全を比較します。
-	const auto pin		= recordDigest( key, assetText( original)) ;	// 正しい原head pinです。
-	DRIVERCRATE_EXPECT( context,
-					   Access::migrateIsolated( store, std::string( 64U, '0'), NOW).error != 0) ;
-	DRIVERCRATE_EXPECT( context, Access::migrateIsolated( store, pin, std::nullopt).error != 0) ;
-	DRIVERCRATE_EXPECT( context,
-					   Access::migrateIsolated( store, pin, NOW - std::chrono::hours{2}).error != 0) ;
-	{
-		const auto held = Access::holdLock( store) ;	// 実share0競合を再現します。
-		DRIVERCRATE_EXPECT( context, static_cast<bool>( held)) ;
-		const auto busy = Access::migrateIsolated( store, pin, NOW) ;	// 待機/強制奪取しません。
-		DRIVERCRATE_EXPECT( context, busy.error == ERROR_SHARING_VIOLATION &&
-										busy.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
-	}
-
-	const auto destination =
-		// 固定suffixだけです。
-		source.parent_path() / (source.filename().native() + L"-migrated") ;
-	DRIVERCRATE_EXPECT( context, CreateDirectoryW( destination.c_str(), nullptr) != FALSE) ;
-	const auto existing = Access::migrateIsolated( store, pin, NOW) ;	// 空の既存先も上書きしません。
-	DRIVERCRATE_EXPECT( context, existing.error == ERROR_ALREADY_EXISTS &&
-									existing.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
-	DRIVERCRATE_EXPECT( context, RemoveDirectoryW( destination.c_str()) != FALSE) ;
-	DRIVERCRATE_EXPECT( context, readStoreTestFile( headPath) == original) ;
-	std::vector<std::byte> plain ;	// 人工wireだけをRAMへ保持します。
-	DRIVERCRATE_EXPECT( context, Access::readPlain( store, plain) == 0) ;
-	const auto originalPlain = plain ;	// 復旧用の自作fixture原wireです。
-	const auto position =
-		// 外側keyIdの未知鍵拒否を再現します。
-		assetText( plain).find( "fixture-main") ;
-	DRIVERCRATE_EXPECT( context, position != std::string::npos) ;
-	// 同長の未知IDへ変更し、DPAPI/digest整合だけでは信頼しないことを確認します。
-	if( position != std::string::npos) {
-		plain[position] = std::byte{'u'} ;
-		refreshStorePlainDigest( key, plain) ;
-		DRIVERCRATE_EXPECT( context, Access::replacePlain( store, plain) == 0) ;
-		const auto unknownHead = readStoreTestFile( headPath) ;	// 正しいDPAPIに包まれた未知鍵です。
-		const auto unknown	   = Access::migrateIsolated(
-			store, recordDigest( key, assetText( unknownHead)), NOW) ;	// 申告keyIdを信用しません。
-		DRIVERCRATE_EXPECT( context, unknown.error != 0 && !unknown.generation &&
-										unknown.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
-	}
-
-	plain = originalPlain ;
-	plain[0] ^= std::byte{1U} ;
-	refreshStorePlainDigest( key, plain) ;
-	DRIVERCRATE_EXPECT( context, Access::replacePlain( store, plain) == 0) ;
-	const auto malformedHead = readStoreTestFile( headPath) ;	// strict wire破損の独立ケースです。
+					   rollback.manifestStatus == SignedIndexManifestStatus::GENERATION_ROLLBACK &&
+						   rollback.persistedGeneration == 7U) ;
+	const auto expired =
+		// 失効でもfloorを保持します。
+		production.store->reload( NOW + std::chrono::days{15}) ;
+	DRIVERCRATE_EXPECT( context, expired.status == IndexStoreStatus::EXPIRED &&
+									expired.persistedGeneration == 7U && !expired.snapshot) ;
+	// 未知共用rootの存在を発見したら、両domainの再open/操作を拒否します。
+	auto unknown = Access::openNamespaceIsolated( *parent.store, NamespaceLeaf::LEGACY,
+												 {}) ;	// 旧形式を認証しません。
+	DRIVERCRATE_EXPECT( context, unknown.store != nullptr) ;
+	DRIVERCRATE_EXPECT( context, Access::openNamespaceIsolated(
+									*parent.store, NamespaceLeaf::DISTRIBUTION, productionTrust)
+										.error == ERROR_REVISION_MISMATCH) ;
 	DRIVERCRATE_EXPECT(
 		context,
-		Access::migrateIsolated( store, recordDigest( key, assetText( malformedHead)), NOW).error !=
-			0) ;
-	writeStoreTestFile( headPath, original) ;
-	auto other = Access::createIsolated( trust) ;	// 別root identityへ暗号byteをcopyします。
-	// 正常な別domainで同じ番号を独立受理できることも確認します。
-	if( !other.store) {
-		throw std::runtime_error( "independent domain fixture failed") ;
-	}
-
-	DRIVERCRATE_EXPECT(
-		context,
-		other.store->commit( conflict.receipt, conflict.inputs.envelope, conflict.inputs.gzip, NOW)
-			.snapshot.has_value()) ;
-	const auto foreignHead = readStoreTestFile( Access::isolatedRoot( *other.store) /
-											   L"head.bin") ;	// 他rootの正規暗号です。
-	writeStoreTestFile( headPath, foreignHead) ;
-	const auto binding = Access::migrateIsolated( store, recordDigest( key, assetText( foreignHead)),
-												 NOW) ;	// hash一致でもroot binding不成立です。
-	DRIVERCRATE_EXPECT( context, binding.error != 0 && !binding.generation &&
-									binding.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
-	writeStoreTestFile( headPath, original) ;
-	DRIVERCRATE_EXPECT( context, Access::isolatedRoot( store) == source &&
-									readStoreTestFile( headPath) == original) ;
-	const auto legacyPublic = std::string_view{
-		reinterpret_cast<const char *>( index_legacy_migration_trust::PUBLIC_BLOB.data()),
-		index_legacy_migration_trust::PUBLIC_BLOB
-			.size()} ;	// 固定非秘密blobだけを独立hashへ渡します。
-	DRIVERCRATE_EXPECT( context, recordDigest( key, legacyPublic) ==
-									index_legacy_migration_trust::PUBLIC_FINGERPRINT) ;
-	// 同じ製品namespace実装でlocal/productionの分類とsource absent再実行を確認します。
-	for( const bool local : {false, true}) {
-		using signed_index_store_detail::NamespaceLeaf ;
-		auto parent = Access::createIsolated( {}) ;	// 固定三leafを隔離する自作sandboxです。
-		const std::array<signed_index_detail::TrustKey, 2U> domainTrust{
-			{{index_distribution_trust::KEY_ID, key.publicBlob},
-			 {index_legacy_migration_trust::KEY_ID, key.publicBlob}}} ;	// 人工RAM鍵だけです。
-		const std::array<signed_index_detail::TrustKey, 1U> productionTrust{
-			{{index_distribution_trust::KEY_ID, key.publicBlob}}} ;	// 通常側はlocal鍵を持ちません。
-		// Sandbox作成不能を空成功へ補完しません。
-		if( !parent.store) {
-			throw std::runtime_error( "migration namespace parent failed") ;
-		}
-
-		auto	   legacy  = Access::openNamespaceIsolated( *parent.store, NamespaceLeaf::LEGACY,
-														   domainTrust) ;	// 固定旧名だけを作ります。
-		const auto fixture = makeDomainStoreFixture( key, local) ;			// 型名でなく真署名IDで分類します。
-		// 旧rootを用意できない場合は残りのtestへ進みません。
-		if( !legacy.store) {
-			throw std::runtime_error( "legacy namespace creation failed") ;
-		}
-
-		DRIVERCRATE_EXPECT(
-			context,
-			legacy.store->commit( fixture.receipt, fixture.inputs.envelope, fixture.inputs.gzip, NOW)
-				.snapshot.has_value()) ;
-		const auto oldPath =
-			// 後で消失と原byte保全を確認します。
-			Access::isolatedRoot( *legacy.store) ;
-		const auto oldHead = readStoreTestFile( oldPath / L"head.bin") ;	// 復号plainを保存しません。
-		const auto oldPin  = recordDigest( key, assetText( oldHead)) ;		// 事前確認した完全pinです。
-		DRIVERCRATE_EXPECT( context, Access::openNamespaceIsolated(
-										*parent.store, NamespaceLeaf::DISTRIBUTION, productionTrust)
-											.error == ERROR_REVISION_MISMATCH) ;
-		{
-			auto competing =
-				// 旧binary同等のroot ownerです。
-				Access::reopenIsolated( *legacy.store) ;
-			DRIVERCRATE_EXPECT( context, competing.store != nullptr) ;
-			const auto busy = Access::migrateNamespaceIsolated(
-				*legacy.store, oldPin, expiredNow) ;	// DELETE非共有root競合を拒否します。
-			DRIVERCRATE_EXPECT( context, busy.error == ERROR_SHARING_VIOLATION &&
-											busy.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
-		}
-
-		const auto migrated = Access::migrateNamespaceIsolated(
-			*legacy.store, oldPin, expiredNow) ;	// 本番と同じ分類/renameです。
-		DRIVERCRATE_EXPECT( context, migrated.error == 0 && migrated.localDomain == local &&
-										migrated.generation == 7U &&
-										migrated.commit == IndexStoreCommitDisposition::COMMITTED) ;
-		const auto newPath = Access::isolatedRoot( *legacy.store) ;	// 実署名IDから選んだ移動先です。
-		DRIVERCRATE_EXPECT( context, !std::filesystem::exists( oldPath) &&
-										readStoreTestFile( newPath / L"head.bin") == oldHead) ;
-		const auto expectedName =
-			local
-				? L"SignedIndex-local-68ab95e96e45db00c62a241d733d29a2e347ef074949aec01293ed2ab024f18d-v1"
-				: L"SignedIndex-distribution-v1" ;	// 完全fingerprintを省略しません。
-		DRIVERCRATE_EXPECT( context, newPath.filename() == expectedName) ;
-		auto production = Access::openNamespaceIsolated(
-			*parent.store, NamespaceLeaf::DISTRIBUTION,
-			productionTrust) ;	// 旧productionは同floor、旧localとは独立です。
-		// 通常domainを開けなければ後続の結果を成功にしません。
-		if( !production.store) {
-			throw std::runtime_error( "production namespace failed") ;
-		}
-
-		// 別domainの正しいgenesisを移行証拠へ昇格せず、local保全headだけを確認します。
-		if( local) {
-			const auto withGenesis = Access::migrateNamespaceIsolated(
-				*legacy.store, oldPin, expiredNow) ;	// source absentの途中再開です。
-			DRIVERCRATE_EXPECT( context, withGenesis.error == 0 && withGenesis.alreadyMigrated &&
-											withGenesis.localDomain) ;
-		}
-
-		const auto productionFixture =
-			// localと同番号でも別署名domainです。
-			makeDomainStoreFixture( key, false) ;
-		DRIVERCRATE_EXPECT( context, production.store
-										->commit( productionFixture.receipt,
-												 productionFixture.inputs.envelope,
-												 productionFixture.inputs.gzip, NOW)
-										.snapshot.has_value()) ;
-		const auto localFixture	 = makeDomainStoreFixture( key, true) ;	// 通常trustへ混入しません。
-		const auto localRejected = production.store->commit(
-			localFixture.receipt, localFixture.inputs.envelope, localFixture.inputs.gzip,
-			NOW) ;	// 移行用鍵は通常trustへ登録しません。
-		DRIVERCRATE_EXPECT( context,
-						   !localRejected.snapshot && localRejected.manifestStatus ==
-														  SignedIndexManifestStatus::UNKNOWN_KEY) ;
-		// 実通常profileも移行用公開pinをmanifest trustへ加えていません。
-		if( !local_index_profile::ENABLED) {
-			DRIVERCRATE_EXPECT( context, authenticateSignedIndexManifest(
-											localFixture.inputs.envelope, NOW, std::nullopt)
-												.status == SignedIndexManifestStatus::UNKNOWN_KEY) ;
-		}
-
-		const auto lowerProduction =
-			// 移動後の旧production floorを検査します。
-			makeDomainStoreFixture( key, false, 6U, 6U) ;
-		DRIVERCRATE_EXPECT(
-			context, production.store
-							 ->commit( lowerProduction.receipt, lowerProduction.inputs.envelope,
-									  lowerProduction.inputs.gzip, NOW)
-							 .manifestStatus == SignedIndexManifestStatus::GENERATION_ROLLBACK) ;
-		const auto conflictingProduction =
-			// 同番号異内容を維持します。
-			makeDomainStoreFixture( key, false, 7U, 6U) ;
-		DRIVERCRATE_EXPECT( context, production.store
-											->commit( conflictingProduction.receipt,
-													 conflictingProduction.inputs.envelope,
-													 conflictingProduction.inputs.gzip, NOW)
-											.manifestStatus ==
-										SignedIndexManifestStatus::GENERATION_CONFLICT) ;
-		const auto replay = Access::migrateNamespaceIsolated(
-			*legacy.store, oldPin, expiredNow) ;	// 元root absent経路を実行します。
-		DRIVERCRATE_EXPECT( context, replay.error == 0 && replay.alreadyMigrated &&
-										replay.localDomain == local && replay.generation == 7U) ;
-		DRIVERCRATE_EXPECT( context, Access::migrateNamespaceIsolated(
-										*legacy.store, std::string( 64U, '0'), expiredNow)
-											.error != 0) ;
-		// 別domainが壊れていれば、正しいlocal headがあっても再実行成功にしません。
-		if( local) {
-			const auto productionHead =
-				// 自作通常domainだけです。
-				Access::isolatedRoot( *production.store) / L"head.bin" ;
-			const auto stableProduction =
-				// 原ciphertextをRAMだけへ保持します。
-				readStoreTestFile( productionHead) ;
-			auto broken = stableProduction ;	// DPAPI拒否を別に再現します。
-			broken[0] ^= std::byte{1U} ;
-			writeStoreTestFile( productionHead, broken) ;
-			const auto corruptReplay = Access::migrateNamespaceIsolated(
-				*legacy.store, oldPin, expiredNow) ;	// 不完全な他domainを無視しません。
-			DRIVERCRATE_EXPECT( context,
-							   corruptReplay.error != 0 && !corruptReplay.alreadyMigrated &&
-								   corruptReplay.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
-			writeStoreTestFile( productionHead, stableProduction) ;
-		}
-
-		{
-			auto recreated =
-				Access::openNamespaceIsolated( *parent.store, NamespaceLeaf::LEGACY,
-											  domainTrust) ;	// 旧binary再出現を人工再現します。
-			// 新旧両方の存在を空のfixtureで省略しません。
-			if( !recreated.store) {
-				throw std::runtime_error( "recreated legacy namespace failed") ;
-			}
-
-			DRIVERCRATE_EXPECT( context, recreated.store
-											->commit( fixture.receipt, fixture.inputs.envelope,
-													 fixture.inputs.gzip, NOW)
-											.snapshot.has_value()) ;
-			const auto recreatedHead =
-				readStoreTestFile( Access::isolatedRoot( *recreated.store) /
-								  L"head.bin") ;	// 新しい原ciphertext pinです。
-			const auto rejected = Access::migrateNamespaceIsolated(
-				*recreated.store, recordDigest( key, assetText( recreatedHead)),
-				expiredNow) ;	// 既存先をmergeしません。
-			DRIVERCRATE_EXPECT( context,
-							   rejected.error == ERROR_ALREADY_EXISTS &&
-								   rejected.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
-			DRIVERCRATE_EXPECT( context,
-							   production.store->reload( NOW).error == ERROR_REVISION_MISMATCH) ;
-			DRIVERCRATE_EXPECT( context, readStoreTestFile( newPath / L"head.bin") == oldHead) ;
-		}
-	}
-
-	std::cout << "Signed index store migration assertions: "
-			  << context.assertionCount() - initialAssertions
-			  << ", failures: " << context.failureCount() - initialFailures << '\n' ;
+		Access::openNamespaceIsolated( *parent.store, NamespaceLeaf::LOCAL, localTrust).error ==
+			ERROR_REVISION_MISMATCH) ;
+	DRIVERCRATE_EXPECT( context, production.store->reload( NOW).error == ERROR_REVISION_MISMATCH) ;
+	DRIVERCRATE_EXPECT( context, local.store->reload( NOW).error == ERROR_REVISION_MISMATCH) ;
+	DRIVERCRATE_EXPECT( context, readStoreTestFile( productionPath / L"head.bin") == productionHead &&
+									readStoreTestFile( localPath / L"head.bin") == localHead) ;
+	std::cout << "Signed index store domain assertions: "
+			  << context.assertionCount() - initialAssertions << '\n' ;
 }
 
 namespace {
@@ -3877,8 +3804,13 @@ namespace {
  * @brief 文法上有効なINF・SYS・未署名CATの非空ZIPをRAMだけで作ります。
  * @return Minizが生成した有限原byte。CAT拒否を正常署名へ変更しません。
  * @param[in] network trueではNetwork class、falseでは元fixtureの通常classを使う。
+ * @param[out] infBytes 非null時は同ZIPへ入れた原INF byteを返します。
+ * @param[in] nestedMembers 同じ一段inner ZIPを置く有限なouter member名です。
+ * @param[in] includeFlat trueはouter直下にも同じINF閉包を含めます。
  */
-std::string normalWorkerDriverZip( const bool network = false)
+std::string normalWorkerDriverZip( const bool network = false, std::string *const infBytes = nullptr,
+								  const std::span<const std::string_view> nestedMembers = {},
+								  const bool							  includeFlat	= true)
 {
 	std::string inf =
 		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=Ports\r\n"
@@ -3898,6 +3830,11 @@ std::string normalWorkerDriverZip( const bool network = false)
 	}
 
 	// ZIP生成開始失敗を非空正常fixtureへ換算しません。
+	if( infBytes != nullptr) {
+		*infBytes = inf ;
+	}
+
+	// 要求された同原INF byteを返し、別文字列からhashを推測しません。
 	if( !mz_zip_writer_init_heap( &archive, 0U, 0U)) {
 		throw std::runtime_error( "worker ZIP initialization failed") ;
 	}
@@ -3906,11 +3843,25 @@ std::string normalWorkerDriverZip( const bool network = false)
 		"fictional nonexecuting system driver bytes" ;				// 実driver binaryではありません。
 	const std::string cat = "fictional unsigned catalog bytes" ;	// Windows署名合格を偽装しません。
 	// 三つの原memberを全て追加できた場合だけ非空ZIPを完成させます。
-	if( !mz_zip_writer_add_mem( &archive, "fixture.inf", inf.data(), inf.size(), MZ_NO_COMPRESSION) ||
-	   !mz_zip_writer_add_mem( &archive, "fixture.sys", sys.data(), sys.size(), MZ_NO_COMPRESSION) ||
-	   !mz_zip_writer_add_mem( &archive, "fixture.cat", cat.data(), cat.size(), MZ_NO_COMPRESSION)) {
+	if( includeFlat && (!mz_zip_writer_add_mem( &archive, "fixture.inf", inf.data(), inf.size(),
+											  MZ_NO_COMPRESSION) ||
+					   !mz_zip_writer_add_mem( &archive, "fixture.sys", sys.data(), sys.size(),
+											  MZ_NO_COMPRESSION) ||
+					   !mz_zip_writer_add_mem( &archive, "fixture.cat", cat.data(), cat.size(),
+											  MZ_NO_COMPRESSION))) {
 		mz_zip_writer_end( &archive) ;
 		throw std::runtime_error( "worker ZIP members failed") ;
+	}
+
+	// 各innerは同じ完全原INF閉包を持ち、member名だけを変えた取り違え回帰です。
+	for( const auto member : nestedMembers) {
+		const auto inner = normalWorkerDriverZip( network) ;	// 子呼出しはnestedなしのflat一段です。
+		// 明示flatだけをouterへ加え、nested-onlyにflatを混入させません。
+		if( !mz_zip_writer_add_mem( &archive, std::string{member}.c_str(), inner.data(), inner.size(),
+								  MZ_NO_COMPRESSION)) {
+			mz_zip_writer_end( &archive) ;
+			throw std::runtime_error( "worker nested ZIP failed") ;
+		}
 	}
 
 	void	   *memory{} ;	// Finalizeが発行したheap。mz_freeへ返します。
@@ -3932,14 +3883,20 @@ std::string normalWorkerDriverZip( const bool network = false)
  * @param[in] recordCount 有限batch境界用件数。通常は1です。
  * @param[out] storeOut 指定時だけ実reload済み隔離store所有を返します。nullptr可です。
  * @param[in] generation 真署名manifestの人工世代。asset世代7は変更しません。
+ * @param[in] recordRows 非空時は各元recordをそのまま使います。件数はrecordCountへ一致させます。
  * @return Reloadが発行した真のconst snapshotの共有所有。
  */
 [[nodiscard]] std::shared_ptr<const AuthenticatedIndexSnapshot> lookupSnapshot(
 	const RamKey &key, const std::string_view record, const std::size_t recordCount = 1U,
-	std::shared_ptr<SignedIndexStore> *const storeOut	= nullptr,
-	const std::uint64_t						 generation = 9U)
+	std::shared_ptr<SignedIndexStore> *const storeOut = nullptr,
+	const std::uint64_t generation = 9U, const std::span<const std::string> recordRows = {})
 {
 	std::string entries ;	// 有限batch試験の原entry群。
+	// 別record集合の件数不一致を暗黙に切り捨てません。
+	if( !recordRows.empty() && recordRows.size() != recordCount) {
+		throw std::runtime_error( "lookup exact record count failed") ;
+	}
+
 	// 指定した架空record件数だけ一意identityを生成し、全件で終了する。
 	for( std::size_t recordIndex = 0U; recordIndex < recordCount; ++recordIndex) {
 		// 後続entryだけにcommaを追加する。
@@ -3947,7 +3904,8 @@ std::string normalWorkerDriverZip( const bool network = false)
 			entries += "," ;
 		}
 
-		const auto raw = recordIndex == 0U
+		const auto raw = !recordRows.empty() ? recordRows[recordIndex]
+						 : recordIndex == 0U
 							 ? std::string{record}
 							 : replaced( std::string{record}, "\"recordId\":\"metadata\"",
 										"\"recordId\":\"batch-" + std::to_string( recordIndex) +
@@ -4203,9 +4161,10 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 	DRIVERCRATE_EXPECT( context, schema.sources().size() == 1U && schema.records().size() == 1U) ;
 	DRIVERCRATE_EXPECT( context, schema.records()[0].originalBytes == raw) ;
 	DRIVERCRATE_EXPECT( context, manifest.generation == 9U && manifest.assetGeneration == 7U) ;
-	DRIVERCRATE_EXPECT( context, schema.schemaPolicyVersion() == 3U &&
-									schema.assetBytes().bytePolicyVersion() == 1U &&
-									owned.storePolicyVersion() == 1U) ;
+	DRIVERCRATE_EXPECT( context,
+					   schema.schemaPolicyVersion() == INDEX_RECORD_READER_POLICY_VERSION &&
+						   schema.assetBytes().bytePolicyVersion() == 1U &&
+						   owned.storePolicyVersion() == 1U) ;
 	DRIVERCRATE_EXPECT( context,
 					   manifest.manifestSha256 ==
 						   snapshot->schemaReceipt().assetBytes().manifest().data().manifestSha256) ;
@@ -4532,29 +4491,57 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 			NOW, scenario == 5U ? 3U : scenario) ;
 	}
 
-	const auto driverZip  = normalWorkerDriverZip() ;					// 非空INF・SYS・CATを含む実container。
+	std::string driverInf ;	// 同原ZIPのINF evidence hashへ結びます。
+	const auto	driverZip =
+		// 非空INF・SYS・CATを含む実container。
+		normalWorkerDriverZip( false, &driverInf) ;
 	const auto driverHash = recordDigest( key, driverZip) ;				// 原byteへ結ぶ公開申告の人工hash。
 	auto	   driverRaw  = descriptorRecord( descriptorFixture()) ;	// 既知の同意不要静的ZIP条件。
 	driverRaw			  = replaced( std::move( driverRaw), RECORD_CLAIM_HASH, driverHash) ;
 	driverRaw			  = replaced( std::move( driverRaw), RECORD_CLAIM_HASH, driverHash) ;
 	driverRaw			  = replaced( std::move( driverRaw), "\"valueBytes\":1234",
 									 "\"valueBytes\":" + std::to_string( driverZip.size())) ;
+	std::vector<std::string> independentRows ;	// 元の独立取得task分母258件です。
+	// 同payload複製に依存せず、異なる明示routeの取得/予算/取消しを確認します。
+	for( std::size_t ordinal = 0U; ordinal < 258U; ++ordinal) {
+		auto	   row	 = replaced( driverRaw, "\"recordId\":\"metadata\"",
+									"\"recordId\":\"independent-" + std::to_string( ordinal) +
+										"\"") ;	// 原identityです。
+		const auto route = "https://vendor.example/fixture-" + std::to_string( ordinal) +
+						   ".zip" ;	// 同じfake本体でも異なる原配布recordの固定取得先です。
+		// Payload/routeの全出現を同一の原URLへ揃えます。
+		while( row.find( "https://vendor.example/fixture.zip") != row.npos) {
+			row = replaced( std::move( row), "https://vendor.example/fixture.zip", route) ;
+		}
+
+		independentRows.push_back( std::move( row)) ;
+	}
+
 	std::shared_ptr<SignedIndexStore> normalStore ;	// 同実store再認証をworker内へ借用します。
 	auto							  normalSnapshot =
 		// Batch境界後の二正常対象。
-		lookupSnapshot( key, driverRaw, 258U, &normalStore) ;
+		lookupSnapshot( key, driverRaw, independentRows.size(), &normalStore, 9U, independentRows) ;
 	runNormalIndexWorkerAcquisitionTests( context, normalStore, NOW, driverZip, 258U, 256U) ;
 	runNormalIndexWorkerAcquisitionTests( context, normalStore, NOW, driverZip, 258U, 0U) ;
 	// 正常本体fixtureは原native CAT拒否と分離し、同じ真署名storeを一recordへ限定します。
 	std::shared_ptr<SignedIndexStore> bindingStore ;	// 公開ClassGUIDまで実fixtureへ完全一致します。
 	// 元真正recordの公開classだけを人工Ports内容へ一致させる再署名用byte。
-	const auto bindingRaw = replaced( driverRaw, "{11111111-2222-3333-4444-555555555555}",
-									 "{4d36e978-e325-11ce-bfc1-08002be10318}") ;
+	auto bindingRaw = replaced( driverRaw, "{11111111-2222-3333-4444-555555555555}",
+							   "{4d36e978-e325-11ce-bfc1-08002be10318}") ;
+	bindingRaw		= replaced( std::move( bindingRaw), "drivers/fixture.inf", "fixture.inf") ;
+	bindingRaw		= replaced( std::move( bindingRaw), "Fixture.NTamd64", "Models.NTamd64") ;
+	bindingRaw =
+		replaced( std::move( bindingRaw),
+				 "\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
+					 std::string{RECORD_EVIDENCE_HASH},
+				 "\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
+					 recordDigest( key, driverInf)) ;
 	static_cast<void>( lookupSnapshot( key, bindingRaw, 1U, &bindingStore)) ;
 	runNormalSignedIndexCandidateBindingTests( context, bindingStore, NOW, driverZip) ;
-	const auto netZip  = normalWorkerDriverZip( true) ;	// 別classの非空通常INFです。
-	const auto netHash = recordDigest( key, netZip) ;	// 真署名recordを実原byteへ固定します。
-	auto	   netRaw =
+	std::string netInf ;											// 別classの原INFです。
+	const auto	netZip	= normalWorkerDriverZip( true, &netInf) ;	// 別classの非空通常INFです。
+	const auto	netHash = recordDigest( key, netZip) ;				// 真署名recordを実原byteへ固定します。
+	auto		netRaw =
 		// Net内容のsize/hash/classを再署名へ結ぶ原record。
 		descriptorRecord( descriptorFixture()) ;
 	netRaw = replaced( std::move( netRaw), RECORD_CLAIM_HASH, netHash) ;
@@ -4564,8 +4551,162 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 	netRaw = replaced( std::move( netRaw), "{11111111-2222-3333-4444-555555555555}",
 					  "{4d36e972-e325-11ce-bfc1-08002be10318}") ;
 	std::shared_ptr<SignedIndexStore> netStore ;	// Portsとは別の隔離真正storeです。
+	netRaw = replaced( std::move( netRaw), "drivers/fixture.inf", "fixture.inf") ;
+	netRaw = replaced( std::move( netRaw), "Fixture.NTamd64", "Models.NTamd64") ;
+	netRaw =
+		replaced( std::move( netRaw),
+				 "\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
+					 std::string{RECORD_EVIDENCE_HASH},
+				 "\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
+					 recordDigest( key, netInf)) ;
 	static_cast<void>( lookupSnapshot( key, netRaw, 1U, &netStore)) ;
 	runNormalSignedIndexCandidateBindingTests( context, netStore, NOW, netZip, true) ;
+
+	// 同名同内容INFをflat/nested A/Bへ置き、Windows rankを別元recordへ流用させません。
+	const std::array<std::string_view, 1U> nestedA{"release+a/inner.zip"} ;	// 一段の原memberです。
+	const std::array<std::string_view, 2U> nestedBoth{
+		"release+a/inner.zip", "release+b/inner.zip"} ;	// 同内容でも別memberです。
+	const auto onlyNested =
+		// flat INFはありません。
+		normalWorkerDriverZip( false, nullptr, nestedA, false) ;
+	const auto allMembers =
+		// flatと二nestedを同outerへ固定します。
+		normalWorkerDriverZip( false, nullptr, nestedBoth) ;
+	const auto exactRecord = [&]( const std::string &payload, const std::string_view selector,
+								 const std::string_view id = "metadata") {
+		auto	   value	 = bindingRaw ;						// 同原INF hash/Models/Class/公開IDへ修正済みです。
+		const auto outerHash = recordDigest( key, payload) ;	// 当該outerの原hashです。
+		value				 = replaced( std::move( value), driverHash, outerHash) ;
+		value				 = replaced( std::move( value), driverHash, outerHash) ;
+		value = replaced( std::move( value), "\"valueBytes\":" + std::to_string( driverZip.size()),
+						 "\"valueBytes\":" + std::to_string( payload.size())) ;
+		value = replaced( std::move( value), "\"nestedArchiveIdentity\":\"\"",
+						 "\"nestedArchiveIdentity\":\"" + std::string{selector} + "\"") ;
+		return replaced( std::move( value), "\"recordId\":\"metadata\"",
+						"\"recordId\":\"" + std::string{id} + "\"") ;
+	} ; // 元申告を作るだけで、権限や実観測を生成しません。
+	const auto identityStart = context.assertionCount() ;	// 有限な取り違え回帰の開始値です。
+	// 全21条件の原archiveと原recordを一回ずつ評価します。
+	for( unsigned scenario = 0U; scenario < 21U; ++scenario) {
+		const auto			  &payload = scenario == 0U || scenario == 7U ? driverZip
+										 : scenario == 1U || scenario == 6U || scenario == 8U
+											 ? onlyNested
+											 : allMembers ;	// 各caseの原archiveです。
+		const std::string_view selector =
+			scenario == 1U || scenario == 3U || scenario == 7U	 ? nestedA.front()
+			: scenario == 4U || scenario == 5U || scenario == 6U ? nestedBoth.back()
+																 : "" ;	// flat/A/Bを区別します。
+		std::vector<std::string> rows{									// 原byteで署名する全recordです。
+									  exactRecord( payload, selector)} ;
+		std::size_t				 expected = scenario <= 5U || scenario == 15U || scenario == 16U ||
+										(scenario >= 17U && scenario <= 19U)
+												? 1U
+												: 0U ;	// 固定の期待候補数です。
+		std::size_t				 references = 1U ;		// class不一致以外は元参照を保持します。
+		// 同target/deviceの別recordを先頭参照へ丸めません。
+		if( scenario == 5U) {
+			rows.push_back( exactRecord( payload, nestedA.front(), "second")) ;
+			expected   = 2U ;
+			references = 2U ;
+		}
+
+		// 同原hash/節でも別INF memberでは一致させません。
+		if( scenario == 9U) {
+			rows.front() = replaced( std::move( rows.front()), "\"infIdentity\":\"fixture.inf\"",
+									"\"infIdentity\":\"another/fixture.inf\"") ;
+		}
+
+		// 別INF原hashを通常内容合格で補完しません。
+		if( scenario == 10U) {
+			rows.front() = replaced( std::move( rows.front()), recordDigest( key, driverInf),
+									std::string( 64U, 'f')) ;
+		}
+
+		// 別Modelsのrank成功を元節へ借用しません。
+		if( scenario == 11U) {
+			rows.front() = replaced( std::move( rows.front()), "Models.NTamd64", "Another.NTamd64") ;
+		}
+
+		// 一つの照合IDが合っても、公開全集合の差は元identity不一致です。
+		if( scenario == 12U) {
+			rows.front() =
+				replaced( std::move( rows.front()), "\"pnpIds\":[",
+						 "\"pnpIds\":[{\"kind\":\"COMPATIBLE\",\"value\":\"TESTBUS\\\\ABSENT\"},") ;
+		}
+
+		// Class不一致をdriverなしや正常rankへ読み替えません。
+		if( scenario == 13U) {
+			rows.front() = replaced( std::move( rows.front()), "4d36e978", "4d36e972") ;
+			references	 = 0U ;
+		}
+
+		// 既知outer size矛盾は同取得のINF合格で補完しません。
+		if( scenario == 14U) {
+			rows.front() = replaced( std::move( rows.front()),
+									"\"valueBytes\":" + std::to_string( payload.size()),
+									"\"valueBytes\":" + std::to_string( payload.size() + 1U)) ;
+		}
+
+		// UNKNOWN期待は当該原recordのprivate seal/hintに限って実outerへ結合します。
+		if( scenario == 15U || scenario == 16U) {
+			const auto knownHash =
+				"{\"state\":\"KNOWN\",\"sha256\":\"" + recordDigest( key, payload) +
+				"\",\"evidenceUrl\":\"https://vendor.example/support\",\"evidenceSha256\":\"" +
+				std::string{RECORD_EVIDENCE_HASH} + "\",\"reason\":\"\"}" ;	// 元期待です。
+			const std::string unknownHash =
+				// 実取得の事実とは別です。
+				"{\"state\":\"UNKNOWN\",\"sha256\":\"\",\"evidenceUrl\":\"\",\"evidenceSha256\":\"\",\"reason\":\"not supplied\"}" ;
+			rows.front() = replaced( std::move( rows.front()), knownHash, unknownHash) ;
+			rows.front() = replaced( std::move( rows.front()), knownHash, unknownHash) ;
+			rows.front() =
+				replaced( std::move( rows.front()),
+						 "{\"state\":\"KNOWN\",\"valueBytes\":" + std::to_string( payload.size()) +
+							 ",\"reason\":\"\"}",
+						 "{\"state\":\"UNKNOWN\",\"valueBytes\":0,\"reason\":\"not supplied\"}") ;
+			// 別原recordは共有せず、それぞれのprivate取得へ結びます。
+			if( scenario == 16U) {
+				rows.push_back(
+					replaced( rows.front(), "\"recordId\":\"metadata\"", "\"recordId\":\"second\"")) ;
+				expected   = 2U ;
+				references = 2U ;
+			}
+		}
+
+		std::shared_ptr<SignedIndexStore> exactStore ;	// 当該caseの原recordだけを保存します。
+		// Windowsの意味で同じClass caseを別identity不一致にしません。
+		if( scenario == 17U) {
+			rows.front() =
+				replaced( std::move( rows.front()), "{4d36e978-e325-11ce-bfc1-08002be10318}",
+						 "{4D36E978-E325-11CE-BFC1-08002BE10318}") ;
+		}
+
+		// 元Modelsのcaseだけを変えても同じ原HINFへ結びます。
+		if( scenario == 18U) {
+			rows.front() = replaced( std::move( rows.front()), "Models.NTamd64", "MODELS.NTAMD64") ;
+		}
+
+		// 原PnP byteは保持し、resolver/binderの比較keyだけをcase非依存にします。
+		if( scenario == 19U) {
+			rows.front() =
+				replaced( std::move( rows.front()), "TESTBUS\\\\SYNTH_0001", "testbus\\\\synth_0001") ;
+		}
+
+		// memberは原archive caseもidentityなので、別表記へ丸めません。
+		if( scenario == 20U) {
+			rows.front() = replaced( std::move( rows.front()), "\"infIdentity\":\"fixture.inf\"",
+									"\"infIdentity\":\"FIXTURE.inf\"") ;
+		}
+
+		static_cast<void>( lookupSnapshot( key, rows.front(), rows.size(), &exactStore, 9U, rows)) ;
+		std::cout << "INDEX_IDENTITY_CASE scenario=" << scenario << '\n' ;
+		runNormalIndexIdentityBindingCase( context, exactStore, NOW, payload, references, expected,
+										  scenario == 13U	? 0U
+										  : scenario == 16U ? 2U
+															: 1U) ;
+	}
+
+	std::cout << "INDEX_IDENTITY_CASES cases=21 assertions="
+			  << context.assertionCount() - identityStart << " actualCatAccepted=0 realInstall=0\n" ;
 
 	const auto aggregateStart	 = context.assertionCount() ;	// 全batch私有凍結groupの開始値。
 	const auto aggregateFailures = context.failureCount() ;		// 元失敗を消しません。
@@ -4690,4 +4831,360 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 			  << ", failures: " << context.failureCount() - aggregateFailures << '\n' ;
 }
 
+/** @see signed_index_manifest_tests.h */
+void runDistributionApplicationFixtureTests( TestContext					&context,
+											const std::filesystem::path &manifestPath,
+											const std::filesystem::path &gzipPath,
+											const std::filesystem::path &package,
+											const bool nativeMerge, const bool metadataBound)
+{
+	const auto before = context.assertionCount() ;	// 一貫試験の元開始値です。
+	const auto read	  = []( const std::filesystem::path &path, const std::uintmax_t maximum) {
+		  const auto size = std::filesystem::file_size( path) ;	// 確保前の有限byte数です。
+		  // 原byte欠損や上限超過をfixture成功へ補完しません。
+		  if( size == 0U || size > maximum) {
+			  throw std::runtime_error( "distribution fixture byte limit") ;
+		  }
+
+		  std::ifstream input( path, std::ios::binary) ;				// 自己所有fileの読取り専用です。
+		  std::string	bytes( static_cast<std::size_t>( size), '\0') ;	// 原byteを保持します。
+		  // 読取中の長さ変化や短い入力を拒否します。
+		  if( !input.read( bytes.data(), static_cast<std::streamsize>( size)) ||
+			 std::filesystem::file_size( path) != size) {
+			  throw std::runtime_error( "distribution fixture read failed") ;
+		  }
+
+		  return bytes ;
+	} ; // 既存producer出力を再serializationしません。
+	const auto raw = read( manifestPath, INDEX_MANIFEST_MAX_BYTES) ;	// 同producer原manifestです。
+	const auto compressed = read( gzipPath, INDEX_ASSET_MAX_BYTES) ;	// 同producer原GZipです。
+	const auto now		  = std::chrono::floor<std::chrono::seconds>(
+		   // 実runと同じ有限UTCです。
+		   std::chrono::system_clock::now()) ;
+	RamKey key ;	// 既存RAM-only fixture鍵です。永続storeを開きません。
+	key.generate( 3072U) ;
+	const auto keyId = index_distribution_trust::KEY_ID ;	// 原producerの同keyIdです。
+	const std::array<signed_index_detail::TrustKey, 1U> trust{
+		{{keyId, key.publicBlob}}} ;	// Test隔離trustだけです。
+	const auto outer =
+		// 原manifest byteをそのままRAM署名します。
+		envelope( raw, key.sign( raw), keyId) ;
+	const auto manifest = signed_index_detail::authenticateWithTrustKeys(
+		outer, now, std::nullopt, trust) ;	// 通常認証wrapperです。
+	DRIVERCRATE_EXPECT( context, manifest.manifest &&
+									manifest.manifest->data().manifestBytes == raw &&
+									manifest.status == SignedIndexManifestStatus::AUTHENTICATED) ;
+	// 認証失敗で別の手書きmanifestへ置換しません。
+	if( !manifest.manifest) {
+		throw std::runtime_error( "producer raw manifest authentication failed") ;
+	}
+
+	const IndexManifestHighWater newer{manifest.manifest->data().generation + 1U,
+									   // 元より新しい保護headの有限値です。
+									   manifest.manifest->data().manifestSha256} ;
+	const auto					 staleGeneration = signed_index_detail::authenticateWithTrustKeys(
+		  outer, now, newer, trust) ;	// 原byteを再署名/変更しません。
+	DRIVERCRATE_EXPECT( context, !staleGeneration.manifest &&
+									staleGeneration.status ==
+										SignedIndexManifestStatus::GENERATION_ROLLBACK) ;
+
+	const auto bytes = std::as_bytes(
+		std::span<const char>{compressed.data(), compressed.size()}) ;	// 同原GZip viewです。
+	const auto asset =
+		// 通常hash/GZip/CRCです。
+		authenticateIndexAssetBytes( *manifest.manifest, bytes, now) ;
+	DRIVERCRATE_EXPECT( context, asset.receipt.has_value()) ;
+	// 元asset認証なしにrecordを構成しません。
+	if( !asset.receipt) {
+		throw std::runtime_error( "producer raw asset authentication failed") ;
+	}
+
+	std::string altered = compressed ;	// 原producer byteは保持し、拒否用copy一byteだけを変更します。
+	altered.back() ^= 1 ;
+	const auto alteredBytes =
+		// 不一致copyです。
+		std::as_bytes( std::span<const char>{altered.data(), altered.size()}) ;
+	DRIVERCRATE_EXPECT( context,
+					   !authenticateIndexAssetBytes( *manifest.manifest, alteredBytes, now).receipt) ;
+
+	const auto records =
+		// 通常record/quality codecです。
+		readSignedIndexRecords( *asset.receipt, now) ;
+	DRIVERCRATE_EXPECT( context,
+					   records.receipt &&
+						   records.receipt->records().size() == (metadataBound ? 1U
+																 : nativeMerge ? 4U
+																			   : 3U) &&
+						   records.receipt->actualQuality().sourceCount == (metadataBound ? 1U
+																			: nativeMerge ? 3U
+																						  : 2U) &&
+						   records.receipt->actualQuality().contentInspectedCount ==
+							   (metadataBound ? 1U
+								: nativeMerge ? 4U
+											  : 3U)) ;
+	// 生成record失敗を別の手書きv2へ置換しません。
+	if( !records.receipt) {
+		throw std::runtime_error( "producer raw records failed") ;
+	}
+
+	auto opened =
+		// 自作保護rootだけです。
+		signed_index_store_detail::Access::createIsolated( trust) ;
+	DRIVERCRATE_EXPECT( context, opened.store != nullptr) ;
+	const auto committed =
+		// 同原byteを原子保存します。
+		opened.store->commit( *records.receipt, outer, bytes, now) ;
+	DRIVERCRATE_EXPECT( context, committed.snapshot.has_value()) ;
+	auto reloaded = opened.store->reload( now) ;	// 通常保存原byteの再認証です。
+	DRIVERCRATE_EXPECT( context, reloaded.snapshot &&
+									reloaded.snapshot->originalEnvelope() == outer &&
+									reloaded.snapshot->originalGzip().size() == bytes.size() &&
+									std::ranges::equal( reloaded.snapshot->originalGzip(), bytes)) ;
+	auto snapshot = std::make_shared<const AuthenticatedIndexSnapshot>(
+		// 同認証済保存ownerです。
+		std::move( *reloaded.snapshot)) ;
+	const IndexLookupContext original{301U, 302U, 303U} ;	// 同scanの元contextです。
+	// 新metadata一recordを同じreader/原byte/通常adapterへ渡し、実端末/CAT成功を作りません。
+	if( metadataBound) {
+		const std::array<std::wstring, 2U> present{
+			L"artificial-device-a", L"artificial-device-b"} ;	// 公開ID由来の架空deviceです。
+		LookupResolver resolver ;								// 実inventoryへfallbackしない既存fakeです。
+		auto matched = lookupSignedIndexRecords( snapshot, original, original, present, {}, now,
+												&resolver) ;	// 原認証recordだけです。
+		DRIVERCRATE_EXPECT( context, matched.lookup && !matched.lookup->relations().empty()) ;
+		// 未照合を取得候補adapterの成功へ補完しません。
+		if( !matched.lookup || matched.lookup->relations().empty()) {
+			throw std::runtime_error( "metadata bound lookup failed") ;
+		}
+
+		runMetadataBoundAdapterFixtureTests(
+			context, std::make_shared<const SignedIndexRecordLookup>( std::move( *matched.lookup)),
+			now, read( package, 262144U)) ;
+		std::cout
+			<< "METADATA_BOUND_APPLICATION assertions=" << context.assertionCount() - before
+			<< " rawManifestUnchanged=1 rawGzipUnchanged=1 ramFixtureSignature=1 realIndexSignature=0 actualCatAccepted=0 realDevice=0\n" ;
+		return ;
+	}
+
+	auto changedContext = original ;	// 次scanの文脈だけを変更します。
+	++changedContext.scanSessionId ;
+	DRIVERCRATE_EXPECT(
+		context,
+		lookupSignedIndexRecords( snapshot, original, changedContext, {}, {}, now, nullptr).status ==
+			IndexRecordLookupStatus::STALE_CONTEXT) ;
+	std::vector<DistributionBindingDevice> devices ;	// 公開IDは同実producer recordだけから読みます。
+	std::size_t unmatchedNative{} ;						// 固定追加recordを成功deviceへ数えない件数です。
+	// 生成元全三recordの原INF/Models/版を切り捨てず保持します。
+	for( const auto &record : records.receipt->records()) {
+		// 追加Intel recordも同codec/storeに保持し、架空三deviceのIDへは変換しません。
+		if( nativeMerge && record.sourceId == "intel-ethernet-win11" &&
+		   record.recordId == "intel-wired-31-2-2-win11") {
+			++unmatchedNative ;
+			continue ;
+		}
+
+		const auto &identity = record.publishedIdentityEvidence ;	// 同原INFから投影した公開値です。
+		DRIVERCRATE_EXPECT( context, identity.pnpIds.size() == 1U && !identity.infIdentity.empty() &&
+										!identity.modelSection.empty() &&
+										record.version.value.has_value()) ;
+		const auto widen = []( const std::string_view value) {
+			return std::wstring{value.begin(), value.end()} ;
+		} ; // 架空ASCIIだけです。
+		devices.push_back( {widen( identity.pnpIds.front().value), widen( identity.infIdentity),
+						   widen( identity.modelSection), widen( *record.version.value)}) ;
+		std::cout << "DISTRIBUTION_AUTHENTICATED_RECORD inf=" << identity.infIdentity
+				  << " models=" << identity.modelSection << " version=" << *record.version.value
+				  << " originalBytes=" << record.originalBytes.size() << '\n' ;
+	}
+
+	// 追加modeはこの固定一recordだけが未照合で、元三deviceを減らしていません。
+	if( nativeMerge) {
+		DRIVERCRATE_EXPECT( context, unmatchedNative == 1U && devices.size() == 3U) ;
+	}
+
+	const auto zipA = read( package / L"fixture-payload.bin", 1048576U) ;	// 同runのA原archiveです。
+	const auto zipB = read( package / L"fixture-payload-b.bin", 1048576U) ;	// 同runのB原archiveです。
+	auto	   store = std::shared_ptr<SignedIndexStore>{					// 全worker終端まで隔離rootを所有します。
+													 std::move( opened.store)} ;
+	auto	   weeklyDevices = devices ;	// 同じ公開tupleを7日後にも検査し、原recordを変更しません。
+	runNormalDistributionApplicationTests( context, store, now, zipA, zipB, std::move( devices)) ;
+	const auto baseAssertions = context.assertionCount() - before ;	// 従来153/154の分母です。
+	const auto weekNow		  = now + std::chrono::days{7} ;		// OS時計を変えない明示fixture時刻です。
+	// 週次公開preflightを満たす新規原byteだけが7日後の通常appを確認します。
+	if( weekNow < manifest.manifest->data().expiresAtUtc) {
+		runNormalDistributionApplicationTests( context, store, weekNow, zipA, zipB,
+											  std::move( weeklyDevices)) ;
+		std::cout << "DISTRIBUTION_WEEKLY_APPLICATION days=7 originalExpiryUnchanged=1 assertions="
+				  << context.assertionCount() - before - baseAssertions << '\n' ;
+	}
+
+	std::cout << "DISTRIBUTION_AUTHENTICATION assertions=" << baseAssertions
+			  << " rawManifestUnchanged=1 rawGzipUnchanged=1 ramKeyOnly=1 actualCatAccepted=0\n" ;
+}
+/** @see signed_index_manifest_tests.h */
+void runNativeIntelArchiveFixtureTests( TestContext				   &context,
+									   const std::filesystem::path &manifestPath,
+									   const std::filesystem::path &gzipPath,
+									   const std::filesystem::path &archivePath,
+									   const std::filesystem::path &termsPath,
+									   const unsigned				scenario)
+{
+	const auto read = []( const std::filesystem::path &path, const std::uintmax_t maximum) {
+		const auto size = std::filesystem::file_size( path) ;	// 確保前の有限原byte数です。
+		// 欠損/過大byteからfixture成功を作りません。
+		if( size == 0U || size > maximum) {
+			throw std::runtime_error( "native Intel fixture size") ;
+		}
+
+		std::ifstream input{path, std::ios::binary} ;					// 元fileは読取りだけです。
+		std::string	  bytes( static_cast<std::size_t>( size), '\0') ;	// 原byteを所有します。
+		// 短読/長さ変化を成功へ補完しません。
+		if( !input.read( bytes.data(), static_cast<std::streamsize>( size)) ||
+		   std::filesystem::file_size( path) != size) {
+			throw std::runtime_error( "native Intel fixture read") ;
+		}
+
+		return bytes ;
+	} ; // 原archive/原documentを変更しません。
+	const auto raw =
+		// 元publication/期限を保持します。
+		read( manifestPath, INDEX_MANIFEST_MAX_BYTES) ;
+	const auto	 compressed = read( gzipPath, INDEX_ASSET_MAX_BYTES) ;	// 同現producer byteです。
+	const auto	 archive	= read( archivePath, 134217728U) ;			// 元40MB archiveです。
+	const auto	 terms		= read( termsPath, 1048576U) ;				// 同規約bodyです。
+	std::wstring digest ;												// 元archiveを実byteで照合します。
+	DRIVERCRATE_EXPECT(
+		context, archive.size() == 40477087U &&
+					 computeDriverContainerSha256( archive, digest) == 0U &&
+					 digest == L"2cbff42aa02519e49f02d8e95a6572c44310e97fe67c42e299f2aba6ea9344f5") ;
+	// 元hash不一致を負例の合格へ取り込みません。
+	if( archive.size() != 40477087U ||
+	   digest != L"2cbff42aa02519e49f02d8e95a6572c44310e97fe67c42e299f2aba6ea9344f5") {
+		throw std::runtime_error( "original Intel archive pin") ;
+	}
+
+	const auto replayUtc = std::chrono::sys_seconds{
+		std::chrono::seconds{1792341124}} ;	// 元publication秒だけの明示fake clockです。
+	const auto actualUtc = std::chrono::floor<std::chrono::seconds>(
+		// OS時計は変更しません。
+		std::chrono::system_clock::now()) ;
+	RamKey key ;	// 非永続RAM署名だけです。
+	key.generate( 3072U) ;
+	const auto keyId = index_distribution_trust::KEY_ID ;	// 原recordを通常取得policyへ結びます。
+	const std::array<signed_index_detail::TrustKey, 1U> trust{
+		{{keyId, key.publicBlob}}} ;							// 隔離test trustです。
+	const auto outer = envelope( raw, key.sign( raw), keyId) ;	// 原manifestを再serializationしません。
+	const auto authenticated = signed_index_detail::authenticateWithTrustKeys(
+		outer, replayUtc, std::nullopt, trust) ;	// 明示historicalです。
+	DRIVERCRATE_EXPECT( context, authenticated.manifest.has_value()) ;
+	// 認証不成立を以後の拒否成功へ数えません。
+	if( !authenticated.manifest) {
+		throw std::runtime_error( "native Intel historical manifest") ;
+	}
+
+	const auto current = signed_index_detail::authenticateWithTrustKeys(
+		outer, actualUtc, std::nullopt, trust) ;	// 実現在UTCの独立拒否です。
+	DRIVERCRATE_EXPECT( context, !current.manifest &&
+									current.status == SignedIndexManifestStatus::INVALID_TIME) ;
+	const auto expiry = signed_index_detail::authenticateWithTrustKeys(
+		outer, authenticated.manifest->data().expiresAtUtc, std::nullopt,
+		trust) ;	// 原期限秒ちょうどです。
+	DRIVERCRATE_EXPECT( context, !expiry.manifest &&
+									expiry.status == SignedIndexManifestStatus::INVALID_TIME) ;
+	const auto bytes = std::as_bytes(
+		std::span<const char>{compressed.data(), compressed.size()}) ;	// 同原GZip viewです。
+	const auto asset = authenticateIndexAssetBytes( *authenticated.manifest, bytes,
+												   replayUtc) ;	// 通常hash/GZip境界です。
+	DRIVERCRATE_EXPECT( context, asset.receipt.has_value()) ;
+	// 原asset不成立を別indexへ置換しません。
+	if( !asset.receipt) {
+		throw std::runtime_error( "native Intel original asset") ;
+	}
+
+	const auto records =
+		// 現10field readerだけです。
+		readSignedIndexRecords( *asset.receipt, replayUtc) ;
+	DRIVERCRATE_EXPECT( context, records.receipt && records.receipt->records().size() == 1U) ;
+	// 元record不成立を手書きDTOへ補完しません。
+	if( !records.receipt || records.receipt->records().size() != 1U) {
+		throw std::runtime_error( "native Intel original record") ;
+	}
+
+	const auto &record	 = records.receipt->records().front() ;	// 同認証原recordです。
+	const auto &identity = record.publishedIdentityEvidence ;	// 全tupleを元workerが後で比較します。
+	DRIVERCRATE_EXPECT( context, record.sourceId == "intel-ethernet-win11" &&
+									record.recordId == "intel-wired-31-2-2-win11" &&
+									identity.pnpIds.size() == (scenario == 3U ? 21U : 22U) &&
+									identity.infIdentity == "PRO2500/Winx64/W11/e2fn.inf" &&
+									identity.modelSection == "Intel.NTamd64.10.0.1..22000" &&
+									record.version.value == "2.1.5.7") ;
+	// 正常caseだけ全72INFの個別拒否を既存共通APIから保持します。
+	if( scenario == 0U) {
+		ComApartment apartment{COINIT_MULTITHREADED} ;	// 同threadの実署名APIを所有します。
+		OfficialDownloadWorkspace	  workspace ;		// 原archiveの保護copyだけを所有します。
+		DriverArchiveInput			  input ;			// 実copyの原hash/sizeです。
+		OfficialDriverArchiveFormat	  format{} ;		// 元copyが確認した形式です。
+		CommonDriverPackageInspection inspection ;		// 全個別結果を保持します。
+		DRIVERCRATE_EXPECT( context,
+						   SUCCEEDED( apartment.result()) &&
+							   copyLocalDriverArchive( archivePath.native(), 385U, workspace, input,
+													  format) == 0U &&
+							   inspectCommonDriverPackage( input, format, inspection) == 0U &&
+							   inspection.infs.size() == 72U) ;
+		bool		selectedVerified{} ;	// 元一INFの実CAT/publisher/参照本体を確認します。
+		std::size_t refused{} ;				// 成功行から省略しない残15行です。
+		// 全元行のstate/errorを保存し、他INFの失敗を当該一件成功から独立させます。
+		for( const auto &inf : inspection.infs) {
+			std::wcout << L"NATIVE_INTEL_INF path=" << inf.infRelativePath << L" state="
+					   << static_cast<unsigned>( inf.state) << L" error=" << inf.error << L'\n' ;
+			refused += inf.state != CommonInfInspectionState::VERIFIED ? 1U : 0U ;
+			// 指定元e2fnだけを個別正例へ数えます。
+			if( inf.infRelativePath == L"PRO2500\\Winx64\\W11\\e2fn.inf" &&
+			   inf.state == CommonInfInspectionState::VERIFIED && inf.workspace &&
+			   inf.closure.packages.size() == 1U) {
+				const auto	&package = inf.closure.packages.front() ;	// 同実閉包だけです。
+				std::wstring publisher ;								// 元CATの実Windows署名者です。
+				selectedVerified =
+					reverifyCommonDriverInf( inf) == 0U &&
+					readWindowsInfPackagePublisher( *inf.workspace, package, publisher) == 0U &&
+					publisher == L"Microsoft Windows Hardware Compatibility Publisher" ;
+				DRIVERCRATE_EXPECT( context, package.sourceFiles.size() == 2U) ;
+				std::wcout << L"NATIVE_INTEL_SELECTED publisher=" << publisher
+						   << L" referencedFiles=" << package.sourceFiles.size() << L" verified="
+						   << selectedVerified << L'\n' ;
+			}
+		}
+
+		DRIVERCRATE_EXPECT( context, selectedVerified && refused == 15U) ;
+	}
+
+	auto opened =
+		// 製品storeを開きません。
+		signed_index_store_detail::Access::createIsolated( trust) ;
+	DRIVERCRATE_EXPECT(
+		context,
+		opened.store && opened.store->commit( *records.receipt, outer, bytes, replayUtc).snapshot) ;
+	const auto widen = []( const std::string_view text) {
+		return std::wstring{text.begin(), text.end()} ;
+	} ; // 原公開ASCIIだけです。
+	DistributionBindingDevice device{widen( identity.pnpIds.front().value),
+									 widen( identity.infIdentity), widen( identity.modelSection),
+									 // 明示fake local一deviceです。
+									 widen( *record.version.value)} ;
+	auto					  store =
+		std::shared_ptr<SignedIndexStore>{std::move( opened.store)} ;	// 全worker終端まで保持します。
+	// 元scopeを重複backendで上書きできないことを、実署名呼出し前に確認します。
+	{
+		auto adapter =
+			// 本threadだけです。
+			driver_package_signature_detail::Access::createNativeAdapter() ;
+		DRIVERCRATE_EXPECT(
+			context, adapter && !driver_package_signature_detail::Access::createNativeAdapter()) ;
+	}
+
+	runNormalNativeIntelArchiveCase( context, std::move( store), replayUtc, archive, terms,
+									std::move( device), scenario) ;
+	std::cout
+		<< "NATIVE_INTEL_AUTHENTICATION originalExpiryPreserved=1 actualUtcExpired=1 ramKeyOnly=1 fakeHistoricalUtc=1792341124\n" ;
+}
 } // namespace drivercrate::test

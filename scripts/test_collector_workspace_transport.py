@@ -338,7 +338,7 @@ class ExplicitRunTests(unittest.TestCase):
     def test_consent_and_old_v4_rejected_before_http(self):
         with self.assertRaisesRegex(cr.RegistryError,"CONSENT"):
             workspace.run_monitor_once(self.base,self.root,confirmed=False,curl="unused",transport=self.fake)
-        self.expected["schema"] = workspace.SCHEMA
+        self.expected["schema"] = "dc-collector-offline-workspace-v1"
         with self.assertRaisesRegex(cr.RegistryError,"RUN_VERSION"):
             self.run_known()
         self.assertEqual(self.calls,[])

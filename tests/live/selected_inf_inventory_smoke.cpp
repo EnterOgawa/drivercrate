@@ -2,7 +2,7 @@
 /**
  * @file selected_inf_inventory_smoke.cpp
  * @brief 取得済みZIPの明示INFから選択作用・参照を非実行で観測する。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/05  保護ZIPと選択棚卸しの非導入結合を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/06  独立定義のhash限定参照文脈・不足観測を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/10/15  明示local binding診断へ共通内容・実rank・数値拒否点を接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 明示local ZIPだけを読む。HTTP・実行・導入を行わない。
@@ -708,10 +709,11 @@ int inspectBinding( const int count, wchar_t **arguments)
 				ordinal, selected ? 1 : 0, inf.requiredInfPackages.size(),
 				package.hasExternalDependencies ? 1 : 0, package.unresolvedIncludeNeeds ? 1 : 0,
 				package.hasExternalDependencies || !inf.requiredInfPackages.empty() ? 1 : 0,
-				stage.stage, bindingError, stage.referencesResolved ? 1 : 0,
+				stage.stage, static_cast<unsigned>( bindingError), stage.referencesResolved ? 1 : 0,
 				stage.rootEvidenceVerified ? 1 : 0, stage.unresolvedReferenceCount,
-				stage.firstReferenceReason, stage.rootSignatureError,
-				stage.firstDependencySignatureError, stage.firstDependencyProvenanceError,
+				stage.firstReferenceReason, static_cast<unsigned>( stage.rootSignatureError),
+				static_cast<unsigned>( stage.firstDependencySignatureError),
+				static_cast<unsigned>( stage.firstDependencyProvenanceError),
 				stage.verifiedRegistryRowCount) ;
 		}
 	}
@@ -720,7 +722,8 @@ int inspectBinding( const int count, wchar_t **arguments)
 				"\"normalUiSuccess\":false,\"installAuthorized\":false,\"error\":%u,"
 				"\"totalInfs\":%zu,\"verifiedInfs\":%zu,\"examinedPairs\":%zu,"
 				"\"applicablePairs\":%zu,\"bindingSucceededPairs\":%zu}\n",
-				error, inspection.infs.size(), verified, examined, applicable, bound) ;
+				static_cast<unsigned>( error), inspection.infs.size(), verified, examined,
+				applicable, bound) ;
 	return std::fflush( stdout) == 0 && error == 0U && applicable != 0U && bound == applicable ? 0
 																							  : 1 ;
 }

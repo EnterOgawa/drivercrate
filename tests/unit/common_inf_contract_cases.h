@@ -2,7 +2,7 @@
 /**
  * @file common_inf_contract_cases.h
  * @brief 共通INFの34定義に対応する内部挙動と未接続範囲を試験する。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  34定義の内部範囲別試験を追加。
  * Ver.01.00.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.00.02 Shunji Ogawa  2026/10/24  必須解析の同値NativeError比較を明示。
  * </pre>
  *
  * @note 専用試験TUがBatchFixture定義後にだけ読み込む。製品許可や公開candidateを生成しない。
@@ -190,12 +191,14 @@ void contractFailure( TestContext &context, unsigned kind)
 						   fixture.installs == 0U && !report.installerInvoked[0] &&
 							   !report.installerInvoked[1] &&
 							   report.result.installError ==
-								   (kind == 0U ? E_FAIL : HRESULT_FROM_WIN32( ERROR_RETRY))) ;
+								   static_cast<NativeError>(
+									   kind == 0U ? E_FAIL : HRESULT_FROM_WIN32( ERROR_RETRY))) ;
 	} else {
 		DRIVERCRATE_EXPECT( context, fixture.installs == (kind == 3U ? 2U : 1U) &&
 										report.installerInvoked[0] && report.result.rebootRequired) ;
 		DRIVERCRATE_EXPECT( context,
-						   report.result.installError == (kind == 4U ? E_UNEXPECTED : E_FAIL)) ;
+						   report.result.installError ==
+							   static_cast<NativeError>( kind == 4U ? E_UNEXPECTED : E_FAIL)) ;
 	}
 }
 
@@ -367,7 +370,8 @@ void runContractCase( TestContext &context, unsigned number)
 			const auto report = fixture.execute( chosen) ;	// 固定を阻害した状態で実行する。
 			DRIVERCRATE_EXPECT( context, fixture.installs == 0U && !plan.isBound() &&
 											report.result.installError ==
-												HRESULT_FROM_WIN32( ERROR_SHARING_VIOLATION)) ;
+												static_cast<NativeError>(
+													HRESULT_FROM_WIN32( ERROR_SHARING_VIOLATION))) ;
 			break ;
 		}
 		// D007。通常合格かつ明示依存なしを受理する。
@@ -508,7 +512,8 @@ void runContractCase( TestContext &context, unsigned number)
 					fixture.factory.prepare( contractRequest( 2U), next) ;
 				DRIVERCRATE_EXPECT(
 					context,
-					error == (mode == 1U ? E_UNEXPECTED : HRESULT_FROM_WIN32( ERROR_CANCELLED))) ;
+					error == static_cast<NativeError>(
+								 mode == 1U ? E_UNEXPECTED : HRESULT_FROM_WIN32( ERROR_CANCELLED))) ;
 				DRIVERCRATE_EXPECT( context, first.isBound() && !next.isBound() &&
 												fixture.installs == 0U &&
 												fixture.released == std::vector<std::uint64_t>{2U}) ;
@@ -606,9 +611,10 @@ void runContractCase( TestContext &context, unsigned number)
 				fixture.rejectBindingAt = 1U ;
 				fixture.throwCheckAt	= mode == 1U ? 1U : 0U ;
 				const auto report = fixture.execute( chosen) ;	// callback内の例外も結果へ変換する。
-				DRIVERCRATE_EXPECT( context, fixture.installs == 0U && !plan.isBound() &&
-												report.result.installError ==
-													(mode == 1U ? E_UNEXPECTED : E_FAIL)) ;
+				DRIVERCRATE_EXPECT(
+					context, fixture.installs == 0U && !plan.isBound() &&
+								 report.result.installError ==
+									 static_cast<NativeError>( mode == 1U ? E_UNEXPECTED : E_FAIL)) ;
 			}
 
 			break ;

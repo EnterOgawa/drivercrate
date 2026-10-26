@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package_tests.cpp
  * @brief 公式標準INF driver package単体試験実装。
- * @version 01.12.00
+ * @version 01.12.01
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -52,6 +52,7 @@
  * Ver.01.11.00 Shunji Ogawa  2026/10/07  展開済みbinaryの明示named導入先・別名・不足と有限境界を回帰。
  * Ver.01.11.01 Shunji Ogawa  2026/10/07  named13の非absolute展開と媒体未宣言の元API診断・不足を回帰。
  * Ver.01.12.00 Shunji Ogawa  2026/10/07  一意な相対named13の元source正例とsource／copy／key／member衝突を回帰。
+ * Ver.01.12.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 実在するhardware IDや署名packageを使用せず、SetupAPIのINF構文とfail-closed条件を架空fixtureで検証します。
@@ -1686,7 +1687,8 @@ void testMaintenanceNamedServices( TestContext &context)
 			if( testCase.fields.find( "4294967296") != std::string_view::npos ||
 			   testCase.fields.find( "0x100000000") != std::string_view::npos) {
 				DRIVERCRATE_EXPECT( context, service.parser.error ==
-												HRESULT_FROM_WIN32( ERROR_ARITHMETIC_OVERFLOW)) ;
+												static_cast<NativeError>(
+													HRESULT_FROM_WIN32( ERROR_ARITHMETIC_OVERFLOW))) ;
 			}
 		} else {
 			DRIVERCRATE_EXPECT( context, false) ;
@@ -1867,7 +1869,8 @@ void testMaintenanceClassSeparation( TestContext &context)
 				std::ranges::any_of( structure.installs.at( 0U).issues, []( const auto &issue) {
 					return issue.reason == MaintenanceInfStructureReason::CLASS_NOT_SUPPORTED &&
 						   issue.finding.state == MaintenanceInspectionState::UNSUPPORTED &&
-						   issue.finding.error == HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+						   issue.finding.error == static_cast<drivercrate::NativeError>(
+													  HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) ;
 				})) ;
 		}
 
@@ -1934,7 +1937,9 @@ void testMaintenanceClassSeparation( TestContext &context)
 		DRIVERCRATE_EXPECT( context, generic.packages.empty()) ;
 		// 新二Classは通常generic parserのClass gateで従来どおり拒否する。
 		if( index > 0U) {
-			DRIVERCRATE_EXPECT( context, genericError == HRESULT_FROM_WIN32( ERROR_ACCESS_DENIED)) ;
+			DRIVERCRATE_EXPECT( context,
+							   genericError == static_cast<drivercrate::NativeError>(
+												   HRESULT_FROM_WIN32( ERROR_ACCESS_DENIED))) ;
 		}
 
 		OfficialInfPackage
@@ -2007,7 +2012,8 @@ void testMaintenanceStructureInputFailures( TestContext &context)
 	}
 
 	DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, large, structure) ==
-									HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
+									static_cast<drivercrate::NativeError>(
+										HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW))) ;
 	DRIVERCRATE_EXPECT( context, structure.installs.empty()) ;
 }
 
@@ -2132,7 +2138,8 @@ void testMaintenanceExplicitReferences( TestContext &context)
 	DRIVERCRATE_EXPECT( context, std::ranges::any_of( references.files, []( const auto &file) {
 						   return file.location == MaintenanceInfFileLocation::MISSING &&
 								  file.relativePath == L"sample.sys" &&
-								  file.error == HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND) ;
+								  file.error == static_cast<drivercrate::NativeError>(
+													HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)) ;
 					   })) ;
 }
 
@@ -2183,208 +2190,230 @@ struct MaintenanceBinarySourceCase {
  */
 void testMaintenanceBinarySources( TestContext &context)
 {
-	constexpr NativeError UNSUPPORTED = HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;	// 位置未対応。
-	constexpr NativeError DUPLICATE	  = HRESULT_FROM_WIN32( ERROR_DUP_NAME) ;		// 先頭選択しない診断。
-	constexpr std::array  CASES{
-		 MaintenanceBinarySourceCase{},
-		 MaintenanceBinarySourceCase{.destinations = "Files=11\r\n", .binary = "%11%\\source.sys"},
-		 MaintenanceBinarySourceCase{.rows	 = "renamed.sys,source.sys\r\n",
-									 .binary = "%12%\\renamed.sys"},
-		 MaintenanceBinarySourceCase{.destinations = "Files=12,fixture\r\n",
-									 .rows		   = "renamed.sys,source.sys\r\n",
-									 .binary	   = "%12%\\fixture\\renamed.sys"},
-		 MaintenanceBinarySourceCase{.destinations = "fIlEs=12,fixture\r\n",
-									 .rows		   = "RENAMED.SYS,source.sys\r\n",
-									 .binary	   = "%12%\\fixture\\renamed.sys"},
-		 // 同HINF全値・同名・source一行・subdir一致の正例だけを元source成功へ変更する。
-		 MaintenanceBinarySourceCase{.destinations = "Files=13,payload\r\n",
-									 .binary	   = "%13%\\payload\\source.sys"},
-		 MaintenanceBinarySourceCase{.destinations	= "Files=13,payload\r\n",
-									 .rows			= "renamed.sys,source.sys\r\n",
-									 .binary		= "%13%\\payload\\renamed.sys",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.destinations	= "Files=13,other\r\n",
-									 .binary		= "%13%\\other\\source.sys",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.destinations	= "Files=10\r\n",
-									 .binary		= "%10%\\source.sys",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.destinations	= "Files=%MissingDirid%\r\n",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.destinations	= "Files=+12\r\n",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.destinations = "Files=broken\r\n",
-									 .callError	   = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.destinations = "Files=4294967296\r\n",
-									 .callError	   = HRESULT_FROM_WIN32( ERROR_ARITHMETIC_OVERFLOW)},
-		 MaintenanceBinarySourceCase{.destinations	= "Unused=12\r\n",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.copy			= "",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.destinations	= "Files=12,fixture\r\n",
-									 .binary		= "%12%\\unrelated\\source.sys",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.binary		= "Q:\\fictional\\source.sys",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.destinations	= "DefaultDestDir=12\r\n",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.copy			= "CopyFiles=@source.sys\r\n",
-									 .destinations	= "DefaultDestDir=12\r\n",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.destinations	= "Files=12\r\nFiles=12\r\n",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = DUPLICATE},
-		 MaintenanceBinarySourceCase{.rows = "renamed.sys,source.sys\r\nrenamed.sys,other.sys\r\n",
-									 .binary		= "%12%\\renamed.sys",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = DUPLICATE},
-		 MaintenanceBinarySourceCase{.copy			= "CopyFiles=Files,SecondFiles\r\n",
-									 .destinations	= "Files=12\r\nSecondFiles=12\r\n",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = DUPLICATE},
-		 MaintenanceBinarySourceCase{.binary = "source.sys"},
-		 MaintenanceBinarySourceCase{.missingMember = true,
-									 .location		= MaintenanceInfFileLocation::MISSING,
-									 .locationError = HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)},
-		 MaintenanceBinarySourceCase{.sourceDeclared = false,
-									 .location		 = MaintenanceInfFileLocation::UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.mediaDeclared = false,
-									 .location		= MaintenanceInfFileLocation::MISSING,
-									 .locationError = HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND),
-									 .expectedRelativePath = L"payload\\source.sys"},
-		 MaintenanceBinarySourceCase{.destinations = "Files=12,..\\escape\r\n",
-									 .callError	   = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.binary	= "%12%\\..\\escape\\source.sys",
-									 .callError = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.rows		= "renamed.sys,..\\escape.sys\r\n",
-									 .binary	= "%12%\\renamed.sys",
-									 .callError = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.rows		= "renamed.sys,source.sys:payload\r\n",
-									 .binary	= "%12%\\renamed.sys",
-									 .callError = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.rows		= "source.sys:payload,source.sys\r\n",
-									 .binary	= "%12%\\source.sys:payload",
-									 .callError = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.destinations	= "Files=12,,ignored\r\n",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.binary		= "%MissingBinary%\\source.sys",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.binary		= "\\\\fictional\\share\\source.sys",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.binary		= "\\\\?\\C:\\source.sys",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.destinations	= "UnknownKey=12\r\n",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.destinations = "Files=\r\n",
-									 .callError	   = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.sourceDirectory = "..\\escape",
-									 .callError		  = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.mediaDirectory = "..\\media",
-									 .callError		 = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.binary	= ".\\source.sys",
-									 .callError = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.destinations = "Files=13,payload\r\n",
-									 .binary	   = "%13%\\payload\\..\\source.sys",
-									 .callError	   = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.destinations = "Files=13,payload\r\n",
-									 .binary	   = "%13%\\payload\\.\\source.sys",
-									 .callError	   = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.destinations = "Files=13,payload\r\n",
-									 .binary	   = "%13%\\payload\\source.sys:payload",
-									 .callError	   = HRESULT_FROM_WIN32( ERROR_INVALID_DATA)},
-		 MaintenanceBinarySourceCase{.copy = "CopyFiles=Files,SecondFiles\r\n",
-									 .destinations =
-										 "Files=13,payload\r\nSecondFiles=13,payload\r\n",
-									 .binary		= "%13%\\payload\\source.sys",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = DUPLICATE},
-		 MaintenanceBinarySourceCase{.copy			= "CopyFiles=Files,SecondFiles\r\n",
-									 .destinations	= "Files=13,payload\r\nSecondFiles=10\r\n",
-									 .binary		= "%13%\\payload\\source.sys",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = UNSUPPORTED},
-		 // 原45構成を残し、相対13の元source条件だけを独立に追加する。
-		 MaintenanceBinarySourceCase{.destinations	  = "Files=13\r\n",
-									 .binary		  = "%13%\\source.sys",
-									 .sourceDirectory = "",
-									 .mediaDirectory  = "",
-									 .memberDirectory = L""},
-		 MaintenanceBinarySourceCase{.destinations = "fIlEs=13,pAyLoAd\r\n",
-									 .rows		   = "SOURCE.SYS,source.sys\r\n",
-									 .binary	   = "%13%\\PAYLOAD\\SOURCE.SYS",
-									 .infParent	   = L"driver"},
-		 MaintenanceBinarySourceCase{.destinations	  = "Files=13,payload\r\n",
-									 .binary		  = "%13%\\payload\\source.sys",
-									 .mediaDirectory  = "",
-									 .memberDirectory = L"payload"},
-		 MaintenanceBinarySourceCase{.destinations = "Files=13,payload\r\n",
-									 .binary	   = ".\\payload\\source.sys"},
-		 MaintenanceBinarySourceCase{.destinations	 = "Files=13,payload\r\n",
-									 .binary		 = "%13%\\payload\\source.sys",
-									 .sourceDeclared = false,
-									 .location		 = MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError	 = UNSUPPORTED},
-		 MaintenanceBinarySourceCase{.destinations	= "Files=13,payload\r\n",
-									 .binary		= "%13%\\payload\\source.sys",
-									 .missingMember = true,
-									 .location		= MaintenanceInfFileLocation::MISSING,
-									 .locationError = HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)},
-		 MaintenanceBinarySourceCase{.destinations	  = "Files=13,payload\r\n",
-									 .binary		  = "%13%\\payload\\source.sys",
-									 .location		  = MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError	  = DUPLICATE,
-									 .duplicateSource = true},
-		 MaintenanceBinarySourceCase{.destinations	= "Files=13,payload\r\n",
-									 .rows			= "source.sys\r\nsource.sys\r\n",
-									 .binary		= "%13%\\payload\\source.sys",
-									 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError = DUPLICATE},
-		 MaintenanceBinarySourceCase{
-			 .copy = "CopyFiles=Files,SecondFiles\r\n",
-			 .destinations =
-				 "Files=13,payload\r\nSecondFiles=13,payload\r\nSecondFiles=13,payload\r\n",
-			 .binary		= "%13%\\payload\\source.sys",
-			 .location		= MaintenanceInfFileLocation::UNSUPPORTED,
-			 .locationError = DUPLICATE},
-		 MaintenanceBinarySourceCase{.destinations	  = "Files=13,payload\r\n",
-									 .binary		  = "%13%\\payload\\source.sys",
-									 .callError		  = static_cast<NativeError>( E_INVALIDARG),
-									 .duplicateMember = true},
-		 MaintenanceBinarySourceCase{.destinations	= "Files=13,payload\r\n",
-									 .binary		= "%13%\\payload\\source.sys",
-									 .mediaDeclared = false,
-									 .location		= MaintenanceInfFileLocation::MISSING,
-									 .locationError = HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND),
-									 .expectedRelativePath = L"payload\\source.sys"},
-		 MaintenanceBinarySourceCase{.destinations	  = "Files=13\r\n",
-									 .rows			  = "renamed.sys,source.sys\r\n",
-									 .binary		  = "%13%\\renamed.sys",
-									 .sourceDirectory = "",
-									 .mediaDirectory  = "",
-									 .location		  = MaintenanceInfFileLocation::UNSUPPORTED,
-									 .locationError	  = UNSUPPORTED,
-									 .memberDirectory = L""},
-		 MaintenanceBinarySourceCase{.destinations = "Files=13,payload\r\n",
-									 .binary	   = "%13%\\payload\\source.sys",
-									 .callError	   = static_cast<NativeError>( TRUST_E_BAD_DIGEST),
-									 .changedInfBytes = true},
-	 } ; // 原45と追加13を分け、合法未対応・不正・曖昧を削減しない。
+	constexpr NativeError UNSUPPORTED = static_cast<drivercrate::NativeError>(
+		// 位置未対応。
+		HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) ;
+	constexpr NativeError DUPLICATE = static_cast<drivercrate::NativeError>(
+		// 先頭選択しない診断。
+		HRESULT_FROM_WIN32( ERROR_DUP_NAME)) ;
+	constexpr std::array CASES{
+		MaintenanceBinarySourceCase{},
+		MaintenanceBinarySourceCase{.destinations = "Files=11\r\n", .binary = "%11%\\source.sys"},
+		MaintenanceBinarySourceCase{.rows	= "renamed.sys,source.sys\r\n",
+									.binary = "%12%\\renamed.sys"},
+		MaintenanceBinarySourceCase{.destinations = "Files=12,fixture\r\n",
+									.rows		  = "renamed.sys,source.sys\r\n",
+									.binary		  = "%12%\\fixture\\renamed.sys"},
+		MaintenanceBinarySourceCase{.destinations = "fIlEs=12,fixture\r\n",
+									.rows		  = "RENAMED.SYS,source.sys\r\n",
+									.binary		  = "%12%\\fixture\\renamed.sys"},
+		// 同HINF全値・同名・source一行・subdir一致の正例だけを元source成功へ変更する。
+		MaintenanceBinarySourceCase{.destinations = "Files=13,payload\r\n",
+									.binary		  = "%13%\\payload\\source.sys"},
+		MaintenanceBinarySourceCase{.destinations  = "Files=13,payload\r\n",
+									.rows		   = "renamed.sys,source.sys\r\n",
+									.binary		   = "%13%\\payload\\renamed.sys",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.destinations  = "Files=13,other\r\n",
+									.binary		   = "%13%\\other\\source.sys",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.destinations  = "Files=10\r\n",
+									.binary		   = "%10%\\source.sys",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.destinations  = "Files=%MissingDirid%\r\n",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.destinations  = "Files=+12\r\n",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.destinations = "Files=broken\r\n",
+									.callError	  = static_cast<drivercrate::NativeError>(
+										   HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.destinations = "Files=4294967296\r\n",
+									.callError	  = static_cast<drivercrate::NativeError>(
+										   HRESULT_FROM_WIN32( ERROR_ARITHMETIC_OVERFLOW))},
+		MaintenanceBinarySourceCase{.destinations  = "Unused=12\r\n",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.copy		   = "",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.destinations  = "Files=12,fixture\r\n",
+									.binary		   = "%12%\\unrelated\\source.sys",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.binary		   = "Q:\\fictional\\source.sys",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.destinations  = "DefaultDestDir=12\r\n",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.copy		   = "CopyFiles=@source.sys\r\n",
+									.destinations  = "DefaultDestDir=12\r\n",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.destinations  = "Files=12\r\nFiles=12\r\n",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = DUPLICATE},
+		MaintenanceBinarySourceCase{.rows	= "renamed.sys,source.sys\r\nrenamed.sys,other.sys\r\n",
+									.binary = "%12%\\renamed.sys",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = DUPLICATE},
+		MaintenanceBinarySourceCase{.copy		   = "CopyFiles=Files,SecondFiles\r\n",
+									.destinations  = "Files=12\r\nSecondFiles=12\r\n",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = DUPLICATE},
+		MaintenanceBinarySourceCase{.binary = "source.sys"},
+		MaintenanceBinarySourceCase{.missingMember = true,
+									.location	   = MaintenanceInfFileLocation::MISSING,
+									.locationError = static_cast<drivercrate::NativeError>(
+										HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND))},
+		MaintenanceBinarySourceCase{.sourceDeclared = false,
+									.location		= MaintenanceInfFileLocation::UNSUPPORTED},
+		MaintenanceBinarySourceCase{.mediaDeclared = false,
+									.location	   = MaintenanceInfFileLocation::MISSING,
+									.locationError = static_cast<drivercrate::NativeError>(
+										HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)),
+									.expectedRelativePath = L"payload\\source.sys"},
+		MaintenanceBinarySourceCase{.destinations = "Files=12,..\\escape\r\n",
+									.callError	  = static_cast<drivercrate::NativeError>(
+										   HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.binary	   = "%12%\\..\\escape\\source.sys",
+									.callError = static_cast<drivercrate::NativeError>(
+										HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.rows	   = "renamed.sys,..\\escape.sys\r\n",
+									.binary	   = "%12%\\renamed.sys",
+									.callError = static_cast<drivercrate::NativeError>(
+										HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.rows	   = "renamed.sys,source.sys:payload\r\n",
+									.binary	   = "%12%\\renamed.sys",
+									.callError = static_cast<drivercrate::NativeError>(
+										HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.rows	   = "source.sys:payload,source.sys\r\n",
+									.binary	   = "%12%\\source.sys:payload",
+									.callError = static_cast<drivercrate::NativeError>(
+										HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.destinations  = "Files=12,,ignored\r\n",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.binary		   = "%MissingBinary%\\source.sys",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.binary		   = "\\\\fictional\\share\\source.sys",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.binary		   = "\\\\?\\C:\\source.sys",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.destinations  = "UnknownKey=12\r\n",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		MaintenanceBinarySourceCase{.destinations = "Files=\r\n",
+									.callError	  = static_cast<drivercrate::NativeError>(
+										   HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.sourceDirectory = "..\\escape",
+									.callError		 = static_cast<drivercrate::NativeError>(
+										  HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.mediaDirectory = "..\\media",
+									.callError		= static_cast<drivercrate::NativeError>(
+										 HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.binary	   = ".\\source.sys",
+									.callError = static_cast<drivercrate::NativeError>(
+										HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.destinations = "Files=13,payload\r\n",
+									.binary		  = "%13%\\payload\\..\\source.sys",
+									.callError	  = static_cast<drivercrate::NativeError>(
+										   HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.destinations = "Files=13,payload\r\n",
+									.binary		  = "%13%\\payload\\.\\source.sys",
+									.callError	  = static_cast<drivercrate::NativeError>(
+										   HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.destinations = "Files=13,payload\r\n",
+									.binary		  = "%13%\\payload\\source.sys:payload",
+									.callError	  = static_cast<drivercrate::NativeError>(
+										   HRESULT_FROM_WIN32( ERROR_INVALID_DATA))},
+		MaintenanceBinarySourceCase{.copy = "CopyFiles=Files,SecondFiles\r\n",
+									.destinations =
+										"Files=13,payload\r\nSecondFiles=13,payload\r\n",
+									.binary		   = "%13%\\payload\\source.sys",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = DUPLICATE},
+		MaintenanceBinarySourceCase{.copy		   = "CopyFiles=Files,SecondFiles\r\n",
+									.destinations  = "Files=13,payload\r\nSecondFiles=10\r\n",
+									.binary		   = "%13%\\payload\\source.sys",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = UNSUPPORTED},
+		// 原45構成を残し、相対13の元source条件だけを独立に追加する。
+		MaintenanceBinarySourceCase{.destinations	 = "Files=13\r\n",
+									.binary			 = "%13%\\source.sys",
+									.sourceDirectory = "",
+									.mediaDirectory	 = "",
+									.memberDirectory = L""},
+		MaintenanceBinarySourceCase{.destinations = "fIlEs=13,pAyLoAd\r\n",
+									.rows		  = "SOURCE.SYS,source.sys\r\n",
+									.binary		  = "%13%\\PAYLOAD\\SOURCE.SYS",
+									.infParent	  = L"driver"},
+		MaintenanceBinarySourceCase{.destinations	 = "Files=13,payload\r\n",
+									.binary			 = "%13%\\payload\\source.sys",
+									.mediaDirectory	 = "",
+									.memberDirectory = L"payload"},
+		MaintenanceBinarySourceCase{.destinations = "Files=13,payload\r\n",
+									.binary		  = ".\\payload\\source.sys"},
+		MaintenanceBinarySourceCase{.destinations	= "Files=13,payload\r\n",
+									.binary			= "%13%\\payload\\source.sys",
+									.sourceDeclared = false,
+									.location		= MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError	= UNSUPPORTED},
+		MaintenanceBinarySourceCase{.destinations  = "Files=13,payload\r\n",
+									.binary		   = "%13%\\payload\\source.sys",
+									.missingMember = true,
+									.location	   = MaintenanceInfFileLocation::MISSING,
+									.locationError = static_cast<drivercrate::NativeError>(
+										HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND))},
+		MaintenanceBinarySourceCase{.destinations	 = "Files=13,payload\r\n",
+									.binary			 = "%13%\\payload\\source.sys",
+									.location		 = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError	 = DUPLICATE,
+									.duplicateSource = true},
+		MaintenanceBinarySourceCase{.destinations  = "Files=13,payload\r\n",
+									.rows		   = "source.sys\r\nsource.sys\r\n",
+									.binary		   = "%13%\\payload\\source.sys",
+									.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError = DUPLICATE},
+		MaintenanceBinarySourceCase{
+			.copy = "CopyFiles=Files,SecondFiles\r\n",
+			.destinations =
+				"Files=13,payload\r\nSecondFiles=13,payload\r\nSecondFiles=13,payload\r\n",
+			.binary		   = "%13%\\payload\\source.sys",
+			.location	   = MaintenanceInfFileLocation::UNSUPPORTED,
+			.locationError = DUPLICATE},
+		MaintenanceBinarySourceCase{.destinations	 = "Files=13,payload\r\n",
+									.binary			 = "%13%\\payload\\source.sys",
+									.callError		 = static_cast<NativeError>( E_INVALIDARG),
+									.duplicateMember = true},
+		MaintenanceBinarySourceCase{.destinations  = "Files=13,payload\r\n",
+									.binary		   = "%13%\\payload\\source.sys",
+									.mediaDeclared = false,
+									.location	   = MaintenanceInfFileLocation::MISSING,
+									.locationError = static_cast<drivercrate::NativeError>(
+										HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)),
+									.expectedRelativePath = L"payload\\source.sys"},
+		MaintenanceBinarySourceCase{.destinations	 = "Files=13\r\n",
+									.rows			 = "renamed.sys,source.sys\r\n",
+									.binary			 = "%13%\\renamed.sys",
+									.sourceDirectory = "",
+									.mediaDirectory	 = "",
+									.location		 = MaintenanceInfFileLocation::UNSUPPORTED,
+									.locationError	 = UNSUPPORTED,
+									.memberDirectory = L""},
+		MaintenanceBinarySourceCase{.destinations	 = "Files=13,payload\r\n",
+									.binary			 = "%13%\\payload\\source.sys",
+									.callError		 = static_cast<NativeError>( TRUST_E_BAD_DIGEST),
+									.changedInfBytes = true},
+	} ; // 原45と追加13を分け、合法未対応・不正・曖昧を削減しない。
 	static_assert( CASES.size() == 58U) ;
 	// 全構成を実SetupAPI・固定memberへ結び、source位置とbinary原値を別に確認する。
 	for( std::size_t index = 0U; index < CASES.size(); ++index) {
@@ -2627,10 +2656,11 @@ void testMaintenanceBinarySources( TestContext &context)
 								   OfficialZipEntry{L"source.sys", 6U}} ;					// 位置だけの閉集合。
 		const std::array<std::wstring, 2U> seeds{L"Install.NT", L"Install.NT.Services"} ;	// 明示名。
 		MaintenanceInfReferences		   references ;										// 上限拒否は必ず空結果にする。
-		DRIVERCRATE_EXPECT( context,
-						   inspectMaintenanceInfReferences( workspace, entries, L"sample.inf", seeds,
-														   MAINTENANCE_POLICY, references) ==
-							   HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			inspectMaintenanceInfReferences( workspace, entries, L"sample.inf", seeds,
+											MAINTENANCE_POLICY, references) ==
+				static_cast<drivercrate::NativeError>( HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW))) ;
 		DRIVERCRATE_EXPECT( context, references.files.empty() &&
 										references.inventory.visitedSections.empty()) ;
 	}
@@ -2881,9 +2911,10 @@ void testMaintenanceSourceMatrix( TestContext &context)
 				DRIVERCRATE_EXPECT( context, scenario == 1U ? copy->error == 0 : copy->error != 0) ;
 				// 宣言済みの必要byte欠落は未対応位置と区別し、元file診断を保つ。
 				if( scenario == 3U) {
-					DRIVERCRATE_EXPECT( context,
-									   copy->relativePath == L"sample.sys" &&
-										   copy->error == HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)) ;
+					DRIVERCRATE_EXPECT(
+						context, copy->relativePath == L"sample.sys" &&
+									 copy->error == static_cast<drivercrate::NativeError>(
+														HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND))) ;
 				}
 
 				// 全Modelsから選ばれた後続節の原用途であることを確認する。
@@ -3153,10 +3184,11 @@ void testMaintenanceDependencyClosure( TestContext &context)
 		// 初回の同じ元byteで取消しとhash差の全体破棄だけを有限確認する。
 		if( scenario == 0U) {
 			MaintenanceDriverPackageInspection rejected ;	// 部分状態を公開してはならない全体拒否。
-			DRIVERCRATE_EXPECT( context, inspectMaintenanceDriverPackage(
-											input, OfficialDriverArchiveFormat::ZIP, rejected, [] {
-												return true ;
-											}) == HRESULT_FROM_WIN32( ERROR_CANCELLED)) ;
+			DRIVERCRATE_EXPECT(
+				context,
+				inspectMaintenanceDriverPackage( input, OfficialDriverArchiveFormat::ZIP, rejected,
+												[] { return true ; }) ==
+					static_cast<drivercrate::NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))) ;
 			DRIVERCRATE_EXPECT( context, rejected.infs.empty() && rejected.archiveSha256.empty() &&
 											rejected.inspectedBytes == 0U) ;
 			DriverArchiveInput changed = input ;	// 元fileは変更せず、誤ったhash指定だけを作る。
@@ -3197,7 +3229,8 @@ void testMaintenanceDependencyClosure( TestContext &context)
 		context,
 		extractMaintenanceDriverClosure(
 			{&input, OfficialDriverArchiveFormat::ZIP, {}, selected, L"maint-dep-cap-out"},
-			DEPENDENCY_POLICY, workspace, closure) == HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
+			DEPENDENCY_POLICY, workspace, closure) ==
+			static_cast<drivercrate::NativeError>( HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW))) ;
 	DRIVERCRATE_EXPECT( context, closure.references.empty() &&
 									closure.dependency.dependency.documents.empty() &&
 									closure.content.entries.empty()) ;
@@ -3205,10 +3238,11 @@ void testMaintenanceDependencyClosure( TestContext &context)
 		L"sample.inf", L"fixture-cap-0.inf"} ;		// 複数runでの予算回避をしない。
 	OfficialDownloadWorkspace multipleWorkspace ;	// 拒否前に初期化しない。
 	DRIVERCRATE_EXPECT(
-		context, extractMaintenanceDriverClosure(
-					 {&input, OfficialDriverArchiveFormat::ZIP, {}, multiple, L"maint-multi-out"},
-					 DEPENDENCY_POLICY, multipleWorkspace,
-					 closure) == HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) ;
+		context,
+		extractMaintenanceDriverClosure(
+			{&input, OfficialDriverArchiveFormat::ZIP, {}, multiple, L"maint-multi-out"},
+			DEPENDENCY_POLICY, multipleWorkspace, closure) ==
+			static_cast<drivercrate::NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))) ;
 }
 
 } // namespace

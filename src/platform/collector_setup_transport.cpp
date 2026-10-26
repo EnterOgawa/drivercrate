@@ -2,7 +2,7 @@
 /**
  * @file collector_setup_transport.cpp
  * @brief OS API固定curlを実byteと共通cached-only署名検証へ結合します。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/10/17
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/17 OS固定curlの有限検証とhandle保持を追加。
  * Ver.01.00.01 Shunji Ogawa  2026/10/17 観測済みOS curl署名者を専用policyへ追加し試験と共有。
+ * Ver.01.00.02 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
  * </pre>
  *
  * @note OS trustやACLを変更せず、共通署名実装を再利用します。
@@ -35,6 +36,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <vector>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -84,8 +86,9 @@ NativeError verifyCachedSystemCurlPublisherStage( const std::wstring_view path)
 
 CollectorSetupTransport prepareCollectorSetupTransport()
 {
-	std::array<wchar_t, 32768> system{} ;	// 環境変数を使わないOS directory。
-	const UINT				   length =
+	std::vector<wchar_t> system(
+		32768U) ;	// 同じ有限容量をゼロ初期化し、OS directoryの照会中だけ所有する。
+	const UINT length =
 		// 実文字数。
 		GetSystemDirectoryW( system.data(), static_cast<UINT>( system.size())) ;
 	const DWORD directoryError = length == 0U ? GetLastError() : ERROR_SUCCESS ;	// 元code。
@@ -111,10 +114,10 @@ CollectorSetupTransport prepareCollectorSetupTransport()
 			info.nNumberOfLinks > 0U && info.nFileSizeHigh == 0U && info.nFileSizeLow > 0U &&
 			info.nFileSizeLow <= 16777216U,
 		"SYSTEM_CURL_FILE") ;
-	std::array<wchar_t, 32768> finalPath{} ;	// 実handleの正規path。
-	const DWORD				   finalLength = GetFinalPathNameByHandleW(
-		   file.get(), finalPath.data(), static_cast<DWORD>( finalPath.size()),
-		   FILE_NAME_NORMALIZED | VOLUME_NAME_DOS) ;								// 実文字数。
+	std::vector<wchar_t> finalPath( 32768U) ;	// 実handleの正規pathを同じ上限で所有する。
+	const DWORD			 finalLength = GetFinalPathNameByHandleW(
+		 file.get(), finalPath.data(), static_cast<DWORD>( finalPath.size()),
+		 FILE_NAME_NORMALIZED | VOLUME_NAME_DOS) ;									// 実文字数。
 	const DWORD finalError = finalLength == 0U ? GetLastError() : ERROR_SUCCESS ;	// 元code。
 	transportRequire( finalLength != 0U, "SYSTEM_CURL_FINAL_PATH", finalError) ;
 	transportRequire( finalLength > 4U && finalLength < finalPath.size(), "SYSTEM_CURL_FINAL_SIZE") ;

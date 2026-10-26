@@ -18,7 +18,10 @@
       },
       "cacheVariables": {
         "BUILD_TESTING": "ON",
-        "CMAKE_CONFIGURATION_TYPES": "Debug;Release",
+        "CMAKE_CONFIGURATION_TYPES": {
+          "type": "STRING",
+          "value": "Debug;Release"
+        },
         "DRIVERCRATE_BUILD_LIVE_TESTS": "OFF",
         "DRIVERCRATE_ENABLE_ANALYZE": "OFF"
       }

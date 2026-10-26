@@ -2,7 +2,7 @@
 /**
  * @file official_file_verifier.cpp
  * @brief 公式配布file共通検証実装。
- * @version 01.12.00
+ * @version 01.13.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -44,6 +44,7 @@
  * Ver.01.11.00 Shunji Ogawa  2026/10/15  内部試験factoryだけをarchive128/129境界の完全入力へ拡張。
  * Ver.01.11.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.12.00 Shunji Ogawa  2026/10/17 同一Authenticode実装に明示cached-only入口を追加。
+ * Ver.01.13.00 Shunji Ogawa  2026/10/24  内部原archive試験から元native署名へ委譲。
  * </pre>
  *
  * @note Windows CNGとWinTrustを使用し、Provider固有値をpolicyとして受け取ります。
@@ -1818,6 +1819,11 @@ thread_local ScopedFixture *activeFixture = nullptr ;
 }
 
 /** @see ScopedFixture宣言側の契約を正本とします。 */
+ScopedFixture::ScopedFixture() noexcept : nativeAdapter_( true)
+{
+	activeFixture = this ;
+}
+/** @see ScopedFixture宣言側の契約を正本とします。 */
 ScopedFixture::ScopedFixture( std::vector<FixtureFile> files, const std::size_t maximumRoots)
 	: files_( std::move( files)), maximumRoots_( maximumRoots)
 {
@@ -1851,6 +1857,11 @@ BOOL setupVerifyInf( const PCWSTR path, const PSP_ALTPLATFORM_INFO platform,
 
 	auto &fixture = *activeFixture ;	// 同worker lifetimeの完全な固定表。
 	++fixture.receipt_.setupCalls ;
+	// 明示内部adapterは元APIの成否/診断/publisherをそのまま返します。
+	if( fixture.nativeAdapter_) {
+		return SetupVerifyInfFileW( path, platform, signer) ;
+	}
+
 	try {
 		// 不完全な署名API入力や未登録・改変INFを合格へ変換しません。
 		if( path == nullptr || platform != nullptr || signer == nullptr ||
@@ -1936,6 +1947,20 @@ LONG verifyTrust( const HWND window, GUID *const action, LPVOID const data) noex
 	}
 
 	auto &fixture = *activeFixture ;	// 現workerだけのfixture。
+	// 元Windows policy/flagsを変更せず、同VERIFY/CLOSEをnativeへ委譲します。
+	if( fixture.nativeAdapter_) {
+		const auto *trust = static_cast<const WINTRUST_DATA *>( data) ;	// 元ABIの同期観測だけです。
+		// CLOSE以外をVERIFY側へ数え、元APIへ返す入力/出力は変更しません。
+		if( trust && trust->cbStruct == sizeof( *trust) &&
+		   trust->dwStateAction == WTD_STATEACTION_CLOSE) {
+			++fixture.receipt_.closeCalls ;
+		} else {
+			++fixture.receipt_.verifyCalls ;
+		}
+
+		return WinVerifyTrust( window, action, data) ;
+	}
+
 	try {
 		// 型なしWindows ABI境界でだけWINTRUST_DATAの実型へ戻します。
 		auto *const trust		  = static_cast<WINTRUST_DATA *>( data) ;	// 呼出し中だけ有効な設定。
@@ -2061,6 +2086,16 @@ LONG verifyTrust( const HWND window, GUID *const action, LPVOID const data) noex
 }
 // 完全な内部factoryだけをtest構成に含め、製品設定から取得しません。
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
+/** @see Access宣言側の契約を正本とします。 */
+std::unique_ptr<ScopedFixture> Access::createNativeAdapter()
+{
+	// 生存する元scopeを別backendへ切り替えません。
+	if( activeFixture != nullptr) {
+		return nullptr ;
+	}
+
+	return std::unique_ptr<ScopedFixture>{new ScopedFixture{}} ;
+}
 /** @see Access宣言側の契約を正本とします。 */
 std::unique_ptr<ScopedFixture> Access::create( std::vector<FixtureFile> files,
 											  const std::size_t		   maximumRoots)

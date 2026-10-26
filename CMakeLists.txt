@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(
     DriverCrate
-    VERSION 0.1.0
+    VERSION 0.1.1
     DESCRIPTION "Torrent-free Windows driver update manager"
     LANGUAGES C CXX RC
 )
@@ -170,7 +170,7 @@ option(
 # 収集用成果物は通信測定用testと独立して明示buildできるようにする。
 option(
     DRIVERCRATE_BUILD_COLLECTOR
-    "Build the collector and its manual setup preview independently of live tests."
+    "Build the collector and its versioned setup independently of live tests."
     OFF
 )
 
@@ -295,6 +295,8 @@ add_library(drivercrate_platform STATIC
     src/platform/official_download_workspace.cpp
     src/platform/official_acquisition.cpp
     src/platform/collector_inspection_acquisition.cpp
+    src/platform/collector_registry_job.cpp
+    src/platform/collector_distribution_candidate.cpp
     src/platform/official_record_utilities.cpp
     src/platform/official_download_grant.cpp
     src/platform/official_collector_public_text.cpp
@@ -317,8 +319,10 @@ add_library(drivercrate_platform STATIC
     src/platform/openpgp_signature_verifier.cpp
     src/platform/signed_index_manifest.cpp
     src/platform/signed_index_refresh.cpp
+    src/platform/public_index_readback.cpp
     src/platform/signed_index_asset_bytes.cpp
     src/platform/signed_index_records.cpp
+    src/platform/unsigned_index_candidate.cpp
     src/platform/signed_index_acquisition_adapter.cpp
     src/platform/signed_index_acquisition_descriptor_internal.cpp
     src/platform/signed_index_store.cpp
@@ -421,15 +425,6 @@ add_custom_command(TARGET DriverCrate POST_BUILD
         "-DACQUISITION_POLICY_REVISION=${drivercrate_distribution_acquisition_revision}"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RecordIndexBuildProfile.cmake"
     VERBATIM)
-
-# 明示build/実行だけで旧storeを認証移動する。通常ALL/packageへ含めない。
-add_executable(DriverCrateIndexStoreMigrator EXCLUDE_FROM_ALL
-    src/app/index_store_migration_main.cpp src/app/app.manifest)
-target_link_libraries(DriverCrateIndexStoreMigrator PRIVATE drivercrate_platform)
-drivercrate_apply_compiler_options(DriverCrateIndexStoreMigrator)
-drivercrate_apply_linker_options(DriverCrateIndexStoreMigrator)
-target_link_options(DriverCrateIndexStoreMigrator PRIVATE
-    "SHELL:/MANIFESTUAC:\"level='requireAdministrator' uiAccess='false'\"")
 
 if(DRIVERCRATE_BUILD_LOCAL_INDEX_SIGNER)
     # 明示操作だけで鍵を作る開発tool。通常本体・setup/packageには含めない。
@@ -831,6 +826,30 @@ if(BUILD_TESTING)
     drivercrate_apply_linker_options(drivercrate_collector_inspection_tests)
     add_test(NAME drivercrate_collector_inspection_tests COMMAND drivercrate_collector_inspection_tests)
 
+    # 通常binaryへ成功検査の試験seamを含めず、独立TUだけに限定する。
+    add_executable(drivercrate_collector_registry_job_tests
+        tests/unit/collector_registry_job_tests.cpp
+        src/platform/collector_registry_job.cpp
+        src/platform/official_http_client.cpp)
+    target_compile_definitions(drivercrate_collector_registry_job_tests PRIVATE DRIVERCRATE_REGISTRY_JOB_TESTING)
+    target_include_directories(drivercrate_collector_registry_job_tests PRIVATE src)
+    target_link_libraries(drivercrate_collector_registry_job_tests PRIVATE drivercrate_platform)
+    drivercrate_apply_compiler_options(drivercrate_collector_registry_job_tests)
+    drivercrate_apply_linker_options(drivercrate_collector_registry_job_tests)
+    add_test(NAME drivercrate_collector_registry_job_tests COMMAND drivercrate_collector_registry_job_tests)
+
+    # 同じ私有native結果だけからv2候補を作る非通信の有限fixture。
+    add_executable(drivercrate_collector_distribution_candidate_tests
+        tests/unit/collector_distribution_candidate_tests.cpp
+        src/platform/collector_registry_job.cpp
+        src/platform/official_http_client.cpp)
+    target_compile_definitions(drivercrate_collector_distribution_candidate_tests PRIVATE DRIVERCRATE_REGISTRY_JOB_TESTING)
+    target_include_directories(drivercrate_collector_distribution_candidate_tests PRIVATE src)
+    target_link_libraries(drivercrate_collector_distribution_candidate_tests PRIVATE drivercrate_platform)
+    drivercrate_apply_compiler_options(drivercrate_collector_distribution_candidate_tests)
+    drivercrate_apply_linker_options(drivercrate_collector_distribution_candidate_tests)
+    add_test(NAME drivercrate_collector_distribution_candidate_tests COMMAND drivercrate_collector_distribution_candidate_tests)
+
     add_library(drivercrate_inf_dependency_legacy_compile_check OBJECT tests/live/acquired_inf_dependency_smoke.cpp)
     target_include_directories(drivercrate_inf_dependency_legacy_compile_check PRIVATE src)
     drivercrate_apply_compiler_options(drivercrate_inf_dependency_legacy_compile_check)
@@ -1002,6 +1021,7 @@ if(BUILD_TESTING)
         COMMAND drivercrate_collector_campaign_tests --segment-preparation-recovery-only)
     set_tests_properties(drivercrate_collector_segment_preparation_recovery_tests PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RUN_SERIAL TRUE
         TIMEOUT 600)
     # 全能力解放後の実handle回復をbyte codecの分母と分けます。
     add_test(NAME drivercrate_collector_segment_recovery_storage_tests
@@ -1074,6 +1094,7 @@ if(BUILD_TESTING)
         TIMEOUT 300)
     set_tests_properties(drivercrate_collector_projected_http_tests PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RUN_SERIAL TRUE
         TIMEOUT 300
     )
     # 旧二枠を変更せず、未応答次世代の新規fixtureだけを非重複で追加する。
@@ -1114,6 +1135,7 @@ if(BUILD_TESTING)
         COMMAND drivercrate_collector_campaign_tests --operation-capacity-only)
     set_tests_properties(drivercrate_collector_operation_capacity_tests PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RUN_SERIAL TRUE
         TIMEOUT 300)
     # 新requestの通常受領・未受領二枠復旧だけを独立の有限枠で検査する。
     add_test(NAME drivercrate_collector_cache_growth_tests
@@ -1132,6 +1154,7 @@ if(BUILD_TESTING)
         COMMAND drivercrate_collector_campaign_tests --cache-startup-only)
     set_tests_properties(drivercrate_collector_cache_startup_tests PROPERTIES
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RUN_SERIAL TRUE
         # 八回の全履歴起動を含む独立枠。旧300秒枠と製品期限は維持する。
         TIMEOUT 600)
     set_tests_properties(drivercrate_collector_next_recovery_tests PROPERTIES
@@ -1561,10 +1584,12 @@ if(BUILD_TESTING)
             tests/live/common_driver_package_smoke.cpp
             tests/live/maintenance_reached_reference_observation.cpp
             src/platform/common_driver_package.cpp)
+        # 任意QAも私有workの日付pathに依存せず、同じ唯一buildのscratchだけへ出力する。
+        file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-scratch")
         target_compile_definitions(drivercrate_maintenance_reached_reference_smoke PRIVATE
             DRIVERCRATE_REACHED_REFERENCE_RESEARCH
-            DRIVERCRATE_REACHED_WORKSPACE=L"${CMAKE_CURRENT_SOURCE_DIR}/work/analysis/20261008-maintenance-reached-reference-53"
-            DRIVERCRATE_RESIDUAL_WORKSPACE=L"${CMAKE_CURRENT_SOURCE_DIR}/work/analysis/20261008-maintenance-residual-reference-54")
+            DRIVERCRATE_REACHED_WORKSPACE=L"${CMAKE_CURRENT_BINARY_DIR}/test-scratch/maintenance-reached-reference-$<CONFIG>"
+            DRIVERCRATE_RESIDUAL_WORKSPACE=L"${CMAKE_CURRENT_BINARY_DIR}/test-scratch/maintenance-residual-reference-$<CONFIG>")
         target_include_directories(drivercrate_maintenance_reached_reference_smoke PRIVATE src tests/live)
         target_link_libraries(drivercrate_maintenance_reached_reference_smoke PRIVATE drivercrate_platform)
         drivercrate_apply_compiler_options(drivercrate_maintenance_reached_reference_smoke)
@@ -1666,9 +1691,11 @@ if(DRIVERCRATE_BUILD_COLLECTOR OR (BUILD_TESTING AND DRIVERCRATE_BUILD_LIVE_TEST
     drivercrate_apply_compiler_options(DriverCrateCollector)
     drivercrate_apply_linker_options(DriverCrateCollector)
 
-    # 収集用の手動セットアップ。非昇格、非通信、通常本体と独立した開発preview。
+    # 現行v7の収集用setupは現在userの将来日次Taskを登録し、即時収集は開始しない。
     add_executable(DriverCrateCollectorSetup
         src/app/collector_setup_main.cpp
+        src/platform/collector_user_task.cpp
+        src/platform/collector_user_task.h
         src/platform/collector_setup_workspace.cpp
         src/platform/collector_setup_workspace.h
         src/platform/collector_setup_transport.cpp
@@ -1682,14 +1709,53 @@ if(DRIVERCRATE_BUILD_COLLECTOR OR (BUILD_TESTING AND DRIVERCRATE_BUILD_LIVE_TEST
         src/app/collector_setup.manifest
     )
     target_include_directories(DriverCrateCollectorSetup PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated")
-    target_link_libraries(DriverCrateCollectorSetup PRIVATE drivercrate_platform shell32)
+    target_link_libraries(DriverCrateCollectorSetup PRIVATE drivercrate_platform shell32 taskschd)
     drivercrate_apply_compiler_options(DriverCrateCollectorSetup)
     drivercrate_apply_linker_options(DriverCrateCollectorSetup)
     target_compile_options(DriverCrateCollectorSetup PRIVATE /guard:cf)
     target_link_options(DriverCrateCollectorSetup PRIVATE "/MANIFESTUAC:level='asInvoker' uiAccess='false'")
 
+    # 明示生成済みraw resource入力がある場合だけ単体EXEを生成する。通常profileは変更しない。
+    set(DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES "" CACHE PATH "Validated collector bootstrap resource input")
+    if(DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES)
+        foreach(drivercrate_embedded_file IN ITEMS collector_setup_bootstrap.rc collector_setup_bootstrap_table.h)
+            if(NOT EXISTS "${DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES}/${drivercrate_embedded_file}")
+                message(FATAL_ERROR "Collector embedded resource input is incomplete")
+            endif()
+        endforeach()
+        add_executable(DriverCrateCollectorInstaller
+            src/app/collector_setup_bootstrap_main.cpp
+            src/app/collector_setup.manifest
+            src/platform/collector_setup_workspace.cpp
+            src/platform/collector_setup_transport.cpp
+            src/platform/collector_setup_admission.cpp
+            src/platform/local_driver_collector.cpp
+            src/platform/local_collector_state_store.cpp
+            "${DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES}/collector_setup_bootstrap.rc")
+        target_include_directories(DriverCrateCollectorInstaller PRIVATE src
+            "${DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES}")
+        target_link_libraries(DriverCrateCollectorInstaller PRIVATE drivercrate_platform shell32)
+        drivercrate_apply_compiler_options(DriverCrateCollectorInstaller)
+        drivercrate_apply_linker_options(DriverCrateCollectorInstaller)
+        target_compile_options(DriverCrateCollectorInstaller PRIVATE /guard:cf)
+        target_link_options(DriverCrateCollectorInstaller PRIVATE "/MANIFESTUAC:level='asInvoker' uiAccess='false'")
+    endif()
+
     # CLIへ故障注入を公開せず、独立TUから保護workspaceの内部境界を検査する。
     if(BUILD_TESTING)
+        add_executable(drivercrate_collector_user_task_tests
+            tests/unit/collector_user_task_tests.cpp
+            src/platform/collector_user_task.cpp
+            src/platform/collector_setup_workspace.cpp
+            src/platform/collector_setup_transport.cpp
+            src/platform/collector_setup_admission.cpp
+            src/platform/local_driver_collector.cpp
+            src/platform/local_collector_state_store.cpp)
+        target_include_directories(drivercrate_collector_user_task_tests PRIVATE src)
+        target_link_libraries(drivercrate_collector_user_task_tests PRIVATE drivercrate_platform shell32 taskschd)
+        drivercrate_apply_compiler_options(drivercrate_collector_user_task_tests)
+        drivercrate_apply_linker_options(drivercrate_collector_user_task_tests)
+        add_test(NAME drivercrate_collector_user_task_tests COMMAND drivercrate_collector_user_task_tests)
         add_executable(drivercrate_collector_setup_workspace_tests
             tests/unit/collector_setup_workspace_tests.cpp
             src/platform/collector_setup_transport.cpp
@@ -1721,6 +1787,21 @@ if(DRIVERCRATE_BUILD_COLLECTOR OR (BUILD_TESTING AND DRIVERCRATE_BUILD_LIVE_TEST
         drivercrate_apply_linker_options(drivercrate_collector_setup_admission_tests)
         add_test(NAME drivercrate_collector_setup_admission_tests COMMAND drivercrate_collector_setup_admission_tests)
         set_tests_properties(drivercrate_collector_setup_admission_tests PROPERTIES TIMEOUT 180)
+        # 実固定子/pipe/leaseとHTTP fake・通常INF/低位署名fixtureを同親callerへ接続する専用target。
+        add_executable(drivercrate_collector_distribution_pipeline_tests
+            tests/unit/collector_distribution_pipeline_tests.cpp
+            src/platform/collector_registry_job.cpp
+            src/platform/official_http_client.cpp
+            src/platform/collector_setup_transport.cpp
+            src/platform/collector_setup_admission.cpp
+            src/platform/local_driver_collector.cpp
+            src/platform/local_collector_state_store.cpp)
+        target_compile_definitions(drivercrate_collector_distribution_pipeline_tests PRIVATE
+            DRIVERCRATE_REGISTRY_JOB_TESTING DRIVERCRATE_DISTRIBUTION_TESTING DRIVERCRATE_INTERNAL_INDEX_TESTS)
+        target_include_directories(drivercrate_collector_distribution_pipeline_tests PRIVATE src)
+        target_link_libraries(drivercrate_collector_distribution_pipeline_tests PRIVATE drivercrate_platform)
+        drivercrate_apply_compiler_options(drivercrate_collector_distribution_pipeline_tests)
+        drivercrate_apply_linker_options(drivercrate_collector_distribution_pipeline_tests)
     endif()
 
     foreach(drivercrate_index_profile_target IN ITEMS DriverCrateCollector DriverCrateCollectorSetup)
@@ -1736,12 +1817,4 @@ if(DRIVERCRATE_BUILD_COLLECTOR OR (BUILD_TESTING AND DRIVERCRATE_BUILD_LIVE_TEST
             VERBATIM)
     endforeach()
 
-    # 配布する二targetの診断文字列から開発workspaceを除去する。通常本体・libraryへは伝播しない。
-    file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}" drivercrate_collector_source_root)
-    foreach(drivercrate_collector_distribution_target IN ITEMS DriverCrateCollector DriverCrateCollectorSetup)
-        target_compile_options(${drivercrate_collector_distribution_target} PRIVATE
-            "$<$<COMPILE_LANGUAGE:CXX>:/experimental:deterministic>"
-            "$<$<COMPILE_LANGUAGE:CXX>:/pathmap:${drivercrate_collector_source_root}=.>"
-        )
-    endforeach()
 endif()

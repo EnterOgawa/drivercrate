@@ -2,7 +2,7 @@
 /**
  * @file local_driver_collector.cpp
  * @brief 公式metadataを有限manifestから収集し、非公開checkpointへ保存します。
- * @version 01.13.00
+ * @version 01.17.00
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,9 +36,13 @@
  * Ver.01.11.02   Shunji Ogawa  2026/10/16 target key生成の入出力と失敗時契約を明記。
  * Ver.01.12.00   Shunji Ogawa  2026/10/17 全旧requestの射影と保護monitor原点参照の検査を追加。
  * Ver.01.13.00   Shunji Ogawa  2026/10/17 原日次receiptと既存headの非変更照合を追加。
+ * Ver.01.14.00 Shunji Ogawa  2026/10/25  同run新200からの明示grant取得と中断待機を追加。
+ * Ver.01.15.00 Shunji Ogawa  2026/10/25  元errorを維持し呼出し内の拒否区間を返却。
+ * Ver.01.16.00 Shunji Ogawa  2026/10/25  明示失敗の完全200原本文と原receipt診断を分離。
+ * Ver.01.17.00 Shunji Ogawa  2026/10/26 新metadataと全公開algorithmを同run取得へ結合。
  * </pre>
  *
- * @note Metadata専用です。日次modeの原pageは保護storeへ限定し、通常logや端末IDを出力しません。
+ * @note 明示日次本体取得も同writerで実行し、原page/pathは通常logへ出力しません。
  */
 //------------------------------------------------------------------------------
 
@@ -53,6 +57,7 @@
 #include "platform/local_collector_legacy.h"
 #include "platform/official_file_verifier.h"
 #include "platform/official_release_metadata.h"
+#include "platform/official_download_workspace.h"
 
 #include <Windows.h>
 #include <wincrypt.h>
@@ -473,13 +478,16 @@ void putNumber( JsonObject &object, const wchar_t *name, const std::uint64_t val
 }
 
 /** @brief 有限原byteをbase64へ可逆変換します。
- * @param[in] bytes 最大512KiBの原byte。
+ * @param[in] bytes 用途上限内の原byte。切り詰めません。
+ * @param[in] maximumBytes 通常512KiB、失敗診断だけ実request上限2MiBです。
  * @return 改行なしbase64。失敗時は空です。
  */
-[[nodiscard]] std::wstring bodyBase64( const std::string_view bytes)
+[[nodiscard]] std::wstring bodyBase64( const std::string_view bytes,
+									  const std::uint64_t	 maximumBytes = 512U * 1024U)
 {
 	// 空本文・SDK容量外を保存用の正例にしません。
-	if( bytes.empty() || bytes.size() > 512U * 1024U) {
+	if( maximumBytes == 0U || maximumBytes > 2U * 1024U * 1024U || bytes.empty() ||
+	   bytes.size() > maximumBytes) {
 		return {} ;
 	}
 
@@ -1216,28 +1224,143 @@ struct SourceCooldown {
 	return saveEnvelope( store, cooldownPath( source), winrt::to_string( body.Stringify())) ;
 }
 
-/** @brief 公式adapterをAI・取得grantなしで一targetだけ呼びます。
+/** @brief 生存する新200の一recordから、明示同意と有限予算の範囲だけを取得します。
+ * @param[in,out] record 同runの型付き公式record。成功時に秘密URLを消費します。
+ * @param[in,out] client 同recordの新200証拠を所有するcache無効client。
+ * @param[in] request 明示同意/予算と保護callerの非置換commitです。
+ * @param[in] clock 元runの現在UTC秒です。
+ * @param[in] cancelled 元runの単調期限または同意失効を確認します。
+ * @param[in] fixtureCost 非nullは非通信fixtureの回線照会です。
+ * @return 取得/封印/新archive commit成功0、元失敗のbit patternです。
+ */
+[[nodiscard]] std::uint32_t acquireTargetPayload( OfficialDistributionRecord			  &record,
+												 OfficialHttpClient					  &client,
+												 const LocalCollectorPayloadRequest	  &request,
+												 const std::function<std::uint64_t()> &clock,
+												 const HttpCancellationCallback		  &cancelled,
+												 IOfficialNetworkCostReader			  *fixtureCost)
+{
+	const auto	 now = clock() ;	// Grant発行前の原時計です。
+	std::wstring termsHash ;		// PAGE全体と区別する抽出全文です。
+	// 欠同意/変更/不明時刻やmetadata不足からpayload権限を作りません。
+	if( !request.termsAccepted || now == 0U || now >= request.consentNotAfter ||
+	   request.consentNotAfter - now > SECONDS_PER_DAY || !request.commitArchive ||
+	   request.termsRevision != record.eulaRevision ||
+	   computeBytesSha256( winrt::to_string( winrt::hstring{record.eulaText}), termsHash) != 0 ||
+	   termsHash != request.termsTextSha256 || record.payloads.size() != 1U ||
+	   record.terms != OfficialDistributionTerms::ACCEPTANCE_REQUIRED) {
+		return ERROR_ACCESS_DENIED ;
+	}
+
+	auto &payload = record.payloads.front() ;	// 同recordの一payloadだけです。
+	// 公表hash/sizeを期待値で上書きせず、上限だけを今回予算へ狭めます。
+	if( payload.kind != OfficialDistributionPayloadKind::STANDARD_INF_PACKAGE ||
+	   request.payloadUrl != payload.targetUrl.view() ||
+	   request.fileName != payload.fileDisplayName ||
+	   request.packageVersion != record.packageVersion ||
+	   request.publishedSizeBytes != payload.publishedSizeBytes ||
+	   (payload.publishedSha256.empty() && payload.publishedSha512.empty()) ||
+	   CompareStringOrdinal( payload.publishedSha256.c_str(), -1, request.publishedSha256.c_str(),
+							-1, TRUE) != CSTR_EQUAL ||
+	   CompareStringOrdinal( payload.publishedSha512.c_str(), -1, request.publishedSha512.c_str(),
+							-1, TRUE) != CSTR_EQUAL ||
+	   request.maximumBytes == 0U || request.maximumBytes > 128U * 1024U * 1024U ||
+	   (payload.publishedSizeBytes && *payload.publishedSizeBytes > request.maximumBytes)) {
+		return ERROR_INVALID_DATA ;
+	}
+
+	payload.maximumBytes = std::min( payload.maximumBytes, request.maximumBytes) ;
+	OfficialDistributionRecordEvidence evidence ;	// 狭めた同recordの再検証です。
+	RecordScopedDownloadGrant		   grant ;		// 一回の私有recordだけから発行します。
+	OfficialAcquisitionSession		   session ;	// 別日次counterを作らない揮発性取得予算です。
+	OfficialDownloadWorkspace		   workspace ;	// 失敗partialを既存RAIIで回収します。
+	const OfficialAcquisitionLimits	   limits{payload.maximumBytes,
+											  payload.maximumBytes,
+											  payload.maximumBytes,
+											  64U * 1024U * 1024U,
+											  1U,
+											  1U} ;	// 一file/一sessionです。
+	NativeError						   error =
+		// 原authority再検証です。
+		validateOfficialDistributionRecord( record, evidence) ;
+	// 元失敗がある段階以後のgrant/取得を開始しません。
+	if( error == 0) {
+		error = grant.issue( record, evidence, 0U, 1U, now, 0U) ;
+	}
+
+	// 一回の承認予算だけを同sessionへ設定します。
+	if( error == 0) {
+		error = session.initialize( evidence.rootEvidence.scanSessionId, limits) ;
+	}
+
+	// 取得先は共通の管理者保護workspaceだけです。
+	if( error == 0) {
+		error = workspace.initialize( L"native-daily-payload", evidence.rootEvidence.scanSessionId) ;
+	}
+
+	WindowsOfficialNetworkCostReader osCost ;				// 通常は既存OS costを使用します。
+	OfficialHttpAcquisitionTransport transport( client) ;	// 同じ新200 clientを借用します。
+	OfficialAcquisitionResult		 acquired ;				// 公開authorityや導入許可ではありません。
+	// 公式起点/CDN/size/hashと進捗は既存共通取得器で検証します。
+	if( error == 0) {
+		error = acquireGrantedOfficialPayload( session, workspace, transport,
+											  fixtureCost != nullptr ? *fixtureCost : osCost, grant,
+											  clock, false, cancelled, acquired) ;
+	}
+
+	// 本体取得後に失効した同意や単調期限をcommitへ進めません。
+	if( error == 0 && cancelled()) {
+		error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED)) ;
+	}
+
+	// 保護callerが封印と実byteを再照合してatomic非置換保存します。
+	if( error == 0 && ((!request.publishedSha256.empty() && !acquired.publishedSha256Verified) ||
+					  (!request.publishedSha512.empty() && !acquired.publishedSha512Verified) ||
+					  (request.publishedSizeBytes && !acquired.publishedSizeVerified))) {
+		error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CRC)) ;
+	}
+
+	// 全掲載algorithmの実byte検証を完了した結果だけを保存sinkへ渡します。
+	if( error == 0) {
+		error = request.commitArchive( session, workspace, acquired) ;
+	}
+
+	// 保存中に期限が尽きたarchiveは孤立原byteとして保持し、成功receiptを発行しません。
+	if( error == 0 && cancelled()) {
+		error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED)) ;
+	}
+
+	return static_cast<std::uint32_t>( error) ;
+}
+
+/** @brief 公式adapterを一targetだけ呼び、明示時だけ同recordの本体を取得します。
  * @param[in] target 検証済みの固定公式target。
  * @param[out] projected 成功時だけの公開metadata射影。
+ * @param[out] failureStage 最初に拒否した区間。成功時はNONEで、永続化しません。
  * @param[in] transport nullなら実HTTP、非nullなら非通信fixture。
  * @param[in] previous 同じtargetの最後の保存済み公開射影。
  * @param[in] contract 実binaryと固定収集条件の指紋。
  * @param[out] http 元HTTP statusと200本文hash、待機診断。
  * @param[out] binding 組込みURLを含む元requestの非秘密指紋。
- * @param[out] raw 非null時だけ新200原byte。Parser失敗はcallerが公開しません。
+ * @param[out] raw 非null時だけ完全新200原byte。失敗診断以外へ失敗本文を公開しません。
+ * @param[in] payload 明示日次同意/予算。通常metadataはnullです。
+ * @param[in] clock 元runの現在UTCです。
+ * @param[in] cancelled 同じrunの延長しない単調期限です。
+ * @param[in] fixtureCost 非通信fixtureのcostです。通常はnullです。
  * @return 全配布検証成功0、失敗は元診断。
- * @note Worker内で有限HTTPを待機します。取得grant・端末ID・導入を扱いません。
+ * @note Worker内で有限HTTPを待機し、明示時だけ同runの取得grantを消費します。端末ID/導入は扱いません。
  */
-[[nodiscard]] std::uint32_t resolveTarget( const LocalCollectorTarget		&target,
-										  std::vector<LocalCollectorRecord> &projected,
-										  const OfficialHttpTransport		*transport,
-										  const LocalCollectorTargetResult	&previous,
-										  const std::wstring				&contract,
-										  CollectorHttpObservation &http, std::wstring &binding,
-										  std::string *raw)
+[[nodiscard]] std::uint32_t resolveTarget(
+	const LocalCollectorTarget &target, std::vector<LocalCollectorRecord> &projected,
+	LocalCollectorFailureStage &failureStage, const OfficialHttpTransport *transport,
+	const LocalCollectorTargetResult &previous, const std::wstring &contract,
+	CollectorHttpObservation &http, std::wstring &binding, std::string *raw,
+	const LocalCollectorPayloadRequest *payload, const std::function<std::uint64_t()> &clock,
+	const HttpCancellationCallback &cancelled, IOfficialNetworkCostReader *fixtureCost)
 {
 	projected.clear() ;
-	http = {} ;
+	http		 = {} ;
+	failureStage = LocalCollectorFailureStage::REQUEST_SESSION ;
 	// 通常はcache無効の公式HTTP client。fixtureだけ既存の保護境界へfake応答を渡す。
 	std::unique_ptr<OfficialHttpClient> client =
 		transport == nullptr ? std::make_unique<OfficialHttpClient>( false)
@@ -1287,9 +1410,10 @@ struct SourceCooldown {
 		return ERROR_INVALID_DATA ;
 	}
 
-	const bool reusable = previous.requestBindingSha256 == binding && !previous.records.empty() &&
-						  hashName( previous.bodySha256) && hashName( previous.projectionSha256) &&
-						  previous.lastFetchedAt != 0U &&
+	// 明示本体は新200を要求し、通常metadataだけが同request/binaryのvalidatorを利用します。
+	const bool reusable = payload == nullptr && previous.requestBindingSha256 == binding &&
+						  !previous.records.empty() && hashName( previous.bodySha256) &&
+						  hashName( previous.projectionSha256) && previous.lastFetchedAt != 0U &&
 						  previous.lastFetchedAt <= previous.lastSuccessfulValidationAt &&
 						  isCollectorEntityTag( previous.entityTag) &&
 						  // 結合再確認。
@@ -1301,14 +1425,16 @@ struct SourceCooldown {
 	}
 
 	std::wstring html ;	// 200本文だけを一時保持する。
-	error = client->getCollectorMetadataForSource(
-		url, resource, maximumBytes,
-		reusable ? std::wstring_view( previous.entityTag) : std::wstring_view{}, html, http, raw) ;
+	failureStage = LocalCollectorFailureStage::METADATA ;
+	error		 = client->getCollectorMetadataForSource(
+		   url, resource, maximumBytes,
+		   reusable ? std::wstring_view( previous.entityTag) : std::wstring_view{}, html, http, raw) ;
 	// 失敗後に同じ要求を自動再試行しない。
 	if( error != 0) {
 		return static_cast<std::uint32_t>( error) ;
 	}
 
+	failureStage = LocalCollectorFailureStage::EVIDENCE ;
 	// 304で既存parserや取得evidenceを合成しない。
 	if( http.status == 304U) {
 		// 保存済み射影だけを再確認し、通常取得証拠へ変換しない。
@@ -1316,7 +1442,13 @@ struct SourceCooldown {
 			return ERROR_INVALID_DATA ;
 		}
 
-		projected = previous.records ;
+		// 304から新しい私有recordや本体取得を復元しません。
+		if( payload != nullptr) {
+			return ERROR_INVALID_DATA ;
+		}
+
+		projected	 = previous.records ;
+		failureStage = LocalCollectorFailureStage::NONE ;
 		return 0U ;
 	}
 
@@ -1330,6 +1462,7 @@ struct SourceCooldown {
 		// 解析時刻。
 		std::max( nowSeconds(), *evidence.front().bodyAcquiredUtcSeconds) ;
 	std::vector<OfficialDistributionRecord> records ;	// 検証済み配布record。
+	failureStage = LocalCollectorFailureStage::PARSE ;
 	// 同じ公式parser・adapterを使用し、取得済みrawを再取得しない。
 	if( target.source == L"ASUS_CATALOG") {
 		std::vector<AsusDriverPageEntry> entries ;		// 有限配布行。
@@ -1345,6 +1478,7 @@ struct SourceCooldown {
 			return ERROR_NO_MORE_ITEMS ;
 		}
 
+		failureStage = LocalCollectorFailureStage::ADAPT ;
 		// 有効entryには通常の公式record検証を適用する。
 		if( !adaptAsusNetworkDistributionRecords( entries, asusRequest,
 												AsusNetworkRecordTarget::CATALOG, evidence.front(),
@@ -1356,8 +1490,13 @@ struct SourceCooldown {
 		OfficialDistributionRecord record ;		// 同じpage根拠に拘束するrecord。
 		// 既存の版・公開hash・許諾本文検証を維持する。
 		if( !parseOfficialReleaseRecord( OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11, html,
-									   release) ||
-		   !adaptIntelEthernetWindows11DistributionRecord( std::move( release), evidence.front(), 1U,
+									   release)) {
+			return ERROR_INVALID_DATA ;
+		}
+
+		failureStage = LocalCollectorFailureStage::ADAPT ;
+		// 同じ解析結果と取得証拠を通常の公式recordへ変換する。
+		if( !adaptIntelEthernetWindows11DistributionRecord( std::move( release), evidence.front(), 1U,
 														  resolved, record)) {
 			return ERROR_INVALID_DATA ;
 		}
@@ -1365,6 +1504,7 @@ struct SourceCooldown {
 		records.push_back( std::move( record)) ;
 	}
 
+	failureStage = LocalCollectorFailureStage::RECORD_VALIDATION ;
 	// 入力と出力を有限上限内へ制限する。
 	if( records.empty() || records.size() > 16U) {
 		return ERROR_INVALID_DATA ;
@@ -1398,6 +1538,19 @@ struct SourceCooldown {
 	std::sort( projected.begin(), projected.end(), []( const auto &left, const auto &right) {
 		return left.fingerprint < right.fingerprint ;
 	}) ;
+	// 通常metadata-onlyには取得grantを発行しません。
+	if( payload != nullptr) {
+		failureStage = LocalCollectorFailureStage::PAYLOAD ;
+		const auto payloadError =
+			acquireTargetPayload( records.front(), *client, *payload, clock, cancelled,
+								 fixtureCost) ;	// 元取得/保存診断です。
+		// 拒否時だけ区間を残し、元errorを変更しない。
+		if( payloadError != 0U) {
+			return payloadError ;
+		}
+	}
+
+	failureStage = LocalCollectorFailureStage::NONE ;
 	return 0U ;
 }
 
@@ -1486,13 +1639,80 @@ bool loadLocalCollectorManifest( const std::filesystem::path		  &path,
 }
 
 /** @see local_driver_collector.h */
+bool decodeLocalCollectorPayloadApproval( const std::string_view		   raw,
+										 LocalCollectorPayloadRequest &request)
+{
+	request = {} ;
+	try {
+		// 保存診断を公式authorityへ復元せず、有限の明示期待値だけを読みます。
+		if( raw.empty() || raw.size() > MAXIMUM_STATE_BYTES) {
+			return false ;
+		}
+
+		const auto release = JsonObject::Parse( winrt::to_hstring( raw)) ;	// 原保存解析です。
+		const auto schema  = release.GetNamedString( L"schema") ;			// 未知schemaへfallbackしません。
+		// v1へ追加されたSHA-512を黙って除外しません。
+		if( (schema != L"dc-saved-release-analysis-v1" &&
+			schema != L"dc-saved-release-analysis-v2") ||
+		   release.GetNamedString( L"source") != L"INTEL_ETHERNET_WINDOWS11" ||
+		   (schema == L"dc-saved-release-analysis-v2") != release.HasKey( L"publishedSha512")) {
+			return false ;
+		}
+
+		LocalCollectorPayloadRequest parsed ;	// 全検査成功後だけcallerへ移します。
+		parsed.termsRevision   = release.GetNamedString( L"termsRevision") ;
+		parsed.termsTextSha256 = release.GetNamedString( L"termsTextSha256") ;
+		parsed.publishedSha256 = release.GetNamedString( L"publishedSha256") ;
+		parsed.publishedSha512 = release.GetNamedString( L"publishedSha512", L"") ;
+		parsed.payloadUrl	   = release.GetNamedString( L"payloadUrl") ;
+		parsed.fileName		   = release.GetNamedString( L"fileName") ;
+		parsed.packageVersion  = release.GetNamedString( L"packageVersion") ;
+		std::wstring termsHash ;	// 同じ抽出全文のSHA-256です。
+		// 片方不正/全欠測/空metadata/全文矛盾を取得要求へ渡しません。
+		if( parsed.termsRevision.empty() || !hashName( parsed.termsTextSha256) ||
+		   parsed.payloadUrl.empty() || parsed.fileName.empty() || parsed.packageVersion.empty() ||
+		   (parsed.publishedSha256.empty() && parsed.publishedSha512.empty()) ||
+		   (!parsed.publishedSha256.empty() && !hashName( parsed.publishedSha256)) ||
+		   (schema == L"dc-saved-release-analysis-v2" &&
+			(parsed.publishedSha512.size() != 128U ||
+			 !hashName( parsed.publishedSha512.substr( 0U, 64U)) ||
+			 !hashName( parsed.publishedSha512.substr( 64U)))) ||
+		   computeBytesSha256( winrt::to_string( release.GetNamedString( L"termsText")), termsHash) !=
+			   0 ||
+		   termsHash != parsed.termsTextSha256) {
+			return false ;
+		}
+
+		// 概算からexactを捏造せず、明示された正整数だけを保持します。
+		if( release.HasKey( L"publishedSizeBytes")) {
+			const auto exact = release.GetNamedNumber( L"publishedSizeBytes") ;	// 公表exact値です。
+			// 0・小数・過大を未知へ変換しません。
+			if( !(exact > 0.0 && exact <= 134217728.0) ||
+			   exact != static_cast<std::uint64_t>( exact)) {
+				return false ;
+			}
+
+			parsed.publishedSizeBytes = static_cast<std::uint64_t>( exact) ;
+		}
+
+		request = std::move( parsed) ;
+		return true ;
+	} catch( ...) {
+		request = {} ;
+		// 構文/型/容量失敗を呼出し側の明示拒否へ返します。
+		return false ;
+	}
+}
+
+/** @see local_driver_collector.h */
 int runLocalDriverCollector( const std::filesystem::path				&stateRoot,
 							const std::vector<LocalCollectorTarget> &targets,
 							const std::wstring &manifestSha256, const bool dryRun,
-							LocalCollectorRun &run, const bool retainMetadata, const bool dailyMode)
+							LocalCollectorRun &run, const bool retainMetadata, const bool dailyMode,
+							const LocalCollectorPayloadRequest *payload)
 {
 	return runLocalDriverCollectorWithHooks( stateRoot, targets, manifestSha256, dryRun, {}, run,
-											retainMetadata, dailyMode) ;
+											retainMetadata, dailyMode, payload) ;
 }
 
 /** @see local_driver_collector.h */
@@ -1500,9 +1720,37 @@ int runLocalDriverCollectorWithHooks( const std::filesystem::path			 &stateRoot,
 									 const std::vector<LocalCollectorTarget> &targets,
 									 const std::wstring &manifestSha256, const bool dryRun,
 									 const LocalCollectorTestHooks &hooks, LocalCollectorRun &run,
-									 const bool retainMetadata, const bool dailyMode)
+									 const bool retainMetadata, const bool dailyMode,
+									 const LocalCollectorPayloadRequest *payload)
 {
 	run = {} ;
+	const auto approvalNow =
+		payload == nullptr
+			? 0U
+			: (hooks.utcSeconds ? hooks.utcSeconds()
+								: nowSeconds()) ;	// 通常metadataの元時計照会順を変えません。
+	// 欠同意/失効/未知時計/予算不足はwriterやPAGEの新試行より前に拒否します。
+	if( payload != nullptr &&
+	   (!dailyMode || !payload->termsAccepted || payload->termsRevision.empty() ||
+		!hashName( payload->termsTextSha256) ||
+		(payload->publishedSha256.empty() && payload->publishedSha512.empty()) ||
+		(!payload->publishedSha256.empty() && !hashName( payload->publishedSha256)) ||
+		(!payload->publishedSha512.empty() &&
+		 (payload->publishedSha512.size() != 128U ||
+		  !hashName( payload->publishedSha512.substr( 0U, 64U)) ||
+		  !hashName( payload->publishedSha512.substr( 64U)))) ||
+		payload->payloadUrl.empty() || payload->fileName.empty() ||
+		payload->packageVersion.empty() ||
+		(payload->publishedSizeBytes && (*payload->publishedSizeBytes == 0U ||
+										 *payload->publishedSizeBytes > payload->maximumBytes)) ||
+		!payload->commitArchive || payload->maximumBytes == 0U ||
+		payload->maximumBytes > 128U * 1024U * 1024U || approvalNow == 0U ||
+		approvalNow >= payload->consentNotAfter ||
+		payload->consentNotAfter - approvalNow > SECONDS_PER_DAY)) {
+		run.stateError = ERROR_ACCESS_DENIED ;
+		return 2 ;
+	}
+
 	// 検証対象の公式・JSON root。
 	const auto root = checkedStateRoot( stateRoot) ;
 	// 実byteの指紋と保存済みの結合を確認する。
@@ -1510,7 +1758,7 @@ int runLocalDriverCollectorWithHooks( const std::filesystem::path			 &stateRoot,
 		return 2 ;
 	}
 
-	// 初回の日次運用対象を固定し、大規模台帳やdriver取得へ拡張しません。
+	// 日次運用と明示本体取得の対象をIntel一件に固定します。
 	if( dailyMode &&
 	   (targets.size() != 1U || targets.front().source != L"INTEL_ETHERNET_WINDOWS11")) {
 		return 2 ;
@@ -1788,6 +2036,21 @@ int runLocalDriverCollectorWithHooks( const std::filesystem::path			 &stateRoot,
 	for( std::size_t index = 0U; index < targets.size(); ++index) {
 		// 今回のtarget別保存結果。
 		LocalCollectorTargetResult &result = run.targets[index] ;
+		// 本体試行の途中/不確定を再起動から再送せず、先払い待機を保持して閉じます。
+		if( payload != nullptr && run.reusedCheckpoint &&
+		   result.state == LocalCollectorTargetState::IN_PROGRESS) {
+			result.state = LocalCollectorTargetState::FAILED ;
+			result.error = ERROR_OPERATION_ABORTED ;
+			result.entityTag.clear() ;
+			failed = true ;
+			// 中断前checkpointの最大待機を短縮しません。
+			if( !saveEnvelope( store, runPath, encodeRun( run))) {
+				return stateFailure() ;
+			}
+
+			continue ;
+		}
+
 		// 保存状態の形式と遷移を確認し、不明な値を拒否する。
 		if( result.state != LocalCollectorTargetState::PENDING &&
 		   result.state != LocalCollectorTargetState::IN_PROGRESS) {
@@ -1832,6 +2095,11 @@ int runLocalDriverCollectorWithHooks( const std::filesystem::path			 &stateRoot,
 			result.lastAttemptAt	   = now ;
 			result.holdReason		   = L"NONE" ;
 			result.observedRecordCount = 0U ;
+			// 未完了/不確定ではrunの最大時間と24hを先払いして再送を防ぎます。
+			if( payload != nullptr) {
+				result.nextAttemptAt = now + SECONDS_PER_DAY + 3600U ;
+			}
+
 			// 操作対象のfileとworkspaceを限定する。
 			if( !saveEnvelope( store, runPath, encodeRun( run))) {
 				return stateFailure() ;
@@ -1846,14 +2114,28 @@ int runLocalDriverCollectorWithHooks( const std::filesystem::path			 &stateRoot,
 			std::vector<LocalCollectorRecord> fresh ;
 			CollectorHttpObservation		  http ;	// 200と304を区別する応答。
 			std::wstring					  binding ;	// 再構築した固定request指紋。
-			std::string						  raw ;		// 明示modeの成功時だけ移譲する新200原byte。
+			std::string raw ;							// 同HTTPの完全新200だけ。成功と失敗診断を分離します。
 			result.attemptedThisInvocation = true ;
 			// 元のAPI診断。
-			const std::uint32_t error =
-				resolveTarget( targets[index], fresh, hooks.httpTransport, result, *contract, http,
-							  binding, (retainMetadata || dailyMode) ? &raw : nullptr) ;
-			result.lastHttpStatus = http.status ;
-			result.error		  = error ;
+			const HttpCancellationCallback cancelled = [&]() {
+				const auto current = utcNow() ;	// 同意期限と元時計を再確認します。
+				return steadyNow() - started > RUN_BUDGET || current < now ||
+					   (payload != nullptr && current >= payload->consentNotAfter) ;
+			} ; // 元runのdeadlineを取得開始で再起点化しません。
+			const std::uint32_t error =	// 同じPAGEと本体の最初の拒否値です。
+				resolveTarget( targets[index], fresh, result.failureStageThisInvocation,
+							  hooks.httpTransport, result, *contract, http, binding,
+							  (retainMetadata || dailyMode) ? &raw : nullptr, payload, utcNow,
+							  cancelled, hooks.networkCostReader) ;
+			result.payloadAcquiredThisInvocation = payload != nullptr && error == 0U ;
+			result.lastHttpStatus				 = http.status ;
+			result.error						 = error ;
+			// 明示本体取得の同呼出しだけに、成功checkpointと別の完全200診断を返します。
+			if( payload != nullptr && error != 0U && http.status == 200U && !raw.empty()) {
+				result.failedMetadataBytesThisInvocation = std::move( raw) ;
+				result.failedBodySha256ThisInvocation	 = http.bodySha256 ;
+			}
+
 			const auto observedAt = utcNow() ;	// 応答完了後を待機期限の起点にする。
 			// 時計後退・overflowで待機期限を短縮しない。
 			if( observedAt < now || observedAt > 253402214399ULL) {
@@ -2063,6 +2345,81 @@ bool makeLocalCollectorDailyReceipt( const LocalCollectorRun &run, std::string &
 	bytes = winrt::to_string( receipt.Stringify()) ;
 	// 保存先と同じ有限上限を守ります。
 	if( bytes.size() > MAXIMUM_STATE_BYTES) {
+		bytes.clear() ;
+		return false ;
+	}
+
+	return true ;
+}
+
+/** @see local_driver_collector.h */
+bool makeLocalCollectorFailedPageDiagnostic( const LocalCollectorRun &run,
+											const std::string_view	 receiptBytes,
+											const int collectorCode, std::string &bytes)
+{
+	bytes.clear() ;
+	// 成功、state不明、再開、複数対象を同HTTPの失敗資料へ読み替えません。
+	if( collectorCode != 1 || !run.complete || run.stateError != 0U || run.targets.size() != 1U ||
+	   receiptBytes.empty() || receiptBytes.size() > MAXIMUM_STATE_BYTES) {
+		return false ;
+	}
+
+	const auto &target	   = run.targets.front() ;	// 同呼出しの失敗だけを借用します。
+	const auto *definition = officialSourceDefinition(
+		OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11) ;	// 実requestの有限上限です。
+	const auto stage =
+		// 元の拒否区間です。
+		static_cast<std::uint32_t>( target.failureStageThisInvocation) ;
+	// 元APIが完全200本文を返した後の失敗だけを認め、未知stageや旧成功は拒否します。
+	if( definition == nullptr || target.source != L"INTEL_ETHERNET_WINDOWS11" ||
+	   !target.attemptedThisInvocation || target.lastHttpStatus != 200U || target.error == 0U ||
+	   (target.state != LocalCollectorTargetState::FAILED &&
+		target.state != LocalCollectorTargetState::HELD) ||
+	   stage < static_cast<std::uint32_t>( LocalCollectorFailureStage::EVIDENCE) ||
+	   stage > static_cast<std::uint32_t>( LocalCollectorFailureStage::PAYLOAD) ||
+	   target.failedMetadataBytesThisInvocation.empty() ||
+	   target.failedMetadataBytesThisInvocation.size() > definition->maximumMetadataBytes ||
+	   !hashName( target.failedBodySha256ThisInvocation)) {
+		return false ;
+	}
+
+	std::string	 expectedReceipt ;	// 同runの原receipt以外へ失敗本文を結びません。
+	std::wstring receiptHash ;		// 元receipt全byteの指紋です。
+	std::wstring bodyHash ;			// 保存直前の原byte再hashです。
+	// 旧receipt・改変本文・不完全なhashを診断保存成功へ変換しません。
+	if( !makeLocalCollectorDailyReceipt( run, expectedReceipt) || expectedReceipt != receiptBytes ||
+	   computeBytesSha256( receiptBytes, receiptHash) != 0 ||
+	   computeCollectorMetadataSha256( target.failedMetadataBytesThisInvocation, bodyHash) != 0 ||
+	   bodyHash != target.failedBodySha256ThisInvocation) {
+		return false ;
+	}
+
+	const auto encoded =
+		bodyBase64( target.failedMetadataBytesThisInvocation,
+				   definition->maximumMetadataBytes) ;	// 切り詰めず全原byteを可逆保存します。
+	// SDK変換失敗を空の本文資料へ置換しません。
+	if( encoded.empty()) {
+		return false ;
+	}
+
+	JsonObject diagnostic ;	// 成功metadata・URL・grantを含まない別schemaです。
+	putString( diagnostic, L"schema", L"dc-collector-failed-page-diagnostic-v1") ;
+	putString( diagnostic, L"receiptSha256", receiptHash) ;
+	putString( diagnostic, L"manifestSha256", run.manifestSha256) ;
+	putString( diagnostic, L"contractSha256", run.contractSha256) ;
+	putString( diagnostic, L"source", target.source) ;
+	putNumber( diagnostic, L"collectorCode", static_cast<std::uint32_t>( collectorCode)) ;
+	putNumber( diagnostic, L"error", target.error) ;
+	putNumber( diagnostic, L"failureStage", stage) ;
+	putNumber( diagnostic, L"httpStatus", target.lastHttpStatus) ;
+	putNumber( diagnostic, L"lastAttemptAt", target.lastAttemptAt) ;
+	putNumber( diagnostic, L"notBefore", std::max( run.dailyNotBefore, target.nextAttemptAt)) ;
+	putString( diagnostic, L"bodySha256", bodyHash) ;
+	putNumber( diagnostic, L"bodySize", target.failedMetadataBytesThisInvocation.size()) ;
+	putString( diagnostic, L"bodyBytesBase64", encoded) ;
+	bytes = winrt::to_string( diagnostic.Stringify()) ;
+	// 最大2MiBのbase64と固定metadataを含む診断専用の3MiB上限です。
+	if( bytes.size() > 3U * 1024U * 1024U) {
 		bytes.clear() ;
 		return false ;
 	}

@@ -6,31 +6,36 @@ Validates and installs the manual, metadata-only collector preview.
 Author: Shunji Ogawa
 Copyright (c) 2026 EnterSystem CO.,LTD.
 SPDX-License-Identifier: Apache-2.0
-No elevation, execution-policy changes, network, task registration, or recursive deletion.
+No elevation, execution-policy changes, immediate network, or recursive deletion.
+Current v7 normal install/uninstall delegates current-user daily task registration/removal to native setup.
 #>
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 function Get-CollectorPayloadFiles {
-    param([switch] $Seeded, [switch] $RegistryRuntime, [switch] $ProtectedWorkspace)
+    param([switch] $IncludeReference)
     @('bin/DriverCrateCollector.exe', 'DriverCrateCollectorSetup.exe', 'config/targets.json',
         'docs/adr/0209-local-first-recurring-driver-collector.md', 'LICENSE',
         'THIRD_PARTY_NOTICES.md', 'README-collector.md',
         'Install.cmd', 'Validate.cmd', 'Collect.cmd', 'Uninstall.cmd')
-    if ($Seeded) {
-        Get-CollectorSeedFiles
-        if ($RegistryRuntime) { 'seed/collector-data/locators.json' }
-    }
-    if ($RegistryRuntime) {
-        @('registry_daily_monitor', 'collector_locator_snapshot', 'collector_public_locators',
-            'collector_registry', 'registry_locator_requests', 'registry_monitor_http',
-            'registry_page_requests', 'collector_payload_evidence', 'collector_page_encoding',
-            'collector_published_hrefs') | ForEach-Object { 'scripts/' + $_ + '.py' }
-        'runtime/python-runtime-manifest.json'
-        Get-CollectorRuntimeFiles | ForEach-Object { 'runtime/' + $_ }
-    }
-    if ($ProtectedWorkspace) {
-        @('scripts/collector_workspace.py', 'config/monitor-policy.json', 'Initialize.cmd', 'Import.cmd', 'Export.cmd')
+    Get-CollectorSeedFiles
+    'seed/collector-data/locators.json'
+    @('registry_daily_monitor', 'collector_locator_snapshot', 'collector_public_locators',
+        'collector_registry', 'registry_locator_requests', 'registry_monitor_http',
+        'registry_page_requests', 'collector_payload_evidence', 'collector_page_encoding',
+        'collector_published_hrefs') | ForEach-Object { 'scripts/' + $_ + '.py' }
+    'runtime/python-runtime-manifest.json'
+    Get-CollectorRuntimeFiles | ForEach-Object { 'runtime/' + $_ }
+    @('scripts/collector_workspace.py', 'config/monitor-policy.json', 'Initialize.cmd', 'Import.cmd', 'Export.cmd',
+        'scripts/collector_collection_profiles.py', 'scripts/collector_distribution_pipeline.py',
+        'scripts/collector_distribution_data.py')
+    @('manifest.json', 'registry.json', 'locators.json', 'collection-profiles.json', 'research-index.json') |
+        ForEach-Object { 'seed/distribution-data/' + $_ }
+    # 既存codecの完全な参考集合だけを追加し、manifest由来の任意pathは採用しない。
+    if ($IncludeReference) {
+        @('reference.json', 'references/build-report.json', 'references/index.json',
+            'references/index.json.gz', 'references/manifest.raw.json', 'references/provenance.json') |
+            ForEach-Object { 'seed/distribution-data/' + $_ }
     }
 }
 
@@ -158,8 +163,7 @@ function Assert-CollectorX64Executable {
 }
 
 function Get-CollectorBundleInventory {
-    param([Parameter(Mandatory)][string] $Directory, [switch] $Installed, [switch] $Seeded,
-        [switch] $RegistryRuntime)
+    param([Parameter(Mandatory)][string] $Directory, [switch] $Installed)
     $pending = New-Object 'Collections.Generic.Stack[string]'
     $pending.Push($Directory)
     $count = 0
@@ -174,8 +178,8 @@ function Get-CollectorBundleInventory {
             if ($item.PSIsContainer) {
                 if ($Installed -and $relative -ceq 'work') { continue }
                 $directories = @('bin', 'config', 'docs', 'docs/adr')
-                if ($Seeded) { $directories += @('seed', 'seed/collector-data', 'seed/collector-data/index') }
-                if ($RegistryRuntime) { $directories += @('runtime', 'scripts') }
+                $directories += @('seed', 'seed/collector-data', 'seed/collector-data/index',
+                    'seed/distribution-data', 'seed/distribution-data/references', 'runtime', 'scripts')
                 if ($relative -cnotin $directories) {
                     throw 'SETUP_EXTRA_DIRECTORY'
                 }
@@ -202,31 +206,24 @@ hashと件数を照合する。不一致・I/O失敗は例外で拒否する。�
 通信・driver導入・公開の許可ではなく、研究用の境界flagを維持する。
 .PARAMETER Directory
 seed/collector-dataを含む検査対象のbundle root。
-.PARAMETER RegistryRuntime
-runtime付き研究seedのschemaとlocatorを検査する既存mode。
 #>
 function Assert-CollectorResearchSeed {
-    param([Parameter(Mandatory)][string] $Directory, [switch] $RegistryRuntime)
+    param([Parameter(Mandatory)][string] $Directory)
     $root = Join-Path $Directory 'seed\collector-data'
     $manifest = Read-CollectorSetupJson (Join-Path $root 'manifest.json')
     $fields = @('schema', 'revision', 'asOf', 'registrySha256', 'files')
-    $schema = 'dc-portable-research-snapshot-v2'
-    if ($RegistryRuntime) {
-        $fields += @('registrySchema', 'includesPayloadEvidence', 'includesPublicLocators')
-        $schema = 'dc-portable-research-snapshot-v4'
-    }
+    $schema = 'dc-portable-research-snapshot-v4'
+    $fields += @('registrySchema', 'includesPayloadEvidence', 'includesPublicLocators')
     Assert-CollectorSeedFields $manifest $fields
     if ($manifest.schema -cne $schema -or
         $manifest.registrySha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'SETUP_SEED_SCHEMA_REJECTED' }
-    if ($RegistryRuntime -and ($manifest.registrySchema -cne 'dc-public-driver-registry-v2' -or
+    if (($manifest.registrySchema -cne 'dc-public-driver-registry-v2' -or
         $manifest.includesPayloadEvidence -isnot [bool] -or -not $manifest.includesPayloadEvidence -or
         $manifest.includesPublicLocators -isnot [bool] -or -not $manifest.includesPublicLocators)) {
         throw 'SETUP_SEED_REGISTRY_SCHEMA_REJECTED'
     }
-    $expected = @('index/drivers.json', 'observations.json', 'payload-evidence.json',
-        'products.json', 'records.json', 'sources.json')
-    if ($RegistryRuntime) { $expected = @('index/drivers.json', 'locators.json', 'observations.json',
-        'payload-evidence.json', 'products.json', 'records.json', 'sources.json') }
+    $expected = @('index/drivers.json', 'locators.json', 'observations.json',
+        'payload-evidence.json', 'products.json', 'records.json', 'sources.json')
     $rows = @($manifest.files)
     if ($rows.Count -ne $expected.Count) { throw 'SETUP_SEED_COUNT_REJECTED' }
     for ($i = 0; $i -lt $rows.Count; ++$i) {
@@ -243,8 +240,7 @@ function Assert-CollectorResearchSeed {
     foreach ($name in @('sources', 'products', 'records', 'observations')) {
         $document = Read-CollectorSetupJson (Join-Path $root ($name + '.json')) -MaximumBytes 16777216
         Assert-CollectorSeedFields $document @('schema', 'revision', 'asOf', 'items')
-        $suffix = '-v1'
-        if ($RegistryRuntime) { $suffix = '-v2' }
+        $suffix = '-v2'
         if ($document.schema -cne ('dc-public-driver-' + $name + $suffix) -or
             $document.revision -cne $manifest.revision -or $document.asOf -cne $manifest.asOf -or
             $document.items -isnot [Array]) { throw 'SETUP_SEED_COLLECTION_REJECTED' }
@@ -253,17 +249,13 @@ function Assert-CollectorResearchSeed {
     $index = Read-CollectorSetupJson (Join-Path $root 'index\drivers.json') -MaximumBytes 16777216
     $indexFields = @('schema', 'revision', 'asOf', 'researchOnly', 'publishable',
         'installAuthorized', 'applicability', 'counts', 'sources', 'products', 'records', 'payloadEvidence')
-    if ($RegistryRuntime) { $indexFields += 'registrySchema' }
+    $indexFields += 'registrySchema'
     Assert-CollectorSeedFields $index $indexFields
     $evidence = Read-CollectorSetupJson (Join-Path $root 'payload-evidence.json') -MaximumBytes 16777216
     $evidenceFields = @('schema', 'revision', 'registryRevision', 'registrySha256', 'asOf', 'acquisitions')
-    $indexSchema = 'dc-local-research-index-v2'
-    $evidenceSchema = 'dc-public-payload-evidence-v1'
-    if ($RegistryRuntime) {
-        $evidenceFields += 'originRegistry'
-        $indexSchema = 'dc-local-research-index-v3'
-        $evidenceSchema = 'dc-public-payload-evidence-v2'
-    }
+    $evidenceFields += 'originRegistry'
+    $indexSchema = 'dc-local-research-index-v3'
+    $evidenceSchema = 'dc-public-payload-evidence-v2'
     Assert-CollectorSeedFields $evidence $evidenceFields
     if ($index.schema -cne $indexSchema -or $index.revision -cne $manifest.revision -or
         $index.researchOnly -isnot [bool] -or -not $index.researchOnly -or
@@ -273,19 +265,17 @@ function Assert-CollectorResearchSeed {
         $evidence.schema -cne $evidenceSchema -or
         $evidence.registryRevision -cne $manifest.revision -or
         $evidence.registrySha256 -cne $manifest.registrySha256) { throw 'SETUP_SEED_RESEARCH_BOUNDARY_REJECTED' }
-    if ($RegistryRuntime) {
-        $locators = Read-CollectorSetupJson (Join-Path $root 'locators.json') -MaximumBytes 16777216
-        Assert-CollectorSeedFields $locators @('schema', 'revision', 'asOf', 'registry', 'researchOnly',
-            'publishable', 'installAuthorized', 'locators')
-        Assert-CollectorSeedFields $locators.registry @('schema', 'revision', 'asOf', 'sha256')
-        if ($index.registrySchema -cne 'dc-public-driver-registry-v2' -or
-            $locators.schema -cne 'dc-public-driver-locators-v2' -or $locators.researchOnly -isnot [bool] -or
-            -not $locators.researchOnly -or $locators.publishable -isnot [bool] -or $locators.publishable -or
-            $locators.installAuthorized -isnot [bool] -or $locators.installAuthorized -or
-            $locators.registry.schema -cne $manifest.registrySchema -or
-            $locators.registry.revision -cne $manifest.revision -or $locators.registry.asOf -cne $manifest.asOf -or
-            $locators.registry.sha256 -cne $manifest.registrySha256) { throw 'SETUP_SEED_LOCATOR_BINDING_REJECTED' }
-    }
+    $locators = Read-CollectorSetupJson (Join-Path $root 'locators.json') -MaximumBytes 16777216
+    Assert-CollectorSeedFields $locators @('schema', 'revision', 'asOf', 'registry', 'researchOnly',
+        'publishable', 'installAuthorized', 'locators')
+    Assert-CollectorSeedFields $locators.registry @('schema', 'revision', 'asOf', 'sha256')
+    if ($index.registrySchema -cne 'dc-public-driver-registry-v2' -or
+        $locators.schema -cne 'dc-public-driver-locators-v2' -or $locators.researchOnly -isnot [bool] -or
+        -not $locators.researchOnly -or $locators.publishable -isnot [bool] -or $locators.publishable -or
+        $locators.installAuthorized -isnot [bool] -or $locators.installAuthorized -or
+        $locators.registry.schema -cne $manifest.registrySchema -or
+        $locators.registry.revision -cne $manifest.revision -or $locators.registry.asOf -cne $manifest.asOf -or
+        $locators.registry.sha256 -cne $manifest.registrySha256) { throw 'SETUP_SEED_LOCATOR_BINDING_REJECTED' }
     foreach ($name in @('sources', 'products')) {
         if (($index.$name | ConvertTo-Json -Depth 80 -Compress) -cne
             ($documents[$name].items | ConvertTo-Json -Depth 80 -Compress)) { throw 'SETUP_SEED_INDEX_BINDING_REJECTED' }
@@ -316,34 +306,29 @@ JSON検査を行い、native検証を必須とする既存例外を維持する�
 .PARAMETER Installed
 配置済みworkspaceのreceiptと編集可能な設定を扱う検査mode。
 .OUTPUTS
-正規root、manifest、manifest hash、Seeded、RegistryRuntime、ProtectedWorkspaceの値。
+正規root、現行manifest、manifest hashの値。
 #>
 function Read-CollectorBundle {
     param([Parameter(Mandatory)][string] $Directory, [switch] $Installed)
     $root = Assert-CollectorSetupPath $Directory -Existing
     $manifestPath = Join-Path $root 'package-manifest.json'
     $manifest = Read-CollectorSetupJson $manifestPath
-    $protectedWorkspace = ($manifest.schema -ceq 'dc-collector-package-v4' -and
-        $manifest.mode -ceq 'OFFLINE_PROTECTED_REGISTRY_WORKSPACE') -or
-        ($manifest.schema -ceq 'dc-collector-package-v5' -and $manifest.mode -ceq 'EXPLICIT_ONCE_REGISTRY_MONITOR')
-    $registryRuntime = $protectedWorkspace -or ($manifest.schema -ceq 'dc-collector-package-v3' -and
-        $manifest.mode -ceq 'MANUAL_REGISTRY_WITH_RUNTIME')
-    $seeded = $registryRuntime -or ($manifest.schema -ceq 'dc-collector-package-v2' -and
-        $manifest.mode -ceq 'MANUAL_METADATA_WITH_RESEARCH_SEED')
-    $legacy = $manifest.schema -ceq 'dc-collector-package-v1' -and $manifest.mode -ceq 'MANUAL_METADATA_ONLY'
-    if (@($manifest.PSObject.Properties).Count -ne 5 -or (-not $seeded -and -not $legacy) -or
+    if (@($manifest.PSObject.Properties).Count -ne 5 -or
+        $manifest.schema -cne 'dc-collector-package-v7' -or $manifest.mode -cne 'EXPLICIT_DISTRIBUTION_DATA_DAILY' -or
         $manifest.version -notmatch '^\d+\.\d+\.\d+$' -or $manifest.architecture -cne 'x64') {
         throw 'SETUP_MANIFEST_REJECTED'
     }
-    $expected = @(Get-CollectorPayloadFiles -Seeded:$seeded -RegistryRuntime:$registryRuntime -ProtectedWorkspace:$protectedWorkspace)
+    # 参考markerは固定集合の選択だけに使い、全順序/hash/件数は後段で照合する。
+    $includeReference = @($manifest.files | Where-Object { $_.path -ceq 'seed/distribution-data/reference.json' }).Count -eq 1
+    $expected = @(Get-CollectorPayloadFiles -IncludeReference:$includeReference)
     $rows = @($manifest.files)
     if ($rows.Count -ne $expected.Count) { throw 'SETUP_FILE_COUNT_REJECTED' }
     $allowed = @($expected) + @('package-manifest.json')
     if ($Installed) { $allowed += 'install-receipt.json' }
-    $inventory = @(Get-CollectorBundleInventory $root -Installed:$Installed -Seeded:$seeded -RegistryRuntime:$registryRuntime)
+    $inventory = @(Get-CollectorBundleInventory $root -Installed:$Installed)
     if (@($inventory | Where-Object { $_.StartsWith('seed/', [StringComparison]::Ordinal) -and
             $_ -cnotin $expected }).Count -ne 0) { throw 'SETUP_FILE_INVENTORY_REJECTED' }
-    if ($registryRuntime -and @($inventory | Where-Object { ($_ -cmatch '^(runtime|scripts)/') -and
+    if (@($inventory | Where-Object { ($_ -cmatch '^(runtime|scripts)/') -and
             $_ -cnotin $expected }).Count -ne 0) { throw 'SETUP_FILE_INVENTORY_REJECTED' }
     $missing = @($allowed | Where-Object { $_ -cnotin $inventory })
     if ($missing.Count -ne 0 -or (-not $Installed -and
@@ -368,21 +353,35 @@ function Read-CollectorBundle {
     }
     Assert-CollectorX64Executable (Join-Path $root 'bin/DriverCrateCollector.exe')
     Assert-CollectorX64Executable (Join-Path $root 'DriverCrateCollectorSetup.exe')
-    if ($seeded) { Assert-CollectorResearchSeed $root -RegistryRuntime:$registryRuntime }
-    if ($registryRuntime) { Assert-CollectorRuntime $root }
+    Assert-CollectorResearchSeed $root
+    Assert-CollectorRuntime $root
+    # 参考は公開bootstrap境界のまま扱い、全固定outputをdescriptorのhashへ結合する。
+    if ($includeReference) {
+        $dataRoot = Join-Path $root 'seed/distribution-data'
+        $reference = Read-CollectorSetupJson (Join-Path $dataRoot 'reference.json')
+        if (@($reference.PSObject.Properties).Count -ne 10 -or
+            $reference.schema -cne 'dc-collector-public-reference-v1' -or
+            $reference.privateEvidence -isnot [bool] -or $reference.privateEvidence -or
+            $reference.communicationAuthorized -isnot [bool] -or $reference.communicationAuthorized -or
+            @($reference.outputs.PSObject.Properties).Count -ne 5) { throw 'SETUP_REFERENCE_BOUNDARY_REJECTED' }
+        foreach ($name in @('build-report.json', 'index.json', 'index.json.gz', 'manifest.raw.json', 'provenance.json')) {
+            if ($reference.outputs.$name -cne (Get-CollectorSetupHash (Join-Path $dataRoot ('references/' + $name)))) {
+                throw 'SETUP_REFERENCE_HASH_REJECTED'
+            }
+        }
+    }
     $manifestHash = Get-CollectorSetupHash $manifestPath
     if ($Installed) {
         $receipt = Read-CollectorSetupJson (Join-Path $root 'install-receipt.json')
         if (@($receipt.PSObject.Properties).Count -ne 3 -or
-            $receipt.schema -cne 'dc-collector-install-receipt-v1' -or
+            $receipt.schema -cne 'dc-collector-install-receipt-v3' -or
             $receipt.packageManifestSha256 -cne $manifestHash -or
             -not ($receipt.installedUtc -is [DateTime] -or
                 ($receipt.installedUtc -is [string] -and $receipt.installedUtc -match '^\d{4}-\d{2}-\d{2}T'))) {
             throw 'SETUP_RECEIPT_REJECTED'
         }
     }
-    [pscustomobject]@{ Root = $root; Manifest = $manifest; ManifestHash = $manifestHash; Seeded = $seeded
-        RegistryRuntime = $registryRuntime; ProtectedWorkspace = $protectedWorkspace }
+    [pscustomobject]@{ Root = $root; Manifest = $manifest; ManifestHash = $manifestHash }
 }
 
 <#
@@ -391,8 +390,8 @@ bundleを検査し、ShouldProcess承認後だけ新規workspaceへ配置する�
 .DESCRIPTION
 保護modeは固定native setupへ委譲し、native側の保護作成・後処理契約に従う。
 このwrapperはnative処理や後続の再検査失敗を自動rollbackしない。
-旧modeは固定管理fileを上書きせず逐次copyする。途中のI/Oや検証失敗では配置済みfileと
-作成済みのreceiptを保持し、自動rollback・再帰削除しない。Task登録や通信開始は行わない。
+途中のI/Oや検証失敗では配置済みfileとreceiptを保持し、自動rollback・再帰削除しない。
+現行v7は現在userのnative metadata日次Taskを登録・有効読戻しする。即時収集は開始しない。
 .PARAMETER PackageDirectory
 配置前にread-only検査する既存bundle directory。
 .PARAMETER InstallDirectory
@@ -408,37 +407,15 @@ function Install-CollectorWorkspace {
     }
     $bundle = Read-CollectorBundle $PackageDirectory
     $destination = Assert-CollectorSetupPath $InstallDirectory
-    if (Test-Path -LiteralPath $destination) { throw 'SETUP_EXISTING_DIRECTORY_REJECTED' }
-    if (-not $PSCmdlet.ShouldProcess($destination, 'Install manual metadata collector; no tasks or network')) {
+    if (-not $PSCmdlet.ShouldProcess($destination,
+        'Install or repair current-user native metadata daily Task; retain data; no immediate collection or publication')) {
         return
     }
-    if ($bundle.ProtectedWorkspace) {
-        # The native creator applies the protected DACL before any v4 file exists.
-        & (Join-Path $bundle.Root 'DriverCrateCollectorSetup.exe') --install $destination --yes
-        if ($LASTEXITCODE -ne 0) { throw 'SETUP_PROTECTED_NATIVE_INSTALL_REJECTED' }
-        [void](Read-CollectorBundle $destination -Installed)
-        Write-Output 'COLLECTOR_SETUP_COMPLETE mode=offline-protected tasks=0 network=0 installed_drivers=0'
-        return
-    }
-    [void][IO.Directory]::CreateDirectory($destination)
-    # Copy only fixed managed files into a new workspace; never overwrite existing content.
-    foreach ($relative in @((Get-CollectorPayloadFiles -Seeded:$bundle.Seeded -RegistryRuntime:$bundle.RegistryRuntime -ProtectedWorkspace:$bundle.ProtectedWorkspace)) + @('package-manifest.json')) {
-        $source = Join-Path $bundle.Root $relative
-        $target = Join-Path $destination $relative
-        [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target))
-        [IO.File]::Copy($source, $target, $false)
-    }
-    $copied = Read-CollectorBundle $destination
-    if ($copied.ManifestHash -cne $bundle.ManifestHash) { throw 'SETUP_COPY_BINDING_REJECTED' }
-    # Native collector alone creates its protected private state directory later.
-    [void][IO.Directory]::CreateDirectory((Join-Path $destination 'work\state'))
-    $receipt = [ordered]@{ schema = 'dc-collector-install-receipt-v1'
-        packageManifestSha256 = $bundle.ManifestHash; installedUtc = [DateTimeOffset]::UtcNow.ToString('o') }
-    $utf8 = New-Object Text.UTF8Encoding($false)
-    [IO.File]::WriteAllText((Join-Path $destination 'install-receipt.json'),
-        ($receipt | ConvertTo-Json -Compress), $utf8)
+    & (Join-Path $bundle.Root 'DriverCrateCollectorSetup.exe') --install $destination --yes
+    if ($LASTEXITCODE -ne 0) { throw 'SETUP_PROTECTED_NATIVE_INSTALL_REJECTED' }
     [void](Read-CollectorBundle $destination -Installed)
-    Write-Output 'COLLECTOR_SETUP_COMPLETE mode=manual tasks=0 network=0 installed_drivers=0'
+    Write-Output 'COLLECTOR_SETUP_COMPLETE mode=current-user-daily tasks_registered=1 tasks_enabled=1 network_now=0 installed_drivers=0'
+
 }
 
 <#
@@ -447,7 +424,8 @@ function Install-CollectorWorkspace {
 .DESCRIPTION
 途中の削除失敗はStopの例外として伝播し、先行削除を元に戻さない。
 config/targets.jsonとseed、work/data、workspace directoryは保持し、再帰削除しない。
-seedは管理file列挙へSeededを渡さないことで削除対象から外す。
+seedは固定管理fileの削除対象から外す。
+現行v7は同じbundleの検査済みnative setupへ委譲し、Task所有照合を迂回しない。
 .PARAMETER InstallDirectory
 削除前に配置済みbundleとして検査するworkspace directory。
 #>
@@ -458,12 +436,10 @@ function Uninstall-CollectorWorkspace {
     if (-not $PSCmdlet.ShouldProcess($bundle.Root, 'Remove managed program files; retain config and all work data')) {
         return
     }
-    # Resolve a fixed list before deleting any file; never accept paths supplied by the receipt.
-    $managed = @((Get-CollectorPayloadFiles -RegistryRuntime:$bundle.RegistryRuntime -ProtectedWorkspace:$bundle.ProtectedWorkspace) | Where-Object { $_ -cne 'config/targets.json' }) +
-        @('package-manifest.json', 'install-receipt.json')
-    foreach ($relative in $managed) { Remove-Item -LiteralPath (Join-Path $bundle.Root $relative) -Force }
-    # Deliberately retain the workspace directories, configuration, and collection data.
-    Write-Output 'COLLECTOR_SETUP_REMOVED config_retained=1 data_retained=1 tasks=0'
+    # Task所有照合と両名の不存在確認をnative側で完了してから管理fileを削除する。
+    & (Join-Path $bundle.Root 'DriverCrateCollectorSetup.exe') --uninstall $bundle.Root --yes
+    if ($LASTEXITCODE -ne 0) { throw 'SETUP_NATIVE_UNINSTALL_REJECTED' }
+
 }
 
 Export-ModuleMember -Function Get-CollectorPayloadFiles, Get-CollectorDefaultDirectory,

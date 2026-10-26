@@ -1,99 +1,55 @@
-# DriverCrate Collector 手動セットアップpreview
+# DriverCrate Collector
 
-Windows x64専用の未署名の開発用previewです。通常のDriverCrate.exeやdriver本体は同梱しません。
-配置先にビルド環境、外部PowerShell／Python、GPU、AIモデルは不要です。
-配置だけで収集、規約同意、Task登録、GitHub送信、driver導入を開始しません。
+Windows x64収集PC用のセットアップです。製品版0.1.1です。
+この版の自作EXEはコード署名なしです。通常のソースビルドは証明書不要です。
+driver本体と通常アプリは同梱しません。
+現行package-v7 / EXPLICIT_DISTRIBUTION_DATA_DAILYと配置receipt-v3だけを扱います。
+基本77payload（参考索引つきは83payload）とmanifest、CPython 3.13.16 x64全34file、研究seedと初期distribution dataを含みます。
+研究seedは127メーカー/6,584製品参照/1,718研究recordで、390 locatorと既存1 record用の収集profileがあります。
+これらは内容検査済みdriver数・INF数・実device適合数ではありません。
+初期packageはWindows 11向け2 record・1 sourceの参考索引を含みます。原期限2026-11-02 09:28:33 UTCを保持し、通信許可やnative authorityを付けません。
+旧package/receipt/local-index入口の互換・自動移行は提供しません。未知形式は既存dataを変更せず拒否します。
 
-## 配置
+`Install.cmd`は対象を確認して配置し、現在user用のnative metadata日次Task一件を毎日15時へ
+登録・有効読戻しします。即時収集・driver導入・索引署名/公開は開始しません。
+`Validate.cmd`は配置を非通信で検査します。固定原byte/hash/x64とcached-only PSF署名を要求します。
 
-1. ZIPと同名の`.sha256`を照合し、新しいfolderへ展開します。
-2. `Install.cmd`を開き、対象と変更を確認します。既定先は実行userの`%LOCALAPPDATA%\DriverCrate\Collector`です。
-3. 配置先の`Validate.cmd`で旧手動collectorの入力と保存領域を非通信検査します。
-4. `config/targets.json`を確認し、引数なし`Collect.cmd`で明示的に同意した場合だけ公式metadataを一回収集します。
+登録対象の追加・更新は外部台帳/locator/collection profileから可搬dataを生成し、
+`--import-data ROOT DATA --confirm-offline`で取り込みます。意味変更は確認待ちの先行importと別reviewが必要です。
+旧世代・元候補/期限・24時間待機・課金を保持し、索引の手編集やアプリの再buildを要求しません。
 
-別の新規先を使う形式は次のとおりです。大文字引数は確認済み絶対local pathへ置き換え、空白を含む値は引用します。
+汎用日次は`--enable-distribution-daily ROOT --confirm-daily-inspection-download`への別同意で、
+毎日17時の別所有Taskへ接続します。32job/64要求/32MiB/600秒・最低24時間待機と全INF検査を維持します。
+copy/import/validateではこの同意やTask所有を発行しません。private観測/鍵/driver本体を移設しません。
+停止snapshotは現行export-v1/v3だけを受理します。未確定予約は最大課金で保持します。
 
-```text
-DriverCrateCollectorSetup.exe --install INSTALL_ROOT
-DriverCrateCollectorSetup.exe --check-installed INSTALL_ROOT
-```
+同schemaの停止workspaceを現packageへ向け直す明示操作は
+`--workspace-switch-package ROOT ORIGINAL_SHA256 --confirm-source-stopped`です。
+正規の現install receiptと全payload、所有者が先にreviewした原workspace raw SHA-256、
+既存owner/ACL/三root/両origin/原planと確定停止を要求します。変更はpackage/seedの二hash値だけで、
+原workspace全byteを`package-switches/<原SHA-256>.json`へ保存してatomic切替します。
+原履歴・待機・課金・active dataを保持し、通信許可/Task/receiptを発行しません。
+通常操作の旧binding受理、旧codec/自動移行、異版の既存配置上書きは提供しません。
+原hashの再適用/中断pending/不確定runは保持して拒否し、別reviewなしにresetしません。
+新しい配置の正規installと切替、明示実行/日次同意は別操作です。10月25日の配布候補で、
+停止済み同一workspaceの実切替、同一dataのimport・workspace検証を確認しました。
 
-既存先は空でも上書きしません。共有・取り外しdrive・reparseを含むpathを拒否し、途中失敗を自動削除しません。
-SmartScreen、証明書警告、組織policyを回避しないでください。SHA-256は制作者認証ではありません。
-setupは長パス対応manifestを持ちますが、Windows側の設定に従い、全長・全shell・別PCの動作を保証しません。
-ExecutionPolicy、UAC、Defender、長パス設定を変更しません。
+`Uninstall.cmd`は両所有Taskの非実行・所有照合と正常不存在を確認後に管理programを削除します。
+不明/改変/失敗では保持します。config・seed・work/data・未知file・自己setupとUninstall.cmdは残します。
+旧管理者Taskをadopt・更新・削除せず、旧receipt混在は拒否します。stateを削除して待機を回避しません。
 
-## 同梱データと版
+同じv7単体セットアップで、通常installのTask登録・有効読戻しと、通常解除・所有Task不存在・data保持を
+確認しました。登録後のTaskは未実行の待機状態でした。
+10月24日の既存1 packageの実取得/INF2件のCAT・参照本体検査に合格しましたが、元runは投影0です。
+nested修正後のfresh実投影、公開前の最終ソース・文書・配布物の照合、別PC・Taskの実行/自然日次・実導入は未確認です。
+過去の有限成功を現byteの成功へ読み替えません。通常Taskは未署名候補までで、署名・公開を行いません。
 
-v1は旧二sourceの手動metadata版、v2は7 JSONの研究seed付きです。
-v3はsnapshot v4の8 JSON、固定10保守module、CPython 3.13.16 x64 embeddable全34 fileとmetadataを持つ64 payload版です。
-全runtime license／noticeを`runtime/LICENSE.txt`へ原byteで保持し、native、stdlib、`._pth`を変更しません。
-v4／v5は固定adapter、monitor policyと入口を加えた69 payload版です。
-配置・copy・package検査だけではPythonを起動しません。v4／v5の明示workspace操作は同梱runtimeを使用します。
+日次試行・週内一回程度の成功を運用目標とし、取得できない対象は元の失敗/HOLD理由と診断を残して
+後日切り分けます。全取得先の同時成功や七日運用を公開準備の前提にしません。
+未失効の前回成功は原byte/期限のまま利用し、全失敗で候補・公開assetを空の新世代へ置き換えません。
+手動prepare/sign/publishは七日超残存を必須にせず、実現在の原有効性を署名前・公開前・CAS直前も検査します。
+期限延長や待機resetは行いません。保護されたrun/result/本文と一般summaryを区別し、私有診断を公開しないでください。
 
-seedは未署名の研究情報です。件数は同梱snapshotのmanifestと索引のcountsで確認してください。
-snapshotとpackageの世代を区別し、調査件数を実収集数、driver対応、機器適合、導入許可へ換算しません。`researchOnly=true`、`publishable=false`、
-`installAuthorized=false`、`applicability=NOT_CHECKED`を維持します。
-旧Collect.cmdはASUS catalogと固定Intel Windows 11 Ethernet pageだけの手動経路で、台帳全体のmonitorではありません。
-終了値は全件確認0、部分失敗1、入力／状態拒否2、通信取消し3です。本体取得・導入は行いません。
-
-## v4の非通信workspace
-
-package、workspace、移設元／先は互いに別の非重複rootを使います。元collectorの停止と終端を確認します。
-停止flagは利用者の申告で、旧hostの遠隔停止ではありません。
-
-```text
-DriverCrateCollectorSetup.exe --workspace-initialize WORKSPACE --confirm-offline
-DriverCrateCollectorSetup.exe --workspace-verify WORKSPACE
-DriverCrateCollectorSetup.exe --workspace-export WORKSPACE EXPORT_ROOT --confirm-source-stopped
-DriverCrateCollectorSetup.exe --workspace-import NEW_WORKSPACE SNAPSHOT --confirm-source-stopped
-DriverCrateCollectorSetup.exe --workspace-resume NEW_WORKSPACE SNAPSHOT --confirm-source-stopped
-```
-
-保護DACL、祖先、reparse／hardlink、hash、閉集合、state／全reportを検査します。
-既存先や改変を拒否し、部分stateを保持します。resumeは中断した同一snapshotだけに使用します。
-元待機、失敗、旧成功を維持しても、通信許可はfalse、native制約と元日予算は未確認です。
-保護stateを単純copyして新しいrootから開始せず、鍵、credential、実inventory、Task、通信同意を移送しません。
-初期seedの配置は稼働stateの移設ではありません。
-
-## v5の明示一回monitor
-
-```text
-DriverCrateCollectorSetup.exe --workspace-bind-origins WORKSPACE NATIVE_ORIGIN MONITOR_ORIGIN --confirm-source-stopped
-DriverCrateCollectorSetup.exe --workspace-run-once WORKSPACE --confirm-monitor-once
-```
-
-既存の停止済みnative storeと非空monitor正本を実directory identity・保護anchor・元履歴へ結合します。
-正本が不明なら開始しません。copy／renameやmarkerだけで待機を初期化しません。
-同じ入口を`Collect.cmd --monitor-once WORKSPACE --confirm-monitor-once`でも指定できます。
-v4は非通信のままです。実正本bind／run、このPCの開始許可は未受入です。
-
-System32 curlの実file・hash・cached-only署名を検査し、別toolへfallbackしません。
-環境proxy／NO_PROXYとOSのrouteを尊重し、未対応・認証要求・解決失敗でDIRECTへ逃げません。
-公開target DNSとCONNECT先IP、元URLのTLS名・trustを維持し、proxy値・credential・URLをlogへ保存しません。
-保持中native writerの元履歴に一回contextを結合し、非共有PAGEだけを扱います。
-二held source、同URL alias、同native host、未知mode、未接続のcampaign／segmented共有予約はHOLDです。
-monitorは一回64要求／32MiB／600秒、24時間待機・host保留、外側660秒、非通信180秒を維持します。
-native campaignの共有JST日1200予約／1GiB／初予約から14400秒は別制約です。
-PAGE成功は本文・link hashとreview queueで、driver取得や公開可能索引の成功ではありません。
-
-## 検査・解除と制限
-
-`Uninstall.cmd`は対象を確認後、固定管理programとreceiptを解除します。v3以降のmodule／runtimeも管理対象です。
-`config/targets.json`、seed、work、未知file、setup EXEとUninstall.cmdは残します。
-v4／v5の固定`config/monitor-policy.json`は除去し、別workspaceは削除しません。
-改変・欠損・reparse時は拒否し、workspaceを再帰削除しません。
-
-現行ソースに対応するローカルv5 packageは、このPCで展開・配置・検査・保持／解除と非通信の初期化・検証・
-停止export／import・人工中断からのnative再開を有限に確認済みです。空のローカルmonitorによる確認で、
-実正本の結合・確認を伴うオンライン開始、実route／DNS／HTTP、日次七回・再起動後運用、別PC移設は未受入です。
-この確認は実際に検査したpackageに限り、後続の変更や別PCへ自動的に引き継ぎません。
-日次receipt／配布／Taskの保護運用は別で、setupから自動開始しません。
-現在の日次Taskは旧metadata-only構成で、acquisition-v2への配備・切替は未承認です。
-実driver導入、外部配布、Public化の許可を意味しません。本人がsource、README、最終公開一覧、検証結果を
-確認し別途明示承認するまで公開しません。
-
-Sourceとdocumentのlicenseはrepository rootの[LICENSE](../../LICENSE)、第三者表示は
-[THIRD_PARTY_NOTICES](../../THIRD_PARTY_NOTICES.md)を参照してください。
-配布packageでは、展開先直下に同梱する`LICENSE`と`THIRD_PARTY_NOTICES.md`を参照してください。
-作成者: Shunji Ogawa。Copyright (c) 2026 EnterSystem CO.,LTD.
+権利条件は同梱のLICENSE/THIRD_PARTY_NOTICES.md、または正式repositoryの
+[LICENSE](https://github.com/EnterOgawa/drivercrate/blob/main/LICENSE)と
+[THIRD_PARTY_NOTICES.md](https://github.com/EnterOgawa/drivercrate/blob/main/THIRD_PARTY_NOTICES.md)を参照してください。

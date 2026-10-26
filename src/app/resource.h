@@ -2,8 +2,8 @@
 /**
  * @file resource.h
  * @brief DriverCrateリソースID定義。
- * @version 01.13.00
- * @date 2026/09/01
+ * @version 01.13.01
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -81,6 +81,7 @@
  * Ver.01.11.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.12.00 Shunji Ogawa  2026/10/16  索引通信結果の可視導線と同版publicationの画面受入を追加。
  * Ver.01.13.00 Shunji Ogawa  2026/10/16  索引通信詳細の全文と数値末尾の実control観測を追加。
+ * Ver.01.13.01 Shunji Ogawa  2026/10/24  索引の期限・発行時刻拒否を説明するIDを追加。
  * </pre>
  *
  * @note Win32 control、icon、および日本語文字列のresource IDを定義します。
@@ -129,6 +130,8 @@
 #define IDS_INDEX_REFRESH_ATTEMPTED 1459
 // 保護storeの観測済み保存世代です。
 #define IDS_INDEX_REFRESH_PERSISTED 1460
+// 期限切れを含む発行日時・期限の検証拒否と次の確認操作を説明します。
+#define IDS_INDEX_REFRESH_INVALID_TIME 1461
 // 同じ非機密summaryだけを読む独立commandです。
 #define IDM_INDEX_REFRESH_DETAILS 3101
 

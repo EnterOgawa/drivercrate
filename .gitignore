@@ -26,34 +26,10 @@ dumps/
 *.dmp
 *.etl
 
-# Temporary analysis data
-work/tmp/
-work/state/
+# Local analysis/state and binary evidence stay outside source history.
+work/
 scripts/__pycache__/
-# Recovery-only AI source archive; never publish binary backup as application source.
-work/analysis/20261002-ai-removal-source-backup.zip
 
 # Local reference material; these files are not part of DriverCrate.
 snappy-driver-installer-origin-code-r886-trunk/
 snappy-driver-installer-origin-code-r886-trunk.zip
-work/indexes.zip
-work/analysis/__pycache__/
-# Original vendor settings and INF/CAT copies are local evidence, never release assets.
-work/analysis/20261005-child-dependency-config/*.zip
-work/analysis/20261005-child-dependency-copy/**/*.zip
-work/analysis/20261005-inf-only-configuration/*.zip
-work/analysis/20261005-inf-only-copy/**/*.zip
-work/analysis/20261005-copyinf-media-copy/**/*.zip
-# Audio/Ports original payloads and research-only copies are never publication assets.
-work/analysis/20261005-audio-ports-payloads/*.zip
-work/analysis/20261005-audio-ports-rme-retry-payloads/*.zip
-work/analysis/20261005-audio-ports-research/**/*.zip
-work/analysis/20261005-audio-ports-research/*.zip
-work/analysis/20261005-audio-ports-research-copy/**/*.zip
-work/analysis/20261005-maintenance-assessment/**/*.zip
-work/analysis/20261005-maintenance-assessment-copy/**/*.zip
-work/analysis/20261005-maintenance-exe-content/**/*.zip
-work/analysis/20261005-maintenance-exe-content-copy/**/*.zip
-work/analysis/20261005-rme-static/**/*.exe
-work/analysis/20261005-rme-embedded-content/**/*.zip
-work/analysis/20261005-rme-embedded-copy/**/*.zip

@@ -2,7 +2,7 @@
 /**
  * @file intel_ethernet_windows11_record_adapter.cpp
  * @brief Intel ZIP releaseの共通record変換とWindows 11互換resolverの実装。
- * @version 01.05.00
+ * @version 01.06.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/09/28  通常／収集field共有と727998の一時target照合を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/09/28  未知より明示矛盾を優先し配布欠測理由を補修。
  * Ver.01.05.00 Shunji Ogawa  2026/09/28  配布・許諾・identity・全対象へ同一controlを接続。
+ * Ver.01.06.00 Shunji Ogawa  2026/10/26  SHA-512を既存共通payloadへ区別して接続。
  * </pre>
  *
  * @note AdapterはProvider parserが選んだ一つのreleaseだけを変換し、URLやexact sizeを推測しません。
@@ -134,6 +135,20 @@ constexpr NativeError SOURCE_ACCESS_DENIED = static_cast<NativeError>( E_ACCESSD
 }
 
 /**
+ * @brief 公表されたSHA-512を切り詰めずASCII hexとして再確認します。
+ * @param[in] value 検証するhash文字列。
+ * @return 128桁の大小文字ASCII hexの場合true。
+ */
+[[nodiscard]] bool isSha512( const std::wstring_view value) noexcept
+{
+	return value.size() == 128U && std::ranges::all_of( value, []( const wchar_t character) {
+			   return (character >= L'0' && character <= L'9') ||
+					  (character >= L'A' && character <= L'F') ||
+					  (character >= L'a' && character <= L'f') ;
+		   }) ;
+}
+
+/**
  * @brief URLを除くIntel ZIP release fieldが選択familyのprofileと整合するか確認します。
  * @param[in] release 専用parserから得たrelease metadata。
  * @param[in] expectedFileName 配布版から構築した期待basename。
@@ -169,7 +184,9 @@ constexpr NativeError SOURCE_ACCESS_DENIED = static_cast<NativeError>( E_ACCESSD
 	}
 
 	// 公開hashとdownload前EULA snapshotの欠落・型違いを拒否する。
-	return isUpperSha256( release.publishedSha256) &&
+	return (!release.publishedSha256.empty() || !release.publishedSha512.empty()) &&
+		   (release.publishedSha256.empty() || isUpperSha256( release.publishedSha256)) &&
+		   (release.publishedSha512.empty() || isSha512( release.publishedSha512)) &&
 		   release.license == OfficialReleaseLicense::ACCEPTANCE_BEFORE_DOWNLOAD &&
 		   isFiniteText( control, release.eulaRevision, MAXIMUM_EULA_REVISION_CHARACTERS, false,
 						false) &&
@@ -275,6 +292,7 @@ void fillIntelZipRecordFields( OfficialReleaseRecord			&&release,
 	payload.fileDisplayName		= std::move( release.fileName) ;
 	payload.publishedSizeBytes	= release.publishedSizeBytes ;
 	payload.publishedSha256		= std::move( release.publishedSha256) ;
+	payload.publishedSha512		= std::move( release.publishedSha512) ;
 	payload.expectedContentType = CONTENT_TYPE ;
 	payload.maximumBytes		= MAXIMUM_PAYLOAD_BYTES ;
 	payload.targetUrl			= SecretOfficialUrl{std::move( release.downloadUrl)} ;
@@ -668,7 +686,7 @@ bool adaptIntelZipDistributionRecord( OfficialReleaseRecord		 &&release,
 
 		const std::uint32_t revision =
 			wifi	 ? 2U
-			: server ? 2U
+			: server ? 3U
 					 : INTEL_ETHERNET_WINDOWS11_RECORD_PARSER_REVISION ;	// 既存parser契約。
 		const std::wstring expectedFileName =
 			wifi

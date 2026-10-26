@@ -2,7 +2,7 @@
 /**
  * @file local_collector_collection_store_tests.cpp
  * @brief 親writer・子lease・保護階層を自身の実file fixtureで検査します。
- * @version 01.01.04
+ * @version 01.01.05
  * @date 2026/10/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.01.02   Shunji Ogawa  2026/10/18 既知fixtureの本文・保護・改変I/Oを長path表記へ揃える。
  * Ver.01.01.03   Shunji Ogawa  2026/10/18 既知fixtureの存在照会で長pathと不存在の判定を区別する。
  * Ver.01.01.04   Shunji Ogawa  2026/10/18 関数localのmount point wire型に所有権と配置契約を追記。
+ * Ver.01.01.05 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 自身がwork/tmpに新規作成した架空fileだけを変更し、実通信・導入は行いません。
@@ -566,7 +567,11 @@ void historyOwnership( TestContext &c, const std::filesystem::path &root)
 	require( parent->borrowHistorySegment( key( 2U), true, lease) == 0U) ;
 	auto *history = lease->history() ;	// Leaseと同じ寿命だけの非所有pointerです。
 	DRIVERCRATE_EXPECT( c, history && history->isWritable()) ;
-	require( history != nullptr) ;
+	// 借用に失敗したfixtureをdereferenceせず、元setup失敗を維持します。
+	if( history == nullptr) {
+		throw std::runtime_error( "collection store fixture setup failed") ;
+	}
+
 	const auto location = root / L"segments" / key( 2U) / L"history" ;	// Caller pathを採用しません。
 	DRIVERCRATE_EXPECT( c, history->root() == location) ;
 	// 再借用で同じ子schemaとidentityを維持する元canonical markerです。
@@ -658,7 +663,11 @@ void historyFault( TestContext &c, const std::filesystem::path &root, const std:
 	std::unique_ptr<LocalCollectorSegmentLease> lease ;	// 改変前に全handleを解放します。
 	require( parent.borrowHistorySegment( key( 2U), true, lease) == 0U) ;
 	auto *history = lease->history() ;	// Setup中だけの非所有借用です。
-	require( history != nullptr) ;
+	// 借用不成立は元fixture失敗のまま止め、write/rootを参照しません。
+	if( history == nullptr) {
+		throw std::runtime_error( "collection store fixture setup failed") ;
+	}
+
 	require( history->write( L"current/collector-campaign-mode-v1.json", "unverified-v3") == 0U) ;
 	require( history->write( L"runs/a.json", "keep") == 0U) ;
 	const auto path = history->root() ;	// 元固定配置だけを変更します。

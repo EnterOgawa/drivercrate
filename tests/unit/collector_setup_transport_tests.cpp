@@ -2,7 +2,7 @@
 /**
  * @file collector_setup_transport_tests.cpp
  * @brief 固定OS curlの共通publisher段階と従来policyを完全人工backendで確認します。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/10/17
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/17 VERIFY/CLOSE policyと元error伝播を検査。
  * Ver.01.00.01 Shunji Ogawa  2026/10/17 実prepareの専用policyを四case群で共有検査し実件数を表示。
+ * Ver.01.00.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 通常試験は完全fakeです。明示OS観測もcached-onlyで通信しません。
@@ -79,7 +80,13 @@ struct TransportCheckResult {
 LONG WINAPI fakeVerify( HWND, GUID *, LPVOID data)
 {
 	auto *trust = static_cast<WINTRUST_DATA *>( data) ;	// 同じABIの借用構造体。
-	invalidPolicy |= trust == nullptr || trust->dwUIChoice != WTD_UI_NONE ||
+	// 欠けた構造体はpolicy不一致として保持し、検証回数へ数えない。
+	if( trust == nullptr) {
+		invalidPolicy = true ;
+		return E_INVALIDARG ;
+	}
+
+	invalidPolicy |= trust->dwUIChoice != WTD_UI_NONE ||
 					 trust->fdwRevocationChecks != WTD_REVOKE_WHOLECHAIN ||
 					 trust->dwUnionChoice != WTD_CHOICE_FILE ||
 					 trust->dwProvFlags != expectedFlags || trust->pFile == nullptr ;
@@ -240,6 +247,14 @@ std::array<TransportCheckResult, 4U> transportChecks()
 
 		return results ;
 	}
+
+	// Null構造体は検証を開始せず、policy不一致と元引数errorを保持する。
+	const auto priorVerify = verifyCount ;								// Backend負例がVERIFYを増やさないことを確認する。
+	const auto priorClose  = closeCount ;								// Backend負例がCLOSEを増やさないことを確認する。
+	const LONG nullError   = fakeVerify( nullptr, nullptr, nullptr) ;	// 実WinTrustは呼ばない。
+	++results[3].checks ;
+	results[3].failures += nullError != E_INVALIDARG || !invalidPolicy ||
+						   verifyCount != priorVerify || closeCount != priorClose ;
 
 	// 両入口で成功、cache不足、失効、chain失敗を同じerrorのまま検査する。
 	for( const bool cached : {false, true}) {

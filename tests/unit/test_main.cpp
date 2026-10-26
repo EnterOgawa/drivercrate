@@ -2,8 +2,8 @@
 /**
  * @file test_main.cpp
  * @brief DriverCrate単体試験エントリーポイント。
- * @version 01.31.00
- * @date 2026/09/01
+ * @version 01.37.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -70,6 +70,13 @@
  * Ver.01.29.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.30.00 Shunji Ogawa  2026/10/17  署名索引のHTTP・実容量三group限定入口を追加。
  * Ver.01.31.00 Shunji Ogawa  2026/10/19  保護storeと認証移動の限定回帰入口を追加。
+ * Ver.01.32.00 Shunji Ogawa  2026/10/23  共通record値codecの限定回帰入口を追加。
+ * Ver.01.33.00 Shunji Ogawa  2026/10/23  実producer原manifest/GZipから候補までの有限入口を追加。
+ * Ver.01.33.01 Shunji Ogawa  2026/10/24 現行仕様へ限定し旧版専用の入口・移動を整理。
+ * Ver.01.34.00 Shunji Ogawa  2026/10/24  同集合の未照合native一recordを保持するfixture入口。
+ * Ver.01.35.00 Shunji Ogawa  2026/10/24  元Intel archiveの明示historical一件試験入口を追加。
+ * Ver.01.36.00 Shunji Ogawa  2026/10/26  Ethernet公開hashの非通信関連回帰入口を追加。
+ * Ver.01.37.00 Shunji Ogawa  2026/10/26 新metadata生成索引の原byteを通常reader/候補adapterへ接続。
  * </pre>
  *
  * @note 全unit test groupを順に実行し、process終了codeを返します。
@@ -180,6 +187,33 @@ int main( const int argc, const char *const argv[])
 	}
 
 	try {
+		// 元Intel一件だけを明示historical/実署名adapterへ通し、実inventory/導入を呼びません。
+		if( argc == 7 && argv != nullptr &&
+		   std::string_view{argv[1]} == "--distribution-application-native-archive-fixture" &&
+		   (std::string_view{argv[6]} == "0" || std::string_view{argv[6]} == "1" ||
+			std::string_view{argv[6]} == "2" || std::string_view{argv[6]} == "3")) {
+			drivercrate::test::runNativeIntelArchiveFixtureTests(
+				context, argv[2], argv[3], argv[4], argv[5],
+				static_cast<unsigned>( argv[6][0] - '0')) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 同producerの原byteを指定する専用fixtureだけを全旧groupと分離して実行します。
+		if( argc == 5 && argv != nullptr &&
+		   (std::string_view{argv[1]} == "--distribution-application-fixture" ||
+			std::string_view{argv[1]} == "--distribution-application-native-merge-fixture" ||
+			std::string_view{argv[1]} == "--metadata-bound-application-fixture")) {
+			drivercrate::test::runDistributionApplicationFixtureTests(
+				context, argv[2], argv[3], argv[4],
+				std::string_view{argv[1]} == "--distribution-application-native-merge-fixture",
+				std::string_view{argv[1]} == "--metadata-bound-application-fixture") ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
 		// 独立targetは変更moduleだけを固定順に実行し、通常aggregateと分離します。
 #if defined( DRIVERCRATE_INDEX_BINDING_STANDALONE)
 		// 独立processの分母を未知optionで変更しません。
@@ -195,10 +229,10 @@ int main( const int argc, const char *const argv[])
 		drivercrate::test::runCandidateAuditTests( context) ;
 		// 通常aggregateは既存の全groupと限定optionをそのまま維持します。
 #else
-		// 実DPAPIの自作rootだけで旧store回帰と移動回帰を固定実行します。
+		// 実DPAPIの自作rootだけで現在のstoreとtrust domain境界を固定実行します。
 		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-store") {
 			drivercrate::test::runSignedIndexStoreTests( context) ;
-			drivercrate::test::runSignedIndexStoreMigrationTests( context) ;
+			drivercrate::test::runSignedIndexStoreDomainTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
 					  << ", failures: " << context.failureCount() << '\n' ;
 			return context.failureCount() == 0 ? 0 : 1 ;
@@ -246,6 +280,14 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
+		// 共通record/descriptorの既存全条件だけを実行し、保存/実機groupへ進みません。
+		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-records") {
+			drivercrate::test::runSignedIndexRecordsTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
 		// RAM内のmanifest認証groupだけを実行し、保存や機器を扱うgroupへ進みません。
 		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-manifest") {
 			drivercrate::test::runSignedIndexManifestTests( context) ;
@@ -275,6 +317,17 @@ int main( const int argc, const char *const argv[])
 		if( argc == 2 && (std::string_view{argv[1]} == "--signed-index-record-lookup" ||
 						 std::string_view{argv[1]} == "--index-candidate-binding")) {
 			drivercrate::test::runSignedIndexRecordLookupTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
+		// 公開hash形式修正に必要なparser/record/grant/取得fakeだけを有限実行します。
+		if( argc == 2 && std::string_view{argv[1]} == "--intel-ethernet-metadata") {
+			drivercrate::test::runIntelEthernetServerPageParserTests( context) ;
+			drivercrate::test::runOfficialReleaseMetadataTests( context) ;
+			drivercrate::test::runOfficialDownloadGrantTests( context) ;
+			drivercrate::test::runOfficialAcquisitionTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
 					  << ", failures: " << context.failureCount() << '\n' ;
 			return context.failureCount() == 0 ? 0 : 1 ;
@@ -322,7 +375,7 @@ int main( const int argc, const char *const argv[])
 		drivercrate::test::runSignedIndexRefreshTests( context) ;
 		drivercrate::test::runSignedIndexRecordsTests( context) ;
 		drivercrate::test::runSignedIndexStoreTests( context) ;
-		drivercrate::test::runSignedIndexStoreMigrationTests( context) ;
+		drivercrate::test::runSignedIndexStoreDomainTests( context) ;
 		drivercrate::test::runSignedIndexRecordLookupTests( context) ;
 		drivercrate::test::runProtectedInstallTests( context) ;
 		drivercrate::test::runNvidiaCatalogParserTests( context) ;

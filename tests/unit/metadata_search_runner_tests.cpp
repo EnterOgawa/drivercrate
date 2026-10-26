@@ -2,7 +2,7 @@
 /**
  * @file metadata_search_runner_tests.cpp
  * @brief 専用Registry実行と表示専用終端の決定的試験。
- * @version 01.02.01
+ * @version 01.02.02
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.01.02 Shunji Ogawa  2026/10/12  不成立結果のoptionalを参照しないfixtureへ補正。
  * Ver.01.02.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
  * Ver.01.02.01 Shunji Ogawa  2026/10/12  索引専用callback空と選択拒否・不成立fixtureの参照安全を確認。
+ * Ver.01.02.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note OS列挙とnetworkをfakeに置換し、実payloadと実導入を呼ばない。
@@ -445,7 +446,10 @@ void testRunner( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !result.metadataSearch && result.outcome == OutcomeCode::FAILURE &&
 									result.candidates.empty()) ;
 
-	CompositeUpdateProvider		   composite ;	// Constructorと既取消し専用scanだけで実APIを避ける。
+	const auto compositeOwner =
+		std::make_unique<CompositeUpdateProvider>() ;	// 大きなfixtureを元scopeだけで所有します。
+
+	auto &composite = *compositeOwner ;	// Constructorと既取消し専用scanだけで実APIを避ける。
 	MetadataSearchExecutionContext cancelled( SESSION, request,
 											 [] { return true ; }) ;	// 最初から取消し。
 	result =

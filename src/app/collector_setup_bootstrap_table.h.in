@@ -1,0 +1,49 @@
+//------------------------------------------------------------------------------
+/**
+ * @file collector_setup_bootstrap_table.h.in
+ * @brief 閉じたresource tableの生成元を定義します。
+ * @version 01.00.00
+ * @date 2026/10/20
+ * @author Shunji Ogawa
+ * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
+ *
+ * @par ライセンス
+ * SPDX-License-Identifier: Apache-2.0
+ * 本ファイルには Apache License, Version 2.0 が適用されます。
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @par 会社名
+ * EnterSystem
+ *
+ * @par 更新履歴
+ * <pre>
+ * VerNo.       author        update      comment
+ * Ver.01.00.00 Shunji Ogawa  2026/10/20 固定resource閉包の生成元を追加。
+ * </pre>
+ *
+ * @note 生成済みtableはbuild/generatedだけへ保存します。
+ */
+//------------------------------------------------------------------------------
+#pragma once
+#include <array>
+#include <cstdint>
+#include <string_view>
+
+namespace drivercrate {
+/** @brief 一つのraw resourceを固定ID・path・size・SHA-256へ結合します。 */
+struct CollectorEmbeddedResource {
+	/// compile時の固定相対名。
+	std::wstring_view path ;
+	/// 4000から始まる固定整数ID。
+	std::uint16_t resourceId ;
+	/// 実resourceに要求するbyte数。
+	std::uint64_t bytes ;
+	/// 小文字64桁の原SHA-256。
+	std::wstring_view sha256 ;
+} ;
+// builderが既存package validatorで受理した全fileだけを固定順に生成する。
+inline constexpr std::array<CollectorEmbeddedResource, @COLLECTOR_RESOURCE_COUNT@> EMBEDDED_RESOURCES{{
+@COLLECTOR_RESOURCE_ROWS@
+}} ;
+} // namespace drivercrate

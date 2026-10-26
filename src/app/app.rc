@@ -2,8 +2,8 @@
 /**
  * @file app.rc
  * @brief DriverCrate Windows resource定義。
- * @version 01.13.01
- * @date 2026/09/01
+ * @version 01.13.03
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -86,6 +86,8 @@
  * Ver.01.12.00 Shunji Ogawa  2026/10/16  索引通信結果の可視導線と同版publicationの画面受入を追加。
  * Ver.01.13.00 Shunji Ogawa  2026/10/16  索引通信詳細の全文と数値末尾の実control観測を追加。
  * Ver.01.13.01 Shunji Ogawa  2026/10/19  内容部分結果と候補別導入可否・未導入を区別する。
+ * Ver.01.13.02 Shunji Ogawa  2026/10/24  索引の期限・発行時刻拒否を既存通信結果へ説明。
+ * Ver.01.13.03 Shunji Ogawa  2026/10/24  実行ファイルの権利表示を採用表記へ統一。
  * </pre>
  *
  * @note Application icon、executable version、manifest、および日本語UI文字列を定義します。
@@ -178,7 +180,7 @@ BEGIN
 			VALUE "FileDescription", "DriverCrate - Windows driver update manager"
 			VALUE "FileVersion", DRIVERCRATE_VERSION_STRING
 			VALUE "InternalName", "DriverCrate"
-			VALUE "LegalCopyright", "Copyright (C) 2026 Shunji Ogawa"
+			VALUE "LegalCopyright", "Copyright (c) 2026 EnterSystem CO.,LTD."
 			VALUE "OriginalFilename", "DriverCrate.exe"
 			VALUE "ProductName", "DriverCrate"
 			VALUE "ProductVersion", DRIVERCRATE_VERSION_STRING
@@ -603,6 +605,7 @@ BEGIN
 	IDS_INDEX_REFRESH_COMMIT "commit区分: %1"
 	IDS_INDEX_REFRESH_ATTEMPTED "manifest世代: %1"
 	IDS_INDEX_REFRESH_PERSISTED "保存世代: %1"
+	IDS_INDEX_REFRESH_INVALID_TIME "索引の期限切れ、または発行日時の不整合です。PCの日時を確認し、配布索引の更新後に再検索してください。"
 	IDS_INDEX_PLAN_COUNTS "索引取得対象 / 不足・未対応関係 / 保持枠超過: %1"
 	IDS_INDEX_ROUTING_PENDING "索引は収集者確認です。Windows適合・候補発行・指定導入の結果は個別表示を確認してください。取得や内容検査の完了は導入成功ではありません。"
 	IDS_INDEX_CONTENT_COMPLETED "索引の共通内容検査は完了しました。個別INFの拒否と内容合格を別に示します。"

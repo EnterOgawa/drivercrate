@@ -212,12 +212,12 @@ class DistributionProjectionTests(unittest.TestCase):
         self.scope.update(schema="dc-fixed-distribution-acquisition-scope-v1",
                           keyId=projection.DISTRIBUTION_KEY_ID,
                           publicFingerprint=projection.DISTRIBUTION_PUBLIC_FINGERPRINT,
-                          projectionPolicyRevision=1)
+                          projectionPolicyRevision=projection.DISTRIBUTION_PROJECTION_POLICY_REVISION)
         payload = "https://downloadmirror.intel.com/923981/Wired_driver_31.2.2_x64.zip"
         terms = "Artificial complete terms; no real consent or official observation."
         self.body = (f'<button data-modal-id="1" data-href="{payload}" class="available-download-button__cta"></button>'
-                     '<div id="licenseModal" class="license-modal__dialog"></div>'
-                     f'<textarea id="content-raw" class="license-modal-content_body_license-text-raw">{terms}</textarea>'
+                     '<div id="licenseModal" class="license-modal__dialog">'
+                     f'<textarea id="content-raw" class="license-modal-content_body_license-text-raw">{terms}</textarea></div>'
                      '<div class="license-modal-big-bag-container"></div>'
                      '<button class="license-modal-content-license__btn--btn-accept"></button>'
                      '<a class="license-modal-content-footer-download__restart-link"></a>').encode("utf-8")
@@ -332,7 +332,7 @@ class DistributionProjectionTests(unittest.TestCase):
         """全scope field/型/固定pinとCLI用途・入力集合を正負で確認する。"""
         changes = [(key, None) for key in self.scope]
         changes += [("schema", "dc-fixed-collector-native-index-scope-v1"), ("targetCount", True),
-                    ("targetCount", 1.0), ("projectionPolicyRevision", True), ("projectionPolicyRevision", 2),
+                    ("targetCount", 1.0), ("projectionPolicyRevision", True), ("projectionPolicyRevision", 1),
                     ("source", "OTHER"), ("sourceId", "other"), ("recordId", "other"),
                     ("distributionPage", "https://invalid.example/"), ("collectorManifestSha256", "F"*64),
                     ("publicFingerprint", "0"*64), ("keyId", "local-index-artificial"),
@@ -541,7 +541,7 @@ class DailyDistributionProjectionTests(unittest.TestCase):
                 self.assertEqual(report["originalFetchedAt"], receipt["lastFetchedAt"])
                 self.assertEqual(report["previousReceiptSha256"], receipt["previousReceiptSha256"])
                 self.assertEqual((report["newHttp200Count"], report["revalidatedHttp304Count"]), (1, 0))
-                self.assertEqual(json.loads(manifest)["expiresAtUtc"], "2026-10-14T12:59:30Z")
+                self.assertEqual(json.loads(manifest)["expiresAtUtc"], "2026-10-21T12:59:30Z")
 
     def test_d02_original_304(self):
         """D02。旧fetchedと今回validatedを分け、304を200に換算しない。"""
@@ -558,7 +558,7 @@ class DailyDistributionProjectionTests(unittest.TestCase):
                 self.assertLess(receipt["lastFetchedAt"], receipt["lastAttemptAt"])
                 self.assertEqual(report["previousReceiptSha256"], receipt["previousReceiptSha256"])
                 self.assertEqual(json.loads(manifest)["generation"], generation)
-                self.assertEqual(json.loads(manifest)["expiresAtUtc"], "2026-10-14T12:59:30Z")
+                self.assertEqual(json.loads(manifest)["expiresAtUtc"], "2026-10-21T12:59:30Z")
 
     def test_d03_original_three_paths(self):
         """D03。旧三入口の用途を保持し、別guard内でbefore原byteとも比較する。"""

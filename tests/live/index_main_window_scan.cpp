@@ -2,8 +2,8 @@
 /**
  * @file index_main_window_scan.cpp
  * @brief 明示通常MainWindowの実索引照合と対象限定の規約・検査用取得を観測します。
- * @version 01.05.00
- * @date 2026/10/14
+ * @version 01.05.01
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -27,6 +27,7 @@
  * Ver.01.04.01 Shunji Ogawa  2026/10/15  実取得完了eventの非機密監査件数を通常handler前に観測。
  * Ver.01.04.02 Shunji Ogawa  2026/10/15  正規更新世代5の固定観測と選択INF ordinalの通常表示を確認。
  * Ver.01.05.00 Shunji Ogawa  2026/10/15  入れ子dialogの実worker配送を一回観測し非通信拒否で確認。
+ * Ver.01.05.01 Shunji Ogawa  2026/10/24  通常refreshの原HTTP・署名・保存拒否を匿名観測へ追加。
  * </pre>
  *
  * @note Fake DTO/factoryを使いません。通常workerの固定record規約metadataだけを明示scopeで読みます。
@@ -989,6 +990,29 @@ struct MainWindowLiveIndexTestAccess {
 		}
 
 		const auto &summary = window.indexScanSummary_ ;	// 同実eventの索引件数です。
+		// 同workerが保持した非機密なrefresh結果だけを出し、URLや索引本文は保存しません。
+		if( summary.refresh) {
+			const auto &refresh = *summary.refresh ;	// 実refreshの元結果を借用します。
+			std::printf( "NORMAL_INDEX_REFRESH status=%u sends=%u receivedBytes=%llu httpStatus=%u "
+						"httpError=0x%08lx error=0x%08lx manifestObserved=%u manifestStatus=%u "
+						"assetObserved=%u assetStatus=%u recordsObserved=%u recordsStatus=%u "
+						"storeStatus=%u storeError=0x%08lx usedAuthenticatedCache=%u\n",
+						static_cast<unsigned>( refresh.status), refresh.sends,
+						static_cast<unsigned long long>( refresh.receivedBytes), refresh.httpStatus,
+						static_cast<unsigned long>( refresh.httpError),
+						static_cast<unsigned long>( refresh.error),
+						static_cast<unsigned>( refresh.manifestStatus.has_value()),
+						refresh.manifestStatus ? static_cast<unsigned>( *refresh.manifestStatus)
+											   : 0U,
+						static_cast<unsigned>( refresh.assetStatus.has_value()),
+						refresh.assetStatus ? static_cast<unsigned>( *refresh.assetStatus) : 0U,
+						static_cast<unsigned>( refresh.recordsStatus.has_value()),
+						refresh.recordsStatus ? static_cast<unsigned>( *refresh.recordsStatus) : 0U,
+						static_cast<unsigned>( refresh.store.status),
+						static_cast<unsigned long>( refresh.store.error),
+						static_cast<unsigned>( refresh.usedAuthenticatedCache)) ;
+		}
+
 		std::printf(
 			"NORMAL_MAIN_WINDOW_SCAN state=%u devices=%llu records=%zu processed=%zu "
 			"matched=%zu undetermined=%zu indexCandidates=%zu indexSelected=%zu "

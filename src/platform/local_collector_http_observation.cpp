@@ -2,7 +2,7 @@
 /**
  * @file local_collector_http_observation.cpp
  * @brief 観測の固定field・原値・欠測を厳密に保存します。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/27
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/27  応答v3・所有worker回収を追加。
  * Ver.01.00.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.00.02 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
  * </pre>
  *
  * @note 開発用の有限収集に限定し、製品の取得・導入を許可しません。
@@ -118,7 +119,11 @@ void putNumber( const Object &object, const wchar_t *name, std::optional<std::ui
 template <std::size_t N>
 std::wstring_view named( const std::array<std::wstring_view, N> &values, std::size_t value)
 {
-	require( value < N) ;
+	// 未定義ordinalは元codecと同じ例外で止め、表の範囲外を参照しない。
+	if( value >= N) {
+		throw std::invalid_argument( "collector io observation") ;
+	}
+
 	return values[value] ;
 }
 /** @brief 未知名を拒否してordinalを読みます。

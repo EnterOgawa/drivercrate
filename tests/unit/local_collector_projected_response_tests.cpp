@@ -2,7 +2,7 @@
 /**
  * @file local_collector_projected_response_tests.cpp
  * @brief 応答v4の往復・改変・失敗数値の保持を検証します。
- * @version 01.02.01
+ * @version 01.02.02
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,11 +23,13 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/29  前日参照・件数変化・改変と原失敗を検査。
  * Ver.01.02.00 Shunji Ogawa  2026/09/29  CACHE型と28履歴更新のfixtureを接続。
  * Ver.01.02.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.02.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 改変値はcodec拒否試験専用です。成功workerや履歴の真正性を作りません。
  */
 //------------------------------------------------------------------------------
+#include <memory>
 #include "local_collector_projected_response_tests.h"
 #include "local_collector_projected_cache_tests.h"
 #include "platform/local_collector_http_observation.h"
@@ -600,7 +602,9 @@ void runCollectorProjectedHistoryChecks(
 	}
 
 	const std::array noMatchHistory{history.at( 100U)} ;	// 200でも対象一致がない前日結果。
-	Final			 rejected ;								// 同requestでもACCEPTED履歴にはできません。
+	const auto		 rejectedOwner =
+		std::make_unique<Final>() ;		// 大きなfixtureを元scopeだけで所有します。
+	auto &rejected = *rejectedOwner ;	// 同requestでもACCEPTED履歴にはできません。
 	DRIVERCRATE_EXPECT(
 		context, finalizeCollectorProjectedHistory( *prepared->job( 0U), workers.at( 114U),
 												   *workers.at( 114U).io.finishedUtcMillis + 2U,
@@ -619,8 +623,10 @@ void runCollectorProjectedHistoryChecks(
 			}
 
 			const auto &job = *prepared->job( worker.binding.jobIndex) ;	// 同scopeの不変job。
-			Final		result ;											// 失敗時に古い結果を残さないことも確認します。
-			const auto	status =
+			const auto	resultOwner =
+				std::make_unique<Final>() ;		// 大きなfixtureを元scopeだけで所有します。
+			auto	  &result = *resultOwner ;	// 失敗時に古い結果を残さないことも確認します。
+			const auto status =
 				finalizeCollectorProjectedHistory( job, worker, *worker.io.finishedUtcMillis + 2U,
 												  entries, result) ;	// 先にhashを作らない入口。
 			context.expect( status.status == Status::OK,
@@ -663,7 +669,10 @@ void runCollectorProjectedHistoryChecks(
 								 worker.projection.records[i].value.stableFingerprint.bytes) ;
 			}
 
-			Bytes bytes ;	// 最終化した後にだけhash／外側を生成します。
+			const auto bytesOwner =
+				std::make_unique<Bytes>() ;	// 大きなfixtureを元scopeだけで所有します。
+
+			auto &bytes = *bytesOwner ;	// 最終化した後にだけhash／外側を生成します。
 			DRIVERCRATE_EXPECT( context, encodeCollectorProjectedResponseWithFallback(
 											job.value(), result.response, bytes)
 												.result.status == Status::OK) ;
@@ -680,7 +689,8 @@ void runCollectorProjectedHistoryChecks(
 						   const CollectorProjectedHashProbe &probe = {}) {
 		  return finalizeCollectorProjectedHistory( job, worker, accepted, entries, output, probe) ;
 	} ; // 各caseの出力は独立にし、同一失敗のretryを行いません。
-	Final empty ;	// 空履歴は登録不在の証明ではありません。
+	const auto emptyOwner = std::make_unique<Final>() ;	// 大きなfixtureを元scopeだけで所有します。
+	auto	  &empty	  = *emptyOwner ;				// 空履歴は登録不在の証明ではありません。
 	DRIVERCRATE_EXPECT( context, run( {}, empty).status == Status::OK && empty.comparedSlices == 0U &&
 									!empty.previousFull200) ;
 	const std::array<std::function<void( Evidence &)>, 15> mutations{
@@ -718,7 +728,9 @@ void runCollectorProjectedHistoryChecks(
 		 std::vector<Evidence>{historyFixture( context, definition, worker, false)},
 		 std::vector<Evidence>{history.at( 19U), history.at( 19U)},
 		 std::vector<Evidence>( 17U, history.at( 19U))}) {
-		Final result ;	// 停止時は全出力空。
+		const auto resultOwner =
+			std::make_unique<Final>() ;	// 大きなfixtureを元scopeだけで所有します。
+		auto &result = *resultOwner ;	// 停止時は全出力空。
 		DRIVERCRATE_EXPECT( context, run( entries, result).status == Status::INVALID &&
 										result.response.generation.empty() &&
 										!result.previousFull200) ;
@@ -728,7 +740,9 @@ void runCollectorProjectedHistoryChecks(
 	changedDefinition.artifactSha256.assign( 64U, L'c') ;
 	std::array different{	// 同request別binding。
 						 historyFixture( context, changedDefinition, workers.at( 19U))} ;
-	Final	   mismatch ;	// 破損と正当な旧bindingを区別します。
+	const auto mismatchOwner =
+		std::make_unique<Final>() ;		// 大きなfixtureを元scopeだけで所有します。
+	auto &mismatch = *mismatchOwner ;	// 破損と正当な旧bindingを区別します。
 	DRIVERCRATE_EXPECT( context, run( different, mismatch).status == Status::OK &&
 									mismatch.comparedSlices == 0U && !mismatch.previousFull200 &&
 									mismatch.response.metadata.reason == Reason::NONE) ;
@@ -739,14 +753,17 @@ void runCollectorProjectedHistoryChecks(
 	auto noTag = workers.at( 19U) ;	// 欠測validatorを生成しない合成fixture。
 	noTag.http.entityTag.clear() ;
 	const std::array withoutValidator{historyFixture( context, definition, noTag)} ;	// 正常全成功。
-	Final			 noValidator ;														// 元200は存在するが条件付き送信の権限はありません。
+	const auto		 noValidatorOwner =
+		std::make_unique<Final>() ;			// 大きなfixtureを元scopeだけで所有します。
+	auto &noValidator = *noValidatorOwner ;	// 元200は存在するが条件付き送信の権限はありません。
 	DRIVERCRATE_EXPECT( context, run( withoutValidator, noValidator).status == Status::OK &&
 									noValidator.previousFull200 && !noValidator.previousValidator) ;
 	// Codecを通る時刻改変・別intentでも元予約との再結合で停止します。
 	for( unsigned mode = 0U; mode < 5U; ++mode) {
-		std::array entries{history.at( 19U)} ;	// 独立した前日二件の元byte。
-		auto	  &entry = entries[0] ;			// このcaseだけを書き換えます。
-		Bytes	   old ;						// 既存応答codec自身では有効な所有値。
+		std::array entries{history.at( 19U)} ;				// 独立した前日二件の元byte。
+		auto	  &entry	= entries[0] ;					// このcaseだけを書き換えます。
+		const auto oldOwner = std::make_unique<Bytes>() ;	// 大きなfixtureを元scopeだけで所有します。
+		auto	  &old		= *oldOwner ;					// 既存応答codec自身では有効な所有値。
 		DRIVERCRATE_EXPECT(
 			context, decodeCollectorProjectedResponse( entry.campaign->job( entry.jobIndex)->value(),
 													  entry.envelope, old)
@@ -761,7 +778,10 @@ void runCollectorProjectedHistoryChecks(
 				old.value.io.deadlineUtcMillis -= 1000U ;
 			}
 
-			Bytes changed ;	// hashも正しく再計算した改変物。
+			const auto changedOwner =
+				std::make_unique<Bytes>() ;	// 大きなfixtureを元scopeだけで所有します。
+
+			auto &changed = *changedOwner ;	// hashも正しく再計算した改変物。
 			DRIVERCRATE_EXPECT( context,
 							   encodeCollectorProjectedResponse(
 								   entry.campaign->job( entry.jobIndex)->value(), old.value, changed)
@@ -819,7 +839,9 @@ void runCollectorProjectedHistoryChecks(
 											.status == Status::OK) ;
 		forged[0].response = outer.responseSha256 ;
 		forged[0].projection.assign( 64U, L'f') ;
-		Final result ;	// 二つの参照hashを書き換えても元metadataを再検証します。
+		const auto resultOwner =
+			std::make_unique<Final>() ;	// 大きなfixtureを元scopeだけで所有します。
+		auto &result = *resultOwner ;	// 二つの参照hashを書き換えても元metadataを再検証します。
 		DRIVERCRATE_EXPECT( context, run( forged, result).status == Status::INVALID &&
 										result.response.generation.empty()) ;
 	}
@@ -829,27 +851,30 @@ void runCollectorProjectedHistoryChecks(
 		// 数値OOMと実例外も分けます。
 		for( const unsigned mode : {0U, 1U, 2U}) {
 			const std::array entries{history.at( 19U)} ;	// 元byteをそのまま読む。
-			Final			 result ;						// 故障後の公開値なし。
-			unsigned		 calls{} ;						// 同一hashを再試行しない。
-			const auto		 status = run( entries, result, [&]( Stage current) -> NativeError {
-				  // 別hash段階は本物のCNGへ進みます。
-				  if( current != stage) {
-					  return 0 ;
-				  }
+			const auto		 resultOwner =
+				std::make_unique<Final>() ;		// 大きなfixtureを元scopeだけで所有します。
+			auto	  &result = *resultOwner ;	// 故障後の公開値なし。
+			unsigned   calls{} ;				// 同一hashを再試行しない。
+			const auto status = run( entries, result, [&]( Stage current) -> NativeError {
+				// 別hash段階は本物のCNGへ進みます。
+				if( current != stage) {
+					return 0 ;
+				}
 
-				  ++calls ;
-				  // 例外OOMの捕捉境界を確認します。
-				  if( mode == 2U) {
-					  throw std::bad_alloc{} ;
-				  }
+				++calls ;
+				// 例外OOMの捕捉境界を確認します。
+				if( mode == 2U) {
+					throw std::bad_alloc{} ;
+				}
 
-				  return mode == 0U ? E_ACCESSDENIED : E_OUTOFMEMORY ;
-			  }) ; // 成功digestを注入するcallbackではありません。
+				return mode == 0U ? E_ACCESSDENIED : E_OUTOFMEMORY ;
+			}) ; // 成功digestを注入するcallbackではありません。
 			DRIVERCRATE_EXPECT(
 				context,
 				status.status == (mode == 0U ? Status::HASH_FAILURE : Status::OUT_OF_MEMORY) &&
-					status.error == (mode == 0U ? E_ACCESSDENIED : E_OUTOFMEMORY) && calls == 1U &&
-					result.response.generation.empty() && !result.previousFull200) ;
+					status.error ==
+						static_cast<NativeError>( mode == 0U ? E_ACCESSDENIED : E_OUTOFMEMORY) &&
+					calls == 1U && result.response.generation.empty() && !result.previousFull200) ;
 		}
 	}
 }

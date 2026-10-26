@@ -20,6 +20,7 @@
     "cmake/RejectRetiredAiOptions.cmake",
     "cmake/local_index_acceptance.h.in",
     "data/collector-registry/README.md",
+    "data/collector-registry/collection-profiles.json",
     "data/collector-registry/condition-reviews.json",
     "data/collector-registry/link-completion-20261006.json",
     "data/collector-registry/locators.json",
@@ -28,6 +29,7 @@
     "data/collector-registry/registry.json",
     "data/collector-registry/sample-plan.json",
     "docs/adr/0141-revised-source-standard-contract.md",
+    "docs/adr/0198-published-sha512-acquisition-binding.md",
     "docs/adr/0209-local-first-recurring-driver-collector.md",
     "docs/adr/0371-collector-legacy-store-extended-paths.md",
     "docs/adr/0372-test-only-private-desktop-lifecycle.md",
@@ -37,13 +39,43 @@
     "docs/adr/0376-verified-unsigned-presign-caller-refresh.md",
     "docs/adr/0377-asset-upload-length-and-pinned-draft-recovery.md",
     "docs/adr/0379-local-prepublication-verification-without-actions.md",
-    "docs/adr/0380-signed-index-trust-domain-store-migration.md",
+    "docs/adr/0381-public-daily-index-publisher-identity.md",
+    "docs/adr/0382-public-daily-config-and-history-transition.md",
+    "docs/adr/0383-public-history-and-fresh-due-transition.md",
+    "docs/adr/0384-public-daily-cycle-context-and-cli.md",
+    "docs/adr/0385-public-anonymous-index-readback.md",
+    "docs/adr/0386-collector-single-exe-installer-delivery.md",
+    "docs/adr/0387-collector-embedded-bootstrap-and-local-index.md",
+    "docs/adr/0388-collector-child-system-drive.md",
+    "docs/adr/0389-collector-native-approved-working-directory.md",
+    "docs/adr/0390-local-daily-task-and-public-package-readiness.md",
+    "docs/adr/0391-idempotent-collector-python-import-path.md",
+    "docs/adr/0392-collector-owned-task-uninstall.md",
+    "docs/adr/0393-collector-regular-file-entry.md",
+    "docs/adr/0394-collector-user-task-install-lifecycle.md",
+    "docs/adr/0395-data-driven-collector-expansion.md",
+    "docs/adr/0396-collector-distribution-pipeline-connection.md",
+    "docs/adr/0397-release-completion-and-index-expiry-compatibility.md",
+    "docs/adr/0398-collector-complete-page-body-retention.md",
+    "docs/adr/0399-collector-terminal-page-content-comparison.md",
+    "docs/adr/0400-intel-failed-page-diagnostic-capture.md",
+    "docs/adr/0401-retained-workspace-capacity-preflight.md",
+    "docs/adr/0402-partial-collection-and-release-priority.md",
+    "docs/adr/0403-independent-producer-publication-input.md",
+    "docs/adr/0404-intel-ethernet-published-sha512-parser.md",
+    "docs/adr/0405-metadata-bound-native-acquisition.md",
+    "docs/adr/0406-verified-authenticode-build-transition.md",
+    "docs/adr/0407-explicit-held-host-baseline-review.md",
+    "docs/adr/0408-protected-candidate-staging.md",
+    "docs/adr/0409-published-index-release-classification.md",
+    "docs/adr/0410-collector-seeded-reference-payload.md",
     "docs/architecture.md",
     "docs/c_cpp_coding_standard.md",
     "docs/collector-setup-guide.md",
     "docs/evaluation/local-collector-campaign-v1.json",
     "docs/examples/c_cpp_coding_standard_sample.cpp",
     "docs/release-checklist.md",
+    "docs/release-notes-0.1.1.md",
     "docs/security.md",
     "docs/testing.md",
     "docs/user-guide.md",
@@ -67,6 +99,9 @@
     "scripts/build_local_official_metadata_index.ps1",
     "scripts/check_public_source_closure.py",
     "scripts/check_source_standard.py",
+    "scripts/collector_collection_profiles.py",
+    "scripts/collector_distribution_data.py",
+    "scripts/collector_distribution_pipeline.py",
     "scripts/collector_family_conditions.py",
     "scripts/collector_html_document.py",
     "scripts/collector_large_payload_evidence.py",
@@ -90,6 +125,7 @@
     "scripts/index_build_profile.ps1",
     "scripts/inspect_large_registry_payloads.py",
     "scripts/local_index_build_pin.py",
+    "scripts/package-collector-installer.ps1",
     "scripts/package-collector.ps1",
     "scripts/package-release.ps1",
     "scripts/prepare_control_comment_patterns.py",
@@ -103,17 +139,28 @@
     "scripts/registry_locator_requests.py",
     "scripts/registry_monitor_http.py",
     "scripts/registry_page_requests.py",
+    "scripts/release_signing.ps1",
     "scripts/select_registry_sfx_members.py",
     "scripts/source-audit.doxyfile",
     "scripts/source_comments.py",
     "scripts/source_structure.py",
     "scripts/source_style.py",
+    "scripts/test-collector-installer.ps1",
     "scripts/test-collector-setup.ps1",
+    "scripts/test-collector-user-task-integration.ps1",
     "scripts/test-non-ai-build.ps1",
     "scripts/test-seeded-collector-package.ps1",
     "scripts/test-seeded-collector-setup.ps1",
     "scripts/test_acquire_registry_samples.ps1",
+    "scripts/test_candidate_publication.py",
+    "scripts/test_candidate_publication_native.py",
+    "scripts/test_candidate_publish_path.py",
+    "scripts/test_collector_collection_profiles.py",
+    "scripts/test_collector_distribution_candidate.py",
+    "scripts/test_collector_distribution_data.py",
+    "scripts/test_collector_distribution_pipeline.py",
     "scripts/test_collector_family_conditions.py",
+    "scripts/test_collector_held_host_review.py",
     "scripts/test_collector_html_document.py",
     "scripts/test_collector_large_payload_evidence.py",
     "scripts/test_collector_literal_downloads.py",
@@ -137,6 +184,7 @@
     "scripts/test_common_page_routes.py",
     "scripts/test_daily_index_pipeline.py",
     "scripts/test_derive_registry_inf_closures.py",
+    "scripts/test_distribution_native_fixture.py",
     "scripts/test_doxygen_members.py",
     "scripts/test_guarded_daily_task_cutover.ps1",
     "scripts/test_index_build_profile.py",
@@ -145,6 +193,7 @@
     "scripts/test_local_index_build_pin.py",
     "scripts/test_local_official_evidence_index.ps1",
     "scripts/test_local_official_metadata_index.ps1",
+    "scripts/test_metadata_bound_acquisition.py",
     "scripts/test_native_receipt_diagnostic.py",
     "scripts/test_project_collected_native_index.py",
     "scripts/test_public_product_pid.py",
@@ -156,9 +205,11 @@
     "scripts/test_registry_monitor_import.py",
     "scripts/test_registry_page_requests.py",
     "scripts/test_registry_public_query.py",
+    "scripts/test_release_signing.ps1",
     "scripts/test_select_registry_sfx_members.py",
     "scripts/test_source_style.py",
     "scripts/test_verify_registry_sfx_closure.py",
+    "scripts/test_weekly_index_validity.py",
     "scripts/verify_registry_monitor_migration.py",
     "scripts/verify_registry_sfx_closure.py",
     "src/app/app.manifest",
@@ -168,8 +219,10 @@
     "src/app/assets/drivercrate.ico",
     "src/app/collector_setup.manifest",
     "src/app/collector_setup.rc",
+    "src/app/collector_setup_bootstrap.rc.in",
+    "src/app/collector_setup_bootstrap_main.cpp",
+    "src/app/collector_setup_bootstrap_table.h.in",
     "src/app/collector_setup_main.cpp",
-    "src/app/index_store_migration_main.cpp",
     "src/app/local_driver_collector_main.cpp",
     "src/app/local_index_signing_main.cpp",
     "src/app/main.cpp",
@@ -267,15 +320,21 @@
     "src/platform/broadcom_preparation.cpp",
     "src/platform/broadcom_update_provider.cpp",
     "src/platform/broadcom_update_provider.h",
+    "src/platform/collector_distribution_candidate.cpp",
+    "src/platform/collector_distribution_candidate.h",
     "src/platform/collector_inspection_acquisition.cpp",
     "src/platform/collector_inspection_acquisition.h",
     "src/platform/collector_parser_control.h",
+    "src/platform/collector_registry_job.cpp",
+    "src/platform/collector_registry_job.h",
     "src/platform/collector_setup_admission.cpp",
     "src/platform/collector_setup_admission.h",
     "src/platform/collector_setup_transport.cpp",
     "src/platform/collector_setup_transport.h",
     "src/platform/collector_setup_workspace.cpp",
     "src/platform/collector_setup_workspace.h",
+    "src/platform/collector_user_task.cpp",
+    "src/platform/collector_user_task.h",
     "src/platform/com_raii.h",
     "src/platform/common_driver_package.cpp",
     "src/platform/common_driver_package.h",
@@ -307,7 +366,6 @@
     "src/platform/hp_update_provider.cpp",
     "src/platform/hp_update_provider.h",
     "src/platform/index_distribution_trust.h",
-    "src/platform/index_legacy_migration_trust.h",
     "src/platform/indexed_driver_package_inspection.cpp",
     "src/platform/indexed_driver_package_inspection.h",
     "src/platform/inf_dependency_native.cpp",
@@ -516,6 +574,8 @@
     "src/platform/provider_worker.cpp",
     "src/platform/provider_worker.h",
     "src/platform/provider_worker_index_internal.h",
+    "src/platform/public_index_readback.cpp",
+    "src/platform/public_index_readback.h",
     "src/platform/ricoh_universal_print_page_parser.cpp",
     "src/platform/ricoh_universal_print_page_parser.h",
     "src/platform/secret_official_url.cpp",
@@ -530,6 +590,7 @@
     "src/platform/signed_index_candidate_binding.cpp",
     "src/platform/signed_index_candidate_binding.h",
     "src/platform/signed_index_candidate_binding_internal.h",
+    "src/platform/signed_index_codec_internal.h",
     "src/platform/signed_index_json_internal.h",
     "src/platform/signed_index_manifest.cpp",
     "src/platform/signed_index_manifest.h",
@@ -550,6 +611,8 @@
     "src/platform/silicon_labs_catalog_parser.h",
     "src/platform/silicon_labs_serial_package.cpp",
     "src/platform/silicon_labs_serial_package.h",
+    "src/platform/unsigned_index_candidate.cpp",
+    "src/platform/unsigned_index_candidate.h",
     "src/platform/user_selected_inf_package.h",
     "src/platform/vaio_catalog_parser.cpp",
     "src/platform/vaio_catalog_parser.h",
@@ -642,13 +705,17 @@
     "tests/unit/candidate_selection_tests.h",
     "tests/unit/candidate_source_group_tests.cpp",
     "tests/unit/candidate_source_group_tests.h",
+    "tests/unit/collector_distribution_candidate_tests.cpp",
+    "tests/unit/collector_distribution_pipeline_tests.cpp",
     "tests/unit/collector_inspection_acquisition_tests.cpp",
     "tests/unit/collector_parser_test_control.h",
     "tests/unit/collector_pending_references_tests.py",
+    "tests/unit/collector_registry_job_tests.cpp",
     "tests/unit/collector_setup_admission_tests.cpp",
     "tests/unit/collector_setup_admission_tests.manifest",
     "tests/unit/collector_setup_transport_tests.cpp",
     "tests/unit/collector_setup_workspace_tests.cpp",
+    "tests/unit/collector_user_task_tests.cpp",
     "tests/unit/common_inf_batch_tests.cpp",
     "tests/unit/common_inf_contract_cases.h",
     "tests/unit/common_inf_plan_tests.cpp",
@@ -830,6 +897,18 @@
   ],
   "excluded": [
     {
+      "path": "AGENTS.md",
+      "reason": "Private task/delegation and operating instructions. Public coding/build/security contracts are selected separately."
+    },
+    {
+      "path": "docs/vendor-provider-roadmap.md",
+      "reason": "Private work history and evidence paths. Public release notes/testing summarize only necessary facts."
+    },
+    {
+      "path": "docs/adr/0380-signed-index-trust-domain-store-migration.md",
+      "reason": "Historical removed migration tool. The current trust-domain contract is in docs/security.md; the original ADR remains private history."
+    },
+    {
       "path": ".github/workflows/ci.yml",
       "reason": "ADR0379 adopts private development and local verification of the exact public snapshot without Actions. The automatic push/PR workflow is deleted locally; required quality scripts and gates remain included. Remote removal is not performed by this manifest."
     },
@@ -867,10 +946,156 @@
     }
   ],
   "generatedHeaders": {
+    "collector_setup_bootstrap_table.h": "src/app/collector_setup_bootstrap_table.h.in",
     "drivercrate_version.h": "cmake/DriverCrateVersion.h.in",
     "local_index_acceptance.h": "cmake/local_index_acceptance.h.in"
   },
   "requiredEdges": [
+    {
+      "owner": "scripts/package-collector.ps1",
+      "input": "data/collector-registry/collection-profiles.json",
+      "kind": "initial-distribution-profile"
+    },
+    {
+      "owner": "scripts/collector_distribution_data.py",
+      "input": "docs/adr/0396-collector-distribution-pipeline-connection.md",
+      "kind": "data-active-daily-contract"
+    },
+    {
+      "owner": "scripts/collector_collection_profiles.py",
+      "input": "docs/adr/0395-data-driven-collector-expansion.md",
+      "kind": "data-expansion-contract"
+    },
+    {
+      "owner": "scripts/package-collector-installer.ps1",
+      "input": "packaging/collector/collector-setup.psm1",
+      "kind": "installer-package-module"
+    },
+    {
+      "owner": "scripts/package-collector-installer.ps1",
+      "input": "CMakeLists.txt",
+      "kind": "installer-project-version"
+    },
+    {
+      "owner": "scripts/package-collector-installer.ps1",
+      "input": "src/app/collector_setup_bootstrap.rc.in",
+      "kind": "installer-resource-template"
+    },
+    {
+      "owner": "scripts/package-collector-installer.ps1",
+      "input": "src/app/collector_setup_bootstrap_table.h.in",
+      "kind": "installer-table-template"
+    },
+    {
+      "owner": "scripts/package-collector-installer.ps1",
+      "input": "src/app/collector_setup.manifest",
+      "kind": "installer-manifest"
+    },
+    {
+      "owner": "scripts/test-collector-installer.ps1",
+      "input": "packaging/collector/collector-setup.psm1",
+      "kind": "installer-test-module"
+    },
+    {
+      "owner": "scripts/daily_index_pipeline.py",
+      "input": "docs/adr/0381-public-daily-index-publisher-identity.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "scripts/daily_index_pipeline.py",
+      "input": "docs/adr/0382-public-daily-config-and-history-transition.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "scripts/daily_index_pipeline.py",
+      "input": "docs/adr/0383-public-history-and-fresh-due-transition.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "scripts/daily_index_pipeline.py",
+      "input": "docs/adr/0384-public-daily-cycle-context-and-cli.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "scripts/daily_index_pipeline.py",
+      "input": "docs/adr/0385-public-anonymous-index-readback.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "scripts/daily_index_pipeline.py",
+      "input": "docs/adr/0391-idempotent-collector-python-import-path.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "scripts/daily_index_pipeline.py",
+      "input": "docs/adr/0403-independent-producer-publication-input.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "src/platform/collector_user_task.cpp",
+      "input": "docs/adr/0394-collector-user-task-install-lifecycle.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "src/platform/collector_setup_workspace.cpp",
+      "input": "docs/adr/0393-collector-regular-file-entry.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "scripts/prepare_daily_index_config.py",
+      "input": "docs/adr/0382-public-daily-config-and-history-transition.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "scripts/prepare_daily_index_config.py",
+      "input": "docs/adr/0384-public-daily-cycle-context-and-cli.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "src/platform/public_index_readback.cpp",
+      "input": "docs/adr/0385-public-anonymous-index-readback.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "src/app/collector_setup_bootstrap_main.cpp",
+      "input": "docs/adr/0387-collector-embedded-bootstrap-and-local-index.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "scripts/package-collector-installer.ps1",
+      "input": "docs/adr/0386-collector-single-exe-installer-delivery.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "scripts/package-collector-installer.ps1",
+      "input": "docs/adr/0387-collector-embedded-bootstrap-and-local-index.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "docs/collector-setup-guide.md",
+      "input": "docs/adr/0386-collector-single-exe-installer-delivery.md",
+      "kind": "setup-contract-document"
+    },
+    {
+      "owner": "docs/collector-setup-guide.md",
+      "input": "docs/adr/0387-collector-embedded-bootstrap-and-local-index.md",
+      "kind": "setup-contract-document"
+    },
+    {
+      "owner": "docs/collector-setup-guide.md",
+      "input": "docs/adr/0388-collector-child-system-drive.md",
+      "kind": "setup-contract-document"
+    },
+    {
+      "owner": "docs/collector-setup-guide.md",
+      "input": "docs/adr/0389-collector-native-approved-working-directory.md",
+      "kind": "setup-contract-document"
+    },
+    {
+      "owner": "docs/collector-setup-guide.md",
+      "input": "docs/adr/0390-local-daily-task-and-public-package-readiness.md",
+      "kind": "setup-contract-document"
+    },
     {
       "owner": "CONTRIBUTING.md",
       "input": "docs/adr/0379-local-prepublication-verification-without-actions.md",
@@ -890,6 +1115,31 @@
       "owner": "scripts/package-release.ps1",
       "input": "scripts/index_build_profile.ps1",
       "kind": "package-profile"
+    },
+    {
+      "owner": "scripts/package-release.ps1",
+      "input": "scripts/release_signing.ps1",
+      "kind": "optional-code-signing"
+    },
+    {
+      "owner": "scripts/package-collector.ps1",
+      "input": "scripts/release_signing.ps1",
+      "kind": "optional-code-signing"
+    },
+    {
+      "owner": "scripts/package-collector-installer.ps1",
+      "input": "scripts/release_signing.ps1",
+      "kind": "optional-code-signing"
+    },
+    {
+      "owner": "scripts/test_release_signing.ps1",
+      "input": "scripts/release_signing.ps1",
+      "kind": "signing-fixture-helper"
+    },
+    {
+      "owner": "scripts/test_release_signing.ps1",
+      "input": "scripts/index_build_profile.ps1",
+      "kind": "signing-fixture-profile"
     },
     {
       "owner": "scripts/package-release.ps1",
@@ -958,7 +1208,7 @@
     },
     {
       "owner": "src/platform/signed_index_store.cpp",
-      "input": "docs/adr/0380-signed-index-trust-domain-store-migration.md",
+      "input": "docs/security.md",
       "kind": "source-contract-document"
     },
     {
@@ -1035,6 +1285,11 @@
       "owner": "scripts/package-collector.ps1",
       "input": "packaging/collector/README-collector.md",
       "kind": "collector-package-input"
+    },
+    {
+      "owner": "src/app/collector_setup_main.cpp",
+      "input": "docs/adr/0410-collector-seeded-reference-payload.md",
+      "kind": "source-contract-document"
     }
   ],
   "externalInputs": [
@@ -1042,7 +1297,7 @@
       "kind": "PINNED_FETCHCONTENT",
       "owner": "CMakeLists.txt",
       "input": "miniz3.1.2 and LZMA SDK26.03 archives from fixed URL/SHA256; external input, not vendored build/_deps",
-      "status": "NOT_FETCHED_OR_BUILT_IN_h8d"
+      "status": "PINNED_EXTERNAL_INPUT_FRESH_SNAPSHOT_BUILD_REQUIRED"
     },
     {
       "kind": "GENERATED_HEADER",
@@ -1059,7 +1314,7 @@
     {
       "kind": "EXPLICIT_SEED_SNAPSHOT",
       "owner": "scripts/package-collector.ps1",
-      "input": "SeedSnapshot/RegistrySnapshot generated and validated from registered ledger; not work/analysis evidence",
+      "input": "RegistrySnapshot and DistributionDataBundle generated and validated from registered ledger; not work/analysis evidence",
       "status": "SEED_REGENERATION_NOT_RUN"
     },
     {
@@ -1076,12 +1331,12 @@
     }
   ],
   "limitations": [
-    "ADR0379 requires local prepublication verification. The initial 822-file public snapshot was accepted separately; it is not the current 825-file candidate with ADR0380 and the explicit migration sources.",
+    "ADR0379 requires local verification of this exact source set. Earlier snapshots and incremental builds do not establish a fresh build of the current candidate.",
     "Candidate source list only; finalAllowlist=false is the checker contract. A separate reviewer receipt must identify the exact current raw source pins and verification results.",
     "Static quoted includes/imports/literal CMake references and explicit package edges are checked; arbitrary dynamic path semantics are not proven.",
     "Fresh native Debug/Release build, required tests and source/license/secret audit results are recorded outside the published source for each fixed candidate; this manifest alone makes no acceptance claim.",
     "Live maintenance reference probes can require explicit historical evidence and are not deterministic required tests; no work inputs are exported.",
-    "Public signed-index assets and bounded ordinary-app acquisition/inspection have been accepted separately. Application/collector binary releases, actual driver installation, Public daily publishing, daily continuity and another-PC transfer remain unaccepted; old daily/smoke tasks are disabled.",
+    "Current collector package-v7/receipt-v3 separates native metadata and explicitly opted-in distribution daily tasks. Daily work ends at unsigned candidates; prepare/sign/publish are manual. Real fresh Public success, final binaries, actual driver installation, natural daily continuity and another-PC transfer are separate acceptance scopes.",
     "Original FAIL/ERROR/NOT_RUN and unknown device applicability are not converted to success."
   ]
 }

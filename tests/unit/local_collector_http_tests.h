@@ -2,7 +2,7 @@
 /**
  * @file local_collector_http_tests.h
  * @brief 有限DNS・制御付き公式GETの非通信試験入口です。
- * @version 01.27.00
+ * @version 01.28.00
  * @date 2026/09/27
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -49,6 +49,7 @@
  * Ver.01.25.00 Shunji Ogawa  2026/10/03  ROOT未保存の連続準備prefix回復と検査を追加。
  * Ver.01.26.00 Shunji Ogawa  2026/10/03  初回最終head読取りcodecの独立非通信入口を追加。
  * Ver.01.27.00 Shunji Ogawa  2026/10/03  実handle初回readerの独立非通信入口を追加。
+ * Ver.01.28.00 Shunji Ogawa  2026/10/26  公開hash/指紋訂正だけの限定選択を追加。
  * </pre>
  *
  * @note 通信APIをfakeへ置換し、公式parserと一時保護台帳を検証します。実通信・導入は実行しません。
@@ -230,10 +231,12 @@ void runCollectorNextRecoveryTests(
  * @param[in,out] context Assertion集計。
  * @param[in] rootFactory 独立保護storeの生成関数。
  * @param[in] definitionFactory 元公開manifestの生成関数。
+ * @param[in] fingerprintOnly true時は公開hash/codec/faultと通常record同値だけを再確認します。
  */
 void runCollectorProjectedHttpTests(
 	TestContext &context, const std::function<std::filesystem::path()> &rootFactory,
-	const std::function<CollectorProjectedCampaignDefinition()> &definitionFactory) ;
+	const std::function<CollectorProjectedCampaignDefinition()> &definitionFactory,
+	bool														 fingerprintOnly = false) ;
 /** @brief 全完了raw由来の封印・改変／借用競合・最終再照合を非通信検査します。
  * @param[in,out] context Assertion集計。
  * @param[in] rootFactory 自作保護rootの生成関数。

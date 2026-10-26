@@ -2,8 +2,8 @@
 /**
  * @file main_window.cpp
  * @brief DriverCrateメインウィンドウ実装。
- * @version 01.14.00
- * @date 2026/09/01
+ * @version 01.14.01
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -91,6 +91,7 @@
  * Ver.01.12.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.13.00 Shunji Ogawa  2026/10/16  索引通信結果の可視導線と同版publicationの画面受入を追加。
  * Ver.01.14.00 Shunji Ogawa  2026/10/16  索引通信詳細の全文と数値末尾の実control観測を追加。
+ * Ver.01.14.01 Shunji Ogawa  2026/10/24  索引時刻拒否の理由を既存通信結果へ表示。
  * </pre>
  *
  * @note Win32 TreeTable、候補選択、およびworker eventの表示を実装します。全UI操作はUI threadで実行します。
@@ -104,6 +105,7 @@
 #include "core/provider_registry.h"
 #include "platform/windows_error.h"
 #include "platform/windows_product_type.h"
+#include "platform/signed_index_manifest.h"
 
 #include <CommCtrl.h>
 #include <CommDlg.h>
@@ -3527,17 +3529,21 @@ std::wstring MainWindow::formatIndexRefreshSummary( const IndexScanSummary &summ
 		return {} ;
 	}
 
-	const auto &refresh		= *summary.refresh ;	// 非機密な確定summaryだけです。
-	const UINT	refreshText = summary.status == IndexScanStatus::CANCELLED ||
-									  refresh.status == IndexRefreshStatus::CANCELLED
-								  ? IDS_INDEX_REFRESH_CANCELLED
-							  : refresh.status == IndexRefreshStatus::REFRESHED ? IDS_INDEX_REFRESHED
-							  : refresh.status == IndexRefreshStatus::AUTHENTICATED_CACHE
-								  ? IDS_INDEX_REFRESH_CACHED
-							  : refresh.status == IndexRefreshStatus::CANCELLED
-								  ? IDS_INDEX_REFRESH_CANCELLED
-								  : IDS_INDEX_REFRESH_REJECTED ;	// 元区分です。
-	return loadString( refreshText) + L"\r\n" +
+	const auto		  &refresh	   = *summary.refresh ;	// 非機密な確定summaryだけです。
+	const UINT		   refreshText = summary.status == IndexScanStatus::CANCELLED ||
+									 refresh.status == IndexRefreshStatus::CANCELLED
+										 ? IDS_INDEX_REFRESH_CANCELLED
+									 : refresh.status == IndexRefreshStatus::REFRESHED ? IDS_INDEX_REFRESHED
+									 : refresh.status == IndexRefreshStatus::AUTHENTICATED_CACHE
+										 ? IDS_INDEX_REFRESH_CACHED
+									 : refresh.status == IndexRefreshStatus::CANCELLED
+										 ? IDS_INDEX_REFRESH_CANCELLED
+										 : IDS_INDEX_REFRESH_REJECTED ;	// 元区分です。
+	const std::wstring timeReason =
+		refresh.manifestStatus == SignedIndexManifestStatus::INVALID_TIME
+			? loadString( IDS_INDEX_REFRESH_INVALID_TIME) + L"\r\n"
+			: L"" ;	// 期限切れ以外も含む元の時刻拒否を、HTTP成功やerror0と区別します。
+	return loadString( refreshText) + L"\r\n" + timeReason +
 		   formatResource( IDS_INDEX_REFRESH_FACTS, std::to_wstring( refresh.httpStatus)) + L"\r\n" +
 		   formatResource( IDS_INDEX_REFRESH_HTTP_ERROR, formatNativeError( refresh.httpError)) +
 		   L"\r\n" + formatResource( IDS_INDEX_REFRESH_ERROR, formatNativeError( refresh.error)) +

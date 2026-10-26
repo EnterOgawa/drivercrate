@@ -1,28 +1,39 @@
+#requires -Version 7.0
 <#
 .SYNOPSIS
-Creates the unsigned DriverCrate Windows x64 release package and SHA-256 file.
+Creates the DriverCrate Windows x64 release package and SHA-256 file.
 
 .DESCRIPTION
 Copies only the release executable and public distribution documents into an exact package
 directory below out, creates a ZIP archive, and writes its SHA-256 checksum. The script does not
-sign binaries or download dependencies.
+download dependencies. Optional CodeSigning verifies and signs the existing build before copying it;
+omitting it preserves the certificate-free development path. See docs/adr/0406-verified-authenticode-build-transition.md.
 #>
 
 [CmdletBinding()]
 param(
     [Parameter()]
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '0.1.0'
+    [string]$Version = '0.1.1',
+    [string]$BuildDirectory = ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../build'))),
+    [string]$OutputDirectory,
+    [hashtable]$CodeSigning
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$releaseExecutable = Join-Path $repositoryRoot 'build\Release\DriverCrate.exe'
 . (Join-Path $PSScriptRoot 'index_build_profile.ps1')
-Assert-DistributableIndexBuild -Executable $releaseExecutable
-$outputRoot = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot 'out'))
+$context = Resolve-IndexPackageBuild -BuildDirectory $BuildDirectory
+$releaseExecutable = Join-Path $context.Build 'Release/DriverCrate.exe'
+Assert-IndexPackageExecutable -Executable $releaseExecutable
+$explicitOutput = $PSBoundParameters.ContainsKey('OutputDirectory')
+$outputRoot = if ($explicitOutput) {
+    Assert-IndexPackageOutput -Context $context -Path $OutputDirectory -Fresh
+} else {
+    Assert-IndexPackageOutput -Context $context -Path (Join-Path $repositoryRoot 'out') -AllowRoot
+}
 $packageName = "DriverCrate-$Version-windows-x64"
 $packageDirectory = [System.IO.Path]::GetFullPath((Join-Path $outputRoot $packageName))
 $archivePath = [System.IO.Path]::GetFullPath((Join-Path $outputRoot "$packageName.zip"))
@@ -54,20 +65,16 @@ if ($productVersion -ne $Version) {
     throw "Executable version '$productVersion' does not match package version '$Version'."
 }
 
+# 元成果物を自動削除せず、同版三出力の一つでも存在した場合は作成前に拒否する。
+foreach ($target in @($packageDirectory, $archivePath, $checksumPath)) {
+    if (Test-Path -LiteralPath $target) { throw 'INDEX_PACKAGE_NEW_OUTPUT_REQUIRED' }
+}
+$signing = $null
+if ($null -ne $CodeSigning) {
+    . (Join-Path $PSScriptRoot 'release_signing.ps1')
+    $signing = Invoke-ReleaseBuildSigning -Context $context -Role App -CodeSigning $CodeSigning
+}
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
-
-# 正規化済みout配下の同版固定directory/ZIP/checksumを先に除去して再生成する。
-# 後段のcopy・圧縮・保存が失敗しても旧成果物を復元せず、途中成果物が残る場合がある。
-if (Test-Path -LiteralPath $packageDirectory) {
-    Remove-Item -LiteralPath $packageDirectory -Recurse -Force
-}
-if (Test-Path -LiteralPath $archivePath) {
-    Remove-Item -LiteralPath $archivePath -Force
-}
-if (Test-Path -LiteralPath $checksumPath) {
-    Remove-Item -LiteralPath $checksumPath -Force
-}
-
 New-Item -ItemType Directory -Path $packageDirectory | Out-Null
 Copy-Item -LiteralPath $releaseExecutable -Destination $packageDirectory
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'README.md') -Destination $packageDirectory
@@ -85,4 +92,5 @@ Set-Content -LiteralPath $checksumPath -Value $checksumLine -Encoding ascii
     Package = $archivePath
     Checksum = $checksumPath
     Sha256 = $archiveHash.Hash.ToLowerInvariant()
+    Signing = $signing
 }

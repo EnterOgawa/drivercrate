@@ -113,21 +113,24 @@ class LocatorMonitorTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
         self.assertEqual(dm.verify_store(self.root)["requests"], {})
 
-    def test_known_observation_wait_then_exact_due_get(self):
-        """初回storeも既知観測から24時間待ち、満了時だけPAGEをGETする。"""
+    def test_recent_research_allows_first_get_then_actual_request_waits(self):
+        """研究日時は初回実GETを止めず、実通信後の24時間待機は保持する。"""
         self.recent_observations()
+        report = self.run_monitor()
+        self.assertEqual(report["counts"]["attempted"], 2)
+        self.assertEqual(report["counts"]["held"], 1)
+        before = copy.deepcopy(dm.verify_store(self.root))
         report = self.run_monitor()
         self.assertEqual(report["counts"]["attempted"], 0)
         self.assertEqual(report["counts"]["deferred"], 2)
-        self.assertEqual(report["counts"]["held"], 1)
         for row in report["items"]:
             if row["kind"] == "PAGE":
-                self.assertEqual(row["reason"], "OBSERVATION_WAIT_24H")
-                self.assertEqual(row["checkedAt"], "2026-10-03T00:00:00Z")
-                self.assertEqual(row["nextDueAt"], "2026-10-04T00:00:00Z")
-                self.assertIsNone(row["httpStatus"])
-        self.assertEqual(dm.verify_store(self.root)["requests"], {})
-        self.now = datetime(2026, 10, 4)
+                self.assertEqual(row["reason"], "WAIT_24H")
+                self.assertEqual(row["checkedAt"], "2026-10-03T01:00:00Z")
+                self.assertEqual(row["nextDueAt"], "2026-10-04T01:00:00Z")
+                self.assertEqual(row["httpStatus"], 200)
+        self.assertEqual(dm.verify_store(self.root), before)
+        self.now = datetime(2026, 10, 4, 1)
         self.assertEqual(self.run_monitor()["counts"]["attempted"], 2)
         self.assertTrue(all(kind == "PAGE" for kind, _ in self.calls))
         self.assertNotIn(PAYLOAD, {url for _, url in self.calls})
@@ -335,10 +338,11 @@ class LocatorMonitorTests(unittest.TestCase):
         with self.assertRaisesRegex(cr.RegistryError, "REPORT_PAYLOAD_HOLD"):
             dm.validate_report(report)
 
-    def test_observation_wait_survives_export_and_import_without_reservation(self):
-        """まだ通信していない実観測待機も移設後に消さず、予約を偽造しない。"""
+    def test_recent_research_actual_wait_survives_export_and_import(self):
+        """研究日時が新しくても、実GETの待機を移設後へそのまま保持する。"""
         self.recent_observations()
         self.run_monitor()
+        before = copy.deepcopy(dm.verify_store(self.root)["requests"])
         exported = self.root.parent / "known-export"
         dm.export_store(self.root, exported)
         imported = self.root.parent / "known-import"
@@ -346,8 +350,8 @@ class LocatorMonitorTests(unittest.TestCase):
         report = dm.run_once(self.registry, self.policy, imported, public_locators=self.locators,
                              transport=self.transport, clock=lambda: self.now)
         self.assertEqual(report["counts"]["attempted"], 0)
-        self.assertEqual(dm.verify_store(imported)["requests"], {})
-        self.assertEqual(self.calls, [])
+        self.assertEqual(dm.verify_store(imported)["requests"], before)
+        self.assertEqual(len(self.calls), 2)
 
     def test_report_and_store_do_not_persist_urls_or_body(self):
         """URL・HTML本文を報告や共有stateへ保存せず、hashと公開IDだけを残す。"""

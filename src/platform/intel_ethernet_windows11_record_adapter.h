@@ -2,7 +2,7 @@
 /**
  * @file intel_ethernet_windows11_record_adapter.h
  * @brief Intel Ethernet Windows 11 releaseから型付きdistribution recordへの変換定義。
- * @version 01.06.00
+ * @version 01.06.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/09/28  727998の収集候補と製品別三状態照合を追加。
  * Ver.01.05.00 Shunji Ogawa  2026/09/28  三状態の優先順位と製品fieldの保持条件を明記。
  * Ver.01.06.00 Shunji Ogawa  2026/09/28  型付き制御入口を追加。
+ * Ver.01.06.01 Shunji Ogawa  2026/10/26  SHA-512解釈のparser revisionへ更新。
  * </pre>
  *
  * @note URLは成功時に秘密所有型へ移し、UI、log、cacheへ渡しません。本変換だけではroot証拠、
@@ -56,7 +57,7 @@ namespace drivercrate {
 inline constexpr std::wstring_view INTEL_ETHERNET_WINDOWS11_RECORD_PARSER_ID =
 	L"intel-ethernet-windows11-page" ;
 // Parserのschemaまたは解釈変更時に更新する単調revision。
-inline constexpr std::uint32_t INTEL_ETHERNET_WINDOWS11_RECORD_PARSER_REVISION = 3U ;
+inline constexpr std::uint32_t INTEL_ETHERNET_WINDOWS11_RECORD_PARSER_REVISION = 4U ;
 
 /** @brief 727998本文と照合する公開targetの借用入力です。 */
 struct IntelCollectorTargetQuery {

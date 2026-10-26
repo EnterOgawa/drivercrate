@@ -2,7 +2,7 @@
 /**
  * @file official_release_metadata.h
  * @brief 公式配布情報の共通契約。
- * @version 01.02.00
+ * @version 01.03.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -38,6 +38,7 @@
  * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Intel Ethernet Windows 11 record系列を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/28  収集用Intel配布coreを追加。
+ * Ver.01.03.00 Shunji Ogawa  2026/10/26  公開SHA-512を独立fieldとして保持。
  * </pre>
  *
  * @note Worker内の配布情報を表し、未確認の版・容量・許諾を補完しません。
@@ -157,6 +158,8 @@ struct OfficialReleaseRecord {
 	std::uint32_t				 parserRevision{} ;
 	/// Providerが当該配布物へ結合したplain text全文。未確認は空。
 	std::wstring				 eulaText ;
+	/// 公表SHA-512。未掲載は空。SHA-256や実測file identityへ代入しない。
+	std::wstring				 publishedSha512 ;
 
 	/**
      * @brief 取得直前の公式再確認と保持snapshotを全fieldで比較する。

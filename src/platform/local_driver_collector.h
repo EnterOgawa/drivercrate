@@ -2,7 +2,7 @@
 /**
  * @file local_driver_collector.h
  * @brief 開発用の公式metadata継続収集と非公開checkpointの契約を定義します。
- * @version 01.07.00
+ * @version 01.11.00
  * @date 2026/09/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,9 +28,13 @@
  * Ver.01.06.00 Shunji Ogawa  2026/10/15  日次receiptと保護本文・due前検査を追加。
  * Ver.01.06.01  Shunji Ogawa  2026/10/16  既定比較の引数と一致条件の契約を明記。
  * Ver.01.07.00  Shunji Ogawa  2026/10/17  原日次予約の非変更照合と明示用途を追加。
+ * Ver.01.08.00 Shunji Ogawa  2026/10/25  同runの明示本体取得と非置換保存sinkを追加。
+ * Ver.01.09.00 Shunji Ogawa  2026/10/25  呼出し内だけの最初の拒否段階を追加。
+ * Ver.01.10.00 Shunji Ogawa  2026/10/25  明示取得失敗の完全200本文を別診断へ分離。
+ * Ver.01.11.00 Shunji Ogawa  2026/10/26 全公開hash・metadata期待値と共通承認readerを追加。
  * </pre>
  *
- * @note この入口は検査用取得、driver導入および通常製品scanへ接続しません。
+ * @note 明示日次取得だけが検査用本体へ接続し、driver導入および通常製品scanは行いません。
  */
 //------------------------------------------------------------------------------
 
@@ -40,6 +44,7 @@
 #include <chrono>
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -47,6 +52,49 @@
 namespace drivercrate {
 
 struct OfficialHttpTransport ;
+class OfficialAcquisitionSession ;
+class OfficialDownloadWorkspace ;
+class IOfficialNetworkCostReader ;
+struct OfficialAcquisitionResult ;
+
+/** @brief 同じ日次runだけへ明示する許諾と一file予算です。公式authorityを保持しません。 */
+struct LocalCollectorPayloadRequest {
+	/// 原release全byteへ明示した許諾同意。既定は未同意です。
+	bool						 termsAccepted{} ;
+	/// 同意した原parserの許諾revision。完全一致を要求します。
+	std::wstring				 termsRevision ;
+	/// 同意した抽出全文UTF-8の小文字SHA-256。PAGE全体hashとは別です。
+	std::wstring				 termsTextSha256 ;
+	/// 承認した原releaseの公表SHA-256。新200との完全一致を要求します。
+	std::wstring				 publishedSha256 ;
+	/// 承認した公表SHA-512。掲載された全算法を新200と実byteへ照合します。
+	std::wstring				 publishedSha512 ;
+	/// 承認した公式配布URL。権限ではなく新recordとの完全一致条件です。
+	std::wstring				 payloadUrl ;
+	/// 承認した配布file名。旧版の同意bindingを別fileへ流用しません。
+	std::wstring				 fileName ;
+	/// 承認したpackage版。導入適用性の判定には使用しません。
+	std::wstring				 packageVersion ;
+	/// 公表exact size。欠損は未知、0や上限超過は拒否します。
+	std::optional<std::uint64_t> publishedSizeBytes ;
+	/// 今回一fileの最大受信byte。公表exact sizeには変換しません。1～128MiBです。
+	std::uint64_t				 maximumBytes{} ;
+	/// 同意の絶対UTC期限。未知/失効/24h超の同意は取得を開始しません。
+	std::uint64_t				 consentNotAfter{} ;
+	/// 保護callerが同封印証拠/原byteを再検査し新archiveへatomic非置換commitします。
+	std::function<std::int32_t( const OfficialAcquisitionSession &,
+							   const OfficialDownloadWorkspace &,
+							   const OfficialAcquisitionResult &)>
+		commitArchive ;
+} ;
+
+/** @brief 保存解析v1/v2の全掲載hashとpayload/terms期待値だけを読みます。
+ * @param[in] raw 明示pinを確認済みの有限UTF-8原JSON。呼出し中だけ借用します。
+ * @param[out] request 成功時はmetadata期待値だけ、失敗時は空です。同意/予算/authorityは発行しません。
+ * @return schema・全algorithm・任意exact size・許諾全文hashが整合する場合trueです。
+ */
+[[nodiscard]] bool decodeLocalCollectorPayloadApproval( std::string_view				 raw,
+													   LocalCollectorPayloadRequest &request) ;
 
 /** @brief 一つの公開製品・公式sourceに対する有限metadata収集条件です。 */
 struct LocalCollectorTarget {
@@ -104,7 +152,27 @@ enum class LocalCollectorTargetState {
 	DEFERRED,
 } ;
 
-/** @brief 検査用取得前のtarget別checkpoint結果です。 */
+/** @brief 今回の公式adapter呼出しで最初に拒否した区間です。永続化しません。 */
+enum class LocalCollectorFailureStage : std::uint32_t {
+	/// 成功、今回未試行、またはこの呼出しでは拒否区間が未観測です。
+	NONE = 0U,
+	/// 固定request生成または公式session開始の拒否です。
+	REQUEST_SESSION = 1U,
+	/// 公式metadata取得APIの拒否です。
+	METADATA = 2U,
+	/// 304の再利用条件または新200の取得証拠の拒否です。
+	EVIDENCE = 3U,
+	/// 公式page解析または解析後の空entryの拒否です。
+	PARSE = 4U,
+	/// 解析結果から公式配布recordへの変換の拒否です。
+	ADAPT = 5U,
+	/// 公式record集合または許可された公開fieldの拒否です。
+	RECORD_VALIDATION = 6U,
+	/// 同recordの明示本体取得またはarchive保存の拒否です。
+	PAYLOAD = 7U,
+} ;
+
+/** @brief metadata checkpointと同呼出しだけの明示本体取得結果です。 */
 struct LocalCollectorTargetResult {
 	/// 固定manifestに対応するkey。
 	std::wstring					  keySha256 ;
@@ -148,8 +216,16 @@ struct LocalCollectorTargetResult {
 	std::string						  rawMetadataBytes ;
 	/// 日次modeで保護checkpointへ保存する元200の原byte。通常UI・logへ渡しません。
 	std::string						  retainedMetadataBytes ;
+	/// 明示日次本体取得が失敗した同呼出しの完全200原byte。永続化・成功利用しません。
+	std::string						  failedMetadataBytesThisInvocation ;
+	/// 同じ失敗原byteのHTTP取得時SHA-256。旧成功bodySha256と分離し永続化しません。
+	std::wstring					  failedBodySha256ThisInvocation ;
 	/// 今回の呼出しで公式adapterを試行した場合true。永続化しません。
 	bool							  attemptedThisInvocation{} ;
+	/// 今回の最初の拒否区間。成功/未試行/再開時はNONEで、checkpointへ保存しません。
+	LocalCollectorFailureStage		  failureStageThisInvocation{LocalCollectorFailureStage::NONE} ;
+	/// 同呼出しの新200から本体を取得し新archiveへcommitした場合だけtrue。永続化しません。
+	bool							  payloadAcquiredThisInvocation{} ;
 } ;
 
 /** @brief 一日、一manifestの有限収集結果です。 */
@@ -204,6 +280,8 @@ struct LocalCollectorTestHooks {
 	std::function<std::chrono::steady_clock::time_point()>	   steadyNow ;
 	/// 既存公式adapterに渡すfake HTTP transport。借用し、call中だけ有効です。
 	const OfficialHttpTransport								  *httpTransport{} ;
+	/// 明示本体取得のfixture専用回線cost。通常CLIではOS照会だけです。
+	IOfficialNetworkCostReader								  *networkCostReader{} ;
 	/// 永続化後にtrueを返した位置で中断します。第二引数はtarget番号、run位置ではtarget総数。
 	std::function<bool( LocalCollectorCheckpoint, std::size_t)> stopAfterCheckpoint ;
 } ;
@@ -220,7 +298,7 @@ struct LocalCollectorTestHooks {
 											  std::wstring						&sha256) ;
 
 /**
- * @brief 同じstate rootのcheckpointを再開して、公式metadataだけを一回収集します。
+ * @brief 同じstate rootのmetadataを一回収集し、明示時だけ同recordの本体を取得します。
  * @param[in] stateRoot repositoryのwork/state配下の専用directory。
  * @param[in] targets 検証済みmanifestの固定target集合。
  * @param[in] manifestSha256 元manifestの実byte SHA-256。
@@ -228,13 +306,15 @@ struct LocalCollectorTestHooks {
  * @param[out] run 成功時または部分失敗時の件数・状態だけを所有する結果。
  * @param[in] retainMetadata true時だけ新200原byteをrunへ返します。再利用・304・失敗から合成しません。
  * @param[in] dailyMode true時はIntel一対象の本文保護保存とrun作成前due検査を行います。
+ * @param[in] payload 非nullなら日次新200から一回だけ取得/commitします。call中だけ借用します。
  * @return 全target完了時0、部分失敗時1、入力・状態破損時2、日次due前HOLD時3。
  */
 [[nodiscard]] int  runLocalDriverCollector( const std::filesystem::path			   &stateRoot,
 										   const std::vector<LocalCollectorTarget> &targets,
 										   const std::wstring &manifestSha256, bool dryRun,
 										   LocalCollectorRun &run, bool retainMetadata = false,
-										   bool dailyMode = false) ;
+										   bool								   dailyMode = false,
+										   const LocalCollectorPayloadRequest *payload	 = nullptr) ;
 
 /** @brief 開発fixtureだけに時計とHTTPを差し込む同一収集coreです。
  * @param[in] stateRoot 現workspaceのwork/stateの専用保護root。
@@ -245,13 +325,15 @@ struct LocalCollectorTestHooks {
  * @param[out] run 成功または部分失敗の所有結果。旧原本文を合成しません。
  * @param[in] retainMetadata true時だけ新200の原byteを返します。
  * @param[in] dailyMode 日次modeの本文保存・run作成前due検査を有効にします。
+ * @param[in] payload 明示日次本体取得の同意/予算/保護commit。通常metadataではnullです。
  * @return 完了0、部分失敗1、入力／state拒否2、日次due前HOLD3。
  * @note 同一rootは実lockで直列化し、fixture注入を通常CLIへ公開しません。
  */
 [[nodiscard]] int  runLocalDriverCollectorWithHooks(
 	 const std::filesystem::path &stateRoot, const std::vector<LocalCollectorTarget> &targets,
 	 const std::wstring &manifestSha256, bool dryRun, const LocalCollectorTestHooks &hooks,
-	 LocalCollectorRun &run, bool retainMetadata = false, bool dailyMode = false) ;
+	 LocalCollectorRun &run, bool retainMetadata = false, bool dailyMode = false,
+	 const LocalCollectorPayloadRequest *payload = nullptr) ;
 
 /** @brief 日次の実200・実304・未通信・HOLDを区別した有限receiptを生成します。
  * @param[in] run 同じ収集coreが返したIntel一対象の結果。参照を保持しません。
@@ -260,6 +342,18 @@ struct LocalCollectorTestHooks {
  * @note 通信・保存・署名・取得許可を発行せず、元fetch時刻を304で変更しません。
  */
 [[nodiscard]] bool makeLocalCollectorDailyReceipt( const LocalCollectorRun &run, std::string &bytes) ;
+
+/** @brief 同呼出しの完全200失敗本文を原receiptへ結ぶ私有診断JSONにします。
+ * @param[in] run 明示日次本体取得の元失敗結果。保持・永続化しません。
+ * @param[in] receiptBytes 同runから生成した原daily receipt全byte。最大1MiBです。
+ * @param[in] collectorCode 元collector終了値。部分失敗1だけを受理します。
+ * @param[out] bytes 成功時だけ最大3MiBの診断JSON。拒否時は空です。
+ * @return 今回の完全200・失敗段階・最大2MiB原byte/hash・元receipt一致が成立した場合true。
+ * @note 通信・保存・署名・取得権限を発行せず、成功checkpointや成功evidenceを変更しません。
+ */
+[[nodiscard]] bool makeLocalCollectorFailedPageDiagnostic( const LocalCollectorRun &run,
+														  std::string_view		   receiptBytes,
+														  int collectorCode, std::string &bytes) ;
 
 /** @brief 原予約の現在入力照合と過去境界照合を区別します。 */
 enum class LocalCollectorReservationMode {

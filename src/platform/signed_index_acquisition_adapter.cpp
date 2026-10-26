@@ -2,8 +2,8 @@
 /**
  * @file signed_index_acquisition_adapter.cpp
  * @brief 同snapshotの取得能力とtaskを封印し、既存grantと検査入力へ接続します。
- * @version 01.06.01
- * @date 2026/10/12
+ * @version 01.07.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -27,6 +27,7 @@
  * Ver.01.05.00 Shunji Ogawa  2026/10/14  共通HTML許諾の原文書・全文・revision照合をRAM取得へ接続。
  * Ver.01.06.00 Shunji Ogawa  2026/10/14  元不足を保持したnative証拠付き一deviceの準備を接続。
  * Ver.01.06.01 Shunji Ogawa  2026/10/16  製品revision1取得認可をmanifest trustと独立に接続。
+ * Ver.01.07.00 Shunji Ogawa  2026/10/24  同payloadの全原関係とunique device数を分離しclaimで再照合。
  * </pre>
  *
  * @note 同workerの直列処理です。監視PCの申告と端末実byteを分け、live根拠を合成しません。
@@ -696,17 +697,17 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 		}
 	}
 
-	std::vector<std::size_t>  members{relationIndex} ;	// 最大32の認証済み原関係を保持します。
+	std::vector<std::size_t> members{relationIndex} ;	// 原lookupの既存有限枠内で全関係を保持します。
 	std::vector<std::wstring> devices{
-		*lookup_->relations()[relationIndex].deviceIdentity} ;	// 同deviceを重複計数しません。
-	// 全原関係を有限に一回比較し、内容証拠とpolicyが同じ異なるdeviceだけを追加します。
-	for( std::size_t index = 0U; index < lookup_->relations().size() && members.size() < 32U;
+		*lookup_->relations()[relationIndex].deviceIdentity} ;	// 最大32のunique deviceです。
+	// 同deviceの別recordも元位置で保持し、完全内容と全policyを個別に照合します。
+	for( std::size_t index = 0U;
+		index < lookup_->relations().size() && members.size() < INDEX_LOOKUP_RESOLVER_CALL_MAX;
 		++index) {
 		const auto &relation = lookup_->relations()[index] ;	// 外部DTOではない元私有relation。
 		std::string rejectedReason ;							// 保留理由を共有合格へ変換しません。
-		// 既記述関係・未検証関係・同deviceを共有targetへ加えません。
+		// 既記述関係と未検証関係を共有targetへ加えません。
 		if( index == relationIndex || validateRecord( index, current, nowUtc, rejectedReason) != 0U ||
-		   std::ranges::find( devices, *relation.deviceIdentity) != devices.end() ||
 		   std::ranges::any_of( bindings_, [&]( const auto &binding) {
 			   return std::ranges::find( binding.relationIndices, index) !=
 					  binding.relationIndices.end() ;
@@ -714,17 +715,28 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 			continue ;
 		}
 
+		const bool newDevice = std::ranges::find( devices, *relation.deviceIdentity) ==
+							   // 重複数ではありません。
+							   devices.end() ;
+		// 32device上限へ達しても、既存deviceの別原recordは保持できます。
+		if( newDevice && devices.size() >= 32U) {
+			continue ;
+		}
+
 		const auto &other = lookup_->snapshot()
 								.schemaReceipt()
 								.records()[relation.recordIndex] ;	// 同snapshotの原record。
-		// 同URLや版だけを根拠に共有せず、完全内容と全policy一致を必要とします。
+		// 同URLや版だけで共有せず、UNKNOWN outerを別recordの実byteで補完しません。
 		if( sameSharedPayloadEvidence( record, other)) {
 			members.push_back( index) ;
-			devices.push_back( *relation.deviceIdentity) ;
+			// unique deviceだけをUIの作用対象件数へ計上します。
+			if( newDevice) {
+				devices.push_back( *relation.deviceIdentity) ;
+			}
 		}
 	}
 
-	target.deviceCount = static_cast<std::uint32_t>( members.size()) ;
+	target.deviceCount = static_cast<std::uint32_t>( devices.size()) ;
 	// 一issuerの有限記述枠をscan対象全体の上限へ拡大しません。
 	if( bindings_.size() >= 256U) {
 		description.reason = "finite preparation binding capacity exceeded" ;
@@ -742,20 +754,64 @@ NativeError SignedIndexAcquisitionAdapter::validateBinding(
 	const PreparedBinding &binding, const IndexLookupContext current,
 	const std::optional<std::chrono::sys_seconds> nowUtc, std::string &reason) const
 {
-	// 外部件数や失効したlookupから共有権限を再構築しません。
-	if( !lookup_ || binding.relationIndices.empty() || binding.relationIndices.size() > 32U ||
+	// 関係数とdevice数を混同せず、既存lookup枠と32device枠を独立に検査します。
+	if( !lookup_ || binding.relationIndices.empty() ||
+	   lookup_->relations().size() > INDEX_LOOKUP_RESOLVER_CALL_MAX ||
+	   binding.relationIndices.size() > INDEX_LOOKUP_RESOLVER_CALL_MAX ||
 	   binding.relationIndices.front() != binding.relationIndex ||
-	   binding.target.deviceCount != binding.relationIndices.size()) {
+	   binding.target.deviceCount == 0U || binding.target.deviceCount > 32U) {
 		return static_cast<NativeError>( E_ACCESSDENIED) ;
 	}
 
+	const auto firstError = validateRecord( binding.relationIndex, current, nowUtc,
+										   reason) ;	// 位置を使用する前の独立検証。
+	// 代表の位置や原tupleが不正なら、他関係で補完しません。
+	if( firstError != 0U) {
+		return firstError ;
+	}
+
+	const auto &records = lookup_->snapshot().schemaReceipt().records() ;	// 同原snapshotです。
+	const auto &representative =
+		records[lookup_->relations()[binding.relationIndex].recordIndex] ;	// 検証済み代表原record。
+	std::vector<bool> seen( lookup_->relations().size(), false) ;			// 原lookup枠を超えない重複検査。
+	std::vector<std::wstring> devices ;										// Unique deviceを別に再計数します。
 	// 各原関係を元context/hash/期限へ再照合し、代表recordだけで権限を省略しません。
 	for( const auto index : binding.relationIndices) {
+		// 同じ元位置の二重権限や範囲外位置を拒否します。
+		if( index >= seen.size() || seen[index]) {
+			reason = "duplicate or unavailable original relation" ;
+			return static_cast<NativeError>( E_ACCESSDENIED) ;
+		}
+
+		seen[index]		 = true ;
 		const auto error = validateRecord( index, current, nowUtc, reason) ;	// 元recordの独立検証。
 		// 最初の個別拒否は共有成功へ上書きしません。
 		if( error != 0U) {
 			return error ;
 		}
+
+		const auto &relation = lookup_->relations()[index] ;	// 元record/source/hash再照合済みです。
+		// 一部のpolicy一致から全groupの取得権限を生成しません。
+		if( index != binding.relationIndex &&
+		   !sameSharedPayloadEvidence( representative, records[relation.recordIndex])) {
+			reason = "shared payload evidence or policy mismatch" ;
+			return static_cast<NativeError>( E_ACCESSDENIED) ;
+		}
+
+		// 同deviceの複数INF/版を複数deviceへ数えません。
+		if( std::ranges::find( devices, *relation.deviceIdentity) == devices.end()) {
+			devices.push_back( *relation.deviceIdentity) ;
+		}
+
+		// Claim時にも作用device数を増やす改変を拒否します。
+		if( devices.size() > 32U) {
+			return static_cast<NativeError>( E_ACCESSDENIED) ;
+		}
+	}
+
+	// Targetの公開件数も全原関係から再計数した値へ完全一致させます。
+	if( devices.size() != binding.target.deviceCount) {
+		return static_cast<NativeError>( E_ACCESSDENIED) ;
 	}
 
 	return 0U ;

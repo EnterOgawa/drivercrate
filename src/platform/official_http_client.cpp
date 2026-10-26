@@ -2,7 +2,7 @@
 /**
  * @file official_http_client.cpp
  * @brief 公式配布元限定HTTP client実装。
- * @version 01.16.00
+ * @version 01.19.02
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -59,6 +59,11 @@
  * Ver.01.14.00 Shunji Ogawa  2026/10/14  共通HTML許諾と監視側の一意な非実行script参照を追加。
  * Ver.01.15.00 Shunji Ogawa  2026/10/15  期待媒体型と単一UTF-8 charsetを本文非変換で照合。
  * Ver.01.16.00 Shunji Ogawa  2026/10/16  固定署名索引の用途限定HTTPと共有期限を追加。
+ * Ver.01.17.00 Shunji Ogawa  2026/10/20  監視専用manifest媒体型と私有九send上限を追加。
+ * Ver.01.18.00 Shunji Ogawa  2026/10/23  収集HTML原byteのhashと同取得UTC観測を任意返却。
+ * Ver.01.19.00 Shunji Ogawa  2026/10/23  同じ収集send/readと全保存終端の私有観測を追加。
+ * Ver.01.19.01 Shunji Ogawa  2026/10/23  収集専用の超過検出読取りを残上限と1byteへ制限。
+ * Ver.01.19.02 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
  * </pre>
  *
  * @note WinHTTP handleは本file内のRAII wrapperが所有します。Catalog cacheが破損した場合は破棄し、stale fallbackを行わず公式
@@ -90,6 +95,57 @@
 #include <vector>
 
 namespace drivercrate {
+
+/** @brief この翻訳単位の実HTTPだけが転送観測を更新します。
+ * @note 外部headerに定義せず、JSONや成功boolからの完了生成を認めません。
+ */
+class CollectorHttpTransferRecorder final {
+public:
+	/** @brief 同段階を未完了へ初期化します。
+	 * @param[out] observation 同期呼出しより長生きする出力です。
+	 * @param[in] stage PAGEまたはPAYLOADです。
+	 */
+	CollectorHttpTransferRecorder( CollectorHttpTransferObservation &observation,
+								  CollectorHttpTransferStage		stage) noexcept
+		: observation_( observation)
+	{
+		observation_		= {} ;
+		observation_.stage_ = stage ;
+	}
+	/** @brief 実send呼出しの直前に一回だけ記録します。 */
+	void attempting() noexcept
+	{
+		++observation_.attemptedRequests_ ;
+	}
+	/** @brief 成功したreadData直後の本文量を保存します。
+	 * @param[in] bytes 同じAPIが返した実byteです。
+	 */
+	void read( std::uint32_t bytes) noexcept
+	{
+		observation_.bodyBytesRead_ += bytes ;
+	}
+	/** @brief 同じ実responseの数値statusを保存します。
+	 * @param[in] status 未受信0またはHTTP statusです。
+	 */
+	void status( std::uint32_t status) noexcept
+	{
+		observation_.terminalStatus_ = status ;
+	}
+	/** @brief 全受信・宣言長・保存・取消し確認後だけ完了を確定します。 */
+	void complete() noexcept
+	{
+		observation_.completion_ = CollectorHttpTransferCompletion::COMPLETE ;
+	}
+
+private:
+	/// 同期HTTPの呼出し元が所有する出力です。
+	CollectorHttpTransferObservation &observation_ ;
+} ;
+
+#ifdef DRIVERCRATE_REGISTRY_JOB_TESTING
+// 完全fakeの専用targetだけに存在し、通常HTTPのOS I/Oを変更しません。
+thread_local decltype( &FlushFileBuffers) OfficialHttpClient::collectorFlushProbe_{} ;
+#endif
 namespace {
 
 //------------------------------------------------------------------------------
@@ -970,6 +1026,8 @@ private:
  * @param[in] autoLogonPolicy Serverへの既定credential利用policy。Dynamic targetはHIGHを必須とする。
  * @param[in] collectorMetadata Cookieを無効にする収集専用要求。
  * @param[in,out] indexControl 索引用途だけの共有期限と送信上限です。
+ * @param[in,out] collectorTransfer 収集専用の実send/status記録先です。
+ * @param[in] collectorCancellation 収集専用の送信直前取消しです。
  * @return 検査対象status受信時は0、失敗時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
@@ -979,7 +1037,9 @@ private:
 	MetadataSearchExecutionContext *execution		= nullptr,
 	const OfficialHttpTransport	   &transport		= NATIVE_HTTP_TRANSPORT,
 	const DWORD						autoLogonPolicy = WINHTTP_AUTOLOGON_SECURITY_LEVEL_MEDIUM,
-	const bool collectorMetadata = false, SignedIndexHttpControl *indexControl = nullptr)
+	const bool collectorMetadata = false, SignedIndexHttpControl *indexControl = nullptr,
+	CollectorHttpTransferRecorder  *collectorTransfer	  = nullptr,
+	const HttpCancellationCallback *collectorCancellation = nullptr)
 {
 	status = 0 ;
 	// 長さ超過または印字可能 ASCII 以外を含む ETag は header に使用しない。
@@ -1091,15 +1151,32 @@ private:
 		}
 	}
 
-	// 索引の二resource合計5sendを実送信の直前だけに課金します。
+	// 用途が私有固定した索引send上限を実送信の直前だけに課金します。
 	if( indexControl != nullptr) {
 		const auto stopped = indexControl->checkpoint() ;	// 実送信前の同一停止です。
 		// 不許可sendを通信成功へ数えません。
-		if( stopped != 0 || indexControl->sends >= 5U) {
+		if( stopped != 0 || indexControl->sends >= indexControl->sendLimit()) {
 			return stopped != 0 ? stopped : static_cast<NativeError>( E_ACCESSDENIED) ;
 		}
 
 		++indexControl->sends ;
+	}
+
+	// 収集は最後の設定後にも取消しを確認し、実sendに入る試行だけを数えます。
+	if( collectorTransfer != nullptr) {
+		// Callback障害も未送信のUNKNOWNへ残します。
+		if( collectorCancellation != nullptr) {
+			try {
+				// 実送信前の取消しを試行済みへ数えません。
+				if( *collectorCancellation && (*collectorCancellation)()) {
+					return nativeErrorFromWin32( ERROR_CANCELLED) ;
+				}
+			} catch( ...) {
+				return E_UNEXPECTED ;
+			}
+		}
+
+		collectorTransfer->attempting() ;
 	}
 
 	// 送信に失敗した場合は通信の診断値を返す。
@@ -1145,6 +1222,11 @@ private:
 
 	const NativeError statusError =	// 拒否statusを本文取得前に元の数値付きで返す。
 		validateOfficialHttpResponseStatus( status, !ifNoneMatch.empty(), true) ;
+	// 拒否statusも同じ実HTTP観測へ残します。
+	if( collectorTransfer != nullptr) {
+		collectorTransfer->status( status) ;
+	}
+
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 	if( statusError != 0) {
 		// 収集専用429／503のheader観測だけに所有handleを引き渡す。本文は受理しない。
@@ -1306,6 +1388,7 @@ private:
  * @param[in] requirePublicSameOrigin trueなら各hopの全DNS宛先と起点originを検証する。
  * @param[out] finalUrl 非nullなら成功した最終response URL。失敗時は空。
  * @param[in] collectorMetadata 収集専用のcookie無効化と失敗status観測。
+ * @param[in,out] collectorTransfer 収集専用の実send/status記録先です。
  * @return 最終response確定時は0、不正遷移または失敗時はHRESULT。
  */
 //------------------------------------------------------------------------------
@@ -1318,7 +1401,8 @@ private:
 	MetadataSearchExecutionContext *execution = nullptr,
 	const OfficialHttpTransport	   &transport = NATIVE_HTTP_TRANSPORT,
 	const bool requirePublicSameOrigin = false, std::wstring *finalUrl = nullptr,
-	const bool collectorMetadata = false)
+	const bool					   collectorMetadata = false,
+	CollectorHttpTransferRecorder *collectorTransfer = nullptr)
 {
 	status = 0U ;
 	originPolicyIndices.clear() ;
@@ -1399,7 +1483,8 @@ private:
 						   currentStatus, execution, transport,
 						   requirePublicSameOrigin ? WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH
 												   : WINHTTP_AUTOLOGON_SECURITY_LEVEL_MEDIUM,
-						   collectorMetadata) ;	// 現在hop受信結果。
+						   collectorMetadata, nullptr, collectorTransfer,
+						   &cancellationCallback) ;	// 現在hop受信結果。
 		// 元のHTTP失敗と未通信を収集台帳で区別する。
 		if( collectorMetadata) {
 			status = currentStatus ;
@@ -1734,6 +1819,7 @@ private:
  * @param[in] transport Handleを生成したI/O表。本呼出し中だけ借用する。
  * @param[in] strictContentLength trueなら宣言0と不正な長さも拒否する。
  * @param[in,out] indexControl 索引用途だけの共有期限と原byte課金です。
+ * @param[in,out] collectorTransfer 収集専用の同readData実byte記録先です。
  * @return 全chunk処理成功時は0、失敗時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
@@ -1744,7 +1830,8 @@ template <typename Consumer>
 	const HttpCancellationCallback	   &cancellationCallback,
 	MetadataSearchExecutionContext	   *execution = nullptr,
 	const OfficialHttpTransport		   &transport = NATIVE_HTTP_TRANSPORT,
-	const bool strictContentLength = false, SignedIndexHttpControl *indexControl = nullptr)
+	const bool strictContentLength = false, SignedIndexHttpControl *indexControl = nullptr,
+	CollectorHttpTransferRecorder *collectorTransfer = nullptr)
 {
 	// ゼロの受信上限は有効な取得要求として受理しない。
 	if( maximumBytes == 0) {
@@ -1809,6 +1896,15 @@ template <typename Consumer>
 			return nativeErrorFromWin32( GetLastError()) ;
 		}
 
+		// 収集の同期待機中取消しをEOF完了へ変換しません。
+		if( collectorTransfer != nullptr) {
+			cancellationError = checkCancellation( cancellationCallback) ;
+			// 未完段階の予約はUNKNOWNのままにします。
+			if( cancellationError != 0) {
+				return cancellationError ;
+			}
+		}
+
 		// 同期待機中の取消し・期限をEOF成功やcache保存へ読み替えない。
 		if( execution != nullptr) {
 			const auto stopped = execution->checkpoint() ;	// API復帰直後の停止確認。
@@ -1842,10 +1938,14 @@ template <typename Consumer>
 			const DWORD requested =
 				execution != nullptr
 					? execution->readAllowance( std::min<DWORD>( remaining, READ_BUFFER_BYTES))
-				: indexControl != nullptr
-					? static_cast<DWORD>(
-						  std::min<std::uint64_t>( std::min<DWORD>( remaining, READ_BUFFER_BYTES),
-												  maximumBytes - receivedTotal + 1U))
+				: indexControl != nullptr ? static_cast<DWORD>( std::min<std::uint64_t>(
+												std::min<DWORD>( remaining, READ_BUFFER_BYTES),
+												maximumBytes - receivedTotal + 1U))
+				: collectorTransfer != nullptr
+					? static_cast<DWORD>( std::min<std::uint64_t>(
+						  std::min<DWORD>( remaining, READ_BUFFER_BYTES),
+						  std::min<std::uint64_t>( maximumBytes - receivedTotal, READ_BUFFER_BYTES) +
+							  1U))
 					: std::min<DWORD>( remaining,
 									  READ_BUFFER_BYTES) ;	// 残予算とprobeに制限した要求量。
 			// 取消し・期限後の0 byte要求を正常終端へ読み替えない。
@@ -1866,6 +1966,11 @@ template <typename Consumer>
 			// 本文の読取りが失敗した場合は Windows の診断値を返す。
 			if( transport.readData( request, buffer.data(), requested, &received) == FALSE) {
 				return nativeErrorFromWin32( GetLastError()) ;
+			}
+
+			// 保存拒否・取消し・cap超過でも、APIが返した本文実数を失いません。
+			if( collectorTransfer != nullptr) {
+				collectorTransfer->read( received) ;
 			}
 
 			// 索引の実受信probeも課金し、停止後はconsumerへ渡しません。
@@ -2450,7 +2555,8 @@ public:
 	bool body( std::uint64_t maximum, std::optional<std::uint64_t> expected,
 			  std::vector<std::byte> &bytes)
 	{
-		std::array<std::byte, READ_BUFFER_BYTES> buffer{} ;	// 有限read buffer。
+		std::vector<std::byte> buffer(
+			READ_BUFFER_BYTES) ;	// 同じ有限容量をゼロ初期化し、呼出し中だけ所有する。
 		// 全体期限を毎回確認し、EOFまたは厳密長まで反復する。
 		for( ;;) {
 			// 正当な長さによる区切りが成立すれば追加probeは不要。
@@ -4626,12 +4732,19 @@ NativeError OfficialHttpClient::downloadToFile(
 	const std::uint32_t maximumRedirects, const std::uint64_t maximumBytes, const HANDLE outputFile,
 	const HttpDownloadProgressCallback &progressCallback,
 	const HttpCancellationCallback	   &cancellationCallback,
-	std::vector<std::uint32_t> &originPolicyIndices, const bool collectorInspection) const
+	std::vector<std::uint32_t> &originPolicyIndices, const bool collectorInspection,
+	CollectorHttpTransferObservation *transfer) const
 {
 	originPolicyIndices.clear() ;
+	CollectorHttpTransferObservation ignored ;	// 観測不要の旧callerにも同じ保存処理を使います。
+	CollectorHttpTransferRecorder	 recorder(
+		   transfer != nullptr ? *transfer : ignored,
+		CollectorHttpTransferStage::PAYLOAD) ;	// 完了はflush後だけです。
 	// 無効な保存先と取得 policy・callback の不備を送信前に拒否する。
 	if( maximumRedirects > MAXIMUM_REDIRECTS || maximumBytes == 0 || outputFile == nullptr ||
-	   outputFile == INVALID_HANDLE_VALUE || !progressCallback) {
+	   outputFile == INVALID_HANDLE_VALUE || !progressCallback ||
+	   (transfer != nullptr && !collectorInspection) ||
+	   (collectorInspection && maximumRedirects > 2U)) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
 	}
 
@@ -4653,7 +4766,7 @@ NativeError OfficialHttpClient::downloadToFile(
 	const NativeError requestError = openGetRequestFollowingRedirects(
 		url, allowedHosts, maximumRedirects, {}, cancellationCallback, session, connection, request,
 		status, originPolicyIndices, nullptr, transport, collectorInspection, nullptr,
-		collectorInspection) ;	// 新収集検査だけに公開宛先・cookie無効を追加。
+		collectorInspection, collectorInspection ? &recorder : nullptr) ;	// 新収集検査だけの観測。
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 	if( requestError != 0) {
 		return requestError ;
@@ -4683,15 +4796,43 @@ NativeError OfficialHttpClient::downloadToFile(
 
 			return static_cast<NativeError>( 0) ;
 		},
-		progressCallback, cancellationCallback, nullptr, transport, collectorInspection) ;
+		progressCallback, cancellationCallback, nullptr, transport, collectorInspection, nullptr,
+		collectorInspection ? &recorder : nullptr) ;
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 	if( receiveError != 0) {
 		return receiveError ;
 	}
 
+	// 保存終了前の取消しとcallback障害を元診断のまま保持します。
+	if( collectorInspection) {
+		const auto cancelled = checkCancellation( cancellationCallback) ;	// 同終端の元診断です。
+		// Callback例外のE_UNEXPECTEDを取消しへ置き換えません。
+		if( cancelled != 0) {
+			return cancelled ;
+		}
+	}
+
+	auto flush = &FlushFileBuffers ;	// 同じ取得handleの全保存を確定するOS境界です。
+#ifdef DRIVERCRATE_REGISTRY_JOB_TESTING
+	// 故障注入は専用targetの収集保存だけへ限定します。
+	if( collectorInspection && collectorFlushProbe_ != nullptr) {
+		flush = collectorFlushProbe_ ;
+	}
+#endif
 	// Payload 出力を flush できなければ取得完了を返さない。
-	if( FlushFileBuffers( outputFile) == FALSE) {
+	if( flush( outputFile) == FALSE) {
 		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	// Flush待機中の取消しを完全精算へ進めません。
+	if( collectorInspection) {
+		const auto cancelled = checkCancellation( cancellationCallback) ;	// 終端の同じ停止です。
+		// 停止診断を成功に上書きしません。
+		if( cancelled != 0) {
+			return cancelled ;
+		}
+
+		recorder.complete() ;
 	}
 
 	return 0 ;
@@ -4700,10 +4841,25 @@ NativeError OfficialHttpClient::downloadToFile(
 /** @see OfficialHttpClient 宣言側の契約を正本とする。 */
 NativeError OfficialHttpClient::getCollectorInspectionPage(
 	std::wstring_view url, std::wstring_view host, const HttpCancellationCallback &cancellation,
-	std::wstring &text, std::wstring &finalUrl)
+	std::wstring &text, std::wstring &finalUrl, CollectorInspectionPageObservation *observation,
+	CollectorHttpTransferObservation *transfer, std::vector<std::byte> *raw)
 {
 	text.clear() ;
 	finalUrl.clear() ;
+	CollectorHttpTransferObservation ignored ;	// 旧callerも実I/Oの意味は同じです。
+	CollectorHttpTransferRecorder	 recorder(
+		   transfer != nullptr ? *transfer : ignored,
+		CollectorHttpTransferStage::PAGE) ;	// 未送信を含めUNKNOWNから始めます。
+	// 原本文を旧proofから引き継ぎません。
+	if( raw != nullptr) {
+		raw->clear() ;
+	}
+
+	// 失敗や再使用時に以前の成功観測を残しません。
+	if( observation != nullptr) {
+		*observation = {} ;
+	}
+
 	const std::array<std::wstring_view, 1U> hosts{host} ;	// 外部定義のexact一hostだけ。
 	// Cache・metadata専用・旧ledger付きclientを収集scopeへ流用しない。
 	if( useCatalogCache_ || metadataExecution_ != nullptr || sourceScanSessionId_ != 0U ||
@@ -4726,9 +4882,9 @@ NativeError OfficialHttpClient::getCollectorInspectionPage(
 	DWORD					   status{} ;				// 成功200だけを本文へ渡す。
 	std::vector<std::uint32_t> origins ;				// 非永続の最大三hop。
 	std::wstring			   receivedUrl ;			// 同じ応答の相対link base。
-	auto error = openGetRequestFollowingRedirects( url, hosts, 2U, {}, cancellation, session,
-												  connection, request, status, origins, nullptr,
-												  transport, true, &receivedUrl, true) ;	// 共通GET。
+	auto					   error = openGetRequestFollowingRedirects(
+		  url, hosts, 2U, {}, cancellation, session, connection, request, status, origins, nullptr,
+		  transport, true, &receivedUrl, true, &recorder) ;	// 共通GET。
 	// 同一origin・全public・HTTP200確認前に本文を認定しない。
 	if( error != 0 || status != HTTP_STATUS_OK) {
 		return error != 0 ? error : HRESULT_FROM_WIN32( ERROR_WINHTTP_INVALID_SERVER_RESPONSE) ;
@@ -4747,7 +4903,8 @@ NativeError OfficialHttpClient::getCollectorInspectionPage(
 			body.insert( body.end(), chunk.begin(), chunk.end()) ;
 			return static_cast<NativeError>( 0) ;
 		},
-		[]( std::uint64_t, std::uint64_t) {}, cancellation, nullptr, transport, true) ;
+		[]( std::uint64_t, std::uint64_t) {}, cancellation, nullptr, transport, true, nullptr,
+		&recorder) ;
 	// 部分本文をparserへ渡さない。
 	if( error != 0) {
 		return error ;
@@ -4760,10 +4917,36 @@ NativeError OfficialHttpClient::getCollectorInspectionPage(
 		error = checkCancellation( cancellation) ;
 	}
 
+	std::wstring bodyHash ;	// 任意観測を要求した同原byteだけのhashです。
+	// 復号後文字列を再encodeして原HTTP hashと取り違えません。
+	if( error == 0 && observation != nullptr) {
+		// std::byte領域を文字aliasで借用し、同じ原byteを変更せずCNGへ渡します。
+		error = computeCollectorMetadataSha256(
+			{reinterpret_cast<const char *>( body.data()), body.size()}, bodyHash) ;
+	}
+
 	// 実受信・MIME・全復号成功後だけ同じcallerへ渡す。
 	if( error == 0) {
 		text	 = std::move( decoded) ;
 		finalUrl = std::move( receivedUrl) ;
+		// 同じ取得で確定した有限値だけを公開します。
+		if( observation != nullptr) {
+			observation->httpStatus = status ;
+			observation->bodyBytes	= body.size() ;
+			observation->bodySha256 = std::move( bodyHash) ;
+			observation->observedAtUtc =
+				std::chrono::floor<std::chrono::seconds>( std::chrono::system_clock::now()) ;
+			observation->finalUrl = finalUrl ;
+			observation->requestCount =
+				transfer != nullptr ? transfer->attemptedRequests() : ignored.attemptedRequests() ;
+		}
+
+		// 完全な同一取得の原byteだけをproof所有者へ移します。
+		if( raw != nullptr) {
+			*raw = std::move( body) ;
+		}
+
+		recorder.complete() ;
 	}
 
 	return error ;
@@ -4860,7 +5043,7 @@ NativeError OfficialHttpClient::getSignedIndexCurrent( SignedIndexHttpControl &c
 {
 	return getSignedIndexBytes(
 		L"https://raw.githubusercontent.com/EnterOgawa/drivercrate/driver-index/index/current.json",
-		true, INDEX_ENVELOPE_MAX_BYTES, control, raw, status) ;
+		SignedIndexRole::CURRENT, INDEX_ENVELOPE_MAX_BYTES, control, raw, status) ;
 }
 /** @see OfficialHttpClient宣言側の契約を正本とします。 */
 NativeError OfficialHttpClient::getSignedIndexAsset( const AuthenticatedIndexManifest &manifest,
@@ -4880,17 +5063,35 @@ NativeError OfficialHttpClient::getSignedIndexAsset( const AuthenticatedIndexMan
 	const std::wstring url = L"https://github.com/EnterOgawa/drivercrate/releases/download/" +
 							 std::wstring( asset.tag.begin(), asset.tag.end()) +
 							 L"/index.json.gz" ;	// Codec認証済みASCII tagです。
-	return getSignedIndexBytes( url, false, asset.sizeBytes, control, raw, status) ;
+	return getSignedIndexBytes( url, SignedIndexRole::GZIP, asset.sizeBytes, control, raw, status) ;
 }
 /** @see OfficialHttpClient宣言側の契約を正本とします。 */
-NativeError OfficialHttpClient::getSignedIndexBytes( const std::wstring_view url, const bool current,
-													const std::uint64_t		maximumBytes,
-													SignedIndexHttpControl &control,
-													std::vector<std::byte> &raw,
-													std::uint32_t		   &status)
+NativeError OfficialHttpClient::getSignedIndexManifestAsset(
+	const AuthenticatedIndexManifest &manifest, SignedIndexHttpControl &control,
+	std::vector<std::byte> &raw, std::uint32_t &status)
+{
+	const auto &asset = manifest.data().asset ;	// Codecで認証済みのimmutable tagです。
+	// Move済みreceiptや異なるassetを固定manifest取得へ流用しません。
+	if( asset.tag.empty() || asset.name != "index.json.gz") {
+		raw.clear() ;
+		status = 0U ;
+		return E_INVALIDARG ;
+	}
+
+	const std::wstring url = L"https://github.com/EnterOgawa/drivercrate/releases/download/" +
+							 std::wstring( asset.tag.begin(), asset.tag.end()) +
+							 L"/manifest.json" ;	// 任意URL入力なしです。
+	return getSignedIndexBytes( url, SignedIndexRole::MANIFEST, INDEX_ENVELOPE_MAX_BYTES, control,
+							   raw, status) ;
+}
+/** @see OfficialHttpClient宣言側の契約を正本とします。 */
+NativeError OfficialHttpClient::getSignedIndexBytes(
+	const std::wstring_view url, const SignedIndexRole role, const std::uint64_t maximumBytes,
+	SignedIndexHttpControl &control, std::vector<std::byte> &raw, std::uint32_t &status)
 {
 	raw.clear() ;
-	status = 0 ;
+	status			   = 0 ;
+	const bool current = role == SignedIndexRole::CURRENT ;	// 通常currentのredirect0を維持します。
 	// 署名索引の用途を通常cache、metadata context、Provider ledgerへ混入しません。
 	if( useCatalogCache_ || metadataExecution_ != nullptr || sourceScanSessionId_ != 0U ||
 	   maximumBytes == 0U) {
@@ -4988,8 +5189,11 @@ NativeError OfficialHttpClient::getSignedIndexBytes( const std::wstring_view url
 		if( !mime || !encoding || (!encoding->empty() && *encoding != L"identity") ||
 		   (current ? !(matchesOfficialPayloadContentType( *mime, L"application/json") ||
 						matchesOfficialPayloadContentType( *mime, L"text/plain"))
-					: !(*mime == L"application/gzip" || *mime == L"application/x-gzip" ||
-						*mime == L"application/octet-stream"))) {
+					: (role == SignedIndexRole::MANIFEST
+						   ? !(matchesOfficialPayloadContentType( *mime, L"application/json") ||
+							   *mime == L"application/octet-stream")
+						   : !(*mime == L"application/gzip" || *mime == L"application/x-gzip" ||
+							   *mime == L"application/octet-stream")))) {
 			return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
 		}
 

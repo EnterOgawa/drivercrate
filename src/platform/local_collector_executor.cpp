@@ -2,7 +2,7 @@
 /**
  * @file local_collector_executor.cpp
  * @brief WorkerのCOM・client寿命とv3保存後のslot解放を実装します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/27
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/27  応答v3・所有worker回収を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/27  取消し伝播・全体診断を補修。
+ * Ver.01.01.01 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
  * </pre>
  *
  * @note 開発用の有限収集に限定し、製品の取得・導入を許可しません。
@@ -472,10 +473,10 @@ CollectorExecutorReport LocalCollectorExecutor::run( LocalCollectorRecovery &rec
 								}
 
 								++state.report.started ;
-							} catch( const std::system_error &error) {
+							} catch( const std::system_error &startError) {
 								const auto code = static_cast<std::uint32_t>(
 									// 元開始失敗の原値。
-									error.code().value()) ;
+									startError.code().value()) ;
 								state.fail( index, CollectorIoErrorDomain::WIN32_ERROR, code) ;
 								(void)state.pool.controls_[index]->finish() ;
 								vacant->io = state.pool.controls_[index]->snapshot() ;

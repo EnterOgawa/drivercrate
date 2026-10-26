@@ -2,7 +2,7 @@
 /**
  * @file local_collector_shared_inventory_tests.cpp
  * @brief 同親共有根拠の非変更・全raw結合・最終再照合を検査します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/02  共有inventory実byteと閉鎖根拠fixtureを追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 自身の架空fixtureだけです。公式HTTP・driver・OS設定を変更しません。
@@ -527,7 +528,13 @@ void finalChecks( TestContext &c, const std::filesystem::path &base)
 								  return 0U ;
 							  }) == 32U &&
 							  !proof) ;
-	require( CloseHandle( blocker) != FALSE) ;
+	// Callbackが実行されなかった場合も失敗とし、無効handleでの解放を避けます。
+	if( blocker == INVALID_HANDLE_VALUE) {
+		throw std::runtime_error( "Shared inventory blocker was not created") ;
+	}
+
+	const BOOL closed = CloseHandle( blocker) ;	// 解放後の値を後続のassertionへ渡しません。
+	require( closed != FALSE) ;
 	DRIVERCRATE_EXPECT( c, LocalCollectorSharedStore::inspectSharedRootInventory(
 							  s.parent, *s.child, UTC * 1000U, proof) == 0U &&
 							  image( root) == before) ;

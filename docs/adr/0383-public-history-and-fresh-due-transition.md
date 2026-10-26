@@ -1,0 +1,76 @@
+# ADR 0383: Public旧履歴の認証とfresh-dueの限定接続
+
+- 日付: 2026-10-20
+- 状態: 採用。G13-I7r231h15s11b2ha/htのローカルsource/有限fake対象。
+- 前提: ADR0381/0382のv3閉schema、原v2通常loader、Private既定とADR0373〜0377を維持する。
+
+## 決定
+
+v3 CLI/Task/reportは引き続き作用前に閉じる。保護control配下の明示history fileとその原SHAを
+内部runの引数へ渡した限定contextだけを認証する。history fileを本処理から発行しない。
+元configを現在実行可能へ昇格するpin例外や修復chainの例外は追加しない。
+後述する歴史専用contextだけは旧byteをmetadataとして認証し、実行用のcurrent runtimeと分ける。
+
+historyは新旧config原SHA、原start、receipt、claim、manifest/gzip/envelope、原署名成功結果、
+原最終成功結果と全旧terminal、六raw inputのpath/hashを閉fieldとして保持する。
+既存path/ACL/ancestor/reparse/hardlinkと原SHAを検査し、原claimを同じ六rawから再構築する。
+原childExitCode=0とnativeCurrentVerified=trueを要求し、UNKNOWNを署名成功へ補完しない。
+既存native history検証と六入力監査は原発行時刻で行い、失効した旧束を現在候補へ昇格しない。
+旧carryは認証した元config/継承recordから導出して保持し、callerの新counterで置き換えない。
+
+同じoperation lock内で旧receiptのLEGACY_FENCEを現在の保護headへ照合し、原notBefore後だけ
+既存native daily取得へ進む。新200または実304は原receipt hash鎖・同じstate/manifest・増加世代・
+実観測時刻に結合し、FRESH_INPUTで保護headと全run原byteへ照合してから取得準備へ渡す。
+世代はnative receiptを使用し、remote+1やcaller採番を行わない。304の元fetchと今回validationを保つ。
+
+新しい日次operationは旧観測と別であることを認証したときだけ別の有限予算を使う。
+bootstrap/history検証・新観測・署名・GitHubを同じ96calls/1800秒内へ計上する。
+各childの開始前intentと完了後の実単調時間を保護operation内へCREATE_NEWで保存し、
+未完了intentは予約した最大時間を消費する。再開時は同じhistory/config/dayとjournalを読み戻す。
+新config/hash・別rootではこのjournalをresetしない。
+public受付直後の単調startからmetadata認証・lock待ち・journal読戻しも当attemptへ一度加算する。
+再開時に全child journalまたは外側時間summaryが欠ければ予算不明として拒否する。
+
+Public再開は保存済み新receipt・完全署名束・原成功署名結果の同byte再検証とreadback-onlyに限定する。
+部分取得・未知署名・追加upload/CASを再実行しない。途中成果物・旧失敗・CAS intentは削除しない。
+旧CASが未解決なら新観測へ進めない。正常な最終PUBLISHEDの原結果と原current一致を必要とする。
+
+## 限界
+
+この限定接続を実旧configの移設成功、実収集/実署名/公開、日次運用完成とは扱わない。
+実保護history発行配置、CLIへの明示contextの接続、Task再bind、匿名readback、旧固定asset復帰は別工程。
+現在用通常loaderは原module pinが現在sourceと一致しない旧configを従来どおり拒否する。
+歴史専用metadataの認証では、保存された旧version byteと原pinを照合する。
+元七日の日程、旧90calls/846.4786秒、失効済みgen5期限2026-10-19T13:24:11Zを変更しない。
+通常アプリ/Provider/C++/CMake/Task source/公開manifestは変更しない。
+
+## 期限後の旧継承metadataと現在runtimeの役割分離
+
+現物では通常v2 loaderのSCRIPT_PINが現在moduleを要求し、codeRepair/preSign/verifiedUnsignedの
+検証が元receiptを現在時刻の`_validated_daily_generation`へ渡す。従って旧code更新後と期限後の
+元receiptを現在の実行入力として通常loadすることはできない。これを現在用loaderの例外で通さない。
+
+2026-10-20の主担当追補に従い、未使用v3へ任意fieldではなく閉じた`historicalPredecessor`を追加する。
+schema、envelopeFile、envelopeSha256の三fieldで原署名envelopeへ結び、旧config/旧versioned module・native
+実byteとcodeRepair/preSign/verifiedUnsignedの全参照pinをmetadata専用に読む。既存v1/v2の受理を広げず、
+旧codeは実行しない。原manifest公開時刻は履歴監査の明示引数だけへ渡し、現在時計を変更しない。
+
+元の意味fieldと全継承recordを保持し、現在runtimeのcollectorExe/collectorSha256/signerExe/signerSha256/
+pipelineSha256/producerSha256/modulePinsだけを現保護versionの実byteで独立検証する。
+旧pin不一致を無視せず、旧pinは保存された旧version byte、current pinは実行する現version byteへ照合する。
+署名・六raw・原結果の認証は実行前のhistory contextで必須とし、設定読取だけを移行許可にしない。
+既知profileだけを有限に辿り、未知schema/余剰field/参照改変・carry低下を拒否する。
+旧carryは値をsourceへ埋めず、明示pin済みの元execution summary/main terminalと主担当review receiptを
+それぞれ元index/sealへ照合し、元carry+元新規call+主担当追加call、元carry秒+外側実行秒+主担当実測秒で
+再導出する。元chain導出carryより小さい証拠と未対応の元会計形式を拒否する。
+実旧90calls/846.4786425890825秒は保存証拠の実績であり、fixture期待値と実旧profileの受入を分ける。
+この一回のv2→v3橋渡しを翌日以後の継続cycle完成とせず、同じcontextの別日再利用を明示拒否する。
+
+## 有限受入と具体的な後続範囲
+
+正常fixtureは元日程の15JST付近でUTC/local日付が一致する対象へ固定する。
+既存run_acquisitionにはreceipt.dayとUTC日付の比較があり、Public contextは元scheduleのlocal日付を持つ。
+JST00:00以上09:00未満の境界は今回未受入である。nativeの保存日付契約を先に確認し、
+翌日Public cycle/固定context CLI接続の別工程でUTC/JST境界caseを登録して扱う。
+この未対応を実収集成功や継続運用保証へ換算せず、通常v1/v2の契約を変更しない。
+未知の実旧history/claim/native stateへの接続、実旧profile全体の移行は未確認のまま残す。

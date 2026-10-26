@@ -2,7 +2,7 @@
 /**
  * @file local_collector_recovery.cpp
  * @brief 固定更新前後像と応答先行のv2監督を実装します。
- * @version 01.29.02
+ * @version 01.29.03
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -57,6 +57,7 @@
  * Ver.01.29.00 Shunji Ogawa  2026/10/02  HTTP発行の実所有と初期化前freeze検査を追加。
  * Ver.01.29.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.29.02   Shunji Ogawa  2026/10/16 保存応答の省略可能な観測出力と失敗時契約を明記。
+ * Ver.01.29.03 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
  * </pre>
  *
  * @note HTTP、cacheの品質昇格、summary公開は実行しません。
@@ -3347,8 +3348,12 @@ struct LocalCollectorRecovery::State {
 		const std::uint64_t closedUtc, const std::set<std::wstring> *verifiedOperations = nullptr,
 		const bool closing = false)
 	{
-		require( store && storageVersion == 3U &&
-				str( root, L"schema") == L"collector-campaign-root-v3" &&
+		// 保存先の不在は元の形式拒否で止め、照合APIへ無効な参照を渡しません。
+		if( store == nullptr) {
+			throw static_cast<DWORD>( ERROR_INVALID_DATA) ;
+		}
+
+		require( storageVersion == 3U && str( root, L"schema") == L"collector-campaign-root-v3" &&
 				(verifiedOperations || root.GetNamedArray( L"generations").Size() == 1U) &&
 				!pendingRoll &&
 				root.GetNamedValue( L"commit").ValueType() ==
@@ -5504,7 +5509,12 @@ DWORD LocalCollectorRecovery::acceptForMode( std::size_t						 jobIndex,
 									   }) ; // 元processの予約。
 		// 制御予約を旧acceptへ渡して観測を捨てることを禁止する。
 		if( observation) {
-			require( binding && live != state_->controlledBindings.end() &&
+			// 観測付き応答に必須の元予約がなければ同じ形式errorで停止します。
+			if( binding == nullptr) {
+				throw static_cast<DWORD>( ERROR_INVALID_DATA) ;
+			}
+
+			require( live != state_->controlledBindings.end() &&
 					sameCollectorRecoveryDispatch( **live, *binding)) ;
 			require( observation->deadlineUtcMillis == binding->deadlineUtcMillis &&
 					observation->finishedUtcMillis &&
@@ -6432,7 +6442,11 @@ DWORD LocalCollectorRecovery::prepareProjectedUpdateForMode(
 			// 元予約に対応する履歴slot。
 			std::distance( state_->controlledBindings.begin(), live)) ;
 		const auto *job = campaign->job( index) ;	// 元prepared scopeだけを使います。
-		require( job != nullptr) ;
+		// 元prepared jobの不在を同じ形式拒否へ返し、後続codecへ参照を渡しません。
+		if( job == nullptr) {
+			throw static_cast<DWORD>( ERROR_INVALID_DATA) ;
+		}
+
 		std::shared_ptr<const CollectorRegisteredProjectedHistory> history ;	// 全閉包検査後の値。
 		// 次世代は現在の全履歴と予約前の同CACHEhashを再照合します。
 		if( next) {
@@ -6603,7 +6617,11 @@ DWORD LocalCollectorRecovery::acceptProjectedForMode(
 
 	try {
 		const auto *worker = executor.result( slot) ;	// 全join後の元所有値だけ。
-		require( worker != nullptr) ;
+		// 全join後も結果がないslotは元の形式errorで止めます。
+		if( worker == nullptr) {
+			throw static_cast<DWORD>( ERROR_INVALID_DATA) ;
+		}
+
 		const auto &binding = worker->binding ;	// 同じ予約の全field。
 		const auto	live =
 			std::find_if( state_->controlledBindings.begin(), state_->controlledBindings.end(),
@@ -6683,8 +6701,8 @@ DWORD LocalCollectorRecovery::acceptProjectedForMode(
 		state_->error = code ;
 	} catch( const std::bad_alloc &) {
 		state_->error = static_cast<DWORD>( E_OUTOFMEMORY) ;
-	} catch( const winrt::hresult_error &error) {
-		state_->error = static_cast<DWORD>( error.code().value) ;
+	} catch( const winrt::hresult_error &nativeFailure) {
+		state_->error = static_cast<DWORD>( nativeFailure.code().value) ;
 	} catch( ...) {
 		state_->error = ERROR_INVALID_DATA ;
 	}

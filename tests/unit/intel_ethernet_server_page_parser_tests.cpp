@@ -2,7 +2,7 @@
 /**
  * @file intel_ethernet_server_page_parser_tests.cpp
  * @brief Intel Ethernet Server／Windows 11 record単体試験実装。
- * @version 01.08.02
+ * @version 01.09.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,7 @@
  * Ver.01.08.00 Shunji Ogawa  2026/09/28  制御付きcore全checkpointの停止・例外fixtureを追加。
  * Ver.01.08.01 Shunji Ogawa  2026/10/02  AI依存を撤去し非AI共通処理と試験を維持。
  * Ver.01.08.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.09.00 Shunji Ogawa  2026/10/26  SHA-512単独・両hashと欠損改変拒否を回帰確認。
  * </pre>
  *
  * @note 現行pageと同じ必須labelを持つ合成fixtureで、別host、別OS、重複を拒否します。
@@ -65,6 +66,7 @@
 #include <cstddef>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace drivercrate::test {
@@ -237,7 +239,7 @@ void testLicenseSnapshot( TestContext &context)
 		parseOfficialReleaseRecord( OfficialReleaseFamily::INTEL_ETHERNET_SERVER2025, page, record)) ;
 	DRIVERCRATE_EXPECT( context, record.eulaText == metadata.eulaText) ;
 	DRIVERCRATE_EXPECT( context, record.eulaRevision == metadata.eulaRevision) ;
-	DRIVERCRATE_EXPECT( context, record.parserRevision == 2U) ;
+	DRIVERCRATE_EXPECT( context, record.parserRevision == 3U) ;
 	DRIVERCRATE_EXPECT( context, record.downloadUrl == metadata.downloadUrl) ;
 	DRIVERCRATE_EXPECT( context, record.publishedSha256 == metadata.sha256) ;
 	const auto targets = makeReleasePreparationTargets( record, 1U, 1U, 1U) ;	// 未同意の取得対象。
@@ -740,7 +742,7 @@ void testWindows11DistributionRecord( TestContext &context)
 		context,
 		parseOfficialReleaseRecord( OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11, page, release)) ;
 	DRIVERCRATE_EXPECT( context, release.family == OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11) ;
-	DRIVERCRATE_EXPECT( context, release.parserRevision == 3U) ;
+	DRIVERCRATE_EXPECT( context, release.parserRevision == 4U) ;
 	DRIVERCRATE_EXPECT( context, !release.publishedSizeBytes) ;
 	const std::wstring expectedEula	  = release.eulaText ;			// 移動後recordとの同値確認用snapshot。
 	const OfficialSourceEvidence root = windows11RootEvidence() ;	// URL非保持の架空root証拠。
@@ -751,7 +753,7 @@ void testWindows11DistributionRecord( TestContext &context)
 	DRIVERCRATE_EXPECT( context, release.downloadUrl.empty()) ;
 	DRIVERCRATE_EXPECT( context, distribution.recordEvidenceId == 1U) ;
 	DRIVERCRATE_EXPECT( context, distribution.parserId == L"intel-ethernet-windows11-page") ;
-	DRIVERCRATE_EXPECT( context, distribution.parserRevision == 3U) ;
+	DRIVERCRATE_EXPECT( context, distribution.parserRevision == 4U) ;
 	DRIVERCRATE_EXPECT( context, distribution.recordRoute == L"intel-download-record") ;
 	DRIVERCRATE_EXPECT( context, distribution.recordKey == L"727998") ;
 	DRIVERCRATE_EXPECT( context, distribution.productFamily == L"Intel Ethernet Network Adapters") ;
@@ -782,9 +784,17 @@ void testWindows11DistributionRecord( TestContext &context)
 
 	OfficialDistributionRecordEvidence evidence ;	// URLを保持しないrecord検証証拠。
 	DRIVERCRATE_EXPECT( context, validateOfficialDistributionRecord( distribution, evidence) == 0) ;
+	OfficialDistributionRecordEvidence priorParserEvidence ;	// 改訂前recordから再計算する対照。
+	const auto currentRevision	= distribution.parserRevision ;	// 現版recordの復元値。
+	distribution.parserRevision = 3U ;
 	DRIVERCRATE_EXPECT( context,
-					   officialRecordFingerprint( evidence) ==
+					   validateOfficialDistributionRecord( distribution, priorParserEvidence) == 0) ;
+	distribution.parserRevision = currentRevision ;
+	DRIVERCRATE_EXPECT( context,
+					   officialRecordFingerprint( priorParserEvidence) ==
 						   "60e8e331663fc75f9958c832bf7776b85d5c9f2e48777e7f9d5fbc01be546fc4") ;
+	DRIVERCRATE_EXPECT( context, officialRecordFingerprint( evidence) !=
+									officialRecordFingerprint( priorParserEvidence)) ;
 	DRIVERCRATE_EXPECT( context, evidence.rootEvidence.providerId ==
 									INTEL_ETHERNET_WINDOWS11_OFFICIAL_PROVIDER_ID) ;
 	std::vector<OfficialRecordPayloadDescriptor> descriptors ;	// UIへ渡せる方式別説明。
@@ -924,9 +934,10 @@ void testSharedIntelZipAdapter( TestContext &context)
 		DRIVERCRATE_EXPECT(
 			context, parseOfficialReleaseRecord( OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11,
 												windows11LicensePage( LICENSE_BODY), release)) ;
-		release.family = family ;
-		release.parserRevision =
-			family == OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11 ? 3U : 2U ;
+		release.family		   = family ;
+		release.parserRevision = family == OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11	  ? 4U
+								 : family == OfficialReleaseFamily::INTEL_ETHERNET_SERVER2025 ? 3U
+																							  : 2U ;
 		// Wi-Fiだけは既存parserが要求するdriver-only basenameへ変える。
 		if( family == OfficialReleaseFamily::INTEL_WIFI) {
 			release.fileName = L"WiFi-31.2.2-Driver64-Win10-Win11.zip" ;
@@ -1057,6 +1068,172 @@ void testControlledIntelMetadata( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !result.candidate && result.targets.size() == 2U) ;
 }
 
+/**
+ * @brief 既存の合成配布行を架空SHA-512表示へ置き換えます。
+ * @param[in] page 許諾と単一SHA-256欄を持つ合成page。
+ * @param[in] keepSha256 元の公開SHA-256欄も残す場合true。
+ * @return SHA-512欄を一件だけ持つ所有page。既存fixtureの構造欠損時は空。
+ */
+[[nodiscard]] std::wstring sha512Page( std::wstring page, const bool keepSha256)
+{
+	const auto start = page.find( L"<li>SHA256:") ;		// 旧公開hash欄の先頭。
+	const auto end	 = page.find( L"</li>", start) ;	// 同じ欄の終端。
+	// Fixtureの不備を別の成功構造へ補完しません。
+	if( start == page.npos || end == page.npos) {
+		return {} ;
+	}
+
+	const std::wstring field =
+		L"<li>SHA512: " + std::wstring( 128U, L'a') + L"</li>" ;	// 実payloadと無関係のhash。
+	page.replace( keepSha256 ? end + 5U : start, keepSha256 ? 0U : end + 5U - start, field) ;
+	return page ;
+}
+
+/**
+ * @brief 公開hashの算法を区別したまま通常recordと収集候補へ渡します。
+ * @param[in,out] context Assertion集計先。
+ */
+void testPublishedSha512( TestContext &context)
+{
+	// 同じEthernet coreの両profileで単独と両hashを確認します。
+	for( const auto family : {OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11,
+							 OfficialReleaseFamily::INTEL_ETHERNET_SERVER2025}) {
+		// 従来SHA-256を消す場合と残す場合を別々に検証します。
+		for( const bool both : {false, true}) {
+			const auto page = sha512Page( family == OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11
+											 ? windows11LicensePage( LICENSE_BODY)
+											 : licensePage( LICENSE_BODY),
+										 both) ;	// 有限合成本文。
+			OfficialReleaseRecord release ;			// 実parserの出力。
+			DRIVERCRATE_EXPECT( context, parseOfficialReleaseRecord( family, page, release)) ;
+			DRIVERCRATE_EXPECT( context, release.publishedSha256.empty() == !both &&
+											release.publishedSha512 == std::wstring( 128U, L'a')) ;
+			auto		root	   = windows11RootEvidence() ;				// 架空の公式取得根拠。
+			const auto *definition = officialSourceDefinition( family) ;	// 選択profileの固定根拠。
+			root.providerId		   = definition->providerId ;
+			root.policyId		   = definition->sourceId ;
+			OfficialDistributionRecord record ;	// 共通payloadへ変換する結果。
+			DRIVERCRATE_EXPECT( context,
+							   adaptIntelZipDistributionRecord( OfficialReleaseRecord{release}, root,
+															   1U, WINDOWS11_RESOLVED_UTC, record)) ;
+			OfficialDistributionRecordEvidence evidence ;	// 共通検証のURL非保持出力。
+			DRIVERCRATE_EXPECT( context, validateOfficialDistributionRecord( record, evidence) == 0 &&
+											record.payloads.size() == 1U) ;
+			// 変換失敗時に空vectorを参照しません。
+			if( record.payloads.size() == 1U) {
+				DRIVERCRATE_EXPECT(
+					context, record.payloads[0].publishedSha256 == release.publishedSha256 &&
+								 record.payloads[0].publishedSha512 == release.publishedSha512) ;
+			}
+
+			RecordScopedDownloadGrant grant ;	// 一recordだけの揮発性fixture権限。
+			DRIVERCRATE_EXPECT( context, grant.issue( record, evidence, 0U, 15U,
+													WINDOWS11_RESOLVED_UTC + 1U, 0U) == 0) ;
+			DRIVERCRATE_EXPECT( context,
+							   grant.payloadView().publishedSha256 == release.publishedSha256 &&
+								   grant.payloadView().publishedSha512 == release.publishedSha512) ;
+
+			auto invalid			= release ;	// 片方の不正を他方で救済しない対照。
+			invalid.publishedSha256 = L"invalid" ;
+			DRIVERCRATE_EXPECT( context,
+							   !adaptIntelZipDistributionRecord( std::move( invalid), root, 1U,
+																WINDOWS11_RESOLVED_UTC, record) &&
+								   record.payloads.empty()) ;
+		}
+	}
+
+	const std::array<IntelCollectorTargetQuery, 1U> targets{
+		{{L"synthetic-hash-target", L"Intel", L"Fixture® Adapter X1", L"NETWORK_ADAPTER",
+		  L"Ethernet", L"Windows 11", L"x64", L""}}} ;					// 実inventoryを持たない対象。
+	const auto page = sha512Page( windows11CollectorPage(), false) ;	// 一覧とheroを含む単独hash正例。
+	IntelCollectorMetadataAssessment assessed ;							// 取得権限を持たない候補。
+	DRIVERCRATE_EXPECT( context, inspectIntelCollectorMetadataPage(
+									page, targets, WINDOWS11_RESOLVED_UTC, assessed) &&
+									assessed.releaseParsed && assessed.candidate) ;
+	// 候補生成に失敗した場合はpayloadを参照しません。
+	if( assessed.candidate) {
+		DRIVERCRATE_EXPECT( context, assessed.candidate->payloads.size() == 1U &&
+										assessed.candidate->payloads[0].publishedSha256.empty() &&
+										assessed.candidate->payloads[0].publishedSha512 ==
+											std::wstring( 128U, L'a')) ;
+	}
+}
+
+/**
+ * @brief SHA-512対応でhash欠損・改変や製品/取得先不一致を許可しないことを確認します。
+ * @param[in,out] context Assertion集計先。
+ */
+void testPublishedSha512Rejections( TestContext &context)
+{
+	const auto good = sha512Page( windows11LicensePage( LICENSE_BODY), false) ;	// SHA-512単独正例。
+	// 必須hash、形式、一意性、他方hash、公式host、OS、製品を一要因ずつ壊します。
+	for( unsigned mutation = 0U; mutation < 10U; ++mutation) {
+		auto page = good ;	// 他caseへ破損を引き継がない所有コピー。
+		// 異なる拒否条件を固定した有限caseへ対応付けます。
+		switch( mutation) {
+			// 公開hashを完全に欠損させます。
+			case 0U:
+				page.replace( page.find( L"SHA512:"), 7U, L"Digest:") ;
+				break ;
+
+			// 不足桁をpaddingで補完させません。
+			case 1U:
+				page.erase( page.find( L"SHA512:") + 8U, 1U) ;
+				break ;
+
+			// 非hex文字を正規化させません。
+			case 2U:
+				page[page.find( L"SHA512:") + 8U] = L'g' ;
+				break ;
+
+			// 同じhashが重複しても先頭優先で採用させません。
+			case 3U:
+				page += L"<li>SHA512: " + std::wstring( 128U, L'a') + L"</li>" ;
+				break ;
+
+			// 有効SHA-512で不正SHA-256を迂回させません。
+			case 4U:
+				page += L"<li>SHA256: invalid</li>" ;
+				break ;
+
+			// 既存の公式mirror境界を維持します。
+			case 5U:
+				page.replace( page.find( L"downloadmirror.intel.com"), 24U,
+							 L"download.invalid.example") ;
+				break ;
+
+			// 明示OSが異なるpageを採用させません。
+			case 6U:
+				page.replace( page.find( L"Windows 11 Family"), 17U, L"Windows 10 Family") ;
+				break ;
+
+			// 必須製品markerの不一致をhash一致で迂回させません。
+			case 7U:
+				page.replace( page.find( L"E610-XT2"), 8U, L"Fixture-other") ;
+				break ;
+
+			// 公開hashの過大桁を切り捨てさせません。
+			case 8U:
+				page.insert( page.find( L"SHA512:") + 8U, 1U, L'a') ;
+				break ;
+
+			// 有効SHA-256があっても不正SHA-512を無視させません。
+			default:
+				page = sha512Page( windows11LicensePage( LICENSE_BODY), true) ;
+				page[page.find( L"SHA512:") + 8U] = L'g' ;
+				break ;
+		}
+
+		OfficialReleaseRecord release ;	// 失敗時の出力消去も確認する所有値。
+		release.fileName = L"stale" ;
+		DRIVERCRATE_EXPECT(
+			context, !parseOfficialReleaseRecord( OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11,
+												 page, release) &&
+						 release.fileName.empty() && release.publishedSha256.empty() &&
+						 release.publishedSha512.empty()) ;
+	}
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -1066,6 +1243,8 @@ void testControlledIntelMetadata( TestContext &context)
 //------------------------------------------------------------------------------
 void runIntelEthernetServerPageParserTests( TestContext &context)
 {
+	testPublishedSha512( context) ;
+	testPublishedSha512Rejections( context) ;
 	testControlledIntelMetadata( context) ;
 	testSharedIntelZipAdapter( context) ;
 	testValidPage( context) ;

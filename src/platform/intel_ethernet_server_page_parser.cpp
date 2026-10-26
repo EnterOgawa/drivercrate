@@ -2,7 +2,7 @@
 /**
  * @file intel_ethernet_server_page_parser.cpp
  * @brief Intel Ethernet Server／Windows 11公式download page parser実装。
- * @version 01.03.00
+ * @version 01.04.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Windows 11 record専用profileを追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  現行pageのplain text配布版表記を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/09/28  配布・許諾へ元controlを伝播しOOMを保持。
+ * Ver.01.04.00 Shunji Ogawa  2026/10/26  SHA-512単独と両hash掲載の有限検証を追加。
  * </pre>
  *
  * @note 固定Intel download pageを実行せず解析します。ServerとClientのprofileを混同せず、
@@ -360,6 +361,20 @@ constexpr IntelEthernetPageProfile WINDOWS11_PROFILE{
 		   }) ;
 }
 
+/**
+ * @brief SHA-512の公表値を大小文字のASCII hexだけに限定します。
+ * @param[in] value 同じ配布pageのhash表示。
+ * @return 省略や切詰めのない128桁ASCII hexならtrue。
+ */
+[[nodiscard]] bool isSha512( const std::wstring_view value) noexcept
+{
+	return value.size() == 128U && std::ranges::all_of( value, []( const wchar_t character) {
+			   return (character >= L'0' && character <= L'9') ||
+					  (character >= L'A' && character <= L'F') ||
+					  (character >= L'a' && character <= L'f') ;
+		   }) ;
+}
+
 //------------------------------------------------------------------------------
 /**
  * @brief Button labelの二重出現を説明欄の版一致として代用しません。
@@ -476,10 +491,20 @@ constexpr IntelEthernetPageProfile WINDOWS11_PROFILE{
 
 		std::wstring displaySize ;	// Size labelから得た概算表示。
 		std::wstring sha256 ;		// SHA256 labelから得た公開hash。
-		// 概算sizeとSHA-256の表示形式が整合しないページを拒否する。
+		std::wstring sha512 ;		// SHA512 labelから得た別算法の公開hash。
+		const bool	 hasSha256 =
+			// 旧形式の掲載有無。
+			collectorParserFind( control, html, L"SHA256:") != html.npos ;
+		const bool hasSha512 =
+			// 新形式の掲載有無。
+			collectorParserFind( control, html, L"SHA512:") != html.npos ;
+		// 少なくとも一方を要求し、掲載された両hashの重複・不正を他方で救済しません。
 		if( !readTextValue( control, html, L"Size:", MAXIMUM_DISPLAY_SIZE_CHARACTERS, displaySize) ||
-		   !isDisplaySize( displaySize) || !readTextValue( control, html, L"SHA256:", 64U, sha256) ||
-		   !isUpperSha256( sha256)) {
+		   !isDisplaySize( displaySize) || (!hasSha256 && !hasSha512) ||
+		   (hasSha256 &&
+			(!readTextValue( control, html, L"SHA256:", 64U, sha256) || !isUpperSha256( sha256))) ||
+		   (hasSha512 &&
+			(!readTextValue( control, html, L"SHA512:", 128U, sha512) || !isSha512( sha512)))) {
 			return false ;
 		}
 
@@ -490,6 +515,7 @@ constexpr IntelEthernetPageProfile WINDOWS11_PROFILE{
 
 		parsed.displaySize	= std::move( displaySize) ;
 		parsed.sha256		= std::move( sha256) ;
+		parsed.sha512		= std::move( sha512) ;
 		parsed.requiresEula = true ;
 		// 許諾欄のない旧表示形式は保持するが、存在する不正欄を本文なしへ戻さない。
 		if( collectorParserFind( control, html, L"content-raw") != html.npos &&

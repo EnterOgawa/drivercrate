@@ -2,7 +2,7 @@
 /**
  * @file local_index_signing.cpp
  * @brief CNG保護領域の固定鍵でローカル索引の原byteを署名します。
- * @version 01.03.00
+ * @version 01.04.00
  * @date 2026/10/13
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/15  配布専用固定profileと公開pin検証を追加。
  * Ver.01.02.01 Shunji Ogawa  2026/10/16  全取得recordの共通用途検査と配布署名を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/10/17  現在UTCと発行秒を分けた公開取得履歴検証を追加。
+ * Ver.01.04.00 Shunji Ogawa  2026/10/24  既存署名とasset検査による世代下限専用認証を追加。
  * </pre>
  *
  * @note 同期開発tool専用です。秘密byteをexportせず、鍵の上書き・削除を行いません。
@@ -686,6 +687,60 @@ static LocalIndexSigningResult verifyDistributionProfile(
 		key.keyId		 = keyId ;
 		result.publicKey = std::move( key) ;
 		result.envelope	 = envelopeBytes ;
+	} catch( const Failure &failure) {
+		result.error = failure.error ;
+	} catch( const std::bad_alloc &) {
+		result.error = static_cast<NativeError>( E_OUTOFMEMORY) ;
+	} catch( ...) {
+		result.error = static_cast<NativeError>( E_UNEXPECTED) ;
+	}
+
+	return result ;
+}
+
+/** @see local_index_signing.h */
+DistributionIndexHistoryFloorResult verifyDistributionIndexHistoryFloor(
+	const std::string_view envelopeBytes, const std::span<const std::byte> gzipBytes,
+	const std::span<const std::uint8_t> publicBlob, const std::string_view expectedFingerprint,
+	const std::optional<std::chrono::sys_seconds> publishedAtUtc,
+	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
+{
+	DistributionIndexHistoryFloorResult result ;	// 現在利用receiptを生成しない数値結果です。
+	try {
+		require( publicBlob.size() == PUBLIC_BYTES && expectedFingerprint.size() == 64U &&
+				publishedAtUtc && nowUtc && publishedAtUtc->time_since_epoch().count() > 0 &&
+				*publishedAtUtc <= *nowUtc) ;
+		const auto fingerprint = hashHex( {reinterpret_cast<const char *>( publicBlob.data()),
+										  // 固定公開byte境界だけのviewです。
+										  publicBlob.size()}) ;
+		require( fingerprint == expectedFingerprint) ;
+		const auto keyId = "distribution-index-" + fingerprint.substr( 0U, 32U) ;	// 固定用途です。
+		const std::array<signed_index_detail::TrustKey, 1U> trust{
+			{{keyId, publicBlob}}} ;	// RAMだけです。
+		const auto manifest = signed_index_detail::authenticateWithTrustKeys(
+			envelopeBytes, publishedAtUtc, std::nullopt,
+			trust) ;	// 共通署名/repo/schemaを検査します。
+		// 拒否された署名をassetや世代申告から救済しません。
+		if( !manifest.manifest) {
+			throw Failure{manifest.error != 0 ? manifest.error
+											  : static_cast<NativeError>( ERROR_INVALID_DATA)} ;
+		}
+
+		const auto &data = manifest.manifest->data() ;	// 署名認証後の値だけです。
+		require( data.publishedAtUtc == *publishedAtUtc && data.generation > 0U &&
+				data.generation <= 9007199254740991ULL &&
+				data.assetGeneration <= 9007199254740991ULL) ;
+		const auto asset =
+			// Recordを解釈しない共通の原byte検査結果です。
+			authenticateIndexAssetBytes( *manifest.manifest, gzipBytes, publishedAtUtc) ;
+		// Hash/size/GZipを全部確認し、record codecへは渡しません。
+		if( !asset.receipt) {
+			throw Failure{asset.error != 0 ? asset.error
+										   : static_cast<NativeError>( ERROR_INVALID_DATA)} ;
+		}
+
+		result.generation	   = data.generation ;
+		result.assetGeneration = data.assetGeneration ;
 	} catch( const Failure &failure) {
 		result.error = failure.error ;
 	} catch( const std::bad_alloc &) {

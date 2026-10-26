@@ -2,8 +2,8 @@
 /**
  * @file signed_index_records.cpp
  * @brief 共通strict文法で署名済み配布recordの原byteと元申告を検査します。
- * @version 01.01.01
- * @date 2026/10/11
+ * @version 01.03.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -22,6 +22,8 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/11  原byte・厳格schema・公開証拠とquality照合を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  v1互換を維持してv2 descriptorと現policy読取りを接続。
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.02.00 Shunji Ogawa  2026/10/23  全record/qualityの値codecを署名wrapperと共用。
+ * Ver.01.03.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * </pre>
  *
  * @note 元申告を型付きで保持するだけで、公式性・適合・取得・導入を実証しません。
@@ -30,6 +32,8 @@
  */
 //------------------------------------------------------------------------------
 #include "platform/signed_index_records.h"
+#include "platform/signed_index_codec_internal.h"
+#include "platform/official_download_workspace.h"
 
 #include <algorithm>
 #include <array>
@@ -385,8 +389,9 @@ template <class Value, std::size_t Count>
 	return value.size() <= TEXT_MAX_BYTES && slash != std::string_view::npos && slash > 0U &&
 		   slash + 1U < value.size() && value.find( '\\', slash + 1U) == std::string_view::npos &&
 		   std::ranges::all_of( value, []( const char character) {
-			   // 小文字や制御byteを暗黙に正規化せずv1の原公開表記へ限定する。
+			   // 原caseを保持し、比較keyだけを別途case非依存へ対応させます。
 			   return (character >= 'A' && character <= 'Z') ||
+					  (character >= 'a' && character <= 'z') ||
 					  (character >= '0' && character <= '9') || character == '\\' ||
 					  character == '&' || character == '_' || character == '-' ||
 					  character == '.' || character == '*' ;
@@ -434,7 +439,7 @@ template <class Value, std::size_t Count>
  * @param[in] value Slash区切りの元identity。
  * @return 有限componentと.inf suffixを持つ場合true。
  */
-[[nodiscard]] bool validInfIdentity( const std::string_view value) noexcept
+[[nodiscard]] bool validInfIdentity( const std::string_view value)
 {
 	// Suffixの安全な参照と全identityの独立上限を要求する。
 	if( value.size() < 5U || value.size() > TEXT_MAX_BYTES) {
@@ -448,27 +453,33 @@ template <class Value, std::size_t Count>
 		return false ;
 	}
 
-	std::size_t start{} ;	// 次の相対componentの先頭。
-	// 元slashで区切られた全componentを順に検査し、最後のcomponentで終了する。
-	while( start < value.size()) {
-		const std::size_t	   end = value.find( '/', start) ;	// 元delimiterまたは終端。
-		const std::string_view part =
-			value.substr( start, end == std::string_view::npos ? value.size() - start
-															  : end - start) ;	// 原component。
-		// 空・dot・parentやdriveを含むcomponentは相対identityにしない。
-		if( !validIdentity( part, 128U) || part == "." || part == "..") {
-			return false ;
-		}
+	return isSafeOfficialArchiveMember( std::wstring{value.begin(), value.end()}, L'/') ;
+}
 
-		// 最後の完全componentだけで成功を確定する。
-		if( end == std::string_view::npos) {
-			return true ;
-		}
-
-		start = end + 1U ;
+/** @brief 一段nested selectorをnativeと共通のmember文法で検査します。
+ * @param[in] value 空はflat、非空は原slash相対archive memberです。
+ * @return 空または安全なZIP/CAB memberの場合だけtrueです。
+ * @note 公開memberからfilesystem pathを構築しません。
+ */
+[[nodiscard]] bool validNestedIdentity( const std::string_view value)
+{
+	// 空だけがflatの明示値です。
+	if( value.empty()) {
+		return true ;
 	}
 
-	return false ;
+	// ASCII通常名を既存nativeの全上限/予約名へ照合します。
+	if( !isSafeOfficialArchiveMember( std::wstring{value.begin(), value.end()}, L'/') ||
+	   value.size() < 5U) {
+		return false ;
+	}
+
+	std::string suffix{value.substr( value.size() - 4U)} ;	// 原末尾だけの比較値です。
+	std::ranges::transform( suffix, suffix.begin(), []( const char character) {
+		return character >= 'A' && character <= 'Z' ? static_cast<char>( character + ('a' - 'A'))
+													: character ;
+	}) ;
+	return suffix == ".zip" || suffix == ".cab" ;
 }
 
 /** @brief 原公開IDの種別と値を一つずつ読みます。
@@ -489,18 +500,21 @@ template <class Value, std::size_t Count>
 	return {choice( values[0], KINDS), std::move( values[1])} ;
 }
 
-/** @brief 全公開identityを一出典へ結合し、欠損をUNKNOWNとして読みます。
+/** @brief 現行10fieldの公開identityを一出典へ結合し、明示UNKNOWNを保持します。
  * @param[in,out] reader 共通reader。
  * @return 元申告の公開identityまたはUNKNOWN理由。
  */
 [[nodiscard]] IndexPublishedIdentityEvidence readIdentityEvidence( Reader &reader)
 {
-	constexpr std::array<std::string_view, 9U> FIELDS{
-		"state",		"kind",		   "pnpIds",		 "classGuid", "infIdentity",
-		"modelSection", "evidenceUrl", "evidenceSha256", "reason"} ;	// 必須field。
-	std::array<std::string, 9U>						 values ;			// ID配列以外の元値。
-	IndexPublishedIdentityEvidence					 value ;			// 全検査前には公開しない元申告。
-	std::set<std::pair<IndexPnpIdKind, std::string>> seen ;				// 種別と原IDによる重複拒否集合。
+	constexpr std::array<std::string_view, 10U> FIELDS{
+		"state",	   "kind",
+		"pnpIds",	   "classGuid",
+		"infIdentity", "modelSection",
+		"evidenceUrl", "evidenceSha256",
+		"reason",	   "nestedArchiveIdentity"} ;				// 必須field。
+	std::array<std::string, 10U>					 values ;	// ID配列以外の元値。
+	IndexPublishedIdentityEvidence					 value ;	// 全検査前には公開しない元申告。
+	std::set<std::pair<IndexPnpIdKind, std::string>> seen ;		// 種別と原IDによる重複拒否集合。
 	// 有限ID配列と固定text fieldを読む同期handler。
 	reader.object( FIELDS, [&]( const std::size_t field) {
 		// メーカー公表側IDだけを一件ずつ型付きで読む。
@@ -508,8 +522,14 @@ template <class Value, std::size_t Count>
 			reader.array(
 				INDEX_RECORD_PNP_MAX_COUNT,
 				[&] {
-					auto id = readPnpId( reader) ;	// 一公開IDの所有値。
-					require( seen.emplace( id.kind, id.value).second,
+					auto id	 = readPnpId( reader) ;	// 一公開IDの所有値。
+					auto key = id.value ;			// 原公開byteを変更しない重複判定専用keyです。
+					std::ranges::transform( key, key.begin(), []( const char character) {
+						return character >= 'a' && character <= 'z'
+								   ? static_cast<char>( character - ('a' - 'A'))
+								   : character ;
+					}) ;
+					require( seen.emplace( id.kind, std::move( key)).second,
 							IndexRecordsStatus::INVALID_EVIDENCE) ;
 					value.pnpIds.push_back( std::move( id)) ;
 				},
@@ -524,7 +544,7 @@ template <class Value, std::size_t Count>
 	if( values[0] == "UNKNOWN") {
 		require( values[1] == "UNKNOWN" && value.pnpIds.empty() && values[3].empty() &&
 					values[4].empty() && values[5].empty() && values[6].empty() &&
-					values[7].empty() && validText( values[8]),
+					values[7].empty() && values[9].empty() && validText( values[8]),
 				IndexRecordsStatus::INVALID_EVIDENCE) ;
 		value.reason = std::move( values[8]) ;
 		return value ;
@@ -534,16 +554,18 @@ template <class Value, std::size_t Count>
 		{{"INF", IndexIdentityEvidenceKind::INF},
 		 {"CATALOG", IndexIdentityEvidenceKind::CATALOG}}} ;	// 固定出典種別。
 	require( !value.pnpIds.empty() && validClassGuid( values[3]) && validInfIdentity( values[4]) &&
-				validIdentity( values[5], 128U) && values[8].empty(),
+				validIdentity( values[5], 128U) && values[8].empty() &&
+				validNestedIdentity( values[9]) && (values[9].empty() || values[1] == "INF"),
 			IndexRecordsStatus::INVALID_EVIDENCE) ;
 	signed_index_acquisition::requireUrl( values[6], true) ;
-	value.state			 = IndexEvidenceState::PUBLISHED ;
-	value.kind			 = choice( values[1], KINDS) ;
-	value.classGuid		 = std::move( values[3]) ;
-	value.infIdentity	 = std::move( values[4]) ;
-	value.modelSection	 = std::move( values[5]) ;
-	value.evidenceUrl	 = std::move( values[6]) ;
-	value.evidenceSha256 = decodeHash( values[7], IndexRecordsStatus::INVALID_EVIDENCE) ;
+	value.state					= IndexEvidenceState::PUBLISHED ;
+	value.kind					= choice( values[1], KINDS) ;
+	value.classGuid				= std::move( values[3]) ;
+	value.infIdentity			= std::move( values[4]) ;
+	value.nestedArchiveIdentity = std::move( values[9]) ;
+	value.modelSection			= std::move( values[5]) ;
+	value.evidenceUrl			= std::move( values[6]) ;
+	value.evidenceSha256		= decodeHash( values[7], IndexRecordsStatus::INVALID_EVIDENCE) ;
 	return value ;
 }
 
@@ -873,6 +895,24 @@ IndexRecordsResult readSignedIndexRecords(
 		return {IndexRecordsStatus::INCOMPLETE_BYTE_RECEIPT, 0, std::nullopt} ;
 	}
 
+	auto decoded = signed_index_detail::decodeIndexRecordsData( manifest, expanded,
+															   nowUtc) ;	// 同じ全値検査です。
+	// 前段認証済みassetを所有するwrapperだけがschema receiptを構築します。
+	if( !decoded.data) {
+		return {decoded.status, decoded.error, std::nullopt} ;
+	}
+
+	return {IndexRecordsStatus::SCHEMA_VALIDATED, 0,
+			IndexRecordsSchemaReceipt{asset, std::move( decoded.data->sources),
+									  std::move( decoded.data->records), decoded.data->quality}} ;
+}
+
+/** @see signed_index_codec_internal.h */
+signed_index_detail::DecodedIndexRecords signed_index_detail::decodeIndexRecordsData(
+	const IndexManifestData &manifest, const std::span<const std::byte> expanded,
+	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
+{
+
 	// 時刻確認不能ではschema成功を生成しない。
 	if( !nowUtc) {
 		return {IndexRecordsStatus::TIME_UNAVAILABLE, 0, std::nullopt} ;
@@ -1027,7 +1067,7 @@ IndexRecordsResult readSignedIndexRecords(
 
 		require( sameQuality( quality, manifest.quality), IndexRecordsStatus::QUALITY_MISMATCH) ;
 		return {IndexRecordsStatus::SCHEMA_VALIDATED, 0,
-				IndexRecordsSchemaReceipt{asset, std::move( sources), std::move( records), quality}} ;
+				DecodedIndexRecordsData{std::move( sources), std::move( records), quality}} ;
 	} catch( const Failure &failure) {
 		return {failure.status, failure.error, std::nullopt} ;
 	} catch( const std::bad_alloc &) {

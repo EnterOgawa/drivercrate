@@ -2,8 +2,8 @@
 /**
  * @file signed_index_refresh_tests.cpp
  * @brief 実HTTP検証/codecと完全fake保存のrefresh回帰です。
- * @version 01.01.00
- * @date 2026/10/16
+ * @version 01.03.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -21,6 +21,8 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/16  原18caseと16variantの実行到達logを追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/17  HTTP経路七境界とDNS・handle解放の実到達を追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/10/20  監視専用三resourceの固定N01～N28を追加。
+ * Ver.01.03.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * </pre>
  * @note 暗号/HTTP policy/codecは製品実装、低位I/Oとstore観測はRAM fakeです。
  * 実atomic disk保存/準備relation/WM close/製品鍵正常署名を証明しません。
@@ -29,6 +31,7 @@
 #include "signed_index_refresh_tests.h"
 #include "test_framework.h"
 #include "platform/signed_index_refresh.h"
+#include "platform/public_index_readback.h"
 #include <array>
 #include <algorithm>
 #include <cstring>
@@ -42,6 +45,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <utility>
 #include <bcrypt.h>
 #include <miniz.h>
 
@@ -220,7 +224,7 @@ struct RamKey {
 	const std::string b( 64U, 'b') ;	// 架空packageの申告digestです。
 	return R"({"schema":"driver-index-record-v2","sourceId":"artificial-source","recordId":"artificial-acquisition","product":"Artificial acquisition purpose","targetOs":{"state":"KNOWN","value":"WINDOWS_11","reason":""},"architecture":{"state":"KNOWN","value":"X64","reason":""},"driverKind":{"state":"KNOWN","value":"NORMAL_DRIVER","reason":""},"version":{"state":"KNOWN","value":"1.2.3.4","reason":""},"publishedDate":{"state":"UNKNOWN","value":"","reason":"artificial date absent"},"acquisition":{"state":"KNOWN","value":"STANDARD_INF_ARCHIVE","reason":""},"packageEvidence":{"publishedHash":{"state":"UNKNOWN","sha256":"","evidenceUrl":"","evidenceSha256":"","reason":"artificial published hash absent"},"calculatedHash":{"state":"KNOWN","sha256":")" +
 		   b + R"(","evidenceUrl":"https://vendor.example/package.zip","evidenceSha256":")" + b +
-		   R"(","reason":""},"size":{"state":"KNOWN","valueBytes":22,"reason":""}},"lastSuccessfulObservationUtc":{"state":"KNOWN","value":"2026-10-13T12:00:00Z","reason":""},"inspectionStage":"CONTENT_INSPECTED","publishedIdentityEvidence":{"state":"PUBLISHED","kind":"INF","pnpIds":[{"kind":"HARDWARE","value":"PCI\\VEN_1234&DEV_5678"}],"classGuid":"{4D36E972-E325-11CE-BFC1-08002BE10318}","infIdentity":"driver/sample.inf","modelSection":"Models.NTamd64","evidenceUrl":"https://vendor.example/package.zip","evidenceSha256":")" +
+		   R"(","reason":""},"size":{"state":"KNOWN","valueBytes":22,"reason":""}},"lastSuccessfulObservationUtc":{"state":"KNOWN","value":"2026-10-13T12:00:00Z","reason":""},"inspectionStage":"CONTENT_INSPECTED","publishedIdentityEvidence":{"state":"PUBLISHED","kind":"INF","pnpIds":[{"kind":"HARDWARE","value":"PCI\\VEN_1234&DEV_5678"}],"classGuid":"{4D36E972-E325-11CE-BFC1-08002BE10318}","nestedArchiveIdentity":"","infIdentity":"driver/sample.inf","modelSection":"Models.NTamd64","evidenceUrl":"https://vendor.example/package.zip","evidenceSha256":")" +
 		   b +
 		   R"(","reason":""},"acquisitionDescriptor":{"schema":"driver-index-acquisition-v1","state":"KNOWN","reason":"","payloadUrl":"https://vendor.example/package.zip","fileName":"package.zip","format":"ZIP","expectedContentType":"application/zip","maximumBytes":1024,"route":[{"url":"https://vendor.example/package.zip","kind":"OFFICIAL_PAYLOAD_LINK","evidenceUrl":"https://vendor.example/support","evidenceSha256":")" +
 		   a +
@@ -304,6 +308,22 @@ struct Fixture {
 	bool								  timeout{} ;
 	/// CDN DNSをprivateへ変える負例です。
 	bool								  privateCdn{} ;
+	/// Public/privateを混在させるresolver負例です。
+	bool								  mixedDns{} ;
+	/// Resolver復帰時点で同取消しを立てます。
+	bool								  cancelResolve{} ;
+	/// 実TLS診断をfake応答待機から返します。
+	bool								  tlsFailure{} ;
+	/// 指定hopだけで共有deadlineへ進めます。999は無効です。
+	unsigned							  timeoutHop{999U} ;
+	/// 共通setOptionの実値を記録します。
+	std::vector<std::pair<DWORD, DWORD>>  options ;
+	/// 追加headerの実引数です。
+	std::vector<std::wstring>			  headers ;
+	/// Sendへheaderまたはbodyが渡った場合trueです。
+	bool								  sendCredentials{} ;
+	/// WinHTTP sessionのproxy modeです。
+	DWORD								  proxyMode{} ;
 	/// 能力を含まないfake cache観測です。
 	bool								  cacheValid{} ;
 	/// Expired cache観測です。
@@ -330,7 +350,10 @@ thread_local Fixture			   *ACTIVE{} ;
 [[nodiscard]] OfficialHttpTransport transport()
 {
 	OfficialHttpTransport api ;	// 全fieldを直後に完全置換します。
-	api.open		= []( LPCWSTR, DWORD, LPCWSTR, LPCWSTR, DWORD) -> HINTERNET { return ACTIVE ; } ;
+	api.open = []( LPCWSTR, DWORD mode, LPCWSTR, LPCWSTR, DWORD) -> HINTERNET {
+		ACTIVE->proxyMode = mode ;
+		return ACTIVE ;
+	} ;
 	api.connect		= []( HINTERNET, LPCWSTR, INTERNET_PORT, DWORD) -> HINTERNET { return ACTIVE ; } ;
 	api.openRequest = []( HINTERNET, LPCWSTR, LPCWSTR path, LPCWSTR, LPCWSTR, LPCWSTR *,
 						 DWORD) -> HINTERNET {
@@ -343,15 +366,36 @@ thread_local Fixture			   *ACTIVE{} ;
 		ACTIVE->timeouts.insert( ACTIVE->timeouts.end(), {a, b, c, d}) ;
 		return TRUE ;
 	} ;
-	api.setOption	= []( HINTERNET, DWORD, LPVOID, DWORD) -> BOOL { return TRUE ; } ;
-	api.addHeaders	= []( HINTERNET, LPCWSTR, DWORD, DWORD) -> BOOL { return TRUE ; } ;
-	api.sendRequest = []( HINTERNET, LPCWSTR, DWORD, LPVOID, DWORD, DWORD, DWORD_PTR) -> BOOL {
+	api.setOption = []( HINTERNET, DWORD option, LPVOID data, DWORD size) -> BOOL {
+		DWORD value{} ;	// DWORD policyの実値だけを観測します。
+		// 他ABIのoptionをDWORDへ誤解釈しません。
+		if( data != nullptr && size == sizeof( DWORD)) {
+			std::memcpy( &value, data, sizeof( value)) ;
+		}
+
+		ACTIVE->options.emplace_back( option, value) ;
+		return TRUE ;
+	} ;
+	api.addHeaders = []( HINTERNET, LPCWSTR header, DWORD size, DWORD) -> BOOL {
+		ACTIVE->headers.emplace_back( header, size) ;
+		return TRUE ;
+	} ;
+	api.sendRequest = []( HINTERNET, LPCWSTR headers, DWORD headerLength, LPVOID body,
+						 DWORD bodyLength, DWORD total, DWORD_PTR) -> BOOL {
 		++ACTIVE->sends ;
+		ACTIVE->sendCredentials = headers != nullptr || headerLength != 0U || body != nullptr ||
+								  bodyLength != 0U || total != 0U ;
 		return TRUE ;
 	} ;
 	api.receiveResponse = []( HINTERNET, LPVOID) -> BOOL {
+		// 証明書拒否を例外許可や別接続で補完しません。
+		if( ACTIVE->tlsFailure) {
+			SetLastError( ERROR_WINHTTP_SECURE_FAILURE) ;
+			return FALSE ;
+		}
+
 		// 一度の応答待機だけで期限境界へ進め、retryは要求しません。
-		if( ACTIVE->timeout) {
+		if( ACTIVE->timeout || ACTIVE->hop == ACTIVE->timeoutHop) {
 			ACTIVE->monotonic += std::chrono::seconds{90} ;
 			SetLastError( ERROR_WINHTTP_TIMEOUT) ;
 			return FALSE ;
@@ -460,6 +504,17 @@ thread_local Fixture			   *ACTIVE{} ;
 		}
 
 		out = {address} ;
+		// 一つのprivate addressでも混在全体を共通validatorに拒否させます。
+		if( ACTIVE->mixedDns) {
+			address.bytes[0] = std::byte{127} ;
+			out.push_back( address) ;
+		}
+
+		// 名前解決後の同制御checkpointで取消しを観測します。
+		if( ACTIVE->cancelResolve) {
+			ACTIVE->cancelled = true ;
+		}
+
 		return static_cast<NativeError>( 0) ;
 	} ;
 	api.utcNow = []() { return 0ULL ; } ;
@@ -511,6 +566,326 @@ thread_local Fixture			   *ACTIVE{} ;
 	return "{\"schema\":\"driver-index-envelope-v1\",\"keyId\":\"" + keyId +
 		   "\",\"manifestBytesBase64\":\"" + base64( raw) + "\",\"signatureBase64\":\"" +
 		   base64( signedBytes) + "\"}" ;
+}
+
+/** @brief 固定N01～N28を既存の完全fake transportと実codecへ到達させます。
+ * @param[in,out] context 実assertionと原失敗を保持する既存test集計です。
+ * @param[in] key 同runの非永続RAM fixture鍵です。
+ * @param[in] trust 同鍵の公開byteだけの借用集合です。
+ * @note 実HTTP/DNS/credential、保護store、Task、公開署名を実行しません。
+ */
+void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
+							   const std::span<const signed_index_detail::TrustKey> trust)
+{
+	const int firstAssertion = context.assertionCount() ;	// 新28IDの独立開始位置です。
+	const int firstFailure	 = context.failureCount() ;		// 旧41IDの原失敗を分離します。
+	// 固定28IDを分母から削らず、全て一度ずつ実行します。
+	for( unsigned mode = 1U; mode <= 28U; ++mode) {
+		const int before = context.failureCount() ;	// 当IDの原失敗差です。
+		Fixture	  fixture ;							// 完全fakeの一回だけの状態です。
+		ACTIVE					   = &fixture ;
+		const std::string expanded = mode == 27U
+										 ? R"({"schema":"research-v3"})"
+										 : index( key, 1U, false) ;	// records拒否の固定負例です。
+		const std::string packed   = gzip( expanded) ;				// 元二fileの実圧縮byteです。
+		const std::string wire	   = envelope( key, packed, 1U, 1U,
+										  mode == 19U	? 10U
+											  : mode == 25U ? 5U
+															: 1U) ;	// 同codecを使います。
+		fixture.hops			   = {{wire}, {wire}, {packed, 200U, L"application/gzip"}} ;
+		// 二つのimmutable resourceで各三redirectを通り、合計九sendを実測します。
+		if( mode == 2U || mode == 4U) {
+			fixture.hops = {{wire}} ;
+			// Manifestとgzipの固定二用途だけを順番に生成します。
+			for( unsigned resource = 0U; resource < 2U; ++resource) {
+				// 各三redirectだけを許可CDNの別URLへ結びます。
+				for( unsigned hop = 1U; hop <= 3U; ++hop) {
+					fixture.hops.push_back(
+						{{},
+						 302U,
+						 L"application/json",
+						 L"https://release-assets.githubusercontent.com/anonymous/" +
+							 std::to_wstring( resource) + L"/" + std::to_wstring( hop) +
+							 L"?token=fixture-only"}) ;
+				}
+
+				fixture.hops.push_back(
+					{resource == 0U ? wire : packed, mode == 4U && resource == 0U ? 302U : 200U,
+					 resource == 0U ? L"application/json" : L"application/gzip",
+					 mode == 4U ? L"https://release-assets.githubusercontent.com/fourth" : L""}) ;
+			}
+		}
+
+		// Currentは有効Locationでもredirectを追跡しません。
+		if( mode == 3U) {
+			fixture.hops[0] = {{},
+							   302U,
+							   L"application/json",
+							   L"https://release-assets.githubusercontent.com/current"} ;
+		}
+
+		// 許可外の各route形を同じmanifest起点から拒否させます。
+		if( mode == 5U || mode == 6U || mode == 7U || mode == 9U || mode == 10U) {
+			const std::wstring location =
+				mode == 5U	 ? L"/relative"
+				: mode == 6U ? L"https://release-assets.githubusercontent.com.example.invalid/asset"
+				: mode == 7U ? L"http://release-assets.githubusercontent.com/asset"
+				: mode == 9U
+					? L"https://user:secret@release-assets.githubusercontent.com/asset"
+					: L"https://release-assets.githubusercontent.com/asset#fragment" ;	// 架空値だけです。
+			fixture.hops[1] = {{}, 302U, L"application/json", location} ;
+		}
+
+		fixture.mixedDns	  = mode == 8U ;
+		fixture.cancelResolve = mode == 23U ;
+		fixture.tlsFailure	  = mode == 14U ;
+		// 認証要求に応答するheaderやhelperは存在しません。
+		if( mode == 12U || mode == 13U) {
+			fixture.hops[0].status = mode == 12U ? 401U : 407U ;
+		}
+
+		// Chunked相当の本文で上限+1 probeそのものへ到達します。
+		if( mode == 15U) {
+			fixture.hops[0].body	 = std::string( INDEX_ENVELOPE_MAX_BYTES + 1U, 'x') ;
+			fixture.hops[0].noLength = true ;
+		}
+
+		// Manifestへgzip専用MIMEを転用させません。
+		if( mode == 16U) {
+			fixture.hops[1].mime = L"application/gzip" ;
+		}
+
+		// 宣言長より短い実本文を完全resourceにしません。
+		if( mode == 17U) {
+			fixture.hops[1].extraLength = 1U ;
+		}
+
+		// 無条件GETの304をcache成功へ昇格しません。
+		if( mode == 18U) {
+			fixture.hops[2].status = 304U ;
+		}
+
+		fixture.timeoutHop = mode == 22U ? 2U : 999U ;
+		// 許可CDN内の同URL循環も次の送信前に止めます。
+		if( mode == 28U) {
+			fixture.hops = {
+				{wire},
+				{{},
+				 302U,
+				 L"application/json",
+				 L"https://release-assets.githubusercontent.com/cycle?token=fixture-only"},
+				{{},
+				 302U,
+				 L"application/json",
+				 L"https://release-assets.githubusercontent.com/cycle?token=fixture-only"}} ;
+		}
+
+		public_index_readback_detail::Services services ;	// 全依存を明示したRAM fixtureです。
+		services.transport	  = transport() ;
+		services.trust		  = trust ;
+		services.monotonicNow = [&fixture]() { return fixture.monotonic ; } ;
+		// 読取前の開始から一秒を消費した同deadlineを第三resourceまで保持します。
+		if( mode == 22U) {
+			services.operationStarted	   = fixture.monotonic ;
+			services.operationStartedAtUtc = NOW - std::chrono::seconds{1} ;
+			fixture.monotonic += std::chrono::seconds{1} ;
+		}
+
+		services.utcNow = [&fixture, mode]() -> std::optional<std::chrono::sys_seconds> {
+			// 現在UTC不明を公開時刻へ置換しません。
+			if( mode == 20U) {
+				return std::nullopt ;
+			}
+
+			// 期限と完全一致する境界を検査します。
+			if( mode == 21U) {
+				return NOW + std::chrono::hours{18} ;
+			}
+
+			// 二resource後にUTCだけを後退させます。
+			if( mode == 24U && fixture.sends >= 2U) {
+				return NOW - std::chrono::seconds{1} ;
+			}
+
+			return NOW ;
+		} ;
+		PublicIndexReadbackReport result ;	// 引数拒否では依存すら呼びません。
+		// URL余剰を含む六argvを読取より先に拒否する入口です。
+		if( mode == 11U) {
+			std::array<std::wstring, 6U> text{
+				L"collector", L"--public-index-readback", L"envelope", L"gzip",
+				L"90000",	  L"https://example.invalid/"} ;	// 架空argvです。
+			std::array<wchar_t *, 6U> args{} ;					// 同scopeの借用文字列です。
+			// 六個の原値をargv ABIへ渡します。
+			for( std::size_t index = 0U; index < args.size(); ++index) {
+				args[index] = text[index].data() ;
+			}
+
+			std::uint32_t milliseconds{} ;	// 拒否時に変更されない出力です。
+			DRIVERCRATE_EXPECT( context,
+							   !publicIndexReadbackArguments( 6, args.data(), milliseconds) &&
+								   milliseconds == 0U) ;
+		} else {
+			result = public_index_readback_detail::Access::forTest(
+				services, wire, packed, mode == 22U ? 5000U : 90000U,
+				[&fixture]() { return fixture.cancelled ; }) ;
+		}
+
+		const bool expected = mode == 1U || mode == 2U || mode == 26U ;	// 三つの正常境界です。
+		DRIVERCRATE_EXPECT( context, result.verified == expected) ;
+		DRIVERCRATE_EXPECT( context, (result.nativeError == 0U) == expected) ;
+		DRIVERCRATE_EXPECT( context, result.sends == fixture.sends && fixture.sends <= 9U) ;
+		DRIVERCRATE_EXPECT( context, result.receivedBytes <= 16973825U) ;
+		DRIVERCRATE_EXPECT( context, fixture.commits == 0U && fixture.reloads == 0U &&
+										!fixture.sendCredentials) ;
+		const auto raw = publicIndexReadbackJson( result) ;	// 製品専用writerの実原stdoutです。
+		DRIVERCRATE_EXPECT(
+			context,
+			raw.starts_with( "{\"schema\":\"dc-public-index-readback-result-v1\",\"outcome\":") &&
+				raw.size() <= 65536U && raw.find( "token") == std::string::npos &&
+				raw.find( "secret") == std::string::npos &&
+				raw.find( "https:") == std::string::npos && raw.find( '\n') == std::string::npos) ;
+		DRIVERCRATE_EXPECT(
+			context, raw.find( "\"nativeError\":" + std::to_string( static_cast<std::uint32_t>(
+													   result.nativeError))) != std::string::npos) ;
+		// 九send上界と固定三resourceの完成を実際のfake callへ照合します。
+		if( mode == 2U) {
+			DRIVERCRATE_EXPECT( context, fixture.sends == 9U && result.resources[0].sends == 1U &&
+											result.resources[1].sends == 4U &&
+											result.resources[2].sends == 4U) ;
+		}
+
+		// Current redirectの後続未着手と四回目redirectの未送信を確認します。
+		if( mode == 3U || mode == 4U) {
+			DRIVERCRATE_EXPECT( context, fixture.sends == (mode == 3U ? 1U : 5U) &&
+											result.resources[2].state ==
+												PublicIndexResourceState::NOT_STARTED) ;
+		}
+
+		// 認証要求とTLS拒否でもHIGH/cookie禁止と既存proxy policyを維持します。
+		if( mode == 12U || mode == 13U || mode == 14U) {
+			DRIVERCRATE_EXPECT( context, std::find( fixture.options.begin(), fixture.options.end(),
+												  std::pair<DWORD, DWORD>{
+													  WINHTTP_OPTION_AUTOLOGON_POLICY,
+													  WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH}) !=
+											fixture.options.end()) ;
+			DRIVERCRATE_EXPECT( context, std::none_of( fixture.options.begin(), fixture.options.end(),
+													 []( const auto &option) {
+														 return option.first ==
+																WINHTTP_OPTION_SECURITY_FLAGS ;
+													 })) ;
+			DRIVERCRATE_EXPECT(
+				context,
+				std::any_of( fixture.options.begin(), fixture.options.end(), []( const auto &option) {
+					return option.first == WINHTTP_OPTION_DISABLE_FEATURE &&
+						   (option.second & WINHTTP_DISABLE_COOKIES) != 0U ;
+				})) ;
+			DRIVERCRATE_EXPECT(
+				context, std::all_of( fixture.headers.begin(), fixture.headers.end(),
+									 []( const std::wstring &header) {
+										 return header.find( L"Authorization") ==
+													std::wstring::npos &&
+												header.find( L"Cookie") == std::wstring::npos &&
+												header.find( L"Referer") == std::wstring::npos ;
+									 })) ;
+			DRIVERCRATE_EXPECT( context, fixture.proxyMode == WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY &&
+											fixture.sends == 1U) ;
+		}
+
+		// 元証明書診断を無視設定や汎用errorへ丸めません。
+		if( mode == 14U) {
+			DRIVERCRATE_EXPECT( context, result.nativeError ==
+											static_cast<NativeError>(
+												HRESULT_FROM_WIN32( ERROR_WINHTTP_SECURE_FAILURE))) ;
+		}
+
+		// 拒否probeの実受信量も報告へ残します。
+		if( mode == 15U) {
+			DRIVERCRATE_EXPECT( context, result.receivedBytes == 98305U &&
+											result.resources[0].receivedBytes == 98305U) ;
+		}
+
+		// 短い本文ではmanifestをFAILED、gzipを未着手のまま保持します。
+		if( mode == 17U) {
+			DRIVERCRATE_EXPECT(
+				context, result.resources[1].state == PublicIndexResourceState::FAILED &&
+							 result.resources[2].state == PublicIndexResourceState::NOT_STARTED) ;
+		}
+
+		// 短い親残時間も同じ単調時計を使い、超過をclampしません。
+		if( mode == 22U) {
+			DRIVERCRATE_EXPECT(
+				context,
+				result.elapsedMilliseconds == 91000U && fixture.sends == 3U &&
+					result.startedAtUtc == NOW - std::chrono::seconds{1} &&
+					std::all_of( fixture.timeouts.begin(), fixture.timeouts.end(),
+								[]( const int value) { return value > 0 && value <= 4000 ; })) ;
+		}
+
+		// Resolver後の取消しと混在DNSは接続・送信より前に停止します。
+		if( mode == 8U || mode == 23U) {
+			DRIVERCRATE_EXPECT( context, fixture.sends == 0U && fixture.opens == 0U &&
+											fixture.resolves == 1U) ;
+		}
+
+		// 通常既定五sendを保持し、完全fake欠損ではnativeへfallbackしません。
+		if( mode == 26U) {
+			SignedIndexHttpControl normal ;	// 監視friendを通らない通常制御です。
+			DRIVERCRATE_EXPECT( context, normal.sendLimit() == 5U) ;
+			services.transport->receiveResponse = []( HINTERNET, LPVOID) -> BOOL {
+				throw std::runtime_error( "fixture transport failure") ;
+			} ; // 実send後例外もwireのrole差分へ残します。
+			fixture.sends		   = 0U ;
+			const auto exceptional = public_index_readback_detail::Access::forTest(
+				services, wire, packed, 90000U) ;	// 同じ完全fakeの例外です。
+			DRIVERCRATE_EXPECT(
+				context,
+				!exceptional.verified && exceptional.sends == 1U && fixture.sends == 1U &&
+					exceptional.nativeError != 0U &&
+					exceptional.failureStage == PublicIndexFailureStage::CURRENT &&
+					exceptional.resources[0].state == PublicIndexResourceState::FAILED &&
+					exceptional.resources[0].sends == exceptional.sends &&
+					exceptional.resources[0].nativeError == exceptional.nativeError &&
+					exceptional.resources[1].state == PublicIndexResourceState::NOT_STARTED) ;
+			std::cout << "P5 exception-wire N26 " << publicIndexReadbackJson( exceptional) << '\n' ;
+			services.transport->resolveDestination = nullptr ;
+			fixture.sends						   = 0U ;
+			const auto rejected					   = public_index_readback_detail::Access::forTest(
+				   services, wire, packed, 90000U) ;	// 欠損表だけです。
+			DRIVERCRATE_EXPECT( context,
+							   !rejected.verified &&
+								   rejected.nativeError == static_cast<NativeError>( E_INVALIDARG) &&
+								   fixture.sends == 0U) ;
+		}
+
+		// 全原byteが一致してもrecords schema拒否を成功へしません。
+		if( mode == 27U) {
+			DRIVERCRATE_EXPECT( context,
+							   result.failureStage == PublicIndexFailureStage::CONTENT &&
+								   std::all_of( result.resources.begin(), result.resources.end(),
+											   []( const auto &resource) {
+												   return resource.state ==
+														  PublicIndexResourceState::COMPLETE ;
+											   })) ;
+		}
+
+		// 同じCDN URLへ四度目を送信しません。
+		if( mode == 28U) {
+			DRIVERCRATE_EXPECT( context, result.sends == 3U) ;
+		}
+
+		std::cout << "P5 case N" << (mode < 10U ? "0" : "") << mode
+				  << " reached=1 verified=" << result.verified << " sends=" << result.sends
+				  << " receivedBytes=" << result.receivedBytes
+				  << " nativeError=" << result.nativeError
+				  << " failures=" << context.failureCount() - before << '\n' ;
+		std::cout << "P5 wire N" << (mode < 10U ? "0" : "") << mode << ' ' << raw << '\n' ;
+		ACTIVE = nullptr ;
+	}
+
+	std::cout << "P5 anonymous reached cases: 28, assertions: "
+			  << context.assertionCount() - firstAssertion
+			  << ", failures: " << context.failureCount() - firstFailure << '\n' ;
 }
 }
 
@@ -931,5 +1306,6 @@ void runSignedIndexRefreshTests( TestContext &context)
 			  << ", failures: " << context.failureCount() - boundaryFailure << '\n' ;
 	std::cout << "P4 reached cases: " << IDS.size() << ", assertions: " << context.assertionCount()
 			  << ", failures: " << context.failureCount() << '\n' ;
+	runPublicReadbackFixtures( context, key, trust) ;
 }
 } // namespace drivercrate::test

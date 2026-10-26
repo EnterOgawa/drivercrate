@@ -125,7 +125,7 @@ class PublicPathTests(TestCase):
         pages = page_requests(registry, locators, policy, dm.make_requests(registry, policy))
         self.assertEqual(len(pages), 2)
         self.assertTrue(all(row['kind'] == 'PAGE' for row in pages))
-        self.assertEqual(next(row for row in pages if row['url'] == PATH)['observationDueAt'], datetime(2026, 10, 3))
+        self.assertTrue(all('observationDueAt' not in row for row in pages))
 
     def test_fake_daily_wait_and_no_payload_requests(self):
         registry, locators = path_fixture()

@@ -188,6 +188,24 @@ def layout(root: Path, *, allow_import_stage: bool = False) -> None:
     cr.require(allow_import_stage or ".import-" not in root.name, "IMPORT_NOT_PUBLISHED")
     names = {path.name for path in root.iterdir()}
     expected = {"state.json", "writer.lock", "reports"}
+    if "distribution-init-v1.json" in names:
+        marker = cr.read_json(root / "distribution-init-v1.json")
+        cr.fields(marker, {"schema", "createdAt"}, "DISTRIBUTION_INITIALIZATION_FIELDS")
+        cr.require(marker["schema"] == "dc-collector-distribution-initialization-v1", "DISTRIBUTION_INITIALIZATION_SCHEMA")
+        cr.timestamp(marker["createdAt"])
+        expected.add("distribution-init-v1.json")
+    if "distribution" in names:
+        import collector_distribution_pipeline as distribution
+        if (root / "distribution/journal.json").exists():
+            distribution.verify_layout(root / "distribution")
+        else:
+            cr.require("distribution-init-v1.json" in names and
+                       {path.name for path in (root / "distribution").iterdir()} <= {"runs"},
+                       "DISTRIBUTION_INITIALIZATION_CHANGED")
+            if (root / "distribution/runs").exists():
+                cr.regular_path(root / "distribution/runs", directory=True)
+                cr.require(not any((root / "distribution/runs").iterdir()), "DISTRIBUTION_INITIALIZATION_CHANGED")
+        expected.add("distribution")
     if "import-metadata.json" in names:
         validate_import_metadata(cr.read_json(root / "import-metadata.json"))
         expected.add("import-metadata.json")
@@ -348,19 +366,37 @@ def export_store(root: Path, output: Path) -> None:
     cr.check_ancestors(output)
     with writer_lock(root):
         state = verify_store(root)
+        distribution_present = (root / "distribution/journal.json").exists()
+        cr.require(distribution_present or not (root / "distribution-init-v1.json").exists(),
+                   "EXPORT_DISTRIBUTION_INITIALIZATION_INCOMPLETE")
+        extra = {}
+        if distribution_present:
+            import collector_distribution_pipeline as distribution
+            state, extra = distribution.portable_content(root, state)
         cr.require(all(row["outcome"] != "IN_PROGRESS" for row in state["requests"].values()),
                    "EXPORT_INCOMPLETE_RESERVATION")
         content = {"state.json": cr.json_bytes(cr.read_json(root / "state.json"))}
+        if distribution_present:
+            content["state.json"] = envelope("dc-monitor-state-envelope-v1", state)
+            content.update(extra)
         for path in sorted((root / "reports").iterdir()):
             content["reports/" + path.name] = cr.json_bytes(cr.read_json(path))
-        manifest = {"schema": "dc-registry-monitor-export-v1", "asOf": state["observedAt"],
+        if distribution_present:
+            if (root / "distribution-init-v1.json").exists():
+                content["distribution-init-v1.json"] = read_import_bytes(root / "distribution-init-v1.json")
+        manifest = {"schema": "dc-registry-monitor-export-v3" if distribution_present else "dc-registry-monitor-export-v1", "asOf": state["observedAt"],
                     "files": [{"path": name, "bytes": len(raw), "sha256": cr.digest(raw)}
                               for name, raw in sorted(content.items())]}
         content["manifest.json"] = cr.json_bytes(manifest)
         cr.require(all(len(raw) <= cr.MAX_JSON_BYTES for raw in content.values()), "EXPORT_SIZE")
+        cr.require(len(content) - 1 <= 4096 and sum(map(len, content.values())) <= 64 * 1024 * 1024,
+                   "EXPORT_TOTAL_LIMIT")
         output.mkdir(parents=True, exist_ok=False)
         (output / "reports").mkdir()
+        if distribution_present:
+            (output / "distribution/runs").mkdir(parents=True)
         for name, raw in content.items():
+            (output / name).parent.mkdir(parents=True, exist_ok=True)
             with (output / name).open("xb") as stream:
                 stream.write(raw)
         verify_export(output)
@@ -370,14 +406,31 @@ def verify_export(root: Path) -> dict:
     """Manifestの閉じたfile集合・hash・待機を確認する。通信は開始しない。"""
     cr.check_ancestors(root)
     cr.regular_path(root, directory=True)
-    cr.require({path.name for path in root.iterdir()} == {"state.json", "reports", "manifest.json"}, "EXPORT_FILE_SET")
+    root_names = {path.name for path in root.iterdir()}
+    cr.require({"state.json", "reports", "manifest.json"} <= root_names <=
+               {"state.json", "reports", "manifest.json", "distribution", "distribution-init-v1.json"}, "EXPORT_FILE_SET")
     cr.regular_path(root / "reports", directory=True)
     manifest = cr.read_json(root / "manifest.json")
     cr.fields(manifest, {"schema", "asOf", "files"}, "EXPORT_MANIFEST_FIELDS")
-    cr.require(manifest["schema"] == "dc-registry-monitor-export-v1" and isinstance(manifest["files"], list),
+    cr.require(manifest["schema"] in {"dc-registry-monitor-export-v1", "dc-registry-monitor-export-v3"} and isinstance(manifest["files"], list),
                "EXPORT_MANIFEST_SCHEMA")
     cr.require(len(manifest["files"]) <= 4096, "EXPORT_FILE_LIMIT")
     actual_names = {"state.json"}
+    if "distribution" in root_names or "distribution-init-v1.json" in root_names:
+        cr.require(manifest["schema"] == "dc-registry-monitor-export-v3", "EXPORT_DISTRIBUTION_VERSION")
+        if "distribution" in root_names:
+            import collector_distribution_pipeline as distribution
+            distribution.verify_layout(root / "distribution")
+            cr.require((root / "distribution/portable-history.json").exists() and
+                not any((root / "distribution/runs").iterdir()) and
+                not (root / "distribution/candidate-head.json").exists(), "EXPORT_PRIVATE_EVIDENCE")
+            for path in (root / "distribution").rglob("*"):
+                cr.regular_path(path, directory=path.is_dir())
+                if path.is_file():
+                    actual_names.add(path.relative_to(root).as_posix())
+        if "distribution-init-v1.json" in root_names:
+            cr.regular_path(root / "distribution-init-v1.json")
+            actual_names.add("distribution-init-v1.json")
     for path in (root / "reports").iterdir():
         cr.regular_path(path)
         cr.require(path.suffix == ".json", "EXPORT_REPORT_NAME")
@@ -522,9 +575,11 @@ def import_export(source: Path, output: Path, *, source_stop_acknowledged: bool 
         if checkpoint:
             checkpoint("METADATA_SAVED", stage)
     names = {path.name for path in stage.iterdir()}
-    cr.require(names <= {"import-metadata.json", "reports", "writer.lock", "state.json"}, "IMPORT_STAGE_FILES")
+    cr.require(names <= {"import-metadata.json", "reports", "writer.lock", "state.json", "distribution", "distribution-init-v1.json"}, "IMPORT_STAGE_FILES")
     if "reports" not in names:
         (stage / "reports").mkdir(exist_ok=False)
+    if "distribution/journal.json" in content:
+        (stage / "distribution/runs").mkdir(parents=True, exist_ok=True)
     cr.regular_path(stage / "reports", directory=True)
     if "writer.lock" not in names:
         write_new_bytes(stage / "writer.lock", b"0")
@@ -540,6 +595,7 @@ def import_export(source: Path, output: Path, *, source_stop_acknowledged: bool 
             if name == "manifest.json":
                 continue
             target = stage / name
+            target.parent.mkdir(parents=True, exist_ok=True)
             if target.exists() or target.is_symlink():
                 cr.regular_path(target)
                 cr.require(target.stat().st_size == len(raw) and read_import_bytes(target) == raw, "IMPORT_PARTIAL_CHANGED")
@@ -705,23 +761,16 @@ def run_once(registry: dict, policy: dict, root: Path, transport=None, clock=utc
                         previousSha256=previous, observedSha256=previous,
                         bodyBytes=0, checkedAt=old["endedAt"] if old else None,
                         nextDueAt=old["nextDueAt"] if old else None)
-            observation_due = target.get("observationDueAt")
-            if observation_due is not None:
-                item["nextDueAt"] = stamp(max(observation_due,
-                    cr.timestamp(item["nextDueAt"]) if item["nextDueAt"] else observation_due))
+            # 研究観測日時を実通信の予約へ補わず、実request/hostの元待機だけを使う。
             host_key = hash_text(urlsplit(target["url"]).hostname)
             host = state["hosts"].get(host_key)
             if target["held"]:
                 item.update(state="HELD", reason=target.get("holdReason") or "NATIVE_COORDINATION_PENDING")
             elif host and (host["held"] or now < cr.timestamp(host["nextDueAt"])):
                 item.update(reason="HOST_REVIEW_REQUIRED" if host["held"] else "HOST_COOLDOWN",
-                            nextDueAt=stamp(max(cr.timestamp(host["nextDueAt"]),
-                                               observation_due or cr.timestamp(host["nextDueAt"]))))
+                            nextDueAt=host["nextDueAt"])
             elif old and now < cr.timestamp(old["nextDueAt"]):
                 pass
-            elif observation_due is not None and now < observation_due:
-                item.update(reason="OBSERVATION_WAIT_24H", httpStatus=None,
-                            checkedAt=stamp(observation_due - DAY))
             elif attempts >= MAX_REQUESTS or budget_bytes + MAX_BODY > MAX_RUN_BYTES or monotonic() - start_timer >= MAX_RUN_SECONDS - 30:
                 item.update(reason="RUN_BUDGET")
             else:

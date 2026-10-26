@@ -1,19 +1,21 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-ADR0369/0370のproduction guardをfake scheduler/config/ACLで直接検査する有限69case。
+現行の手動publisher guardと廃止mode拒否をfakeで直接検査する有限71case。
 .NOTES
 作成者: Shunji Ogawa
 Copyright (c) 2026 EnterSystem CO.,LTD.
 SPDX-License-Identifier: Apache-2.0
 実Task/保護store/HTTP/native processを使用しない。全caseのmutation数をJSONへ出力する。
 #>
-param([switch]$InputCasesOnly)
+param([switch]$InputCasesOnly, [string]$FixtureRoot)
 $ErrorActionPreference = 'Stop'
 $taskTestSource = Join-Path $PSScriptRoot 'register_daily_index_task.ps1'
 $taskTestTokens = $null
 $taskTestErrors = $null
-$taskTestAst = [Management.Automation.Language.Parser]::ParseFile($taskTestSource, [ref]$taskTestTokens, [ref]$taskTestErrors)
+$taskTestSourceText = [IO.File]::ReadAllText($taskTestSource, [Text.UTF8Encoding]::new($false, $true))
+# Windows PowerShellのANSI既定読解に依存せず、正本のUTF-8 byteを同じ構文へ渡す。
+$taskTestAst = [Management.Automation.Language.Parser]::ParseInput($taskTestSourceText, $taskTestSource, [ref]$taskTestTokens, [ref]$taskTestErrors)
 if ($taskTestErrors.Count -ne 0) { throw 'PRODUCTION_PARSE_FAILED' }
 # top-levelは実行せず、実sourceの関数本体を変更せず取り込む。
 foreach ($taskTestFunction in $taskTestAst.FindAll({ param($Node) $Node -is [Management.Automation.Language.FunctionDefinitionAst] }, $false)) {
@@ -163,8 +165,21 @@ for ($taskAclNumber = 1; $taskAclNumber -le 4; $taskAclNumber++) {
     $taskTestRows.Add($taskRow);$taskRow | ConvertTo-Json -Compress
 }
 }
+# 廃止したlocal cutover switchと未知modeをbinderが拒否する。
+if (-not $InputCasesOnly) {
+    foreach ($name in @('UpdateDisabledLocalAction', 'UnknownTaskMode')) {
+        $rejected = $false
+        try {
+            $arguments = @{Config='x'; Python='x'; NewXml='x'; $name=$true}
+            & ([scriptblock]::Create('[CmdletBinding()]' + "`n" + $taskTestAst.ParamBlock.Extent.Text)) @arguments
+        } catch { $rejected = $_.FullyQualifiedErrorId -like '*NamedParameterNotFound*' }
+        $row = [pscustomobject]@{case=$name;ok=$rejected;update=0;start=0;delete=0;network=0}
+        $taskTestRows.Add($row); $row | ConvertTo-Json -Compress
+    }
+}
 # production filesystem adapterも固定fakeの実体/hash/ACL/列挙へ接続し、callback拒否だけで代用しない。
-$taskFixturePath = Join-Path ([IO.Path]::GetTempPath()) ('DriverCrate-CutoverFixture-' + [guid]::NewGuid().ToString('N') + '.json')
+$taskFixtureDirectory = if ($FixtureRoot) { $FixtureRoot } else { [IO.Path]::GetTempPath() }
+$taskFixturePath = Join-Path $taskFixtureDirectory ('DriverCrate-CutoverFixture-' + [guid]::NewGuid().ToString('N') + '.json')
 $taskFixtureOwned = $false
 $taskFixtureCreated = $false
 $taskFixtureCleaned = $false
@@ -429,7 +444,7 @@ for ($script:taskInputCase=1; $script:taskInputCase -le 31; $script:taskInputCas
 }
 } finally {
     # fakeのGet-Item等を使わず、CreateNewに成功したexact fileだけを実APIで削除する。
-    if ($taskFixtureOwned) {
+    if ($taskFixtureOwned -and -not $FixtureRoot) {
         [IO.File]::Delete($taskFixturePath)
         $taskFixtureCleaned = -not [IO.File]::Exists($taskFixturePath)
         Assert-TestValue $taskFixtureCleaned
@@ -437,5 +452,5 @@ for ($script:taskInputCase=1; $script:taskInputCase -le 31; $script:taskInputCas
 }
 $taskFailures=@($taskTestRows | Where-Object { -not $_.ok }).Count
 [pscustomobject]@{cases=$taskTestRows.Count;failed=$taskFailures;realTaskOperations=0;native=0;network=0;fixtureCreated=$taskFixtureCreated;fixtureCleaned=$taskFixtureCleaned}|ConvertTo-Json -Compress
-$taskExpectedCaseCount=if($InputCasesOnly){31}else{69}
+$taskExpectedCaseCount=if($InputCasesOnly){31}else{71}
 if ($taskTestRows.Count -ne $taskExpectedCaseCount -or $taskFailures -ne 0) { exit 1 }

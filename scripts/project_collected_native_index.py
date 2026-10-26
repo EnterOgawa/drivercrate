@@ -16,6 +16,7 @@ import json
 from pathlib import Path
 import re
 from html.parser import HTMLParser
+from urllib.parse import urlsplit
 
 import collector_registry as cr
 
@@ -27,6 +28,13 @@ MAX_BODY = 512 * 1024
 DISTRIBUTION_PUBLIC_FINGERPRINT = "0ac4d0ce9873c82b3c7bb7bd3fb3f5d2a57044bf968c5c6e2af02176cee39d3f"
 DISTRIBUTION_KEY_ID = "distribution-index-" + DISTRIBUTION_PUBLIC_FINGERPRINT[:32]
 PINNED_STATIC_REVALIDATION_V1 = "PINNED_STATIC_REVALIDATION_V1"
+PINNED_STATIC_REVALIDATION_V2 = "PINNED_STATIC_REVALIDATION_V2"
+METADATA_BOUND_SCOPE = "dc-metadata-bound-distribution-acquisition-scope-v2"
+MAX_ARCHIVE_BYTES = 128 * 1024 * 1024
+TECHNICAL_REVIEW_INPUTS = {"bindingBody", "bindingRelease", "bindingReview", "bindingScript"}
+# 新しい配布発行だけへ適用する。旧scope/raw recordの期限を変換しない。
+DISTRIBUTION_PROJECTION_POLICY_REVISION = 2
+DISTRIBUTION_RECORD_VALIDITY = timedelta(days=8)
 
 
 def require(condition: bool, code: str) -> None:
@@ -70,6 +78,84 @@ def digest(value: object) -> str:
     require(type(value) is str and re.fullmatch(r"[0-9A-Fa-f]{64}", value) is not None,
             "NATIVE_PUBLIC_DIGEST")
     return value.lower()
+
+
+def published_digests(release: dict) -> dict[str, str]:
+    """v1/v2の掲載算法を全部検査し、一方の不正を他方で救済しない。"""
+    schema = release.get("schema")
+    require(schema in {"dc-saved-release-analysis-v1", "dc-saved-release-analysis-v2"}, "NATIVE_RELEASE_BINDING")
+    require((schema == "dc-saved-release-analysis-v2") == ("publishedSha512" in release), "NATIVE_PUBLIC_DIGEST")
+    values = {}
+    for algorithm, length in (("sha256", 64), ("sha512", 128)):
+        field = "published" + algorithm.capitalize()
+        value = release.get(field, "")
+        require(type(value) is str and (value == "" or re.fullmatch(r"[0-9A-Fa-f]{%d}" % length, value)),
+                "NATIVE_PUBLIC_DIGEST")
+        if value:
+            values[algorithm] = value.lower()
+    require(bool(values) and (schema != "dc-saved-release-analysis-v2" or "sha512" in values), "NATIVE_PUBLIC_DIGEST")
+    return values
+
+
+def release_binding(release: dict) -> dict:
+    """保存metadataを期待値として検査し、観測時刻/本文を新HTTP証拠へ読み替えない。"""
+    require(type(release) is dict and release.get("source") == SOURCE and
+            release.get("distributionPage") == PAGE and release.get("freshNetworkEvidence") is False and
+            release.get("acquisitionAuthority") is False, "NATIVE_RELEASE_BINDING")
+    hashes = published_digests(release)
+    fields = {"schema", "source", "bodySha256", "bodyBytes", "observedUtcSeconds", "distributionPage",
+              "freshNetworkEvidence", "acquisitionAuthority", "termsDocumentState", "payloadUrl", "fileName",
+              "packageVersion", "publishedSha256", "termsText", "termsTextUtf8Bytes", "termsTextSha256",
+              "termsRevision", "htmlExtraction", "parserRevision"}
+    cr.fields(release, fields | ({"publishedSha512"} if release["schema"] == "dc-saved-release-analysis-v2" else set()) |
+              ({"publishedSizeBytes"} if "publishedSizeBytes" in release else set()), "NATIVE_RELEASE_FIELDS")
+    require(type(release["bodyBytes"]) is int and 0 < release["bodyBytes"] <= MAX_BODY and
+            type(release["parserRevision"]) is int and release["parserRevision"] > 0 and
+            type(release["observedUtcSeconds"]) is str and
+            re.fullmatch(r"[1-9][0-9]{0,11}", release["observedUtcSeconds"]) is not None and
+            release["termsDocumentState"] == "HTML_EXTRACTED_BINDING_UNCONFIRMED", "NATIVE_RELEASE_BINDING")
+    terms = release["termsText"].encode("utf-8", errors="strict")
+    require(0 < len(terms) == release["termsTextUtf8Bytes"] and
+            hashlib.sha256(terms).hexdigest() == release["termsTextSha256"], "NATIVE_TERMS_DIGEST")
+    version = text(release.get("packageVersion"), 128)
+    require(re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,7}", version) is not None, "NATIVE_PACKAGE_METADATA")
+    filename = "Wired_driver_" + version + "_x64.zip"
+    url = text(release.get("payloadUrl"), 2048)
+    parts = urlsplit(url)
+    require(release.get("fileName") == filename and parts.scheme == "https" and
+            parts.netloc == "downloadmirror.intel.com" and not parts.query and not parts.fragment and
+            re.fullmatch(r"/[0-9]+/" + re.escape(filename), parts.path) is not None, "NATIVE_PACKAGE_METADATA")
+    exact = release.get("publishedSizeBytes")
+    require("publishedSizeBytes" not in release or
+            (type(exact) is int and 0 < exact <= MAX_ARCHIVE_BYTES), "NATIVE_PACKAGE_SIZE")
+    return {"payloadUrl": url, "fileName": filename, "packageVersion": version,
+            "publishedDigests": hashes, "publishedSizeBytes": exact}
+
+
+def relative_inf(value: object) -> str:
+    """操作者が選ぶINFを安全なarchive相対pathへ限定する。"""
+    value = text(value, 512)
+    require("\\" not in value and not value.startswith("/") and value.lower().endswith(".inf") and
+            all(part not in {"", ".", ".."} and re.fullmatch(r"[A-Za-z0-9_.-]+", part)
+                for part in value.split("/")), "NATIVE_INF_SELECTOR")
+    return value
+
+
+def metadata_acquisition_binding(scope: dict) -> tuple[dict, dict, bytes]:
+    """明示scopeの閉集合とexpected原byteを検査し、未取得内容は補完しない。"""
+    binding = scope["acquisitionBinding"]
+    cr.fields(binding, {"expectedRelease", "selectedInf", "modelSection", "maximumBytes"}, "ACQUISITION_BINDING_FIELDS")
+    raw, expected = _revalidation_artifact(binding["expectedRelease"], 65536)
+    release_binding(expected)
+    relative_inf(binding["selectedInf"])
+    section = text(binding["modelSection"], 512)
+    require(re.fullmatch(r"[A-Za-z0-9_.-]+", section) is not None and
+            ".ntamd64" in section.lower(), "NATIVE_MODEL_SELECTOR")
+    maximum = binding["maximumBytes"]
+    require(type(maximum) is int and 0 < maximum <= MAX_ARCHIVE_BYTES and
+            (expected.get("publishedSizeBytes") is None or expected["publishedSizeBytes"] <= maximum),
+            "NATIVE_PACKAGE_SIZE")
+    return binding, expected, raw
 
 
 def bytes_json(value: object) -> bytes:
@@ -144,7 +230,7 @@ def _project_metadata_for_scope(scope: dict, evidence: dict, generation: int, no
                                   "size": {"state": "UNKNOWN", "valueBytes": 0, "reason": "payload not acquired"}},
               "lastSuccessfulObservationUtc": known(observed_utc), "inspectionStage": "METADATA_ONLY",
               "publishedIdentityEvidence": {"state": "UNKNOWN", "kind": "UNKNOWN", "pnpIds": [],
-                                            "classGuid": "", "infIdentity": "", "modelSection": "",
+                                            "classGuid": "", "nestedArchiveIdentity": "", "infIdentity": "", "modelSection": "",
                                             "evidenceUrl": "", "evidenceSha256": "",
                                             "reason": "public INF/CAT identity not acquired or inspected"},
               "acquisitionDescriptor": descriptor}
@@ -250,13 +336,17 @@ class TermsDom(HTMLParser):
 
     elementsはtextarea開始tag自身を含み、その内容中の疑似tagを除く開始tagと属性mapを
     RAM内に保持し、規約bindingの一意照合に使う。textareaは開始tagの記録後に抑止へ移り、
-    終了tagで解除する状態flagである。
+    終了tagで解除する状態flagである。raw_documentsはlicenseModal内のcontent-rawだけを
+    保持し、補助textareaの内容を許諾documentへ混ぜない。
     """
 
     def __init__(self, body: str):
         super().__init__(convert_charrefs=True)
         self.elements: list[tuple[str, dict[str, str]]] = []
         self.textarea = False
+        self.capture_raw_document = False
+        self.license_divs: list[bool] = []
+        self.raw_documents: list[str] = []
         self.feed(body)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -264,13 +354,31 @@ class TermsDom(HTMLParser):
             return
         names = [name for name, _ in attrs]
         require(len(names) == len(set(names)), "DOM_DUPLICATE_ATTRIBUTE")
-        self.elements.append((tag, {name: value or "" for name, value in attrs}))
+        attributes = {name: value or "" for name, value in attrs}
+        self.elements.append((tag, attributes))
+        if tag == "div":
+            self.license_divs.append(attributes.get("id") == "licenseModal" or
+                                     bool(self.license_divs and self.license_divs[-1]))
         if tag == "textarea":
             self.textarea = True
+            self.capture_raw_document = (attributes.get("id") == "content-raw" and
+                                         bool(self.license_divs and self.license_divs[-1]))
+            if self.capture_raw_document:
+                self.raw_documents.append("")
 
     def handle_endtag(self, tag: str) -> None:
-        if tag == "textarea":
-            self.textarea = False
+        if self.textarea:
+            if tag == "textarea":
+                self.textarea = False
+                self.capture_raw_document = False
+            return
+        if tag == "div" and self.license_divs:
+            self.license_divs.pop()
+
+    def handle_data(self, data: str) -> None:
+        """raw許諾documentをRAM内へ保持し、旧新同値だけを確認する。"""
+        if self.capture_raw_document:
+            self.raw_documents[-1] += data
 
 
 def confirm_terms_review(body: bytes, release: dict, review: dict, script: dict,
@@ -320,6 +428,7 @@ def confirm_terms_review(body: bytes, release: dict, review: dict, script: dict,
     unique("div", "id", "licenseModal")
     raw = unique("textarea", "id", "content-raw")
     require("license-modal-content_body_license-text-raw" in raw.get("class", "").split(), "TERMS_DOM_RAW")
+    require(len(dom.raw_documents) == 1, "TERMS_DOM_RAW")
     for token in ("license-modal__dialog", "license-modal-big-bag-container",
                   "license-modal-content-license__btn--btn-accept",
                   "license-modal-content-footer-download__restart-link"):
@@ -443,10 +552,15 @@ def confirm_pinned_static_terms_revalidation(body: bytes, release: dict, review:
 
 def make_pinned_static_terms_revalidation(body: bytes, originals: dict[str, bytes], original_pins: dict[str, str],
                                          release_raw: bytes, script_raw: bytes,
-                                         checked_at: int, now: datetime) -> bytes:
+                                         checked_at: int, now: datetime, *,
+                                         mode: str = PINNED_STATIC_REVALIDATION_V1) -> bytes:
     """明示承認pinの原三文書と新native二文書を別の機械receiptへ結合する。"""
     require(type(originals) is dict and type(original_pins) is dict, "TERMS_REVALIDATION_TYPE")
-    cr.fields(originals, {"release", "review", "script"}, "TERMS_REVALIDATION_FIELDS")
+    require(mode in {PINNED_STATIC_REVALIDATION_V1, PINNED_STATIC_REVALIDATION_V2}, "TERMS_REVIEW_MODE")
+    technical = bool(set(originals) & TECHNICAL_REVIEW_INPUTS)
+    require(not technical or mode == PINNED_STATIC_REVALIDATION_V2, "TERMS_REVIEW_MODE")
+    cr.fields(originals, {"release", "review", "script"} | ({"body"} if mode == PINNED_STATIC_REVALIDATION_V2 else set()) |
+              (TECHNICAL_REVIEW_INPUTS if technical else set()), "TERMS_REVALIDATION_FIELDS")
     cr.fields(original_pins, set(originals), "TERMS_REVALIDATION_FIELDS")
     def artifact(raw: bytes, maximum: int) -> dict:
         """原byteを変更せず、有限wrapperへ保存する。"""
@@ -463,9 +577,92 @@ def make_pinned_static_terms_revalidation(body: bytes, originals: dict[str, byte
               "freshScript": artifact(script_raw, MAX_EVIDENCE),
               "originalManualCheckedAtUtcSeconds": cr.parse_json(originals["review"])["checkedAtUtcSeconds"],
               "revalidatedCheckedAtUtcSeconds": checked_at}
+    if mode == PINNED_STATIC_REVALIDATION_V2:
+        result.update(schema="dc-static-terms-binding-review-v3", reviewMethod=mode,
+                      originalBody=artifact(originals["body"], MAX_BODY))
+        if technical:
+            result.update({name: artifact(originals[name], 65536 if name == "bindingReview" else MAX_EVIDENCE)
+                           for name in TECHNICAL_REVIEW_INPUTS})
     release, script = cr.parse_json(release_raw), cr.parse_json(script_raw)
-    confirm_pinned_static_terms_revalidation(body, release, result, script, now)
+    (confirm_metadata_bound_terms_revalidation if mode == PINNED_STATIC_REVALIDATION_V2 else
+     confirm_pinned_static_terms_revalidation)(body, release, result, script, now)
     return bytes_json(result)
+
+
+def confirm_metadata_bound_terms_revalidation(body: bytes, release: dict, review: dict,
+                                              script: dict, now: datetime) -> dict:
+    """原manualを原bodyで検査し、同一許諾/scriptの新payload bindingだけを再確認する。"""
+    technical = bool(set(review) & TECHNICAL_REVIEW_INPUTS)
+    cr.fields(review, {"schema", "reviewMethod", "originalRelease", "originalReview", "originalScript",
+                       "originalBody", "freshRelease", "freshScript", "originalManualCheckedAtUtcSeconds",
+                       "revalidatedCheckedAtUtcSeconds"} | (TECHNICAL_REVIEW_INPUTS if technical else set()), "TERMS_REVALIDATION_FIELDS")
+    require(review["schema"] == "dc-static-terms-binding-review-v3" and
+            review["reviewMethod"] == PINNED_STATIC_REVALIDATION_V2 and
+            len(bytes_json(review)) <= MAX_EVIDENCE, "TERMS_REVIEW_MODE")
+    _, old_release = _revalidation_artifact(review["originalRelease"], MAX_EVIDENCE)
+    _, old_review = _revalidation_artifact(review["originalReview"], 65536)
+    _, old_script = _revalidation_artifact(review["originalScript"], MAX_EVIDENCE)
+    _, fresh_release = _revalidation_artifact(review["freshRelease"], MAX_EVIDENCE)
+    _, fresh_script = _revalidation_artifact(review["freshScript"], MAX_EVIDENCE)
+    artifact = review["originalBody"]
+    cr.fields(artifact, {"bytesBase64", "sha256"}, "TERMS_REVALIDATION_FIELDS")
+    require(type(artifact["bytesBase64"]) is str and len(artifact["bytesBase64"]) <= ((MAX_BODY+2)//3)*4,
+            "TERMS_REVALIDATION_SIZE")
+    old_body = base64.b64decode(artifact["bytesBase64"], validate=True)
+    require(0 < len(old_body) <= MAX_BODY and hashlib.sha256(old_body).hexdigest() ==
+            artifact["sha256"] == old_release["bodySha256"], "TERMS_REVALIDATION_PIN")
+    require(fresh_release == release and fresh_script == script, "TERMS_REVALIDATION_PIN")
+    release_binding(old_release)
+    release_binding(release)
+    confirm_terms_review(old_body, old_release, old_review, old_script, now)
+    original_checked = old_review["checkedAtUtcSeconds"]
+    if technical:
+        _, binding_release = _revalidation_artifact(review["bindingRelease"], MAX_EVIDENCE)
+        _, binding_review = _revalidation_artifact(review["bindingReview"], 65536)
+        _, binding_script = _revalidation_artifact(review["bindingScript"], MAX_EVIDENCE)
+        body_artifact = review["bindingBody"]
+        cr.fields(body_artifact, {"bytesBase64", "sha256"}, "TERMS_REVALIDATION_FIELDS")
+        require(type(body_artifact["bytesBase64"]) is str and len(body_artifact["bytesBase64"]) <= ((MAX_BODY+2)//3)*4,
+                "TERMS_REVALIDATION_SIZE")
+        binding_body = base64.b64decode(body_artifact["bytesBase64"], validate=True)
+        require(0 < len(binding_body) <= MAX_BODY and hashlib.sha256(binding_body).hexdigest() ==
+                body_artifact["sha256"] == binding_release["bodySha256"] and len(binding_body) == binding_release["bodyBytes"],
+                "TERMS_REVALIDATION_PIN")
+        release_binding(binding_release)
+        require(all(binding_release[key] == old_release[key] for key in
+                    ("termsText", "termsTextUtf8Bytes", "termsTextSha256", "termsRevision")),
+                "TERMS_TEMPLATE_CHANGED_REVIEW_REQUIRED")
+        confirm_terms_review(binding_body, binding_release, binding_review, binding_script, now)
+        # 新scriptの手動技術reviewは外部pinから選ぶ。旧同意・旧manual原byteを上書きしない。
+        old_body, old_release, old_review, old_script = binding_body, binding_release, binding_review, binding_script
+    require(hashlib.sha256(body).hexdigest() == release["bodySha256"] and len(body) == release["bodyBytes"],
+            "NATIVE_RELEASE_BINDING")
+    # 許諾全文とselector/DOM契約を維持し、版/URL/本文hashだけを旧版へ固定しない。
+    terms_fields = ("termsText", "termsTextUtf8Bytes", "termsTextSha256", "termsRevision")
+    require(all(release[key] == old_release[key] for key in terms_fields), "TERMS_TEMPLATE_CHANGED_REVIEW_REQUIRED")
+    old_dom = TermsDom(old_body.decode("utf-8", errors="strict"))
+    new_dom = TermsDom(body.decode("utf-8", errors="strict"))
+    require(len(old_dom.raw_documents) == len(new_dom.raw_documents) == 1 and
+            old_dom.raw_documents == new_dom.raw_documents, "TERMS_TEMPLATE_CHANGED_REVIEW_REQUIRED")
+    extraction = release["htmlExtraction"]
+    old_extraction = old_release["htmlExtraction"]
+    require(extraction == old_extraction, "TERMS_TEMPLATE_CHANGED_REVIEW_REQUIRED")
+    require(set(script) == set(old_script) and all(script[key] == old_script[key] for key in old_script
+            if key not in {"pageSha256", "pageObservedUtcSeconds", "scriptObservedUtcSeconds"}),
+            "TERMS_TEMPLATE_CHANGED_REVIEW_REQUIRED")
+    checked = review["revalidatedCheckedAtUtcSeconds"]
+    require(type(checked) is int and type(review["originalManualCheckedAtUtcSeconds"]) is int and
+            review["originalManualCheckedAtUtcSeconds"] == original_checked, "TERMS_REVIEW_TIME")
+    for value in (release["observedUtcSeconds"], script["scriptObservedUtcSeconds"]):
+        require(type(value) is str and re.fullmatch(r"[1-9][0-9]{0,11}", value), "TERMS_REVALIDATION_TYPE")
+    observed = int(release["observedUtcSeconds"])
+    require(0 < original_checked <= old_review["checkedAtUtcSeconds"] <= checked and
+            0 < observed <= int(script["scriptObservedUtcSeconds"]) <=
+            checked <= int(now.timestamp()) < observed + 86400, "TERMS_REVIEW_TIME")
+    # 原manualの六witnessを借りる一時照合view。保存された原manualと原時刻は変更しない。
+    bound_review = dict(old_review, pageSha256=release["bodySha256"], payloadUrl=release["payloadUrl"],
+                        checkedAtUtcSeconds=checked)
+    return confirm_terms_review(body, release, bound_review, script, now)
 
 
 def project_acquisition(scope: dict, evidence: dict, release: dict, inspection: dict,
@@ -480,44 +677,80 @@ def project_acquisition(scope: dict, evidence: dict, release: dict, inspection: 
 def _project_acquisition_from_metadata(metadata: tuple[bytes, bytes, bytes, dict], evidence: dict,
                                        release: dict, inspection: dict, review: dict, script: dict,
                                        generation: int, now: datetime, *,
-                                       terms_review_mode: str | None = None) -> tuple[bytes, bytes, bytes, dict]:
+                                       terms_review_mode: str | None = None,
+                                       validity: timedelta = timedelta(days=1),
+                                       acquisition_binding: dict | None = None) -> tuple[bytes, bytes, bytes, dict]:
     """元page/実内容/terms/script/個別期限を同じ検査順で一INFへ結合する。"""
     raw_index, _, raw_manifest, base_report = metadata
     index = cr.parse_json(raw_index)
     manifest = cr.parse_json(raw_manifest)
     record = cr.parse_json(base64.b64decode(index["records"][0]["recordBytesBase64"], validate=True))
     body = base64.b64decode(evidence["bodyBytesBase64"], validate=True)
-    require(release.get("schema") == "dc-saved-release-analysis-v1" and release.get("source") == SOURCE and
+    require(release.get("schema") in {"dc-saved-release-analysis-v1", "dc-saved-release-analysis-v2"} and release.get("source") == SOURCE and
             release.get("bodySha256") == evidence["bodySha256"] and release.get("bodyBytes") == len(body) and
             release.get("observedUtcSeconds") == str(int(evidence["lastSuccessfulValidationAt"])) and
             release.get("distributionPage") == PAGE and release.get("freshNetworkEvidence") is False and
             release.get("acquisitionAuthority") is False and
             release.get("termsDocumentState") == "HTML_EXTRACTED_BINDING_UNCONFIRMED", "NATIVE_RELEASE_BINDING")
-    require(release.get("payloadUrl") == "https://downloadmirror.intel.com/923981/Wired_driver_31.2.2_x64.zip" and
-            release.get("fileName") == "Wired_driver_31.2.2_x64.zip" and release.get("packageVersion") == "31.2.2" and
-            digest(release.get("publishedSha256")) == "2cbff42aa02519e49f02d8e95a6572c44310e97fe67c42e299f2aba6ea9344f5", "FIXED_PACKAGE")
+    if acquisition_binding is None:
+        require(release.get("payloadUrl") == "https://downloadmirror.intel.com/923981/Wired_driver_31.2.2_x64.zip" and
+                release.get("fileName") == "Wired_driver_31.2.2_x64.zip" and release.get("packageVersion") == "31.2.2" and
+                digest(release.get("publishedSha256")) == "2cbff42aa02519e49f02d8e95a6572c44310e97fe67c42e299f2aba6ea9344f5", "FIXED_PACKAGE")
+    else:
+        _, expected = _revalidation_artifact(acquisition_binding["expectedRelease"], 65536)
+        require(release_binding(release) == release_binding(expected) and all(release[key] == expected[key]
+                for key in ("termsText", "termsTextUtf8Bytes", "termsTextSha256", "termsRevision")),
+                "NATIVE_EXPECTED_RELEASE_BINDING")
     terms = release["termsText"].encode("utf-8", errors="strict")
     require(len(terms) == release["termsTextUtf8Bytes"] and
             hashlib.sha256(terms).hexdigest() == release["termsTextSha256"] and
             release["htmlExtraction"]["textSha256"] == release["termsTextSha256"] and
             release["htmlExtraction"]["textSizeBytes"] == len(terms), "NATIVE_TERMS_DIGEST")
-    require(terms_review_mode in {None, PINNED_STATIC_REVALIDATION_V1}, "TERMS_REVIEW_MODE")
+    require(terms_review_mode in {None, PINNED_STATIC_REVALIDATION_V1, PINNED_STATIC_REVALIDATION_V2}, "TERMS_REVIEW_MODE")
+    require(acquisition_binding is None or terms_review_mode == PINNED_STATIC_REVALIDATION_V2, "TERMS_REVIEW_MODE")
     html = (confirm_terms_review(body, release, review, script, now) if terms_review_mode is None else
+            confirm_metadata_bound_terms_revalidation(body, release, review, script, now)
+            if terms_review_mode == PINNED_STATIC_REVALIDATION_V2 else
             confirm_pinned_static_terms_revalidation(body, release, review, script, now))
-    require(inspection.get("schema") == "dc-inspected-public-identities-v2" and
-            inspection.get("archiveSha256") == digest(release["publishedSha256"]) and
-            inspection.get("archiveBytes") == 40477087 and inspection.get("inspectionError") == 0 and
+    selected_inf = "PRO2500/Winx64/W11/e2fn.inf" if acquisition_binding is None else acquisition_binding["selectedInf"]
+    selected_section = "Intel.NTamd64.10.0.1..22000" if acquisition_binding is None else acquisition_binding["modelSection"]
+    if acquisition_binding is None:
+        require(inspection.get("archiveSha256") == digest(release["publishedSha256"]) and
+                inspection.get("archiveBytes") == 40477087, "NATIVE_PACKAGE_BINDING")
+    else:
+        hashes = published_digests(release)
+        size = inspection.get("archiveBytes")
+        require(inspection.get("schema") == "dc-inspected-public-identities-v3" and
+                type(size) is int and 0 < size <= acquisition_binding["maximumBytes"] and
+                (release.get("publishedSizeBytes") is None or size == release["publishedSizeBytes"]) and
+                re.fullmatch(r"[0-9a-f]{64}", inspection.get("archiveSha256", "")) is not None and
+                re.fullmatch(r"[0-9a-f]{128}", inspection.get("archiveSha512", "")) is not None and
+                all(inspection["archive"+algorithm.capitalize()] == value for algorithm, value in hashes.items()),
+                "NATIVE_PACKAGE_BINDING")
+    require(inspection.get("schema") in {"dc-inspected-public-identities-v2", "dc-inspected-public-identities-v3"} and
+            type(inspection.get("inspectionError")) is int and inspection.get("inspectionError") == 0 and
             inspection.get("officialAuthority") is False and inspection.get("actualApplicabilityChecked") is False and
-            inspection.get("selectedOnly") is True and inspection.get("selectedInf") == "PRO2500\\Winx64\\W11\\e2fn.inf" and
+            inspection.get("selectedOnly") is True and inspection.get("selectedInf") == selected_inf.replace("/", "\\") and
+            type(inspection.get("verifiedIdentityInfs")) is int and
             inspection.get("verifiedIdentityInfs") == 1 and len(inspection.get("infs", [])) == 1, "NATIVE_PACKAGE_BINDING")
     inf = inspection["infs"][0]
-    require(inf.get("state") == 2 and inf.get("contentError") == 0 and inf.get("identityError") == 0 and
-            inf.get("publishedIdentityKnown") is True and inf.get("infIdentity") == "PRO2500/Winx64/W11/e2fn.inf" and
-            inf.get("infSha256") == "a93fa3c2b8725aed2081e0d239766474fac205f75ddbe16849502af6acba2417" and
-            inf.get("driverVersion") == "2.1.5.7" and len(inf.get("models", [])) == 2, "NATIVE_INF_BINDING")
+    require(all(type(inf.get(field)) is int for field in ("state", "contentError", "identityError")) and
+            inf.get("state") == 2 and inf.get("contentError") == 0 and inf.get("identityError") == 0 and
+            inf.get("publishedIdentityKnown") is True and inf.get("infIdentity") == selected_inf,
+            "NATIVE_INF_BINDING")
+    if acquisition_binding is None:
+        require(inf.get("infSha256") == "a93fa3c2b8725aed2081e0d239766474fac205f75ddbe16849502af6acba2417" and
+                inf.get("driverVersion") == "2.1.5.7" and len(inf.get("models", [])) == 2, "NATIVE_INF_BINDING")
+    else:
+        require(re.fullmatch(r"[0-9a-f]{64}", inf.get("infSha256", "")) is not None and
+                re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,7}", inf.get("driverVersion", "")) is not None and
+                inf.get("classGuid", "").lower() == "{4d36e972-e325-11ce-bfc1-08002be10318}" and
+                type(inf.get("models")) is list and 0 < len(inf["models"]) <= 256, "NATIVE_INF_BINDING")
     publisher = text(inf.get("verifiedPublisher"))
-    model = inf["models"][0]
-    require(model.get("modelSection") == "Intel.NTamd64.10.0.1..22000" and
+    models = [row for row in inf["models"] if row.get("modelSection") == selected_section]
+    require(len(models) == 1, "NATIVE_MODEL_SECTION")
+    model = models[0]
+    require(model.get("modelSection") == selected_section and
             type(model.get("pnpIds")) is list and 0 < len(model["pnpIds"]) <= 128, "NATIVE_MODEL_SECTION")
     ids = []
     seen = set()
@@ -534,8 +767,11 @@ def _project_acquisition_from_metadata(metadata: tuple[bytes, bytes, bytes, dict
     review_checked = review["checkedAtUtcSeconds"] if terms_review_mode is None else review["revalidatedCheckedAtUtcSeconds"]
     checked = max(content_checked, review_checked)
     require(observed <= content_checked <= checked <= int(now.timestamp()), "NATIVE_CONTENT_TIME")
-    expiry = datetime.fromtimestamp(observed, timezone.utc) + timedelta(days=1)
-    require(now < expiry and datetime.fromtimestamp(checked, timezone.utc) < expiry, "EVIDENCE_EXPIRED")
+    observed_at = datetime.fromtimestamp(observed, timezone.utc)
+    # 発行fresh窓24hは配布recordの8日と独立に保つ。古い六入力を再発行しない。
+    require(now < observed_at + timedelta(days=1) and
+            datetime.fromtimestamp(checked, timezone.utc) < observed_at + timedelta(days=1), "EVIDENCE_EXPIRED")
+    expiry = observed_at + validity
     iso = lambda value: value.strftime("%Y-%m-%dT%H:%M:%SZ")
     record["version"] = known(inf["driverVersion"])
     record["publishedDate"] = known(datetime.strptime(inf["driverDate"], "%m/%d/%Y").strftime("%Y-%m-%d"))
@@ -545,16 +781,18 @@ def _project_acquisition_from_metadata(metadata: tuple[bytes, bytes, bytes, dict
     payload = release["payloadUrl"]
     body_hash = evidence["bodySha256"]
     record["packageEvidence"] = {
-        "publishedHash": hash_evidence(digest(release["publishedSha256"]), PAGE, body_hash),
+        "publishedHash": (hash_evidence(digest(release["publishedSha256"]), PAGE, body_hash)
+                          if release.get("publishedSha256") else
+                          dict(unknown_hash(), reason="published SHA-512 verified by collector; SHA-256 not published")),
         "calculatedHash": hash_evidence(inspection["archiveSha256"], payload, inspection["archiveSha256"]),
         "size": {"state": "KNOWN", "valueBytes": inspection["archiveBytes"], "reason": ""}}
     record["inspectionStage"] = "CONTENT_INSPECTED"
     record["publishedIdentityEvidence"] = {"state": "PUBLISHED", "kind": "INF", "pnpIds": ids,
-        "classGuid": inf["classGuid"], "infIdentity": inf["infIdentity"], "modelSection": model["modelSection"],
+        "classGuid": inf["classGuid"], "nestedArchiveIdentity": "", "infIdentity": inf["infIdentity"], "modelSection": model["modelSection"],
         "evidenceUrl": payload, "evidenceSha256": inf["infSha256"], "reason": ""}
     record["acquisitionDescriptor"] = {"schema": "driver-index-acquisition-v1", "state": "KNOWN", "reason": "",
         "payloadUrl": payload, "fileName": release["fileName"], "format": "ZIP", "expectedContentType": "application/zip",
-        "maximumBytes": 128 * 1024 * 1024,
+        "maximumBytes": 128 * 1024 * 1024 if acquisition_binding is None else acquisition_binding["maximumBytes"],
         "route": [{"url": payload, "kind": "OFFICIAL_CDN_LINK", "evidenceUrl": PAGE, "evidenceSha256": body_hash}],
         "terms": {"state": "ACCEPTANCE_REQUIRED", "reason": "", "evidenceUrl": PAGE, "evidenceSha256": body_hash,
                   "revisionKind": "VENDOR_LITERAL", "revision": release["termsRevision"],
@@ -579,7 +817,7 @@ def _project_acquisition_from_metadata(metadata: tuple[bytes, bytes, bytes, dict
                            "contentInspectedCount": 1, "unconfirmedCount": 0}
     report = dict(base_report, projection="saved-observation selected-INF acquisition projection",
                   generation=generation, realContentInspected=1, publishedIdentityKnown=1,
-                  acquisitionAttestations=1, publishedIds=len(ids), unprojectedModelSections=1,
+                  acquisitionAttestations=1, publishedIds=len(ids), unprojectedModelSections=len(inf["models"])-1,
                   actualDeviceCandidates=None, realPayloads=0, scriptExecuted=0, termsConsent=False,
                   packageVersion=release["packageVersion"], driverVersion=inf["driverVersion"],
                   recordSha256=hashlib.sha256(raw_record).hexdigest(), assetSha256=asset_hash)
@@ -591,25 +829,31 @@ def _validate_distribution_scope(scope: dict) -> None:
     fields = {"schema", "targetCount", "source", "distributionPage", "sourceId", "recordId",
               "collectorManifestSha256", "keyId", "publicFingerprint", "projectionPolicyRevision"}
     require(type(scope) is dict, "DISTRIBUTION_SCOPE_TYPE")
+    metadata_bound = scope.get("schema") == METADATA_BOUND_SCOPE
+    if metadata_bound:
+        fields.add("acquisitionBinding")
     cr.fields(scope, fields, "DISTRIBUTION_SCOPE_FIELDS")
-    string_fields = fields - {"targetCount", "projectionPolicyRevision"}
+    string_fields = fields - {"targetCount", "projectionPolicyRevision", "acquisitionBinding"}
     require(all(type(scope[field]) is str for field in string_fields) and
             type(scope["targetCount"]) is int and scope["targetCount"] == 1 and
             type(scope["projectionPolicyRevision"]) is int and
-            scope["projectionPolicyRevision"] == 1, "DISTRIBUTION_SCOPE_TYPE")
-    require(scope["schema"] == "dc-fixed-distribution-acquisition-scope-v1" and
+            scope["projectionPolicyRevision"] == DISTRIBUTION_PROJECTION_POLICY_REVISION, "DISTRIBUTION_SCOPE_TYPE")
+    require(scope["schema"] in {"dc-fixed-distribution-acquisition-scope-v1", METADATA_BOUND_SCOPE} and
             scope["source"] == SOURCE and scope["distributionPage"] == PAGE and
             scope["sourceId"] == "intel-ethernet-win11" and
-            scope["recordId"] == "intel-wired-31-2-2-win11" and
+            (bool(re.fullmatch(r"[a-z0-9][a-z0-9.-]{0,127}", scope["recordId"])) if metadata_bound else
+             scope["recordId"] == "intel-wired-31-2-2-win11") and
             re.fullmatch(r"[0-9a-f]{64}", scope["collectorManifestSha256"]) is not None,
             "DISTRIBUTION_SCOPE_BINDING")
     require(scope["publicFingerprint"] == DISTRIBUTION_PUBLIC_FINGERPRINT and
             scope["keyId"] == DISTRIBUTION_KEY_ID, "DISTRIBUTION_PUBLIC_PIN")
+    if metadata_bound:
+        metadata_acquisition_binding(scope)
 
 
 def project_distribution_acquisition(scope: dict, evidence: dict, release: dict, inspection: dict,
                                      review: dict, script: dict, generation: int,
-                                     now: datetime) -> tuple[bytes, bytes, bytes, dict]:
+                                     now: datetime, *, terms_review_mode: str | None = None) -> tuple[bytes, bytes, bytes, dict]:
     """厳密な配布scopeと原検査束を未署名v2へ投影する。予約/署名/取得権限は発行しない。
 
     scopeの公開pinは用途識別だけとする。原観測/内容/規約の共通検査後に一選択INFを
@@ -626,9 +870,11 @@ def project_distribution_acquisition(scope: dict, evidence: dict, release: dict,
             "DISTRIBUTION_PACKAGE_VERSION")
     result = _project_acquisition_from_metadata(
         metadata, evidence,
-        release, inspection, review, script, generation, now)
+        release, inspection, review, script, generation, now, validity=DISTRIBUTION_RECORD_VALIDITY,
+        terms_review_mode=terms_review_mode, acquisition_binding=scope.get("acquisitionBinding"))
     result[3].update(projection="distribution selected-INF acquisition projection",
-                     projectionPolicyRevision=1, publicFingerprint=DISTRIBUTION_PUBLIC_FINGERPRINT,
+                     projectionPolicyRevision=DISTRIBUTION_PROJECTION_POLICY_REVISION,
+                     publicFingerprint=DISTRIBUTION_PUBLIC_FINGERPRINT,
                      unsigned=True, authorityIssued=False)
     return result
 
@@ -651,16 +897,18 @@ def project_daily_distribution_acquisition(scope: dict, receipt: dict, release: 
             "DISTRIBUTION_PACKAGE_VERSION")
     result = _project_acquisition_from_metadata(
         metadata, receipt, release, inspection, review, script, generation, now,
-        terms_review_mode=terms_review_mode)
+        terms_review_mode=terms_review_mode, validity=DISTRIBUTION_RECORD_VALIDITY,
+        acquisition_binding=scope.get("acquisitionBinding"))
     result[3].update(projection="daily distribution selected-INF acquisition projection",
-                     projectionPolicyRevision=1, publicFingerprint=DISTRIBUTION_PUBLIC_FINGERPRINT,
+                     projectionPolicyRevision=DISTRIBUTION_PROJECTION_POLICY_REVISION,
+                     publicFingerprint=DISTRIBUTION_PUBLIC_FINGERPRINT,
                      unsigned=True, authorityIssued=False,
                      observationKind=receipt["outcome"], httpStatus=receipt["httpStatus"],
                      originalFetchedAt=receipt["lastFetchedAt"],
                      previousReceiptSha256=receipt["previousReceiptSha256"],
                      newHttp200Count=int(receipt["httpStatus"] == 200),
                      revalidatedHttp304Count=int(receipt["httpStatus"] == 304))
-    if terms_review_mode == PINNED_STATIC_REVALIDATION_V1:
+    if terms_review_mode in {PINNED_STATIC_REVALIDATION_V1, PINNED_STATIC_REVALIDATION_V2}:
         result[3].update(termsReviewMode=terms_review_mode,
                          originalManualCheckedAtUtcSeconds=review["originalManualCheckedAtUtcSeconds"],
                          revalidatedCheckedAtUtcSeconds=review["revalidatedCheckedAtUtcSeconds"])

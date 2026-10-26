@@ -2,7 +2,7 @@
 /**
  * @file official_http_client.h
  * @brief 公式配布元限定HTTP client定義。
- * @version 01.16.00
+ * @version 01.19.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -58,6 +58,9 @@
  * Ver.01.15.00 Shunji Ogawa  2026/10/15  期待媒体型と単一UTF-8 charsetの非変換照合を追加。
  * Ver.01.15.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.16.00 Shunji Ogawa  2026/10/16  固定署名索引の匿名GETと共通期限境界を追加。
+ * Ver.01.17.00 Shunji Ogawa  2026/10/20  監視専用の三resourceと九sendを私有用途へ限定。
+ * Ver.01.18.00 Shunji Ogawa  2026/10/23  同じ収集HTML取得の原byte観測を任意出力へ返す。
+ * Ver.01.19.00 Shunji Ogawa  2026/10/23  収集限定の実送信・本文転送と私有完了観測を追加。
  * </pre>
  *
  * @note HTTPS、host allowlist、応答上限を強制して公式metadataとpayloadを取得します。Catalogだけを期限とETag付きでcacheし、payloadは保
@@ -86,6 +89,101 @@
 
 namespace drivercrate {
 
+class CollectorHttpTransferRecorder ;
+class CollectorRegistryJobTestAccess ;
+
+/** @brief 収集HTTPの課金対象段階です。 */
+enum class CollectorHttpTransferStage {
+	/// まだ該当HTTPを開始していません。
+	UNSTARTED,
+	/// 公式起点HTMLの本文です。
+	PAGE,
+	/// 検査用archiveの本文です。
+	PAYLOAD
+} ;
+
+/** @brief 同じ低位I/Oが確認した段階の完了区分です。 */
+enum class CollectorHttpTransferCompletion {
+	/// 未送信・途中失敗・取消し等で予約実数精算を認めません。
+	UNKNOWN,
+	/// EOF・宣言長・必要な全保存とflushまで完了しました。
+	COMPLETE
+} ;
+
+/** @brief 収集専用HTTPが私有生成する不変の読取り観測です。
+ * @note byteはapplicationがreadしたHTTP本文だけです。Header/TLSの回線全量ではありません。
+ *       完了を設定する公開constructor/decoderはなく、公式性・導入許可も発行しません。
+ */
+class CollectorHttpTransferObservation final {
+public:
+	/** @brief 未実行UNKNOWNを作ります。 */
+	CollectorHttpTransferObservation() = default ;
+	/** @brief 実行した段階を返します。
+	 * @return 未開始またはPAGE/PAYLOADです。
+	 */
+	[[nodiscard]] CollectorHttpTransferStage stage() const noexcept
+	{
+		return stage_ ;
+	}
+	/** @brief 実send直前の試行回数を返します。
+	 * @return 送信失敗も含む回数です。URL検証回数ではありません。
+	 */
+	[[nodiscard]] std::uint32_t attemptedRequests() const noexcept
+	{
+		return attemptedRequests_ ;
+	}
+	/** @brief 成功したReadDataから得た実本文byteを返します。
+	 * @return 保存前拒否や超過probeも含む本文byteです。
+	 */
+	[[nodiscard]] std::uint64_t bodyBytesRead() const noexcept
+	{
+		return bodyBytesRead_ ;
+	}
+	/** @brief 最後に読めたHTTP statusを返します。
+	 * @return 未受信0、または同じ実responseのstatusです。
+	 */
+	[[nodiscard]] std::uint32_t terminalStatus() const noexcept
+	{
+		return terminalStatus_ ;
+	}
+	/** @brief 同段階の実数精算可否を返します。
+	 * @return 完全終端だけCOMPLETE、それ以外はUNKNOWNです。
+	 */
+	[[nodiscard]] CollectorHttpTransferCompletion completion() const noexcept
+	{
+		return completion_ ;
+	}
+
+private:
+	friend class CollectorHttpTransferRecorder ;
+	/// 同一低位HTTPが設定した用途です。
+	CollectorHttpTransferStage		stage_{CollectorHttpTransferStage::UNSTARTED} ;
+	/// 実送信直前にだけ増える回数です。
+	std::uint32_t					attemptedRequests_{} ;
+	/// 実読取り済み本文byteです。
+	std::uint64_t					bodyBytesRead_{} ;
+	/// 最後に観測したHTTP statusです。
+	std::uint32_t					terminalStatus_{} ;
+	/// 私有recorderだけが全終端後に変更します。
+	CollectorHttpTransferCompletion completion_{CollectorHttpTransferCompletion::UNKNOWN} ;
+} ;
+
+/** @brief 同じ収集HTMLの実受信観測です。公式性や通信権限は発行しません。 */
+struct CollectorInspectionPageObservation {
+	/// 全受信・復号成功時だけ200です。失敗時0です。
+	std::uint32_t			 httpStatus{} ;
+	/// BOMを含めた同HTTP原本文の実byte数です。
+	std::uint64_t			 bodyBytes{} ;
+	/// 同じ原byteのSHA-256です。失敗時は空です。
+	std::wstring			 bodySha256 ;
+	/// 同じ本文取得が終了したUTC秒です。旧観測や入力値から作りません。
+	std::chrono::sys_seconds observedAtUtc{} ;
+	/// 同一origin内で確定した最終URLです。通常logへ出しません。
+	std::wstring			 finalUrl ;
+	/// 成功した起点GETのredirectを含む要求数です。最大3です。
+	std::uint32_t			 requestCount{} ;
+} ;
+
 /** @brief 期待媒体型と単一UTF-8 charsetだけを有限な原headerへ照合します。
  * @param[in] value 重複を結合済みのContent-Type原値です。最大256文字の印字可能ASCIIです。
  * @param[in] expected 署名recordが指定した空でない媒体型です。parameterや複数値を含めません。
@@ -103,6 +201,9 @@ class LocalCollectorHttpClient ;
 class CollectorInspectionAcquisition ;
 class AuthenticatedIndexManifest ;
 namespace signed_index_refresh_detail {
+struct Access ;
+}
+namespace public_index_readback_detail {
 struct Access ;
 }
 
@@ -128,7 +229,7 @@ struct SignedIndexHttpControl {
 	std::function<std::chrono::steady_clock::time_point()> monotonicNow ;
 	/// 同一refreshの固定終端です。途中で延長しません。
 	std::chrono::steady_clock::time_point				   deadline ;
-	/// 実send開始回数です。上限5を送信前に確認します。
+	/// 実send開始回数です。通常5、監視専用9を送信前に確認します。
 	std::uint32_t										   sends{} ;
 	/// 受信した原byte数です。拒否probeも含みます。
 	std::uint64_t										   receivedBytes{} ;
@@ -142,7 +243,19 @@ struct SignedIndexHttpControl {
 	 * @param[in] maximum 既存phaseの正の上限です。
 	 * @return 継続時の正数。停止時0はAPIへ渡しません。
 	 */
-	[[nodiscard]] int timeoutMilliseconds( int maximum) noexcept ;
+	[[nodiscard]] int			timeoutMilliseconds( int maximum) noexcept ;
+	/** @brief 共通送信処理が読取る用途別の固定上限です。
+	 * @return 通常5、監視専用の三resourceだけ9です。
+	 */
+	[[nodiscard]] std::uint32_t sendLimit() const noexcept
+	{
+		return sendLimit_ ;
+	}
+
+private:
+	friend struct public_index_readback_detail::Access ;
+	/// 外部configや通常refreshから変更できない送信上限です。
+	std::uint32_t sendLimit_{5U} ;
 } ;
 
 /** @brief 一回のHTTP／cache処理から確定した非機密な取得経路である。 */
@@ -496,6 +609,16 @@ public:
 
 private:
 	friend struct signed_index_refresh_detail::Access ;
+	friend struct public_index_readback_detail::Access ;
+	/** @brief URLを公開せず、索引三用途のMIMEとredirect規則を区別します。 */
+	enum class SignedIndexRole {
+		/// 固定raw currentのJSON/plain、redirect0です。
+		CURRENT,
+		/// 固定immutable manifestのJSON/octet-streamです。
+		MANIFEST,
+		/// 認証済みgzipの圧縮媒体型です。
+		GZIP
+	} ;
 	/** @brief 固定currentを匿名・redirect0・96KiBで取得します。
 	 * @param[in,out] control 同refreshの共有停止・送信・受信状態です。
 	 * @param[out] raw 成功時だけ原byteです。失敗時空です。
@@ -516,16 +639,26 @@ private:
 												  SignedIndexHttpControl		   &control,
 												  std::vector<std::byte>		   &raw,
 												  std::uint32_t					   &status) ;
+	/** @brief 認証tagに結合した固定manifest.jsonだけを匿名取得します。
+	 * @param[in] manifest 原署名と現在UTCの認証済みreceiptです。
+	 * @param[in,out] control 三resourceで共有する固定停止状態です。
+	 * @param[out] raw 全成功時だけ原envelopeです。
+	 * @param[out] status 失敗時も実観測HTTP statusです。
+	 * @return 全検査成功0、元拒否HRESULTです。
+	 */
+	[[nodiscard]] NativeError getSignedIndexManifestAsset(
+		const AuthenticatedIndexManifest &manifest, SignedIndexHttpControl &control,
+		std::vector<std::byte> &raw, std::uint32_t &status) ;
 	/** @brief 索引専用policyを共通URL/DNS/request/streamへ適用します。
 	 * @param[in] url 固定currentか認証済みassetの起点だけです。
-	 * @param[in] current current用途ではredirectを拒否します。
+	 * @param[in] role 私有の三用途からMIMEとredirect規則を選びます。
 	 * @param[in] maximumBytes 元codecの正の上限です。
 	 * @param[in,out] control 同一refreshの協調停止状態です。
 	 * @param[out] raw 全成功時の所有原byteです。
 	 * @param[out] status 失敗時も保持する実HTTP statusです。
 	 * @return 成功0、元拒否診断です。通常cache/ledgerは使いません。
 	 */
-	[[nodiscard]] NativeError getSignedIndexBytes( std::wstring_view url, bool current,
+	[[nodiscard]] NativeError getSignedIndexBytes( std::wstring_view url, SignedIndexRole role,
 												  std::uint64_t			  maximumBytes,
 												  SignedIndexHttpControl &control,
 												  std::vector<std::byte> &raw,
@@ -553,11 +686,17 @@ private:
 	 * @param[in] cancellation 同じ取消し。
 	 * @param[out] text 成功200の厳密UTF-8本文。失敗時空。
 	 * @param[out] finalUrl 同じ成功本文の実最終URL。相対hrefのbase専用で、失敗時空。
+	 * @param[out] observation 任意の同原byte観測です。Nullなら追加hashを計算せず、失敗時は空です。
+	 * @param[out] transfer 任意の私有転送観測です。失敗時も実数とUNKNOWNを保持します。
+	 * @param[out] raw 任意の同原本文です。成功時だけ所有権を渡し、失敗時空です。
 	 * @return 全受信成功0、拒否HRESULT。組み込みledgerを発行しない。
 	 */
 	[[nodiscard]] NativeError getCollectorInspectionPage(
 		std::wstring_view url, std::wstring_view host, const HttpCancellationCallback &cancellation,
-		std::wstring &text, std::wstring &finalUrl) ;
+		std::wstring &text, std::wstring &finalUrl,
+		CollectorInspectionPageObservation *observation = nullptr,
+		CollectorHttpTransferObservation   *transfer	= nullptr,
+		std::vector<std::byte>			   *raw			= nullptr) ;
 	/** @brief 永続permitを照合した開発用adapterだけが使う有限GETです。
 	 * @param[in] url 共通builderから再構築した公式URL。
 	 * @param[in] resourceId 現sessionのmetadata用途。
@@ -653,16 +792,22 @@ private:
 	 * @param[in] cancellationCallback 空または取消し状態を返す非blocking関数。 空または取消し状態の確認先。
 	 * @param[out] originPolicyIndices 成功時の起点から最終originまでのopaque index群。 成功時のopaque origin経路。
 	 * @param[in] collectorInspection 収集検査だけでpublic同一origin・cookie／credential無効を追加する。
+	 * @param[out] transfer 収集専用だけの実転送観測です。他用途では拒否します。
 	 * @return 保存とflush成功時は0、失敗時はHRESULT bit pattern。
 	 */
-	[[nodiscard]] NativeError downloadToFile( std::wstring_view					url,
-											 std::span<const std::wstring_view> allowedHosts,
-											 std::uint32_t						maximumRedirects,
-											 std::uint64_t maximumBytes, HANDLE outputFile,
-											 const HttpDownloadProgressCallback &progressCallback,
-											 const HttpCancellationCallback &cancellationCallback,
-											 std::vector<std::uint32_t>		&originPolicyIndices,
-											 bool collectorInspection = false) const ;
+	[[nodiscard]] NativeError downloadToFile(
+		std::wstring_view url, std::span<const std::wstring_view> allowedHosts,
+		std::uint32_t maximumRedirects, std::uint64_t maximumBytes, HANDLE outputFile,
+		const HttpDownloadProgressCallback &progressCallback,
+		const HttpCancellationCallback	   &cancellationCallback,
+		std::vector<std::uint32_t> &originPolicyIndices, bool collectorInspection = false,
+		CollectorHttpTransferObservation *transfer = nullptr) const ;
+
+#ifdef DRIVERCRATE_REGISTRY_JOB_TESTING
+	friend class CollectorRegistryJobTestAccess ;
+	/// 専用unit TUだけがflush故障を注入します。通常binaryには存在しません。
+	static thread_local decltype( &FlushFileBuffers) collectorFlushProbe_ ;
+#endif
 
 	/**
 	 * @brief 現在sessionのresource policyを検証してhost群を返す。

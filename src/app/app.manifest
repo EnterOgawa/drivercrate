@@ -3,7 +3,7 @@
 <!--                                                                          -->
 <!--  プログラム名   : app.manifest                                           -->
 <!--  プログラム名称 : DriverCrate Windows manifest定義                       -->
-<!--  バージョン     : 0.1.0                                                  -->
+<!--  バージョン     : 0.1.1                                                  -->
 <!--  作成日         : 2026/09/01                                             -->
 <!--  会社名         : EnterSystem                                            -->
 <!--  作成者         : Shunji Ogawa                                           -->
@@ -12,6 +12,7 @@
 <!--                                                                          -->
 <!--  VerNo.  更新者名       更新日      コメント                             -->
 <!--  0.1.0   Shunji Ogawa   2026/09/01  新規作成                             -->
+<!--  0.1.1   Shunji Ogawa   2026/10/24  現行製品版へ統一                     -->
 <!--                                                                          -->
 <!--**************************************************************************-->
 <!--                                                                          -->
@@ -25,7 +26,7 @@
       name="EnterOgawa.DriverCrate"
       processorArchitecture="amd64"
       type="win32"
-      version="0.1.0.0" />
+      version="0.1.1.0" />
   <description>DriverCrate</description>
   <dependency>
     <dependentAssembly>

@@ -2,8 +2,8 @@
 /**
  * @file signed_index_candidate_binding_tests.h
  * @brief 通常本体の真署名索引候補とfake指定導入試験を宣言します。
- * @version 01.15.00
- * @date 2026/10/12
+ * @version 01.18.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -36,6 +36,9 @@
  * Ver.01.13.00 Shunji Ogawa  2026/10/15  登録Extensionの変更権限probeと解放確認を共有。
  * Ver.01.14.00 Shunji Ogawa  2026/10/15  fake復旧前の有限同期とjoin後の低位観測を共有。
  * Ver.01.15.00 Shunji Ogawa  2026/10/16  索引通信結果の可視導線と同版publicationの画面受入を追加。
+ * Ver.01.16.00 Shunji Ogawa  2026/10/23 実producerの新ID/INFを既存低位fixtureへ渡す入口を追加。
+ * Ver.01.17.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
+ * Ver.01.18.00 Shunji Ogawa  2026/10/24  元Intel archiveとnative署名の非導入replayを宣言。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -53,6 +56,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 namespace drivercrate::test {
 // 製品構成と独立取得targetには候補／導入fixtureの入口を宣言しない。
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
@@ -356,5 +360,82 @@ void runNormalSignedIndexCandidateBindingTests( TestContext						&context,
 											   std::shared_ptr<SignedIndexStore> store,
 											   std::chrono::sys_seconds			 nowUtc,
 											   const std::string &zip, bool network = false) ;
+
+/** @brief 原recordと同owned INFの完全tupleを通常workerで非導入検証します。
+ * @param[in,out] context 元assertion集計先です。
+ * @param[in] store 原署名recordを保持する隔離storeです。
+ * @param[in] nowUtc 固定信頼UTCです。
+ * @param[in] zip 同実取得に返す人工archiveです。
+ * @param[in] references 元record/deviceへ結ばれる期待参照数です。
+ * @param[in] candidates 完全tuple一致後だけ発行される期待候補数です。
+ * @param[in] targets 同一既知payload共有後の期待取得数です。
+ * @note 完全HTTP/署名/Windows低位fakeを使い、導入/復旧を呼びません。
+ */
+void runNormalIndexIdentityBindingCase( TestContext						&context,
+									   std::shared_ptr<SignedIndexStore> store,
+									   std::chrono::sys_seconds nowUtc, const std::string &zip,
+									   std::size_t references, std::size_t candidates,
+									   std::size_t targets) ;
+
+/** @brief 実producerが生成した公開identityを持つ架空local deviceです。 */
+struct DistributionBindingDevice {
+	/// 同じ原INFから生成した公開Hardware IDです。
+	std::wstring hardwareId ;
+	/// 同じ原INFの完全相対名です。
+	std::wstring infIdentity ;
+	/// 同じ原INFのModels節です。
+	std::wstring modelSection ;
+	/// 同じ原INFから生成した公開driver版です。fake nodeは別に実本文を読みます。
+	std::wstring expectedVersion ;
+} ;
+/** @brief 実producerの原byteと三deviceを通常workerの候補publicationまで通します。
+ * @param[in,out] context 元assertion集計先です。
+ * @param[in] services RAM認証隔離store・完全HTTP・固定UTCの所有依存です。
+ * @param[in] zipA A二製品が共有する原archiveです。
+ * @param[in] zipB B一製品の別原archiveです。
+ * @param[in] devices 同じ認証recordから読んだ三identityです。
+ * @param[in] scenario 0は正常、1は初回、2はID、3はClass、4はINF path、5はrank、6はCAT hash、7は現在状態未知です。
+ */
+void runDistributionApplicationBindingTests( TestContext							  &context,
+											provider_worker_index_detail::Services services,
+											const std::string &zipA, const std::string &zipB,
+											std::vector<DistributionBindingDevice> devices,
+											unsigned							   scenario) ;
+/** @brief 同じ原archiveを既存完全HTTP fixtureと通常workerへ固定します。
+ * @param[in,out] context 元assertion集計先です。
+ * @param[in] store 原producer manifest/GZipを認証・保存した隔離storeです。
+ * @param[in] nowUtc 信頼UTCです。
+ * @param[in] zipA A共通archiveの原byteです。
+ * @param[in] zipB B別archiveの原byteです。
+ * @param[in] devices 認証record由来の新しい架空local identityです。
+ */
+void runNormalDistributionApplicationTests( TestContext						&context,
+										   std::shared_ptr<SignedIndexStore> store,
+										   std::chrono::sys_seconds nowUtc, const std::string &zipA,
+										   const std::string					 &zipB,
+										   std::vector<DistributionBindingDevice> devices) ;
+/** @brief 元Intel archiveを明示fake deviceと通常workerへ結び、native内容署名を検査します。
+ * @param[in,out] context 元assertion集計先です。
+ * @param[in] services RAM署名store・明示historical UTC・完全fake HTTPの所有依存です。
+ * @param[in] device 原公開tupleから明示した一架空deviceです。実端末ではありません。
+ * @param[in] scenario 0は正常、1は誤archive byte、2は同意欠落、3は原ID集合欠損の別copyです。
+ * @note 実Windows署名APIを使い、実導入/復旧/実inventoryは行いません。
+ */
+void runNativeIntelArchiveBindingCase( TestContext							&context,
+									  provider_worker_index_detail::Services services,
+									  DistributionBindingDevice device, unsigned scenario) ;
+/** @brief 原archive/規約byteを既存完全fake HTTPへ固定します。
+ * @param[in,out] context 元assertion集計先です。
+ * @param[in] store 同原recordをRAM署名・隔離保存したownerです。
+ * @param[in] replayUtc 原publication秒の明示historical fake時刻です。
+ * @param[in] archive 元40477087Bの未変更archiveです。
+ * @param[in] terms 原HTTP bodyの未変更byteです。
+ * @param[in] device 元recordの一IDだけを持つ明示fake deviceです。
+ * @param[in] scenario 0正常、1誤byte、2同意欠落、3完全tuple拒否です。
+ */
+void runNormalNativeIntelArchiveCase( TestContext &context, std::shared_ptr<SignedIndexStore> store,
+									 std::chrono::sys_seconds replayUtc, const std::string &archive,
+									 const std::string &terms, DistributionBindingDevice device,
+									 unsigned scenario) ;
 #endif	// defined(DRIVERCRATE_INTERNAL_INDEX_TESTS)
 }

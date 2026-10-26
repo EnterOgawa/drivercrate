@@ -2,7 +2,7 @@
 /**
  * @file local_collector_http_tests.cpp
  * @brief 有限DNS・共通HTTPの原値・終端・所有者回収を非通信検証します。
- * @version 01.59.05
+ * @version 01.61.00
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -102,6 +102,10 @@
  * Ver.01.59.03 Shunji Ogawa  2026/10/18  起動元errorを診断表示しworker欠損の失敗を安全に保持。
  * Ver.01.59.04 Shunji Ogawa  2026/10/18 一時path診断を除去し短絡期待と欠損guardを維持。
  * Ver.01.59.05 Shunji Ogawa  2026/10/18 既存fixture path helperを共用し削除・存在照会を補正。
+ * Ver.01.59.06 Shunji Ogawa  2026/10/21 初回storeと親借用の元errorを連鎖失敗から分離表示。
+ * Ver.01.60.00 Shunji Ogawa  2026/10/22 起動境界試験の元呼出し位置へ段階計時とflushを追加。
+ * Ver.01.60.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.61.00 Shunji Ogawa  2026/10/26  Intel改訂指紋と公開hash/codecの限定回帰を追加。
  * </pre>
  *
  * @note 偽HTTP本文を公式parserへ渡し一時保護台帳だけを作成します。実通信・導入は実行しません。
@@ -130,6 +134,7 @@
 #include "platform/local_collector_projected_json.h"
 #include <fstream>
 #include <iterator>
+#include <iostream>
 #include <type_traits>
 #include <set>
 #include "platform/local_collector_state_store.h"
@@ -947,6 +952,129 @@ std::map<std::wstring, std::string> projectedStoreSnapshot( TestContext				&cont
 	return result ;
 }
 
+/** @brief 起動境界試験だけの固定段階と単調経過時間を出力します。
+ * @note 親threadで借用し、元の処理を一回だけ呼びます。例外時のendや成功は補いません。
+ */
+class CacheStartupObservation final {
+public:
+	/** @brief 起動境界modeだけで有効な時計を作ります。
+	 * @param[in] enabled 固定段階を出力する場合true。
+	 */
+	explicit CacheStartupObservation( const bool enabled)
+		: enabled_( enabled), started_( enabled ? std::chrono::steady_clock::now()
+											  : std::chrono::steady_clock::time_point{})
+	{
+	}
+
+	/** @brief 元処理の直前にbeginをflushし、段階開始時計を返します。
+	 * @param[in] stage 静的寿命の固定段階名。
+	 * @param[in] generations 確定した世代数。準備前は0。
+	 * @param[in] requests 確定した要求数。準備前は0。
+	 * @return 段階の単調開始時計。無効時は既定値。
+	 */
+	[[nodiscard]] std::chrono::steady_clock::time_point begin( const char	   *stage,
+															  const std::size_t generations,
+															  const std::size_t requests) const
+	{
+		// 他の容量modeへ時計照会と追加出力を持ち込みません。
+		if( !enabled_) {
+			return {} ;
+		}
+
+		const auto now = std::chrono::steady_clock::now() ;	// flush前の観測時計。
+		std::cout << "Cache startup stage=" << stage << " edge=begin generations=" << generations
+				  << " requests=" << requests << " elapsedMs="
+				  << std::chrono::duration_cast<std::chrono::milliseconds>( now - started_).count()
+				  << " stageMs=0" << std::endl ;
+		return now ;
+	}
+
+	/** @brief 実際に戻った元処理だけのendと確定数値をflushします。
+	 * @param[in] stage beginと同じ固定段階名。
+	 * @param[in] generations 確定した世代数。
+	 * @param[in] requests 確定した要求数。
+	 * @param[in] since 対応するbeginの単調時計。
+	 * @param[in] code 元呼出しが返したcode。未観測時は不在。
+	 * @param[in] items 元戻り値で確定した件数。未観測時は不在。
+	 */
+	void end( const char *stage, const std::size_t generations, const std::size_t requests,
+			 const std::chrono::steady_clock::time_point since,
+			 const std::optional<DWORD>					 code  = {},
+			 const std::optional<std::size_t>			 items = {}) const
+	{
+		// 他modeの処理と結果表示は元のままにします。
+		if( !enabled_) {
+			return ;
+		}
+
+		const auto now = std::chrono::steady_clock::now() ;	// 元処理が戻った後の時計。
+		std::cout << "Cache startup stage=" << stage << " edge=end generations=" << generations
+				  << " requests=" << requests << " elapsedMs="
+				  << std::chrono::duration_cast<std::chrono::milliseconds>( now - started_).count()
+				  << " stageMs="
+				  << std::chrono::duration_cast<std::chrono::milliseconds>( now - since).count() ;
+		// 未観測のcodeを成功値で埋めません。
+		if( code) {
+			std::cout << " code=" << *code ;
+		}
+
+		// 元戻り値が持つ件数だけを出し、追加読取りを行いません。
+		if( items) {
+			std::cout << " items=" << *items ;
+		}
+
+		std::cout << std::endl ;
+	}
+
+	/** @brief 元条件式が到達した位置でsnapshotを一回だけ取得します。
+	 * @param[in] stage 固定段階名。
+	 * @param[in] generations 確定した世代数。
+	 * @param[in] requests 確定した要求数。
+	 * @param[in,out] context 元の検査集計。
+	 * @param[in,out] store 元の保護fixture。
+	 * @return 元snapshotの全相対名とbyte。出力には件数だけを使います。
+	 */
+	[[nodiscard]] std::map<std::wstring, std::string> snapshot(
+		const char *stage, const std::size_t generations, const std::size_t requests,
+		TestContext &context, LocalCollectorStateStore &store) const
+	{
+		const auto since = begin( stage, generations, requests) ;		// 元呼出し到達後だけの開始。
+		auto	   value = projectedStoreSnapshot( context, store) ;	// 追加照会のない元一回分。
+		end( stage, generations, requests, since, {}, value.size()) ;
+		return value ;
+	}
+
+	/** @brief 元の初期化を一回だけ行い、そのcodeをそのまま返します。
+	 * @param[in] stage 固定段階名。
+	 * @param[in] generations 確定した世代数。
+	 * @param[in] requests 確定した要求数。
+	 * @param[in,out] recovery 元の監督object。
+	 * @param[in,out] store 元の保護fixture。
+	 * @param[in] definition 元の定義。
+	 * @param[in] utcMillis 元の検査時計。単位はms。
+	 * @return 元initializeProjectedのcode。
+	 */
+	[[nodiscard]] DWORD initialize( const char *stage, const std::size_t generations,
+								   const std::size_t requests, LocalCollectorRecovery &recovery,
+								   LocalCollectorStateStore					  &store,
+								   const CollectorProjectedCampaignDefinition &definition,
+								   const std::uint64_t						   utcMillis) const
+	{
+		const auto since = begin( stage, generations, requests) ;	// constructor後の元呼出し位置。
+		const auto code =
+			// 元codeを保持します。
+			recovery.initializeProjected( store, definition, utcMillis, 0U) ;
+		end( stage, generations, requests, since, code) ;
+		return code ;
+	}
+
+private:
+	/// 起動境界modeのときだけ追加観測を有効にする不変区分。
+	const bool									enabled_ ;
+	/// 初回fixture準備直前の単調時計。無効時は既定値。
+	const std::chrono::steady_clock::time_point started_ ;
+} ;
+
 /** @brief 実hashを再計算した改変fixtureを保存します。
  * @param[in,out] context 集計。
  * @param[in,out] store 保護済みfixtureだけ。
@@ -1005,7 +1133,9 @@ std::shared_ptr<const CollectorPreparedProjectedCampaign> makeRegisteredHistoryF
 	const std::uint64_t utc, const unsigned scenario,
 	const CollectorRegisteredProjectedHistory *prior = nullptr)
 {
-	CollectorProjectedCampaignIdentity identity ;							// 実元manifestから生成します。
+	const auto identityOwner = std::make_unique<
+		CollectorProjectedCampaignIdentity>() ;								// 同じscopeだけで大きなfixtureを所有する。
+	auto &identity = *identityOwner ;										// 実元manifestから生成します。
 	std::shared_ptr<const CollectorPreparedProjectedCampaign> prepared ;	// workerと同じ不変入力。
 	DRIVERCRATE_EXPECT(
 		context, makeCollectorProjectedCampaignIdentity( definition, startDay, identity) &&
@@ -1014,7 +1144,9 @@ std::shared_ptr<const CollectorPreparedProjectedCampaign> makeRegisteredHistoryF
 						 definition.artifactSha256, definition.sources, prepared)) ;
 	LocalCollectorRecovery recovery ;	// 通常初回予約・非保存prepareを共用します。
 	DRIVERCRATE_EXPECT( context, recovery.initializeProjected( store, definition, utc, 0U) == 0U) ;
-	std::array<IoFixture, 2U> fixtures ;	// native factoryを呼ばない偽HTTP。
+	const auto fixturesOwner =
+		std::make_unique<std::array<IoFixture, 2U>>() ;	// 固定件数と型を保って所有する。
+	auto &fixtures	 = *fixturesOwner ;					// native factoryを呼ばない偽HTTP。
 	fixtures[0].body = winrt::to_string( winrt::hstring( projectedIntelHtml())) ;
 	fixtures[1].body = winrt::to_string( winrt::hstring( projectedAsusRowsHtml( 2U, scenario == 1U))) ;
 	// 原read失敗を元I/Oのまま保存し、成功履歴を消さないことを検査します。
@@ -1045,7 +1177,9 @@ std::shared_ptr<const CollectorPreparedProjectedCampaign> makeRegisteredHistoryF
 					   executor.startNext( recovery) == 0U && executor.startNext( recovery) == 0U) ;
 	const auto report = executor.join() ;	// 元所有結果を読む前に全joinします。
 	DRIVERCRATE_EXPECT( context, report.joined == 2U && report.notified == 2U) ;
-	CollectorProjectedPreparedUpdate update ;	// 通常初回親入口は非保存のままです。
+	const auto updateOwner = std::make_unique<
+		CollectorProjectedPreparedUpdate>() ;	// 大きなfixtureを元scopeだけで所有します。
+	auto &update = *updateOwner ;				// 通常初回親入口は非保存のままです。
 	DRIVERCRATE_EXPECT( context, recovery.prepareInitialProjectedUpdate( executor, 1U, utc + 125000U,
 																	   125000U, update) == 0U) ;
 	const auto *oldJob = prepared->job( 1U) ;	// ASUSの全scopeを所有します。
@@ -1056,7 +1190,9 @@ std::shared_ptr<const CollectorPreparedProjectedCampaign> makeRegisteredHistoryF
 
 	// 既存履歴最終化を、検証済みcontextの元byteへ接続した試験fixtureだけに使います。
 	if( prior) {
-		CollectorProjectedHistoryFinalization finalized ;	// 旧成功との減少を再計算します。
+		const auto finalizedOwner = std::make_unique<
+			CollectorProjectedHistoryFinalization>() ;	// 大きなfixtureを元scopeだけで所有します。
+		auto &finalized = *finalizedOwner ;				// 旧成功との減少を再計算します。
 		DRIVERCRATE_EXPECT( context, finalizeCollectorProjectedHistory( *oldJob, *executor.result( 1U),
 																	  utc + 125000U,
 																	  prior->slices(), finalized)
@@ -1092,8 +1228,13 @@ std::shared_ptr<const CollectorPreparedProjectedCampaign> makeRegisteredHistoryF
 		before[role] = httpSavedBody( store, destinations[role]) ;
 	}
 
-	CollectorWaitSnapshot control ;	// 元開始intentと待機。
-	CollectorWaitSnapshot settled ;	// 同じ元I/Oで導出した待機更新後像。
+	const auto controlOwner =
+		std::make_unique<CollectorWaitSnapshot>() ;	// 大きなfixtureを元scopeだけで所有します。
+
+	auto	  &control = *controlOwner ;	// 元開始intentと待機。
+	const auto settledOwner =
+		std::make_unique<CollectorWaitSnapshot>() ;	// 大きなfixtureを元scopeだけで所有します。
+	auto &settled = *settledOwner ;					// 同じ元I/Oで導出した待機更新後像。
 	DRIVERCRATE_EXPECT(
 		context,
 		parseCollectorWaitSnapshot( before[0], control) &&
@@ -1114,7 +1255,9 @@ std::shared_ptr<const CollectorPreparedProjectedCampaign> makeRegisteredHistoryF
 	row.Insert( L"response", JsonValue::CreateStringValue( update.response.responseSha256)) ;
 	row.Insert( L"operation", JsonValue::CreateStringValue( op)) ;
 	after[1] = winrt::to_string( state.Stringify()) ;
-	CollectorBudgetSnapshot budget ;	// 未精算の最大予約。
+	const auto budgetOwner =
+		std::make_unique<CollectorBudgetSnapshot>() ;	// 同じscopeだけで大きなfixtureを所有する。
+	auto &budget = *budgetOwner ;						// 未精算の最大予約。
 	DRIVERCRATE_EXPECT( context, parseCollectorBudgetSnapshot( before[2], budget)) ;
 	// 元Gとjobの一予約だけを観測量で精算します。
 	for( auto &reservation : budget.reservations) {
@@ -1194,7 +1337,9 @@ DWORD initialProjectedStorageFixture(
 	LocalCollectorRecovery recovery ;	// 通常保存・回復の親監督。
 	DRIVERCRATE_EXPECT( context,
 					   recovery.initializeProjected( store, definition, utc, 0U, stop) == 0U) ;
-	std::array<IoFixture, 2U> fixtures ;	// 実native factoryなしの所有worker依存。
+	const auto fixturesOwner =
+		std::make_unique<std::array<IoFixture, 2U>>() ;	// 固定件数と型を保って所有する。
+	auto &fixtures	 = *fixturesOwner ;					// 実native factoryなしの所有worker依存。
 	fixtures[0].body = winrt::to_string( winrt::hstring( projectedIntelHtml())) ;
 	fixtures[1].body = winrt::to_string( winrt::hstring( projectedAsusRowsHtml( scenario == 3U	  ? 0U
 																			 : scenario == 4U ? 17U
@@ -1243,7 +1388,10 @@ DWORD initialProjectedStorageFixture(
 			(*workers)[slot] = *worker ;
 		}
 
-		CollectorProjectedHistoryFinalization finalized ;	// 保存権を持たない比較値。
+		const auto finalizedOwner = std::make_unique<
+			CollectorProjectedHistoryFinalization>() ;	// 同じscopeだけで大きなfixtureを所有する。
+
+		auto &finalized = *finalizedOwner ;	// 保存権を持たない比較値。
 		DRIVERCRATE_EXPECT( context, finalizeCollectorProjectedHistory( *prepared->job( slot), *worker,
 																	  utc + 125000U, {}, finalized)
 											.status == collector_projected_json::Status::OK) ;
@@ -2733,7 +2881,9 @@ void nextProjectedStorageChecks(
 {
 	LocalCollectorStateStore first ;	// fake所有workerで初回完了を作ります。
 	DRIVERCRATE_EXPECT( context, first.initialize( rootFactory(), true) == 0U) ;
-	std::array<CollectorProjectedResponseBytes, 2U> responses ;	// 初回元codec応答。
+	const auto responsesOwner = std::make_unique<
+		std::array<CollectorProjectedResponseBytes, 2U>>() ;	// 固定件数と型を保って所有する。
+	auto &responses = *responsesOwner ;							// 初回元codec応答。
 	DRIVERCRATE_EXPECT( context, initialProjectedStorageFixture( context, first, definition, prepared,
 															   0U, {}, responses) == 0U) ;
 	{
@@ -2775,7 +2925,10 @@ void nextProjectedStorageChecks(
 			next.manifestBytes = winrt::to_string( manifest.Stringify()) ;
 		}
 
-		CollectorProjectedCampaignIdentity						  identity ;	// 次日の元G／scope。
+		const auto identityOwner = std::make_unique<
+			CollectorProjectedCampaignIdentity>() ;	// 同じscopeだけで大きなfixtureを所有する。
+
+		auto &identity = *identityOwner ;										// 次日の元G／scope。
 		std::shared_ptr<const CollectorPreparedProjectedCampaign> campaign ;	// 固定元executor入力。
 		DRIVERCRATE_EXPECT(
 			context, makeCollectorProjectedCampaignIdentity( next, L"20260928", identity) &&
@@ -2792,7 +2945,9 @@ void nextProjectedStorageChecks(
 			DRIVERCRATE_EXPECT( context,
 							   recovery.finishNextProjected( utc + 1000U, 1000U) == ERROR_RETRY &&
 								   queued == projectedStoreSnapshot( context, store)) ;
-			std::array<IoFixture, 2U> fixtures ;	// 依存とfake本文を全joinまで所有。
+			const auto fixturesOwner =
+				std::make_unique<std::array<IoFixture, 2U>>() ;	// 固定件数と型を保って所有する。
+			auto &fixtures	 = *fixturesOwner ;					// 依存とfake本文を全joinまで所有。
 			fixtures[0].body = winrt::to_string( winrt::hstring( projectedIntelHtml())) ;
 			fixtures[1].body =
 				winrt::to_string( winrt::hstring( projectedAsusRowsHtml( scenario == 1U   ? 1U
@@ -3022,7 +3177,9 @@ void nextProjectedPreparedRecoveryChecks(
 {
 	LocalCollectorStateStore first ;	// 同じ元workerから初回完了の正本を作ります。
 	DRIVERCRATE_EXPECT( context, first.initialize( rootFactory(), true) == 0U) ;
-	std::array<CollectorProjectedResponseBytes, 2U> initial ;	// 元専用codecの所有値。
+	const auto initialOwner = std::make_unique<
+		std::array<CollectorProjectedResponseBytes, 2U>>() ;	// 固定件数と型を保って所有する。
+	auto &initial = *initialOwner ;								// 元専用codecの所有値。
 	DRIVERCRATE_EXPECT( context, initialProjectedStorageFixture( context, first, definition, prepared,
 															   0U, {}, initial) == 0U) ;
 	{
@@ -3050,7 +3207,10 @@ void nextProjectedPreparedRecoveryChecks(
 			next.manifestBytes = winrt::to_string( manifest.Stringify()) ;
 		}
 
-		CollectorProjectedCampaignIdentity identity ;							// 元日付・artifact・scopeの結合。
+		const auto identityOwner = std::make_unique<
+			CollectorProjectedCampaignIdentity>() ;	// 同じscopeだけで大きなfixtureを所有する。
+
+		auto &identity = *identityOwner ;										// 元日付・artifact・scopeの結合。
 		std::shared_ptr<const CollectorPreparedProjectedCampaign> campaign ;	// 次回専用の入力寿命。
 		DRIVERCRATE_EXPECT(
 			context, makeCollectorProjectedCampaignIdentity( next, L"20260928", identity) &&
@@ -3066,11 +3226,13 @@ void nextProjectedPreparedRecoveryChecks(
 
 		std::vector<std::map<std::wstring, std::string>> windows ;	// 未登録の元checkpoint全raw。
 		std::vector<std::map<std::wstring, std::string>>
-										registered ;	// 論理前像から検査する登録・反映窓。
-		CollectorProjectedResponseBytes response ;		// 偽通信でも元workerの独立codec出力です。
-		std::wstring					op ;			// 元応答から取得する唯一の操作hash。
-		std::size_t						sends{} ;		// 回復中の再通信なしを元fixture計数で確認します。
-		const std::size_t				acceptIndex =
+				   registered ;	// 論理前像から検査する登録・反映窓。
+		const auto responseOwner = std::make_unique<
+			CollectorProjectedResponseBytes>() ;		// 同じscopeだけで大きなfixtureを所有する。
+		auto			 &response = *responseOwner ;	// 偽通信でも元workerの独立codec出力です。
+		std::wstring	  op ;							// 元応答から取得する唯一の操作hash。
+		std::size_t		  sends{} ;						// 回復中の再通信なしを元fixture計数で確認します。
+		const std::size_t acceptIndex =
 			// 未予約残留だけIntel一件を保存します。
 			scenario == 5U ? 0U : 1U ;
 		const std::size_t expectedWorkers = scenario == 5U ? 1U : 2U ;	// 全join分母は元予約数です。
@@ -3104,7 +3266,9 @@ void nextProjectedPreparedRecoveryChecks(
 			DRIVERCRATE_EXPECT( context,
 							   recovery.initializeProjected( store, next, utc, 0U, stop) == 0U &&
 								   recovery.beginNextProjected( next, utc, 1000U) == 0U) ;
-			std::array<IoFixture, 2U> fixtures ;	// 二threadの独立fake HTTPのみ。
+			const auto fixturesOwner =
+				std::make_unique<std::array<IoFixture, 2U>>() ;	// 固定件数と型を保って所有する。
+			auto &fixtures	 = *fixturesOwner ;					// 二threadの独立fake HTTPのみ。
 			fixtures[0].body = winrt::to_string( winrt::hstring( projectedIntelHtml())) ;
 			fixtures[1].body =
 				winrt::to_string( winrt::hstring( projectedAsusRowsHtml( scenario == 3U   ? 1U
@@ -3245,7 +3409,9 @@ void nextProjectedPreparedRecoveryChecks(
 			DRIVERCRATE_EXPECT( context,
 							   recovered.at( responseName) == windows[window].at( responseName) &&
 								   sends == expectedWorkers) ;
-			CollectorBudgetSnapshot budget ;	// Intelは未精算、ASUSだけphase1。
+			const auto budgetOwner = std::make_unique<
+				CollectorBudgetSnapshot>() ;	// 同じscopeだけで大きなfixtureを所有する。
+			auto &budget = *budgetOwner ;		// Intelは未精算、ASUSだけphase1。
 			DRIVERCRATE_EXPECT(
 				context, parseCollectorBudgetSnapshot(
 							 httpSavedBody( resumed, L"current/campaign-budget-v1.json"), budget) &&
@@ -3308,7 +3474,10 @@ void nextProjectedPreparedRecoveryChecks(
 				}
 			}
 
-			CollectorBudgetSnapshot budget ;	// 元予約の精算を二重計上しません。
+			const auto budgetOwner = std::make_unique<
+				CollectorBudgetSnapshot>() ;	// 同じscopeだけで大きなfixtureを所有する。
+
+			auto &budget = *budgetOwner ;	// 元予約の精算を二重計上しません。
 			DRIVERCRATE_EXPECT(
 				context, parseCollectorBudgetSnapshot(
 							 httpSavedBody( resumed, L"current/campaign-budget-v1.json"), budget) &&
@@ -3648,7 +3817,9 @@ void nextProjectedGenerationChecks(
 {
 	LocalCollectorStateStore first ;	// 所有fake workerから一つの完了正本を作る。
 	DRIVERCRATE_EXPECT( context, first.initialize( rootFactory(), true) == 0U) ;
-	std::array<CollectorProjectedResponseBytes, 2U> responses ;	// 初回の実codec出力。
+	const auto responsesOwner = std::make_unique<
+		std::array<CollectorProjectedResponseBytes, 2U>>() ;	// 固定件数と型を保って所有する。
+	auto &responses = *responsesOwner ;							// 初回の実codec出力。
 	DRIVERCRATE_EXPECT( context, initialProjectedStorageFixture( context, first, definition, prepared,
 															   0U, {}, responses) == 0U) ;
 	{
@@ -3671,10 +3842,12 @@ void nextProjectedGenerationChecks(
 	CollectorProjectedCampaignDefinition
 		newRequestDefinition ;	// 予約直前の改変条件へ同じ定義を使う。
 	std::shared_ptr<const CollectorPreparedProjectedCampaign>
-		 newRequestCampaign ;				// 全sourceを所有する入力。
-	auto incoming			= definition ;	// 同日別artifactの有限新定義。
-	incoming.artifactSha256 = std::wstring( 64U, L'b') ;
-	CollectorProjectedCampaignIdentity sameDayIdentity ;	// 全改変条件へ固定する元G。
+		 newRequestCampaign ;						// 全sourceを所有する入力。
+	auto incoming					= definition ;	// 同日別artifactの有限新定義。
+	incoming.artifactSha256			= std::wstring( 64U, L'b') ;
+	const auto sameDayIdentityOwner = std::make_unique<
+		CollectorProjectedCampaignIdentity>() ;		// 同じscopeだけで大きなfixtureを所有する。
+	auto &sameDayIdentity = *sameDayIdentityOwner ;	// 全改変条件へ固定する元G。
 	DRIVERCRATE_EXPECT(
 		context, makeCollectorProjectedCampaignIdentity( incoming, L"20260927", sameDayIdentity)) ;
 	const auto sameDayUtc = HTTP_TEST_UTC + 200000U ;	// 旧完了後の有限時刻。
@@ -3695,7 +3868,10 @@ void nextProjectedGenerationChecks(
 			next.manifestBytes = winrt::to_string( manifest.Stringify()) ;
 		}
 
-		CollectorProjectedCampaignIdentity identity ;	// 今回日付・artifact・scopeの元入力。
+		const auto identityOwner = std::make_unique<
+			CollectorProjectedCampaignIdentity>() ;	// 同じscopeだけで大きなfixtureを所有する。
+
+		auto &identity = *identityOwner ;	// 今回日付・artifact・scopeの元入力。
 		std::shared_ptr<const CollectorPreparedProjectedCampaign>
 			campaign ;	// 次回の専用executor入力。
 		DRIVERCRATE_EXPECT( context, makeCollectorProjectedCampaignIdentity(
@@ -3749,7 +3925,10 @@ void nextProjectedGenerationChecks(
 			}
 		}
 
-		CollectorBudgetSnapshot budget ;	// 当日の共有予約を0へ暗黙再作成しない。
+		const auto budgetOwner =
+			std::make_unique<CollectorBudgetSnapshot>() ;	// 同じscopeだけで大きなfixtureを所有する。
+
+		auto &budget = *budgetOwner ;	// 当日の共有予約を0へ暗黙再作成しない。
 		DRIVERCRATE_EXPECT( context,
 						   parseCollectorBudgetSnapshot(
 							   httpSavedBody( store, L"current/campaign-budget-v1.json"), budget) &&
@@ -3780,8 +3959,10 @@ void nextProjectedGenerationChecks(
 											publicHistory) == ERROR_INVALID_DATA &&
 											!publicHistory &&
 											created == projectedStoreSnapshot( context, store)) ;
-			std::array<IoFixture, 2U> fixtures ;		// 固定fake本文だけ。実native APIを使わない。
-			std::uint64_t			  elapsed = 1000U ;	// 二秒待機前後を親threadだけで進める。
+			const auto fixturesOwner =
+				std::make_unique<std::array<IoFixture, 2U>>() ;	// 固定件数と型を保って所有する。
+			auto		 &fixtures = *fixturesOwner ;			// 固定fake本文だけ。実native APIを使わない。
+			std::uint64_t elapsed  = 1000U ;					// 二秒待機前後を親threadだけで進める。
 			CollectorProjectedExecutorDependencies
 				dependencies ;	// このscopeが全joinまで依存を所有する。
 			dependencies.campaign = campaign ;
@@ -3823,8 +4004,10 @@ void nextProjectedGenerationChecks(
 			DRIVERCRATE_EXPECT( context, report.error == 0U && report.reserved == expectedWorkers &&
 											report.joined == expectedWorkers &&
 											workers == expectedWorkers) ;
-			reserved = projectedStoreSnapshot( context, store) ;
-			CollectorProjectedPreparedUpdate refused ;	// 次回結果を旧初回受領へ読み替えない。
+			reserved				= projectedStoreSnapshot( context, store) ;
+			const auto refusedOwner = std::make_unique<
+				CollectorProjectedPreparedUpdate>() ;	// 同じscopeだけで大きなfixtureを所有する。
+			auto &refused = *refusedOwner ;				// 次回結果を旧初回受領へ読み替えない。
 			DRIVERCRATE_EXPECT(
 				context, resumed.prepareInitialProjectedUpdate( executor, 0U, utc + 4000U, 4000U,
 															   refused) == ERROR_NOT_SUPPORTED &&
@@ -4979,7 +5162,9 @@ void projectedParentChecks(
 {
 	// 正常二jobと、所有者・時刻・各永続根拠・hash故障を一要因ずつ検査する。
 	for( unsigned mode = 0U; mode < 39U; ++mode) {
-		std::array<IoFixture, 2U> fixtures ;	// Workerごとの独立fake資源。
+		const auto fixturesOwner =
+			std::make_unique<std::array<IoFixture, 2U>>() ;	// 固定件数と型を保って所有する。
+		auto &fixtures	 = *fixturesOwner ;					// Workerごとの独立fake資源。
 		fixtures[0].body = winrt::to_string( winrt::hstring( projectedIntelHtml())) ;
 		fixtures[1].body = winrt::to_string(
 			winrt::hstring( projectedAsusHtml( L"/pub/ASUS/mb/04LAN/DRV_LAN_Fixture.zip"))) ;
@@ -5028,8 +5213,11 @@ void projectedParentChecks(
 			DRIVERCRATE_EXPECT( context, executor.startNext( recovery) == 0U) ;
 		}
 
-		CollectorProjectedPreparedUpdate update ;	// 応答とCACHEの片方だけ残ることを禁止する。
-		auto &output = update.response ;			// 旧APIと共通の応答を比較します。
+		const auto updateOwner = std::make_unique<
+			CollectorProjectedPreparedUpdate>() ;	// 同じscopeだけで大きなfixtureを所有する。
+
+		auto &update = *updateOwner ;		// 応答とCACHEの片方だけ残ることを禁止する。
+		auto &output = update.response ;	// 旧APIと共通の応答を比較します。
 		// 実threadが既に終了していても親の全join前は拒否する。
 		if( mode == 1U) {
 			DRIVERCRATE_EXPECT(
@@ -5267,7 +5455,9 @@ void projectedParentChecks(
 			}
 			// 正常な二slotを独立に準備できることを確認する。
 			else if( mode == 0U) {
-				CollectorProjectedResponseBytes second ;	// 同じ二workerの別slotは独立に受理する。
+				const auto secondOwner = std::make_unique<
+					CollectorProjectedResponseBytes>() ;	// 同じscopeだけで大きなfixtureを所有する。
+				auto &second = *secondOwner ;				// 同じ二workerの別slotは独立に受理する。
 				DRIVERCRATE_EXPECT(
 					context, recovery.prepareInitialProjected( executor, 1U, HTTP_TEST_UTC + 125000U,
 															  125000U, second) == 0U &&
@@ -5348,7 +5538,9 @@ void projectedWorkerChecks(
 	}
 
 	statesDefinition.manifestBytes = winrt::to_string( statesManifest.Stringify()) ;
-	CollectorProjectedCampaignIdentity statesIdentity ;	// 変更済み全scopeの専用世代。
+	const auto statesIdentityOwner = std::make_unique<
+		CollectorProjectedCampaignIdentity>() ;		// 同じscopeだけで大きなfixtureを所有する。
+	auto &statesIdentity = *statesIdentityOwner ;	// 変更済み全scopeの専用世代。
 	DRIVERCRATE_EXPECT(
 		context,
 		makeCollectorProjectedCampaignIdentity( statesDefinition, L"20260927", statesIdentity) &&
@@ -5372,12 +5564,14 @@ void projectedWorkerChecks(
 		const bool	stateCase		 = mode == 24U ;								// 同一公式pageの三対象だけ別世代にする。
 		const auto &activeDefinition = stateCase ? statesDefinition : definition ;	// 保存元。
 		const auto &activePrepared	 = stateCase ? statesPrepared : prepared ;		// 不変所有job。
-		std::array<IoFixture, 2U>	fixtures ;										// 各threadの独立HTTP状態。
-		std::array<std::size_t, 2U> postCloseSamples{} ;							// Parser到達clock数。
-		std::array<bool, 2U>		mta{} ;											// Client構築時の明示MTA。
-		std::array<bool, 2U>		finalClock{} ;									// COM解放後のfinish clock。
-		std::array<bool, 2U>		returned{} ;									// Worker callbackの復帰。
-		std::wstring				html = projectedIntelHtml() ;					// 元200本文。
+		const auto	fixturesOwner =
+			std::make_unique<std::array<IoFixture, 2U>>() ;			// 固定件数と型を保って所有する。
+		auto					   &fixtures = *fixturesOwner ;		// 各threadの独立HTTP状態。
+		std::array<std::size_t, 2U> postCloseSamples{} ;			// Parser到達clock数。
+		std::array<bool, 2U>		mta{} ;							// Client構築時の明示MTA。
+		std::array<bool, 2U>		finalClock{} ;					// COM解放後のfinish clock。
+		std::array<bool, 2U>		returned{} ;					// Worker callbackの復帰。
+		std::wstring				html = projectedIntelHtml() ;	// 元200本文。
 		// 同じhero候補の危険pathを配布URL gateへ渡します。
 		if( mode == 1U) {
 			html.replace( html.find( L"/900011/Wired_driver_"), 8U, L"/900011/../") ;
@@ -6273,13 +6467,15 @@ void projectedFaultChecks( TestContext								   &context,
 												value->io.cause == CollectorIoCause::COMPLETE &&
 												value->projection.records.size() == source + 1U &&
 												value->projection.edges.size() == targetCalls) ;
-				// 元goldenと同じ値以外をprobeの成功扱いにしません。
+				// 現parser revisionの通常record指紋と一致する場合だけprobeを成功扱いにします。
 				if( source == 0U && value->projection.records.size() == 1U) {
 					DRIVERCRATE_EXPECT(
 						context,
 						projectedFingerprintHex(
 							value->projection.records[0].value.stableFingerprint) ==
-							"60e8e331663fc75f9958c832bf7776b85d5c9f2e48777e7f9d5fbc01be546fc4") ;
+							"7311bb9fa363bd94ae3ac18dce8077724c3ea7376e45f508e6daaa3b28860073") ;
+					// 限定再確認でも実workerから作った同じmetadataをcodec正負へ渡します。
+					runCollectorMetadataCodecChecks( context, prepared->job( 0U)->value(), *value) ;
 				}
 
 				continue ;
@@ -6436,14 +6632,19 @@ bool freshCapacityMetadata( const CollectorProjectedJobInput &job, CollectorProj
  * @param[in] firstCampaign 実初回の変更不能入力。
  * @param[in] freshRequests 別ASUS四要求ずつの段階容量を測る場合true。旧操作試験へ混入しません。
  * @param[in] startupBoundary 新要求の各完了世代境界と通常再起動を検査する場合true。
+ * @param[in] startupObservation 起動境界modeの親時計。借用は本呼出し中だけ。不在時は観測しません。
  * @note 後続の応答と時計は合成です。実HTTPや300回の本番受領を示しません。
  */
 void operationCapacityFixture(
 	TestContext &context, LocalCollectorStateStore &store,
 	const CollectorProjectedCampaignDefinition						&definition,
 	const std::shared_ptr<const CollectorPreparedProjectedCampaign> &firstCampaign,
-	const bool freshRequests = false, const bool startupBoundary = false)
+	const bool freshRequests = false, const bool startupBoundary = false,
+	const CacheStartupObservation *startupObservation = nullptr)
 {
+	const CacheStartupObservation disabled( false) ;	// 他modeへ追加出力を持ち込みません。
+	const auto					 &observation =
+		  startupObservation ? *startupObservation : disabled ;		// 親時計の同期借用。
 	const auto baseline = projectedStoreSnapshot( context, store) ;	// 初回全rawだけを所有します。
 	// 新要求枠だけで任意診断の成功観測・失敗reset・非変更を先に検査します。
 	if( freshRequests) {
@@ -7001,17 +7202,26 @@ void operationCapacityFixture(
 				return ;
 			}
 
-			const auto before = projectedStoreSnapshot( context, store) ;	// 検査前の全raw正本です。
-			CollectorStoreUsage usage ;										// 一回の保存量であり累積reader量ではありません。
+			const auto before = observation.snapshot( "checkpoint_snapshot_before", generation + 1U,
+													 (generation + 1U) * 4U, context,
+													 store) ;	// 検査前の元全raw正本です。
+			CollectorStoreUsage usage ;							// 一回の保存量であり累積reader量ではありません。
 			DRIVERCRATE_EXPECT( context, store.inspectUsage( usage) == 0U) ;
 			CollectorHistoryReadDiagnostics
 				diagnostics ;	// URL・本文・保存権限を持たない部分観測です。
 			std::shared_ptr<const CollectorRegisteredProjectedHistory>
 					   history ;	// 全成功時だけ受けるcontextです。
+			const auto inspectStarted =
+				observation.begin( "inspect", generation + 1U,
+								  (generation + 1U) * 4U) ;	// 元公開検査の直前です。
 			const auto code = LocalCollectorRecovery::inspectRegisteredProjectedHistory(
 				store, *campaign->job( 0U), tailDefinition.sources, utc + 401000U, history, {},
 				&diagnostics) ;	// 元全閉包をそのまま検査します。
-			DRIVERCRATE_EXPECT( context, before == projectedStoreSnapshot( context, store)) ;
+			observation.end( "inspect", generation + 1U, (generation + 1U) * 4U, inspectStarted,
+							code) ;
+			DRIVERCRATE_EXPECT( context, before == observation.snapshot(
+													  "checkpoint_snapshot_after", generation + 1U,
+													  (generation + 1U) * 4U, context, store)) ;
 			std::cout << "Cache capacity requests=" << (generation + 1U) * 4U << " code=" << code
 					  << " charged=" << diagnostics.chargedBytes
 					  << " attempted=" << diagnostics.attemptedBytes
@@ -7023,35 +7233,57 @@ void operationCapacityFixture(
 					  << " saved=" << usage.bytes << std::endl ;
 			// 境界付近の全完了世代だけで通常監督を別objectとして起動します。
 			if( startupBoundary && generation >= 61U) {
-				DWORD normalCode{} ;	// 公開読取りのcodeを通常起動へ代入しません。
+				DWORD	   normalCode{} ;	// 公開読取りのcodeを通常起動へ代入しません。
+				const auto normalScope =
+					observation.begin( "normal_scope", generation + 1U,
+									  (generation + 1U) * 4U) ;	// constructorより前の時計です。
 				{
 					LocalCollectorRecovery normal ;	// 検査が済むまでの単一writer借用です。
-					normalCode =
-						normal.initializeProjected( store, tailDefinition, utc + 401000U, 0U) ;
+					normalCode = observation.initialize( "normal_initialize", generation + 1U,
+														(generation + 1U) * 4U, normal, store,
+														tailDefinition, utc + 401000U) ;
 					context.expect(
 						normalCode == code && normal.lastError() == code &&
-							before == projectedStoreSnapshot( context, store),
+							before == observation.snapshot( "normal_snapshot", generation + 1U,
+														   (generation + 1U) * 4U, context, store),
 						"cache startup requests=" + std::to_string( (generation + 1U) * 4U) +
 							" code=" + std::to_string( normalCode),
 						__FILE__, __LINE__) ;
 					// 容量拒否を同じ監督の再呼出しで消さず、保存を始めないことを確認します。
 					if( normalCode != 0U) {
 						DRIVERCRATE_EXPECT(
-							context, normal.initializeProjected( store, tailDefinition,
-																utc + 402000U, 0U) == normalCode &&
-										 before == projectedStoreSnapshot( context, store)) ;
+							context,
+							observation.initialize( "repeat_initialize", generation + 1U,
+												   (generation + 1U) * 4U, normal, store,
+												   tailDefinition, utc + 402000U) == normalCode &&
+								before == observation.snapshot( "repeat_snapshot", generation + 1U,
+															   (generation + 1U) * 4U, context,
+															   store)) ;
 					}
 				}
+				observation.end( "normal_scope", generation + 1U, (generation + 1U) * 4U,
+								normalScope, normalCode) ;
 
-				LocalCollectorRecovery restarted ;	// 前監督の借用解放後だけ再起動します。
-				const auto			   restartCode = restarted.initializeProjected(
-					store, tailDefinition, utc + 402000U, 0U) ;	// 通常入口の独立実測です。
-				DRIVERCRATE_EXPECT( context, restartCode == normalCode &&
-												restarted.lastError() == normalCode &&
-												before == projectedStoreSnapshot( context, store)) ;
-				std::cout << "Cache startup requests=" << (generation + 1U) * 4U
-						  << " initialize=" << normalCode << " restart=" << restartCode
-						  << " unchanged=1" << std::endl ;
+				const auto restartScope = observation.begin(
+					"restart_scope", generation + 1U,
+					(generation + 1U) * 4U) ;	// 前監督の破棄後、constructor前です。
+				{
+					LocalCollectorRecovery restarted ;	// 前監督の借用解放後だけ再起動します。
+					const auto			   restartCode = observation.initialize(
+						"restart_initialize", generation + 1U, (generation + 1U) * 4U, restarted,
+						store, tailDefinition,
+						utc + 402000U) ;	// 通常入口の独立実測です。
+					DRIVERCRATE_EXPECT(
+						context,
+						restartCode == normalCode && restarted.lastError() == normalCode &&
+							before == observation.snapshot( "restart_snapshot", generation + 1U,
+														   (generation + 1U) * 4U, context, store)) ;
+					std::cout << "Cache startup requests=" << (generation + 1U) * 4U
+							  << " initialize=" << normalCode << " restart=" << restartCode
+							  << " unchanged=1" << std::endl ;
+				}
+				observation.end( "restart_scope", generation + 1U, (generation + 1U) * 4U,
+								restartScope) ;
 			}
 
 			// 生codeと元容量箇所が一致した時だけ容量拒否の系列停止を受け入れます。
@@ -7622,9 +7854,19 @@ void runCollectorCacheGrowthTests(
 		return ;
 	}
 
-	const auto original = definitionFactory() ;	// 元source・policy・artifactを維持します。
-	LocalCollectorStateStore store ;			// この二世代だけの保護領域です。
-	DRIVERCRATE_EXPECT( context, store.initialize( rootFactory(), true) == 0U) ;
+	const CacheStartupObservation observation( startupBoundary) ;	// このmodeだけの親時計です。
+	const auto					  caseStarted =
+		// cleanup・process終端は含みません。
+		observation.begin( "case_body", 0U, 0U) ;
+	const auto fixtureStarted =
+		// 初回四fake要求の準備前。
+		observation.begin( "fixture_prepare", 0U, 0U) ;
+	const auto original = definitionFactory() ;								// 元source・policy・artifactを維持します。
+	LocalCollectorStateStore store ;										// この二世代だけの保護領域です。
+	const auto storeInitialized = store.initialize( rootFactory(), true) ;	// 元の初期化codeです。
+	context.expect( storeInitialized == 0U,
+				   "cache growth store initialize=" + std::to_string( storeInitialized), __FILE__,
+				   __LINE__) ;
 	std::map<std::wstring, std::string> preserved ;	// 旧CACHEと応答の全rawを保持します。
 	auto		  tailDefinition = original ;		// 未受領末尾の再起動に渡す元定義です。
 	std::size_t	  sends{} ;							// Native HTTPではなくfake tableの呼出し数です。
@@ -7837,13 +8079,15 @@ void runCollectorCacheGrowthTests(
 	// 既存八受領・二中断の分母へ容量枠を混入させません。
 	if( capacityGrowth) {
 		DRIVERCRATE_EXPECT( context, sends == 4U && firstCampaign) ;
+		observation.end( "fixture_prepare", 1U, sends, fixtureStarted) ;
 		operationCapacityFixture( context, store, tailDefinition, firstCampaign, true,
-								 startupBoundary) ;
+								 startupBoundary, &observation) ;
 		// 旧段階試験の分母は増やさず、新枠だけで全送信数を再照合します。
 		if( startupBoundary) {
 			DRIVERCRATE_EXPECT( context, sends == 4U) ;
 		}
 
+		observation.end( "case_body", 0U, 0U, caseStarted) ;
 		return ;
 	}
 
@@ -9734,7 +9978,9 @@ void runCollectorCompletedInventoryTests(
 	}
 
 	DRIVERCRATE_EXPECT( context, missingNumber != 0U) ;
-	CollectorProjectedCampaignIdentity identity ;	// 本番codecで入力を固定します。
+	const auto identityOwner = std::make_unique<
+		CollectorProjectedCampaignIdentity>() ;	// 同じscopeだけで大きなfixtureを所有する。
+	auto &identity = *identityOwner ;			// 本番codecで入力を固定します。
 	std::shared_ptr<const CollectorPreparedProjectedCampaign>
 		prepared ;	// 偽worker専用の元所有入力です。
 	DRIVERCRATE_EXPECT(
@@ -9749,7 +9995,9 @@ void runCollectorCompletedInventoryTests(
 
 	LocalCollectorStateStore original ;	// 本番parser／偽HTTPから完了根拠を作ります。
 	DRIVERCRATE_EXPECT( context, original.initialize( rootFactory(), true) == 0U) ;
-	std::array<CollectorProjectedResponseBytes, 2U> responses ;	// 元200の所有結果です。
+	const auto responsesOwner = std::make_unique<
+		std::array<CollectorProjectedResponseBytes, 2U>>() ;	// 固定件数と型を保って所有する。
+	auto &responses = *responsesOwner ;							// 元200の所有結果です。
 	DRIVERCRATE_EXPECT( context, initialProjectedStorageFixture( context, original, definition,
 															   prepared, 0U, {}, responses) == 0U) ;
 	{
@@ -9919,7 +10167,8 @@ void runCollectorCompletedInventoryTests(
 			!repeated) ;
 	// 自分が取得した故障用handleだけを閉じます。
 	if( blocked != INVALID_HANDLE_VALUE) {
-		DRIVERCRATE_EXPECT( context, CloseHandle( blocked) != FALSE) ;
+		const BOOL closed = CloseHandle( blocked) ;	// 自己所有の故障handleを一回だけ解放する。
+		DRIVERCRATE_EXPECT( context, closed != FALSE) ;
 	}
 
 	DRIVERCRATE_EXPECT( context, LocalCollectorRecovery::inspectCompletedRootInventory(
@@ -10087,7 +10336,9 @@ void runCollectorCompletedInventoryTests(
 						   pending, nextDefinition.sources, HTTP_TEST_UTC + 172802000U, repeated) ==
 							   ERROR_INVALID_DATA &&
 						   !repeated && waitingBefore == projectedStoreSnapshot( context, pending)) ;
-	CollectorProjectedCampaignIdentity nextIdentity ;	// 真の二世代目は元日に偽HTTPで閉じます。
+	const auto nextIdentityOwner = std::make_unique<
+		CollectorProjectedCampaignIdentity>() ;	// 同じscopeだけで大きなfixtureを所有する。
+	auto &nextIdentity = *nextIdentityOwner ;	// 真の二世代目は元日に偽HTTPで閉じます。
 	std::shared_ptr<const CollectorPreparedProjectedCampaign>
 			   nextCampaign ;							// 元次世代の所有入力です。
 	const auto nextUtc = HTTP_TEST_UTC + 86400000U ;	// 元予算archiveを作る翌日のUTCです。
@@ -10107,7 +10358,9 @@ void runCollectorCompletedInventoryTests(
 		DRIVERCRATE_EXPECT( context,
 						   owner.initializeProjected( original, nextDefinition, nextUtc, 0U) == 0U &&
 							   owner.beginNextProjected( nextDefinition, nextUtc, 1000U) == 0U) ;
-		std::array<IoFixture, 2U> fixtures ;	// 実HTTPを使わない二所有workerです。
+		const auto fixturesOwner =
+			std::make_unique<std::array<IoFixture, 2U>>() ;	// 固定件数と型を保って所有する。
+		auto &fixtures	 = *fixturesOwner ;					// 実HTTPを使わない二所有workerです。
 		fixtures[0].body = winrt::to_string( winrt::hstring( projectedIntelHtml())) ;
 		fixtures[1].body = winrt::to_string( winrt::hstring( projectedAsusRowsHtml( 2U))) ;
 		CollectorProjectedExecutorDependencies dependencies ;	// 全依存はこのscope内だけ借用します。
@@ -10620,16 +10873,21 @@ void runCollectorSegmentPreparationRecoveryTests(
 	TestContext &context, const std::function<std::filesystem::path()> &rootFactory,
 	const std::function<CollectorProjectedCampaignDefinition()> &definitionFactory)
 {
-	const auto		   definition = definitionFactory() ;			// 元二sourceのfake公開入力です。
-	const std::wstring collectionKey( 64U, L'1') ;					// 架空collectionです。
-	const std::wstring segmentKey( 64U, L'2') ;						// 架空旧区間です。
-	const std::wstring nextKey( 64U, L'3') ;						// 架空新区間です。
-	const auto		   location = rootFactory() / collectionKey ;	// 自作GUID祖先内だけです。
-	LocalCollectorCollectionStore				parent ;			// 元fresh所有を保存後に全解放します。
-	std::unique_ptr<LocalCollectorSegmentLease> lease ;				// 元完了historyの実能力です。
-	DRIVERCRATE_EXPECT( context, parent.initialize( location, collectionKey) == 0U &&
-									parent.borrowHistorySegment( segmentKey, true, lease) == 0U &&
-									lease && lease->history()) ;
+	const auto		   definition = definitionFactory() ;					// 元二sourceのfake公開入力です。
+	const std::wstring collectionKey( 64U, L'1') ;							// 架空collectionです。
+	const std::wstring segmentKey( 64U, L'2') ;								// 架空旧区間です。
+	const std::wstring nextKey( 64U, L'3') ;								// 架空新区間です。
+	const auto		   location = rootFactory() / collectionKey ;			// 自作GUID祖先内だけです。
+	LocalCollectorCollectionStore				parent ;					// 元fresh所有を保存後に全解放します。
+	std::unique_ptr<LocalCollectorSegmentLease> lease ;						// 元完了historyの実能力です。
+	const auto initialized = parent.initialize( location, collectionKey) ;	// 親の元errorです。
+	const auto borrowed	   = initialized == 0U
+								 ? parent.borrowHistorySegment( segmentKey, true, lease)
+								 : initialized ;	// 未初期化親の二次errorで最初の失敗を失いません。
+	context.expect( initialized == 0U && borrowed == 0U && lease && lease->history(),
+				   "preparation recovery initialize=" + std::to_string( initialized) +
+					   " borrow=" + std::to_string( borrowed),
+				   __FILE__, __LINE__) ;
 	// 不成立fixtureを後続保存の成功へ補完しません。
 	if( !lease || !lease->history()) {
 		throw std::runtime_error( "preparation recovery lease") ;
@@ -11078,8 +11336,10 @@ void runCollectorSegmentRecoveryStorageTests(
 		throw std::runtime_error( "recovery storage lease") ;
 	}
 
-	auto &store = *lease->history() ;				// 元fake workerと完了保存を結合します。
-	CollectorProjectedCampaignIdentity identity ;	// 元公開入力identityです。
+	auto	  &store		 = *lease->history() ;	// 元fake workerと完了保存を結合します。
+	const auto identityOwner = std::make_unique<
+		CollectorProjectedCampaignIdentity>() ;	// 同じscopeだけで大きなfixtureを所有する。
+	auto &identity = *identityOwner ;			// 元公開入力identityです。
 	std::shared_ptr<const CollectorPreparedProjectedCampaign>
 		campaign ;	// Workerより長い元入力です。
 	DRIVERCRATE_EXPECT(
@@ -12894,7 +13154,10 @@ void runCollectorSegmentInitialReadCodecTests(
 		throw std::runtime_error( "recovery codec campaign") ;
 	}
 
-	std::array<CollectorProjectedResponseBytes, 2U> responses ;	// 元workerの保存応答です。
+	const auto responsesOwner = std::make_unique<
+		std::array<CollectorProjectedResponseBytes, 2U>>() ;	// 固定件数と型を保って所有する。
+
+	auto &responses = *responsesOwner ;	// 元workerの保存応答です。
 	DRIVERCRATE_EXPECT( context, initialProjectedStorageFixture( context, store, definition, campaign,
 															   0U, {}, responses) == 0U) ;
 	{
@@ -12920,7 +13183,14 @@ void runCollectorSegmentInitialReadCodecTests(
 		throw std::runtime_error( "recovery codec reservation") ;
 	}
 
-	const auto originalDraft = pending->draft() ;					// Capability解放後も期待値だけを保持します。
+	const auto originalDraftOwner =
+		std::make_unique<std::remove_cvref_t<decltype( pending->draft())>>(
+			// 同じ元値をこのscopeで所有する。
+			pending->draft()) ;
+
+	const auto &originalDraft =
+		// 元と同じ期間だけ結果を借用する。					// Capability解放後も期待値だけを保持します。
+		*originalDraftOwner ;
 	const auto begin = originalDraft.intent.inventory.size() + 2U ;	// 新子markerの固定境界です。
 	const auto roles = std::vector<CollectorSegmentStorageRole>(
 		// 元固定名です。
@@ -12989,8 +13259,10 @@ void runCollectorSegmentInitialReadCodecTests(
 		bytes.oldInventory = inventoryViews ;
 		return bytes ;
 	} ; // 同期呼出しを越えて借用byteを保存しません。
-	const auto						 valid = bind( frames[3]) ;					// 全改変試験の元入力です。
-	CollectorSegmentInitialReadState accepted ;									// 成功だけの所有値です。
+	const auto valid		 = bind( frames[3]) ;	// 全改変試験の元入力です。
+	const auto acceptedOwner = std::make_unique<
+		CollectorSegmentInitialReadState>() ;									// 同じscopeだけで大きなfixtureを所有する。
+	auto	  &accepted = *acceptedOwner ;										// 成功だけの所有値です。
 	const auto readCode = decodeCollectorSegmentInitialRead( valid, accepted) ;	// 第一数値です。
 	context.expect( readCode == 0U && accepted.recovery.saved == 3U &&
 					   accepted.recovery.draft.intent == originalDraft.intent &&
@@ -13027,8 +13299,12 @@ void runCollectorSegmentInitialReadCodecTests(
 									segmentFixtureImage( location) == frames[3]) ;
 	const auto reject = [&]( const CollectorSegmentInitialReadBytes &bytes,
 							const DWORD								expected = 13U) {
-		auto	   state = accepted ;											// 全失敗で汚染出力を消すことも測ります。
-		const auto code	 = decodeCollectorSegmentInitialRead( bytes, state) ;	// 第一数値です。
+		const auto stateOwner = std::make_unique<std::remove_cvref_t<decltype( accepted)>>(
+			accepted) ;	// 同じ元値をこのscopeで所有する。
+		auto &state =
+			// 元と同じ期間だけ結果を借用する。											// 全失敗で汚染出力を消すことも測ります。
+			*stateOwner ;
+		const auto code = decodeCollectorSegmentInitialRead( bytes, state) ;	// 第一数値です。
 		context.expect( code == expected,
 					   "initial read code=" + std::to_string( code) +
 						   " expected=" + std::to_string( expected),
@@ -13052,7 +13328,10 @@ void runCollectorSegmentInitialReadCodecTests(
 	for( std::size_t n = 0U; n < 66U; ++n) {
 		// 二つのscopeを同じ成功条件へまとめません。
 		for( unsigned scope = 0U; scope < 2U; ++scope) {
-			auto  bytes = valid ;	// 一fieldだけの改変です。
+			const auto bytesOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+				valid) ;	// 同じ元値をこのscopeで所有する。
+			auto &bytes =
+				*bytesOwner ;	// 元と同じ期間だけ結果を借用する。	// 一fieldだけの改変です。
 			auto &field =
 				// 元借用です。
 				scope == 0U ? bytes.recovery.images[n] : bytes.currentImages[n] ;
@@ -13067,7 +13346,9 @@ void runCollectorSegmentInitialReadCodecTests(
 
 	// 全七制御rawの欠損・破損・外側枠超過を独立に確認します。
 	for( std::size_t n = 0U; n < 7U; ++n) {
-		auto							   bytes = valid ;	// 元入力を変更しません。
+		const auto bytesOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+			valid) ;				// 同じ元値をこのscopeで所有する。
+		auto &bytes = *bytesOwner ;	// 元と同じ期間だけ結果を借用する。	// 元入力を変更しません。
 		std::array<std::string_view *, 7U> fields{&bytes.recovery.intent,
 												  &bytes.recovery.activation,
 												  &bytes.recovery.root,
@@ -13084,7 +13365,10 @@ void runCollectorSegmentInitialReadCodecTests(
 	}
 
 	{
-		auto bytes		   = valid ;	// Shard集合自体の有限枠です。
+		const auto bytesOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+			valid) ;	// 同じ元値をこのscopeで所有する。
+		auto &bytes =
+			*bytesOwner ;	// 元と同じ期間だけ結果を借用する。	// Shard集合自体の有限枠です。
 		bytes.oldInventory = {} ;
 		reject( bytes) ;
 		std::array<std::string_view, 17U> excessive ;	// 借用だけで17shardを提示します。
@@ -13166,9 +13450,11 @@ void runCollectorSegmentInitialReadCodecTests(
 		 }
 
 		 hashes.append( "]") ;
-		 seal		  = replaceField( std::move( seal), "inventory", hashes.view()) ;
-		 request.seal = hashOf( seal) ;
-		 CollectorSegmentSwitchDraft draft ;	// 元全carryを変更しない再導出です。
+		 seal				   = replaceField( std::move( seal), "inventory", hashes.view()) ;
+		 request.seal		   = hashOf( seal) ;
+		 const auto draftOwner = std::make_unique<
+				 CollectorSegmentSwitchDraft>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		 auto &draft = *draftOwner ;				// 元全carryを変更しない再導出です。
 		 DRIVERCRATE_EXPECT(
 			 context, prepareCollectorSegmentSwitchDraft( snapshot, snapshot, request, draft) == 0U) ;
 		 auto rootBody = bodyOf( valid.recovery.root) ;	// 全17fieldの元ROOTを保持します。
@@ -13194,7 +13480,11 @@ void runCollectorSegmentInitialReadCodecTests(
 			 views.push_back( entry) ;
 		 }
 
-		 auto bytes				   = valid ;	// 元全66像と親現在像は保持します。
+		 const auto bytesOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+			 valid) ;	// 同じ元値をこのscopeで所有する。
+
+		 auto &bytes =
+			 *bytesOwner ;	// 元と同じ期間だけ結果を借用する。	// 元全66像と親現在像は保持します。
 		 bytes.recovery.intent	   = intentRaw ;
 		 bytes.recovery.root	   = rootRaw ;
 		 bytes.recovery.activation = activationRaw ;
@@ -13205,7 +13495,9 @@ void runCollectorSegmentInitialReadCodecTests(
 		 bytes.oldInventory		   = views ;
 		 // 成功例と拒否例の分母を区別します。
 		 if( expected == 0U) {
-			 CollectorSegmentInitialReadState state ;	// 合成checkpointの値だけです。
+			 const auto stateOwner = std::make_unique<
+					 CollectorSegmentInitialReadState>() ;	// 同じscopeだけで大きなfixtureを所有する。
+			 auto &state = *stateOwner ;					// 合成checkpointの値だけです。
 			 DRIVERCRATE_EXPECT( context, decodeCollectorSegmentInitialRead( bytes, state) == 0U &&
 												 state.files.size() == state.checkpoint.historyFiles +
 																		   state.checkpoint.sharedFiles) ;
@@ -13367,9 +13659,12 @@ void runCollectorSegmentInitialReadCodecTests(
 		const auto limit = type == 3U ? 256U * 1024U : 16U * 1024U ;	// 制御三型とinventoryです。
 		// 枠内の内容13と枠超過68を別に測ります。
 		for( unsigned extra = 0U; extra <= 1U; ++extra) {
-			const auto raw	 = pack( std::string( limit + extra, 'x')) ;	// 外側hashは正当です。
-			auto	   bytes = valid ;										// 元他fieldを保持します。
-			std::array<std::string_view, 1U> shard{raw} ;					// 一inventoryだけを変更します。
+			const auto raw		  = pack( std::string( limit + extra, 'x')) ;	// 外側hashは正当です。
+			const auto bytesOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+				valid) ;	// 同じ元値をこのscopeで所有する。
+			auto &bytes =
+				*bytesOwner ;								// 元と同じ期間だけ結果を借用する。										// 元他fieldを保持します。
+			std::array<std::string_view, 1U> shard{raw} ;	// 一inventoryだけを変更します。
 			// Inventory以外は固定制御用途へ割当てます。
 			if( type == 3U) {
 				bytes.oldInventory = shard ;
@@ -13382,8 +13677,11 @@ void runCollectorSegmentInitialReadCodecTests(
 	}
 
 	{
-		const auto raw	 = std::string( 2U * 1024U * 1024U, 'x') ;	// 個別枠内の合成byteです。
-		auto	   bytes = valid ;									// 全66像の独立枠で総枠を拡大しません。
+		const auto raw		  = std::string( 2U * 1024U * 1024U, 'x') ;	// 個別枠内の合成byteです。
+		const auto bytesOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+			valid) ;	// 同じ元値をこのscopeで所有する。
+		auto &bytes =
+			*bytesOwner ;	// 元と同じ期間だけ結果を借用する。									// 全66像の独立枠で総枠を拡大しません。
 		bytes.currentImages.fill( {}) ;
 		// 二回分16 MiBの必要入力をちょうど埋めます。
 		for( std::size_t n = 0U; n < 3U; ++n) {
@@ -13419,12 +13717,19 @@ void runCollectorSegmentInitialReadCodecTests(
 		reject( bytes, 68U) ;
 	}
 	{
-		auto intent	   = originalDraft.intent ;	// 後続ordinalだけの有限codec反証です。
+		const auto intentOwner =
+			std::make_unique<std::remove_cvref_t<decltype( originalDraft.intent)>>(
+				originalDraft.intent) ;	// 同じ元値をこのscopeで所有する。
+		auto &intent =
+			*intentOwner ;	// 元と同じ期間だけ結果を借用する。	// 後続ordinalだけの有限codec反証です。
 		intent.ordinal = 2U ;
 		std::string body ;	// 別ordinalのcanonical元intentです。
 		DRIVERCRATE_EXPECT( context, encodeCollectorSegmentSwitchIntent( intent, body) == 0U) ;
 		const auto raw		  = pack( body) ;	// 後続seal集合を検査しない入口は50です。
-		auto	   bytes	  = valid ;			// その他のrawは初回のままです。
+		const auto bytesOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+			valid) ;	// 同じ元値をこのscopeで所有する。
+		auto &bytes =
+			*bytesOwner ;	// 元と同じ期間だけ結果を借用する。			// その他のrawは初回のままです。
 		bytes.recovery.intent = raw ;
 		reject( bytes, 50U) ;
 	}
@@ -13451,8 +13756,10 @@ void runCollectorSegmentRecoveryCodecTests(
 		throw std::runtime_error( "recovery codec lease") ;
 	}
 
-	auto &store = *lease->history() ;				// 元fake workerと完了保存を結合します。
-	CollectorProjectedCampaignIdentity identity ;	// 元公開入力identityです。
+	auto	  &store		 = *lease->history() ;	// 元fake workerと完了保存を結合します。
+	const auto identityOwner = std::make_unique<
+		CollectorProjectedCampaignIdentity>() ;	// 同じscopeだけで大きなfixtureを所有する。
+	auto &identity = *identityOwner ;			// 元公開入力identityです。
 	std::shared_ptr<const CollectorPreparedProjectedCampaign>
 		campaign ;	// Workerより長い元入力です。
 	DRIVERCRATE_EXPECT(
@@ -13465,7 +13772,10 @@ void runCollectorSegmentRecoveryCodecTests(
 		throw std::runtime_error( "recovery codec campaign") ;
 	}
 
-	std::array<CollectorProjectedResponseBytes, 2U> responses ;	// 元workerの保存応答です。
+	const auto responsesOwner = std::make_unique<
+		std::array<CollectorProjectedResponseBytes, 2U>>() ;	// 固定件数と型を保って所有する。
+
+	auto &responses = *responsesOwner ;	// 元workerの保存応答です。
 	DRIVERCRATE_EXPECT( context, initialProjectedStorageFixture( context, store, definition, campaign,
 															   0U, {}, responses) == 0U) ;
 	{
@@ -13491,7 +13801,14 @@ void runCollectorSegmentRecoveryCodecTests(
 		throw std::runtime_error( "recovery codec reservation") ;
 	}
 
-	const auto originalDraft = pending->draft() ;					// Capability解放後も期待値だけを保持します。
+	const auto originalDraftOwner =
+		std::make_unique<std::remove_cvref_t<decltype( pending->draft())>>(
+			// 同じ元値をこのscopeで所有する。
+			pending->draft()) ;
+
+	const auto &originalDraft =
+		// 元と同じ期間だけ結果を借用する。					// Capability解放後も期待値だけを保持します。
+		*originalDraftOwner ;
 	const auto begin = originalDraft.intent.inventory.size() + 2U ;	// 新子markerの固定境界です。
 	const auto roles = std::vector<CollectorSegmentStorageRole>(
 		// 元固定名です。
@@ -13545,8 +13862,10 @@ void runCollectorSegmentRecoveryCodecTests(
 	DRIVERCRATE_EXPECT( context, encodeCollectorSharedLedger( snapshot, expectedBodies) == 0U) ;
 	// 全四保存状態の出力を元実保存・全台帳byteと照合します。
 	for( std::size_t prefix = 0U; prefix < frames.size(); ++prefix) {
-		const auto bytes = bind( frames[prefix]) ;	// このloopで生存する元frameの借用です。
-		CollectorSegmentRecoveryState state ;		// 全結合後だけの値です。
+		const auto bytes	  = bind( frames[prefix]) ;	// このloopで生存する元frameの借用です。
+		const auto stateOwner = std::make_unique<
+			CollectorSegmentRecoveryState>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		auto &state = *stateOwner ;				// 全結合後だけの値です。
 		DRIVERCRATE_EXPECT(
 			context, decodeCollectorSegmentRecovery( bytes, state) == 0U && state.saved == prefix &&
 						 state.oldHeadRaw == frames[0].at( L"current/collection-head-v1.json") &&
@@ -13571,7 +13890,9 @@ void runCollectorSegmentRecoveryCodecTests(
 	const auto valid	= bind( frames[3]) ;	// 全改変試験より長く生存する元正当な入力です。
 	const auto rejected = [&]( const CollectorSegmentRecoveryBytes &bytes,
 							  const DWORD						   expected = 13U) {
-		CollectorSegmentRecoveryState state ;	// 失敗時の全クリアを確認する汚染出力です。
+		const auto stateOwner = std::make_unique<
+			CollectorSegmentRecoveryState>() ;			// 同じscopeだけで大きなfixtureを所有する。
+		auto &state					  = *stateOwner ;	// 失敗時の全クリアを確認する汚染出力です。
 		state.saved					  = 99U ;
 		state.oldHeadRaw			  = "old" ;
 		state.initialRootSha256		  = L"old" ;
@@ -13597,7 +13918,10 @@ void runCollectorSegmentRecoveryCodecTests(
 	} ; // Candidateの借用byteはこの同期呼出しより長く生存します。
 	// 全66像それぞれの破損と欠損を独立に拒否します。
 	for( std::size_t n = 0U; n < valid.images.size(); ++n) {
-		auto candidate		= valid ;	// 元入力を変更しない一像改変です。
+		const auto candidateOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+			valid) ;	// 同じ元値をこのscopeで所有する。
+		auto &candidate =
+			*candidateOwner ;	// 元と同じ期間だけ結果を借用する。	// 元入力を変更しない一像改変です。
 		candidate.images[n] = "{}" ;
 		rejected( candidate) ;
 		candidate.images[n] = {} ;
@@ -13607,7 +13931,10 @@ void runCollectorSegmentRecoveryCodecTests(
 	const auto oversized = std::string( 2U * 1024U * 1024U + 1U, 'x') ;	// 一rawの超過入力です。
 	// 全四制御rawの破損・欠損・外側超過とcanonical末尾を確認します。
 	for( std::size_t n = 0U; n < 4U; ++n) {
-		auto							   candidate = valid ;	// 変更する一制御rawだけの借用です。
+		const auto candidateOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+			valid) ;	// 同じ元値をこのscopeで所有する。
+		auto &candidate =
+			*candidateOwner ;	// 元と同じ期間だけ結果を借用する。	// 変更する一制御rawだけの借用です。
 		std::array<std::string_view *, 4U> fields{&candidate.intent, &candidate.activation,
 												  &candidate.root,
 												  &candidate.head} ;	// 固定四fieldです。
@@ -13646,8 +13973,11 @@ void runCollectorSegmentRecoveryCodecTests(
 			const auto body =
 				// 字句不正と容量超過を区別する合成本文です。
 				std::string( limit + extra, 'x') ;
-			const auto						   raw		 = repack( body) ;	// 外側CNGは正当です。
-			auto							   candidate = valid ;			// 元全66像は保持します。
+			const auto raw			  = repack( body) ;	// 外側CNGは正当です。
+			const auto candidateOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+				valid) ;	// 同じ元値をこのscopeで所有する。
+			auto &candidate =
+				*candidateOwner ;	// 元と同じ期間だけ結果を借用する。			// 元全66像は保持します。
 			std::array<std::string_view *, 4U> fields{&candidate.intent, &candidate.activation,
 													  &candidate.root,
 													  &candidate.head} ;	// 固定四用途です。
@@ -13657,7 +13987,9 @@ void runCollectorSegmentRecoveryCodecTests(
 	}
 
 	{
-		CollectorSegmentRecoveryState original ;	// 元参照を独立decodeで取得します。
+		const auto originalOwner = std::make_unique<
+			CollectorSegmentRecoveryState>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		auto &original = *originalOwner ;		// 元参照を独立decodeで取得します。
 		DRIVERCRATE_EXPECT( context, decodeCollectorSegmentRecovery( valid, original) == 0U) ;
 		// 元head rawの独立128 KiB枠をactivationの256 KiB枠へ流用しません。
 		for( std::size_t extra = 0U; extra <= 1U; ++extra) {
@@ -13676,8 +14008,11 @@ void runCollectorSegmentRecoveryCodecTests(
 			record.append( ",\"nextHead\":") ;
 			record.wideText( originalDraft.intent.nextHead) ;
 			record.append( "}") ;
-			const auto raw		 = repack( record.take()) ;	// 外側と他の参照は正当です。
-			auto	   candidate = valid ;					// 借用はrawの寿命内です。
+			const auto raw			  = repack( record.take()) ;	// 外側と他の参照は正当です。
+			const auto candidateOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+				valid) ;	// 同じ元値をこのscopeで所有する。
+			auto &candidate =
+				*candidateOwner ;	// 元と同じ期間だけ結果を借用する。					// 借用はrawの寿命内です。
 			candidate.activation = raw ;
 			rejected( candidate, extra == 0U ? 13U : 68U) ;
 		}
@@ -13700,10 +14035,13 @@ void runCollectorSegmentRecoveryCodecTests(
 				throw std::runtime_error( "recovery codec field") ;
 			}
 
-			const auto position	 = offset + field.size() + 4U ;	// Hash先頭の一文字です。
-			body[position]		 = body[position] == '0' ? '1' : '0' ;
-			const auto raw		 = repack( body) ;	// 正しいCNGの偽本文です。
-			auto	   candidate = valid ;			// 元全像を保持した一参照差し替えです。
+			const auto position		  = offset + field.size() + 4U ;	// Hash先頭の一文字です。
+			body[position]			  = body[position] == '0' ? '1' : '0' ;
+			const auto raw			  = repack( body) ;	// 正しいCNGの偽本文です。
+			const auto candidateOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+				valid) ;	// 同じ元値をこのscopeで所有する。
+			auto &candidate =
+				*candidateOwner ;	// 元と同じ期間だけ結果を借用する。			// 元全像を保持した一参照差し替えです。
 			(type == 0U	  ? candidate.intent
 			 : type == 1U ? candidate.root
 						  : candidate.activation) = raw ;
@@ -13729,14 +14067,20 @@ void runCollectorSegmentRecoveryCodecTests(
 		}
 
 		body.replace( offset, original.size(), replacement) ;
-		const auto raw		 = repack( body) ;	// 正しい外側hashへ戻します。
-		auto	   candidate = valid ;			// 借用はrawの寿命内だけです。
-		candidate.root		 = raw ;
+		const auto raw			  = repack( body) ;	// 正しい外側hashへ戻します。
+		const auto candidateOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+			valid) ;	// 同じ元値をこのscopeで所有する。
+		auto &candidate =
+			*candidateOwner ;	// 元と同じ期間だけ結果を借用する。			// 借用はrawの寿命内だけです。
+		candidate.root = raw ;
 		rejected( candidate) ;
 	}
 
 	{
-		auto candidate = valid ;	// 空shardを含むordinal順を保持する必須関係です。
+		const auto candidateOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+			valid) ;	// 同じ元値をこのscopeで所有する。
+		auto &candidate =
+			*candidateOwner ;	// 元と同じ期間だけ結果を借用する。	// 空shardを含むordinal順を保持する必須関係です。
 		std::swap( candidate.images[0], candidate.images[1]) ;
 		rejected( candidate) ;
 		candidate			 = valid ;
@@ -13749,13 +14093,20 @@ void runCollectorSegmentRecoveryCodecTests(
 		rejected( candidate, 68U) ;
 	}
 	{
-		auto intent	   = originalDraft.intent ;	// 後続ordinalを現行decoderの成功にしません。
+		const auto intentOwner =
+			std::make_unique<std::remove_cvref_t<decltype( originalDraft.intent)>>(
+				originalDraft.intent) ;	// 同じ元値をこのscopeで所有する。
+		auto &intent =
+			*intentOwner ;	// 元と同じ期間だけ結果を借用する。	// 後続ordinalを現行decoderの成功にしません。
 		intent.ordinal = 2U ;
 		std::string body ;	// 元型付きcodecの正当な後続intentです。
 		DRIVERCRATE_EXPECT( context, encodeCollectorSegmentSwitchIntent( intent, body) == 0U) ;
-		const auto raw		 = repack( body) ;	// 第一非対応50を検査します。
-		auto	   candidate = valid ;			// 他のfieldは元実保存のままです。
-		candidate.intent	 = raw ;
+		const auto raw			  = repack( body) ;	// 第一非対応50を検査します。
+		const auto candidateOwner = std::make_unique<std::remove_cvref_t<decltype( valid)>>(
+			valid) ;	// 同じ元値をこのscopeで所有する。
+		auto &candidate =
+			*candidateOwner ;	// 元と同じ期間だけ結果を借用する。			// 他のfieldは元実保存のままです。
+		candidate.intent = raw ;
 		rejected( candidate, 50U) ;
 	}
 	DRIVERCRATE_EXPECT( context, segmentFixtureImage( location) == frames[3]) ;
@@ -15291,8 +15642,10 @@ void runCollectorHttpQuiescenceTests(
 		throw std::runtime_error( "quiescence fixture lease") ;
 	}
 
-	auto							  &store = *lease->history() ;	// 閉鎖を結合する実historyです。
-	CollectorProjectedCampaignIdentity identity ;					// 元入力の厳密再導出です。
+	auto	  &store		 = *lease->history() ;	// 閉鎖を結合する実historyです。
+	const auto identityOwner = std::make_unique<
+		CollectorProjectedCampaignIdentity>() ;	// 同じscopeだけで大きなfixtureを所有する。
+	auto &identity = *identityOwner ;			// 元入力の厳密再導出です。
 	std::shared_ptr<const CollectorPreparedProjectedCampaign>
 		campaign ;	// Workerより長く所有します。
 	DRIVERCRATE_EXPECT(
@@ -15314,7 +15667,9 @@ void runCollectorHttpQuiescenceTests(
 	auto recovery = std::make_unique<LocalCollectorRecovery>() ;	// Poolより先に登録します。
 	DRIVERCRATE_EXPECT( context,
 					   recovery->initializeProjected( store, definition, HTTP_TEST_UTC, 0U) == 0U) ;
-	std::array<IoFixture, 2U> fixtures ;	// HTTP／DNSの実APIを使いません。
+	const auto fixturesOwner =
+		std::make_unique<std::array<IoFixture, 2U>>() ;	// 固定件数と型を保って所有する。
+	auto &fixtures	 = *fixturesOwner ;					// HTTP／DNSの実APIを使いません。
 	fixtures[0].body = winrt::to_string( winrt::hstring( projectedIntelHtml())) ;
 	fixtures[1].body = winrt::to_string( winrt::hstring( projectedAsusRowsHtml( 2U))) ;
 	std::atomic_bool					   released{} ;		// 最長10秒で終了する実workerの開始待機です。
@@ -15871,7 +16226,10 @@ void runCollectorSegmentPreparationTests(
 							 !pending) ;
 			// 自分が開いた故障handleだけを検査後に解放します。
 			if( blocked != INVALID_HANDLE_VALUE) {
-				DRIVERCRATE_EXPECT( context, CloseHandle( blocked) != FALSE) ;
+				const BOOL closed =
+					// 自己所有の故障handleを一回だけ解放する。
+					CloseHandle( blocked) ;
+				DRIVERCRATE_EXPECT( context, closed != FALSE) ;
 			}
 		}
 
@@ -16199,7 +16557,10 @@ void runCollectorSegmentInventoryTests(
 							 !repeated) ;
 			// 故障handleは最終再検査の後に解放します。
 			if( blocked != INVALID_HANDLE_VALUE) {
-				DRIVERCRATE_EXPECT( context, CloseHandle( blocked) != FALSE) ;
+				const BOOL closed =
+					// 自己所有の故障handleを一回だけ解放する。
+					CloseHandle( blocked) ;
+				DRIVERCRATE_EXPECT( context, closed != FALSE) ;
 			}
 		}
 
@@ -16351,14 +16712,17 @@ void runCollectorSegmentInventoryTests(
 /** @see local_collector_http_tests.h */
 void runCollectorProjectedHttpTests(
 	TestContext &context, const std::function<std::filesystem::path()> &rootFactory,
-	const std::function<CollectorProjectedCampaignDefinition()> &definitionFactory)
+	const std::function<CollectorProjectedCampaignDefinition()> &definitionFactory,
+	const bool													 fingerprintOnly)
 {
 	// Workerで使用する同じ非所有判定を先に確認する。
 	projectedRelationChecks( context) ;
 	// 保存前にも用いる実配列の共通件数境界。
 	projectedCountChecks( context) ;
-	const auto definition = definitionFactory() ;	// 二sourceを同じ元manifestから固定する。
-	CollectorProjectedCampaignIdentity identity ;	// 元jobの所有scopeをHTTP結果と照合する。
+	const auto definition	 = definitionFactory() ;	// 二sourceを同じ元manifestから固定する。
+	const auto identityOwner = std::make_unique<
+		CollectorProjectedCampaignIdentity>() ;	// 同じscopeだけで大きなfixtureを所有する。
+	auto &identity = *identityOwner ;			// 元jobの所有scopeをHTTP結果と照合する。
 	DRIVERCRATE_EXPECT( context,
 					   makeCollectorProjectedCampaignIdentity( definition, L"20260927", identity) &&
 						   identity.jobs.size() == 2U) ;
@@ -16378,26 +16742,35 @@ void runCollectorProjectedHttpTests(
 		return ;
 	}
 
-	projectedWorkerChecks( context, rootFactory, definition, prepared) ;
-	projectedParentChecks( context, rootFactory, definition, prepared) ;
-	projectedHistoryReservationChecks( context, rootFactory, definition, prepared) ;
-	registeredProjectedHistoryChecks( context, rootFactory, definition) ;
-	initialProjectedStorageChecks( context, rootFactory, definition, prepared) ;
-	generationCompletionChecks( context, rootFactory, definition, prepared) ;
-	allCompletedHistoryChecks( context, rootFactory, definition, prepared) ;
-	completedEmptyCacheChecks( context, rootFactory, definition, prepared) ;
-	nextProjectedGenerationChecks( context, rootFactory, definition, prepared) ;
-	nextProjectedStorageChecks( context, rootFactory, definition, prepared) ;
-	nextProjectedPreparedRecoveryChecks( context, rootFactory, definition, prepared) ;
+	// 指紋訂正の限定枠では既確認の保存/回復全枠を重複して実行しません。
+	if( !fingerprintOnly) {
+		projectedWorkerChecks( context, rootFactory, definition, prepared) ;
+		projectedParentChecks( context, rootFactory, definition, prepared) ;
+		projectedHistoryReservationChecks( context, rootFactory, definition, prepared) ;
+		registeredProjectedHistoryChecks( context, rootFactory, definition) ;
+		initialProjectedStorageChecks( context, rootFactory, definition, prepared) ;
+		generationCompletionChecks( context, rootFactory, definition, prepared) ;
+		allCompletedHistoryChecks( context, rootFactory, definition, prepared) ;
+		completedEmptyCacheChecks( context, rootFactory, definition, prepared) ;
+		nextProjectedGenerationChecks( context, rootFactory, definition, prepared) ;
+		nextProjectedStorageChecks( context, rootFactory, definition, prepared) ;
+		nextProjectedPreparedRecoveryChecks( context, rootFactory, definition, prepared) ;
+	}
+
 	projectedFaultChecks( context, rootFactory, definition) ;
-	projectedLargeAsusWorkerChecks( context, rootFactory, definition) ;
+	// ASUSの大規模境界は既定全枠だけで従来の順序を維持します。
+	if( !fingerprintOnly) {
+		projectedLargeAsusWorkerChecks( context, rootFactory, definition) ;
+	}
 
 	// 正常200、無条件304、read故障、空200、不正UTF-8、未pin validator、別scope／job、空permitを分離する。
-	for( std::size_t source = 0U; source < 2U; ++source) {
+	for( std::size_t source = 0U; source < (fingerprintOnly ? 0U : 2U); ++source) {
 		// 各source内の故障を独立storeとpermitで再現する。
 		for( unsigned mode = 0U; mode < 11U; ++mode) {
-			IoFixture	 fixture ;			// 一条件一threadの完全fake依存。
-			FixtureScope scope( fixture) ;	// Native APIへ流入しない。
+			const auto fixtureOwner =
+				std::make_unique<IoFixture>() ;		// 同じscopeだけで大きなfixtureを所有する。
+			auto		&fixture = *fixtureOwner ;	// 一条件一threadの完全fake依存。
+			FixtureScope scope( fixture) ;			// Native APIへ流入しない。
 			// 各失敗を同じ公開requestの原GETへ注入する。
 			switch( mode) {
 				// 無条件304は元200を持たないため拒否する。
@@ -16448,17 +16821,24 @@ void runCollectorProjectedHttpTests(
 				continue ;
 			}
 
-			auto		binding = *permit.binding() ;				// 元永続予約の全field。
-			const auto &job		= prepared->job( source)->value() ;	// 不変の全対象scope。
+			const auto bindingOwner =
+				std::make_unique<std::remove_cvref_t<decltype( *permit.binding())>>(
+					*permit.binding()) ;	// 同じ元値をこのscopeで所有する。
+
+			auto &binding =
+				*bindingOwner ;									// 元と同じ期間だけ結果を借用する。				// 元永続予約の全field。
+			const auto &job = prepared->job( source)->value() ;	// 不変の全対象scope。
 			// 偽の全対象scopeを元予約から流用しない。
 			if( mode == 6U) {
 				binding.scopeSha256 = std::wstring( 64U, L'b') ;
 			}
 
-			LocalCollectorHttpClient			  client( fixtureHttp(), fixtureDns()) ;	// 完全fake。
-			std::optional<CollectorMetadataBody>  body ;									// 正常200だけに構築。
-			CollectorControlledHttpObservation	  observation ;								// 原status・受信量。
-			std::shared_ptr<CollectorHttpControl> control ;									// Claim後の所有制御。
+			LocalCollectorHttpClient			 client( fixtureHttp(), fixtureDns()) ;	// 完全fake。
+			std::optional<CollectorMetadataBody> body ;									// 正常200だけに構築。
+			const auto							 observationOwner = std::make_unique<
+										  CollectorControlledHttpObservation>() ;	// 同じscopeだけで大きなfixtureを所有する。
+			auto &observation = *observationOwner ;									// 原status・受信量。
+			std::shared_ptr<CollectorHttpControl> control ;							// Claim後の所有制御。
 			// 取消し注入にも使う同一pointer。
 			fixture.control = &control ;
 			const auto tag	= mode == 5U ? std::wstring_view( L"\"revision1\"")
@@ -16559,14 +16939,16 @@ void runCollectorProjectedHttpTests(
 	// 正常200の実parserから公開record・全対象edgeまでを同一の偽HTTPで検査します。
 	for( unsigned mode = 0U; mode < 4U; ++mode) {
 		const std::size_t source = (mode == 0U || mode == 3U) ? 0U : 1U ;	// 元job index。
-		IoFixture		  fixture ;											// 一条件だけの完全fake通信。
-		FixtureScope	  fixtureScope( fixture) ;							// 同threadのfake table登録。
-		std::wstring	  html =
-			 (source == 0U)
-					 ? projectedIntelHtml()
-					 : projectedAsusHtml( mode == 2U
-											 ? L"/pub/ASUS/mb/04LAN/../DRV_LAN_Fixture.zip"
-											 : L"/pub/ASUS/mb/04LAN/DRV_LAN_Fixture.zip") ;	// 原HTML。
+		const auto		  fixtureOwner =
+			std::make_unique<IoFixture>() ;		// 同じscopeだけで大きなfixtureを所有する。
+		auto		&fixture = *fixtureOwner ;	// 一条件だけの完全fake通信。
+		FixtureScope fixtureScope( fixture) ;	// 同threadのfake table登録。
+		std::wstring html =
+			(source == 0U)
+				? projectedIntelHtml()
+				: projectedAsusHtml( mode == 2U
+										? L"/pub/ASUS/mb/04LAN/../DRV_LAN_Fixture.zip"
+										: L"/pub/ASUS/mb/04LAN/DRV_LAN_Fixture.zip") ;	// 原HTML。
 		// Heroと許諾が同じURLを参照してもdot segmentは配布URLとして拒否します。
 		if( mode == 3U) {
 			const auto marker = html.find( L"/900011/Wired_driver_") ;	// 一つの配布button。
@@ -16598,11 +16980,18 @@ void runCollectorProjectedHttpTests(
 			continue ;
 		}
 
-		const auto				 binding = *permit.binding() ;			// 元予約の全field。
+		const auto bindingOwner =
+			std::make_unique<std::remove_cvref_t<decltype( *permit.binding())>>(
+				*permit.binding()) ;	// 同じ元値をこのscopeで所有する。
+
+		const auto &binding =
+			*bindingOwner ;												// 元と同じ期間だけ結果を借用する。			// 元予約の全field。
 		LocalCollectorHttpClient client( fixtureHttp(), fixtureDns()) ;	// Nativeなしclient。
-		std::optional<CollectorMetadataBody>  body ;					// 一回GETの正常本文。
-		CollectorControlledHttpObservation	  observation ;				// HTTP原観測。
-		std::shared_ptr<CollectorHttpControl> control ;					// 元GET・parser共通制御。
+		std::optional<CollectorMetadataBody> body ;						// 一回GETの正常本文。
+		const auto							 observationOwner = std::make_unique<
+									  CollectorControlledHttpObservation>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		auto								 &observation = *observationOwner ;	// HTTP原観測。
+		std::shared_ptr<CollectorHttpControl> control ;							// 元GET・parser共通制御。
 		fixture.control = &control ;
 		const auto error =
 			client.getMetadataBody( *prepared, source, binding, permit, L"", body, observation,
@@ -16614,7 +17003,10 @@ void runCollectorProjectedHttpTests(
 			continue ;
 		}
 
-		CollectorMetadataProjectionDraft draft ;	// 秘密値なしの未確定結果。
+		const auto draftOwner = std::make_unique<
+			CollectorMetadataProjectionDraft>() ;	// 同じscopeだけで大きなfixtureを所有する。
+
+		auto	  &draft  = *draftOwner ;	// 秘密値なしの未確定結果。
 		const auto parsed = projectCollectorMetadataBody( std::move( *body), *prepared, source,
 														 draft) ;	// 本文消費結果。
 		DRIVERCRATE_EXPECT( context, !body->valid() && body->text().empty()) ;
@@ -16664,12 +17056,12 @@ void runCollectorProjectedHttpTests(
 														   draft.sourceCollisions == 0U
 													 : draft.sourceReasonCounts[0U] == 1U) ;
 
-			// 通常recordの既存goldenを新GETの同一EULA候補でも維持します。
+			// 通常recordと新GETの同一EULA候補が現parser revisionの同じ指紋を持つことを確認します。
 			if( source == 0U) {
 				const auto actual = projectedFingerprintHex(
 					draft.records[0].value.stableFingerprint) ;	// 新workerの値。
 				context.expect(
-					actual == "60e8e331663fc75f9958c832bf7776b85d5c9f2e48777e7f9d5fbc01be546fc4",
+					actual == "7311bb9fa363bd94ae3ac18dce8077724c3ea7376e45f508e6daaa3b28860073",
 					"Intel usual fingerprint actual=" + actual, __FILE__, __LINE__) ;
 			}
 
@@ -16705,17 +17097,21 @@ void runCollectorControlledHttpTests( TestContext								  &context,
 {
 	// 固定条件ごとに保存予約・HTTP fixtureを独立させる。
 	for( unsigned mode = 0U; mode < 77U; ++mode) {
-		IoFixture			  fixture ;									// 一条件だけの非通信状態。
-		FixtureScope		  scope( fixture) ;							// Thread-localはscope末尾で必ず解除。
-		LocalCollectorRequest request ;									// 本番共通builderで公式routeを再構築。
-		auto				  target	 = fixtureTarget( request) ;	// 架空製品・端末IDなし。
-		std::uint64_t		  maximum	 = 1024U ;						// 本文予算。
-		CollectorIoCause	  expected	 = CollectorIoCause::NONE ;		// 未finishの正常HTTP。
-		bool				  bytesKnown = true ;						// 明示失敗API以外は実読取り量を保持する。
-		std::uint64_t		  lower		 = 3U ;							// デフォルトはabcの3 byte。
-		std::wstring		  tag ;										// 通常は無条件GET。
-		auto				  dns  = fixtureDns() ;						// 完全fake表。
-		auto				  http = fixtureHttp() ;					// 完全fake表。
+		const auto fixtureOwner =
+			std::make_unique<IoFixture>() ;		// 同じscopeだけで大きなfixtureを所有する。
+		auto		&fixture = *fixtureOwner ;	// 一条件だけの非通信状態。
+		FixtureScope scope( fixture) ;			// Thread-localはscope末尾で必ず解除。
+		const auto	 requestOwner =
+			std::make_unique<LocalCollectorRequest>() ;			// 同じscopeだけで大きなfixtureを所有する。
+		auto			&request	= *requestOwner ;			// 本番共通builderで公式routeを再構築。
+		auto			 target		= fixtureTarget( request) ;	// 架空製品・端末IDなし。
+		std::uint64_t	 maximum	= 1024U ;					// 本文予算。
+		CollectorIoCause expected	= CollectorIoCause::NONE ;	// 未finishの正常HTTP。
+		bool			 bytesKnown = true ;					// 明示失敗API以外は実読取り量を保持する。
+		std::uint64_t	 lower		= 3U ;						// デフォルトはabcの3 byte。
+		std::wstring	 tag ;									// 通常は無条件GET。
+		auto			 dns  = fixtureDns() ;					// 完全fake表。
+		auto			 http = fixtureHttp() ;					// 完全fake表。
 		// 有限ケースと期待値を測定前に固定する。
 		switch( mode) {
 			// 正常EOF。
@@ -17289,7 +17685,12 @@ void runCollectorControlledHttpTests( TestContext								  &context,
 			continue ;
 		}
 
-		const auto binding = *permit.binding() ;	// Worker所有の元dispatch。
+		const auto bindingOwner =
+			std::make_unique<std::remove_cvref_t<decltype( *permit.binding())>>(
+				*permit.binding()) ;	// 同じ元値をこのscopeで所有する。
+
+		const auto &binding =
+			*bindingOwner ;	// 元と同じ期間だけ結果を借用する。	// Worker所有の元dispatch。
 		// 予約保存・thread準備に相当する遅延を新deadlineで延長しない。
 		if( mode == 69U) {
 			fixture.clock = {HTTP_TEST_UTC + 119999U, 119999U} ;
@@ -17303,9 +17704,12 @@ void runCollectorControlledHttpTests( TestContext								  &context,
 			fixture.clock = {HTTP_TEST_UTC + 599U, 599U} ;
 		}
 
-		CollectorControlledHttpObservation observation ;	// 新modeだけの時刻付きHTTP観測。
-		std::wstring					   text ;			// 厳密decodeした本文だけ。
-		const auto						   error =
+		const auto observationOwner = std::make_unique<
+			CollectorControlledHttpObservation>() ;	// 同じscopeだけで大きなfixtureを所有する。
+
+		auto		&observation = *observationOwner ;	// 新modeだけの時刻付きHTTP観測。
+		std::wstring text ;								// 厳密decodeした本文だけ。
+		const auto	 error =
 			// 本番接続。
 			client.get( target, binding, permit, tag, text, observation, control) ;
 		DRIVERCRATE_EXPECT( context, control != nullptr) ;
@@ -17416,11 +17820,15 @@ void runCollectorControlledHttpTests( TestContext								  &context,
 
 	// 残msからTIMEVALへの変換と期限0でのAPI非呼出しを独立検証する。
 	for( const std::uint64_t remaining : {1ULL, 999ULL, 1000ULL, 15000ULL, 0ULL}) {
-		IoFixture			  fixture ;	// DNS専用の独立fake。
+		const auto fixtureOwner =
+			std::make_unique<IoFixture>() ;		// 同じscopeだけで大きなfixtureを所有する。
+		auto		&fixture = *fixtureOwner ;	// DNS専用の独立fake。
 		// 本条件のAPIだけにfake状態を借用するscope。
-		FixtureScope		  scope( fixture) ;
-		LocalCollectorRequest request ;								// 共通request identity。
-		const auto			  target = fixtureTarget( request) ;	// 公開架空target。
+		FixtureScope scope( fixture) ;
+		const auto	 requestOwner =
+			std::make_unique<LocalCollectorRequest>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		auto	  &request = *requestOwner ;			// 共通request identity。
+		const auto target  = fixtureTarget( request) ;	// 公開架空target。
 		(void)target ;
 		LocalCollectorStateStore store ;	// 一件の永続予約。
 		DRIVERCRATE_EXPECT( context, store.initialize( rootFactory(), true) == 0U) ;

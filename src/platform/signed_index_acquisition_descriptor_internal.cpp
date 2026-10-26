@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_descriptor_internal.cpp
  * @brief 全メーカー共通の取得descriptor元申告を有限な文法とbindingで検査します。
- * @version 01.01.02
+ * @version 01.01.04
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,8 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/14  共通HTML許諾の原page・原文書・全文と配布recordを結合。
  * Ver.01.01.01 Shunji Ogawa  2026/10/14  規約文書の共通必須field欠損をURL値検査前に構造拒否。
  * Ver.01.01.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.01.03 Shunji Ogawa  2026/10/23  個別期限を維持しmanifestとの順序制約だけを除去。
+ * Ver.01.01.04 Shunji Ogawa  2026/10/24  新規配布recordの有限8日上限へ統一。
  * </pre>
  *
  * @note 索引発行者の申告を読むだけで、公式性・vendor署名・実byte・端末適合を実証しません。
@@ -808,8 +810,8 @@ void validateBinding( const IndexDistributionRecord &record, const IndexRecordSo
 	const auto &attestation = *value.attestation ;				// 構造検査が要求した元確認。
 	require( attestation.checkedAtUtc <= manifest.publishedAtUtc &&
 				manifest.publishedAtUtc < attestation.validUntilUtc &&
-				attestation.validUntilUtc <= manifest.expiresAtUtc &&
-				attestation.validUntilUtc - attestation.checkedAtUtc <= std::chrono::days{7},
+				attestation.validUntilUtc - attestation.checkedAtUtc <=
+					INDEX_ACQUISITION_MAX_VALIDITY,
 			IndexRecordsStatus::INVALID_EVIDENCE) ;
 	// 既知の取得方式と形式が矛盾する申告だけを拒否し、UNKNOWN方式を補わない。
 	if( record.acquisition.value) {

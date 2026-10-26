@@ -2,8 +2,8 @@
 /**
  * @file signed_index_records.h
  * @brief 署名済み展開byteから読む配布record schema receiptを定義します。
- * @version 01.02.01
- * @date 2026/10/11
+ * @version 01.03.01
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -23,6 +23,8 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  v2の取得descriptorと現reader policy版を型付きで追加。
  * Ver.01.02.00 Shunji Ogawa  2026/10/14  原pageと原文書・全文を区別する共通HTML許諾bindingを追加。
  * Ver.01.02.01 Shunji Ogawa  2026/10/14  公表identifier役割とnative property指定の相違を明記。
+ * Ver.01.03.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
+ * Ver.01.03.01 Shunji Ogawa  2026/10/24  新規配布recordの週次更新用8日上限を共通化。
  * </pre>
  *
  * @note 保存前のschema receiptです。公式性・端末適合・導入許可を成立させません。
@@ -43,19 +45,21 @@
 namespace drivercrate {
 
 // 保護headの保存wire互換識別値。原byteは常に現readerで再認証し、この値を現reader版にしない。
-inline constexpr std::uint32_t INDEX_RECORD_SCHEMA_POLICY_VERSION = 1U ;
+inline constexpr std::uint32_t	   INDEX_RECORD_SCHEMA_POLICY_VERSION = 1U ;
 // 現codecの読取りpolicy版。保存head互換識別値やwire record v1／v2とは別です。
-inline constexpr std::uint32_t INDEX_RECORD_READER_POLICY_VERSION = 3U ;
+inline constexpr std::uint32_t	   INDEX_RECORD_READER_POLICY_VERSION = 5U ;
+// 新規recordの週次7日と発行fresh窓24hを合わせた上限。原期限を延長しません。
+inline constexpr std::chrono::days INDEX_ACQUISITION_MAX_VALIDITY{8} ;
 // 一index内の有限source枠。製品全体の対応数ではありません。
-inline constexpr std::size_t   INDEX_RECORD_SOURCE_MAX_COUNT = 4096U ;
+inline constexpr std::size_t	   INDEX_RECORD_SOURCE_MAX_COUNT = 4096U ;
 // 一index内の有限record枠。
-inline constexpr std::size_t   INDEX_RECORD_MAX_COUNT = 65536U ;
+inline constexpr std::size_t	   INDEX_RECORD_MAX_COUNT = 65536U ;
 // Base64解除後の一record原byte上限。
-inline constexpr std::size_t   INDEX_RECORD_MAX_BYTES = 64U * 1024U ;
+inline constexpr std::size_t	   INDEX_RECORD_MAX_BYTES = 64U * 1024U ;
 // 全recordのdecode原byte合計上限。
-inline constexpr std::size_t   INDEX_RECORD_TOTAL_MAX_BYTES = 64U * 1024U * 1024U ;
+inline constexpr std::size_t	   INDEX_RECORD_TOTAL_MAX_BYTES = 64U * 1024U * 1024U ;
 // 一recordのメーカー公表側PnP ID件数上限。
-inline constexpr std::size_t   INDEX_RECORD_PNP_MAX_COUNT = 128U ;
+inline constexpr std::size_t	   INDEX_RECORD_PNP_MAX_COUNT = 128U ;
 
 /** @brief 元申告の既知値または明示UNKNOWN理由を保持します。
  * @tparam Value 型付きの公開値。端末の観測ではありません。
@@ -179,7 +183,7 @@ enum class IndexPnpIdKind {
 struct IndexPublishedPnpId {
 	/// 元申告のID種別。
 	IndexPnpIdKind kind{IndexPnpIdKind::HARDWARE} ;
-	/// 大文字ASCIIの原公開ID。正規化しません。
+	/// 大小文字を保持したASCII原公開ID。比較keyだけをcase非依存にします。
 	std::string	   value ;
 } ;
 
@@ -203,7 +207,9 @@ struct IndexPublishedIdentityEvidence {
 	std::vector<IndexPublishedPnpId>   pnpIds ;
 	/// Brace付きClassGUIDの原表記。UNKNOWNでは空です。
 	std::string						   classGuid ;
-	/// Slash区切りの相対INF identity。実local pathではありません。
+	/// 空はflat、非空はouter内一段nested archiveのslash相対member。実pathではありません。
+	std::string						   nestedArchiveIdentity ;
+	/// Slash区切りのINF member。nested時はそのarchive内、flat時はouter内です。
 	std::string						   infIdentity ;
 	/// 元INFのmodel section。端末の選択nodeではありません。
 	std::string						   modelSection ;

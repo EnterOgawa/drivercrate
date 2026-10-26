@@ -2,8 +2,8 @@
 /**
  * @file driver_store_provider.cpp
  * @brief Driver Store provider実装。
- * @version 01.14.01
- * @date 2026/09/01
+ * @version 01.15.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -60,6 +60,7 @@
  * Ver.01.13.00 Shunji Ogawa  2026/10/15  必要INF bindingの拒否段階を非機密数値として採取。
  * Ver.01.14.00 Shunji Ogawa  2026/10/15  実選択Needs件数を必要計画の再検証へ結合。
  * Ver.01.14.01 Shunji Ogawa  2026/10/17  Native IDの実一文字NULだけを明示空listとして検証。
+ * Ver.01.15.00 Shunji Ogawa  2026/10/24  原公開PnPのcaseを保持して既存native照合keyへ結合。
  * </pre>
  *
  * @note SetupAPIによるPnP deviceとDriver Store履歴の列挙を実装します。選択された指定版は実行直前に再照合します。Native device identityと
@@ -2264,7 +2265,7 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 	return DriverAction::REINSTALL ;
 }
 
-/** @brief 索引v1の有限ASCII PnP文法を端末内の照合keyに限定します。
+/** @brief 索引の有限ASCII PnP文法を端末内の照合keyに限定します。
  * @param[in] value 公開入力または大文字化した秘密ID。
  * @return 一bus区切り、512文字以下、許可ASCIIだけの場合true。
  */
@@ -2276,6 +2277,7 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 		   std::all_of( value.begin(), value.end(), []( const wchar_t character) {
 			   // UTF-16非ASCIIと制御文字を照合keyへ補正しません。
 			   return (character >= L'A' && character <= L'Z') ||
+					  (character >= L'a' && character <= L'z') ||
 					  (character >= L'0' && character <= L'9') || character == L'\\' ||
 					  character == L'&' || character == L'_' || character == L'-' ||
 					  character == L'.' || character == L'*' ;
@@ -2443,13 +2445,13 @@ public:
 			return result ;
 		}
 
-		const std::wstring id( publishedId.begin(),
-							  // 公開ASCII入力だけの一時copy。
-							  publishedId.end()) ;
+		const std::wstring originalId( publishedId.begin(),
+									  // 公開ASCII入力だけの一時copy。
+									  publishedId.end()) ;
 		const std::wstring guid( classGuid.begin(), classGuid.end()) ;	// 原申告classの一時copy。
 		// 型不明、非ASCII ID、無効GUIDを正常な一致なしへ分類しません。
 		if( (kind != IndexPnpIdKind::HARDWARE && kind != IndexPnpIdKind::COMPATIBLE) ||
-		   !validIndexPnpId( id) || guid.size() != 38U || guid.front() != L'{' ||
+		   !validIndexPnpId( originalId) || guid.size() != 38U || guid.front() != L'{' ||
 		   guid.back() != L'}') {
 			result.error = static_cast<NativeError>( E_INVALIDARG) ;
 			return result ;
@@ -2491,7 +2493,10 @@ public:
 		}
 
 		const auto normalizedClass = normalizeIdentifier( guid) ;	// 公開GUIDのcase非依存key。
-		result.completed		   = true ;
+		const auto id =
+			// 原公開IDを変更しない同じnative照合keyです。
+			normalizeIdentifier( originalId) ;
+		result.completed = true ;
 		bool allPositiveClassesKnown{true} ;	// 部分positive証拠へ未知Classを含めません。
 #if defined( DRIVERCRATE_INTERNAL_LIVE_INDEX_DIAGNOSTICS)
 		std::size_t knownClassIdFailures{} ;			// 同classの必要ID失敗node数です。

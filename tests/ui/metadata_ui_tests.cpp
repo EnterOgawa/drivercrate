@@ -2,8 +2,8 @@
 /**
  * @file metadata_ui_tests.cpp
  * @brief 製品と同じWin32画面の情報検索専用内部試験。
- * @version 01.30.02
- * @date 2026/09/12
+ * @version 01.30.04
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -59,6 +59,8 @@
  * Ver.01.30.00 Shunji Ogawa  2026/10/18  UI試験を専用非入力desktopで自己監督し所有終端を検査。
  * Ver.01.30.01 Shunji Ogawa  2026/10/18  子環境keyとmodal所有判定を限定し実観測契約を正確化。
  * Ver.01.30.02 Shunji Ogawa  2026/10/19  部分内容結果と候補発行を併記し未導入を保持する表示を検証。
+ * Ver.01.30.03 Shunji Ogawa  2026/10/24  時刻拒否のformatter理由と他診断保持の正負例を追加。
+ * Ver.01.30.04 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 明示optionでのみ起動し、実device・network・取得・復旧・導入へ接続しない。
@@ -68,6 +70,7 @@
 
 #include "app/main_window.h"
 #include "app/resource.h"
+#include "platform/signed_index_manifest.h"
 #include "core/candidate_audit.h"
 #include "core/metadata_search.h"
 #include "core/official_preparation.h"
@@ -492,16 +495,16 @@ int supervisePrivateUi( const std::string_view mode)
 	startup.StartupInfo.hStdOutput = owned.streams[1] ;
 	startup.StartupInfo.hStdError  = owned.streams[2] ;
 	startup.lpAttributeList		   = attributes ;
-	wchar_t		 executable[32768]{} ;												// 同一PEの絶対pathを読みます。
-	const DWORD	 length		 = GetModuleFileNameW( nullptr, executable, 32768U) ;	// 有効長です。
-	std::wstring command	 = GetCommandLineW() ;									// 外部raw commandを変更しない所有copyです。
+	std::vector<wchar_t> executable( 32768U) ;											// 同一PEの絶対pathを読みます。
+	const DWORD	 length	 = GetModuleFileNameW( nullptr, executable.data(), 32768U) ;	// 有効長です。
+	std::wstring command = GetCommandLineW() ;											// 外部raw commandを変更しない所有copyです。
 	auto		 environment = nativeChildEnvironment(
 		// 内部markerだけです。
 		mode == "lifecycle-marker" ? name + L"_wrong" : name) ;
 	PROCESS_INFORMATION child{} ;	// APIの作成handleを直ちにownerへ移します。
 	const bool			launched =
 		listed && length > 0U && length < 32768U &&
-		CreateProcessW( executable, command.data(), nullptr, nullptr, TRUE,
+		CreateProcessW( executable.data(), command.data(), nullptr, nullptr, TRUE,
 					   CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
 					   environment.data(), nullptr, &startup.StartupInfo,
 					   &child) != FALSE ;									// 元CWDを継承します。
@@ -645,6 +648,46 @@ struct MainWindowMetadataTestAccess {
 	static std::wstring indexResultText( const MainWindow &window)
 	{
 		return window.preparationResultText_ ;
+	}
+	/** @brief 原時刻拒否だけの説明と既存HTTP/診断表示を決定的に確認します。
+	 * @param[in] window 非通信factoryで作成した通常画面です。
+	 * @param[in,out] context 正負例の集計先です。
+	 */
+	static void verifyRefreshTimeReason( const MainWindow &window, test::TestContext &context)
+	{
+		IndexScanSummary summary ;	// 実通信や実storeへ接続しない表示用入力です。
+		summary.refresh =
+			IndexRefreshSummary{.status			= IndexRefreshStatus::MANIFEST_REJECTED,
+								.httpStatus		= 200U,
+								.manifestStatus = SignedIndexManifestStatus::INVALID_TIME} ;
+		const auto reason =
+			// 製品resourceの原文です。
+			window.loadString( IDS_INDEX_REFRESH_INVALID_TIME) ;
+		const auto text =
+			// 製品と同じformatterだけです。
+			window.formatIndexRefreshSummary( summary) ;
+		DRIVERCRATE_EXPECT( context, !reason.empty() && text.find( reason) != std::wstring::npos) ;
+		DRIVERCRATE_EXPECT( context, text.find( window.formatResource(
+										IDS_INDEX_REFRESH_FACTS, L"200")) != std::wstring::npos &&
+										text.find( L"0x00000000") != std::wstring::npos &&
+										text.find( window.loadString( IDS_INDEX_REFRESH_REJECTED)) !=
+											std::wstring::npos) ;
+		// 他の原拒否へ時刻理由を付けず、元診断の表示を維持します。
+		for( const auto status : {SignedIndexManifestStatus::INVALID_SIGNATURE,
+								 SignedIndexManifestStatus::INVALID_MANIFEST}) {
+			summary.refresh->manifestStatus = status ;
+			const auto other = window.formatIndexRefreshSummary( summary) ;	// 別の元拒否です。
+			DRIVERCRATE_EXPECT(
+				context, other.find( reason) == std::wstring::npos &&
+							 other.find( window.formatResource( IDS_INDEX_REFRESH_FACTS, L"200")) !=
+								 std::wstring::npos) ;
+		}
+
+		summary.refresh->manifestStatus.reset() ;
+		DRIVERCRATE_EXPECT( context, window.formatIndexRefreshSummary( summary).find( reason) ==
+										std::wstring::npos) ;
+		summary.refresh.reset() ;
+		DRIVERCRATE_EXPECT( context, window.formatIndexRefreshSummary( summary).empty()) ;
 	}
 	/** @brief 製品と同じmenu構築から実項目の名称と有効状態を検査します。
 	 * @param[in] window 同UI threadの本物Windowです。
@@ -1008,8 +1051,8 @@ struct MainWindowMetadataTestAccess {
 				continue ;
 			}
 
-			std::array<wchar_t, 32768U> text{} ;	// 有限な人工行本文の全終端を受けます。
-			TVITEMW						item{} ;	// 同Windowの実controlへの同期借用です。
+			std::vector<wchar_t> text( 32768U) ;	// 有限な人工行本文の全終端を受けます。
+			TVITEMW				 item{} ;			// 同Windowの実controlへの同期借用です。
 			item.mask		= TVIF_TEXT ;
 			item.hItem		= window.candidateItems_[index] ;
 			item.pszText	= text.data() ;
@@ -4271,6 +4314,7 @@ void runIndexUiScenarios( TestContext &context)
 	ShowWindow( handle, SW_HIDE) ;
 	try {
 		Access::verifyIndexSummaryCases( window, context) ;
+		Access::verifyRefreshTimeReason( window, context) ;
 		Access::verifyIndexDelays( window, context) ;
 	} catch( ...) {
 		Access::stopWorker( window) ;
@@ -5839,8 +5883,10 @@ void observeApprovedIndexTask( void *state, OfficialPreparationSession &preparat
 void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 											const std::string_view orderProbe = {})
 {
-	using Native = SignedIndexBindingNativeCase ;	// 完全低位境界の原状態です。
-	using Format = IndexPayloadFormat ;				// 元codecの既存形式です。
+	// 大きな終端値を短命なfactory内で受信し、元の検証scopeだけで所有する。
+	const auto ownTerminal = []( auto make) { return std::make_unique<decltype( make())>( make()) ; } ;
+	using Native		   = SignedIndexBindingNativeCase ;	// 完全低位境界の原状態です。
+	using Format		   = IndexPayloadFormat ;			// 元codecの既存形式です。
 	/** @brief Code前case-contractからの有限入力と原期待です。 */
 	struct Case {
 		/// 原固定期待の一意IDです。
@@ -6208,7 +6254,9 @@ void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 		// 本物Windowが所有する内部の誤呼出し観測です。
 		auto	   state = std::make_shared<MetadataUiState>() ;
 		// 製品resourceを使用する本物MainWindowです。
-		MainWindow window ;
+		const auto windowOwner =
+			std::make_unique<MainWindow>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		auto &window = *windowOwner ;			// 所有者と同じcaseの期間だけ本物Windowを借用する。
 		Access::configure( window, state) ;
 		// 本物Window生成の実結果です。未生成を未到達へ残します。
 		const bool created = window.create( GetModuleHandleW( nullptr)) ;
@@ -6228,7 +6276,10 @@ void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 			do {
 				Access::beginIndexScan( window) ;
 				// 元workerが返す実scan終端です。成功DTOを作りません。
-				auto scanned = Access::takeIndexTerminal( window, WorkerEventKind::SCAN_COMPLETED) ;
+				const auto scannedOwner = ownTerminal( [&] {
+					return Access::takeIndexTerminal( window, WorkerEventKind::SCAN_COMPLETED) ;
+				}) ;										 // 同workerの元終端だけを所有する。
+				auto	  &scanned		= *scannedOwner ;	// 元caseの期間だけ終端値を借用する。
 				DRIVERCRATE_EXPECT( context,
 								   scanned && scanned->scanResult.succeeded &&
 									   (scanned->preparationPlan || testCase.targets == 0U)) ;
@@ -6330,8 +6381,11 @@ void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 													   : 1U)
 												: 0U)) ;
 				// 原取得・内容検査の実worker終端です。
-				auto prepared =
-					Access::takeIndexTerminal( window, WorkerEventKind::PREPARATION_COMPLETED) ;
+				const auto preparedOwner = ownTerminal( [&] {
+					return Access::takeIndexTerminal( window,
+													 WorkerEventKind::PREPARATION_COMPLETED) ;
+				}) ;										   // 同workerの元終端だけを所有する。
+				auto	  &prepared		 = *preparedOwner ;	// 元caseの期間だけ終端値を借用する。
 				DRIVERCRATE_EXPECT( context, prepared.has_value()) ;
 				// 元worker終端を受けていなければ成功DTOを合成せず当該caseを止めます。
 				if( !prepared) {
@@ -6633,9 +6687,12 @@ void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 				std::size_t				   unexpectedScans{} ;	// 導入待ちの自動scan終端だけです。
 				Access::IndexTerminalTrace terminalTrace ;		// 同queueの最大64eventだけです。
 				// 復旧と原Provider処理の実終端です。実導入は行いません。
-				auto					   installed = Access::takeIndexTerminal(
-					  window, WorkerEventKind::INSTALL_COMPLETED,
-					  testCase.verifyTerminalReuse ? &unexpectedScans : nullptr, &terminalTrace) ;
+				const auto				   installedOwner = ownTerminal( [&] {
+					return Access::takeIndexTerminal(
+						window, WorkerEventKind::INSTALL_COMPLETED,
+						testCase.verifyTerminalReuse ? &unexpectedScans : nullptr, &terminalTrace) ;
+				}) ;				   // 同workerの元終端だけを所有する。
+				auto &installed = *installedOwner ;	// 元caseの期間だけ終端値を借用する。
 				std::cout << "FORMAT_INSTALL_EVENTS case=" << testCase.id
 						  << " terminal=" << installed.has_value()
 						  << " count=" << terminalTrace.count
@@ -6802,9 +6859,13 @@ void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 						break ;
 					}
 
-					auto rejected = Access::takeIndexTerminal(
-						window, WorkerEventKind::INSTALL_COMPLETED,
-						&unexpectedScans) ;	// 実workerが生成した拒否終端です。
+					const auto rejectedOwner = ownTerminal( [&] {
+						return Access::takeIndexTerminal( window, WorkerEventKind::INSTALL_COMPLETED,
+														 &unexpectedScans) ;
+					}) ; // 同workerの元終端だけを所有する。
+
+					auto	  &rejected =
+						*rejectedOwner ;	// 元caseの期間だけ終端値を借用する。	// 実workerが生成した拒否終端です。
 					DRIVERCRATE_EXPECT( context, rejected.has_value()) ;
 					// 拒否終端なしでは失敗DTOや結果保持の成功を作りません。
 					if( !rejected) {
@@ -7522,6 +7583,9 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const bool needsOnly = false,
 												const bool extensionOnly = false)
 {
+	// 大きな終端値を短命なfactory内で受信し、元の検証scopeだけで所有する。
+	const auto ownTerminal = []( auto make) { return std::make_unique<decltype( make())>( make()) ; } ;
+
 	using Native = SignedIndexBindingNativeCase ;	// 元低位状態です。
 	/** @brief 元141/root-onlyと事前固定した19依存条件の期待です。 */
 	struct Case {
@@ -7765,7 +7829,9 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 		}
 
 		auto	   state = std::make_shared<MetadataUiState>() ;	// 別Providerroutingの観測です。
-		MainWindow window ;											// 本物製品Windowです。
+		const auto windowOwner =
+			std::make_unique<MainWindow>() ;	// 同じscopeだけで大きなfixtureを所有する。
+		auto &window = *windowOwner ;			// 本物製品Windowです。
 		Access::configure( window, state) ;
 		const bool created = window.create( GetModuleHandleW( nullptr)) ;	// 実生成結果です。
 		DRIVERCRATE_EXPECT( context, created) ;
@@ -7781,8 +7847,11 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 		// 元未到達を失敗へ残し、共通終端でworkerを停止します。
 		do {
 			Access::beginIndexScan( window) ;
-			auto scanned = Access::takeIndexTerminal(
-				window, WorkerEventKind::SCAN_COMPLETED) ;	// 元scanの実worker終端です。
+			const auto scannedOwner = ownTerminal( [&] {
+				return Access::takeIndexTerminal( window, WorkerEventKind::SCAN_COMPLETED) ;
+			}) ; // 同workerの元終端だけを所有する。
+			auto	  &scanned =
+				*scannedOwner ;	// 元caseの期間だけ終端値を借用する。	// 元scanの実worker終端です。
 			std::cout << "COMPONENT_SCAN id=" << testCase.id << " event=" << scanned.has_value()
 					  << " kind=" << (scanned ? static_cast<int>( scanned->kind) : -1)
 					  << " succeeded=" << (scanned && scanned->scanResult.succeeded)
@@ -7802,8 +7871,10 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 			const auto &plan = *scanned->preparationPlan ;	// 元取得planです。
 			DRIVERCRATE_EXPECT( context, Access::acquireIndexPlan( window, plan)) ;
 			// 元取得/内容検査の実worker終端です。
-			auto prepared =
-				Access::takeIndexTerminal( window, WorkerEventKind::PREPARATION_COMPLETED) ;
+			const auto preparedOwner = ownTerminal( [&] {
+				return Access::takeIndexTerminal( window, WorkerEventKind::PREPARATION_COMPLETED) ;
+			}) ;										   // 同workerの元終端だけを所有する。
+			auto	  &prepared		 = *preparedOwner ;	// 元caseの期間だけ終端値を借用する。
 			DRIVERCRATE_EXPECT( context, prepared.has_value()) ;
 			// 元終端がない結果を成功にしません。
 			if( !prepared) {
@@ -7882,8 +7953,11 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 				DialogDriver driver( accept) ;	// 本物確認dialog YESです。
 				Access::beginIndexInstall( window) ;
 			}
-			auto installed = Access::takeIndexTerminal(
-				window, WorkerEventKind::INSTALL_COMPLETED) ;	// 同保護operationの実終端です。
+			const auto installedOwner = ownTerminal( [&] {
+				return Access::takeIndexTerminal( window, WorkerEventKind::INSTALL_COMPLETED) ;
+			}) ; // 同workerの元終端だけを所有する。
+			auto	  &installed =
+				*installedOwner ;	// 元caseの期間だけ終端値を借用する。	// 同保護operationの実終端です。
 			DRIVERCRATE_EXPECT( context, installed.has_value()) ;
 			// 実終端がない結果は未到達です。
 			if( !installed) {
@@ -8100,8 +8174,10 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 					context, Access::requestExpiredIndexInstall( window, installed->operationId + 1U,
 																plan.scanSessionId, selected)) ;
 				// 終端済み元sessionの再要求に対する実worker拒否です。
-				const auto stale =
-					Access::takeIndexTerminal( window, WorkerEventKind::INSTALL_COMPLETED) ;
+				const auto	staleOwner = ownTerminal( [&] {
+					 return Access::takeIndexTerminal( window, WorkerEventKind::INSTALL_COMPLETED) ;
+				 }) ;								  // 同workerの元終端だけを所有する。
+				const auto &stale	   = *staleOwner ;	// 元caseの期間だけ終端値を借用する。
 				DRIVERCRATE_EXPECT( context, stale && !stale->installResult.succeeded) ;
 			}
 		} while( false) ;

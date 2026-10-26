@@ -2,8 +2,8 @@
 /**
  * @file local_index_signing_tests.cpp
  * @brief 明示既存local鍵の原byte署名と既存native索引の相互検査です。
- * @version 01.05.00
- * @date 2026/10/13
+ * @version 01.07.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -26,6 +26,8 @@
  * Ver.01.03.01 Shunji Ogawa  2026/10/16  P1原byteと配布取得用途のRAM正負を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/10/17  公開検証CLI用の実UTC人工RAM署名fixture出力を追加。
  * Ver.01.05.00 Shunji Ogawa  2026/10/17  取得履歴の固定32条件と公開CLI用失効/未来fixtureを追加。
+ * Ver.01.06.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
+ * Ver.01.07.00 Shunji Ogawa  2026/10/24  Record非評価の世代下限専用認証をRAMで有限検査。
  * </pre>
  *
  * @note 既存鍵は明示existing-key modeだけで照会し、配布fakeは人工RAM鍵だけを使います。
@@ -159,7 +161,7 @@ void require( const bool value)
 		R"(,"size":{"state":"UNKNOWN","valueBytes":0,"reason":"artificial not inspected"}},"lastSuccessfulObservationUtc":)" +
 		unknown +
 		// UNKNOWNを成功へ昇格しません。
-		R"(,"inspectionStage":"METADATA_ONLY","publishedIdentityEvidence":{"state":"UNKNOWN","kind":"UNKNOWN","pnpIds":[],"classGuid":"","infIdentity":"","modelSection":"","evidenceUrl":"","evidenceSha256":"","reason":"artificial public identity absent"},"acquisitionDescriptor":{"schema":"driver-index-acquisition-v1","state":"UNKNOWN","reason":"artificial route absent","payloadUrl":"","fileName":"","format":"UNKNOWN","expectedContentType":"","maximumBytes":0,"route":[],"terms":{"state":"UNKNOWN","reason":"artificial terms absent","evidenceUrl":"","evidenceSha256":"","revisionKind":"NONE","revision":"","textDocument":null},"prerequisites":{"state":"UNKNOWN","reason":"artificial prerequisites absent","items":[]},"publisher":{"state":"UNKNOWN","value":"","reason":"artificial publisher absent"},"attestation":null}})" ;
+		R"(,"inspectionStage":"METADATA_ONLY","publishedIdentityEvidence":{"state":"UNKNOWN","kind":"UNKNOWN","pnpIds":[],"classGuid":"","nestedArchiveIdentity":"","infIdentity":"","modelSection":"","evidenceUrl":"","evidenceSha256":"","reason":"artificial public identity absent"},"acquisitionDescriptor":{"schema":"driver-index-acquisition-v1","state":"UNKNOWN","reason":"artificial route absent","payloadUrl":"","fileName":"","format":"UNKNOWN","expectedContentType":"","maximumBytes":0,"route":[],"terms":{"state":"UNKNOWN","reason":"artificial terms absent","evidenceUrl":"","evidenceSha256":"","revisionKind":"NONE","revision":"","textDocument":null},"prerequisites":{"state":"UNKNOWN","reason":"artificial prerequisites absent","items":[]},"publisher":{"state":"UNKNOWN","value":"","reason":"artificial publisher absent"},"attestation":null}})" ;
 	const std::string source =
 		// 架空出典だけです。
 		R"({"sourceId":"artificial-source","officialOrigin":"https://vendor.example/","distributionPage":"https://vendor.example/support","officialEvidence":{"state":"UNKNOWN","kind":"UNKNOWN","evidenceUrl":"","evidenceSha256":"","reason":"artificial not verified"}})" ;
@@ -278,12 +280,12 @@ void require( const bool value)
 {
 	const std::string evidenceHash( 64U, 'a') ;	// 架空の出典原hashです。
 	const std::string payloadHash( 64U, 'b') ;	// 架空の検査済み内容申告hashです。
-	const std::
-		string
-			record =
-				R"({"schema":"driver-index-record-v2","sourceId":"artificial-source","recordId":"artificial-acquisition","product":"Artificial acquisition purpose","targetOs":{"state":"KNOWN","value":"WINDOWS_11","reason":""},"architecture":{"state":"KNOWN","value":"X64","reason":""},"driverKind":{"state":"KNOWN","value":"NORMAL_DRIVER","reason":""},"version":{"state":"KNOWN","value":"1.2.3.4","reason":""},"publishedDate":{"state":"UNKNOWN","value":"","reason":"artificial date absent"},"acquisition":{"state":"KNOWN","value":"STANDARD_INF_ARCHIVE","reason":""},"packageEvidence":{"publishedHash":{"state":"UNKNOWN","sha256":"","evidenceUrl":"","evidenceSha256":"","reason":"artificial published hash absent"},"calculatedHash":{"state":"KNOWN","sha256":")" +
-				payloadHash + R"(","evidenceUrl":"https://vendor.example/package.zip","evidenceSha256":")" + payloadHash + R"(","reason":""},"size":{"state":"KNOWN","valueBytes":22,"reason":""}},"lastSuccessfulObservationUtc":{"state":"KNOWN","value":"2026-10-13T12:00:00Z","reason":""},"inspectionStage":"CONTENT_INSPECTED","publishedIdentityEvidence":{"state":"PUBLISHED","kind":"INF","pnpIds":[{"kind":"HARDWARE","value":"PCI\\VEN_1234&DEV_5678"}],"classGuid":"{4D36E972-E325-11CE-BFC1-08002BE10318}","infIdentity":"driver/sample.inf","modelSection":"Models.NTamd64","evidenceUrl":"https://vendor.example/package.zip","evidenceSha256":")" + payloadHash + R"(","reason":""},"acquisitionDescriptor":{"schema":"driver-index-acquisition-v1","state":"KNOWN","reason":"","payloadUrl":"https://vendor.example/package.zip","fileName":"package.zip","format":"ZIP","expectedContentType":"application/zip","maximumBytes":1024,"route":[{"url":"https://vendor.example/package.zip","kind":"OFFICIAL_PAYLOAD_LINK","evidenceUrl":"https://vendor.example/support","evidenceSha256":")" + evidenceHash + R"("}],"terms":{"state":"CONFIRMED_NO_CONSENT","reason":"","evidenceUrl":"https://vendor.example/support","evidenceSha256":")" + evidenceHash + R"(","revisionKind":"NONE","revision":"","textDocument":null},"prerequisites":{"state":"KNOWN","reason":"","items":[]},"publisher":{"state":"KNOWN","value":"Artificial Package Publisher","reason":""},"attestation":{"kind":"COLLECTOR_VERIFIED_OFFICIAL_ROUTE","policyRevision":1,"checkedAtUtc":"2026-10-13T12:00:00Z","validUntilUtc":"2026-10-14T12:00:00Z","authorityMethod":"OFFICIAL_SITE_CONTROL_AND_LINK","authorityEvidenceUrl":"https://vendor.example/support","authorityEvidenceSha256":")" +
-				evidenceHash + R"("}}})" ;	// 自己申告を実Driver検査へ換算しません。
+	const std::string
+		record =
+			R"({"schema":"driver-index-record-v2","sourceId":"artificial-source","recordId":"artificial-acquisition","product":"Artificial acquisition purpose","targetOs":{"state":"KNOWN","value":"WINDOWS_11","reason":""},"architecture":{"state":"KNOWN","value":"X64","reason":""},"driverKind":{"state":"KNOWN","value":"NORMAL_DRIVER","reason":""},"version":{"state":"KNOWN","value":"1.2.3.4","reason":""},"publishedDate":{"state":"UNKNOWN","value":"","reason":"artificial date absent"},"acquisition":{"state":"KNOWN","value":"STANDARD_INF_ARCHIVE","reason":""},"packageEvidence":{"publishedHash":{"state":"UNKNOWN","sha256":"","evidenceUrl":"","evidenceSha256":"","reason":"artificial published hash absent"},"calculatedHash":{"state":"KNOWN","sha256":")" +
+			payloadHash +
+			R"(","evidenceUrl":"https://vendor.example/package.zip","evidenceSha256":")" + payloadHash + R"(","reason":""},"size":{"state":"KNOWN","valueBytes":22,"reason":""}},"lastSuccessfulObservationUtc":{"state":"KNOWN","value":"2026-10-13T12:00:00Z","reason":""},"inspectionStage":"CONTENT_INSPECTED","publishedIdentityEvidence":{"state":"PUBLISHED","kind":"INF","pnpIds":[{"kind":"HARDWARE","value":"PCI\\VEN_1234&DEV_5678"}],"classGuid":"{4D36E972-E325-11CE-BFC1-08002BE10318}","nestedArchiveIdentity":"","infIdentity":"driver/sample.inf","modelSection":"Models.NTamd64","evidenceUrl":"https://vendor.example/package.zip","evidenceSha256":")" + payloadHash + R"(","reason":""},"acquisitionDescriptor":{"schema":"driver-index-acquisition-v1","state":"KNOWN","reason":"","payloadUrl":"https://vendor.example/package.zip","fileName":"package.zip","format":"ZIP","expectedContentType":"application/zip","maximumBytes":1024,"route":[{"url":"https://vendor.example/package.zip","kind":"OFFICIAL_PAYLOAD_LINK","evidenceUrl":"https://vendor.example/support","evidenceSha256":")" + evidenceHash + R"("}],"terms":{"state":"CONFIRMED_NO_CONSENT","reason":"","evidenceUrl":"https://vendor.example/support","evidenceSha256":")" + evidenceHash + R"(","revisionKind":"NONE","revision":"","textDocument":null},"prerequisites":{"state":"KNOWN","reason":"","items":[]},"publisher":{"state":"KNOWN","value":"Artificial Package Publisher","reason":""},"attestation":{"kind":"COLLECTOR_VERIFIED_OFFICIAL_ROUTE","policyRevision":1,"checkedAtUtc":"2026-10-13T12:00:00Z","validUntilUtc":"2026-10-14T12:00:00Z","authorityMethod":"OFFICIAL_SITE_CONTROL_AND_LINK","authorityEvidenceUrl":"https://vendor.example/support","authorityEvidenceSha256":")" +
+			evidenceHash + R"("}}})" ;	// 自己申告を実Driver検査へ換算しません。
 	const std::string source =
 		R"({"sourceId":"artificial-source","officialOrigin":"https://vendor.example/","distributionPage":"https://vendor.example/support","officialEvidence":{"state":"PUBLISHED","kind":"OFFICIAL_PAGE","evidenceUrl":"https://vendor.example/support","evidenceSha256":")" +
 		evidenceHash + R"(","reason":""}})" ;	// 架空sourceだけです。
@@ -1121,6 +1123,108 @@ void runDistributionAcquisitionHistoryFake()
 		true) ;
 }
 
+/** @brief RAM署名と原assetだけで世代下限専用の固定20条件を検査します。
+ * @note 現在recordや取得receiptを発行せず、永続鍵/通信/保護storeを扱いません。
+ */
+void runDistributionHistoryFloorFake()
+{
+	using namespace drivercrate ;
+	EphemeralDistributionKey key ;	// この関数だけが所有する非永続RSAです。
+	require( BCryptOpenAlgorithmProvider( &key.algorithm, BCRYPT_RSA_ALGORITHM, nullptr, 0U) >= 0) ;
+	require( BCryptGenerateKeyPair( key.algorithm, &key.key, 3072U, 0U) >= 0) ;
+	require( BCryptFinalizeKeyPair( key.key, 0U) >= 0) ;
+	std::vector<std::uint8_t> publicBlob( 411U) ;	// 公開成分だけです。
+	ULONG					  publicSize{} ;		// CNGが返す実公開長です。
+	require( BCryptExportKey( key.key, nullptr, BCRYPT_RSAPUBLIC_BLOB, publicBlob.data(),
+							static_cast<ULONG>( publicBlob.size()), &publicSize, 0U) >= 0 &&
+			publicSize == publicBlob.size()) ;
+	const auto fingerprint = hash( {reinterpret_cast<const char *>( publicBlob.data()),
+								   // 公開blobだけの完全pinです。
+								   publicBlob.size()}) ;
+	const auto keyId	   = "distribution-index-" + fingerprint.substr( 0U, 32U) ;	// 固定用途です。
+	const auto publication = NOW - std::chrono::hours{1} ;							// 署名された原発行秒です。
+	const auto later	   = NOW + std::chrono::days{3} ;							// 失効した現在です。
+	const auto packed	   = gzip( acquisitionIndexBytes(
+		 "2026-10-13T12:00:00Z", "2026-10-14T12:00:00Z", "\"nestedArchiveIdentity\":\"\",",
+		 "")) ;														// 実旧形式同様に現reader必須fieldを欠きます。
+	const auto raw		   = acquisitionManifest( keyId, packed) ;	// 原asset hash/sizeへ署名します。
+	const auto envelope	   = key.envelope( raw, keyId) ;			// 原manifest byteのRAM署名です。
+	// 数値結果だけの成功/拒否を全caseで同じ条件で比較します。
+	const auto check = []( const DistributionIndexHistoryFloorResult &value, const bool accepted,
+						  const char *name) {
+		expect( accepted ? value.error == 0 && value.generation == 1U && value.assetGeneration == 1U
+						: value.error != 0 && value.generation == 0U && value.assetGeneration == 0U,
+			   name) ;
+	} ;
+	// 原manifestと同じ署名発行秒だけで共通署名/assetを認証します。
+	const auto floor = [&]( const std::string &body, const std::span<const std::byte> bytes) {
+		return verifyDistributionIndexHistoryFloor( key.envelope( body, keyId), bytes, publicBlob,
+												   fingerprint, publication, later) ;
+	} ;
+	check( floor( raw, packed), true, "F01 old record floor only") ;
+	expect( verifyDistributionAcquisitionIndexHistory( envelope, packed, publicBlob, fingerprint,
+													 publication, later)
+				   .error != 0,
+		   "F02 old record strict history rejected") ;
+	expect( verifyDistributionAcquisitionIndex( envelope, packed, publicBlob, fingerprint, later)
+				   .error != 0,
+		   "F03 expired current rejected") ;
+	check( verifyDistributionIndexHistoryFloor( envelope, packed, publicBlob, std::string( 64U, '0'),
+											  publication, later),
+		  false, "F04 wrong public pin") ;
+	check( verifyDistributionIndexHistoryFloor( envelope, packed,
+											  std::span<const std::uint8_t>{publicBlob}.first( 410U),
+											  fingerprint, publication, later),
+		  false, "F05 short public blob") ;
+	check(
+		floor( replaceFixtureOnce( raw, "EnterOgawa/drivercrate", "EnterOgawa/anotherrepo"), packed),
+		false, "F06 other repository") ;
+	check( verifyDistributionIndexHistoryFloor( key.envelope( raw, keyId, 20U), packed, publicBlob,
+											  fingerprint, publication, later),
+		  false, "F07 wrong signature") ;
+	auto changed = packed ;	// 同sizeの実byte改変です。
+	changed.front() ^= std::byte{1U} ;
+	check( verifyDistributionIndexHistoryFloor( envelope, changed, publicBlob, fingerprint,
+											  publication, later),
+		  false, "F08 asset hash mismatch") ;
+	check( verifyDistributionIndexHistoryFloor(
+			  envelope, std::span<const std::byte>{packed}.first( packed.size() - 1U), publicBlob,
+			  fingerprint, publication, later),
+		  false, "F09 asset size mismatch") ;
+	const std::vector<std::byte> invalid{std::byte{1U},
+										 std::byte{2U}} ;	// 正しいhashでもGZipでない原byteです。
+	check( floor( acquisitionManifest( keyId, invalid), invalid), false, "F10 invalid gzip") ;
+	check( verifyDistributionIndexHistoryFloor( envelope, packed, publicBlob, fingerprint,
+											  publication, publication - std::chrono::seconds{1}),
+		  false, "F11 future publication") ;
+	check( verifyDistributionIndexHistoryFloor( envelope, packed, publicBlob, fingerprint,
+											  std::nullopt, later),
+		  false, "F12 missing publication") ;
+	check( verifyDistributionIndexHistoryFloor( envelope, packed, publicBlob, fingerprint,
+											  publication, std::nullopt),
+		  false, "F13 missing current clock") ;
+	check( verifyDistributionIndexHistoryFloor( envelope, packed, publicBlob, fingerprint,
+											  publication + std::chrono::seconds{1}, later),
+		  false, "F14 wrong signed publication") ;
+	check( floor( replaceFixtureOnce( raw, "\"generation\":1", "\"generation\":0"), packed), false,
+		  "F15 zero generation") ;
+	check( floor( replaceFixtureOnce( raw, "\"generation\":1", "\"generation\":9007199254740992"),
+				packed),
+		  false, "F16 generation overflow") ;
+	check( floor( replaceFixtureOnce( raw, "\"assetGeneration\":1", "\"assetGeneration\":2"), packed),
+		  false, "F17 future asset generation") ;
+	check( verifyDistributionIndexHistoryFloor( std::string( INDEX_ENVELOPE_MAX_BYTES + 1U, ' '),
+											  packed, publicBlob, fingerprint, publication, later),
+		  false, "F18 envelope cap") ;
+	const std::vector<std::byte> overCap( static_cast<std::size_t>( INDEX_ASSET_MAX_BYTES) +
+										 1U) ;	// RAM上限負例です。
+	check( verifyDistributionIndexHistoryFloor( envelope, overCap, publicBlob, fingerprint,
+											  publication, later),
+		  false, "F19 asset cap") ;
+	const auto bomb = gzip( std::string( 100000U, ' ')) ;	// 原hashが正しくても倍率上限へ達します。
+	check( floor( acquisitionManifest( keyId, bomb), bomb), false, "F20 expansion ratio") ;
+}
+
 /** @brief 三公開検証CLI用の人工bundleを実UTCとRAM鍵だけから有限生成します。
  * @param[in] root 未存在の一意directoryです。親は呼出し元が準備します。
  * @param[in] includeHistory 明示history fixture modeだけ追加六fileを生成します。
@@ -1444,6 +1548,20 @@ int main( const int count, char *args[])
 	}
 
 	// 新履歴試験は固定32caseのRAM-only枝だけへ入り、既存鍵modeを呼びません。
+	if( count == 2 && std::string_view{args[1]} == "--distribution-history-floor-fake") {
+		try {
+			runDistributionHistoryFloorFake() ;
+		} catch( ...) {
+			expect( false, "floor fixture prerequisite") ;
+		}
+
+		std::printf(
+			"DISTRIBUTION_HISTORY_FLOOR_FAKE fixedCases=20 assertions=%u failures=%u ephemeralKeys=1 protectedKeyOperations=0 network=0\n",
+			assertions, failures) ;
+		return failures == 0U && assertions == 20U ? 0 : 1 ;
+	}
+
+	// 全record用途検査を行う従来historyの32条件も独立に維持します。
 	if( count == 2 && std::string_view{args[1]} == "--distribution-acquisition-history-fake") {
 		try {
 			runDistributionAcquisitionHistoryFake() ;

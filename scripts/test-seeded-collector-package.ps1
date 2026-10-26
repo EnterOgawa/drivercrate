@@ -7,10 +7,11 @@ Author: Shunji Ogawa
 Copyright (c) 2026 EnterSystem CO.,LTD.
 SPDX-License-Identifier: Apache-2.0
 Finite fixtures default to work/tmp; explicit FixtureRoot uses a new child of a validated fixed-drive root.
-Fixtures are retained. No network, tasks, driver install or recursive deletion.
+Fixtures are retained. Current v7 is check-only by default; install/uninstall requires explicit integration.
+Obsolete package schemas are rejected. No network, driver install or recursive deletion.
 #>
 param([Parameter(Mandatory)][string] $Archive, [string] $FixtureRoot,
-    [switch] $SkipCollectorValidation)
+    [switch] $SkipCollectorValidation, [switch] $AllowTaskRegistration)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $utf8 = [Text.UTF8Encoding]::new($false)
@@ -35,12 +36,12 @@ try {
     Check ($manifestEntry.Count -eq 1 -and $manifestEntry[0].Length -le 262144)
     $reader = [IO.StreamReader]::new($manifestEntry[0].Open(), [Text.UTF8Encoding]::new($false, $true))
     try { $manifest = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
-    $protectedWorkspace = $manifest.schema -cin @('dc-collector-package-v4', 'dc-collector-package-v5')
-    $registryRuntime = $protectedWorkspace -or $manifest.schema -ceq 'dc-collector-package-v3'
-    $expected = @((Get-CollectorPayloadFiles -Seeded -RegistryRuntime:$registryRuntime -ProtectedWorkspace:$protectedWorkspace)) + @('package-manifest.json')
+    Check ($manifest.schema -ceq 'dc-collector-package-v7' -and $manifest.mode -ceq 'EXPLICIT_DISTRIBUTION_DATA_DAILY')
+    $includesReference = @($manifest.files | Where-Object { $_.path -ceq 'seed/distribution-data/reference.json' }).Count -eq 1
+    $expected = @(Get-CollectorPayloadFiles -IncludeReference:$includesReference) + @('package-manifest.json')
     $directories = @('', 'bin/', 'config/', 'docs/', 'docs/adr/', 'seed/',
         'seed/collector-data/', 'seed/collector-data/index/')
-    if ($registryRuntime) { $directories += @('runtime/', 'scripts/') }
+    $directories += @('runtime/', 'scripts/', 'seed/distribution-data/', 'seed/distribution-data/references/')
     Check ($entries.Count -le $expected.Count + $directories.Count)
     Check (@($entries | Where-Object { -not $_.FullName.EndsWith('/') }).Count -eq $expected.Count)
     $found = @()
@@ -66,22 +67,25 @@ $expanded = Join-Path $temporary 'expanded'
 Expand-Archive -LiteralPath $Archive -DestinationPath $expanded
 $package = Join-Path $expanded $name
 $bundle = Read-CollectorBundle $package
-$payloadCount = 18
-# registry/runtime modeのpayload数期待を64へ切り替え、seedのみ18件と区別する。
-if ($registryRuntime) { $payloadCount = 64 }
-# protected workspaceではpayload数期待を69へ切り替え、保護入口fileの欠落を見逃さない。
-if ($protectedWorkspace) { $payloadCount = 69 }
-Check ($bundle.Seeded -and $bundle.RegistryRuntime -eq $registryRuntime -and $bundle.Manifest.files.Count -eq $payloadCount)
-# The standalone guide may only link to files that are inside this package.
+$payloadCount = @(Get-CollectorPayloadFiles -IncludeReference:$includesReference).Count
+Check ($bundle.Manifest.files.Count -eq $payloadCount)
+# 共通guideの固定相対link又は公式canonical linkだけを受理し、対応する権利fileの同梱を必須にする。
 $readme = [IO.File]::ReadAllText((Join-Path $package 'README-collector.md'))
 $guideLinks = @([regex]::Matches($readme, '\[[^\]]+\]\(([^)]+)\)') |
     ForEach-Object { $_.Groups[1].Value })
 Check ($guideLinks.Count -eq 2)
 foreach ($link in $guideLinks) {
-    Check ($link -cin @('LICENSE', 'THIRD_PARTY_NOTICES.md') -and
-        (Test-Path -LiteralPath (Join-Path $package $link) -PathType Leaf))
+    $localFile = switch -CaseSensitive -Exact ($link) {
+        'LICENSE' { 'LICENSE' }
+        'THIRD_PARTY_NOTICES.md' { 'THIRD_PARTY_NOTICES.md' }
+        'https://github.com/EnterOgawa/drivercrate/blob/main/LICENSE' { 'LICENSE' }
+        'https://github.com/EnterOgawa/drivercrate/blob/main/THIRD_PARTY_NOTICES.md' { 'THIRD_PARTY_NOTICES.md' }
+        default { '' }
+    }
+    Check ($localFile -cin @('LICENSE', 'THIRD_PARTY_NOTICES.md') -and
+        (Test-Path -LiteralPath (Join-Path $package $localFile) -PathType Leaf))
 }
-Check ($readme.Contains('Seedから日次通信を開始する機能') -and $readme.Contains('未完成'))
+Check ($readme.Contains('--enable-distribution-daily') -and $readme.Contains('copy/import/validate') -and $readme.Contains('未確認'))
 $setup = Join-Path $package 'DriverCrateCollectorSetup.exe'
 # 固定setupを非shellで一回起動し、180秒の終了待機に失敗するとKillを試みて例外へ進む。追加の終了待機はしない。
 # stdout/stderrの非同期CopyTo完了後に各64KiB以下を検査するため、保持memoryのhard capではない。
@@ -118,45 +122,17 @@ function Native([string[]] $Arguments, [int] $Expected) {
             ([ordered]@{ argv = @($setup) + $Arguments; expectedExit = $Expected; exitCode = $code } | ConvertTo-Json), $utf8)
         $output = [Text.Encoding]::UTF8.GetString($stdout.ToArray())
         Check ($code -eq $Expected)
-        Check ($output -match 'network=0 tasks=0')
+        Check ($output -match 'network=0 (tasks=0|task_cleanup=not_confirmed)')
         ++$script:NativeCalls
     } finally { $process.Dispose(); $stdout.Dispose(); $stderr.Dispose() }
 }
 $destination = Join-Path $temporary '収集 host & data'
 Native @('--check-package', $package) 0
-Native @('--install', $destination, '--yes') 0
-Native @('--check-installed', $destination) 0
-$installed = Read-CollectorBundle $destination -Installed
-Check ($installed.ManifestHash -ceq $bundle.ManifestHash)
-# 全seed fileのhashを元packageと配置先で一致確認し、新規native配置で研究seedが変わらないことを検査する。
-foreach ($relative in @(Get-CollectorPayloadFiles -Seeded -RegistryRuntime:$registryRuntime | Where-Object { $_.StartsWith('seed/') })) {
-    Check ((Get-CollectorSetupHash (Join-Path $package $relative)) -ceq
-        (Get-CollectorSetupHash (Join-Path $destination $relative)))
+# 現行通常installはTaskを作るので、既定は実byte検査だけを行う。
+if ($AllowTaskRegistration) {
+    & (Join-Path $PSScriptRoot 'test-collector-user-task-integration.ps1') -PackageDirectory $package `
+        -FixtureRoot (Join-Path $temporary 'user-task-integration') -AllowTaskRegistration
 }
-# v3 placement does not assert daily readiness or execute the bundled runtime/collector.
-$collectorValidation = 'NOT_RUN'
-if (-not $registryRuntime -and -not $SkipCollectorValidation) {
-    Push-Location -LiteralPath $destination
-    try {
-    $validationArguments = @('--validate', (Join-Path $destination 'config\targets.json'),
-        (Join-Path $destination 'work\state\collector'))
-    $output = @(& (Join-Path $destination 'bin\DriverCrateCollector.exe') @validationArguments 2>&1)
-    Check ($LASTEXITCODE -eq 0)
-    Check (($output -join "`n") -match 'acquired=0 installed=0')
-    $collectorValidation = 'PASS'
-    }
-    finally { Pop-Location }
-}
-Native @('--uninstall', $destination, '--yes') 0
-Check (-not (Test-Path -LiteralPath (Join-Path $destination 'bin\DriverCrateCollector.exe')))
-Check (Test-Path -LiteralPath (Join-Path $destination 'config\targets.json'))
-Check (Test-Path -LiteralPath (Join-Path $destination 'DriverCrateCollectorSetup.exe'))
-# uninstall後も全seed fileのhashが元packageと一致することを検査し、seed保持を集計だけで推測しない。
-foreach ($relative in @(Get-CollectorPayloadFiles -Seeded -RegistryRuntime:$registryRuntime | Where-Object { $_.StartsWith('seed/') })) {
-    Check ((Get-CollectorSetupHash (Join-Path $package $relative)) -ceq
-        (Get-CollectorSetupHash (Join-Path $destination $relative)))
-}
-[pscustomobject]@{ result = 'OK'; checks = $script:Checks; payloadFiles = $payloadCount; archiveFiles = $payloadCount + 1
-    networkRequests = 0; tasksRegistered = 0; driverInstallations = 0; seedRetained = $true
-    collectorValidation = $collectorValidation; runtimeExecuted = $false; fixture = $temporary } |
-    ConvertTo-Json -Compress
+[pscustomobject]@{ result = 'PASS_CHECK_ONLY'; checks = $script:Checks; payloadFiles = $payloadCount
+    archiveFiles = $payloadCount + 1; networkRequests = 0; tasksRegistered = 0
+    install = 'NOT_RUN'; uninstall = 'NOT_RUN'; fixture = $temporary } | ConvertTo-Json -Compress

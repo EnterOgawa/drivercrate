@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native_api_tests.cpp
  * @brief 架空OS・署名・Storeと実fileでnative障害を再現する専用試験。
- * @version 01.04.00
+ * @version 01.04.02
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,8 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/07  同節Services・明示Needs名と未採用payload節の分離を回帰。
  * Ver.01.03.00 Shunji Ogawa  2026/10/13  サービス集合の正常・途中失敗契約八条件を接続。
  * Ver.01.04.00 Shunji Ogawa  2026/10/15  NeedsのHKR全行と型・設置文脈の正負回帰を追加。
+ * Ver.01.04.01 Shunji Ogawa  2026/10/24 実openのfile／path不在と未解決保持を別条件で確認。
+ * Ver.01.04.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note この専用targetではtrust／OS APIを全て架空化する。実署名・実device・導入の測定ではない。
@@ -689,14 +691,18 @@ void matrix( TestContext &context)
 			}
 
 			DRIVERCRATE_EXPECT( context, fixture.memberBound) ;
-			DRIVERCRATE_EXPECT( context, result.findings[1].signatureError ==
-											(signatureFailed ? E_ACCESSDENIED : 0)) ;
-			DRIVERCRATE_EXPECT( context, result.findings[1].provenanceError ==
-											(scenario.fault == Fault::STORE_START
-												 ? HRESULT_FROM_WIN32( ERROR_NOT_FOUND)
-												 : (scenario.fault == Fault::STORE_BYTES
-														? HRESULT_FROM_WIN32( ERROR_FILE_INVALID)
-														: 0))) ;
+			DRIVERCRATE_EXPECT(
+				context,
+				result.findings[1].signatureError ==
+					(signatureFailed ? static_cast<NativeError>( E_ACCESSDENIED) : NativeError{})) ;
+			DRIVERCRATE_EXPECT(
+				context,
+				result.findings[1].provenanceError ==
+					(scenario.fault == Fault::STORE_START
+						 ? static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_FOUND))
+						 : (scenario.fault == Fault::STORE_BYTES
+								? static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_FILE_INVALID))
+								: 0))) ;
 			DRIVERCRATE_EXPECT( context, result.dependency.context.build == fixture.build &&
 											result.dependency.context.observationId == 100U &&
 											result.dependency.context.machine == 0x8664U) ;
@@ -1070,6 +1076,48 @@ void payloadObservation( TestContext &context)
 		}
 	}
 }
+/** @brief 実openのfile／path不在だけを未解決候補へ保持する。
+ * @param[in,out] context 非通信の二条件を集計する。
+ * @note 既存matrixの有効handle後不在・権限・reparse拒否を代用しない。
+ */
+void referenceOpenAbsence( TestContext &context)
+{
+	constexpr std::array PARENTS{false, true} ;	// 親なしpath不在と親ありfile不在。
+	// 独立workspaceの親有無を先に観測し、実openの不在だけを与える。
+	for( const bool parentsExist : PARENTS) {
+		Fixture fixture( Fault::NONE) ;	// 既存の架空APIと実fileの所有範囲。
+		// 親がある場合だけ両system探索先に無関係なfileを作る。
+		if( parentsExist) {
+			(void)fixture.file( L"empty-windows\\INF\\placeholder.txt", "synthetic parent") ;
+			(void)fixture.file( L"empty-windows\\System32\\placeholder.txt", "synthetic parent") ;
+		}
+
+		const std::wstring missing =
+			// 明示不在位置。
+			fixture.workspace.path( L"empty-windows\\INF\\peer.inf") ;
+		const DWORD attributes = GetFileAttributesW( missing.c_str()) ;	// 同じ親条件の実観測。
+		const DWORD observed   = GetLastError() ;						// 次のAPI前に原診断を保持する。
+		DRIVERCRATE_EXPECT( context, attributes == INVALID_FILE_ATTRIBUTES) ;
+		DRIVERCRATE_EXPECT( context,
+						   observed == static_cast<DWORD>( parentsExist ? ERROR_FILE_NOT_FOUND
+																	   : ERROR_PATH_NOT_FOUND)) ;
+		fixture.api.windowsDirectory = [&fixture]( std::wstring &path) -> NativeError {
+			path = fixture.workspace.path( L"empty-windows") ;
+			return 0 ;
+		} ; // この同期runだけの未存在資料起点。
+		InfDependencyNativeResult result ;	// 不在は成功した参照にしない。
+		DRIVERCRATE_EXPECT( context, fixture.run( result) == 0) ;
+		DRIVERCRATE_EXPECT( context, result.dependency.documents.size() == 1U &&
+										!result.dependency.plan.referencesResolved &&
+										!result.dependency.plan.rootEvidenceVerified) ;
+		DRIVERCRATE_EXPECT(
+			context, std::ranges::any_of( result.dependency.edges, []( const auto &edge) {
+				return edge.target == L"peer.inf" && edge.state == InfDependencyState::UNRESOLVED &&
+					   edge.reason == InfDependencyReason::MISSING && edge.targetIdentity == 0U &&
+					   edge.candidateCount == 0U ;
+			})) ; // 元Include欠落を保持し、版や署名成功で補完しない。
+	}
+}
 /** @brief NeedsのHKR設定を正負の実INFと有限予算で検査します。
  * @param[in,out] context 同一processの集計です。
  */
@@ -1190,6 +1238,7 @@ int main()
 		drivercrate::test::referenceSelection( context) ;
 		drivercrate::test::junction( context) ;
 		drivercrate::test::payloadObservation( context) ;
+		drivercrate::test::referenceOpenAbsence( context) ;
 		drivercrate::test::needsRegistry( context) ;
 		drivercrate::test::runOfficialServiceOutputContractTests( context) ;
 	} catch( ...) {
@@ -1198,7 +1247,7 @@ int main()
 	}
 
 	std::cout
-		<< "API scenarios: 46, selection cases: 6, junction cases: 1, payload cases: 3, service cases: 8, registry cases: 23, context cases: 5, Assertions: "
+		<< "API scenarios: 46, selection cases: 6, junction cases: 1, payload cases: 3, open absence cases: 2, service cases: 8, registry cases: 23, context cases: 5, Assertions: "
 		<< context.assertionCount() << ", failures: " << context.failureCount() << '\n' ;
 	return context.failureCount() == 0 ? 0 : 1 ;
 }

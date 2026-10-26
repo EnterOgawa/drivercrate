@@ -2,7 +2,7 @@
 /**
  * @file provider_preparation_worker_tests.cpp
  * @brief 取得準備workerの内部試験。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -37,6 +37,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  通常scanの操作結合と協調取消しを追加。
  * Ver.01.02.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/10/24  通常計測の版期待を既存製品version正本へ結合。
  * </pre>
  *
  * @note COM workerを使用しますが、通信・実driver導入・実復元ポイントは使用しません。
@@ -55,6 +56,7 @@
 #include "platform/provider_worker_index_internal.h"
 #include "platform/windows_product_type.h"
 #include "test_framework.h"
+#include "drivercrate_version.h"
 #include <stdexcept>
 
 #include <Windows.h>
@@ -986,7 +988,8 @@ void testWorkerMeasurementPublicationBoundary( TestContext &context)
 			DRIVERCRATE_EXPECT( context, measurementContext.operationId == operationId) ;
 			DRIVERCRATE_EXPECT( context, measurementContext.scanSessionId ==
 											scanned->scanResult.scanSessionId) ;
-			DRIVERCRATE_EXPECT( context, measurementContext.applicationVersion == L"0.1.0") ;
+			DRIVERCRATE_EXPECT( context, measurementContext.applicationVersion ==
+											DRIVERCRATE_VERSION_WSTRING) ;
 			DRIVERCRATE_EXPECT( context,
 							   isPublishedScanMeasurementValid( operationId, scanned->scanResult)) ;
 		}

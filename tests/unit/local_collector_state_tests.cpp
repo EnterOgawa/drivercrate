@@ -2,7 +2,7 @@
 /**
  * @file local_collector_state_tests.cpp
  * @brief 非通信の実filesystem fixtureで収集台帳の権限境界を検証します。
- * @version 01.00.05
+ * @version 01.00.06
  * @date 2026/09/25
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.00.03   Shunji Ogawa  2026/10/18 長いlegacy子の欠損・保存・再開と保護境界を検証。
  * Ver.01.00.04   Shunji Ogawa  2026/10/18 既知fixtureの回収I/Oを長path対応表記へ揃える。
  * Ver.01.00.05   Shunji Ogawa  2026/10/18 関数localのmount point wire型に所有権と配置契約を追記。
+ * Ver.01.00.06 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 自身で新規作成した架空台帳だけを変更します。networkと実driverを使いません。
@@ -214,6 +215,12 @@ void restrictedOpenChecks( TestContext &context, const std::filesystem::path &fi
 	const DWORD	 writeError = GetLastError() ;
 	// Assertionや出力より前に必ず元のthread identityへ戻す。
 	const BOOL	 reverted = RevertToSelf() ;
+	const bool	 readRejected =
+		// 解放前に確定した元open拒否です。
+		readHandle == INVALID_HANDLE_VALUE ;
+	const bool writeRejected =
+		// 解放後のhandle値を再利用しません。
+		writeHandle == INVALID_HANDLE_VALUE ;
 	// 万一openが成功してもresourceを回収する。
 	if( readHandle != INVALID_HANDLE_VALUE) {
 		CloseHandle( readHandle) ;
@@ -225,10 +232,8 @@ void restrictedOpenChecks( TestContext &context, const std::filesystem::path &fi
 	}
 
 	require( reverted != FALSE) ;
-	DRIVERCRATE_EXPECT( context,
-					   readHandle == INVALID_HANDLE_VALUE && readError == ERROR_ACCESS_DENIED) ;
-	DRIVERCRATE_EXPECT( context,
-					   writeHandle == INVALID_HANDLE_VALUE && writeError == ERROR_ACCESS_DENIED) ;
+	DRIVERCRATE_EXPECT( context, readRejected && readError == ERROR_ACCESS_DENIED) ;
+	DRIVERCRATE_EXPECT( context, writeRejected && writeError == ERROR_ACCESS_DENIED) ;
 }
 
 /** @brief 正常read/write、制限token、再開、同時writer、staging拒否を確認します。
@@ -515,12 +520,25 @@ void descriptorChecks( TestContext &context, const std::filesystem::path &file)
 	const auto extra = descriptor( (original + L"(A;;FR;;;WD)").c_str()) ;
 	DRIVERCRATE_EXPECT( context, !isLocalCollectorDescriptorAllowed( extra.get(), owner, false)) ;
 	// 形式上有効でもnull DACLは許可しない。
-	SECURITY_DESCRIPTOR absent{} ;
-	require( InitializeSecurityDescriptor( &absent, SECURITY_DESCRIPTOR_REVISION) != FALSE) ;
-	require( SetSecurityDescriptorOwner( &absent, owner, FALSE) != FALSE) ;
-	require( SetSecurityDescriptorDacl( &absent, TRUE, nullptr, FALSE) != FALSE) ;
-	require( SetSecurityDescriptorControl( &absent, SE_DACL_PROTECTED, SE_DACL_PROTECTED) != FALSE) ;
-	DRIVERCRATE_EXPECT( context, !isLocalCollectorDescriptorAllowed( &absent, owner, false)) ;
+	const auto absent = descriptor( (original.substr( 0U, daclOffset) + L"D:PNO_ACCESS_CONTROL")
+									   .c_str()) ;			// 実fileへ適用しないRAM内のnull DACL。
+	PACL	   absentAcl{} ;								// NULLを空ACLと区別するOSの借用返却値。
+	BOOL	   absentPresent{} ;							// DACLなしとは異なるpresent=trueを必須とする。
+	BOOL	   absentDefaulted{} ;							// OSが返す元defaulted属性。
+	SECURITY_DESCRIPTOR_CONTROL absentControl{} ;			// 保護bitを元負例と一致させる。
+	DWORD						absentRevision{} ;			// Control照会が返す元revision。
+	PSID						absentOwner{} ;				// 元fileのownerと一致するRAM内の借用SID。
+	BOOL						absentOwnerDefaulted{} ;	// Owner照会の元属性。
+	require( IsValidSecurityDescriptor( absent.get()) != FALSE) ;
+	require( GetSecurityDescriptorDacl( absent.get(), &absentPresent, &absentAcl, &absentDefaulted) !=
+				FALSE &&
+			absentPresent != FALSE && absentAcl == nullptr) ;
+	require( GetSecurityDescriptorControl( absent.get(), &absentControl, &absentRevision) != FALSE &&
+			(absentControl & SE_DACL_PROTECTED) != 0U) ;
+	require( GetSecurityDescriptorOwner( absent.get(), &absentOwner, &absentOwnerDefaulted) !=
+				FALSE &&
+			absentOwner != nullptr && EqualSid( absentOwner, owner) != FALSE) ;
+	DRIVERCRATE_EXPECT( context, !isLocalCollectorDescriptorAllowed( absent.get(), owner, false)) ;
 	// 未知ACEは元fileへ適用せず、メモリ上だけで変更する。
 	PACL acl{} ;
 	// DACLの存在flag。

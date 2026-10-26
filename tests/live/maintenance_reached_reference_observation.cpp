@@ -2,7 +2,7 @@
 /**
  * @file maintenance_reached_reference_observation.cpp
  * @brief 最終保守参照の有限射影と同run sidecarの新規保存。
- * @version 01.01.01
+ * @version 01.01.02
  * @date 2026/10/08
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/08  最終closure借用・元診断と有限新規出力を実装。
  * Ver.01.01.00 Shunji Ogawa  2026/10/08  最終directive・作用gapの独立細分類と固定54保存を追加。
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.01.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note stack collectorだけが同期借用します。名前は射影scopeの終了時に失われます。
@@ -30,6 +31,7 @@
  */
 //------------------------------------------------------------------------------
 
+#include <vector>
 #include "maintenance_reached_reference_observation.h"
 #include "platform/official_file_verifier.h"
 
@@ -925,9 +927,9 @@ using ReachedHandle = std::unique_ptr<void, ReachedHandleCloser> ;
  */
 bool fixedHandlePath( const HANDLE handle, const std::wstring &path)
 {
-	FILE_ATTRIBUTE_TAG_INFO		attributes{} ;	// handle自身の属性。path再照会を正本にしない。
-	std::array<wchar_t, 32768U> finalPath{} ;	// 原絶対path上限内だけ。
-	const DWORD					size =
+	FILE_ATTRIBUTE_TAG_INFO attributes{} ;			// handle自身の属性。path再照会を正本にしない。
+	std::vector<wchar_t>	finalPath( 32768U) ;	// 原絶対path上限内だけ。
+	const DWORD				size =
 		GetFinalPathNameByHandleW( handle, finalPath.data(), static_cast<DWORD>( finalPath.size()),
 								  FILE_NAME_NORMALIZED | VOLUME_NAME_DOS) ;	// 実handle最終path。
 	return GetFileInformationByHandleEx( handle, FileAttributeTagInfo, &attributes,

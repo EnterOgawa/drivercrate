@@ -2,7 +2,7 @@
 /**
  * @file local_index_signing_main.cpp
  * @brief 開発用の明示ローカル鍵操作と原manifest署名のnative入口です。
- * @version 01.04.00
+ * @version 01.08.00
  * @date 2026/10/13
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,10 @@
  * Ver.01.03.01 Shunji Ogawa  2026/10/16  配布取得用途の公開検証と固定鍵署名modeを追加。
  * Ver.01.03.02 Shunji Ogawa  2026/10/17  公開byteだけの全検証modeで未照会の鍵属性表示を除去。
  * Ver.01.04.00 Shunji Ogawa  2026/10/17  署名発行秒に限定した配布取得履歴の明示入口を追加。
+ * Ver.01.05.00 Shunji Ogawa  2026/10/23  鍵非照会の未署名候補検査modeを追加。
+ * Ver.01.06.00 Shunji Ogawa  2026/10/24  公開履歴の世代下限だけを認証する明示入口を追加。
+ * Ver.01.07.00 Shunji Ogawa  2026/10/26  非通信release解析へ公開SHA-512の私有保持を追加。
+ * Ver.01.08.00 Shunji Ogawa  2026/10/26 公表exact sizeと実archive SHA-512の検査artifactを追加。
  * </pre>
  *
  * @note 秘密鍵・SID・path・manifest内容を標準出力へ出しません。既存fileを上書きしません。
@@ -34,6 +38,7 @@
 //------------------------------------------------------------------------------
 #include "platform/local_index_signing.h"
 #include "platform/signed_index_store.h"
+#include "platform/unsigned_index_candidate.h"
 #include "platform/official_file_verifier.h"
 #include "platform/official_release_metadata.h"
 #include "platform/common_driver_package.h"
@@ -336,7 +341,8 @@ using OwnedHandle = std::unique_ptr<void, HandleCloser> ;
 	if( !drivercrate::parseOfficialReleaseRecord(
 		   drivercrate::OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11, html, release) ||
 	   release.family != drivercrate::OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11 ||
-	   release.fileName.empty() || release.downloadUrl.empty() || release.publishedSha256.empty() ||
+	   release.fileName.empty() || release.downloadUrl.empty() ||
+	   (release.publishedSha256.empty() && release.publishedSha512.empty()) ||
 	   release.license != drivercrate::OfficialReleaseLicense::ACCEPTANCE_BEFORE_DOWNLOAD ||
 	   release.eulaText.empty() || release.eulaRevision.empty()) {
 		throw Failure{ERROR_INVALID_DATA} ;
@@ -347,7 +353,10 @@ using OwnedHandle = std::unique_ptr<void, HandleCloser> ;
 	using winrt::Windows::Data::Json::JsonObject ;
 	using winrt::Windows::Data::Json::JsonValue ;
 	JsonObject value ;	// 新artifactだけに保存する非inventory証拠。
-	value.Insert( L"schema", JsonValue::CreateStringValue( L"dc-saved-release-analysis-v1")) ;
+	// SHA-512を解釈しない旧readerが追加fieldを無視しないよう別schemaへ結合します。
+	value.Insert( L"schema", JsonValue::CreateStringValue( release.publishedSha512.empty()
+															 ? L"dc-saved-release-analysis-v1"
+															 : L"dc-saved-release-analysis-v2")) ;
 	value.Insert( L"source", JsonValue::CreateStringValue( L"INTEL_ETHERNET_WINDOWS11")) ;
 	value.Insert( L"bodySha256", JsonValue::CreateStringValue( hash)) ;
 	value.Insert( L"observedUtcSeconds", JsonValue::CreateStringValue( winrt::to_hstring( literal))) ;
@@ -361,6 +370,17 @@ using OwnedHandle = std::unique_ptr<void, HandleCloser> ;
 	value.Insert( L"fileName", JsonValue::CreateStringValue( release.fileName)) ;
 	value.Insert( L"packageVersion", JsonValue::CreateStringValue( release.packageVersion)) ;
 	value.Insert( L"publishedSha256", JsonValue::CreateStringValue( release.publishedSha256)) ;
+	// 公表exact値だけを保存し、概算display sizeから値を合成しません。
+	if( release.publishedSizeBytes) {
+		value.Insert( L"publishedSizeBytes", JsonValue::CreateNumberValue(
+												static_cast<double>( *release.publishedSizeBytes))) ;
+	}
+
+	// 未掲載SHA-512を新しい公開値として合成せず、掲載時だけ算法別に保存します。
+	if( !release.publishedSha512.empty()) {
+		value.Insert( L"publishedSha512", JsonValue::CreateStringValue( release.publishedSha512)) ;
+	}
+
 	value.Insert( L"parserRevision", JsonValue::CreateNumberValue( release.parserRevision)) ;
 	value.Insert( L"termsRevision", JsonValue::CreateStringValue( release.eulaRevision)) ;
 	value.Insert( L"termsText", JsonValue::CreateStringValue( release.eulaText)) ;
@@ -616,9 +636,19 @@ void writeNew( const std::filesystem::path &output, const std::span<const std::u
 	using winrt::Windows::Data::Json::JsonArray ;
 	using winrt::Windows::Data::Json::JsonObject ;
 	using winrt::Windows::Data::Json::JsonValue ;
-	JsonObject value ;	// 私有path/実端末情報を持たない新artifactです。
-	value.Insert( L"schema", JsonValue::CreateStringValue( L"dc-inspected-public-identities-v2")) ;
+	JsonObject	 value ;			// 私有path/実端末情報を持たない新artifactです。
+	std::wstring archiveSha512 ;	// 同じ保護copyの実SHA-512です。公開値を代用しません。
+	const auto	 hashError =
+		// 共通有限readerです。
+		drivercrate::computeFileSha512( input.inspectionPath, archiveSha512) ;
+	// 別算法を実copyへ結合できない検査artifactを発行しません。
+	if( hashError != 0) {
+		throw Failure{static_cast<DWORD>( hashError)} ;
+	}
+
+	value.Insert( L"schema", JsonValue::CreateStringValue( L"dc-inspected-public-identities-v3")) ;
 	value.Insert( L"archiveSha256", JsonValue::CreateStringValue( input.sha256)) ;
+	value.Insert( L"archiveSha512", JsonValue::CreateStringValue( archiveSha512)) ;
 	value.Insert( L"archiveBytes",
 				 JsonValue::CreateNumberValue( static_cast<double>( input.byteCount))) ;
 	value.Insert( L"inspectionError", JsonValue::CreateNumberValue( inspected)) ;
@@ -737,6 +767,31 @@ int wmain( const int count, wchar_t *args[])
 		}
 
 		const std::wstring_view mode{args[1]} ;	// 明示operation名です。
+		// 未署名の値検査は鍵storeや既存署名操作へ進まず完結します。
+		if( count == 4 && mode == L"--validate-unsigned-index-candidate") {
+			const auto manifest =
+				// 元manifestだけです。
+				readInput( args[2], drivercrate::INDEX_MANIFEST_MAX_BYTES) ;
+			const auto asset =
+				// 元GZipだけです。
+				readInput( args[3], drivercrate::INDEX_ASSET_MAX_BYTES) ;
+			const auto checked = drivercrate::validateUnsignedIndexCandidate(
+				manifest, std::as_bytes( std::span<const char>{asset.data(), asset.size()}),
+				std::chrono::floor<std::chrono::seconds>(
+					// 実UTCで再確認します。
+					std::chrono::system_clock::now())) ;
+			const auto manifestFailure =
+				checked.manifestFailure
+					? std::to_string( static_cast<unsigned>( *checked.manifestFailure))
+					: "NONE" ;	// 認証成功値を出力しません。
+			std::printf(
+				"UNSIGNED_INDEX_CANDIDATE status=%u manifestFailure=%s asset=%u records=%u validated=%u authenticated=0 keyOperations=0\n",
+				static_cast<unsigned>( checked.status), manifestFailure.c_str(),
+				static_cast<unsigned>( checked.assetStatus),
+				static_cast<unsigned>( checked.recordsStatus), checked.receipt ? 1U : 0U) ;
+			return checked.receipt ? 0 : 2 ;
+		}
+
 		// 非実行script取得だけを元保存pageと有限な独立modeへ結合します。
 		if( count == 7 && mode == L"--collect-terms-link-script") {
 			const auto result = collectLinkedTermsScript( args[2], args[3], args[4],
@@ -777,6 +832,44 @@ int wmain( const int count, wchar_t *args[])
 					 {reinterpret_cast<const std::uint8_t *>( parsed.data()), parsed.size()},
 					 1024U * 1024U) ;	// 新公開artifactだけです。
 			return 0 ;
+		}
+
+		// 下限専用はrecord readerや鍵storeへ進めず、数値診断だけで終了します。
+		if( count == 7 && mode == L"--distribution-verify-floor-history") {
+			const auto envelope =
+				// 原署名です。
+				readInput( args[2], drivercrate::INDEX_ENVELOPE_MAX_BYTES) ;
+			const auto packed =
+				// 原assetです。
+				readInput( args[3], drivercrate::INDEX_ASSET_MAX_BYTES) ;
+			const auto	  publicBytes = readInput( args[4], 411U) ;		// 公開blobだけです。
+			const auto	  literal	  = winrt::to_string( args[6]) ;	// 原発行秒です。
+			std::uint64_t seconds{} ;									// 補正しないUTC秒です。
+			const auto	  parsed =
+				// 原literal全体の整数解析結果です。
+				std::from_chars( literal.data(), literal.data() + literal.size(), seconds) ;
+			const auto now =
+				// 過去へ変更しない現在UTCです。
+				std::chrono::floor<std::chrono::seconds>( std::chrono::system_clock::now()) ;
+			// 不明/overflow/未来を同じ下限専用拒否で保持します。
+			if( literal.empty() || parsed.ec != std::errc{} ||
+			   parsed.ptr != literal.data() + literal.size() || seconds == 0U ||
+			   seconds > static_cast<std::uint64_t>( now.time_since_epoch().count())) {
+				throw Failure{ERROR_INVALID_PARAMETER} ;
+			}
+
+			const auto floor = drivercrate::verifyDistributionIndexHistoryFloor(
+				envelope, std::as_bytes( std::span<const char>{packed.data(), packed.size()}),
+				{reinterpret_cast<const std::uint8_t *>( publicBytes.data()), publicBytes.size()},
+				// 公開byteだけの型境界です。秘密materialを扱いません。
+				winrt::to_string( args[5]), std::chrono::sys_seconds{std::chrono::seconds{seconds}},
+				now) ;
+			std::printf(
+				"LOCAL_INDEX_HISTORY_FLOOR code=0x%08lx generation=%llu assetGeneration=%llu freshness=0 records=0 privateKeyQueried=0\n",
+				static_cast<unsigned long>( floor.error),
+				static_cast<unsigned long long>( floor.generation),
+				static_cast<unsigned long long>( floor.assetGeneration)) ;
+			return floor.error == 0 && floor.generation > 0U ? 0 : 2 ;
 		}
 
 		drivercrate::LocalIndexSigningResult result ;	// OS/codec結果を非秘密で保持します。

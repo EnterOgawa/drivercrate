@@ -2,7 +2,7 @@
 /**
  * @file local_collector_metadata_codec_tests.cpp
  * @brief 全field往復と元scope関係の改変拒否を検証します。
- * @version 01.00.01
+ * @version 01.01.00
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/29  実worker結果の往復と関係改変を追加。
  * Ver.01.00.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.01.00 Shunji Ogawa  2026/10/26  IntelのSHA-512単独往復と欠損改変拒否を追加。
  * </pre>
  *
  * @note 成功DTOはworkerへ注入しません。改変はcodecの拒否試験専用です。
@@ -153,6 +154,32 @@ void runCollectorMetadataCodecChecks( TestContext &context, const CollectorProje
 	}
 
 	roundTrip( context, job, document) ;
+	// Intelだけは新しい単独SHA-512を往復し、既存ASUSのSHA-256必須条件は維持します。
+	if( job.source.sourceId == L"INTEL_ETHERNET_WINDOWS11" && !document.records.empty()) {
+		auto sha512 = document ;	// Codecだけの所有コピーで、worker成功を捏造しません。
+		// 一recordの二つの公開payload配列を同じ変更へ結合します。
+		for( auto &record : sha512.records) {
+			record.value.payloads[0].publishedSha256.clear() ;
+			record.value.payloads[0].publishedSha512.assign( 128U, L'a') ;
+			record.payloads[0].value = record.value.payloads[0] ;
+		}
+
+		roundTrip( context, job, sha512) ;
+		// 両hash欠損と、一方の不正を他方で迂回する形をwriterで拒否します。
+		for( const bool missing : {false, true}) {
+			rejectDocument( context, job, sha512, [missing]( Document &changed) {
+				auto &record = changed.records[0] ;	// コピー内の先頭recordだけを借用します。
+				record.value.payloads[0].publishedSha256 = missing ? L"" : L"invalid" ;
+				// 欠損caseではSHA-512も除去し、少なくとも一方の必須条件を検査します。
+				if( missing) {
+					record.value.payloads[0].publishedSha512.clear() ;
+				}
+
+				record.payloads[0].value = record.value.payloads[0] ;
+			}) ;
+		}
+	}
+
 	std::string encoded ;	// 元成功byte。
 	DRIVERCRATE_EXPECT( context,
 					   encodeCollectorMetadata( job, document, encoded).status == Status::OK) ;

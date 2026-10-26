@@ -269,6 +269,38 @@ class SourceClosureTests(unittest.TestCase):
             self.assertEqual(closure.main(), 1)
         self.assertIn("MISSING_INPUT", output.getvalue())
 
+    def test_bootstrap_generated_and_resource_inputs(self):
+        """生成tableとresourceの元templateを含む場合だけ、bootstrap閉包を受理する。"""
+        self.put("src/bootstrap.cpp", '#include "bootstrap_table.h"\n')
+        self.put("src/bootstrap_table.h.in", '#pragma once\n')
+        self.put("src/bootstrap.rc.in", '1 RT_MANIFEST "@MANIFEST@"\n')
+        self.manifest["files"] = sorted(set(self.manifest["files"]) | {
+            "src/bootstrap.cpp", "src/bootstrap_table.h.in", "src/bootstrap.rc.in"})
+        self.manifest["generatedHeaders"]["bootstrap_table.h"] = "src/bootstrap_table.h.in"
+        self.manifest["requiredEdges"].append({"owner": "scripts/package.ps1", "input": "src/bootstrap.rc.in", "kind": "resource-template"})
+        self.save_manifest()
+        closure.check(self.root)
+        self.manifest["files"].remove("src/bootstrap.rc.in")
+        self.save_manifest()
+        self.reject("INPUT_OUTSIDE_MANIFEST")
+        self.manifest["files"].append("src/bootstrap.rc.in")
+        self.manifest["files"].sort()
+        self.manifest["files"].remove("src/bootstrap_table.h.in")
+        self.save_manifest()
+        self.reject("GENERATED_HEADER_CONTRACT")
+
+    def test_v6_explicit_required_edge(self):
+        """別式で構成するv6 moduleも明示edgeで閉じ、存在だけの未採用を拒否する。"""
+        self.put("scripts/local_entry.py", 'import helper\n')
+        self.manifest["files"].append("scripts/local_entry.py")
+        self.manifest["files"].sort()
+        self.manifest["requiredEdges"].append({"owner": "scripts/package.ps1", "input": "scripts/local_entry.py", "kind": "collector-v6-module"})
+        self.save_manifest()
+        closure.check(self.root)
+        self.manifest["files"].remove("scripts/local_entry.py")
+        self.save_manifest()
+        self.reject("INPUT_OUTSIDE_MANIFEST")
+
 
 class CmakeScratchTests(unittest.TestCase):
     """h8d1の新しい静的四caseだけを実行可能にし、既済26caseの反復を要求しない。"""

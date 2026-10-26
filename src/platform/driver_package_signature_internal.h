@@ -2,7 +2,7 @@
 /**
  * @file driver_package_signature_internal.h
  * @brief 実byteへ固定した内部署名API fixtureと製品native dispatchを定義します。
- * @version 01.06.00
+ * @version 01.07.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/13  内部CAT fixtureのroot-INF-owner組の有限契約を明示。
  * Ver.01.05.00 Shunji Ogawa  2026/10/13  同rootの安全相対memberと全位置/hash/owner照合の有限契約を明示。
  * Ver.01.06.00 Shunji Ogawa  2026/10/15  内部試験だけの128/129完全閉包と有限root容量を明示。
+ * Ver.01.07.00 Shunji Ogawa  2026/10/24  原archive試験の引数なしnative署名adapterを追加。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -108,7 +109,7 @@ struct FixtureFile {
 	/// この完全閉包の基本INF名です。旧単一集合だけは空を許します。
 	std::wstring infOwner ;
 } ;
-/** @brief 本workerのfixture呼出しとnative fallbackの非発生を観測します。 */
+/** @brief 本workerで明示選択された署名backendの呼出し件数を観測します。 */
 struct Receipt {
 	/// 実byteを全て照合したrootと元INF-owner組の数です。同directoryの役割も別に固定します。
 	std::size_t inspectionRoots{} ;
@@ -145,6 +146,8 @@ public:
 
 private:
 	friend struct Access ;
+	/** @brief 内部factoryだけが既存native署名への委譲scopeを作ります。 */
+	ScopedFixture() noexcept ;
 	/** @brief 完全な固定file集合だけを所有します。
 	 * @param[in] files INF/CATと参照fileの固定hash集合。
 	 * @param[in] maximumRoots 固定集合を許す保護root-INF-owner組数。内部factoryだけが1～129を指定します。
@@ -158,6 +161,8 @@ private:
 	std::vector<std::wstring> rootOwners_ ;
 	/// Factoryが予約した保護root-INF-owner組の上限。129は共通archive128上限の拒否入力用です。
 	std::size_t				  maximumRoots_{} ;
+	/// 明示内部factoryだけが有効にする、元Windows署名APIへの引数不変委譲です。
+	bool					  nativeAdapter_{} ;
 	/// VERIFYへ使用したexact memberとCLOSE待機状態。
 	std::wstring			  pendingMember_ ;
 	/// 今回のcall receipt。
@@ -165,7 +170,7 @@ private:
 	friend BOOL setupVerifyInf( PCWSTR, PSP_ALTPLATFORM_INFO, PSP_INF_SIGNER_INFO_W) noexcept ;
 	friend LONG verifyTrust( HWND, GUID *, LPVOID) noexcept ;
 } ;
-/** @brief 製品wrapperは固定native、内部scopeは実hash付き完全fixtureへdispatchします。
+/** @brief 製品は固定native、内部scopeは実hash fixtureまたは明示native adapterへdispatchします。
  * @param[in] path 実INF絶対path。
  * @param[in] platform Windowsのplatform条件。
  * @param[out] signer Windows標準のCAT/signature出力。
@@ -182,8 +187,14 @@ private:
 [[nodiscard]] LONG verifyTrust( HWND window, GUID *action, LPVOID data) noexcept ;
 // 内部試験だけへfactoryを公開し、製品constructorや設定へ注入しません。
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
-/** @brief 全低位callを固定fileへ照合する内部成功fixture factoryです。 */
+/** @brief 固定file fixtureまたは元nativeへの委譲を同threadへ結ぶ内部factoryです。 */
 struct Access {
+	/** @brief 元Windows署名APIへそのまま委譲する内部scopeを作ります。
+	 * @return 同threadに既存scopeがなければ単独所有adapter、それ以外はnullptrです。
+	 * @note 成功値/publisher/検証policyを補完せず、証明書通信を含む元APIの動作を保持します。
+	 * 公開JSON/成功bool/鍵を受けず、実inventoryや取得・導入能力を発行しません。
+	 */
+	[[nodiscard]] static std::unique_ptr<ScopedFixture>				createNativeAdapter() ;
 	/** @brief 完全低位Authenticode表を同workerへ固定します。
 	 * @param[in] api 全八ABIが揃った内部表です。外部設定は受理しません。
 	 * @return 完全表だけの単独scope、不足または別scope存在時nullptrです。

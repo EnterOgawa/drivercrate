@@ -2,8 +2,8 @@
 /**
  * @file metadata_ui_fixture.cpp
  * @brief 専用Win32画面試験の非通信Provider契約。
- * @version 01.16.00
- * @date 2026/09/12
+ * @version 01.17.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -41,6 +41,7 @@
  * Ver.01.14.00 Shunji Ogawa  2026/10/15  追加INFなしの選択Needs・欠損・未選択条件を追加。
  * Ver.01.15.00 Shunji Ogawa  2026/10/15  33INF正例とarchive128/129境界の完全閉包入力を分離。
  * Ver.01.16.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
+ * Ver.01.17.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * </pre>
  *
  * @note 製品EXEへ組み込まず、内部UI試験だけで使用する。
@@ -60,6 +61,8 @@
 #include "platform/signed_index_store_internal.h"
 #include "platform/signed_index_records.h"
 #include "platform/signed_index_asset_bytes.h"
+#include "platform/official_download_workspace.h"
+#include <SetupAPI.h>
 #include <bcrypt.h>
 #include <miniz.h>
 
@@ -738,10 +741,10 @@ constexpr std::string_view RECORD_EVIDENCE_HASH =
 		std::string{RECORD_EVIDENCE_HASH} + "\",\"reason\":\"\"}" ;	// 型だけを確認する元申告。
 	const std::string identity =
 		identityPublished
-			? "{\"state\":\"PUBLISHED\",\"kind\":\"INF\",\"pnpIds\":[{\"kind\":\"HARDWARE\",\"value\":\"TESTBUS\\\\SYNTH_0001\"}],\"classGuid\":\"{11111111-2222-3333-4444-555555555555}\",\"infIdentity\":\"drivers/fixture.inf\",\"modelSection\":\"Fixture.NTamd64\",\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
+			? "{\"state\":\"PUBLISHED\",\"kind\":\"INF\",\"pnpIds\":[{\"kind\":\"HARDWARE\",\"value\":\"TESTBUS\\\\SYNTH_0001\"}],\"classGuid\":\"{11111111-2222-3333-4444-555555555555}\",\"nestedArchiveIdentity\":\"\",\"infIdentity\":\"drivers/fixture.inf\",\"modelSection\":\"Fixture.NTamd64\",\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
 				  std::string{RECORD_EVIDENCE_HASH} + "\",\"reason\":\"\"}"
 			// 元公開identityか不足理由。
-			: "{\"state\":\"UNKNOWN\",\"kind\":\"UNKNOWN\",\"pnpIds\":[],\"classGuid\":\"\",\"infIdentity\":\"\",\"modelSection\":\"\",\"evidenceUrl\":\"\",\"evidenceSha256\":\"\",\"reason\":\"public INF identity missing\"}" ;
+			: "{\"state\":\"UNKNOWN\",\"kind\":\"UNKNOWN\",\"pnpIds\":[],\"classGuid\":\"\",\"nestedArchiveIdentity\":\"\",\"infIdentity\":\"\",\"modelSection\":\"\",\"evidenceUrl\":\"\",\"evidenceSha256\":\"\",\"reason\":\"public INF identity missing\"}" ;
 	return "{\"schema\":\"driver-index-record-v1\",\"sourceId\":\"" + std::string{source} +
 		   "\",\"recordId\":\"" + std::string{id} + "\",\"product\":\"Synthetic fixture\"," +
 		   "\"targetOs\":" +
@@ -1233,9 +1236,11 @@ std::string uiDriverZip( const bool partial, const bool multiInf, const bool cap
 					  "DriverVer=10/11/2026,1.0.0.0\r\nCatalogFile=fixture.cat\r\n"
 					  "[Manufacturer]\r\n%Vendor%=Models,NTamd64\r\n[Models.NTamd64]\r\n"
 					  "%Device%=Install,TESTBUS\\SYNTH_0001\r\n" ;	// 架空通常INFの完全な元byteです。
-	// 二deviceの固定条件では二番目IDも同じ基本INFへ明示します。
+	// 二deviceは同INF内の独立Models節へ結び、各recordがその節の全IDを持ちます。
 	if( partial) {
-		inf += "%Device%=Install,TESTBUS\\SYNTH_0002\r\n" ;
+		inf = replaced( std::move( inf), "%Vendor%=Models,NTamd64\r\n",
+					   "%Vendor%=Models,NTamd64\r\nSecond=SecondModels,NTamd64\r\n") ;
+		inf += "[SecondModels.NTamd64]\r\n%Device%=Install,TESTBUS\\SYNTH_0002\r\n" ;
 	}
 
 	inf += "[Install]\r\nCopyFiles=Files\r\n[Files]\r\nfixture.sys\r\n"
@@ -2009,6 +2014,132 @@ std::string uiDriverZip( const bool partial, const bool multiInf, const bool cap
 	return {static_cast<const char *>( owner.get()), bytes} ;
 }
 
+/** @brief 自作ZIPの元INFと明示Models節を署名fixtureの公開tupleへ結びます。
+ * @param[in] key 同じRAM hash helperです。
+ * @param[in] zip 自作した原ZIP byteです。
+ * @param[in] member 同ZIPに実在する基本INF名です。
+ * @param[in] section 同INFに明示された全IDを読むModels節です。
+ * @param[in] raw 元recordの他の条件を保持するfixture byteです。
+ * @return 原INF hash/member/節/全公開IDへ結合した署名前のfixtureです。
+ * @note SetupAPIのread-only HINFを使います。CAT/適合/候補成功を生成しません。
+ */
+std::string uiInfIdentity( const RamKey &key, const std::string &zip, const std::string &member,
+						  const std::wstring &section, std::string raw)
+{
+	mz_zip_archive archive{} ;	// 同原ZIPを同期でだけ借用します。
+	// 原ZIPを読めない場合は公開tupleを生成しません。
+	if( !mz_zip_reader_init_mem( &archive, zip.data(), zip.size(), 0U)) {
+		throw std::runtime_error( "UI identity archive failed") ;
+	}
+
+	std::size_t size{} ;	// 同原INFの実byte長です。
+	void *const extracted = mz_zip_reader_extract_file_to_heap( &archive, member.c_str(), &size,
+															   0U) ;	// Fixture内memberだけです。
+	mz_zip_reader_end( &archive) ;
+	const std::unique_ptr<void, decltype( &mz_free)> bytes{extracted,
+														  &mz_free} ;	// 全経路で原heapを解放します。
+	// 元INFの全byteがない場合はfixture生成を停止します。
+	if( !bytes || size == 0U || size > 65536U) {
+		throw std::runtime_error( "UI identity INF missing") ;
+	}
+
+	OfficialDownloadWorkspace workspace ;					// HINF読取だけの自作保護領域です。
+	HANDLE					  file = INVALID_HANDLE_VALUE ;	// 成功時だけRAIIへ移します。
+	// 保護領域を所有できなければ元fileを直接読取りません。
+	if( workspace.initialize( L"index-identity-fixture", 377U) != 0U ||
+	   workspace.createFile( L"fixture.inf", file) != 0U) {
+		throw std::runtime_error( "UI identity workspace failed") ;
+	}
+
+	std::unique_ptr<void, decltype( &CloseHandle)> fileOwner{
+		file, &CloseHandle} ;	// 同書込handleだけを所有します。
+	DWORD written{} ;			// 同原INF全byteの実書込数です。
+	// 元INFの全byteを書き終える前にHINFを開きません。
+	if( !WriteFile( file, bytes.get(), static_cast<DWORD>( size), &written, nullptr) ||
+	   written != size) {
+		throw std::runtime_error( "UI identity copy failed") ;
+	}
+
+	fileOwner.reset() ;
+	const auto path =
+		// 公開identityから生成したpathではありません。
+		workspace.path( L"fixture.inf") ;
+	const HINF opened = SetupOpenInfFileW(
+		// 原HINFです。
+		path.c_str(), nullptr, INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE, nullptr) ;
+	// 元HINFが開けなければmetadataを合成しません。
+	if( opened == INVALID_HANDLE_VALUE) {
+		throw std::runtime_error( "UI identity HINF failed") ;
+	}
+
+	const std::unique_ptr<void, decltype( &SetupCloseInfFile)> inf{
+		opened, &SetupCloseInfFile} ;	// 同HINFを閉じます。
+	INFCONTEXT line{} ;					// 明示節の原行です。
+	// 明示された元Models節を欠損時に補完しません。
+	if( !SetupFindFirstLineW( opened, section.c_str(), nullptr, &line)) {
+		throw std::runtime_error( "UI identity Models missing") ;
+	}
+
+	std::string ids = "[" ;	// 同節の全公開IDを保持します。
+	// 元Modelsの全行を末尾まで読み、全集合を保持します。
+	do {
+		// 元行の第2 field以降を種別付きで全件読みます。
+		for( DWORD field = 2U; field <= SetupGetFieldCount( &line); ++field) {
+			std::array<wchar_t, 513U> id{} ;	// 既存ID上限だけの受信bufferです。
+			// 一IDの取得失敗を部分集合へ丸めません。
+			if( !SetupGetStringFieldW( &line, field, id.data(), static_cast<DWORD>( id.size()),
+									 nullptr)) {
+				throw std::runtime_error( "UI identity ID missing") ;
+			}
+
+			ids += ids.size() == 1U ? "" : "," ;
+			ids += field == 2U ? "{\"kind\":\"HARDWARE\",\"value\":\""
+							   : "{\"kind\":\"COMPATIBLE\",\"value\":\"" ;
+			// 既知ASCII fixtureのJSON escapeだけを行います。
+			for( const wchar_t character : std::wstring_view{id.data()}) {
+				// JSONで必要なbackslashだけを二重化します。
+				if( character == L'\\') {
+					ids += '\\' ;
+				}
+
+				ids += static_cast<char>( character) ;
+			}
+
+			ids += "\"}" ;
+		}
+	} while( SetupFindNextLine( &line, &line)) ;
+	ids += "]" ;
+	const auto identityStart =
+		// 自作recordの固定objectです。
+		raw.find( "\"publishedIdentityEvidence\":{") ;
+	const auto idsStart = raw.find( "[", identityStart) ;	// 元ID配列だけです。
+	const auto idsEnd	= raw.find( "]", idsStart) ;		// 自作fixtureの平坦なID配列終端です。
+	raw.replace( idsStart, idsEnd - idsStart + 1U, ids) ;
+	// 固定object内の元文字列だけを書換え、他の時刻/条件を保持します。
+	const auto replaceIdentityField = [&]( const std::string &name, const std::string &value) {
+		const auto start = raw.find( "\"" + name + "\":\"", identityStart) + name.size() +
+						   4U ;						// 固定fieldの値先頭です。
+		const auto end = raw.find( '"', start) ;	// 既知ASCII fixture値の終端です。
+		raw.replace( start, end - start, value) ;
+	} ;
+	replaceIdentityField( "infIdentity", member) ;
+	std::string modelName ;	// 明示ASCII Models名だけを元表記で保持します。
+	// 既知fixtureでもnarrowing前にASCII上限を確認します。
+	for( const wchar_t character : section) {
+		// 非ASCII名をlossy変換して正のidentityへ変更しません。
+		if( character < 0x20 || character > 0x7e) {
+			throw std::runtime_error( "UI identity section encoding failed") ;
+		}
+
+		modelName.push_back( static_cast<char>( character)) ;
+	}
+
+	replaceIdentityField( "modelSection", modelName) ;
+	replaceIdentityField( "evidenceSha256",
+						 recordDigest( key, {static_cast<const char *>( bytes.get()), size})) ;
+	return raw ;
+}
+
 /** @brief 実network cost照会を行わない固定低位境界です。 */
 class UiIndexCostReader final : public IOfficialNetworkCostReader {
 public:
@@ -2315,10 +2446,14 @@ SignedIndexUiInput makeSignedIndexUiInput( const bool partial, const bool shared
 			"{\"state\":\"UNKNOWN\",\"valueBytes\":0,\"reason\":\"exact payload size unavailable\"}") ;
 	}
 
+	const auto templateRaw = raw ;	// 各実INFへ独立した公開tupleを結ぶ前の元条件です。
+	raw = uiInfIdentity( key, result.zip, "fixture.inf", L"Models.NTamd64", std::move( raw)) ;
 	std::string entries = recordEntry( key, raw) ;	// 元byteと実hashを結ぶ第一entryです。
+	std::string secondTemplate ;					// 同意/主体の差も保持する第二元条件です。
+	std::size_t recordCount = 1U ;					// 実INF/Modelsごとの元record件数です。
 	// 異なる二deviceの別recordを一意identityと原byteへ固定します。
 	if( partial) {
-		auto second = replaced( raw, "\"recordId\":\"metadata\"",
+		auto second = replaced( templateRaw, "\"recordId\":\"metadata\"",
 							   "\"recordId\":\"second\"") ;	// 第二原recordです。
 		second		= replaced( std::move( second), "TESTBUS\\\\SYNTH_0001", "TESTBUS\\\\SYNTH_0002") ;
 		// 同Providerでも別の元source subjectへ同意を流用しません。
@@ -2339,7 +2474,39 @@ SignedIndexUiInput makeSignedIndexUiInput( const bool partial, const bool shared
 							  "\"fileName\":\"Fixture independent (x64).zip\"") ;
 		}
 
+		secondTemplate = second ;
+		second		   = uiInfIdentity( key, result.zip, "fixture.inf", L"SecondModels.NTamd64",
+									   std::move( second)) ;
 		entries += "," + recordEntry( key, second) ;
+		++recordCount ;
+	}
+
+	const unsigned basicInfCount = options.archiveInfCount != 0U ? options.archiveInfCount
+								   : capacityBoundary			 ? 33U
+								   : multiInf					 ? 2U
+											  : 1U ;	// 原ZIPへ生成した有限な基本INF数です。
+	// 別INFのrank流用を前提にせず、全基本INFの本来の原tupleを署名前に用意します。
+	for( unsigned ordinal = 1U; ordinal < basicInfCount; ++ordinal) {
+		const auto base = ordinal == 1U
+							  ? std::string{"alternate"}
+							  : "alternate" + std::to_string( ordinal) ;	// ZIPと同じ一意名です。
+		auto	   alternate =
+			replaced( templateRaw, "\"recordId\":\"metadata\"",
+					 "\"recordId\":\"metadata-" + base + "\"") ;	// 他の条件は元recordです。
+		alternate =
+			uiInfIdentity( key, result.zip, base + ".inf", L"Models.NTamd64", std::move( alternate)) ;
+		entries += "," + recordEntry( key, alternate) ;
+		++recordCount ;
+		// 同共有deviceの第二Models節も同じ実INFへ独立に結びます。
+		if( partial) {
+			auto second =
+				replaced( secondTemplate, "\"recordId\":\"second\"",
+						 "\"recordId\":\"second-" + base + "\"") ;	// 元第二主体/同意を保持します。
+			second = uiInfIdentity( key, result.zip, base + ".inf", L"SecondModels.NTamd64",
+								   std::move( second)) ;
+			entries += "," + recordEntry( key, second) ;
+			++recordCount ;
+		}
 	}
 
 	std::string sources = recordSource() ;	// 原source集合を署名byteへ固定します。
@@ -2366,7 +2533,7 @@ SignedIndexUiInput makeSignedIndexUiInput( const bool partial, const bool shared
 	manifestBytes		= replaced( std::move( manifestBytes), ASSET_HASH, gzipHash) ;
 	manifestBytes		= replaced( std::move( manifestBytes), "\"sizeBytes\":123",
 								   "\"sizeBytes\":" + std::to_string( gzip.size())) ;
-	const auto count	= partial ? "2" : "1" ;	// 事前固定した元record数です。
+	const auto count	= std::to_string( recordCount) ;	// 全実INF/Modelsの原record数です。
 	manifestBytes		= replaced(
 		  std::move( manifestBytes),
 		  "{\"sourceCount\":1,\"recordCount\":3,\"metadataOnlyCount\":1,\"contentInspectedCount\":1,\"unconfirmedCount\":1}",

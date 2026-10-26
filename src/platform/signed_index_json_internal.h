@@ -2,7 +2,7 @@
 /**
  * @file signed_index_json_internal.h
  * @brief 署名索引各層で共用する厳格JSON・base64・hash・UTC文法を定義します。
- * @version 01.01.00
+ * @version 01.02.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/11  既存strict文法を共用し有限配列・深さを追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  必須fieldの既定を維持しschema別存在maskとnull読取りを追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/10/23  既定16fieldを維持した明示job上限指定を追加。
  * </pre>
  *
  * @note 原byteを正規化せず、暗号認証・公式性・保存・端末照合を行いません。
@@ -78,15 +79,18 @@ public:
      * @param[in] failure この層のJSON拒否理由。
      * @param[in] byteLimit 呼出し層の独立実byte上限。
      * @param[in] depthLimit Containerの最大深さ。既定8です。
+     * @param[in] objectFieldLimit 一objectのfield上限。既定16、明示jobだけ最大31です。
      */
 	Reader( const std::string_view bytes, const Status failure,
 		   const std::size_t byteLimit	= INDEX_ENVELOPE_MAX_BYTES,
-		   const std::size_t depthLimit = 8U)
-		: bytes_( bytes), failure_( failure), depthLimit_( depthLimit)
+		   const std::size_t depthLimit = 8U, const std::size_t objectFieldLimit = 16U)
+		: bytes_( bytes), failure_( failure), depthLimit_( depthLimit),
+		  objectFieldLimit_( objectFieldLimit)
 	{
 		// Win32境界のint長へ変換する前に実byteを固定枠へ制限する。
 		require( !bytes.empty() && bytes.size() <= byteLimit && byteLimit <= 128U * 1024U * 1024U &&
-					depthLimit > 0U && depthLimit <= 8U,
+					depthLimit > 0U && depthLimit <= 8U && objectFieldLimit > 0U &&
+					objectFieldLimit <= 31U,
 				failure_) ;
 		// MB_ERR_INVALID_CHARSで過長UTF-8、surrogate、途中切れを拒否する。
 		require( MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, bytes.data(),
@@ -202,7 +206,7 @@ public:
 	}
 
 	/** @brief 全必須fieldを順序に依存せず一度だけ消費します。
-     * @tparam Count 固定field数。最大16です。
+     * @tparam Count 固定field数。既定16、明示上限指定時だけ最大31です。
      * @tparam Handler Field indexに対応する型付き読取り関数。
      * @param[in] fields Schemaが認める固定field名。
      * @param[in] handler 本Readerだけを借用して値を消費する同期関数。
@@ -215,7 +219,7 @@ public:
 	}
 
 	/** @brief 許可fieldを一度だけ読み、schema確定後の必須集合照合へ存在maskを返します。
-     * @tparam Count 許可field数。最大16です。
+     * @tparam Count 許可field数。既定16、明示上限指定時だけ最大31です。
      * @tparam Handler Field番号から要求型だけを読む同期関数。
      * @param[in] fields このobjectだけが許可する閉じたfield集合。
      * @param[in] handler 本Readerを呼出し中だけ借用する同期handler。
@@ -226,7 +230,8 @@ public:
 	[[nodiscard]] std::uint32_t objectWithPresence(
 		const std::array<std::string_view, Count> &fields, Handler handler)
 	{
-		static_assert( Count > 0U && Count <= 16U) ;
+		static_assert( Count > 0U && Count <= 31U) ;
+		require( Count <= objectFieldLimit_, failure_) ;
 		consume( '{') ;
 		enterContainer() ;
 		std::uint32_t seen{} ;	// 解除後のfield名に対する重複検査mask。
@@ -416,6 +421,8 @@ private:
 	Status			 failure_ ;
 	/// 呼出し層が固定した最大container深さ。
 	std::size_t		 depthLimit_{} ;
+	/// 明示scope以外では従来の16fieldを維持する上限。
+	std::size_t		 objectFieldLimit_{} ;
 	/// 現在のcontainer深さ。成功した終端で減らします。
 	std::size_t		 depth_{} ;
 	/// 次に読む原byte位置。入力長を超えません。

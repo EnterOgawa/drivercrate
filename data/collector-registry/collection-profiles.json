@@ -1,0 +1,83 @@
+{
+  "asOf": "2026-10-24T02:44:54Z",
+  "installAuthorized": false,
+  "locators": {
+    "asOf": "2026-10-24T02:44:54Z",
+    "revision": "accept375-existing-prolific-locators-01",
+    "schema": "dc-public-driver-locators-v2",
+    "sha256": "472a98b8df854f419fbc7b23d6fad71729c51740ad7ed02c0cebc1212ad85b9e"
+  },
+  "networkAuthorized": false,
+  "profiles": [
+    {
+      "container": "ZIP",
+      "href": "/wp-content/uploads/2026/01/PL2303G_DCHU_DFx.zip",
+      "id": "accept375-prolific-dchu",
+      "infSelection": {
+        "mode": "ALL",
+        "paths": []
+      },
+      "maximumBytes": 33554432,
+      "pageLocatorId": "accept375-prolific-page",
+      "payloadLocatorId": "accept375-prolific-dchu-payload",
+      "recordId": "prolific-pl2303g-dchu-1-0-0-1",
+      "referenceSha256": "3e56d621e5b35812d8915135affc47a141b92f5c1dee0cc48cf837beda1a0e38",
+      "review": {
+        "official": {
+          "evidence": {
+            "bodySha256": "8acda4d7bc36e6989614b2d594f3ff9a62f4669be6800072c69614cae23d9b29",
+            "contentSha256": "6479c9aea8ec07794c31b12dcbbf3286ea12383cfecd0b7545f9fd68c197e74c",
+            "checkedAt": "2026-10-24T02:44:54Z",
+            "locatorId": "accept375-prolific-page",
+            "scope": "official"
+          },
+          "state": "CONFIRMED"
+        },
+        "preDownload": {
+          "evidence": {
+            "bodySha256": "8acda4d7bc36e6989614b2d594f3ff9a62f4669be6800072c69614cae23d9b29",
+            "contentSha256": "6479c9aea8ec07794c31b12dcbbf3286ea12383cfecd0b7545f9fd68c197e74c",
+            "checkedAt": "2026-10-24T02:44:54Z",
+            "locatorId": "accept375-prolific-page",
+            "scope": "preDownload"
+          },
+          "state": "NO_EXTRA_PROMPT"
+        },
+        "prerequisites": {
+          "evidence": {
+            "bodySha256": "8acda4d7bc36e6989614b2d594f3ff9a62f4669be6800072c69614cae23d9b29",
+            "contentSha256": "6479c9aea8ec07794c31b12dcbbf3286ea12383cfecd0b7545f9fd68c197e74c",
+            "checkedAt": "2026-10-24T02:44:54Z",
+            "locatorId": "accept375-prolific-page",
+            "scope": "prerequisites"
+          },
+          "items": [],
+          "state": "NONE_REQUIRED"
+        },
+        "terms": {
+          "evidence": {
+            "bodySha256": "8acda4d7bc36e6989614b2d594f3ff9a62f4669be6800072c69614cae23d9b29",
+            "contentSha256": "6479c9aea8ec07794c31b12dcbbf3286ea12383cfecd0b7545f9fd68c197e74c",
+            "checkedAt": "2026-10-24T02:44:54Z",
+            "locatorId": "accept375-prolific-page",
+            "scope": "terms"
+          },
+          "state": "NO_ADDITIONAL_TERMS"
+        }
+      },
+      "reviewState": "CURRENT",
+      "revision": "accept433-content-01",
+      "sourceFormat": "STATIC_HTML_ANCHOR_V1",
+      "sourceId": "prolific-pl2303g-page"
+    }
+  ],
+  "publishable": false,
+  "registry": {
+    "asOf": "2026-10-24T02:44:54Z",
+    "revision": "accept375-existing-prolific-20261024",
+    "schema": "dc-public-driver-registry-v2",
+    "sha256": "9bedcee0ac43ff21cc178a7bf0149e6bce6a58e9fc5b0c8400b18630c5bae940"
+  },
+  "revision": "accept433-content-01",
+  "schema": "dc-collector-collection-profiles-v2"
+}

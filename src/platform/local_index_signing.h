@@ -2,7 +2,7 @@
 /**
  * @file local_index_signing.h
  * @brief 明示操作だけのローカル索引署名と非秘密の結果を定義します。
- * @version 01.03.00
+ * @version 01.04.00
  * @date 2026/10/13
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/15  別固定配布鍵と公開pinだけのmetadata検証を追加。
  * Ver.01.02.01 Shunji Ogawa  2026/10/16  配布取得用途の公開検証と明示署名を分離。
  * Ver.01.03.00 Shunji Ogawa  2026/10/17  公開byteだけの配布取得履歴検証を追加。
+ * Ver.01.04.00 Shunji Ogawa  2026/10/24  Recordを読まない公開履歴の世代下限認証を追加。
  * </pre>
  *
  * @note 開発collector側専用です。秘密byteを返さず、network・導入・自動鍵更新はありません。
@@ -88,6 +89,32 @@ struct LocalIndexSigningResult {
 	/// 用途別の原v2 record拒否理由です。未実行ではnulloptです。
 	std::optional<IndexRecordsStatus>		 recordsStatus ;
 } ;
+
+/** @brief 原署名とassetだけを認証した世代下限です。現在利用receiptを持ちません。 */
+struct DistributionIndexHistoryFloorResult {
+	/// 成功時0。拒否では元native errorを保持します。
+	NativeError	  error{} ;
+	/// 全署名・asset検査成功時だけ正の下限世代です。拒否時は0です。
+	std::uint64_t generation{} ;
+	/// 全検査成功時だけ署名されたasset世代です。拒否時は0です。
+	std::uint64_t assetGeneration{} ;
+} ;
+
+/** @brief 公開履歴の署名・原assetだけを認証し、record schemaを評価しません。
+ * @param[in] envelopeBytes 正規化しない最大96KiBの原envelopeです。
+ * @param[in] gzipBytes 署名manifestへ結合した最大32MiBの原GZipです。
+ * @param[in] publicBlob 固定公開pinへ照合する411byteのRSA3072公開blobです。
+ * @param[in] expectedFingerprint 公開blob全SHA-256です。
+ * @param[in] publishedAtUtc 原manifestの発行秒です。認証後の完全一致を必須とします。
+ * @param[in] nowUtc 確認済み現在UTCです。欠損/未来発行を拒否します。
+ * @return 全成功時だけ正の世代下限です。認証済recordや現在利用receiptは返しません。
+ * @note 借用は呼出し中だけです。秘密鍵/永続I/O/取得grant/高水位更新を行いません。
+ */
+[[nodiscard]] DistributionIndexHistoryFloorResult verifyDistributionIndexHistoryFloor(
+	std::string_view envelopeBytes, std::span<const std::byte> gzipBytes,
+	std::span<const std::uint8_t> publicBlob, std::string_view expectedFingerprint,
+	std::optional<std::chrono::sys_seconds> publishedAtUtc,
+	std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
 
 /**
  * @brief 固定current-user鍵を実照会し、明示createの場合だけ欠損鍵を作ります。

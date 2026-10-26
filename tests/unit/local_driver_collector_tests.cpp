@@ -2,7 +2,7 @@
 /**
  * @file local_driver_collector_tests.cpp
  * @brief 非通信の時計・HTTP fixtureで収集run再開を検証します。
- * @version 01.11.03
+ * @version 01.15.00
  * @date 2026/09/27
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,11 @@
  * Ver.01.11.01 Shunji Ogawa  2026/10/18  日跨ぎfixtureの元戻り値と状態errorを診断表示。
  * Ver.01.11.02 Shunji Ogawa  2026/10/18 一時path診断を除去し元の期待と評価回数を保持。
  * Ver.01.11.03 Shunji Ogawa  2026/10/18 自作fixtureの実I/O表記を揃え長い保存物を検査。
+ * Ver.01.12.00 Shunji Ogawa  2026/10/25 同runの本体取得/同意/中断/待機を非通信検証。
+ * Ver.01.13.00 Shunji Ogawa  2026/10/25 呼出し内の拒否段階と再開時未観測を検証。
+ * Ver.01.14.00 Shunji Ogawa  2026/10/25 完全200失敗診断と旧成功保持・非昇格を検証。
+ * Ver.01.14.01 Shunji Ogawa  2026/10/25 新規snapshotの試験用work親を準備。
+ * Ver.01.15.00 Shunji Ogawa  2026/10/26 新版/全公開hash/承認schemaの有限取得回帰を追加。
  * </pre>
  *
  * @note fixtureで新規作成した専用root以外を変更せず、実networkを使いません。
@@ -48,11 +53,14 @@
 #include "platform/local_collector_state_store.h"
 #include "platform/local_collector_legacy.h"
 #include "platform/local_collector_recovery.h"
+#include "platform/official_acquisition.h"
+#include "platform/official_download_workspace.h"
 #include "core/provider_registry.h"
 #include "core/official_source_policy.h"
 #include "test_framework.h"
 
 #include <Windows.h>
+#include <wincrypt.h>
 #include <objbase.h>
 #include <winrt/Windows.Data.Json.h>
 #include <winrt/Windows.Foundation.Collections.h>
@@ -104,12 +112,16 @@ struct CollectorHttpFixture {
 	DWORD									   status{200U} ;
 	/// Redirect試験時だけ使う有限status列。
 	std::vector<DWORD>						   sequence ;
+	/// metadataと本体を同じ低位transportで返す有限本文列です。
+	std::vector<std::string>				   responseBodies ;
 	/// 同名headerも保持するfixture。
 	std::map<DWORD, std::vector<std::wstring>> headers ;
 	/// 保存しない架空本文。
 	std::string								   body{"<html>fixture</html>"} ;
 	/// 今回のGET header観測。
 	std::wstring							   sentHeaders ;
+	/// 各送信のheaderを保持し、新200要求のIf-None-Match不在を確認します。
+	std::vector<std::wstring>				   requestHeaders ;
 	/// 本文位置。
 	std::size_t								   offset{} ;
 	/// 全送信件数。
@@ -182,7 +194,16 @@ thread_local CollectorHttpFixture  *activeFixture{} ;	// C関数pointer用のthr
 				state.sequence[std::min<std::size_t>( state.sends, state.sequence.size() - 1U)] ;
 		}
 
+		state.requestHeaders.push_back( state.sentHeaders) ;
 		++state.sends ;
+		// 同runのPAGE/本体を送信順に一回ずつ返します。
+		if( !state.responseBodies.empty()) {
+			state.body								  = state.responseBodies[std::min<std::size_t>(
+				   state.sends - 1U, state.responseBodies.size() - 1U)] ;
+			state.headers[WINHTTP_QUERY_CONTENT_TYPE] = {
+				state.body.starts_with( "<html") ? L"text/html" : L"application/zip"} ;
+		}
+
 		state.offset = 0U ;
 		return TRUE ;
 	} ;
@@ -373,7 +394,12 @@ void conditionalHttp( TestContext &context)
 	return L"\\\\?\\" + std::filesystem::path( path).make_preferred().native() ;
 }
 
-/** @brief 自身で作る専用fixture rootを一つ割り当てます。 */
+/** @brief 自身で作る専用fixture rootを一つ割り当てます。
+ * @return 試験cwdのwork/state直下に置く新しいGUID付きrootです。
+ * @throws std::filesystem::filesystem_error work親の作成に失敗した場合。
+ * @pre 呼出し元は所有するsource試験cwdで実行します。
+ * @note 未存在のwork親だけを作成し、既存fileの移動・削除や運用rootの変更は行いません。
+ */
 [[nodiscard]] std::filesystem::path fixtureRoot()
 {
 	// 同時実行fixtureと衝突しない名前を取得する。
@@ -390,6 +416,8 @@ void conditionalHttp( TestContext &context)
 		throw std::runtime_error( "fixture name failed") ;
 	}
 
+	// 新規source snapshotでもstoreが作成しない中間の試験用work親を準備する。
+	std::filesystem::create_directory( std::filesystem::current_path() / L"work") ;
 	return std::filesystem::current_path() / L"work" / L"state" /
 		   (std::wstring( L"collector-run-fixture-") + text) ;
 }
@@ -638,12 +666,13 @@ void conditionalRuns( TestContext &context, const std::filesystem::path &root,
 	++day ;
 	DRIVERCRATE_EXPECT( context, invoke() == 0 &&
 									run.targets[0].state == LocalCollectorTargetState::UNCHANGED) ;
-	DRIVERCRATE_EXPECT( context, run.targets[0].records == first.records &&
-									run.targets[0].lastHttpStatus == 304U &&
-									run.targets[0].lastFetchedAt == first.lastFetchedAt &&
-									run.targets[0].bodySha256 == first.bodySha256 &&
-									run.targets[0].lastSuccessfulValidationAt ==
-										first.lastSuccessfulValidationAt + 86400U) ;
+	DRIVERCRATE_EXPECT(
+		context,
+		run.targets[0].records == first.records && run.targets[0].lastHttpStatus == 304U &&
+			run.targets[0].failureStageThisInvocation == LocalCollectorFailureStage::NONE &&
+			run.targets[0].lastFetchedAt == first.lastFetchedAt &&
+			run.targets[0].bodySha256 == first.bodySha256 &&
+			run.targets[0].lastSuccessfulValidationAt == first.lastSuccessfulValidationAt + 86400U) ;
 	DRIVERCRATE_EXPECT( context,
 					   fixture.sentHeaders.find( L"If-None-Match: \"v1\"") != std::wstring::npos) ;
 	const auto sends = fixture.sends ;	// 同日再起動前の送信数。
@@ -1757,6 +1786,829 @@ void legacyExportScenarios( TestContext &context, const std::vector<LocalCollect
 <a>Intel® Ethernet Network Adapter E610-XT2</a></html>)" ;
 }
 
+/** @brief 実回線へ照会しない明示取得fixtureのcostです。 */
+class PayloadFixtureCost final : public IOfficialNetworkCostReader {
+public:
+	/// 制限/未知回線の拒否を同じ共通取得器へ渡します。
+	OfficialNetworkCostKind kind{OfficialNetworkCostKind::UNRESTRICTED} ;
+	/** @brief 固定costだけを返します。
+	 * @param[out] cost 非通信fixtureの分類です。
+	 * @return 照会成功0です。
+	 */
+	NativeError				read( OfficialNetworkCostKind &cost) noexcept override
+	{
+		cost = kind ;
+		return 0 ;
+	}
+} ;
+
+/** @brief 到達可能なHTTP・解析・変換・公開field拒否を非通信で区別します。
+ * @param[in,out] context 原assert集計です。
+ * @param[in] targets 公開二targetの既存fixtureです。
+ * @param[in] manifest 元manifest hashです。
+ */
+void failureStageScenarios( TestContext &context, const std::vector<LocalCollectorTarget> &targets,
+						   const std::wstring &manifest)
+{
+	// 各条件を別の自己所有rootへ通し、最初の拒否と再開の未観測を確認します。
+	for( unsigned mode = 0U; mode < 4U; ++mode) {
+		CollectorScenario		   scenario( context, {targets[mode == 1U ? 1U : 0U]},
+											manifest) ;	// 一条件だけです。
+		LocalCollectorFailureStage expected =
+			LocalCollectorFailureStage::METADATA ;	// HTTP拒否です。
+		// 既存HTTP APIの元503とHRESULTを保持します。
+		if( mode == 0U) {
+			scenario.http.status = 503U ;
+		}
+		// 本文取得成功後のparser拒否を、HTTP失敗と区別します。
+		else if( mode == 1U) {
+			scenario.http.body = "<html>incomplete artificial release</html>" ;
+			expected		   = LocalCollectorFailureStage::PARSE ;
+		}
+		// 正常に解析できても128MiBを超す行だけのadapter結果は拒否します。
+		else if( mode == 2U) {
+			const auto position = scenario.http.body.find( "14.67 MB") ;	// 人工size欄です。
+			scenario.http.body.replace( position, std::string( "14.67 MB").size(), "129 MB") ;
+			expected = LocalCollectorFailureStage::ADAPT ;
+		} else {
+			const auto position = scenario.http.body.find( "1125.27.50.919") ;	// 人工公開版です。
+			scenario.http.body.replace( position, std::string( "1125.27.50.919").size(),
+									   std::string( 129U, '1')) ;
+			expected = LocalCollectorFailureStage::RECORD_VALIDATION ;
+		}
+
+		const int	code   = scenario.invoke() ;			// 全条件で元の収集coreを使います。
+		const auto &result = scenario.run.targets.front() ;	// 今回の診断と待機です。
+		std::cout << "COLLECTOR_STAGE_ARTIFICIAL case=" << mode
+				  << " stage=" << static_cast<unsigned>( result.failureStageThisInvocation)
+				  << " error=" << result.error << '\n' ;
+		DRIVERCRATE_EXPECT( context, code == 1 && scenario.http.sends == 1U && result.error != 0U &&
+										result.lastHttpStatus == (mode == 0U ? 503U : 200U) &&
+										result.failureStageThisInvocation == expected &&
+										result.records.empty()) ;
+		DRIVERCRATE_EXPECT( context, mode == 0U || result.error == ERROR_INVALID_DATA) ;
+		const auto originalError = result.error ;					// 再開時も元診断を保持します。
+		const auto originalWait	 = result.nextAttemptAt ;			// 再開で待機を延長/短縮しません。
+		const auto saved = scenario.read( scenario.path( false)) ;	// stageの永続化を許しません。
+		DRIVERCRATE_EXPECT( context, saved.find( "failureStage") == std::string::npos) ;
+		DRIVERCRATE_EXPECT( context,
+						   scenario.invoke() == 1 && scenario.http.sends == 1U &&
+							   scenario.run.targets.front().error == originalError &&
+							   scenario.run.targets.front().nextAttemptAt == originalWait &&
+							   scenario.run.targets.front().failureStageThisInvocation ==
+								   LocalCollectorFailureStage::NONE &&
+							   scenario.read( scenario.path( false)) == saved) ;
+	}
+}
+
+/** @brief 同HTTP完全200失敗だけを別診断へ返し、成功保存と待機を維持します。
+ * @param[in,out] context 原assert集計です。
+ * @param[in] targets Intel一対象を含む既存fixtureです。
+ * @param[in] manifest 元manifest全byte hashです。
+ */
+void failedPageDiagnosticScenarios( TestContext							   &context,
+								   const std::vector<LocalCollectorTarget> &targets,
+								   const std::wstring					   &manifest)
+{
+	using Object = winrt::Windows::Data::Json::JsonObject ;
+	// parse/adapt/旧成功/304/長さ不一致/206/encoding/2MiB境界/超過/成功/通常失敗を独立実行します。
+	for( unsigned mode = 0U; mode < 11U; ++mode) {
+		CollectorScenario scenario( context, {targets[1]}, manifest) ;	// 自己所有の非通信rootです。
+		std::uint64_t	  clock = 1792890000U ;							// 同意と元待機だけに使う固定UTC秒です。
+		// 同期scopeだけ借用します。
+		scenario.hooks.utcSeconds = [&clock] { return clock ; } ;
+		// 初期成功を別日に固定します。
+		scenario.hooks.jstDay = [] { return L"20261024" ; } ;
+		scenario.http.body	  = dailyIntelPage() ;
+		LocalCollectorTargetResult previous ;	// 最後の成功checkpointの独立copyです。
+		// 元成功本文がある失敗でも、新失敗本文で成功fieldを上書きしません。
+		if( mode == 2U) {
+			activeFixture = &scenario.http ;
+			DRIVERCRATE_EXPECT( context, runLocalDriverCollectorWithHooks(
+											scenario.root, scenario.targets, manifest, false,
+											scenario.hooks, scenario.run, false, true) == 0) ;
+			previous = scenario.run.targets.front() ;
+			clock += 86401U ;
+		}
+
+		// 今回失敗と初回の固定日です。
+		scenario.hooks.jstDay = [] { return L"20261025" ; } ;
+		LocalCollectorPayloadRequest request ;	// 取得に進む前のmetadata失敗だけを実行します。
+		request.termsAccepted	= true ;
+		request.termsRevision	= L"artificial revision" ;
+		request.termsTextSha256 = std::wstring( 64U, L'a') ;
+		request.publishedSha256 = std::wstring( 64U, L'b') ;
+		request.payloadUrl = L"https://downloadmirror.intel.com/999999/Wired_driver_31.2.2_x64.zip" ;
+		request.fileName   = L"Wired_driver_31.2.2_x64.zip" ;
+		request.packageVersion	= L"31.2.2" ;
+		request.maximumBytes	= 1024U ;
+		request.consentNotAfter = clock + 3600U ;
+		unsigned commits{} ;	// metadata拒否から本体保存へ進まない分母です。
+		request.commitArchive = [&commits]( const auto &, const auto &, const auto &) {
+			++commits ;
+			return static_cast<NativeError>( E_UNEXPECTED) ;
+		} ; // fixture内の呼出し数だけを保持します。
+		// 許諾欄の欠損は既存parser成功後に既存adapterが拒否します。
+		if( mode == 1U) {
+			const auto begin = scenario.http.body.find( "<textarea") ;	// 人工許諾欄の開始です。
+			const auto end =
+				// 同じ人工欄の終端です。
+				scenario.http.body.find( "</textarea>", begin) ;
+			scenario.http.body.erase( begin, end + std::string( "</textarea>").size() - begin) ;
+			OfficialReleaseRecord parsed ;	// adapter到達前の実parser正例です。
+			DRIVERCRATE_EXPECT( context, parseOfficialReleaseRecord(
+											OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11,
+											winrt::to_hstring( scenario.http.body).c_str(), parsed)) ;
+		}
+		// 新200の成功でも、失敗診断は生成しません。
+		else if( mode != 9U) {
+			scenario.http.body = "<html>artificial rejected metadata</html>" ;
+		}
+
+		// 完全200以外をraw/hash付き診断へ昇格しません。
+		if( mode == 3U) {
+			scenario.http.status = 304U ;
+		}
+		// 宣言長未達を完全本文へ扱いません。
+		else if( mode == 4U) {
+			scenario.http.headers[WINHTTP_QUERY_CONTENT_LENGTH] = {L"1000"} ;
+		}
+		// 部分応答を完全200の代用にしません。
+		else if( mode == 5U) {
+			scenario.http.status = 206U ;
+		}
+		// encoding拒否では通常metadata APIのraw不発行を維持します。
+		else if( mode == 6U) {
+			scenario.http.body.push_back( static_cast<char>( 0xFF)) ;
+		}
+		// 実2MiB境界と一byte超過を別の固定条件にします。
+		else if( mode == 7U || mode == 8U) {
+			scenario.http.body.resize( 2U * 1024U * 1024U + (mode == 8U ? 1U : 0U), 'x') ;
+		}
+
+		// 通常metadata modeと明示本体modeを分け、追加のHTTPや本体取得を行いません。
+		const auto invoke = [&]() {
+			activeFixture = &scenario.http ;
+			return runLocalDriverCollectorWithHooks( scenario.root, scenario.targets, manifest,
+													false, scenario.hooks, scenario.run, false,
+													true, mode >= 9U ? nullptr : &request) ;
+		} ; // 全captureは同期scope内です。
+		const int	code	 = invoke() ;					// 元collector終了値を保存前に固定します。
+		const auto	original = scenario.run ;				// 再開前の同invocation結果を保持します。
+		const auto &target	 = original.targets.front() ;	// 元error/HTTP/成功fieldの借用です。
+		const bool	captured = mode <= 2U || mode == 7U ;	// 完全200かつ明示取得失敗だけです。
+		DRIVERCRATE_EXPECT( context, code == (mode == 9U ? 0 : 1) && commits == 0U &&
+										scenario.http.sends == (mode == 2U ? 2U : 1U)) ;
+		std::string receipt ;		// 成功checkpoint schemaの原byteを保持します。
+		std::string diagnostic ;	// 原receiptと別schemaの診断出力です。
+		DRIVERCRATE_EXPECT( context, makeLocalCollectorDailyReceipt( original, receipt)) ;
+		DRIVERCRATE_EXPECT( context, makeLocalCollectorFailedPageDiagnostic(
+										original, receipt, code, diagnostic) == captured &&
+										diagnostic.empty() != captured) ;
+		DRIVERCRATE_EXPECT( context,
+						   captured == !target.failedMetadataBytesThisInvocation.empty() &&
+							   captured == !target.failedBodySha256ThisInvocation.empty() &&
+							   target.rawMetadataBytes.empty() == (mode != 9U)) ;
+		// 完全原byteを復号し、原error/stage/receipt hashと全長を独立に照合します。
+		if( captured) {
+			const auto document =
+				// 別schemaの固定fieldです。
+				Object::Parse( winrt::to_hstring( diagnostic)) ;
+			std::wstring receiptHash ;	// 元receipt全byteを再計算します。
+			std::wstring bodyHash ;		// 2MiB境界も含む専用hash上限です。
+			DRIVERCRATE_EXPECT(
+				context, computeBytesSha256( receipt, receiptHash) == 0 &&
+							 computeCollectorMetadataSha256( scenario.http.body, bodyHash) == 0) ;
+			DRIVERCRATE_EXPECT(
+				context,
+				document.Size() == 14U &&
+					document.GetNamedString( L"schema") ==
+						L"dc-collector-failed-page-diagnostic-v1" &&
+					document.GetNamedString( L"receiptSha256") == receiptHash &&
+					document.GetNamedString( L"bodySha256") == bodyHash &&
+					document.GetNamedNumber( L"bodySize") ==
+						static_cast<double>( scenario.http.body.size()) &&
+					document.GetNamedNumber( L"error") == target.error &&
+					document.GetNamedNumber( L"failureStage") ==
+						static_cast<unsigned>( mode == 1U ? LocalCollectorFailureStage::ADAPT
+														 : LocalCollectorFailureStage::PARSE) &&
+					document.GetNamedNumber( L"httpStatus") == 200.0 &&
+					document.GetNamedNumber( L"collectorCode") == 1.0 &&
+					document.GetNamedNumber( L"notBefore") == static_cast<double>( clock + 86400U)) ;
+			const auto encoded = winrt::to_string(
+				// 原byteの可逆表現です。
+				document.GetNamedString( L"bodyBytesBase64")) ;
+			DWORD size = static_cast<DWORD>( scenario.http.body.size()) ;	// 実request上限内です。
+			std::string decoded( size, '\0') ;								// 期待全長だけを確保します。
+			// Win32 byte API境界だけで有限な所有bufferを借用します。
+			const bool	decodedOk =
+				CryptStringToBinaryA( encoded.c_str(), static_cast<DWORD>( encoded.size()),
+									 CRYPT_STRING_BASE64 | CRYPT_STRING_STRICT,
+									 reinterpret_cast<BYTE *>( decoded.data()), &size, nullptr,
+									 nullptr) != FALSE ;
+			DRIVERCRATE_EXPECT( context, decodedOk && size == decoded.size() &&
+											decoded == scenario.http.body &&
+											diagnostic.size() <= 3U * 1024U * 1024U &&
+											(mode != 7U || diagnostic.size() > 1024U * 1024U)) ;
+			// 各欠測・改変・非200・未知stageを独立した所有copyで拒否します。
+			for( unsigned fault = 0U; fault < 14U; ++fault) {
+				auto  damaged = original ;					// 元runと原失敗を変更しません。
+				auto &row	  = damaged.targets.front() ;	// 故障注入するcopyだけです。
+				// 完了・現在試行・原byte/hash・stageの一条件ずつを壊します。
+				if( fault == 0U) {
+					damaged.complete = false ;
+				}
+				// 欠測本文を元成功から補いません。
+				else if( fault == 1U) {
+					row.failedMetadataBytesThisInvocation.clear() ;
+				}
+				// 受信hashの差替えを拒否します。
+				else if( fault == 2U) {
+					row.failedBodySha256ThisInvocation = std::wstring( 64U, L'0') ;
+				}
+				// 受信後の本文改変を拒否します。
+				else if( fault == 3U) {
+					row.failedMetadataBytesThisInvocation.push_back( 'x') ;
+				}
+				// 304へ原200本文を補完しません。
+				else if( fault == 4U) {
+					row.lastHttpStatus = 304U ;
+				}
+				// 未試行結果を今回本文へ結びません。
+				else if( fault == 5U) {
+					row.attemptedThisInvocation = false ;
+				}
+				// 未観測stageから拒否原因を推測しません。
+				else if( fault == 6U) {
+					row.failureStageThisInvocation = LocalCollectorFailureStage::NONE ;
+				}
+				// 成功errorを失敗資料へ変換しません。
+				else if( fault == 7U) {
+					row.error = 0U ;
+				}
+				// 成功stateを失敗診断へ使いません。
+				else if( fault == 8U) {
+					row.state = LocalCollectorTargetState::UNCHANGED ;
+				}
+				// 保護state拒否は部分収集の確定失敗と区別します。
+				else if( fault == 9U) {
+					damaged.stateError = ERROR_INVALID_DATA ;
+				}
+				// 専用一対象以外の本文を診断へ流しません。
+				else if( fault == 10U) {
+					row.source = L"ASUS_CATALOG" ;
+				}
+				// 定義外stageへ意味を補いません。
+				else if( fault == 11U) {
+					row.failureStageThisInvocation = static_cast<LocalCollectorFailureStage>( 8U) ;
+				}
+				// 上限超過原byteを切り詰めて保存しません。
+				else if( fault == 12U) {
+					row.failedMetadataBytesThisInvocation.resize( 2U * 1024U * 1024U + 1U, 'x') ;
+				}
+
+				std::string rejected = "sentinel" ;	// 失敗時は空にします。
+				DRIVERCRATE_EXPECT(
+					context, !makeLocalCollectorFailedPageDiagnostic(
+								 damaged, fault == 13U ? receipt + " " : receipt, 1, rejected) &&
+								 rejected.empty()) ;
+			}
+		}
+
+		// 旧成功の三fieldとrecordを失敗資料へ置換せず、通常receiptへ混入させません。
+		if( mode == 2U) {
+			DRIVERCRATE_EXPECT(
+				context,
+				target.bodySha256 == previous.bodySha256 &&
+					target.lastFetchedAt == previous.lastFetchedAt &&
+					target.retainedMetadataBytes == previous.retainedMetadataBytes &&
+					target.records == previous.records &&
+					target.lastSuccessfulValidationAt == previous.lastSuccessfulValidationAt &&
+					target.failedMetadataBytesThisInvocation != previous.retainedMetadataBytes &&
+					Object::Parse( winrt::to_hstring( receipt)).GetNamedString( L"outcome") ==
+						L"FAILED") ;
+		}
+
+		const auto saved = scenario.read( scenario.path( false)) ;	// 診断fieldの非永続化を検査します。
+		DRIVERCRATE_EXPECT( context, saved.find( "failedMetadata") == std::string::npos &&
+										saved.find( "failedBody") == std::string::npos &&
+										saved.find( "failed-page-diagnostic") == std::string::npos) ;
+		const auto sends = scenario.http.sends ;	// 再開から再取得しません。
+		DRIVERCRATE_EXPECT(
+			context, invoke() == code && scenario.http.sends == sends &&
+						 scenario.run.targets.front().failedMetadataBytesThisInvocation.empty() &&
+						 scenario.run.targets.front().failedBodySha256ThisInvocation.empty() &&
+						 scenario.run.targets.front().failureStageThisInvocation ==
+							 LocalCollectorFailureStage::NONE &&
+						 scenario.run.targets.front().nextAttemptAt == target.nextAttemptAt &&
+						 scenario.read( scenario.path( false)) == saved) ;
+		std::string resumedReceipt ;	// 再開のNO_NETWORKを新失敗本文へ昇格しません。
+		DRIVERCRATE_EXPECT( context, makeLocalCollectorDailyReceipt( scenario.run, resumedReceipt) &&
+										!makeLocalCollectorFailedPageDiagnostic(
+											scenario.run, resumedReceipt, code, diagnostic) &&
+										diagnostic.empty()) ;
+		std::cout << "FAILED_PAGE_ARTIFICIAL case=" << mode << " code=" << code
+				  << " captured=" << captured << '\n' ;
+	}
+}
+
+/** @brief 新200の同recordからの取得と全掲載hash・新版bindingの有限な拒否を確認します。
+ * @param[in,out] context 原assert集計です。
+ * @param[in] targets 既存Intel一targetを含むfixtureです。
+ * @param[in] manifest 元manifest hashです。
+ */
+void dailyPayloadScenarios( TestContext &context, const std::vector<LocalCollectorTarget> &targets,
+						   const std::wstring &manifest)
+{
+	// 既存parser/grant/共通取得器を実HTTPなしで同じ順序へ通します。
+	for( unsigned mode = 0U; mode < 40U; ++mode) {
+		CollectorScenario scenario( context, {targets[1]},
+								   manifest) ;	// 隔離した自己所有rootだけです。
+		const auto		  now =
+			static_cast<std::uint64_t>( std::chrono::duration_cast<std::chrono::seconds>(
+										   std::chrono::system_clock::now().time_since_epoch())
+										   .count()) ;	// 同じ低位HTTPの実UTCです。
+		std::uint64_t clock		  = now ;				// 各拒否の時刻だけを独立制御します。
+		scenario.hooks.utcSeconds = [&clock] {
+			const auto actual =
+				static_cast<std::uint64_t>( std::chrono::duration_cast<std::chrono::seconds>(
+											   std::chrono::system_clock::now().time_since_epoch())
+											   .count()) ;	// 人工HTTPも同OS秒で記録されます。
+			return clock == 0U ? 0U : std::max( clock, actual) ;
+		} ; // 不明時計だけを意図的に0へ固定します。
+		scenario.transport.utcNow =
+			scenario.hooks.utcSeconds ;	// 既存delegated HTTPの必須fake時計です。
+		scenario.hooks.jstDay = [] { return L"20261025" ; } ;
+		PayloadFixtureCost cost ;	// OS costや実networkに到達しません。
+		scenario.hooks.networkCostReader = &cost ;
+		std::string	 payloadBytes = "artificial driver archive bytes" ;	// 実packageではありません。
+		std::wstring payloadHash ;										// 原recordへ書く実hashです。
+		DRIVERCRATE_EXPECT( context, computeBytesSha256( payloadBytes, payloadHash) == 0) ;
+		std::string		  page = dailyIntelPage() ;	// 既存人工terms/固定parser構造です。
+		const std::string originalHash =
+			"0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF" ;	// 人工公表hashです。
+		std::wstring publishedHash = payloadHash ;									// 既存Intel parserの公表表記へだけ揃えます。
+		std::transform(
+			publishedHash.begin(), publishedHash.end(), publishedHash.begin(), []( const wchar_t c) {
+				return c >= L'a' && c <= L'f' ? static_cast<wchar_t>( c - L'a' + L'A') : c ;
+			}) ;
+		page.replace( page.find( originalHash), originalHash.size(),
+					 winrt::to_string( winrt::hstring{publishedHash})) ;
+		const std::wstring payloadSha512 =
+			// 架空payload全文だけの独立SHA-512です。
+			L"ce4b26b0d224357fc6e743b86c0cd5a0428e0a7e7475410033d63dbb343fa15d4dd3e564ef54eac68a6c3fca60048d9d8a9dfca971885bc464635b719bdfd407" ;
+		// 新版・別file・概算sizeの変更を既存parserから共通取得器へ通します。
+		if( mode >= 23U) {
+			std::size_t offset{} ;	// 原版の全表示を同じ架空新版へ置き換えます。
+			// 同じ有限page内の版tokenだけを終端まで更新します。
+			while( (offset = page.find( "31.2.2", offset)) != std::string::npos) {
+				page.replace( offset, 6U, "99.7.4") ;
+				offset += 6U ;
+			}
+
+			const auto sizeOffset = page.find( "38.6 MB") ;	// 概算をexactへ変換しない正例です。
+			page.replace( sizeOffset, 7U, "42.1 MB") ;
+			const auto hashOffset = page.find( "<li>SHA256:") ;				// 検査する算法の原nodeです。
+			const auto hashEnd	  = page.find( "</li>", hashOffset) + 5U ;	// 有限node全体です。
+			const auto sha512Node =
+				"<li>SHA512: " + winrt::to_string( winrt::hstring{payloadSha512}) +
+				"</li>" ;	// 架空値だけです。
+			// 公開SHA-512-onlyをSHA-256欠測のまま表現します。
+			if( mode == 23U || mode == 39U) {
+				page.replace( hashOffset, hashEnd - hashOffset, sha512Node) ;
+			}
+			// 架空新版の従来SHA-256-onlyも同じ経路を通します。
+			else if( mode != 38U) {
+				page.insert( hashEnd, sha512Node) ;
+			}
+
+			const auto trigger =
+				// 既存一意triggerへclassだけを付けます。
+				page.find( "<button data-modal-id") ;
+			page.insert( trigger + 7U, " class=\"available-download-button__cta\"") ;
+			const auto rawBegin = page.find( "<textarea") ;	// 通常terms readerが要求する包含です。
+			page.insert( rawBegin, "<div id=\"licenseModal\" class=\"license-modal__dialog\">") ;
+			const auto rawEnd =
+				// 原raw全文の直後へcontainer終端を置きます。
+				page.find( "</textarea>") + 11U ;
+			page.insert( rawEnd, "</div>") ;
+			page +=
+				"<div class=\"license-modal-big-bag-container\"></div><button class=\"license-modal-content-license__btn--btn-accept\"></button><a class=\"license-modal-content-footer-download__restart-link\"></a><script src=\"https://www.intel.com/artificial-terms-binding.js\"></script>" ;
+		}
+
+		OfficialReleaseRecord release ;	// 許諾同意の期待値だけを抽出します。
+		DRIVERCRATE_EXPECT(
+			context, parseOfficialReleaseRecord( OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11,
+												winrt::to_hstring( page).c_str(), release)) ;
+		LocalCollectorPayloadRequest request ;	// 公開metadataをauthorityにはしません。
+		request.termsAccepted = true ;
+		request.termsRevision = release.eulaRevision ;
+		DRIVERCRATE_EXPECT( context,
+						   computeBytesSha256( winrt::to_string( winrt::hstring{release.eulaText}),
+											  request.termsTextSha256) == 0) ;
+		request.publishedSha256	   = payloadHash ;
+		request.publishedSha256	   = release.publishedSha256 ;
+		request.publishedSha512	   = release.publishedSha512 ;
+		request.payloadUrl		   = release.downloadUrl ;
+		request.fileName		   = release.fileName ;
+		request.packageVersion	   = release.packageVersion ;
+		request.publishedSizeBytes = release.publishedSizeBytes ;
+		using Object			   = winrt::Windows::Data::Json::JsonObject ;
+		using Value				   = winrt::Windows::Data::Json::JsonValue ;
+		Object approved ;	// appのreadPayloadApprovalと同じ共通readerへ原JSONを渡します。
+		approved.Insert( L"schema", Value::CreateStringValue( release.publishedSha512.empty()
+																? L"dc-saved-release-analysis-v1"
+																: L"dc-saved-release-analysis-v2")) ;
+		approved.Insert( L"source", Value::CreateStringValue( L"INTEL_ETHERNET_WINDOWS11")) ;
+		approved.Insert( L"termsRevision", Value::CreateStringValue( request.termsRevision)) ;
+		approved.Insert( L"termsTextSha256", Value::CreateStringValue( request.termsTextSha256)) ;
+		approved.Insert( L"termsText", Value::CreateStringValue( release.eulaText)) ;
+		approved.Insert( L"payloadUrl", Value::CreateStringValue( request.payloadUrl)) ;
+		approved.Insert( L"fileName", Value::CreateStringValue( request.fileName)) ;
+		approved.Insert( L"packageVersion", Value::CreateStringValue( request.packageVersion)) ;
+		approved.Insert( L"publishedSha256", Value::CreateStringValue( request.publishedSha256)) ;
+		// 掲載されない算法fieldを架空補完せず、v2だけへ保存します。
+		if( !request.publishedSha512.empty()) {
+			approved.Insert( L"publishedSha512", Value::CreateStringValue( request.publishedSha512)) ;
+		}
+
+		DRIVERCRATE_EXPECT(
+			context,
+			decodeLocalCollectorPayloadApproval( winrt::to_string( approved.Stringify()), request) &&
+				!request.termsAccepted && request.maximumBytes == 0U && !request.commitArchive) ;
+		request.termsAccepted = true ;
+		// 保存JSONのschema/型/全算法/任意exact値の負例を新PAGEより前に確認します。
+		if( mode == 24U) {
+			// 全有限改変を独立cloneへ注入し、前の失敗から期待値を補いません。
+			for( unsigned fault = 0U; fault < 9U; ++fault) {
+				auto changed = Object::Parse( approved.Stringify()) ;	// 原成功入力の独立copyです。
+				// 欠算法・不正片算法・偽全文・0/小数/過大を明示拒否します。
+				if( fault == 0U) {
+					changed.Insert( L"schema",
+								   Value::CreateStringValue( L"dc-saved-release-analysis-v1")) ;
+				}
+				// SHA-256が正しくてもSHA-512を無視しません。
+				else if( fault == 1U) {
+					changed.Insert( L"publishedSha512", Value::CreateStringValue( L"invalid")) ;
+				}
+				// SHA-512が正しくてもSHA-256を無視しません。
+				else if( fault == 2U) {
+					changed.Insert( L"publishedSha256", Value::CreateStringValue( L"invalid")) ;
+				}
+				// v2の欠算法をfallbackしません。
+				else if( fault == 3U) {
+					changed.Remove( L"publishedSha512") ;
+				}
+				// 同意全文の原hash不一致です。
+				else if( fault == 4U) {
+					changed.Insert( L"termsText", Value::CreateStringValue( L"changed")) ;
+				}
+				// 型違いを0へ変換しません。
+				else if( fault == 5U) {
+					changed.Insert( L"publishedSizeBytes", Value::CreateStringValue( L"31")) ;
+				} else { // exact sizeの非正数・小数・過大です。
+					changed.Insert( L"publishedSizeBytes",
+								   Value::CreateNumberValue( fault == 6U	  ? 0.0
+															: fault == 7U ? 1.5
+																		  : 134217729.0)) ;
+				}
+
+				LocalCollectorPayloadRequest rejected ;	// 失敗時の出力を空へ戻します。
+				DRIVERCRATE_EXPECT( context, !decodeLocalCollectorPayloadApproval(
+												winrt::to_string( changed.Stringify()), rejected) &&
+												rejected.publishedSha256.empty()) ;
+			}
+		}
+
+		request.maximumBytes = payloadBytes.size() ;
+		// 実CLIと同じ128MiB予約でも、未知exactを概算から補完しません。
+		if( mode == 39U) {
+			request.maximumBytes = 128U * 1024U * 1024U ;
+		}
+
+		request.consentNotAfter = now + 3600U ;
+		unsigned   commits{} ;	// 不正/中断から保存sinkへ到達しないことを確認します。
+		const auto archive	  = std::filesystem::path( scenario.root.native() +
+													  L".payload.zip") ;	// 自己所有の別fileです。
+		request.commitArchive = [&]( const OfficialAcquisitionSession &session,
+									const OfficialDownloadWorkspace	 &workspace,
+									const OfficialAcquisitionResult	 &acquired) {
+			++commits ;
+			OfficialAcquiredFileEvidence evidence ;	// 同生存issuerだけが発行できます。
+			const auto error = session.bindAcquiredFile( workspace, acquired.acquisitionId,
+														evidence) ;	// 原byte再検査です。
+			DRIVERCRATE_EXPECT(
+				context, error == 0 && session.verifyAcquiredFile( evidence, workspace) == 0 &&
+							 acquired.publishedSha256Verified == !request.publishedSha256.empty() &&
+							 acquired.publishedSha512Verified == !request.publishedSha512.empty() &&
+							 acquired.delegatedRecord && acquired.byteCount == payloadBytes.size()) ;
+			LocalCollectorStateStore concurrent ;	// 同じwriterが本体保存まで保持されています。
+			DRIVERCRATE_EXPECT( context, concurrent.initializeExistingWriter( scenario.root) != 0U) ;
+			// 保存拒否は成功receiptや新世代を発行しません。
+			if( mode == 10U) {
+				return static_cast<NativeError>( E_ACCESSDENIED) ;
+			}
+
+			// 途中例外はIN_PROGRESSと先払い待機を残します。
+			if( mode == 11U) {
+				throw std::runtime_error( "artificial payload commit interruption") ;
+			}
+
+			DRIVERCRATE_EXPECT( context, CopyFileW( acquired.inspectionPath.c_str(), archive.c_str(),
+												  TRUE) != FALSE) ;
+			return error ;
+		} ; // 取得/封印以外をfake成功にしません。
+		scenario.http.responseBodies = {page, payloadBytes} ;
+		scenario.http.sequence		 = {200U, 200U} ;
+		// 同binaryの旧metadata/ETagがあっても本体modeは新200を要求します。
+		if( mode == 22U) {
+			const auto currentClock	  = scenario.hooks.utcSeconds ;	// 元の現在UTC callbackです。
+			scenario.hooks.utcSeconds = [now] { return now - 86401U ; } ;
+			scenario.hooks.jstDay	  = [] { return L"20261024" ; } ;
+			scenario.http.responseBodies.clear() ;
+			scenario.http.body = page ;
+			activeFixture	   = &scenario.http ;
+			DRIVERCRATE_EXPECT(
+				context, runLocalDriverCollectorWithHooks( scenario.root, scenario.targets,
+														  scenario.manifest, false, scenario.hooks,
+														  scenario.run, false, true) == 0 &&
+							 scenario.http.sends == 1U && scenario.run.dailyGeneration == 4U) ;
+			scenario.hooks.utcSeconds	 = currentClock ;
+			scenario.hooks.jstDay		 = [] { return L"20261025" ; } ;
+			scenario.http.responseBodies = {page, page, payloadBytes} ;
+			scenario.http.sequence		 = {200U, 200U, 200U} ;
+		}
+
+		// 欠同意・原期限・未知時計はPAGEより前に拒否します。
+		if( mode == 1U) {
+			request.termsAccepted = false ;
+		}
+
+		// 同意の絶対期限ちょうどではPAGEを開始しません。
+		if( mode == 2U) {
+			request.consentNotAfter = now ;
+		}
+
+		// 不明なUTCを有効な同意時刻へ補完しません。
+		if( mode == 3U) {
+			clock = 0U ;
+		}
+
+		// 同意revision/全文hashの差をPAGE全体の差と分離します。
+		if( mode == 4U) {
+			request.termsRevision += L"changed" ;
+		}
+
+		// Revisionが同じでも全文hashの変更は同意外です。
+		if( mode == 5U) {
+			request.termsTextSha256 = std::wstring( 64U, L'a') ;
+		}
+
+		// 新200の公表hashと原承認hashの不一致を拒否します。
+		if( mode == 6U) {
+			request.publishedSha256 = std::wstring( 64U, L'b') ;
+		}
+
+		// 実本体が承認予算を超す場合は共通取得器がpartialを回収します。
+		if( mode == 7U) {
+			--request.maximumBytes ;
+		}
+
+		// 予算内でも実byteのhash不一致を成功にしません。
+		if( mode == 8U) {
+			scenario.http.responseBodies[1] += "modified" ;
+			request.maximumBytes += 8U ;
+		}
+
+		// 本体の一時HTTP失敗で自動再試行を行いません。
+		if( mode == 9U) {
+			scenario.http.sequence[1] = 503U ;
+		}
+
+		// 304応答から新しい私有recordを構築しません。
+		if( mode == 12U) {
+			scenario.http.sequence[0] = 304U ;
+		}
+
+		// 不明回線を今回の明示同意なしで許可しません。
+		if( mode == 13U) {
+			cost.kind = OfficialNetworkCostKind::UNKNOWN ;
+		}
+
+		// 制限回線を通常回線へ読み替えません。
+		if( mode == 14U) {
+			cost.kind = OfficialNetworkCostKind::RESTRICTED ;
+		}
+
+		// 0予算でmetadataだけを取得して待機を消費しません。
+		if( mode == 15U) {
+			request.maximumBytes = 0U ;
+		}
+
+		// 既存128MiB能力を超える承認値を受理しません。
+		if( mode == 16U) {
+			request.maximumBytes = 128U * 1024U * 1024U + 1U ;
+		}
+
+		// 無期限に近い同意を一回の許可へ使いません。
+		if( mode == 17U) {
+			request.consentNotAfter = now + 86401U ;
+		}
+
+		// hash文法の不正はPAGEより前に拒否します。
+		if( mode == 18U) {
+			request.termsTextSha256 = L"invalid" ;
+		}
+
+		// 未完了checkpointからgrant/HTTPを再発行しません。
+		if( mode == 19U) {
+			scenario.hooks.stopAfterCheckpoint = []( auto point, auto) {
+				return point == LocalCollectorCheckpoint::TARGET_STARTED ;
+			} ;
+		}
+
+		// 完了本文保存窓の回収から本体成功を合成しません。
+		if( mode == 20U) {
+			scenario.hooks.stopAfterCheckpoint = []( auto point, auto) {
+				return point == LocalCollectorCheckpoint::RUN_COMPLETED ;
+			} ;
+		}
+
+		// PAGE表面の差だけで同じ許諾を変更扱いしません。
+		if( mode == 21U) {
+			scenario.http.responseBodies[0] += "<!-- surface change -->" ;
+		}
+
+		// 両掲載の一算法だけの実byte不一致を他方の成功で救済しません。
+		if( mode == 25U || mode == 26U) {
+			auto	  &hash = mode == 25U ? request.publishedSha512
+										  : request.publishedSha256 ;	// 対照する算法です。
+			const auto original =
+				// PAGEと期待値だけを同じ誤値へ変えます。
+				winrt::to_string( winrt::hstring{hash}) ;
+			hash[0] = hash[0] == L'0' ? L'1' : L'0' ;
+			scenario.http.responseBodies[0].replace( scenario.http.responseBodies[0].find( original),
+													original.size(),
+													winrt::to_string( winrt::hstring{hash})) ;
+		}
+
+		// 新PAGEで不正な片算法はparser段階で拒否します。
+		if( mode == 27U) {
+			const auto offset = scenario.http.responseBodies[0].find( "SHA512: ") +
+								8U ;	// 一文字だけを非hexへ変えます。
+			scenario.http.responseBodies[0][offset] = 'g' ;
+		}
+
+		// 承認と掲載算法集合が違う場合は追加hashを無言で捨てません。
+		if( mode == 28U) {
+			request.publishedSha512.clear() ;
+		}
+
+		// URL・file・版はtermsが同じでも別payloadへのbindingを要求します。
+		if( mode == 29U || mode == 30U || mode == 31U) {
+			auto &field = mode == 29U	? request.payloadUrl
+						  : mode == 30U ? request.fileName
+										: request.packageVersion ;	// 独立の不一致です。
+			field += L"changed" ;
+		}
+
+		// 文法不正/全欠測/0 exact/過大exactはPAGEより前に拒否します。
+		if( mode == 32U) {
+			request.publishedSha512 = L"invalid" ;
+		}
+
+		// 公表hashが一つもない入力へ実測hashを補いません。
+		if( mode == 33U) {
+			request.publishedSha256.clear() ;
+			request.publishedSha512.clear() ;
+		}
+
+		// 0は未知exact sizeを意味しません。
+		if( mode == 34U || mode == 36U) {
+			request.publishedSizeBytes = mode == 34U ? 0U : request.maximumBytes + 1U ;
+		}
+
+		// 概算しかないPAGEへ既知exact sizeを捏造した承認も拒否します。
+		if( mode == 35U) {
+			request.publishedSizeBytes = payloadBytes.size() ;
+		}
+
+		// 公開SHA-512を実byteへ一致させても受信予算超過は成功しません。
+		if( mode == 37U) {
+			--request.maximumBytes ;
+		}
+
+		const auto invoke = [&] {
+			activeFixture = &scenario.http ;
+			return runLocalDriverCollectorWithHooks( scenario.root, scenario.targets,
+													scenario.manifest, false, scenario.hooks,
+													scenario.run, false, true, &request) ;
+		} ; // 同日次coreを使用します。
+		int	 code = 2 ;			// 例外も原失敗分母へ保持します。
+		bool interrupted{} ;	// 強制終了や実process操作を使いません。
+		try {
+			code = invoke() ;
+		} catch( const std::runtime_error &) {
+			interrupted = true ;
+		}
+
+		const bool success = mode == 0U || mode == 21U || mode == 22U || mode == 23U ||
+							 // 従来と新版両算法の正例です。
+							 mode == 24U || mode == 38U || mode == 39U ;
+		const bool early = mode == 1U || mode == 2U || mode == 3U || (mode >= 15U && mode <= 18U) ||
+						   (mode >= 32U && mode <= 34U) || mode == 36U ;	// PAGE未開始です。
+		const auto stage = scenario.run.targets.empty()
+							   ? LocalCollectorFailureStage::NONE
+							   : scenario.run.targets.front()
+									 .failureStageThisInvocation ;	// 今回未試行は未観測です。
+		const auto expectedStage =
+			success || early || mode == 19U || mode == 20U ? LocalCollectorFailureStage::NONE
+			: mode == 12U								   ? LocalCollectorFailureStage::METADATA
+			: mode == 27U								   ? LocalCollectorFailureStage::PARSE
+						  : LocalCollectorFailureStage::PAYLOAD ;	// 原23条件の最初の拒否区間です。
+		DRIVERCRATE_EXPECT( context, stage == expectedStage) ;
+		std::cout << "DAILY_PAYLOAD_ARTIFICIAL case=" << mode << " code=" << code
+				  << " stage=" << static_cast<unsigned>( stage) << " sends=" << scenario.http.sends
+				  << " commits=" << commits << " generation=" << scenario.run.dailyGeneration
+				  << " error="
+				  << (scenario.run.targets.empty() ? scenario.run.stateError
+												   : scenario.run.targets.front().error)
+				  << '\n' ;
+		// 正例だけが新200/保存/元世代を同時に成立させます。
+		if( success) {
+			// 完全人工の原receiptだけを後続接続fixtureへ渡します。実HTTP証拠ではありません。
+			if( mode == 23U || mode == 24U || mode == 38U || mode == 39U) {
+				std::string receipt ;	// 原日次schemaの架空成功byteです。
+				DRIVERCRATE_EXPECT( context, makeLocalCollectorDailyReceipt( scenario.run, receipt)) ;
+				std::cout << "METADATA_BOUND_ARTIFICIAL_RECEIPT mode=" << mode << " " << receipt
+						  << '\n' ;
+			}
+
+			const auto expectedSends =
+				// 原metadataと今回取得を別に数えます。
+				mode == 22U ? 3U : 2U ;
+			DRIVERCRATE_EXPECT( context,
+							   code == 0 && scenario.http.sends == expectedSends && commits == 1U &&
+								   scenario.run.dailyGeneration == (mode == 22U ? 5U : 4U) &&
+								   scenario.run.targets.front().payloadAcquiredThisInvocation) ;
+			DRIVERCRATE_EXPECT(
+				context, mode != 22U || (scenario.http.requestHeaders.size() == 3U &&
+										 scenario.http.requestHeaders[1].find( L"If-None-Match") ==
+											 std::wstring::npos)) ;
+			std::wstring saved ;	// 保存bodyの実hashです。
+			DRIVERCRATE_EXPECT( context, computeFileSha256( archive.native(), saved) == 0 &&
+											saved == payloadHash) ;
+			const auto head =
+				// 同日再利用前の原byteです。
+				scenario.read( L"current/daily-generation-v1.json") ;
+			DRIVERCRATE_EXPECT(
+				context, invoke() == 0 && scenario.http.sends == expectedSends && commits == 1U &&
+							 !scenario.run.targets.front().payloadAcquiredThisInvocation &&
+							 scenario.run.targets.front().failureStageThisInvocation ==
+								 LocalCollectorFailureStage::NONE &&
+							 scenario.read( L"current/daily-generation-v1.json") == head) ;
+		} else {
+			DRIVERCRATE_EXPECT( context, code != 0 && scenario.run.dailyGeneration == 0U) ;
+			// 入口拒否はnetworkも保存sinkも実行しません。
+			if( early) {
+				DRIVERCRATE_EXPECT( context, scenario.http.sends == 0U && commits == 0U) ;
+			}
+
+			// 途中の原checkpointを回収しても同意/authorityを再構築しません。
+			if( mode == 11U || mode == 19U || mode == 20U) {
+				DRIVERCRATE_EXPECT( context, mode != 11U || interrupted) ;
+				const auto sends				   = scenario.http.sends ;	// 中断前の原送信数です。
+				scenario.hooks.stopAfterCheckpoint = {} ;
+				const auto recovered			   = invoke() ;	// 失敗または未通信回収だけです。
+				DRIVERCRATE_EXPECT(
+					context, (recovered == 0 || recovered == 1) && scenario.http.sends == sends &&
+								 !scenario.run.targets.front().payloadAcquiredThisInvocation &&
+								 scenario.run.targets.front().failureStageThisInvocation ==
+									 LocalCollectorFailureStage::NONE &&
+								 scenario.run.dailyGeneration == 0U) ;
+			}
+		}
+
+		// 原待機は別manifestへも引き継ぎ、新しいpayload試行を許可しません。
+		if( !early) {
+			const auto sends  = scenario.http.sends ;	// 新manifest前の原送信数です。
+			scenario.manifest = std::wstring( 64U, L'c') ;
+			const auto held	  = invoke() ;	// 予約head未確定の完了窓は通常HOLDより強く拒否します。
+			DRIVERCRATE_EXPECT( context,
+							   (mode == 20U ? held == 2 : held == 3 && scenario.run.dailyHeld) &&
+								   scenario.http.sends == sends &&
+								   (scenario.run.targets.empty() ||
+									scenario.run.targets.front().failureStageThisInvocation ==
+										LocalCollectorFailureStage::NONE)) ;
+		}
+
+		// 自身が作った別fileだけを確認して削除します。
+		if( std::filesystem::exists( archive)) {
+			DRIVERCRATE_EXPECT( context, DeleteFileW( archive.c_str()) != FALSE) ;
+		}
+	}
+}
+
 /** @brief 人工200→304、早着HOLDと同日due後、未通信と単調世代を確認します。
  * @param[in,out] context Assertion集計。
  * @param[in] targets 既存manifest parserが返した公開二対象。
@@ -2242,6 +3094,9 @@ int main()
 		drivercrate::test::legacyExportScenarios( context, targets, manifest) ;
 		drivercrate::test::dailyReceiptScenarios( context, targets, manifest) ;
 		drivercrate::test::dailyReservationScenarios( context, targets, manifest) ;
+		drivercrate::test::failureStageScenarios( context, targets, manifest) ;
+		drivercrate::test::failedPageDiagnosticScenarios( context, targets, manifest) ;
+		drivercrate::test::dailyPayloadScenarios( context, targets, manifest) ;
 		drivercrate::test::cleanupFixture( first) ;
 		drivercrate::test::cleanupFixture( second) ;
 		drivercrate::test::cleanupFixture( third) ;

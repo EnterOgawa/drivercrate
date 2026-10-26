@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native_tests.cpp
  * @brief 架空fileと明示実行の標準INFによるnative依存adapter試験。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  架空file境界と標準INF専用測定を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 通常試験は架空INFだけを読む。別targetの明示optionだけが標準INFを読む。
@@ -236,7 +237,8 @@ void fixtures( drivercrate::test::TestContext &context)
 		CloseHandle( writer) ;
 	}
 
-	DRIVERCRATE_EXPECT( context, conflict == HRESULT_FROM_WIN32( ERROR_SHARING_VIOLATION)) ;
+	DRIVERCRATE_EXPECT(
+		context, conflict == static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_SHARING_VIOLATION))) ;
 	DRIVERCRATE_EXPECT( context, result.dependency.documents.empty()) ;
 
 	OfficialDownloadWorkspace ambiguousWorkspace ;	// 同名だが別fileの候補を置く。

@@ -2,8 +2,8 @@
 /**
  * @file official_download_workspace.cpp
  * @brief 公式配布file用保護一時領域実装。
- * @version 01.00.01
- * @date 2026/09/02
+ * @version 01.01.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -32,6 +32,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.01.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * </pre>
  *
  * @note Windows Temp配下へ保護directoryを作成し、CREATE_NEW済みfileと同期SetupAPIが作成した検証済みfileだけを追跡します。
@@ -281,25 +282,29 @@ private:
  *
  * Absolute path、UNC、ADS、空要素、path traversalを拒否する。
  *
- * @param[in] value `\\`で階層を区切る相対path。
+ * @param[in] value 指定区切りだけで階層を表す相対member。
+ * @param[in] separator 明示したslashまたはbackslash。
  * @return 全要素が安全で長さ上限内の場合は`true`。
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] bool isSafeRelativePath( const std::wstring_view value) noexcept
+[[nodiscard]] bool isSafeRelativePath( const std::wstring_view value,
+									  const wchar_t			  separator) noexcept
 {
 	// 空、過大、絶対形式、末尾区切り、不正separatorを持つ相対pathを拒否する。
-	if( value.empty() || value.size() > MAXIMUM_RELATIVE_PATH_CHARACTERS || value.front() == L'\\' ||
-	   value.back() == L'\\' || value.find( L'/') != std::wstring_view::npos) {
+	if( (separator != L'/' && separator != L'\\') || value.empty() ||
+	   value.size() > MAXIMUM_RELATIVE_PATH_CHARACTERS || value.front() == separator ||
+	   value.back() == separator ||
+	   value.find( separator == L'/' ? L'\\' : L'/') != std::wstring_view::npos) {
 		return false ;
 	}
 
 	std::size_t beginning{} ;	// 現在検証するpath要素の開始位置。
 	// Separatorごとに全path要素を有限走査する。
 	while( beginning < value.size()) {
-		const std::size_t separator = value.find( L'\\', beginning) ;	// 次のseparator位置。
+		const std::size_t next = value.find( separator, beginning) ;	// 次のseparator位置。
 		const std::size_t ending =
 			// 要素終端位置。
-			separator == std::wstring_view::npos ? value.size() : separator ;
+			next == std::wstring_view::npos ? value.size() : next ;
 		// 相対pathの全要素を安全な通常名へ制限する。
 		if( !isSafePathComponent( value.substr( beginning, ending - beginning))) {
 			return false ;
@@ -338,6 +343,12 @@ private:
 }
 
 } // namespace
+
+/** @see official_download_workspace.h */
+bool isSafeOfficialArchiveMember( const std::wstring_view value, const wchar_t separator) noexcept
+{
+	return isSafeRelativePath( value, separator) ;
+}
 
 //------------------------------------------------------------------------------
 /**
@@ -434,7 +445,7 @@ NativeError OfficialDownloadWorkspace::createFile( const std::wstring_view name,
 {
 	handle = INVALID_HANDLE_VALUE ;
 	// workspace未初期化や不正な相対名ではfileを作らない。
-	if( directory_.empty() || !isSafeRelativePath( name)) {
+	if( directory_.empty() || !isSafeOfficialArchiveMember( name, L'\\')) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
 	}
 
@@ -727,7 +738,7 @@ NativeError OfficialDownloadWorkspace::queryAvailableBytes(
 std::wstring OfficialDownloadWorkspace::path( const std::wstring_view name) const
 {
 	// 未初期化または不正相対名から絶対pathを生成しない。
-	if( directory_.empty() || !isSafeRelativePath( name)) {
+	if( directory_.empty() || !isSafeOfficialArchiveMember( name, L'\\')) {
 		return {} ;
 	}
 

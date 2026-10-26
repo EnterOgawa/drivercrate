@@ -2,8 +2,8 @@
 /**
  * @file signed_index_store.cpp
  * @brief 署名索引の原入力と最大世代を一つのDPAPI headへ原子保存します。
- * @version 01.02.00
- * @date 2026/10/11
+ * @version 01.02.02
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -23,6 +23,8 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/11  通常workerの同scan署名索引読取り境界を接続。
  * Ver.01.01.01 Shunji Ogawa  2026/10/16  固定製品trust選択の現行説明を訂正。
  * Ver.01.02.00 Shunji Ogawa  2026/10/19  用途別rootと旧head不変の認証renameを追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/10/24 現行仕様へ限定し旧版専用の入口・移動を整理。
+ * Ver.01.02.02 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
  * </pre>
  *
  * @note 製品rootは固定です。実lockと保持directory handleを用い、mutexを保持しません。
@@ -40,6 +42,7 @@
 #include <new>
 #include <type_traits>
 #include <utility>
+#include <vector>
 #include <windows.h>
 #include <aclapi.h>
 #include <bcrypt.h>
@@ -50,7 +53,6 @@
 #include "platform/official_file_verifier.h"
 #include "platform/signed_index_store_internal.h"
 #include "platform/index_distribution_trust.h"
-#include "platform/index_legacy_migration_trust.h"
 #include "local_index_acceptance.h"
 
 namespace drivercrate {
@@ -69,7 +71,7 @@ constexpr std::size_t	   MAX_PLAIN =
 	static_cast<std::size_t>( INDEX_ASSET_MAX_BYTES) + INDEX_ENVELOPE_MAX_BYTES + 256U ;
 // DPAPI overheadを含む実disk byte上限。
 constexpr std::size_t		MAX_PROTECTED = 33U * 1024U * 1024U ;
-// 旧共用名は明示移行以外から開かず、新storeの迂回初期化を拒否します。
+// 旧共用名は開かず、新storeの迂回初期化を拒否して既存dataを保持します。
 constexpr std::wstring_view LEGACY_NAME = L"SignedIndex-v1" ;
 
 /** @brief 用途と完全公開pinから固定保存名を構成します。
@@ -200,11 +202,11 @@ void requireApi( const BOOL succeeded, const IndexStoreStatus status)
 }
 
 /** @brief 旧rootの存在や照会不能を新domainの初回へ補完しません。
- * @param[in] path 固定旧rootです。空は隔離test/明示移行です。
+ * @param[in] path 固定旧rootです。空は隔離testだけです。
  */
 void requireLegacyAbsent( const std::filesystem::path &path)
 {
-	// 隔離fixtureと移行専用stateは通常入口の旧root guardを使いません。
+	// 隔離fixtureだけは通常入口の旧root guardを使いません。
 	if( path.empty()) {
 		return ;
 	}
@@ -428,23 +430,6 @@ void appendInteger( std::vector<std::byte> &bytes, const std::uint64_t value, co
 	}
 }
 
-/** @brief 事前確認された完全hashを原ciphertextへ照合します。
- * @param[in] bytes 同handleで読んだ原headです。
- * @param[in] expected 小文字ASCII64桁の承認済みSHA-256です。
- */
-void requireExpectedHead( const std::span<const std::byte> bytes, const std::string_view expected)
-{
-	constexpr std::string_view HEX = "0123456789abcdef" ;	// 自動正規化しない固定文法です。
-	require( expected.size() == 64U, IndexStoreStatus::INVALID_INPUT, ERROR_INVALID_PARAMETER) ;
-	const auto actual = digest( bytes) ;	// DPAPI復号前の原ciphertextへ結合します。
-	// 全64桁を検査し、部分pinや大文字を許可しません。
-	for( std::size_t index = 0U; index < actual.size(); ++index) {
-		require( expected[index * 2U] == HEX[actual[index] >> 4U] &&
-					expected[index * 2U + 1U] == HEX[actual[index] & 15U],
-				IndexStoreStatus::STATE_REJECTED, ERROR_INVALID_DATA) ;
-	}
-}
-
 /** @brief Wireの有限範囲を先に確認して切り出します。
  * @param[in] bytes 全plain byte。
  * @param[in,out] offset 消費位置。成功時だけ進めます。
@@ -629,10 +614,6 @@ struct SignedIndexStore::State {
 	bool					isolated{} ;
 	/// 成功作成したisolated rootだけを終了時に後始末する区分。
 	bool					ownsIsolatedRoot{} ;
-	/// 明示移行だけが固定履歴公開集合を使います。通常trustを変更しません。
-	bool					migrationTrust{} ;
-	/// 明示移行だけがroot handleへDELETE権限を要求します。
-	bool					renameable{} ;
 	/// APIへ渡す正規local絶対path。
 	std::filesystem::path	root ;
 	/// 通常domainだけが旧共用rootの再出現を拒否します。
@@ -647,7 +628,7 @@ struct SignedIndexStore::State {
 	LocalMemory				directoryDescriptor ;
 	/// 用途とroot identityを結合する非秘密DPAPI entropy。
 	std::vector<std::byte>	entropy ;
-	/// 通常製品は空、明示移行の固定公開集合またはfixtureのRAM公開集合の所有copy。
+	/// 通常製品は空、fixtureの人工RAM公開集合だけの所有copy。
 	std::vector<OwnedTrust> keys ;
 	/// 再openしたfixtureが元の隔離rootの後始末能力だけを延長します。
 	std::shared_ptr<State>	rootOwner ;
@@ -744,8 +725,7 @@ struct SignedIndexStore::State {
 	{
 		auto handle = own( CreateFileW( apiPath( path).c_str(),
 									  FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES |
-										  (privateDirectory ? READ_CONTROL : 0U) |
-										  (renameable && path == root ? DELETE : 0U),
+										  (privateDirectory ? READ_CONTROL : 0U),
 									  FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
 									  FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
 									  nullptr)) ;	// 祖先差替えを防ぐ実ownerです。
@@ -888,7 +868,7 @@ struct SignedIndexStore::State {
 		}
 
 		auto manifest =
-			(isolated || migrationTrust)
+			isolated
 				? signed_index_detail::authenticateWithTrustKeys( wire.envelope, nowUtc, highWater,
 																 trust)
 				: authenticateSignedIndexManifest( wire.envelope, nowUtc,
@@ -1093,125 +1073,6 @@ struct SignedIndexStore::State {
 		replaceHead( protectedBytes, signed_index_store_detail::Fault::NONE, disposition) ;
 		static_cast<void>( readHead()) ;
 	}
-
-	/** @brief 固定domainの分類/移動/再実行を同じ実装で検証します。
-	 * @param[in] parent 製品の固定親または自作隔離rootです。
-	 * @param[in] expectedHeadSha256 事前確認された原ciphertextの完全pinです。
-	 * @param[in] nowUtc 現在UTC。未来履歴を拒否します。
-	 * @param[in] migrationKeys 固定二公開鍵または隔離RAM鍵だけです。
-	 * @param[in] isolated 自作fixtureだけでuser ACLを認める場合trueです。
-	 * @return 旧世代と原headを保持した移動または明示拒否です。
-	 */
-	[[nodiscard]] static IndexStoreMigrationResult migrateNamespace(
-		const std::filesystem::path &parent, std::string_view expectedHeadSha256,
-		std::optional<std::chrono::sys_seconds>		   nowUtc,
-		std::span<const signed_index_detail::TrustKey> migrationKeys, bool isolated) noexcept ;
-
-	/** @brief 原headとidentityを保持した同親renameだけを実行します。
-	 * @param[in] destination 固定domainまたは自作fixtureの単一leafです。
-	 * @param[in] expectedHeadSha256 事前確認された原ciphertextの完全pinです。
-	 * @param[in] nowUtc 現在UTC。歴史認証の未来発行を拒否します。
-	 * @param[in] fault 隔離testだけが使うcommit前後の拒否点です。
-	 * @return 現在snapshotを含まない歴史世代と移動事実です。
-	 */
-	[[nodiscard]] IndexStoreMigrationResult relocate(
-		std::filesystem::path destination, const std::string_view expectedHeadSha256,
-		const std::optional<std::chrono::sys_seconds> nowUtc,
-		const signed_index_store_detail::Fault		  fault)
-	{
-		using signed_index_store_detail::Fault ;
-		IndexStoreMigrationResult result ;	// Rename成功と認証した世代を別々に保持します。
-		try {
-			require( renameable && destination.parent_path() == root.parent_path() &&
-						destination != root && destination == destination.lexically_normal(),
-					IndexStoreStatus::INVALID_INPUT, ERROR_INVALID_PARAMETER) ;
-			auto	   lease	 = lock() ;	// 最終検査まで旧writerをshare0で排除します。
-			auto	   headLease = openFile( L"head.bin", GENERIC_READ, FILE_SHARE_READ,
-											OPEN_EXISTING) ;	// 最終照合まで書換えと削除を排除します。
-			const auto original	 = protectedHead() ;			// 旧暗号byteを比較用RAMだけへ所有します。
-			requireExpectedHead( original, expectedHeadSha256) ;
-			auto verified = readHead() ;	// 期限切れでも実署名・全schemaを独立認証します。
-			require( verified.receipt.has_value(), IndexStoreStatus::STATE_REJECTED,
-					ERROR_INVALID_DATA) ;
-			require( nowUtc.has_value(), IndexStoreStatus::TIME_UNAVAILABLE, ERROR_INVALID_TIME) ;
-			require( verified.receipt->assetBytes().manifest().data().publishedAtUtc <= *nowUtc,
-					IndexStoreStatus::NOT_YET_VALID, ERROR_INVALID_TIME) ;
-			result.generation = verified.wire.generation ;
-			const DWORD targetAttributes =
-				// 既存先を修復/mergeしません。
-				GetFileAttributesW( destination.c_str()) ;
-			require( targetAttributes == INVALID_FILE_ATTRIBUTES, IndexStoreStatus::STATE_REJECTED,
-					ERROR_ALREADY_EXISTS) ;
-			const DWORD targetError = GetLastError() ;	// 不存在以外の照会失敗を拒否します。
-			require( targetError == ERROR_FILE_NOT_FOUND, IndexStoreStatus::PROTECTION_FAILURE,
-					static_cast<NativeError>( targetError)) ;
-			BY_HANDLE_FILE_INFORMATION before{} ;	// rename前後のroot identity比較です。
-			requireApi( GetFileInformationByHandle( directories.back().get(), &before),
-					   IndexStoreStatus::PROTECTION_FAILURE) ;
-			const auto target = apiPath( destination) ;	// 変更前に必要な所有bufferを確保します。
-			const auto size =
-				// 終端分も確保します。
-				sizeof( FILE_RENAME_INFO) + target.size() * sizeof( wchar_t) ;
-			std::vector<std::byte> storage( size) ;	// OS構造体と可変長pathだけの有限bufferです。
-			// Win32可変長FILE_RENAME_INFOのAPI境界で、構造体の全固定fieldを初期化します。
-			auto				  *rename = reinterpret_cast<FILE_RENAME_INFO *>( storage.data()) ;
-			rename->ReplaceIfExists		  = FALSE ;
-			rename->RootDirectory		  = nullptr ;
-			rename->FileNameLength		  = static_cast<DWORD>( target.size() * sizeof( wchar_t)) ;
-			std::memcpy( rename->FileName, target.data(), rename->FileNameLength) ;
-			checkObject( directories.back().get(), root, true) ;
-			checkSecurity( directories.back().get(), true) ;
-			const auto final = readHead() ;	// 最終namespace変更前に全署名認証を繰り返します。
-			require( final.wire.manifestHash == verified.wire.manifestHash &&
-						protectedHead() == original,
-					IndexStoreStatus::STATE_REJECTED, ERROR_INVALID_DATA) ;
-			require( fault != Fault::BEFORE_REPLACE, IndexStoreStatus::IO_FAILURE,
-					ERROR_WRITE_FAULT) ;
-			// NTFSは開いた子fileを含むdirectory renameを拒否するため直前だけ閉じます。
-			// DELETE権限を持ちDELETE共有しないroot handleが既存/新規store ownerを排除し続けます。
-			headLease.reset() ;
-			lease.reset() ;
-			result.commit = IndexStoreCommitDisposition::UNKNOWN ;
-			requireApi( SetFileInformationByHandle( directories.back().get(), FileRenameInfo, rename,
-												  static_cast<DWORD>( storage.size())),
-					   IndexStoreStatus::IO_FAILURE) ;
-			result.commit = IndexStoreCommitDisposition::COMMITTED ;
-			root.swap( destination) ;
-			require( fault != Fault::AFTER_REPLACE, IndexStoreStatus::IO_FAILURE, ERROR_READ_FAULT) ;
-			checkObject( directories.back().get(), root, true) ;
-			checkSecurity( directories.back().get(), true) ;
-			BY_HANDLE_FILE_INFORMATION
-			after{} ;	// 同directoryであることを数値identityでも確認します。
-			requireApi( GetFileInformationByHandle( directories.back().get(), &after),
-					   IndexStoreStatus::PROTECTION_FAILURE) ;
-			require( before.dwVolumeSerialNumber == after.dwVolumeSerialNumber &&
-						before.nFileIndexHigh == after.nFileIndexHigh &&
-						before.nFileIndexLow == after.nFileIndexLow && protectedHead() == original,
-					IndexStoreStatus::STATE_REJECTED, ERROR_INVALID_DATA) ;
-			const auto persisted = readHead() ;	// 新pathでも同DPAPI entropyとfloorが成立します。
-			require( persisted.wire.generation == result.generation &&
-						persisted.wire.manifestHash == verified.wire.manifestHash,
-					IndexStoreStatus::STATE_REJECTED, ERROR_INVALID_DATA) ;
-		} catch( const Failure &failure) {
-			result.error = failure.error == 0 ? ERROR_INVALID_DATA : failure.error ;
-		} catch( const std::bad_alloc &) {
-			result.error = static_cast<NativeError>( E_OUTOFMEMORY) ;
-		} catch( ...) {
-			result.error = static_cast<NativeError>( E_UNEXPECTED) ;
-		}
-
-		return result ;
-	}
-
-	/** @brief 同handle保護検査を通した原ciphertextだけを読みます。
-	 * @return 上限内の原head byteです。復号plainを保存しません。
-	 */
-	[[nodiscard]] std::vector<std::byte> protectedHead() const
-	{
-		const auto file = openFile( L"head.bin", GENERIC_READ, FILE_SHARE_READ,
-								   OPEN_EXISTING) ;	// 検査とreadを結合します。
-		return readFile( file.get(), MAX_PROTECTED) ;
-	}
 } ;
 
 /** @see signed_index_store.h */
@@ -1310,156 +1171,6 @@ IndexStoreOpenResult SignedIndexStore::openFixedProtectedStore() noexcept
 		return {static_cast<NativeError>( E_OUTOFMEMORY), {}} ;
 	} catch( ...) {
 		return {static_cast<NativeError>( E_UNEXPECTED), {}} ;
-	}
-}
-
-/** @see SignedIndexStore::State */
-IndexStoreMigrationResult SignedIndexStore::State::migrateNamespace(
-	const std::filesystem::path &parent, const std::string_view expectedHeadSha256,
-	const std::optional<std::chrono::sys_seconds>		 nowUtc,
-	const std::span<const signed_index_detail::TrustKey> migrationKeys,
-	const bool											 isolated) noexcept
-{
-	try {
-		require( nowUtc.has_value(), IndexStoreStatus::TIME_UNAVAILABLE, ERROR_INVALID_TIME) ;
-		const auto legacy = parent / LEGACY_NAME ;	// 移行元は旧共用rootだけです。
-		// 固定二公開集合だけを移行stateへ所有し、通常trustを変更しません。
-		const auto makeState = [migrationKeys, isolated] {
-			auto state			  = std::make_shared<State>() ;	// 呼出し中だけの固定/隔離trustです。
-			state->migrationTrust = !isolated ;
-			state->isolated		  = isolated ;
-			// 移行専用の既知公開集合だけを所有copyします。
-			for( const auto &key : migrationKeys) {
-				state->keys.push_back(
-					{std::string{key.keyId}, {key.rsaPublicBlob.begin(), key.rsaPublicBlob.end()}}) ;
-			}
-
-			return state ;
-		} ;
-		const DWORD attributes =
-			// 旧reparseも存在扱いで後段拒否します。
-			GetFileAttributesW( legacy.c_str()) ;
-		// 旧rootがある間だけ実移動を行い、既存先を上書きしません。
-		if( attributes != INVALID_FILE_ATTRIBUTES) {
-			auto state		  = makeState() ;	// 通常stateへ移行鍵を渡しません。
-			state->renameable = true ;
-			state->initialize( legacy, !isolated, true, false) ;
-			bool local{} ;	// 実署名認証後の用途だけで選択します。
-			{
-				const auto lease = state->lock() ;	// 分類中も旧writerを排除します。
-				requireExpectedHead( state->protectedHead(), expectedHeadSha256) ;
-				const auto verified = state->readHead() ;	// Unknown署名を分類へ通しません。
-				require( verified.receipt.has_value(), IndexStoreStatus::STATE_REJECTED,
-						ERROR_INVALID_DATA) ;
-				local = verified.receipt->assetBytes().manifest().data().keyId ==
-						index_legacy_migration_trust::KEY_ID ;
-			}
-
-			auto result = state->relocate(
-				parent / domainName( local, index_legacy_migration_trust::PUBLIC_FINGERPRINT),
-				expectedHeadSha256, nowUtc,
-				signed_index_store_detail::Fault::NONE) ;	// 唯一のnamespace変更です。
-			result.localDomain = local ;
-			return result ;
-		}
-
-		const DWORD absentError = GetLastError() ;	// 欠損以外の照会不能を再実行成功にしません。
-		require( absentError == ERROR_FILE_NOT_FOUND, IndexStoreStatus::PROTECTION_FAILURE,
-				static_cast<NativeError>( absentError)) ;
-		IndexStoreMigrationResult replay{
-			.error = ERROR_FILE_NOT_FOUND} ;	// 正しい移動先が確認されるまで成功しません。
-		// 有限二domainを検査し、既存の壊れた先やdomain違いも拒否します。
-		for( const bool local : {false, true}) {
-			const auto destination =
-				parent /
-				domainName( local,
-						   index_legacy_migration_trust::PUBLIC_FINGERPRINT) ;	// 固定先だけです。
-			const DWORD targetAttributes =
-				// 任意root探索を行いません。
-				GetFileAttributesW( destination.c_str()) ;
-			// 存在しない先だけは次の固定domainへ進みます。
-			if( targetAttributes == INVALID_FILE_ATTRIBUTES) {
-				const DWORD targetError = GetLastError() ;	// 不存在以外は拒否します。
-				require( targetError == ERROR_FILE_NOT_FOUND, IndexStoreStatus::PROTECTION_FAILURE,
-						static_cast<NativeError>( targetError)) ;
-				continue ;
-			}
-
-			auto state = makeState() ;	// 再実行はread-onlyでroot/lock/headを作成しません。
-			state->initialize( destination, !isolated, true, false) ;
-			const auto lease	= state->lock() ;		// 正規writerとの競合では待機せず拒否します。
-			const auto verified = state->readHead() ;	// 現在期限と区別した履歴認証です。
-			// 正常genesisは移動の証拠にせず、別domainの原head確認を続けます。
-			if( !verified.receipt) {
-				continue ;
-			}
-
-			require( (verified.receipt->assetBytes().manifest().data().keyId ==
-					 index_legacy_migration_trust::KEY_ID) == local &&
-						verified.receipt->assetBytes().manifest().data().publishedAtUtc <= *nowUtc,
-					IndexStoreStatus::STATE_REJECTED, ERROR_INVALID_DATA) ;
-			try {
-				requireExpectedHead( state->protectedHead(), expectedHeadSha256) ;
-			} catch( const Failure &failure) {
-				// 別domainの正常なheadはpin一致の移動先と数えません。
-				if( failure.status == IndexStoreStatus::STATE_REJECTED &&
-				   failure.error == ERROR_INVALID_DATA) {
-					continue ;
-				}
-
-				throw ;
-			}
-
-			require( !replay.alreadyMigrated, IndexStoreStatus::STATE_REJECTED,
-					ERROR_ALREADY_EXISTS) ;
-			replay = {.error		   = 0,
-					  .generation	   = verified.wire.generation,
-					  .localDomain	   = local,
-					  .alreadyMigrated = true} ;
-		}
-
-		return replay ;
-	} catch( const Failure &failure) {
-		return {.error = failure.error == 0 ? ERROR_INVALID_DATA : failure.error} ;
-	} catch( const std::bad_alloc &) {
-		return {.error = static_cast<NativeError>( E_OUTOFMEMORY)} ;
-	} catch( ...) {
-		return {.error = static_cast<NativeError>( E_UNEXPECTED)} ;
-	}
-}
-
-/** @see signed_index_store.h */
-IndexStoreMigrationResult SignedIndexStore::migrateFixedLegacyStore(
-	const std::string_view						  expectedHeadSha256,
-	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
-{
-	try {
-		require( expectedHeadSha256.size() == 64U &&
-					std::ranges::all_of( expectedHeadSha256,
-										[]( const char value) {
-											return (value >= '0' && value <= '9') ||
-												   (value >= 'a' && value <= 'f') ;
-										}),
-				IndexStoreStatus::INVALID_INPUT, ERROR_INVALID_PARAMETER) ;
-		require( nowUtc.has_value(), IndexStoreStatus::TIME_UNAVAILABLE, ERROR_INVALID_TIME) ;
-		PWSTR		  raw{} ;	// KnownFolder所有の固定起点です。
-		const HRESULT code = SHGetKnownFolderPath( FOLDERID_ProgramData, KF_FLAG_DEFAULT, nullptr,
-												  &raw) ;				// 任意path入力を受理しません。
-		const std::unique_ptr<wchar_t, TaskMemoryCloser> owner{raw} ;	// 全経路で返します。
-		require( SUCCEEDED( code) && raw != nullptr, IndexStoreStatus::PROTECTION_FAILURE,
-				static_cast<NativeError>( code)) ;
-		const auto parent = std::filesystem::path{raw} / L"DriverCrate" ;	// 同volumeの固定親です。
-		const std::array<signed_index_detail::TrustKey, 2U> migrationKeys{
-			{{index_distribution_trust::KEY_ID, index_distribution_trust::PUBLIC_BLOB},
-			 {index_legacy_migration_trust::KEY_ID,
-			  index_legacy_migration_trust::PUBLIC_BLOB}}} ;	// 通常trustへ登録しません。
-		return State::migrateNamespace( parent, expectedHeadSha256, nowUtc, migrationKeys, false) ;
-	} catch( const Failure &failure) {
-		return {.error = failure.error == 0 ? ERROR_INVALID_DATA : failure.error} ;
-	} catch( const std::bad_alloc &) {
-		return {.error = static_cast<NativeError>( E_OUTOFMEMORY)} ;
-	} catch( ...) {
-		return {.error = static_cast<NativeError>( E_UNEXPECTED)} ;
 	}
 }
 
@@ -1646,7 +1357,7 @@ IndexStoreOpenResult Access::openNamespaceIsolated(
 				? std::wstring{LEGACY_NAME}
 				: domainName(
 					  leaf == NamespaceLeaf::LOCAL,
-					  index_legacy_migration_trust::PUBLIC_FINGERPRINT) ;	// 固定三leafだけです。
+					  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") ;	// 固定三leafだけです。
 		// 通常の二domainは旧rootの存在中に初回へ進めません。
 		if( leaf != NamespaceLeaf::LEGACY) {
 			state->legacyGuard = parent.state_->root / LEGACY_NAME ;
@@ -1665,60 +1376,14 @@ IndexStoreOpenResult Access::openNamespaceIsolated(
 }
 
 /** @see signed_index_store_internal.h */
-IndexStoreMigrationResult Access::migrateNamespaceIsolated(
-	SignedIndexStore &store, const std::string_view expectedHeadSha256,
-	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
-{
-	try {
-		auto old = store.state_ ;	// 所有cleanupとsandboxの寿命を保持します。
-		require( old->isolated && old->rootOwner && old->rootOwner->isolated &&
-					old->root.parent_path() == old->rootOwner->root,
-				IndexStoreStatus::INVALID_INPUT, ERROR_ACCESS_DENIED) ;
-		std::vector<signed_index_detail::TrustKey> keys ;	// 呼出し中だけ所有公開集合を借用します。
-		// 通常と同じ分類実装へ人工RAM materialだけを渡します。
-		for( const auto &key : old->keys) {
-			keys.push_back( {key.keyId, key.blob}) ;
-		}
-
-		old->directories.clear() ;
-		auto result = SignedIndexStore::State::migrateNamespace(
-			old->rootOwner->root, expectedHeadSha256, nowUtc, keys,
-			true) ;	// 固定製品と同じnamespace実装です。
-		const auto path =
-			result.commit == IndexStoreCommitDisposition::COMMITTED || result.alreadyMigrated
-				? old->rootOwner->root /
-					  domainName( result.localDomain,
-								 index_legacy_migration_trust::PUBLIC_FINGERPRINT)
-				: old->root ;	// 原子結果の確定値だけを使います。
-		auto reopened =
-			std::make_shared<SignedIndexStore::State>() ;	// Cleanup能力を新しいhandleへ結合します。
-		reopened->isolated	= true ;
-		reopened->keys		= old->keys ;
-		reopened->rootOwner = old->rootOwner ;
-		reopened->initialize( path, false, true, false) ;
-		reopened->ownsIsolatedRoot = old->ownsIsolatedRoot ;
-		old->ownsIsolatedRoot	   = false ;
-		store.state_			   = std::move( reopened) ;
-		return result ;
-	} catch( const Failure &failure) {
-		return {.error = failure.error == 0 ? ERROR_INVALID_DATA : failure.error} ;
-	} catch( const std::bad_alloc &) {
-		return {.error = static_cast<NativeError>( E_OUTOFMEMORY)} ;
-	} catch( ...) {
-		return {.error = static_cast<NativeError>( E_UNEXPECTED)} ;
-	}
-}
-
-/** @see signed_index_store_internal.h */
 IndexStoreOpenResult Access::createIsolated(
-	const std::span<const signed_index_detail::TrustKey> trust, const bool migration) noexcept
+	const std::span<const signed_index_detail::TrustKey> trust) noexcept
 {
 	try {
 		require( trust.size() <= 8U, IndexStoreStatus::INVALID_INPUT, ERROR_INVALID_PARAMETER) ;
 		auto state =
 			std::make_shared<SignedIndexStore::State>() ;	// 本番stateを渡すAPIはありません。
-		state->isolated	  = true ;
-		state->renameable = migration ;
+		state->isolated = true ;
 		// Unit RAM public blobの有限copyだけを所有します。
 		for( const auto &key : trust) {
 			require( key.keyId.size() <= 64U && key.rsaPublicBlob.size() <= 1024U,
@@ -1727,10 +1392,11 @@ IndexStoreOpenResult Access::createIsolated(
 				{std::string{key.keyId}, {key.rsaPublicBlob.begin(), key.rsaPublicBlob.end()}}) ;
 		}
 
-		std::array<wchar_t, 32768U> temporary{} ;	// Caller指定pathを受理しないOS temp基点です。
-		const DWORD					length = GetTempPathW( static_cast<DWORD>( temporary.size()),
-														  // 有限API pathです。
-														  temporary.data()) ;
+		std::vector<wchar_t> temporary(
+			32768U) ;	// OS temp基点を同じ有限容量・ゼロ初期値で所有します。
+		const DWORD length = GetTempPathW( static_cast<DWORD>( temporary.size()),
+										  // 有限API pathです。
+										  temporary.data()) ;
 		require( length > 0U && length < temporary.size(), IndexStoreStatus::IO_FAILURE,
 				static_cast<NativeError>( GetLastError())) ;
 		std::array<std::uint8_t, 16U> random{} ;	// 一意なfixture名だけに使う非秘密乱数です。
@@ -1755,39 +1421,6 @@ IndexStoreOpenResult Access::createIsolated(
 		return {static_cast<NativeError>( E_OUTOFMEMORY), {}} ;
 	} catch( ...) {
 		return {static_cast<NativeError>( E_UNEXPECTED), {}} ;
-	}
-}
-
-/** @see signed_index_store_internal.h */
-IndexStoreMigrationResult Access::migrateIsolated(
-	SignedIndexStore &store, const std::string_view expectedHeadSha256,
-	const std::optional<std::chrono::sys_seconds> nowUtc, const Fault fault) noexcept
-{
-	try {
-		require( store.state_->isolated && store.state_->renameable &&
-					(fault == Fault::NONE || fault == Fault::BEFORE_REPLACE ||
-					 fault == Fault::AFTER_REPLACE),
-				IndexStoreStatus::INVALID_INPUT, ERROR_ACCESS_DENIED) ;
-		// 移動後の同じ自作rootだけで、原pinと全履歴を再認証します。
-		if( store.state_->root.filename().native().ends_with( L"-migrated")) {
-			const auto lease = store.state_->lock() ;	// 再実行も実lockへ結合します。
-			requireExpectedHead( store.state_->protectedHead(), expectedHeadSha256) ;
-			const auto verified = store.state_->readHead() ;	// 現在期限へ昇格しない実署名認証です。
-			require( verified.receipt && nowUtc &&
-						verified.receipt->assetBytes().manifest().data().publishedAtUtc <= *nowUtc,
-					IndexStoreStatus::STATE_REJECTED, ERROR_INVALID_DATA) ;
-			return {.generation = verified.wire.generation, .alreadyMigrated = true} ;
-		}
-
-		return store.state_->relocate( store.state_->root.parent_path() /
-										  (store.state_->root.filename().native() + L"-migrated"),
-									  expectedHeadSha256, nowUtc, fault) ;
-	} catch( const Failure &failure) {
-		return {.error = failure.error == 0 ? ERROR_INVALID_DATA : failure.error} ;
-	} catch( const std::bad_alloc &) {
-		return {.error = static_cast<NativeError>( E_OUTOFMEMORY)} ;
-	} catch( ...) {
-		return {.error = static_cast<NativeError>( E_UNEXPECTED)} ;
 	}
 }
 

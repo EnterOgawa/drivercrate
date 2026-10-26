@@ -2,7 +2,7 @@
 /**
  * @file intel_ethernet_server_page_parser.h
  * @brief Intel Ethernet Server／Windows 11公式download page parser定義。
- * @version 01.02.00
+ * @version 01.03.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Windows 11 record専用profileを追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/28  制御付きWindows 11 core入口を追加。
+ * Ver.01.03.00 Shunji Ogawa  2026/10/26  公開SHA-512をSHA-256と分けて保持。
  * </pre>
  *
  * @note Intel EthernetのServer 2025とWindows 11を別profileで解析します。取得元の確認と
@@ -62,6 +63,8 @@ struct IntelEthernetDownloadPageMetadata {
 	std::wstring displaySize ;
 	/// 公式pageが表示した64桁uppercase SHA-256。
 	std::wstring sha256 ;
+	/// 公式pageが表示した128桁ASCII hexのSHA-512。未掲載は空。
+	std::wstring sha512 ;
 	/// trueの場合は取得前の利用許諾同意が必要。
 	bool		 requiresEula{} ;
 	/// 同一pageの明示許諾名と版。許諾欄がない場合は空。
@@ -80,7 +83,7 @@ using IntelEthernetServerPageMetadata = IntelEthernetDownloadPageMetadata ;
  * 公式page情報だけを返す。INF／CAT、現在PnP ID、OEM差分、導入可否は後段で判定する。
  * @param[in] html Intel公式hostから取得したUTF-16 HTML。
  * @param[out] metadata 成功時の表示専用metadata。失敗時は初期値。
- * @return 対象OS、x64 ZIP、公式URL、版、size、SHA-256、EULA表示が整合する場合true。 Server 2025専用配布の必須情報が整合する場合true。
+ * @return 対象OS、x64 ZIP、公式URL、版、size、少なくとも一方の公開SHA-256／SHA-512、EULA表示が整合する場合true。
  * @note 本結果は公式配布情報であり、現在deviceへの適用性やOEM推奨を保証しない。
  * @note 許諾欄がある場合は完全なsnapshotを要求する。不正欄を空として受理しない。
  */
@@ -91,7 +94,7 @@ using IntelEthernetServerPageMetadata = IntelEthernetDownloadPageMetadata ;
  * @brief Intel record 727998のWindows 11 x64 download pageを有限規則で解析します。
  * @param[in] html Intel公式hostの固定recordから取得したUTF-16 HTML。
  * @param[out] metadata 成功時のWindows 11配布metadata。失敗時は初期値。
- * @return Windows 11、E610-XT2掲載、x64 ZIP、公式URL、版、size表示、SHA-256、
+ * @return Windows 11、E610-XT2掲載、x64 ZIP、公式URL、版、size表示、公開SHA-256／SHA-512、
  *         EULA表示が整合する場合は`true`。
  * @note Exact byte数を概算sizeから推測せず、取得、同意、適用性または導入を行いません。
  */

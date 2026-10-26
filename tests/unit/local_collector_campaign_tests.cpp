@@ -2,7 +2,7 @@
 /**
  * @file local_collector_campaign_tests.cpp
  * @brief 共有job・予算・保存窓の回収を非通信で検証します。
- * @version 01.42.04
+ * @version 01.43.00
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -67,6 +67,9 @@
  * Ver.01.42.02   Shunji Ogawa  2026/10/16 共有jobと準備済みcampaign試験のassertion引数を明記。
  * Ver.01.42.03   Shunji Ogawa  2026/10/18 自作fixtureの属性・削除をextended DOS表記へ統一。
  * Ver.01.42.04   Shunji Ogawa  2026/10/18 日次欠損fixtureの削除にも同じ長path表記を適用。
+ * Ver.01.42.05   Shunji Ogawa  2026/10/21 共通fixture祖先を自作しfresh workspaceの回帰を追加。
+ * Ver.01.42.06   Shunji Ogawa  2026/10/21 共通祖先の作成失敗と未存在専用rootの契約を明記。
+ * Ver.01.43.00 Shunji Ogawa  2026/10/26  Intel公開hash/指紋の限定回帰入口を追加。
  * </pre>
  *
  * @note 単一監督threadから使用します。通信・取得grant・導入を実行しません。
@@ -134,9 +137,15 @@ constexpr std::uint64_t				UTC = 1790456400ULL ;
 /**
  * @brief GUID付きの未存在専用rootだけをfixtureへ渡します。
  * @param[in,out] roots 自作rootだけを追加する回収集合。
+ * @param[in] workspace 共通祖先だけを作成する絶対workspace。既定は現在のsource root。
  * @return Workspace内の未存在GUID root。
+ * @throws std::runtime_error GUIDを生成または文字列化できない場合。
+ * @throws std::filesystem::filesystem_error 共通work/state祖先を作成できない場合。
+ * @post 共通祖先だけを作成し、専用GUID rootの作成と保護検査は呼出し先へ残します。
  */
-[[nodiscard]] std::filesystem::path rootFor( std::vector<std::filesystem::path> &roots)
+[[nodiscard]] std::filesystem::path rootFor(
+	std::vector<std::filesystem::path> &roots,
+	const std::filesystem::path		   &workspace = std::filesystem::current_path())
 {
 	// 衝突を防ぐ公開GUID。
 	GUID	guid{} ;
@@ -147,11 +156,34 @@ constexpr std::uint64_t				UTC = 1790456400ULL ;
 		throw std::runtime_error( "fixture GUID") ;
 	}
 
-	// 自作fixtureだけが持つworkspace内のpath。
-	const auto root = std::filesystem::current_path() / L"work/state" /
-					  (std::wstring( L"campaign-fixture-") + text) ;
+	// Fresh公開snapshotでも他試験の先行作成へ依存せず共通祖先だけを用意する。
+	const auto parent = workspace / L"work/state" ;
+	std::filesystem::create_directories( parent) ;
+	// 保護storeが専用rootを作るため、GUID leaf自体は未存在のまま返す。
+	const auto root = parent / (std::wstring( L"campaign-fixture-") + text) ;
 	roots.push_back( root) ;
 	return root ;
+}
+
+/**
+ * @brief 他試験の作成物がないworkspaceでも保護storeの初回作成が成立することを検査します。
+ * @param[in,out] context 元cache startup枠へ追加するassertion集計。
+ * @note 自作GUIDの隔離workspaceは新階層fixtureとして保持し、他領域を回収しません。
+ */
+void fixtureRootPreparationChecks( TestContext &context)
+{
+	std::vector<std::filesystem::path> roots ;	// 他試験から借用しない自作GUID集合。
+	const auto workspace = rootFor( roots) ;	// このleafを隔離workspaceとしてだけ使用する。
+	DRIVERCRATE_EXPECT( context, std::filesystem::create_directory( workspace)) ;
+	DRIVERCRATE_EXPECT( context, !std::filesystem::exists( workspace / L"work")) ;
+	const auto root = rootFor( roots, workspace) ;	// 欠損共通祖先からfactoryを実行する。
+	DRIVERCRATE_EXPECT( context, std::filesystem::is_directory( root.parent_path())) ;
+	DRIVERCRATE_EXPECT( context, !std::filesystem::exists( root)) ;
+	LocalCollectorStateStore store ;							// 専用rootのACLとlock作成は製品に任せる。
+	const auto initialized = store.initialize( root, true) ;	// 最初のAPI errorも保持する。
+	context.expect( initialized == 0U && store.isWritable(),
+				   "fresh fixture store initialize=" + std::to_string( initialized), __FILE__,
+				   __LINE__) ;
 }
 
 /** @brief 自作fixtureの実I/Oだけをextended DOS表記へ揃えます。
@@ -4393,9 +4425,13 @@ int main( const int argc, char **argv)
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		const bool projectedOnly =
+		const bool fingerprintOnly =
 			argc == 2 && std::string_view( argv[1]) ==
-							 "--projected-http-only" ;	// 射影HTTP専用CTestだけを選択します。
+							 "--intel-metadata-fingerprint-only" ;	// 旧期待値訂正だけの限定枠。
+		const bool projectedOnly =
+			fingerprintOnly ||
+			(argc == 2 && std::string_view( argv[1]) ==
+							  "--projected-http-only") ;	// 射影HTTP専用CTestだけを選択します。
 		const bool withoutProjected =
 			argc == 2 && std::string_view( argv[1]) ==
 							 "--without-projected-http" ;	// 既存CTestから専用分を重複なく除きます。
@@ -4447,7 +4483,7 @@ int main( const int argc, char **argv)
 		   !cacheCapacityOnly && !cacheStartupOnly) {
 			drivercrate::test::runCollectorProjectedHttpTests(
 				context, [&roots] { return drivercrate::test::rootFor( roots) ; },
-				[] { return drivercrate::test::projectedDefinition() ; }) ;
+				[] { return drivercrate::test::projectedDefinition() ; }, fingerprintOnly) ;
 		}
 
 		// 既定の全件または専用枠だけで新規分を実行し、旧二CTestへ重複させません。
@@ -4516,6 +4552,7 @@ int main( const int argc, char **argv)
 
 		// 元段階系列を変更せず、通常起動境界は独立の分母で測ります。
 		if( argc == 1 || cacheStartupOnly) {
+			drivercrate::test::fixtureRootPreparationChecks( context) ;
 			drivercrate::test::runCollectorCacheGrowthTests(
 				context, [&roots] { return drivercrate::test::rootFor( roots) ; },
 				[] { return drivercrate::test::projectedDefinition() ; }, true, true) ;

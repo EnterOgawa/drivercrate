@@ -2,7 +2,7 @@
 /**
  * @file signed_index_asset_bytes.cpp
  * @brief 共通hashとGZip検査を使って署名済みassetの実byteを結合します。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/11  原byte hash・期限再検査と上限付きGZipの認証receiptを追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/10/23  同じGZip/hash検査を未認証の値codecへ共通化。
  * </pre>
  *
  * @note 認証済みmanifestだけを受理し、JSON意味・保存・highwater更新は行いません。
@@ -39,6 +40,7 @@
 
 #include "platform/official_file_verifier.h"
 #include "platform/official_gzip.h"
+#include "platform/signed_index_codec_internal.h"
 
 namespace drivercrate {
 namespace {
@@ -89,8 +91,8 @@ namespace {
  * @param[in] status 確保失敗以外の拒否区分。
  * @return 元診断値を保持した拒否。E_OUTOFMEMORYは独立区分です。
  */
-[[nodiscard]] IndexAssetBytesResult apiFailure( const NativeError		   error,
-											   const IndexAssetBytesStatus status) noexcept
+[[nodiscard]] signed_index_detail::DecodedIndexAsset apiFailure(
+	const NativeError error, const IndexAssetBytesStatus status) noexcept
 {
 	return {error == static_cast<NativeError>( E_OUTOFMEMORY) ? IndexAssetBytesStatus::OUT_OF_MEMORY
 															 : status,
@@ -143,8 +145,8 @@ IndexAssetBytesResult authenticateIndexAssetBytes(
 	const AuthenticatedIndexManifest &manifest, const std::span<const std::byte> compressed,
 	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
 {
-	// 前段認証後の時刻確認不能を成功とせず、hashや展開を開始しない。
-	if( !nowUtc.has_value()) {
+	// 前段認証後の時刻欠損は従来と同じ区分で拒否し、byte処理を始めません。
+	if( !nowUtc) {
 		return {IndexAssetBytesStatus::TIME_UNAVAILABLE, 0, std::nullopt} ;
 	}
 
@@ -153,6 +155,30 @@ IndexAssetBytesResult authenticateIndexAssetBytes(
 	if( data.manifestBytes.empty() || data.repository.empty() || data.channel.empty() ||
 	   data.keyId.empty() || data.asset.tag.empty() || data.asset.name.empty()) {
 		return {IndexAssetBytesStatus::INCOMPLETE_MANIFEST_RECEIPT, 0, std::nullopt} ;
+	}
+
+	auto decoded =
+		// 同じ値codecです。
+		signed_index_detail::decodeIndexAssetData( data, compressed, nowUtc) ;
+	// このwrapperだけが前段の認証済みmanifestを要求して認証byte型を構築します。
+	if( !decoded.data) {
+		return {decoded.status, decoded.error, std::nullopt} ;
+	}
+
+	return {IndexAssetBytesStatus::BYTE_VALIDATED, 0,
+			AuthenticatedIndexAssetBytes{manifest, std::move( decoded.data->expanded),
+										 decoded.data->expandedSha256,
+										 decoded.data->maximumExpandedBytes}} ;
+}
+
+/** @see signed_index_codec_internal.h */
+signed_index_detail::DecodedIndexAsset signed_index_detail::decodeIndexAssetData(
+	const IndexManifestData &data, const std::span<const std::byte> compressed,
+	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
+{
+	// 時刻確認不能ではhashや展開を開始しません。
+	if( !nowUtc) {
+		return {IndexAssetBytesStatus::TIME_UNAVAILABLE, 0, std::nullopt} ;
 	}
 
 	// 署名された発行前の時計では、認証時の期限結果を流用しない。
@@ -218,8 +244,7 @@ IndexAssetBytesResult authenticateIndexAssetBytes(
 		}
 
 		return {IndexAssetBytesStatus::BYTE_VALIDATED, 0,
-				AuthenticatedIndexAssetBytes{manifest, std::move( expanded), expandedHash,
-											 maximumExpandedBytes}} ;
+				DecodedIndexAssetData{std::move( expanded), expandedHash, maximumExpandedBytes}} ;
 	} catch( const std::bad_alloc &) {
 		return apiFailure( static_cast<NativeError>( E_OUTOFMEMORY),
 						  IndexAssetBytesStatus::OUT_OF_MEMORY) ;

@@ -5,12 +5,14 @@ Copyright (c) 2026 EnterSystem CO.,LTD.
 SPDX-License-Identifier: Apache-2.0
 """
 import base64
-from contextlib import ExitStack, contextmanager, redirect_stdout
+import gzip
+from contextlib import ExitStack, contextmanager, redirect_stderr, redirect_stdout
 from copy import deepcopy
 from datetime import timedelta
 import io
 import json
 from pathlib import Path
+import re
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -56,6 +58,43 @@ def envelope(raw: bytes, key_id="distribution-index-" + "a" * 32) -> bytes:
         "signatureBase64": base64.b64encode(b"X" * 384).decode("ascii")})
 
 
+def publisher_anonymous_fixture(bundle, commit, tag):
+    """旧identity試験だけのcallback注入。完全wire/journalの受入は新A条件で別検査する。"""
+    manifest, _ = pipeline.unpack_envelope(bundle["manifest.json"])
+    return pipeline.PublicAnonymousObservation(pipeline._PUBLIC_ANONYMOUS_AUTHORITY, {
+        "status": "VERIFIED", "generation": manifest["generation"], "commit": commit, "tag": tag,
+        "envelopeSha256": pipeline.sha(bundle["manifest.json"]), "gzipSha256": pipeline.sha(bundle["index.json.gz"])})
+
+
+def anonymous_stdout_fixture(bundle, now, behavior="success"):
+    """三resourceの完全fake stdoutを原byteから作り、実HTTP/native起動を行わない。"""
+    resources = []
+    roles = ("CURRENT_ENVELOPE", "IMMUTABLE_ENVELOPE", "IMMUTABLE_GZIP")
+    failure_index = {"timeout": 0, "partial": 1, "304": 2, "401": 0, "byte-mismatch": 1, "current-whitespace": 0,
+                     "signature": 1}.get(behavior)
+    for index, role in enumerate(roles):
+        expected = bundle["index.json.gz" if index == 2 else "manifest.json"]
+        failed = failure_index is not None and index == failure_index
+        not_started = failure_index is not None and index > failure_index
+        resources.append({"role": role, "state": "NOT_STARTED" if not_started else "FAILED" if failed else "COMPLETE",
+            "httpStatus": 0 if not_started or (failed and behavior == "timeout") else
+                304 if failed and behavior == "304" else 401 if failed and behavior == "401" else 200,
+            "sends": 0 if not_started else 4 if behavior == "nine" and index != 0 else 1,
+            "receivedBytes": 0 if not_started or (failed and behavior in {"timeout", "304", "401"}) else
+                20 if failed and behavior == "partial" else len(expected) + (1 if failed and behavior == "current-whitespace" else 0),
+            "sha256": None if failed or not_started else pipeline.sha(expected),
+            "nativeError": 2147954402 if failed and behavior == "timeout" else 2147942413 if failed else 0})
+    stamp = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return pipeline.canonical({"schema": "dc-public-index-readback-result-v1",
+        "outcome": "VERIFIED" if failure_index is None else "UNKNOWN", "startedAtUtc": stamp,
+        "completedAtUtc": stamp, "elapsedMilliseconds": 1, "resources": resources,
+        "sends": sum(value["sends"] for value in resources),
+        "receivedBytes": sum(value["receivedBytes"] for value in resources),
+        "nativeError": 0 if failure_index is None else 2147942413,
+        "failureStage": "NONE" if failure_index is None else "TRUST" if behavior == "signature" else
+            ("CURRENT" if failure_index == 0 else "MANIFEST_ASSET" if failure_index == 1 else "GZIP_ASSET")})
+
+
 class FakeRemote:
     """GitHub APIのwrite順序/CAS/byte再取得を扱う有限RAM fake。"""
     def __init__(self):
@@ -72,6 +111,7 @@ class FakeRemote:
         self.failure = None
         self.counter = 0
         self.ref_updates = 0
+        self.repository_node_id = "R_artificial"
 
     def identifier(self):
         self.counter += 1
@@ -88,7 +128,7 @@ class FakeRemote:
             self.ref_updates += 1
             update = body["variables"]["input"]["refUpdates"][0]
             assert update["name"] == "refs/heads/driver-index" and update["force"] is False
-            assert body["variables"]["input"]["repositoryId"] == "R_artificial"
+            assert body["variables"]["input"]["repositoryId"] == self.repository_node_id
             if self.failure == "cas":
                 raise ValueError("FAKE_CAS_CONFLICT")
             pipeline.require(update["beforeOid"] == (self.head or "0" * 40), "FAKE_CAS_EXPECTED_HEAD")
@@ -168,6 +208,345 @@ class FakeRemote:
     def assert_release(body):
         assert body["draft"] is True and body["prerelease"] is True and body["make_latest"] == "false"
         assert body["target_commitish"] == "main"
+
+
+class PublicIdentityRemote(FakeRemote):
+    """既存RAM fakeのREST/二asset/CASを再利用し、公開identityだけ明示する。"""
+
+    def __init__(self):
+        """fixture値は公開identity契約だけで、credentialや実端末情報を含まない。"""
+        super().__init__()
+        self.repository_node_id = "R_kgDOVPPbAw"
+        self.user = {"login": "EnterOgawa", "id": 113655398}
+        self.repository = {"full_name": "EnterOgawa/drivercrate", "id": 1425267459,
+            "node_id": self.repository_node_id, "owner": {"login": "EnterOgawa", "id": 113655398},
+            "private": False, "visibility": "public"}
+        self.identity_error = None
+        self.change_after_write = None
+
+    def api(self, method, path, body=None, **kwargs):
+        """identity応答と途中変更をRAMへ閉じ、既存remote作用は同じfakeへ渡す。"""
+        if path in {"user", pipeline.API}:
+            self.events.append((method, path, deepcopy(body)))
+            if path == pipeline.API and self.identity_error is not None:
+                raise self.identity_error
+            return deepcopy(self.user if path == "user" else self.repository)
+        result = super().api(method, path, body, **kwargs)
+        if path == "graphql" and self.failure == "cas-response":
+            raise ValueError("ARTIFICIAL_CAS_RESPONSE_UNKNOWN")
+        if path == pipeline.API + "/git/ref/heads/driver-index" and self.failure == "confirm" and self.ref_updates:
+            return {"object": {"sha": "f" * 40}}
+        if method != "GET" and self.change_after_write is not None:
+            self.change_after_write(self)
+        return result
+
+
+class PublicPublisherIdentityTests(unittest.TestCase):
+    """ADR0381の固定13test。取得用人工束とRAM remoteだけを内部境界へ渡す。"""
+
+    def setUp(self):
+        """既存の取得用六入力fixtureを借用し、metadata-only検証へfallbackしない。"""
+        fixture = DailyDistributionAcquisitionAuditTests()
+        self.addCleanup(fixture.doCleanups)
+        fixture.setUp()
+        self.fixture = fixture
+        self.bundle = deepcopy(fixture.bundle)
+        self.record = {"schema": "dc-approved-public-index-publisher-v1",
+            "approvalKind": "EXPLICIT_PUBLIC_SIGNED_INDEX", "mode": "PUBLIC_SIGNED_INDEX_V1",
+            "purpose": "DISTRIBUTION_ACQUISITION", "repository": "EnterOgawa/drivercrate",
+            "repositoryId": 1425267459, "repositoryNodeId": "R_kgDOVPPbAw",
+            "ownerLogin": "EnterOgawa", "ownerId": 113655398, "actorLogin": "EnterOgawa",
+            "actorId": 113655398, "visibility": "public",
+            "publicFingerprint": "0ac4d0ce9873c82b3c7bb7bd3fb3f5d2a57044bf968c5c6e2af02176cee39d3f"}
+        self.raw = pipeline.canonical(self.record)
+        self.remote = PublicIdentityRemote()
+        self.verifications = []
+
+    def verify(self, bundle, *, historical):
+        """署名の実処理を行わず、取得用hash/原六入力/schema監査を実装へ接続する。"""
+        self.verifications.append(historical)
+        self.fixture.audit(bundle=bundle)
+
+    def publisher(self, **kwargs):
+        """明示原byte以外の運用入口を使わず、毎回独立したPublisherを構築する。"""
+        args = dict(purpose=pipeline.ACQUISITION_PURPOSE, public_target=self.raw, anonymous=publisher_anonymous_fixture)
+        args.update(kwargs)
+        return pipeline.Publisher(self.remote, self.verify, **args)
+
+    def writes(self):
+        """GETを除く呼出し試行を作用分母として返す。"""
+        return [event for event in self.remote.events if event[0] != "GET"]
+
+    def test_public_success_two_assets_and_exact_node_cas(self):
+        """正規公開identityと取得用検証から固定二asset、一回CASだけへ進む。"""
+        result = self.publisher().publish(self.bundle)
+        self.assertEqual(result["status"], "PUBLISHED")
+        self.assertEqual(len(self.writes()), 8)
+        uploads = [event for event in self.writes() if event[1].startswith("https://uploads.github.com/")]
+        self.assertEqual({event[1].split("?name=")[1] for event in uploads}, pipeline.ASSETS)
+        self.assertEqual({event[1].split("?name=")[1]: event[2] for event in uploads}, self.bundle)
+        cas = self.writes()[-1][2]["variables"]["input"]
+        self.assertEqual(cas["repositoryId"], "R_kgDOVPPbAw")
+        self.assertEqual(cas["refUpdates"][0]["beforeOid"], "0" * 40)
+        self.assertIs(cas["refUpdates"][0]["force"], False)
+        self.assertEqual(self.remote.ref_updates, 1)
+        self.assertEqual(self.verifications, [False, False])
+
+    def test_default_private_and_public_refusal(self):
+        """targetなしの人工Private成功と実Public状態拒否を従来条件で維持する。"""
+        self.remote = FakeRemote()
+        result = pipeline.Publisher(self.remote, self.verify).publish(self.bundle)
+        self.assertEqual(result["status"], "PUBLISHED")
+        self.assertEqual(len(self.writes()), 8)
+        self.remote = PublicIdentityRemote()
+        with self.assertRaisesRegex(ValueError, "^PRIVATE_IDENTITY$"):
+            pipeline.Publisher(self.remote, self.verify).publish(self.bundle)
+        self.assertEqual(len(self.writes()), 0)
+
+    def test_record_closed_fields_and_exact_types(self):
+        """全fieldの欠損/型/値と数値別名、旧repo/任意入力を解析時に拒否する。"""
+        variants = []
+        for name, value in self.record.items():
+            missing = dict(self.record)
+            del missing[name]
+            variants.append((name + "-missing", missing, "PUBLIC_APPROVAL_FIELDS"))
+            for suffix, changed in (("type", []), ("value", value + 1 if type(value) is int else value + "x")):
+                variants.append((name + "-" + suffix, dict(self.record, **{name: changed}), "PUBLIC_APPROVAL_VALUE"))
+        for name in ("repositoryId", "ownerId", "actorId"):
+            for label, value in (("bool", True), ("zero", 0), ("float", float(self.record[name])),
+                                 ("string", str(self.record[name]))):
+                variants.append((name + "-" + label, dict(self.record, **{name: value}), "PUBLIC_APPROVAL_VALUE"))
+        for label, changes, code in (("old-private", {"repositoryId": 1353134843}, "PUBLIC_APPROVAL_VALUE"),
+                ("alias", {"repository": "EnterOgawa/drivercrate-development-private"}, "PUBLIC_APPROVAL_VALUE"),
+                ("extra", {"extra": 1}, "PUBLIC_APPROVAL_FIELDS"),
+                ("private-field", {"private": False}, "PUBLIC_APPROVAL_FIELDS"),
+                ("false-fingerprint", {"publicFingerprint": "0" * 64}, "PUBLIC_APPROVAL_VALUE")):
+            variants.append((label, dict(self.record, **changes), code))
+        self.assertEqual(len(variants), 56)
+        for label, record, code in variants:
+            with self.subTest(variant=label), self.assertRaisesRegex(ValueError, "^" + code + "$"):
+                self.publisher(public_target=pipeline.canonical(record))
+        self.assertEqual(self.remote.events, [])
+
+    def test_record_bytes_duplicate_and_bounds(self):
+        """非byte/境界/重複JSONをremote呼出し前に拒否し、通常JSONエラーも保持する。"""
+        for label, raw in (("none", None), ("dict", self.record), ("string", self.raw.decode()),
+                           ("mutable", bytearray(self.raw)), ("empty", b""), ("oversize", b" " * 65537)):
+            with self.subTest(variant=label), self.assertRaisesRegex(ValueError, "^PUBLIC_APPROVAL_BYTES$"):
+                pipeline.public_publisher_approval(raw)
+        duplicate = self.raw[:-1] + b',"repositoryId":1425267459}'
+        nested = b'{"nested":{"duplicate":1,"duplicate":2}}'
+        for label, raw in (("duplicate-root", duplicate), ("duplicate-nested", nested)):
+            with self.subTest(variant=label), self.assertRaisesRegex(ValueError, "^DUPLICATE_JSON_KEY$"):
+                pipeline.public_publisher_approval(raw)
+        for label, raw in (("utf8", b"\xff"), ("syntax", b"{")):
+            with self.subTest(variant=label), self.assertRaisesRegex(ValueError, "^JSON_ENCODING_OR_SYNTAX$"):
+                pipeline.public_publisher_approval(raw)
+        self.assertEqual(self.remote.events, [])
+
+    def test_public_purpose_and_no_unvalidated_target(self):
+        """Publicは取得用途だけとし、構築済み値の注入でもbyte検証を省略しない。"""
+        with self.subTest(variant="default"), self.assertRaisesRegex(ValueError, "^PUBLIC_PUBLISHER_PURPOSE$"):
+            pipeline.Publisher(self.remote, self.verify, public_target=self.raw)
+        for purpose in ("METADATA_ONLY", "OTHER", None):
+            with self.subTest(variant=str(purpose)), self.assertRaisesRegex(ValueError, "^PUBLIC_PUBLISHER_PURPOSE$"):
+                self.publisher(purpose=purpose)
+        with self.subTest(variant="parsed-target"), self.assertRaisesRegex(ValueError, "^PUBLIC_APPROVAL_BYTES$"):
+            self.publisher(public_target=pipeline.public_publisher_approval(self.raw))
+        self.assertEqual(self.remote.events, [])
+
+    def test_remote_identity_refusals_before_writes(self):
+        """名前の再利用、数値別名、所有者/actor差と公開状態の矛盾を厳密拒否する。"""
+        variants = []
+        for location, fields in (("user", ("id", "login")),
+                ("repository", ("id", "node_id", "full_name", "private", "visibility")),
+                ("owner", ("id", "login"))):
+            for field in fields:
+                for label, value in (("missing", None), ("type", []), ("wrong", "Other")):
+                    variants.append((location, field, label, value))
+            for field in ("id",):
+                for label, value in (("bool", True), ("zero", 0), ("float", 113655398.0), ("string", "113655398")):
+                    variants.append((location, field, label, value))
+        variants.extend([("repository", "id", "old-private", 1353134843),
+                         ("repository", "id", "other-positive", 1425267460),
+                         ("repository", "private", "true", True), ("repository", "private", "zero", 0),
+                         ("repository", "owner", "not-dict", []), ("repository", "owner", "missing", None)])
+        self.assertEqual(len(variants), 45)
+        for location, field, label, value in variants:
+            self.remote = PublicIdentityRemote()
+            target = self.remote.user if location == "user" else self.remote.repository
+            if location == "owner":
+                target = target["owner"]
+            if label == "missing":
+                del target[field]
+            else:
+                target[field] = value
+            with self.subTest(variant=location + "-" + field + "-" + label), \
+                    self.assertRaisesRegex(ValueError, "^PUBLIC_IDENTITY$"):
+                self.publisher().publish(self.bundle)
+            self.assertEqual(len(self.writes()), 0)
+        for label in ("user", "repository"):
+            self.remote = PublicIdentityRemote()
+            setattr(self.remote, label, [])
+            with self.subTest(variant=label + "-container"), self.assertRaisesRegex(ValueError, "^PUBLIC_IDENTITY$"):
+                self.publisher().publish(self.bundle)
+            self.assertEqual(len(self.writes()), 0)
+
+    def test_identity_unknown_and_rename_are_not_authority(self):
+        """404/不明は原例外、renameとaliasは不一致とし、移行許可へ変換しない。"""
+        for failure in (pipeline.Missing(), ValueError("ARTIFICIAL_IDENTITY_UNKNOWN")):
+            self.remote = PublicIdentityRemote()
+            self.remote.identity_error = failure
+            with self.subTest(variant=type(failure).__name__), self.assertRaises(type(failure)) as caught:
+                self.publisher().publish(self.bundle)
+            self.assertIs(caught.exception, failure)
+            self.assertEqual(len(self.writes()), 0)
+        for name in ("EnterOgawa/renamed", "EnterOgawa/drivercrate-development-private"):
+            self.remote = PublicIdentityRemote()
+            self.remote.repository["full_name"] = name
+            with self.subTest(variant=name), self.assertRaisesRegex(ValueError, "^PUBLIC_IDENTITY$"):
+                self.publisher().publish(self.bundle)
+            self.assertEqual(len(self.writes()), 0)
+
+    def test_identity_change_stops_each_next_write(self):
+        """部分作用1..7を保持し、次のwriteとcallback後CASを不一致で止める。"""
+        changes = (("repository", "id", 1353134843), ("owner", "id", 1), ("user", "id", 1),
+                   ("repository", "node_id", "R_other"), ("repository", "visibility", "private"),
+                   ("repository", "full_name", "EnterOgawa/renamed"), ("repository", "private", True))
+        for ordinal, (location, field, value) in enumerate(changes, 1):
+            self.remote = PublicIdentityRemote()
+            def change(remote):
+                """指定writeの完了後だけidentityを変更し、作成済み部分作用を保持する。"""
+                if len([event for event in remote.events if event[0] != "GET"]) == ordinal:
+                    target = remote.user if location == "user" else remote.repository
+                    if location == "owner":
+                        target = target["owner"]
+                    target[field] = value
+            self.remote.change_after_write = change
+            with self.subTest(variant="after-write-" + str(ordinal)), self.assertRaisesRegex(ValueError, "^PUBLIC_IDENTITY$"):
+                self.publisher().publish(self.bundle)
+            self.assertEqual(len(self.writes()), ordinal)
+            self.assertEqual(self.remote.ref_updates, 0)
+            self.assertIsNone(self.remote.head)
+        self.remote = PublicIdentityRemote()
+        def before_cas():
+            """最後のcaller callbackでもidentityが変わり得る条件を再現する。"""
+            self.remote.repository["node_id"] = "R_other"
+        with self.subTest(variant="before-cas"), self.assertRaisesRegex(ValueError, "^PUBLIC_IDENTITY$"):
+            self.publisher(before_cas=before_cas).publish(self.bundle)
+        self.assertEqual(len(self.writes()), 7)
+        self.assertEqual(self.remote.ref_updates, 0)
+        self.remote = PublicIdentityRemote()
+        publisher = self.publisher()
+        def tamper_cas_node():
+            """remoteが正規でもcallerがCAS引数だけを差し替える境界を再現する。"""
+            publisher.repository_id = "R_other"
+        publisher.before_cas = tamper_cas_node
+        with self.subTest(variant="cas-node-argument"), self.assertRaisesRegex(ValueError, "^PUBLIC_IDENTITY$"):
+            publisher.publish(self.bundle)
+        self.assertEqual(len(self.writes()), 7)
+        self.assertEqual(self.remote.ref_updates, 0)
+
+    def test_public_readback_only_is_zero_write(self):
+        """元byteだけの再開に限定し、未公開状態のreadback-onlyで追加作用を許可しない。"""
+        self.publisher().publish(self.bundle)
+        before = len(self.writes())
+        with self.subTest(variant="same-bytes"):
+            self.assertTrue(self.publisher().publish(self.bundle, readback_only=True)["resumed"])
+            self.assertEqual(len(self.writes()), before)
+            self.assertEqual(self.verifications[-3:], [False, True, False])
+        self.remote = PublicIdentityRemote()
+        with self.subTest(variant="no-current"), self.assertRaisesRegex(ValueError, "^CURRENT_CAS_OUTCOME_UNKNOWN$"):
+            self.publisher().publish(self.bundle, readback_only=True)
+        self.assertEqual(len(self.writes()), 0)
+        for failure, code in (("cas-response", "ARTIFICIAL_CAS_RESPONSE_UNKNOWN"),
+                              ("confirm", "CURRENT_CONFIRMATION_UNKNOWN")):
+            self.remote = PublicIdentityRemote()
+            self.remote.failure = failure
+            with self.subTest(variant=failure):
+                with self.assertRaisesRegex(ValueError, "^" + code + "$"):
+                    self.publisher().publish(self.bundle)
+                self.assertEqual(len(self.writes()), 8)
+                self.assertIsNotNone(self.remote.head)
+                self.remote.failure = None
+                before = len(self.writes())
+                self.assertTrue(self.publisher().publish(self.bundle, readback_only=True)["resumed"])
+                self.assertEqual(len(self.writes()), before)
+                self.assertEqual(self.remote.ref_updates, 1)
+
+    def test_public_assets_and_verifier_cannot_be_skipped(self):
+        """二assetとfresh/readback/resumeのcallback失敗を無視しない。"""
+        with self.subTest(variant="extra"), self.assertRaisesRegex(ValueError, "^ASSET_ALLOWLIST$"):
+            self.publisher().publish(dict(self.bundle, **{"driver.zip": b"artificial"}))
+        self.assertEqual(self.remote.events, [])
+        for fail_at, expected_writes in ((1, 0), (2, 3)):
+            self.remote = PublicIdentityRemote()
+            calls = []
+            def reject(bundle, *, historical):
+                """指定された検証段階だけ拒否し、他段階は取得用実監査へ渡す。"""
+                calls.append(historical)
+                if len(calls) == fail_at:
+                    raise ValueError("ARTIFICIAL_SIGNATURE_REJECTED")
+                self.verify(bundle, historical=historical)
+            publisher = pipeline.Publisher(self.remote, reject, purpose=pipeline.ACQUISITION_PURPOSE,
+                                           public_target=self.raw, anonymous=publisher_anonymous_fixture)
+            with self.subTest(variant="verify-" + str(fail_at)), \
+                    self.assertRaisesRegex(ValueError, "^ARTIFICIAL_SIGNATURE_REJECTED$"):
+                publisher.publish(self.bundle)
+            self.assertEqual(len(self.writes()), expected_writes)
+        self.remote = PublicIdentityRemote()
+        self.publisher().publish(self.bundle)
+        before = len(self.writes())
+        def rejected(bundle, *, historical):
+            """再開でもfresh署名検証を省略できない人工拒否を返す。"""
+            raise ValueError("ARTIFICIAL_SIGNATURE_REJECTED")
+        with self.subTest(variant="resume-verifier"), self.assertRaisesRegex(ValueError, "^ARTIFICIAL_SIGNATURE_REJECTED$"):
+            pipeline.Publisher(self.remote, rejected, purpose=pipeline.ACQUISITION_PURPOSE,
+                public_target=self.raw, anonymous=publisher_anonymous_fixture).publish(self.bundle, readback_only=True)
+        self.assertEqual(len(self.writes()), before)
+
+    def test_public_partial_failures_preserve_current(self):
+        """実作用の試行数と旧headを保持し、自動再試行やrollbackを行わない。"""
+        for failure, code, writes in (("upload", "FAKE_UPLOAD_FAILURE", 2),
+                ("readback", "REMOTE_ASSET_SIZE", 3), ("publish", "FAKE_PUBLISH_FAILURE", 4),
+                ("cas", "FAKE_CAS_CONFLICT", 8)):
+            self.remote = PublicIdentityRemote()
+            self.remote.failure = failure
+            with self.subTest(variant=failure), self.assertRaisesRegex(ValueError, "^" + code + "$"):
+                self.publisher().publish(self.bundle)
+            self.assertEqual(len(self.writes()), writes)
+            self.assertIsNone(self.remote.head)
+            self.assertEqual(self.remote.ref_updates, 1 if failure == "cas" else 0)
+
+    def test_target_owns_immutable_original_bytes(self):
+        """検証原byte/hashを凍結し、元辞書の後変更をtargetへ反映しない。"""
+        from dataclasses import FrozenInstanceError
+        target = pipeline.public_publisher_approval(self.raw)
+        self.record["repositoryId"] = 1353134843
+        self.assertEqual(target.approval_bytes, self.raw)
+        self.assertEqual(target.approval_sha256, pipeline.sha(self.raw))
+        with self.assertRaises(FrozenInstanceError):
+            target.approval_bytes = b"changed"
+        publisher = self.publisher()
+        publisher.identity()
+        self.assertEqual(publisher.repository_id, "R_kgDOVPPbAw")
+        self.assertEqual(len(self.writes()), 0)
+
+    def test_v1_v2_closed_field_sets_are_unchanged(self):
+        """運用schemaへPublic fieldを混入せず、従来の閉field集合をliteral照合する。"""
+        v1 = {"schema", "repositoryRoot", "stateRoot", "manifestFile", "manifestSha256", "scopeFile",
+            "scopeSha256", "collectorExe", "collectorSha256", "signerExe", "signerSha256", "publicKeyFile",
+            "fingerprint", "pythonExe", "ghExe", "outputRoot", "smokeLocal", "firstDailyLocal",
+            "pipelineSha256", "producerSha256"}
+        v2 = v1 | {"purpose", "termsReviewMode", "modulePins", "originalInputs", "archiveFile", "archiveSha256",
+            "archiveBytes", "selectedInf", "legacyMetadata", "legacyReservationFence"}
+        self.assertEqual(pipeline.CONFIG_FIELDS, v1)
+        self.assertEqual(pipeline.V2_CONFIG_FIELDS, v2)
+        for label, fields in (("v1", v1), ("v2", v2)):
+            config = {name: None for name in fields}
+            config["publicTarget"] = self.record
+            with self.subTest(variant=label), self.assertRaisesRegex(ValueError, "^ARTIFICIAL_CONFIG_FIELDS$"):
+                pipeline.cr.fields(config, fields, "ARTIFICIAL_CONFIG_FIELDS")
 
 
 class PipelineTests(unittest.TestCase):
@@ -1263,7 +1642,7 @@ class DailyDistributionAcquisitionAuditTests(unittest.TestCase):
             with self.subTest(generation=generation):
                 result = self.audit(**changes, generation=generation)
                 self.assertEqual(result["generation"], generation)
-                self.assertEqual(result["expiresAtUtc"], "2026-10-14T12:59:30Z")
+                self.assertEqual(result["expiresAtUtc"], "2026-10-21T12:59:30Z")
                 self.assertEqual(documents, original)
                 self.assertLess(documents["evidence"]["lastFetchedAt"], documents["evidence"]["lastAttemptAt"])
 
@@ -1717,7 +2096,8 @@ class DailyAcquisitionPreparationTests(unittest.TestCase):
 class IssuanceWorld:
     """保護配置を人工directoryへ隔離し、実prepare/load/main/Publisherを接続する有限fixture。"""
 
-    def __init__(self, directory, *, status=200):
+    def __init__(self, directory, *, status=200, public_blob=b"P" * 411, initial_now=None,
+                 manifest_bytes=b'{"artificialCollector":true}'):
         """原v1・原metadata・versioned moduleと公開blobを人工byteで準備する。"""
         from datetime import datetime, timezone
         from types import SimpleNamespace
@@ -1727,7 +2107,7 @@ class IssuanceWorld:
         self.fixture = fixtures.PinnedStaticRevalidationTests()
         self.fixture.setUp()
         self.stack.callback(self.fixture.doCleanups)
-        self.now = datetime(2026, 10, 17, 6, tzinfo=timezone.utc)
+        self.now = initial_now or datetime(2026, 10, 17, 6, tzinfo=timezone.utc)
         self.root = directory / "protected"
         self.out = self.root / "operations" / "same-original-job"
         self.control = self.root / "control" / "acquisition"
@@ -1746,11 +2126,11 @@ class IssuanceWorld:
         for path in (self.collector, self.signer, runtime / "python.exe", runtime / "pythonw.exe"):
             path.write_bytes(b"ARTIFICIAL_NONEXECUTABLE")
         public = old_control / "public.blob"
-        public.write_bytes(b"P" * 411)
+        public.write_bytes(public_blob)
         self.fingerprint = pipeline.sha(public.read_bytes())
         key_id = "distribution-index-" + self.fingerprint[:32]
         manifest = old_control / "collector.json"
-        manifest.write_bytes(b'{"artificialCollector":true}')
+        manifest.write_bytes(manifest_bytes)
         manifest_hash = pipeline.sha(manifest.read_bytes())
         original_normal = pipeline.normal_path
         gh = Path("C:/Program Files/GitHub CLI/gh.exe")
@@ -1846,7 +2226,7 @@ class IssuanceWorld:
         """status・fetch・projectionを原形で保つ人工native receiptを作る。"""
         receipt = ProjectionTests.daily_receipt(self.fixture, status, generation)
         observed = int(now.timestamp()) - 30
-        receipt.update(day=now.strftime("%Y%m%d"), lastSuccessfulValidationAt=observed,
+        receipt.update(day=pipeline.public_jst_day(now), lastSuccessfulValidationAt=observed,
             lastAttemptAt=observed-1, notBefore=observed+86400,
             lastFetchedAt=observed if status == 200 else observed-86400)
         raw = pipeline.canonical({field: receipt[field] for field in
@@ -1870,7 +2250,22 @@ class IssuanceWorld:
         """固定native CLIだけを人工byteで実行し、秘密鍵や実processへfallbackしない。"""
         self.calls.append((list(argv), seconds, maximum))
         command = argv[1]
-        if command == "--daily-evidence":
+        if command == "--public-index-readback":
+            assert len(argv) == 5 and 1 <= int(argv[4]) <= 90000
+            behavior = getattr(self, "anonymous_behavior", "success")
+            if behavior == "hard-crash":
+                raise RuntimeError("ARTIFICIAL_WORKER_UNFINISHED")
+            if behavior == "crash-exit":
+                return 3221225477, b"", b""
+            bundle = {"manifest.json": pipeline.read(Path(argv[2]), 98304),
+                      "index.json.gz": pipeline.read(Path(argv[3]))}
+            if behavior == "verifier-failure":
+                self.fail_verify = "--distribution-acquisition-verify"
+            raw = anonymous_stdout_fixture(bundle, self.now, behavior)
+            if behavior == "noncanonical":
+                raw += b"\n"
+            return 0 if json.loads(raw)["outcome"] == "VERIFIED" else 2, raw, b""
+        elif command == "--daily-evidence":
             pipeline.write_new(Path(argv[-1]), pipeline.canonical(self.receipt))
         elif command == "--verify-daily-reservation":
             raw = pipeline.read(Path(argv[-2]), 1048576)
@@ -1900,7 +2295,7 @@ class IssuanceWorld:
                 pipeline.write_new(Path(argv[4]), b"{")
                 return 2, b"", b"ARTIFICIAL_FAILURE"
             pipeline.write_new(Path(argv[4]), envelope(pipeline.read(Path(argv[2])), self.scope["keyId"]))
-        elif command in {"--distribution-verify", "--distribution-verify-history",
+        elif command in {"--distribution-verify", "--distribution-verify-history", "--distribution-verify-floor-history",
                          "--distribution-acquisition-verify", "--distribution-acquisition-verify-history"}:
             if self.fail_verify == command:
                 return 2, b"", b"ARTIFICIAL_VERIFY_REJECTION"
@@ -1977,7 +2372,7 @@ class DailyAcquisitionIssuanceTests(unittest.TestCase):
                 self.assertEqual(result["purpose"], pipeline.ACQUISITION_PURPOSE)
                 self.assertEqual(world.command_count("--distribution-acquisition-sign"), 1)
                 self.assertEqual(world.command_count("--distribution-acquisition-verify"), 3)
-                self.assertEqual(world.command_count("--distribution-verify-history"), 1)
+                self.assertEqual(world.command_count("--distribution-verify-floor-history"), 1)
                 self.assertEqual(world.command_count("--verify-daily-reservation"), 2)
                 self.assertEqual(world.command_count("--daily-evidence"), 1)
                 for command in ("--parse-collected-release", "--inspect-collected-package", "--collect-terms-link-script"):
@@ -2017,7 +2412,7 @@ class DailyAcquisitionIssuanceTests(unittest.TestCase):
                     manifest = json.loads(artifacts[".manifest.raw.json"])
                     expiry = pipeline.parse_time(manifest["expiresAtUtc"])
                     self.assertEqual(pipeline.parse_time(manifest["publishedAtUtc"]), publication)
-                    self.assertEqual(expiry.timestamp(), world.receipt["lastSuccessfulValidationAt"] + 86400)
+                    self.assertEqual(expiry.timestamp(), world.receipt["lastSuccessfulValidationAt"] + 8 * 86400)
                     self.assertEqual(result["originalFetchedAt"], world.receipt["lastFetchedAt"])
                     world.calls.clear()
                     world.remote.events.clear()
@@ -2043,13 +2438,13 @@ class DailyAcquisitionIssuanceTests(unittest.TestCase):
                     self.assertEqual(world.fixture.originals, originals)
 
     def test_c13_legacy_bound_cutover_is_not_reissued(self):
-        """原世代4をmetadata historyと実境界へ結び、準備で署名・収集・配布しない。"""
+        """原世代4を署名floorと実境界へ結び、準備で署名・収集・配布しない。"""
         from types import SimpleNamespace
         import prepare_daily_index_config as prepare
         with self.world() as world:
             with self.subTest(variant="legacy-gen4-cutover"):
                 commands = [argv[1] for argv, _, _ in world.preparation_calls]
-                self.assertEqual(commands, ["--verify-daily-reservation", "--distribution-verify-history"])
+                self.assertEqual(commands, ["--verify-daily-reservation", "--distribution-verify-floor-history"])
                 self.assertEqual(world.preparation_calls[0][0][-1], "LEGACY_FENCE")
                 self.assertEqual(world.config["legacyMetadata"]["kind"], "LEGACY_METADATA_BOUND")
                 self.assertEqual(world.config["legacyReservationFence"]["generation"], 4)
@@ -2172,8 +2567,8 @@ class DailyAcquisitionIssuanceTests(unittest.TestCase):
                 world.calls.clear()
                 result = world.execute()
                 self.assertEqual(result["status"], "PUBLISHED")
-                expected = "--distribution-acquisition-verify-history" if "acquisition" in variant else "--distribution-verify-history"
-                other = "--distribution-verify-history" if "acquisition" in variant else "--distribution-acquisition-verify-history"
+                expected = "--distribution-acquisition-verify-history" if "acquisition" in variant else "--distribution-verify-floor-history"
+                other = "--distribution-verify-floor-history" if "acquisition" in variant else "--distribution-acquisition-verify-history"
                 self.assertEqual(world.command_count(expected), 1)
                 self.assertEqual(world.command_count(other), 0)
                 self.assertEqual(world.command_count("--distribution-acquisition-sign"), 1)
@@ -2683,7 +3078,7 @@ class ReceiptAnchorAndRepairTests(unittest.TestCase):
         world.config_path = prepare.repair_config(args, budget=world)
         world.config, world.scope, world.config_hash = pipeline.load_config(world.config_path)
         self.assertEqual([argv[1] for argv, _, _ in world.calls],
-                         ["--verify-daily-reservation", "--distribution-verify-history"])
+                         ["--verify-daily-reservation", "--distribution-verify-floor-history"])
         self.assertEqual(world.calls[0][0][-1], "FRESH_INPUT")
         self.assertEqual(world.config["legacyReservationFence"]["generation"], 4)
         for path, raw in world.predecessor_bytes.items():
@@ -2826,7 +3221,7 @@ class ReceiptAnchorAndRepairTests(unittest.TestCase):
                 if variant == "head":
                     world.head_generation = 10
                 else:
-                    world.fail_verify = "--distribution-verify-history"
+                    world.fail_verify = "--distribution-verify-floor-history"
                 with self.assertRaisesRegex(ValueError, "^" + reason + "$"):
                     prepare.repair_config(args, budget=world)
                 self.assertFalse(args.control_directory.exists())
@@ -3032,7 +3427,7 @@ class PreSignCheckpointContinuationTests(unittest.TestCase):
         world.config_path = prepare.continue_presign_config(args, budget=world)
         world.config, world.scope, world.config_hash = pipeline.load_config(world.config_path)
         self.assertEqual([argv[1] for argv, _, _ in world.calls],
-                         ["--verify-daily-reservation", "--distribution-verify-history"])
+                         ["--verify-daily-reservation", "--distribution-verify-floor-history"])
         self.assertEqual(world.config["codeRepair"], world.old_presign_config["codeRepair"])
         self.assertEqual(world.config["legacyReservationFence"]["generation"], 4)
         world.calls.clear()
@@ -3267,7 +3662,7 @@ class PreSignCheckpointContinuationTests(unittest.TestCase):
                 elif variant == "seconds":
                     args.prior_elapsed_seconds = 3.0
                 elif variant == "history":
-                    world.fail_verify = "--distribution-verify-history"
+                    world.fail_verify = "--distribution-verify-floor-history"
                 elif variant == "head":
                     world.head_generation = world.receipt["generation"] + 1
                 elif variant == "attempt":
@@ -3435,7 +3830,7 @@ class VerifiedUnsignedRefreshTests(unittest.TestCase):
         world.config_path = prepare.continue_presign_config(args, budget=budget or world)
         world.config, world.scope, world.config_hash = pipeline.load_config(world.config_path)
         self.assertEqual([argv[1] for argv, _, _ in world.calls],
-                         ["--verify-daily-reservation", "--distribution-verify-history"])
+                         ["--verify-daily-reservation", "--distribution-verify-floor-history"])
         self.assertEqual(world.config["codeRepair"], world.refresh_predecessor["codeRepair"])
         self.assertEqual(world.config["preSignContinuation"]["schema"], pipeline.VERIFIED_UNSIGNED_SCHEMA)
         self.assert_retained(world)
@@ -3460,7 +3855,7 @@ class VerifiedUnsignedRefreshTests(unittest.TestCase):
                     self.assertEqual(world.command_count("--verify-daily-reservation"), 3)
                     self.assertEqual(world.command_count("--distribution-acquisition-sign"), 1)
                     self.assertEqual(world.command_count("--distribution-acquisition-verify"), 3)
-                    self.assertEqual(world.command_count("--distribution-verify-history"), 1)
+                    self.assertEqual(world.command_count("--distribution-verify-floor-history"), 1)
                     world.remote.events.clear()
                     world.now += timedelta(seconds=3)
                     self.assertTrue(world.execute()["resumed"])
@@ -3795,7 +4190,7 @@ class VerifiedUnsignedRefreshTests(unittest.TestCase):
                 elif variant == "head":
                     world.head_generation = world.receipt["generation"] + 1
                 elif variant == "history":
-                    world.fail_verify = "--distribution-verify-history"
+                    world.fail_verify = "--distribution-verify-floor-history"
                 else:
                     args.checkpoint_script_sha256 = None
                 with self.assertRaises(ValueError):
@@ -4144,6 +4539,2046 @@ class AssetUploadLengthTests(unittest.TestCase):
                 self.assertEqual(remote.ordinal, 0)
 
 
+class PublicDailyConfigTests(unittest.TestCase):
+    """ADR0382の実loader/明示prepare/Publisher接続と、未認証履歴の閉入口を検査する。"""
+
+    @contextmanager
+    def world(self, *, status=200, initial_now=None):
+        """公開sourceの公開blobと隔離fileを使い、OS ACL問い合わせとnativeだけを人工化する。"""
+        trust = (Path(__file__).resolve().parents[1] / "src/platform/index_distribution_trust.h").read_text(
+            encoding="utf-8").split("PUBLIC_BLOB{", 1)[1].split("} ;", 1)[0]
+        blob = bytes(int(value, 16) for value in re.findall(r"0x([0-9a-fA-F]{2})U", trust))
+        self.assertEqual(len(blob), 411)
+        self.assertEqual(pipeline.sha(blob), "0ac4d0ce9873c82b3c7bb7bd3fb3f5d2a57044bf968c5c6e2af02176cee39d3f")
+        with tempfile.TemporaryDirectory() as temporary:
+            world = IssuanceWorld.__new__(IssuanceWorld)
+            try:
+                world.__init__(Path(temporary), status=status, public_blob=blob, initial_now=initial_now)
+                world.stack.enter_context(patch.object(pipeline, "_APPROVED_PUBLIC_PUBLISHER", None))
+                world.public_approval = world.root / "control/approved-public-publisher.json"
+                world.public_approval.write_bytes(pipeline.canonical(dict(pipeline.PUBLIC_APPROVAL_VALUES)))
+                # 実path/ACL/ancestor/reparse/link policyを戻し、snapshotのOS照会だけを人工化する。
+                with ReceiptAnchorAndRepairTests().policy(world.root):
+                    yield world
+            finally:
+                if hasattr(world, "stack"):
+                    world.close()
+
+    def args(self, world):
+        """原v2/承認recordの原SHAを明示し、任意approval pathや新outputを持たない引数を返す。"""
+        return SimpleNamespace(public_config_from=world.config_path, predecessor_config_sha256=world.config_hash,
+            public_publisher_approval_sha256=pipeline.sha(world.public_approval.read_bytes()),
+            control_directory=world.root / "control/public-v3")
+
+    def prepare(self, world):
+        """実preparerと実loaderを通し、new configと原byte hashを返す。"""
+        import prepare_daily_index_config as prepare
+        path = prepare.prepare_public_config(self.args(world))
+        config, scope, digest = pipeline.load_config(path)
+        return path, config, scope, digest
+
+    def test_q01_fixed_approval_bytes_pin_and_identity(self):
+        """固定保護位置・原SHA・意味/型・process内初回原byteを外部作用なしで検査する。"""
+        variants = ("exact", "missing", "pin", "pin-type", "unknown", "identity", "type", "changed")
+        for variant in variants:
+            with self.subTest(variant=variant), workspace_fixture() as world, \
+                    patch.object(pipeline, "_APPROVED_PUBLIC_PUBLISHER", None):
+                path = world.root / "control/approved-public-publisher.json"
+                raw = pipeline.canonical(dict(pipeline.PUBLIC_APPROVAL_VALUES))
+                path.write_bytes(raw)
+                digest = pipeline.sha(raw)
+                reason = None
+                if variant == "missing":
+                    path.unlink()
+                    reason = "PUBLIC_APPROVAL_REQUIRED"
+                elif variant == "pin":
+                    digest, reason = "f" * 64, "PUBLIC_APPROVAL_PIN"
+                elif variant == "pin-type":
+                    digest, reason = True, "PUBLIC_APPROVAL_PIN"
+                elif variant in {"unknown", "identity", "type"}:
+                    value = json.loads(raw)
+                    value["extra" if variant == "unknown" else "repositoryId"] = "wrong" if variant != "type" else True
+                    raw = pipeline.canonical(value)
+                    path.write_bytes(raw)
+                    digest = pipeline.sha(raw)
+                    reason = "PUBLIC_APPROVAL_FIELDS" if variant == "unknown" else "PUBLIC_APPROVAL_VALUE"
+                elif variant == "changed":
+                    pipeline.approved_public_publisher(digest)
+                    path.write_bytes(raw + b"\n")
+                    digest, reason = pipeline.sha(path.read_bytes()), "PUBLIC_APPROVAL_CHANGED"
+                if reason is not None:
+                    with self.assertRaisesRegex(ValueError, "^" + reason + "$"):
+                        pipeline.approved_public_publisher(digest)
+                else:
+                    target = pipeline.approved_public_publisher(digest)
+                    self.assertEqual(target.approval_bytes, raw)
+                    self.assertEqual(target.approval_sha256, digest)
+                    with self.assertRaises(TypeError):
+                        pipeline.approved_public_publisher(digest, path)
+
+    def test_q02_prepare_load_and_public_publisher(self):
+        """正常v2→明示prepare→実load→既存Public Publisherへ二asset/一CASで接続する。"""
+        for status in (200, 304):
+            with self.subTest(status=status), self.world(status=status) as world:
+                original = world.config_path.read_bytes()
+                path, config, scope, digest = self.prepare(world)
+                self.assertEqual(digest, pipeline.sha(path.read_bytes()))
+                self.assertEqual(config["predecessorConfigSha256"], pipeline.sha(original))
+                self.assertEqual(world.config_path.read_bytes(), original)
+                self.assertEqual(scope, world.scope)
+                inherited = {name: value for name, value in config.items() if name not in pipeline.PUBLIC_CONFIG_FIELDS}
+                inherited["schema"] = "dc-private-daily-index-config-v2"
+                self.assertEqual(pipeline.canonical(inherited), pipeline.canonical(world.config))
+                self.assertEqual(list(path.parent.iterdir()), [path])
+                boundary = PublicPublisherIdentityTests()
+                try:
+                    boundary.setUp()
+                    remote = PublicIdentityRemote()
+                    callback = []
+                    publisher = pipeline.acquisition_publisher(config, remote, boundary.verify,
+                        before_cas=lambda: callback.append("CAS"), anonymous=publisher_anonymous_fixture)
+                    result = publisher.publish(boundary.bundle)
+                    self.assertEqual(result["status"], "PUBLISHED")
+                    self.assertEqual(remote.ref_updates, 1)
+                    writes = [event for event in remote.events if event[0] != "GET"]
+                    self.assertEqual(len(writes), 8)
+                    self.assertEqual(callback, ["CAS"])
+                    self.assertEqual({name for _, route, _ in writes if "?name=" in route
+                                      for name in [route.split("?name=")[1]]}, pipeline.ASSETS)
+                    self.assertTrue(boundary.verifications)
+                finally:
+                    boundary.doCleanups()
+                # 使用時にも固定recordの原byteを再検査し、load済みを許可の永続cacheにしない。
+                world.public_approval.write_bytes(world.public_approval.read_bytes() + b"\n")
+                with self.assertRaisesRegex(ValueError, "^PUBLIC_APPROVAL_PIN$"):
+                    pipeline.acquisition_publisher(config, PublicIdentityRemote(), lambda *a, **k: None)
+                self.assertEqual(world.calls, [])
+
+    def test_q03_v3_closed_fields_types_and_predecessor(self):
+        """v3だけの閉field/型/原config pin・位置・schemaをremote構築前に拒否する。"""
+        with self.world() as world:
+            path, _, _, _ = self.prepare(world)
+            for name in ("inherited_v1", "predecessor_v2", "presign_predecessor", "verified_unsigned_predecessor"):
+                with self.subTest(context=name):
+                    with self.assertRaisesRegex(ValueError, "^PUBLIC_CONFIG_CONTEXT$"):
+                        pipeline.load_config(path, **{name: True})
+        variants = ("missing", "unknown", "duplicate", "approval-path", "approval-pin", "approval-type",
+                    "predecessor-pin", "predecessor-type", "predecessor-location", "v1", "v3-chain", "purpose")
+        for variant in variants:
+            with self.subTest(variant=variant), self.world() as world:
+                path, config, _, _ = self.prepare(world)
+                reason = "PUBLIC_CONFIG_FIELDS"
+                raw = None
+                if variant == "missing":
+                    del config["publicPublisherApprovalSha256"]
+                elif variant in {"unknown", "approval-path"}:
+                    config["unknown" if variant == "unknown" else "publicPublisherApprovalFile"] = str(world.public_approval)
+                elif variant == "duplicate":
+                    raw = pipeline.canonical(config)[:-1] + b',"predecessorConfigSha256":"' + b"a" * 64 + b'"}'
+                    reason = "DUPLICATE_JSON_KEY"
+                elif variant in {"approval-pin", "approval-type"}:
+                    config["publicPublisherApprovalSha256"] = "f" * 64 if variant.endswith("pin") else False
+                    reason = "PUBLIC_APPROVAL_PIN"
+                elif variant in {"predecessor-pin", "predecessor-type"}:
+                    config["predecessorConfigSha256"] = "f" * 64 if variant.endswith("pin") else 1
+                    reason = "PUBLIC_PREDECESSOR_PIN"
+                elif variant == "predecessor-location":
+                    config["predecessorConfigFile"] = str(world.out / "config.json")
+                    Path(config["predecessorConfigFile"]).write_bytes(world.config_path.read_bytes())
+                    reason = "PUBLIC_PREDECESSOR_LOCATION"
+                elif variant in {"v1", "v3-chain"}:
+                    old = json.loads(world.config_path.read_bytes())
+                    old["schema"] = "dc-private-daily-index-config-v1" if variant == "v1" else pipeline.PUBLIC_CONFIG_SCHEMA
+                    world.config_path.write_bytes(pipeline.canonical(old))
+                    config["predecessorConfigSha256"] = pipeline.sha(world.config_path.read_bytes())
+                    reason = "PUBLIC_PREDECESSOR_SCHEMA"
+                else:
+                    config["purpose"], reason = "METADATA", "PUBLIC_CONFIG_PURPOSE"
+                path.write_bytes(raw or pipeline.canonical(config))
+                with self.assertRaisesRegex(ValueError, "^" + reason + "$"):
+                    pipeline.load_config(path)
+                self.assertEqual(world.calls, [])
+
+    def test_q04_predecessor_and_semantics_cannot_change(self):
+        """元byte/code/全意味fieldを保持し、実旧continuationのcarryと原markerも削除しない。"""
+        with self.subTest(variant="key-order"), self.world() as world:
+            path, config, _, _ = self.prepare(world)
+            path.write_bytes(pipeline.canonical(dict(reversed(list(config.items())))))
+            reordered, _, _ = pipeline.load_config(path)
+            self.assertEqual(reordered, config)
+            reordered["archiveBytes"] = float(reordered["archiveBytes"])
+            path.write_bytes(pipeline.canonical(reordered))
+            with self.assertRaisesRegex(ValueError, "^PUBLIC_CONFIG_SEMANTICS$"):
+                pipeline.load_config(path)
+        for variant in ("raw", "module", "scope", "outputRoot", "stateRoot", "repositoryRoot", "fingerprint",
+                        "firstDailyLocal", "codeRepair", "preSignContinuation"):
+            with self.subTest(variant=variant), self.world() as world:
+                path, config, _, _ = self.prepare(world)
+                reason = "PUBLIC_CONFIG_SEMANTICS"
+                if variant == "raw":
+                    world.config_path.write_bytes(world.config_path.read_bytes() + b"\n")
+                    reason = "PUBLIC_PREDECESSOR_PIN"
+                elif variant == "module":
+                    module = Path(pipeline.__file__)
+                    module.write_bytes(module.read_bytes() + b"CHANGED")
+                    reason = "SCRIPT_PIN"
+                elif variant == "scope":
+                    config["scopeFile"] = str(world.root / "control/rebound-scope.json")
+                elif variant in {"codeRepair", "preSignContinuation"}:
+                    config[variant] = {"priorNativeCalls": 0, "priorElapsedSeconds": 0}
+                else:
+                    config[variant] = "CHANGED"
+                path.write_bytes(pipeline.canonical(config))
+                with self.assertRaisesRegex(ValueError, "^" + reason + "$"):
+                    pipeline.load_config(path)
+                self.assertEqual(world.calls, [])
+        with self.subTest(variant="original-continuation-carry"), self.world() as world:
+            import prepare_daily_index_config as prepare
+            old_fixture = VerifiedUnsignedRefreshTests()
+            # 旧fixtureの二読取clockをprepare専用へ隔離し、実保護treeの有限clockを置換しない。
+            with patch.object(prepare, "time", SimpleNamespace(monotonic=pipeline.time.monotonic)):
+                args = old_fixture.four_file_checkpoint(world)
+                old_fixture.accept_refresh(world, args)
+            before = deepcopy(world.config)
+            retained = dict(world.retained_checkpoint)
+            path, config, _, _ = self.prepare(world)
+            self.assertEqual(config["codeRepair"], before["codeRepair"])
+            self.assertEqual(config["preSignContinuation"], before["preSignContinuation"])
+            self.assertEqual(config["preSignContinuation"]["priorNativeCalls"], 15)
+            for source, (raw, modified) in retained.items():
+                self.assertEqual(source.read_bytes(), raw)
+                self.assertEqual(source.stat().st_mtime_ns, modified)
+            config["preSignContinuation"]["priorNativeCalls"] = 0
+            path.write_bytes(pipeline.canonical(config))
+            with self.assertRaisesRegex(ValueError, "^PUBLIC_CONFIG_SEMANTICS$"):
+                pipeline.load_config(path)
+            self.assertEqual(world.calls, [])
+
+    def test_q05_approval_acl_reparse_and_hardlink(self):
+        """実保護path規則で固定recordと祖先のACL・reparse・linkを検査する。"""
+        for variant, reason in (("owner", "PROTECTED_OWNER"), ("write", "PROTECTED_GENERAL_USER_WRITE"),
+            ("ancestor", "PROTECTED_GENERAL_USER_WRITE"), ("protected", "PROTECTED_DACL_REQUIRED"),
+            ("reparse", "REPARSE_PATH"), ("hardlink", "PROTECTED_HARDLINK")):
+            with self.subTest(variant=variant), workspace_fixture() as world, ExitStack() as stack:
+                stack.enter_context(patch.object(pipeline, "_APPROVED_PUBLIC_PUBLISHER", None))
+                path = world.root / "control/approved-public-publisher.json"
+                raw = pipeline.canonical(dict(pipeline.PUBLIC_APPROVAL_VALUES))
+                path.write_bytes(raw)
+                owner, protected, entries = world.safe
+                target = path
+                if variant == "owner":
+                    owner = "S-1-5-32-545"
+                elif variant in {"write", "ancestor"}:
+                    entries = entries + [(0, 0, 0x40 if variant == "ancestor" else 0x100, "S-1-5-32-545")]
+                    target = world.directory if variant == "ancestor" else path
+                elif variant == "protected":
+                    target, protected = world.root, False
+                elif variant == "reparse":
+                    original = Path.is_junction
+                    stack.enter_context(patch.object(Path, "is_junction", lambda item: item == path or original(item)))
+                elif variant == "hardlink":
+                    original = Path.stat
+                    def linked(item, *args, **kwargs):
+                        """人工recordのlink数だけを変更し、実linkや保護fileを作らない。"""
+                        value = original(item, *args, **kwargs)
+                        return SimpleNamespace(st_mode=value.st_mode, st_size=value.st_size,
+                            st_file_attributes=value.st_file_attributes, st_nlink=2) if item == path else value
+                    stack.enter_context(patch.object(Path, "stat", linked))
+                stack.enter_context(patch.object(pipeline, "acl_snapshot",
+                    side_effect=lambda item: (owner, protected, entries) if item == target else world.safe))
+                with self.assertRaisesRegex(ValueError, "^" + reason + "$"):
+                    pipeline.approved_public_publisher(pipeline.sha(raw))
+
+    def test_q06_prepare_create_new_and_mode_separation(self):
+        """旧先上書き・新root/日程・混合modeを拒否し、失敗時の部分新fileを保持する。"""
+        import prepare_daily_index_config as prepare
+        for variant in ("existing", "old-control", "new-output", "schedule", "native", "mixed", "pin", "partial",
+                        "preparer-location"):
+            with self.subTest(variant=variant), self.world() as world:
+                args = self.args(world)
+                before = world.config_path.read_bytes()
+                reason = "PUBLIC_PREPARE_MIXED_MODE"
+                if variant == "existing":
+                    args.control_directory.mkdir()
+                    reason = "NEW_CONTROL_DIRECTORY"
+                elif variant == "old-control":
+                    args.control_directory, reason = world.config_path.parent, "NEW_CONTROL_DIRECTORY"
+                elif variant == "new-output":
+                    args.new_output_root = world.root / "operations/rebound"
+                elif variant == "schedule":
+                    args.first_daily_local = "2026-10-19T12:00:00Z"
+                elif variant == "native":
+                    args.collector_exe = world.collector
+                elif variant == "mixed":
+                    args.repair_config = world.config_path
+                elif variant == "pin":
+                    args.predecessor_config_sha256, reason = "f" * 64, "PUBLIC_PREDECESSOR_PIN"
+                elif variant == "preparer-location":
+                    with patch.object(prepare, "__file__", str(world.root / "not-approved/prepare_daily_index_config.py")):
+                        with self.assertRaisesRegex(ValueError, "^PROTECTED_PREPARER_LOCATION$"):
+                            prepare.prepare_public_config(args)
+                    self.assertFalse(args.control_directory.exists())
+                    self.assertEqual(world.config_path.read_bytes(), before)
+                    continue
+                else:
+                    with patch.object(pipeline, "write_new", side_effect=OSError("ARTIFICIAL_PARTIAL")):
+                        with self.assertRaisesRegex(OSError, "ARTIFICIAL_PARTIAL"):
+                            prepare.prepare_public_config(args)
+                    self.assertTrue(args.control_directory.is_dir())
+                    self.assertEqual(world.config_path.read_bytes(), before)
+                    continue
+                with self.assertRaisesRegex(ValueError, "^" + reason + "$"):
+                    prepare.prepare_public_config(args)
+                self.assertEqual(world.config_path.read_bytes(), before)
+                self.assertEqual(world.calls, [])
+
+    def test_q07_pending_history_precedes_all_effects(self):
+        """同観測/新日/due前/UNKNOWN/失効でもv3を閉じ、carry・lock・署名・terminalを変更しない。"""
+        for variant in ("same-observation", "new-day", "before-due", "unknown", "expired"):
+            with self.subTest(variant=variant), self.world() as world:
+                path, config, scope, digest = self.prepare(world)
+                budget = pipeline.Budget()
+                budget.calls = 90
+                end = budget.end
+                if variant == "new-day":
+                    world.now += timedelta(days=1)
+                elif variant == "before-due":
+                    world.now -= timedelta(days=1)
+                elif variant == "expired":
+                    world.now += timedelta(days=20)
+                if variant == "unknown":
+                    world.artifact(".terminal-unknown.json").write_bytes(pipeline.canonical({
+                        "status": "UNKNOWN", "publicationOutcome": "CAS_INTENT_UNKNOWN",
+                        "configSha256": world.config_hash}))
+                original = {item.name: item.read_bytes() for item in world.out.iterdir() if item.is_file()}
+                with patch.object(pipeline, "exclusive") as lock, \
+                        patch.object(pipeline, "collect_daily_acquisition_receipt") as collect, \
+                        patch.object(pipeline, "acquisition_publisher") as publish, \
+                        patch.object(pipeline, "write_new") as write:
+                    for action in (lambda: pipeline.run_pipeline(config, scope, digest, budget=budget),
+                        lambda: pipeline.run_acquisition(config, scope, digest, path.parent, budget, world.remote),
+                        lambda: pipeline.task_xml(config, path, "S-1-5-21-111-222-333-1001"),
+                        lambda: pipeline.report(config)):
+                        with self.assertRaisesRegex(ValueError, "^PUBLIC_HISTORY_TRANSITION_REQUIRED$"):
+                            action()
+                    lock.assert_not_called()
+                    collect.assert_not_called()
+                    publish.assert_not_called()
+                    write.assert_not_called()
+                self.assertEqual(budget.calls, 90)
+                self.assertEqual(budget.end, end)
+                self.assertEqual(original, {item.name: item.read_bytes() for item in world.out.iterdir() if item.is_file()})
+                self.assertEqual(world.calls, [])
+                self.assertEqual(world.remote.events, [])
+
+    def test_q08_legacy_defaults_and_plan_truth(self):
+        """実CLI関数の明示mode/planを隔離して検査し、v1/v2のPrivate既定と閉fieldを保持する。"""
+        import prepare_daily_index_config as prepare
+        with self.world() as world:
+            args = self.args(world)
+            argv = ["prepare_daily_index_config.py", "--public-config-from", str(args.public_config_from),
+                "--predecessor-config-sha256", args.predecessor_config_sha256,
+                "--public-publisher-approval-sha256", args.public_publisher_approval_sha256,
+                "--control-directory", str(args.control_directory)]
+            with patch("sys.argv", argv), redirect_stdout(io.StringIO()) as output:
+                prepare.main()
+            self.assertIn("HISTORY_TRANSITION_REQUIRED", output.getvalue())
+            path = args.control_directory / "config.json"
+            for mode in ("run", "task", "report"):
+                with self.subTest(mode=mode), patch("sys.argv", ["daily_index_pipeline.py", mode, str(path)]), \
+                        patch.object(pipeline, "write_new") as write:
+                    with self.assertRaisesRegex(ValueError, "^PUBLIC_HISTORY_TRANSITION_REQUIRED$"):
+                        pipeline.main()
+                    write.assert_not_called()
+            plan_path = path.parent / "plan.json"
+            with patch("sys.argv", ["daily_index_pipeline.py", "plan", str(path), "--output", str(plan_path)]), \
+                    redirect_stdout(io.StringIO()):
+                self.assertEqual(pipeline.main(), 0)
+            plan = json.loads(plan_path.read_bytes())
+            self.assertFalse(plan["privateRequired"])
+            self.assertFalse(plan["executable"])
+            self.assertTrue(plan["historyTransitionRequired"])
+            self.assertIsNone(plan["taskName"])
+            with patch("sys.argv", ["prepare_daily_index_config.py", "--public-publisher-approval-sha256",
+                                    args.public_publisher_approval_sha256]):
+                with self.assertRaisesRegex(ValueError, "^PUBLIC_PREPARE_MODE_REQUIRED$"):
+                    prepare.main()
+            for schema in ("dc-private-daily-index-config-v1", "dc-private-daily-index-config-v2"):
+                with self.subTest(schema=schema):
+                    publisher = pipeline.acquisition_publisher({"schema": schema}, PublicIdentityRemote(), lambda *a, **k: None)
+                    self.assertIsNone(publisher._public_target)
+                    with self.assertRaisesRegex(ValueError, "^PRIVATE_IDENTITY$"):
+                        publisher.identity()
+            old_v1 = Path(world.config["legacyMetadata"]["configFile"])
+            for source, reason in ((world.config_path, "CONFIG_FIELDS_V2"), (old_v1, "CONFIG_FIELDS")):
+                with self.subTest(closed=reason):
+                    old = json.loads(source.read_bytes())
+                    old["publicPublisherApprovalSha256"] = args.public_publisher_approval_sha256
+                    source.write_bytes(pipeline.canonical(old))
+                    with self.assertRaisesRegex(ValueError, "^" + reason + "$"):
+                        pipeline.load_config(source)
+            self.assertEqual(world.calls, [])
+
+
+class PublicHistoryTransitionTests(unittest.TestCase):
+    """ADR0383の固定九test。実旧環境を触らず、期限後chainから共通取得への有限接続を確認する。"""
+
+    @contextmanager
+    def world(self, *, status=200, chain=True, initial_now=None):
+        """原旧成功を作り、現在runtimeとfake保護headだけを別のbyteへ切り替える。"""
+        import prepare_daily_index_config as prepare
+        with PublicDailyConfigTests().world(initial_now=initial_now) as world:
+            if chain:
+                prior = VerifiedUnsignedRefreshTests()
+                with patch.object(prepare, "time", SimpleNamespace(monotonic=pipeline.time.monotonic)):
+                    args = prior.four_file_checkpoint(world)
+                    prior.accept_refresh(world, args)
+            code, result = world.execute(main=True)
+            self.assertEqual(code, 0)
+            self.assertEqual(result["status"], "PUBLISHED")
+            world.old_config, world.old_hash, world.old_config_path = deepcopy(world.config), world.config_hash, world.config_path
+            world.old_receipt = deepcopy(world.receipt)
+            world.old_day = world.now.strftime("%Y%m%d")
+            world.old_envelope = world.artifact(".manifest.json")
+            world.old_signer = world.config["signerExe"]
+            world.retained = {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in world.out.iterdir() if path.is_file()}
+            old_remote = world.remote
+            world.remote = PublicIdentityRemote()
+            for name in ("releases", "assets", "blobs", "trees", "commits", "head", "counter"):
+                setattr(world.remote, name, deepcopy(getattr(old_remote, name)))
+            version = world.root / "scripts/v2-artificial-public-current"
+            binary = world.root / "bin" / version.name
+            version.mkdir()
+            binary.mkdir(parents=True)
+            old_version = Path(pipeline.__file__).parent
+            for name in pipeline.MODULE_NAMES:
+                (version / name).write_bytes((old_version / name).read_bytes() + b"_PUBLIC_CURRENT")
+            for name in ("DriverCrateCollector.exe", "DriverCrateLocalIndexSigner.exe"):
+                (binary / name).write_bytes(b"ARTIFICIAL_CURRENT_NONEXECUTABLE")
+            for owner, name, path in ((pipeline, "__file__", version / "daily_index_pipeline.py"),
+                (pipeline.projection, "__file__", version / "project_collected_native_index.py"),
+                (pipeline.cr, "__file__", version / "collector_registry.py"),
+                (prepare, "__file__", version / "prepare_daily_index_config.py")):
+                world.stack.enter_context(patch.object(owner, name, str(path)))
+            world.now += timedelta(days=1, seconds=2)
+            world.refresh(status=status, generation=world.old_receipt["generation"] + 1)
+            world.receipt["previousReceiptSha256"] = pipeline.sha(pipeline.canonical(world.old_receipt))
+            if status == 304:
+                for name in ("lastFetchedAt", "bodySha256", "bodyBytesBase64", "projectionSha256",
+                             "projectionBytesBase64", "records"):
+                    world.receipt[name] = deepcopy(world.old_receipt[name])
+            args = PublicDailyConfigTests().args(world)
+            args.public_history_envelope = world.old_envelope
+            args.public_history_envelope_sha256 = pipeline.sha(world.old_envelope.read_bytes())
+            args.collector_exe = binary / "DriverCrateCollector.exe"
+            args.signer_exe = binary / "DriverCrateLocalIndexSigner.exe"
+            world.config_path = prepare.prepare_public_config(args)
+            world.config, world.scope, world.config_hash = pipeline.load_config(world.config_path)
+            self.assertNotEqual(world.old_signer, world.config["signerExe"])
+            self.assertEqual(world.config.get("preSignContinuation"), world.old_config.get("preSignContinuation"))
+            world.history_path = world.config_path.parent / "history.json"
+            self.history(world)
+            world.calls.clear()
+            world.fake = self.Fake(world)
+            world.public_old_head = world.remote.head
+            yield world
+
+    def history(self, world):
+        """閉contextへ原九artifact/六入力/全terminalと、元会計のsealed証拠を結合する。"""
+        out, day = world.out, world.old_day
+        receipt_path = next(path for path in out.glob(day + ".collection-*.json") if
+            json.loads(path.read_bytes()).get("outcome") in {"NEW_200", "REVALIDATED_304"})
+        generation = world.old_receipt["generation"]
+        terminals = sorted(out.glob(day + ".terminal-*.json"))
+        signing = next(path for path in terminals if json.loads(path.read_bytes()).get("signingOutcome") ==
+                       "NATIVE_CURRENT_VERIFIED")
+        terminal = next(path for path in terminals if json.loads(path.read_bytes()).get("status") == "PUBLISHED")
+        prefix = str(out / day) + ".acquisition"
+        files = {"start": Path(world.old_config.get("codeRepair", {}).get("startFile", prefix + ".start.json")),
+            "receipt": receipt_path, "claim": out / f"issuance-v1-{generation:016d}.claim.json",
+            "rawManifest": Path(prefix + ".manifest.raw.json"), "gzip": Path(prefix + ".index.json.gz"),
+            "envelope": Path(prefix + ".manifest.json"), "signingResult": signing, "terminal": terminal,
+            "success": Path(prefix + ".success.json")}
+        inputs = {"scope": Path(world.old_config["scopeFile"]), "evidence": receipt_path}
+        inputs.update({name: out / ("acquisition-" + receipt_path.stem + "." + name + ".json") for name in
+                       ("release", "inspection", "review", "script")})
+        evidence, carry = self.carry_evidence(world, generation)
+        world.history_record = {"schema": "dc-public-daily-history-v1", "publicConfigFile": str(world.config_path),
+            "publicConfigSha256": world.config_hash, "predecessorConfigSha256": world.old_hash,
+            "oldDay": day, "operationDay": world.now.strftime("%Y%m%d"),
+            "files": {name: self.pin(path) for name, path in files.items()},
+            "inputs": {name: self.pin(path) for name, path in inputs.items()},
+            "terminalPins": {path.name: pipeline.sha(path.read_bytes()) for path in terminals},
+            "retainedCarry": carry, "carryEvidence": evidence}
+        self.save_history(world)
+
+    @staticmethod
+    def pin(path):
+        """人工fileの原byte hashを作る。"""
+        return {"file": str(path), "sha256": pipeline.sha(path.read_bytes())}
+
+    def carry_evidence(self, world, generation):
+        """元58+24+8callと外側単調時間の原receipt形を人工証拠として保持する。"""
+        directory = world.config_path.parent / "original-carry"
+        directory.mkdir()
+        summary = {"carryCalls": 58, "carrySeconds": 829.4723543021437, "newGhCalls": 18, "newNativeCalls": 6,
+            "totalManagedCalls": 82, "mainExitCode": 0, "mainActualPid": 123, "mainSameHandleTerminal": True,
+            "resultStatus": "PUBLISHED", "outsideHelperGhCalls": 0, "outsideHelperNativeVerificationCalls": 0,
+            "directoryBirthToMainExitSeconds": 13.707423686981201}
+        summary = dict.fromkeys(("utc", "effortActuallyUsed", "mainExitCode", "mainActualPid", "mainSameHandleTerminal",
+            "directoryBirthUtc", "mainExitUtc", "directoryBirthToMainExitSeconds", "resultPath", "resultStatus",
+            "newGhCalls", "newNativeCalls", "totalManagedCalls", "carryCalls", "carrySeconds", "outsideHelperGhCalls",
+            "outsideHelperNativeVerificationCalls", "originalIndividualPidKernelCoverage", "nativeSignCalls",
+            "appAnonymousConfirmation", "pnpCandidateCount", "supportIncrease", "wholeGoalComplete",
+            "rootRemoteVerification", "reads", "conservativeReadUpperBytes")) | summary
+        terminal = {"pid": 123, "sameHandleTerminal": True, "exitCode": 0, "elapsedSeconds": 13.66885130002629}
+        terminal = dict.fromkeys(("pid", "sameHandleTerminal", "exitCode", "originalHandleValue", "creationTicks",
+            "exitTicks", "creationUtc", "exitUtc", "requestedArgv", "requestedCwd", "optionalObservation",
+            "elapsedSeconds", "waitTimeouts", "stdoutRaw", "stderrRaw", "stdoutBytes", "stderrBytes", "stdoutSha256",
+            "stderrSha256", "directChildObservation", "qualification")) | terminal
+        review = {"stage": "G13-I7r231h14r16ev", "status": "PASS", "generation": generation,
+            "checks": [{"name": "original-accounting", "pass": True}], "rootGhCalls": 8, "nativeCalls": 0,
+            "carryCalls": 90, "carrySeconds": summary["carrySeconds"] + summary["directoryBirthToMainExitSeconds"] +
+                3.2988645999575965, "rootGhElapsedSeconds": 3.2988645999575965}
+        review = dict.fromkeys(("stage", "status", "checks", "readBytes", "privateIndexAccepted", "denominator",
+            "generation", "commit", "private", "normalAppAnonymousVerified", "pnpCandidates", "supportIncrease",
+            "rootGhCalls", "nativeCalls", "remoteWrites", "carryCalls", "carrySeconds", "rootGhElapsedSeconds",
+            "expiresAtUtc", "utc")) | review
+        paths = {name: directory / (name + ".json") for name in
+                 ("summary", "terminal", "review", "index", "seal", "reviewIndex", "reviewSeal")}
+        for name, value in (("summary", summary), ("terminal", terminal), ("review", review)):
+            paths[name].write_bytes(pipeline.canonical(value))
+        for index_name, seal_name, payloads in (("index", "seal", ("summary", "terminal")),
+                                               ("reviewIndex", "reviewSeal", ("review",))):
+            entries = [{"path": name + ".json", "sha256": pipeline.sha(paths[name].read_bytes()),
+                        "bytes": len(paths[name].read_bytes())} for name in payloads]
+            raw = pipeline.canonical({"files": entries})
+            if index_name == "index":
+                raw = pipeline.canonical({"files": entries, "stage": "G13-I7r231h14r16e",
+                    "effortActuallyUsed": "max", "payloadCount": len(entries),
+                    "payloadBytes": sum(entry["bytes"] for entry in entries), "recoveryOutcome": "PUBLISHED",
+                    "rootNext": "REVIEW", "remoteReadbackPerformedOutsideHelperByChild": False})
+            paths[index_name].write_bytes(raw)
+            seal = {"sealedUtc": world.now.replace(microsecond=123456).isoformat(),
+                "indexSha256": pipeline.sha(raw), "indexBytes": len(raw), "payloadCount": len(entries),
+                "payloadBytes": sum(entry["bytes"] for entry in entries)}
+            # 元snapshotと同じfractional時刻形を、fixtureの現在より前へ保つ。
+            seal["sealedUtc"] = (world.now - timedelta(seconds=1)).replace(microsecond=123456).isoformat()
+            if seal_name == "seal":
+                seal.update(controllerExplicitReadBytes=0, returnedAuditReadBytes=0, roadmapReadBytes=0,
+                    sealPayloadReadBytes=0, sourceReadConservativeUpperBytes=0,
+                    sourceReadQualification="Artificial saved accounting evidence only.", operationalHelperCalls=0,
+                    outsideHelperGhCalls=0, outsideHelperNativeVerificationCalls=0, wholeGoalComplete=False)
+            paths[seal_name].write_bytes(pipeline.canonical(seal))
+        return {name: self.pin(path) for name, path in paths.items()}, {
+            "calls": review["carryCalls"], "seconds": review["carrySeconds"]}
+
+    def save_history(self, world):
+        """意図的改変caseもcontextの原pinを明示更新し、意味検証を迂回させない。"""
+        world.history_path.write_bytes(pipeline.canonical(world.history_record))
+        world.history_context = (world.history_path, pipeline.sha(world.history_path.read_bytes()))
+
+    class Fake:
+        """現nativeとghの呼出しだけを人工化し、実GitHub/Budget経路を通す。"""
+        def __init__(self, world):
+            self.world, self.calls = world, 0
+            self.head_raw = pipeline.canonical(world.old_receipt)
+            self.reject_head = False
+            self.fail_command = None
+
+        def remaining(self, maximum=600):
+            return min(float(maximum), 1800.0)
+
+        def run(self, argv, data=None, maximum=pipeline.MAX_FILE, seconds=600):
+            self.calls += 1
+            world = self.world
+            if argv[1] == "api":
+                method, path = argv[5], argv[6]
+                binary = "Accept: application/octet-stream" in argv
+                upload = path.startswith("https://uploads.github.com/")
+                body = data if upload else json.loads(data) if data is not None else None
+                mime = "application/gzip" if path.endswith("index.json.gz") else "application/json"
+                try:
+                    value = world.remote.api(method, path, body, binary=binary, content_type=mime)
+                except pipeline.Missing:
+                    return 1, b"", b"HTTP 404"
+                return 0, value if binary else pipeline.canonical(value), b""
+            if argv[1] == self.fail_command:
+                world.calls.append((list(argv), seconds, maximum))
+                return 2, b"", b"ARTIFICIAL_NATIVE_FAILURE"
+            if argv[1] == "--verify-daily-reservation":
+                raw = Path(argv[-2]).read_bytes()
+                if self.reject_head or raw != self.head_raw:
+                    return 2, b"HEAD_MISMATCH", b""
+            result = world.run(argv, data, maximum=maximum, seconds=seconds)
+            if argv[1] == "--daily-evidence":
+                self.head_raw = Path(argv[-1]).read_bytes()
+            return result
+
+    def execute(self, world):
+        """実loaderとrun_pipelineから明示contextを渡し、共通run_acquisitionまで進める。"""
+        config, scope, digest = pipeline.load_config(world.config_path)
+        return pipeline.run_pipeline(config, scope, digest, budget=world.fake, public_history=world.history_context)
+
+    def assert_retained(self, world):
+        """全旧成果物・失敗terminalをbyte/mtimeの両方で保持する。"""
+        for path, expected in world.retained.items():
+            self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), expected, path.name)
+
+    def test_h01_expired_history_to_fresh_200_and_304(self):
+        """期限後chainを履歴に限定し、current runtimeと実共通経路へ新観測を接続する。"""
+        for status in (200, 304):
+            with self.subTest(status=status), self.world(status=status) as world:
+                with self.assertRaisesRegex(ValueError, "^SCRIPT_PIN$"):
+                    pipeline.load_config(world.old_config_path)
+                old_version = world.root / "scripts" / Path(world.old_config["collectorExe"]).parent.name
+                with patch.object(pipeline, "__file__", str(old_version / "daily_index_pipeline.py")), \
+                    patch.object(pipeline.projection, "__file__", str(old_version / "project_collected_native_index.py")), \
+                    patch.object(pipeline.cr, "__file__", str(old_version / "collector_registry.py")):
+                    with self.assertRaisesRegex(ValueError, "^DAILY_OBSERVATION_TIME$"):
+                        pipeline.load_config(world.old_config_path)
+                result = self.execute(world)
+                self.assertEqual(result["status"], "PUBLISHED")
+                self.assertEqual(result["generation"], world.receipt["generation"])
+                self.assertEqual(result["retainedCarry"], {"calls": 90, "seconds": 846.4786425890825})
+                self.assertEqual(world.command_count("--distribution-acquisition-sign"), 1)
+                self.assertEqual(world.command_count("--daily-evidence"), 1)
+                self.assertEqual(world.remote.ref_updates, 1)
+                uploads = [path for method, path, _ in world.remote.events if path.startswith("https://uploads.github.com/")]
+                self.assertEqual(len(uploads), 2)
+                self.assertTrue(all(argv[0] not in {world.old_signer, world.old_config["collectorExe"]}
+                    for argv, _, _ in world.calls))
+                self.assert_retained(world)
+                self.assertLess(world.fake.calls, 96)
+
+    def test_h02_original_artifact_claim_and_signing_result_pins(self):
+        """全rawと原署名/terminalを改変したcontextはchild開始前に拒否する。"""
+        variants = [("inputs", name) for name in ("scope", "evidence", "release", "inspection", "review", "script")]
+        variants += [("files", name) for name in ("claim", "envelope", "gzip", "signingResult", "terminal")]
+        for group, name in variants:
+            with self.subTest(group=group, name=name), self.world(chain=False) as world:
+                path = Path(world.history_record[group][name]["file"])
+                path.write_bytes(path.read_bytes() + b"\n")
+                with self.assertRaises(ValueError):
+                    self.execute(world)
+                self.assertEqual(world.fake.calls, 0)
+                self.assertEqual(world.remote.events, [])
+
+    def test_h03_historical_current_pins_profiles_and_carry(self):
+        """旧codeと新codeのpinを別々に要求し、原carry会計・未知profileを閉じる。"""
+        for variant in ("old-module", "current-module", "unknown-profile", "chain-proof", "carry", "carry-proof", "seal"):
+            with self.subTest(variant=variant), self.world() as world:
+                if variant in {"old-module", "current-module"}:
+                    version = Path(world.old_config["collectorExe"]).parent.name if variant == "old-module" else Path(
+                        world.config["collectorExe"]).parent.name
+                    path = world.root / "scripts" / version / "daily_index_pipeline.py"
+                    path.write_bytes(path.read_bytes() + b"CHANGED")
+                elif variant == "unknown-profile":
+                    config = deepcopy(world.config)
+                    config["historicalPredecessor"]["schema"] = "UNKNOWN"
+                    world.config_path.write_bytes(pipeline.canonical(config))
+                elif variant == "chain-proof":
+                    path = Path(world.old_config["preSignContinuation"]["budgetWitnessFile"])
+                    path.write_bytes(path.read_bytes() + b"\n")
+                elif variant == "carry":
+                    world.history_record["retainedCarry"]["calls"] = 0
+                    self.save_history(world)
+                else:
+                    name = "summary" if variant == "carry-proof" else "seal"
+                    path = Path(world.history_record["carryEvidence"][name]["file"])
+                    path.write_bytes(path.read_bytes() + b"\n")
+                with self.assertRaises(ValueError):
+                    self.execute(world)
+                self.assertEqual(world.fake.calls, 0)
+
+    def test_h04_due_receipt_chain_generation_and_fresh_head(self):
+        """同観測/低世代/別state/期限切れ/元fetch偽装を署名とremote writeより前に拒否する。"""
+        for variant in ("before-due", "same-observation", "previous", "lower", "stale-head", "fresh-stale", "state", "expired", "304-fetch"):
+            with self.subTest(variant=variant), self.world(status=304, chain=False) as world:
+                if variant == "before-due":
+                    world.now -= timedelta(seconds=40)
+                elif variant == "same-observation":
+                    world.receipt = deepcopy(world.old_receipt)
+                elif variant == "previous":
+                    world.receipt["previousReceiptSha256"] = "a" * 64
+                elif variant == "lower":
+                    world.receipt["generation"] = world.old_receipt["generation"] - 1
+                elif variant == "stale-head":
+                    world.fake.reject_head = True
+                elif variant == "fresh-stale":
+                    world.head_generation = world.old_receipt["generation"]
+                elif variant == "state":
+                    config = deepcopy(world.config)
+                    config["stateRoot"] = str(world.root / "workspace/other-state")
+                    Path(config["stateRoot"]).mkdir()
+                    world.config_path.write_bytes(pipeline.canonical(config))
+                elif variant == "expired":
+                    world.receipt["lastSuccessfulValidationAt"] -= 86400
+                else:
+                    world.receipt["lastFetchedAt"] += 1
+                with self.assertRaises(ValueError):
+                    self.execute(world)
+                self.assertEqual(world.command_count("--distribution-acquisition-sign"), 0)
+                self.assertFalse(any(method != "GET" for method, _, _ in world.remote.events))
+
+    def test_h05_missing_terminal_unknown_sign_and_unresolved_publication(self):
+        """原結果はshapeだけで補完せず、未知の旧作用を新観測へ進めない。"""
+        for variant in ("exit", "verified", "missing", "unknown", "cas"):
+            with self.subTest(variant=variant), self.world(chain=False) as world:
+                key = "terminal" if variant == "cas" else "signingResult"
+                path = Path(world.history_record["files"][key]["file"])
+                value = json.loads(path.read_bytes())
+                if variant == "exit":
+                    value["childExitCode"] = True
+                elif variant == "verified":
+                    value["nativeCurrentVerified"] = False
+                elif variant == "missing":
+                    value.pop("childExitCode")
+                elif variant == "unknown":
+                    value["signingOutcome"] = "NATIVE_OUTCOME_UNKNOWN"
+                else:
+                    value["status"] = "UNKNOWN"
+                path.write_bytes(pipeline.canonical(value))
+                world.history_record["files"][key] = self.pin(path)
+                world.history_record["terminalPins"][path.name] = pipeline.sha(path.read_bytes())
+                self.save_history(world)
+                with self.assertRaises(ValueError):
+                    self.execute(world)
+                self.assertEqual(world.fake.calls, 0)
+
+    def test_h06_exact_resume_and_unknown_cas_are_readback_only(self):
+        """新operationの再開は同じbudgetで原byteを読むだけで、追加署名/upload/CASしない。"""
+        for variant in ("success", "cas-response"):
+            with self.subTest(variant=variant), self.world(chain=False) as world:
+                world.remote.failure = None if variant == "success" else variant
+                if variant == "success":
+                    self.execute(world)
+                else:
+                    original = world.fake.run
+                    def lost(argv, data=None, **kwargs):
+                        if argv[1] == "api" and argv[6] == "graphql":
+                            world.remote.failure = None
+                            world.remote.api("POST", "graphql", json.loads(data))
+                            return 1, b"", b"HTTP 502"
+                        return original(argv, data, **kwargs)
+                    with patch.object(world.fake, "run", lost), self.assertRaises(ValueError):
+                        self.execute(world)
+                native_calls, calls = len(world.calls), world.fake.calls
+                world.remote.failure = None
+                world.remote.events.clear()
+                result = self.execute(world)
+                self.assertEqual(result["status"], "PUBLISHED")
+                self.assertTrue(result["publicOperationReadbackOnly"])
+                self.assertEqual(world.command_count("--distribution-acquisition-sign"), 1)
+                self.assertEqual(world.command_count("--daily-evidence"), 1)
+                self.assertTrue(all(method == "GET" for method, _, _ in world.remote.events))
+                self.assertGreater(world.fake.calls, calls)
+                self.assertGreater(len(world.calls), native_calls)
+                self.assert_retained(world)
+
+    def test_h07_partial_failure_keeps_originals_and_refuses_writes(self):
+        """部分公開と未知署名の原失敗を保持し、再開で追加writeを行わない。"""
+        for variant in ("upload", "sign", "prepare"):
+            with self.subTest(variant=variant), self.world(chain=False) as world:
+                if variant == "upload":
+                    world.remote.failure = "upload"
+                elif variant == "sign":
+                    world.sign_behavior = "timeout"
+                else:
+                    world.fake.fail_command = "--inspect-collected-package"
+                reason = {"upload": "FAKE_UPLOAD_FAILURE", "sign": "SIGNING_OUTCOME_UNKNOWN",
+                          "prepare": "FRESH_INSPECTION_FAILED"}[variant]
+                with self.assertRaisesRegex(ValueError, "^" + reason + "$"):
+                    self.execute(world)
+                self.assertEqual(world.remote.head, world.public_old_head)
+                self.assertEqual(world.command_count("--inspect-collected-package"), 1)
+                self.assertEqual(world.command_count("--distribution-acquisition-sign"), 0 if variant == "prepare" else 1)
+                self.assertEqual(sum(method != "GET" for method, _, _ in world.remote.events), 2 if variant == "upload" else 0)
+                world.remote.events.clear()
+                world.remote.failure = None
+                world.sign_behavior = None
+                world.fake.fail_command = None
+                resumed_reason = {"upload": "PUBLIC_RESUME_READBACK_ONLY", "sign": "PUBLIC_RESUME_READBACK_ONLY",
+                                  "prepare": "PUBLIC_RESUME_READBACK_ONLY"}[variant]
+                with self.assertRaisesRegex(ValueError, "^" + resumed_reason + "$"):
+                    self.execute(world)
+                self.assertTrue(all(method == "GET" for method, _, _ in world.remote.events))
+                self.assertLessEqual(world.command_count("--distribution-acquisition-sign"), 1)
+                self.assert_retained(world)
+
+    def test_h08_budget_exhaustion_and_tampered_journal(self):
+        """call/time上限と永続journalを作用前に確認し、旧Budget持込みresetを拒否する。"""
+        for variant in ("journal", "missing-journal", "missing-summary", "new-config", "metadata-time",
+                        "preused-budget", "call-limit", "time-limit"):
+            with self.subTest(variant=variant), self.world(chain=False) as world:
+                if variant == "preused-budget":
+                    budget = pipeline.Budget()
+                    budget.calls = 90
+                    end = budget.end
+                    with self.assertRaisesRegex(ValueError, "PUBLIC_BUDGET_NOT_FRESH"):
+                        pipeline.run_pipeline(world.config, world.scope, world.config_hash, budget=budget,
+                            public_history=world.history_context)
+                    self.assertEqual((budget.calls, budget.end), (90, end))
+                    continue
+                if variant == "metadata-time":
+                    original_record, original_clock = pipeline.public_history_record, pipeline.time
+                    offset = [0.0]
+                    def metadata(*args, **kwargs):
+                        """metadata認証完了までの人工7秒を現在clockへ前進させる。"""
+                        result = original_record(*args, **kwargs)
+                        offset[0] += 7.0
+                        return result
+                    clock = SimpleNamespace(monotonic=lambda: original_clock.monotonic() + offset[0],
+                        time_ns=original_clock.time_ns, sleep=original_clock.sleep)
+                    with patch.object(pipeline, "public_history_record", metadata), patch.object(pipeline, "time", clock):
+                        self.execute(world)
+                    summary = next(world.out.glob(world.now.strftime("%Y%m%d") + ".public-budget-summary-*.json"))
+                    self.assertGreaterEqual(json.loads(summary.read_bytes())["elapsedSeconds"], 7.0)
+                    continue
+                self.execute(world)
+                prefix = world.out / world.now.strftime("%Y%m%d")
+                if variant == "journal":
+                    path = next(world.out.glob(prefix.name + ".public-budget-*.intent.json"))
+                    path.write_bytes(path.read_bytes() + b"\n")
+                elif variant in {"missing-journal", "missing-summary"}:
+                    quarantine = world.out / "artificial-journal-quarantine"
+                    quarantine.mkdir()
+                    pattern = ".public-budget-*.json" if variant == "missing-journal" else ".public-budget-summary-*.json"
+                    for path in world.out.glob(prefix.name + pattern):
+                        path.rename(quarantine / path.name)
+                elif variant == "new-config":
+                    world.config_path.write_bytes(world.config_path.read_bytes() + b"\n")
+                    world.config_hash = pipeline.sha(world.config_path.read_bytes())
+                    world.history_record["publicConfigSha256"] = world.config_hash
+                    self.save_history(world)
+                else:
+                    start = Path(str(prefix) + ".acquisition.public-start.json").read_bytes()
+                    budget = pipeline.PublicOperationBudget(world.fake, prefix, pipeline.sha(start))
+                    if variant == "call-limit":
+                        argv = [world.config["signerExe"], "--distribution-acquisition-verify-history",
+                            str(world.old_envelope), world.history_record["files"]["gzip"]["file"],
+                            world.config["publicKeyFile"], world.config["fingerprint"],
+                            str(int((world.now - timedelta(days=1)).timestamp()))]
+                        while budget.calls < 96:
+                            budget.run(argv, seconds=30)
+                        budget.save()
+                        before = world.fake.calls
+                        with self.assertRaisesRegex(ValueError, "PROCESS_COUNT"):
+                            self.execute(world)
+                        self.assertEqual(world.fake.calls, before)
+                    else:
+                        clock = SimpleNamespace(monotonic=lambda: budget.started + 1800 - budget.spent)
+                        with patch.object(pipeline, "time", clock):
+                            budget.save()
+                        with self.assertRaisesRegex(ValueError, "TOTAL_TIMEOUT"):
+                            self.execute(world)
+                    continue
+                before = world.fake.calls
+                reason = "RESUME_BYTES_CONFLICT" if variant == "new-config" else "PUBLIC_BUDGET_JOURNAL"
+                with self.assertRaisesRegex(ValueError, reason):
+                    self.execute(world)
+                self.assertEqual(world.fake.calls, before)
+
+    def test_h09_unbound_context_next_cycle_cli_and_lock(self):
+        """未認証実行・同contextの翌日再利用を閉じ、Task/CLIは未開通として残す。"""
+        with self.world(chain=False) as world:
+            for context in (None, {}, (world.history_path, "0" * 64)):
+                with self.subTest(context=type(context).__name__), self.assertRaises(ValueError):
+                    pipeline.run_pipeline(world.config, world.scope, world.config_hash, budget=world.fake,
+                        public_history=context)
+            with self.assertRaisesRegex(ValueError, "PUBLIC_HISTORY_TRANSITION_REQUIRED"):
+                pipeline.run_acquisition(world.config, world.scope, world.config_hash,
+                    world.out / world.now.strftime("%Y%m%d"), world.fake, world.remote)
+            self.execute(world)
+            before = world.fake.calls
+            world.now += timedelta(days=1)
+            with self.assertRaisesRegex(ValueError, "PUBLIC_HISTORY_OPERATION_DAY"):
+                self.execute(world)
+            self.assertEqual(world.fake.calls, before)
+            for mode in ("run", "task", "report"):
+                with self.subTest(mode=mode), patch("sys.argv", ["daily_index_pipeline.py", mode, str(world.config_path)]):
+                    with self.assertRaisesRegex(ValueError, "PUBLIC_HISTORY_TRANSITION_REQUIRED"):
+                        pipeline.main()
+
+
+class PublicDailyCycleTests(unittest.TestCase):
+    """ADR0384の42固定ID。実loader/producer/取得/Publisherを隔離I/Oと有限clockで通す。"""
+
+    @contextmanager
+    def world(self, *, status=200, chain=False, now=None, seven=False):
+        """固定旧v2履歴から同じv3/rootを一回だけ準備し、全managed argvを記録する。"""
+        import prepare_daily_index_config as prepare
+        prior = PublicHistoryTransitionTests()
+        with prior.world(status=status, chain=chain,
+                         initial_now=pipeline.parse_time("2026-10-15T06:00:00Z") if seven else None) as world:
+            world.now = pipeline.parse_time(now or "2026-10-20T06:00:02Z")
+            world.refresh(status=status, generation=world.old_receipt["generation"] + 1)
+            world.receipt["previousReceiptSha256"] = pipeline.sha(pipeline.canonical(world.old_receipt))
+            if status == 304:
+                for name in ("lastFetchedAt", "bodySha256", "bodyBytesBase64", "projectionSha256", "projectionBytesBase64", "records"):
+                    world.receipt[name] = deepcopy(world.old_receipt[name])
+            world.history_record["operationDay"] = pipeline.public_jst_day(world.now)
+            for name in ("seal", "reviewSeal"):
+                path = Path(world.history_record["carryEvidence"][name]["file"])
+                value = json.loads(path.read_bytes())
+                if pipeline.datetime.fromisoformat(value["sealedUtc"].replace("Z", "+00:00")) > world.now:
+                    value["sealedUtc"] = (world.now - timedelta(seconds=1)).isoformat()
+                    path.write_bytes(pipeline.canonical(value))
+                    world.history_record["carryEvidence"][name] = prior.pin(path)
+            prior.save_history(world)
+            args = SimpleNamespace(public_context_from_history=world.history_path,
+                public_history_sha256=world.history_context[1], public_config=world.config_path,
+                public_config_sha256=world.config_hash)
+            world.context_path = prepare.prepare_public_context(args)
+            world.context = (world.context_path, pipeline.sha(world.context_path.read_bytes()))
+            world.trace = []
+            original_run = world.fake.run
+            def traced(argv, *args, **kwargs):
+                """fake内部の実GH/native共通Budget callを漏れなく一度だけ数える。"""
+                world.trace.append(list(argv))
+                return original_run(argv, *args, **kwargs)
+            world.stack.enter_context(patch.object(world.fake, "run", traced))
+            yield world
+
+    def execute(self, world):
+        """通常loaderから固定原SHAを渡し、実Public coordinatorを実lockで動かす。"""
+        config, scope, digest = pipeline.load_config(world.config_path)
+        return pipeline.run_pipeline(config, scope, digest, budget=world.fake, public_context=world.context)
+
+    def next_day(self, world, status=200):
+        """同config/rootのまま次のnative保護headと24時間後の実観測を作る。"""
+        previous = deepcopy(world.receipt)
+        world.now += timedelta(days=1, seconds=2)
+        world.refresh(status=status, generation=previous["generation"] + 1)
+        world.receipt["previousReceiptSha256"] = pipeline.sha(pipeline.canonical(previous))
+        if status == 304:
+            for name in ("lastFetchedAt", "bodySha256", "bodyBytesBase64", "projectionSha256", "projectionBytesBase64", "records"):
+                world.receipt[name] = deepcopy(previous[name])
+
+    def prefix(self, world, day=None):
+        """Public専用固定JST保存bucketを返す。"""
+        return world.out / (day or pipeline.public_jst_day(world.now))
+
+    def summary(self, world, day=None):
+        """同操作の最終原summaryを返す。"""
+        return sorted(world.out.glob(self.prefix(world, day).name + ".public-budget-summary-*.json"))[-1]
+
+    def test_cycles_and_immutable_context(self):
+        """C01/C02/C16/C19: 二Public日と追加読戻しで原byte・作用数・hash方向を確認する。"""
+        for status in (200, 304):
+            with self.subTest(case="C01", status=status), self.world(chain=status == 200) as world:
+                originals = {path: path.read_bytes() for path in (world.config_path, world.context_path,
+                    world.public_approval, world.history_path)}
+                action = f'-I "{pipeline.__file__}" run-public "{world.config_path}" --public-context "{world.context_path}" --public-context-sha256 {world.context[1]}'
+                for position in range(2):
+                    if position:
+                        self.next_day(world, status)
+                    world.trace.clear()
+                    before_upload = len(world.remote.assets)
+                    before_cas = world.remote.ref_updates
+                    before_sign = world.command_count("--distribution-acquisition-sign")
+                    result = self.execute(world)
+                    self.assertEqual(result["status"], "PUBLISHED")
+                    self.assertEqual((len(world.remote.assets)-before_upload, world.remote.ref_updates-before_cas,
+                        world.command_count("--distribution-acquisition-sign")-before_sign), (2, 1, 1))
+                    native = sum(argv[1] != "api" for argv in world.trace)
+                    gh = sum(argv[1] == "api" for argv in world.trace)
+                    with self.subTest(case="C19", position=position, native=native, gh=gh):
+                        self.assertLessEqual(native, 19)
+                        self.assertLessEqual(gh, 50)
+                        self.assertLessEqual(len(world.trace), 69)
+                    prefix = self.prefix(world)
+                    cycle_path = Path(str(prefix) + ".acquisition.public-cycle.json")
+                    cycle_raw = cycle_path.read_bytes()
+                    summary = json.loads(self.summary(world).read_bytes())
+                    self.assertEqual(summary["completedCycleSha256"], pipeline.sha(cycle_raw))
+                    self.assertNotIn("summary", json.loads(cycle_raw))
+                    self.assertEqual(len(summary), 6)
+                    with self.subTest(case="C16", position=position):
+                        world.trace.clear()
+                        uploads, cas, signs = len(world.remote.assets), world.remote.ref_updates, world.command_count("--distribution-acquisition-sign")
+                        reread = self.execute(world)
+                        self.assertTrue(reread["publicOperationReadbackOnly"])
+                        self.assertEqual((len(world.remote.assets), world.remote.ref_updates,
+                            world.command_count("--distribution-acquisition-sign")), (uploads, cas, signs))
+                        self.assertEqual(cycle_path.read_bytes(), cycle_raw)
+                        self.assertLessEqual(len(world.trace), 18)
+                with self.subTest(case="C02"):
+                    self.assertEqual({path: path.read_bytes() for path in originals}, originals)
+                    self.assertEqual(action, f'-I "{pipeline.__file__}" run-public "{world.config_path}" --public-context "{world.context_path}" --public-context-sha256 {world.context[1]}')
+                    PublicHistoryTransitionTests().assert_retained(world)
+                with self.subTest(case="C16", variant="late-unknown-terminal"):
+                    path = Path(str(self.prefix(world)) + f".terminal-{pipeline.time.time_ns()}.json")
+                    path.write_bytes(pipeline.canonical({"status": "UNKNOWN", "configSha256": world.config_hash,
+                        "generation": world.receipt["generation"], "publicationOutcome": "CAS_INTENT_UNKNOWN"}))
+                    before = len(world.trace)
+                    with self.assertRaisesRegex(ValueError, "PUBLIC_CYCLE_EXTRA_TERMINAL"):
+                        self.execute(world)
+                    self.assertEqual(len(world.trace), before)
+                with self.subTest(case="C07", variant="public-cycle-as-bootstrap"):
+                    original_history = world.history_path.read_bytes()
+                    world.history_path.write_bytes(cycle_raw)
+                    with self.assertRaises(ValueError):
+                        pipeline.public_history_record(world.config, world.scope, world.config_hash,
+                            (world.history_path, pipeline.sha(cycle_raw)))
+                    world.history_path.write_bytes(original_history)
+
+    def repin_root(self, world):
+        """意図的な構造拒否試験用にcaller原SHAだけを明示し、semantic監査を残す。"""
+        world.context = (world.context_path, pipeline.sha(world.context_path.read_bytes()))
+
+    def test_closed_root_and_pins(self):
+        """C04/C05/C06/C07/C22: 閉rootと全来歴pinを作用前に拒否する。"""
+        with self.world() as world:
+            root_raw = world.context_path.read_bytes()
+            for variant in ("missing", "extra", "duplicate", "bool", "noncanonical", "oversize", "relative", "wrong-schema"):
+                with self.subTest(case="C07" if variant == "wrong-schema" else "C04", variant=variant):
+                    value = json.loads(root_raw)
+                    if variant == "missing":
+                        value.pop("dayPolicy")
+                    elif variant == "extra":
+                        value["counter"] = 0
+                    elif variant == "bool":
+                        value["publicConfigSha256"] = True
+                    elif variant == "relative":
+                        value["bootstrapHistoryFile"] = "history.json"
+                    elif variant == "wrong-schema":
+                        value["schema"] = "dc-public-daily-history-v1"
+                    raw = pipeline.canonical(value)
+                    if variant == "duplicate":
+                        raw = b'{"schema":"duplicate",' + raw[1:]
+                    elif variant == "noncanonical":
+                        raw += b"\n"
+                    elif variant == "oversize":
+                        raw = b" " * 65537
+                    world.context_path.write_bytes(raw)
+                    self.repin_root(world)
+                    before = world.fake.calls
+                    with self.assertRaises((ValueError, OSError)):
+                        self.execute(world)
+                    self.assertEqual(world.fake.calls, before)
+                    world.context_path.write_bytes(root_raw)
+                    self.repin_root(world)
+            targets = [world.context_path, world.config_path, world.public_approval, world.history_path,
+                Path(world.config["collectorExe"]), Path(world.config["signerExe"])]
+            targets.extend(Path(pipeline.__file__).parent / name for name in pipeline.MODULE_NAMES)
+            targets.extend(Path(entry["file"]) for entry in world.history_record["inputs"].values())
+            targets.extend(Path(entry["file"]) for entry in world.history_record["files"].values())
+            for target in dict.fromkeys(targets):
+                with self.subTest(case="C05", target=target.name):
+                    raw = target.read_bytes()
+                    target.write_bytes(raw + b"\n")
+                    before = world.fake.calls
+                    with self.assertRaises(ValueError):
+                        self.execute(world)
+                    self.assertEqual(world.fake.calls, before)
+                    target.write_bytes(raw)
+            with self.subTest(case="C06", variant="owner"):
+                with patch.object(pipeline, "acl_snapshot", return_value=("S-1-5-21-999", True, [])):
+                    with self.assertRaises(ValueError):
+                        self.execute(world)
+            with self.subTest(case="C06", variant="other-control"):
+                other = world.root / "control/other"
+                other.mkdir()
+                path = other / "public-context.json"
+                path.write_bytes(root_raw)
+                with self.assertRaisesRegex(ValueError, "PUBLIC_CONTEXT_LOCATION"):
+                    pipeline.public_context_record(world.config, world.scope, world.config_hash,
+                        (path, pipeline.sha(root_raw)))
+            with self.subTest(case="C22", variant="lock"):
+                with pipeline.exclusive(world.out / "pipeline.lock"):
+                    with self.assertRaisesRegex(ValueError, "PIPELINE_ALREADY_RUNNING"):
+                        self.execute(world)
+            with self.subTest(case="C22", variant="root-change"):
+                real = pipeline.exclusive
+                @contextmanager
+                def changed(path):
+                    with real(path):
+                        world.context_path.write_bytes(root_raw + b"\n")
+                        yield
+                with patch.object(pipeline, "exclusive", changed):
+                    with self.assertRaisesRegex(ValueError, "PUBLIC_CONTEXT_PIN"):
+                        self.execute(world)
+
+    def test_predecessor_and_fresh_rejection(self):
+        """C08/C09/C10/C21: 偽署名・旧current・予約鎖・厳密鮮度を認証で止める。"""
+        for case, variant in (("C08", "nonzero"), ("C08", "missing-exit"), ("C08", "native-false"),
+            ("C08", "unknown"), ("C09", "remote-commit"), ("C09", "remote-bytes"), ("C09", "remote-lower"),
+            ("C09", "remote-higher"), ("C09", "success-missing"), ("C09", "success-failed"),
+            ("C09", "terminal-failed"), ("C09", "late-cas"), ("C10", "head"), ("C10", "same-receipt"),
+            ("C10", "low-generation"), ("C10", "contract"), ("C21", "fresh-boundary"), ("C21", "schedule-end")):
+            with self.subTest(case=case, variant=variant), self.world() as world:
+                if case == "C08":
+                    path = Path(world.history_record["files"]["signingResult"]["file"])
+                    value = json.loads(path.read_bytes())
+                    if variant == "nonzero":
+                        value["childExitCode"] = 2
+                    elif variant == "missing-exit":
+                        value.pop("childExitCode")
+                    elif variant == "native-false":
+                        value["nativeCurrentVerified"] = False
+                    else:
+                        value["signingOutcome"] = "NATIVE_OUTCOME_UNKNOWN"
+                    path.write_bytes(pipeline.canonical(value))
+                    world.history_record["files"]["signingResult"] = PublicHistoryTransitionTests.pin(path)
+                    world.history_record["terminalPins"][path.name] = pipeline.sha(path.read_bytes())
+                    PublicHistoryTransitionTests().save_history(world)
+                    root = json.loads(world.context_path.read_bytes())
+                    root["bootstrapHistorySha256"] = world.history_context[1]
+                    world.context_path.write_bytes(pipeline.canonical(root))
+                    self.repin_root(world)
+                elif variant == "remote-commit":
+                    old = world.remote.head
+                    world.remote.commits["f" * 40] = deepcopy(world.remote.commits[old])
+                    world.remote.head = "f" * 40
+                elif variant == "remote-bytes":
+                    index = max(world.remote.assets)
+                    world.remote.assets[index] += b" "
+                elif variant in {"remote-lower", "remote-higher"}:
+                    original = pipeline.Publisher.current
+                    delta = -1 if variant == "remote-lower" else 1
+                    def wrong_generation(publisher):
+                        head, raw, generation = original(publisher)
+                        return head, raw, generation + delta
+                    world.stack.enter_context(patch.object(pipeline.Publisher, "current", wrong_generation))
+                elif variant in {"success-missing", "success-failed", "terminal-failed", "late-cas"}:
+                    key = "terminal" if variant == "terminal-failed" else "success"
+                    path = Path(world.history_record["files"][key]["file"])
+                    if variant == "success-missing":
+                        path.rename(path.with_name(path.name + ".quarantine"))
+                    elif variant == "late-cas":
+                        path = world.out / (world.old_day + f".terminal-{pipeline.time.time_ns()}.json")
+                        path.write_bytes(pipeline.canonical({"publicationOutcome": "CAS_INTENT_UNKNOWN",
+                            "status": "UNKNOWN", "configSha256": world.old_hash,
+                            "generation": world.old_receipt["generation"],
+                            "envelopeSha256": pipeline.sha(world.old_envelope.read_bytes())}))
+                        world.history_record["terminalPins"][path.name] = pipeline.sha(path.read_bytes())
+                    else:
+                        value = json.loads(path.read_bytes())
+                        value["status"] = "FAILED"
+                        path.write_bytes(pipeline.canonical(value))
+                        world.history_record["files"][key] = PublicHistoryTransitionTests.pin(path)
+                        if key == "terminal":
+                            world.history_record["terminalPins"][path.name] = pipeline.sha(path.read_bytes())
+                    if variant != "success-missing":
+                        PublicHistoryTransitionTests().save_history(world)
+                        root = json.loads(world.context_path.read_bytes())
+                        root["bootstrapHistorySha256"] = world.history_context[1]
+                        world.context_path.write_bytes(pipeline.canonical(root))
+                        self.repin_root(world)
+                elif variant == "head":
+                    world.fake.reject_head = True
+                elif variant == "same-receipt":
+                    world.receipt = deepcopy(world.old_receipt)
+                elif variant == "low-generation":
+                    world.receipt["generation"] = world.old_receipt["generation"]
+                elif variant == "contract":
+                    world.receipt["contractSha256"] = "f" * 64
+                elif variant == "fresh-boundary":
+                    world.now = pipeline.datetime.fromtimestamp(world.receipt["notBefore"], pipeline.timezone.utc)
+                    with self.assertRaises(ValueError):
+                        pipeline.projection._validated_daily_generation(world.receipt, world.now)
+                else:
+                    world.now = pipeline.parse_time("2026-10-23T06:00:00Z")
+                before = world.command_count("--distribution-acquisition-sign")
+                with self.assertRaises(ValueError):
+                    self.execute(world)
+                self.assertEqual(world.command_count("--distribution-acquisition-sign"), before)
+                self.assertEqual(world.remote.ref_updates, 0)
+                if case in {"C08", "C09"}:
+                    self.assertEqual(world.command_count("--daily-evidence"), 0)
+
+    def test_hold_no_network_and_partial(self):
+        """C11/C12/C13/C14/C23: preflight待機と今回未通信・部分作用を分ける。"""
+        for count in (2, 3):
+            with self.subTest(case="C11", holds=count), self.world(now="2026-10-18T05:50:00Z") as world:
+                held = deepcopy(world.receipt)
+                held.update(outcome="HOLD", generation=0, httpStatus=0, lastAttemptAt=0, error=0, stateError=0,
+                    notBefore=world.old_receipt["notBefore"])
+                original = world.fake.run
+                def hold(argv, *args, **kwargs):
+                    if argv[1] == "--daily-evidence":
+                        world.trace.append(list(argv))
+                        pipeline.write_new(Path(argv[-1]), pipeline.canonical(held))
+                        return 3, b"", b""
+                    return original(argv, *args, **kwargs)
+                with patch.object(world.fake, "run", hold):
+                    for _ in range(count):
+                        before = len(world.trace)
+                        self.assertEqual(self.execute(world)["status"], "HOLD")
+                        self.assertEqual(len(world.trace)-before, 13)
+                start = Path(str(self.prefix(world)) + ".acquisition.public-start.json")
+                raw = start.read_bytes()
+                world.now = pipeline.datetime.fromtimestamp(held["notBefore"] + 32, pipeline.timezone.utc)
+                world.refresh(generation=world.old_receipt["generation"] + 1)
+                world.receipt["previousReceiptSha256"] = pipeline.sha(pipeline.canonical(world.old_receipt))
+                if count == 2:
+                    result = self.execute(world)
+                    self.assertEqual(result["status"], "PUBLISHED")
+                    self.assertEqual(start.read_bytes(), raw)
+                    self.assertLessEqual(json.loads(self.summary(world).read_bytes())["calls"], 95)
+                else:
+                    before = len(world.trace)
+                    with self.assertRaisesRegex(ValueError, "PUBLIC_CYCLE_BUDGET_INSUFFICIENT"):
+                        self.execute(world)
+                    self.assertEqual(len(world.trace), before)
+        with self.subTest(case="C11", variant="second-day-due-seconds"), self.world(now="2026-10-20T06:00:33Z") as world:
+            self.execute(world)
+            previous = deepcopy(world.receipt)
+            world.now = pipeline.parse_time("2026-10-21T06:00:00Z")
+            due = previous["notBefore"]
+            self.assertEqual(due - int(world.now.timestamp()), 3)
+            original = world.fake.run
+            waits, count = [], [0]
+            def sleep(delay):
+                waits.append(delay)
+                world.now += timedelta(seconds=delay)
+                world.refresh(generation=previous["generation"] + 1)
+                observed = int(world.now.timestamp())
+                world.receipt.update(lastAttemptAt=observed, lastFetchedAt=observed,
+                    lastSuccessfulValidationAt=observed, notBefore=observed+86400,
+                    previousReceiptSha256=pipeline.sha(pipeline.canonical(previous)))
+                projected = pipeline.canonical({name: world.receipt[name] for name in
+                    ("requestBindingSha256", "bodySha256", "lastFetchedAt", "records")})
+                world.receipt.update(projectionSha256=pipeline.sha(projected),
+                    projectionBytesBase64=base64.b64encode(projected).decode())
+                world.fixture.release["observedUtcSeconds"] = str(observed)
+                world.fixture.script.update(pageObservedUtcSeconds=str(observed), scriptObservedUtcSeconds=str(observed))
+                world.fixture.inspection["contentCheckedUtcSeconds"] = str(observed)
+            def due_native(argv, *args, **kwargs):
+                if argv[1] == "--daily-evidence" and count[0] == 0:
+                    count[0] += 1
+                    held = deepcopy(previous)
+                    held.update(day="20261021", outcome="HOLD", generation=0, httpStatus=0,
+                        lastAttemptAt=0, error=0, stateError=0)
+                    world.trace.append(list(argv))
+                    pipeline.write_new(Path(argv[-1]), pipeline.canonical(held))
+                    return 3, b"", b""
+                return original(argv, *args, **kwargs)
+            world.trace.clear()
+            with patch.object(world.fake, "run", due_native), patch.object(pipeline.time, "sleep", sleep):
+                result = self.execute(world)
+            self.assertEqual((result["status"], waits), ("PUBLISHED", [4]))
+            with self.subTest(case="C21", variant="next-observation-due"):
+                self.assertGreaterEqual(world.receipt["lastAttemptAt"], due)
+                self.assertEqual(len(world.trace), 69)
+                self.assertEqual(sum(argv[1] != "api" for argv in world.trace), 19)
+        with self.subTest(case="C23", variant="NOT_RUN"), self.world() as world:
+            world.now += timedelta(days=1)
+            with self.assertRaisesRegex(ValueError, "PUBLIC_UNRESOLVED_PREVIOUS_DAY"):
+                self.execute(world)
+            self.assertEqual(len(world.trace), 0)
+        for variant in ("claim", "cas-intent", "pending-intent"):
+            with self.subTest(case="C12", variant=variant), self.world(now="2026-10-18T05:50:00Z") as world:
+                held = deepcopy(world.receipt)
+                held.update(outcome="HOLD", generation=0, httpStatus=0, lastAttemptAt=0, error=0, stateError=0,
+                    notBefore=world.old_receipt["notBefore"])
+                original = world.fake.run
+                def hold(argv, *args, **kwargs):
+                    if argv[1] == "--daily-evidence":
+                        world.trace.append(list(argv))
+                        pipeline.write_new(Path(argv[-1]), pipeline.canonical(held))
+                        return 3, b"", b""
+                    return original(argv, *args, **kwargs)
+                with patch.object(world.fake, "run", hold):
+                    self.assertEqual(self.execute(world)["status"], "HOLD")
+                prefix = self.prefix(world)
+                if variant == "claim":
+                    path = world.out / f"issuance-v1-{world.old_receipt['generation']+1:016d}.claim.json"
+                    path.write_bytes(pipeline.canonical({"configSha256": world.config_hash,
+                        "generation": world.old_receipt["generation"]+1}))
+                elif variant == "cas-intent":
+                    Path(str(prefix) + f".terminal-{pipeline.time.time_ns()}.json").write_bytes(pipeline.canonical({
+                        "status": "UNKNOWN", "publicationOutcome": "CAS_INTENT_UNKNOWN", "configSha256": world.config_hash}))
+                else:
+                    def crash(*args, **kwargs):
+                        raise SystemExit("ARTIFICIAL_CHILD_UNKNOWN")
+                    inner = SimpleNamespace(remaining=lambda maximum=600: maximum, run=crash)
+                    start = Path(str(prefix) + ".acquisition.public-start.json").read_bytes()
+                    budget = pipeline.PublicOperationBudget(inner, prefix, pipeline.sha(start), cycle_profile=True)
+                    with self.assertRaises(SystemExit):
+                        budget.run(["fake", "bounded"], seconds=1)
+                    budget.save()
+                before = len(world.trace)
+                with self.assertRaises(ValueError):
+                    self.execute(world)
+                self.assertEqual(len(world.trace), before)
+        for variant in ("FAILED", "state-error", "reserved", "NO_NETWORK", "DEFERRED", "saved-error", "partial", "unknown", "upload"):
+            case = "C12" if variant in {"FAILED", "state-error", "reserved"} else "C13" if variant in {"NO_NETWORK", "DEFERRED", "saved-error"} else "C14"
+            with self.subTest(case=case, variant=variant), self.world() as world:
+                if case in {"C12", "C13"}:
+                    value = deepcopy(world.receipt)
+                    value.update(outcome="HOLD" if case == "C12" else "NO_NETWORK", generation=0, httpStatus=0,
+                        lastAttemptAt=0, error=0, stateError=0, notBefore=int(world.now.timestamp()) + 301)
+                    if variant == "state-error":
+                        value["stateError"] = 5
+                    elif variant == "reserved":
+                        value["generation"] = world.receipt["generation"]
+                    elif variant == "FAILED":
+                        value.update(outcome="FAILED", generation=world.receipt["generation"], error=13,
+                            lastAttemptAt=int(world.now.timestamp()), httpStatus=500)
+                    elif variant == "saved-error":
+                        value["error"] = 13
+                    if case == "C13":
+                        value = deepcopy(world.old_receipt)
+                        value.update(outcome="NO_NETWORK", httpStatus=0, lastAttemptAt=0, projectionBytesBase64="")
+                        if variant == "DEFERRED":
+                            value.update(day=pipeline.public_jst_day(), generation=0,
+                                notBefore=int(world.now.timestamp())+301)
+                        elif variant == "saved-error":
+                            value.update(error=13, stateError=5)
+                    original = world.fake.run
+                    def nonobservation(argv, *args, **kwargs):
+                        if argv[1] == "--daily-evidence":
+                            world.trace.append(list(argv))
+                            pipeline.write_new(Path(argv[-1]), pipeline.canonical(value))
+                            if variant == "FAILED":
+                                world.fake.head_raw = pipeline.canonical(value)
+                            return (2 if variant == "FAILED" else 3 if case == "C12" else 0), b"", b""
+                        return original(argv, *args, **kwargs)
+                    with patch.object(world.fake, "run", nonobservation):
+                        if case == "C12":
+                            with self.assertRaises(ValueError):
+                                self.execute(world)
+                        else:
+                            self.assertEqual(self.execute(world)["status"], "NO_NETWORK")
+                else:
+                    if variant == "partial":
+                        world.fake.fail_command = "--inspect-collected-package"
+                    elif variant == "unknown":
+                        world.sign_behavior = "nonzero"
+                    else:
+                        world.remote.failure = "upload"
+                    with self.assertRaises(ValueError):
+                        self.execute(world)
+                calls, writes = len(world.trace), world.remote.ref_updates
+                signs = world.command_count("--distribution-acquisition-sign")
+                world.remote.failure = None
+                with self.assertRaises(ValueError):
+                    self.execute(world)
+                self.assertEqual(world.command_count("--distribution-acquisition-sign"), signs)
+                self.assertEqual(world.remote.ref_updates, writes)
+                self.assertEqual(world.command_count("--daily-evidence"), 0 if case in {"C12", "C13"} else 1)
+                with self.subTest(case="C23", variant=variant):
+                    world.now += timedelta(days=1)
+                    with self.assertRaises(ValueError):
+                        self.execute(world)
+                    self.assertEqual(world.command_count("--distribution-acquisition-sign"), signs)
+
+    def test_exact_readback_and_carry(self):
+        """C15/C17/C24: 同日/翌日の原予算readbackとreset拒否を確認する。"""
+        for variant in ("same", "next", "cas-lost", "different", "expired", "missing-summary", "missing-journal",
+                        "new-root", "new-config", "carry-lowered", "counter", "native-head", "outside-window"):
+            case = "C17" if variant in {"missing-summary", "missing-journal", "new-root", "new-config", "carry-lowered", "counter"} else \
+                "C24" if variant in {"next", "expired", "native-head", "outside-window"} else "C15"
+            with self.subTest(case=case, variant=variant), self.world(now="2026-10-20T14:59:20Z") as world:
+                if variant == "cas-lost":
+                    original = world.fake.run
+                    def lost(argv, data=None, **kwargs):
+                        if argv[1] == "api" and argv[6] == "graphql":
+                            world.trace.append(list(argv))
+                            world.remote.api("POST", "graphql", json.loads(data))
+                            return 1, b"", b"HTTP 502"
+                        return original(argv, data, **kwargs)
+                    with patch.object(world.fake, "run", lost), self.assertRaises(ValueError):
+                        self.execute(world)
+                elif variant == "expired":
+                    with patch.object(pipeline, "public_complete_cycle", side_effect=ValueError("ARTIFICIAL_BEFORE_CYCLE")):
+                        with self.assertRaises(ValueError):
+                            self.execute(world)
+                else:
+                    self.execute(world)
+                day = pipeline.public_jst_day(world.now)
+                cycle = Path(str(self.prefix(world)) + ".acquisition.public-cycle.json")
+                saved_cycle = cycle.read_bytes() if cycle.exists() else None
+                if variant == "next":
+                    world.now += timedelta(seconds=41)
+                elif variant == "expired":
+                    world.now += timedelta(days=1)
+                elif variant == "different":
+                    world.remote.head = world.public_old_head
+                elif variant == "missing-summary":
+                    quarantine = world.out / "summary-quarantine"
+                    quarantine.mkdir()
+                    for path in world.out.glob(day + ".public-budget-summary-*.json"):
+                        path.rename(quarantine / path.name)
+                elif variant == "missing-journal":
+                    quarantine = world.out / "journal-quarantine"
+                    quarantine.mkdir()
+                    for suffix in ("intent", "complete"):
+                        for path in world.out.glob(day + ".public-budget-*." + suffix + ".json"):
+                            path.rename(quarantine / path.name)
+                elif variant == "new-root":
+                    root = json.loads(world.context_path.read_bytes())
+                    root["kind"] = "DIFFERENT"
+                    world.context_path.write_bytes(pipeline.canonical(root))
+                    self.repin_root(world)
+                elif variant == "new-config":
+                    world.config_path.write_bytes(world.config_path.read_bytes() + b"\n")
+                elif variant == "carry-lowered":
+                    world.history_record["retainedCarry"]["calls"] = 0
+                    PublicHistoryTransitionTests().save_history(world)
+                    root = json.loads(world.context_path.read_bytes())
+                    root["bootstrapHistorySha256"] = world.history_context[1]
+                    world.context_path.write_bytes(pipeline.canonical(root))
+                    self.repin_root(world)
+                elif variant == "counter":
+                    path = self.summary(world)
+                    value = json.loads(path.read_bytes())
+                    value["calls"] = 0
+                    path.write_bytes(pipeline.canonical(value))
+                elif variant == "native-head":
+                    world.now += timedelta(seconds=41)
+                    world.fake.reject_head = True
+                elif variant == "outside-window":
+                    world.now = pipeline.parse_time("2026-10-23T06:00:00Z")
+                before = (world.command_count("--daily-evidence"), world.command_count("--distribution-acquisition-sign"),
+                          len(world.remote.assets), world.remote.ref_updates)
+                world.trace.clear()
+                if variant in {"same", "next", "cas-lost"}:
+                    result = self.execute(world)
+                    self.assertTrue(result["publicOperationReadbackOnly"])
+                    self.assertEqual(result["retainedCarry"], {"calls": 90, "seconds": 846.4786425890825})
+                    self.assertLessEqual(len(world.trace), 18)
+                else:
+                    with self.assertRaises(ValueError):
+                        self.execute(world)
+                self.assertEqual((world.command_count("--daily-evidence"), world.command_count("--distribution-acquisition-sign"),
+                    len(world.remote.assets), world.remote.ref_updates), before)
+                if saved_cycle is not None:
+                    self.assertEqual(cycle.read_bytes(), saved_cycle)
+
+    def test_budget_chain_and_bounds(self):
+        """C03/C18: 七日最大鎖と予算96/1800・旧完成会計のpure読取を確認する。"""
+        with self.subTest(case="C03", variant="seven"), self.world(now="2026-10-16T06:00:02Z", seven=True) as world:
+            for position in range(7):
+                if position:
+                    self.next_day(world, 304 if position % 2 else 200)
+                world.trace.clear()
+                self.assertEqual(self.execute(world)["status"], "PUBLISHED")
+                self.assertLessEqual(sum(argv[1] != "api" for argv in world.trace), 19)
+                self.assertEqual(sum(argv[1] == "api" for argv in world.trace), 50)
+            root = pipeline.public_context_record(world.config, world.scope, world.config_hash, world.context)
+            before = len(world.trace)
+            previous, day, last = pipeline.public_cycle_target(world.config, world.config_hash, root, world.out)
+            self.assertEqual(day, "20261022")
+            self.assertIsNotNone(last)
+            self.assertEqual(len(world.trace), before)
+            for variant, name in (("eighth", "20261023"), ("future", "20991231"), ("outside-schedule", "20261015"),
+                                  ("unexpected-name", "notaday")):
+                path = world.out / (name + ".acquisition.public-cycle.json")
+                path.write_bytes(pipeline.canonical(last["record"]))
+                with self.subTest(case="C03", variant=variant), self.assertRaisesRegex(ValueError, "PUBLIC_CYCLE_CHAIN"):
+                    pipeline.public_cycle_target(world.config, world.config_hash, root, world.out)
+                path.rename(world.out / ("artificial-" + variant + "-rejected.json"))
+            first = world.out / "20261016.acquisition.public-cycle.json"
+            saved = first.read_bytes()
+            value = json.loads(saved)
+            value["previousEvidenceSha256"] = pipeline.sha(saved)
+            first.write_bytes(pipeline.canonical(value))
+            with self.subTest(case="C03", variant="cycle-branch"), self.assertRaises(ValueError):
+                pipeline.public_cycle_target(world.config, world.config_hash, root, world.out)
+            first.write_bytes(saved)
+            with self.subTest(case="C18", variant="old-completed-1800"):
+                summary = self.summary(world, "20261016")
+                raw = summary.read_bytes()
+                value = json.loads(raw)
+                value["elapsedSeconds"] = 1800
+                summary.write_bytes(pipeline.canonical(value))
+                first_record = json.loads(first.read_bytes())
+                ledger = pipeline.PublicOperationBudget(pipeline.Budget(), world.out / "20261016",
+                    first_record["budgetContextSha256"], cycle_profile=True, read_only=True)
+                self.assertEqual(ledger.spent, 1800)
+                for action in (lambda: ledger.run(["fake", "forbidden"]), lambda: ledger.save()):
+                    with self.assertRaisesRegex(ValueError, "PUBLIC_LEDGER_READ_ONLY"):
+                        action()
+                summary.write_bytes(raw)
+        with self.subTest(case="C18", variant="next-day-from-near-limit"), self.world() as world:
+            original, clock = pipeline.public_complete_cycle, pipeline.time
+            offset = [0.0]
+            def near_limit(*args, **kwargs):
+                result = original(*args, **kwargs)
+                budget = args[-1]
+                offset[0] += 1799.0 - budget.elapsed()
+                return result
+            with patch.object(pipeline, "public_complete_cycle", near_limit), patch.object(pipeline, "time",
+                SimpleNamespace(monotonic=lambda: clock.monotonic()+offset[0], time_ns=clock.time_ns, sleep=clock.sleep)):
+                self.execute(world)
+            old_summary = json.loads(self.summary(world).read_bytes())
+            self.assertGreaterEqual(old_summary["elapsedSeconds"], 1799.0)
+            self.assertIsNotNone(old_summary["completedCycleSha256"])
+            self.next_day(world)
+            self.assertEqual(self.execute(world)["status"], "PUBLISHED")
+            self.assertLess(json.loads(self.summary(world).read_bytes())["elapsedSeconds"], 60)
+        with self.subTest(case="C18", variant="96-and-time"), tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            called = []
+            inner = SimpleNamespace(remaining=lambda maximum=600: maximum,
+                run=lambda *args, **kwargs: called.append(args) or (0, b"", b""))
+            budget = pipeline.PublicOperationBudget(inner, directory / "20261020", "a" * 64, cycle_profile=True)
+            for _ in range(96):
+                budget.run(["fake", "bounded"], seconds=1)
+            with self.assertRaisesRegex(ValueError, "PROCESS_COUNT"):
+                budget.run(["fake", "bounded"])
+            self.assertEqual(len(called), 96)
+            original = pipeline.time
+            with patch.object(pipeline, "time", SimpleNamespace(monotonic=lambda: budget.started + 1800 - budget.spent)):
+                with self.assertRaisesRegex(ValueError, "TOTAL_TIMEOUT"):
+                    budget.remaining()
+            budget.save()
+        with self.subTest(case="C18", variant="metadata-time"), self.world() as world:
+            original = pipeline.public_context_record
+            clock = pipeline.time
+            offset = [0.0]
+            def metadata(*args, **kwargs):
+                value = original(*args, **kwargs)
+                offset[0] += 7
+                return value
+            with patch.object(pipeline, "public_context_record", metadata), patch.object(pipeline, "time",
+                SimpleNamespace(monotonic=lambda: clock.monotonic()+offset[0], time_ns=clock.time_ns, sleep=clock.sleep)):
+                self.execute(world)
+            self.assertGreaterEqual(json.loads(self.summary(world).read_bytes())["elapsedSeconds"], 7)
+
+    def test_jst_boundaries(self):
+        """T01–T09: native固定JST dayとUTC epoch/due、受付後の跨日を独立に確認する。"""
+        for case, instant in (("T01", "2026-10-19T15:00:00Z"), ("T02", "2026-10-19T23:59:59Z"),
+            ("T03", "2026-10-20T00:00:00Z"), ("T04", "2026-10-20T06:00:00Z")):
+            with self.subTest(case=case), self.world(now=instant) as world:
+                self.assertEqual(world.receipt["day"], "20261020")
+                if case in {"T01", "T02"}:
+                    self.assertEqual(world.now.strftime("%Y%m%d"), "20261019")
+                    fake = deepcopy(world.receipt)
+                    fake["day"] = "20261019"
+                    real = world.receipt
+                    world.receipt = fake
+                    with self.assertRaisesRegex(ValueError, "PUBLIC_OPERATION_DAY_CHANGED"):
+                        self.execute(world)
+                    # 別fixtureで正常側を確認し、失敗済み操作を新予算へ戻さない。
+                    self.assertEqual(world.command_count("--distribution-acquisition-sign"), 0)
+                    world.receipt = real
+                else:
+                    self.assertEqual(self.execute(world)["status"], "PUBLISHED")
+        for case, instant in (("T01", "2026-10-19T15:00:00Z"), ("T02", "2026-10-19T23:59:59Z")):
+            with self.subTest(case=case, variant="native-jst-positive"), self.world(now=instant) as world:
+                self.assertEqual(self.execute(world)["status"], "PUBLISHED")
+        for case in ("T05", "T06", "T07"):
+            with self.subTest(case=case), self.world(now="2026-10-20T14:59:59Z") as world:
+                original = world.fake.run
+                if case == "T06":
+                    world.receipt["day"] = "20261021"
+                elif case == "T07":
+                    world.receipt["day"] = "20261019"
+                def cross(argv, *args, **kwargs):
+                    result = original(argv, *args, **kwargs)
+                    if (case == "T05" and argv[1] == "--verify-daily-reservation" and argv[-1] == "LEGACY_FENCE") or \
+                            (case == "T06" and argv[1] == "--daily-evidence"):
+                        world.now += timedelta(seconds=1)
+                    return result
+                with patch.object(world.fake, "run", cross), self.assertRaisesRegex(ValueError, "PUBLIC_OPERATION_DAY_CHANGED"):
+                    self.execute(world)
+                self.assertEqual(world.command_count("--distribution-acquisition-sign"), 0)
+                self.assertEqual(world.command_count("--daily-evidence"), 0 if case == "T05" else 1)
+                self.assertTrue(self.summary(world, "20261020").exists())
+                self.assertFalse(list(world.out.glob("20261021.public-budget-*.json")))
+        with self.subTest(case="T08"), self.world(now="2026-10-20T23:59:59Z") as world:
+            self.assertEqual(self.execute(world)["status"], "PUBLISHED")
+            before = world.command_count("--daily-evidence")
+            world.now += timedelta(seconds=1)
+            self.assertTrue(self.execute(world)["publicOperationReadbackOnly"])
+            self.assertEqual(world.command_count("--daily-evidence"), before)
+            self.assertEqual(pipeline.public_jst_day(), "20261021")
+        with self.subTest(case="T09"):
+            for offset in ("+00:00", "+08:00"):
+                with self.assertRaisesRegex(ValueError, "PUBLIC_JST_SCHEDULE_REQUIRED"):
+                    pipeline.public_schedule_pin({"smokeLocal": "2026-10-15T15:00:00" + offset,
+                        "firstDailyLocal": "2026-10-16T15:00:00" + offset})
+
+    def test_save_boundaries(self):
+        """F01–F08: 原途中fileを保持し、完全な最終予算だけから原byte読戻しする。"""
+        for case in ("F01", "F02", "F03", "F04", "F05", "F06", "F07", "F08"):
+            with self.subTest(case=case), self.world() as world:
+                original = pipeline.write_new
+                injected = [False]
+                def interrupted(path, raw):
+                    selected = (case == "F01" and path.name.endswith(".acquisition.success.json")) or (
+                        case == "F02" and ".terminal-" in path.name and json.loads(raw).get("status") == "PUBLISHED") or (
+                        case in {"F03", "F05"} and path.name.endswith(".acquisition.public-cycle.json"))
+                    if selected and not injected[0]:
+                        injected[0] = True
+                        if case == "F05":
+                            original(path, b"{")
+                        raise ValueError("ARTIFICIAL_SAVE_BOUNDARY")
+                    return original(path, raw)
+                if case in {"F01", "F02", "F03", "F05"}:
+                    with patch.object(pipeline, "write_new", interrupted), self.assertRaisesRegex(ValueError, "ARTIFICIAL_SAVE_BOUNDARY"):
+                        self.execute(world)
+                elif case == "F04":
+                    with patch.object(pipeline, "public_complete_cycle", side_effect=ValueError("ARTIFICIAL_ASSEMBLY")):
+                        with self.assertRaisesRegex(ValueError, "ARTIFICIAL_ASSEMBLY"):
+                            self.execute(world)
+                elif case == "F06":
+                    with patch.object(pipeline.PublicOperationBudget, "save", side_effect=SystemExit("ARTIFICIAL_HARD_CRASH")):
+                        with self.assertRaisesRegex(SystemExit, "ARTIFICIAL_HARD_CRASH"):
+                            self.execute(world)
+                else:
+                    self.execute(world)
+                files = {path: path.read_bytes() for path in world.out.iterdir() if path.is_file()}
+                signs, uploads, cas = world.command_count("--distribution-acquisition-sign"), len(world.remote.assets), world.remote.ref_updates
+                if case in {"F01", "F02", "F03", "F04", "F07"}:
+                    if case != "F07":
+                        self.assertIsNone(json.loads(self.summary(world).read_bytes())["completedCycleSha256"])
+                    self.assertTrue(self.execute(world)["publicOperationReadbackOnly"])
+                elif case in {"F05", "F06"}:
+                    with self.assertRaisesRegex(ValueError, "PUBLIC_CYCLE_EVIDENCE_INCOMPLETE|PUBLIC_BUDGET_JOURNAL"):
+                        self.execute(world)
+                else:
+                    summary = self.summary(world)
+                    saved = summary.read_bytes()
+                    for variant in ("completed", "tail", "calls"):
+                        with self.subTest(case="F08", variant=variant):
+                            value = json.loads(saved)
+                            value[{"completed": "completedCycleSha256", "tail": "lastEntrySha256", "calls": "calls"}[variant]] = (
+                                value["calls"] - 1 if variant == "calls" else "f" * 64)
+                            summary.write_bytes(pipeline.canonical(value))
+                            with self.assertRaisesRegex(ValueError, "PUBLIC_BUDGET_JOURNAL"):
+                                self.execute(world)
+                            summary.write_bytes(saved)
+                self.assertEqual((world.command_count("--distribution-acquisition-sign"), len(world.remote.assets),
+                    world.remote.ref_updates), (signs, uploads, cas))
+                for path, raw in files.items():
+                    self.assertEqual(path.read_bytes(), raw, path.name)
+
+    def test_cli_and_future_action(self):
+        """C20/C25: 唯一の正規CLIと将来固定Actionだけを構造確認する。"""
+        exact = ["run-public", "C:/fake/config.json", "--public-context", "C:/fake/public-context.json",
+                 "--public-context-sha256", "a" * 64]
+        args = pipeline.pipeline_arguments(exact)
+        self.assertEqual(args.mode, "run-public")
+        variants = [exact[:-2], exact + ["--smoke"], exact + ["--output", "C:/fake/out"],
+            exact + ["--user-sid", "fake"], exact + exact[2:4], exact[:2] + ["--public-con", exact[3]] + exact[4:],
+            ["run"] + exact[1:], ["plan"] + exact[1:], ["report"] + exact[1:], ["task"] + exact[1:]]
+        for index, values in enumerate(variants):
+            with self.subTest(case="C20", variant=index):
+                with self.assertRaises((ValueError, SystemExit)):
+                    pipeline.pipeline_arguments(values)
+        with self.world() as world:
+            with self.subTest(case="C20", variant="private-config"):
+                with self.assertRaises(ValueError):
+                    pipeline.run_pipeline(world.old_config, world.scope, world.old_hash, budget=world.fake,
+                        public_context=world.context)
+            for mode in ("run", "task", "report"):
+                with self.subTest(case="C20", variant=mode), patch("sys.argv", ["pipeline", mode, str(world.config_path)]):
+                    with self.assertRaisesRegex(ValueError, "PUBLIC_HISTORY_TRANSITION_REQUIRED"):
+                        pipeline.main()
+            with self.subTest(case="C25"):
+                action = [str(Path(world.config["pythonExe"]).with_name("pythonw.exe")), "-I", pipeline.__file__] + [
+                    "run-public", str(world.config_path), "--public-context", str(world.context_path),
+                    "--public-context-sha256", world.context[1]]
+                original = list(action)
+                self.assertEqual(action[1], "-I")
+                real_run, real_lock, real_write = pipeline.run_pipeline, pipeline.exclusive, pipeline.write_new
+                active, writes = [False], []
+                def injected(*args, **kwargs):
+                    return real_run(*args, budget=world.fake, **kwargs)
+                @contextmanager
+                def locked(path):
+                    with real_lock(path):
+                        active[0] = True
+                        try:
+                            yield
+                        finally:
+                            active[0] = False
+                def checked(path, raw):
+                    if ".terminal-" in path.name or ".public-cycle.json" in path.name or ".public-budget-summary-" in path.name:
+                        self.assertTrue(active[0], path.name)
+                        writes.append(path.name)
+                    return real_write(path, raw)
+                output = io.StringIO()
+                argv = ["pipeline", "run-public", str(world.config_path), "--public-context", str(world.context_path),
+                        "--public-context-sha256", world.context[1]]
+                with patch.object(pipeline, "run_pipeline", injected), patch.object(pipeline, "exclusive", locked), \
+                    patch.object(pipeline, "write_new", checked), patch("sys.argv", argv), redirect_stdout(output):
+                    code = pipeline.main()
+                self.assertEqual((code, json.loads(output.getvalue())["status"]), (0, "PUBLISHED"))
+                self.assertEqual(sum(".terminal-" in name for name in writes), 4)  # 匿名PENDING一件を追加。
+                self.assertTrue(writes[-2].endswith(".public-cycle.json"))
+                self.assertIn(".public-budget-summary-", writes[-1])
+                self.assertEqual(action, original)
+                with self.assertRaisesRegex(ValueError, "PUBLIC_HISTORY_TRANSITION_REQUIRED"):
+                    pipeline.task_xml(world.config, world.config_path, "S-1-5-21-artificial")
+            with self.subTest(case="C20", variant="preparer-main"):
+                import prepare_daily_index_config as prepare
+                root = world.context_path.read_bytes()
+                world.context_path.rename(world.context_path.with_name("public-context.saved.json"))
+                argv = ["prepare", "--public-context-from-history", str(world.history_path),
+                    "--public-history-sha256", world.history_context[1], "--public-config", str(world.config_path),
+                    "--public-config-sha256", world.config_hash]
+                before = len(world.trace)
+                with patch("sys.argv", argv), redirect_stdout(io.StringIO()):
+                    prepare.main()
+                self.assertEqual(world.context_path.read_bytes(), root)
+                self.assertEqual(len(world.trace), before)
+                with patch("sys.argv", argv), self.assertRaises(FileExistsError):
+                    prepare.main()
+                with patch("sys.argv", argv + argv[1:3]), \
+                    patch.object(prepare.argparse.ArgumentParser, "parse_args", side_effect=AssertionError("PARSE_REACHED")), \
+                    patch.object(prepare, "prepare_public_context", side_effect=AssertionError("IO_REACHED")), \
+                    self.assertRaisesRegex(ValueError, "^PREPARE_ARGUMENT_DUPLICATE$"):
+                    prepare.main()
+                self.assertEqual(world.context_path.read_bytes(), root)
+                self.assertEqual(len(world.trace), before)
+
+
+class PublicAnonymousReadbackTests(unittest.TestCase):
+    """ADR0385の固定6method/A01..A24。実作用は完全fakeと一時fileだけ。"""
+
+    def helper(self):
+        """旧9methodのfixtureを継承せずに借用し、実行分母を重複させない。"""
+        return PublicDailyCycleTests()
+
+    def assert_unknown(self, helper, world, result):
+        """CAS事実と元束を保持し、未知をsuccess/cycleへ昇格させない。"""
+        self.assertEqual(result["status"], "UNKNOWN")
+        self.assertEqual(result["reason"], "PUBLIC_ANONYMOUS_CONFIRMATION_UNKNOWN")
+        self.assertEqual(result["commit"], world.remote.head)
+        self.assertEqual(result["publicAnonymousReadback"]["status"], "UNKNOWN")
+        prefix = helper.prefix(world)
+        for suffix in (".acquisition.success.json", ".acquisition.public-cycle.json"):
+            self.assertFalse(Path(str(prefix) + suffix).exists())
+        self.assertTrue(Path(str(prefix) + ".acquisition.manifest.json").exists())
+        self.assertIsNone(json.loads(helper.summary(world).read_bytes())["completedCycleSha256"])
+        PublicHistoryTransitionTests().assert_retained(world)
+
+    def historical_cycle(self, helper, world):
+        """同loaderで認証可能な匿名annotationなしの歴史fixtureを一度だけ構成する。"""
+        helper.execute(world)
+        prefix = helper.prefix(world)
+        cycle = Path(str(prefix) + ".acquisition.public-cycle.json")
+        record = json.loads(cycle.read_bytes())
+        for path in list(world.out.glob(prefix.name + ".terminal-*.json")) + [Path(record["files"]["success"]["file"])]:
+            value = json.loads(path.read_bytes())
+            if "publicAnonymousReadback" in value:
+                value.pop("publicAnonymousReadback")
+                if value.get("reason") == "PUBLIC_ANONYMOUS_CONFIRMATION_UNKNOWN":
+                    value.update(status="PUBLISHED", reason="HISTORICAL_AUTHENTICATED_API_ONLY")
+                path.write_bytes(pipeline.canonical(value))
+        for name in ("success", "terminal"):
+            path = Path(record["files"][name]["file"])
+            record["files"][name] = PublicHistoryTransitionTests.pin(path)
+        record["terminalPins"] = pipeline.public_terminal_pins(prefix)
+        cycle.write_bytes(pipeline.canonical(record))
+        summary_path = helper.summary(world)
+        summary = json.loads(summary_path.read_bytes())
+        summary["completedCycleSha256"] = pipeline.sha(cycle.read_bytes())
+        summary_path.write_bytes(pipeline.canonical(summary))
+        paths = [Path(entry["file"]) for entry in record["files"].values()] + [cycle]
+        return cycle, {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in paths}
+
+    def test_public_anonymous_success_and_binding(self):
+        """A01..A04: 両公開成功経路、九send、callback必須、原JSON byte差を固定する。"""
+        helper = self.helper()
+        for case in ("A01", "A02", "A03", "A04"):
+            with self.subTest(case=case), helper.world() as world:
+                if case == "A03":
+                    before = len(world.remote.events)
+                    publisher = pipeline.acquisition_publisher(world.config, world.remote, lambda *a, **kw: None)
+                    with self.assertRaisesRegex(ValueError, "PUBLIC_ANONYMOUS_TRANSPORT_REQUIRED"):
+                        publisher.publish({"manifest.json": b"{}", "index.json.gz": b"x"})
+                    self.assertEqual(len(world.remote.events), before)
+                    continue
+                world.anonymous_behavior = "nine" if case == "A02" else "current-whitespace" if case == "A04" else "success"
+                result = helper.execute(world)
+                if case == "A04":
+                    self.assert_unknown(helper, world, result)
+                    raw = Path(str(helper.prefix(world)) + ".acquisition.manifest.json").read_bytes()
+                    self.assertEqual(json.loads(raw), json.loads(raw + b" "))
+                    self.assertEqual(result["publicAnonymousReadback"]["worker"]["report"]["resources"][0]["state"], "FAILED")
+                    continue
+                annotation = result["publicAnonymousReadback"]
+                self.assertEqual((result["status"], annotation["status"]), ("PUBLISHED", "VERIFIED"))
+                self.assertEqual(list(annotation), list(pipeline.PUBLIC_ANONYMOUS_FIELDS))
+                self.assertEqual((annotation["commit"], annotation["generation"]), (world.remote.head, world.receipt["generation"]))
+                commands = [argv[1] for argv in world.trace]
+                worker = commands.index("--public-index-readback")
+                self.assertEqual(commands[worker + 1], "--distribution-acquisition-verify")
+                self.assertEqual(commands.count("--public-index-readback"), 1)
+                self.assertEqual((world.command_count("--distribution-acquisition-sign"), len(world.remote.assets), world.remote.ref_updates), (1, 6, 1))
+                self.assertEqual(annotation["worker"]["report"]["sends"], 9 if case == "A02" else 3)
+                for field in ("worker", "verifier"):
+                    child = annotation[field]
+                    self.assertEqual(child["childExitCode"], 0)
+                    self.assertTrue(pipeline.public_sha(child["intentSha256"]))
+                    self.assertTrue(pipeline.public_sha(child["completeSha256"]))
+                self.assertEqual(annotation["worker"]["report"]["resources"][0]["sha256"], annotation["envelopeSha256"])
+                self.assertEqual(annotation["worker"]["report"]["resources"][2]["sha256"], annotation["gzipSha256"])
+                print(json.dumps({"case": case, "managed": len(world.trace), "native": sum(argv[1] != "api" for argv in world.trace),
+                    "gh": sum(argv[1] == "api" for argv in world.trace), "httpSends": annotation["worker"]["report"]["sends"]}))
+
+    def test_public_anonymous_unknown_and_readback_only(self):
+        """A05..A08: CAS後の不明と部分応答を保持し、元束のreadbackだけで再開する。"""
+        helper = self.helper()
+        for case, behavior in (("A05", "timeout"), ("A06", "partial"), ("A07", "304"), ("A08", "success")):
+            with self.subTest(case=case), helper.world() as world:
+                if case == "A08":
+                    original = world.fake.run
+                    def lost(argv, data=None, **kwargs):
+                        if argv[1] == "api" and argv[6] == "graphql":
+                            world.trace.append(list(argv))
+                            world.remote.api("POST", "graphql", json.loads(data))
+                            return 1, b"", b"HTTP 502"
+                        return original(argv, data, **kwargs)
+                    with patch.object(world.fake, "run", lost), self.assertRaises(ValueError):
+                        helper.execute(world)
+                    before = (world.command_count("--daily-evidence"), world.command_count("--distribution-acquisition-sign"),
+                        len(world.remote.assets), world.remote.ref_updates)
+                    originals = {path: path.read_bytes() for path in world.out.glob(helper.prefix(world).name + ".acquisition.*")}
+                    world.trace.clear()
+                    result = helper.execute(world)
+                    self.assertEqual(result["status"], "PUBLISHED")
+                    self.assertTrue(result["publicOperationReadbackOnly"])
+                    self.assertEqual((world.command_count("--daily-evidence"), world.command_count("--distribution-acquisition-sign"),
+                        len(world.remote.assets), world.remote.ref_updates), before)
+                    self.assertTrue(all(path.read_bytes() == raw for path, raw in originals.items()))
+                    self.assertEqual(sum(argv[1] == "--public-index-readback" for argv in world.trace), 1)
+                    self.assertLessEqual(len(world.trace), 18)
+                    continue
+                world.anonymous_behavior = behavior
+                result = helper.execute(world)
+                self.assert_unknown(helper, world, result)
+                report = result["publicAnonymousReadback"]["worker"]["report"]
+                expected = {"A05": ["FAILED", "NOT_STARTED", "NOT_STARTED"],
+                    "A06": ["COMPLETE", "FAILED", "NOT_STARTED"], "A07": ["COMPLETE", "COMPLETE", "FAILED"]}[case]
+                self.assertEqual([item["state"] for item in report["resources"]], expected)
+                self.assertEqual(report["sends"], {"A05": 1, "A06": 2, "A07": 3}[case])
+                if case == "A07":
+                    self.assertEqual(report["resources"][2]["httpStatus"], 304)
+
+    def test_public_anonymous_failure_classes(self):
+        """A09..A12: 認証要求・原byte差・native署名・元期限の拒否を保持する。"""
+        helper = self.helper()
+        for case, behavior in (("A09", "401"), ("A10", "byte-mismatch"), ("A11", "signature"), ("A12", "timeout")):
+            with self.subTest(case=case), helper.world() as world:
+                world.anonymous_behavior = behavior
+                result = helper.execute(world)
+                self.assert_unknown(helper, world, result)
+                annotation = result["publicAnonymousReadback"]
+                if case == "A09":
+                    self.assertEqual(annotation["worker"]["report"]["resources"][0]["httpStatus"], 401)
+                    self.assertFalse(any("credential" in value.lower() or "Authorization" in value for argv in world.trace for value in argv))
+                elif case == "A10":
+                    self.assertEqual(annotation["failure"]["code"], "BYTE_MISMATCH")
+                elif case == "A11":
+                    self.assertEqual(annotation["failure"]["code"], "SIGNATURE")
+                    self.assertEqual(annotation["worker"]["childExitCode"], 2)
+                else:
+                    path = Path(str(helper.prefix(world)) + ".acquisition.manifest.json")
+                    raw = path.read_bytes()
+                    manifest, _ = pipeline.unpack_envelope(raw)
+                    world.now = pipeline.parse_time(manifest["expiresAtUtc"])
+                    before = (world.command_count("--public-index-readback"), world.command_count("--distribution-acquisition-sign"),
+                        len(world.remote.assets), world.remote.ref_updates)
+                    with self.assertRaises(ValueError):
+                        helper.execute(world)
+                    self.assertEqual((world.command_count("--public-index-readback"), world.command_count("--distribution-acquisition-sign"),
+                        len(world.remote.assets), world.remote.ref_updates), before)
+                    self.assertEqual(path.read_bytes(), raw)
+
+    def test_public_anonymous_durable_budget(self):
+        """A13..A16: 管理callとHTTPを分離し、元journalと残枠の境界を検査する。"""
+        helper = self.helper()
+        for case in ("A13", "A14", "A15", "A16"):
+            with self.subTest(case=case):
+                if case == "A13":
+                    with helper.world() as world:
+                        reserves = []
+                        original = pipeline.PublicOperationBudget.reserve_calls
+                        def reserve(budget, count):
+                            reserves.append(count)
+                            return original(budget, count)
+                        with patch.object(pipeline.PublicOperationBudget, "reserve_calls", reserve):
+                            result = helper.execute(world)
+                        native = sum(argv[1] != "api" for argv in world.trace)
+                        gh = sum(argv[1] == "api" for argv in world.trace)
+                        self.assertEqual((len(world.trace), native, gh), (68, 18, 50))
+                        self.assertEqual(reserves, [69, 57, 2])
+                        summary = json.loads(helper.summary(world).read_bytes())
+                        self.assertEqual(summary["calls"], 68)
+                        self.assertGreater(summary["elapsedSeconds"], 0)
+                        self.assertEqual(result["publicAnonymousReadback"]["worker"]["report"]["sends"], 3)
+                        print(json.dumps({"case": case, "managed": 68, "native": native, "gh": gh, "reserveTrace": reserves}))
+                elif case == "A14":
+                    with helper.world(now="2026-10-18T05:50:00Z") as world:
+                        held = deepcopy(world.receipt)
+                        held.update(outcome="HOLD", generation=0, httpStatus=0, lastAttemptAt=0, error=0, stateError=0,
+                            notBefore=world.old_receipt["notBefore"])
+                        original = world.fake.run
+                        def hold(argv, *args, **kwargs):
+                            if argv[1] == "--daily-evidence":
+                                world.trace.append(list(argv))
+                                pipeline.write_new(Path(argv[-1]), pipeline.canonical(held))
+                                return 3, b"", b""
+                            return original(argv, *args, **kwargs)
+                        with patch.object(world.fake, "run", hold):
+                            for _ in range(2):
+                                before = len(world.trace)
+                                self.assertEqual(helper.execute(world)["status"], "HOLD")
+                                self.assertEqual(len(world.trace) - before, 13)
+                        world.now = pipeline.datetime.fromtimestamp(held["notBefore"] + 32, pipeline.timezone.utc)
+                        world.refresh(generation=world.old_receipt["generation"] + 1)
+                        world.receipt["previousReceiptSha256"] = pipeline.sha(pipeline.canonical(world.old_receipt))
+                        self.assertEqual(helper.execute(world)["status"], "PUBLISHED")
+                        self.assertEqual((len(world.trace), json.loads(helper.summary(world).read_bytes())["calls"]), (94, 94))
+                        print(json.dumps({"case": case, "holdCallsEach": 13, "holds": 2, "managed": 94}))
+                elif case == "A15":
+                    for goal in (79, 78):
+                        with helper.world() as world:
+                            helper.execute(world)
+                            prefix = helper.prefix(world)
+                            cycle = Path(str(prefix) + ".acquisition.public-cycle.json").read_bytes()
+                            start = Path(str(prefix) + ".acquisition.public-start.json").read_bytes()
+                            budget = pipeline.PublicOperationBudget(world.fake, prefix, pipeline.sha(start), cycle_profile=True)
+                            argv = [world.config["signerExe"], "--distribution-acquisition-verify-history",
+                                str(prefix) + ".acquisition.manifest.json", str(prefix) + ".acquisition.index.json.gz",
+                                world.config["publicKeyFile"], world.config["fingerprint"], str(int(world.now.timestamp()))]
+                            while budget.calls < goal:
+                                budget.run(argv)
+                            budget.save(completed_cycle=pipeline.sha(cycle))
+                            before_seconds = json.loads(helper.summary(world).read_bytes())["elapsedSeconds"]
+                            world.trace.clear()
+                            if goal == 79:
+                                with self.assertRaisesRegex(ValueError, "PUBLIC_CYCLE_BUDGET_INSUFFICIENT"):
+                                    helper.execute(world)
+                                self.assertEqual(world.trace, [])
+                            else:
+                                self.assertEqual(helper.execute(world)["status"], "PUBLISHED")
+                                self.assertLessEqual(len(world.trace), 18)
+                            final = json.loads(helper.summary(world).read_bytes())
+                            self.assertGreaterEqual(final["calls"], goal)
+                            self.assertGreaterEqual(final["elapsedSeconds"], before_seconds)
+                else:
+                    for behavior in ("hard-crash", "crash-exit"):
+                        with helper.world() as world:
+                            world.anonymous_behavior = behavior
+                            result = helper.execute(world)
+                            self.assert_unknown(helper, world, result)
+                            worker = result["publicAnonymousReadback"]["worker"]
+                            if behavior == "hard-crash":
+                                self.assertIsNone(worker["completeSha256"])
+                                self.assertIsNone(worker["report"])
+                                self.assertIsNone(worker["childExitCode"])
+                                summary = json.loads(helper.summary(world).read_bytes())
+                                self.assertGreaterEqual(summary["elapsedSeconds"], 89.99)
+                                with self.assertRaisesRegex(ValueError, "PUBLIC_RESUME_READBACK_ONLY"):
+                                    helper.execute(world)
+                            else:
+                                self.assertEqual(worker["childExitCode"], 3221225477)
+                                self.assertIsNotNone(worker["completeSha256"])
+                                self.assertIsNone(worker["report"])
+                                prefix = helper.prefix(world)
+                                start = Path(str(prefix) + ".acquisition.public-start.json").read_bytes()
+                                budget = pipeline.PublicOperationBudget(world.fake, prefix, pipeline.sha(start), cycle_profile=True)
+                                signed = pipeline.public_child_record(budget, worker["ordinal"], world.config["collectorSha256"], -1073741819)
+                                self.assertEqual(signed["childExitCode"], -1073741819)
+
+    def test_public_anonymous_cycle_evidence(self):
+        """A17..A20: 欠損成功を拒否し、旧cycleと現在の別観測を混同しない。"""
+        helper = self.helper()
+        for case in ("A17", "A18", "A19", "A20"):
+            with self.subTest(case=case), helper.world() as world:
+                if case == "A17":
+                    result = helper.execute(world)
+                    result.pop("publicAnonymousReadback")
+                    prefix = helper.prefix(world)
+                    root = pipeline.public_context_record(world.config, world.scope, world.config_hash, world.context)
+                    previous, _, completed = pipeline.public_cycle_target(world.config, world.config_hash, root, world.out)
+                    start = Path(str(prefix) + ".acquisition.public-start.json").read_bytes()
+                    budget = pipeline.PublicOperationBudget(world.fake, prefix, pipeline.sha(start), cycle_profile=True)
+                    with self.assertRaisesRegex(ValueError, "PUBLIC_ANONYMOUS_BINDING"):
+                        pipeline.public_complete_cycle(world.config, world.config_hash, root, previous, prefix,
+                            pipeline.public_resume_observation(prefix), result, Path(completed["record"]["files"]["terminal"]["file"]), budget)
+                elif case in {"A18", "A19"}:
+                    cycle, originals = self.historical_cycle(helper, world)
+                    if case == "A18":
+                        helper.next_day(world)
+                        before = len(world.trace)
+                        with self.assertRaisesRegex(ValueError, "PUBLIC_PREDECESSOR_ANONYMOUS_REQUIRED"):
+                            helper.execute(world)
+                        self.assertEqual(len(world.trace), before)
+                    else:
+                        world.trace.clear()
+                        result = helper.execute(world)
+                        self.assertEqual(result["publicAnonymousReadback"]["sourceCycleSha256"], pipeline.sha(originals[cycle][0]))
+                        self.assertTrue(all((path.read_bytes(), path.stat().st_mtime_ns) == saved for path, saved in originals.items()))
+                        self.assertEqual(sum(argv[1] == "--public-index-readback" for argv in world.trace), 1)
+                        self.assertFalse(any(argv[1] in {"--daily-evidence", "--distribution-acquisition-sign"} for argv in world.trace))
+                        final_summary = pipeline.sha(helper.summary(world).read_bytes())
+                        helper.next_day(world)
+                        helper.execute(world)
+                        start = json.loads(Path(str(helper.prefix(world)) + ".acquisition.public-start.json").read_bytes())
+                        self.assertEqual(start["previousBudgetSummarySha256"], final_summary)
+                        self.assertGreater(len(start["previousTerminalPins"]), len(json.loads(originals[cycle][0])["terminalPins"]))
+                else:
+                    helper.execute(world)
+                    world.anonymous_behavior = "401"
+                    result = helper.execute(world)
+                    self.assertEqual(result["status"], "UNKNOWN")
+                    root = pipeline.public_context_record(world.config, world.scope, world.config_hash, world.context)
+                    _, _, completed = pipeline.public_cycle_target(world.config, world.config_hash, root, world.out)
+                    self.assertFalse(completed["anonymousVerified"])
+                    helper.next_day(world)
+                    before = len(world.trace)
+                    with self.assertRaisesRegex(ValueError, "PUBLIC_PREDECESSOR_ANONYMOUS_REQUIRED"):
+                        helper.execute(world)
+                    self.assertEqual(len(world.trace), before)
+
+    def test_public_anonymous_closed_cli_and_pins(self):
+        """A21..A24: pin/元予算/五argv/親verifierを省略できない。"""
+        helper = self.helper()
+        for case in ("A21", "A22", "A23", "A24"):
+            with self.subTest(case=case), helper.world() as world:
+                if case == "A21":
+                    self.assertEqual(pipeline.MODULE_NAMES, {"daily_index_pipeline.py", "project_collected_native_index.py",
+                        "collector_registry.py", "prepare_daily_index_config.py"})
+                    Path(world.config["collectorExe"]).write_bytes(b"ARTIFICIAL_CHANGED")
+                    with self.assertRaises(ValueError):
+                        helper.execute(world)
+                    self.assertEqual(world.trace, [])
+                elif case == "A22":
+                    world.anonymous_behavior = "timeout"
+                    helper.execute(world)
+                    before = len(world.trace)
+                    world.config_path.write_bytes(world.config_path.read_bytes() + b"\n")
+                    with self.assertRaises(ValueError):
+                        helper.execute(world)
+                    self.assertEqual(len(world.trace), before)
+                    module = Path(pipeline.__file__)
+                    module.write_bytes(module.read_bytes() + b"CHANGED_RUNTIME")
+                    with self.assertRaises(ValueError):
+                        pipeline.load_config(world.config_path)
+                    self.assertEqual(len(world.trace), before)
+                elif case == "A23":
+                    original = world.fake.run
+                    def surplus(argv, *args, **kwargs):
+                        if argv[1] == "--public-index-readback":
+                            self.assertEqual(len(argv), 5)
+                            self.assertEqual(argv[2:4], [str(helper.prefix(world)) + ".acquisition.manifest.json",
+                                str(helper.prefix(world)) + ".acquisition.index.json.gz"])
+                            return original(argv + ["https://example.invalid/extra"], *args, **kwargs)
+                        return original(argv, *args, **kwargs)
+                    with patch.object(world.fake, "run", surplus):
+                        result = helper.execute(world)
+                    self.assert_unknown(helper, world, result)
+                    self.assertIsNone(result["publicAnonymousReadback"]["worker"]["report"])
+                else:
+                    world.anonymous_behavior = "verifier-failure"
+                    result = helper.execute(world)
+                    self.assert_unknown(helper, world, result)
+                    value = result["publicAnonymousReadback"]
+                    self.assertEqual((value["worker"]["childExitCode"], value["worker"]["report"]["outcome"]), (0, "VERIFIED"))
+                    self.assertEqual(value["verifier"]["childExitCode"], 2)
+                    self.assertEqual(value["failure"], {"stage": "VERIFIER", "code": "CONTENT"})
+
+
 class AcquisitionVerifierFactoryTests(unittest.TestCase):
     """抽出した既存closureのnative argv・保存byte・current/history監査境界を確認する。"""
 
@@ -4202,6 +6637,485 @@ class AcquisitionVerifierFactoryTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "^NATIVE_DISTRIBUTION_VERIFY_FAILED$"):
                     verify(bundle, historical=False)
                 audit.assert_not_called()
+
+
+class LegacyMetadataFloorPreparationTests(unittest.TestCase):
+    """旧record非再生成と、原byte/世代/必須native認証を人工scope準備で確認する。"""
+
+    world = DailyAcquisitionIssuanceTests.world
+
+    def test_old_record_bytes_prepare_without_current_projection(self):
+        """現必須fieldを持たない旧recordを変更せず、準備と履歴floorへ渡せる。"""
+        import prepare_daily_index_config as prepare
+        with self.world() as world:
+            index = json.loads(gzip.decompress(world.args.legacy_gzip.read_bytes()))
+            wrapper = index["records"][0]
+            record = json.loads(base64.b64decode(wrapper["recordBytesBase64"], validate=True))
+            self.assertEqual(record["publishedIdentityEvidence"].pop("nestedArchiveIdentity"), "")
+            record_raw = pipeline.canonical(record)
+            wrapper.update(recordBytesBase64=base64.b64encode(record_raw).decode(),
+                           recordSha256=pipeline.sha(record_raw))
+            packed = gzip.compress(pipeline.canonical(index), mtime=0)
+            manifest = json.loads(world.args.legacy_raw_manifest.read_bytes())
+            manifest["asset"].update(sha256=pipeline.sha(packed), sizeBytes=len(packed),
+                tag="index-v1-20261015-" + pipeline.sha(packed))
+            raw = pipeline.canonical(manifest)
+            world.args.legacy_gzip.write_bytes(packed)
+            world.args.legacy_raw_manifest.write_bytes(raw)
+            world.args.legacy_envelope.write_bytes(envelope(raw, manifest["keyId"]))
+            paths = [world.args.inherit_config, world.args.legacy_receipt, world.args.legacy_raw_manifest,
+                     world.args.legacy_gzip, world.args.legacy_envelope]
+            originals = {path: path.read_bytes() for path in paths}
+            args = SimpleNamespace(**dict(vars(world.args), control_directory=world.root / "control/old-record"))
+            with patch.object(pipeline.projection, "project_daily",
+                    side_effect=AssertionError("LEGACY_REPROJECTION_FORBIDDEN")):
+                path = prepare.inherit_config(args, budget=world)
+                config, _, _ = pipeline.load_config(path)
+                self.assertEqual(world.command_count("--distribution-verify-floor-history"), 1)
+                self.assertEqual(world.command_count("--distribution-verify-history"), 0)
+                bundle = {"manifest.json": originals[world.args.legacy_envelope], "index.json.gz": packed}
+                verify = pipeline.acquisition_verifier(config, {}, world.out, world,
+                    generation=9, publication=world.now)
+                verify(bundle, historical=True)
+                with self.assertRaisesRegex(ValueError, "^SIGNING_PROFILE_UNKNOWN$"):
+                    verify(bundle, historical=False)
+            self.assertEqual(world.command_count("--distribution-verify-floor-history"), 2)
+            self.assertEqual(world.command_count("--distribution-acquisition-sign"), 0)
+            for command in (world.preparation_calls[1][0], world.calls[1][0], world.calls[2][0]):
+                self.assertEqual(command[-1], str(int(pipeline.parse_time(manifest["publishedAtUtc"]).timestamp())))
+                self.assertEqual(command[4:6], [config["publicKeyFile"], config["fingerprint"]])
+            self.assertEqual({path: path.read_bytes() for path in paths}, originals)
+            self.assertEqual(world.remote.events, [])
+
+    def test_structure_checks_do_not_replace_native_authentication(self):
+        """純粋loaderはnativeを起動せず、準備は原fenceと署名floorの順序を必須にする。"""
+        with self.world() as world:
+            with patch.object(pipeline.projection, "project_daily",
+                    side_effect=AssertionError("LEGACY_REPROJECTION_FORBIDDEN")):
+                pipeline.validate_legacy_metadata(world.config)
+                pipeline.load_config(world.config_path)
+            self.assertEqual(world.calls, [])
+            self.assertEqual([row[0][1] for row in world.preparation_calls],
+                ["--verify-daily-reservation", "--distribution-verify-floor-history"])
+            self.assertEqual(world.preparation_calls[0][0][-1], "LEGACY_FENCE")
+            self.assertEqual(world.preparation_calls[1][0][2:6],
+                [str(world.args.legacy_envelope), str(world.args.legacy_gzip),
+                 world.config["publicKeyFile"], world.config["fingerprint"]])
+
+    def test_original_bytes_and_rebound_manifest_claims_are_refused(self):
+        """各原hashの改変と、hashを再申告した異key/世代/原asset/receiptの矛盾を拒否する。"""
+        for variant in ("receipt", "rawManifest", "gzip", "envelope", "key", "generation",
+                        "asset-generation", "asset-hash", "asset-size", "receipt-manifest", "future"):
+            with self.subTest(variant=variant), self.world() as world:
+                config = deepcopy(world.config)
+                binding = config["legacyMetadata"]
+                if variant in {"receipt", "rawManifest", "gzip", "envelope"}:
+                    path = Path(binding[variant + "File"])
+                    path.write_bytes(path.read_bytes() + b" ")
+                elif variant == "receipt-manifest":
+                    path = Path(binding["receiptFile"])
+                    receipt = json.loads(path.read_bytes())
+                    receipt["manifestSha256"] = "0" * 64
+                    path.write_bytes(pipeline.canonical(receipt))
+                    binding["receiptSha256"] = pipeline.sha(path.read_bytes())
+                else:
+                    manifest = json.loads(world.args.legacy_raw_manifest.read_bytes())
+                    if variant == "key":
+                        manifest["keyId"] = "distribution-index-" + "0" * 32
+                    elif variant in {"generation", "asset-generation"}:
+                        manifest["generation" if variant == "generation" else "assetGeneration"] += 1
+                    elif variant == "asset-hash":
+                        manifest["asset"]["sha256"] = "0" * 64
+                    elif variant == "asset-size":
+                        manifest["asset"]["sizeBytes"] += 1
+                    else:
+                        manifest["publishedAtUtc"] = (world.now + timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    raw = pipeline.canonical(manifest)
+                    world.args.legacy_raw_manifest.write_bytes(raw)
+                    world.args.legacy_envelope.write_bytes(envelope(raw, manifest["keyId"]))
+                    binding.update(rawManifestSha256=pipeline.sha(raw),
+                        envelopeSha256=pipeline.sha(world.args.legacy_envelope.read_bytes()))
+                with self.assertRaisesRegex(ValueError, "^LEGACY_METADATA_BINDING$"):
+                    pipeline.validate_legacy_metadata(config)
+                self.assertEqual(world.calls, [])
+                self.assertEqual(world.remote.events, [])
+
+    def test_native_fence_and_floor_failure_or_unknown_cannot_save_control(self):
+        """現native head拒否と署名floor非0/不明では新scope/configを作らずfallbackしない。"""
+        import prepare_daily_index_config as prepare
+        for variant in ("head", "floor-rejected", "floor-unknown"):
+            with self.subTest(variant=variant), self.world() as world:
+                args = SimpleNamespace(**dict(vars(world.args), control_directory=world.root / "control/refused"))
+                run = world.run
+                def refuse(argv, **kwargs):
+                    """該当する一回のnative結果だけを不成功にし、実processは呼ばない。"""
+                    if ((variant == "head" and argv[1] == "--verify-daily-reservation") or
+                            (variant != "head" and argv[1] == "--distribution-verify-floor-history")):
+                        world.calls.append((list(argv), kwargs.get("seconds", 600), kwargs.get("maximum", pipeline.MAX_FILE)))
+                        return None if variant == "floor-unknown" else 2, b"", b"ARTIFICIAL_REFUSAL"
+                    return run(argv, **kwargs)
+                reason = "DAILY_RESERVATION_HEAD" if variant == "head" else "LEGACY_METADATA_HISTORY_FAILED"
+                with patch.object(world, "run", side_effect=refuse), \
+                        self.assertRaisesRegex(ValueError, "^" + reason + "$"):
+                    prepare.inherit_config(args, budget=world)
+                self.assertFalse(args.control_directory.exists())
+                self.assertEqual(world.command_count("--distribution-verify-history"), 0)
+                self.assertEqual(world.command_count("--distribution-acquisition-sign"), 0)
+                self.assertEqual(world.remote.events, [])
+
+
+class FreshNativePreparationTests(unittest.TestCase):
+    """新本体を既存六入力へ渡す明示入口。実network/鍵/署名/公開は持たない。"""
+
+    @contextmanager
+    def world(self, case="success"):
+        with tempfile.TemporaryDirectory() as temporary, ExitStack() as stack:
+            root = Path(temporary)
+            originals = {name: (name + " original").encode() for name in ("release", "review", "script")}
+            pins = {name: pipeline.sha(raw) for name, raw in originals.items()}
+            config = {"schema": "dc-private-daily-index-config-v2", "purpose": pipeline.ACQUISITION_PURPOSE,
+                "outputRoot": str(root), "stateRoot": "same-original-state", "selectedInf": "logical.inf",
+                "termsReviewMode": pipeline.projection.PINNED_STATIC_REVALIDATION_V1}
+            for name, pin in (("collectorExe", "collectorSha256"), ("signerExe", "signerSha256"),
+                              ("manifestFile", "manifestSha256"), ("scopeFile", "scopeSha256")):
+                path = root / name
+                scope = {"schema": "dc-fixed-distribution-acquisition-scope-v1", "targetCount": 1,
+                    "source": pipeline.projection.SOURCE, "distributionPage": pipeline.projection.PAGE,
+                    "sourceId": "intel-ethernet-win11", "recordId": "intel-wired-31-2-2-win11",
+                    "collectorManifestSha256": pipeline.sha(b"fixture"),
+                    "keyId": pipeline.projection.DISTRIBUTION_KEY_ID,
+                    "publicFingerprint": pipeline.projection.DISTRIBUTION_PUBLIC_FINGERPRINT,
+                    "projectionPolicyRevision": pipeline.projection.DISTRIBUTION_PROJECTION_POLICY_REVISION}
+                path.write_bytes(pipeline.canonical(scope) if name == "scopeFile" else b"fixture")
+                config[name], config[pin] = str(path), pipeline.sha(path.read_bytes())
+            now = pipeline.parse_time("2026-10-25T03:00:00Z")
+            receipt = root / "fresh-01.json"
+            archive = receipt.with_suffix(".payload.zip")
+            old_archive = root / "old.zip"
+            old_archive.write_bytes(b"original preserved archive")
+            calls = []
+            prepared = {"inputs": {name: b"{}" for name in ("scope", "evidence", "release", "inspection", "review", "script")},
+                "inputPins": {name: "a" * 64 for name in ("scope", "evidence", "release", "inspection", "review", "script")},
+                "reservation": {"generation": 9, "mode": "FRESH_INPUT", "receiptSha256": "b" * 64}}
+
+            class FakeBudget:
+                def remaining(self, maximum):
+                    return maximum
+
+                def run(self, argv, **kwargs):
+                    calls.append(argv)
+                    if case == "hold":
+                        receipt.write_bytes(pipeline.canonical({"outcome": "HOLD"}))
+                        return 3, b"", b""
+                    if case in {"failed", "failed-save"}:
+                        receipt.write_bytes(pipeline.canonical({"outcome": "FAILED"}))
+                        if case == "failed":
+                            receipt.with_suffix(".failed-page.json").write_bytes(b"private failed body diagnostic")
+                        return 1, b"COLLECTOR_PAYLOAD save_error=0 held=0 not_before=86400 stage=4 acquired=0 installed=0\n", (
+                            b"COLLECTOR_FAILED_PAGE save_error=5 captured=0\n" if case == "failed-save" else b"")
+                    receipt.write_bytes(pipeline.canonical({"outcome": "REVALIDATED_304" if case == "304" else "NEW_200"}))
+                    archive.write_bytes(b"new archive")
+                    return 0, ((b"COLLECTOR_FAILED_PAGE save_error=0 captured=1\n" if case == "extra-stdout" else b"") +
+                        b"COLLECTOR_PAYLOAD save_error=0 held=0 not_before=0 stage=" +
+                        (b"7" if case == "failed-stage" else b"0") + b" acquired=" +
+                        (b"0" if case == "no-acquired" else b"1") + b" installed=0\n"), b""
+
+            for name in ("protected_tree", "protected_path", "require_config_workspace", "validate_v2_code", "require_native_receipt"):
+                stack.enter_context(patch.object(pipeline, name))
+            stack.enter_context(patch.object(pipeline, "operation_root", side_effect=lambda path, **kw: path))
+            stack.enter_context(patch.object(pipeline, "normal_path", side_effect=lambda path, **kw: Path(path)))
+            stack.enter_context(patch.object(pipeline, "exclusive", side_effect=lambda path: ExitStack()))
+            stack.enter_context(patch.object(pipeline, "utc", return_value=now))
+            stack.enter_context(patch.object(pipeline, "acquisition_originals", return_value=(originals, pins)))
+            prepare = stack.enter_context(patch.object(pipeline, "prepare_daily_acquisition_inputs", return_value=prepared))
+            action = lambda **kw: pipeline.prepare_fresh_daily_acquisition_inputs(config, receipt,
+                budget=FakeBudget(), **{"maximum_bytes": 40477087, "consent_not_after": int(now.timestamp()) + 3600,
+                    "accept_pinned_terms": True, **kw})
+            yield SimpleNamespace(root=root, config=config, originals=originals, pins=pins, now=now,
+                receipt=receipt, archive=archive, calls=calls, prepare=prepare, action=action, old_archive=old_archive)
+            self.assertEqual(old_archive.read_bytes(), b"original preserved archive")
+            self.assertFalse(any("sign" in argv[1] or "publish" in argv[1] for argv in calls))
+
+    def test_new_archive_only_to_existing_six_inputs(self):
+        with self.world() as world:
+            result = world.action()
+            self.assertEqual(result["status"], "PREPARED_UNSIGNED")
+            self.assertFalse(result["signed"] or result["published"])
+            self.assertEqual(world.calls[0][1], "--daily-acquire")
+            self.assertEqual(world.calls[0][3], "same-original-state")
+            self.assertEqual(world.calls[0][6], world.pins["release"])
+            self.assertEqual(world.calls[0][-1], "--accept-pinned-terms")
+            self.assertEqual(world.prepare.call_args.args[5], world.archive)
+            self.assertNotEqual(world.prepare.call_args.args[5], world.old_archive)
+            self.assertEqual(world.prepare.call_args.args[3:5], (world.originals, world.pins))
+            bundle = json.loads(Path(result["nativeInputsFile"]).read_bytes())
+            self.assertEqual(bundle["schema"], "dc-candidate-native-inputs-v1")
+            self.assertEqual(set(bundle["inputs"]), {"scope", "evidence", "release", "inspection", "review", "script"})
+
+    def test_missing_or_expired_consent_precedes_effects(self):
+        for change in ({"accept_pinned_terms": False}, {"consent_not_after": 0}, {"maximum_bytes": 0},
+                       {"maximum_bytes": 134217729}, {"consent_not_after": 9999999999}):
+            with self.subTest(change=change), self.world() as world:
+                with self.assertRaisesRegex(ValueError, "^FRESH_NATIVE_CONSENT$"):
+                    world.action(**change)
+                self.assertFalse(world.calls)
+                world.prepare.assert_not_called()
+
+    def test_hold_preserved_without_wait_or_retry(self):
+        with self.world("hold") as world:
+            self.assertEqual(world.action()["status"], "HOLD")
+            self.assertEqual(len(world.calls), 1)
+            self.assertFalse(world.archive.exists())
+            world.prepare.assert_not_called()
+
+    def test_failed_receipt_preserved_without_old_archive_fallback(self):
+        with self.world("failed") as world:
+            with self.assertRaisesRegex(ValueError, "^FRESH_NATIVE_PAYLOAD_FAILED$"):
+                world.action()
+            self.assertEqual(json.loads(world.receipt.read_bytes())["outcome"], "FAILED")
+            self.assertEqual(world.receipt.with_suffix(".failed-page.json").read_bytes(),
+                b"private failed body diagnostic")
+            self.assertFalse(world.receipt.with_suffix(".native-inputs.json").exists())
+            self.assertEqual(len(world.calls), 1)
+            world.prepare.assert_not_called()
+
+    def test_304_and_missing_acquisition_are_refused(self):
+        for case in ("304", "no-acquired", "failed-stage", "extra-stdout"):
+            with self.subTest(case=case), self.world(case) as world:
+                with self.assertRaisesRegex(ValueError, "^FRESH_NATIVE_PAYLOAD_FAILED$"):
+                    world.action()
+                self.assertTrue(world.archive.exists())
+                world.prepare.assert_not_called()
+
+    def test_diagnostic_save_failure_does_not_hide_native_failure(self):
+        with self.world("failed-save") as world:
+            with self.assertRaisesRegex(ValueError, "^FRESH_NATIVE_PAYLOAD_FAILED$"):
+                world.action()
+            self.assertEqual(json.loads(world.receipt.read_bytes())["outcome"], "FAILED")
+            self.assertFalse(world.receipt.with_suffix(".failed-page.json").exists())
+            self.assertFalse(world.receipt.with_suffix(".native-inputs.json").exists())
+            self.assertEqual(len(world.calls), 1)
+            world.prepare.assert_not_called()
+
+    def test_prior_archive_or_partial_is_not_reused(self):
+        for suffix in (".payload.zip", ".payload.partial.zip", ".failed-page.json"):
+            with self.subTest(suffix=suffix), self.world() as world:
+                path = world.receipt.with_suffix(suffix)
+                path.write_bytes(b"original")
+                with self.assertRaisesRegex(ValueError, "^FRESH_NATIVE_OUTPUT_EXISTS$"):
+                    world.action()
+                self.assertEqual(path.read_bytes(), b"original")
+                self.assertFalse(world.calls)
+
+    def test_content_or_terms_failure_keeps_fresh_evidence(self):
+        with self.world() as world:
+            world.prepare.side_effect = ValueError("FRESH_INSPECTION_FAILED")
+            with self.assertRaisesRegex(ValueError, "^FRESH_INSPECTION_FAILED$"):
+                world.action()
+            self.assertTrue(world.receipt.exists() and world.archive.exists())
+            self.assertFalse(world.receipt.with_suffix(".native-inputs.json").exists())
+            self.assertEqual(len(world.calls), 1)
+
+    def test_cli_requires_explicit_complete_consent(self):
+        args = ["prepare-fresh-native", "config.json", "--fresh-receipt", "fresh.json",
+            "--maximum-payload-bytes", "40477087", "--terms-consent-not-after", "1792893600",
+            "--accept-pinned-terms"]
+        self.assertEqual(pipeline.pipeline_arguments(args).mode, "prepare-fresh-native")
+        for argv in (args[:-1], ["run", *args[1:]], [*args, "--smoke"], [*args, "--fingerprint", "a" * 64]):
+            with self.subTest(argv=argv), self.assertRaisesRegex(ValueError, "^FRESH_NATIVE_CLI_ARGUMENTS$"):
+                pipeline.pipeline_arguments(argv)
+
+
+class MetadataScopePreparationTests(unittest.TestCase):
+    """正規inheritの明示v2入力を人工保護rootへ発行し、実操作へfallbackしない。"""
+
+    world = DailyAcquisitionIssuanceTests.world
+
+    def arguments(self, world, *, technical=False):
+        """原manualと新版期待値を別fileへ固定し、正規CLIと同じ完全対を用意する。"""
+        import prepare_daily_index_config as prepare
+        expected = deepcopy(world.fixture.release)
+        expected.update(packageVersion="99.7.4", fileName="Wired_driver_99.7.4_x64.zip",
+            payloadUrl="https://downloadmirror.intel.com/999999/Wired_driver_99.7.4_x64.zip")
+        expected_raw = pipeline.canonical(expected)
+        scope = dict(world.scope, schema=pipeline.projection.METADATA_BOUND_SCOPE, recordId="artificial-new-99-7-4",
+            acquisitionBinding={"expectedRelease": {"bytesBase64": base64.b64encode(expected_raw).decode(),
+                "sha256": pipeline.sha(expected_raw)}, "selectedInf": "NEW/W11/fixture.inf",
+                "modelSection": "Fixture.NTamd64.10.0.1..22000", "maximumBytes": 128*1024*1024})
+        source = world.root / "control/declared-scope.json"
+        source.write_text(json.dumps(scope, indent=2)+"\n", encoding="utf-8")
+        body = world.root / "control/original.body"
+        body.write_bytes(world.fixture.body)
+        values = dict(vars(world.args), acquisition_scope=source, acquisition_scope_sha256=pipeline.sha(source.read_bytes()),
+            original_body=body, selected_inf=None, control_directory=world.root / "control/metadata-new")
+        for name in ("release", "body", "review", "script"):
+            values["original_"+name+"_sha256"] = pipeline.sha(Path(values["original_"+name]).read_bytes())
+        if technical:
+            script = json.loads(world.args.original_script.read_bytes())
+            raw_script = base64.b64decode(script["scriptBytesBase64"])+b"/* artificial reviewed revision */"
+            script.update(scriptBytesBase64=base64.b64encode(raw_script).decode(), scriptSha256=pipeline.sha(raw_script),
+                scriptSizeBytes=len(raw_script))
+            review = json.loads(world.args.original_review.read_bytes())
+            review["scriptSha256"] = script["scriptSha256"]
+            for name, raw in (("release", world.args.original_release.read_bytes()), ("body", body.read_bytes()),
+                              ("review", pipeline.canonical(review)), ("script", pipeline.canonical(script))):
+                path = world.root / ("control/binding."+name)
+                path.write_bytes(raw)
+                values["binding_"+name] = path
+                values["binding_"+name+"_sha256"] = pipeline.sha(raw)
+        args = SimpleNamespace(**values)
+        self.assertEqual(prepare.preparation_arguments(["--inherit-config", str(args.inherit_config),
+            "--acquisition-scope", str(source), "--acquisition-scope-sha256", args.acquisition_scope_sha256]).selected_inf, None)
+        return args
+
+    def test_regular_issue_readback_keeps_raw_scope_originals_and_legacy(self):
+        """別版/別selectorを正規発行し、原byte/時刻/旧archiveと全floor入力を保持する。"""
+        import prepare_daily_index_config as prepare
+        for technical in (False, True):
+            with self.subTest(technical=technical), self.world() as world:
+                args = self.arguments(world, technical=technical)
+                before = {path: path.read_bytes() for path in
+                    (world.args.inherit_config, world.args.legacy_receipt, world.args.legacy_raw_manifest,
+                     world.args.legacy_gzip, world.args.legacy_envelope, args.acquisition_scope,
+                     args.original_body, args.original_release, args.original_review, args.original_script)}
+                config_path = prepare.inherit_config(args, budget=world)
+                config, scope, _ = pipeline.load_config(config_path)
+                self.assertEqual(config["termsReviewMode"], pipeline.projection.PINNED_STATIC_REVALIDATION_V2)
+                self.assertEqual(Path(config["scopeFile"]).read_bytes(), before[args.acquisition_scope])
+                self.assertEqual(config["scopeSha256"], args.acquisition_scope_sha256)
+                self.assertEqual(config["selectedInf"], "NEW/W11/fixture.inf")
+                for name in ("repositoryRoot", "stateRoot", "outputRoot", "smokeLocal", "firstDailyLocal", "legacyMetadata",
+                             "legacyReservationFence", "archiveFile", "archiveSha256", "archiveBytes", "publicKeyFile", "fingerprint"):
+                    self.assertEqual(config[name], world.config[name])
+                originals, pins = pipeline.acquisition_originals(config)
+                self.assertEqual(set(originals), {"release", "body", "review", "script"} |
+                    (pipeline.projection.TECHNICAL_REVIEW_INPUTS if technical else set()))
+                self.assertEqual(pins, {name: pipeline.sha(raw) for name, raw in originals.items()})
+                self.assertEqual(json.loads(originals["review"])["checkedAtUtcSeconds"],
+                    json.loads(before[args.original_review])["checkedAtUtcSeconds"])
+                self.assertEqual([argv[1] for argv, _, _ in world.calls],
+                    ["--verify-daily-reservation", "--distribution-verify-floor-history"])
+                self.assertEqual(world.calls[0][0][-1], "LEGACY_FENCE")
+                self.assertEqual({path: path.read_bytes() for path in before}, before)
+                self.assertEqual(world.remote.events, [])
+                if technical:
+                    self.assertNotEqual(json.loads(originals["bindingScript"])["scriptSha256"],
+                                        json.loads(originals["script"])["scriptSha256"])
+
+    def test_manual_and_technical_pairs_are_complete_before_native(self):
+        """全roleのfile/hash欠損と技術組の一部指定を黙って省かない。"""
+        import prepare_daily_index_config as prepare
+        with self.world() as world:
+            args = self.arguments(world, technical=True)
+            for prefix in ("original", "binding"):
+                for role in ("release", "body", "review", "script"):
+                    for suffix in ("", "_sha256"):
+                        name = prefix+"_"+role+suffix
+                        changed = SimpleNamespace(**dict(vars(args), **{name: None}))
+                        with self.subTest(missing=name), self.assertRaises(ValueError):
+                            prepare.inherit_config(changed, budget=world)
+                        self.assertFalse(changed.control_directory.exists())
+                        self.assertEqual(world.calls, [])
+
+    def test_scope_pin_hashes_root_and_capacity_fail_before_native(self):
+        """scope改変、原pin不正、想定外rootと64KiB超過を新control作成前に拒否する。"""
+        import prepare_daily_index_config as prepare
+        with self.world() as world:
+            args = self.arguments(world)
+            outside = world.root.parent / "outside.body"
+            outside.write_bytes(args.original_body.read_bytes())
+            for values in ({"acquisition_scope_sha256": "0"*64}, {"acquisition_scope_sha256": "bad"},
+                           {"acquisition_scope": None}, {"original_body": outside},
+                           {"original_review_sha256": "0"*64}, {"original_script_sha256": True}):
+                with self.subTest(values=tuple(values)), self.assertRaises(ValueError):
+                    prepare.inherit_config(SimpleNamespace(**dict(vars(args), **values)), budget=world)
+                self.assertFalse(args.control_directory.exists())
+                self.assertEqual(world.calls, [])
+            raw = args.acquisition_scope.read_bytes()
+            args.acquisition_scope.write_bytes(raw+b" "*(65537-len(raw)))
+            args.acquisition_scope_sha256 = pipeline.sha(args.acquisition_scope.read_bytes())
+            with self.assertRaisesRegex(ValueError, "FILE_SIZE"):
+                prepare.inherit_config(args, budget=world)
+            self.assertFalse(args.control_directory.exists())
+
+    def test_scope_unknown_fields_and_mismatched_bindings_fail(self):
+        """明示schema/公開pin/manifest/selector/最大値を同じ共通validatorへ通す。"""
+        import prepare_daily_index_config as prepare
+        with self.world() as world:
+            args = self.arguments(world)
+            scope = json.loads(args.acquisition_scope.read_bytes())
+            variants = []
+            for field, value in (("unexpected", True), ("collectorManifestSha256", "0"*64),
+                                 ("publicFingerprint", "0"*64), ("schema", "dc-fixed-distribution-acquisition-scope-v1")):
+                variants.append(dict(scope, **{field: value}))
+            for field, value in (("unexpected", True), ("selectedInf", "../outside.inf"),
+                                 ("modelSection", "Fixture.NTx86"), ("maximumBytes", 0), ("maximumBytes", True)):
+                changed = deepcopy(scope)
+                changed["acquisitionBinding"][field] = value
+                variants.append(changed)
+            for index, changed in enumerate(variants):
+                raw = pipeline.canonical(changed)
+                args.acquisition_scope.write_bytes(raw)
+                args.acquisition_scope_sha256 = pipeline.sha(raw)
+                with self.subTest(variant=index), self.assertRaises(ValueError):
+                    prepare.inherit_config(args, budget=world)
+                self.assertFalse(args.control_directory.exists())
+                self.assertEqual(world.calls, [])
+
+    def test_selector_conflict_and_old_mode_input_mixing_fail(self):
+        import prepare_daily_index_config as prepare
+        with self.world() as world:
+            args = self.arguments(world)
+            for values in ({"selected_inf": "OTHER/W11/fixture.inf"},
+                           {"acquisition_scope": None, "acquisition_scope_sha256": None}):
+                with self.subTest(values=tuple(values)), self.assertRaises(ValueError):
+                    prepare.inherit_config(SimpleNamespace(**dict(vars(args), **values)), budget=world)
+                self.assertFalse(args.control_directory.exists())
+                self.assertEqual(world.calls, [])
+
+    def test_changed_manual_body_witness_or_terms_refuse_without_fallback(self):
+        import prepare_daily_index_config as prepare
+        for variant in ("body", "witness", "binding-terms"):
+            with self.subTest(variant=variant), self.world() as world:
+                args = self.arguments(world, technical=True)
+                if variant == "body":
+                    args.original_body.write_bytes(args.original_body.read_bytes()+b"changed")
+                    args.original_body_sha256 = pipeline.sha(args.original_body.read_bytes())
+                else:
+                    name = "original_review" if variant == "witness" else "binding_release"
+                    value = json.loads(getattr(args, name).read_bytes())
+                    if variant == "witness":
+                        value["scriptWitnesses"][0]["literal"] = "not-present-in-reviewed-script"
+                    else:
+                        value["termsRevision"] = "changed terms"
+                    raw = pipeline.canonical(value)
+                    getattr(args, name).write_bytes(raw)
+                    setattr(args, name+"_sha256", pipeline.sha(raw))
+                with self.assertRaises(ValueError):
+                    prepare.inherit_config(args, budget=world)
+                self.assertFalse(args.control_directory.exists())
+                self.assertEqual(world.calls, [])
+
+    def test_loader_refuses_selector_rebound_after_regular_issue(self):
+        import prepare_daily_index_config as prepare
+        with self.world() as world:
+            path = prepare.inherit_config(self.arguments(world), budget=world)
+            config = json.loads(path.read_bytes())
+            config["selectedInf"] = "OTHER/W11/fixture.inf"
+            path.write_bytes(pipeline.canonical(config))
+            with self.assertRaisesRegex(ValueError, "^NATIVE_INF_BINDING$"):
+                pipeline.load_config(path)
+
+    def test_cli_unknown_duplicate_and_noninherit_modes_fail(self):
+        import prepare_daily_index_config as prepare
+        for mode in ([], ["--repair-config", "old.json"], ["--public-config-from", "old.json"],
+                     ["--continue-presign-config", "old.json"]):
+            with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, "^INHERIT_MODE_REQUIRED$"):
+                prepare.preparation_arguments(mode+["--original-body", "body"])
+        with self.assertRaisesRegex(ValueError, "^PREPARE_ARGUMENT_DUPLICATE$"):
+            prepare.preparation_arguments(["--inherit-config", "old", "--original-body", "a", "--original-body=b"])
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            prepare.preparation_arguments(["--inherit-config", "old", "--unexpected-field", "value"])
 
 
 if __name__ == "__main__":

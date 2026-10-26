@@ -2,7 +2,7 @@
 /**
  * @file local_collector_projected_cache_tests.cpp
  * @brief CACHEの拒否・保持・決定的更新を非通信検証します。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/29  有限CACHE更新と旧中断互換のfixtureを追加。
  * Ver.01.00.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.00.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 通信・実成功CACHE保存・条件付き送信は行いません。
@@ -249,8 +250,9 @@ void strictChecks( TestContext &context, const CollectorProjectedJobInput &job,
 			DRIVERCRATE_EXPECT(
 				context,
 				result.status == (mode == 0U ? Status::HASH_FAILURE : Status::OUT_OF_MEMORY) &&
-					result.error == (mode == 0U ? E_ACCESSDENIED : E_OUTOFMEMORY) && calls == 1U &&
-					out.request.empty()) ;
+					result.error ==
+						static_cast<NativeError>( mode == 0U ? E_ACCESSDENIED : E_OUTOFMEMORY) &&
+					calls == 1U && out.request.empty()) ;
 		}
 	}
 

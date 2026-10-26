@@ -2,7 +2,7 @@
 /**
  * @file local_collector_metadata_codec.cpp
  * @brief 収集metadataの有限往復と元scope関係を検査します。
- * @version 01.00.02
+ * @version 01.00.03
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/29  固定fieldと全対象関係のcodecを追加。
  * Ver.01.00.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.00.02   Shunji Ogawa  2026/10/16 codec引数の読書き状態と例外変換の戻り値を明記。
+ * Ver.01.00.03 Shunji Ogawa  2026/10/26  IntelのSHA-512単独射影を算法別に検証。
  * </pre>
  *
  * @note Hash生成、予約受入、永続保存は行いません。
@@ -895,7 +896,10 @@ void validateRecord( const CollectorProjectedJobInput &job, const CollectorProje
 			payload.kind == OfficialDistributionPayloadKind::STANDARD_INF_PACKAGE &&
 			payload.fileDisplayName.size() > 4U && payload.fileDisplayName.ends_with( L".zip") &&
 			payload.expectedContentType == L"application/zip" &&
-			publicHash( payload.publishedSha256, 64U) &&
+			(asus ? publicHash( payload.publishedSha256, 64U)
+				  : (!payload.publishedSha256.empty() || !payload.publishedSha512.empty()) &&
+						(payload.publishedSha256.empty() ||
+						 publicHash( payload.publishedSha256, 64U))) &&
 			(payload.publishedSha512.empty() || publicHash( payload.publishedSha512, 128U)) &&
 			(!payload.publishedSizeBytes ||
 			 (*payload.publishedSizeBytes > 0U &&

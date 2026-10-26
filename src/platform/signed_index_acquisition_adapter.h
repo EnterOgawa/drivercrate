@@ -2,8 +2,8 @@
 /**
  * @file signed_index_acquisition_adapter.h
  * @brief 保存署名索引を既存取得承認・一回grantと内容検査入力へ結びます。
- * @version 01.04.01
- * @date 2026/10/12
+ * @version 01.05.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -25,6 +25,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.04.00 Shunji Ogawa  2026/10/13  Local受入buildの独立固定能力を明示。
  * Ver.01.04.01 Shunji Ogawa  2026/10/16  通常配布の独立取得集合とlocal排他を説明。
+ * Ver.01.05.00 Shunji Ogawa  2026/10/24  原関係集合とunique device数を分離する共有claim契約へ整合。
  * </pre>
  *
  * @note 同workerで直列使用します。通常profileは配布鍵のrevision1取得認可を別登録します。
@@ -165,7 +166,7 @@ private:
 		std::optional<OfficialPreparationTask> claimedTask ;
 		/// 元taskから発行した同issuer内のexact grant ID。未発行は0です。
 		std::uint64_t						   grantId{} ;
-		/// 同完全payload根拠と取得policyへ結合した最大32の原関係位置。
+		/// 同完全payload根拠と全取得policyへ結合した原関係位置。既存lookup最大32768枠内です。
 		std::vector<std::size_t>			   relationIndices ;
 	} ;
 	/** @brief 原recordへ結合した有限全文のRAM所有値です。 */

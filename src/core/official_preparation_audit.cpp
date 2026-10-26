@@ -2,8 +2,8 @@
 /**
  * @file official_preparation_audit.cpp
  * @brief 取得後監査と表示候補の照合。
- * @version 01.03.01
- * @date 2026/09/06
+ * @version 01.04.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -33,6 +33,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/12  同版INF代替を独立Windows tokenへ限定して区別。
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.03.01 Shunji Ogawa  2026/10/15  全体INF件数と元承認deviceの有限pair数を照合。
+ * Ver.01.04.00 Shunji Ogawa  2026/10/24  同device複数原参照をunique作用device数と分けて検証。
  * </pre>
  *
  * @note 取得成功と独立した監査結果を扱い、全監査合格時だけ新規候補を検証します。
@@ -50,6 +51,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <set>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
@@ -291,7 +293,6 @@ bool validatePreparationAuditReports( const OfficialPreparationOperationResult &
 		   item->result.error != 0 || item->result.byteCount == 0U ||
 		   item->result.byteCount > decision->target.maximumBytes ||
 		   descriptor == descriptors.end() || report.candidates.empty() ||
-		   report.candidates.size() > decision->target.deviceCount ||
 		   report.candidates.size() > 4096U - updated.size()) {
 			return false ;
 		}
@@ -338,6 +339,7 @@ bool validatePreparationAuditReports( const OfficialPreparationOperationResult &
 			return false ;
 		}
 
+		std::unordered_set<std::wstring> reportDevices ;	// 元参照行数と作用device数を分離します。
 		// 各行は既存の表示専用候補に限り、監査以外のfieldを更新対象にしない。
 		for( const OfficialPreparationCandidateAudit &row : report.candidates) {
 			const auto found = known.find( row.identity) ;	// 表示済みの候補を指す非所有参照。
@@ -366,11 +368,17 @@ bool validatePreparationAuditReports( const OfficialPreparationOperationResult &
 				return false ;
 			}
 
+			reportDevices.insert( candidate.deviceIdentity) ;
 			candidate.audit = row.audit ;
 			// 既存の公式候補監査契約もそのまま適用する。
 			if( !isCandidateAuditValid( candidate, *descriptor)) {
 				return false ;
 			}
+		}
+
+		// 同deviceの複数原recordは保持し、新しい作用deviceの追加は承認件数で拒否します。
+		if( reportDevices.size() > decision->target.deviceCount) {
+			return false ;
 		}
 
 		// 候補発行の全体が整合しない場合は監査表示も適用しない。

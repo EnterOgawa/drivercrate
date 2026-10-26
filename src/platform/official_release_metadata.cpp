@@ -2,7 +2,7 @@
 /**
  * @file official_release_metadata.cpp
  * @brief 公式配布情報の取得と系列照合。
- * @version 01.04.01
+ * @version 01.05.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -44,6 +44,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/09/23  Wi-Fi ZIPの同一buttonへEULA本文を結合。
  * Ver.01.04.00 Shunji Ogawa  2026/09/28  収集専用Intel解析へ制御を伝播し旧field変換を共用。
  * Ver.01.04.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.05.00 Shunji Ogawa  2026/10/26  Ethernetの公開SHA-512と改訂parser版を保持。
  * </pre>
  *
  * @note 系列ごとの有限な公式metadataを扱います。Broadcomの二文書解析は専用Providerへ委譲します。
@@ -754,11 +755,12 @@ static bool parseOfficialReleaseRecordCore( CollectorParserContext	  *control,
 		parsed.packageVersion  = std::move( intel.version) ;
 		parsed.displaySize	   = std::move( intel.displaySize) ;
 		parsed.publishedSha256 = std::move( intel.sha256) ;
+		parsed.publishedSha512 = std::move( intel.sha512) ;
 		parsed.downloadUrl	   = std::move( intel.downloadUrl) ;
 		parsed.license		   = OfficialReleaseLicense::ACCEPTANCE_BEFORE_DOWNLOAD ;
 		parsed.eulaRevision	   = std::move( intel.eulaRevision) ;
 		parsed.eulaText		   = std::move( intel.eulaText) ;
-		parsed.parserRevision  = 2U ;
+		parsed.parserRevision  = 3U ;
 		// 本文保持は同意や利用条件の成立ではない。取得targetとpayload能力は別工程。
 	}
 	// Intel Ethernet Windows 11 record 727998の専用profileから明示metadataを取り込む。
@@ -775,11 +777,12 @@ static bool parseOfficialReleaseRecordCore( CollectorParserContext	  *control,
 		parsed.packageVersion  = std::move( intel.version) ;
 		parsed.displaySize	   = std::move( intel.displaySize) ;
 		parsed.publishedSha256 = std::move( intel.sha256) ;
+		parsed.publishedSha512 = std::move( intel.sha512) ;
 		parsed.downloadUrl	   = std::move( intel.downloadUrl) ;
 		parsed.license		   = OfficialReleaseLicense::ACCEPTANCE_BEFORE_DOWNLOAD ;
 		parsed.eulaRevision	   = std::move( intel.eulaRevision) ;
 		parsed.eulaText		   = std::move( intel.eulaText) ;
-		parsed.parserRevision  = 3U ;
+		parsed.parserRevision  = 4U ;
 		// 概算38.6 MBをexact byte数へ変換せず、publishedSizeBytesは未指定のままにする。
 	}
 	// Ricoh の共通印刷 driver page は専用 parser の一致結果を使用する。

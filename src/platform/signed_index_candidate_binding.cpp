@@ -2,8 +2,8 @@
 /**
  * @file signed_index_candidate_binding.cpp
  * @brief 索引の私有取得根拠とWindows指定bindingを原子的候補へ接続します。
- * @version 01.06.02
- * @date 2026/10/12
+ * @version 01.07.01
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -30,6 +30,8 @@
  * Ver.01.06.00 Shunji Ogawa  2026/10/15  実選択Needs前提を追加INFと分離し候補評価へ接続。
  * Ver.01.06.01 Shunji Ogawa  2026/10/15  再検証成功時も元全体内容検査のHRESULTをreportへ維持。
  * Ver.01.06.02 Shunji Ogawa  2026/10/19  取得前参照へ現在driverのpackage情報を継承しない。
+ * Ver.01.07.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
+ * Ver.01.07.01 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -57,6 +59,7 @@
 #include <set>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace drivercrate::signed_index_candidate_binding_detail {
 namespace {
@@ -181,6 +184,118 @@ std::unique_ptr<ScopedInstallerFixture> Access::createInstaller( InstallerNative
 
 namespace drivercrate {
 namespace {
+/** @brief 原digestとnative小文字SHA-256の完全一致だけを検査します。
+ * @param[in] digest 認証recordの原SHA-256です。
+ * @param[in] text 同owned byteから計算した小文字hexです。
+ * @return 全64桁一致の場合だけtrueです。
+ */
+[[nodiscard]] bool matchesDigest( const IndexManifestSha256 &digest,
+								 const std::wstring_view	text) noexcept
+{
+	constexpr std::wstring_view HEX = L"0123456789abcdef" ;	// byte表現だけの固定表です。
+	// 部分hashや別表記を補完しません。
+	if( text.size() != digest.size() * 2U) {
+		return false ;
+	}
+
+	// 同じ元digestの全byteを比較します。
+	for( std::size_t index = 0U; index < digest.size(); ++index) {
+		// 上位/下位四bitの原表現を一致させます。
+		if( text[index * 2U] != HEX[digest[index] >> 4U] ||
+		   text[index * 2U + 1U] != HEX[digest[index] & 15U]) {
+			return false ;
+		}
+	}
+
+	return true ;
+}
+
+/** @brief 公開ASCIIとnativeの元文字列を実path化せず比較します。
+ * @param[in] published 認証recordの原公開値です。
+ * @param[in] actual 同HINFまたは同owned inventoryの原値です。
+ * @param[in] member trueは公開slashとnative backslashの区切りだけを対応させます。
+ * @return memberは原case一致、他はWindows ordinalのcase非依存一致だけtrueです。
+ */
+[[nodiscard]] bool matchesPublishedText( const std::string_view	published,
+										const std::wstring_view actual, const bool member = false)
+{
+	// Class/Models/PnPはWindowsが同一と扱うcase差だけを許し、原公開値は保持します。
+	if( !member) {
+		const std::wstring value{published.begin(),
+								 // Codecが検査済みの有限ASCIIです。
+								 published.end()} ;
+		return CompareStringOrdinal( value.data(), static_cast<int>( value.size()), actual.data(),
+									static_cast<int>( actual.size()), TRUE) == CSTR_EQUAL ;
+	}
+
+	return published.size() == actual.size() &&
+		   std::ranges::equal(
+			   published, actual, [member]( const unsigned char expected, const wchar_t observed) {
+				   return expected < 0x80U && static_cast<wchar_t>( expected) ==
+												  (member && observed == L'\\' ? L'/' : observed) ;
+			   }) ;
+}
+
+/** @brief 元認証recordの完全identityを同owned INF/現HINFの観測へ照合します。
+ * @param[in] original 原lookupのrelationIndexから戻った未変更recordです。
+ * @param[in] inspection 同取得のouter原hash/sizeです。
+ * @param[in] hint 同private sealが原recordへ結んだ実outer identityです。
+ * @param[in] inf 同workspace/closureが所有する元INFです。
+ * @param[in] actual 同元HINFの原hash/Class/現在Modelsと公開ID全集合です。
+ * @return 全tuple一致の場合だけtrueです。rankやtokenは発行しません。
+ */
+[[nodiscard]] bool matchesPublishedInf( const IndexDistributionRecord	   &original,
+									   const CommonDriverPackageInspection &inspection,
+									   const IndexedDriverArchiveHint	   &hint,
+									   const CommonInfInspection		   &inf,
+									   const OfficialInfPublishedIdentity  &actual)
+{
+	const auto &identity = original.publishedIdentityEvidence ;	// 元recordだけの申告です。
+	const auto &package	 = original.packageEvidence ;			// 別recordのouter根拠を借りません。
+	// 公開identity不足や別member/原byteをrank成功で補完しません。
+	if( identity.state != IndexEvidenceState::PUBLISHED ||
+	   identity.kind != IndexIdentityEvidenceKind::INF || !identity.evidenceSha256 ||
+	   hint.archiveSha256 != inspection.archiveSha256 ||
+	   hint.archiveBytes != inspection.archiveBytes ||
+	   (package.size.value && *package.size.value != inspection.archiveBytes) ||
+	   ((!package.size.value ||
+		 (!package.publishedHash.sha256 && !package.calculatedHash.sha256)) &&
+		!matchesDigest( original.recordSha256, hint.recordSha256)) ||
+	   (package.publishedHash.sha256 &&
+		!matchesDigest( *package.publishedHash.sha256, inspection.archiveSha256)) ||
+	   (package.calculatedHash.sha256 &&
+		!matchesDigest( *package.calculatedHash.sha256, inspection.archiveSha256)) ||
+	   !matchesPublishedText( identity.nestedArchiveIdentity, inf.nestedArchivePath, true) ||
+	   !matchesPublishedText( identity.infIdentity, inf.infRelativePath, true) ||
+	   !matchesDigest( *identity.evidenceSha256, actual.infSha256) ||
+	   !matchesPublishedText( identity.classGuid, actual.classGuid)) {
+		return false ;
+	}
+
+	const auto model = std::ranges::find_if( actual.models, [&]( const auto &value) {
+		return matchesPublishedText( identity.modelSection, value.modelSection) ;
+	}) ; // 同現OS選択の原節だけです。
+	// 節欠損やIDの部分集合を同identityへ丸めません。
+	if( model == actual.models.end() ||
+	   std::ranges::count_if( actual.models,
+							 [&]( const auto &value) {
+								 return matchesPublishedText( identity.modelSection,
+															 value.modelSection) ;
+							 }) != 1 ||
+	   identity.pnpIds.size() != model->hardwareIds.size() + model->compatibleIds.size()) {
+		return false ;
+	}
+
+	// 順序だけを適合条件にせず、種別付き原ID全集合を完全一致させます。
+	return std::ranges::all_of( identity.pnpIds, [&]( const auto &id) {
+		const auto &ids =
+			id.kind == IndexPnpIdKind::HARDWARE ? model->hardwareIds : model->compatibleIds ;
+		return std::ranges::count_if( ids, [&]( const auto &value) {
+				   return matchesPublishedText( id.value, value) ;
+			   }) == 1 ;
+	}) ;
+}
+
 /** @brief 起動前から終端まで取得済みfileを書換え・削除から固定するRAIIです。 */
 class InstallerReadFile final {
 public:
@@ -276,7 +391,8 @@ private:
 	exitCode.reset() ;
 	reboot			  = false ;
 	const auto &calls = signed_index_candidate_binding_detail::installerCalls() ;	// 全表です。
-	std::array<wchar_t, 32768U> system{} ;											// Windows x64標準起動元だけです。
+	std::vector<wchar_t> system(
+		32768U) ;	// Windows x64標準起動元を同じ有限容量・ゼロ初期値で所有します。
 	// 固定Windows標準directoryの実受信長です。切捨てを拒否します。
 	const auto length = calls.systemDirectory( system.data(), static_cast<UINT>( system.size())) ;
 	// Windows標準directoryの欠損や切捨てを任意pathで補完しません。
@@ -724,7 +840,9 @@ std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession
 	// 元共有taskの全deviceを保持し、未表示deviceを推測追加しません。
 	for( const auto &value : references_) {
 		// 別taskの参照を同payloadへ無断で追加しません。
-		if( value.target == record.task.target) {
+		if( value.target == record.task.target && std::ranges::none_of( hints, [&]( const auto &hint) {
+			   return hint.deviceIdentity == value.hint.deviceIdentity ;
+		   })) {
 			hints.push_back( value.hint) ;
 		}
 	}
@@ -739,48 +857,109 @@ std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession
 	if( report.content == CandidateAuditGateState::PASSED && report.applicabilityError == 0U &&
 	   !record.installerHandoff) {
 		std::vector<DelegatedOfficialDeviceApplicability> applicability ;	// 元observer集計。
-		const DelegatedOfficialInfRankObserver			  observer =
+		const auto										  pairBegin =
+			// この取得の原record候補pairも既存4096枠へ制限します。
+			pairs_.size() ;
+		const DelegatedOfficialInfRankObserver observer =
 			[&]( ScanSessionId session, std::wstring_view device,
 				const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 				std::optional<std::uint32_t> &rank) {
-				Pair pair ;	// 元HRESULTとoptional rankを件数から推測しません。
+				rank.reset() ;
 				// Extension/SWCを独立した基本INF候補へ発行しません。
 				if( package.role != DriverPlanRole::BASE_DRIVER) {
 					rank.reset() ;
 					return NativeError{} ;
 				}
 
-				pair.recordIndex	= recordIndex ;
-				pair.deviceIdentity = device ;
-				const auto originalReference =
-					std::ranges::find_if( references_, [&]( const auto &value) {
-						return value.target == record.task.target &&
-							   value.candidate.deviceIdentity == device ;
-					}) ; // 同元record群と同deviceの独立参照。
-				// 同targetに元参照がないdeviceの観測を候補へ使用しません。
-				if( originalReference == references_.end()) {
-					return static_cast<NativeError>( E_UNEXPECTED) ;
-				}
-
-				pair.referenceIndex =
-					static_cast<std::size_t>( originalReference - references_.begin()) ;
 				const auto inf =
 					std::find_if( record.inspection.inspection.infs.begin(),
 								 record.inspection.inspection.infs.end(), [&]( const auto &value) {
 									 return value.workspace.get() == &workspace ;
 								 }) ; // 同実検査の所有INFだけへ結合します。
 				// 観測対象INFが所有検査集合に存在しなければ内部不整合を返します。
-				if( inf == record.inspection.inspection.infs.end()) {
+				if( inf == record.inspection.inspection.infs.end() ||
+				   inf->closure.packages.size() != 1U ||
+				   &inf->closure.packages.front() != &package) {
 					return static_cast<NativeError>( E_UNEXPECTED) ;
 				}
 
-				pair.infOrdinal =
-					static_cast<std::size_t>( inf - record.inspection.inspection.infs.begin()) ;
-				pair.observerError =
-					store.observeInfCandidateRank( session, device, workspace, package, rank) ;
-				pair.observedRank = rank ;
-				pairs_.push_back( std::move( pair)) ;
-				return pairs_.back().observerError ;
+				OfficialInfPublishedIdentity actual ;	// 同owned INFの現HINFを再読取りします。
+				// 同owned HINFからの元読取り診断だけを保持します。
+				const auto					 identityError =
+					readOfficialInfPublishedIdentity( workspace, package, actual) ;
+				// 公開tuple未確認をWindows rank成功へ代替しません。
+				if( identityError != 0U) {
+					return identityError ;
+				}
+
+				std::vector<std::size_t> matchingReferences ;	// 同元record/deviceだけの候補です。
+				std::set<std::size_t>
+							seenRecords ;								// 同recordの複数公開ID relationだけを重複除去します。
+				const auto &relations = record.lookup->relations() ;	// 元認証lookupです。
+				const auto &originals =
+					// 原byteの集合です。
+					record.lookup->snapshot().schemaReceipt().records() ;
+				// 先頭target/deviceへ丸めず、全元recordを同native INFへ独立照合します。
+				for( std::size_t referenceIndex = 0U; referenceIndex < references_.size();
+					++referenceIndex) {
+					const auto &reference = references_[referenceIndex] ;	// 同describeの原関係です。
+					// 別target/deviceを当該INFへ結びません。
+					if( reference.target != record.task.target ||
+					   reference.candidate.deviceIdentity != device ||
+					   reference.relationIndex >= relations.size()) {
+						continue ;
+					}
+
+					const auto &relation =
+						relations[reference.relationIndex] ;	// 原record位置を保持します。
+					// 元認証record/source/hashから外れた関係を補完しません。
+					if( relation.recordIndex >= originals.size() ||
+					   relation.context != record.context || !relation.deviceIdentity ||
+					   *relation.deviceIdentity != device) {
+						return static_cast<NativeError>( E_UNEXPECTED) ;
+					}
+
+					const auto &original =
+						originals[relation.recordIndex] ;	// 当該relationの元recordです。
+					// 別INFのrankを元recordへ流用せず、全集合の一致だけを候補にします。
+					if( relation.recordSha256 == original.recordSha256 &&
+					   relation.sourceId == original.sourceId &&
+					   relation.recordId == original.recordId &&
+					   matchesPublishedInf( original, record.inspection.inspection, record.hint,
+										   *inf, actual) &&
+					   seenRecords.insert( relation.recordIndex).second) {
+						matchingReferences.push_back( referenceIndex) ;
+					}
+				}
+
+				// 同tupleの元recordがないINFではWindows rank/tokenを発行しません。
+				if( matchingReferences.empty()) {
+					return NativeError{} ;
+				}
+
+				// 多relationをnative rank/tokenの発行上限拡張へ変換しません。
+				if( pairs_.size() - pairBegin > OFFICIAL_PREPARATION_MAXIMUM_PAIR_COUNT ||
+				   matchingReferences.size() >
+					   OFFICIAL_PREPARATION_MAXIMUM_PAIR_COUNT - (pairs_.size() - pairBegin)) {
+					return static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
+				}
+
+				const auto error = store.observeInfCandidateRank(
+					session, device, workspace, package, rank) ;	// 同INFだけの観測です。
+				// 同INFへ完全一致した全recordを保持し、別recordへ結果を再割当てしません。
+				for( const auto referenceIndex : matchingReferences) {
+					Pair pair ;	// 元HRESULTとoptional rankを件数から推測しません。
+					pair.recordIndex	= recordIndex ;
+					pair.referenceIndex = referenceIndex ;
+					pair.deviceIdentity = device ;
+					pair.infOrdinal =
+						static_cast<std::size_t>( inf - record.inspection.inspection.infs.begin()) ;
+					pair.observerError = error ;
+					pair.observedRank  = rank ;
+					pairs_.push_back( std::move( pair)) ;
+				}
+
+				return error ;
 			} ; // 同期callだけ借用し、元recordと元INFのordinalを保持します。
 		report.applicabilityError = inspectDelegatedOfficialDriverApplicability(
 			record.task.scanSessionId, record.delegated, record.inspection.inspection, hints,
@@ -815,6 +994,11 @@ std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession
 
 			++report.applicablePairCount ;
 			++report.publication.examinedPairCount ;
+			// 新tokenの作成より前にも全取得を通した既存4096route枠を確認します。
+			if( (pending_ ? pendingRoutes_.size() : routes_.size()) >= 4096U) {
+				throw std::length_error( "index routing limit") ;
+			}
+
 			// 明示依存を消さず、実閉包の一意な必要役割から私有計画を構築します。
 			if( package.hasExternalDependencies || !inf.requiredInfPackages.empty()) {
 				pair.bindingError = store.createRequiredInfInstallBinding(

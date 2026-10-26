@@ -2,7 +2,7 @@
 /**
  * @file common_inf_batch_tests.cpp
  * @brief 共通選択adapterの全件停止・直前照合・個別結果と失効を非導入で検証する。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  独立fakeの一括実行と共有所有試験を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/06  専用target向けの34定義試験hookを追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 実封印／file固定だけを使い、内容・rank・binding・導入は試験EXEだけのfakeとする。
@@ -386,7 +387,9 @@ struct BatchFixture {
 		} ;
 		initializationError = factory.initialize(
 			session, archive, evidence, OfficialDriverArchiveFormat::ZIP, rank, binder, release) ;
-		DRIVERCRATE_EXPECT( context, initializationError == (infCount > 128U ? E_INVALIDARG : 0)) ;
+		DRIVERCRATE_EXPECT( context, initializationError ==
+										(infCount > 128U ? static_cast<NativeError>( E_INVALIDARG)
+														 : NativeError{})) ;
 	}
 	/** @brief 一device用の内部計画を発行する。
 	 * @param[in,out] plan 空の発行先。
@@ -591,7 +594,8 @@ void runBatchTests( TestContext &context)
 							 report.result.updates[1].installOutcome == OutcomeCode::NOT_STARTED &&
 							 report.result.rebootRequired) ;
 			DRIVERCRATE_EXPECT( context,
-							   report.result.installError == (mode == 9U ? E_UNEXPECTED : E_FAIL)) ;
+							   report.result.installError ==
+								   static_cast<NativeError>( mode == 9U ? E_UNEXPECTED : E_FAIL)) ;
 		}
 		// 先行成功と後続未開始／失敗を個別に保持する。
 		else if( mode == 8U || mode == 10U || mode == 13U || mode == 15U || mode == 16U) {

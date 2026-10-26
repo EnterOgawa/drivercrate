@@ -299,6 +299,20 @@ class MonitorTests(unittest.TestCase):
             dm.run_once(self.registry, self.policy, copied, transport=self.transport, clock=lambda: self.now)
         self.assertEqual(len(self.calls), 2)
 
+    def test_obsolete_and_unknown_export_schema_reject_without_import(self):
+        self.run_monitor()
+        exported = self.root.parent / "exported"
+        dm.export_store(self.root, exported)
+        manifest = cr.read_json(exported / "manifest.json")
+        self.assertEqual(manifest["schema"], "dc-registry-monitor-export-v1")
+        for schema in ("dc-registry-monitor-export-v2", "unknown-export"):
+            manifest["schema"] = schema
+            (exported / "manifest.json").write_bytes(cr.json_bytes(manifest))
+            before = {path: path.read_bytes() for path in exported.rglob("*") if path.is_file()}
+            with self.assertRaisesRegex(cr.RegistryError, "EXPORT_MANIFEST_SCHEMA"):
+                dm.export_content(exported)
+            self.assertEqual(before, {path: path.read_bytes() for path in exported.rglob("*") if path.is_file()})
+
     def test_export_manifest_tamper_missing_extra_and_overwrite(self):
         self.run_monitor()
         exported = self.root.parent / "exported"

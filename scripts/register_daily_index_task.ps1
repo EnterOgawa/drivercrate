@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-ADR0344/0369の現在ユーザーTaskを生成し、新規登録または明示Action限定切替を行う。
+ADR0344/0369の現在ユーザーTaskを生成し、手動管理用の登録を行う。
 .NOTES
 作成者: Shunji Ogawa
 Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -40,7 +40,8 @@ function Assert-TaskProtectedAcl {
     # Ancestor create-file/create-directory alone cannot replace an existing protected child.
     # The actual file and its code-loading directory also forbid content creation/writes.
     $taskWriteMask = if ($Ancestor) { [int64]0x000D0040 } else { [int64]0x000D0156 }
-    foreach ($taskAce in $Acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])) {
+    $taskAccessRules = $Acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
+    foreach ($taskAce in $taskAccessRules) {
         if ($taskAce.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Allow -and
             ($taskAce.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::InheritOnly) -eq 0) {
             $taskSid = $taskAce.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
@@ -157,19 +158,23 @@ function Assert-TaskCutoverSnapshot {
         (Get-TaskCutoverNode $taskDocument '/t:Task/t:Principals/t:Principal/t:RunLevel').InnerText -cne 'HighestAvailable' -or
         $taskPrincipalNode.ChildNodes.Count -ne 3) { throw 'TASK_PRINCIPAL_REJECTED' }
     $taskTriggers = Get-TaskCutoverNode $taskDocument '/t:Task/t:Triggers'
+    $taskTriggerEnabled = @($taskTriggers.FirstChild.ChildNodes | Where-Object LocalName -CEQ 'Enabled')
+    $taskTriggerChildren = 4
+    $taskEnabledValid = $taskTriggerEnabled.Count -eq 1 -and $taskTriggerEnabled[0].InnerText -ceq 'true' -and
+        $taskTriggerEnabled[0].NamespaceURI -ceq 'http://schemas.microsoft.com/windows/2004/02/mit/task'
     # 元の単一日次trigger以外は、registration triggerを含めて全て拒否する。
     if ($taskTriggers.ChildNodes.Count -ne 1 -or $taskTriggers.FirstChild.LocalName -cne 'CalendarTrigger' -or
-        $taskTriggers.FirstChild.ChildNodes.Count -ne 4 -or
+        $taskTriggers.FirstChild.ChildNodes.Count -ne $taskTriggerChildren -or -not $taskEnabledValid -or
         (Get-TaskCutoverNode $taskDocument '/t:Task/t:Triggers/t:CalendarTrigger/t:StartBoundary').InnerText -cne '2026-10-16T15:00:00+09:00' -or
         (Get-TaskCutoverNode $taskDocument '/t:Task/t:Triggers/t:CalendarTrigger/t:EndBoundary').InnerText -cne '2026-10-22T15:31:00+09:00' -or
-        (Get-TaskCutoverNode $taskDocument '/t:Task/t:Triggers/t:CalendarTrigger/t:Enabled').InnerText -cne 'true' -or
         (Get-TaskCutoverNode $taskDocument '/t:Task/t:Triggers/t:CalendarTrigger/t:ScheduleByDay/t:DaysInterval').InnerText -cne '1') {
         throw 'TASK_ORIGINAL_TRIGGER_REQUIRED'
     }
     $taskSettings = Get-TaskCutoverNode $taskDocument '/t:Task/t:Settings'
+    $taskSettingsEnabled = 'true'
     if ((Get-TaskCutoverNode $taskDocument '/t:Task/t:Settings/t:MultipleInstancesPolicy').InnerText -cne 'IgnoreNew' -or
         (Get-TaskCutoverNode $taskDocument '/t:Task/t:Settings/t:ExecutionTimeLimit').InnerText -cne 'PT30M' -or
-        (Get-TaskCutoverNode $taskDocument '/t:Task/t:Settings/t:Enabled').InnerText -cne 'true' -or
+        (Get-TaskCutoverNode $taskDocument '/t:Task/t:Settings/t:Enabled').InnerText -cne $taskSettingsEnabled -or
         @($taskSettings.ChildNodes | Where-Object LocalName -EQ 'RestartOnFailure').Count -ne 0) { throw 'TASK_SETTINGS_REJECTED' }
     $taskActions = Get-TaskCutoverNode $taskDocument '/t:Task/t:Actions'
     if ($taskActions.GetAttribute('Context') -cne 'CurrentUser' -or $taskActions.ChildNodes.Count -ne 1 -or
@@ -287,6 +292,14 @@ function Read-TaskCutoverText {
     $taskItem = Get-Item -LiteralPath $Path -Force
     if ($taskItem.PSIsContainer -or $taskItem.Length -gt 65536 -or $Sha256 -cnotmatch '^[0-9a-f]{64}$' -or
         (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $Sha256) { throw 'TASK_INPUT_PIN' }
+    return Read-TaskCutoverUtf8 $Path
+}
+
+function Read-TaskCutoverUtf8 {
+    <# .SYNOPSIS
+    検査後のUTF-8読取りI/O境界。testはこの境界だけを人工fileへ写像する。
+    #>
+    param([string]$Path)
     return [IO.File]::ReadAllText($Path, [Text.UTF8Encoding]::new($false, $true))
 }
 
@@ -398,7 +411,8 @@ if ($taskMode -eq 'ACTION_UPDATE') {
     $taskAuthority | Add-Member -NotePropertyName authoritySha256 -NotePropertyValue $CutoverAuthoritySha256 -Force
     $taskOldText = Read-TaskCutoverText $taskAuthority.oldConfigPath $taskAuthority.expectedOldConfigSha256
     $taskNewText = Read-TaskCutoverText $Config $taskAuthority.proposedConfigSha256
-    if (($taskNewText | ConvertFrom-Json).pythonExe -cne $Python) { throw 'TASK_PYTHON_CONFIG_MISMATCH' }
+    $taskExpectedPython = ($taskNewText | ConvertFrom-Json).pythonExe
+    if ($taskExpectedPython -cne $Python) { throw 'TASK_PYTHON_CONFIG_MISMATCH' }
     $taskProposedText = Read-TaskCutoverText $NewXml $taskAuthority.proposedXmlSha256
     $taskCutoverService = New-Object -ComObject 'Schedule.Service'
     $taskCutoverService.Connect()
@@ -417,8 +431,9 @@ if ($taskMode -eq 'ACTION_UPDATE') {
                 (ConvertTo-TaskRegistrationXml $Xml), $Flags, $Sid, $null, 3, $null)
         }
     }
+    $taskInputValidator = ${function:Assert-TaskCutoverInputs}
     Invoke-TaskActionCutover $taskAuthority $taskCutoverIdentity.User.Value $taskOldText $taskNewText $taskProposedText `
-        $taskCutoverScheduler ${function:Assert-TaskCutoverInputs} { [DateTime]::UtcNow }
+        $taskCutoverScheduler $taskInputValidator { [DateTime]::UtcNow }
     return
 }
 # 切替authorityの指定を既定生成や新規登録へ暗黙に流用しない。

@@ -19,8 +19,8 @@ def page_requests(registry: dict, locators: dict, policy: dict, base_requests: l
     # 限定経路の衝突・graph検証を共用し、旧モードの範囲を変更しない。
     limited = locator_requests(registry, locators, policy, base_requests)
     combined = {row['id']: {**row, 'locatorIds': [],
-        'holdReason': 'NATIVE_COORDINATION_PENDING' if row['held'] else None,
-        'observationDueAt': None} for row in base_requests if row['kind'] == 'PAGE'}
+        'holdReason': 'NATIVE_COORDINATION_PENDING' if row['held'] else None}
+        for row in base_requests if row['kind'] == 'PAGE'}
     for row in limited:
         if row['kind'] == 'PAGE':
             combined[row['id']] = row

@@ -2,7 +2,7 @@
 /**
  * @file maintenance_inf_integrity_tests.cpp
  * @brief 保守INFの部分署名・全参照と通常導入policyを専用link境界で検証する。
- * @version 01.09.00
+ * @version 01.09.01
  * @date 2026/10/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * Ver.01.07.00 Shunji Ogawa  2026/10/08  同行eventlog親marker分離の九群と子U・全軸・私有容量保持を回帰。
  * Ver.01.08.00 Shunji Ogawa  2026/10/08  合成INFのAPI全値境界12群42構成と元byte結合を観測。
  * Ver.01.09.00 Shunji Ogawa  2026/10/08  同元byteと全値・caller・named13の52合成構成と元失敗保持を回帰。
+ * Ver.01.09.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 一同期scopeで架空署名とnative観測を借用する。実署名・PnP・導入の合格ではない。
@@ -625,12 +626,12 @@ void testFieldCompletenessBoundary( TestContext &context)
 {
 	const std::vector<FieldBoundaryCase> cases = makeFieldBoundaryCases() ;	// 元生成matrix。
 	DRIVERCRATE_EXPECT( context, cases.size() == 42U) ;
-	std::array<wchar_t, 32768U> modulePath{} ;							// 同processの実SetupAPI.dllだけを照会する。
-	const HMODULE module	   = GetModuleHandleW( L"setupapi.dll") ;	// 借用module、解放しない。
-	const DWORD	  moduleLength = GetModuleFileNameW( module, modulePath.data(),
-													// 終端を除く実path長。
-													static_cast<DWORD>( modulePath.size())) ;
-	std::wstring  moduleHash ;	// 同loaded moduleに対応するfileの全byte hash。
+	std::vector<wchar_t> modulePath( 32768U) ;							// 同processの実SetupAPI.dllだけを照会する。
+	const HMODULE		 module = GetModuleHandleW( L"setupapi.dll") ;	// 借用module、解放しない。
+	const DWORD			 moduleLength = GetModuleFileNameW( module, modulePath.data(),
+														   // 終端を除く実path長。
+														   static_cast<DWORD>( modulePath.size())) ;
+	std::wstring		 moduleHash ;	// 同loaded moduleに対応するfileの全byte hash。
 	DRIVERCRATE_EXPECT(
 		context,
 		module != nullptr && moduleLength > 0U && moduleLength < modulePath.size() &&
@@ -978,7 +979,8 @@ void testCompleteValueProof( TestContext &context)
 			// 元fileの継続writerは既存hashにも競合し、元whole failureを保持する。
 			case 2U:
 				located	 = false ;
-				expected = HRESULT_FROM_WIN32( ERROR_SHARING_VIOLATION) ;
+				expected = static_cast<drivercrate::NativeError>(
+					HRESULT_FROM_WIN32( ERROR_SHARING_VIOLATION)) ;
 				break ;
 
 			// 元固定hashの改変はbyte整合全体失敗。
@@ -1000,8 +1002,9 @@ void testCompleteValueProof( TestContext &context)
 
 			// 元fileなしは既存file読取HRESULTで拒否する。
 			case 6U:
-				located	 = false ;
-				expected = HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND) ;
+				located = false ;
+				expected =
+					static_cast<drivercrate::NativeError>( HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)) ;
 				break ;
 
 			// 65componentではprivate proofだけを閉じ、元readerへ進む。
@@ -1142,7 +1145,8 @@ void testCompleteValueProof( TestContext &context)
 				replace( "%13%\\payload\\sample.sys\"", "%Huge%%Huge%\"") ;
 				inf += "[Strings]\r\nHuge=\"" + std::string( 4095U, 'a') + "\"\r\n" ;
 				located	 = false ;
-				expected = HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
+				expected = static_cast<drivercrate::NativeError>(
+					HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
 				break ;
 
 			// exact REG_EXPAND_SZ以外の型を対象へ広げない。
@@ -1249,7 +1253,8 @@ void testCompleteValueProof( TestContext &context)
 				replace( "sample.sys\"\r\n[FixtureCopy]",
 						"sample.sys\"" + std::string( 60U, ',') + "\r\n[FixtureCopy]") ;
 				located	 = false ;
-				expected = HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
+				expected = static_cast<drivercrate::NativeError>(
+					HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
 				break ;
 
 			// 元known FAILEDのbyte/HRESULTを元全体結果へ保持する。
@@ -1290,8 +1295,9 @@ void testCompleteValueProof( TestContext &context)
 			// 第3fieldの13は元不正参照HRESULTを保留へ弱めない。
 			case 49U:
 				replace( "2,ServiceInstall,Events", "2,%13%\\ServiceInstall,Events") ;
-				located	 = false ;
-				expected = HRESULT_FROM_WIN32( ERROR_INVALID_DATA) ;
+				located = false ;
+				expected =
+					static_cast<drivercrate::NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
 				break ;
 
 			// 空の不正Strings family headerも全locale候補から飛ばさない。
@@ -2515,8 +2521,10 @@ void testNamedServiceIntegrity( TestContext &context)
 											   file.target[2] == L'\\' &&
 											   file.target.find( L'%') == std::wstring::npos) ;
 						DRIVERCRATE_EXPECT(
-							context, file.location == MaintenanceInfFileLocation::UNSUPPORTED &&
-										 file.error == HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) ;
+							context,
+							file.location == MaintenanceInfFileLocation::UNSUPPORTED &&
+								file.error == static_cast<drivercrate::NativeError>(
+												  HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))) ;
 					}
 				}
 			}
@@ -2853,10 +2861,11 @@ void testEventLogMarkerSeparation( TestContext &context)
 		}
 
 		MaintenanceInfReferences result ;	// 読取不能では公開参照を空に保つ。
-		DRIVERCRATE_EXPECT( context, inspectMaintenanceInfReferences(
-										invalid.source, members, L"sample.inf", invalid.rootSeeds,
-										CONTENT_POLICY.infPolicy,
-										result) == HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			inspectMaintenanceInfReferences( invalid.source, members, L"sample.inf",
+											invalid.rootSeeds, CONTENT_POLICY.infPolicy, result) ==
+				static_cast<drivercrate::NativeError>( HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW))) ;
 		DRIVERCRATE_EXPECT( context,
 						   result.files.empty() && result.inventory.visitedSections.empty()) ;
 	}
@@ -2890,7 +2899,8 @@ void testEventLogMarkerSeparation( TestContext &context)
 											result.referenceCoverage ==
 												MaintenanceInfReferenceCoverage::INCOMPLETE) ;
 		} else {
-			DRIVERCRATE_EXPECT( context, error == HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) &&
+			DRIVERCRATE_EXPECT( context, error == static_cast<drivercrate::NativeError>(
+													 HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) &&
 											result.files.empty() &&
 											result.inventory.visitedSections.empty()) ;
 		}
@@ -2926,10 +2936,12 @@ struct ExpandedBinaryBoundaryCase {
  */
 void testExpandedBinaryIntegrity( TestContext &context)
 {
-	constexpr NativeError UNSUPPORTED = HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;	// 合法未対応。
+	constexpr NativeError UNSUPPORTED = static_cast<drivercrate::NativeError>(
+		// 合法未対応。
+		HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) ;
 	constexpr NativeError DUPLICATE =
 		// 一宣言へ絞れない元状態。
-		HRESULT_FROM_WIN32( ERROR_DUP_NAME) ;
+		static_cast<drivercrate::NativeError>( HRESULT_FROM_WIN32( ERROR_DUP_NAME)) ;
 	constexpr std::array CASES{
 		ExpandedBinaryBoundaryCase{},
 		ExpandedBinaryBoundaryCase{.destinations = "FixtureCopy=11\r\n",
@@ -2968,7 +2980,8 @@ void testExpandedBinaryIntegrity( TestContext &context)
 								   .locationError = DUPLICATE},
 		ExpandedBinaryBoundaryCase{.missingSys	  = true,
 								   .location	  = MaintenanceInfFileLocation::MISSING,
-								   .locationError = HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)},
+								   .locationError = static_cast<drivercrate::NativeError>(
+									   HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND))},
 		ExpandedBinaryBoundaryCase{.destinations  = "FixtureCopy=13,payload\r\n",
 								   .binary		  = "%13%\\payload\\sample.sys",
 								   .location	  = MaintenanceInfFileLocation::UNSUPPORTED,
@@ -3264,10 +3277,12 @@ void testActionPolicyRows( TestContext &context)
 		const bool rejected =
 			index >= 4U ;						// 正常四形を保持し、Run／CoInstaller登録とsoftware予約を拒否する。
 		const auto &row = result.infs.front() ;	// 同じ原rootへ結ぶ一結果。
-		DRIVERCRATE_EXPECT(
-			context, row.state == (rejected ? CommonInfInspectionState::CLOSURE_REJECTED
-											: CommonInfInspectionState::VERIFIED) &&
-						 row.error == (rejected ? HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) : 0)) ;
+		DRIVERCRATE_EXPECT( context,
+						   row.state == (rejected ? CommonInfInspectionState::CLOSURE_REJECTED
+												  : CommonInfInspectionState::VERIFIED) &&
+							   row.error == (rejected ? static_cast<drivercrate::NativeError>(
+															HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))
+													  : 0)) ;
 		DRIVERCRATE_EXPECT( context, fixture.signatureCalls.size() == (rejected ? 0U : 1U) &&
 										fixture.nativeCalls == 0U) ;
 		// 署名到達した正例は同じINF／CATと一source集合だけを要求する。
@@ -3306,12 +3321,13 @@ void testActionPolicyRows( TestContext &context)
 							 (fileCoverageComplete ? MaintenanceInspectionState::PASSED
 												   : MaintenanceInspectionState::NOT_CHECKED) &&
 						 content.integrity.error == 0) ;
-		DRIVERCRATE_EXPECT( context,
-						   content.installRoute.state ==
-								   (rejected ? MaintenanceInspectionState::UNSUPPORTED
-											 : MaintenanceInspectionState::PASSED) &&
-							   content.installRoute.error ==
-								   (rejected ? HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) : 0)) ;
+		DRIVERCRATE_EXPECT( context, content.installRoute.state ==
+											(rejected ? MaintenanceInspectionState::UNSUPPORTED
+													  : MaintenanceInspectionState::PASSED) &&
+										content.installRoute.error ==
+											(rejected ? static_cast<drivercrate::NativeError>(
+															HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))
+													  : 0)) ;
 		DRIVERCRATE_EXPECT( context,
 						   content.applicability.state == MaintenanceInspectionState::NOT_CHECKED &&
 							   content.dependency.state == MaintenanceInfDependencyState::NONE) ;
@@ -3356,9 +3372,10 @@ void testReverificationBytes( TestContext &context)
 		}
 
 		const NativeError error = reverifyCommonDriverInf( inf) ;	// 実hash／sizeの拒否。
-		DRIVERCRATE_EXPECT( context,
-						   error == (index % 2U == 0U ? HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)
-													  : SIGNATURE_FAILURE)) ;
+		DRIVERCRATE_EXPECT( context, error == (index % 2U == 0U
+												  ? static_cast<drivercrate::NativeError>(
+														HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND))
+												  : SIGNATURE_FAILURE)) ;
 		DRIVERCRATE_EXPECT( context, fixture.signatureCalls.empty()) ;
 	}
 }

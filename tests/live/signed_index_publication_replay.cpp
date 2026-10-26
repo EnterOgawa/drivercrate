@@ -2,7 +2,7 @@
 /**
  * @file signed_index_publication_replay.cpp
  * @brief 保存公式応答と実ZIPを索引監査・候補公開まで非通信で再生します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/15  同byteの取得後全経路と非機密例外観測を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note HTTP・DNS・回線分類だけを人工応答へ置換します。CAT・INF・rankは実APIです。
@@ -357,9 +358,11 @@ int replay( const wchar_t *zip, const wchar_t *html)
 	} ;
 	services.httpTransport = &transport ;
 	services.costReader	   = []() { return std::make_unique<ReplayCost>() ; } ;
-	SignedIndexScanSession	index ;				// Compositeより長く私有recordを保持します。
-	CompositeUpdateProvider provider ;			// 実native Driver Storeと全publication validatorです。
-	const SessionEnd		cleanup{index} ;	// issuer生存中に全tokenを回収します。
+	SignedIndexScanSession index ;	// Compositeより長く私有recordを保持します。
+	const auto			   providerOwner =
+		std::make_unique<CompositeUpdateProvider>() ;	// 大きなfixtureを元scopeだけで所有します。
+	auto &provider = *providerOwner ;					// 実native Driver Storeと全publication validatorです。
+	const SessionEnd cleanup{index} ;					// issuer生存中に全tokenを回収します。
 	signed_index_candidate_binding_detail::Access::observePublication( &publication, nullptr) ;
 	signed_index_candidate_binding_detail::Access::bind( provider, index, services, 22501U) ;
 	ScanOptions options ;	// 他のnetwork ProviderやWUAを実行しません。
@@ -399,8 +402,8 @@ int replay( const wchar_t *zip, const wchar_t *html)
 		index.augmentPreparationPlan( plan, services, planned) ;
 	std::printf(
 		"REPLAY stage=2 planError=%u authority=%u targets=%zu unavailable=%zu htmlReplays=%u\n",
-		planError, planned.authorityError, plan.targets.size(), planned.unavailableRelations,
-		state.htmlReplays) ;
+		static_cast<unsigned>( planError), static_cast<unsigned>( planned.authorityError),
+		plan.targets.size(), planned.unavailableRelations, state.htmlReplays) ;
 	// 元一対象と元規約だけに承認を限定します。
 	if( planError != 0U || planned.authorityError != 0U || plan.targets.size() != 1U ||
 	   plan.targets.front().eulaRevision !=
@@ -432,14 +435,14 @@ int replay( const wchar_t *zip, const wchar_t *html)
 	const auto summary = index.preparationSummary( approval.operationId) ;	// 例外前の確定内容です。
 	std::printf(
 		"REPLAY stage=3 approval=%u control=%u items=%zu summary=%zu payloadReplays=%u newGet=0 nativeCat=1 nativeRank=1\n",
-		static_cast<unsigned>( result.approvalError), result.controlError, result.items.size(),
-		summary.items.size(), state.payloadReplays) ;
+		static_cast<unsigned>( result.approvalError), static_cast<unsigned>( result.controlError),
+		result.items.size(), summary.items.size(), state.payloadReplays) ;
 	// 元取得・内容の各結果を成功へ補完せず数値だけ保持します。
 	for( const auto &item : summary.items) {
 		std::printf(
 			"REPLAY_CONTENT acquisition=%u acquisitionError=%u content=%u error=%u bound=%u files=%zu infs=%zu accepted=%zu\n",
-			static_cast<unsigned>( item.acquisition), item.acquisitionError,
-			static_cast<unsigned>( item.content), item.contentError,
+			static_cast<unsigned>( item.acquisition), static_cast<unsigned>( item.acquisitionError),
+			static_cast<unsigned>( item.content), static_cast<unsigned>( item.contentError),
 			static_cast<unsigned>( item.inputBound), item.inventoryFileCount, item.infCount,
 			item.acceptedInfCount) ;
 	}
@@ -454,10 +457,11 @@ int replay( const wchar_t *zip, const wchar_t *html)
 		candidates += report.publishedCandidates.size() ;
 		std::printf(
 			"REPLAY_AUDIT content=%u contentError=%u accepted=%u examined=%u applicable=%u failed=%u publicationExamined=%u published=%u excluded=%u publicationError=%u\n",
-			static_cast<unsigned>( report.content), report.contentError, report.acceptedInfCount,
-			report.examinedPairCount, report.applicablePairCount, report.failedPairCount,
-			report.publication.examinedPairCount, report.publication.publishedCount,
-			report.publication.excludedPairCount, report.publication.firstError) ;
+			static_cast<unsigned>( report.content), static_cast<unsigned>( report.contentError),
+			report.acceptedInfCount, report.examinedPairCount, report.applicablePairCount,
+			report.failedPairCount, report.publication.examinedPairCount,
+			report.publication.publishedCount, report.publication.excludedPairCount,
+			static_cast<unsigned>( report.publication.firstError)) ;
 	}
 
 	std::printf(

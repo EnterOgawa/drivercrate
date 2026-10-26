@@ -2,7 +2,7 @@
 /**
  * @file official_inf_archive_binding_tests.cpp
  * @brief 封印ZIP／PE内INF結合の非通信・非導入境界試験。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/06  明示PE形式の全INF原範囲とZIP内経路の試験を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/10/06  封印native由来と使用中固定の隔離試験を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/10/06  原CATの保持・未使用固定・非封印拒否を試験。
+ * Ver.01.03.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 架空取得と自身の保護workspaceだけを使用し、署名・実device・導入を呼ばない。
@@ -337,9 +338,15 @@ void testBindingDirect( TestContext &context)
 		CreateFileW( path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
 					FILE_FLAG_OPEN_REPARSE_POINT, nullptr) ;	// 一時的な既存writer。
 	DRIVERCRATE_EXPECT( context, writer != INVALID_HANDLE_VALUE) ;
-	DRIVERCRATE_EXPECT( context, binding.verify( *fixture.session, fixture.workspace) ==
-									HRESULT_FROM_WIN32( ERROR_SHARING_VIOLATION)) ;
-	DRIVERCRATE_EXPECT( context, CloseHandle( writer) != FALSE) ;
+	DRIVERCRATE_EXPECT( context,
+					   binding.verify( *fixture.session, fixture.workspace) ==
+						   static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_SHARING_VIOLATION))) ;
+	// 作成失敗は元assertionへ残し、無効handleを解放しない。
+	if( writer != INVALID_HANDLE_VALUE) {
+		const BOOL closed = CloseHandle( writer) ;	// 解放結果だけを一回assertする。
+		DRIVERCRATE_EXPECT( context, closed != FALSE) ;
+	}
+
 	std::string changed( INF_TEXT) ;	// 同size・異なる内容。
 	changed.front() = '!' ;
 	DRIVERCRATE_EXPECT( context, changeBindingFile( path, changed)) ;
@@ -637,8 +644,9 @@ void testBindingJunction( TestContext &context)
 	BindingJunctionData removal ;	// 同じtagを解除する有限header。
 	const bool			removed =
 		DeviceIoControl( handle, FSCTL_DELETE_REPARSE_POINT, &removal, 8U, nullptr, 0U, &returned,
-						nullptr) != FALSE ;	// 参照先fileは削除しない。
-	DRIVERCRATE_EXPECT( context, CloseHandle( handle) != FALSE) ;
+						nullptr) != FALSE ;		// 参照先fileは削除しない。
+	const BOOL closed = CloseHandle( handle) ;	// Reparse解除後の所有handleを一回だけ解放する。
+	DRIVERCRATE_EXPECT( context, closed != FALSE) ;
 	DRIVERCRATE_EXPECT( context, removed) ;
 	DRIVERCRATE_EXPECT( context, error == E_ACCESSDENIED) ;
 	DRIVERCRATE_EXPECT( context,
@@ -1239,10 +1247,12 @@ void testCatalogBinding( TestContext &context)
 					FILE_FLAG_OPEN_REPARSE_POINT, nullptr) ;	// 既存CATのwriter競合。
 	DRIVERCRATE_EXPECT( context, writer != INVALID_HANDLE_VALUE) ;
 	DRIVERCRATE_EXPECT( context, binding.verify( *fixture.session, fixture.workspace) ==
-									HRESULT_FROM_WIN32( ERROR_SHARING_VIOLATION)) ;
+									static_cast<drivercrate::NativeError>(
+										HRESULT_FROM_WIN32( ERROR_SHARING_VIOLATION))) ;
 	// 先行open失敗時に無効handleをcloseしない。
 	if( writer != INVALID_HANDLE_VALUE) {
-		DRIVERCRATE_EXPECT( context, CloseHandle( writer) != FALSE) ;
+		const BOOL closed = CloseHandle( writer) ;	// 競合検証を終えた所有writerを一回だけ解放する。
+		DRIVERCRATE_EXPECT( context, closed != FALSE) ;
 	}
 
 	OfficialInfArchiveBinding moved( std::move( binding)) ;	// INF／CATを一緒に移設する。

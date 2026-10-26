@@ -8,8 +8,6 @@ SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
 
-from datetime import timedelta
-
 import collector_registry as cr
 import collector_public_locators as pl
 
@@ -30,8 +28,7 @@ def locator_requests(registry: dict, locators: dict, policy: dict, base_requests
                    "LOCATOR_REQUEST_ID")
         item = {**row, "sourceIds": set(row["sourceIds"]), "recordIds": set(row["recordIds"]),
                 "productIds": set(row["productIds"]), "expectedLinks": set(row["expectedLinks"]),
-                "locatorIds": set(), "holdReason": "NATIVE_COORDINATION_PENDING" if row["held"] else None,
-                "observationDueAt": None}
+                "locatorIds": set(), "holdReason": "NATIVE_COORDINATION_PENDING" if row["held"] else None}
         combined[row["id"]] = item
     by_locator = {row["id"]: row for row in locators["locators"]}
     for locator in locators["locators"]:
@@ -39,7 +36,7 @@ def locator_requests(registry: dict, locators: dict, policy: dict, base_requests
         key = cr.digest((kind + "\n" + locator["url"]).encode("utf-8"))
         item = combined.setdefault(key, {"id": key, "kind": kind, "url": locator["url"],
             "sourceIds": set(), "recordIds": set(), "productIds": set(), "expectedLinks": set(),
-            "held": False, "locatorIds": set(), "holdReason": None, "observationDueAt": None})
+            "held": False, "locatorIds": set(), "holdReason": None})
         item["sourceIds"].add(locator["sourceId"])
         item["recordIds"].update(locator["recordIds"])
         item["productIds"].update(locator["productIds"])
@@ -50,9 +47,6 @@ def locator_requests(registry: dict, locators: dict, policy: dict, base_requests
         elif kind == "LINK":
             reason = locator["requestCondition"] if locator["requestCondition"] != "NO_EXTRA_PROMPT_OBSERVED" else (
                 "PAYLOAD_APPROVAL_REQUIRED")
-        else:
-            due = cr.observation_timestamp(locator["pageObservation"]["checkedAt"]) + timedelta(days=1)
-            item["observationDueAt"] = max(item["observationDueAt"] or due, due)
         if HOLD_PRIORITY[reason] > HOLD_PRIORITY[item["holdReason"]]:
             item["holdReason"] = reason
         item["held"] |= reason is not None
@@ -63,7 +57,7 @@ def locator_requests(registry: dict, locators: dict, policy: dict, base_requests
             # 入力順によらず全parentの存在を確保し、後のrow結合へ引き継ぐ。
             parent_item = combined.setdefault(parent_key, {"id": parent_key, "kind": "PAGE", "url": parent["url"],
                 "sourceIds": set(), "recordIds": set(), "productIds": set(), "expectedLinks": set(),
-                "held": False, "locatorIds": set(), "holdReason": None, "observationDueAt": None})
+                "held": False, "locatorIds": set(), "holdReason": None})
             parent_item["expectedLinks"].add(cr.digest(locator["url"].encode("utf-8")))
     result = []
     for _, item in sorted(combined.items()):

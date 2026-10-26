@@ -2,7 +2,7 @@
 /**
  * @file scan_measurement_diagnostics_tests.cpp
  * @brief 固定条件scan profileと非機密ASCII reportの決定的試験。
- * @version 01.00.03
+ * @version 01.00.04
  * @date 2026/09/10
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.00.01 Shunji Ogawa  2026/09/15  組み込みProvider件数を更新。
  * Ver.01.00.02 Shunji Ogawa  2026/10/12  31登録と明示9件を分離し解決拒否後の空集合参照を防止。
  * Ver.01.00.03 Shunji Ogawa  2026/10/12  metadata探索判定の必要宣言を直接includeして単独compileを修正。
+ * Ver.01.00.04 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 架空candidate、公開registryの固定IDおよびfake streamだけを使います。
@@ -38,6 +39,7 @@
  */
 //------------------------------------------------------------------------------
 
+#include <memory>
 #include "scan_measurement_diagnostics_tests.h"
 
 #include "core/metadata_search.h"
@@ -560,6 +562,9 @@ void testCompleteReportAndRedaction( TestContext &context)
  */
 void testPartialAndRejectedReports( TestContext &context)
 {
+	// 各戻り値とtemporaryを短命なfactory内で生成し、元の検証期間はheapで所有する。
+	const auto ownResult = []( auto make) { return std::make_unique<decltype( make())>( make()) ; } ;
+
 	const ScanOptions options = fixtureOptions( context) ;	// 明示9 Provider設定。
 	DRIVERCRATE_EXPECT( context,
 					   options.enabledProviderIds.size() == baselineScanProviderIds().size() &&
@@ -571,10 +576,12 @@ void testPartialAndRejectedReports( TestContext &context)
 		return ;
 	}
 
-	ScanResult partial =
-		// 個別失敗を含む結果。
-		fixtureResult( options, OutcomeCode::SUCCEEDED_WITH_ERRORS) ;
-	ProviderScanReport *const wua = findReport( partial, WINDOWS_UPDATE_PROVIDER_ID) ;	// 失敗元。
+	const auto				  partialOwner = ownResult( [&] {
+		   return	// 個別失敗を含む結果。
+			   fixtureResult( options, OutcomeCode::SUCCEEDED_WITH_ERRORS) ;
+	   }) ;								   // 同じ元結果を単独所有する。
+	auto					 &partial = *partialOwner ;										// 元所有者と同じscopeだけで結果を借用する。
+	ProviderScanReport *const wua	  = findReport( partial, WINDOWS_UPDATE_PROVIDER_ID) ;	// 失敗元。
 	DRIVERCRATE_EXPECT( context, wua != nullptr) ;
 	// WUA reportが存在する場合だけ、検索失敗とnative診断を設定する。
 	if( wua != nullptr && wua->coverage.measurement.has_value()) {
@@ -611,22 +618,33 @@ void testPartialAndRejectedReports( TestContext &context)
 		DRIVERCRATE_EXPECT( context, output.str().empty()) ;
 	} ; // 各不正snapshotを同じ出力不変条件で検証する。
 
-	ScanResult unknownContextId = fixtureResult( options) ;	// Contextだけに未知IDを含む結果。
+	const auto unknownContextIdOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &unknownContextId = *unknownContextIdOwner ;	// Contextだけに未知IDを含む結果。
 	unknownContextId.measurement->context.enabledProviderIds.front() = L"unregistered-provider" ;
 	expectRejected( std::move( unknownContextId)) ;
 
-	ScanResult emptyContextId = fixtureResult( options) ;	// 空IDを含む同数の有効集合。
+	const auto emptyContextIdOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &emptyContextId = *emptyContextIdOwner ;	// 空IDを含む同数の有効集合。
 	emptyContextId.measurement->context.enabledProviderIds.front().clear() ;
 	expectRejected( std::move( emptyContextId)) ;
 
-	ScanResult duplicateContextId = fixtureResult( options) ;	// 9件のまま一IDが重複した集合。
+	const auto duplicateContextIdOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &duplicateContextId = *duplicateContextIdOwner ;	// 9件のまま一IDが重複した集合。
 	duplicateContextId.measurement->context.enabledProviderIds[1] =
 		duplicateContextId.measurement->context.enabledProviderIds.front() ;
 	expectRejected( std::move( duplicateContextId)) ;
 
-	ScanResult missingContextId =
-		// 公開契約は有効だが固定profileより一件少ない結果。
-		fixtureResult( options) ;
+	const auto missingContextIdOwner = ownResult( [&] {
+		return	// 公開契約は有効だが固定profileより一件少ない結果。
+			fixtureResult( options) ;
+	}) ;												 // 同じ元結果を単独所有する。
+	auto &missingContextId = *missingContextIdOwner ;	// 元所有者と同じscopeだけで結果を借用する。
 	missingContextId.measurement->context.enabledProviderIds.pop_back() ;
 	ProviderScanReport *const missingContextReport =
 		// 除いたIDのreport。
@@ -643,9 +661,11 @@ void testPartialAndRejectedReports( TestContext &context)
 					   isPublishedScanMeasurementValid( FIXTURE_OPERATION_ID, missingContextId)) ;
 	expectRejected( std::move( missingContextId)) ;
 
-	ScanResult extraContextId =
-		// 公開契約は有効だが固定profileより一件多い結果。
-		fixtureResult( options) ;
+	const auto extraContextIdOwner = ownResult( [&] {
+		return	// 公開契約は有効だが固定profileより一件多い結果。
+			fixtureResult( options) ;
+	}) ;												  // 同じ元結果を単独所有する。
+	auto	  &extraContextId = *extraContextIdOwner ;	// 元所有者と同じscopeだけで結果を借用する。
 	extraContextId.measurement->context.enabledProviderIds.emplace_back( ASUS_PROVIDER_ID) ;
 	ProviderScanReport *const extraContextReport =
 		// 余剰IDの既存report。
@@ -660,8 +680,11 @@ void testPartialAndRejectedReports( TestContext &context)
 	extraContextReport->outcome = OutcomeCode::SUCCESS ;
 	DRIVERCRATE_EXPECT( context,
 					   isPublishedScanMeasurementValid( FIXTURE_OPERATION_ID, extraContextId)) ;
-	ScanResult otherKnownContextId =
-		extraContextId ;	// 9件だがWUAを別の登録済みProviderへ置換した集合。
+	const auto otherKnownContextIdOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return extraContextId ; }) ;
+	auto &otherKnownContextId =
+		*otherKnownContextIdOwner ;	// 9件だがWUAを別の登録済みProviderへ置換した集合。
 	expectRejected( std::move( extraContextId)) ;
 	otherKnownContextId.measurement->context.enabledProviderIds.erase(
 		otherKnownContextId.measurement->context.enabledProviderIds.begin()) ;
@@ -671,77 +694,124 @@ void testPartialAndRejectedReports( TestContext &context)
 					   isPublishedScanMeasurementValid( FIXTURE_OPERATION_ID, otherKnownContextId)) ;
 	expectRejected( std::move( otherKnownContextId)) ;
 
-	ScanResult defaultContext =
-		// 明示profileを既定選択と誤申告したcontext。
-		fixtureResult( options) ;
+	const auto defaultContextOwner = ownResult( [&] {
+		return	// 明示profileを既定選択と誤申告したcontext。
+			fixtureResult( options) ;
+	}) ;												  // 同じ元結果を単独所有する。
+	auto	  &defaultContext = *defaultContextOwner ;	// 元所有者と同じscopeだけで結果を借用する。
 	defaultContext.measurement->context.usedDefaultProviders = true ;
 	expectRejected( std::move( defaultContext)) ;
 
-	ScanResult invalidExtent = fixtureResult( options) ;	// 未知確定度を含むsnapshot。
+	const auto invalidExtentOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &invalidExtent = *invalidExtentOwner ;	// 未知確定度を含むsnapshot。
 	invalidExtent.measurement->network.combined.eligibleDeviceCount.extent =
 		static_cast<MeasurementExtent>( 99) ;
 	expectRejected( std::move( invalidExtent)) ;
 
-	ScanResult wrongSession = fixtureResult( options) ;	// Contextだけ別sessionのsnapshot。
+	const auto wrongSessionOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &wrongSession = *wrongSessionOwner ;	// Contextだけ別sessionのsnapshot。
 	wrongSession.measurement->context.scanSessionId += 1U ;
 	expectRejected( std::move( wrongSession)) ;
 
-	ScanResult missingReport = fixtureResult( options) ;	// 無効Provider report一件を欠くsnapshot。
+	const auto missingReportOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &missingReport = *missingReportOwner ;	// 無効Provider report一件を欠くsnapshot。
 	missingReport.providerReports.pop_back() ;
 	expectRejected( std::move( missingReport)) ;
 
-	ScanResult unknownId = fixtureResult( options) ;	// 未登録IDへ置換した同数report。
+	const auto unknownIdOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &unknownId = *unknownIdOwner ;	// 未登録IDへ置換した同数report。
 	unknownId.providerReports.front().descriptor.id = L"unregistered-provider" ;
 	expectRejected( std::move( unknownId)) ;
 
-	ScanResult emptyId = fixtureResult( options) ;	// 空IDで元のreportを隠す不正結果。
+	const auto emptyIdOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &emptyId = *emptyIdOwner ;	// 空IDで元のreportを隠す不正結果。
 	emptyId.providerReports.front().descriptor.id.clear() ;
 	expectRejected( std::move( emptyId)) ;
 
-	ScanResult duplicateId = fixtureResult( options) ;	// 件数は31のまま一件が重複・一件が欠落。
+	const auto duplicateIdOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &duplicateId			   = *duplicateIdOwner ;	// 件数は31のまま一件が重複・一件が欠落。
 	duplicateId.providerReports[1] = duplicateId.providerReports.front() ;
 	std::reverse( duplicateId.providerReports.begin(), duplicateId.providerReports.end()) ;
 	expectRejected( std::move( duplicateId)) ;
 
-	ScanResult displayDrift = fixtureResult( options) ;	// ID以外の表示名変更も拒否する。
+	const auto displayDriftOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &displayDrift = *displayDriftOwner ;	// ID以外の表示名変更も拒否する。
 	displayDrift.providerReports.front().descriptor.displayName = SECRET_SENTINEL ;
 	expectRejected( std::move( displayDrift)) ;
 
-	ScanResult capabilityDrift = fixtureResult( options) ;	// 同じIDのcapability差分。
+	const auto capabilityDriftOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &capabilityDrift = *capabilityDriftOwner ;	// 同じIDのcapability差分。
 	capabilityDrift.providerReports.front().descriptor.capabilities = 0U ;
 	expectRejected( std::move( capabilityDrift)) ;
 
-	ScanResult tierDrift = fixtureResult( options) ;	// 取得元選択tierだけが不一致。
+	const auto tierDriftOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &tierDrift = *tierDriftOwner ;	// 取得元選択tierだけが不一致。
 	tierDrift.providerReports.front().descriptor.selectionTier =
 		static_cast<ProviderSelectionTier>( 99) ;
 	expectRejected( std::move( tierDrift)) ;
 
-	ScanResult basisDrift = fixtureResult( options) ;	// 探索根拠だけが不一致。
+	const auto basisDriftOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &basisDrift = *basisDriftOwner ;	// 探索根拠だけが不一致。
 	basisDrift.providerReports.front().descriptor.discoveryBasis =
 		static_cast<CandidateDiscoveryBasis>( 99) ;
 	expectRejected( std::move( basisDrift)) ;
 
-	ScanResult noticeDrift = fixtureResult( options) ;	// 導入注意区分だけが不一致。
+	const auto noticeDriftOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &noticeDrift = *noticeDriftOwner ;	// 導入注意区分だけが不一致。
 	noticeDrift.providerReports.front().descriptor.installNotice =
 		static_cast<InstallNoticeKind>( 99) ;
 	expectRejected( std::move( noticeDrift)) ;
 
-	ScanResult defaultDrift = fixtureResult( options) ;	// 既定有効状態だけが不一致。
+	const auto defaultDriftOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &defaultDrift = *defaultDriftOwner ;	// 既定有効状態だけが不一致。
 	defaultDrift.providerReports.front().descriptor.enabledByDefault = false ;
 	expectRejected( std::move( defaultDrift)) ;
 
-	ScanResult policyDrift = fixtureResult( options) ;	// 同じIDへ任意policyを付けた不正結果。
+	const auto policyDriftOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &policyDrift = *policyDriftOwner ;	// 同じIDへ任意policyを付けた不正結果。
 	policyDrift.providerReports.front().descriptor.officialSourcePolicyId = L"unregistered-policy" ;
 	expectRejected( std::move( policyDrift)) ;
 
-	ScanResult disabledEnabledProvider =
-		// 明示有効Providerを未実行へ変えた結果。
-		fixtureResult( options) ;
+	const auto disabledEnabledProviderOwner = ownResult( [&] {
+		return	// 明示有効Providerを未実行へ変えた結果。
+			fixtureResult( options) ;
+	}) ; // 同じ元結果を単独所有する。
+	auto	  &disabledEnabledProvider =
+		*disabledEnabledProviderOwner ;	// 元所有者と同じscopeだけで結果を借用する。
 	disabledEnabledProvider.providerReports.front().state	= ProviderScanState::DISABLED ;
 	disabledEnabledProvider.providerReports.front().outcome = OutcomeCode::NOT_STARTED ;
 	expectRejected( std::move( disabledEnabledProvider)) ;
 
-	ScanResult invalidResource = fixtureResult( options) ;	// 未登録policyを持つresource。
+	const auto invalidResourceOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &invalidResource = *invalidResourceOwner ;	// 未登録policyを持つresource。
 	DRIVERCRATE_EXPECT( context,
 					   appendFixtureResource( context, invalidResource, NVIDIA_PROVIDER_ID, {})) ;
 	ProviderScanReport *const resourceReport = findReport( invalidResource, NVIDIA_PROVIDER_ID) ;
@@ -753,31 +823,43 @@ void testPartialAndRejectedReports( TestContext &context)
 
 	expectRejected( std::move( invalidResource)) ;
 
-	ScanResult missingMeasurement = fixtureResult( options) ;	// 旧契約の計測なしsnapshot。
+	const auto missingMeasurementOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &missingMeasurement = *missingMeasurementOwner ;	// 旧契約の計測なしsnapshot。
 	missingMeasurement.measurement.reset() ;
 	expectRejected( std::move( missingMeasurement)) ;
 
-	ScanResult unknownState = fixtureResult( options) ;	// 定義外Provider stateを持つsnapshot。
+	const auto unknownStateOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &unknownState = *unknownStateOwner ;	// 定義外Provider stateを持つsnapshot。
 	unknownState.providerReports.front().state = static_cast<ProviderScanState>( 99) ;
 	expectRejected( std::move( unknownState)) ;
 
-	ScanResult versionMismatch = fixtureResult( options) ;	// 実行版と異なるcontext version。
+	const auto versionMismatchOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	auto &versionMismatch = *versionMismatchOwner ;	// 実行版と異なるcontext version。
 	versionMismatch.measurement->context.applicationVersion = L"9.9.9" ;
 	expectRejected( std::move( versionMismatch)) ;
 
-	const ScanResult valid = fixtureResult( options) ;	// Profile検証中に変更しない有効snapshot。
+	const auto validOwner =
+		// 同じ元結果を単独所有する。
+		ownResult( [&] { return fixtureResult( options) ; }) ;
+	const auto &valid = *validOwner ;	// Profile検証中に変更しない有効snapshot。
 	// 入力profileの拒否でも既存文字列とstreamの無出力を同時に確認する。
-	const auto		 expectRejectedOptions = [&context, &valid]( const ScanOptions &invalid) {
-		  std::string unchanged = "unchanged" ;	// 構築失敗時に保持する呼出し側の値。
-		  DRIVERCRATE_EXPECT( context,
-								 !buildScanMeasurementReport( FIXTURE_OPERATION_ID, FIXTURE_VERSION,
-															 invalid, valid, unchanged)) ;
-		  DRIVERCRATE_EXPECT( context, unchanged == "unchanged") ;
-		  std::ostringstream output ;	// Profile拒否では書込みを許さないstream。
-		  DRIVERCRATE_EXPECT( context, writeScanMeasurementReport( output, FIXTURE_OPERATION_ID,
-																	 FIXTURE_VERSION, invalid, valid) ==
-											  ScanMeasurementReportStatus::CONTRACT_REJECTED) ;
-		  DRIVERCRATE_EXPECT( context, output.str().empty()) ;
+	const auto	expectRejectedOptions = [&context, &valid]( const ScanOptions &invalid) {
+		 std::string unchanged = "unchanged" ;	// 構築失敗時に保持する呼出し側の値。
+		 DRIVERCRATE_EXPECT( context,
+							!buildScanMeasurementReport( FIXTURE_OPERATION_ID, FIXTURE_VERSION,
+														invalid, valid, unchanged)) ;
+		 DRIVERCRATE_EXPECT( context, unchanged == "unchanged") ;
+		 std::ostringstream output ;	// Profile拒否では書込みを許さないstream。
+		 DRIVERCRATE_EXPECT( context, writeScanMeasurementReport( output, FIXTURE_OPERATION_ID,
+																FIXTURE_VERSION, invalid, valid) ==
+										 ScanMeasurementReportStatus::CONTRACT_REJECTED) ;
+		 DRIVERCRATE_EXPECT( context, output.str().empty()) ;
 	} ;
 
 	ScanOptions defaultOptions		   = options ;	// 既定自動解決を混在させた不正profile。

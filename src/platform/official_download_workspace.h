@@ -2,8 +2,8 @@
 /**
  * @file official_download_workspace.h
  * @brief 公式配布file用保護一時領域定義。
- * @version 01.00.01
- * @date 2026/09/02
+ * @version 01.01.00
+ * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -32,6 +32,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.01.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * </pre>
  *
  * @note 公式Providerの取得／展開fileをAdministratorsおよびSYSTEMだけが変更できる一時directoryへ保存し、自身が追跡する既知fileだけを削除します。
@@ -50,6 +51,14 @@
 #include <vector>
 
 namespace drivercrate {
+
+/** @brief nativeと公開identityに共通する安全なarchive member文法だけを検査します。
+ * @param[in] value 原ASCII相対member。全体160文字、要素96文字までです。
+ * @param[in] separator nativeはbackslash、公開identityはslashを明示します。
+ * @return 全要素が安全で指定以外の区切りを含まない場合だけtrueです。
+ * @note 正規化、filesystem path構築、I/O、取得/導入許可の発行を行いません。
+ */
+[[nodiscard]] bool isSafeOfficialArchiveMember( std::wstring_view value, wchar_t separator) noexcept ;
 
 //------------------------------------------------------------------------------
 // 保護一時領域class定義。

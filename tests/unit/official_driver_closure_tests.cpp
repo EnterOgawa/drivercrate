@@ -2,7 +2,7 @@
 /**
  * @file official_driver_closure_tests.cpp
  * @brief 公式driver package監査単体試験実装。
- * @version 01.09.01
+ * @version 01.09.02
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -57,6 +57,7 @@
  * Ver.01.08.00 Shunji Ogawa  2026/10/05  拡張容量の境界・超過と旧境界超過の正例を追加。
  * Ver.01.09.00 Shunji Ogawa  2026/10/06  参照元文脈・未解釈不足・最大量の架空検証を追加。
  * Ver.01.09.01 Shunji Ogawa  2026/10/07  必須byte欠落とroot署名の独立判定回帰を採用契約へ整合。
+ * Ver.01.09.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note Minizで生成した架空ZIPを使用し、INF、CAT、参照fileだけが保護workspaceへ抽出されることを検証します。
@@ -4828,7 +4829,8 @@ void testCommonReverificationTamperRejection( TestContext &context)
 						   WriteFile( file, TAMPERED.data(), static_cast<DWORD>( TAMPERED.size()),
 									 &written, nullptr) != FALSE) ;
 		DRIVERCRATE_EXPECT( context, written == TAMPERED.size()) ;
-		DRIVERCRATE_EXPECT( context, CloseHandle( file) != FALSE) ;
+		const BOOL closed = CloseHandle( file) ;	// 改変writerの解放を一回だけ評価する。
+		DRIVERCRATE_EXPECT( context, closed != FALSE) ;
 	}
 
 	DRIVERCRATE_EXPECT( context, reverifyCommonDriverInf( inspected) != 0) ;

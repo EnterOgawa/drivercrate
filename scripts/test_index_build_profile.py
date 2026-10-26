@@ -307,6 +307,269 @@ class IndexBuildProfileTests(unittest.TestCase):
         self.guard_case("P3-08-source-revision", self.good)
 
 
+class PackageBuildBindingTests(unittest.TestCase):
+    """production helperとbuilder入口のsource/cache/output境界を合成入力で検査する。"""
+
+    tools: ProfileTools | None = None
+
+    def setUp(self) -> None:
+        """所有tempに二つの通常cacheを作り、任意Python child/networkを拒否する。"""
+        if self.tools is None:
+            raise ToolResolutionError("Use --suite package: PACKAGE_NOT_RUN")
+        self.owner = tempfile.TemporaryDirectory(prefix="drivercrate-package-binding-")
+        self.addCleanup(self.owner.cleanup)
+        self.root = Path(self.owner.name).resolve()
+        self.source = self.root / "source 空白"
+        scripts = self.source / "scripts"
+        scripts.mkdir(parents=True)
+        self.build = self.root / "build"
+        self.build.mkdir()
+        (self.source / "build").mkdir()
+        for name in ("index_build_profile.ps1", "package-release.ps1", "package-collector.ps1",
+                     "package-collector-installer.ps1", "test-collector-installer.ps1"):
+            (scripts / name).write_bytes(bounded_read(ROOT / "scripts" / name, 65536))
+        module = self.source / "packaging/collector/collector-setup.psm1"
+        module.parent.mkdir(parents=True)
+        module.write_bytes(bounded_read(ROOT / "packaging/collector/collector-setup.psm1", 65536))
+        self.cache = {
+            "CMAKE_HOME_DIRECTORY:INTERNAL": self.source.as_posix(),
+            "CMAKE_GENERATOR:INTERNAL": "Ninja Multi-Config",
+            "CMAKE_CONFIGURATION_TYPES:STRING": "Debug;Release",
+            "DRIVERCRATE_BUILD_COLLECTOR:BOOL": "ON",
+            **{key + ":BOOL": "OFF" for key in ("DRIVERCRATE_BUILD_LIVE_TESTS", "DRIVERCRATE_ENABLE_ANALYZE",
+               "DRIVERCRATE_LOCAL_INDEX_ACCEPTANCE", "DRIVERCRATE_LOCAL_INDEX_ACQUISITION")},
+            "DRIVERCRATE_LOCAL_INDEX_PUBLIC_BLOB:FILEPATH": "",
+            "DRIVERCRATE_LOCAL_INDEX_PUBLIC_SHA256:STRING": "",
+            "DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES:PATH": "",
+        }
+        self.save_cache()
+        self.save_cache(self.source / "build")
+        self.runner = scripts / "binding-check.ps1"
+        self.runner.write_text('''param([string]$Mode,[string]$Build,[string]$Output,[string]$Extra)
+$ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'index_build_profile.ps1')
+try {
+    if ($Mode -eq 'restore') {
+        Invoke-IndexPackageBuildAndRestore -Operation {
+            if ($Extra -in @('primary','both')) { throw 'PRIMARY_SENTINEL' }; 'OPERATION_OK'
+        } -Restore { if ($Extra -in @('restore','both')) { throw 'RESTORE_SENTINEL' } }
+    } elseif ($Mode -eq 'overlap') {
+        Assert-IndexPackageDistinctPaths -Paths @($Build,$Output)
+    } else {
+        if ($Mode -in @('reparse','dangling')) {
+            function Get-Item {
+                [CmdletBinding()]param([string]$LiteralPath,[switch]$Force)
+                $item=Microsoft.PowerShell.Management\\Get-Item -LiteralPath $LiteralPath -Force
+                if ($LiteralPath -eq $Build) {
+                    return [pscustomobject]@{Attributes=[IO.FileAttributes]::ReparsePoint;PSIsContainer=$true}
+                }; return $item
+            }
+            if ($Mode -eq 'dangling') {
+                function Test-Path {
+                    [CmdletBinding()]param([string]$LiteralPath)
+                    if ($LiteralPath -eq $Build) { return $false }
+                    return Microsoft.PowerShell.Management\\Test-Path -LiteralPath $LiteralPath
+                }
+            }
+        }
+        $context=Resolve-IndexPackageBuild -BuildDirectory $Build -RequireCollector:($Mode -eq 'collector')
+        if ($Mode -eq 'output') { [void](Assert-IndexPackageOutput -Context $context -Path $Output -Fresh) }
+        if ($Mode -eq 'executable') { Assert-IndexPackageExecutable -Executable $Output }
+    }
+    'PACKAGE_BINDING_OK'
+} catch {
+    [Console]::Error.WriteLine($_.Exception.Message)
+    if ($_.Exception -is [AggregateException]) {
+        [Console]::Error.WriteLine('ORIGINAL_RECORDS=' + $_.Exception.Data.Count)
+    }
+    exit 1
+}
+''', encoding="utf-8", newline="\n")
+        self.expected_argv = None
+        for name in ("socket", "getaddrinfo"):
+            block = patch.object(socket, name, side_effect=AssertionError("NETWORK_DENIED"))
+            block.start()
+            self.addCleanup(block.stop)
+        block = patch.object(subprocess, "Popen", side_effect=self.allowed_popen)
+        block.start()
+        self.addCleanup(block.stop)
+
+    def save_cache(self, build: Path | None = None, raw: str | None = None) -> None:
+        """実CMakeを起動せず、所有temp内だけに有限cache fixtureを保存する。"""
+        text = raw if raw is not None else "".join(key + "=" + value + "\n" for key, value in self.cache.items())
+        ((build or self.build) / "CMakeCache.txt").write_text(text, encoding="utf-8", newline="\n")
+
+    def allowed_popen(self, argv, *args, **kwargs):
+        """当caseが固定したPS入口argv一件だけを許可する。偽EXE/CMakeは起動しない。"""
+        if argv != self.expected_argv:
+            raise AssertionError("PACKAGE_CHILD_DENIED")
+        return fixed_popen(argv, self.expected_argv, self.root, args, kwargs)
+
+    def child(self, name: str, accepted: bool, reason: str = "", *, mode: str = "build",
+              build: Path | None = None, output: Path | None = None, extra: str = "none",
+              builder: str | None = None) -> bytes:
+        """実PS7 childを10秒で制限し、原byte/終了値と期待理由をcase名へ結合する。"""
+        argv = [str(self.tools.powershell), "-NoLogo", "-NoProfile", "-NonInteractive", "-File"]
+        if builder:
+            argv += [str(self.source / "scripts" / builder), "-BuildDirectory", str(build or self.build)]
+            if builder == "package-collector.ps1":
+                argv += ["-RegistrySnapshot", str(self.root / "never-a-seed"),
+                         "-PythonRuntimeArchive", str(self.root / "never-runtime.zip"),
+                         "-PythonExecutable", str(self.root / "never-run.exe"),
+                         "-DistributionDataBundle", str(self.root / "never-data")]
+            elif builder == "package-collector-installer.ps1":
+                argv += ["-PackageDirectory", str(self.root / "never-a-bundle"),
+                         "-OutputDirectory", str(self.root / "out/new-installer")]
+            elif builder == "test-collector-installer.ps1":
+                argv += ["-PackageDirectory", str(self.root / "never-a-bundle"),
+                         "-InstallerExecutable", str(self.root / "never-run.exe"),
+                         "-FixtureRoot", str(self.root / "out/new-fixture")]
+        else:
+            argv += [str(self.runner), mode, str(build or self.build), str(output or self.root / "out/fresh"), extra]
+        self.expected_argv = argv
+        result = subprocess.run(argv, cwd=self.root, capture_output=True, timeout=10, check=False)
+        self.assertLessEqual(len(result.stdout) + len(result.stderr), 16384)
+        print("P3_PACKAGE_CASE " + json.dumps({"name": name, "exit": result.returncode,
+              "expectedAccepted": accepted, "stdoutBase64": base64.b64encode(result.stdout).decode(),
+              "stderrBase64": base64.b64encode(result.stderr).decode()}), flush=True)
+        self.assertEqual(result.returncode == 0, accepted, name)
+        if reason:
+            self.assertIn(reason.encode(), result.stderr, name)
+        return result.stderr
+
+    def test_package_01_explicit_and_default_location(self) -> None:
+        """source/buildと離れた唯一buildの両方を、同じsource/cacheで受理する。"""
+        self.child("B01-external", True)
+        self.child("B01-source-build", True, build=self.source / "build")
+
+    def test_package_02_source_cache_contract(self) -> None:
+        """HOMEの不一致/重複/type/欠損とgenerator/configuration違いを拒否する。"""
+        original = dict(self.cache)
+        variants = [
+            ("private", "CMAKE_HOME_DIRECTORY:INTERNAL", self.root.as_posix(), "INDEX_PACKAGE_SOURCE_MISMATCH"),
+            ("generator", "CMAKE_GENERATOR:INTERNAL", "Ninja", "INDEX_PACKAGE_CONFIGURATION_REJECTED"),
+            ("configs", "CMAKE_CONFIGURATION_TYPES:STRING", "Release", "INDEX_PACKAGE_CONFIGURATION_REJECTED"),
+            ("acceptance", "DRIVERCRATE_LOCAL_INDEX_ACCEPTANCE:BOOL", "ON", "INDEX_PACKAGE_NORMAL_PROFILE_REQUIRED"),
+            ("acquisition", "DRIVERCRATE_LOCAL_INDEX_ACQUISITION:BOOL", "ON", "INDEX_PACKAGE_NORMAL_PROFILE_REQUIRED"),
+            ("live", "DRIVERCRATE_BUILD_LIVE_TESTS:BOOL", "ON", "INDEX_PACKAGE_NORMAL_PROFILE_REQUIRED"),
+            ("analyze", "DRIVERCRATE_ENABLE_ANALYZE:BOOL", "ON", "INDEX_PACKAGE_NORMAL_PROFILE_REQUIRED"),
+            ("public-blob", "DRIVERCRATE_LOCAL_INDEX_PUBLIC_BLOB:FILEPATH", "not-empty", "INDEX_PACKAGE_NORMAL_PROFILE_REQUIRED"),
+            ("public-pin", "DRIVERCRATE_LOCAL_INDEX_PUBLIC_SHA256:STRING", "a" * 64, "INDEX_PACKAGE_NORMAL_PROFILE_REQUIRED"),
+            ("embedded", "DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES:PATH", "unapproved", "INDEX_PACKAGE_NORMAL_PROFILE_REQUIRED"),
+        ]
+        for name, key, value, reason in variants:
+            with self.subTest(name=name):
+                self.cache = {**original, key: value}
+                self.save_cache()
+                self.child("B02-" + name, False, reason)
+        for name, transform in (("missing", lambda value: value.replace("CMAKE_HOME_DIRECTORY:INTERNAL=", "OTHER:INTERNAL=")),
+                                ("duplicate", lambda value: value + "CMAKE_HOME_DIRECTORY:INTERNAL=" + self.source.as_posix() + "\n"),
+                                ("type", lambda value: value.replace("CMAKE_HOME_DIRECTORY:INTERNAL=", "CMAKE_HOME_DIRECTORY:STRING="))):
+            self.cache = original
+            self.save_cache(raw=transform("".join(key + "=" + value + "\n" for key, value in original.items())))
+            self.child("B02-" + name, False, "INDEX_PACKAGE_CACHE_FIELD_REJECTED")
+
+    def test_package_03_path_and_reparse(self) -> None:
+        """存在しないbuild/通常file/relativeと合成reparse metadataを拒否する。"""
+        self.child("B03-missing", False, "INDEX_PACKAGE_PATH_MISSING", build=self.root / "absent")
+        self.child("B03-file", False, "INDEX_PACKAGE_PATH_REJECTED", build=self.build / "CMakeCache.txt")
+        self.child("B03-relative", False, "INDEX_PACKAGE_PATH_REJECTED", build=Path("relative"))
+        self.child("B03-reparse", False, "INDEX_PACKAGE_PATH_REJECTED", mode="reparse")
+        self.child("B03-dangling", False, "INDEX_PACKAGE_PATH_REJECTED", mode="dangling")
+
+    def test_package_04_output_and_overlap(self) -> None:
+        """成分境界/既存先/入力包含を拒否し、source/outとworkspace/outの新規childを許す。"""
+        self.child("B04-workspace", True, mode="output")
+        self.child("B04-source", True, mode="output", output=self.source / "out/fresh")
+        self.child("B04-prefix", False, "INDEX_PACKAGE_NEW_OUTPUT_REQUIRED", mode="output", output=self.root / "outside/fresh")
+        existing = self.root / "out/existing"
+        existing.mkdir(parents=True)
+        self.child("B04-existing", False, "INDEX_PACKAGE_NEW_OUTPUT_REQUIRED", mode="output", output=existing)
+        self.child("B04-overlap", False, "INDEX_PACKAGE_INPUT_OUTPUT_OVERLAP", mode="overlap", output=self.build / "child")
+
+    def test_package_05_builders_fail_before_fallback(self) -> None:
+        """正常なsource/buildがあっても、三builderは明示不一致cacheからfallbackしない。"""
+        self.cache["CMAKE_HOME_DIRECTORY:INTERNAL"] = self.root.as_posix()
+        self.save_cache()
+        for builder in ("package-release.ps1", "package-collector.ps1", "package-collector-installer.ps1",
+                        "test-collector-installer.ps1"):
+            with self.subTest(builder=builder):
+                self.child("B05-" + builder, False, "INDEX_PACKAGE_SOURCE_MISMATCH", builder=builder)
+        self.assertFalse((self.root / "out").exists())
+        self.assertFalse((self.build / "generated").exists())
+
+    def test_package_06_original_and_restore_failures(self) -> None:
+        """復帰は全経路で呼ばれ、二例外がある場合も両方と元ErrorRecordを保持する。"""
+        self.child("B06-ok", True, mode="restore")
+        self.child("B06-primary", False, "PRIMARY_SENTINEL", mode="restore", extra="primary")
+        self.child("B06-restore", False, "RESTORE_SENTINEL", mode="restore", extra="restore")
+        error = self.child("B06-both", False, "INSTALLER_BUILD_AND_RESTORE_FAILED", mode="restore", extra="both")
+        self.assertIn(b"PRIMARY_SENTINEL", error)
+        self.assertIn(b"RESTORE_SENTINEL", error)
+        self.assertIn(b"ORIGINAL_RECORDS=2", error)
+
+    def test_package_07_pe_hash_and_x64(self) -> None:
+        """実行不能の合成PEを非実行で照合し、x86とhash driftを拒否する。"""
+        header = self.source / "src/platform/index_distribution_trust.h"
+        header.parent.mkdir(parents=True)
+        header.write_bytes(bounded_read(ROOT / "src/platform/index_distribution_trust.h", 16384))
+        fingerprint = re.search(r'PUBLIC_FINGERPRINT\s*=\s*"([0-9a-f]{64})"', header.read_text(encoding="utf-8"))[1]
+        exe = self.source / "never-run.exe"
+        raw = bytearray(512)
+        raw[:2] = b"MZ"
+        raw[60:64] = (128).to_bytes(4, "little")
+        raw[128:132] = b"PE\0\0"
+        raw[132:134] = (0x8664).to_bytes(2, "little")
+        raw[152:154] = (0x20b).to_bytes(2, "little")
+        sidecar = Path(str(exe) + ".index-profile.json")
+
+        def image() -> None:
+            """所有の非実行byteと、それへ結合したprofileだけを保存する。"""
+            exe.write_bytes(raw)
+            sidecar.write_text(json.dumps({"schema": "drivercrate-index-build-profile-v2", "localAcceptance": False,
+                "sha256": hashlib.sha256(raw).hexdigest(), "distributionFingerprint": fingerprint,
+                "acquisitionPolicyRevision": 1}), encoding="utf-8")
+
+        image()
+        self.child("B07-x64", True, mode="executable", output=exe)
+        raw[132:134] = (0x14c).to_bytes(2, "little")
+        image()
+        self.child("B07-x86", False, "INDEX_PACKAGE_X64_REQUIRED", mode="executable", output=exe)
+        raw[200] = 1
+        exe.write_bytes(raw)
+        self.child("B07-stale", False, "INDEX_BUILD_PROFILE_STALE_EXECUTABLE", mode="executable", output=exe)
+
+    def test_package_08_app_only_cache(self) -> None:
+        """未生成embedded一keyだけの限定互換とcollectorのON必須を検証する。"""
+        self.cache["DRIVERCRATE_BUILD_COLLECTOR:BOOL"] = "OFF"
+        del self.cache["DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES:PATH"]
+        self.save_cache()
+        self.child("B08-app-only-missing", True)
+        self.child("B08-collector-required", False, "INDEX_PACKAGE_COLLECTOR_BUILD_REQUIRED", mode="collector")
+        for builder in ("package-collector.ps1", "package-collector-installer.ps1", "test-collector-installer.ps1"):
+            self.child("B08-" + builder, False, "INDEX_PACKAGE_COLLECTOR_BUILD_REQUIRED", builder=builder)
+        self.cache["DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES:PATH"] = ""
+        self.save_cache()
+        self.child("B08-app-only-empty", True)
+        self.cache["DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES:PATH"] = "not-approved"
+        self.save_cache()
+        self.child("B08-off-invalid-embedded", False, "INDEX_PACKAGE_NORMAL_PROFILE_REQUIRED")
+        del self.cache["DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES:PATH"]
+        self.cache["DRIVERCRATE_BUILD_COLLECTOR:BOOL"] = "ON"
+        self.save_cache()
+        self.child("B08-on-missing", False, "INDEX_PACKAGE_CACHE_FIELD_REJECTED")
+        self.cache["DRIVERCRATE_BUILD_COLLECTOR:BOOL"] = "UNKNOWN"
+        self.save_cache()
+        self.child("B08-unknown", False, "INDEX_PACKAGE_COLLECTOR_FLAG_REJECTED")
+        raw = "".join(key + "=" + value + "\n" for key, value in self.cache.items())
+        self.save_cache(raw=raw + "DRIVERCRATE_BUILD_COLLECTOR:BOOL=ON\n")
+        self.child("B08-duplicate", False, "INDEX_PACKAGE_CACHE_FIELD_REJECTED")
+        self.save_cache(raw=raw.replace("DRIVERCRATE_BUILD_COLLECTOR:BOOL=", "DRIVERCRATE_BUILD_COLLECTOR:STRING="))
+        self.child("B08-type", False, "INDEX_PACKAGE_CACHE_FIELD_REJECTED")
+        self.save_cache(raw=raw.replace("DRIVERCRATE_BUILD_COLLECTOR:BOOL=UNKNOWN\n", ""))
+        self.child("B08-flag-missing", False, "INDEX_PACKAGE_CACHE_FIELD_REJECTED")
+
+
 class ToolResolverTests(unittest.TestCase):
     """R01–R12の有限resolver契約だけをmockで検査し、native childは起動しない。"""
 
@@ -489,18 +752,27 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--powershell", help="PowerShell 7 pwsh.exeの絶対path（省略時PATH）")
     parser.add_argument("--cmake", help="cmake.exeの絶対path（省略時PATH）")
-    parser.add_argument("--suite", choices=("all", "native", "resolver"), default="all")
+    parser.add_argument("--suite", choices=("all", "native", "resolver", "package"), default="all")
     options = parser.parse_args(argv)
     suite = unittest.TestSuite()
     if options.suite != "resolver":
         try:
             IndexBuildProfileTests.tools = resolve_tools(options.powershell, options.cmake)
         except ToolResolutionError as error:
+            if options.suite == "package":
+                print("P3_PACKAGE_NOT_RUN " + json.dumps({"status": "NOT_RUN", "methods": 8,
+                      "reason": str(error)}), flush=True)
+                return 2
             print("P3_NOT_RUN " + json.dumps({"status": "NOT_RUN", "methods": 8, "nativeCases": 34,
+                                           "additionalPackageMethods": 8 if options.suite == "all" else 0,
                                            "reason": str(error)}), flush=True)
             return 2
-        suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(IndexBuildProfileTests))
-    if options.suite != "native":
+        if options.suite != "package":
+            suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(IndexBuildProfileTests))
+        if options.suite in {"all", "package"}:
+            PackageBuildBindingTests.tools = IndexBuildProfileTests.tools
+            suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(PackageBuildBindingTests))
+    if options.suite in {"all", "resolver"}:
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(ToolResolverTests))
     return 0 if unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful() else 1
 

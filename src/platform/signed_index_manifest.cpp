@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest.cpp
  * @brief 原UTF-8 manifestをRSA-PSSで認証し、固定schema・期限・世代を検査します。
- * @version 01.03.02
+ * @version 01.04.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/13  明示local受入buildの固定public pinを接続。
  * Ver.01.03.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.03.02 Shunji Ogawa  2026/10/16  通常固定配布trustをlocal受入と排他的に接続。
+ * Ver.01.04.00 Shunji Ogawa  2026/10/23  認証型を発行しない共通manifest値codecを公開。
  * </pre>
  *
  * @note 内部固定trustだけを使用します。Asset実byte、保護cache、導入許可へ昇格しません。
@@ -32,6 +33,7 @@
  */
 //------------------------------------------------------------------------------
 #include "signed_index_manifest_internal.h"
+#include "platform/signed_index_codec_internal.h"
 
 #include <algorithm>
 #include <array>
@@ -471,6 +473,29 @@ void verifySignature( const std::span<const std::uint8_t> blob, const IndexManif
 } // namespace
 
 namespace signed_index_detail {
+
+/** @see signed_index_codec_internal.h */
+DecodedIndexManifest decodeIndexManifestData(
+	const std::string_view bytes, const std::string_view expectedKeyId,
+	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
+{
+	try {
+		// 原byte枠と固定key IDの文法を意味解析前に確認します。
+		require( !bytes.empty() && bytes.size() <= INDEX_MANIFEST_MAX_BYTES,
+				SignedIndexManifestStatus::MANIFEST_SIZE_LIMIT) ;
+		require( validKeyId( expectedKeyId), SignedIndexManifestStatus::INVALID_MANIFEST) ;
+		auto data			= readManifest( bytes, expectedKeyId, nowUtc) ;	// 共通の全意味検査です。
+		data.manifestBytes	= bytes ;
+		data.manifestSha256 = hashManifest( bytes) ;
+		return {std::nullopt, 0, std::move( data)} ;
+	} catch( const Failure &failure) {
+		return {failure.status, failure.error, std::nullopt} ;
+	} catch( const std::bad_alloc &) {
+		return {SignedIndexManifestStatus::OUT_OF_MEMORY, E_OUTOFMEMORY, std::nullopt} ;
+	} catch( ...) {
+		return {SignedIndexManifestStatus::CRYPTO_FAILURE, E_UNEXPECTED, std::nullopt} ;
+	}
+}
 
 /** @brief 共通認証処理だけがprivate constructorを呼ぶ内部境界です。 */
 struct AuthenticationAccess {

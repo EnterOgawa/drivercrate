@@ -2,7 +2,7 @@
 /**
  * @file collector_inspection_acquisition_tests.cpp
  * @brief 外部台帳の一回収集取得scopeを完全非通信で検証する独立試験。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  静的link・実HTTP境界の非通信試験を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * </pre>
  *
  * @note 全HTTP／DNSをfixtureへ置換し、実network・導入・Taskを使用しない。
@@ -111,7 +112,13 @@ drivercrate::OfficialHttpTransport transport()
 		return TRUE ;
 	} ;
 	api.setOption = []( HINTERNET, DWORD option, LPVOID value, DWORD size) -> BOOL {
-		fixture->safe &= value != nullptr && size == sizeof( DWORD) ;
+		// 誤ったoption bufferは試験失敗として記録し、無効なDWORDを参照しない。
+		if( value == nullptr || size != sizeof( DWORD)) {
+			fixture->safe = false ;
+			SetLastError( ERROR_INVALID_PARAMETER) ;
+			return FALSE ;
+		}
+
 		const auto setting = *static_cast<DWORD *>( value) ;	// 架空optionの有限DWORD。
 		// 既定資格情報を送る設定を試験でも拒否する。
 		if( option == WINHTTP_OPTION_AUTOLOGON_POLICY) {
@@ -244,6 +251,24 @@ public:
 /** @brief 正例と拒否例を有限に実行する。 */
 void run()
 {
+	{
+		Fixture state ;	// Backendの誤buffer拒否だけを独立して観測する。
+		fixture		   = &state ;
+		const auto api = transport() ;								// 実WinHTTPへ接続しない完全表。
+		DWORD value	   = WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH ;	// ゼロ長とnullを有効値から分ける。
+		check( api.setOption( nullptr, WINHTTP_OPTION_AUTOLOGON_POLICY, nullptr, sizeof( value)) ==
+				  FALSE &&
+			  GetLastError() == ERROR_INVALID_PARAMETER && !state.safe) ;
+		state.safe = true ;
+		check( api.setOption( nullptr, WINHTTP_OPTION_AUTOLOGON_POLICY, &value, 0U) == FALSE &&
+			  GetLastError() == ERROR_INVALID_PARAMETER && !state.safe) ;
+		state.safe = true ;
+		check( api.setOption( nullptr, WINHTTP_OPTION_AUTOLOGON_POLICY, &value, sizeof( value)) !=
+				  FALSE &&
+			  state.safe) ;
+		fixture = nullptr ;
+	}
+
 	const drivercrate::CollectorInspectionSource source{
 		L"https://maker.vendor.test/driver.html", L"maker.vendor.test",
 		L"https://cdn.vendor.test/driver.zip", L"cdn.vendor.test",

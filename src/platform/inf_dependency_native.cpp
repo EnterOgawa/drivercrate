@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native.cpp
  * @brief 実path・署名・OSを固定する非実行INF依存adapterの実装。
- * @version 01.06.02
+ * @version 01.06.04
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,8 @@
  * Ver.01.06.00 Shunji Ogawa  2026/10/15  正確なNeeds設置文脈から有限HKR設定を全行検査。
  * Ver.01.06.01 Shunji Ogawa  2026/10/15  Needs効果の宣言契約をCopyFilesとAddRegへ整合。
  * Ver.01.06.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.06.03   Shunji Ogawa  2026/10/24 不在比較のHRESULT値をNativeErrorへ明示変換する。
+ * Ver.01.06.04 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
  * </pre>
  *
  * @note 共通内容factoryの私有選択節へ接続します。旧引数経路のpackage由来は未検査を維持します。
@@ -1302,8 +1304,9 @@ NativeError NativeLoader::lookup( const InfDependencyDocument &source, std::wstr
 			// 任意diskへfallbackしない。
 			observe( root + std::wstring( target), nullptr, document, &fileMissing) ;
 		// 照会済み不在だけは欠落候補として保持する。
-		if( fileMissing && (error == HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND) ||
-						   error == HRESULT_FROM_WIN32( ERROR_PATH_NOT_FOUND))) {
+		if( fileMissing &&
+		   (error == static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)) ||
+			error == static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_PATH_NOT_FOUND)))) {
 			continue ;
 		}
 
@@ -1382,8 +1385,8 @@ NativeError NativeLoader::section( const InfDependencyDocument &document, std::w
 		std::wstring key ;								// 一明示keyだけ。
 		const auto	 keyError = field( line, 0U, key) ;	// 本文全体のcopyは行わない。
 		// 非keyのdata行にはInclude／Needsの作用を推測しない。
-		if( keyError == HRESULT_FROM_WIN32( ERROR_INVALID_PARAMETER) ||
-		   keyError == HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) {
+		if( keyError == static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_PARAMETER)) ||
+		   keyError == static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA))) {
 			continue ;
 		}
 
@@ -1514,8 +1517,9 @@ NativeError NativeLoader::observeFileUses( InfDependencyNativeResult &result)
 			std::wstring key ;								// 原用途key。data行では空。
 			const auto	 keyError = field( line, 0U, key) ;	// 単独の元field取得。
 			// 無key dataの仕様以外のAPI失敗を無関係行にしない。
-			if( keyError != 0 && keyError != HRESULT_FROM_WIN32( ERROR_INVALID_PARAMETER) &&
-			   keyError != HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) {
+			if( keyError != 0 &&
+			   keyError != static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_PARAMETER)) &&
+			   keyError != static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA))) {
 				return keyError ;
 			}
 
@@ -1758,7 +1762,7 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 				error = field( line, item, list) ;
 				// 名前欠損を省略しません。
 				if( error != 0 || list.empty()) {
-					return error != 0 ? error : E_INVALIDARG ;
+					return error != 0 ? error : static_cast<NativeError>( E_INVALIDARG) ;
 				}
 
 				std::vector<std::wstring> names ;	// 最大4096の全非rename copyです。
@@ -1826,7 +1830,7 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 					// source欠損・曖昧・不安全をroot fallbackで補完しません。
 					if( error != 0 || (!source.empty() && !validInfDependencyPath( source, false)) ||
 					   (!media.empty() && !validInfDependencyPath( media, false))) {
-						return error != 0 ? error : E_INVALIDARG ;
+						return error != 0 ? error : static_cast<NativeError>( E_INVALIDARG) ;
 					}
 
 					const auto &fixed  = documents_[documentIndex] ;	// 安定した同documentです。
@@ -1903,7 +1907,7 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 							// 取得失敗と境界外を止めます。
 							if( error != 0 ||
 							   (!subdir.empty() && !validInfDependencyPath( subdir, false))) {
-								return error != 0 ? error : E_INVALIDARG ;
+								return error != 0 ? error : static_cast<NativeError>( E_INVALIDARG) ;
 							}
 						}
 
@@ -1921,7 +1925,8 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 						// 同byteの既提供が確認できなければSYSTEM効果未充足です。
 						if( error != 0 || files_[payload]->sha256 != files_[existing]->sha256 ||
 						   files_[payload]->bytes != files_[existing]->bytes) {
-							return error != 0 ? error : TRUST_E_BAD_DIGEST ;
+							return error != 0 ? error
+											  : static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
 						}
 
 						members.push_back( installed) ;
@@ -2218,7 +2223,7 @@ NativeError CommonInfNativeAccess::inspect( const CommonInfInspection	&inspected
 	// 私有元所有者なしで由来を作りません。
 	if( contentError != 0 || inspected.workspace == nullptr ||
 	   selected.selectedBasicSection.empty()) {
-		return contentError != 0 ? contentError : E_INVALIDARG ;
+		return contentError != 0 ? contentError : static_cast<NativeError>( E_INVALIDARG) ;
 	}
 
 	try {
