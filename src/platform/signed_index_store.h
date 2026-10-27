@@ -2,7 +2,7 @@
 /**
  * @file signed_index_store.h
  * @brief 保護headの原子保存後だけ発行する署名索引snapshotを定義します。
- * @version 01.02.01
+ * @version 01.03.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/11  通常workerの同scan署名索引読取り境界を接続。
  * Ver.01.02.00 Shunji Ogawa  2026/10/19  用途別storeと旧head不変の明示移動を追加。
  * Ver.01.02.01 Shunji Ogawa  2026/10/24 現行仕様へ限定し旧版専用の入口・移動を整理。
+ * Ver.01.03.00 Shunji Ogawa  2026/10/27  Openの履歴下限と現在snapshotの能力を区別。
  * </pre>
  *
  * @note Workerで同期I/Oします。通常UI・通信・端末照合・導入許可を実装しません。
@@ -174,7 +175,8 @@ public:
 		std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
 	/** @brief 固定ProgramData rootだけを保護して開きます。
 	 * @return 成功時store、失敗時元error。通常と検証用の固定domainを分離します。
-	 * @note 旧共用rootが残る間はERROR_REVISION_MISMATCHで拒否し、既存dataを変更しません。
+	 * @note 履歴下限だけを認証し、現在有効なcacheは保証しません。Reloadで全schema/現在期限を確認します。
+	 * 旧共用rootが残る間はERROR_REVISION_MISMATCHで拒否し、既存dataを変更しません。
 	 */
 	[[nodiscard]] static IndexStoreOpenResult openFixedProtectedStore() noexcept ;
 	/** @brief 保持directory handleを解放し、製品headを削除しません。 */

@@ -52,6 +52,19 @@ handleを保持し、直前に再検証します。別sessionや同hashの別wor
 旧移動専用tool/API/trustは廃止し、現在のdomain分離・世代下限・原byte/hashを維持します。
 [ADR 0397](adr/0397-release-completion-and-index-expiry-compatibility.md)を現行契約とします。
 
+既存headを開くときは、保護root/DPAPI/wire・原manifest署名・gzip/展開hashから履歴の世代下限を
+認証します。この下限だけの内部値はrecord・snapshot・導入許可を持ちません。現在のrecord codecで
+読めない過去headも下限を維持し、fresh入力が現在期限と全schema・原byteの検証を通った場合だけ
+同じrootで次世代へ保存できます。現在cache・同世代再利用・commit後readbackは全schemaを必須とし、
+旧fieldの補完や旧readerを追加しません。Open成功は現在cacheの利用可能性を保証しません。
+attestationの元発行への結合と、実現在の失効・取得・適用性の既存adapter検証を維持します。
+[ADR 0411](adr/0411-authenticated-history-floor-without-record-hydration.md)に能力の分離を定めます。
+
+監視PCの匿名索引readbackは、既存daily名pairと16桁世代のcandidate-publication名pairだけを
+同parent・同stemで許可します。固定保護root・同handle・ACL・reparse拒否と匿名三resourceの
+hash/署名/期限検証は別途必須です。任意filenameやURL、通信権限を追加しません。
+[ADR 0412](adr/0412-public-readback-canonical-artifact-pairs.md)を正本とします。
+
 標準INFは既存指定導入境界へ接続し、初回と必要Extension／componentを明示します。
 公式installerは専用の署名・publisher・作用範囲と対話引継ぎへ分岐し、INF rankや内容合格を合成しません。
 scan中のEXE／MSI実行や無関係なapp・firmware追加は行いません。

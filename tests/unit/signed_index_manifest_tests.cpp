@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest_tests.cpp
  * @brief 非永続CNG RSA鍵の実署名でmanifest認証の拒否境界を検査します。
- * @version 01.17.00
+ * @version 01.18.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -44,6 +44,8 @@
  * Ver.01.16.01 Shunji Ogawa  2026/10/24  新規配布8日上限の秒境界を検証。
  * Ver.01.16.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * Ver.01.17.00 Shunji Ogawa  2026/10/26 新metadata生成索引の原byteを通常reader/候補adapterへ接続。
+ * Ver.01.18.00 Shunji Ogawa  2026/10/27  現codec拒否の履歴下限保持とfresh置換を検査。
+ * Ver.01.18.01 Shunji Ogawa  2026/10/27  追加履歴fixtureを独立stackへ分離。
  * </pre>
  *
  * @note 秘密鍵はCNG handleのRAM内だけにあり、public blob以外をexportしません。
@@ -3085,6 +3087,128 @@ private:
 						   nullptr) != FALSE ;
 }
 
+/**
+ * @brief 旧record拒否時の履歴下限保持と現schemaへの正規更新を隔離storeで検査します。
+ * @param[in,out] context 元の実行順序へassertionと失敗を累積する集計先です。
+ * @param[in] key 呼出し元が試験中だけ所有するRAM署名鍵です。
+ * @param[in] trust keyの公開blobを借用する非永続trustです。
+ * @param[in] first 同世代衝突を検査する元の正規fixtureです。
+ * @param[in] descriptorRaw 呼出し元が所有する現schema recordです。
+ * @param[in] descriptorReceipt descriptorInputsの現schema認証receiptです。
+ * @param[in] descriptorInputs 正規世代8の署名済み試験入力です。
+ * @note 全引数は同期呼出し中だけ借用します。製品root・実鍵・通信は扱いません。
+ */
+void runSignedIndexHistoryFloorFixture( TestContext &context, const RamKey &key,
+									   const std::span<const signed_index_detail::TrustKey> trust,
+									   const StoreFixture &first, const std::string &descriptorRaw,
+									   const IndexRecordsSchemaReceipt &descriptorReceipt,
+									   const StoreInputs			   &descriptorInputs)
+{
+	using signed_index_store_detail::Access ;
+	const int historyStart	 = context.assertionCount() ;		// 下限専用認証の独立集計です。
+	const int historyFailure = context.failureCount() ;			// 元groupの失敗を除去しません。
+	auto	  historyStore = Access::createIsolated( trust) ;	// 製品rootを扱わない自作保護storeです。
+	// 隔離rootを生成できない場合は残件を成功へ数えません。
+	if( !historyStore.store) {
+		throw std::runtime_error( "history floor fixture failed") ;
+	}
+
+	const auto oldRaw =
+		// 旧九fieldの原recordです。
+		replaced( descriptorRaw, ",\"nestedArchiveIdentity\":\"\"", "") ;
+	const auto oldIndex =
+		// 元hashも旧byteへ結合します。
+		descriptorIndex( recordSource(), recordEntry( key, oldRaw)) ;
+	const auto oldInputs =
+		// 現codecを通さず実署名/assetを作ります。
+		makeStoreInputs( key, oldIndex) ;
+	const auto oldBytes = authenticateIndexAssetBytes( oldInputs.manifest, oldInputs.gzip,
+													  NOW) ;	// 共通byte認証は成功です。
+	DRIVERCRATE_EXPECT( context, oldBytes.receipt.has_value()) ;
+	// Byte fixtureの失敗を旧record拒否の成功へ変換しません。
+	if( !oldBytes.receipt) {
+		throw std::runtime_error( "history asset fixture failed") ;
+	}
+
+	const auto oldRecords =
+		// 旧codec/補完を追加しません。
+		readSignedIndexRecords( *oldBytes.receipt, NOW) ;
+	DRIVERCRATE_EXPECT( context, !oldRecords.receipt &&
+									oldRecords.status == IndexRecordsStatus::INVALID_RECORD) ;
+	const auto oldPlain =
+		// 正しいDPAPI内に履歴原byteを置きます。
+		makeStorePlain( key, oldInputs, oldIndex) ;
+	DRIVERCRATE_EXPECT( context, Access::replacePlain( *historyStore.store, oldPlain) == 0) ;
+	const auto historyHead =
+		// この自作rootだけを比較します。
+		Access::isolatedRoot( *historyStore.store) / L"head.bin" ;
+	const auto historyCipher = readStoreTestFile( historyHead) ;	// Commit点前の原暗号byteです。
+	auto	   historyOpened =
+		// 通常openと同じ下限認証を通します。
+		Access::reopenIsolated( *historyStore.store) ;
+	DRIVERCRATE_EXPECT( context, historyOpened.error == 0 && historyOpened.store) ;
+	// Open失敗のまま別の既存ownerだけで成功させません。
+	if( !historyOpened.store) {
+		throw std::runtime_error( "history floor reopen failed") ;
+	}
+
+	const auto historyReload =
+		// 下限7を認証し、現在snapshotは拒否します。
+		historyOpened.store->reload( NOW) ;
+	expectStoreRejected( context, historyReload, IndexStoreStatus::RECORDS_REJECTED) ;
+	DRIVERCRATE_EXPECT( context,
+					   historyReload.persistedGeneration == 7U &&
+						   historyReload.recordsStatus == IndexRecordsStatus::INVALID_RECORD) ;
+	const auto historyConflict =
+		historyOpened.store->commit( first.receipt, first.inputs.envelope, first.inputs.gzip,
+									NOW) ;	// 同世代の別manifestで旧不適合を救済しません。
+	expectStoreRejected( context, historyConflict, IndexStoreStatus::MANIFEST_REJECTED) ;
+	DRIVERCRATE_EXPECT( context, historyConflict.manifestStatus ==
+										SignedIndexManifestStatus::GENERATION_CONFLICT &&
+									historyConflict.persistedGeneration == 7U) ;
+	const auto lowerHistory	   = makeStoreFixture( key, 6U, 6U) ;	// 現在有効でも下限未満です。
+	const auto historyRollback = historyOpened.store->commit(
+		lowerHistory.receipt, lowerHistory.inputs.envelope, lowerHistory.inputs.gzip,
+		NOW) ;	// 旧record拒否を下限resetに使いません。
+	expectStoreRejected( context, historyRollback, IndexStoreStatus::MANIFEST_REJECTED) ;
+	DRIVERCRATE_EXPECT( context, historyRollback.persistedGeneration == 7U &&
+									historyRollback.manifestStatus ==
+										SignedIndexManifestStatus::GENERATION_ROLLBACK) ;
+	const auto invalidFreshIndex = replaced( oldIndex, "\"assetGeneration\":7",
+											"\"assetGeneration\":8") ;	// N+1も欠損fieldを残します。
+	const auto invalidFreshInputs =
+		// 署名正常は現schema成功を意味しません。
+		makeStoreInputs( key, invalidFreshIndex, 8U, 8U) ;
+	const auto invalidFresh = historyOpened.store->commit(
+		descriptorReceipt, invalidFreshInputs.envelope, invalidFreshInputs.gzip,
+		NOW) ;	// 正しいreceiptの原byteとは不一致です。
+	expectStoreRejected( context, invalidFresh, IndexStoreStatus::STATE_REJECTED) ;
+	const auto invalidFreshBytes =
+		authenticateIndexAssetBytes( invalidFreshInputs.manifest, invalidFreshInputs.gzip,
+									NOW) ;	// 同じfresh byteのcodec拒否も独立確認します。
+	DRIVERCRATE_EXPECT( context,
+					   invalidFreshBytes.receipt &&
+						   !readSignedIndexRecords( *invalidFreshBytes.receipt, NOW).receipt) ;
+	DRIVERCRATE_EXPECT( context, readStoreTestFile( historyHead) == historyCipher) ;
+	const auto historyAdvance = historyOpened.store->commit(
+		descriptorReceipt, descriptorInputs.envelope, descriptorInputs.gzip,
+		NOW) ;	// 同root/下限7から現在有効8へ正規commitします。
+	DRIVERCRATE_EXPECT( context,
+					   historyAdvance.snapshot && historyAdvance.persistedGeneration == 8U &&
+						   historyAdvance.commit == IndexStoreCommitDisposition::COMMITTED) ;
+	expectStoredGeneration( context, *historyStore.store, 8U) ;
+	const auto currentCipher = readStoreTestFile( historyHead) ;	// 新headは以後下げません。
+	const auto historySame	 = historyOpened.store->commit(
+		  descriptorReceipt, descriptorInputs.envelope, descriptorInputs.gzip,
+		  NOW) ;	// 保存済み全schemaでNO_CHANGEを確認します。
+	DRIVERCRATE_EXPECT( context, historySame.snapshot && historySame.persistedGeneration == 8U &&
+									historySame.commit == IndexStoreCommitDisposition::NO_CHANGE &&
+									readStoreTestFile( historyHead) == currentCipher) ;
+	std::cout << "Signed index history floor assertions: "
+			  << context.assertionCount() - historyStart
+			  << ", failures: " << context.failureCount() - historyFailure << '\n' ;
+}
+
 } // namespace
 
 /**
@@ -3434,8 +3558,9 @@ void runSignedIndexStoreTests( TestContext &context)
 			// 同じ元結果を単独所有する。
 			ownResult( [&] { return local.store->reload( NOW) ; }) ;
 		const auto &badRecords = *badRecordsOwner ;	// 最後のschema再認証で拒否します。
-		expectStoreRejected( context, badRecords, IndexStoreStatus::STATE_REJECTED) ;
+		expectStoreRejected( context, badRecords, IndexStoreStatus::RECORDS_REJECTED) ;
 		DRIVERCRATE_EXPECT( context, badRecords.recordsStatus == IndexRecordsStatus::INVALID_INDEX) ;
+		DRIVERCRATE_EXPECT( context, badRecords.persistedGeneration == 7U) ;
 		DRIVERCRATE_EXPECT( context, Access::replacePlain( *local.store, originalPlain) == 0) ;
 		expectStoredGeneration( context, *local.store, 7U) ;
 		const auto validCipher = readStoreTestFile( localHead) ;	// 実再保護後の正常byteです。
@@ -3667,6 +3792,9 @@ void runSignedIndexStoreTests( TestContext &context)
 	std::cout << "Signed index descriptor store assertions: "
 			  << context.assertionCount() - descriptorStoreStart
 			  << ", failures: " << context.failureCount() - descriptorStoreFailure << '\n' ;
+	// 追加fixtureの一時値を独立stackへ分け、元のassertion順序を維持します。
+	runSignedIndexHistoryFloorFixture( context, key, trust, first, descriptorRaw,
+									  *descriptorRecords.receipt, descriptorInputs) ;
 }
 
 namespace {

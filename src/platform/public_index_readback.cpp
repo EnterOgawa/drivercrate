@@ -2,7 +2,7 @@
 /**
  * @file public_index_readback.cpp
  * @brief 固定公開索引の原byte匿名照合を既存HTTPとnative codecへ接続します。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/10/20
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/20  保存を伴わない三resource匿名確認を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/10/27  Daily/candidateの正規二file名を共通検査。
  * </pre>
  * @note 全取得byteと期限付きCDN URLはRAMだけに保持し、永続storeを開きません。
  * @see docs/adr/0385-public-anonymous-index-readback.md
@@ -149,6 +150,58 @@ bool publicIndexReadbackArguments( const int count, wchar_t *const args[],
 
 	milliseconds = parsed ;
 	return true ;
+}
+
+/** @see publicIndexReadbackArtifactPair宣言側の契約を正本とします。 */
+bool publicIndexReadbackArtifactPair( const std::filesystem::path &envelopePath,
+									 const std::filesystem::path &gzipPath) noexcept
+{
+	try {
+		// 別parentの入力を同じ保護jobのpairへ結び付けません。
+		if( envelopePath.parent_path() != gzipPath.parent_path()) {
+			return false ;
+		}
+
+		const auto name		= envelopePath.filename().native() ;	// 有限の原leaf名を所有します。
+		const auto gzipName = gzipPath.filename().native() ;		// Directoryを補正せず比較します。
+		constexpr std::wstring_view DAILY_SUFFIX =
+			L".acquisition.manifest.json" ;	// 既存日次callerです。
+		// 旧来の8桁dayと完全suffixだけを同じstemのgzipへ結びます。
+		if( name.size() == 8U + DAILY_SUFFIX.size() && name.ends_with( DAILY_SUFFIX) &&
+		   std::all_of( name.begin(), name.begin() + 8U,
+					   []( const wchar_t c) { return c >= L'0' && c <= L'9' ; })) {
+			return gzipName == name.substr( 0U, 8U) + L".acquisition.index.json.gz" ;
+		}
+
+		constexpr std::wstring_view PREFIX =
+			L"candidate-publication-" ;								// 既存formatterの固定prefixです。
+		constexpr std::wstring_view SUFFIX = L".manifest.json" ;	// Candidateだけの固定suffixです。
+		constexpr std::uint64_t		MAXIMUM_GENERATION =
+			9007199254740991ULL ;	// Publisherの既存上限です。
+		// 未知prefix・桁違い・余剰文字を任意filenameへ緩和しません。
+		if( name.size() != PREFIX.size() + 16U + SUFFIX.size() || !name.starts_with( PREFIX) ||
+		   !name.ends_with( SUFFIX)) {
+			return false ;
+		}
+
+		std::uint64_t generation{} ;	// 全16文字と上限の確認前には使用しません。
+		// 既存formatterのASCII十進16桁だけを上限内で復元します。
+		for( const auto digit : std::wstring_view{name}.substr( PREFIX.size(), 16U)) {
+			// 非ASCII数字と上限超過は部分値やoverflowへ変換せず拒否します。
+			if( digit < L'0' || digit > L'9' ||
+			   generation > (MAXIMUM_GENERATION - static_cast<std::uint64_t>( digit - L'0')) / 10U) {
+				return false ;
+			}
+
+			generation = generation * 10U + static_cast<std::uint64_t>( digit - L'0') ;
+		}
+
+		return generation > 0U &&
+			   gzipName == name.substr( 0U, PREFIX.size() + 16U) + L".index.json.gz" ;
+	} catch( ...) {
+		// Path処理の確保等に失敗しても保護読取と通信を開始しません。
+		return false ;
+	}
 }
 
 /** @see Access宣言側の契約を正本とします。 */

@@ -2,7 +2,7 @@
 /**
  * @file local_driver_collector_main.cpp
  * @brief 開発用ローカル公式metadata collectorの一回実行入口です。
- * @version 01.14.00
+ * @version 01.15.00
  * @date 2026/09/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * Ver.01.12.00 Shunji Ogawa  2026/10/25  明示取得stdoutへ呼出し内拒否段階を追加。
  * Ver.01.13.00 Shunji Ogawa  2026/10/25  同HTTP失敗本文を固定派生の保護診断へ保存。
  * Ver.01.14.00 Shunji Ogawa  2026/10/26 共通承認readerとSHA-512-only取得保存を接続。
+ * Ver.01.15.00 Shunji Ogawa  2026/10/27  正規candidate名pairを匿名readbackへ接続。
  * </pre>
  *
  * @note 通常DriverCrate.exeと独立し、URL、製品名、pathを標準出力へ出しません。
@@ -812,19 +813,10 @@ private:
 			report.failureStage = drivercrate::PublicIndexFailureStage::INPUT ;
 			const std::filesystem::path envelopePath{args[2]} ;	// 元保護jobのenvelopeです。
 			const std::filesystem::path gzipPath{args[3]} ;		// 同prefixのgzipです。
-			const auto					envelopeName =
-				// 有限ASCII名だけを検査します。
-				envelopePath.filename().native() ;
-			const std::wstring suffix =
-				L".acquisition.manifest.json" ;	// 元public orchestrationの固定suffixです。
-			std::string envelope ;				// 同handle readerだけが設定する原byteです。
-			std::string gzip ;					// 同じ保護job内の原gzipです。
-			// 正確なJST day prefixと固定二fileの組だけを許可します。
-			if( envelopeName.size() == 8U + suffix.size() && envelopeName.ends_with( suffix) &&
-			   std::all_of( envelopeName.begin(), envelopeName.begin() + 8U,
-						   []( const wchar_t c) { return c >= L'0' && c <= L'9' ; }) &&
-			   gzipPath.parent_path() == envelopePath.parent_path() &&
-			   gzipPath.filename() == envelopeName.substr( 0U, 8U) + L".acquisition.index.json.gz" &&
+			std::string					envelope ;				// 同handle readerだけが設定する原byteです。
+			std::string					gzip ;					// 同じ保護job内の原gzipです。
+			// 正規daily/candidate pairだけを既存の同handle保護readerへ渡します。
+			if( drivercrate::publicIndexReadbackArtifactPair( envelopePath, gzipPath) &&
 			   readDailyReservationReceipt( envelopePath, envelope, 98304U) &&
 			   readDailyReservationReceipt( gzipPath, gzip, 16U * 1024U * 1024U, true)) {
 				const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(

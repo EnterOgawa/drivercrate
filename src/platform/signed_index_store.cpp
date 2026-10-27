@@ -2,7 +2,7 @@
 /**
  * @file signed_index_store.cpp
  * @brief 署名索引の原入力と最大世代を一つのDPAPI headへ原子保存します。
- * @version 01.02.02
+ * @version 01.03.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/19  用途別rootと旧head不変の認証renameを追加。
  * Ver.01.02.01 Shunji Ogawa  2026/10/24 現行仕様へ限定し旧版専用の入口・移動を整理。
  * Ver.01.02.02 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
+ * Ver.01.03.00 Shunji Ogawa  2026/10/27  履歴下限の原byte認証と現在schema復元を分離。
  * </pre>
  *
  * @note 製品rootは固定です。実lockと保持directory handleを用い、mutexを保持しません。
@@ -151,11 +152,17 @@ struct Wire {
 	std::vector<std::byte> gzip ;
 } ;
 
-/** @brief 実headからの原入力と完全なschema再認証結果を保持します。 */
+/** @brief 原byteの履歴認証だけを通った下限です。候補や導入能力を持ちません。 */
+struct AuthenticatedHistoryFloor {
+	/// Genesisまたは署名・asset・展開hashに結合した原wireだけです。
+	Wire wire ;
+} ;
+
+/** @brief 実headからの原入力と完全な現在schema再認証結果を保持します。 */
 struct Verified {
 	/// DPAPI・wire検査を通った原入力。
 	Wire									 wire ;
-	/// Genesis以外は全前段を通ったreceipt。履歴検証だけでservableとは扱いません。
+	/// 現在期限と全record/attestationを通ったreceiptだけです。
 	std::optional<IndexRecordsSchemaReceipt> receipt ;
 } ;
 
@@ -852,14 +859,15 @@ struct SignedIndexStore::State {
 		return result ;
 	}
 
-	/** @brief 実署名・gzip・recordを同じ既存verifierへ再投入します。
+	/** @brief 実署名・gzip・展開hashを既存共通verifierへ再投入します。
 	 * @param[in] wire 原入力とplain claims。
 	 * @param[in] nowUtc 現在の信頼UTCまたは履歴検証専用発行秒。
 	 * @param[in] highWater 排他的に再読取りした最新headのauthority。
-	 * @return 全再認証済み所有値。Claimsと署名の矛盾は拒否します。
+	 * @return 原byteだけの認証receipt。Record/snapshot/導入許可は生成しません。
 	 */
-	[[nodiscard]] Verified verify( Wire wire, const std::optional<std::chrono::sys_seconds> nowUtc,
-								  const std::optional<IndexManifestHighWater> &highWater) const
+	[[nodiscard]] AuthenticatedIndexAssetBytes verifyAsset(
+		const Wire &wire, const std::optional<std::chrono::sys_seconds> nowUtc,
+		const std::optional<IndexManifestHighWater> &highWater) const
 	{
 		std::vector<signed_index_detail::TrustKey> trust ;	// 所有固定鍵の呼出し中だけのviewです。
 		// 最大8の固定public keyを借用し、外部envelopeからtrustを作りません。
@@ -890,8 +898,24 @@ struct SignedIndexStore::State {
 			throw Failure{IndexStoreStatus::ASSET_REJECTED, bytes.error, {}, bytes.status} ;
 		}
 
-		auto records = readSignedIndexRecords( *bytes.receipt,
-											  nowUtc) ;	// 原record hashと全schemaを再検査します。
+		require( wire.indexHash == bytes.receipt->expandedSha256(),
+				IndexStoreStatus::STATE_REJECTED) ;
+		return std::move( *bytes.receipt) ;
+	}
+
+	/** @brief 認証済み原byteへ現在期限と現行全record検証を適用します。
+	 * @param[in] wire 検証する原入力です。
+	 * @param[in] bytes 同じwireの実署名/asset認証結果です。
+	 * @param[in] nowUtc 現在信頼UTC。履歴発行時刻で代用しません。
+	 * @return 現在の全検証成功時だけschema receiptを所有します。
+	 */
+	[[nodiscard]] Verified hydrate( Wire wire, AuthenticatedIndexAssetBytes bytes,
+								   const std::optional<std::chrono::sys_seconds> nowUtc) const
+	{
+		requireCurrentTime( bytes.manifest().data(), nowUtc) ;
+		auto records =
+			// 原record hashと現行attestation結合を検査します。
+			readSignedIndexRecords( bytes, nowUtc) ;
 		// 署名だけの合格でschema出力を作りません。
 		if( !records.receipt) {
 			throw Failure{
@@ -902,10 +926,40 @@ struct SignedIndexStore::State {
 		return {std::move( wire), std::move( records.receipt)} ;
 	}
 
-	/** @brief Lock保持中の実headを履歴再認証して最大世代を回収します。
-	 * @return Genesisまたは完全履歴verified。期限切れでも世代を0へ戻しません。
+	/** @brief Fresh原入力を最新下限と現在の全検証へ結合します。
+	 * @param[in] wire 保存候補の原入力です。
+	 * @param[in] nowUtc 現在信頼UTCです。
+	 * @param[in] highWater 同じlockで再読取りした履歴下限です。
+	 * @return 現在schemaまで再認証した所有値です。
 	 */
-	[[nodiscard]] Verified readHead() const
+	[[nodiscard]] Verified verify( Wire wire, const std::optional<std::chrono::sys_seconds> nowUtc,
+								  const std::optional<IndexManifestHighWater> &highWater) const
+	{
+		auto bytes = verifyAsset( wire, nowUtc, highWater) ;	// 下限と原byteを先に再認証します。
+		return hydrate( std::move( wire), std::move( bytes), nowUtc) ;
+	}
+
+	/** @brief 履歴下限から現在使えるsnapshotの全前段を再構成します。
+	 * @param[in] floor 原byteだけの認証を通った履歴下限です。Genesisは呼出し元で分けます。
+	 * @param[in] nowUtc 現在信頼UTCです。
+	 * @return 現在期限/全schema/attestationに成功した場合だけreceiptを返します。
+	 */
+	[[nodiscard]] Verified hydrateHistory(
+		AuthenticatedHistoryFloor floor, const std::optional<std::chrono::sys_seconds> nowUtc) const
+	{
+		const auto publication =
+			std::chrono::sys_seconds{std::chrono::seconds{static_cast<std::int64_t>(
+				floor.wire.publishedSeconds)}} ;	// 原発行秒はbyte認証専用です。
+		auto bytes =
+			// 現在codecを迂回しません。
+			verifyAsset( floor.wire, publication, std::nullopt) ;
+		return hydrate( std::move( floor.wire), std::move( bytes), nowUtc) ;
+	}
+
+	/** @brief Lock保持中の実headから原byte認証だけで最大世代を回収します。
+	 * @return Genesisまたは履歴下限。Record/receipt/snapshotを持ちません。
+	 */
+	[[nodiscard]] AuthenticatedHistoryFloor readHistoryFloor() const
 	{
 		const auto file			  = openFile( L"head.bin", GENERIC_READ, FILE_SHARE_READ,
 											 OPEN_EXISTING) ;				// 同じhandleで保護を確認します。
@@ -916,14 +970,15 @@ struct SignedIndexStore::State {
 		auto wire = decodeWire( plain) ;	// Strict wireを認証元にせず原入力を再確認します。
 		// Genesisは正常初回の私有例外だけで、manifest verifierへ渡しません。
 		if( wire.generation == 0U) {
-			return {std::move( wire), std::nullopt} ;
+			return {std::move( wire)} ;
 		}
 
 		const auto publication = std::chrono::sys_seconds{
 			std::chrono::seconds{	// 履歴authority回収だけの時刻です。
 								 static_cast<std::int64_t>( wire.publishedSeconds)}} ;
 		try {
-			return verify( std::move( wire), publication, std::nullopt) ;
+			static_cast<void>( verifyAsset( wire, publication, std::nullopt)) ;
+			return {std::move( wire)} ;
 		} catch( Failure &failure) {
 			failure.status =
 				IndexStoreStatus::STATE_REJECTED ;	// Historical拒否をfirst-useへ変換しません。
@@ -1055,7 +1110,7 @@ struct SignedIndexStore::State {
 		// 既存rootの欠損を初回として救済しません。
 		if( !created) {
 			const auto lease = lock() ;	// 実lockとheadが必須です。
-			static_cast<void>( readHead()) ;
+			static_cast<void>( readHistoryFloor()) ;
 			return ;
 		}
 
@@ -1071,7 +1126,7 @@ struct SignedIndexStore::State {
 		const auto protectedBytes = dpapi( genesis, true) ;	// 実端末／rootへ保護します。
 		IndexStoreCommitDisposition disposition{} ;			// 初期headも一namespace切替です。
 		replaceHead( protectedBytes, signed_index_store_detail::Fault::NONE, disposition) ;
-		static_cast<void>( readHead()) ;
+		static_cast<void>( readHistoryFloor()) ;
 	}
 } ;
 
@@ -1180,18 +1235,20 @@ IndexStoreResult SignedIndexStore::reload(
 {
 	std::optional<std::uint64_t> generation ;	// 実head再認証後だけ報告します。
 	try {
-		const auto lease	= state_->lock() ;		// Mutexなしで実I/Oのexclusive能力を保持します。
-		auto	   verified = state_->readHead() ;	// 期限切れでも原入力を再認証します。
-		generation			= verified.wire.generation ;
+		const auto lease = state_->lock() ;				// Mutexなしで実I/Oのexclusive能力を保持します。
+		auto	   floor = state_->readHistoryFloor() ;	// 現codecで復元不能でも下限を回収します。
+		generation		 = floor.wire.generation ;
 		IndexStoreResult result ;	// 現在期限と保存事実を独立して返します。
 		result.persistedGeneration = generation ;
 		// 正常genesisに索引候補はありません。
-		if( !verified.receipt) {
+		if( floor.wire.generation == 0U) {
 			result.status = IndexStoreStatus::EMPTY_STORE ;
 			return result ;
 		}
 
-		requireCurrentTime( verified.receipt->assetBytes().manifest().data(), nowUtc) ;
+		auto verified =
+			// 現在の全検証は独立必須です。
+			state_->hydrateHistory( std::move( floor), nowUtc) ;
 		result.snapshot = AuthenticatedIndexSnapshot{std::move( *verified.receipt),
 													 std::move( verified.wire.envelope),
 													 std::move( verified.wire.gzip)} ;
@@ -1234,10 +1291,10 @@ IndexStoreResult SignedIndexStore::commitImpl( const IndexRecordsSchemaReceipt &
 		require( fault >= Fault::NONE && fault <= Fault::AFTER_COMMIT_ALLOCATION &&
 					(state_->isolated || fault == Fault::NONE),
 				IndexStoreStatus::INVALID_INPUT) ;
-		const auto lease	= state_->lock() ;		// 全比較と一head切替を実exclusive能力へ結合します。
-		auto	   previous = state_->readHead() ;	// Callerの古いscalarを最大世代へ使いません。
-		generation			= previous.wire.generation ;
-		const auto &data	= receipt.assetBytes().manifest().data() ;	// 保存前の原receiptです。
+		const auto lease = state_->lock() ;				// 全比較と一head切替を実exclusive能力へ結合します。
+		auto previous	 = state_->readHistoryFloor() ;	// Callerの古いscalarを最大世代へ使いません。
+		generation		 = previous.wire.generation ;
+		const auto &data = receipt.assetBytes().manifest().data() ;	// 保存前の原receiptです。
 		require( !data.manifestBytes.empty() && !data.repository.empty() && !data.channel.empty() &&
 					!data.keyId.empty() && !data.asset.tag.empty() && !data.asset.name.empty() &&
 					!receipt.assetBytes().expandedBytes().empty() && !envelope.empty() &&
@@ -1268,13 +1325,14 @@ IndexStoreResult SignedIndexStore::commitImpl( const IndexRecordsSchemaReceipt &
 						verified.wire.indexHash == previous.wire.indexHash &&
 						verified.wire.gzip == previous.wire.gzip,
 					IndexStoreStatus::STATE_REJECTED) ;
-			requireCurrentTime( previous.receipt->assetBytes().manifest().data(), nowUtc) ;
-			IndexStoreResult result ;	// 再利用を新commitと数えません。
+			auto			 current = state_->hydrateHistory( std::move( previous),
+															  nowUtc) ;	// 保存済み実byteを現在検証します。
+			IndexStoreResult result ;									// 再利用を新commitと数えません。
 			result.status			   = IndexStoreStatus::SNAPSHOT_READY ;
 			result.persistedGeneration = generation ;
-			result.snapshot			   = AuthenticatedIndexSnapshot{std::move( *previous.receipt),
-															std::move( previous.wire.envelope),
-															std::move( previous.wire.gzip)} ;
+			result.snapshot			   = AuthenticatedIndexSnapshot{std::move( *current.receipt),
+															std::move( current.wire.envelope),
+															std::move( current.wire.gzip)} ;
 			return result ;
 		}
 
@@ -1294,9 +1352,11 @@ IndexStoreResult SignedIndexStore::commitImpl( const IndexRecordsSchemaReceipt &
 			throw std::bad_alloc{} ;
 		}
 
-		auto persisted = state_->readHead() ;	// 実diskのenvelope／gzip／全schemaを再認証します。
+		auto persisted = state_->hydrateHistory( state_->readHistoryFloor(),
+												nowUtc) ;	// 実diskを現在の全検証へ通します。
 		require( persisted.wire.generation == verified.wire.generation &&
 					persisted.wire.manifestHash == verified.wire.manifestHash &&
+					persisted.wire.indexHash == verified.wire.indexHash &&
 					persisted.wire.envelope == verified.wire.envelope &&
 					persisted.wire.gzip == verified.wire.gzip,
 				IndexStoreStatus::STATE_REJECTED) ;

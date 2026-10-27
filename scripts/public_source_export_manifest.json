@@ -69,6 +69,8 @@
     "docs/adr/0408-protected-candidate-staging.md",
     "docs/adr/0409-published-index-release-classification.md",
     "docs/adr/0410-collector-seeded-reference-payload.md",
+    "docs/adr/0411-authenticated-history-floor-without-record-hydration.md",
+    "docs/adr/0412-public-readback-canonical-artifact-pairs.md",
     "docs/architecture.md",
     "docs/c_cpp_coding_standard.md",
     "docs/collector-setup-guide.md",
@@ -1289,6 +1291,16 @@
     {
       "owner": "src/app/collector_setup_main.cpp",
       "input": "docs/adr/0410-collector-seeded-reference-payload.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "src/platform/signed_index_store.cpp",
+      "input": "docs/adr/0411-authenticated-history-floor-without-record-hydration.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "src/platform/public_index_readback.cpp",
+      "input": "docs/adr/0412-public-readback-canonical-artifact-pairs.md",
       "kind": "source-contract-document"
     }
   ],

@@ -2,7 +2,7 @@
 /**
  * @file public_index_readback.h
  * @brief 監視PC専用の固定三resource匿名readbackと非機密reportを定義します。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/10/20
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/20  元二byteへの固定三resource匿名確認を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/10/27  Daily/candidateの正規artifact名pairを明示。
  * </pre>
  * @note URL、credential、path、取得本文をreportへ渡さず、storeとcacheを書きません。
  * @see docs/adr/0385-public-anonymous-index-readback.md
@@ -33,6 +34,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <filesystem>
 #include <optional>
 #include <span>
 #include <string>
@@ -116,6 +118,14 @@ struct PublicIndexReadbackReport {
  */
 [[nodiscard]] bool publicIndexReadbackArguments( int count, wchar_t *const args[],
 												std::uint32_t &milliseconds) noexcept ;
+/** @brief 既存daily/candidate callerの同parent・同stem二file名だけを許可します。
+ * @param[in] envelopePath 原manifestへのpathです。呼出し中だけ借用します。
+ * @param[in] gzipPath 同じfamilyとstemの圧縮indexへのpathです。
+ * @return DailyのASCII8桁、またはcandidateのASCII16桁・世代1..9007199254740991の場合trueです。
+ * @note 非I/Oの名前検査だけです。固定root/絶対正規path/ACL/同handle/reparse等は既存readerで別途必須です。
+ */
+[[nodiscard]] bool publicIndexReadbackArtifactPair( const std::filesystem::path &envelopePath,
+												   const std::filesystem::path &gzipPath) noexcept ;
 /** @brief 固定公開trustで元二byteと匿名三resourceを現在UTC検証します。
  * @param[in] envelope 保護readerから得た96KiB以下の原envelopeです。
  * @param[in] gzip 保護readerから得た16MiB以下の原gzipです。

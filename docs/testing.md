@@ -289,6 +289,21 @@ L04の本物の運用approval ACL、L08の既存署名索引の失効再検証�
 
 ## 現在の通常画面と公開索引の有限確認
 
+2026-10-27の限定是正で、履歴headの下限認証と現在snapshot復元を分離し、匿名readbackの
+既存daily/candidate名pairを一致させました。現rootのDebug/Releaseでunit/app/collectorの必要対象を
+buildし、store 353・manifest/asset/HTTP境界718・record/descriptor 800・lookup/取得adapter 2580の
+assertionを各configで確認しました。名前pairの26正負assertionを含みます。
+これは最終公開snapshotの全target fresh buildや新配布assetの資格ではありません。
+
+同じ本番storeのroot/ACLと下限5を保持した通常アプリ一回のscanで、HTTP200・更新診断0・commit成功・
+manifest9/保存9を確認しました。元gen5 ciphertextはAdmin/SYSTEM限定の別backupとして保持しています。
+実PnPは258件、署名索引は2/2recordを読み、未判定関係48、取得対象0/不足未対応48/保持枠超過0でした。
+索引候補0を更新不要や不適合の判定へ換算しません。実driver取得・導入・復元は行っていません。
+アプリは通常closeし、元の同じprocess handleでexit0とstdout/stderr両EOFを確認しました。
+新local collectorの匿名read-only確認では公開済み世代9の三resourceが原hashで一致しました。
+元publisherのUNKNOWNを成功へ書き換えず、保護runtime更新・再発行・再署名・期限延長・remote変更は
+この確認へ含めていません。変更sourceのfresh公開資格と公開反映は別工程です。
+
 2026-10-19に、初回公開source 822 fileをローカルで検証して公開し、Publicへ署名索引の
 manifestと圧縮JSONを配置しました。通常アプリはローカル受入option OFFのまま、HTTP 200、
 manifest世代5と保存世代5を確認しています。旧検証用storeの実署名認証・用途別移動と元byte・

@@ -2,7 +2,7 @@
 /**
  * @file signed_index_refresh_tests.cpp
  * @brief 実HTTP検証/codecと完全fake保存のrefresh回帰です。
- * @version 01.03.00
+ * @version 01.04.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/17  HTTP経路七境界とDNS・handle解放の実到達を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/10/20  監視専用三resourceの固定N01～N28を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
+ * Ver.01.04.00 Shunji Ogawa  2026/10/27  匿名readbackの正規daily/candidate名pairを検査。
  * </pre>
  * @note 暗号/HTTP policy/codecは製品実装、低位I/Oとstore観測はRAM fakeです。
  * 実atomic disk保存/準備relation/WM close/製品鍵正常署名を証明しません。
@@ -1307,5 +1308,75 @@ void runSignedIndexRefreshTests( TestContext &context)
 	std::cout << "P4 reached cases: " << IDS.size() << ", assertions: " << context.assertionCount()
 			  << ", failures: " << context.failureCount() << '\n' ;
 	runPublicReadbackFixtures( context, key, trust) ;
+	/** @brief I/Oなしで正規二familyと拒否名を対応付ける一caseです。 */
+	struct ArtifactPairCase {
+		/// 原manifestの人工leaf名です。
+		std::wstring_view envelope ;
+		/// 同じ親にある人工gzip leaf名です。
+		std::wstring_view gzip ;
+		/// 厳密pairを受理する場合だけtrueです。
+		bool			  accepted ;
+	} ;
+	const ArtifactPairCase pairs[]{
+		{L"20261026.acquisition.manifest.json", L"20261026.acquisition.index.json.gz", true},
+		{L"candidate-publication-0000000000000001.manifest.json",
+		 L"candidate-publication-0000000000000001.index.json.gz", true},
+		{L"candidate-publication-0000000000000009.manifest.json",
+		 L"candidate-publication-0000000000000009.index.json.gz", true},
+		{L"candidate-publication-9007199254740991.manifest.json",
+		 L"candidate-publication-9007199254740991.index.json.gz", true},
+		{L"candidate-publication-0000000000000000.manifest.json",
+		 L"candidate-publication-0000000000000000.index.json.gz", false},
+		{L"candidate-publication-9007199254740992.manifest.json",
+		 L"candidate-publication-9007199254740992.index.json.gz", false},
+		{L"candidate-publication-9999999999999999.manifest.json",
+		 L"candidate-publication-9999999999999999.index.json.gz", false},
+		{L"candidate-publication-000000000000009.manifest.json",
+		 L"candidate-publication-000000000000009.index.json.gz", false},
+		{L"candidate-publication-00000000000000009.manifest.json",
+		 L"candidate-publication-00000000000000009.index.json.gz", false},
+		{L"candidate-publication-000000000000000９.manifest.json",
+		 L"candidate-publication-000000000000000９.index.json.gz", false},
+		{L"candidate-publication-+000000000000009.manifest.json",
+		 L"candidate-publication-+000000000000009.index.json.gz", false},
+		{L"candidate-publication-0000000000000009.manifest.json.bak",
+		 L"candidate-publication-0000000000000009.index.json.gz", false},
+		{L"candidate-publication-0000000000000009.manifest.json:stream",
+		 L"candidate-publication-0000000000000009.index.json.gz", false},
+		{L"candidate-publication-0000000000000009.manifest.json",
+		 L"candidate-publication-0000000000000009.index.json.gz:stream", false},
+		{L"candidate-publication-0000000000000009.manifest.json",
+		 L"candidate-publication-0000000000000008.index.json.gz", false},
+		{L"candidate-publication-0000000000000009.manifest.json",
+		 L"20261026.acquisition.index.json.gz", false},
+		{L"20261026.acquisition.manifest.json",
+		 L"candidate-publication-0000000000000009.index.json.gz", false},
+		{L"20261026.acquisition.manifest.json", L"20261027.acquisition.index.json.gz", false},
+		{L"2026102.acquisition.manifest.json", L"2026102.acquisition.index.json.gz", false},
+		{L"202610260.acquisition.manifest.json", L"202610260.acquisition.index.json.gz", false},
+		{L"2026102６.acquisition.manifest.json", L"2026102６.acquisition.index.json.gz", false},
+		{L"20261026.acquisition.manifest.json", L"20261026.acquisition.index.json", false},
+		{L"unknown-0000000000000009.manifest.json", L"unknown-0000000000000009.index.json.gz",
+		 false},
+		{L"Candidate-publication-0000000000000009.manifest.json",
+		 L"Candidate-publication-0000000000000009.index.json.gz", false},
+		{L"arbitrary.manifest.json", L"arbitrary.index.json.gz",
+		 false}} ;														// 元失敗の正規candidateを含む有限25caseだけです。
+	const auto pairFirst	= context.assertionCount() ;				// 旧HTTP分母と分けた名前検査件数です。
+	const auto pairFailures = context.failureCount() ;					// このgroupの開始失敗数です。
+	const std::filesystem::path pairRoot{L"synthetic-protected-job"} ;	// Fileを作らない人工親です。
+	// 固定25caseを同じ非I/O製品関数へ順番に渡します。
+	for( const auto &pair : pairs) {
+		DRIVERCRATE_EXPECT( context,
+						   publicIndexReadbackArtifactPair( pairRoot / pair.envelope,
+														   pairRoot / pair.gzip) == pair.accepted) ;
+	}
+
+	DRIVERCRATE_EXPECT(
+		context, !publicIndexReadbackArtifactPair( pairRoot / pairs[2U].envelope,
+												  pairRoot / L"different-parent" / pairs[2U].gzip)) ;
+	std::cout << "Public readback canonical pair assertions: "
+			  << context.assertionCount() - pairFirst
+			  << ", failures: " << context.failureCount() - pairFailures << '\n' ;
 }
 } // namespace drivercrate::test
