@@ -2,7 +2,7 @@
 /**
  * @file main_window_metadata_search.cpp
  * @brief 情報検索の対象確認・協調取消し・表示専用結果。
- * @version 01.00.02
+ * @version 01.00.04
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,8 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/12  情報検索専用の非機密出力契約を追加。
  * Ver.01.00.01 Shunji Ogawa  2026/09/15  対応Provider件数に依存しない説明へ更新。
  * Ver.01.00.02  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.03 Shunji Ogawa  2026/10/27  四列一覧の配布版見出しを実装へ整合。
+ * Ver.01.00.04 Shunji Ogawa  2026/10/28  通常画面から撤去した説明controlへの参照を除去。
  * </pre>
  *
  * @note 一覧は端末内で表示し、詳細診断には端末識別値・URL・path・EULA本文を含めない。
@@ -430,7 +432,6 @@ void MainWindow::handleMetadataSearchCommand()
 	showRecommendedOnly_ = false ;
 	SendMessageW( recommendedOnlyCheckbox_, BM_SETCHECK, BST_UNCHECKED, 0) ;
 	populateCandidates( candidates_) ;
-	SetWindowTextW( header_, loadString( IDS_METADATA_HEADER).c_str()) ;
 	updateMetadataSearchColumns() ;
 	updateProviderSourcesCaption() ;
 	setStatus( loadString( IDS_METADATA_SCANNING), true) ;
@@ -517,11 +518,10 @@ void MainWindow::processMetadataSearchCompleted( const WorkerEvent &event)
 void MainWindow::updateMetadataSearchColumns()
 {
 	const bool metadata = controller_.scanPurpose() == ScanPurpose::METADATA_ONLY ;	// 見出しの用途。
-	const std::array<std::pair<int, UINT>, 2> columns{
-		{{2, metadata ? IDS_METADATA_DISTRIBUTION_COLUMN : IDS_COLUMN_CANDIDATE_VERSION},
-		 {5,
-		  metadata ? IDS_METADATA_DISTRIBUTION_DATE : IDS_COLUMN_DATE}}} ;	// 同じ列位置だけを更新。
-	// 版と日付だけを用途に合わせ、列幅・利用者sortは維持する。
+	const std::array<std::pair<int, UINT>, 1> columns{
+		{{2, metadata ? IDS_METADATA_DISTRIBUTION_COLUMN
+					  : IDS_COLUMN_CANDIDATE_VERSION}}} ;	// 配布版と候補版の区別。
+	// 版の意味だけを用途に合わせ、列幅・利用者sortは維持する。
 	for( const auto &[index, resource] : columns) {
 		auto	text = loadString( resource) ;	// 同期Header message中だけ借用するcaption。
 		HDITEMW item{} ;						// Captionだけの変更条件。

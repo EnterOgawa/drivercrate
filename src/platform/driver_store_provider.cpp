@@ -2,7 +2,7 @@
 /**
  * @file driver_store_provider.cpp
  * @brief Driver Store provider実装。
- * @version 01.15.00
+ * @version 01.18.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -61,6 +61,10 @@
  * Ver.01.14.00 Shunji Ogawa  2026/10/15  実選択Needs件数を必要計画の再検証へ結合。
  * Ver.01.14.01 Shunji Ogawa  2026/10/17  Native IDの実一文字NULだけを明示空listとして検証。
  * Ver.01.15.00 Shunji Ogawa  2026/10/24  原公開PnPのcaseを保持して既存native照合keyへ結合。
+ * Ver.01.16.00 Shunji Ogawa  2026/10/27  完全個別観測と初回Hardware根拠から専用証拠を発行。
+ * Ver.01.17.00 Shunji Ogawa  2026/10/27  元完全tuple内の唯一最小Windows rankを固定し直前再選択。
+ * Ver.01.17.01 Shunji Ogawa  2026/10/28  同ID二件の元proof寿命を選択batch終端まで保持。
+ * Ver.01.18.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
  * </pre>
  *
  * @note SetupAPIによるPnP deviceとDriver Store履歴の列挙を実装します。選択された指定版は実行直前に再照合します。Native device identityと
@@ -1959,9 +1963,10 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 単一外部INFから版と日付が一致するWindows nodeを固定する。
+ * @brief 単一外部INFの完全tuple内で唯一最小full-rankのWindows nodeを固定する。
  *
- * 全nodeを有限上限内で列挙し、DDInstallの版／日付差とsectionの曖昧性をfail-closedで拒否する。
+ * 全nodeを有限上限内で正常終端まで列挙し、元INF完全path、Provider、版、日付を満たす
+ * nodeの実Windows full rankを比較する。同最良rank複数と読取不足はfail-closedで拒否する。
  *
  * @param[in] instanceId Worker内の秘密device instance ID。
  * @param[in] infPath 保護workspace内の単一INF絶対path。
@@ -2036,9 +2041,10 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 
 	snapshot.infClassGuid = formatClassGuid( infClass) ;
 	snapshot.classGuid	  = formatClassGuid( device.ClassGuid) ;
-	bool found{} ;					// 一件目の完全一致nodeを保持した場合はtrue。
+	bool found{} ;					// 完全tupleに一致する最小rankのnodeを保持した場合はtrue。
+	bool bestRankTied{} ;			// 現在の最小rankを持つnodeが複数の場合はtrue。
 	bool enumerationComplete{} ;	// ERROR_NO_MORE_ITEMSまで確認できた場合はtrue。
-	// 全nodeを確認し、同じ版／日付でもsectionが複数なら一意性不成立として拒否する。
+	// 全一致nodeの実rankを読み、最後まで確認してから唯一最良を確定する。
 	for( DWORD index = 0U; index < MAXIMUM_DRIVERS_PER_DEVICE; ++index) {
 		SP_DRVINFO_DATA_W driver{} ;	// 現在照合中のcandidate Windows node。
 		driver.cbSize = sizeof( driver) ;
@@ -2072,18 +2078,23 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 			continue ;
 		}
 
-		// 一致nodeが複数ある場合はsnapshotを破棄して曖昧な導入を拒否する。
-		if( found) {
-			snapshot = {} ;
-			return nativeErrorFromWin32( ERROR_DUP_NAME) ;
-		}
-
 		std::uint32_t	  rank{} ;	// Windowsが現在nodeへ算出したfull rank。
 		// 対応driverのrank読取り結果。Rank未確認を適用成功にしないため保持する。
 		const NativeError rankError = readDriverRank( devices.get(), device, driver, rank) ;
 		// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 		if( rankError != 0) {
 			return rankError ;
+		}
+
+		// 同最良の重複は記録し、後続のより低rankで解消できるため列挙を継続する。
+		if( found && rank == snapshot.rank) {
+			bestRankTied = true ;
+			continue ;
+		}
+
+		// より悪いrankのnodeは唯一最良のsnapshotを変更しない。
+		if( found && rank > snapshot.rank) {
+			continue ;
 		}
 
 		snapshot.sectionName   = std::move( detail.sectionName) ;
@@ -2094,6 +2105,7 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 		snapshot.dateTicks	   = fileTimeTicks( driver.DriverDate) ;
 		snapshot.rank		   = rank ;
 		found				   = true ;
+		bestRankTied		   = false ;
 	}
 
 	// 列挙上限までに正常終端へ達しなければ一意性を未確定として拒否する。
@@ -2106,6 +2118,12 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 	if( !found || snapshot.sectionName.empty()) {
 		snapshot = {} ;
 		return nativeErrorFromWin32( ERROR_NOT_FOUND) ;
+	}
+
+	// 正常終端後にも最小rankが同点なら、先頭のnodeを推測採用しない。
+	if( bestRankTied) {
+		snapshot = {} ;
+		return nativeErrorFromWin32( ERROR_DUP_NAME) ;
 	}
 
 	return 0 ;
@@ -2400,6 +2418,8 @@ struct DriverStoreProvider::IndexInventoryState {
 	std::uint64_t			  generation{} ;
 	/// 実際にscanした所有threadです。
 	std::uint32_t			  ownerThread{} ;
+	/// 一つの導入scope開始で不可逆に閉じるresolver能力です。同workerだけが変更します。
+	mutable bool			  resolutionOpen{true} ;
 	/// 全列挙と二巡目の必要属性captureが完了した場合trueです。
 	bool					  enumerationComplete{} ;
 	/// 部分列挙の元HRESULTです。
@@ -2433,7 +2453,8 @@ public:
 		IndexPublicIdResolution result{context_, false, 0U, {}} ;	// 成功を推測しない初期状態。
 		const auto				state = state_.lock() ;				// 呼出し中だけの秘密state所有。
 		// 新scan・install・破棄とcontext違いを現在stateへ結び直しません。
-		if( !state || context != context_ || state->ownerThread != GetCurrentThreadId()) {
+		if( !state || !state->resolutionOpen || context != context_ ||
+		   state->ownerThread != GetCurrentThreadId()) {
 			result.error = nativeErrorFromWin32( ERROR_INVALID_STATE) ;
 			return result ;
 		}
@@ -2498,6 +2519,8 @@ public:
 			normalizeIdentifier( originalId) ;
 		result.completed = true ;
 		bool allPositiveClassesKnown{true} ;	// 部分positive証拠へ未知Classを含めません。
+		std::vector<bool>
+			individualObservations ;	// 各一致nodeの完全個別観測を元cohortと同順に保持します。
 #if defined( DRIVERCRATE_INTERNAL_LIVE_INDEX_DIAGNOSTICS)
 		std::size_t knownClassIdFailures{} ;			// 同classの必要ID失敗node数です。
 		std::size_t unknownClassIdFailures{} ;			// 未知classの必要ID失敗node数です。
@@ -2571,6 +2594,10 @@ public:
 
 			result.devices.push_back( node.identity) ;
 			allPositiveClassesKnown = allPositiveClassesKnown && !node.classGuid.empty() ;
+			individualObservations.push_back(
+				!node.classGuid.empty() ||
+				(node.initialClassUnknown &&
+				 std::ranges::find( node.hardware, id) != node.hardware.end())) ;
 		}
 
 		// 全列挙を終えた同scanの既知Class positiveだけに、公開DTOから作れない根拠を付けます。
@@ -2579,6 +2606,26 @@ public:
 			result.positiveProof = std::make_shared<const NativeIndexPositiveProof>(
 				NativeIndexPositiveProof::MintKey{}, context_, kind, publishedId, classGuid,
 				state->ownerThread, std::weak_ptr<const void>{state}, result.devices, result.error) ;
+		}
+
+		// 元列挙と全一致cohortを保ち、最大32deviceだけの完全個別観測へ別の証拠を発行します。
+		if( state->enumerationError == 0U && !result.devices.empty() &&
+		   result.devices.size() <= 32U &&
+		   (result.devices.size() > 1U || (!result.completed && !allPositiveClassesKnown)) &&
+		   std::ranges::any_of( individualObservations, []( const bool value) { return value ; })) {
+			result.deviceProofs.resize( result.devices.size()) ;
+			// 全一致nodeを一度ずつ確認し、未認証の未知Class slotを成功へ変えません。
+			for( std::size_t index = 0U; index < result.devices.size(); ++index) {
+				// 未知Classは完全初回証拠に加え当該Hardware exact一致を必要とします。
+				if( !individualObservations[index]) {
+					continue ;
+				}
+
+				result.deviceProofs[index] = std::make_shared<const NativeIndexDeviceProof>(
+					NativeIndexDeviceProof::MintKey{}, context_, kind, publishedId, classGuid,
+					state->ownerThread, std::weak_ptr<const void>{state}, result.devices,
+					result.error, result.completed, result.devices[index]) ;
+			}
 		}
 
 #if defined( DRIVERCRATE_INTERNAL_LIVE_INDEX_DIAGNOSTICS)
@@ -2605,6 +2652,46 @@ private:
 	/// 発行時に固定したoperation・scan・inventoryです。
 	IndexLookupContext						 context_ ;
 } ;
+
+/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+DriverStoreProvider::IndexInstallProofScope::IndexInstallProofScope(
+	const DriverStoreProvider *owner, const std::uint64_t generation) noexcept
+	: owner_( owner), generation_( generation)
+{
+}
+
+/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+DriverStoreProvider::IndexInstallProofScope::~IndexInstallProofScope()
+{
+	// 新scan/明示失効後の別世代は旧batch終了で変更しません。
+	if( owner_ && owner_->installProofInventory_ &&
+	   owner_->installProofInventory_->generation == generation_) {
+		owner_->installProofInventory_.reset() ;
+	}
+}
+
+/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+bool DriverStoreProvider::IndexInstallProofScope::active() const noexcept
+{
+	return owner_ != nullptr ;
+}
+
+/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+DriverStoreProvider::IndexInstallProofScope DriverStoreProvider::beginIndexInstallProofScope(
+	const ScanSessionId session) const noexcept
+{
+	// 別thread/scan、終了済みsnapshot、二重scopeからproof寿命を開始しません。
+	if( !indexInventory_ || installProofInventory_ || !indexInventory_->resolutionOpen ||
+	   session == 0U || session != indexInventory_->session ||
+	   GetCurrentThreadId() != ownerThreadId_ ||
+	   GetCurrentThreadId() != indexInventory_->ownerThread) {
+		return {nullptr, 0U} ;
+	}
+
+	indexInventory_->resolutionOpen = false ;
+	installProofInventory_			= std::move( indexInventory_) ;
+	return {this, installProofInventory_->generation} ;
+}
 
 /** @see driver_store_provider.h */
 DriverStoreProvider::DriverStoreProvider( DriverStoreInventoryTransport transport) noexcept
@@ -2648,7 +2735,7 @@ std::unique_ptr<IndexPublicIdResolver> DriverStoreProvider::makeIndexPublicIdRes
 	context = {} ;
 	present.clear() ;
 	// 未発行、別thread、0 operationへ秘密stateの能力を渡しません。
-	if( !indexInventory_ || operationId == 0U ||
+	if( !indexInventory_ || !indexInventory_->resolutionOpen || operationId == 0U ||
 	   indexInventory_->ownerThread != GetCurrentThreadId()) {
 		return nullptr ;
 	}
@@ -4956,16 +5043,20 @@ NativeError DriverStoreProvider::installBoundOfficialInfImpl(
 
 	driverList.markBuilt() ;
 
-	SP_DRVINFO_DATA_W selectedDriver{} ;	// 全binding metadataと一致した一意なstaged node。
+	SP_DRVINFO_DATA_W selectedDriver{} ;	// 元完全tuple内で唯一最小rankのstaged node。
 	// 一覧構築の返却Classも元INFと発行時候補の両GUIDに結合します。
 	if( !IsEqualGUID( device.ClassGuid, stagedClass) ||
 	   formatClassGuid( device.ClassGuid) != record.candidate.classGuid) {
 		return nativeErrorFromWin32( ERROR_RETRY) ;
 	}
 
-	bool found{} ;					// trueの場合だけselected_driverを導入に使用できる。
-	bool enumerationComplete{} ;	// trueの場合はcompatible nodeを上限内で最後まで確認済み。
-	// Windowsがstaged INFから生成した全nodeを確認し、曖昧な複数一致を拒否する。
+	bool found{} ;			// 元完全tuple内の最小rank候補を保持した場合はtrue。
+	bool bestRankTied{} ;	// 現在の最小full rankに複数nodeがある場合はtrue。
+	bool
+		selectedMatchesBinding{} ;			// 最小nodeの節、原日時ticksとrankも元bindingに一致する場合はtrue。
+	std::uint32_t bestRank{} ;				// foundの場合だけ有効なWindows full rank。
+	bool		  enumerationComplete{} ;	// trueの場合はcompatible nodeを上限内で最後まで確認済み。
+	// Windowsがstaged INFから生成した全nodeを読み、元tuple内の唯一最良を再選択する。
 	for( DWORD index = 0U; index < MAXIMUM_DRIVERS_PER_DEVICE; ++index) {
 		SP_DRVINFO_DATA_W driver{} ;	// 現在照合しているstaged INFのdriver node。
 		driver.cbSize = sizeof( driver) ;
@@ -4997,28 +5088,36 @@ NativeError DriverStoreProvider::installBoundOfficialInfImpl(
 			return nativeError ;
 		}
 
-		const bool matches =	// 発行時nodeとWindows登録先nodeの全metadata一致結果。
+		const bool matches =	// 元INF完全path、Provider、packed版、暦日の一致結果。
 			normalizeIdentifier( detail.infFileName) == normalizeIdentifier( stagedInfPath) &&
-			normalizeIdentifier( detail.sectionName) ==
-				normalizeIdentifier( record.candidate.sectionName) &&
 			normalizeIdentifier( driver.ProviderName) ==
 				normalizeIdentifier( record.candidate.provider) &&
 			driver.DriverVersion == record.candidate.packedVersion &&
-			fileTimeTicks( driver.DriverDate) == record.candidate.dateTicks &&
-			formatDriverDate( driver.DriverDate) == record.candidate.date &&
-			rank == record.candidate.rank ;
+			formatDriverDate( driver.DriverDate) == record.candidate.date ;
 		// 登録先INFと保持証拠に一致しないnodeは導入対象から除外する。
 		if( !matches) {
 			continue ;
 		}
 
-		// 一致nodeが複数ある場合は先頭を推測採用せず拒否する。
-		if( found) {
-			return nativeErrorFromWin32( ERROR_DUP_NAME) ;
+		// 同点を即時確定せず、後の低rankで旧同点を解消できるよう保持する。
+		if( found && rank == bestRank) {
+			bestRankTied = true ;
+			continue ;
 		}
 
-		selectedDriver = driver ;
-		found		   = true ;
+		// 元winnerより悪いnodeがあるだけでは指定導入を曖昧にしない。
+		if( found && rank > bestRank) {
+			continue ;
+		}
+
+		selectedDriver		   = driver ;
+		found				   = true ;
+		bestRank			   = rank ;
+		bestRankTied		   = false ;
+		selectedMatchesBinding = normalizeIdentifier( detail.sectionName) ==
+									 normalizeIdentifier( record.candidate.sectionName) &&
+								 fileTimeTicks( driver.DriverDate) == record.candidate.dateTicks &&
+								 rank == record.candidate.rank ;
 	}
 
 	// 列挙上限までに正常終端を確認できなければ一意性を保証しない。
@@ -5029,6 +5128,16 @@ NativeError DriverStoreProvider::installBoundOfficialInfImpl(
 	// 登録先に一致するnodeが存在しなければ導入しない。
 	if( !found) {
 		return nativeErrorFromWin32( ERROR_NOT_FOUND) ;
+	}
+
+	// 最小rankの同点は登録済みnodeでも許可しない。
+	if( bestRankTied) {
+		return nativeErrorFromWin32( ERROR_DUP_NAME) ;
+	}
+
+	// 旧nodeが残っていても新しい唯一winnerへ差し替わった場合は再scanを要求する。
+	if( !selectedMatchesBinding) {
+		return nativeErrorFromWin32( ERROR_RETRY) ;
 	}
 
 	// Staging中の現在driver変更も検出し、成功済み登録を削除せずdevice導入だけを中止する。
@@ -5305,6 +5414,117 @@ NativeError DriverStoreProvider::installTarget( const InstallTarget &target,
 	return 0 ;
 }
 
+/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+std::function<std::vector<PostInstallDeviceObservation>()> DriverStoreProvider::
+	capturePostInstallObservations( const ScanSessionId				   session,
+								   const std::span<const std::wstring> devices) const
+{
+	// 通常scanの元deviceだけを有限に保持し、専用metadata fixtureをnativeへ補完しません。
+	if( devices.empty() || devices.size() > MAXIMUM_OFFICIAL_INF_BINDINGS) {
+		return {} ;
+	}
+
+	const bool valid = session != 0U && session == scanSessionId_ &&
+					   ownerThreadId_ == GetCurrentThreadId() &&
+					   !testInventoryTransport_ ;	// 同workerの元対応表です。
+	std::vector<std::pair<std::wstring, std::wstring>>
+		targets ;	// Opaqueとprivate instanceの一時対応です。
+	targets.reserve( devices.size()) ;
+	// 指定deviceだけをcopyし、未解決を別deviceや全列挙へ置き換えません。
+	for( const auto &device : devices) {
+		const auto found = deviceInstances_.find( device) ;	// 元scanで照合したprivate値です。
+		targets.emplace_back( device,
+							 valid && found != deviceInstances_.end() ? found->second : L"") ;
+	}
+
+	const auto calls =
+		// 同worker fixtureまたは製品固定の完全表です。
+		driver_store_inf_detail::transport() ;
+	const DWORD owner = GetCurrentThreadId() ;	// 別threadへread処理を移しません。
+	return [targets = std::move( targets), calls, owner, session] {
+		std::vector<PostInstallDeviceObservation> observations ;	// 生IDを含まない返却値です。
+		observations.reserve( targets.size()) ;
+		// 最大元選択件数だけを一件ずつ再openし、compatible listやdriver候補を列挙しません。
+		for( const auto &[deviceIdentity, instance] : targets) {
+			PostInstallDeviceObservation observed ;	// 成功値を候補のmetadataで補完しません。
+			observed.observation.scanSessionId	= session ;
+			observed.observation.deviceIdentity = deviceIdentity ;
+			// 解決失敗・thread違いはAPI前に拒否し、元bindingの寿命を延ばしません。
+			if( instance.empty() || GetCurrentThreadId() != owner) {
+				observed.error = static_cast<NativeError>( E_INVALIDARG) ;
+				observations.push_back( std::move( observed)) ;
+				continue ;
+			}
+
+			DeviceInfoSet	set{calls.create( nullptr, nullptr),
+								calls.inventory} ;	// 対象一件用のread-only集合です。
+			SP_DEVINFO_DATA device{} ;				// 再open先の現在metadataです。
+			device.cbSize = sizeof( device) ;
+			// 対象を開けなければ不在とAPI失敗を元診断で保持します。
+			if( !set.valid() || !calls.open( set.get(), instance.c_str(), nullptr, 0U, &device)) {
+				observed.error = nativeErrorFromWin32( GetLastError()) ;
+				observations.push_back( std::move( observed)) ;
+				continue ;
+			}
+
+			std::wstring actualInstance ;	// 値はこのcallbackの外へ渡しません。
+			observed.observation.instanceIdentity =
+				readObservedInstanceId( set.get(), device, actualInstance, calls.inventory) ;
+			std::vector<std::byte> present ;	// 同対象の現在present属性だけです。
+			const auto			   presentRead = readObservedProperty(
+				set.get(), device, DEVPKEY_Device_IsPresent, DEVPROP_TYPE_BOOLEAN, present,
+				calls.inventory) ;	// 既存の型/容量検証を使用します。
+			// 元deviceと異なる返却・非present・確認不能は現在表示へ昇格しません。
+			if( observed.observation.instanceIdentity.state != DevicePropertyReadState::VALUE ||
+			   normalizeIdentifier( actualInstance) != normalizeIdentifier( instance) ||
+			   presentRead.state != DevicePropertyReadState::VALUE ||
+			   present.size() != sizeof( DEVPROP_BOOLEAN) ||
+			   present.front() != static_cast<std::byte>( DEVPROP_TRUE)) {
+				observed.error = nativeErrorFromWin32( presentRead.diagnostic.code != 0U
+														  ? presentRead.diagnostic.code
+														  : ERROR_NO_SUCH_DEVINST) ;
+				observations.push_back( std::move( observed)) ;
+				continue ;
+			}
+
+			auto &observation		 = observed.observation ;	// 同deviceの元読取状態です。
+			observation.node		 = readObservedNode( device, calls.inventory) ;
+			observation.friendlyName = readObservedDeviceString(
+				set.get(), device, DEVPKEY_Device_FriendlyName, observed.name, calls.inventory) ;
+			// FriendlyName欠損時だけ標準説明へfallbackし、元の欠損を保持します。
+			if( observation.friendlyName.state != DevicePropertyReadState::VALUE) {
+				observation.deviceDescription = readObservedDeviceString(
+					set.get(), device, DEVPKEY_Device_DeviceDesc, observed.name, calls.inventory) ;
+			}
+
+			observation.manufacturer =
+				readObservedDeviceString( set.get(), device, DEVPKEY_Device_Manufacturer,
+										 observed.manufacturer, calls.inventory) ;
+			observation.deviceClass = readObservedDeviceString(
+				set.get(), device, DEVPKEY_Device_Class, observed.driverClass, calls.inventory) ;
+			observed.deviceClassGuid = formatClassGuid( device.ClassGuid) ;
+			std::wstring driverKey ;	// 生keyは現在値の登録有無だけへ分類して破棄します。
+			observation.driverKey = readObservedDeviceString(
+				set.get(), device, DEVPKEY_Device_Driver, driverKey, calls.inventory) ;
+			const auto current =
+				// 実propertyだけです。
+				readCurrentDriver( set.get(), device, calls.inventory) ;
+			observation.infName	 = current.infRead ;
+			observation.provider = current.providerRead ;
+			observation.version	 = current.versionRead ;
+			observation.date	 = current.dateRead ;
+			observation.driverPresence =
+				classifyDeviceDriverPresence( observation.node, observation.driverKey) ;
+			observed.provider	= current.provider ;
+			observed.version	= current.version ;
+			observed.driverDate = current.date ;
+			observations.push_back( std::move( observed)) ;
+		}
+
+		return observations ;
+	} ; // 元install呼出し内だけで使用し、install許可・secret map・leaseはcaptureしません。
+}
+
 //------------------------------------------------------------------------------
 /**
  * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
@@ -5313,6 +5533,7 @@ NativeError DriverStoreProvider::installTarget( const InstallTarget &target,
 void DriverStoreProvider::invalidateScanSession() noexcept
 {
 	indexInventory_.reset() ;
+	installProofInventory_.reset() ;
 	installTargets_.clear() ;
 	hardwareToDevice_.clear() ;
 	deviceInstances_.clear() ;

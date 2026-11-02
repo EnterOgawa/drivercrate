@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_internal.h
  * @brief 私有索引候補sessionの内部固定fixture接続を定義します。
- * @version 01.02.00
+ * @version 01.03.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/12  同workerの索引候補と指定導入の内部境界を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.02.00 Shunji Ogawa  2026/10/15  発行前条件の非機密な内部同期観測を追加。
+ * Ver.01.03.00 Shunji Ogawa  2026/10/28  既検証WUA候補と未取得索引の明示混在fixtureを追加。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -30,6 +31,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 #include "platform/composite_update_provider.h"
+#include "core/provider_registry.h"
 #include <Windows.h>
 #include <cstddef>
 #include <memory>
@@ -116,6 +118,43 @@ struct PublicationDiagnostic {
 using PublicationObserver = void ( *)( const PublicationDiagnostic &, void *) noexcept ;
 /** @brief 通常workerと同じprivate本体接続の内部試験入口です。 */
 struct Access {
+	/** @brief 混在試験だけの明示fakeを既存WUA registryへ接続します。
+	 * @param[in,out] provider 同workerだけが所有する本物Compositeです。
+	 * @param[in] fake 実WUA APIを持たない完全な試験用Providerです。
+	 * @return 既存WUA slotをscan/installとも置換できた場合trueです。
+	 * @note 製品入口から呼べず、空fakeやslot欠損をnativeへ補完しません。
+	 */
+	[[nodiscard]] static bool setManagedFixture( CompositeUpdateProvider			&provider,
+												std::shared_ptr<IUpdateProvider> fake)
+	{
+		// 不完全なfixtureを製品WUAへfallbackさせません。
+		if( !fake) {
+			return false ;
+		}
+
+		// Canonical registryの既存slot一つだけを置換し、Providerを追加しません。
+		for( auto &entry : provider.providerRegistry_) {
+			// WUA以外の元inventory・索引・公式境界を変更しません。
+			if( entry.descriptor.id != WINDOWS_UPDATE_PROVIDER_ID) {
+				continue ;
+			}
+
+			entry.scan = [fake]( const auto session, const auto &options, const auto, const auto &,
+								const auto &progress) {
+				return fake->scan( session, options, progress) ;
+			} ; // 同workerの明示fakeだけを共有所有します。
+			entry.install = [fake]( const auto session, const auto ids, const auto parent,
+								   const auto &progress) {
+				return fake->install( session, ids, parent, progress) ;
+			} ; // 同じfakeが元scanと元選択を照合します。
+			entry.invalidatePreparation = [fake]() { fake->invalidatePreparation() ; } ;
+			entry.measurementEvidence	= {} ;
+			entry.metadataScan			= {} ;
+			return true ;
+		}
+
+		return false ;
+	}
 	/** @brief 同threadだけの同期非機密観測を登録または解除します。
 	 * @param[in] observer 解除時はnullです。元処理の結果を変更できません。
 	 * @param[in,out] state 同期呼出し中だけ借用する観測所有者です。

@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_adapter.cpp
  * @brief 同snapshotの取得能力とtaskを封印し、既存grantと検査入力へ接続します。
- * @version 01.07.00
+ * @version 01.08.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * Ver.01.06.00 Shunji Ogawa  2026/10/14  元不足を保持したnative証拠付き一deviceの準備を接続。
  * Ver.01.06.01 Shunji Ogawa  2026/10/16  製品revision1取得認可をmanifest trustと独立に接続。
  * Ver.01.07.00 Shunji Ogawa  2026/10/24  同payloadの全原関係とunique device数を分離しclaimで再照合。
+ * Ver.01.08.00 Shunji Ogawa  2026/10/27  元tuple/cohortと個別証拠を標準INF準備で再検証。
  * </pre>
  *
  * @note 同workerの直列処理です。監視PCの申告と端末実byteを分け、live根拠を合成しません。
@@ -351,10 +352,17 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 		relation.state == IndexRecordMatchState::VERIFIED_PARTIAL &&
 		relation.reason == IndexRecordMatchReason::VERIFIED_POSITIVE_PARTIAL &&
 		relation.positiveProof ;	// 後段で元record tupleとleaseを再確認します。
+	const bool verifiedDevice =
+		relation.state == IndexRecordMatchState::VERIFIED_DEVICE &&
+		relation.reason == IndexRecordMatchReason::VERIFIED_DEVICE_PROJECTION &&
+		relation.deviceProof ;	// 元cohortと対象一件を後段で完全再確認します。
 	// 全体不足だけで権限を作らず、完全関係か私有証拠付き一deviceを要求します。
-	if( relation.context != current || (!completeSingle && !verifiedPartial) ||
-	   !relation.deviceIdentity || relation.relatedDevices.size() != 1U ||
-	   relation.relatedDevices.front() != *relation.deviceIdentity ||
+	if( relation.context != current || (!completeSingle && !verifiedPartial && !verifiedDevice) ||
+	   !relation.deviceIdentity ||
+	   (!verifiedDevice && (relation.relatedDevices.size() != 1U ||
+							relation.relatedDevices.front() != *relation.deviceIdentity)) ||
+	   (verifiedDevice &&
+		(relation.relatedDevices.empty() || relation.relatedDevices.size() > 32U)) ||
 	   relation.recordIndex >= receipt.records().size()) {
 		reason = "same-scan unique relation unavailable" ;
 		return E_ACCESSDENIED ;
@@ -380,6 +388,18 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 		return E_ACCESSDENIED ;
 	}
 
+	// 個別投影も原公開tuple/元completed/error/全cohortと対象一件から切り離しません。
+	if( verifiedDevice &&
+	   !relation.deviceProof->matches(
+		   current, record.publishedIdentityEvidence.pnpIds[*relation.publicIdIndex].kind,
+		   record.publishedIdentityEvidence.pnpIds[*relation.publicIdIndex].value,
+		   record.publishedIdentityEvidence.classGuid, GetCurrentThreadId(),
+		   relation.relatedDevices, relation.error, relation.resolutionCompleted,
+		   *relation.deviceIdentity)) {
+		reason = "same-scan authenticated individual observation unavailable" ;
+		return E_ACCESSDENIED ;
+	}
+
 	// Manifest個別期限を超える原recordは再確認待ちへ保持します。
 	if( *nowUtc < manifest.publishedAtUtc || *nowUtc >= manifest.expiresAtUtc) {
 		reason = "manifest time window unavailable" ;
@@ -387,7 +407,7 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 	}
 
 	// 部分positiveの確認device集合だけでinstallerの全作用範囲を承認しません。
-	if( verifiedPartial &&
+	if( (verifiedPartial || verifiedDevice) &&
 	   (!record.acquisition.value ||
 		*record.acquisition.value != IndexAcquisitionKind::STANDARD_INF_ARCHIVE)) {
 		reason = "partial native positive supports only standard INF inspection" ;
@@ -500,7 +520,18 @@ NativeError SignedIndexAcquisitionAdapter::readTermsText(
 	const auto &record =
 		// 元関係です。
 		receipt.records()[lookup_->relations()[relationIndex].recordIndex] ;
-	const auto &terms = record.acquisitionDescriptor->terms ;	// 原固定documentです。
+	const auto &terms			  = record.acquisitionDescriptor->terms ;	// 原固定documentです。
+	const auto	sameRecordBinding = std::ranges::find_if( bindings_, [&]( const auto &binding) {
+		 return lookup_->relations()[binding.relationIndex].recordIndex ==
+					lookup_->relations()[relationIndex].recordIndex &&
+				std::ranges::find( binding.relationIndices, relationIndex) !=
+					binding.relationIndices.end() ;
+	 }) ; // 同原recordの取得済み全文を持つ同じ共有bindingだけです。
+	// 同recordの個別投影で規約を二重取得せず、元全member/lease/期限を使用時に再確認します。
+	if( sameRecordBinding != bindings_.end()) {
+		return validateBinding( *sameRecordBinding, current, nowUtc, reason) ;
+	}
+
 	// 同意不要では本文を取得せず、既取得の同原関係は再送しません。
 	if( terms.state == IndexTermsState::CONFIRMED_NO_CONSENT ||
 	   std::ranges::any_of( terms_, [relationIndex]( const auto &value) {

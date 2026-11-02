@@ -2,7 +2,7 @@
 /**
  * @file provider_worker.h
  * @brief Provider worker定義。
- * @version 01.03.02
+ * @version 01.04.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -38,6 +38,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  同scan索引の取得計画と非機密内容結果を追加。
  * Ver.01.03.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
  * Ver.01.03.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.04.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
  * </pre>
  *
  * @note Blocking provider operationをCOM MTA worker threadへ隔離します。UI通知は有限result queueとPostMessageを使用し
@@ -50,6 +51,7 @@
 #include "core/restore_point_service.h"
 #include "core/update_provider.h"
 #include "platform/signed_index_scan.h"
+#include "platform/hardware_refresh.h"
 
 #include <Windows.h>
 
@@ -122,6 +124,8 @@ struct WorkerEvent {
 	OfficialPreparationProgress			   preparationProgress ;
 	/// 取得専用の完了結果。
 	OfficialPreparationOperationResult	   preparationResult ;
+	/// 通常検索前に明示実行した再検出の非機密結果。内部未実行時は値なしです。
+	std::optional<HardwareRefreshResult>   hardwareRefresh ;
 } ;
 
 /**
@@ -295,11 +299,13 @@ private:
      */
 	struct ScanCommand {
 		/// UI state machineが割り当てたscan operation ID。
-		OperationId						  operationId{} ;
+		OperationId							 operationId{} ;
 		/// Scan sessionへ固定するProvider選択。
-		ScanOptions						  options ;
+		ScanOptions							 options ;
 		/// Queued／activeで同じoperationだけが共有する取消し信号。
-		std::shared_ptr<std::atomic_bool> cancellation ;
+		std::shared_ptr<std::atomic_bool>	 cancellation ;
+		/// 後続Provider例外でも同じ終端へ保持する非機密な先行再検出結果です。
+		std::optional<HardwareRefreshResult> hardwareRefresh ;
 	} ;
 
 	/**

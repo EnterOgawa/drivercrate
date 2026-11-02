@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition_tests.cpp
  * @brief 公式file検査用取得境界単体試験実装。
- * @version 01.17.00
+ * @version 01.20.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -50,6 +50,9 @@
  * Ver.01.16.00 Shunji Ogawa  2026/10/24  元Intel archive/規約byteを非通信replayへ固定。
  * Ver.01.16.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * Ver.01.17.00 Shunji Ogawa  2026/10/26 新metadata生成索引の原byteを通常reader/候補adapterへ接続。
+ * Ver.01.18.00 Shunji Ogawa  2026/10/27  個別device三条件の実取得fixture応答枠を固定。
+ * Ver.01.19.00 Shunji Ogawa  2026/10/27  追加rank回帰17件分のfake応答だけを有限追加。
+ * Ver.01.20.00 Shunji Ogawa  2026/10/28  同ID十二条件を含む元fake取得35回を有限固定。
  * </pre>
  *
  * @note Fake transportとcost readerを使用し、実network、実driver、実installへ依存せず検査用取得状態を検証します。
@@ -3611,7 +3614,7 @@ void runNormalSignedIndexCandidateBindingTests( TestContext						&context,
 	auto fixture = std::make_shared<DelegatedHttpFixture>() ;	// 完全fake HTTPの同worker状態です。
 	fixture->utcSeconds.assign( 4096U,
 							   static_cast<std::uint64_t>( nowUtc.time_since_epoch().count())) ;
-	fixture->responses.assign( 8U, DelegatedHttpResponse{}) ;
+	fixture->responses.assign( network ? 16U : 6U + 17U + 12U, DelegatedHttpResponse{}) ;
 	// 実原ZIP byteと期待sizeを毎回同じ取得policyへ返します。
 	for( auto &response : fixture->responses) {
 		response.body	  = zip ;
@@ -3633,7 +3636,8 @@ void runNormalSignedIndexCandidateBindingTests( TestContext						&context,
 				return std::make_unique<FakeNetworkCostReader>() ;
 			}} ; // Native fallbackはありません。
 	runSignedIndexCandidateBindingTests( context, std::move( services), zip, network) ;
-	DRIVERCRATE_EXPECT( context, fixture->safeRequest && fixture->opened == fixture->closed) ;
+	DRIVERCRATE_EXPECT( context, fixture->safeRequest && fixture->opened == fixture->closed &&
+									fixture->sends == (network ? 1U : 6U + 17U + 12U)) ;
 }
 
 /** @brief 原生成索引の同一recordを通常候補adapterと全fake terms GETへ接続します。

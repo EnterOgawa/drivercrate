@@ -18,6 +18,7 @@
     "cmake/LocalIndexAcceptance.cmake",
     "cmake/RecordIndexBuildProfile.cmake",
     "cmake/RejectRetiredAiOptions.cmake",
+    "cmake/drivercrate_product_version.rc.in",
     "cmake/local_index_acceptance.h.in",
     "data/collector-registry/README.md",
     "data/collector-registry/collection-profiles.json",
@@ -71,6 +72,19 @@
     "docs/adr/0410-collector-seeded-reference-payload.md",
     "docs/adr/0411-authenticated-history-floor-without-record-hydration.md",
     "docs/adr/0412-public-readback-canonical-artifact-pairs.md",
+    "docs/adr/0413-authenticated-per-device-index-projection.md",
+    "docs/adr/0414-unique-minimum-windows-rank-binding.md",
+    "docs/adr/0415-v1-product-version-and-local-signed-artifacts.md",
+    "docs/adr/0416-simple-device-manager-tree.md",
+    "docs/adr/0417-expired-candidate-execution-history.md",
+    "docs/adr/0418-signed-index-batch-proof-lifetime.md",
+    "docs/adr/0419-hardware-refresh-before-update-search.md",
+    "docs/adr/0420-update-search-preparation-continuation.md",
+    "docs/adr/0421-simple-list-and-device-details.md",
+    "docs/adr/0422-search-select-install-intent.md",
+    "docs/adr/0423-inline-official-install-terms.md",
+    "docs/adr/0424-recommended-and-initial-reference-classification.md",
+    "docs/adr/0425-post-install-full-tree-and-candidate-choice.md",
     "docs/architecture.md",
     "docs/c_cpp_coding_standard.md",
     "docs/collector-setup-guide.md",
@@ -78,6 +92,7 @@
     "docs/examples/c_cpp_coding_standard_sample.cpp",
     "docs/release-checklist.md",
     "docs/release-notes-0.1.1.md",
+    "docs/release-notes-1.0.0.md",
     "docs/security.md",
     "docs/testing.md",
     "docs/user-guide.md",
@@ -157,6 +172,7 @@
     "scripts/test_candidate_publication.py",
     "scripts/test_candidate_publication_native.py",
     "scripts/test_candidate_publish_path.py",
+    "scripts/test_collector_candidate_staging.py",
     "scripts/test_collector_collection_profiles.py",
     "scripts/test_collector_distribution_candidate.py",
     "scripts/test_collector_distribution_data.py",
@@ -200,6 +216,7 @@
     "scripts/test_project_collected_native_index.py",
     "scripts/test_public_product_pid.py",
     "scripts/test_public_source_closure.py",
+    "scripts/test_published_index_release_reader.py",
     "scripts/test_registry_daily_monitor.py",
     "scripts/test_registry_file_query.py",
     "scripts/test_registry_filename_query.py",
@@ -363,6 +380,9 @@
     "src/platform/focusrite_download_page_parser.h",
     "src/platform/generic_inf_package.cpp",
     "src/platform/generic_inf_package.h",
+    "src/platform/hardware_refresh.cpp",
+    "src/platform/hardware_refresh.h",
+    "src/platform/hardware_refresh_internal.h",
     "src/platform/hp_catalog_parser.cpp",
     "src/platform/hp_catalog_parser.h",
     "src/platform/hp_update_provider.cpp",
@@ -1301,6 +1321,21 @@
     {
       "owner": "src/platform/public_index_readback.cpp",
       "input": "docs/adr/0412-public-readback-canonical-artifact-pairs.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "src/platform/signed_index_record_lookup.h",
+      "input": "docs/adr/0413-authenticated-per-device-index-projection.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "src/platform/driver_store_provider.cpp",
+      "input": "docs/adr/0414-unique-minimum-windows-rank-binding.md",
+      "kind": "source-contract-document"
+    },
+    {
+      "owner": "src/platform/driver_store_provider.cpp",
+      "input": "docs/adr/0418-signed-index-batch-proof-lifetime.md",
       "kind": "source-contract-document"
     }
   ],

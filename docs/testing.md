@@ -1,5 +1,39 @@
 # テスト方針
 
+## 2026-11-02の導入済み参照と初回確認の表示分類
+
+G13-I7r273/ADR0424では、元取得targetへの結合だけで版不明参照を更新候補へ算入した誤分類を修正しました。
+画像相当の登録済み二device（現在版1.9.74.0・参照版空）はfilter ONで更新0となり、全候補と詳細で参照を保持します。
+同scan/deviceの妥当なCode28観測だけを未検査の「初回の確認候補」として残し、導入可能候補数と分けます。
+版欠損REGISTERED/UNKNOWN、旧session/別device/不正観測、同版・旧版、新版と同版の混在、WUA/Storeの正当候補、
+同名別device、filter ON/OFF・明示選択・代表版を固定13条件226 assertion/0失敗で確認しました。
+WUAの検査委譲を一律の独自検査済みと表現せず、最終captionは「更新・初回の導入候補」です。
+
+最終Debug/Release App/UI/unit target buildはexit0、UIは両方hardware825/default735/binding230/index539/preparation380の失敗0です。
+272の規約UI固定12条件も両方313/0で、初回二機能はfilter ONの検索→選択してInstallを維持しています。
+UIのみの変更でunit byteが603と同一であるため、全unit各79,996/0の元終端を再利用しました。
+変更5sourceのformat差0・規約986control/199case/0error、Doxygen4source202/202を確認しました。
+初回赤試験と最初の補正試験は追加fixtureを既存固定planの前に置いた不整合で停止し、所有fake子の同handle/作成時刻で
+exit81へ停止した原結果を保持します。追加matrixを既存固定条件の後へ移し、製品の単調session/plan検証は変更していません。
+取得前参照にはdriverVersionがなく、配布releaseVersionから同版や適用性を推測していません。
+実App・通信・実再検出・復旧・実導入・署名・Task/鍵・GitHubは0、通常outputの反映と利用者の実OS状態確認は未実施です。
+
+## 2026-11-02の公式規約案内とInstallの内部確認
+
+G13-I7r272/ADR0423では、検索後と通常公式Installの独立EULA dialogが0、選択時の画面内案内、
+原出典/revision/全文の任意read-only閲覧と偽装IDYESの非実行を、既存private desktopの完全fakeで確認しました。
+閲覧だけでは取得・同意・導入0で、選択変更/本文差替えからのInstallは取得前に停止します。
+固定12条件は両構成313 assertion/0失敗で、共有payload一取得、既検証候補との混在、取消し/newscan/close、
+取得・内容拒否、曖昧候補、未選択target、復元失敗時install0と既存個別結果を保持しています。
+案内帯は通常幅/最小幅の実control座標と実fontの必要高さを確認し、任意全文の合成PNGを視認しました。
+初回主画面PrintWindowのclient黒画像は表示受入へ数えていません。
+
+必要Debug/Release App/UI/unit build、各全unit79,996/0、各UI hardware598/default735/binding230/index539/preparation380の
+内部試験が合格しました。変更6sourceのformat差分0・既存規約0error、Doxygen対象5source/208memberの集合一致を確認しました。
+実通信・実device再検出・実復元・実導入・署名・Task/鍵操作・GitHub操作は行っていません。
+WUAの未受諾条件は従来の確認を維持しており、今回の公式EULA統合とは別です。
+通常outputへの反映、主担当確認と利用者による新byteの実UI受入は、この内部確認から分けます。
+
 ## 配布周期と期限の差分確認
 
 日次収集は未署名候補まで、署名と公開は手動です。新しい配布scopeは`projectionPolicyRevision=2`で、
@@ -492,6 +526,14 @@ live testと解析optionは通常OFFです。通常buildへ受入用公開pin・
 
 ## 必須source gate
 
+G13-I7r263 / [ADR 0416](adr/0416-simple-device-manager-tree.md)では、既存の非通信MainWindow UI試験を
+カテゴリ→deviceの二階層・一device一行・四列へ更新する。同名の別device、現在属性優先、
+metadataと検査後候補、複数候補の明示指定、一device一計画、推奨filter/全解除、失効後の個別結果を
+確認対象とする。詳細の実combobox・選択button、閲覧時の選択不変、現在構成の選択拒否も確認する。
+既存の署名索引/共有取得/初回/必要構成/部分失敗/stale worker UI群は残し、診断と必要構成の期待を
+主一覧の子行から同candidateの詳細表示へ移す。これは非通信fixtureの受入であり、通常実機の
+最新byte受入・実導入・署名配布物の更新とは区別する。
+
 Python launcher、clang-format、固定Doxygenを利用できる開発環境で次を実行します。
 `$DoxygenExe`は、事前に存在と版1.10.0を確認したDoxygen executableの絶対pathを設定する変数です。
 PATHのclang-formatが使えない場合は、formatterの`--clang-format`で確認済み実体を指定します。
@@ -523,9 +565,9 @@ py -3 -X utf8 -B scripts/test_daily_index_pipeline.py
 
 `scripts/check_public_source_closure.py`は候補一覧の静的なsource／fixture／import／固定payload依存を
 確認するtoolです。動的pathの完全証明やnative buildではありません。
-現在のsource候補は850 fileで、`finalAllowlist=false`です。
+現在のsource候補は914 fileで、`finalAllowlist=false`です。
 初回公開822 fileへADR 0380と移行専用header／CLIの三件を加えた825 file、および後続845 fileは履歴上の集合です。
-過去の受入を現在の850 fileへ自動適用しません。これらはsource file数で、device／driverの対応数ではありません。
+過去の受入を現在の914 fileへ自動適用しません。これらはsource file数で、device／driverの対応数ではありません。
 最終allowlistではなく、除外された私有履歴を追加して閉包を成立させません。
 
 ## 公開snapshotのローカル事前確認
@@ -814,3 +856,27 @@ nativeの重複・非空先・原点欠損は`drivercrate_collector_setup_worksp
 draft・不正bool・返却tag差・asset不足/差替え・verifier拒否を検査し、新Release writerの
 prerelease方針を維持します。実currentの失効はhistory/floorと現在有効性を分けて記録します。
 
+
+## 認証済み個別device投影（ADR 0413）
+
+認証済み個別device投影は、生MULTIPLEの非一意負例を維持して、二present/未知Class完全初回・第三node不足・record/source/hash/publicId/device/context/cohort/error/owner/lease改変を分離する。共有一取得、選択一件だけのfake導入と非選択0、通常準備UIも検査する。実機READY/実導入/署名/公開の実績は分けて記録する。
+
+詳細は[ADR 0413](adr/0413-authenticated-per-device-index-projection.md)を参照する。
+
+## 唯一最小Windows full-rank（ADR 0414）
+
+同tuple異rankの両列挙順、同最良同点拒否、後の低rankによる旧同点解消、別Provider/packed版/日付/完全path、
+後続rank/detail/API失敗、正常終端不足・上限・候補無し、導入前winner変化/同点化と登録先だけの
+低rank追加/同点化、完了後の旧scan失効を完全低位fakeで確認する。完全初回/未知Class、
+共有一取得/選択一件/非選択0の既存回帰を維持する。fixture成功と新signed appの通常READY、
+実導入の実績を分ける。[ADR 0414](adr/0414-unique-minimum-windows-rank-binding.md)を参照する。
+
+## 同ID二件の選択batch（ADR 0418）
+
+同Hardware ID・異instanceの二deviceを共有一取得から明示選択し、第一のfake指定成功後に
+第一自身の現在属性だけを反映する。既知同ID・完全初回・第三node不足の三正例と、第二の
+実状態変化・未知rank・同最良同点・元API拒否・同保護INF byte変化・原期限切れを分離する。
+単独第二選択では未選択第一のAPI呼出し0を維持する。proof寿命は通常終端・例外・新scan・
+明示失効と旧resolver/新callback閉鎖を別に確認する。既存の偽binding・別device・stale・
+署名hash期限拒否とpartial結果表示を保持する。内部成功は実機二件の解消確認ではない。
+詳細は[ADR 0418](adr/0418-signed-index-batch-proof-lifetime.md)を参照する。

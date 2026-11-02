@@ -1,5 +1,13 @@
 # アーキテクチャ
 
+通常TreeViewは種類カテゴリ→opaque PnP deviceの二階層・一device一行とし、デバイス名・現在版・候補版の
+三列へ要約し、状態・検査・個別結果はダブルクリック詳細へ集約する。同deviceの全候補と現在観測はUIの所有snapshotへ保持し、詳細dialogで比較する。
+詳細の閲覧だけでは選択を変えず、明示button後に元scan session・device・candidate indexを再照合して
+一device一候補をcheckboxへ結合する。共有packageや同名の別deviceは統合しない。導入後の個別結果は
+candidate identityへ結合して詳細へ残し、全候補を失効させる。[ADR 0421](adr/0421-simple-list-and-device-details.md)を参照する。
+workerは選択対象だけをread-onlyで再openし、元scan/opaque deviceへ結合した現在名・版・class・問題観測を
+InstallResultへ添付する。UIは個別結果を保持して対象行を再構築し、API成功から現在状態を補完しない。
+
 DriverCrateはC++20／Win32のWindows x64アプリです。通常アプリは機器列挙、候補表示、選択、
 共通取得・検査、既存の導入経路と結果を担当します。メーカー別page解析、対象追加、台帳と更新履歴は
 収集PC側へ置き、新製品追加だけでアプリの設定やProviderを増やしません。
@@ -23,6 +31,9 @@ interface pointerをUIへ渡しません。所有権が明確なDTOをPostMessag
 終了時は新規受付を止め、worker終了前にWindowの所有状態を破棄しません。
 Idle、Scanning、ScanReady、CreatingRestorePoint、Downloading、Installing、Completed、Failed、Stoppingを
 区別します。同時操作を拒否し、進捗は確定済み段階・項目から算出します。取消しは協調停止です。
+通常UIの検索開始はworkerでWindowsハードウェア再検出一回→現在PnP再列挙→更新検索の順に実行します。
+再検出の失敗ではProvider走査へ進まず、内部再監査・取得時照合・導入後のread-only確認には再検出を加えません。
+同期再検出の完了は全deviceの開始・driver導入完了を保証しません。詳細は[ADR0419](adr/0419-hardware-refresh-before-update-search.md)を参照してください。
 
 ## Providerと候補
 
@@ -69,9 +80,19 @@ hash/署名/期限検証は別途必須です。任意filenameやURL、通信権
 公式installerは専用の署名・publisher・作用範囲と対話引継ぎへ分岐し、INF rankや内容合格を合成しません。
 scan中のEXE／MSI実行や無関係なapp・firmware追加は行いません。
 
+通常UIの明示検索は公式探索をmetadata取得へ限定し、候補表示で止まります。汎用取得dialogを開きません。
+元署名索引・record・device・取得targetに結合した参照は、installable=falseのまま選択意図を表せます。
+Install操作は選んだopaque候補集合を既存取得承認へ結合し、必要EULA全文/revisionだけを明示同意します。
+Compositeは元私有Referenceから取得集合を再照合し、未選択targetの取得を拒否します。
+取得後の同task・referenceIndex・recordへ一致するcommit済みrouteが唯一の場合だけ、新しい検証済み候補へ解決します。
+既検証WUA/Driver Store候補との混在でも元選択集合を維持します。新downgrade・真の複数候補・未成立では停止します。
+必要Extension/componentは既存の検証済み基本計画へ含め、復旧前検査を維持します。
+取消し、新検索、close、旧eventで継続意図を破棄し、実導入APIは未取得参照を引き続き拒否します。
+[ADR 0422](adr/0422-search-select-install-intent.md)を正本とし、新byteの通常実UI受入と実導入は別工程で記録します。
+
 ## 導入と結果
 
-最終確認を現在scan、選択、EULA、方式、初回／旧版、必要componentと復旧保護へ結合します。
+Install操作を現在scanの明示選択へ結合し、必要なEULA・方式・旧版・必要componentの新条件だけを確認します。
 clientは復元ポイント開始失敗時にProviderを呼ばず、開始済みなら例外でも終了通知します。
 ServerはSystem Restoreを呼ばず、外部backup／checkpointと復旧手順への管理者同意を要求します。
 実OSと保護modeをworkerで再確認します。
@@ -126,3 +147,24 @@ manifestの`finalAllowlist=false`は候補schemaの契約であり、固定集�
 GitHub Actionsは通常運用に使用せず、公開開始後の履歴を保持します。
 
 [セキュリティ設計](security.md)、[Release checklist](release-checklist.md)を参照してください。
+
+## 認証済み個別device投影（ADR 0413）
+
+署名索引の同一公開IDに複数present機能が一致する場合は元aggregate関係を保持し、DriverStoreの完全個別観測からprivateな一device関係を追加する。原record/public tuple・同owner/lease・全cohort/元診断へ結合し、同record/deviceの複数公開IDは一つの基本参照へ集約する。
+
+詳細は[ADR 0413](adr/0413-authenticated-per-device-index-projection.md)を参照する。
+
+## 単一INFの唯一最良Windows node（ADR 0414）
+
+元INF完全path、Provider、packed版、日付に一致する全Windows nodeを有限正常終端まで読み、
+実full rankの最小値が一件のときだけ固定する。同最良の同点、途中障害、列挙上限は拒否する。
+導入前の元INF再検証と登録先node再選択でも同じ唯一winnerを要求し、元section/rank/全snapshotの
+変化を拒否する。詳細は[ADR 0414](adr/0414-unique-minimum-windows-rank-binding.md)を参照する。
+
+## 選択batch内のnative proof寿命（ADR 0418）
+
+同じ公開IDに一致する別deviceを続けて導入する場合、全選択事前検証後の私有stack scopeが
+元proofの解放を同batch終端まで延期する。resolverと新callback生成は開始時に閉じる。
+scopeはsnapshotを強所有せず、新scan・明示失効・終端・例外では元proofを失効させる。
+各deviceの直前現在状態、rank、固有binding、原byteと期限は引き続き再検証する。
+詳細は[ADR 0418](adr/0418-signed-index-batch-proof-lifetime.md)を参照する。

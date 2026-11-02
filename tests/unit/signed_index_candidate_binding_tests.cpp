@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_tests.cpp
  * @brief 真署名索引から通常候補とfake指定導入へ接続する有限fixtureを検証します。
- * @version 01.21.01
+ * @version 01.26.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -46,6 +46,11 @@
  * Ver.01.20.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * Ver.01.21.00 Shunji Ogawa  2026/10/24  原Intel packageの実署名/完全tupleを通常workerへ接続。
  * Ver.01.21.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.22.00 Shunji Ogawa  2026/10/27  同ID二機能の完全初回/他node不足と選択一件を回帰。
+ * Ver.01.23.00 Shunji Ogawa  2026/10/27  最小full-rankの順序・同点・読取不足・直前変化を回帰。
+ * Ver.01.24.00 Shunji Ogawa  2026/10/28  同ID二件batchと成功した自己状態だけの変化を回帰。
+ * Ver.01.25.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
+ * Ver.01.26.00 Shunji Ogawa  2026/10/28  既検証WUA候補と未取得索引の明示混在fixtureを追加。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -60,6 +65,8 @@
 #include "core/restore_point_service.h"
 #include "core/operation_controller.h"
 #include "core/candidate_selection.h"
+#include "core/candidate_audit.h"
+#include "core/device_observation.h"
 #include "core/provider_registry.h"
 #include <Windows.h>
 #include <Softpub.h>
@@ -76,6 +83,7 @@
 #include <filesystem>
 #include <stdexcept>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 namespace drivercrate::test {
@@ -103,6 +111,8 @@ constexpr GUID EXTENSION_CLASS{
 BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWORD required) ;
 /** @brief 成功DTOでなく低位APIの状態だけを有限所有します。 */
 struct NativeFixtureState {
+	/// 混在条件の明示fake WUA導入数です。通常OSのAPI呼出しを含みません。
+	std::uint32_t								   managedInstalls{} ;
 	/// 新producerの三deviceだけに使う、認証record由来の公開identityです。空は元fixtureです。
 	std::vector<DistributionBindingDevice>		   distributionDevices ;
 	/// 元Intel一件replayだけが実INF metadata読取と既存native署名adapterを使います。
@@ -139,6 +149,14 @@ struct NativeFixtureState {
 	std::vector<std::wstring>					   sourceInfs ;
 	/// 各deviceの指定導入が一度だけであることを観測します。
 	std::array<std::uint32_t, 2U>				   deviceInstalls{} ;
+	/// 同IDbatchでは指定API成功後だけ当該deviceの現在属性を反映します。
+	bool										   reflectOwnInstall{} ;
+	/// 指定APIへ到達した回数と分けた成功反映数です。
+	std::array<std::uint32_t, 2U>				   appliedDeviceInstalls{} ;
+	/// 第一成功後に第二の低位条件だけを変える事前固定入力です。
+	SignedIndexBindingBatchFault				   batchFault{SignedIndexBindingBatchFault::NONE} ;
+	/// 原INFの実byte変更を一回だけに限定する印です。
+	bool										   batchContentChanged{} ;
 	/// 一handleの検索条件です。
 	std::array<SP_DEVINSTALL_PARAMS_W, 32>		   parameters{} ;
 	/// 生存handleです。
@@ -203,12 +221,22 @@ struct NativeFixtureState {
 	std::uint32_t								   dependencyRootSignerCalls{} ;
 } ;
 thread_local NativeFixtureState *activeNative = nullptr ;	// 一workerの固定低位状態です。
+/** @brief 第一の実fake指定成功後だけ、指定した第二の低位faultを有効にします。
+ * @param[in] fault 事前固定した元低位条件です。
+ * @param[in] instance 今回照会した人工nodeです。
+ * @return 同workerの第一成功後かつ第二の一致したfaultだけtrueです。
+ */
+bool batchFaultApplies( const SignedIndexBindingBatchFault fault, const DEVINST instance) noexcept
+{
+	return activeNative && activeNative->reflectOwnInstall && instance == 2U &&
+		   activeNative->appliedDeviceInstalls[0] != 0U && activeNative->batchFault == fault ;
+}
 /**
  * @brief 隔離登録Extensionだけへの変更権限と元全byteを実file APIで確認します。
  * @note 同workerのbase stageと指定API入口から同期使用し、実Windows INFへ触れません。
  *       書換条件は許可された場合に一byte追記し、DELETE条件は権限openだけで終了します。
  */
-void							 probeRegisteredExtension()
+void probeRegisteredExtension()
 {
 	// 固定した二条件以外にはfile変更の試行を追加しません。
 	if( !activeNative || (activeNative->nativeCase !=
@@ -598,12 +626,15 @@ bool unknownClassScenario() noexcept
 }
 
 /** @brief 元deviceのClassが既知へ変わった固定条件を判定します。
+ * @param[in] instance 同じ低位呼出し対象の人工nodeです。既存必要roleの既定値は第一親です。
  * @return 原低位状態の変更条件が成立した場合だけtrueです。
  */
-bool observedClassChanged() noexcept
+bool observedClassChanged( const DEVINST instance = 1U) noexcept
 {
 	return activeNative &&
-		   ((activeNative->requiredRoles && activeNative->deviceInstalls[0] != 0U) ||
+		   ((activeNative->reflectOwnInstall && instance >= 1U && instance <= 2U &&
+			 activeNative->appliedDeviceInstalls[instance - 1U] != 0U) ||
+			(activeNative->requiredRoles && activeNative->deviceInstalls[0] != 0U) ||
 			(activeNative->changed &&
 			 (activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_CLASS_CHANGED ||
 			  activeNative->nativeCase == SignedIndexBindingNativeCase::KNOWN_CLASS_MISMATCH ||
@@ -753,10 +784,14 @@ BOOL WINAPI closeInventory( HDEVINFO set)
 BOOL WINAPI enumInventory( [[maybe_unused]] HDEVINFO set, DWORD index, PSP_DEVINFO_DATA device)
 {
 	// 固定一または二人工device以降は正式な列挙終端を返します。
-	const auto parents = activeNative && !activeNative->distributionDevices.empty()
-							 ? static_cast<unsigned>( activeNative->distributionDevices.size())
-						 : activeNative && activeNative->multiple ? 2U
-																  : 1U ;	// 元親数です。
+	const auto parents =
+		activeNative && !activeNative->distributionDevices.empty()
+			? static_cast<unsigned>( activeNative->distributionDevices.size())
+		: activeNative && activeNative->nativeCase ==
+							  SignedIndexBindingNativeCase::INITIAL_SAME_ID_OTHER_INCOMPLETE
+			? 3U
+		: activeNative && activeNative->multiple ? 2U
+												 : 1U ;	// 元親数です。
 	const bool children =
 		activeNative && activeNative->componentChild && activeNative->installs != 0U &&
 		activeNative->nativeCase !=
@@ -781,7 +816,7 @@ BOOL WINAPI enumInventory( [[maybe_unused]] HDEVINFO set, DWORD index, PSP_DEVIN
 	}
 
 	device->ClassGuid =
-		unknownClassScenario() && !observedClassChanged()
+		unknownClassScenario() && !observedClassChanged( index + 1U)
 			? (activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_CLASS_UNKNOWN
 				   ? GUID_DEVCLASS_UNKNOWN
 				   : GUID_NULL)
@@ -795,7 +830,12 @@ BOOL WINAPI enumInventory( [[maybe_unused]] HDEVINFO set, DWORD index, PSP_DEVIN
 		device->ClassGuid = COMPONENT_CLASS ;
 		device->DevInst	  = 3U + index - parents ;
 	} else {
-		device->DevInst = index + 1U ;
+		device->DevInst =
+			activeNative->nativeCase ==
+						SignedIndexBindingNativeCase::INITIAL_SAME_ID_OTHER_INCOMPLETE &&
+					index == 2U
+				? 5U
+				: index + 1U ;
 	}
 
 	return TRUE ;
@@ -835,6 +875,13 @@ BOOL WINAPI openDevice( HDEVINFO set, PCWSTR instance, [[maybe_unused]] HWND par
 		return TRUE ;
 	}
 
+	// 第三の不足nodeは第一/第二deviceへaliasしません。
+	if( activeNative &&
+	   activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_SAME_ID_OTHER_INCOMPLETE &&
+	   instance && std::wstring_view{instance} == L"TESTBUS\\SYNTH_0003\\FIXTURE" && flags == 0U) {
+		return enumInventory( set, 2U, device) ;
+	}
+
 	// 固定instanceとflagsが完全一致する呼出しだけを受理します。
 	if( !activeNative || !instance || flags != 0U ||
 	   (std::wstring_view{instance} != L"TESTBUS\\SYNTH_0001\\FIXTURE" &&
@@ -862,6 +909,12 @@ BOOL WINAPI openDevice( HDEVINFO set, PCWSTR instance, [[maybe_unused]] HWND par
 BOOL WINAPI instanceId( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, PWSTR buffer,
 					   DWORD capacity, PDWORD required)
 {
+	// 原fixture不在で追加第三nodeの条件を参照せず、元診断で拒否します。
+	if( !activeNative) {
+		SetLastError( ERROR_INVALID_STATE) ;
+		return FALSE ;
+	}
+
 	// 実端末IDを参照しない人工instance。二段階照会で同じ値を返す。
 	const std::wstring dynamicValue =
 		activeNative && !activeNative->distributionDevices.empty() && device &&
@@ -870,6 +923,10 @@ BOOL WINAPI instanceId( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, 
 			: L"" ;	// 新三nodeだけの人工instanceです。
 	const std::wstring_view value =
 		!dynamicValue.empty() ? std::wstring_view{dynamicValue}
+		: device && device->DevInst == 5U &&
+				activeNative->nativeCase ==
+					SignedIndexBindingNativeCase::INITIAL_SAME_ID_OTHER_INCOMPLETE
+			? L"TESTBUS\\SYNTH_0003\\FIXTURE"
 		: device && device->DevInst >= 3U
 			? (device->DevInst == 4U ? L"SWC\\SYNTH_COMPONENT\\CHILD2"
 									 : L"SWC\\SYNTH_COMPONENT\\CHILD1")
@@ -911,10 +968,17 @@ CONFIGRET WINAPI nodeStatus( PULONG status, PULONG problem, [[maybe_unused]] DEV
 	const bool initial =
 		initialState() &&
 		(instance <= 2U || (activeNative && !activeNative->distributionDevices.empty())) &&
-		!(activeNative && activeNative->requiredRoles && instance <= 2U &&
-		  activeNative->deviceInstalls[instance - 1U] != 0U) ;	// 実fake API後だけです。
+		!(activeNative && instance >= 1U && instance <= 2U &&
+		  ((activeNative->requiredRoles && activeNative->deviceInstalls[instance - 1U] != 0U) ||
+		   (activeNative->reflectOwnInstall &&
+			activeNative->appliedDeviceInstalls[instance - 1U] != 0U))) ;	// 実fake API後だけです。
 	*status	 = initial ? DN_HAS_PROBLEM : DN_STARTED | DN_DRIVER_LOADED ;
 	*problem = initial ? CM_PROB_FAILED_INSTALL : 0U ;
+	// 第一自身だけの変化と異なり、第二自身の実問題変化は直前再検証へ残します。
+	if( batchFaultApplies( SignedIndexBindingBatchFault::SECOND_STATE_CHANGED, instance)) {
+		*problem = CM_PROB_DISABLED ;
+	}
+
 	// 正常scanとbase指定後を分け、実fake API後の親startedだけを欠く負例です。
 	if( activeNative && instance <= 2U && activeNative->deviceInstalls[instance - 1U] != 0U &&
 	   activeNative->nativeCase == SignedIndexBindingNativeCase::REQUIRED_PARENT_NOT_STARTED) {
@@ -999,7 +1063,7 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 	}
 
 	// Classの不存在を空や型不正から分離し、後段の完全表へ同じ値を返します。
-	if( unknownClassScenario() && !observedClassChanged() &&
+	if( unknownClassScenario() && !observedClassChanged( device ? device->DevInst : 0U) &&
 	   (sameKey( *key, DEVPKEY_Device_Class) || sameKey( *key, DEVPKEY_Device_ClassGuid)) &&
 	   activeNative->nativeCase != SignedIndexBindingNativeCase::INITIAL_CLASS_UNKNOWN &&
 	   !(activeNative->changed &&
@@ -1019,7 +1083,7 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 	}
 
 	// 初回の全現在属性は空文字でなく正式なNOT_FOUNDで返します。
-	const bool child = device && device->DevInst >= 3U &&
+	const bool child = device && device->DevInst >= 3U && device->DevInst != 5U &&
 					   // 元必要SWCです。
 					   activeNative->distributionDevices.empty() ;
 	// 現在観測の照会失敗をCode28の完全不存在として扱わせません。
@@ -1032,9 +1096,12 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 		return FALSE ;
 	}
 
-	const bool updated =
-		activeNative->requiredRoles && !child && device &&
-		activeNative->deviceInstalls[device->DevInst - 1U] != 0U ;	// 親個別API後だけです。
+	const bool updated = !child && device && device->DevInst >= 1U && device->DevInst <= 2U &&
+						 ((activeNative->requiredRoles &&
+						   activeNative->deviceInstalls[device->DevInst - 1U] != 0U) ||
+						  (activeNative->reflectOwnInstall &&
+						   activeNative->appliedDeviceInstalls[device->DevInst - 1U] !=
+							   0U)) ;	// 親個別API後だけです。
 	// 初回の不存在とquery失敗を維持し、親API後とSWC子へ初回欠損を流用しません。
 	if( (initialState() && !updated && !child &&
 		((sameKey( *key, DEVPKEY_Device_Driver) &&
@@ -1061,7 +1128,7 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 	FILETIME	 time = date( updated) ;
 	// 同modeのNetまたはPortsの固定通常class。
 	GUID		 guid =
-		unknownClassScenario() && !observedClassChanged()
+		unknownClassScenario() && !observedClassChanged( device ? device->DevInst : 0U)
 					? (activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_CLASS_UNKNOWN
 						   ? GUID_DEVCLASS_UNKNOWN
 						   : GUID_NULL)
@@ -1085,7 +1152,10 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 				activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_PNP_CHANGED
 			? L"TESTBUS\\SYNTH_CHANGED"
 		: device && device->DevInst == 2U &&
-				activeNative->nativeCase != SignedIndexBindingNativeCase::INDEX_NON_UNIQUE
+				activeNative->nativeCase != SignedIndexBindingNativeCase::INDEX_NON_UNIQUE &&
+				activeNative->nativeCase != SignedIndexBindingNativeCase::INITIAL_SAME_ID &&
+				activeNative->nativeCase !=
+					SignedIndexBindingNativeCase::INITIAL_SAME_ID_OTHER_INCOMPLETE
 			? L"TESTBUS\\SYNTH_0002"
 			: L"TESTBUS\\SYNTH_0001" ;	// 同deviceだけの人工公開IDです。
 	// ClassGUID要求はSDK GUID型と実byte長で返します。
@@ -1117,8 +1187,12 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 		if( sameKey( *key, DEVPKEY_Device_HardwareIds) ||
 		   sameKey( *key, DEVPKEY_Device_CompatibleIds)) {
 			// 他nodeの必要native属性失敗を元errorへ保持し、positive DTOを外部から生成しません。
-			if( activeNative->nativeCase == SignedIndexBindingNativeCase::INDEX_VERIFIED_PARTIAL &&
-			   device && device->DevInst == 2U && sameKey( *key, DEVPKEY_Device_CompatibleIds)) {
+			if( device && sameKey( *key, DEVPKEY_Device_CompatibleIds) &&
+			   ((activeNative->nativeCase == SignedIndexBindingNativeCase::INDEX_VERIFIED_PARTIAL &&
+				 device->DevInst == 2U) ||
+				(activeNative->nativeCase ==
+					 SignedIndexBindingNativeCase::INITIAL_SAME_ID_OTHER_INCOMPLETE &&
+				 device->DevInst == 5U))) {
 				SetLastError( ERROR_ACCESS_DENIED) ;
 				return FALSE ;
 			}
@@ -1384,7 +1458,7 @@ bool readDistributionDriverNode( const wchar_t *path, SP_DRVINFO_DATA_W &driver)
  * @param[in] set 保存検索条件を持つ有限fake handleです。
  * @param[in] device ABIで借用するdeviceです。handle別の固定nodeを使用します。
  * @param[in] type SPDIT_COMPATDRIVERだけを受理します。
- * @param[in] index 0だけがnode候補で、後続は正式な空終端です。
+ * @param[in] index 通常は0だけ、rank試験は固定二件/三件/512件を返す有限位置です。
  * @param[in,out] driver 非nullかつSDK cbSizeを持つ借用出力です。成功時だけnodeを設定します。
  * @return 成功時TRUE、非適用・空終端・原観測失敗時FALSEとそのWindows errorです。
  */
@@ -1394,12 +1468,6 @@ BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 	// 互換列挙type・driver出力・SDK cbSizeを厳密に照合します。
 	if( type != SPDIT_COMPATDRIVER || !driver || driver->cbSize != sizeof( *driver)) {
 		SetLastError( ERROR_INVALID_PARAMETER) ;
-		return FALSE ;
-	}
-
-	// 唯一の互換node以降へ正式な列挙終端を返します。
-	if( index != 0U) {
-		SetLastError( ERROR_NO_MORE_ITEMS) ;
 		return FALSE ;
 	}
 
@@ -1413,9 +1481,40 @@ BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 
 	// 指定INF検索なら候補node、空なら現在driver nodeを返す区分。
 	const bool candidate = activeNative->parameters[i].DriverPath[0] != L'\0' ;
-	const bool updated =
-		activeNative->requiredRoles && device && device->DevInst <= 2U &&
-		activeNative->deviceInstalls[device->DevInst - 1U] != 0U ;	// 親個別指定API後です。
+	const bool rankCase =
+		candidate && activeNative->nativeCase >= SignedIndexBindingNativeCase::RANK_BEST_FIRST &&
+		activeNative->nativeCase <=
+			SignedIndexBindingNativeCase::RANK_STAGE_TIED ;	// 原低位rank条件です。
+	const bool batchTied = candidate && device &&
+						   batchFaultApplies( SignedIndexBindingBatchFault::SECOND_RANK_TIED,
+											 device->DevInst) ;	// 第二の実同点です。
+	const bool batchUnknown = candidate && device &&
+							  batchFaultApplies( SignedIndexBindingBatchFault::SECOND_RANK_UNKNOWN,
+												device->DevInst) ;	// 第二の正式空終端です。
+	const DWORD count =
+		batchUnknown																	   ? 0U
+		: batchTied																		   ? 2U
+		: !rankCase																		   ? 1U
+		: activeNative->nativeCase == SignedIndexBindingNativeCase::RANK_NO_CANDIDATE	   ? 0U
+		: activeNative->nativeCase == SignedIndexBindingNativeCase::RANK_ENUMERATION_LIMIT ? 512U
+		: activeNative->nativeCase == SignedIndexBindingNativeCase::RANK_TIE_THEN_BETTER
+			? 3U
+			: 2U ;	// candidate以外の現在nodeは一件のままです。
+	// 固定件数の後に元の正常終端または明示した途中障害を返します。
+	if( index >= count) {
+		SetLastError( rankCase && activeNative->nativeCase ==
+									 SignedIndexBindingNativeCase::RANK_ENUMERATION_ERROR
+						 ? ERROR_IO_DEVICE
+						 : ERROR_NO_MORE_ITEMS) ;
+		return FALSE ;
+	}
+
+	const bool updated = device && device->DevInst >= 1U && device->DevInst <= 2U &&
+						 ((activeNative->requiredRoles &&
+						   activeNative->deviceInstalls[device->DevInst - 1U] != 0U) ||
+						  (activeNative->reflectOwnInstall &&
+						   activeNative->appliedDeviceInstalls[device->DevInst - 1U] !=
+							   0U)) ;	// 親個別指定API後です。
 	// 正式空終端と原installed-only列挙失敗を別入力へ保持します。
 	if( !candidate && activeNative->changed &&
 	   activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_ENUMERATION_FAILURE) {
@@ -1478,7 +1577,25 @@ BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 			 candidate || updated ? L"Fixture Vendor" : activeNative->currentProvider.c_str()) ;
 	wcscpy_s( driver->MfgName, L"Fixture Vendor") ;
 	wcscpy_s( driver->Description, L"Fixture Device") ;
-	driver->Reserved = 1U ;
+	driver->Reserved = rankCase ? static_cast<ULONG_PTR>( index) + 1U : 1U ;
+	// 元tupleの一要素だけが異なる低rank nodeを同じ列挙へ混ぜます。
+	if( rankCase && index == 1U) {
+		// Provider完全一致をrankの良さで補完しません。
+		if( activeNative->nativeCase == SignedIndexBindingNativeCase::RANK_OTHER_PROVIDER) {
+			wcscpy_s( driver->ProviderName, L"Other Fixture Vendor") ;
+		}
+
+		// Packed版完全一致を表示版から推測しません。
+		if( activeNative->nativeCase == SignedIndexBindingNativeCase::RANK_OTHER_VERSION) {
+			driver->DriverVersion = 2ULL << 48U ;
+		}
+
+		// 暦日が異なるnodeは低rankでも元候補へ含めません。
+		if( activeNative->nativeCase == SignedIndexBindingNativeCase::RANK_OTHER_DATE) {
+			driver->DriverDate = date( false) ;
+		}
+	}
+
 	// 新三deviceの適合fakeは元認証INF名へ限定し、node metadataは実本文から読みます。
 	if( candidate && !activeNative->distributionDevices.empty()) {
 		// 別INF/device組を適用可能なnodeとして返しません。
@@ -1508,8 +1625,7 @@ BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
  * @param[out] required null可の必要byte数です。不足時にも返します。
  * @return 完全detail成功TRUE、容量不足/無効handle/固定C44の可変部分不足はFALSEと元診断です。
  */
-BOOL WINAPI driverDetail( HDEVINFO set, PSP_DEVINFO_DATA device,
-						 [[maybe_unused]] PSP_DRVINFO_DATA_W driver,
+BOOL WINAPI driverDetail( HDEVINFO set, PSP_DEVINFO_DATA device, PSP_DRVINFO_DATA_W driver,
 						 PSP_DRVINFO_DETAIL_DATA_W detail, DWORD capacity, PDWORD required)
 {
 	// 固定driver detail全体の必要byte長。
@@ -1583,6 +1699,19 @@ BOOL WINAPI driverDetail( HDEVINFO set, PSP_DEVINFO_DATA device,
 
 	const bool candidate =
 		activeNative->parameters[i].DriverPath[0] != L'\0' ;	// 元単一INF照会だけです。
+	// 後続nodeのdetail失敗は先行成功で上書きしません。
+	if( candidate && driver && driver->Reserved == 2U &&
+	   activeNative->nativeCase == SignedIndexBindingNativeCase::RANK_LATE_DETAIL_ERROR) {
+		SetLastError( ERROR_READ_FAULT) ;
+		return FALSE ;
+	}
+
+	// 同basenameでも別完全pathの低rank nodeは元候補へ混ぜません。
+	if( candidate && driver && driver->Reserved == 2U &&
+	   activeNative->nativeCase == SignedIndexBindingNativeCase::RANK_OTHER_INF) {
+		wcscpy_s( detail->InfFileName, L"D:\\fictional-other-root\\fixture.inf") ;
+	}
+
 	// 現在driverのdetailを選択節の拒否入力で置き換えません。
 	if( candidate) {
 		const auto condition = activeNative->nativeCase ;	// 原低位detail条件です。
@@ -1654,7 +1783,7 @@ BOOL WINAPI driverDetail( HDEVINFO set, PSP_DEVINFO_DATA device,
  * @note 同workerだけでcounterを更新し、登録後のrank差を成功へ補完しません。
  */
 BOOL WINAPI driverRank( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
-					   [[maybe_unused]] PSP_DRVINFO_DATA_W driver, PSP_DRVINSTALL_PARAMS params)
+					   PSP_DRVINFO_DATA_W driver, PSP_DRVINSTALL_PARAMS params)
 {
 	// Rank観測を記録するfake handleの有限slot。
 	const auto i = setIndex( set) ;
@@ -1673,6 +1802,55 @@ BOOL WINAPI driverRank( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 	}
 
 	params->Rank = activeNative->parameters[i].DriverPath[0] ? 1U : 0xFFFU ;
+	// 固定rank群はnodeの列挙順ではなく原低位identityへ結びます。
+	if( activeNative->parameters[i].DriverPath[0] && driver &&
+	   activeNative->nativeCase >= SignedIndexBindingNativeCase::RANK_BEST_FIRST &&
+	   activeNative->nativeCase <= SignedIndexBindingNativeCase::RANK_STAGE_TIED) {
+		const auto condition = activeNative->nativeCase ;	// 一caseだけを同期借用します。
+		const auto ordinal	 = driver->Reserved ;			// 原列挙が返した一始まりnodeです。
+		// 後続rankの元読取り失敗を低いrankへ補完しません。
+		if( ordinal == 2U && condition == SignedIndexBindingNativeCase::RANK_LATE_ERROR) {
+			SetLastError( ERROR_ACCESS_DENIED) ;
+			return FALSE ;
+		}
+
+		params->Rank = ordinal == 1U ? 1U : 0x2001U ;
+		// 両列挙順でも同じ唯一最良を要求します。
+		if( condition == SignedIndexBindingNativeCase::RANK_BEST_LAST) {
+			params->Rank = ordinal == 2U ? 1U : 0x2001U ;
+		}
+
+		// 初期同点の後に低rankが現れるケースです。
+		if( condition == SignedIndexBindingNativeCase::RANK_TIE_THEN_BETTER) {
+			params->Rank = ordinal == 3U ? 1U : 0x2001U ;
+		}
+
+		// 低rankでも別tupleならnodeを混ぜないための負例です。
+		if( ordinal == 2U && condition >= SignedIndexBindingNativeCase::RANK_OTHER_PROVIDER &&
+		   condition <= SignedIndexBindingNativeCase::RANK_OTHER_INF) {
+			params->Rank = 0U ;
+		}
+
+		const bool staged = std::wstring_view{activeNative->parameters[i].DriverPath}.starts_with(
+			activeNative->windowsRoot) ;	// 元source変化と登録先だけの変化を区別します。
+		// 同点は全nodeの正常終端後も拒否する必要があります。
+		if( condition == SignedIndexBindingNativeCase::RANK_BEST_TIED ||
+		   (ordinal == 2U &&
+			((activeNative->changed &&
+			  condition == SignedIndexBindingNativeCase::RANK_TIE_CHANGED) ||
+			 (staged && condition == SignedIndexBindingNativeCase::RANK_STAGE_TIED)))) {
+			params->Rank = 1U ;
+		}
+
+		// 旧winnerが残るまま別nodeが最良となる直前変化です。
+		if( ordinal == 2U &&
+		   ((activeNative->changed &&
+			 condition == SignedIndexBindingNativeCase::RANK_WINNER_CHANGED) ||
+			(staged && condition == SignedIndexBindingNativeCase::RANK_STAGE_BETTER))) {
+			params->Rank = 0U ;
+		}
+	}
+
 	// 登録後だけのrank変化を変更直前guardへ与えます。
 	if( activeNative->nativeCase == SignedIndexBindingNativeCase::STAGE_WRONG_RANK &&
 	   std::wstring_view{activeNative->parameters[i].DriverPath}.starts_with(
@@ -1841,7 +2019,10 @@ BOOL WINAPI install( [[maybe_unused]] HWND parent, HDEVINFO set, PSP_DEVINFO_DAT
 		driver->cbSize == sizeof( *driver) && driver->DriverVersion == (1ULL << 48U) &&
 		std::wstring_view{driver->ProviderName} == L"Fixture Vendor" &&
 		// 元nodeの完全指定です。
-		driver->Reserved == 1U ;
+		driver->Reserved ==
+			(activeNative->nativeCase == SignedIndexBindingNativeCase::RANK_BEST_LAST		  ? 2U
+			 : activeNative->nativeCase == SignedIndexBindingNativeCase::RANK_TIE_THEN_BETTER ? 3U
+																							  : 1U) ;
 	activeNative->specifiedBindingMatches &= bindingMatches ;
 	// 未登録pathや別nodeを指定するcallは固定成功fakeでも拒否します。
 	if( !bindingMatches) {
@@ -1870,12 +2051,18 @@ BOOL WINAPI install( [[maybe_unused]] HWND parent, HDEVINFO set, PSP_DEVINFO_DAT
 
 	// 既存拒否の元ERROR_ACCESS_DENIEDを欠落診断と混同しません。
 	if( activeNative->mode == 3U || (activeNative->partialFailure && device->DevInst == 2U) ||
+	   batchFaultApplies( SignedIndexBindingBatchFault::SECOND_API_DENIED, device->DevInst) ||
 	   (child &&
 		activeNative->nativeCase == SignedIndexBindingNativeCase::REQUIRED_CHILD_FAILURE) ||
 	   (!child &&
 		activeNative->nativeCase == SignedIndexBindingNativeCase::REQUIRED_BASE_FAILURE)) {
 		SetLastError( ERROR_ACCESS_DENIED) ;
 		return FALSE ;
+	}
+
+	// 完了した自己deviceだけを反映し、第二の未実行状態は変更しません。
+	if( !child && activeNative->reflectOwnInstall) {
+		++activeNative->appliedDeviceInstalls[device->DevInst - 1U] ;
 	}
 
 	return TRUE ;
@@ -2014,6 +2201,84 @@ driver_store_inf_detail::Transport calls()
 			.windowsDirectory = windowsDirectory,
 			.infClass		  = infClass} ;
 }
+/** @brief 既検証一候補を同scanへ発行し、元選択だけを実OS変更なしで導入するWUA fakeです。 */
+class MixedManagedProvider final : public IUpdateProvider {
+public:
+	/** @brief 同workerの非機密counterだけを共有所有します。
+	 * @param[in] state 完全低位fixtureと同じ寿命の観測先です。
+	 */
+	explicit MixedManagedProvider( std::shared_ptr<NativeFixtureState> state)
+		: state_( std::move( state))
+	{
+	}
+	/** @brief 同scanの既検証候補を一件だけ発行します。
+	 * @param[in] session 元workerのscanです。
+	 * @param[in] options 明示Provider集合です。外部通信に使用しません。
+	 * @param[in] progress 本fakeでは通知しない同期先です。
+	 * @return 同sessionの一件の表示候補です。
+	 */
+	ScanResult scan( const ScanSessionId session, const ScanOptions &options,
+					const ProviderProgressCallback &progress) override
+	{
+		static_cast<void>( options) ;
+		static_cast<void>( progress) ;
+		session_ = session ;
+		UpdateCandidate candidate ;	// 実機情報を持たない架空の管理候補です。
+		candidate.identity		   = L"mixed-managed-candidate" ;
+		candidate.packageIdentity  = L"mixed-managed-package" ;
+		candidate.deviceIdentity   = L"mixed-managed-device" ;
+		candidate.providerId	   = WINDOWS_UPDATE_PROVIDER_ID ;
+		candidate.model			   = L"Fictional managed adapter" ;
+		candidate.title			   = candidate.model ;
+		candidate.provider		   = L"Fixture Vendor" ;
+		candidate.version		   = L"1.0.0.0" ;
+		candidate.action		   = DriverAction::UPDATE ;
+		candidate.discoveryBasis   = CandidateDiscoveryBasis::MANAGED_SERVICE ;
+		candidate.audit			   = makeWindowsManagedCandidateAudit( false) ;
+		candidate.installable	   = true ;
+		candidate.eulaAccepted	   = true ;
+		candidate.allContentCached = true ;
+		return {.succeeded	   = true,
+				.scanSessionId = session,
+				.outcome	   = OutcomeCode::SUCCESS,
+				.state		   = ProviderScanState::CANDIDATES_AVAILABLE,
+				.candidates	   = {std::move( candidate)}} ;
+	}
+	/** @brief 同scanの唯一の元明示選択だけへfake個別結果を返します。
+	 * @param[in] session scanと完全一致させる元sessionです。
+	 * @param[in] identities Canonical registryから渡された元選択です。
+	 * @param[in] parentWindow 同scopeの試験親です。外部Windowを操作しません。
+	 * @param[in] progress 本fakeでは通知しない同期先です。
+	 * @return 不正選択は失敗、正しい一件だけ実I/Oなしの個別結果です。
+	 */
+	InstallResult install( const ScanSessionId				  session,
+						  const std::span<const std::wstring> identities,
+						  const std::uintptr_t				  parentWindow,
+						  const ProviderProgressCallback	 &progress) override
+	{
+		static_cast<void>( parentWindow) ;
+		static_cast<void>( progress) ;
+		// 別session・未選択・重複要求を明示fake自身でも拒否します。
+		if( session == 0U || session != session_ || identities.size() != 1U ||
+		   identities.front() != L"mixed-managed-candidate") {
+			return {} ;
+		}
+
+		++state_->managedInstalls ;
+		return {.succeeded		 = true,
+				.downloadOutcome = OutcomeCode::SUCCESS,
+				.installOutcome	 = OutcomeCode::SUCCESS,
+				.updates		 = {{.identity		  = identities.front(),
+									 .downloadOutcome = OutcomeCode::SUCCESS,
+									 .installOutcome  = OutcomeCode::SUCCESS}}} ;
+	}
+
+private:
+	/// 同workerだけで更新するfake counterです。
+	std::shared_ptr<NativeFixtureState> state_ ;
+	/// 一回の元scanだけへ実行を限定するsessionです。
+	ScanSessionId						session_{} ;
+} ;
 /** @brief Windows復旧APIを呼ばず既存保護契約へ結果を返します。 */
 class FakeRestore final : public IRestorePointService {
 public:
@@ -2215,16 +2480,64 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 	provider_worker_index_detail::Services services, const std::string_view zip, const bool partial,
 	const bool restoreFailure, const bool stagingFailure,
 	const SignedIndexBindingNativeCase nativeCase, const std::string_view installerPayload,
-	std::function<void()> observeWorkerStart, std::function<void()> beforeRestore)
+	std::function<void()> observeWorkerStart, std::function<void()> beforeRestore,
+	const bool reflectOwnInstall, const SignedIndexBindingBatchFault batchFault)
 {
 	auto native = std::make_shared<NativeFixtureState>() ;	// 同worker低位状態の共有所有です。
-	native->beforeRestore = std::move( beforeRestore) ;
+	native->beforeRestore	  = std::move( beforeRestore) ;
+	native->reflectOwnInstall = reflectOwnInstall ;
+	native->batchFault		  = batchFault ;
+	const auto originalUtc	  = services.utc ;	// 原信頼時刻callbackを同workerだけで借用します。
+	// 第一成功前は元UTC/byteを保ち、第二前だけ期限または実byteを一回変更します。
+	services.utc = [native, originalUtc]() -> std::optional<std::chrono::sys_seconds> {
+		const auto now = originalUtc ? originalUtc() : std::nullopt ;	// 欠測は補完しません。
+		// 実fake指定成功後だけ負例を発生させ、準備時の成功根拠は変更しません。
+		if( native->reflectOwnInstall && native->appliedDeviceInstalls[0] != 0U) {
+			// 原期限を延長せず、後続の元期限切れ拒否を確認します。
+			if( native->batchFault == SignedIndexBindingBatchFault::RECORD_EXPIRED && now) {
+				return *now + std::chrono::days{3650} ;
+			}
+
+			// 元保護INFの全byte検査が第二でも必須であることを実fileで確認します。
+			if( native->batchFault == SignedIndexBindingBatchFault::CONTENT_CHANGED &&
+			   !native->batchContentChanged) {
+				// 隔離workspaceの元候補INFだけを一回変更し、実Windows登録先へ触れません。
+				for( const auto &path : native->sourceInfs) {
+					// 保護された人工source INF一件を選び、別形式のfileは変更しません。
+					if( std::filesystem::path{path}.filename() == L"fixture.inf" &&
+					   !path.starts_with( native->windowsRoot)) {
+						std::ofstream stream{std::filesystem::path{path},
+											 std::ios::binary |
+												 std::ios::app} ;	// 同元byteへの有限一回追記です。
+						stream << "; changed second batch INF\r\n" ;
+						stream.close() ;
+						// 書換失敗を製品側拒否成功へ数えません。
+						if( stream.fail()) {
+							throw std::runtime_error( "batch source mutation failed") ;
+						}
+
+						native->batchContentChanged = true ;
+						break ;
+					}
+				}
+
+				// 未到達の負例を内容再検証成功と混同しません。
+				if( !native->batchContentChanged) {
+					throw std::runtime_error( "batch source unavailable") ;
+				}
+			}
+		}
+
+		return now ;
+	} ; // 元結果DTOやprivate proofを直接変更しません。
 	native->requiredRoles = zip.find( "extension.inf") != std::string_view::npos ||
 							zip.find( "component.inf") != std::string_view::npos ;
 	native->componentChild = zip.find( "component.inf") != std::string_view::npos ;
 	native->multiple	   = partial ||
 					   nativeCase == SignedIndexBindingNativeCase::INDEX_VERIFIED_PARTIAL ||
-					   nativeCase == SignedIndexBindingNativeCase::INDEX_NON_UNIQUE ;
+					   nativeCase == SignedIndexBindingNativeCase::INDEX_NON_UNIQUE ||
+					   nativeCase == SignedIndexBindingNativeCase::INITIAL_SAME_ID ||
+					   nativeCase == SignedIndexBindingNativeCase::INITIAL_SAME_ID_OTHER_INCOMPLETE ;
 	native->partialFailure = partial &&
 							 nativeCase != SignedIndexBindingNativeCase::SHARED_SUCCESS &&
 							 nativeCase != SignedIndexBindingNativeCase::SHARED_SECTION_SUCCESS ;
@@ -2609,7 +2922,17 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 	/** @brief WorkerのCOM MTA内で通常の複合Providerを生成します。
 	 * @return 元候補を発行する通常Providerの所有権です。
 	 */
-	const auto providerFactory = []() { return std::make_unique<CompositeUpdateProvider>() ; } ;
+	const auto providerFactory = [native]() {
+		auto provider = std::make_unique<CompositeUpdateProvider>() ;	// 本物の元registryです。
+		// 明示混在条件だけは実WUAをscan/installとも完全fakeへ置換します。
+		if( native->nativeCase == SignedIndexBindingNativeCase::MIXED_READY &&
+		   !signed_index_candidate_binding_detail::Access::setManagedFixture(
+			   *provider, std::make_shared<MixedManagedProvider>( native))) {
+			throw std::runtime_error( "mixed managed fixture unavailable") ;
+		}
+
+		return provider ;
+	} ;
 	/** @brief 実復旧操作を呼ばない元の復旧fixtureを生成します。
 	 * @return 開始・終了・原失敗を観測する復旧fixtureの所有権です。
 	 */
@@ -2646,7 +2969,8 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 											 native->registeredExtensionBlocked,
 											 native->registeredExtensionError,
 											 native->registeredExtensionBytesUnchanged,
-											 native->currentVersion == L"1.0.0.0"} ;
+											 native->currentVersion == L"1.0.0.0",
+											 native->managedInstalls} ;
 	} ; // 非atomic値は元終端の同期後またはstop/join後だけ読みます。
 	result.observeAfterStop = nativeSnapshot ;
 	/** @brief 元終端後かつ署名scope生存中の観測へだけ署名receiptを加えます。
@@ -2738,10 +3062,420 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 	return result ;
 }
 // tests/unit/signed_index_candidate_binding_tests.hの同宣言を契約の正本とする。
+/** @brief 同ID二deviceを通常準備し、一件選択と二件batchのfake指定導入を確認します。
+ * @param[in,out] context 原assertion集計先です。
+ * @param[in] services 真署名隔離store・完全fake HTTP・固定UTCです。
+ * @param[in] zip 原INF/SYS/CATの実人工archiveです。
+ */
+void testAuthenticatedSameIdDevices( TestContext							  &context,
+									provider_worker_index_detail::Services services,
+									std::string_view					   zip)
+{
+	const auto		 firstFailures = context.failureCount() ;	// 本追加の失敗だけを別記します。
+	const std::array cases{
+		std::tuple{SignedIndexBindingNativeCase::INDEX_NON_UNIQUE, false,
+				   SignedIndexBindingBatchFault::NONE},
+		std::tuple{SignedIndexBindingNativeCase::INITIAL_SAME_ID, false,
+				   SignedIndexBindingBatchFault::NONE},
+		std::tuple{SignedIndexBindingNativeCase::INITIAL_SAME_ID_OTHER_INCOMPLETE, false,
+				   SignedIndexBindingBatchFault::NONE},
+		std::tuple{SignedIndexBindingNativeCase::INDEX_NON_UNIQUE, true,
+				   SignedIndexBindingBatchFault::NONE},
+		std::tuple{SignedIndexBindingNativeCase::INITIAL_SAME_ID, true,
+				   SignedIndexBindingBatchFault::NONE},
+		std::tuple{SignedIndexBindingNativeCase::INITIAL_SAME_ID_OTHER_INCOMPLETE, true,
+				   SignedIndexBindingBatchFault::NONE},
+		std::tuple{SignedIndexBindingNativeCase::INITIAL_SAME_ID, true,
+				   SignedIndexBindingBatchFault::SECOND_STATE_CHANGED},
+		std::tuple{SignedIndexBindingNativeCase::INITIAL_SAME_ID, true,
+				   SignedIndexBindingBatchFault::SECOND_RANK_UNKNOWN},
+		std::tuple{SignedIndexBindingNativeCase::INITIAL_SAME_ID, true,
+				   SignedIndexBindingBatchFault::SECOND_RANK_TIED},
+		std::tuple{SignedIndexBindingNativeCase::INITIAL_SAME_ID, true,
+				   SignedIndexBindingBatchFault::SECOND_API_DENIED},
+		std::tuple{SignedIndexBindingNativeCase::INITIAL_SAME_ID, true,
+				   SignedIndexBindingBatchFault::CONTENT_CHANGED},
+		std::tuple{SignedIndexBindingNativeCase::INITIAL_SAME_ID, true,
+				   SignedIndexBindingBatchFault::RECORD_EXPIRED}} ;	// 元分母を固定します。
+	// 各完全低位captureを別workerで作り、成功DTOやprivate証拠を直接生成しません。
+	for( const auto &[nativeCase, batch, fault] : cases) {
+		auto bound = makeSignedIndexBindingWorker( services, zip, false, false, false, nativeCase,
+												  {}, {}, {}, batch, fault) ;	// 同queueです。
+		OperationController controller ;										// 通常UIと同じ選択・失効状態です。
+		ScanOptions			options ;											// Driver Storeと元署名索引だけです。
+		options.useDefaultProviders = false ;
+		options.enabledProviderIds	= {std::wstring{DRIVER_STORE_PROVIDER_ID},
+									   std::wstring{SIGNED_INDEX_PROVIDER_ID}} ;
+		const auto scan				= controller.beginScan() ;	// 同operationを終端まで所有します。
+		DRIVERCRATE_EXPECT( context,
+						   scan.accepted && bound.worker->requestScan( scan.operationId, options)) ;
+		auto scanned = waitEvent( *bound.worker, WorkerEventKind::SCAN_COMPLETED,
+								 scan.operationId) ;	// 実終端です。
+		DRIVERCRATE_EXPECT( context, scanned && scanned->preparationPlan &&
+										scanned->preparationPlan->targets.size() == 1U &&
+										scanned->preparationPlan->targets[0].deviceCount == 2U) ;
+		// 前提不足を候補成功へ補完せず、同workerを正常停止します。
+		if( !scanned || !scanned->preparationPlan ||
+		   scanned->preparationPlan->targets.size() != 1U) {
+			bound.worker->stop() ;
+			continue ;
+		}
+
+		const auto &plan = *scanned->preparationPlan ;	// 元共有payload一件です。
+		DRIVERCRATE_EXPECT(
+			context, std::ranges::count_if( scanned->scanResult.candidates, []( const auto &value) {
+						 return value.providerId == SIGNED_INDEX_PROVIDER_ID && !value.current ;
+					 }) == 2) ;
+		// 第三nodeの不足を二機能の肯定観測で全体成功へ上書きしません。
+		if( nativeCase == SignedIndexBindingNativeCase::INITIAL_SAME_ID_OTHER_INCOMPLETE) {
+			DRIVERCRATE_EXPECT( context, scanned->indexSummary.status == IndexScanStatus::PARTIAL &&
+											scanned->indexSummary.error != 0U &&
+											scanned->indexSummary.undeterminedRelations != 0U) ;
+		} else {
+			DRIVERCRATE_EXPECT( context, scanned->indexSummary.nonUniqueRelations == 1U &&
+											scanned->indexSummary.matchedRelations == 0U) ;
+		}
+
+		DRIVERCRATE_EXPECT( context,
+						   controller.completeScan( scan.operationId, scanned->scanResult) &&
+							   controller.setPreparationPlan( scan.operationId, plan)) ;
+		OfficialPreparationApproval approval{
+			0U,
+			plan.scanSessionId,
+			plan.planId,
+			plan.limits,
+			{{plan.targets[0], true, false, false, false}}} ;				// 取得承認だけです。
+		const auto preparation = controller.beginPreparation( approval) ;	// 導入同意と分離します。
+		DRIVERCRATE_EXPECT( context,
+						   preparation.accepted && bound.worker->requestPreparation( approval)) ;
+		auto prepared = waitEvent( *bound.worker, WorkerEventKind::PREPARATION_COMPLETED,
+								  approval.operationId) ;	// 原取得終端です。
+		std::vector<UpdateCandidate> candidates ;			// 実publicationだけを保持します。
+		// 全監査から発行済み候補だけを読みます。
+		if( prepared) {
+			// 同取得終端の全監査から原候補だけを保持します。
+			for( const auto &report : prepared->preparationResult.auditReports) {
+				candidates.insert( candidates.end(), report.publishedCandidates.begin(),
+								  report.publishedCandidates.end()) ;
+			}
+		}
+
+		DRIVERCRATE_EXPECT( context, prepared && prepared->preparationResult.items.size() == 1U &&
+										candidates.size() == 2U && bound.observe().stages == 0U &&
+										bound.observe().installs == 0U) ;
+		// 未到達を配列参照や期待候補の合成で隠しません。
+		if( !prepared || candidates.size() != 2U) {
+			bound.worker->stop() ;
+			continue ;
+		}
+
+		DRIVERCRATE_EXPECT(
+			context, candidates[0].deviceIdentity != candidates[1].deviceIdentity &&
+						 candidates[0].packageIdentity == candidates[1].packageIdentity &&
+						 std::ranges::all_of( candidates, [&]( const auto &value) {
+							 return value.installable && value.assessment &&
+									isCandidateAssessmentReady( *value.assessment) &&
+									(nativeCase == SignedIndexBindingNativeCase::INDEX_NON_UNIQUE ||
+									 value.action == DriverAction::INITIAL_INSTALL) ;
+						 })) ;
+		DRIVERCRATE_EXPECT( context, controller.completePreparation( prepared->preparationResult,
+																   scanned->scanResult.candidates)) ;
+		const std::vector<std::wstring> selected =
+			batch ? std::vector{candidates[0].identity, candidates[1].identity}
+				  : std::vector{candidates[1].identity} ;	// 明示集合の順序と件数です。
+		const auto installation =
+			controller.beginInstall( plan.scanSessionId, selected,
+									InstallConfirmation::CONFIRMED) ;	// 完全fakeの明示集合です。
+		DRIVERCRATE_EXPECT( context, installation.accepted &&
+										bound.worker->requestInstall(
+											installation.operationId, plan.scanSessionId, selected,
+											nullptr, InstallProtectionMode::WINDOWS_RESTORE_POINT)) ;
+		auto installed = waitEvent( *bound.worker, WorkerEventKind::INSTALL_COMPLETED,
+								   installation.operationId) ;	// fake終端です。
+		DRIVERCRATE_EXPECT(
+			context,
+			installed && installed->installResult.updates.size() == selected.size() &&
+				installed->installResult.updates[0].identity == selected[0] &&
+				installed->installResult.updates[0].installOutcome == OutcomeCode::SUCCESS) ;
+		const auto observed = bound.observe() ;								// 同operationの原低位観測です。
+		const bool rejected = fault != SignedIndexBindingBatchFault::NONE ;	// 第二だけの拒否です。
+		// 全選択の個別原結果を保持し、第一の成功だけでbatch完了にしません。
+		if( installed) {
+			DRIVERCRATE_EXPECT( context,
+							   installed->installResult.currentDevices.size() == selected.size()) ;
+			// 完全fakeの同workerで選択deviceだけを再openし、元sessionへ結合した実観測を運びます。
+			for( const auto &current : installed->installResult.currentDevices) {
+				const auto candidate = std::find_if(
+					candidates.begin(), candidates.end(), [&current]( const auto &value) {
+						return value.deviceIdentity == current.observation.deviceIdentity ;
+					}) ; // 元二deviceとの対応です。
+				DRIVERCRATE_EXPECT(
+					context, candidate != candidates.end() &&
+								 std::find( selected.begin(), selected.end(), candidate->identity) !=
+									 selected.end() &&
+								 current.error == 0U &&
+								 isDeviceObservationBound( current.observation, plan.scanSessionId,
+														  candidate->deviceIdentity)) ;
+			}
+
+			// 表示identityと原エラー/API到達数を非機密のまま記録します。
+			for( std::size_t index = 0U; index < installed->installResult.updates.size(); ++index) {
+				const auto &item = installed->installResult.updates[index] ;	// 元結果です。
+				const bool	secondRejected = rejected && index == 1U ;			// 第一は成功を保持します。
+				DRIVERCRATE_EXPECT( context, item.identity == selected[index] &&
+												(item.installOutcome == OutcomeCode::SUCCESS) ==
+													!secondRejected &&
+												(item.installError == 0U) == !secondRejected) ;
+				// 元指定APIのACCESS_DENIEDはauthority拒否や別HRESULTへ上書きしません。
+				if( secondRejected && fault == SignedIndexBindingBatchFault::SECOND_API_DENIED) {
+					DRIVERCRATE_EXPECT( context, item.installError ==
+													static_cast<NativeError>( E_ACCESSDENIED)) ;
+				}
+
+				// 唯一最良を失う第二nodeは元の曖昧性診断を保持します。
+				if( secondRejected && fault == SignedIndexBindingBatchFault::SECOND_RANK_TIED) {
+					DRIVERCRATE_EXPECT(
+						context, item.installError ==
+									 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_DUP_NAME))) ;
+				}
+
+				// 原期限は第一の成功で延長しません。
+				if( secondRejected && fault == SignedIndexBindingBatchFault::RECORD_EXPIRED) {
+					DRIVERCRATE_EXPECT(
+						context, item.installError ==
+									 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_TIMEOUT))) ;
+				}
+
+				std::cout << "SAME_ID_BATCH case=" << static_cast<unsigned>( nativeCase)
+						  << " fault=" << static_cast<unsigned>( fault)
+						  << " selected=" << selected.size() << " item=" << index + 1U
+						  << " error=" << item.installError
+						  << " roles=" << item.requiredRoles.size()
+						  << " device1Calls=" << observed.deviceInstalls[0]
+						  << " device2Calls=" << observed.deviceInstalls[1]
+						  << " stages=" << observed.stages << '\n' ;
+			}
+		}
+
+		const bool secondReached = !rejected ||
+								   // 原API拒否と前段拒否です。
+								   fault == SignedIndexBindingBatchFault::SECOND_API_DENIED ;
+		DRIVERCRATE_EXPECT(
+			context, observed.stages == 1U &&
+						 observed.installs == (batch && !secondReached ? 1U : selected.size()) &&
+						 observed.deviceInstalls[0] == (batch ? 1U : 0U) &&
+						 observed.deviceInstalls[1] == (secondReached ? 1U : 0U) &&
+						 observed.restoreBegins == 1U && observed.restoreCompletes == 1U) ;
+		bound.worker->stop() ;
+		DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
+	}
+
+	std::cout << "Authenticated per-device cases: " << cases.size()
+			  << ", failures: " << context.failureCount() - firstFailures
+			  << ", shared acquisition=1, explicit one/two device selection, real OS changes=0\n" ;
+}
+
+/** @brief 元tuple内の唯一最小rankと全列挙・指定直前の変化を通常workerで確認します。
+ * @param[in,out] context 原assertionと失敗を保持する集計先です。
+ * @param[in] services 真署名隔離store、完全fake HTTP、固定UTCの所有callbackです。
+ * @param[in] zip 元人工INF/SYS/CAT全byteです。実Windowsのstage/導入/復元は呼びません。
+ */
+void testUniqueWindowsRankBinding( TestContext							&context,
+								  provider_worker_index_detail::Services services,
+								  const std::string_view				 zip)
+{
+	const auto firstFailures = context.failureCount() ;	// 本回帰の元失敗差だけを報告します。
+	constexpr std::array cases{
+		SignedIndexBindingNativeCase::RANK_BEST_FIRST,
+		SignedIndexBindingNativeCase::RANK_BEST_LAST,
+		SignedIndexBindingNativeCase::RANK_BEST_TIED,
+		SignedIndexBindingNativeCase::RANK_TIE_THEN_BETTER,
+		SignedIndexBindingNativeCase::RANK_OTHER_PROVIDER,
+		SignedIndexBindingNativeCase::RANK_OTHER_VERSION,
+		SignedIndexBindingNativeCase::RANK_OTHER_DATE,
+		SignedIndexBindingNativeCase::RANK_OTHER_INF,
+		SignedIndexBindingNativeCase::RANK_LATE_ERROR,
+		SignedIndexBindingNativeCase::RANK_LATE_DETAIL_ERROR,
+		SignedIndexBindingNativeCase::RANK_ENUMERATION_ERROR,
+		SignedIndexBindingNativeCase::RANK_ENUMERATION_LIMIT,
+		SignedIndexBindingNativeCase::RANK_NO_CANDIDATE,
+		SignedIndexBindingNativeCase::RANK_WINNER_CHANGED,
+		SignedIndexBindingNativeCase::RANK_TIE_CHANGED,
+		SignedIndexBindingNativeCase::RANK_STAGE_BETTER,
+		SignedIndexBindingNativeCase::RANK_STAGE_TIED} ;	// 実行前に分母を固定します。
+	// 各caseは独立した真署名storeと同workerの完全低位tableを使用します。
+	for( const auto nativeCase : cases) {
+		auto				bound = makeSignedIndexBindingWorker( services, zip, false, false, false,
+																 nativeCase) ;	// 全低位fakeです。
+		OperationController controller ;										// 通常のscan/準備/選択/失効状態機械です。
+		ScanOptions			options ;											// 元Driver Storeと署名索引だけを有効にします。
+		options.useDefaultProviders = false ;
+		options.enabledProviderIds	= {std::wstring{DRIVER_STORE_PROVIDER_ID},
+									   std::wstring{SIGNED_INDEX_PROVIDER_ID}} ;
+		const auto scan				= controller.beginScan() ;	// 同scanの終端まで保持します。
+		DRIVERCRATE_EXPECT( context,
+						   scan.accepted && bound.worker->requestScan( scan.operationId, options)) ;
+		auto scanned = waitEvent( *bound.worker, WorkerEventKind::SCAN_COMPLETED,
+								 scan.operationId) ;	// 同queueの終端です。
+		DRIVERCRATE_EXPECT( context, scanned && scanned->preparationPlan &&
+										scanned->preparationPlan->targets.size() == 1U) ;
+		// 前提未達を負例成功へ数えず、同workerを正常停止します。
+		if( !scanned || !scanned->preparationPlan ||
+		   scanned->preparationPlan->targets.size() != 1U) {
+			bound.worker->stop() ;
+			continue ;
+		}
+
+		const auto &plan = *scanned->preparationPlan ;	// 原一取得groupを同期借用します。
+		DRIVERCRATE_EXPECT( context,
+						   controller.completeScan( scan.operationId, scanned->scanResult) &&
+							   controller.setPreparationPlan( scan.operationId, plan)) ;
+		OfficialPreparationApproval approval{
+			0U, plan.scanSessionId, plan.planId, plan.limits, {}} ;	// 取得だけの同意です。
+		approval.decisions.push_back( {plan.targets[0], true, false, false, false}) ;
+		const auto preparation =
+			// 導入同意とは別operationです。
+			controller.beginPreparation( approval) ;
+		DRIVERCRATE_EXPECT( context,
+						   preparation.accepted && bound.worker->requestPreparation( approval)) ;
+		auto prepared = waitEvent( *bound.worker, WorkerEventKind::PREPARATION_COMPLETED,
+								  approval.operationId) ;	// 元終端です。
+		std::vector<UpdateCandidate> candidates ;			// 元publicationだけを保持します。
+		NativeError					 diagnostic{} ;			// 元拒否を数値のまま残します。
+		// 成功候補を合成せず、実workerの元監査を読みます。
+		if( prepared) {
+			// 元のpair失敗とbinding拒否を区別して保存します。
+			for( const auto &report : prepared->preparationResult.auditReports) {
+				candidates.insert( candidates.end(), report.publishedCandidates.begin(),
+								  report.publishedCandidates.end()) ;
+				diagnostic = report.publication.firstError ? report.publication.firstError
+														   : report.firstPairError ;
+			}
+		}
+
+		const bool preparationRejected =
+			nativeCase == SignedIndexBindingNativeCase::RANK_BEST_TIED ||
+			nativeCase == SignedIndexBindingNativeCase::RANK_OTHER_DATE ||
+			nativeCase == SignedIndexBindingNativeCase::RANK_OTHER_INF ||
+			(nativeCase >= SignedIndexBindingNativeCase::RANK_LATE_ERROR &&
+			 nativeCase <=
+				 SignedIndexBindingNativeCase::
+					 RANK_NO_CANDIDATE) ;	// 正常終端前の不足と元tuple不一致を含む八負例です。
+		DRIVERCRATE_EXPECT( context,
+						   prepared && prepared->indexPreparation.items.size() == 1U &&
+							   prepared->indexPreparation.items[0].acquisitionError == 0U &&
+							   prepared->indexPreparation.items[0].contentError == 0U &&
+							   prepared->indexPreparation.items[0].acceptedInfCount == 1U &&
+							   candidates.size() == (preparationRejected ? 0U : 1U) &&
+							   bound.observe().stages == 0U && bound.observe().installs == 0U) ;
+		// 元最良同点とAPI/上限失敗は原HRESULTも確認します。
+		if( nativeCase == SignedIndexBindingNativeCase::RANK_BEST_TIED) {
+			DRIVERCRATE_EXPECT( context, diagnostic == static_cast<NativeError>(
+														  HRESULT_FROM_WIN32( ERROR_DUP_NAME))) ;
+		}
+
+		// 前段の既存rank監査が元date/pathより広い場合、その不一致拒否を維持します。
+		if( nativeCase == SignedIndexBindingNativeCase::RANK_OTHER_DATE ||
+		   nativeCase == SignedIndexBindingNativeCase::RANK_OTHER_INF) {
+			DRIVERCRATE_EXPECT(
+				context, diagnostic == static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_RETRY))) ;
+		}
+
+		// 途中障害の原codeを別の曖昧性診断へ置換しません。
+		if( nativeCase == SignedIndexBindingNativeCase::RANK_LATE_ERROR ||
+		   nativeCase == SignedIndexBindingNativeCase::RANK_LATE_DETAIL_ERROR ||
+		   nativeCase == SignedIndexBindingNativeCase::RANK_ENUMERATION_ERROR ||
+		   nativeCase == SignedIndexBindingNativeCase::RANK_ENUMERATION_LIMIT) {
+			const DWORD expected =
+				nativeCase == SignedIndexBindingNativeCase::RANK_LATE_ERROR ? ERROR_ACCESS_DENIED
+				: nativeCase == SignedIndexBindingNativeCase::RANK_LATE_DETAIL_ERROR
+					? ERROR_READ_FAULT
+				: nativeCase == SignedIndexBindingNativeCase::RANK_ENUMERATION_ERROR
+					? ERROR_IO_DEVICE
+					: ERROR_TOO_MANY_NAMES ;	// 元Windows診断です。
+			DRIVERCRATE_EXPECT( context, diagnostic ==
+											static_cast<NativeError>( HRESULT_FROM_WIN32( expected))) ;
+		}
+
+		// 必要な候補がなければ実導入経路へ進めません。
+		if( preparationRejected || !prepared || candidates.size() != 1U) {
+			std::cout << "UNIQUE_WINDOWS_RANK case=" << static_cast<unsigned>( nativeCase)
+					  << " candidates=" << candidates.size() << " error=" << diagnostic
+					  << " stage=0 install=0\n" ;
+			bound.worker->stop() ;
+			DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
+			continue ;
+		}
+
+		DRIVERCRATE_EXPECT( context,
+						   candidates[0].assessment &&
+							   isCandidateAssessmentReady( *candidates[0].assessment) &&
+							   controller.completePreparation( prepared->preparationResult,
+															  scanned->scanResult.candidates)) ;
+		const bool changedBeforeInstall =
+			nativeCase == SignedIndexBindingNativeCase::RANK_WINNER_CHANGED ||
+			nativeCase ==
+				SignedIndexBindingNativeCase::RANK_TIE_CHANGED ;	// 公表後の元低位だけを変えます。
+		// 結果DTOへ触れずに現在nodeの原rankだけを変更します。
+		if( changedBeforeInstall) {
+			bound.changeNativeState() ;
+		}
+
+		const bool stageChanged = nativeCase == SignedIndexBindingNativeCase::RANK_STAGE_BETTER ||
+								  // 登録先だけの変化です。
+								  nativeCase == SignedIndexBindingNativeCase::RANK_STAGE_TIED ;
+		const std::array selected{candidates[0].identity} ;	// 明示した一deviceだけです。
+		const auto		 installation = controller.beginInstall(
+			  plan.scanSessionId, selected, InstallConfirmation::CONFIRMED) ;	// 全作用はfakeです。
+		DRIVERCRATE_EXPECT( context, installation.accepted &&
+										bound.worker->requestInstall(
+											installation.operationId, plan.scanSessionId, selected,
+											nullptr, InstallProtectionMode::WINDOWS_RESTORE_POINT)) ;
+		auto	   installed = waitEvent( *bound.worker, WorkerEventKind::INSTALL_COMPLETED,
+										 installation.operationId) ;	// fake終端まで待ちます。
+		const bool rejected	 = changedBeforeInstall || stageChanged ;	// 拒否を成功へ丸めません。
+		DRIVERCRATE_EXPECT( context,
+						   installed && installed->installResult.updates.size() == 1U &&
+							   installed->installResult.updates[0].installOutcome ==
+								   (rejected ? OutcomeCode::FAILURE : OutcomeCode::SUCCESS)) ;
+		const auto observed = bound.observe() ;	// operation終端後だけ低位counterを読みます。
+		DRIVERCRATE_EXPECT( context, observed.stages == (changedBeforeInstall ? 0U : 1U) &&
+										observed.installs == (rejected ? 0U : 1U) &&
+										observed.deviceInstalls[1] == 0U &&
+										observed.specifiedBindingMatches) ;
+		// 同operation完了後の旧scan/候補を再選択させません。
+		if( installed) {
+			DRIVERCRATE_EXPECT(
+				context,
+				controller.completeInstall( installation.operationId, installed->installResult) &&
+					!controller
+						 .beginInstall( plan.scanSessionId, selected, InstallConfirmation::CONFIRMED)
+						 .accepted) ;
+		}
+
+		std::cout << "UNIQUE_WINDOWS_RANK case=" << static_cast<unsigned>( nativeCase)
+				  << " candidates=1 stage=" << observed.stages << " install=" << observed.installs
+				  << " real changes=0\n" ;
+		bound.worker->stop() ;
+		DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
+	}
+
+	std::cout << "Unique Windows rank cases: " << cases.size()
+			  << ", failures: " << context.failureCount() - firstFailures
+			  << ", real OS changes=0\n" ;
+}
+
+/** @see signed_index_candidate_binding_tests.h 宣言側の契約を正本とします。 */
 void runSignedIndexCandidateBindingTests( TestContext						   &context,
 										 provider_worker_index_detail::Services services,
 										 const std::string_view zip, const bool network)
 {
+	// 通常一recordのPorts fixtureだけで新private個別観測の三条件を一回確認します。
+	if( !network) {
+		testAuthenticatedSameIdDevices( context, services, zip) ;
+		testUniqueWindowsRankBinding( context, services, zip) ;
+	}
+
 	// 今回の限定試験の開始assertion数。
 	const auto before = context.assertionCount() ;
 	// 開始時の失敗数。既存失敗を今回の結果へ加算しない。

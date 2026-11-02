@@ -1,7 +1,8 @@
 # DriverCrate Collector
 
-Windows x64収集PC用のセットアップです。製品版0.1.1です。
-この版の自作EXEはコード署名なしです。通常のソースビルドは証明書不要です。
+Windows x64収集PC用のセットアップです。製品版1.0.0です。
+binaryは公開前のローカル候補です。正式配布に使う自作EXEはAuthenticode署名と時刻証明を検証し、受取fileごとにも確認します。
+通常のソースビルドは証明書不要です。
 driver本体と通常アプリは同梱しません。
 現行package-v7 / EXPLICIT_DISTRIBUTION_DATA_DAILYと配置receipt-v3だけを扱います。
 基本77payload（参考索引つきは83payload）とmanifest、CPython 3.13.16 x64全34file、研究seedと初期distribution dataを含みます。
@@ -38,10 +39,11 @@ copy/import/validateではこの同意やTask所有を発行しません。priva
 不明/改変/失敗では保持します。config・seed・work/data・未知file・自己setupとUninstall.cmdは残します。
 旧管理者Taskをadopt・更新・削除せず、旧receipt混在は拒否します。stateを削除して待機を回避しません。
 
-同じv7単体セットアップで、通常installのTask登録・有効読戻しと、通常解除・所有Task不存在・data保持を
+0.1.1の署名済みv7単体セットアップで、通常installのTask登録・有効読戻しと、通常解除・所有Task不存在・data保持を
 確認しました。登録後のTaskは未実行の待機状態でした。
 10月24日の既存1 packageの実取得/INF2件のCAT・参照本体検査に合格しましたが、元runは投影0です。
-nested修正後のfresh実投影、公開前の最終ソース・文書・配布物の照合、別PC・Taskの実行/自然日次・実導入は未確認です。
+その後の有限なfresh取得・投影は既存公開索引10の根拠と別に記録しています。同梱参考索引は元byte・期限を保持します。
+1.0.0 byteでの実配置・Task操作、別PC・Taskの実行/自然日次・driver実導入は未確認です。
 過去の有限成功を現byteの成功へ読み替えません。通常Taskは未署名候補までで、署名・公開を行いません。
 
 日次試行・週内一回程度の成功を運用目標とし、取得できない対象は元の失敗/HOLD理由と診断を残して

@@ -2,7 +2,7 @@
 /**
  * @file composite_update_provider.h
  * @brief 複合update provider定義。
- * @version 01.10.02
+ * @version 01.11.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -82,6 +82,7 @@
  * Ver.01.10.00 Shunji Ogawa  2026/10/13  必要構成を持つ元索引選択の復旧前検査を結合。
  * Ver.01.10.01 Shunji Ogawa  2026/10/13  Field説明を完全な宣言開始前へ配置。
  * Ver.01.10.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.11.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * </pre>
  *
  * @note 組み込みProviderの検索・取得・導入を同じregistryで管理し、旧sessionを拒否します。
@@ -291,7 +292,20 @@ public:
 
 private:
 	friend class ProviderWorker ;
-	/** @brief 元必要role selectionを復旧開始前にread-onlyで一括確認します。
+	/** @brief 元Install選択と取得集合を同scanの私有参照へ完全照合します。
+	 * @param[in] approval 全target判断と元候補の明示選択です。
+	 * @return 未選択取得・未知候補・同device重複を含まない場合trueです。
+	 * @note worker専用で、取得も導入も呼びません。
+	 */
+	[[nodiscard]] bool validatePreparationInstallIntent(
+		const OfficialPreparationApproval &approval) const ;
+	/** @brief 私有reference位置と元targetだけから唯一の検証済み候補へ解決します。
+	 * @param[in] approval 同workerが取得前に照合した元選択です。
+	 * @return 元順序・元件数の解決結果。曖昧・未適合・新旧版は候補identityなしです。
+	 */
+	[[nodiscard]] std::vector<PreparedInstallResolution> resolvePreparationInstallIntent(
+		const OfficialPreparationApproval &approval) const ;
+	/** @brief 元選択の導入可否と必要roleを復旧開始前にread-onlyで一括確認します。
 	 * @param[in] session 元通常scanです。
 	 * @param[in] identities 通常画面の明示選択です。
 	 * @return 元全byte/期限/状態一致0、不足はHRESULTです。

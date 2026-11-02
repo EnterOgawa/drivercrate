@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_operation.h
  * @brief 承認済み検査用取得の実行契約。
- * @version 01.00.01
+ * @version 01.01.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.01.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * </pre>
  *
  * @note Callbackはworker内だけで使用し、取得結果を導入許可へ変換しません。
@@ -63,6 +64,28 @@ using PreparationProgressCallback = std::function<void( const OfficialPreparatio
 using PreparationAcquireFunction = std::function<OfficialPreparationTransferResult(
 	const OfficialPreparationTask &, const PreparationCancellation &)> ;
 
+/** @brief 元選択へ再結合した検査後の導入継続区分です。 */
+enum class PreparedInstallResolutionState {
+	/// 元device・recordの唯一の検証済み候補です。実導入成功ではありません。
+	READY,
+	/// 取得・検査・適用性が成立せず導入へ続けません。
+	NOT_READY,
+	/// 同じ元device・recordに複数候補が成立し、明示指定が必要です。
+	AMBIGUOUS,
+	/// 新たに旧版切替と判明し、通常の明示選択と警告が必要です。
+	DOWNGRADE_REQUIRES_SELECTION
+} ;
+
+/** @brief Workerの私有参照と検証済みrouteで解決した一つの元選択です。 */
+struct PreparedInstallResolution {
+	/// Install操作で選んだ元opaque candidate identityです。
+	std::wstring				   originalIdentity ;
+	/// READYの場合だけ同device・元recordの検証済み候補identityです。
+	std::wstring				   candidateIdentity ;
+	/// 未適合・曖昧・旧版をREADYへ変換しない有限区分です。
+	PreparedInstallResolutionState state{PreparedInstallResolutionState::NOT_READY} ;
+} ;
+
 /** @brief 取得準備操作の結果。全体のinstall成功flagを持たない。 */
 struct OfficialPreparationOperationResult {
 	/// 対応する承認操作ID。
@@ -79,6 +102,8 @@ struct OfficialPreparationOperationResult {
 	std::vector<OfficialPreparationItem>		items ;
 	/// 取得後の独立した監査表示結果。
 	std::vector<OfficialPreparationAuditReport> auditReports ;
+	/// 元Install選択がある操作だけの一対一解決結果。取得成功やUIの文字列から構築しません。
+	std::vector<PreparedInstallResolution>		installResolutions ;
 } ;
 
 /**

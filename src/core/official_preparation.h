@@ -2,7 +2,7 @@
 /**
  * @file official_preparation.h
  * @brief 配布物単位の検査用取得承認と予算管理。
- * @version 01.04.01
+ * @version 01.05.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.04.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
+ * Ver.01.05.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * </pre>
  *
  * @note 一objectは同一threadだけで使用し、取得taskを導入許可として扱いません。
@@ -175,6 +176,8 @@ struct OfficialPreparationApproval {
 	OfficialPreparationLimits				 limits ;
 	/// 全対象の可否。順序は任意。
 	std::vector<OfficialPreparationDecision> decisions ;
+	/// Install操作で明示選択した元候補集合。空は従来の検査単独要求で、未取得参照は導入許可ではありません。
+	std::vector<std::wstring>				 installIntentIdentities ;
 } ;
 
 /** @brief 取得承認境界の拒否理由。HTTPや導入の成功とは別に扱う。 */

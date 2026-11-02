@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(
     DriverCrate
-    VERSION 0.1.1
+    VERSION 1.0.0
     DESCRIPTION "Torrent-free Windows driver update manager"
     LANGUAGES C CXX RC
 )
@@ -338,6 +338,7 @@ add_library(drivercrate_platform STATIC
     src/platform/official_pe_inf_extraction.cpp
     src/platform/official_inf_metadata_extraction.cpp
     src/platform/provider_worker.cpp
+    src/platform/hardware_refresh.cpp
     src/platform/vaio_catalog_parser.cpp
     src/platform/vaio_update_provider.cpp
     src/platform/windows_restore_point_service.cpp
@@ -1678,15 +1679,24 @@ if(BUILD_TESTING)
     endif()
 endif()
 
+# Collectorと内側setupもCMake正本の製品版を表示する。実行機能やpackage schemaは変更しない。
+set(DRIVERCRATE_RESOURCE_NAME "DriverCrateCollector")
+set(DRIVERCRATE_RESOURCE_DESCRIPTION "DriverCrate metadata collector")
+configure_file(cmake/drivercrate_product_version.rc.in generated/collector_version.rc @ONLY)
+set(DRIVERCRATE_RESOURCE_NAME "DriverCrateCollectorSetup")
+set(DRIVERCRATE_RESOURCE_DESCRIPTION "DriverCrate Collector setup")
+configure_file(cmake/drivercrate_product_version.rc.in generated/collector_setup_version.rc @ONLY)
+
 # 製品用の明示buildと従来のlive構成を同じ定義へ接続し、二重target生成を避ける。
 if(DRIVERCRATE_BUILD_COLLECTOR OR (BUILD_TESTING AND DRIVERCRATE_BUILD_LIVE_TESTS))
     # 開発用metadata collector。通常のDriverCrate.exe、installへlinkしない。
     add_executable(DriverCrateCollector
         src/app/local_driver_collector_main.cpp
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/collector_version.rc"
         src/platform/local_driver_collector.cpp
         src/platform/local_collector_state_store.cpp
     )
-    target_include_directories(DriverCrateCollector PRIVATE src)
+    target_include_directories(DriverCrateCollector PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated")
     target_link_libraries(DriverCrateCollector PRIVATE drivercrate_platform)
     drivercrate_apply_compiler_options(DriverCrateCollector)
     drivercrate_apply_linker_options(DriverCrateCollector)
@@ -1706,6 +1716,7 @@ if(DRIVERCRATE_BUILD_COLLECTOR OR (BUILD_TESTING AND DRIVERCRATE_BUILD_LIVE_TEST
         # Descriptor predicateを既存実装からread-onlyで再利用し、保護規則を複製しない。
         src/platform/local_collector_state_store.cpp
         src/app/collector_setup.rc
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/collector_setup_version.rc"
         src/app/collector_setup.manifest
     )
     target_include_directories(DriverCrateCollectorSetup PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated")

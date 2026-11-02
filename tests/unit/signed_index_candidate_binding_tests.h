@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_tests.h
  * @brief 通常本体の真署名索引候補とfake指定導入試験を宣言します。
- * @version 01.18.00
+ * @version 01.22.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,10 @@
  * Ver.01.16.00 Shunji Ogawa  2026/10/23 実producerの新ID/INFを既存低位fixtureへ渡す入口を追加。
  * Ver.01.17.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * Ver.01.18.00 Shunji Ogawa  2026/10/24  元Intel archiveとnative署名の非導入replayを宣言。
+ * Ver.01.19.00 Shunji Ogawa  2026/10/27  同ID完全初回二機能と第三node不足の低位条件を追加。
+ * Ver.01.20.00 Shunji Ogawa  2026/10/27  唯一最小full-rankと全列挙・直前winner差の低位条件を追加。
+ * Ver.01.21.00 Shunji Ogawa  2026/10/28  同ID二件batchで指定成功後の自己状態を個別に反映。
+ * Ver.01.22.00 Shunji Ogawa  2026/10/28  既検証WUA候補と未取得索引の明示混在fixtureを追加。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -70,7 +74,7 @@ enum class SignedIndexBindingNativeCase {
 	EXTENSION_BASE_ALREADY_CURRENT,
 	/// 他nodeのCompatible読取失敗を保持し、DriverStoreだけが既知positive根拠を発行します。
 	INDEX_VERIFIED_PARTIAL,
-	/// 一つの公表IDを二つのpresent nodeへexact一致させ取得候補を拒否します。
+	/// 一つの公表IDを二つのpresent nodeへexact一致させ元非一意と個別投影を確認します。
 	INDEX_NON_UNIQUE,
 	/// SYSTEM同名INFを二か所に観測する曖昧入力です。
 	DEPENDENCY_AMBIGUOUS,
@@ -98,6 +102,8 @@ enum class SignedIndexBindingNativeCase {
 	DEPENDENCY_SIGNER_RECHECK_EMPTY,
 	/// OS観測を未充足にします。
 	DEPENDENCY_NOT_OBSERVED,
+	/// 元索引に加えて明示fake WUA一件を同じCompositeへ混在させます。
+	MIXED_READY,
 	/// 既知現在driverの通常指定導入です。
 	NORMAL,
 	/// 必要roleの二番目stageだけを拒否します。
@@ -230,6 +236,10 @@ enum class SignedIndexBindingNativeCase {
 	INITIAL_RESTORE_END_FAILURE,
 	/// Class未確定の二device共有で二番目指定導入だけ失敗します。
 	INITIAL_SHARED_PARTIAL,
+	/// 同じHardware IDを持つ二つの完全NoDriver/未知Class nodeです。
+	INITIAL_SAME_ID,
+	/// 同IDの完全初回二機能と、別の第三nodeの必要ID失敗を同時に観測します。
+	INITIAL_SAME_ID_OTHER_INCOMPLETE,
 	/// Scan後の元Classを候補と異なる既知Netへ変更します。
 	KNOWN_CLASS_MISMATCH,
 	/// Scan後のClassGUID読取だけをACCESS_DENIEDで拒否します。
@@ -238,6 +248,57 @@ enum class SignedIndexBindingNativeCase {
 	INITIAL_CLASS_AFTER_STAGE,
 	/// 原record/INFと同じ1.0.0.0を現在版へ返す通常deviceです。初回条件ではありません。
 	NORMAL_SAME_VERSION,
+	/// 最小rankの後により悪い同tuple nodeを返します。
+	RANK_BEST_FIRST,
+	/// 最小rankを二番目に返し、先頭採用を検出します。
+	RANK_BEST_LAST,
+	/// 元完全tuple内に最小rank同点二件を返します。
+	RANK_BEST_TIED,
+	/// 同点二件の後により低rank一件を返します。
+	RANK_TIE_THEN_BETTER,
+	/// より低rankでも別Providerのnodeは元tupleから除外します。
+	RANK_OTHER_PROVIDER,
+	/// より低rankでも別packed版のnodeは元tupleから除外します。
+	RANK_OTHER_VERSION,
+	/// 別日付の低rankによる前段監査と厳密bindingの不一致を拒否します。
+	RANK_OTHER_DATE,
+	/// 別完全INF pathの低rankによる前段監査と厳密bindingの不一致を拒否します。
+	RANK_OTHER_INF,
+	/// 二番目一致nodeのrankだけをACCESS_DENIEDで拒否します。
+	RANK_LATE_ERROR,
+	/// 二番目nodeのdetailをREAD_FAULTで拒否します。
+	RANK_LATE_DETAIL_ERROR,
+	/// 二件の後の列挙を正常終端ではなくIO_DEVICEで拒否します。
+	RANK_ENUMERATION_ERROR,
+	/// 512件を返し正常終端の上限内確認を不成立にします。
+	RANK_ENUMERATION_LIMIT,
+	/// 元単一INFの互換nodeを正式な空終端にします。
+	RANK_NO_CANDIDATE,
+	/// 公表後だけ別nodeのrankを下げ、元winnerを失効させます。
+	RANK_WINNER_CHANGED,
+	/// 公表後だけ最小rankを同点にします。
+	RANK_TIE_CHANGED,
+	/// 登録先だけ別nodeをより低rankへ変更します。
+	RANK_STAGE_BETTER,
+	/// 登録先だけ最小rankを同点にします。
+	RANK_STAGE_TIED,
+} ;
+/** @brief 第一指定成功後だけ第二の元低位条件を変える有限なbatch拒否入力です。 */
+enum class SignedIndexBindingBatchFault {
+	/// 第一自身の変化だけを反映し、第二は未変更です。
+	NONE,
+	/// 第二の実問題codeだけを変えます。
+	SECOND_STATE_CHANGED,
+	/// 第二の候補nodeを正式な空終端へ変えます。
+	SECOND_RANK_UNKNOWN,
+	/// 第二の元完全tupleへ同最良rank二nodeを返します。
+	SECOND_RANK_TIED,
+	/// 第二の指定APIだけが元ERROR_ACCESS_DENIEDを返します。
+	SECOND_API_DENIED,
+	/// 次の原record照合前に同保護INFの実byteを変えます。
+	CONTENT_CHANGED,
+	/// 次の原record照合前に信頼fake UTCを原期限後へ進めます。
+	RECORD_EXPIRED,
 } ;
 /** @brief 元workerの低位callを同operation終端後だけ読み取る有限観測です。 */
 struct SignedIndexBindingObservation {
@@ -295,6 +356,8 @@ struct SignedIndexBindingObservation {
 	bool									 registeredExtensionBytesUnchanged{true} ;
 	/// 元base現在版が候補1.0.0.0と同版に固定された場合trueです。
 	bool									 baseInitiallySameVersion{} ;
+	/// 混在条件だけの明示fake WUA導入数です。実WUA APIは呼びません。
+	std::uint32_t							 managedInstalls{} ;
 } ;
 /** @brief 完全installer低位表の非機密観測です。 */
 struct SignedIndexInstallerObservation {
@@ -332,6 +395,8 @@ struct SignedIndexBindingWorker {
  * Worker停止まで所有し、callback自身が借用stateの寿命を保持します。署名検証の返却値を変更しません。
  * @param[in] beforeRestore fake復旧開始直前の有限な同期callbackです。空は何もしません。
  * 同workerだけが呼び、callbackは借用状態を所有します。例外はfake復旧失敗へ変換します。
+ * @param[in] reflectOwnInstall 指定API成功後に当該deviceだけの現在状態を反映する場合trueです。
+ * @param[in] batchFault 第一指定成功後だけ第二または元byte/期限へ与える低位拒否入力です。
  * @return 実workerと非機密call観測。Native成功fallbackはありません。
  */
 [[nodiscard]] SignedIndexBindingWorker makeSignedIndexBindingWorker(
@@ -339,7 +404,8 @@ struct SignedIndexBindingWorker {
 	bool restoreFailure = false, bool stagingFailure = false,
 	SignedIndexBindingNativeCase nativeCase = SignedIndexBindingNativeCase::NORMAL,
 	std::string_view installerPayload = {}, std::function<void()> observeWorkerStart = {},
-	std::function<void()> beforeRestore = {}) ;
+	std::function<void()> beforeRestore = {}, bool reflectOwnInstall = false,
+	SignedIndexBindingBatchFault batchFault = SignedIndexBindingBatchFault::NONE) ;
 /** @brief 真署名reload・実HTTP fake・正常ZIPを通常本体へ接続します。
  * @param[in,out] context Assertion正本です。
  * @param[in] services 真署名store・固定UTC・完全HTTPの依存です。

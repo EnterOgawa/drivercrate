@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding.cpp
  * @brief 索引の私有取得根拠とWindows指定bindingを原子的候補へ接続します。
- * @version 01.07.01
+ * @version 01.09.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,9 @@
  * Ver.01.06.02 Shunji Ogawa  2026/10/19  取得前参照へ現在driverのpackage情報を継承しない。
  * Ver.01.07.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * Ver.01.07.01 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
+ * Ver.01.08.00 Shunji Ogawa  2026/10/27  個別device投影と同record/deviceの基本参照集約を接続。
+ * Ver.01.08.01 Shunji Ogawa  2026/10/28  全選択検証後からbatch終端まで元proof寿命を保持。
+ * Ver.01.09.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -645,12 +648,29 @@ std::vector<UpdateCandidate> SignedIndexCandidateBindingSession::makeReferences(
 			relation.state == IndexRecordMatchState::MATCHED ||
 			(relation.state == IndexRecordMatchState::VERIFIED_PARTIAL &&
 			 relation.reason == IndexRecordMatchReason::VERIFIED_POSITIVE_PARTIAL &&
-			 relation.positiveProof) ;	// Adapterが元tupleとleaseを検証した記述済み関係です。
+			 relation.positiveProof) ||
+			(relation.state == IndexRecordMatchState::VERIFIED_DEVICE &&
+			 relation.reason == IndexRecordMatchReason::VERIFIED_DEVICE_PROJECTION &&
+			 relation.deviceProof) ;	// Adapterが元tupleとleaseを検証した記述済み関係です。
 		// 記述済みの既知一deviceだけへ参照を作り、他node不足を導入可へ変えません。
 		if( relation.context.scanSessionId != plan.scanSessionId || !eligibleRelation ||
-		   !relation.deviceIdentity || relation.relatedDevices.size() != 1U ||
-		   relation.relatedDevices.front() != *relation.deviceIdentity) {
+		   !relation.deviceIdentity ||
+		   (relation.state != IndexRecordMatchState::VERIFIED_DEVICE &&
+			(relation.relatedDevices.size() != 1U ||
+			 relation.relatedDevices.front() != *relation.deviceIdentity))) {
 			throw std::logic_error( "index target relation mismatch") ;
+		}
+
+		// 同record/deviceへ当たる複数公開IDは一つの基本参照に集約し、原関係はlookupへ保持します。
+		if( std::ranges::any_of( pending, [&]( const auto &value) {
+			   const auto &original =
+				   // 同私有lookupの元tupleです。
+				   lookup->relations()[value.relationIndex] ;
+			   return original.recordIndex == relation.recordIndex &&
+					  original.deviceIdentity == relation.deviceIdentity &&
+					  value.target.identity == targetId ;
+		   })) {
+			continue ;
 		}
 
 		const auto current =
@@ -675,12 +695,13 @@ std::vector<UpdateCandidate> SignedIndexCandidateBindingSession::makeReferences(
 		candidate.identity		  = L"index-reference-" + std::to_wstring( relationIndex) ;
 		candidate.providerId	  = SIGNED_INDEX_PROVIDER_ID ;
 		candidate.packageIdentity.clear() ;
-		candidate.current			= false ;
-		candidate.installable		= false ;
-		candidate.recommended		= false ;
-		candidate.action			= DriverAction::NONE ;
-		candidate.defaultPreference = CandidateDefaultPreference::NONE ;
-		candidate.discoveryBasis	= CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
+		candidate.current					= false ;
+		candidate.installable				= false ;
+		candidate.preparationTargetIdentity = target->identity ;
+		candidate.recommended				= false ;
+		candidate.action					= DriverAction::NONE ;
+		candidate.defaultPreference			= CandidateDefaultPreference::NONE ;
+		candidate.discoveryBasis = CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
 		candidate.assessment.reset() ;
 		candidate.releaseObservationDifference.reset() ;
 		candidate.equivalentSourceCount = 1U ;
@@ -1558,6 +1579,14 @@ InstallResult SignedIndexCandidateBindingSession::executeBoundInstall(
 		if( static_cast<std::size_t>( count) != record.task.target.deviceCount) {
 			return rejectedInstall( identities, static_cast<NativeError>( E_ACCESSDENIED)) ;
 		}
+	}
+
+	const auto proofScope =
+		// 元選択batchの終端までだけproofを保持します。
+		store.beginIndexInstallProofScope( session) ;
+	// 新resolverを閉じた同worker/scanのscopeがなければ指定導入を開始しません。
+	if( !proofScope.active()) {
+		return rejectedInstall( identities, static_cast<NativeError>( E_ACCESSDENIED)) ;
 	}
 
 	InstallResult result ;	// 個別取得成功/導入成功・失敗を分離します。

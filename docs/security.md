@@ -76,7 +76,15 @@ BIOS／UEFI／firmware、OEM utility、app、Windows software updateはdriver導
 
 有限queueと単調増加するoperation／scan IDを使い、古いscan、未表示・未知・重複候補、Provider不一致を拒否します。
 同時操作を拒否し、終了時は新規受付を止めworkerを待ちます。Windowsの導入を強制終了しません。
-検索、検査用取得、EULA、導入は別の同意です。最終選択・確認前にWUAのEULAを受諾しません。
+検索は公式metadata照会だけで、payload取得やEULA同意を含みません。Install操作は明示選択集合の実行意思です。
+取得前の選択意図は実導入許可ではなく、workerの同scan私有参照・元record/targetと、検査後の唯一routeで再照合します。
+未選択targetの取得、新たなdowngrade・曖昧候補の暗黙選択を拒否します。必要規約の全文・revisionに同意する前に
+当該payloadを取得せず、WUAの既存EULA受諾も最終選択・明示判断の後に限ります。汎用の件数確認を重ねません。
+ADR0423により、公式取得は選択時の画面内規約案内と任意全文閲覧を提供し、同scan/計画/選択集合と
+原全文・revision・出典・tokenが完全一致する「同意してインストール」だけを明示同意へ結合します。
+独立EULA dialogを開かず、検索・選択・閲覧だけでは同意を発行しません。欠落・差替え・旧選択・staleは停止し、
+同意を永続保存しません。具体的前提の確認とWUAの既存条件は維持します。
+取消し・新scan・close・失効で継続意図を破棄します。[ADR 0422](adr/0422-search-select-install-intent.md)を正本とします。
 
 clientは復元ポイント開始失敗時にProviderを呼ばず、開始後は失敗・例外でも終了通知します。
 ServerはSystem Restoreを呼ばず、外部backup／checkpointと復旧手順への管理者同意を要求します。
@@ -146,3 +154,24 @@ asset型や取得permitを構築する入口はありません。候補headの�
 過去版の成功や署名検証だけを、全機器への適合・導入成功・復旧保証へ読み替えません。
 実driver導入と各OS/機器の実測範囲は[リリースノート](release-notes-0.1.1.md)、
 再現方法は[テスト方針](testing.md)を参照してください。
+
+## 認証済み個別device投影（ADR 0413）
+
+個別device投影は公開DTOだけから発行できない。未知Classは完全なNoDriver/属性/全ID同時観測と当該Hardware exact一致が必要で、他node不足は元completed/errorへ残す。同cohort内の他deviceへの証拠転用も拒否する。標準INF検査だけに限定し、実rank/全INF-CAT/期限/同意/復元と直前再検証は維持する。
+
+詳細は[ADR 0413](adr/0413-authenticated-per-device-index-projection.md)を参照する。
+
+## 唯一最小full-rankの固定（ADR 0414）
+
+同INF metadataに複数Windows nodeがあっても、元完全tuple内の実最小full rankが一件なら固定できる。
+先頭採用やrank推測は行わず、全有限列挙・全必要読取と正常終端を要求する。同最良同点、
+直前winner/section/rankの変化は拒否する。Class、署名/hash/全INF-CAT閉包、期限/世代、同意・復元と
+一device指定の境界は維持する。[ADR 0414](adr/0414-unique-minimum-windows-rank-binding.md)を参照する。
+
+## 選択batch内のproof寿命（ADR 0418）
+
+署名索引の全選択事前検証後だけ、元native proofのProvider所有を同batch終端まで維持する。
+新取得は既存の不可逆閉鎖を保ち、旧resolverも新callback生成も閉じる。scopeは新scanや
+明示失効を妨げず、終端・例外で元proofを解放する。過去のrecord関係を現在状態の証拠へ
+昇格させず、第二自身の変化、rankの未知・曖昧性、原byte/署名/期限の失効は拒否する。
+詳細は[ADR 0418](adr/0418-signed-index-batch-proof-lifetime.md)を参照する。

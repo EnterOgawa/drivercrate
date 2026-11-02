@@ -14,7 +14,7 @@ omitting it preserves the certificate-free development path. See docs/adr/0406-v
 param(
     [Parameter()]
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '0.1.1',
+    [string]$Version = '1.0.0',
     [string]$BuildDirectory = ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../build'))),
     [string]$OutputDirectory,
     [hashtable]$CodeSigning

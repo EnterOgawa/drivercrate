@@ -2,7 +2,7 @@
 /**
  * @file collector_distribution_candidate_tests.cpp
  * @brief 同じnative通常検査の私有観測から汎用v2投影を検証します。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.01.01 Shunji Ogawa  2026/10/24  発行fresh24hと原8日期限の排他境界を確認。
  * Ver.01.01.02 Shunji Ogawa  2026/10/25  四範囲の実手動確認minと原PAGE保持/非自動延長を回帰。
  * Ver.01.02.00 Shunji Ogawa  2026/10/25  明示offline原PAGEを現行jobから同取得/候補へ接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/02  人工時刻と期限境界を固定し原期限の拒否を維持。
  * </pre>
  * @note HTTP/DNS/WinTrust/INF metadata I/Oは既存専用seamです。実CAT合格を意味しません。
  * @see docs/adr/0396-collector-distribution-pipeline-connection.md
@@ -34,12 +35,79 @@
 #undef main
 #include "platform/unsigned_index_candidate.h"
 #include "platform/signed_index_json_internal.h"
+#include <format>
 #include <type_traits>
 #include <set>
 #include <filesystem>
 #include <fstream>
 
 namespace {
+/** @brief 人工時刻をjobが受理するUTC表現へ変換します。
+ * @param[in] value 秒精度の架空時刻です。
+ * @param[in] fraction 秒切下げを試す場合だけ小数秒を付けます。
+ * @return 元時刻のUTC文字列です。
+ */
+std::wstring fixtureUtc( const std::chrono::sys_seconds value, const bool fraction = false)
+{
+	// 架空UTCの日境界です。
+	const auto						  day = std::chrono::floor<std::chrono::days>( value) ;
+	const std::chrono::year_month_day date{day} ;
+	const std::chrono::hh_mm_ss		  time{value - day} ;
+	return std::format( L"{:04}-{:02}-{:02}T{:02}:{:02}:{:02}{}Z", static_cast<int>( date.year()),
+					   static_cast<unsigned>( date.month()), static_cast<unsigned>( date.day()),
+					   time.hours().count(), time.minutes().count(), time.seconds().count(),
+					   fraction ? L".999999" : L"") ;
+}
+
+/** @brief 一回の架空jobに時間順序を満たす手動確認を固定します。
+ * @param[in,out] job 新しい人工jobです。実公開記録を変更しません。
+ * @param[in] oldest 最古の手動確認時刻です。
+ * @param[in] oldestScope 最古の確認範囲です。空なら全範囲を同時刻にします。
+ */
+void setFreshReviewTimes( JsonObject &job, const std::chrono::sys_seconds oldest,
+						 const std::wstring_view oldestScope = {})
+{
+	// 人工jobの元PAGEです。
+	auto	   page = job.GetNamedObject( L"pageObservation") ;
+	// 同じ人工jobのlocatorです。
+	auto	   locators = job.GetNamedObject( L"locators") ;
+	// 手動確認より先の人工PAGE時刻です。
+	const auto originalPageTime = fixtureUtc( oldest - std::chrono::hours{1}) ;
+	setText( page, L"checkedAt", originalPageTime) ;
+	setText( locators, L"asOf", originalPageTime) ;
+	// 四つの独立した人工確認です。
+	auto review = job.GetNamedObject( L"review") ;
+	// 全scopeへ同じ時間順序を適用します。
+	for( const auto scope : {L"official", L"preDownload", L"terms", L"prerequisites"}) {
+		// 当該scopeの人工根拠です。
+		auto	   evidence = review.GetNamedObject( scope).GetNamedObject( L"evidence") ;
+		// 最古scopeだけ小数秒の切下げを確認します。
+		const bool isOldest = oldestScope.empty() || std::wstring_view{scope} == oldestScope ;
+		setText( evidence, L"checkedAt",
+				fixtureUtc( oldest + (isOldest ? std::chrono::hours{0} : std::chrono::hours{1}),
+						   isOldest && !oldestScope.empty())) ;
+	}
+}
+
+/** @brief 同runの公開診断に記録された二観測を下回らない固定評価時刻を返します。
+ * @param[in] result 同じfake runの元結果です。
+ * @return 秒精度の同run評価時刻です。
+ */
+std::chrono::sys_seconds fixtureEvaluationTime(
+	const drivercrate::CollectorRegistryJobResult &result)
+{
+	// 同runの元診断だけを読みます。
+	const auto output = JsonObject::Parse( winrt::to_hstring( result.json())) ;
+	// 同runの内容検査時刻です。
+	const auto checked =
+		static_cast<std::int64_t>( output.GetNamedNumber( L"contentCheckedUtcSeconds")) ;
+	// 同runのPAGE観測時刻です。
+	const auto page = static_cast<std::int64_t>(
+		output.GetNamedObject( L"pageObservation").GetNamedNumber( L"observedUtcSeconds")) ;
+	check( checked > 0 && page > 0) ;
+	return std::chrono::sys_seconds{std::chrono::seconds{std::max( checked, page)}} ;
+}
+
 /** @brief 原jobへ公開OS三familyを追加します。適合を補完しません。
  * @param[in,out] job 検証前の架空入力だけです。
  */
@@ -57,10 +125,12 @@ void declareAllFamilies( JsonObject &job)
 /** @brief 一回の本物runnerと完全fake I/Oから投影の元結果を得ます。
  * @param[in] mode 元検査seamの固定故障番号です。
  * @param[in] allFamilies 現在以外のOSを未観測として検査します。
+ * @param[in] anchor 今回の人工手動確認を固定した秒精度UTCです。
  * @param[out] candidate 同じ実結果objectから生成した候補です。
  * @return 全元metadataと失敗分母を持つ候補DOMです。
  */
 JsonObject candidateFixture( const unsigned mode, const bool allFamilies,
+							const std::chrono::sys_seconds				 anchor,
 							drivercrate::CollectorDistributionCandidate &candidate)
 {
 	Fixture state{
@@ -68,6 +138,7 @@ JsonObject candidateFixture( const unsigned mode, const bool allFamilies,
 	fixture	   = &state ;
 	auto input = jobFixture() ;	// A社二製品の元共通recordです。
 	bindPage( input, state.responses.front().body) ;
+	setFreshReviewTimes( input, anchor) ;
 	auto originalRecord = input.GetNamedObject( L"record") ;	// 旧研究版を保持します。
 	setText( originalRecord, L"driverVersion", L"0.9.0.0") ;
 	// OS未観測fixtureだけが元公式申告を増やします。
@@ -92,9 +163,7 @@ JsonObject candidateFixture( const unsigned mode, const bool allFamilies,
 	const auto error = drivercrate::CollectorRegistryJobTestAccess::execute(
 		job, job, mode, result) ;	// 通常runner一回です。
 	check( !result.json().empty() && state.closed == state.opened && state.safe) ;
-	const auto now = std::chrono::floor<std::chrono::seconds>(
-		// 元実時計です。
-		std::chrono::system_clock::now()) ;
+	const auto now = fixtureEvaluationTime( result) ;	// 同runから固定した評価時刻です。
 	check( drivercrate::CollectorRegistryJobTestAccess::project( result, now, candidate) == 0 &&
 		  !candidate.json().empty()) ;
 	const auto projected =
@@ -144,25 +213,58 @@ JsonObject candidateFixture( const unsigned mode, const bool allFamilies,
 	return projected ;
 }
 
-/** @brief 四範囲の最も古い実手動確認を同run観測とは独立に期限へ残します。 */
-void manualReviewExpiryTests()
+/** @brief 四範囲の最も古い実手動確認を同run観測とは独立に期限へ残します。
+ * @param[in] anchor 今回一度だけ採取した人工fixtureの基準UTCです。
+ */
+void manualReviewExpiryTests( const std::chrono::sys_seconds anchor)
 {
 	// 全scopeが最小時刻を制約できることを確認します。
 	for( const auto oldest : {L"official", L"preDownload", L"terms", L"prerequisites"}) {
-		auto	   input = jobFixture() ;	// 元PAGEは10月22日のままです。
-		const auto originalPage =
-			// 原観測を保持します。
-			input.GetNamedObject( L"pageObservation").Stringify() ;
-		auto review = input.GetNamedObject( L"review") ;	// 各scopeの実確認を独立に設定します。
-		// 一範囲だけを他の三範囲より古くし、小数秒の切下げも確認します。
+		auto fixed = jobFixture() ;	// 従来の人工fixtureと元期限を維持します。
+		// 元fixtureの四scopeです。
+		auto fixedReview = fixed.GetNamedObject( L"review") ;
+		// 各scopeを独立に最古へ固定します。
 		for( const auto scope : {L"official", L"preDownload", L"terms", L"prerequisites"}) {
-			auto evidence =
-				// 当該範囲の根拠です。
-				review.GetNamedObject( scope).GetNamedObject( L"evidence") ;
+			// 元scopeの手動確認根拠です。
+			auto evidence = fixedReview.GetNamedObject( scope).GetNamedObject( L"evidence") ;
 			setText( evidence, L"checkedAt",
 					std::wstring_view{scope} == oldest ? L"2026-10-24T00:00:00.999999Z"
 													   : L"2026-10-24T01:00:00Z") ;
 		}
+
+		drivercrate::CollectorRegistryJob fixedJob ;
+		check( drivercrate::parseCollectorRegistryJob( winrt::to_string( fixed.Stringify()),
+													 fixedJob) == 0) ;
+		// 実通信のない元固定fixtureです。
+		Fixture fixedState{{Response{"<a href=\"driver.zip\">driver</a>"}, Response{"abc"}}} ;
+		fixture = &fixedState ;
+		drivercrate::CollectorRegistryJobResult fixedResult ;
+		check( drivercrate::CollectorRegistryJobTestAccess::execute( fixedJob, fixedJob, 0U,
+																   fixedResult) == 0) ;
+		// 元の人工手動確認から導く期限です。
+		const auto fixedExpiry =
+			drivercrate::signed_index_json::utc( "2026-11-01T00:00:00Z", E_INVALIDARG) ;
+		drivercrate::CollectorDistributionCandidate fixedExpired ;
+		check( drivercrate::CollectorRegistryJobTestAccess::project(
+				  fixedResult, std::max( fixtureEvaluationTime( fixedResult), fixedExpiry),
+				  fixedExpired) == 0 &&
+			  fixedExpired.recordCount() == 0U) ;
+		// 原期限と拒否理由を持つ候補です。
+		const auto fixedProjection = JsonObject::Parse( winrt::to_hstring( fixedExpired.json())) ;
+		check( fixedProjection.GetNamedString( L"validUntilUtc") == L"2026-11-01T00:00:00Z" &&
+			  fixedProjection.GetNamedArray( L"outcomes").Size() == 1U &&
+			  fixedProjection.GetNamedArray( L"outcomes")
+					  .GetAt( 0U)
+					  .GetObject()
+					  .GetNamedString( L"reason") == L"EVIDENCE_EXPIRED_OR_UNCONFIRMED") ;
+
+		auto	   input = jobFixture() ;	// 別の人工fixtureで期限直前の正例を確認します。
+		// 期限が24時間のfresh境界内に収まる人工確認です。
+		const auto oldestTime = anchor - std::chrono::days{7} - std::chrono::hours{1} ;
+		setFreshReviewTimes( input, oldestTime, oldest) ;
+		const auto originalPage =
+			// 原観測を保持します。
+			input.GetNamedObject( L"pageObservation").Stringify() ;
 
 		const auto raw = winrt::to_string( input.Stringify()) ;	// 自動更新を許さない同じ原jobです。
 		drivercrate::CollectorRegistryJob job ;					// 正規解析の同じ私有入力です。
@@ -174,9 +276,7 @@ void manualReviewExpiryTests()
 			fixture = &state ;
 			drivercrate::CollectorRegistryJobResult result ;	// 旧成功JSONから復元しません。
 			check( drivercrate::CollectorRegistryJobTestAccess::execute( job, job, 0U, result) == 0) ;
-			const auto now = std::chrono::floor<std::chrono::seconds>(
-				// 発行時の実現在です。
-				std::chrono::system_clock::now()) ;
+			const auto now = fixtureEvaluationTime( result) ;	// 同run観測から一意に固定します。
 			drivercrate::CollectorDistributionCandidate
 				candidate ;	// 同生存runの観測だけを使います。
 			check( drivercrate::CollectorRegistryJobTestAccess::project( result, now, candidate) ==
@@ -185,7 +285,8 @@ void manualReviewExpiryTests()
 			const auto projected =
 				// 実投影出力です。
 				JsonObject::Parse( winrt::to_hstring( candidate.json())) ;
-			check( projected.GetNamedString( L"validUntilUtc") == L"2026-11-01T00:00:00Z" &&
+			check( projected.GetNamedString( L"validUntilUtc") ==
+					  fixtureUtc( oldestTime + std::chrono::days{8}) &&
 				  winrt::to_string( projected.GetNamedObject( L"job").Stringify()) == raw &&
 				  input.GetNamedObject( L"pageObservation").Stringify() == originalPage) ;
 			const auto expiry = drivercrate::signed_index_json::utc(
@@ -198,6 +299,22 @@ void manualReviewExpiryTests()
 						  winrt::to_string( projected.GetNamedString( field)), E_INVALIDARG) +
 						  std::chrono::days{8}) ;
 			}
+
+			// 同runの実fake PAGE観測です。
+			const auto pageAt = drivercrate::signed_index_json::utc(
+				winrt::to_string( projected.GetNamedString( L"pageObservedAtUtc")), E_INVALIDARG) ;
+			check( now < expiry && expiry < pageAt + std::chrono::hours{24}) ;
+			drivercrate::CollectorDistributionCandidate beforeExpiry ;
+			drivercrate::CollectorDistributionCandidate atExpiry ;
+			check( drivercrate::CollectorRegistryJobTestAccess::project(
+					  result, expiry - std::chrono::seconds{1}, beforeExpiry) == 0 &&
+				  beforeExpiry.recordCount() == 1U) ;
+			check( drivercrate::CollectorRegistryJobTestAccess::project( result, expiry, atExpiry) ==
+					  0 &&
+				  atExpiry.recordCount() == 0U &&
+				  JsonObject::Parse( winrt::to_hstring( atExpiry.json()))
+						  .GetNamedString( L"validUntilUtc") ==
+					  projected.GetNamedString( L"validUntilUtc")) ;
 
 			check( state.sends == 2U && state.safe && state.opened == state.closed) ;
 		}
@@ -312,13 +429,19 @@ int main( const int argc, char *argv[])
 			return 0 ;
 		}
 
-		manualReviewExpiryTests() ;
+		// このunit runだけで一回採取する基準です。
+		const auto anchor =
+			std::chrono::floor<std::chrono::seconds>( std::chrono::system_clock::now()) -
+			std::chrono::minutes{2} ;
+		manualReviewExpiryTests( anchor) ;
 		// 新INF/節/架空IDはcodeの製品登録や研究版との一致条件なしで投影します。
 		for( const unsigned mode : {0U, 8U, 9U, 20U, 21U, 22U, 23U, 24U, 25U, 26U, 30U, 31U, 32U}) {
-			drivercrate::CollectorDistributionCandidate candidate ;				// 当該実結果だけを所有します。
-			const auto output  = candidateFixture( mode, false, candidate) ;	// 実producerを呼びます。
-			const auto records = output.GetNamedArray( L"records") ;			// 実v2投影です。
-			const auto infs	   = output.GetNamedArray( L"infs") ;				// 全元分母です。
+			drivercrate::CollectorDistributionCandidate candidate ;	// 当該実結果だけを所有します。
+			const auto									output =
+				// 実producerを呼びます。
+				candidateFixture( mode, false, anchor, candidate) ;
+			const auto		  records = output.GetNamedArray( L"records") ;	// 実v2投影です。
+			const auto		  infs	  = output.GetNamedArray( L"infs") ;	// 全元分母です。
 			const std::size_t expected =
 				mode == 30U					 ? 3U
 				: mode == 21U || mode == 32U ? 2U
@@ -419,8 +542,10 @@ int main( const int argc, char *argv[])
 			}
 		}
 
-		drivercrate::CollectorDistributionCandidate scoped ;		// 観測していない二familyを保留します。
-		const auto output = candidateFixture( 0U, true, scoped) ;	// 現実OS選択は変更しません。
+		drivercrate::CollectorDistributionCandidate scoped ;	// 観測していない二familyを保留します。
+		const auto									output =
+			// 現実OS選択は変更しません。
+			candidateFixture( 0U, true, anchor, scoped) ;
 		check( scoped.recordCount() == 1U && output.GetNamedArray( L"outcomes").Size() == 3U) ;
 		std::size_t unobserved{} ;	// 他OSの分母だけを数えます。
 		// 全公式申告familyを確認し、未観測を成功へ含めません。

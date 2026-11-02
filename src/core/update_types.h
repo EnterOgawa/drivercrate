@@ -2,7 +2,7 @@
 /**
  * @file update_types.h
  * @brief Driver update共通値型定義。
- * @version 01.10.02
+ * @version 01.13.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -70,6 +70,9 @@
  * Ver.01.10.00 Shunji Ogawa  2026/10/13  必要役割のstageと指定APIと適用未確認を分離。
  * Ver.01.10.01 Shunji Ogawa  2026/10/13  観測field説明を完全な宣言開始前へ配置。
  * Ver.01.10.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.11.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
+ * Ver.01.12.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
+ * Ver.01.13.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * </pre>
  *
  * @note Provider、状態管理、およびUI間で交換する値型を定義します。Windows固有型を公開せず、unit testからも利用できる構成とします。
@@ -717,6 +720,8 @@ struct UpdateCandidate {
 	std::uint32_t								requiredExtensionCount{} ;
 	/// 元AddComponentへ結合した必要driver-only SWC件数です。
 	std::uint32_t								requiredDriverComponentCount{} ;
+	/// 同scanの取得targetへの選択用結合。非空でも実導入を許可せず、workerの元参照で再照合します。
+	std::wstring								preparationTargetIdentity ;
 } ;
 
 /**
@@ -841,6 +846,28 @@ enum class InstallProtectionMode {
 	SERVER_WITHOUT_RESTORE_POINT,
 } ;
 
+/** @brief 選択deviceだけの導入後read-only観測です。導入許可を含みません。 */
+struct PostInstallDeviceObservation {
+	/// 元scan/opaque deviceへ結合した属性の読取状態です。
+	DeviceObservation observation ;
+	/// 実際に読めたFriendlyNameまたはDeviceDescです。
+	std::wstring	  name ;
+	/// 現在の製造元表示属性です。
+	std::wstring	  manufacturer ;
+	/// 現在のsetup class表示名です。
+	std::wstring	  driverClass ;
+	/// 再openしたdeviceの実class GUIDです。
+	std::wstring	  deviceClassGuid ;
+	/// 現在driverの発行元です。
+	std::wstring	  provider ;
+	/// 現在driverの実観測版です。導入候補から補完しません。
+	std::wstring	  version ;
+	/// 現在driverの実観測日付です。
+	std::wstring	  driverDate ;
+	/// 対象解決/open/presentの失敗。属性ごとの失敗はobservationへ保持します。
+	NativeError		  error{} ;
+} ;
+
 /**
  * @brief 選択された update collection 全体の実行結果を表す。
  */
@@ -865,6 +892,8 @@ struct InstallResult {
 	bool							   rebootRequired{} ;
 	/// 選択候補と同じidentity集合の個別結果。
 	std::vector<UpdateExecutionResult> updates ;
+	/// 導入結果の成功とは独立した対象deviceの事後観測です。
+	std::vector<PostInstallDeviceObservation> currentDevices ;
 } ;
 
 /**
@@ -887,6 +916,8 @@ enum class ProviderStage {
 	INSTALLING,
 	/// Driver変更後の復元ポイントを確定する段階。
 	FINALIZING_RESTORE_POINT,
+	/// Windows rootへハードウェア再検出を一回要求する段階です。
+	REFRESHING_HARDWARE,
 } ;
 
 /**

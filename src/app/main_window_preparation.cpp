@@ -2,7 +2,7 @@
 /**
  * @file main_window_preparation.cpp
  * @brief 公式配布物の取得確認と結果表示。
- * @version 01.04.00
+ * @version 01.08.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,10 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  同operation索引の取得・内容・未接続結果を表示。
  * Ver.01.03.01 Shunji Ogawa  2026/10/12  索引summaryの元結果照合と有限内容状態の拒否を補強。
  * Ver.01.04.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
+ * Ver.01.05.00 Shunji Ogawa  2026/10/28  元検索に結合した確認継続と取消し・規約拒否の理由を追加。
+ * Ver.01.06.00 Shunji Ogawa  2026/10/28  取得の技術reportを自動表示せず通常詳細から閲覧する。
+ * Ver.01.07.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
+ * Ver.01.08.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続。
  * </pre>
  *
  * @note UI thread専用です。Payload URL・端末識別子は非表示で、EULA内のURLは文字列に限ります。
@@ -232,6 +236,397 @@ bool validIndexContentSummary( const IndexPreparationItemSummary &item)
 }
 
 } // namespace
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+bool MainWindow::isSelectableCandidate( const UpdateCandidate &candidate) const noexcept
+{
+	// 現在行や同deviceへ結合できない行を選択意図へ読み替えません。
+	if( candidate.current || candidate.identity.empty() || candidate.deviceIdentity.empty()) {
+		return false ;
+	}
+
+	// 既存Providerの実導入可能候補は従来どおり明示選択できます。
+	if( candidate.installable) {
+		return true ;
+	}
+
+	const auto *plan = controller_.preparationPlan() ;	// 未使用の同scan計画だけを借用します。
+	return plan && plan->scanSessionId == controller_.scanSessionId() &&
+		   candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
+		   candidate.discoveryBasis ==
+			   CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION &&
+		   !candidate.preparationTargetIdentity.empty() &&
+		   std::ranges::any_of( plan->targets, [&]( const auto &target) {
+			   return target.identity == candidate.preparationTargetIdentity &&
+					  target.providerId == candidate.providerId &&
+					  (target.terms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED ||
+					   target.terms == OfficialPreparationTerms::CONFIRMED_NO_CONSENT) ;
+		   }) ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+std::optional<OfficialPreparationApproval> MainWindow::makeInstallPreparationApproval(
+	const std::span<const std::size_t> indexes) const
+{
+	const auto *plan = controller_.preparationPlan() ;	// 現UIが所有する元計画です。
+	// 使用済み計画や元scanがない場合に表示文字列から新しい取得を組み立てません。
+	if( !plan || plan->scanSessionId != controller_.scanSessionId() || indexes.empty()) {
+		return std::nullopt ;
+	}
+
+	OfficialPreparationApproval approval ;	// 元選択集合を取得前のworker照合へ渡します。
+	approval.scanSessionId = plan->scanSessionId ;
+	approval.planId		   = plan->planId ;
+	approval.limits		   = plan->limits ;
+	// 元check集合をopaque identityで固定し、未選択deviceや候補を追加しません。
+	for( const auto index : indexes) {
+		// 古いindexや選択不能行から取得targetを生成しません。
+		if( index >= candidates_.size() || !isSelectableCandidate( candidates_[index])) {
+			return std::nullopt ;
+		}
+
+		approval.installIntentIdentities.push_back( candidates_[index].identity) ;
+	}
+
+	// 全計画の未選択判断も維持し、選んだ配布物だけへ取得を許可します。
+	for( const auto &target : plan->targets) {
+		OfficialPreparationDecision decision{.target = target} ;	// 未選択を既定にします。
+		decision.acquire = std::ranges::any_of( indexes, [&]( const auto index) {
+			return !candidates_[index].installable &&
+				   candidates_[index].preparationTargetIdentity == target.identity ;
+		}) ;
+		approval.decisions.push_back( std::move( decision)) ;
+	}
+
+	// 選択した全配布物の条件と共有tokenを案内前にも検証します。
+	for( const auto &decision : approval.decisions) {
+		// 未選択対象の利用条件を今回の同意対象へ含めません。
+		if( !decision.acquire) {
+			continue ;
+		}
+
+		const auto &target = decision.target ;	// 取得選択した元の全文snapshotです。
+		// 未取得本文・未知条件・不明な出典を包括同意で補完しません。
+		if( (target.terms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED &&
+			(!validPreparationEulaText( target.eulaText) || target.eulaRevision.empty() ||
+			 target.eulaSourceSubject.empty())) ||
+		   (target.terms != OfficialPreparationTerms::ACCEPTANCE_REQUIRED &&
+			target.terms != OfficialPreparationTerms::CONFIRMED_NO_CONSENT)) {
+			return std::nullopt ;
+		}
+
+		// 同一tokenの全選択対象で規約が完全一致しなければ案内全体を拒否します。
+		if( target.sharedEulaToken != 0U &&
+		   std::ranges::any_of( approval.decisions, [&]( const auto &other) {
+			   return other.acquire && other.target.sharedEulaToken == target.sharedEulaToken &&
+					  (other.target.providerId != target.providerId ||
+					   other.target.eulaSourceSubject != target.eulaSourceSubject ||
+					   other.target.eulaRevision != target.eulaRevision ||
+					   other.target.eulaText != target.eulaText) ;
+		   })) {
+			return std::nullopt ;
+		}
+	}
+
+	return approval ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+bool MainWindow::matchesPresentedInstallTerms(
+	const OfficialPreparationApproval &approval) const noexcept
+{
+	// 未提示・選択変更・旧session・計画差替えのいずれも旧案内へ結合しません。
+	if( !presentedInstallTerms_ || presentedInstallTerms_->scanSessionId != approval.scanSessionId ||
+	   presentedInstallTerms_->planId != approval.planId ||
+	   presentedInstallTerms_->limits != approval.limits ||
+	   presentedInstallTerms_->installIntentIdentities != approval.installIntentIdentities) {
+		return false ;
+	}
+
+	return std::ranges::equal( presentedInstallTerms_->decisions, approval.decisions,
+							  []( const auto &presented, const auto &current) {
+								  return presented.target == current.target &&
+										 presented.acquire == current.acquire &&
+										 !presented.eulaAccepted &&
+										 !presented.prerequisitesConfirmed &&
+										 !presented.restrictedNetworkApproved ;
+							  }) ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+bool MainWindow::updateInstallTermsPresentation() noexcept
+{
+	const bool wasVisible = (GetWindowLongPtrW( installTermsNote_, GWL_STYLE) & WS_VISIBLE) !=
+							0 ;	// 親の可視性と独立した案内状態です。
+	presentedInstallTerms_.reset() ;
+	bool visible{} ;	// 選択した未取得配布物がある間だけ案内帯を表示します。
+	bool accepted{} ;	// 案内の表示可否であり規約の受諾ではありません。
+	try {
+		const auto indexes = checkedCandidateIndexes() ;	// 現在表示中の実check集合です。
+		visible			   = controller_.state() == ApplicationState::SCAN_READY &&
+				  std::ranges::any_of(
+					  indexes, [&]( const auto index) { return !candidates_[index].installable ; }) ;
+		// 未取得対象を選んでいない場合に過去の規約案内を残しません。
+		if( !visible) {
+			accepted =
+				SetWindowTextW( installButton_, loadString( IDS_INSTALL_BUTTON).c_str()) != FALSE ;
+		} else {
+			auto snapshot =
+				// 同意flagを持たない提示値です。
+				makeInstallPreparationApproval( indexes) ;
+			const bool needsTerms =
+				snapshot && std::ranges::any_of( snapshot->decisions, []( const auto &decision) {
+					return decision.acquire &&
+						   decision.target.terms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED ;
+				}) ; // 既存計画だけから文言を決めます。
+			const auto note =
+				snapshot ? formatResource( needsTerms ? IDS_INSTALL_TERMS_NOTICE
+													 : IDS_INSTALL_SELECTION_NOTICE,
+										  std::to_wstring( indexes.size()))
+						 : loadString(
+							   IDS_INSTALL_TERMS_UNAVAILABLE) ;	// 欠落条件は同意不要へ変換しません。
+			const auto caption = loadString(
+				needsTerms ? IDS_INSTALL_TERMS_BUTTON : IDS_INSTALL_BUTTON) ;	// 明示操作の意味です。
+			accepted = SetWindowTextW( installTermsNote_, note.c_str()) != FALSE &&
+					   GetWindowTextLengthW( installTermsNote_) == static_cast<int>( note.size()) &&
+					   SetWindowTextW( installButton_, caption.c_str()) != FALSE &&
+					   snapshot.has_value() ;
+			EnableWindow( installTermsButton_, accepted && needsTerms) ;
+			// 案内controlへ表示できた同じ値だけをInstall時の比較へ保持します。
+			if( accepted) {
+				presentedInstallTerms_ = std::move( snapshot) ;
+			}
+		}
+	} catch( ...) {
+		// 表示用copyやresource取得の失敗を同意として扱わずInstallを無効にします。
+		presentedInstallTerms_.reset() ;
+		accepted = false ;
+	}
+
+	ShowWindow( installTermsNote_, visible ? SW_SHOW : SW_HIDE) ;
+	ShowWindow( installTermsButton_, visible ? SW_SHOW : SW_HIDE) ;
+	// 案内の出現・消失時だけ一覧とfooterの高さを再配分します。
+	if( wasVisible != visible) {
+		layoutControls() ;
+	}
+
+	return accepted ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+INT_PTR CALLBACK MainWindow::installTermsDialogProc( const HWND dialog, const UINT message,
+													const WPARAM wordParameter,
+													const LPARAM longParameter) noexcept
+{
+	// 同期閲覧中だけ借用するplain textを原形のまま標準editへcopyします。
+	if( message == WM_INITDIALOG) {
+		const auto *text =
+			reinterpret_cast<const std::wstring *>( longParameter) ;	// 呼出しscopeの所有文字列です。
+		const auto body =
+			// Read-only本文controlです。
+			GetDlgItem( dialog, IDC_METADATA_DETAIL_TEXT) ;
+		SendMessageW( body, EM_SETLIMITTEXT, 0, 0) ;
+		// 全文を表示できない場合は空・部分本文で正常終了しません。
+		if( text == nullptr || SetWindowTextW( body, text->c_str()) == FALSE ||
+		   GetWindowTextLengthW( body) != static_cast<int>( text->size())) {
+			EndDialog( dialog, -1) ;
+		}
+
+		return TRUE ;
+	}
+
+	// 閉じる操作だけを受け付け、IDYES等を同意や取得へ変換しません。
+	if( (message == WM_COMMAND &&
+		(LOWORD( wordParameter) == IDOK || LOWORD( wordParameter) == IDCANCEL)) ||
+	   message == WM_CLOSE) {
+		EndDialog( dialog, IDOK) ;
+		return TRUE ;
+	}
+
+	return FALSE ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+void MainWindow::showInstallTerms()
+{
+	// 処理中・別dialog中・旧案内から本文閲覧を開始しません。
+	if( closing_ || preparationReviewOpen_ || metadataReviewOpen_ ||
+	   controller_.state() != ApplicationState::SCAN_READY) {
+		return ;
+	}
+
+	const auto approval =
+		// 現選択の比較値です。
+		makeInstallPreparationApproval( checkedCandidateIndexes()) ;
+	// 画面内案内と異なる本文を古い選択の閲覧として開きません。
+	if( !approval || !matchesPresentedInstallTerms( *approval)) {
+		setStatus( loadString( IDS_INSTALL_TERMS_UNAVAILABLE), false) ;
+		return ;
+	}
+
+	std::wstring text =
+		// 永続保存しない原本文です。
+		loadString( IDS_INSTALL_TERMS_VIEW_ONLY) + L"\r\n\r\n" ;
+	std::vector<std::uint64_t> shown ;	// 同じ完全一致tokenだけを一度表示します。
+	// 選択した規約だけを元順で表示し、他配布物の許諾を混ぜません。
+	for( const auto &decision : approval->decisions) {
+		const auto &target = decision.target ;	// 同案内へ完全一致した元規約です。
+		// 同意不要・未選択・表示済み共有規約は全文へ追加しません。
+		if( !decision.acquire || target.terms != OfficialPreparationTerms::ACCEPTANCE_REQUIRED ||
+		   (target.sharedEulaToken != 0U &&
+			std::ranges::find( shown, target.sharedEulaToken) != shown.end())) {
+			continue ;
+		}
+
+		shown.push_back( target.sharedEulaToken) ;
+		text += target.eulaSourceSubject + L"\r\n" + target.eulaRevision + L"\r\n\r\n" +
+				target.eulaText + L"\r\n\r\n" ;
+	}
+
+	preparationReviewOpen_ = true ;
+	const auto result	   = DialogBoxParamW(
+		 instance_, MAKEINTRESOURCEW( IDD_INSTALL_TERMS), window_, installTermsDialogProc,
+		 reinterpret_cast<LPARAM>( &text)) ;	// 閉じる以外の承認を持たない閲覧です。
+	preparationReviewOpen_ = false ;
+	// 表示失敗後も取得・同意へ進まず、再検索可能な理由を示します。
+	if( result == -1) {
+		setStatus( loadString( IDS_INSTALL_TERMS_UNAVAILABLE), false) ;
+	}
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+void MainWindow::beginInstallPreparation( const std::span<const std::size_t> indexes)
+{
+	auto current = makeInstallPreparationApproval( indexes) ;	// 明示Install時の元選択です。
+	// 未提示、選択変更、規約差替え、旧sessionを黙って承認しません。
+	if( !current || !matchesPresentedInstallTerms( *current)) {
+		presentedInstallTerms_.reset() ;
+		EnableWindow( installButton_, FALSE) ;
+		setStatus( loadString( IDS_INSTALL_TERMS_UNAVAILABLE), false) ;
+		return ;
+	}
+
+	OfficialPreparationApproval approval = std::move( *current) ;	// 今回だけ承認する元snapshotです。
+	presentedInstallTerms_.reset() ;
+	preparationReviewOpen_ = true ;
+	try {
+		// 案内済みの同一選択へのInstall操作を規約同意へ結合し、具体的前提は別に確認します。
+		for( auto &decision : approval.decisions) {
+			// 未選択配布物の規約表示や通信許可を要求しません。
+			if( !decision.acquire) {
+				continue ;
+			}
+
+			// 直前の主画面案内と完全一致した規約だけに今回のInstall意思を結合します。
+			if( decision.target.terms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED) {
+				decision.eulaAccepted = true ;
+			}
+			// 未確認の利用条件を同意不要と解釈しません。
+			else if( decision.target.terms != OfficialPreparationTerms::CONFIRMED_NO_CONSENT) {
+				preparationReviewOpen_ = false ;
+				setStatus( loadString( IDS_INSTALL_PREPARATION_NOT_READY), false) ;
+				return ;
+			}
+
+			// 具体的な契約・用途等だけは元targetへ限定して新たな判断を求めます。
+			if( decision.target.requiresPrerequisiteConfirmation) {
+				decision.prerequisitesConfirmed =
+					MessageBoxW( window_,
+								(loadString( IDS_INDEX_PREREQUISITE_CONFIRM) + L"\r\n\r\n" +
+								 decision.target.prerequisiteText)
+									.c_str(),
+								loadString( IDS_CONFIRM_TITLE).c_str(),
+								MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) == IDYES ;
+				// 未同意の条件をInstall clickだけで補完しません。
+				if( !decision.prerequisitesConfirmed) {
+					preparationReviewOpen_ = false ;
+					setStatus( loadString( IDS_INSTALL_PREPARATION_NOT_READY), false) ;
+					updateCommandState() ;
+					return ;
+				}
+			}
+		}
+
+		startPreparation( std::move( approval), true) ;
+	} catch( ...) {
+		preparationReviewOpen_			 = false ;
+		continueInstallAfterPreparation_ = false ;
+		throw ;
+	}
+
+	preparationReviewOpen_ = false ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+void MainWindow::continuePreparedInstall( const OfficialPreparationOperationResult &result)
+{
+	const auto &intent =
+		preparationApproval_.installIntentIdentities ;	// この操作が保持する元選択です。
+	std::vector<std::size_t> resolved ;					// 全件照合後だけcheckへ反映する新候補indexです。
+	bool					 complete = !intent.empty() &&
+					// 欠測を成功へしません。
+					result.installResolutions.size() == intent.size() ;
+	UINT reason = IDS_INSTALL_PREPARATION_NOT_READY ;	// 未成立を既定にします。
+	// 元順序・件数とdevice結合を全照合し、結果側から選択対象を増やしません。
+	for( std::size_t index{}; complete && index < intent.size(); ++index) {
+		const auto &resolution = result.installResolutions[index] ;	// 同操作のworker解決結果です。
+		const auto	original   = std::ranges::find_if( candidates_, [&]( const auto &candidate) {
+			   return candidate.identity == intent[index] ;
+		   }) ; // 元checkを付けた参照または既検証候補です。
+		const auto	candidate  = std::ranges::find_if( candidates_, [&]( const auto &value) {
+			  return value.identity == resolution.candidateIdentity ;
+		  }) ; // Controllerが全監査を受理した後の候補だけです。
+		// 新たな曖昧さと旧版切替の理由を保持し、未知区分も自動導入しません。
+		if( resolution.state != PreparedInstallResolutionState::READY) {
+			reason =
+				resolution.state == PreparedInstallResolutionState::AMBIGUOUS
+					? IDS_INSTALL_PREPARATION_AMBIGUOUS
+				: resolution.state == PreparedInstallResolutionState::DOWNGRADE_REQUIRES_SELECTION
+					? IDS_INSTALL_PREPARATION_DOWNGRADE
+					: IDS_INSTALL_PREPARATION_NOT_READY ;
+			complete = false ;
+		}
+
+		// 別元選択、別device、未検査、候補重複を元表示との照合で二重に拒否します。
+		if( original == candidates_.end() || resolution.originalIdentity != intent[index] ||
+		   candidate == candidates_.end() || !candidate->installable || candidate->current ||
+		   original->deviceIdentity != candidate->deviceIdentity ||
+		   std::ranges::any_of( resolved, [&]( const auto previous) {
+			   return candidates_[previous].deviceIdentity == candidate->deviceIdentity ;
+		   })) {
+			complete = false ;
+		}
+
+		// 全件成立までUI選択やProvider実行を変更しません。
+		if( complete) {
+			resolved.push_back( static_cast<std::size_t>( candidate - candidates_.begin())) ;
+		}
+	}
+
+	candidateSelected_.assign( candidates_.size(), false) ;
+	// 一件でも未成立なら取得結果を保持し、利用者による新しい明示選択へ戻します。
+	if( !complete) {
+		preparationResultText_ += L"\r\n" + loadString( reason) ;
+		applyCandidateSelectionToTree() ;
+		setStatus( loadString( reason), false) ;
+		updateCommandState() ;
+		return ;
+	}
+
+	// 唯一候補へ解決した元選択だけを同じ通常device行へ選び直します。
+	for( const auto index : resolved) {
+		// 表示集合が変わっていた場合も先頭候補へのfallbackを行いません。
+		if( !selectDeviceCandidate( index)) {
+			candidateSelected_.assign( candidates_.size(), false) ;
+			applyCandidateSelectionToTree() ;
+			setStatus( loadString( IDS_INSTALL_PREPARATION_NOT_READY), false) ;
+			updateCommandState() ;
+			return ;
+		}
+	}
+
+	beginInstall() ;
+}
 
 //------------------------------------------------------------------------------
 /**
@@ -442,17 +837,16 @@ int MainWindow::showPreparationDialog( const std::wstring &content, const std::w
 	return selected ;
 }
 
-//------------------------------------------------------------------------------
-/**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
- */
-//------------------------------------------------------------------------------
+/** @see src/app/main_window.h 宣言側の契約を正本とします。 */
 void MainWindow::handlePreparationCommand()
 {
 	// Modal確認の再入と終了開始後の新規操作を拒否する。
 	if( preparationReviewOpen_ || closing_) {
 		return ;
 	}
+
+	// 明示取消しや検査単独要求へ、以前のInstall継続意図を流用しません。
+	continueInstallAfterPreparation_ = false ;
 
 	// 取得中の再操作は新規取得ではなく現在処理への取消要求とする。
 	if( controller_.state() == ApplicationState::PREPARING) {
@@ -533,10 +927,12 @@ void MainWindow::beginPreparationReview()
 	bool ignored{} ;	// 閲覧時にはnetwork承認を使用しない。
 	// 一覧確認を取消した場合は何も取得しない。
 	if( showPreparationDialog( overview, details, false, ignored) != IDOK) {
+		setStatus( loadString( IDS_PREPARATION_REVIEW_CANCELLED), false) ;
 		return ;
 	}
 
-	std::uint32_t						 selected{} ;		// 最終確認へ表示する取得対象数。
+	std::uint32_t selected{} ;								// 最終確認へ表示する取得対象数。
+	bool		  eulaDeclined{} ;							// 全対象未選択時に規約拒否と取得対象未選択を区別します。
 	std::vector<ReviewedPreparationEula> reviewedEulas ;	// 同一tokenの再表示を防ぐ短命判断。
 	reviewedEulas.reserve( approval.decisions.size()) ;
 	// EULAが必要な対象は全文を表示し、当該対象への同意がある場合だけ取得可否へ進める。
@@ -578,6 +974,7 @@ void MainWindow::beginPreparationReview()
 
 			// 本文拒否では同じgroupの全対象を未選択のまま維持する。
 			if( !eulaAccepted) {
+				eulaDeclined = true ;
 				continue ;
 			}
 		}
@@ -610,6 +1007,7 @@ void MainWindow::beginPreparationReview()
 			true, network) ;
 		// 全体取消しでは先に選んだ対象も未送信のまま破棄する。
 		if( response == IDCANCEL) {
+			setStatus( loadString( IDS_PREPARATION_REVIEW_CANCELLED), false) ;
 			return ;
 		}
 
@@ -624,7 +1022,8 @@ void MainWindow::beginPreparationReview()
 
 	// 承認対象が一件もない場合は取得を開始せず選択なしを案内する。
 	if( selected == 0) {
-		setStatus( loadString( IDS_PREPARATION_NONE), false) ;
+		setStatus( loadString( eulaDeclined ? IDS_PREPARATION_EULA_DECLINED : IDS_PREPARATION_NONE),
+				  false) ;
 		return ;
 	}
 
@@ -633,17 +1032,30 @@ void MainWindow::beginPreparationReview()
 				   formatResource( IDS_PREPARATION_CONFIRM, std::to_wstring( selected)).c_str(),
 				   loadString( IDS_PREPARATION_TITLE).c_str(),
 				   MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) {
+		setStatus( loadString( IDS_PREPARATION_REVIEW_CANCELLED), false) ;
 		return ;
 	}
 
+	startPreparation( std::move( approval), false) ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+void MainWindow::startPreparation( OfficialPreparationApproval approval, const bool continueInstall)
+{
+	const auto selected = static_cast<std::uint32_t>(
+		std::ranges::count_if( approval.decisions, []( const auto &decision) {
+			return decision.acquire ;
+		})) ; // 実際に選択した共有payload数です。
 	// 状態遷移後のcopy例外でworker未送信のまま停止しないよう、表示snapshotを先に確保する。
-	preparationApproval_	= approval ;
+	preparationApproval_			 = approval ;
+	continueInstallAfterPreparation_ = continueInstall ;
 	const BeginResult begin = controller_.beginPreparation( approval) ;	// UI側の全snapshot照合。
 	// 状態機械が開始を拒否した場合は承認を破棄し、理由を表示する。
 	if( !begin.accepted) {
-		preparationApproval_   = {} ;
-		preparationResultText_ = formatResource( IDS_PREPARATION_BEGIN_ERROR,
-												std::to_wstring( static_cast<int>( begin.error))) ;
+		continueInstallAfterPreparation_ = false ;
+		preparationApproval_			 = {} ;
+		preparationResultText_			 = formatResource( IDS_PREPARATION_BEGIN_ERROR,
+														  std::to_wstring( static_cast<int>( begin.error))) ;
 		setStatus( preparationResultText_, false) ;
 		MessageBoxW( window_, preparationResultText_.c_str(),
 					loadString( IDS_PREPARATION_TITLE).c_str(), MB_OK | MB_ICONWARNING) ;
@@ -717,9 +1129,18 @@ void MainWindow::processPreparationProgress( const WorkerEvent &event)
 void MainWindow::processPreparationCompleted( const OfficialPreparationOperationResult &result,
 											 const IndexPreparationSummary			  &indexSummary)
 {
+	const bool cancelled = controller_.state() ==
+						   ApplicationState::CANCELLING_PREPARATION ;	// 終端受理前の取消し意図です。
 	// 古いsession／planの通知は現在のUIを変更しない。
 	if( !controller_.completePreparation( result, candidates_)) {
 		return ;
+	}
+
+	const bool continueInstall = std::exchange( continueInstallAfterPreparation_, false) &&
+								 !cancelled ;	// 同操作だけ一回消費します。
+	// 使用済みplanの未検査参照を再選択可能なまま残しません。
+	for( auto &candidate : candidates_) {
+		candidate.preparationTargetIdentity.clear() ;
 	}
 
 	const auto indexTargetCount	  = static_cast<std::size_t>( std::ranges::count_if(
@@ -1046,17 +1467,18 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 		return ;
 	}
 
-	// 内部targetの隠したfixtureは同じ確定本文とcontrolを観測し、modalを起動しません。
-#if defined( DRIVERCRATE_INTERNAL_UI_TESTS)
-	// 内部fixtureの確定本文検査では同期dialogを起動しません。
-	if( testSuppressPreparationResultDialog_) {
-		return ;
+	applyCandidateSelectionToTree() ;
+	// 元Install操作と同じ有効sessionの終端だけを導入へ継続します。
+	if( continueInstall && !closing_ && !closeAfterPreparation_ &&
+	   controller_.state() == ApplicationState::SCAN_READY &&
+	   controller_.activeOperationId() == result.operationId &&
+	   controller_.scanSessionId() == result.scanSessionId &&
+	   result.approvalError == OfficialPreparationError::NONE && result.controlError == 0 &&
+	   (selectedIndexCount == 0U || indexBound)) {
+		continuePreparedInstall( result) ;
 	}
-#endif
 
-	bool ignored{} ;	// 結果dialogで追加の取得同意を要求しない。
-	static_cast<void>( showPreparationDialog( loadString( IDS_PREPARATION_TITLE),
-											preparationResultText_, false, ignored)) ;
+	// 長い技術reportは保持し、利用者が開くdevice詳細から閲覧する。
 }
 
 } // namespace drivercrate

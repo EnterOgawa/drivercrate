@@ -2,7 +2,7 @@
 /**
  * @file provider_worker.cpp
  * @brief Provider worker実装。
- * @version 01.08.00
+ * @version 01.10.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -48,6 +48,8 @@
  * Ver.01.06.00 Shunji Ogawa  2026/10/13  必要構成不足を復旧開始より前に拒否。
  * Ver.01.07.00 Shunji Ogawa  2026/10/13  同MTAで完全低位依存fixtureの所有と停止を結合。
  * Ver.01.08.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
+ * Ver.01.09.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
+ * Ver.01.10.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * </pre>
  *
  * @note COM MTA worker threadと有限command/result queueを実装します。UIへの通知はPostMessageを使用し、COM objectをUI
@@ -81,6 +83,8 @@
 #include <algorithm>
 
 #include <limits>
+#include <chrono>
+#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -210,6 +214,46 @@ void bindPublishedScanMeasurement( const OperationId operationId, const ScanSess
 	return result ;
 }
 
+/** @brief 通常索引依存と明示指定の再検出callbackをworker開始前に固定します。
+ * @param[in] hardwareRefresh 製品入口のnative、または試験で明示したcallbackです。空を補完しません。
+ * @return Workerが単独所有する固定serviceです。
+ */
+[[nodiscard]] std::unique_ptr<provider_worker_index_detail::Services> makeFixedWorkerServices(
+	std::function<HardwareRefreshResult()> hardwareRefresh)
+{
+	auto services = std::make_unique<provider_worker_index_detail::Services>(
+		provider_worker_index_detail::Services{
+			.load =
+				[]( std::optional<std::chrono::sys_seconds> now) {
+					return SignedIndexStore::reloadFixedExisting( now) ;
+				},
+			.utc =
+				[]() {
+					return std::optional<std::chrono::sys_seconds>{
+						std::chrono::floor<std::chrono::seconds>( std::chrono::system_clock::now())} ;
+				},
+			.monotonic = []() { return std::chrono::steady_clock::now() ; },
+			.targetOs  = []() -> std::optional<IndexTargetOs> {
+				 const auto build =
+					 // 判定不能は0です。
+					 currentWindowsBuildNumber() ;
+				 // 対象OSの実観測がなければ取得条件を推測しません。
+				 if( build == 0U) {
+					 return std::nullopt ;
+				 }
+
+				 return isWindowsServer() ? IndexTargetOs::WINDOWS_SERVER
+						: build >= 22000U ? IndexTargetOs::WINDOWS_11
+										  : IndexTargetOs::WINDOWS_10 ;
+			},
+			.refresh =
+				[]( const ProviderScanCancellation &cancel) {
+					return refreshFixedSignedIndex( cancel) ;
+				}}) ; // 従来の索引依存を維持します。
+	services->hardwareRefresh = std::move( hardwareRefresh) ;
+	return services ;
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -218,7 +262,8 @@ void bindPublishedScanMeasurement( const OperationId operationId, const ScanSess
  */
 //------------------------------------------------------------------------------
 ProviderWorker::ProviderWorker( const HWND notificationWindow, const UINT notificationMessage)
-	: ProviderWorker( notificationWindow, notificationMessage, makeCompositeUpdateProvider)
+	: ProviderWorker( notificationWindow, notificationMessage, makeCompositeUpdateProvider,
+					 makeWindowsRestorePointService, makeFixedWorkerServices( refreshHardware))
 {
 }
 
@@ -538,14 +583,44 @@ void ProviderWorker::run() noexcept
 							return ;
 						}
 
+						auto &hardwareRefresh =
+							typedCommand.hardwareRefresh ;	// 同commandだけの再検出結果です。
+						// 取消し済みcommandと初期化不能からOS副作用を開始しません。
+						if( provider && !typedCommand.cancellation->load() &&
+						   indexServices_->hardwareRefresh) {
+							publishEvent(
+								{.kind		  = WorkerEventKind::PROGRESS,
+								 .operationId = typedCommand.operationId,
+								 .progress	  = {ProviderStage::REFRESHING_HARDWARE, 0U, 0U, 1U}}) ;
+							try {
+								hardwareRefresh = indexServices_->hardwareRefresh() ;
+							} catch( ...) {
+								hardwareRefresh =
+									HardwareRefreshResult{false, HardwareRefreshStage::REENUMERATE,
+														  HardwareRefreshErrorDomain::HRESULT_VALUE,
+														  static_cast<NativeError>( E_UNEXPECTED)} ;
+							}
+
+							publishEvent(
+								{.kind		  = WorkerEventKind::PROGRESS,
+								 .operationId = typedCommand.operationId,
+								 .progress	  = {ProviderStage::REFRESHING_HARDWARE, 5U, 1U, 1U}}) ;
+						}
+
+						std::uint32_t scanProgress =
+							hardwareRefresh ? 5U : 0U ;	// 確定済みの全体高水位です。
 						// Provider進捗を現在のscan operationへ関連付けてUIへ渡す通知関数。
 						const ProviderProgressCallback progressCallback =
-							[this, operationId =
-									   typedCommand.operationId]( const ProviderProgress &progress) {
+							[this, &scanProgress, refreshed = hardwareRefresh.has_value(),
+							 operationId =
+								 typedCommand.operationId]( const ProviderProgress &progress) {
 								ProviderProgress bounded =
 									progress ;	// 索引区間を残した実Provider進捗。
-								bounded.percentComplete =
-									std::min( progress.percentComplete, 100U) * 90U / 100U ;
+								bounded.percentComplete = std::max(
+									scanProgress, (refreshed ? 5U : 0U) +
+													  std::min( progress.percentComplete, 100U) *
+														  (refreshed ? 85U : 90U) / 100U) ;
+								scanProgress = bounded.percentComplete ;
 								publishEvent( {.kind		   = WorkerEventKind::PROGRESS,
 											  .operationId = operationId,
 											  .progress	   = bounded}) ;
@@ -565,8 +640,20 @@ void ProviderWorker::run() noexcept
 															  cancellation) ;
 						}
 
+						// 通常検索commandはseam有無によらず開始前取消しでProviderを呼びません。
 						ScanResult scanResult =
-							provider == nullptr
+							(hardwareRefresh && !hardwareRefresh->succeeded)
+								? makeFailedScan( scanSessionId,
+												 hardwareRefresh->domain ==
+														 HardwareRefreshErrorDomain::WINDOWS_ERROR
+													 ? HRESULT_FROM_WIN32( hardwareRefresh->error)
+												 : hardwareRefresh->domain ==
+														 HardwareRefreshErrorDomain::HRESULT_VALUE
+													 ? static_cast<HRESULT>( hardwareRefresh->error)
+													 : E_FAIL)
+							: cancellation()
+								? makeFailedScan( scanSessionId, HRESULT_FROM_WIN32( ERROR_CANCELLED))
+							: provider == nullptr
 								? makeFailedScan( scanSessionId, FAILED( apartment.result())
 																	? apartment.result()
 																	: E_UNEXPECTED)
@@ -581,9 +668,10 @@ void ProviderWorker::run() noexcept
 
 						bindPublishedScanMeasurement( typedCommand.operationId, scanSessionId,
 													 scanResult) ;
-						WorkerEvent event{.kind		   = WorkerEventKind::SCAN_COMPLETED,
-										  .operationId = typedCommand.operationId,
-										  .scanResult  = std::move( scanResult)} ;	// 結果と任意計画。
+						WorkerEvent event{.kind			   = WorkerEventKind::SCAN_COMPLETED,
+										  .operationId	   = typedCommand.operationId,
+										  .scanResult	   = std::move( scanResult),
+										  .hardwareRefresh = hardwareRefresh} ;	// 結果と任意計画。
 						// 同じ通常scanの成功結果だけを索引seamへ結びます。
 						if( provider && event.scanResult.succeeded &&
 						   event.scanResult.scanSessionId == scanSessionId) {
@@ -902,6 +990,24 @@ void ProviderWorker::run() noexcept
 					}
 					// 準備 command は操作専用の取消し signal と取得境界で処理する。
 					else if constexpr( std::is_same_v<CommandType, PreparationCommand>) {
+						const auto *intentProvider = dynamic_cast<CompositeUpdateProvider *>(
+							// 同scanの私有参照ownerです。
+							provider.get()) ;
+						// Install意図を伴う取得は元選択device/recordと完全照合し、任意target追加を拒否します。
+						if( !typedCommand.approval.installIntentIdentities.empty() &&
+						   (!intentProvider || !intentProvider->validatePreparationInstallIntent(
+												   typedCommand.approval))) {
+							publishEvent(
+								{.kind				= WorkerEventKind::PREPARATION_COMPLETED,
+								 .operationId		= typedCommand.approval.operationId,
+								 .preparationResult = {
+									 .operationId	= typedCommand.approval.operationId,
+									 .scanSessionId = typedCommand.approval.scanSessionId,
+									 .planId		= typedCommand.approval.planId,
+									 .approvalError = OfficialPreparationError::INVALID_APPROVAL}}) ;
+							return ;
+						}
+
 						// 行のinstallable改ざんや古い承認にかかわらず専用sessionを拒否する。
 						if( scanPurpose != ScanPurpose::STANDARD || installSession == 0U ||
 						   typedCommand.approval.scanSessionId != installSession) {
@@ -978,6 +1084,17 @@ void ProviderWorker::run() noexcept
 
 						auto indexResult = indexSession.preparationSummary(
 							operationId) ;	// 実byteの独立非機密結果。
+						// 同意済み元選択は同取得operationの全監査commit後だけ新routeへ解決します。
+						if( intentProvider &&
+						   !typedCommand.approval.installIntentIdentities.empty() &&
+						   !cancellation() &&
+						   result.approvalError == OfficialPreparationError::NONE &&
+						   result.controlError == 0U && indexResult.authorityError == 0U) {
+							result.installResolutions =
+								intentProvider->resolvePreparationInstallIntent(
+									typedCommand.approval) ;
+						}
+
 						// 確定取消し・承認拒否・制御異常で未使用取得能力を残しません。
 						if( cancellation() ||
 						   result.approvalError != OfficialPreparationError::NONE ||
@@ -1004,11 +1121,12 @@ void ProviderWorker::run() noexcept
 					// Scan 処理の例外を対応する完了 event の失敗結果へ変換する。
 					if constexpr( std::is_same_v<CommandType, ScanCommand>) {
 						publishEvent(
-							{.indexSummary = {.status = IndexScanStatus::SCAN_FAILED,
-											  .error  = static_cast<NativeError>( E_UNEXPECTED)},
-							 .kind		   = WorkerEventKind::SCAN_COMPLETED,
-							 .operationId  = typedCommand.operationId,
-							 .scanResult   = makeFailedScan( 0, E_UNEXPECTED)}) ;
+							{.indexSummary	  = {.status = IndexScanStatus::SCAN_FAILED,
+												 .error	 = static_cast<NativeError>( E_UNEXPECTED)},
+							 .kind			  = WorkerEventKind::SCAN_COMPLETED,
+							 .operationId	  = typedCommand.operationId,
+							 .scanResult	  = makeFailedScan( 0, E_UNEXPECTED),
+							 .hardwareRefresh = typedCommand.hardwareRefresh}) ;
 					}
 					// 情報検索例外を通常scan完了へ変換せず専用の失敗で終端する。
 					else if constexpr( std::is_same_v<CommandType, MetadataSearchCommand>) {
@@ -1226,37 +1344,7 @@ ProviderWorker::ProviderWorker( const HWND notificationWindow, const UINT notifi
 							   ProviderFactory	   providerFactory,
 							   RestorePointFactory restorePointFactory)
 	: ProviderWorker( notificationWindow, notificationMessage, std::move( providerFactory),
-					 std::move( restorePointFactory),
-					 std::make_unique<provider_worker_index_detail::Services>(
-						 provider_worker_index_detail::Services{
-							 .load =
-								 []( std::optional<std::chrono::sys_seconds> now) {
-									 return SignedIndexStore::reloadFixedExisting( now) ;
-								 },
-							 .utc =
-								 []() {
-									 return std::optional<std::chrono::sys_seconds>{
-										 std::chrono::floor<std::chrono::seconds>(
-											 std::chrono::system_clock::now())} ;
-								 },
-							 .monotonic = []() { return std::chrono::steady_clock::now() ; },
-							 .targetOs	= []() -> std::optional<IndexTargetOs> {
-								  const auto build =
-									  // 判定不能は0です。
-									  currentWindowsBuildNumber() ;
-								  // 対象OSの実観測がなければ取得条件を推測しません。
-								  if( build == 0U) {
-									  return std::nullopt ;
-								  }
-
-								  return isWindowsServer() ? IndexTargetOs::WINDOWS_SERVER
-										 : build >= 22000U ? IndexTargetOs::WINDOWS_11
-														   : IndexTargetOs::WINDOWS_10 ;
-							 },
-							 .refresh =
-								 []( const ProviderScanCancellation &cancel) {
-									 return refreshFixedSignedIndex( cancel) ;
-								 }}))
+					 std::move( restorePointFactory), makeFixedWorkerServices( {}))
 {
 }
 

@@ -2,7 +2,7 @@
 /**
  * @file resource.h
  * @brief DriverCrateリソースID定義。
- * @version 01.13.01
+ * @version 01.20.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -82,6 +82,15 @@
  * Ver.01.12.00 Shunji Ogawa  2026/10/16  索引通信結果の可視導線と同版publicationの画面受入を追加。
  * Ver.01.13.00 Shunji Ogawa  2026/10/16  索引通信詳細の全文と数値末尾の実control観測を追加。
  * Ver.01.13.01 Shunji Ogawa  2026/10/24  索引の期限・発行時刻拒否を説明するIDを追加。
+ * Ver.01.14.00 Shunji Ogawa  2026/10/27  一device一行の要約と詳細内の候補選択を追加。
+ * Ver.01.14.01 Shunji Ogawa  2026/10/27  過去実行履歴と現在の導入許可を区別する説明IDを追加。
+ * Ver.01.15.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
+ * Ver.01.16.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
+ * Ver.01.17.00 Shunji Ogawa  2026/10/28  検索後の確認取消しと初回候補filterを明示。
+ * Ver.01.18.00 Shunji Ogawa  2026/10/28  デバイス詳細の全体取得検査report用文字列を追加。
+ * Ver.01.19.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
+ * Ver.01.20.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続。
+ * Ver.01.20.01 Shunji Ogawa  2026/11/02  未導入機器の取得前確認数に独立した表示を追加。
  * </pre>
  *
  * @note Win32 control、icon、および日本語文字列のresource IDを定義します。
@@ -89,6 +98,54 @@
 //------------------------------------------------------------------------------
 
 #pragma once
+// 同じ選択集合の公式規約を任意閲覧する入口です。
+#define IDC_INSTALL_TERMS 2300
+// 明示Install操作と規約の関係を示す主画面案内です。
+#define IDC_INSTALL_TERMS_NOTE 2301
+// 原規約の閲覧だけを行い、同意操作を持たないdialogです。
+#define IDD_INSTALL_TERMS 2302
+// 規約が必要な元選択への明示実行文言です。
+#define IDS_INSTALL_TERMS_BUTTON 1492
+// 同意・導入を行わない全文閲覧buttonです。
+#define IDS_INSTALL_TERMS_OPEN 1493
+// 同一選択への規約同意とInstallの意味を示します。
+#define IDS_INSTALL_TERMS_NOTICE 1494
+// 規約が取得不要と確認された元選択の実行案内です。
+#define IDS_INSTALL_SELECTION_NOTICE 1495
+// 欠落・差替え・旧snapshotを承認しない停止理由です。
+#define IDS_INSTALL_TERMS_UNAVAILABLE 1496
+// 任意全文を開閉しても同意しないことを明示します。
+#define IDS_INSTALL_TERMS_VIEW_ONLY 1497
+#define IDS_DEVICE_POST_INSTALL_UNKNOWN 1484	// 導入結果と独立した事後実状態の未確認です。
+#define IDS_DEVICE_POST_INSTALL_REBOOT 1485		// 個別対象の再起動待ちです。
+
+#define IDS_STATUS_REFRESHING_HARDWARE 1480		// 検索前のWindows同期再検出段階です。
+#define IDS_HARDWARE_REFRESH_COMPLETED 1481		// 同operationの同期再検出完了事実です。
+#define IDS_HARDWARE_REFRESH_FAILED 1482		// 再検出失敗を更新なしと区別する説明です。
+#define IDS_STATUS_PREPARATION_REQUIRED 1483	// 未取得metadataの安全な次操作案内です。
+
+// 一device一行の要約で、名前欠損を生IDや記号だけで補わない表示です。
+#define IDS_DEVICE_NAME_UNKNOWN 1470
+// 複数候補を先頭候補の版へ補完しない件数表示です。
+#define IDS_DEVICE_MULTIPLE_CANDIDATES 1471
+// 同deviceの一候補を詳細で指定する案内です。
+#define IDS_DEVICE_CHOOSE_DETAILS 1472
+// 現在観測と別の導入候補があることだけを示します。
+#define IDS_DEVICE_CANDIDATE_READY 1473
+// 未取得情報を導入可能と誤解させない案内です。
+#define IDS_DEVICE_ACQUIRE_VERIFY 1474
+// 詳細の現在構成entryを示す名称です。
+#define IDS_DEVICE_DETAIL_CURRENT 1475
+// 詳細の元候補順の番号を示すformatです。
+#define IDS_DEVICE_DETAIL_CANDIDATE 1476
+// 失効後の個別結果を詳細へ案内します。
+#define IDS_DEVICE_RESULT_DETAILS 1477
+// 必要構成の個別結果を成功へ集約しない要約です。
+#define IDS_DEVICE_RESULT_ROLES 1478
+// 三列一覧のdevice詳細と明示選択を行う標準dialogです。
+#define IDD_DEVICE_DETAILS 2210
+// 同deviceの観測・候補だけを閲覧する標準comboboxです。
+#define IDC_DEVICE_DETAIL_CANDIDATES 2211
 
 // 基本INFと必要役割を一計画として確認する表示IDです。
 #define IDS_INDEX_REQUIRED_PLAN 1416
@@ -166,7 +223,7 @@
 #define IDS_DEVICE_DISAPPEARED 1309			// デバイス消失。
 #define IDS_ASSESSMENT_UNCOLLECTED 1310		// 詳細未収集（従来の検証範囲を表示）。
 #define IDS_ASSESSMENT_TITLE 1311			// デバイスと候補の詳細。
-#define IDS_ASSESSMENT_HINT 1312			// 候補行で Enter またはダブルクリックすると詳細を表示します。。
+#define IDS_ASSESSMENT_HINT 1312			// Device行から現在構成と全候補の詳細を開く案内です。
 #define IDS_ASSESSMENT_INCONSISTENT 1313	// 観測・検証の結合を確認できません。再検索してください。。
 #define IDS_ASSESSMENT_NEXT                                                                        \
 	1314											// 観測を更新するには再検索してください。この画面の確認だけでは取得・導入を行いません。。
@@ -333,8 +390,8 @@
 #define IDS_RESTORE_POINT_FINALIZE_ERROR_PREFIX 1062	// 復元ポイント終了失敗の説明。
 #define IDS_RESTORE_POINT_NOT_CREATED 1063				// 復元ポイント失敗による未導入状態。
 #define IDS_RESTORE_POINT_CREATED 1064					// 作成した復元ポイント番号のformat。
-#define IDS_RECOMMENDED_ONLY_FILTER 1065				// 推奨更新だけを表示するfilter名。
-#define IDS_STATUS_RECOMMENDED_COUNT 1066				// Filter中の推奨更新件数format。
+#define IDS_RECOMMENDED_ONLY_FILTER 1065				// 推奨更新と初回導入候補を表示するfilter名。
+#define IDS_STATUS_RECOMMENDED_COUNT 1066				// Filter中の推奨更新・初回候補件数format。
 #define IDS_SELECT_ALL_RECOMMENDED 1067					// 推奨更新一括選択buttonのcaption。
 #define IDS_CLEAR_SELECTION 1068						// 全候補選択解除buttonのcaption。
 #define IDS_STATUS_SCANNING_DEVICES 1069				// DeviceとDriver Store列挙中のstatus。
@@ -469,6 +526,9 @@
 #define IDS_PREPARATION_SKIP 1176						// 一対象の拒否button。
 #define IDS_PREPARATION_NETWORK 1177					// 対象別network明示承認。
 #define IDS_PREPARATION_NONE 1178						// 未選択時の表示。
+#define IDS_PREPARATION_REVIEW_CANCELLED 1500			// 取得確認取消しと未検査候補の理由です。
+#define IDS_PREPARATION_EULA_DECLINED 1501				// 規約拒否後の未取得と非導入状態です。
+#define IDS_PREPARATION_CONTINUE_FAILED 1502			// 検索後確認の通知登録失敗と手動再確認の案内です。
 #define IDS_PREPARATION_CONFIRM 1179					// 最終取得確認。
 #define IDS_PREPARATION_PROGRESS 1180					// 決定型取得進捗。
 #define IDS_PREPARATION_DONE 1181						// 完了説明。
@@ -569,6 +629,7 @@
 #define IDS_TREE_CLASS_UPDATE_COUNT 1279				// 通常更新候補がある表示中device数。
 #define IDS_TREE_CLASS_INFORMATION_COUNT 1280			// 適用性未確認の配布情報がある表示中device数。
 #define IDS_TREE_CLASS_EXPIRED 1281						// Install後に分類件数を導入可能数と誤認させない表示。
+#define IDS_CANDIDATE_EXECUTION_HISTORY 1479			// 所有候補の過去実行結果を現在の許可と区別する説明。
 #define IDS_INDEX_TRUST_UNAVAILABLE 1396				// 署名索引trust未配備の表示。
 #define IDS_INDEX_SCAN_COMPLETE 1397					// 公開ID照合の読取り完了。適合を示しません。
 #define IDS_INDEX_SCAN_PARTIAL 1398						// 未判定・予算停止を含む索引読取り。
@@ -589,3 +650,11 @@
 #define IDS_INDEX_INSTALLER_FAILED 1413					// 原起動・終了失敗の結果です。
 #define IDS_INDEX_INSTALLER_SELECTION 1414				// 標準INF rank非該当の専用理由です。
 #define IDS_INDEX_INSTALLER_SCOPE 1415					// Binary作用証明ではない公式手順の申告です。
+
+#define IDS_DEVICE_DETAIL_PREPARATION_REPORT 1503	// 詳細から開く閲覧専用の全体report。
+#define IDS_DEVICE_DETAIL_PREPARATION_SCOPE 1504	// 個別deviceの成功と誤認させない説明。
+#define IDS_INSTALL_PREPARATION_NOT_READY 1505		// 元選択全件の取得・適用性が成立しない理由です。
+#define IDS_INSTALL_PREPARATION_AMBIGUOUS 1506		// 複数の検証済み候補を無断選択しない案内です。
+#define IDS_INSTALL_PREPARATION_DOWNGRADE 1507		// 検査で判明した旧版切替の明示選択案内です。
+#define IDS_STATUS_INITIAL_PREPARATION_COUNT                                                       \
+	1508	// 未導入の実観測に結合した、未検査の初回確認数です。

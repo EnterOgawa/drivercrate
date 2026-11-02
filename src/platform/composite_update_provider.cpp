@@ -2,7 +2,7 @@
 /**
  * @file composite_update_provider.cpp
  * @brief 複合update provider実装。
- * @version 01.15.00
+ * @version 01.17.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -102,6 +102,8 @@
  * Ver.01.13.01 Shunji Ogawa  2026/10/12  原子的publicationへ使用する非導入参照の所有値を説明。
  * Ver.01.14.00 Shunji Ogawa  2026/10/12  共有取得の原record群をdevice別参照と私有routeへ接続。
  * Ver.01.15.00 Shunji Ogawa  2026/10/13  元workerから必要構成の全選択preflightへ接続。
+ * Ver.01.16.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
+ * Ver.01.17.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * </pre>
  *
  * @note 既存registryで検索・選択取得・導入を振り分け、sessionとProviderの一致を維持します。
@@ -3055,6 +3057,11 @@ InstallResult CompositeUpdateProvider::install( const ScanSessionId				   scanSe
 		providerSelections[provider->second].push_back( identity) ;
 	}
 
+	const std::vector<std::wstring> observedDevices{uniqueDevices.begin(),
+													// 元選択deviceだけです。
+													uniqueDevices.end()} ;
+	const auto observeCurrent = driverStoreProvider_.capturePostInstallObservations(
+		scanSessionId, observedDevices) ;			// 同worker内の読取先だけを保持します。
 	std::vector<InstallResult> providerResults ;	// 実行したproviderごとのinstall結果。
 	providerResults.reserve( providerSelections.size()) ;
 	const std::uint64_t totalItems = identities.size() ;	// 複合処理の選択候補総数。
@@ -3162,6 +3169,24 @@ InstallResult CompositeUpdateProvider::install( const ScanSessionId				   scanSe
 													 []( const InstallResult &providerResult) {
 													 return providerResult.succeeded ;
 												 }) ;
+	// 成否や再起動要求から現在状態を推測せず、対象だけを再openして結果へ所有します。
+	if( observeCurrent) {
+		try {
+			result.currentDevices = observeCurrent() ;
+		} catch( ...) {
+			// 事後読取例外で実際の導入成否を改作せず、対象ごとの確認不能を保持します。
+			result.currentDevices.clear() ;
+			// 元選択deviceの全てを未観測として返し、一部だけを成功へ補完しません。
+			for( const auto &device : observedDevices) {
+				PostInstallDeviceObservation observed ;	// 導入結果と独立した読取失敗です。
+				observed.observation.scanSessionId	= scanSessionId ;
+				observed.observation.deviceIdentity = device ;
+				observed.error						= static_cast<NativeError>( E_UNEXPECTED) ;
+				result.currentDevices.push_back( std::move( observed)) ;
+			}
+		}
+	}
+
 	invalidateScanSession() ;
 	return result ;
 }
@@ -3791,10 +3816,143 @@ void CompositeUpdateProvider::finishSignedIndexScanPublication( const OfficialPr
 	result.candidates.swap( publication) ;
 }
 
+/** @see composite_update_provider.h 宣言側の契約を正本とします。 */
+bool CompositeUpdateProvider::validatePreparationInstallIntent(
+	const OfficialPreparationApproval &approval) const
+{
+	// 別scan、未結合owner、過大集合へ取得・導入の継続権限を発行しません。
+	if( approval.scanSessionId != scanSessionId_ || scanPurpose_ != ScanPurpose::STANDARD ||
+	   !signedIndexSession_ || approval.installIntentIdentities.empty() ||
+	   approval.installIntentIdentities.size() > 4096U) {
+		return false ;
+	}
+
+	std::unordered_set<std::wstring> identities ;							// 一候補一回の明示選択です。
+	std::unordered_set<std::wstring> devices ;								// 同deviceへ複数計画を送らない集合です。
+	std::unordered_set<std::wstring> targets ;								// 共有payloadを一度だけ取得する元target集合です。
+	const auto &references = signedIndexSession_->binding_.references_ ;	// 同workerの原参照です。
+	// 表示文字列を使わず、保持済みの元候補identityと私有参照で全選択を照合します。
+	for( const auto &identity : approval.installIntentIdentities) {
+		const auto candidate = std::ranges::find_if( displayedCandidates_, [&]( const auto &value) {
+			return value.identity == identity ;
+		}) ; // 同scanで実際に発行した候補です。
+		// 未表示・現在行・重複選択を取得前に全体拒否します。
+		if( candidate == displayedCandidates_.end() || candidate->current ||
+		   !identities.insert( identity).second ||
+		   !devices.insert( candidate->deviceIdentity).second) {
+			return false ;
+		}
+
+		// 既存の導入可能候補は取得対象を追加せず、同じidentityを後段へ維持します。
+		if( candidate->installable) {
+			continue ;
+		}
+
+		const auto reference = std::ranges::find_if( references, [&]( const auto &value) {
+			return value.candidate.identity == identity ;
+		}) ; // 元lookupから作成した参照だけです。
+		// UIのtarget申告や候補のflagで存在しない公式record結合を構築しません。
+		if( reference == references.end() ||
+		   reference->candidate.deviceIdentity != candidate->deviceIdentity ||
+		   reference->target.identity != candidate->preparationTargetIdentity ||
+		   std::ranges::none_of( approval.decisions, [&]( const auto &decision) {
+			   return decision.acquire && decision.target == reference->target ;
+		   })) {
+			return false ;
+		}
+
+		targets.insert( reference->target.identity) ;
+	}
+
+	// 検査単独要求と混同せず、選択した元配布物だけの完全な取得集合を要求します。
+	if( targets.empty()) {
+		return false ;
+	}
+
+	return std::ranges::all_of( approval.decisions, [&]( const auto &decision) {
+		return decision.acquire == targets.contains( decision.target.identity) ;
+	}) ;
+}
+
+/** @see composite_update_provider.h 宣言側の契約を正本とします。 */
+std::vector<PreparedInstallResolution> CompositeUpdateProvider::resolvePreparationInstallIntent(
+	const OfficialPreparationApproval &approval) const
+{
+	std::vector<PreparedInstallResolution> result ;	// 元順序の一選択一結果です。
+	// 新scanや私有owner失効後に元意図を新しい候補へ結びません。
+	if( !validatePreparationInstallIntent( approval)) {
+		return result ;
+	}
+
+	const auto &binding = signedIndexSession_->binding_ ;	// 原参照とcommit済みrouteの所有者です。
+	// 元選択順だけを解決し、共有payloadにある未選択deviceを走査対象へ追加しません。
+	for( const auto &identity : approval.installIntentIdentities) {
+		PreparedInstallResolution resolution{.originalIdentity =
+												 identity} ;	// 未成立を既定にします。
+		const auto original = std::ranges::find_if( displayedCandidates_, [&]( const auto &value) {
+			return value.identity == identity ;
+		}) ; // 前段照合済みの同scan候補です。
+		// 既検証候補は元identityのまま既存Provider routingへ戻します。
+		if( original->installable) {
+			resolution.candidateIdentity = identity ;
+			resolution.state			 = PreparedInstallResolutionState::READY ;
+		} else {
+			const auto reference =
+				std::ranges::find_if( binding.references_, [&]( const auto &value) {
+					return value.candidate.identity == identity ;
+				}) ; // 元record・deviceへ結合済みの私有参照です。
+			const auto referenceIndex = static_cast<std::size_t>(
+				reference - binding.references_.begin()) ;				// Stable ordinalです。
+			const SignedIndexCandidateBindingSession::Pair *sole{} ;	// 借用は本同期解決中だけです。
+			std::size_t count{} ;										// 同原参照へ成立した独立候補数です。
+			// 原参照位置と元task全体が一致するcommit済みrouteだけを数えます。
+			for( const auto &route : binding.routes_) {
+				// 別device・別record・未検証の候補を推測で同選択へ統合しません。
+				if( route.referenceIndex == referenceIndex &&
+				   route.recordIndex < binding.records_.size() &&
+				   binding.records_[route.recordIndex].task.target == reference->target &&
+				   route.deviceIdentity == reference->candidate.deviceIdentity &&
+				   route.candidate.installable && !route.candidate.current) {
+					sole = &route ;
+					++count ;
+				}
+			}
+
+			// 複数候補は版や表示順で選ばず、詳細での明示指定へ残します。
+			if( count > 1U) {
+				resolution.state = PreparedInstallResolutionState::AMBIGUOUS ;
+			}
+			// 新たな旧版切替は元metadata選択だけでは承認されていません。
+			else if( sole && sole->candidate.action == DriverAction::DOWNGRADE) {
+				resolution.state = PreparedInstallResolutionState::DOWNGRADE_REQUIRES_SELECTION ;
+			}
+			// 必要構成を含む検証済み計画も唯一なら維持し、既存の復旧前検査へ渡します。
+			else if( sole) {
+				resolution.candidateIdentity = sole->candidate.identity ;
+				resolution.state			 = PreparedInstallResolutionState::READY ;
+			}
+		}
+
+		result.push_back( std::move( resolution)) ;
+	}
+
+	return result ;
+}
+
 /** @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。 */
 NativeError CompositeUpdateProvider::preflightRequiredSignedIndexInstall(
 	const ScanSessionId session, const std::span<const std::wstring> identities) const
 {
+	// UI/controllerを迂回した未検査refも、workerの元表示snapshotで復旧前に拒否します。
+	if( session == 0U || session != scanSessionId_ || identities.empty() ||
+	   std::ranges::any_of( identities, [&]( const auto &identity) {
+		   return std::ranges::none_of( displayedCandidates_, [&]( const auto &candidate) {
+			   return candidate.identity == identity && candidate.installable && !candidate.current ;
+		   }) ;
+	   })) {
+		return static_cast<NativeError>( E_ACCESSDENIED) ;
+	}
+
 	// 元workerの索引owner未結合では必要計画を発行していません。
 	if( !signedIndexSession_ || !signedIndexServices_) {
 		return 0 ;

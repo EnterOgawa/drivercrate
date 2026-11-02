@@ -2,7 +2,7 @@
 /**
  * @file app.rc
  * @brief DriverCrate Windows resource定義。
- * @version 01.13.03
+ * @version 01.20.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -88,6 +88,15 @@
  * Ver.01.13.01 Shunji Ogawa  2026/10/19  内容部分結果と候補別導入可否・未導入を区別する。
  * Ver.01.13.02 Shunji Ogawa  2026/10/24  索引の期限・発行時刻拒否を既存通信結果へ説明。
  * Ver.01.13.03 Shunji Ogawa  2026/10/24  実行ファイルの権利表示を採用表記へ統一。
+ * Ver.01.14.00 Shunji Ogawa  2026/10/27  一device一行の四列要約と候補選択詳細を追加。
+ * Ver.01.14.01 Shunji Ogawa  2026/10/27  過去実行履歴を現在の検証・導入許可と区別する表示を追加。
+ * Ver.01.15.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
+ * Ver.01.16.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
+ * Ver.01.17.00 Shunji Ogawa  2026/10/28  検索後の確認取消しと初回候補filterを明示。
+ * Ver.01.18.00 Shunji Ogawa  2026/10/28  三列一覧と通常検索・詳細閲覧に合わせた案内へ更新。
+ * Ver.01.19.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
+ * Ver.01.20.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続。
+ * Ver.01.20.01 Shunji Ogawa  2026/11/02  検査済み候補数と未検査の初回確認数を区別。
  * </pre>
  *
  * @note Application icon、executable version、manifest、および日本語UI文字列を定義します。
@@ -106,6 +115,28 @@
 // Icon resource定義。
 //------------------------------------------------------------------------------
 IDI_DRIVERCRATE ICON "assets\\drivercrate.ico"
+
+// 主画面で案内した規約を任意閲覧するだけで、同意・取得commandを持ちません。
+IDD_INSTALL_TERMS DIALOGEX 0, 0, 560, 380
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "選択したドライバーの使用許諾（閲覧のみ）"
+FONT 10, "Segoe UI"
+BEGIN
+	LTEXT "閲覧・終了では同意しません。実行する場合は主画面で「同意してインストール」を選んでください。", -1, 10, 8, 540, 30
+	EDITTEXT IDC_METADATA_DETAIL_TEXT, 10, 42, 540, 300,
+		ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+	DEFPUSHBUTTON "閉じる(&C)", IDOK, 470, 352, 80, 18
+END
+
+STRINGTABLE
+BEGIN
+	IDS_INSTALL_TERMS_BUTTON "同意してインストール(&I)"
+	IDS_INSTALL_TERMS_OPEN "規約全文を読む(&L)"
+	IDS_INSTALL_TERMS_NOTICE "選択中 %1 件。「同意してインストール」でメーカー規約に同意し、取得・検査・導入を続けます。\r\n同意しない場合は選択を解除してください。全文は任意に確認できます。"
+	IDS_INSTALL_SELECTION_NOTICE "選択中 %1 件。インストール操作から、選択した配布物だけを取得・検査し、適合する候補の導入へ進みます。"
+	IDS_INSTALL_TERMS_UNAVAILABLE "選択対象の使用許諾を確認できないか、案内後に対象・規約が変わりました。選択を確認し、必要ならもう一度検索してください。"
+	IDS_INSTALL_TERMS_VIEW_ONLY "この画面は閲覧専用です。開く・閉じる操作では規約への同意、ドライバーの取得・導入を行いません。"
+END
 
 // EULA本文は実行時のplain textだけを表示し、公式の全文をresourceへ同梱しない。
 IDD_PREPARATION_EULA DIALOGEX 0, 0, 560, 404
@@ -138,6 +169,22 @@ BEGIN
 	EDITTEXT IDC_METADATA_DETAIL_TEXT, 10, 24, 500, 278,
 		ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | WS_TABSTOP
 	DEFPUSHBUTTON "閉じる(&C)", IDOK, 430, 314, 80, 18
+END
+
+// 候補の閲覧と一件の明示選択を分け、default buttonは閲覧終了だけにする。
+IDD_DEVICE_DETAILS DIALOGEX 0, 0, 560, 380
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "デバイスの詳細と候補"
+FONT 9, "Segoe UI"
+BEGIN
+	LTEXT "現在のドライバーと候補(&D)", -1, 10, 8, 540, 14
+	COMBOBOX IDC_DEVICE_DETAIL_CANDIDATES, 10, 25, 540, 180,
+		CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+	EDITTEXT IDC_METADATA_DETAIL_TEXT, 10, 48, 540, 270,
+		ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+	LTEXT "閲覧だけでは選択を変更しません。候補を選んでも取得・導入は開始しません。", -1, 10, 324, 540, 16
+	PUSHBUTTON "この候補を選択(&S)", IDYES, 330, 352, 130, 18
+	DEFPUSHBUTTON "閉じる(&C)", IDOK, 470, 352, 80, 18
 END
 
 IDD_METADATA_SEARCH DIALOGEX 0, 0, 520, 340
@@ -194,6 +241,22 @@ END
 
 STRINGTABLE
 BEGIN
+	IDS_DEVICE_NAME_UNKNOWN "名前を確認できないデバイス"
+	IDS_DEVICE_MULTIPLE_CANDIDATES "複数候補（%1件）"
+	IDS_DEVICE_CHOOSE_DETAILS "詳細で候補を選択"
+	IDS_DEVICE_CANDIDATE_READY "導入候補あり"
+	IDS_DEVICE_ACQUIRE_VERIFY "取得して確認"
+	IDS_DEVICE_DETAIL_PREPARATION_REPORT "取得・検査結果（全体）"
+	IDS_DEVICE_DETAIL_PREPARATION_SCOPE "今回の検索・取得全体の結果です。このデバイスだけの検査結果ではありません。"
+	IDS_INSTALL_PREPARATION_NOT_READY "選択した対象の取得・検査がすべて成立しなかったため、インストールを開始していません。詳細で理由を確認してください。"
+	IDS_INSTALL_PREPARATION_AMBIGUOUS "検査で複数のドライバー候補が見つかりました。行をダブルクリックして使用する候補を選択してください。インストールは開始していません。"
+	IDS_INSTALL_PREPARATION_DOWNGRADE "検査で現在より古い版と判明しました。詳細で候補を選択し、旧版への切替を確認してください。インストールは開始していません。"
+	IDS_DEVICE_DETAIL_CURRENT "現在のドライバー"
+	IDS_DEVICE_DETAIL_CANDIDATE "候補 %1"
+	IDS_DEVICE_RESULT_DETAILS "結果は詳細で確認・再検索が必要"
+	IDS_DEVICE_RESULT_ROLES "必要構成の個別結果あり"
+	IDS_DEVICE_POST_INSTALL_UNKNOWN "導入後の実状態未確認"
+	IDS_DEVICE_POST_INSTALL_REBOOT "再起動待ち"
 	IDS_DEVICE_PRESENCE_UNKNOWN "現在ドライバー未確認"
 	IDS_DEVICE_PRESENCE_REGISTERED "登録済み"
 	IDS_DEVICE_PRESENCE_NOT_INSTALLED "未導入"
@@ -224,7 +287,7 @@ BEGIN
 	IDS_DEVICE_DISAPPEARED "デバイス消失"
 	IDS_ASSESSMENT_UNCOLLECTED "詳細未収集（従来の検証範囲を表示）"
 	IDS_ASSESSMENT_TITLE "デバイスと候補の詳細"
-	IDS_ASSESSMENT_HINT "候補行で Enter またはダブルクリックすると詳細を表示します。"
+	IDS_ASSESSMENT_HINT "デバイス行で Enter またはダブルクリックすると、詳細で現在のドライバーと候補を確認できます。"
 	IDS_ASSESSMENT_INCONSISTENT "観測・検証の結合を確認できません。再検索してください。"
 	IDS_ASSESSMENT_NEXT "観測を更新するには再検索してください。この画面の確認だけでは取得・導入を行いません。"
 	IDS_ASSESSMENT_STATE_NOT_CHECKED "未確認"
@@ -360,7 +423,7 @@ BEGIN
 	IDS_STATUS_DOWNLOADING        "選択したドライバー更新をダウンロードしています…"
 	IDS_STATUS_INSTALLING         "選択したドライバー更新をインストールしています。電源を切らないでください…"
 	IDS_STATUS_NO_UPDATES         "デバイスを列挙しました。現在選択できる別のドライバー候補はありません。"
-	IDS_STATUS_SCAN_COUNT         "%1 件の切替可能なドライバー候補があります。デバイスを展開して取得元と版を確認してください。"
+	IDS_STATUS_SCAN_COUNT         "%1 件の候補があります。対象を選択してください。詳しくは行をダブルクリック。"
 	IDS_STATUS_SCAN_WARNING       "%1 件の候補を表示しましたが、一部の取得元を確認できませんでした。"
 	IDS_STATUS_COMPLETED          "選択したドライバー更新の処理が完了しました。結果を表示しています。"
 	IDS_STATUS_FAILED             "ドライバー更新を完了できませんでした。結果欄を確認してください。"
@@ -383,7 +446,7 @@ BEGIN
 	IDS_COLUMN_PROVIDER           "製造元 / 提供元"
 	IDS_COLUMN_DATE               "日付"
 	IDS_COLUMN_SIZE               "最大サイズ"
-	IDS_COLUMN_RESULT             "状態 / 結果"
+	IDS_COLUMN_RESULT             "状態"
 	IDS_VALUE_UNKNOWN             "—"
 	IDS_VALUE_PENDING_CACHED      "未処理（Windows Update キャッシュあり）"
 	IDS_VALUE_PENDING_DOWNLOAD    "未処理（ダウンロードが必要）"
@@ -407,7 +470,7 @@ BEGIN
 	IDS_TREE_DEVICE_SUFFIX        "ドライバー候補"
 	IDS_CURRENT_VERSION_LABEL     "現在"
 	IDS_CURRENT_VERSION_UNMATCHED "未照合"
-	IDS_COLUMN_DEVICE_DRIVER      "種類 / デバイス / ドライバー"
+	IDS_COLUMN_DEVICE_DRIVER      "デバイス"
 	IDS_COLUMN_CURRENT_VERSION    "現在版"
 	IDS_COLUMN_CANDIDATE_VERSION  "候補版"
 	IDS_COLUMN_SOURCE             "取得元 / 場所"
@@ -416,10 +479,15 @@ BEGIN
 	IDS_RESTORE_POINT_FINALIZE_ERROR_PREFIX "ドライバー処理後に復元ポイントを終了できませんでした。処理結果を確認してください。\r\n\r\n"
 	IDS_RESTORE_POINT_NOT_CREATED "未インストール（復元ポイント作成失敗）"
 	IDS_RESTORE_POINT_CREATED     "Windowsの復元ポイントを作成しました（番号: %1）。"
-	IDS_RECOMMENDED_ONLY_FILTER   "推奨更新のみ表示(&R)"
-	IDS_STATUS_RECOMMENDED_COUNT  "%1 件の推奨更新を表示しています。全候補に戻すにはチェックを外してください。"
+	IDS_RECOMMENDED_ONLY_FILTER   "推奨・初回候補を表示(&R)"
+	IDS_STATUS_RECOMMENDED_COUNT  "更新・初回の導入候補 %1 件。"
+	IDS_STATUS_INITIAL_PREPARATION_COUNT "初回の確認候補 %1 件（取得・適用性未検査）。"
 	IDS_SELECT_ALL_RECOMMENDED    "推奨を全選択(&A)"
 	IDS_CLEAR_SELECTION           "選択を全解除(&C)"
+	IDS_STATUS_REFRESHING_HARDWARE "Windows のハードウェア変更を再検出しています…"
+	IDS_HARDWARE_REFRESH_COMPLETED "ハードウェア再検出: 完了。"
+	IDS_HARDWARE_REFRESH_FAILED "ハードウェア再検出に失敗しました。更新検索は開始していません。%1"
+	IDS_STATUS_PREPARATION_REQUIRED "取得前情報の版・適用性・更新要否は未確認です。全候補は表示フィルターを解除して確認できます。"
 	IDS_STATUS_SCANNING_DEVICES   "デバイスとローカル Driver Store を確認しています…"
 	IDS_STATUS_SEARCHING_WINDOWS_UPDATE "Windows Update のドライバー候補を照会しています…"
 	IDS_STATUS_MERGING_CANDIDATES "取得した候補をデバイス単位へ統合しています…"
@@ -509,7 +577,7 @@ BEGIN
 	IDS_AUDIT_CONTENT_LABEL        "内容: "
 	IDS_AUDIT_SYSTEM_LABEL         "適用: "
 	IDS_AUDIT_INSTALL_LABEL        "導入: "
-	IDS_OFFICIAL_RELEASE_DISCOVERY_STATE "公式配布情報・取得条件は取得準備で確認・内容／OS／PnP未監査"
+	IDS_OFFICIAL_RELEASE_DISCOVERY_STATE "公式配布情報・取得条件は検索後の確認へ。内容／OS／PnP未監査"
 	IDS_PREPARATION_BUTTON "取得準備(&P)"
 	IDS_PREPARATION_BEGIN_ERROR "取得承認の開始条件を満たしません。再検索して対象を確認してください。開始拒否番号: %1"
 	IDS_PREPARATION_CANCEL "取得を取消し(&P)"
@@ -531,10 +599,13 @@ BEGIN
 	IDS_PREPARATION_SKIP "取得しない"
 	IDS_PREPARATION_NETWORK "この対象に限り、従量制課金または課金状態不明のネットワークでの取得を許可する"
 	IDS_PREPARATION_NONE "取得対象が選択されていません。通信は開始していません。"
+	IDS_PREPARATION_REVIEW_CANCELLED "取得・検査の確認を取り消しました。再試行は「更新を検索」から行ってください。"
+	IDS_PREPARATION_EULA_DECLINED "規約へ同意しなかったため、取得・インストールを開始していません。"
+	IDS_PREPARATION_CONTINUE_FAILED "取得確認を開始できませんでした。「更新を検索」から再試行してください。"
 	IDS_PREPARATION_CONFIRM "選択した %1 件を検査用に取得します。インストールはしません。開始しますか？"
 	IDS_PREPARATION_PROGRESS "検査用取得の確定件数: %1"
-	IDS_PREPARATION_DONE "取得処理が終了しました。監査を実施した場合は個別結果を表示します。追加した監査合格候補も未選択です。"
-	IDS_PREPARATION_FAILED "取得準備に失敗しました。取得結果の診断値を確認し、必要なら手動で再検索してください。"
+	IDS_PREPARATION_DONE "取得・検査が終了しました。候補を選択してください。詳しくは行をダブルクリック。"
+	IDS_PREPARATION_FAILED "取得・検査に失敗しました。詳細を確認し、「更新を検索」から再試行してください。"
 	IDS_PREPARATION_CLOSE "取得を取り消して終了しますか？ 処理終了の通知まで画面を保持します。"
 	IDS_PREPARATION_ACQUIRED "検査用取得済み（監査結果は別表示・インストールなし）"
 	IDS_PREPARATION_NOT_SELECTED "未選択・取得なし"
@@ -577,6 +648,7 @@ BEGIN
 	IDS_MEASUREMENT_NETWORK_OFFICIAL "公式network — %1"
 	IDS_MEASUREMENT_EXPLANATION "件数は同一scan内のopaque deviceを重複排除した端末内表示です。未計測を0件とせず、下限値は未確認の残りを否定しません。取得・適用性・導入許可、世界全体の対応率または最新版を保証しません。準備操作で候補が増えても、この段階別件数はscan完了時点から再計算しません。"
 	IDS_MEASUREMENT_EXPIRED "このscan sessionは失効済みです。表示値は実行前scanの履歴であり、現在の導入可能数ではありません。"
+	IDS_CANDIDATE_EXECUTION_HISTORY "前回の実行結果（履歴）― 現在の検証結果や導入許可ではありません。"
 	IDS_MEASUREMENT_NO_SNAPSHOT "段階別計測: 未接続または検証不能"
 	IDS_MEASUREMENT_GROUP "段階別network — %1"
 	IDS_MEASUREMENT_PROVIDER "段階別計測 — %1"
@@ -611,7 +683,7 @@ BEGIN
 	IDS_INDEX_CONTENT_COMPLETED "索引の共通内容検査は完了しました。個別INFの拒否と内容合格を別に示します。"
 	IDS_INDEX_CONTENT_FAILED "索引の内容検査は拒否・失敗または未実施です。取得結果とは独立しています。"
 	IDS_INDEX_CONTENT_COUNTS "通常file / 発見INF / 構造解析完了INF / 署名拒否INF / 内容署名合格INF: %1"
-	IDS_INDEX_CONTENT_PARTIAL "取得処理は終了しました。索引の内容に拒否・不足があります。候補ごとの導入可否と個別結果を確認してください。インストールは実行していません。"
+	IDS_INDEX_CONTENT_PARTIAL "一部の取得・検査に拒否・不足があります。候補ごとの導入可否は行の詳細で確認してください。"
 	IDS_INDEX_CONTENT_ITEM "索引の取得対象 %1"
 	IDS_INDEX_TERMS_SUBJECT "規約の出典主体: %1"
 	IDS_INDEX_PREREQUISITE_CONFIRM "次の具体的な取得条件を確認しましたか。未確認の条件は取得を保留してください。"

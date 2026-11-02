@@ -2,7 +2,7 @@
 /**
  * @file metadata_inventory_tests.cpp
  * @brief 現在属性列挙の上限・欠損・停止境界の決定的試験。
- * @version 01.05.01
+ * @version 01.08.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,9 @@
  * Ver.01.04.02 Shunji Ogawa  2026/10/17  Native IDの実空listと独立size・実byteの有限回帰を追加。
  * Ver.01.05.00 Shunji Ogawa  2026/10/24  原公開PnPのcase等価と入力失敗/未照合を分離。
  * Ver.01.05.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.06.00 Shunji Ogawa  2026/10/27  個別証拠の転用/元tuple/診断/全cohort/失効拒否を追加。
+ * Ver.01.07.00 Shunji Ogawa  2026/10/28  私有batch内proofとresolver閉鎖・終端/新scan失効を回帰。
+ * Ver.01.08.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
  * </pre>
  *
  * @note 現在属性とdevnodeの六APIを全てfakeへ置換し、実device列挙と導入を行わない。
@@ -71,6 +74,29 @@
 #include <thread>
 #include <vector>
 #include <utility>
+
+namespace drivercrate {
+/** @brief 完全低位inventory試験だけで私有proof scopeの所有境界を確認します。 */
+class DriverStoreBindingProbe final {
+public:
+	/** @brief 新しい導入許可を発行せず元inventoryの寿命scopeだけを開始します。
+	 * @param[in] store 同threadの完全fake inventory所有者です。
+	 * @param[in] session 元index scanです。
+	 * @return 同thread/scanだけ有効な非copy/nonmove scopeです。
+	 */
+	[[nodiscard]] static auto begin( const DriverStoreProvider &store, const ScanSessionId session)
+	{
+		return store.beginIndexInstallProofScope( session) ;
+	}
+	/** @brief 元Providerの通常失効を呼び、scopeが寿命を延ばさないことを確認します。
+	 * @param[in,out] store 同threadの完全fake所有者です。
+	 */
+	static void invalidate( DriverStoreProvider &store)
+	{
+		store.invalidateScanSession() ;
+	}
+} ;
+} // namespace drivercrate
 
 namespace drivercrate::test {
 namespace {
@@ -163,6 +189,8 @@ struct InventoryFixture {
 	DWORD										   disappearAt{std::numeric_limits<DWORD>::max()} ;
 	/// このnodeだけinstance ID取得を拒否する。最大値は注入なし。
 	DWORD								  missingInstanceAt{std::numeric_limits<DWORD>::max()} ;
+	/// 標準説明だけを保持し、名前・class・driver属性を不存在にする場合trueです。
+	bool								  descriptionOnly{} ;
 	/// 全表示属性を欠損させる場合true。
 	bool								  missingAttributes{} ;
 	/// 一つの属性へ注入するfault。
@@ -393,7 +421,9 @@ DriverStoreInventoryTransport  inventoryTransport()
 		}
 
 		// 欠損属性と禁止propertyは正常値を推測して返さない。
-		if( (fixture.missingAttributes && !secret) || (secret && !fixture.indexIds) ||
+		if( (fixture.descriptionOnly && !secret &&
+			!IsEqualDevPropKey( *key, DEVPKEY_Device_DeviceDesc)) ||
+		   (fixture.missingAttributes && !secret) || (secret && !fixture.indexIds) ||
 		   (IsEqualDevPropKey( *key, DEVPKEY_Device_DriverDate) && !fixture.dateAvailable)) {
 			SetLastError( ERROR_NOT_FOUND) ;
 			return FALSE ;
@@ -1054,6 +1084,12 @@ void testInventoryIsolation( TestContext &context)
 
 /** @brief 実workerとUI役が共有する有限fixture信号です。 */
 struct WorkerIndexState {
+	/// 検索前再検出の新しいinventoryと表示を確認する明示条件です。
+	bool					 hardwareScenario{} ;
+	/// 再検出callbackが一回ごとに進める合成device世代です。
+	std::atomic_uint		 hardwareGeneration{} ;
+	/// Workerだけが書き終端後に読む順序。1再検出、2本番inventory、3合成queryです。
+	std::vector<unsigned>	 hardwareOrder ;
 	/// 0正常、1非一意、2入力不足、3元API障害のinventory mode。
 	std::atomic_uint		 mode{} ;
 	/// 0真store、1未配備製品入口、2真genesis、3合成I/O拒否です。
@@ -1222,6 +1258,19 @@ public:
 			fixture_.propertyFault = PropertyFault::ACCESS_DENIED ;
 		}
 
+		// 再検出後の世代からだけ新しい現在機器を列挙し、名前欠損でも説明を保持します。
+		if( state_->hardwareScenario) {
+			state_->hardwareOrder.push_back( 2U) ;
+			fixture_.nodes				= state_->hardwareGeneration.load() ;
+			fixture_.displayName		= state_->hardwareGeneration == 1U ? L"Ethernet Controller"
+																		   : L"New Ethernet Controller" ;
+			fixture_.unknownClass		= true ;
+			fixture_.unknownSecondClass = true ;
+			fixture_.descriptionOnly	= true ;
+			fixture_.nodeFlags			= DN_HAS_PROBLEM ;
+			fixture_.nodeProblem		= CM_PROB_FAILED_INSTALL ;
+		}
+
 		MetadataSearchExecutionContext execution{
 			sessionId,
 			MetadataSearchRequest{
@@ -1231,7 +1280,15 @@ public:
 			inventory_.scanCurrentIndexInventory( sessionId, execution,
 												 progress) ;	// 同workerの有効callbackを借用します。
 		result.purpose = ScanPurpose::STANDARD ;
-		result.candidates.clear() ;
+		// 通常の既存索引fixtureは候補を持たず、新条件だけが現在観測を返します。
+		if( !state_->hardwareScenario) {
+			result.candidates.clear() ;
+		} else {
+			state_->hardwareOrder.push_back( 3U) ;
+			progress( {ProviderStage::SEARCHING_WINDOWS_UPDATE, 80U, 0U, 1U}) ;
+			progress( {ProviderStage::SEARCHING_WINDOWS_UPDATE, 100U, 1U, 1U}) ;
+		}
+
 		// 元scan失敗時は索引loaderを実行させません。
 		if( state_->failScan) {
 			result.succeeded = false ;
@@ -2017,9 +2074,77 @@ void runWorkerSignedIndexScanTests( TestContext &context, std::shared_ptr<Signed
 			  << ", failures: " << context.failureCount() - failures << '\n' ;
 }
 
+/** @brief 新再検出を先行し、二回目には新device/説明/Code28を再列挙します。
+ * @param[in,out] context Assertion集計先です。
+ */
+void testHardwareRefreshInventoryOrder( TestContext &context)
+{
+	const int first = context.assertionCount() ;				// 有限の新順序試験分母です。
+	auto	  state = std::make_shared<WorkerIndexState>() ;	// 全native inventoryがfakeです。
+	state->hardwareScenario = true ;
+	provider_worker_index_detail::Services services ;	// 索引通信や保護storeは使用しません。
+	services.hardwareRefresh = [state] {
+		state->hardwareOrder.push_back( 1U) ;
+		++state->hardwareGeneration ;
+		return HardwareRefreshResult{true, HardwareRefreshStage::REENUMERATE} ;
+	} ; // 実OS副作用のない一回の合成再検出です。
+	auto worker = provider_worker_index_detail::Access::create(
+		[state] { return std::make_unique<WorkerIndexProvider>( state) ; },
+		[state] { return std::make_unique<WorkerIndexRestore>( state) ; },
+		// 実queueです。
+		std::move( services)) ;
+	ScanSessionId	  previous{} ;	// 旧scanから引き継がないsessionです。
+	const ScanOptions options{
+		.useDefaultProviders = false,
+		.enabledProviderIds = {std::wstring{DRIVER_STORE_PROVIDER_ID}}} ;	// queryはfixtureのみです。
+	// 同じworkerの二回検索で世代ごとの再検出と再列挙を要求します。
+	for( OperationId operation = 1U; operation <= 2U; ++operation) {
+		DRIVERCRATE_EXPECT( context, worker->requestScan( operation, options)) ;
+		const auto event = indexWorkerEvent( *worker, operation) ;	// 同operationの確定結果です。
+		DRIVERCRATE_EXPECT( context, event && event->hardwareRefresh &&
+										event->hardwareRefresh->succeeded &&
+										event->scanResult.succeeded &&
+										event->scanResult.scanSessionId != previous &&
+										event->scanResult.candidates.size() == operation) ;
+		// 結果が欠測なら観測内容を成功へ補完しません。
+		if( !event) {
+			continue ;
+		}
+
+		previous = event->scanResult.scanSessionId ;
+		// 同名別PnPを別行で保持し、未検査を選択可能にしません。
+		for( const auto &candidate : event->scanResult.candidates) {
+			DRIVERCRATE_EXPECT(
+				context,
+				candidate.model ==
+						(operation == 1U ? L"Ethernet Controller" : L"New Ethernet Controller") &&
+					!candidate.installable &&
+					candidate.deviceClassGuid == L"{00000000-0000-0000-0000-000000000000}" &&
+					candidate.deviceObservation &&
+					candidate.deviceObservation->friendlyName.state ==
+						DevicePropertyReadState::NOT_PRESENT &&
+					candidate.deviceObservation->deviceDescription.state ==
+						DevicePropertyReadState::VALUE &&
+					candidate.deviceObservation->node.problemCode ==
+						static_cast<std::uint32_t>( CM_PROB_FAILED_INSTALL) &&
+					candidate.deviceObservation->driverPresence ==
+						DeviceDriverPresence::NOT_INSTALLED) ;
+		}
+	}
+
+	worker->stop() ;
+	DRIVERCRATE_EXPECT( context, state->hardwareGeneration == 2U &&
+									state->hardwareOrder ==
+										std::vector<unsigned>( {1U, 2U, 3U, 1U, 2U, 3U}) &&
+									state->installs == 0U && state->restores == 0U) ;
+	std::cout << "Hardware refresh inventory order: searches=2 assertions="
+			  << context.assertionCount() - first << " real CM/inventory/query=0\n" ;
+}
+
 /** @see metadata_inventory_tests.h */
 void runMetadataInventoryTests( TestContext &context)
 {
+	testHardwareRefreshInventoryOrder( context) ;
 	testInventoryLimits( context) ;
 	testInventoryFailures( context) ;
 	testInventoryIsolation( context) ;
@@ -2224,7 +2349,8 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 			lookupSignedIndexRecords( snapshot, issued, issued, nodes, {}, nowUtc,
 									 // 真snapshotから同型集合の全保持を確認します。
 									 callback.get()) ;
-		DRIVERCRATE_EXPECT( context, relation.lookup && relation.lookup->relations().size() == 2U) ;
+		DRIVERCRATE_EXPECT( context, relation.lookup && relation.lookup->relations().size() ==
+														   (mode == 0U || mode == 3U ? 6U : 2U)) ;
 		// 非一意と未知classをWindows適合へ昇格しません。
 		if( relation.lookup && !relation.lookup->relations().empty()) {
 			const auto &first = relation.lookup->relations()[0] ;	// 公表Hardwareの一関係。
@@ -2393,10 +2519,10 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 				lookupSignedIndexRecords( snapshot, issued, issued, nodes, {}, nowUtc,
 										 // 同認証recordを使います。
 										 callback.get()) ;
-			DRIVERCRATE_EXPECT( context,
-							   lookedUp.lookup && lookedUp.lookup->relations().size() == 2U) ;
+			DRIVERCRATE_EXPECT( context, lookedUp.lookup && lookedUp.lookup->relations().size() ==
+															   (mode == 0U ? 2U : 6U)) ;
 			// 非一意を推測で一deviceへ縮めません。
-			if( lookedUp.lookup && lookedUp.lookup->relations().size() == 2U) {
+			if( lookedUp.lookup && !lookedUp.lookup->relations().empty()) {
 				const auto &relation = lookedUp.lookup->relations()[0] ;	// 原Hardwareの関係です。
 				DRIVERCRATE_EXPECT(
 					context,
@@ -2655,11 +2781,289 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 			  << ", failures: " << context.failureCount() - initialFailures << '\n' ;
 }
 
+/** @brief 元native二device証拠と公開DTO改変のadmissionを分離して確認します。
+ * @param[in,out] context 元assertion集計先です。
+ * @param[in] snapshot 真署名の同じ原recordです。
+ * @param[in] nowUtc 固定した信頼UTCです。
+ */
+void testAuthenticatedDeviceProjection( TestContext										&context,
+									   std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
+									   std::chrono::sys_seconds							 nowUtc)
+{
+	auto run = std::make_unique<InventoryCase>() ;	// 巨大fixtureをstackへ追加しません。
+	run->fixture.sameHardware = true ;
+	static_cast<void>( run->scanForIndex()) ;
+	IndexLookupContext		  issued ;	// 元scanから発行する全contextです。
+	std::vector<std::wstring> present ;	// 全opaqueだけを保持します。
+	auto					  resolver =
+		// 元weak能力です。
+		run->provider.makeIndexPublicIdResolver( 907U, issued, present) ;
+	DRIVERCRATE_EXPECT( context, resolver && present.size() == 2U) ;
+	// Native根拠が成立しない場合に証拠を生成しません。
+	if( !resolver || present.size() != 2U) {
+		return ;
+	}
+
+	const auto &evidence =
+		// 原公開tupleです。
+		snapshot->schemaReceipt().records().front().publishedIdentityEvidence ;
+	const auto &id	   = evidence.pnpIds.front() ;	// 原役割と原文字列を保持します。
+	const auto	native = resolver->resolve( id.kind, id.value, evidence.classGuid, issued,
+										   present) ;	// 実captureです。
+	DRIVERCRATE_EXPECT( context, native.completed && native.error == 0U &&
+									native.devices.size() == 2U &&
+									native.deviceProofs.size() == 2U) ;
+	// 個別証拠の不足を成功へ補完しません。
+	if( native.deviceProofs.size() != 2U || !native.deviceProofs[0] || !native.deviceProofs[1]) {
+		return ;
+	}
+
+	const auto matches = [&]( const NativeIndexDeviceProof &proof, IndexLookupContext contextValue,
+							 IndexPnpIdKind kind, std::string_view publicId,
+							 std::string_view classGuid, DWORD owner,
+							 std::span<const std::wstring> cohort, NativeError error,
+							 bool completed, std::wstring_view selected) {
+		return proof.matches( contextValue, kind, publicId, classGuid, owner, cohort, error,
+							 completed, selected) ;
+	} ; // 同期中だけ全借用値を確認し、private証拠を新規発行しません。
+	const auto &proof = *native.deviceProofs[0] ;	// 当該一device専用です。
+	DRIVERCRATE_EXPECT( context, matches( proof, issued, id.kind, id.value, evidence.classGuid,
+										GetCurrentThreadId(), native.devices, native.error,
+										native.completed, present[0])) ;
+	DRIVERCRATE_EXPECT( context, !matches( proof, issued, id.kind, id.value, evidence.classGuid,
+										 GetCurrentThreadId(), native.devices, native.error,
+										 native.completed, present[1])) ;
+	// Context/原ID/原Class/owner/cohort/診断/完了/証拠slotをそれぞれ単独改変します。
+	for( unsigned fault = 0U; fault < 10U; ++fault) {
+		auto altered = native ;	// 元証拠は不変のまま公開DTOだけを変更します。
+		// Stale scanの値を元leaseへ再結合しません。
+		if( fault == 0U) {
+			++altered.context.scanSessionId ;
+		}
+		// 原不足診断の改変です。
+		else if( fault == 1U) {
+			altered.error = E_ACCESSDENIED ;
+		}
+		// 全体完了の改変です。
+		else if( fault == 2U) {
+			altered.completed = false ;
+		}
+		// 同cohort内の他device証拠を流用します。
+		else if( fault == 3U) {
+			std::swap( altered.deviceProofs[0], altered.deviceProofs[1]) ;
+		}
+		// 重複opaqueを正常multiへ変更しません。
+		else if( fault == 4U) {
+			altered.devices[1] = altered.devices[0] ;
+		}
+		// 未知opaqueは元cohort外です。
+		else if( fault == 5U) {
+			altered.devices[1] = L"opaque-unobserved" ;
+		}
+		// 個別証拠なしの生MULTIPLEです。
+		else if( fault == 6U) {
+			altered.deviceProofs.clear() ;
+		}
+		// 元公開役割を変更した証拠の使用を拒否します。
+		else if( fault == 7U) {
+			DRIVERCRATE_EXPECT(
+				context, !matches( proof, issued,
+								  id.kind == IndexPnpIdKind::HARDWARE ? IndexPnpIdKind::COMPATIBLE
+																	  : IndexPnpIdKind::HARDWARE,
+								  id.value, evidence.classGuid, GetCurrentThreadId(),
+								  native.devices, native.error, native.completed, present[0])) ;
+			continue ;
+		}
+		// 別public IDとClass/ownerをそれぞれ拒否します。
+		else if( fault == 8U) {
+			DRIVERCRATE_EXPECT( context,
+							   !matches( proof, issued, id.kind, "TESTBUS\\OTHER_PUBLIC",
+										evidence.classGuid, GetCurrentThreadId(), native.devices,
+										native.error, native.completed, present[0])) ;
+			DRIVERCRATE_EXPECT( context, !matches( proof, issued, id.kind, id.value,
+												 "{99999999-2222-3333-4444-555555555555}",
+												 GetCurrentThreadId(), native.devices, native.error,
+												 native.completed, present[0])) ;
+			DRIVERCRATE_EXPECT( context, !matches( proof, issued, id.kind, id.value,
+												 evidence.classGuid, 0U, native.devices,
+												 native.error, native.completed, present[0])) ;
+			continue ;
+		} else { // 全cohortの一部への縮小も拒否します。
+			altered.devices.pop_back() ;
+			altered.deviceProofs.pop_back() ;
+		}
+
+		PartialReplayResolver replay{	// 元結果のcopyだけを返すnegative seamです。
+									 std::move( altered)} ;
+		const auto rejected = lookupSignedIndexRecords( snapshot, issued, issued, present, {},
+													   nowUtc, &replay) ;	// 実lookup拒否です。
+		DRIVERCRATE_EXPECT(
+			context,
+			rejected.lookup &&
+				std::ranges::none_of( rejected.lookup->relations(), []( const auto &relation) {
+					return relation.state == IndexRecordMatchState::VERIFIED_DEVICE ;
+				})) ;
+	}
+
+	const auto accepted = lookupSignedIndexRecords( snapshot, issued, issued, present, {}, nowUtc,
+												   // 元関係と投影です。
+												   resolver.get()) ;
+	DRIVERCRATE_EXPECT(
+		context, accepted.lookup &&
+					 accepted.lookup->relations().front().reason ==
+						 IndexRecordMatchReason::NON_UNIQUE_RELATION &&
+					 !accepted.lookup->relations().front().deviceIdentity &&
+					 std::ranges::count_if( accepted.lookup->relations(), []( const auto &relation) {
+						 return relation.state == IndexRecordMatchState::VERIFIED_DEVICE ;
+					 }) == static_cast<std::ptrdiff_t>( evidence.pnpIds.size() * 2U)) ;
+	// Fixtureが所有する非const lookup copyだけを改変し、元私有factoryの再検証を直接確認します。
+	if( accepted.lookup && accepted.lookup->relations().size() >= 3U) {
+		const OfficialPreparationLimits limits{64U, 128U, 256U, 2U,
+											   4U} ;	// 元22byteだけの有限枠です。
+		// 原record/hash/source/publicId/対象/cohort/errorの単独改変を全て拒否します。
+		for( unsigned fault = 0U; fault < 8U; ++fault) {
+			auto owned = std::make_shared<SignedIndexRecordLookup>(
+				*accepted.lookup) ;	// この試験だけが可変objectを所有します。
+			auto &relation = const_cast<IndexRecordRelation &>(
+				// 非const元objectの私有格納値を負例だけで変更します。
+				owned->relations()[1]) ;
+			// 原record位置を別recordへ移しません。
+			if( fault == 0U) {
+				++relation.recordIndex ;
+			}
+			// 原record hashです。
+			else if( fault == 1U) {
+				++relation.recordSha256[0] ;
+			}
+			// 原source identityです。
+			else if( fault == 2U) {
+				relation.sourceId += "-other" ;
+			}
+			// 原record identityです。
+			else if( fault == 3U) {
+				relation.recordId += "-other" ;
+			}
+			// 原公開ID位置です。
+			else if( fault == 4U) {
+				relation.publicIdIndex = std::numeric_limits<std::size_t>::max() ;
+			}
+			// 同cohortの別deviceへのproof移植です。
+			else if( fault == 5U) {
+				relation.deviceIdentity = present[1] ;
+			}
+			// Cohortから未選択deviceを削る改変です。
+			else if( fault == 6U) {
+				relation.relatedDevices.pop_back() ;
+			} else { // 元診断を改変します。
+				relation.error = E_ACCESSDENIED ;
+			}
+
+			SignedIndexAcquisitionAdapter adapter ;	// 原snapshot/fixture trustだけです。
+			DRIVERCRATE_EXPECT(
+				context, signed_index_acquisition_detail::Access::beginFixture(
+							 adapter, owned, issued, IndexTargetOs::WINDOWS_11, nowUtc) == 0U) ;
+			SignedIndexPreparationDescription description ;	// 拒否後に対象を持ちません。
+			DRIVERCRATE_EXPECT( context,
+							   adapter.describe( 1U, issued, nowUtc, limits, description) != 0U &&
+								   !description.target) ;
+		}
+	}
+
+	run->fixture.counting = true ;
+	static_cast<void>( run->scanForIndex()) ;
+	DRIVERCRATE_EXPECT( context, !matches( proof, issued, id.kind, id.value, evidence.classGuid,
+										 GetCurrentThreadId(), native.devices, native.error,
+										 native.completed, present[0])) ;
+
+	// 通常終端、scope中の新scan、明示失効、例外終了を別の元captureで確認します。
+	for( unsigned mode = 0U; mode < 4U; ++mode) {
+		static_cast<void>( run->scanForIndex()) ;
+		IndexLookupContext		  batchContext ;	// 各試行の元contextです。
+		std::vector<std::wstring> batchPresent ;	// 全元opaqueだけです。
+		auto batchResolver = run->provider.makeIndexPublicIdResolver( 920U + mode, batchContext,
+																	 batchPresent) ;	// 同世代です。
+		DRIVERCRATE_EXPECT( context, batchResolver && batchPresent.size() == 2U) ;
+		// 必要元captureが無い場合にscopeやproofを補完しません。
+		if( !batchResolver || batchPresent.size() != 2U) {
+			continue ;
+		}
+
+		const auto batchNative = batchResolver->resolve(
+			id.kind, id.value, evidence.classGuid, batchContext, batchPresent) ;	// 元二機能です。
+		DRIVERCRATE_EXPECT( context, batchNative.deviceProofs.size() == 2U &&
+										batchNative.deviceProofs[0] && batchNative.deviceProofs[1]) ;
+		// 認証済み元proofの不足を成功扱いにしません。
+		if( batchNative.deviceProofs.size() != 2U || !batchNative.deviceProofs[0] ||
+		   !batchNative.deviceProofs[1]) {
+			continue ;
+		}
+
+		const auto proofValid = [&]() {
+			return matches( *batchNative.deviceProofs[1], batchContext, id.kind, id.value,
+						   evidence.classGuid, GetCurrentThreadId(), batchNative.devices,
+						   batchNative.error, batchNative.completed, batchPresent[1]) ;
+		} ; // 同期中だけ第二の元proof寿命を確認します。
+		DRIVERCRATE_EXPECT(
+			context, !DriverStoreBindingProbe::begin( run->provider, batchContext.scanSessionId + 1U)
+							 .active() &&
+						 proofValid()) ;
+		IndexLookupContext					   renewedContext ;		// scope中に作る新世代だけです。
+		std::vector<std::wstring>			   renewedPresent ;		// 元集合を新世代へ流用しません。
+		std::unique_ptr<IndexPublicIdResolver> renewedResolver ;	// 新世代の独立能力です。
+		try {
+			const auto scope =
+				DriverStoreBindingProbe::begin( run->provider,
+											   batchContext.scanSessionId) ;	// stack限定です。
+			DRIVERCRATE_EXPECT( context, scope.active() && proofValid()) ;
+			DRIVERCRATE_EXPECT(
+				context, !DriverStoreBindingProbe::begin( run->provider, batchContext.scanSessionId)
+							  .active()) ;
+			DRIVERCRATE_EXPECT( context, batchResolver
+												->resolve( id.kind, id.value, evidence.classGuid,
+														  batchContext, batchPresent)
+												.error != 0U) ;
+			IndexLookupContext		  deniedContext ;	// 新callback発行拒否の出力です。
+			std::vector<std::wstring> deniedPresent ;	// 拒否で空になります。
+			DRIVERCRATE_EXPECT( context, !run->provider.makeIndexPublicIdResolver(
+											921U, deniedContext, deniedPresent) &&
+											deniedPresent.empty()) ;
+			// scopeが別にsnapshotを強所有せず、新scanは旧proofを直ちに失効させます。
+			if( mode == 1U) {
+				static_cast<void>( run->scanForIndex()) ;
+				renewedResolver =
+					run->provider.makeIndexPublicIdResolver( 930U, renewedContext, renewedPresent) ;
+				DRIVERCRATE_EXPECT( context, !proofValid() && renewedResolver) ;
+			}
+			// 元Providerの明示失効も、scope内の旧proofを直ちに拒否します。
+			else if( mode == 2U) {
+				DriverStoreBindingProbe::invalidate( run->provider) ;
+				DRIVERCRATE_EXPECT( context, !proofValid()) ;
+			}
+			// 原stackの例外退避でも元所有が残らないことを確認します。
+			else if( mode == 3U) {
+				throw std::runtime_error( "finite proof scope exception") ;
+			}
+		} catch( const std::runtime_error &) {
+			DRIVERCRATE_EXPECT( context, mode == 3U) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, !proofValid()) ;
+		// 旧scope終了で新世代のcallbackを巻き添えに失効させません。
+		if( renewedResolver) {
+			DRIVERCRATE_EXPECT( context, renewedResolver
+												->resolve( id.kind, id.value, evidence.classGuid,
+														  renewedContext, renewedPresent)
+												.error == 0U) ;
+		}
+	}
+}
+
 /** @see metadata_inventory_tests.h 宣言側の契約を正本とします。 */
 void runNativePartialIndexPreparationTests(
 	TestContext &context, std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
 	const std::chrono::sys_seconds nowUtc)
 {
+	testAuthenticatedDeviceProjection( context, snapshot, nowUtc) ;
 	const int firstAssertions = context.assertionCount() ;	// この追加統合だけの件数です。
 	const int firstFailures	  = context.failureCount() ;	// 元失敗を消さない差分です。
 	// 既知一device正例と二device非一意拒否を同じ署名recordへ接続します。

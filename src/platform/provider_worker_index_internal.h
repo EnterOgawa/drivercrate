@@ -2,7 +2,7 @@
 /**
  * @file provider_worker_index_internal.h
  * @brief 通常workerの固定索引serviceと隔離fixture能力を定義します。
- * @version 01.05.00
+ * @version 01.06.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.04.00 Shunji Ogawa  2026/10/13  完全依存API fixtureの同worker所有factoryを定義。
  * Ver.01.05.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
+ * Ver.01.06.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
  * </pre>
  *
  * @note 製品constructorはこの能力を外部入力から作りません。
@@ -93,6 +94,8 @@ struct Services {
 	std::function<std::unique_ptr<inf_dependency_native_detail::ScopedFixture>()> dependencyFixture ;
 	/// 製品固定refreshまたは明示完全fakeです。空は既存の純local fixtureで、nativeへ補完しません。
 	std::function<IndexRefreshSummary( const ProviderScanCancellation &)>		  refresh ;
+	/// 通常検索前の再検出です。製品二引数入口だけnative、空のfixtureは補完しません。
+	std::function<HardwareRefreshResult()>										  hardwareRefresh ;
 } ;
 /** @brief Unit専用serviceをprivate worker constructorへ結ぶ内部能力です。 */
 struct Access {

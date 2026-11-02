@@ -1,0 +1,64 @@
+//------------------------------------------------------------------------------
+/**
+ * @file drivercrate_product_version.rc.in
+ * @brief Collectorと内側setupの製品版情報をCMake正本から生成します。
+ * @version 01.00.00
+ * @date 2026/10/27
+ * @author Shunji Ogawa
+ * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
+ *
+ * @par ライセンス
+ * SPDX-License-Identifier: Apache-2.0
+ * 本ファイルには Apache License, Version 2.0 が適用されます。
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * @par 会社名
+ * EnterSystem
+ *
+ * @par 更新履歴
+ * <pre>
+ * VerNo.       author        update      comment
+ * Ver.01.00.00 Shunji Ogawa  2026/10/27  共通製品版からCollectorと内側setupの版情報を生成。
+ * </pre>
+ *
+ * @note CMakeが対象名を固定して生成します。署名状態やpackage schemaを表す値ではありません。
+ */
+//------------------------------------------------------------------------------
+#include <Windows.h>
+#include "drivercrate_version.h"
+#pragma code_page(65001)
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION DRIVERCRATE_VERSION_COMMA
+ PRODUCTVERSION DRIVERCRATE_VERSION_COMMA
+ FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+/* Debug buildにだけdebug属性を付与します。 */
+#ifdef _DEBUG
+ FILEFLAGS VS_FF_DEBUG
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS VOS_NT_WINDOWS32
+ FILETYPE VFT_APP
+ FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+	BLOCK "StringFileInfo"
+	BEGIN
+		BLOCK "041104B0"
+		BEGIN
+			VALUE "CompanyName", "EnterSystem"
+			VALUE "FileDescription", "@DRIVERCRATE_RESOURCE_DESCRIPTION@"
+			VALUE "FileVersion", DRIVERCRATE_VERSION_STRING
+			VALUE "InternalName", "@DRIVERCRATE_RESOURCE_NAME@"
+			VALUE "LegalCopyright", "Copyright (c) 2026 EnterSystem CO.,LTD."
+			VALUE "OriginalFilename", "@DRIVERCRATE_RESOURCE_NAME@.exe"
+			VALUE "ProductName", "DriverCrate"
+			VALUE "ProductVersion", DRIVERCRATE_VERSION_STRING
+		END
+	END
+	BLOCK "VarFileInfo"
+	BEGIN
+		VALUE "Translation", 0x0411, 1200
+	END
+END

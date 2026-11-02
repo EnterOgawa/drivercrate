@@ -3,6 +3,7 @@
 build/
 build-*/
 out/
+output/
 dist/
 cmake-build-*/
 CMakeUserPresets.json
@@ -29,6 +30,11 @@ dumps/
 # Local analysis/state and binary evidence stay outside source history.
 work/
 scripts/__pycache__/
+/Testing/
+/$out/
+/metadata-ui-private/
+/src.zip
+/run.py
 
 # Local reference material; these files are not part of DriverCrate.
 snappy-driver-installer-origin-code-r886-trunk/

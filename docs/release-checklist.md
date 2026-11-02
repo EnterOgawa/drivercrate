@@ -1,10 +1,11 @@
 # Release checklist
 
-対象はDriverCrate 0.1.1です。今回の配布候補はEXEコード署名なしで確認し、コード署名は後続へ残します。
+対象はDriverCrate 1.0.0のローカル配布候補です。自作四EXEの実Authenticode署名・時刻証明を最終byteで検証します。
+公開操作は具体的成果物の確認と別の明示承認に残します。
 索引署名・原hash/期限・CAT/publisher・端末適合性と権限の検証を維持します。
 [ADR0406](adr/0406-verified-authenticode-build-transition.md)、[ADR0397](adr/0397-release-completion-and-index-expiry-compatibility.md)、
 [ADR0402](adr/0402-partial-collection-and-release-priority.md)、
-[ADR0403](adr/0403-independent-producer-publication-input.md)と[リリースノート](release-notes-0.1.1.md)を正本とします。
+[ADR0403](adr/0403-independent-producer-publication-input.md)と[リリースノート](release-notes-1.0.0.md)を正本とします。
 本書は最終候補ごとの確認手順です。実績と承認は対象byteへ結び付いた検証記録で管理し、
 この一覧を現在の実績報告とは扱いません。未完了checkboxを過去版の成功で埋めません。
 開発Privateを正本とし、GitHub Actionsは通常運用に使いません。初回source/署名索引の公開と
@@ -12,7 +13,7 @@
 
 ## 最終sourceと再現性
 
-- [ ] CMake製品版、UI/VERSIONINFO/manifest、配布builder、Release titleとtag予定を0.1.1へ一致させる。
+- [ ] CMake製品版、UI/VERSIONINFO/manifest、配布builder、Release titleとtag予定を1.0.0へ一致させる。
 - [ ] README/guide/Release note、現行package-v7/receipt-v3、通常Taskと手動署名/公開の境界を最終sourceへ照合する。
   旧client/setup/dataの互換・移行・変換は前提にせず、旧Task/store/dataの所有保護・待機課金を維持する。
 - [ ] 公開するpath/mode/byte/SHA-256とlicense/noticeを固定し、本人が具体的な集合を確認する。
@@ -34,8 +35,8 @@
 - [ ] app ZIPはEXE/README/LICENSE/THIRD_PARTY_NOTICESだけ、collectorは現行基本77payload（参考索引つき83payload）+manifestの意図した閉包であることを確認する。
   CPython原34file/PSF署名・license、研究seed/collection profileとpackage内全hashを確認する。
 - [ ] x64 PE、実行権限manifest、Common Controls v6、ASLR/DEP/CFGと意図しないimportを確認する。
-- [ ] SHA-256を再計算し、実Authenticode状態と未署名表記をguide/Release noteへ一致させる。
-- [ ] 後続のコード署名時は三builderの任意`CodeSigning`へ操作者の指定store/thumbprint・SDK path/hash・公式確認済みTSA URLを渡す。
+- [ ] SHA-256を再計算し、実Authenticode状態と署名案内をguide/Release noteへ一致させる。
+- [ ] コード署名時は三builderの任意`CodeSigning`へ操作者の指定store/thumbprint・SDK path/hash・公式確認済みTSA URLを渡す。
   内PE/原v2検査→実署名・Wintrust/timestamp/署名だけの変化→署名後v2→manifest/ZIP→resource/outer build→
   outer署名/検証→最終checksumの順を守る。原SDK/chain/鍵可用性は実署名工程で確認し、人工fixture成功を代用しない。
   既存未署名assetと本接続の実装だけを署名済み実績にせず、第三者Python原34file/署名は変更しない。
@@ -48,7 +49,7 @@
   実確認したsetup/packageのbyteへ結果を結び、自然trigger/七日/再起動/別PCの未確認を明記する。
 - [ ] Provider別の公式経路、実byte/hash、署名、INF/全参照本体、端末適合、必須条件、導入方式の確認範囲を記録する。
   研究登録数/record数/INF数/実device適合数と実導入数を分ける。
-- [ ] 実driver導入は別の明示指示がある場合だけ実施する。未実施0を記録する。
+- [ ] 実driver導入は別の明示指示がある場合だけ実施する。0.1.1一件の実績と、1.0.0での実施0を分ける。
   clientの復元開始失敗拒否、Serverのbackup/checkpoint確認を既存人工試験と分ける。
 
 ## 承認と公開
@@ -62,7 +63,7 @@
   Private pushとPublic承認を分け、公開開始後の履歴を保持する。force-pushやroot作り直しで消さない。
 
 初回公開822file、旧v5/v6のpackage/Task、10月19日の通常画面1 package/72 INF中57合格・15未対応/
-同1機器の旧版候補3件などは[当時の実測](testing.md)として保持します。最終0.1.1の受入には継承しません。
+同1機器の旧版候補3件などは[当時の実測](testing.md)として保持します。最終1.0.0の受入には継承しません。
 全取得先の同時fresh成功・七日実運用・公開時の七日超残存は、最終source/配布物確定の前提にしません。
 全失敗・全HOLD・空成功で、前回headや公開assetを空の新世代へ置き換えません。
 全機器の実導入、全1,718研究recordの再受入、別PC/SDIO不足解消を一律のrelease前提に増やしません。

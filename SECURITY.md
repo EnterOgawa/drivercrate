@@ -19,6 +19,9 @@ GitHub の非公開報告機能を利用できない場合は、機密情報を�
 
 DriverCrateはWindows Update Agent、Windows Driver Store、実装済みの公式vendor catalogを使用する
 ローカル管理者アプリです。Windows Update、WSUS、Windowsの署名検証、組織ポリシーを迂回しません。
+現在のsourceの通常検索は、Windows標準のハードウェア再検出を先行します。既存token権限の一時使用は
+元の属性へ復帰し、ユーザー権利割当や組織policyを変更しません。Windows自身による保存済みdriverの
+自動適用と、DriverCrateの明示選択導入は別です。通常実機受入と署名済配布物への反映は未確認です。
 次は脆弱性報告の対象です。
 
 - 表示していない更新を選択またはインストールできる状態不整合

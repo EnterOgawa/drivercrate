@@ -2,7 +2,7 @@
 /**
  * @file provider_preparation_worker_tests.cpp
  * @brief 取得準備workerの内部試験。
- * @version 01.02.01
+ * @version 01.03.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -38,6 +38,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  通常scanの操作結合と協調取消しを追加。
  * Ver.01.02.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.02.01 Shunji Ogawa  2026/10/24  通常計測の版期待を既存製品version正本へ結合。
+ * Ver.01.03.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
  * </pre>
  *
  * @note COM workerを使用しますが、通信・実driver導入・実復元ポイントは使用しません。
@@ -59,18 +60,21 @@
 #include "drivercrate_version.h"
 #include <stdexcept>
 
+#include "platform/hardware_refresh_internal.h"
 #include <Windows.h>
 #include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <cstddef>
 #include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <semaphore>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -97,6 +101,8 @@ struct FakePreparationState {
 	std::atomic_bool			throwAudit{} ;
 	/// 本試験内のfake復旧処理だけを成功させる。
 	std::atomic_bool			allowFakeRestore{} ;
+	/// trueなら再検出後のfake scanから例外を返します。
+	std::atomic_bool			throwScan{} ;
 	/// trueならfake導入境界から例外を返す。
 	std::atomic_bool			throwInstall{} ;
 	/// trueなら同じ結合fixtureをASIX取得元で実行する。
@@ -290,6 +296,11 @@ ScanResult FakePreparationProvider::scan( const ScanSessionId session, const Sca
 	static_cast<void>( options) ;
 	static_cast<void>( progress) ;
 	++state_->scanCalls ;
+	// 後続Provider例外でも先行する再検出事実を終端へ保持します。
+	if( state_->throwScan) {
+		throw std::runtime_error( "fixture post-refresh scan failure") ;
+	}
+
 	// 指定された一回のscanだけを有限時間保留し、競合操作を試験できる状態を作る。
 	if( state_->holdScan.exchange( false)) {
 		state_->scanEntered.release() ;
@@ -827,8 +838,15 @@ void testWorkerScanCancellationAndApprovalBinding( TestContext &context)
 			fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 2U) ;
 		DRIVERCRATE_EXPECT( context,
 						   cancelled && cancelled->scanResult.outcome == OutcomeCode::ABORTED) ;
-		DRIVERCRATE_EXPECT( context, fixture.state->scanCancellationSeen) ;
-		DRIVERCRATE_EXPECT( context, fixture.state->scanCalls == 2U) ;
+		DRIVERCRATE_EXPECT( context, !fixture.state->scanCancellationSeen) ;
+		DRIVERCRATE_EXPECT( context, fixture.state->scanCalls == 1U) ;
+		// 通常検索の開始前取消しはProviderを呼ばず、次の新scanへ信号を漏らしません。
+		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 3U)) ;
+		const auto renewed =
+			// 次の通常検索です。
+			fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 3U) ;
+		DRIVERCRATE_EXPECT( context, renewed && renewed->scanResult.succeeded &&
+										fixture.state->scanCalls == 2U) ;
 	}
 }
 
@@ -1542,6 +1560,311 @@ void testWorkerRefreshConnection( TestContext &context)
 				  << " failures=" << context.failureCount() - before << '\n' ;
 	}
 }
+
+/** @brief 実token/CMへ触れない低位再検出fixtureの状態です。 */
+struct HardwareApiState {
+	/// 固定失敗条件。0正常、1既有効、2token拒否、3LUID拒否、4権限なし、5調整拒否です。
+	unsigned			  mode{} ;
+	/// FakeだけのGetLastError値です。
+	DWORD				  error{} ;
+	/// 低位呼出し順。1open、2lookup、3enable、4root、5再検出、6復帰、7closeです。
+	std::vector<unsigned> trace ;
+	/// API引数が限定契約に一致する場合trueです。
+	bool				  valid{true} ;
+} ;
+// 同じ試験threadの完全fake表だけが参照します。
+thread_local HardwareApiState	  *activeHardwareApi{} ;
+
+/** @brief 全APIを置換した同ABI表を生成します。
+ * @return 実token/CM関数を一つも持たない完全表です。
+ */
+hardware_refresh_detail::Transport hardwareApiTransport()
+{
+	hardware_refresh_detail::Transport calls ;	// 欠損をnativeで補いません。
+	// Fake HANDLEは同fixtureへの借用で、実kernel HANDLEではありません。
+	calls.process = []() -> HANDLE { return activeHardwareApi ; } ;
+	// 必要accessだけを確認し所有token相当を合成します。
+	calls.openToken = []( HANDLE process, DWORD access, PHANDLE token) -> BOOL {
+		auto &state = *activeHardwareApi ;	// 同threadの試験状態です。
+		state.trace.push_back( 1U) ;
+		state.valid = state.valid && process == activeHardwareApi &&
+					  access == (TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES) ;
+		// 拒否時はHANDLEを発行しません。
+		if( state.mode == 2U) {
+			state.error = ERROR_ACCESS_DENIED ;
+			return FALSE ;
+		}
+
+		*token = activeHardwareApi ;
+		return TRUE ;
+	} ;
+	// 既存の一権限名だけを受理します。
+	calls.lookupPrivilege = []( LPCWSTR system, LPCWSTR name, PLUID luid) -> BOOL {
+		auto &state = *activeHardwareApi ;	// 元errorを保持する状態です。
+		state.trace.push_back( 2U) ;
+		state.valid =
+			state.valid && system == nullptr && std::wstring_view{name} == SE_LOAD_DRIVER_NAME ;
+		luid->LowPart  = 31U ;
+		luid->HighPart = 0 ;
+		state.error	   = state.mode == 3U ? ERROR_NO_SUCH_PRIVILEGE : ERROR_SUCCESS ;
+		return state.mode == 3U ? FALSE : TRUE ;
+	} ;
+	// 一権限の元属性を保存し、復帰時の完全一致を確認します。
+	calls.adjustPrivilege = []( HANDLE token, BOOL all, PTOKEN_PRIVILEGES requested, DWORD bytes,
+							   PTOKEN_PRIVILEGES previous, PDWORD returned) -> BOOL {
+		auto &state = *activeHardwareApi ;	// 実tokenの変更は行いません。
+		state.valid = state.valid && token == activeHardwareApi && all == FALSE &&
+					  requested->PrivilegeCount == 1U &&
+					  requested->Privileges[0].Luid.LowPart == 31U ;
+		// 元属性の返却を求める最初の呼出しを記録します。
+		if( previous != nullptr) {
+			state.trace.push_back( 3U) ;
+			state.valid = state.valid && bytes == sizeof( TOKEN_PRIVILEGES) && returned != nullptr &&
+						  requested->Privileges[0].Attributes == SE_PRIVILEGE_ENABLED ;
+			previous->PrivilegeCount		   = state.mode == 1U || state.mode == 4U ? 0U : 1U ;
+			previous->Privileges[0].Luid	   = requested->Privileges[0].Luid ;
+			previous->Privileges[0].Attributes = SE_PRIVILEGE_ENABLED_BY_DEFAULT ;
+			*returned						   = sizeof( TOKEN_PRIVILEGES) ;
+			state.error						   = state.mode == 4U	? ERROR_NOT_ALL_ASSIGNED
+												 : state.mode == 5U ? ERROR_ACCESS_DENIED
+																	: ERROR_SUCCESS ;
+			return state.mode == 5U ? FALSE : TRUE ;
+		}
+
+		state.trace.push_back( 6U) ;
+		state.valid = state.valid && bytes == 0U && returned == nullptr &&
+					  requested->Privileges[0].Attributes == SE_PRIVILEGE_ENABLED_BY_DEFAULT ;
+		state.error = state.mode >= 8U ? ERROR_PRIVILEGE_NOT_HELD : ERROR_SUCCESS ;
+		return state.mode >= 8U ? FALSE : TRUE ;
+	} ;
+	// Error照会・初期化も完全fakeです。
+	calls.lastError = []() -> DWORD { return activeHardwareApi->error ; } ;
+	calls.setError	= []( DWORD error) { activeHardwareApi->error = error ; } ;
+	// 元fake HANDLEだけを閉じます。
+	calls.closeToken = []( HANDLE token) -> BOOL {
+		activeHardwareApi->valid = activeHardwareApi->valid && token == activeHardwareApi ;
+		activeHardwareApi->trace.push_back( 7U) ;
+		return TRUE ;
+	} ;
+	// Device IDを受け取らずlocal rootだけを合成します。
+	calls.locateRoot = []( PDEVINST root, DEVINSTID_W id, ULONG flags) -> CONFIGRET {
+		auto &state = *activeHardwareApi ;	// 指定rootの合成状態です。
+		state.trace.push_back( 4U) ;
+		state.valid = state.valid && id == nullptr && flags == CM_LOCATE_DEVNODE_NORMAL ;
+		*root		= 42U ;
+		return state.mode == 6U ? CR_NO_SUCH_DEVNODE : CR_SUCCESS ;
+	} ;
+	// 同期一回だけを確認しRETRY_INSTALLATIONを拒否します。
+	calls.reenumerate = []( DEVINST root, ULONG flags) -> CONFIGRET {
+		auto &state = *activeHardwareApi ;	// 同期操作の合成状態です。
+		state.trace.push_back( 5U) ;
+		state.valid = state.valid && root == 42U && flags == CM_REENUMERATE_SYNCHRONOUS ;
+		return state.mode == 7U || state.mode == 9U ? CR_ACCESS_DENIED : CR_SUCCESS ;
+	} ;
+	return calls ;
+}
+
+/** @brief 必要権限・CONFIGRET・復帰・HANDLE寿命を完全fakeで確認します。
+ * @param[in,out] context Assertion集計先です。
+ */
+void testHardwareRefreshNativeBoundary( TestContext &context)
+{
+	const int first = context.assertionCount() ;	// 新有限条件だけの分母です。
+	// 成功・既有効・各主失敗・復帰失敗・二重失敗の固定10条件を実行します。
+	for( unsigned mode = 0U; mode < 10U; ++mode) {
+		HardwareApiState state{.mode = mode} ;	// 各条件で所有状態を独立させます。
+		activeHardwareApi = &state ;
+		const auto result =
+			// 製品と同処理です。
+			hardware_refresh_detail::Access::refresh( hardwareApiTransport()) ;
+		DRIVERCRATE_EXPECT( context, state.valid && result.succeeded == (mode < 2U)) ;
+		const std::ptrdiff_t expectedRescans =
+			mode < 2U || mode >= 7U ? 1U : 0U ;	// root以前失敗は0です。
+		DRIVERCRATE_EXPECT( context, std::count( state.trace.begin(), state.trace.end(), 5U) ==
+										expectedRescans) ;
+		DRIVERCRATE_EXPECT( context, std::count( state.trace.begin(), state.trace.end(), 7U) ==
+										(mode == 2U ? 0 : 1)) ;
+		DRIVERCRATE_EXPECT( context, std::count( state.trace.begin(), state.trace.end(), 6U) ==
+										(mode == 0U || mode >= 6U ? 1 : 0)) ;
+		// 成功時の順序と、既有効権限を変更しない終了を独立確認します。
+		if( mode < 2U) {
+			DRIVERCRATE_EXPECT( context,
+							   state.trace ==
+								   (mode == 0U ? std::vector<unsigned>{1U, 2U, 3U, 4U, 5U, 6U, 7U}
+											   : std::vector<unsigned>{1U, 2U, 3U, 4U, 5U, 7U})) ;
+		}
+
+		// 権限の不存在をBOOL成功で隠しません。
+		if( mode == 4U) {
+			DRIVERCRATE_EXPECT( context,
+							   result.domain == HardwareRefreshErrorDomain::WINDOWS_ERROR &&
+								   result.error == ERROR_NOT_ALL_ASSIGNED) ;
+		}
+
+		// CONFIGRETをWin32へ取り違えず、二重失敗でも元値を保持します。
+		if( mode == 6U || mode == 7U || mode == 9U) {
+			DRIVERCRATE_EXPECT(
+				context, result.domain == HardwareRefreshErrorDomain::CONFIGURATION_MANAGER &&
+							 result.error == (mode == 6U ? CR_NO_SUCH_DEVNODE : CR_ACCESS_DENIED)) ;
+		}
+
+		DRIVERCRATE_EXPECT(
+			context, result.restoreError ==
+						 static_cast<NativeError>( mode >= 8U ? ERROR_PRIVILEGE_NOT_HELD : 0U)) ;
+	}
+
+	HardwareApiState state ;	// 欠損表・混在表から呼ばれない状態です。
+	activeHardwareApi = &state ;
+	auto calls		  = hardwareApiTransport() ;	// 完全fakeの一項目だけを欠損させます。
+	calls.reenumerate = nullptr ;
+	DRIVERCRATE_EXPECT( context, !hardware_refresh_detail::Access::refresh( calls).succeeded &&
+									state.trace.empty()) ;
+	calls				  = hardwareApiTransport() ;
+	calls.adjustPrivilege = AdjustTokenPrivileges ;
+	DRIVERCRATE_EXPECT( context, !hardware_refresh_detail::Access::refresh( calls).succeeded &&
+									state.trace.empty()) ;
+	activeHardwareApi = nullptr ;
+	std::cout << "Hardware refresh native fixture: cases=12 assertions="
+			  << context.assertionCount() - first << " real CM/token calls=0\n" ;
+}
+
+/** @brief 再検出失敗/例外/取消しではqueryを開始せず、旧sessionを失効させます。
+ * @param[in,out] context Assertion集計先です。
+ */
+void testWorkerHardwareRefreshBoundary( TestContext &context)
+{
+	// 失敗値・例外・取消し・停止・未実行seamを独立したworkerで確認します。
+	for( unsigned mode = 0U; mode < 8U; ++mode) {
+		WorkerFixture fixture ;	// 実復元/導入を呼ばない既存fixtureです。
+		fixture.worker->stop() ;
+		fixture.state->throwScan = mode == 6U ;
+		std::atomic_uint					   refreshes{} ;	// workerだけが増やす再検出回数です。
+		provider_worker_index_detail::Services services ;		// 空の索引依存をnativeへ補完しません。
+		// 明示未実行条件以外にはfake再検出を注入します。
+		if( mode != 5U) {
+			services.hardwareRefresh = [&]() -> HardwareRefreshResult {
+				++refreshes ;
+				// 例外を成功や空候補へ変換しません。
+				if( mode == 2U) {
+					throw std::runtime_error( "fixture hardware failure") ;
+				}
+
+				// 同期API復帰時の取消しは後続Providerを始めません。
+				if( mode == 3U) {
+					static_cast<void>( fixture.worker->requestScanCancel( 1U)) ;
+				}
+
+				// Stop試験は外側へ開始を通知し、有限signalを待ちます。
+				if( mode == 4U || (mode == 7U && refreshes == 1U)) {
+					fixture.state->scanEntered.release() ;
+					static_cast<void>(
+						fixture.state->scanRelease.try_acquire_for( std::chrono::seconds{3})) ;
+				}
+
+				return {mode >= 3U, HardwareRefreshStage::REENUMERATE,
+						mode == 0U	 ? HardwareRefreshErrorDomain::WINDOWS_ERROR
+						: mode == 1U ? HardwareRefreshErrorDomain::CONFIGURATION_MANAGER
+									 : HardwareRefreshErrorDomain::NONE,
+						static_cast<NativeError>( mode == 0U	  ? ERROR_PRIVILEGE_NOT_HELD
+												 : mode == 1U ? CR_ACCESS_DENIED
+															  : 0U)} ;
+			} ; // 非通信/非OS callbackです。
+		}
+
+		fixture.worker = provider_worker_index_detail::Access::create(
+			[state = fixture.state] { return std::make_unique<FakePreparationProvider>( state) ; },
+			[state = fixture.state] {
+				return std::make_unique<FakePreparationRestoreService>( state) ;
+			},
+			std::move( services)) ;
+		ScanOptions invalid{.useDefaultProviders = false,
+							.enabledProviderIds	 = {L"unknown-provider"}} ;	// 不正設定です。
+		DRIVERCRATE_EXPECT( context, !fixture.worker->requestScan( 0U) &&
+										!fixture.worker->requestScan( 1U, invalid) &&
+										refreshes == 0U) ;
+		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 1U)) ;
+		DRIVERCRATE_EXPECT( context, !fixture.worker->requestScan( 1U)) ;
+		// 先行同期処理中にqueueで取り消した二回目は、再検出もProviderも呼びません。
+		if( mode == 7U) {
+			DRIVERCRATE_EXPECT( context,
+							   fixture.state->scanEntered.try_acquire_for( std::chrono::seconds{3})) ;
+			DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 2U) &&
+											fixture.worker->requestScanCancel( 2U)) ;
+			fixture.state->scanRelease.release() ;
+			const auto first =
+				// 先行実行です。
+				fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;
+			const auto skipped =
+				// 未開始取消しです。
+				fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 2U) ;
+			DRIVERCRATE_EXPECT( context, first && first->scanResult.succeeded && skipped &&
+											skipped->scanResult.outcome == OutcomeCode::ABORTED &&
+											!skipped->hardwareRefresh && refreshes == 1U &&
+											fixture.state->scanCalls == 1U) ;
+			DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 3U)) ;
+			const auto renewed =
+				// 新しい要求です。
+				fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 3U) ;
+			DRIVERCRATE_EXPECT( context, renewed && renewed->scanResult.succeeded &&
+											renewed->hardwareRefresh &&
+											renewed->hardwareRefresh->succeeded &&
+											refreshes == 2U && fixture.state->scanCalls == 2U) ;
+			continue ;
+		}
+
+		// 同期処理は強制中断せず、stop要求後の復帰を待ちます。
+		if( mode == 4U) {
+			DRIVERCRATE_EXPECT( context,
+							   fixture.state->scanEntered.try_acquire_for( std::chrono::seconds{3})) ;
+			DRIVERCRATE_EXPECT( context, fixture.worker->requestScanCancel( 1U)) ;
+			fixture.state->scanRelease.release() ;
+			fixture.worker->stop() ;
+			DRIVERCRATE_EXPECT( context, fixture.state->scanCalls == 0U && refreshes == 1U &&
+											!fixture.worker->requestScan( 2U)) ;
+			continue ;
+		}
+
+		const auto terminal =
+			// 元終端です。
+			fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;
+		DRIVERCRATE_EXPECT( context, terminal && terminal->scanResult.succeeded == (mode == 5U) &&
+										fixture.state->scanCalls == (mode >= 5U ? 1U : 0U) &&
+										refreshes == (mode == 5U ? 0U : 1U)) ;
+		// 失敗DTOに元領域と元値を残します。
+		if( terminal && mode < 3U) {
+			DRIVERCRATE_EXPECT( context,
+							   terminal->hardwareRefresh && !terminal->hardwareRefresh->succeeded &&
+								   terminal->hardwareRefresh->error ==
+									   (mode == 0U	 ? ERROR_PRIVILEGE_NOT_HELD
+										: mode == 1U ? CR_ACCESS_DENIED
+													 : static_cast<NativeError>( E_UNEXPECTED))) ;
+			const std::array identities{
+				std::wstring{L"old-session-candidate"}} ;	// 旧許可ではありません。
+			DRIVERCRATE_EXPECT( context, fixture.worker->requestInstall(
+											2U, terminal->scanResult.scanSessionId, identities,
+											nullptr, InstallProtectionMode::WINDOWS_RESTORE_POINT)) ;
+			DRIVERCRATE_EXPECT(
+				context, fixture.waitEvent( WorkerEventKind::INSTALL_COMPLETED, 2U).has_value() &&
+							 fixture.state->installCalls == 0U &&
+							 fixture.state->restoreCalls == 0U && refreshes == 1U) ;
+		}
+
+		// 後続Provider例外でも再検出の成功を失敗・未実行へ改作しません。
+		if( terminal && mode == 6U) {
+			DRIVERCRATE_EXPECT(
+				context, terminal->hardwareRefresh && terminal->hardwareRefresh->succeeded &&
+							 terminal->scanResult.error == static_cast<NativeError>( E_UNEXPECTED)) ;
+		}
+
+		// 未実行を完了事実へ補いません。
+		if( terminal && mode == 5U) {
+			DRIVERCRATE_EXPECT( context, !terminal->hardwareRefresh) ;
+		}
+	}
+
+	std::cout << "Hardware refresh worker boundary: cases=8 real CM/token calls=0\n" ;
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -1551,6 +1874,8 @@ void testWorkerRefreshConnection( TestContext &context)
 //------------------------------------------------------------------------------
 void runProviderPreparationWorkerTests( TestContext &context)
 {
+	testHardwareRefreshNativeBoundary( context) ;
+	testWorkerHardwareRefreshBoundary( context) ;
 	testWorkerRefreshConnection( context) ;
 	testWorkerPlanAndPreparation( context) ;
 	testWorkerStaleAndInstallInvalidation( context) ;

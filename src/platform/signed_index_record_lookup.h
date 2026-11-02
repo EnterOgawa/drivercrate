@@ -2,7 +2,7 @@
 /**
  * @file signed_index_record_lookup.h
  * @brief 保存済み署名索引と同worker公開ID照合の読取り境界を定義します。
- * @version 01.02.00
+ * @version 01.03.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,10 +24,12 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  同snapshotと全context限定の私有batch集約を追加。
  * Ver.01.01.01 Shunji Ogawa  2026/10/12  Friend宣言のparameter名を契約と一致させます。
  * Ver.01.02.00 Shunji Ogawa  2026/10/14  Native私有証拠付き部分positiveと元公開ID役割を区別。
+ * Ver.01.03.00 Shunji Ogawa  2026/10/27  元aggregateを保持した認証済み個別device投影を宣言。
  * </pre>
  *
  * @note Worker内だけの読取りです。索引一致はWindows適合・導入許可ではありません。
  * @see docs/adr/0329-minimal-index-and-install-binding-contract.md
+ * @see docs/adr/0413-authenticated-per-device-index-projection.md
  */
 //------------------------------------------------------------------------------
 #pragma once
@@ -157,19 +159,101 @@ private:
 	NativeError				  error_{} ;
 } ;
 
+/** @brief 同scanの完全個別観測を元cohortと一deviceへ結ぶ私有証拠です。
+ * @note DriverStoreだけが発行します。未知Classは完全な初回Hardware観測を必要とし、適合や導入許可は示しません。
+ */
+class NativeIndexDeviceProof final {
+private:
+	/** @brief DriverStoreだけが構築する個別観測用の発行keyです。 */
+	class MintKey final {
+	public:
+		/** @brief 発行済みkeyを同じ標準所有factoryへ渡します。
+		 * @param[in] other 同じ発行呼出しのkeyです。
+		 */
+		MintKey( const MintKey &other) = default ;
+
+	private:
+		/** @brief DriverStoreの認証済み観測だけから発行します。 */
+		MintKey() = default ;
+		friend class DriverStoreProvider ;
+	} ;
+	friend class DriverStoreProvider ;
+
+public:
+	/** @brief 元公開tupleと全cohort、一deviceの完全観測を不変保存します。
+	 * @param[in] key DriverStoreだけが構築した発行keyです。
+	 * @param[in] context 元operation/scan/inventoryです。
+	 * @param[in] kind 元公開IDの役割です。
+	 * @param[in] publishedId 元公開IDをcopyします。端末raw IDではありません。
+	 * @param[in] classGuid 元公開Classをcopyします。
+	 * @param[in] ownerThread 元scanのWindows owner threadです。
+	 * @param[in] lease Providerだけが強所有する元stateです。
+	 * @param[in] devices 同callbackが返す全opaque cohortをcopyします。
+	 * @param[in] error 他node不足も保持する元診断です。
+	 * @param[in] completed 元callbackの全体完了区分です。
+	 * @param[in] deviceIdentity 完全個別観測が成立したopaque一件をcopyします。
+	 */
+	NativeIndexDeviceProof( MintKey key, IndexLookupContext context, IndexPnpIdKind kind,
+						   std::string_view publishedId, std::string_view classGuid,
+						   std::uint32_t ownerThread, std::weak_ptr<const void> lease,
+						   std::vector<std::wstring> devices, NativeError error, bool completed,
+						   std::wstring deviceIdentity) ;
+	/** @brief 元tuple/診断/全cohortと対象一件、同ownerの生存を完全照合します。
+	 * @param[in] context 使用時の全contextです。
+	 * @param[in] kind 原recordの公開ID役割です。
+	 * @param[in] publishedId 原recordの公開IDです。
+	 * @param[in] classGuid 原recordの公開Classです。
+	 * @param[in] ownerThread 使用中のWindows threadです。
+	 * @param[in] devices 元callbackの全opaque cohortです。
+	 * @param[in] error 消去しない元診断です。
+	 * @param[in] completed 元callbackの完了区分です。
+	 * @param[in] deviceIdentity 使用対象のopaque一件です。同cohortの他deviceも拒否します。
+	 * @return 全一致と元leaseの生存が成立した場合だけtrueです。
+	 */
+	[[nodiscard]] bool matches( IndexLookupContext context, IndexPnpIdKind kind,
+							   std::string_view publishedId, std::string_view classGuid,
+							   std::uint32_t ownerThread, std::span<const std::wstring> devices,
+							   NativeError error, bool completed,
+							   std::wstring_view deviceIdentity) const noexcept ;
+
+private:
+	/// 発行元の全contextです。
+	IndexLookupContext		  context_ ;
+	/// 元公開ID役割です。
+	IndexPnpIdKind			  kind_ ;
+	/// 元公開IDを所有します。
+	std::string				  publishedId_ ;
+	/// 元公開Classを所有します。
+	std::string				  classGuid_ ;
+	/// 同scanのWindows owner threadです。
+	std::uint32_t			  ownerThread_{} ;
+	/// 元scanの強所有を増やさない生存根拠です。
+	std::weak_ptr<const void> lease_ ;
+	/// 元callbackの全opaque cohortです。
+	std::vector<std::wstring> devices_ ;
+	/// 元不足診断です。
+	NativeError				  error_{} ;
+	/// 元callbackの全体完了区分です。
+	bool					  completed_{} ;
+	/// 完全個別観測が成立した一件です。
+	std::wstring			  deviceIdentity_ ;
+} ;
+
 /** @brief 公開ID一つの同期照合結果です。適合結果ではありません。 */
 struct IndexPublicIdResolution {
 	/// 結果を観測した同worker context。
-	IndexLookupContext								context ;
+	IndexLookupContext										   context ;
 	/// 同contextのinventory列挙と照合が全て完了した場合だけtrueです。
 	/// 部分inventory・入力不足・未実行ではfalseです。
-	bool											completed{} ;
+	bool													   completed{} ;
 	/// Callbackの元HRESULT。失敗を成功へまとめません。
-	NativeError										error{} ;
+	NativeError												   error{} ;
 	/// 最大4096件のopaque identity。端末raw IDを入れません。
-	std::vector<std::wstring>						devices ;
+	std::vector<std::wstring>								   devices ;
 	/// 全列挙完了と既知Class positiveの私有根拠です。一般partial DTOではnullです。
-	std::shared_ptr<const NativeIndexPositiveProof> positiveProof ;
+	std::shared_ptr<const NativeIndexPositiveProof>			   positiveProof ;
+	/// 最大32deviceの元cohortと同順の個別証拠です。未認証nodeのslotはnullです。
+	std::vector<std::shared_ptr<const NativeIndexDeviceProof>> deviceProofs ;
 } ;
 
 /** @brief 公開側IDだけを同worker present集合へ照合するread-only callbackです。
@@ -204,7 +288,9 @@ enum class IndexRecordMatchState {
 	/// 未実行・不足・障害・不正結果を保持します。
 	UNDETERMINED,
 	/// 全体は未判定ですが、私有native証拠で既知deviceだけのexact関係を確認しました。
-	VERIFIED_PARTIAL
+	VERIFIED_PARTIAL,
+	/// 元aggregateを保持したままprivate個別観測を一deviceへ投影しました。
+	VERIFIED_DEVICE
 } ;
 
 /** @brief 一致の有無から独立した読取り理由です。 */
@@ -232,7 +318,9 @@ enum class IndexRecordMatchReason {
 	/// 完了した照合が複数の異なるidentityを返しました。
 	NON_UNIQUE_RELATION,
 	/// 全体不足と元診断を保持した私有証拠付き既知positiveです。
-	VERIFIED_POSITIVE_PARTIAL
+	VERIFIED_POSITIVE_PARTIAL,
+	/// 元tuple/診断/cohortと対象一件がprivate個別証拠へ結ばれています。
+	VERIFIED_DEVICE_PROJECTION
 } ;
 
 /** @brief 公開文字列を持たないrecordとopaque deviceの結果tupleです。 */
@@ -249,7 +337,7 @@ struct IndexRecordRelation {
 	std::string					sourceId ;
 	/// 元record identity。実package identityではありません。
 	std::string					recordId ;
-	/// 完全一意または私有証拠付き部分集合内で一deviceのときだけ存在するopaqueです。
+	/// 完全一意・部分一件または認証済み個別投影の対象opaqueです。
 	std::optional<std::wstring> deviceIdentity ;
 	/// 完了結果または私有証拠で確認した有効opaque集合。未読nodeを含めません。
 	std::vector<std::wstring>	relatedDevices ;
@@ -261,6 +349,10 @@ struct IndexRecordRelation {
 	NativeError					error{} ;
 	/// VERIFIED_PARTIALだけの元native私有証拠です。同scan失効後は使用できません。
 	std::shared_ptr<const NativeIndexPositiveProof> positiveProof ;
+	/// VERIFIED_DEVICEだけの個別証拠です。同cohortの他deviceへ転用できません。
+	std::shared_ptr<const NativeIndexDeviceProof>	deviceProof ;
+	/// 個別投影の元callback完了区分です。全体不足を成功へ変更しません。
+	bool											resolutionCompleted{} ;
 } ;
 
 struct IndexRecordLookupResult ;

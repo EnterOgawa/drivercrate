@@ -10,7 +10,7 @@ Uses an explicitly rebuilt Release collector. Does not build, download dependenc
 Optional CodeSigning follows ADR0406; third-party Python runtime bytes/signatures are never changed.
 #>
 [CmdletBinding()]
-param([ValidatePattern('^\d+\.\d+\.\d+$')][string] $Version = '0.1.1',
+param([ValidatePattern('^\d+\.\d+\.\d+$')][string] $Version = '1.0.0',
     [Parameter(Mandatory)][string] $RegistrySnapshot,
     [Parameter(Mandatory)][string] $PythonRuntimeArchive,
     [Parameter(Mandatory)][string] $PythonExecutable,
