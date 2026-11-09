@@ -2,7 +2,7 @@
 /**
  * @file indexed_driver_package_inspection.cpp
  * @brief 索引hintから通常共通検査への非導入結合を実装する。
- * @version 01.00.00
+ * @version 01.03.00
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,9 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/05  実identityと通常policyの再検査を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
  * </pre>
  *
  * @note File検査は既存共通層へ委譲する。全体失敗時は部分閉包を保持せず、外部取得・
@@ -29,8 +32,11 @@
 
 #include "indexed_driver_package_inspection.h"
 #include "platform/official_file_verifier.h"
+#include "platform/official_resource_content.h"
+#include "platform/official_download_workspace.h"
 
 #include <Windows.h>
+#include <algorithm>
 
 #include <new>
 #include <stdexcept>
@@ -41,7 +47,7 @@ namespace drivercrate {
 namespace {
 
 constexpr std::uint64_t MAXIMUM_ARCHIVE_BYTES =
-	128ULL * 1024ULL * 1024ULL ;	// 通常共通層と同じ入力上限。
+	2ULL * 1024ULL * 1024ULL * 1024ULL ;	// 通常共通層と同じ入力上限。
 
 /**
  * @brief 小文字64桁の非秘密hash参照だけを受理する。
@@ -105,13 +111,36 @@ bool matchesIndexedDriverArchiveHint( const ScanSessionId			   activeScanSession
 									 const DriverArchiveInput		  &input,
 									 const OfficialDriverArchiveFormat format) noexcept
 {
-	return activeScanSessionId != 0 && input.scanSessionId == activeScanSessionId &&
+	const bool resource =
+		// 元形式の閉じた選択。
+		format == OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER ;
+	const bool planBound =
+		resource
+			? hint.resourceContent && input.resourceContent &&
+				  *hint.resourceContent == *input.resourceContent &&
+				  validOfficialResourceContentPlan( *hint.resourceContent) &&
+				  hint.resourceContent->rootBytes == hint.archiveBytes &&
+				  hint.resourceContent->rootSha256 == hint.archiveSha256 &&
+				  hint.selectedInfs.size() == 1U && hint.selectedInfs[0].nestedArchive.empty() &&
+				  hint.selectedInfs[0].infIdentity == hint.resourceContent->selectedInf
+			: !hint.resourceContent && !input.resourceContent ;	// 別形式への計画流用を拒否。
+	return planBound && activeScanSessionId != 0 && input.scanSessionId == activeScanSessionId &&
+		   hint.selectedInfs.size() <= 128U &&
+		   std::ranges::all_of(
+			   hint.selectedInfs,
+			   []( const auto &selector) {
+				   return isSafeOfficialArchiveMember( selector.infIdentity, L'\\') &&
+						  (selector.nestedArchive.empty() ||
+						   isSafeOfficialArchiveMember( selector.nestedArchive, L'\\')) ;
+			   }) &&
 		   hint.archiveBytes > 0 && hint.archiveBytes <= MAXIMUM_ARCHIVE_BYTES &&
 		   input.byteCount == hint.archiveBytes && isLowerHash( hint.indexSha256) &&
 		   isLowerHash( hint.recordSha256) && isLowerHash( hint.archiveSha256) &&
 		   input.sha256 == hint.archiveSha256 && isLocalInputPath( input.inspectionPath) &&
 		   (format == OfficialDriverArchiveFormat::ZIP ||
-			format == OfficialDriverArchiveFormat::CABINET) ;
+			format == OfficialDriverArchiveFormat::CABINET ||
+			format == OfficialDriverArchiveFormat::SEVEN_ZIP_SFX ||
+			format == OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER) ;
 }
 
 /** @see src/platform/indexed_driver_package_inspection.h 宣言側を正本とする。 */
@@ -144,9 +173,24 @@ NativeError inspectIndexedDriverPackage( const ScanSessionId				  activeScanSess
 		}
 
 		result.inputBound = true ;
-		CommonDriverPackageInspection inspection ;	// 通常の全体・個別結果を一時所有する。
-		const NativeError			  inspectionError = inspectCommonDriverPackage(
-			input, format, inspection, cancellation) ;	// 保守入口へfallbackしない。
+		CommonDriverPackageInspection inspection ;			// 通常の全体・個別結果を一時所有する。
+		NativeError					  inspectionError{} ;	// 選択集合の最初の全体拒否を保持します。
+		// 元selectorのない従来hintだけは全INFを検査します。
+		if( hint.selectedInfs.empty()) {
+			inspectionError = inspectCommonDriverPackage( input, format, inspection, cancellation) ;
+		} else {
+			std::vector<std::pair<std::wstring_view, std::wstring_view>>
+				selected ;	// 元署名recordの集合だけです。
+			selected.reserve( hint.selectedInfs.size()) ;
+			// arbitrary UI/pathではなく同じhintへ結ばれた元選択だけを渡します。
+			for( const auto &selector : hint.selectedInfs) {
+				selected.emplace_back( selector.nestedArchive, selector.infIdentity) ;
+			}
+
+			inspectionError = inspectSelectedCommonDriverPackages( input, format, selected,
+																  inspection, cancellation) ;
+		}
+
 		// 全体失敗では一部の内容合格を外へ持ち出さない。
 		if( inspectionError != 0) {
 			return fail( result,

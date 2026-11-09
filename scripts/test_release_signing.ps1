@@ -9,7 +9,8 @@ SPDX-License-Identifier: Apache-2.0
 新規fixtureだけを作成して保持する。成功は実EV署名の証拠ではない。
 #>
 [CmdletBinding()]
-param([string] $FixtureRoot = (Join-Path ([IO.Path]::GetTempPath()) ('drivercrate-signing-tests-' + [Guid]::NewGuid().ToString('N'))))
+param([string] $FixtureRoot = (Join-Path ([IO.Path]::GetTempPath()) ('drivercrate-signing-tests-' + [Guid]::NewGuid().ToString('N'))),
+    [switch] $AppOnly)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -19,7 +20,7 @@ if (Test-Path -LiteralPath $root) { throw 'SIGNING_FIXTURE_NEW_ROOT_REQUIRED' }
 [void][IO.Directory]::CreateDirectory((Join-Path $root 'scripts'))
 [void][IO.Directory]::CreateDirectory((Join-Path $root 'src/platform'))
 [void][IO.Directory]::CreateDirectory((Join-Path $root 'build/Release'))
-foreach ($name in @('index_build_profile.ps1', 'release_signing.ps1')) {
+foreach ($name in @('index_build_profile.ps1', 'release_signing.ps1', 'package-release.ps1')) {
     [IO.File]::Copy((Join-Path $repository ('scripts/' + $name)), (Join-Path $root ('scripts/' + $name)), $false)
 }
 [IO.File]::Copy((Join-Path $repository 'src/platform/index_distribution_trust.h'),
@@ -69,7 +70,14 @@ function Get-Item {
         if ($mode -ceq 'CertEku') { $cert.Extensions = @() }
         return $cert
     }
-    return Microsoft.PowerShell.Management\Get-Item @PSBoundParameters
+    $item = Microsoft.PowerShell.Management\Get-Item @PSBoundParameters
+    if ($mode -ceq 'PackageVersion' -and $LiteralPath -ceq $exe) {
+        # 人工PEにはVERSIONINFOを埋めず、版の観測だけをこの一fileへ模擬する。
+        return [pscustomobject]@{ FullName = $item.FullName; Length = $item.Length
+            Attributes = $item.Attributes; PSIsContainer = $item.PSIsContainer
+            VersionInfo = [pscustomobject]@{ ProductVersion = '1.0.1' } }
+    }
+    return $item
 }
 function Assert-ReleaseCodeSigningChain {
     <# .SYNOPSIS 実Windows chain境界を模擬する。実trustへ数えない。 #>
@@ -314,6 +322,7 @@ Invoke-Case 'outer-signature-before-final-checksum' {
 Invoke-Case 'builders-sign-before-package-and-final-checksum' {
     $app = [IO.File]::ReadAllText((Join-Path $repository 'scripts/package-release.ps1'))
     Require ($app.IndexOf('Invoke-ReleaseBuildSigning') -lt $app.IndexOf('Copy-Item -LiteralPath $releaseExecutable')) 'APP_ORDER'
+    if (-not $AppOnly) {
     $collector = [IO.File]::ReadAllText((Join-Path $repository 'scripts/package-collector.ps1'))
     Require ($collector.IndexOf('-Role Collector ') -lt $collector.IndexOf('$mapping =')) 'COLLECTOR_ORDER'
     Require ($collector.IndexOf('-Role CollectorSetup ') -lt $collector.IndexOf('$mapping =')) 'INNER_SETUP_ORDER'
@@ -322,7 +331,40 @@ Invoke-Case 'builders-sign-before-package-and-final-checksum' {
     Require ($outer.IndexOf('& $executable --check-embedded') -lt $outer.IndexOf('Invoke-ReleaseInstallerAssetSigning')) 'OUTER_AFTER_EMBED_CHECK'
     Require ($outer.IndexOf('Invoke-ReleaseInstallerAssetSigning') -lt $outer.IndexOf('[IO.File]::WriteAllText(($asset + ''.sha256'')')) 'CHECKSUM_AFTER_SIGNING'
     Require ($outer.IndexOf('Invoke-ReleaseInstallerAssetSigning') -lt $outer.IndexOf("schema = 'dc-collector-single-exe-build-v1'")) 'RESULT_AFTER_SIGNING'
+    }
 }
+Invoke-Case 'app-package-five-files-profile-and-checksum' {
+    $script:mode = 'PackageVersion'
+    foreach ($document in @('README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md')) {
+        [IO.File]::WriteAllText((Join-Path $root $document), ('SYNTHETIC ' + $document), $utf8)
+    }
+    $destination = Join-Path $root 'out/app-five-files'
+    $result = & (Join-Path $root 'scripts/package-release.ps1') -Version '1.0.1' -BuildDirectory $build -OutputDirectory $destination
+    $archive = [IO.Compression.ZipFile]::OpenRead($result.Package)
+    try {
+        $expected = @('DriverCrate.exe', 'DriverCrate.exe.index-profile.json', 'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md')
+        Require ((@($archive.Entries.FullName | Sort-Object) -join ',') -ceq ($expected -join ',')) 'APP_EXACT_FIVE_FILES'
+        foreach ($entry in $archive.Entries) {
+            $input = $entry.Open()
+            $memory = [IO.MemoryStream]::new()
+            try { $input.CopyTo($memory); $bytes = $memory.ToArray() } finally { $input.Dispose(); $memory.Dispose() }
+            $original = if ($entry.FullName -ceq 'DriverCrate.exe') { $exe } elseif ($entry.FullName -ceq 'DriverCrate.exe.index-profile.json') { $profilePath } else { Join-Path $root $entry.FullName }
+            Require ([Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)) -ceq (Get-FileHash -LiteralPath $original -Algorithm SHA256).Hash) 'APP_ENTRY_ORIGINAL_BYTES'
+        }
+    } finally { $archive.Dispose() }
+    Require ($result.Sha256 -ceq (Get-FileHash -LiteralPath $result.Package -Algorithm SHA256).Hash.ToLowerInvariant()) 'APP_ZIP_FINAL_SHA'
+    Require (([IO.File]::ReadAllText($result.Checksum)).Trim() -ceq ($result.Sha256 + '  ' + [IO.Path]::GetFileName($result.Package))) 'APP_CHECKSUM_LINE'
+}
+Invoke-Case 'app-package-version-mismatch-before-output' {
+    $script:mode = 'PackageVersion'
+    & (Join-Path $root 'scripts/package-release.ps1') -Version '1.0.0' -BuildDirectory $build -OutputDirectory (Join-Path $root 'out/version-mismatch')
+} "Executable version '1.0.1' does not match package version '1.0.0'."
+Invoke-Case 'app-package-profile-mismatch-before-output' {
+    $bad = [IO.File]::ReadAllText($profilePath) | ConvertFrom-Json
+    $bad.sha256 = '0' * 64
+    [IO.File]::WriteAllText($profilePath, ($bad | ConvertTo-Json -Compress), $utf8)
+    & (Join-Path $root 'scripts/package-release.ps1') -Version '1.0.1' -BuildDirectory $build -OutputDirectory (Join-Path $root 'out/profile-mismatch')
+} '^INDEX_BUILD_PROFILE_STALE_EXECUTABLE$'
 [ordered]@{ status = 'PASS'; cases = $caseCount; fixtureTrustOnly = $true; fixtureRoot = $root
     mockSignCalls = $signCalls; mockVerifyCalls = $verifyCalls; mockChainCalls = $chainCalls
-    realSigning = 0; realKeyOperations = 0; certificateQueries = 0; network = 0; realBuilds = 0; realPackages = 0 } | ConvertTo-Json -Compress
+    realSigning = 0; realKeyOperations = 0; certificateQueries = 0; network = 0; realBuilds = 0; realPackages = 0; syntheticAppPackages = 1 } | ConvertTo-Json -Compress

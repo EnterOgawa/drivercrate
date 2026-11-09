@@ -2,7 +2,7 @@
 /**
  * @file published_inf_identity_tests.cpp
  * @brief 架空INFの原Models節/ID種別/ClassGUIDの非許可receiptを確認します。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/14  原節/種別と欠測/元package不一致の限定試験を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
  * </pre>
  *
  * @note 架空INFだけを保護workspaceへ書きます。実device/署名成功/HTTP/導入を使用しません。
@@ -125,6 +126,32 @@ void run()
 	expect( identity.classGuid == L"{4d36e972-e325-11ce-bfc1-08002be10318}") ;
 	std::wstring expectedHash ;	// 元INFの共通hashです。
 	expect( computeBytesSha256( INF, expectedHash) == 0 && identity.infSha256 == expectedHash) ;
+	std::string manyModels ;	// 通常readerが以前から扱う128超の架空公開IDです。
+	// 一つの元Models節へ140件を追加し、公開用途だけの旧128件拒否を再現します。
+	for( unsigned ordinal = 0U; ordinal < 140U; ++ordinal) {
+		manyModels += "Fictional=Install,TESTBUS\\PUBLIC_" + std::to_string( ordinal) + "\r\n" ;
+	}
+
+	std::string manyInf{INF} ;	// 原署名/APIのfixtureは既存と同じです。
+	const auto	modelStart =
+		// x64行だけを置き換えます。
+		manyInf.find( "Fictional=Install,PCI\\VEN_1234&DEV_5678") ;
+	const auto modelEnd =
+		// 後続sourceを保持します。
+		manyInf.find( "[SourceDisksNames.amd64]", modelStart) ;
+	manyInf.replace( modelStart, modelEnd - modelStart, manyModels) ;
+	expect( writeFile( workspace, L"many.inf", manyInf)) ;
+	const std::array manyEntries{OfficialZipEntry{L"many.inf", manyInf.size()}, entries[1],
+								 entries[2]} ;	// 同じCAT/SYS参照です。
+	auto			 manyPolicy	  = policy ;	// 通常共通層と同じ有限上限です。
+	manyPolicy.maximumHardwareIds = 4096U ;
+	OfficialInfPackage manyPackage ;	// 導入を許可しない構造結果です。
+	expect( inspectOfficialInfPackage( workspace, manyEntries, L"many.inf", manyPolicy,
+									 manyPackage) == 0) ;
+	OfficialInfPublishedIdentity manyIdentity ;	// 同INFの原集合だけです。
+	expect( readOfficialInfPublishedIdentity( workspace, manyPackage, manyIdentity) == 0 &&
+		   manyIdentity.models.size() == 1U &&
+		   manyIdentity.models.front().hardwareIds.size() == 140U) ;
 	expect( verifyWindowsInfPackageIntegrity( workspace, package) !=
 		   0) ;	// Metadata成功をCAT署名へ換算しません。
 	// 別元packageという明示条件変更です。

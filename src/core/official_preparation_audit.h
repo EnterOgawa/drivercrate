@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_audit.h
  * @brief 取得後監査の非機密表示契約。
- * @version 01.01.01
+ * @version 01.02.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.01.01 Shunji Ogawa  2026/10/15  全体内容INF数とWindows照合予算を分離。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * </pre>
  *
  * @note 取得成功と独立した監査結果を扱い、全監査合格時だけ新規候補を検証します。
@@ -88,6 +89,24 @@ struct OfficialPreparationCandidatePublication {
 	std::uint32_t excludedPairCount{} ;
 	/// 最初の除外または全体失敗HRESULT。該当なしは0。
 	NativeError	  firstError{} ;
+	/// 最初のbinding拒否の単一1/必要構成2経路です。
+	std::uint32_t bindingPath{} ;
+	/// 最初の固定拒否位置です。0は未観測です。
+	std::uint32_t bindingRejection{} ;
+	/// 拒否時の元数値enumです。
+	std::uint32_t bindingObserved{} ;
+	/// 既必要計画診断の到達stageです。
+	std::uint32_t bindingStage{} ;
+	/// 元package/依存証拠の観測flagです。
+	std::uint32_t bindingFlags{} ;
+	/// 最初の未解決参照reasonです。
+	std::uint32_t dependencyReason{} ;
+	/// 元root署名の診断です。
+	NativeError	  rootSignatureError{} ;
+	/// 元依存署名の最初の診断です。
+	NativeError	  dependencySignatureError{} ;
+	/// 元依存由来の最初の診断です。
+	NativeError	  dependencyProvenanceError{} ;
 } ;
 
 /** @brief 一つの取得成功対象に対応する、workerからUIへの独立した監査結果。 */

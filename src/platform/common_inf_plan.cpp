@@ -2,7 +2,7 @@
 /**
  * @file common_inf_plan.cpp
  * @brief 共通単一INFの元取得所有・binding準備と内部選択adapterを実装する。
- * @version 01.01.01
+ * @version 01.02.00
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,8 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  生存取得から単一INFの準備計画を発行する。
  * Ver.01.01.00 Shunji Ogawa  2026/10/06  全件preflightと直前照合の指定導入adapterを追加。
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.01.02 Shunji Ogawa  2026/11/03  present Componentを含む元単一INF役割の説明を整合。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * </pre>
  *
  * @note 呼出しworkerに限定する。準備のfile固定は返却時、一括実行の固定は全callback終了時まで保持する。
@@ -419,7 +421,7 @@ CommonInfPlanExecutionResult CommonInfPlanExecutor::execute(
 		}
 
 		std::set<std::wstring> candidates ;	// 全選択のopaque候補重複を拒否する。
-		std::set<std::wstring> devices ;	// 一device一基本計画を維持する。
+		std::set<std::wstring> devices ;	// 一device一候補計画を維持する。
 		// 全identity・token・通常単一INFを最初のWindows導入より前に確認する。
 		for( std::size_t index = 0U; error == 0 && index < selections.size(); ++index) {
 			const auto &selection = selections[index] ;	// 使用中変更しない借用選択。
@@ -452,7 +454,8 @@ CommonInfPlanExecutionResult CommonInfPlanExecutor::execute(
 			if( inf.state != CommonInfInspectionState::VERIFIED || inf.error != 0 ||
 			   !inf.workspace || inf.scanSessionId != scanSessionId ||
 			   inf.closure.packages.size() != 1U || inf.closure.entries.empty() ||
-			   inf.closure.packages.front().hasExternalDependencies) {
+			   (inf.closure.packages.front().hasExternalDependencies ||
+				inf.closure.packages.front().hasUnassessedProgramReferences)) {
 				error = HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
 				break ;
 			}
@@ -694,10 +697,11 @@ NativeError CommonInfPlanFactory::prepare( const CommonInfPlanRequest &request,
 
 		const CommonInfInspection &inf =
 			state_->inspected.infs[request.infIndex] ;	// 内部で検査した閉包。
-		// 通常内容合格かつ明示依存なしの一基本INFだけを接続する。
+		// present Componentを含む通常内容合格・明示依存なしの単一INFを元役割のまま接続する。
 		if( inf.state != CommonInfInspectionState::VERIFIED || inf.error != 0 || !inf.workspace ||
 		   inf.scanSessionId != request.scanSessionId || inf.closure.packages.size() != 1U ||
-		   inf.closure.entries.empty() || inf.closure.packages.front().hasExternalDependencies) {
+		   inf.closure.entries.empty() || inf.closure.packages.front().hasExternalDependencies ||
+		   inf.closure.packages.front().hasUnassessedProgramReferences) {
 			return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
 		}
 
@@ -734,8 +738,10 @@ NativeError CommonInfPlanFactory::prepare( const CommonInfPlanRequest &request,
 			std::make_unique<CommonInfInstallPlan::State>() ;	// Binding前に確保する未commit計画。
 		pending->owner	 = state_ ;
 		pending->request = request ;
-		OfficialDriverRankAudit	  rank ;									// 現在deviceと全rankの新規観測。
-		const OfficialInfPackage &package = inf.closure.packages.front() ;	// 正常な単一基本INF。
+		OfficialDriverRankAudit	  rank ;	// 現在deviceと全rankの新規観測。
+		const OfficialInfPackage &package =
+			// 元役割を保持した正常な単一INF。
+			inf.closure.packages.front() ;
 		error = state_->rankAuditor( request.scanSessionId, request.deviceIdentity, *inf.workspace,
 									package, rank) ;
 		// Rankを独自の版比較で置換しない。

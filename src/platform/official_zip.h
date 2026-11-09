@@ -2,7 +2,7 @@
 /**
  * @file official_zip.h
  * @brief 公式ZIP package安全展開定義。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/05  非管理者の定義取込用に有限memory出力を追加。
  * </pre>
  *
  * @note 未信頼ZIPのpath traversal、重複名、reparse表現、暗号化、展開量超過を拒否して保護workspaceへ展開します。内容の真正性は呼出側が検証します。
@@ -76,6 +77,25 @@ struct OfficialZipEntry {
 	/// Scan後の差替えを検出する64桁小文字SHA-256。展開直後は空を許可する。
 	std::wstring  sha256 ;
 } ;
+
+/** @brief 全entry検査とCRC展開を通過した一通常fileの所有値です。 */
+struct OfficialZipFile {
+	/// 共通ZIP規則で検証済みの相対pathです。
+	std::wstring		   relativePath ;
+	/// 呼出側へ移す有限展開byteです。真正性は別途検証します。
+	std::vector<std::byte> bytes ;
+} ;
+
+/** @brief 全entryを共通検査し、CRC検証後の全通常fileをmemoryへ展開します。
+ * @param[in] archive 呼出し中だけ借用するZIP全byteです。
+ * @param[in] policy 呼出側が固定した有限入力・展開上限です。
+ * @param[out] files 成功時だけ公開する通常file群です。失敗時は空です。
+ * @return 成功0、形式・path・上限・CRC違反はHRESULT bit patternです。
+ * @note fileを作成せず、内容の真正性や実行許可を発行しません。
+ */
+[[nodiscard]] NativeError readOfficialZip( std::span<const std::byte>		 archive,
+										  const OfficialZipExtractionPolicy &policy,
+										  std::vector<OfficialZipFile>		&files) ;
 
 /**
  * @brief 公式ZIPの全entryと展開量を、fileを作成せず検証する。

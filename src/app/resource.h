@@ -2,7 +2,7 @@
 /**
  * @file resource.h
  * @brief DriverCrateリソースID定義。
- * @version 01.20.01
+ * @version 01.28.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -91,6 +91,14 @@
  * Ver.01.19.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * Ver.01.20.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続。
  * Ver.01.20.01 Shunji Ogawa  2026/11/02  未導入機器の取得前確認数に独立した表示を追加。
+ * Ver.01.21.00 Shunji Ogawa  2026/11/03  新版の取得前確認と版比較の表示を追加。
+ * Ver.01.22.00 Shunji Ogawa  2026/11/07  詳細候補tableの五列とlayout controlを追加。
+ * Ver.01.23.00 Shunji Ogawa  2026/11/08  候補セルの短い状態説明resourceを追加。
+ * Ver.01.24.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持。
+ * Ver.01.25.00 Shunji Ogawa  2026/11/08  匿名導入診断と保存状態・元数値の有限確認を追加。
+ * Ver.01.26.00 Shunji Ogawa  2026/11/08  同一署名索引の本体再取得省略を区別するIDを追加。
+ * Ver.01.27.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
+ * Ver.01.28.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * </pre>
  *
  * @note Win32 control、icon、および日本語文字列のresource IDを定義します。
@@ -144,8 +152,14 @@
 #define IDS_DEVICE_RESULT_ROLES 1478
 // 三列一覧のdevice詳細と明示選択を行う標準dialogです。
 #define IDD_DEVICE_DETAILS 2210
-// 同deviceの観測・候補だけを閲覧する標準comboboxです。
+// 同deviceの観測・候補だけを閲覧する単一行選択の標準tableです。
 #define IDC_DEVICE_DETAIL_CANDIDATES 2211
+#define IDC_DEVICE_DETAIL_LABEL 2212			// Tableのaccess key付きlabel。
+#define IDC_DEVICE_DETAIL_NOTICE 2213			// 閲覧と明示適用を区別する注意。
+#define IDS_DEVICE_DETAIL_COLUMN_CANDIDATE 1516	// 元順の候補名列。
+#define IDS_DEVICE_DETAIL_COLUMN_SOURCE 1517	// 取得元列。
+#define IDS_DEVICE_DETAIL_COLUMN_STATE 1518		// 現在/推奨/旧版等の区分列。
+#define IDS_DEVICE_DETAIL_REPORT_READONLY 1519	// 全体reportの閲覧専用区分。
 
 // 基本INFと必要役割を一計画として確認する表示IDです。
 #define IDS_INDEX_REQUIRED_PLAN 1416
@@ -189,6 +203,8 @@
 #define IDS_INDEX_REFRESH_PERSISTED 1460
 // 期限切れを含む発行日時・期限の検証拒否と次の確認操作を説明します。
 #define IDS_INDEX_REFRESH_INVALID_TIME 1461
+// 署名更新情報と保存本体が一致した通信省略です。
+#define IDS_INDEX_REFRESH_UNCHANGED 1462
 // 同じ非機密summaryだけを読む独立commandです。
 #define IDM_INDEX_REFRESH_DETAILS 3101
 
@@ -657,4 +673,51 @@
 #define IDS_INSTALL_PREPARATION_AMBIGUOUS 1506		// 複数の検証済み候補を無断選択しない案内です。
 #define IDS_INSTALL_PREPARATION_DOWNGRADE 1507		// 検査で判明した旧版切替の明示選択案内です。
 #define IDS_STATUS_INITIAL_PREPARATION_COUNT                                                       \
-	1508	// 未導入の実観測に結合した、未検査の初回確認数です。
+	1508											// 未導入の実観測に結合した、未検査の初回確認数です。
+#define IDS_STATUS_UPDATE_CONFIRMATION_COUNT 1509	// 元現在版より新しい取得前確認数です。
+#define IDS_REFERENCE_VERSION 1510					// 実取得後の版と異なる申告版の見出しです。
+#define IDS_REFERENCE_NEWER 1511					// 新版の取得前確認です。
+#define IDS_REFERENCE_SAME 1512						// 同版の取得前情報です。
+#define IDS_REFERENCE_OLDER 1513					// 旧版の取得前情報です。
+#define IDS_REFERENCE_UNKNOWN 1514					// 取得前版比較が未確認です。
+#define IDS_REFERENCE_VERSION_FORMAT 1515			// 候補列でも取得前を明示します。
+#define IDS_INSTALL_PREPARATION_BINDING_REJECTED                                                   \
+	1551										// 元選択との安全な結合を拒否した未開始理由です。
+#define IDS_PREPARATION_DISPLAY_READONLY 1552	// 使用済み計画を再承認しない元選択の閲覧表示です。
+#define IDS_INSTALL_PREPARATION_CANCELLED 1553	// 取得取消しと実installを区別します。
+
+// 元候補snapshotの短い説明だけを表示するresourceです。
+#define IDS_DETAIL_TIP_CURRENT 1520			// 候補セルのcurrent説明。
+#define IDS_DETAIL_TIP_CURRENT_MISSING 1521	// 候補セルのcurrent_missing説明。
+#define IDS_DETAIL_TIP_STALE 1522			// 候補セルのstale説明。
+#define IDS_DETAIL_TIP_INAPPLICABLE 1523	// 候補セルのinapplicable説明。
+#define IDS_DETAIL_TIP_INITIAL 1524			// 候補セルのinitial説明。
+#define IDS_DETAIL_TIP_PENDING_NEWER 1525	// 候補セルのpending_newer説明。
+#define IDS_DETAIL_TIP_PENDING_SAME 1526	// 候補セルのpending_same説明。
+#define IDS_DETAIL_TIP_PENDING_OLDER 1527	// 候補セルのpending_older説明。
+#define IDS_DETAIL_TIP_UNKNOWN 1528			// 候補セルのunknown説明。
+#define IDS_DETAIL_TIP_NEWER 1529			// 候補セルのnewer説明。
+#define IDS_DETAIL_TIP_SAME 1530			// 候補セルのsame説明。
+#define IDS_DETAIL_TIP_OLDER 1531			// 候補セルのolder説明。
+#define IDS_DETAIL_TIP_NO_PLAN 1532			// 候補セルのno_plan説明。
+#define IDS_DETAIL_TIP_FILTERED 1533		// 候補セルのfiltered説明。
+#define IDS_DETAIL_TIP_NAME 1534			// 候補セルのname説明。
+#define IDS_DETAIL_TIP_VERSION 1535			// 候補セルのversion説明。
+#define IDS_DETAIL_TIP_VERSION_UNKNOWN 1536	// 候補セルのversion_unknown説明。
+#define IDS_DETAIL_TIP_DATE_UNKNOWN 1537	// 候補セルのdate_unknown説明。
+#define IDS_DETAIL_TIP_DATE_CURRENT 1538	// 候補セルのdate_current説明。
+#define IDS_DETAIL_TIP_DATE_CHECKED 1539	// 候補セルのdate_checked説明。
+#define IDS_DETAIL_TIP_DATE_PENDING 1540	// 候補セルのdate_pending説明。
+#define IDS_DETAIL_TIP_SOURCE_CURRENT 1541	// 候補セルのsource_current説明。
+#define IDS_DETAIL_TIP_SOURCE_INDEX 1542	// 候補セルのsource_index説明。
+#define IDS_DETAIL_TIP_SOURCE_UNKNOWN 1543	// 候補セルのsource_unknown説明。
+#define IDS_DETAIL_TIP_SOURCE 1544			// 候補セルのsource説明。
+#define IDS_DETAIL_TIP_REPORT 1545			// 候補セルのreport説明。
+#define IDS_DEVICE_DETAIL_DISTINCT_INFORMATION                                                     \
+	1546											// 同表示でも別に保持する配布情報の短い識別です。
+#define IDS_DETAIL_TIP_DISTINCT_INFORMATION 1547	// 同一性未証明の別情報を保持する理由です。
+#define IDS_DIAGNOSTIC_STORAGE_SAVED 1548			// 保存済みの匿名診断件数です。
+#define IDS_DIAGNOSTIC_STORAGE_PENDING 1549			// 保存待ち/未保存を示します。
+#define IDS_DIAGNOSTIC_STORAGE_FAILED 1550			// 固定診断番号だけで保存不能を案内します。
+
+#define IDS_RETAINED_CHECKBOX_TIP 1554	// 元checkboxのreadonly表示を説明します。

@@ -2,7 +2,7 @@
 /**
  * @file maintenance_inf_integrity_tests.cpp
  * @brief 保守INFの部分署名・全参照と通常導入policyを専用link境界で検証する。
- * @version 01.09.01
+ * @version 01.09.02
  * @date 2026/10/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.08.00 Shunji Ogawa  2026/10/08  合成INFのAPI全値境界12群42構成と元byte結合を観測。
  * Ver.01.09.00 Shunji Ogawa  2026/10/08  同元byteと全値・caller・named13の52合成構成と元失敗保持を回帰。
  * Ver.01.09.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.09.02 Shunji Ogawa  2026/11/09  Type2内容成功と導入route拒否を分離し原拒否分母を維持。
  * </pre>
  *
  * @note 一同期scopeで架空署名とnative観測を借用する。実署名・PnP・導入の合格ではない。
@@ -3274,16 +3275,18 @@ void testActionPolicyRows( TestContext &context)
 			continue ;
 		}
 
-		const bool rejected =
-			index >= 4U ;						// 正常四形を保持し、Run／CoInstaller登録とsoftware予約を拒否する。
-		const auto &row = result.infs.front() ;	// 同じ原rootへ結ぶ一結果。
-		DRIVERCRATE_EXPECT( context,
-						   row.state == (rejected ? CommonInfInspectionState::CLOSURE_REJECTED
-												  : CommonInfInspectionState::VERIFIED) &&
-							   row.error == (rejected ? static_cast<drivercrate::NativeError>(
-															HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))
-													  : 0)) ;
-		DRIVERCRATE_EXPECT( context, fixture.signatureCalls.size() == (rejected ? 0U : 1U) &&
+		const bool contentRejected =
+			index >= 4U && index < 8U ;						// Run／CoInstaller登録の既知拒否を内容検査でも保持します。
+		const bool	routeRejected = index >= 4U ;			// Type2内容成功も独立appの導入許可にはしません。
+		const auto &row			  = result.infs.front() ;	// 同じ原rootへ結ぶ一結果。
+		DRIVERCRATE_EXPECT(
+			context,
+			row.state == (contentRejected ? CommonInfInspectionState::CLOSURE_REJECTED
+										  : CommonInfInspectionState::VERIFIED) &&
+				row.error == (contentRejected ? static_cast<drivercrate::NativeError>(
+													HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))
+											  : 0)) ;
+		DRIVERCRATE_EXPECT( context, fixture.signatureCalls.size() == (contentRejected ? 0U : 1U) &&
 										fixture.nativeCalls == 0U) ;
 		// 署名到達した正例は同じINF／CATと一source集合だけを要求する。
 		if( !fixture.signatureCalls.empty()) {
@@ -3321,13 +3324,14 @@ void testActionPolicyRows( TestContext &context)
 							 (fileCoverageComplete ? MaintenanceInspectionState::PASSED
 												   : MaintenanceInspectionState::NOT_CHECKED) &&
 						 content.integrity.error == 0) ;
-		DRIVERCRATE_EXPECT( context, content.installRoute.state ==
-											(rejected ? MaintenanceInspectionState::UNSUPPORTED
-													  : MaintenanceInspectionState::PASSED) &&
-										content.installRoute.error ==
-											(rejected ? static_cast<drivercrate::NativeError>(
-															HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))
-													  : 0)) ;
+		DRIVERCRATE_EXPECT( context,
+						   content.installRoute.state ==
+								   (routeRejected ? MaintenanceInspectionState::UNSUPPORTED
+												  : MaintenanceInspectionState::PASSED) &&
+							   content.installRoute.error ==
+								   (routeRejected ? static_cast<drivercrate::NativeError>(
+														HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))
+												  : 0)) ;
 		DRIVERCRATE_EXPECT( context,
 						   content.applicability.state == MaintenanceInspectionState::NOT_CHECKED &&
 							   content.dependency.state == MaintenanceInfDependencyState::NONE) ;
@@ -3781,11 +3785,12 @@ int main()
 		drivercrate::test::testResidualReferenceObservation( context) ;
 		std::cout << "Original regression assertions: " << context.assertionCount()
 				  << ", failures: " << context.failureCount() << '\n' ;
+		// Type2内容成功でも原署名tupleを確認するため、旧拒否時より期待が一件増えます。
 		DRIVERCRATE_EXPECT( context,
-						   context.assertionCount() == 2605 && context.failureCount() == 0) ;
+						   context.assertionCount() == 2606 && context.failureCount() == 0) ;
 		drivercrate::test::testFieldCompletenessBoundary( context) ;
 		DRIVERCRATE_EXPECT( context,
-						   context.assertionCount() == 3119 && context.failureCount() == 0) ;
+						   context.assertionCount() == 3120 && context.failureCount() == 0) ;
 		drivercrate::test::testCompleteValueProof( context) ;
 	} catch( ...) {
 		// payload・path・commandを出力せず、予期しないfixture失敗を拒否終了へ残す。

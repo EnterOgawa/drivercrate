@@ -2,7 +2,7 @@
 /**
  * @file metadata_inventory_tests.h
  * @brief 現在属性列挙の上限・欠損・停止境界の決定的試験。
- * @version 01.03.00
+ * @version 01.04.00
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/11  秘密属性resolverと保存snapshotの内部試験を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/10/11  通常workerの同scan署名索引読取り境界を接続。
  * Ver.01.03.00 Shunji Ogawa  2026/10/14  Native部分positiveから同署名取得準備の正負を追加。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * </pre>
  *
  * @note 現在属性の五APIを全てfakeへ置換し、実device列挙と導入を行わない。
@@ -32,6 +33,8 @@
 
 #pragma once
 #include "platform/signed_index_store.h"
+#include "platform/signed_index_scan.h"
+#include <string_view>
 #include <chrono>
 #include <memory>
 namespace drivercrate::test {
@@ -67,4 +70,39 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 void runNativePartialIndexPreparationTests(
 	TestContext &context, std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
 	std::chrono::sys_seconds nowUtc) ;
+/** @brief 全fake captureの本native matcherで全record進行と実資源を確認します。
+ * @param[in,out] context Assertion集計先です。
+ * @param[in] store RAM署名だけの実隔離storeです。
+ * @param[in] nowUtc 同fixtureの信頼UTCです。
+ * @param[in] expectedRecords 元全record件数です。
+ * @param[in] expectedInputs 元全公開ID件数です。
+ * @param[in] tailId 最後の一件だけが一致する架空公開IDです。
+ * @param[in] large trueはpresent4096、falseは一件です。
+ * @param[in] realClock trueだけ実時間/30秒・1GiBを性能分母にします。
+ * @param[in] cancelOnFinalProgress trueは最後のprogress内で取消します。
+ * @return 原scan summaryです。実inventory/通信/復旧/導入を行いません。
+ */
+[[nodiscard]] IndexScanSummary runIndexCapacityNativeScan(
+	TestContext &context, std::shared_ptr<SignedIndexStore> store, std::chrono::sys_seconds nowUtc,
+	std::size_t expectedRecords, std::size_t expectedInputs, std::string_view tailId, bool large,
+	bool realClock, bool cancelOnFinalProgress = false) ;
+/** @brief 全NO_RELATIONを省略した私有coverageの元lease/連続prefixを確認します。
+ * @param[in,out] context Assertion集計先です。
+ * @param[in] snapshot 実RAM署名/隔離保存/再読の元snapshotです。
+ * @param[in] nowUtc 同fixtureの信頼UTCです。
+ */
+void runIndexCapacityNativeLeaseChecks( TestContext										&context,
+									   std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
+									   std::chrono::sys_seconds							 nowUtc) ;
+
+/** @brief 本native二node proofの全cohort copy保持32768/32769を確認します。
+ * @param[in,out] context 共通集計先です。
+ * @param[in] snapshot RAM署名/隔離storeの正規record集合です。
+ * @param[in] nowUtc 原期限を検査するfixture UTCです。
+ * @param[in] overflowing trueは一opaque余る末尾recordを含みます。
+ */
+void runIndexCapacityProjectionBoundary( TestContext										 &context,
+										std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
+										std::chrono::sys_seconds nowUtc, bool overflowing) ;
+
 }

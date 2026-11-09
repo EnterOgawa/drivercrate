@@ -2,7 +2,7 @@
 /**
  * @file official_seven_zip.cpp
  * @brief 公式7z package有限展開実装。
- * @version 01.00.01
+ * @version 01.02.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,8 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
  * </pre>
  *
  * @note LZMA SDKをread-only memory streamと有限allocatorの内側で使用します。選択fileが要求するsolid folder量をdecodeとfile作
@@ -42,6 +44,7 @@
 
 #include "platform/official_download_workspace.h"
 #include "platform/official_file_verifier.h"
+#include "platform/official_mapped_file.h"
 
 #include <Windows.h>
 
@@ -51,6 +54,8 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <memory>
+#include <functional>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -89,7 +94,9 @@ constexpr UInt32		NO_FOLDER_INDEX = std::numeric_limits<UInt32>::max() ;	// Fold
  */
 struct alignas( std::max_align_t) AllocationHeader {
 	/// 上限計算へ含めたSDK要求byte数。
-	std::size_t requestedSize ;
+	std::size_t							requestedSize ;
+	/// 非空なら自身のfile-backed viewを保持するC callback境界のowner。
+	std::unique_ptr<OfficialMappedFile> mapping ;
 } ;
 
 /**
@@ -97,15 +104,27 @@ struct alignas( std::max_align_t) AllocationHeader {
  */
 struct BoundedAllocator {
 	/// SDKへ公開するcallback table。必ず先頭に置く。
-	ISzAlloc	interface ;
+	ISzAlloc				   interface ;
 	/// 同時保持できる要求byte数上限。
-	std::size_t maximumActiveBytes ;
+	std::size_t				   maximumActiveBytes ;
 	/// 一回で受理する要求byte数上限。
-	std::size_t maximumSingleBytes ;
+	std::size_t				   maximumSingleBytes ;
 	/// 現在SDKへ貸し出している要求byte数。
-	std::size_t activeBytes ;
+	std::size_t				   activeBytes ;
 	/// trueの場合はpolicy上限により拒否した。
-	bool		limitExceeded ;
+	bool					   limitExceeded ;
+	/// decode時だけ借用する私有scratch領域。
+	OfficialDownloadWorkspace *mappedWorkspace{} ;
+	/// 同時mapping byteの有限quota。
+	std::uint64_t			   maximumMappedBytes{} ;
+	/// headerを含む現在mapping byte数。
+	std::uint64_t			   mappedBytes{} ;
+	/// 同時mapping byte数の実最大値。
+	std::uint64_t			   mappedPeakBytes{} ;
+	/// 自身の新規scratch名の単調連番。
+	std::uint64_t			   mappedSequence{} ;
+	/// OSのmapping/容量失敗をSDK memory診断へ潰さず保持する。
+	NativeError				   ioError{} ;
 } ;
 
 /**
@@ -113,14 +132,34 @@ struct BoundedAllocator {
  */
 struct MemoryLookStream {
 	/// SDKへ公開するcallback table。必ず先頭に置く。
-	ILookInStream interface ;
+	ILookInStream				 interface ;
 	/// 呼出し中だけ有効なread-only archive先頭。
-	const Byte	 *data ;
+	const Byte					*data ;
 	/// Archive全体のbyte数。
-	std::size_t	  size ;
+	std::size_t					 size ;
 	/// 次にLookまたはReadする0-origin位置。
-	std::size_t	  position ;
+	std::size_t					 position ;
+	/// 同期readerが所有する非blocking取消し照会。
+	const std::function<bool()> *cancellation{} ;
 } ;
+
+/** @brief C callback境界から例外を出さず取消しを照会する。
+ * @param[in] stream 同期readerの元stream。
+ * @return 明示取消しまたはcallback異常ならtrue。
+ */
+bool cancelledStream( const MemoryLookStream &stream) noexcept
+{
+	// 照会のない従来callerを変更しません。
+	if( stream.cancellation == nullptr || !*stream.cancellation) {
+		return false ;
+	}
+
+	try {
+		return (*stream.cancellation)() ;
+	} catch( ...) {
+		return true ;
+	}
+}
 
 /**
  * @brief Archive内のpath衝突確認で、fileと親directoryを区別する。
@@ -301,6 +340,44 @@ NativeError UniqueFile::close() noexcept
 	}
 
 	BoundedAllocator &allocator = allocatorFromInterface( interface) ;	// 所有上限状態。
+	// 大きなdecode出力だけを私有fileへ置き、heap上限を撤廃しません。
+	if( allocator.mappedWorkspace != nullptr &&
+	   size > (std::min)( allocator.maximumSingleBytes, std::size_t{4U * 1024U * 1024U})) {
+		// headerも含めて共同disk quotaへ先に予約します。
+		if( size > std::numeric_limits<std::size_t>::max() - sizeof( AllocationHeader) ||
+		   allocator.mappedBytes > allocator.maximumMappedBytes ||
+		   size + sizeof( AllocationHeader) > allocator.maximumMappedBytes - allocator.mappedBytes) {
+			allocator.limitExceeded = true ;
+			return nullptr ;
+		}
+
+		try {
+			auto mapping = std::make_unique<OfficialMappedFile>() ;	// 成功までlocalが所有します。
+			// 所有scratchだけに用いる内部連番名です。
+			const auto name	 = L"solid-" + std::to_wstring( allocator.mappedSequence++) + L".bin" ;
+			const auto bytes = size + sizeof( AllocationHeader) ;	// SDK headerも同fileへ保持します。
+			// 同じ入力・所有操作の元診断です。
+			const auto error = mapping->create( *allocator.mappedWorkspace, name, bytes,
+											   allocator.maximumMappedBytes) ;
+			// OS失敗を大容量mallocへのfallbackで隠しません。
+			if( error != 0) {
+				allocator.ioError = error ;
+				return nullptr ;
+			}
+
+			auto *const header =
+				new( mapping->writableBytes().data()) AllocationHeader{size, nullptr} ;
+			header->mapping = std::move( mapping) ;
+			allocator.mappedBytes += bytes ;
+			allocator.mappedPeakBytes =
+				(std::max)( allocator.mappedPeakBytes, allocator.mappedBytes) ;
+			return header + 1 ;
+		} catch( const std::bad_alloc &) {
+			allocator.ioError = E_OUTOFMEMORY ;
+			return nullptr ;
+		}
+	}
+
 	// 単一・累積確保上限と管理 header を含む size overflow を検出して拒否する。
 	if( allocator.activeBytes > allocator.maximumActiveBytes ||
 	   size > allocator.maximumSingleBytes ||
@@ -318,8 +395,9 @@ NativeError UniqueFile::close() noexcept
 		return nullptr ;
 	}
 
-	auto *const header	  = static_cast<AllocationHeader *>( allocation) ;	// 解放時に参照するheader。
-	header->requestedSize = size ;
+	auto *const header =
+		// C allocator境界のownerです。
+		new( allocation) AllocationHeader{size, nullptr} ;
 	allocator.activeBytes += size ;
 	return header + 1 ;
 }
@@ -343,6 +421,21 @@ void freeBoundedSdkMemory( ISzAllocPtr interface, void *address) noexcept
 
 	BoundedAllocator &allocator = allocatorFromInterface( interface) ;		// 所有上限状態。
 	auto *const header = static_cast<AllocationHeader *>( address) - 1 ;	// 確保時に付加したheader。
+	// file-backed headerのownerをviewの外へ移してからunmapします。
+	if( header->mapping) {
+		const auto bytes   = header->requestedSize + sizeof( AllocationHeader) ;	// 元予約量です。
+		auto	   mapping = std::move( header->mapping) ;							// headerの寿命より長く所有します。
+		header->~AllocationHeader() ;
+		allocator.mappedBytes -= bytes ;
+		const auto error = mapping->close() ;	// 自身のscratchだけを回収します。
+		// 最初のOS回収診断だけを保持します。
+		if( error != 0 && allocator.ioError == 0) {
+			allocator.ioError = error ;
+		}
+
+		return ;
+	}
+
 	// 管理対象の残量を超えない解放量だけを累積確保量から差し引く。
 	if( header->requestedSize <= allocator.activeBytes) {
 		allocator.activeBytes -= header->requestedSize ;
@@ -351,6 +444,7 @@ void freeBoundedSdkMemory( ISzAllocPtr interface, void *address) noexcept
 		allocator.activeBytes = 0U ;
 	}
 
+	header->~AllocationHeader() ;
 	std::free( header) ;
 }
 
@@ -390,7 +484,14 @@ void freeBoundedSdkMemory( ISzAllocPtr interface, void *address) noexcept
 		return SZ_ERROR_PARAM ;
 	}
 
-	MemoryLookStream &stream = streamFromInterface( interface) ;	// 現在のstream状態。
+	// 同期readerが借用する同じstream状態です。
+	MemoryLookStream &stream = streamFromInterface( interface) ;
+	// 原packed dataの各読取り境界で取消しを反映します。
+	// 現在のstream状態。
+	if( cancelledStream( stream)) {
+		return SZ_ERROR_PROGRESS ;
+	}
+
 	// 現在位置が stream 末尾を超える不正状態では data を参照しない。
 	if( stream.position > stream.size) {
 		return SZ_ERROR_PARAM ;
@@ -420,7 +521,14 @@ void freeBoundedSdkMemory( ISzAllocPtr interface, void *address) noexcept
 		return SZ_ERROR_PARAM ;
 	}
 
-	MemoryLookStream &stream = streamFromInterface( interface) ;	// 現在のstream状態。
+	// 同期readerが借用する同じstream状態です。
+	MemoryLookStream &stream = streamFromInterface( interface) ;
+	// 原packed dataの各読取り境界で取消しを反映します。
+	// 現在のstream状態。
+	if( cancelledStream( stream)) {
+		return SZ_ERROR_PROGRESS ;
+	}
+
 	// 現在位置が stream の範囲外なら残量計算を行わない。
 	if( stream.position > stream.size) {
 		return SZ_ERROR_PARAM ;
@@ -455,7 +563,14 @@ void freeBoundedSdkMemory( ISzAllocPtr interface, void *address) noexcept
 		return SZ_ERROR_PARAM ;
 	}
 
-	MemoryLookStream &stream = streamFromInterface( interface) ;	// 現在のstream状態。
+	// 同期readerが借用する同じstream状態です。
+	MemoryLookStream &stream = streamFromInterface( interface) ;
+	// 原packed dataの各読取り境界で取消しを反映します。
+	// 現在のstream状態。
+	if( cancelledStream( stream)) {
+		return SZ_ERROR_PROGRESS ;
+	}
+
 	// 読取り位置が stream 範囲外の場合は不正 parameter とする。
 	if( stream.position > stream.size) {
 		return SZ_ERROR_PARAM ;
@@ -563,8 +678,15 @@ void freeBoundedSdkMemory( ISzAllocPtr interface, void *address) noexcept
 		return SZ_ERROR_PARAM ;
 	}
 
-	MemoryLookStream &stream = streamFromInterface( interface) ;	// 現在のstream状態。
-	std::size_t		  target{} ;									// 検証後の絶対位置。
+	// 同期readerが借用する同じstream状態です。
+	MemoryLookStream &stream = streamFromInterface( interface) ;
+	// 原packed dataの各読取り境界で取消しを反映します。
+	// 現在のstream状態。
+	if( cancelledStream( stream)) {
+		return SZ_ERROR_PROGRESS ;
+	}
+
+	std::size_t target{} ;	// 検証後の絶対位置。
 	// 要求位置を安全な範囲へ解決できなければ現在位置を変更しない。
 	if( !calculateSeekPosition( stream.position, stream.size, *position, origin, target)) {
 		return SZ_ERROR_PARAM ;
@@ -602,35 +724,65 @@ public:
      *
      * @param[in] archive Instance存続中に有効な7z全byte列。
      * @param[in] policy 事前検証済みのallocator上限。
+     * @param[in] cancellation 同期readerより長く生存する任意の取消し照会。nullptrは照会なし。
      */
 	//------------------------------------------------------------------------------
 	SevenZipReader( const std::span<const std::byte>		   archive,
-				   const OfficialSevenZipExtractionPolicy &policy) noexcept
+				   const OfficialSevenZipExtractionPolicy &policy,
+				   const std::function<bool()>			  *cancellation = nullptr)
 	{
 		mainAllocator_.interface.Alloc	  = allocateBoundedSdkMemory ;
 		mainAllocator_.interface.Free	  = freeBoundedSdkMemory ;
 		mainAllocator_.maximumActiveBytes = static_cast<std::size_t>( policy.maximumAllocatorBytes) ;
-		mainAllocator_.maximumSingleBytes =
-			static_cast<std::size_t>( policy.maximumSingleAllocationBytes) ;
+		mainAllocator_.maximumSingleBytes = static_cast<std::size_t>(
+			policy.maximumMappedOutputBytes != 0U ? policy.maximumAllocatorBytes
+												  : policy.maximumSingleAllocationBytes) ;
 
 		temporaryAllocator_.interface.Alloc = allocateBoundedSdkMemory ;
 		temporaryAllocator_.interface.Free	= freeBoundedSdkMemory ;
 		temporaryAllocator_.maximumActiveBytes =
 			static_cast<std::size_t>( policy.maximumAllocatorBytes) ;
-		temporaryAllocator_.maximumSingleBytes =
-			static_cast<std::size_t>( policy.maximumSingleAllocationBytes) ;
+		temporaryAllocator_.maximumSingleBytes = static_cast<std::size_t>(
+			policy.maximumMappedOutputBytes != 0U ? policy.maximumAllocatorBytes
+												  : policy.maximumSingleAllocationBytes) ;
 
 		stream_.interface.Look = lookMemoryStream ;
 		stream_.interface.Skip = skipMemoryStream ;
 		stream_.interface.Read = readMemoryStream ;
 		stream_.interface.Seek = seekMemoryStream ;
 		// std::byteとSDK Byteは共に一byte型であり、read-only C API境界だけでviewを変換する。
-		stream_.data = reinterpret_cast<const Byte *>( archive.data()) ;
-		stream_.size = archive.size() ;
+		stream_.data		 = reinterpret_cast<const Byte *>( archive.data()) ;
+		stream_.size		 = archive.size() ;
+		stream_.cancellation = cancellation ;
 		SzArEx_Init( &database_) ;
 		ensureCrcTableInitialized() ;
 		openResult_ = SzArEx_Open( &database_, &stream_.interface, &mainAllocator_.interface,
 								  &temporaryAllocator_.interface) ;
+		// 大容量decodeだけに私有file-backed出力を設定します。
+		if( openResult_ == SZ_OK && policy.maximumMappedOutputBytes != 0U) {
+			// Open用metadata枠をdecode中のBCJ2中間heapへ流用しません。
+			temporaryAllocator_.maximumSingleBytes =
+				static_cast<std::size_t>( policy.maximumSingleAllocationBytes) ;
+			mainAllocator_.maximumSingleBytes =
+				static_cast<std::size_t>( policy.maximumSingleAllocationBytes) ;
+			mainAllocator_.ioError = mappedWorkspace_.initialize( L"seven-zip-solid", 1U) ;
+			// scratchを作れない場合にheap全展開へ戻りません。
+			if( mainAllocator_.ioError == 0) {
+				mainAllocator_.mappedWorkspace	  = &mappedWorkspace_ ;
+				mainAllocator_.maximumMappedBytes = policy.maximumMappedOutputBytes ;
+				// 未信頼folder宣言からpolicy外のvectorを確保しません。
+				if( database_.db.NumFolders > policy.maximumEntryCount) {
+					mainAllocator_.limitExceeded = true ;
+				} else {
+					try {
+						folderCache_.reserve( database_.db.NumFolders) ;
+					} catch( const std::bad_alloc &) {
+						SzArEx_Free( &database_, &mainAllocator_.interface) ;
+						throw ;
+					}
+				}
+			}
+		}
 	}
 
 	//------------------------------------------------------------------------------
@@ -642,7 +794,16 @@ public:
 	//------------------------------------------------------------------------------
 	~SevenZipReader()
 	{
-		ISzAlloc_Free( &mainAllocator_.interface, extractedBuffer_) ;
+		// 共有modeは一意folderの全bufferを一度だけ回収します。
+		if( mainAllocator_.mappedWorkspace != nullptr) {
+			// 保持した一意folderだけを一度ずつ回収します。
+			for( const auto &folder : folderCache_) {
+				ISzAlloc_Free( &mainAllocator_.interface, folder.buffer) ;
+			}
+		} else {
+			ISzAlloc_Free( &mainAllocator_.interface, extractedBuffer_) ;
+		}
+
 		SzArEx_Free( &database_, &mainAllocator_.interface) ;
 	}
 
@@ -717,6 +878,42 @@ public:
 	[[nodiscard]] SRes extract( const UInt32 archiveIndex, std::size_t &offset,
 							   std::size_t &processedSize) noexcept
 	{
+		// cache命中時も選択member境界で取消しを反映します。
+		if( cancelledStream( stream_)) {
+			return SZ_ERROR_PROGRESS ;
+		}
+
+		// 同一操作の選択folderだけを保持し、再照会で大solidを再decodeしません。
+		if( mainAllocator_.mappedWorkspace != nullptr) {
+			const auto folder =
+				database_.FileToFolder[archiveIndex] ;	// preflight済みの元folderです。
+			// 同readerの一意folderを探し、cacheはこの呼出し中生存します。
+			const auto cached = std::ranges::find_if(
+				folderCache_, [&]( const auto &item) { return item.index == folder ; }) ;
+			blockIndex_			 = cached == folderCache_.end() ? NO_FOLDER_INDEX : folder ;
+			extractedBuffer_	 = cached == folderCache_.end() ? nullptr : cached->buffer ;
+			extractedBufferSize_ = cached == folderCache_.end() ? 0U : cached->bytes ;
+			// 同じSDKのdecodeとCRC検証の元結果です。
+			const auto result =
+				SzArEx_Extract( &database_, &stream_.interface, archiveIndex, &blockIndex_,
+							   &extractedBuffer_, &extractedBufferSize_, &offset, &processedSize,
+							   &mainAllocator_.interface, &temporaryAllocator_.interface) ;
+			// 完全decode/CRC成功の新folderだけを元予約済みvectorへ登録します。
+			if( cached == folderCache_.end() && extractedBuffer_ != nullptr) {
+				// 破損や取消し途中の出力を次回の検査済みcacheへ残しません。
+				if( result != SZ_OK) {
+					ISzAlloc_Free( &mainAllocator_.interface, extractedBuffer_) ;
+					extractedBuffer_	 = nullptr ;
+					extractedBufferSize_ = 0U ;
+					blockIndex_			 = NO_FOLDER_INDEX ;
+				} else {
+					folderCache_.push_back( {blockIndex_, extractedBuffer_, extractedBufferSize_}) ;
+				}
+			}
+
+			return result ;
+		}
+
 		return SzArEx_Extract( &database_, &stream_.interface, archiveIndex, &blockIndex_,
 							  &extractedBuffer_, &extractedBufferSize_, &offset, &processedSize,
 							  &mainAllocator_.interface, &temporaryAllocator_.interface) ;
@@ -734,24 +931,58 @@ public:
 	{
 		return {extractedBuffer_, extractedBufferSize_} ;
 	}
+	/** @brief OSのmapping診断を取得する。
+	 * @return 最初の元HRESULT。
+	 */
+	[[nodiscard]] NativeError ioError() const noexcept
+	{
+		return mainAllocator_.ioError ;
+	}
+	/** @brief 私有mapped出力の実最大byte数を取得する。
+	 * @return headerを含むpeak byte数。
+	 */
+	[[nodiscard]] std::uint64_t mappedPeakBytes() const noexcept
+	{
+		return mainAllocator_.mappedPeakBytes ;
+	}
+	/** @brief 共有された一意folderのdecode回数を取得する。
+	 * @return cacheに保持したfolder数。
+	 */
+	[[nodiscard]] std::size_t decodedBlockCount() const noexcept
+	{
+		return folderCache_.size() ;
+	}
 
 private:
+	/** @brief 同じreaderの一意solid出力を保持する。 */
+	struct CachedFolder {
+		/// 元folder index。
+		UInt32		index ;
+		/// SDK allocatorだけが解放するbuffer。
+		Byte	   *buffer ;
+		/// 実buffer byte数。
+		std::size_t bytes ;
+	} ;
+	/// SDK bufferが解放されるまで先に生存する私有scratch所有者。
+	OfficialDownloadWorkspace mappedWorkspace_ ;
+	/// 元folder数を事前reserveした共有decode出力。
+	std::vector<CachedFolder> folderCache_ ;
 	/// Databaseと展開buffer用有限allocator。
-	BoundedAllocator mainAllocator_{} ;
+	BoundedAllocator		  mainAllocator_{} ;
 	/// Openとdecode作業用有限allocator。
-	BoundedAllocator temporaryAllocator_{} ;
+	BoundedAllocator		  temporaryAllocator_{} ;
 	/// 呼出し側archiveを所有しないSDK stream。
-	MemoryLookStream stream_{} ;
+	MemoryLookStream		  stream_{} ;
 	/// Main allocatorで所有する7z metadata。
-	CSzArEx			 database_{} ;
+	CSzArEx					  database_{} ;
 	/// Archive openのSDK result code。
-	SRes			 openResult_{SZ_ERROR_FAIL} ;
+	SRes					  openResult_{SZ_ERROR_FAIL} ;
 	/// Extract cacheが保持するfolder index。
-	UInt32			 blockIndex_{NO_FOLDER_INDEX} ;
+	UInt32					  blockIndex_{NO_FOLDER_INDEX} ;
 	/// Main allocator所有のsolid block buffer。
-	Byte			*extractedBuffer_{} ;
+	Byte					 *extractedBuffer_{} ;
 	/// Solid block bufferのbyte数。
-	std::size_t		 extractedBufferSize_{} ;
+	std::size_t				  extractedBufferSize_{} ;
 } ;
 
 //------------------------------------------------------------------------------
@@ -1302,6 +1533,9 @@ private:
 	// SDK の失敗種別を対応する memory・CRC・形式・I/O の診断値へ変換する。
 	switch( result) {
 		// decoderのmemory不足を、呼出側が識別できるHRESULTへ対応させる。
+		case SZ_ERROR_PROGRESS:
+			return nativeErrorFromWin32( ERROR_CANCELLED) ;
+		// decoderのmemory不足を元HRESULTへ対応させます。
 		case SZ_ERROR_MEM:
 			return static_cast<NativeError>( E_OUTOFMEMORY) ;
 		// CRC不一致は、読取り失敗と区別した整合性エラーとして返す。
@@ -1356,6 +1590,11 @@ private:
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 	if( openError != 0) {
 		return openError ;
+	}
+
+	// OSの容量・mapping診断をSDK memory不足へ潰しません。
+	if( reader.ioError() != 0) {
+		return reader.ioError() ;
 	}
 
 	const CSzArEx &database = reader.database() ;	// Open済みarchive metadata。
@@ -1599,8 +1838,9 @@ private:
 	// 一entryの展開結果。Offsetと展開済み長の整合確認とは別に保持する。
 	const SRes		  extractResult = reader.extract( entry.archiveIndex, offset, processedSize) ;
 	const NativeError extractError =
-		// SDK展開結果。
-		translateSdkError( extractResult, reader.limitExceeded()) ;
+		// SDK展開結果と元OS診断を保持します。
+		reader.ioError() != 0 ? reader.ioError()
+							  : translateSdkError( extractResult, reader.limitExceeded()) ;
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 	if( extractError != 0) {
 		return extractError ;
@@ -1807,6 +2047,112 @@ void cleanupCreatedFiles( OfficialDownloadWorkspace							&workspace,
 
 } // namespace
 
+/** @brief 同操作の原viewとreader・metadataを単独所有する。 */
+struct OfficialSevenZipSession::State {
+	/// C callbackより長く生存する取消し照会。
+	std::function<bool()>			   cancellation ;
+	/// 原heap/disk/metadata上限。
+	OfficialSevenZipExtractionPolicy   policy{} ;
+	/// 借用原viewと私有solid出力を保持するSDK reader。
+	std::unique_ptr<SevenZipReader>	   reader ;
+	/// 一度preflightした通常entry一覧。
+	std::vector<OfficialSevenZipEntry> entries ;
+} ;
+
+/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+OfficialSevenZipSession::OfficialSevenZipSession() noexcept = default ;
+/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+OfficialSevenZipSession::~OfficialSevenZipSession() = default ;
+/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+NativeError OfficialSevenZipSession::initialize( std::span<const std::byte>				archive,
+												const OfficialSevenZipExtractionPolicy &policy,
+												const std::function<bool()> &cancellation)
+{
+	// 生存readerを別入力で上書きしません。
+	if( state_) {
+		return E_INVALIDARG ;
+	}
+
+	const auto valid = validatePolicy( archive, policy) ;	// 既存の形式と有限上限です。
+	// metadataを開く前に不正policyを拒否します。
+	if( valid != 0) {
+		return valid ;
+	}
+
+	try {
+		auto state			= std::make_unique<State>() ;	// 全preflightまで非公開です。
+		state->cancellation = cancellation ;
+		state->policy		= policy ;
+		state->reader = std::make_unique<SevenZipReader>( archive, policy, &state->cancellation) ;
+		// 同じ入力・所有操作の元診断です。
+		const auto error = preflightArchive( *state->reader, policy, state->entries) ;
+		// 全entry・path・coder・辞書検査の失敗を部分一覧へ縮約しません。
+		if( error != 0) {
+			return error ;
+		}
+
+		state_ = std::move( state) ;
+		return 0 ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+std::span<const OfficialSevenZipEntry> OfficialSevenZipSession::entries() const noexcept
+{
+	return state_ ? std::span<const OfficialSevenZipEntry>{state_->entries}
+				  : std::span<const OfficialSevenZipEntry>{} ;
+}
+/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+NativeError OfficialSevenZipSession::extract( std::span<const std::uint32_t>		 requested,
+											 OfficialDownloadWorkspace			&workspace,
+											 std::vector<OfficialSevenZipEntry> &result)
+{
+	result.clear() ;
+	// 空・未初期化を全member選択へ変換しません。
+	if( !state_ || requested.empty()) {
+		return E_INVALIDARG ;
+	}
+
+	try {
+		std::vector<std::uint32_t> selected ;	// 原indexだけの一意集合です。
+		// 同じ入力・所有操作の元診断です。
+		auto error = validateAndSortSelectedIndices( requested, state_->policy.maximumEntryCount,
+													state_->entries, selected) ;
+		// 未知/重複indexのままfileを作りません。
+		if( error != 0) {
+			return error ;
+		}
+
+		OfficialSevenZipSelectionAssessment assessment ;	// 一意folderの元宣言量です。
+		// file-backedとheapの現在の一folder上限です。
+		const auto maximum = (std::max)( state_->policy.maximumMappedOutputBytes,
+										state_->policy.maximumSingleAllocationBytes) ;
+		error =
+			assessPreflightedSelection( state_->reader->database(), selected, maximum, assessment) ;
+		// 過大folderを強制heapで救済しません。
+		if( error != 0 ||
+		   assessment.disposition == OfficialSevenZipSelectionDisposition::SOLID_BLOCK_TOO_LARGE) {
+			return error != 0 ? error : nativeErrorFromWin32( ERROR_FILE_TOO_LARGE) ;
+		}
+
+		return extractPreflightedEntries( *state_->reader, state_->entries, selected, workspace,
+										 result) ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+std::uint64_t OfficialSevenZipSession::mappedPeakBytes() const noexcept
+{
+	return state_ ? state_->reader->mappedPeakBytes() : 0U ;
+}
+/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+std::size_t OfficialSevenZipSession::decodedBlockCount() const noexcept
+{
+	return state_ ? state_->reader->decodedBlockCount() : 0U ;
+}
+
 //------------------------------------------------------------------------------
 /**
  * @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。
@@ -1897,7 +2243,8 @@ NativeError assessOfficialSevenZipSelection(
 NativeError extractOfficialSevenZipFile( const std::span<const std::byte>		archive,
 										const OfficialSevenZipExtractionPolicy &policy,
 										const std::uint32_t						archiveIndex,
-										std::vector<std::byte>				   &content)
+										std::vector<std::byte>				   &content,
+										const std::function<bool()>			   &cancellation)
 {
 	content.clear() ;
 	const NativeError policyError = validatePolicy( archive, policy) ;	// 入力と上限の検証結果。
@@ -1907,8 +2254,9 @@ NativeError extractOfficialSevenZipFile( const std::span<const std::byte>		archi
 	}
 
 	try {
-		SevenZipReader reader( archive, policy) ;		// Scope内でSDK resourceを所有するreader。
-		std::vector<OfficialSevenZipEntry> entries ;	// 再preflightした通常file一覧。
+		SevenZipReader					   reader( archive, policy,
+												  &cancellation) ;	// Scope内でSDK resourceを所有するreader。
+		std::vector<OfficialSevenZipEntry> entries ;				// 再preflightした通常file一覧。
 		// 展開予算の評価前に行う、archive全体の事前検査結果。
 		const NativeError preflightError = preflightArchive( reader, policy, entries) ;
 		// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。

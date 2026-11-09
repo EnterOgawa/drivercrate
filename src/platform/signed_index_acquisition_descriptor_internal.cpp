@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_descriptor_internal.cpp
  * @brief 全メーカー共通の取得descriptor元申告を有限な文法とbindingで検査します。
- * @version 01.01.04
+ * @version 01.06.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,11 @@
  * Ver.01.01.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.01.03 Shunji Ogawa  2026/10/23  個別期限を維持しmanifestとの順序制約だけを除去。
  * Ver.01.01.04 Shunji Ogawa  2026/10/24  新規配布recordの有限8日上限へ統一。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
  * </pre>
  *
  * @note 索引発行者の申告を読むだけで、公式性・vendor署名・実byte・端末適合を実証しません。
@@ -54,9 +59,10 @@ constexpr std::size_t	TEXT_LIMIT = 512U ;
 // 原URLを再構成せず読む固定byte上限。
 constexpr std::size_t	URL_LIMIT = 2048U ;
 // 初回の一payload取得profile。全製品の対応上限ではありません。
-constexpr std::uint64_t PAYLOAD_LIMIT = 128U * 1024U * 1024U ;
+constexpr std::uint64_t PAYLOAD_LIMIT = 2ULL * 1024ULL * 1024ULL * 1024ULL ;
 // UTF-8規約本文の正のexact byte上限。
-constexpr std::uint64_t TERMS_LIMIT = 256U * 1024U ;
+constexpr std::uint64_t TERMS_LIMIT		   = 256U * 1024U ;
+constexpr std::uint64_t STATIC_TERMS_LIMIT = 2U * 1024U * 1024U ;	// 独立静的文書だけの応答上限です。
 /**
  * @brief この層とrecord層で元診断を共有します。
  */
@@ -280,8 +286,26 @@ template <class Value, std::size_t Count>
 		{{"OFFICIAL_PAYLOAD_LINK", IndexRouteKind::OFFICIAL_PAYLOAD_LINK},
 		 {"OFFICIAL_CDN_LINK", IndexRouteKind::OFFICIAL_CDN_LINK},
 		 {"HTTP_REDIRECT", IndexRouteKind::HTTP_REDIRECT}}} ;	// 閉じた導線種別。
-	requireUrl( fields[0], false) ;
-	requireUrl( fields[2], true) ;
+	// 新protocolのpublic canonicalだけを一時的に読み、後でdescriptorへ結ぶ。
+	const std::string_view	 canonicalPrefix = "https://dlcdnta.asus.com" ;
+	const auto				 modelAt = fields[0].find( "?model=") ;	// 唯一の公開selector位置。
+	OfficialAnonymousCdnPlan publicPlan ;							// source確認前の非authority値。
+	// 推定hostを登録済みCDNへ置換しない。
+	if( fields[0].starts_with( canonicalPrefix) && modelAt != std::string::npos) {
+		publicPlan.path =
+			std::wstring( fields[0].begin() + static_cast<std::ptrdiff_t>( canonicalPrefix.size()),
+						 fields[0].begin() + static_cast<std::ptrdiff_t>( modelAt)) ;
+		publicPlan.model = std::wstring(
+			fields[0].begin() + static_cast<std::ptrdiff_t>( modelAt + 7U), fields[0].end()) ;
+		publicPlan.systemCode = L"asus" ;
+	}
+
+	// 別queryや不完全contextは旧URL規則の拒否へ戻す。
+	if( !validAsusAnonymousCdnPlan( publicPlan)) {
+		requirePayloadUrl( fields[0]) ;
+	}
+
+	requireEvidenceUrl( fields[2]) ;
 	return {std::move( fields[0]), choice( fields[1], KINDS), std::move( fields[2]),
 			decodeHash( fields[3], IndexRecordsStatus::INVALID_EVIDENCE)} ;
 }
@@ -321,17 +345,26 @@ template <class Value, std::size_t Count>
 
 /** @brief 原選択文書と抽出全文の独立digestを持つHTML申告を読みます。
  * @param[in,out] reader 有限readerです。
- * @return 共通profileの全11fieldです。本文や同意は生成しません。
+ * @return profile別の原11fieldまたは9fieldです。本文や同意は生成しません。
  */
 [[nodiscard]] IndexHtmlTermsExtraction readHtmlExtraction( DescriptorReader &reader)
 {
-	constexpr std::array<std::string_view, 11U> FIELDS{
-		"profile",			"selector",			  "containerSelector",	  "linkSelector",
-		"payloadAttribute", "documentSha256",	  "documentSizeBytes",	  "textSha256",
-		"textSizeBytes",	"bindingEvidenceUrl", "bindingEvidenceSha256"} ;	// 全必須fieldです。
-	IndexHtmlTermsExtraction value ;											// 全成功前には公開しない元値です。
+	constexpr std::array<std::string_view, 12U> FIELDS{
+		"profile",
+		"selector",
+		"containerSelector",
+		"linkSelector",
+		"payloadAttribute",
+		"documentSha256",
+		"documentSizeBytes",
+		"textSha256",
+		"textSizeBytes",
+		"bindingEvidenceUrl",
+		"bindingEvidenceSha256",
+		"bindingEvidenceSizeBytes"} ;	// profile別の閉集合です。
+	IndexHtmlTermsExtraction value ;	// 全成功前には公開しない元値です。
 	// 全入れ子を要求型だけで読み、未知fieldや重複を拒否します。
-	reader.object( FIELDS, [&]( const std::size_t field) {
+	const auto presence = reader.objectWithPresence( FIELDS, [&]( const std::size_t field) {
 		// 原selectorはCSS式ではなく固定三fieldだけです。
 		if( field >= 1U && field <= 3U) {
 			const std::array<IndexHtmlTermsSelector *, 3U> selectors{
@@ -339,8 +372,10 @@ template <class Value, std::size_t Count>
 			*selectors[field - 1U] = readHtmlSelector( reader) ;
 		} else {
 			// Exact sizeだけを整数型で読みます。
-			if( field == 6U || field == 8U) {
-				(field == 6U ? value.documentSizeBytes : value.textSizeBytes) = reader.number() ;
+			if( field == 6U || field == 8U || field == 11U) {
+				(field == 6U ? value.documentSizeBytes
+							 : (field == 8U ? value.textSizeBytes
+											: value.bindingEvidenceSizeBytes)) = reader.number() ;
 			} else {
 				const auto text = reader.text( field == 9U ? URL_LIMIT : TEXT_LIMIT) ;	// 原textです。
 				// 元field番号へ要求型だけを結合します。
@@ -390,20 +425,33 @@ template <class Value, std::size_t Count>
 			}
 		}
 	}) ;
-	require( value.profile == "TEXTAREA_HTML_DOCUMENT_V1" && value.selector.tag == "textarea" &&
-				validHtmlName( value.payloadAttribute) && value.documentSizeBytes > 0U &&
-				value.documentSizeBytes <= TERMS_LIMIT && value.textSizeBytes > 0U &&
-				value.textSizeBytes <= TERMS_LIMIT &&
-				value.selector.tag != value.containerSelector.tag &&
-				value.linkSelector.tag != value.selector.tag,
-			IndexRecordsStatus::INVALID_EVIDENCE) ;
+	// 独立sectionは不要なtextarea fieldを受理せず、原9fieldだけに限定します。
+	if( value.profile == "STATIC_HTML_SECTION_V1") {
+		constexpr std::uint64_t STATIC_FIELDS = (1U << 0U) | (1U << 1U) | (1U << 5U) | (1U << 6U) |
+												(1U << 7U) | (1U << 8U) | (1U << 9U) | (1U << 10U) |
+												(1U << 11U) ;	// 独立sectionの必須集合です。
+		require( presence == STATIC_FIELDS && value.documentSizeBytes > 0U &&
+					value.documentSizeBytes <= STATIC_TERMS_LIMIT && value.textSizeBytes > 0U &&
+					value.textSizeBytes <= TERMS_LIMIT && value.bindingEvidenceSizeBytes > 0U &&
+					value.bindingEvidenceSizeBytes <= STATIC_TERMS_LIMIT,
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+	} else {
+		require( presence == 2047U && value.profile == "TEXTAREA_HTML_DOCUMENT_V1" &&
+					value.selector.tag == "textarea" && validHtmlName( value.payloadAttribute) &&
+					value.documentSizeBytes > 0U && value.documentSizeBytes <= TERMS_LIMIT &&
+					value.textSizeBytes > 0U && value.textSizeBytes <= TERMS_LIMIT &&
+					value.selector.tag != value.containerSelector.tag &&
+					value.linkSelector.tag != value.selector.tag,
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+	}
+
 	requireUrl( value.bindingEvidenceUrl, false) ;
 	return value ;
 }
 
 /** @brief 原plain全文または明示HTMLの取得申告を読みます。
  * @param[in,out] reader 有限reader。
- * @return 最大256KiBのexact sizeと原hash。本文は取得しません。
+ * @return profile別の原wire size/hashです。本文は取得しません。
  */
 [[nodiscard]] IndexTermsTextDocument readDocument( DescriptorReader &reader)
 {
@@ -435,7 +483,10 @@ template <class Value, std::size_t Count>
 	requireUrl( value.url, false) ;
 	const bool html = value.contentType == "text/html; charset=utf-8" ;	// 明示別契約です。
 	require( presence == (html ? 31U : 15U) && value.sizeBytes > 0U &&
-				value.sizeBytes <= TERMS_LIMIT &&
+				value.sizeBytes <= (value.htmlExtraction && value.htmlExtraction->profile ==
+																"STATIC_HTML_SECTION_V1"
+										? STATIC_TERMS_LIMIT
+										: TERMS_LIMIT) &&
 				(html || value.contentType == "text/plain; charset=utf-8") &&
 				(value.htmlExtraction.has_value() == html),
 			IndexRecordsStatus::INVALID_EVIDENCE) ;
@@ -590,7 +641,9 @@ template <class Value, std::size_t Count>
 		{{"OFFICIAL_SITE_CONTROL_AND_LINK", IndexAuthorityMethod::OFFICIAL_SITE_CONTROL_AND_LINK},
 		 {"VENDOR_CATALOG_SIGNATURE_VERIFIED",
 		  IndexAuthorityMethod::VENDOR_CATALOG_SIGNATURE_VERIFIED}}} ;	// 端末実績ではない元method。
-	require( fields[0] == "COLLECTOR_VERIFIED_OFFICIAL_ROUTE" && value.policyRevision == 1U,
+	value.manualReview = fields[0] == "MANUAL_VERIFIED_OFFICIAL_ROUTE" ;
+	require( (fields[0] == "COLLECTOR_VERIFIED_OFFICIAL_ROUTE" || value.manualReview) &&
+				value.policyRevision == 1U,
 			IndexRecordsStatus::INVALID_EVIDENCE) ;
 	value.checkedAtUtc	  = signed_index_json::utc( fields[2], IndexRecordsStatus::INVALID_EVIDENCE) ;
 	value.validUntilUtc	  = signed_index_json::utc( fields[3], IndexRecordsStatus::INVALID_EVIDENCE) ;
@@ -603,8 +656,15 @@ template <class Value, std::size_t Count>
 
 } // namespace
 
-/** @see signed_index_acquisition_descriptor_internal.h */
-void requireUrl( const std::string_view value, const bool pageQuery)
+namespace {
+/** @brief 共通の静的URL規則と用途別の閉じたquery許可を検査します。
+ * @param[in] value 原ASCII URLです。
+ * @param[in] pageQuery PAGEの公開数値selectorを許す場合trueです。
+ * @param[in] payloadCacheQuery payloadの単一公開cache版を許す場合trueです。
+ * @note 公式性・到達性・通信許可を発行しません。
+ */
+void requireUrlWithPolicy( const std::string_view value, const bool pageQuery,
+						  const bool payloadCacheQuery)
 {
 	require( !value.empty() && value.size() <= URL_LIMIT && value.starts_with( "https://") &&
 				value.find_first_of( "#@\\") == std::string_view::npos &&
@@ -615,9 +675,17 @@ void requireUrl( const std::string_view value, const bool pageQuery)
 									}),
 			IndexRecordsStatus::INVALID_URL) ;
 	const std::size_t query = value.find( '?') ;	// 原queryの存在位置。
-	// PAGEの閉じた数値selectorだけを認め、payloadやrouteへ許可を拡張しない。
+	// 既存PAGE数値selectorと、認証情報を持たない単一公開cache版だけを認めます。
 	if( query != std::string_view::npos) {
-		require( pageQuery && validPageQuery( value.substr( query + 1U)),
+		const auto selector =
+			// 単一の公開cache版か既存PAGE selectorです。
+			value.substr( query + 1U) ;
+		// 認証情報や複合queryを含まない有限な公開cache版だけです。
+		const bool cacheVersion =
+			selector.starts_with( "v=") && selector.size() > 2U && selector.size() <= 130U &&
+			std::ranges::all_of( selector.substr( 2U),
+								[]( const char digit) { return hexDigit( digit) >= 0 ; }) ;
+		require( (payloadCacheQuery && cacheVersion) || (pageQuery && validPageQuery( selector)),
 				IndexRecordsStatus::INVALID_URL) ;
 	}
 
@@ -693,28 +761,59 @@ void requireUrl( const std::string_view value, const bool pageQuery)
 
 	require( error == 0, IndexRecordsStatus::INVALID_URL) ;
 }
+} // namespace
 
 /** @see signed_index_acquisition_descriptor_internal.h */
+void requireUrl( const std::string_view value, const bool pageQuery)
+{
+	requireUrlWithPolicy( value, pageQuery, false) ;
+}
+
+/** @see signed_index_acquisition_descriptor_internal.h */
+void requirePayloadUrl( const std::string_view value)
+{
+	requireUrlWithPolicy( value, false, true) ;
+}
+
+/** @see signed_index_acquisition_descriptor_internal.h */
+void requireEvidenceUrl( const std::string_view value)
+{
+	requireUrlWithPolicy( value, true, true) ;
+}
+
+/** @see signed_index_acquisition_descriptor_internal.h */
+/** @see signed_index_acquisition_descriptor_internal.h */
+IndexAcquisitionTerms readTermsValue( const std::string_view raw)
+{
+	DescriptorReader reader( raw, IndexRecordsStatus::INVALID_RECORD, 512U * 1024U,
+							8U) ;					// 既存最大8段と重複key検査を維持します。
+	const auto		 terms = readTerms( reader) ;	// 従来と新profileの同じ閉schemaです。
+	reader.finish() ;
+	return terms ;
+}
+
 IndexAcquisitionDescriptor readDescriptor( DescriptorReader &reader, const TextValueReader readText)
 {
-	constexpr std::array<std::string_view, 13U> FIELDS{"schema",
-													   "state",
-													   "reason",
-													   "payloadUrl",
-													   "fileName",
-													   "format",
-													   "expectedContentType",
-													   "maximumBytes",
-													   "route",
-													   "terms",
-													   "prerequisites",
-													   "publisher",
-													   "attestation"} ;	// 全13必須field。
-	std::array<std::string, 7U>					fields ;				// 先頭の原text申告。
-	IndexAcquisitionDescriptor					value ;					// 全成功前には公開しない値。
+	constexpr std::array<std::string_view, 14U> FIELDS{
+		"schema",
+		"state",
+		"reason",
+		"payloadUrl",
+		"fileName",
+		"format",
+		"expectedContentType",
+		"maximumBytes",
+		"route",
+		"terms",
+		"prerequisites",
+		"publisher",
+		"attestation",
+		"payloadPlan"} ;					// v1共通13必須fieldとv2追加一field。
+	std::array<std::string, 7U> fields ;	// 先頭の原text申告。
+	IndexAcquisitionDescriptor	value ;		// 全成功前には公開しない値。
 	require( readText != nullptr, IndexRecordsStatus::INTERNAL_FAILURE) ;
 	// Field順によらず要求型だけを同期消費する。
-	reader.object( FIELDS, [&]( const std::size_t field) {
+	const auto present = reader.objectWithPresence( FIELDS, [&]( const std::size_t field) {
 		// 先頭七つは元textの上限を別々に保つ。
 		if( field < 7U) {
 			fields[field] = reader.text( field == 3U ? URL_LIMIT : TEXT_LIMIT) ;
@@ -757,25 +856,48 @@ IndexAcquisitionDescriptor readDescriptor( DescriptorReader &reader, const TextV
 
 					break ;
 
+				// v2だけの閉じたcontent/retrieval計画。
+				case 13U:
+					value.resourceContent = readResourcePayloadPlan( reader, value.anonymousCdn) ;
+					break ;
+
 				// 未登録番号を成功へ補完しない。
 				default:
 					throw Failure{IndexRecordsStatus::INVALID_RECORD} ;
 			}
 		}
 	}) ;
-	constexpr std::array<std::pair<std::string_view, IndexPayloadFormat>, 5U> FORMATS{
+	constexpr std::array<std::pair<std::string_view, IndexPayloadFormat>, 7U> FORMATS{
 		{{"UNKNOWN", IndexPayloadFormat::UNKNOWN},
 		 {"ZIP", IndexPayloadFormat::ZIP},
 		 {"CABINET", IndexPayloadFormat::CABINET},
 		 {"WINDOWS_EXE", IndexPayloadFormat::WINDOWS_EXE},
-		 {"WINDOWS_MSI", IndexPayloadFormat::WINDOWS_MSI}}} ;	// 未知は自動補完しない形式。
-	require( fields[0] == "driver-index-acquisition-v1", IndexRecordsStatus::INVALID_EVIDENCE) ;
+		 {"WINDOWS_MSI", IndexPayloadFormat::WINDOWS_MSI},
+		 {"SEVEN_ZIP_SFX", IndexPayloadFormat::SEVEN_ZIP_SFX},
+		 {"PE_RESOURCE_CONTAINER",
+		  IndexPayloadFormat::PE_RESOURCE_CONTAINER}}} ;	// 未知は自動補完しない形式。
+	// 旧必須field欠損は旧object readerと同じ構造拒否へ保つ。
+	require( (present & 0x1fffU) == 0x1fffU, IndexRecordsStatus::INVALID_RECORD) ;
+	require( fields[0] == "driver-index-acquisition-v1" ||
+				fields[0] == "driver-index-acquisition-v2",
+			IndexRecordsStatus::INVALID_EVIDENCE) ;
+	require( (fields[0] == "driver-index-acquisition-v1" && present == 0x1fffU) ||
+				(fields[0] == "driver-index-acquisition-v2" && present == 0x3fffU),
+			IndexRecordsStatus::INVALID_RECORD) ;
+	value.schemaVersion		  = fields[0] == "driver-index-acquisition-v2" ? 2U : 1U ;
 	value.state				  = descriptorState( fields[1]) ;
 	value.reason			  = std::move( fields[2]) ;
 	value.payloadUrl		  = std::move( fields[3]) ;
 	value.fileName			  = std::move( fields[4]) ;
 	value.format			  = choice( fields[5], FORMATS) ;
 	value.expectedContentType = std::move( fields[6]) ;
+	// v1に新fieldや新形式を黙って混ぜず、v2の原計画を必須にする。
+	require( (value.schemaVersion == 1U && !value.resourceContent && !value.anonymousCdn &&
+			 value.format != IndexPayloadFormat::PE_RESOURCE_CONTAINER) ||
+				(value.schemaVersion == 2U && value.resourceContent &&
+				 value.format == IndexPayloadFormat::PE_RESOURCE_CONTAINER &&
+				 value.state == IndexDescriptorState::KNOWN),
+			IndexRecordsStatus::INVALID_EVIDENCE) ;
 	// 未知の取得情報をURLやattestationの存在で暗黙に既知へ補完しない。
 	if( value.state == IndexDescriptorState::UNKNOWN) {
 		require( validText( value.reason) && value.payloadUrl.empty() && value.fileName.empty() &&
@@ -792,7 +914,22 @@ IndexAcquisitionDescriptor readDescriptor( DescriptorReader &reader, const TextV
 				value.maximumBytes <= PAYLOAD_LIMIT && !value.route.empty() &&
 				value.attestation.has_value(),
 			IndexRecordsStatus::INVALID_EVIDENCE) ;
-	requireUrl( value.payloadUrl, false) ;
+	// 新kindだけにpublic model selectorを認め、元path/modelを完全一致させる。
+	if( value.anonymousCdn) {
+		const auto canonical =
+			// 元contextの唯一URL。
+			asusAnonymousCdnCanonicalUrl( *value.anonymousCdn) ;
+		require( std::wstring( value.payloadUrl.begin(), value.payloadUrl.end()) == canonical &&
+					value.route.size() == 1U && value.route.front().url == value.payloadUrl,
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+	} else {
+		requirePayloadUrl( value.payloadUrl) ;
+		// 旧static routeに新query許可を漏らさない。
+		for( const auto &hop : value.route) {
+			requirePayloadUrl( hop.url) ;
+		}
+	}
+
 	return value ;
 }
 
@@ -808,6 +945,48 @@ void validateBinding( const IndexDistributionRecord &record, const IndexRecordSo
 
 	const auto &value		= *record.acquisitionDescriptor ;	// 固定原recordに結合した申告。
 	const auto &attestation = *value.attestation ;				// 構造検査が要求した元確認。
+	// 新resolverは同公式originと既知の元payload identityに限定する。
+	if( value.anonymousCdn) {
+		require( sameOrigin( source.officialOrigin, "https://www.asus.com") &&
+					record.packageEvidence.size.value.has_value() &&
+					record.packageEvidence.calculatedHash.sha256.has_value() &&
+					value.resourceContent.has_value(),
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+	}
+
+	// 新content計画を元recordの実outer identityと一INFへ完全結合する。
+	if( value.resourceContent) {
+		const auto &plan = *value.resourceContent ;	// 元recordの閉じた選択。
+		std::string rootHash ;						// 既に小文字ASCII hexと検査した原hash。
+		// 暗黙narrowingせず検査済みhexだけをbyteへ写す。
+		for( const auto character : plan.rootSha256) {
+			rootHash.push_back( static_cast<char>( character)) ;
+		}
+
+		require( record.packageEvidence.size.value == plan.rootBytes &&
+					record.packageEvidence.calculatedHash.sha256.has_value() &&
+					*record.packageEvidence.calculatedHash.sha256 ==
+						decodeHash( rootHash, IndexRecordsStatus::INVALID_EVIDENCE) &&
+					record.publishedIdentityEvidence.nestedArchiveIdentity.empty() &&
+					std::wstring( record.publishedIdentityEvidence.infIdentity.begin(),
+								 record.publishedIdentityEvidence.infIdentity.end()) ==
+						plan.selectedInf,
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+	}
+
+	// 手動review原byteと自動HTTP本文を同じ観測種別へ混ぜません。
+	require( attestation.manualReview ==
+				(source.officialEvidence.kind == IndexOfficialEvidenceKind::OFFICIAL_LINK_REVIEW),
+			IndexRecordsStatus::INVALID_EVIDENCE) ;
+	// 手動確認は元記録へ結合し、別reviewのhashをpage本文hashとして借用しません。
+	if( attestation.manualReview) {
+		require( source.officialEvidence.evidenceSha256 == attestation.authorityEvidenceSha256 &&
+					attestation.authorityEvidenceUrl == source.distributionPage &&
+					!value.route.empty() &&
+					value.route.front().evidenceSha256 == source.officialEvidence.evidenceSha256,
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+	}
+
 	require( attestation.checkedAtUtc <= manifest.publishedAtUtc &&
 				manifest.publishedAtUtc < attestation.validUntilUtc &&
 				attestation.validUntilUtc - attestation.checkedAtUtc <=
@@ -817,7 +996,9 @@ void validateBinding( const IndexDistributionRecord &record, const IndexRecordSo
 	if( record.acquisition.value) {
 		const bool archive = value.format == IndexPayloadFormat::ZIP ||
 							 // 元形式の分類。
-							 value.format == IndexPayloadFormat::CABINET ;
+							 value.format == IndexPayloadFormat::CABINET ||
+							 value.format == IndexPayloadFormat::SEVEN_ZIP_SFX ||
+							 value.format == IndexPayloadFormat::PE_RESOURCE_CONTAINER ;
 		require( (*record.acquisition.value == IndexAcquisitionKind::STANDARD_INF_ARCHIVE) ==
 					archive,
 				IndexRecordsStatus::INVALID_EVIDENCE) ;
@@ -835,13 +1016,22 @@ void validateBinding( const IndexDistributionRecord &record, const IndexRecordSo
 		const auto &html	 = *document.htmlExtraction ;	// 選択文書と公開関連根拠です。
 		require( value.terms.state == IndexTermsState::ACCEPTANCE_REQUIRED &&
 					value.terms.revisionKind == IndexTermsRevisionKind::VENDOR_LITERAL &&
-					document.url == source.distributionPage &&
 					value.terms.evidenceUrl == document.url &&
 					value.terms.evidenceSha256 == document.sha256 &&
-					source.officialEvidence.evidenceSha256 == document.sha256 &&
-					value.route.front().evidenceSha256 == document.sha256 &&
 					sameOrigin( html.bindingEvidenceUrl, source.officialOrigin),
 				IndexRecordsStatus::INVALID_EVIDENCE) ;
+		// 独立文書だけは公式配布pageの実リンク根拠へ別に結び、規約hashを配布pageへ偽装しません。
+		if( html.profile == "STATIC_HTML_SECTION_V1") {
+			require( html.bindingEvidenceUrl == source.distributionPage &&
+						source.officialEvidence.evidenceSha256 == html.bindingEvidenceSha256 &&
+						value.route.front().evidenceSha256 == html.bindingEvidenceSha256,
+					IndexRecordsStatus::INVALID_EVIDENCE) ;
+		} else {
+			require( document.url == source.distributionPage &&
+						source.officialEvidence.evidenceSha256 == document.sha256 &&
+						value.route.front().evidenceSha256 == document.sha256,
+					IndexRecordsStatus::INVALID_EVIDENCE) ;
+		}
 	}
 
 	require( sameOrigin( value.payloadUrl, source.officialOrigin) ||

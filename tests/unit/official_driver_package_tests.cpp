@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package_tests.cpp
  * @brief 公式標準INF driver package単体試験実装。
- * @version 01.12.01
+ * @version 01.16.01
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -53,6 +53,11 @@
  * Ver.01.11.01 Shunji Ogawa  2026/10/07  named13の非absolute展開と媒体未宣言の元API診断・不足を回帰。
  * Ver.01.12.00 Shunji Ogawa  2026/10/07  一意な相対named13の元source正例とsource／copy／key／member衝突を回帰。
  * Ver.01.12.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.13.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.14.00 Shunji Ogawa  2026/11/03  System/SecurityDevicesの共通内容とlocal限定を分離確認。
+ * Ver.01.15.00 Shunji Ogawa  2026/11/03  標準Componentのnull・Type1・原copy境界の回帰を追加。
+ * Ver.01.16.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.16.01 Shunji Ogawa  2026/11/07  現非実行policyと旧fixture期待を照合。
  * </pre>
  *
  * @note 実在するhardware IDや署名packageを使用せず、SetupAPIのINF構文とfail-closed条件を架空fixtureで検証します。
@@ -119,6 +124,7 @@ constexpr std::array ACCEPTED_SIGNERS{	// 署名negative試験用allowlist。
 									  std::wstring_view( L"Fictional Driver Signer")} ;
 // 保守構造の架空Class。通常policyの許可集合とは独立する。
 constexpr std::array MAINTENANCE_CLASSES{std::wstring_view( L"Ports"), std::wstring_view( L"System"),
+										 std::wstring_view( L"SecurityDevices"),
 										 std::wstring_view( L"MultiPortSerial")} ;
 // 架空構造の有限policy。署名・実device・導入の成功を注入しない。
 constexpr OfficialInfInspectionPolicy MAINTENANCE_POLICY{
@@ -613,9 +619,9 @@ void testGenericMobileFlashPayloadRejection( TestContext &context)
 		.sourceFiles   = {L"mobile\\fictional_usb.sys"},
 	} ; // Mobile USB driver境界だけを検証する架空package。
 	constexpr std::array MOBILE_FLASH_EXTENSIONS{
-		std::wstring_view( L".elf"), std::wstring_view( L".ftf"), std::wstring_view( L".img"),
-		std::wstring_view( L".kdz"), std::wstring_view( L".mbn"), std::wstring_view( L".ofp"),
-		std::wstring_view( L".pac"), std::wstring_view( L".pit"), std::wstring_view( L".sin"),
+		std::wstring_view( L".ftf"), std::wstring_view( L".img"), std::wstring_view( L".kdz"),
+		std::wstring_view( L".ofp"), std::wstring_view( L".pac"), std::wstring_view( L".pit"),
+		std::wstring_view( L".sin"),
 		// 拒否を要求するmobile flash拡張子。
 		std::wstring_view( L".tot")} ;
 	// 各拡張子を同じ架空packageへ一つずつ混在させ、全形式を有限回検証する。
@@ -629,6 +635,16 @@ void testGenericMobileFlashPayloadRejection( TestContext &context)
 			OfficialZipEntry{payloadPath, 7},
 		} ; // Scan後に混入した現在形式の架空entry。
 		DRIVERCRATE_EXPECT( context, reverifyGenericInfPackage( workspace, entries, package) != 0) ;
+	}
+
+	// コピーされる受動データはSYSと共存する通常driverとして評価し、単独では受理しません。
+	for( const auto extension : {L".bin", L".dfu", L".mbn", L".elf"}) {
+		const std::wstring data =
+			std::wstring{L"mobile\\device_data"} + extension ;	// 架空の参照fileです。
+		package.sourceFiles = {L"mobile\\fictional_usb.sys", data} ;
+		DRIVERCRATE_EXPECT( context, isGenericInfPackageSupported( package)) ;
+		package.sourceFiles = {data} ;
+		DRIVERCRATE_EXPECT( context, !isGenericInfPackageSupported( package)) ;
 	}
 }
 
@@ -1839,23 +1855,30 @@ void testMaintenanceNamedServices( TestContext &context)
 }
 
 /**
- * @brief 通常Ports・内容専用二Classと未知Class名のpolicy差を実common入口で確認する。
+ * @brief 共通標準Classと内容専用・未知Classのpolicy差を実入口で確認する。
  * @param[in,out] context Assertion集計先。
  * @note Dummy CATは署名失敗の負例。ClassGuidを固定したClass名policy比較であり、
  *       WindowsのClass全体妥当性や実署名成功を認定しない。
  */
 void testMaintenanceClassSeparation( TestContext &context)
 {
-	constexpr std::array<std::string_view, 4U> CLASSES{
-		"Ports", "System", "MultiPortSerial", "FictionalUnknown"} ;	// Class名policyだけの差分集合。
+	constexpr std::array<std::string_view, 6U> CLASSES{
+		"Ports",   "System", "SecurityDevices", "MultiPortSerial", "FictionalUnknown",
+		"Firmware"} ;	// 標準二Classの追加で未知Classやfirmwareを開放しません。
 	// 通常・内容専用・未知の全Class名を同じsource/CAT条件で比較する。
 	for( std::size_t index = 0U; index < CLASSES.size(); ++index) {
 		std::string inf( VALID_INF) ;	// 元の架空ID・copy・sourceを保持する。
 		inf.replace( inf.find( "Class=Net"), 9U, "Class=" + std::string( CLASSES[index])) ;
+		// 正常Systemは正式GUIDとの対を持ち、別ClassのGUIDを許可条件へ補完しません。
+		if( index == 1U) {
+			inf.replace( inf.find( "{4d36e972-e325-11ce-bfc1-08002be10318}"), 38U,
+						"{4d36e97d-e325-11ce-bfc1-08002be10318}") ;
+		}
+
 		MaintenanceInfStructure structure ;	// 保守構造は新Classを導入許可へ変換しない。
 		DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, inf, structure, true) == 0) ;
 		DRIVERCRATE_EXPECT( context, structure.parser.state ==
-										(index == 3U ? MaintenanceInspectionState::UNSUPPORTED
+										(index >= 4U ? MaintenanceInspectionState::UNSUPPORTED
 													 : MaintenanceInspectionState::PASSED)) ;
 		DRIVERCRATE_EXPECT( context,
 						   structure.contentKind == MaintenanceInfContentKind::PACKAGE_FILES) ;
@@ -1863,7 +1886,7 @@ void testMaintenanceClassSeparation( TestContext &context)
 		DRIVERCRATE_EXPECT( context, structure.rootIntegrity.state ==
 										MaintenanceInspectionState::NOT_CHECKED) ;
 		// 未知Class名は具体的な解析未対応へ残し、device不適合を判定しない。
-		if( index == 3U) {
+		if( index >= 4U) {
 			DRIVERCRATE_EXPECT(
 				context,
 				std::ranges::any_of( structure.installs.at( 0U).issues, []( const auto &issue) {
@@ -1891,7 +1914,7 @@ void testMaintenanceClassSeparation( TestContext &context)
 		if( maintenance.infs.size() == 1U) {
 			const auto &row = maintenance.infs[0] ;	// 内容専用Class policyの実検査結果。
 			DRIVERCRATE_EXPECT( context, row.parser.state ==
-											(index == 3U ? MaintenanceInspectionState::UNSUPPORTED
+											(index >= 4U ? MaintenanceInspectionState::UNSUPPORTED
 														 : MaintenanceInspectionState::PASSED)) ;
 			DRIVERCRATE_EXPECT( context, row.integrity.state == MaintenanceInspectionState::FAILED) ;
 			DRIVERCRATE_EXPECT( context,
@@ -1908,22 +1931,29 @@ void testMaintenanceClassSeparation( TestContext &context)
 			DRIVERCRATE_EXPECT( context,
 							   row.dependency.state == MaintenanceInfDependencyState::NONE &&
 								   row.dependenciesChecked && !row.hasExternalDependencies) ;
-			DRIVERCRATE_EXPECT( context,
-							   row.installRoute.state ==
-								   (index == 0U ? MaintenanceInspectionState::PASSED
-												: MaintenanceInspectionState::UNSUPPORTED)) ;
+			// 架空Class番号と元routeの有限数値だけで旧期待との差を診断します。
+			std::cout << "INF_CLASS_ROUTE scenario=" << index
+					  << " state=" << static_cast<int>( row.installRoute.state)
+					  << " error=" << row.installRoute.error << '\n' ;
+			DRIVERCRATE_EXPECT( context, row.installRoute.state ==
+											(index < 3U ? MaintenanceInspectionState::PASSED
+														: MaintenanceInspectionState::UNSUPPORTED)) ;
 		}
 
-		CommonDriverPackageInspection normal ;	// 通常19 Classはsource実装も従来のまま。
+		CommonDriverPackageInspection normal ;	// 公式性と独立した同じ共通CAT検査です。
 		DRIVERCRATE_EXPECT( context, inspectCommonDriverPackage(
 										input, OfficialDriverArchiveFormat::ZIP, normal) == 0) ;
 		DRIVERCRATE_EXPECT( context, normal.infs.size() == 1U) ;
-		// 新二Classを通常commonの署名段階へ通さない。
+		// 新二Classも署名失敗を保持し、未対応Classは構造段階で拒否します。
 		if( normal.infs.size() == 1U) {
+			// 実IDを残さず元Class別の非実行拒否段階だけを観測します。
+			std::cout << "INF_CLASS_NORMAL scenario=" << index
+					  << " state=" << static_cast<int>( normal.infs[0].state)
+					  << " error=" << normal.infs[0].error << '\n' ;
 			DRIVERCRATE_EXPECT( context,
 							   normal.infs[0].state ==
-								   (index == 0U ? CommonInfInspectionState::SIGNATURE_REJECTED
-												: CommonInfInspectionState::CLOSURE_REJECTED)) ;
+								   (index < 3U ? CommonInfInspectionState::SIGNATURE_REJECTED
+											   : CommonInfInspectionState::CLOSURE_REJECTED)) ;
 			DRIVERCRATE_EXPECT( context, normal.infs[0].error != 0) ;
 		}
 
@@ -1935,7 +1965,7 @@ void testMaintenanceClassSeparation( TestContext &context)
 										 genericWorkspace, generic) ;	// 従来固定policyの実入口。
 		DRIVERCRATE_EXPECT( context, genericError != 0) ;
 		DRIVERCRATE_EXPECT( context, generic.packages.empty()) ;
-		// 新二Classは通常generic parserのClass gateで従来どおり拒否する。
+		// 内容Classの追加を取得元未証明localの許可へ流用しません。
 		if( index > 0U) {
 			DRIVERCRATE_EXPECT( context,
 							   genericError == static_cast<drivercrate::NativeError>(
@@ -2930,6 +2960,10 @@ void testMaintenanceSourceMatrix( TestContext &context)
 		DRIVERCRATE_EXPECT( context, maintenance.infs.size() == 1U) ;
 		// 同じrootの観測が得られた場合だけunknown・通常routeを比較する。
 		if( maintenance.infs.size() == 1U) {
+			// 架空source条件のrouteだけを数値観測し、署名/内容結果を変えません。
+			std::cout << "INF_SOURCE_ROUTE scenario=" << scenario
+					  << " state=" << static_cast<int>( maintenance.infs.front().installRoute.state)
+					  << " error=" << maintenance.infs.front().installRoute.error << '\n' ;
 			const auto &row = maintenance.infs.front() ;	// 端末適合を照合していないDTO。
 			DRIVERCRATE_EXPECT( context, row.parser.state == MaintenanceInspectionState::PASSED &&
 											row.contentKind == structure.contentKind &&
@@ -2938,10 +2972,11 @@ void testMaintenanceSourceMatrix( TestContext &context)
 							   row.applicability.state == MaintenanceInspectionState::NOT_CHECKED &&
 								   row.applicability.error == 0 &&
 								   row.integrity.state != MaintenanceInspectionState::PASSED) ;
-			DRIVERCRATE_EXPECT( context,
-							   row.installRoute.state ==
-								   (scenario == 1U ? MaintenanceInspectionState::PASSED
-												   : MaintenanceInspectionState::UNSUPPORTED)) ;
+			// Portsのnull serviceはsource位置が揃っても通常service構造の許可を得ません。
+			DRIVERCRATE_EXPECT(
+				context, row.installRoute.state == MaintenanceInspectionState::UNSUPPORTED &&
+							 row.installRoute.error ==
+								 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))) ;
 		}
 
 		CommonDriverPackageInspection normal ;	// 空sourceや必要byte欠落を従来通常policyが拒否する。
@@ -3245,6 +3280,288 @@ void testMaintenanceDependencyClosure( TestContext &context)
 			static_cast<drivercrate::NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))) ;
 }
 
+/**
+ * @brief 標準ComponentとSystem device serviceの内容・作用境界を確認します。
+ * @param[in,out] context 架空INFの成功と具体的拒否を集計します。
+ * @note CATを偽装せず、実driver/device/導入APIを使用しません。
+ */
+void testStandardComponentActions( TestContext &context)
+{
+	// 架空の原ComponentとType1/null/copy宣言です。
+	constexpr std::string_view INF =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=SoftwareComponent\r\n"
+		"ClassGuid={5c4c3332-344d-483c-8739-259e934c9cc8}\r\nProvider=Fixture Vendor\r\n"
+		"DriverVer=11/03/2026,2.0.0.0\r\nCatalogFile=sample.cat\r\n"
+		"[Manufacturer]\r\nVendor=Models,NTamd64\r\n[Models.NTamd64]\r\n"
+		"Device=Install,SWC\\SYNTHETIC_COMPONENT_635\r\n"
+		"[Install.NT]\r\nCopyFiles=Files\r\n[Install.NT.Services]\r\nAddService=,2\r\n"
+		"[Install.NT.Software]\r\nAddSoftware=FixtureComponent,1,Software\r\n"
+		"[Software]\r\nSoftwareType=1\r\nSoftwareBinary=helper.exe\r\nSoftwareVersion=2.3.4.5\r\n"
+		"[DestinationDirs]\r\nDefaultDestDir=13\r\n[Files]\r\nhelper.exe\r\nmodel.onnx\r\nkernels.hipfb\r\nuser32.dll\r\n"
+		"[SourceDisksNames]\r\n1=fixture,,,\r\n[SourceDisksFiles]\r\n"
+		"helper.exe=1\r\nmodel.onnx=1\r\nkernels.hipfb=1\r\nuser32.dll=1\r\n" ;
+	const std::array			classes{std::wstring_view( L"SoftwareComponent"),
+								// 検査する役割です。
+								std::wstring_view( L"System")} ;
+	const std::array			signatures{std::wstring_view( L"$Windows NT$")} ;	// 原構文識別です。
+	OfficialInfInspectionPolicy policy{
+		32U, 32U, classes, {}, signatures} ;	// 通常構成の有限検査です。
+	policy.acceptAnyProvider			 = true ;
+	policy.requireDriverBinary			 = false ;
+	policy.rejectUnreferencedPrograms	 = false ;
+	policy.rejectInstallActions			 = true ;
+	policy.allowRequiredDriverComponents = true ;
+	// 正規宣言と、版・copy・役割・nullの独立した不正を各一回確認します。
+	for( unsigned scenario = 0U; scenario < 19U; ++scenario) {
+		std::string body( INF) ;	// 条件ごとに元fixtureを作り直します。
+		// 変更先は固定fixtureの存在する全文だけです。
+		const auto	change = [&]( std::string_view before, std::string_view after) {
+			 const auto position = body.find( before) ;	// 正確な原文位置です。
+			 DRIVERCRATE_EXPECT( context, position != body.npos) ;
+			 // fixture前提の欠落を別位置の変更へ補完しません。
+			 if( position != body.npos) {
+				 body.replace( position, before.size(), after) ;
+			 }
+		} ;
+		// 正例、独立コピーと具体的な不正構造を区別します。
+		switch( scenario) {
+			// 同一INFの正規Type1とnullです。
+			case 0U:
+				break ;
+
+			// programはコピーだけであり独自実行しません。
+			case 1U:
+				change( "AddSoftware=FixtureComponent,1,Software", "") ;
+				break ;
+
+			// nullの誤flagをfunction-driver不在へ補完しません。
+			case 2U:
+				change( "AddService=,2", "AddService=,0") ;
+				break ;
+
+			// named serviceの欠損節をnullにしません。
+			case 3U:
+				change( "AddService=,2", "AddService=Named,2") ;
+				break ;
+
+			// 未対応TypeをType1に縮約しません。
+			case 4U:
+				change( "SoftwareType=1", "SoftwareType=2") ;
+				break ;
+
+			// Type1はDriverStoreへの元コピーが必要です。
+			case 5U:
+				change( "DefaultDestDir=13", "DefaultDestDir=11") ;
+				break ;
+
+			// 同名binaryでも元CopyFilesを欠く場合は拒否します。
+			case 6U:
+				change( "CopyFiles=Files", "") ;
+				break ;
+
+			// roleのGUIDを名称から補完しません。
+			case 7U:
+				change( "{5c4c3332-344d-483c-8739-259e934c9cc8}",
+					   "{4d36e97d-e325-11ce-bfc1-08002be10318}") ;
+				break ;
+
+			// 16bitを超える版は未知の正規値へ切り詰めません。
+			case 8U:
+				change( "SoftwareVersion=2.3.4.5", "SoftwareVersion=2.3.65536.5") ;
+				break ;
+
+			// binaryの実参照欠損は署名検証以前に拒否します。
+			case 9U:
+				change( "SoftwareBinary=helper.exe", "SoftwareBinary=missing.exe") ;
+				break ;
+
+			// 同sourceがinventoryから欠けても、実file存在だけを使用しません。
+			case 10U:
+				break ;
+
+			// 以降は関連kernelに結んだSystem device serviceを別に検査します。
+			default:
+				change( "Class=SoftwareComponent", "Class=System") ;
+				change( "{5c4c3332-344d-483c-8739-259e934c9cc8}",
+					   "{4d36e97d-e325-11ce-bfc1-08002be10318}") ;
+				change( "SWC\\SYNTHETIC_COMPONENT_635", "ACPI\\SYNTHETIC_DEVICE_635") ;
+				change( "AddSoftware=FixtureComponent,1,Software", "") ;
+				change(
+					"AddService=,2",
+					"AddService=FixtureKernel,2,Kernel\r\nAddService=FixtureDevice,0x800,DeviceService") ;
+				change( "user32.dll\r\n[SourceDisksNames]",
+					   "user32.dll\r\nkernel.sys\r\n[SourceDisksNames]") ;
+				body +=
+					"kernel.sys=1\r\n[Kernel]\r\nServiceType=1\r\nStartType=3\r\nErrorControl=1\r\nServiceBinary=%13%\\kernel.sys\r\n"
+					"[DeviceService]\r\nServiceType=0x10\r\nStartType=2\r\nErrorControl=1\r\nServiceBinary=%13%\\helper.exe\r\nDependencies=FixtureKernel\r\n" ;
+				// 明示外部service名も標準Dependenciesであり、不一致だけでは不適合にしません。
+				if( scenario == 12U) {
+					change( "Dependencies=FixtureKernel", "Dependencies=ExternalUnknown") ;
+				}
+
+				// Systemと称する別GUIDへWin32 device serviceの権限を渡しません。
+				if( scenario == 13U) {
+					change( "{4d36e97d-e325-11ce-bfc1-08002be10318}",
+						   "{4d36e972-e325-11ce-bfc1-08002be10318}") ;
+				}
+
+				// 非関連kernelを同deviceのfunction driverと補完しません。
+				if( scenario == 14U) {
+					change( "AddService=FixtureKernel,2,Kernel",
+						   "AddService=FixtureKernel,0,Kernel") ;
+				}
+
+				// Dependencies省略と任意event-log第4fieldも標準形式です。
+				if( scenario >= 15U) {
+					change( "Dependencies=FixtureKernel", "") ;
+					change( "AddService=FixtureDevice,0x800,DeviceService",
+						   "AddService=FixtureDevice,0x800,DeviceService,Events") ;
+					body += "\r\n[Events]\r\n" ;
+				}
+
+				// Type/Nameまでの六fieldとload-order groupを保持します。
+				if( scenario == 16U) {
+					change( "DeviceService,Events",
+						   "DeviceService,Events,Application,Fixture Event") ;
+					body += "[DeviceService]\r\nDependencies=+FixtureGroup,RpcSs\r\n" ;
+				}
+
+				// 未知typeを既知のSystem event-logへ補正しません。
+				if( scenario == 17U) {
+					change( "DeviceService,Events", "DeviceService,Events,Unknown") ;
+				}
+
+				// 存在しない元event-log節は標準の省略扱いにしません。
+				if( scenario == 18U) {
+					change( "[Events]", "[OtherEvents]") ;
+				}
+
+				break ;
+		}
+
+		OfficialDownloadWorkspace workspace ;	// この条件だけの所有fileです。
+		DRIVERCRATE_EXPECT( context,
+						   workspace.initialize( L"standard-component-test", 1635U + scenario) == 0) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", body)) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "synthetic")) ;
+		std::vector<OfficialZipEntry> entries{{L"sample.inf", body.size()},
+											  {L"sample.cat", 9U}} ;	// 元file一覧です。
+		// CAT未検証の架空payloadを置き、内容構造だけを検査します。
+		for( const auto name : {L"helper.exe", L"model.onnx", L"kernels.hipfb", L"user32.dll"}) {
+			DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, name, "synthetic")) ;
+			// 明示欠損の条件だけを元inventoryへ反映します。
+			if( scenario != 10U || std::wstring_view( name) != L"helper.exe") {
+				entries.push_back( {name, 9U}) ;
+			}
+		}
+
+		// System条件だけが同INFの関連kernelも参照します。
+		if( scenario >= 11U) {
+			DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"kernel.sys", "synthetic")) ;
+			entries.push_back( {L"kernel.sys", 9U}) ;
+		}
+
+		OfficialInfPackage package ;	// 内容構造だけで導入許可にはなりません。
+		// 同じ通常低位parserの元診断です。
+		const auto		   error =
+			inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy, package) ;
+		DRIVERCRATE_EXPECT( context,
+						   (error == 0) == (scenario <= 1U || scenario == 11U || scenario == 12U ||
+											scenario == 15U || scenario == 16U)) ;
+		// 正例でも元SWC役割と署名未合格をそのまま保持します。
+		if( error == 0) {
+			DRIVERCRATE_EXPECT( context, package.role == (scenario >= 11U
+															 ? DriverPlanRole::BASE_DRIVER
+															 : DriverPlanRole::DRIVER_COMPONENT)) ;
+			DRIVERCRATE_EXPECT( context, package.sourceFiles.size() == (scenario >= 11U ? 5U : 4U) &&
+											!package.hasExternalDependencies) ;
+			DRIVERCRATE_EXPECT( context, verifyWindowsInfPackageIntegrity( workspace, package) != 0) ;
+		} else {
+			DRIVERCRATE_EXPECT( context, package.infRelativePath.empty()) ;
+		}
+	}
+}
+
+/**
+ * @brief 原Systemのfileなし継承と、宣言file/作用の欠損を区別します。
+ * @param[in,out] context 架空INFだけの構造境界を集計します。
+ */
+void testInheritedSystemContent( TestContext &context)
+{
+	constexpr std::string_view INF =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=System\r\nClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}\r\n"
+		"Provider=Fixture\r\nDriverVer=11/03/2026,2.0.0.0\r\nCatalogFile=sample.cat\r\n"
+		"[Manufacturer]\r\nFixture=Models,NTamd64\r\n[Models.NTamd64]\r\nDevice=Install,ACPI\\SYNTHETIC_INHERIT_641\r\n"
+		"[Install]\r\nInclude=systemfixture.inf\r\nNeeds=Inherited.NT\r\n" ;	// 実Windows本文や導入APIを借用しません。
+	const std::array classes{std::wstring_view{L"System"}} ;					// 正式GUIDも元INFから検査します。
+	const std::array signatures{std::wstring_view{L"$Windows NT$"}} ;			// 構文識別だけです。
+	OfficialInfInspectionPolicy policy{
+		32U, 32U, classes, {}, signatures} ;	// 通常構成の有限policyです。
+	policy.acceptAnyProvider			 = true ;
+	policy.requireDriverBinary			 = false ;
+	policy.rejectUnreferencedPrograms	 = false ;
+	policy.rejectInstallActions			 = true ;
+	policy.allowRequiredDriverComponents = true ;
+	// 継承正例と明示作用・宣言欠損の独立負例を一回ずつ検査します。
+	for( unsigned scenario = 0U; scenario < 6U; ++scenario) {
+		std::string body{INF} ;	// 元条件ごとの独立fixtureです。
+		// 自身の宣言がある各条件をfileなし形式へ変換しません。
+		switch( scenario) {
+			// 未解決継承を残す正規のfileなし内容です。
+			case 0U:
+				break ;
+
+			// 宣言されたvendor fileの欠損です。
+			case 1U:
+				body +=
+					"[SourceDisksNames]\r\n1=fixture,,,\r\n[SourceDisksFiles]\r\nmissing.sys=1\r\n" ;
+				break ;
+
+			// 元CopyFilesを欠損listのまま許可しません。
+			case 2U:
+				body += "[Install]\r\nCopyFiles=Missing\r\n" ;
+				break ;
+
+			// 元ServiceBinaryを任意serviceの内容許可へ変えません。
+			case 3U:
+				body += "[Service]\r\nServiceBinary=%13%\\missing.sys\r\n" ;
+				break ;
+
+			// System名だけでは別GUIDへ継承形式を渡しません。
+			case 4U:
+				body.replace( body.find( "4d36e97d"), 8U, "4d36e972") ;
+				break ;
+
+			// Includeだけを未宣言Needsへ補完しません。
+			default:
+				body.replace( body.find( "Needs=Inherited.NT"),
+							 std::string_view{"Needs=Inherited.NT"}.size(), "") ;
+				break ;
+		}
+
+		OfficialDownloadWorkspace workspace ;	// 架空INF/CATだけの所有者です。
+		DRIVERCRATE_EXPECT( context,
+						   workspace.initialize( L"inherited-system-test", 2641U + scenario) == 0) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", body)) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "synthetic")) ;
+		const std::array   entries{OfficialZipEntry{L"sample.inf", body.size()},
+								   OfficialZipEntry{L"sample.cat", 9U}} ;	// 欠損bodyは補完しません。
+		OfficialInfPackage package ;										// 内容成功も導入許可を持ちません。
+		const auto error = inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy,
+													 package) ;	// 原構造の実結果です。
+		DRIVERCRATE_EXPECT( context, (error == 0) == (scenario == 0U)) ;
+		// 正例の未解決依存と署名未合格を成功へ水増ししません。
+		if( scenario == 0U) {
+			DRIVERCRATE_EXPECT( context, package.sourceFiles.empty() &&
+											package.unresolvedIncludeNeeds &&
+											package.hasExternalDependencies) ;
+			DRIVERCRATE_EXPECT( context,
+							   !isGenericInfPackageSupported( package) &&
+								   verifyWindowsInfPackageIntegrity( workspace, package) != 0) ;
+		}
+	}
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -3254,6 +3571,8 @@ void testMaintenanceDependencyClosure( TestContext &context)
 //------------------------------------------------------------------------------
 void runOfficialDriverPackageTests( TestContext &context)
 {
+	testStandardComponentActions( context) ;
+	testInheritedSystemContent( context) ;
 	testValidInfPackage( context) ;
 	testPrinterInfWithoutSys( context) ;
 	testGenericSoftwareDeviceBoundary( context) ;

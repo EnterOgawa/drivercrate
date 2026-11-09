@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(
     DriverCrate
-    VERSION 1.0.0
+    VERSION 1.0.1
     DESCRIPTION "Torrent-free Windows driver update manager"
     LANGUAGES C CXX RC
 )
@@ -181,6 +181,7 @@ configure_file(
 )
 
 add_library(drivercrate_core STATIC
+    src/core/pending_reference_version.cpp
     src/core/candidate_audit.cpp
     src/core/candidate_assessment.cpp
     src/core/candidate_selection.cpp
@@ -210,6 +211,8 @@ target_include_directories(drivercrate_core PUBLIC src)
 drivercrate_apply_compiler_options(drivercrate_core)
 
 add_library(drivercrate_platform STATIC
+    src/platform/local_diagnostic_log.cpp
+    src/platform/local_scan_diagnostics.cpp
     src/platform/amd_catalog_parser.cpp
     src/platform/amd_update_provider.cpp
     src/platform/asix_catalog_parser.cpp
@@ -235,6 +238,7 @@ add_library(drivercrate_platform STATIC
     src/platform/official_prepared_audit_report.cpp
     src/platform/official_prepared_install.cpp
     src/platform/official_bound_preparation.cpp
+    src/platform/asus_cdn_token.cpp
     src/platform/asus_package_acquisition.cpp
     src/platform/asus_system_identity.cpp
     src/platform/asus_update_provider.cpp
@@ -294,9 +298,8 @@ add_library(drivercrate_platform STATIC
     src/platform/inf_dependency_native.cpp
     src/platform/official_download_workspace.cpp
     src/platform/official_acquisition.cpp
+    src/platform/nvidia_collector_metadata.cpp
     src/platform/collector_inspection_acquisition.cpp
-    src/platform/collector_registry_job.cpp
-    src/platform/collector_distribution_candidate.cpp
     src/platform/official_record_utilities.cpp
     src/platform/official_download_grant.cpp
     src/platform/official_collector_public_text.cpp
@@ -313,6 +316,7 @@ add_library(drivercrate_platform STATIC
     src/platform/secret_official_url.cpp
     src/platform/official_prepared_acquisition.cpp
     src/platform/official_file_verifier.cpp
+    src/platform/official_mapped_file.cpp
     src/platform/official_gzip.cpp
     src/platform/official_http_client.cpp
     src/platform/official_html_terms.cpp
@@ -330,6 +334,9 @@ add_library(drivercrate_platform STATIC
     src/platform/signed_index_scan.cpp
     src/platform/signed_index_candidate_binding.cpp
     src/platform/official_msi.cpp
+    src/platform/official_pe_resource.cpp
+    src/platform/official_resource_content.cpp
+    src/platform/signed_index_resource_plan.cpp
     src/platform/official_seven_zip.cpp
     src/platform/official_sfx.cpp
     src/platform/maintenance_embedded_file_table.cpp
@@ -427,28 +434,22 @@ add_custom_command(TARGET DriverCrate POST_BUILD
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RecordIndexBuildProfile.cmake"
     VERBATIM)
 
-if(DRIVERCRATE_BUILD_LOCAL_INDEX_SIGNER)
-    # 明示操作だけで鍵を作る開発tool。通常本体・setup/packageには含めない。
-    add_library(drivercrate_local_index_signing STATIC src/platform/local_index_signing.cpp)
-    target_include_directories(drivercrate_local_index_signing PUBLIC src)
-    target_link_libraries(drivercrate_local_index_signing PRIVATE drivercrate_platform ncrypt advapi32 crypt32)
-    drivercrate_apply_compiler_options(drivercrate_local_index_signing)
-    add_executable(DriverCrateLocalIndexSigner src/app/local_index_signing_main.cpp)
-    target_include_directories(DriverCrateLocalIndexSigner PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
-    target_link_libraries(DriverCrateLocalIndexSigner PRIVATE drivercrate_local_index_signing drivercrate_platform)
-    drivercrate_apply_compiler_options(DriverCrateLocalIndexSigner)
-    drivercrate_apply_linker_options(DriverCrateLocalIndexSigner)
-    if(BUILD_TESTING)
-        add_executable(drivercrate_local_index_signing_tests tests/unit/local_index_signing_tests.cpp)
-        target_include_directories(drivercrate_local_index_signing_tests PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated")
-        target_link_libraries(drivercrate_local_index_signing_tests PRIVATE drivercrate_local_index_signing drivercrate_platform drivercrate_miniz)
-        drivercrate_apply_compiler_options(drivercrate_local_index_signing_tests)
-        drivercrate_apply_linker_options(drivercrate_local_index_signing_tests)
-        # 既存keyだけを使う明示受入試験。CTest/CIからpersistent keyを作らない。
-    endif()
+# Public consumer snapshot: private collection products are not distributed here.
+if(DRIVERCRATE_BUILD_COLLECTOR OR DRIVERCRATE_BUILD_LOCAL_INDEX_SIGNER OR DRIVERCRATE_BUILD_LIVE_TESTS)
+    message(FATAL_ERROR "This source snapshot supports the consumer app and nonnetwork tests only.")
 endif()
 
 if(BUILD_TESTING)
+    add_executable(drivercrate_pending_reference_tests tests/unit/pending_reference_version_tests.cpp)
+    target_link_libraries(drivercrate_pending_reference_tests PRIVATE drivercrate_core)
+    drivercrate_apply_compiler_options(drivercrate_pending_reference_tests)
+    drivercrate_apply_linker_options(drivercrate_pending_reference_tests)
+    add_test(NAME drivercrate_pending_reference_tests COMMAND drivercrate_pending_reference_tests)
+    add_executable(drivercrate_local_diagnostic_log_tests tests/unit/local_diagnostic_log_tests.cpp)
+    target_link_libraries(drivercrate_local_diagnostic_log_tests PRIVATE drivercrate_platform)
+    drivercrate_apply_compiler_options(drivercrate_local_diagnostic_log_tests)
+    drivercrate_apply_linker_options(drivercrate_local_diagnostic_log_tests)
+    add_test(NAME drivercrate_local_diagnostic_log_tests COMMAND drivercrate_local_diagnostic_log_tests)
     target_compile_definitions(drivercrate_platform PRIVATE DRIVERCRATE_INTERNAL_INDEX_TESTS)
     add_executable(drivercrate_published_inf_identity_tests tests/unit/published_inf_identity_tests.cpp)
     target_link_libraries(drivercrate_published_inf_identity_tests PRIVATE drivercrate_platform)
@@ -460,8 +461,6 @@ if(BUILD_TESTING)
     drivercrate_apply_compiler_options(drivercrate_official_html_terms_tests)
     drivercrate_apply_linker_options(drivercrate_official_html_terms_tests)
     add_test(NAME drivercrate_official_html_terms_tests COMMAND drivercrate_official_html_terms_tests)
-    # 製品と同じWin32画面を非通信Providerと復旧fakeでだけ動かす。実行は明示option必須。
-    # CTestも明示optionを渡し、製品の管理者manifestを継承しない内部UI試験専用targetとする。
     add_executable(drivercrate_metadata_ui_tests
         tests/ui/metadata_ui_tests.cpp
         # UI専用observer版が全定義を供給する。通常platformの同objectはこのEXEでlinkしない。
@@ -493,20 +492,10 @@ if(BUILD_TESTING)
         "SHELL:/MANIFESTUAC:\"level='asInvoker' uiAccess='false'\""
         "SHELL:/MANIFESTDEPENDENCY:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='amd64' publicKeyToken='6595b64144ccf1df' language='*'\""
     )
-    # 全modeは非通信Providerと復旧fakeだけを使う。長時間suiteを一processへ集約せず、
-    # 元のdefaultと全依存modeを独立した有限CTestとして保持する。
     add_test(NAME drivercrate_metadata_ui_default_tests
         COMMAND drivercrate_metadata_ui_tests --run-ui-tests)
     set_tests_properties(drivercrate_metadata_ui_default_tests PROPERTIES
         RUN_SERIAL TRUE TIMEOUT 600 LABELS "ui;nonnetwork")
-    foreach(drivercrate_ui_mode IN ITEMS close queue index binding multi unknown
-            components needs extension formats preparation refresh)
-        add_test(NAME drivercrate_metadata_ui_${drivercrate_ui_mode}_tests
-            COMMAND drivercrate_metadata_ui_tests --run-ui-tests ${drivercrate_ui_mode})
-        set_tests_properties(drivercrate_metadata_ui_${drivercrate_ui_mode}_tests PROPERTIES
-            RUN_SERIAL TRUE TIMEOUT 600 LABELS "ui;nonnetwork")
-    endforeach()
-
     add_executable(drivercrate_unit_tests
         tests/unit/signed_index_candidate_binding_tests.cpp
         tests/support/live_search_diagnostics.cpp
@@ -603,11 +592,10 @@ if(BUILD_TESTING)
             msi
     )
     drivercrate_apply_compiler_options(drivercrate_unit_tests)
-
     target_include_directories(drivercrate_unit_tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
     add_test(NAME drivercrate_unit_tests COMMAND drivercrate_unit_tests)
-
-    # 変更moduleの独立process gate。通常aggregateの限定optionを独立target合格へ数えない。
+    set_property(SOURCE tests/unit/metadata_inventory_tests.cpp APPEND PROPERTY OBJECT_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/index_capacity_inventory_tests.cpp")
     add_executable(drivercrate_index_binding_tests
         tests/unit/test_main.cpp
         tests/unit/metadata_inventory_tests.cpp
@@ -621,14 +609,13 @@ if(BUILD_TESTING)
         tests/unit/candidate_audit_tests.cpp
     )
     target_include_directories(drivercrate_index_binding_tests PRIVATE src tests tests/unit "${CMAKE_CURRENT_BINARY_DIR}/generated")
+    target_sources(drivercrate_index_binding_tests PRIVATE tests/unit/official_download_grant_tests.cpp)
     target_compile_definitions(drivercrate_index_binding_tests PRIVATE
         DRIVERCRATE_INTERNAL_INDEX_TESTS DRIVERCRATE_INDEX_BINDING_STANDALONE)
     target_link_libraries(drivercrate_index_binding_tests PRIVATE
         drivercrate_miniz drivercrate_platform bcrypt crypt32 msi)
     drivercrate_apply_compiler_options(drivercrate_index_binding_tests)
     add_test(NAME drivercrate_index_binding_tests COMMAND drivercrate_index_binding_tests)
-
-    # 既存架空INFと保守構造だけの有限回帰。実device・通信・導入を呼ばない。
     add_executable(drivercrate_maintenance_inf_structure_tests
         tests/unit/maintenance_inf_structure_main.cpp
         tests/unit/official_driver_package_tests.cpp)
@@ -638,16 +625,11 @@ if(BUILD_TESTING)
     drivercrate_apply_linker_options(drivercrate_maintenance_inf_structure_tests)
     add_test(NAME drivercrate_maintenance_inf_structure_tests COMMAND drivercrate_maintenance_inf_structure_tests)
     set_tests_properties(drivercrate_maintenance_inf_structure_tests PROPERTIES TIMEOUT 120)
-
-    # 署名／native応答だけをEXE内へ分離し、既存の閉包・保守射影本体をそのまま検証する。
-    # PRIVATE定義はこのtargetだけに適用し、製品platform libraryと通常targetへ伝播させない。
     add_executable(drivercrate_maintenance_inf_integrity_tests
         tests/unit/maintenance_inf_integrity_tests.cpp
         tests/live/maintenance_reached_reference_observation.cpp
         src/platform/official_driver_closure.cpp
         src/platform/common_driver_package.cpp)
-    # 必須unitは除外された旧研究directoryを入力にせず、writer leafの祖先だけをbuild内へ作る。
-    # leaf自体の生成・reparse拒否・固定stem・CreateNew・個別cleanupは既存unit/writerが担当する。
     set(drivercrate_integrity_test_scratch
         "${CMAKE_CURRENT_BINARY_DIR}/test-scratch/maintenance-inf-integrity")
     file(MAKE_DIRECTORY "${drivercrate_integrity_test_scratch}")
@@ -664,62 +646,12 @@ if(BUILD_TESTING)
     drivercrate_apply_linker_options(drivercrate_maintenance_inf_integrity_tests)
     add_test(NAME drivercrate_maintenance_inf_integrity_tests COMMAND drivercrate_maintenance_inf_integrity_tests)
     set_tests_properties(drivercrate_maintenance_inf_integrity_tests PROPERTIES TIMEOUT 120)
-
-    # 保存HTMLを明示引数で読む非通信smoke。ignored資料が必須なのでCTestへ自動登録しない。
-    add_executable(drivercrate_intel_collector_saved_smoke
-        tests/live/intel_collector_saved_page_smoke.cpp
-    )
-    target_include_directories(drivercrate_intel_collector_saved_smoke PRIVATE src)
-    target_link_libraries(drivercrate_intel_collector_saved_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_intel_collector_saved_smoke)
-
-    # 明示local ZIPの選択INF棚卸し。非通信・非導入であり実物入力をCTestへ登録しない。
-    add_executable(drivercrate_selected_inf_inventory_smoke
-        tests/live/selected_inf_inventory_smoke.cpp
-    )
-    target_include_directories(drivercrate_selected_inf_inventory_smoke PRIVATE src)
-    target_link_libraries(drivercrate_selected_inf_inventory_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_selected_inf_inventory_smoke)
-    drivercrate_apply_linker_options(drivercrate_selected_inf_inventory_smoke)
-
-    # 保存済み公式byteで取得後全経路を再生する。実CAT/rankを維持し、CTestへ自動登録しない。
-    add_executable(drivercrate_signed_index_publication_replay
-        tests/live/signed_index_publication_replay.cpp)
-    target_compile_definitions(drivercrate_signed_index_publication_replay PRIVATE
-        DRIVERCRATE_INTERNAL_INDEX_TESTS)
-    target_include_directories(drivercrate_signed_index_publication_replay PRIVATE
-        src ${CMAKE_CURRENT_BINARY_DIR}/generated)
-    target_link_libraries(drivercrate_signed_index_publication_replay PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_signed_index_publication_replay)
-    drivercrate_apply_linker_options(drivercrate_signed_index_publication_replay)
-
-    # 旧128節世代のbinaryを保持する、有限容量拡張後の独立非導入測定target。
-    add_executable(drivercrate_inf_inventory_expanded_smoke
-        tests/live/selected_inf_inventory_smoke.cpp
-    )
-    target_include_directories(drivercrate_inf_inventory_expanded_smoke PRIVATE src)
-    target_link_libraries(drivercrate_inf_inventory_expanded_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_inf_inventory_expanded_smoke)
-    drivercrate_apply_linker_options(drivercrate_inf_inventory_expanded_smoke)
-
-    # 中間512節世代も保持する、1,024節の最終有限上限の独立非導入測定target。
-    add_executable(drivercrate_inf_inventory_large_smoke
-        tests/live/selected_inf_inventory_smoke.cpp
-    )
-    target_include_directories(drivercrate_inf_inventory_large_smoke PRIVATE src)
-    target_link_libraries(drivercrate_inf_inventory_large_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_inf_inventory_large_smoke)
-    drivercrate_apply_linker_options(drivercrate_inf_inventory_large_smoke)
-
-    # 偽loaderだけを使う共通依存核試験。実INF・network・導入を呼ばない。
     add_executable(drivercrate_inf_dependency_tests tests/unit/inf_dependency_plan_tests.cpp)
     target_include_directories(drivercrate_inf_dependency_tests PRIVATE src tests/unit)
     target_link_libraries(drivercrate_inf_dependency_tests PRIVATE drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_inf_dependency_tests)
     drivercrate_apply_linker_options(drivercrate_inf_dependency_tests)
     add_test(NAME drivercrate_inf_dependency_tests COMMAND drivercrate_inf_dependency_tests)
-
-    # 架空の全証拠組合せ・差替えと確認計画の非実行境界を検証する独立target。
     add_executable(drivercrate_inf_dependency_review_boundary_tests
         tests/unit/inf_dependency_review_boundary_tests.cpp)
     target_include_directories(drivercrate_inf_dependency_review_boundary_tests PRIVATE src tests/unit)
@@ -727,32 +659,31 @@ if(BUILD_TESTING)
     drivercrate_apply_compiler_options(drivercrate_inf_dependency_review_boundary_tests)
     drivercrate_apply_linker_options(drivercrate_inf_dependency_review_boundary_tests)
     add_test(NAME drivercrate_inf_dependency_review_boundary_tests COMMAND drivercrate_inf_dependency_review_boundary_tests)
-
-    # 共通計画の独立fake内容境界。製品の通常検査をtest専用関数で置換しない。
+    add_executable(drivercrate_resource_content_tests tests/unit/resource_content_tests.cpp)
+    target_include_directories(drivercrate_resource_content_tests PRIVATE src tests/unit)
+    target_link_libraries(drivercrate_resource_content_tests PRIVATE drivercrate_platform)
+    drivercrate_apply_compiler_options(drivercrate_resource_content_tests)
+    drivercrate_apply_linker_options(drivercrate_resource_content_tests)
+    add_test(NAME drivercrate_resource_content_tests COMMAND drivercrate_resource_content_tests
+        vectors "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/pe-resource")
     add_executable(drivercrate_common_inf_plan_tests tests/unit/common_inf_plan_tests.cpp)
     target_include_directories(drivercrate_common_inf_plan_tests PRIVATE src tests/unit)
     target_link_libraries(drivercrate_common_inf_plan_tests PRIVATE drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_common_inf_plan_tests)
     drivercrate_apply_linker_options(drivercrate_common_inf_plan_tests)
     add_test(NAME drivercrate_common_inf_plan_tests COMMAND drivercrate_common_inf_plan_tests)
-
-    # 共通選択adapterの境界試験。実内容・Windows導入を当該EXEのfakeで代替する。
     add_executable(drivercrate_common_inf_batch_tests tests/unit/common_inf_batch_tests.cpp)
     target_include_directories(drivercrate_common_inf_batch_tests PRIVATE src tests/unit)
     target_link_libraries(drivercrate_common_inf_batch_tests PRIVATE drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_common_inf_batch_tests)
     drivercrate_apply_linker_options(drivercrate_common_inf_batch_tests)
     add_test(NAME drivercrate_common_inf_batch_tests COMMAND drivercrate_common_inf_batch_tests)
-
-    # 旧発行試験EXEを保持しつつ、同じ86 assertionを現在のlibraryへ再linkして回帰確認する。
     add_executable(drivercrate_common_inf_factory_regression_tests tests/unit/common_inf_plan_tests.cpp)
     target_include_directories(drivercrate_common_inf_factory_regression_tests PRIVATE src tests/unit)
     target_link_libraries(drivercrate_common_inf_factory_regression_tests PRIVATE drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_common_inf_factory_regression_tests)
     drivercrate_apply_linker_options(drivercrate_common_inf_factory_regression_tests)
     add_test(NAME drivercrate_common_inf_factory_regression_tests COMMAND drivercrate_common_inf_factory_regression_tests)
-
-    # 旧325項目EXEを保持し、同じfixtureへ34定義の実装範囲別試験を専用compile境界で追加する。
     add_executable(drivercrate_common_inf_contract_tests tests/unit/common_inf_batch_tests.cpp)
     target_compile_definitions(drivercrate_common_inf_contract_tests PRIVATE DRIVERCRATE_COMMON_INF_CONTRACT_TESTS=1)
     target_include_directories(drivercrate_common_inf_contract_tests PRIVATE src tests/unit)
@@ -760,8 +691,6 @@ if(BUILD_TESTING)
     drivercrate_apply_compiler_options(drivercrate_common_inf_contract_tests)
     drivercrate_apply_linker_options(drivercrate_common_inf_contract_tests)
     add_test(NAME drivercrate_common_inf_contract_tests COMMAND drivercrate_common_inf_contract_tests)
-
-    # 架空transportだけで取得証拠を検証する独立非通信target。
     add_executable(drivercrate_acquired_file_evidence_tests
         tests/unit/acquired_file_evidence_main.cpp tests/unit/official_acquisition_tests.cpp)
     target_include_directories(drivercrate_acquired_file_evidence_tests PRIVATE src tests/unit)
@@ -769,16 +698,12 @@ if(BUILD_TESTING)
     drivercrate_apply_compiler_options(drivercrate_acquired_file_evidence_tests)
     drivercrate_apply_linker_options(drivercrate_acquired_file_evidence_tests)
     add_test(NAME drivercrate_acquired_file_evidence_tests COMMAND drivercrate_acquired_file_evidence_tests)
-
-    # 封印取得から全INFへ結合するZIP／内側ZIPの独立非通信試験。
     add_executable(drivercrate_inf_archive_binding_tests tests/unit/official_inf_archive_binding_tests.cpp)
     target_include_directories(drivercrate_inf_archive_binding_tests PRIVATE src tests/unit)
     target_link_libraries(drivercrate_inf_archive_binding_tests PRIVATE drivercrate_platform drivercrate_miniz)
     drivercrate_apply_compiler_options(drivercrate_inf_archive_binding_tests)
     drivercrate_apply_linker_options(drivercrate_inf_archive_binding_tests)
     add_test(NAME drivercrate_inf_archive_binding_tests COMMAND drivercrate_inf_archive_binding_tests)
-
-    # 架空取得と専用compileの署名APIだけで、封印native接続を検証する。
     add_executable(drivercrate_acquired_inf_native_binding_tests
         tests/unit/official_inf_archive_binding_tests.cpp
         src/platform/inf_dependency_native.cpp)
@@ -789,96 +714,18 @@ if(BUILD_TESTING)
     drivercrate_apply_compiler_options(drivercrate_acquired_inf_native_binding_tests)
     drivercrate_apply_linker_options(drivercrate_acquired_inf_native_binding_tests)
     add_test(NAME drivercrate_acquired_inf_native_binding_tests COMMAND drivercrate_acquired_inf_native_binding_tests)
-
-    # 明示local PEの原範囲と全INF抽出だけを測る。自動CTestや実通信に接続しない。
-    add_executable(drivercrate_pe_inf_range_smoke tests/live/pe_inf_range_smoke.cpp)
-    target_include_directories(drivercrate_pe_inf_range_smoke PRIVATE src)
-    target_link_libraries(drivercrate_pe_inf_range_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_pe_inf_range_smoke)
-    drivercrate_apply_linker_options(drivercrate_pe_inf_range_smoke)
-
-    # 初回測定binaryを保持する診断補正世代。自動CTestや実通信に接続しない。
-    add_executable(drivercrate_pe_inf_range_rechecked_smoke tests/live/pe_inf_range_smoke.cpp)
-    target_include_directories(drivercrate_pe_inf_range_rechecked_smoke PRIVATE src)
-    target_link_libraries(drivercrate_pe_inf_range_rechecked_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_pe_inf_range_rechecked_smoke)
-    drivercrate_apply_linker_options(drivercrate_pe_inf_range_rechecked_smoke)
-
-    # 明示local ZIPだけの独立測定器。自動CTest・live network testには登録しない。
-    add_executable(drivercrate_acquired_inf_dependency_smoke tests/live/acquired_inf_dependency_smoke.cpp)
-    target_include_directories(drivercrate_acquired_inf_dependency_smoke PRIVATE src)
-    target_link_libraries(drivercrate_acquired_inf_dependency_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_acquired_inf_dependency_smoke)
-    drivercrate_apply_linker_options(drivercrate_acquired_inf_dependency_smoke)
-
-    # 旧測定binaryを保持する、研究ZIPの未認証入口と署名補助metadataの独立対照世代。
-    add_executable(drivercrate_untrusted_inf_dependency_smoke tests/live/acquired_inf_dependency_smoke.cpp)
-    target_compile_definitions(drivercrate_untrusted_inf_dependency_smoke PRIVATE DRIVERCRATE_UNTRUSTED_INF_PROBE)
-    target_include_directories(drivercrate_untrusted_inf_dependency_smoke PRIVATE src)
-    target_link_libraries(drivercrate_untrusted_inf_dependency_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_untrusted_inf_dependency_smoke)
-    drivercrate_apply_linker_options(drivercrate_untrusted_inf_dependency_smoke)
-
-    # Macroなしの旧分岐はobjectだけを新規compileし、旧測定EXEを上書きしない。
     add_executable(drivercrate_collector_inspection_tests tests/unit/collector_inspection_acquisition_tests.cpp)
     target_include_directories(drivercrate_collector_inspection_tests PRIVATE src)
     target_link_libraries(drivercrate_collector_inspection_tests PRIVATE drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_collector_inspection_tests)
     drivercrate_apply_linker_options(drivercrate_collector_inspection_tests)
     add_test(NAME drivercrate_collector_inspection_tests COMMAND drivercrate_collector_inspection_tests)
-
-    # 通常binaryへ成功検査の試験seamを含めず、独立TUだけに限定する。
-    add_executable(drivercrate_collector_registry_job_tests
-        tests/unit/collector_registry_job_tests.cpp
-        src/platform/collector_registry_job.cpp
-        src/platform/official_http_client.cpp)
-    target_compile_definitions(drivercrate_collector_registry_job_tests PRIVATE DRIVERCRATE_REGISTRY_JOB_TESTING)
-    target_include_directories(drivercrate_collector_registry_job_tests PRIVATE src)
-    target_link_libraries(drivercrate_collector_registry_job_tests PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_collector_registry_job_tests)
-    drivercrate_apply_linker_options(drivercrate_collector_registry_job_tests)
-    add_test(NAME drivercrate_collector_registry_job_tests COMMAND drivercrate_collector_registry_job_tests)
-
-    # 同じ私有native結果だけからv2候補を作る非通信の有限fixture。
-    add_executable(drivercrate_collector_distribution_candidate_tests
-        tests/unit/collector_distribution_candidate_tests.cpp
-        src/platform/collector_registry_job.cpp
-        src/platform/official_http_client.cpp)
-    target_compile_definitions(drivercrate_collector_distribution_candidate_tests PRIVATE DRIVERCRATE_REGISTRY_JOB_TESTING)
-    target_include_directories(drivercrate_collector_distribution_candidate_tests PRIVATE src)
-    target_link_libraries(drivercrate_collector_distribution_candidate_tests PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_collector_distribution_candidate_tests)
-    drivercrate_apply_linker_options(drivercrate_collector_distribution_candidate_tests)
-    add_test(NAME drivercrate_collector_distribution_candidate_tests COMMAND drivercrate_collector_distribution_candidate_tests)
-
-    add_library(drivercrate_inf_dependency_legacy_compile_check OBJECT tests/live/acquired_inf_dependency_smoke.cpp)
-    target_include_directories(drivercrate_inf_dependency_legacy_compile_check PRIVATE src)
-    drivercrate_apply_compiler_options(drivercrate_inf_dependency_legacy_compile_check)
-
-    # 封印所有者と同じ共通抽出APIの非実行実測。旧二十測定binaryを保持する。
-    add_executable(drivercrate_common_inf_metadata_smoke tests/live/acquired_inf_dependency_smoke.cpp)
-    target_compile_definitions(drivercrate_common_inf_metadata_smoke PRIVATE DRIVERCRATE_COMMON_INF_METADATA_PROBE)
-    target_include_directories(drivercrate_common_inf_metadata_smoke PRIVATE src)
-    target_link_libraries(drivercrate_common_inf_metadata_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_common_inf_metadata_smoke)
-    drivercrate_apply_linker_options(drivercrate_common_inf_metadata_smoke)
-
-    # 初回のhash用途誤りを記録した測定EXEも上書きせず、最終共有hashで再測定する。
-    add_executable(drivercrate_common_inf_metadata_rechecked_smoke tests/live/acquired_inf_dependency_smoke.cpp)
-    target_compile_definitions(drivercrate_common_inf_metadata_rechecked_smoke PRIVATE DRIVERCRATE_COMMON_INF_METADATA_PROBE)
-    target_include_directories(drivercrate_common_inf_metadata_rechecked_smoke PRIVATE src)
-    target_link_libraries(drivercrate_common_inf_metadata_rechecked_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_common_inf_metadata_rechecked_smoke)
-    drivercrate_apply_linker_options(drivercrate_common_inf_metadata_rechecked_smoke)
-
     add_executable(drivercrate_inf_dependency_native_tests tests/unit/inf_dependency_native_tests.cpp)
     target_include_directories(drivercrate_inf_dependency_native_tests PRIVATE src tests/unit)
     target_link_libraries(drivercrate_inf_dependency_native_tests PRIVATE drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_inf_dependency_native_tests)
     drivercrate_apply_linker_options(drivercrate_inf_dependency_native_tests)
     add_test(NAME drivercrate_inf_dependency_native_tests COMMAND drivercrate_inf_dependency_native_tests)
-
-    # 同じadapterを専用compileする。製品platformに注入口を含めない。
     add_executable(drivercrate_inf_dependency_native_api_tests
         tests/unit/inf_dependency_native_api_tests.cpp
         tests/unit/official_driver_package_service_contract_tests.cpp
@@ -890,942 +737,25 @@ if(BUILD_TESTING)
     drivercrate_apply_compiler_options(drivercrate_inf_dependency_native_api_tests)
     drivercrate_apply_linker_options(drivercrate_inf_dependency_native_api_tests)
     add_test(NAME drivercrate_inf_dependency_native_api_tests COMMAND drivercrate_inf_dependency_native_api_tests)
-
-    # 前世代の標準測定binary二つを保持する独立回帰世代。CTestへ登録しない。
-    add_executable(drivercrate_inf_dependency_native_regression_smoke tests/unit/inf_dependency_native_tests.cpp)
-    target_compile_definitions(drivercrate_inf_dependency_native_regression_smoke PRIVATE DRIVERCRATE_NATIVE_WINDOWS_PROBE)
-    target_include_directories(drivercrate_inf_dependency_native_regression_smoke PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_inf_dependency_native_regression_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_inf_dependency_native_regression_smoke)
-    drivercrate_apply_linker_options(drivercrate_inf_dependency_native_regression_smoke)
-
-    # CTestに登録せず明示optionでだけ標準INFを読む。旧測定targetは再構築しない。
-    add_executable(drivercrate_inf_dependency_native_smoke tests/unit/inf_dependency_native_tests.cpp)
-    target_compile_definitions(drivercrate_inf_dependency_native_smoke PRIVATE DRIVERCRATE_NATIVE_WINDOWS_PROBE)
-    target_include_directories(drivercrate_inf_dependency_native_smoke PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_inf_dependency_native_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_inf_dependency_native_smoke)
-    drivercrate_apply_linker_options(drivercrate_inf_dependency_native_smoke)
-
-    # 旧三世代のbinaryを保持する、参照元hash・有限不足だけの非導入測定世代。
-    add_executable(drivercrate_inf_inventory_context_smoke tests/live/selected_inf_inventory_smoke.cpp)
-    target_include_directories(drivercrate_inf_inventory_context_smoke PRIVATE src)
-    target_compile_definitions(drivercrate_inf_inventory_context_smoke PRIVATE DRIVERCRATE_INF_CONTEXT_OUTPUT=1)
-    target_link_libraries(drivercrate_inf_inventory_context_smoke PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(drivercrate_inf_inventory_context_smoke)
-    drivercrate_apply_linker_options(drivercrate_inf_inventory_context_smoke)
-
-    # 実filesystemの架空台帳だけを使う非通信ACL試験。製品へlinkしない。
-    add_executable(drivercrate_collector_state_tests
-        tests/unit/local_collector_state_tests.cpp
-        src/platform/local_collector_state_store.cpp
-    )
-    target_include_directories(drivercrate_collector_state_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_collector_state_tests PRIVATE advapi32 ole32)
-    drivercrate_apply_compiler_options(drivercrate_collector_state_tests)
-    drivercrate_apply_linker_options(drivercrate_collector_state_tests)
-    add_test(NAME drivercrate_collector_state_tests COMMAND drivercrate_collector_state_tests)
-    set_tests_properties(drivercrate_collector_state_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 30
-    )
-
-    # 公式networkを使わず、時計・HTTP注入によるrun再開を検査する開発fixture。
-    add_executable(drivercrate_collector_run_tests
-        tests/unit/local_driver_collector_tests.cpp
-        src/platform/local_collector_http_control.cpp
-        src/platform/local_collector_http_client.cpp
-        src/platform/local_collector_projected_job.cpp
-        src/platform/local_collector_projected_input.cpp
-        src/platform/local_collector_projected_start.cpp
-        src/platform/local_collector_http_observation.cpp
-        src/platform/local_driver_collector.cpp
-        src/platform/local_collector_campaign.cpp
-        src/platform/local_collector_recovery.cpp
-        src/platform/local_collector_state_store.cpp
-    )
-    target_include_directories(drivercrate_collector_run_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_collector_run_tests PRIVATE drivercrate_platform ole32 normaliz)
-    drivercrate_apply_compiler_options(drivercrate_collector_run_tests)
-    drivercrate_apply_linker_options(drivercrate_collector_run_tests)
-    add_test(NAME drivercrate_collector_run_tests COMMAND drivercrate_collector_run_tests)
-    set_tests_properties(drivercrate_collector_run_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 30
-    )
-
-    # 非通信campaign core。共有予算と二file保存窓を実filesystemの架空台帳で検査する。
-    add_executable(drivercrate_collector_campaign_tests
-        tests/unit/local_collector_campaign_tests.cpp
-        tests/unit/local_collector_projected_recovery_tests.cpp
-        tests/unit/local_collector_projected_json_tests.cpp
-        tests/unit/local_collector_metadata_codec_tests.cpp
-        tests/unit/local_collector_projected_response_tests.cpp
-        tests/unit/local_collector_projected_cache_tests.cpp
-        src/platform/local_collector_projected_storage_rules.cpp
-        src/platform/local_collector_projected_job.cpp
-        src/platform/local_collector_projected_input.cpp
-        src/platform/local_collector_projected_start.cpp
-        src/platform/local_collector_http_observation.cpp
-        tests/unit/local_collector_http_tests.cpp
-        tests/unit/local_collector_executor_tests.cpp
-        src/platform/local_collector_http_control.cpp
-        src/platform/local_collector_http_client.cpp
-        src/platform/local_collector_executor.cpp
-        src/platform/local_collector_campaign.cpp
-        src/platform/local_collector_recovery.cpp
-        src/platform/local_driver_collector.cpp
-        src/platform/local_collector_state_store.cpp
-        src/platform/local_collector_collection_store.cpp
-        src/platform/local_collector_shared_store.cpp
-        src/platform/local_collector_segment_inventory.cpp
-        src/platform/local_collector_segment_preparation.cpp
-        src/platform/local_collector_segment_storage.cpp
-        src/platform/local_collector_segment_recovery.cpp
-        src/platform/local_collector_segment_read.cpp
-        src/platform/local_collector_segment_switch.cpp
-        src/platform/local_collector_shared_operation.cpp
-        src/platform/local_collector_shared_update.cpp
-        src/platform/local_collector_shared_ledger.cpp
-    )
-    target_include_directories(drivercrate_collector_campaign_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_collector_campaign_tests PRIVATE drivercrate_platform ole32 normaliz)
-    drivercrate_apply_compiler_options(drivercrate_collector_campaign_tests)
-    drivercrate_apply_linker_options(drivercrate_collector_campaign_tests)
-    # 従来の基本fixtureを重複・省略せず二分し、各CTestの有限300秒枠を維持する。
-    add_test(NAME drivercrate_collector_campaign_tests
-        COMMAND drivercrate_collector_campaign_tests --without-projected-http)
-    set_tests_properties(drivercrate_collector_campaign_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        # 全完了履歴の原byte再照合を含む有限非通信suite。製品のHTTP期限とは独立。
-        TIMEOUT 300
-    )
-    add_test(NAME drivercrate_collector_projected_http_tests
-        COMMAND drivercrate_collector_campaign_tests --projected-http-only)
-    # 保護rawからの完了封印だけを旧分母へ重複させず独立検査する。
-    add_test(NAME drivercrate_collector_completed_inventory_tests
-        COMMAND drivercrate_collector_campaign_tests --completed-inventory-only)
-    # 同親historyのv3保存と個別readerだけ。共有値一致・区間sealの合格ではありません。
-    add_test(NAME drivercrate_collector_history_layout_v3_tests
-        COMMAND drivercrate_collector_campaign_tests --history-layout-v3-only)
-    set_tests_properties(drivercrate_collector_history_layout_v3_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 120)
-    # 値一致と同時借用の区間根拠を既存個別readerの分母から分離します。
-    add_test(NAME drivercrate_collector_segment_inventory_tests
-        COMMAND drivercrate_collector_campaign_tests --segment-inventory-only)
-    set_tests_properties(drivercrate_collector_segment_inventory_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # ROOT未保存の全69prefixと旧全raw改変を独立枠で測り、既存期限を変更しません。
-    add_test(NAME drivercrate_collector_segment_preparation_recovery_tests
-        COMMAND drivercrate_collector_campaign_tests --segment-preparation-recovery-only)
-    set_tests_properties(drivercrate_collector_segment_preparation_recovery_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        RUN_SERIAL TRUE
-        TIMEOUT 600)
-    # 全能力解放後の実handle回復をbyte codecの分母と分けます。
-    add_test(NAME drivercrate_collector_segment_recovery_storage_tests
-        COMMAND drivercrate_collector_campaign_tests --segment-recovery-storage-only)
-    set_tests_properties(drivercrate_collector_segment_recovery_storage_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 初回readyのbyte codecだけの枠。実handle・能力発行を合格へ含めません。
-    add_test(NAME drivercrate_collector_segment_read_context_tests
-        COMMAND drivercrate_collector_campaign_tests --segment-read-context-only)
-    set_tests_properties(drivercrate_collector_segment_read_context_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # byte codecの分母は実handle readerと重複加算しません。
-    add_test(NAME drivercrate_collector_segment_initial_read_codec_tests
-        COMMAND drivercrate_collector_campaign_tests --segment-initial-read-codec-only)
-    set_tests_properties(drivercrate_collector_segment_initial_read_codec_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 既存回復codecを初回読取りcodecの分母から分けます。
-    add_test(NAME drivercrate_collector_segment_recovery_codec_tests
-        COMMAND drivercrate_collector_campaign_tests --segment-recovery-codec-only)
-    set_tests_properties(drivercrate_collector_segment_recovery_codec_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 親head保存だけの枠。固定記録からの再起動回復とは分離します。
-    add_test(NAME drivercrate_collector_parent_head_storage_tests
-        COMMAND drivercrate_collector_campaign_tests --parent-head-storage-only)
-    set_tests_properties(drivercrate_collector_parent_head_storage_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 専用初期ROOTの実保存だけの枠。親head・再起動回復には数えません。
-    add_test(NAME drivercrate_collector_initial_root_storage_tests
-        COMMAND drivercrate_collector_campaign_tests --initial-root-storage-only)
-    set_tests_properties(drivercrate_collector_initial_root_storage_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 私有新子の69準備保存だけの枠。ROOT／head・再起動回復には数えません。
-    add_test(NAME drivercrate_collector_new_segment_storage_tests
-        COMMAND drivercrate_collector_campaign_tests --new-segment-storage-only)
-    set_tests_properties(drivercrate_collector_new_segment_storage_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 固定切替準備の実保存だけの枠。新子／head切替・再起動回復には数えません。
-    add_test(NAME drivercrate_collector_segment_preparation_storage_tests
-        COMMAND drivercrate_collector_campaign_tests --segment-preparation-storage-only)
-    set_tests_properties(drivercrate_collector_segment_preparation_storage_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 同親handle保持・固定role先払いの非保存枠。実保存の合格へ流用しません。
-    add_test(NAME drivercrate_collector_segment_storage_tests
-        COMMAND drivercrate_collector_campaign_tests --segment-storage-only)
-    set_tests_properties(drivercrate_collector_segment_storage_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 実HTTP所有閉鎖の専用枠。保存・CLI接続の合格には数えません。
-    add_test(NAME drivercrate_collector_http_quiescence_tests
-        COMMAND drivercrate_collector_campaign_tests --http-quiescence-only)
-    set_tests_properties(drivercrate_collector_http_quiescence_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 実根拠からの非保存準備だけを独立枠へ分離します。切替保存の試験ではありません。
-    add_test(NAME drivercrate_collector_segment_preparation_tests
-        COMMAND drivercrate_collector_campaign_tests --segment-preparation-only)
-    set_tests_properties(drivercrate_collector_segment_preparation_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    set_tests_properties(drivercrate_collector_completed_inventory_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    set_tests_properties(drivercrate_collector_projected_http_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        RUN_SERIAL TRUE
-        TIMEOUT 300
-    )
-    # 旧二枠を変更せず、未応答次世代の新規fixtureだけを非重複で追加する。
-    add_test(NAME drivercrate_collector_next_recovery_tests
-        COMMAND drivercrate_collector_campaign_tests --next-recovery-only)
-    # 部分開始の保存窓は旧三収集CTestへ重複せず、同じ有限枠で観測します。
-    add_test(NAME drivercrate_collector_partial_start_tests
-        COMMAND drivercrate_collector_campaign_tests --partial-start-only)
-    set_tests_properties(drivercrate_collector_partial_start_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 全完了からの日次切替だけを旧四収集枠へ重複せず追加する。
-    add_test(NAME drivercrate_collector_day_roll_tests
-        COMMAND drivercrate_collector_campaign_tests --day-roll-only)
-    set_tests_properties(drivercrate_collector_day_roll_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 末尾完了保存窓だけを旧五収集枠へ重複せず追加する。
-    add_test(NAME drivercrate_collector_finish_recovery_tests
-        COMMAND drivercrate_collector_campaign_tests --finish-recovery-only)
-    set_tests_properties(drivercrate_collector_finish_recovery_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 正常300世代と301開始拒否だけを旧六収集枠へ重複せず追加する。
-    add_test(NAME drivercrate_collector_generation_boundary_tests
-        COMMAND drivercrate_collector_campaign_tests --generation-boundary-only)
-    set_tests_properties(drivercrate_collector_generation_boundary_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 本番二世代と未受領予約の基礎履歴は旧七収集枠へ重複させない。
-    add_test(NAME drivercrate_collector_operation_history_tests
-        COMMAND drivercrate_collector_campaign_tests --operation-history-only)
-    set_tests_properties(drivercrate_collector_operation_history_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 合成299操作と本番未受領一枠の上限だけを独立の有限枠で検査する。
-    add_test(NAME drivercrate_collector_operation_capacity_tests
-        COMMAND drivercrate_collector_campaign_tests --operation-capacity-only)
-    set_tests_properties(drivercrate_collector_operation_capacity_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        RUN_SERIAL TRUE
-        TIMEOUT 300)
-    # 新requestの通常受領・未受領二枠復旧だけを独立の有限枠で検査する。
-    add_test(NAME drivercrate_collector_cache_growth_tests
-        COMMAND drivercrate_collector_campaign_tests --cache-growth-only)
-    set_tests_properties(drivercrate_collector_cache_growth_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 大量新requestの合成全完了履歴を、上限を変えず固定段階だけで測る。
-    add_test(NAME drivercrate_collector_cache_capacity_tests
-        COMMAND drivercrate_collector_campaign_tests --cache-capacity-only)
-    set_tests_properties(drivercrate_collector_cache_capacity_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-    # 同じ四要求の全完了世代の厳密境界と、通常起動の非変更を別枠で検査する。
-    add_test(NAME drivercrate_collector_cache_startup_tests
-        COMMAND drivercrate_collector_campaign_tests --cache-startup-only)
-    set_tests_properties(drivercrate_collector_cache_startup_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        RUN_SERIAL TRUE
-        # 八回の全履歴起動を含む独立枠。旧300秒枠と製品期限は維持する。
-        TIMEOUT 600)
-    set_tests_properties(drivercrate_collector_next_recovery_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300
-    )
-
-    # 新modeのpure共有台帳だけを検査する独立fixture。旧campaign／本体へ接続しない。
-    add_executable(drivercrate_collector_shared_ledger_tests
-        tests/unit/local_collector_shared_ledger_tests.cpp
-        src/platform/local_collector_shared_ledger.cpp
-        src/platform/local_collector_campaign.cpp
-        src/platform/local_collector_state_store.cpp
-    )
-    target_include_directories(drivercrate_collector_shared_ledger_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_collector_shared_ledger_tests PRIVATE drivercrate_platform ole32 normaliz)
-    drivercrate_apply_compiler_options(drivercrate_collector_shared_ledger_tests)
-    drivercrate_apply_linker_options(drivercrate_collector_shared_ledger_tests)
-    add_test(NAME drivercrate_collector_shared_ledger_tests
-        COMMAND drivercrate_collector_shared_ledger_tests)
-    set_tests_properties(drivercrate_collector_shared_ledger_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 120)
-
-    # 親／子保護storeだけの実filesystem fixture。実HTTP・本体・共有commitへ接続しない。
-    add_executable(drivercrate_collector_collection_store_tests
-        tests/unit/local_collector_collection_store_tests.cpp
-        src/platform/local_collector_collection_store.cpp
-        src/platform/local_collector_state_store.cpp
-    )
-    target_include_directories(drivercrate_collector_collection_store_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_collector_collection_store_tests PRIVATE advapi32 ole32)
-    drivercrate_apply_compiler_options(drivercrate_collector_collection_store_tests)
-    drivercrate_apply_linker_options(drivercrate_collector_collection_store_tests)
-    add_test(NAME drivercrate_collector_collection_store_tests
-        COMMAND drivercrate_collector_collection_store_tests)
-    set_tests_properties(drivercrate_collector_collection_store_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 120)
-
-    # 同親history配置の分母を無引数の旧collection fixtureから分離します。
-    add_test(NAME drivercrate_collector_history_layout_tests
-        COMMAND drivercrate_collector_collection_store_tests --history-layout)
-    set_tests_properties(drivercrate_collector_history_layout_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 120)
-
-    # 初回66本文の実保存／136 atomic保存後停止だけ。旧CLI・通常更新・通信へ接続しない。
-    add_executable(drivercrate_collector_shared_store_tests
-        tests/unit/local_collector_shared_store_tests.cpp
-        src/platform/local_collector_shared_store.cpp
-        src/platform/local_collector_shared_operation.cpp
-        src/platform/local_collector_shared_update.cpp
-        src/platform/local_collector_shared_ledger.cpp
-        src/platform/local_collector_collection_store.cpp
-        src/platform/local_collector_campaign.cpp
-        src/platform/local_collector_state_store.cpp
-    )
-    target_include_directories(drivercrate_collector_shared_store_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_collector_shared_store_tests PRIVATE drivercrate_platform ole32 normaliz)
-    drivercrate_apply_compiler_options(drivercrate_collector_shared_store_tests)
-    drivercrate_apply_linker_options(drivercrate_collector_shared_store_tests)
-    add_test(NAME drivercrate_collector_shared_store_tests COMMAND drivercrate_collector_shared_store_tests)
-    set_tests_properties(drivercrate_collector_shared_store_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-
-    # 同親の読取り共有根拠だけを独立検査します。ROOT／switch／通信を許可しません。
-    add_executable(drivercrate_collector_shared_inventory_tests
-        tests/unit/local_collector_shared_inventory_tests.cpp
-        src/platform/local_collector_shared_store.cpp
-        src/platform/local_collector_shared_operation.cpp
-        src/platform/local_collector_shared_update.cpp
-        src/platform/local_collector_shared_ledger.cpp
-        src/platform/local_collector_collection_store.cpp
-        src/platform/local_collector_campaign.cpp
-        src/platform/local_collector_state_store.cpp
-    )
-    target_include_directories(drivercrate_collector_shared_inventory_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_collector_shared_inventory_tests PRIVATE drivercrate_platform ole32 normaliz)
-    drivercrate_apply_compiler_options(drivercrate_collector_shared_inventory_tests)
-    drivercrate_apply_linker_options(drivercrate_collector_shared_inventory_tests)
-    add_test(NAME drivercrate_collector_shared_inventory_tests COMMAND drivercrate_collector_shared_inventory_tests)
-    set_tests_properties(drivercrate_collector_shared_inventory_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-
-    # 元予約精算の区間commitだけを独立した非通信native fixtureで検査します。
-    add_executable(drivercrate_collector_shared_update_tests
-        tests/unit/local_collector_shared_update_tests.cpp
-        src/platform/local_collector_shared_store.cpp
-        src/platform/local_collector_shared_operation.cpp
-        src/platform/local_collector_shared_update.cpp
-        src/platform/local_collector_shared_ledger.cpp
-        src/platform/local_collector_collection_store.cpp
-        src/platform/local_collector_campaign.cpp
-        src/platform/local_collector_state_store.cpp
-    )
-    target_include_directories(drivercrate_collector_shared_update_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_collector_shared_update_tests PRIVATE drivercrate_platform ole32 normaliz)
-    drivercrate_apply_compiler_options(drivercrate_collector_shared_update_tests)
-    drivercrate_apply_linker_options(drivercrate_collector_shared_update_tests)
-    add_test(NAME drivercrate_collector_shared_update_tests COMMAND drivercrate_collector_shared_update_tests)
-    set_tests_properties(drivercrate_collector_shared_update_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 300)
-
-    # 追加三操作の210保存窓を独立した有限枠で検査します。実HTTP・CLIは接続しません。
-    add_executable(drivercrate_collector_shared_operation_tests
-        tests/unit/local_collector_shared_operation_tests.cpp
-        src/platform/local_collector_shared_store.cpp
-        src/platform/local_collector_shared_operation.cpp
-        src/platform/local_collector_shared_update.cpp
-        src/platform/local_collector_shared_ledger.cpp
-        src/platform/local_collector_collection_store.cpp
-        src/platform/local_collector_campaign.cpp
-        src/platform/local_collector_state_store.cpp
-    )
-    target_include_directories(drivercrate_collector_shared_operation_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_collector_shared_operation_tests PRIVATE drivercrate_platform ole32 normaliz)
-    drivercrate_apply_compiler_options(drivercrate_collector_shared_operation_tests)
-    drivercrate_apply_linker_options(drivercrate_collector_shared_operation_tests)
-    add_test(NAME drivercrate_collector_shared_operation_tests COMMAND drivercrate_collector_shared_operation_tests)
-    set_tests_properties(drivercrate_collector_shared_operation_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 600)
-
-    # 元20番目の分母・期限を変えず、混在鎖の総合検証だけを別枠で測ります。
-    add_test(NAME drivercrate_collector_shared_combined_tests
-        COMMAND drivercrate_collector_shared_operation_tests --combined-recovery)
-    set_tests_properties(drivercrate_collector_shared_combined_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 600)
-
-    # 非保存の切替draftだけを検査します。seal・実保存・本体／CLIへ接続しません。
-    add_executable(drivercrate_collector_segment_switch_tests
-        tests/unit/local_collector_segment_switch_tests.cpp
-        src/platform/local_collector_segment_switch.cpp
-        src/platform/local_collector_shared_ledger.cpp
-        src/platform/local_collector_campaign.cpp
-        src/platform/local_collector_state_store.cpp
-    )
-    target_include_directories(drivercrate_collector_segment_switch_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_collector_segment_switch_tests PRIVATE drivercrate_platform ole32 normaliz)
-    drivercrate_apply_compiler_options(drivercrate_collector_segment_switch_tests)
-    drivercrate_apply_linker_options(drivercrate_collector_segment_switch_tests)
-    add_test(NAME drivercrate_collector_segment_switch_tests COMMAND drivercrate_collector_segment_switch_tests)
-    set_tests_properties(drivercrate_collector_segment_switch_tests PROPERTIES
-        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-        TIMEOUT 120)
-
-    if(DRIVERCRATE_BUILD_LIVE_TESTS)
-        # ADR0340: 明示local受入とliveの両方だけで秘密resolverの匿名分岐診断を含める。
-        if(DRIVERCRATE_LOCAL_INDEX_ACCEPTANCE)
-            set_property(SOURCE src/platform/driver_store_provider.cpp APPEND PROPERTY
-                COMPILE_DEFINITIONS DRIVERCRATE_INTERNAL_LIVE_INDEX_DIAGNOSTICS)
-        endif()
-        # 明示scan/review-onlyと承認済み一対象の取得modeで通常MainWindow/既定workerを観測する。
-        # Fake seam・CTestを使わず、原規約/対象/期限に限定して実取得する。導入・復旧は行わない。
-        add_executable(drivercrate_live_index_main_window_scan
-            tests/live/index_main_window_scan.cpp
-            src/app/main_window.cpp
-            src/app/main_window_metadata_search.cpp
-            src/app/main_window_preparation.cpp
-            src/app/main_window_assessment.cpp
-            src/app/app.rc
-        )
-        target_compile_definitions(drivercrate_live_index_main_window_scan PRIVATE
-            DRIVERCRATE_INTERNAL_LIVE_INDEX_TESTS)
-        target_include_directories(drivercrate_live_index_main_window_scan PRIVATE
-            src ${CMAKE_CURRENT_BINARY_DIR}/generated)
-        target_link_libraries(drivercrate_live_index_main_window_scan PRIVATE
-            drivercrate_core drivercrate_platform drivercrate_miniz
-            comdlg32 comctl32 dwmapi ole32 setupapi uxtheme windowscodecs)
-        drivercrate_apply_compiler_options(drivercrate_live_index_main_window_scan)
-        drivercrate_apply_linker_options(drivercrate_live_index_main_window_scan)
-        target_link_options(drivercrate_live_index_main_window_scan PRIVATE
-            "SHELL:/MANIFESTUAC:\"level='asInvoker' uiAccess='false'\""
-            "SHELL:/MANIFESTDEPENDENCY:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='amd64' publicKeyToken='6595b64144ccf1df' language='*'\"")
-
-        # 明示操作だけの実HTTP取得・封印native測定器。自動CTestに登録しない。
-        add_executable(drivercrate_live_sealed_prolific_smoke tests/live/acquired_inf_dependency_smoke.cpp)
-        target_compile_definitions(drivercrate_live_sealed_prolific_smoke PRIVATE DRIVERCRATE_LIVE_SEALED_INF_PROBE)
-        target_include_directories(drivercrate_live_sealed_prolific_smoke PRIVATE src)
-        target_link_libraries(drivercrate_live_sealed_prolific_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_live_sealed_prolific_smoke)
-        drivercrate_apply_linker_options(drivercrate_live_sealed_prolific_smoke)
-
-        # 初回直接指定の結果／EXEを保持し、全内側ZIPの明示計画を別世代で確認する。
-        add_executable(drivercrate_live_sealed_prolific_nested_smoke tests/live/acquired_inf_dependency_smoke.cpp)
-        target_compile_definitions(drivercrate_live_sealed_prolific_nested_smoke PRIVATE
-            DRIVERCRATE_LIVE_SEALED_INF_PROBE DRIVERCRATE_LIVE_SEALED_NESTED_PROBE)
-        target_include_directories(drivercrate_live_sealed_prolific_nested_smoke PRIVATE src)
-        target_link_libraries(drivercrate_live_sealed_prolific_nested_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_live_sealed_prolific_nested_smoke)
-        drivercrate_apply_linker_options(drivercrate_live_sealed_prolific_nested_smoke)
-
-        # 外部台帳の一recordを実公式HTML／payload／封印nativeへ接続する別測定世代。
-        add_executable(drivercrate_live_collector_inspection_smoke tests/live/acquired_inf_dependency_smoke.cpp)
-        target_compile_definitions(drivercrate_live_collector_inspection_smoke PRIVATE
-            DRIVERCRATE_LIVE_SEALED_INF_PROBE DRIVERCRATE_COLLECTOR_INSPECTION_PROBE)
-        target_include_directories(drivercrate_live_collector_inspection_smoke PRIVATE src)
-        target_link_libraries(drivercrate_live_collector_inspection_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_live_collector_inspection_smoke)
-        drivercrate_apply_linker_options(drivercrate_live_collector_inspection_smoke)
-
-        # 初回MIME／href停止のEXEを保持した別世代。厳密UTF-8は維持する。
-        add_executable(drivercrate_live_collector_inspection_html_smoke tests/live/acquired_inf_dependency_smoke.cpp)
-        target_compile_definitions(drivercrate_live_collector_inspection_html_smoke PRIVATE
-            DRIVERCRATE_LIVE_SEALED_INF_PROBE DRIVERCRATE_COLLECTOR_INSPECTION_PROBE)
-        target_include_directories(drivercrate_live_collector_inspection_html_smoke PRIVATE src)
-        target_link_libraries(drivercrate_live_collector_inspection_html_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_live_collector_inspection_html_smoke)
-        drivercrate_apply_linker_options(drivercrate_live_collector_inspection_html_smoke)
-
-        add_executable(drivercrate_metadata_search_smoke
-            tests/live/metadata_search_smoke.cpp
-        )
-        target_include_directories(drivercrate_metadata_search_smoke
-            PRIVATE src ${CMAKE_CURRENT_BINARY_DIR}/generated
-        )
-        target_link_libraries(drivercrate_metadata_search_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_metadata_search_smoke)
-
-        add_executable(drivercrate_scan_measurement_smoke
-            tests/support/scan_measurement_diagnostics.cpp
-            tests/live/scan_measurement_smoke.cpp
-        )
-        target_include_directories(
-            drivercrate_scan_measurement_smoke
-            PRIVATE src tests ${CMAKE_CURRENT_BINARY_DIR}/generated
-        )
-        target_link_libraries(
-            drivercrate_scan_measurement_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_scan_measurement_smoke)
-
-        add_executable(drivercrate_wua_scan_smoke
-            tests/live/wua_scan_smoke.cpp
-        )
-        target_include_directories(drivercrate_wua_scan_smoke PRIVATE src)
-        target_link_libraries(drivercrate_wua_scan_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_wua_scan_smoke)
-
-        add_executable(drivercrate_driver_store_scan_smoke
-            tests/live/driver_store_scan_smoke.cpp
-        )
-        target_include_directories(drivercrate_driver_store_scan_smoke PRIVATE src)
-        target_link_libraries(drivercrate_driver_store_scan_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_driver_store_scan_smoke)
-
-        add_executable(drivercrate_composite_scan_smoke
-            tests/live/composite_scan_smoke.cpp
-        )
-        target_include_directories(drivercrate_composite_scan_smoke PRIVATE src)
-        target_link_libraries(drivercrate_composite_scan_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_composite_scan_smoke)
-
-        add_executable(drivercrate_intel_ethernet_windows11_discovery_smoke
-            tests/live/intel_ethernet_windows11_discovery_smoke.cpp
-        )
-        target_include_directories(
-            drivercrate_intel_ethernet_windows11_discovery_smoke
-            PRIVATE src
-        )
-        target_link_libraries(
-            drivercrate_intel_ethernet_windows11_discovery_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(
-            drivercrate_intel_ethernet_windows11_discovery_smoke
-        )
-
-        add_executable(drivercrate_catalog_member_smoke
-            tests/live/catalog_member_smoke.cpp
-        )
-        target_include_directories(drivercrate_catalog_member_smoke PRIVATE src)
-        target_link_libraries(drivercrate_catalog_member_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_catalog_member_smoke)
-
-        add_executable(drivercrate_lenovo_catalog_smoke
-            tests/live/lenovo_catalog_smoke.cpp
-        )
-        target_include_directories(drivercrate_lenovo_catalog_smoke PRIVATE src)
-        target_link_libraries(drivercrate_lenovo_catalog_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_lenovo_catalog_smoke)
-
-        add_executable(drivercrate_hp_catalog_smoke
-            tests/live/hp_catalog_smoke.cpp
-        )
-        target_include_directories(drivercrate_hp_catalog_smoke PRIVATE src)
-        target_link_libraries(drivercrate_hp_catalog_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_hp_catalog_smoke)
-
-        add_executable(drivercrate_vaio_catalog_smoke
-            tests/live/vaio_catalog_smoke.cpp
-        )
-        target_include_directories(drivercrate_vaio_catalog_smoke PRIVATE src)
-        target_link_libraries(drivercrate_vaio_catalog_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_vaio_catalog_smoke)
-
-        add_executable(drivercrate_amd_catalog_smoke
-            tests/live/amd_catalog_smoke.cpp
-        )
-        target_include_directories(drivercrate_amd_catalog_smoke PRIVATE src)
-        target_link_libraries(drivercrate_amd_catalog_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_amd_catalog_smoke)
-
-        add_executable(drivercrate_intel_ethernet_server_catalog_smoke
-            tests/support/live_search_diagnostics.cpp
-            tests/live/intel_ethernet_server_catalog_smoke.cpp
-        )
-        target_include_directories(
-            drivercrate_intel_ethernet_server_catalog_smoke
-            PRIVATE src tests
-        )
-        target_link_libraries(
-            drivercrate_intel_ethernet_server_catalog_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_intel_ethernet_server_catalog_smoke)
-
-        add_executable(drivercrate_intel_ethernet_windows11_record_smoke
-            tests/live/intel_ethernet_windows11_record_smoke.cpp
-        )
-        target_include_directories(
-            drivercrate_intel_ethernet_windows11_record_smoke
-            PRIVATE src
-        )
-        target_link_libraries(
-            drivercrate_intel_ethernet_windows11_record_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_intel_ethernet_windows11_record_smoke)
-
-        add_executable(drivercrate_nvidia_display_catalog_smoke
-            tests/live/nvidia_display_catalog_smoke.cpp
-        )
-        target_include_directories(drivercrate_nvidia_display_catalog_smoke PRIVATE src)
-        target_link_libraries(drivercrate_nvidia_display_catalog_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_nvidia_display_catalog_smoke)
-
-        add_executable(drivercrate_focusrite_catalog_smoke
-            tests/live/focusrite_catalog_smoke.cpp
-        )
-        target_include_directories(drivercrate_focusrite_catalog_smoke PRIVATE src)
-        target_link_libraries(drivercrate_focusrite_catalog_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_focusrite_catalog_smoke)
-
-        add_executable(drivercrate_nvidia_winof2_catalog_smoke
-            tests/live/nvidia_winof2_catalog_smoke.cpp
-        )
-        target_include_directories(drivercrate_nvidia_winof2_catalog_smoke PRIVATE src)
-        target_link_libraries(drivercrate_nvidia_winof2_catalog_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_nvidia_winof2_catalog_smoke)
-
-        add_executable(drivercrate_dell_poweredge_catalog_smoke
-            tests/live/dell_poweredge_catalog_smoke.cpp
-        )
-        target_include_directories(drivercrate_dell_poweredge_catalog_smoke PRIVATE src)
-        target_link_libraries(
-            drivercrate_dell_poweredge_catalog_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_dell_poweredge_catalog_smoke)
-
-        add_executable(drivercrate_intel_wireless_package_smoke
-            tests/live/intel_wireless_package_smoke.cpp
-        )
-        target_include_directories(drivercrate_intel_wireless_package_smoke PRIVATE src)
-        target_link_libraries(
-            drivercrate_intel_wireless_package_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_intel_wireless_package_smoke)
-
-        add_executable(drivercrate_prolific_serial_package_smoke
-            tests/live/prolific_serial_package_smoke.cpp
-        )
-        target_include_directories(drivercrate_prolific_serial_package_smoke PRIVATE src)
-        target_link_libraries(
-            drivercrate_prolific_serial_package_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_prolific_serial_package_smoke)
-
-        add_executable(drivercrate_prolific_serial_provider_smoke
-            tests/live/prolific_serial_provider_smoke.cpp
-        )
-        target_include_directories(drivercrate_prolific_serial_provider_smoke PRIVATE src)
-        target_link_libraries(
-            drivercrate_prolific_serial_provider_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_prolific_serial_provider_smoke)
-
-        add_executable(drivercrate_silicon_labs_serial_package_smoke
-            tests/live/silicon_labs_serial_package_smoke.cpp
-        )
-        target_include_directories(drivercrate_silicon_labs_serial_package_smoke PRIVATE src)
-        target_link_libraries(
-            drivercrate_silicon_labs_serial_package_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_silicon_labs_serial_package_smoke)
-
-        add_executable(drivercrate_silicon_labs_serial_provider_smoke
-            tests/live/silicon_labs_serial_provider_smoke.cpp
-        )
-        target_include_directories(drivercrate_silicon_labs_serial_provider_smoke PRIVATE src)
-        target_link_libraries(
-            drivercrate_silicon_labs_serial_provider_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_silicon_labs_serial_provider_smoke)
-
-        add_executable(drivercrate_common_driver_package_smoke
-            tests/live/common_driver_package_smoke.cpp
-        )
-        target_include_directories(drivercrate_common_driver_package_smoke PRIVATE src)
-        target_link_libraries(drivercrate_common_driver_package_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_common_driver_package_smoke)
-
-        # 同じsmoke sourceを研究専用compileとし、通常platformと製品へ観測型を公開しない。
-        add_executable(drivercrate_maintenance_reached_reference_smoke
-            tests/live/common_driver_package_smoke.cpp
-            tests/live/maintenance_reached_reference_observation.cpp
-            src/platform/common_driver_package.cpp)
-        # 任意QAも私有workの日付pathに依存せず、同じ唯一buildのscratchだけへ出力する。
-        file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-scratch")
-        target_compile_definitions(drivercrate_maintenance_reached_reference_smoke PRIVATE
-            DRIVERCRATE_REACHED_REFERENCE_RESEARCH
-            DRIVERCRATE_REACHED_WORKSPACE=L"${CMAKE_CURRENT_BINARY_DIR}/test-scratch/maintenance-reached-reference-$<CONFIG>"
-            DRIVERCRATE_RESIDUAL_WORKSPACE=L"${CMAKE_CURRENT_BINARY_DIR}/test-scratch/maintenance-residual-reference-$<CONFIG>")
-        target_include_directories(drivercrate_maintenance_reached_reference_smoke PRIVATE src tests/live)
-        target_link_libraries(drivercrate_maintenance_reached_reference_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_maintenance_reached_reference_smoke)
-        drivercrate_apply_linker_options(drivercrate_maintenance_reached_reference_smoke)
-
-        add_executable(drivercrate_indexed_driver_package_smoke
-            tests/live/indexed_driver_package_smoke.cpp
-        )
-        target_include_directories(drivercrate_indexed_driver_package_smoke PRIVATE src)
-        target_link_libraries(drivercrate_indexed_driver_package_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_indexed_driver_package_smoke)
-
-        add_executable(drivercrate_maintenance_embedded_files_smoke
-            tests/live/maintenance_embedded_files_smoke.cpp
-        )
-        target_include_directories(drivercrate_maintenance_embedded_files_smoke PRIVATE src)
-        target_link_libraries(drivercrate_maintenance_embedded_files_smoke PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_maintenance_embedded_files_smoke)
-
-        add_executable(drivercrate_official_sfx_structure_smoke
-            tests/live/official_sfx_structure_smoke.cpp
-        )
-        target_include_directories(drivercrate_official_sfx_structure_smoke PRIVATE src)
-        target_link_libraries(drivercrate_official_sfx_structure_smoke PRIVATE drivercrate_platform drivercrate_miniz)
-        drivercrate_apply_compiler_options(drivercrate_official_sfx_structure_smoke)
-
-        add_executable(drivercrate_generic_inf_package_smoke
-            tests/live/generic_inf_package_smoke.cpp
-        )
-        target_include_directories(drivercrate_generic_inf_package_smoke PRIVATE src)
-        target_link_libraries(
-            drivercrate_generic_inf_package_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_generic_inf_package_smoke)
-
-        add_executable(drivercrate_generic_inf_provider_smoke
-            tests/live/generic_inf_provider_smoke.cpp
-        )
-        target_include_directories(drivercrate_generic_inf_provider_smoke PRIVATE src)
-        target_link_libraries(
-            drivercrate_generic_inf_provider_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_generic_inf_provider_smoke)
-
-        add_executable(drivercrate_wch_serial_package_smoke
-            tests/live/wch_serial_package_smoke.cpp
-        )
-        target_include_directories(drivercrate_wch_serial_package_smoke PRIVATE src)
-        target_link_libraries(
-            drivercrate_wch_serial_package_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_wch_serial_package_smoke)
-
-        add_executable(drivercrate_wch_serial_provider_smoke
-            tests/live/wch_serial_provider_smoke.cpp
-        )
-        target_include_directories(drivercrate_wch_serial_provider_smoke PRIVATE src)
-        target_link_libraries(
-            drivercrate_wch_serial_provider_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_wch_serial_provider_smoke)
-
-        add_executable(drivercrate_wch_multi_serial_package_smoke
-            tests/live/wch_multi_serial_package_smoke.cpp
-        )
-        target_include_directories(drivercrate_wch_multi_serial_package_smoke PRIVATE src)
-        target_link_libraries(
-            drivercrate_wch_multi_serial_package_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_wch_multi_serial_package_smoke)
-
-        add_executable(drivercrate_wch_multi_serial_provider_smoke
-            tests/live/wch_multi_serial_provider_smoke.cpp
-        )
-        target_include_directories(drivercrate_wch_multi_serial_provider_smoke PRIVATE src)
-        target_link_libraries(
-            drivercrate_wch_multi_serial_provider_smoke
-            PRIVATE drivercrate_platform
-        )
-        drivercrate_apply_compiler_options(drivercrate_wch_multi_serial_provider_smoke)
-    endif()
-endif()
-
-# Collectorと内側setupもCMake正本の製品版を表示する。実行機能やpackage schemaは変更しない。
-set(DRIVERCRATE_RESOURCE_NAME "DriverCrateCollector")
-set(DRIVERCRATE_RESOURCE_DESCRIPTION "DriverCrate metadata collector")
-configure_file(cmake/drivercrate_product_version.rc.in generated/collector_version.rc @ONLY)
-set(DRIVERCRATE_RESOURCE_NAME "DriverCrateCollectorSetup")
-set(DRIVERCRATE_RESOURCE_DESCRIPTION "DriverCrate Collector setup")
-configure_file(cmake/drivercrate_product_version.rc.in generated/collector_setup_version.rc @ONLY)
-
-# 製品用の明示buildと従来のlive構成を同じ定義へ接続し、二重target生成を避ける。
-if(DRIVERCRATE_BUILD_COLLECTOR OR (BUILD_TESTING AND DRIVERCRATE_BUILD_LIVE_TESTS))
-    # 開発用metadata collector。通常のDriverCrate.exe、installへlinkしない。
-    add_executable(DriverCrateCollector
-        src/app/local_driver_collector_main.cpp
-        "${CMAKE_CURRENT_BINARY_DIR}/generated/collector_version.rc"
-        src/platform/local_driver_collector.cpp
-        src/platform/local_collector_state_store.cpp
-    )
-    target_include_directories(DriverCrateCollector PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated")
-    target_link_libraries(DriverCrateCollector PRIVATE drivercrate_platform)
-    drivercrate_apply_compiler_options(DriverCrateCollector)
-    drivercrate_apply_linker_options(DriverCrateCollector)
-
-    # 現行v7の収集用setupは現在userの将来日次Taskを登録し、即時収集は開始しない。
-    add_executable(DriverCrateCollectorSetup
-        src/app/collector_setup_main.cpp
-        src/platform/collector_user_task.cpp
-        src/platform/collector_user_task.h
-        src/platform/collector_setup_workspace.cpp
-        src/platform/collector_setup_workspace.h
-        src/platform/collector_setup_transport.cpp
-        src/platform/collector_setup_transport.h
-        src/platform/collector_setup_admission.cpp
-        src/platform/collector_setup_admission.h
-        src/platform/local_driver_collector.cpp
-        # Descriptor predicateを既存実装からread-onlyで再利用し、保護規則を複製しない。
-        src/platform/local_collector_state_store.cpp
-        src/app/collector_setup.rc
-        "${CMAKE_CURRENT_BINARY_DIR}/generated/collector_setup_version.rc"
-        src/app/collector_setup.manifest
-    )
-    target_include_directories(DriverCrateCollectorSetup PRIVATE src "${CMAKE_CURRENT_BINARY_DIR}/generated")
-    target_link_libraries(DriverCrateCollectorSetup PRIVATE drivercrate_platform shell32 taskschd)
-    drivercrate_apply_compiler_options(DriverCrateCollectorSetup)
-    drivercrate_apply_linker_options(DriverCrateCollectorSetup)
-    target_compile_options(DriverCrateCollectorSetup PRIVATE /guard:cf)
-    target_link_options(DriverCrateCollectorSetup PRIVATE "/MANIFESTUAC:level='asInvoker' uiAccess='false'")
-
-    # 明示生成済みraw resource入力がある場合だけ単体EXEを生成する。通常profileは変更しない。
-    set(DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES "" CACHE PATH "Validated collector bootstrap resource input")
-    if(DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES)
-        foreach(drivercrate_embedded_file IN ITEMS collector_setup_bootstrap.rc collector_setup_bootstrap_table.h)
-            if(NOT EXISTS "${DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES}/${drivercrate_embedded_file}")
-                message(FATAL_ERROR "Collector embedded resource input is incomplete")
-            endif()
-        endforeach()
-        add_executable(DriverCrateCollectorInstaller
-            src/app/collector_setup_bootstrap_main.cpp
-            src/app/collector_setup.manifest
-            src/platform/collector_setup_workspace.cpp
-            src/platform/collector_setup_transport.cpp
-            src/platform/collector_setup_admission.cpp
-            src/platform/local_driver_collector.cpp
-            src/platform/local_collector_state_store.cpp
-            "${DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES}/collector_setup_bootstrap.rc")
-        target_include_directories(DriverCrateCollectorInstaller PRIVATE src
-            "${DRIVERCRATE_COLLECTOR_EMBEDDED_RESOURCES}")
-        target_link_libraries(DriverCrateCollectorInstaller PRIVATE drivercrate_platform shell32)
-        drivercrate_apply_compiler_options(DriverCrateCollectorInstaller)
-        drivercrate_apply_linker_options(DriverCrateCollectorInstaller)
-        target_compile_options(DriverCrateCollectorInstaller PRIVATE /guard:cf)
-        target_link_options(DriverCrateCollectorInstaller PRIVATE "/MANIFESTUAC:level='asInvoker' uiAccess='false'")
-    endif()
-
-    # CLIへ故障注入を公開せず、独立TUから保護workspaceの内部境界を検査する。
-    if(BUILD_TESTING)
-        add_executable(drivercrate_collector_user_task_tests
-            tests/unit/collector_user_task_tests.cpp
-            src/platform/collector_user_task.cpp
-            src/platform/collector_setup_workspace.cpp
-            src/platform/collector_setup_transport.cpp
-            src/platform/collector_setup_admission.cpp
-            src/platform/local_driver_collector.cpp
-            src/platform/local_collector_state_store.cpp)
-        target_include_directories(drivercrate_collector_user_task_tests PRIVATE src)
-        target_link_libraries(drivercrate_collector_user_task_tests PRIVATE drivercrate_platform shell32 taskschd)
-        drivercrate_apply_compiler_options(drivercrate_collector_user_task_tests)
-        drivercrate_apply_linker_options(drivercrate_collector_user_task_tests)
-        add_test(NAME drivercrate_collector_user_task_tests COMMAND drivercrate_collector_user_task_tests)
-        add_executable(drivercrate_collector_setup_workspace_tests
-            tests/unit/collector_setup_workspace_tests.cpp
-            src/platform/collector_setup_transport.cpp
-            src/platform/collector_setup_admission.cpp
-            src/platform/local_driver_collector.cpp
-            src/platform/local_collector_state_store.cpp)
-        target_include_directories(drivercrate_collector_setup_workspace_tests PRIVATE src)
-        target_link_libraries(drivercrate_collector_setup_workspace_tests PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_collector_setup_workspace_tests)
-        drivercrate_apply_linker_options(drivercrate_collector_setup_workspace_tests)
-        add_test(NAME drivercrate_collector_setup_workspace_tests COMMAND drivercrate_collector_setup_workspace_tests)
-        add_executable(drivercrate_collector_setup_transport_tests
-            tests/unit/collector_setup_transport_tests.cpp
-            src/platform/collector_setup_transport.cpp)
-        target_include_directories(drivercrate_collector_setup_transport_tests PRIVATE src)
-        target_compile_definitions(drivercrate_collector_setup_transport_tests PRIVATE DRIVERCRATE_INTERNAL_INDEX_TESTS)
-        target_link_libraries(drivercrate_collector_setup_transport_tests PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_collector_setup_transport_tests)
-        drivercrate_apply_linker_options(drivercrate_collector_setup_transport_tests)
-        add_test(NAME drivercrate_collector_setup_transport_tests COMMAND drivercrate_collector_setup_transport_tests)
-        add_executable(drivercrate_collector_setup_admission_tests
-            tests/unit/collector_setup_admission_tests.cpp
-            tests/unit/collector_setup_admission_tests.manifest
-            src/platform/collector_setup_admission.cpp
-            src/platform/local_collector_state_store.cpp)
-        target_include_directories(drivercrate_collector_setup_admission_tests PRIVATE src)
-        target_link_libraries(drivercrate_collector_setup_admission_tests PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_collector_setup_admission_tests)
-        drivercrate_apply_linker_options(drivercrate_collector_setup_admission_tests)
-        add_test(NAME drivercrate_collector_setup_admission_tests COMMAND drivercrate_collector_setup_admission_tests)
-        set_tests_properties(drivercrate_collector_setup_admission_tests PROPERTIES TIMEOUT 180)
-        # 実固定子/pipe/leaseとHTTP fake・通常INF/低位署名fixtureを同親callerへ接続する専用target。
-        add_executable(drivercrate_collector_distribution_pipeline_tests
-            tests/unit/collector_distribution_pipeline_tests.cpp
-            src/platform/collector_registry_job.cpp
-            src/platform/official_http_client.cpp
-            src/platform/collector_setup_transport.cpp
-            src/platform/collector_setup_admission.cpp
-            src/platform/local_driver_collector.cpp
-            src/platform/local_collector_state_store.cpp)
-        target_compile_definitions(drivercrate_collector_distribution_pipeline_tests PRIVATE
-            DRIVERCRATE_REGISTRY_JOB_TESTING DRIVERCRATE_DISTRIBUTION_TESTING DRIVERCRATE_INTERNAL_INDEX_TESTS)
-        target_include_directories(drivercrate_collector_distribution_pipeline_tests PRIVATE src)
-        target_link_libraries(drivercrate_collector_distribution_pipeline_tests PRIVATE drivercrate_platform)
-        drivercrate_apply_compiler_options(drivercrate_collector_distribution_pipeline_tests)
-        drivercrate_apply_linker_options(drivercrate_collector_distribution_pipeline_tests)
-    endif()
-
-    foreach(drivercrate_index_profile_target IN ITEMS DriverCrateCollector DriverCrateCollectorSetup)
-        set_property(TARGET ${drivercrate_index_profile_target} APPEND PROPERTY LINK_DEPENDS
-            "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RecordIndexBuildProfile.cmake"
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/index_distribution_trust.h")
-        add_custom_command(TARGET ${drivercrate_index_profile_target} POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" "-DEXECUTABLE=$<TARGET_FILE:${drivercrate_index_profile_target}>"
-                "-DLOCAL_PROFILE=${DRIVERCRATE_LOCAL_INDEX_ACCEPTANCE}"
-                "-DDISTRIBUTION_FINGERPRINT=${drivercrate_distribution_fingerprint}"
-                "-DACQUISITION_POLICY_REVISION=${drivercrate_distribution_acquisition_revision}"
-                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/RecordIndexBuildProfile.cmake"
-            VERBATIM)
+    add_executable(drivercrate_official_catalog_algorithm_tests tests/unit/official_catalog_algorithm_tests.cpp)
+    target_compile_definitions(drivercrate_official_catalog_algorithm_tests PRIVATE DRIVERCRATE_INTERNAL_INDEX_TESTS)
+    target_include_directories(drivercrate_official_catalog_algorithm_tests PRIVATE src tests/unit)
+    target_link_libraries(drivercrate_official_catalog_algorithm_tests PRIVATE drivercrate_platform)
+    drivercrate_apply_compiler_options(drivercrate_official_catalog_algorithm_tests)
+    drivercrate_apply_linker_options(drivercrate_official_catalog_algorithm_tests)
+    add_test(NAME drivercrate_official_catalog_algorithm_tests COMMAND drivercrate_official_catalog_algorithm_tests)
+    add_executable(drivercrate_common_driver_content_tests tests/unit/common_driver_content_tests.cpp)
+    target_compile_definitions(drivercrate_common_driver_content_tests PRIVATE DRIVERCRATE_INTERNAL_INDEX_TESTS)
+    target_include_directories(drivercrate_common_driver_content_tests PRIVATE src tests/unit)
+    target_link_libraries(drivercrate_common_driver_content_tests PRIVATE drivercrate_platform drivercrate_miniz)
+    drivercrate_apply_compiler_options(drivercrate_common_driver_content_tests)
+    drivercrate_apply_linker_options(drivercrate_common_driver_content_tests)
+    add_test(NAME drivercrate_common_driver_content_tests COMMAND drivercrate_common_driver_content_tests)
+    foreach(drivercrate_ui_mode IN ITEMS close queue index binding multi unknown
+            components needs extension formats preparation refresh)
+        add_test(NAME drivercrate_metadata_ui_${drivercrate_ui_mode}_tests
+            COMMAND drivercrate_metadata_ui_tests --run-ui-tests ${drivercrate_ui_mode})
+        set_tests_properties(drivercrate_metadata_ui_${drivercrate_ui_mode}_tests PROPERTIES
+            RUN_SERIAL TRUE TIMEOUT 600 LABELS "ui;nonnetwork")
     endforeach()
-
 endif()

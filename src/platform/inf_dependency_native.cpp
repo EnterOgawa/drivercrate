@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native.cpp
  * @brief 実path・署名・OSを固定する非実行INF依存adapterの実装。
- * @version 01.06.04
+ * @version 01.07.00
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * Ver.01.06.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.06.03   Shunji Ogawa  2026/10/24 不在比較のHRESULT値をNativeErrorへ明示変換する。
  * Ver.01.06.04 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
+ * Ver.01.07.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
  * </pre>
  *
  * @note 共通内容factoryの私有選択節へ接続します。旧引数経路のpackage由来は未検査を維持します。
@@ -722,17 +723,19 @@ public:
 	 * @param[in] archiveWorkspace 元取得領域。旧経路ではnullptr。
 	 * @param[in] content 元Common検査の所有結果。旧経路ではnullptr。
 	 * @param[out] diagnostic 元HRESULTを変更しない任意の数値診断です。
+	 * @param[in] selectedBase 元Commonの正規選択基本節です。旧入口は空です。
 	 */
 	NativeLoader( const OfficialDownloadWorkspace			&workspace,
 				 std::span<const InfDependencyPackageMember> members,
 				 const InfDependencyContext &context, const OfficialInfArchiveBinding *binding,
 				 const OfficialAcquisitionSession *session,
 				 const OfficialDownloadWorkspace  *archiveWorkspace,
-				 const CommonInfInspection		  *content	  = nullptr,
-				 RequiredInfBindingDiagnostic	  *diagnostic = nullptr)
+				 const CommonInfInspection		  *content		= nullptr,
+				 RequiredInfBindingDiagnostic	  *diagnostic	= nullptr,
+				 std::wstring_view				   selectedBase = {})
 		: workspace_( workspace), members_( members), context_( context), binding_( binding),
 		  session_( session), archiveWorkspace_( archiveWorkspace), content_( content),
-		  diagnostic_( diagnostic)
+		  diagnostic_( diagnostic), selectedBase_( selectedBase)
 	{
 	}
 	/** @brief rootを固定し共通核と全根拠の再確認へ接続する。
@@ -761,6 +764,8 @@ private:
 	const CommonInfInspection				   *content_ ;
 	/// 同期callだけが所有する任意の非機密診断先です。実行可否へ読み込みません。
 	RequiredInfBindingDiagnostic			   *diagnostic_ ;
+	/// 既Common選択の元基本名です。旧read-only/Acquired入口は空です。
+	std::wstring								selectedBase_ ;
 	/// run中保持するINF・CAT・対応Store file。最大256。
 	std::vector<std::unique_ptr<PinnedFile>>	files_ ;
 	/// 共通核と同じ一意document。最大64。
@@ -2020,8 +2025,24 @@ NativeError NativeLoader::run( std::size_t rootIndex, std::span<const std::wstri
 
 		return recheckFile( stored->fileIndex) ;
 	} ;
-	InfDependencyNativeResult observed ;	// 全native再確認後にだけ公開する結果。
-	error = resolveInfDependencies( root, seeds, operations, observed.dependency) ;
+	InfDependencyNativeResult	 observed ;	// 全native再確認後にだけ公開する結果。
+	InfDependencySelectedContext selectedContext{
+		root, selectedBase_, {}} ;								// 観測済みrootの原証拠へ結合します。
+	const InfDependencySelectedContext *selected = nullptr ;	// 旧入口の共有範囲は拡張しません。
+	// 元Commonと既確定基本がそろうときだけ、同じ実在seedを明示付属へ渡します。
+	if( content_ != nullptr && !selectedBase_.empty()) {
+		// 順序や部分文字列から親を推定せず、明示された基本を除く実在seedだけです。
+		for( const auto &seed : seeds) {
+			// 同じ基本を付属へ重複登録しません。
+			if( !equalName( seed, selectedBase_)) {
+				selectedContext.companionSections.push_back( seed) ;
+			}
+		}
+
+		selected = &selectedContext ;
+	}
+
+	error = resolveInfDependencies( root, seeds, operations, observed.dependency, selected) ;
 	// 共通核の拒否・容量・例外の部分graphを返さない。
 	if( error != 0) {
 		return error ;
@@ -2319,7 +2340,8 @@ NativeError CommonInfNativeAccess::inspect( const CommonInfInspection	&inspected
 		}
 
 		NativeLoader loader( *inspected.workspace, members, context, nullptr, nullptr, nullptr,
-							&inspected, diagnostic) ;	// 全byteを同期固定します。
+							&inspected, diagnostic,
+							selected.selectedInstallSection) ;	// 正規選択と全byteを同期固定します。
 		return loader.run( root, seeds, result) ;
 	} catch( const std::bad_alloc &) {
 		return E_OUTOFMEMORY ;
@@ -2357,6 +2379,33 @@ NativeError inspectNeedsAddRegForTest( const std::wstring &path, const unsigned 
 	}
 
 	return verifyNeedsAddReg( inf.get(), line, contexts, registryRows) ;
+}
+
+/** @see src/platform/inf_dependency_native.h 専用compile宣言の契約を正本とします。 */
+NativeError inspectCommonInfDependenciesWithTestApi( const InfDependencyNativeTestApi &api,
+													const CommonInfInspection		 &inspected,
+													const OfficialInfPackage		 &selected,
+													InfDependencyNativeResult		 &result,
+													RequiredInfBindingDiagnostic	 *diagnostic)
+{
+	result = {} ;
+	// 専用fixtureも欠損/再入時は実trust APIへfallbackしません。
+	if( !api.version || !api.windowsDirectory || !api.infSignature || !api.catalogSignature ||
+	   !api.driverStore || testApi != nullptr) {
+		return E_INVALIDARG ;
+	}
+
+	/** @brief 専用compileの同期API借用を全returnで解除します。 */
+	struct CommonApiScope {
+		/** @brief 所有しないthread-local借用だけを終了します。 */
+		~CommonApiScope()
+		{
+			testApi = nullptr ;
+		}
+	} ;
+	testApi = &api ;
+	const CommonApiScope scope ;	// 実Common呼出しと全再検証の間だけ生存します。
+	return CommonInfNativeAccess::inspect( inspected, selected, result, diagnostic) ;
 }
 
 /** @see tests/support/inf_dependency_native_test_api.h 宣言側の契約を正本とする。 */

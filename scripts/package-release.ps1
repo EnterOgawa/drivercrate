@@ -14,7 +14,7 @@ omitting it preserves the certificate-free development path. See docs/adr/0406-v
 param(
     [Parameter()]
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '1.0.0',
+    [string]$Version = '1.0.1',
     [string]$BuildDirectory = ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../build'))),
     [string]$OutputDirectory,
     [hashtable]$CodeSigning
@@ -77,6 +77,7 @@ if ($null -ne $CodeSigning) {
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $packageDirectory | Out-Null
 Copy-Item -LiteralPath $releaseExecutable -Destination $packageDirectory
+Copy-Item -LiteralPath ($releaseExecutable + '.index-profile.json') -Destination $packageDirectory
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'README.md') -Destination $packageDirectory
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'LICENSE') -Destination $packageDirectory
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'THIRD_PARTY_NOTICES.md') `

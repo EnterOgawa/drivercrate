@@ -2,7 +2,7 @@
 /**
  * @file signed_index_refresh_tests.cpp
  * @brief 実HTTP検証/codecと完全fake保存のrefresh回帰です。
- * @version 01.04.00
+ * @version 01.05.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,14 +24,16 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/20  監視専用三resourceの固定N01～N28を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * Ver.01.04.00 Shunji Ogawa  2026/10/27  匿名readbackの正規daily/candidate名pairを検査。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/08  実隔離storeの同一索引GET省略と元拒否を有限確認。
  * </pre>
  * @note 暗号/HTTP policy/codecは製品実装、低位I/Oとstore観測はRAM fakeです。
- * 実atomic disk保存/準備relation/WM close/製品鍵正常署名を証明しません。
+ * 同一索引の追加群だけ実隔離storeを使います。製品鍵/実HTTP/実deviceは使いません。
  */
 //------------------------------------------------------------------------------
 #include "signed_index_refresh_tests.h"
 #include "test_framework.h"
 #include "platform/signed_index_refresh.h"
+#include "platform/signed_index_store_internal.h"
 #include "platform/public_index_readback.h"
 #include <array>
 #include <algorithm>
@@ -40,6 +42,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -890,6 +893,273 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 }
 }
 
+namespace {
+/** @brief 実隔離headと完全fake HTTPで同一索引の取得省略と拒否を確認します。
+ * @param[in,out] context 既存群とは別に追加する原assertionです。
+ * @param[in] key このrunだけの非永続署名鍵です。
+ * @param[in] trust 同じ鍵の人工公開trustです。
+ * @note 製品root・実HTTP・実inventory・driverへ接続しません。
+ */
+void runCacheReuseFixtures( TestContext &context, const RamKey &key,
+						   std::span<const signed_index_detail::TrustKey> trust)
+{
+	using StoreAccess = signed_index_store_detail::Access ;
+	static_assert( static_cast<int>( IndexRefreshStatus::INTERNAL_FAILURE) == 10) ;
+	static_assert( static_cast<int>( IndexRefreshStatus::UNCHANGED) == 11) ;
+	const auto firstAssertion = context.assertionCount() ;		// 新14件だけの開始分母です。
+	const auto firstFailure	  = context.failureCount() ;		// 元失敗はこの集計へ混ぜません。
+	const auto packed1		  = gzip( index( key, 1U, false)) ;	// 実codecに通す原gzipです。
+	const auto packed2		  = gzip( index( key, 2U, false)) ;	// 新世代の人工indexです。
+	const auto packed3		  = gzip( index( key, 3U, false)) ;	// 失効headを更新する人工indexです。
+	const auto wire1 = envelope( key, packed1, 1U, 1U, 0U) ;	// 保存後もこの原byteを使います。
+	const auto wire2 = envelope( key, packed2, 2U, 2U, 0U) ;	// 同じ世代の正本です。
+	auto	   chain = StoreAccess::createIsolated( trust) ;	// 自作の保護rootとgenesisだけです。
+	require( chain.store != nullptr) ;
+	std::unique_ptr<SignedIndexStore> reopened ;	// 同じ永続headを別ownerで再openします。
+	std::unique_ptr<SignedIndexStore> alternate ;	// 失効・破損・停止だけの別隔離rootです。
+	auto	  *store = chain.store.get() ;			// 同期fixtureだけが所有者の寿命内で借用します。
+	// 実署名・codec・原子commitで別隔離headを作り、成功boolを注入しません。
+	const auto seed = [&]( const std::string &wire, const std::string &packed,
+						  const std::chrono::sys_seconds now) {
+		auto opened = StoreAccess::createIsolated( trust) ;	// 自作rootの実保護を使います。
+		require( opened.store != nullptr) ;
+		auto manifest = signed_index_detail::authenticateWithTrustKeys(
+			wire, now, std::nullopt, trust) ;	// 元envelopeを実認証します。
+		require( manifest.manifest.has_value()) ;
+		auto asset = authenticateIndexAssetBytes(
+			*manifest.manifest, std::as_bytes( std::span{packed.data(), packed.size()}),
+			now) ;	// 原gzipを全検査します。
+		require( asset.receipt.has_value()) ;
+		auto records = readSignedIndexRecords( *asset.receipt, now) ;	// 現行schemaを省きません。
+		require( records.receipt.has_value()) ;
+		auto committed = opened.store->commit(
+			*records.receipt, wire, std::as_bytes( std::span{packed.data(), packed.size()}),
+			now) ;	// 本物の保護headです。
+		require( committed.status == IndexStoreStatus::SNAPSHOT_READY && committed.snapshot) ;
+		return std::move( opened.store) ;
+	} ;
+	constexpr std::array<IndexRefreshStatus, 14U> EXPECTED{
+		IndexRefreshStatus::REFRESHED,
+		IndexRefreshStatus::UNCHANGED,
+		IndexRefreshStatus::UNCHANGED,
+		IndexRefreshStatus::REFRESHED,
+		IndexRefreshStatus::MANIFEST_REJECTED,
+		IndexRefreshStatus::MANIFEST_REJECTED,
+		IndexRefreshStatus::MANIFEST_REJECTED,
+		IndexRefreshStatus::REFRESHED,
+		IndexRefreshStatus::REFRESHED,
+		IndexRefreshStatus::STORE_FAILED,
+		IndexRefreshStatus::RECORDS_REJECTED,
+		IndexRefreshStatus::CANCELLED,
+		IndexRefreshStatus::TIMED_OUT,
+		IndexRefreshStatus::MANIFEST_REJECTED} ;	// 元入力へ固定します。
+	constexpr std::array<unsigned, 14U> ASSET_GETS{
+		1U, 0U, 0U, 1U, 0U, 0U, 0U, 1U, 1U, 1U, 1U, 0U, 0U, 0U} ;	// Currentの一GETとは別に数えます。
+	// 固定14入力を順番に実行し、失敗した条件も分母から除きません。
+	for( unsigned mode{}; mode < EXPECTED.size(); ++mode) {
+		const auto before = context.failureCount() ;	// 当caseの原失敗差です。
+		Fixture	   fixture ;							// 新clientごとにHTTP側の所有状態を初期化します。
+		ACTIVE				= &fixture ;
+		std::string current = mode <= 2U || mode == 5U ? wire1 : wire2 ;	// 通常の原currentです。
+		std::string packed =
+			mode <= 2U || mode == 5U ? packed1 : packed2 ;	// 署名へ結合した本体です。
+		std::vector<std::byte> corruptBefore ;				// 不正headを勝手に上書きしない確認用です。
+		// 別ownerと別HTTP clientで、process内の記憶だけによる省略を除きます。
+		if( mode == 2U) {
+			auto opened = StoreAccess::reopenIsolated( *chain.store) ;	// 同じ原headを実再認証します。
+			require( opened.store != nullptr) ;
+			reopened = std::move( opened.store) ;
+			store	 = reopened.get() ;
+		}
+
+		// 既世代2に対する、正当な署名を持つ異manifestです。
+		if( mode == 4U) {
+			current = envelope( key, packed1, 2U, 1U, 0U) ;
+			packed	= packed1 ;
+		}
+
+		// Remote署名拒否を有効cacheや同じ世代で隠しません。
+		if( mode == 6U) {
+			current = envelope( key, packed2, 2U, 2U, 5U) ;
+		}
+
+		// 同じ署名対象を再署名した外側byteの差だけでは省略しません。
+		if( mode == 7U) {
+			current = envelope( key, packed2, 2U, 2U, 0U) ;
+			require( current != wire2) ;
+		}
+
+		// 失効した原headも履歴下限を保持し、通常の新版取得へ進めます。
+		if( mode == 8U) {
+			alternate =
+				seed( envelope( key, packed2, 2U, 2U, 9U), packed2, NOW - std::chrono::hours{2}) ;
+			store	= alternate.get() ;
+			current = envelope( key, packed3, 3U, 3U, 0U) ;
+			packed	= packed3 ;
+		}
+
+		// 実DPAPI内の原wireを破損させても、新genesisや空成功へ戻しません。
+		if( mode == 9U) {
+			alternate = seed( wire2, packed2, NOW) ;
+			store	  = alternate.get() ;
+			require( StoreAccess::readPlain( *store, corruptBefore) == 0 && !corruptBefore.empty()) ;
+			corruptBefore.back() ^= std::byte{1U} ;
+			require( StoreAccess::replacePlain( *store, corruptBefore) == 0) ;
+		}
+
+		// Manifest期限内でも既知attestationの使用時失効から再利用しません。
+		if( mode == 10U) {
+			packed	  = gzip( index( key, 1U, true)) ;
+			current	  = envelope( key, packed, 1U, 1U, 0U) ;
+			alternate = seed( current, packed, NOW - std::chrono::hours{2}) ;
+			store	  = alternate.get() ;
+		}
+
+		// 最後の三条件は有効な同一headから停止または時刻不明へ進めます。
+		if( mode == 11U) {
+			alternate = seed( wire1, packed1, NOW) ;
+			store	  = alternate.get() ;
+		}
+
+		// 停止条件の元byteを署名対象が違う入力へ置き換えません。
+		if( mode >= 11U) {
+			current = wire1 ;
+			packed	= packed1 ;
+		}
+
+		fixture.hops = {{current, 200U, L"application/json"}, {packed, 200U, L"application/gzip"}} ;
+		bool								  utcKnown = true ;	// Reload後にだけ時刻を失う条件です。
+		unsigned							  loads{} ;			// 同一判定用の実reload回数です。
+		signed_index_refresh_detail::Services services ;		// 製品依存へ補完しない完全表です。
+		services.transport	  = transport() ;
+		services.fixtureTrust = trust ;
+		services.utcNow		  = [&]() -> std::optional<std::chrono::sys_seconds> {
+			  return utcKnown ? std::optional<std::chrono::sys_seconds>{NOW} : std::nullopt ;
+		} ;
+		services.monotonicNow = [&]() { return fixture.monotonic ; } ;
+		services.loadExisting = [&]( const std::optional<std::chrono::sys_seconds> now) {
+			++loads ;
+			auto loaded = store->reload( now) ;	// Snapshotは実diskと実署名からだけ得ます。
+			// Local I/O中の取消しを成功判定より先に反映します。
+			if( mode == 11U) {
+				fixture.cancelled = true ;
+			}
+
+			// 同じ90秒期限を越え、再利用のために期限を作り直さない条件です。
+			if( mode == 12U) {
+				fixture.monotonic += std::chrono::seconds{91} ;
+			}
+
+			// 原snapshotの発行時刻だけを現在時刻の代用にしません。
+			if( mode == 13U) {
+				utcKnown = false ;
+			}
+
+			return loaded ;
+		} ;
+		// 既storeの非機密結果だけを通常のsummaryへ変換します。
+		const auto observation = []( const IndexStoreResult &loaded) {
+			return IndexRefreshStoreObservation{loaded.status,
+												loaded.commit,
+												loaded.error,
+												loaded.manifestStatus,
+												loaded.persistedGeneration,
+												loaded.status == IndexStoreStatus::SNAPSHOT_READY &&
+													loaded.snapshot.has_value()} ;
+		} ;
+		services.reload = [&]( const std::optional<std::chrono::sys_seconds> now) {
+			++fixture.reloads ;
+			return observation( store->reload( now)) ;
+		} ;
+		services.commit = [&]( const IndexRecordsSchemaReceipt &receipt, const std::string_view raw,
+							  const std::span<const std::byte>				bytes,
+							  const std::optional<std::chrono::sys_seconds> now) {
+			++fixture.commits ;
+			return observation( store->commit( receipt, raw, bytes, now)) ;
+		} ;
+		const auto result = signed_index_refresh_detail::Access::forTest( services, [&]() {
+			return fixture.cancelled ;
+		}) ; // 呼出しごとに新clientを作る製品glueです。
+		const auto assetGets =
+			std::count_if( fixture.paths.begin(), fixture.paths.end(), []( const auto &path) {
+				return path.ends_with( L"/index.json.gz") ;
+			}) ; // 実GET pathを数えます。
+		DRIVERCRATE_EXPECT( context, result.status == EXPECTED[mode]) ;
+		DRIVERCRATE_EXPECT( context,
+						   assetGets == ASSET_GETS[mode] && result.sends == 1U + ASSET_GETS[mode]) ;
+		DRIVERCRATE_EXPECT( context, loads == (mode == 6U ? 0U : 1U) && fixture.reloads == 0U) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			fixture.commits ==
+				(mode == 0U || mode == 3U || mode == 7U || mode == 8U || mode == 9U ? 1U : 0U)) ;
+		// 同一成功の元HTTP・受信数・保存事実を独立に確認します。
+		if( mode == 1U || mode == 2U) {
+			DRIVERCRATE_EXPECT(
+				context,
+				result.usedAuthenticatedCache && result.cache && result.cache->usableSnapshot &&
+					result.error == 0 && result.httpError == 0 && result.httpStatus == 200U &&
+					result.receivedBytes == current.size() && result.attemptedGeneration == 1U &&
+					result.store.persistedGeneration == 1U &&
+					result.store.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
+		}
+
+		// 元の世代拒否・署名拒否を通信省略の成功へ補完しません。
+		if( mode >= 4U && mode <= 6U) {
+			DRIVERCRATE_EXPECT(
+				context, !result.usedAuthenticatedCache &&
+							 result.manifestStatus ==
+								 (mode == 4U   ? SignedIndexManifestStatus::GENERATION_CONFLICT
+								  : mode == 5U ? SignedIndexManifestStatus::GENERATION_ROLLBACK
+											   : SignedIndexManifestStatus::INVALID_SIGNATURE)) ;
+		}
+
+		// 同じ署名対象で外側だけが違う場合は、既storeが保存を省略します。
+		if( mode == 7U) {
+			DRIVERCRATE_EXPECT( context,
+							   !result.usedAuthenticatedCache &&
+								   result.store.commit == IndexStoreCommitDisposition::NO_CHANGE &&
+								   result.store.persistedGeneration == 2U) ;
+		}
+
+		// 失効した過去headから新しい原世代へ進めたことを確認します。
+		if( mode == 8U) {
+			DRIVERCRATE_EXPECT( context,
+							   result.cache && result.cache->status == IndexStoreStatus::EXPIRED &&
+								   result.store.persistedGeneration == 3U &&
+								   result.store.commit == IndexStoreCommitDisposition::COMMITTED) ;
+		}
+
+		// 破損headは原byteを保持し、同世代再取得で修復/adoptしません。
+		if( mode == 9U) {
+			std::vector<std::byte> after ;	// 同じ実headの原wireです。
+			DRIVERCRATE_EXPECT(
+				context, StoreAccess::readPlain( *store, after) == 0 && after == corruptBefore &&
+							 result.cache && !result.cache->usableSnapshot &&
+							 result.store.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
+		}
+
+		// 元attestationの失効とUTC欠損を別の拒否として保持します。
+		if( mode == 10U || mode == 13U) {
+			DRIVERCRATE_EXPECT(
+				context,
+				!result.usedAuthenticatedCache && result.cache && !result.cache->usableSnapshot &&
+					(mode == 10U
+						 ? result.recordsStatus == IndexRecordsStatus::EXPIRED
+						 : result.manifestStatus == SignedIndexManifestStatus::TIME_UNAVAILABLE)) ;
+		}
+
+		std::cout << "INDEX_CACHE case=C" << mode + 1U << " assetGets=" << assetGets
+				  << " sends=" << result.sends << " status=" << static_cast<int>( result.status)
+				  << " commits=" << fixture.commits
+				  << " failures=" << context.failureCount() - before << '\n' ;
+		ACTIVE = nullptr ;
+	}
+
+	std::cout << "INDEX_CACHE_END cases=14 assertions=" << context.assertionCount() - firstAssertion
+			  << " failures=" << context.failureCount() - firstFailure << '\n' ;
+}
+}
+
 /** @see runSignedIndexRefreshTests宣言側の契約を正本とします。 */
 void runSignedIndexRefreshTests( TestContext &context)
 {
@@ -1088,7 +1358,7 @@ void runSignedIndexRefreshTests( TestContext &context)
 		services.utcNow		  = [&fixture]() -> std::optional<std::chrono::sys_seconds> {
 			  ++fixture.utcCalls ;
 			  // 全codecと個別期限照合後、commit直前の固定barrierです。
-			  if( fixture.cancelBeforeCommit && fixture.utcCalls == 5U) {
+			  if( fixture.cancelBeforeCommit && fixture.utcCalls == 7U) {
 				  fixture.cancelled = true ;
 			  }
 
@@ -1096,15 +1366,18 @@ void runSignedIndexRefreshTests( TestContext &context)
 												: std::optional<std::chrono::sys_seconds>{NOW} ;
 		} ;
 		services.monotonicNow = [&fixture]() { return fixture.monotonic ; } ;
-		services.reload		  = [&fixture]( std::optional<std::chrono::sys_seconds>) {
-			  ++fixture.reloads ;
-			  IndexRefreshStoreObservation result ;	// 能力なしのfake観測だけです。
-			  result.status			= fixture.cacheValid
-											  ? IndexStoreStatus::SNAPSHOT_READY
-											  : (fixture.cacheExpired ? IndexStoreStatus::EXPIRED
-																	  : IndexStoreStatus::EMPTY_STORE) ;
-			  result.usableSnapshot = fixture.cacheValid ;
-			  return result ;
+		services.loadExisting = []( std::optional<std::chrono::sys_seconds>) {
+			return IndexStoreResult{.status = IndexStoreStatus::EMPTY_STORE} ;
+		} ;
+		services.reload = [&fixture]( std::optional<std::chrono::sys_seconds>) {
+			++fixture.reloads ;
+			IndexRefreshStoreObservation result ;	// 能力なしのfake観測だけです。
+			result.status		  = fixture.cacheValid
+										? IndexStoreStatus::SNAPSHOT_READY
+										: (fixture.cacheExpired ? IndexStoreStatus::EXPIRED
+																: IndexStoreStatus::EMPTY_STORE) ;
+			result.usableSnapshot = fixture.cacheValid ;
+			return result ;
 		} ;
 		services.commit = [&]( const IndexRecordsSchemaReceipt &receipt, const std::string_view raw,
 							  std::span<const std::byte>,
@@ -1265,7 +1538,8 @@ void runSignedIndexRefreshTests( TestContext &context)
 											result.httpStatus == (accepted ? 200U : 302U)) ;
 			DRIVERCRATE_EXPECT( context, fixture.commits == (accepted ? 1U : 0U) &&
 											fixture.reloads == 0U &&
-											!result.usedAuthenticatedCache && !result.cache) ;
+											!result.usedAuthenticatedCache && result.cache &&
+											result.cache->status == IndexStoreStatus::EMPTY_STORE) ;
 			DRIVERCRATE_EXPECT( context, result.attemptedGeneration == 1U && !result.assetStatus &&
 											!result.recordsStatus) ;
 			DRIVERCRATE_EXPECT( context, result.store.commit ==
@@ -1378,5 +1652,6 @@ void runSignedIndexRefreshTests( TestContext &context)
 	std::cout << "Public readback canonical pair assertions: "
 			  << context.assertionCount() - pairFirst
 			  << ", failures: " << context.failureCount() - pairFailures << '\n' ;
+	runCacheReuseFixtures( context, key, trust) ;
 }
 } // namespace drivercrate::test

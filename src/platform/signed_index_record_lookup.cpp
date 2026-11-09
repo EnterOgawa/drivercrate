@@ -2,7 +2,7 @@
 /**
  * @file signed_index_record_lookup.cpp
  * @brief 保存snapshotの期限とcontextを確認して公開ID照合関係を保持します。
- * @version 01.03.00
+ * @version 01.04.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  同snapshotと全context限定の私有batch集約を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/10/14  同native私有証拠の部分positiveを元不足と分離。
  * Ver.01.03.00 Shunji Ogawa  2026/10/27  元cohort/診断と対象一件をprivate証拠へ完全結合。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * </pre>
  *
  * @note 原公開metadataを保持し、Windows適合・rank・導入許可へ昇格しません。
@@ -40,6 +41,28 @@
 #include <windows.h>
 
 namespace drivercrate {
+
+/** @see signed_index_record_lookup.h 宣言側の契約を正本とします。 */
+NativeIndexLookupLease::NativeIndexLookupLease( MintKey key, IndexLookupContext context,
+											   std::uint32_t			 ownerThread,
+											   std::weak_ptr<const void> owner,
+											   const bool				*readOpen)
+	: context_( context), ownerThread_( ownerThread), owner_( std::move( owner)), readOpen_( readOpen)
+{
+	static_cast<void>( key) ;
+}
+/** @see signed_index_record_lookup.h 宣言側の契約を正本とします。 */
+bool NativeIndexLookupLease::matches( IndexLookupContext context,
+									 std::uint32_t		ownerThread) const noexcept
+{
+	// 別threadから元mutable stateを参照せず、別context/空fieldも拒否します。
+	if( context != context_ || ownerThread != ownerThread_ || readOpen_ == nullptr) {
+		return false ;
+	}
+
+	const auto owner = owner_.lock() ;	// fieldを参照する期間だけ元stateの寿命を確保します。
+	return owner && *readOpen_ ;
+}
 
 /** @see signed_index_record_lookup.h 宣言側の契約を正本とします。 */
 NativeIndexPositiveProof::NativeIndexPositiveProof(
@@ -145,14 +168,16 @@ namespace {
  * @param[in,out] relation 元recordとcontextを持つ格納先。
  * @param[in] resolution Callbackの元結果。
  * @param[in] present 同contextの有限present検索集合。本呼出し中だけ借用します。
- * @param[in,out] retainedIdentities Batch内で保持したopaqueの総数。最大32768件です。
+ * @param[in,out] retainedIdentities 同batchの保持opaque総数です。
+ * @param[in] maximumRelatedIdentities 同scanに残る有限opaque枠です。
  * @param[in] kind 元recordの公開identifier役割です。
  * @param[in] publishedId 元recordの公開identifierです。保持しません。
  * @param[in] classGuid 元recordの公開Classです。保持しません。
  */
 void applyResolution( IndexRecordRelation &relation, const IndexPublicIdResolution &resolution,
 					 const std::set<std::wstring_view> &present, std::size_t &retainedIdentities,
-					 IndexPnpIdKind kind, std::string_view publishedId, std::string_view classGuid)
+					 std::size_t maximumRelatedIdentities, IndexPnpIdKind kind,
+					 std::string_view publishedId, std::string_view classGuid)
 {
 	relation.error = resolution.error ;
 	// 古いcallbackを現在のrelationへ適用しない。
@@ -209,7 +234,7 @@ void applyResolution( IndexRecordRelation &relation, const IndexPublicIdResoluti
 	}
 
 	// Batch全体の保持枠を超える戻り値を部分的な成功へ削らない。
-	if( resolution.devices.size() > INDEX_LOOKUP_RESOLVER_CALL_MAX - retainedIdentities) {
+	if( resolution.devices.size() > maximumRelatedIdentities - retainedIdentities) {
 		relation.reason = IndexRecordMatchReason::BUDGET_EXHAUSTED ;
 		return ;
 	}
@@ -252,8 +277,10 @@ void applyResolution( IndexRecordRelation &relation, const IndexPublicIdResoluti
 
 SignedIndexRecordLookup::SignedIndexRecordLookup(
 	std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
-	std::vector<IndexRecordRelation> relations, const IndexLookupContext context)
-	: snapshot_( std::move( snapshot)), relations_( std::move( relations)), context_( context)
+	std::vector<IndexRecordRelation> relations, const IndexLookupContext context,
+	IndexLookupProgress progress, std::shared_ptr<const NativeIndexLookupLease> nativeLease)
+	: snapshot_( std::move( snapshot)), relations_( std::move( relations)), context_( context),
+	  progress_( progress), nativeLease_( std::move( nativeLease))
 {
 }
 
@@ -265,6 +292,12 @@ const AuthenticatedIndexSnapshot &SignedIndexRecordLookup::snapshot() const noex
 std::span<const IndexRecordRelation> SignedIndexRecordLookup::relations() const noexcept
 {
 	return relations_ ;
+}
+
+/** @see signed_index_record_lookup.h 宣言側の契約を正本とします。 */
+const IndexLookupProgress &SignedIndexRecordLookup::progress() const noexcept
+{
+	return progress_ ;
 }
 
 IndexRecordLookupResult lookupSignedIndexRecords(
@@ -320,7 +353,9 @@ IndexRecordLookupResult lookupSignedIndexRecords(
 		if( present.size() > INDEX_LOOKUP_PRESENT_MAX ||
 		   budget.recordOffset > schema.records().size() || budget.recordCount == 0U ||
 		   budget.recordCount > INDEX_LOOKUP_RECORD_BATCH_MAX ||
-		   budget.resolverCalls > INDEX_LOOKUP_RESOLVER_CALL_MAX) {
+		   budget.resolverCalls > INDEX_LOOKUP_RESOLVER_CALL_MAX ||
+		   budget.maximumRelations > index_capacity::RETAINED_RELATIONS ||
+		   budget.maximumRelatedIdentities > index_capacity::RETAINED_OPAQUE_IDENTITIES) {
 			result.status = IndexRecordLookupStatus::BUDGET_LIMIT ;
 			return result ;
 		}
@@ -335,129 +370,240 @@ IndexRecordLookupResult lookupSignedIndexRecords(
 			}
 		}
 
-		const std::size_t				 count = std::min( budget.recordCount,
-														  // 選択batchの有限実件数。
-														  schema.records().size() - budget.recordOffset) ;
-		std::size_t						 calls = 0U ;				// この呼出しで実行したcallback数。
-		std::size_t						 retainedIdentities = 0U ;	// Batch全体の有限opaque保持数。
-		std::vector<IndexRecordRelation> relations ;				// 公開文字列を持たない所有結果。
-		// 選択batchの各recordだけを原順序で読み、全件で終了する。
+		const auto nativeLease = resolver != nullptr ? resolver->leaseProof()
+													 : nullptr ;	// 元native factoryの証拠だけです。
+		// staleな元stateを同contextへ読み替えません。
+		if( nativeLease && !nativeLease->matches( request, GetCurrentThreadId())) {
+			result.status = IndexRecordLookupStatus::STALE_CONTEXT ;
+			return result ;
+		}
+
+		const auto count = std::min(
+			budget.recordCount, schema.records().size() - budget.recordOffset) ;	// 要求prefixです。
+		IndexLookupProgress progress ;												// 本呼出しだけが確定する原record coverageです。
+		progress.recordOffset	  = budget.recordOffset ;
+		progress.nextRecordOffset = budget.recordOffset ;
+		std::size_t						 retainedIdentities{} ;	// commit済みbatchのopaque総数です。
+		std::vector<IndexRecordRelation> relations ;			// 完全recordだけを単独所有します。
+		// 全IDが入るrecordを原順序で処理し、未commit recordは元位置に残します。
 		for( std::size_t offset = 0U; offset < count; ++offset) {
-			const std::size_t index	 = budget.recordOffset + offset ;	// 所有snapshotのrecord位置。
-			const auto		 &record = schema.records()[index] ;		// 元申告を変更しない借用。
-			const auto		 &evidence =
-				record.publishedIdentityEvidence ;	// 公開側のIDとclassだけを使う。
-			IndexRecordRelation base ;				// 同recordの原hashとidentityのread-only tuple。
+			const auto	index	  = budget.recordOffset + offset ;		// 原recordの位置です。
+			const auto &record	  = schema.records()[index] ;			// 不変の認証済み原recordです。
+			const auto &evidence  = record.publishedIdentityEvidence ;	// 原公開申告です。
+			const bool	published = evidence.state == IndexEvidenceState::PUBLISHED &&
+								   !evidence.pnpIds.empty() &&
+								   !evidence.classGuid.empty() ;	// 全IDを処理する条件です。
+			const auto publicIds =
+				published ? evidence.pnpIds.size() : 0U ;	// 不明証拠をIDへ推測しません。
+			// 取消し・期限後に次recordを開始しません。
+			if( budget.stopRequested && budget.stopRequested()) {
+				progress.stopReason = IndexLookupStopReason::STOP_REQUESTED ;
+				break ;
+			}
+
+			// 次record全体が残callback枠へ収まるprefixだけを選びます。
+			if( resolver != nullptr && publicIds > budget.resolverCalls - progress.resolverCalls) {
+				progress.stopReason = IndexLookupStopReason::CALL_BUDGET ;
+				break ;
+			}
+
+			IndexRecordRelation base ;	// 同recordの原hash・identity・contextです。
 			base.recordIndex  = index ;
 			base.context	  = request ;
 			base.recordSha256 = record.recordSha256 ;
 			base.sourceId	  = record.sourceId ;
 			base.recordId	  = record.recordId ;
-			// 公開identity不足をdevice不存在やdriverなしへ読み替えない。
-			if( evidence.state != IndexEvidenceState::PUBLISHED || evidence.pnpIds.empty() ||
-			   evidence.classGuid.empty()) {
-				relations.push_back( std::move( base)) ;
-				continue ;
-			}
+			std::vector<IndexRecordRelation>
+						staged ;								// 原aggregateと全投影をrecord単位で保留します。
+			auto		stagedIdentities = retainedIdentities ;	// 未commit時は元累計へ戻ります。
+			std::size_t definitive{} ;							// このrecordの完了した確定不一致ID数です。
+			const auto	isDefinitive = []( const IndexRecordRelation &relation) {
+				 return relation.state == IndexRecordMatchState::UNMATCHED &&
+						relation.reason == IndexRecordMatchReason::NO_RELATION &&
+						relation.error == 0U && !relation.deviceIdentity &&
+						relation.relatedDevices.empty() && !relation.positiveProof &&
+						!relation.deviceProof ;
+			} ; // 唯一の不一致集約条件です。
+			bool stopped{} ;	// 一件でも途中停止ならrecord全体を未commitにします。
+			// 公開証拠不足を不存在成功へ変えず、一件の未判定として保持します。
+			if( !published) {
+				staged.push_back( std::move( base)) ;
+			} else {
+				// 全公開IDを原順序で照合し、途中停止で次recordへ飛びません。
+				for( std::size_t idIndex = 0U; idIndex < publicIds; ++idIndex) {
+					// 各同期IDの前にも協調停止を確認します。
+					if( budget.stopRequested && budget.stopRequested()) {
+						progress.stopReason = IndexLookupStopReason::STOP_REQUESTED ;
+						stopped				= true ;
+						break ;
+					}
 
-			// 有限な元公開IDを原順序で一つずつ照合し、複数device関係を維持する。
-			for( std::size_t idIndex = 0U; idIndex < evidence.pnpIds.size(); ++idIndex) {
-				auto relation		   = base ;	// 同recordへ結ぶ独立した公開ID結果。
-				relation.publicIdIndex = idIndex ;
-				// 未設定callbackを未実行のまま残す。
-				if( resolver == nullptr) {
-					relation.reason = IndexRecordMatchReason::RESOLVER_UNAVAILABLE ;
-				}
-				// 有限予算を使い切ったIDを黙って削除しない。
-				else if( calls == budget.resolverCalls) {
-					relation.reason = IndexRecordMatchReason::BUDGET_EXHAUSTED ;
-				} else {
-					++calls ;
-					const auto &id = evidence.pnpIds[idIndex] ;	// 公表種別と原文字列の借用。
-					try {
-						const auto resolution =
-							resolver->resolve( id.kind, id.value, evidence.classGuid, request,
-											  present) ;	// 同worker同期の元結果。
-						applyResolution( relation, resolution, identities, retainedIdentities,
-										id.kind, id.value, evidence.classGuid) ;
-						// 元aggregateを先に保存し、完全な個別証拠だけを別関係へ追加します。
-						if( !relation.deviceIdentity && !relation.relatedDevices.empty() &&
-						   verifiedDeviceProofs( resolution, id.kind, id.value,
-												evidence.classGuid)) {
-							const auto proofCount = static_cast<std::size_t>( std::ranges::count_if(
-								resolution.deviceProofs, []( const auto &proof) {
-									return static_cast<bool>( proof) ;
-								})) ; // 認証slot数です。
-							// 全投影の枠がない場合に、一部のdeviceだけを黙って許可しません。
-							if( proofCount == 0U ||
-							   proofCount + 1U >
-								   INDEX_LOOKUP_RESOLVER_CALL_MAX - relations.size() ||
-							   resolution.devices.size() >
-								   (INDEX_LOOKUP_RESOLVER_CALL_MAX - retainedIdentities) /
-									   proofCount) {
-								result.status = IndexRecordLookupStatus::BUDGET_LIMIT ;
-								return result ;
+					auto relation		   = base ;	// 元recordへ結ぶ独立したID結果です。
+					relation.publicIdIndex = idIndex ;
+					const auto &id		   = evidence.pnpIds[idIndex] ;	// 原公開IDの借用です。
+					// Callbackなしは未判定の元理由を保持します。
+					if( resolver == nullptr) {
+						relation.reason = IndexRecordMatchReason::RESOLVER_UNAVAILABLE ;
+					} else {
+						++progress.resolverCalls ;
+						const auto stagedBefore =
+							// 例外時にこのIDの全投影だけを戻します。
+							staged.size() ;
+						const auto identitiesBefore =
+							stagedIdentities ;	// このID前のopaque累計です。
+						try {
+							const auto resolution =
+								resolver->resolve( id.kind, id.value, evidence.classGuid, request,
+												  present) ;	// 同workerの同期結果です。
+							// 同期処理中の停止は部分recordの発行を禁止します。
+							if( budget.stopRequested && budget.stopRequested()) {
+								result.error = result.error != 0U ? result.error : resolution.error ;
+								progress.stopReason = IndexLookupStopReason::STOP_REQUESTED ;
+								stopped				= true ;
+								break ;
 							}
 
-							std::vector<IndexRecordRelation>
-								projections ;	// 全copy成立後だけlookupへmoveします。
-							projections.reserve( proofCount) ;
-							// 同callbackの最大32slotだけを原順序で投影します。
-							for( std::size_t deviceIndex = 0U;
-								deviceIndex < resolution.devices.size(); ++deviceIndex) {
-								// 未認証slotを個別成功へ変換しません。
-								if( !resolution.deviceProofs[deviceIndex]) {
-									continue ;
+							applyResolution( relation, resolution, identities, stagedIdentities,
+											budget.maximumRelatedIdentities, id.kind, id.value,
+											evidence.classGuid) ;
+							// 最初の元診断は保持容量拒否時にも失いません。
+							if( result.error == 0U) {
+								result.error = relation.error ;
+							}
+
+							// Opaque不足を一部のpositiveへ切り詰めません。
+							if( relation.reason == IndexRecordMatchReason::BUDGET_EXHAUSTED) {
+								progress.stopReason = IndexLookupStopReason::RETAINED_CAPACITY ;
+								stopped				= true ;
+								break ;
+							}
+
+							// 認証済み個別投影は原aggregateと全slotを原子的に保留します。
+							if( !relation.deviceIdentity && !relation.relatedDevices.empty() &&
+							   verifiedDeviceProofs( resolution, id.kind, id.value,
+													evidence.classGuid)) {
+								const auto proofCount =
+									static_cast<std::size_t>( std::ranges::count_if(
+										resolution.deviceProofs, []( const auto &proof) {
+											return static_cast<bool>( proof) ;
+										})) ; // 認証済みslot数です。
+								// 全投影・全opaqueの残枠がなければrecord全体を残します。
+								if( proofCount == 0U ||
+								   staged.size() + proofCount + 1U >
+									   budget.maximumRelations - relations.size() ||
+								   resolution.devices.size() >
+									   (budget.maximumRelatedIdentities - stagedIdentities) /
+										   proofCount) {
+									progress.stopReason = IndexLookupStopReason::RETAINED_CAPACITY ;
+									stopped				= true ;
+									break ;
 								}
 
-								auto projected =
-									relation ;	// 元record/hash/source/publicId/contextを完全copyします。
-								projected.deviceIdentity = resolution.devices[deviceIndex] ;
-								projected.deviceProof	 = resolution.deviceProofs[deviceIndex] ;
-								projected.resolutionCompleted = resolution.completed ;
-								projected.positiveProof.reset() ;
-								projected.state = IndexRecordMatchState::VERIFIED_DEVICE ;
-								projected.reason =
-									IndexRecordMatchReason::VERIFIED_DEVICE_PROJECTION ;
-								projections.push_back( std::move( projected)) ;
-							}
+								staged.push_back( relation) ;
+								// 最大32slotを同順で保持し、未認証slotを成功へ投影しません。
+								for( std::size_t deviceIndex = 0U;
+									deviceIndex < resolution.devices.size(); ++deviceIndex) {
+									// 不足slotは元aggregateにだけ残します。
+									if( !resolution.deviceProofs[deviceIndex]) {
+										continue ;
+									}
 
-							relations.reserve( relations.size() + proofCount + 1U) ;
-							relations.push_back( std::move( relation)) ;
-							// 原aggregateと全投影を同じ枠内へ移し、確保失敗による一部発行を防ぎます。
-							for( auto &projection : projections) {
-								relations.push_back( std::move( projection)) ;
-							}
+									auto projected = relation ;	// 元tupleと全cohortをcopyします。
+									projected.deviceIdentity = resolution.devices[deviceIndex] ;
+									projected.deviceProof	 = resolution.deviceProofs[deviceIndex] ;
+									projected.resolutionCompleted = resolution.completed ;
+									projected.positiveProof.reset() ;
+									projected.state = IndexRecordMatchState::VERIFIED_DEVICE ;
+									projected.reason =
+										IndexRecordMatchReason::VERIFIED_DEVICE_PROJECTION ;
+									staged.push_back( std::move( projected)) ;
+								}
 
-							retainedIdentities += resolution.devices.size() * proofCount ;
-							continue ;
+								stagedIdentities += resolution.devices.size() * proofCount ;
+								continue ;
+							}
+						} catch( const std::bad_alloc &) {
+							staged.resize( stagedBefore) ;
+							stagedIdentities	   = identitiesBefore ;
+							relation			   = base ;
+							relation.publicIdIndex = idIndex ;
+							relation.reason		   = IndexRecordMatchReason::RESOLVER_EXCEPTION ;
+							relation.error		   = static_cast<NativeError>( E_OUTOFMEMORY) ;
+						} catch( ...) {
+							staged.resize( stagedBefore) ;
+							stagedIdentities	   = identitiesBefore ;
+							relation			   = base ;
+							relation.publicIdIndex = idIndex ;
+							relation.reason		   = IndexRecordMatchReason::RESOLVER_EXCEPTION ;
+							relation.error		   = static_cast<NativeError>( E_FAIL) ;
 						}
-					} catch( const std::bad_alloc &) {
-						relation.state = IndexRecordMatchState::UNDETERMINED ;
-						relation.deviceIdentity.reset() ;
-						relation.relatedDevices.clear() ;
-						relation.reason = IndexRecordMatchReason::RESOLVER_EXCEPTION ;
-						relation.error	= static_cast<NativeError>( E_OUTOFMEMORY) ;
-					} catch( ...) {
-						relation.state = IndexRecordMatchState::UNDETERMINED ;
-						relation.deviceIdentity.reset() ;
-						relation.relatedDevices.clear() ;
-						relation.reason = IndexRecordMatchReason::RESOLVER_EXCEPTION ;
-						relation.error	= static_cast<NativeError>( E_FAIL) ;
+					}
+
+					// 最初の元callback診断を停止時も保持します。
+					if( result.error == 0U) {
+						result.error = relation.error ;
+					}
+
+					const bool noRelation =
+						// 私有coverageへ集約できる元結果です。
+						isDefinitive( relation) ;
+					definitive += noRelation ? 1U : 0U ;
+					// 集約可能な確定不一致以外は、一時結果も残保持枠内だけで保持します。
+					if( !budget.compactNoRelations || !noRelation) {
+						// 次tupleの確保前にrecord全体を残件へ戻します。
+						if( staged.size() >= budget.maximumRelations - relations.size()) {
+							progress.stopReason = IndexLookupStopReason::RETAINED_CAPACITY ;
+							stopped				= true ;
+							break ;
+						}
+
+						staged.push_back( std::move( relation)) ;
+					}
+
+					// 一件のrecordでも一時保持枠を超えたら一部だけを発行しません。
+					if( staged.size() > index_capacity::RETAINED_RELATIONS) {
+						progress.stopReason = IndexLookupStopReason::RETAINED_CAPACITY ;
+						stopped				= true ;
+						break ;
 					}
 				}
+			}
 
-				// 元関係も個別投影と共通の有限枠を超えて保持しません。
-				if( relations.size() >= INDEX_LOOKUP_RESOLVER_CALL_MAX) {
-					result.status = IndexRecordLookupStatus::BUDGET_LIMIT ;
-					return result ;
-				}
+			// callback中に失効した元inventoryから完全recordを発行しません。
+			if( nativeLease && !nativeLease->matches( request, GetCurrentThreadId())) {
+				result.status = IndexRecordLookupStatus::STALE_CONTEXT ;
+				return result ;
+			}
 
+			// 不足又はcommit直前の停止では原record全体を残件にします。
+			if( stopped || (budget.stopRequested && budget.stopRequested())) {
+				progress.stopReason =
+					stopped ? progress.stopReason : IndexLookupStopReason::STOP_REQUESTED ;
+				break ;
+			}
+
+			// 全recordの確定結果が残保持枠へ入る場合だけcommitします。
+			if( staged.size() > budget.maximumRelations - relations.size()) {
+				progress.stopReason = IndexLookupStopReason::RETAINED_CAPACITY ;
+				break ;
+			}
+
+			relations.reserve( relations.size() + staged.size()) ;
+			// 完全recordの全関係を一括moveした後だけ進行を確定します。
+			for( auto &relation : staged) {
 				relations.push_back( std::move( relation)) ;
 			}
+
+			retainedIdentities = stagedIdentities ;
+			++progress.completedRecords ;
+			progress.nextRecordOffset = index + 1U ;
+			progress.processedPublicIds += publicIds ;
+			progress.definitiveNoRelationIds += definitive ;
+			progress.compactedNoRelationIds += budget.compactNoRelations ? definitive : 0U ;
 		}
 
-		result.lookup = SignedIndexRecordLookup{snapshot, std::move( relations), request} ;
+		result.lookup =
+			SignedIndexRecordLookup{snapshot, std::move( relations), request, progress, nativeLease} ;
 		result.status = IndexRecordLookupStatus::LOOKUP_READY ;
 		return result ;
 	} catch( const std::bad_alloc &) {
@@ -489,29 +635,66 @@ IndexRecordLookupResult SignedIndexRecordLookup::freezeOwnedBatches(
 
 	result.lookup.reset() ;
 	try {
-		std::vector<IndexRecordRelation> relations ;	// 全batchのglobal位置を保つ私有所有。
+		std::vector<IndexRecordRelation> relations ;	// 保持する元tupleだけの私有集合です。
 		std::set<std::tuple<std::size_t, std::optional<std::size_t>, std::optional<std::wstring>>>
-					seen ;											// 原record／公開IDの一意集合。
-		std::size_t relatedCount{} ;								// 全batch共通のopaque保持枠。
-		const auto	records = snapshot->schemaReceipt().records() ;	// 同原snapshotの借用。
-		// 私有構築済みbatchを順に読み、別snapshotやcontext混入で全集約を拒否します。
+					seen ;											// 全元tupleの一意性です。
+		std::size_t relatedCount{} ;								// 同scanの全opaque保持数です。
+		std::shared_ptr<const NativeIndexLookupLease> nativeLease ;	// 全batchで同一の元証拠です。
+		bool				firstBatch{true} ;						// generic空証拠とnative証拠の混在も拒否します。
+		IndexLookupProgress progress ;								// 連続した完全record prefixだけを集約します。
+		const auto records = snapshot->schemaReceipt().records() ;	// 同一原snapshotの借用です。
+		// 私有batchの所有・進行範囲・原tupleを全件再検査します。
 		for( const auto &batch : batches) {
-			// 共有元object完全一致は原byte/hashと全generationの取り替えも拒否します。
-			if( batch.snapshot_ != snapshot || batch.context_ != context) {
+			// 同scanの元private leaseだけを共有し、新しい証拠へ結び直しません。
+			if( firstBatch) {
+				nativeLease = batch.nativeLease_ ;
+				firstBatch	= false ;
+			}
+
+			// 失効又は別factoryの証拠を部分的に採用しません。
+			if( batch.nativeLease_ != nativeLease ||
+			   (nativeLease && !nativeLease->matches( context, GetCurrentThreadId()))) {
 				result.status = IndexRecordLookupStatus::STALE_CONTEXT ;
 				return result ;
 			}
 
-			// 最大32768関係を越えるbatchを部分的な権限へ削りません。
-			if( batch.relations_.size() > 32768U - relations.size()) {
+			const auto &coverage = batch.progress_ ;	// DTOから構築できない元commit範囲です。
+			// 別snapshot/context、抜け・重複したprefixを受理しません。
+			if( batch.snapshot_ != snapshot || batch.context_ != context ||
+			   coverage.recordOffset != progress.nextRecordOffset ||
+			   coverage.completedRecords == 0U || coverage.recordOffset > records.size() ||
+			   coverage.completedRecords > records.size() - coverage.recordOffset ||
+			   coverage.nextRecordOffset != coverage.recordOffset + coverage.completedRecords) {
+				result.status = IndexRecordLookupStatus::STALE_CONTEXT ;
+				return result ;
+			}
+
+			// 全scanの入力・関係・opaque枠を加算前に検査します。
+			if( batch.relations_.size() > index_capacity::RETAINED_RELATIONS - relations.size() ||
+			   coverage.processedPublicIds >
+				   index_capacity::WHOLE_PUBLIC_IDS - progress.processedPublicIds) {
 				result.status = IndexRecordLookupStatus::BUDGET_LIMIT ;
 				return result ;
 			}
 
-			// 全関係の原record hash・identity・contextを再照合してから所有します。
+			std::size_t expectedIds{} ;	// 同認証範囲に実在する公開ID総数です。
+			// 完全record範囲の全IDを間引かず数えます。
+			for( auto index = coverage.recordOffset; index < coverage.nextRecordOffset; ++index) {
+				const auto &evidence =
+					records[index].publishedIdentityEvidence ;	// lookupと同じ公開入力分母です。
+				// UNKNOWNを公開IDへ補完しません。
+				if( evidence.state == IndexEvidenceState::PUBLISHED && !evidence.pnpIds.empty() &&
+				   !evidence.classGuid.empty()) {
+					expectedIds += evidence.pnpIds.size() ;
+				}
+			}
+
+			std::size_t aggregateIds{} ;	// 投影を重複加算しない元公開IDtuple数です。
+			// 全保持tupleを元record/hash/source/公開IDとleaseへ結び直します。
 			for( const auto &relation : batch.relations_) {
-				// 原recordや公開IDを取り替えた関係と重複batchを受理しません。
-				if( relation.context != context || relation.recordIndex >= records.size() ||
+				// 他recordへの転用や重複tupleを拒否します。
+				if( relation.context != context || relation.recordIndex < coverage.recordOffset ||
+				   relation.recordIndex >= coverage.nextRecordOffset ||
 				   !seen.emplace( relation.recordIndex, relation.publicIdIndex,
 								 relation.deviceIdentity)
 						.second) {
@@ -519,21 +702,72 @@ IndexRecordLookupResult SignedIndexRecordLookup::freezeOwnedBatches(
 					return result ;
 				}
 
-				const auto &record = records[relation.recordIndex] ;	// 一意な原record。
-				// Hash・source・recordは同認証原byteの値との完全一致だけを受理します。
+				const auto &record	 = records[relation.recordIndex] ;		// 不変の原recordです。
+				const auto &evidence = record.publishedIdentityEvidence ;	// 元ID/classの借用です。
+				// 原hash/identity又は個別ID位置が変わったtupleを拒否します。
 				if( relation.recordSha256 != record.recordSha256 ||
 				   relation.sourceId != record.sourceId || relation.recordId != record.recordId ||
-				   relation.relatedDevices.size() > 32768U - relatedCount) {
+				   (relation.publicIdIndex && *relation.publicIdIndex >= evidence.pnpIds.size()) ||
+				   relation.relatedDevices.size() >
+					   index_capacity::RETAINED_OPAQUE_IDENTITIES - relatedCount) {
 					result.status = IndexRecordLookupStatus::BUDGET_LIMIT ;
 					return result ;
 				}
 
+				// 発行済みpartial/device証拠は凍結時にも元leaseと全tupleへ完全一致させます。
+				if( relation.positiveProof || relation.deviceProof) {
+					// 公開ID又は対象opaqueがない証拠を補完しません。
+					if( !relation.publicIdIndex ||
+					   (relation.deviceProof && !relation.deviceIdentity)) {
+						result.status = IndexRecordLookupStatus::STALE_CONTEXT ;
+						return result ;
+					}
+
+					const auto &id = evidence.pnpIds[*relation.publicIdIndex] ;	// 同原公開IDです。
+					// 期限後・別cohort・別workerの私有証拠を拒否します。
+					if( (relation.positiveProof &&
+						!relation.positiveProof->matches(
+							context, id.kind, id.value, evidence.classGuid, GetCurrentThreadId(),
+							relation.relatedDevices, relation.error)) ||
+					   (relation.deviceProof &&
+						!relation.deviceProof->matches(
+							context, id.kind, id.value, evidence.classGuid, GetCurrentThreadId(),
+							relation.relatedDevices, relation.error, relation.resolutionCompleted,
+							*relation.deviceIdentity))) {
+						result.status = IndexRecordLookupStatus::STALE_CONTEXT ;
+						return result ;
+					}
+				}
+
+				aggregateIds += relation.publicIdIndex &&
+										relation.state != IndexRecordMatchState::VERIFIED_DEVICE
+									? 1U
+									: 0U ;
 				relatedCount += relation.relatedDevices.size() ;
 				relations.push_back( relation) ;
 			}
+
+			// 省略できるのは元私有lookupが確定した不一致だけです。
+			if( expectedIds != coverage.processedPublicIds ||
+			   coverage.compactedNoRelationIds > expectedIds ||
+			   aggregateIds != expectedIds - coverage.compactedNoRelationIds ||
+			   coverage.definitiveNoRelationIds > expectedIds ||
+			   coverage.compactedNoRelationIds > coverage.definitiveNoRelationIds) {
+				result.status = IndexRecordLookupStatus::STALE_CONTEXT ;
+				return result ;
+			}
+
+			progress.completedRecords += coverage.completedRecords ;
+			progress.nextRecordOffset = coverage.nextRecordOffset ;
+			progress.processedPublicIds += coverage.processedPublicIds ;
+			progress.definitiveNoRelationIds += coverage.definitiveNoRelationIds ;
+			progress.compactedNoRelationIds += coverage.compactedNoRelationIds ;
+			progress.resolverCalls += coverage.resolverCalls ;
+			progress.stopReason = coverage.stopReason ;
 		}
 
-		result.lookup = SignedIndexRecordLookup{std::move( snapshot), std::move( relations), context} ;
+		result.lookup = SignedIndexRecordLookup{std::move( snapshot), std::move( relations), context,
+												progress, nativeLease} ;
 		result.status = IndexRecordLookupStatus::LOOKUP_READY ;
 	} catch( const std::bad_alloc &) {
 		result.status = IndexRecordLookupStatus::OUT_OF_MEMORY ;

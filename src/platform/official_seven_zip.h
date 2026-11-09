@@ -2,7 +2,7 @@
 /**
  * @file official_seven_zip.h
  * @brief 公式7z package有限展開定義。
- * @version 01.00.00
+ * @version 01.02.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,8 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
  * </pre>
  *
  * @note 未信頼7zの全entryとcoderを事前検証し、選択fileが要求するsolid展開量をfile作成前に判定します。真正性とdriver適用性は後段で検証します。
@@ -42,6 +44,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <span>
 #include <string>
 #include <vector>
@@ -72,6 +76,8 @@ struct OfficialSevenZipExtractionPolicy {
 	std::uint32_t maximumEntryCount ;
 	/// 終端文字を除く相対path文字数上限。
 	std::uint32_t maximumPathCharacters ;
+	/// 0は従来heapのみ。非零は同操作の私有solid mapping総byte上限。
+	std::uint64_t maximumMappedOutputBytes{} ;
 } ;
 
 /**
@@ -86,6 +92,57 @@ struct OfficialSevenZipEntry {
 	std::uint64_t uncompressedSize{} ;
 	/// Workspace展開内容の64桁小文字SHA-256。Metadata列挙時は空。
 	std::wstring  sha256 ;
+} ;
+
+/** @brief 同じ原archiveのmetadataと選択solidを一操作だけ共有する非実行reader。 */
+class OfficialSevenZipSession final {
+public:
+	/** @brief 空のreaderを作る。 */
+	OfficialSevenZipSession() noexcept ;
+	/** @brief 共有solid、mappingと私有一時fileを全て回収する。 */
+	~OfficialSevenZipSession() ;
+	/** @brief 単独readerの複写を禁止する。 */
+	OfficialSevenZipSession( const OfficialSevenZipSession &) = delete ;
+	/** @brief 単独readerの複写代入を禁止する。 */
+	OfficialSevenZipSession	 &operator=( const OfficialSevenZipSession &) = delete ;
+	/**
+	 * @brief 原byteのviewと有限policyへ全entryを検査して結ぶ。
+	 * @param[in] archive readerより長く固定される原7z view。
+	 * @param[in] policy heapとfile-backed出力の有限枠。
+	 * @param[in] cancellation 同期期間中生存する任意の非blocking取消し照会。
+	 * @return 全metadata受理0、失敗は元HRESULT。
+	 */
+	[[nodiscard]] NativeError initialize( std::span<const std::byte>				 archive,
+										 const OfficialSevenZipExtractionPolicy &policy,
+										 const std::function<bool()>			&cancellation = {}) ;
+	/** @brief 全検査済み通常entryを借用する。
+	 * @return readerの寿命内だけ有効な元一覧。
+	 */
+	[[nodiscard]] std::span<const OfficialSevenZipEntry> entries() const noexcept ;
+	/**
+	 * @brief 同一solidを一度decodeし、選択memberだけを新規保存する。
+	 * @param[in] selected 同じreaderの検査済み通常index集合。
+	 * @param[in,out] workspace 自身が作成する選択fileだけを所有する領域。
+	 * @param[out] result 全成功時だけSHA付き選択一覧。失敗時は空。
+	 * @return CRC・保存・hash成功0、失敗時は今回分だけを回収する。
+	 */
+	[[nodiscard]] NativeError	extract( std::span<const std::uint32_t>		selected,
+										OfficialDownloadWorkspace		   &workspace,
+										std::vector<OfficialSevenZipEntry> &result) ;
+	/** @brief 私有solid fileの実同時保持最大byteを返す。
+	 * @return SDK headerを含む最大mapping byte数。
+	 */
+	[[nodiscard]] std::uint64_t mappedPeakBytes() const noexcept ;
+	/** @brief 実decodeした一意solid block数を返す。
+	 * @return 同操作のdecode成功回数。
+	 */
+	[[nodiscard]] std::size_t	decodedBlockCount() const noexcept ;
+
+private:
+	/// 原viewとSDK readerを同じscopeで保持する実装。
+	struct State ;
+	/// 最終回収まで単独所有する内部状態。
+	std::unique_ptr<State> state_ ;
 } ;
 
 /**
@@ -162,12 +219,14 @@ struct OfficialSevenZipSelectionAssessment {
  * @param[in] policy Providerが固定した全有限上限。 Providerが固定した有限上限。
  * @param[in] archiveIndex 直前の検証済み一覧から選んだ元archiveのentry index。 検証済み一覧から選んだentry index。
  * @param[out] content 成功時のCRC検証済みfile内容。失敗時は空にする。
+ * @param[in] cancellation 元workerの任意の非blocking取消し照会。
  * @return 成功時は0、事前検証、index照合、CRCまたは展開失敗時はHRESULT bit pattern。 再検証と選択file展開の成功時は0、拒否時はHRESULT。
  * @note 本関数はfileを作成せず、選択外fileを呼出側へ公開しない。
  */
 [[nodiscard]] NativeError extractOfficialSevenZipFile(
 	std::span<const std::byte> archive, const OfficialSevenZipExtractionPolicy &policy,
-	std::uint32_t archiveIndex, std::vector<std::byte> &content) ;
+	std::uint32_t archiveIndex, std::vector<std::byte> &content,
+	const std::function<bool()> &cancellation = {}) ;
 
 /**
  * @brief 公式7z全体を再検証し、明示indexの通常fileだけを保護workspaceへ展開する。

@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_package_inspection.h
  * @brief Record限定取得結果と共通driver package検査の接続定義。
- * @version 01.02.00
+ * @version 01.03.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  Record限定取得と共通内容検査のadapterを追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  公式由来を表示専用候補評価へ再結合。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  Device別PnP観測と取得後表示reportを追加。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/03  明示非実行formatを元grant/record/hintへ結合。
  * </pre>
  *
  * @note 本型と関数はProvider worker内だけで使用します。秘密URLと実pathをUI、log、cacheへ渡さず、
@@ -51,6 +52,7 @@
 #include <vector>
 
 namespace drivercrate {
+struct IndexedDriverArchiveHint ;
 
 /**
  * @brief URLを含まず一つの取得ledger行とrecord限定grantを結合するworker内証拠です。
@@ -95,7 +97,7 @@ struct DelegatedOfficialPackageProvenance {
 struct DelegatedOfficialPackageInput {
 	/// 由来能力を持たない固定済みarchive identityです。
 	DriverArchiveInput				   archive ;
-	/// Recordが明示したbasenameだけから決めた共通検査形式です。
+	/// 旧basenameまたは認証recordの明示計画へ結んだ非実行検査形式です。
 	OfficialDriverArchiveFormat		   format{OfficialDriverArchiveFormat::ZIP} ;
 	/// 取得ledgerと消費済みrecord grantのURL非保持結合証拠です。
 	DelegatedOfficialPackageProvenance provenance ;
@@ -142,6 +144,19 @@ using DelegatedOfficialInfRankObserver = std::function<NativeError(
  */
 [[nodiscard]] NativeError makeDelegatedOfficialPackageInput(
 	const OfficialAcquisitionResult &acquisition, const RecordScopedDownloadGrant &grant,
+	DelegatedOfficialPackageInput &input) noexcept ;
+
+/** @brief 認証recordの明示非実行formatを同じ消費済みgrantへ結ぶ。
+ * @param[in] acquisition 元sessionの成功ledger行。
+ * @param[in] grant 同じSIGNED_INDEX recordの一回消費済みgrant。
+ * @param[in] hint 元adapterが封印解除後に結んだindex/record/outer/content選択。
+ * @param[in] format 明示SEVEN_ZIP_SFXまたはPE_RESOURCE_CONTAINER。
+ * @param[out] input 全既存結合を成功したworker入力。失敗時は空。
+ * @return 全結合成功0、元HRESULT。署名/実byte/適合の成功ではない。
+ */
+[[nodiscard]] NativeError makeDelegatedOfficialPackageInput(
+	const OfficialAcquisitionResult &acquisition, const RecordScopedDownloadGrant &grant,
+	const IndexedDriverArchiveHint &hint, OfficialDriverArchiveFormat format,
 	DelegatedOfficialPackageInput &input) noexcept ;
 
 /**

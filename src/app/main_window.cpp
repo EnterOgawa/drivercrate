@@ -2,7 +2,7 @@
 /**
  * @file main_window.cpp
  * @brief DriverCrateメインウィンドウ実装。
- * @version 01.21.01
+ * @version 01.27.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -101,6 +101,13 @@
  * Ver.01.20.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * Ver.01.21.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続。
  * Ver.01.21.01 Shunji Ogawa  2026/11/02  取得前参照と未導入の確認・検査済み更新の表示分類を分離。
+ * Ver.01.22.00 Shunji Ogawa  2026/11/03  元scanと表示predicateの匿名件数診断を接続。
+ * Ver.01.23.00 Shunji Ogawa  2026/11/03  新版の取得前参照を通常の確認・選択へ接続。
+ * Ver.01.24.00 Shunji Ogawa  2026/11/08  匿名導入診断と保存状態・元数値の有限確認を追加。
+ * Ver.01.25.00 Shunji Ogawa  2026/11/08  同一署名索引の取得省略と通信失敗cacheを区別。
+ * Ver.01.26.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
+ * Ver.01.27.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.27.01 Shunji Ogawa  2026/11/09  導入終端のfilterと既存ツリー行・表示位置を保持。
  * </pre>
  *
  * @note Win32 TreeTable、候補選択、およびworker eventの表示を実装します。全UI操作はUI threadで実行します。
@@ -114,9 +121,12 @@
 #include "core/candidate_selection.h"
 #include "core/device_observation.h"
 #include "core/provider_registry.h"
+#include "core/pending_reference_version.h"
 #include "platform/windows_error.h"
 #include "platform/windows_product_type.h"
 #include "platform/signed_index_manifest.h"
+#include "platform/local_diagnostic_log.h"
+#include "platform/local_scan_diagnostics.h"
 
 #include <CommCtrl.h>
 #include <CommDlg.h>
@@ -145,12 +155,53 @@ namespace {
 // 定数定義。
 //------------------------------------------------------------------------------
 
-constexpr wchar_t	  WINDOW_CLASS_NAME[]  = L"DriverCrate.MainWindow" ;	// RegisterClass用の固有名。
-constexpr int		  DEFAULT_WINDOW_WIDTH = 1280 ;							// 初回Window幅（logical pixel）。
-constexpr int		  DEFAULT_WINDOW_HEIGHT = 720 ;							// 初回Window高さ（logical pixel）。
-constexpr int		  MINIMUM_WINDOW_WIDTH	= 960 ;							// 利用者が縮小できる最小幅（logical pixel）。
-constexpr int		  MINIMUM_WINDOW_HEIGHT = 560 ;							// 利用者が縮小できる最小高さ（logical pixel）。
-constexpr std::size_t MAXIMUM_CONFIRMATION_TITLES = 5 ;						// 確認dialogへ列挙する候補数の上限。
+constexpr wchar_t WINDOW_CLASS_NAME[] = L"DriverCrate.MainWindow" ;	// RegisterClass用の固有名。
+/** @brief 保存状態だけを固定resourceと数値で表示します。
+ * @param[in] instance 製品resourceを持つmoduleです。
+ * @return 既loggerの保存/未保存案内。未開始は空です。
+ */
+std::wstring	  diagnosticStorageText( const HINSTANCE instance)
+{
+	const auto storage = localDiagnosticStatus() ;	// 非待機の数値snapshotです。
+	// 内部UIの未開始loggerを偽の保存済みにしません。
+	if( storage.state == DiagnosticStorageState::NOT_STARTED) {
+		return {} ;
+	}
+
+	const bool failed = storage.state == DiagnosticStorageState::FAILED ||
+						// driver成否とは別です。
+						storage.state == DiagnosticStorageState::STOP_TIMEOUT ;
+	std::wstring counts = std::to_wstring( storage.saved) + L"/" + std::to_wstring( storage.pending) +
+						  L"/" + std::to_wstring( storage.dropped) ;	// 匿名件数です。
+	// 保存不能には最初の固定段階と元code有無を付けます。
+	if( failed) {
+		counts = std::to_wstring( static_cast<unsigned>( storage.state)) + L"/" +
+				 std::to_wstring( static_cast<unsigned>( storage.stage)) + L"/" +
+				 std::to_wstring( storage.codeKnown) + L"/" + std::to_wstring( storage.code) + L"/" +
+				 counts ;
+	}
+
+	const UINT	 id = failed ? IDS_DIAGNOSTIC_STORAGE_FAILED
+					  : storage.pending != 0U || storage.dropped != 0U || !storage.startupFlushed
+						  ? IDS_DIAGNOSTIC_STORAGE_PENDING
+						  : IDS_DIAGNOSTIC_STORAGE_SAVED ;			// 未保存を保存成功へ換算しません。
+	wchar_t		 text[512]{} ;										// 固定resourceだけです。
+	const int	 length = LoadStringW( instance, id, text, 512) ;	// I/Oは発生しません。
+	std::wstring message( text,
+						 length > 0 ? static_cast<std::size_t>( length) : 0U) ;	// 所有表示値です。
+	const auto	 marker = message.find( L"%1") ;								// 既一引数formatと同じ置換です。
+	// 不明な位置へ書き込みません。
+	if( marker != std::wstring::npos) {
+		message.replace( marker, 2U, counts) ;
+	}
+
+	return message ;
+}
+constexpr int		  DEFAULT_WINDOW_WIDTH	= 1280 ;	// 初回Window幅（logical pixel）。
+constexpr int		  DEFAULT_WINDOW_HEIGHT = 720 ;		// 初回Window高さ（logical pixel）。
+constexpr int		  MINIMUM_WINDOW_WIDTH	= 960 ;		// 利用者が縮小できる最小幅（logical pixel）。
+constexpr int		  MINIMUM_WINDOW_HEIGHT = 560 ;		// 利用者が縮小できる最小高さ（logical pixel）。
+constexpr std::size_t MAXIMUM_CONFIRMATION_TITLES = 5 ;	// 確認dialogへ列挙する候補数の上限。
 // TreeTable column titleを左から定義するresource ID群。
 constexpr std::array<UINT, 3> TREE_COLUMN_RESOURCE_IDS{
 	IDS_COLUMN_DEVICE_DRIVER, IDS_COLUMN_CURRENT_VERSION, IDS_COLUMN_CANDIDATE_VERSION} ;
@@ -386,6 +437,11 @@ constexpr std::size_t MAXIMUM_COVERAGE_LABEL_CHARACTERS = 128U ;
 //------------------------------------------------------------------------------
 MainWindow::~MainWindow()
 {
+	// このWindow用に作ったstate画像だけを解放します。
+	if( checkboxImages_) {
+		ImageList_Destroy( checkboxImages_) ;
+	}
+
 	// 作成したmessage用fontだけを破棄し、未作成のGDI objectを解放しない。
 	if( messageFont_ != nullptr) {
 		DeleteObject( messageFont_) ;
@@ -1022,6 +1078,24 @@ LRESULT MainWindow::handleMessage( const UINT message, const WPARAM wordParamete
 				return 0 ;
 			}
 
+			// readonly枠の短い固定説明を標準tooltipへ渡します。
+			if( notification->hwndFrom == updateTree_ && notification->code == TVN_GETINFOTIPW) {
+				auto *tip = reinterpret_cast<NMTVGETINFOTIPW *>(
+					longParameter) ;									// 通知中だけのWindows bufferです。
+				const auto *row = treeRowFromParameter( tip->lParam) ;	// 同Windowの行だけです。
+				// readonlyの元枠にだけ固定説明を付けます。
+				if( row && row->readonlyCheckbox && tip->pszText && tip->cchTextMax > 0 &&
+				   tip->cchTextMax <= 2048) {
+					const auto text =
+						// 元選択の再実行を案内しません。
+						loadString( IDS_RETAINED_CHECKBOX_TIP) ;
+					wcsncpy_s( tip->pszText, static_cast<std::size_t>( tip->cchTextMax), text.c_str(),
+							  _TRUNCATE) ;
+				}
+
+				return 0 ;
+			}
+
 			// 候補TreeViewの状態変更だけを選択同期へ渡し、他controlの状態を参照しない。
 			if( notification->hwndFrom == updateTree_ && notification->code == TVN_ITEMCHANGEDW) {
 				// TreeView itemの新旧状態を保持する非所有通知buffer。
@@ -1080,7 +1154,7 @@ bool MainWindow::onCreate()
 	updateTree_ = CreateWindowExW(
 		WS_EX_CLIENTEDGE, WC_TREEVIEWW, L"",
 		WS_CHILD | WS_VISIBLE | WS_TABSTOP | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT |
-			TVS_SHOWSELALWAYS | TVS_CHECKBOXES | TVS_FULLROWSELECT,
+			TVS_SHOWSELALWAYS | TVS_CHECKBOXES | TVS_FULLROWSELECT | TVS_INFOTIP,
 		0, 0, 0, 0, window_, reinterpret_cast<HMENU>( IDC_UPDATE_TREE), instance_, nullptr) ;
 	scanButton_	   = CreateWindowExW( 0, WC_BUTTONW, loadString( IDS_SCAN_BUTTON).c_str(),
 									 WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON, 0, 0, 0, 0,
@@ -1150,6 +1224,11 @@ bool MainWindow::onCreate()
 
 	TreeView_SetExtendedStyle( updateTree_, TVS_EX_DOUBLEBUFFER, TVS_EX_DOUBLEBUFFER) ;
 	static_cast<void>( SetWindowTheme( updateTree_, L"Explorer", nullptr)) ;
+	// readonlyと通常の枠を見分けられない状態ではUIを公開しません。
+	if( !initializeCheckboxImages()) {
+		return false ;
+	}
+
 	// Icon resourceが取得できない環境でもscanとinstall機能は維持する。
 	static_cast<void>( initializeDeviceClassImages()) ;
 	// 必須の表示列を構成できない場合は、候補の意味が欠けたUIを公開しない。
@@ -1869,6 +1948,13 @@ void MainWindow::updateCommandState() noexcept
 		}
 	}
 
+	// 表示だけの残存checkも、通常の明示解除が許される状態で解除できます。
+	if( state == ApplicationState::SCAN_READY &&
+	   std::ranges::any_of( preparationDisplayBindings_,
+						   []( const auto &binding) { return binding.checked ; })) {
+		hasPersistedSelection = true ;
+	}
+
 	const bool termsPresented =
 		// 案内失敗を同意不要へ読み替えません。
 		updateInstallTermsPresentation() ;
@@ -1946,9 +2032,13 @@ bool MainWindow::isInitialPreparationReference( const UpdateCandidate &candidate
 /** @see src/app/main_window.h 宣言側の契約を正本とします。 */
 bool MainWindow::visibleInRecommendedFilter( const UpdateCandidate &candidate) const noexcept
 {
-	// 取得前情報は根拠ある未導入機器だけへ残し、更新や検証済み初回の件数とは分けます。
+	// 取得前情報は根拠ある初回または新版確認へ限定し、検証済み導入候補とは分けます。
 	if( !candidate.installable) {
-		return isInitialPreparationReference( candidate) ;
+		return isInitialPreparationReference( candidate) ||
+			   (isSelectableCandidate( candidate) &&
+				classifyPendingReferenceVersion( candidate, candidates_,
+												controller_.scanSessionId()) ==
+					PendingReferenceVersion::NEWER) ;
 	}
 
 	const bool indexedUpdate =
@@ -1976,13 +2066,13 @@ void MainWindow::updateScanSummaryStatus()
 	const std::size_t installableCount = static_cast<std::size_t>(
 		std::count_if( candidates_.begin(), candidates_.end(),
 					  []( const UpdateCandidate &candidate) { return candidate.installable ; })) ;
+	const auto recommendedCount =
+		std::count_if( candidates_.begin(), candidates_.end(), [this]( const auto &candidate) {
+			return candidate.installable && visibleInRecommendedFilter( candidate) ;
+		}) ;			   // 元の検査済み/Windows管理候補だけです。
 	std::wstring text ;	// 導入可能数と未取得情報を混同しない終端案内です。
 	// 推奨filter中は表示中の導入可能候補だけを数えます。
 	if( showRecommendedOnly_) {
-		const auto recommendedCount = std::count_if(
-			candidates_.begin(), candidates_.end(), [this]( const UpdateCandidate &candidate) {
-				return candidate.installable && visibleInRecommendedFilter( candidate) ;
-			}) ; // 推奨数です。
 		text = formatResource( IDS_STATUS_RECOMMENDED_COUNT, std::to_wstring( recommendedCount)) ;
 	}
 	// 未検査を導入候補数へ含めず、未知の情報と候補不在を分けます。
@@ -2008,6 +2098,24 @@ void MainWindow::updateScanSummaryStatus()
 									  std::to_wstring( initialReferences)) ;
 	}
 
+	const auto updateReferences =
+		std::count_if( candidates_.begin(), candidates_.end(), [this]( const auto &candidate) {
+			return isSelectableCandidate( candidate) &&
+				   classifyPendingReferenceVersion( candidate, candidates_,
+												   controller_.scanSessionId()) ==
+					   PendingReferenceVersion::NEWER ;
+		}) ; // 元targetへ選択できる取得前の新版確認数です。
+	// 取得前を導入候補へ数えず、0件文言だけで新しい確認入口を隠しません。
+	if( updateReferences != 0) {
+		const auto confirmation = formatResource( IDS_STATUS_UPDATE_CONFIRMATION_COUNT,
+												 // 未検査を明示します。
+												 std::to_wstring( updateReferences)) ;
+		text = (showRecommendedOnly_ ? recommendedCount == 0 : installableCount == 0U) &&
+					   initialReferences == 0
+				   ? confirmation
+				   : text + L" " + confirmation ;
+	}
+
 	// 未使用計画による取得準備能力を案内し、他候補の件数や表示filterへ従属させません。
 	if( controller_.preparationPlan() != nullptr) {
 		const auto guidance = loadString( IDS_STATUS_PREPARATION_REQUIRED) ;	// 既存の取得前案内です。
@@ -2018,6 +2126,52 @@ void MainWindow::updateScanSummaryStatus()
 	// Fixtureの未実行を完了として表示しません。
 	if( !hardware.empty()) {
 		text = hardware + L" " + text ;
+	}
+
+	DiagnosticRecord diagnostic ;	// 元表示predicateの結果だけを保存し、表示条件を変えません。
+	diagnostic.event	 = DiagnosticEvent::CANDIDATE_DISPLAY ;
+	diagnostic.operation = controller_.activeOperationId() ;
+	diagnostic.status	 = static_cast<std::int32_t>( controller_.state()) ;
+	const auto recommended =
+		std::count_if( candidates_.begin(), candidates_.end(), [this]( const auto &candidate) {
+			return visibleInRecommendedFilter( candidate) ;
+		}) ; // 初回未検査参照を含む元filterの表示候補数です。
+	const auto pending =
+		std::count_if( candidates_.begin(), candidates_.end(), []( const auto &candidate) {
+			return !candidate.current && !candidate.installable &&
+				   !candidate.preparationTargetIdentity.empty() ;
+		}) ; // targetを持つ取得前参照の件数です。
+	const auto visibleDevices =
+		std::count_if( treeRows_.begin(), treeRows_.end(), [this]( const auto &row) {
+			return row.kind == TreeRowKind::DEVICE && row.deviceIndex < candidateItems_.size() &&
+				   candidateItems_[row.deviceIndex] != nullptr ;
+		}) ; // 実際に保持されたtree device行数です。
+	const auto recommendedInstallable =
+		std::count_if( candidates_.begin(), candidates_.end(), [this]( const auto &candidate) {
+			return candidate.installable && visibleInRecommendedFilter( candidate) ;
+		}) ; // Status文言が数える導入候補と未検査参照を区別します。
+	diagnostic.add( DiagnosticField::TOTAL, candidates_.size())
+		.add( DiagnosticField::INSTALLABLE, installableCount)
+		.add( DiagnosticField::RECOMMENDED, static_cast<std::uint64_t>( recommended))
+		.add( DiagnosticField::RECOMMENDED_INSTALLABLE,
+			 static_cast<std::uint64_t>( recommendedInstallable))
+		.add( DiagnosticField::INITIAL_REFERENCES, static_cast<std::uint64_t>( initialReferences))
+		.add( DiagnosticField::NEWER_REFERENCES, static_cast<std::uint64_t>( updateReferences))
+		.add( DiagnosticField::PENDING_REFERENCES, static_cast<std::uint64_t>( pending))
+		.add( DiagnosticField::NON_INITIAL_REFERENCES,
+			 static_cast<std::uint64_t>( pending >= initialReferences ? pending - initialReferences
+																	 : 0))
+		.add( DiagnosticField::RECOMMENDED_FILTER, showRecommendedOnly_)
+		.add( DiagnosticField::VISIBLE_DEVICES, static_cast<std::uint64_t>( visibleDevices))
+		.add( DiagnosticField::PLAN_PRESENT, controller_.preparationPlan() != nullptr)
+		.add( DiagnosticField::TARGETS,
+			 controller_.preparationPlan() ? controller_.preparationPlan()->targets.size() : 0U) ;
+	recordLocalDiagnostic( diagnostic) ;
+
+	const auto storage = diagnosticStorageText( instance_) ;	// 保存不能も検索結果と別に案内します。
+	// 未開始の内部fixtureへ新しい表示を追加しません。
+	if( !storage.empty()) {
+		text += L" " + storage ;
 	}
 
 	setStatus( text, false) ;
@@ -2035,7 +2189,7 @@ void MainWindow::handleRecommendedFilterChange()
 		return ;
 	}
 
-	// BST_CHECKEDの場合だけinstall可能な推奨更新へ表示を限定する。
+	// Checked時は元の検証済み候補と取得前の初回/新版確認だけへ表示を限定します。
 	showRecommendedOnly_ = SendMessageW( recommendedOnlyCheckbox_, BM_GETCHECK, 0, 0) == BST_CHECKED ;
 	populateCandidates( candidates_) ;
 	updateScanSummaryStatus() ;
@@ -2055,6 +2209,11 @@ void MainWindow::selectAllRecommendedUpdates()
 	}
 
 	initializeCandidateSelection() ;
+	// 利用者の明示操作へ表示意図も同期し、旧checkを復活させません。
+	for( auto &binding : preparationDisplayBindings_) {
+		binding.checked = false ;
+	}
+
 	applyCandidateSelectionToTree() ;
 	updateCommandState() ;
 }
@@ -2072,6 +2231,11 @@ void MainWindow::clearCandidateSelection()
 	}
 
 	std::fill( candidateSelected_.begin(), candidateSelected_.end(), false) ;
+	// 利用者の明示操作へ表示意図も同期し、旧checkを復活させません。
+	for( auto &binding : preparationDisplayBindings_) {
+		binding.checked = false ;
+	}
+
 	applyCandidateSelectionToTree() ;
 	updateCommandState() ;
 }
@@ -2971,13 +3135,31 @@ void MainWindow::beginScan()
 		return ;
 	}
 
+	DiagnosticRecord diagnostic ;	// 開始受付の元状態と固定設定だけです。
+	diagnostic.event	 = DiagnosticEvent::OPERATION_STARTED ;
+	diagnostic.operation = begin.operationId ;
+	diagnostic.status	 = static_cast<std::int32_t>( controller_.state()) ;
+	recordLocalDiagnostic( diagnostic) ;
+	// 同scanのcanonical Provider有効設定だけを記録します。
+	for( const auto &descriptor : builtInProviderDescriptors()) {
+		DiagnosticRecord provider ;	// 名称や探索条件本文を記録しません。
+		provider.event	   = DiagnosticEvent::PROVIDER_CONFIGURATION ;
+		provider.provider  = DiagnosticProvider::fromId( descriptor.id) ;
+		provider.operation = begin.operationId ;
+		provider.add( DiagnosticField::ENABLED, isProviderEnabled( options, descriptor)) ;
+		recordLocalDiagnostic( provider) ;
+	}
+
 	// UI状態機械が発行した同じIDへ一scan承認を結合し、worker側で再照合する。
 	if( options.officialDiscoveryApproval) {
 		options.officialDiscoveryApproval->operationId = begin.operationId ;
 	}
 
 	hardwareRefresh_.reset() ;
-	preparationApproval_ = {} ;
+	preparationApproval_	   = {} ;
+	preparationDisplaySession_ = 0U ;
+	preparationDisplayBindings_.clear() ;
+	treeClassExpansion_.clear() ;
 	preparationResultText_.clear() ;
 	indexScanSummary_		 = {} ;
 	indexPreparationSummary_ = {} ;
@@ -3093,6 +3275,8 @@ void MainWindow::beginInstall()
 
 	// 利用者が選択したcandidate index群。
 	const std::vector<std::size_t> checkedIndexes = checkedCandidateIndexes() ;
+	recordInstallSelectionDiagnostics( controller_.activeOperationId(), candidates_, checkedIndexes,
+									  false) ;
 	// 選択が空の場合は対象の明示選択を促し、install確認へ進まない。
 	if( checkedIndexes.empty()) {
 		MessageBoxW( window_, loadString( IDS_SELECTION_REQUIRED).c_str(),
@@ -3345,6 +3529,7 @@ void MainWindow::beginInstall()
 		return ;
 	}
 
+	recordInstallSelectionDiagnostics( begin.operationId, candidates_, checkedIndexes, true) ;
 	preparationApproval_ = {} ;
 	setStatus( loadString( windowsServer ? IDS_STATUS_PREPARING_SERVER_INSTALL
 									   : IDS_STATUS_CREATING_RESTORE_POINT),
@@ -3517,16 +3702,17 @@ std::wstring MainWindow::formatIndexRefreshSummary( const IndexScanSummary &summ
 		return {} ;
 	}
 
-	const auto		  &refresh	   = *summary.refresh ;	// 非機密な確定summaryだけです。
-	const UINT		   refreshText = summary.status == IndexScanStatus::CANCELLED ||
-									 refresh.status == IndexRefreshStatus::CANCELLED
-										 ? IDS_INDEX_REFRESH_CANCELLED
-									 : refresh.status == IndexRefreshStatus::REFRESHED ? IDS_INDEX_REFRESHED
-									 : refresh.status == IndexRefreshStatus::AUTHENTICATED_CACHE
-										 ? IDS_INDEX_REFRESH_CACHED
-									 : refresh.status == IndexRefreshStatus::CANCELLED
-										 ? IDS_INDEX_REFRESH_CANCELLED
-										 : IDS_INDEX_REFRESH_REJECTED ;	// 元区分です。
+	const auto &refresh = *summary.refresh ;	// 非機密な確定summaryだけです。
+	const UINT	refreshText =
+		 summary.status == IndexScanStatus::CANCELLED ||
+				 refresh.status == IndexRefreshStatus::CANCELLED
+			 ? IDS_INDEX_REFRESH_CANCELLED
+		 : refresh.status == IndexRefreshStatus::REFRESHED			 ? IDS_INDEX_REFRESHED
+		 : refresh.status == IndexRefreshStatus::UNCHANGED			 ? IDS_INDEX_REFRESH_UNCHANGED
+		 : refresh.status == IndexRefreshStatus::AUTHENTICATED_CACHE ? IDS_INDEX_REFRESH_CACHED
+		 : refresh.status == IndexRefreshStatus::CANCELLED
+			 ? IDS_INDEX_REFRESH_CANCELLED
+			 : IDS_INDEX_REFRESH_REJECTED ;	// 元区分です。
 	const std::wstring timeReason =
 		refresh.manifestStatus == SignedIndexManifestStatus::INVALID_TIME
 			? loadString( IDS_INDEX_REFRESH_INVALID_TIME) + L"\r\n"
@@ -3599,6 +3785,8 @@ void MainWindow::processScanCompleted( const WorkerEvent &event)
 
 	hardwareRefresh_  = event.hardwareRefresh ;
 	indexScanSummary_ = event.indexSummary ;
+	recordScanDiagnostics( event, static_cast<std::int32_t>( controller_.state()),
+						  controller_.scanMeasurement() != nullptr) ;
 	preparationResultText_ =
 		formatHardwareRefreshSummary() + L"\r\n" + formatIndexRefreshSummary( event.indexSummary) ;
 
@@ -3706,6 +3894,9 @@ void MainWindow::processScanCompleted( const WorkerEvent &event)
 	}
 
 	// 新scanへ旧device行の指定と個別実行結果を継承しない。
+	preparationDisplaySession_ = 0U ;
+	preparationDisplayBindings_.clear() ;
+	treeClassExpansion_.clear() ;
 	treeRows_.clear() ;
 	candidateResultTexts_.clear() ;
 	candidates_	   = event.scanResult.candidates ;
@@ -3736,14 +3927,56 @@ void MainWindow::processInstallCompleted( const WorkerEvent &event)
 	const auto scanSessionId =
 		// 終端で失効する前の表示結合だけを保持します。
 		controller_.scanSessionId() ;
+	auto displayBindings = capturePreparationDisplayBindings() ;	// 失効前の元枠/意図です。
 	// 状態機械が受理しないinstall完了を候補行へ反映しない。
 	if( !controller_.completeInstall( event.operationId, event.installResult)) {
 		return ;
 	}
 
-	// 有効な終端だけでfilterと表示controlを揃え、全deviceへ戻します。
-	showRecommendedOnly_ = false ;
-	SendMessageW( recommendedOnlyCheckbox_, BM_SETCHECK, BST_UNCHECKED, 0) ;
+	preparationDisplaySession_	= scanSessionId ;
+	preparationDisplayBindings_ = std::move( displayBindings) ;
+	// 全体flagや現在版で完了を推測せず、一意な元個別結果だけを解除します。
+	for( auto &binding : preparationDisplayBindings_) {
+		const auto result =
+			std::ranges::find( event.installResult.updates, binding.candidateIdentity,
+							  &UpdateExecutionResult::identity) ;	// 同候補の元結果です。
+		// 引継ぎ/失敗/未実行/部分成功では前回checkを保持します。
+		if( binding.candidateIdentity.empty() || result == event.installResult.updates.end() ||
+		   std::ranges::count( event.installResult.updates, binding.candidateIdentity,
+							  &UpdateExecutionResult::identity) != 1 ||
+		   result->installerHandoff || result->downloadOutcome != OutcomeCode::SUCCESS ||
+		   result->downloadError != 0 || result->installOutcome != OutcomeCode::SUCCESS ||
+		   result->installError != 0) {
+			continue ;
+		}
+
+		const auto original =
+			std::ranges::find( candidates_, binding.candidateIdentity,
+							  &UpdateCandidate::identity) ;	// 元deviceへの一意結合です。
+		// 欠測/別device/保護開始失敗から個別完了を作りません。
+		if( original == candidates_.end() || original->deviceIdentity != binding.deviceIdentity ||
+		   std::ranges::count( candidates_, binding.candidateIdentity, &UpdateCandidate::identity) !=
+			   1 ||
+		   event.installResult.restorePointCreation.outcome == OutcomeCode::FAILURE) {
+			continue ;
+		}
+
+		const bool rolesComplete = std::ranges::all_of( result->requiredRoles, []( const auto &role) {
+			return role.stageOutcome == OutcomeCode::SUCCESS && role.stageError == 0 &&
+				   role.installOutcome == OutcomeCode::SUCCESS && role.installError == 0 &&
+				   !role.installDiagnosticMissing &&
+				   role.reflection == DriverPlanReflectionState::INSTALL_API_COMPLETED ;
+		}) ; // 必要roleの未完了をbase成功から補いません。
+		// 完了した元一候補だけを表示上解除します。
+		if( rolesComplete) {
+			binding.checked = false ;
+		}
+	}
+
+	recordInstallDiagnostics( event, scanSessionId, candidates_,
+							 static_cast<std::int32_t>( controller_.state())) ;
+
+	// 元filterと行集合を保持したまま、同じ行へ結果と失効だけを反映します。
 	displayInstallResult( event.installResult, scanSessionId) ;
 	// trueの場合は全選択候補のinstallが成功した。
 	const bool succeeded = controller_.state() == ApplicationState::COMPLETED ;
@@ -3792,6 +4025,12 @@ void MainWindow::processInstallCompleted( const WorkerEvent &event)
 		}
 	}
 
+	const auto storage = diagnosticStorageText( instance_) ;	// 元処理結果と保存状態を分けます。
+	// 元成功文を改作せず、匿名診断の保存事実だけを付けます。
+	if( !storage.empty()) {
+		message += L"\r\n\r\n" + storage ;
+	}
+
 	MessageBoxW( window_, message.c_str(), loadString( IDS_APP_TITLE).c_str(), MB_OK | messageIcon) ;
 }
 
@@ -3818,6 +4057,233 @@ void MainWindow::initializeCandidateSelection()
  * @see src/app/main_window.h 宣言側の契約を正本とする。
  */
 //------------------------------------------------------------------------------
+std::vector<MainWindow::PreparationDisplayBinding> MainWindow::capturePreparationDisplayBindings()
+	const
+{
+	auto bindings =
+		preparationDisplaySession_ == controller_.scanSessionId()
+			? preparationDisplayBindings_
+			: std::vector<PreparationDisplayBinding>{} ;	// 同scanの非表示行も保持します。
+	// 実際に枠があった元deviceだけを退避し、現在観測へ枠を新設しません。
+	for( const auto &row : treeRows_) {
+		// 種類行/欠測/別deviceの位置を表示意図へ使いません。
+		if( row.kind != TreeRowKind::DEVICE || row.deviceIndex >= candidates_.size() ||
+		   row.deviceIndex >= candidateItems_.size() || !candidateItems_[row.deviceIndex]) {
+			continue ;
+		}
+
+		const auto image = TreeView_GetItemState( updateTree_, candidateItems_[row.deviceIndex],
+												 TVIS_STATEIMAGEMASK) >>
+						   12U ;											// 元の枠とcheckです。
+		const auto &device = candidates_[row.deviceIndex].deviceIdentity ;	// 表示名で結合しません。
+		auto		prior  = std::ranges::find(
+			bindings, device, &PreparationDisplayBinding::deviceIdentity) ;	// 同deviceだけです。
+		// 既readonlyの元candidateは、再描画でchoiceを失っても保持します。
+		if( row.readonlyCheckbox && prior != bindings.end()) {
+			continue ;
+		}
+
+		// 枠の無い現在行から新しい表示checkを作りません。
+		if( image == 0U) {
+			continue ;
+		}
+
+		PreparationDisplayBinding binding ;	// 複数候補未指定ならcandidate IDは空のままです。
+		binding.deviceIdentity = device ;
+		binding.frame		   = true ;
+		binding.checked		   = image == 2U || image == 4U ;
+		binding.explicitChoice = row.explicitCandidateChoice ;
+		// 元一候補が一意な同deviceの場合だけ版・取得元を保存します。
+		if( row.hasCandidateChoice && row.candidateIndex < candidates_.size()) {
+			const auto &candidate = candidates_[row.candidateIndex] ;	// 元の指定候補です。
+			// 破損/現在行/重複候補を表示指定へ補完しません。
+			if( !candidate.current && candidate.deviceIdentity == device &&
+			   std::ranges::count( candidates_, candidate.identity, &UpdateCandidate::identity) ==
+				   1) {
+				binding.candidateIdentity = candidate.identity ;
+				binding.version			  = candidate.version ;
+				binding.sourceName		  = candidate.sourceName ;
+				binding.reference =
+					!candidate.installable && !candidate.preparationTargetIdentity.empty() ;
+			}
+		}
+
+		// 同deviceのsnapshotだけを更新し、元の非表示行は保持します。
+		if( prior == bindings.end()) {
+			bindings.push_back( std::move( binding)) ;
+		} else {
+			*prior = std::move( binding) ;
+		}
+	}
+
+	// filterで隠れた元checkも同じ選択vectorから表示だけへ退避します。
+	for( std::size_t index{}; index < candidates_.size() && index < candidateSelected_.size();
+		++index) {
+		const auto &candidate = candidates_[index] ;	// 実行集合へ戻さない元候補です。
+		// 現在行/未選択/重複/既退避deviceから別の表示意図を作りません。
+		if( !candidateSelected_[index] || candidate.current || candidate.identity.empty() ||
+		   std::ranges::count( candidates_, candidate.identity, &UpdateCandidate::identity) != 1 ||
+		   std::ranges::any_of( bindings, [&]( const auto &binding) {
+			   return binding.deviceIdentity == candidate.deviceIdentity ;
+		   })) {
+			continue ;
+		}
+
+		bindings.push_back(
+			{.candidateIdentity = candidate.identity,
+			 .deviceIdentity	= candidate.deviceIdentity,
+			 .version			= candidate.version,
+			 .sourceName		= candidate.sourceName,
+			 .reference = !candidate.installable && !candidate.preparationTargetIdentity.empty(),
+			 .frame		= true,
+			 .checked	= true}) ;
+	}
+
+	return bindings ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+const MainWindow::PreparationDisplayBinding *MainWindow::retainedDisplayBinding(
+	const TreeRow &row) const noexcept
+{
+	const auto session = controller_.scanSessionId() ;	// 新scanのclearだけで元表示を破棄します。
+	// 元候補集合の失効後も同じ表示だけへ限定し、metadata modeへ持ち越しません。
+	if( controller_.scanPurpose() != ScanPurpose::STANDARD || row.kind != TreeRowKind::DEVICE ||
+	   row.deviceIndex >= candidates_.size() || preparationDisplaySession_ == 0U ||
+	   (session != preparationDisplaySession_ &&
+		!(session == 0U && (controller_.state() == ApplicationState::FAILURE ||
+							controller_.state() == ApplicationState::COMPLETED)))) {
+		return nullptr ;
+	}
+
+	const auto &device = candidates_[row.deviceIndex].deviceIdentity ;	// 同元deviceだけです。
+	const auto	found =
+		std::ranges::find( preparationDisplayBindings_, device,
+						  &PreparationDisplayBinding::deviceIdentity) ;	// 表示名を使いません。
+	return found != preparationDisplayBindings_.end() &&
+				   std::ranges::count( preparationDisplayBindings_, device,
+									  &PreparationDisplayBinding::deviceIdentity) == 1
+			   ? &*found
+			   : nullptr ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+bool MainWindow::initializeCheckboxImages()
+{
+	const UINT dpi	  = GetDpiForWindow( updateTree_) ;					// 元controlと同じ画像寸法です。
+	const int  width  = GetSystemMetricsForDpi( SM_CXMENUCHECK, dpi) ;	// 標準checkbox幅です。
+	const int  height = GetSystemMetricsForDpi( SM_CYMENUCHECK, dpi) ;	// 標準checkbox高さです。
+	HIMAGELIST made =
+		// 同Windowだけが所有します。
+		ImageList_Create( width, height, ILC_COLOR32 | ILC_MASK, 5, 0) ;
+	const HDC dc	  = GetDC( updateTree_) ;						// 作成中だけの借用DCです。
+	const HDC memory  = dc ? CreateCompatibleDC( dc) : nullptr ;	// 一bitmap用です。
+	bool	  success = made && memory ;							// 全五画像を作成した場合だけ接続します。
+	// 0空/1通常枠/2通常check/3readonly枠/4readonlycheckを作ります。
+	for( unsigned index{}; success && index < 5U; ++index) {
+		const HBITMAP bitmap =
+			// 追加後に解放する元bitmapです。
+			CreateCompatibleBitmap( dc, width, height) ;
+		const HGDIOBJ previous =
+			bitmap ? SelectObject( memory, bitmap) : nullptr ;		// 借用選択を戻します。
+		RECT		 rectangle{0, 0, width, height} ;				// 元画像内だけです。
+		const HBRUSH mask = CreateSolidBrush( RGB( 255, 0, 255)) ;	// 透明mask色です。
+		success			  = bitmap && previous && mask ;
+		// 欠測したGDI objectへ描画しません。
+		if( success) {
+			FillRect( memory, &rectangle, mask) ;
+			// 空画像以外だけをWindowsの標準checkboxで描画します。
+			if( index != 0U) {
+				DrawFrameControl( memory, &rectangle, DFC_BUTTON,
+								 DFCS_BUTTONCHECK | (index >= 3U ? DFCS_INACTIVE : 0U) |
+									 (index == 2U || index == 4U ? DFCS_CHECKED : 0U)) ;
+			}
+
+			SelectObject( memory, previous) ;
+			success =
+				ImageList_AddMasked( made, bitmap, RGB( 255, 0, 255)) == static_cast<int>( index) ;
+		}
+
+		// brush作成失敗でも元bitmapの選択を戻してから解放します。
+		if( !success && previous) {
+			SelectObject( memory, previous) ;
+		}
+
+		// 作成に成功したGDI objectだけを解放します。
+		if( mask) {
+			DeleteObject( mask) ;
+		}
+
+		// 画像listは追加済みbitmapを複製して所有します。
+		if( bitmap) {
+			DeleteObject( bitmap) ;
+		}
+	}
+
+	// 失敗時もDCの借用を終了します。
+	if( memory) {
+		DeleteDC( memory) ;
+	}
+
+	// このWindowから借用したDCだけを返却します。
+	if( dc) {
+		ReleaseDC( updateTree_, dc) ;
+	}
+
+	// 不完全なreadonly表示を接続しません。
+	if( !success) {
+		// 作成済みlistだけを破棄し、所有memberへ渡しません。
+		if( made) {
+			ImageList_Destroy( made) ;
+		}
+
+		return false ;
+	}
+
+	const auto original = TreeView_SetImageList(
+		updateTree_, made, TVSIL_STATE) ;	// 既定のこのcontrol専用state画像です。
+	// 置換後に旧state画像の所有を終了します。
+	if( original) {
+		ImageList_Destroy( original) ;
+	}
+
+	checkboxImages_ = made ;
+	return true ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+std::optional<std::size_t> MainWindow::preparationDisplayCandidate(
+	const TreeRow &row) const noexcept
+{
+	const auto *binding = retainedDisplayBinding( row) ;	// 同じ798snapshotだけを使います。
+	// 有効な新choiceを上書きせず、枠だけのsnapshotに候補IDを作りません。
+	if( !binding || binding->candidateIdentity.empty() ||
+	   (row.hasCandidateChoice && row.candidateIndex < candidates_.size() &&
+		isSelectableCandidate( candidates_[row.candidateIndex]))) {
+		return std::nullopt ;
+	}
+
+	const auto &device = candidates_[row.deviceIndex].deviceIdentity ;	// 元deviceだけです。
+
+	const auto	candidate =
+		std::ranges::find( candidates_, binding->candidateIdentity,
+						  &UpdateCandidate::identity) ;	// 元候補そのものの位置です。
+	// 別device・現在行・候補重複をreadonly表示へも補完しません。
+	if( candidate == candidates_.end() || candidate->current ||
+	   candidate->deviceIdentity != device ||
+	   std::ranges::count( candidates_, binding->candidateIdentity, &UpdateCandidate::identity) !=
+		   1) {
+		return std::nullopt ;
+	}
+
+	const auto index =
+		// 候補順は変えません。
+		static_cast<std::size_t>( candidate - candidates_.begin()) ;
+	return std::ranges::count( row.candidateIndexes, index) == 1 ? std::optional{index}
+																: std::nullopt ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
 void MainWindow::applyCandidateSelectionToTree()
 {
 	updatingTreeChecks_ = true ;
@@ -3848,7 +4314,8 @@ void MainWindow::applyCandidateSelectionToTree()
 			hasResult			  = hasResult || (index < candidateResultTexts_.size() &&
 									  !candidateResultTexts_[index].empty()) ;
 			// 閲覧専用・現在構成をcheckboxへ結合しない。
-			if( standard && isSelectableCandidate( candidate) &&
+			if( standard && controller_.state() == ApplicationState::SCAN_READY &&
+			   controller_.scanSessionId() != 0U && isSelectableCandidate( candidate) &&
 			   (visibleInRecommendedFilter( candidate) ||
 				(row.explicitCandidateChoice && row.candidateIndex == index &&
 				 !showRecommendedOnly_))) {
@@ -3911,6 +4378,13 @@ void MainWindow::applyCandidateSelectionToTree()
 				const auto &candidate = candidates_[row.candidateIndex] ;	// Checkboxと同じ一候補。
 				row.candidateVersion =
 					makeSingleLine( candidate.version.empty() ? unknown : candidate.version) ;
+				// 参照の申告版を実取得後のdriver版と混同させません。
+				if( !candidate.installable && !candidate.preparationTargetIdentity.empty() &&
+				   !candidate.version.empty()) {
+					row.candidateVersion =
+						formatResource( IDS_REFERENCE_VERSION_FORMAT, row.candidateVersion) ;
+				}
+
 				row.status +=
 					L" / " +
 					loadString( candidate.action == DriverAction::INITIAL_INSTALL
@@ -3952,9 +4426,38 @@ void MainWindow::applyCandidateSelectionToTree()
 			}
 		}
 
+		// 元参照の版と取得元は表示だけへ戻し、実行choice/checkを作りません。
+		if( !hasResult) {
+			const auto display = preparationDisplayCandidate( row) ;	// 同scanの一意な元選択だけです。
+			// 実行可能な新choiceが無い場合だけreadonlyの元版を表示します。
+			if( display) {
+				const auto binding =
+					std::ranges::find( preparationDisplayBindings_, candidates_[*display].identity,
+									  &PreparationDisplayBinding::
+										  candidateIdentity) ;	// helperが元結合を確認済みです。
+				// 退避した元申告版を表示用の一行へ変換します。
+				const auto version =
+					makeSingleLine( binding->version.empty() ? unknown : binding->version) ;
+				row.candidateVersion = binding->reference
+										   ? formatResource( IDS_REFERENCE_VERSION_FORMAT, version)
+										   : version ;
+				row.status += L" / " + loadString( IDS_PREPARATION_DISPLAY_READONLY) ;
+				// 元取得元の表示名だけを端末内に保持します。
+				if( !binding->sourceName.empty()) {
+					row.status += L" / " + makeSingleLine( binding->sourceName) ;
+				}
+			}
+		}
+
+		const auto *retained = retainedDisplayBinding( row) ;	// 元枠とcheckだけです。
+		const bool	historicalChecked =
+			retained && retained->frame && retained->checked ;	// 実行selectionへ合流しません。
 		const bool checked = row.hasCandidateChoice &&
 							 row.candidateIndex < candidateSelected_.size() &&
 							 candidateSelected_[row.candidateIndex] ;	// 指定一候補だけの保持check。
+		// 元checked意図だけの行は有効choiceが残っていても実行checkと区別します。
+		row.readonlyCheckbox = retained && retained->frame &&
+							   (installableCount == 0U || (historicalChecked && !checked)) ;
 		std::wstring text = row.primaryText + L" | " + loadString( IDS_COLUMN_CURRENT_VERSION) +
 							L": " + row.currentVersion + L" | " +
 							loadString( IDS_COLUMN_CANDIDATE_VERSION) + L": " +
@@ -3963,7 +4466,9 @@ void MainWindow::applyCandidateSelectionToTree()
 		item.mask	   = TVIF_STATE | TVIF_TEXT ;
 		item.hItem	   = candidateItems_[row.deviceIndex] ;
 		item.stateMask = TVIS_STATEIMAGEMASK ;
-		item.state	   = installableCount > 0U ? INDEXTOSTATEIMAGEMASK( checked ? 2 : 1) : 0 ;
+		item.state	   = row.readonlyCheckbox	 ? INDEXTOSTATEIMAGEMASK( historicalChecked ? 4 : 3)
+						 : installableCount > 0U ? INDEXTOSTATEIMAGEMASK( checked ? 2 : 1)
+												 : 0 ;
 		item.pszText   = text.data() ;
 		TreeView_SetItem( updateTree_, &item) ;
 	}
@@ -3973,7 +4478,8 @@ void MainWindow::applyCandidateSelectionToTree()
 }
 
 /** @see src/app/main_window.h */
-bool MainWindow::selectDeviceCandidate( const std::size_t candidateIndex)
+bool MainWindow::selectDeviceCandidate( const std::size_t candidateIndex,
+									   const bool		 preserveDisplayIntent)
 {
 	// 終端済み・専用mode・失効・非導入候補から新しい導入選択を作らない。
 	if( controller_.state() != ApplicationState::SCAN_READY ||
@@ -4007,7 +4513,14 @@ bool MainWindow::selectDeviceCandidate( const std::size_t candidateIndex)
 
 	row.candidateIndex			= candidateIndex ;
 	row.hasCandidateChoice		= true ;
-	row.explicitCandidateChoice = true ;
+	row.explicitCandidateChoice = !preserveDisplayIntent ;
+	// 新しい明示選択だけが元表示を消費し、内部READY途中では保持します。
+	if( !preserveDisplayIntent) {
+		std::erase_if( preparationDisplayBindings_, [&]( const auto &binding) {
+			return binding.deviceIdentity == candidates_[candidateIndex].deviceIdentity ;
+		}) ;
+	}
+
 	applyCandidateSelectionToTree() ;
 	updateCommandState() ;
 	return true ;
@@ -4020,6 +4533,24 @@ bool MainWindow::selectDeviceCandidate( const std::size_t candidateIndex)
 //------------------------------------------------------------------------------
 void MainWindow::populateCandidates( const std::span<const UpdateCandidate> candidates)
 {
+	// 最初の監査report再描画も含め、全再構築の直前に閉状態まで保存します。
+	for( HTREEITEM item = TreeView_GetRoot( updateTree_); item != nullptr;
+		item		   = TreeView_GetNextSibling( updateTree_, item)) {
+		TVITEMW native{} ;	// この同期取得だけの元itemです。
+		native.mask	 = TVIF_PARAM ;
+		native.hItem = item ;
+		// 新scanで破棄したrowや取得不能なitemを再利用しません。
+		if( TreeView_GetItem( updateTree_, &native) != FALSE) {
+			const auto *row = treeRowFromParameter( native.lParam) ;	// 正当な分類だけです。
+			// 通常deviceのidentityを分類keyへ代用しません。
+			if( row && row->kind == TreeRowKind::DEVICE_CLASS) {
+				treeClassExpansion_.insert_or_assign(
+					row->classKey, (TreeView_GetItemState( updateTree_, item, TVIS_EXPANDED) &
+									TVIS_EXPANDED) != 0U) ;
+			}
+		}
+	}
+
 	std::unordered_map<std::wstring, std::wstring>
 		choices ;	// 同sessionの明示指定をfilter切替で保持する。
 	// 古いrowのindexをそのまま新しいdeviceへ持ち越さず、opaque候補IDも照合する。
@@ -4108,6 +4639,7 @@ void MainWindow::populateCandidates( const std::span<const UpdateCandidate> cand
 		if( newClass) {
 			TreeRow classRow{} ;	// Checkboxを持たない種類行。
 			classRow.kind		  = TreeRowKind::DEVICE_CLASS ;
+			classRow.classKey	  = classKey ;
 			classRow.unknownClass = classKey.empty() ;
 			classRow.className =
 				classRow.unknownClass ? loadString( IDS_TREE_CLASS_UNKNOWN) : className ;
@@ -4186,8 +4718,79 @@ void MainWindow::populateCandidates( const std::span<const UpdateCandidate> cand
 	applyCandidateSelectionToTree() ;
 	updateDeviceClassSummaries() ;
 	sortTreeItems() ;
+	// 同じ正規分類だけへ元の開閉を戻し、新分類を自動展開しません。
+	for( HTREEITEM item = TreeView_GetRoot( updateTree_); item != nullptr;
+		item		   = TreeView_GetNextSibling( updateTree_, item)) {
+		TVITEMW native{} ;	// 新規itemの同window内対応です。
+		native.mask	 = TVIF_PARAM ;
+		native.hItem = item ;
+		// 挿入後に対応を解決できなかったitemは変更しません。
+		if( TreeView_GetItem( updateTree_, &native) != FALSE) {
+			const auto *row = treeRowFromParameter( native.lParam) ;	// 新候補集合の分類です。
+			// 失われた分類から別分類へ開閉を移しません。
+			if( row && row->kind == TreeRowKind::DEVICE_CLASS) {
+				const auto prior =
+					// 新分類には保存値がありません。
+					treeClassExpansion_.find( row->classKey) ;
+				TreeView_Expand( updateTree_, item,
+								prior != treeClassExpansion_.end() && prior->second ? TVE_EXPAND
+																					: TVE_COLLAPSE) ;
+			}
+		}
+	}
+
 	updatingTreeChecks_ = false ;
 	InvalidateRect( updateTree_, nullptr, TRUE) ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
+void MainWindow::refreshCandidateRows()
+{
+	std::unordered_map<std::wstring_view, std::vector<std::size_t>>
+		groups ;	// 同期更新中だけ借用する元deviceです。
+	// 追加候補を含む同deviceの全indexを集め、表示名や版で結合しません。
+	for( std::size_t index{}; index < candidates_.size(); ++index) {
+		groups[candidates_[index].deviceIdentity].push_back( index) ;
+	}
+
+	candidateItems_.resize( candidates_.size(), nullptr) ;
+	candidateRowIndexes_.resize( candidates_.size(), treeRows_.size()) ;
+	candidateResultTexts_.resize( candidates_.size()) ;
+	const auto unknown = loadString( IDS_VALUE_UNKNOWN) ;	// 欠測を候補版で補いません。
+	// 既存行だけを更新し、新しいdevice/classの挿入・削除・sortを行いません。
+	for( std::size_t rowIndex{}; rowIndex < treeRows_.size(); ++rowIndex) {
+		auto &row = treeRows_[rowIndex] ;	// 同itemの表示modelです。
+		// 分類や元itemを失った行から新しい結合を作りません。
+		if( row.kind != TreeRowKind::DEVICE || row.deviceIndex >= candidates_.size() ||
+		   row.deviceIndex >= candidateItems_.size() || !candidateItems_[row.deviceIndex]) {
+			continue ;
+		}
+
+		const auto item = candidateItems_[row.deviceIndex] ;	// 削除しない元native itemです。
+		const auto found =
+			// 元opaque deviceです。
+			groups.find( candidates_[row.deviceIndex].deviceIdentity) ;
+		// Append契約に反した欠測を別deviceの先頭へ補完しません。
+		if( found == groups.end()) {
+			continue ;
+		}
+
+		row.candidateIndexes = found->second ;
+		// 元deviceの現在代表を優先し、追加された唯一候補も同じitemへ結合します。
+		for( const auto index : row.candidateIndexes) {
+			candidateItems_[index]		= item ;
+			candidateRowIndexes_[index] = rowIndex ;
+			// 読取専用の事後観測が追加された場合も、同じ行の現在列だけへ反映します。
+			if( candidates_[index].current) {
+				row.deviceIndex = index ;
+			}
+		}
+
+		const auto &device = candidates_[row.deviceIndex] ;	// 分類と表示名は元行のままです。
+		row.currentVersion = device.current
+								 ? makeSingleLine( device.version.empty() ? unknown : device.version)
+								 : loadString( IDS_CURRENT_VERSION_UNMATCHED) ;
+	}
 }
 
 /** @see main_window.h 宣言側の契約を正本とします。 */
@@ -4429,41 +5032,23 @@ void MainWindow::displayInstallResult( const InstallResult &result,
 		}
 	}
 
-	std::unordered_map<std::wstring, std::pair<std::wstring, std::wstring>>
-		summaries ;	// 元結果の短文と候補版です。
-	// 元表示の個別結果だけをopaque deviceへ結合して保存します。
-	for( const auto &row : treeRows_) {
-		// 同操作の結果を持つdevice行だけを再構築後へ移します。
-		if( row.kind == TreeRowKind::DEVICE && row.deviceIndex < candidates_.size() &&
-		   std::any_of(
-			   row.candidateIndexes.begin(), row.candidateIndexes.end(),
-			   [this]( const auto index) {
-				   return index < candidateResultTexts_.size() &&
-						  !candidateResultTexts_[index].empty() ;
-			   })) {
-			summaries.emplace( candidates_[row.deviceIndex].deviceIdentity,
-							  std::pair{row.status, row.candidateVersion}) ;
-		}
-	}
-
 	applyPostInstallObservations( result, scanSessionId) ;
-	populateCandidates( candidates_) ;
-	// 新しい名前/class/current版を使った同device行へ元結果を戻します。
+	refreshCandidateRows() ;
+	// 元行の分類・表示名・個別結果を保持し、実際に読めた同deviceの現在状態だけを付記します。
 	for( auto &row : treeRows_) {
 		// 種類行と無関係deviceを導入成功へ変えません。
 		if( row.kind != TreeRowKind::DEVICE || row.deviceIndex >= candidates_.size()) {
 			continue ;
 		}
 
-		const auto &device	= candidates_[row.deviceIndex] ;			// 事後観測を優先した現在代表です。
-		const auto	summary = summaries.find( device.deviceIdentity) ;	// 元結果との一対一対応です。
+		const auto &device = candidates_[row.deviceIndex] ;	// 事後観測を優先した現在代表です。
 		// 結果を持たない行へ別deviceの短文を流用しません。
-		if( summary == summaries.end()) {
+		if( !std::ranges::any_of( row.candidateIndexes, [this]( const auto index) {
+			   return index < candidateResultTexts_.size() && !candidateResultTexts_[index].empty() ;
+		   })) {
 			continue ;
 		}
 
-		row.status			 = summary->second.first ;
-		row.candidateVersion = summary->second.second ;
 		// Nodeを実際に読めた場合だけ現在の登録/問題状態を表示します。
 		if( device.deviceObservation &&
 		   device.deviceObservation->node.read.state == DevicePropertyReadState::VALUE) {
@@ -4502,8 +5087,7 @@ void MainWindow::displayInstallResult( const InstallResult &result,
 	applyCandidateSelectionToTree() ;
 	updateDeviceClassSummaries( true) ;
 	updatingTreeChecks_ = false ;
-	// Result columnのsortが有効な場合は更新後のstatus値で再配置する。
-	sortTreeItems() ;
+	// 更新した版や結果で並べ替えず、元itemの選択行と表示位置を維持します。
 	InvalidateRect( updateTree_, nullptr, TRUE) ;
 }
 
@@ -4553,6 +5137,12 @@ void MainWindow::handleTreeCheckChange( const HTREEITEM item, const bool checked
 	}
 
 	const auto *row = treeRowFromParameter( nativeItem.lParam) ;	// Modalを開く前だけ借用する行。
+	// readonlyの元枠を実行selectionへ変換せず、元画像だけを復元します。
+	if( row && row->readonlyCheckbox) {
+		applyCandidateSelectionToTree() ;
+		return ;
+	}
+
 	// 種類や失効・閲覧専用の行へ強制付与されたcheckを直ちに除く。
 	if( row == nullptr || row->kind != TreeRowKind::DEVICE ||
 	   controller_.state() != ApplicationState::SCAN_READY ||
@@ -4567,6 +5157,10 @@ void MainWindow::handleTreeCheckChange( const HTREEITEM item, const bool checked
 		return ;
 	}
 
+	// 有効な通常枠への明示操作だけで、そのdeviceの古い表示意図を置き換えます。
+	std::erase_if( preparationDisplayBindings_, [&]( const auto &binding) {
+		return binding.deviceIdentity == candidates_[row->deviceIndex].deviceIdentity ;
+	}) ;
 	// 解除では候補identityを選び直さず、当該deviceの保持selectionだけを除く。
 	if( !checked) {
 		// 非表示も含む当該deviceの全候補を解除する。
@@ -4805,7 +5399,9 @@ std::wstring MainWindow::formatCandidateText( const UpdateCandidate &candidate) 
 	std::wstring	   text =
 		L"[" + state + L"] " + title + L" | " +
 		loadString( candidate.metadataDistribution ? IDS_METADATA_DISTRIBUTION_VERSION
-												  : IDS_VERSION_LABEL) +
+				   : !candidate.installable && !candidate.preparationTargetIdentity.empty()
+					   ? IDS_REFERENCE_VERSION
+					   : IDS_VERSION_LABEL) +
 		L": " + version + L" | " + provider + L" | " + date + L" | " +
 		loadString( IDS_SOURCE_LABEL) + L": " + source + L" — " + location + L" | " + size + L" | " +
 		audit + L" | " + loadString( IDS_ASSESSMENT_HINT) ;
@@ -4854,6 +5450,17 @@ std::wstring MainWindow::formatCandidateState( const UpdateCandidate &candidate)
 	// 全metadata行は現在属性または配布情報であり、更新／旧版／推奨へ分類しない。
 	if( controller_.scanPurpose() == ScanPurpose::METADATA_ONLY) {
 		return loadString( IDS_METADATA_ROW) ;
+	}
+
+	// 取得前の比較分類は実導入actionへ変換せず、未検査として表示します。
+	if( !candidate.installable && !candidate.preparationTargetIdentity.empty() &&
+	   candidate.providerId == SIGNED_INDEX_PROVIDER_ID) {
+		const auto relation = classifyPendingReferenceVersion(
+			candidate, candidates_, controller_.scanSessionId()) ;	// 同現在観測との比較だけです。
+		return loadString( relation == PendingReferenceVersion::NEWER   ? IDS_REFERENCE_NEWER
+						  : relation == PendingReferenceVersion::SAME  ? IDS_REFERENCE_SAME
+						  : relation == PendingReferenceVersion::OLDER ? IDS_REFERENCE_OLDER
+																	   : IDS_REFERENCE_UNKNOWN) ;
 	}
 
 	std::wstring state ;	// 操作分類、観測差分、同一版取得元情報を連結する表示値。

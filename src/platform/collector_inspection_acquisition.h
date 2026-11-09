@@ -2,7 +2,7 @@
 /**
  * @file collector_inspection_acquisition.h
  * @brief 外部台帳の一recordを生存検査取得へ接続する収集専用境界。
- * @version 01.03.00
+ * @version 01.05.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,9 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/23  原page観測と取得上限・公開hash・確認本文の固定を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/10/23  同run専用の不変PAGE証拠と有限借用scopeを追加。
  * Ver.01.03.00 Shunji Ogawa  2026/10/25  原byteを維持した限定末尾診断コメントの比較digestを追加。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/04  定義候補の同process metadata再確認付き取得を追加。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/04  通常resolverの公開本文・Catalog family・現在EULA照合を追加。
+ * Ver.01.05.01 Shunji Ogawa  2026/11/05  静的取得と定義専用固定queryの契約を区別。
  * </pre>
  *
  * @note 同期収集workerで所有し、公開JSONから取得証拠を復元しない。
@@ -33,6 +36,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 #include "platform/official_acquisition.h"
+#include "platform/secret_official_url.h"
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -43,6 +47,9 @@
 #include <vector>
 
 namespace drivercrate {
+struct CollectorDefinitionRequest ;
+struct CollectorDefinitionMetadataObservation ;
+struct CollectorDefinitionPublicMetadata ;
 inline constexpr std::wstring_view COLLECTOR_INSPECTION_PROVIDER_ID =
 	L"collector-inspection" ;	// 既存workspaceの24文字内で製品Providerに登録しない収集scope。
 inline constexpr std::uint64_t COLLECTOR_INSPECTION_MAXIMUM_BYTES =
@@ -52,7 +59,7 @@ inline constexpr std::uint64_t COLLECTOR_INSPECTION_MAXIMUM_BYTES =
  * @note 認証結果ではない。任意Web応答や端末情報から起点を作らない。
  */
 struct CollectorInspectionSource {
-	/// 手動調査済みの絶対HTTPS起点。Query・fragment・認証は許可しない。
+	/// 手動調査済みの絶対HTTPS起点。静的取得はqueryなし、定義protocolだけ明示固定queryを別検証します。
 	std::wstring rootUrl ;
 	/// 起点の小文字ASCII exact DNS host。Suffix指定は許可しない。
 	std::wstring rootHost ;
@@ -229,6 +236,21 @@ public:
 	explicit CollectorInspectionAcquisition( OfficialHttpTransport transport) ;
 	/** @brief 内部scopeを解放する。取得領域はcallerが所有する。 */
 	~CollectorInspectionAcquisition() = default ;
+	/** @brief 定義resolver向けの未認証公開本文を同じ通常HTTPで取得します。
+	 * @param[in] url 登録済み公開起点またはCatalogの有限endpointです。
+	 * @param[in] host 同じ定義のexact公開hostです。
+	 * @param[in] modelJson 閉model APIのJSON用途だけtrueです。
+	 * @param[out] raw 成功時だけ原byteです。取得権限ではありません。
+	 * @param[out] text 成功時だけ厳密UTF-8復号結果です。
+	 * @param[out] observation 同じ原HTTPの時刻/hashです。
+	 * @param[out] transfer 失敗時も実要求/byteを保持します。
+	 * @param[in] cancellation 所有callerの期限/取消しです。
+	 * @return 元HTTPのHRESULTです。Cacheや封印proofを復元しません。
+	 */
+	[[nodiscard]] NativeError readDefinitionMetadata(
+		std::wstring_view url, std::wstring_view host, bool modelJson, std::vector<std::byte> &raw,
+		std::wstring &text, CollectorInspectionPageObservation &observation,
+		CollectorHttpTransferObservation &transfer, const HttpCancellationCallback &cancellation) ;
 	/**
 	 * @brief 一回取得の使用状態とHTTP境界の二重管理を防ぐため、コピー構築を禁止する。
 	 */
@@ -258,6 +280,25 @@ public:
 			  OfficialAcquisitionResult &result,
 			  std::uint64_t				 maximumBytes = COLLECTOR_INSPECTION_MAXIMUM_BYTES,
 			  std::wstring_view publishedSha256 = {}, std::wstring_view expectedPageContentSha256 = {}) ;
+	/** @brief 未認証定義候補を同processの実metadataへ再結合して一回取得します。
+     * @param[in] scanSessionId 初期化済み元sessionと一致する非零ID。
+     * @param[in] definition ローカル定義と未認証選択。成功boolや外部proofを持ちません。
+     * @param[in,out] session 元取得と封印issuerを所有するsession。
+     * @param[in,out] workspace 同じIDの空保護領域。
+     * @param[in,out] costReader 元回線照会。
+     * @param[in] cancellation 元runの固定期限/取消し照会。
+     * @param[out] result 実取得の元結果。metadata拒否時は取得しません。
+     * @param[out] metadata 同じI/Oの実要求数/byte/status。
+     * @param[out] confirmed 任意の同取得で確認済み公開metadata。秘密URLと取得能力を含みません。
+     * @return 全固定成功0、入力/HTTP/metadata/取得の元HRESULT。
+     * @note 管理workspaceの所有/待機/予算/同意は外側callerが要求前に検査します。
+     */
+	[[nodiscard]] NativeError acquireDefinition(
+		ScanSessionId scanSessionId, const CollectorDefinitionRequest &definition,
+		OfficialAcquisitionSession &session, OfficialDownloadWorkspace &workspace,
+		IOfficialNetworkCostReader &costReader, const HttpCancellationCallback &cancellation,
+		OfficialAcquisitionResult &result, CollectorDefinitionMetadataObservation &metadata,
+		CollectorDefinitionPublicMetadata *confirmed = nullptr) ;
 	/** @brief 同じ実起点GETの成功観測を同期借用します。
 	 * @return 次の破棄まで有効な原byte観測です。入力JSONから復元しません。
 	 */
@@ -283,6 +324,16 @@ public:
 private:
 	friend class OfficialAcquisitionSession ;
 	friend class CollectorRegistryJobRunner ;
+	/** @brief 同CDN取得scopeのUTC秒を返します。
+	 * @return 有効なUTC Unix秒。不正時計は0です。
+	 */
+	[[nodiscard]] std::uint64_t definitionUtcNow() const ;
+	/** @brief 元scopeの時計と取消しを実send直前に再検査します。
+	 * @param[in] cancellation 同じworkerの協調停止です。
+	 * @return 開始可能0、時計後退・期限・取消しの元HRESULTです。
+	 */
+	[[nodiscard]] NativeError	definitionCheckpoint(
+		  const HttpCancellationCallback &cancellation) const ;
 	/** @brief 私有runの実PAGEを確定し、一jobだけ取得します。
 	 * @copydoc acquire
 	 * @param[in,out] scope 元parentの生存runです。
@@ -352,6 +403,14 @@ private:
 	std::uint64_t					   maximumBytes_{} ;
 	/// 実byteと比較する今回の公開hashです。空は未公開です。
 	std::wstring					   publishedSha256_ ;
+	/// 同runの公表SHA-512。旧static取得では空です。
+	std::wstring					   publishedSha512_ ;
+	/// 元canonical URLと同modelへ解決した秘密URL。一回の取得だけで保持します。
+	SecretOfficialUrl				   definitionCdn_ ;
+	/// model取得scopeの原UTC開始秒。0は非CDNです。
+	std::uint64_t					   definitionIssuedUtc_{} ;
+	/// 元token期限と15分枠の小さい方。永続化しません。
+	std::uint64_t					   definitionDeadlineUtc_{} ;
 	/// 同じ元取得session ID。未開始時0。
 	ScanSessionId					   scanSessionId_{} ;
 	/// 初回試行の成否にかかわらずtrue。

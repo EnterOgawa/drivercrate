@@ -2,7 +2,7 @@
 /**
  * @file provider_preparation_worker_tests.cpp
  * @brief 取得準備workerの内部試験。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.02.01 Shunji Ogawa  2026/10/24  通常計測の版期待を既存製品version正本へ結合。
  * Ver.01.03.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/09  不正なfake返却先を原valid失敗のままguard。
  * </pre>
  *
  * @note COM workerを使用しますが、通信・実driver導入・実復元ポイントは使用しません。
@@ -1621,6 +1622,12 @@ hardware_refresh_detail::Transport hardwareApiTransport()
 			state.trace.push_back( 3U) ;
 			state.valid = state.valid && bytes == sizeof( TOKEN_PRIVILEGES) && returned != nullptr &&
 						  requested->Privileges[0].Attributes == SE_PRIVILEGE_ENABLED ;
+			// 不正な出力要求はvalidの失敗を保持し、NULL先へ書き込みません。
+			if( returned == nullptr) {
+				state.error = ERROR_INVALID_PARAMETER ;
+				return FALSE ;
+			}
+
 			previous->PrivilegeCount		   = state.mode == 1U || state.mode == 4U ? 0U : 1U ;
 			previous->Privileges[0].Luid	   = requested->Privileges[0].Luid ;
 			previous->Privileges[0].Attributes = SE_PRIVILEGE_ENABLED_BY_DEFAULT ;

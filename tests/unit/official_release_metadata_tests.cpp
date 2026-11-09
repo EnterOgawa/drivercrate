@@ -2,7 +2,7 @@
 /**
  * @file official_release_metadata_tests.cpp
  * @brief 共通配布情報と表示専用検索の内部試験。
- * @version 01.02.01
+ * @version 01.02.02
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -44,6 +44,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Windows 11 Ethernet検索定義を検証。
  * Ver.01.02.00 Shunji Ogawa  2026/09/23  Wi-Fiの新parser版と可視表示・取得元境界を検証。
  * Ver.01.02.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.02.02 Shunji Ogawa  2026/11/03  採用済み2GiB取得profileの独立期待へ整合。
  * </pre>
  *
  * @note 合成metadataとfake取得だけを使い、外部通信・復元・導入を行いません。
@@ -1609,7 +1610,7 @@ void testReleasePreparationTargets( TestContext &context)
 		DRIVERCRATE_EXPECT( context, targets[0].providerId == INTEL_WIFI_OFFICIAL_PROVIDER_ID) ;
 		DRIVERCRATE_EXPECT( context, targets[0].terms == OfficialPreparationTerms::UNRESOLVED) ;
 		DRIVERCRATE_EXPECT( context, targets[0].eulaRevision.empty()) ;
-		DRIVERCRATE_EXPECT( context, targets[0].maximumBytes == 128ULL * 1024ULL * 1024ULL) ;
+		DRIVERCRATE_EXPECT( context, targets[0].maximumBytes == 2ULL * 1024ULL * 1024ULL * 1024ULL) ;
 		OfficialPreparationSession session ;	// 未解決EULAを通さない承認状態。
 		// 未解決EULAの拒否を確認する、固定上限付きの計画。
 		OfficialPreparationPlan	   plan{SESSION, 3U, DEFAULT_OFFICIAL_PREPARATION_LIMITS, targets} ;

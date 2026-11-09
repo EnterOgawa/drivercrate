@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest_tests.h
  * @brief RAM内RSA署名によるmanifest認証試験を宣言します。
- * @version 01.09.01
+ * @version 01.11.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,16 +31,25 @@
  * Ver.01.08.00 Shunji Ogawa  2026/10/24  原Intel六入力の明示historical archive試験を追加。
  * Ver.01.09.00 Shunji Ogawa  2026/10/26 新metadata生成索引の原byteを通常reader/候補adapterへ接続。
  * Ver.01.09.01 Shunji Ogawa  2026/10/26 宣言と定義の引数名を揃えDoxygen契約を整合。
+ * Ver.01.10.00 Shunji Ogawa  2026/11/06 Windows管理driver DATAの限定通常経路試験を宣言。
+ * Ver.01.11.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * </pre>
  *
  * @note Test target専用です。秘密鍵をexport・保存・log出力せず、実deviceや通信を使いません。
  */
 //------------------------------------------------------------------------------
 #pragma once
+#include <cstddef>
 #include <filesystem>
 
 namespace drivercrate::test {
 class TestContext ;
+
+/** @brief 人工署名索引からWindows-only driver DATAの通常選択/保護導入経路を検査します。
+ * @param[in,out] context 有限assertion集計先です。
+ * @note 実CAB/実CAT検査Aと分ける人工fixture Bです。HTTP、復旧、NewDevは完全fakeです。
+ */
+void runWindowsManagedDriverPackageFixtureTests( TestContext &context) ;
 
 /** @brief 実CNG署名・JSON・base64・期限・世代の正例と拒否を固定時刻で検査します。
  * @param[in,out] context 共通unit assertion集計先。
@@ -103,4 +112,32 @@ void runNativeIntelArchiveFixtureTests( TestContext				   &context,
 									   const std::filesystem::path &gzipPath,
 									   const std::filesystem::path &archivePath,
 									   const std::filesystem::path &termsPath, unsigned scenario) ;
+/** @brief 独立byte条件内の65536/65537 recordを共通値codecで確認します。
+ * @param[in,out] context 本suiteの集計先です。
+ * @note 認証receiptや内容成功は発行しません。
+ */
+void runIndexCapacityRecordCountTests( TestContext &context) ;
+/** @brief native producer原fileをRAM署名/隔離store/通常scan/planへ接続します。
+ * @param[in,out] context 共通集計先です。
+ * @param[in] directory 私有native producerの保存先です。
+ */
+void runIndexCapacityProducedConsumerTests( TestContext				   &context,
+										   const std::filesystem::path &directory) ;
+
+/** @brief 旧368原byteを保持し全ID/record容量とnative matcherを有限確認します。
+ * @param[in,out] context 共通assertion集計先です。
+ * @param[in] baselineIndex 764基準から作った私有base368/index.jsonです。
+ * @param[in] requestedInputs 0は旧上限超/境界matrix、正値はその全公開ID数です。
+ * @param[in] large trueは4096nodeの完全低位fakeを使います。
+ * @param[in] realClock trueだけ実時間/メモリ性能を受入分母にします。
+ * @param[in] tailUnknown trueだけ全入力枠消費後に0-ID UNKNOWNを追加します。
+ * @note 実鍵/store/inventory/通信/導入を使用せずRAM署名の隔離storeだけです。
+ */
+void runIndexCapacityTests( TestContext &context, const std::filesystem::path &baselineIndex,
+						   std::size_t requestedInputs, bool large, bool realClock,
+						   bool tailUnknown) ;
+/** @brief positive/UNKNOWN/native projectionの保持32768/32769を確認します。
+ * @param[in,out] context 共通集計先です。
+ */
+void runIndexCapacityRetainedTests( TestContext &context) ;
 } // namespace drivercrate::test

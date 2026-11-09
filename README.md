@@ -2,109 +2,56 @@
 
 <p align="center"><strong>ドライバー探しを、かんたんに</strong></p>
 
-DriverCrateは、Windows Updateやメーカーの公式配布元からドライバー候補を探し、見比べて選べるWindowsアプリです。
-機器ごとに現在のドライバーと候補を並べ、取得元・検査結果・導入結果を確認できます。
+DriverCrateは、Windows Update、Windows Driver Store、メーカーの公式配布元からドライバー候補を探し、
+利用者が選んだ候補だけを取得・検査・導入するWindows x64アプリです。
+このソースの製品版は **1.0.1** です。配布先は [GitHub Releases](https://github.com/EnterOgawa/drivercrate/releases)、
+変更点と確認範囲は [1.0.1リリースノート](docs/release-notes-1.0.1.md)を参照してください。
 
-このソースの製品版は **1.0.0 / Windows x64** です。
-1.0.0のアプリ／Collector binaryは公開前のローカル候補です。公開後の正式な配布先は [Releases](https://github.com/EnterOgawa/drivercrate/releases) です。
-ローカル候補のAppとCollector SetupはAuthenticode署名と時刻証明を検証済みです。Appは署名前の内容保持も確認しました。
-正式配布に使う自作EXEは最終byteで署名を検証します。受け取ったfileごとの署名状態も確認してください。
-索引署名は別用途の専用鍵で検証します。通常のソースビルドは証明書不要です。
-版ごとの確認範囲は [リリースノート](docs/release-notes-1.0.0.md) にあります。
+## できること
 
-## ✨ できること
+- 種類カテゴリと機器のツリーで、デバイス名・現在の版・候補の版を表示します。詳細はダブルクリックで開きます。
+- Windows Update/WSUSがこのPCに適用可能と判定した更新、Driver Storeの互換候補、実装済みの公式配布経路を検索します。
+- 署名索引を固定配布先から取得・検証し、端末内で照合します。同じ有効世代では索引本体の再取得を省きます。
+- 一つの機器につき基本ドライバー候補を一つ明示選択し、Install操作から選択した配布物だけを取得します。
+- 実際のbyte・hash・署名・INF/CATと参照file・Windows適合性を検査します。索引への収録だけでは導入を許可しません。
+- 成功・失敗・再起動待ち・現在状態未確認を分け、導入後も一覧と個別結果を保持します。次の導入には新しい検索が必要です。
 
-| 取得元 | 機能 |
-|---|---|
-| Windows Update / WSUS | WindowsがこのPCに適用可能と判定した未導入ドライバーを検索・選択・取得・導入します。管理ポリシーを尊重します。 |
-| Windows Driver Store | 現在接続されている機器の互換ドライバーを列挙し、選んだ候補を指定して導入します。 |
-| 公式カタログ・公式ページ | Dell・Lenovo・HP・VAIOなどの配布情報を調べます。取得・内容検査・導入への対応範囲は経路によって異なります。 |
-| 署名索引 | GitHubの固定配布先から索引を取得・検証し、PC内で照合して候補表示と取得・内容検査へつなぎます。 |
-| ローカルZIP | 指定した対応形式のドライバーを検査し、このPCへの適合性を確認します。 |
+取得前の参照、内容検査済み候補、実機適合、実導入成功は別の結果です。全メーカー・全機器への対応や
+最新ドライバーの存在を保証しません。ファームウェア、BIOS/UEFI、OEMアプリ、第三者driver packは導入対象外です。
 
-「取得元」で使う経路を確認・変更できます。主一覧は「種類→デバイス」の二階層で、一つの機器を一行に
-まとめます。一覧はデバイス名・現在版・候補版の三列で、状態や複数候補の版・取得元は詳細で確認し、一件を選択します。
-取得前の配布情報、内容検査済みの候補、検索失敗、未確認を区別し、0件を「すべて最新」とは扱いません。
-推奨表示では、登録済み機器の版不明参照や検査済み同版を更新へ数えず、未導入機器の「初回の確認候補」を検査済み候補と分けます。
-登録済み・状態不明の版不明な取得前情報や同版・旧版は、全候補表示の詳細で一件を明示指定できます。
-詳しい対応範囲と操作は [利用ガイド](docs/user-guide.md) を参照してください。
+## 使う流れ
 
-## 🌱 対応範囲
+1. 対応するApp Releaseの`DriverCrate-windows-x64.zip`と`.sha256`を取得し、SHA-256を照合します。
+2. ZIP内の`DriverCrate.exe`と`DriverCrate.exe.index-profile.json`を同じ場所へ展開します。更新時はAppを閉じます。
+3. `DriverCrate.exe`を起動し、UACを確認して「更新を検索」を押します。
+4. 詳細で候補・取得元・規約・前提条件を確認し、対象を選択して「同意してインストール」を実行します。
+5. 結果と再起動要否を確認します。失敗した項目は個別の診断を確認してください。
 
-収集PC用データには、**127メーカー・6,584製品参照・1,718研究用配布record** を登録しています。
-公式ページなどのlocatorは390件、検査用取得の条件を確認した汎用profileは既存1 record分です。
-native Intelの収集は別の経路です。製品参照や研究recordは、検証済みドライバー対応数ではありません。
+正式配布ではAppのAuthenticode署名と時刻証明を検証します。署名の実状態は受け取ったfileで確認してください。
+索引署名は別用途の公開鍵で検証します。通常のソースbuildに署名証明書は不要です。
+私有の収集管理製品・setup・定義・registryやdriver本体は、このApp Releaseと公開sourceに含めません。
 
-通常アプリは公開された署名索引を検索時に取得する方式です。索引の同梱数は対応数を表しません。
-現在の公開署名索引は [世代11](https://github.com/EnterOgawa/drivercrate/releases/tag/index-v1-20261102-ae53e47e0c1f37fec8033bef3236bdc4b1ddfc89e70cc5148909a67ed9de0831)・Windows 11 x64向け1 record・1 sourceで、原期限は2026-11-10 14:48:31 UTCです。
-Intel 1.9.74.0を再取得・内容検査して索引を再発行しました。ドライバー自体の新版が出たという意味ではありません。
-前世代の期限切れ2 recordは含めていません。収録数とPCへの適合数は別で、端末内の照合結果に応じて候補が変わります。
-研究登録・検査済みpackage/INF・署名索引の収録数・実機適合・実導入の実績は、
-[リリースノートの対応範囲](docs/release-notes-1.0.0.md#対応範囲と件数の見方) に分けて掲載しています。
-元データの意味は [同梱データの案内](data/collector-registry/README.md#データの意味) にあります。
+## 導入とプライバシー
 
-メーカーの公式情報を確認しながら、対応するメーカーや機器を順次増やしていきます。
-利用者から、1.0.0でNICのインストールが正常に完了し、表示も期待どおりだったと報告を受けています。
-報告時の実行ファイルのhashは採取しておらず、署名後のAppを起動し直した動作と実導入は別途未確認です。
-他機器・各OSでの動作を含め、すべての機器への対応を保証するものではありません。
+Windows clientでは復元ポイントの作成失敗時に導入を中止します。Windows ServerではSystem Restoreを呼ばず、
+管理者が事前backup/checkpointと復旧手順を確認して同意した場合だけ導入します。DriverCrateはServer backupを作りません。
+復元ポイントや署名が、すべてのdriver変更からの復旧を保証するものではありません。
 
-## 🚀 使う流れ
+WUA/WSUS、proxy、証明書、UAC、組織policyを迂回しません。検索語へ生Hardware ID、instance ID、serial、credentialを送りません。
+通常の診断logには段階・件数・一般化した数値結果を残し、個々の機器名/ID・URL・任意本文を含めません。
+保護storeが未知・所有不明の場合は停止し、無断の移動・削除・resetや旧形式の自動移行をしません。
 
-アプリ用ZIPを展開した、またはソースからビルドした `DriverCrate.exe` を使います。
-先に重要なデータをバックアップし、元のドライバーへ戻す方法を確認してください。
+## 動作環境と確認範囲
 
-1. 起動してUACを確認し、「更新を検索」を押します。検索は候補を表示して止まり、取得準備の確認は表示しません。
-2. 一覧で対象を選び、「選択した更新をインストール」を押します。元配布物に結合した取得前候補も選べます。
-   公式取得の規約は選択時に主画面で案内し、原全文を任意に閲覧できます。「同意してインストール」で
-   同じ選択・規約へ同意し、別のEULA画面を挟まず、選択した配布物の取得・検査と唯一の適合候補への導入へ進みます。
-   版・適用性が未確認の情報を導入可能と扱いません。複数候補や新たな旧版切替は理由を表示して停止します。
-   Clientは復元ポイント必須、Serverは事前backupの確認が必要です。詳細は行のダブルクリックで開けます。
+対象はMicrosoftのサポート対象Windows 10/11 x64および対応Windows Server x64です。全version・全機器の実機確認は未完了です。
+C++20/Win32の単体Appで、実行時に外部言語runtimeやAI modelを要求しません。x86/ARM64版は提供しません。
+利用者から現行開発系列でのドライバー導入成功を確認しています。最終配布byteでの再導入や別PCの成功を意味しません。
+UIの表示保持は人工試験で確認しており、実機表示のfeedbackは引き続き受け付けます。
 
-導入完了後は推奨・初回候補の表示フィルターを解除して全デバイスを表示し、選択対象の読み取れた現在版と個別結果を保持します。
-二段階の接続や部分失敗などは内部fakeでも確認しています。
+## ソースからビルドする
 
-再検出中にWindowsが保存済みドライバーを自動適用する場合があります。これはDriverCrateで選択した
-候補の導入とは別です。検索前再検出を含む署名後Appの実動作は別途未確認です。
-
-## 🛡️ 導入とプライバシー
-
-- DriverCrateによる導入は明示選択しInstall操作を行った対象だけです。必須規約、復旧、旧版・方式の新たな条件を確認します。
-- Windowsクライアントでは、導入前の復元ポイント作成が必須です。失敗した場合は導入を中止します。
-  復元ポイントは完全なバックアップや復旧保証ではありません。
-- Windows Serverでは復元ポイントを作成しません。事前のバックアップ／チェックポイントと復旧手順を管理者が確認し、
-  専用の警告へ同意する必要があります。DriverCrateはServerのバックアップを作成・検証しません。
-- 公式配布元の候補も、取得元・署名とハッシュ・内容・PCへの適合性をそれぞれ確認します。
-  BIOS・UEFI・ファームウェア、OEMユーティリティや一般アプリは導入対象外です。
-- UAC、Windows Update／WSUS、プロキシ、証明書、DefenderやFirewallの制限を回避しません。
-- 広告・利用追跡・自動クラッシュ送信はありません。生の機器ID・シリアル番号や機器一覧を外部へ送信しません。
-  索引配布にドライバー本体・実端末情報・認証情報・署名秘密鍵を含めません。
-
-詳細は [セキュリティ設計](docs/security.md)、不具合を共有するときの注意と非公開の報告先は
-[SECURITY.md](SECURITY.md) にあります。
-
-## 🖥️ 動作環境
-
-Microsoftのサポート対象となるWindows 10／11と対応するWindows Serverの **x64版** が対象です。
-各OS・機器での実測範囲はリリースノートを確認してください。起動には管理者権限、
-オンライン検索には利用するWindows Update／WSUS・公式配布元への接続が必要です。
-
-通常アプリに外部の言語ランタイム、AIモデル、専用GPU／NPUは不要です。
-
-## 📦 収集PC用セットアップ
-
-`DriverCrateCollectorSetup` は通常アプリと別の成果物です。固定版CPythonと研究データを含み、
-通常installへの同意で現在ユーザー用のmetadata収集Taskを毎日15時に登録します。
-検査用取得のTaskは別の明示同意で毎日17時に登録します。ログオン中に動作し、copy/importだけで収集を始めません。
-
-日次処理は未署名候補までです。署名とGitHub公開は手動の別操作です。
-通常uninstallでは所有Taskの正常不存在を確認して管理プログラムを解除し、設定・収集データ・待機履歴を保持します。
-操作と制限は [セットアップ案内](docs/collector-setup-guide.md) にあります。
-
-## 🔧 ソースからビルドする
-
-Windows x64で、MSVC C++開発ツール、Windows SDK、Ninja、**CMake 3.30以上** を用意します。
-x64 Native Tools／Developer PowerShellを開き、リポジトリのルートで実行します。
-初回構成では、固定版・固定ハッシュのminizとLZMA SDKソースを取得します。
+MSVC C++開発ツール、Windows SDK、Ninja、CMake 3.30以上を用意し、x64 Developer PowerShellで実行します。
+初回構成では固定版・固定SHA-256のminiz/LZMA SDK sourceを取得します。
 
 ```powershell
 cmake --preset windows-x64
@@ -114,18 +61,16 @@ cmake --build --preset release
 ctest --preset release
 ```
 
-同じ `build/` にDebug／Releaseを生成します。Release版は `.\build\Release\DriverCrate.exe` です。
-実サービスへのlive試験、ローカル索引の受入・取得・署名ツール、静的解析は既定でOFFです。
-追加テストと品質確認は [貢献方法](CONTRIBUTING.md) と [テスト方針](docs/testing.md) を参照してください。
+Debug/Releaseは同じ`build/`を使います。Appは`build/Release/DriverCrate.exe`です。
+公開sourceはconsumer Appと非通信試験の明示集合で、私有Collector/索引署名tool/live試験は生成しません。
+[テスト方針](docs/testing.md)、[貢献方法](CONTRIBUTING.md)、[公開前checklist](docs/release-checklist.md)を参照してください。
 
-## 📚 設計とライセンス
+## 設計とライセンス
 
-[アーキテクチャ](docs/architecture.md) ／ [利用ガイド](docs/user-guide.md) ／ [リリースノート](docs/release-notes-1.0.0.md)
+[アーキテクチャ](docs/architecture.md) ／ [利用ガイド](docs/user-guide.md) ／ [セキュリティ](docs/security.md)
 
 制作者：**Shunji Ogawa**（EnterSystem）  
 Copyright (c) 2026 EnterSystem CO.,LTD.
 
-正式なリポジトリは [EnterOgawa/drivercrate](https://github.com/EnterOgawa/drivercrate) です。
-自作ソース・文書・アイコンには [Apache License 2.0](LICENSE) を適用します。
-第三者資産の条件は [Third-Party Notices](THIRD_PARTY_NOTICES.md) を参照してください。
-DriverCrateは独自に作成したアプリで、Snappy Driver Installer Originのforkやバイナリー再配布ではありません。
+正式repoは[EnterOgawa/drivercrate](https://github.com/EnterOgawa/drivercrate)です。
+自作source/document/iconは[Apache License 2.0](LICENSE)、第三者表示は[THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)を参照してください。

@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_operation.h
  * @brief 承認済み検査用取得の実行契約。
- * @version 01.01.00
+ * @version 01.02.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.01.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * </pre>
  *
  * @note Callbackはworker内だけで使用し、取得結果を導入許可へ変換しません。
@@ -48,7 +49,8 @@
 namespace drivercrate {
 // 未接続の経路を有効化しない予約上限。Provider固有の取得・監査上限も別途守る。
 inline constexpr OfficialPreparationLimits DEFAULT_OFFICIAL_PREPARATION_LIMITS{
-	128ULL * 1024ULL * 1024ULL, 256ULL * 1024ULL * 1024ULL, 512ULL * 1024ULL * 1024ULL, 2U, 4U} ;
+	2ULL * 1024ULL * 1024ULL * 1024ULL, 4ULL * 1024ULL * 1024ULL * 1024ULL,
+	8ULL * 1024ULL * 1024ULL * 1024ULL, 2U, 4U} ;
 
 /**
  * @brief 転送処理へ渡す協調取消し照会。同期呼出し中だけ有効な非所有参照として渡す。

@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_adapter.h
  * @brief 保存署名索引を既存取得承認・一回grantと内容検査入力へ結びます。
- * @version 01.05.00
+ * @version 01.06.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/13  Local受入buildの独立固定能力を明示。
  * Ver.01.04.01 Shunji Ogawa  2026/10/16  通常配布の独立取得集合とlocal排他を説明。
  * Ver.01.05.00 Shunji Ogawa  2026/10/24  原関係集合とunique device数を分離する共有claim契約へ整合。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/03  同payload/取得policyの値比較を開発用集合観測と共用。
  * </pre>
  *
  * @note 同workerで直列使用します。通常profileは配布鍵のrevision1取得認可を別登録します。
@@ -52,6 +53,15 @@ namespace drivercrate {
 namespace signed_index_acquisition_detail {
 struct Access ;
 }
+
+/** @brief 通常adapterと同じ完全payload/取得policyの値比較を行います。
+ * @param[in] left 個別codec検査済みの原recordです。
+ * @param[in] right 別の個別codec検査済み原recordです。
+ * @return 全内容根拠と取得条件が一致する場合だけtrueです。
+ * @note 認証型、共有claim、通信許可、端末適用性や導入能力を発行しません。
+ */
+[[nodiscard]] bool matchesSharedIndexPayloadEvidence( const IndexDistributionRecord &left,
+													 const IndexDistributionRecord &right) noexcept ;
 
 /** @brief 対象と理由を区別し、未知を成功へ補完しない取得記述です。 */
 struct SignedIndexPreparationDescription {

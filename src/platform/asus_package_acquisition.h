@@ -2,7 +2,7 @@
 /**
  * @file asus_package_acquisition.h
  * @brief ASUS公式driver package検査用取得定義。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
  * </pre>
  *
  * @note ASUS公式pageで検証したURLとSHA-256を、候補化せずG11-Bの有限取得へ接続します。取得結果はworker内だけに保持し、system監査を迂回しません。
@@ -36,6 +37,7 @@
 #pragma once
 
 #include "platform/asus_catalog_parser.h"
+#include "platform/official_cdn_token.h"
 #include "platform/official_acquisition.h"
 
 #include <cstdint>

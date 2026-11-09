@@ -2,7 +2,7 @@
 /**
  * @file official_http_client.h
  * @brief 公式配布元限定HTTP client定義。
- * @version 01.19.00
+ * @version 01.22.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -61,6 +61,9 @@
  * Ver.01.17.00 Shunji Ogawa  2026/10/20  監視専用の三resourceと九sendを私有用途へ限定。
  * Ver.01.18.00 Shunji Ogawa  2026/10/23  同じ収集HTML取得の原byte観測を任意出力へ返す。
  * Ver.01.19.00 Shunji Ogawa  2026/10/23  収集限定の実送信・本文転送と私有完了観測を追加。
+ * Ver.01.20.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.21.00 Shunji Ogawa  2026/11/04  閉model JSONと収集CDNの同session送信期限を追加。
+ * Ver.01.22.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
  * </pre>
  *
  * @note HTTPS、host allowlist、応答上限を強制して公式metadataとpayloadを取得します。Catalogだけを期限とETag付きでcacheし、payloadは保
@@ -69,6 +72,7 @@
 //------------------------------------------------------------------------------
 
 #pragma once
+#include "platform/official_cdn_token.h"
 
 #include "core/official_source_policy.h"
 #include "core/update_types.h"
@@ -608,6 +612,21 @@ public:
 		OfficialPublicDestinationEvidence  &destinationEvidence) ;
 
 private:
+	/** @brief 固定文脈の空JSON/query POSTを一回だけ非永続で読む。
+     * @param[in] post builderだけが作る固定source request。
+     * @param[in] checkpoint 同grantのclock/lease/取消しを検査する同期関数。
+     * @param[in] cancellation 元workerの取消し照会。
+     * @param[in] consume session内だけのUTF-16本文を同期解釈する関数。
+     * @param[out] observation 要求数/本文量/statusの閉実数。失敗でも保持。
+     * @param[out] addresses 全公開DNS検証済みのmetadata宛先数。
+     * @return HTTP/UTF-8/同期解釈成功0、元HRESULT。
+     */
+	[[nodiscard]] NativeError postEmptyJsonQuery(
+		const OfficialEmptyJsonQueryPost &post, const std::function<NativeError()> &checkpoint,
+		const HttpCancellationCallback						&cancellation,
+		const std::function<NativeError( std::wstring_view)> &consume,
+		OfficialAuxiliaryHttpObservation &observation, std::uint32_t &addresses) ;
+
 	friend struct signed_index_refresh_detail::Access ;
 	friend struct public_index_readback_detail::Access ;
 	/** @brief URLを公開せず、索引三用途のMIMEとredirect規則を区別します。 */
@@ -666,20 +685,22 @@ private:
 	friend class LocalCollectorHttpClient ;
 	friend class CollectorInspectionAcquisition ;
 	friend class SignedIndexAcquisitionAdapter ;
-	/** @brief 認証adapterだけが固定した同origin規約を原byteのまま取得します。
+	/** @brief 認証adapterが公式リンクへ結合した規約を原byteで取得します。
 	 * @param[in] url 元認証textDocumentのexact静的URLです。
 	 * @param[in] host 同公式起点へ照合済みのexact DNS hostです。
-	 * @param[in] exactBytes 1～256KiBの元本文byte数です。
-	 * @param[in] html 明示HTMLの原page取得の場合trueです。使用時上限は256KiBです。
+	 * @param[in] exactBytes 元本文byte数です。新staticSectionだけ2MiB、従来は256KiB以内です。
+	 * @param[in] html 明示HTMLの場合trueです。旧profileの使用時上限は256KiBです。
 	 * @param[in] cancellation 同workerの協調停止です。
 	 * @param[out] raw 全受信成功時だけ原byteを保持します。失敗時は空です。
 	 * @param[out] text 全受信・厳密UTF-8成功時だけ全文です。失敗時は空です。
+	 * @param[in] staticSection 独立文書profileを認証adapterが検証した場合だけtrueです。
 	 * @return HTTPS/public DNS/redirect0/HTTP200/固定MIME/全長成功0、拒否時は元HRESULTです。
 	 * @note Cache、通常ledger、永続保存を使用せず、任意公開URL入口にはしません。
 	 */
 	[[nodiscard]] NativeError getSignedIndexTermsDocument(
 		std::wstring_view url, std::wstring_view host, std::uint64_t exactBytes, bool html,
-		const HttpCancellationCallback &cancellation, std::string &raw, std::wstring &text) ;
+		const HttpCancellationCallback &cancellation, std::string &raw, std::wstring &text,
+		bool staticSection = false) ;
 	/** @brief 収集adapterの実HTMLをpublic宛先・同一originで有限取得する。
 	 * @param[in] url 検査済み起点URL。
 	 * @param[in] host 小文字exact host。
@@ -689,14 +710,15 @@ private:
 	 * @param[out] observation 任意の同原byte観測です。Nullなら追加hashを計算せず、失敗時は空です。
 	 * @param[out] transfer 任意の私有転送観測です。失敗時も実数とUNKNOWNを保持します。
 	 * @param[out] raw 任意の同原本文です。成功時だけ所有権を渡し、失敗時空です。
+	 * @param[in] modelJson 閉model APIのJSONを読む場合だけtrue。旧HTMLのMIME条件は変更しません。
 	 * @return 全受信成功0、拒否HRESULT。組み込みledgerを発行しない。
 	 */
 	[[nodiscard]] NativeError getCollectorInspectionPage(
 		std::wstring_view url, std::wstring_view host, const HttpCancellationCallback &cancellation,
 		std::wstring &text, std::wstring &finalUrl,
 		CollectorInspectionPageObservation *observation = nullptr,
-		CollectorHttpTransferObservation   *transfer	= nullptr,
-		std::vector<std::byte>			   *raw			= nullptr) ;
+		CollectorHttpTransferObservation *transfer = nullptr, std::vector<std::byte> *raw = nullptr,
+		bool modelJson = false) ;
 	/** @brief 永続permitを照合した開発用adapterだけが使う有限GETです。
 	 * @param[in] url 共通builderから再構築した公式URL。
 	 * @param[in] resourceId 現sessionのmetadata用途。
@@ -793,6 +815,7 @@ private:
 	 * @param[out] originPolicyIndices 成功時の起点から最終originまでのopaque index群。 成功時のopaque origin経路。
 	 * @param[in] collectorInspection 収集検査だけでpublic同一origin・cookie／credential無効を追加する。
 	 * @param[out] transfer 収集専用だけの実転送観測です。他用途では拒否します。
+	 * @param[in] checkpoint 非null時は収集専用の同session期限を実send直前にも検査します。
 	 * @return 保存とflush成功時は0、失敗時はHRESULT bit pattern。
 	 */
 	[[nodiscard]] NativeError downloadToFile(
@@ -801,7 +824,8 @@ private:
 		const HttpDownloadProgressCallback &progressCallback,
 		const HttpCancellationCallback	   &cancellationCallback,
 		std::vector<std::uint32_t> &originPolicyIndices, bool collectorInspection = false,
-		CollectorHttpTransferObservation *transfer = nullptr) const ;
+		CollectorHttpTransferObservation   *transfer   = nullptr,
+		const std::function<NativeError()> *checkpoint = nullptr) const ;
 
 #ifdef DRIVERCRATE_REGISTRY_JOB_TESTING
 	friend class CollectorRegistryJobTestAccess ;

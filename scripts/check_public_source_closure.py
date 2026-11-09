@@ -52,6 +52,10 @@ def relative_name(value: str) -> str:
         raise ClosureError("PATH_COMPONENT")
     if parts[0].casefold() in {part.casefold() for part in FORBIDDEN_ROOTS}:
         raise ClosureError("EXCLUDED_ROOT:" + parts[0])
+    # 管理用実定義/原reviewはsource snapshotにも混入させない。既存公開履歴は変更しない。
+    if (value.casefold().startswith("data/collector-definitions/") or
+            re.fullmatch(r"data/collector-registry/manual-index-(?:records|review[^/]*)\.json", value, re.I)):
+        raise ClosureError("PRIVATE_COLLECTOR_DEFINITION")
     if PurePosixPath(value).is_absolute():
         raise ClosureError("ABSOLUTE_PATH")
     if any(re.fullmatch(r'(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?', part, re.I) for part in parts):
@@ -178,6 +182,14 @@ def references(owner: str, text: str, files: set[str], generated: dict) -> list[
             edges.append((normalize_reference(owner, match[1]), "native-runtime-fixture"))
     if suffix == ".py":
         tree = ast.parse(text, filename=owner)
+        # reのpattern引数は照合式であってrepository入力ではない。対象文字列やopen等の
+        # 引数は引き続き検査し、私有pathをmanifestへ含める拒否規則も変更しない。
+        regex_patterns = {id(argument) for call in ast.walk(tree) if isinstance(call, ast.Call)
+                          and isinstance(call.func, ast.Attribute)
+                          and isinstance(call.func.value, ast.Name) and call.func.value.id == "re"
+                          and call.func.attr in {"compile", "match", "fullmatch", "search", "findall", "finditer", "split", "sub", "subn"}
+                          for argument in ([call.args[0]] if call.args else
+                                           [keyword.value for keyword in call.keywords if keyword.arg == "pattern"])}
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.level:
                 raise ClosureError("RELATIVE_PYTHON_IMPORT_UNKNOWN:" + owner)
@@ -192,7 +204,8 @@ def references(owner: str, text: str, files: set[str], generated: dict) -> list[
                 elif top not in sys.stdlib_module_names and top not in {"__future__"}:
                     raise ClosureError("MISSING_PYTHON_IMPORT:" + owner + ":" + top)
             # 製品toolの固定repository入力もimportとは別に確認する。test中の架空pathは実入力にしない。
-            if not owner.startswith(("scripts/test", "tests/")) and isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if (not owner.startswith(("scripts/test", "tests/")) and isinstance(node, ast.Constant)
+                    and isinstance(node.value, str) and id(node) not in regex_patterns):
                 if re.fullmatch(r'(?:docs|data|tests/fixtures|cmake|scripts|packaging)/[^\s]+\.(?:json|md|txt|py|ps1|psm1|in|ico)', node.value):
                     edges.append((normalize_reference(owner, node.value), "python-fixed-repository-input"))
     if suffix in {".ps1", ".psm1"}:
@@ -201,7 +214,7 @@ def references(owner: str, text: str, files: set[str], generated: dict) -> list[
     if owner == "CMakeLists.txt" or suffix == ".cmake":
         if owner == "CMakeLists.txt" and "drivercrate_maintenance_inf_integrity_tests" in text:
             verify_integrity_test_scratch(text)
-        for match in re.finditer(r'(?<![\w/])((?:src|tests|cmake|scripts|packaging|data)/[\w./-]+\.(?:cpp|h|c|rc|in|cmake|ps1|py|ico|manifest|json))\b', text):
+        for match in re.finditer(r'(?<![\w/])((?:src|tests|cmake|scripts|packaging|data)/[\w./-]+\.(?:cpp|h|c|rc|in|cmake|ps1|py|ico|png|manifest|json))\b', text):
             edges.append((normalize_reference(owner, match[1]), "cmake-input"))
         for match in re.finditer(r'\$\{CMAKE_CURRENT_LIST_DIR\}/([^"\s)]+\.(?:cmake|in|py|h))', text):
             edges.append((normalize_reference(owner, match[1], parent), "cmake-list-input"))
@@ -240,7 +253,7 @@ def check(root: Path, manifest_name="scripts/public_source_export_manifest.json"
         text = raw.decode("utf-8-sig")
         for target, kind in references(name, text, files, generated):
             edges.add((name, target, kind))
-        if name == "packaging/collector/collector-setup.psm1":
+        if name == posixpath.join("packaging", "collector/collector-setup.psm1"):
             for target in collector_payload_edges(text):
                 edges.add((name, target, "collector-package-module"))
     for row in manifest["requiredEdges"]:

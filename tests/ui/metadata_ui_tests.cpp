@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_tests.cpp
  * @brief 製品と同じWin32画面の情報検索専用内部試験。
- * @version 01.39.02
+ * @version 01.50.03
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -73,6 +73,23 @@
  * Ver.01.39.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続。
  * Ver.01.39.01 Shunji Ogawa  2026/11/02  導入済み同版・不明参照・Code28初回のfilterと件数を検証。
  * Ver.01.39.02 Shunji Ogawa  2026/11/02  現行の単一導入操作と追加同意の試験を整合。
+ * Ver.01.40.00 Shunji Ogawa  2026/11/03  新版の取得前確認と非推奨Store混在を固定。
+ * Ver.01.40.01 Shunji Ogawa  2026/11/07  同原packageの共同保持と現非実行policyを整合。
+ * Ver.01.41.00 Shunji Ogawa  2026/11/07  旧版詳細の実dialogとtable/filter不整合を再現。
+ * Ver.01.41.01 Shunji Ogawa  2026/11/07  参照版分類の既core宣言を非配布TUへ明示。
+ * Ver.01.42.00 Shunji Ogawa  2026/11/07  実候補tableの行結合・不正通知・geometryを検証。
+ * Ver.01.43.00 Shunji Ogawa  2026/11/08  通常/狭幅画像と明示keyboard・旧版停止/取消しを確認。
+ * Ver.01.43.01 Shunji Ogawa  2026/11/08  画像専用modeで初回描画の一巡後だけ撮影。
+ * Ver.01.44.00 Shunji Ogawa  2026/11/08  表とbutton・実hoverセル短文のfocused回帰へ整合。
+ * Ver.01.45.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持。
+ * Ver.01.46.00 Shunji Ogawa  2026/11/08  明示指定を保持して比較可能な最新候補を初期表示。
+ * Ver.01.47.00 Shunji Ogawa  2026/11/08  匿名導入診断と保存状態・元数値の有限確認を追加。
+ * Ver.01.48.00 Shunji Ogawa  2026/11/08  同一索引再利用後の通常workerと候補表示の継続を確認。
+ * Ver.01.49.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
+ * Ver.01.50.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.50.01 Shunji Ogawa  2026/11/09  導入完了後の元行・filter・表示位置を有限確認。
+ * Ver.01.50.02 Shunji Ogawa  2026/11/09  詳細短文の旧二期待と不明機器fixtureの全件表示を整合。
+ * Ver.01.50.03 Shunji Ogawa  2026/11/09  同scopeのWindow/event ownerだけheapへ移し全条件を保持。
  * </pre>
  *
  * @note 明示optionでのみ起動し、実device・network・取得・復旧・導入へ接続しない。
@@ -82,8 +99,11 @@
 
 #include "app/main_window.h"
 #include "app/resource.h"
+#include "core/pending_reference_version.h"
 #include "platform/signed_index_manifest.h"
+#include "platform/local_scan_diagnostics.h"
 #include "core/candidate_audit.h"
+#include "core/local_coverage.h"
 #include "core/device_observation.h"
 #include "core/metadata_search.h"
 #include "core/official_preparation.h"
@@ -134,6 +154,8 @@ namespace test {
 constexpr wchar_t	  PRIVATE_DESKTOP_MARKER[] = L"DRIVERCRATE_UI_PRIVATE_DESKTOP" ;
 // 子processが保存する撮影成果物の新規所有rootです。
 std::filesystem::path privateCaptureRoot ;
+// 既owned dialogの二画像だけを再取得する内部modeです。通常の機能試験ではfalseです。
+bool				  historyImagesOnly{} ;
 // Startup照合後にだけ設定し、worker終了まで不変の実desktop名です。
 std::wstring		  privateDesktopName ;
 // 実factory callbackと実HWNDの照合数を元のUI期待と別に集計します。
@@ -1069,6 +1091,37 @@ struct MainWindowMetadataTestAccess {
 	{
 		return window.preparationResultText_ ;
 	}
+	/** @brief 元planに結合する唯一の索引候補が通常の選択guardを通ることを確認します。
+	 * @param[in] window 通常scan終端を受理した同じWindowです。
+	 * @param[in,out] context 候補数と選択可能性の原assertionです。
+	 */
+	static void verifyUnchangedCandidate( const MainWindow &window, test::TestContext &context)
+	{
+		const auto *plan =
+			// 元workerが発行した同scan計画です。
+			window.controller_.preparationPlan() ;
+		DRIVERCRATE_EXPECT( context, plan && plan->targets.size() == 1U) ;
+		// 元計画がない場合は任意候補を対象へ補完しません。
+		if( !plan || plan->targets.size() != 1U) {
+			return ;
+		}
+
+		std::size_t matched{} ;	// 一つの元targetへ結合する候補だけを数えます。
+		// 通常画面が受理した全候補を元plan identityへ照合します。
+		for( const auto &candidate : window.candidates_) {
+			// 関係しない現在行や他Provider候補を索引候補へ数えません。
+			if( candidate.preparationTargetIdentity != plan->targets.front().identity) {
+				continue ;
+			}
+
+			++matched ;
+			DRIVERCRATE_EXPECT( context, candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
+											!candidate.current &&
+											window.isSelectableCandidate( candidate)) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, matched == 1U) ;
+	}
 	/** @brief 原時刻拒否だけの説明と既存HTTP/診断表示を決定的に確認します。
 	 * @param[in] window 非通信factoryで作成した通常画面です。
 	 * @param[in,out] context 正負例の集計先です。
@@ -1565,14 +1618,23 @@ struct MainWindowMetadataTestAccess {
 	 * @param[in,out] window 正常導入結果を保持する同じWindowです。
 	 * @param[in,out] context 元assertionの集計先です。
 	 * @param[in] identities 元scanで選択したcandidateだけです。
+	 * @param[in] completed 個別完了の固定期待です。空は全件完了です。
 	 */
 	static void rejectExpiredIndexSelection( MainWindow &window, test::TestContext &context,
-											std::span<const std::wstring> identities)
+											std::span<const std::wstring> identities,
+											std::span<const bool>		  completed = {})
 	{
-		// 元selectionの各行へ実check通知を与え、全行の選択解除を確認します。
-		for( const auto &identity : identities) {
-			const auto found = std::ranges::find( window.candidates_, identity,
-												 &UpdateCandidate::identity) ;	// 元行だけです。
+		DRIVERCRATE_EXPECT( context, completed.empty() || completed.size() == identities.size()) ;
+		// 人工の期待母数が不一致なら別対象の完了を参照しません。
+		if( !completed.empty() && completed.size() != identities.size()) {
+			return ;
+		}
+
+		// 元selectionの各行へ実check通知を与え、実行拒否と元表示を確認します。
+		for( std::size_t ordinal{}; ordinal < identities.size(); ++ordinal) {
+			const auto &identity = identities[ordinal] ;	// 固定期待と同順の元candidateです。
+			const auto	found	 = std::ranges::find( window.candidates_, identity,
+													 &UpdateCandidate::identity) ;	// 元行だけです。
 			DRIVERCRATE_EXPECT( context, found != window.candidates_.end()) ;
 			// 消えた元行を新しい任意候補へ付け替えません。
 			if( found == window.candidates_.end()) {
@@ -1582,13 +1644,23 @@ struct MainWindowMetadataTestAccess {
 			const auto index =
 				// 元行位置です。
 				static_cast<std::size_t>( found - window.candidates_.begin()) ;
+			const UINT expected = INDEXTOSTATEIMAGEMASK(
+				// 完了だけ未checkです。
+				completed.empty() || completed[ordinal] ? 3U : 4U) ;
+			DRIVERCRATE_EXPECT(
+				context,
+				window.treeRows_[window.candidateRowIndexes_[index]].readonlyCheckbox &&
+					(TreeView_GetItemState( window.updateTree_, window.candidateItems_[index],
+										   TVIS_STATEIMAGEMASK) &
+					 TVIS_STATEIMAGEMASK) == expected) ;
 			TreeView_SetCheckState( window.updateTree_, window.candidateItems_[index], TRUE) ;
 			window.handleTreeCheckChange( window.candidateItems_[index], true) ;
 			DRIVERCRATE_EXPECT( context, !found->installable && !window.candidateSelected_[index] &&
+											!window.selectDeviceCandidate( index) &&
 											(TreeView_GetItemState( window.updateTree_,
 																   window.candidateItems_[index],
 																   TVIS_STATEIMAGEMASK) &
-											 TVIS_STATEIMAGEMASK) == 0U) ;
+											 TVIS_STATEIMAGEMASK) == expected) ;
 		}
 
 		window.updateCommandState() ;
@@ -1825,7 +1897,8 @@ struct MainWindowMetadataTestAccess {
 			}
 		}
 
-		rejectExpiredIndexSelection( window, context, identities) ;
+		const std::array completed{true, false} ;	// U21の先頭成功/後続失敗という固定期待です。
+		rejectExpiredIndexSelection( window, context, identities, completed) ;
 	}
 	/**
      * @brief Window生成前に両fakeを設定する。
@@ -2441,6 +2514,9 @@ struct MainWindowMetadataTestAccess {
 	 */
 	static void unknownSimpleDetails( MainWindow &window, test::TestContext &context)
 	{
+		// 推奨候補のない現在行も全件表示で閲覧します。
+		window.showRecommendedOnly_ = false ;
+		SendMessageW( window.recommendedOnlyCheckbox_, BM_SETCHECK, BST_UNCHECKED, 0) ;
 		const auto begin = window.controller_.beginScan() ;	// 新規scanの正規状態遷移。
 		DRIVERCRATE_EXPECT( context, begin.accepted) ;
 		UpdateCandidate current ;	// 表示属性が不明でもopaque deviceを保持する。
@@ -2455,6 +2531,960 @@ struct MainWindowMetadataTestAccess {
 										  .candidates	 = {current}}} ;	// 通信なしの結果。
 		window.processWorkerEvent( event) ;
 		window.preparationResultText_ = L"Fixture inspection report" ;
+		DRIVERCRATE_EXPECT( context, window.candidateItems_.size() == 1U &&
+										window.candidateItems_.front() != nullptr &&
+										TreeView_GetCount( window.updateTree_) == 2U) ;
+	}
+	/** @brief 診断fixtureだけで元controllerへ一件の合成完了を渡します。
+	 * @param[in,out] window 有効な通常local候補の所有Windowです。
+	 * @param[in,out] context 元assertion集計先です。
+	 */
+	static void diagnosticResult( MainWindow &window, test::TestContext &context)
+	{
+		const auto		 session = window.controller_.scanSessionId() ;	// 元scanの表示結合です。
+		const std::array identities{window.candidates_[1].identity} ;	// 元一件だけです。
+		const auto		 begin = window.controller_.beginInstall(
+			  session, identities,
+			  InstallConfirmation::CONFIRMED) ;	// 実Providerは呼びません。
+		DRIVERCRATE_EXPECT( context, begin.accepted) ;
+		const std::array<std::size_t, 1> selected{1U} ;	// 匿名開始recordの元一件です。
+		recordInstallSelectionDiagnostics( begin.operationId, window.candidates_, selected, true) ;
+		WorkerEvent event ;	// controllerに受理される合成結果です。
+		event.kind								   = WorkerEventKind::INSTALL_COMPLETED ;
+		event.operationId						   = begin.operationId ;
+		event.installResult.succeeded			   = true ;
+		event.installResult.downloadOutcome		   = OutcomeCode::SUCCESS ;
+		event.installResult.installOutcome		   = OutcomeCode::SUCCESS ;
+		event.installResult.restorePointCreation   = {OutcomeCode::SUCCESS, 0, 7} ;
+		event.installResult.restorePointCompletion = {OutcomeCode::SUCCESS, 0, 7} ;
+		event.installResult.updates.push_back( {.identity		= identities.front(),
+											   .downloadOutcome = OutcomeCode::SUCCESS,
+											   .installOutcome	= OutcomeCode::SUCCESS}) ;
+		PostInstallDeviceObservation observed ;	// 元現在観測の読取DTOだけです。
+		observed.observation = *window.candidates_.front().deviceObservation ;
+		observed.version	 = window.candidates_.front().version ;
+		event.installResult.currentDevices.push_back( observed) ;
+		window.processWorkerEvent( event) ;
+		DRIVERCRATE_EXPECT( context, window.controller_.scanSessionId() == 0U &&
+										window.checkedCandidateIndexes().empty() &&
+										!window.selectDeviceCandidate( 1U)) ;
+	}
+	/** @brief 既status帯の匿名保存案内と元候補数を確認します。
+	 * @param[in] window 所有候補と実controlです。
+	 * @param[in,out] context 元集計先です。
+	 * @param[in] failed 固定失敗案内を期待する場合trueです。
+	 */
+	static void diagnosticStatus( const MainWindow &window, test::TestContext &context,
+								 const bool failed)
+	{
+		wchar_t text[2048]{} ;	// 元controlの有限本文だけを読みます。
+		GetWindowTextW( window.status_, text, 2048) ;
+		DRIVERCRATE_EXPECT( context,
+						   std::wstring_view( text).find( L"匿名診断") != std::wstring_view::npos) ;
+		// 保存不能の固定説明と数値位置が表示されています。
+		if( failed) {
+			DRIVERCRATE_EXPECT(
+				context, std::wstring_view( text).find( L"元コード有無") != std::wstring_view::npos &&
+							 std::wstring_view( text).find( L"3/8/1/29/") != std::wstring_view::npos) ;
+		}
+	}
+	/** @brief 所有する取得計画へ同deviceの新版/旧版参照を結ぶ表示fixtureです。
+	 * @param[in,out] window 同期試験の所有Windowです。
+	 * @param[in,out] context 原失敗を保持する集計先です。
+	 */
+	static void historyDetails( MainWindow &window, test::TestContext &context)
+	{
+		const auto begin = window.controller_.beginScan() ;	// 元の正常scan遷移です。
+		DRIVERCRATE_EXPECT( context, begin.accepted) ;
+		constexpr ScanSessionId	  session = 7741U ;	// この表示fixtureだけの元sessionです。
+		OfficialPreparationTarget target ;			// 二deviceが共有する取得前targetです。
+		target.identity		   = L"history-target" ;
+		target.providerId	   = SIGNED_INDEX_PROVIDER_ID ;
+		target.resourceId	   = L"history-resource" ;
+		target.releaseIdentity = L"history-release" ;
+		target.parserRevision  = 1U ;
+		target.maximumBytes	   = 4096U ;
+		target.deviceCount	   = 2U ;
+		target.terms		   = OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
+		WorkerEvent event{.kind			   = WorkerEventKind::SCAN_COMPLETED,
+						  .operationId	   = begin.operationId,
+						  .scanResult	   = {.succeeded	 = true,
+											  .scanSessionId = session,
+											  .outcome		 = OutcomeCode::SUCCESS},
+						  .preparationPlan = OfficialPreparationPlan{
+							  session,
+							  session,
+							  {4096U, 4096U, 4096U, 1U, 1U},
+							  {target}}} ;	// 取得/署名を発行しない完全fake結果です。
+		// 同device二参照と、選択を保持する別device一参照を元planへ置きます。
+		for( unsigned device = 0U; device < 2U; ++device) {
+			UpdateCandidate current ;	// 生IDを持たない現在観測です。
+			current.identity		= L"history-current-" + std::to_wstring( device) ;
+			current.deviceIdentity	= L"history-device-" + std::to_wstring( device) ;
+			current.model			= L"Fixture Ethernet adapter" ;
+			current.title			= L"Fixture current driver" ;
+			current.deviceClassGuid = L"{4d36e972-e325-11ce-bfc1-08002be10318}" ;
+			current.current			= true ;
+			current.version			= L"2.0.0.0" ;
+			current.driverDate		= L"11/01/2026" ;
+			current.providerId		= DRIVER_STORE_PROVIDER_ID ;
+			current.discoveryBasis	= CandidateDiscoveryBasis::LOCAL_INVENTORY ;
+			current.audit			= makeWindowsManagedCandidateAudit( true) ;
+			DeviceObservation observed ;	// 同scan/deviceに結ぶ非秘密観測です。
+			observed.scanSessionId	  = session ;
+			observed.deviceIdentity	  = current.deviceIdentity ;
+			observed.driverPresence	  = DeviceDriverPresence::REGISTERED ;
+			observed.node.read.state  = DevicePropertyReadState::VALUE ;
+			observed.node.statusFlags = 0U ;
+			observed.driverKey.state  = DevicePropertyReadState::VALUE ;
+			observed.version.state	  = DevicePropertyReadState::VALUE ;
+			current.deviceObservation = observed ;
+			DRIVERCRATE_EXPECT( context, isDeviceObservationValid( observed)) ;
+			// 必須観測が破損したら製品modalへ渡さず、元失敗を有限に返します。
+			if( !isDeviceObservationValid( observed)) {
+				throw std::runtime_error( "history observation invalid") ;
+			}
+
+			event.scanResult.candidates.push_back( current) ;
+			// 第一deviceだけ旧版を追加し、同じtarget/deviceの別候補として保持します。
+			for( unsigned variant = 0U; variant < (device == 0U ? 2U : 1U); ++variant) {
+				UpdateCandidate reference ;	// 元署名索引参照に結ぶ表示値だけです。
+				reference.identity = L"history-reference-" + std::to_wstring( device) + L"-" +
+									 std::to_wstring( variant) ;
+				reference.deviceIdentity = current.deviceIdentity ;
+				reference.model			 = current.model ;
+				reference.title = variant == 0U ? L"Fixture newer driver" : L"Fixture older driver" ;
+				reference.deviceClassGuid = current.deviceClassGuid ;
+				reference.providerId	  = SIGNED_INDEX_PROVIDER_ID ;
+				reference.discoveryBasis =
+					CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
+				reference.preparationTargetIdentity = target.identity ;
+				reference.sourceName				= L"Fixture signed index" ;
+				reference.audit						= makeOfficialDiscoveryCandidateAudit() ;
+				event.scanResult.candidates.push_back( std::move( reference)) ;
+			}
+		}
+
+		window.showRecommendedOnly_ = true ;
+		SendMessageW( window.recommendedOnlyCheckbox_, BM_SETCHECK, BST_CHECKED, 0) ;
+		// 既validatorが拒否するsnapshotをmodal待機へ渡しません。
+		if( !isCandidateDetailsSetValid( event.scanResult.candidates, session)) {
+			throw std::runtime_error( "history candidate snapshot invalid") ;
+		}
+
+		window.processWorkerEvent( event) ;
+		DRIVERCRATE_EXPECT( context, window.candidates_.size() == 5U &&
+										window.controller_.preparationPlan() != nullptr) ;
+		// 受理されないscanから後段の人工表示を生成しません。
+		if( window.candidates_.size() != 5U ||
+		   window.controller_.state() != ApplicationState::SCAN_READY ||
+		   window.controller_.preparationPlan() == nullptr) {
+			throw std::runtime_error( "history scan not ready") ;
+		}
+
+		// 本workerの限定投影と同じ明示版を表示copyへ与え、取得/適用性成功は作りません。
+		for( const std::size_t index : {1U, 2U, 4U}) {
+			window.candidates_[index].version = index == 2U ? L"1.0.0.0" : L"3.0.0.0" ;
+		}
+
+		window.preparationResultText_ =
+			window.loadString( IDS_PREPARATION_ITEM_FAILED) +
+			L"\r\n0x80070005 - fixture failure" ;	// 元匿名状態と数値だけです。
+		// 主treeの長いバージョン見出しを実font/列幅で確認します。
+		for( int column = 0; column < 3; ++column) {
+			wchar_t text[64]{} ;	// 実見出しを読みます。
+			HDITEMW heading{} ;		// 元headerの文字/幅です。
+			heading.mask	   = HDI_TEXT | HDI_WIDTH ;
+			heading.pszText	   = text ;
+			heading.cchTextMax = 64 ;
+			DRIVERCRATE_EXPECT( context,
+							   Header_GetItem( window.treeHeader_, column, &heading) &&
+								   std::wstring_view( text) ==
+									   (column == 0	  ? L"デバイス（ダブルクリックで候補を表示）"
+										: column == 1 ? L"現在のバージョン"
+													  : L"候補のバージョン")) ;
+			const HDC  dc	= GetDC( window.treeHeader_) ;	// 同controlだけのfont測定です。
+			const auto font = reinterpret_cast<HFONT>(
+				// 実fontです。
+				SendMessageW( window.treeHeader_, WM_GETFONT, 0, 0)) ;
+			const auto previous =
+				dc != nullptr ? SelectObject( dc, font) : nullptr ;	// 測定後に戻します。
+			SIZE extent{} ;											// 必要な実文字幅です。
+			DRIVERCRATE_EXPECT(
+				context, dc != nullptr &&
+							 GetTextExtentPoint32W( dc, text,
+												   static_cast<int>( std::wstring_view( text).size()),
+												   &extent) &&
+							 heading.cxy >= extent.cx + 12) ;
+			// API成功時だけ借用DC/fontを解放します。
+			if( dc != nullptr) {
+				SelectObject( dc, previous) ;
+				ReleaseDC( window.treeHeader_, dc) ;
+			}
+		}
+
+		window.populateCandidates( window.candidates_) ;
+		DRIVERCRATE_EXPECT( context, window.isSelectableCandidate( window.candidates_[2]) &&
+										classifyPendingReferenceVersion(
+											window.candidates_[2], window.candidates_, session) ==
+											PendingReferenceVersion::OLDER) ;
+		DRIVERCRATE_EXPECT( context, !window.selectDeviceCandidate( 2U)) ;
+		DRIVERCRATE_EXPECT( context, window.selectDeviceCandidate( 4U)) ;
+	}
+	/** @brief 実checkboxから全候補表示へ切り替えます。
+	 * @param[in,out] window 元plan/候補を保持するWindowです。
+	 */
+	static void historyShowAll( MainWindow &window)
+	{
+		SendMessageW( window.recommendedOnlyCheckbox_, BM_SETCHECK, BST_UNCHECKED, 0) ;
+		window.handleRecommendedFilterChange() ;
+	}
+	/** @brief 同版/未知/計画欠測を同じ元参照の表示copyへ一要因で与えます。
+     * @param[in,out] window 所有する原planと候補です。
+     * @param[in] variant 0同版、1未知版、2計画欠測、3元旧版へ復帰します。
+     */
+	static void historyVariant( MainWindow &window, const unsigned variant)
+	{
+		auto &candidate	  = window.candidates_[2] ;	// 原旧版参照だけです。
+		candidate.version = variant == 0U ? L"2.0.0.0" : variant == 1U ? L"" : L"1.0.0.0" ;
+		candidate.preparationTargetIdentity = variant == 2U ? L"missing-target" : L"history-target" ;
+		window.populateCandidates( window.candidates_) ;
+	}
+	/** @brief 元選択二件と複数分類で準備失敗後の表示と権限を確認します。
+	 * @param[in,out] window 同private desktopの所有Windowです。
+	 * @param[in,out] context 原assertionの集計先です。
+	 * @param[in] variant 取得/内容/適用性/発行/結合/summary/取消し/遅延/表示選択拒否の番号です。
+	 */
+	static void preparationFailure( MainWindow &window, test::TestContext &context,
+								   const unsigned variant)
+	{
+		historyDetails( window, context) ;
+		auto plan = *window.controller_.preparationPlan() ;	// 元の有効な共有targetを再利用します。
+		auto candidates = window.candidates_ ;				// 実inventoryではない所有fixtureだけです。
+		const auto scan = window.controller_.beginScan() ;	// 新scanが旧表示snapshotを破棄します。
+		DRIVERCRATE_EXPECT( context, scan.accepted) ;
+		plan.scanSessionId = 8798U ;
+		plan.planId		   = 8798U ;
+		// 元現在観測を同じ新scanへ結合し、二つ目の分類を別にします。
+		for( std::size_t index{}; index < candidates.size(); ++index) {
+			// 合成現在行だけの元観測sessionを更新します。
+			if( candidates[index].deviceObservation) {
+				candidates[index].deviceObservation->scanSessionId = plan.scanSessionId ;
+			}
+
+			// 同deviceの現在行と参照を同じMEDIA分類へ保ちます。
+			if( index >= 3U) {
+				candidates[index].deviceClassGuid = L"{4d36e96c-e325-11ce-bfc1-08002be10318}" ;
+			}
+		}
+
+		auto current			= candidates.front() ;	// 第三deviceの合成現在観測です。
+		current.identity		= L"failure-current-verified" ;
+		current.deviceIdentity	= L"failure-device-verified" ;
+		current.model			= L"Fixture verified device" ;
+		current.deviceClassGuid = L"{4d36e97d-e325-11ce-bfc1-08002be10318}" ;
+		current.deviceObservation->deviceIdentity = current.deviceIdentity ;
+		candidates.push_back( current) ;
+		UpdateCandidate verified ;	// 既Windows管理候補の有効性を新たに失効させません。
+		verified.identity		   = L"failure-verified" ;
+		verified.deviceIdentity	   = current.deviceIdentity ;
+		verified.model			   = current.model ;
+		verified.deviceClassGuid   = current.deviceClassGuid ;
+		verified.title			   = L"Fixture verified update" ;
+		verified.version		   = L"4.0.0.0" ;
+		verified.providerId		   = WINDOWS_UPDATE_PROVIDER_ID ;
+		verified.discoveryBasis	   = CandidateDiscoveryBasis::MANAGED_SERVICE ;
+		verified.sourceName		   = L"Windows Update" ;
+		verified.action			   = DriverAction::UPDATE ;
+		verified.installable	   = true ;
+		verified.recommended	   = true ;
+		verified.defaultPreference = CandidateDefaultPreference::MANAGED_APPLICABLE ;
+		verified.audit			   = makeWindowsManagedCandidateAudit( false) ;
+		candidates.push_back( verified) ;
+		current.identity	   = L"failure-current-hidden" ;
+		current.deviceIdentity = L"failure-device-hidden" ;
+		current.deviceClassGuid.clear() ;
+		current.deviceObservation->deviceIdentity = current.deviceIdentity ;
+		candidates.push_back( current) ;
+		verified.identity		   = L"failure-valid-alternative" ;
+		verified.deviceIdentity	   = candidates.front().deviceIdentity ;
+		verified.deviceClassGuid   = candidates.front().deviceClassGuid ;
+		verified.recommended	   = false ;
+		verified.providerId		   = DRIVER_STORE_PROVIDER_ID ;
+		verified.discoveryBasis	   = CandidateDiscoveryBasis::LOCAL_INVENTORY ;
+		verified.sourceName		   = L"Windows Driver Store" ;
+		verified.defaultPreference = CandidateDefaultPreference::NONE ;
+		candidates.push_back( verified) ;
+		DRIVERCRATE_EXPECT( context, isCandidateDetailsSetValid( candidates, plan.scanSessionId)) ;
+		// 同じ人工候補を通常scan終端として受理させます。
+		WorkerEvent scanned{.kind			 = WorkerEventKind::SCAN_COMPLETED,
+							.operationId	 = scan.operationId,
+							.scanResult		 = {.succeeded	   = true,
+												.scanSessionId = plan.scanSessionId,
+												.outcome	   = OutcomeCode::SUCCESS,
+												.candidates	   = candidates},
+							.preparationPlan = plan} ;
+		const auto	coverage = aggregateLocalCoverage(
+			 candidates, builtInProviderDescriptors()) ;	// 元scanのgroup母数です。
+		DRIVERCRATE_EXPECT( context, coverage.has_value()) ;
+		// 不正な人工coverageを製品の計測保持guardへ渡しません。
+		if( !coverage) {
+			throw std::runtime_error( "preparation failure coverage invalid") ;
+		}
+
+		scanned.scanResult.localCoverage = *coverage ;
+		window.processWorkerEvent( scanned) ;
+		window.showRecommendedOnly_ = true ;
+		SendMessageW( window.recommendedOnlyCheckbox_, BM_SETCHECK, BST_CHECKED, 0) ;
+		window.populateCandidates( window.candidates_) ;
+		DRIVERCRATE_EXPECT( context,
+						   window.selectDeviceCandidate( 1U) && window.selectDeviceCandidate( 6U)) ;
+		std::map<std::wstring, bool> expansion ;	// 開状態と閉状態を正規分類keyで固定します。
+		// 元三分類のMEDIAだけを閉じ、その他はまだ非表示にします。
+		for( HTREEITEM item = TreeView_GetRoot( window.updateTree_); item != nullptr;
+			item		   = TreeView_GetNextSibling( window.updateTree_, item)) {
+			TVITEMW native{} ;	// 元の実controlにだけ送ります。
+			native.mask	 = TVIF_PARAM ;
+			native.hItem = item ;
+			DRIVERCRATE_EXPECT( context, TreeView_GetItem( window.updateTree_, &native)) ;
+			const auto *row = window.treeRowFromParameter( native.lParam) ;	// 有効分類です。
+			// 元MEDIA分類だけを閉状態として固定します。
+			const bool	open = row && CompareStringOrdinal( row->classKey.c_str(), -1,
+														   L"{4d36e96c-e325-11ce-bfc1-08002be10318}",
+														   -1, TRUE) != CSTR_EQUAL ;
+			TreeView_Expand( window.updateTree_, item, open ? TVE_EXPAND : TVE_COLLAPSE) ;
+			expansion.emplace( row->classKey, open) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, expansion.size() == 3U) ;
+		OfficialPreparationApproval approval ;	// Workerには送らない人工の正規承認です。
+		approval.scanSessionId = plan.scanSessionId ;
+		approval.planId		   = plan.planId ;
+		approval.limits		   = plan.limits ;
+		approval.decisions.push_back( {plan.targets.front(), true}) ;
+		approval.installIntentIdentities = {candidates[1].identity, candidates[6].identity} ;
+		const auto begin =
+			// 原controllerへ同じ判断を固定します。
+			window.controller_.beginPreparation( approval) ;
+		DRIVERCRATE_EXPECT( context, begin.accepted) ;
+		window.preparationApproval_				= approval ;
+		window.continueInstallAfterPreparation_ = true ;
+		OfficialPreparationOperationResult result ;	// 実取得や実導入を行わない終端です。
+		result.operationId		   = begin.operationId ;
+		result.scanSessionId	   = plan.scanSessionId ;
+		result.planId			   = plan.planId ;
+		result.approvalError	   = OfficialPreparationError::NONE ;
+		const bool		  acquired = variant >= 1U && variant <= 3U ;	// 内容以降の三ケースだけです。
+		const NativeError failure =
+			variant == 6U ? static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))
+						  : static_cast<NativeError>( E_ACCESSDENIED) ;	// 元段階の人工codeです。
+		result.items.push_back( {plan.targets.front().identity,
+								{acquired ? OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION
+								 : variant == 6U ? OfficialPreparationItemState::CANCELLED
+												 : OfficialPreparationItemState::REJECTED,
+								 acquired ? 0 : failure, acquired ? 1024U : 0U}}) ;
+		result.installResolutions = {{candidates[1].identity,
+									  variant == 4U	  ? L"missing-resolved"
+									  : variant == 8U ? candidates[8].identity
+													  : L"",
+									  variant == 4U || variant == 8U
+										  ? PreparedInstallResolutionState::READY
+										  : PreparedInstallResolutionState::NOT_READY},
+									 {candidates[6].identity, candidates[6].identity,
+									  PreparedInstallResolutionState::READY}} ;
+		// 非空reportによる最初の再描画でも元開閉・版を失わせません。
+		if( acquired) {
+			OfficialPreparationAuditReport report ;	// 正規validatorへ通す内容/適用性の人工結果です。
+			report.targetIdentity = plan.targets.front().identity ;
+			report.providerId	  = SIGNED_INDEX_PROVIDER_ID ;
+			report.content =
+				variant == 1U ? CandidateAuditGateState::REJECTED : CandidateAuditGateState::PASSED ;
+			report.contentError			 = variant == 1U ? static_cast<NativeError>( E_FAIL) : 0 ;
+			report.firstContentRejection = report.contentError ;
+			report.applicability		 = variant == 1U   ? CandidateAuditGateState::PENDING
+										   : variant == 2U ? CandidateAuditGateState::REJECTED
+														   : CandidateAuditGateState::PASSED ;
+			report.infCount				 = 1U ;
+			report.acceptedInfCount		 = variant == 1U ? 0U : 1U ;
+			report.examinedPairCount	 = variant == 1U ? 0U : 2U ;
+			report.applicablePairCount	 = variant == 3U ? 2U : 0U ;
+			// 監査合格後も発行候補0である事実を保持します。
+			if( variant == 3U) {
+				report.publication = {
+					OfficialPreparationCandidatePublicationState::NO_ELIGIBLE_CANDIDATES, 2U, 0U,
+					2U, static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_FOUND))} ;
+			}
+
+			// 同じ元targetの参照三行だけへ監査を付けます。
+			for( const std::size_t index : {1U, 2U, 4U}) {
+				auto audit				  = candidates[index].audit ;	// 他属性は変更しません。
+				audit.inspectionDownload  = CandidateAuditGateState::PASSED ;
+				audit.contentIntegrity	  = report.content ;
+				audit.systemApplicability = report.applicability ;
+				report.candidates.push_back( {candidates[index].identity, audit}) ;
+			}
+
+			result.auditReports.push_back( report) ;
+		}
+
+		IndexPreparationSummary summary ;	// 同じ元targetの取得・内容結果です。
+		summary.operationId	   = begin.operationId ;
+		summary.scanSessionId  = plan.scanSessionId ;
+		summary.planId		   = plan.planId + (variant == 5U ? 1U : 0U) ;
+		summary.plannedTargets = 1U ;
+		summary.items.push_back(
+			{.targetIdentity	 = plan.targets.front().identity,
+			 .acquisition		 = acquired ? OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION
+								   : variant == 6U ? OfficialAcquisitionState::CANCELLED
+												   : OfficialAcquisitionState::REJECTED,
+			 .acquisitionError	 = acquired ? 0 : failure,
+			 .content			 = variant == 1U ? IndexedDriverInspectionState::INSPECTION_FAILED
+								   : acquired ? IndexedDriverInspectionState::INSPECTION_COMPLETED
+											  : IndexedDriverInspectionState::NOT_STARTED,
+			 .contentError		 = variant == 1U ? static_cast<NativeError>( E_FAIL) : 0,
+			 .inputBound		 = acquired,
+			 .inventoryFileCount = variant == 2U || variant == 3U ? 3U : 0U,
+			 .infCount			 = variant == 2U || variant == 3U ? 1U : 0U,
+			 .parsedInfCount	 = variant == 2U || variant == 3U ? 1U : 0U,
+			 .acceptedInfCount	 = variant == 2U || variant == 3U ? 1U : 0U}) ;
+		// 取消しも受理した元終端でだけ表示を更新します。
+		if( variant == 6U) {
+			DRIVERCRATE_EXPECT( context,
+							   window.controller_.markPreparationCancelling( begin.operationId)) ;
+		}
+
+		// 遅延した別operationは表示snapshotも候補も変更しません。
+		if( variant == 7U) {
+			auto stale = result ;	// 原通知は保持します。
+			++stale.operationId ;
+			window.processPreparationCompleted( stale, summary) ;
+			DRIVERCRATE_EXPECT( context,
+							   window.preparationDisplayBindings_.empty() &&
+								   window.preparationDisplaySession_ == 0U &&
+								   window.showRecommendedOnly_ &&
+								   !window.candidates_[1].preparationTargetIdentity.empty()) ;
+		}
+
+		// 枠だけの未指定行には元candidate identityを補いません。
+		if( variant == 7U) {
+			window.treeRows_[window.candidateRowIndexes_[4]].hasCandidateChoice = false ;
+		}
+
+		window.processPreparationCompleted( result, summary) ;
+		DRIVERCRATE_EXPECT( context, window.controller_.state() == ApplicationState::SCAN_READY &&
+										window.controller_.preparationPlan() == nullptr &&
+										window.controller_.scanSessionId() == plan.scanSessionId) ;
+		DRIVERCRATE_EXPECT( context, !window.showRecommendedOnly_ &&
+										SendMessageW( window.recommendedOnlyCheckbox_, BM_GETCHECK,
+													 0, 0) == BST_UNCHECKED &&
+										window.candidates_.size() == 9U &&
+										window.checkedCandidateIndexes().empty()) ;
+		DRIVERCRATE_EXPECT( context, !window.isSelectableCandidate( window.candidates_[1]) &&
+										!window.selectDeviceCandidate( 1U) &&
+										window.isSelectableCandidate( window.candidates_[6])) ;
+		std::size_t devices{}, classes{} ;	// 元四deviceと新たに表示したその他分類を区別します。
+		// 元の開閉を全分類で照合し、新分類が閉じたままであることも確認します。
+		for( HTREEITEM item = TreeView_GetRoot( window.updateTree_); item != nullptr;
+			item		   = TreeView_GetNextSibling( window.updateTree_, item)) {
+			++classes ;
+			TVITEMW native{} ;	// 再生成後の実itemです。
+			native.mask	 = TVIF_PARAM ;
+			native.hItem = item ;
+			DRIVERCRATE_EXPECT( context, TreeView_GetItem( window.updateTree_, &native)) ;
+			const auto *row	  = window.treeRowFromParameter( native.lParam) ;	// 正規keyの同分類です。
+			const auto	prior = expansion.find( row->classKey) ;				// 新分類は保存値がありません。
+			DRIVERCRATE_EXPECT(
+				context, ((TreeView_GetItemState( window.updateTree_, item, TVIS_EXPANDED) &
+						   TVIS_EXPANDED) != 0U) == (prior != expansion.end() && prior->second)) ;
+			// 全deviceを行として保持し、展開済みの個数と混同しません。
+			for( HTREEITEM child = TreeView_GetChild( window.updateTree_, item); child != nullptr;
+				child			= TreeView_GetNextSibling( window.updateTree_, child)) {
+				++devices ;
+			}
+		}
+
+		DRIVERCRATE_EXPECT( context, devices == 4U && classes == 4U) ;
+		const auto &row =
+			window.treeRows_[window.candidateRowIndexes_[1]] ;	// 元参照の同device行です。
+		DRIVERCRATE_EXPECT(
+			context, !row.hasCandidateChoice && window.preparationDisplayCandidate( row) == 1U &&
+						 row.candidateVersion.find( L"3.0.0.0") != std::wstring::npos &&
+						 row.status.find( L"Fixture signed index") != std::wstring::npos) ;
+		const auto expected = variant == 4U || variant == 5U || variant == 8U
+								  ? IDS_INSTALL_PREPARATION_BINDING_REJECTED
+							  : variant == 6U
+								  ? IDS_INSTALL_PREPARATION_CANCELLED
+								  : IDS_INSTALL_PREPARATION_NOT_READY ;	// 原未成立を優先します。
+		DRIVERCRATE_EXPECT( context, window.preparationResultText_.find(
+										window.loadString( expected)) != std::wstring::npos) ;
+	}
+	/** @brief 元checkbox枠/意図を実行権限から分離し入力拒否を確認します。
+	 * @param[in,out] window 準備失敗後の元Windowです。
+	 * @param[in,out] context このprocessの原集計先です。
+	 * @param[in] variant 元九条件の番号です。
+	 */
+	static void retainedCheckboxInput( MainWindow &window, test::TestContext &context,
+									  const unsigned variant)
+	{
+		// 選択参照/未選択参照/既検証WUAの元枠を別々に照合します。
+		for( const std::size_t index : {1U, 4U, 6U}) {
+			const auto &row =
+				window.treeRows_[window.candidateRowIndexes_[index]] ;	// 同deviceです。
+			const auto	   item		= window.candidateItems_[index] ;	// 実checkboxを持つ行です。
+			const unsigned expected = index == 4U ? 3U : 4U ;			// 灰色枠と灰色checkです。
+			DRIVERCRATE_EXPECT( context, row.readonlyCheckbox &&
+											(TreeView_GetItemState( window.updateTree_, item,
+																   TVIS_STATEIMAGEMASK) >>
+											 12U) == expected) ;
+			TreeView_EnsureVisible( window.updateTree_, item) ;
+			RECT	   rectangle{} ;	// 所有行のcheckbox位置だけを探します。
+			const bool measured = TreeView_GetItemRect( window.updateTree_, item, &rectangle,
+													   FALSE) != FALSE ;		// 元controlの座標です。
+			POINT	   checkbox{-1, (rectangle.top + rectangle.bottom) / 2} ;	// 発見前は無効です。
+			// 一行の先頭256pxだけからstate iconのnative hit位置を求めます。
+			for( int x{}; measured && x < 256 && checkbox.x < 0; ++x) {
+				TVHITTESTINFO hit{} ;	// 外部Windowや画面を調べません。
+				hit.pt = {x, checkbox.y} ;
+				// 対象行のstate iconだけをクリック先に固定します。
+				if( TreeView_HitTest( window.updateTree_, &hit) == item &&
+				   (hit.flags & TVHT_ONITEMSTATEICON) != 0U) {
+					checkbox.x = x ;
+				}
+			}
+
+			DRIVERCRATE_EXPECT( context, checkbox.x >= 0) ;
+			// 元state iconが発見された場合だけ通常mouse入力を送ります。
+			if( checkbox.x >= 0) {
+				PostMessageW( window.updateTree_, WM_LBUTTONDOWN, MK_LBUTTON,
+							 MAKELPARAM( checkbox.x, checkbox.y)) ;
+				PostMessageW( window.updateTree_, WM_LBUTTONUP, 0,
+							 MAKELPARAM( checkbox.x, checkbox.y)) ;
+				MSG mouse{} ;	// 事前queueした同controlのmouse通知だけです。
+				// Down内部のnative追跡loopにもUpが既に届くようにdispatchします。
+				while( PeekMessageW( &mouse, window.updateTree_, WM_MOUSEFIRST, WM_MOUSELAST,
+								   PM_REMOVE)) {
+					TranslateMessage( &mouse) ;
+					DispatchMessageW( &mouse) ;
+				}
+			}
+
+			DRIVERCRATE_EXPECT( context, window.checkedCandidateIndexes().empty() &&
+											(TreeView_GetItemState( window.updateTree_, item,
+																   TVIS_STATEIMAGEMASK) >>
+											 12U) == expected) ;
+			TreeView_SetCheckState( window.updateTree_, item, FALSE) ;
+			window.handleTreeCheckChange( item, false) ;
+			DRIVERCRATE_EXPECT( context, window.checkedCandidateIndexes().empty() &&
+											(TreeView_GetItemState( window.updateTree_, item,
+																   TVIS_STATEIMAGEMASK) >>
+											 12U) == expected) ;
+			TreeView_SelectItem( window.updateTree_, item) ;
+			SetFocus( window.updateTree_) ;
+			SendMessageW( window.updateTree_, WM_KEYDOWN, VK_SPACE, 0) ;
+			SendMessageW( window.updateTree_, WM_KEYUP, VK_SPACE, 0) ;
+			DRIVERCRATE_EXPECT( context, window.checkedCandidateIndexes().empty() &&
+											(TreeView_GetItemState( window.updateTree_, item,
+																   TVIS_STATEIMAGEMASK) >>
+											 12U) == expected) ;
+		}
+
+		// 元choiceのない枠は閲覧用candidateも捏造しません。
+		if( variant == 7U) {
+			const auto &row = window.treeRows_[window.candidateRowIndexes_[4]] ;	// 元未指定行です。
+			const auto *binding = window.retainedDisplayBinding( row) ;				// 同snapshotだけです。
+			DRIVERCRATE_EXPECT( context, binding && binding->frame &&
+											binding->candidateIdentity.empty() &&
+											!window.preparationDisplayCandidate( row)) ;
+		}
+
+		// 明示解除は履歴checkだけを消し、元枠と失効guardを保持します。
+		if( variant == 8U) {
+			window.clearCandidateSelection() ;
+			window.applyCandidateSelectionToTree() ;
+			DRIVERCRATE_EXPECT(
+				context, window.checkedCandidateIndexes().empty() &&
+							 (TreeView_GetItemState( window.updateTree_, window.candidateItems_[1],
+													TVIS_STATEIMAGEMASK) >>
+							  12U) == 3U &&
+							 (TreeView_GetItemState( window.updateTree_, window.candidateItems_[6],
+													TVIS_STATEIMAGEMASK) >>
+							  12U) == 1U) ;
+		}
+
+		DRIVERCRATE_EXPECT( context,
+						   !window.selectDeviceCandidate( 1U) && window.selectDeviceCandidate( 6U)) ;
+		DRIVERCRATE_EXPECT( context,
+						   window.checkedCandidateIndexes() == std::vector<std::size_t>{6U} &&
+							   !window.treeRows_[window.candidateRowIndexes_[6]].readonlyCheckbox &&
+							   (TreeView_GetItemState( window.updateTree_, window.candidateItems_[6],
+													  TVIS_STATEIMAGEMASK) >>
+								12U) == 2U) ;
+	}
+	/** @brief 合成install終端だけから個別完了checkの解除と未処理保持を確認します。
+	 * @param[in,out] window 新たに明示選択した元WUA候補のWindowです。
+	 * @param[in,out] context このprocessの原集計先です。
+	 * @param[in] variant 成功/失敗/取消/未処理/役割待ち/引継ぎ/重複/遅延/復旧失敗です。
+	 */
+	static void retainedCheckboxTerminal( MainWindow &window, test::TestContext &context,
+										 const unsigned variant)
+	{
+		const auto		 session = window.controller_.scanSessionId() ;	// 失効前の正当sessionです。
+		const std::array identities{window.candidates_[6].identity} ;	// 実Providerは呼びません。
+		const auto		 begin = window.controller_.beginInstall(
+			  session, identities, InstallConfirmation::CONFIRMED) ;	// 元guardです。
+		DRIVERCRATE_EXPECT( context, begin.accepted) ;
+		// 不正な人工入力を結果dialogの待機へ進めません。
+		if( !begin.accepted) {
+			throw std::runtime_error( "retained checkbox install input rejected") ;
+		}
+
+		WorkerEvent event ;	// 同controllerへ渡す人工の終端だけです。
+		event.kind							= WorkerEventKind::INSTALL_COMPLETED ;
+		event.operationId					= begin.operationId ;
+		event.installResult.succeeded		= variant == 0U ;
+		event.installResult.downloadOutcome = OutcomeCode::SUCCESS ;
+		event.installResult.installOutcome =
+			variant == 0U ? OutcomeCode::SUCCESS : OutcomeCode::FAILURE ;
+		event.installResult.restorePointCreation   = {OutcomeCode::SUCCESS, 0, 7} ;
+		event.installResult.restorePointCompletion = {OutcomeCode::SUCCESS, 0, 7} ;
+		UpdateExecutionResult result ;	// 原個別結果と役割だけで完了を決めます。
+		result.identity			= identities.front() ;
+		result.downloadOutcome	= OutcomeCode::SUCCESS ;
+		result.installOutcome	= variant == 1U || variant == 7U ? OutcomeCode::FAILURE
+								  : variant == 2U				 ? OutcomeCode::ABORTED
+																 : OutcomeCode::SUCCESS ;
+		result.installError		= variant == 1U || variant == 7U ? static_cast<NativeError>( E_FAIL)
+								  : variant == 2U
+									  ? static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))
+									  : 0 ;
+		result.installerHandoff = variant == 5U ;
+		DriverPlanRoleExecutionResult role ;	// 必要roleが未完了ならbase成功でも保持します。
+		role.ordinal		= 1U ;
+		role.stageOutcome	= OutcomeCode::SUCCESS ;
+		role.installOutcome = variant == 4U ? OutcomeCode::NOT_STARTED : OutcomeCode::SUCCESS ;
+		role.reflection		= variant == 4U ? DriverPlanReflectionState::WINDOWS_PENDING
+											: DriverPlanReflectionState::INSTALL_API_COMPLETED ;
+		result.requiredRoles.push_back( role) ;
+		// 未処理には個別結果そのものを作りません。
+		if( variant != 3U) {
+			event.installResult.updates.push_back( result) ;
+		}
+
+		// 一意に対応しない個別結果を完了へ補いません。
+		if( variant == 6U) {
+			event.installResult.updates.push_back( result) ;
+		}
+
+		// 復旧保護が開始できなかった場合は個別成功から解除しません。
+		if( variant == 8U) {
+			event.installResult.restorePointCreation = {
+				OutcomeCode::FAILURE, static_cast<NativeError>( E_ACCESSDENIED), 0} ;
+		}
+
+		// 遅延通知は元実行checkとsnapshotのどちらにもcommitしません。
+		if( variant == 7U) {
+			auto stale = event ;	// 元終端はそのまま保持します。
+			++stale.operationId ;
+			window.processInstallCompleted( stale) ;
+			DRIVERCRATE_EXPECT( context, window.controller_.scanSessionId() == session &&
+											window.candidateSelected_[6]) ;
+		}
+
+		window.processInstallCompleted( event) ;
+		DRIVERCRATE_EXPECT( context, window.controller_.scanSessionId() == 0U &&
+										window.checkedCandidateIndexes().empty() &&
+										!window.selectDeviceCandidate( 6U) &&
+										!window.showRecommendedOnly_) ;
+		DRIVERCRATE_EXPECT( context,
+						   (TreeView_GetItemState( window.updateTree_, window.candidateItems_[6],
+												  TVIS_STATEIMAGEMASK) >>
+							12U) == (variant == 0U ? 3U : 4U) &&
+							   (TreeView_GetItemState( window.updateTree_, window.candidateItems_[1],
+													  TVIS_STATEIMAGEMASK) >>
+								12U) == (variant == 8U ? 3U : 4U) &&
+							   (TreeView_GetItemState( window.updateTree_, window.candidateItems_[4],
+													  TVIS_STATEIMAGEMASK) >>
+								12U) == 3U) ;
+	}
+	/** @brief 新scanで旧表示snapshotを捨てることを確認します。
+	 * @param[in,out] window 準備不成立後の所有Windowです。
+	 * @param[in,out] context 原assertionの集計先です。
+	 */
+	static void preparationFailureReset( MainWindow &window, test::TestContext &context)
+	{
+		historyLocalScan( window, context) ;
+		DRIVERCRATE_EXPECT( context, window.preparationDisplaySession_ == 0U &&
+										window.preparationDisplayBindings_.empty()) ;
+	}
+	/** @brief 取得後旧版のUI停止はworker成功DTOの人工注入として独立確認します。
+     * @param[in,out] window 元参照を保持した同scanのWindowです。
+     * @param[in,out] context 元集計先です。
+     */
+	static void historyPreparedBlock( MainWindow &window, test::TestContext &context)
+	{
+		window.preparationApproval_.installIntentIdentities = {window.candidates_[2].identity} ;
+		OfficialPreparationOperationResult result{} ;		// 実取得/公開の成功を生成しないUI入力です。
+		PreparedInstallResolution		   resolution{} ;	// 元選択へ戻す明示的な停止区分です。
+		resolution.originalIdentity = window.candidates_[2].identity ;
+		resolution.state			= PreparedInstallResolutionState::DOWNGRADE_REQUIRES_SELECTION ;
+		result.installResolutions.push_back( resolution) ;
+		window.continuePreparedInstall( result) ;
+		DRIVERCRATE_EXPECT( context, window.checkedCandidateIndexes().empty() &&
+										window.preparationResultText_.find(
+											window.loadString( IDS_INSTALL_PREPARATION_DOWNGRADE)) !=
+											std::wstring::npos) ;
+	}
+	/** @brief 正常scanから検査済み旧版または拒否候補の閲覧/取消しを確認する表示入力です。
+     * @param[in,out] window 元fake workerの所有Windowです。
+     * @param[in,out] context 正常scanの集計先です。
+     * @param[in] blocked trueなら非適合で選択不可の索引候補へします。
+     */
+	static void historyLocalScan( MainWindow &window, test::TestContext &context,
+								 const bool blocked = false)
+	{
+		const auto begin = window.controller_.beginScan() ;	// 正規の新scan遷移です。
+		DRIVERCRATE_EXPECT( context, begin.accepted) ;
+		UpdateCandidate current = window.candidates_.front() ;	// 元有効現在観測を再利用します。
+		constexpr ScanSessionId session			 = 7742U ;		// この新scanだけの同sessionです。
+		current.deviceObservation->scanSessionId = session ;
+		UpdateCandidate candidate{} ;	// 通常Driver Storeの有効な委譲候補です。
+		candidate.identity		  = L"history-local-old" ;
+		candidate.deviceIdentity  = current.deviceIdentity ;
+		candidate.model			  = current.model ;
+		candidate.deviceClassGuid = current.deviceClassGuid ;
+		candidate.title			  = L"Fixture validated older driver" ;
+		candidate.version		  = L"1.0.0.0" ;
+		candidate.driverDate	  = L"10/01/2026" ;
+		candidate.sourceName	  = L"Windows Driver Store" ;
+		candidate.providerId	  = DRIVER_STORE_PROVIDER_ID ;
+		candidate.discoveryBasis  = CandidateDiscoveryBasis::LOCAL_INVENTORY ;
+		candidate.action		  = DriverAction::DOWNGRADE ;
+		candidate.installable	  = true ;
+		candidate.audit			  = makeWindowsManagedCandidateAudit( false) ;
+		// 非適合は取得計画なしの非導入候補として、既auditの拒否を維持します。
+		if( blocked) {
+			candidate.providerId	 = SIGNED_INDEX_PROVIDER_ID ;
+			candidate.discoveryBasis = CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
+			candidate.action		 = DriverAction::NONE ;
+			candidate.installable	 = false ;
+			candidate.audit			 = makeOfficialDiscoveryCandidateAudit() ;
+			candidate.audit.systemApplicability = CandidateAuditGateState::REJECTED ;
+			candidate.audit.installReadiness	= CandidateInstallReadiness::BLOCKED ;
+		}
+
+		// 有効な同sessionの現在観測と候補を渡すscan終端です。
+		WorkerEvent event{.kind		   = WorkerEventKind::SCAN_COMPLETED,
+						  .operationId = begin.operationId,
+						  .scanResult  = {.succeeded	 = true,
+										  .scanSessionId = session,
+										  .outcome		 = OutcomeCode::SUCCESS,
+										  .candidates	 = {current, candidate}}} ;
+		DRIVERCRATE_EXPECT( context,
+						   isCandidateDetailsSetValid( event.scanResult.candidates, session)) ;
+		window.processWorkerEvent( event) ;
+		DRIVERCRATE_EXPECT( context, window.controller_.state() == ApplicationState::SCAN_READY &&
+										window.candidates_.size() == 2U) ;
+
+		window.showRecommendedOnly_ = false ;
+		window.populateCandidates( window.candidates_) ;
+	}
+	/** @brief 元同scanの二参照へ表示同一性と一field差だけを置きます。
+	 * @param[in,out] window 元planと候補を保持するWindowです。
+	 * @param[in,out] context 元候補/選択の集計先です。
+	 * @param[in] variant 0は同内容、1〜6は別情報、7は個別結果です。
+	 */
+	static void historyDisplayVariant( MainWindow &window, test::TestContext &context,
+									  const unsigned variant)
+	{
+		const auto secondIdentity =
+			window.candidates_[2].identity ;	// 元二参照のidentityを保持します。
+		window.candidates_[2]						= window.candidates_[1] ;
+		window.candidates_[2].identity				= secondIdentity ;
+		window.candidates_[1].detailDisplayIdentity = L"fixture-display-only" ;
+		window.candidates_[2].detailDisplayIdentity = L"fixture-display-only" ;
+		window.candidates_[0].detailDisplayIdentity = L"fixture-display-only" ;
+		// 表示だけの一field差を元二参照の別identityへ保ちます。
+		switch( variant) {
+			// 根拠が異なる同表示は別情報として残します。
+			case 1U:
+				window.candidates_[2].detailDisplayIdentity += L"-other" ;
+				break ;
+
+			// 日付差を同versionで消しません。
+			case 2U:
+				window.candidates_[2].driverDate = L"11/02/2026" ;
+				break ;
+
+			// 別実packageを表示tokenだけで消しません。
+			case 3U:
+				window.candidates_[2].packageIdentity = L"fixture-other-package" ;
+				break ;
+
+			// 取得計画がないreadonlyを選択可能行へ吸収しません。
+			case 4U:
+				window.candidates_[2].preparationTargetIdentity.clear() ;
+				break ;
+
+			// 必要構成が異なる行を残します。
+			case 5U:
+				window.candidates_[2].requiredExtensionCount = 1U ;
+				break ;
+
+			// 表示同一性が不明の候補を残します。
+			case 6U:
+				window.candidates_[2].detailDisplayIdentity.clear() ;
+				break ;
+
+			// 同内容でも個別結果は別行で保持します。
+			case 7U:
+				window.candidateResultTexts_[2] = L"Fixture result 0x80070005" ;
+				break ;
+
+			// 正例は元二候補を同じ表示groupにします。
+			default:
+				break ;
+		}
+
+		window.showRecommendedOnly_ = false ;
+		window.populateCandidates( window.candidates_) ;
+		DRIVERCRATE_EXPECT( context,
+						   window.candidates_.size() == 5U &&
+							   window.candidates_[1].identity != window.candidates_[2].identity &&
+							   window.controller_.preparationPlan() != nullptr) ;
+		// 後出の元memberだけを明示選択し、group表示で先頭へ戻らないことを確認します。
+		if( variant != 4U) {
+			DRIVERCRATE_EXPECT( context, window.selectDeviceCandidate( 2U)) ;
+		}
+	}
+	/** @brief 初期highlightの有限条件を既同scan/元planへ置きます。
+ * @param[in,out] window 元五候補の所有Windowです。
+ * @param[in,out] context 元失敗を保持する集計先です。
+ * @param[in] variant 数値/明示/暗黙/初回/readonly等の固定条件です。
+ */
+	static void historyLatestVariant( MainWindow &window, test::TestContext &context,
+									 const unsigned variant)
+	{
+		window.candidates_[0].version = L"2.1.5.7" ;
+		window.candidates_[1].version = L"2.1.5.9" ;
+		window.candidates_[2].version = L"2.1.5.12" ;
+		window.showRecommendedOnly_	  = false ;
+		// 同版再導入は新しい日付でも自動候補にしません。
+		if( variant == 0U || variant == 2U || variant == 10U) {
+			auto &local =
+				window.candidates_[variant == 10U ? 2U : 1U] ;	// 実Windows候補の表示fakeです。
+			local.version		 = variant == 10U ? L"32.0.16.2101" : L"2.1.5.7" ;
+			local.driverDate	 = L"2026/01/19" ;
+			local.providerId	 = DRIVER_STORE_PROVIDER_ID ;
+			local.discoveryBasis = CandidateDiscoveryBasis::LOCAL_INVENTORY ;
+			local.preparationTargetIdentity.clear() ;
+			local.installable = true ;
+			local.action	  = variant == 10U ? DriverAction::UPDATE : DriverAction::REINSTALL ;
+			local.audit		  = makeWindowsManagedCandidateAudit( false) ;
+		}
+
+		// 12対9を入力順と独立に比較します。
+		if( variant == 1U) {
+			std::swap( window.candidates_[1].version, window.candidates_[2].version) ;
+		}
+
+		// 最大値のtieと同内容groupは別の固定条件です。
+		if( variant == 4U || variant == 17U) {
+			window.candidates_[1].version = window.candidates_[2].version ;
+		}
+
+		// 同じ/古い版を日付から昇格しません。
+		if( variant == 5U) {
+			window.candidates_[1].version	 = L"2.1.5.7" ;
+			window.candidates_[2].version	 = L"2.1.5.6" ;
+			window.candidates_[1].driverDate = L"2027/01/01" ;
+		}
+
+		// suffixやoverflowを比較不能のまま残します。
+		if( variant == 6U || variant == 9U || variant == 13U || variant == 14U) {
+			window.candidates_[1].version.clear() ;
+			window.candidates_[2].version = variant == 9U ? L"2.1.5.65536" : L"2.1.5.x" ;
+		}
+
+		// 現在版欠損と真の未導入を区別します。
+		if( variant == 7U || variant == 8U || variant == 9U) {
+			window.candidates_[0].version.clear() ;
+			window.candidates_[0].deviceObservation->version.state = DevicePropertyReadState::EMPTY ;
+			// 初回は元Code28と同観測の未導入へ結びます。
+			if( variant != 7U) {
+				window.candidates_[0].deviceObservation->node.statusFlags = 0x00000400U ;
+				window.candidates_[0].deviceObservation->node.problemCode = 28U ;
+				window.candidates_[0].deviceObservation->driverPresence =
+					DeviceDriverPresence::NOT_INSTALLED ;
+			}
+		}
+
+		// Windows driver版とreadonly公開番号を混ぜません。
+		if( variant == 10U) {
+			window.candidates_[0].version = L"32.0.15.9636" ;
+			window.candidates_[1].version = L"32.0.16.1088" ;
+			UpdateCandidate catalog		  = window.candidates_[1] ;	// 取得計画のない公開番号です。
+			catalog.identity			  = L"fixture-readonly-catalog" ;
+			catalog.title				  = L"Fixture catalog 621.14" ;
+			catalog.version				  = L"621.14" ;
+			catalog.preparationTargetIdentity.clear() ;
+			window.candidates_.push_back( std::move( catalog)) ;
+			window.candidateSelected_.push_back( false) ;
+		}
+
+		// 個別結果を新版で置換しません。
+		if( variant == 11U) {
+			window.candidateResultTexts_[2] = L"Fixture result 0x80070005" ;
+		}
+
+		// 現在観測なしはreportまたは初期選択なしへ戻します。
+		if( variant == 13U || variant == 14U) {
+			window.candidates_[0].current = false ;
+			// 初期行なしの条件だけ全体reportもありません。
+			if( variant == 13U) {
+				window.preparationResultText_.clear() ;
+			}
+		}
+
+		// 不適合と計画なしを自動候補へ昇格しません。
+		if( variant == 15U) {
+			window.candidates_[2].audit.systemApplicability = CandidateAuditGateState::REJECTED ;
+		}
+
+		// readonlyの公開情報は既選択可否へ任せます。
+		if( variant == 16U) {
+			window.candidates_[2].preparationTargetIdentity.clear() ;
+		}
+
+		// 後出の明示memberは元同内容groupの代表に残します。
+		if( variant == 17U) {
+			window.candidates_[2].title					= window.candidates_[1].title ;
+			window.candidates_[1].detailDisplayIdentity = L"fixture-latest-group" ;
+			window.candidates_[2].detailDisplayIdentity = L"fixture-latest-group" ;
+		}
+
+		DRIVERCRATE_EXPECT( context,
+						   isDeviceObservationValid( *window.candidates_[0].deviceObservation)) ;
+		window.populateCandidates( window.candidates_) ;
+		DRIVERCRATE_EXPECT( context,
+						   window.selectDeviceCandidate( variant == 4U || variant == 17U ? 2U : 1U)) ;
+		auto &row =
+			window.treeRows_[window.candidateRowIndexes_[1]] ;	// 元checkboxへの一件結合です。
+		row.explicitCandidateChoice = variant == 2U || variant == 17U ;
+	}
+	/** @brief 新scanの拒否後も残る旧表示の選択を失効します。
+     * @param[in,out] window 同じprivate fake Windowです。
+     * @param[in,out] context 正規状態遷移の集計先です。
+     */
+	static void historyInvalidate( MainWindow &window, test::TestContext &context)
+	{
+		const auto		 begin = window.controller_.beginScan() ;	// 新scanが旧sessionを失効します。
+		const ScanResult failure{.succeeded = false,
+								 .outcome	= OutcomeCode::FAILURE,
+								 .error		= static_cast<NativeError>( E_FAIL)} ;	// 確定失敗です。
+		DRIVERCRATE_EXPECT( context,
+						   begin.accepted &&
+							   window.controller_.completeScan( begin.operationId, failure) &&
+							   window.controller_.scanSessionId() == 0U) ;
 	}
 	/**
 	 * @brief 指定候補のEnterまたはdouble-click通知を実Windowへ送る。
@@ -2570,6 +3600,11 @@ struct MainWindowMetadataTestAccess {
 		} ;
 		const std::array cases{
 			Case{"installed-pending-image", L"1.9.74.0", DeviceDriverPresence::REGISTERED},
+			Case{"newer-pending-confirmation", L"1.9.74.0", DeviceDriverPresence::REGISTERED, 6U,
+				 0U, true},
+			Case{"same-pending-information", L"1.9.74.0", DeviceDriverPresence::REGISTERED, 7U},
+			Case{"older-pending-information", L"1.9.74.0", DeviceDriverPresence::REGISTERED, 8U},
+			Case{"newer-current-version-unknown", L"", DeviceDriverPresence::REGISTERED, 9U},
 			Case{"registered-no-version", L"", DeviceDriverPresence::REGISTERED},
 			Case{"unknown-no-version", L"", DeviceDriverPresence::UNKNOWN},
 			Case{"code28-pending", L"", DeviceDriverPresence::NOT_INSTALLED, 0U, 0U, true},
@@ -2694,7 +3729,7 @@ struct MainWindowMetadataTestAccess {
 				}
 
 				// 後段actionの表示試験は、実取得・適用性判定の代用にしません。
-				if( item.kind != 0U) {
+				if( item.kind != 0U && item.kind <= 5U) {
 					candidate.installable	   = true ;
 					candidate.allContentCached = true ;
 					candidate.audit			   = makeOfficialReadyCandidateAudit() ;
@@ -2716,6 +3751,27 @@ struct MainWindowMetadataTestAccess {
 						candidate.audit		  = makeWindowsManagedCandidateAudit( false) ;
 					}
 				}
+
+				// Workerの限定投影後と同じ版情報だけを人工参照へ与えます。
+				if( item.kind >= 6U) {
+					candidate.version = item.kind == 7U	  ? item.currentVersion
+										: item.kind == 8U ? L"1.0.0.0"
+														  : L"2.0.0.0" ;
+				}
+			}
+
+			// 非推奨のStore候補が新版metadata参照の既定代表を上書きしないことを確認します。
+			if( item.kind == 6U) {
+				auto store			 = window.candidates_[1] ;	// 同deviceの別経路候補です。
+				store.identity		 = L"classification-nonrecommended-store" ;
+				store.providerId	 = DRIVER_STORE_PROVIDER_ID ;
+				store.discoveryBasis = CandidateDiscoveryBasis::LOCAL_INVENTORY ;
+				store.preparationTargetIdentity.clear() ;
+				store.installable = true ;
+				store.action	  = DriverAction::UPDATE ;
+				store.audit		  = makeWindowsManagedCandidateAudit( false) ;
+				window.candidates_.push_back( std::move( store)) ;
+				window.candidateSelected_.push_back( false) ;
 			}
 
 			// 新版と同版が同deviceに混在しても、filterの代表は新版だけに結合します。
@@ -2736,12 +3792,34 @@ struct MainWindowMetadataTestAccess {
 				TreeView_GetCount( window.updateTree_) ;
 			wchar_t status[2048]{} ;	// 最下段の実control本文です。
 			GetWindowTextW( window.status_, status, 2048) ;
-			const auto ready =
-				item.visible && item.kind != 0U ? 2U : 0U ;	// 未取得を検査済みに数えません。
+			const auto ready = item.visible && item.kind != 0U && item.kind <= 5U
+								   ? 2U
+								   : 0U ;	// 未取得を検査済みに数えません。
 			DRIVERCRATE_EXPECT( context, visibleCount == (item.visible ? 3U : 0U)) ;
-			DRIVERCRATE_EXPECT( context, std::wstring_view{status}.find( window.formatResource(
-											IDS_STATUS_RECOMMENDED_COUNT,
-											std::to_wstring( ready))) != std::wstring_view::npos) ;
+			DRIVERCRATE_EXPECT( context,
+							   item.kind == 6U ||
+								   std::wstring_view{status}.find( window.formatResource(
+									   IDS_STATUS_RECOMMENDED_COUNT, std::to_wstring( ready))) !=
+									   std::wstring_view::npos) ;
+			// 新版参照を実導入候補0件だけと案内せず、確認数を独立表示します。
+			if( item.kind == 6U) {
+				const auto &row =
+					window.treeRows_[window.candidateRowIndexes_[1]] ;	// 実checkboxの代表です。
+				DRIVERCRATE_EXPECT(
+					context,
+					std::wstring_view{status}.find( window.formatResource(
+						IDS_STATUS_UPDATE_CONFIRMATION_COUNT, L"2")) != std::wstring_view::npos &&
+						std::wstring_view{status}.find( window.formatResource(
+							IDS_STATUS_RECOMMENDED_COUNT, L"0")) == std::wstring_view::npos) ;
+				DRIVERCRATE_EXPECT(
+					context,
+					row.hasCandidateChoice && row.candidateIndex == 1U &&
+						row.candidateVersion ==
+							window.formatResource( IDS_REFERENCE_VERSION_FORMAT, L"2.0.0.0") &&
+						!window.candidates_[1].installable && !window.candidates_[1].recommended &&
+						window.candidates_[1].action == DriverAction::NONE) ;
+			}
+
 			DRIVERCRATE_EXPECT( context, window.checkedCandidateIndexes().empty() &&
 											!IsWindowEnabled( window.installButton_)) ;
 			const auto pendingFirst =
@@ -2803,12 +3881,25 @@ struct MainWindowMetadataTestAccess {
 							item.currentVersion) ;
 			}
 
+			// 全候補で選んだ非推奨Storeを推奨filter復帰で既定へ残しません。
+			if( item.kind == 6U) {
+				DRIVERCRATE_EXPECT( context, window.selectDeviceCandidate( 4U)) ;
+			}
+
 			window.clearCandidateSelection() ;
 			SendMessageW( window.recommendedOnlyCheckbox_, BM_SETCHECK, BST_CHECKED, 0) ;
 			window.handleRecommendedFilterChange() ;
 			DRIVERCRATE_EXPECT( context,
 							   TreeView_GetCount( window.updateTree_) == (item.visible ? 3U : 0U) &&
 								   window.checkedCandidateIndexes().empty()) ;
+			// 同じ元targetの新版参照だけをcheckbox代表へ戻します。
+			if( item.kind == 6U) {
+				const auto &row =
+					window.treeRows_[window.candidateRowIndexes_[1]] ;	// 同じdeviceの元行です。
+				DRIVERCRATE_EXPECT( context, row.hasCandidateChoice && row.candidateIndex == 1U &&
+												!window.selectDeviceCandidate( 4U)) ;
+			}
+
 			// 非表示の同版をcheckboxや詳細指定から選び直さず、検査済み新版を代表へ残します。
 			if( item.kind == 2U) {
 				const auto &row =
@@ -3077,15 +4168,283 @@ struct MainWindowMetadataTestAccess {
 		}
 	}
 
-	/** @brief 選択した二deviceの事後観測だけで現在行を再構築し、元結果と失効を保持します。
+	/** @brief 同じitemの並び・元label・開閉とnative表示位置だけを比較する試験値です。 */
+	struct InstallTreeView {
+		/// Native順の分類とdevice itemです。
+		std::vector<HTREEITEM>	  items ;
+		/// 各itemの元表示名です。事後の名前変更で上書きしません。
+		std::vector<std::wstring> labels ;
+		/// 各itemの元分類keyです。
+		std::vector<std::wstring> classes ;
+		/// 各itemのnative開閉状態です。
+		std::vector<UINT>		  expanded ;
+		/// 選択行です。非所有handleの同一性だけを比較します。
+		HTREEITEM				  caret{} ;
+		/// 垂直表示の先頭行です。
+		HTREEITEM				  first{} ;
+		/// 水平scrollの元位置です。
+		int						  horizontal{} ;
+		/// 垂直scrollの元位置です。
+		int						  vertical{} ;
+	} ;
+	/** @brief 自作TreeViewの二階層だけから元の表示状態を読みます。
+	 * @param[in] window 同private desktopの所有Windowです。
+	 * @return 結果やcheckを含まない同itemの比較値です。
+	 */
+	static InstallTreeView installTreeView( const MainWindow &window)
+	{
+		InstallTreeView view ;	// 同一Windowの同scan内だけで比較します。
+		// 二階層をnative順に辿り、折りたたまれたdeviceも分母へ残します。
+		for( auto category = TreeView_GetRoot( window.updateTree_); category;
+			category	  = TreeView_GetNextSibling( window.updateTree_, category)) {
+			auto item = category ;	// 分類から直下deviceへ一回だけ進みます。
+			// 子の兄弟が尽きるまで同じ分類の順序を保存します。
+			while( item) {
+				TVITEMW native{} ;	// 本同期読取だけの非所有itemです。
+				native.mask		= TVIF_PARAM ;
+				native.hItem	= item ;
+				const auto *row = TreeView_GetItem( window.updateTree_, &native)
+									  ? window.treeRowFromParameter( native.lParam)
+									  : nullptr ;	// 表示modelだけです。
+				view.items.push_back( item) ;
+				view.labels.push_back( row ? row->primaryText : L"") ;
+				view.classes.push_back( row ? row->classKey : L"") ;
+				const auto nativeState = TreeView_GetItemState(
+					window.updateTree_, item,
+					TVIS_EXPANDED) ;	// Native戻り値のmask外check bitを開閉へ混入させません。
+				// 新比較の読取でmask外の状態が返る場合を非機密な原数値だけで確認します。
+				if( (nativeState & ~UINT{TVIS_EXPANDED}) != 0U && view.items.size() == 2U) {
+					std::cout << "INSTALL_VIEW_NATIVE_STATE raw=" << nativeState
+							  << " expanded=" << (nativeState & TVIS_EXPANDED) << '\n' ;
+				}
+
+				view.expanded.push_back( nativeState & TVIS_EXPANDED) ;
+				item = item == category ? TreeView_GetChild( window.updateTree_, category)
+										: TreeView_GetNextSibling( window.updateTree_, item) ;
+			}
+		}
+
+		view.caret		= TreeView_GetSelection( window.updateTree_) ;
+		view.first		= TreeView_GetFirstVisible( window.updateTree_) ;
+		view.horizontal = GetScrollPos( window.updateTree_, SB_HORZ) ;
+		view.vertical	= GetScrollPos( window.updateTree_, SB_VERT) ;
+		return view ;
+	}
+	/** @brief 結果反映の前後で元行集合・順序・表示位置が完全に同じことを確認します。
+	 * @param[in] window 結果を反映した所有Windowです。
+	 * @param[in] before 操作前の比較値です。
+	 * @param[in,out] context このprocessの原集計先です。
+	 */
+	static void verifyInstallTreeView( const MainWindow &window, const InstallTreeView &before,
+									  test::TestContext &context)
+	{
+		const auto after = installTreeView( window) ;	// native再生成を隠さない実handle比較です。
+		// 差分のある場合だけ非機密な一致区分を出し、元の複合失敗を隠しません。
+		if( after.items != before.items || after.labels != before.labels ||
+		   after.classes != before.classes || after.expanded != before.expanded) {
+			std::cout << "INSTALL_VIEW_COMPARE items=" << (after.items == before.items)
+					  << " labels=" << (after.labels == before.labels)
+					  << " classes=" << (after.classes == before.classes)
+					  << " expanded=" << (after.expanded == before.expanded)
+					  << " counts=" << before.items.size() << ',' << after.items.size() << '\n' ;
+		}
+
+		DRIVERCRATE_EXPECT( context, after.items == before.items && after.labels == before.labels &&
+										after.classes == before.classes &&
+										after.expanded == before.expanded) ;
+		DRIVERCRATE_EXPECT( context, after.caret == before.caret && after.first == before.first &&
+										after.horizontal == before.horizontal &&
+										after.vertical == before.vertical) ;
+	}
+	/** @brief 準備で追加された候補が元同deviceのitemへ正確に結合したことを確認します。
+	 * @param[in] window 準備終端を受理した所有Windowです。
+	 * @param[in] originalCount 準備前の元候補数です。
+	 * @param[in,out] context 元assertion集計先です。
+	 */
+	static void verifyPreparedRowBindings( const MainWindow &window, const std::size_t originalCount,
+										  test::TestContext &context)
+	{
+		DRIVERCRATE_EXPECT( context, window.candidates_.size() > originalCount) ;
+		// 発行された全候補を同deviceへ照合し、未結合を分母から除きません。
+		for( auto index = originalCount; index < window.candidates_.size(); ++index) {
+			const auto rowIndex =
+				// 対応しなければ失敗する元位置です。
+				window.candidateRowIndexes_.at( index) ;
+			DRIVERCRATE_EXPECT( context, rowIndex < window.treeRows_.size()) ;
+			// 不正位置を参照して試験を強制終了させません。
+			if( rowIndex < window.treeRows_.size()) {
+				const auto &row = window.treeRows_[rowIndex] ;	// 名前ではなく同deviceを比較します。
+				DRIVERCRATE_EXPECT( context,
+								   window.candidateItems_.at( index) != nullptr &&
+									   window.candidateItems_[index] ==
+										   window.candidateItems_[row.deviceIndex] &&
+									   window.candidates_[index].deviceIdentity ==
+										   window.candidates_[row.deviceIndex].deviceIdentity &&
+									   std::ranges::find( row.candidateIndexes, index) !=
+										   row.candidateIndexes.end()) ;
+			}
+		}
+	}
+	/** @brief 多数行・混在開閉・非零scrollのまま一対象だけ完了させます。
+	 * @param[in,out] window 実Providerを呼ばない所有Windowです。
+	 * @param[in,out] context 元assertionの集計先です。
+	 * @param[in] filter 通常filterをONにする場合trueです。
+	 * @param[in] deliver 元結果dialogを既driverで閉じる同期関数です。
+	 */
+	static void verifyScrolledInstallView( MainWindow &window, test::TestContext &context,
+										  const bool filter,
+										  void ( *deliver)( MainWindow &, const WorkerEvent &,
+														  test::TestContext &))
+	{
+		const auto scan = window.controller_.beginScan() ;	// 新scanの正規入口です。
+		DRIVERCRATE_EXPECT( context, scan.accepted) ;
+		WorkerEvent event{
+			.kind		 = WorkerEventKind::SCAN_COMPLETED,
+			.operationId = scan.operationId,
+			.scanResult	 = {.succeeded	   = true,
+							.scanSessionId = filter ? 8801U : 8802U,
+							.outcome	   = OutcomeCode::SUCCESS}} ;	// 人工の同名別deviceだけです。
+		// 縦横scrollを実際に持つ有限48deviceを三分類へ分散します。
+		for( unsigned index{}; index < 48U; ++index) {
+			UpdateCandidate current ;	// 元classと表示名は事後変更させません。
+			current.identity	   = L"view-current-" + std::to_wstring( index) ;
+			current.deviceIdentity = L"view-device-" + std::to_wstring( index) ;
+			current.model =
+				L"Fixture adapter with a deliberately long display name to retain the horizontal scroll position " ;
+			current.deviceClassGuid = index % 3U == 0U	 ? L"{4d36e972-e325-11ce-bfc1-08002be10318}"
+									  : index % 3U == 1U ? L"{4d36e96c-e325-11ce-bfc1-08002be10318}"
+														 : L"" ;
+			current.version			= std::to_wstring( index + 1U) ;
+			current.current			= true ;
+			current.providerId		= DRIVER_STORE_PROVIDER_ID ;
+			current.discoveryBasis	= CandidateDiscoveryBasis::LOCAL_INVENTORY ;
+			current.audit			= makeWindowsManagedCandidateAudit( true) ;
+			event.scanResult.candidates.push_back( current) ;
+			// 元filterで隠れる現在行を一つ残し、終端で勝手に追加しないことを確認します。
+			if( index != 47U) {
+				auto candidate		  = current ;	// 同deviceの独立した元選択候補です。
+				candidate.identity	  = L"view-candidate-" + std::to_wstring( index) ;
+				candidate.current	  = false ;
+				candidate.version	  = L"2.0.0.0" ;
+				candidate.installable = true ;
+				candidate.recommended = true ;
+				candidate.action	  = DriverAction::UPDATE ;
+				candidate.audit		  = makeWindowsManagedCandidateAudit( false) ;
+				event.scanResult.candidates.push_back( candidate) ;
+			}
+		}
+
+		window.showRecommendedOnly_ = filter ;
+		SendMessageW( window.recommendedOnlyCheckbox_, BM_SETCHECK,
+					 filter ? BST_CHECKED : BST_UNCHECKED, 0) ;
+		window.sortedColumn_  = 1U ;
+		window.sortAscending_ = false ;
+		window.processWorkerEvent( event) ;
+		DRIVERCRATE_EXPECT( context,
+						   window.selectDeviceCandidate( 1U) && window.selectDeviceCandidate( 3U)) ;
+		// 名前の同じ別deviceを別itemで保持し、一対象の完了を他へ伝播しません。
+		DRIVERCRATE_EXPECT( context, window.candidateItems_[1] != window.candidateItems_[3]) ;
+		// MEDIAだけを閉じ、他分類には縦scrollできるだけの行を表示します。
+		for( auto category = TreeView_GetRoot( window.updateTree_); category;
+			category	  = TreeView_GetNextSibling( window.updateTree_, category)) {
+			TreeView_Expand(
+				window.updateTree_, category,
+				category == TreeView_GetParent( window.updateTree_, window.candidateItems_[3])
+					? TVE_COLLAPSE
+					: TVE_EXPAND) ;
+		}
+
+		TreeView_SelectItem( window.updateTree_, window.candidateItems_[1]) ;
+		TreeView_SelectSetFirstVisible( window.updateTree_, window.candidateItems_[36]) ;
+		SendMessageW( window.updateTree_, WM_HSCROLL, MAKEWPARAM( SB_THUMBPOSITION, 80), 0) ;
+		const auto before = installTreeView( window) ;	// 成功前の元native表示です。
+		DRIVERCRATE_EXPECT( context, before.vertical > 0 && before.horizontal > 0) ;
+		const std::array identity{window.candidates_[1].identity} ;	// 元一対象だけを実行へ渡します。
+		const auto		 install = window.controller_.beginInstall(
+			  event.scanResult.scanSessionId, identity,
+			  InstallConfirmation::CONFIRMED) ;	// 実workerへ送信しません。
+		DRIVERCRATE_EXPECT( context, install.accepted) ;
+		InstallResult result ;	// 個別成功からだけcheckを解除します。
+		result.succeeded			  = true ;
+		result.downloadOutcome		  = OutcomeCode::SUCCESS ;
+		result.installOutcome		  = OutcomeCode::SUCCESS ;
+		result.restorePointCreation	  = {OutcomeCode::SUCCESS, 0, 7} ;
+		result.restorePointCompletion = {OutcomeCode::SUCCESS, 0, 7} ;
+		result.updates.push_back( {.identity		   = identity.front(),
+								  .downloadOutcome = OutcomeCode::SUCCESS,
+								  .installOutcome  = OutcomeCode::SUCCESS,
+								  .rebootRequired  = true}) ;
+		PostInstallDeviceObservation observed ;	// 元deviceだけの実観測相当の所有DTOです。
+		observed.observation.scanSessionId	  = event.scanResult.scanSessionId ;
+		observed.observation.deviceIdentity	  = window.candidates_[1].deviceIdentity ;
+		observed.observation.node.read.state  = DevicePropertyReadState::VALUE ;
+		observed.observation.node.statusFlags = 8U ;
+		observed.observation.driverKey.state  = DevicePropertyReadState::VALUE ;
+		observed.observation.driverPresence	  = DeviceDriverPresence::REGISTERED ;
+		observed.name						  = L"Changed observed name" ;
+		observed.deviceClassGuid			  = L"{4d36e96c-e325-11ce-bfc1-08002be10318}" ;
+		observed.version					  = L"99.0.0.0" ;
+		result.currentDevices.push_back( observed) ;
+		deliver( window,
+				WorkerEvent{.kind		   = WorkerEventKind::INSTALL_COMPLETED,
+							.operationId   = install.operationId,
+							.installResult = result},
+				context) ;
+		verifyInstallTreeView( window, before, context) ;
+		const auto &row =
+			window.treeRows_[window.candidateRowIndexes_[1]] ;	// 元同itemの現在列です。
+		DRIVERCRATE_EXPECT( context, row.currentVersion == L"99.0.0.0" &&
+										window.showRecommendedOnly_ == filter &&
+										window.controller_.scanSessionId() == 0U &&
+										window.checkedCandidateIndexes().empty() &&
+										!window.selectDeviceCandidate( 3U)) ;
+		DRIVERCRATE_EXPECT( context,
+						   (TreeView_GetItemState( window.updateTree_, window.candidateItems_[1],
+												  TVIS_STATEIMAGEMASK) >>
+							12U) == 3U &&
+							   (TreeView_GetItemState( window.updateTree_, window.candidateItems_[3],
+													  TVIS_STATEIMAGEMASK) >>
+								12U) == 4U) ;
+		const auto nextScan = window.controller_.beginScan() ;	// 失効後は新scanが必要な元guardです。
+		DRIVERCRATE_EXPECT( context, nextScan.accepted) ;
+		event.operationId = nextScan.operationId ;
+		event.scanResult.scanSessionId += 100U ;
+		window.processWorkerEvent( event) ;
+		DRIVERCRATE_EXPECT( context, window.preparationDisplayBindings_.empty() &&
+										window.preparationDisplaySession_ == 0U &&
+										window.controller_.scanSessionId() != 0U) ;
+		const auto hidden = std::ranges::find(
+			window.candidates_, L"view-current-47",
+			&UpdateCandidate::identity) ;	// Append後も末尾位置をidentityの代用にしません。
+		DRIVERCRATE_EXPECT( context, hidden != window.candidates_.end()) ;
+		// 明示filter操作は新scanのSCAN_READYで従来どおり全行を再構成します。
+		SendMessageW( window.recommendedOnlyCheckbox_, BM_SETCHECK,
+					 filter ? BST_UNCHECKED : BST_CHECKED, 0) ;
+		window.handleRecommendedFilterChange() ;
+		// 欠測を表示成功にせず、元opaque deviceだけの表示有無を比較します。
+		if( hidden != window.candidates_.end()) {
+			const auto hiddenIndex = static_cast<std::size_t>(
+				hidden - window.candidates_.begin()) ;	// 同じ候補vector内の位置です。
+			DRIVERCRATE_EXPECT( context,
+							   (window.candidateItems_[hiddenIndex] != nullptr) == filter &&
+								   window.showRecommendedOnly_ != filter &&
+								   window.checkedCandidateIndexes().empty()) ;
+		}
+	}
+	/** @brief 選択した二deviceの事後観測だけを元行へ反映し、元結果と失効を保持します。
 	 * @param[in,out] window 先行する非通信表示試験を終えたWindowです。
-	 * @param[in,out] context Assertion集計先です。
+	 * @param[in] event 同じworkerが発行した元導入終端です。
 	 */
 	static void deliverInstallCompleted( MainWindow &window, const WorkerEvent &event)
 	{
 		window.processWorkerEvent( event) ;
 	}
 
+	/** @brief 元結果の九条件で現在観測・個別結果・旧scan失効と元表示名を確認します。
+	 * @param[in,out] window 非通信factoryを持つ所有Windowです。
+	 * @param[in,out] context 原assertion集計先です。
+	 * @param[in] deliver 元結果dialogを閉じる同期関数です。
+	 */
 	static void verifyPostInstallDisplay( MainWindow &window, test::TestContext &context,
 										 void ( *deliver)( MainWindow &, const WorkerEvent &,
 														 test::TestContext &))
@@ -3207,7 +4566,7 @@ struct MainWindowMetadataTestAccess {
 				result.currentDevices.push_back( std::move( observed)) ;
 			}
 
-			// 選択外の現在deviceはfilter中に隠れ、終端後に戻ります。
+			// 選択外の現在deviceは元filterのまま終端後も隠します。
 			UpdateCandidate other ;
 			other.identity		 = L"display-other-current" ;
 			other.deviceIdentity = L"display-other-device" ;
@@ -3240,14 +4599,14 @@ struct MainWindowMetadataTestAccess {
 														 BM_GETCHECK, 0, 0) == BST_CHECKED &&
 											window.controller_.scanSessionId() == session) ;
 			deliver( window, completed, context) ;
-			DRIVERCRATE_EXPECT( context, !window.showRecommendedOnly_ &&
+			DRIVERCRATE_EXPECT( context, window.showRecommendedOnly_ &&
 											SendMessageW( window.recommendedOnlyCheckbox_,
-														 BM_GETCHECK, 0, 0) == BST_UNCHECKED) ;
+														 BM_GETCHECK, 0, 0) == BST_CHECKED) ;
 			DRIVERCRATE_EXPECT( context, std::count_if( window.treeRows_.begin(),
 													  window.treeRows_.end(), []( const auto &row) {
 														  return row.kind ==
 																 MainWindow::TreeRowKind::DEVICE ;
-													  }) == 3) ;
+													  }) == 2) ;
 			// 元二結果だけを検査し、同名別deviceを一行へ潰しません。
 			for( unsigned device = 0U; device < 2U; ++device) {
 				const auto identity =
@@ -3270,9 +4629,7 @@ struct MainWindowMetadataTestAccess {
 												(unavailable || oldState
 													 ? window.loadString( IDS_VALUE_UNKNOWN)
 													 : L"1.9.74.0")) ;
-				DRIVERCRATE_EXPECT( context, row->primaryText == (unavailable || oldState
-																	 ? L"Ethernet Controller"
-																	 : L"Installed fixture NIC")) ;
+				DRIVERCRATE_EXPECT( context, row->primaryText == L"Ethernet Controller") ;
 				const auto &current =
 					window.candidates_[row->deviceIndex] ;	// 実分類だけを確認します。
 				DRIVERCRATE_EXPECT( context, current.current && (current.deviceClassGuid.empty() ==
@@ -4811,7 +6168,27 @@ struct DialogState {
 	bool			   refreshStrict{} ;
 	/// 原probeと前後を区別する固定ASCII観測名です。
 	const char		  *refreshStage{"none"} ;
-	/// Device詳細の標準comboboxで閲覧するentry。負値なら初期表示を維持する。
+	/// 五列/原順/通知/ordinal境界を実tableで確認する場合trueです。
+	bool			   historyTableProbe{} ;
+	/// 表示集約後のordinal・連番・非選択hoverだけを照合する場合trueです。
+	bool			   detailDisplayProbe{} ;
+	/// 同表示で残した別情報のsuffix/tipを期待する場合trueです。
+	bool			   detailDistinctInformation{} ;
+	/// 初期highlightなしで閲覧可能かを元実controlで確認します。
+	bool			   detailExpectNoInitial{} ;
+	/// 自作画像fixtureの初回描画がmessage loopを一巡した場合trueです。
+	bool			   historyCaptureReady{} ;
+	/// 狭幅の実dialogへresizeする場合trueです。
+	bool			   detailNarrow{} ;
+	/// 非負なら元choiceの初期highlightを照合します。
+	int				   detailInitialEntry{-1} ;
+	/// Enterで閲覧終了する場合trueです。候補を適用しません。
+	bool			   detailEnterClose{} ;
+	/// 明示選択buttonへAlt+Sを送る場合trueです。
+	bool			   detailApplyAccessKey{} ;
+	/// 明示選択buttonへSpaceを送る場合trueです。
+	bool			   detailApplySpace{} ;
+	/// Device詳細の標準tableで閲覧するentry。負値なら初期表示を維持する。
 	int				   detailEntry{-1} ;
 	/// この候補を選択buttonを明示操作する場合true。
 	bool			   chooseDetailCandidate{} ;
@@ -4820,6 +6197,87 @@ struct DialogState {
 	/// 非0なら同deviceの全観測・候補entry数を照合する。
 	unsigned		   detailEntryCount{} ;
 } ;
+
+/** @brief 同threadかつ同dialogが所有するtooltipだけを探す。
+ * @param[in] dialog Fixture自身のdialog。
+ * @return 実tooltip、存在しなければnullptr。
+ */
+HWND deviceTipWindow( const HWND dialog)
+{
+	struct Search {
+		/// 同fixtureの借用ownerと検索結果だけを保持します。
+		HWND owner{}, result{} ;
+	} search{dialog, nullptr} ; // 外部windowの本文は読みません。
+	EnumThreadWindows(
+		GetCurrentThreadId(),
+		[]( HWND window, LPARAM parameter) -> BOOL {
+			auto &match =
+				*reinterpret_cast<Search *>( parameter) ;	// この列挙呼出し中だけ借用します。
+			wchar_t name[64]{} ;							// Native classだけを確認します。
+			GetClassNameW( window, name, 64) ;
+			// 実fixtureの所有HWND以外は採用しません。
+			if( GetWindow( window, GW_OWNER) == match.owner &&
+			   std::wstring_view( name) == TOOLTIPS_CLASSW) {
+				match.result = window ;
+				return FALSE ;
+			}
+
+			return TRUE ;
+		},
+		reinterpret_cast<LPARAM>( &search)) ;
+	return search.result ;
+}
+
+/** @brief 可視の実native tooltipから現在の短文を読む。
+ * @param[in] dialog Fixture所有dialog。
+ * @return 実表示文。非表示なら空文字。
+ */
+std::wstring deviceTipText( const HWND dialog)
+{
+	const HWND tip = deviceTipWindow( dialog) ;	// 別windowのtooltipを読みません。
+	// 非表示の古い借用文字列を表示成功に数えません。
+	if( tip == nullptr || !IsWindowVisible( tip)) {
+		return {} ;
+	}
+
+	TTTOOLINFOW tool{sizeof( tool)} ;	// tool識別子も実controlから読みます。
+	// Tool不存在では文字列を補完しません。
+	if( !SendMessageW( tip, TTM_ENUMTOOLSW, 0, reinterpret_cast<LPARAM>( &tool))) {
+		return {} ;
+	}
+
+	wchar_t text[512]{} ;	// 製品の短文上限より大きい有限copyです。
+	tool.lpszText = text ;
+	SendMessageW( tip, TTM_GETTEXTW, 512U, reinterpret_cast<LPARAM>( &tool)) ;
+	return text ;
+}
+
+/** @brief 選択を変更せず実cellの文字へmouse hoverをreplayする。
+ * @param[in] dialog Fixture所有dialog。
+ * @param[in] row 実row。
+ * @param[in] column 実column。
+ * @return 実tooltipの表示文。
+ */
+std::wstring hoverDeviceCell( const HWND dialog, const int row, const int column)
+{
+	const HWND table = GetDlgItem( dialog, IDC_DEVICE_DETAIL_CANDIDATES) ;	// 実tableです。
+	RECT	   cell{}, heading{} ;											// 独立した実row/header座標です。
+	const HWND header = ListView_GetHeader( table) ;						// 実列幅を使います。
+	// 読めないcellを先頭の成功へ補完しません。
+	if( !ListView_GetSubItemRect( table, row, column, LVIR_BOUNDS, &cell) ||
+	   !Header_GetItemRect( header, column, &heading)) {
+		return {} ;
+	}
+
+	MapWindowPoints( header, table, reinterpret_cast<POINT *>( &heading), 2U) ;
+	const int x = heading.left +
+				  // 文字始端の内側です。
+				  MulDiv( 9, static_cast<int>( GetDpiForWindow( table)), 96) ;
+	const int y = (cell.top + cell.bottom) / 2 ;	// 行内の文字高さです。
+	SendMessageW( table, WM_MOUSEMOVE, 0, MAKELPARAM( x, y)) ;
+	SendMessageW( table, WM_MOUSEHOVER, 0, MAKELPARAM( x, y)) ;
+	return deviceTipText( dialog) ;
+}
 
 /** @brief 非機密な通信説明だけをUTF-16 code unitのASCII列へ変換します。
  * @param[in] value 本有限fixtureの通信本文です。端末ID/URLを渡しません。
@@ -5316,9 +6774,12 @@ void CALLBACK dialogTimer( HWND window, UINT message, UINT_PTR timer, DWORD tick
 			return ;
 		}
 
+		const HWND candidates =
+			// Device表だけを別契約で扱います。
+			GetDlgItem( popup, IDC_DEVICE_DETAIL_CANDIDATES) ;
 		const HWND details = GetDlgItem( popup, IDC_METADATA_DETAIL_TEXT) ;	// 読取り専用詳細control。
 		// 詳細はcopyとcloseだけを行い、取得条件へ戻さない。
-		if( details != nullptr && state.mode == DialogMode::DETAILS) {
+		if( (details != nullptr || candidates != nullptr) && state.mode == DialogMode::DETAILS) {
 			// 原規約の任意閲覧には同意buttonを置かず、偽装commandでも終了・承認しません。
 			if( state.inlineTermsView) {
 				DRIVERCRATE_EXPECT( *state.context, GetDlgItem( popup, IDYES) == nullptr &&
@@ -5328,16 +6789,26 @@ void CALLBACK dialogTimer( HWND window, UINT message, UINT_PTR timer, DWORD tick
 				DRIVERCRATE_EXPECT( *state.context, IsWindow( popup) != FALSE) ;
 			}
 
-			const HWND candidates =
-				// 同deviceだけの候補選択欄。
-				GetDlgItem( popup, IDC_DEVICE_DETAIL_CANDIDATES) ;
+			// 狭幅fixtureだけを元fontのDLUへresizeし、実monitor移動とは数えません。
+			if( candidates != nullptr && state.detailNarrow) {
+				RECT dimensions{0, 0, 500, 220} ;	// 製品の有限最小client DLUです。
+				RECT outer{} ;						// 同windowの非client差です。
+				RECT inner{} ;						// 元clientです。
+				DRIVERCRATE_EXPECT( *state.context, MapDialogRect( popup, &dimensions) &&
+													   GetWindowRect( popup, &outer) &&
+													   GetClientRect( popup, &inner)) ;
+				SetWindowPos( popup, nullptr, 0, 0,
+							 dimensions.right + outer.right - outer.left - inner.right,
+							 dimensions.bottom + outer.bottom - outer.top - inner.bottom,
+							 SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE) ;
+			}
+
 			// Device詳細の主操作が可視client領域に収まることを実controlで確認する。
 			if( candidates != nullptr) {
 				RECT client{} ;	// Modalの実client寸法。
 				DRIVERCRATE_EXPECT( *state.context, GetClientRect( popup, &client) != FALSE) ;
 				// 選択欄・本文・選択button・閉じるbuttonを一回ずつ確認する。
-				for( const int id :
-					{IDC_DEVICE_DETAIL_CANDIDATES, IDC_METADATA_DETAIL_TEXT, IDYES, IDOK}) {
+				for( const int id : {IDC_DEVICE_DETAIL_CANDIDATES, IDYES, IDOK}) {
 					const HWND control = GetDlgItem( popup, id) ;	// 同dialogが所有する標準control。
 					RECT	   bounds{} ;							// Screen座標から同dialogのclient座標へ変換する領域。
 					const bool read = control != nullptr &&
@@ -5353,47 +6824,365 @@ void CALLBACK dialogTimer( HWND window, UINT message, UINT_PTR timer, DWORD tick
 				}
 			}
 
-			// Device詳細だけで全entry数と表示変更を確認し、情報検索詳細とは区別する。
+			// 初期行なしでも表を閉じず、明示buttonは無効にします。
+			if( candidates != nullptr && state.detailExpectNoInitial) {
+				DRIVERCRATE_EXPECT( *state.context, ListView_GetSelectedCount( candidates) == 0U &&
+													   !IsWindowEnabled( GetDlgItem( popup, IDYES))) ;
+				SendMessageW( popup, WM_COMMAND, IDYES, 0) ;
+				DRIVERCRATE_EXPECT( *state.context, IsWindow( popup)) ;
+			}
+
+			// Device詳細だけを実ListViewで操作し、旧comboの成功を継承しません。
 			if( candidates != nullptr && state.detailEntry >= 0) {
-				const auto count =
-					// 実controlの候補数。
-					SendMessageW( candidates, CB_GETCOUNT, 0, 0) ;
+				wchar_t className[64]{} ;	// 当該controlの実classです。
+				GetClassNameW( candidates, className, 64) ;
 				DRIVERCRATE_EXPECT( *state.context,
-								   count > state.detailEntry && (state.detailEntryCount == 0U ||
-																 count == state.detailEntryCount)) ;
-				SendMessageW( candidates, CB_SETCURSEL, static_cast<WPARAM>( state.detailEntry), 0) ;
-				SendMessageW( popup, WM_COMMAND,
-							 MAKEWPARAM( IDC_DEVICE_DETAIL_CANDIDATES, CBN_SELCHANGE),
-							 reinterpret_cast<LPARAM>(
-								 candidates)) ;	// 同期通知中だけ借用する標準control handle。
+								   std::wstring_view{className} == L"SysListView32") ;
+				DRIVERCRATE_EXPECT(
+					*state.context,
+					(GetWindowLongPtrW( candidates, GWL_STYLE) & LVS_TYPEMASK) == LVS_REPORT &&
+						(GetWindowLongPtrW( candidates, GWL_STYLE) & LVS_SINGLESEL) != 0) ;
+				const int count = ListView_GetItemCount( candidates) ;	// 実項目数です。
+				DRIVERCRATE_EXPECT( *state.context,
+								   count > state.detailEntry &&
+									   (state.detailEntryCount == 0U ||
+										static_cast<unsigned>( count) == state.detailEntryCount)) ;
+				// 元choiceは初期highlightだけで、適用commandを生成しません。
+				if( state.detailInitialEntry >= 0) {
+					DRIVERCRATE_EXPECT( *state.context,
+									   ListView_GetNextItem( candidates, -1, LVNI_SELECTED) ==
+										   state.detailInitialEntry) ;
+				}
+
+				ListView_SetItemState( candidates, -1, 0, LVIS_SELECTED | LVIS_FOCUSED) ;
+				ListView_SetItemState( candidates, state.detailEntry, LVIS_SELECTED | LVIS_FOCUSED,
+									  LVIS_SELECTED | LVIS_FOCUSED) ;
+				ListView_EnsureVisible( candidates, state.detailEntry, FALSE) ;
+				DRIVERCRATE_EXPECT( *state.context,
+								   GetDlgItem( popup, IDC_METADATA_DETAIL_TEXT) == nullptr &&
+									   GetDlgItem( popup, IDC_DEVICE_DETAIL_NOTICE) == nullptr &&
+									   GetDlgItem( popup, IDC_DEVICE_DETAIL_LABEL) == nullptr) ;
+				DRIVERCRATE_EXPECT( *state.context, ListView_GetToolTips( candidates) == nullptr &&
+													   deviceTipWindow( popup) != nullptr) ;
+				const auto selectedTip =
+					// 実選択の短い状態文です。
+					hoverDeviceCell( popup, state.detailEntry, 4) ;
+				DRIVERCRATE_EXPECT( *state.context,
+								   !selectedTip.empty() && selectedTip.size() <= 320U) ;
+				// 新しい表示groupも実row/ordinalと元一件選択の境界へ通します。
+				if( state.detailDisplayProbe) {
+					// 表示行のordinalと候補連番を独立に読みます。
+					for( int position = 0; position < count; ++position) {
+						LVITEMW identity{} ;	// 実rowの不透明な表示ordinalです。
+						identity.mask  = LVIF_PARAM ;
+						identity.iItem = position ;
+						DRIVERCRATE_EXPECT( *state.context,
+										   ListView_GetItem( candidates, &identity) &&
+											   identity.lParam == position + 1) ;
+					}
+
+					wchar_t name[256]{} ;	// 元候補の番号と短い識別だけを読みます。
+					ListView_GetItemText( candidates, 1, 0, name, 256) ;
+					DRIVERCRATE_EXPECT( *state.context,
+									   std::wstring_view( name).starts_with( L"候補 1:")) ;
+					const auto nameTip =
+						// 選択外でも同rowの説明です。
+						hoverDeviceCell( popup, 1, 0) ;
+					DRIVERCRATE_EXPECT( *state.context,
+									   (std::wstring_view( name).find( L"別の配布情報 1") !=
+										std::wstring::npos) == state.detailDistinctInformation &&
+										   (nameTip.find( L"同一内容と確認できない") !=
+											std::wstring::npos) == state.detailDistinctInformation) ;
+					const auto currentTip = hoverDeviceCell( popup, 0, 1) ;	// 非選択の現在行です。
+					DRIVERCRATE_EXPECT( *state.context,
+									   currentTip.find( L"現在のドライバー") != std::wstring::npos &&
+										   ListView_GetNextItem( candidates, -1, LVNI_SELECTED) ==
+											   state.detailEntry) ;
+				}
+
+				// 五列と元entry ordinalを読み、文字列から候補identityを作りません。
+				if( state.historyTableProbe) {
+					const HWND header = ListView_GetHeader( candidates) ;	// 当該標準headerです。
+					DRIVERCRATE_EXPECT( *state.context, Header_GetItemCount( header) == 5) ;
+					const std::array<std::wstring_view, 5> headings{
+						L"候補", L"バージョン", L"日付", L"取得元", L"区分"} ;	// 独立固定期待です。
+					// 全見出しを実controlから読みます。
+					for( int column = 0; column < 5; ++column) {
+						wchar_t text[64]{} ;	// 有限の見出しです。
+						HDITEMW item{} ;		// APIが同期書込みします。
+						item.mask		= HDI_TEXT ;
+						item.pszText	= text ;
+						item.cchTextMax = 64 ;
+						DRIVERCRATE_EXPECT( *state.context,
+										   Header_GetItem( header, column, &item) &&
+											   std::wstring_view{text} ==
+												   headings[static_cast<std::size_t>( column)]) ;
+					}
+
+					// 現在/新版/旧版/reportを欠損欄も含めて全列確認します。
+					for( int row = 0; row < count; ++row) {
+						LVITEMW item{} ;	// ordinalの実保持値です。
+						item.mask  = LVIF_PARAM ;
+						item.iItem = row ;
+						DRIVERCRATE_EXPECT( *state.context, ListView_GetItem( candidates, &item) &&
+															   item.lParam == row + 1) ;
+						// 全entryの全欄に表示値または未知記号があることを確認します。
+						for( int column = 0; column < 5; ++column) {
+							wchar_t text[512]{} ;	// 表の通常幅と独立した有限copyです。
+							LVITEMW cell{} ;		// 実文字列copyの同期書込み領域です。
+							cell.iSubItem	= column ;
+							cell.pszText	= text ;
+							cell.cchTextMax = 512 ;
+							DRIVERCRATE_EXPECT( *state.context,
+											   SendMessageW( candidates, LVM_GETITEMTEXTW,
+															static_cast<WPARAM>( row),
+															reinterpret_cast<LPARAM>( &cell)) > 0) ;
+							// 元人工参照の版を列独自の省略や別候補から補完しません。
+							if( column == 1 && row < 3) {
+								constexpr std::array<std::wstring_view, 3> versions{
+									L"2.0.0.0", L"3.0.0.0", L"1.0.0.0"} ;	// 原fixture値です。
+								DRIVERCRATE_EXPECT( *state.context,
+												   std::wstring_view{text} ==
+													   versions[static_cast<std::size_t>( row)]) ;
+							}
+						}
+					}
+
+					const int selectedRow = ListView_GetNextItem(
+						candidates, -1, LVNI_SELECTED) ;	// Hover前の実選択です。
+					// 非選択の新しい参照を全columnでhoverし、選択した古い参照と混同しません。
+					for( int column = 0; column < 5; ++column) {
+						const auto tip = hoverDeviceCell( popup, 1, column) ;	// 別rowの実文字です。
+						DRIVERCRATE_EXPECT( *state.context,
+										   !tip.empty() && tip.size() <= 320U &&
+											   tip.find( L"現在より新しい") != std::wstring::npos &&
+											   tip.find( L"現在より古い") == std::wstring::npos) ;
+						DRIVERCRATE_EXPECT( *state.context,
+										   ListView_GetNextItem( candidates, -1, LVNI_SELECTED) ==
+											   selectedRow) ;
+					}
+
+					DRIVERCRATE_EXPECT(
+						*state.context,
+						hoverDeviceCell( popup, 0, 4).find( L"導入候補ではありません") !=
+							std::wstring::npos) ;
+					DRIVERCRATE_EXPECT( *state.context,
+									   hoverDeviceCell( popup, count - 1, 1).empty()) ;
+					// 別cell/余白/header/退場/scroll/resizeでは以前のpopupを残しません。
+					for( const UINT inputMessage :
+						{UINT{WM_MOUSELEAVE}, UINT{WM_MOUSEWHEEL}, UINT{WM_HSCROLL}, UINT{WM_SIZE},
+						 UINT{WM_KEYDOWN}}) {
+						DRIVERCRATE_EXPECT( *state.context, !hoverDeviceCell( popup, 1, 1).empty()) ;
+						SendMessageW( candidates, inputMessage, 0, 0) ;
+						DRIVERCRATE_EXPECT( *state.context, deviceTipText( popup).empty()) ;
+					}
+
+					TTTOOLINFOW timeoutTool{	// 可視中の局所timer IDも実toolから読みます。
+											sizeof( timeoutTool)} ;
+					DRIVERCRATE_EXPECT( *state.context,
+									   !hoverDeviceCell( popup, 1, 1).empty() &&
+										   SendMessageW( deviceTipWindow( popup), TTM_ENUMTOOLSW, 0,
+														reinterpret_cast<LPARAM>( &timeoutTool))) ;
+					SendMessageW( popup, WM_TIMER, timeoutTool.uId, 0) ;
+					DRIVERCRATE_EXPECT( *state.context, deviceTipText( popup).empty()) ;
+					RECT versionCell{}, heading{} ;	// 余白とheaderの独立実座標です。
+					ListView_GetSubItemRect( candidates, 1, 1, LVIR_BOUNDS, &versionCell) ;
+					Header_GetItemRect( header, 1, &heading) ;
+					MapWindowPoints( header, candidates, reinterpret_cast<POINT *>( &heading), 2U) ;
+					// 実文字の右余白・header・負座標をそれぞれ拒否します。
+					for( const POINT point :
+						{POINT{heading.right - 2, (versionCell.top + versionCell.bottom) / 2},
+						 POINT{heading.left + 9, 1}, POINT{-1, -1}}) {
+						SendMessageW( candidates, WM_MOUSEMOVE, 0, MAKELPARAM( point.x, point.y)) ;
+						SendMessageW( candidates, WM_MOUSEHOVER, 0, MAKELPARAM( point.x, point.y)) ;
+						DRIVERCRATE_EXPECT( *state.context, deviceTipText( popup).empty()) ;
+					}
+
+					DRIVERCRATE_EXPECT( *state.context,
+									   hoverDeviceCell( popup, state.detailEntry, 4) == selectedTip) ;
+					std::cout << "HISTORY_SELECTION row="
+							  << ListView_GetNextItem( candidates, -1, LVNI_SELECTED)
+							  << " count=" << ListView_GetSelectedCount( candidates)
+							  << " enabled=" << IsWindowEnabled( GetDlgItem( popup, IDYES))
+							  << " chars=" << deviceTipText( popup).size() << "\n" ;
+					const auto originalBody = deviceTipText( popup) ;	// 実選択の元本文です。
+					NMHDR	   notice{candidates, IDC_DEVICE_DETAIL_CANDIDATES,
+								  LVN_ITEMCHANGED} ;	// 同期借用通知です。
+					// 通知の偽rowやdoubleclick/Enterだけでは適用しません。
+					for( const UINT code :
+						{static_cast<UINT>( NM_DBLCLK), static_cast<UINT>( NM_RETURN)}) {
+						NMLISTVIEW spoof{} ;	// iItemは元範囲外でも実control選択を優先します。
+						spoof.hdr	= {candidates, IDC_DEVICE_DETAIL_CANDIDATES, code} ;
+						spoof.iItem = 99999 ;
+						SendMessageW( popup, WM_NOTIFY, IDC_DEVICE_DETAIL_CANDIDATES,
+									 reinterpret_cast<LPARAM>( &spoof)) ;
+						DRIVERCRATE_EXPECT( *state.context,
+										   IsWindow( popup) &&
+											   hoverDeviceCell( popup, state.detailEntry, 4) ==
+												   originalBody) ;
+					}
+
+					// Null/別HWND/id/wParamでは以前の表示・許可を残しません。
+					for( unsigned variant = 0; variant < 4U; ++variant) {
+						NMHDR foreign{variant == 1U ? GetDlgItem( popup, IDOK) : candidates,
+									  static_cast<UINT_PTR>( variant == 2U
+																? IDC_DEVICE_DETAIL_LABEL
+																: IDC_DEVICE_DETAIL_CANDIDATES),
+									  LVN_ITEMCHANGED} ;	// 所有fixture内だけの負例です。
+						SendMessageW( popup, WM_NOTIFY,
+									 variant == 3U ? IDC_DEVICE_DETAIL_LABEL
+												   : IDC_DEVICE_DETAIL_CANDIDATES,
+									 variant == 0U ? 0 : reinterpret_cast<LPARAM>( &foreign)) ;
+						DRIVERCRATE_EXPECT( *state.context,
+										   !IsWindowEnabled( GetDlgItem( popup, IDYES)) &&
+											   deviceTipText( popup).empty()) ;
+						SendMessageW( popup, WM_COMMAND, IDYES, 0) ;
+						DRIVERCRATE_EXPECT( *state.context, IsWindow( popup)) ;
+						SendMessageW( popup, WM_NOTIFY, IDC_DEVICE_DETAIL_CANDIDATES,
+									 reinterpret_cast<LPARAM>( &notice)) ;
+					}
+
+					ListView_SetItemState( candidates, -1, 0, LVIS_SELECTED) ;
+					SendMessageW( popup, WM_COMMAND, IDYES, 0) ;
+					DRIVERCRATE_EXPECT( *state.context,
+									   IsWindow( popup) &&
+										   ListView_GetSelectedCount( candidates) == 0U &&
+										   !IsWindowEnabled( GetDlgItem( popup, IDYES)) &&
+										   deviceTipText( popup).empty()) ;
+					ListView_SetItemState( candidates, state.detailEntry,
+										  LVIS_SELECTED | LVIS_FOCUSED,
+										  LVIS_SELECTED | LVIS_FOCUSED) ;
+					// 範囲外/0/負値/別rowのordinalを実controlに入れ、最終button再読を確認します。
+					for( const LPARAM invalid :
+						{LPARAM{0}, LPARAM{-1}, static_cast<LPARAM>( count + 1),
+						 static_cast<LPARAM>( state.detailEntry == 0 ? 2 : 1)}) {
+						LVITEMW item{} ;	// Item textは変えません。
+						item.mask	= LVIF_PARAM ;
+						item.iItem	= state.detailEntry ;
+						item.lParam = invalid ;
+						ListView_SetItem( candidates, &item) ;
+						DRIVERCRATE_EXPECT( *state.context,
+										   hoverDeviceCell( popup, state.detailEntry, 4).empty()) ;
+						SendMessageW( popup, WM_COMMAND, IDYES, 0) ;
+						DRIVERCRATE_EXPECT( *state.context,
+										   IsWindow( popup) &&
+											   !IsWindowEnabled( GetDlgItem( popup, IDYES))) ;
+						item.lParam = state.detailEntry + 1 ;
+						ListView_SetItem( candidates, &item) ;
+						SendMessageW( popup, WM_NOTIFY, IDC_DEVICE_DETAIL_CANDIDATES,
+									 reinterpret_cast<LPARAM>( &notice)) ;
+					}
+
+					// 標準keyboardの行移動は下部閲覧だけを変更します。
+					if( state.detailEntry > 0) {
+						SetFocus( candidates) ;
+						SendMessageW( candidates, WM_KEYDOWN, VK_UP, 0) ;
+						DRIVERCRATE_EXPECT( *state.context,
+										   ListView_GetNextItem( candidates, -1, LVNI_SELECTED) ==
+											   state.detailEntry - 1) ;
+						SendMessageW( candidates, WM_KEYDOWN, VK_DOWN, 0) ;
+						DRIVERCRATE_EXPECT( *state.context,
+										   ListView_GetNextItem( candidates, -1, LVNI_SELECTED) ==
+												   state.detailEntry &&
+											   hoverDeviceCell( popup, state.detailEntry, 4) ==
+												   originalBody) ;
+					}
+
+					DRIVERCRATE_EXPECT(
+						*state.context,
+						GetNextDlgTabItem( popup, candidates, FALSE) ==
+							GetDlgItem( popup, state.detailSelectable ? IDYES : IDOK)) ;
+				}
+
 				DRIVERCRATE_EXPECT( *state.context, (IsWindowEnabled( GetDlgItem( popup, IDYES)) !=
 													FALSE) == state.detailSelectable) ;
 			}
 
-			state.details = windowText( details) ;
-			DRIVERCRATE_EXPECT( *state.context,
-							   (GetWindowLongPtrW( details, GWL_STYLE) & ES_READONLY) != 0) ;
-			DRIVERCRATE_EXPECT( *state.context, IsWindowVisible( details) != FALSE &&
-												   IsWindowEnabled( details) != FALSE) ;
-			// Read-only editの初期focusによる全選択を外し、本文の通常描画を確認する。
-			SendMessageW( details, EM_SETSEL, 0, 0) ;
-			// 元fresh/cacheだけは実生成/copy/可視座標を同じdialogで記録します。
-			if( state.refreshWindow != nullptr) {
-				// 新限定入口だけは元六fieldの具体値期待を維持して独立描画を観測します。
-				if( independentRenderEvidence) {
-					state.refreshStrict = true ;
+			// 初回paintがmessage loopを一巡するまで画像/適用を保留し、同じ所有snapshotを維持します。
+			if( candidates != nullptr && state.historyTableProbe && state.captureDetails &&
+			   !state.historyCaptureReady) {
+				state.historyCaptureReady = true ;
+				RedrawWindow( popup, nullptr, nullptr,
+							 RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME) ;
+				PostMessageW( popup, WM_NULL, 0, 0) ;
+				return ;
+			}
+
+			state.details =
+				candidates != nullptr
+					? hoverDeviceCell( popup, ListView_GetNextItem( candidates, -1, LVNI_SELECTED), 4)
+					: windowText( details) ;
+			// 他の詳細dialogの既readonly EDITは変更しません。
+			if( details != nullptr) {
+				DRIVERCRATE_EXPECT( *state.context,
+								   (GetWindowLongPtrW( details, GWL_STYLE) & ES_READONLY) != 0) ;
+				DRIVERCRATE_EXPECT( *state.context, IsWindowVisible( details) != FALSE &&
+													   IsWindowEnabled( details) != FALSE) ;
+				// Read-only editの初期focusによる全選択を外し、本文の通常描画を確認する。
+				SendMessageW( details, EM_SETSEL, 0, 0) ;
+				// 元fresh/cacheだけは実生成/copy/可視座標を同じdialogで記録します。
+				if( state.refreshWindow != nullptr) {
+					// 新限定入口だけは元六fieldの具体値期待を維持して独立描画を観測します。
+					if( independentRenderEvidence) {
+						state.refreshStrict = true ;
+					}
+
+					inspectRefreshDetail( details, state) ;
+					// 元probeの画像なし条件を通常入口では保持し、新入口だけ対撮影します。
+					if( independentRenderEvidence) {
+						captureIndependentRefreshEvidence( popup, state.refreshStage,
+														  *state.context) ;
+					}
+				}
+			}
+
+			// 自作dialogだけのgeometryをPNGと同じscopeへ記録します。
+			if( candidates != nullptr && state.captureDetails && state.historyTableProbe) {
+				DWORD pid{} ;	// 当該HWNDの実所有processです。
+				GetWindowThreadProcessId( popup, &pid) ;
+				DRIVERCRATE_EXPECT( *state.context, pid == GetCurrentProcessId()) ;
+				std::ofstream record(
+					privateCaptureRoot /
+					(state.captureName + L".geometry.txt")) ;	// 別保管の有限証跡です。
+				record << "hwnd=" << reinterpret_cast<std::uintptr_t>( popup) << " pid=" << pid
+					   << " dpi=" << GetDpiForWindow( popup) << " monitorDpiMoveTested=0\n" ;
+				RECT previous{} ;	// Tableと本文と注意の非重複を照合します。
+				// 本dialogの矩形だけを保持し、desktop画面を取得しません。
+				for( const int id : {0, IDC_DEVICE_DETAIL_CANDIDATES, IDYES, IDOK}) {
+					RECT bounds{} ;	// 実windowのscreen矩形です。
+					DRIVERCRATE_EXPECT(
+						*state.context,
+						GetWindowRect( id == 0 ? popup : GetDlgItem( popup, id), &bounds)) ;
+					record << "id=" << id << " rect=" << bounds.left << "," << bounds.top << ","
+						   << bounds.right << "," << bounds.bottom << "\n" ;
+					// 縦に並ぶ三領域の交差を許しません。
+					if( id == IDYES) {
+						DRIVERCRATE_EXPECT( *state.context, bounds.top >= previous.bottom) ;
+					}
+
+					previous = bounds ;
 				}
 
-				inspectRefreshDetail( details, state) ;
-				// 元probeの画像なし条件を通常入口では保持し、新入口だけ対撮影します。
-				if( independentRenderEvidence) {
-					captureIndependentRefreshEvidence( popup, state.refreshStage, *state.context) ;
-				}
+				record.close() ;
+				DRIVERCRATE_EXPECT( *state.context, record.good()) ;
+				std::wcout << L"HISTORY_CAPTURE "
+						   << (privateCaptureRoot / state.captureName).wstring() << L"\n" ;
 			}
 
 			// 事前に固定した画像数だけ保存し、別構成の反復画像は増やしません。
 			if( state.captureDetails) {
 				DRIVERCRATE_EXPECT( *state.context, captureWindow( popup, state.captureName)) ;
+				// 追加画像は同dialog所有の実balloon一枚だけに限定します。
+				if( candidates != nullptr && historyImagesOnly && !state.detailNarrow) {
+					const auto currentText =
+						hoverDeviceCell( popup, ListView_GetNextItem( candidates, -1, LVNI_SELECTED),
+										4) ;					// Dialog再描画後の同じ文字を再hoverします。
+					const HWND tip = deviceTipWindow( popup) ;	// ユーザーdesktopをcaptureしません。
+					DRIVERCRATE_EXPECT( *state.context,
+									   !currentText.empty() && tip != nullptr &&
+										   IsWindowVisible( tip) &&
+										   captureWindow( tip, state.captureName + L"-tooltip")) ;
+				}
 			}
 
 			state.handled = true ;
@@ -5409,6 +7198,38 @@ void CALLBACK dialogTimer( HWND window, UINT message, UINT_PTR timer, DWORD tick
 					  << " phase=begin depth=" << captureTelemetry.depth
 					  << " alive=" << (IsWindow( popup) != FALSE)
 					  << " bodyHash=" << captureBodyHash( popup) << '\n' ;
+			// Enterは閲覧だけ、Alt+S/Spaceは明示buttonという標準dialogの区別です。
+			if( candidates != nullptr &&
+			   (state.detailEnterClose || state.detailApplyAccessKey || state.detailApplySpace)) {
+				const HWND target = state.detailApplySpace ? GetDlgItem( popup, IDYES)
+														   : candidates ;	// 明示focusです。
+				SetFocus( target) ;
+				std::cout << "HISTORY_KEY_INPUT space=" << state.detailApplySpace
+						  << " alt=" << state.detailApplyAccessKey
+						  << " enter=" << state.detailEnterClose
+						  << " focus=" << (GetFocus() == target)
+						  << " button=" << IsWindowEnabled( GetDlgItem( popup, IDYES)) << "\n" ;
+				MSG key{} ;	// 自作dialogだけへのkeyboard入力です。
+				key.hwnd	= target ;
+				key.message = state.detailEnterClose ? WM_KEYDOWN : WM_SYSCHAR ;
+				key.wParam	= state.detailEnterClose ? VK_RETURN : L's' ;
+				// Spaceは標準buttonの押下/解放を通し、独自導入commandへ変換しません。
+				if( state.detailApplySpace) {
+					SendMessageW( target, WM_KEYDOWN, VK_SPACE, 0) ;
+					SendMessageW( target, WM_KEYUP, VK_SPACE, 0) ;
+				} else {
+					DRIVERCRATE_EXPECT( *state.context, IsDialogMessageW( popup, &key)) ;
+				}
+
+				// EndDialogはcallback復帰後に終端するため、IsWindowで適用成否を判定しません。
+				// Enterを閲覧だけに留めるcontrolでは、元modal結果を上書きしないpostで閉じます。
+				if( state.detailEnterClose) {
+					PostMessageW( popup, WM_COMMAND, IDOK, 0) ;
+				}
+
+				return ;
+			}
+
 			// 明示選択fixtureだけが実buttonを押し、他は閉じるだけでselectionを維持する。
 			if( candidates != nullptr && state.chooseDetailCandidate && state.detailSelectable) {
 				SendDlgItemMessageW( popup, IDYES, BM_CLICK, 0, 0) ;
@@ -5661,9 +7482,11 @@ void verifyGeometry( const MainWindow &window, TestContext &context)
 
 /** @brief 検索・明示選択Installの二段階を本物UI/workerと完全低位fakeで確認します。
  * @param[in,out] context 原assertionの集計先です。
+ * @param[in] viewOnly 元一件/混在候補の二条件だけで準備中の表示保持を確認する場合trueです。
  * @note 元署名・ZIP・INF閉包と実queueを使い、HTTP/Windows/復旧/指定導入は既存の完全fakeです。
+ * @throws std::bad_alloc 元fixture ownerを確保できない場合。既試験の例外捕捉へ渡します。
  */
-void runSearchPreparationUiScenarios( TestContext &context)
+void runSearchPreparationUiScenarios( TestContext &context, const bool viewOnly = false)
 {
 	using Native = SignedIndexBindingNativeCase ;	// 元Windows低位fixtureの有限条件です。
 	const std::array ids{
@@ -5674,6 +7497,11 @@ void runSearchPreparationUiScenarios( TestContext &context)
 	const auto failuresBefore = context.failureCount() ;	// 原失敗を保持します。
 	// 正常二NICを先に実行し、続いて固定した拒否枝だけを独立ownerで確認します。
 	for( std::size_t mode{}; mode < ids.size(); ++mode) {
+		// 表示保持の有限確認では既低位fixtureの正常二条件だけを選びます。
+		if( viewOnly && mode != 1U && mode != 2U) {
+			continue ;
+		}
+
 		const auto caseFailures = context.failureCount() ;	// 条件別の原失敗数です。
 		MSG		   quit{} ;									// 前の内部Windowの終了通知だけを除きます。
 		// 独立した内部Window間でWM_QUITを次のmodalへ持ち越しません。
@@ -5694,9 +7522,10 @@ void runSearchPreparationUiScenarios( TestContext &context)
 												  : Native::INITIAL_SAME_ID ;	// 元低位条件です。
 		auto	   bound  = makeSignedIndexBindingWorker(
 			   input.services, input.zip, unselected, mode == 10U, false, native, {}, {}, {},
-			   true) ;										// 自身の導入後状態だけを同fakeへ反映します。
-		auto state = std::make_shared<MetadataUiState>() ;	// 実Provider fallbackの禁止counterです。
-		MainWindow window ;									// 通常Appとは別の内部UI ownerです。
+			   true) ;											// 自身の導入後状態だけを同fakeへ反映します。
+		auto  state = std::make_shared<MetadataUiState>() ;		// 実Provider fallbackの禁止counterです。
+		auto  windowOwner = std::make_unique<MainWindow>() ;	// 元scopeで同Windowをheap所有します。
+		auto &window	  = *windowOwner ;						// 通常Appとは別の内部UI ownerです。
 		Access::configure( window, state) ;
 		const bool created =
 			// 製品resourceと本物controlです。
@@ -5730,8 +7559,11 @@ void runSearchPreparationUiScenarios( TestContext &context)
 			DRIVERCRATE_EXPECT( context, !search.handled && !search.failed &&
 											search.eulaDialogs == 0U &&
 											search.preparationTaskDialogs == 0U) ;
-			auto scanned = Access::takeIndexTerminal(
-				window, WorkerEventKind::SCAN_COMPLETED) ;	// 原検索終端です。
+			auto scannedOwner =
+				std::make_unique<std::optional<WorkerEvent>>( Access::takeIndexTerminal(
+					window,
+					WorkerEventKind::SCAN_COMPLETED)) ;	// 同寿命の元eventをheapで所有します。
+			auto &scanned = *scannedOwner ;				// 原検索終端です。
 			DRIVERCRATE_EXPECT( context, scanned && scanned->preparationPlan) ;
 			// 原終端のない条件を合成planで成功へ進めません。
 			if( scanned && scanned->preparationPlan) {
@@ -5779,8 +7611,30 @@ void runSearchPreparationUiScenarios( TestContext &context)
 					continue ;
 				}
 
+				// 表示保持の二条件は明示filter ON/OFFをそれぞれ操作前に固定します。
+				if( viewOnly) {
+					SendDlgItemMessageW( handle, IDC_RECOMMENDED_ONLY, BM_SETCHECK,
+										mode == 2U ? BST_CHECKED : BST_UNCHECKED, 0) ;
+					SendMessageW( handle, WM_COMMAND, MAKEWPARAM( IDC_RECOMMENDED_ONLY, BN_CLICKED),
+								 0) ;
+				}
+
 				const auto selected = Access::selectInstallIntents(
 					window, context, mode == 1U || unselected, mixed) ;	// 実checkの元集合です。
+				// 同private HWNDで選択行も保存し、準備・導入の両終端へ比較します。
+				if( viewOnly) {
+					ShowWindow( handle, SW_SHOWNOACTIVATE) ;
+					Access::expandClassPreview( window) ;
+					const auto tree = GetDlgItem( handle, IDC_UPDATE_TREE) ;	// 当該所有controlです。
+					TreeView_SelectItem( tree, TreeView_GetChild( tree, TreeView_GetRoot( tree))) ;
+				}
+
+				const auto originalView =
+					// 再生成を検出する元handleです。
+					Access::installTreeView( window) ;
+				const auto originalCount =
+					// 新候補の分母です。
+					Access::indexCandidates( window).size() ;
 				// 未検査参照の直接Install APIは引き続き復旧前に拒否されます。
 				const auto pending = std::ranges::find_if(
 					Access::indexCandidates( window), []( const auto &candidate) {
@@ -5798,8 +7652,12 @@ void runSearchPreparationUiScenarios( TestContext &context)
 				if( unselected) {
 					DRIVERCRATE_EXPECT( context,
 									   Access::requestUnselectedIntent( window, selected.front())) ;
-					const auto rejected = Access::takeIndexTerminal(
-						window, WorkerEventKind::PREPARATION_COMPLETED) ;	// 元worker拒否です。
+					auto rejectedOwner =
+						std::make_unique<std::optional<WorkerEvent>>( Access::takeIndexTerminal(
+							window,
+							WorkerEventKind::
+								PREPARATION_COMPLETED)) ;	// 同寿命の元eventをheapで所有します。
+					const auto &rejected = *rejectedOwner ;	// 元worker拒否です。
 					DRIVERCRATE_EXPECT( context,
 									   rejected &&
 										   rejected->preparationResult.approvalError ==
@@ -5808,8 +7666,11 @@ void runSearchPreparationUiScenarios( TestContext &context)
 					DRIVERCRATE_EXPECT( context, Access::requestExpiredIndexInstall(
 													window, scanned->operationId + 2U,
 													scanned->scanResult.scanSessionId, selected)) ;
-					const auto directWorker = Access::takeIndexTerminal(
-						window, WorkerEventKind::INSTALL_COMPLETED) ;	// 未検査refの元API拒否です。
+					auto directWorkerOwner = std::make_unique<
+						std::optional<WorkerEvent>>( Access::takeIndexTerminal(
+						window,
+						WorkerEventKind::INSTALL_COMPLETED)) ;		// 同寿命の元eventをheapで所有します。
+					const auto &directWorker = *directWorkerOwner ;	// 未検査refの元API拒否です。
 					DRIVERCRATE_EXPECT( context, directWorker &&
 													!directWorker->installResult.succeeded &&
 													bound.observe().restoreBegins == 0U &&
@@ -5906,9 +7767,12 @@ void runSearchPreparationUiScenarios( TestContext &context)
 											   bound.observe().restoreBegins == 0U &&
 											   bound.observe().installs == 0U) ;
 					} else {
-						auto prepared = Access::takeIndexTerminal(
-							window,
-							WorkerEventKind::PREPARATION_COMPLETED) ;	// 元取得・監査終端です。
+						auto preparedOwner =
+							std::make_unique<std::optional<WorkerEvent>>( Access::takeIndexTerminal(
+								window,
+								WorkerEventKind::
+									PREPARATION_COMPLETED)) ;	// 同寿命の元eventをheapで所有します。
+						auto &prepared = *preparedOwner ;		// 元取得・監査終端です。
 						DRIVERCRATE_EXPECT( context, prepared.has_value()) ;
 						// 元終端だけを通常UIへ渡し、成功をtest側で補完しません。
 						if( prepared) {
@@ -5934,13 +7798,22 @@ void runSearchPreparationUiScenarios( TestContext &context)
 							}
 
 							Access::dispatchIndex( window, *prepared) ;
+							// 検査済み候補のappendと一意選択が元itemで成立したことを確認します。
+							if( viewOnly) {
+								Access::verifyInstallTreeView( window, originalView, context) ;
+								Access::verifyPreparedRowBindings( window, originalCount, context) ;
+							}
+
 							const bool installs =
 								mode <= 2U || mode == 10U ;	// 全元選択が成立した固定条件です。
 							// 正常二NICを既存復旧・指定導入・read-only現在観測まで通します。
 							if( installs) {
-								auto installed = Access::takeIndexTerminal(
+								auto installedOwner = std::make_unique<
+									std::optional<WorkerEvent>>( Access::takeIndexTerminal(
 									window,
-									WorkerEventKind::INSTALL_COMPLETED) ;	// 本体の元個別結果です。
+									WorkerEventKind::
+										INSTALL_COMPLETED)) ;		// 同寿命の元eventをheapで所有します。
+								auto &installed = *installedOwner ;	// 本体の元個別結果です。
 								DRIVERCRATE_EXPECT(
 									context, installed && installed->installResult.updates.size() ==
 															  selected.size()) ;
@@ -5976,6 +7849,17 @@ void runSearchPreparationUiScenarios( TestContext &context)
 									}
 
 									Access::verifyIndexResultRows( window, context, result) ;
+									// 導入完了後も元filter・行集合・順序・caret/scrollを動かしません。
+									if( viewOnly) {
+										Access::verifyInstallTreeView( window, originalView,
+																	  context) ;
+										DRIVERCRATE_EXPECT(
+											context,
+											SendDlgItemMessageW( handle, IDC_RECOMMENDED_ONLY,
+																BM_GETCHECK, 0, 0) ==
+												(mode == 2U ? BST_CHECKED : BST_UNCHECKED)) ;
+									}
+
 									// 新候補版の転記でなく同終端観測が通常現在行へ反映されたか確認します。
 									if( mode == 0U) {
 										DRIVERCRATE_EXPECT(
@@ -6011,10 +7895,12 @@ void runSearchPreparationUiScenarios( TestContext &context)
 												guardState) ;	// 検索中の予期しないdialogを拒否します。
 											Access::beginSearchCommand( window) ;
 										}
-										auto next = Access::takeIndexTerminal(
+										auto nextOwner = std::make_unique<
+											std::optional<WorkerEvent>>( Access::takeIndexTerminal(
 											window,
 											WorkerEventKind::
-												SCAN_COMPLETED) ;	// 同fake workerの元終端です。
+												SCAN_COMPLETED)) ;	// 同寿命の元eventをheapで所有します。
+										auto &next = *nextOwner ;	// 同fake workerの元終端です。
 										DRIVERCRATE_EXPECT( context, next && !guardState.handled &&
 																		!guardState.failed) ;
 										// 元終端がある場合だけ表示へ反映します。
@@ -6045,9 +7931,12 @@ void runSearchPreparationUiScenarios( TestContext &context)
 							// 新検索後の旧取得終端を新しい選択意図として適用しません。
 							if( mode == 8U) {
 								Access::beginSearchCommand( window) ;
-								const auto next = Access::takeIndexTerminal(
-									window,
-									WorkerEventKind::SCAN_COMPLETED) ;	// 同workerの新scanです。
+								auto nextOwner = std::make_unique<std::optional<WorkerEvent>>(
+									Access::takeIndexTerminal(
+										window,
+										WorkerEventKind::
+											SCAN_COMPLETED)) ;	// 同寿命の元eventをheapで所有します。
+								const auto &next = *nextOwner ;	// 同workerの新scanです。
 								DRIVERCRATE_EXPECT( context, next && next->operationId !=
 																		scanned->operationId) ;
 								// 新しい元終端がある場合にだけ旧eventを再送します。
@@ -6089,9 +7978,52 @@ void runSearchPreparationUiScenarios( TestContext &context)
 				  << std::flush ;
 	}
 
-	std::cout << "TWO_STEP_END cases=" << ids.size()
+	std::cout << "TWO_STEP_END cases=" << (viewOnly ? 2U : ids.size())
 			  << " assertions=" << context.assertionCount() - before
 			  << " failures=" << context.failureCount() - failuresBefore << '\n' ;
+}
+
+/** @brief 元結果九条件と非零scroll二条件を既fake HWNDで有限確認します。
+ * @param[in,out] context 原assertion集計先です。
+ */
+void runInstallTreeViewUiScenarios( TestContext &context)
+{
+	auto	   state = std::make_shared<MetadataUiState>() ;	// 実Provider/復旧呼出しを禁止します。
+	MainWindow window ;											// 同private desktopだけの所有Windowです。
+	Access::configure( window, state) ;
+	const bool created = window.create( GetModuleHandleW( nullptr)) ;	// 製品と同じcontrolです。
+	DRIVERCRATE_EXPECT( context, created) ;
+	// 不存在controlへ試験入力を渡しません。
+	if( !created) {
+		return ;
+	}
+
+	const auto handle = Access::handle( window) ;	// 当該Windowだけを表示します。
+	ShowWindow( handle, SW_SHOWNOACTIVATE) ;
+	SetWindowPos( handle, nullptr, 0, 0, 960, 560, SWP_NOACTIVATE | SWP_NOZORDER) ;
+	const auto deliver = []( MainWindow &target, const WorkerEvent &event, TestContext &assertions) {
+		DialogState dialog{
+			.context = &assertions,
+			.owner	 = Access::handle( target),
+			.mode	 = DialogMode::INDEX_INSTALL_RESULT} ;	// 既timerで原結果を閉じるだけです。
+		{
+			DialogDriver driver( dialog) ;	// 所有modalだけを処理します。
+			Access::deliverInstallCompleted( target, event) ;
+		}
+
+		DRIVERCRATE_EXPECT( assertions, dialog.handled && !dialog.failed) ;
+	} ; // Captureを持たず、同期callback中だけ元Windowと集計先を借用します。
+	Access::verifyPostInstallDisplay( window, context, deliver) ;
+	// Filter ON/OFFで同じ非零scroll・部分選択の保持を確認します。
+	for( const bool filter : {true, false}) {
+		Access::verifyScrolledInstallView( window, context, filter, deliver) ;
+	}
+
+	DRIVERCRATE_EXPECT( context, state->forbiddenCalls == 0U && state->normalCalls == 0U &&
+									state->restoreCalls == 0U) ;
+	SendMessageW( handle, WM_CLOSE, 0, 0) ;
+	DRIVERCRATE_EXPECT( context, !IsWindow( handle)) ;
+	std::cout << "INSTALL_VIEW_END resultCases=9 scrolledCases=2 physicalInput=0 realOS=0\n" ;
 }
 
 /** @brief 新検索前段階と既存取得前案内だけを非通信Windowで確認します。
@@ -6153,11 +8085,11 @@ void runHardwareRefreshUiScenarios( TestContext &context)
 			DialogDriver driver( details) ;	// 同期閲覧だけを行う既存helper。
 			Access::openCandidateDetails( window, 0U, NM_DBLCLK) ;
 		}
-		DRIVERCRATE_EXPECT( context, details.handled && !details.failed &&
-										Access::simpleSelection( window) == before &&
-										details.details.find( unknown ? L"Fixture inspection report"
-																	 : L"インストール") !=
-											std::wstring::npos) ;
+		DRIVERCRATE_EXPECT(
+			context, details.handled && !details.failed &&
+						 Access::simpleSelection( window) == before &&
+						 details.details.find( unknown ? L"取得・検査全体の結果を示す行です"
+													  : L"インストール") != std::wstring::npos) ;
 	}
 
 	DialogState classificationGuard{
@@ -6412,9 +8344,10 @@ void runUiScenarios( TestContext &context)
 			DRIVERCRATE_EXPECT( context, Access::simpleSelection( window) == before) ;
 		}
 		DRIVERCRATE_EXPECT( context, detail.handled && !detail.failed && detail.errors == 0U) ;
-		DRIVERCRATE_EXPECT( context,
-						   detail.details.find( index == 0U ? L"未導入" : L"公式installer") !=
-							   std::wstring::npos) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			detail.details.find( index == 0U ? L"未導入" : L"現時点ではインストールできません") !=
+				std::wstring::npos) ;
 	}
 
 	DRIVERCRATE_EXPECT( context, state->forbiddenCalls == 0U && state->restoreCalls == 0U) ;
@@ -6480,6 +8413,635 @@ void runCloseAndQueue( TestContext &context, const bool queueOnly)
 	state->release.release() ;
 	DRIVERCRATE_EXPECT( context, pumpUntil( [&] { return IsWindow( handle) == FALSE ; })) ;
 	DRIVERCRATE_EXPECT( context, state->waitTimeouts == 0U && state->forbiddenCalls == 0U &&
+									state->restoreCalls == 0U) ;
+}
+
+/** @brief 同内容表示と別情報の有限八条件を元plan/実詳細へ通します。
+ * @param[in,out] context 原失敗を保持する集計先です。
+ */
+void runHistoryDisplayUiScenarios( TestContext &context)
+{
+	// 各条件はfresh Windowと元五候補/同planで独立に確認します。
+	for( unsigned variant = 0U; variant < 8U; ++variant) {
+		MSG previousQuit{} ;	// 前の所有Windowの終了通知だけを消費します。
+		// 既成功fixtureと同じく、WM_QUITを次のmodal loopへ持ち越しません。
+		while( PeekMessageW( &previousQuit, nullptr, WM_QUIT, WM_QUIT, PM_REMOVE) != FALSE) {
+		}
+
+		auto	   state = std::make_shared<MetadataUiState>() ;	// 通信/導入の禁止counterです。
+		MainWindow window ;											// 同private desktopの所有Windowです。
+		Access::configure( window, state) ;
+		const bool created = window.create( GetModuleHandleW( nullptr)) ;	// 製品resourceを使います。
+		DRIVERCRATE_EXPECT( context, created) ;
+		// 存在しないWindowを先頭候補へ補完しません。
+		if( !created) {
+			return ;
+		}
+
+		const auto handle = Access::handle( window) ;	// 所有期間中だけの借用です。
+		ShowWindow( handle, SW_SHOWNOACTIVATE) ;
+		Access::historyDetails( window, context) ;
+		Access::historyDisplayVariant( window, context, variant) ;
+		// 結果行の再選択拒否は元の失効状態で確認します。
+		if( variant == 7U) {
+			Access::historyInvalidate( window, context) ;
+		}
+
+		const auto	before = Access::simpleSelection( window) ;	// 元後出memberの指定です。
+		DialogState detail{.context = &context,
+						   .owner	= handle,
+						   .mode	= DialogMode::DETAILS} ;	// 元dialog driverです。
+		detail.captureDetails	  = false ;
+		detail.detailDisplayProbe = true ;
+		detail.detailDistinctInformation =
+			variant == 1U || variant == 3U || variant == 5U || variant == 6U ;
+		detail.detailEntry			 = variant == 4U || variant == 7U ? 2 : 1 ;
+		detail.detailInitialEntry	 = variant == 0U ? 1 : variant == 4U ? -1 : 2 ;
+		detail.detailEntryCount		 = variant == 0U ? 3U : 4U ;
+		detail.detailSelectable		 = variant != 4U && variant != 7U ;
+		detail.chooseDetailCandidate = variant == 0U || variant == 4U || variant == 7U ;
+		{
+			DialogDriver driver( detail) ;	// 閲覧または元一候補への明示buttonだけです。
+			Access::openCandidateDetails( window, 1U, variant % 2U == 0U ? NM_DBLCLK : NM_RETURN) ;
+		}
+		DRIVERCRATE_EXPECT( context, detail.handled && !detail.failed &&
+										Access::simpleSelection( window) == before) ;
+		DRIVERCRATE_EXPECT( context, state->forbiddenCalls == 0U && state->restoreCalls == 0U &&
+										state->normalCalls == 0U) ;
+		SendMessageW( handle, WM_CLOSE, 0, 0) ;
+		DRIVERCRATE_EXPECT( context, !IsWindow( handle)) ;
+	}
+
+	std::cout
+		<< "DISPLAY_IDENTITY_UI cases=8 originalCandidates=5 originalPlan=1 network=0 install=0\n" ;
+}
+
+/** @brief 準備不成立後の全device/元参照/開閉と実行拒否を有限確認します。
+ * @param[in,out] context 原assertionの集計先です。
+ */
+void runPreparationFailureUiScenarios( TestContext &context)
+{
+	// 九つの固定原因だけを別Windowへ送り、実取得や実導入は行いません。
+	for( unsigned variant{}; variant < 9U; ++variant) {
+		MSG previousQuit{} ;	// 前Windowの通常終了通知だけを消費します。
+		// WM_QUITを次のmodal driverへ持ち越しません。
+		while( PeekMessageW( &previousQuit, nullptr, WM_QUIT, WM_QUIT, PM_REMOVE)) {
+		}
+
+		auto	   state = std::make_shared<MetadataUiState>() ;	// 禁止された実経路を監視します。
+		MainWindow window ;											// 所有UIとworkerは各ケースだけの寿命です。
+		Access::configure( window, state) ;
+		const bool created = window.create( GetModuleHandleW( nullptr)) ;	// 実resourceのcontrolです。
+		DRIVERCRATE_EXPECT( context, created) ;
+		// 作成失敗をWindow試験成功として続けません。
+		if( !created) {
+			continue ;
+		}
+
+		const auto handle = Access::handle( window) ;	// 同private desktopの実HWNDです。
+		ShowWindow( handle, SW_SHOWNOACTIVATE) ;
+		Access::preparationFailure( window, context, variant) ;
+		const auto	before = Access::simpleSelection( window) ;	// 閲覧で変更しない元選択です。
+		// 元参照のreadonly初期highlightを実dialogで確認します。
+		DialogState detail{.context = &context, .owner = handle, .mode = DialogMode::DETAILS} ;
+		detail.captureDetails		 = false ;
+		detail.detailInitialEntry	 = 1 ;
+		detail.detailEntry			 = 1 ;
+		detail.detailEntryCount		 = 5U ;
+		detail.detailSelectable		 = false ;
+		detail.chooseDetailCandidate = true ;
+		{
+			DialogDriver driver( detail) ;	// 元参照はhighlightだけでChooseを拒否します。
+			Access::openCandidateDetails( window, 1U, NM_RETURN) ;
+		}
+		DRIVERCRATE_EXPECT( context, detail.handled && !detail.failed &&
+										Access::simpleSelection( window) == before) ;
+		Access::retainedCheckboxInput( window, context, variant) ;
+		DialogState result{.context = &context,
+						   .owner	= handle,
+						   .mode	= DialogMode::INDEX_INSTALL_RESULT} ;	// 元結果案内だけです。
+		{
+			DialogDriver driver( result) ;	// 実driverを呼ばない人工終端だけを閉じます。
+			Access::retainedCheckboxTerminal( window, context, variant) ;
+		}
+		DRIVERCRATE_EXPECT( context, result.handled && !result.failed) ;
+		Access::preparationFailureReset( window, context) ;
+		DRIVERCRATE_EXPECT( context, state->forbiddenCalls == 0U && state->restoreCalls == 0U &&
+										state->normalCalls == 0U) ;
+		SendMessageW( handle, WM_CLOSE, 0, 0) ;
+		DRIVERCRATE_EXPECT( context, !IsWindow( handle)) ;
+		std::cout << "PREPARATION_FAILURE_UI case=" << variant << " network=0 install=0\n" ;
+	}
+}
+
+/** @brief 製品loggerと実status/結果dialogを非通信fixtureへ接続します。
+ * @param[in,out] context 元assertion集計先です。
+ * @param[in] failed 固定writer失敗を注入する場合trueです。
+ */
+void runDiagnosticUiScenarios( TestContext &context, const bool failed)
+{
+	startLocalDiagnostics() ;
+	DRIVERCRATE_EXPECT( context, pumpUntil( [] { return localDiagnosticStatus().startupFlushed ; })) ;
+	// 自己所有の試験EXE隣writerだけに失敗を与えます。
+	if( failed) {
+		local_diagnostic_detail::Access::failProcess( DiagnosticStorageStage::WRITE) ;
+		recordLocalDiagnostic( DiagnosticRecord{}) ;
+		DRIVERCRATE_EXPECT( context, pumpUntil( [] {
+							   return localDiagnosticStatus().state ==
+									  DiagnosticStorageState::FAILED ;
+						   })) ;
+	}
+
+	MSG previousQuit{} ;	// 既成功手順で前の終了通知を消費します。
+	// 製品のWM_QUIT発行は変えません。
+	while( PeekMessageW( &previousQuit, nullptr, WM_QUIT, WM_QUIT, PM_REMOVE)) {
+	}
+
+	auto	   state = std::make_shared<MetadataUiState>() ;	// 実Providerを禁止するcounterです。
+	MainWindow window ;											// 同private desktopの所有Windowです。
+	Access::configure( window, state) ;
+	const bool created = window.create( GetModuleHandleW( nullptr)) ;	// 製品と同じresourceです。
+	DRIVERCRATE_EXPECT( context, created) ;
+	// 不存在controlを試験済みにしません。
+	if( !created) {
+		stopLocalDiagnostics() ;
+		return ;
+	}
+
+	const auto handle = Access::handle( window) ;	// Fixture所有の実HWNDです。
+	Access::historyDetails( window, context) ;
+	Access::historyLocalScan( window, context) ;
+	const std::array identities{
+		std::wstring{L"history-local-old"}} ;	// 元local fixtureの候補だけです。
+	Access::selectIndexCandidates( window, context, identities) ;
+	Access::diagnosticStatus( window, context, failed) ;
+	const auto	before = Access::simpleSelection( window) ;	// 診断で選択を変えません。
+	DialogState cancelled{.context = &context,
+						  .owner   = handle,
+						  .mode =
+							  DialogMode::INDEX_INSTALL_CANCEL} ;	// 元の旧版最終確認を取り消します。
+	{
+		DialogDriver driver( cancelled) ;	// 実Appの要求eventを確認し、実行しません。
+		Access::beginIndexInstallCommand( window) ;
+	}
+	DRIVERCRATE_EXPECT( context, cancelled.handled && !cancelled.failed &&
+									Access::simpleSelection( window) == before) ;
+	DialogState display{.context = &context,
+						.owner	 = handle,
+						.mode	 = DialogMode::INDEX_INSTALL_RESULT} ;	// 元結果dialogを確認します。
+	{
+		DialogDriver driver( display) ;	// APIは呼ばない合成終端だけです。
+		Access::diagnosticResult( window, context) ;
+	}
+	DRIVERCRATE_EXPECT( context, display.handled && !display.failed &&
+									display.details.find( L"匿名診断") != std::wstring::npos) ;
+	// 診断失敗でもdriverの元成功messageを改作していません。
+	DRIVERCRATE_EXPECT( context,
+					   display.details.find( L"インストールしました") != std::wstring::npos &&
+						   state->forbiddenCalls == 0U && state->restoreCalls == 0U &&
+						   state->normalCalls == 0U) ;
+	SendMessageW( handle, WM_CLOSE, 0, 0) ;
+	DRIVERCRATE_EXPECT( context, !IsWindow( handle)) ;
+	stopLocalDiagnostics() ;
+	const auto storage = localDiagnosticStatus() ;	// 通常終了の実保存状態です。
+	DRIVERCRATE_EXPECT( context, storage.startupFlushed &&
+									(failed ? storage.state == DiagnosticStorageState::FAILED &&
+												  storage.code == ERROR_WRITE_FAULT
+											: storage.state == DiagnosticStorageState::STOPPED &&
+												  storage.pending == 0U && storage.saved > 10U)) ;
+	std::cout << "DIAGNOSTIC_UI failed=" << failed << " startupFlushed=" << storage.startupFlushed
+			  << " saved=" << storage.saved << " pending=" << storage.pending
+			  << " dropped=" << storage.dropped << '\n' ;
+}
+
+/** @brief 最新候補の初期閲覧と元一件選択の非干渉を有限条件で確認します。
+ * @param[in,out] context 原失敗を保持する集計先です。
+ */
+void runHistoryLatestUiScenarios( TestContext &context)
+{
+	constexpr std::array<int, 18> initialRows{2, 1, 1, 2, 2,  0, 0, 0, 2,
+											  0, 2, 2, 0, -1, 3, 1, 1, 1} ;	// 独立した期待位置です。
+	// 一条件一Windowで元WM_QUITを持ち越しません。
+	for( unsigned variant = 0U; variant < initialRows.size(); ++variant) {
+		MSG previousQuit{} ;	// 前の所有Windowの終了通知だけです。
+		// 781で確認済みの成功手順を再利用します。
+		while( PeekMessageW( &previousQuit, nullptr, WM_QUIT, WM_QUIT, PM_REMOVE)) {
+		}
+
+		auto state = std::make_shared<MetadataUiState>() ;	// 実通信/導入を禁止するcounterです。
+		MainWindow window ;									// この条件だけの所有Windowです。
+		Access::configure( window, state) ;
+		const bool created =
+			// 製品と同じ標準controlです。
+			window.create( GetModuleHandleW( nullptr)) ;
+		DRIVERCRATE_EXPECT( context, created) ;
+		// 存在しないWindowへ候補を補完しません。
+		if( !created) {
+			return ;
+		}
+
+		const auto handle = Access::handle( window) ;	// Modalより長く生存します。
+		ShowWindow( handle, SW_SHOWNOACTIVATE) ;
+		Access::historyDetails( window, context) ;
+		Access::historyLatestVariant( window, context, variant) ;
+		// 結果と失効は元controllerの終端状態を使います。
+		if( variant == 11U || variant == 12U) {
+			Access::historyInvalidate( window, context) ;
+		}
+
+		const auto before =
+			// 初期highlight前の実checkbox集合です。
+			Access::simpleSelection( window) ;
+		DialogState detail{.context = &context,
+						   .owner	= handle,
+						   .mode	= DialogMode::DETAILS} ;	// 元実dialogの操作だけです。
+		detail.captureDetails		 = false ;
+		detail.detailExpectNoInitial = variant == 13U ;
+		detail.detailInitialEntry	 = initialRows[variant] ;
+		detail.detailEntry			 = variant == 13U ? 1 : initialRows[variant] ;
+		detail.detailEntryCount = variant == 10U ? 5U : variant == 13U || variant == 17U ? 3U : 4U ;
+		detail.detailSelectable = variant == 0U || variant == 1U || variant == 2U ||
+								  variant == 3U || variant == 4U || variant == 8U ||
+								  variant == 10U || variant == 13U || variant == 15U ||
+								  variant == 16U || variant == 17U ;
+		{
+			DialogDriver driver( detail) ;	// 閲覧/手動行移動だけでbuttonを押しません。
+			Access::openCandidateDetails( window, 1U, NM_DBLCLK) ;
+		}
+		DRIVERCRATE_EXPECT( context, detail.handled && !detail.failed &&
+										Access::simpleSelection( window) == before) ;
+		// 最新行の明示buttonだけで元一候補が確定し、再表示でも維持します。
+		if( variant == 0U) {
+			detail.handled				 = false ;
+			detail.ticks				 = 0U ;
+			detail.chooseDetailCandidate = true ;
+			{
+				DialogDriver driver( detail) ;	// 元index2だけを明示指定します。
+				Access::openCandidateDetails( window, 1U, NM_RETURN) ;
+			}
+			const auto chosen = Access::simpleSelection( window) ;	// 他deviceの選択を保持します。
+			// 後続のrow結合も含むsnapshot長を保持し、checkboxの先頭二件を照合します。
+			DRIVERCRATE_EXPECT( context, detail.handled && !detail.failed &&
+											chosen.size() == before.size() && chosen.size() >= 2U &&
+											chosen[0] == 2U && chosen[1] == 4U) ;
+			detail.handled				 = false ;
+			detail.ticks				 = 0U ;
+			detail.chooseDetailCandidate = false ;
+			{
+				DialogDriver driver( detail) ;	// 明示した元候補の再表示です。
+				Access::openCandidateDetails( window, 1U, NM_DBLCLK) ;
+			}
+			DRIVERCRATE_EXPECT( context, detail.handled && !detail.failed &&
+											Access::simpleSelection( window) == chosen) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, state->forbiddenCalls == 0U && state->restoreCalls == 0U &&
+										state->normalCalls == 0U) ;
+		SendMessageW( handle, WM_CLOSE, 0, 0) ;
+		DRIVERCRATE_EXPECT( context, !IsWindow( handle)) ;
+	}
+
+	std::cout
+		<< "LATEST_HIGHLIGHT_UI cases=18 originalPlan=1 beforeChooseSelectionUnchanged=1 network=0 install=0\n" ;
+}
+
+/** @brief 同device新版/旧版の実詳細を元planから開く限定回帰です。
+ * @param[in,out] context 初回期待失敗も保持する元集計先です。
+ * @param[in] keysOnly trueなら失敗後のkeyboard診断だけへ限定します。
+ */
+void runHistoryUiScenarios( TestContext &context, const bool keysOnly = false)
+{
+	std::cout << std::unitbuf ;
+	std::cerr << std::unitbuf ;
+	std::cout << "HISTORY_STAGE begin\n" ;
+	auto state = std::make_shared<MetadataUiState>() ;	// 実Provider fallbackを禁止するcounterです。
+	MainWindow window ;									// 同private desktopの所有Windowです。
+	Access::configure( window, state) ;
+	const bool created = window.create( GetModuleHandleW( nullptr)) ;	// 実product resourceです。
+	DRIVERCRATE_EXPECT( context, created) ;
+	// 不存在windowを試験成功へ読み替えません。
+	if( !created) {
+		return ;
+	}
+
+	const auto handle = Access::handle( window) ;	// 同processが所有する実HWNDです。
+	ShowWindow( handle, SW_SHOWNOACTIVATE) ;
+	std::cout << "HISTORY_STAGE window-created\n" ;
+	DialogState setupGuard{
+		.context = &context,
+		.owner	 = handle,
+		.mode = DialogMode::INDEX_PREPARATION_ACCEPT} ;	// 元setupの想定外modalを同意せず閉じます。
+	setupGuard.twoStep	  = true ;
+	setupGuard.rejectEula = true ;
+	{
+		DialogDriver guard( setupGuard) ;	// 有限監督だけを元正常scanへ付けます。
+		Access::historyDetails( window, context) ;
+	}
+	std::cout << "HISTORY_STAGE scan-ready modal=" << setupGuard.handled
+			  << " failure=" << setupGuard.failed << "\n" ;
+	DRIVERCRATE_EXPECT( context, !setupGuard.handled && !setupGuard.failed) ;
+	const auto	before = Access::simpleSelection( window) ;	// 元別deviceの選択も保持します。
+	DialogState restricted{
+		.context = &context, .owner = handle, .mode = DialogMode::DETAILS} ;	// filter ONです。
+	restricted.captureDetails		 = false ;
+	restricted.historyTableProbe	 = true ;
+	restricted.detailEntry			 = 2 ;
+	restricted.detailEntryCount		 = 4U ;
+	restricted.detailSelectable		 = false ;
+	restricted.chooseDetailCandidate = true ;
+	{
+		DialogDriver driver( restricted) ;	// readonly行への偽装commandも元guardへ渡します。
+		Access::openCandidateDetails( window, 1U, NM_DBLCLK) ;
+	}
+	DRIVERCRATE_EXPECT( context, restricted.handled && !restricted.failed &&
+									Access::simpleSelection( window) == before) ;
+	Access::historyShowAll( window) ;
+	DialogState all{.context = &context,
+					.owner	 = handle,
+					.mode	 = DialogMode::DETAILS} ;	// 同じ原候補のfilter OFFです。
+	all.captureDetails		  = false ;
+	all.historyTableProbe	  = true ;
+	all.detailEntry			  = 2 ;
+	all.detailEntryCount	  = 4U ;
+	all.detailSelectable	  = true ;
+	all.chooseDetailCandidate = true ;
+#if !defined( _DEBUG)
+	all.captureDetails = historyImagesOnly ;
+	all.captureName	   = L"history-table-normal" ;
+#endif
+	{
+		DialogDriver driver( all) ;	// 実buttonから旧版一候補を明示指定します。
+		Access::openCandidateDetails( window, 1U, NM_DBLCLK) ;
+	}
+	DRIVERCRATE_EXPECT( context, all.handled && !all.failed) ;
+	const auto chosen = Access::simpleSelection( window) ;	// 一候補と別deviceの指定を確認します。
+	DRIVERCRATE_EXPECT( context, chosen.size() >= 2U && chosen[0] == 2U && chosen[1] == 4U) ;
+	// Key限定入口では成功済み画像/閲覧matrixを反復しません。
+	if( !keysOnly) {
+		DialogState narrow{.context = &context,
+						   .owner	= handle,
+						   .mode	= DialogMode::DETAILS} ;	// 同じ元choiceの狭幅です。
+		narrow.captureDetails	  = false ;
+		narrow.historyTableProbe  = true ;
+		narrow.detailNarrow		  = true ;
+		narrow.detailInitialEntry = 2 ;
+		narrow.detailEntry		  = 2 ;
+		narrow.detailEntryCount	  = 4U ;
+#if !defined( _DEBUG)
+		narrow.captureDetails = false ;
+		narrow.captureName	  = L"history-table-narrow" ;
+#endif
+		{
+			DialogDriver driver( narrow) ;	// 閲覧だけで選択を保ちます。
+			Access::openCandidateDetails( window, 1U, NM_DBLCLK) ;
+		}
+		DRIVERCRATE_EXPECT( context, narrow.handled && !narrow.failed &&
+										Access::simpleSelection( window) == chosen) ;
+		// 画像専用processは二枚と所有終端だけを確認し、成立済み全caseを反復しません。
+		if( historyImagesOnly) {
+			SendMessageW( handle, WM_CLOSE, 0, 0) ;
+			DRIVERCRATE_EXPECT( context, !IsWindow( handle)) ;
+			return ;
+		}
+
+		// 現在/新版/reportの閲覧とreadonly command拒否を同じ元planで確認します。
+		for( const int entry : {0, 1, 3}) {
+			DialogState detail{.context = &context,
+							   .owner	= handle,
+							   .mode	= DialogMode::DETAILS} ;	// 対象は同deviceだけです。
+			detail.captureDetails		 = false ;
+			detail.detailEntry			 = entry ;
+			detail.detailEntryCount		 = 4U ;
+			detail.detailSelectable		 = entry == 1 ;
+			detail.chooseDetailCandidate = entry != 1 ;
+			{
+				DialogDriver driver( detail) ;	// 元real controlだけを操作します。
+				Access::openCandidateDetails( window, 1U, NM_DBLCLK) ;
+			}
+			DRIVERCRATE_EXPECT( context, detail.handled && !detail.failed &&
+											Access::simpleSelection( window) == chosen) ;
+			// 全体結果の実失敗状態と原数値を汎用readonly文だけへ失わせません。
+			if( entry == 3) {
+				DRIVERCRATE_EXPECT( context,
+								   detail.details.find( L"取得失敗") != std::wstring::npos &&
+									   detail.details.find( L"0x80070005") != std::wstring::npos) ;
+			}
+		}
+	}
+
+	// Enterは選択せず、Alt+SとSpaceは同device一候補だけを明示指定します。
+	for( unsigned key = 0; key < 3U; ++key) {
+		DialogState detail{.context = &context,
+						   .owner	= handle,
+						   .mode	= DialogMode::DETAILS} ;	// 標準keyboardの一操作です。
+		detail.captureDetails		= false ;
+		detail.detailEntry			= key == 2U ? 2 : 1 ;
+		detail.detailEntryCount		= 4U ;
+		detail.detailEnterClose		= key == 0U ;
+		detail.detailApplyAccessKey = key == 1U ;
+		detail.detailApplySpace		= key == 2U ;
+		{
+			// 同dialogだけを有限に操作する元監督です。
+			DialogDriver driver( detail) ;
+			Access::openCandidateDetails( window, 1U, NM_DBLCLK) ;
+		}
+		const auto selection = Access::simpleSelection( window) ;	// 最終button結果の実照合です。
+		std::cout << "HISTORY_KEY key=" << key << " handled=" << detail.handled
+				  << " failed=" << detail.failed << " size=" << selection.size()
+				  << " first=" << (selection.empty() ? 9999U : selection[0])
+				  << " second=" << (selection.size() < 2U ? 9999U : selection[1]) << "\n" ;
+		DRIVERCRATE_EXPECT( context, detail.handled && !detail.failed && selection.size() >= 2U &&
+										selection[0] == (key == 1U ? 1U : 2U) &&
+										selection[1] == 4U) ;
+	}
+
+	// Key限定診断は同じ元Windowの所有終端を確認して返します。
+	if( keysOnly) {
+		SendMessageW( handle, WM_CLOSE, 0, 0) ;
+		DRIVERCRATE_EXPECT( context, !IsWindow( handle)) ;
+		return ;
+	}
+
+	// 同版/未知も手選択でき、計画にない参照は閲覧だけです。
+	for( unsigned variant = 0; variant < 3U; ++variant) {
+		Access::historyVariant( window, variant) ;
+		const auto	unchanged = Access::simpleSelection( window) ;	// 閲覧前の全deviceです。
+		// 同じ元参照だけを閲覧するdialog操作です。
+		DialogState detail{.context = &context, .owner = handle, .mode = DialogMode::DETAILS} ;
+		detail.captureDetails		 = false ;
+		detail.detailEntry			 = 2 ;
+		detail.detailEntryCount		 = 4U ;
+		detail.detailSelectable		 = variant != 2U ;
+		detail.chooseDetailCandidate = variant == 2U ;
+		{
+			// 同dialogだけを有限に操作する元監督です。
+			DialogDriver driver( detail) ;
+			Access::openCandidateDetails( window, 1U, NM_DBLCLK) ;
+		}
+		DRIVERCRATE_EXPECT( context, detail.handled && !detail.failed &&
+										Access::simpleSelection( window) == unchanged) ;
+		DRIVERCRATE_EXPECT(
+			context, detail.details.find( variant == 0U	 ? L"同じ申告バージョン"
+										 : variant == 1U ? L"新旧比較は未確認"
+														 : L"現時点ではインストールできません") !=
+						 std::wstring::npos) ;
+	}
+
+	Access::historyVariant( window, 3U) ;
+	Access::historyPreparedBlock( window, context) ;
+	// 非適合の元scan候補は一覧/詳細に残しても、command偽装で選択しません。
+	{
+		// 想定外のscan警告を同意せず閉じる監督状態です。
+		DialogState guard{
+			.context = &context, .owner = handle, .mode = DialogMode::INDEX_PREPARATION_ACCEPT} ;
+		guard.twoStep	 = true ;
+		guard.rejectEula = true ;
+		// 同dialogだけを有限に操作する元監督です。
+		DialogDriver driver( guard) ;
+		Access::historyLocalScan( window, context, true) ;
+		DRIVERCRATE_EXPECT( context, !guard.handled && !guard.failed) ;
+	}
+	// 非適合候補への偽装選択commandを確認する状態です。
+	DialogState rejected{.context = &context, .owner = handle, .mode = DialogMode::DETAILS} ;
+	rejected.captureDetails		   = false ;
+	rejected.detailEntry		   = 1 ;
+	rejected.detailEntryCount	   = 3U ;
+	rejected.detailSelectable	   = false ;
+	rejected.chooseDetailCandidate = true ;
+	{
+		// 同dialogだけを有限に操作する元監督です。
+		DialogDriver driver( rejected) ;
+		Access::openCandidateDetails( window, 1U, NM_DBLCLK) ;
+	}
+	DRIVERCRATE_EXPECT( context,
+					   rejected.handled && !rejected.failed &&
+						   rejected.details.find( L"適用条件を満たさない") != std::wstring::npos) ;
+	// 検査済み旧版の最終警告を明示NOで取消し、実worker/復元点へ進みません。
+	{
+		DialogState guard{.context = &context,
+						  .owner   = handle,
+						  .mode = DialogMode::INDEX_PREPARATION_ACCEPT} ;	// Scan失敗の有限監督です。
+		guard.twoStep	 = true ;
+		guard.rejectEula = true ;
+		// 同dialogだけを有限に操作する元監督です。
+		DialogDriver driver( guard) ;
+		Access::historyLocalScan( window, context) ;
+		DRIVERCRATE_EXPECT( context, !guard.handled && !guard.failed) ;
+	}
+	DialogState local{.context = &context,
+					  .owner   = handle,
+					  .mode	   = DialogMode::DETAILS} ;	// 元有効Windows候補です。
+	local.captureDetails		= false ;
+	local.detailEntry			= 1 ;
+	local.detailEntryCount		= 3U ;
+	local.chooseDetailCandidate = true ;
+	{
+		// 同dialogだけを有限に操作する元監督です。
+		DialogDriver driver( local) ;
+		Access::openCandidateDetails( window, 1U, NM_DBLCLK) ;
+	}
+	DRIVERCRATE_EXPECT( context, local.handled && !local.failed) ;
+	DialogState cancel{.context = &context,
+					   .owner	= handle,
+					   .mode	= DialogMode::INDEX_INSTALL_CANCEL} ;	// 既最終dialogを取消します。
+	{
+		// 同dialogだけを有限に操作する元監督です。
+		DialogDriver driver( cancel) ;
+		SendMessageW( handle, WM_COMMAND, IDC_INSTALL, 0) ;
+	}
+	DRIVERCRATE_EXPECT( context,
+					   cancel.handled && !cancel.failed &&
+						   cancel.details.find( L"古いバージョンへの切替") != std::wstring::npos) ;
+	Access::historyInvalidate( window, context) ;
+	DialogState stale{.context = &context,
+					  .owner   = handle,
+					  .mode	   = DialogMode::DETAILS} ;	// 失効した同じ旧表示です。
+	stale.captureDetails		= false ;
+	stale.detailEntry			= 1 ;
+	stale.detailEntryCount		= 3U ;
+	stale.detailSelectable		= false ;
+	stale.chooseDetailCandidate = true ;
+	{
+		// 同dialogだけを有限に操作する元監督です。
+		DialogDriver driver( stale) ;
+		Access::openCandidateDetails( window, 1U, NM_DBLCLK) ;
+	}
+	DRIVERCRATE_EXPECT( context, stale.handled && !stale.failed &&
+									stale.details.find( L"失効しています") != std::wstring::npos) ;
+
+	DRIVERCRATE_EXPECT( context, state->forbiddenCalls == 0U && state->restoreCalls == 0U &&
+									state->normalCalls == 0U && state->metadataCalls == 0U) ;
+	SendMessageW( handle, WM_CLOSE, 0, 0) ;
+	DRIVERCRATE_EXPECT( context, !IsWindow( handle)) ;
+	std::cout << "HISTORY_TABLE originalPlan=1 sameDeviceNewOld=1 driverHttp=0 install=0\n" ;
+	runHistoryDisplayUiScenarios( context) ;
+	runHistoryLatestUiScenarios( context) ;
+}
+
+/** @brief 初回参照の実worker/元planをfresh private Windowのtableへ接続します。
+ * @param[in,out] context 元集計先です。
+ */
+void runHistoryInitialUiScenarios( TestContext &context)
+{
+	std::cout << std::unitbuf ;						// 段階到達だけを原pipeへ直ちに保持します。
+	auto input = makeSignedIndexUiInput( false) ;	// 既隔離software鍵の人工索引です。
+	std::cout << "HISTORY_INITIAL stage=input\n" ;
+	auto bound = makeSignedIndexBindingWorker(
+		input.services, input.zip, false, false, false,
+		SignedIndexBindingNativeCase::INITIAL) ;		// 全Windows依存は既低位fakeです。
+	auto state = std::make_shared<MetadataUiState>() ;	// 実Provider fallbackの拒否counterです。
+	MainWindow window ;									// このprivate子だけのfresh Windowです。
+	Access::configure( window, state) ;
+	const bool created = window.create( GetModuleHandleW( nullptr)) ;	// 同じ製品resourceです。
+	DRIVERCRATE_EXPECT( context, created) ;
+	// Windowが作れなければ実modalを待たず元workerを停止します。
+	if( !created) {
+		bound.worker->stop() ;
+		return ;
+	}
+
+	const HWND handle = Access::handle( window) ;	// 同processの所有HWNDです。
+	Access::attachIndexWorker( window, std::move( bound.worker)) ;
+	std::cout << "HISTORY_INITIAL stage=attached\n" ;
+	DialogState guard{.context = &context,
+					  .owner   = handle,
+					  .mode =
+						  DialogMode::INDEX_PREPARATION_ACCEPT} ;	// 想定外modalだけを拒否します。
+	guard.twoStep	 = true ;
+	guard.rejectEula = true ;
+	{
+		DialogDriver driver( guard) ;	// 同start/dispatchだけの有限監督です。
+		Access::beginIndexScan( window) ;
+		std::cout << "HISTORY_INITIAL stage=begin\n" ;
+		auto scanned = Access::takeIndexTerminal(
+			window, WorkerEventKind::SCAN_COMPLETED) ;	// 同原workerの終端です。
+		DRIVERCRATE_EXPECT( context,
+						   scanned && scanned->scanResult.succeeded && scanned->preparationPlan) ;
+		std::cout << "HISTORY_INITIAL stage=terminal present=" << scanned.has_value() << "\n" ;
+		// 元成功/計画がない入力を手製の候補へ補完しません。
+		if( scanned && scanned->scanResult.succeeded && scanned->preparationPlan) {
+			Access::dispatchIndex( window, *scanned) ;
+		}
+	}
+	DRIVERCRATE_EXPECT( context, !guard.handled && !guard.failed) ;
+	DialogState initial{.context = &context,
+						.owner	 = handle,
+						.mode	 = DialogMode::DETAILS} ;	// 元初回参照だけを閲覧します。
+	initial.captureDetails	 = false ;
+	initial.detailEntry		 = 1 ;
+	initial.detailEntryCount = 3U ;
+	initial.detailSelectable = true ;
+	{
+		DialogDriver driver( initial) ;	// 当該tableのbutton可否を確認します。
+		Access::openCandidateDetails( window, 1U, NM_DBLCLK) ;
+	}
+	DRIVERCRATE_EXPECT( context, initial.handled && !initial.failed &&
+									initial.details.find( L"初回の候補") != std::wstring::npos) ;
+	Access::stopWorker( window) ;
+	DRIVERCRATE_EXPECT( context, bound.observe().installs == 0U && bound.observe().stages == 0U &&
+									bound.allNativeHandlesClosed()) ;
+	DestroyWindow( handle) ;
+	DRIVERCRATE_EXPECT( context, !IsWindow( handle) && state->forbiddenCalls == 0U &&
 									state->restoreCalls == 0U) ;
 }
 
@@ -6739,6 +9301,101 @@ void runRefreshUiScenarios( TestContext &context)
 	std::cout << "P5_REFRESH_ORIGINAL_END cases=5 assertions="
 			  << context.assertionCount() - originalAssertions
 			  << " failures=" << context.failureCount() - originalFailures << '\n' ;
+}
+
+/** @brief 同一本体の再利用後も通常workerとMainWindowが候補を保持することを確認します。
+ * @param[in,out] context 元refresh二入力と分ける原assertionです。
+ * @note Refresh終端だけを固定し、後続loadは元の実隔離storeを全再認証します。
+ */
+void runUnchangedRefreshUiScenario( TestContext &context)
+{
+	const auto firstAssertion = context.assertionCount() ;	// この一条件だけの開始分母です。
+	const auto firstFailure	  = context.failureCount() ;	// 元二入力の失敗を混ぜません。
+	MSG		   previous{} ;									// 前の所有Windowが残したWM_QUITだけを消費します。
+	// 別fixtureの終了通知を新しいworkerの完了と取り違えません。
+	while( PeekMessageW( &previous, nullptr, WM_QUIT, WM_QUIT, PM_REMOVE) != FALSE) {
+	}
+
+	auto input = makeSignedIndexUiInput(
+		false, false, false, false, false, false,
+		SignedIndexUiOptions{.deferredRefresh = false}) ;			// 原署名headは既に実commit済みです。
+	const auto loads = std::make_shared<std::atomic_uint>( 0U) ;	// 通常loadそのものの実行観測です。
+	const auto originalLoad = input.services.load ;					// 元の実隔離store能力を保持します。
+	input.services.load = [loads, originalLoad]( const std::optional<std::chrono::sys_seconds> now) {
+		++(*loads) ;
+		return originalLoad( now) ;
+	} ; // Deferred専用counterを、preseed済み通常loadの観測へ読み替えません。
+	input.services.refresh = []( const ProviderScanCancellation &) {
+		return IndexRefreshSummary{.status				= IndexRefreshStatus::UNCHANGED,
+								   .httpStatus			= 200U,
+								   .sends				= 1U,
+								   .attemptedGeneration = 7U,
+								   .store = {.status = IndexStoreStatus::SNAPSHOT_READY,
+											 .persistedGeneration = 7U,
+											 .usableSnapshot	  = true},
+								   .usedAuthenticatedCache = true} ;
+	} ; // 通信省略の終端だけ固定し、通常scanの成功gateへ実際に渡します。
+	auto bound = makeSignedIndexBindingWorker( input.services, input.zip) ;	// 同じ低位fakeです。
+	auto state = std::make_shared<MetadataUiState>() ;						// 製品fallbackは0を要求します。
+	MainWindow window ;														// 本物のcontroller/queue/resourceと所有Windowです。
+	Access::configure( window, state) ;
+	const bool created = window.create( GetModuleHandleW( nullptr)) ;	// Private desktop内だけです。
+	DRIVERCRATE_EXPECT( context, created && bound.worker != nullptr) ;
+	// 生成失敗を候補表示の成功へ補完しません。
+	if( !created || !bound.worker) {
+		// 所有workerができている場合だけ協調停止します。
+		if( bound.worker) {
+			bound.worker->stop() ;
+		}
+
+		// 所有Windowができている場合だけ同じhandleを破棄します。
+		if( created) {
+			DestroyWindow( Access::handle( window)) ;
+		}
+
+		return ;
+	}
+
+	const HWND handle = Access::handle( window) ;	// このfixtureだけの借用handleです。
+	ShowWindow( handle, SW_SHOWNOACTIVATE) ;
+	Access::attachIndexWorker( window, std::move( bound.worker)) ;
+	Access::beginIndexScan( window) ;
+	auto scanned =
+		// 通常queueの終端です。
+		Access::takeIndexTerminal( window, WorkerEventKind::SCAN_COMPLETED) ;
+	DRIVERCRATE_EXPECT( context, scanned.has_value()) ;
+	// 元終端に到達した場合だけ、通常loadと元候補への継続を確認します。
+	if( scanned) {
+		DRIVERCRATE_EXPECT(
+			context, scanned->indexSummary.refresh &&
+						 scanned->indexSummary.refresh->status == IndexRefreshStatus::UNCHANGED &&
+						 scanned->indexSummary.status == IndexScanStatus::COMPLETED &&
+						 loads->load() == 1U && scanned->indexSummary.relationCount == 1U &&
+						 scanned->preparationPlan &&
+						 scanned->preparationPlan->targets.size() == 1U) ;
+		Access::dispatchIndex( window, *scanned) ;
+		Access::verifyUnchangedCandidate( window, context) ;
+		const auto text = Access::indexResultText( window) ;	// 実際に結果へ保持した本文です。
+		DRIVERCRATE_EXPECT( context,
+						   !scanned->scanResult.candidates.empty() &&
+							   text.find( L"本体の再取得を省きました") != std::wstring::npos &&
+							   text.find( L"更新には失敗") == std::wstring::npos &&
+							   text.find( L"更新と保存") == std::wstring::npos &&
+							   text.find( L"HTTP: 200") != std::wstring::npos &&
+							   text.find( L"commit区分: 0") != std::wstring::npos &&
+							   text.find( L"manifest世代: 7") != std::wstring::npos &&
+							   text.find( L"保存世代: 7") != std::wstring::npos) ;
+		Access::inspectRefreshRoute( window, context, true) ;
+	}
+
+	Access::stopIndexWorker( window) ;
+	const auto observation = bound.observeAfterStop() ;	// 全worker join後の低位事実だけです。
+	DRIVERCRATE_EXPECT( context, input.observeHttp().sends == 0U && state->forbiddenCalls == 0U &&
+									observation.installs == 0U && observation.restoreBegins == 0U &&
+									observation.restoreCompletes == 0U) ;
+	DestroyWindow( handle) ;
+	std::cout << "UI_UNCHANGED_END cases=1 assertions=" << context.assertionCount() - firstAssertion
+			  << " failures=" << context.failureCount() - firstFailure << '\n' ;
 }
 
 /** @brief VUI01–06の固定入力で実menu/可視editと元同版publicationを確認します。
@@ -7045,8 +9702,9 @@ void runSignedIndexBindingUiScenarios( TestContext &context)
 			continue ;
 		}
 
-		auto state = std::make_shared<MetadataUiState>() ;	// 元UI factoryの誤呼出しを検出します。
-		MainWindow window ;									// 製品resourceを使用する本物Windowです。
+		auto  state = std::make_shared<MetadataUiState>() ;		// 元UI factoryの誤呼出しを検出します。
+		auto  windowOwner = std::make_unique<MainWindow>() ;	// 同scopeの元Windowをheap所有します。
+		auto &window	  = *windowOwner ;						// 製品resourceを使用する本物Windowです。
 		Access::configure( window, state) ;
 		const bool created = window.create( GetModuleHandleW( nullptr)) ;	// 隠した実標準controlです。
 		DRIVERCRATE_EXPECT( context, created) ;
@@ -9242,7 +11900,7 @@ void verifyExpiredInitialDetails( MainWindow &window, TestContext &context,
 						   .mode				  = DialogMode::DETAILS,
 						   .captureName			  = ordinal == 0U ? L"expired-initial-success"
 																  : L"expired-initial-failure",
-						   .captureDetails		  = !roles,
+						   .captureDetails		  = false,
 						   .detailEntry			  = static_cast<int>( entry),
 						   .chooseDetailCandidate = true,
 						   .detailSelectable	  = false,
@@ -9262,11 +11920,8 @@ void verifyExpiredInitialDetails( MainWindow &window, TestContext &context,
 				detail.details.find( L"導入許可ではありません") != std::wstring::npos &&
 				(detail.details.find( L"80070005") != std::wstring::npos) == (ordinal == 1U)) ;
 		// 拒否された検証八軸を履歴表示で合格に戻しません。
-		DRIVERCRATE_EXPECT(
-			context,
-			detail.details.starts_with( L"状態: ") &&
-				detail.details.find( L"観測・検証の結合を確認できません。") != std::wstring::npos &&
-				detail.details.find( L"このscan sessionは失効済みです。") != std::wstring::npos) ;
+		DRIVERCRATE_EXPECT( context, detail.details.find( L"失効しています") != std::wstring::npos &&
+										detail.details.size() <= 320U) ;
 		// 役割fixtureと原単一方式の成否を別の期待へ固定します。
 		if( roles) {
 			const auto base = std::wstring(
@@ -9290,8 +11945,10 @@ void verifyExpiredInitialDetails( MainWindow &window, TestContext &context,
  * @param[in,out] context 原assertion集計先です。
  * @param[in] unknownClassOnly 新しい固定24条件と既知三回帰だけを実行する場合trueです。
  * @note 成功candidate DTOは作らず、全入力を真RSA索引・原ZIP・完全低位fakeから生成します。
+ * @param[in] historyResultsOnly 元U21の二候補の失効詳細だけを確認する場合trueです。
  */
-void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownClassOnly = false)
+void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownClassOnly = false,
+									const bool historyResultsOnly = false)
 {
 	/** @brief 実行前に保存した条件へ対応する有限入力と期待です。 */
 	struct Case {
@@ -9377,12 +12034,18 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 	std::size_t executed{} ;							// 分母はunknown27/更新multi27に固定します。
 	// 原条件と登録済み境界を一つの実Window/workerずつ直列実行します。
 	for( const auto &testCase : cases) {
-		const std::string_view caseName{testCase.name} ;				// 原case IDだけの非機密分岐です。
-		const bool			   newCase = caseName.starts_with( "U") ;	// 登録した有限追加集合です。
+		const std::string_view caseName{testCase.name} ;	// 原case IDだけの非機密分岐です。
+		// 詳細の成否/原診断だけを補完する入口では元二条件に限定します。
+		if( historyResultsOnly && caseName != "U21") {
+			continue ;
+		}
+
+		// 原case IDだけの非機密分岐です。
+		const bool newCase = caseName.starts_with( "U") ;	// 登録した有限追加集合です。
 		// 同じ原multi分母を削減せず追加modeだけに三回帰を含めます。
-		if( unknownClassOnly
-			   ? !(newCase || caseName == "M01" || caseName == "I01" || caseName == "S02")
-			   : newCase) {
+		if( !historyResultsOnly && (unknownClassOnly ? !(newCase || caseName == "M01" ||
+														caseName == "I01" || caseName == "S02")
+													: newCase)) {
 			continue ;
 		}
 
@@ -9426,8 +12089,9 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 			continue ;
 		}
 
-		auto state = std::make_shared<MetadataUiState>() ;	// 別Providerへの誤routingを検出します。
-		MainWindow window ;									// 製品resourceの本物通常Windowです。
+		auto  state = std::make_shared<MetadataUiState>() ;		// 別Providerへの誤routingを検出します。
+		auto  windowOwner = std::make_unique<MainWindow>() ;	// 同scopeの元Windowをheap所有します。
+		auto &window	  = *windowOwner ;						// 製品resourceの本物通常Windowです。
 		Access::configure( window, state) ;
 		const bool created =
 			// 同scopeの本物Window生成結果です。
@@ -9446,8 +12110,11 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 			// 各未到達を元caseの失敗へ残して共通終端清掃へ進みます。
 			do {
 				Access::beginIndexScan( window) ;
-				auto scanned = Access::takeIndexTerminal(
-					window, WorkerEventKind::SCAN_COMPLETED) ;	// 元scan終端の所有です。
+				auto scannedOwner =
+					std::make_unique<std::optional<WorkerEvent>>( Access::takeIndexTerminal(
+						window,
+						WorkerEventKind::SCAN_COMPLETED)) ;	// 同scopeの元eventをheap所有します。
+				auto &scanned = *scannedOwner ;				// 元scan終端の所有です。
 				DRIVERCRATE_EXPECT( context, scanned && scanned->scanResult.succeeded &&
 												scanned->preparationPlan) ;
 				// 同scan原planがない状態から取得権限を生成しません。
@@ -9471,8 +12138,11 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 				}
 
 				DRIVERCRATE_EXPECT( context, Access::acquireIndexPlan( window, plan)) ;
-				auto prepared = Access::takeIndexTerminal(
-					window, WorkerEventKind::PREPARATION_COMPLETED) ;	// 元取得・検査終端の所有です。
+				auto preparedOwner = std::make_unique<
+					std::optional<WorkerEvent>>( Access::takeIndexTerminal(
+					window,
+					WorkerEventKind::PREPARATION_COMPLETED)) ;	// 同scopeの元eventをheap所有します。
+				auto &prepared = *preparedOwner ;				// 元取得・検査終端の所有です。
 				DRIVERCRATE_EXPECT( context, prepared.has_value()) ;
 				// 元終端なしでは表示用成功DTOを作りません。
 				if( !prepared) {
@@ -9491,9 +12161,8 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 							prepared->indexPreparation.items.front() ;
 						DRIVERCRATE_EXPECT(
 							context,
-							item.content == IndexedDriverInspectionState::INSPECTION_FAILED &&
-								item.contentError == static_cast<NativeError>( HRESULT_FROM_WIN32(
-														 ERROR_BUFFER_OVERFLOW)) &&
+							item.content == IndexedDriverInspectionState::INPUT_REJECTED &&
+								item.contentError == static_cast<NativeError>( E_INVALIDARG) &&
 								item.infCount == 0U && item.acceptedInfCount == 0U) ;
 						std::cout << "MULTI_ARCHIVE_ORIGINAL case=M08 content="
 								  << static_cast<unsigned>( item.content)
@@ -9530,14 +12199,13 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 										 report.publication.firstError == 0) ;
 					}
 
-					// 129個目で共通archive上限に達し、128部分合格も公開せず元HRESULTを保持します。
+					// selected集合の129件を署名前に拒否し、128部分合格も公開せず元HRESULTを保持します。
 					if( caseName == "M08") {
 						DRIVERCRATE_EXPECT( context,
 										   report.infCount == 0U &&
 											   report.content == CandidateAuditGateState::FAILURE &&
 											   report.contentError ==
-												   static_cast<NativeError>(
-													   HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) &&
+												   static_cast<NativeError>( E_INVALIDARG) &&
 											   report.examinedPairCount == 0U &&
 											   report.applicablePairCount == 0U &&
 											   report.publication.publishedCount == 0U &&
@@ -9589,7 +12257,8 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 				DRIVERCRATE_EXPECT( context, http.sends == requests && http.safe &&
 												http.opens == http.closes) ;
 				const auto roots =
-					caseName == "M05"		? 33U
+					caseName == "M08"		? 0U
+					: caseName == "M05"		? 33U
 					: archiveInfCount != 0U ? 128U
 					: testCase.multiInf
 						? 2U
@@ -9690,8 +12359,11 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 				DRIVERCRATE_EXPECT( context, !accept.handled && !accept.failed &&
 												Access::controller( window).activeOperationId() !=
 													beforeOperation) ;
-				auto installed = Access::takeIndexTerminal(
-					window, WorkerEventKind::INSTALL_COMPLETED) ;	// 元復旧/個別導入結果の所有です。
+				auto installedOwner =
+					std::make_unique<std::optional<WorkerEvent>>( Access::takeIndexTerminal(
+						window,
+						WorkerEventKind::INSTALL_COMPLETED)) ;	// 同scopeの元eventをheap所有します。
+				auto &installed = *installedOwner ;				// 元復旧/個別導入結果の所有です。
 				DRIVERCRATE_EXPECT( context, installed.has_value()) ;
 				// 終端がなければ導入成功として画面へ送信しません。
 				if( !installed) {
@@ -9924,9 +12596,12 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 
 	std::cout << "Multi UI assertions: " << context.assertionCount() - before
 			  << ", failures: " << context.failureCount() - failures << ", cases=" << executed
-			  << ", mode=" << (unknownClassOnly ? "unknown" : "multi")
+			  << ", mode="
+			  << (historyResultsOnly ? "history-results"
+				  : unknownClassOnly ? "unknown"
+									 : "multi")
 			  << ", acquisition approval private fixture only, native CAT positive UNCONFIRMED\n" ;
-	DRIVERCRATE_EXPECT( context, executed == 27U) ;
+	DRIVERCRATE_EXPECT( context, executed == (historyResultsOnly ? 1U : 27U)) ;
 }
 
 /** @brief 元141/root-onlyと固定19依存条件を本物通常画面/dialog/製品workerへ直列に通します。
@@ -10010,8 +12685,8 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 		Case{50U, Native::NORMAL, 1U, 2U, 2U, true},
 		Case{51U, Native::NORMAL, 1U, 2U, 2U, true},
 		Case{52U, Native::NORMAL, 1U, 2U, 2U, true},
-		Case{53U, Native::NORMAL, 0U, 0U, 0U, false},
-		Case{54U, Native::NORMAL, 0U, 0U, 0U, false},
+		Case{53U, Native::NORMAL, 1U, 2U, 2U, true},
+		Case{54U, Native::NORMAL, 1U, 2U, 2U, true},
 		Case{55U, Native::NORMAL, 0U, 0U, 0U, false},
 		Case{56U, Native::NORMAL, 0U, 0U, 0U, false},
 		Case{57U, Native::NORMAL, 0U, 0U, 0U, false},
@@ -10039,7 +12714,7 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 		Case{79U, Native::NORMAL, 0U, 0U, 0U, false},
 		Case{80U, Native::SHARED_SECTION_SUCCESS, 2U, 2U, 4U, true},
 		Case{81U, Native::INITIAL_CLASS_MISSING, 1U, 2U, 2U, true},
-		Case{82U, Native::NORMAL, 0U, 0U, 0U, false},
+		Case{82U, Native::NORMAL, 1U, 2U, 2U, true},
 		Case{83U, Native::NORMAL, 0U, 0U, 0U, false},
 		Case{84U, Native::NORMAL, 0U, 0U, 0U, false},
 		Case{85U, Native::NORMAL, 0U, 0U, 0U, false},
@@ -11001,7 +13676,15 @@ int main( const int argc, char **argv)
 		std::string_view( argv[2]) != "extension" && std::string_view( argv[2]) != "preparation" &&
 		std::string_view( argv[2]) != "hardware" && std::string_view( argv[2]) != "refresh" &&
 		std::string_view( argv[2]) != "refresh-probe" &&
-		std::string_view( argv[2]) != "refresh-render-evidence" && !nativeControl)) {
+		std::string_view( argv[2]) != "refresh-render-evidence" &&
+		std::string_view( argv[2]) != "history" && std::string_view( argv[2]) != "history-keys" &&
+		std::string_view( argv[2]) != "history-initial" &&
+		std::string_view( argv[2]) != "history-images" &&
+		std::string_view( argv[2]) != "history-results" &&
+		std::string_view( argv[2]) != "diagnostics" &&
+		std::string_view( argv[2]) != "preparation-failure" &&
+		std::string_view( argv[2]) != "install-view" &&
+		std::string_view( argv[2]) != "diagnostics-failure" && !nativeControl)) {
 		std::cout
 			<< "Internal fake UI only. Use --run-ui-tests. No network or driver operations.\n" ;
 		return 2 ;
@@ -11065,6 +13748,34 @@ int main( const int argc, char **argv)
 			if( argc == 2) {
 				drivercrate::test::runUiScenarios( context) ;
 			}
+			// 元行の表示保持と正常な準備二条件だけを同private HWNDで確認します。
+			else if( mode == "install-view") {
+				drivercrate::test::runInstallTreeViewUiScenarios( context) ;
+				drivercrate::test::runSearchPreparationUiScenarios( context, true) ;
+			}
+			// 新準備失敗の九入力だけを同private desktopで有限確認します。
+			else if( mode == "preparation-failure") {
+				drivercrate::test::runPreparationFailureUiScenarios( context) ;
+			}
+			// 新匿名診断の保存状態だけを同private desktopで有限確認します。
+			else if( mode == "diagnostics" || mode == "diagnostics-failure") {
+				drivercrate::test::runDiagnosticUiScenarios( context, mode == "diagnostics-failure") ;
+			}
+			// 新しい詳細tableと旧版filterだけを元private desktopで有限実行します。
+			else if( std::string_view( argv[2]) == "history" ||
+					std::string_view( argv[2]) == "history-keys") {
+				drivercrate::test::runHistoryUiScenarios( context, std::string_view( argv[2]) ==
+																	  "history-keys") ;
+			}
+			// 二画像だけは既fixtureを同じ所有Windowで再取得します。
+			else if( std::string_view( argv[2]) == "history-images") {
+				drivercrate::test::historyImagesOnly = true ;
+				drivercrate::test::runHistoryUiScenarios( context) ;
+			}
+			// 初回だけは元低位fakeとfresh Windowで独立確認します。
+			else if( std::string_view( argv[2]) == "history-initial") {
+				drivercrate::test::runHistoryInitialUiScenarios( context) ;
+			}
 			// 索引専用群も同じ明示optionの内部targetからだけ実行します。
 			else if( std::string_view( argv[2]) == "index") {
 				drivercrate::test::runIndexUiScenarios( context) ;
@@ -11083,6 +13794,7 @@ int main( const int argc, char **argv)
 			// 元formatterの生成/copy/geometryを観測する新条件だけを明示実行します。
 			else if( std::string_view( argv[2]) == "refresh-probe") {
 				drivercrate::test::runVisibleRefreshUiScenarios( context, true) ;
+				drivercrate::test::runUnchangedRefreshUiScenario( context) ;
 			}
 			// 元fresh/cache二入力の四dialogだけで独立描画と保存段階を一回ずつ比較します。
 			else if( std::string_view( argv[2]) == "refresh-render-evidence") {
@@ -11098,6 +13810,10 @@ int main( const int argc, char **argv)
 				drivercrate::test::runSignedIndexBindingUiScenarios( context) ;
 			}
 			// 複数INF/共有/初回/登録先の有限群も内部target明示optionだけで実行します。
+			else if( std::string_view( argv[2]) == "history-results") {
+				drivercrate::test::runSignedIndexMultiUiScenarios( context, false, true) ;
+			}
+			// 元の全条件は既明示入口のまま保持します。
 			else if( std::string_view( argv[2]) == "multi") {
 				drivercrate::test::runSignedIndexMultiUiScenarios( context) ;
 			}

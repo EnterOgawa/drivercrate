@@ -2,7 +2,7 @@
 /**
  * @file official_driver_closure_tests.cpp
  * @brief 公式driver package監査単体試験実装。
- * @version 01.09.02
+ * @version 01.10.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -58,6 +58,9 @@
  * Ver.01.09.00 Shunji Ogawa  2026/10/06  参照元文脈・未解釈不足・最大量の架空検証を追加。
  * Ver.01.09.01 Shunji Ogawa  2026/10/07  必須byte欠落とroot署名の独立判定回帰を採用契約へ整合。
  * Ver.01.09.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.09.03 Shunji Ogawa  2026/11/03  通常公開IDと署名済み参照データの境界を更新。
+ * Ver.01.10.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.10.01 Shunji Ogawa  2026/11/07  現非実行policyと旧fixture期待を照合。
  * </pre>
  *
  * @note Minizで生成した架空ZIPを使用し、INF、CAT、参照fileだけが保護workspaceへ抽出されることを検証します。
@@ -69,6 +72,7 @@
 #include "core/official_source_policy.h"
 #include "core/candidate_assessment.h"
 #include "platform/common_driver_package.h"
+#include "platform/generic_inf_package.h"
 #include "platform/driver_store_provider.h"
 #include "core/provider_registry.h"
 #include "platform/asix_preparation.h"
@@ -4528,6 +4532,88 @@ void testCommonArchiveContentBoundary( TestContext &context)
 }
 
 /**
+ * @brief 同じflat payloadの共通memberを一度保持し、quotaと別入力再利用を拒否します。
+ * @param[in,out] context 架空ZIPだけの内容・所有境界を集計します。
+ */
+void testSharedArchiveMemberRetention( TestContext &context)
+{
+	const std::array entries{
+		ZipFixtureEntry{"driver/first.inf", VALID_INF.data(), VALID_INF.size()},
+		ZipFixtureEntry{"driver/second.inf", VALID_INF.data(), VALID_INF.size()},
+		ZipFixtureEntry{"driver/sample.cat", CATALOG.data(), CATALOG.size()},
+		ZipFixtureEntry{"driver/sample.sys", DRIVER.data(),
+						// 二INFは同じ元CAT/SYSを共有します。
+						DRIVER.size()}} ;
+	std::vector<std::byte> archive ;	// 小さな未署名の架空byte列です。
+	DRIVERCRATE_EXPECT( context, createZipFixture( entries, archive)) ;
+	OfficialDownloadWorkspace source ;	// 同期試験の原ZIP所有者です。
+	DRIVERCRATE_EXPECT( context, source.initialize( L"shared-content-source", 1645U) == 0) ;
+	std::wstring hash ;	// 公式性を表さない同一性だけのhashです。
+	DRIVERCRATE_EXPECT( context, storeArchive( source, L"payload.zip", archive, hash) == 0) ;
+	DriverArchiveInput input{1645U, source.path( L"payload.zip"), archive.size(),
+							 hash} ;	// 元入力だけです。
+	const auto		   uniqueBytes = 2U * VALID_INF.size() + CATALOG.size() +
+							 // 重複コピーを含まない実member量です。
+							 DRIVER.size() ;
+	// 境界の完全一致と一byte不足を別の所有cacheで確認します。
+	for( const bool exact : {true, false}) {
+		auto policy				   = POLICY ;	// 構文と全体上限を維持する元policyです。
+		policy.maximumClosureBytes = uniqueBytes - (exact ? 0U : 1U) ;
+		DriverArchiveExtractionCache cache ;								// 同一入力・同workspaceだけの短命ownerです。
+		OfficialDownloadWorkspace	 output ;								// 今回分のfileだけを所有します。
+		OfficialDriverClosure		 closure ;								// 構造成功も未署名のままです。
+		const std::array first{std::wstring_view{L"driver\\first.inf"}} ;	// 元INF一件だけです。
+		const std::array second{
+			std::wstring_view{L"driver\\second.inf"}} ;	// 共通CAT/SYSを再要求します。
+		DRIVERCRATE_EXPECT( context, extractDriverClosure( {&input,
+														  OfficialDriverArchiveFormat::ZIP,
+														  {},
+														  first,
+														  L"shared-content-output",
+														  &cache},
+														 policy, output, closure) == 0) ;
+		DRIVERCRATE_EXPECT( context, cache.retainedBytes() ==
+										VALID_INF.size() + CATALOG.size() + DRIVER.size()) ;
+		const auto result =
+			extractDriverClosure( {&input,
+								  OfficialDriverArchiveFormat::ZIP,
+								  {},
+								  second,
+								  L"shared-content-output",
+								  &cache},
+								 policy, output, closure) ;	// 作成前から同じquotaを使います。
+		DRIVERCRATE_EXPECT( context, (result == 0) == exact) ;
+		// quota拒否でも以前の正常fileはそのまま保持します。
+		DRIVERCRATE_EXPECT( context, GetFileAttributesW( output.path( L"driver\\first.inf").c_str()) !=
+										INVALID_FILE_ATTRIBUTES) ;
+		DRIVERCRATE_EXPECT(
+			context, cache.retainedBytes() ==
+						 (exact ? uniqueBytes : VALID_INF.size() + CATALOG.size() + DRIVER.size())) ;
+		// 全成功時だけ同じ元INFを再検査し、一意保持量が増えないことを確認します。
+		if( exact) {
+			DRIVERCRATE_EXPECT( context, extractDriverClosure( {&input,
+															  OfficialDriverArchiveFormat::ZIP,
+															  {},
+															  first,
+															  L"shared-content-output",
+															  &cache},
+															 policy, output, closure) == 0 &&
+											cache.retainedBytes() == uniqueBytes) ;
+		}
+
+		OfficialDownloadWorkspace different ;	// 別ownerへ元cacheを流用できません。
+		DRIVERCRATE_EXPECT( context, extractDriverClosure( {&input,
+														  OfficialDriverArchiveFormat::ZIP,
+														  {},
+														  first,
+														  L"shared-content-other",
+														  &cache},
+														 policy, different, closure) != 0 &&
+										closure.entries.empty()) ;
+	}
+}
+
+/**
  * @brief Intel Windows 11の型付きrecordから生成ZIPの共通内容検査までを接続検証する。
  * @param[in,out] context Assertion集計先。
  */
@@ -4707,7 +4793,7 @@ void testCommonArchiveBounds( TestContext &context)
 		context, inspectCommonDriverPackage( input, OfficialDriverArchiveFormat::ZIP, inspection) ==
 					 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW))) ;
 	DRIVERCRATE_EXPECT( context, inspection.infs.empty() && inspection.retainedBytes == 0U) ;
-	input.byteCount = 128ULL * 1024ULL * 1024ULL + 1U ;
+	input.byteCount = 2ULL * 1024ULL * 1024ULL * 1024ULL + 1U ;
 	DRIVERCRATE_EXPECT(
 		context, inspectCommonDriverPackage( input, OfficialDriverArchiveFormat::ZIP, inspection) ==
 					 static_cast<NativeError>( E_INVALIDARG)) ;
@@ -4762,7 +4848,15 @@ void testCommonInfAssessmentBinding( TestContext &context)
 						   assessment.driverOnly.state == CandidateAssessmentState::UNSUPPORTED) ;
 	DRIVERCRATE_EXPECT( context, assessment.explicitRequirements.empty() &&
 									!isCandidateAssessmentReady( assessment)) ;
-	inspected.closure.packages.front().hasExternalDependencies = false ;
+	inspected.closure.packages.front().hasExternalDependencies		  = false ;
+	inspected.closure.packages.front().hasUnassessedProgramReferences = true ;
+	DRIVERCRATE_EXPECT( context, makeCommonInfCandidateAssessment( 901U, candidate, inspected, 1U,
+																 origin, 0, 0x1000U, assessment)) ;
+	DRIVERCRATE_EXPECT( context,
+					   assessment.signature.state == CandidateAssessmentState::PASSED &&
+						   assessment.driverOnly.state == CandidateAssessmentState::UNSUPPORTED &&
+						   !isCandidateAssessmentReady( assessment)) ;
+	inspected.closure.packages.front().hasUnassessedProgramReferences = false ;
 	DRIVERCRATE_EXPECT( context,
 					   makeCommonInfCandidateAssessment( 901U, candidate, inspected, 1U, origin, 0,
 														std::nullopt, assessment)) ;
@@ -4981,7 +5075,7 @@ void testCommonStandardSyntaxBoundary( TestContext &context)
 				   "[ExtraActions]\r\nHKR,,CoInstallers32,0x00010000,\"extra.dll\"\r\n" ;
 		}
 
-		// 保守専用の参照EXE許可を通常入口へ持ち込まない。
+		// 元EXEは非実行内容として確認し、架空CATを導入合格へ変えません。
 		if( scenario == 7U) {
 			std::size_t position{} ;	// 参照名の有限反復位置。
 			// 架空INF内の全参照名を変更し、実EXEを使用しない。
@@ -5053,7 +5147,8 @@ void testCommonStandardSyntaxBoundary( TestContext &context)
 		const CommonInfInspection &observed =
 			// このscope内だけの個別結果。
 			inspection.infs.front() ;
-		const bool recognized = scenario < 4U || scenario == 10U ;	// 標準構文かつ他の拒否条件なし。
+		const bool recognized =
+			scenario < 4U || scenario == 7U || scenario == 10U ;	// 標準構文かつ他の拒否条件なし。
 		DRIVERCRATE_EXPECT( context, observed.state ==
 										(recognized ? CommonInfInspectionState::SIGNATURE_REJECTED
 													: CommonInfInspectionState::CLOSURE_REJECTED)) ;
@@ -5814,7 +5909,7 @@ void testMaintenanceVerdictSeparation( TestContext &context)
 							   }) == static_cast<NativeError>( E_UNEXPECTED)) ;
 		DRIVERCRATE_EXPECT( context, result.infs.empty()) ;
 		DriverArchiveInput overBudget = input ;	// 全体予算違反を元file読取前に拒否する。
-		overBudget.byteCount		  = 129ULL * 1024ULL * 1024ULL ;
+		overBudget.byteCount		  = 2ULL * 1024ULL * 1024ULL * 1024ULL + 1U ;
 		DRIVERCRATE_EXPECT( context, inspectMaintenanceDriverPackage(
 										overBudget, OfficialDriverArchiveFormat::ZIP, result) ==
 										static_cast<NativeError>( E_INVALIDARG)) ;
@@ -5935,7 +6030,7 @@ void testMaintenanceReferencedExecutableBoundary( TestContext &context)
 			}
 		}
 
-		CommonDriverPackageInspection normal ;	// 従来の参照EXE拒否を維持する結果。
+		CommonDriverPackageInspection normal ;	// 非実行参照byteと架空CATの独立判定です。
 		const NativeError			  normalError = inspectCommonDriverPackage(
 			input, OfficialDriverArchiveFormat::ZIP, normal) ;	// 従来の全体破損境界。
 		// 通常入口も破損nested ZIPを全体で拒否する。
@@ -5945,13 +6040,20 @@ void testMaintenanceReferencedExecutableBoundary( TestContext &context)
 			DRIVERCRATE_EXPECT( context, normalError == 0 && normal.infs.size() == 1U) ;
 		}
 
-		// 従来入口ではEXEを含むどのfixtureも閉包を受理しない。
+		// 非実行コピーのEXE/MSI/PS1/BINは元内容署名へ進み、実行やCAT合格を認めません。
 		if( normal.infs.size() == 1U) {
+			// 架空参照の拒否段階を数値だけで区別し、実行/署名へ進めません。
+			std::cout << "INF_REFERENCE_NORMAL scenario=" << scenario
+					  << " state=" << static_cast<int>( normal.infs.front().state)
+					  << " error=" << normal.infs.front().error << '\n' ;
 			DRIVERCRATE_EXPECT( context, normal.infs.front().state ==
-											CommonInfInspectionState::CLOSURE_REJECTED) ;
+											(scenario == 0U || scenario == 1U || scenario == 3U ||
+													 scenario == 4U || scenario == 5U
+												 ? CommonInfInspectionState::SIGNATURE_REJECTED
+												 : CommonInfInspectionState::CLOSURE_REJECTED)) ;
 		}
 
-		// 直接のpolicy指定でも通常閉包の拒否を回避できないことを確認する。
+		// 明示した非実行content policyでも導入可能な汎用packageには変わりません。
 		if( scenario == 0U) {
 			constexpr std::array SELECTED_INF{std::wstring_view( L"sample.inf")} ;	// 架空INFだけ。
 			const DriverClosureRequest request{
@@ -5965,8 +6067,10 @@ void testMaintenanceReferencedExecutableBoundary( TestContext &context)
 			OfficialDownloadWorkspace normalOutput ;	// 通常拒否後に解放する領域。
 			OfficialDriverClosure	  normalClosure ;	// 失敗時は空。
 			DRIVERCRATE_EXPECT(
-				context, extractDriverClosure( request, policy, normalOutput, normalClosure) != 0) ;
-			DRIVERCRATE_EXPECT( context, normalClosure.entries.empty()) ;
+				context, extractDriverClosure( request, policy, normalOutput, normalClosure) == 0) ;
+			DRIVERCRATE_EXPECT( context,
+							   normalClosure.entries.size() == 4U &&
+								   !isGenericInfPackageSupported( normalClosure.packages.front())) ;
 			OfficialDownloadWorkspace maintenanceOutput ;	// 非実行保守閉包の所有先。
 			MaintenanceDriverClosure  maintenanceClosure ;	// 通常導入型と非互換。
 			DRIVERCRATE_EXPECT( context,
@@ -5992,6 +6096,7 @@ void testMaintenanceReferencedExecutableBoundary( TestContext &context)
 //------------------------------------------------------------------------------
 void runOfficialDriverClosureTests( TestContext &context)
 {
+	testSharedArchiveMemberRetention( context) ;
 	testMaintenanceReferencedExecutableBoundary( context) ;
 	testMaintenanceVerdictSeparation( context) ;
 	testCommonStandardSyntaxBoundary( context) ;

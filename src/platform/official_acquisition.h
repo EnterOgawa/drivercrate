@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition.h
  * @brief 公式fileの検査用取得境界定義。
- * @version 01.05.01
+ * @version 01.06.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/06  収集adapter限定のprivate取得scopeを共通化。
  * Ver.01.05.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
  * Ver.01.05.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
  * </pre>
  *
  * @note 公式由来を確認したfileを候補化せず保護workspaceへ取得し、容量予算、network cost、取消し、size、SHA-256をfail-closedで検証します。
@@ -194,6 +195,8 @@ struct OfficialAcquisitionResult {
 	std::uint32_t				validatedDestinationAddressCount{} ;
 	/// Record限定経路で全hopをlocal解決できた場合true。
 	bool						destinationLocallyResolved{} ;
+	/// 匿名解決の実補助要求数/本文bytes/status。秘密値を含まない。
+	OfficialAuxiliaryHttpObservation auxiliaryHttp ;
 } ;
 
 /**

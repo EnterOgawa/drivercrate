@@ -36,6 +36,11 @@ scripts/__pycache__/
 /src.zip
 /run.py
 
+# Collector definitions and original manual review data are local-only (ADR 0435).
+/data/collector-definitions/
+/data/collector-registry/manual-index-records.json
+/data/collector-registry/manual-index-review*.json
+
 # Local reference material; these files are not part of DriverCrate.
 snappy-driver-installer-origin-code-r886-trunk/
 snappy-driver-installer-origin-code-r886-trunk.zip

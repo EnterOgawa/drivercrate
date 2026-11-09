@@ -2,7 +2,7 @@
 /**
  * @file indexed_driver_package_inspection.h
  * @brief 索引hintと固定済みarchiveの通常共通検査を結合する。
- * @version 01.01.00
+ * @version 01.04.00
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,9 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/05  取得済みarchiveへの非導入結合を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
  * </pre>
  *
  * @note Worker内だけで使用する。Hintはmetadata参照であり、索引署名、公式由来、取得許可、
@@ -36,19 +39,37 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace drivercrate {
+
+/** @brief 原recordが指定する一INFと一段nestedの非実行selectorです。 */
+struct IndexedDriverInfSelector {
+	/// 空はouter直下、非空は同outer内の検証済みmemberです。
+	std::wstring nestedArchive ;
+	/// 同container内のINF相対名です。
+	std::wstring infIdentity ;
+	/** @brief 原member組を完全一致で比較します。
+	 * @param[in] other 別recordの元selectorです。
+	 * @return 二つの原相対名が同じ場合trueです。
+	 */
+	bool		 operator==( const IndexedDriverInfSelector &other) const = default ;
+} ;
 
 /** @brief 呼出し側が検査した索引metadataへの参照と期待archive identity。 */
 struct IndexedDriverArchiveHint {
 	/// 呼出し側が保持する索引原byteの小文字SHA-256。署名認証を表さない。
-	std::wstring  indexSha256 ;
+	std::wstring									   indexSha256 ;
 	/// 索引から一意に選択したrecord正規byteの小文字SHA-256。
-	std::wstring  recordSha256 ;
+	std::wstring									   recordSha256 ;
 	/// 当該recordへ結合した元取得archiveの小文字SHA-256。
-	std::wstring  archiveSha256 ;
-	/// 元取得archiveの期待byte数。1～128 MiB。
-	std::uint64_t archiveBytes{} ;
+	std::wstring									   archiveSha256 ;
+	/// 元取得archiveの期待byte数。1～2 GiB。
+	std::uint64_t									   archiveBytes{} ;
+	/// 元選択record集合の一意INF。空は従来の全INF検査です。最大128件です。
+	std::vector<IndexedDriverInfSelector>			   selectedInfs ;
+	/// 同元recordへ結んだresource選択。通常archiveでは空。
+	std::shared_ptr<const OfficialResourceContentPlan> resourceContent ;
 } ;
 
 /** @brief 内容合格と独立した索引入力の非導入到達段階。 */
@@ -84,7 +105,7 @@ struct IndexedDriverPackageInspection {
  * @param[in] activeScanSessionId 現在の0ではないworker scan session。
  * @param[in] hint 呼出し側が選択した期待値。全hashは小文字64桁。
  * @param[in] input 既存保護copyまたは共通取得層が固定したarchive。
- * @param[in] format ZIPまたはCABINET。実行形式の推測は行わない。
+ * @param[in] format ZIP、CABINETまたは非実行SEVEN_ZIP_SFX。実行形式の推測は行わない。
  * @return Session・hash・size・local path構文・形式が一致する場合true。
  * @note 実byte、索引本文・署名、公式取得根拠や許可の検査を代替しない。
  */
@@ -98,7 +119,7 @@ struct IndexedDriverPackageInspection {
  * @param[in] activeScanSessionId 現在のworker scan session。
  * @param[in] hint 呼出し側が選択した元取得archiveの期待identity。
  * @param[in] input 呼出し中に変更しない、既存の保護archive入力。
- * @param[in] format ZIPまたはCABINET。未対応形式は拒否する。
+ * @param[in] format ZIP、CABINETまたは非実行SEVEN_ZIP_SFX。未対応形式は拒否する。
  * @param[out] result 全体完了時だけ通常検査結果を保持する。失敗時は段階・診断だけ。
  * @param[in] cancellation 空またはworker内の非blocking取消し照会。
  * @return 通常検査完了時0。それ以外は元HRESULT。0件内容合格も完了に含む。

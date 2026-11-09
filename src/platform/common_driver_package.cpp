@@ -2,7 +2,7 @@
 /**
  * @file common_driver_package.cpp
  * @brief 由来と独立したdriver packageの保護取込みと個別検査。
- * @version 01.14.00
+ * @version 01.20.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,12 @@
  * Ver.01.12.00 Shunji Ogawa  2026/10/14  監視側の明示一INFへ通常policyの同じ実検査を接続。
  * Ver.01.13.00 Shunji Ogawa  2026/10/15  同元内容の必要関係から数値拒否段階を伝播。
  * Ver.01.14.00 Shunji Ogawa  2026/10/15  実選択graphの充足Needsを追加INFと別に保持。
+ * Ver.01.15.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.16.00 Shunji Ogawa  2026/11/03  SystemとSecurityDevicesの標準INFを共通内容へ追加。
+ * Ver.01.17.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.18.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
+ * Ver.01.19.00 Shunji Ogawa  2026/11/06  元driver付属DATAとWindows標準導入scopeを分離。
+ * Ver.01.20.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * </pre>
  *
  * @note 入力と閉包をworker内だけで保持し、取得元証明や導入許可を発行しません。
@@ -77,12 +83,14 @@ namespace {
 // 内容検査の有限policy。
 //------------------------------------------------------------------------------
 
-constexpr std::uint64_t		INPUT_BYTES		 = 128ULL * 1024ULL * 1024ULL ;	// 外側入力上限。
-constexpr std::uint64_t		EXPANDED_BYTES	 = 512ULL * 1024ULL * 1024ULL ;	// 展開／保持上限。
-constexpr std::size_t		INF_COUNT		 = 128U ;						// 全archive合計のINF数上限。
-constexpr std::size_t		NESTED_COUNT	 = 16U ;						// 一段nested archive数上限。
-constexpr DWORD				COPY_CHUNK_BYTES = 1024U * 1024U ;				// 同期copyのbyte上限。
-constexpr std::wstring_view COPY_NAME		 = L"input.archive" ;			// 保護copyの固定内部名。
+constexpr std::uint64_t INPUT_BYTES =
+	2ULL * 1024ULL * 1024ULL * 1024ULL ;	// 固定mappingする外側入力上限。
+constexpr std::uint64_t EXPANDED_BYTES =
+	3ULL * 1024ULL * 1024ULL * 1024ULL ;							// 一意memberの共同実保持上限。
+constexpr std::size_t		INF_COUNT		 = 128U ;				// 全archive合計のINF数上限。
+constexpr std::size_t		NESTED_COUNT	 = 16U ;				// 一段nested archive数上限。
+constexpr DWORD				COPY_CHUNK_BYTES = 1024U * 1024U ;		// 同期copyのbyte上限。
+constexpr std::wstring_view COPY_NAME		 = L"input.archive" ;	// 保護copyの固定内部名。
 constexpr std::array		CLASSES{
 	   std::wstring_view( L"Biometric"), std::wstring_view( L"Bluetooth"), std::wstring_view( L"Camera"),
 	   std::wstring_view( L"Display"), std::wstring_view( L"HIDClass"), std::wstring_view( L"Image"),
@@ -90,31 +98,22 @@ constexpr std::array		CLASSES{
 	   std::wstring_view( L"Monitor"), std::wstring_view( L"Mouse"), std::wstring_view( L"Multifunction"),
 	   std::wstring_view( L"Net"), std::wstring_view( L"Ports"), std::wstring_view( L"Printer"),
 	   std::wstring_view( L"Sensor"), std::wstring_view( L"SmartCardReader"), std::wstring_view( L"USB"),
-	   // 基本driverの静的検査対象。未知classは未対応へ残す。
-	   std::wstring_view( L"USBDevice")} ;
+	   std::wstring_view( L"USBDevice"), std::wstring_view( L"System"),
+	   // Class名だけでbootやfirmwareを推測せず、同じ原INF/CATを検査します。
+	   std::wstring_view( L"SecurityDevices")} ;
 // 内容解析だけが扱う追加Class。通常policyと導入許可の集合へ流用しない。
-constexpr std::array CONTENT_CLASSES{CLASSES[0],
-									 CLASSES[1],
-									 CLASSES[2],
-									 CLASSES[3],
-									 CLASSES[4],
-									 CLASSES[5],
-									 CLASSES[6],
-									 CLASSES[7],
-									 CLASSES[8],
-									 CLASSES[9],
-									 CLASSES[10],
-									 CLASSES[11],
-									 CLASSES[12],
-									 CLASSES[13],
-									 CLASSES[14],
-									 CLASSES[15],
-									 CLASSES[16],
-									 CLASSES[17],
-									 CLASSES[18],
-									 std::wstring_view( L"System"),
-									 std::wstring_view( L"MultiPortSerial")} ;
-static_assert( CLASSES.size() == 19U && CONTENT_CLASSES.size() == 21U) ;
+constexpr std::array CONTENT_CLASSES{CLASSES[0],  CLASSES[1],
+									 CLASSES[2],  CLASSES[3],
+									 CLASSES[4],  CLASSES[5],
+									 CLASSES[6],  CLASSES[7],
+									 CLASSES[8],  CLASSES[9],
+									 CLASSES[10], CLASSES[11],
+									 CLASSES[12], CLASSES[13],
+									 CLASSES[14], CLASSES[15],
+									 CLASSES[16], CLASSES[17],
+									 CLASSES[18], CLASSES[19],
+									 CLASSES[20], std::wstring_view( L"MultiPortSerial")} ;
+static_assert( CLASSES.size() == 21U && CONTENT_CLASSES.size() == 22U) ;
 // 必要役割はClass同一の基本driver候補へ変換せず、関係検査の別役割へ渡します。
 constexpr std::array				  REQUIRED_CLASSES{CLASSES[0],
 									   CLASSES[1],
@@ -135,31 +134,43 @@ constexpr std::array				  REQUIRED_CLASSES{CLASSES[0],
 									   CLASSES[16],
 									   CLASSES[17],
 									   CLASSES[18],
+									   CLASSES[19],
+									   CLASSES[20],
 									   std::wstring_view( L"Extension"),
 									   std::wstring_view( L"SoftwareComponent")} ;
 constexpr std::array				  SIGNATURES{std::wstring_view( L"$Windows NT$"),
 								 // 標準INF構文。CAT暗号署名とは独立。
 								 std::wstring_view( L"$Chicago$")} ;
 constexpr OfficialInfInspectionPolicy INF_POLICY{
-	.maximumHardwareIds			   = 4096U,
-	.maximumSourceFiles			   = 8192U,
-	.acceptedClasses			   = REQUIRED_CLASSES,
-	.acceptedProviders			   = {},
-	.acceptedSignatures			   = SIGNATURES,
-	.acceptAnyProvider			   = true,
-	.requireDriverBinary		   = false,
-	.rejectUnreferencedPrograms	   = false,
-	.rejectInstallActions		   = true,
-	.rejectExternalDependencies	   = false,
-	.allowRequiredDriverComponents = true,
+	.maximumHardwareIds					  = 4096U,
+	.maximumSourceFiles					  = 8192U,
+	.acceptedClasses					  = REQUIRED_CLASSES,
+	.acceptedProviders					  = {},
+	.acceptedSignatures					  = SIGNATURES,
+	.acceptAnyProvider					  = true,
+	.requireDriverBinary				  = false,
+	.rejectUnreferencedPrograms			  = false,
+	.rejectInstallActions				  = true,
+	.rejectExternalDependencies			  = false,
+	.allowReferencedExecutablesForContent = false,
+	.allowRequiredDriverComponents		  = true,
 } ; // 製品名、現在版、INF名を適合証拠にしない。
+// 導入構造用policyを変えず、通常archiveの非実行内容だけへ参照byte許可を加えます。
+constexpr auto ARCHIVE_INF_POLICY = [] {
+	auto policy									   = INF_POLICY ;	// 元導入policyの独立copyです。
+	policy.allowReferencedExecutablesForContent	   = true ;
+	policy.allowWindowsManagedDriverDataForContent = true ;
+	return policy ;
+}() ;
 constexpr OfficialDriverClosurePolicy POLICY{
-	.zipPolicy				   = {INPUT_BYTES, INPUT_BYTES, EXPANDED_BYTES, 4096U},
-	.cabPolicy				   = {INPUT_BYTES, INPUT_BYTES, EXPANDED_BYTES, 4096U},
-	.infPolicy				   = INF_POLICY,
-	.maximumInfCount		   = 1U,
+	.zipPolicy		 = {INPUT_BYTES, 512ULL * 1024ULL * 1024ULL, 6ULL * 1024ULL * 1024ULL * 1024ULL,
+						4096U},
+	.cabPolicy		 = {INPUT_BYTES, 512ULL * 1024ULL * 1024ULL, 6ULL * 1024ULL * 1024ULL * 1024ULL,
+						4096U},
+	.infPolicy		 = ARCHIVE_INF_POLICY,
+	.maximumInfCount = 1U,
 	.maximumClosureFiles	   = 8194U,
-	.maximumClosureBytes	   = 256ULL * 1024ULL * 1024ULL,
+	.maximumClosureBytes	   = EXPANDED_BYTES,
 	.maximumExpansionRatio	   = 200U,
 	.maximumNestedArchiveDepth = 1U,
 } ; // 各INFを独立した非実行閉包として扱う。
@@ -377,21 +388,29 @@ NativeError failInspection( CommonDriverPackageInspection &inspection, const Nat
  * @param[in] path Inventoryが保持するINF相対path。
  * @param[in] infIndex 検査内で一意な0起点INF連番。保護領域名へ用いる。
  * @param[out] inspected 個別結果と成功閉包。
+ * @param[in] sharedWorkspace 同じflat操作だけで借用する共有出力owner。空は単独所有。
+ * @param[in,out] cache 同じ入力とworkspaceだけの内容cache。単独旧callerはnull。
+ * @param[in] policy 既に保持した別閉包を除いた有限な残量と元構造条件。
  */
 void inspectOneInf( const DriverArchiveInput &input, const OfficialDriverArchiveFormat format,
 				   const std::wstring &nested, const std::wstring &path, const std::size_t infIndex,
-				   CommonInfInspection &inspected)
+				   CommonInfInspection						 &inspected,
+				   std::shared_ptr<OfficialDownloadWorkspace> sharedWorkspace = {},
+				   DriverArchiveExtractionCache				 *cache			  = nullptr,
+				   const OfficialDriverClosurePolicy		 &policy		  = POLICY)
 {
-	inspected.scanSessionId		= input.scanSessionId ;
-	inspected.infRelativePath	= path ;
-	inspected.nestedArchivePath = nested ;
-	auto workspace = std::make_unique<OfficialDownloadWorkspace>() ;	// このINFだけの所有領域。
-	OfficialDriverClosure closure ;										// 全署名成功まではlocalに保持する閉包。
-	const std::array	  selected{std::wstring_view( path)} ;			// 一件のINFを固定する選択。
+	inspected.scanSessionId			= input.scanSessionId ;
+	inspected.infRelativePath		= path ;
+	inspected.nestedArchivePath		= nested ;
+	auto				  workspace = sharedWorkspace
+										  ? std::move( sharedWorkspace)
+										  : std::make_shared<OfficialDownloadWorkspace>() ;	// 同操作の出力ownerです。
+	OfficialDriverClosure closure ;															// 全署名成功まではlocalに保持する閉包。
+	const std::array	  selected{std::wstring_view( path)} ;								// 一件のINFを固定する選択。
 	const std::wstring	  workspaceTag =
 		L"common-inf-" + std::to_wstring( infIndex) ;	// 同時保持するINF間で衝突しないtag。
-	inspected.error = extractDriverClosure( {&input, format, nested, selected, workspaceTag}, POLICY,
-										   *workspace, closure) ;
+	inspected.error = extractDriverClosure( {&input, format, nested, selected, workspaceTag, cache},
+										   policy, *workspace, closure) ;
 	// 構造を検査できないINFへ署名合格を付与しない。
 	if( inspected.error != 0) {
 		return ;
@@ -565,7 +584,7 @@ NativeError copyLocalDriverArchive( const std::wstring_view	  selectedPath,
 	try {
 		const std::wstring extension = extensionOf( selectedPath) ;	// 実行しない形式の選択。
 		// 明示対応していない形式を起動や外部展開へfallbackしない。
-		if( extension != L".zip" && extension != L".cab") {
+		if( extension != L".zip" && extension != L".cab" && extension != L".exe") {
 			return fromWin32( ERROR_NOT_SUPPORTED) ;
 		}
 
@@ -592,8 +611,9 @@ NativeError copyLocalDriverArchive( const std::wstring_view	  selectedPath,
 			return error ;
 		}
 
-		format = extension == L".zip" ? OfficialDriverArchiveFormat::ZIP
-									  : OfficialDriverArchiveFormat::CABINET ;
+		format = extension == L".zip"	? OfficialDriverArchiveFormat::ZIP
+				 : extension == L".cab" ? OfficialDriverArchiveFormat::CABINET
+										: OfficialDriverArchiveFormat::SEVEN_ZIP_SFX ;
 		input  = std::move( copied) ;
 		return 0 ;
 	} catch( const std::bad_alloc &) {
@@ -604,31 +624,51 @@ NativeError copyLocalDriverArchive( const std::wstring_view	  selectedPath,
 }
 
 /**
- * @see src/platform/common_driver_package.h 宣言側の契約を正本とする。
+ * @brief 元選択一件だけを、操作の残り保持予算へ結んで検査する。
+ * @param[in] input 固定した元archiveの内容identity。
+ * @param[in] format 既存の非実行archive形式。
+ * @param[in] selectedInf 元inventoryから選んだ完全相対名。
+ * @param[out] inspection 個別成功または拒否行。全体失敗時は診断だけ。
+ * @param[in] cancellation 元同期操作だけの取消し照会。
+ * @param[in] nestedArchive 空または元一段archive名。
+ * @param[in] sharedWorkspace 同じflat操作の出力owner。Nestedでは空。
+ * @param[in,out] cache 元flat入力だけの共有内容cache。Nestedではnull。
+ * @param[in] maximumRetainedBytes 今回の作成前から適用する保持残量。
+ * @return 通常内容検査完了0。個別不合格も行へ残し、全体失敗は元HRESULT。
  */
-NativeError inspectSelectedCommonDriverPackage( const DriverArchiveInput			&input,
-											   const OfficialDriverArchiveFormat format,
-											   const std::wstring_view			 selectedInf,
-											   CommonDriverPackageInspection	&inspection,
-											   const std::function<bool()>		&cancellation)
+static NativeError inspectSelectedCommonDriverPackageImpl(
+	const DriverArchiveInput &input, const OfficialDriverArchiveFormat format,
+	const std::wstring_view selectedInf, CommonDriverPackageInspection &inspection,
+	const std::function<bool()> &cancellation, const std::wstring_view nestedArchive,
+	std::shared_ptr<OfficialDownloadWorkspace> sharedWorkspace, DriverArchiveExtractionCache *cache,
+	const std::uint64_t maximumRetainedBytes)
 {
 	inspection = {} ;
 	// 監視側の有限な一INFだけを受理し、形式や原byte上限を緩めません。
 	if( input.scanSessionId == 0U || input.byteCount == 0U || input.byteCount > INPUT_BYTES ||
 	   selectedInf.empty() || selectedInf.size() > 260U ||
 	   (format != OfficialDriverArchiveFormat::ZIP &&
-		format != OfficialDriverArchiveFormat::CABINET)) {
+		format != OfficialDriverArchiveFormat::CABINET &&
+		format != OfficialDriverArchiveFormat::SEVEN_ZIP_SFX &&
+		format != OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER)) {
 		return failInspection( inspection, static_cast<NativeError>( E_INVALIDARG)) ;
 	}
 
 	try {
+		// 既に保持した別閉包の枠を今回の作成前から除きます。
+		if( maximumRetainedBytes == 0U || maximumRetainedBytes > EXPANDED_BYTES) {
+			return failInspection( inspection, fromWin32( ERROR_FILE_TOO_LARGE)) ;
+		}
+
+		auto policy				   = POLICY ;	// 同操作の残り保持量だけを小さくする元policyです。
+		policy.maximumClosureBytes = maximumRetainedBytes ;
 		// 開始前の取消しを部分内容の合格へ変えません。
 		if( cancellation && cancellation()) {
 			return failInspection( inspection, fromWin32( ERROR_CANCELLED)) ;
 		}
 
 		OfficialDriverArchiveInventory inventory ;	// 全外側entryと元archivehashです。
-		auto error = inspectDriverArchiveInventory( {&input, format, {}}, POLICY,
+		auto error = inspectDriverArchiveInventory( {&input, format, nestedArchive}, policy,
 												   inventory) ;	// 元inventory/hashの実結果です。
 		// 一INF選択を理由に全archive破損やentry上限を無視しません。
 		if( error != 0 || inventory.entries.size() > 4096U) {
@@ -645,8 +685,8 @@ NativeError inspectSelectedCommonDriverPackage( const DriverArchiveInput			&inpu
 		}
 
 		CommonInfInspection inspected ;	// 旧全INF入口と同じ個別型です。
-		inspectOneInf( input, format, {}, selected->relativePath, 0U,
-					  inspected) ;	// 同通常policy/全CAT/memberです。
+		inspectOneInf( input, format, std::wstring{nestedArchive}, selected->relativePath, 0U,
+					  inspected, sharedWorkspace, cache, policy) ;	// 同通常policy/全CAT/memberです。
 		// 確保失敗や保持量超過を通常の内容拒否へ丸めません。
 		if( inspected.error == static_cast<NativeError>( E_OUTOFMEMORY) ||
 		   inspected.closure.expandedBytes > EXPANDED_BYTES) {
@@ -679,6 +719,97 @@ NativeError inspectSelectedCommonDriverPackage( const DriverArchiveInput			&inpu
 	}
 }
 
+/** @see src/platform/common_driver_package.h 宣言側の契約を正本とする。 */
+NativeError inspectSelectedCommonDriverPackages(
+	const DriverArchiveInput &input, OfficialDriverArchiveFormat format,
+	std::span<const std::pair<std::wstring_view, std::wstring_view>> selectors,
+	CommonDriverPackageInspection &inspection, const std::function<bool()> &cancellation)
+{
+	inspection = {} ;
+	// 空/過大選択を全INFの自動検査へ変換しません。
+	if( selectors.empty() || selectors.size() > INF_COUNT) {
+		return failInspection( inspection, E_INVALIDARG) ;
+	}
+
+	try {
+		DriverArchiveExtractionCache cache ;	// 同じflat payloadの同期ownerです。
+		cache.cancellation = cancellation ;
+		auto workspace =
+			std::make_shared<OfficialDownloadWorkspace>() ;	// 同じ実memberを一度だけ保持します。
+		inspection.scanSessionId = input.scanSessionId ;
+		inspection.archiveSha256 = input.sha256 ;
+		inspection.archiveBytes	 = input.byteCount ;
+		std::uint64_t nestedBytes{} ;	// 従来nestedの独立保持だけを加算します。
+		const bool	  hasNested = std::ranges::any_of( selectors, []( const auto &selector) {
+			   return !selector.first.empty() ;
+		   }) ; // 同時に一つだけの内側archiveです。
+		const auto	  retainedBudget =
+			EXPANDED_BYTES - (hasNested ? POLICY.zipPolicy.maximumSingleFileBytes
+										: 0U) ;	// 入力2/solid3/内側0.5/保持2.5GiB以内です。
+		// 元選択集合だけを検査し、未選択INFを走査しません。
+		for( const auto &selector : selectors) {
+			CommonDriverPackageInspection selected ;	// 個別診断を保持する同じ通常結果です。
+			const bool flat = selector.first.empty() ;	// 同じflat workspaceだけを共有します。
+			const auto used =
+				nestedBytes +
+				(flat
+					 ? 0U
+					 : cache
+						   .retainedBytes()) ;	// flat cache自身の一意量はclosure側が共同加算します。
+			// 次の閉包の作成前に共有枠超過を拒否します。
+			if( used >= retainedBudget) {
+				return failInspection( inspection, fromWin32( ERROR_FILE_TOO_LARGE)) ;
+			}
+
+			// 同じ入力・所有操作の元診断です。
+			const auto error = inspectSelectedCommonDriverPackageImpl(
+				input, format, selector.second, selected, cancellation, selector.first,
+				flat ? workspace : nullptr, flat ? &cache : nullptr, retainedBudget - used) ;
+			// 全体失敗時は一部の成功を返しません。
+			if( error != 0) {
+				return failInspection( inspection, error) ;
+			}
+
+			// 別nested閉包も同じ共同保持予算を消費します。
+			if( !flat) {
+				nestedBytes += selected.retainedBytes ;
+			}
+
+			// 同じ元memberを重複計上せず、実保持量だけで上限を判定します。
+			if( nestedBytes > retainedBudget ||
+			   cache.retainedBytes() > retainedBudget - nestedBytes) {
+				return failInspection( inspection, fromWin32( ERROR_FILE_TOO_LARGE)) ;
+			}
+
+			inspection.inventoryFileCount =
+				(std::max)( inspection.inventoryFileCount, selected.inventoryFileCount) ;
+			// 個別拒否も元の分母と理由へ保持します。
+			for( auto &inf : selected.infs) {
+				inspection.infs.push_back( std::move( inf)) ;
+			}
+		}
+
+		inspection.retainedBytes		  = nestedBytes + cache.retainedBytes() ;
+		inspection.mappedSolidPeakBytes	  = cache.mappedPeakBytes() ;
+		inspection.decodedSolidBlockCount = cache.decodedBlockCount() ;
+		return 0 ;
+	} catch( const std::bad_alloc &) {
+		return failInspection( inspection, E_OUTOFMEMORY) ;
+	}
+}
+
+/** @see src/platform/common_driver_package.h 宣言側の契約を正本とする。 */
+NativeError inspectSelectedCommonDriverPackage( const DriverArchiveInput		 &input,
+											   OfficialDriverArchiveFormat	  format,
+											   std::wstring_view			  selectedInf,
+											   CommonDriverPackageInspection &inspection,
+											   const std::function<bool()>	 &cancellation,
+											   std::wstring_view			  nestedArchive)
+{
+	const std::array selectors{std::pair{nestedArchive, selectedInf}} ;	// 元一件だけの選択です。
+	return inspectSelectedCommonDriverPackages( input, format, selectors, inspection, cancellation) ;
+}
+
 /** @see common_driver_package.h */
 NativeError inspectCommonDriverPackage( const DriverArchiveInput			&input,
 									   const OfficialDriverArchiveFormat format,
@@ -689,7 +820,9 @@ NativeError inspectCommonDriverPackage( const DriverArchiveInput			&input,
 	// 共通入口の固定上限と形式を個別parserへ渡す前に確認する。
 	if( input.scanSessionId == 0 || input.byteCount == 0 || input.byteCount > INPUT_BYTES ||
 	   (format != OfficialDriverArchiveFormat::ZIP &&
-		format != OfficialDriverArchiveFormat::CABINET)) {
+		format != OfficialDriverArchiveFormat::CABINET &&
+		format != OfficialDriverArchiveFormat::SEVEN_ZIP_SFX &&
+		format != OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER)) {
 		return failInspection( inspection, static_cast<NativeError>( E_INVALIDARG)) ;
 	}
 
@@ -709,6 +842,12 @@ NativeError inspectCommonDriverPackage( const DriverArchiveInput			&input,
 			OfficialDriverArchiveInventory inventory ;		// 今回の有限inventory。
 			const NativeError			   error = inspectDriverArchiveInventory(
 				 {&input, format, nested}, POLICY, inventory) ;	// 全entryと元入力hashの検査。
+			// 未知EXEからdriverを推測せず、他の通常INF/既知containerの検査を続けます。
+			if( error != 0 && !nested.empty() && extensionOf( nested) == L".exe" &&
+			   error != static_cast<NativeError>( E_OUTOFMEMORY)) {
+				continue ;
+			}
+
 			// Archive全体の破損を個別INF拒否へ縮小しない。
 			if( error != 0) {
 				return failInspection( inspection, error) ;
@@ -723,8 +862,9 @@ NativeError inspectCommonDriverPackage( const DriverArchiveInput			&input,
 			// Inventory順を維持し、未参照の別用途fileは閉包へ含めない。
 			for( const OfficialZipEntry &entry : inventory.entries) {
 				const std::wstring extension = extensionOf( entry.relativePath) ;	// 静的形式の選択。
-				// 外側で確認したZIP／CABだけを一段nested処理へ登録する。
-				if( jobIndex == 0 && (extension == L".zip" || extension == L".cab")) {
+				// 外側で確認したZIP／CAB／SFX候補だけを一段nested処理へ登録する。
+				if( jobIndex == 0 &&
+				   (extension == L".zip" || extension == L".cab" || extension == L".exe")) {
 					// 未検査archiveを黙って飛ばさず、全体上限として拒否する。
 					if( jobs.size() >= NESTED_COUNT + 1U) {
 						return failInspection( inspection, fromWin32( ERROR_BUFFER_OVERFLOW)) ;
@@ -749,8 +889,10 @@ NativeError inspectCommonDriverPackage( const DriverArchiveInput			&input,
 				}
 
 				CommonInfInspection inspected ;	// 現在INFの個別結果。
+				auto remainingPolicy = POLICY ;	// 前の閉包を残したまま新規分を無制限に保持しません。
+				remainingPolicy.maximumClosureBytes = EXPANDED_BYTES - inspection.retainedBytes ;
 				inspectOneInf( input, format, nested, entry.relativePath, inspection.infs.size(),
-							  inspected) ;
+							  inspected, {}, nullptr, remainingPolicy) ;
 				// 全体resource失敗を個別の内容不適合とみなさない。
 				if( inspected.error == static_cast<NativeError>( E_OUTOFMEMORY)) {
 					return failInspection( inspection, inspected.error) ;
@@ -813,7 +955,9 @@ NativeError inspectMaintenanceDriverPackageImpl( const DriverArchiveInput		   &i
 	// 個別parserの前に従来と同じ全体予算と非実行形式を要求する。
 	if( input.scanSessionId == 0 || input.byteCount == 0 || input.byteCount > INPUT_BYTES ||
 	   (format != OfficialDriverArchiveFormat::ZIP &&
-		format != OfficialDriverArchiveFormat::CABINET)) {
+		format != OfficialDriverArchiveFormat::CABINET &&
+		format != OfficialDriverArchiveFormat::SEVEN_ZIP_SFX &&
+		format != OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER)) {
 		return failMaintenance( inspection, static_cast<NativeError>( E_INVALIDARG)) ;
 	}
 
@@ -974,11 +1118,28 @@ NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected)
 
 	// 同同期呼出しだけ元所有者を借り、baseと全必要役割を同じpolicyで再解析します。
 	const auto verifyPackage = [&]( const OfficialInfPackage &expected) {
-		OfficialInfPackage actual ;	// 現在byteから再解析した元metadataです。
+		OfficialInfPackage actual ;								// 現在byteから再解析した元metadataです。
+		auto			   policy = ARCHIVE_INF_POLICY ;		// 同元root条件の独立copyです。
+		std::wstring	   importedClass ;						// 同元再読取から得る内容importのClassです。
+		std::array<std::wstring_view, 1U> importedClasses{} ;	// このcallだけの借用です。
+		// rootのClass policyを変えず、同元import内容だけをWindows readerへ再結合します。
+		if( expected.infRelativePath != inspected.closure.packages.front().infRelativePath) {
+			const auto classError =
+				readOfficialInfImportClass( *inspected.workspace, expected.infRelativePath,
+										   importedClass) ;	// 元Class/GUIDの再読取です。
+			// 不明/不正/既知Firmwareを旧metadataから受理しません。
+			if( classError != 0) {
+				return classError ;
+			}
+
+			importedClasses.front() = importedClass ;
+			policy.acceptedClasses	= importedClasses ;
+		}
+
 		// 元役割packageの再解析診断です。
-		const NativeError  error =
+		const NativeError error =
 			inspectOfficialInfPackage( *inspected.workspace, inspected.closure.entries,
-									  expected.infRelativePath, INF_POLICY, actual) ;
+									  expected.infRelativePath, policy, actual) ;
 		// 再解析失敗を同じ内容へ補正しません。
 		if( error != 0) {
 			return error ;
@@ -999,9 +1160,11 @@ NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected)
 		   actual.selectedBasicSection != expected.selectedBasicSection ||
 		   actual.selectedNativeRank != expected.selectedNativeRank ||
 		   actual.requiredInfPaths != expected.requiredInfPaths ||
+		   actual.unresolvedCopyInfPaths != expected.unresolvedCopyInfPaths ||
 		   actual.activeRequiredInfPaths != expected.activeRequiredInfPaths ||
 		   actual.requiredComponents != expected.requiredComponents ||
-		   actual.unresolvedIncludeNeeds != expected.unresolvedIncludeNeeds) {
+		   actual.unresolvedIncludeNeeds != expected.unresolvedIncludeNeeds ||
+		   actual.hasUnassessedProgramReferences != expected.hasUnassessedProgramReferences) {
 			return fromWin32( ERROR_RETRY) ;
 		}
 
@@ -1040,6 +1203,11 @@ NativeError makeRequiredDriverComponentPlan(
 	std::shared_ptr<const RequiredDriverComponentPlan> &plan,
 	RequiredInfBindingDiagnostic					   *diagnostic)
 {
+	const auto rejected = [diagnostic]( const NativeError error, const InfBindingReject reason,
+									   const std::uint32_t observed = 0U) {
+		return diagnostic ? diagnostic->reject( error, reason, observed) : error ;
+	} ; // 同呼出しの原拒否だけです。
+
 	plan.reset() ;
 	const auto contentError =
 		// 元byte/CATを構築直前に確認します。
@@ -1048,13 +1216,15 @@ NativeError makeRequiredDriverComponentPlan(
 	if( contentError != 0 || inspected.requiredInfPackages.size() > 7U ||
 	   selectedPackages.size() != inspected.requiredInfPackages.size() + 1U ||
 	   selectedPackages.front().selectedInstallSection.empty()) {
-		return contentError != 0 ? contentError : fromWin32( ERROR_NOT_SUPPORTED) ;
+		return rejected( contentError != 0 ? contentError : fromWin32( ERROR_NOT_SUPPORTED),
+						InfBindingReject::PLAN_INPUT) ;
 	}
 
 	const auto &base = inspected.closure.packages.front() ;	// 既存一基本INFの元metadataです。
 	// 独立したExtension/SoftwareComponentを基本候補へ変換しません。
 	if( base.role != DriverPlanRole::BASE_DRIVER) {
-		return fromWin32( ERROR_NOT_SUPPORTED) ;
+		return rejected( fromWin32( ERROR_NOT_SUPPORTED), InfBindingReject::BASE_ROLE,
+						static_cast<std::uint32_t>( base.role)) ;
 	}
 
 	try {
@@ -1080,8 +1250,10 @@ NativeError makeRequiredDriverComponentPlan(
 			   package.driverDate != original.driverDate ||
 			   package.providerName != original.providerName ||
 			   package.requiredInfPaths != original.requiredInfPaths ||
+			   package.unresolvedCopyInfPaths != original.unresolvedCopyInfPaths ||
 			   package.hasExternalDependencies != original.hasExternalDependencies ||
-			   package.unresolvedIncludeNeeds != original.unresolvedIncludeNeeds) {
+			   package.unresolvedIncludeNeeds != original.unresolvedIncludeNeeds ||
+			   package.hasUnassessedProgramReferences != original.hasUnassessedProgramReferences) {
 				return fromWin32( ERROR_RETRY) ;
 			}
 
@@ -1102,9 +1274,15 @@ NativeError makeRequiredDriverComponentPlan(
 					return CompareStringOrdinal( value->infRelativePath.c_str(), -1, path.c_str(),
 												-1, TRUE) == CSTR_EQUAL ;
 				}) ; // 同保護閉包だけを借用します。
-				// 不在とactiveな独立基本INFを自動導入計画へ追加しません。
-				if( found == packages.end() || (*found)->role == DriverPlanRole::BASE_DRIVER) {
-					return fromWin32( ERROR_NOT_SUPPORTED) ;
+				// 原importの不在を選択基本INFだけの成功へ変換しません。
+				if( found == packages.end()) {
+					return rejected( fromWin32( ERROR_NOT_SUPPORTED),
+									InfBindingReject::COPY_INF_MISSING) ;
+				}
+
+				// 独立baseはWindows CopyINF用のstage内容です。別deviceの導入memberを作りません。
+				if( (*found)->role == DriverPlanRole::BASE_DRIVER) {
+					continue ;
 				}
 
 				const auto child =
@@ -1130,17 +1308,30 @@ NativeError makeRequiredDriverComponentPlan(
 			if( (functional[index] && index != 0U && package.role == DriverPlanRole::BASE_DRIVER) ||
 			   (functional[index] && package.role == DriverPlanRole::DRIVER_COMPONENT &&
 				(!package.requiredComponents.empty() || !package.activeRequiredInfPaths.empty()))) {
-				return fromWin32( ERROR_NOT_SUPPORTED) ;
+				return rejected( fromWin32( ERROR_NOT_SUPPORTED), InfBindingReject::FUNCTIONAL_ROLE,
+								static_cast<std::uint32_t>( package.role)) ;
 			}
 
-			// 全節の観測flagを消さず、選択機能だけに独立した依存と効果検査を要求します。
+			// 元未評価作用flagは保持し、Windows-only計画の実選択scopeを別に検査します。
+			if( functional[index] && package.hasUnassessedProgramReferences) {
+				const auto scopeError = inspectSelectedWindowsDriverPackageScope(
+					*inspected.workspace, inspected.closure.entries, package,
+					diagnostic) ;	// 全内容再検証後の原scopeです。
+				// 同元コピー/service/softwareへ結合しないprogramを通常driverへ追加しません。
+				if( scopeError != 0) {
+					return rejected( scopeError, InfBindingReject::WINDOWS_COPY) ;
+				}
+			}
+
+			// 全節の観測flagを消さず、未解決Include/Needsだけを独立した元依存へ解決します。
 			if( functional[index] && package.unresolvedIncludeNeeds) {
 				InfDependencyNativeResult dependency ;	// 同元byteの非実行graphです。
 				const auto				  error = CommonInfNativeAccess::inspect(
 					   inspected, package, dependency, diagnostic) ;	// 独立依存検査の元診断です。
 				// 未観測・未充足・曖昧・cycle・署名拒否を成功へ補正しません。
 				if( error != 0) {
-					return error ;
+					return rejected( error, InfBindingReject::DEPENDENCY,
+									diagnostic ? diagnostic->stage : 0U) ;
 				}
 
 				const auto &graph = dependency.dependency ;	// 同実選択seedからの元graphです。
@@ -1340,7 +1531,7 @@ bool makeCommonInfCandidateAssessment(
 						   CandidateAssessmentReason::NO_EXPLICIT_REQUIREMENT,
 						   CandidateEvidenceKind::PACKAGE_INSPECTION, evidenceId} ;
 	// 明示依存の解決前でも署名・基礎適合を提示するが、構成と必須条件を合格にしない。
-	if( package.hasExternalDependencies) {
+	if( package.hasExternalDependencies || package.hasUnassessedProgramReferences) {
 		result.requirements = {CandidateAssessmentState::UNSUPPORTED,
 							   CandidateAssessmentReason::FORMAT_UNSUPPORTED,
 							   CandidateEvidenceKind::PACKAGE_INSPECTION, evidenceId} ;

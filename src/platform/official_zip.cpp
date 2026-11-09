@@ -2,7 +2,7 @@
 /**
  * @file official_zip.cpp
  * @brief 公式ZIP package安全展開実装。
- * @version 01.00.02
+ * @version 01.01.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/09/15  Windows区切りZIPを正規化して全path検査へ接続。
  * Ver.01.00.02  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/05  共通検査・CRC展開を有限memory出力でも再利用。
  * </pre>
  *
  * @note ZIP metadataを全件検証してから、CRC検証付きstream展開を行います。Archive名を絶対pathへ直接連結せず、保護workspace境界を再検証します。
@@ -466,6 +467,11 @@ private:
 //------------------------------------------------------------------------------
 [[nodiscard]] bool hasSafeEntryType( const mz_zip_archive_file_stat &status) noexcept
 {
+	// NTFS等のreparse表現を通常fileへ変換して受理しません。
+	if( (status.m_external_attr & FILE_ATTRIBUTE_REPARSE_POINT) != 0U) {
+		return false ;
+	}
+
 	const mz_uint16 hostSystem =
 		// 作成元OS識別値。
 		static_cast<mz_uint16>( status.m_version_made_by >> 8U) ;
@@ -979,6 +985,50 @@ NativeError inspectOfficialZip( const std::span<const std::byte>	  archive,
 		}
 	} catch( const std::bad_alloc &) {
 		entries.clear() ;
+		return static_cast<NativeError>( E_OUTOFMEMORY) ;
+	}
+
+	return 0 ;
+}
+
+NativeError readOfficialZip( const std::span<const std::byte>   archive,
+							const OfficialZipExtractionPolicy &policy,
+							std::vector<OfficialZipFile>	  &files)
+{
+	files.clear() ;
+	ZipReader					reader( archive) ;									// scope中だけ同じ原ZIPを借用します。
+	std::vector<ParsedZipEntry> entries ;											// 全metadata検証後だけ使う通常file群です。
+	const NativeError error = parseZipEntries( archive, policy, reader, entries) ;	// 原検査値です。
+	// 危険なentryを一件でも含むarchiveは部分成功として公開しません。
+	if( error != 0) {
+		return error ;
+	}
+
+	try {
+		std::vector<OfficialZipFile> completed ;	// 全CRC成功まで呼出側へ渡さない所有値です。
+		completed.reserve( entries.size()) ;
+		// 検証済み有限集合だけを展開し、失敗時は完成済みbyteもscopeで破棄します。
+		for( const auto &entry : entries) {
+			// size_tへ収まらない展開量はallocation前に拒否します。
+			if( entry.publicEntry.uncompressedSize > std::numeric_limits<std::size_t>::max()) {
+				return nativeErrorFromWin32( ERROR_FILE_TOO_LARGE) ;
+			}
+
+			// 全metadata検証で確定したサイズだけを所有memoryへ確保します。
+			OfficialZipFile file{entry.publicEntry.relativePath,
+								 std::vector<std::byte>(
+									 static_cast<std::size_t>( entry.publicEntry.uncompressedSize))} ;
+			// Minizの通常展開は展開長とCRCを照合し、破損を成功へ変換しません。
+			if( !mz_zip_reader_extract_to_mem( &reader.get(), entry.archiveIndex, file.bytes.data(),
+											 file.bytes.size(), 0)) {
+				return nativeErrorFromWin32( ERROR_CRC) ;
+			}
+
+			completed.push_back( std::move( file)) ;
+		}
+
+		files = std::move( completed) ;
+	} catch( const std::bad_alloc &) {
 		return static_cast<NativeError>( E_OUTOFMEMORY) ;
 	}
 

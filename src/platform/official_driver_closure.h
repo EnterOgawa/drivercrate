@@ -2,7 +2,7 @@
 /**
  * @file official_driver_closure.h
  * @brief 公式archiveの選択的driver閉包抽出定義。
- * @version 01.03.00
+ * @version 01.07.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,10 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  由来を持たない共通archive入力を分離。
  * Ver.01.02.00 Shunji Ogawa  2026/10/05  保守専用の非実行内容閉包を導入閉包と分離。
  * Ver.01.03.00 Shunji Ogawa  2026/10/07  一rootの保守構造・有限依存と全参照の独立状態を追加。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
+ * Ver.01.07.00 Shunji Ogawa  2026/11/06  標準圧縮sourceの原byteと展開byteを閉包へ保持。
  * </pre>
  *
  * @note G11-Bで固定した公式ZIP／CABから、選択INF、CATおよびINFが参照するfileだけを保護workspaceへ分離し、任意codeは実行しません。
@@ -47,12 +51,45 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
 
 namespace drivercrate {
+struct OfficialResourceContentPlan ;
+
+/** @brief 一操作だけの固定入力・選択memberと私有solidを共有する内容cache。 */
+struct DriverArchiveExtractionCache {
+	/** @brief 原入力をまだ借用しない空ownerを作る。 */
+	DriverArchiveExtractionCache() noexcept ;
+	/** @brief 固定入力と私有solidを回収する。選択出力workspaceは借用する。 */
+	~DriverArchiveExtractionCache() ;
+	/** @brief 単一操作ownerの複写を禁止する。 */
+	DriverArchiveExtractionCache( const DriverArchiveExtractionCache &) = delete ;
+	/** @brief 単一操作ownerの複写代入を禁止する。 */
+	DriverArchiveExtractionCache &operator=( const DriverArchiveExtractionCache &) = delete ;
+	/// 実装だけが定義するworker内状態。由来・適合・導入権限を持たない。
+	struct State ;
+	/// 入力identityに一度結んだ内部所有者。任意UI入力から構築しない。
+	std::unique_ptr<State>		state ;
+	/// 同期操作中だけ使う非blocking取消し照会。
+	std::function<bool()>		cancellation ;
+	/** @brief 同一workspaceへ実保持した一意member byte数を返す。
+	 * @return 未抽出なら0、成功抽出済みの総byte数。
+	 */
+	[[nodiscard]] std::uint64_t retainedBytes() const noexcept ;
+	/** @brief solid outputの実mapped peakを返す。
+	 * @return headerを含む同時保持最大byte数。
+	 */
+	[[nodiscard]] std::uint64_t mappedPeakBytes() const noexcept ;
+	/** @brief 実decodeした一意solid block数を返す。
+	 * @return 未使用なら0。
+	 */
+	[[nodiscard]] std::size_t	decodedBlockCount() const noexcept ;
+} ;
 
 class OfficialDownloadWorkspace ;
 
@@ -62,13 +99,15 @@ class OfficialDownloadWorkspace ;
  */
 struct DriverArchiveInput {
 	/// 入力を固定した0ではないscan session。
-	ScanSessionId scanSessionId{} ;
+	ScanSessionId									   scanSessionId{} ;
 	/// 呼出し側の保護workspaceが所有する通常file絶対path。
-	std::wstring  inspectionPath ;
+	std::wstring									   inspectionPath ;
 	/// 固定した入力の実byte数。
-	std::uint64_t byteCount{} ;
+	std::uint64_t									   byteCount{} ;
 	/// 固定した入力の64桁SHA-256。同一性だけを表す。
-	std::wstring  sha256 ;
+	std::wstring									   sha256 ;
+	/// 元recordへ結んだ非実行resource計画。通常archiveは空。
+	std::shared_ptr<const OfficialResourceContentPlan> resourceContent ;
 } ;
 
 /**
@@ -79,6 +118,10 @@ enum class OfficialDriverArchiveFormat {
 	ZIP,
 	/// SetupAPIで静的列挙する単一CAB。
 	CABINET,
+	/// 原outer内のPE末尾7zを非実行で読む一段nested形式。
+	SEVEN_ZIP_SFX,
+	/// 署名された原範囲から標準INFだけを読むsmall resource形式。
+	PE_RESOURCE_CONTAINER,
 } ;
 
 /**
@@ -125,6 +168,8 @@ struct DriverClosureRequest {
 	std::span<const std::wstring_view> selectedInfPaths ;
 	/// 出力保護workspaceのASCII識別子。
 	std::wstring_view				   workspaceTag ;
+	/// 空は従来単独。非空は同じflat原入力/同workspaceだけを共有する同期owner。
+	DriverArchiveExtractionCache	  *cache{} ;
 } ;
 
 /**
@@ -171,20 +216,28 @@ struct OfficialDriverArchiveInventory {
 	std::uint32_t				  archiveDepth{} ;
 } ;
 
-/**
- * @brief 選択INFから確定したdriver閉包と静的構造を表す。
- *
- * @note 本結果はPnP適用性、rank、署名またはinstall可能を意味しない。
- */
+/** @brief 同位置の標準圧縮sourceから検査した原/展開byteの来歴です。 */
+struct OfficialCompressedDriverSource {
+	/// 原containerへ結合し、実size/hashを確認した圧縮entryです。
+	OfficialZipEntry compressedEntry ;
+	/// 同INFが宣言する名へ非実行解凍し、実hash/sizeを確認したentryです。
+	OfficialZipEntry expandedEntry ;
+	/// Windows SetupAPIが確認した圧縮形式です。現在はWINLZAの1だけです。
+	std::uint32_t	 compressionType{} ;
+} ;
+
+/** @brief 元INF全参照と全圧縮元/展開先を保持する内容閉包です。導入能力を持ちません。 */
 struct OfficialDriverClosure {
-	/// INF、CAT、参照fileだけの検証済み一覧。
-	std::vector<OfficialZipEntry>	entries ;
+	/// INF、CAT、展開済み全参照fileの実hash付き一覧です。圧縮元tupleは別保持し、導入許可ではありません。
+	std::vector<OfficialZipEntry>				entries ;
 	/// 各選択INFの静的構造。
-	std::vector<OfficialInfPackage> packages ;
+	std::vector<OfficialInfPackage>				packages ;
 	/// 0は外側直下、1は一段nested archive。
-	std::uint32_t					archiveDepth{} ;
+	std::uint32_t								archiveDepth{} ;
 	/// 閉包entryの展開後合計byte数。
-	std::uint64_t					expandedBytes{} ;
+	std::uint64_t								expandedBytes{} ;
+	/// 全参照sourceで必要になった同位置の標準圧縮fileの原/展開来歴です。
+	std::vector<OfficialCompressedDriverSource> compressedSources ;
 } ;
 
 /** @brief 導入作用を許可しない保守専用の内容閉包。導入用型へ暗黙変換しない。 */

@@ -2,7 +2,7 @@
 /**
  * @file official_file_verifier.cpp
  * @brief 公式配布file共通検証実装。
- * @version 01.13.00
+ * @version 01.14.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -45,6 +45,7 @@
  * Ver.01.11.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.12.00 Shunji Ogawa  2026/10/17 同一Authenticode実装に明示cached-only入口を追加。
  * Ver.01.13.00 Shunji Ogawa  2026/10/24  内部原archive試験から元native署名へ委譲。
+ * Ver.01.14.00 Shunji Ogawa  2026/11/05  CAT宣言のmember算法と外側署名を分けて共通検証。
  * </pre>
  *
  * @note Windows CNGとWinTrustを使用し、Provider固有値をpolicyとして受け取ります。
@@ -61,6 +62,7 @@
 #include <bcrypt.h>
 #include <cryptxml.h>
 #include <mscat.h>
+#include <mssip.h>
 #include <wincrypt.h>
 #include <wintrust.h>
 // clang-format on
@@ -69,7 +71,9 @@
 #include <array>
 #include <cstddef>
 #include <cstring>
+#include <cwchar>
 #include <limits>
+#include <memory>
 #include <new>
 #include <string>
 #include <string_view>
@@ -91,7 +95,7 @@ constexpr std::wstring_view XML_DIGEST_ALGORITHM =
 	L"http://www.w3.org/2001/04/xmlenc#sha256" ;	// 許可digest algorithm URI。
 constexpr std::wstring_view XML_ENVELOPED_TRANSFORM =
 	L"http://www.w3.org/2000/09/xmldsig#enveloped-signature" ;	// 許可transform URI。
-constexpr DWORD SHA256_HASH_BYTES = 32U ;						// Catalog memberに要求するSHA-256 byte数。
+constexpr std::size_t MAXIMUM_CATALOG_MEMBERS = 65'536U ;		// CAT宣言を読む有限member数です。
 
 //------------------------------------------------------------------------------
 // 内部型定義。
@@ -111,8 +115,18 @@ using CalculateCatalogHash = BOOL( WINAPI *)( HCATADMIN, HANDLE, DWORD *, BYTE *
  */
 using ReleaseCatalogContext = BOOL( WINAPI *)( HCATADMIN, DWORD) ;
 
+/** @brief 一つの原CAT memberに結合した算法・digest・tagです。 */
+struct CatalogMemberDigest {
+	/// Windowsが定義する静的CNG算法名です。
+	PCWSTR			  algorithm{} ;
+	/// 同じ原member宣言の完全digestです。
+	std::vector<BYTE> bytes ;
+	/// 同じ原memberの完全reference tagです。
+	std::wstring	  tag ;
+} ;
+
 /**
- * @brief WinTrust.dllとSHA-256 catalog administrator contextをscope内で所有する。
+ * @brief WinTrust.dllとCAT宣言算法のadministrator contextをscope内で所有する。
  */
 class CatalogHashContext final {
 public:
@@ -167,18 +181,21 @@ public:
 	//------------------------------------------------------------------------------
 	/**
 	 * @brief Catalog hash contextを初期化する。
-	 * System32のWinTrust.dllだけを読み込み、現在OSのstrong-sign policyを満たすdriver用contextを一度だけ作成する。
-	 * @return SHA-256 context作成成功時は0、失敗時はHRESULT。
+	 * System32のWinTrust.dllだけを読み込み、元CATの検査済みmember算法だけでhash contextを作ります。
+	 * 外側署名のcurrent strong-sign policyは各memberのWinVerifyTrustへ別に要求します。
+	 * @param[in] algorithm 原CATの完全宣言から選んだ静的CNG名です。
+	 * @param[in] hashBytes 同じ原宣言で検査済みのdigest byte数です。
+	 * @return 宣言に一致するcontext作成成功時は0、失敗時はHRESULT。
 	 */
 	//------------------------------------------------------------------------------
-	[[nodiscard]] NativeError initialize() ;
+	[[nodiscard]] NativeError initialize( PCWSTR algorithm, DWORD hashBytes) ;
 
 	//------------------------------------------------------------------------------
 	/**
-	 * @brief Fileのcatalog SHA-256を計算する。
+	 * @brief FileのCAT宣言算法のmember hashを計算する。
 	 * 初期化済みcontextと動的取得した公式APIだけを使用する。
 	 * @param[in] file 読取り可能な非所有file handle。
-	 * @param[out] hash 成功時の32-byte catalog hash。
+	 * @param[out] hash 成功時だけ宣言算法の全digest。失敗時は空です。
 	 * @return 成功時は0、WinTrustまたはallocation失敗時はHRESULT。
 	 */
 	//------------------------------------------------------------------------------
@@ -208,6 +225,8 @@ private:
 	CalculateCatalogHash  calculate_{} ;
 	/// WinTrust.dllから取得するcontext解放API。
 	ReleaseCatalogContext release_{} ;
+	/// 一意のCAT宣言に対応するdigest byte数です。未初期化時は0です。
+	DWORD				  hashBytes_{} ;
 } ;
 
 /**
@@ -403,17 +422,175 @@ HRESULT CALLBACK closeXmlProvider( void *const statePointer) noexcept
 	return static_cast<NativeError>( HRESULT_FROM_WIN32( error)) ;
 }
 
-//------------------------------------------------------------------------------
 /**
- * @see src/platform/official_file_verifier.cpp 宣言側の契約を正本とする。
+ * @brief Windows CATのmember宣言を既知算法と正確な長さへ結びます。
+ * @param[in] indirect 原CATから借用するmemberの間接digest宣言です。
+ * @param[out] algorithm 成功時だけWindows CNGの静的算法名です。失敗時はnullです。
+ * @param[out] bytes 成功時だけ宣言に対応するbyte数です。失敗時は0です。
+ * @return 既知の完全な宣言なら0、未知・欠損・不正長はHRESULTです。
+ * @note 外側署名の算法や信頼をこの宣言から推測しません。
  */
-//------------------------------------------------------------------------------
-NativeError CatalogHashContext::initialize()
+NativeError readCatalogMemberAlgorithm( const SIP_INDIRECT_DATA &indirect, PCWSTR &algorithm,
+									   DWORD &bytes) noexcept
+{
+	algorithm = nullptr ;
+	bytes	  = 0U ;
+	// 欠損したOIDやdigestを既定算法へ読み替えません。
+	if( indirect.DigestAlgorithm.pszObjId == nullptr || indirect.Digest.pbData == nullptr) {
+		return static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+	}
+
+	const std::string_view oid( indirect.DigestAlgorithm.pszObjId) ;	// 原APIの終端済みOIDです。
+	// Windowsで定義されたdigestの正確なOIDだけを選びます。
+	if( oid == szOID_OIWSEC_sha1) {
+		algorithm = BCRYPT_SHA1_ALGORITHM ;
+		bytes	  = 20U ;
+	}
+	// SHA256の完全OIDは別のmember算法として扱います。
+	else if( oid == szOID_NIST_sha256) {
+		algorithm = BCRYPT_SHA256_ALGORITHM ;
+		bytes	  = 32U ;
+	}
+	// SHA384のdigest長をSHA256へ縮約しません。
+	else if( oid == szOID_NIST_sha384) {
+		algorithm = BCRYPT_SHA384_ALGORITHM ;
+		bytes	  = 48U ;
+	}
+	// SHA512の元宣言は同じ64byte算法でのみ扱います。
+	else if( oid == szOID_NIST_sha512) {
+		algorithm = BCRYPT_SHA512_ALGORITHM ;
+		bytes	  = 64U ;
+	} else {
+		return static_cast<NativeError>( NTE_BAD_ALGID) ;
+	}
+
+	// 原digest全長が算法と一致しない場合は部分値を渡しません。
+	if( indirect.Digest.cbData != bytes) {
+		algorithm = nullptr ;
+		bytes	  = 0U ;
+		return static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+	}
+
+	return 0 ;
+}
+
+/**
+ * @brief 同じCATの全memberの宣言算法・digest・tagを有限に取得します。
+ * @param[in] path 置換防止の読取handleが保持される原CATの終端済みpathです。
+ * @param[out] declarations 成功時だけ全memberの原宣言です。失敗時は空です。
+ * @return 全宣言の取得なら0、空・未知・不正・容量超過ならHRESULTです。
+ * @note CAT構造を読むだけです。全memberの署名と内容は後段で必ず検証します。
+ */
+NativeError readCatalogAlgorithms( const std::wstring			   &path,
+								  std::vector<CatalogMemberDigest> &declarations)
+{
+	declarations.clear() ;
+#if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
+	std::vector<std::wstring> syntheticHashes ;	// 明示人工scopeの元固定hashだけです。
+	// 既存人工CATは同root/owner/全hashのfixture契約で扱い、native入力へ拡張しません。
+	if( driver_package_signature_detail::readSyntheticCatalogDigests( path, syntheticHashes)) {
+		constexpr std::wstring_view HEX = L"0123456789abcdef" ;	// 元固定hashをbyteへ戻す表です。
+		// 完全な元member hashだけから人工宣言を作ります。
+		for( const auto &hash : syntheticHashes) {
+			CatalogMemberDigest declaration ;	// 原人工hashに一意な算法とtagです。
+			declaration.algorithm = BCRYPT_SHA256_ALGORITHM ;
+			declaration.tag		  = hash ;
+			std::transform( declaration.tag.begin(), declaration.tag.end(), declaration.tag.begin(),
+						   []( const wchar_t value) {
+							   return value >= L'a' && value <= L'f'
+										  ? static_cast<wchar_t>( value - L'a' + L'A')
+										  : value ;
+						   }) ; // 元人工tagも既存のuppercase契約へ結びます。
+			// 先頭一致や不正hexを人工CATの成功へ補正しません。
+			if( hash.size() != 64U) {
+				declarations.clear() ;
+				return static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+			}
+
+			// 元32byteを欠落なく復元し、実memberのhash照合を省略しません。
+			for( std::size_t index = 0U; index < hash.size(); index += 2U) {
+				const auto high = HEX.find( hash[index]) ;		// 原上位桁です。
+				const auto low	= HEX.find( hash[index + 1U]) ;	// 原下位桁です。
+				// factoryの検査とは別に、宣言化の前提を確認します。
+				if( high == HEX.npos || low == HEX.npos) {
+					declarations.clear() ;
+					return static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+				}
+
+				declaration.bytes.push_back( static_cast<BYTE>( high * 16U + low)) ;
+			}
+
+			declarations.push_back( std::move( declaration)) ;
+		}
+
+		return declarations.empty() ? static_cast<NativeError>( TRUST_E_BAD_DIGEST) : 0 ;
+	}
+#endif
+	// Windowsの入力専用PWSTR ABIへ渡すためだけにconstを外し、原pathを変更しません。
+	const HANDLE catalog = CryptCATOpen( const_cast<PWSTR>( path.c_str()), CRYPTCAT_OPEN_EXISTING, 0U,
+										CRYPTCAT_VERSION_1, 0U) ;	// 読取中だけ所有するCATです。
+	// 不正CATを既定算法へ補正しません。
+	if( catalog == INVALID_HANDLE_VALUE) {
+		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	const std::unique_ptr<void, decltype( &CryptCATClose)> owner(
+		catalog, &CryptCATClose) ;	// 例外でもCATを閉じます。
+
+	NativeError error = static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;	// 空CATは不完全です。
+	std::vector<CatalogMemberDigest> inspected ;						// 正常終端まで公開しない全原宣言です。
+	CRYPTCATMEMBER					*member{} ;							// API所有。次の列挙とcloseまでだけ借用します。
+	// 有限数の全宣言を検査し、未知memberを除外して成功にしません。
+	for( std::size_t index = 0U; index <= MAXIMUM_CATALOG_MEMBERS; ++index) {
+		member = CryptCATEnumerateMember( catalog, member) ;
+		// 一件以上の完全な宣言の正常終端だけを受理します。
+		if( member == nullptr) {
+			break ;
+		}
+
+		// 容量超過や間接宣言欠落を署名済みという理由で無視しません。
+		if( index == MAXIMUM_CATALOG_MEMBERS || member->pIndirectData == nullptr) {
+			error = nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+			break ;
+		}
+
+		PCWSTR current{} ;		// 同期中だけ使用するこの原memberの算法です。
+		DWORD  currentBytes{} ;	// この原digestの全長です。
+		error = readCatalogMemberAlgorithm( *member->pIndirectData, current, currentBytes) ;
+		// 未知算法や不正なtagは別memberの正常宣言で隠しません。
+		if( error != 0 || member->pwszReferenceTag == nullptr ||
+		   wcsnlen_s( member->pwszReferenceTag, 129U) !=
+			   static_cast<std::size_t>( currentBytes) * 2U) {
+			error = error != 0 ? error : static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+			break ;
+		}
+
+		CatalogMemberDigest declaration ;	// 同じ原memberから所有copyを作ります。
+		declaration.algorithm = current ;
+		declaration.bytes.assign( member->pIndirectData->Digest.pbData,
+								 member->pIndirectData->Digest.pbData + currentBytes) ;
+		declaration.tag = member->pwszReferenceTag ;
+		inspected.push_back( std::move( declaration)) ;
+	}
+
+	// 全列挙が正常に終わった場合だけcontextの入力へ公開します。
+	if( error == 0 && member == nullptr && !inspected.empty()) {
+		declarations = std::move( inspected) ;
+		return 0 ;
+	}
+
+	return error != 0 ? error : static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+}
+
+/** @see CatalogHashContextの宣言側の契約を正本とします。 */
+NativeError CatalogHashContext::initialize( PCWSTR algorithm, DWORD hashBytes)
 {
 	// 初期化済みの所有資源を上書きしないよう、重複初期化を拒否する。
 	if( module_ != nullptr || catalogAdmin_ != nullptr) {
 		return static_cast<NativeError>( E_UNEXPECTED) ;
 	}
+
+	hashBytes_ = hashBytes ;
 
 	module_ = LoadLibraryExW( L"wintrust.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32) ;
 	// 暗号 API の module を取得できなければ、loader の診断値を返す。
@@ -428,15 +605,9 @@ NativeError CatalogHashContext::initialize()
 		return nativeErrorFromWin32( ERROR_PROC_NOT_FOUND) ;
 	}
 
-	CERT_STRONG_SIGN_PARA signingPolicy{} ;	// 現在OSのdriver署名強度policy。
-	signingPolicy.cbSize	   = sizeof( signingPolicy) ;
-	signingPolicy.dwInfoChoice = CERT_STRONG_SIGN_OID_INFO_CHOICE ;
-	// Windows SDK構造のLPSTR fieldへ渡す、API呼出し中だけ有効な変更可能OID buffer。
-	char strongSignOid[] = szOID_CERT_STRONG_SIGN_OS_CURRENT ;
-	signingPolicy.pszOID = strongSignOid ;
-	GUID subsystem		 = DRIVER_ACTION_VERIFY ;	// OS componentとthird-party driver用subsystem。
-	// SHA-256 用の catalog context を確保できなければ、その失敗を返す。
-	if( acquire_( &catalogAdmin_, &subsystem, BCRYPT_SHA256_ALGORITHM, &signingPolicy, 0) == FALSE) {
+	GUID subsystem = DRIVER_ACTION_VERIFY ;	// OS componentとthird-party driver用subsystem。
+	// 宣言算法のhashだけを取得します。署名強度は後段のAuthenticode trustへ別に要求します。
+	if( acquire_( &catalogAdmin_, &subsystem, algorithm, nullptr, 0) == FALSE) {
 		return nativeErrorFromWin32( GetLastError()) ;
 	}
 
@@ -462,8 +633,8 @@ NativeError CatalogHashContext::calculateHash( const HANDLE file, std::vector<BY
 		return nativeErrorFromWin32( GetLastError()) ;
 	}
 
-	// SHA-256 と異なる digest 長は期待した検証方式と一致しないため拒否する。
-	if( required != SHA256_HASH_BYTES) {
+	// OS contextが別算法を選んだ場合も、原CATの宣言と異なるdigestを渡しません。
+	if( required != hashBytes_) {
 		return static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
 	}
 
@@ -495,15 +666,17 @@ NativeError CatalogHashContext::calculateHash( const HANDLE file, std::vector<BY
  *
  * 読取りhandleをtrust終了まで保持し、file置換とhash不一致をfail-closedで拒否する。
  *
- * @param[in] context 初期化済みSHA-256 catalog context。
+ * @param[in] contexts 原CAT宣言の既知算法で初期化済みのcontext集合です。
+ * @param[in] declarations 同じ原CATの全member宣言です。
  * @param[in] catalogPath 検証するCAT file絶対path。
  * @param[in] memberPath CATへ収録されるべきfile絶対path。
  * @return Member hashとcatalog trustが有効なら0、失敗時はHRESULT。
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] NativeError verifyCatalogMember( const CatalogHashContext &context,
-											  const std::wstring	   &catalogPath,
-											  const std::wstring	   &memberPath)
+[[nodiscard]] NativeError verifyCatalogMember(
+	const std::span<const std::unique_ptr<CatalogHashContext>> contexts,
+	const std::span<const CatalogMemberDigest> declarations, const std::wstring &catalogPath,
+	const std::wstring &memberPath)
 {
 	const ReadOnlyVerificationFile file( CreateFileW(
 		memberPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
@@ -528,21 +701,49 @@ NativeError CatalogHashContext::calculateHash( const HANDLE file, std::vector<BY
 		return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
 	}
 
-	std::vector<BYTE> hash ;												// Member fileのSHA-256。
-	NativeError		  error = context.calculateHash( file.get(), hash) ;	// Hash計算結果。
-	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
-	if( error != 0) {
-		return error ;
-	}
-
 	try {
 		constexpr std::wstring_view HEX = L"0123456789ABCDEF" ;	// CAT tag用uppercase hex。
-		std::wstring				memberTag ;					// HashをCAT member名へ変換した64桁tag。
-		memberTag.reserve( hash.size() * 2U) ;
-		// Catalog APIが要求する一byte二桁のuppercase reference tagを構築する。
-		for( const BYTE byte : hash) {
-			memberTag.push_back( HEX[(byte >> 4U) & 0x0fU]) ;
-			memberTag.push_back( HEX[byte & 0x0fU]) ;
+		std::wstring				memberTag ;					// 原CATの選択member tagです。
+		std::vector<BYTE>			hash ;						// 選択memberと一致した原file digestです。
+		const CatalogHashContext   *selected{} ;				// trust前の完全照合だけで決めます。
+		// 宣言済み算法の強い順に原digest/tagを照合し、trust失敗後の再試行はしません。
+		for( const auto &context : contexts) {
+			LARGE_INTEGER beginning{} ;	// 各算法は同じ保持fileの先頭から読みます。
+			// 位置不明な部分fileをdigestの照合へ渡しません。
+			if( !SetFilePointerEx( file.get(), beginning, nullptr, FILE_BEGIN)) {
+				return nativeErrorFromWin32( GetLastError()) ;
+			}
+
+			const auto error = context->calculateHash( file.get(), hash) ;	// 原hash API診断です。
+			// APIの失敗を別算法への切替で隠しません。
+			if( error != 0) {
+				return error ;
+			}
+
+			std::wstring tag ;	// 同原digestの完全なhex表現です。
+			tag.reserve( hash.size() * 2U) ;
+			// CAT参照tagを各byte二桁で作り、basenameを使いません。
+			for( const auto byte : hash) {
+				tag.push_back( HEX[(byte >> 4U) & 0x0fU]) ;
+				tag.push_back( HEX[byte & 0x0fU]) ;
+			}
+
+			const auto found = std::ranges::find_if( declarations, [&]( const auto &declaration) {
+				return declaration.bytes == hash &&
+					   CompareStringOrdinal( declaration.tag.c_str(), -1, tag.c_str(), -1, TRUE) ==
+						   CSTR_EQUAL ;
+			}) ; // 同期中だけ全原宣言を借用します。
+			// 原digestとtagの完全一致だけで一度のtrust対象を確定します。
+			if( found != declarations.end()) {
+				selected  = context.get() ;
+				memberTag = found->tag ;
+				break ;
+			}
+		}
+
+		// 改変memberや宣言外digestにはtrustの成功を要求する対象自体がありません。
+		if( selected == nullptr) {
+			return static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
 		}
 
 		WINTRUST_CATALOG_INFO catalog{} ;	// WinTrustへ渡すCAT member情報。
@@ -553,7 +754,7 @@ NativeError CatalogHashContext::calculateHash( const HANDLE file, std::vector<BY
 		catalog.hMemberFile			 = file.get() ;
 		catalog.pbCalculatedFileHash = hash.data() ;
 		catalog.cbCalculatedFileHash = static_cast<DWORD>( hash.size()) ;
-		catalog.hCatAdmin			 = context.get() ;
+		catalog.hCatAdmin			 = selected->get() ;
 		WINTRUST_DATA trust{} ;	// UIを出さないcatalog member trust設定。
 		trust.cbStruct			  = sizeof( trust) ;
 		trust.dwUIChoice		  = WTD_UI_NONE ;
@@ -562,8 +763,17 @@ NativeError CatalogHashContext::calculateHash( const HANDLE file, std::vector<BY
 		trust.pCatalog			  = &catalog ;
 		trust.dwStateAction		  = WTD_STATEACTION_VERIFY ;
 		trust.dwProvFlags		  = WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT ;
-		GUID	   action		  = WINTRUST_ACTION_GENERIC_VERIFY_V2 ;	// Authenticode policy GUID。
-		const LONG status		  = driver_package_signature_detail::verifyTrust(
+		CERT_STRONG_SIGN_PARA signingPolicy{} ;	// 元の現在OS強度を外側署名へ要求します。
+		signingPolicy.cbSize	   = sizeof( signingPolicy) ;
+		signingPolicy.dwInfoChoice = CERT_STRONG_SIGN_OID_INFO_CHOICE ;
+		char strongSignOid[] = szOID_CERT_STRONG_SIGN_OS_CURRENT ;	// API寿命内の変更可能OIDです。
+		signingPolicy.pszOID = strongSignOid ;
+		WINTRUST_SIGNATURE_SETTINGS settings{} ;	// member digest算法と独立した署名強度です。
+		settings.cbStruct		 = sizeof( settings) ;
+		settings.pCryptoPolicy	 = &signingPolicy ;
+		trust.pSignatureSettings = &settings ;
+		GUID action = WINTRUST_ACTION_GENERIC_VERIFY_V2 ;	// 元の全member Authenticode policyです。
+		const LONG status = driver_package_signature_detail::verifyTrust(
 			nullptr, &action, &trust) ;	// 同member検証結果。
 		trust.dwStateAction = WTD_STATEACTION_CLOSE ;
 		static_cast<void>( driver_package_signature_detail::verifyTrust( nullptr, &action, &trust)) ;
@@ -1475,11 +1685,37 @@ NativeError verifyOfficialCatalogMembers( const std::wstring_view			 catalogPath
 			return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
 		}
 
-		CatalogHashContext context ;								// 全memberで共有するSHA-256 catalog context。
-		const NativeError  contextError = context.initialize() ;	// Context初期化結果。
-		// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
-		if( contextError != 0) {
-			return contextError ;
+		std::vector<CatalogMemberDigest> declarations ;	// 同原CATの完全なmember宣言です。
+		const auto						 declarationError =
+			// 原構造診断です。
+			readCatalogAlgorithms( catalog, declarations) ;
+		// 未知・不正CATから算法を推測しません。
+		if( declarationError != 0) {
+			return declarationError ;
+		}
+
+		std::vector<std::unique_ptr<CatalogHashContext>> contexts ;	// 原CATの最大四算法だけです。
+		// 既知の強い算法から各一contextを作り、原member照合前のAPI失敗を保持します。
+		for( const std::size_t bytes : {64U, 48U, 32U, 20U}) {
+			const auto found = std::ranges::find_if( declarations, [bytes]( const auto &declaration) {
+				// 同じ長さは検査済みの一意OIDです。
+				return declaration.bytes.size() == bytes ;
+			}) ;
+			// 原CATで宣言されない算法は試しません。
+			if( found == declarations.end()) {
+				continue ;
+			}
+
+			auto context = std::make_unique<CatalogHashContext>() ;	// この原算法の単独所有者です。
+			const auto error =
+				// 原API診断です。
+				context->initialize( found->algorithm, static_cast<DWORD>( bytes)) ;
+			// 不成立contextを別算法や部分集合で隠しません。
+			if( error != 0) {
+				return error ;
+			}
+
+			contexts.push_back( std::move( context)) ;
 		}
 
 		// 全memberを同じ署名catalogへ結び付け、部分成功を受理しない。
@@ -1491,7 +1727,7 @@ NativeError verifyOfficialCatalogMembers( const std::wstring_view			 catalogPath
 
 			const NativeError memberError =
 				// 一memberのtrust結果。
-				verifyCatalogMember( context, catalog, memberPath) ;
+				verifyCatalogMember( contexts, declarations, catalog, memberPath) ;
 			// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 			if( memberError != 0) {
 				return memberError ;
@@ -1818,6 +2054,78 @@ thread_local ScopedFixture *activeFixture = nullptr ;
 	return found != files.end() && computeFileSha256( path, hash) == 0 && hash == found->sha256 ;
 }
 
+#if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
+/** @see readSyntheticCatalogDigests宣言側の契約を正本とします。 */
+bool readSyntheticCatalogDigests( const std::wstring_view	path,
+								 std::vector<std::wstring> &hashes) noexcept
+{
+	hashes.clear() ;
+	// 通常製品と明示native adapterには実CAT readerだけを使用します。
+	if( activeFixture == nullptr || activeFixture->nativeAdapter_) {
+		return false ;
+	}
+
+	auto &fixture = *activeFixture ;	// 同threadの既存人工scopeだけです。
+	try {
+		const auto separator = path.find_last_of( L'\\') ;	// 元CATの完全root境界です。
+		// 相対pathや不完全rootを人工集合へ採用しません。
+		if( separator == path.npos) {
+			return false ;
+		}
+
+		const auto root =
+			// SetupVerifyInf相当が確認済みのrootです。
+			path.substr( 0U, separator + 1U) ;
+		const auto name	   = path.substr( separator + 1U) ;	// 同元CATの相対名です。
+		const auto catalog = std::ranges::find_if( fixture.files_, [name]( const auto &file) {
+			// 元完全名だけを照合します。
+			return file.name == name && file.name.ends_with( L".cat") ;
+		}) ;
+		// 同scopeの元CAT byteを現在も保持する必要があります。
+		if( catalog == fixture.files_.end() || !matchesFixtureFile( fixture.files_, path, root)) {
+			return false ;
+		}
+
+		std::size_t index{} ;	// 元SetupVerifyInfが確認したroot-owner組を検索します。
+		// 同rootの別INF-ownerの署名を今回へ流用しません。
+		while( index < fixture.roots_.size() &&
+			  (fixture.roots_[index] != root || fixture.rootOwners_[index] != catalog->infOwner)) {
+			++index ;
+		}
+
+		// 確認前のscopeからCAT成功を生成しません。
+		if( index == fixture.roots_.size()) {
+			return false ;
+		}
+
+		// 同ownerの全実byteを再確認し、元固定hashだけを人工宣言へ渡します。
+		for( const auto &file : fixture.files_) {
+			// 別ownerの内容を今回のCATへ含めません。
+			if( file.infOwner != catalog->infOwner) {
+				continue ;
+			}
+
+			// 改変後のfileを旧成功rootだけで受理しません。
+			if( !matchesFixtureFile( fixture.files_, std::wstring( root) + file.name, root)) {
+				hashes.clear() ;
+				return false ;
+			}
+
+			// CAT自体はmemberではなく、固定された原署名fixtureの所有者です。
+			if( !file.name.ends_with( L".cat")) {
+				hashes.push_back( file.sha256) ;
+			}
+		}
+
+		return !hashes.empty() ;
+	} catch( ...) {
+		++fixture.receipt_.rejectedCalls ;
+		hashes.clear() ;
+		return false ;
+	}
+}
+#endif
+
 /** @see ScopedFixture宣言側の契約を正本とします。 */
 ScopedFixture::ScopedFixture() noexcept : nativeAdapter_( true)
 {
@@ -1963,8 +2271,8 @@ LONG verifyTrust( const HWND window, GUID *const action, LPVOID const data) noex
 
 	try {
 		// 型なしWindows ABI境界でだけWINTRUST_DATAの実型へ戻します。
-		auto *const trust		  = static_cast<WINTRUST_DATA *>( data) ;	// 呼出し中だけ有効な設定。
-		const GUID expectedAction = WINTRUST_ACTION_GENERIC_VERIFY_V2 ;		// 製品と同じWindows policy。
+		auto *const trust		   = static_cast<WINTRUST_DATA *>( data) ;	// 呼出し中だけ有効な設定。
+		const GUID	expectedAction = WINTRUST_ACTION_GENERIC_VERIFY_V2 ;	// 製品と同じ元policyです。
 		// 不足・別policy・別CAT・別member/tagを成功へ補完しません。
 		if( window != nullptr || action == nullptr || *action != expectedAction ||
 		   trust == nullptr || trust->cbStruct != sizeof( *trust) ||
@@ -1972,6 +2280,19 @@ LONG verifyTrust( const HWND window, GUID *const action, LPVOID const data) noex
 		   trust->fdwRevocationChecks != WTD_REVOKE_WHOLECHAIN ||
 		   trust->dwUnionChoice != WTD_CHOICE_CATALOG || trust->pCatalog == nullptr ||
 		   trust->dwProvFlags != WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT) {
+			++fixture.receipt_.rejectedCalls ;
+			return TRUST_E_SUBJECT_NOT_TRUSTED ;
+		}
+
+		const auto *settings = trust->pSignatureSettings ;	// 外側署名の元強度policyです。
+		const auto *policy =
+			// 同同期の借用値です。
+			settings == nullptr ? nullptr : settings->pCryptoPolicy ;
+		// 人工scopeも原current強度の省略・差替えを成功へ補正しません。
+		if( settings == nullptr || settings->cbStruct != sizeof( *settings) || policy == nullptr ||
+		   policy->cbSize != sizeof( *policy) ||
+		   policy->dwInfoChoice != CERT_STRONG_SIGN_OID_INFO_CHOICE || policy->pszOID == nullptr ||
+		   std::strcmp( policy->pszOID, szOID_CERT_STRONG_SIGN_OS_CURRENT) != 0) {
 			++fixture.receipt_.rejectedCalls ;
 			return TRUST_E_SUBJECT_NOT_TRUSTED ;
 		}

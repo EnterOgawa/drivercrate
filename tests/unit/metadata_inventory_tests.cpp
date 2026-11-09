@@ -2,7 +2,7 @@
 /**
  * @file metadata_inventory_tests.cpp
  * @brief 現在属性列挙の上限・欠損・停止境界の決定的試験。
- * @version 01.08.00
+ * @version 01.09.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.06.00 Shunji Ogawa  2026/10/27  個別証拠の転用/元tuple/診断/全cohort/失効拒否を追加。
  * Ver.01.07.00 Shunji Ogawa  2026/10/28  私有batch内proofとresolver閉鎖・終端/新scan失効を回帰。
  * Ver.01.08.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
+ * Ver.01.09.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * </pre>
  *
  * @note 現在属性とdevnodeの六APIを全てfakeへ置換し、実device列挙と導入を行わない。
@@ -153,6 +154,8 @@ struct InventoryFixture {
 	std::array<std::optional<IndexIdProperty>, 2U> indexIdProperties ;
 	/// 既存値を既定とする架空instance本文です。通常出力へ渡しません。
 	std::wstring								   instanceValue{L"fixture-native-node"} ;
+	/// 大規模容量fixtureだけがnode別の架空instanceを返します。
+	bool										   uniqueInstanceIds{} ;
 	/// 既存値を既定とする架空表示名です。診断出力の非転写を検査します。
 	std::wstring								   displayName{L"CP210x Fixture"} ;
 	/// 索引専用scanの秘密IDだけを返す明示fixture。
@@ -334,8 +337,11 @@ DriverStoreInventoryTransport  inventoryTransport()
 			return FALSE ;
 		}
 
-		const std::wstring_view instanceValue =
-			fixture.instanceValue ;	// 実機情報ではない秘密属性相当。
+		const auto ownedInstance =
+			fixture.uniqueInstanceIds
+				? fixture.instanceValue + L"-" + std::to_wstring( device->DevInst)
+				: fixture.instanceValue ;						// 同nodeだけの架空instanceです。
+		const std::wstring_view instanceValue = ownedInstance ;	// 実機情報ではない秘密属性相当。
 		// 容量照会と取得のどちらでも実際のNUL込み文字数を返す。
 		if( needed != nullptr) {
 			*needed = static_cast<DWORD>( instanceValue.size() + 1U) ;
@@ -1090,6 +1096,10 @@ struct WorkerIndexState {
 	std::atomic_uint		 hardwareGeneration{} ;
 	/// Workerだけが書き終端後に読む順序。1再検出、2本番inventory、3合成queryです。
 	std::vector<unsigned>	 hardwareOrder ;
+	/// 容量試験だけが指定する完全fake present件数です。既存既定は二件です。
+	DWORD					 capacityNodes{2U} ;
+	/// 容量試験だけの架空末尾公開IDです。空は既存の人工IDです。
+	std::wstring			 capacityPublishedId ;
 	/// 0正常、1非一意、2入力不足、3元API障害のinventory mode。
 	std::atomic_uint		 mode{} ;
 	/// 0真store、1未配備製品入口、2真genesis、3合成I/O拒否です。
@@ -1147,6 +1157,11 @@ public:
 								std::shared_ptr<WorkerIndexState>	   state)
 		: inner_( std::move( inner)), state_( std::move( state))
 	{
+	}
+	/** @copydoc IndexPublicIdResolver::leaseProof */
+	[[nodiscard]] std::shared_ptr<const NativeIndexLookupLease> leaseProof() const noexcept override
+	{
+		return inner_->leaseProof() ;
 	}
 	/** @brief 元種別・context・全presentを実resolverへそのまま渡します。
 	 * @param[in] kind 元公開ID種別です。
@@ -1248,8 +1263,15 @@ public:
 			throw std::runtime_error( "fixture scan failure") ;
 		}
 
-		fixture_			  = InventoryFixture{} ;
-		fixture_.indexIds	  = true ;
+		fixture_				   = InventoryFixture{} ;
+		fixture_.indexIds		   = true ;
+		fixture_.nodes			   = state_->capacityNodes ;
+		fixture_.uniqueInstanceIds = !state_->capacityPublishedId.empty() ;
+		// 公開合成IDを既人工captureへ入れ、実端末IDを参照しません。
+		if( !state_->capacityPublishedId.empty()) {
+			fixture_.indexId = state_->capacityPublishedId ;
+		}
+
 		fixture_.sameHardware = state_->mode == 1U ;
 		fixture_.unknownClass = state_->mode == 2U ;
 		// 元HRESULT保持を現在属性の実検証分岐で起こします。
@@ -1895,9 +1917,13 @@ void runWorkerSignedIndexScanTests( TestContext &context, std::shared_ptr<Signed
 				DRIVERCRATE_EXPECT( context,
 								   install && state->installs == 0U && state->restores == 0U) ;
 			} else {
-				DRIVERCRATE_EXPECT( context, event &&
-												event->indexSummary.undeterminedRelations > 0U &&
-												event->indexSummary.remainingRecords > 0U) ;
+				// 一record二IDの途中停止ではtupleをcommitせず、原残件と実callbackを保持します。
+				DRIVERCRATE_EXPECT( context,
+								   event && event->indexSummary.undeterminedRelations == 0U &&
+									   event->indexSummary.processedRecords == 0U &&
+									   event->indexSummary.processedPublicIds == 0U &&
+									   event->indexSummary.remainingRecords == expectedRecords &&
+									   event->indexSummary.resolverCalls == 1U) ;
 			}
 
 			state->mode			 = 0U ;
@@ -2036,10 +2062,15 @@ void runWorkerSignedIndexScanTests( TestContext &context, std::shared_ptr<Signed
 	auto timedWorker = makeWorker( timed) ;	// 実通常commandでdeadlineを検証するworkerです。
 	DRIVERCRATE_EXPECT( context, timedWorker->requestScan( 1U)) ;
 	const auto timedEvent = indexWorkerEvent( *timedWorker, 1U) ;	// 一batch中でも超過を確認します。
-	DRIVERCRATE_EXPECT( context,
-					   timedEvent &&
-						   timedEvent->indexSummary.status == IndexScanStatus::BUDGET_EXHAUSTED &&
-						   timedEvent->indexSummary.undeterminedRelations > 0U) ;
+	DRIVERCRATE_EXPECT(
+		context,
+		timedEvent && timedEvent->indexSummary.status == IndexScanStatus::BUDGET_EXHAUSTED &&
+			timedEvent->indexSummary.undeterminedRelations == 0U &&
+			timedEvent->indexSummary.remainingRecords > 0U &&
+			timedEvent->indexSummary.processedRecords + timedEvent->indexSummary.remainingRecords ==
+				expectedRecords &&
+			timedEvent->indexSummary.processedPublicIds ==
+				2U * timedEvent->indexSummary.processedRecords) ;
 	timedWorker->stop() ;
 	state->tickStep = 0 ;
 	state->holdLoad = true ;
@@ -3134,3 +3165,5 @@ void runNativePartialIndexPreparationTests(
 }
 
 } // namespace drivercrate::test
+
+#include "index_capacity_inventory_tests.cpp"

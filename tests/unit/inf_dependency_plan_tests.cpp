@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_plan_tests.cpp
  * @brief 偽loaderによる有限INF依存核と非実行計画の単体試験。
- * @version 01.00.00
+ * @version 01.02.00
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,8 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  偽loader・証拠分離・有限graphの試験を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/08  選択Include文脈と同名Needs転送の二REDを追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
  * </pre>
  *
  * @note 架空snapshotだけを使用し、INF・署名・実device・network・導入APIを呼ばない。
@@ -661,23 +663,266 @@ void testScenarios( TestContext &context)
 	}
 }
 
+/** @brief 選択base文脈と同名転送を既verified fakeだけで二例再現します。
+ * @param[in,out] context 旧拒否を失敗として保持する集計先です。
+ * @note 製品の任意文脈APIは未実装であり、旧seed形へ正しい解決期待を置きます。
+ */
+void testIncludeContextRed( TestContext &context)
+{
+	// 追加した二つの入力だけを独立loaderで観測します。
+	for( unsigned scenario{}; scenario < 2U; ++scenario) {
+		const auto root =
+			// 生IDを持たない元documentです。
+			document( 101U, InfDependencyOrigin::PACKAGE) ;
+		FakeLoader				  loader ;				// この例だけの所有tableです。
+		std::vector<std::wstring> seeds{L"Chosen.NT"} ;	// 正規選択の基本節形です。
+		std::uint64_t			  expectedSource{} ;	// Needsを宣言した元documentです。
+		std::uint64_t			  expectedTarget{} ;	// 一意に解決すべき別documentです。
+		std::wstring			  expectedSection ;		// 同じ選択の正確な宣言節です。
+		// 基本Includeを同じ選択のHW Needsへ渡す例です。
+		if( scenario == 0U) {
+			loader.sections = {{101U,
+								L"Chosen.NT",
+								{InfDependencyReadState::PRESENT,
+								 {{InfDependencyDirective::INCLUDE, L"platform.inf"}}}},
+							   {101U,
+								L"Chosen.NT.HW",
+								{InfDependencyReadState::PRESENT,
+								 {{InfDependencyDirective::NEEDS, L"PowerRules.HW"}}}},
+							   {201U, L"PowerRules.HW", {InfDependencyReadState::PRESENT, {}}}} ;
+			loader.lookups	= {
+				 {101U, L"platform.inf", {true, {document( 201U, InfDependencyOrigin::SYSTEM)}}}} ;
+			seeds.push_back( L"Chosen.NT.HW") ;
+			expectedSource	= 101U ;
+			expectedTarget	= 201U ;
+			expectedSection = L"Chosen.NT.HW" ;
+		} else {
+			// 処理中の同名節ではなく明示Include先へ転送する例です。
+			loader.sections = {{101U,
+								L"Chosen.NT",
+								{InfDependencyReadState::PRESENT,
+								 {{InfDependencyDirective::INCLUDE, L"bridge.inf"},
+								  {InfDependencyDirective::NEEDS, L"PowerRules.HW"}}}},
+							   {201U,
+								L"PowerRules.HW",
+								{InfDependencyReadState::PRESENT,
+								 {{InfDependencyDirective::INCLUDE, L"leaf.inf"},
+								  {InfDependencyDirective::NEEDS, L"PowerRules.HW"}}}},
+							   {301U, L"PowerRules.HW", {InfDependencyReadState::PRESENT, {}}}} ;
+			loader.lookups	= {
+				 {101U, L"bridge.inf", {true, {document( 201U, InfDependencyOrigin::SYSTEM)}}},
+				 {201U, L"leaf.inf", {true, {document( 301U, InfDependencyOrigin::SYSTEM)}}}} ;
+			expectedSource	= 201U ;
+			expectedTarget	= 301U ;
+			expectedSection = L"PowerRules.HW" ;
+		}
+
+		InfDependencyResult				   result ;	// 導入能力を持たない元graphです。
+		const InfDependencySelectedContext selected{
+			root, L"Chosen.NT", {L"Chosen.NT.HW"}} ;	// 元基本/付属の明示関係です。
+		// 元入力の観測HRESULTと参照解決を分けて保持します。
+		const auto error = resolveInfDependencies( root, seeds, loader.operations(), result,
+												  scenario == 0U ? &selected : nullptr) ;
+		const auto edge	 = std::ranges::find_if( result.edges, [&]( const auto &value) {
+			 return value.sourceIdentity == expectedSource &&
+					value.sourceSection == expectedSection &&
+					value.directive == InfDependencyDirective::NEEDS &&
+					value.target == L"PowerRules.HW" ;
+		 }) ; // 同じ元宣言の結果だけを比較します。
+		DRIVERCRATE_EXPECT( context, error == 0) ;
+		DRIVERCRATE_EXPECT( context, result.plan.rootEvidenceVerified) ;
+		DRIVERCRATE_EXPECT( context, result.plan.referencesResolved) ;
+		DRIVERCRATE_EXPECT( context, edge != result.edges.end()) ;
+		// 欠測を成功として読み替えず、一意なSYSTEM解決を要求します。
+		if( edge != result.edges.end()) {
+			std::cout << "INCLUDE_CONTEXT_RED case=" << scenario << " error=" << error
+					  << " referencesResolved=" << result.plan.referencesResolved
+					  << " edgeState=" << static_cast<unsigned>( edge->state)
+					  << " reason=" << static_cast<unsigned>( edge->reason)
+					  << " candidateCount=" << edge->candidateCount << std::endl ;
+			DRIVERCRATE_EXPECT( context, edge->state == InfDependencyState::RESOLVED_SYSTEM &&
+											edge->reason == InfDependencyReason::NONE &&
+											edge->targetIdentity == expectedTarget &&
+											edge->candidateCount == 1U) ;
+		}
+	}
+}
+
+/** @brief 選択文脈の範囲と元曖昧/循環/証拠拒否を有限確認します。
+ * @param[in,out] context このprocessの元集計です。
+ */
+void testSelectedContextGuards( TestContext &context)
+{
+	// 同じ正例から一条件だけを変え、別familyや未検査を成功へ補いません。
+	for( unsigned scenario{}; scenario < 16U; ++scenario) {
+		const auto root = document( 101U, InfDependencyOrigin::PACKAGE) ;	// 元rootです。
+		FakeLoader loader ;													// この条件だけの所有tableです。
+		loader.sections = {
+			{101U,
+			 L"Chosen.NT",
+			 {InfDependencyReadState::PRESENT, {{InfDependencyDirective::INCLUDE, L"peer.inf"}}}},
+			{101U,
+			 L"Chosen.NT.HW",
+			 {InfDependencyReadState::PRESENT, {{InfDependencyDirective::NEEDS, L"Shared.HW"}}}},
+			{201U, L"Shared.HW", {InfDependencyReadState::PRESENT, {}}}} ;
+		loader.lookups = {
+			{101U, L"peer.inf", {true, {document( 201U, InfDependencyOrigin::SYSTEM)}}}} ;
+		std::vector<std::wstring>	 seeds{L"Chosen.NT.HW",
+										   L"Chosen.NT"} ;	// 順序から親を推定しない正例です。
+		InfDependencySelectedContext selected{
+			root, L"Chosen.NT", {L"Chosen.NT.HW"}} ;	// 元の明示関係です。
+		bool useContext = scenario != 1U ;				// nullは従来の同節だけです。
+		bool invalid{} ;								// 入力/文脈の全体拒否を期待する条件です。
+		// 他familyのseedへ正規基本Includeを横流ししません。
+		if( scenario == 2U) {
+			seeds.push_back( L"Other.HW") ;
+			loader.sections.push_back( {101U,
+									   L"Other.HW",
+									   {InfDependencyReadState::PRESENT,
+										{{InfDependencyDirective::NEEDS, L"Shared.HW"}}}}) ;
+		}
+
+		// 未選択の別基本Includeだけを選択基本へ借用しません。
+		if( scenario == 3U) {
+			loader.sections[0].value.references.clear() ;
+			loader.sections.push_back( {101U,
+									   L"Other.NT",
+									   {InfDependencyReadState::PRESENT,
+										{{InfDependencyDirective::INCLUDE, L"peer.inf"}}}}) ;
+		}
+
+		// 付属Includeを基本Needsへ逆向きに共有しません。
+		if( scenario == 4U) {
+			loader.sections[0].value.references = {{InfDependencyDirective::NEEDS, L"Shared.HW"}} ;
+			loader.sections[1].value.references = {{InfDependencyDirective::INCLUDE, L"peer.inf"}} ;
+		}
+
+		// 二つの実在importから勝手に一つを選びません。
+		if( scenario == 5U) {
+			loader.lookups[0].value.documents.push_back(
+				document( 301U, InfDependencyOrigin::SYSTEM)) ;
+			loader.sections.push_back( {301U, L"Shared.HW", {InfDependencyReadState::PRESENT, {}}}) ;
+		}
+
+		// 明示転送先の無い同名自己Needsは循環のままです。
+		if( scenario == 6U) {
+			loader.sections[1].value.references[0].target = L"Chosen.NT.HW" ;
+		}
+
+		// 他documentから元active節へ戻る真の循環を許可しません。
+		if( scenario == 7U) {
+			loader.sections[2].value.references = {
+				{InfDependencyDirective::INCLUDE, L"root.inf"},
+				{InfDependencyDirective::NEEDS, L"Chosen.NT.HW"}} ;
+			loader.lookups.push_back( {201U, L"root.inf", {true, {root}}}) ;
+		}
+
+		// 未照会Includeを空の成功へ昇格しません。
+		if( scenario == 8U) {
+			loader.lookups[0].value = {false, {}} ;
+		}
+
+		// 署名未確認の対象を同じ名前だけで成功へ戻しません。
+		if( scenario == 9U) {
+			loader.lookups[0].value.documents[0].signature = InfDependencyEvidence::NOT_CHECKED ;
+		}
+
+		// byte未結合の対象節を読み取って充足へ数えません。
+		if( scenario == 10U) {
+			loader.lookups[0].value.documents[0].byteBinding = InfDependencyEvidence::NOT_CHECKED ;
+		}
+
+		// 別rootの選択文脈を同じ節名へ転用しません。
+		if( scenario == 11U) {
+			++selected.root.identity ;
+			invalid = true ;
+		}
+
+		// 別OS/観測文脈を転用しません。
+		if( scenario == 12U) {
+			++selected.root.context.build ;
+			invalid = true ;
+		}
+
+		// 元root byte差を文脈入力で隠しません。
+		if( scenario == 13U) {
+			selected.root.sha256[0] = L'b' ;
+			invalid					= true ;
+		}
+
+		// seedに無い付属選択は拒否します。
+		if( scenario == 14U) {
+			selected.companionSections.push_back( L"Absent.HW") ;
+			invalid = true ;
+		}
+
+		// 同じ付属の重複を別の選択へ水増ししません。
+		if( scenario == 15U) {
+			selected.companionSections.push_back( L"Chosen.NT.HW") ;
+			invalid = true ;
+		}
+
+		InfDependencyResult result ;	// 元拒否も空結果と分けます。
+		const auto			error =
+			resolveInfDependencies( root, seeds, loader.operations(), result,
+								   useContext ? &selected : nullptr) ;	// 旧defaultも検査します。
+		DRIVERCRATE_EXPECT( context, invalid ? error != 0 : error == 0) ;
+		DRIVERCRATE_EXPECT( context, invalid ? result.documents.empty()
+											: result.plan.referencesResolved == (scenario == 0U)) ;
+		// 成立正例でも付属に架空Include辺を新設しません。
+		if( scenario == 0U) {
+			DRIVERCRATE_EXPECT( context,
+							   result.edges.size() == 2U &&
+								   result.edges[0].sourceSection == L"Chosen.NT" &&
+								   result.edges[0].directive == InfDependencyDirective::INCLUDE &&
+								   loader.lookupCalls == 1U) ;
+		}
+
+		std::cout << "SELECTED_CONTEXT_GUARD case=" << scenario << " error=" << error
+				  << " resolved=" << result.plan.referencesResolved << std::endl ;
+	}
+}
+
 } // namespace
 } // namespace drivercrate::test
 
 /** @brief 非通信の核試験を実行し件数だけを表示する。
  * @return 全成功0、assertionまたは予期しない例外の失敗1。
  */
-int main()
+int main( const int argc, const char *const argv[])
 {
+	const bool redOnly =
+		// 新二例だけの入口です。
+		argc == 2 && std::string_view( argv[1]) == "--include-context-red" ;
+	const bool guardsOnly = argc == 2 && std::string_view( argv[1]) ==
+											 "--include-context-guards" ;	// 新しい有限負例だけです。
+	// 未知CLIで旧全例を起動しません。
+	if( argc != 1 && !redOnly && !guardsOnly) {
+		return 2 ;
+	}
+
 	drivercrate::test::TestContext context ;	// このprocessだけの集計。
 	try {
-		drivercrate::test::testScenarios( context) ;
+		// 今回の限定実行では旧58例を反復しません。
+		if( redOnly) {
+			drivercrate::test::testIncludeContextRed( context) ;
+		}
+		// 追加した選択範囲の有限負例だけを実行します。
+		else if( guardsOnly) {
+			drivercrate::test::testSelectedContextGuards( context) ;
+		} else {
+			drivercrate::test::testScenarios( context) ;
+		}
 	} catch( ...) {
 		std::cerr << "Unexpected fixture exception.\n" ;
 		return 1 ;
 	}
 
-	std::cout << "Scenarios: 58, Assertions: " << context.assertionCount()
+	std::cout << "Scenarios: "
+			  << (redOnly	   ? 2U
+				  : guardsOnly ? 16U
+							   : 58U)
+			  << ", Assertions: " << context.assertionCount()
 			  << ", failures: " << context.failureCount() << '\n' ;
 	return context.failureCount() == 0 ? 0 : 1 ;
 }

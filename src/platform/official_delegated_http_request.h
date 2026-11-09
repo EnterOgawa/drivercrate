@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_http_request.h
  * @brief Record限定grantから一回のGETだけを作る秘密requestを定義します。
- * @version 01.04.01
+ * @version 01.05.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/09/15  取得予算でgrant上限を狭める準備引数を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
  * Ver.01.04.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
  * </pre>
  *
  * @note Provider worker threadで直列使用します。完全URLはHTTP送信境界だけへ貸し出し、
@@ -162,8 +163,8 @@ public:
 	[[nodiscard]] NativeError validateStartDeadline( std::uint64_t nowUtcSeconds) const noexcept ;
 
 	/**
-	 * @brief 認識済み外部expiryを持つ初回grantか返します。
-	 * @return 外部expiryがあり、root再解決回数が0の有効requestならtrue。
+	 * @brief 索引以外の認識済み外部expiryを持つ初回grantか返します。
+	 * @return 索引以外で外部expiryがあり、root再解決回数が0の有効requestならtrue。
 	 * @note 本値だけでは再解決を実行せず、期限または最初の401／403を別途要求します。
 	 */
 	[[nodiscard]] bool		  canReresolveExpiringTarget() const noexcept ;
@@ -182,28 +183,51 @@ public:
 	/** @brief Grantが固定した期待content typeを借用します。
 	 * @return 結合grantの期待形式。空requestは空です。
 	 */
-	[[nodiscard]] std::wstring_view expectedContentType() const noexcept ;
+	[[nodiscard]] std::wstring_view				   expectedContentType() const noexcept ;
+
+	/** @brief 同一要求の閉じた補助HTTP実数だけを返す。
+ * @return 終端後も保持する要求数/本文量/status。秘密値はない。
+ */
+	[[nodiscard]] OfficialAuxiliaryHttpObservation auxiliaryObservation() const noexcept
+	{
+		return auxiliary_ ;
+	}
 
 private:
+	friend class OfficialHttpClient ;
+	/** @brief 同recordの未解決公開文脈だけを借用する。
+     * @return 同STARTED requestで元planが有効ならその値。なければnull。
+     */
+	[[nodiscard]] const OfficialAnonymousCdnPlan *anonymousCdnPlan() const noexcept ;
+	/** @brief 新responseを元request/grantへ一度だけ結合する。
+     * @param[in,out] resolution 成功時に秘密URL所有権を引き取る同response。
+     * @param[in] now 現workerのUTC秒。
+     * @return 元record/route/expiry結合成功0、元HRESULT。
+     */
+	[[nodiscard]] NativeError					  acceptAnonymousCdnResolution(
+							OfficialAnonymousCdnResolution &resolution, std::uint64_t now) ;
+	/// HTTP clientだけが実送受信で更新する閉実数。
+	OfficialAuxiliaryHttpObservation auxiliary_ ;
+
 	/**
 	 * @brief 未終端grantを失敗へ進め、request所有値を消去します。
 	 */
-	void					   abandon() noexcept ;
+	void							 abandon() noexcept ;
 
 	/**
 	 * @brief 秘密URL・grant終端責務と非機密状態を移動します。
 	 * @param[in,out] other 空に戻る移動元。
 	 */
-	void					   moveFrom( OfficialDelegatedGetRequest &other) noexcept ;
+	void							 moveFrom( OfficialDelegatedGetRequest &other) noexcept ;
 
 	/// Request完了まで生存する所有外grant。
-	RecordScopedDownloadGrant *grant_{} ;
+	RecordScopedDownloadGrant		*grant_{} ;
 	/// 一回のGETだけに貸し出すrecord直結の完全URL。
-	SecretOfficialUrl		   targetUrl_ ;
+	SecretOfficialUrl				 targetUrl_ ;
 	/// URLを含まないworker内request状態。
-	OfficialDelegatedGetState  state_{OfficialDelegatedGetState::EMPTY} ;
+	OfficialDelegatedGetState		 state_{OfficialDelegatedGetState::EMPTY} ;
 	/// Grantが固定した受信上限byte数。
-	std::uint64_t			   maximumBytes_{} ;
+	std::uint64_t					 maximumBytes_{} ;
 } ;
 
 } // namespace drivercrate

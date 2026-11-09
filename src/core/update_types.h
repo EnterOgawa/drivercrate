@@ -2,7 +2,7 @@
 /**
  * @file update_types.h
  * @brief Driver update共通値型定義。
- * @version 01.13.00
+ * @version 01.15.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -73,6 +73,9 @@
  * Ver.01.11.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
  * Ver.01.12.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
  * Ver.01.13.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
+ * Ver.01.13.01 Shunji Ogawa  2026/11/03  匿名件数の明示要求local診断例外を契約へ明記。
+ * Ver.01.14.00 Shunji Ogawa  2026/11/06  有限payloadの単一file/累計既定を各2GiBへ統一。
+ * Ver.01.15.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持。
  * </pre>
  *
  * @note Provider、状態管理、およびUI間で交換する値型を定義します。Windows固有型を公開せず、unit testからも利用できる構成とします。
@@ -481,12 +484,12 @@ struct OfficialDiscoveryMetadataLimits {
  * @brief 一scan承認へ固定する検査用driver package取得予算を表す。
  */
 struct OfficialDiscoveryPayloadLimits {
-	/// 一fileへ予約できるbyte上限。
-	std::uint64_t maximumFileBytes{128ULL * 1024ULL * 1024ULL} ;
-	/// 一Providerへ予約できる累計byte上限。
-	std::uint64_t maximumProviderBytes{256ULL * 1024ULL * 1024ULL} ;
-	/// 一scan全体へ予約できる累計byte上限。
-	std::uint64_t maximumSessionBytes{512ULL * 1024ULL * 1024ULL} ;
+	/// 一fileへ予約できるpayload byte上限。metadata予算とは別に扱う。
+	std::uint64_t maximumFileBytes{2ULL * 1024ULL * 1024ULL * 1024ULL} ;
+	/// 一Providerへ予約できる累計payload byte上限。複数大容量fileを保証しない。
+	std::uint64_t maximumProviderBytes{2ULL * 1024ULL * 1024ULL * 1024ULL} ;
+	/// 一scan全体へ予約できる累計payload byte上限。明示した小予算は拡大しない。
+	std::uint64_t maximumSessionBytes{2ULL * 1024ULL * 1024ULL * 1024ULL} ;
 	/// 一Providerへ予約できるfile数上限。
 	std::uint32_t maximumProviderFiles{2U} ;
 	/// 一scan全体へ予約できるfile数上限。
@@ -555,7 +558,7 @@ struct ScanOptions {
 /**
  * @brief 一つのProviderがlocal端末内で判定したdevice coverageを表す。
  *
- * @note 値は端末内のUI表示だけに使用し、network、telemetry、永続logへ送信しない。
+ * @note 値は端末内のUIと、ADR0427の明示要求された匿名数値診断だけへ使用します。Networkやtelemetryへ送信しません。
  */
 struct ProviderCoverage {
 	/// Provider固有条件の検索対象になったdevice数。
@@ -722,6 +725,8 @@ struct UpdateCandidate {
 	std::uint32_t								requiredDriverComponentCount{} ;
 	/// 同scanの取得targetへの選択用結合。非空でも実導入を許可せず、workerの元参照で再照合します。
 	std::wstring								preparationTargetIdentity ;
+	/// 同scan/provider/deviceの同内容表示だけをまとめるopaque値。取得・導入権限ではありません。
+	std::wstring								detailDisplayIdentity ;
 } ;
 
 /**

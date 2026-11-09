@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native_api_tests.cpp
  * @brief 架空OS・署名・Storeと実fileでnative障害を再現する専用試験。
- * @version 01.04.02
+ * @version 01.05.00
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/15  NeedsのHKR全行と型・設置文脈の正負回帰を追加。
  * Ver.01.04.01 Shunji Ogawa  2026/10/24 実openのfile／path不在と未解決保持を別条件で確認。
  * Ver.01.04.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
  * </pre>
  *
  * @note この専用targetではtrust／OS APIを全て架空化する。実署名・実device・導入の測定ではない。
@@ -36,6 +37,8 @@
 #include "support/inf_dependency_native_test_api.h"
 #include "platform/official_download_workspace.h"
 #include "platform/official_file_verifier.h"
+#include "platform/common_driver_package.h"
+#include "platform/official_driver_package.h"
 #include "test_framework.h"
 #include <WinIoCtl.h>
 #include <algorithm>
@@ -48,6 +51,42 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+namespace drivercrate {
+namespace {
+thread_local const CommonInfInspection *commonContentUnderTest{} ;	// 専用EXEの現在fixtureだけです。
+thread_local std::size_t				commonContentRechecks{} ;	// 所有byteの実再確認回数です。
+}
+/** @brief 専用EXEだけで元内容の署名境界をfake化し、全原byteは実hashへ再照合します。
+ * @param[in] inspected この同期fixtureが登録した元内容だけです。
+ * @return 同一fixtureと原byte一致0、それ以外は元拒否HRESULTです。
+ * @note 通常製品の再検証関数を変更せず、このtargetにだけ定義します。
+ */
+NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected)
+{
+	// 任意の成功boolや別所有者を内容証拠として受理しません。
+	if( &inspected != commonContentUnderTest || !inspected.workspace ||
+	   inspected.state != CommonInfInspectionState::VERIFIED || inspected.error != 0 ||
+	   inspected.scanSessionId == 0U || inspected.closure.packages.size() != 1U ||
+	   inspected.closure.entries.empty()) {
+		return E_INVALIDARG ;
+	}
+
+	++commonContentRechecks ;
+	// 同じ保護workspaceの全fileをsize/hashへ再照合します。
+	for( const auto &entry : inspected.closure.entries) {
+		const auto error = verifyOfficialFileMetadata(
+			inspected.workspace->path( entry.relativePath),
+			{entry.uncompressedSize, entry.sha256}) ;	// 実際の架空byteだけです。
+		// 一つの差替えも成功へ補いません。
+		if( error != 0) {
+			return error ;
+		}
+	}
+
+	return 0 ;
+}
+}
 
 namespace drivercrate::test {
 namespace {
@@ -1224,6 +1263,167 @@ void needsRegistry( TestContext &context)
 		}
 	}
 }
+/** @brief 実Common入口の正規選択文脈と同名二段転送・HW効果を確認します。
+ * @param[in,out] context 元assertion集計先です。
+ */
+void selectedCommonContext( TestContext &context)
+{
+	// HWの正当なHKRと拒否すべきHKLMだけを別fixtureへ渡します。
+	for( unsigned scenario{}; scenario < 2U; ++scenario) {
+		const std::string rootBody =
+			"Class=Net\r\nClassGUID={4d36e972-e325-11ce-bfc1-08002be10318}\r\n"
+			"Provider=Fixture Provider\r\nDriverVer=01/01/2026,2.0.0.0\r\nCatalogFile=fixture.cat\r\n"
+			"[Manufacturer]\r\nMaker=Models,NTamd64\r\n[Models.NTamd64]\r\n"
+			"Device=Install,PCI\\SYNTH_INCLUDE_CONTEXT\r\n"
+			"[Install.NTamd64]\r\nCopyFiles=@driver.sys\r\nInclude=peer.inf\r\n"
+			"[Install.NTamd64.HW]\r\nNeeds=Shared.HW\r\n"
+			// 実device/元vendor本文を含まない原選択です。
+			"[DestinationDirs]\r\nDefaultDestDir=12\r\n[SourceDisksNames]\r\n1=fixture,,,\r\n[SourceDisksFiles]\r\ndriver.sys=1\r\n" ;
+		Fixture			  fixture( Fault::NONE, "Include=leaf.inf\r\nNeeds=Shared.HW\r\n", rootBody,
+								  "Shared.HW") ;	// 同名転送元です。
+		const std::string leaf =
+			"[Version]\r\nSignature=\"$Windows NT$\"\r\n[Shared.HW]\r\nAddReg=Settings\r\n[Settings]\r\n" +
+			std::string( scenario == 0U
+							? "HKR,,PowerFlag,0x00010001,1\r\n"
+							: "HKLM,,PowerFlag,0x00010001,1\r\n") ;	// registry変更は実行しません。
+		(void)fixture.file( L"windows\\INF\\leaf.inf", leaf) ;
+		(void)fixture.file( L"windows\\System32\\DriverStore\\FileRepository\\fixture\\leaf.inf",
+						   leaf) ;
+		fixture.api.infSignature = [&fixture]( const std::wstring   &path,
+											  SP_INF_SIGNER_INFO_W &signer) -> NativeError {
+			const bool system = path == fixture.workspace.path( L"windows\\INF\\peer.inf") ||
+								path == fixture.workspace.path(
+											L"windows\\INF\\leaf.inf") ;	// 架空inbox二資料だけです。
+			// このfixture外のINFへ署名成功を返しません。
+			if( !system && path != fixture.workspace.path( L"root.inf")) {
+				return E_INVALIDARG ;
+			}
+
+			const auto catalog =
+				fixture.workspace.path( system ? L"windows\\System32\\CatRoot\\fixture.cat"
+											  : L"fixture.cat") ;	// 同じ元CATです。
+			const std::wstring signerName = L"Synthetic signer" ;	// 実署名者ではありません。
+			// 固定SDK bufferを超える応答は拒否します。
+			if( catalog.size() >= MAX_PATH || signerName.size() >= MAX_PATH) {
+				return E_INVALIDARG ;
+			}
+
+			std::copy( catalog.c_str(), catalog.c_str() + catalog.size() + 1U, signer.CatalogFile) ;
+			std::copy( signerName.c_str(), signerName.c_str() + signerName.size() + 1U,
+					  signer.DigitalSigner) ;
+			signer.SignerScore = system ? SIGNERSCORE_INBOX : SIGNERSCORE_WHQL ;
+			return 0 ;
+		} ; // 既test APIの同期寿命だけで借用します。
+		fixture.api.catalogSignature = [&fixture]( const auto &, auto paths) -> NativeError {
+			// 元INF自身だけのmember検査をfake化します。
+			if( paths.size() != 1U ||
+			   (paths.front() != fixture.workspace.path( L"root.inf") &&
+				paths.front() != fixture.workspace.path( L"windows\\INF\\peer.inf") &&
+				paths.front() != fixture.workspace.path( L"windows\\INF\\leaf.inf"))) {
+				return E_INVALIDARG ;
+			}
+
+			return 0 ;
+		} ;
+		fixture.api.driverStore = [&fixture]( const auto &path, auto &location) -> NativeError {
+			// 元二資料以外のStore成功を作りません。
+			if( path != fixture.workspace.path( L"windows\\INF\\peer.inf") &&
+			   path != fixture.workspace.path( L"windows\\INF\\leaf.inf")) {
+				return E_INVALIDARG ;
+			}
+
+			const auto leafName = path.substr( path.find_last_of( L'\\') + 1U) ;	// 同じ元leaf名です。
+			location			= fixture.workspace.path(
+				   L"windows\\System32\\DriverStore\\FileRepository\\fixture\\" + leafName) ;
+			return 0 ;
+		} ;
+		const auto driverMember =
+			// 実行しない原SYS byteです。
+			fixture.file( L"driver.sys", "synthetic kernel driver") ;
+		OfficialZipEntry driverEntry{driverMember.relativePath,
+									 driverMember.byteCount} ;	// 元検査集合だけです。
+		driverEntry.sha256 = driverMember.sha256 ;
+		CommonInfInspection inspected ;	// 私有入口が前後に再検証するfixtureだけです。
+		inspected.scanSessionId	  = 8806U ;
+		inspected.infRelativePath = L"root.inf" ;
+		inspected.state			  = CommonInfInspectionState::VERIFIED ;
+		inspected.workspace		  = std::shared_ptr<OfficialDownloadWorkspace>(
+			  &fixture.workspace, []( OfficialDownloadWorkspace *) {
+			  }) ; // 所有はFixtureに残し、この同期callだけ借用します。
+		OfficialZipEntry rootEntry{L"root.inf", fixture.members[0].byteCount} ;	// 実root byteです。
+		rootEntry.sha256 = fixture.members[0].sha256 ;
+		OfficialZipEntry catalogEntry{L"fixture.cat",
+									  // 実CAT byteです。
+									  std::string_view( "synthetic package catalog").size()} ;
+		DRIVERCRATE_EXPECT( context, computeFileSha256( fixture.workspace.path( L"fixture.cat"),
+													  catalogEntry.sha256) == 0) ;
+		inspected.closure.entries = {rootEntry, catalogEntry, driverEntry} ;
+		const std::array classes{std::wstring_view( L"Net")} ;				// 架空基本driver classです。
+		const std::array signatures{std::wstring_view( L"$Windows NT$")} ;	// INF書式だけです。
+		OfficialInfInspectionPolicy policy{
+			32U, 32U, classes, {}, signatures} ;	// 内容parserの正規入力です。
+		policy.acceptAnyProvider			 = true ;
+		policy.allowRequiredDriverComponents = true ;
+		OfficialInfPackage original ;	// 実内容parserが返す元metadataです。
+		const auto		   parsed =
+			inspectOfficialInfPackage( fixture.workspace, inspected.closure.entries, L"root.inf",
+									  policy, original) ;	// 元byteを読みます。
+		DRIVERCRATE_EXPECT( context, parsed == 0) ;
+		// 不正な架空内容を製品私有入口へ渡しません。
+		if( parsed != 0) {
+			throw std::runtime_error( "common include fixture content rejected") ;
+		}
+
+		inspected.closure.packages.push_back( original) ;
+		OfficialInfPackage selected ;	// 正規のselected基本/付属を実readerで得ます。
+		const auto		   selectedError = inspectSelectedOfficialInfRelations(
+			fixture.workspace, inspected.closure.entries, original, L"Install",
+			selected) ;	// 装飾をfixtureで補完しません。
+		DRIVERCRATE_EXPECT( context, selectedError == 0 &&
+										selected.selectedInstallSection == L"Install.NTamd64") ;
+		const std::array<std::wstring, 2U> seeds{L"Install.NTamd64",
+												 L"Install.NTamd64.HW"} ;	// 元実在節だけです。
+		InfDependencyNativeResult		   legacy ;							// null文脈の旧入口は共有しません。
+		DRIVERCRATE_EXPECT( context, inspectInfDependenciesWithTestApi(
+										fixture.api, fixture.workspace, fixture.members, 0U, seeds,
+										8806U, legacy) == 0 &&
+										!legacy.dependency.plan.referencesResolved) ;
+		commonContentUnderTest = &inspected ;
+		commonContentRechecks  = 0U ;
+		InfDependencyNativeResult	 result ;		// 実Common入口から返るgraphだけです。
+		RequiredInfBindingDiagnostic diagnostic ;	// 効果の元数値だけです。
+		const auto					 error =
+			inspectCommonInfDependenciesWithTestApi( fixture.api, inspected, selected, result,
+													&diagnostic) ;	// 製品の文脈構築を迂回しません。
+		commonContentUnderTest = nullptr ;
+		std::cout << "COMMON_SELECTED_CONTEXT case=" << scenario << " error=" << error
+				  << " stage=" << diagnostic.stage
+				  << " registryRows=" << diagnostic.verifiedRegistryRowCount
+				  << " contentRechecks=" << commonContentRechecks << std::endl ;
+		DRIVERCRATE_EXPECT( context, scenario == 0U ? error == 0 : error != 0) ;
+		DRIVERCRATE_EXPECT( context, commonContentRechecks >= 2U) ;
+		// 正例は二段の元NeedsとHW用HKR一行を完全に検査します。
+		if( scenario == 0U) {
+			DRIVERCRATE_EXPECT( context, result.dependency.plan.referencesResolved &&
+											result.dependency.plan.rootEvidenceVerified &&
+											diagnostic.verifiedRegistryRowCount == 1U) ;
+			const auto contexts = inspectNeedsRegistryContextsForTest(
+				result, seeds, result.dependency.documents.front().identity) ;	// 元HW文脈です。
+			const auto leafSection =
+				std::ranges::find_if( result.dependency.sections, [&]( const auto &section) {
+					return section.identity == result.dependency.documents.back().identity &&
+						   section.section == L"Shared.HW" ;
+				}) ; // 正確な転送終端だけです。
+			DRIVERCRATE_EXPECT( context,
+							   leafSection != result.dependency.sections.end() &&
+								   contexts[static_cast<std::size_t>(
+									   leafSection - result.dependency.sections.begin())] == 2U) ;
+		} else {
+			DRIVERCRATE_EXPECT( context, result.dependency.documents.empty()) ;
+		}
+	}
+}
+
 } // namespace
 } // namespace drivercrate::test
 
@@ -1240,6 +1440,7 @@ int main()
 		drivercrate::test::payloadObservation( context) ;
 		drivercrate::test::referenceOpenAbsence( context) ;
 		drivercrate::test::needsRegistry( context) ;
+		drivercrate::test::selectedCommonContext( context) ;
 		drivercrate::test::runOfficialServiceOutputContractTests( context) ;
 	} catch( ...) {
 		std::cerr << "Synthetic native API fixture failed.\n" ;

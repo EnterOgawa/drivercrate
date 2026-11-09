@@ -2,7 +2,7 @@
 /**
  * @file driver_package_signature_internal.h
  * @brief 実byteへ固定した内部署名API fixtureと製品native dispatchを定義します。
- * @version 01.07.00
+ * @version 01.08.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * Ver.01.05.00 Shunji Ogawa  2026/10/13  同rootの安全相対memberと全位置/hash/owner照合の有限契約を明示。
  * Ver.01.06.00 Shunji Ogawa  2026/10/15  内部試験だけの128/129完全閉包と有限root容量を明示。
  * Ver.01.07.00 Shunji Ogawa  2026/10/24  原archive試験の引数なしnative署名adapterを追加。
+ * Ver.01.08.00 Shunji Ogawa  2026/11/05  人工CAT宣言を元固定hashとroot/ownerへ限定接続。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -43,6 +44,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace drivercrate::driver_package_signature_detail {
@@ -169,6 +171,10 @@ private:
 	Receipt					  receipt_ ;
 	friend BOOL setupVerifyInf( PCWSTR, PSP_ALTPLATFORM_INFO, PSP_INF_SIGNER_INFO_W) noexcept ;
 	friend LONG verifyTrust( HWND, GUID *, LPVOID) noexcept ;
+#if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
+	friend bool readSyntheticCatalogDigests( std::wstring_view,
+											std::vector<std::wstring> &) noexcept ;
+#endif
 } ;
 /** @brief 製品は固定native、内部scopeは実hash fixtureまたは明示native adapterへdispatchします。
  * @param[in] path 実INF絶対path。
@@ -187,6 +193,15 @@ private:
 [[nodiscard]] LONG verifyTrust( HWND window, GUID *action, LPVOID data) noexcept ;
 // 内部試験だけへfactoryを公開し、製品constructorや設定へ注入しません。
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
+/**
+ * @brief 既存の明示人工scopeだけで、確認済み同root/ownerの元member hashを取得します。
+ * @param[in] path 元固定CATの完全pathです。
+ * @param[out] hashes 全成功時だけ人工memberの元SHA256集合です。失敗時は空です。
+ * @return 元CAT/全file/root-ownerが同scopeで確認済みの場合だけtrueです。
+ * @note 実CATやnative adapterへは適用せず、署名や実適合の根拠を作りません。
+ */
+[[nodiscard]] bool readSyntheticCatalogDigests( std::wstring_view		  path,
+											   std::vector<std::wstring> &hashes) noexcept ;
 /** @brief 固定file fixtureまたは元nativeへの委譲を同threadへ結ぶ内部factoryです。 */
 struct Access {
 	/** @brief 元Windows署名APIへそのまま委譲する内部scopeを作ります。

@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest_tests.cpp
  * @brief 非永続CNG RSA鍵の実署名でmanifest認証の拒否境界を検査します。
- * @version 01.18.01
+ * @version 01.28.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -46,6 +46,17 @@
  * Ver.01.17.00 Shunji Ogawa  2026/10/26 新metadata生成索引の原byteを通常reader/候補adapterへ接続。
  * Ver.01.18.00 Shunji Ogawa  2026/10/27  現codec拒否の履歴下限保持とfresh置換を検査。
  * Ver.01.18.01 Shunji Ogawa  2026/10/27  追加履歴fixtureを独立stackへ分離。
+ * Ver.01.18.02 Shunji Ogawa  2026/11/03  通常公開IDと署名済み参照データの境界を更新。
+ * Ver.01.19.00 Shunji Ogawa  2026/11/03  内容検査INF参照版の通常worker接続を確認。
+ * Ver.01.20.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.21.00 Shunji Ogawa  2026/11/03  明示非実行formatを元grant/record/hintへ結合。
+ * Ver.01.22.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.23.00 Shunji Ogawa  2026/11/03  拡大recordと有限保持quotaを通常経路へ整合。
+ * Ver.01.24.00 Shunji Ogawa  2026/11/05  独立規約の通常consumerと同意snapshotを有限確認。
+ * Ver.01.25.00 Shunji Ogawa  2026/11/06  Windows管理driver DATAの通常索引fixtureを追加。
+ * Ver.01.26.00 Shunji Ogawa  2026/11/06  同INF代替Modelsの通常意図解決と厳密負例を追加。
+ * Ver.01.27.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.28.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持。
  * </pre>
  *
  * @note 秘密鍵はCNG handleのRAM内だけにあり、public blob以外をexportしません。
@@ -92,6 +103,7 @@
 #include "platform/signed_index_asset_bytes.h"
 #include "platform/signed_index_manifest_internal.h"
 #include "platform/signed_index_records.h"
+#include "platform/signed_index_scan.h"
 #include "platform/signed_index_record_lookup.h"
 #include "platform/signed_index_store_internal.h"
 #include "platform/signed_index_json_internal.h"
@@ -811,14 +823,19 @@ void runSignedIndexManifestTests( TestContext &context)
 namespace {
 
 /** @brief 架空原byteをminizで実圧縮し、CRC／ISIZEを持つ単一GZipを作ります。
- * @param[in] raw 架空の不変原byte。最大128MiB+1で、巨大fixtureは同一文字の繰返しです。
+ * @param[in] raw 架空の不変原byte。最大128MiB+1で、混在IDの合法fixtureも扱います。
  * @return 実Deflateを持つ単一member。失敗時はtest processへ例外を通知します。
  */
 [[nodiscard]] std::vector<std::byte> assetGzip( const std::string_view raw)
 {
-	const std::size_t		   capacity = raw.size() > 1024U * 1024U
-											  ? raw.size() / 64U + 65536U
-											  : raw.size() + 128U ;		// Testだけの有限圧縮buffer。
+	// 元fixtureも展開上限+1の独立拒否試験までに限定します。
+	if( raw.size() > INDEX_ASSET_EXPANDED_MAX_BYTES + 1U) {
+		throw std::runtime_error( "synthetic gzip raw limit") ;
+	}
+
+	const std::size_t capacity = mz_compressBound(
+		// 同文字反復を仮定しない有限圧縮上限です。
+		static_cast<mz_ulong>( raw.size())) ;
 	std::vector<unsigned char> packed( capacity) ;						// Zlib containerの一時所有値。
 	mz_ulong	packedSize = static_cast<mz_ulong>( packed.size()) ;	// 実圧縮長の格納先。
 	// 原char byteをminizの読取り型へ借用するtest compressor境界です。
@@ -1456,6 +1473,67 @@ void readDepthFixture( signed_index_json::Reader<IndexRecordsStatus> &reader,
 		   evidence + R"json("}})json" ;
 }
 
+/** @brief 通信なしのv2 resource descriptorを元親identityへ結ぶ。
+ * @param[in] rootHash 人工payloadの実hash。
+ * @param[in] bytes 人工payloadの実byte数。
+ * @return raw内容を検査済みとしない人工計画。
+ */
+std::string resourceDescriptorFixture( const std::string_view rootHash, const std::uint64_t bytes)
+{
+	auto value = replaced( descriptorFixture(), "driver-index-acquisition-v1",
+						  "driver-index-acquisition-v2") ;	// 新wireだけを明示。
+	value =
+		replaced( std::move( value), "\"format\":\"ZIP\"", "\"format\":\"PE_RESOURCE_CONTAINER\"") ;
+	const std::string hash( 64U, 'a') ;	// 未検査childの人工期待値。
+	const std::string tuple =
+		// 型付き人工resource。
+		R"json({"type":{"kind":"STRING","value":"TEST"},"name":{"kind":"ID","value":1},"language":{"kind":"ID","value":1033}})json" ;
+	const std::string outer = "{\"resource\":" + tuple +
+							  ",\"offset\":0,\"length\":1,\"sha256\":\"" + hash +
+							  "\"}" ;	// 原親の有界範囲。
+	const std::string inf = "{\"role\":\"INF\",\"basename\":\"fixture.inf\",\"resource\":" + tuple +
+							",\"offset\":0,\"length\":1,\"sha256\":\"" + hash +
+							"\"}" ;	// 原INF role。
+	const std::string cat =
+		"{\"role\":\"CATALOG\",\"basename\":\"fixture.cat\",\"resource\":" + tuple +
+		",\"offset\":1,\"length\":1,\"sha256\":\"" + hash + "\"}" ;	// 原CAT role。
+	value.pop_back() ;
+	value +=
+		",\"payloadPlan\":{\"retrieval\":{\"kind\":\"STATIC_URL\"},\"content\":{\"kind\":\"PE_RESOURCE_RANGES_V1\",\"root\":{\"bytes\":" +
+		std::to_string( bytes) + ",\"sha256\":\"" + std::string( rootHash) +
+		"\"},\"archive\":" + outer +
+		",\"member\":{\"path\":\"inner.exe\",\"bytes\":2,\"sha256\":\"" + hash + "\"},\"files\":[" +
+		inf + "," + cat + "],\"selectedInf\":\"fixture.inf\"}}}" ;
+	return value ;
+}
+
+/** @brief 匿名CDNの公開locatorを有限resource descriptorへ結ぶ。
+ * @param[in] rootHash 人工payloadの実hash。
+ * @param[in] bytes 人工payloadの実byte数。
+ * @return 実HTTPや実CAT成功を持たない人工wire。
+ */
+std::string anonymousDescriptorFixture( const std::string_view rootHash, const std::uint64_t bytes)
+{
+	auto value = resourceDescriptorFixture( rootHash, bytes) ;	// 既存の同じcontent plan。
+	value	   = replaced( std::move( value), "OFFICIAL_PAYLOAD_LINK",
+						  "OFFICIAL_CDN_LINK") ;	// 別originへの元公式CDN導線。
+	value	   = replaced(
+		 std::move( value), R"json({"kind":"STATIC_URL"})json",
+		 R"json({"kind":"ANONYMOUS_CDN_TOKEN_V1","model":"G614FR","path":"/pub/ASUS/fixture.exe","systemCode":"asus"})json") ;
+	// 元sourceと証拠pageだけを公式起点へ揃え、擬似native receiptは作らない。
+	while( value.find( "vendor.example") != std::string::npos) {
+		value = replaced( std::move( value), "vendor.example", "www.asus.com") ;
+	}
+
+	// Payloadと一hopだけを完全なpublic canonicalへ結ぶ。
+	while( value.find( "https://www.asus.com/fixture.zip") != std::string::npos) {
+		value = replaced( std::move( value), "https://www.asus.com/fixture.zip",
+						 "https://dlcdnta.asus.com/pub/ASUS/fixture.exe?model=G614FR") ;
+	}
+
+	return value ;
+}
+
 /** @brief Descriptorをschemaより先に置くv2原recordを作ります。
  * @param[in] descriptor 全13fieldの人工元取得情報。
  * @param[in] raw 旧14fieldの人工record。欠損を補いません。
@@ -1606,6 +1684,83 @@ void runDescriptorCodecChecks( TestContext &context)
 		throw std::runtime_error( "descriptor positive fixture rejected") ;
 	}
 
+	const auto resourceDescriptor =
+		// 人工親byteへ結んだ新wire。
+		resourceDescriptorFixture( RECORD_CLAIM_HASH, 1234U) ;
+	const auto resourceRecord = [&]( const std::string &descriptorValue) {
+		return descriptorRecord( descriptorValue, replaced( distributionRecord(),
+														  "\"infIdentity\":\"drivers/fixture.inf\"",
+														  "\"infIdentity\":\"fixture.inf\"")) ;
+	} ; // flat inventoryの原INFだけを参照する。
+	const auto resourceRead = readRecordFixture(
+		key, descriptorIndex( recordSource(), recordEntry( key, resourceRecord( resourceDescriptor))),
+		{1U, 1U, 1U, 0U, 0U}) ;	// 通常codec全層の新wire。
+	DRIVERCRATE_EXPECT(
+		context,
+		resourceRead.receipt &&
+			resourceRead.receipt->records()[0].acquisitionDescriptor->schemaVersion == 2U &&
+			resourceRead.receipt->records()[0].acquisitionDescriptor->resourceContent.has_value()) ;
+	std::string asusSource = recordSource() ;	// 同じ人工sourceの公式起点だけを揃える。
+	// Source内のorigin/pageを一貫した同値へ置換する。
+	while( asusSource.find( "vendor.example") != std::string::npos) {
+		asusSource = replaced( std::move( asusSource), "vendor.example", "www.asus.com") ;
+	}
+
+	const auto dynamicDescriptor =
+		// 新閉wire。
+		anonymousDescriptorFixture( RECORD_CLAIM_HASH, 1234U) ;
+	const auto dynamicRead = readRecordFixture(
+		key, descriptorIndex( asusSource, recordEntry( key, resourceRecord( dynamicDescriptor))),
+		{1U, 1U, 1U, 0U, 0U}) ;	// 通常署名codec。
+	DRIVERCRATE_EXPECT(
+		context,
+		dynamicRead.receipt &&
+			dynamicRead.receipt->records()[0].acquisitionDescriptor->anonymousCdn.has_value()) ;
+	const std::array dynamicBad{
+		replaced( dynamicDescriptor, "\"model\":\"G614FR\"", "\"model\":\"wrong\""),
+		replaced( dynamicDescriptor, "\"systemCode\":\"asus\"", "\"systemCode\":\"rog\""),
+		replaced(
+			dynamicDescriptor,
+			"\"kind\":\"ANONYMOUS_CDN_TOKEN_V1\",\"model\":\"G614FR\",\"path\":\"/pub/ASUS/fixture.exe\",\"systemCode\":\"asus\"",
+			"\"kind\":\"STATIC_URL\""),
+		replaced( dynamicDescriptor, "?model=G614FR", "?model=G614FR&model=G614FR"),
+		replaced(
+			dynamicDescriptor, "?model=G614FR",
+			"?model=G614FR&Signature=untrusted")} ;	// 元model/path/queryとstatic policyを緩めない拒否。
+	// 不正wireを指定したときに別producerやstaticへfallbackしない。
+	for( const auto &bad : dynamicBad) {
+		const auto rejected = readRecordFixture(
+			key, descriptorIndex( asusSource, recordEntry( key, resourceRecord( bad))),
+			{1U, 1U, 1U, 0U, 0U}) ;	// 原不正byte。
+		DRIVERCRATE_EXPECT( context, !rejected.receipt) ;
+	}
+
+	const auto foreignSource = readRecordFixture(
+		key, descriptorIndex( recordSource(), recordEntry( key, resourceRecord( dynamicDescriptor))),
+		{1U, 1U, 1U, 0U, 0U}) ;	// 同hostだけの自己申告を拒否。
+	DRIVERCRATE_EXPECT( context, !foreignSource.receipt) ;
+	const std::array resourceBad{
+		replaced( resourceDescriptor, "driver-index-acquisition-v2", "driver-index-acquisition-v1"),
+		replaced( resourceDescriptor, "STATIC_URL", "DYNAMIC_UNSUPPORTED"),
+		replaced( resourceDescriptor, "\"bytes\":1234", "\"bytes\":1235"),
+		replaced( resourceDescriptor, "\"offset\":0", "\"offset\":null"),
+		replaced( resourceDescriptor, "\"value\":1033", "\"value\":\"1033\""),
+		replaced( resourceDescriptor, "\"selectedInf\":\"fixture.inf\"",
+				 "\"selectedInf\":\"wrong.inf\""),
+		mutateDescriptorObject( resourceDescriptor, "payloadPlan", 0U),
+		mutateDescriptorObject( resourceDescriptor, "payloadPlan", 1U),
+		mutateDescriptorObject(
+			resourceDescriptor, "payloadPlan",
+			2U)} ;	// 旧schema混入/未知取得/親不一致/null/原型/選択不一致/閉field境界。
+	// 各失敗を正常申告へ補完せず元byteを通常readerへ渡す。
+	for( const auto &bad : resourceBad) {
+		const auto rejected = readRecordFixture(
+			key, descriptorIndex( recordSource(), recordEntry( key, resourceRecord( bad))),
+			{1U, 1U, 1U, 0U, 0U}) ;	// 同じ認証fixtureの原不正byte。
+		DRIVERCRATE_EXPECT( context, !rejected.receipt &&
+										rejected.status != IndexRecordsStatus::SCHEMA_VALIDATED) ;
+	}
+
 	const auto &record = read.receipt->records()[0] ;		// Receipt寿命へ結合した所有record。
 	const auto &value  = *record.acquisitionDescriptor ;	// 全13fieldの型付き元申告。
 	DRIVERCRATE_EXPECT( context, record.recordSchemaVersion == 2U && record.originalBytes == raw &&
@@ -1738,7 +1893,7 @@ void runDescriptorCodecChecks( TestContext &context)
 	// Sourceとrecordの対応を失った先頭route証拠は型が正しくても拒否する。
 	const std::array<std::pair<std::string, std::string>, 24U> invalidEvidence{
 		{{"\"maximumBytes\":134217728", "\"maximumBytes\":0"},
-		 {"\"maximumBytes\":134217728", "\"maximumBytes\":134217729"},
+		 {"\"maximumBytes\":134217728", "\"maximumBytes\":2147483649"},
 		 {"\"format\":\"ZIP\"", "\"format\":\"UNKNOWN\""},
 		 {"\"format\":\"ZIP\"", "\"format\":\"WINDOWS_EXE\""},
 		 {"\"reason\":\"\",\"payloadUrl\"", "\"reason\":\"contradictory\",\"payloadUrl\""},
@@ -1913,8 +2068,9 @@ void runDescriptorCodecChecks( TestContext &context)
 															 "2026-10-18T03:00:00Z")))),
 		{1U, 1U, 1U, 0U, 0U}) ;	// 8日ちょうどと8日1秒の拒否を分けます。
 	DRIVERCRATE_EXPECT( context, exactEightDays.receipt.has_value()) ;
-	constexpr std::array<std::pair<std::string_view, IndexPayloadFormat>, 3U> FORMATS{
+	constexpr std::array<std::pair<std::string_view, IndexPayloadFormat>, 4U> FORMATS{
 		{{"CABINET", IndexPayloadFormat::CABINET},
+		 {"SEVEN_ZIP_SFX", IndexPayloadFormat::SEVEN_ZIP_SFX},
 		 {"WINDOWS_EXE", IndexPayloadFormat::WINDOWS_EXE},
 		 {"WINDOWS_MSI", IndexPayloadFormat::WINDOWS_MSI}}} ;	// 申告形式だけを保持し実行はしない。
 	// Archiveとinstallerを別方式に結び、全既知形式のtyped値を確認する。
@@ -1923,8 +2079,15 @@ void runDescriptorCodecChecks( TestContext &context)
 			replaced( descriptor, "\"format\":\"ZIP\"",
 					 "\"format\":\"" + std::string{format.first} + "\"")) ;	// 元申告形式だけの変更。
 		// EXEとMSIだけは元方式をinstallerへ結ぶ。
-		if( format.second != IndexPayloadFormat::CABINET) {
+		if( format.second == IndexPayloadFormat::WINDOWS_EXE ||
+		   format.second == IndexPayloadFormat::WINDOWS_MSI) {
 			typed = replaced( std::move( typed), "STANDARD_INF_ARCHIVE", "OFFICIAL_INSTALLER") ;
+		}
+
+		// 非実行SFXは新有限入力上限ちょうども元archive方式のまま受理します。
+		if( format.second == IndexPayloadFormat::SEVEN_ZIP_SFX) {
+			typed = replaced( std::move( typed), "\"maximumBytes\":134217728",
+							 "\"maximumBytes\":2147483648") ;
 		}
 
 		const auto acceptedFormat =
@@ -2389,8 +2552,8 @@ void runSignedIndexRecordsTests( TestContext &context)
 							 replaced( metadata, "drivers/fixture.inf", "/fixture.inf"),
 							 IndexRecordsStatus::INVALID_EVIDENCE) ;
 	// flatは明示空、nestedは一段memberです。同じ現行10fieldを全値codecで読みます。
-	for( const std::string_view selector :
-		{"", "release+driver/package (x64).zip", "release/inner.CAB"}) {
+	for( const std::string_view selector : {"", "release+driver/package (x64).zip",
+										   "release/inner.CAB", "release/static-driver.exe"}) {
 		const auto nested = replaced( metadata, "\"nestedArchiveIdentity\":\"\"",
 									 "\"nestedArchiveIdentity\":\"" + std::string{selector} +
 										 "\"") ;	// 元fieldを欠損補完しません。
@@ -2404,11 +2567,11 @@ void runSignedIndexRecordsTests( TestContext &context)
 					selector) ;
 	}
 
-	constexpr std::array<std::string_view, 17U> BAD_MEMBERS{
-		"../inner.zip", "/inner.zip",	 "a//inner.zip",	"a/./inner.zip", "a/../inner.zip",
-		"a/inner.zip/", "C:inner.zip",	 "a/inner.zip:ads", "a/CON.zip",	 "nul.zip",
-		"a/COM1.zip",	"a/LPT9.zip",	 "a./inner.zip",	"a /inner.zip",	 "a/inner.zip.",
-		"a/inner.exe",	"a\\\\inner.zip"} ;	// nativeと同じ拒否文法です。
+	constexpr std::array<std::string_view, 16U> BAD_MEMBERS{
+		"../inner.zip",	 "/inner.zip",	"a//inner.zip",	   "a/./inner.zip", "a/../inner.zip",
+		"a/inner.zip/",	 "C:inner.zip", "a/inner.zip:ads", "a/CON.zip",		"nul.zip",
+		"a/COM1.zip",	 "a/LPT9.zip",	"a./inner.zip",	   "a /inner.zip",	"a/inner.zip.",
+		"a\\\\inner.zip"} ;	// nativeと同じ拒否文法です。非実行nested SFXは上の正例へ含めます。
 	// 各unsafe memberを同じ共通codecへ一度ずつ渡します。
 	for( const auto member : BAD_MEMBERS) {
 		rejectDistributionRecord(
@@ -2523,7 +2686,7 @@ void runSignedIndexRecordsTests( TestContext &context)
 	rejectDistributionRecord( context, key, deepRecord, IndexRecordsStatus::INVALID_RECORD) ;
 
 	const std::string exactRecord =
-		metadata + std::string( INDEX_RECORD_MAX_BYTES - metadata.size(), ' ') ;	// 原64KiB境界。
+		metadata + std::string( INDEX_RECORD_MAX_BYTES - metadata.size(), ' ') ;	// 原512KiB境界。
 	const auto exactRecordResult =
 		readRecordFixture( key, distributionIndex( recordSource(), recordEntry( key, exactRecord)),
 						  {1U, 1U, 1U, 0U, 0U}) ;	// 縮小policyでない正例。
@@ -2537,7 +2700,7 @@ void runSignedIndexRecordsTests( TestContext &context)
 	rejectRecordIndex( context, key, index, IndexRecordsStatus::COUNT_LIMIT,
 					  {1U, INDEX_RECORD_MAX_COUNT + 1U, INDEX_RECORD_MAX_COUNT - 1U, 1U, 1U}) ;
 	std::string ids ;	// 件数境界を検査する一意な架空公開ID配列。
-	// 128個の異なる架空IDを順に作り、端末actual IDを一切読まない。
+	// 件数上限まで異なる架空IDを順に作り、端末actual IDを一切読まない。
 	for( std::size_t count = 0U; count < INDEX_RECORD_PNP_MAX_COUNT; ++count) {
 		// 後続要素だけのcommaを追加する。
 		if( count != 0U) {
@@ -2609,7 +2772,7 @@ void runSignedIndexRecordsTests( TestContext &context)
 	{
 		std::string largeEntries ;	// 原record合計64MiBちょうどを持つ有限index。
 		largeEntries.reserve( 90U * 1024U * 1024U) ;
-		// 各64KiBの一意record1024件を作り、縮小policyなしで合計境界へ達する。
+		// 各512KiBの一意record128件を作り、合計64MiBの境界へ達する。
 		for( std::size_t count = 0U; count < INDEX_RECORD_TOTAL_MAX_BYTES / INDEX_RECORD_MAX_BYTES;
 			++count) {
 			// 後続entryだけのcommaを追加する。
@@ -2629,19 +2792,19 @@ void runSignedIndexRecordsTests( TestContext &context)
 			distributionIndex( recordSource(), largeEntries) ;
 		const auto totalAccepted =
 			// 実合計境界正例。
-			readRecordFixture( key, largeIndex, {1U, 1024U, 1024U, 0U, 0U}) ;
+			readRecordFixture( key, largeIndex, {1U, 128U, 128U, 0U, 0U}) ;
 		DRIVERCRATE_EXPECT( context, totalAccepted.receipt &&
-										totalAccepted.receipt->records().size() == 1024U) ;
+										totalAccepted.receipt->records().size() == 128U) ;
 		DRIVERCRATE_EXPECT( context,
 						   totalAccepted.receipt &&
 							   totalAccepted.receipt->records()[0].originalBytes.size() ==
 								   INDEX_RECORD_MAX_BYTES &&
-							   totalAccepted.receipt->records()[1023U].originalBytes.size() ==
+							   totalAccepted.receipt->records()[127U].originalBytes.size() ==
 								   INDEX_RECORD_MAX_BYTES) ;
 		rejectRecordIndex(
 			context, key,
 			distributionIndex( recordSource(), largeEntries + "," + recordEntry( key, " ")),
-			IndexRecordsStatus::TOTAL_RECORD_SIZE_LIMIT, {1U, 1025U, 1025U, 0U, 0U}) ;
+			IndexRecordsStatus::TOTAL_RECORD_SIZE_LIMIT, {1U, 129U, 129U, 0U, 0U}) ;
 	}
 	std::cout << "Signed index record schema assertions: "
 			  << context.assertionCount() - firstAssertion
@@ -3935,10 +4098,13 @@ namespace {
  * @param[out] infBytes 非null時は同ZIPへ入れた原INF byteを返します。
  * @param[in] nestedMembers 同じ一段inner ZIPを置く有限なouter member名です。
  * @param[in] includeFlat trueはouter直下にも同じINF閉包を含めます。
+ * @param[in] managed 0は旧fixture、1はdriver DATA、2..7はforeign/app/MSI/選択自動起動のscope負例です。
+ * @param[in] models 0は旧単一Models、1は二OS装飾、2は別Manufacturer行で両装飾が実選択されます。
  */
 std::string normalWorkerDriverZip( const bool network = false, std::string *const infBytes = nullptr,
 								  const std::span<const std::string_view> nestedMembers = {},
-								  const bool							  includeFlat	= true)
+								  const bool includeFlat = true, const unsigned managed = 0U,
+								  const unsigned models = 0U)
 {
 	std::string inf =
 		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=Ports\r\n"
@@ -3957,6 +4123,75 @@ std::string normalWorkerDriverZip( const bool network = false, std::string *cons
 		inf = replaced( std::move( inf), "4d36e978", "4d36e972") ;
 	}
 
+	// 元INFにだけ標準OS装飾を追加し、archive/record hashは変更後の全byteへ結びます。
+	if( models != 0U) {
+		inf = replaced(
+			std::move( inf), "%Vendor%=Models,NTamd64\r\n[Models.NTamd64]\r\n",
+			models == 2U
+				? "%Vendor%=Models,NTamd64.10.0...17134\r\n%Vendor%=Models,NTamd64.10.0...26200\r\n[Models.NTamd64.10.0...17134]\r\n%Device%=Install,TESTBUS\\SYNTH_0001\r\n[Models.NTamd64.10.0...26200]\r\n"
+				: "%Vendor%=Models,NTamd64.10.0...17134,NTamd64.10.0...26200\r\n[Models.NTamd64.10.0...17134]\r\n%Device%=Install,TESTBUS\\SYNTH_0001\r\n[Models.NTamd64.10.0...26200]\r\n") ;
+	}
+
+	// 新scopeだけを元通常fixtureの同source/関連kernel/Type1/受動BATへ結びます。
+	if( managed != 0U) {
+		inf = replaced( std::move( inf), "CopyFiles=Files\r\n",
+					   "CopyFiles=Files,Programs\r\nCopyINF=importonly.inf\r\n") ;
+		inf +=
+			"; windows-managed-scope-fixture\r\n"
+			"[Install.Services]\r\nAddService=FixtureKernel,2,KernelService\r\nAddService=FixtureHelper,0,HelperService\r\n"
+			"[KernelService]\r\nServiceType=1\r\nStartType=3\r\nErrorControl=1\r\nServiceBinary=%12%\\fixture.sys\r\n"
+			"[HelperService]\r\nServiceType=16\r\nStartType=2\r\nErrorControl=1\r\nServiceBinary=%13%\\fixture.exe --data fixture.bat\r\n"
+			"[DestinationDirs]\r\nPrograms=13\r\n[Programs]\r\nfixture.exe\r\nfixture.bat\r\n"
+			"[SourceDisksFiles]\r\nfixture.exe=1\r\nfixture.bat=1\r\n"
+			"[Install.Software]\r\nAddSoftware=RelatedDeviceHelper,0,RelatedSoftware\r\n"
+			"[RelatedSoftware]\r\nSoftwareType=1\r\nSoftwareBinary=%13%\\fixture.exe\r\nSoftwareVersion=1.0.0.0\r\n"
+			"SoftwareArguments=--device <<DeviceInstanceID>>, --driver\r\n"
+			"[Install.HW]\r\nAddReg=PassiveReg\r\n"
+			"[PassiveReg]\r\nHKR,,Opaque,0x00010000" ;
+		// 選択registryの324 fieldsを全値解析へ流用せず、先頭metadataだけを確認します。
+		for( unsigned field = 0U; field < 320U; ++field) {
+			inf += ",\"opaque\"" ;
+		}
+
+		inf += "\r\n" ;
+		// scope負例は元INF/ZIP/署名indexを新しい原byteへ固定し、後からDTOを書換えません。
+		if( managed >= 2U) {
+			inf += "; scope-fixture-reject\r\n" ;
+		}
+
+		// 外部directoryコピーを通常driver用DATAへ読み替えません。
+		if( managed == 2U) {
+			inf = replaced( std::move( inf), "Programs=13", "Programs=16422") ;
+		}
+
+		// 同元EXEでもdevice文脈を失う独立app宣言を負例にします。
+		if( managed == 3U) {
+			inf = replaced( std::move( inf), "--device <<DeviceInstanceID>>",
+						   "--standalone-application") ;
+		}
+
+		// 独立MSIは実行せず、同元コピーがあっても本Windows-only scopeでは追加しません。
+		if( managed == 4U) {
+			inf = replaced( std::move( inf), "[Programs]\r\nfixture.exe",
+						   "[Programs]\r\nfixture.exe\r\nfixture.msi") ;
+			inf = replaced( std::move( inf), "fixture.exe=1", "fixture.exe=1\r\nfixture.msi=1") ;
+			inf = replaced( std::move( inf), "SoftwareBinary=%13%\\fixture.exe",
+						   "SoftwareBinary=%13%\\fixture.msi") ;
+		}
+
+		// 選択DDInstall/関連service/softwareの自動起動登録を同元signed-index経路で拒否します。
+		if( managed >= 5U && managed <= 7U) {
+			const std::string anchor = managed == 5U ? "CopyFiles=Files,Programs"
+									   : managed == 6U
+										   ? "[HelperService]"
+										   : "[RelatedSoftware]" ;	// 各正式到達文脈です。
+			inf = replaced( std::move( inf), anchor, anchor + "\r\nAddReg=AutorunReg") ;
+			inf += "[AutorunReg]\r\nHKLM,\"Software\\Microsoft\\Windows\\CurrentVersion\\" ;
+			inf += managed == 6U ? "RunOnce" : "Run" ;
+			inf += "\",Fixture,0,\"foreign.exe\"\r\n" ;
+		}
+	}
+
 	// ZIP生成開始失敗を非空正常fixtureへ換算しません。
 	if( infBytes != nullptr) {
 		*infBytes = inf ;
@@ -3970,6 +4205,41 @@ std::string normalWorkerDriverZip( const bool network = false, std::string *cons
 	const std::string sys =
 		"fictional nonexecuting system driver bytes" ;				// 実driver binaryではありません。
 	const std::string cat = "fictional unsigned catalog bytes" ;	// Windows署名合格を偽装しません。
+	// 一基本driverと同元stage内容だけの小fixtureです。別deviceを導入しません。
+	if( managed != 0U) {
+		// 同元CopyINFで全内容だけをstageする独立deviceの人工INFです。
+		constexpr std::string_view IMPORT =
+			"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=SoftwareDevice\r\n"
+			"ClassGuid={62f9c741-b25a-46ce-b54c-9bccce08b6f2}\r\nProvider=Fixture Vendor\r\n"
+			"DriverVer=10/11/2026,1.0.0.0\r\nCatalogFile=importonly.cat\r\n"
+			"[Manufacturer]\r\nVendor=Models,NTamd64\r\n[Models.NTamd64]\r\n"
+			"Device=Import,TESTBUS\\SYNTH_IMPORT_ONLY\r\n[Import]\r\nCopyFiles=Files\r\n"
+			"[Files]\r\nimportonly.sys\r\n[DestinationDirs]\r\nFiles=12\r\n"
+			"[SourceDisksNames]\r\n1=fixture\r\n[SourceDisksFiles]\r\nimportonly.sys=1\r\n" ;
+		constexpr std::string_view DATA =
+			"opaque fixture data; never executed" ;	// 実programではありません。
+		const std::array names{"fixture.exe", "fixture.bat", "importonly.inf", "importonly.sys",
+							   "importonly.cat"} ;	// 全原参照です。
+		const std::array<std::string_view, 5U> bodies{DATA, DATA, IMPORT, sys,
+													  cat} ;	// 原byteを完全期待hashへ結びます。
+		// 全新memberを既存ZIP writerへ有限追加します。
+		for( std::size_t index = 0U; index < names.size(); ++index) {
+			// 原writer失敗を部分材料の正常化で隠しません。
+			if( !mz_zip_writer_add_mem( &archive, names[index], bodies[index].data(),
+									  bodies[index].size(), MZ_NO_COMPRESSION)) {
+				mz_zip_writer_end( &archive) ;
+				throw std::runtime_error( "managed scope fixture ZIP members") ;
+			}
+		}
+
+		// MSI負例も元sourceが実在する条件だけを使用します。
+		if( managed == 4U && !mz_zip_writer_add_mem( &archive, "fixture.msi", DATA.data(),
+												   DATA.size(), MZ_NO_COMPRESSION)) {
+			mz_zip_writer_end( &archive) ;
+			throw std::runtime_error( "managed scope MSI fixture") ;
+		}
+	}
+
 	// 三つの原memberを全て追加できた場合だけ非空ZIPを完成させます。
 	if( includeFlat && (!mz_zip_writer_add_mem( &archive, "fixture.inf", inf.data(), inf.size(),
 											  MZ_NO_COMPRESSION) ||
@@ -4012,14 +4282,18 @@ std::string normalWorkerDriverZip( const bool network = false, std::string *cons
  * @param[out] storeOut 指定時だけ実reload済み隔離store所有を返します。nullptr可です。
  * @param[in] generation 真署名manifestの人工世代。asset世代7は変更しません。
  * @param[in] recordRows 非空時は各元recordをそのまま使います。件数はrecordCountへ一致させます。
+ * @param[in] sourceOverride 非空時だけ人工sourceの全元byteを使います。既定は元vendor source。
  * @return Reloadが発行した真のconst snapshotの共有所有。
  */
 [[nodiscard]] std::shared_ptr<const AuthenticatedIndexSnapshot> lookupSnapshot(
 	const RamKey &key, const std::string_view record, const std::size_t recordCount = 1U,
 	std::shared_ptr<SignedIndexStore> *const storeOut = nullptr,
-	const std::uint64_t generation = 9U, const std::span<const std::string> recordRows = {})
+	const std::uint64_t generation = 9U, const std::span<const std::string> recordRows = {},
+	const std::string_view sourceOverride = {})
 {
-	std::string entries ;	// 有限batch試験の原entry群。
+	std::string	  entries ;			// 有限batch試験の原entry群。
+	std::uint64_t metadataCount{} ;	// 原fixture行の段階だけを数えます。
+	std::uint64_t contentCount{} ;	// 内容検査申告をmetadataへ戻しません。
 	// 別record集合の件数不一致を暗黙に切り捨てません。
 	if( !recordRows.empty() && recordRows.size() != recordCount) {
 		throw std::runtime_error( "lookup exact record count failed") ;
@@ -4039,16 +4313,22 @@ std::string normalWorkerDriverZip( const bool network = false, std::string *cons
 										"\"recordId\":\"batch-" + std::to_string( recordIndex) +
 											"\"") ;	// 原recordを一意化。
 		entries += recordEntry( key, raw) ;
+		metadataCount += raw.find( "\"inspectionStage\":\"METADATA_ONLY\"") != std::string::npos ;
+		contentCount += raw.find( "\"inspectionStage\":\"CONTENT_INSPECTED\"") != std::string::npos ;
 	}
 
+	const auto source = sourceOverride.empty()
+							? recordSource()
+							: std::string{sourceOverride} ;	// 明示sourceだけ使用。
 	const auto index  = record.find( "driver-index-record-v2") == std::string_view::npos
-							? distributionIndex( recordSource(), entries)
-							: descriptorIndex( recordSource(), entries) ;	// Wire版ごとの原index。
-	auto	   inputs = makeStoreInputs( key, index, generation, 7U, NOW, "2026-10-11T05:00:00Z",
-										"2026-10-25T05:00:00Z", (index.size() + 127U) / 128U,
-										{1U, static_cast<std::uint64_t>( recordCount),
-										 static_cast<std::uint64_t>( recordCount), 0U,
-										 0U}) ;	// 既存比率枠内の実containerと元quality。
+							? distributionIndex( source, entries)
+							: descriptorIndex( source, entries) ;	// Wire版ごとの原index。
+	auto	   inputs =
+		makeStoreInputs( key, index, generation, 7U, NOW, "2026-10-11T05:00:00Z",
+						"2026-10-25T05:00:00Z", (index.size() + 127U) / 128U,
+						{1U, static_cast<std::uint64_t>( recordCount), metadataCount, contentCount,
+						 static_cast<std::uint64_t>( recordCount) - metadataCount -
+							 contentCount}) ;	// 原行と一致する段階別quality。
 	const auto bytes =
 		// 実gzip検査。
 		authenticateIndexAssetBytes( inputs.manifest, inputs.gzip, NOW) ;
@@ -4232,6 +4512,21 @@ void expectLookupRelations( TestContext &context, const IndexRecordLookupResult 
  */
 void runSignedIndexRecordLookupTests( TestContext &context)
 {
+	DRIVERCRATE_EXPECT( context,
+					   INDEX_RECORD_MAX_BYTES == 524288U && INDEX_RECORD_PNP_MAX_COUNT == 4096U) ;
+	std::uint64_t retained{} ;	// 転送量と独立した同scanの保持量。
+	DRIVERCRATE_EXPECT(
+		context, tryRetainIndexedInspectionBytes( 2ULL * 1024ULL * 1024ULL * 1024ULL, retained) &&
+					 retained == 2ULL * 1024ULL * 1024ULL * 1024ULL) ;
+	DRIVERCRATE_EXPECT( context,
+					   tryRetainIndexedInspectionBytes( 1024ULL * 1024ULL * 1024ULL, retained) &&
+						   retained == 3ULL * 1024ULL * 1024ULL * 1024ULL) ;
+	DRIVERCRATE_EXPECT( context, !tryRetainIndexedInspectionBytes( 1U, retained) &&
+									retained == 3ULL * 1024ULL * 1024ULL * 1024ULL) ;
+	DRIVERCRATE_EXPECT( context, tryRetainIndexedInspectionBytes( 0U, retained)) ;
+	retained = UINT64_MAX ;
+	DRIVERCRATE_EXPECT( context,
+					   !tryRetainIndexedInspectionBytes( 1U, retained) && retained == UINT64_MAX) ;
 	const int firstAssertion = context.assertionCount() ;	// 新groupの実件数だけを測る。
 	const int firstFailure	 = context.failureCount() ;		// 新groupの実失敗だけを測る。
 	RamKey	  key ;											// 非永続の既存RAM CNG鍵。
@@ -4365,18 +4660,21 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 	expectLookupRelations(
 		context, lookupSignedIndexRecords( snapshot, active, active, present, {}, NOW, nullptr),
 		IndexRecordMatchState::UNDETERMINED, IndexRecordMatchReason::RESOLVER_UNAVAILABLE) ;
-	expectLookupRelations(
-		context,
-		lookupSignedIndexRecords( snapshot, active, active, present, {0U, 256U, 0U}, NOW, &resolver),
-		IndexRecordMatchState::UNDETERMINED, IndexRecordMatchReason::BUDGET_EXHAUSTED) ;
-	const auto partialBudget =
-		lookupSignedIndexRecords( snapshot, active, active, present, {0U, 256U, 1U}, NOW,
-								 &resolver) ;	// 一回だけcallbackを許す。
-	DRIVERCRATE_EXPECT( context, partialBudget.lookup &&
-									partialBudget.lookup->relations()[0].state ==
-										IndexRecordMatchState::MATCHED &&
-									partialBudget.lookup->relations()[1].reason ==
-										IndexRecordMatchReason::BUDGET_EXHAUSTED) ;
+	// 一recordの全二IDが収まらない枠は、途中positive/未実行tupleをcommitしません。
+	for( const auto calls : {0U, 1U}) {
+		const auto before = resolver.calls ;	// 未開始を実callback数でも照合します。
+		const auto partialBudget =
+			lookupSignedIndexRecords( snapshot, active, active, present, {0U, 256U, calls}, NOW,
+									 &resolver) ;	// 全record prefixだけを返します。
+		DRIVERCRATE_EXPECT( context, partialBudget.lookup &&
+										partialBudget.lookup->relations().empty() &&
+										partialBudget.lookup->progress().completedRecords == 0U &&
+										partialBudget.lookup->progress().nextRecordOffset == 0U &&
+										partialBudget.lookup->progress().stopReason ==
+											IndexLookupStopReason::CALL_BUDGET &&
+										resolver.calls == before) ;
+	}
+
 	const auto unknown =
 		// Class・versionも元UNKNOWN。
 		lookupSnapshot( key, distributionRecord( "unknown", false)) ;
@@ -4496,13 +4794,13 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 								 &resolver) ;	// 4096opaqueを8回保持して32768境界へ到達する。
 	DRIVERCRATE_EXPECT(
 		context,
-		retainedBoundary.lookup && retainedBoundary.lookup->relations().size() == 9U &&
+		retainedBoundary.lookup && retainedBoundary.lookup->relations().size() == 8U &&
 			retainedBoundary.lookup->relations()[7].relatedDevices.size() == 4096U &&
 			retainedBoundary.lookup->relations()[7].state == IndexRecordMatchState::UNMATCHED &&
-			retainedBoundary.lookup->relations()[8].state == IndexRecordMatchState::UNDETERMINED &&
-			retainedBoundary.lookup->relations()[8].reason ==
-				IndexRecordMatchReason::BUDGET_EXHAUSTED &&
-			retainedBoundary.lookup->relations()[8].relatedDevices.empty()) ;
+			retainedBoundary.lookup->progress().completedRecords == 8U &&
+			retainedBoundary.lookup->progress().nextRecordOffset == 8U &&
+			retainedBoundary.lookup->progress().stopReason ==
+				IndexLookupStopReason::RETAINED_CAPACITY) ;
 	resolver.mode = LookupMode::EMPTY ;
 	expectLookupRelations(
 		context, lookupSignedIndexRecords( snapshot, active, active, {}, {}, NOW, &resolver),
@@ -4531,7 +4829,7 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 	const std::array<std::wstring, 2U> acquisitionPresent{L"opaque-a",
 														  L"opaque-b"} ;	// 人工presentだけ。
 	// 七つの元record条件を各真署名・隔離保存へ通し、有限件数で終了します。
-	for( unsigned scenario = 0U; scenario < 7U; ++scenario) {
+	for( unsigned scenario = 0U; scenario < 10U; ++scenario) {
 		std::string acquisitionRaw =
 			// 正常の静的ZIP元record。
 			descriptorRecord( descriptorFixture()) ;
@@ -4539,6 +4837,26 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 		acquisitionRaw = replaced( std::move( acquisitionRaw), RECORD_CLAIM_HASH, zipHash) ;
 		acquisitionRaw =
 			replaced( std::move( acquisitionRaw), "\"valueBytes\":1234", "\"valueBytes\":22") ;
+		// 両非実行formatは認証済みrecord→実adapter→同grant/hintを確認する。内容は人工ZIPなので合格にしない。
+		if( scenario == 7U || scenario == 8U || scenario == 9U) {
+			auto nextDescriptor =
+				scenario == 7U	 ? replaced( descriptorFixture(), "\"format\":\"ZIP\"",
+											"\"format\":\"SEVEN_ZIP_SFX\"")
+				: scenario == 9U ? anonymousDescriptorFixture( zipHash, 22U)
+								 : resourceDescriptorFixture( zipHash, 22U) ;	// 独立した明示format。
+			acquisitionRaw = descriptorRecord( nextDescriptor) ;
+			acquisitionRaw = replaced( std::move( acquisitionRaw), RECORD_CLAIM_HASH, zipHash) ;
+			acquisitionRaw = replaced( std::move( acquisitionRaw), RECORD_CLAIM_HASH, zipHash) ;
+			acquisitionRaw =
+				replaced( std::move( acquisitionRaw), "\"valueBytes\":1234", "\"valueBytes\":22") ;
+			// resource inventoryのflat原名へだけ結び、擬似nestedを作らない。
+			if( scenario == 8U || scenario == 9U) {
+				acquisitionRaw =
+					replaced( std::move( acquisitionRaw), "\"infIdentity\":\"drivers/fixture.inf\"",
+							 "\"infIdentity\":\"fixture.inf\"") ;
+			}
+		}
+
 		// 計算hashだけを変更し、メーカー公表hash検査とは独立した拒否を確認します。
 		if( scenario == 1U) {
 			acquisitionRaw =
@@ -4605,9 +4923,21 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 												  NOW) ;
 		}
 
+		std::string sourceOverride ;	// 旧fixtureには元sourceを使う。
+		// 動的protocolの一つだけを同ASUS公式sourceへ結ぶ。
+		if( scenario == 9U) {
+			sourceOverride = recordSource() ;
+			// 原origin/pageを同じ公式値に保つ。
+			while( sourceOverride.find( "vendor.example") != std::string::npos) {
+				sourceOverride =
+					replaced( std::move( sourceOverride), "vendor.example", "www.asus.com") ;
+			}
+		}
+
 		auto acquisitionLookup = lookupSignedIndexRecords(
-			lookupSnapshot( key, acquisitionRaw), acquisitionContext, acquisitionContext,
-			acquisitionPresent, {}, NOW, &acquisitionResolver) ;	// 同じ非公開構築入口。
+			lookupSnapshot( key, acquisitionRaw, 1U, nullptr, 9U, {}, sourceOverride),
+			acquisitionContext, acquisitionContext, acquisitionPresent, {}, NOW,
+			&acquisitionResolver) ;	// 同じ非公開構築入口。
 		// Fixtureのlookup不成立を正常取得試験の成功にしません。
 		if( !acquisitionLookup.lookup) {
 			throw std::runtime_error( "acquisition lookup fixture failed") ;
@@ -4629,6 +4959,9 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 	driverRaw			  = replaced( std::move( driverRaw), RECORD_CLAIM_HASH, driverHash) ;
 	driverRaw			  = replaced( std::move( driverRaw), "\"valueBytes\":1234",
 									 "\"valueBytes\":" + std::to_string( driverZip.size())) ;
+	// 通常の選択INF検査も、架空ZIP内の実memberへ元locatorを一致させます。
+	driverRaw = replaced( std::move( driverRaw), "\"infIdentity\":\"drivers/fixture.inf\"",
+						 "\"infIdentity\":\"fixture.inf\"") ;
 	std::vector<std::string> independentRows ;	// 元の独立取得task分母258件です。
 	// 同payload複製に依存せず、異なる明示routeの取得/予算/取消しを確認します。
 	for( std::size_t ordinal = 0U; ordinal < 258U; ++ordinal) {
@@ -4656,7 +4989,6 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 	// 元真正recordの公開classだけを人工Ports内容へ一致させる再署名用byte。
 	auto bindingRaw = replaced( driverRaw, "{11111111-2222-3333-4444-555555555555}",
 							   "{4d36e978-e325-11ce-bfc1-08002be10318}") ;
-	bindingRaw		= replaced( std::move( bindingRaw), "drivers/fixture.inf", "fixture.inf") ;
 	bindingRaw		= replaced( std::move( bindingRaw), "Fixture.NTamd64", "Models.NTamd64") ;
 	bindingRaw =
 		replaced( std::move( bindingRaw),
@@ -4664,7 +4996,11 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 					 std::string{RECORD_EVIDENCE_HASH},
 				 "\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
 					 recordDigest( key, driverInf)) ;
-	static_cast<void>( lookupSnapshot( key, bindingRaw, 1U, &bindingStore)) ;
+	// 内容検査正例だけへ独立copyを使い、後段のUNKNOWN hash試験の元段階を維持します。
+	const auto inspectedBindingRaw =
+		replaced( bindingRaw, "\"inspectionStage\":\"METADATA_ONLY\"",
+				 "\"inspectionStage\":\"CONTENT_INSPECTED\"") ;	// 全元byteはRAM鍵で再署名します。
+	static_cast<void>( lookupSnapshot( key, inspectedBindingRaw, 1U, &bindingStore)) ;
 	runNormalSignedIndexCandidateBindingTests( context, bindingStore, NOW, driverZip) ;
 	std::string netInf ;											// 別classの原INFです。
 	const auto	netZip	= normalWorkerDriverZip( true, &netInf) ;	// 別classの非空通常INFです。
@@ -4942,10 +5278,31 @@ void runSignedIndexRecordLookupTests( TestContext &context)
 		wideBatches.push_back( std::move( *batch.lookup)) ;
 	}
 
-	const auto atLimit = AggregateAccess::freezeFixture(
+	// 連続した完全record prefixは保持し、末尾一recordを全scan完了へ混ぜません。
+	const auto partialPrefix = AggregateAccess::freezeFixture(
 		wideSnapshot, acquisitionContext,
-		std::span<const SignedIndexRecordLookup>{wideBatches}.first( 1U),
-		NOW) ;	// 上限同値の正常集約。
+		std::span<const SignedIndexRecordLookup>{wideBatches}.first( 1U), NOW) ;	// 元prefixだけです。
+	DRIVERCRATE_EXPECT(
+		context, partialPrefix.lookup &&
+					 partialPrefix.lookup->progress().nextRecordOffset == 256U &&
+					 partialPrefix.lookup->snapshot().schemaReceipt().records().size() == 257U &&
+					 partialPrefix.lookup->relations().size() == 32768U) ;
+	const auto exactSnapshot =
+		// 同じ原recordでちょうど32768関係です。
+		lookupSnapshot( key, wideRaw, 256U) ;
+	const auto exactBatch =
+		lookupSignedIndexRecords( exactSnapshot, acquisitionContext, acquisitionContext, {},
+								 {0U, 256U, 0U}, NOW, nullptr) ;	// 全recordのUNKNOWNを保持します。
+	DRIVERCRATE_EXPECT( context,
+					   exactBatch.lookup && exactBatch.lookup->progress().completedRecords == 256U) ;
+	// 正例生成の失敗を空prefixの正常凍結へ変換しません。
+	if( !exactBatch.lookup) {
+		throw std::runtime_error( "exact aggregate fixture rejected") ;
+	}
+
+	const auto atLimit = AggregateAccess::freezeFixture(
+		exactSnapshot, acquisitionContext, std::span{&*exactBatch.lookup, 1U},
+		NOW) ;	// 全prefixかつ上限同値だけが正常です。
 	DRIVERCRATE_EXPECT( context, atLimit.lookup && atLimit.lookup->relations().size() == 32768U &&
 									atLimit.lookup->relations().front().state ==
 										IndexRecordMatchState::UNDETERMINED &&
@@ -5087,7 +5444,9 @@ void runDistributionApplicationFixtureTests( TestContext					&context,
 
 		runMetadataBoundAdapterFixtureTests(
 			context, std::make_shared<const SignedIndexRecordLookup>( std::move( *matched.lookup)),
-			now, read( package, 262144U)) ;
+			now,
+			read( package,
+				 4U * 1024U * 1024U)) ;	// 新二文書fixtureだけの入力枠です。製品上限は変えません。
 		std::cout
 			<< "METADATA_BOUND_APPLICATION assertions=" << context.assertionCount() - before
 			<< " rawManifestUnchanged=1 rawGzipUnchanged=1 ramFixtureSignature=1 realIndexSignature=0 actualCatAccepted=0 realDevice=0\n" ;
@@ -5315,4 +5674,274 @@ void runNativeIntelArchiveFixtureTests( TestContext				   &context,
 	std::cout
 		<< "NATIVE_INTEL_AUTHENTICATION originalExpiryPreserved=1 actualUtcExpired=1 ramKeyOnly=1 fakeHistoricalUtc=1792341124\n" ;
 }
+/** @see tests/unit/signed_index_manifest_tests.h 宣言側の契約を正本とします。 */
+void runWindowsManagedDriverPackageFixtureTests( TestContext &context)
+{
+	RamKey key ;	// この人工試験だけの非永続署名keyです。
+	key.generate( 3072U) ;
+	const auto modelStart = context.assertionCount() ;	// 新しい共通選択群だけの分母です。
+	// 六条件を別の原署名record/隔離storeへ結び、成功状態を再利用しません。
+	for( unsigned scenario = 0U; scenario < 6U; ++scenario) {
+		std::string inf ;	// 当該人工archiveの全原INF byteです。
+		const auto	zip = normalWorkerDriverZip( false, &inf, {}, true, 0U,
+												// 両Modelsを持つ小人工INFの全原archiveです。
+												scenario == 1U ? 2U : 1U) ;
+		auto		raw =
+			// 原schemaに従う同意不要の人工recordです。
+			descriptorRecord( descriptorFixture()) ;
+		const auto hash = recordDigest( key, zip) ;	// 全payloadの元byte hashです。
+		raw				= replaced( std::move( raw), RECORD_CLAIM_HASH, hash) ;
+		raw				= replaced( std::move( raw), RECORD_CLAIM_HASH, hash) ;
+		raw				= replaced( std::move( raw), "\"valueBytes\":1234",
+								   "\"valueBytes\":" + std::to_string( zip.size())) ;
+		raw				= replaced( std::move( raw), "{11111111-2222-3333-4444-555555555555}",
+								   "{4d36e978-e325-11ce-bfc1-08002be10318}") ;
+		raw				= replaced( std::move( raw), "drivers/fixture.inf", "fixture.inf") ;
+		raw = replaced( std::move( raw), "Fixture.NTamd64", "Models.NTamd64.10.0...17134") ;
+		raw = replaced( std::move( raw), "\"version\":" + recordKnown( "1.2.3.4"),
+					   "\"version\":" + recordKnown( "1.0.0.0")) ;
+		raw = replaced(
+			std::move( raw),
+			"\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
+				std::string{RECORD_EVIDENCE_HASH},
+			"\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
+				recordDigest( key, inf)) ;
+		raw = replaced( std::move( raw), "\"inspectionStage\":\"METADATA_ONLY\"",
+					   "\"inspectionStage\":\"CONTENT_INSPECTED\"") ;
+		std::vector<std::string> rows{
+			raw, replaced( raw, "\"recordId\":\"metadata\"",
+						  "\"recordId\":\"second\"")} ;	// 両原recordを別byte/hashで認証します。
+		rows[1] = replaced( std::move( rows[1]), "Models.NTamd64.10.0...17134",
+						   scenario == 2U ? "Models.NTamd64.10.0...19041"
+										  : "Models.NTamd64.10.0...26200") ;
+		// 同targetの別INFを当該選択集合へfallbackしません。
+		if( scenario == 3U) {
+			rows[0] = replaced( std::move( rows[0]), "\"infIdentity\":\"fixture.inf\"",
+							   "\"infIdentity\":\"other.inf\"") ;
+		}
+
+		std::shared_ptr<SignedIndexStore> store ;	// 元全recordの正規commit/reload所有者です。
+		const auto						  snapshot =
+			lookupSnapshot( key, rows.front(), rows.size(), &store, 9U,
+						   rows) ;									// 元二recordを正規署名/隔離保存/reloadした不変snapshotです。
+		const auto records = snapshot->schemaReceipt().records() ;	// 値比較負例だけの借用です。
+		// 元codec成功値だけを比較し、この変形copyから認証/Grantを発行しません。
+		if( scenario == 0U) {
+			DRIVERCRATE_EXPECT( context, areEquivalentIndexModelChoices( records[0], records[1])) ;
+			auto identical = records[0] ;	// 別recordでも同内容の表示だけは一つにできます。
+			identical.recordId += "-display-only" ;
+			identical.product += " display alias" ;
+			DRIVERCRATE_EXPECT( context, areIdenticalIndexDisplayChoices( records[0], identical)) ;
+			DRIVERCRATE_EXPECT( context, !areIdenticalIndexDisplayChoices( records[0], records[1])) ;
+			// 同version/targetでも残す内容・日付・取得元・不明を独立に変えます。
+			for( unsigned mutation = 0U; mutation < 10U; ++mutation) {
+				auto changed = identical ;	// 権限を生成しない一field負例です。
+				// 既payload/policyとINF証拠の独立境界を省略しません。
+				switch( mutation) {
+					// 別の取得元を共通Provider名だけでまとめません。
+					case 0U:
+						changed.sourceId += "-other" ;
+						break ;
+
+					// 別payloadの同versionを残します。
+					case 1U:
+						(*changed.packageEvidence.publishedHash.sha256)[0] ^= 1U ;
+						break ;
+
+					// 同payloadの別INFを残します。
+					case 2U:
+						changed.publishedIdentityEvidence.infIdentity = "other.inf" ;
+						break ;
+
+					// 同名INFでも別byteを残します。
+					case 3U:
+						(*changed.publishedIdentityEvidence.evidenceSha256)[0] ^= 1U ;
+						break ;
+
+					// 別Modelsは既私有選択groupの契約へ残します。
+					case 4U:
+						changed.publishedIdentityEvidence.modelSection += "-other" ;
+						break ;
+
+					// 日付の差を空のUI日付で消しません。
+					case 5U:
+						changed.publishedDate.value = "2026-11-01" ;
+						break ;
+
+					// バージョン不明を同一内容へ補完しません。
+					case 6U:
+						changed.version.value.reset() ;
+						break ;
+
+					// 未知の内容証拠を別recordから補完しません。
+					case 7U:
+						changed.publishedIdentityEvidence.evidenceSha256.reset() ;
+						break ;
+
+					// 全公表IDの部分集合を同じ構成にしません。
+					case 8U:
+						changed.publishedIdentityEvidence.pnpIds.pop_back() ;
+						break ;
+
+					// 原期限差を統合で延長しません。
+					default:
+						changed.acquisitionDescriptor->attestation->validUntilUtc +=
+							std::chrono::seconds{1} ;
+						break ;
+				}
+
+				DRIVERCRATE_EXPECT( context, !areIdenticalIndexDisplayChoices( records[0], changed)) ;
+			}
+
+			// 値比較だけの十七負例を原認証/通常workerの成功と分離して確認します。
+			for( unsigned mutation = 0U; mutation < 17U; ++mutation) {
+				auto changed = records[1] ;	// 一field差の非authority値です。
+				// 同payloadだけでは統合できない独立境界を一つずつ変形します。
+				switch( mutation) {
+					// 別root INF memberは同じdriver意図ではありません。
+					case 0U:
+						changed.publishedIdentityEvidence.infIdentity = "other.inf" ;
+						break ;
+
+					// 別INF原byteを同内容として扱いません。
+					case 1U:
+						(*changed.publishedIdentityEvidence.evidenceSha256)[0] ^= 1U ;
+						break ;
+
+					// 別Classを同Windows選択へ合併しません。
+					case 2U:
+						changed.publishedIdentityEvidence.classGuid =
+							"{4d36e972-e325-11ce-bfc1-08002be10318}" ;
+						break ;
+
+					// 異版は同一INF代替表現へ統合しません。
+					case 3U:
+						changed.version.value = "2.0.0.0" ;
+						break ;
+
+					// 別sourceの根拠を同じ私有集合へ流用しません。
+					case 4U:
+						changed.sourceId += "-other" ;
+						break ;
+
+					// 外側hash差を同target名で補完しません。
+					case 5U:
+						(*changed.packageEvidence.publishedHash.sha256)[0] ^= 1U ;
+						break ;
+
+					// 元size差も同じ配布物の根拠ではありません。
+					case 6U:
+						++*changed.packageEvidence.size.value ;
+						break ;
+
+					// 規約根拠の差は別選択のままです。
+					case 7U:
+						changed.acquisitionDescriptor->terms.evidenceUrl += "/other" ;
+						break ;
+
+					// 原期限を別recordから延長しません。
+					case 8U:
+						changed.acquisitionDescriptor->attestation->validUntilUtc +=
+							std::chrono::seconds{1} ;
+						break ;
+
+					// 別Models baseを同じOS装飾として扱いません。
+					case 9U:
+						changed.publishedIdentityEvidence.modelSection =
+							"Other.NTamd64.10.0...26200" ;
+						break ;
+
+					// ID部分集合を全ID一致にしません。
+					case 10U:
+						changed.publishedIdentityEvidence.pnpIds.pop_back() ;
+						break ;
+
+					// ID種別差を値の文字列だけで統合しません。
+					case 11U:
+						changed.publishedIdentityEvidence.pnpIds.front().kind =
+							IndexPnpIdKind::COMPATIBLE ;
+						break ;
+
+					// 未知の装飾を任意の最新Windowsへ読み替えません。
+					case 12U:
+						changed.publishedIdentityEvidence.modelSection =
+							"Models.NTamd64.10.x...26200" ;
+						break ;
+
+					// 同Modelsの重複は元の曖昧な別参照として保持します。
+					case 13U:
+						changed.publishedIdentityEvidence.modelSection =
+							records[0].publishedIdentityEvidence.modelSection ;
+						break ;
+
+					// 取得route差を同payload申告で消しません。
+					case 14U:
+						changed.acquisitionDescriptor->payloadUrl += "-other" ;
+						break ;
+
+					// 別nested memberの同basenameを混同しません。
+					case 15U:
+						changed.publishedIdentityEvidence.nestedArchiveIdentity = "other.zip" ;
+						break ;
+
+					// 明示した取得上限の差もpolicy差です。
+					default:
+						--changed.acquisitionDescriptor->maximumBytes ;
+						break ;
+				}
+
+				DRIVERCRATE_EXPECT( context, !areEquivalentIndexModelChoices( records[0], changed)) ;
+			}
+		}
+
+		std::cout << "MODEL_CHOICE_CASE scenario=" << scenario
+				  << " originalRecords=2 primaryModels=17134 actualModels="
+				  << (scenario == 1U ? "17134+26200" : "26200") << '\n' ;
+		runNormalIndexIdentityBindingCase(
+			context, store, NOW, zip, scenario == 3U ? 2U : 1U, scenario == 0U ? 1U : 0U, 1U,
+			scenario == 0U ? PreparedInstallResolutionState::READY
+						   : PreparedInstallResolutionState::NOT_READY,
+			scenario == 4U	 ? 1U
+			: scenario == 5U ? 2U
+							 : 0U) ;
+	}
+
+	std::cout << "MODEL_CHOICE_CASES cases=6 pureNegativeCases=17 assertions="
+			  << context.assertionCount() - modelStart << " realNetwork=0 install=0\n" ;
+	// 正常/foreign/app/MSI/三つの正式到達autorunを各原ZIPと各元署名recordへ結びます。
+	for( unsigned mode = 1U; mode <= 7U; ++mode) {
+		std::string inf ;	// 同ZIPの原INF byteです。
+		const auto	zip =
+			// 小さい完全人工packageです。
+			normalWorkerDriverZip( false, &inf, {}, true, mode) ;
+		const auto hash = recordDigest( key, zip) ;	// 元payloadと実取得byteの同一性です。
+		auto	   raw =
+			// 同意を偽装せず既存人工規約状態を使います。
+			descriptorRecord( descriptorFixture()) ;
+		raw = replaced( std::move( raw), RECORD_CLAIM_HASH, hash) ;
+		raw = replaced( std::move( raw), RECORD_CLAIM_HASH, hash) ;
+		raw = replaced( std::move( raw), "\"valueBytes\":1234",
+					   "\"valueBytes\":" + std::to_string( zip.size())) ;
+		raw = replaced( std::move( raw), "{11111111-2222-3333-4444-555555555555}",
+					   "{4d36e978-e325-11ce-bfc1-08002be10318}") ;
+		raw = replaced( std::move( raw), "drivers/fixture.inf", "fixture.inf") ;
+		raw = replaced( std::move( raw), "Fixture.NTamd64", "Models.NTamd64") ;
+		raw = replaced(
+			std::move( raw),
+			"\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
+				std::string{RECORD_EVIDENCE_HASH},
+			"\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
+				recordDigest( key, inf)) ;
+		raw = replaced( std::move( raw), "\"inspectionStage\":\"METADATA_ONLY\"",
+					   "\"inspectionStage\":\"CONTENT_INSPECTED\"") ;
+		std::shared_ptr<SignedIndexStore> store ;	// 製品storeとは別の実署名/保存/reload所有者です。
+		static_cast<void>( lookupSnapshot( key, raw, 1U, &store)) ;
+		std::cout << "WINDOWS_MANAGED_SOURCE mode=" << mode << " payloadBytes=" << zip.size()
+				  << " actualVendorPackage=0\n" ;
+		runNormalSignedIndexCandidateBindingTests( context, std::move( store), NOW, zip) ;
+	}
+}
+
 } // namespace drivercrate::test
+
+#include "index_capacity_tests.cpp"

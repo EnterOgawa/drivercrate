@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_fixture.cpp
  * @brief 専用Win32画面試験の非通信Provider契約。
- * @version 01.17.00
+ * @version 01.17.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -42,6 +42,7 @@
  * Ver.01.15.00 Shunji Ogawa  2026/10/15  33INF正例とarchive128/129境界の完全閉包入力を分離。
  * Ver.01.16.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.17.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
+ * Ver.01.17.01 Shunji Ogawa  2026/11/07  同原packageの共同保持と現非実行policyを整合。
  * </pre>
  *
  * @note 製品EXEへ組み込まず、内部UI試験だけで使用する。
@@ -1510,7 +1511,7 @@ std::string uiDriverZip( const bool partial, const bool multiInf, const bool cap
 					swc = replaced( std::move( swc), "ServiceType=0x10", "ServiceType=0x20") ;
 				}
 
-				// サービス根拠のない第二EXEを、正当な第一EXEから包括許可しません。
+				// 同元第二EXEもDATAとして全内容を検査し、独自起動の許可を発行しません。
 				if( componentCase == 53U) {
 					swc = replaced( std::move( swc), "[ServiceFiles]\r\n",
 								   "[ServiceFiles]\r\nextra.exe\r\n") ;
@@ -1518,7 +1519,7 @@ std::string uiDriverZip( const bool partial, const bool multiInf, const bool cap
 					add( "extra.exe", "fictional arbitrary program bytes") ;
 				}
 
-				// AddSoftwareは同INFのWin32 serviceとは別の拒否機構です。
+				// 正式SWCの同元Type1をserviceとは別のWindows標準宣言として検査します。
 				if( componentCase == 54U) {
 					swc +=
 						"[Install.Software]\r\nAddSoftware=UnrelatedApp,,App\r\n[App]\r\n"
@@ -1588,7 +1589,7 @@ std::string uiDriverZip( const bool partial, const bool multiInf, const bool cap
 					swc += "[OtherInstall]\r\nAddReg=Settings\r\n" ;
 				}
 
-				// Kernel種別へEXE参照の限定許可を流用しません。
+				// Kernel宣言を拡張子からWin32起動へ読み替えず、元Windows作用を検査します。
 				if( componentCase == 82U) {
 					swc = replaced( std::move( swc), "ServiceType=0x10", "ServiceType=1") ;
 				}

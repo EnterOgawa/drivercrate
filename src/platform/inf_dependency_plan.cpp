@@ -1,8 +1,8 @@
 //------------------------------------------------------------------------------
 /**
  * @file inf_dependency_plan.cpp
- * @brief 同節Include／Needsの有限解決核と確認計画の実装。
- * @version 01.00.00
+ * @brief 明示選択Include文脈とNeedsの有限解決核・非実行計画の実装。
+ * @version 01.01.00
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  有限依存核・曖昧／循環・snapshot再確認を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
  * </pre>
  *
  * @note loaderの証拠を独立に保持し、実byte取得・署名・実device導入を直接行わない。
@@ -181,10 +182,12 @@ public:
 	/** @brief loaderと開始文脈を同期借用する。
 	 * @param[in] operations 呼出し完了まで有効なloader。
 	 * @param[in] context rootと全候補を結合する文脈。
+	 * @param[in] selectedContext 同期callだけ借用する元rootの正規選択です。null可です。
 	 */
-	DependencyResolver( const InfDependencyOperations &operations,
-					   const InfDependencyContext	 &context)
-		: operations_( operations)
+	DependencyResolver( const InfDependencyOperations	  &operations,
+					   const InfDependencyContext		  &context,
+					   const InfDependencySelectedContext *selectedContext)
+		: operations_( operations), selectedContext_( selectedContext)
 	{
 		result_.context = context ;
 	}
@@ -200,6 +203,12 @@ public:
 	{
 		std::size_t rootIndex{} ;							// 一意rootの保存位置。
 		NativeError error = addDocument( root, rootIndex) ;	// rootも同じsnapshot規則へ結合する。
+		// 正規選択基本の原Includeを先に観測し、seedの並び順から親を推定しません。
+		if( error == 0 && selectedContext_ != nullptr) {
+			bool cycle{} ;	// 元基本節だけの有限再帰です。
+			error = walk( rootIndex, selectedContext_->baseSection, 1U, cycle) ;
+		}
+
 		// 全seedを順に確認し、重複・共有はcacheで再走査を止める。
 		for( const auto &seed : seeds) {
 			// 先行する失敗の部分値を結果へ移さない。
@@ -247,22 +256,28 @@ private:
 	/** @brief 一照会節と再帰状態のcache。 */
 	struct CachedSection {
 		/// result.sectionsと同じ位置のdocument保存index。
-		std::size_t			 documentIndex{} ;
+		std::size_t							  documentIndex{} ;
 		/// 原名の有限snapshot。read callbackの再呼出しを防ぐ。
-		InfDependencySection snapshot ;
+		InfDependencySection				  snapshot ;
 		/// 0は照会のみ、1は再帰中、2は走査完了。
-		unsigned int		 phase{} ;
+		unsigned int						  phase{} ;
+		/// 元snapshotの参照ordinalに対応したInclude候補です。宣言元は同cacheのdocument/sectionです。
+		std::vector<std::vector<std::size_t>> includes ;
+		/// 同じ元Include照会の完了状態です。Needsはfalseのままです。
+		std::vector<bool>					  includeChecked ;
 	} ;
 	/// 呼出し中だけ有効な同期loader。
-	const InfDependencyOperations &operations_ ;
+	const InfDependencyOperations	   &operations_ ;
+	/// 呼出し中だけ借用する元root/正規選択の有限文脈です。null可です。
+	const InfDependencySelectedContext *selectedContext_ ;
 	/// 全成功前の非公開結果。
-	InfDependencyResult			   result_ ;
+	InfDependencyResult					result_ ;
 	/// result.sectionsに一対一対応する有限cache。
-	std::vector<CachedSection>	   cache_ ;
+	std::vector<CachedSection>			cache_ ;
 	/// 全snapshotで累積した参照数。最大4,096。
-	std::size_t					   observedReferences_{} ;
+	std::size_t							observedReferences_{} ;
 	/// 走査すべきseed／再帰元が全てPRESENTの場合true。
-	bool						   sourcesPresent_{true} ;
+	bool								sourcesPresent_{true} ;
 
 	/** @brief candidateを一意identityとOS文脈へ結合する。
 	 * @param[in] document 観測snapshot。
@@ -367,7 +382,7 @@ private:
 		index = cache_.size() ;
 		result_.sections.push_back(
 			{result_.documents[documentIndex].identity, std::wstring( section), snapshot.state}) ;
-		cache_.push_back( {documentIndex, std::move( snapshot), 0U}) ;
+		cache_.push_back( {documentIndex, std::move( snapshot), 0U, {}, {}}) ;
 		return 0 ;
 	}
 
@@ -523,6 +538,8 @@ private:
 			edges.push_back( std::move( edge)) ;
 		}
 
+		cache_[position].includes		= included ;
+		cache_[position].includeChecked = checked ;
 		// 全原辺を順序通り保存し、Needsだけを一意候補へ再帰する。
 		for( std::size_t ordinal = 0U; ordinal < edges.size(); ++ordinal) {
 			InfDependencyEdge		 edge = edges[ordinal] ;	// 再帰の出力vectorから独立する辺。
@@ -550,6 +567,44 @@ private:
 					}
 				}
 
+				const auto explicitCandidates =
+					candidates ;	// 同じ元節で明示した別document候補だけです。
+				// 元rootの正確な付属節だけへ、同じ選択基本のIncludeを一方向に渡します。
+				if( selectedContext_ != nullptr &&
+				   source.identity == selectedContext_->root.identity &&
+				   std::ranges::any_of( selectedContext_->companionSections, [&]( const auto &name) {
+					   return sameName( name, sourceSection) ;
+				   })) {
+					std::size_t basePosition{} ;	// 先に観測済みの正規基本cacheです。
+					error = read( documentIndex, selectedContext_->baseSection, basePosition) ;
+					// 元基本の読取失敗を空Includeへ置換しません。
+					if( error != 0) {
+						return error ;
+					}
+
+					const auto &base =
+						cache_[basePosition] ;	// 宣言元identity/sectionを保持した元候補です。
+					// 正確な基本節の元Includeだけを借用し、他節や他documentを探索しません。
+					for( std::size_t item{}; item < base.snapshot.references.size(); ++item) {
+						const auto &reference =
+							base.snapshot.references[item] ;	// 原宣言の同ordinalです。
+						// Needsや別の作用をIncludeへ読み替えません。
+						if( reference.directive != InfDependencyDirective::INCLUDE) {
+							continue ;
+						}
+
+						unknown = unknown || !validIncludeName( reference.target) ||
+								  !base.includeChecked[item] ;
+						// 原候補のidentityを保持し、付属節へ架空Include辺を作りません。
+						for( const auto candidate : base.includes[item]) {
+							// 同じ物理documentの共有を候補数へ水増ししません。
+							if( std::ranges::find( candidates, candidate) == candidates.end()) {
+								candidates.push_back( candidate) ;
+							}
+						}
+					}
+				}
+
 				// byte結合した明示節だけを一度ずつ照会する。
 				for( const auto candidate : candidates) {
 					// byte未確認の候補を実存在や充足へ昇格しない。
@@ -572,6 +627,16 @@ private:
 					if( cache_[target].snapshot.state == InfDependencyReadState::PRESENT) {
 						matches.push_back( candidate) ;
 					}
+				}
+
+				// 同名source節から同節の明示Include先へ転送する場合だけ自己を二重候補にしません。
+				if( sameName( edge.target, sourceSection) &&
+				   std::ranges::any_of( matches, [&]( const auto candidate) {
+					   return candidate != documentIndex &&
+							  std::ranges::find( explicitCandidates, candidate) !=
+								  explicitCandidates.end() ;
+				   })) {
+					std::erase( matches, documentIndex) ;
 				}
 
 				edge.candidateCount = matches.size() ;
@@ -622,10 +687,11 @@ private:
 } // namespace
 
 /** @see src/platform/inf_dependency_plan.h 宣言側の契約を正本とする。 */
-NativeError resolveInfDependencies( const InfDependencyDocument	 &root,
-								   std::span<const std::wstring>  seeds,
-								   const InfDependencyOperations &operations,
-								   InfDependencyResult			 &result)
+NativeError resolveInfDependencies( const InfDependencyDocument		  &root,
+								   std::span<const std::wstring>	   seeds,
+								   const InfDependencyOperations	  &operations,
+								   InfDependencyResult				  &result,
+								   const InfDependencySelectedContext *selectedContext)
 {
 	result = {} ;
 	try {
@@ -641,7 +707,37 @@ NativeError resolveInfDependencies( const InfDependencyDocument	 &root,
 			return E_INVALIDARG ;
 		}
 
-		DependencyResolver resolver( operations, root.context) ;	// この同期runだけの有限所有者。
+		// 元rootの全証拠と明示seedへ結合できない選択文脈を使用しません。
+		if( selectedContext != nullptr) {
+			const auto seeded = [&]( const auto &name) {
+				return std::ranges::any_of( seeds,
+										   [&]( const auto &seed) { return sameName( seed, name) ; }) ;
+			} ; // 同期入力の正確な名前だけを比較します。
+			// 任意の別root/別OS/親推定/非選択節を基本候補へ救済しません。
+			if( !sameDocument( root, selectedContext->root) ||
+			   !validSectionName( selectedContext->baseSection) ||
+			   !seeded( selectedContext->baseSection) ||
+			   selectedContext->companionSections.size() > 9U) {
+				return E_INVALIDARG ;
+			}
+
+			// 同じ元seedに明示された、重複しない付属節だけを受理します。
+			for( std::size_t index{}; index < selectedContext->companionSections.size(); ++index) {
+				const auto &name = selectedContext->companionSections[index] ;	// 元付属節です。
+				// 同じ基本名や重複を別の付属選択へ変換しません。
+				if( !validSectionName( name) || !seeded( name) ||
+				   sameName( name, selectedContext->baseSection) ||
+				   std::ranges::any_of( selectedContext->companionSections.begin(),
+									   selectedContext->companionSections.begin() +
+										   static_cast<std::ptrdiff_t>( index),
+									   [&]( const auto &prior) { return sameName( prior, name) ; })) {
+					return E_INVALIDARG ;
+				}
+			}
+		}
+
+		DependencyResolver resolver( operations, root.context,
+									selectedContext) ;	// この同期runだけの有限所有者。
 		return resolver.run( root, seeds, result) ;
 	} catch( const std::bad_alloc &) {
 		return E_OUTOFMEMORY ;

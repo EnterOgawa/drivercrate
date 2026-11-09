@@ -2,7 +2,7 @@
 /**
  * @file main_window.h
  * @brief DriverCrateメインウィンドウ定義。
- * @version 01.15.01
+ * @version 01.17.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -73,6 +73,9 @@
  * Ver.01.14.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * Ver.01.15.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続。
  * Ver.01.15.01 Shunji Ogawa  2026/11/02  同scanの未導入観測に結合した取得前表示分類を追加。
+ * Ver.01.16.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
+ * Ver.01.17.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.17.01 Shunji Ogawa  2026/11/09  導入中と終端で既存ツリー行の表示位置を保持。
  * </pre>
  *
  * @note Top-level Win32 Window、TreeTable、およびUI stateを定義します。全member functionは、worker notificationを除き
@@ -102,9 +105,12 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace drivercrate {
+
+enum class PreparationContinuationReason ;
 
 //------------------------------------------------------------------------------
 // Window class定義。
@@ -178,6 +184,8 @@ private:
 		std::wstring			 primaryText ;
 		/// 分類件数を含まないsort用の種類名。分類行だけで使用する。
 		std::wstring			 className ;
+		/// 件数付き表示名とは独立した正規分類keyです。その他は空です。
+		std::wstring			 classKey ;
 		/// trueの場合は分類未解決として末尾へ配置する。
 		bool					 unknownClass{} ;
 		/// Deviceで現在使用中のdriver version。
@@ -196,6 +204,28 @@ private:
 		bool					 hasCandidateChoice{} ;
 		/// 詳細で明示指定した場合だけfilter再構築へ保持する。
 		bool					 explicitCandidateChoice{} ;
+		/// 同scanの元checkboxをreadonlyで描く派生表示です。
+		bool					 readonlyCheckbox{} ;
+	} ;
+
+	/** @brief 準備前の元選択を表示だけに保持する同scanの結合です。 */
+	struct PreparationDisplayBinding {
+		/// 元候補のopaque identityです。外部出力しません。
+		std::wstring candidateIdentity ;
+		/// 元deviceのopaque identityです。別deviceへ移しません。
+		std::wstring deviceIdentity ;
+		/// 準備開始時点の申告版です。診断logには出しません。
+		std::wstring version ;
+		/// 元の取得元表示です。診断logには出しません。
+		std::wstring sourceName ;
+		/// 元値が未検査の参照であった場合trueです。
+		bool		 reference{} ;
+		/// 元行にuncheckedを含むcheckbox枠がありました。
+		bool		 frame{} ;
+		/// 前回の表示上の選択意図です。実行selectionへ合流しません。
+		bool		 checked{} ;
+		/// 元choiceが明示された事実です。実行choiceを復元しません。
+		bool		 explicitChoice{} ;
 	} ;
 
 	/**
@@ -620,6 +650,33 @@ private:
 	 * @note 新たな曖昧候補・旧版や失敗を無断で選択しません。
 	 */
 	void continuePreparedInstall( const OfficialPreparationOperationResult &result) ;
+	/** @brief 同scanの元選択を失効前に表示専用値へ退避します。
+	 * @return 一意に結合できた元候補だけの所有snapshotです。
+	 */
+	[[nodiscard]] std::vector<PreparationDisplayBinding> capturePreparationDisplayBindings() const ;
+	/** @brief 同scanの元device表示を一意に照合します。
+     * @param[in] row 現在のdevice表示行です。
+     * @return 旧実行権限を含まない元表示です。欠測/別scan/重複はnullptrです。
+     */
+	[[nodiscard]] const PreparationDisplayBinding		*retainedDisplayBinding(
+			  const TreeRow &row) const noexcept ;
+	/** @brief 通常とreadonlyのcheckboxをWindows標準描画で構成します。
+     * @return 全画像を所有してcontrolへ接続できた場合trueです。
+     */
+	[[nodiscard]] bool						 initializeCheckboxImages() ;
+
+	/** @brief 有効な実行choiceが無い行の元表示候補を解決します。
+	 * @param[in] row 同じ候補集合のdevice行です。
+	 * @return 元scan/candidate/deviceへ一意に結合した閲覧位置です。実行権限は含みません。
+	 */
+	[[nodiscard]] std::optional<std::size_t> preparationDisplayCandidate(
+		const TreeRow &row) const noexcept ;
+	/** @brief 準備から導入へ進めない理由と全deviceを表示します。
+	 * @param[in] result 受理済みの元準備終端です。
+	 * @param[in] reason native codeを創作しない固定理由です。
+	 */
+	void					failPreparedInstall( const OfficialPreparationOperationResult &result,
+												PreparationContinuationReason			  reason) ;
 
 	/**
 	 * @brief EULA全文の標準dialog messageを処理する。例外を境界外へ漏らさない。
@@ -741,10 +798,12 @@ private:
 	/**
 	 * @brief 同deviceのinstall可能な一候補を明示選択し、device行とcheckboxへ反映する。
 	 * @param[in] candidateIndex 現scanの候補index。異なるsession・表示外・非導入候補は拒否する。
+	 * @param[in] preserveDisplayIntent 内部READY解決中だけ元表示を未commitのまま保持します。
 	 * @return 現在のdevice行に結合した一候補だけを選択できた場合true。
 	 * @note UI thread限定。取得・導入・EULA同意は開始しない。
 	 */
-	[[nodiscard]] bool selectDeviceCandidate( std::size_t candidateIndex) ;
+	[[nodiscard]] bool selectDeviceCandidate( std::size_t candidateIndex,
+											 bool		 preserveDisplayIntent = false) ;
 
 	/**
 	 * @brief scan candidateを種類・deviceの二階層TreeTableへまとめて表示する。
@@ -753,6 +812,13 @@ private:
 	 * @param[in] candidates 表示する immutable candidate 群。
 	 */
 	void			   populateCandidates( std::span<const UpdateCandidate> candidates) ;
+
+	/** @brief 同deviceの候補と現在版だけを既存行へ結合し、行集合とnative itemを保持します。
+	 * @note UI thread専用です。同scanへの候補/事後観測のappend後だけ使用します。
+	 * 分類・表示名・順序・開閉・caret・scrollを変更せず、非表示deviceの行を追加しません。
+	 * 実行choice/選択許可は作らず、呼出し側が既存の選択・結果描画を適用します。
+	 */
+	void			   refreshCandidateRows() ;
 
 	/**
 	 * @brief install resultをTreeTableへ表示し、失効した候補を表示専用へ変更する。
@@ -988,6 +1054,10 @@ private:
 	std::optional<OfficialPreparationApproval> presentedInstallTerms_ ;
 	/// 結果表示用の対象snapshot。
 	OfficialPreparationApproval				   preparationApproval_ ;
+	/// 表示snapshotだけの元scanです。新検索で破棄します。
+	ScanSessionId							   preparationDisplaySession_{} ;
+	/// 使用済みplanを再承認しない元版・取得元の閲覧snapshotです。
+	std::vector<PreparationDisplayBinding>	   preparationDisplayBindings_ ;
 	/// 次のscanまで端末内だけに保持する取得結果。
 	std::wstring							   preparationResultText_ ;
 	/// 同scanの索引読取り件数。実device適合や候補数ではありません。
@@ -1032,6 +1102,10 @@ private:
 	std::vector<std::size_t>				   candidateRowIndexes_ ;
 	/// TreeView item parameterから参照する安定した表示行集合。
 	std::vector<TreeRow>					   treeRows_ ;
+	/// このWindowだけが所有する通常/readonlyの五state画像です。
+	HIMAGELIST								   checkboxImages_{} ;
+	/// 同scanで一時的に非表示となった分類も含めた正規keyの開閉です。
+	std::unordered_map<std::wstring, bool>	   treeClassExpansion_ ;
 	/// 所有candidateの元indexへidentity照合で保持する個別実行履歴。新scanで破棄する。
 	std::vector<std::wstring>				   candidateResultTexts_ ;
 } ;

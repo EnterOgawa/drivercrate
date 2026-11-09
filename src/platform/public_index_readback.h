@@ -2,7 +2,7 @@
 /**
  * @file public_index_readback.h
  * @brief 監視PC専用の固定三resource匿名readbackと非機密reportを定義します。
- * @version 01.01.00
+ * @version 01.02.01
  * @date 2026/10/20
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,8 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/20  元二byteへの固定三resource匿名確認を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/27  Daily/candidateの正規artifact名pairを明示。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/05  同親workerの省略可能な協調取消しを公開。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * </pre>
  * @note URL、credential、path、取得本文をreportへ渡さず、storeとcacheを書きません。
  * @see docs/adr/0385-public-anonymous-index-readback.md
@@ -128,17 +130,19 @@ struct PublicIndexReadbackReport {
 												   const std::filesystem::path &gzipPath) noexcept ;
 /** @brief 固定公開trustで元二byteと匿名三resourceを現在UTC検証します。
  * @param[in] envelope 保護readerから得た96KiB以下の原envelopeです。
- * @param[in] gzip 保護readerから得た16MiB以下の原gzipです。
+ * @param[in] gzip 保護readerから得た32MiB以下の原gzipです。
  * @param[in] milliseconds 親が渡した元の正の残時間です。最大90000です。
  * @param[in] operationStarted 保護reader開始前に一度だけ採取した単調開始です。
  * @param[in] operationStartedAtUtc 同じ入口で採取した元UTCです。
+ * @param[in] cancellation 同じ親workerの協調取消しです。省略時は既存CLI動作です。
  * @return 元診断、部分resource、同時計の実観測だけです。
  * @note 同期worker専用です。保存、cache、credential、任意URL入力はありません。
  */
 [[nodiscard]] PublicIndexReadbackReport readbackFixedPublicIndex(
 	std::string_view envelope, std::string_view gzip, std::uint32_t milliseconds,
 	std::chrono::steady_clock::time_point operationStarted,
-	std::chrono::sys_seconds			  operationStartedAtUtc) noexcept ;
+	std::chrono::sys_seconds			  operationStartedAtUtc,
+	const HttpCancellationCallback		 &cancellation = {}) noexcept ;
 /** @brief 閉enumと原数値から順序固定10fieldのASCII JSONを生成します。
  * @param[in] report 同じnative実行が所有する非機密観測です。
  * @return 改行を持たない64KiB以下のcanonical JSONです。

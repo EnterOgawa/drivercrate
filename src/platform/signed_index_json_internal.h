@@ -2,7 +2,7 @@
 /**
  * @file signed_index_json_internal.h
  * @brief 署名索引各層で共用する厳格JSON・base64・hash・UTC文法を定義します。
- * @version 01.02.00
+ * @version 01.03.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/11  既存strict文法を共用し有限配列・深さを追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  必須fieldの既定を維持しschema別存在maskとnull読取りを追加。
  * Ver.01.02.00 Shunji Ogawa  2026/10/23  既定16fieldを維持した明示job上限指定を追加。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
  * </pre>
  *
  * @note 原byteを正規化せず、暗号認証・公式性・保存・端末照合を行いません。
@@ -184,6 +185,15 @@ public:
 		}
 
 		throw Failure<Status>{failure_} ;
+	}
+
+	/** @brief 次の値がtextかを原型の分岐だけに使う。
+	 * @return 次の非空白byteがquoteならtrue。値は消費しない。
+	 */
+	[[nodiscard]] bool textAhead()
+	{
+		whitespace() ;
+		return position_ < bytes_.size() && bytes_[position_] == '"' ;
 	}
 
 	/** @brief 非負のJSON整数をoverflow前に検査します。

@@ -22,7 +22,7 @@ ctest --preset release
 
 開発Privateを正本とし、GitHub Actionsは通常運用に使用しません。公開前には、固定した公開snapshot
 自身からローカルで両構成と品質gateを確認します。[公開前の手順](docs/testing.md#公開snapshotのローカル事前確認)と
-[ADR 0379](docs/adr/0379-local-prepublication-verification-without-actions.md)を参照してください。
+[公開checklist](docs/release-checklist.md)を参照してください。
 MSVC／Ninjaは実`/showIncludes`の言語をconfigure時に確認し、launcherへ結合します。
 依存情報の不一致時は同じtreeの該当構成をclean-firstで再構築し、古い依存情報を信頼しないでください。
 

@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest.h
  * @brief 署名manifestの認証結果と有限な世代・期限契約を定義します。
- * @version 01.01.01
+ * @version 01.02.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/11  原byte署名の型付き認証境界を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/13  Local受入の固定公開pinと通常profileの空trustを明示。
  * Ver.01.01.01 Shunji Ogawa  2026/10/16  通常配布trustとlocal受入の排他契約を説明。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * </pre>
  *
  * @note 通信・asset取得・保存・端末照合・導入を行いません。失敗時は認証出力を生成しません。
@@ -29,6 +30,7 @@
  */
 //------------------------------------------------------------------------------
 #pragma once
+#include "core/index_capacity_limits.h"
 
 #include "core/update_types.h"
 #include <array>
@@ -46,7 +48,7 @@ inline constexpr std::size_t   INDEX_ENVELOPE_MAX_BYTES = 96U * 1024U ;
 // 署名対象の原UTF-8実byte上限。
 inline constexpr std::size_t   INDEX_MANIFEST_MAX_BYTES = 64U * 1024U ;
 // 次工程へ渡すGZip assetの署名された転送byte上限。
-inline constexpr std::uint64_t INDEX_ASSET_MAX_BYTES = 32ULL * 1024ULL * 1024ULL ;
+inline constexpr std::uint64_t INDEX_ASSET_MAX_BYTES = index_capacity::GZIP_BYTES ;
 
 /** @brief 正規化しない原byteのSHA-256を保持する固定32byte型です。 */
 using IndexManifestSha256 = std::array<std::uint8_t, 32U> ;

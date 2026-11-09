@@ -2,7 +2,7 @@
 /**
  * @file test_main.cpp
  * @brief DriverCrate単体試験エントリーポイント。
- * @version 01.37.00
+ * @version 01.41.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -77,6 +77,10 @@
  * Ver.01.35.00 Shunji Ogawa  2026/10/24  元Intel archiveの明示historical一件試験入口を追加。
  * Ver.01.36.00 Shunji Ogawa  2026/10/26  Ethernet公開hashの非通信関連回帰入口を追加。
  * Ver.01.37.00 Shunji Ogawa  2026/10/26 新metadata生成索引の原byteを通常reader/候補adapterへ接続。
+ * Ver.01.38.00 Shunji Ogawa  2026/11/03  共通package内容の限定回帰入口を追加。
+ * Ver.01.39.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.40.00 Shunji Ogawa  2026/11/06  driver DATA通常経路の非対話局所入口を追加。
+ * Ver.01.41.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * </pre>
  *
  * @note 全unit test groupを順に実行し、process終了codeを返します。
@@ -165,6 +169,10 @@
 #include "windows_update_provider_tests.h"
 
 #include <exception>
+#include <charconv>
+#include <Windows.h>
+#include <crtdbg.h>
+#include <cstdlib>
 #include <iostream>
 #include <string_view>
 
@@ -178,6 +186,15 @@
 //------------------------------------------------------------------------------
 int main( const int argc, const char *const argv[])
 {
+	_set_error_mode( _OUT_TO_STDERR) ;
+	SetErrorMode( SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX) ;
+	_set_abort_behavior( 0U, _WRITE_ABORT_MSG | _CALL_REPORTFAULT) ;
+#if defined( _DEBUG)
+	_CrtSetReportMode( _CRT_ERROR, _CRTDBG_MODE_FILE) ;
+	_CrtSetReportFile( _CRT_ERROR, _CRTDBG_FILE_STDERR) ;
+	_CrtSetReportMode( _CRT_ASSERT, _CRTDBG_MODE_FILE) ;
+	_CrtSetReportFile( _CRT_ASSERT, _CRTDBG_FILE_STDERR) ;
+#endif
 	drivercrate::test::TestContext	context ;							// 全test groupのassertion集計先。
 	const drivercrate::ComApartment apartment( COINIT_MULTITHREADED) ;	// Test process全体のCOM MTA。
 	// COMが初期化できないthreadでは検証対象を呼び出さず、初期化失敗として試験を終了する。
@@ -187,6 +204,84 @@ int main( const int argc, const char *const argv[])
 	}
 
 	try {
+		// record数の独立境界だけを値codecへ渡し、実inventoryを起動しません。
+		if( argc == 2 && std::string_view{argv[1]} == "--index-capacity-records") {
+			drivercrate::test::runIndexCapacityRecordCountTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 私有producer保存先だけをRAM認証と通常consumerへ接続します。
+		if( argc == 3 && std::string_view{argv[1]} == "--index-capacity-produced") {
+			drivercrate::test::runIndexCapacityProducedConsumerTests(
+				context, std::filesystem::path{argv[2]}) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 保持枠の独立fixtureだけを実行し、大規模生成を反復しません。
+		if( argc == 2 && std::string_view{argv[1]} == "--index-capacity-retained") {
+			drivercrate::test::runIndexCapacityRetainedTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 容量fixtureの引数だけを閉検査し、誤指定から他suiteを起動しません。
+		if( argc > 1 && std::string_view{argv[1]} == "--index-capacity") {
+			// 有限の明示入力/mode以外はnative処理を開始しません。
+			if( argc != 5) {
+				return 2 ;
+			}
+
+			std::size_t			   count{} ;			// 元argvの有限公開ID件数です。
+			const std::string_view rawCount{argv[3]} ;	// 数字だけを許可する元引数です。
+			const auto parsed = std::from_chars( rawCount.data(), rawCount.data() + rawCount.size(),
+												count) ;	// localeに依存しません。
+			const std::string_view mode{argv[4]} ;			// 機能時計と実時間を明示区分します。
+			// 正常/上限+1より大きい入力や未知modeを拒否します。
+			if( parsed.ec != std::errc{} || parsed.ptr != rawCount.data() + rawCount.size() ||
+			   count > 1048577U ||
+			   (mode != "functional" && mode != "real-small" && mode != "real-large" &&
+				mode != "unknown-tail")) {
+				return 2 ;
+			}
+
+			drivercrate::test::runIndexCapacityTests(
+				context, std::filesystem::path{argv[2]}, count, mode == "real-large",
+				mode == "real-small" || mode == "real-large", mode == "unknown-tail") ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 本変更の有限通常経路だけを既存全suiteから分離します。
+		if( argc == 2 && std::string_view( argv[1]) == "--windows-managed-driver-package") {
+			drivercrate::test::runWindowsManagedDriverPackageFixtureTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 取得だけの既存GET/form/grantを確認し、無関係なmetadata全体を再実行しない。
+		if( argc == 2 && std::string_view{argv[1]} == "--official-acquisition") {
+			drivercrate::test::runOfficialDownloadGrantTests( context) ;
+			drivercrate::test::runOfficialAcquisitionTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
+		// 通常workerと同じCOM-only MTAで匿名CDNの純粋codecだけを実行する。
+		if( argc == 2 && std::string_view{argv[1]} == "--asus-cdn-token") {
+			drivercrate::test::runAsusCdnTokenTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
 		// 元Intel一件だけを明示historical/実署名adapterへ通し、実inventory/導入を呼びません。
 		if( argc == 7 && argv != nullptr &&
 		   std::string_view{argv[1]} == "--distribution-application-native-archive-fixture" &&
@@ -275,6 +370,26 @@ int main( const int argc, const char *const argv[])
 		// P4の元固定HTTP/codec/store glue回帰だけを実行します。
 		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-refresh") {
 			drivercrate::test::runSignedIndexRefreshTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
+		// 索引取得のURL用途/hint/取消しだけを確認し、他のpackage群を反復しません。
+		if( argc == 2 && std::string_view{argv[1]} == "--indexed-package-inspection") {
+			drivercrate::test::runIndexedDriverPackageInspectionTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
+		// INF/SFX/閉包だけを実行し、署名索引のRAM署名fixtureを起動しません。
+		if( argc == 2 && std::string_view{argv[1]} == "--official-package-content") {
+			drivercrate::test::runOfficialDriverPackageTests( context) ;
+			drivercrate::test::runOfficialDriverClosureTests( context) ;
+			drivercrate::test::runOfficialSfxTests( context) ;
+			drivercrate::test::runOfficialSevenZipTests( context) ;
+			drivercrate::test::runIndexedDriverPackageInspectionTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
 					  << ", failures: " << context.failureCount() << '\n' ;
 			return context.failureCount() == 0 ? 0 : 1 ;

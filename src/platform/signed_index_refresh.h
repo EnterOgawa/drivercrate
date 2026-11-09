@@ -2,7 +2,7 @@
 /**
  * @file signed_index_refresh.h
  * @brief 固定署名索引のrefreshと非機密な保存観測を定義します。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/10/16
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/16  固定currentと原子storeの有限接続を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/08  同一currentの保護cache再認証と通信省略を追加。
  * </pre>
  * @note URL・snapshot・候補・grantを通常summaryへ保持しません。
  */
@@ -58,7 +59,9 @@ enum class IndexRefreshStatus {
 	/// 同refreshの固定期限です。
 	TIMED_OUT,
 	/// 依存欠損・確保・例外を成功にしません。
-	INTERNAL_FAILURE
+	INTERNAL_FAILURE,
+	/// Currentと全再認証済み保存索引が一致し、本体を再取得しませんでした。
+	UNCHANGED
 } ;
 /** @brief Snapshot能力を含まないstore結果の要約です。 */
 struct IndexRefreshStoreObservation {
@@ -101,7 +104,7 @@ struct IndexRefreshSummary {
 	IndexRefreshStoreObservation				store ;
 	/// 明示再認証の結果です。
 	std::optional<IndexRefreshStoreObservation> cache ;
-	/// Fresh成功とは区別します。
+	/// 同一currentの再利用または元HTTP失敗を保持したcache利用です。
 	bool										usedAuthenticatedCache{} ;
 } ;
 /** @brief 固定GitHubと固定保護storeだけを同期workerでrefreshします。
@@ -116,11 +119,13 @@ namespace signed_index_refresh_detail {
 /** @brief 内部非通信fixtureの全依存です。製品設定へ投影しません。 */
 struct Services {
 	/// Fixtureでは完全表を必須にします。
-	std::optional<OfficialHttpTransport>					 transport ;
+	std::optional<OfficialHttpTransport>									 transport ;
 	/// 信頼UTCです。
-	std::function<std::optional<std::chrono::sys_seconds>()> utcNow ;
+	std::function<std::optional<std::chrono::sys_seconds>()>				 utcNow ;
 	/// 単調時計です。
-	std::function<std::chrono::steady_clock::time_point()>	 monotonicNow ;
+	std::function<std::chrono::steady_clock::time_point()>					 monotonicNow ;
+	/// 同一判定用の全再認証です。Snapshotはrefresh worker内だけで所有します。
+	std::function<IndexStoreResult( std::optional<std::chrono::sys_seconds>)> loadExisting ;
 	/// 保存能力はcallback内だけです。
 	std::function<IndexRefreshStoreObservation( const IndexRecordsSchemaReceipt &, std::string_view,
 											   std::span<const std::byte>,

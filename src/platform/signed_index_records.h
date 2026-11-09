@@ -2,7 +2,7 @@
 /**
  * @file signed_index_records.h
  * @brief 署名済み展開byteから読む配布record schema receiptを定義します。
- * @version 01.03.01
+ * @version 01.10.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,13 @@
  * Ver.01.02.01 Shunji Ogawa  2026/10/14  公表identifier役割とnative property指定の相違を明記。
  * Ver.01.03.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * Ver.01.03.01 Shunji Ogawa  2026/10/24  新規配布recordの週次更新用8日上限を共通化。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
+ * Ver.01.07.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.08.00 Shunji Ogawa  2026/11/03  拡大recordと有限保持quotaを通常経路へ整合。
+ * Ver.01.09.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
+ * Ver.01.10.00 Shunji Ogawa  2026/11/07  全公開ID入力総数と用途別共通容量の拒否を追加。
  * </pre>
  *
  * @note 保存前のschema receiptです。公式性・端末適合・導入許可を成立させません。
@@ -32,6 +39,9 @@
  */
 //------------------------------------------------------------------------------
 #pragma once
+#include "core/index_capacity_limits.h"
+#include "platform/official_resource_content.h"
+#include "platform/official_cdn_token.h"
 
 #include "platform/signed_index_asset_bytes.h"
 #include <chrono>
@@ -47,19 +57,19 @@ namespace drivercrate {
 // 保護headの保存wire互換識別値。原byteは常に現readerで再認証し、この値を現reader版にしない。
 inline constexpr std::uint32_t	   INDEX_RECORD_SCHEMA_POLICY_VERSION = 1U ;
 // 現codecの読取りpolicy版。保存head互換識別値やwire record v1／v2とは別です。
-inline constexpr std::uint32_t	   INDEX_RECORD_READER_POLICY_VERSION = 5U ;
+inline constexpr std::uint32_t	   INDEX_RECORD_READER_POLICY_VERSION = 6U ;
 // 新規recordの週次7日と発行fresh窓24hを合わせた上限。原期限を延長しません。
 inline constexpr std::chrono::days INDEX_ACQUISITION_MAX_VALIDITY{8} ;
 // 一index内の有限source枠。製品全体の対応数ではありません。
-inline constexpr std::size_t	   INDEX_RECORD_SOURCE_MAX_COUNT = 4096U ;
+inline constexpr std::size_t	   INDEX_RECORD_SOURCE_MAX_COUNT = index_capacity::SOURCES ;
 // 一index内の有限record枠。
-inline constexpr std::size_t	   INDEX_RECORD_MAX_COUNT = 65536U ;
+inline constexpr std::size_t	   INDEX_RECORD_MAX_COUNT = index_capacity::RECORDS ;
 // Base64解除後の一record原byte上限。
-inline constexpr std::size_t	   INDEX_RECORD_MAX_BYTES = 64U * 1024U ;
+inline constexpr std::size_t	   INDEX_RECORD_MAX_BYTES = index_capacity::RECORD_BYTES ;
 // 全recordのdecode原byte合計上限。
-inline constexpr std::size_t	   INDEX_RECORD_TOTAL_MAX_BYTES = 64U * 1024U * 1024U ;
+inline constexpr std::size_t INDEX_RECORD_TOTAL_MAX_BYTES = index_capacity::TOTAL_RECORD_BYTES ;
 // 一recordのメーカー公表側PnP ID件数上限。
-inline constexpr std::size_t	   INDEX_RECORD_PNP_MAX_COUNT = 128U ;
+inline constexpr std::size_t INDEX_RECORD_PNP_MAX_COUNT = index_capacity::RECORD_IDS ;
 
 /** @brief 元申告の既知値または明示UNKNOWN理由を保持します。
  * @tparam Value 型付きの公開値。端末の観測ではありません。
@@ -120,7 +130,9 @@ enum class IndexOfficialEvidenceKind {
 	/// 公式pageという元申告です。
 	OFFICIAL_PAGE,
 	/// 公式catalogという元申告です。
-	OFFICIAL_CATALOG
+	OFFICIAL_CATALOG,
+	/// 公式linkの手動確認記録です。HashはHTTP本文ではなく原review記録を指します。
+	OFFICIAL_LINK_REVIEW
 } ;
 
 /** @brief Sourceの公式性について発行側が申告した根拠です。 */
@@ -131,7 +143,7 @@ struct IndexOfficialEvidence {
 	IndexOfficialEvidenceKind		   kind{IndexOfficialEvidenceKind::UNKNOWN} ;
 	/// 静的出典URL。取得grantや期限付きpayload URLではありません。
 	std::string						   evidenceUrl ;
-	/// 元申告の出典原byte hash。Codecは出典を取得しません。
+	/// 出典原byte hash。手動link reviewでは原review記録で、HTTP本文ではありません。
 	std::optional<IndexManifestSha256> evidenceSha256 ;
 	/// UNKNOWNの非空理由。PUBLISHEDでは空です。
 	std::string						   reason ;
@@ -250,7 +262,11 @@ enum class IndexPayloadFormat {
 	/// Windows EXEという申告です。実行しません。
 	WINDOWS_EXE,
 	/// Windows MSIという申告です。実行しません。
-	WINDOWS_MSI
+	WINDOWS_MSI,
+	/// 非実行で標準INFだけを選択するPE/7z SFXという申告です。
+	SEVEN_ZIP_SFX,
+	/// 非実行で親hash結合したresource範囲を読む形式。
+	PE_RESOURCE_CONTAINER
 } ;
 
 /** @brief 取得routeの元申告根拠を区別します。 */
@@ -309,7 +325,7 @@ struct IndexHtmlTermsSelector {
 struct IndexHtmlTermsExtraction {
 	/// 閉じた共通抽出profileです。
 	std::string			   profile ;
-	/// 一つのraw textareaを示す元selectorです。
+	/// profileに対応する一意な原文書要素のselectorです。
 	IndexHtmlTermsSelector selector ;
 	/// 許諾欄を包含する一意な元containerです。
 	IndexHtmlTermsSelector containerSelector ;
@@ -317,7 +333,7 @@ struct IndexHtmlTermsExtraction {
 	IndexHtmlTermsSelector linkSelector ;
 	/// 選択linkから原payload URLを読む属性名です。
 	std::string			   payloadAttribute ;
-	/// 選択textarea内の完全原HTML文書hashです。
+	/// 選択した完全原HTML文書または独立sectionのhashです。
 	IndexManifestSha256	   documentSha256{} ;
 	/// 選択原HTML文書の正のexact UTF-8 byte数です。
 	std::uint64_t		   documentSizeBytes{} ;
@@ -329,6 +345,8 @@ struct IndexHtmlTermsExtraction {
 	std::string			   bindingEvidenceUrl ;
 	/// 同じ非実行調査の原根拠bytehashです。端末でJSを実行しません。
 	IndexManifestSha256	   bindingEvidenceSha256{} ;
+	/// 独立静的sectionだけの公式リンク根拠原byte数です。旧textareaでは0です。
+	std::uint64_t		   bindingEvidenceSizeBytes{} ;
 } ;
 
 /** @brief 原UTF-8規約の固定取得情報です。Codecは本文を取得しません。 */
@@ -337,7 +355,7 @@ struct IndexTermsTextDocument {
 	std::string								url ;
 	/// Plainは使用時のexact原全文、HTMLは監視側原pageのprovenance hashです。
 	IndexManifestSha256						sha256{} ;
-	/// Plain原全文または監視側原HTML pageの正のexact byte数。最大256KiBです。
+	/// 原wire byte数です。旧契約は256KiB、新static sectionだけ2MiB以内です。
 	std::uint64_t							sizeBytes{} ;
 	/// UTF-8 plainまたは明示HTMLの固定申告形式です。
 	std::string								contentType ;
@@ -405,11 +423,13 @@ enum class IndexAuthorityMethod {
 
 /** @brief 発行側が確認に責任を持つという有限な申告です。Grantではありません。 */
 struct IndexAcquisitionAttestation {
+	/// 手動確認記録による申告の場合true、自動collector HTTP観測はfalseです。
+	bool					 manualReview{} ;
 	/// driver-index-acquisition-v1が要求する確認policy revisionです。
 	std::uint64_t			 policyRevision{} ;
 	/// 元確認UTC。Manifest発行時刻へ更新しません。
 	std::chrono::sys_seconds checkedAtUtc{} ;
-	/// 元確認の期限。最大7日です。
+	/// 元確認の期限。最大8日です。
 	std::chrono::sys_seconds validUntilUtc{} ;
 	/// 監視PCが申告する確認方法。
 	IndexAuthorityMethod	 authorityMethod{IndexAuthorityMethod::OFFICIAL_SITE_CONTROL_AND_LINK} ;
@@ -425,7 +445,7 @@ struct IndexAcquisitionDescriptor {
 	IndexDescriptorState					   state{IndexDescriptorState::UNKNOWN} ;
 	/// UNKNOWNの非空理由。既知では空です。
 	std::string								   reason ;
-	/// 既知の原payload URL。Queryは未対応です。
+	/// 既知の原payload URL。単一公開cache版queryだけを追加受理します。
 	std::string								   payloadUrl ;
 	/// 安全な原basename。保存pathには変換しません。
 	std::string								   fileName ;
@@ -445,6 +465,12 @@ struct IndexAcquisitionDescriptor {
 	IndexObservedValue<std::string>			   publisher ;
 	/// KNOWNに必須の元確認申告。製品のtrust権限とは別です。
 	std::optional<IndexAcquisitionAttestation> attestation ;
+	/// 読んだdescriptor wire版。旧原byteの契約を保つ。
+	std::uint32_t							   schemaVersion{1U} ;
+	/// v2だけに存在するSTATIC_URL/content計画。v1は空。
+	std::optional<OfficialResourceContentPlan> resourceContent ;
+	/// v2の閉じた匿名解決。STATIC_URL/v1では空。
+	std::optional<OfficialAnonymousCdnPlan>	   anonymousCdn ;
 } ;
 
 /** @brief 原byteとhashに結合して読んだ一配布recordです。 */
@@ -562,7 +588,7 @@ enum class IndexRecordsStatus {
 	INVALID_RECORD,
 	/// 標準base64の文法・padding・未使用bitが不正です。
 	INVALID_BASE64,
-	/// Decodeした一recordが64KiB枠を超えています。
+	/// Decodeした一recordが512KiB枠を超えています。
 	RECORD_SIZE_LIMIT,
 	/// Decode原record合計が64MiB枠を超えています。
 	TOTAL_RECORD_SIZE_LIMIT,
@@ -591,7 +617,9 @@ enum class IndexRecordsStatus {
 	/// 確保失敗です。成功receiptを生成しません。
 	OUT_OF_MEMORY,
 	/// 型不明の内部障害です。成功へ読み替えません。
-	INTERNAL_FAILURE
+	INTERNAL_FAILURE,
+	/// 全recordの公開ID入力総数が共通枠を超えています。
+	INPUT_COUNT_LIMIT
 } ;
 
 /** @brief 全読取り成功時だけ保存前の不変receiptを持ちます。 */

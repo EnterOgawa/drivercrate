@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_tests.cpp
  * @brief 真署名索引から通常候補とfake指定導入へ接続する有限fixtureを検証します。
- * @version 01.26.00
+ * @version 01.29.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -51,6 +51,9 @@
  * Ver.01.24.00 Shunji Ogawa  2026/10/28  同ID二件batchと成功した自己状態だけの変化を回帰。
  * Ver.01.25.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
  * Ver.01.26.00 Shunji Ogawa  2026/10/28  既検証WUA候補と未取得索引の明示混在fixtureを追加。
+ * Ver.01.27.00 Shunji Ogawa  2026/11/03  原INF参照の版投影と非導入境界を確認。
+ * Ver.01.28.00 Shunji Ogawa  2026/11/06  driver DATAとstage-only importの通常保護導入を検査。
+ * Ver.01.29.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -68,6 +71,7 @@
 #include "core/candidate_audit.h"
 #include "core/device_observation.h"
 #include "core/provider_registry.h"
+#include "core/pending_reference_version.h"
 #include <Windows.h>
 #include <Softpub.h>
 #include <devpkey.h>
@@ -3486,6 +3490,61 @@ void runSignedIndexCandidateBindingTests( TestContext						   &context,
 	DRIVERCRATE_EXPECT(
 		context, source.snapshot && source.snapshot->schemaReceipt().records().size() == 1U &&
 					 source.snapshot->schemaReceipt().records().front().version.value == "1.2.3.4") ;
+	// 他node不足を残す実private positiveから版投影/同sessionの新版確認へ接続します。
+	if( !network) {
+		auto bound = makeSignedIndexBindingWorker(
+			services, zip, false, false, false,
+			SignedIndexBindingNativeCase::
+				INDEX_VERIFIED_PARTIAL) ;						// 低位APIだけを固定した通常workerです。
+		OperationController controller ;						// 実UIと同じ受付/終端を使います。
+		const auto			begin = controller.beginScan() ;	// 正の元operationです。
+		ScanOptions			options ;							// 索引と現在観測だけです。
+		options.useDefaultProviders = false ;
+		options.enabledProviderIds	= {std::wstring( DRIVER_STORE_PROVIDER_ID),
+									   std::wstring( SIGNED_INDEX_PROVIDER_ID)} ;
+		DRIVERCRATE_EXPECT( context,
+						   begin.accepted && bound.worker->requestScan( begin.operationId, options)) ;
+		const auto scanned = waitEvent( *bound.worker, WorkerEventKind::SCAN_COMPLETED,
+									   begin.operationId) ;	// 通常makeReferencesの実結果です。
+		DRIVERCRATE_EXPECT( context, scanned && scanned->scanResult.succeeded &&
+										scanned->preparationPlan &&
+										scanned->indexSummary.verifiedPartialRelations > 0U &&
+										scanned->indexSummary.undeterminedRelations > 0U) ;
+		// 正当な参照がある場合だけ、公開DTOを作り足さず元結果を比較します。
+		if( scanned && scanned->preparationPlan) {
+			std::size_t newer{} ;	// 実makeReferences由来の新版確認数だけです。
+			// 同元record/deviceの非導入参照を検査します。
+			for( const auto &candidate : scanned->scanResult.candidates) {
+				// 現在行と他Providerは参照件数へ含めません。
+				if( candidate.providerId != SIGNED_INDEX_PROVIDER_ID || candidate.current) {
+					continue ;
+				}
+
+				const auto relation = classifyPendingReferenceVersion(
+					candidate, scanned->scanResult.candidates,
+					scanned->scanResult.scanSessionId) ;	// 原観測だけです。
+				newer += relation == PendingReferenceVersion::NEWER ;
+				DRIVERCRATE_EXPECT(
+					context,
+					candidate.version == L"1.2.3.4" && !candidate.installable &&
+						!candidate.recommended && candidate.action == DriverAction::NONE &&
+						candidate.packageIdentity.empty() &&
+						!candidate.preparationTargetIdentity.empty() &&
+						isCandidateDetailsValid( candidate, scanned->scanResult.scanSessionId)) ;
+			}
+
+			DRIVERCRATE_EXPECT(
+				context,
+				newer == 1U && controller.completeScan( begin.operationId, scanned->scanResult) &&
+					controller.setPreparationPlan( begin.operationId, *scanned->preparationPlan)) ;
+		}
+
+		bound.worker->stop() ;
+		DRIVERCRATE_EXPECT( context, bound.observe().stages == 0U && bound.observe().installs == 0U) ;
+		std::cout
+			<< "PENDING_REFERENCE_PARTIAL_CONNECTION nativeProof=1 expectedNewer=1 installs=0\n" ;
+	}
+
 	DRIVERCRATE_EXPECT( context, !driver_store_inf_detail::Access::create(
 									{})) ;	// 不完全表のnative fallbackを拒否します。
 	const auto ownerInf = std::ranges::find_if( files, []( const auto &file) {
@@ -3613,8 +3672,13 @@ void runSignedIndexCandidateBindingTests( TestContext						   &context,
 
 			DRIVERCRATE_EXPECT(
 				context,
-				reference->version.empty() && reference->provider.empty() &&
-					reference->driverDate.empty() && reference->displayDownloadSize.empty() &&
+				reference->version ==
+						(source.snapshot->schemaReceipt().records().front().inspectionStage ==
+								 IndexInspectionStage::CONTENT_INSPECTED
+							 ? L"1.2.3.4"
+							 : L"") &&
+					reference->provider.empty() && reference->driverDate.empty() &&
+					reference->displayDownloadSize.empty() &&
 					reference->maximumDownloadBytes == 0U && reference->packageIdentity.empty() &&
 					!reference->eulaAccepted && !reference->rebootMayBeRequired &&
 					!reference->browseOnly && reference->requiredExtensionCount == 0U &&
@@ -3660,6 +3724,13 @@ void runSignedIndexCandidateBindingTests( TestContext						   &context,
 						  << report.examinedPairCount << '/' << report.applicablePairCount << '/'
 						  << report.failedPairCount << ", first pair " << report.firstPairError
 						  << ", publication " << report.publication.firstError << '\n' ;
+				// DriverStore binding由来の元拒否は単一/必要構成と最初の位置が欠測しません。
+				if( report.publication.firstError != 0) {
+					DRIVERCRATE_EXPECT( context, (report.publication.bindingPath == 1U ||
+												 report.publication.bindingPath == 2U) &&
+													report.publication.bindingRejection != 0U) ;
+				}
+
 				candidates.insert( candidates.end(), report.publishedCandidates.begin(),
 								  report.publishedCandidates.end()) ;
 			}
@@ -4211,4 +4282,161 @@ void runNativeIntelArchiveBindingCase( TestContext							&context,
 		<< " fakeInventory=1 historicalClock=1 driverHttp=0 certificateNetwork=unobserved installs=0 assertions="
 		<< context.assertionCount() - before << '\n' ;
 }
+/** @see tests/unit/signed_index_candidate_binding_tests.h 宣言側の契約を正本とします。 */
+void runWindowsManagedDriverBindingTests( TestContext						   &context,
+										 provider_worker_index_detail::Services services,
+										 std::string_view						zip)
+{
+	const bool badScope =
+		// 元INFからの固定負例だけです。
+		zip.find( "scope-fixture-reject") != zip.npos ;
+	const unsigned modes = badScope ? 1U : 5U ;	// 通常/復旧失敗/原hash差/CAT拒否/staleを分離します。
+	// 同元取得ごとに新scan/新native低位表を所有し、成功状態を持ち越しません。
+	for( unsigned mode = 0U; mode < modes; ++mode) {
+		const auto nativeCase = mode == 2U ? SignedIndexBindingNativeCase::IMPORT_HASH_CHANGED
+								: mode == 3U
+									? SignedIndexBindingNativeCase::IMPORT_MEMBER_FAILURE
+									: SignedIndexBindingNativeCase::NORMAL ;	// 元低位条件だけです。
+		auto	   bound = makeSignedIndexBindingWorker( services, zip, false, mode == 1U, false,
+														nativeCase) ;	// 完全fake native/復旧です。
+		OperationController controller ;								// 通常本体と同じ選択/同意/session状態機械です。
+		ScanOptions			options ;									// 実WUA/公式HTTPを開始しません。
+		options.useDefaultProviders = false ;
+		options.enabledProviderIds	= {std::wstring( DRIVER_STORE_PROVIDER_ID),
+									   std::wstring( SIGNED_INDEX_PROVIDER_ID)} ;
+		const auto scan				= controller.beginScan() ;	// 通常元scanの正のoperationです。
+		DRIVERCRATE_EXPECT( context,
+						   scan.accepted && bound.worker->requestScan( scan.operationId, options)) ;
+		auto scanned = waitEvent( *bound.worker, WorkerEventKind::SCAN_COMPLETED,
+								 scan.operationId) ;	// 元終端です。
+		DRIVERCRATE_EXPECT( context, scanned && scanned->preparationPlan &&
+										scanned->preparationPlan->targets.size() == 1U) ;
+		// 前提不足を負例の成功へ変換しません。
+		if( !scanned || !scanned->preparationPlan ||
+		   scanned->preparationPlan->targets.size() != 1U) {
+			bound.worker->stop() ;
+			throw std::runtime_error( "managed driver scan prerequisite") ;
+		}
+
+		const auto plan = *scanned->preparationPlan ;	// 同scanの元取得対象です。
+		DRIVERCRATE_EXPECT( context,
+						   controller.completeScan( scan.operationId, scanned->scanResult) &&
+							   controller.setPreparationPlan( scan.operationId, plan)) ;
+		OfficialPreparationApproval approval{
+			0U,
+			plan.scanSessionId,
+			plan.planId,
+			plan.limits,
+			{{plan.targets.front(), true, false, false, false}}} ;	// 検査取得だけの人工同意です。
+		const auto preparation =
+			// 通常受付でoperationを固定します。
+			controller.beginPreparation( approval) ;
+		DRIVERCRATE_EXPECT( context,
+						   preparation.accepted && bound.worker->requestPreparation( approval)) ;
+		auto prepared = waitEvent( *bound.worker, WorkerEventKind::PREPARATION_COMPLETED,
+								  approval.operationId) ;	// 元取得/検査/候補の終端です。
+		DRIVERCRATE_EXPECT( context, prepared.has_value()) ;
+		std::vector<UpdateCandidate> candidates ;	// 実publicationだけです。合成しません。
+		// 元候補と原拒否を同じreportから読みます。
+		if( prepared) {
+			// 同一元taskの全pair結果を保持します。
+			for( const auto &report : prepared->preparationResult.auditReports) {
+				candidates.insert( candidates.end(), report.publishedCandidates.begin(),
+								  report.publishedCandidates.end()) ;
+				std::cout << "WINDOWS_MANAGED_AUDIT mode=" << mode << " badScope=" << badScope
+						  << " content=" << report.contentError
+						  << " rejected=" << report.firstContentRejection
+						  << " binding=" << report.publication.firstError << '\n' ;
+			}
+		}
+
+		const bool contentRejected = badScope || mode == 3U ;	// 元scope/CAT拒否だけです。
+		DRIVERCRATE_EXPECT( context, candidates.size() == (contentRejected ? 0U : 1U)) ;
+		// 前段拒否は復旧/Windows指定APIを呼ばないまま終端させます。
+		if( contentRejected || candidates.size() != 1U || !prepared) {
+			DRIVERCRATE_EXPECT( context, bound.observe().stages == 0U &&
+											bound.observe().installs == 0U &&
+											bound.observe().restoreBegins == 0U) ;
+			bound.worker->stop() ;
+			DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
+			continue ;
+		}
+
+		const auto &candidate = candidates.front() ;	// 同scanの唯一の通常candidateです。
+		DRIVERCRATE_EXPECT( context, candidate.installable && candidate.assessment &&
+										candidate.assessment->installMethod ==
+											CandidateInstallMethod::STANDARD_INF &&
+										candidate.action == DriverAction::UPDATE &&
+										candidate.requiredExtensionCount == 0U &&
+										candidate.requiredDriverComponentCount == 0U) ;
+		DRIVERCRATE_EXPECT( context, controller.completePreparation( prepared->preparationResult,
+																   scanned->scanResult.candidates)) ;
+		const std::array selected{candidate.identity} ;	// 一deviceを明示選択します。
+		DRIVERCRATE_EXPECT( context, !controller
+										 .beginInstall( plan.scanSessionId, selected,
+													   InstallConfirmation::NOT_CONFIRMED)
+										 .accepted) ;
+		DRIVERCRATE_EXPECT( context, !controller
+										 .beginInstall( plan.scanSessionId + 1U, selected,
+													   InstallConfirmation::CONFIRMED)
+										 .accepted) ;
+		DRIVERCRATE_EXPECT( context, bound.observe().stages == 0U &&
+										bound.observe().installs == 0U &&
+										bound.observe().restoreBegins == 0U) ;
+		// staleはworkerでも旧sessionの元guardを確認し、正しいsessionへ補完しません。
+		if( mode == 4U) {
+			const bool queued = bound.worker->requestInstall(
+				900U, plan.scanSessionId + 1U, selected, nullptr,
+				InstallProtectionMode::WINDOWS_RESTORE_POINT) ;	// 全変更APIはfakeです。
+			// 受付後の拒否も原終端を待ってから数えます。
+			if( queued) {
+				auto rejected = waitEvent( *bound.worker, WorkerEventKind::INSTALL_COMPLETED,
+										  900U) ;	// stale元operationです。
+				DRIVERCRATE_EXPECT( context, rejected && !rejected->installResult.succeeded) ;
+			}
+
+			DRIVERCRATE_EXPECT( context,
+							   bound.observe().stages == 0U && bound.observe().installs == 0U) ;
+			bound.worker->stop() ;
+			DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
+			continue ;
+		}
+
+		// 同保護importの元byteだけを変更し、成功候補や私有計画は書換えません。
+		if( mode == 2U) {
+			bound.changeNativeState() ;
+		}
+
+		const auto install = controller.beginInstall(
+			plan.scanSessionId, selected, InstallConfirmation::CONFIRMED) ;	// 正の明示導入です。
+		DRIVERCRATE_EXPECT( context, install.accepted &&
+										bound.worker->requestInstall(
+											install.operationId, plan.scanSessionId, selected,
+											nullptr, InstallProtectionMode::WINDOWS_RESTORE_POINT)) ;
+		auto installed = waitEvent( *bound.worker, WorkerEventKind::INSTALL_COMPLETED,
+								   install.operationId) ;	// fake NewDev/復旧の元終端です。
+		DRIVERCRATE_EXPECT( context, installed.has_value()) ;
+		const auto observation = bound.observe() ;	// 同終端同期後だけの元counterです。
+		const bool success	   = mode == 0U ;		// 復旧/原hash負例を成功へ補正しません。
+		DRIVERCRATE_EXPECT( context, observation.stages == (success ? 1U : 0U) &&
+										observation.installs == (success ? 1U : 0U)) ;
+		DRIVERCRATE_EXPECT( context, observation.restoreBegins == (mode == 2U ? 0U : 1U) &&
+										observation.restoreCompletes == (success ? 1U : 0U)) ;
+		// 復旧結果と各対象の元結果を通常controllerへ保持します。
+		if( installed) {
+			DRIVERCRATE_EXPECT( context, installed->installResult.succeeded == success &&
+											controller.completeInstall( install.operationId,
+																	   installed->installResult)) ;
+		}
+
+		std::cout << "WINDOWS_MANAGED_NATIVE mode=" << mode << " stage=" << observation.stages
+				  << " install=" << observation.installs << " restore=" << observation.restoreBegins
+				  << '/' << observation.restoreCompletes
+				  << " otherDeviceInstalls=" << observation.deviceInstalls[1]
+				  << " realOsChanges=0 independentProgramSteps=0\n" ;
+		bound.worker->stop() ;
+		DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
+	}
+}
+
 } // namespace drivercrate::test

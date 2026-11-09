@@ -2,7 +2,7 @@
 /**
  * @file signed_index_records.cpp
  * @brief 共通strict文法で署名済み配布recordの原byteと元申告を検査します。
- * @version 01.03.00
+ * @version 01.05.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,8 @@
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.02.00 Shunji Ogawa  2026/10/23  全record/qualityの値codecを署名wrapperと共用。
  * Ver.01.03.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/07  原record検証後に全公開ID入力のchecked-add枠を検査。
  * </pre>
  *
  * @note 元申告を型付きで保持するだけで、公式性・適合・取得・導入を実証しません。
@@ -234,7 +236,7 @@ template <class Value, std::size_t Count>
 	}
 
 	require( values[4].empty(), IndexRecordsStatus::INVALID_EVIDENCE) ;
-	signed_index_acquisition::requireUrl( values[2], true) ;
+	signed_index_acquisition::requireEvidenceUrl( values[2]) ;
 	return {decodeHash( values[1], IndexRecordsStatus::INVALID_EVIDENCE),
 			std::move( values[2]),
 			decodeHash( values[3], IndexRecordsStatus::INVALID_EVIDENCE),
@@ -325,9 +327,11 @@ template <class Value, std::size_t Count>
 				std::move( values[4])} ;
 	}
 
-	constexpr std::array<std::pair<std::string_view, IndexOfficialEvidenceKind>, 2U> KINDS{
+	constexpr std::array<std::pair<std::string_view, IndexOfficialEvidenceKind>, 3U> KINDS{
 		{{"OFFICIAL_PAGE", IndexOfficialEvidenceKind::OFFICIAL_PAGE},
-		 {"OFFICIAL_CATALOG", IndexOfficialEvidenceKind::OFFICIAL_CATALOG}}} ;	// 固定元申告種別。
+		 {"OFFICIAL_CATALOG", IndexOfficialEvidenceKind::OFFICIAL_CATALOG},
+		 {"OFFICIAL_LINK_REVIEW",
+		  IndexOfficialEvidenceKind::OFFICIAL_LINK_REVIEW}}} ;	// 固定元申告種別。
 	require( values[4].empty(), IndexRecordsStatus::INVALID_EVIDENCE) ;
 	signed_index_acquisition::requireUrl( values[2], true) ;
 	return {IndexEvidenceState::PUBLISHED,
@@ -458,7 +462,7 @@ template <class Value, std::size_t Count>
 
 /** @brief 一段nested selectorをnativeと共通のmember文法で検査します。
  * @param[in] value 空はflat、非空は原slash相対archive memberです。
- * @return 空または安全なZIP/CAB memberの場合だけtrueです。
+ * @return 空または安全なZIP/CAB/非実行SFX memberの場合だけtrueです。
  * @note 公開memberからfilesystem pathを構築しません。
  */
 [[nodiscard]] bool validNestedIdentity( const std::string_view value)
@@ -479,7 +483,7 @@ template <class Value, std::size_t Count>
 		return character >= 'A' && character <= 'Z' ? static_cast<char>( character + ('a' - 'A'))
 													: character ;
 	}) ;
-	return suffix == ".zip" || suffix == ".cab" ;
+	return suffix == ".zip" || suffix == ".cab" || suffix == ".exe" ;
 }
 
 /** @brief 原公開IDの種別と値を一つずつ読みます。
@@ -557,7 +561,7 @@ template <class Value, std::size_t Count>
 				validIdentity( values[5], 128U) && values[8].empty() &&
 				validNestedIdentity( values[9]) && (values[9].empty() || values[1] == "INF"),
 			IndexRecordsStatus::INVALID_EVIDENCE) ;
-	signed_index_acquisition::requireUrl( values[6], true) ;
+	signed_index_acquisition::requireEvidenceUrl( values[6]) ;
 	value.state					= IndexEvidenceState::PUBLISHED ;
 	value.kind					= choice( values[1], KINDS) ;
 	value.classGuid				= std::move( values[3]) ;
@@ -946,6 +950,7 @@ signed_index_detail::DecodedIndexRecords signed_index_detail::decodeIndexRecords
 		constexpr std::array<std::string_view, 4U> FIELDS{"schema", "assetGeneration", "sources",
 														  "records"} ;	// 全必須field。
 		std::uint64_t							   generation{} ;		// 原indexが申告したasset世代。
+		std::size_t								   totalPublicIds{} ;	// 全recordの公開入力総数です。
 		std::size_t								   totalBytes{} ;		// Decode原record合計実byte。
 		std::vector<IndexRecordSource>			   sources ;			// 全参照検査まで公開しないsource集合。
 		std::vector<IndexDistributionRecord>	   records ;			// 原byteを所有した有限record集合。
@@ -981,8 +986,14 @@ signed_index_detail::DecodedIndexRecords signed_index_detail::decodeIndexRecords
 					reader.array(
 						INDEX_RECORD_MAX_COUNT,
 						[&] {
-							records.push_back( readEntry( reader, totalBytes,
-														manifest)) ;	// 同期的な原byte読取り。
+							auto record =
+								// 原hashを含む一件です。
+								readEntry( reader, totalBytes, manifest) ;
+							require( record.publishedIdentityEvidence.pnpIds.size() <=
+										index_capacity::WHOLE_PUBLIC_IDS - totalPublicIds,
+									IndexRecordsStatus::INPUT_COUNT_LIMIT) ;
+							totalPublicIds += record.publishedIdentityEvidence.pnpIds.size() ;
+							records.push_back( std::move( record)) ;
 						},
 						IndexRecordsStatus::COUNT_LIMIT) ;
 					break ;

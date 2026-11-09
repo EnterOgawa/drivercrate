@@ -2,7 +2,7 @@
 /**
  * @file driver_store_provider.cpp
  * @brief Driver Store provider実装。
- * @version 01.18.00
+ * @version 01.21.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -65,6 +65,9 @@
  * Ver.01.17.00 Shunji Ogawa  2026/10/27  元完全tuple内の唯一最小Windows rankを固定し直前再選択。
  * Ver.01.17.01 Shunji Ogawa  2026/10/28  同ID二件の元proof寿命を選択batch終端まで保持。
  * Ver.01.18.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
+ * Ver.01.19.00 Shunji Ogawa  2026/11/06  元CopyINF stage内容と別deviceの機能導入を分離。
+ * Ver.01.20.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.21.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * </pre>
  *
  * @note SetupAPIによるPnP deviceとDriver Store履歴の列挙を実装します。選択された指定版は実行直前に再照合します。Native device identityと
@@ -72,6 +75,7 @@
  */
 //------------------------------------------------------------------------------
 
+#include "core/index_capacity_limits.h"
 #include "platform/driver_store_provider.h"
 #include "platform/driver_store_inf_transport_internal.h"
 
@@ -116,6 +120,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -2130,6 +2135,18 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 }
 
 //------------------------------------------------------------------------------
+/** @brief 任意の既診断へ原errorと最初の拒否だけを保持します。
+ * @param[in,out] diagnostic 呼出し元が所有する任意診断です。
+ * @param[in] error 元HRESULTです。
+ * @param[in] stage 固定拒否位置です。
+ * @param[in] observed 元enumまたは件数です。
+ * @return 未変更の元HRESULTです。
+ */
+NativeError bindingFailure( RequiredInfBindingDiagnostic *diagnostic, const NativeError error,
+						   const InfBindingReject stage, const std::uint32_t observed = 0U) noexcept
+{
+	return diagnostic ? diagnostic->reject( error, stage, observed) : error ;
+}
 /**
  * @brief 公式INF binding用の現在状態とcandidate nodeを同時に固定する。
  *
@@ -2150,7 +2167,8 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 	const std::wstring_view instanceId, const std::wstring_view infPath,
 	const OfficialInfPackage &package, const std::uint64_t candidateVersion,
 	const std::wstring_view candidateDate, DeviceRankSnapshot &deviceSnapshot,
-	CandidateDriverNodeSnapshot &candidateSnapshot, OfficialDriverRankAudit &rankAudit)
+	CandidateDriverNodeSnapshot &candidateSnapshot, OfficialDriverRankAudit &rankAudit,
+	RequiredInfBindingDiagnostic *diagnostic = nullptr)
 {
 	deviceSnapshot	  = {} ;
 	candidateSnapshot = {} ;
@@ -2159,7 +2177,7 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 	NativeError		   nativeError = readDeviceRankSnapshot( instanceId, before) ;	// 取得結果。
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 	if( nativeError != 0) {
-		return nativeError ;
+		return bindingFailure( diagnostic, nativeError, InfBindingReject::CURRENT_BEFORE) ;
 	}
 
 	// 現在driverの日付が未確定なら導入bindingを構築しない。
@@ -2178,7 +2196,7 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 	if( nativeError != 0) {
-		return nativeError ;
+		return bindingFailure( diagnostic, nativeError, InfBindingReject::CURRENT_RANK) ;
 	}
 
 	nativeError = collectUniqueCandidateDriverNode( instanceId, infPath, package.className,
@@ -2186,14 +2204,14 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 												   candidateDate, candidateSnapshot) ;
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 	if( nativeError != 0) {
-		return nativeError ;
+		return bindingFailure( diagnostic, nativeError, InfBindingReject::CANDIDATE_NODE) ;
 	}
 
 	DeviceRankSnapshot after ;	// Rank取得後に再取得する現在deviceとdriver状態。
 	nativeError = readDeviceRankSnapshot( instanceId, after) ;
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 	if( nativeError != 0) {
-		return nativeError ;
+		return bindingFailure( diagnostic, nativeError, InfBindingReject::CURRENT_AFTER) ;
 	}
 
 	// 監査前後でdevice状態が変化した場合は再scanを要求する。
@@ -2413,23 +2431,27 @@ struct DriverStoreProvider::IndexInventoryState {
 		NativeError				  compatibleError{} ;
 	} ;
 	/// 発行元のscan sessionです。Install sessionとは独立です。
-	ScanSessionId			  session{} ;
+	ScanSessionId													session{} ;
 	/// 単調増加するinventory世代です。
-	std::uint64_t			  generation{} ;
+	std::uint64_t													generation{} ;
 	/// 実際にscanした所有threadです。
-	std::uint32_t			  ownerThread{} ;
+	std::uint32_t													ownerThread{} ;
 	/// 一つの導入scope開始で不可逆に閉じるresolver能力です。同workerだけが変更します。
-	mutable bool			  resolutionOpen{true} ;
+	mutable bool													resolutionOpen{true} ;
 	/// 全列挙と二巡目の必要属性captureが完了した場合trueです。
-	bool					  enumerationComplete{} ;
+	bool															enumerationComplete{} ;
 	/// 部分列挙の元HRESULTです。
-	NativeError				  enumerationError{} ;
+	NativeError														enumerationError{} ;
 	/// Captureした全present opaque集合です。Raw IDを含みません。
-	std::vector<std::wstring> present ;
+	std::vector<std::wstring>										present ;
 	/// 全presentの種別を保持した秘密属性です。任意DTOから受け取りません。
-	std::vector<Node>		  nodes ;
+	std::vector<Node>												nodes ;
+	/// 秘密IDの元文字列viewから元node ordinalへ引く同state内だけの有限表です。
+	std::unordered_map<std::wstring_view, std::vector<std::size_t>> idNodes ;
+	/// 両属性のどちらかが失敗したnodeを元class別に全件保持します。空keyは未知classです。
+	std::unordered_map<std::wstring_view, std::vector<std::size_t>> failedIdNodes ;
 	/// 有限秘密mapに登録した全ID件数です。
-	std::size_t				  retainedIds{} ;
+	std::size_t														retainedIds{} ;
 } ;
 
 /** @brief Providerだけが強所有する秘密stateへの失効可能なcallbackです。 */
@@ -2438,11 +2460,18 @@ public:
 	/** @brief 秘密stateの所有を増やさずcontextを固定します。
 	 * @param[in] state Providerの不変stateへのweak所有。
 	 * @param[in] context 本callbackの発行context。
+     * @param[in] lease 同factoryが元stateへ結ぶread-openのweak寿命証拠です。
 	 */
-	IndexInventoryResolver( std::weak_ptr<const IndexInventoryState> state,
-						   IndexLookupContext						context)
-		: state_( std::move( state)), context_( context)
+	IndexInventoryResolver( std::weak_ptr<const IndexInventoryState>		 state,
+						   IndexLookupContext							 context,
+						   std::shared_ptr<const NativeIndexLookupLease> lease)
+		: state_( std::move( state)), context_( context), lease_( std::move( lease))
 	{
+	}
+	/** @copydoc IndexPublicIdResolver::leaseProof */
+	[[nodiscard]] std::shared_ptr<const NativeIndexLookupLease> leaseProof() const noexcept override
+	{
+		return lease_ ;
 	}
 	/** @copydoc IndexPublicIdResolver::resolve */
 	[[nodiscard]] IndexPublicIdResolution resolve(
@@ -2533,8 +2562,37 @@ public:
 		std::size_t otherKindReadFailures{} ;			// Queryに影響し得る別native種別の読取拒否数です。
 		NativeError firstIdError{} ;					// 最初の必要ID失敗の元HRESULTです。
 #endif
-		// 全presentを一巡し、queryへ影響し得るnodeだけの不足と全opaque関係を保持します。
-		for( const auto &node : state->nodes) {
+		std::vector<std::size_t> relevantNodes ;	// 全cohortと失敗を原node順で処理する有限unionです。
+#if defined( DRIVERCRATE_INTERNAL_LIVE_INDEX_DIAGNOSTICS)
+		// 詳細診断の別種別非一致件数は元の全node分母を維持します。
+		relevantNodes.resize( state->nodes.size()) ;
+		// live診断は非一致nodeも原分母へ残すため、全ordinalを順に用意します。
+		for( std::size_t ordinal = 0U; ordinal < relevantNodes.size(); ++ordinal) {
+			relevantNodes[ordinal] = ordinal ;
+		}
+#else
+		// IDが両native集合のどちらにあっても、元nodeを一度だけ候補へ残します。
+		if( const auto found = state->idNodes.find( id) ; found != state->idNodes.end()) {
+			relevantNodes = found->second ;
+		}
+
+		// 同class/未知classの必要ID失敗は、IDが逆引きに無くても必ず未判定へ残します。
+		for( const auto failureClass : {std::wstring_view{normalizedClass}, std::wstring_view{}}) {
+			// 同class又は未知classの属性失敗を、逆引き非該当でも未判定へ残します。
+			if( const auto found = state->failedIdNodes.find( failureClass) ;
+			   found != state->failedIdNodes.end()) {
+				relevantNodes.insert( relevantNodes.end(), found->second.begin(),
+									 found->second.end()) ;
+			}
+		}
+
+		std::sort( relevantNodes.begin(), relevantNodes.end()) ;
+		relevantNodes.erase( std::unique( relevantNodes.begin(), relevantNodes.end()),
+							relevantNodes.end()) ;
+#endif
+		// 元ordinal順なので、最初のHRESULTとcohort/proofの全順序を変更しません。
+		for( const auto ordinal : relevantNodes) {
+			const auto &node = state->nodes[ordinal] ;	// 不変captureの元nodeだけを借用します。
 			// 既知異classなら、無関係なID欠損を本queryへ持ち込みません。
 			if( !node.classGuid.empty() && node.classGuid != normalizedClass) {
 				continue ;
@@ -2648,9 +2706,11 @@ public:
 
 private:
 	/// Providerが失効させる秘密stateです。強所有を持ちません。
-	std::weak_ptr<const IndexInventoryState> state_ ;
+	std::weak_ptr<const IndexInventoryState>	  state_ ;
 	/// 発行時に固定したoperation・scan・inventoryです。
-	IndexLookupContext						 context_ ;
+	IndexLookupContext							  context_ ;
+	/// 同factoryだけが発行したread-openのweak寿命証拠です。
+	std::shared_ptr<const NativeIndexLookupLease> lease_ ;
 } ;
 
 /** @see driver_store_provider.h 宣言側の契約を正本とします。 */
@@ -2741,8 +2801,14 @@ std::unique_ptr<IndexPublicIdResolver> DriverStoreProvider::makeIndexPublicIdRes
 	}
 
 	const IndexLookupContext issued{operationId, indexInventory_->session,
-									indexInventory_->generation} ;							// このcallbackだけの結合tuple。
-	auto resolver = std::make_unique<IndexInventoryResolver>( indexInventory_, issued) ;	// Weak所有。
+									indexInventory_->generation} ;	// このcallbackだけの結合tuple。
+	auto					 lease = std::make_shared<const NativeIndexLookupLease>(
+		NativeIndexLookupLease::MintKey{}, issued, indexInventory_->ownerThread,
+		std::weak_ptr<const void>{indexInventory_},
+		&indexInventory_->resolutionOpen) ;	// 秘密stateを強所有しません。
+	auto resolver = std::make_unique<IndexInventoryResolver>( indexInventory_, issued,
+															 // Weak所有。
+															 std::move( lease)) ;
 	present		  = indexInventory_->present ;
 	context		  = issued ;
 	return resolver ;
@@ -3116,7 +3182,7 @@ ScanResult DriverStoreProvider::scanInventory( const ScanSessionId			  scanSessi
 
 			// 有限RAM枠超過は部分一致で成功にせず、両種別を未完了へ残します。
 			if( node.hardware.size() + node.compatible.size() >
-			   INDEX_LOOKUP_RESOLVER_CALL_MAX - indexState->retainedIds) {
+			   index_capacity::NATIVE_INVENTORY_IDS - indexState->retainedIds) {
 				indexState->enumerationError = indexState->enumerationError == 0U
 												   ? nativeErrorFromWin32( ERROR_MORE_DATA)
 												   : indexState->enumerationError ;
@@ -3545,6 +3611,23 @@ ScanResult DriverStoreProvider::scanInventory( const ScanSessionId			  scanSessi
 			indexState->enumerationError = inventoryMeasurement_.error ;
 		}
 
+		// 全nodeの移動が終わってからviewを作り、vector再確保で秘密keyを失効させません。
+		for( std::size_t ordinal = 0U; ordinal < indexState->nodes.size(); ++ordinal) {
+			const auto &node = indexState->nodes[ordinal] ;	// 発行後不変の秘密captureです。
+			// HardwareとCompatibleの両集合を同じ原nodeへ結びます。
+			for( const auto &ids : {std::cref( node.hardware), std::cref( node.compatible)}) {
+				// 捕捉した全秘密IDのviewだけを原ordinalへ登録します。
+				for( const auto &id : ids.get()) {
+					indexState->idNodes[id].push_back( ordinal) ;
+				}
+			}
+
+			// 一方の属性だけ成功したnodeも、元union全体の失敗診断を保持します。
+			if( node.hardwareError != 0U || node.compatibleError != 0U) {
+				indexState->failedIdNodes[node.classGuid].push_back( ordinal) ;
+			}
+		}
+
 		indexInventory_ = std::move( indexState) ;
 	}
 
@@ -3938,16 +4021,25 @@ NativeError DriverStoreProvider::createOfficialInfInstallBinding(
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 	const std::wstring_view expectedCurrentProvider, const std::wstring_view expectedCurrentVersion,
 	const std::wstring_view expectedCurrentDate, const OfficialDriverRankAudit &expectedRankAudit,
-	OfficialInfInstallBinding &binding)
+	OfficialInfInstallBinding &binding, RequiredInfBindingDiagnostic *diagnostic)
 {
-	// 基礎node適合だけで未確認の明示依存を実行可能な標準INFへ補完しません。
-	if( package.hasExternalDependencies) {
-		return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+	// 公開入口でだけ診断を初期化し、下位から戻った拒否を保持します。
+	if( diagnostic) {
+		*diagnostic		 = {} ;
+		diagnostic->path = 1U ;
 	}
 
-	return createOfficialInfInstallBindingImpl( scanSessionId, deviceIdentity, workspace, package,
-											   expectedCurrentProvider, expectedCurrentVersion,
-											   expectedCurrentDate, expectedRankAudit, binding) ;
+	// 基礎node適合だけで未確認の明示依存を実行可能な標準INFへ補完しません。
+	if( package.hasExternalDependencies) {
+		return bindingFailure( diagnostic, nativeErrorFromWin32( ERROR_NOT_SUPPORTED),
+							  InfBindingReject::SINGLE_DEPENDENCY) ;
+	}
+
+	const auto error = createOfficialInfInstallBindingImpl(
+		scanSessionId, deviceIdentity, workspace, package, expectedCurrentProvider,
+		expectedCurrentVersion, expectedCurrentDate, expectedRankAudit, binding,
+		diagnostic) ;	// 具体的拒否位置は下位の最初の値を維持します。
+	return bindingFailure( diagnostic, error, InfBindingReject::BINDING_STATE) ;
 }
 
 /** @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。 */
@@ -3956,7 +4048,7 @@ NativeError DriverStoreProvider::createOfficialInfInstallBindingImpl(
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 	const std::wstring_view expectedCurrentProvider, const std::wstring_view expectedCurrentVersion,
 	const std::wstring_view expectedCurrentDate, const OfficialDriverRankAudit &expectedRankAudit,
-	OfficialInfInstallBinding &binding)
+	OfficialInfInstallBinding &binding, RequiredInfBindingDiagnostic *diagnostic)
 {
 
 	binding				= {} ;
@@ -3986,7 +4078,8 @@ NativeError DriverStoreProvider::createOfficialInfInstallBindingImpl(
 	   !candidateVersion.has_value() || candidateVersion.value() == 0U ||
 	   !candidateDate.has_value() ||
 	   expectedRankAudit.decision != OfficialDriverRankDecision::APPLICABLE) {
-		return static_cast<NativeError>( E_INVALIDARG) ;
+		return bindingFailure( diagnostic, static_cast<NativeError>( E_INVALIDARG),
+							  InfBindingReject::INPUT) ;
 	}
 
 	// scan内のbinding保持数が上限に達した場合は追加を拒否する。
@@ -4004,20 +4097,23 @@ NativeError DriverStoreProvider::createOfficialInfInstallBindingImpl(
 	driver_store_inf_detail::transport().architecture( &nativeSystem) ;
 	// x64以外の実OSには公式INF導入bindingを作成しない。
 	if( nativeSystem.wProcessorArchitecture != PROCESSOR_ARCHITECTURE_AMD64) {
-		return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+		return bindingFailure( diagnostic, nativeErrorFromWin32( ERROR_NOT_SUPPORTED),
+							  InfBindingReject::ARCHITECTURE, nativeSystem.wProcessorArchitecture) ;
 	}
 
 	const std::wstring candidateInfPath =	// SetupAPIへ渡すworkspace内INF絶対path。
 		workspace.path( package.infRelativePath) ;
 	// 空または埋込NULを含むINF pathをWindows APIへ渡さない。
 	if( candidateInfPath.empty() || candidateInfPath.find( L'\0') != std::wstring::npos) {
-		return static_cast<NativeError>( E_INVALIDARG) ;
+		return bindingFailure( diagnostic, static_cast<NativeError>( E_INVALIDARG),
+							  InfBindingReject::INPUT) ;
 	}
 
 	const DWORD attributes = GetFileAttributesW( candidateInfPath.c_str()) ;	// INFのfile属性。
 	// binding対象INFの属性取得失敗をそのまま通知する。
 	if( attributes == INVALID_FILE_ATTRIBUTES) {
-		return nativeErrorFromWin32( GetLastError()) ;
+		return bindingFailure( diagnostic, nativeErrorFromWin32( GetLastError()),
+							  InfBindingReject::INF_FILE) ;
 	}
 
 	// 通常file以外のINFをbindingへ登録しない。
@@ -4030,11 +4126,11 @@ NativeError DriverStoreProvider::createOfficialInfInstallBindingImpl(
 	OfficialDriverRankAudit		currentRankAudit ;	// 発行時に再生成するrank監査結果。
 	const NativeError			collectError = collectOfficialInfBindingState(
 		  instance->second, candidateInfPath, package, candidateVersion.value(),
-		  candidateDate.value(), deviceSnapshot, candidateSnapshot,
-		  currentRankAudit) ;	// 全状態のread-only固定結果。
+		  candidateDate.value(), deviceSnapshot, candidateSnapshot, currentRankAudit,
+		  diagnostic) ;	// 全状態のread-only固定結果。
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 	if( collectError != 0) {
-		return collectError ;
+		return bindingFailure( diagnostic, collectError, InfBindingReject::BINDING_STATE) ;
 	}
 
 	// 同inventory世代の元Classをbinding時の別観測で置き換えません。
@@ -4173,7 +4269,8 @@ NativeError DriverStoreProvider::buildRequiredInfComponentPlan(
 			selectedBase) ;	// 同private nodeの基本名だけから解析します。
 		// 任意節や非実在fallbackを必要役割の選択成功へ変換しません。
 		if( selectedError != 0) {
-			return selectedError ;
+			return bindingFailure( diagnosticStage, selectedError,
+								  InfBindingReject::SELECTED_RELATIONS) ;
 		}
 
 		selectedBase.selectedNativeRank = record.candidate.rank ;
@@ -4191,14 +4288,21 @@ NativeError DriverStoreProvider::buildRequiredInfComponentPlan(
 				const auto found = std::ranges::find_if( selections, [&]( const auto &value) {
 					return normalizeIdentifier( value.infRelativePath) == normalizeIdentifier( path) ;
 				}) ; // 元内容copyだけを同期借用します。
-				// 欠損や独立baseを自動の追加device導入へ変換しません。
-				if( found == selections.end() || found->role == DriverPlanRole::BASE_DRIVER) {
+				// 原importの欠損を基本INFだけの成功へ変換しません。
+				if( found == selections.end()) {
 					// 同じHRESULTになる二つの拒否を数値だけで区別します。
 					if( diagnosticStage) {
 						diagnosticStage->stage = found == selections.end() ? 5U : 6U ;
 					}
 
-					return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+					return bindingFailure( diagnosticStage,
+										  nativeErrorFromWin32( ERROR_NOT_SUPPORTED),
+										  InfBindingReject::COPY_INF_MISSING) ;
+				}
+
+				// 元CopyINFの独立基本INFはstage用内容です。別deviceのnative nodeやinstallを作りません。
+				if( found->role == DriverPlanRole::BASE_DRIVER) {
+					continue ;
 				}
 
 				const auto ordinal =
@@ -4226,7 +4330,8 @@ NativeError DriverStoreProvider::buildRequiredInfComponentPlan(
 						 node) ;	// base Class/rankを流用しません。
 					// 同Extensionのnative適合失敗を名称やbase成功から補完しません。
 					if( nodeError != 0) {
-						return nodeError ;
+						return bindingFailure( diagnosticStage, nodeError,
+											  InfBindingReject::CANDIDATE_NODE, 7U) ;
 					}
 
 					OfficialInfPackage selected ;	// 同役割nodeからの機能関係だけです。
@@ -4240,7 +4345,8 @@ NativeError DriverStoreProvider::buildRequiredInfComponentPlan(
 						selected) ;	// 同元INFを借用します。
 					// 元役割選択の解析失敗を一baseの成功へ代替しません。
 					if( relationError != 0) {
-						return relationError ;
+						return bindingFailure( diagnosticStage, relationError,
+											  InfBindingReject::SELECTED_RELATIONS, 8U) ;
 					}
 
 					selected.selectedNativeRank = node.rank ;
@@ -4274,7 +4380,8 @@ NativeError DriverStoreProvider::createRequiredInfInstallBinding(
 	plan.reset() ;
 	// 空入力と実検査以降を別の数値として保持します。
 	if( diagnosticStage) {
-		*diagnosticStage = {} ;
+		*diagnosticStage	  = {} ;
+		diagnosticStage->path = 2U ;
 	}
 
 	// 公開件数や別sessionから元閉包の導入権限を発行しません。
@@ -4290,7 +4397,7 @@ NativeError DriverStoreProvider::createRequiredInfInstallBinding(
 	auto error = reverifyCommonDriverInf( inspection) ;	// 全role/CAT/memberを再確認します。
 	// 再検証失敗はbindingへ進めません。
 	if( error != 0U) {
-		return error ;
+		return bindingFailure( diagnosticStage, error, InfBindingReject::CONTENT_REVERIFY) ;
 	}
 
 	// 元親の完全native状態の固定段階です。
@@ -4300,7 +4407,7 @@ NativeError DriverStoreProvider::createRequiredInfInstallBinding(
 
 	error = createOfficialInfInstallBindingImpl( session, identity, *inspection.workspace,
 												inspection.closure.packages.front(), provider,
-												version, date, audit, binding) ;
+												version, date, audit, binding, diagnosticStage) ;
 	// 元親の完全状態と一意nodeを先に固定します。
 	if( error != 0U) {
 		return error ;
@@ -4318,7 +4425,10 @@ NativeError DriverStoreProvider::createRequiredInfInstallBinding(
 			diagnosticStage->stage = 10U ;
 		}
 
-		error = revalidateRequiredInfInstallBinding( session, identity, inspection, plan, binding) ;
+		error = revalidateRequiredInfInstallBinding( session, identity, inspection, plan, binding,
+													diagnosticStage) ;
+		// 下位が採取した最初の拒否を維持し、元binding再照合失敗の欠測も防ぎます。
+		error = bindingFailure( diagnosticStage, error, InfBindingReject::BINDING_STATE, 10U) ;
 	}
 
 	// 関係/適用性拒否では未公開tokenを残しません。
@@ -4341,7 +4451,7 @@ NativeError DriverStoreProvider::revalidateRequiredInfInstallBinding(
 	const ScanSessionId session, const std::wstring_view identity,
 	const CommonInfInspection								 &inspection,
 	const std::shared_ptr<const RequiredDriverComponentPlan> &plan,
-	const OfficialInfInstallBinding							 &binding) const
+	const OfficialInfInstallBinding &binding, RequiredInfBindingDiagnostic *diagnosticStage) const
 {
 	const auto stored = officialInfInstallBindings_.find( binding.token) ;	// 元issuer記録です。
 	// 別byte/別session/公開DTOから転用した計画は拒否します。
@@ -4361,7 +4471,7 @@ NativeError DriverStoreProvider::revalidateRequiredInfInstallBinding(
 
 	std::shared_ptr<const RequiredDriverComponentPlan>
 		fresh ;	// 現在の同原byte/役割nodeから再構築します。
-	error = buildRequiredInfComponentPlan( inspection, stored->second, fresh) ;
+	error = buildRequiredInfComponentPlan( inspection, stored->second, fresh, diagnosticStage) ;
 	// 元必要関係の全memberを現在byteへ再照合します。
 	if( error != 0U || !fresh || fresh->members_.size() != plan->members_.size() ||
 	   fresh->verifiedNeedsEdgeCount_ != plan->verifiedNeedsEdgeCount_) {

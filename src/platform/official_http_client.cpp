@@ -2,7 +2,7 @@
 /**
  * @file official_http_client.cpp
  * @brief 公式配布元限定HTTP client実装。
- * @version 01.19.02
+ * @version 01.22.01
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -64,6 +64,10 @@
  * Ver.01.19.00 Shunji Ogawa  2026/10/23  同じ収集send/readと全保存終端の私有観測を追加。
  * Ver.01.19.01 Shunji Ogawa  2026/10/23  収集専用の超過検出読取りを残上限と1byteへ制限。
  * Ver.01.19.02 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
+ * Ver.01.20.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.21.00 Shunji Ogawa  2026/11/04  閉model JSONと収集CDNの同session送信期限を追加。
+ * Ver.01.22.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
+ * Ver.01.22.01 Shunji Ogawa  2026/11/09  取消code比較の明示型を揃え元終端区分と数値を保持。
  * </pre>
  *
  * @note WinHTTP handleは本file内のRAII wrapperが所有します。Catalog cacheが破損した場合は破棄し、stale fallbackを行わず公式
@@ -1009,9 +1013,19 @@ private:
 	return hasAssignment ;
 }
 
+/** @brief 任意header/bodyを持たない一種類のPOST制御。 */
+struct EmptyJsonPostContext {
+	/// factory生成済みの固定公開文脈。
+	const OfficialEmptyJsonQueryPost   *post{} ;
+	/// 同grantの停止/期限検査。
+	const std::function<NativeError()> *checkpoint{} ;
+	/// 実送受信だけで更新する閉観測。
+	OfficialAuxiliaryHttpObservation   *observation{} ;
+} ;
+
 //------------------------------------------------------------------------------
 /**
- * @brief 検証済みURLへ自動redirect禁止GET requestを作成する。
+ * @brief 検証済みURLへ自動redirect禁止GETまたは閉じた匿名POSTを作成する。
  *
  * system proxyを使用し、redirectはLocation検証前に追跡しない。資格情報はWinHTTP既定のIntranet限定MEDIUM policyを明示する。
  *
@@ -1027,7 +1041,10 @@ private:
  * @param[in] collectorMetadata Cookieを無効にする収集専用要求。
  * @param[in,out] indexControl 索引用途だけの共有期限と送信上限です。
  * @param[in,out] collectorTransfer 収集専用の実send/status記録先です。
+ * @param[in] checkpoint 収集CDNの元session期限。指定時はDNS後の実send直前にも検査します。
  * @param[in] collectorCancellation 収集専用の送信直前取消しです。
+ * @param[in] jsonPost 非null時だけfactory生成済みの空JSON/query文脈を使います。
+ * @param[in] delegatedCheckpoint 非null時はDNS後・実send直前にも同grantを検査します。
  * @return 検査対象status受信時は0、失敗時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
@@ -1038,10 +1055,27 @@ private:
 	const OfficialHttpTransport	   &transport		= NATIVE_HTTP_TRANSPORT,
 	const DWORD						autoLogonPolicy = WINHTTP_AUTOLOGON_SECURITY_LEVEL_MEDIUM,
 	const bool collectorMetadata = false, SignedIndexHttpControl *indexControl = nullptr,
-	CollectorHttpTransferRecorder  *collectorTransfer	  = nullptr,
-	const HttpCancellationCallback *collectorCancellation = nullptr)
+	CollectorHttpTransferRecorder	   *collectorTransfer	  = nullptr,
+	const HttpCancellationCallback	   *collectorCancellation = nullptr,
+	const EmptyJsonPostContext		   *jsonPost			  = nullptr,
+	const std::function<NativeError()> *delegatedCheckpoint	  = nullptr)
 {
 	status = 0 ;
+	// 新POSTは完全なfactory文脈と同grant制御が揃う場合だけ許す。
+	if( jsonPost && (!jsonPost->post || !jsonPost->post->valid() || !jsonPost->checkpoint ||
+					!*jsonPost->checkpoint || !jsonPost->observation)) {
+		return E_INVALIDARG ;
+	}
+
+	// Handle作成前の元期限/取消しを確認する。
+	if( jsonPost) {
+		const auto stopped = (*jsonPost->checkpoint)() ;	// 元grantの診断。
+		// 不許可操作を接続へ進めない。
+		if( stopped != 0) {
+			return stopped ;
+		}
+	}
+
 	// 長さ超過または印字可能 ASCII 以外を含む ETag は header に使用しない。
 	if( ifNoneMatch.size() > MAXIMUM_ETAG_CHARACTERS ||
 	   std::any_of( ifNoneMatch.begin(), ifNoneMatch.end(),
@@ -1074,9 +1108,10 @@ private:
 	}
 
 	InternetHandle createdRequest(	// HTTPS GET request handle。
-		transport.openRequest( createdConnection.get(), L"GET", parsed.pathQuery.c_str(), nullptr,
-							  WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
-							  WINHTTP_FLAG_SECURE),
+		transport.openRequest( createdConnection.get(), jsonPost ? L"POST" : L"GET",
+							  parsed.pathQuery.c_str(), nullptr,
+							  jsonPost ? jsonPost->post->referer().data() : WINHTTP_NO_REFERER,
+							  WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE),
 		transport) ;
 	// GET request handle を作成できなければ送信しない。
 	if( !createdRequest.valid()) {
@@ -1134,6 +1169,23 @@ private:
 		}
 	}
 
+	// 閉じたsource文脈だけを追加し、旧GETのheader集合を変更しない。
+	if( jsonPost) {
+		const std::wstring headers = L"Content-Type: application/json\r\nOrigin: " +
+									 std::wstring( jsonPost->post->origin()) +
+									 L"\r\n" ;	// factory固定値だけのheader。
+		DWORD disabled = WINHTTP_DISABLE_COOKIES |
+						 WINHTTP_DISABLE_AUTHENTICATION ;	// 匿名protocolに資格情報を混ぜない。
+		// 新POSTだけの固定header/匿名境界が成立しなければ送信しない。
+		if( !transport.addHeaders( createdRequest.get(), headers.data(),
+								 static_cast<DWORD>( headers.size()),
+								 WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE) ||
+		   !transport.setOption( createdRequest.get(), WINHTTP_OPTION_DISABLE_FEATURE, &disabled,
+								sizeof( disabled))) {
+			return nativeErrorFromWin32( GetLastError()) ;
+		}
+	}
+
 	// 送信直前の残期限に拘束したtimeout設定結果。
 	const NativeError sendTimeoutError =
 		setRequestTimeouts( createdRequest.get(), execution, false, transport, indexControl) ;
@@ -1162,6 +1214,15 @@ private:
 		++indexControl->sends ;
 	}
 
+	// DNSやhandle設定後にも同じ期限を確認し、未送信を試行数へ加えません。
+	if( delegatedCheckpoint != nullptr) {
+		const NativeError stopped = (*delegatedCheckpoint)() ;	// 元sessionの診断です。
+		// 失効した解決URLへ送信しません。
+		if( stopped != 0) {
+			return stopped ;
+		}
+	}
+
 	// 収集は最後の設定後にも取消しを確認し、実sendに入る試行だけを数えます。
 	if( collectorTransfer != nullptr) {
 		// Callback障害も未送信のUNKNOWNへ残します。
@@ -1177,6 +1238,17 @@ private:
 		}
 
 		collectorTransfer->attempting() ;
+	}
+
+	// POSTの期限/lease/取消しは実send直前にも検査する。
+	if( jsonPost) {
+		const auto stopped = (*jsonPost->checkpoint)() ;	// 元同一claimの診断。
+		// 未送信の拒否を要求数へ加えない。
+		if( stopped != 0) {
+			return stopped ;
+		}
+
+		++jsonPost->observation->requests ;
 	}
 
 	// 送信に失敗した場合は通信の診断値を返す。
@@ -1401,8 +1473,9 @@ private:
 	MetadataSearchExecutionContext *execution = nullptr,
 	const OfficialHttpTransport	   &transport = NATIVE_HTTP_TRANSPORT,
 	const bool requirePublicSameOrigin = false, std::wstring *finalUrl = nullptr,
-	const bool					   collectorMetadata = false,
-	CollectorHttpTransferRecorder *collectorTransfer = nullptr)
+	const bool							collectorMetadata = false,
+	CollectorHttpTransferRecorder	   *collectorTransfer = nullptr,
+	const std::function<NativeError()> *checkpoint		  = nullptr)
 {
 	status = 0U ;
 	originPolicyIndices.clear() ;
@@ -1483,8 +1556,8 @@ private:
 						   currentStatus, execution, transport,
 						   requirePublicSameOrigin ? WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH
 												   : WINHTTP_AUTOLOGON_SECURITY_LEVEL_MEDIUM,
-						   collectorMetadata, nullptr, collectorTransfer,
-						   &cancellationCallback) ;	// 現在hop受信結果。
+						   collectorMetadata, nullptr, collectorTransfer, &cancellationCallback,
+						   nullptr, checkpoint) ;	// 現在hop受信結果。
 		// 元のHTTP失敗と未通信を収集台帳で区別する。
 		if( collectorMetadata) {
 			status = currentStatus ;
@@ -1550,13 +1623,15 @@ private:
  * @param[in] script 非実行script用MIMEとcharset省略を認める場合true。
  * @param[in] collectorHtml 収集検査HTMLだけでcharset省略を認める場合true。既定はfalse。
  * @return HTMLは明示UTF-8または明示収集の省略、scriptは既知MIMEと省略またはUTF-8宣言なら0。
+ * @param[in] collectorJson 閉model APIのJSON用途だけを厳密に区別します。
  * @note 不明charset、重複charset、MIME欠損、制御文字、過大headerを拒否します。
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError validateLiveHtmlContentType( const HINTERNET			   request,
 													  const OfficialHttpTransport &transport,
 													  const bool				   script,
-													  const bool collectorHtml = false)
+													  const bool collectorHtml = false,
+													  const bool collectorJson = false)
 {
 	DWORD bytes{} ;	// WinHTTPが返すUTF-16 header長。
 	transport.queryHeaders( request, WINHTTP_QUERY_CONTENT_TYPE, WINHTTP_HEADER_NAME_BY_INDEX,
@@ -1612,14 +1687,16 @@ private:
 	const std::size_t firstSemicolon = value.find( L';') ;								// MIMEとparameterの境界。
 	const auto mime = trim( std::wstring_view( value).substr( 0U, firstSemicolon)) ;	// 用途別MIME。
 	// 通常HTMLのcharset必須を維持し、MIME自体は用途別の厳密集合へ限定する。
-	if( script ? (mime != L"application/javascript" && mime != L"text/javascript")
-			  : mime != L"text/html") {
+	if( collectorJson ? mime != L"application/json"
+					 : (script ? (mime != L"application/javascript" && mime != L"text/javascript")
+							   : mime != L"text/html")) {
 		return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
 	}
 
 	// Scriptと明示収集HTMLの宣言省略時も原byteをstrict UTF-8検証する。
 	if( firstSemicolon == std::wstring::npos) {
-		return script || collectorHtml ? 0 : nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+		return script || collectorHtml || collectorJson ? 0
+														: nativeErrorFromWin32( ERROR_INVALID_DATA) ;
 	}
 
 	// 空parameterや末尾区切りを暗黙のcharset指定へ変換しない。
@@ -1820,6 +1897,8 @@ private:
  * @param[in] strictContentLength trueなら宣言0と不正な長さも拒否する。
  * @param[in,out] indexControl 索引用途だけの共有期限と原byte課金です。
  * @param[in,out] collectorTransfer 収集専用の同readData実byte記録先です。
+ * @param[in,out] auxiliary 非null時は厳密な補助read上限と実受信量を使います。
+ * @param[in] delegatedCheckpoint 非null時は同grantの補助応答停止を各readで確認します。
  * @return 全chunk処理成功時は0、失敗時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
@@ -1831,7 +1910,9 @@ template <typename Consumer>
 	MetadataSearchExecutionContext	   *execution = nullptr,
 	const OfficialHttpTransport		   &transport = NATIVE_HTTP_TRANSPORT,
 	const bool strictContentLength = false, SignedIndexHttpControl *indexControl = nullptr,
-	CollectorHttpTransferRecorder *collectorTransfer = nullptr)
+	CollectorHttpTransferRecorder	   *collectorTransfer	= nullptr,
+	OfficialAuxiliaryHttpObservation   *auxiliary			= nullptr,
+	const std::function<NativeError()> *delegatedCheckpoint = nullptr)
 {
 	// ゼロの受信上限は有効な取得要求として受理しない。
 	if( maximumBytes == 0) {
@@ -1875,6 +1956,15 @@ template <typename Consumer>
 
 	// ResponseがEOFへ到達するまで利用可能chunkを有限sizeで処理する。
 	while( true) {
+		// 補助応答の同期待機も元grantの期限と取消しへ拘束する。
+		if( delegatedCheckpoint != nullptr) {
+			const NativeError stopped = (*delegatedCheckpoint)() ;	// 元操作の診断。
+			// 失効後に追加のreadへ入らない。
+			if( stopped != 0) {
+				return stopped ;
+			}
+		}
+
 		// Data照会前の取消し確認結果。
 		cancellationError = checkCancellation( cancellationCallback) ;
 		// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
@@ -1927,6 +2017,11 @@ template <typename Consumer>
 		DWORD remaining = available ;	// 現在available範囲で未取得のbyte数。
 		// 一回のDataAvailable範囲を64 KiB以下のchunkへ分割して処理する。
 		while( remaining != 0) {
+			// 補助本文は超過probeも読まず、報告済みavailableで上限を判定する。
+			if( auxiliary != nullptr && receivedTotal == maximumBytes) {
+				return HRESULT_FROM_WIN32( ERROR_FILE_TOO_LARGE) ;
+			}
+
 			cancellationError =
 				// Chunk読取り前の取消し確認結果。
 				checkCancellation( cancellationCallback) ;
@@ -1946,6 +2041,10 @@ template <typename Consumer>
 						  std::min<DWORD>( remaining, READ_BUFFER_BYTES),
 						  std::min<std::uint64_t>( maximumBytes - receivedTotal, READ_BUFFER_BYTES) +
 							  1U))
+				: auxiliary != nullptr
+					? static_cast<DWORD>(
+						  std::min<std::uint64_t>( std::min<DWORD>( remaining, READ_BUFFER_BYTES),
+												  maximumBytes - receivedTotal))
 					: std::min<DWORD>( remaining,
 									  READ_BUFFER_BYTES) ;	// 残予算とprobeに制限した要求量。
 			// 取消し・期限後の0 byte要求を正常終端へ読み替えない。
@@ -1966,6 +2065,20 @@ template <typename Consumer>
 			// 本文の読取りが失敗した場合は Windows の診断値を返す。
 			if( transport.readData( request, buffer.data(), requested, &received) == FALSE) {
 				return nativeErrorFromWin32( GetLastError()) ;
+			}
+
+			// Consumer拒否や上限判定より先に実readだけを閉じた数値へ残す。
+			if( auxiliary != nullptr) {
+				auxiliary->bodyBytes += received ;
+			}
+
+			// 同期待機中の失効をtoken解析へ進めない。
+			if( delegatedCheckpoint != nullptr) {
+				const NativeError stopped = (*delegatedCheckpoint)() ;	// 元grantの停止結果。
+				// 読取り済みbyte数を保持し、本文をconsumerへ渡さない。
+				if( stopped != 0) {
+					return stopped ;
+				}
 			}
 
 			// 保存拒否・取消し・cap超過でも、APIが返した本文実数を失いません。
@@ -4307,6 +4420,94 @@ NativeError OfficialHttpClient::downloadForSource(
  * @see src/platform/official_http_client.h 宣言側の契約を正本とする。
  */
 //------------------------------------------------------------------------------
+/** @see official_http_client.h */
+NativeError OfficialHttpClient::postEmptyJsonQuery(
+	const OfficialEmptyJsonQueryPost &post, const std::function<NativeError()> &checkpoint,
+	const HttpCancellationCallback						&cancellation,
+	const std::function<NativeError( std::wstring_view)> &consume,
+	OfficialAuxiliaryHttpObservation &observation, std::uint32_t &addresses)
+{
+	observation = {} ;
+	addresses	= 0U ;
+	// metadata専用modeや不完全制御から別用途POSTへfallbackしない。
+	if( metadataExecution_ || !post.valid() || !checkpoint || !consume) {
+		return E_ACCESSDENIED ;
+	}
+
+	const auto &transport =
+		testTransport_ ? *testTransport_ : NATIVE_HTTP_TRANSPORT ;		// 同じ低位I/O。
+	ParsedUrl parsed ;													// 公開metadata起点。
+	auto	  error = parseHttpsUrlComponents( post.url(), parsed) ;	// HTTPS/443/credential無し。
+	// 固定endpoint以外の注入をHTTPへ流さない。
+	if( error != 0 || parsed.host != L"cdnta.asus.com") {
+		return error != 0 ? error : E_ACCESSDENIED ;
+	}
+
+	error = checkpoint() ;
+	// 停止後にDNSを実行しない。
+	if( error != 0) {
+		return error ;
+	}
+
+	OfficialPublicDestinationEvidence destination ;	// metadata宛先の全address検証。
+	error =
+		validatePublicOfficialDestination( parsed.host, transport.resolveDestination, destination) ;
+	// 一つでも非publicならproxy経由でも送らない。
+	if( error != 0) {
+		return error ;
+	}
+
+	addresses = destination.addressCount ;
+	InternetHandle			   session( nullptr) ;		// source POSTだけの所有handle。
+	InternetHandle			   connection( nullptr) ;	// 同source接続。
+	InternetHandle			   response( nullptr) ;		// 本文scopeだけのresponse。
+	DWORD					   status{} ;				// 原HTTP status。
+	const EmptyJsonPostContext context{&post, &checkpoint,
+									   &observation} ;	// 任意method/header/bodyはない。
+	error = openGetRequest( parsed, session, connection, response, {}, status, nullptr, transport,
+						   WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH, false, nullptr, nullptr, nullptr,
+						   &context) ;
+	observation.httpStatus = status ;
+	// redirectを含むHTTP拒否は元FACILITY_HTTPへ保つ。
+	if( error == 0) {
+		error = validateOfficialHttpResponseStatus( status, false, false) ;
+	}
+
+	// 失敗本文やLocationをtokenとして解析しない。
+	if( error != 0) {
+		return error ;
+	}
+
+	std::vector<std::byte> body ;	// 16KiB内だけで生存する秘密本文。
+	std::wstring		   text ;	// 同scopeだけの復号値。
+	struct ClearBody {
+		/// 消去対象の原byte所有値。
+		std::vector<std::byte> &body ;
+		/// 消去対象の復号所有値。
+		std::wstring		   &text ;
+		/** @brief 今回所有した二bufferだけを消去する。 */
+		~ClearBody()
+		{
+			SecureZeroMemory( body.data(), body.size()) ;
+			SecureZeroMemory( text.data(), text.size() * sizeof( wchar_t)) ;
+		}
+	} clear{body, text} ; // 全return/例外で本文を保持しない。
+	error = consumeResponse(
+		response.get(), 16384U,
+		[&]( const std::span<const std::byte> bytes) {
+			body.insert( body.end(), bytes.begin(), bytes.end()) ;
+			return NativeError{} ;
+		},
+		[]( std::uint64_t, std::uint64_t) {}, cancellation, nullptr, transport, true, nullptr,
+		nullptr, &observation, &checkpoint) ;
+	// 応答は元byteの厳密UTF-8としてだけ読む。
+	if( error == 0) {
+		error = decodeUtf8Body( body, text) ;
+	}
+
+	return error != 0 ? error : consume( text) ;
+}
+
 NativeError OfficialHttpClient::downloadDelegatedGet(
 	OfficialDelegatedGetRequest &request, const HANDLE outputFile,
 	const HttpDownloadProgressCallback &progressCallback,
@@ -4352,6 +4553,56 @@ NativeError OfficialHttpClient::downloadDelegatedGet(
 	}
 
 	try {
+		std::uint32_t					   auxiliaryAddresses{} ;	// metadataの実公開DNS件数。
+		const std::function<NativeError()> checkpoint = [&]() -> NativeError {
+			const auto cancelled = checkCancellation( cancellationCallback) ;	// 同worker取消し。
+			// 取消しの元診断を時計で上書きしない。
+			if( cancelled != 0) {
+				return cancelled ;
+			}
+
+			const auto now =
+				testTransport_ ? transport.utcNow() : currentUtcSeconds() ;	// 各送信直前UTC。
+			return request.validateStartDeadline( now) ;
+		} ;
+		// 元private grantの閉resolverだけを一度実行する。
+		if( const auto *plan = request.anonymousCdnPlan()) {
+			OfficialEmptyJsonQueryPost post ;								// 固定source文脈だけの補助要求。
+			auto resolutionError = makeAsusAnonymousCdnPost( *plan, post) ;	// 公開値のpure構築。
+			OfficialAnonymousCdnResolution resolved ;						// 永続化しない同response結果。
+			// 元public値が不正ならHTTPを始めない。
+			if( resolutionError == 0) {
+				resolutionError = postEmptyJsonQuery(
+					post, checkpoint, cancellationCallback,
+					[&]( const std::wstring_view body) {
+						return parseAsusAnonymousCdnResponse( body, *plan, resolved) ;
+					},
+					request.auxiliary_, auxiliaryAddresses) ;
+			}
+
+			// 解釈後も元lease/時計/取消しを再検査してから封印する。
+			if( resolutionError == 0) {
+				resolutionError = checkpoint() ;
+			}
+
+			// 原query/record/epochへ結んだ値だけを同grantに封印する。
+			if( resolutionError == 0) {
+				resolutionError = request.acceptAnonymousCdnResolution(
+					resolved, testTransport_ ? transport.utcNow() : currentUtcSeconds()) ;
+			}
+
+			// 不完全解決をcanonical GETやretryへ落とさない。
+			if( resolutionError != 0) {
+				return finishFailure(
+					resolutionError == static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))
+						? OfficialDownloadGrantState::CANCELLED
+						: OfficialDownloadGrantState::FAILED,
+					resolutionError) ;
+			}
+
+			exactTarget = request.targetUrl_.view() ;
+		}
+
 		const OfficialSourcePolicy *const policy = officialSourcePolicyForProvider(
 			// Grantに再結合した組み込みpolicy。
 			request.providerId()) ;
@@ -4383,9 +4634,10 @@ NativeError OfficialHttpClient::downloadDelegatedGet(
 		std::uint32_t redirectCount{} ;			// 全originを通算した完了redirect数。
 		std::uint32_t dynamicRedirectCount{} ;	// 未登録originから発生したredirect数。
 		std::uint32_t fixedRedirectCount{} ;	// 固定payload originから発生したredirect数。
-		std::uint32_t validatedAddressCount{} ;	// 全hopでpublicと確定したaddress合計。
-		bool		  fixedRoute{} ;			// 固定payload allowlistへ移行済みの場合true。
-		DWORD		  finalStatus{} ;			// 本文を読む最終HTTP status。
+		std::uint32_t validatedAddressCount{
+			auxiliaryAddresses} ;	// 全hopでpublicと確定したaddress合計。
+		bool  fixedRoute{} ;		// 固定payload allowlistへ移行済みの場合true。
+		DWORD finalStatus{} ;		// 本文を読む最終HTTP status。
 
 		// Exact targetと最大5回のLocationを順に検証し、最終responseで終了する。
 		while( true) {
@@ -4491,8 +4743,8 @@ NativeError OfficialHttpClient::downloadDelegatedGet(
 			DWORD			  currentStatus{} ;				// 現在hopのHTTP status。
 			const NativeError requestError = openGetRequest(
 				parsed, currentSession, currentConnection, currentResponse, {}, currentStatus,
-				nullptr, transport,
-				WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH) ;	// 既定credentialを使わないGET結果。
+				nullptr, transport, WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH, false, nullptr, nullptr,
+				nullptr, nullptr, &checkpoint) ;	// 既定credentialを使わないGET結果。
 			// HTTP API失敗で部分fileを成功として閉じない。
 			if( requestError != 0) {
 				return finishFailure( OfficialDownloadGrantState::FAILED, requestError) ;
@@ -4733,7 +4985,8 @@ NativeError OfficialHttpClient::downloadToFile(
 	const HttpDownloadProgressCallback &progressCallback,
 	const HttpCancellationCallback	   &cancellationCallback,
 	std::vector<std::uint32_t> &originPolicyIndices, const bool collectorInspection,
-	CollectorHttpTransferObservation *transfer) const
+	CollectorHttpTransferObservation   *transfer,
+	const std::function<NativeError()> *checkpoint) const
 {
 	originPolicyIndices.clear() ;
 	CollectorHttpTransferObservation ignored ;	// 観測不要の旧callerにも同じ保存処理を使います。
@@ -4744,7 +4997,8 @@ NativeError OfficialHttpClient::downloadToFile(
 	if( maximumRedirects > MAXIMUM_REDIRECTS || maximumBytes == 0 || outputFile == nullptr ||
 	   outputFile == INVALID_HANDLE_VALUE || !progressCallback ||
 	   (transfer != nullptr && !collectorInspection) ||
-	   (collectorInspection && maximumRedirects > 2U)) {
+	   (collectorInspection && maximumRedirects > 2U) ||
+	   (checkpoint != nullptr && (!collectorInspection || !*checkpoint))) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
 	}
 
@@ -4766,7 +5020,8 @@ NativeError OfficialHttpClient::downloadToFile(
 	const NativeError requestError = openGetRequestFollowingRedirects(
 		url, allowedHosts, maximumRedirects, {}, cancellationCallback, session, connection, request,
 		status, originPolicyIndices, nullptr, transport, collectorInspection, nullptr,
-		collectorInspection, collectorInspection ? &recorder : nullptr) ;	// 新収集検査だけの観測。
+		collectorInspection, collectorInspection ? &recorder : nullptr,
+		checkpoint) ;	// 新収集検査だけの観測。
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
 	if( requestError != 0) {
 		return requestError ;
@@ -4842,7 +5097,7 @@ NativeError OfficialHttpClient::downloadToFile(
 NativeError OfficialHttpClient::getCollectorInspectionPage(
 	std::wstring_view url, std::wstring_view host, const HttpCancellationCallback &cancellation,
 	std::wstring &text, std::wstring &finalUrl, CollectorInspectionPageObservation *observation,
-	CollectorHttpTransferObservation *transfer, std::vector<std::byte> *raw)
+	CollectorHttpTransferObservation *transfer, std::vector<std::byte> *raw, const bool modelJson)
 {
 	text.clear() ;
 	finalUrl.clear() ;
@@ -4863,7 +5118,11 @@ NativeError OfficialHttpClient::getCollectorInspectionPage(
 	const std::array<std::wstring_view, 1U> hosts{host} ;	// 外部定義のexact一hostだけ。
 	// Cache・metadata専用・旧ledger付きclientを収集scopeへ流用しない。
 	if( useCatalogCache_ || metadataExecution_ != nullptr || sourceScanSessionId_ != 0U ||
-	   validateOfficialHttpsUrl( url, hosts) != 0) {
+	   validateOfficialHttpsUrl( url, hosts) != 0 ||
+	   (modelJson &&
+		(host != L"www.asus.com" ||
+		 !url.starts_with(
+			 L"https://www.asus.com/support/webapi/ProductV2/GetPDBIOS?website=global&model=")))) {
 		return E_ACCESSDENIED ;
 	}
 
@@ -4890,7 +5149,7 @@ NativeError OfficialHttpClient::getCollectorInspectionPage(
 		return error != 0 ? error : HRESULT_FROM_WIN32( ERROR_WINHTTP_INVALID_SERVER_RESPONSE) ;
 	}
 
-	error = validateLiveHtmlContentType( request.get(), transport, false, true) ;
+	error = validateLiveHtmlContentType( request.get(), transport, false, !modelJson, modelJson) ;
 	// HTML以外・不正charsetは有限受信前に拒否する。
 	if( error != 0) {
 		return error ;
@@ -4956,14 +5215,15 @@ NativeError OfficialHttpClient::getCollectorInspectionPage(
 NativeError OfficialHttpClient::getSignedIndexTermsDocument(
 	const std::wstring_view url, const std::wstring_view host, const std::uint64_t exactBytes,
 	const bool html, const HttpCancellationCallback &cancellation, std::string &raw,
-	std::wstring &text)
+	std::wstring &text, const bool staticSection)
 {
 	raw.clear() ;
 	text.clear() ;
 	const std::array<std::wstring_view, 1U> hosts{host} ;	// 元adapterが検証した一hostだけです。
 	// 規約用途をcacheや既存source ledgerへ混入せず、元有限容量を必要とします。
 	if( useCatalogCache_ || metadataExecution_ != nullptr || sourceScanSessionId_ != 0U ||
-	   exactBytes == 0U || exactBytes > 256ULL * 1024ULL ||
+	   exactBytes == 0U ||
+	   exactBytes > (html && staticSection ? 2ULL * 1024ULL * 1024ULL : 256ULL * 1024ULL) ||
 	   validateOfficialHttpsUrl( url, hosts) != 0U) {
 		return E_ACCESSDENIED ;
 	}
@@ -5004,7 +5264,8 @@ NativeError OfficialHttpClient::getSignedIndexTermsDocument(
 
 	std::vector<std::byte> body ;	// 元exact容量以下のRAM原byteです。
 	const std::uint64_t	   maximumBytes =
-		   html ? 256ULL * 1024ULL : exactBytes ;	// 明示用途別の原byte上限です。
+		   html ? (staticSection ? 2ULL * 1024ULL * 1024ULL : 256ULL * 1024ULL)
+				: exactBytes ;	// 新profileだけ2MiBです。
 	error = consumeResponse(
 		request.get(), maximumBytes,
 		[&body]( const std::span<const std::byte> chunk) {

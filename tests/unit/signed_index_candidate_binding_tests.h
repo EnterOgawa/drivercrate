@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_tests.h
  * @brief 通常本体の真署名索引候補とfake指定導入試験を宣言します。
- * @version 01.22.00
+ * @version 01.24.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -43,6 +43,8 @@
  * Ver.01.20.00 Shunji Ogawa  2026/10/27  唯一最小full-rankと全列挙・直前winner差の低位条件を追加。
  * Ver.01.21.00 Shunji Ogawa  2026/10/28  同ID二件batchで指定成功後の自己状態を個別に反映。
  * Ver.01.22.00 Shunji Ogawa  2026/10/28  既検証WUA候補と未取得索引の明示混在fixtureを追加。
+ * Ver.01.23.00 Shunji Ogawa  2026/11/06  Windows-only driver DATAの通常worker試験を宣言。
+ * Ver.01.24.00 Shunji Ogawa  2026/11/06  代替Models集合の通常選択引継ぎ/拒否を追加。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -58,10 +60,21 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 namespace drivercrate::test {
+
+/** @brief 同原人工ZIPから通常候補/明示選択/fakeNewDevと保護境界を検査します。
+ * @param[in,out] context 有限assertion集計先です。
+ * @param[in] services 真署名隔離storeと完全fake HTTP/costです。
+ * @param[in] zip 同取得と全内容期待hashへ固定する小さい原ZIPです。
+ * @note 実CAB検査とは別のB fixtureです。program実行や実Windows変更はありません。
+ */
+void runWindowsManagedDriverBindingTests( TestContext						   &context,
+										 provider_worker_index_detail::Services services,
+										 std::string_view						zip) ;
 // 製品構成と独立取得targetには候補／導入fixtureの入口を宣言しない。
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
 /** @brief 成功DTOを作らず原低位APIだけへ与える有限な状態変更です。 */
@@ -435,13 +448,14 @@ void runNormalSignedIndexCandidateBindingTests( TestContext						&context,
  * @param[in] references 元record/deviceへ結ばれる期待参照数です。
  * @param[in] candidates 完全tuple一致後だけ発行される期待候補数です。
  * @param[in] targets 同一既知payload共有後の期待取得数です。
+ * @param[in] resolution 指定時は元先頭参照の通常選択意図を解決し、この状態を確認します。
+ * @param[in] failure 0は通常、1はscan後の失効、2は原payload一byte改変です。
  * @note 完全HTTP/署名/Windows低位fakeを使い、導入/復旧を呼びません。
  */
-void runNormalIndexIdentityBindingCase( TestContext						&context,
-									   std::shared_ptr<SignedIndexStore> store,
-									   std::chrono::sys_seconds nowUtc, const std::string &zip,
-									   std::size_t references, std::size_t candidates,
-									   std::size_t targets) ;
+void runNormalIndexIdentityBindingCase(
+	TestContext &context, std::shared_ptr<SignedIndexStore> store, std::chrono::sys_seconds nowUtc,
+	const std::string &zip, std::size_t references, std::size_t candidates, std::size_t targets,
+	std::optional<PreparedInstallResolutionState> resolution = std::nullopt, unsigned failure = 0U) ;
 
 /** @brief 実producerが生成した公開identityを持つ架空local deviceです。 */
 struct DistributionBindingDevice {

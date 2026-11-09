@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition_tests.h
  * @brief 公式file検査用取得境界単体試験定義。
- * @version 01.01.00
+ * @version 01.02.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/10/06  独立取得証拠試験の入口を追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
  * </pre>
  *
  * @note Networkへ接続せず、検査用取得の予算、取消し、根拠、hashを検証します。
@@ -54,5 +55,10 @@ void runOfficialAcquisitionTests( TestContext &context) ;
  * @note 通常unitの件数を変更せず、専用targetからだけ呼ぶ。
  */
 void runOfficialAcquiredFileEvidenceTests( TestContext &context) ;
+
+/** @brief 匿名CDNの純粋protocolとCOM-only MTA前提を非通信で確認する。
+ * @param[in,out] context 同processのassertion集計先。
+ */
+void runAsusCdnTokenTests( TestContext &context) ;
 
 } // namespace drivercrate::test

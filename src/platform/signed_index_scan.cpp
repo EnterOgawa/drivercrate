@@ -2,7 +2,7 @@
 /**
  * @file signed_index_scan.cpp
  * @brief 通常worker scanの全batchと協調期限を管理します。
- * @version 01.07.00
+ * @version 01.13.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,12 @@
  * Ver.01.05.00 Shunji Ogawa  2026/10/14  私有証拠付き部分positiveを元未判定件数へ分離保持。
  * Ver.01.06.00 Shunji Ogawa  2026/10/15  UI専用objectで実claim済みtaskを同期観測。
  * Ver.01.07.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
+ * Ver.01.08.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.09.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
+ * Ver.01.10.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.11.00 Shunji Ogawa  2026/11/03  拡大recordと有限保持quotaを通常経路へ整合。
+ * Ver.01.12.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.13.00 Shunji Ogawa  2026/11/08  同一署名索引の本体再利用から通常loadと照合を継続。
  * </pre>
  *
  * @note Crypto・schema・端末照合は既存の共通実装へ委譲します。
@@ -49,6 +55,19 @@
 #include <windows.h>
 
 namespace drivercrate {
+
+/** @see signed_index_scan.h */
+bool tryRetainIndexedInspectionBytes( const std::uint64_t additional, std::uint64_t &total) noexcept
+{
+	// 既に不正な累計も、加算overflowも小さい正常値へ戻さない。
+	if( total > INDEX_SCAN_RETAINED_MAX_BYTES ||
+	   additional > INDEX_SCAN_RETAINED_MAX_BYTES - total) {
+		return false ;
+	}
+
+	total += additional ;
+	return true ;
+}
 // 通常platformと製品EXEへ観測登録・呼出の定義を生成しません。
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TASK_OBSERVER) && defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
 namespace {
@@ -92,7 +111,7 @@ public:
 					const ProviderScanCancellation				 &cancellation,
 					std::chrono::steady_clock::time_point deadline, IndexScanSummary &summary)
 		: inner_( inner), services_( services), cancellation_( cancellation), deadline_( deadline),
-		  summary_( summary)
+		  summary_( summary), batchDeadline_( deadline)
 	{
 	}
 	/** @brief 種別・contextを保ったまま予算内のcallbackだけを呼びます。
@@ -121,6 +140,8 @@ public:
 		if( stopped()) {
 			result.completed = false ;
 			result.devices.clear() ;
+			result.positiveProof.reset() ;
+			result.deviceProofs.clear() ;
 			// 元callback診断がない場合だけ協調停止の診断を補います。
 			if( result.error == 0U) {
 				result.error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_TIMEOUT)) ;
@@ -129,12 +150,25 @@ public:
 
 		return result ;
 	}
+	/** @copydoc IndexPublicIdResolver::leaseProof */
+	[[nodiscard]] std::shared_ptr<const NativeIndexLookupLease> leaseProof() const noexcept override
+	{
+		return inner_.leaseProof() ;
+	}
+	/** @brief 元全体期限以内の一batch協調期限を開始します。 */
+	void startBatch()
+	{
+		batchDeadline_ =
+			std::min( deadline_, services_.monotonic() +
+									std::chrono::milliseconds{index_capacity::BATCH_MILLISECONDS}) ;
+	}
 	/** @brief 現在の協調停止条件を確認します。
 	 * @return 取消しまたは期限以上ならtrue。
 	 */
 	[[nodiscard]] bool stopped() const
 	{
-		return (cancellation_ && cancellation_()) || services_.monotonic() >= deadline_ ;
+		return (cancellation_ && cancellation_()) ||
+			   services_.monotonic() >= std::min( deadline_, batchDeadline_) ;
 	}
 
 private:
@@ -148,6 +182,8 @@ private:
 	std::chrono::steady_clock::time_point		  deadline_ ;
 	/// 同workerだけが更新する非機密件数。
 	IndexScanSummary							 &summary_ ;
+	/// 同全体期限以内に固定した一batchの協調期限です。
+	std::chrono::steady_clock::time_point		  batchDeadline_ ;
 } ;
 
 /** @brief Store／lookupの期限拒否を索引専用区分へ保ちます。
@@ -213,9 +249,11 @@ IndexScanSummary SignedIndexScanSession::scan(
 	try {
 		// 内部fixtureでも固定製品上限を広げることを認めません。
 		if( !services.load || !services.utc || !services.monotonic ||
-		   services.maximumRecords > 16384U || services.maximumCalls > 32768U ||
-		   services.maximumRelations > 32768U || services.duration.count() < 0 ||
-		   services.duration > std::chrono::milliseconds{5000}) {
+		   services.maximumRecords > index_capacity::RECORDS ||
+		   services.maximumCalls > index_capacity::WHOLE_PUBLIC_IDS ||
+		   services.maximumRelations > index_capacity::RETAINED_RELATIONS ||
+		   services.duration.count() < 0 ||
+		   services.duration > std::chrono::milliseconds{index_capacity::SCAN_MILLISECONDS}) {
 			summary.status = IndexScanStatus::INTERNAL_FAILURE ;
 			return summary ;
 		}
@@ -246,7 +284,8 @@ IndexScanSummary SignedIndexScanSession::scan(
 
 			// 暗号・rollback・不確定commit等の元失敗を旧cacheの再読取りで隠しません。
 			if( summary.refresh->status != IndexRefreshStatus::REFRESHED &&
-			   summary.refresh->status != IndexRefreshStatus::AUTHENTICATED_CACHE) {
+			   summary.refresh->status != IndexRefreshStatus::AUTHENTICATED_CACHE &&
+			   summary.refresh->status != IndexRefreshStatus::UNCHANGED) {
 				summary.status = summary.refresh->status == IndexRefreshStatus::TIME_UNAVAILABLE
 									 ? IndexScanStatus::TIME_UNAVAILABLE
 									 : IndexScanStatus::LOAD_REJECTED ;
@@ -255,8 +294,10 @@ IndexScanSummary SignedIndexScanSession::scan(
 			}
 		}
 
-		const auto deadline = services.monotonic() + services.duration ;	// Refresh後の独立5秒です。
-		const auto now		= services.utc() ;								// 信頼UTCを一度確認します。
+		const auto deadline =
+			// Refresh後の独立した全scan期限です。
+			services.monotonic() + services.duration ;
+		const auto now = services.utc() ;	// 信頼UTCを一度確認します。
 		// 時刻不明ではloadを開始しません。
 		if( !now) {
 			summary.status = IndexScanStatus::TIME_UNAVAILABLE ;
@@ -287,6 +328,11 @@ IndexScanSummary SignedIndexScanSession::scan(
 		snapshot_ = std::make_shared<const AuthenticatedIndexSnapshot>( std::move( *loaded.snapshot)) ;
 		summary.totalRecords	 = snapshot_->schemaReceipt().records().size() ;
 		summary.remainingRecords = summary.totalRecords ;
+		// 全codec検査済みrecordの公開入力数を別分母として保持します。
+		for( const auto &record : snapshot_->schemaReceipt().records()) {
+			summary.totalPublicIds += record.publishedIdentityEvidence.pnpIds.size() ;
+		}
+
 		IndexLookupContext		  context ;	// 実Driver Store発行contextです。
 		std::vector<std::wstring> present ;	// 同scanの全opaqueです。
 		resolver_ = inventory->indexScanInventory( operationId, context, present) ;
@@ -313,9 +359,7 @@ IndexScanSummary SignedIndexScanSession::scan(
 			}
 
 			// 全operation上限を超える残recordを成功へ数えません。
-			if( limited.stopped() || summary.processedRecords >= services.maximumRecords ||
-			   summary.resolverCalls >= services.maximumCalls ||
-			   summary.relationCount >= services.maximumRelations) {
+			if( limited.stopped() || summary.processedRecords >= services.maximumRecords) {
 				summary.status = IndexScanStatus::BUDGET_EXHAUSTED ;
 				return summary ;
 			}
@@ -324,11 +368,27 @@ IndexScanSummary SignedIndexScanSession::scan(
 				std::min( {INDEX_LOOKUP_RECORD_BATCH_MAX, summary.remainingRecords,
 						  services.maximumRecords -
 							  summary.processedRecords}) ;	// 全operation残枠内のbatchです。
-			auto result = lookupSignedIndexRecords(
-				snapshot_, context, context, present,
-				{summary.processedRecords, count, services.maximumCalls - summary.resolverCalls},
-				// UTCは各batchで再確認します。
-				services.utc(), &limited) ;
+			limited.startBatch() ;
+			const auto batchStart  = services.monotonic() ;		// 同じ単調時計のbatch開始値です。
+			const auto callsBefore = summary.resolverCalls ;	// 元inner resolverの実呼出数です。
+			// 同batchの所有結果と停止理由です。
+			auto	   result = lookupSignedIndexRecords(
+				  snapshot_, context, context, present,
+				  {summary.processedRecords, count,
+					   std::min( INDEX_LOOKUP_RESOLVER_CALL_MAX,
+								services.maximumCalls - summary.resolverCalls),
+					   services.maximumRelations - summary.relationCount,
+					   index_capacity::RETAINED_OPAQUE_IDENTITIES - summary.relatedDeviceCount, true,
+					   [&limited] { return limited.stopped() ; }},
+				  services.utc(), &limited) ;
+			summary.maximumBatchResolverCalls =
+				std::max( summary.maximumBatchResolverCalls, summary.resolverCalls - callsBefore) ;
+			const auto batchElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+										  services.monotonic() - batchStart)
+										  .count() ;	// 観測時間です。
+			summary.maximumBatchMilliseconds = std::max(
+				summary.maximumBatchMilliseconds,
+				static_cast<std::size_t>( std::max<decltype( batchElapsed)>( 0, batchElapsed))) ;
 			summary.lookupStatus = result.status ;
 			// Lookup入力拒否では保存物を後続に保持しません。
 			if( !result.lookup) {
@@ -348,46 +408,24 @@ IndexScanSummary SignedIndexScanSession::scan(
 				return summary ;
 			}
 
-			// 有限batchの診断だけを先に読み、取消し・保持枠拒否でも元エラーを失いません。
-			// ここでは正の関係を保持せず、recordや関係の処理済み件数も更新しません。
-			for( const auto &relation : result.lookup->relations()) {
-				// 最初の非0診断を保持し、後続の合成timeoutで置換しません。
-				if( summary.error == 0U && relation.error != 0U) {
-					summary.error = relation.error ;
-				}
+			// 未commit recordの元診断も先行する失敗を上書きせず保持します。
+			if( summary.error == 0U) {
+				summary.error = result.error ;
 			}
 
-			// 取消し後のpartial positivesを通常完了にしません。
+			// 取消し後のpartial positivesから権限を発行しません。
 			if( cancellation && cancellation()) {
 				summary.status = IndexScanStatus::CANCELLED ;
 				invalidate() ;
 				return summary ;
 			}
 
-			// Tuple確保枠を超えるbatchは全recordを未処理のまま残します。
-			if( result.lookup->relations().size() >
-			   services.maximumRelations - summary.relationCount) {
-				summary.status = IndexScanStatus::BUDGET_EXHAUSTED ;
-				return summary ;
-			}
-
-			std::size_t batchDevices{} ;	// 全batch共通のopaque保持枠を先に確認します。
-			bool		batchExhausted{} ;	// Batch内の未実行callbackも全体停止へ保持します。
-			// 有限batchのopaque保持数を積算し、余剰を秘密sessionへ移しません。
+			const auto coverage =
+				// 同lookupだけがcommitした全record prefixです。
+				result.lookup->progress() ;
+			// 完全recordに属する保持tupleと元不足だけを計数します。
 			for( const auto &relation : result.lookup->relations()) {
-				batchDevices += relation.relatedDevices.size() ;
-				batchExhausted |= relation.reason == IndexRecordMatchReason::BUDGET_EXHAUSTED ;
-			}
-
-			// 同じrecordで複数deviceへ結ぶ場合も累積保持を制限します。
-			if( batchDevices > 32768U - summary.relatedDeviceCount) {
-				summary.status = IndexScanStatus::BUDGET_EXHAUSTED ;
-				return summary ;
-			}
-
-			summary.relatedDeviceCount += batchDevices ;
-			// 停止・保持枠確認後にだけ元関係区分を全batchへ累積します。
-			for( const auto &relation : result.lookup->relations()) {
+				summary.relatedDeviceCount += relation.relatedDevices.size() ;
 				++summary.relationCount ;
 				summary.matchedRelations +=
 					relation.state == IndexRecordMatchState::MATCHED ? 1U : 0U ;
@@ -395,36 +433,60 @@ IndexScanSummary SignedIndexScanSession::scan(
 					relation.reason == IndexRecordMatchReason::NON_UNIQUE_RELATION ? 1U : 0U ;
 				summary.undeterminedRelations +=
 					relation.state == IndexRecordMatchState::UNDETERMINED ||
-							relation.state == IndexRecordMatchState::VERIFIED_PARTIAL
+							relation.state == IndexRecordMatchState::VERIFIED_PARTIAL ||
+							relation.error != 0U
 						? 1U
 						: 0U ;
 				summary.verifiedPartialRelations +=
 					relation.state == IndexRecordMatchState::VERIFIED_PARTIAL ? 1U : 0U ;
+				// 原callback診断は後続成功で消しません。
+				if( summary.error == 0U) {
+					summary.error = relation.error ;
+				}
 			}
 
-			batches_.push_back( std::move( *result.lookup)) ;
-			summary.processedRecords += count ;
+			summary.processedRecords += coverage.completedRecords ;
 			summary.remainingRecords = summary.totalRecords - summary.processedRecords ;
-			// 実際に保持できたrecord数だけを通知し、同期callback待ちでは増やしません。
+			summary.processedPublicIds += coverage.processedPublicIds ;
+			summary.definitiveNoRelationIds += coverage.definitiveNoRelationIds ;
+			// 空の途中recordを完了batchとして保存しません。
+			if( coverage.completedRecords != 0U) {
+				batches_.push_back( std::move( *result.lookup)) ;
+			}
+
+			// 表示の進行は要求countでなく完全record prefixだけです。
 			if( progress) {
 				progress( summary) ;
 			}
 
-			// 最後のbatchの未実行を全読取り完了へ昇格しません。
-			if( batchExhausted) {
-				summary.status = IndexScanStatus::BUDGET_EXHAUSTED ;
+			// 最終progress callbackからの取消しも残件なし成功へ通しません。
+			if( cancellation && cancellation()) {
+				summary.status = IndexScanStatus::CANCELLED ;
+				invalidate() ;
 				return summary ;
 			}
 
-			// Callback中の期限到達を全完了へ昇格しません。
-			if( limited.stopped()) {
+			// 取消し/時刻/保持不足や進行不能を残件ありのまま返します。
+			if( coverage.stopReason == IndexLookupStopReason::STOP_REQUESTED ||
+			   coverage.stopReason == IndexLookupStopReason::RETAINED_CAPACITY ||
+			   coverage.completedRecords == 0U || limited.stopped()) {
 				summary.status = IndexScanStatus::BUDGET_EXHAUSTED ;
 				return summary ;
 			}
+			// CALL_BUDGETは完全record境界で次の有限batchへ進み、元IDを飛ばしません。
 		}
 
-		summary.status = summary.undeterminedRelations == 0U ? IndexScanStatus::COMPLETED
-															 : IndexScanStatus::PARTIAL ;
+		// 最終progress callbackからの取消しも残件なし成功へ通しません。
+		if( cancellation && cancellation()) {
+			summary.status = IndexScanStatus::CANCELLED ;
+			invalidate() ;
+			return summary ;
+		}
+
+		summary.status = summary.undeterminedRelations == 0U && summary.error == 0U &&
+								 summary.processedPublicIds == summary.totalPublicIds
+							 ? IndexScanStatus::COMPLETED
+							 : IndexScanStatus::PARTIAL ;
 		return summary ;
 	} catch( const std::bad_alloc &) {
 		invalidate() ;
@@ -670,8 +732,11 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 			[acquisitionLookup_->relations()[relationIndex].recordIndex] ;	// 同元認証recordです。
 	const auto payloadFormat =
 		distribution.acquisitionDescriptor->format ;	// 元方式へcodec結合済みです。
-	const auto extension = payloadFormat == IndexPayloadFormat::CABINET		  ? L".cab"
-						   : payloadFormat == IndexPayloadFormat::WINDOWS_EXE ? L".exe"
+	const auto extension = payloadFormat == IndexPayloadFormat::CABINET ? L".cab"
+						   : (payloadFormat == IndexPayloadFormat::WINDOWS_EXE ||
+							  payloadFormat == IndexPayloadFormat::SEVEN_ZIP_SFX ||
+							  payloadFormat == IndexPayloadFormat::PE_RESOURCE_CONTAINER)
+							   ? L".exe"
 						   : payloadFormat == IndexPayloadFormat::WINDOWS_MSI
 							   ? L".msi"
 							   : L".zip" ;	// 固定四形式だけです。
@@ -690,6 +755,7 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 		acquired) ;	// 同期転送中は確定件数を増やしません。
 	item.acquisition	  = acquired.state ;
 	item.acquisitionError = acquireError ;
+	item.auxiliaryHttp	  = acquired.auxiliaryHttp ;
 	// 成功取得だけを元sealと実byte内容検査へ進めます。
 	if( acquireError == 0U) {
 		auto &evidence = record.seal ;	// 公開取得DTOから作れない実seal。
@@ -708,7 +774,15 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 		if( item.contentError == 0U &&
 		   *distribution.acquisition.value == IndexAcquisitionKind::STANDARD_INF_ARCHIVE) {
 			item.contentError =
-				makeDelegatedOfficialPackageInput( acquired, grant, record.delegated) ;
+				(payloadFormat == IndexPayloadFormat::PE_RESOURCE_CONTAINER ||
+				 payloadFormat == IndexPayloadFormat::SEVEN_ZIP_SFX)
+					? makeDelegatedOfficialPackageInput(
+						  acquired, grant, hint,
+						  payloadFormat == IndexPayloadFormat::PE_RESOURCE_CONTAINER
+							  ? OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER
+							  : OfficialDriverArchiveFormat::SEVEN_ZIP_SFX,
+						  record.delegated)
+					: makeDelegatedOfficialPackageInput( acquired, grant, record.delegated) ;
 		}
 
 		// 実byteと元record結合が成立した対象だけ通常policyで内容検査します。
@@ -717,7 +791,11 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 			item.contentError = inspectIndexedDriverPackage(
 				task.scanSessionId, hint, input,
 				payloadFormat == IndexPayloadFormat::CABINET ? OfficialDriverArchiveFormat::CABINET
-															 : OfficialDriverArchiveFormat::ZIP,
+				: payloadFormat == IndexPayloadFormat::PE_RESOURCE_CONTAINER
+					? OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER
+				: payloadFormat == IndexPayloadFormat::SEVEN_ZIP_SFX
+					? OfficialDriverArchiveFormat::SEVEN_ZIP_SFX
+					: OfficialDriverArchiveFormat::ZIP,
 				inspected, cancellation) ;
 		} else {
 			inspected.state = IndexedDriverInspectionState::INPUT_REJECTED ;
@@ -765,16 +843,11 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 		}
 
 		const auto retained = inspected.inspection.retainedBytes ;	// 実閉包の保持byte。
-		const auto maximum =
-			std::min<std::uint64_t>( 512ULL * 1024ULL * 1024ULL,
-									limits_.maximumSessionBytes) ;	// 元session予算を拡大しません。
 		// 過大閉包を切捨て成功にせず、容量不足へ保持します。
-		if( retained > maximum - std::min( maximum, binding_.retainedBytes_)) {
+		if( !tryRetainIndexedInspectionBytes( retained, binding_.retainedBytes_)) {
 			item.contentError = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_FILE_TOO_LARGE)) ;
 			item.acceptedInfCount = 0U ;
 			record.inspection	  = {} ;
-		} else {
-			binding_.retainedBytes_ += retained ;
 		}
 
 		binding_.records_.push_back( std::move( record)) ;

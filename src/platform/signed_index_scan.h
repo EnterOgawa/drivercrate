@@ -2,7 +2,7 @@
 /**
  * @file signed_index_scan.h
  * @brief 通常worker scanに結合する署名索引の秘密sessionを定義します。
- * @version 01.04.00
+ * @version 01.07.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,9 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
  * Ver.01.03.00 Shunji Ogawa  2026/10/14  元未判定の中から私有証拠付き部分positive件数を分離。
  * Ver.01.04.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/03  拡大recordと有限保持quotaを通常経路へ整合。
+ * Ver.01.07.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * </pre>
  *
  * @note 全秘密所有はworker限定です。索引一致は導入権限を作りません。
@@ -40,12 +43,24 @@
 #include "platform/signed_index_candidate_binding.h"
 #include "core/official_preparation_operation.h"
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
 
 namespace drivercrate {
+
+// 検査済みworkspaceの一意member保持枠。転送量や対応driver総数の上限ではない。
+inline constexpr std::uint64_t INDEX_SCAN_RETAINED_MAX_BYTES = 3ULL * 1024ULL * 1024ULL * 1024ULL ;
+
+/** @brief 同scanの保持量を有限枠内だけで加算する。
+ * @param[in] additional 今回検査が実保持したbyte数。
+ * @param[in,out] total 元累計。失敗時は変更しない。
+ * @return overflowせず3GiB以内へ加算できた場合true。
+ */
+[[nodiscard]] bool			   tryRetainIndexedInspectionBytes( std::uint64_t  additional,
+															   std::uint64_t &total) noexcept ;
 namespace provider_worker_index_detail {
 struct Services ;
 }
@@ -116,6 +131,12 @@ struct IndexScanSummary {
 	std::size_t							   processedRecords{} ;
 	/// 未実行record数。適合なしへ換算しません。
 	std::size_t							   remainingRecords{} ;
+	/// 全原recordに含まれる公開ID入力数です。
+	std::size_t							   totalPublicIds{} ;
+	/// 完全recordとしてcommitした公開ID数です。
+	std::size_t							   processedPublicIds{} ;
+	/// 元完全観測で確定した不一致ID数です。未実行/失敗を含めません。
+	std::size_t							   definitiveNoRelationIds{} ;
 	/// 保持した関係tuple数。
 	std::size_t							   relationCount{} ;
 	/// 全batchで保持したopaque関係数。最大32,768です。
@@ -130,6 +151,10 @@ struct IndexScanSummary {
 	std::size_t							   verifiedPartialRelations{} ;
 	/// 全operationの実resolver呼出し数。
 	std::size_t							   resolverCalls{} ;
+	/// 一batchで実行したresolver数の最大値です。
+	std::size_t							   maximumBatchResolverCalls{} ;
+	/// 協調時計で観測した一batch時間の最大millisecond値です。
+	std::size_t							   maximumBatchMilliseconds{} ;
 	/// 通信を試みた場合だけ元失敗・明示cache・commit事実を保持します。秘密能力を含みません。
 	std::optional<IndexRefreshSummary>	   refresh ;
 } ;
@@ -137,29 +162,31 @@ struct IndexScanSummary {
 /** @brief 原ID・URL・hash・pathを持たない一取得対象の確定内容結果です。 */
 struct IndexPreparationItemSummary {
 	/// 同計画内だけで意味を持つopaque取得対象ID。
-	std::wstring				 targetIdentity ;
+	std::wstring					 targetIdentity ;
 	/// 実byte取得の確定状態。内容合格とは独立です。
-	OfficialAcquisitionState	 acquisition{OfficialAcquisitionState::NOT_STARTED} ;
+	OfficialAcquisitionState		 acquisition{OfficialAcquisitionState::NOT_STARTED} ;
 	/// 実byte取得の元HRESULT。未実行は0です。
-	NativeError					 acquisitionError{} ;
+	NativeError						 acquisitionError{} ;
 	/// 共通内容検査の到達段階。Windows適合を示しません。
-	IndexedDriverInspectionState content{IndexedDriverInspectionState::NOT_STARTED} ;
+	IndexedDriverInspectionState	 content{IndexedDriverInspectionState::NOT_STARTED} ;
 	/// 入力結合または全体内容検査の元HRESULT。
-	NativeError					 contentError{} ;
+	NativeError						 contentError{} ;
 	/// 個別INFの最初の拒否診断。全体成功でも保持します。
-	NativeError					 firstInfRejection{} ;
+	NativeError						 firstInfRejection{} ;
 	/// 実file hash/sizeを元hintへ結合した場合だけtrueです。
-	bool						 inputBound{} ;
+	bool							 inputBound{} ;
 	/// 共通検査で確定した通常file数。
-	std::size_t					 inventoryFileCount{} ;
+	std::size_t						 inventoryFileCount{} ;
 	/// 共通検査で発見したINF数。候補数ではありません。
-	std::size_t					 infCount{} ;
+	std::size_t						 infCount{} ;
 	/// 共通閉包の構造・INF解析を通過した数。署名合格ではありません。
-	std::size_t					 parsedInfCount{} ;
+	std::size_t						 parsedInfCount{} ;
 	/// 構造解析後に通常Windows署名policyで拒否したINF数。
-	std::size_t					 signatureRejectedInfCount{} ;
+	std::size_t						 signatureRejectedInfCount{} ;
 	/// 通常署名・内容policyを通過したINF数。Windows適合ではありません。
-	std::size_t					 acceptedInfCount{} ;
+	std::size_t						 acceptedInfCount{} ;
+	/// 実補助要求数/本文量/statusだけの診断。token/URLはない。
+	OfficialAuxiliaryHttpObservation auxiliaryHttp ;
 } ;
 
 /** @brief 同operation・scan・planへ結合する有限な索引取得結果です。 */

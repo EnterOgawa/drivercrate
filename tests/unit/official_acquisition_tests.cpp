@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition_tests.cpp
  * @brief 公式file検査用取得境界単体試験実装。
- * @version 01.20.00
+ * @version 01.26.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -53,6 +53,13 @@
  * Ver.01.18.00 Shunji Ogawa  2026/10/27  個別device三条件の実取得fixture応答枠を固定。
  * Ver.01.19.00 Shunji Ogawa  2026/10/27  追加rank回帰17件分のfake応答だけを有限追加。
  * Ver.01.20.00 Shunji Ogawa  2026/10/28  同ID十二条件を含む元fake取得35回を有限固定。
+ * Ver.01.21.00 Shunji Ogawa  2026/11/03  明示非実行formatを元grant/record/hintへ結合。
+ * Ver.01.22.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.23.00 Shunji Ogawa  2026/11/05  独立規約の通常consumerと同意snapshotを有限確認。
+ * Ver.01.24.00 Shunji Ogawa  2026/11/06  小さいdriver DATA fixtureを通常取得workerへ接続。
+ * Ver.01.25.00 Shunji Ogawa  2026/11/06  代替Modelsの元選択/唯一実tuple引継ぎを追加。
+ * Ver.01.26.00 Shunji Ogawa  2026/11/07  全体入力と保持relation ordinalを分離したfixtureへ整合。
+ * Ver.01.26.01 Shunji Ogawa  2026/11/09  同scopeのworker event ownerをheapへ移し全modeを保持。
  * </pre>
  *
  * @note Fake transportとcost readerを使用し、実network、実driver、実installへ依存せず検査用取得状態を検証します。
@@ -80,6 +87,8 @@
 #include "platform/signed_index_store.h"
 #include "core/official_preparation_operation.h"
 #include "test_framework.h"
+#include <winrt/Windows.Data.Json.h>
+#include <winrt/base.h>
 
 #include <Windows.h>
 
@@ -161,6 +170,14 @@ struct WorkerAcquisitionPhase {
  * @brief Delegated GETの全WinHTTP呼出しを非通信で再現するfixtureである。
  */
 struct DelegatedHttpFixture {
+	/// 匿名CDNだけに固定POST文脈と二要求を追加する指定。
+	bool											  anonymousCdn{} ;
+	/// 補助POSTの実verb回数。
+	std::uint32_t									  postRequests{} ;
+	/// 固定JSON/Origin headerの回数。
+	std::uint32_t									  jsonHeaders{} ;
+	/// 二回目DNSから送信までの期限経過を注入するUTC。0は無効。
+	std::uint64_t									  advanceSecondDns{} ;
 	/// 明示Intel原document replayだけが追加のcookie無効/no-cache安全設定を要求します。
 	bool											  signedTermsDocument{} ;
 	/// 元terms GETでcookie無効が厳密指定された回数です。
@@ -254,8 +271,14 @@ thread_local DelegatedHttpFixture  *activeDelegatedHttpFixture{} ;
 							   const DWORD flags) -> HINTERNET {
 		auto &fixture = *static_cast<DelegatedHttpFixture *>( connection) ;	// Connectionのfixture。
 		++fixture.opened ;
+		const bool post =
+			fixture.anonymousCdn && fixture.requestedPaths.empty() ;	// 一番目だけ補助POST。
 		fixture.safeRequest &=
-			std::wstring_view( verb) == L"GET" && referer == nullptr && flags == WINHTTP_FLAG_SECURE ;
+			std::wstring_view( verb) == (post ? L"POST" : L"GET") &&
+			(post ? referer != nullptr && std::wstring_view( referer) == L"https://www.asus.com/"
+				  : referer == nullptr) &&
+			flags == WINHTTP_FLAG_SECURE ;
+		fixture.postRequests += post ? 1U : 0U ;
 		fixture.requestedPaths.emplace_back( objectName) ;
 		return &fixture ;
 	} ;
@@ -287,6 +310,12 @@ thread_local DelegatedHttpFixture  *activeDelegatedHttpFixture{} ;
 			fixture.safeRequest &= setting == WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH ;
 		}
 		// 元terms用途のcookie無効だけを追加で受理し、他の未知optionは従来通り拒否します。
+		else if( fixture.anonymousCdn && option == WINHTTP_OPTION_DISABLE_FEATURE) {
+			fixture.safeRequest &=
+				setting == (WINHTTP_DISABLE_COOKIES | WINHTTP_DISABLE_AUTHENTICATION) ;
+			++fixture.disabledCookies ;
+		}
+		// 元terms文脈の安全設定は従来の一種類を維持する。
 		else if( fixture.signedTermsDocument && option == WINHTTP_OPTION_DISABLE_FEATURE) {
 			fixture.safeRequest &= setting == WINHTTP_DISABLE_COOKIES ;
 			fixture.disabledCookies += setting == WINHTTP_DISABLE_COOKIES ? 1U : 0U ;
@@ -305,7 +334,12 @@ thread_local DelegatedHttpFixture  *activeDelegatedHttpFixture{} ;
 							 // 同terms用途の厳密headerです。
 							 value == L"Cache-Control: no-cache\r\n" ;
 		fixture.noCacheHeaders += noCache ? 1U : 0U ;
-		fixture.safeRequest &= (value.starts_with( L"Accept: ") || noCache) &&
+		const bool json =
+			fixture.anonymousCdn &&
+			value ==
+				L"Content-Type: application/json\r\nOrigin: https://www.asus.com\r\n" ;	// 固定POST文脈。
+		fixture.jsonHeaders += json ? 1U : 0U ;
+		fixture.safeRequest &= (value.starts_with( L"Accept: ") || noCache || json) &&
 							   value.find( L"Authorization:") == std::wstring_view::npos &&
 							   value.find( L"Cookie:") == std::wstring_view::npos &&
 							   value.find( L"Referer:") == std::wstring_view::npos ;
@@ -474,6 +508,12 @@ thread_local DelegatedHttpFixture  *activeDelegatedHttpFixture{} ;
 									  std::vector<OfficialResolvedNetworkAddress> &addresses) {
 		auto &fixture = *activeDelegatedHttpFixture ;	// Resolver対象fixture。
 		fixture.resolvedHosts.emplace_back( host) ;
+		// DNS待機後に期限が進む具体条件だけを注入する。
+		if( fixture.advanceSecondDns != 0U && fixture.resolvedHosts.size() == 2U) {
+			std::fill( fixture.utcSeconds.begin() + static_cast<std::ptrdiff_t>( fixture.utcIndex),
+					  fixture.utcSeconds.end(), fixture.advanceSecondDns) ;
+		}
+
 		addresses.clear() ;
 		OfficialResolvedNetworkAddress address ;	// 一件だけ返す架空IPv4 address。
 		address.family = OfficialNetworkAddressFamily::IPV4 ;
@@ -1528,7 +1568,8 @@ void testDelegatedHttpFailureCleanup( TestContext &context)
 							  .body		= {},
 							  .declared = std::nullopt},
 		DelegatedHttpResponse{}} ;
-	deadlineFixture.utcSeconds = {20'010U, 20'871U} ;
+	deadlineFixture.utcSeconds = {20'010U, 20'010U,
+								  20'871U} ;		// 一hop目の実send直前確認後に期限を進める。
 	OfficialDownloadWorkspace  deadlineWorkspace ;	// 期限切れfile名を隔離する領域。
 	OfficialAcquisitionSession deadlineSession ;	// 期限切れを計上しないledger。
 	RecordScopedDownloadGrant  deadlineGrant ;		// 二hop目で期限切れとなるgrant。
@@ -2453,6 +2494,110 @@ void testSealedDelegatedAcquisitionEvidence( TestContext &context)
 
 } // namespace
 
+/** @see official_acquisition_tests.h */
+void runAsusCdnTokenTests( TestContext &context)
+{
+	const OfficialAnonymousCdnPlan plan{L"G614FR", L"/pub/ASUS/fixture.exe",
+										L"asus"} ;	// 公開の人工文脈。
+	OfficialEmptyJsonQueryPost	   post ;			// 非authorityの閉じた要求。
+	DRIVERCRATE_EXPECT( context, makeAsusAnonymousCdnPost( plan, post) == 0 && post.valid()) ;
+	DRIVERCRATE_EXPECT(
+		context,
+		post.url() ==
+			L"https://cdnta.asus.com/api/v1/TokenHQ?filePath=https:%2F%2Fdlcdnta.asus.com%2Fpub%2FASUS%2Ffixture.exe%3Fmodel%3DG614FR&systemCode=asus") ;
+	DRIVERCRATE_EXPECT( context, post.origin() == L"https://www.asus.com" &&
+									post.referer() == L"https://www.asus.com/") ;
+	DelegatedHttpFixture formFixture ;	// 旧formの拒否前にI/Oへ入らないことを観測。
+	activeDelegatedHttpFixture = &formFixture ;
+	OfficialHttpClient formClient( makeDelegatedHttpTransport()) ;	// Native fallbackなし。
+	std::wstring	   formText ;									// 拒否時に空の既存出力。
+	DRIVERCRATE_EXPECT( context, formClient.beginSourceSession( 91U, ASUS_PROVIDER_ID) == 0) ;
+	DRIVERCRATE_EXPECT( context,
+					   formClient.postFormUtf8TextForSource( L"https://www.asus.com/fixture",
+															OFFICIAL_PRIMARY_METADATA_RESOURCE_ID,
+															{}, 16384U, formText) == E_INVALIDARG &&
+						   formFixture.sends == 0U && formFixture.opened == 0U) ;
+	activeDelegatedHttpFixture = nullptr ;
+	const std::wstring prefix =
+		L"{\"status\":200,\"result\":{\"signature\":\"a-Z_9~\",\"keyPairId\":\"K12\",\"expires\":" ;	// 架空tokenだけ。
+	const std::array<std::wstring, 4U> good{L"2000000000", L"\"2000000000\"", L"2e9",
+											L"253402300799"} ;	// 明示number/string policy。
+	// 各許可型を元queryへ結び、再encodingしていない完全値を確認する。
+	for( const auto &expiry : good) {
+		OfficialAnonymousCdnResolution value ;	// この反復だけの秘密所有値。
+		const auto					   error =
+			// COM-only MTA。
+			parseAsusAnonymousCdnResponse( prefix + expiry + L"}}", plan, value) ;
+		DRIVERCRATE_EXPECT( context,
+						   error == 0 && matchesAsusAnonymousCdnTarget( plan, value.target.view(),
+																	   value.expiresUtcSeconds)) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			value.target.view().starts_with(
+				L"https://dlcdnta.asus.com/pub/ASUS/fixture.exe?model=G614FR&Signature=a-Z_9~&Expires=")) ;
+		DRIVERCRATE_EXPECT( context,
+						   !matchesAsusAnonymousCdnTarget(
+							   plan, std::wstring( value.target.view()) + L"&Expires=2000000000",
+							   value.expiresUtcSeconds)) ;
+		DRIVERCRATE_EXPECT(
+			context, !matchesAsusAnonymousCdnTarget( {L"G614FX", plan.path, plan.systemCode},
+													value.target.view(), value.expiresUtcSeconds)) ;
+		DRIVERCRATE_EXPECT( context, !matchesAsusAnonymousCdnTarget( plan, value.target.view(),
+																   value.expiresUtcSeconds + 1U)) ;
+	}
+
+	const std::array<std::wstring, 12U> badEpoch{
+		L"null",
+		L"true",
+		L"{}",
+		L"-1",
+		L"1.5",
+		L"253402300800",
+		L"1e100",
+		L"\"02000000000\"",
+		L"\"+2000000000\"",
+		L"\" 2000000000\"",
+		L"\"2e9\"",
+		L"\"18446744073709551616\""} ;	// 型/clock範囲の不正値。
+	// 不正expiryは出力を空へ戻し、既存成功を再利用しない。
+	for( const auto &expiry : badEpoch) {
+		OfficialAnonymousCdnResolution value ;	// 各拒否の独立結果。
+		DRIVERCRATE_EXPECT(
+			context, parseAsusAnonymousCdnResponse( prefix + expiry + L"}}", plan, value) != 0 &&
+						 value.target.empty()) ;
+	}
+
+	const std::array<std::wstring, 8U> bad{
+		L"{\"status\":\"200\",\"result\":{}}", L"{\"status\":200,\"result\":[]}",
+		L"{\"status\":200,\"result\":{\"signature\":1,\"keyPairId\":\"K\",\"expires\":2000000000}}",
+		L"{\"status\":200,\"result\":{\"signature\":\"a%2F\",\"keyPairId\":\"K\",\"expires\":2000000000}}",
+		L"{\"status\":200,\"result\":{\"signature\":\"a&Expires=0\",\"keyPairId\":\"K\",\"expires\":2000000000}}",
+		L"{\"status\":200,\"result\":{\"signature\":\"a\\u0000x\",\"keyPairId\":\"K\",\"expires\":2000000000}}",
+		L"{\"status\":200,\"result\":{\"signature\":\"a\",\"keyPairId\":true,\"expires\":2000000000}}",
+		// 原caseとscalarを修正しない。
+		L"{\"status\":200,\"result\":{\"signature\":\"a\",\"keypairId\":\"K\",\"expires\":2000000000}}"} ;
+	// 元responseの拒否を独立件数として保持する。
+	for( const auto &body : bad) {
+		OfficialAnonymousCdnResolution value ;	// 元拒否だけの結果。
+		DRIVERCRATE_EXPECT( context, parseAsusAnonymousCdnResponse( body, plan, value) != 0 &&
+										value.target.empty()) ;
+	}
+
+	const std::array<OfficialAnonymousCdnPlan, 6U> badPlan{
+		{{L"", plan.path, L"asus"},
+		 {L"G614FR&x=1", plan.path, L"asus"},
+		 {plan.model, L"/pub/ASUS/../fixture.exe", L"asus"},
+		 {plan.model, L"/pub/ASUS/fixture.exe?x=1", L"asus"},
+		 {plan.model, L"/pub/ASUS/%66.exe", L"asus"},
+		 {plan.model, plan.path, L"rog"}}} ;	// 公開locatorの閉じた拒否。
+	// 不正文脈から使える要求を残さない。
+	for( const auto &value : badPlan) {
+		DRIVERCRATE_EXPECT( context, makeAsusAnonymousCdnPost( value, post) != 0 && !post.valid()) ;
+	}
+
+	std::cout << "Anonymous CDN protocol: COM-only MTA, real HTTP: 0\n" ;
+}
+
 /** @see official_acquisition_tests.h 宣言側の契約を正本とする。 */
 void runOfficialAcquiredFileEvidenceTests( TestContext &context)
 {
@@ -2488,7 +2633,7 @@ void runOfficialAcquisitionTests( TestContext &context)
  * @param[in,out] context 共通assertion集計先。
  * @param[in] lookup 真署名・隔離reloadから構築した不変lookup。
  * @param[in] nowUtc 固定信頼UTC。
- * @param[in] scenario 0は通常、1は計算hash不一致、2はsize不一致、3は保留、4はCDN、6は未知hash／sizeです。
+ * @param[in] scenario 0は通常、1は計算hash不一致、2はsize不一致、3は保留、4はCDN、6は未知hash／size、7/8は非実行SFX/resourceです。
  */
 void runSignedIndexAcquisitionAdapterTests( TestContext									 &context,
 										   std::shared_ptr<const SignedIndexRecordLookup> lookup,
@@ -2501,10 +2646,12 @@ void runSignedIndexAcquisitionAdapterTests( TestContext									 &context,
 	const std::uint64_t		 now =
 		// 固定信頼UTC秒。
 		static_cast<std::uint64_t>( nowUtc.time_since_epoch().count()) ;
-	const OfficialPreparationLimits limits{64U, 128U, 256U, 2U, 4U} ;	// 小さな有限予約予算。
-	std::uint32_t					fakeSends{} ;						// この署名snapshotだけのfake送信実績。
+	const OfficialPreparationLimits limits{64U, scenario == 9U ? 32768U : 128U,
+										   scenario == 9U ? 65536U : 256U, 2U,
+										   4U} ;	// 補助POSTだけ追加予約を明示。
+	std::uint32_t					fakeSends{} ;	// この署名snapshotだけのfake送信実績。
 	// 正常snapshotは10種のHTTP／lease境界、他record条件は一回だけ確認します。
-	for( unsigned mode = 0U; mode < (scenario == 0U ? 10U : 1U); ++mode) {
+	for( unsigned mode = 0U; mode < (scenario == 9U ? 21U : scenario == 0U ? 10U : 1U); ++mode) {
 		SignedIndexAcquisitionAdapter product ;	// 製品能力policyは空のままです。
 		DRIVERCRATE_EXPECT( context, product.begin( lookup, current, IndexTargetOs::WINDOWS_11,
 												  nowUtc) == E_ACCESSDENIED) ;
@@ -2562,17 +2709,40 @@ void runSignedIndexAcquisitionAdapterTests( TestContext									 &context,
 			1U,
 			limits,
 			{{target, true, false, false,
-			  false}}} ;								// 明示的取得承認だけ。同意不要をEULA同意へ偽装しません。
-		OfficialAcquisitionSession acquisitionSession ;	// 同scanの共通file ledger。
-		DRIVERCRATE_EXPECT( context,
-						   acquisitionSession.initialize( current.scanSessionId, makeLimits()) == 0) ;
+			  false}}} ;												// 明示的取得承認だけ。同意不要をEULA同意へ偽装しません。
+		OfficialAcquisitionSession acquisitionSession ;					// 同scanの共通file ledger。
+		auto					   acquisitionLimits = makeLimits() ;	// 同じ既存予算だけを使う。
+		// 二要求形式だけに16KiB予約を含め、上限拒否はPOST前に確認する。
+		if( scenario == 9U) {
+			acquisitionLimits.maximumProviderBytes = mode == 18U ? 16384U : 16448U ;
+			acquisitionLimits.maximumSessionBytes  = 16448U ;
+		}
+
+		DRIVERCRATE_EXPECT(
+			context, acquisitionSession.initialize( current.scanSessionId, acquisitionLimits) == 0) ;
 		OfficialDownloadWorkspace workspace ;	// 自作の保護一時fileだけを所有します。
 		DRIVERCRATE_EXPECT(
 			context, workspace.initialize( L"signed-index-fixture", current.scanSessionId) == 0) ;
 		DelegatedHttpFixture fixture ;	// 既存の完全WinHTTP／DNS／UTC fake。
-		fixture.utcSeconds.assign( 6U, now) ;
-		fixture.responses[0].body	  = std::string{"PK\x05\x06", 4U} + std::string( 18U, '\0') ;
-		fixture.responses[0].declared = L"22" ;
+		fixture.utcSeconds.assign( 256U, now) ;
+		const std::size_t payloadIndex = scenario == 9U ? 1U : 0U ;	// GETの応答位置。
+		// 同private grantから補助POSTとexact GETへ進む応答二件だけを準備する。
+		if( scenario == 9U) {
+			fixture.anonymousCdn = true ;
+			fixture.responses.resize( 2U) ;
+			const auto expiry =
+				// 実応答の架空Unix秒。
+				std::to_string( now + (mode == 20U ? 3600U : 60U)) ;
+			fixture.responses[0].body =
+				"{\"status\":200,\"result\":{\"signature\":\"a-Z_9~\",\"keyPairId\":\"K12\",\"expires\":" +
+				(mode == 19U ? "\"" + expiry + "\"" : expiry) + "}}" ;
+			fixture.responses[0].declared	 = std::to_wstring( fixture.responses[0].body.size()) ;
+			fixture.responses[0].contentType = L"application/json" ;
+		}
+
+		fixture.responses[payloadIndex].body =
+			std::string{"PK\x05\x06", 4U} + std::string( 18U, '\0') ;
+		fixture.responses[payloadIndex].declared = L"22" ;
 		// 公開宛先の構文を私設DNS応答の許可と誤解しません。
 		if( mode == 1U) {
 			fixture.privateDns = true ;
@@ -2580,8 +2750,9 @@ void runSignedIndexAcquisitionAdapterTests( TestContext									 &context,
 
 		// 未記載のLocationは次のDNS／HTTPより前に拒否します。
 		if( mode == 2U) {
-			fixture.responses[0].status	  = HTTP_STATUS_REDIRECT ;
-			fixture.responses[0].location = L"https://unlisted.fixture.example/driver.zip" ;
+			fixture.responses[payloadIndex].status = HTTP_STATUS_REDIRECT ;
+			fixture.responses[payloadIndex].location =
+				L"https://unlisted.fixture.example/driver.zip" ;
 		}
 
 		// 30秒開始余裕を失う時刻は新hopを送信しません。
@@ -2591,13 +2762,13 @@ void runSignedIndexAcquisitionAdapterTests( TestContext									 &context,
 
 		// 期待media type不一致では本文を保存しません。
 		if( mode == 6U) {
-			fixture.responses[0].contentType = L"text/html" ;
+			fixture.responses[payloadIndex].contentType = L"text/html" ;
 		}
 
 		// 公表hash不一致は型とHTTP200だけで合格にしません。
 		if( mode == 7U) {
-			fixture.responses[0].body	  = "abc" ;
-			fixture.responses[0].declared = L"3" ;
+			fixture.responses[payloadIndex].body	 = "abc" ;
+			fixture.responses[payloadIndex].declared = L"3" ;
 		}
 
 		// 元WinHTTP failureを取消しやhash拒否へまとめません。
@@ -2608,6 +2779,50 @@ void runSignedIndexAcquisitionAdapterTests( TestContext									 &context,
 		// 時計確認不能をgrant発行時の成功で補完しません。
 		if( mode == 9U) {
 			fixture.utcSeconds.assign( 6U, 0U) ;
+		}
+
+		// 補助response固有の拒否と、DNS後の期限切れを有限条件で注入する。
+		if( scenario == 9U) {
+			// 失効tokenは新GETへ進めない。
+			if( mode == 10U) {
+				fixture.responses[0].body =
+					"{\"status\":200,\"result\":{\"signature\":\"a\",\"keyPairId\":\"K12\",\"expires\":" +
+					std::to_string( now) + "}}" ;
+			}
+
+			// 型違いを強制stringへ変換しない。
+			if( mode == 11U) {
+				fixture.responses[0].body = "{\"status\":\"200\",\"result\":{}}" ;
+			}
+
+			// TokenHQ redirectを第二起点として追わない。
+			if( mode == 12U) {
+				fixture.responses[0].status	  = HTTP_STATUS_REDIRECT ;
+				fixture.responses[0].location = L"https://cdnta.asus.com/other" ;
+			}
+
+			// 申告超過はreadせず、無申告超過も16KiBを超えてreadしない。
+			if( mode == 13U || mode == 14U) {
+				fixture.responses[0].body.assign( 16385U, 'x') ;
+			}
+
+			fixture.responses[0].declared =
+				mode == 14U ? std::nullopt
+							: std::optional{std::to_wstring( fixture.responses[0].body.size())} ;
+			// 発行時より前へ戻った時計ではPOSTを送らない。
+			if( mode == 15U) {
+				fixture.utcSeconds.assign( 256U, now - 1U) ;
+			}
+
+			// GETのDNS待機だけで期限を失い、send直前の再確認で止まる。
+			if( mode == 16U) {
+				fixture.advanceSecondDns = now + 61U ;
+			}
+
+			// POST本文read後の取消しをGET成功へ変換しない。
+			if( mode == 17U) {
+				fixture.cancelAfterRead = 1U ;
+			}
 		}
 
 		activeDelegatedHttpFixture = &fixture ;
@@ -2671,7 +2886,8 @@ void runSignedIndexAcquisitionAdapterTests( TestContext									 &context,
 			  } ; // 固定信頼clockだけを借用せずcaptureします。
 			  const NativeError acquireError = acquisitionSession.acquire(
 				  request, workspace, transport, costReader, []( std::uint64_t, std::uint64_t) {},
-				  [mode]() { return mode == 5U ; }, acquired) ;	// 同共通取得の実呼出し。
+				  [&fixture, mode]() { return mode == 5U || fixture.cancellationRequested ; },
+				  acquired) ;	// 同共通取得の実呼出し。
 			  // 正常byteの共通sealだけを既存内容検査入力へ接続します。
 			  if( acquireError == 0) {
 				  OfficialAcquiredFileEvidence evidence ;	// 公開DTOから生成できない元file seal。
@@ -2688,6 +2904,53 @@ void runSignedIndexAcquisitionAdapterTests( TestContext									 &context,
 																		  input.inspectionPath.empty()) ;
 					  return OfficialPreparationTransferResult{OfficialPreparationItemState::REJECTED,
 															   inputError, 0U} ;
+				  }
+
+				  // 新formatは元sealed hintと同じ消費済みgrantだけへ渡す。
+				  if( scenario == 7U || scenario == 8U || scenario == 9U) {
+					  const auto format = scenario == 7U
+																  ? OfficialDriverArchiveFormat::SEVEN_ZIP_SFX
+																  : OfficialDriverArchiveFormat::
+													PE_RESOURCE_CONTAINER ;	// 認証fixtureの明示方式。
+					  DelegatedOfficialPackageInput
+						  delegated ;	// 全元取得証拠を保持する非authority入力。
+					  DRIVERCRATE_EXPECT( context, inputError == 0 && matchesIndexedDriverArchiveHint(
+																		 current.scanSessionId, hint,
+																		 input, format)) ;
+					  // 新二要求だけが元grantの短い実期限と実補助量を保持する。
+					  if( scenario == 9U) {
+						  DRIVERCRATE_EXPECT( context, grant.metadata().expiresUtcSeconds ==
+																				  now + (mode == 20U ? 900U : 60U) &&
+																			  grant.metadata().externalExpiryPresent &&
+																			  acquired.auxiliaryHttp.requests == 1U &&
+																			  acquired.auxiliaryHttp.bodyBytes ==
+																				  fixture.responses[0].body.size() &&
+																			  acquired.auxiliaryHttp.httpStatus == 200U) ;
+					  }
+
+					  DRIVERCRATE_EXPECT(
+						  context, makeDelegatedOfficialPackageInput( acquired, grant, hint, format,
+																						 delegated) == 0 &&
+									   delegated.format == format &&
+									   delegated.archive.resourceContent == hint.resourceContent) ;
+					  auto changed = hint ;	// 元record以外のhintを拒否する。
+					  changed.recordSha256[0] = changed.recordSha256[0] == L'0' ? L'1' : L'0' ;
+					  DRIVERCRATE_EXPECT( context,
+															 makeDelegatedOfficialPackageInput( acquired, grant, changed,
+																							   format, delegated) != 0 &&
+																 delegated.archive.scanSessionId == 0U) ;
+					  changed = hint ;
+					  ++changed.archiveBytes ;
+					  DRIVERCRATE_EXPECT( context,
+															 makeDelegatedOfficialPackageInput( acquired, grant, changed,
+																							   format, delegated) != 0) ;
+					  DRIVERCRATE_EXPECT( context, makeDelegatedOfficialPackageInput(
+													  acquired, grant, hint,
+													  static_cast<OfficialDriverArchiveFormat>( 99),
+													  delegated) != 0) ;
+					  return OfficialPreparationTransferResult{
+						  OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION, 0,
+						  acquired.byteCount} ;
 				  }
 
 				  DRIVERCRATE_EXPECT(
@@ -2740,12 +3003,26 @@ void runSignedIndexAcquisitionAdapterTests( TestContext									 &context,
 										executed.items.size() == 1U &&
 										preparation.state() == OfficialPreparationState::COMPLETED) ;
 		// 正例が同seal・共通検査入力へ到達したことを実結果で確認します。
-		if( mode == 0U && (scenario == 0U || scenario == 4U || scenario == 6U)) {
+		if( (mode == 0U || (scenario == 9U && (mode == 19U || mode == 20U))) &&
+		   (scenario == 0U || scenario == 4U || scenario == 6U || scenario == 7U ||
+			scenario == 8U || scenario == 9U)) {
 			DRIVERCRATE_EXPECT( context,
 							   inputError == 0 &&
 								   executed.items[0].result.state ==
 									   OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION &&
-								   fixture.sends == 1U) ;
+								   fixture.sends == (scenario == 9U ? 2U : 1U)) ;
+			// 二つの独立public DNSと、原queryを保つ唯一のfresh GETを確認する。
+			if( scenario == 9U) {
+				DRIVERCRATE_EXPECT(
+					context,
+					acquired.validatedDestinationAddressCount == 2U &&
+						fixture.connectedHosts.size() == 2U &&
+						fixture.connectedHosts[1] == L"dlcdnta.asus.com" &&
+						fixture.requestedPaths[1] ==
+							L"/pub/ASUS/fixture.exe?model=G614FR&Signature=a-Z_9~&Expires=" +
+								std::to_wstring( now + (mode == 20U ? 3600U : 60U)) +
+								L"&Key-Pair-Id=K12") ;
+			}
 		}
 		// 非正常例を全体取得成功として表示しません。
 		else {
@@ -2760,6 +3037,54 @@ void runSignedIndexAcquisitionAdapterTests( TestContext									 &context,
 		// DNS拒否・lease失効・取消し・期限／時計拒否は送信0です。
 		if( mode == 1U || mode == 3U || mode == 4U || mode == 5U || mode == 9U) {
 			DRIVERCRATE_EXPECT( context, fixture.sends == 0U) ;
+		}
+
+		// POSTの実verb/header/bodyと元queryを成功だけでなく拒否例でも確認する。
+		if( scenario == 9U) {
+			DRIVERCRATE_EXPECT( context, fixture.sends <= 2U &&
+											acquired.auxiliaryHttp.requests <= 1U &&
+											acquired.auxiliaryHttp.bodyBytes <= 16384U) ;
+			// 実際に補助sendしたときだけ固定headerと二段queryを要求する。
+			if( fixture.sends != 0U) {
+				DRIVERCRATE_EXPECT(
+					context,
+					fixture.postRequests == 1U && fixture.jsonHeaders == 1U &&
+						fixture.disabledCookies == 1U &&
+						fixture.connectedHosts[0] == L"cdnta.asus.com" &&
+						fixture.requestedPaths[0] ==
+							L"/api/v1/TokenHQ?filePath=https:%2F%2Fdlcdnta.asus.com%2Fpub%2FASUS%2Ffixture.exe%3Fmodel%3DG614FR&systemCode=asus") ;
+			}
+
+			// 期限/型/量/clock/cancel/予約拒否から二回目のGETを送らない。
+			if( mode >= 10U && mode <= 18U) {
+				DRIVERCRATE_EXPECT( context,
+								   fixture.sends == (mode == 15U || mode == 18U ? 0U : 1U)) ;
+			}
+
+			// 読取り済み超過直前量とread前拒否を混同しない。
+			if( mode == 13U || mode == 14U) {
+				DRIVERCRATE_EXPECT( context,
+								   acquired.auxiliaryHttp.bodyBytes == (mode == 14U ? 16384U : 0U)) ;
+			}
+
+			std::cout << "ANONYMOUS_CDN_FIXTURE mode=" << mode << " sends=" << fixture.sends
+					  << " post=" << acquired.auxiliaryHttp.requests
+					  << " body=" << acquired.auxiliaryHttp.bodyBytes
+					  << " error=" << executed.items[0].result.error << '\n' ;
+			// 成功時の実数精算と、失敗時の予約保持を次の通常取得の成否で確認する。
+			if( mode == 0U || mode == 11U) {
+				FakeAcquisitionTransport laterTransport ;	// 別Providerの小型non-network代役。
+				const auto				 laterRequest =
+					makeRequest( NVIDIA_PROVIDER_ID, L"https://us.download.nvidia.com/fixture.bin",
+								L"budget-probe.bin") ;	// 同session残予算だけを利用。
+				OfficialAcquisitionResult later ;		// 未検査の通常取得結果。
+				const auto				  error = acquisitionSession.acquire(
+					   laterRequest, workspace, laterTransport, costReader,
+					   []( std::uint64_t, std::uint64_t) {}, {}, later) ;	// 実driver導入はない。
+				DRIVERCRATE_EXPECT( context,
+								   (error == 0) == (mode == 0U) &&
+									   laterTransport.downloadCalls == (mode == 0U ? 1U : 0U)) ;
+			}
 		}
 
 		fakeSends += fixture.sends ;
@@ -3026,6 +3351,7 @@ std::optional<WorkerEvent> waitIndexWorkerEvent( TestContext &context, ProviderW
  * @param[in] skip 前半の完了不一致数。batch境界の後で対象を作れます。
  * @note 元十四条件を保持し、取消しは五秒以内の低位phase同期で送信前と開始済みに分けます。
  * Fixtureの非atomic観測は、元終端eventの取得またはworker停止の同期完了後だけ読みます。
+ * @throws std::bad_alloc 元fixture ownerを確保できない場合。既試験の例外捕捉へ渡します。
  */
 void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 										  std::shared_ptr<SignedIndexStore> store,
@@ -3157,8 +3483,10 @@ void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 		}
 
 		DRIVERCRATE_EXPECT( context, worker->requestScan( 10U)) ;
-		auto scanned = waitIndexWorkerEvent( context, *worker, WorkerEventKind::SCAN_COMPLETED,
-											10U) ;	// 原scan。
+		auto scannedOwner = std::make_unique<std::optional<WorkerEvent>>(
+			waitIndexWorkerEvent( context, *worker, WorkerEventKind::SCAN_COMPLETED,
+								 10U)) ;	// 同寿命の元eventをheapで所有します。
+		auto &scanned = *scannedOwner ;		// 原scan。
 		DRIVERCRATE_EXPECT( context,
 						   scanned && scanned->scanResult.succeeded &&
 							   scanned->indexSummary.processedRecords == recordCount &&
@@ -3193,8 +3521,9 @@ void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 			}
 		}
 
-		DRIVERCRATE_EXPECT( context, plan.targets[providerTargets].identity ==
-										L"index-acquisition-" + std::to_wstring( activeSkip)) ;
+		// opaque取得IDは保持relation内の位置です。元record/hash拘束はadapterと後続取得assertで維持します。
+		DRIVERCRATE_EXPECT( context,
+						   plan.targets[providerTargets].identity == L"index-acquisition-0") ;
 		DRIVERCRATE_EXPECT( context,
 						   plan.targets.size() <= 256U &&
 							   scanned->indexPreparation.capacityRejectedRelations ==
@@ -3239,9 +3568,10 @@ void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 			DRIVERCRATE_EXPECT(
 				context, worker->requestInstall( 15U, plan.scanSessionId, selection, nullptr,
 												InstallProtectionMode::WINDOWS_RESTORE_POINT)) ;
-			const auto installed =
+			auto installedOwner = std::make_unique<std::optional<WorkerEvent>>(
 				waitIndexWorkerEvent( context, *worker, WorkerEventKind::INSTALL_COMPLETED,
-									 15U) ;	// 復旧拒否またはOS mode拒否。
+									 15U)) ;			// 同寿命の元eventをheapで所有します。
+			const auto &installed = *installedOwner ;	// 復旧拒否またはOS mode拒否。
 			DRIVERCRATE_EXPECT( context, installed && installed->installResult.installOutcome !=
 														 OutcomeCode::SUCCESS) ;
 		}
@@ -3265,7 +3595,9 @@ void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 					  << " costFactories=" << costFactories->load() << '\n' ;
 		}
 
-		std::optional<WorkerEvent> prepared ;	// 実executorの確定結果をUI役だけが所有します。
+		auto preparedOwner =
+			std::make_unique<std::optional<WorkerEvent>>() ;	// 元scopeで確定eventをheap所有します。
+		auto &prepared = *preparedOwner ;						// 実executorの確定結果をUI役だけが所有します。
 		// Factoryが実active taskの内部まで進んだ後に停止し、その後の遅延終端を読みます。
 		if( mode == 13U) {
 			const auto deadline =
@@ -3370,9 +3702,10 @@ void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 
 			approval.operationId = 25U ;
 			DRIVERCRATE_EXPECT( context, worker->requestPreparation( approval)) ;
-			const auto replay =
+			auto replayOwner = std::make_unique<std::optional<WorkerEvent>>(
 				waitIndexWorkerEvent( context, *worker, WorkerEventKind::PREPARATION_COMPLETED,
-									 25U) ;	// 新operationも再承認しません。
+									 25U)) ;	// 同寿命の元eventをheapで所有します。
+			const auto &replay = *replayOwner ;	// 新operationも再承認しません。
 			DRIVERCRATE_EXPECT( context, replay &&
 											replay->preparationResult.approvalError !=
 												OfficialPreparationError::NONE &&
@@ -3381,9 +3714,10 @@ void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 											fixture->sends == beforeSends) ;
 
 			DRIVERCRATE_EXPECT( context, worker->requestScan( 30U)) ;
-			const auto restarted =
+			auto restartedOwner = std::make_unique<std::optional<WorkerEvent>>(
 				waitIndexWorkerEvent( context, *worker, WorkerEventKind::SCAN_COMPLETED,
-									 30U) ;	// 新scanだけで能力を作り直します。
+									 30U)) ;			// 同寿命の元eventをheapで所有します。
+			const auto &restarted = *restartedOwner ;	// 新scanだけで能力を作り直します。
 			DRIVERCRATE_EXPECT( context,
 							   restarted && restarted->preparationPlan &&
 								   restarted->scanResult.scanSessionId > plan.scanSessionId) ;
@@ -3402,9 +3736,10 @@ void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 				}
 
 				DRIVERCRATE_EXPECT( context, worker->requestPreparation( resume)) ;
-				const auto resumed =
+				auto resumedOwner = std::make_unique<std::optional<WorkerEvent>>(
 					waitIndexWorkerEvent( context, *worker, WorkerEventKind::PREPARATION_COMPLETED,
-										 40U) ;	// 正常再開の確定結果。
+										 40U)) ;		// 同寿命の元eventをheapで所有します。
+				const auto &resumed = *resumedOwner ;	// 正常再開の確定結果。
 				DRIVERCRATE_EXPECT(
 					context, resumed &&
 								 resumed->preparationResult.approvalError ==
@@ -3447,9 +3782,10 @@ void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 		if( prepared && mode == 0U) {
 			approval.operationId = 25U ;
 			DRIVERCRATE_EXPECT( context, worker->requestPreparation( approval)) ;
-			const auto replay =
+			auto replayOwner = std::make_unique<std::optional<WorkerEvent>>(
 				waitIndexWorkerEvent( context, *worker, WorkerEventKind::PREPARATION_COMPLETED,
-									 25U) ;	// 同scan/planでも使用済みです。
+									 25U)) ;	// 同寿命の元eventをheapで所有します。
+			const auto &replay = *replayOwner ;	// 同scan/planでも使用済みです。
 			DRIVERCRATE_EXPECT( context, replay && replay->preparationResult.approvalError !=
 													  OfficialPreparationError::NONE) ;
 		}
@@ -3635,9 +3971,21 @@ void runNormalSignedIndexCandidateBindingTests( TestContext						&context,
 			[]() {
 				return std::make_unique<FakeNetworkCostReader>() ;
 			}} ; // Native fallbackはありません。
-	runSignedIndexCandidateBindingTests( context, std::move( services), zip, network) ;
+	const bool managed =
+		// この限定fixtureだけの分岐です。
+		zip.find( "windows-managed-scope-fixture") != zip.npos ;
+	// 実全suiteを繰り返さず、本変更の通常取得/導入条件だけへ接続します。
+	if( managed) {
+		runWindowsManagedDriverBindingTests( context, std::move( services), zip) ;
+	} else {
+		runSignedIndexCandidateBindingTests( context, std::move( services), zip, network) ;
+	}
+
+	const auto expectedSends = managed
+								   ? (zip.find( "scope-fixture-reject") != zip.npos ? 1U : 5U)
+								   : (network ? 1U : 6U + 17U + 12U) ;	// 元実dispatch数だけです。
 	DRIVERCRATE_EXPECT( context, fixture->safeRequest && fixture->opened == fixture->closed &&
-									fixture->sends == (network ? 1U : 6U + 17U + 12U)) ;
+									fixture->sends == expectedSends) ;
 }
 
 /** @brief 原生成索引の同一recordを通常候補adapterと全fake terms GETへ接続します。
@@ -3651,6 +3999,107 @@ void runMetadataBoundAdapterFixtureTests( TestContext								   &context,
 										 const std::chrono::sys_seconds					nowUtc,
 										 const std::string							   &body)
 {
+	const auto &declared = lookup->snapshot()
+							   .schemaReceipt()
+							   .records()
+							   .front()
+							   .acquisitionDescriptor->terms ;	// 原認証recordの規約だけです。
+	// 独立文書は同じ通常adapterへ二つのfake HTTP本文を渡し、旧Intelの一本文契約は変更しません。
+	if( declared.textDocument && declared.textDocument->htmlExtraction &&
+	   declared.textDocument->htmlExtraction->profile == "STATIC_HTML_SECTION_V1") {
+		const auto bundle = winrt::Windows::Data::Json::JsonObject::Parse(
+			// 明示した私有fixtureだけです。
+			winrt::to_hstring( body)) ;
+		const auto originalLink =
+			// 原配布pageです。
+			winrt::to_string( bundle.GetNamedString( L"linkHtml")) ;
+		const auto originalDocument =
+			// 規約原wire byteです。
+			winrt::to_string( bundle.GetNamedString( L"documentHtml")) ;
+		const auto &record =
+			// 同じ認証recordのpolicyです。
+			lookup->snapshot().schemaReceipt().records().front() ;
+		auto changedPolicy = record ;	// 原認証recordを変更しない比較用copyです。
+		++changedPolicy.acquisitionDescriptor->terms.textDocument->htmlExtraction
+			  ->bindingEvidenceSizeBytes ;
+		DRIVERCRATE_EXPECT( context, matchesSharedIndexPayloadEvidence( record, record) &&
+										!matchesSharedIndexPayloadEvidence( record, changedPolicy)) ;
+		// 正常、誤リンク、規約改変、失効、scan違いだけを有限確認します。
+		for( unsigned mode = 0U; mode < 5U; ++mode) {
+			const IndexLookupContext	  current{301U, 302U, 303U} ;	// 元認証fixtureのcontextです。
+			SignedIndexAcquisitionAdapter adapter ;						// 保存recordから通常product policyを使います。
+			const auto					  at = mode == 3U ? nowUtc + std::chrono::hours{24 * 9}
+														  : nowUtc ;	// 期限を変更せず失効を試します。
+			const auto					  begun =
+				// 同じ通常入口です。
+				adapter.begin( lookup, current, IndexTargetOs::WINDOWS_11, at) ;
+			// 失効したsnapshotではHTTPを開始できません。
+			if( mode == 3U) {
+				DRIVERCRATE_EXPECT( context, begun != 0) ;
+				continue ;
+			}
+
+			DRIVERCRATE_EXPECT( context, begun == 0) ;
+			DelegatedHttpFixture fixture ;	// 全HTTP/DNS/UTCを既存fakeへ限定します。
+			fixture.signedTermsDocument = true ;
+			fixture.responses.assign( 2U, DelegatedHttpResponse{}) ;
+			fixture.utcSeconds.assign( 64U,
+									  static_cast<std::uint64_t>( at.time_since_epoch().count())) ;
+			fixture.responses[0].body = mode == 1U ? "<html>missing required document anchor</html>"
+												   : "<!-- new unrelated nonce -->" + originalLink ;
+			fixture.responses[1].body =
+				"<!-- changed unrelated document shell -->" + originalDocument ;
+			// 改変用copyだけに同selectorの偽文書を足し、元wireを変更しません。
+			if( mode == 2U) {
+				fixture.responses[1].body +=
+					"<div id=\"container-9da48089c3\"><p>Changed v. February 25, 2025</p></div>" ;
+			}
+
+			// 元二応答のbyte数とMIMEを全低位callbackへ渡します。
+			for( auto &response : fixture.responses) {
+				response.declared	 = std::to_wstring( response.body.size()) ;
+				response.contentType = L"text/html; charset=utf-8" ;
+			}
+
+			activeDelegatedHttpFixture = &fixture ;
+			OfficialHttpClient client(
+				// native通信へfallbackしません。
+				makeDelegatedHttpTransport()) ;
+			auto query = current ;	// 同scan違いを別の同意snapshotへ流用しません。
+			// 変更後scanの文書再利用をHTTP前に拒否します。
+			if( mode == 4U) {
+				++query.scanSessionId ;
+			}
+
+			const auto error = adapter.readTermsText(
+				0U, query, at, client, [] { return false ; }) ;	// 通常consumerそのものです。
+			DRIVERCRATE_EXPECT( context,
+							   (error == 0) == (mode == 0U) &&
+								   fixture.sends == (mode == 4U ? 0U : (mode == 1U ? 1U : 2U)) &&
+								   fixture.safeRequest && fixture.opened == fixture.closed) ;
+			// 同一全文/revisionだけを既存の明示Install同意targetへ記述します。
+			if( mode == 0U) {
+				const OfficialPreparationLimits	  limits{134217728U, 134217728U, 134217728U, 1U,
+														 1U} ;	// 既存の一file枠です。
+				SignedIndexPreparationDescription description ;	// 未取得本文を補完しません。
+				DRIVERCRATE_EXPECT( context,
+								   adapter.describe( 0U, current, at, limits, description) == 0 &&
+									   description.target &&
+									   description.target->terms ==
+										   OfficialPreparationTerms::ACCEPTANCE_REQUIRED &&
+									   description.target->eulaText.find(
+										   L"driver-licensing@nvidia.com") != std::wstring::npos &&
+									   description.target->eulaRevision == L"v. February 25, 2025") ;
+			}
+
+			std::cout << "STATIC_TERMS_CONSUMER mode=" << mode
+					  << " code=" << static_cast<std::uint32_t>( error) << " sends=" << fixture.sends
+					  << " realHttp=0\n" ;
+		}
+
+		return ;
+	}
+
 	const IndexLookupContext	  current{301U, 302U, 303U} ;	// 原認証fixtureのcontextです。
 	SignedIndexAcquisitionAdapter adapter ;						// 通常product取得policyを使用します。
 	DRIVERCRATE_EXPECT( context,
@@ -3733,13 +4182,15 @@ void runNormalDistributionApplicationTests( TestContext						&context,
 	}
 }
 /** @see signed_index_candidate_binding_tests.h */
-void runNormalIndexIdentityBindingCase( TestContext						&context,
-									   std::shared_ptr<SignedIndexStore> store,
-									   const std::chrono::sys_seconds	 nowUtc,
-									   const std::string &zip, const std::size_t references,
-									   const std::size_t candidates, const std::size_t targets)
+void runNormalIndexIdentityBindingCase(
+	TestContext &context, std::shared_ptr<SignedIndexStore> store,
+	const std::chrono::sys_seconds nowUtc, const std::string &zip, const std::size_t references,
+	const std::size_t candidates, const std::size_t targets,
+	const std::optional<PreparedInstallResolutionState> resolution, const unsigned failure)
 {
 	auto fixture = std::make_shared<DelegatedHttpFixture>() ;	// 全送信を自己所有byteへ固定します。
+	auto clock	 = std::make_shared<std::chrono::sys_seconds>(
+		  nowUtc) ;	// 元scan後の失効だけを分離する人工時計です。
 	fixture->utcSeconds.assign( 4096U,
 							   static_cast<std::uint64_t>( nowUtc.time_since_epoch().count())) ;
 	fixture->responses.assign( 4U, DelegatedHttpResponse{}) ;
@@ -3751,7 +4202,7 @@ void runNormalIndexIdentityBindingCase( TestContext						&context,
 
 	provider_worker_index_detail::Services services{
 		.load	   = [store]( auto time) { return store->reload( time) ; },
-		.utc	   = [nowUtc]() { return std::optional{nowUtc} ; },
+		.utc	   = [clock]() { return std::optional{*clock} ; },
 		.monotonic = []() { return std::chrono::steady_clock::now() ; },
 		.targetOs  = []() { return std::optional{IndexTargetOs::WINDOWS_11} ; },
 		.httpTransport =
@@ -3802,6 +4253,31 @@ void runNormalIndexIdentityBindingCase( TestContext						&context,
 			approval.decisions.push_back( {target, true, false, false, false}) ;
 		}
 
+		// 元workerの表示参照だけを明示選択し、手製referenceやGrantを作りません。
+		if( resolution) {
+			const auto original =
+				std::ranges::find_if( scanned->scanResult.candidates, []( const auto &value) {
+					return value.providerId == SIGNED_INDEX_PROVIDER_ID && !value.current ;
+				}) ; // 原順の先頭参照です。OS適合性で選びません。
+			DRIVERCRATE_EXPECT( context, original != scanned->scanResult.candidates.end()) ;
+			// 元参照の欠落を任意の手製candidateで補いません。
+			if( original == scanned->scanResult.candidates.end()) {
+				throw std::runtime_error( "model choice original reference absent") ;
+			}
+
+			approval.installIntentIdentities.push_back( original->identity) ;
+		}
+
+		// 元scan時点の成功を期限経過後の許可へ持ち越しません。
+		if( failure == 1U) {
+			*clock += std::chrono::days{30} ;
+		}
+
+		// 同長の一byte改変を原payload hash検査へ渡します。
+		if( failure == 2U && !fixture->responses.front().body.empty()) {
+			fixture->responses.front().body.back() ^= 1 ;
+		}
+
 		DRIVERCRATE_EXPECT( context, bound.worker->requestPreparation( approval)) ;
 		auto prepared =
 			waitIndexWorkerEvent( context, *bound.worker, WorkerEventKind::PREPARATION_COMPLETED,
@@ -3812,6 +4288,60 @@ void runNormalIndexIdentityBindingCase( TestContext						&context,
 			// 各reportの実候補数を保持し、内容合格件数から推測しません。
 			for( const auto &report : prepared->preparationResult.auditReports) {
 				published += report.publishedCandidates.size() ;
+				// 原拒否とpublication数を、fixtureの期待値から独立して保存します。
+				if( resolution) {
+					std::cout << "MODEL_CHOICE_AUDIT content=" << report.contentError
+							  << " applicability=" << report.applicabilityError
+							  << " firstPair=" << report.firstPairError
+							  << " published=" << report.publishedCandidates.size() << '\n' ;
+				}
+			}
+
+			// 通常private ownerが唯一候補へ結んだ結果だけを受け、実Installは要求しません。
+			if( resolution) {
+				const auto &resolved =
+					prepared->preparationResult.installResolutions ;	// 元意図の通常解決結果です。
+				// 期限拒否は選択解決そのものを発行せず、他の正常contextは元意図一件へ結果を返します。
+				if( failure == 1U) {
+					DRIVERCRATE_EXPECT( context,
+									   resolved.empty() &&
+										   (prepared->indexPreparation.authorityError != 0U ||
+											prepared->preparationResult.controlError != 0U ||
+											prepared->preparationResult.approvalError !=
+												OfficialPreparationError::NONE)) ;
+				} else {
+					DRIVERCRATE_EXPECT( context, resolved.size() == 1U &&
+													resolved.front().state == *resolution &&
+													resolved.front().originalIdentity ==
+														approval.installIntentIdentities.front()) ;
+				}
+
+				// READYのopaque結果が同deviceの実publicationに存在する場合だけ接続成功とします。
+				if( *resolution == PreparedInstallResolutionState::READY && resolved.size() == 1U) {
+					DRIVERCRATE_EXPECT(
+						context,
+						std::ranges::any_of(
+							prepared->preparationResult.auditReports, [&]( const auto &report) {
+								return std::ranges::any_of(
+									report.publishedCandidates, [&]( const auto &value) {
+										return value.identity ==
+												   resolved.front().candidateIdentity &&
+											   value.installable &&
+											   value.deviceIdentity ==
+												   scanned->scanResult.candidates.front()
+													   .deviceIdentity ;
+									}) ;
+							})) ;
+				}
+
+				std::cout << "MODEL_CHOICE_RESOLUTION count=" << resolved.size()
+						  << " expected=" << static_cast<unsigned>( *resolution) << " actual="
+						  << (resolved.empty() ? 99U
+											   : static_cast<unsigned>( resolved.front().state))
+						  << " failure=" << failure
+						  << " control=" << prepared->preparationResult.controlError
+						  << " authority=" << prepared->indexPreparation.authorityError
+						  << " install=0\n" ;
 			}
 		}
 	}
@@ -3825,7 +4355,7 @@ void runNormalIndexIdentityBindingCase( TestContext						&context,
 	DRIVERCRATE_EXPECT( context, terminal.stages == 0U && terminal.installs == 0U &&
 									terminal.restoreBegins == 0U && bound.allNativeHandlesClosed()) ;
 	DRIVERCRATE_EXPECT( context, fixture->safeRequest && fixture->opened == fixture->closed &&
-									fixture->sends == targets) ;
+									fixture->sends == (failure == 1U ? 0U : targets)) ;
 	std::cout << "INDEX_IDENTITY_BIND references=" << references << " candidates=" << published
 			  << " targets=" << targets << " fakeSends=" << fixture->sends
 			  << " nativeRankDelta=" << observed.rankCalls - ranksBefore

@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_package_inspection.cpp
  * @brief Record限定取得結果と共通driver package検査の接続実装。
- * @version 01.02.01
+ * @version 01.03.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.01.01 Shunji Ogawa  2026/09/15  公開SHA-256と実取得hashを再照合。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  Device別PnP観測と取得後表示reportを追加。
  * Ver.01.02.01 Shunji Ogawa  2026/10/15  全体INF件数と照合開始前のpair予算を共通化。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/03  明示非実行formatを元grant/record/hintへ結合。
  * </pre>
  *
  * @note Adapterはworker内の取得証拠と内容入力を分離し、秘密URL、実pathまたはhashをUIへ渡しません。
@@ -35,6 +36,9 @@
 #include "platform/official_delegated_package_inspection.h"
 
 #include "core/candidate_audit.h"
+#include "core/provider_registry.h"
+#include "platform/indexed_driver_package_inspection.h"
+#include "platform/official_resource_content.h"
 #include "core/official_preparation_audit.h"
 
 #include "platform/official_discovery_package.h"
@@ -188,7 +192,13 @@ constexpr std::size_t	  MAXIMUM_IDENTITY_CHARACTERS	   = 256U ;		// Opaque IDの
 		   provenance.validatedDestinationAddressCount != 0U &&
 		   provenance.destinationLocallyResolved &&
 		   (input.format == OfficialDriverArchiveFormat::ZIP ||
-			input.format == OfficialDriverArchiveFormat::CABINET) ;
+			input.format == OfficialDriverArchiveFormat::CABINET ||
+			input.format == OfficialDriverArchiveFormat::SEVEN_ZIP_SFX ||
+			(input.format == OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER &&
+			 input.archive.resourceContent &&
+			 validOfficialResourceContentPlan( *input.archive.resourceContent) &&
+			 input.archive.resourceContent->rootBytes == input.archive.byteCount &&
+			 input.archive.resourceContent->rootSha256 == input.archive.sha256)) ;
 }
 
 } // namespace
@@ -198,9 +208,19 @@ constexpr std::size_t	  MAXIMUM_IDENTITY_CHARACTERS	   = 256U ;		// Opaque IDの
  * @see src/platform/official_delegated_package_inspection.h 宣言側の契約を正本とします。
  */
 //------------------------------------------------------------------------------
-NativeError makeDelegatedOfficialPackageInput( const OfficialAcquisitionResult &acquisition,
-											  const RecordScopedDownloadGrant &grant,
-											  DelegatedOfficialPackageInput	  &input) noexcept
+/** @brief 既存の全取得結合を共用し、検査形式だけを選ぶ。
+ * @param[in] acquisition 元成功ledger。
+ * @param[in] grant 同じ消費済みgrant。
+ * @param[out] input 全成功時だけの検査入力。
+ * @param[in] explicitFormat 空は旧basename契約。値は検査済み非実行format。
+ * @param[in] resourcePlan 元recordに結ぶ任意の原範囲計画。
+ * @return 変換成功0、元HRESULT。
+ */
+static NativeError makeDelegatedOfficialPackageInputImpl(
+	const OfficialAcquisitionResult &acquisition, const RecordScopedDownloadGrant &grant,
+	DelegatedOfficialPackageInput					  &input,
+	const std::optional<OfficialDriverArchiveFormat>   explicitFormat,
+	std::shared_ptr<const OfficialResourceContentPlan> resourcePlan) noexcept
 {
 	input												= {} ;
 	const RecordScopedDownloadGrantMetadata	  &metadata = grant.metadata() ;	// URL非保持grant状態。
@@ -270,35 +290,36 @@ NativeError makeDelegatedOfficialPackageInput( const OfficialAcquisitionResult &
 
 	try {
 		const std::optional<OfficialDriverArchiveFormat> format =
-			// 公開basenameだけに基づく検査形式。
-			archiveFormat( payload.fileDisplayName) ;
+			// 旧basenameまたは認証recordが明示する非実行形式。
+			explicitFormat ? explicitFormat : archiveFormat( payload.fileDisplayName) ;
 		// 未対応、欠落またはdirectory付きbasenameを実pathから補完しない。
 		if( !format) {
 			return fromWin32( ERROR_NOT_SUPPORTED) ;
 		}
 
 		DelegatedOfficialPackageInput pending ;	// 全copy成功後だけ公開する変換結果。
-		pending.archive	   = {.scanSessionId  = acquisition.scanSessionId,
-							  .inspectionPath = acquisition.inspectionPath,
-							  .byteCount	  = acquisition.byteCount,
-							  .sha256		  = acquisition.sha256} ;
-		pending.format	   = *format ;
-		pending.provenance = {.scanSessionId		  = acquisition.scanSessionId,
-							  .acquisitionId		  = acquisition.acquisitionId,
-							  .providerId			  = acquisition.providerId,
-							  .policyId				  = metadata.policyId,
-							  .rootResourceId		  = metadata.rootResourceId,
-							  .payloadResourceId	  = acquisition.resourceId,
-							  .recordEvidenceId		  = acquisition.recordEvidenceId,
-							  .downloadGrantId		  = acquisition.downloadGrantId,
-							  .payloadOrdinal		  = metadata.payloadOrdinal,
-							  .recordFingerprint	  = metadata.recordFingerprint,
-							  .grantReresolutionCount = acquisition.grantReresolutionCount,
-							  .validatedDestinationAddressCount =
-								  acquisition.validatedDestinationAddressCount,
-							  .destinationLocallyResolved = acquisition.destinationLocallyResolved,
-							  .publishedSizeVerified	  = acquisition.publishedSizeVerified,
-							  .publishedSha256Verified	  = acquisition.publishedSha256Verified} ;
+		pending.archive					= {.scanSessionId  = acquisition.scanSessionId,
+										   .inspectionPath = acquisition.inspectionPath,
+										   .byteCount	   = acquisition.byteCount,
+										   .sha256		   = acquisition.sha256} ;
+		pending.archive.resourceContent = std::move( resourcePlan) ;
+		pending.format					= *format ;
+		pending.provenance				= {.scanSessionId		   = acquisition.scanSessionId,
+										   .acquisitionId		   = acquisition.acquisitionId,
+										   .providerId			   = acquisition.providerId,
+										   .policyId			   = metadata.policyId,
+										   .rootResourceId		   = metadata.rootResourceId,
+										   .payloadResourceId	   = acquisition.resourceId,
+										   .recordEvidenceId	   = acquisition.recordEvidenceId,
+										   .downloadGrantId		   = acquisition.downloadGrantId,
+										   .payloadOrdinal		   = metadata.payloadOrdinal,
+										   .recordFingerprint	   = metadata.recordFingerprint,
+										   .grantReresolutionCount = acquisition.grantReresolutionCount,
+										   .validatedDestinationAddressCount =
+											   acquisition.validatedDestinationAddressCount,
+										   .destinationLocallyResolved = acquisition.destinationLocallyResolved,
+										   .publishedSizeVerified	   = acquisition.publishedSizeVerified,
+										   .publishedSha256Verified	   = acquisition.publishedSha256Verified} ;
 		// 内部copyで失われたfieldや不正既定値を公開前に拒否する。
 		if( !isValidInput( pending)) {
 			return static_cast<NativeError>( E_INVALIDARG) ;
@@ -311,6 +332,60 @@ NativeError makeDelegatedOfficialPackageInput( const OfficialAcquisitionResult &
 	} catch( ...) {
 		// 文字列copy等の例外をworker境界から外へ漏らさない。
 		return static_cast<NativeError>( E_FAIL) ;
+	}
+}
+
+/** @see official_delegated_package_inspection.h */
+NativeError makeDelegatedOfficialPackageInput( const OfficialAcquisitionResult &acquisition,
+											  const RecordScopedDownloadGrant &grant,
+											  DelegatedOfficialPackageInput	  &input) noexcept
+{
+	return makeDelegatedOfficialPackageInputImpl( acquisition, grant, input, {}, {}) ;
+}
+
+/** @see official_delegated_package_inspection.h */
+NativeError makeDelegatedOfficialPackageInput( const OfficialAcquisitionResult  &acquisition,
+											  const RecordScopedDownloadGrant  &grant,
+											  const IndexedDriverArchiveHint   &hint,
+											  const OfficialDriverArchiveFormat format,
+											  DelegatedOfficialPackageInput	   &input) noexcept
+{
+	input = {} ;
+	// 明示された二つの非実行形式だけへ元署名recordを接続する。
+	if( (format != OfficialDriverArchiveFormat::SEVEN_ZIP_SFX &&
+		format != OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER) ||
+	   grant.metadata().origin != OfficialDownloadGrantOrigin::SIGNED_INDEX_COLLECTOR_ATTESTATION ||
+	   grant.metadata().providerId != SIGNED_INDEX_PROVIDER_ID) {
+		return E_ACCESSDENIED ;
+	}
+
+	try {
+		const DriverArchiveInput bound{acquisition.scanSessionId, acquisition.inspectionPath,
+									   acquisition.byteCount, acquisition.sha256,
+									   hint.resourceContent} ;	// 同じ原byte/hint。
+		// 公開DTOのformat指定だけでsession/元親不一致を通さない。
+		if( !matchesIndexedDriverArchiveHint( acquisition.scanSessionId, hint, bound, format)) {
+			return E_INVALIDARG ;
+		}
+
+		constexpr std::wstring_view hex = L"0123456789abcdef" ;					// 原fingerprintの固定表現。
+		const auto &fingerprint = grant.metadata().recordFingerprint.bytes ;	// 実grantの元record。
+		// 別recordのhintを同じ取得byteで付け替えない。
+		for( std::size_t index = 0U; index < fingerprint.size(); ++index) {
+			const auto byte = std::to_integer<unsigned>( fingerprint[index]) ;	// 元一byte。
+			// 全64hexが同じ元recordを指すことを確認する。
+			if( hint.recordSha256[index * 2U] != hex[byte >> 4U] ||
+			   hint.recordSha256[index * 2U + 1U] != hex[byte & 15U]) {
+				return E_ACCESSDENIED ;
+			}
+		}
+
+		return makeDelegatedOfficialPackageInputImpl( acquisition, grant, input, format,
+													 hint.resourceContent) ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	} catch( ...) {
+		return E_UNEXPECTED ;
 	}
 }
 

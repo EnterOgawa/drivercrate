@@ -2,7 +2,7 @@
 /**
  * @file official_sfx.cpp
  * @brief 公式自己解凍形式の静的識別実装。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
  * </pre>
  *
  * @note 未信頼EXEを実行せず、PE raw image、7z stream、任意のcertificate tableと必要最小限のzero alignmentを検査します。成功するまで呼出
@@ -643,7 +644,8 @@ struct PeLayout {
 		static_cast<std::size_t>( signatureOffset) ;
 	// 対応する 7z version 表記と異なる stream を拒否する。
 	if( input[signatureIndex + 6U] != std::byte{0x00} ||
-	   input[signatureIndex + 7U] != std::byte{0x04}) {
+	   (input[signatureIndex + 7U] != std::byte{0x03} &&
+		input[signatureIndex + 7U] != std::byte{0x04})) {
 		return nativeErrorFromWin32( ERROR_BAD_FORMAT) ;
 	}
 

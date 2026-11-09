@@ -2,7 +2,7 @@
 /**
  * @file official_file_verifier.h
  * @brief 公式配布file共通検証定義。
- * @version 01.05.00
+ * @version 01.06.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/09/25  収集metadata専用の8 MiB hash上限を分離。
  * Ver.01.04.00 Shunji Ogawa  2026/10/06  原container専用の128 MiB hash入口を分離。
  * Ver.01.05.00 Shunji Ogawa  2026/10/17 明示cached-onlyの共通Authenticode入口を追加。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/05 CAT原宣言のmember算法と署名検証の契約を分離。
  * </pre>
  *
  * @note 公式catalogとpayloadのsize、SHA-256、Authenticode publisherを共通のfail-closed規則で検証します。URLや端末識別情報は保持し
@@ -141,12 +142,12 @@ struct OfficialFileMetadataPolicy {
 /**
  * @brief 署名catalogが全member fileの現在内容を収録していることを検証する。
  * 署名catalogと全member fileを検証する。
- * 現在OSのstrong-sign policyとSHA-256を全memberへ適用し、一件でも不一致ならpackage全体を受理しない。
+ * 各fileに原CATのdigest/tagが一致する既知算法をtrust前に選び、一件でも不一致なら全体を受理しません。
  * @param[in] catalogPath 検証するCAT fileの絶対path。
  * @param[in] memberPaths Catalog memberとして検証する通常fileの絶対path群。 Catalogへ収録されるべき通常file群。
  * @return 全memberのhashとcatalog trustが有効なら0、最初の失敗はtrust HRESULT。 全memberのhashとcatalog trustが有効なら0、失敗
  *         時はHRESULT。
- * @note SHA-256と現在OSのstrong-sign policyを使用し、blocking処理はworkerで実行する。
+ * @note 外側署名のcurrent strong-sign policyを維持し、未知・不正算法を拒否します。blocking処理はworkerで実行します。
  */
 [[nodiscard]] NativeError verifyOfficialCatalogMembers( std::wstring_view			 catalogPath,
 													   std::span<const std::wstring> memberPaths) ;

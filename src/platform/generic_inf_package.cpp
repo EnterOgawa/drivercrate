@@ -2,7 +2,7 @@
 /**
  * @file generic_inf_package.cpp
  * @brief 汎用署名済みINF ZIP検証実装。
- * @version 01.01.00
+ * @version 01.03.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -38,6 +38,8 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  共通個別INF検査のlocal入力adapterを追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * </pre>
  *
  * @note Provider名を入手元の証明に使用せず、現在Windows x64用の非boot-critical INF、WHCP署名、CAT SHA-256 member、現在deviceと
@@ -113,12 +115,11 @@ constexpr std::array REJECTED_NESTED_CONTAINER_EXTENSIONS{
 	// 拒否する内側archive／virtual image拡張子。
 	std::wstring_view( L".zi_")} ;
 constexpr std::array REJECTED_FIRMWARE_EXTENSIONS{
-	std::wstring_view( L".bin"), std::wstring_view( L".cap"), std::wstring_view( L".dfu"),
-	std::wstring_view( L".dfuse"), std::wstring_view( L".elf"), std::wstring_view( L".fls"),
+	std::wstring_view( L".cap"), std::wstring_view( L".dfuse"), std::wstring_view( L".fls"),
 	std::wstring_view( L".ftf"), std::wstring_view( L".fw"), std::wstring_view( L".hex"),
 	std::wstring_view( L".ihx"), std::wstring_view( L".img"), std::wstring_view( L".kdz"),
-	std::wstring_view( L".mbn"), std::wstring_view( L".ofp"), std::wstring_view( L".pac"),
-	std::wstring_view( L".pit"), std::wstring_view( L".rom"), std::wstring_view( L".sin"),
+	std::wstring_view( L".ofp"), std::wstring_view( L".pac"), std::wstring_view( L".pit"),
+	std::wstring_view( L".rom"), std::wstring_view( L".sin"),
 	// Firmware／flash image拡張子。
 	std::wstring_view( L".tot"), std::wstring_view( L".uf2")} ;
 constexpr std::array REJECTED_SOFTWARE_DEVICE_ID_PREFIXES{
@@ -347,14 +348,26 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 [[nodiscard]] bool isGenericInfPackage( const OfficialInfPackage &package)
 {
 	// 必須metadataの欠落、禁止payload、software列挙packageを汎用経路から除外する。
-	if( package.providerName.empty() || !isFourPartVersion( package.driverVersion) ||
-	   package.hardwareIds.empty() || package.sourceFiles.empty() ||
+	if( package.hasUnassessedProgramReferences || package.providerName.empty() ||
+	   !isFourPartVersion( package.driverVersion) || package.hardwareIds.empty() ||
+	   package.sourceFiles.empty() ||
 	   std::ranges::any_of( package.hardwareIds,
 						   []( const std::wstring &hardwareId) { return hardwareId.empty() ; }) ||
 	   std::ranges::any_of(
 		   package.sourceFiles,
 		   []( const std::wstring &sourceFile) { return isDisallowedGenericPayload( sourceFile) ; }) ||
 	   isSoftwareEnumeratedPackage( package)) {
+		return false ;
+	}
+
+	const bool hasSys = std::ranges::any_of( package.sourceFiles, []( const auto &file) {
+		return hasExtension( file, L".sys") ;
+	}) ; // 受動deviceデータを単独firmware packageへ昇格させません。
+	// 拡張子だけでflashと断定せず、SYSを伴うINF参照データに限定します。
+	if( !hasSys && std::ranges::any_of( package.sourceFiles, []( const auto &file) {
+		   return hasExtension( file, L".bin") || hasExtension( file, L".dfu") ||
+				  hasExtension( file, L".mbn") || hasExtension( file, L".elf") ;
+	   })) {
 		return false ;
 	}
 

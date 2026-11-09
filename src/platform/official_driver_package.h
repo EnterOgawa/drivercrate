@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package.h
  * @brief 公式標準INF driver package検証定義。
- * @version 01.17.00
+ * @version 01.22.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -56,6 +56,11 @@
  * Ver.01.15.00 Shunji Ogawa  2026/10/13  選択Needsの同HINF元source位置の読取契約を公開。
  * Ver.01.16.00 Shunji Ogawa  2026/10/14  元Models/ID種別/ClassGUIDの非許可公開receiptを追加。
  * Ver.01.17.00 Shunji Ogawa  2026/10/14  同Windows INF/CAT検査から実publisherの非許可metadataを追加。
+ * Ver.01.18.00 Shunji Ogawa  2026/11/03  標準Componentの原コピーとType1・System device serviceの境界を明記。
+ * Ver.01.19.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.20.00 Shunji Ogawa  2026/11/05  同INF付属内容と未評価Type1作用の境界を明記。
+ * Ver.01.21.00 Shunji Ogawa  2026/11/06  Windows管理driver付属DATAと原source位置の非実行読取を分離。
+ * Ver.01.22.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * </pre>
  *
  * @note 保護workspaceへ展開済みの標準INF packageを、現在のWindows x64に対する構造、適用ID、参照fileおよびcatalog署名の境界で検証します。
@@ -77,6 +82,7 @@
 #include <vector>
 
 namespace drivercrate {
+struct RequiredInfBindingDiagnostic ;
 
 class OfficialDownloadWorkspace ;
 
@@ -120,15 +126,43 @@ struct OfficialInfInspectionPolicy {
 	bool							   requireDriverBinary{true} ;
 	/// trueの場合はINFが参照しないprogramもarchive全体のpolicy違反とする。
 	bool							   rejectUnreferencedPrograms{true} ;
-	/// trueの場合は任意command実行、外部INF登録と非空・未知CoInstaller動作を拒否する。明示空参照だけは許可する。
+	/// trueは任意command実行・外部登録を拒否します。必要構成modeだけで同INFへ結合したCoInstaller内容を検査します。
 	bool							   rejectInstallActions{} ;
 	/// trueの場合は未解決のInclude／Needs／AddComponentを方式未対応として拒否する。
 	bool							   rejectExternalDependencies{} ;
-	/// trueは保守内容検査だけの非圧縮EXE参照です。通常はfalseで、必要SWCは同INF service/copy/sourceを別検査します。
+	/// trueは非実行内容検査の元EXE/MSI/CAB参照です。実行作用や導入許可は別の検査を必要とします。
 	bool							   allowReferencedExecutablesForContent{} ;
-	/// trueは元CopyINF/AddComponentを有限driver構成解析へ渡します。導入許可ではありません。
+	/// trueは元CopyINF/AddComponent・必要Type1/コピー・device serviceとCoInstallerを有限解析します。導入許可ではありません。
 	bool							   allowRequiredDriverComponents{} ;
+	/// trueは既知script/program参照も内容DATAとして検査します。実行とdriver scopeの合格を意味しません。
+	bool							   allowWindowsManagedDriverDataForContent{} ;
 } ;
+
+/**
+ * @brief 元INFの全現在architecture source相対位置を非実行で読み取ります。
+ * @param[in] workspace 元INFを保持する保護領域です。
+ * @param[in] infRelativePath 同領域内の元INF相対位置です。
+ * @param[in] maximumFiles 元sourceの有限件数上限です。
+ * @param[out] paths 全成功時だけ同INF/同媒体に結合する安全相対pathです。失敗時は空です。
+ * @return 全取得成功0、欠損・過長・不正位置・容量超過のHRESULTです。
+ * @note 原圧縮sourceの探索準備だけです。実byte/CAT/導入可能性の証明ではありません。
+ */
+[[nodiscard]] NativeError readOfficialInfSourcePaths( const OfficialDownloadWorkspace &workspace,
+													 std::wstring_view			infRelativePath,
+													 std::size_t				maximumFiles,
+													 std::vector<std::wstring> &paths) ;
+
+/**
+ * @brief 同元CopyINFの内容検査用ClassをWindows readerから読みます。
+ * @param[in] workspace 原INFを所有する保護領域です。
+ * @param[in] infRelativePath 同領域内の元INFです。
+ * @param[out] className 非空Class/有効非zero GUID/既知Firmware範囲外を確認した原名です。
+ * @return 元読取成功0、不正・不明・既知FirmwareはHRESULTです。
+ * @note importの非実行内容だけです。root policy、適合または導入能力を変更しません。
+ */
+[[nodiscard]] NativeError readOfficialInfImportClass( const OfficialDownloadWorkspace &workspace,
+													 std::wstring_view infRelativePath,
+													 std::wstring	  &className) ;
 
 /** @brief 選択DDInstall.Componentsの元宣言です。IDはworker内だけで保持します。 */
 struct OfficialInfComponentReference {
@@ -179,12 +213,16 @@ struct OfficialInfPackage {
 	std::optional<std::uint32_t>			   selectedNativeRank ;
 	/// 全節の潜在CopyINF再帰importへ渡す安全なpackage相対pathです。機能必要性とは別です。
 	std::vector<std::wstring>				   requiredInfPaths ;
+	/// 元CopyINFのうち原containerで見つからない相対名。内容署名成功と依存解決を混同しない。
+	std::vector<std::wstring>				   unresolvedCopyInfPaths ;
 	/// 同deviceで選択したDDInstallのCopyINFだけです。未選択節の参照を実行集合へ混ぜません。
 	std::vector<std::wstring>				   activeRequiredInfPaths ;
 	/// 元選択DDInstall.Componentsが宣言する必要子です。
 	std::vector<OfficialInfComponentReference> requiredComponents ;
 	/// 全明示節のInclude/Needsを検出した状態です。元OS/storeとpackageの充足は別検査です。
 	bool									   unresolvedIncludeNeeds{} ;
+	/// 内容だけで受理した元program/archive参照が同INFの正式copy/serviceへ未結合の場合true。実行や不適合を意味しない。
+	bool									   hasUnassessedProgramReferences{} ;
 } ;
 
 /**
@@ -202,6 +240,20 @@ struct OfficialInfPackage {
 	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
 	const OfficialInfPackage &original, std::wstring_view selectedBasicSection,
 	OfficialInfPackage &selected) ;
+
+/**
+ * @brief 選択元INFのWindows管理driver package範囲を非実行で再検査します。
+ * @param[in] workspace 全内容検査済み元fileを所有する保護領域です。
+ * @param[in] entries 全原参照のsize/hash付き閉包です。CAT検証は呼出側が別に要求します。
+ * @param[in] selected native compatible nodeから選んだ原DDInstall関係です。
+ * @param[out] diagnostic 任意の最初の固定拒否です。合否に使いません。
+ * @return 選択copy/source/Windows宛先/関連service/softwareの結合成功0、それ以外はHRESULTです。
+ * @note 本関数は実行能力を持ちません。元byte/CAT再検証後の私有factoryから使用します。
+ * vendor内部作用やDisplay Type1のWindows実行対応を証明せず、元未評価flagも変更しません。
+ */
+[[nodiscard]] NativeError inspectSelectedWindowsDriverPackageScope(
+	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
+	const OfficialInfPackage &selected, RequiredInfBindingDiagnostic *diagnostic = nullptr) ;
 
 /**
  * @brief INFのPnP IDと現在deviceのPnP IDとの照合結果を表す。

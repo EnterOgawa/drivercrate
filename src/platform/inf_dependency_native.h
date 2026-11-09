@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native.h
  * @brief 実INFの非実行依存観測と個別署名診断の定義。
- * @version 01.04.00
+ * @version 01.05.00
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/07  到達file用途と固定file累積量の独立観測を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/10/13  元共通内容の選択依存検査を私有factory入口へ限定。
  * Ver.01.04.00 Shunji Ogawa  2026/10/15  同元選択の依存と効果へ非機密拒否診断を追加。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
  * </pre>
  *
  * @note Workerで同期借用し、実device、実行command、導入許可を扱わない。
@@ -148,9 +149,34 @@ private:
 											 std::uint64_t					   observationId,
 											 InfDependencyNativeResult		  &result) ;
 } ;
+#ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
+namespace test {
+struct InfDependencyNativeTestApi ;
+/** @brief 専用compileの架空APIで実Common私有入口を一同期検査します。
+ * @param[in] api 既存の必須五callbackです。
+ * @param[in] inspected このfixtureだけの原内容です。
+ * @param[in] selected 実readerが再解析する元選択です。
+ * @param[out] result 成功時だけの元graphです。
+ * @param[out] diagnostic 元数値の任意出力です。
+ * @return Common入口の未変更HRESULTです。
+ * @note 通常製品にはこの宣言/入口を含めません。
+ */
+NativeError inspectCommonInfDependenciesWithTestApi( const InfDependencyNativeTestApi &api,
+													const CommonInfInspection		 &inspected,
+													const OfficialInfPackage		 &selected,
+													InfDependencyNativeResult		 &result,
+													RequiredInfBindingDiagnostic	 *diagnostic) ;
+}
+#endif
+
 /** @brief 実内容factoryだけが呼べる選択節依存と効果の検査です。 */
 class CommonInfNativeAccess final {
 private:
+#ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
+	friend NativeError test::inspectCommonInfDependenciesWithTestApi(
+		const test::InfDependencyNativeTestApi &, const CommonInfInspection &,
+		const OfficialInfPackage &, InfDependencyNativeResult &, RequiredInfBindingDiagnostic *) ;
+#endif
 	friend NativeError makeRequiredDriverComponentPlan(
 		const CommonInfInspection &, std::span<const OfficialInfPackage>,
 		std::shared_ptr<const RequiredDriverComponentPlan> &, RequiredInfBindingDiagnostic *) ;

@@ -2,7 +2,7 @@
 /**
  * @file official_download_grant.cpp
  * @brief 型付き公式配布recordの検証と短命download grantを実装します。
- * @version 01.12.00
+ * @version 01.13.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.11.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
  * Ver.01.11.01 Shunji Ogawa  2026/10/12  正規形の型と取得境界識別引数の説明を補足。
  * Ver.01.12.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
+ * Ver.01.13.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
  * </pre>
  *
  * @note URLは正規形と非機密metadataへ含めず、grantの秘密所有領域だけへ移動します。
@@ -1512,7 +1513,7 @@ NativeError RecordScopedDownloadGrant::finishAcquisition( const OfficialDownload
 	const bool success = outcome == OfficialDownloadGrantState::ACQUIRED_FOR_INSPECTION ;
 	// Claim済みgrantだけを終端へ進め、成功と失敗の診断値を混同しない。
 	if( metadata_.state != OfficialDownloadGrantState::ACQUIRING || !isAcquisitionOutcome( outcome) ||
-	   (success && error != 0) || (!success && error == 0)) {
+	   (success && (error != 0 || signedIndexResolverPending_)) || (!success && error == 0)) {
 		return nativeErrorFromWin32( ERROR_INVALID_STATE) ;
 	}
 
@@ -1582,7 +1583,8 @@ NativeError RecordScopedDownloadGrant::validateRequestStartDeadline(
 	}
 
 	// Claim済みgrantと有効な時計だけをrequest開始判定へ使用する。
-	if( metadata_.state != OfficialDownloadGrantState::ACQUIRING || nowUtcSeconds == 0U) {
+	if( metadata_.state != OfficialDownloadGrantState::ACQUIRING || nowUtcSeconds == 0U ||
+	   nowUtcSeconds < metadata_.issuedUtcSeconds) {
 		return INVALID_ARGUMENT ;
 	}
 
@@ -1635,8 +1637,9 @@ void RecordScopedDownloadGrant::consume( const OfficialDownloadGrantState outcom
 	targetUrl_.clear() ;
 	metadata_.state = OfficialDownloadGrantState::CONSUMED ;
 	signedIndexRoute_.clear() ;
-	metadata_.outcome = outcome ;
-	metadata_.error	  = error ;
+	signedIndexResolverPending_ = false ;
+	metadata_.outcome			= outcome ;
+	metadata_.error				= error ;
 }
 
 //------------------------------------------------------------------------------
@@ -1646,6 +1649,7 @@ void RecordScopedDownloadGrant::consume( const OfficialDownloadGrantState outcom
 //------------------------------------------------------------------------------
 void RecordScopedDownloadGrant::moveFrom( RecordScopedDownloadGrant &other) noexcept
 {
+	signedIndexResolverPending_ = std::exchange( other.signedIndexResolverPending_, false) ;
 	signedIndexIssuer_			= std::move( other.signedIndexIssuer_) ;
 	signedIndexAcquisitionOpen_ = std::move( other.signedIndexAcquisitionOpen_) ;
 	signedIndexLookup_			= std::move( other.signedIndexLookup_) ;

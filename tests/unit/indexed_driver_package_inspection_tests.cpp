@@ -2,7 +2,7 @@
 /**
  * @file indexed_driver_package_inspection_tests.cpp
  * @brief 索引hint結合と通常検査の拒否境界を検証する。
- * @version 01.00.01
+ * @version 01.02.00
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,8 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/05  索引hintと通常検査の非導入接続を追加。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * </pre>
  *
  * @note 小さい架空fileだけを保護workspaceへ置き、実device・導入APIを呼ばない。
@@ -32,6 +34,7 @@
 #include "test_framework.h"
 #include "platform/indexed_driver_package_inspection.h"
 #include "platform/official_download_workspace.h"
+#include "platform/signed_index_acquisition_descriptor_internal.h"
 
 #include <Windows.h>
 
@@ -44,9 +47,10 @@
 namespace drivercrate::test {
 namespace {
 
-constexpr ScanSessionId SESSION		  = 6302U ;							// 架空試験だけの非0session。
-constexpr std::uint64_t MAXIMUM_BYTES = 128ULL * 1024ULL * 1024ULL ;	// 共通入力上限。
-constexpr wchar_t		FIXTURE_HASH[] =
+constexpr ScanSessionId SESSION = 6302U ;	// 架空試験だけの非0session。
+constexpr std::uint64_t MAXIMUM_BYTES =
+	2ULL * 1024ULL * 1024ULL * 1024ULL ;	// 固定mappingする共通入力上限。
+constexpr wchar_t FIXTURE_HASH[] =
 	L"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" ;	// abcのSHA-256。
 
 /** @brief 架空writerの唯一のHANDLEをscope終了時に閉じる。 */
@@ -98,8 +102,15 @@ DriverArchiveInput inputFixture()
  */
 void testHintIdentity( TestContext &context)
 {
-	const auto hint	 = hintFixture() ;	// 常に有効な比較基準。
-	const auto input = inputFixture() ;	// File I/Oをしない基準入力。
+	const auto hint			  = hintFixture() ;		// 常に有効な比較基準。
+	const auto input		  = inputFixture() ;	// File I/Oをしない基準入力。
+	auto	   selectedHint	  = hint ;				// 元recordの一INFを持つ正例です。
+	selectedHint.selectedInfs = {{L"driver.exe", L"driver\\sample.inf"}} ;
+	DRIVERCRATE_EXPECT( context, matchesIndexedDriverArchiveHint( SESSION, selectedHint, input,
+																OfficialDriverArchiveFormat::ZIP)) ;
+	selectedHint.selectedInfs.front().infIdentity = L"..\\sample.inf" ;
+	DRIVERCRATE_EXPECT( context, !matchesIndexedDriverArchiveHint( SESSION, selectedHint, input,
+																 OfficialDriverArchiveFormat::ZIP)) ;
 	DRIVERCRATE_EXPECT( context, matchesIndexedDriverArchiveHint( SESSION, hint, input,
 																OfficialDriverArchiveFormat::ZIP)) ;
 	DRIVERCRATE_EXPECT( context, matchesIndexedDriverArchiveHint(
@@ -146,9 +157,17 @@ void testHintIdentity( TestContext &context)
 	auto maximumInput		 = input ;	// 同じ上限の非I/O入力。
 	maximumHint.archiveBytes = MAXIMUM_BYTES ;
 	maximumInput.byteCount	 = MAXIMUM_BYTES ;
+	DRIVERCRATE_EXPECT( context,
+					   matchesIndexedDriverArchiveHint( SESSION, maximumHint, maximumInput,
+													   OfficialDriverArchiveFormat::SEVEN_ZIP_SFX)) ;
 	DRIVERCRATE_EXPECT( context, matchesIndexedDriverArchiveHint( SESSION, maximumHint, maximumInput,
 																OfficialDriverArchiveFormat::ZIP)) ;
 	maximumInput.byteCount += 1 ;
+	maximumHint.archiveBytes += 1U ;
+	DRIVERCRATE_EXPECT(
+		context, !matchesIndexedDriverArchiveHint( SESSION, maximumHint, maximumInput,
+												  OfficialDriverArchiveFormat::SEVEN_ZIP_SFX)) ;
+	maximumHint.archiveBytes -= 1U ;
 	DRIVERCRATE_EXPECT( context, !matchesIndexedDriverArchiveHint( SESSION, maximumHint, maximumInput,
 																 OfficialDriverArchiveFormat::ZIP)) ;
 	const std::array<std::wstring, 7> badPaths = {L"", L"relative.zip", L"\\\\server\\a.zip",
@@ -278,6 +297,26 @@ void testActualFixtureBytes( TestContext &context)
 /** @see tests/unit/indexed_driver_package_inspection_tests.h 宣言側を正本とする。 */
 void runIndexedDriverPackageInspectionTests( TestContext &context)
 {
+	const auto acceptsUrl = []( const std::string_view url, const bool payload) {
+		try {
+			// 原payloadと原PAGEの用途を入れ替えず検査します。
+			if( payload) {
+				signed_index_acquisition::requirePayloadUrl( url) ;
+			} else {
+				signed_index_acquisition::requireUrl( url, true) ;
+			}
+
+			return true ;
+		} catch( const signed_index_json::Failure<IndexRecordsStatus> &) {
+			return false ;
+		}
+	} ; // 共通URL codecの用途だけを確認する非通信fixtureです。
+	DRIVERCRATE_EXPECT( context, acceptsUrl( "https://vendor.example/page?id=12", false)) ;
+	DRIVERCRATE_EXPECT( context, !acceptsUrl( "https://vendor.example/page?v=1af", false)) ;
+	DRIVERCRATE_EXPECT( context, acceptsUrl( "https://vendor.example/file.zip?v=1af", true)) ;
+	DRIVERCRATE_EXPECT( context, !acceptsUrl( "https://vendor.example/file.zip?id=12", true)) ;
+	DRIVERCRATE_EXPECT( context,
+					   !acceptsUrl( "https://vendor.example/file.zip?v=1af&token=fixture", true)) ;
 	testHintIdentity( context) ;
 	testEarlyTermination( context) ;
 	testActualFixtureBytes( context) ;

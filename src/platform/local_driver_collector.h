@@ -2,7 +2,7 @@
 /**
  * @file local_driver_collector.h
  * @brief 開発用の公式metadata継続収集と非公開checkpointの契約を定義します。
- * @version 01.11.00
+ * @version 01.12.00
  * @date 2026/09/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.09.00 Shunji Ogawa  2026/10/25  呼出し内だけの最初の拒否段階を追加。
  * Ver.01.10.00 Shunji Ogawa  2026/10/25  明示取得失敗の完全200本文を別診断へ分離。
  * Ver.01.11.00 Shunji Ogawa  2026/10/26 全公開hash・metadata期待値と共通承認readerを追加。
+ * Ver.01.12.00 Shunji Ogawa  2026/11/05  原repositoryを明示する非変更reservation照合を追加。
  * </pre>
  *
  * @note 明示日次取得だけが検査用本体へ接続し、driver導入および通常製品scanは行いません。
@@ -388,5 +389,22 @@ struct LocalCollectorReservationFacts {
 	const std::filesystem::path &stateRoot, const std::wstring &manifestSha256,
 	std::string_view receiptBytes, LocalCollectorReservationMode mode,
 	LocalCollectorReservationFacts &facts, const LocalCollectorTestHooks &hooks = {}) noexcept ;
+
+/** @brief 保護された明示repositoryRootで原予約を非変更照合します。
+ * @param[in] stateRoot 元repositoryのwork/state直下の既存保護rootです。
+ * @param[in] repositoryRoot 保護configがpinした原workspace絶対pathです。
+ * @param[in] manifestSha256 検証済み原manifest全byteのhashです。
+ * @param[in] receiptBytes 原receipt全byteです。同期呼出し中だけ借用します。
+ * @param[in] mode 現在入力または過去予約の明示用途です。
+ * @param[out] facts 原store/head成立時だけの世代と原hashです。
+ * @param[in] hooks 非通信fixture専用の時計です。
+ * @return 既存の全scope／保護store／head照合が成立した場合0です。
+ * @note CWDを変更せず、旧入口のcurrent workspace契約と共通検証を維持します。
+ */
+[[nodiscard]] std::uint32_t verifyLocalCollectorDailyReservation(
+	const std::filesystem::path &stateRoot, const std::filesystem::path &repositoryRoot,
+	const std::wstring &manifestSha256, std::string_view receiptBytes,
+	LocalCollectorReservationMode mode, LocalCollectorReservationFacts &facts,
+	const LocalCollectorTestHooks &hooks = {}) noexcept ;
 
 } // namespace drivercrate

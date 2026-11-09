@@ -2,7 +2,7 @@
 /**
  * @file signed_index_record_lookup.h
  * @brief 保存済み署名索引と同worker公開ID照合の読取り境界を定義します。
- * @version 01.03.00
+ * @version 01.04.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.01.01 Shunji Ogawa  2026/10/12  Friend宣言のparameter名を契約と一致させます。
  * Ver.01.02.00 Shunji Ogawa  2026/10/14  Native私有証拠付き部分positiveと元公開ID役割を区別。
  * Ver.01.03.00 Shunji Ogawa  2026/10/27  元aggregateを保持した認証済み個別device投影を宣言。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * </pre>
  *
  * @note Worker内だけの読取りです。索引一致はWindows適合・導入許可ではありません。
@@ -33,6 +34,7 @@
  */
 //------------------------------------------------------------------------------
 #pragma once
+#include "core/index_capacity_limits.h"
 
 #include "core/update_types.h"
 #include "platform/signed_index_manifest.h"
@@ -41,6 +43,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
@@ -56,11 +59,43 @@ class SignedIndexScanSession ;
 class DriverStoreProvider ;
 
 // 一回の有限batch枠。全driver対応数の上限ではありません。
-inline constexpr std::size_t INDEX_LOOKUP_RECORD_BATCH_MAX = 256U ;
+inline constexpr std::size_t INDEX_LOOKUP_RECORD_BATCH_MAX = index_capacity::BATCH_RECORDS ;
 // 一回のworker present集合の有限枠。
-inline constexpr std::size_t INDEX_LOOKUP_PRESENT_MAX = 4096U ;
+inline constexpr std::size_t INDEX_LOOKUP_PRESENT_MAX = index_capacity::PRESENT ;
 // 一batchで呼び出せる同期resolverの最大回数。
-inline constexpr std::size_t INDEX_LOOKUP_RESOLVER_CALL_MAX = 32768U ;
+inline constexpr std::size_t INDEX_LOOKUP_RESOLVER_CALL_MAX = index_capacity::BATCH_PUBLIC_IDS ;
+
+/** @brief 完全record prefixの後に停止した原因です。未実行IDを成功へしません。 */
+enum class IndexLookupStopReason {
+	/// 要求した全recordをcommitしました。
+	NONE,
+	/// 次record全体のcallback枠がありません。
+	CALL_BUDGET,
+	/// 全record結果と投影の保持枠がありません。
+	RETAINED_CAPACITY,
+	/// 同期呼出し中に取消し又は協調期限へ達しました。
+	STOP_REQUESTED
+} ;
+
+/** @brief 私有構築済みbatchの完全record範囲と実処理件数です。 */
+struct IndexLookupProgress {
+	/// 同snapshot内の先頭record位置です。
+	std::size_t			  recordOffset{} ;
+	/// 全ID結果をcommitしたrecord数です。
+	std::size_t			  completedRecords{} ;
+	/// 次に処理する原record位置です。
+	std::size_t			  nextRecordOffset{} ;
+	/// 完全recordに含まれる公開ID数です。
+	std::size_t			  processedPublicIds{} ;
+	/// 完了・error0・device/proofなしの確定不一致ID数です。
+	std::size_t			  definitiveNoRelationIds{} ;
+	/// 私有coverageへ集約しtupleを保持しない確定不一致ID数です。
+	std::size_t			  compactedNoRelationIds{} ;
+	/// 未commit recordも含む実callback数です。
+	std::size_t			  resolverCalls{} ;
+	/// 完全prefixの後に残件がある停止原因です。
+	IndexLookupStopReason stopReason{IndexLookupStopReason::NONE} ;
+} ;
 
 /** @brief 同workerのoperation・scan・inventoryの結合contextです。 */
 struct IndexLookupContext {
@@ -77,14 +112,69 @@ struct IndexLookupContext {
 	[[nodiscard]] bool operator==( const IndexLookupContext &other) const noexcept = default ;
 } ;
 
+/** @brief DriverStoreだけが元read-open inventoryへ結ぶ私有lease証拠です。 */
+class NativeIndexLookupLease final {
+private:
+	/** @brief DriverStoreの元factoryだけが作れるmint keyです。 */
+	class MintKey final {
+	public:
+		/** @brief 同発行呼出し内でkeyを値として渡します。
+		 * @param[in] other 同factoryのkeyです。別の権限を追加しません。
+		 */
+		MintKey( const MintKey &other) = default ;
+
+	private:
+		/** @brief 元inventoryのfactoryだけから初期化します。 */
+		MintKey() = default ;
+		friend class DriverStoreProvider ;
+	} ;
+	friend class DriverStoreProvider ;
+
+public:
+	/** @brief 元context/ownerとweak寿命にread-open fieldの借用を結びます。
+	 * @param[in] key 元DriverStoreのmint keyです。
+	 * @param[in] context 元operation/scan/inventoryです。
+	 * @param[in] ownerThread 元inventoryのthreadです。
+	 * @param[in] owner 元stateのweak寿命です。強所有しません。
+	 * @param[in] readOpen owner内の元read-open fieldです。lock成功時だけ参照します。
+	 */
+	NativeIndexLookupLease( MintKey key, IndexLookupContext context, std::uint32_t ownerThread,
+						   std::weak_ptr<const void> owner, const bool *readOpen) ;
+	/** @brief 同context/owner thread・元state寿命/read-openを確認します。
+	 * @param[in] context 元完全contextです。
+	 * @param[in] ownerThread 現在実行中のthreadです。
+	 * @return 元stateが同threadでread-openのときだけtrueです。I/Oを行いません。
+	 */
+	[[nodiscard]] bool matches( IndexLookupContext context,
+							   std::uint32_t	  ownerThread) const noexcept ;
+
+private:
+	/// 元発行の完全contextです。
+	IndexLookupContext		  context_ ;
+	/// 元Windows owner threadです。
+	std::uint32_t			  ownerThread_{} ;
+	/// 元stateの寿命を延ばさない所有根拠です。
+	std::weak_ptr<const void> owner_ ;
+	/// 元stateをlockできた期間だけ参照する非所有fieldです。
+	const bool				 *readOpen_{} ;
+} ;
+
 /** @brief 同snapshotから読む有限batchとcallback回数の指定です。 */
 struct IndexLookupBudget {
 	/// 先頭recordの0起点位置。record数と同値なら空batchです。
-	std::size_t recordOffset{} ;
+	std::size_t			  recordOffset{} ;
 	/// 最大256record。残り件数より大きい場合は残りまで読みます。
-	std::size_t recordCount{INDEX_LOOKUP_RECORD_BATCH_MAX} ;
-	/// 最大32768回。0では未実行の理由を保持します。
-	std::size_t resolverCalls{INDEX_LOOKUP_RESOLVER_CALL_MAX} ;
+	std::size_t			  recordCount{INDEX_LOOKUP_RECORD_BATCH_MAX} ;
+	/// 最大32768回。次record全体が入らなければ残件へ残します。
+	std::size_t			  resolverCalls{INDEX_LOOKUP_RESOLVER_CALL_MAX} ;
+	/// 同scan残りの保持tuple枠です。
+	std::size_t			  maximumRelations{index_capacity::RETAINED_RELATIONS} ;
+	/// 同scan残りの保持opaque枠です。
+	std::size_t			  maximumRelatedIdentities{index_capacity::RETAINED_OPAQUE_IDENTITIES} ;
+	/// trueは確定不一致だけを私有coverageへ集約します。
+	bool				  compactNoRelations{} ;
+	/// 同期lookup期間だけ呼ぶ取消し/期限確認です。参照を保持しません。
+	std::function<bool()> stopRequested ;
 } ;
 
 /** @brief 同scanの既知Class positiveだけをDriverStoreが発行する不変証拠です。
@@ -263,6 +353,13 @@ class IndexPublicIdResolver {
 public:
 	/** @brief Callbackの所有者が派生資源を解放します。 */
 	virtual ~IndexPublicIdResolver() = default ;
+	/** @brief Nativeだけが元inventoryの私有leaseを共有します。
+	 * @return 元factory発行の不変証拠、generic callbackでは空です。寿命を延長しません。
+	 */
+	[[nodiscard]] virtual std::shared_ptr<const NativeIndexLookupLease> leaseProof() const noexcept
+	{
+		return {} ;
+	}
 	/** @brief 元公開ID役割を保持し、native両集合とClassGUIDを照合します。
 	 * @param[in] kind メーカー公表INF側identifierの元役割。native property指定ではありません。
 	 * @param[in] publishedId 元公開ASCII ID。端末actual IDではありません。
@@ -370,15 +467,23 @@ public:
 	 * @return 本lookupの寿命まで有効な不変span。
 	 */
 	[[nodiscard]] std::span<const IndexRecordRelation> relations() const noexcept ;
+	/** @brief 完全record prefixと実callback数だけを借用します。
+	 * @return 同object寿命まで有効な私有構築済み進行です。
+	 */
+	[[nodiscard]] const IndexLookupProgress			  &progress() const noexcept ;
 
 private:
 	/** @brief 保存済みconst snapshotの所有を共有し、関係を所有します。
 	 * @param[in] snapshot 完全な原保存snapshot。
 	 * @param[in] relations 同contextの有限関係。
 	 * @param[in] context 元scanの完全context。取得operationへ書き換えません。
+	 * @param[in] progress 同じlookup内だけで検査・commitした原record範囲です。
+	 * @param[in] nativeLease Native元inventoryだけの共有weak寿命証拠です。genericでは空です。
 	 */
 	SignedIndexRecordLookup( std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
-							std::vector<IndexRecordRelation> relations, IndexLookupContext context) ;
+							std::vector<IndexRecordRelation> relations, IndexLookupContext context,
+							IndexLookupProgress							  progress,
+							std::shared_ptr<const NativeIndexLookupLease> nativeLease = {}) ;
 	/** @brief 同ownerが発行した全batchだけを一つの不変lookupへ凍結します。
 	 * @param[in] snapshot 同scanの原保存snapshotの共有所有。
 	 * @param[in] context 元scanの完全context。
@@ -403,6 +508,10 @@ private:
 	std::vector<IndexRecordRelation>				  relations_ ;
 	/// 関係が空でも失わない元scanの完全context。
 	IndexLookupContext								  context_ ;
+	/// DTOから構築できない完全record coverageです。
+	IndexLookupProgress								  progress_ ;
+	/// 省略済み確定不一致を含む元native inventoryのread-open証拠です。
+	std::shared_ptr<const NativeIndexLookupLease>	  nativeLease_ ;
 } ;
 
 /** @brief 全体の入力拒否と読取り成立を区別します。 */

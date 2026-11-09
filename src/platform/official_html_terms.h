@@ -2,7 +2,7 @@
 /**
  * @file official_html_terms.h
  * @brief 静的HTML許諾の一意な公開selectorと全文の共通検査を宣言します。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/14  共通HTML許諾のselector・原文書・全文検査を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
  * </pre>
  *
  * @note 通信、script/CSS評価、同意、取得grantを発行しません。
@@ -29,6 +30,7 @@
 #pragma once
 
 #include <string>
+#include <cstddef>
 #include <string_view>
 #include "core/update_types.h"
 #include "platform/signed_index_records.h"
@@ -37,7 +39,7 @@ namespace drivercrate {
 
 /** @brief 一つの原文書とtitle付き全文を呼出し中のRAMへ保持します。 */
 struct HtmlTermsTextObservation {
-	/// 一意なtextarea内の原HTML文書です。通常logへ渡しません。
+	/// 一意なtextarea原文書または独立sectionの原HTMLです。通常logへ渡しません。
 	std::wstring  document ;
 	/// 切り詰めないtitle付き抽出全文です。通常logへ渡しません。
 	std::wstring  text ;
@@ -47,8 +49,8 @@ struct HtmlTermsTextObservation {
 	std::size_t	  checkOffset{} ;
 } ;
 
-/** @brief 静的なraw textarea文書と対象payloadの一意な操作を共通抽出します。
- * @param[in] page 厳密UTF-8から復号した最大256KiB相当の原pageです。
+/** @brief 明示したtextareaまたは独立sectionの原文書と全文を共通抽出します。
+ * @param[in] page 厳密UTF-8復号pageです。旧profileは256KiB、新sectionだけ2MiB相当以内です。
  * @param[in] extraction 認証前producerまたは認証後adapterが持つ元selectorです。
  * @param[in] payloadUrl 元descriptorの完全ASCII HTTPS URLです。
  * @param[in] revision 原公開titleです。空の場合だけ原titleを保持し比較しません。
@@ -85,5 +87,14 @@ struct HtmlTermsTextObservation {
 [[nodiscard]] bool		  hasSingleStaticHtmlScriptReference( std::wstring_view page,
 															 std::wstring_view absoluteUrl,
 															 std::wstring_view relativePath) ;
+
+/** @brief 公式根拠HTMLの実anchorが明示された規約URLを参照するか確認します。
+ * @param[in] page 最大2MiB相当の厳密UTF-8復号HTMLです。
+ * @param[in] documentUrl queryなしの明示HTTPS原URLです。
+ * @param[out] rejectedOffset 任意の構造停止文字位置です。本文は返しません。
+ * @return script/comment外に同URLへの実anchorが一つ以上あればtrueです。
+ */
+[[nodiscard]] bool hasStaticHtmlDocumentLink( std::wstring_view page, std::string_view documentUrl,
+											 std::size_t *rejectedOffset = nullptr) ;
 
 } // namespace drivercrate

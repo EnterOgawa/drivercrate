@@ -4,23 +4,6 @@
 DriverCrateの自作部分はルートの [LICENSE](LICENSE)（Apache-2.0）に従います。
 第三者sourceの原著作権・licenseを自作表示へ置き換えません。
 
-## CPython 3.13.16（Collector runtime）
-
-- Source: [公式Windows x64 embeddable archive](https://www.python.org/ftp/python/3.13.16/python-3.13.16-embed-amd64.zip)
-- Archive: 11,439,094byte、SHA-256 `97dae5274cc54867065e8d5a3226e48c35017ed332a0fdb0e27d5b5821961297`
-- 原34fileの固定一覧: [python-runtime-manifest.json](packaging/collector/python-runtime-manifest.json)
-- 原 `LICENSE.txt`: 33,861byte、SHA-256 `62bec384df47b0328307db41455ff6ea2559e5546b394ac69148561b21703120`
-
-Collector packageは原34fileを変更せず`runtime/`へ含め、原`LICENSE.txt`全文を保持します。
-native/stdlib/`python313._pth`を変更せず、pip追加やtrimも行いません。
-PSF License Version 2、BeOpen/CNRI/CWI/Zero-Clause BSD、bzip2、libffi、OpenSSLのApache-2.0、
-Tcl/Tk等の同梱条件とnotice、Microsoft Distributable Codeの追加条件も原文のまま配布します。
-全fileのbyte/hashとPython native四fileのPSF Authenticodeをpackage検査で確認します。
-Sigstore/GPG検証を実施済みとは表示しません。
-
-通常の`DriverCrate.exe`と署名索引assetにPythonを含めません。
-公開sourceにはruntime binaryを置かず、collector builderへ固定原archiveを明示入力します。
-
 ## miniz 3.1.2
 
 - Upstream: [richgel999/miniz](https://github.com/richgel999/miniz)
@@ -80,7 +63,7 @@ THE SOFTWARE.
 
 Win32、COM、Common Controls、Windows Update Agent、WinHTTP、SetupAPI/NewDevなどの
 Windows標準APIを使います。Windows本体、SDK、Visual Studio Build ToolsやOS内のcurlを配布物へ複写しません。
-各OS・開発ツールと、CPythonに含まれるMicrosoft Distributable Codeにはそれぞれの条件が適用されます。
+各OS・開発ツールにはそれぞれの条件が適用されます。
 
 ## アイコンと配布対象外の資産
 

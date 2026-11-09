@@ -2,7 +2,7 @@
 /**
  * @file official_download_grant.h
  * @brief 型付き公式配布recordの検証と短命download grantを定義します。
- * @version 01.10.01
+ * @version 01.11.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.09.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
  * Ver.01.10.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
  * Ver.01.10.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
+ * Ver.01.11.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
  * </pre>
  *
  * @note Provider worker threadだけで直列使用します。Recordは検査用取得の入口であり、内容、適用性、
@@ -40,6 +41,7 @@
 //------------------------------------------------------------------------------
 
 #pragma once
+#include "platform/official_cdn_token.h"
 
 #include "core/official_download_delegation.h"
 #include "platform/secret_official_url.h"
@@ -538,7 +540,29 @@ public:
 													 std::uint32_t	   hop,
 													 bool finalResponse) const noexcept ;
 
+	/** @brief 同recordで未解決の匿名CDN protocolがあるか返す。
+ * @return 元issuerが生存し未解決の同用途ならtrue。
+ */
+	[[nodiscard]] bool		  requiresAnonymousCdnResolution() const noexcept ;
+
 private:
+	friend class OfficialDelegatedGetRequest ;
+	/** @brief 元lookupの公開resolver文脈だけを同期借用する。
+     * @return 生存する同recordの未解決plan。それ以外はnull。
+     */
+	[[nodiscard]] const OfficialAnonymousCdnPlan *anonymousCdnPlan() const noexcept ;
+	/** @brief 同recordの公開起点とresponseだけからexact解決routeを封印する。
+     * @param[in] canonical 元requestが単独所有する公開起点。
+     * @param[in] resolved 新responseの秘密完全URL。
+     * @param[in] expires 実responseのUTC Unix秒。
+     * @param[in] now 送信直前の同worker UTC秒。
+     * @return 全結合成功0、元HRESULT。失敗時は旧routeを維持する。
+     */
+	[[nodiscard]] NativeError sealAnonymousCdnResolution( std::wstring_view		  canonical,
+														 const SecretOfficialUrl &resolved,
+														 std::uint64_t expires, std::uint64_t now) ;
+	/// 未解決のcanonicalをpayload GETへ流さない状態。
+	bool					  signedIndexResolverPending_{} ;
 	friend class SignedIndexAcquisitionAdapter ;
 	friend class OfficialAcquisitionSession ;
 	/** @brief 非公開adapterが実taskとsnapshotを再確認して同じgrantを発行します。

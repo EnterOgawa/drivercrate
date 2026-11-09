@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition.cpp
  * @brief 公式fileの検査用取得境界実装。
- * @version 01.05.01
+ * @version 01.06.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/06  収集adapterの一回scopeを通常取得と分離。
  * Ver.01.05.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
  * Ver.01.05.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
  * </pre>
  *
  * @note Provider worker threadで公式fileを直列取得し、成功fileだけをsession容量へ計上します。取得物を実行、候補化またはUIへ公開しません。
@@ -699,11 +700,25 @@ NativeError OfficialAcquisitionSession::acquireCore(
 
 	const std::uint64_t plannedBytes =	// 公開sizeまたはProvider上限による予約byte数。
 		publishedSize.value_or( maximumFileBytes) ;
+	const bool anonymousResolution = delegatedSource &&
+									 // このlogical取得だけ二要求。
+									 request.delegatedGrant->requiresAnonymousCdnResolution() ;
+	const std::uint64_t auxiliaryMaximum =
+		anonymousResolution ? 16384U : 0U ;	// 固定metadata応答上限。
+	// metadata予約の加算overflowを事前拒否する。
+	if( plannedBytes > std::numeric_limits<std::uint64_t>::max() - auxiliaryMaximum) {
+		result.state = OfficialAcquisitionState::REJECTED ;
+		result.error = E_INVALIDARG ;
+		return result.error ;
+	}
+
+	const auto reservedBytes = plannedBytes + auxiliaryMaximum ;	// 旧枠へ含める全logical予定量。
+	bool	   anonymousCharged{} ;									// 実開始前に予約を消費した状態。
 	// Provider別とsession全体のfile数・byte予算を取得前に守る。
 	if( providerUsage->files >= limits_.maximumProviderFiles ||
 	   sessionFiles_ >= limits_.maximumSessionFiles ||
-	   !fitsByteLimit( providerUsage->bytes, plannedBytes, limits_.maximumProviderBytes) ||
-	   !fitsByteLimit( sessionBytes_, plannedBytes, limits_.maximumSessionBytes)) {
+	   !fitsByteLimit( providerUsage->bytes, reservedBytes, limits_.maximumProviderBytes) ||
+	   !fitsByteLimit( sessionBytes_, reservedBytes, limits_.maximumSessionBytes)) {
 		result.state = OfficialAcquisitionState::REJECTED ;
 		result.error = nativeErrorFromWin32( ERROR_BUFFER_OVERFLOW) ;
 		return result.error ;
@@ -770,6 +785,15 @@ NativeError OfficialAcquisitionSession::acquireCore(
 										 request.delegatedGrantId, nowUtcSeconds, plannedBytes) ;
 			// Claimが成功したrequestだけをRecord限定downloadへ渡す。
 			if( operationError == 0) {
+				// 匿名二要求だけは失敗も予約消費へ残し、同scanで無計上retryを作らない。
+				if( anonymousResolution) {
+					providerUsage->bytes += reservedBytes ;
+					sessionBytes_ += reservedBytes ;
+					++providerUsage->files ;
+					++sessionFiles_ ;
+					anonymousCharged = true ;
+				}
+
 				operationError =
 					transport.downloadDelegated( delegatedRequest, file.get(), progressCallback,
 												cancellationCallback, destinationEvidence) ;
@@ -785,6 +809,13 @@ NativeError OfficialAcquisitionSession::acquireCore(
 	} catch( ...) {
 		// 差替えtransportの例外をworker境界へ漏らさず、partial fileを必ず破棄する。
 		operationError = static_cast<NativeError>( E_UNEXPECTED) ;
+	}
+
+	result.auxiliaryHttp = delegatedRequest.auxiliaryObservation() ;
+	// 仮差替えtransportからも補助枠超過の成功を作らない。
+	if( result.auxiliaryHttp.requests > (anonymousResolution ? 1U : 0U) ||
+	   result.auxiliaryHttp.bodyBytes > auxiliaryMaximum) {
+		operationError = E_ACCESSDENIED ;
 	}
 
 	LARGE_INTEGER fileSize{} ;	// Download完了後の実file byte数。
@@ -908,6 +939,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		completed.resourceId			  = resourceId ;
 		completed.inspectionPath		  = inspectionPath ;
 		completed.byteCount				  = actualBytes ;
+		completed.auxiliaryHttp			  = result.auxiliaryHttp ;
 		completed.sha256				  = std::move( actualSha256) ;
 		completed.publishedSizeVerified	  = publishedSize.has_value() ;
 		completed.publishedSha256Verified = !publishedSha256.empty() ;
@@ -938,16 +970,27 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		lastSignedIndexIssuer_ = signedIndexOrigin ? request.delegatedGrant->signedIndexIssuer_
 												   : std::weak_ptr<const std::byte>{} ;
 		// 結果構築が完了したfileだけを成功予算と単調増加IDへ反映する。
-		providerUsage->bytes += actualBytes ;
-		++providerUsage->files ;
-		sessionBytes_ += actualBytes ;
-		++sessionFiles_ ;
+		// 新二要求だけは保守予約から実payload/metadata本文へ精算する。
+		if( anonymousCharged) {
+			const auto used =
+				actualBytes + result.auxiliaryHttp.bodyBytes ;	// 上限確認済みの実本文量。
+			providerUsage->bytes -= reservedBytes - used ;
+			sessionBytes_ -= reservedBytes - used ;
+		} else {
+			providerUsage->bytes += actualBytes ;
+			++providerUsage->files ;
+			sessionBytes_ += actualBytes ;
+			++sessionFiles_ ;
+		}
+
 		++nextAcquisitionId_ ;
 	} catch( const std::bad_alloc &) {
-		result		 = {} ;
-		result.state = OfficialAcquisitionState::FAILURE ;
-		result.error = discardFailedFile( workspace, request.workspaceFileName,
-										 static_cast<NativeError>( E_OUTOFMEMORY)) ;
+		const auto auxiliary = result.auxiliaryHttp ;	// 数値観測は結果文字列の確保失敗でも失わない。
+		result				 = {} ;
+		result.auxiliaryHttp = auxiliary ;
+		result.state		 = OfficialAcquisitionState::FAILURE ;
+		result.error		 = discardFailedFile( workspace, request.workspaceFileName,
+												 static_cast<NativeError>( E_OUTOFMEMORY)) ;
 		return result.error ;
 	}
 

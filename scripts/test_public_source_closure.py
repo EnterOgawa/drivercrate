@@ -183,6 +183,56 @@ class SourceClosureTests(unittest.TestCase):
         self.put("CMakeLists.txt", "add_library(example src/missing.cpp)\n")
         self.reject("INPUT_OUTSIDE_MANIFEST")
 
+    def test_cmake_png_existing_input_closes(self):
+        """CMakeのPNGを通常fileとして閉じ、実byte pinとcmake-inputの両方へ結ぶ。"""
+        name = "src/app/assets/example.png"
+        self.put(name, b"SYNTHETIC PNG SOURCE INPUT")
+        self.put("CMakeLists.txt", "add_library(example src/a.cpp " + name + ")\n")
+        self.manifest["files"].append(name)
+        self.manifest["files"].sort()
+        self.save_manifest()
+        result = closure.check(self.root)
+        self.assertTrue(any(row["owner"] == "CMakeLists.txt" and row["input"] == name
+                            and row["kind"] == "cmake-input" for row in result["edges"]))
+        self.assertEqual(next(row["sha256"] for row in result["files"] if row["path"] == name), self.owned[name])
+
+    def test_cmake_png_omitted_and_missing_rejected(self):
+        """存在する未収録PNGとmanifestだけ残る欠損PNGを、それぞれ異なる境界で拒否する。"""
+        name = "src/app/assets/example.png"
+        self.put(name, b"SYNTHETIC PNG SOURCE INPUT")
+        self.put("CMakeLists.txt", "add_library(example src/a.cpp " + name + ")\n")
+        self.reject("INPUT_OUTSIDE_MANIFEST")
+        self.manifest["files"].append(name)
+        self.manifest["files"].sort()
+        self.save_manifest()
+        self.remove(name)
+        self.reject("MISSING_INPUT")
+
+    def test_regex_private_path_policy_is_not_an_input(self):
+        """実拒否規則と同じpatternを非実行で解析し、私有fileを読む入力へ変換しない。"""
+        self.put("scripts/entry.py", 'import re\nre.fullmatch(r"data/collector-registry/manual-index-(?:records|review[^/]*)\\.json", "value")\n')
+        closure.check(self.root)
+
+    def test_regex_keyword_pattern_is_not_an_input(self):
+        """pattern keywordだけを式として扱い、正規のlocal import閉包は維持する。"""
+        self.put("scripts/entry.py", 'import re\nimport helper\nre.compile(pattern=r"data/collector-definitions/.*\\.json")\n')
+        result = closure.check(self.root)
+        self.assertTrue(any(row["input"] == "scripts/helper.py" for row in result["edges"]))
+
+    def test_regex_subject_private_path_remains_rejected(self):
+        """reの対象文字列に置かれた実私有pathをpattern除外へ巻き込まない。"""
+        self.put("scripts/entry.py", 'import re\nre.fullmatch(".*", "data/collector-registry/manual-index-records.json")\n')
+        self.reject("EXCLUDED_DEPENDENCY")
+
+    def test_private_file_input_and_manifest_remain_rejected(self):
+        """通常file入力と直接manifest登録を独立に拒否し、式判定でguardを緩めない。"""
+        self.put("scripts/entry.py", 'open("data/collector-definitions/real.json")\n')
+        self.reject("EXCLUDED_DEPENDENCY")
+        self.manifest["files"].append("data/collector-definitions/real.json")
+        self.manifest["files"].sort()
+        self.save_manifest()
+        self.reject("PRIVATE_COLLECTOR_DEFINITION")
+
     def test_case_duplicate_rejected(self):
         """大小文字だけ異なる候補名を追加し、Windowsで衝突するpathを別file扱いしないことを確認する。"""
         self.manifest["files"].append("src/A.cpp")

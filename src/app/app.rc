@@ -2,7 +2,7 @@
 /**
  * @file app.rc
  * @brief DriverCrate Windows resource定義。
- * @version 01.20.01
+ * @version 01.28.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -97,6 +97,14 @@
  * Ver.01.19.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * Ver.01.20.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続。
  * Ver.01.20.01 Shunji Ogawa  2026/11/02  検査済み候補数と未検査の初回確認数を区別。
+ * Ver.01.21.00 Shunji Ogawa  2026/11/03  新版の取得前確認と版比較の表示を追加。
+ * Ver.01.22.00 Shunji Ogawa  2026/11/07  候補比較をresize可能な標準五列表へ変更。
+ * Ver.01.23.00 Shunji Ogawa  2026/11/08  バージョン表記を統一し表とbutton・状態tooltipへ簡素化。
+ * Ver.01.24.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持。
+ * Ver.01.25.00 Shunji Ogawa  2026/11/08  匿名導入診断と保存状態・元数値の有限確認を追加。
+ * Ver.01.26.00 Shunji Ogawa  2026/11/08  署名更新情報と保存本体の一致時の取得省略を表示。
+ * Ver.01.27.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
+ * Ver.01.28.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * </pre>
  *
  * @note Application icon、executable version、manifest、および日本語UI文字列を定義します。
@@ -172,19 +180,15 @@ BEGIN
 END
 
 // 候補の閲覧と一件の明示選択を分け、default buttonは閲覧終了だけにする。
-IDD_DEVICE_DETAILS DIALOGEX 0, 0, 560, 380
-STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+IDD_DEVICE_DETAILS DIALOGEX 0, 0, 620, 300
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
 CAPTION "デバイスの詳細と候補"
 FONT 9, "Segoe UI"
 BEGIN
-	LTEXT "現在のドライバーと候補(&D)", -1, 10, 8, 540, 14
-	COMBOBOX IDC_DEVICE_DETAIL_CANDIDATES, 10, 25, 540, 180,
-		CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-	EDITTEXT IDC_METADATA_DETAIL_TEXT, 10, 48, 540, 270,
-		ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | WS_TABSTOP
-	LTEXT "閲覧だけでは選択を変更しません。候補を選んでも取得・導入は開始しません。", -1, 10, 324, 540, 16
-	PUSHBUTTON "この候補を選択(&S)", IDYES, 330, 352, 130, 18
-	DEFPUSHBUTTON "閉じる(&C)", IDOK, 470, 352, 80, 18
+	CONTROL "ドライバーの候補とバージョン", IDC_DEVICE_DETAIL_CANDIDATES, "SysListView32",
+		WS_BORDER | WS_TABSTOP | WS_VSCROLL | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER, 10, 8, 600, 256
+	PUSHBUTTON "この候補を選択(&S)", IDYES, 390, 274, 130, 18
+	DEFPUSHBUTTON "閉じる(&C)", IDOK, 530, 274, 80, 18
 END
 
 IDD_METADATA_SEARCH DIALOGEX 0, 0, 520, 340
@@ -248,10 +252,18 @@ BEGIN
 	IDS_DEVICE_ACQUIRE_VERIFY "取得して確認"
 	IDS_DEVICE_DETAIL_PREPARATION_REPORT "取得・検査結果（全体）"
 	IDS_DEVICE_DETAIL_PREPARATION_SCOPE "今回の検索・取得全体の結果です。このデバイスだけの検査結果ではありません。"
-	IDS_INSTALL_PREPARATION_NOT_READY "選択した対象の取得・検査がすべて成立しなかったため、インストールを開始していません。詳細で理由を確認してください。"
+	IDS_INSTALL_PREPARATION_NOT_READY "導入条件が未成立の対象があるため、インストールを開始していません。詳細で理由を確認してください。"
+	IDS_INSTALL_PREPARATION_BINDING_REJECTED "準備結果を元の選択対象へ安全に照合できなかったため、インストールを開始していません。詳細で理由を確認してください。"
+	IDS_PREPARATION_DISPLAY_READONLY "前回選択した候補（閲覧専用・再検索が必要）"
+	IDS_RETAINED_CHECKBOX_TIP "前回の選択表示です。導入対象にするには詳細で候補を選び直してください。取得前候補は再検索が必要です。"
+	IDS_INSTALL_PREPARATION_CANCELLED "取得・検査を取り消したため、インストールを開始していません。"
 	IDS_INSTALL_PREPARATION_AMBIGUOUS "検査で複数のドライバー候補が見つかりました。行をダブルクリックして使用する候補を選択してください。インストールは開始していません。"
-	IDS_INSTALL_PREPARATION_DOWNGRADE "検査で現在より古い版と判明しました。詳細で候補を選択し、旧版への切替を確認してください。インストールは開始していません。"
+	IDS_INSTALL_PREPARATION_DOWNGRADE "検査で現在より古いバージョンと判明しました。詳細で候補を選択し、古いバージョンへの切替を確認してください。インストールは開始していません。"
 	IDS_DEVICE_DETAIL_CURRENT "現在のドライバー"
+	IDS_DEVICE_DETAIL_COLUMN_CANDIDATE "候補"
+	IDS_DEVICE_DETAIL_COLUMN_SOURCE "取得元"
+	IDS_DEVICE_DETAIL_COLUMN_STATE "区分"
+	IDS_DEVICE_DETAIL_REPORT_READONLY "閲覧専用"
 	IDS_DEVICE_DETAIL_CANDIDATE "候補 %1"
 	IDS_DEVICE_RESULT_DETAILS "結果は詳細で確認・再検索が必要"
 	IDS_DEVICE_RESULT_ROLES "必要構成の個別結果あり"
@@ -279,7 +291,7 @@ BEGIN
 	IDS_DEVICE_FIELD_KEY "ドライバー登録属性"
 	IDS_DEVICE_FIELD_INF "INF名の取得"
 	IDS_DEVICE_FIELD_PROVIDER "Provider名"
-	IDS_DEVICE_FIELD_VERSION "現在版"
+	IDS_DEVICE_FIELD_VERSION "現在のバージョン"
 	IDS_DEVICE_FIELD_DATE "現在日付"
 	IDS_DEVICE_FIELD_IDENTITY "端末内ID解決"
 	IDS_DEVICE_FIELD_NODE "デバイスの問題状態"
@@ -387,8 +399,8 @@ BEGIN
 	IDS_METADATA_NETWORK_BLOCKED "制限・未知回線の今回同意なし"
 	IDS_METADATA_NOT_RUN "全体停止後のため未実施"
 	IDS_METADATA_ROW "配布情報のみ・未取得・導入不可"
-	IDS_METADATA_DISTRIBUTION_VERSION "配布版（INF版ではありません）"
-	IDS_METADATA_DISTRIBUTION_COLUMN "配布版（現在行はINF版）"
+	IDS_METADATA_DISTRIBUTION_VERSION "配布情報のバージョン（INFのバージョンではありません）"
+	IDS_METADATA_DISTRIBUTION_COLUMN "配布情報のバージョン（現在行はINFのバージョン）"
 	IDS_METADATA_DISTRIBUTION_DATE "配布公開日（現在行はINF日付）"
 	IDS_METADATA_CLOSE "情報検索を取り消し、安全に停止してから終了しますか？\n\n同期APIから戻るまで待つ場合があります。ドライバー本体の取得・インストールは行っていません。"
 	IDS_METADATA_DETAILS "情報検索の結果・条件"
@@ -459,20 +471,20 @@ BEGIN
 	IDS_COMMON_CONTROLS_ERROR     "Windows common controls を初期化できませんでした。"
 	IDS_MAIN_WINDOW_ERROR         "DriverCrate のメインウィンドウを作成できませんでした。"
 	IDS_SOURCE_LABEL              "取得元"
-	IDS_VERSION_LABEL             "版"
+	IDS_VERSION_LABEL             "バージョン"
 	IDS_CURRENT_DRIVER            "現在使用中"
 	IDS_RECOMMENDED_UPDATE        "推奨更新"
 	IDS_ACTION_UPDATE             "更新"
 	IDS_ACTION_REINSTALL          "再導入"
-	IDS_ACTION_DOWNGRADE          "旧版へ切替"
-	IDS_DOWNGRADE_WARNING         "\r\n警告: 選択には旧版への切替が含まれます。対象デバイスが動作しなくなる可能性があります。復旧手段を確認し、この操作を明示的に選んだ場合だけ続行してください。\r\n"
+	IDS_ACTION_DOWNGRADE          "古いバージョンへ切替"
+	IDS_DOWNGRADE_WARNING         "\r\n警告: 選択には古いバージョンへの切替が含まれます。対象デバイスが動作しなくなる可能性があります。復旧手段を確認し、この操作を明示的に選んだ場合だけ続行してください。\r\n"
 	IDS_LOCAL_CACHED              "ローカル取得済み"
 	IDS_TREE_DEVICE_SUFFIX        "ドライバー候補"
 	IDS_CURRENT_VERSION_LABEL     "現在"
 	IDS_CURRENT_VERSION_UNMATCHED "未照合"
-	IDS_COLUMN_DEVICE_DRIVER      "デバイス"
-	IDS_COLUMN_CURRENT_VERSION    "現在版"
-	IDS_COLUMN_CANDIDATE_VERSION  "候補版"
+	IDS_COLUMN_DEVICE_DRIVER      "デバイス（ダブルクリックで候補を表示）"
+	IDS_COLUMN_CURRENT_VERSION    "現在のバージョン"
+	IDS_COLUMN_CANDIDATE_VERSION  "候補のバージョン"
 	IDS_COLUMN_SOURCE             "取得元 / 場所"
 	IDS_STATUS_CREATING_RESTORE_POINT "Windowsの復元ポイントを作成しています…"
 	IDS_RESTORE_POINT_ERROR_PREFIX "Windowsの復元ポイントを作成できないため、インストールを中止しました。システム保護を確認してください。\r\n\r\n"
@@ -482,12 +494,19 @@ BEGIN
 	IDS_RECOMMENDED_ONLY_FILTER   "推奨・初回候補を表示(&R)"
 	IDS_STATUS_RECOMMENDED_COUNT  "更新・初回の導入候補 %1 件。"
 	IDS_STATUS_INITIAL_PREPARATION_COUNT "初回の確認候補 %1 件（取得・適用性未検査）。"
+	IDS_STATUS_UPDATE_CONFIRMATION_COUNT "更新の確認候補 %1 件（取得前・適用性未検査）。"
+	IDS_REFERENCE_VERSION "取得前のバージョン（収集者情報）"
+	IDS_REFERENCE_NEWER "新しいバージョンの確認候補（取得前）"
+	IDS_REFERENCE_SAME "同じバージョンの取得前情報"
+	IDS_REFERENCE_OLDER "古いバージョンの取得前情報"
+	IDS_REFERENCE_UNKNOWN "バージョン比較が未確認の取得前情報"
+	IDS_REFERENCE_VERSION_FORMAT "%1（取得前）"
 	IDS_SELECT_ALL_RECOMMENDED    "推奨を全選択(&A)"
 	IDS_CLEAR_SELECTION           "選択を全解除(&C)"
 	IDS_STATUS_REFRESHING_HARDWARE "Windows のハードウェア変更を再検出しています…"
 	IDS_HARDWARE_REFRESH_COMPLETED "ハードウェア再検出: 完了。"
 	IDS_HARDWARE_REFRESH_FAILED "ハードウェア再検出に失敗しました。更新検索は開始していません。%1"
-	IDS_STATUS_PREPARATION_REQUIRED "取得前情報の版・適用性・更新要否は未確認です。全候補は表示フィルターを解除して確認できます。"
+	IDS_STATUS_PREPARATION_REQUIRED "取得前情報のバージョン・適用性・更新要否は未確認です。全候補は表示フィルターを解除して確認できます。"
 	IDS_STATUS_SCANNING_DEVICES   "デバイスとローカル Driver Store を確認しています…"
 	IDS_STATUS_SEARCHING_WINDOWS_UPDATE "Windows Update のドライバー候補を照会しています…"
 	IDS_STATUS_MERGING_CANDIDATES "取得した候補をデバイス単位へ統合しています…"
@@ -501,7 +520,7 @@ BEGIN
 	IDS_PROVIDER_FAILED           "検索失敗"
 	IDS_PROVIDER_METADATA_REJECTED "メタデータ拒否"
 	IDS_PROVIDER_SETTING_CHANGED  "取得元設定を変更しました。次回の「更新を検索」から反映します。"
-	IDS_EQUIVALENT_SOURCES        "同一版の取得元: %1"
+	IDS_EQUIVALENT_SOURCES        "同一バージョンの取得元: %1"
 	IDS_PREFERRED_SOURCE          "既定取得元"
 	IDS_PROVIDER_COVERAGE         "対象 / 判定 / 候補: %1"
 	IDS_LOCAL_COVERAGE_MENU       "メーカー／クラス別の候補到達状況…"
@@ -532,19 +551,19 @@ BEGIN
 	IDS_PROLIFIC_PACKAGE_SELECTION_NOTICE "Prolific公式製品ページでWindows 10/11用DCHU INF Setupの対象製品、注意事項、使用許諾を確認し、利用者自身が取得したZIPだけを選択してください。DriverCrateは選択元サイトを証明できません。外側ZIPとWindows 10/11用の内側ZIPを一段だけ安全に展開し、Ports class、Prolific Provider、公開済みVID/PID、INF、CAT、SYS、Windows driver署名を端末内で検証します。不一致時は候補化しません。続行しますか？"
 	IDS_WCH_PACKAGE_DIALOG_TITLE "WCH CH340/CH341の公式CH341SER.ZIPを選択"
 	IDS_WCH_PACKAGE_FILTER_NAME "WCH CH341SERドライバーZIP (*.zip)"
-	IDS_WCH_PACKAGE_SELECTION_NOTICE "WCH公式CH341SER.ZIPページでCH340/CH341対象製品、version 4.0、対象OS、注意事項、使用許諾を確認し、利用者自身が取得したZIPだけを選択してください。DriverCrateは選択元サイトを証明できません。審査済みZIPの固定SHA-256と全entryを検査し、現行Windows用CH341SER/WIN 1X配下だけを展開します。セットアップEXEと旧Win9x用fileは使用しません。Ports class、wch.cn Provider、固定VID/PID、INF/CAT署名、x64参照SYS/DLLの埋込み署名を端末内で検証し、別版や不一致fileは候補化しません。続行しますか？"
+	IDS_WCH_PACKAGE_SELECTION_NOTICE "WCH公式CH341SER.ZIPページでCH340/CH341対象製品、version 4.0、対象OS、注意事項、使用許諾を確認し、利用者自身が取得したZIPだけを選択してください。DriverCrateは選択元サイトを証明できません。審査済みZIPの固定SHA-256と全entryを検査し、現行Windows用CH341SER/WIN 1X配下だけを展開します。セットアップEXEと旧Win9x用fileは使用しません。Ports class、wch.cn Provider、固定VID/PID、INF/CAT署名、x64参照SYS/DLLの埋込み署名を端末内で検証し、異なるバージョンや不一致fileは候補化しません。続行しますか？"
 	IDS_WCH_MULTI_PACKAGE_DIALOG_TITLE "WCH CH342/CH343系の公式CH343SER.ZIPを選択"
 	IDS_WCH_MULTI_PACKAGE_FILTER_NAME "WCH CH343SERドライバーZIP (*.zip)"
-	IDS_WCH_MULTI_PACKAGE_SELECTION_NOTICE "WCH公式CH343SER.ZIPページでCH342/CH343系対象製品、version 2.2、対象OS、注意事項、使用許諾を確認し、利用者自身が取得したZIPだけを選択してください。DriverCrateは選択元サイトを証明できません。審査済みZIPの固定SHA-256と全entryを検査し、CH343SER/Driver/WIN 1X配下だけを展開します。セットアップEXE、library、旧Windows用fileは使用しません。Ports class、wch.cn Provider、固定VID/PID/interface、INF/CAT署名、x64参照SYS/DLLの埋込み署名を端末内で検証し、別版や不一致fileは候補化しません。続行しますか？"
+	IDS_WCH_MULTI_PACKAGE_SELECTION_NOTICE "WCH公式CH343SER.ZIPページでCH342/CH343系対象製品、version 2.2、対象OS、注意事項、使用許諾を確認し、利用者自身が取得したZIPだけを選択してください。DriverCrateは選択元サイトを証明できません。審査済みZIPの固定SHA-256と全entryを検査し、CH343SER/Driver/WIN 1X配下だけを展開します。セットアップEXE、library、旧Windows用fileは使用しません。Ports class、wch.cn Provider、固定VID/PID/interface、INF/CAT署名、x64参照SYS/DLLの埋込み署名を端末内で検証し、異なるバージョンや不一致fileは候補化しません。続行しますか？"
 	IDS_SILABS_PACKAGE_DIALOG_TITLE "Silicon Labs CP210xの公式UniversalドライバーZIPを選択"
 	IDS_SILABS_PACKAGE_FILTER_NAME "Silicon Labs CP210xドライバーZIP (*.zip)"
-	IDS_SILABS_PACKAGE_SELECTION_NOTICE "Silicon Labs公式CP210x VCP DriversページでUniversal Windows Driverのversion、対象製品、対象OS、注意事項、使用許諾を確認し、利用者自身が取得したZIPだけを選択してください。DriverCrateは選択元サイトを証明できず、使用許諾への同意を代理しません。ZIP全entryを検査し、Windows x64用silabser.inf、silabser.cat、x64/silabser.sysだけを展開します。設定用BAT/REGと別architecture fileは使用しません。Ports class、Silicon Laboratories Provider、固定14件の標準VID/PID/interface完全集合、有効なDriverVer（日付と4要素版）、INF/CAT/SYSのWindows driver署名とCAT member hashを端末内で検証し、不一致時は候補化しません。続行しますか？"
+	IDS_SILABS_PACKAGE_SELECTION_NOTICE "Silicon Labs公式CP210x VCP DriversページでUniversal Windows Driverのversion、対象製品、対象OS、注意事項、使用許諾を確認し、利用者自身が取得したZIPだけを選択してください。DriverCrateは選択元サイトを証明できず、使用許諾への同意を代理しません。ZIP全entryを検査し、Windows x64用silabser.inf、silabser.cat、x64/silabser.sysだけを展開します。設定用BAT/REGと別architecture fileは使用しません。Ports class、Silicon Laboratories Provider、固定14件の標準VID/PID/interface完全集合、有効なDriverVer（日付と4要素のバージョン）、INF/CAT/SYSのWindows driver署名とCAT member hashを端末内で検証し、不一致時は候補化しません。続行しますか？"
 	IDS_GENERIC_INF_DIALOG_TITLE "署名済みdriver-only ZIPを選択（取得元未証明）"
 	IDS_GENERIC_INF_FILTER_NAME "INFドライバーpackage (*.zip;*.cab)"
 	IDS_GENERIC_INF_FILTER_PATTERN "*.zip;*.cab"
 	IDS_ASSESSMENT_COMPONENT_ROLE "構成の役割"
 	IDS_ASSESSMENT_PACKAGE_SCOPE "条件の確認範囲はINFの静的構造です。明示依存の解決が未対応の場合はドライバーのみの構成・必須条件を未対応とし、署名・基礎適合の結果を独立して表示します。依存の充足や導入許可を意味しません。"
-	IDS_GENERIC_INF_SELECTION_NOTICE "利用者が取得したZIPまたはCABを端末内で検査します。この入力は公式の入手元、最新版、メーカー推奨を証明しません。使用許諾を確認したファイルを選択してください。INFごとに必要ファイル、Windows署名、CAT memberと現在deviceへの適合を確認し、無関係な同梱NVMやinstallerは実行しません。未対応形式・未解決の必須依存と不適合を区別します。現在の共通経路では候補表示までを行い、導入・installer起動は行いません。続行しますか？"
+	IDS_GENERIC_INF_SELECTION_NOTICE "利用者が取得したZIPまたはCABを端末内で検査します。この入力は公式の入手元、最新バージョン、メーカー推奨を証明しません。使用許諾を確認したファイルを選択してください。INFごとに必要ファイル、Windows署名、CAT memberと現在deviceへの適合を確認し、無関係な同梱NVMやinstallerは実行しません。未対応形式・未解決の必須依存と不適合を区別します。現在の共通経路では候補表示までを行い、導入・installer起動は行いません。続行しますか？"
 	IDS_COVERAGE_REVIEWED         "審査表に記載"
 	IDS_COVERAGE_PLATFORM         "Windows標準"
 	IDS_COVERAGE_PENDING_INTAKE   "S63+未列挙"
@@ -646,7 +665,7 @@ BEGIN
 	IDS_MEASUREMENT_NETWORK_COMBINED "全network — %1"
 	IDS_MEASUREMENT_NETWORK_MANAGED "Windows管理 — %1"
 	IDS_MEASUREMENT_NETWORK_OFFICIAL "公式network — %1"
-	IDS_MEASUREMENT_EXPLANATION "件数は同一scan内のopaque deviceを重複排除した端末内表示です。未計測を0件とせず、下限値は未確認の残りを否定しません。取得・適用性・導入許可、世界全体の対応率または最新版を保証しません。準備操作で候補が増えても、この段階別件数はscan完了時点から再計算しません。"
+	IDS_MEASUREMENT_EXPLANATION "件数は同一scan内のopaque deviceを重複排除した端末内表示です。未計測を0件とせず、下限値は未確認の残りを否定しません。取得・適用性・導入許可、世界全体の対応率または最新バージョンを保証しません。準備操作で候補が増えても、この段階別件数はscan完了時点から再計算しません。"
 	IDS_MEASUREMENT_EXPIRED "このscan sessionは失効済みです。表示値は実行前scanの履歴であり、現在の導入可能数ではありません。"
 	IDS_CANDIDATE_EXECUTION_HISTORY "前回の実行結果（履歴）― 現在の検証結果や導入許可ではありません。"
 	IDS_MEASUREMENT_NO_SNAPSHOT "段階別計測: 未接続または検証不能"
@@ -678,6 +697,7 @@ BEGIN
 	IDS_INDEX_REFRESH_ATTEMPTED "manifest世代: %1"
 	IDS_INDEX_REFRESH_PERSISTED "保存世代: %1"
 	IDS_INDEX_REFRESH_INVALID_TIME "索引の期限切れ、または発行日時の不整合です。PCの日時を確認し、配布索引の更新後に再検索してください。"
+	IDS_INDEX_REFRESH_UNCHANGED "署名更新情報と現在有効な保存索引の一致を確認し、本体の再取得を省きました。"
 	IDS_INDEX_PLAN_COUNTS "索引取得対象 / 不足・未対応関係 / 保持枠超過: %1"
 	IDS_INDEX_ROUTING_PENDING "索引は収集者確認です。Windows適合・候補発行・指定導入の結果は個別表示を確認してください。取得や内容検査の完了は導入成功ではありません。"
 	IDS_INDEX_CONTENT_COMPLETED "索引の共通内容検査は完了しました。個別INFの拒否と内容合格を別に示します。"
@@ -702,3 +722,39 @@ BEGIN
 	IDS_INDEX_ROLE_STAGED "package登録のみ"
 	IDS_INDEX_PLAN_RESULTS "必要構成の個別結果"
 	END
+
+// 同期候補snapshotの短いセル説明。元本文や秘密値を転記しません。
+STRINGTABLE
+BEGIN
+	IDS_DETAIL_TIP_CURRENT "Windowsで読み取った現在のドライバーです。この行は導入候補ではありません。"
+	IDS_DETAIL_TIP_CURRENT_MISSING "Windowsが未導入と観測した状態です。この行自体は導入候補ではありません。"
+	IDS_DETAIL_TIP_STALE "この検索結果は失効しています。再検索してください。"
+	IDS_DETAIL_TIP_INAPPLICABLE "この候補は適用条件を満たさないため選択できません。"
+	IDS_DETAIL_TIP_INITIAL "未導入の観測に結び付いた初回の候補です。取得前の候補は内容と適合の検査が必要です。"
+	IDS_DETAIL_TIP_PENDING_NEWER "現在より新しいと申告されたバージョンです。取得・内容検査・適合確認はまだ完了していません。"
+	IDS_DETAIL_TIP_PENDING_SAME "現在と同じ申告バージョンです。検査済みの再インストール候補ではありません。"
+	IDS_DETAIL_TIP_PENDING_OLDER "現在より古い申告バージョンです。取得・内容検査・適合確認はまだ完了していません。"
+	IDS_DETAIL_TIP_UNKNOWN "現在または候補のバージョンが不明で、新旧比較は未確認です。"
+	IDS_DETAIL_TIP_NEWER "新しいバージョンの更新候補です。選択後、インストール時の確認が必要です。"
+	IDS_DETAIL_TIP_SAME "同じバージョンの再インストール候補です。再インストールには明示選択が必要です。"
+	IDS_DETAIL_TIP_OLDER "古いバージョンへの切替候補です。切替には選択後、インストール時の確認が必要です。"
+	IDS_DETAIL_TIP_NO_PLAN "現時点ではインストールできません。更新を再検索してください。"
+	IDS_DETAIL_TIP_FILTERED "推奨表示の対象外です。表示フィルター解除後に手動で指定できます。"
+	IDS_DETAIL_TIP_NAME "ドライバー候補です。行の選択だけでは取得・インストールは始まりません。"
+	IDS_DETAIL_TIP_VERSION "この候補のバージョンです。インストール可能かどうかは別途確認が必要です。"
+	IDS_DETAIL_TIP_VERSION_UNKNOWN "バージョンが不明のため新旧を比較できません。"
+	IDS_DETAIL_TIP_DATE_UNKNOWN "ドライバーの日付は未確認です。"
+	IDS_DETAIL_TIP_DATE_CURRENT "Windowsから読み取った現在のドライバーの日付です。"
+	IDS_DETAIL_TIP_DATE_CHECKED "検査したドライバー候補の日付です。日付だけでは適合を保証しません。"
+	IDS_DETAIL_TIP_DATE_PENDING "取得前の配布情報の日付です。実際のドライバー内容は未確認です。"
+	IDS_DETAIL_TIP_SOURCE_CURRENT "Windowsの現在構成から得た情報です。"
+	IDS_DETAIL_TIP_SOURCE_INDEX "署名索引に収録された配布元です。署名索引だけでは実ファイルの適合を保証しません。"
+	IDS_DETAIL_TIP_SOURCE_UNKNOWN "この候補の取得元表示は未確認です。"
+	IDS_DETAIL_TIP_SOURCE "この候補が見つかった場所です。表示だけでインストールできるとは限りません。"
+	IDS_DETAIL_TIP_REPORT "取得・検査全体の結果を示す行です。このデバイスだけの検査結果ではありません。候補として選択できません。"
+	IDS_DEVICE_DETAIL_DISTINCT_INFORMATION "（別の配布情報 %1）"
+	IDS_DETAIL_TIP_DISTINCT_INFORMATION "同じ表示値でも、同一内容と確認できない配布情報は別候補として表示します。"
+	IDS_DIAGNOSTIC_STORAGE_SAVED "匿名診断: EXE隣のlogへ保存済み（保存/未保存/欠落: %1）"
+	IDS_DIAGNOSTIC_STORAGE_PENDING "匿名診断: 保存待ち・未保存あり（保存/未保存/欠落: %1）"
+	IDS_DIAGNOSTIC_STORAGE_FAILED "匿名診断を保存できません。既存logは変更せず、診断番号をお知らせください（状態/段階/元コード有無/コード/保存/未保存/欠落: %1）。"
+END

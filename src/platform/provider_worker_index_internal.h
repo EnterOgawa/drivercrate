@@ -2,7 +2,7 @@
 /**
  * @file provider_worker_index_internal.h
  * @brief 通常workerの固定索引serviceと隔離fixture能力を定義します。
- * @version 01.06.00
+ * @version 01.07.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/13  完全依存API fixtureの同worker所有factoryを定義。
  * Ver.01.05.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.06.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
+ * Ver.01.07.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * </pre>
  *
  * @note 製品constructorはこの能力を外部入力から作りません。
@@ -34,6 +35,7 @@
  */
 //------------------------------------------------------------------------------
 #pragma once
+#include "core/index_capacity_limits.h"
 #include "platform/inf_dependency_native_internal.h"
 #include "platform/provider_worker.h"
 #include "platform/signed_index_store.h"
@@ -65,21 +67,21 @@ struct Services {
 	/// 協調期限へ使用する単調時計。
 	std::function<std::chrono::steady_clock::time_point()>					 monotonic ;
 	/// 一operation最大record。固定製品上限以下です。
-	std::size_t																 maximumRecords{16384U} ;
+	std::size_t				  maximumRecords{index_capacity::RECORDS} ;
 	/// 一operation最大callback。固定製品上限以下です。
-	std::size_t																 maximumCalls{32768U} ;
+	std::size_t				  maximumCalls{index_capacity::WHOLE_PUBLIC_IDS} ;
 	/// 一operation最大関係tuple。固定製品上限以下です。
-	std::size_t													 maximumRelations{32768U} ;
-	/// 超過後は新規処理を開始しない協調期限。最大5秒です。
-	std::chrono::milliseconds									 duration{5000} ;
+	std::size_t				  maximumRelations{index_capacity::RETAINED_RELATIONS} ;
+	/// 超過後は新規処理を開始しない協調期限。最大30秒です。
+	std::chrono::milliseconds duration{index_capacity::SCAN_MILLISECONDS} ;
 	/// Workerだけが確認するOS条件。不明では取得対象を作りません。
-	std::function<std::optional<IndexTargetOs>()>				 targetOs ;
+	std::function<std::optional<IndexTargetOs>()>							 targetOs ;
 	/// 内部createAcquisitionFixtureだけが固定fixture-mainの開始関数を保持します。
-	IndexAcquisitionBegin										 beginAcquisition ;
+	IndexAcquisitionBegin													 beginAcquisition ;
 	/// 内部fixtureの完全な低位HTTP呼出し表。製品入口は空です。
-	std::function<OfficialHttpTransport()>						 httpTransport ;
+	std::function<OfficialHttpTransport()>									 httpTransport ;
 	/// 内部fixtureの回線分類境界。製品入口はWindows標準境界を使用します。
-	std::function<std::unique_ptr<IOfficialNetworkCostReader>()> costReader ;
+	std::function<std::unique_ptr<IOfficialNetworkCostReader>()>			 costReader ;
 	/// 内部factoryが全低位Windows表を同worker lifetimeへ固定します。製品は空です。
 	std::function<std::unique_ptr<driver_store_inf_detail::ScopedFixture>()> driverStoreFixture ;
 	/// 実INF/CAT/member hashを全共通処理で検査する固定内部署名表。製品は空です。

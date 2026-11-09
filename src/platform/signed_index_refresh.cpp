@@ -2,7 +2,7 @@
 /**
  * @file signed_index_refresh.cpp
  * @brief 固定currentの検証と既存原子storeをlock外通信で接続します。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/10/16
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,12 +20,14 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/16  HTTP/暗号/schema/storeと明示cacheを接続。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/08  認証した同一currentでは保存本体を全検査して再利用。
  * </pre>
  */
 //------------------------------------------------------------------------------
 #include "platform/signed_index_refresh.h"
 #include <algorithm>
 #include <new>
+#include <utility>
 #include <winhttp.h>
 
 namespace drivercrate {
@@ -61,12 +63,12 @@ namespace {
 	return true ;
 }
 /** @brief 実storeのstatusとsnapshot有無を非機密値へ要約します。
- * @param[in] result 所有する実store結果です。外へ能力を渡しません。
+ * @param[in] result 同呼出し中だけ借用する実store結果です。外へ能力を渡しません。
  * @param[in] now 使用時の信頼UTCです。
  * @return 元commit事実と現在有効なsnapshot観測だけです。
  */
 [[nodiscard]] IndexRefreshStoreObservation observe(
-	IndexStoreResult result, std::optional<std::chrono::sys_seconds> now) noexcept
+	const IndexStoreResult &result, std::optional<std::chrono::sys_seconds> now) noexcept
 {
 	return {result.status,
 			result.commit,
@@ -157,7 +159,8 @@ IndexRefreshSummary signed_index_refresh_detail::Access::execute(
 	SignedIndexHttpControl control ;	// この呼出しだけの固定90秒です。
 	try {
 		// 欠損依存を製品HTTPや保護storeへ補完しません。
-		if( !services.utcNow || !services.monotonicNow || !services.commit || !services.reload) {
+		if( !services.utcNow || !services.monotonicNow || !services.loadExisting ||
+		   !services.commit || !services.reload) {
 			result.error = E_INVALIDARG ;
 			return result ;
 		}
@@ -238,6 +241,53 @@ IndexRefreshSummary signed_index_refresh_detail::Access::execute(
 
 		result.attemptedGeneration = manifest.manifest->data().generation ;
 		// 認証段階間の停止をasset送信より先に確認します。
+		if( control.checkpoint() != 0) {
+			return finish() ;
+		}
+
+		auto cached = services.loadExisting( services.utcNow()) ;	// 排他を解放した所有snapshotです。
+		// 保護storeの再認証中に停止した場合は、本体GETと同一成功へ進みません。
+		if( control.checkpoint() != 0) {
+			return finish() ;
+		}
+
+		const auto useNow = services.utcNow() ;	// Reload後の元期限とattestationを照合するUTCです。
+		result.cache	  = observe( cached, useNow) ;
+		// 全再認証済みheadだけをremote世代の照合元にし、scalarだけで省略しません。
+		if( cached.status == IndexStoreStatus::SNAPSHOT_READY && cached.snapshot) {
+			const auto &data = cached.snapshot->schemaReceipt()
+								   .assetBytes()
+								   .manifest()
+								   .data() ;	// 原headの署名値です。
+			const IndexManifestHighWater highWater{data.generation,
+												   data.manifestSha256} ;	// 原headの下限です。
+			auto						 checked =
+				services.fixtureTrust.empty()
+											? authenticateSignedIndexManifest( raw, useNow, highWater)
+											: signed_index_detail::authenticateWithTrustKeys(
+						  raw, useNow, highWater,
+						  services.fixtureTrust) ;	// 共通verifierで原remoteを再照合します。
+			// Rollbackや同世代の異manifestを有効cacheの成功で隠しません。
+			if( !checked.manifest) {
+				result.status		  = IndexRefreshStatus::MANIFEST_REJECTED ;
+				result.error		  = checked.error ;
+				result.manifestStatus = checked.status ;
+				return finish() ;
+			}
+
+			manifest = std::move( checked) ;
+			// 原envelopeの完全一致と現在有効な全attestationだけで本体GETを省きます。
+			if( raw == cached.snapshot->originalEnvelope() && result.cache->usableSnapshot) {
+				result.store				  = *result.cache ;
+				result.status				  = IndexRefreshStatus::UNCHANGED ;
+				result.usedAuthenticatedCache = true ;
+				return finish() ;
+			}
+		}
+
+		// 新版本体を受信する前にlocalの大きな所有byteを解放します。
+		cached.snapshot.reset() ;
+		// Local検査後も同じ固定期限を使い、停止後のasset送信を開始しません。
 		if( control.checkpoint() != 0) {
 			return finish() ;
 		}
@@ -323,21 +373,24 @@ IndexRefreshSummary refreshFixedSignedIndex( const HttpCancellationCallback &can
 				std::chrono::floor<std::chrono::seconds>( std::chrono::system_clock::now())} ;
 		} ;
 		services.monotonicNow = []() { return std::chrono::steady_clock::now() ; } ;
-		services.commit		  = []( const IndexRecordsSchemaReceipt &receipt,
-							   const std::string_view envelope, const std::span<const std::byte> gzip,
-							   const std::optional<std::chrono::sys_seconds> now) {
-			  auto opened =
-				  // HTTP終了後だけ固定rootを開きます。
-				  SignedIndexStore::openFixedProtectedStore() ;
-			  // 固定rootの拒否を別root/genesisへ回避しません。
-			  if( !opened.store) {
-				  IndexRefreshStoreObservation result ;	// 固定rootを開けなかった元診断です。
-				  result.status = IndexStoreStatus::IO_FAILURE ;
-				  result.error	= opened.error ;
-				  return result ;
-			  }
+		services.loadExisting = []( const std::optional<std::chrono::sys_seconds> now) {
+			return SignedIndexStore::reloadFixedExisting( now) ;
+		} ;
+		services.commit = []( const IndexRecordsSchemaReceipt &receipt,
+							 const std::string_view envelope, const std::span<const std::byte> gzip,
+							 const std::optional<std::chrono::sys_seconds> now) {
+			auto opened =
+				// HTTP終了後だけ固定rootを開きます。
+				SignedIndexStore::openFixedProtectedStore() ;
+			// 固定rootの拒否を別root/genesisへ回避しません。
+			if( !opened.store) {
+				IndexRefreshStoreObservation result ;	// 固定rootを開けなかった元診断です。
+				result.status = IndexStoreStatus::IO_FAILURE ;
+				result.error  = opened.error ;
+				return result ;
+			}
 
-			  return observe( opened.store->commit( receipt, envelope, gzip, now), now) ;
+			return observe( opened.store->commit( receipt, envelope, gzip, now), now) ;
 		} ;
 		services.reload = []( const std::optional<std::chrono::sys_seconds> now) {
 			return observe( SignedIndexStore::reloadFixedExisting( now), now) ;

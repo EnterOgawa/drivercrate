@@ -2,7 +2,7 @@
 /**
  * @file official_seven_zip_tests.cpp
  * @brief 公式7z有限展開単体試験実装。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * </pre>
  *
  * @note 7-Zip 26.01で合成した非driver fixtureをBase64として保持します。Solid展開量判定はpacked dataを展開せず、過大時のfile非作成を確認しま
@@ -41,6 +42,7 @@
 #include "platform/official_download_workspace.h"
 #include "platform/official_file_verifier.h"
 #include "platform/official_seven_zip.h"
+#include "platform/official_mapped_file.h"
 #include "test_framework.h"
 
 #include <Windows.h>
@@ -736,6 +738,110 @@ void testWorkspaceFailureCleanup( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !workspaceFileExists( crcWorkspace, L"driver.inf")) ;
 }
 
+/**
+ * @brief 共有solidの再利用、上限拒否、CRCと取消しを確認する。
+ * @param[in,out] context 架空archiveだけのassertion集計先。
+ */
+void testMappedSolidSession( TestContext &context)
+{
+	std::vector<std::byte> archive ;	// 固定の二file一solid fixture。
+	DRIVERCRATE_EXPECT( context, decodeFixture( SOLID_ARCHIVE_BASE64, archive)) ;
+	OfficialSevenZipExtractionPolicy policy = POLICY ;	// 小型fixtureのdecoder作業枠を維持する。
+	policy.maximumMappedOutputBytes			= 1024U ;
+	OfficialSevenZipSession reader ;	// 一度だけdecodeする同期owner。
+	DRIVERCRATE_EXPECT( context, reader.initialize( archive, policy) == 0) ;
+	const auto entries = reader.entries() ;	// 同じ元readerの検査済み一覧。
+	DRIVERCRATE_EXPECT( context, entries.size() == 2U) ;
+	// fixture前提失敗を範囲外参照へ波及させない。
+	if( entries.size() != 2U) {
+		return ;
+	}
+
+	OfficialDownloadWorkspace workspace ;	// 選択fileだけの保護出力。
+	DRIVERCRATE_EXPECT( context, workspace.initialize( L"mapped-solid-test", 1641U) == 0) ;
+	std::vector<OfficialSevenZipEntry> output ;							// 全成功時だけ原hashが入る。
+	const std::array				   first{entries[0].archiveIndex} ;	// 同じsolidの前半。
+	const std::array second{entries[1].archiveIndex} ;					// 後半を別呼出しで要求する。
+	DRIVERCRATE_EXPECT( context, reader.extract( first, workspace, output) == 0) ;
+	const auto peak = reader.mappedPeakBytes() ;	// SDK headerを含む一意solidの実保持量。
+	DRIVERCRATE_EXPECT( context, peak == 0U) ;
+	DRIVERCRATE_EXPECT( context, reader.extract( second, workspace, output) == 0) ;
+	DRIVERCRATE_EXPECT( context,
+					   reader.decodedBlockCount() == 1U && reader.mappedPeakBytes() == peak) ;
+	// 既存file衝突で以前の正常出力まで削除しない。
+	DRIVERCRATE_EXPECT( context, reader.extract( second, workspace, output) != 0 && output.empty()) ;
+	DRIVERCRATE_EXPECT( context, workspaceFileExists( workspace, entries[0].relativePath) &&
+									workspaceFileExists( workspace, entries[1].relativePath)) ;
+	policy.maximumMappedOutputBytes		= 128U ;
+	policy.maximumSingleAllocationBytes = 128U ;
+	OfficialSevenZipSession limited ;	// header込みのquotaを超える独立条件。
+	DRIVERCRATE_EXPECT( context, limited.initialize( archive, policy) == 0) ;
+	OfficialDownloadWorkspace rejected ;	// quota拒否では何も作らない。
+	DRIVERCRATE_EXPECT( context, rejected.initialize( L"mapped-quota-test", 1642U) == 0) ;
+	DRIVERCRATE_EXPECT( context, limited.extract( first, rejected, output) != 0 && output.empty()) ;
+	DRIVERCRATE_EXPECT( context, !workspaceFileExists( rejected, entries[0].relativePath)) ;
+	policy.maximumMappedOutputBytes		= 1024U ;
+	policy.maximumSingleAllocationBytes = POLICY.maximumSingleAllocationBytes ;
+	bool					cancel{} ;	// 元metadata検査の完了後だけ停止する。
+	OfficialSevenZipSession cancelled ;	// callbackはこのscope内で生存する。
+	DRIVERCRATE_EXPECT( context, cancelled.initialize( archive, policy, [&] { return cancel ; }) == 0) ;
+	cancel = true ;
+	DRIVERCRATE_EXPECT( context, cancelled.extract( first, rejected, output) ==
+									static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))) ;
+	DRIVERCRATE_EXPECT( context,
+					   output.empty() && !workspaceFileExists( rejected, entries[0].relativePath)) ;
+	std::vector<std::byte> damaged =
+		archive ;	// Packed byteだけを変えた元metadata同一のCRC負例です。
+	damaged[40] ^= std::byte{0x01} ;
+	OfficialSevenZipSession corrupt ;	// 途中bufferを検査済みcacheへ残さないownerです。
+	DRIVERCRATE_EXPECT( context, corrupt.initialize( damaged, policy) == 0) ;
+	DRIVERCRATE_EXPECT( context, corrupt.extract( first, rejected, output) != 0 && output.empty()) ;
+	DRIVERCRATE_EXPECT( context, corrupt.decodedBlockCount() == 0U &&
+									!workspaceFileExists( rejected, entries[0].relativePath)) ;
+	// 同じ破損fileの再要求も未検査cacheによる成功へ変えません。
+	DRIVERCRATE_EXPECT( context, corrupt.extract( first, rejected, output) != 0 && output.empty()) ;
+}
+
+/**
+ * @brief 固定入力と所有出力のmapping・保存失敗・回収だけを確認する。
+ * @param[in,out] context 架空fileだけのassertion集計先。
+ */
+void testOwnedFileMapping( TestContext &context)
+{
+	OfficialDownloadWorkspace workspace ;	// 既知新規fileだけを所有する領域。
+	DRIVERCRATE_EXPECT( context, workspace.initialize( L"mapping-owner-test", 1643U) == 0) ;
+	OfficialMappedFile output ;	// 私有file-backed viewのowner。
+	DRIVERCRATE_EXPECT( context, output.create( workspace, L"owned.bin", 4096U, 8192U) == 0) ;
+	DRIVERCRATE_EXPECT( context, output.writableBytes().size() == 4096U) ;
+	OfficialMappedFile collision ;	// 既存fileを変更できない独立owner。
+	DRIVERCRATE_EXPECT( context, collision.create( workspace, L"owned.bin", 4096U, 8192U) != 0) ;
+	OfficialMappedFile bounded ;	// 上限超過を空ownerへ残す。
+	DRIVERCRATE_EXPECT( context, bounded.create( workspace, L"too-large.bin", 4097U, 4096U) != 0) ;
+	DRIVERCRATE_EXPECT( context, bounded.bytes().empty() &&
+									!workspaceFileExists( workspace, L"too-large.bin")) ;
+	DRIVERCRATE_EXPECT( context, output.close() == 0 && output.bytes().empty()) ;
+	DRIVERCRATE_EXPECT( context, !workspaceFileExists( workspace, L"owned.bin")) ;
+	HANDLE raw{INVALID_HANDLE_VALUE} ;	// 同期fixtureだけのwriter。
+	DRIVERCRATE_EXPECT( context, workspace.createFile( L"input.bin", raw) == 0) ;
+	DWORD written{} ;	// 実書込みbyte数。
+	DRIVERCRATE_EXPECT( context, WriteFile( raw, "abc", 3U, &written, nullptr) && written == 3U) ;
+	DRIVERCRATE_EXPECT( context, CloseHandle( raw)) ;
+	OfficialMappedFile input ;	// 書込み・delete共有を許さない元入力。
+	DRIVERCRATE_EXPECT( context, input.open( workspace.path( L"input.bin"), 3U) == 0) ;
+	DRIVERCRATE_EXPECT( context, input.bytes().size() == 3U && input.writableBytes().empty()) ;
+	// 入力ownerと競合する書込み要求だけです。
+	const HANDLE writer = CreateFileW( workspace.path( L"input.bin").c_str(), GENERIC_WRITE,
+									  FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+									  nullptr, OPEN_EXISTING, 0U, nullptr) ;
+	DRIVERCRATE_EXPECT( context, writer == INVALID_HANDLE_VALUE) ;
+	// 失敗fixtureでも取得したhandleを漏らさない。
+	if( writer != INVALID_HANDLE_VALUE) {
+		CloseHandle( writer) ;
+	}
+
+	DRIVERCRATE_EXPECT( context, input.close() == 0 && workspaceFileExists( workspace, L"input.bin")) ;
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -745,6 +851,8 @@ void testWorkspaceFailureCleanup( TestContext &context)
 //------------------------------------------------------------------------------
 void runOfficialSevenZipTests( TestContext &context)
 {
+	testMappedSolidSession( context) ;
+	testOwnedFileMapping( context) ;
 	testValidInspectionAndExtraction( context) ;
 	testEncryptionAndCodecRejection( context) ;
 	testPathAndDuplicateRejection( context) ;

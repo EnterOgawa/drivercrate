@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_http_request.cpp
  * @brief Record限定grantから一回のGETだけを作る秘密requestを実装します。
- * @version 01.04.00
+ * @version 01.05.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  各HTTP hop開始前の期限再検証を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/09/15  取得予算でgrant上限を狭める準備引数を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
  * </pre>
  *
  * @note 例外をworker境界へ漏らさず、放棄時もgrantを失敗終端してURLを消去します。
@@ -259,8 +260,10 @@ bool OfficialDelegatedGetRequest::canReresolveExpiringTarget() const noexcept
 	const bool active = state_ == OfficialDelegatedGetState::READY ||
 						// HTTP開始後も終端前なら判定できる。
 						state_ == OfficialDelegatedGetState::STARTED ;
-	return active && grant_ != nullptr && grant_->metadata().externalExpiryPresent &&
-		   grant_->metadata().reresolutionCount == 0U ;
+	return active && grant_ != nullptr &&
+		   grant_->metadata().origin !=
+			   OfficialDownloadGrantOrigin::SIGNED_INDEX_COLLECTOR_ATTESTATION &&
+		   grant_->metadata().externalExpiryPresent && grant_->metadata().reresolutionCount == 0U ;
 }
 
 //------------------------------------------------------------------------------
@@ -315,10 +318,37 @@ void OfficialDelegatedGetRequest::abandon() noexcept
 //------------------------------------------------------------------------------
 void OfficialDelegatedGetRequest::moveFrom( OfficialDelegatedGetRequest &other) noexcept
 {
+	auxiliary_	  = std::exchange( other.auxiliary_, {}) ;
 	grant_		  = std::exchange( other.grant_, nullptr) ;
 	targetUrl_	  = std::move( other.targetUrl_) ;
 	state_		  = std::exchange( other.state_, OfficialDelegatedGetState::EMPTY) ;
 	maximumBytes_ = std::exchange( other.maximumBytes_, 0U) ;
+}
+
+/** @see official_delegated_http_request.h */
+const OfficialAnonymousCdnPlan *OfficialDelegatedGetRequest::anonymousCdnPlan() const noexcept
+{
+	return state_ == OfficialDelegatedGetState::STARTED && grant_ ? grant_->anonymousCdnPlan()
+																  : nullptr ;
+}
+/** @see official_delegated_http_request.h */
+NativeError OfficialDelegatedGetRequest::acceptAnonymousCdnResolution(
+	OfficialAnonymousCdnResolution &resolution, const std::uint64_t now)
+{
+	// 公開DTOや再使用requestから秘密routeを差し替えない。
+	if( state_ != OfficialDelegatedGetState::STARTED || !grant_) {
+		return E_ACCESSDENIED ;
+	}
+
+	const auto error = grant_->sealAnonymousCdnResolution(
+		// 元sealの診断。
+		targetUrl_.view(), resolution.target, resolution.expiresUtcSeconds, now) ;
+	// 全結合が揃った秘密URLだけを同requestへ移す。
+	if( error == 0) {
+		targetUrl_ = std::move( resolution.target) ;
+	}
+
+	return error ;
 }
 
 } // namespace drivercrate

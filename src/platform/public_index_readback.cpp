@@ -2,7 +2,7 @@
 /**
  * @file public_index_readback.cpp
  * @brief 固定公開索引の原byte匿名照合を既存HTTPとnative codecへ接続します。
- * @version 01.01.00
+ * @version 01.03.00
  * @date 2026/10/20
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,11 +21,14 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/20  保存を伴わない三resource匿名確認を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/27  Daily/candidateの正規二file名を共通検査。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/05  固定匿名三resourceへ親の取消しを引継ぎ。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * </pre>
  * @note 全取得byteと期限付きCDN URLはRAMだけに保持し、永続storeを開きません。
  * @see docs/adr/0385-public-anonymous-index-readback.md
  */
 //------------------------------------------------------------------------------
+#include "core/index_capacity_limits.h"
 #include "platform/public_index_readback.h"
 #include "platform/index_distribution_trust.h"
 #include "platform/official_file_verifier.h"
@@ -43,7 +46,7 @@
 namespace drivercrate {
 namespace {
 // 親の現取得経路に一致する圧縮原byteの狭い上限です。
-constexpr std::size_t	  MAXIMUM_GZIP_BYTES = 16U * 1024U * 1024U ;
+constexpr std::size_t	  MAXIMUM_GZIP_BYTES = index_capacity::GZIP_BYTES ;
 /** @brief 元診断がない純粋拒否へ固定の非0 HRESULTを割当てます。
  * @param[in] error 元codecまたはHTTP診断です。
  * @return 元値またはERROR_INVALID_DATAです。
@@ -291,7 +294,7 @@ PublicIndexReadbackReport public_index_readback_detail::Access::execute(
 		auto expected		= signed_index_detail::authenticateWithTrustKeys(
 			  envelope, now(), std::nullopt,
 			  services.trust) ;	// 自己申告trustを読みません。
-		// 未認証tagと16MiBを超すassetではURLを導出しません。
+		// 未認証tagと32MiBを超すassetではURLを導出しません。
 		if( !expected.manifest || expected.manifest->data().asset.sizeBytes != gzip.size()) {
 			result.nativeError = nonzero( expected.error) ;
 			return finish() ;
@@ -470,7 +473,8 @@ PublicIndexReadbackReport public_index_readback_detail::Access::forTest(
 PublicIndexReadbackReport readbackFixedPublicIndex(
 	const std::string_view envelope, const std::string_view gzip, const std::uint32_t milliseconds,
 	const std::chrono::steady_clock::time_point operationStarted,
-	const std::chrono::sys_seconds				operationStartedAtUtc) noexcept
+	const std::chrono::sys_seconds				operationStartedAtUtc,
+	const HttpCancellationCallback			   &cancellation) noexcept
 {
 	try {
 		public_index_readback_detail::Services services ;	// 製品の固定依存だけです。
@@ -484,7 +488,7 @@ PublicIndexReadbackReport readbackFixedPublicIndex(
 		services.monotonicNow = []() { return std::chrono::steady_clock::now() ; } ;
 		OfficialHttpClient client( false) ;	// 永続cacheとProvider ledgerを使いません。
 		return public_index_readback_detail::Access::execute( client, services, envelope, gzip,
-															 milliseconds, {}) ;
+															 milliseconds, cancellation) ;
 	} catch( ...) {
 		PublicIndexReadbackReport result ;	// 依存確保失敗でも例外をprocess境界へ漏らしません。
 		result.nativeError = E_UNEXPECTED ;

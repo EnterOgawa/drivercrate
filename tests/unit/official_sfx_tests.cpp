@@ -2,7 +2,7 @@
 /**
  * @file official_sfx_tests.cpp
  * @brief 公式自己解凍形式の静的識別単体試験実装。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
  * </pre>
  *
  * @note 架空PE／7z fixtureでrange、CRC、重複signature、certificate tableと必要最小zero paddingを検証します。実配布物の実行合格ではあ
@@ -260,6 +261,13 @@ void testValidSfxLayout( TestContext &context)
 	DRIVERCRATE_EXPECT( context, unsignedLayout.nextHeaderOffset == ARCHIVE_OFFSET + 32U) ;
 	DRIVERCRATE_EXPECT( context, unsignedLayout.nextHeaderSize == NEXT_HEADER_SIZE) ;
 	DRIVERCRATE_EXPECT( context, unsignedLayout.certificateOffset == 0U) ;
+	auto olderVersion				  = unsignedFixture ;	// 同じ構造/CRCの7z 0.3表記です。
+	olderVersion[ARCHIVE_OFFSET + 7U] = std::byte{0x03} ;
+	DRIVERCRATE_EXPECT( context,
+					   inspectOfficialSevenZipSfx( olderVersion, POLICY, unsignedLayout) == 0) ;
+	olderVersion[ARCHIVE_OFFSET + 7U] = std::byte{0x05} ;
+	DRIVERCRATE_EXPECT( context,
+					   inspectOfficialSevenZipSfx( olderVersion, POLICY, unsignedLayout) != 0) ;
 
 	const std::vector<std::byte> signedFixture =
 		// 最小certificate tableを持つ正常PE32+ fixture。

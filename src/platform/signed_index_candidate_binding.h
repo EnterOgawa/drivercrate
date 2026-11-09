@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding.h
  * @brief 元認証recordと実取得閉包から候補と指定導入routeを私有保持します。
- * @version 01.03.00
+ * @version 01.06.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,9 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.02.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
  * Ver.01.03.00 Shunji Ogawa  2026/10/13  一候補の必要計画と復旧前の全選択再確認を結合。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/03  未署名検査と通常候補の完全tuple比較を共用。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/06  同一INFの代替OS Modelsを私有選択集合へ保持。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -42,6 +45,37 @@
 #include <vector>
 
 namespace drivercrate {
+/** @brief 同じINF/Modelsの原内容とpolicyだけを比較する表示専用判定です。
+ * @param[in] left 同じ署名snapshotから参照する原recordです。
+ * @param[in] right 同snapshotの別原recordです。
+ * @return 完全payload/policy・INF証拠・同Models/公表ID・version/日付一致時だけtrueです。
+ * @note 原Reference/record/routingを統合せず、取得・導入権限を発行しません。
+ */
+[[nodiscard]] bool areIdenticalIndexDisplayChoices( const IndexDistributionRecord &left,
+												   const IndexDistributionRecord &right) noexcept ;
+/** @brief 同一INFの異なる標準x64 OS装飾を持つ代替recordの厳密値比較です。
+ * @param[in] left 個別codec検査済みの元recordです。
+ * @param[in] right 同じ署名snapshotから参照する別の元recordです。
+ * @return 元payload/policy/期限・INF/hash/Class/版/公表ID全集合とModels base一致時だけtrueです。
+ * @note 認証/通信/適合/導入権限を発行しません。私有Referenceが元relation集合を別に所有します。
+ */
+[[nodiscard]] bool areEquivalentIndexModelChoices( const IndexDistributionRecord &left,
+												  const IndexDistributionRecord &right) noexcept ;
+/** @brief 原record申告を通常候補と同じINF完全tuple比較へ渡します。許可を発行しません。
+ * @param[in] original 共通codecが検査した元record値です。認証の有無は表しません。
+ * @param[in] inspection 同元outerを所有する通常内容検査結果です。
+ * @param[in] hint 同元outerのsize/hashとrecord参照です。
+ * @param[in] inf 同保護workspaceの一INFです。
+ * @param[in] actual 同元HINFから再読取りした公開identityです。
+ * @return 元outer/INF/Models/Class/種別付き公開ID全集合が一致する場合trueです。
+ * @note Windows適合、rank、候補session、tokenを生成しません。
+ */
+[[nodiscard]] bool matchesIndexPublishedInf( const IndexDistributionRecord		&original,
+											const CommonDriverPackageInspection &inspection,
+											const IndexedDriverArchiveHint		&hint,
+											const CommonInfInspection			&inf,
+											const OfficialInfPublishedIdentity	&actual) ;
+
 class SignedIndexScanSession ;
 class DriverStoreProvider ;
 class CompositeUpdateProvider ;
@@ -62,6 +96,8 @@ private:
 	struct Reference {
 		/// 原認証lookupのglobal関係位置。
 		std::size_t					relationIndex{} ;
+		/// 同じ選択意図へ厳密集約した全原Models recordのrelation位置。代表も含む。
+		std::vector<std::size_t>	relationIndices ;
 		/// describeが生成した未変更の取得対象。
 		OfficialPreparationTarget	target ;
 		/// 同Providerの既表示非導入行。
@@ -134,6 +170,8 @@ private:
 		std::size_t										   infOrdinal{} ;
 		/// 同取得task内で当該deviceへ結合した元参照位置。
 		std::size_t										   referenceIndex{} ;
+		/// 同参照集合内で実INF/Modelsの完全tupleへ唯一一致した原relation位置。
+		std::size_t										   relationIndex{} ;
 		/// 同scanのopaque device。
 		std::wstring									   deviceIdentity ;
 		/// Windows候補観測の元HRESULT。

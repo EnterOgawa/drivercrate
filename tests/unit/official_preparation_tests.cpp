@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_tests.cpp
  * @brief 取得承認と一度限りのtaskの内部試験。
- * @version 01.01.00
+ * @version 01.02.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  EULA group tokenのsnapshot検証を追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/06  既定2GiBと明示小予算/累計/overflowの境界を追加。
  * </pre>
  *
  * @note 合成対象の状態だけを検証し、network・復元ポイント・導入を使用しません。
@@ -777,6 +778,119 @@ void testBudgetBoundaries( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 通常workerと同じ五fieldを取得計画の値型へ写します。
+ * @return 明示した共通payload既定の完全snapshotです。
+ */
+//------------------------------------------------------------------------------
+OfficialPreparationLimits defaultPayloadLimits()
+{
+	const OfficialDiscoveryPayloadLimits limits ;	// 通常workerと同じ五field写像の元既定です。
+	return {limits.maximumFileBytes, limits.maximumProviderBytes, limits.maximumSessionBytes,
+			limits.maximumProviderFiles, limits.maximumSessionFiles} ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 既定2GiBの単一/累計境界と、明示小予算/同scan予算差替えを検証する。
+ * @param[in,out] context Assertionの集計先。
+ */
+//------------------------------------------------------------------------------
+void testDefaultPayloadBudget( TestContext &context)
+{
+	constexpr std::uint64_t GIB = 1024ULL * 1024ULL * 1024ULL ;	// 配列確保しない合成予約量。
+	// 旧128MiBを超える配布物と2GiBちょうどを、通常の既定計画から承認する。
+	for( const std::uint64_t bytes : {GIB + 1U, 2U * GIB}) {
+		OfficialPreparationSession session ;			// 一件の予約だけを管理する。
+		auto					   plan = makePlan() ;	// 架空targetを持つ所有計画。
+		plan.limits						= defaultPayloadLimits() ;
+		plan.targets.resize( 1U) ;
+		plan.targets[0].maximumBytes = bytes ;
+		DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
+		DRIVERCRATE_EXPECT( context, session.approve( makeApproval( plan, 20U)) ==
+										OfficialPreparationError::NONE) ;
+		finishAll( session, context) ;
+	}
+
+	// 既定の一byte超過と明示小予算の一byte超過を、取得開始前に拒否する。
+	for( const bool small : {false, true}) {
+		OfficialPreparationSession session ;			// 超過targetを受理しない状態。
+		auto					   plan = makePlan() ;	// 一fileだけで容量を越える合成計画。
+		plan.limits						= defaultPayloadLimits() ;
+		plan.targets.resize( 1U) ;
+		// 明示された旧小予算を共通既定で拡大しません。
+		if( small) {
+			plan.limits = {128ULL * 1024ULL * 1024ULL, 256ULL * 1024ULL * 1024ULL,
+						   512ULL * 1024ULL * 1024ULL, 2U, 4U} ;
+		}
+
+		plan.targets[0].maximumBytes = plan.limits.maximumFileBytes + 1U ;
+		DRIVERCRATE_EXPECT( context,
+						   session.initialize( plan) == OfficialPreparationError::INVALID_PLAN) ;
+		DRIVERCRATE_EXPECT( context, !session.claimNext()) ;
+	}
+
+	// 同じProviderと別Providerを分け、2GiB累計のちょうどと一byte超過を確認する。
+	for( const bool sameProvider : {true, false}) {
+		// 累計ちょうどと一byte超過を独立した管理状態で試験します。
+		for( const bool exceed : {false, true}) {
+			OfficialPreparationSession session ;			// 共有するscan累計を管理する。
+			auto					   plan = makePlan() ;	// 二targetの予約を原子的に判断する計画。
+			plan.limits						= defaultPayloadLimits() ;
+			plan.targets.resize( 2U) ;
+			plan.targets[0].maximumBytes = GIB ;
+			plan.targets[1].maximumBytes = GIB + (exceed ? 1U : 0U) ;
+			plan.targets[1].terms		 = OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
+			// 別Providerでもsession累計は共通であることを確認します。
+			if( !sameProvider) {
+				plan.targets[1].providerId = SILICON_LABS_OFFICIAL_PROVIDER_ID ;
+			}
+
+			auto approval = makeApproval( plan, 20U) ;	// 同scan/同予算の明示選択。
+			DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
+			DRIVERCRATE_EXPECT( context, session.approve( approval) ==
+											(exceed ? OfficialPreparationError::BUDGET_EXCEEDED
+													: OfficialPreparationError::NONE)) ;
+			// 拒否後の予約が部分確定されず、一件だけなら再承認できることを確認します。
+			if( exceed) {
+				DRIVERCRATE_EXPECT( context, !session.claimNext()) ;
+				approval.decisions[1].acquire = false ;
+				DRIVERCRATE_EXPECT( context,
+								   session.approve( approval) == OfficialPreparationError::NONE) ;
+			}
+
+			finishAll( session, context) ;
+		}
+	}
+
+	// 2GiB計画も、表示後に一項目だけ縮めた承認snapshotを受理しない。
+	for( std::uint32_t field = 0U; field < 3U; ++field) {
+		OfficialPreparationSession session ;			// 差替え拒否後も正規承認できる状態。
+		auto					   plan = makePlan() ;	// 通常既定と小さい一targetの合成計画。
+		plan.limits						= defaultPayloadLimits() ;
+		plan.targets.resize( 1U) ;
+		auto approval = makeApproval( plan, 20U) ;	// 容量field一つだけ変形するsnapshot。
+		// 表示後のfile上限差替えだけを拒否条件へ与えます。
+		if( field == 0U) {
+			--approval.limits.maximumFileBytes ;
+		}
+		// Provider累計だけの差替えも同scan承認へ流用しません。
+		else if( field == 1U) {
+			--approval.limits.maximumProviderBytes ;
+		} else {
+			--approval.limits.maximumSessionBytes ;
+		}
+
+		DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
+		DRIVERCRATE_EXPECT( context, session.approve( approval) != OfficialPreparationError::NONE) ;
+		DRIVERCRATE_EXPECT( context, !session.claimNext()) ;
+		DRIVERCRATE_EXPECT( context, session.approve( makeApproval( plan, 20U)) ==
+										OfficialPreparationError::NONE) ;
+		finishAll( session, context) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief UINT64境界と、同一scanの再計画による予算リセットを拒否する。
  *
  * @param[in,out] context Assertionの集計先。
@@ -784,23 +898,31 @@ void testBudgetBoundaries( TestContext &context)
 //------------------------------------------------------------------------------
 void testOverflowAndPersistentBudget( TestContext &context)
 {
-	OfficialPreparationSession huge ;				// 最大uint64値付近での加算前検証。
-	auto					   plan	 = makePlan() ;	// 二配布物へ巨大上限を指定する合成計画。
-	plan.limits.maximumFileBytes	 = std::numeric_limits<std::uint64_t>::max() ;
-	plan.limits.maximumProviderBytes = plan.limits.maximumFileBytes ;
-	plan.limits.maximumSessionBytes	 = plan.limits.maximumFileBytes ;
-	plan.targets[0].maximumBytes	 = plan.limits.maximumFileBytes ;
-	DRIVERCRATE_EXPECT( context, huge.initialize( plan) == OfficialPreparationError::NONE) ;
-	auto approval = makeApproval( plan, 20U) ;	// 合計が表現上限を超える判断。
-	DRIVERCRATE_EXPECT( context,
-					   huge.approve( approval) == OfficialPreparationError::BUDGET_EXCEEDED) ;
-	approval.decisions[2].acquire	   = false ;
-	approval.decisions[2].eulaAccepted = false ;
-	DRIVERCRATE_EXPECT( context, huge.approve( approval) == OfficialPreparationError::NONE) ;
-	huge.cancel() ;
+	// Provider累計とsession累計のoverflowを、実allocationなしで別々に拒否する。
+	for( const bool sameProvider : {true, false}) {
+		OfficialPreparationSession huge ;				// 最大uint64値付近での加算前検証。
+		auto					   plan	 = makePlan() ;	// 二配布物へ巨大上限を指定する合成計画。
+		plan.limits.maximumFileBytes	 = std::numeric_limits<std::uint64_t>::max() ;
+		plan.limits.maximumProviderBytes = plan.limits.maximumFileBytes ;
+		plan.limits.maximumSessionBytes	 = plan.limits.maximumFileBytes ;
+		plan.targets[0].maximumBytes	 = plan.limits.maximumFileBytes ;
+		// 同ProviderならProvider累計自身のoverflowを先に検出させます。
+		if( sameProvider) {
+			plan.targets[2].providerId = PROLIFIC_OFFICIAL_PROVIDER_ID ;
+		}
 
-	OfficialPreparationSession session ;	// 再計画でも予算を残す管理状態。
-	plan = makePlan() ;
+		DRIVERCRATE_EXPECT( context, huge.initialize( plan) == OfficialPreparationError::NONE) ;
+		auto approval = makeApproval( plan, 20U) ;	// 合計が表現上限を超える判断。
+		DRIVERCRATE_EXPECT( context,
+						   huge.approve( approval) == OfficialPreparationError::BUDGET_EXCEEDED) ;
+		approval.decisions[2].acquire	   = false ;
+		approval.decisions[2].eulaAccepted = false ;
+		DRIVERCRATE_EXPECT( context, huge.approve( approval) == OfficialPreparationError::NONE) ;
+		huge.cancel() ;
+	}
+
+	OfficialPreparationSession session ;			// 再計画でも予算を残す管理状態。
+	auto					   plan = makePlan() ;	// 同scanの計画を跨ぐ元累計の合成入力。
 	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
 	DRIVERCRATE_EXPECT( context,
 					   session.approve( makeApproval( plan, 20U)) == OfficialPreparationError::NONE) ;
@@ -1119,6 +1241,7 @@ void runOfficialPreparationTests( TestContext &context)
 	testCancellationAndLateCompletion( context) ;
 	testResultBinding( context) ;
 	testBudgetBoundaries( context) ;
+	testDefaultPayloadBudget( context) ;
 	testOverflowAndPersistentBudget( context) ;
 	testIdHighWaterAndPreapprovalCancel( context) ;
 	testProviderBudgetAcrossPlans( context) ;

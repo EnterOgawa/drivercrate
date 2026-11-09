@@ -2,7 +2,7 @@
 /**
  * @file common_inf_plan.h
  * @brief 封印取得と通常単一INFの準備計画および内部選択adapterを定義する。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  共通単一INFの非実行計画と発行所有境界を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/06  内部選択一括adapterと個別実行観測を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/03  単一present Componentも元役割のまま扱う契約を明記。
  * </pre>
  *
  * @note 同期worker専用。準備計画は導入許可ではなく、installerや公開候補を生成しない。
@@ -48,7 +49,7 @@ namespace drivercrate {
 class CommonInfInstallPlan ;
 class CommonInfPlanExecutor ;
 
-/** @brief 一つの候補を同じscanの一基本INFと現在deviceへ結ぶworker限定要求。 */
+/** @brief 一つの候補を同じscanの単一INFと現在deviceへ結ぶworker限定要求。 */
 struct CommonInfPlanRequest {
 	/// 元取得と同じ非零session。
 	ScanSessionId scanSessionId{} ;
@@ -117,12 +118,13 @@ public:
 										 const OfficialInfInstallBindingReleaser &releaser,
 										 const OfficialAuditCancellation &cancellation = {}) ;
 	/**
-	 * @brief 通常基本INFと完全rankから一deviceのbinding準備計画を発行する。
+	 * @brief 通常単一INFと完全rankから一deviceのbinding準備計画を発行する。
 	 * @param[in] request 同じscanのopaque identityと現在driver snapshot。
 	 * @param[out] plan 初期状態が空の出力。成功時だけ内部状態を保持する。
 	 * @return 成功0、未対応・入力・再検証・rank・binding・rollback失敗のHRESULT。
 	 * @pre 初期化workerで直列に呼び、callbackから再入しない。
-	 * @note 公開candidateを発行せず、methodや同意を合格へ変更しない。
+	 * @note present Componentも元役割のまま扱い、不在childの作成や必要構成の追加は行わない。
+	 * 公開candidateを発行せず、methodや同意を合格へ変更しない。
 	 */
 	[[nodiscard]] NativeError prepare( const CommonInfPlanRequest &request,
 									  CommonInfInstallPlan		 &plan) ;

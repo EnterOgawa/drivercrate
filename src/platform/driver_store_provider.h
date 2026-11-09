@@ -2,7 +2,7 @@
 /**
  * @file driver_store_provider.h
  * @brief Driver Store provider定義。
- * @version 01.09.00
+ * @version 01.10.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -47,6 +47,7 @@
  * Ver.01.08.00 Shunji Ogawa  2026/10/15  非通信開発検査へ必要INF bindingの数値段階を追加。
  * Ver.01.08.01 Shunji Ogawa  2026/10/28  索引proofを明示選択batchの終端まで私有scopeで保持。
  * Ver.01.09.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
+ * Ver.01.10.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * </pre>
  *
  * @note 現在のPnP deviceとlocal Driver Storeの互換driver providerを定義します。Hardware IDとdevice instance IDは
@@ -285,6 +286,7 @@ public:
 	 * @param[in] expectedCurrentDate Scan結果に固定した現在のYYYY/MM/DD日付。 Scan時の現在日付。
 	 * @param[in] expectedRankAudit 発行前に合格したPnP具体性とrank監査結果。 直前に合格したrank監査結果。
 	 * @param[out] binding 成功時の一scan限定opaque binding。失敗時は空値。 成功時の非機密opaque binding。
+	 * @param[out] diagnostic 任意の元拒否位置です。実行判定に使用しません。
 	 * @return 発行成功時は0、入力、状態変更、一意性またはSetupAPI失敗時はHRESULT。 Binding発行時は0、状態変更、曖昧性またはSetupAPI失敗時は
 	 *         HRESULT。
 	 * @note 生のinstance ID、PnP ID、INF path、sectionはDriver Store内だけに保持する。
@@ -294,7 +296,7 @@ public:
 		const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 		std::wstring_view expectedCurrentProvider, std::wstring_view expectedCurrentVersion,
 		std::wstring_view expectedCurrentDate, const OfficialDriverRankAudit &expectedRankAudit,
-		OfficialInfInstallBinding &binding) ;
+		OfficialInfInstallBinding &binding, RequiredInfBindingDiagnostic *diagnostic = nullptr) ;
 
 	/**
 	 * @brief 公式INF導入bindingと現在のdeviceおよびWindows nodeを再照合する。
@@ -482,12 +484,14 @@ private:
 	 * @param[in] inspection 元保護閉包です。
 	 * @param[in] plan 元私有関係です。
 	 * @param[in] binding 元親bindingです。
+	 * @param[in,out] diagnosticStage null可の最初の固定拒否段階です。
 	 * @return 全byte/関係/元状態一致0、失効/未確認はHRESULTです。
 	 */
 	[[nodiscard]] NativeError revalidateRequiredInfInstallBinding(
 		ScanSessionId session, std::wstring_view identity, const CommonInfInspection &inspection,
 		const std::shared_ptr<const RequiredDriverComponentPlan> &plan,
-		const OfficialInfInstallBinding							 &binding) const ;
+		const OfficialInfInstallBinding							 &binding,
+		RequiredInfBindingDiagnostic							 *diagnosticStage = nullptr) const ;
 	/** @brief 必要役割をstageし指定親と一意な必要SWC子だけを導入します。
 	 * @param[in] session 元scanです。
 	 * @param[in] identity 元選択親です。
@@ -516,6 +520,7 @@ private:
 	 * @param[in] expectedCurrentDate 元現在日付です。
 	 * @param[in] expectedRankAudit 元Windows rankです。
 	 * @param[out] binding 同状態の一意nodeだけです。
+	 * @param[out] diagnostic 任意の元拒否位置です。実行判定に使用しません。
 	 * @return 一意性/全状態一致0、それ以外はHRESULTです。
 	 */
 	[[nodiscard]] NativeError createOfficialInfInstallBindingImpl(
@@ -523,7 +528,7 @@ private:
 		const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 		std::wstring_view expectedCurrentProvider, std::wstring_view expectedCurrentVersion,
 		std::wstring_view expectedCurrentDate, const OfficialDriverRankAudit &expectedRankAudit,
-		OfficialInfInstallBinding &binding) ;
+		OfficialInfInstallBinding &binding, RequiredInfBindingDiagnostic *diagnostic = nullptr) ;
 	/** @brief 同保護INFのbyteを再確認して一度だけstoreへimportします。
 	 * @param[in] workspace 元保護領域です。
 	 * @param[in] package 同byte検証済みINFです。

@@ -2,7 +2,7 @@
 /**
  * @file common_inf_plan_tests.cpp
  * @brief 共通単一INF準備計画の封印所有・拒否・rollbackを非導入で検証する。
- * @version 01.00.00
+ * @version 01.02.00
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,8 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  非通信取得とfake内容／bindingの独立試験を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  present Componentの元役割を変えず単一計画へ結ぶ回帰を追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * </pre>
  *
  * @note 通常内容関数のfakeはこのEXEだけに定義する。製品policy・署名を変更しない。
@@ -51,7 +53,9 @@ constexpr wchar_t ABC_HASH[] =
 thread_local bool rejectContent{} ;											// 試験専用の全体解析失敗。
 thread_local bool rejectReverify{} ;										// 試験専用の内容再検証失敗。
 thread_local bool dependency{} ;											// 試験専用の明示依存観測。
+thread_local bool unassessedPrograms{} ;									// 内容だけで受理した原参照を持つfixtureです。
 thread_local bool rejectedInf{} ;											// 試験専用の個別署名拒否。
+thread_local bool componentFixture{} ;										// present SWCの元役割を検査する条件です。
 
 /** @brief 架空3 byteを既に開いたfixture fileへ書く。
  * @param[in] file 所有外の書込み可能handle。
@@ -194,12 +198,20 @@ NativeError inspectCommonDriverPackage( const DriverArchiveInput		 &input,
 		}
 
 		OfficialInfPackage package ;	// 名前と版だけの架空package metadata。
-		package.infRelativePath			= L"driver.inf" ;
-		package.providerName			= L"Fictional Provider" ;
-		package.className				= L"Net" ;
-		package.driverVersion			= L"2.0.0.0" ;
-		package.driverDate				= L"2026/01/01" ;
-		package.hasExternalDependencies = dependency ;
+		package.infRelativePath = L"driver.inf" ;
+		package.providerName	= L"Fictional Provider" ;
+		package.className		= L"Net" ;
+		// present Componentも元Class/役割のまま既存単一device計画へ渡します。
+		if( componentFixture) {
+			package.className = L"SoftwareComponent" ;
+			package.classGuid = L"{5c4c3332-344d-483c-8739-259e934c9cc8}" ;
+			package.role	  = DriverPlanRole::DRIVER_COMPONENT ;
+		}
+
+		package.driverVersion				   = L"2.0.0.0" ;
+		package.driverDate					   = L"2026/01/01" ;
+		package.hasExternalDependencies		   = dependency ;
+		package.hasUnassessedProgramReferences = unassessedPrograms ;
 		inf.closure.packages.push_back( std::move( package)) ;
 		OfficialZipEntry entry ;	// 実fileの固定member metadata。
 		entry.relativePath	   = L"driver.inf" ;
@@ -258,6 +270,8 @@ struct PlanFixture {
 	OfficialAcquiredFileEvidence evidence ;
 	/// Fakeのbinding発行回数。
 	std::uint64_t				 binds{} ;
+	/// Binderが観測した元役割です。BASEへの変換を検出します。
+	DriverPlanRole				 boundRole{DriverPlanRole::BASE_DRIVER} ;
 	/// Fakeの解放済みtoken列。
 	std::vector<std::uint64_t>	 released ;
 	/// 設定時だけbinderが不一致metadataを返す。
@@ -280,6 +294,8 @@ struct PlanFixture {
 	explicit PlanFixture( TestContext &context)
 	{
 		rejectContent = rejectReverify = dependency = rejectedInf = false ;
+		unassessedPrograms										  = false ;
+		componentFixture										  = false ;
 		DRIVERCRATE_EXPECT( context, session->initialize( 91U, {64U, 128U, 256U, 0U, 8U, 16U}) == 0) ;
 		DRIVERCRATE_EXPECT( context, archive->initialize( L"common-plan-source", 91U) == 0) ;
 		FixtureTransport				 transport ;	// 完全非通信の取得境界。
@@ -326,6 +342,7 @@ struct PlanFixture {
 				   const OfficialDriverRankAudit &audit,
 				   OfficialInfInstallBinding	 &binding) -> NativeError {
 			binding.token = ++binds ;
+			boundRole	  = package.role ;
 			// 既存tokenを返す異常境界の停止条件を試験する。
 			if( duplicateToken) {
 				binding.token = 1U ;
@@ -459,12 +476,13 @@ void runPlanTests( TestContext &context)
 	DRIVERCRATE_EXPECT( context, duplicate.invalidate() == 0 && fixture.released.size() == released) ;
 	DRIVERCRATE_EXPECT( context, factory.prepare( request, first) != 0) ;
 	// 全体拒否・取消し・個別拒否・依存は元所有と実行可否を別々に確認する。
-	for( int mode = 0; mode < 5; ++mode) {
+	for( int mode = 0; mode < 6; ++mode) {
 		PlanFixture			 rejected( context) ;	// 各停止条件で独立した実封印を作る。
 		CommonInfPlanFactory target ;				// 失敗で元workspaceを奪わない空factory。
-		rejectContent = mode == 0 ;
-		dependency	  = mode == 2 ;
-		rejectedInf	  = mode == 3 ;
+		rejectContent	   = mode == 0 ;
+		dependency		   = mode == 2 ;
+		unassessedPrograms = mode == 5 ;
+		rejectedInf		   = mode == 3 ;
 		NativeError		  reentry{} ;	// 再入は別factoryではなく同じ対象へ行う。
 		const NativeError result = rejected.initialize( target, [&] {
 			// 初期化callback内の再入は失敗し、外側の元所有を上書きしない。
@@ -547,6 +565,16 @@ void runPlanTests( TestContext &context)
 									invalidEvidence.archive &&
 									invalidEvidence.evidence.issuerAlive()) ;
 	static_cast<void>( originalIssuer) ;
+	PlanFixture component( context) ;	// 実deviceを列挙しないpresent SWCの元結合です。
+	componentFixture = true ;
+	CommonInfPlanFactory componentFactory ;	// 追加のbase/required導入分岐を使いません。
+	DRIVERCRATE_EXPECT( context, component.initialize( componentFactory) == 0) ;
+	CommonInfInstallPlan componentPlan ;	// 元scan/device/tokenに結ぶ同じ単一計画です。
+	DRIVERCRATE_EXPECT( context, componentFactory.prepare( makePlanRequest(), componentPlan) == 0 &&
+									componentPlan.isBound() &&
+									component.boundRole == DriverPlanRole::DRIVER_COMPONENT) ;
+	DRIVERCRATE_EXPECT( context, componentPlan.invalidate() == 0 && component.released.size() == 1U) ;
+	componentFixture = false ;
 }
 } // namespace
 } // namespace drivercrate::test

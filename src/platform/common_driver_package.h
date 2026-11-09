@@ -2,7 +2,7 @@
 /**
  * @file common_driver_package.h
  * @brief 由来と独立したdriver packageの共通検査定義。
- * @version 01.07.00
+ * @version 01.10.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,10 @@
  * Ver.01.05.00 Shunji Ogawa  2026/10/14  監視側の明示一INFへ同じ通常閉包/署名検査を接続。
  * Ver.01.06.00 Shunji Ogawa  2026/10/15  必要INF bindingの任意数値診断を定義。
  * Ver.01.07.00 Shunji Ogawa  2026/10/15  実選択graphの検証済みNeeds件数を私有計画へ保持。
+ * Ver.01.08.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.09.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.09.01 Shunji Ogawa  2026/11/03  拡大recordと有限保持quotaを通常経路へ整合。
+ * Ver.01.10.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * </pre>
  *
  * @note Path、hash、INF内IDはworker専用です。署名と静的内容の合格を実device適合と混同しません。
@@ -44,6 +48,7 @@
 #include "platform/official_driver_package.h"
 
 #include <cstddef>
+#include <span>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -51,6 +56,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <utility>
 
 namespace drivercrate {
 
@@ -143,7 +149,7 @@ struct CommonInfInspection {
 	/// 個別失敗のHRESULT。VERIFIEDの場合だけ0。
 	NativeError								   error{} ;
 	/// VERIFIEDの場合だけ保持する閉包所有領域。
-	std::unique_ptr<OfficialDownloadWorkspace> workspace ;
+	std::shared_ptr<OfficialDownloadWorkspace> workspace ;
 	/// VERIFIEDの場合だけ保持する静的内容。
 	OfficialDriverClosure					   closure ;
 	/// 全節の潜在CopyINFから到達し、同保護workspaceで全CAT/memberを検査したimport内容です。
@@ -153,8 +159,75 @@ struct CommonInfInspection {
 class DriverStoreProvider ;
 class SignedIndexCandidateBindingSession ;
 class RequiredDriverComponentPlan ;
+/** @brief binding拒否の固定位置です。合否の入力には使いません。 */
+enum class InfBindingReject : std::uint32_t {
+	/// 未観測です。
+	NONE,
+	/// 明示依存を単一INF入口で受理できません。
+	SINGLE_DEPENDENCY,
+	/// native architectureがx64ではありません。
+	ARCHITECTURE,
+	/// binding入力が不正です。
+	INPUT,
+	/// 元INFの属性またはpathを取得できません。
+	INF_FILE,
+	/// 最初の現在device状態を読めません。
+	CURRENT_BEFORE,
+	/// 現在driverのrankを読めません。
+	CURRENT_RANK,
+	/// 候補driver nodeを一意に読めません。
+	CANDIDATE_NODE,
+	/// 後の現在device状態を読めません。
+	CURRENT_AFTER,
+	/// 元binding状態が変化しました。
+	BINDING_STATE,
+	/// 元内容閉包を再検証できません。
+	CONTENT_REVERIFY,
+	/// 選択節の関係を解析できません。
+	SELECTED_RELATIONS,
+	/// 選択CopyINFの元importがありません。
+	COPY_INF_MISSING,
+	/// 必要計画の入力が不正です。
+	PLAN_INPUT,
+	/// 独立roleを基本driverとして扱えません。
+	BASE_ROLE,
+	/// 選択roleの構成が未対応です。
+	FUNCTIONAL_ROLE,
+	/// 依存graphまたはNeeds効果を検証できません。
+	DEPENDENCY,
+	/// Windowsコピー先を元sourceへ結合できません。
+	WINDOWS_COPY,
+	/// DIRID13の原sourceと宛先subdirectoryが異なります。
+	DIRID13_SOURCE,
+	/// 実選択scopeの先頭の固定拒否位置です。続く値は同関数の原拒否順です。
+	WINDOWS_SCOPE_FIRST = 200,
+} ;
 /** @brief 必要INF bindingの拒否を元の数値だけで保持する任意診断です。権限を持ちません。 */
 struct RequiredInfBindingDiagnostic {
+	/// 単一INF1/必要構成2の元呼出し経路です。
+	std::uint32_t	 path{} ;
+	/// 最初の具体的な拒否位置です。後続で上書きしません。
+	InfBindingReject rejection{InfBindingReject::NONE} ;
+	/// 拒否時の元architecture/role等の数値です。
+	std::uint32_t	 observed{} ;
+	/** @brief 原errorを変えず最初の拒否位置だけを記録します。
+  * @param[in] error 元の非zero HRESULTです。0は記録しません。
+  * @param[in] location 固定された元拒否位置です。
+  * @param[in] value 原観測enumまたは件数です。
+  * @return 未変更の元errorです。
+  */
+	NativeError		 reject( const NativeError error, const InfBindingReject location,
+							const std::uint32_t value = 0U) noexcept
+	{
+		// 成功や後段の汎用位置で最初の拒否を上書きしません。
+		if( error != 0 && rejection == InfBindingReject::NONE) {
+			rejection = location ;
+			observed  = value ;
+		}
+
+		return error ;
+	}
+
 	/// 内部到達段階です。未開始は0です。
 	std::uint32_t stage{} ;
 	/// 実graphの全参照が解決した場合trueです。
@@ -242,19 +315,38 @@ struct CommonDriverPackageInspection {
 	std::size_t						 inventoryFileCount{} ;
 	/// 成功閉包の保持byte合計。
 	std::uint64_t					 retainedBytes{} ;
+	/// 同操作の私有solid fileの実同時保持最大byte数。
+	std::uint64_t					 mappedSolidPeakBytes{} ;
+	/// 同操作でdecodeした一意solid block数。
+	std::size_t						 decodedSolidBlockCount{} ;
 	/// 成功と失敗を含む最大128 INF。PathとIDをUIへ渡さない。
 	std::vector<CommonInfInspection> infs ;
 } ;
 
 /**
+ * @brief 同じ原payloadの明示selectorを通常policyと一度の実保持で検査する。
+ * @param[in] input 同操作中固定する原archive identity。
+ * @param[in] format 明示ZIP/CAB/SFX形式。EXEは非実行解析だけを行う。
+ * @param[in] selectors firstが一段nested、secondが元INF相対名の検証済み集合。最大128件。
+ * @param[out] inspection 全成功時だけ元個別結果を保持する。
+ * @param[in] cancellation 空または同期workerの取消し照会。
+ * @return 元内容検査のHRESULT。個別拒否は元行へ残す。
+ * @note flat集合の同じmemberだけを共有し、任意UI/pathから由来や導入権限を作らない。
+ */
+[[nodiscard]] NativeError inspectSelectedCommonDriverPackages(
+	const DriverArchiveInput &input, OfficialDriverArchiveFormat format,
+	std::span<const std::pair<std::wstring_view, std::wstring_view>> selectors,
+	CommonDriverPackageInspection &inspection, const std::function<bool()> &cancellation = {}) ;
+
+/**
  * @brief 明示されたlocal archive一件を保護領域へ有限複製する。
- * @param[in] selectedPath 利用者が選択したlocal drive上の絶対ZIP／CAB path。
+ * @param[in] selectedPath 利用者が選択したlocal drive上の絶対ZIP／CAB／非実行PE path。
  * @param[in] scanSessionId 0ではないscan session。
  * @param[in,out] workspace 未初期化領域。複製fileをscope終了まで所有する。
  * @param[out] input 成功時の固定内容identity。失敗時は空。
  * @param[out] format 成功時の形式。失敗時は使用しない。
  * @return 通常file、有限copy、実size／hash固定に成功した場合0、それ以外はHRESULT。
- * @note 128 MiB上限、1 MiB以下のchunkでcopyする。Networkも入力fileの実行も行わない。
+ * @note 2 GiB上限、1 MiB以下のchunkでcopyする。Networkも入力fileの実行も行わない。
  */
 [[nodiscard]] NativeError copyLocalDriverArchive( std::wstring_view			  selectedPath,
 												 ScanSessionId				  scanSessionId,
@@ -276,19 +368,20 @@ struct CommonDriverPackageInspection {
 	CommonDriverPackageInspection &inspection, const std::function<bool()> &cancellation = {}) ;
 
 /**
- * @brief 監視側が固定した外側一INFだけを既存通常policyで内容検査します。
+ * @brief 監視側が固定した一INFだけを既存通常policyで内容検査します。
  * @param[in] input 同operationが所有する固定archiveの原identityです。
  * @param[in] format 元copyが判別したZIP/CABINETです。
  * @param[in] selectedInf 実inventoryへ完全一致させる原相対INF名です。空/別形式を拒否します。
  * @param[out] inspection 一INFの成功/拒否と全外側inventory件数です。全packageの完了ではありません。
  * @param[in] cancellation 同workerの協調停止です。
+ * @param[in] nestedArchive 空または原outer内の一段nested memberです。実行しません。
  * @return 一INFの評価完了0、入力/全体破損/取消し時は元HRESULTです。
  * @note 旧全INF入口を変更しません。未選択INFは未検査で、取得/公式性/端末適用性/導入を認定しません。
  */
 [[nodiscard]] NativeError inspectSelectedCommonDriverPackage(
 	const DriverArchiveInput &input, OfficialDriverArchiveFormat format,
 	std::wstring_view selectedInf, CommonDriverPackageInspection &inspection,
-	const std::function<bool()> &cancellation = {}) ;
+	const std::function<bool()> &cancellation = {}, std::wstring_view nestedArchive = {}) ;
 
 /**
  * @brief 成功閉包の全file、metadata、署名を同一policyで再検証する。

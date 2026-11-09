@@ -2,7 +2,7 @@
 /**
  * @file signed_index_asset_bytes.h
  * @brief 認証済みmanifestに結合した実GZip byteの検査結果を定義します。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/11  固定assetの原byteと上限付きGZip検査境界を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * </pre>
  *
  * @note JSON・record・公式性・端末適合・導入許可は検査しません。通信・保存も行いません。
@@ -27,6 +28,7 @@
  */
 //------------------------------------------------------------------------------
 #pragma once
+#include "core/index_capacity_limits.h"
 
 #include "platform/signed_index_manifest.h"
 
@@ -42,9 +44,10 @@ namespace drivercrate {
 // 有限な準備policyの版。全製品対応やJSON parserの版ではありません。
 inline constexpr std::uint32_t INDEX_ASSET_BYTE_POLICY_VERSION = 1U ;
 // 原展開byteの絶対上限。既存hash APIの128MiB枠内にも収めます。
-inline constexpr std::uint64_t INDEX_ASSET_EXPANDED_MAX_BYTES = 128ULL * 1024ULL * 1024ULL ;
+inline constexpr std::uint64_t INDEX_ASSET_EXPANDED_MAX_BYTES = index_capacity::EXPANDED_BYTES ;
 // Headerとtrailerを含む実圧縮container全体に対する最大展開倍率。
-inline constexpr std::uint64_t INDEX_ASSET_MAX_COMPRESSION_RATIO = 128ULL ;
+inline constexpr std::uint64_t INDEX_ASSET_MAX_COMPRESSION_RATIO =
+	index_capacity::COMPRESSION_RATIO ;
 
 struct IndexAssetBytesResult ;
 

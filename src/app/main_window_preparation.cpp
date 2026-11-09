@@ -2,7 +2,7 @@
 /**
  * @file main_window_preparation.cpp
  * @brief 公式配布物の取得確認と結果表示。
- * @version 01.08.00
+ * @version 01.12.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -43,12 +43,18 @@
  * Ver.01.06.00 Shunji Ogawa  2026/10/28  取得の技術reportを自動表示せず通常詳細から閲覧する。
  * Ver.01.07.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * Ver.01.08.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続。
+ * Ver.01.09.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.10.00 Shunji Ogawa  2026/11/08  匿名導入診断と保存状態・元数値の有限確認を追加。
+ * Ver.01.11.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
+ * Ver.01.12.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.12.01 Shunji Ogawa  2026/11/09  Install意図の準備監査で元ツリー行を保持。
  * </pre>
  *
  * @note UI thread専用です。Payload URL・端末識別子は非表示で、EULA内のURLは文字列に限ります。
  */
 //------------------------------------------------------------------------------
 
+#include "core/index_capacity_limits.h"
 #include "app/main_window.h"
 
 #include "app/resource.h"
@@ -57,6 +63,7 @@
 #include "core/official_preparation.h"
 #include "core/provider_registry.h"
 #include "platform/windows_error.h"
+#include "platform/local_scan_diagnostics.h"
 
 #include <CommCtrl.h>
 #include <Windows.h>
@@ -558,70 +565,157 @@ void MainWindow::beginInstallPreparation( const std::span<const std::size_t> ind
 }
 
 /** @see main_window.h 宣言側の契約を正本とします。 */
+void MainWindow::failPreparedInstall( const OfficialPreparationOperationResult &result,
+									 const PreparationContinuationReason	   reason)
+{
+	recordPreparationContinuationDiagnostics(
+		result.operationId, reason, preparationApproval_.installIntentIdentities.size(),
+		static_cast<std::size_t>( std::ranges::count( result.installResolutions,
+													PreparedInstallResolutionState::READY,
+													&PreparedInstallResolution::state))) ;
+	candidateSelected_.assign( candidates_.size(), false) ;
+	// 終了処理中に再描画や新しいdialogを挟みません。
+	if( closing_ || closeAfterPreparation_) {
+		return ;
+	}
+
+	UINT message = IDS_INSTALL_PREPARATION_BINDING_REJECTED ;	// 元結合拒否を取得失敗へ変えません。
+	// Workerの原区分を優先し、後続の候補欠測で上書きしません。
+	switch( reason) {
+		// 一件以上の未成立がある状態で、全件取得失敗とは断定しません。
+		case PreparationContinuationReason::NOT_READY:
+			message = IDS_INSTALL_PREPARATION_NOT_READY ;
+			break ;
+
+		// 曖昧さを版や表示順で補完しません。
+		case PreparationContinuationReason::AMBIGUOUS:
+			message = IDS_INSTALL_PREPARATION_AMBIGUOUS ;
+			break ;
+
+		// 新しい旧版切替には元の明示選択を要求します。
+		case PreparationContinuationReason::DOWNGRADE:
+			message = IDS_INSTALL_PREPARATION_DOWNGRADE ;
+			break ;
+
+		// 取消しを実install失敗へ変えません。
+		case PreparationContinuationReason::CANCELLED:
+			message = IDS_INSTALL_PREPARATION_CANCELLED ;
+			break ;
+
+		// その他は原選択と結果の結合不成立です。
+		default:
+			break ;
+	}
+
+	preparationResultText_ += L"\r\n" + loadString( message) ;
+	showRecommendedOnly_ = false ;
+	SendMessageW( recommendedOnlyCheckbox_, BM_SETCHECK, BST_UNCHECKED, 0) ;
+	populateCandidates( candidates_) ;
+	setStatus( loadString( message), false) ;
+	updateCommandState() ;
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
 void MainWindow::continuePreparedInstall( const OfficialPreparationOperationResult &result)
 {
-	const auto &intent =
-		preparationApproval_.installIntentIdentities ;	// この操作が保持する元選択です。
-	std::vector<std::size_t> resolved ;					// 全件照合後だけcheckへ反映する新候補indexです。
-	bool					 complete = !intent.empty() &&
-					// 欠測を成功へしません。
-					result.installResolutions.size() == intent.size() ;
-	UINT reason = IDS_INSTALL_PREPARATION_NOT_READY ;	// 未成立を既定にします。
-	// 元順序・件数とdevice結合を全照合し、結果側から選択対象を増やしません。
+	const auto &intent = preparationApproval_.installIntentIdentities ;	// 元選択だけです。
+	std::vector<std::size_t>	  resolved ;							// 全件照合後だけ実行checkへ反映します。
+	// 全件照合前は件数不一致を既定の停止理由とします。
+	PreparationContinuationReason reason = PreparationContinuationReason::COUNT_MISMATCH ;
+	// 空集合や欠測を全件成立へ補完しません。
+	bool complete = !intent.empty() && result.installResolutions.size() == intent.size() ;
+	// 元順序・件数・deviceを全照合し、一つ目の原拒否理由を保持します。
 	for( std::size_t index{}; complete && index < intent.size(); ++index) {
-		const auto &resolution = result.installResolutions[index] ;	// 同操作のworker解決結果です。
-		const auto	original   = std::ranges::find_if( candidates_, [&]( const auto &candidate) {
-			   return candidate.identity == intent[index] ;
-		   }) ; // 元checkを付けた参照または既検証候補です。
-		const auto	candidate  = std::ranges::find_if( candidates_, [&]( const auto &value) {
-			  return value.identity == resolution.candidateIdentity ;
-		  }) ; // Controllerが全監査を受理した後の候補だけです。
-		// 新たな曖昧さと旧版切替の理由を保持し、未知区分も自動導入しません。
+		const auto &resolution = result.installResolutions[index] ;	// 同操作のworker解決です。
+		// NOT_READYには候補IDが無いので、派生する欠測をUI拒否へ変えません。
 		if( resolution.state != PreparedInstallResolutionState::READY) {
 			reason =
 				resolution.state == PreparedInstallResolutionState::AMBIGUOUS
-					? IDS_INSTALL_PREPARATION_AMBIGUOUS
+					? PreparationContinuationReason::AMBIGUOUS
 				: resolution.state == PreparedInstallResolutionState::DOWNGRADE_REQUIRES_SELECTION
-					? IDS_INSTALL_PREPARATION_DOWNGRADE
-					: IDS_INSTALL_PREPARATION_NOT_READY ;
+					? PreparationContinuationReason::DOWNGRADE
+					: PreparationContinuationReason::NOT_READY ;
+			complete = false ;
+			break ;
+		}
+
+		// 元checkを付けた候補だけを照合します。
+		const auto original =
+			std::ranges::find( candidates_, intent[index], &UpdateCandidate::identity) ;
+		const auto candidate =
+			std::ranges::find( candidates_, resolution.candidateIdentity,
+							  &UpdateCandidate::identity) ;	// 元候補集合だけを照合します。
+		// 元表示を失った選択を別候補へ補完しません。
+		if( original == candidates_.end()) {
+			reason	 = PreparationContinuationReason::SOURCE_MISSING ;
+			complete = false ;
+		}
+		// 別の元選択へ解決した通知を採用しません。
+		else if( resolution.originalIdentity != intent[index]) {
+			reason	 = PreparationContinuationReason::ORIGINAL_MISMATCH ;
+			complete = false ;
+		}
+		// 解決候補を表示集合の先頭から補完しません。
+		else if( candidate == candidates_.end()) {
+			reason	 = PreparationContinuationReason::CANDIDATE_MISSING ;
+			complete = false ;
+		}
+		// 現在観測や未検査参照を実行可能へ変えません。
+		else if( !candidate->installable || candidate->current) {
+			reason	 = PreparationContinuationReason::CANDIDATE_NOT_INSTALLABLE ;
+			complete = false ;
+		}
+		// 同名の別deviceへ元意図を移しません。
+		else if( original->deviceIdentity != candidate->deviceIdentity) {
+			reason	 = PreparationContinuationReason::DEVICE_MISMATCH ;
+			complete = false ;
+		}
+		// 同deviceへ複数の候補をまとめて導入しません。
+		else if( std::ranges::any_of( resolved, [&]( const auto previous) {
+					return candidates_[previous].deviceIdentity == candidate->deviceIdentity ;
+				})) {
+			reason	 = PreparationContinuationReason::DUPLICATE_DEVICE ;
 			complete = false ;
 		}
 
-		// 別元選択、別device、未検査、候補重複を元表示との照合で二重に拒否します。
-		if( original == candidates_.end() || resolution.originalIdentity != intent[index] ||
-		   candidate == candidates_.end() || !candidate->installable || candidate->current ||
-		   original->deviceIdentity != candidate->deviceIdentity ||
-		   std::ranges::any_of( resolved, [&]( const auto previous) {
-			   return candidates_[previous].deviceIdentity == candidate->deviceIdentity ;
-		   })) {
-			complete = false ;
-		}
-
-		// 全件成立までUI選択やProvider実行を変更しません。
+		// 全件成立まではUI選択やProvider実行を変更しません。
 		if( complete) {
 			resolved.push_back( static_cast<std::size_t>( candidate - candidates_.begin())) ;
 		}
 	}
 
 	candidateSelected_.assign( candidates_.size(), false) ;
-	// 一件でも未成立なら取得結果を保持し、利用者による新しい明示選択へ戻します。
+	// 一件でも未成立なら実行を止め、全deviceと元の閲覧内容を保持します。
 	if( !complete) {
-		preparationResultText_ += L"\r\n" + loadString( reason) ;
-		applyCandidateSelectionToTree() ;
-		setStatus( loadString( reason), false) ;
-		updateCommandState() ;
+		failPreparedInstall( result, reason) ;
 		return ;
 	}
 
-	// 唯一候補へ解決した元選択だけを同じ通常device行へ選び直します。
+	// 一意に解決した元選択だけを通常のdevice選択guardへ戻します。
 	for( const auto index : resolved) {
-		// 表示集合が変わっていた場合も先頭候補へのfallbackを行いません。
-		if( !selectDeviceCandidate( index)) {
+		// 部分的な選択成立を実行へ流さず全件解除します。
+		if( !selectDeviceCandidate( index, true)) {
 			candidateSelected_.assign( candidates_.size(), false) ;
-			applyCandidateSelectionToTree() ;
-			setStatus( loadString( IDS_INSTALL_PREPARATION_NOT_READY), false) ;
-			updateCommandState() ;
+			failPreparedInstall( result, PreparationContinuationReason::SELECTION_REJECTED) ;
 			return ;
+		}
+	}
+
+	recordPreparationContinuationDiagnostics(
+		result.operationId, PreparationContinuationReason::READY, intent.size(), resolved.size()) ;
+	// 全件選択成立後だけ、元参照の表示を同deviceの解決候補へ対応付けます。
+	for( std::size_t ordinal{}; ordinal < intent.size(); ++ordinal) {
+		auto binding =
+			std::ranges::find( preparationDisplayBindings_, intent[ordinal],
+							  &PreparationDisplayBinding::candidateIdentity) ;	// 元意図だけです。
+		// 未処理の別deviceを今回の実行集合へ追加しません。
+		if( binding != preparationDisplayBindings_.end()) {
+			const auto &candidate =
+				candidates_[resolved[ordinal]] ;	// 全件guardを通過した一候補です。
+			binding->candidateIdentity = candidate.identity ;
+			binding->version		   = candidate.version ;
+			binding->sourceName		   = candidate.sourceName ;
+			binding->reference		   = false ;
 		}
 	}
 
@@ -1063,8 +1157,10 @@ void MainWindow::startPreparation( OfficialPreparationApproval approval, const b
 	}
 
 	preparationApproval_.operationId = begin.operationId ;
-	preparationTotal_				 = selected ;
-	preparationCompleted_			 = 0 ;
+	recordPreparationDiagnostics( preparationApproval_, nullptr,
+								 static_cast<std::int32_t>( controller_.state())) ;
+	preparationTotal_	  = selected ;
+	preparationCompleted_ = 0 ;
 	preparationResultText_.clear() ;
 	setStatus(
 		formatResource( IDS_PREPARATION_PROGRESS, L"0 / " + std::to_wstring( selected) + L" (0%)"),
@@ -1131,10 +1227,21 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 {
 	const bool cancelled = controller_.state() ==
 						   ApplicationState::CANCELLING_PREPARATION ;	// 終端受理前の取消し意図です。
+	const auto displaySession  = controller_.scanSessionId() ;			// plan失効前の表示結合です。
+	auto	   displayBindings = capturePreparationDisplayBindings() ;	// 未受理ならcommitしません。
+	// 取消し後も元Install要求があった事実だけを保持します。
+	const bool hadInstallIntent = !preparationApproval_.installIntentIdentities.empty() ;
 	// 古いsession／planの通知は現在のUIを変更しない。
 	if( !controller_.completePreparation( result, candidates_)) {
 		return ;
 	}
+
+	// 元終端が受理された後だけ、失効前に取得した表示snapshotを採用します。
+	preparationDisplaySession_	= displaySession ;
+	preparationDisplayBindings_ = std::move( displayBindings) ;
+
+	recordPreparationDiagnostics( preparationApproval_, &result,
+								 static_cast<std::int32_t>( controller_.state())) ;
 
 	const bool continueInstall = std::exchange( continueInstallAfterPreparation_, false) &&
 								 !cancelled ;	// 同操作だけ一回消費します。
@@ -1159,11 +1266,12 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 		indexSummary.planId == result.planId && indexSummary.items.size() <= 256U &&
 		indexSummary.items.size() <= selectedIndexCount && indexSummary.plannedTargets <= 256U &&
 		indexSummary.plannedTargets == indexTargetCount && indexSummary.authorityError <= 0 &&
-		indexSummary.unavailableRelations <= 32768U &&
-		indexSummary.capacityRejectedRelations <= 32768U &&
-		indexSummary.plannedTargets <= 32768U - indexSummary.unavailableRelations &&
+		indexSummary.unavailableRelations <= index_capacity::RETAINED_RELATIONS &&
+		indexSummary.capacityRejectedRelations <= index_capacity::RETAINED_RELATIONS &&
+		indexSummary.plannedTargets <=
+			index_capacity::RETAINED_RELATIONS - indexSummary.unavailableRelations &&
 		indexSummary.capacityRejectedRelations <=
-			32768U - indexSummary.unavailableRelations -
+			index_capacity::RETAINED_RELATIONS - indexSummary.unavailableRelations -
 				indexSummary.plannedTargets ;			// 原計画と同じ有限な全lookup件数。
 	std::vector<std::wstring_view> indexIdentities ;	// 画面へ適用する一意opaqueだけを借用します。
 	// 全有限結果を元承認・取得結果へ照合し、一件不正なら索引表示全体を拒否します。
@@ -1218,6 +1326,9 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 	} else {
 		indexPreparationSummary_ = {} ;
 	}
+
+	recordPreparationResultDiagnostics( preparationApproval_, result,
+									   indexBound ? &indexPreparationSummary_ : nullptr) ;
 
 	// 完了結果を状態機械が失敗とした場合は正常完了の説明を使用しない。
 	if( controller_.state() == ApplicationState::FAILURE) {
@@ -1393,8 +1504,13 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 			candidates_		   = std::move( nextCandidates) ;
 			candidateSelected_ = std::move( nextSelected) ;
 			localCoverage_	   = std::move( coverage.value()) ;
-			// 一括反映した同じ一覧でTreeTableを再構築する。
-			populateCandidates( candidates_) ;
+			// Installの中間描画は元itemを維持し、準備された一候補だけも既行へ結合します。
+			if( hadInstallIntent) {
+				refreshCandidateRows() ;
+			} else {
+				// 独立した検査操作は従来どおり現在filterから一覧を構成します。
+				populateCandidates( candidates_) ;
+			}
 		}
 	}
 
@@ -1476,6 +1592,13 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 	   result.approvalError == OfficialPreparationError::NONE && result.controlError == 0 &&
 	   (selectedIndexCount == 0U || indexBound)) {
 		continuePreparedInstall( result) ;
+	}
+	// 内容summaryや文脈の拒否でも、非終了の元Install意図は全deviceへ戻します。
+	else if( hadInstallIntent) {
+		failPreparedInstall( result, cancelled ? PreparationContinuationReason::CANCELLED
+									: selectedIndexCount != 0U && !indexBound
+										? PreparationContinuationReason::INDEX_SUMMARY_REJECTED
+										: PreparationContinuationReason::CONTEXT_REJECTED) ;
 	}
 
 	// 長い技術reportは保持し、利用者が開くdevice詳細から閲覧する。
