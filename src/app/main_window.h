@@ -2,7 +2,7 @@
 /**
  * @file main_window.h
  * @brief DriverCrateメインウィンドウ定義。
- * @version 01.20.00
+ * @version 01.21.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -79,6 +79,7 @@
  * Ver.01.18.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
  * Ver.01.19.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.20.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.21.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
  * </pre>
  *
  * @note Top-level Win32 Window、TreeTable、およびUI stateを定義します。全member functionは、worker notificationを除き
@@ -93,6 +94,7 @@
 #include "core/update_types.h"
 #include "platform/provider_worker.h"
 #include "platform/hardware_refresh.h"
+#include "platform/app_update_service.h"
 
 // Windows.hはCommon ControlsとSetupAPIの基本型より先に必要である。
 // clang-format off
@@ -127,6 +129,7 @@ class MainWindow final {
 #if defined( DRIVERCRATE_INTERNAL_UI_TESTS)
 	// 内部targetだけで非通信factoryと状態の検査を許し、製品APIへ公開しない。
 	friend struct MainWindowMetadataTestAccess ;
+	friend struct MainWindowAppUpdateTestAccess ;
 #endif
 #if defined( DRIVERCRATE_INTERNAL_LIVE_INDEX_TESTS)
 	// 明示live測定だけに通常workerの匿名件数とTree選択の観測を許します。
@@ -158,6 +161,61 @@ public:
 	[[nodiscard]] int  run( int showCommand) ;
 
 private:
+	/** @brief App専用menu/worker/timerを初期化します。
+	 * @return menu構築成功はtrue。通信失敗とは独立です。
+	 */
+	[[nodiscard]] bool				  initializeAppUpdates() ;
+	/** @brief 起動/周期/確定結果をUI threadで確認します。 */
+	void							  pollAppUpdates() ;
+	/** @brief 確定したApp更新結果を安全なidle時だけ表示します。 */
+	void							  processAppUpdateEvents() ;
+	/** @brief App専用menu commandを処理します。
+	 * @param[in] command 固定menu IDです。
+	 * @return App更新commandならtrueです。
+	 */
+	[[nodiscard]] bool				  handleAppUpdateCommand( UINT command) ;
+	/** @brief 既Providerのbusy/modalがないか確認します。
+	 * @return 通知/引継ぎを許せる場合だけtrueです。
+	 */
+	[[nodiscard]] bool				  canPresentAppUpdate() const noexcept ;
+	/** @brief 新規driver操作と同時にしない取得/引継ぎ中か返します。
+	 * @return 取得/ready/引継ぎ中はtrueです。
+	 */
+	[[nodiscard]] bool				  appUpdateActive() const noexcept ;
+	/** @brief 元数値と固定の操作説明だけを表示します。
+	 * @param[in] failure App更新だけの確定結果です。
+	 */
+	void							  showAppUpdateFailure( const AppUpdateFailure &failure) ;
+	/// App専用の数値通知です。Provider通知とは別です。
+	static constexpr UINT			  APP_UPDATE_MESSAGE = WM_APP + 44U ;
+	/// 1秒pollから24hの単調期限を照会します。
+	static constexpr UINT_PTR		  APP_UPDATE_TIMER = 0x44430001U ;
+	/// App更新だけのworkerを所有します。
+	std::unique_ptr<AppUpdateService> appUpdates_ ;
+	/// 自動確認の選択です。Provider設定ではありません。
+	bool							  appUpdateAutomatic_{true} ;
+	/// 通知dialogの再入を防ぎます。
+	bool							  appUpdateReviewOpen_{} ;
+	/// 取消し終端後に通常closeを継続します。
+	bool							  closeAfterAppUpdate_{} ;
+	/// 起動一回と24hの非通信policyです。
+	AppUpdateSchedule				  appUpdateSchedule_ ;
+	/// busy/modal終了まで保持する一結果です。
+	std::optional<AppUpdateEvent>	  pendingAppUpdate_ ;
+	/// 取得前のdriver結果帯を失敗時に戻します。
+	std::wstring					  appUpdatePreviousStatus_ ;
+#if defined( DRIVERCRATE_INTERNAL_UI_TESTS)
+	/// 指定がない既UI fixtureでは更新通信を行いません。
+	std::unique_ptr<AppUpdateBackend> testAppUpdateBackend_ ;
+	/// 内部fixtureだけでdialogを決定的に見送る/同意します。
+	std::optional<bool>				  testAppUpdateDecision_ ;
+	/// 内部fixtureが隠しWindowでidle境界を確認する場合だけtrueです。
+	bool							  testAppUpdateAllowHidden_{} ;
+	/// 決定的なApp更新通知の回数です。
+	unsigned						  testAppUpdatePrompts_{} ;
+	/// 決定的な失敗通知の回数です。
+	unsigned						  testAppUpdateFailures_{} ;
+#endif
 #if defined( DRIVERCRATE_INTERNAL_UI_TESTS)
 	/// Test所有の非通信Provider生成関数。空なら初期化を拒否する。
 	ProviderFactory		 testProviderFactory_ ;

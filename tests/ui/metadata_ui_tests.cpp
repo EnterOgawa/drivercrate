@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_tests.cpp
  * @brief 製品と同じWin32画面の情報検索専用内部試験。
- * @version 01.53.05
+ * @version 01.54.00
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -98,6 +98,7 @@
  * Ver.01.53.03 Shunji Ogawa  2026/11/11  README用検索結果を実filter操作で更新して撮影。
  * Ver.01.53.04 Shunji Ogawa  2026/11/11  README撮影だけをDWMの可視枠でPNGへ保存。
  * Ver.01.53.05 Shunji Ogawa  2026/11/11  README撮影の残る外周をclient左右下端に合わせる。
+ * Ver.01.54.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
  * </pre>
  *
  * @note 明示optionでのみ起動し、実device・network・取得・復旧・導入へ接続しない。
@@ -124,6 +125,7 @@
 #include "platform/official_download_grant.h"
 #include "support/metadata_ui_fixture.h"
 #include "test_framework.h"
+#include "app_update_ui_tests.h"
 #include "signed_index_candidate_binding_tests.h"
 
 #include <dwmapi.h>
@@ -14454,13 +14456,13 @@ int main( const int argc, char **argv)
 	// 通常起動やdouble clickではWindow・worker・成果物を作らない。
 	if( argc < 2 || argc > 3 || std::string_view( argv[1]) != "--run-ui-tests" ||
 	   (argc == 3 && std::string_view( argv[2]) != "close" && std::string_view( argv[2]) != "queue" &&
-		std::string_view( argv[2]) != "index" && std::string_view( argv[2]) != "binding" &&
-		std::string_view( argv[2]) != "multi" && std::string_view( argv[2]) != "formats" &&
-		std::string_view( argv[2]) != "format-order" && std::string_view( argv[2]) != "unknown" &&
-		std::string_view( argv[2]) != "components" && std::string_view( argv[2]) != "needs" &&
-		std::string_view( argv[2]) != "extension" && std::string_view( argv[2]) != "preparation" &&
-		std::string_view( argv[2]) != "hardware" && std::string_view( argv[2]) != "refresh" &&
-		std::string_view( argv[2]) != "refresh-probe" &&
+		std::string_view( argv[2]) != "app-update" && std::string_view( argv[2]) != "index" &&
+		std::string_view( argv[2]) != "binding" && std::string_view( argv[2]) != "multi" &&
+		std::string_view( argv[2]) != "formats" && std::string_view( argv[2]) != "format-order" &&
+		std::string_view( argv[2]) != "unknown" && std::string_view( argv[2]) != "components" &&
+		std::string_view( argv[2]) != "needs" && std::string_view( argv[2]) != "extension" &&
+		std::string_view( argv[2]) != "preparation" && std::string_view( argv[2]) != "hardware" &&
+		std::string_view( argv[2]) != "refresh" && std::string_view( argv[2]) != "refresh-probe" &&
 		std::string_view( argv[2]) != "refresh-render-evidence" &&
 		std::string_view( argv[2]) != "history" && std::string_view( argv[2]) != "history-keys" &&
 		std::string_view( argv[2]) != "history-initial" &&
@@ -14533,6 +14535,10 @@ int main( const int argc, char **argv)
 			// 製品と同じ一process一MainWindowの終了単位で各試験を分離する。
 			if( argc == 2) {
 				drivercrate::test::runUiScenarios( context) ;
+			}
+			// App更新は完全fakeだけで通常busy/modalと同意/closeを確認します。
+			else if( mode == "app-update") {
+				drivercrate::test::runAppUpdateUiTests( context) ;
 			}
 			// 元行の表示保持と正常な準備二条件だけを同private HWNDで確認します。
 			else if( mode == "latest-view") {

@@ -1,5 +1,23 @@
 # Testing
 
+## App用Setup・自動更新（1.0.5）
+
+`drivercrate_app_update_tests`は数値版・24h時計・GitHub JSON/正確asset、完全fake HTTP、byte/署名/版拒否、cache排他、取消しと専用workerを非通信で確認します。
+`drivercrate_metadata_ui_tests --run-ui-tests app-update`は通常MainWindowでbusy/modal通知待ち、同意前取得0、ドライバー作用0、取得取消し・引継ぎ失敗時の画面保持・正常終了を確認します。
+Providerのscan sessionや索引権限を更新workerへ混ぜません。Windows.Data.Jsonのfactoryは局所所有し、同じprocessでの反復と不正JSON/HRESULTを試験します。
+
+```powershell
+cmake --build build --config Release --target DriverCrate drivercrate_app_update_tests drivercrate_metadata_ui_tests
+ctest --test-dir build -C Release -R app_update --output-on-failure
+./scripts/test_app_distribution_documents.ps1
+```
+
+ローカルInno確認はTest AppIdと隔離した現在ユーザー領域だけを使います。1.0.4→1.0.5更新・同版修復、古い版/使用中/領域外の拒否、copy前の標準取消し、
+現在ユーザー登録/機械全体登録0、実App起動と正常close、通常解除とCollector/data/log等の合成marker保持を確認します。
+受入用STA Explorer launcherによる通常user Setup起動、製品workerの非通信fixture、実App起動は別の実績です。
+822cの内部確認では、製品MTAから将来の正式Releaseを取得して自己更新する実往復、別管理者アカウント、実署名済みSetupの配布受入を実施していません。最終配布物の署名・展開受入は822e/fの記録で確認します。
+実ドライバー導入は行いません。配布READMEは画像/guideを同版tagのURLへ変換し、Setup/ZIPの両方で確認します。
+
 公開sourceのconsumer targetをx64 Debug/Releaseで確認します。実HTTP/実WUA/実導入をunit試験へ含めず、
 Provider、復旧、HTTP、署名入力には決定的なfakeを使います。人工署名と実証明書によるコード署名は別の資格です。
 Privateの合格や過去版の実導入を、最終snapshot/配布byteへ自動継承しません。

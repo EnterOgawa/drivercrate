@@ -8,11 +8,13 @@
 
 DriverCrateは、Windows Update、PC内のドライバー、メーカーの公式配布元から候補を探すWindows x64アプリです。選んだドライバーの署名や適合性を検査してから、インストールへ進みます。
 
-**[1.0.4をダウンロード（Windows x64）](https://github.com/EnterOgawa/drivercrate/releases/download/v1.0.4/DriverCrate-windows-x64.zip)** · [SHA-256](https://github.com/EnterOgawa/drivercrate/releases/download/v1.0.4/DriverCrate-windows-x64.zip.sha256) · [変更点](https://github.com/EnterOgawa/drivercrate/releases/tag/v1.0.4)
+**[ダウンロードと変更点（Windows x64）](https://github.com/EnterOgawa/drivercrate/releases/latest)**
+
+*1.0.5はユーザー領域向けのSetupで導入できます。[1.0.5の配布物](https://github.com/EnterOgawa/drivercrate/releases/tag/v1.0.5)から`DriverCrateSetup-windows-x64.exe`を選んでください。*
 
 ## はじめて使う
 
-ZIPを展開し、`DriverCrate.exe`を開きます。`DriverCrate.exe.index-profile.json`は、EXEと同じフォルダーに置いてください。
+`DriverCrateSetup-windows-x64.exe`を開き、案内に沿ってインストールします。必要なファイルはユーザー領域（標準は`%LOCALAPPDATA%\Programs\DriverCrate`）へまとめて配置されます。完了画面やスタートメニューからDriverCrateを開きます。起動時はWindowsのUACを確認してください。
 
 ### 1. 「更新を検索」を押す
 
@@ -39,6 +41,12 @@ ZIPを展開し、`DriverCrate.exe`を開きます。`DriverCrate.exe.index-prof
 使う候補の行を選び、「この候補を選択」を押すと主画面に戻ります。あとは対象にチェックを入れ、上の手順でインストールします。
 
 古いバージョンも選びたい場合は、主画面の「推奨・初回候補を表示」のチェックを外してから詳細を開いてください。
+
+## アプリを更新する
+
+起動時と稼働中の24時間ごとに、新しい正式版を確認します。通知で「更新する」を選ぶと、インストーラーを取得・検査し、アプリを終了して通常のセットアップを開きます。「あとで」も選べます。ドライバーの処理中は、その処理を終えてから通知します。
+
+手動で確認する場合は「ヘルプ」→「アプリの更新を確認…」を選びます。「更新を自動確認」のチェックで自動確認を切り替えられます。1.0.4からは、最初の1.0.5インストーラーを手動で実行してください。
 
 ## もっと詳しく
 

@@ -2,7 +2,7 @@
 /**
  * @file official_http_client.cpp
  * @brief 公式配布元限定HTTP client実装。
- * @version 01.22.01
+ * @version 01.23.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -68,6 +68,7 @@
  * Ver.01.21.00 Shunji Ogawa  2026/11/04  閉model JSONと収集CDNの同session送信期限を追加。
  * Ver.01.22.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
  * Ver.01.22.01 Shunji Ogawa  2026/11/09  取消code比較の明示型を揃え元終端区分と数値を保持。
+ * Ver.01.23.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
  * </pre>
  *
  * @note WinHTTP handleは本file内のRAII wrapperが所有します。Catalog cacheが破損した場合は破棄し、stale fallbackを行わず公式
@@ -76,6 +77,7 @@
 //------------------------------------------------------------------------------
 
 #include "platform/official_http_client.h"
+#include "platform/app_update_service_internal.h"
 #include "platform/official_html_terms.h"
 #include "platform/official_collector_dns.h"
 #include "platform/signed_index_manifest.h"
@@ -1045,6 +1047,7 @@ struct EmptyJsonPostContext {
  * @param[in] collectorCancellation 収集専用の送信直前取消しです。
  * @param[in] jsonPost 非null時だけfactory生成済みの空JSON/query文脈を使います。
  * @param[in] delegatedCheckpoint 非null時はDNS後・実send直前にも同grantを検査します。
+ * @param[in] appObserver App更新だけでHTTP拒否前の待機headerを観測します。通常はNullです。
  * @return 検査対象status受信時は0、失敗時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
@@ -1055,10 +1058,11 @@ struct EmptyJsonPostContext {
 	const OfficialHttpTransport	   &transport		= NATIVE_HTTP_TRANSPORT,
 	const DWORD						autoLogonPolicy = WINHTTP_AUTOLOGON_SECURITY_LEVEL_MEDIUM,
 	const bool collectorMetadata = false, SignedIndexHttpControl *indexControl = nullptr,
-	CollectorHttpTransferRecorder	   *collectorTransfer	  = nullptr,
-	const HttpCancellationCallback	   *collectorCancellation = nullptr,
-	const EmptyJsonPostContext		   *jsonPost			  = nullptr,
-	const std::function<NativeError()> *delegatedCheckpoint	  = nullptr)
+	CollectorHttpTransferRecorder				*collectorTransfer	   = nullptr,
+	const HttpCancellationCallback				*collectorCancellation = nullptr,
+	const EmptyJsonPostContext					*jsonPost			   = nullptr,
+	const std::function<NativeError()>			*delegatedCheckpoint   = nullptr,
+	const std::function<void( HINTERNET, DWORD)> *appObserver		   = nullptr)
 {
 	status = 0 ;
 	// 新POSTは完全なfactory文脈と同grant制御が揃う場合だけ許す。
@@ -1292,6 +1296,11 @@ struct EmptyJsonPostContext {
 		return nativeErrorFromWin32( GetLastError()) ;
 	}
 
+	// Appの元待機をHTTP失敗より前に保持します。既Providerの観測は変更しません。
+	if( appObserver != nullptr) {
+		(*appObserver)( createdRequest.get(), status) ;
+	}
+
 	const NativeError statusError =	// 拒否statusを本文取得前に元の数値付きで返す。
 		validateOfficialHttpResponseStatus( status, !ifNoneMatch.empty(), true) ;
 	// 拒否statusも同じ実HTTP観測へ残します。
@@ -1461,6 +1470,7 @@ struct EmptyJsonPostContext {
  * @param[out] finalUrl 非nullなら成功した最終response URL。失敗時は空。
  * @param[in] collectorMetadata 収集専用のcookie無効化と失敗status観測。
  * @param[in,out] collectorTransfer 収集専用の実send/status記録先です。
+ * @param[in] checkpoint 非null時は各hopの元session期限を再検査します。
  * @return 最終response確定時は0、不正遷移または失敗時はHRESULT。
  */
 //------------------------------------------------------------------------------
@@ -5486,4 +5496,179 @@ NativeError OfficialHttpClient::getSignedIndexBytes(
 	return nativeErrorFromWin32( ERROR_WINHTTP_REDIRECT_FAILED) ;
 }
 
+/** @see OfficialHttpClient宣言側の契約を正本とします。 */
+NativeError OfficialHttpClient::getAppUpdateResource( const AppUpdateRelease		   *release,
+													 const HANDLE					output,
+													 SignedIndexHttpControl		   &control,
+													 app_update_detail::HttpResult &result)
+{
+	result				= {} ;
+	const bool metadata = release == nullptr ;	// Nullだけを固定latestへ結びます。
+	// App更新をProvider/索引の取得資格へ混入させません。
+	if( useCatalogCache_ || metadataExecution_ != nullptr || sourceScanSessionId_ != 0U ||
+	   (metadata
+			? output != nullptr
+			: (!validAppUpdateRelease( *release) || !output || output == INVALID_HANDLE_VALUE))) {
+		return E_INVALIDARG ;
+	}
+
+	const auto &transport =
+		testTransport_ ? *testTransport_ : NATIVE_HTTP_TRANSPORT ;	// 同じ所有I/Oです。
+	// 欠損fixtureをWindows通信で補完しません。
+	if( !transport.open || !transport.connect || !transport.openRequest || !transport.setTimeouts ||
+	   !transport.setOption || !transport.addHeaders || !transport.sendRequest ||
+	   !transport.receiveResponse || !transport.queryHeaders || !transport.queryAvailable ||
+	   !transport.readData || !transport.closeHandle || !transport.resolveDestination) {
+		return E_INVALIDARG ;
+	}
+
+	const std::array<std::wstring_view, 4U> hosts{
+		L"api.github.com", L"github.com", L"objects.githubusercontent.com",
+		L"release-assets.githubusercontent.com"} ;	// 固定App配布のhostだけです。
+	std::wstring					 url = metadata
+											   ? L"https://api.github.com/repos/EnterOgawa/drivercrate/releases/latest"
+											   : appUpdateAssetUrl( *release) ;		// 任意URLを受け取りません。
+	std::unordered_set<std::wstring> visited ;										// 循環を送信前に拒否します。
+	std::vector<std::uint32_t>		 origins ;										// ルート検査の内部値です。
+	const std::uint64_t maximum = metadata ? 256U * 1024U : release->sizeBytes ;	// 実byte上限です。
+	// Metadataは一回、Setupは最大四redirectで終了します。
+	for( std::uint32_t hop{}; hop < 5U; ++hop) {
+		// DNS前にも取消しと元期限を確認します。
+		if( control.checkpoint() != 0) {
+			return control.stopped ;
+		}
+
+		ParsedUrl			 parsed ;				// 秘密queryは同期scope内だけです。
+		SecretParsedUrlScope clearParsed( parsed) ;	// 終了後にURLを残しません。
+		auto				 error =
+			// 共通URL検査です。
+			appendValidatedRouteUrl( url, hosts, visited, origins, parsed) ;
+		// 起点の固定用途とCDNへの一方向遷移を要求します。
+		if( error != 0 || parsed.port != INTERNET_DEFAULT_HTTPS_PORT ||
+		   (metadata && (hop != 0U || parsed.host != hosts[0])) ||
+		   (!metadata && ((hop == 0U && parsed.host != hosts[1]) ||
+						  (hop != 0U && parsed.host != hosts[2] && parsed.host != hosts[3])))) {
+			return error != 0 ? error : static_cast<NativeError>( E_ACCESSDENIED) ;
+		}
+
+		OfficialPublicDestinationEvidence destination ;	// 公開DNSだけの証拠です。
+		error = validatePublicOfficialDestination( parsed.host, transport.resolveDestination,
+												  destination) ;
+		// 宛先拒否や停止から別hostへ逃げません。
+		if( error != 0 || control.checkpoint() != 0) {
+			return error != 0 ? error : control.stopped ;
+		}
+
+		InternetHandle session( nullptr) ;		// このhopの所有sessionです。
+		InternetHandle connection( nullptr) ;	// このhopの所有connectionです。
+		InternetHandle request( nullptr) ;		// このhopの所有requestです。
+		DWORD		   status{} ;				// 実HTTP statusです。
+		const std::function<void( HINTERNET, DWORD)> observer = [&result, &transport](
+																   HINTERNET response, DWORD code) {
+			result.status = code ;
+			CollectorHttpObservation wait ;	// 共通parserの待機数値だけを使います。
+			collectorRetryAfter( response, transport, wait) ;
+			FILETIME now{} ;	// header観測時の現在UTCです。
+			GetSystemTimeAsFileTime( &now) ;
+			const std::uint64_t ticks = (static_cast<std::uint64_t>( now.dwHighDateTime) << 32U) |
+										now.dwLowDateTime ;							// APIからの100ns値です。
+			constexpr std::uint64_t EPOCH = 116444736000000000ULL ;					// Unix epochとの差です。
+			const auto utc = ticks <= EPOCH ? 0U : (ticks - EPOCH) / 10000000U ;	// UTC秒です。
+			result.retryAfterSeconds = wait.retryAfterDelaySeconds ;
+			// 絶対待機も観測UTCからの残秒へ結びます。
+			if( wait.retryAfterUtcSeconds > utc) {
+				result.retryAfterSeconds =
+					std::max( result.retryAfterSeconds, wait.retryAfterUtcSeconds - utc) ;
+			}
+
+			// 不明headerを即時再送の許可にしません。
+			if( wait.retryAfterNeedsReview) {
+				result.retryAfterSeconds =
+					std::max<std::uint64_t>( result.retryAfterSeconds, 86400U) ;
+			}
+		} ; // 任意本文/URLは保存しません。
+		error = openGetRequest( parsed, session, connection, request, {}, status, nullptr, transport,
+							   WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH, true, &control, nullptr,
+							   nullptr, nullptr, nullptr, &observer) ;
+		result.status = status ;
+		// HTTPの失敗と観測待機をそのまま返します。
+		if( error != 0) {
+			return error ;
+		}
+
+		// 固定Setupだけのredirectを追います。
+		if( isRedirectStatus( status)) {
+			// APIの転送と上限超過を送信前に止めます。
+			if( metadata || hop == 4U) {
+				return nativeErrorFromWin32( ERROR_WINHTTP_REDIRECT_FAILED) ;
+			}
+
+			std::wstring location ;	// 同応答の未検査Locationです。
+			error = queryRedirectLocation( request.get(), location, transport) ;
+			// 不正Locationから探索し直しません。
+			if( error != 0) {
+				return error ;
+			}
+
+			url = std::move( location) ;
+			continue ;
+		}
+
+		const auto mime =
+			// MIMEだけです。
+			collectorHeader( request.get(), WINHTTP_QUERY_CONTENT_TYPE, transport) ;
+		const auto encoding = collectorHeader( request.get(), WINHTTP_QUERY_CONTENT_ENCODING,
+											  transport) ;	// 符号化です。
+		const bool binaryMime =
+			mime &&
+			(*mime == L"application/octet-stream" || *mime == L"application/x-msdownload" ||
+			 *mime == L"application/x-ms-dos-executable" ||
+			 *mime == L"application/vnd.microsoft.portable-executable") ;	// 公式EXEの媒体型です。
+		// HTTP成功だけでHTMLや未知圧縮を受理しません。
+		if( status != HTTP_STATUS_OK || !mime || !encoding ||
+		   (!encoding->empty() && *encoding != L"identity") ||
+		   (metadata ? !matchesOfficialPayloadContentType( *mime, L"application/json")
+					 : !binaryMime)) {
+			return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+		}
+
+		std::string					   text ;	// Metadataだけの所有UTF-8です。
+		const HttpCancellationCallback cancellation = [&control]() {
+			return control.checkpoint() != 0 ;
+		} ; // 元の期限・取消しを共通streamへ渡します。
+		error = consumeResponse(
+			request.get(), maximum,
+			[&text, metadata, output]( const std::span<const std::byte> chunk) {
+				// 小さいmetadataだけをRAMへ保持します。
+				if( metadata) {
+					text.append( reinterpret_cast<const char *>( chunk.data()), chunk.size()) ;
+					return static_cast<NativeError>( 0) ;
+				}
+
+				DWORD written{} ;	// 一chunkで保存した実byte数です。
+				// 部分保存を成功にせず元file API値を返します。
+				if( chunk.size() > std::numeric_limits<DWORD>::max() ||
+				   !WriteFile( output, chunk.data(), static_cast<DWORD>( chunk.size()), &written,
+							  nullptr)) {
+					return nativeErrorFromWin32( GetLastError()) ;
+				}
+
+				return written == chunk.size() ? 0 : nativeErrorFromWin32( ERROR_WRITE_FAULT) ;
+			},
+			[]( std::uint64_t, std::uint64_t) {}, cancellation, nullptr, transport, true, &control) ;
+		// 同期受信中の停止と部分結果を成功へ変えません。
+		if( control.checkpoint() != 0 || error != 0) {
+			return control.stopped != 0 ? control.stopped : error ;
+		}
+
+		// 成功metadataだけを所有移転します。
+		if( metadata) {
+			result.metadata = std::move( text) ;
+		}
+
+		return 0 ;
+	}
+
+	return nativeErrorFromWin32( ERROR_WINHTTP_REDIRECT_FAILED) ;
+}
 } // namespace drivercrate

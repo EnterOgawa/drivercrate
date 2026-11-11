@@ -20,6 +20,7 @@
     "cmake/RejectRetiredAiOptions.cmake",
     "cmake/local_index_acceptance.h.in",
     "docs/adr/0141-revised-source-standard-contract.md",
+    "docs/adr/0481-app-inno-setup-and-update-checks.md",
     "docs/architecture.md",
     "docs/c_cpp_coding_standard.md",
     "docs/examples/c_cpp_coding_standard_sample.cpp",
@@ -30,6 +31,8 @@
     "docs/security.md",
     "docs/testing.md",
     "docs/user-guide.md",
+    "packaging/app/app.iss",
+    "scripts/app_distribution_documents.ps1",
     "scripts/audit_doxygen_members.py",
     "scripts/audit_source_comments.py",
     "scripts/audit_source_contracts.py",
@@ -39,6 +42,7 @@
     "scripts/format_source.py",
     "scripts/index_build_profile.ps1",
     "scripts/local_index_build_pin.py",
+    "scripts/package-app-setup.ps1",
     "scripts/package-release.ps1",
     "scripts/prepare_control_comment_patterns.py",
     "scripts/public_source_export_manifest.json",
@@ -47,6 +51,7 @@
     "scripts/source_comments.py",
     "scripts/source_structure.py",
     "scripts/source_style.py",
+    "scripts/test_app_distribution_documents.ps1",
     "scripts/test_doxygen_members.py",
     "scripts/test_index_build_profile.py",
     "scripts/test_public_source_closure.py",
@@ -59,10 +64,13 @@
     "src/app/main.cpp",
     "src/app/main_window.cpp",
     "src/app/main_window.h",
+    "src/app/main_window_app_update.cpp",
     "src/app/main_window_assessment.cpp",
     "src/app/main_window_metadata_search.cpp",
     "src/app/main_window_preparation.cpp",
     "src/app/resource.h",
+    "src/core/app_update.cpp",
+    "src/core/app_update.h",
     "src/core/candidate_assessment.cpp",
     "src/core/candidate_assessment.h",
     "src/core/candidate_audit.cpp",
@@ -123,6 +131,10 @@
     "src/platform/amd_catalog_parser.h",
     "src/platform/amd_update_provider.cpp",
     "src/platform/amd_update_provider.h",
+    "src/platform/app_update_service.cpp",
+    "src/platform/app_update_service.h",
+    "src/platform/app_update_service_internal.h",
+    "src/platform/app_update_windows.cpp",
     "src/platform/asix_catalog_parser.cpp",
     "src/platform/asix_catalog_parser.h",
     "src/platform/asix_preparation.cpp",
@@ -448,10 +460,13 @@
     "tests/support/metadata_ui_fixture.h",
     "tests/support/scan_measurement_diagnostics.cpp",
     "tests/support/scan_measurement_diagnostics.h",
+    "tests/ui/app_update_ui_tests.cpp",
+    "tests/ui/app_update_ui_tests.h",
     "tests/ui/metadata_ui_tests.cpp",
     "tests/unit/acquired_file_evidence_main.cpp",
     "tests/unit/amd_catalog_parser_tests.cpp",
     "tests/unit/amd_catalog_parser_tests.h",
+    "tests/unit/app_update_tests.cpp",
     "tests/unit/asix_catalog_parser_tests.cpp",
     "tests/unit/asix_catalog_parser_tests.h",
     "tests/unit/asrock_catalog_parser_tests.cpp",
@@ -11821,6 +11836,41 @@
       "owner": "README.md",
       "input": "docs/images/candidate-details.png",
       "kind": "readme-image"
+    },
+    {
+      "owner": "scripts/package-app-setup.ps1",
+      "input": "packaging/app/app.iss",
+      "kind": "app-inno-script"
+    },
+    {
+      "owner": "packaging/app/app.iss",
+      "input": "src/app/assets/drivercrate.ico",
+      "kind": "app-inno-icon"
+    },
+    {
+      "owner": "scripts/package-app-setup.ps1",
+      "input": "README.md",
+      "kind": "app-package-document"
+    },
+    {
+      "owner": "scripts/package-app-setup.ps1",
+      "input": "LICENSE",
+      "kind": "app-package-document"
+    },
+    {
+      "owner": "scripts/package-app-setup.ps1",
+      "input": "THIRD_PARTY_NOTICES.md",
+      "kind": "app-package-document"
+    },
+    {
+      "owner": "docs/architecture.md",
+      "input": "docs/adr/0481-app-inno-setup-and-update-checks.md",
+      "kind": "app-update-contract"
+    },
+    {
+      "owner": "docs/security.md",
+      "input": "docs/adr/0481-app-inno-setup-and-update-checks.md",
+      "kind": "app-update-contract"
     }
   ],
   "externalInputs": [

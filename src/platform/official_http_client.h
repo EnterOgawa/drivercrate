@@ -2,7 +2,7 @@
 /**
  * @file official_http_client.h
  * @brief 公式配布元限定HTTP client定義。
- * @version 01.22.00
+ * @version 01.23.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -64,6 +64,7 @@
  * Ver.01.20.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
  * Ver.01.21.00 Shunji Ogawa  2026/11/04  閉model JSONと収集CDNの同session送信期限を追加。
  * Ver.01.22.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
+ * Ver.01.23.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
  * </pre>
  *
  * @note HTTPS、host allowlist、応答上限を強制して公式metadataとpayloadを取得します。Catalogだけを期限とETag付きでcacheし、payloadは保
@@ -92,6 +93,11 @@
 #include <vector>
 
 namespace drivercrate {
+struct AppUpdateRelease ;
+namespace app_update_detail {
+struct Access ;
+struct HttpResult ;
+}
 
 class CollectorHttpTransferRecorder ;
 class CollectorRegistryJobTestAccess ;
@@ -627,6 +633,17 @@ private:
 		const std::function<NativeError( std::wstring_view)> &consume,
 		OfficialAuxiliaryHttpObservation &observation, std::uint32_t &addresses) ;
 
+	friend struct app_update_detail::Access ;
+	/** @brief 固定latestまたは元宣言に結合したApp Setupだけを取得します。
+	 * @param[in] release Nullはmetadata、非nullは検証する元Setup宣言です。
+	 * @param[in] output Setup専用の非所有書込みfileです。
+	 * @param[in,out] control App更新一回だけの有限期限と取消しです。
+	 * @param[out] result status/待機と成功metadataだけです。
+	 * @return 全HTTP検査成功0、元の拒否診断です。
+	 */
+	[[nodiscard]] NativeError getAppUpdateResource( const AppUpdateRelease *release, HANDLE output,
+												   SignedIndexHttpControl		 &control,
+												   app_update_detail::HttpResult &result) ;
 	friend struct signed_index_refresh_detail::Access ;
 	friend struct public_index_readback_detail::Access ;
 	/** @brief URLを公開せず、索引三用途のMIMEとredirect規則を区別します。 */

@@ -325,7 +325,7 @@ class PackageBuildBindingTests(unittest.TestCase):
         self.build = self.root / "build"
         self.build.mkdir()
         (self.source / "build").mkdir()
-        for name in ("index_build_profile.ps1", "package-release.ps1", "package-collector.ps1",
+        for name in ("index_build_profile.ps1", "package-release.ps1", "app_distribution_documents.ps1", "package-collector.ps1",
                      "package-collector-installer.ps1", "test-collector-installer.ps1"):
             (scripts / name).write_bytes(bounded_read(ROOT / "scripts" / name, 65536))
         module = self.source / "packaging/collector/collector-setup.psm1"

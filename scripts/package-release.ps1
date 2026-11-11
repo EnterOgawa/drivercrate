@@ -25,6 +25,7 @@ $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 . (Join-Path $PSScriptRoot 'index_build_profile.ps1')
+. (Join-Path $PSScriptRoot 'app_distribution_documents.ps1')
 $context = Resolve-IndexPackageBuild -BuildDirectory $BuildDirectory
 $releaseExecutable = Join-Path $context.Build 'Release/DriverCrate.exe'
 Assert-IndexPackageExecutable -Executable $releaseExecutable
@@ -79,6 +80,9 @@ New-Item -ItemType Directory -Path $packageDirectory | Out-Null
 Copy-Item -LiteralPath $releaseExecutable -Destination $packageDirectory
 Copy-Item -LiteralPath ($releaseExecutable + '.index-profile.json') -Destination $packageDirectory
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'README.md') -Destination $packageDirectory
+$readmePath = Join-Path $packageDirectory 'README.md'
+$readme = ConvertTo-AppDistributionReadme -Readme ([IO.File]::ReadAllText($readmePath)) -Version $Version
+[IO.File]::WriteAllText($readmePath, $readme, [Text.UTF8Encoding]::new($false))
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'LICENSE') -Destination $packageDirectory
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'THIRD_PARTY_NOTICES.md') `
     -Destination $packageDirectory

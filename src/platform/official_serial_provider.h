@@ -2,7 +2,7 @@
 /**
  * @file official_serial_provider.h
  * @brief 公式serial ZIP共通Provider契約。
- * @version 01.01.02
+ * @version 01.01.03
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  統一一scan承認とmetadata限定終端を追加。
  * Ver.01.01.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
  * Ver.01.01.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.01.03 Shunji Ogawa  2026/11/11  導入後の対象scope消費と未処理・scan観測保持を現契約へ明記。
  * </pre>
  *
  * @note 署名済み原本を保持し、許可IDだけでdeviceとrankを監査します。未審査IDの許可や既存の監査条件の迂回は行いません。
@@ -216,7 +217,7 @@ public:
 	 * @param[in] rankAuditor 現在状態と保存済みrankの再検証関数。 再監査境界。
 	 * @param[in] installer 検証済みINFのWindows標準導入境界。 Windows導入境界。
 	 * @param[in] progress 確定済み件数の通知先。 確定進捗。
-	 * @return 選択順の個別導入結果。成功失敗によらずsessionを失効させる。 選択順の成否。部分失敗を全体成功にしない。
+	 * @return 選択順の個別成否。部分失敗を全体成功にせず、選択scopeだけを消費し未処理対象と元scan観測を保持する。
 	 */
 	[[nodiscard]] InstallResult install( ScanSessionId						session,
 										std::span<const std::wstring>		identities,

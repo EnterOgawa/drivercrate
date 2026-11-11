@@ -1,5 +1,19 @@
 # Security boundaries
 
+## AppのSetupと更新確認（1.0.5）
+
+App用Inno Setupは現在ユーザーのAppData\Local内だけへ配置し、通常は`Programs\DriverCrate`を使います。
+管理対象はApp/profileと配布文書の5file、標準shortcut/uninstallerに限り、同rootのCollector、data、設定、log、未知fileを削除しません。
+Appの管理者権限とSetupの現在ユーザー権限を分け、更新時は元のExplorerへ同じ配置先の通常Setupだけを渡します。
+Explorerを確認できない場合はAppを維持し、管理者の別配置や全user登録へ退避しません。
+
+App更新は固定`EnterOgawa/drivercrate`の正式latestだけを確認します。通知への同意後に固定名Setupを取得し、TLS/許可host、有限サイズ、ReleaseのSHA-256、
+Windows Authenticode成功と発行元`ENTER SYSTEM, K.K.`、製品役割と数値版を取得後/起動直前に検査します。
+検査済みfileの書換え/削除を禁止したhandleを引継ぎまで保持し、未署名を許す更新fallbackは設けません。
+索引の署名/世代/期限とドライバーの適合性・導入同意・復旧は別の境界です。
+WindowsのSmartScreen・証明書・組織policyに従い、ユーザー領域や署名だけで警告を回避できるとは保証しません。
+詳細な契約は[ADR0481](adr/0481-app-inno-setup-and-update-checks.md)を参照してください。将来の正式版を取得して自己更新する実往復と、別管理者アカウントでの更新は未確認です。
+
 DriverCrateはWindowsの署名/適合/権限と組織policyを尊重します。WUAが非適用・導入済み・置換済みとした候補を独自に戻しません。
 公式の取得情報と実際に取得したbyte、検査済み候補と実端末の適合、実導入結果を分けます。
 

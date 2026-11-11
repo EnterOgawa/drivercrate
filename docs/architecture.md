@@ -1,5 +1,15 @@
 # Architecture
 
+## App用Setupとバージョン更新（1.0.5）
+
+Appは現在ユーザーの`%LOCALAPPDATA%\Programs\DriverCrate`へInno Setupで配置します。
+App/profile/配布文書の明示5fileだけを管理し、同じrootの私有Collectorと保持dataを別製品として扱います。
+数値版/24hの純粋policy、専用AppUpdateService/worker、Windows backend、通常MainWindowの通知を小さく分けます。
+HTTP・ファイル検査・Authenticodeは既共通moduleを再利用し、ProviderWorkerの操作/scan sessionや署名索引の権限と独立させます。
+同意した署名Setupだけを元Explorerの通常ユーザーへ渡し、Appの正常終了後の置換は標準Innoが担当します。
+同じ対話sessionのAppは配置を問わず一つとし、driver処理を強制終了するhelper/serviceは追加しません。
+詳しくは[ADR0481](adr/0481-app-inno-setup-and-update-checks.md)を参照してください。実装と非通信fixture、隔離user領域でのInno確認を実施しました。将来の正式版への実自己更新と別管理者アカウントでの引継ぎは未確認です。
+
 公開sourceはC++20/Win32のconsumer Appと非通信試験の明示集合です。CMakeの共通compiler/linker設定、
 公開鍵と通常profileを維持し、私有の収集管理製品や索引発行者を含めません。
 

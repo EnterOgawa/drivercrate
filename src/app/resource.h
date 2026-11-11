@@ -2,7 +2,7 @@
 /**
  * @file resource.h
  * @brief DriverCrateリソースID定義。
- * @version 01.31.00
+ * @version 01.32.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -102,6 +102,7 @@
  * Ver.01.29.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
  * Ver.01.30.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.31.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.32.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
  * </pre>
  *
  * @note Win32 control、icon、および日本語文字列のresource IDを定義します。
@@ -759,3 +760,68 @@
  * @brief 既存pointを利用する進捗です。
  */
 #define IDS_STATUS_REUSING_RESTORE 1561	// 既存pointを利用する進捗です。
+
+/** @def IDM_APP_UPDATE_CHECK
+ * @brief App更新の手動確認と取得取消しです。
+ */
+#define IDM_APP_UPDATE_CHECK 4100	// App更新の手動確認と取得取消しです。
+
+/** @def IDM_APP_UPDATE_AUTO
+ * @brief Appの自動確認boolです。
+ */
+#define IDM_APP_UPDATE_AUTO 4101	// Appの自動確認boolです。
+
+/** @def IDS_APP_UPDATE_HELP
+ * @brief App更新menuの標準captionです。
+ */
+#define IDS_APP_UPDATE_HELP 9000	// App更新menuの標準captionです。
+
+/** @def IDS_APP_UPDATE_CHECK
+ * @brief Appの手動確認captionです。
+ */
+#define IDS_APP_UPDATE_CHECK 9001	// Appの手動確認captionです。
+
+/** @def IDS_APP_UPDATE_AUTO
+ * @brief 自動確認の選択captionです。
+ */
+#define IDS_APP_UPDATE_AUTO 9002	// 自動確認の選択captionです。
+
+/** @def IDS_APP_UPDATE_CURRENT
+ * @brief 新版なしの説明です。
+ */
+#define IDS_APP_UPDATE_CURRENT 9003	// 新版なしの説明です。
+
+/** @def IDS_APP_UPDATE_AVAILABLE
+ * @brief 新版とApp終了を案内します。
+ */
+#define IDS_APP_UPDATE_AVAILABLE 9004	// 新版とApp終了を案内します。
+
+/** @def IDS_APP_UPDATE_INSTALL
+ * @brief 明示更新のcaptionです。
+ */
+#define IDS_APP_UPDATE_INSTALL 9005	// 明示更新のcaptionです。
+
+/** @def IDS_APP_UPDATE_LATER
+ * @brief 新版を見送るcaptionです。
+ */
+#define IDS_APP_UPDATE_LATER 9006	// 新版を見送るcaptionです。
+
+/** @def IDS_APP_UPDATE_DOWNLOADING
+ * @brief Appの取得段階です。
+ */
+#define IDS_APP_UPDATE_DOWNLOADING 9007	// Appの取得段階です。
+
+/** @def IDS_APP_UPDATE_FAILED
+ * @brief App更新だけの失敗説明です。
+ */
+#define IDS_APP_UPDATE_FAILED 9008	// App更新だけの失敗説明です。
+
+/** @def IDS_APP_UPDATE_CANCEL
+ * @brief App取得取消しのcaptionです。
+ */
+#define IDS_APP_UPDATE_CANCEL 9009	// App取得取消しのcaptionです。
+
+/** @def IDS_APP_ALREADY_RUNNING
+ * @brief 二重起動を防ぐ説明です。
+ */
+#define IDS_APP_ALREADY_RUNNING 9010	// 二重起動を防ぐ説明です。

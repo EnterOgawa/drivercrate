@@ -2,7 +2,7 @@
 /**
  * @file app.rc
  * @brief DriverCrate Windows resource定義。
- * @version 01.31.00
+ * @version 01.32.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -108,6 +108,7 @@
  * Ver.01.29.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
  * Ver.01.30.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.31.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.32.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
  * </pre>
  *
  * @note Application icon、executable version、manifest、および日本語UI文字列を定義します。
@@ -771,4 +772,19 @@ BEGIN
  IDS_RESTORE_MEMO_WARNING "同日の再利用情報を保持できませんでした。次の操作では保護を再確認します。"
  IDS_STATUS_VERIFYING_RESTORE "Windowsの復元ポイントを確認しています…"
  IDS_STATUS_REUSING_RESTORE "確認済みの復元ポイントを利用しています…"
+END
+
+STRINGTABLE
+BEGIN
+	IDS_APP_UPDATE_HELP "ヘルプ(&H)"
+	IDS_APP_UPDATE_CHECK "アプリの更新を確認…"
+	IDS_APP_UPDATE_AUTO "更新を自動確認"
+	IDS_APP_UPDATE_CURRENT "現在のバージョンより新しい正式版はありません。"
+	IDS_APP_UPDATE_AVAILABLE "新しいDriverCrateがあります。更新する場合はアプリを終了し、インストーラーを開きます。"
+	IDS_APP_UPDATE_INSTALL "更新する"
+	IDS_APP_UPDATE_LATER "あとで"
+	IDS_APP_UPDATE_DOWNLOADING "アプリ更新を取得・検証中です。ヘルプから取り消せます。"
+	IDS_APP_UPDATE_FAILED "アプリの更新を完了できませんでした。現在のアプリとドライバーの結果は保持しています。時間を置いて確認するか、公式Releaseからインストーラーを取得してください。診断:"
+	IDS_APP_UPDATE_CANCEL "アプリ更新の取得を取り消す"
+	IDS_APP_ALREADY_RUNNING "DriverCrateは既に起動中です。既存の画面を使ってください。"
 END

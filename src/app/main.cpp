@@ -2,7 +2,7 @@
 /**
  * @file main.cpp
  * @brief DriverCrateエントリーポイント。
- * @version 01.02.00
+ * @version 01.03.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/11/03  明示要求された匿名local診断の開始と有界終了を接続。
  * Ver.01.02.00 Shunji Ogawa  2026/11/08  匿名導入診断と保存状態・元数値の有限確認を追加。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
  * </pre>
  *
  * @note Windows entry pointとprocess全体のUI初期化を実装します。
@@ -46,6 +47,7 @@
 #include <Windows.h>
 
 #include <string>
+#include <memory>
 
 namespace {
 
@@ -95,6 +97,29 @@ int WINAPI wWinMain( _In_ HINSTANCE instance, _In_opt_ HINSTANCE previousInstanc
 {
 	static_cast<void>( previousInstance) ;
 	static_cast<void>( commandLine) ;
+	const HANDLE rawMutex =
+		// 生存中だけの排他です。
+		CreateMutexW( nullptr, FALSE, L"Local\\DriverCrate.App") ;
+	const DWORD mutexError = GetLastError() ;	// 別instanceの存在を保持します。
+	const std::unique_ptr<void, decltype( &CloseHandle)> instanceMutex(
+		rawMutex, &CloseHandle) ;	// process終了まで保持します。
+	// 二重起動から診断writer/driver操作を増やしません。
+	if( !rawMutex || mutexError == ERROR_ALREADY_EXISTS) {
+		const auto existing =
+			// 同sessionの既画面です。
+			FindWindowW( L"DriverCrate.MainWindow", nullptr) ;
+		// 同sessionの既画面だけを前面へ案内します。
+		if( existing) {
+			ShowWindow( existing, SW_RESTORE) ;
+			SetForegroundWindow( existing) ;
+		} else {
+			MessageBoxW( nullptr, loadString( instance, IDS_APP_ALREADY_RUNNING).c_str(),
+						loadString( instance, IDS_APP_TITLE).c_str(), MB_OK | MB_ICONINFORMATION) ;
+		}
+
+		return rawMutex ? 0 : 1 ;
+	}
+
 	drivercrate::startLocalDiagnostics() ;
 
 	// manifest と合わせて Per-Monitor V2 を明示し、失敗時は system DPI behavior を維持する。

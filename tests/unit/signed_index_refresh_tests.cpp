@@ -2,7 +2,7 @@
 /**
  * @file signed_index_refresh_tests.cpp
  * @brief 実HTTP検証/codecと完全fake保存のrefresh回帰です。
- * @version 01.05.00
+ * @version 01.06.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * Ver.01.04.00 Shunji Ogawa  2026/10/27  匿名readbackの正規daily/candidate名pairを検査。
  * Ver.01.05.00 Shunji Ogawa  2026/11/08  実隔離storeの同一索引GET省略と元拒否を有限確認。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/11  人工破損署名のRSA範囲とcache拒否の元数値を固定。
  * </pre>
  * @note 暗号/HTTP policy/codecは製品実装、低位I/Oとstore観測はRAM fakeです。
  * 同一索引の追加群だけ実隔離storeを使います。製品鍵/実HTTP/実deviceは使いません。
@@ -559,9 +560,10 @@ thread_local Fixture			   *ACTIVE{} ;
 		"\"},\"quality\":{\"sourceCount\":1,\"recordCount\":1,\"metadataOnlyCount\":0,\"contentInspectedCount\":1,\"unconfirmedCount\":0}}" ;
 	// PSS salt32の実原署名です。
 	auto signature = key.sign( raw) ;
-	// 原署名だけを変更し、暗号拒否を実validatorへ到達させます。
+	// 人工RSA値をmodulus未満に保ち、元と異なる署名を暗号拒否まで到達させます。
 	if( mode == 5U) {
-		signature[0] ^= 1U ;
+		signature.front() = 0U ;
+		signature.back() ^= 1U ;
 	}
 
 	const std::string_view signedBytes{reinterpret_cast<const char *>( signature.data()),
@@ -1150,7 +1152,9 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 
 		std::cout << "INDEX_CACHE case=C" << mode + 1U << " assetGets=" << assetGets
 				  << " sends=" << result.sends << " status=" << static_cast<int>( result.status)
-				  << " commits=" << fixture.commits
+				  << " manifestStatus="
+				  << (result.manifestStatus ? static_cast<int>( *result.manifestStatus) : -1)
+				  << " nativeError=" << result.error << " commits=" << fixture.commits
 				  << " failures=" << context.failureCount() - before << '\n' ;
 		ACTIVE = nullptr ;
 	}

@@ -2,7 +2,7 @@
 /**
  * @file main_window.cpp
  * @brief DriverCrateメインウィンドウ実装。
- * @version 01.30.00
+ * @version 01.31.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -111,6 +111,7 @@
  * Ver.01.28.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
  * Ver.01.29.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.30.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.31.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
  * </pre>
  *
  * @note Win32 TreeTable、候補選択、およびworker eventの表示を実装します。全UI操作はUI threadで実行します。
@@ -440,6 +441,7 @@ constexpr std::size_t MAXIMUM_COVERAGE_LABEL_CHARACTERS = 128U ;
 //------------------------------------------------------------------------------
 MainWindow::~MainWindow()
 {
+	appUpdates_.reset() ;
 	// このWindow用に作ったstate画像だけを解放します。
 	if( checkboxImages_) {
 		ImageList_Destroy( checkboxImages_) ;
@@ -939,6 +941,16 @@ LRESULT MainWindow::handleMessage( const UINT message, const WPARAM wordParamete
 				return 0 ;
 			}
 
+			// App更新のmenuをdriver操作へ変換しません。
+			if( handleAppUpdateCommand( LOWORD( wordParameter))) {
+				return 0 ;
+			}
+
+			// App取得/引継ぎ中の外部commandでもdriver処理を開始しません。
+			if( appUpdateActive() || closeAfterAppUpdate_) {
+				return 0 ;
+			}
+
 			// Buttonのclick通知だけを操作開始へ結び付け、その他のcontrol通知で実行しない。
 			if( HIWORD( wordParameter) == BN_CLICKED) {
 #if defined( DRIVERCRATE_INTERNAL_UI_TESTS)
@@ -1123,6 +1135,19 @@ LRESULT MainWindow::handleMessage( const UINT message, const WPARAM wordParamete
 		case WORKER_NOTIFICATION_MESSAGE:
 			processWorkerEvents() ;
 			return 0 ;
+		// App workerの結果はProviderのevent queueと区別します。
+		case APP_UPDATE_MESSAGE:
+			processAppUpdateEvents() ;
+			return 0 ;
+		// 常駐serviceを追加せず、起動中だけ期限を確認します。
+		case WM_TIMER:
+			// 他のtimer通知を更新確認へ変換しません。
+			if( wordParameter == APP_UPDATE_TIMER) {
+				pollAppUpdates() ;
+				return 0 ;
+			}
+
+			break ;
 
 		// Close 要求は安全な worker 終了を伴う終了手順へ渡す。
 		case WM_CLOSE:
@@ -1261,7 +1286,7 @@ bool MainWindow::onCreate()
 	updateProviderSourcesCaption() ;
 	layoutControls() ;
 	updateCommandState() ;
-	return true ;
+	return initializeAppUpdates() ;
 }
 
 //------------------------------------------------------------------------------
@@ -1900,7 +1925,8 @@ void MainWindow::updateCommandState() noexcept
 	const ApplicationState state = controller_.state() ;	// Button判定に使用する現在state。
 	// trueの場合は候補とcommandの変更を禁止する。
 	const bool			   busy =
-		state == ApplicationState::SCANNING || state == ApplicationState::CANCELLING_SCAN ||
+		appUpdateActive() || closeAfterAppUpdate_ || state == ApplicationState::SCANNING ||
+		state == ApplicationState::CANCELLING_SCAN ||
 		state == ApplicationState::CREATING_RESTORE_POINT ||
 		state == ApplicationState::DOWNLOADING || state == ApplicationState::INSTALLING ||
 		state == ApplicationState::PREPARING || state == ApplicationState::CANCELLING_PREPARATION ||
@@ -5965,6 +5991,16 @@ void MainWindow::requestClose()
 		return ;
 	}
 
+	// Appの同期HTTP/trust待ちをUI threadのjoinへ変換しません。
+	if( appUpdates_ && (appUpdates_->stage() == AppUpdateStage::CHECKING ||
+					   appUpdates_->stage() == AppUpdateStage::DOWNLOADING ||
+					   appUpdates_->stage() == AppUpdateStage::HANDING_OFF)) {
+		closeAfterAppUpdate_ = true ;
+		appUpdates_->cancel() ;
+		updateCommandState() ;
+		return ;
+	}
+
 	const ApplicationState state = controller_.state() ;	// 終了可否を判断する現在state。
 	// 通常scanはworker完了eventまでmessage pumpを維持して協調取消しする。
 	if( controller_.scanPurpose() == ScanPurpose::STANDARD &&
@@ -6034,7 +6070,9 @@ void MainWindow::requestClose()
 		return ;
 	}
 
-	closing_						 = true ;
+	closing_ = true ;
+	KillTimer( window_, APP_UPDATE_TIMER) ;
+	appUpdates_.reset() ;
 	continueInstallAfterPreparation_ = false ;
 	controller_.stop() ;
 	setStatus( loadString( IDS_STATUS_STOPPING), busy) ;

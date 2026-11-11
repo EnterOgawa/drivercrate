@@ -2,7 +2,7 @@
 /**
  * @file silicon_labs_official_provider_tests.cpp
  * @brief CP210x公式検索と共通serial境界の試験実装。
- * @version 01.00.01
+ * @version 01.01.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/11  不正導入拒否と作用0・元scan証拠保持を現契約へ整合。
  * </pre>
  *
  * @note 公開schemaの合成fixtureとfake照合を使い、通信・導入を行わない。
@@ -292,10 +293,54 @@ void testConsentAndRegistry( TestContext &context)
 									MeasurementExtent::EXACT) ;
 	DRIVERCRATE_EXPECT( context,
 					   provider.measurementEvidence().recordExtent == MeasurementExtent::EXACT) ;
-	const std::array<std::wstring, 1> unknown{L"unissued"} ;							// 他sessionの未表示IDを模す。
-	const InstallResult install = provider.install( 1U, unknown, 0U, {}, {}, {}, {}) ;	// IOなし。
+	const auto before =
+		// 導入権限ではない元scan観測を独立copyします。
+		provider.measurementEvidence() ;
+	unsigned					 matchCalls{} ;		// 未知IDでは照合にも進みません。
+	unsigned					 rankCalls{} ;		// 未知IDでは再監査にも進みません。
+	unsigned					 installCalls{} ;	// 実導入の代わりの作用counterです。
+	const LocalHardwareIdMatcher guardedMatcher = [&]( std::wstring_view) {
+		++matchCalls ;
+		return std::optional<std::wstring>{} ;
+	} ; // 意図しない呼出しだけを記録します。
+	const OfficialSerialRankAuditor guardedAuditor =
+		[&]( ScanSessionId, std::wstring_view, const OfficialDownloadWorkspace &,
+			const OfficialInfPackage &, OfficialDriverRankAudit &) {
+			++rankCalls ;
+			return static_cast<NativeError>( E_FAIL) ;
+		} ; // Windowsの監査APIを呼びません。
+	const VerifiedExternalInfInstaller guardedInstaller =
+		[&]( ScanSessionId, std::wstring_view, std::wstring_view, std::wstring_view,
+			std::wstring_view, std::uintptr_t, bool &) {
+			++installCalls ;
+			return static_cast<NativeError>( E_FAIL) ;
+		} ; // Windowsの導入APIを呼びません。
+	const std::array<std::wstring, 1> unknown{L"unissued"} ;	// 他sessionの未表示IDを模します。
+	const InstallResult				  install =
+		provider.install( 1U, unknown, 0U, guardedMatcher, guardedAuditor, guardedInstaller,
+						 unusedProgress) ;	// 実I/Oのない拒否です。
 	DRIVERCRATE_EXPECT( context, !install.succeeded && install.installError != 0) ;
-	DRIVERCRATE_EXPECT( context, provider.measurementEvidence().providerId.empty()) ;
+	DRIVERCRATE_EXPECT( context, install.installOutcome == OutcomeCode::FAILURE &&
+									install.updates.size() == 1U &&
+									install.updates.front().identity == unknown.front()) ;
+	DRIVERCRATE_EXPECT( context, matchCalls == 0U && rankCalls == 0U && installCalls == 0U) ;
+	const auto &after = provider.measurementEvidence() ;	// 元観測を新しい成功として再発行しません。
+	DRIVERCRATE_EXPECT(
+		context, !before.providerId.empty() && after.providerId == before.providerId &&
+					 after.scanSessionId == before.scanSessionId && after.scope == before.scope &&
+					 after.queryOutcome == before.queryOutcome) ;
+	DRIVERCRATE_EXPECT( context,
+					   after.eligible.extent == before.eligible.extent &&
+						   after.eligible.identities == before.eligible.identities &&
+						   after.queryCompleted.extent == before.queryCompleted.extent &&
+						   after.queryCompleted.identities == before.queryCompleted.identities) ;
+	DRIVERCRATE_EXPECT( context, after.information.extent == before.information.extent &&
+									after.information.identities == before.information.identities &&
+									after.applicabilityExtent == before.applicabilityExtent &&
+									after.readinessExtent == before.readinessExtent &&
+									after.recordExtent == before.recordExtent) ;
+	DRIVERCRATE_EXPECT( context, before.records.empty() && before.resources.empty() &&
+									after.records.empty() && after.resources.empty()) ;
 	OfficialSerialProvider invalid{static_cast<OfficialSerialFamily>( 99)} ;	// 定義外enum。
 	DRIVERCRATE_EXPECT( context, invalid.providerId().empty()) ;
 	DRIVERCRATE_EXPECT( context, !invalid.scan( 1U, {}, {}, {}, {}, {}).succeeded) ;

@@ -20,7 +20,7 @@ if (Test-Path -LiteralPath $root) { throw 'SIGNING_FIXTURE_NEW_ROOT_REQUIRED' }
 [void][IO.Directory]::CreateDirectory((Join-Path $root 'scripts'))
 [void][IO.Directory]::CreateDirectory((Join-Path $root 'src/platform'))
 [void][IO.Directory]::CreateDirectory((Join-Path $root 'build/Release'))
-foreach ($name in @('index_build_profile.ps1', 'release_signing.ps1', 'package-release.ps1')) {
+foreach ($name in @('index_build_profile.ps1', 'release_signing.ps1', 'package-release.ps1', 'app_distribution_documents.ps1')) {
     [IO.File]::Copy((Join-Path $repository ('scripts/' + $name)), (Join-Path $root ('scripts/' + $name)), $false)
 }
 [IO.File]::Copy((Join-Path $repository 'src/platform/index_distribution_trust.h'),

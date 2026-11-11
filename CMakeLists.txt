@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(
     DriverCrate
-    VERSION 1.0.4
+    VERSION 1.0.5
     DESCRIPTION "Torrent-free Windows driver update manager"
     LANGUAGES C CXX RC
 )
@@ -181,6 +181,7 @@ configure_file(
 )
 
 add_library(drivercrate_core STATIC
+    src/core/app_update.cpp
     src/core/pending_reference_version.cpp
     src/core/candidate_audit.cpp
     src/core/candidate_assessment.cpp
@@ -211,6 +212,8 @@ target_include_directories(drivercrate_core PUBLIC src)
 drivercrate_apply_compiler_options(drivercrate_core)
 
 add_library(drivercrate_platform STATIC
+    src/platform/app_update_service.cpp
+    src/platform/app_update_windows.cpp
     src/platform/local_diagnostic_log.cpp
     src/platform/local_scan_diagnostics.cpp
     src/platform/amd_catalog_parser.cpp
@@ -376,6 +379,7 @@ target_link_libraries(drivercrate_platform
         windowsapp
         winhttp
         wintrust
+        version
         ws2_32
         ole32
         oleaut32
@@ -397,6 +401,7 @@ add_executable(DriverCrate WIN32
     src/app/main_window_preparation.cpp
     src/app/main_window_metadata_search.cpp
     src/app/main_window_assessment.cpp
+    src/app/main_window_app_update.cpp
 )
 # RC compilerのdependency出力にはICON fileが含まれないため、画像変更時にresourceを再構築する。
 set_property(
@@ -441,6 +446,11 @@ if(DRIVERCRATE_BUILD_COLLECTOR OR DRIVERCRATE_BUILD_LOCAL_INDEX_SIGNER OR DRIVER
 endif()
 
 if(BUILD_TESTING)
+    add_executable(drivercrate_app_update_tests tests/unit/app_update_tests.cpp)
+    target_link_libraries(drivercrate_app_update_tests PRIVATE drivercrate_platform)
+    drivercrate_apply_compiler_options(drivercrate_app_update_tests)
+    drivercrate_apply_linker_options(drivercrate_app_update_tests)
+    add_test(NAME drivercrate_app_update_tests COMMAND drivercrate_app_update_tests)
     add_executable(drivercrate_pending_reference_tests tests/unit/pending_reference_version_tests.cpp)
     target_link_libraries(drivercrate_pending_reference_tests PRIVATE drivercrate_core)
     drivercrate_apply_compiler_options(drivercrate_pending_reference_tests)
@@ -464,6 +474,7 @@ if(BUILD_TESTING)
     add_test(NAME drivercrate_official_html_terms_tests COMMAND drivercrate_official_html_terms_tests)
     add_executable(drivercrate_metadata_ui_tests
         tests/ui/metadata_ui_tests.cpp
+        tests/ui/app_update_ui_tests.cpp
         # UI専用observer版が全定義を供給する。通常platformの同objectはこのEXEでlinkしない。
         # Services/class layoutは共通で、通常productへtarget固有macroを伝播させない。
         src/platform/signed_index_scan.cpp
@@ -473,6 +484,7 @@ if(BUILD_TESTING)
         src/app/main_window_metadata_search.cpp
         src/app/main_window_preparation.cpp
         src/app/main_window_assessment.cpp
+        src/app/main_window_app_update.cpp
         src/app/app.rc
     )
     target_compile_definitions(drivercrate_metadata_ui_tests PRIVATE
@@ -497,6 +509,10 @@ if(BUILD_TESTING)
         COMMAND drivercrate_metadata_ui_tests --run-ui-tests)
     set_tests_properties(drivercrate_metadata_ui_default_tests PROPERTIES
         RUN_SERIAL TRUE TIMEOUT 600 LABELS "ui;nonnetwork")
+    add_test(NAME drivercrate_app_update_ui_tests
+        COMMAND drivercrate_metadata_ui_tests --run-ui-tests app-update)
+    set_tests_properties(drivercrate_app_update_ui_tests PROPERTIES
+        RUN_SERIAL TRUE TIMEOUT 120 LABELS "ui;nonnetwork")
     add_executable(drivercrate_unit_tests
         tests/unit/signed_index_candidate_binding_tests.cpp
         tests/support/live_search_diagnostics.cpp
