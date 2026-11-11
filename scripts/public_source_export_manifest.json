@@ -11815,12 +11815,12 @@
     {
       "owner": "README.md",
       "input": "docs/images/device-list.png",
-      "kind": "readme-versioned-image"
+      "kind": "readme-image"
     },
     {
       "owner": "README.md",
       "input": "docs/images/candidate-details.png",
-      "kind": "readme-versioned-image"
+      "kind": "readme-image"
     }
   ],
   "externalInputs": [

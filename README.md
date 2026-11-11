@@ -1,7 +1,7 @@
 # DriverCrate
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/EnterOgawa/drivercrate/v1.0.4/src/app/assets/drivercrate-icon-master.png" width="72" height="72" alt="DriverCrateのアイコン">
+  <img src="src/app/assets/drivercrate-icon-master.png" width="72" height="72" alt="DriverCrateのアイコン">
 </p>
 
 このPCに合うドライバーを探して、使うものだけ選んで更新。
@@ -12,32 +12,36 @@ DriverCrateは、Windows Update、PC内のドライバー、メーカーの公�
 
 ## はじめて使う
 
-### 1. 展開して起動する
-
 ZIPを展開し、`DriverCrate.exe`を開きます。`DriverCrate.exe.index-profile.json`は、EXEと同じフォルダーに置いてください。
 
-### 2. 更新を探す
+### 1. 「更新を検索」を押す
 
-「更新を検索」を押します。機器ごとに、現在のバージョンと候補のバージョンを見比べられます。
+画面下の「更新を検索」を押すと、検索結果が「デバイス（ダブルクリックで候補を表示）」列に並びます。「現在のバージョン」と「候補のバージョン」を見比べましょう。
 
-![機器の一覧とバージョンの表示例](https://raw.githubusercontent.com/EnterOgawa/drivercrate/v1.0.4/docs/images/device-list.png)
+![検索結果のデバイス行と、画面下の検索・インストールボタン](docs/images/device-list.png)
 
-*画面は説明用のサンプルです。*
+*説明用のサンプルです。行の左のチェックで対象を選びます。この例では2行目を選び、取得前の3.0.0.0を表示しています。*
 
-### 3. 候補を選ぶ
+### 2. チェックを入れてインストールする
 
-機器名をダブルクリックすると、詳しい候補が開きます。バージョンと配布元を確認し、「この候補を選択」を押しましょう。
+更新するデバイス行の左にチェックを入れ、画面下の「選択した更新をインストール」を押します。メーカー規約の対象では、ボタンが「同意してインストール」に変わります。
 
-主画面で対象にチェックを入れ、「選択した更新をインストール」を押します。メーカー規約がある場合は「同意してインストール」と表示されます。
+選んだ更新の取得・検査に続いてインストールへ進みます。処理後は、結果や再起動の要否を確認できます。ほかのデバイスの候補とチェックも残ります。
 
-![ドライバー候補の詳細と選択の表示例](https://raw.githubusercontent.com/EnterOgawa/drivercrate/v1.0.4/docs/images/candidate-details.png)
+### 候補を詳しく見たいとき
 
-*候補の詳細もサンプルデータで表示しています。*
+「デバイス」列の行をダブルクリックすると、「デバイスと候補の詳細」が開きます。表の「バージョン」「日付」「取得元」「区分」を確認できます。
 
-インストール後も、ほかの機器の候補とチェックは残ります。処理結果や再起動の要否も確認できます。
+![3.0.0.0の候補を選んだ「デバイスと候補の詳細」](docs/images/candidate-details.png)
+
+*サンプルの3.0.0.0を選択した画面です。「この候補を選択」は右下にあります。*
+
+使う候補の行を選び、「この候補を選択」を押すと主画面に戻ります。あとは対象にチェックを入れ、上の手順でインストールします。
+
+古いバージョンも選びたい場合は、主画面の「推奨・初回候補を表示」のチェックを外してから詳細を開いてください。
 
 ## もっと詳しく
 
-[詳しい使い方](https://github.com/EnterOgawa/drivercrate/blob/v1.0.4/docs/user-guide.md) · [ビルドと試験](https://github.com/EnterOgawa/drivercrate/blob/v1.0.4/docs/testing.md)
+[詳しい使い方](docs/user-guide.md) · [ビルドと試験](docs/testing.md)
 
 [Apache-2.0](LICENSE)で公開しています。[第三者ライセンス](THIRD_PARTY_NOTICES.md)もご覧ください。

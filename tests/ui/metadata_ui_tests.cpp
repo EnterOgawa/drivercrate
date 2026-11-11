@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_tests.cpp
  * @brief 製品と同じWin32画面の情報検索専用内部試験。
- * @version 01.53.02
+ * @version 01.53.03
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -95,6 +95,7 @@
  * Ver.01.53.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * Ver.01.53.01 Shunji Ogawa  2026/11/11  復元失敗の選択保持とnative tooltip退場の試験観測を整合。
  * Ver.01.53.02 Shunji Ogawa  2026/11/11  README画像専用入口を新版候補の通常選択状態へ限定。
+ * Ver.01.53.03 Shunji Ogawa  2026/11/11  README用検索結果を実filter操作で更新して撮影。
  * </pre>
  *
  * @note 明示optionでのみ起動し、実device・network・取得・復旧・導入へ接続しない。
@@ -9449,6 +9450,13 @@ void runHistoryUiScenarios( TestContext &context, const bool keysOnly = false)
 	DRIVERCRATE_EXPECT( context, !setupGuard.handled && !setupGuard.failed) ;
 	// 画像専用入口は負例probeの前に通常の新版候補を表示して終了します。
 	if( historyImagesOnly) {
+		// 既checkboxの通常handlerで表示copyの版と検索結果の案内を同期します。
+		SendMessageW( handle, WM_COMMAND, IDC_RECOMMENDED_ONLY, 0) ;
+		Access::expandClassPreview( window) ;
+		DRIVERCRATE_EXPECT( context, IsWindowEnabled( GetDlgItem( handle, IDC_INSTALL)) != FALSE) ;
+#if !defined( _DEBUG)
+		DRIVERCRATE_EXPECT( context, captureWindow( handle, L"device-list-ready")) ;
+#endif
 		DialogState sample{.context = &context,
 						   .owner	= handle,
 						   .mode	= DialogMode::DETAILS} ;	// 同じ元planの通常dialogです。
