@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_tests.cpp
  * @brief 製品と同じWin32画面の情報検索専用内部試験。
- * @version 01.53.03
+ * @version 01.53.05
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -96,6 +96,8 @@
  * Ver.01.53.01 Shunji Ogawa  2026/11/11  復元失敗の選択保持とnative tooltip退場の試験観測を整合。
  * Ver.01.53.02 Shunji Ogawa  2026/11/11  README画像専用入口を新版候補の通常選択状態へ限定。
  * Ver.01.53.03 Shunji Ogawa  2026/11/11  README用検索結果を実filter操作で更新して撮影。
+ * Ver.01.53.04 Shunji Ogawa  2026/11/11  README撮影だけをDWMの可視枠でPNGへ保存。
+ * Ver.01.53.05 Shunji Ogawa  2026/11/11  README撮影の残る外周をclient左右下端に合わせる。
  * </pre>
  *
  * @note 明示optionでのみ起動し、実device・network・取得・復旧・導入へ接続しない。
@@ -124,6 +126,7 @@
 #include "test_framework.h"
 #include "signed_index_candidate_binding_tests.h"
 
+#include <dwmapi.h>
 #include <wincodec.h>
 #include <wrl/client.h>
 
@@ -5919,9 +5922,11 @@ struct CaptureSurface {
  * @brief 合成WindowをPNGへ保存し、実desktopや端末情報をcaptureしない。
  * @param[in] window 本試験で作成したWindow。
  * @param[in] name Build配下の固定basename。
+ * @param[in] visibleFrameOnly trueならREADME用に可視captionとclient左右下端を保存します。
  * @return PrintWindowとPNG保存の全段階が成功した場合true。
  */
-bool captureWindow( const HWND window, const std::wstring_view name)
+bool captureWindow( const HWND window, const std::wstring_view name,
+				   const bool visibleFrameOnly = false)
 {
 	CaptureObservation observation( window, name) ;	// 初観測ではguardやgeometryを変更しません。
 	RECT			   bounds{} ;					// 合成Window全体の有限pixel範囲。
@@ -5934,7 +5939,46 @@ bool captureWindow( const HWND window, const std::wstring_view name)
 
 	const int width	 = bounds.right - bounds.left ;	// Pixel幅。
 	const int height = bounds.bottom - bounds.top ;	// Pixel高さ。
-	const HDC screen = GetDC( window) ;				// Pixel形式取得だけの非所有Window DC。
+	WICRect	  encoded{0, 0, width, height} ;		// 既定は元bitmap全体の寸法を維持します。
+	// README撮影だけは不可視resize枠を含まない同じ物理pixel範囲を選びます。
+	if( visibleFrameOnly) {
+		RECT visible{} ;	// 当該fixture WindowのDWM可視枠です。
+		RECT client{} ;		// 左右下端の未描画外周を除く当該Windowのclient範囲です。
+		// DPI座標の不一致や取得失敗を旧範囲での撮影成功へ読み替えません。
+		if( FAILED( DwmGetWindowAttribute( window, DWMWA_EXTENDED_FRAME_BOUNDS, &visible,
+										sizeof( visible))) ||
+		   GetClientRect( window, &client) == FALSE) {
+			return false ;
+		}
+
+		POINT clientStart{client.left, client.top} ;	// 同じscreen座標へ変換するclient左上です。
+		POINT clientEnd{client.right, client.bottom} ;	// 右下は矩形外側の境界です。
+		// Captionの上端を保ったままclientの左右下端を同じ物理pixelへ結びます。
+		if( ClientToScreen( window, &clientStart) == FALSE ||
+		   ClientToScreen( window, &clientEnd) == FALSE) {
+			return false ;
+		}
+
+		visible.left   = std::max( visible.left, clientStart.x) ;
+		visible.right  = std::min( visible.right, clientEnd.x) ;
+		visible.bottom = std::min( visible.bottom, clientEnd.y) ;
+		// 可視領域が元bitmapに収まる場合だけ保存し、拡大や補間は行いません。
+		if( visible.left < bounds.left || visible.top < bounds.top || visible.right > bounds.right ||
+		   visible.bottom > bounds.bottom || visible.right <= visible.left ||
+		   visible.bottom <= visible.top) {
+			return false ;
+		}
+
+		encoded = {static_cast<INT>( visible.left - bounds.left),
+				   static_cast<INT>( visible.top - bounds.top),
+				   static_cast<INT>( visible.right - visible.left),
+				   static_cast<INT>( visible.bottom - visible.top)} ;
+		std::cout << "CAPTURE_VISIBLE_FRAME source=" << width << ',' << height
+				  << " region=" << encoded.X << ',' << encoded.Y << ',' << encoded.Width << ','
+				  << encoded.Height << " dpi=" << GetDpiForWindow( window) << '\n' ;
+	}
+
+	const HDC screen = GetDC( window) ;	// Pixel形式取得だけの非所有Window DC。
 	// DC取得失敗ではbitmapを作らない。
 	if( screen == nullptr) {
 		return false ;
@@ -6014,14 +6058,15 @@ bool captureWindow( const HWND window, const std::wstring_view name)
 	   FAILED( factory->CreateEncoder( GUID_ContainerFormatPng, nullptr, &encoder)) ||
 	   FAILED( encoder->Initialize( stream.Get(), WICBitmapEncoderNoCache)) ||
 	   FAILED( encoder->CreateNewFrame( &frame, nullptr)) || FAILED( frame->Initialize( nullptr)) ||
-	   FAILED( frame->SetSize( static_cast<UINT>( width), static_cast<UINT>( height)))) {
+	   FAILED(
+		   frame->SetSize( static_cast<UINT>( encoded.Width), static_cast<UINT>( encoded.Height)))) {
 		return false ;
 	}
 
 	WICPixelFormatGUID format = GUID_WICPixelFormat32bppBGR ;	// Alphaを持たないWindow capture。
 	return SUCCEEDED( frame->SetPixelFormat( &format)) &&
-		   SUCCEEDED( frame->WriteSource( bitmap.Get(), nullptr)) && SUCCEEDED( frame->Commit()) &&
-		   SUCCEEDED( encoder->Commit()) ;
+		   SUCCEEDED( frame->WriteSource( bitmap.Get(), visibleFrameOnly ? &encoded : nullptr)) &&
+		   SUCCEEDED( frame->Commit()) && SUCCEEDED( encoder->Commit()) ;
 }
 
 /** @brief 原描画を上から順に保持する24bppBGRの有限pixel列です。 */
@@ -7586,7 +7631,8 @@ void CALLBACK dialogTimer( HWND window, UINT message, UINT_PTR timer, DWORD tick
 								 RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW | RDW_FRAME) ;
 				}
 
-				DRIVERCRATE_EXPECT( *state.context, captureWindow( popup, state.captureName)) ;
+				DRIVERCRATE_EXPECT( *state.context,
+								   captureWindow( popup, state.captureName, historyImagesOnly)) ;
 				// 追加画像は同dialog所有の実balloon一枚だけに限定します。
 				if( candidates != nullptr && historyImagesOnly && !state.detailNarrow) {
 					const auto currentText =
@@ -9455,7 +9501,7 @@ void runHistoryUiScenarios( TestContext &context, const bool keysOnly = false)
 		Access::expandClassPreview( window) ;
 		DRIVERCRATE_EXPECT( context, IsWindowEnabled( GetDlgItem( handle, IDC_INSTALL)) != FALSE) ;
 #if !defined( _DEBUG)
-		DRIVERCRATE_EXPECT( context, captureWindow( handle, L"device-list-ready")) ;
+		DRIVERCRATE_EXPECT( context, captureWindow( handle, L"device-list-ready", true)) ;
 #endif
 		DialogState sample{.context = &context,
 						   .owner	= handle,
