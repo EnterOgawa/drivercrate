@@ -2,7 +2,7 @@
 /**
  * @file official_release_preparation.cpp
  * @brief Intel Ethernetの承認済み取得・監査・候補発行adapter。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Worker内で固定対象を再確認し、同一scanで一回だけ取得・監査します。許諾と利用前提の明示確認は呼出し元の承認sessionが検証し、tokenをclaimします。監査結果は取
@@ -75,11 +76,26 @@
 
 namespace drivercrate {
 
+//------------------------------------------------------------------------------
+/**
+ * @brief Workerが所有する取得fileと公式HTTP根拠を解放する。
+ */
+//------------------------------------------------------------------------------
 OfficialReleaseDiscoveryProvider::~OfficialReleaseDiscoveryProvider() = default ;
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief Intel Ethernetの同一scan取得物を内容監査と端末内PnP監査へ接続する。Server 2025向け固定Net profileで全INFを監査し、署名合格INFだけを
+ *        端末内で照合する。製品名一致だけでは適用や導入を許可しない。
+ * @param[in] scanSessionId 保持deviceと取得結果に共通の検索session。
+ * @param[in] acquisition 公式由来と公開hashを確認し、workerが所有する取得結果。 同じworkerが所有する公開hash確認済み取得結果。
+ * @param[in] expectedSha256 公式metadataの公開SHA-256。空または実測値の代用を拒否する。 公式metadataに掲載された公開SHA-256。
+ * @param[in] devices 同じscanでIntel Ethernet系列へ照合したdevice群。 同一scanで系列照合済みのdevice群。
+ * @param[in] rankAuditor 同じworkerのDriver Store照合callback。 Windows標準PnP／rank監査。
+ * @param[in] cancellation 空または協調取消し照会。
+ * @param[out] audit 内容と適用性の独立した結果。導入候補は作らない。 内容・適用性の結果と単独所有閉包。
+ * @return 全体処理成功時0。入力・内容・全体処理失敗時はHRESULT。 全体処理成功時0、拒否・失敗時はHRESULT。
+ * @note 製品名は対象範囲の事前確認に限り、適用性はPnP／rank監査を正本とする。
  */
 //------------------------------------------------------------------------------
 NativeError auditIntelEthernetPreparedPackage( const ScanSessionId			   scanSessionId,
@@ -131,7 +147,16 @@ NativeError auditIntelEthernetPreparedPackage( const ScanSessionId			   scanSess
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief Intel Ethernet監査を検索時の既存候補行へ反映する非機密reportを作る。Intel対象系列と既知非対応OEMだけを確認してから、固定profileの共通helper
+ *        へ集約を委譲する。候補発行とinstall準備状態の昇格は行わない。
+ * @param[in] session 保持している0ではない検索session。 監査対象を取得した検索session。
+ * @param[in] targetIdentity 利用者が取得を承認したopaque対象ID。
+ * @param[in] devices 検索候補順に保持した非機密device snapshot。 検索候補順の非機密device snapshot。
+ * @param[in] candidateIdentities devicesと同じ順序の既存opaque候補ID。 devicesと同じ順序の既存候補ID。
+ * @param[in] audit 同じ取得物の内容・PnP／rank監査結果。 同一取得物の内容・PnP／rank監査結果。
+ * @return 既存候補の監査fieldを持つ、候補発行前の非機密report。 既存行の監査fieldだけを更新する非機密report。
+ * @throws std::logic_error session、件数、identityまたは監査保持構造が矛盾する場合。
+ * @note Intel対象確認後に共通集約へ委譲する。候補追加はProvider methodが別に実行する。
  */
 //------------------------------------------------------------------------------
 OfficialPreparationAuditReport makeIntelEthernetPreparationAuditReport(
@@ -161,7 +186,18 @@ OfficialPreparationAuditReport makeIntelEthernetPreparationAuditReport(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief Intel Ethernet監査合格組合せから候補と導入routingを同時に構成する。個別の版不明、既知非対応、重複、binding失敗は除外する。構造矛盾では今回発行した全
+ *        tokenと候補を破棄し、例外をworker境界へ漏らさない。
+ * @param[in] session 候補を発行する0ではない検索session。 候補を発行する検索session。
+ * @param[in] acquisitionId 同じ取得成功物の0ではないopaque ID。 検証済み外側取得物のopaque ID。
+ * @param[in] maximumDownloadBytes 検証済み外側取得物のbyte数。1以上。
+ * @param[in] devices 同じscanで保持する一意な非機密device snapshot。 同じscanで保持する非機密device snapshot。
+ * @param[in] audit 内容とPnP／rank監査に合格した保持構造。
+ * @param[in] bindingCreator 一意なWindows nodeのbindingを発行するcallback。 Windows nodeのbinding発行callback。
+ * @param[in] bindingReleaser 未commit tokenを個別破棄するcallback。 未commit tokenの破棄callback。
+ * @param[in,out] report 候補発行前の合格report。発行結果と候補を反映する。 合格reportへ発行集計と候補を反映する。
+ * @param[out] installTargets 全件成功時だけ候補ID別routingを返す。失敗時は空。 成功時だけ返す候補ID別routing。
+ * @note 個別の版不明、既知非対応、重複、binding失敗は除外し、構造矛盾では全件破棄する。
  */
 //------------------------------------------------------------------------------
 void publishIntelEthernetPreparedCandidates(
@@ -178,7 +214,7 @@ void publishIntelEthernetPreparedCandidates(
 }
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief 次scanやinstall開始時に監査閉包、取得物、検索行対応の順で解放する。前回release観測の設定は維持する。
  */
 //------------------------------------------------------------------------------
 void OfficialReleaseDiscoveryProvider::resetPreparedDownload() noexcept
@@ -210,7 +246,12 @@ void OfficialReleaseDiscoveryProvider::resetPreparedDownload() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief 承認済みIntel Ethernet ZIPを一回だけ検査用に取得する。同一thread・scan・plan・対象と実OSを確認し、一配布物を有限量だけ取得する。取得成功時だけ監査
+ *        し、その拒否・取消し・例外で取得結果を書き換えない。自動retryせず、次scanまで取得結果と監査結果をworker内で別々に所有する。
+ * @param[in] task Workerがclaimした固定対象。任意URLや未承認tokenを受け付けない。 Workerが承認sessionでclaimした今回の固定対象。
+ * @param[in] cancellation 空または協調取消し照会。導入処理は呼ばない。
+ * @return 再確認と共通取得の終端状態。内容監査・適用性・導入結果を含めない。 取得終端状態、診断値、byte数。監査合格・導入許可は含めない。
+ * @note 同一worker／scan限定。呼出し元が前提確認と許諾同意を検証してからclaimする。
  */
 //------------------------------------------------------------------------------
 OfficialPreparationTransferResult OfficialReleaseDiscoveryProvider::acquireForInspection(
@@ -304,8 +345,13 @@ OfficialPreparationTransferResult OfficialReleaseDiscoveryProvider::acquireForIn
 
 //------------------------------------------------------------------------------
 /**
-	 * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
-	 */
+ * @brief 保持監査を同じ取得対象と既存候補行の非機密表示へ変換する。全監査合格組合せを現在deviceとWindows nodeへ再拘束し、未選択候補とworker内routingを同時に一
+ *        度だけcommitする。個別binding失敗は当該組合せだけを除外し、構造矛盾では全新規候補を破棄する。
+ * @param[in] scanSessionId 現在保持している検索session。
+ * @param[in] targetIdentity 承認済み取得計画内のopaque対象ID。
+ * @return 同じ取得成功対象の監査report。未取得・旧session・別対象はnullopt。 既存監査行、候補発行状態および発行候補。不一致はnullopt。
+ * @note 全監査合格時だけ候補とroutingを一括発行し、同じ対象への再発行を拒否する。
+ */
 //------------------------------------------------------------------------------
 std::optional<OfficialPreparationAuditReport> OfficialReleaseDiscoveryProvider::
 	preparationAuditReport( const ScanSessionId	   scanSessionId,

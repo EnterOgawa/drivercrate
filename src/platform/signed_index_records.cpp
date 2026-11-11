@@ -2,7 +2,7 @@
 /**
  * @file signed_index_records.cpp
  * @brief 共通strict文法で署名済み配布recordの原byteと元申告を検査します。
- * @version 01.05.00
+ * @version 01.05.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * Ver.01.04.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
  * Ver.01.05.00 Shunji Ogawa  2026/11/07  原record検証後に全公開ID入力のchecked-add枠を検査。
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 元申告を型付きで保持するだけで、公式性・適合・取得・導入を実証しません。
@@ -71,10 +72,13 @@ using Reader = signed_index_json::Reader<IndexRecordsStatus> ;
 using signed_index_json::require ;
 using signed_index_json::decodeHash ;
 
-/** @brief 公開textとして制御byteを除外し、UTF-8は共通readerへ委ねます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開textとして制御byteを除外し、UTF-8は共通readerへ委ねます。
  * @param[in] value 解除後のUTF-8。
  * @return 非空で512byte以内、ASCII制御byteがない場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validText( const std::string_view value) noexcept
 {
 	return !value.empty() && value.size() <= TEXT_MAX_BYTES &&
@@ -84,11 +88,14 @@ using signed_index_json::decodeHash ;
 		   }) ;
 }
 
-/** @brief 申告identityのASCII文法を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 申告identityのASCII文法を検査します。
  * @param[in] value 原identity。
  * @param[in] limit 固定実byte上限。
  * @return 非空で英数字または._-だけの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validIdentity( const std::string_view value, const std::size_t limit) noexcept
 {
 	return !value.empty() && value.size() <= limit &&
@@ -101,10 +108,13 @@ using signed_index_json::decodeHash ;
 		   }) ;
 }
 
-/** @brief 静的証拠URLの有限準備形式を共通URL parserで検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 静的証拠URLの有限準備形式を共通URL parserで検査します。
  * @param[in] value 原ASCII URL。正規化しません。
  * @note DNS・通信・公開宛先実測は行いません。Queryを持つPAGEはv1未対応です。
  */
+//------------------------------------------------------------------------------
 void requireEvidenceUrl( const std::string_view value)
 {
 	require( !value.empty() && value.size() <= URL_MAX_BYTES && value.starts_with( "https://") &&
@@ -153,13 +163,16 @@ void requireEvidenceUrl( const std::string_view value)
 	require( error == 0, IndexRecordsStatus::INVALID_URL) ;
 }
 
-/** @brief 固定enum表から一つの元申告へ解決します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定enum表から一つの元申告へ解決します。
  * @tparam Value 型付きenum。
  * @tparam Count 固定enum値数。
  * @param[in] text 原文字列。
  * @param[in] choices 唯一の許可表。
  * @return 完全一致の元申告enum。
  */
+//------------------------------------------------------------------------------
 template <class Value, std::size_t Count>
 [[nodiscard]] Value choice( const std::string_view										text,
 						   const std::array<std::pair<std::string_view, Value>, Count> &choices)
@@ -172,10 +185,13 @@ template <class Value, std::size_t Count>
 	return found->second ;
 }
 
-/** @brief 既知textとUNKNOWN理由の排他的表現を読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既知textとUNKNOWN理由の排他的表現を読みます。
  * @param[in,out] reader Record原byteの共通reader。
  * @return KNOWNの値かUNKNOWNの理由を所有する値。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexObservedValue<std::string> readTextValue( Reader &reader)
 {
 	constexpr std::array<std::string_view, 3U> FIELDS{"state", "value", "reason"} ;	// 全必須field。
@@ -194,13 +210,16 @@ template <class Value, std::size_t Count>
 	return {std::move( values[1]), {}} ;
 }
 
-/** @brief 既知条件を固定enumへ、UNKNOWNをnulloptと理由へ読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既知条件を固定enumへ、UNKNOWNをnulloptと理由へ読みます。
  * @tparam Value 型付きenum。
  * @tparam Count 固定enum値数。
  * @param[in,out] reader 共通reader。
  * @param[in] choices 固定enum表。
  * @return 元申告の条件またはUNKNOWN理由。
  */
+//------------------------------------------------------------------------------
 template <class Value, std::size_t Count>
 [[nodiscard]] IndexObservedValue<Value> readEnumValue(
 	Reader &reader, const std::array<std::pair<std::string_view, Value>, Count> &choices)
@@ -214,10 +233,13 @@ template <class Value, std::size_t Count>
 	return {choice( *text.value, choices), {}} ;
 }
 
-/** @brief 元申告hashと出典原bytehashを別々に読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元申告hashと出典原bytehashを別々に読みます。
  * @param[in,out] reader 共通reader。
  * @return 出典に結合した既知hashまたはUNKNOWN理由。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexHashEvidence readHashEvidence( Reader &reader)
 {
 	constexpr std::array<std::string_view, 5U> FIELDS{"state", "sha256", "evidenceUrl",
@@ -243,10 +265,13 @@ template <class Value, std::size_t Count>
 			{}} ;
 }
 
-/** @brief 正の元byte長またはUNKNOWN理由を読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 正の元byte長またはUNKNOWN理由を読みます。
  * @param[in,out] reader 共通reader。
  * @return 元申告sizeまたはUNKNOWN理由。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexObservedValue<std::uint64_t> readSize( Reader &reader)
 {
 	constexpr std::array<std::string_view, 3U> FIELDS{"state", "valueBytes",
@@ -275,10 +300,13 @@ template <class Value, std::size_t Count>
 	return {bytes, {}} ;
 }
 
-/** @brief 公開／計算hashとsizeの元申告を別々に読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開／計算hashとsizeの元申告を別々に読みます。
  * @param[in,out] reader 共通reader。
  * @return 両hashが既知なら完全一致を要求した元申告。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexPackageEvidence readPackage( Reader &reader)
 {
 	constexpr std::array<std::string_view, 3U> FIELDS{"publishedHash", "calculatedHash",
@@ -300,10 +328,13 @@ template <class Value, std::size_t Count>
 	return value ;
 }
 
-/** @brief Source公式性の元申告を読み、公式性の実証へ昇格しません。
+//------------------------------------------------------------------------------
+/**
+ * @brief Source公式性の元申告を読み、公式性の実証へ昇格しません。
  * @param[in,out] reader 共通reader。
  * @return 元申告の出典またはUNKNOWN理由。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexOfficialEvidence readOfficialEvidence( Reader &reader)
 {
 	constexpr std::array<std::string_view, 5U> FIELDS{"state", "kind", "evidenceUrl",
@@ -341,10 +372,13 @@ template <class Value, std::size_t Count>
 			{}} ;
 }
 
-/** @brief Source identityと元申告の配布pageを読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief Source identityと元申告の配布pageを読みます。
  * @param[in,out] reader Index原byteの共通reader。
  * @return 全fieldを検査した元申告source。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexRecordSource readSource( Reader &reader)
 {
 	constexpr std::array<std::string_view, 4U> FIELDS{
@@ -383,10 +417,13 @@ template <class Value, std::size_t Count>
 	return value ;
 }
 
-/** @brief メーカー公表側PnP IDの有限文法を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief メーカー公表側PnP IDの有限文法を確認します。
  * @param[in] value 原ID。
  * @return 一つのbus delimiterと非空残部、許可ASCIIだけの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validPnpId( const std::string_view value) noexcept
 {
 	const std::size_t slash = value.find( '\\') ;	// Busと原公開ID残部の境界。
@@ -402,10 +439,13 @@ template <class Value, std::size_t Count>
 		   }) ;
 }
 
-/** @brief 非0のbrace付きClassGUIDの原表記を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 非0のbrace付きClassGUIDの原表記を検査します。
  * @param[in] value 元ClassGUID。
  * @return 8-4-4-4-12桁のhexで非0の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validClassGuid( const std::string_view value) noexcept
 {
 	// 全固定位置を安全に参照できない値は拒否する。
@@ -439,10 +479,13 @@ template <class Value, std::size_t Count>
 	return nonzero ;
 }
 
-/** @brief 静的相対INF identityを検査し、実local pathを構築しません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 静的相対INF identityを検査し、実local pathを構築しません。
  * @param[in] value Slash区切りの元identity。
  * @return 有限componentと.inf suffixを持つ場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validInfIdentity( const std::string_view value)
 {
 	// Suffixの安全な参照と全identityの独立上限を要求する。
@@ -460,11 +503,14 @@ template <class Value, std::size_t Count>
 	return isSafeOfficialArchiveMember( std::wstring{value.begin(), value.end()}, L'/') ;
 }
 
-/** @brief 一段nested selectorをnativeと共通のmember文法で検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一段nested selectorをnativeと共通のmember文法で検査します。
  * @param[in] value 空はflat、非空は原slash相対archive memberです。
  * @return 空または安全なZIP/CAB/非実行SFX memberの場合だけtrueです。
  * @note 公開memberからfilesystem pathを構築しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validNestedIdentity( const std::string_view value)
 {
 	// 空だけがflatの明示値です。
@@ -486,10 +532,13 @@ template <class Value, std::size_t Count>
 	return suffix == ".zip" || suffix == ".cab" || suffix == ".exe" ;
 }
 
-/** @brief 原公開IDの種別と値を一つずつ読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原公開IDの種別と値を一つずつ読みます。
  * @param[in,out] reader 共通reader。
  * @return 検査した原公開ID。端末actual IDではありません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexPublishedPnpId readPnpId( Reader &reader)
 {
 	constexpr std::array<std::string_view, 2U> FIELDS{"kind", "value"} ;	// 必須field。
@@ -504,10 +553,13 @@ template <class Value, std::size_t Count>
 	return {choice( values[0], KINDS), std::move( values[1])} ;
 }
 
-/** @brief 現行10fieldの公開identityを一出典へ結合し、明示UNKNOWNを保持します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 現行10fieldの公開identityを一出典へ結合し、明示UNKNOWNを保持します。
  * @param[in,out] reader 共通reader。
  * @return 元申告の公開identityまたはUNKNOWN理由。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexPublishedIdentityEvidence readIdentityEvidence( Reader &reader)
 {
 	constexpr std::array<std::string_view, 10U> FIELDS{
@@ -573,12 +625,15 @@ template <class Value, std::size_t Count>
 	return value ;
 }
 
-/** @brief 原record byteを固定schemaに従って読むだけの内部関数です。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原record byteを固定schemaに従って読むだけの内部関数です。
  * @param[in] raw Hashを照合済みの原UTF-8。
  * @param[in] digest rawだけの実SHA-256。
  * @param[in] manifest 原認証manifest。観測時刻を昇格しません。
  * @return 原byteと型付き元申告を所有するrecord。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexDistributionRecord readRecord( std::string raw, const IndexManifestSha256 digest,
 												 const IndexManifestData &manifest)
 {
@@ -763,10 +818,13 @@ template <class Value, std::size_t Count>
 	return value ;
 }
 
-/** @brief 原record byteを既存1MiB共通hash APIで実SHA-256へ結合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原record byteを既存1MiB共通hash APIで実SHA-256へ結合します。
  * @param[in] raw 64KiB以下のdecode原byte。
  * @return 原byteの実digest。再serializationしません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexManifestSha256 hashRecord( const std::string_view raw)
 {
 	std::wstring	  hex ;										// 共通APIが返す実digest。
@@ -792,12 +850,15 @@ template <class Value, std::size_t Count>
 	return decodeHash( narrow, IndexRecordsStatus::CRYPTO_FAILURE) ;
 }
 
-/** @brief 一entryを厳格base64／原hashへ結合してからrecord schemaを読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一entryを厳格base64／原hashへ結合してからrecord schemaを読みます。
  * @param[in,out] reader Index原byteの共通reader。
  * @param[in,out] totalBytes Decode原record合計byte数。上限内でだけ加算します。
  * @param[in] manifest 原認証manifest。
  * @return 原byteに結合した型付きrecord。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexDistributionRecord readEntry( Reader &reader, std::size_t &totalBytes,
 												const IndexManifestData &manifest)
 {
@@ -821,11 +882,14 @@ template <class Value, std::size_t Count>
 	return readRecord( std::move( raw), digest, manifest) ;
 }
 
-/** @brief 実件数の全5fieldを署名qualityへ厳格に照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実件数の全5fieldを署名qualityへ厳格に照合します。
  * @param[in] actual 読み取ったsource／record／stage件数。
  * @param[in] signedQuality 認証manifestの発行側集計。
  * @return 全5fieldが完全一致する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool sameQuality( const IndexManifestQuality &actual,
 							   const IndexManifestQuality &signedQuality) noexcept
 {
@@ -838,7 +902,15 @@ template <class Value, std::size_t Count>
 
 } // namespace
 
-/** @see signed_index_records.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Schema・参照・hash・qualityの全成功後に値を所有します。
+ * @param[in] asset 認証済みbyte receiptの所有copy。
+ * @param[in] sources 検査した所有source。
+ * @param[in] records 検査した所有record。
+ * @param[in] quality 実source／record／stage件数。
+ */
+//------------------------------------------------------------------------------
 IndexRecordsSchemaReceipt::IndexRecordsSchemaReceipt( AuthenticatedIndexAssetBytes		  asset,
 													 std::vector<IndexRecordSource>		  sources,
 													 std::vector<IndexDistributionRecord> records,
@@ -848,43 +920,81 @@ IndexRecordsSchemaReceipt::IndexRecordsSchemaReceipt( AuthenticatedIndexAssetByt
 {
 }
 
-/** @see signed_index_records.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 認証byte receiptを変更できない参照で借用します。
+ * @return 本receiptの寿命まで有効なbyte receipt。
+ */
+//------------------------------------------------------------------------------
 const AuthenticatedIndexAssetBytes &IndexRecordsSchemaReceipt::assetBytes() const noexcept
 {
 	return asset_ ;
 }
 
-/** @see signed_index_records.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 展開index原byteのhashを借用します。
+ * @return 圧縮hashと各record hashから独立したdigest。
+ */
+//------------------------------------------------------------------------------
 const IndexManifestSha256 &IndexRecordsSchemaReceipt::indexSha256() const noexcept
 {
 	return asset_.expandedSha256() ;
 }
 
-/** @see signed_index_records.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元申告のsource集合を借用します。
+ * @return 本receiptの寿命まで有効な不変span。
+ */
+//------------------------------------------------------------------------------
 std::span<const IndexRecordSource> IndexRecordsSchemaReceipt::sources() const noexcept
 {
 	return sources_ ;
 }
 
-/** @see signed_index_records.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原byteに結合したrecord集合を借用します。
+ * @return 本receiptの寿命まで有効な不変span。端末適合は未評価です。
+ */
+//------------------------------------------------------------------------------
 std::span<const IndexDistributionRecord> IndexRecordsSchemaReceipt::records() const noexcept
 {
 	return records_ ;
 }
 
-/** @see signed_index_records.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 署名quality全fieldに一致した実件数を借用します。
+ * @return 発行側の段階別件数。端末の実検査件数ではありません。
+ */
+//------------------------------------------------------------------------------
 const IndexManifestQuality &IndexRecordsSchemaReceipt::actualQuality() const noexcept
 {
 	return quality_ ;
 }
 
-/** @see signed_index_records.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 読取りを実行した現codec policy版を返します。
+ * @return 現reader revisionの2。保存head互換値とwire record版とは別です。
+ */
+//------------------------------------------------------------------------------
 std::uint32_t IndexRecordsSchemaReceipt::schemaPolicyVersion() const noexcept
 {
 	return INDEX_RECORD_READER_POLICY_VERSION ;
 }
 
-/** @see signed_index_records.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 認証済みbyteだけから配布schema・原record hash・参照・qualityを読みます。
+ * @param[in] asset 呼出し中不変で完全な前段byte receipt。DTOや未認証byteは受理しません。
+ * @param[in] nowUtc 信頼UTCの再確認。発行前・期限以上・確認不能は拒否します。
+ * @return 全検査成功時だけschema receipt。拒否は理由と元診断を保持します。
+ * @note 独立入力では同時呼出し可能です。Network・保存・highwater更新・端末ID・通常UI・導入は扱いません。
+ */
+//------------------------------------------------------------------------------
 IndexRecordsResult readSignedIndexRecords(
 	const AuthenticatedIndexAssetBytes			 &asset,
 	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
@@ -911,7 +1021,15 @@ IndexRecordsResult readSignedIndexRecords(
 									  std::move( decoded.data->records), decoded.data->quality}} ;
 }
 
-/** @see signed_index_codec_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 展開byteの原record/schema/参照/qualityを共通codecで検査します。
+ * @param[in] manifest 同じ原manifestの検査済み値です。
+ * @param[in] expanded 同じasset値codecの展開byteです。
+ * @param[in] nowUtc 確認済みUTCです。
+ * @return 未認証の全値結果です。署名receiptは構築しません。
+ */
+//------------------------------------------------------------------------------
 signed_index_detail::DecodedIndexRecords signed_index_detail::decodeIndexRecordsData(
 	const IndexManifestData &manifest, const std::span<const std::byte> expanded,
 	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept

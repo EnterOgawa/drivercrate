@@ -2,7 +2,7 @@
 /**
  * @file metadata_search_budget_tests.cpp
  * @brief 検索予算・cost・停止・HTTP用途拒否の非通信試験。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/12  Metadata専用検索の契約を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  十Provider用の件数予算を検証。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @see docs/adr/0142-metadata-only-search-contract.md
@@ -47,10 +48,12 @@
 namespace drivercrate::test {
 namespace {
 
+//------------------------------------------------------------------------------
 /**
  * @brief 二つの既存公式IDを明示した有限requestを作る。
  * @return PayloadやEULA許可を含まない要求。
  */
+//------------------------------------------------------------------------------
 MetadataSearchRequest requestFixture()
 {
 	MetadataSearchRequest request ;	// 複数Providerの独立予算を確認する。
@@ -59,10 +62,12 @@ MetadataSearchRequest requestFixture()
 	return request ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Byteの境界、probe、宣言長、cache相当計数を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testBodyBudgets( TestContext &context)
 {
 	// 一resourceの直前・ちょうど・一byte超過を実固定上限で確認する。
@@ -122,10 +127,12 @@ void testBodyBudgets( TestContext &context)
 					   declared.providerStopReason() == MetadataSearchReason::BUDGET_EXCEEDED) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 送信予算、回線変更、取消し、期限、clock失敗を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testNetworkAndStopping( TestContext &context)
 {
 	std::uint64_t		 ticks		  = 100U ;	// Fake単調時計。
@@ -196,10 +203,12 @@ void testNetworkAndStopping( TestContext &context)
 	DRIVERCRATE_EXPECT( context, invalid.checkpoint() != 0) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 専用HTTPからpayload・別API・別sessionへ到達できないことを検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testHttpPurpose( TestContext &context)
 {
 	MetadataSearchExecutionContext execution( 21U, requestFixture()) ;	// Networkを一度も許可しない。
@@ -234,10 +243,12 @@ void testHttpPurpose( TestContext &context)
 									MeasurementExtent::UNAVAILABLE) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 正本の九登録を明示し、固定session上限に届く非通信要求を作る。
  * @return 制限回線許可なし・専用九登録の要求。
  */
+//------------------------------------------------------------------------------
 MetadataSearchRequest allMetadataRequest()
 {
 	MetadataSearchRequest request ;	// 通常の既定九件とは独立した集合。
@@ -252,10 +263,12 @@ MetadataSearchRequest allMetadataRequest()
 	return request ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定4／32 MiBの直前・一致・probe超過をchunk跨ぎで検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testProductionBodyBoundaries( TestContext &context)
 {
 	const auto				request		   = allMetadataRequest() ;	// 十分なProviderを持つ正本集合。
@@ -318,10 +331,12 @@ void testProductionBodyBoundaries( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定2／20 logical resourceと12／120明示送信の境界を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testProductionRequestBoundaries( TestContext &context)
 {
 	const auto					   request = allMetadataRequest() ;	// 順序に依存しない正本十登録。
@@ -379,10 +394,12 @@ void testProductionRequestBoundaries( TestContext &context)
 									logical.usage().httpAttempts == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定期限と同時停止・主因固定・cost例外を実時間待機なしで検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testProductionDeadlineAndCauses( TestContext &context)
 {
 	const auto	  request = requestFixture() ;	// 二Provider間の期限resetも確認する。
@@ -460,7 +477,12 @@ void testProductionDeadlineAndCauses( TestContext &context)
 
 } // namespace
 
-/** @see metadata_search_budget_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 検索予算とHTTP用途拒否をfakeで検証する。
+ * @param[in,out] context Assertion集計先。
+ */
+//------------------------------------------------------------------------------
 void runMetadataSearchBudgetTests( TestContext &context)
 {
 	testBodyBudgets( context) ;

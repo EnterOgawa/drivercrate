@@ -2,7 +2,7 @@
 /**
  * @file amd_catalog_parser_tests.h
  * @brief AMD公式Web parser単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実device情報とnetworkを使用せず、架空AMD page fixtureを検証します。
@@ -39,12 +40,13 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief AMD公式Web parserの正常系とsecurity拒否系を実行する。
- * AMD公式Web parserの全単体試験を実行する。
- * 製品tree、driver article、拒否条件を順番に検証する。
+ * @brief AMD公式Web parserの正常系とsecurity拒否系を実行する。AMD公式Web parserの全単体試験を実行する。製品tree、driver article、拒否条件
+ *        を順番に検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runAmdCatalogParserTests( TestContext &context) ;
 
 } // namespace drivercrate::test

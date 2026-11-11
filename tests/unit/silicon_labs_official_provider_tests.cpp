@@ -2,7 +2,7 @@
 /**
  * @file silicon_labs_official_provider_tests.cpp
  * @brief CP210x公式検索と共通serial境界の試験実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/11  不正導入拒否と作用0・元scan証拠保持を現契約へ整合。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 公開schemaの合成fixtureとfake照合を使い、通信・導入を行わない。
@@ -415,7 +416,8 @@ void testFamilyAudit( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/silicon_labs_official_provider_tests.h 宣言側の契約を正本とする。
+ * @brief CP210x公式metadata、同意、family限定監査を通信なしで検証する。Parser、同意、family監査をnetworkと実導入なしで実行する。
+ * @param[in,out] context Assertion結果の集計先。 全試験のassertion集計先。
  */
 //------------------------------------------------------------------------------
 void runSiliconLabsOfficialProviderTests( TestContext &context)

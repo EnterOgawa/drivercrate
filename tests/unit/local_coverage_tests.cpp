@@ -2,7 +2,7 @@
 /**
  * @file local_coverage_tests.cpp
  * @brief Local候補到達集計単体試験実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空のmanufacturer、class、opaque IDで取得元別の重複排除と拒否条件を検証します。
@@ -315,7 +316,9 @@ void testMeasurementPreservation( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/local_coverage_tests.h 宣言側の契約を正本とする。
+ * @brief Local候補到達集計の全単体試験を実行する。取得元別件数、重複排除、local未照合、契約拒否、空結果を架空dataだけで検証し、manufacturer intake分類も確認
+ *        する。
+ * @param[in,out] context Assertion件数と失敗件数の集計先。
  */
 //------------------------------------------------------------------------------
 void runLocalCoverageTests( TestContext &context)

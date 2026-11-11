@@ -2,7 +2,7 @@
 /**
  * @file scan_measurement_tests.cpp
  * @brief 段階別和集合と計測契約の決定的単体試験。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/10
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実machine inventoryを使わず、Providerの取得や導入を実行しません。
@@ -73,12 +74,14 @@ struct MeasurementFixture {
 	std::vector<std::wstring>				 routes ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 正規の監査経路を持つ架空Providerを作る。
  * @param[in] id Fixture内で一意な固定ID。
  * @param[in] source 一つだけ指定するtrust boundary。
  * @return Scan能力と経路を整合させた定義。
  */
+//------------------------------------------------------------------------------
 ProviderDescriptor makeMeasurementProvider( const std::wstring_view	id,
 										   const ProviderCapability source)
 {
@@ -106,6 +109,7 @@ ProviderDescriptor makeMeasurementProvider( const std::wstring_view	id,
 	return provider ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 指定経路と矛盾しない架空candidateを作る。
  * @param[in] id 一意な候補ID。
@@ -114,6 +118,7 @@ ProviderDescriptor makeMeasurementProvider( const std::wstring_view	id,
  * @param[in] current 現在版行の場合true。
  * @return 内容監査・install可否を経路へ対応させた候補。
  */
+//------------------------------------------------------------------------------
 UpdateCandidate makeMeasurementCandidate( const std::wstring_view id, const std::wstring_view device,
 										 const ProviderDescriptor &provider, const bool current)
 {
@@ -139,20 +144,24 @@ UpdateCandidate makeMeasurementCandidate( const std::wstring_view id, const std:
 	return candidate ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有限なopaque集合を完全計測として作る。
  * @param[in] identities 架空deviceの一意な一覧。
  * @return EXACTと指定identityを持つworker根拠。
  */
+//------------------------------------------------------------------------------
 MeasurementDeviceSet exactSet( const std::initializer_list<std::wstring> identities)
 {
 	return {MeasurementExtent::EXACT, identities} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief ADR 0139の三node・重複情報到達の基準fixtureを作る。
  * @return D=3、公式到達2、managed到達1、通常更新1の測定入力。
  */
+//------------------------------------------------------------------------------
 MeasurementFixture makeMeasurementFixture()
 {
 	MeasurementFixture fixture ;	// 取得関数やnative APIを持たない測定一式。
@@ -210,12 +219,14 @@ MeasurementFixture makeMeasurementFixture()
 	return fixture ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Device数と全候補行数だけを可変にしたlocal-only fixtureを作る。
  * @param[in] deviceCount 重複しない現在版行の数。
  * @param[in] candidateCount 現在版を含む全候補行数。deviceCount以上でなければならない。
  * @return 実PnP列挙を行わない、指定行数の所有fixture。
  */
+//------------------------------------------------------------------------------
 MeasurementFixture makeLimitFixture( const std::size_t deviceCount, const std::size_t candidateCount)
 {
 	MeasurementFixture fixture ;	// 上限検証に必要なlocal Providerだけを持つ入力。
@@ -252,22 +263,26 @@ MeasurementFixture makeLimitFixture( const std::size_t deviceCount, const std::s
 	return fixture ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Fixtureを純粋集計へ渡す。
  * @param[in] fixture 検証対象の所有値。
  * @return 集計契約が成立した場合だけ結果を返す。
  */
+//------------------------------------------------------------------------------
 std::optional<ScanMeasurementAggregation> measure( const MeasurementFixture &fixture)
 {
 	return aggregateScanMeasurement( fixture.condition, fixture.candidates, fixture.providers,
 									fixture.inventory, fixture.evidence, fixture.routes) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 基準fixtureの純粋集計をUI公開用ScanResultへ変換する。
  * @param[in] fixture 集計済み入力とregistry定義。
  * @return 全公開fieldを接続した結果。集計拒否時は値なし。
  */
+//------------------------------------------------------------------------------
 std::optional<ScanResult> makePublishedMeasurementResult( const MeasurementFixture &fixture)
 {
 	const auto aggregation = measure( fixture) ;	// Identity集合を公開件数へ変換した基準結果。
@@ -298,10 +313,12 @@ std::optional<ScanResult> makePublishedMeasurementResult( const MeasurementFixtu
 	return result ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 未計測、確定0、下限0、値不明と不正な組を区別する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCountExtents( TestContext &context)
 {
 	DRIVERCRATE_EXPECT( context, isCountMeasurementValid( {})) ;
@@ -319,10 +336,12 @@ void testCountExtents( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !ScanResult{}.measurement.has_value()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Deviceとcompatible driverの上限直前・一致・超過を同じ純粋分類で検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testBoundedEnumerationClassification( TestContext &context)
 {
 	const auto deviceBelow = classifyBoundedEnumeration(
@@ -417,10 +436,12 @@ void testBoundedEnumerationClassification( TestContext &context)
 												   BoundedEnumerationProbe::ELEMENT_FOUND, 0U)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Device母数と補完現在行を含む候補総数の保持上限を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCandidateAndDeviceLimits( TestContext &context)
 {
 	MeasurementFixture fixture = makeLimitFixture( 4095U, 4095U) ;	// Device上限直前。
@@ -443,10 +464,12 @@ void testCandidateAndDeviceLimits( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !measure( fixture).has_value()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Network、fresh cache、304の取得ledgerを固定ID要約へ変換する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testOfficialSourceSummary( TestContext &context)
 {
 	OfficialSourceEvidence network{.scanSessionId = 7U,
@@ -501,10 +524,12 @@ void testOfficialSourceSummary( TestContext &context)
 									resources.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 取得要約を組み込みProviderへ拘束し、Provider集計へ所有値で反映する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testOfficialSourceAggregation( TestContext &context)
 {
 	MeasurementFixture fixture =
@@ -547,10 +572,12 @@ void testOfficialSourceAggregation( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !measure( fixture).has_value()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同型node、同一record、複数取得元、旧版の単位を混同しない。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testMeasurementUnions( TestContext &context)
 {
 	MeasurementFixture fixture = makeMeasurementFixture() ;	// 三nodeの基準入力。
@@ -633,10 +660,12 @@ void testMeasurementUnions( TestContext &context)
 					 noRouting->snapshot.network.combined.installReadyUpdateDeviceCount.value == 0) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 現在版・同版・旧版・表示用新版を通常更新とREADYへ誤加算しない。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCandidateStageClassifications( TestContext &context)
 {
 	MeasurementFixture fixture = makeMeasurementFixture() ;	// A=I=1の基準入力。
@@ -683,10 +712,12 @@ void testCandidateStageClassifications( TestContext &context)
 			result->providers[3].measurement.devices.applicableUpdateDeviceCount.value == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 部分結果、旧計測、payload失敗後のmetadata到達を維持する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testMeasurementPartialResults( TestContext &context)
 {
 	MeasurementFixture fixture = makeMeasurementFixture() ;	// 失敗条件を一つずつ加える基準入力。
@@ -779,10 +810,12 @@ void testMeasurementPartialResults( TestContext &context)
 				0) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全無効と確定した対象0・検索情報0を分離する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testMeasurementEmptyScopes( TestContext &context)
 {
 	MeasurementFixture fixture = makeMeasurementFixture() ;	// 現在版三行だけを残す入力。
@@ -836,10 +869,12 @@ void testMeasurementEmptyScopes( TestContext &context)
 							   MeasurementExtent::LOWER_BOUND) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 契約違反を未照合や0へ縮退させない。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testMeasurementRejections( TestContext &context)
 {
 	MeasurementFixture fixture = makeMeasurementFixture() ;	// 一度に一つの拒否条件を加える入力。
@@ -890,10 +925,12 @@ void testMeasurementRejections( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !measure( fixture).has_value()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Worker公開時のoperation、session、nested measurementを一括で再検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPublishedMeasurementValidation( TestContext &context)
 {
 	MeasurementFixture fixture = makeMeasurementFixture() ;				// 正常公開結果を作る基準入力。
@@ -932,7 +969,12 @@ void testPublishedMeasurementValidation( TestContext &context)
 
 } // namespace
 
-/** @see tests/unit/scan_measurement_tests.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 段階別計測の確定度と拒否条件を検証する。
+ * @param[in,out] context Assertionと失敗件数の集計先。
+ */
+//------------------------------------------------------------------------------
 void runScanMeasurementTests( TestContext &context)
 {
 	testCountExtents( context) ;

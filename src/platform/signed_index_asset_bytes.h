@@ -2,7 +2,7 @@
 /**
  * @file signed_index_asset_bytes.h
  * @brief 認証済みmanifestに結合した実GZip byteの検査結果を定義します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/11  固定assetの原byteと上限付きGZip検査境界を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note JSON・record・公式性・端末適合・導入許可は検査しません。通信・保存も行いません。
@@ -58,39 +59,56 @@ struct IndexAssetBytesResult ;
  */
 class AuthenticatedIndexAssetBytes final {
 public:
-	/** @brief 原byte署名を認証したmanifestを変更できない参照で借用します。
-     * @return Receiptの寿命まで有効な認証済みmanifest。
-     */
+	/**
+	 * @brief 原byte署名を認証したmanifestを変更できない参照で借用します。
+	 * @return Receiptの寿命まで有効な認証済みmanifest。
+	 */
 	[[nodiscard]] const AuthenticatedIndexManifest &manifest() const noexcept ;
-	/** @brief GZip検査に成功した展開原byteを借用します。
-     * @return Receiptの寿命まで有効な不変byte列。JSONとしての合格は意味しません。
-     */
+	/**
+	 * @brief GZip検査に成功した展開原byteを借用します。
+	 * @return Receiptの寿命まで有効な不変byte列。JSONとしての合格は意味しません。
+	 */
 	[[nodiscard]] std::span<const std::byte>		expandedBytes() const noexcept ;
-	/** @brief 展開原byteだけの実SHA-256を借用します。
-     * @return 圧縮asset hashやmanifest hashとは別の原byte digest。
-     */
+	/**
+	 * @brief 展開原byteだけの実SHA-256を借用します。
+	 * @return 圧縮asset hashやmanifest hashとは別の原byte digest。
+	 */
 	[[nodiscard]] const IndexManifestSha256		   &expandedSha256() const noexcept ;
-	/** @brief この検査に適用したbyte policy版を返します。
-     * @return 有限準備policy v1。
-     */
+	/**
+	 * @brief この検査に適用したbyte policy版を返します。
+	 * @return 有限準備policy v1。
+	 */
 	[[nodiscard]] std::uint32_t						bytePolicyVersion() const noexcept ;
-	/** @brief 展開前に適用した絶対量と圧縮倍率の小さい方を返します。
-     * @return Decompressorへ渡した最大展開byte数。
-     */
+	/**
+	 * @brief 展開前に適用した絶対量と圧縮倍率の小さい方を返します。
+	 * @return Decompressorへ渡した最大展開byte数。
+	 */
 	[[nodiscard]] std::uint64_t						maximumExpandedBytes() const noexcept ;
 
 private:
-	/** @brief 全検査後の所有値だけを受け取ります。
-     * @param[in] manifest 認証済みmanifestの所有copy。
-     * @param[in] expanded 検査済み展開原byteの所有値。
-     * @param[in] expandedSha256 展開原byteに対する実digest。
-     * @param[in] maximumExpandedBytes Decompressorへ適用した展開byte上限。
-     */
+	/**
+	 * @brief 全検査後の所有値だけを受け取ります。
+	 * @param[in] manifest 認証済みmanifestの所有copy。
+	 * @param[in] expanded 検査済み展開原byteの所有値。
+	 * @param[in] expandedSha256 展開原byteに対する実digest。
+	 * @param[in] maximumExpandedBytes Decompressorへ適用した展開byte上限。
+	 */
 	AuthenticatedIndexAssetBytes( AuthenticatedIndexManifest manifest,
 								 std::vector<std::byte>		expanded,
 								 IndexManifestSha256		expandedSha256,
 								 std::uint64_t				maximumExpandedBytes) noexcept ;
 
+	/**
+	 * @brief 認証済み第1引数へ実圧縮byteを結合し、上限付き単一GZipとして検査します。
+	 * @note 第1引数（const AuthenticatedIndexManifest &、in）はこの宣言では無名です。前段認証成功から構築された不変receipt。呼出し中だけ借用し
+	 *       ます。
+	 * @note 第2引数（std :: span < const std :: byte >、in）はこの宣言では無名です。原転送byte。呼出し中に全要素を読取り可能かつ不変に保ちます。
+	 * @note 第3引数（std :: optional < std :: chrono :: sys_seconds >、in）はこの宣言では無名です。信頼UTCの再確認値。Nullopt
+	 *       、発行前、期限以上では拒否します。
+	 * @return 全検査成功時だけbyte receipt、拒否時は理由と元API HRESULTです。
+	 * @note 圧縮size／hash検査後にmin(128MiB, 実圧縮size×128)をdecompressorへ渡します。JSON／record・最新highwater・公式性・端
+	 *       末適合は検査しません。通信・保存・世代更新・scanを行いません。独立入力では同時呼出し可能です。時刻やhighwaterの保護store transactionは後段が再確認します。
+	 */
 	friend IndexAssetBytesResult authenticateIndexAssetBytes(
 		const AuthenticatedIndexManifest &, std::span<const std::byte>,
 		std::optional<std::chrono::sys_seconds>) noexcept ;
@@ -143,16 +161,17 @@ struct IndexAssetBytesResult {
 	std::optional<AuthenticatedIndexAssetBytes> receipt ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 認証済みmanifestへ実圧縮byteを結合し、上限付き単一GZipとして検査します。
  * @param[in] manifest 前段認証成功から構築された不変receipt。呼出し中だけ借用します。
  * @param[in] compressed 原転送byte。呼出し中に全要素を読取り可能かつ不変に保ちます。
  * @param[in] nowUtc 信頼UTCの再確認値。Nullopt、発行前、期限以上では拒否します。
  * @return 全検査成功時だけbyte receipt、拒否時は理由と元API HRESULTです。
- * @note 圧縮size／hash検査後にmin(128MiB, 実圧縮size×128)をdecompressorへ渡します。
- * JSON／record・最新highwater・公式性・端末適合は検査しません。通信・保存・世代更新・scanを行いません。
- * 独立入力では同時呼出し可能です。時刻やhighwaterの保護store transactionは後段が再確認します。
+ * @note 圧縮size／hash検査後にmin(128MiB, 実圧縮size×128)をdecompressorへ渡します。JSON／record・最新highwater・公式性・端末適合は
+ *       検査しません。通信・保存・世代更新・scanを行いません。独立入力では同時呼出し可能です。時刻やhighwaterの保護store transactionは後段が再確認します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexAssetBytesResult authenticateIndexAssetBytes(
 	const AuthenticatedIndexManifest &manifest, std::span<const std::byte> compressed,
 	std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;

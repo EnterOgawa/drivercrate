@@ -2,7 +2,7 @@
 /**
  * @file local_collector_campaign.h
  * @brief 公開製品の共有metadata jobと全campaign共通予算を定義します。
- * @version 01.04.01
+ * @version 01.04.02
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/09/27  復旧監督用の共通controlと固定精算を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/09/28  共有job keyの再照合入口を追加。
  * Ver.01.04.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.04.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 単一監督threadから使用します。通信・取得grant・導入を実行しません。
@@ -103,30 +104,38 @@ struct CollectorBudgetPreparedUpdate {
 	std::wstring afterSha256 ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既存v1と共通のcanonical検査で有限予算本文を復号します。
  * @param[in] bytes 最大768 KiBのUTF-8本文。hash envelopeではありません。
  * @param[out] snapshot 成功時のtyped予算。拒否時は空です。
  * @return schema・phase・日付・合計・canonicalがすべて一致した場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseCollectorBudgetSnapshot( std::string_view		 bytes,
 												CollectorBudgetSnapshot &snapshot) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief typed予算を同じv1検査で確認してcanonical本文へ符号化します。
  * @param[in] snapshot 有限の予算。保存日・時計・予約の矛盾を拒否します。
  * @param[out] bytes 成功時のcanonical UTF-8本文。拒否時は空です。
  * @return 同じdecoderで再検証できた場合true。fileは変更しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool encodeCollectorBudgetSnapshot( const CollectorBudgetSnapshot &snapshot,
 												 std::string				   &bytes) ;
 
 /** @brief 応答先行回収のために共有予算を変更せず借用します。 */
 class LocalCollectorBudgetLedger final {
 public:
-	/** @brief 空の読込み部品を作成します。 */
+	/**
+	 * @brief 空の読込み部品を作成します。
+	 */
 	LocalCollectorBudgetLedger() ;
-	/** @brief campaign借用を解放します。storeと保存fileは保持します。 */
+	/**
+	 * @brief campaign借用を解放します。storeと保存fileは保持します。
+	 */
 	~LocalCollectorBudgetLedger() ;
 	/**
 	 * @brief 共有予算を読むcampaign借用の二重管理を防ぐため、コピー構築を禁止する。
@@ -149,12 +158,14 @@ public:
 	[[nodiscard]] DWORD			initializeBorrowed( LocalCollectorStateStore &store,
 												   std::uint64_t			 utcSeconds) ;
 
-	/** @brief 初期化時に検証済みの予算が存在したか確認します。
+	/**
+	 * @brief 初期化時に検証済みの予算が存在したか確認します。
 	 * @return 存在した場合true。未初期化・拒否後はfalseです。
 	 */
 	[[nodiscard]] bool			hasSnapshot() const noexcept ;
 
-	/** @brief 読込み時点の検証済みsnapshotを返します。
+	/**
+	 * @brief 読込み時点の検証済みsnapshotを返します。
 	 * @return Object存続中の参照。hasSnapshotがfalseのとき利用しません。
 	 */
 	[[nodiscard]] const CollectorBudgetSnapshot &snapshot() const noexcept ;
@@ -173,7 +184,8 @@ public:
 										  const CollectorBudgetSettlement &settlement,
 										  CollectorBudgetPreparedUpdate	  &prepared) ;
 
-	/** @brief 初回の拒否・I/O codeを保持して返します。
+	/**
+	 * @brief 初回の拒否・I/O codeを保持して返します。
 	 * @return 成功0、それ以外は元Win32 code。
 	 */
 	[[nodiscard]] DWORD lastError() const noexcept ;
@@ -327,6 +339,7 @@ enum class CollectorCampaignCheckpoint {
 	OBSERVATION_SAVED
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 実行manifestを型・重複・有限上限で検証し、共有jobへ正規化します。
  * @param[in] bytes 最大256 KiBのUTF-8 JSON。評価plan schemaは拒否します。
@@ -334,23 +347,31 @@ enum class CollectorCampaignCheckpoint {
  * @param[out] manifest 成功時だけ正規化した結果を返します。失敗時は空です。
  * @return 完全な入力検証とhash計算に成功した場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseCollectorCampaignManifest( std::string_view						   bytes,
 												  std::span<const CollectorCampaignSource> sources,
 												  CollectorCampaignManifest &manifest) ;
 
-/** @brief 共有jobをmanifest parserと同じcanonical算法で再照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 共有jobをmanifest parserと同じcanonical算法で再照合します。
  * @param[in] job 元の正規化済みjob。
  * @param[out] key 成功時の小文字SHA-256。失敗時は空。
  * @return 有限identityのhashを計算できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool makeCollectorCampaignJobKey( const CollectorCampaignJob &job, std::wstring &key) ;
 
 /** @brief 全campaignに共通の日次予算と一campaignの保護状態を保持します。 */
 class LocalCollectorCampaign final {
 public:
-	/** @brief 通信を持たない空の監督状態を作成します。 */
+	/**
+	 * @brief 通信を持たない空の監督状態を作成します。
+	 */
 	LocalCollectorCampaign() ;
-	/** @brief 所有storeを解放するか借用だけを解除します。保存fileは削除しません。 */
+	/**
+	 * @brief 所有storeを解放するか借用だけを解除します。保存fileは削除しません。
+	 */
 	~LocalCollectorCampaign() ;
 	/**
 	 * @brief 共通予算とcampaign保護状態の二重管理を防ぐため、コピー構築を禁止する。
@@ -419,17 +440,20 @@ public:
 	 */
 	[[nodiscard]] DWORD							  applyResults( std::size_t &applied) ;
 
-	/** @brief 保存jobの現在観測を読みます。
+	/**
+	 * @brief 保存jobの現在観測を読みます。
 	 * @return Object存続中だけ有効な読み取り専用参照。
 	 */
 	[[nodiscard]] const std::vector<CollectorCampaignObservation> &observations() const noexcept ;
 
-	/** @brief 固定分母と同順序の製品状態を読みます。
+	/**
+	 * @brief 固定分母と同順序の製品状態を読みます。
 	 * @return Object存続中だけ有効な読み取り専用参照。
 	 */
 	[[nodiscard]] const std::vector<CollectorCampaignTargetState> &targetStates() const noexcept ;
 
-	/** @brief 最後の拒否またはI/O codeを返します。
+	/**
+	 * @brief 最後の拒否またはI/O codeを返します。
 	 * @return 成功0、それ以外は数値Win32 code。
 	 */
 	[[nodiscard]] DWORD											   lastError() const noexcept ;
@@ -509,23 +533,31 @@ struct CollectorWaitSnapshot {
 	std::map<std::wstring, CollectorWaitControl> controls ;
 } ;
 
-/** @brief 共通control codecで保存本文を検証します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通control codecで保存本文を検証します。
  * @param[in] bytes v1 canonical本文。
  * @param[out] snapshot 成功時の型付き値。失敗時は空です。
  * @return 全検査成功時true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool			   parseCollectorWaitSnapshot( std::string_view		 bytes,
 														  CollectorWaitSnapshot &snapshot) ;
 
-/** @brief 共通control codecで型付き値を検査して符号化します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通control codecで型付き値を検査して符号化します。
  * @param[in] snapshot 最大20 group／300 requestの状態。
  * @param[out] bytes 成功時のcanonical本文。失敗時は空です。
  * @return 保存可能なときtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool			   encodeCollectorWaitSnapshot( const CollectorWaitSnapshot &snapshot,
 														   std::string				   &bytes) ;
 
-/** @brief 元応答時刻から待機の更新後値だけを作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元応答時刻から待機の更新後値だけを作ります。
  * @param[in] before 共通codec検証済みの更新前台帳。
  * @param[in] request 元予約と同じ要求identity。
  * @param[in] observation 元応答の検証済み待機観測。
@@ -537,6 +569,7 @@ struct CollectorWaitSnapshot {
  * @param[out] after 成功時の更新後値。保存は行いません。
  * @return 全時刻・元予約・開始intentが一致した場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool			   prepareCollectorWaitSettlement( const CollectorWaitSnapshot	 &before,
 															  const CollectorWaitRequest	 &request,
 															  const CollectorWaitObservation &observation,
@@ -547,9 +580,13 @@ struct CollectorWaitSnapshot {
 /** @brief 借用storeへmanifest独立の待機と開始intentを保存します。 */
 class LocalCollectorWaitLedger final {
 public:
-	/** @brief 未初期化の監督台帳を作成します。 */
+	/**
+	 * @brief 未初期化の監督台帳を作成します。
+	 */
 	LocalCollectorWaitLedger() ;
-	/** @brief 借用を解除します。storeと保存fileは保持します。 */
+	/**
+	 * @brief 借用を解除します。storeと保存fileは保持します。
+	 */
 	~LocalCollectorWaitLedger() ;
 	/**
 	 * @brief 待機と開始intentを保存するstore借用の二重管理を防ぐため、コピー構築を禁止する。
@@ -618,13 +655,26 @@ public:
 	[[nodiscard]] DWORD		  recoverInterrupted( const CollectorWaitRequest &request,
 												 std::uint64_t utcMillis, std::uint64_t steadyMillis) ;
 
-	/** @brief 拒否後の新規操作を止めるerrorを読みます。
-     * @return 成功0、元Win32 codeまたは形式拒否13。
-     */
+	/**
+	 * @brief 拒否後の新規操作を止めるerrorを読みます。
+	 * @return 成功0、元Win32 codeまたは形式拒否13。
+	 */
 	[[nodiscard]] DWORD		  lastError() const noexcept ;
 
 private:
+	/**
+	 * @brief 共通control codecで保存本文を検証します。
+	 * @note 第1引数（std :: string_view、in）はこの宣言では無名です。v1 canonical本文。
+	 * @note 第2引数（CollectorWaitSnapshot &、out）はこの宣言では無名です。成功時の型付き値。失敗時は空です。
+	 * @return 全検査成功時true。
+	 */
 	friend bool parseCollectorWaitSnapshot( std::string_view, CollectorWaitSnapshot &) ;
+	/**
+	 * @brief 共通control codecで型付き値を検査して符号化します。
+	 * @note 第1引数（const CollectorWaitSnapshot &、in）はこの宣言では無名です。最大20 group／300 requestの状態。
+	 * @note 第2引数（std :: string &、out）はこの宣言では無名です。成功時のcanonical本文。失敗時は空です。
+	 * @return 保存可能なときtrue。
+	 */
 	friend bool encodeCollectorWaitSnapshot( const CollectorWaitSnapshot &, std::string &) ;
 	/** @brief Store借用、有限control、二時計の単独監督状態です。 */
 	struct State ;

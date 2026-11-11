@@ -2,7 +2,7 @@
 /**
  * @file official_http_client.h
  * @brief 公式配布元限定HTTP client定義。
- * @version 01.23.00
+ * @version 01.23.01
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -65,6 +65,7 @@
  * Ver.01.21.00 Shunji Ogawa  2026/11/04  閉model JSONと収集CDNの同session送信期限を追加。
  * Ver.01.22.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
  * Ver.01.23.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
+ * Ver.01.23.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note HTTPS、host allowlist、応答上限を強制して公式metadataとpayloadを取得します。Catalogだけを期限とETag付きでcacheし、payloadは保
@@ -126,37 +127,44 @@ enum class CollectorHttpTransferCompletion {
  */
 class CollectorHttpTransferObservation final {
 public:
-	/** @brief 未実行UNKNOWNを作ります。 */
+	/**
+	 * @brief 未実行UNKNOWNを作ります。
+	 */
 	CollectorHttpTransferObservation() = default ;
-	/** @brief 実行した段階を返します。
+	/**
+	 * @brief 実行した段階を返します。
 	 * @return 未開始またはPAGE/PAYLOADです。
 	 */
 	[[nodiscard]] CollectorHttpTransferStage stage() const noexcept
 	{
 		return stage_ ;
 	}
-	/** @brief 実send直前の試行回数を返します。
+	/**
+	 * @brief 実send直前の試行回数を返します。
 	 * @return 送信失敗も含む回数です。URL検証回数ではありません。
 	 */
 	[[nodiscard]] std::uint32_t attemptedRequests() const noexcept
 	{
 		return attemptedRequests_ ;
 	}
-	/** @brief 成功したReadDataから得た実本文byteを返します。
+	/**
+	 * @brief 成功したReadDataから得た実本文byteを返します。
 	 * @return 保存前拒否や超過probeも含む本文byteです。
 	 */
 	[[nodiscard]] std::uint64_t bodyBytesRead() const noexcept
 	{
 		return bodyBytesRead_ ;
 	}
-	/** @brief 最後に読めたHTTP statusを返します。
+	/**
+	 * @brief 最後に読めたHTTP statusを返します。
 	 * @return 未受信0、または同じ実responseのstatusです。
 	 */
 	[[nodiscard]] std::uint32_t terminalStatus() const noexcept
 	{
 		return terminalStatus_ ;
 	}
-	/** @brief 同段階の実数精算可否を返します。
+	/**
+	 * @brief 同段階の実数精算可否を返します。
 	 * @return 完全終端だけCOMPLETE、それ以外はUNKNOWNです。
 	 */
 	[[nodiscard]] CollectorHttpTransferCompletion completion() const noexcept
@@ -194,12 +202,15 @@ struct CollectorInspectionPageObservation {
 	std::uint32_t			 requestCount{} ;
 } ;
 
-/** @brief 期待媒体型と単一UTF-8 charsetだけを有限な原headerへ照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 期待媒体型と単一UTF-8 charsetだけを有限な原headerへ照合します。
  * @param[in] value 重複を結合済みのContent-Type原値です。最大256文字の印字可能ASCIIです。
  * @param[in] expected 署名recordが指定した空でない媒体型です。parameterや複数値を含めません。
  * @return 基底型の完全一致と、省略または単一UTF-8 charsetだけの場合trueです。
  * @note 通信・文字変換を行いません。未知parameter・重複・複数値・制御文字を拒否します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matchesOfficialPayloadContentType( std::wstring_view value,
 													 std::wstring_view expected) noexcept ;
 
@@ -245,16 +256,19 @@ struct SignedIndexHttpControl {
 	std::uint64_t										   receivedBytes{} ;
 	/// 最初の取消し・期限・時計障害を保持します。
 	NativeError											   stopped{} ;
-	/** @brief 同じ取消しと単調期限を再確認します。
+	/**
+	 * @brief 同じ取消しと単調期限を再確認します。
 	 * @return 継続0、停止時は最初の元HRESULTです。
 	 */
 	[[nodiscard]] NativeError							   checkpoint() noexcept ;
-	/** @brief 同期APIのtimeoutを正の残millisecondへ制限します。
+	/**
+	 * @brief 同期APIのtimeoutを正の残millisecondへ制限します。
 	 * @param[in] maximum 既存phaseの正の上限です。
 	 * @return 継続時の正数。停止時0はAPIへ渡しません。
 	 */
 	[[nodiscard]] int			timeoutMilliseconds( int maximum) noexcept ;
-	/** @brief 共通送信処理が読取る用途別の固定上限です。
+	/**
+	 * @brief 共通送信処理が読取る用途別の固定上限です。
 	 * @return 通常5、監視専用の三resourceだけ9です。
 	 */
 	[[nodiscard]] std::uint32_t sendLimit() const noexcept
@@ -302,16 +316,19 @@ struct CollectorControlledHttpObservation : CollectorHttpObservation {
 	std::optional<std::uint64_t> retryAfterUtcMillis ;
 } ;
 
-/** @brief 収集台帳に保存できる有限ETag構文を検証します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 収集台帳に保存できる有限ETag構文を検証します。
  * @param[in] value 単一の引用符付きASCII tag。空と複数tagを拒否します。
  * @return ADR 0212の文字集合と256文字上限を満たす場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool		  isCollectorEntityTag( std::wstring_view value) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 受信済みHTTP statusを検証し、拒否statusをHRESULTに保持する。
- * 受信済みHTTP statusの受理条件と拒否診断値を確定する。
- * ADR 0133のstatusだけを受理し、通信・本文読取りを行わない。元のWinHTTP API errorをこの関数へ入力してはならない。
+ * @brief 受信済みHTTP statusを検証し、拒否statusをHRESULTに保持する。受信済みHTTP statusの受理条件と拒否診断値を確定する。ADR 0133のstatusだ
+ *        けを受理し、通信・本文読取りを行わない。元のWinHTTP API errorをこの関数へ入力してはならない。
  * @param[in] status HTTP responseの数値status。100～599以外は不正値とする。 受信済みの数値status。100～599が有効範囲。
  * @param[in] allowNotModified If-None-Matchを送信したGETの場合だけtrue。 条件付きGETの場合だけtrue。
  * @param[in] allowRedirects 後段でLocationを検証するGETの各hopの場合だけtrue。 後段でLocationを検証する場合だけtrue。
@@ -320,31 +337,34 @@ struct CollectorControlledHttpObservation : CollectorHttpObservation {
  *         応答error由来のHRESULT。
  * @note 200、明示許可時の304、301／302／303／307／308だけを受理する。受理は本文検証、redirect先の許可、cache整合性、取得根拠の成立を意味しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError validateOfficialHttpResponseStatus( std::uint32_t status,
 															 bool		   allowNotModified,
 															 bool		   allowRedirects) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 絶対HTTPS URLが公式host allowlist内か通信せず検証する。
- * 絶対HTTPS URLを公式host allowlistへ照合する。
- * Network requestを作らず、実取得と同じURL parserを使用する。
+ * @brief 絶対HTTPS URLが公式host allowlist内か通信せず検証する。絶対HTTPS URLを公式host allowlistへ照合する。Network requestを作
+ *        らず、実取得と同じURL parserを使用する。
  * @param[in] url 検証する絶対URL。
  * @param[in] allowedHosts 許可する完全一致hostまたは先頭`.`付きdomain suffix。 完全一致hostまたはdot付きsuffix群。
  * @return 検証成功時は0、不正policyまたは境界外URLはHRESULT bit pattern。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError validateOfficialHttpsUrl(
 	std::wstring_view url, std::span<const std::wstring_view> allowedHosts) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 起点とredirect先URL列を公式host allowlistへ照合する。
- * 公式HTTPS redirect経路を通信せず検証する。
- * Productionの手動redirect追跡と同じURL・循環検証を使用する。
+ * @brief 起点とredirect先URL列を公式host allowlistへ照合する。公式HTTPS redirect経路を通信せず検証する。Productionの手動redirect追跡
+ *        と同じURL・循環検証を使用する。
  * @param[in] urls 起点を先頭とし、redirect順に並ぶ絶対HTTPS URL群。 起点とLocationをredirect順に並べたURL群。
  * @param[in] allowedHosts 許可する完全一致hostまたは先頭`.`付きdomain suffix。 resourceに許可するorigin群。
  * @param[in] maximumRedirects 許可するredirect回数。Application上限は5回。
  * @param[out] originPolicyIndices 成功時のURLごとのallowlist index。 成功時のopaque origin経路。
  * @return 全URLと回数の検証成功時は0、失敗時はHRESULT bit pattern。 全URLの検証成功時は0、不正経路はHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError validateOfficialHttpsRedirectChain(
 	std::span<const std::wstring_view> urls, std::span<const std::wstring_view> allowedHosts,
 	std::uint32_t maximumRedirects, std::vector<std::uint32_t> &originPolicyIndices) noexcept ;
@@ -412,7 +432,6 @@ public:
 	OfficialHttpClient( const OfficialHttpClient &) = delete ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	OfficialHttpClient &operator=( const OfficialHttpClient &) = delete ;
@@ -423,7 +442,6 @@ public:
 	OfficialHttpClient( OfficialHttpClient &&) = delete ;
 	/**
 	 * @brief 所有状態の移動をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	OfficialHttpClient		 &operator=( OfficialHttpClient &&) = delete ;
@@ -490,17 +508,18 @@ public:
 												   std::wstring_view resourceId,
 												   std::uint64_t maximumBytes, std::wstring &text) ;
 
-	/** @brief 収集専用の条件付きGETで200本文または304観測を返します。
-     * @param[in] url 組み込みsourceから再構築した公式起点。
-     * @param[in] resourceId 現sessionのlandingまたはmetadata用途。
-     * @param[in] maximumBytes 1～8 MiBの本文上限。
-     * @param[in] entityTag 空、または呼出側が保存射影へ再結合したETag。
-     * @param[out] text 200の厳密UTF-8本文。304・失敗は空です。
-     * @param[out] observation 数値HTTP状態と200の指紋。失敗でもstatusだけ保持します。
-     * @param[out] raw 非null時だけ200の原byteを返します。304・失敗時は空です。通常logへ渡しません。
-     * @return 成功0、拒否・通信失敗はHRESULT。
-     * @note 非cache・空ledgerのsession専用。304をsourceEvidenceへ追加しません。
-     */
+	/**
+	 * @brief 収集専用の条件付きGETで200本文または304観測を返します。
+	 * @param[in] url 組み込みsourceから再構築した公式起点。
+	 * @param[in] resourceId 現sessionのlandingまたはmetadata用途。
+	 * @param[in] maximumBytes 1～8 MiBの本文上限。
+	 * @param[in] entityTag 空、または呼出側が保存射影へ再結合したETag。
+	 * @param[out] text 200の厳密UTF-8本文。304・失敗は空です。
+	 * @param[out] observation 数値HTTP状態と200の指紋。失敗でもstatusだけ保持します。
+	 * @param[out] raw 非null時だけ200の原byteを返します。304・失敗時は空です。通常logへ渡しません。
+	 * @return 成功0、拒否・通信失敗はHRESULT。
+	 * @note 非cache・空ledgerのsession専用。304をsourceEvidenceへ追加しません。
+	 */
 	[[nodiscard]] NativeError getCollectorMetadataForSource(
 		std::wstring_view url, std::wstring_view resourceId, std::uint64_t maximumBytes,
 		std::wstring_view entityTag, std::wstring &text, CollectorHttpObservation &observation,
@@ -517,7 +536,8 @@ public:
 	[[nodiscard]] NativeError getLiveScriptMetadataForSource(
 		std::wstring_view url, std::wstring_view resourceId,
 		const HttpCancellationCallback &cancellation, std::string &raw) ;
-	/** @brief 保存した公式pageの一意なscript参照を監視側だけで有限取得します。
+	/**
+	 * @brief 保存した公式pageの一意なscript参照を監視側だけで有限取得します。
 	 * @param[in] pageUrl 同sourceの原公式page URLです。実HTTPのfresh観測へ更新しません。
 	 * @param[in] page 同pageの検証済み保存bodyです。Textarea/script内部の偽参照を認めません。
 	 * @param[in] url 同originの一意な実srcへ一致する静的script URLです。
@@ -618,15 +638,16 @@ public:
 		OfficialPublicDestinationEvidence  &destinationEvidence) ;
 
 private:
-	/** @brief 固定文脈の空JSON/query POSTを一回だけ非永続で読む。
-     * @param[in] post builderだけが作る固定source request。
-     * @param[in] checkpoint 同grantのclock/lease/取消しを検査する同期関数。
-     * @param[in] cancellation 元workerの取消し照会。
-     * @param[in] consume session内だけのUTF-16本文を同期解釈する関数。
-     * @param[out] observation 要求数/本文量/statusの閉実数。失敗でも保持。
-     * @param[out] addresses 全公開DNS検証済みのmetadata宛先数。
-     * @return HTTP/UTF-8/同期解釈成功0、元HRESULT。
-     */
+	/**
+	 * @brief 固定文脈の空JSON/query POSTを一回だけ非永続で読む。
+	 * @param[in] post builderだけが作る固定source request。
+	 * @param[in] checkpoint 同grantのclock/lease/取消しを検査する同期関数。
+	 * @param[in] cancellation 元workerの取消し照会。
+	 * @param[in] consume session内だけのUTF-16本文を同期解釈する関数。
+	 * @param[out] observation 要求数/本文量/statusの閉実数。失敗でも保持。
+	 * @param[out] addresses 全公開DNS検証済みのmetadata宛先数。
+	 * @return HTTP/UTF-8/同期解釈成功0、元HRESULT。
+	 */
 	[[nodiscard]] NativeError postEmptyJsonQuery(
 		const OfficialEmptyJsonQueryPost &post, const std::function<NativeError()> &checkpoint,
 		const HttpCancellationCallback						&cancellation,
@@ -634,7 +655,8 @@ private:
 		OfficialAuxiliaryHttpObservation &observation, std::uint32_t &addresses) ;
 
 	friend struct app_update_detail::Access ;
-	/** @brief 固定latestまたは元宣言に結合したApp Setupだけを取得します。
+	/**
+	 * @brief 固定latestまたは元宣言に結合したApp Setupだけを取得します。
 	 * @param[in] release Nullはmetadata、非nullは検証する元Setup宣言です。
 	 * @param[in] output Setup専用の非所有書込みfileです。
 	 * @param[in,out] control App更新一回だけの有限期限と取消しです。
@@ -655,7 +677,8 @@ private:
 		/// 認証済みgzipの圧縮媒体型です。
 		GZIP
 	} ;
-	/** @brief 固定currentを匿名・redirect0・96KiBで取得します。
+	/**
+	 * @brief 固定currentを匿名・redirect0・96KiBで取得します。
 	 * @param[in,out] control 同refreshの共有停止・送信・受信状態です。
 	 * @param[out] raw 成功時だけ原byteです。失敗時空です。
 	 * @param[out] status 失敗時も実観測HTTP statusを保持します。
@@ -664,7 +687,8 @@ private:
 	[[nodiscard]] NativeError getSignedIndexCurrent( SignedIndexHttpControl &control,
 													std::vector<std::byte> &raw,
 													std::uint32_t		   &status) ;
-	/** @brief 認証済みmanifest由来の固定immutable assetだけを取得します。
+	/**
+	 * @brief 認証済みmanifest由来の固定immutable assetだけを取得します。
 	 * @param[in] manifest 製品または内部RAM検証が発行した不変receiptです。
 	 * @param[in,out] control currentと同じ有限状態です。
 	 * @param[out] raw 成功時だけ原圧縮byteです。
@@ -675,7 +699,8 @@ private:
 												  SignedIndexHttpControl		   &control,
 												  std::vector<std::byte>		   &raw,
 												  std::uint32_t					   &status) ;
-	/** @brief 認証tagに結合した固定manifest.jsonだけを匿名取得します。
+	/**
+	 * @brief 認証tagに結合した固定manifest.jsonだけを匿名取得します。
 	 * @param[in] manifest 原署名と現在UTCの認証済みreceiptです。
 	 * @param[in,out] control 三resourceで共有する固定停止状態です。
 	 * @param[out] raw 全成功時だけ原envelopeです。
@@ -685,7 +710,8 @@ private:
 	[[nodiscard]] NativeError getSignedIndexManifestAsset(
 		const AuthenticatedIndexManifest &manifest, SignedIndexHttpControl &control,
 		std::vector<std::byte> &raw, std::uint32_t &status) ;
-	/** @brief 索引専用policyを共通URL/DNS/request/streamへ適用します。
+	/**
+	 * @brief 索引専用policyを共通URL/DNS/request/streamへ適用します。
 	 * @param[in] url 固定currentか認証済みassetの起点だけです。
 	 * @param[in] role 私有の三用途からMIMEとredirect規則を選びます。
 	 * @param[in] maximumBytes 元codecの正の上限です。
@@ -702,7 +728,8 @@ private:
 	friend class LocalCollectorHttpClient ;
 	friend class CollectorInspectionAcquisition ;
 	friend class SignedIndexAcquisitionAdapter ;
-	/** @brief 認証adapterが公式リンクへ結合した規約を原byteで取得します。
+	/**
+	 * @brief 認証adapterが公式リンクへ結合した規約を原byteで取得します。
 	 * @param[in] url 元認証textDocumentのexact静的URLです。
 	 * @param[in] host 同公式起点へ照合済みのexact DNS hostです。
 	 * @param[in] exactBytes 元本文byte数です。新staticSectionだけ2MiB、従来は256KiB以内です。
@@ -718,7 +745,8 @@ private:
 		std::wstring_view url, std::wstring_view host, std::uint64_t exactBytes, bool html,
 		const HttpCancellationCallback &cancellation, std::string &raw, std::wstring &text,
 		bool staticSection = false) ;
-	/** @brief 収集adapterの実HTMLをpublic宛先・同一originで有限取得する。
+	/**
+	 * @brief 収集adapterの実HTMLをpublic宛先・同一originで有限取得する。
 	 * @param[in] url 検査済み起点URL。
 	 * @param[in] host 小文字exact host。
 	 * @param[in] cancellation 同じ取消し。
@@ -736,7 +764,8 @@ private:
 		CollectorInspectionPageObservation *observation = nullptr,
 		CollectorHttpTransferObservation *transfer = nullptr, std::vector<std::byte> *raw = nullptr,
 		bool modelJson = false) ;
-	/** @brief 永続permitを照合した開発用adapterだけが使う有限GETです。
+	/**
+	 * @brief 永続permitを照合した開発用adapterだけが使う有限GETです。
 	 * @param[in] url 共通builderから再構築した公式URL。
 	 * @param[in] resourceId 現sessionのmetadata用途。
 	 * @param[in] maximumBytes 予約済みの正数本文上限。

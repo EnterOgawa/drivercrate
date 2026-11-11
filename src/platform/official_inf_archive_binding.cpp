@@ -2,7 +2,7 @@
 /**
  * @file official_inf_archive_binding.cpp
  * @brief 封印取得と閉じたZIP／PE内INF・署名補助CAT集合の非実行結合。
- * @version 01.03.01
+ * @version 01.03.02
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/06  全fileをnative使用終了まで固定し由来へ接続。
  * Ver.01.03.00 Shunji Ogawa  2026/10/06  全CATも原byte再照合と使用中固定へ追加。
  * Ver.01.03.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.03.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 同期workerだけで使用する。native署名の失効照会はOSに委ね、導入許可を発行しない。
@@ -58,7 +59,8 @@ constexpr OfficialZipExtractionPolicy ZIP_POLICY =
 
 /** @brief 通常Windows handleを単独所有する。 */
 struct BindingHandleCloser {
-	/** @brief 有効handleだけを閉じる。
+	/**
+	 * @brief 有効handleだけを閉じる。
 	 * @param[in] value 所有するfileまたはdirectory handle。
 	 */
 	void operator()( void *value) const noexcept
@@ -74,11 +76,14 @@ struct BindingHandleCloser {
  */
 using BindingHandle = std::unique_ptr<void, BindingHandleCloser> ;
 
-/** @brief Ordinal case非依存で同じ有限名を照合する。
+//------------------------------------------------------------------------------
+/**
+ * @brief Ordinal case非依存で同じ有限名を照合する。
  * @param[in] left 一つ目の原名。
  * @param[in] right 二つ目の原名。
  * @return 同じ長さとordinal名の場合true。
  */
+//------------------------------------------------------------------------------
 bool equalBindingName( std::wstring_view left, std::wstring_view right) noexcept
 {
 	return left.size() < MAX_PATH && right.size() < MAX_PATH &&
@@ -86,12 +91,15 @@ bool equalBindingName( std::wstring_view left, std::wstring_view right) noexcept
 								static_cast<int>( right.size()), TRUE) == CSTR_EQUAL ;
 }
 
-/** @brief 実handleが通常位置と期待種別を示すことを確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実handleが通常位置と期待種別を示すことを確認する。
  * @param[in] handle 生存中の所有handle。
  * @param[in] path 終端付き通常DOS位置。
  * @param[in] directory directoryを期待する場合true。
  * @return 完了0、reparse・位置差・API失敗のHRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError checkBindingHandle( HANDLE handle, const std::wstring &path, bool directory)
 {
 	FILE_ATTRIBUTE_TAG_INFO attributes{} ;	// 名前ではなく実handleの属性。
@@ -124,6 +132,7 @@ NativeError checkBindingHandle( HANDLE handle, const std::wstring &path, bool di
 			   : HRESULT_FROM_WIN32( ERROR_FILE_INVALID) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全祖先とleafを固定し、共通hash検証後に任意で同じhandleの全byteを読む。
  * @param[in] path 原通常DOS位置。
@@ -134,6 +143,7 @@ NativeError checkBindingHandle( HANDLE handle, const std::wstring &path, bool di
  * @return 完了0、位置・容量・byte差・API失敗のHRESULT。
  * @note Rawは先行検証前に変更しない。retained指定時以外のhandle固定は本呼出し中に限る。
  */
+//------------------------------------------------------------------------------
 NativeError readBoundFile( const std::wstring &path, std::uint64_t bytes, std::wstring_view hash,
 						  std::vector<std::byte>	 *raw,
 						  std::vector<BindingHandle> *retained = nullptr)
@@ -232,6 +242,19 @@ NativeError readBoundFile( const std::wstring &path, std::uint64_t bytes, std::w
 }
 } // namespace
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 生存取得sessionから元archive・明示member経路・全INFを固定する。
+ * @param[in] session 当該証拠を発行した生存session。
+ * @param[in,out] evidence 成功commit時だけ所有を移す証拠。失敗時は不変。
+ * @param[in] archiveWorkspace 元取得fileを全使用期間所有する領域。
+ * @param[in] nestedMembers ZIP内の原相対member位置。最大二段、空なら直接の最終file。
+ * @param[in] format 最終fileの明示形式。既定はZIPで、拡張子から推測しない。
+ * @return 全INF結合0、入力・形式・path・容量・CRC・byte差・例外のHRESULT。
+ * @post 失敗時は自身を空にする。元fileを削除・修復しない。
+ * @note 最終ZIPまたは唯一PE表の全INF／CATの原byteを結合する。署名・作用閉包・端末適合ではない。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialInfArchiveBinding::bind( const OfficialAcquisitionSession &session,
 											OfficialAcquiredFileEvidence	&&evidence,
 											const OfficialDownloadWorkspace	 &archiveWorkspace,
@@ -373,6 +396,15 @@ NativeError OfficialInfArchiveBinding::bind( const OfficialAcquisitionSession &s
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 元byte・全内側ZIPと全INF／CATを同じ生存sessionへ再結合する。
+ * @param[in] session 元証拠を発行したsession。
+ * @param[in] archiveWorkspace 元取得領域。別領域への付替えを拒否する。
+ * @return 全再確認0、失効・変更・path・競合・例外のHRESULT。
+ * @note 成功は呼出し中の観測で、後続のfile使用を固定し続ける許可ではない。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialInfArchiveBinding::verify(
 	const OfficialAcquisitionSession &session,
 	const OfficialDownloadWorkspace	 &archiveWorkspace) const
@@ -432,21 +464,55 @@ NativeError OfficialInfArchiveBinding::verify(
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 全INFと署名補助CATを所有する領域をworkerへ同期借用する。
+ * @return 空結果ではnullptr。取得由来の再照合を代替しない。
+ */
+//------------------------------------------------------------------------------
 const OfficialDownloadWorkspace *OfficialInfArchiveBinding::workspace() const noexcept
 {
 	return infWorkspace_.get() ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 最終containerから確定した全INFの固定一覧を借用する。
+ * @return 原相対位置・実size・SHA-256の全INF。空結果では空。
+ * @note 原pathはworker内だけで使用し、logや永続JSONへ出さない。
+ */
+//------------------------------------------------------------------------------
 std::span<const InfDependencyPackageMember> OfficialInfArchiveBinding::members() const noexcept
 {
 	return infMembers_ ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 全署名補助CATの原metadataだけをworkerへ同期借用する。
+ * @return 原相対位置・実size・SHA-256。CATなしまたは空結果では空。
+ * @note 値の複写を認証へ使わず、native使用中の封印所有者を移動・変更しない。
+ */
+//------------------------------------------------------------------------------
 std::span<const OfficialZipEntry> OfficialInfArchiveBinding::catalogs() const noexcept
 {
 	return catalogMembers_ ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 全元／派生fileを使用中固定して公式由来をnative依存観測へ結合する。
+ * @param[in] session 元証拠を発行した生存session。
+ * @param[in] archiveWorkspace 元取得物を所有する同じ領域。
+ * @param[in] rootIndex 封印全INF一覧内の開始位置。
+ * @param[in] seeds 開始INF内の有限明示節群。
+ * @param[in] observationId 非零のworker内観測世代。
+ * @param[out] result 全再確認成功時だけ返し、失敗時は空にする。
+ * @return 完了0、取得失効・path・byte差・native確認・例外のHRESULT。
+ * @pre 同期workerで呼び、再入・move・再bind・破棄と入力出力aliasを行わない。
+ * @note 署名・作用・device適用性・導入許可は別軸。返却後のfile使用は固定しない。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialInfArchiveBinding::inspectDependencies(
 	const OfficialAcquisitionSession &session, const OfficialDownloadWorkspace &archiveWorkspace,
 	std::size_t rootIndex, std::span<const std::wstring> seeds, std::uint64_t observationId,

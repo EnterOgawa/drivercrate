@@ -2,7 +2,7 @@
 /**
  * @file signed_index_refresh.cpp
  * @brief 固定currentの検証と既存原子storeをlock外通信で接続します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/16
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/16  HTTP/暗号/schema/storeと明示cacheを接続。
  * Ver.01.01.00 Shunji Ogawa  2026/11/08  認証した同一currentでは保存本体を全検査して再利用。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  */
 //------------------------------------------------------------------------------
@@ -32,11 +33,14 @@
 
 namespace drivercrate {
 namespace {
-/** @brief 既知取得recordの元attestationを現在UTCへ再照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既知取得recordの元attestationを現在UTCへ再照合します。
  * @param[in] receipt 不変の全schema検査結果です。
  * @param[in] now 現在の信頼UTCです。
  * @return 既知attestationが全て有効ならtrueです。UNKNOWNを既知化しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool attestationsCurrent( const IndexRecordsSchemaReceipt				&receipt,
 									   const std::optional<std::chrono::sys_seconds> now) noexcept
 {
@@ -62,11 +66,14 @@ namespace {
 
 	return true ;
 }
-/** @brief 実storeのstatusとsnapshot有無を非機密値へ要約します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実storeのstatusとsnapshot有無を非機密値へ要約します。
  * @param[in] result 同呼出し中だけ借用する実store結果です。外へ能力を渡しません。
  * @param[in] now 使用時の信頼UTCです。
  * @return 元commit事実と現在有効なsnapshot観測だけです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexRefreshStoreObservation observe(
 	const IndexStoreResult &result, std::optional<std::chrono::sys_seconds> now) noexcept
 {
@@ -78,11 +85,14 @@ namespace {
 			result.status == IndexStoreStatus::SNAPSHOT_READY && result.snapshot.has_value() &&
 				attestationsCurrent( result.snapshot->schemaReceipt(), now)} ;
 }
-/** @brief 明示した一時的通信拒否だけをcache再認証の候補にします。
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示した一時的通信拒否だけをcache再認証の候補にします。
  * @param[in] error 元のHTTPまたはWinHTTP診断です。
  * @param[in] status 実観測HTTP statusです。
  * @return 暗号/世代/保護/route拒否を含まない場合だけtrueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool transient( const NativeError error, const std::uint32_t status) noexcept
 {
 	// HTTP拒否は匿名404と有限な一時応答だけを許可します。
@@ -98,7 +108,12 @@ namespace {
 }
 }
 
-/** @see SignedIndexHttpControl宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ取消しと単調期限を再確認します。
+ * @return 継続0、停止時は最初の元HRESULTです。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexHttpControl::checkpoint() noexcept
 {
 	// 最初の停止理由を後続timeoutや例外で上書きしません。
@@ -125,7 +140,13 @@ NativeError SignedIndexHttpControl::checkpoint() noexcept
 
 	return stopped ;
 }
-/** @see SignedIndexHttpControl宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同期APIのtimeoutを正の残millisecondへ制限します。
+ * @param[in] maximum 既存phaseの正の上限です。
+ * @return 継続時の正数。停止時0はAPIへ渡しません。
+ */
+//------------------------------------------------------------------------------
 int SignedIndexHttpControl::timeoutMilliseconds( const int maximum) noexcept
 {
 	// APIへ渡す0は無限になるため、停止か不正上限を先に拒否します。
@@ -150,7 +171,15 @@ int SignedIndexHttpControl::timeoutMilliseconds( const int maximum) noexcept
 	}
 }
 
-/** @see Access宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通実装へ固定clientと検査済み依存を渡します。
+ * @param[in,out] client 専用非cache clientです。
+ * @param[in] services 固定製品または完全fake依存です。
+ * @param[in] cancellation 同workerの停止確認です。
+ * @return 元診断を保持する非機密summaryです。
+ */
+//------------------------------------------------------------------------------
 IndexRefreshSummary signed_index_refresh_detail::Access::execute(
 	OfficialHttpClient &client, const Services &services,
 	const HttpCancellationCallback &cancellation) noexcept
@@ -349,7 +378,14 @@ IndexRefreshSummary signed_index_refresh_detail::Access::execute(
 	result.receivedBytes = control.receivedBytes ;
 	return result ;
 }
-/** @see Access宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全fakeの全依存で同じHTTP/codec/glueを実行します。
+ * @param[in] services 呼出し中有効な全依存とRAM public trustです。
+ * @param[in] cancellation 同fixtureの協調停止です。
+ * @return 非機密summaryだけです。snapshotやgrantを作りません。
+ */
+//------------------------------------------------------------------------------
 IndexRefreshSummary signed_index_refresh_detail::Access::forTest(
 	const Services &services, const HttpCancellationCallback &cancellation) noexcept
 {
@@ -363,7 +399,14 @@ IndexRefreshSummary signed_index_refresh_detail::Access::forTest(
 	OfficialHttpClient client( *services.transport) ;	// 完全fake表だけの非cache clientです。
 	return execute( client, services, cancellation) ;
 }
-/** @see refreshFixedSignedIndex宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定GitHubと固定保護storeだけを同期workerでrefreshします。
+ * @param[in] cancellation 同worker寿命中の非blocking取消しです。空は取消しなしです。
+ * @return 元失敗・commit事実・明示cacheを保持する非機密summaryです。
+ * @note 呼出しはnetwork/保存を行います。UIからURL/path/trustを指定できません。
+ */
+//------------------------------------------------------------------------------
 IndexRefreshSummary refreshFixedSignedIndex( const HttpCancellationCallback &cancellation) noexcept
 {
 	try {

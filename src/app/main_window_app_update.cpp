@@ -2,7 +2,7 @@
 /**
  * @file main_window_app_update.cpp
  * @brief App更新menu・通知・通常終了への接続を実装します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note Providerのbusy/modal中は通知/引継ぎを保留し、取得同意前にSetupを取りません。
  * @see docs/adr/0481-app-inno-setup-and-update-checks.md
@@ -33,7 +34,12 @@
 #include <utility>
 
 namespace drivercrate {
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief App専用menu/worker/timerを初期化します。
+ * @return menu構築成功はtrue。通信失敗とは独立です。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::initializeAppUpdates()
 {
 	const auto menu = CreateMenu() ;		// Windowに所有移転するmenuです。
@@ -93,7 +99,12 @@ bool MainWindow::initializeAppUpdates()
 
 	return true ;
 }
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 新規driver操作と同時にしない取得/引継ぎ中か返します。
+ * @return 取得/ready/引継ぎ中はtrueです。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::appUpdateActive() const noexcept
 {
 	// workerがない時は通常driver操作だけを使えます。
@@ -105,7 +116,12 @@ bool MainWindow::appUpdateActive() const noexcept
 	return stage == AppUpdateStage::DOWNLOADING || stage == AppUpdateStage::READY ||
 		   stage == AppUpdateStage::HANDING_OFF ;
 }
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 既Providerのbusy/modalがないか確認します。
+ * @return 通知/引継ぎを許せる場合だけtrueです。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::canPresentAppUpdate() const noexcept
 {
 	const auto state = controller_.state() ;	// Providerだけの既stateです。
@@ -129,7 +145,11 @@ bool MainWindow::canPresentAppUpdate() const noexcept
 #endif
 	return IsWindowVisible( window_) && !IsIconic( window_) && GetForegroundWindow() == window_ ;
 }
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 起動/周期/確定結果をUI threadで確認します。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::pollAppUpdates()
 {
 	processAppUpdateEvents() ;
@@ -145,7 +165,12 @@ void MainWindow::pollAppUpdates()
 		appUpdateSchedule_.attempted( now) ;
 	}
 }
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元数値と固定の操作説明だけを表示します。
+ * @param[in] failure App更新だけの確定結果です。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::showAppUpdateFailure( const AppUpdateFailure &failure)
 {
 #if defined( DRIVERCRATE_INTERNAL_UI_TESTS)
@@ -163,7 +188,13 @@ void MainWindow::showAppUpdateFailure( const AppUpdateFailure &failure)
 	MessageBoxW( window_, message.c_str(), loadString( IDS_APP_TITLE).c_str(),
 				MB_OK | MB_ICONWARNING) ;
 }
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief App専用menu commandを処理します。
+ * @param[in] command 固定menu IDです。
+ * @return App更新commandならtrueです。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::handleAppUpdateCommand( const UINT command)
 {
 	// 固定二項目以外を処理しません。
@@ -213,7 +244,11 @@ bool MainWindow::handleAppUpdateCommand( const UINT command)
 	static_cast<void>( appUpdates_->requestCheck( true)) ;
 	return true ;
 }
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 確定したApp更新結果を安全なidle時だけ表示します。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::processAppUpdateEvents()
 {
 	// 既UI fixtureや終了後にnative更新を補完しません。

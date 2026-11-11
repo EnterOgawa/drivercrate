@@ -2,7 +2,7 @@
 /**
  * @file silicon_labs_official_provider_tests.h
  * @brief CP210x公式検索と共通serial境界の試験契約。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Network、実file、実deviceの変更に依存しない内部試験。
@@ -37,10 +38,11 @@
 
 namespace drivercrate::test {
 class TestContext ;
+//------------------------------------------------------------------------------
 /**
- * @brief CP210x公式metadata、同意、family限定監査を通信なしで検証する。
- * Parser、同意、family監査をnetworkと実導入なしで実行する。
+ * @brief CP210x公式metadata、同意、family限定監査を通信なしで検証する。Parser、同意、family監査をnetworkと実導入なしで実行する。
  * @param[in,out] context Assertion結果の集計先。 全試験のassertion集計先。
  */
+//------------------------------------------------------------------------------
 void runSiliconLabsOfficialProviderTests( TestContext &context) ;
 } // namespace drivercrate::test

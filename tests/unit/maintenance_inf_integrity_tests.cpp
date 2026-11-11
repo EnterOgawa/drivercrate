@@ -2,7 +2,7 @@
 /**
  * @file maintenance_inf_integrity_tests.cpp
  * @brief 保守INFの部分署名・全参照と通常導入policyを専用link境界で検証する。
- * @version 01.09.02
+ * @version 01.09.03
  * @date 2026/10/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.09.00 Shunji Ogawa  2026/10/08  同元byteと全値・caller・named13の52合成構成と元失敗保持を回帰。
  * Ver.01.09.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * Ver.01.09.02 Shunji Ogawa  2026/11/09  Type2内容成功と導入route拒否を分離し原拒否分母を維持。
+ * Ver.01.09.03 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 一同期scopeで架空署名とnative観測を借用する。実署名・PnP・導入の合格ではない。
@@ -184,9 +185,13 @@ struct MatrixCase {
 /** @brief fixture writerだけを単独所有し、必ずCloseHandleする。 */
 class FixtureHandle final {
 public:
-	/** @brief 未所有状態でwriterを作る。 */
+	/**
+	 * @brief 未所有状態でwriterを作る。
+	 */
 	FixtureHandle() = default ;
-	/** @brief 取得したwriterだけを閉じる。 */
+	/**
+	 * @brief 取得したwriterだけを閉じる。
+	 */
 	~FixtureHandle()
 	{
 		// 未取得writerをOSへ渡さない。
@@ -194,34 +199,41 @@ public:
 			CloseHandle( value) ;
 		}
 	}
-	/** @brief writerの二重所有を禁止する。
+	/**
+	 * @brief writerの二重所有を禁止する。
 	 * @param[in] other 複写不能な元writer。
 	 */
 	FixtureHandle( const FixtureHandle &other) = delete ;
-	/** @brief writerの複写代入を禁止する。
+	/**
+	 * @brief writerの複写代入を禁止する。
 	 * @param[in] other 複写不能な元writer。
-	 * @return 呼出し不能であり値を返さない。
 	 */
 	FixtureHandle &operator=( const FixtureHandle &other) = delete ;
 	/// createFileが出力する所有writer。未取得時INVALID_HANDLE_VALUE。
 	HANDLE		   value{INVALID_HANDLE_VALUE} ;
 } ;
 
-/** @brief 閉じたASCII fixture名をUTF-16へ変換する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 閉じたASCII fixture名をUTF-16へ変換する。
  * @param[in] name 静的なASCII相対名。
  * @return 正規化せず同じ文字列のUTF-16所有値。
  */
+//------------------------------------------------------------------------------
 std::wstring wideName( const std::string_view name)
 {
 	return {name.begin(), name.end()} ;
 }
 
-/** @brief 追跡される架空fileをCREATE_NEWで作成する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 追跡される架空fileをCREATE_NEWで作成する。
  * @param[in,out] workspace このscopeだけのfile所有領域。
  * @param[in] name 安全なfixture相対名。
  * @param[in] bytes 元byte列。
  * @return 全byte書込み成功true、拒否false。
  */
+//------------------------------------------------------------------------------
 bool writeFixture( OfficialDownloadWorkspace &workspace, const std::wstring_view name,
 				  const std::string_view bytes)
 {
@@ -295,9 +307,13 @@ struct FieldApiObservation {
 /** @brief 一scopeの合成INF handleだけを単独所有する。 */
 class FieldInfHandle final {
 public:
-	/** @brief 未取得のhandleを初期化する。 */
+	/**
+	 * @brief 未取得のhandleを初期化する。
+	 */
 	FieldInfHandle() = default ;
-	/** @brief 成功した合成INFのhandleを全終了経路で閉じる。 */
+	/**
+	 * @brief 成功した合成INFのhandleを全終了経路で閉じる。
+	 */
 	~FieldInfHandle()
 	{
 		// 未取得をSetupAPIへ渡して元診断を上書きしない。
@@ -305,23 +321,27 @@ public:
 			SetupCloseInfFile( value) ;
 		}
 	}
-	/** @brief handleの二重所有を禁止する。
+	/**
+	 * @brief handleの二重所有を禁止する。
 	 * @param[in] other 複写不能な所有者。
 	 */
 	FieldInfHandle( const FieldInfHandle &other) = delete ;
-	/** @brief handleの複写代入を禁止する。
+	/**
+	 * @brief handleの複写代入を禁止する。
 	 * @param[in] other 複写不能な所有者。
-	 * @return 呼出し不能であり値を返さない。
 	 */
 	FieldInfHandle &operator=( const FieldInfHandle &other) = delete ;
 	/// 合成INFだけの所有handle。未取得時INVALID_HANDLE_VALUE。
 	HINF			value{INVALID_HANDLE_VALUE} ;
 } ;
 
-/** @brief 64桁ASCII hexだけを検証後に表示用charへ明示変換する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 64桁ASCII hexだけを検証後に表示用charへ明示変換する。
  * @param[in] hash CNGまたは既存file helperの小文字SHA-256。
  * @return 全64桁が小文字ASCII hexなら所有値、不正なら空。
  */
+//------------------------------------------------------------------------------
 std::string narrowFieldHash( const std::wstring_view hash)
 {
 	// hash以外の広い文字列を表示用の暗黙narrowingへ流さない。
@@ -339,11 +359,14 @@ std::string narrowFieldHash( const std::wstring_view hash)
 	return result ;
 }
 
-/** @brief 既知の全UTF-16LE要素を、終端を含めずSHA-256へ結ぶ。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既知の全UTF-16LE要素を、終端を含めずSHA-256へ結ぶ。
  * @param[in] value 同期scope内の全値。空ならhashを作らない。
  * @return 小文字hash、空値または計算失敗時は空。
  * @note Windows x64のWCHAR実byteを正規化せず検査する。
  */
+//------------------------------------------------------------------------------
 std::string fieldValueHash( const std::wstring_view value)
 {
 	// 空を別の内容へ置き換えてhashを捏造しない。
@@ -363,13 +386,16 @@ std::string fieldValueHash( const std::wstring_view value)
 	return narrowFieldHash( hash) ;
 }
 
-/** @brief 同contextの必要長・全取得・一文字不足を有限bufferで観測する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同contextの必要長・全取得・一文字不足を有限bufferで観測する。
  * @param[in,out] line SetupAPIが返した同HINFの借用context。呼出し中だけ使う。
  * @param[in] lineText trueならcompact行、falseなら指定fieldを照会する。
  * @param[in] fieldIndex field照会の1始まりindex。lineText時は使わない。
  * @return APIのBOOL、直後error、終端込み容量と全取得値。失敗値も保持する。
  * @note buffer上限は16,384 WCHAR。元製品readerの上限や判定は変更しない。
  */
+//------------------------------------------------------------------------------
 FieldApiObservation observeFieldApi( INFCONTEXT &line, const bool lineText,
 									const DWORD fieldIndex = 5U)
 {
@@ -426,9 +452,12 @@ FieldApiObservation observeFieldApi( INFCONTEXT &line, const bool lineText,
 	return result ;
 }
 
-/** @brief 12群42構成を生成時の全値とともに固定する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 12群42構成を生成時の全値とともに固定する。
  * @return 原式と独立referenceの有限集合。一般INF本文を解析しない。
  */
+//------------------------------------------------------------------------------
 std::vector<FieldBoundaryCase> makeFieldBoundaryCases()
 {
 	std::vector<FieldBoundaryCase> cases ;	// 一runだけが所有する合成matrix。
@@ -554,7 +583,9 @@ std::vector<FieldBoundaryCase> makeFieldBoundaryCases()
 	return cases ;
 }
 
-/** @brief 全API観測をnumeric、opaque ordinalとhashだけで通知する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全API観測をnumeric、opaque ordinalとhashだけで通知する。
  * @param[in] spec 元構成。本文とpathは出力しない。
  * @param[in] ordinal 0始まりの同run構成index。
  * @param[in] api 1ならfield、2ならcompact行。
@@ -563,6 +594,7 @@ std::vector<FieldBoundaryCase> makeFieldBoundaryCases()
  * @param[in] observation 同HINFのAPI結果。
  * @note 全値比較はこの通知以前に所有値全体へ実施する。
  */
+//------------------------------------------------------------------------------
 void printFieldObservation( const FieldBoundaryCase &spec, const std::size_t ordinal,
 						   const unsigned int api, const std::size_t originalBytes,
 						   const std::wstring &originalHash, const FieldApiObservation &observation)
@@ -619,10 +651,13 @@ void printFieldObservation( const FieldBoundaryCase &spec, const std::size_t ord
 			  << "\"}\n" ;
 }
 
-/** @brief 合成INFの全値とcompact境界を元byteへ結んで有限測定する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 合成INFの全値とcompact境界を元byteへ結んで有限測定する。
  * @param[in,out] context このprocessだけのassertion集計。
  * @note 実inventory、原ZIP、network、registry作用、導入は行わない。
  */
+//------------------------------------------------------------------------------
 void testFieldCompletenessBoundary( TestContext &context)
 {
 	const std::vector<FieldBoundaryCase> cases = makeFieldBoundaryCases() ;	// 元生成matrix。
@@ -741,12 +776,15 @@ void testFieldCompletenessBoundary( TestContext &context)
 	std::cout << "INF field boundary groups: 12, configurations: " << cases.size() << '\n' ;
 }
 
-/** @brief 架空Portsと任意内容Class名のINFを生成する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空Portsと任意内容Class名のINFを生成する。
  * @param[in] spec 一つの有限matrix構成。
  * @param[in] className Class名policy比較用。ClassGuidは固定する。
  * @param[in] extra 元INFへ追加する架空付随節。
  * @return ASCIIの架空INF。Windows全体のClass妥当性を意味しない。
  */
+//------------------------------------------------------------------------------
 std::string makeRootInf( const MatrixCase &spec, const std::string_view className = "Ports",
 						const std::string_view extra = {})
 {
@@ -816,7 +854,8 @@ struct BoundaryFixture {
 	/// native境界の同期呼出し回数。
 	std::size_t					  nativeCalls{} ;
 
-	/** @brief 閉じた架空memberを実ZIPへ固定する。
+	/**
+	 * @brief 閉じた架空memberを実ZIPへ固定する。
 	 * @param[in] spec 一matrixだけの応答条件。
 	 * @param[in] identity 非零のscope識別子。
 	 * @param[in] className Class名policy比較用。
@@ -913,7 +952,8 @@ struct BoundaryFixture {
 		}
 	}
 
-	/** @brief 原member一件だけを照会する。
+	/**
+	 * @brief 原member一件だけを照会する。
 	 * @param[in] name 同期借用する相対名。
 	 * @return 閉じた原memberまたはnullptr。外部探索しない。
 	 */
@@ -926,11 +966,13 @@ struct BoundaryFixture {
 	}
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同byte／全field／一意callerとnamed13だけを52合成構成で回帰する。
  * @param[in,out] context 元3119assertion後の有限集計。
  * @note 原ZIP／INFを読み直さず、架空workspaceだけで元readerを呼ぶ。導入とregistry作用は0。
  */
+//------------------------------------------------------------------------------
 void testCompleteValueProof( TestContext &context)
 {
 	constexpr std::string_view BASE =
@@ -1492,10 +1534,11 @@ thread_local BoundaryFixture *activeFixture{} ;	// 同期scopeだけの非所有
 /** @brief test EXE内だけの応答所有者を一同期scopeへ結ぶ。 */
 class BoundaryScope			  final {
 public:
-	  /** @brief 未設定slotだけへfixtureを借用する。
-	 * @param[in,out] fixture scope終了まで生存する所有者。
-	 * @throws std::runtime_error 再入した場合。
-	 */
+	  /**
+	   * @brief 未設定slotだけへfixtureを借用する。
+	   * @param[in,out] fixture scope終了まで生存する所有者。
+	   * @throws std::runtime_error 再入した場合。
+	   */
 	  explicit BoundaryScope( BoundaryFixture &fixture)
 	  {
 		  // 再入で別fixtureの成功応答を流用しない。
@@ -1505,27 +1548,33 @@ public:
 
 		  activeFixture = &fixture ;
 	  }
-	  /** @brief 成功・例外にかかわらず借用slotを解除する。 */
+	  /**
+	   * @brief 成功・例外にかかわらず借用slotを解除する。
+	   */
 	  ~BoundaryScope()
 	  {
 		  activeFixture = nullptr ;
 	  }
-	  /** @brief scopeの二重所有を禁止する。
-	 * @param[in] other 複写不能な元scope。
-	 */
+	  /**
+	   * @brief scopeの二重所有を禁止する。
+	   * @param[in] other 複写不能な元scope。
+	   */
 	  BoundaryScope( const BoundaryScope &other) = delete ;
-	  /** @brief scopeの複写代入を禁止する。
-	 * @param[in] other 複写不能な元scope。
-	 * @return 呼出し不能であり値を返さない。
-	 */
+	  /**
+	   * @brief scopeの複写代入を禁止する。
+	   * @param[in] other 複写不能な元scope。
+	   */
 	  BoundaryScope &operator=( const BoundaryScope &other) = delete ;
 } ;
 
-/** @brief 同じ原memberへ実byteを再照合する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ原memberへ実byteを再照合する。
  * @param[in] workspace 今回抽出した保護領域。
  * @param[in] name 原memberの相対名。
  * @return 一致0、未設定・未知member・hash差のHRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError checkFixtureMember( const OfficialDownloadWorkspace &workspace,
 							   const std::wstring_view			name)
 {
@@ -1542,19 +1591,25 @@ NativeError checkFixtureMember( const OfficialDownloadWorkspace &workspace,
 
 	return verifyOfficialFileMetadata( workspace.path( name), {member->bytes.size(), member->hash}) ;
 }
-/** @brief 通常結果と研究結果の元field不変を確認する既存回帰へ接続する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常結果と研究結果の元field不変を確認する既存回帰へ接続する。
  * @param[in,out] context 元assertion集計。
  * @param[in] normal 観測なしの通常結果。
  * @param[in] observed 同じ入力の研究結果。
  */
+//------------------------------------------------------------------------------
 void expectObservationUnchanged( TestContext								 &context,
 								const MaintenanceDriverPackageInspection &normal,
 								const MaintenanceDriverPackageInspection &observed) ;
 
-/** @brief 保持済み構造だけから残件分類する有限八群の正負境界を確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 保持済み構造だけから残件分類する有限八群の正負境界を確認する。
  * @param[in,out] context 元分母を保持したassertion集計。
  * @note 架空保持結果と実reader fixtureだけを使い、追加native照会や導入は行わない。
  */
+//------------------------------------------------------------------------------
 void testResidualReferenceObservation( TestContext &context)
 {
 	constexpr std::string_view STDOUT =
@@ -1941,12 +1996,15 @@ void testResidualReferenceObservation( TestContext &context)
 } // namespace drivercrate::test
 
 namespace drivercrate {
-/** @brief 専用targetだけでroot／全参照の署名応答を模擬する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 専用targetだけでroot／全参照の署名応答を模擬する。
  * @param[in] workspace 元byteが固定された架空抽出領域。
  * @param[in] package 呼出し本体が生成したINF／CAT／全local member。
  * @return 設定済み架空署名診断。未知入力・未設定はE_UNEXPECTED。
  * @note 実CAT暗号署名を検証しない。製品sourceへこのsymbolを定義しない。
  */
+//------------------------------------------------------------------------------
 NativeError verifyMaintenanceInfIntegrityForTest( const OfficialDownloadWorkspace &workspace,
 												 const OfficialInfPackage		 &package)
 {
@@ -1991,7 +2049,9 @@ NativeError verifyMaintenanceInfIntegrityForTest( const OfficialDownloadWorkspac
 	return root ? activeFixture->rootError : activeFixture->peerError ;
 }
 
-/** @brief 専用targetだけで有限核へ架空native証拠を供給する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 専用targetだけで有限核へ架空native証拠を供給する。
  * @param[in] workspace 実hash固定済みの架空抽出領域。
  * @param[in] members 呼出し本体が準備した閉じたINF集合。
  * @param[in] rootIndex 元rootの位置。今回0だけを扱う。
@@ -2001,6 +2061,7 @@ NativeError verifyMaintenanceInfIntegrityForTest( const OfficialDownloadWorkspac
  * @return 架空観測0、不正入力／未知member／核拒否のHRESULT。
  * @note SYSTEMの証拠は架空。実OS・trust・Driver Store・PnPを呼ばない。
  */
+//------------------------------------------------------------------------------
 NativeError inspectMaintenanceInfDependenciesForTest(
 	const OfficialDownloadWorkspace					 &workspace,
 	const std::span<const InfDependencyPackageMember> members, const std::size_t rootIndex,
@@ -2153,11 +2214,14 @@ NativeError inspectMaintenanceInfDependenciesForTest(
 
 namespace drivercrate::test {
 namespace {
-/** @brief 元閉包と共通DTOの全独立軸・診断を比較する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元閉包と共通DTOの全独立軸・診断を比較する。
  * @param[in,out] context 有限assertion集計。
  * @param[in] closure 同じ元rootの実閉包。
  * @param[in] row 同じ元hashに結合した保守DTO。
  */
+//------------------------------------------------------------------------------
 void expectProjection( TestContext &context, const MaintenanceDriverClosure &closure,
 					  const MaintenanceInfInspection &row)
 {
@@ -2189,10 +2253,13 @@ void expectProjection( TestContext &context, const MaintenanceDriverClosure &clo
 									row.infSha256 == closure.structure.infSha256) ;
 }
 
-/** @brief root成功・部分閉包・既知FAILEDの不足構成を作る。
+//------------------------------------------------------------------------------
+/**
+ * @brief root成功・部分閉包・既知FAILEDの不足構成を作る。
  * @param[in] index 0～11の固定matrix位置。
  * @return 一構成の元入力と独立期待。
  */
+//------------------------------------------------------------------------------
 MatrixCase matrixCase( const std::size_t index)
 {
 	MatrixCase spec ;	// 通常Portsの全local参照署名が架空成功する基準。
@@ -2305,9 +2372,12 @@ MatrixCase matrixCase( const std::size_t index)
 	return spec ;
 }
 
-/** @brief 十二の不足署名・全参照組合せを実閉包とDTOへ接続する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 十二の不足署名・全参照組合せを実閉包とDTOへ接続する。
  * @param[in,out] context 有限assertion集計。
  */
+//------------------------------------------------------------------------------
 void testIntegrityMatrix( TestContext &context)
 {
 	// 各rootを同じ一runへ固定し、未知と失敗を分母へ残す。
@@ -2427,11 +2497,13 @@ struct NamedServiceBoundaryCase {
 	MaintenanceInspectionState parser{MaintenanceInspectionState::PASSED} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Namedの構造成功・不足とroot／全署名の独立を閉包と共通DTOで回帰する。
  * @param[in,out] context 有限assertion集計。
  * @note 実INF／source位置／byteを使用するが、署名・由来はこのtargetだけのfakeである。
  */
+//------------------------------------------------------------------------------
 void testNamedServiceIntegrity( TestContext &context)
 {
 	constexpr std::string_view VALID_SERVICE =
@@ -2620,11 +2692,13 @@ struct EventLogBoundaryCase {
 	NativeMode		 nativeMode{NativeMode::NONE} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同行第4fieldの子Uだけで親一件を分離し、元構造・gap・全軸を保持します。
  * @param[in,out] context 元assertion集計。九つの有限条件群を追加します。
  * @note 実byte、元reader、CAT呼出集合を使い、署名結果だけを隔離targetのfakeで供給します。
  */
+//------------------------------------------------------------------------------
 void testEventLogMarkerSeparation( TestContext &context)
 {
 	constexpr std::string_view SERVICE =
@@ -2930,11 +3004,13 @@ struct ExpandedBinaryBoundaryCase {
 	NativeError				   locationError{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 明示named導入先を元sourceへ戻し、coverageと架空署名を独立に回帰する。
  * @param[in,out] context 有限assertion集計。
  * @note 製品の実byte・INF本体と専用fake署名を使い、system導入先を開かない。
  */
+//------------------------------------------------------------------------------
 void testExpandedBinaryIntegrity( TestContext &context)
 {
 	constexpr NativeError UNSUPPORTED = static_cast<drivercrate::NativeError>(
@@ -3153,10 +3229,13 @@ void testExpandedBinaryIntegrity( TestContext &context)
 	}
 }
 
-/** @brief 作用・未解釈宣言の内容と従来routeの検出限界を独立に確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 作用・未解釈宣言の内容と従来routeの検出限界を独立に確認する。
  * @param[in,out] context 有限assertion集計。
  * @note keyなしRun登録と明示AddSoftwareも静的拒否する。不完全softwareと架空未知宣言を実作用再現にしない。
  */
+//------------------------------------------------------------------------------
 void testDangerousActions( TestContext &context)
 {
 	const std::array<std::pair<std::string_view, std::string_view>, 7U> cases{
@@ -3232,10 +3311,13 @@ void testDangerousActions( TestContext &context)
 	}
 }
 
-/** @brief keyなし正常行・禁止登録行と正規Software Type 2を通常policyで比較する。
+//------------------------------------------------------------------------------
+/**
+ * @brief keyなし正常行・禁止登録行と正規Software Type 2を通常policyで比較する。
  * @param[in,out] context 有限assertion集計。
  * @note 実source／readerを使うが署名は専用fakeで、software／registry作用を実行しない。
  */
+//------------------------------------------------------------------------------
 void testActionPolicyRows( TestContext &context)
 {
 	const std::array<std::pair<std::string_view, std::string_view>, 9U> cases{
@@ -3340,9 +3422,12 @@ void testActionPolicyRows( TestContext &context)
 	}
 }
 
-/** @brief fake合格の後もINF／CAT／SYS全byteの欠落・改変を再検証が拒否する。
+//------------------------------------------------------------------------------
+/**
+ * @brief fake合格の後もINF／CAT／SYS全byteの欠落・改変を再検証が拒否する。
  * @param[in,out] context 有限assertion集計。
  */
+//------------------------------------------------------------------------------
 void testReverificationBytes( TestContext &context)
 {
 	constexpr std::array<std::wstring_view, 3U> names{L"sample.inf", L"sample.cat",
@@ -3384,10 +3469,13 @@ void testReverificationBytes( TestContext &context)
 	}
 }
 
-/** @brief 通常19 Classの名前policyと追加二Classの隔離をfake署名条件で比較する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常19 Classの名前policyと追加二Classの隔離をfake署名条件で比較する。
  * @param[in,out] context 有限assertion集計。
  * @note ClassGuid固定の名前policy試験。全Windows Class妥当性や端末適用性ではない。
  */
+//------------------------------------------------------------------------------
 void testNormalClassPolicy( TestContext &context)
 {
 	constexpr std::array<std::string_view, 21U> classes{
@@ -3417,9 +3505,12 @@ void testNormalClassPolicy( TestContext &context)
 	}
 }
 
-/** @brief 未設定／未知入力／再入をfake成功へfallbackしない。
+//------------------------------------------------------------------------------
+/**
+ * @brief 未設定／未知入力／再入をfake成功へfallbackしない。
  * @param[in,out] context 有限assertion集計。
  */
+//------------------------------------------------------------------------------
 void testBoundaryRejections( TestContext &context)
 {
 	OfficialDownloadWorkspace empty ;	// 未設定境界では参照しない空領域。
@@ -3464,11 +3555,14 @@ void testBoundaryRejections( TestContext &context)
 	DRIVERCRATE_EXPECT( context, activeFixture == nullptr && verifyMaintenanceInfIntegrityForTest(
 																empty, package) == E_UNEXPECTED) ;
 }
-/** @brief 通常package全fieldを観測の有無で比較する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常package全fieldを観測の有無で比較する。
  * @param[in,out] context 有限assertion集計。
  * @param[in] left 元通常結果。
  * @param[in] right 研究入口の通常結果。
  */
+//------------------------------------------------------------------------------
 void expectObservationUnchanged( TestContext								 &context,
 								const MaintenanceDriverPackageInspection &left,
 								const MaintenanceDriverPackageInspection &right)
@@ -3508,10 +3602,13 @@ void expectObservationUnchanged( TestContext								 &context,
 	}
 }
 
-/** @brief 有限16条件群で同run最終参照と元判定・privacy・拒否境界を比較する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限16条件群で同run最終参照と元判定・privacy・拒否境界を比較する。
  * @param[in,out] context 有限assertion集計。
  * @note 実readerと同fixtureの架空署名を使う。実署名・実device成功を意味しない。
  */
+//------------------------------------------------------------------------------
 void testReachedReferenceObservation( TestContext &context)
 {
 	constexpr std::string_view STDOUT =
@@ -3765,9 +3862,12 @@ void testReachedReferenceObservation( TestContext &context)
 } // namespace
 } // namespace drivercrate::test
 
-/** @brief 専用非通信・非導入回帰と合成API境界を実行し件数・numeric・hashを表示する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 専用非通信・非導入回帰と合成API境界を実行し件数・numeric・hashを表示する。
  * @return 全assertion成功0、不一致またはfixture例外1。
  */
+//------------------------------------------------------------------------------
 int main()
 {
 	drivercrate::test::TestContext context ;	// このprocessだけの有限assertion集計。

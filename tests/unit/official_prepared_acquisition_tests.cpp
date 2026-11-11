@@ -2,7 +2,7 @@
 /**
  * @file official_prepared_acquisition_tests.cpp
  * @brief 配布物再確認付き取得の内部試験実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 合成metadataとcallbackで再確認と取得の接続を試験し、実HTTPを呼びません。
@@ -1015,7 +1016,8 @@ void testAsixSinglePackageFailureAndInstallBlock( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_prepared_acquisition_tests.h 宣言側の契約を正本とする。
+ * @brief 配布物identity・本文識別子・再確認・取消しの内部試験を実行する。合成metadataとcallbackだけで再確認、本文結合、取消し、部分失敗を試験する。
+ * @param[in,out] context Assertionの集計先。 試験結果の集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialPreparedAcquisitionTests( TestContext &context)

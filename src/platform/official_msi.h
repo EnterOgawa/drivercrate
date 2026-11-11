@@ -2,7 +2,7 @@
 /**
  * @file official_msi.h
  * @brief 公式MSI stream取得・cabinet mapping定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 取得済みMSIをWindows Installerのread-only databaseとして開き、固定名streamの保存とMedia／File mappingの照会だけを行います
@@ -140,9 +141,9 @@ struct OfficialMsiCabinetInventory {
 	std::vector<OfficialMsiCabinetFileEntry> files ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 取得済み公式MSIから固定名stream一件だけをread-onlyで取得する。
- * Read-only parameter queryだけを実行し、失敗時は出力を戻す。
+ * @brief 取得済み公式MSIから固定名stream一件だけをread-onlyで取得する。Read-only parameter queryだけを実行し、失敗時は出力を戻す。
  * @param[in] request 入力identity、固定stream名、出力相対path。 入力identity、固定stream、出力path。
  * @param[in] policy MSI、stream、読取りbufferへ適用する有限上限。 MSI、stream、bufferの有限上限。
  * @param[in,out] workspace 初期化済みで出力fileを所有する保護workspace。 CREATE_NEW出力を所有する保護領域。
@@ -150,20 +151,23 @@ struct OfficialMsiCabinetInventory {
  * @return 全検証、完全書込み、hash成功時は0、拒否またはAPI失敗時はHRESULT。 全検証、完全書込み、hash成功時は0、拒否時はHRESULT。
  * @note Windows Installer databaseをread-onlyで照会し、install sequenceを実行しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError extractOfficialMsiStream(
 	const OfficialMsiStreamExtractionRequest &request,
 	const OfficialMsiStreamExtractionPolicy &policy, OfficialDownloadWorkspace &workspace,
 	OfficialMsiStreamEntry &entry) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 取得済みMSIの固定embedded cabinetに属するfile mappingだけを照会する。
- * Mediaのsequence範囲だけをFile tableへparameter queryし、install sequenceやcustom actionを起動しない。
+ * @brief 取得済みMSIの固定embedded cabinetに属するfile mappingだけを照会する。Mediaのsequence範囲だけをFile tableへparameter
+ *        queryし、install sequenceやcustom actionを起動しない。
  * @param[in] request 入力identityと`Media.Cabinet`へ完全一致させるstream名。 入力MSI identityと固定stream名。
  * @param[in] policy MSI、file、row件数へ適用する有限上限。 MSI、file size、row件数の有限上限。
  * @param[out] inventory 成功時のstream名とSequence昇順file mapping。 成功時のMedia／File mapping。
  * @return 全table、mapping、入力identity検証成功時は0、拒否時はHRESULT。 Read-only照会と前後identity検証成功時は0、拒否時はHRESULT。
  * @note Read-only queryだけを実行し、install sequenceまたはcustom actionを起動しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectOfficialMsiCabinetInventory(
 	const OfficialMsiCabinetInventoryRequest &request,
 	const OfficialMsiCabinetInventoryPolicy &policy, OfficialMsiCabinetInventory &inventory) ;

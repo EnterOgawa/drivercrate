@@ -2,7 +2,7 @@
 /**
  * @file intel_ethernet_server_page_parser_tests.cpp
  * @brief Intel Ethernet Server／Windows 11 record単体試験実装。
- * @version 01.09.00
+ * @version 01.09.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -40,6 +40,7 @@
  * Ver.01.08.01 Shunji Ogawa  2026/10/02  AI依存を撤去し非AI共通処理と試験を維持。
  * Ver.01.08.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.09.00 Shunji Ogawa  2026/10/26  SHA-512単独・両hashと欠損改変拒否を回帰確認。
+ * Ver.01.09.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 現行pageと同じ必須labelを持つ合成fixtureで、別host、別OS、重複を拒否します。
@@ -153,10 +154,12 @@ constexpr std::wstring_view LICENSE_BODY =
 	return page ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 配布parserと専用製品一覧parserへ同じ合成本文を渡すfixtureです。
  * @return 同じrelease・製品一覧を含む所有fixture HTML。元fixtureに必要なbuttonがなければ空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring windows11CollectorPage()
 {
 	std::wstring release = windows11LicensePage( LICENSE_BODY) ;	// 旧parserも受け入れる許諾fixture。
@@ -269,7 +272,12 @@ void testLicenseSnapshot( TestContext &context)
 	DRIVERCRATE_EXPECT( context, record.eulaText == metadata.eulaText) ;
 }
 
-/** @brief 同一本文の一候補・複数target三状態とrootなし境界を確認します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一本文の一候補・複数target三状態とrootなし境界を確認します。
+ * @param[in,out] context 元の固定入力に対するassertion/失敗を加算する試験集計先です。同期呼出し中だけ借用します。
+ */
+//------------------------------------------------------------------------------
 void testCollectorMetadataAssessment( TestContext &context)
 {
 	const std::wstring	  page = windows11CollectorPage() ;	// 一本文の合成入力。
@@ -822,10 +830,12 @@ void testWindows11DistributionRecord( TestContext &context)
 	DRIVERCRATE_EXPECT( context, grant.payloadView().targetUrl.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 現行pageのplain text配布版表記だけを有限に受理することを確認します。
  * @param[in,out] context Assertionの集計先です。
  */
+//------------------------------------------------------------------------------
 void testWindows11PlainDescription( TestContext &context)
 {
 	std::wstring page( WINDOWS11_PAGE) ;	// Strong要素を現行plain text構造へ置換する入力です。
@@ -916,10 +926,12 @@ void testWindows11DistributionRecordRejections( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !parseIntelEthernetWindows11DownloadPage( VALID_PAGE, metadata)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 三familyで変換を共有し、同意・root・file改変を非通信で拒否します。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testSharedIntelZipAdapter( TestContext &context)
 {
 	// 製品ごとのURLを手書きで成功へ誘導せず、既存fixtureの版を共有する。
@@ -1031,9 +1043,12 @@ void testSharedIntelZipAdapter( TestContext &context)
 					 revision, terms)) ;
 }
 
-/** @brief 配布・許諾・identity・全対象の下位例外を実coreで検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 配布・許諾・identity・全対象の下位例外を実coreで検査します。
  * @param[in,out] context Assertion集計。
  */
+//------------------------------------------------------------------------------
 void testControlledIntelMetadata( TestContext &context)
 {
 	const auto html = windows11CollectorPage() ;	// 同一本文の架空配布・許諾・一覧。
@@ -1068,12 +1083,14 @@ void testControlledIntelMetadata( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !result.candidate && result.targets.size() == 2U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既存の合成配布行を架空SHA-512表示へ置き換えます。
  * @param[in] page 許諾と単一SHA-256欄を持つ合成page。
  * @param[in] keepSha256 元の公開SHA-256欄も残す場合true。
  * @return SHA-512欄を一件だけ持つ所有page。既存fixtureの構造欠損時は空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring sha512Page( std::wstring page, const bool keepSha256)
 {
 	const auto start = page.find( L"<li>SHA256:") ;		// 旧公開hash欄の先頭。
@@ -1089,10 +1106,12 @@ void testControlledIntelMetadata( TestContext &context)
 	return page ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開hashの算法を区別したまま通常recordと収集候補へ渡します。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPublishedSha512( TestContext &context)
 {
 	// 同じEthernet coreの両profileで単独と両hashを確認します。
@@ -1159,10 +1178,12 @@ void testPublishedSha512( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief SHA-512対応でhash欠損・改変や製品/取得先不一致を許可しないことを確認します。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPublishedSha512Rejections( TestContext &context)
 {
 	const auto good = sha512Page( windows11LicensePage( LICENSE_BODY), false) ;	// SHA-512単独正例。
@@ -1238,7 +1259,9 @@ void testPublishedSha512Rejections( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/intel_ethernet_server_page_parser_tests.h 宣言側の契約を正本とする。
+ * @brief Intel Ethernet Server parserとWindows 11 record adapterを検証する。Network不要の正常、新版、拒否fixtureをunit
+ *        test群へ登録する。
+ * @param[in,out] context Assertionの集計先。
  */
 //------------------------------------------------------------------------------
 void runIntelEthernetServerPageParserTests( TestContext &context)

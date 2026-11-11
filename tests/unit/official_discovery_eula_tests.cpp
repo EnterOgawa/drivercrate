@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_eula_tests.cpp
  * @brief 公式自動探索EULA groupと短命同意tokenの単体試験実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  EULA完全一致groupの非通信試験を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空Provider、package、EULAだけを使用し、network、file、driver APIを呼びません。
@@ -43,11 +44,13 @@
 namespace drivercrate::test {
 namespace {
 
+//------------------------------------------------------------------------------
 /**
  * @brief SHA-256 byte列を比較用の小文字hexへ変換する。
  * @param[in] hash 32 byteのdigest。
  * @return 64文字の小文字hex。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring hashText( const std::array<std::byte, 32U> &hash)
 {
 	constexpr std::wstring_view DIGITS = L"0123456789abcdef" ;	// Hex一桁の固定表。
@@ -63,10 +66,12 @@ namespace {
 	return result ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同一Provider・revision・本文だけを一groupへまとめることを検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testExactGrouping( TestContext &context)
 {
 	const OfficialDiscoveryBinding binding{
@@ -110,10 +115,12 @@ void testExactGrouping( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 許可tokenを同じbindingと不変packageだけへ使用できることを検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testDecisionBinding( TestContext &context)
 {
 	const OfficialDiscoveryBinding binding{
@@ -154,10 +161,12 @@ void testDecisionBinding( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !isOfficialDiscoveryBindingValid( session.activeBinding())) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 拒否、重複、不完全EULA、旧session tokenをfail-closedで扱うことを検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testRejectionAndStaleSession( TestContext &context)
 {
 	const OfficialDiscoveryBinding first{
@@ -194,7 +203,12 @@ void testRejectionAndStaleSession( TestContext &context)
 
 } // namespace
 
-/** @see official_discovery_eula_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief EULA完全一致group、判断、stale・改変拒否を検証する。
+ * @param[in,out] context Assertionの集計先。
+ */
+//------------------------------------------------------------------------------
 void runOfficialDiscoveryEulaTests( TestContext &context)
 {
 	testExactGrouping( context) ;

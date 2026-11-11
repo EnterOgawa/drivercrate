@@ -2,7 +2,7 @@
 /**
  * @file metadata_search_report.cpp
  * @brief 情報検索の入力拒否と非機密ASCII report構築。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/12  情報検索専用の非機密出力契約を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 任意の端末表示値・URL・path・EULA本文を出力しない。
@@ -43,11 +44,13 @@
 namespace drivercrate {
 namespace {
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定ASCII tokenだけをwide値から変換する。
  * @param[in] value 正本IDまたはCMake版。端末表示値は渡さない。
  * @return 最大128字の安全なtoken。拒否は空文字列。
  */
+//------------------------------------------------------------------------------
 std::string asciiToken( const std::wstring_view value)
 {
 	// 空、過大、改行やURL構成記号を持つtokenをreportへ出さない。
@@ -140,6 +143,7 @@ private:
 	bool		valid_{true} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 定義済みenumを固定文字列へ一対一で変換する。
  * @tparam Enum 0から連続した公開enum。
@@ -148,6 +152,7 @@ private:
  * @param[in] names 型の宣言順に対応する固定表。
  * @return 定義済みの固定名。未知は空文字列。
  */
+//------------------------------------------------------------------------------
 template <typename Enum, std::size_t Size>
 std::string_view enumName( const Enum								value,
 						  const std::array<std::string_view, Size> &names) noexcept
@@ -156,11 +161,13 @@ std::string_view enumName( const Enum								value,
 	return index < names.size() ? names[index] : std::string_view{} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 停止理由をschema固定の文字列へ変換する。
  * @param[in] reason 全体またはProviderの確定理由。
  * @return 固定名。未知enumは空。
  */
+//------------------------------------------------------------------------------
 std::string_view reasonName( const MetadataSearchReason reason) noexcept
 {
 	// 公開enum宣言順に固定した非機密の終了理由。
@@ -170,11 +177,13 @@ std::string_view reasonName( const MetadataSearchReason reason) noexcept
 	return enumName( reason, names) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全体・個別の元outcomeを固定名へ変換する。
  * @param[in] outcome Provider元の終端区分。
  * @return 固定名。未知enumは空。
  */
+//------------------------------------------------------------------------------
 std::string_view outcomeName( const OutcomeCode outcome) noexcept
 {
 	// 元outcomeを独自の全成功表現へ変えない固定名。
@@ -183,12 +192,14 @@ std::string_view outcomeName( const OutcomeCode outcome) noexcept
 	return enumName( outcome, names) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 件数と確定度を別fieldで出力する。
  * @param[in,out] builder 完全構築中の所有buffer。
  * @param[in] key 固定の指標名。
  * @param[in] count 同一snapshotの件数。
  */
+//------------------------------------------------------------------------------
 void appendCount( ReportBuilder &builder, const std::string_view key, const CountMeasurement &count)
 {
 	constexpr std::array<std::string_view, 4> names{"not_measured", "exact", "lower_bound",
@@ -198,12 +209,14 @@ void appendCount( ReportBuilder &builder, const std::string_view key, const Coun
 				  count.value ? std::to_string( *count.value) : "unknown") ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 異なる五指標を合算せず出力する。
  * @param[in,out] builder 出力buffer。
  * @param[in] prefix 固定のglobal／provider区分。
  * @param[in] counts 同一snapshotのT/Q/R/A/I。
  */
+//------------------------------------------------------------------------------
 void appendStages( ReportBuilder &builder, const std::string_view prefix,
 				  const StageDeviceCounts &counts)
 {
@@ -214,12 +227,14 @@ void appendStages( ReportBuilder &builder, const std::string_view prefix,
 	appendCount( builder, std::string( prefix) + ".I", counts.installReadyUpdateDeviceCount) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 成功resource数とは独立した消費量を出力する。
  * @param[in,out] builder 出力buffer。
  * @param[in] prefix 固定のglobal／provider区分。
  * @param[in] usage 上限内と検証済みの実消費。
  */
+//------------------------------------------------------------------------------
 void appendUsage( ReportBuilder &builder, const std::string_view prefix,
 				 const MetadataSearchUsage &usage)
 {
@@ -229,10 +244,12 @@ void appendUsage( ReportBuilder &builder, const std::string_view prefix,
 	builder.number( std::string( prefix) + ".http_attempts", usage.httpAttempts) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 製品上限を条件表示と実測reportで共用する。
  * @param[in,out] builder 出力buffer。
  */
+//------------------------------------------------------------------------------
 void appendLimits( ReportBuilder &builder)
 {
 	const MetadataSearchLimits limits ;	// 実行contextと同じ製品既定値。
@@ -255,7 +272,14 @@ void appendLimits( ReportBuilder &builder)
 }
 } // namespace
 
-/** @see src/core/metadata_search_report.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実行file名を除く全引数を副作用なしで解析する。
+ * @param[in] arguments 呼出し中だけ借用する入力。Provider IDは完全一致で照合。
+ * @return 引数なし・describe、明示run、または拒否。拒否時は要求を空にする。
+ * @note 許容する入力は固定flagと登録IDだけ。任意URL／file／cache消去flagを持たない。
+ */
+//------------------------------------------------------------------------------
 MetadataSearchCommand parseMetadataSearchArguments(
 	const std::span<const std::wstring_view> arguments) noexcept
 {
@@ -305,7 +329,13 @@ MetadataSearchCommand parseMetadataSearchArguments(
 	}
 }
 
-/** @see src/core/metadata_search_report.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Workerを生成せず、固定予算と選択可能な登録IDをASCIIで構築する。
+ * @param[out] description 成功時だけ置き換える完全な条件表示。
+ * @return 上限内で全条件を構築できた場合true。
+ */
+//------------------------------------------------------------------------------
 bool buildMetadataSearchDescription( std::string &description) noexcept
 {
 	try {
@@ -334,7 +364,18 @@ bool buildMetadataSearchDescription( std::string &description) noexcept
 	}
 }
 
-/** @see src/core/metadata_search_report.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開結果を開始条件へ再照合し、専用schema revision 1へ変換する。
+ * @param[in] operationId Controllerが発行した非ゼロ操作ID。
+ * @param[in] applicationVersion CMake生成値。結果contextと完全一致を要求。
+ * @param[in] request Workerへ渡した要求。結果の自己申告から補完しない。
+ * @param[in] result 同一操作の全snapshot。失敗・取消しも整合時に保持する。
+ * @param[out] report 成功時だけ更新する完全なASCII report。失敗時は変更しない。
+ * @return 固定ID、enum、件数、消費、容量の全検証に成功した場合true。
+ * @note Providerは正本registry順で出力し、入力配列を並べ替えない。
+ */
+//------------------------------------------------------------------------------
 bool buildMetadataSearchReport( const OperationId			operationId,
 							   const std::wstring_view		applicationVersion,
 							   const MetadataSearchRequest &request, const ScanResult &result,

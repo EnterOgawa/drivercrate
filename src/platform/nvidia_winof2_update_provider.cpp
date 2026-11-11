@@ -2,7 +2,7 @@
 /**
  * @file nvidia_winof2_update_provider.cpp
  * @brief NVIDIA Networking WinOF-2公式表示専用Provider実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note NVIDIA公式pageの固定委譲と段階的metadata応答を同一scan内で検証します。Local device情報、payload URL、SHA-256またはform
@@ -436,7 +437,10 @@ void notifyMetadataProgress( const ProviderProgressCallback &callback,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_winof2_update_provider.h 宣言側の契約を正本とする。
+ * @brief Local deviceがWinOF-2の表示検索対象となるNVIDIA Networking製品か確認する。通信要否だけを判定し、PnP適用性または最新版を保証しない。
+ * @param[in] device 端末内だけで参照する非機密device snapshot。 端末内だけで参照する非機密snapshot。
+ * @return Net class、NVIDIA／Mellanox表示、対応系列が全て一致する場合true。 Net class、vendor表示、対応系列が一致する場合true。
+ * @note 通信要否を決めるprobeであり、Hardware IDまたはpackage適用性の確認ではない。
  */
 //------------------------------------------------------------------------------
 bool isNvidiaWinof2Device( const OfficialCatalogDevice &device) noexcept
@@ -465,7 +469,15 @@ bool isNvidiaWinof2Device( const OfficialCatalogDevice &device) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_winof2_update_provider.h 宣言側の契約を正本とする。
+ * @brief Local probeと固定readerでWinOF-2の表示専用候補を作る。対象deviceまたは既知OSがない場合は通信せず、途中応答を補完しない。
+ * @param[in] scanSessionId 0ではないscan session。 0ではない検索session。
+ * @param[in] devices 最大4096件の外部送信しないdevice snapshot。 最大4096件の外部送信しないsnapshot。
+ * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true。
+ * @param[in] windowsBuild 実OSのmajor build番号。0は判定不能。
+ * @param[in] landingReader NVIDIA公式製品pageの差替え取得境界。 固定公式製品pageの取得境界。
+ * @param[in] metadataReader 固定form POSTの差替え取得境界。 固定metadata POSTの取得境界。
+ * @param[in] progressCallback 確定した処理件数と進捗の通知先。 確定した進捗通知先。
+ * @return 表示候補または対象外・通信失敗・metadata拒否。
  */
 //------------------------------------------------------------------------------
 ScanResult scanNvidiaWinof2Catalog( const ScanSessionId							scanSessionId,
@@ -655,7 +667,12 @@ ScanResult scanNvidiaWinof2Catalog( const ScanSessionId							scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_winof2_update_provider.h 宣言側の契約を正本とする。
+ * @brief 対象deviceと実OSが一致する場合だけ公式WinOF-2 metadataを検索する。NVIDIA起点と五つのPOST取得根拠が揃わない候補をfail-closedで破棄する。
+ * @param[in] scanSessionId 0ではないscan session。 0ではない検索session。
+ * @param[in] devices 外部送信しない現在device snapshot。 外部送信しないdevice snapshot。
+ * @param[in] hardwareIdMatcher 使用しない。現段階では表示検索に限定する。 使用しないlocal照合関数。
+ * @param[in] progressCallback 確定済み段階の通知先。 確定した進捗通知先。
+ * @return 非選択・非推奨の公式配布情報。Payloadを取得しない。 表示候補またはProvider別失敗状態。
  */
 //------------------------------------------------------------------------------
 ScanResult NvidiaWinof2UpdateProvider::scan( const ScanSessionId scanSessionId,
@@ -720,7 +737,12 @@ ScanResult NvidiaWinof2UpdateProvider::scan( const ScanSessionId scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_winof2_update_provider.h 宣言側の契約を正本とする。
+ * @brief Capability外のdownload／install要求を拒否する。Registry capability外の直接呼出しでも混在EXEへ到達せず、根拠を失効する。
+ * @param[in] scanSessionId 拒否する要求のsession。 拒否する要求session。
+ * @param[in] identities 拒否する候補identity群。
+ * @param[in] parentWindowNative 使用しない親Window値。
+ * @param[in] progressCallback 呼び出さない通知先。
+ * @return Downloadとinstallの双方がE_NOTIMPLの結果。 DownloadとinstallをE_NOTIMPLに固定した結果。
  */
 //------------------------------------------------------------------------------
 InstallResult NvidiaWinof2UpdateProvider::install( const ScanSessionId				  scanSessionId,
@@ -743,7 +765,7 @@ InstallResult NvidiaWinof2UpdateProvider::install( const ScanSessionId				  scan
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_winof2_update_provider.h 宣言側の契約を正本とする。
+ * @brief 次scanまたは拒否されたinstall要求で旧sessionの取得根拠を破棄する。
  */
 //------------------------------------------------------------------------------
 void NvidiaWinof2UpdateProvider::invalidateScanSession() noexcept

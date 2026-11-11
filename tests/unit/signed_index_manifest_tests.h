@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest_tests.h
  * @brief RAM内RSA署名によるmanifest認証試験を宣言します。
- * @version 01.11.00
+ * @version 01.11.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.09.01 Shunji Ogawa  2026/10/26 宣言と定義の引数名を揃えDoxygen契約を整合。
  * Ver.01.10.00 Shunji Ogawa  2026/11/06 Windows管理driver DATAの限定通常経路試験を宣言。
  * Ver.01.11.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.11.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Test target専用です。秘密鍵をexport・保存・log出力せず、実deviceや通信を使いません。
@@ -45,45 +46,68 @@
 namespace drivercrate::test {
 class TestContext ;
 
-/** @brief 人工署名索引からWindows-only driver DATAの通常選択/保護導入経路を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 人工署名索引からWindows-only driver DATAの通常選択/保護導入経路を検査します。
  * @param[in,out] context 有限assertion集計先です。
  * @note 実CAB/実CAT検査Aと分ける人工fixture Bです。HTTP、復旧、NewDevは完全fakeです。
  */
+//------------------------------------------------------------------------------
 void runWindowsManagedDriverPackageFixtureTests( TestContext &context) ;
 
-/** @brief 実CNG署名・JSON・base64・期限・世代の正例と拒否を固定時刻で検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実CNG署名・JSON・base64・期限・世代の正例と拒否を固定時刻で検査します。
  * @param[in,out] context 共通unit assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runSignedIndexManifestTests( TestContext &context) ;
 
-/** @brief 前段の実CNG認証から実GZip assetのsize／hash／期限／展開上限を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 前段の実CNG認証から実GZip assetのsize／hash／期限／展開上限を検査します。
  * @param[in,out] context 共通unit assertion集計先。
  * @note 実128MiB境界の人工原byteを使い、record schemaや実deviceのcoverageを測りません。
  */
+//------------------------------------------------------------------------------
 void runSignedIndexAssetBytesTests( TestContext &context) ;
 
-/** @brief 同RAM helperで厳格配布schema・原hash・UNKNOWN・有限上限を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同RAM helperで厳格配布schema・原hash・UNKNOWN・有限上限を検査します。
  * @param[in,out] context 共通unit assertion集計先。
  * @note 架空の公開IDだけを使用し、公式性・端末適合・導入の実績を作りません。
  */
+//------------------------------------------------------------------------------
 void runSignedIndexRecordsTests( TestContext &context) ;
 
-/** @brief 同RAM鍵と実隔離diskで保護原子head・世代・期限・障害を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同RAM鍵と実隔離diskで保護原子head・世代・期限・障害を検査します。
  * @param[in,out] context 共通unit assertion集計先。
  * @note 製品store、network、実端末適合、実導入、process再起動は実行しません。
  */
+//------------------------------------------------------------------------------
 void runSignedIndexStoreTests( TestContext &context) ;
-/** @brief 実署名/DPAPIの隔離rootで用途別trust・世代下限・未知root拒否を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実署名/DPAPIの隔離rootで用途別trust・世代下限・未知root拒否を検査します。
  * @param[in,out] context 共通unit assertion集計先です。
  * @note 固定ProgramData/実鍵/実通信へアクセスしません。
  */
+//------------------------------------------------------------------------------
 void runSignedIndexStoreDomainTests( TestContext &context) ;
-/** @brief 実署名・gzip・schema・隔離commit／reloadから公開ID照合seamを検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実署名・gzip・schema・隔離commit／reloadから公開ID照合seamを検査します。
  * @param[in,out] context 共通unit assertion集計先。
  * @note Fake resolverを使用し、実端末適合・通常worker／UI・取得導入へ接続しません。
  */
+//------------------------------------------------------------------------------
 void runSignedIndexRecordLookupTests( TestContext &context) ;
-/** @brief 実producerの同一manifest/GZip原byteをRAM認証し通常照合へ渡します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実producerの同一manifest/GZip原byteをRAM認証し通常照合へ渡します。
  * @param[in,out] context 共通assertion集計先です。
  * @param[in] manifestPath 原producerが保存した未署名manifestです。
  * @param[in] gzipPath 同producerの原GZipです。
@@ -92,39 +116,51 @@ void runSignedIndexRecordLookupTests( TestContext &context) ;
  * @param[in] metadataBound trueだけ新metadata一recordとpackage引数の人工terms原bodyを検査します。
  * @note 秘密鍵はRAM限定です。製品trustへ登録せず、実導入/通信を行いません。
  */
+//------------------------------------------------------------------------------
 void runDistributionApplicationFixtureTests( TestContext					&context,
 											const std::filesystem::path &manifestPath,
 											const std::filesystem::path &gzipPath,
 											const std::filesystem::path &package,
 											bool nativeMerge = false, bool metadataBound = false) ;
-/** @brief 原Intel record/期限/実archiveを通常appへ明示historical replayします。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原Intel record/期限/実archiveを通常appへ明示historical replayします。
  * @param[in,out] context 元assertion集計先です。
  * @param[in] manifestPath 現producerで六原入力を元publication秒へ投影したmanifestです。
  * @param[in] gzipPath 同producerの全22IDを持つ原GZip、負例3だけはID欠損copyです。
  * @param[in] archivePath 元40477087Bのarchiveです。別byte/hashを拒否します。
  * @param[in] termsPath 元173557BのHTTP規約documentです。
  * @param[in] scenario 0正常、1誤byte、2同意欠落、3全ID tuple欠損です。
- * @note RAM鍵/隔離storeとhistorical fake時計だけを使い、実現在UTCの失効拒否も確認します。
- * Windows標準署名APIは実行し、証明書読取通信は未観測です。実device/導入/driver HTTPは0です。
+ * @note RAM鍵/隔離storeとhistorical fake時計だけを使い、実現在UTCの失効拒否も確認します。Windows標準署名APIは実行し、証明書読取通信は未観測です。実
+ *       device/導入/driver HTTPは0です。
  */
+//------------------------------------------------------------------------------
 void runNativeIntelArchiveFixtureTests( TestContext				   &context,
 									   const std::filesystem::path &manifestPath,
 									   const std::filesystem::path &gzipPath,
 									   const std::filesystem::path &archivePath,
 									   const std::filesystem::path &termsPath, unsigned scenario) ;
-/** @brief 独立byte条件内の65536/65537 recordを共通値codecで確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 独立byte条件内の65536/65537 recordを共通値codecで確認します。
  * @param[in,out] context 本suiteの集計先です。
  * @note 認証receiptや内容成功は発行しません。
  */
+//------------------------------------------------------------------------------
 void runIndexCapacityRecordCountTests( TestContext &context) ;
-/** @brief native producer原fileをRAM署名/隔離store/通常scan/planへ接続します。
+//------------------------------------------------------------------------------
+/**
+ * @brief native producer原fileをRAM署名/隔離store/通常scan/planへ接続します。
  * @param[in,out] context 共通集計先です。
  * @param[in] directory 私有native producerの保存先です。
  */
+//------------------------------------------------------------------------------
 void runIndexCapacityProducedConsumerTests( TestContext				   &context,
 										   const std::filesystem::path &directory) ;
 
-/** @brief 旧368原byteを保持し全ID/record容量とnative matcherを有限確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 旧368原byteを保持し全ID/record容量とnative matcherを有限確認します。
  * @param[in,out] context 共通assertion集計先です。
  * @param[in] baselineIndex 764基準から作った私有base368/index.jsonです。
  * @param[in] requestedInputs 0は旧上限超/境界matrix、正値はその全公開ID数です。
@@ -133,11 +169,15 @@ void runIndexCapacityProducedConsumerTests( TestContext				   &context,
  * @param[in] tailUnknown trueだけ全入力枠消費後に0-ID UNKNOWNを追加します。
  * @note 実鍵/store/inventory/通信/導入を使用せずRAM署名の隔離storeだけです。
  */
+//------------------------------------------------------------------------------
 void runIndexCapacityTests( TestContext &context, const std::filesystem::path &baselineIndex,
 						   std::size_t requestedInputs, bool large, bool realClock,
 						   bool tailUnknown) ;
-/** @brief positive/UNKNOWN/native projectionの保持32768/32769を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief positive/UNKNOWN/native projectionの保持32768/32769を確認します。
  * @param[in,out] context 共通集計先です。
  */
+//------------------------------------------------------------------------------
 void runIndexCapacityRetainedTests( TestContext &context) ;
 } // namespace drivercrate::test

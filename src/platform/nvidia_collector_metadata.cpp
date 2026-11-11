@@ -2,7 +2,7 @@
 /**
  * @file nvidia_collector_metadata.cpp
  * @brief NVIDIA公開queryと原応答を同collector releaseへ結びます。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/11/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/05  原件数・echo・channelと新版の一意性検査を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/05  原flagを検証して既知の非対象行だけを選択から除外。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 表示版は同公開query内の選択専用です。内容・適用性・同意のproofを発行しません。
  * @see docs/adr/0447-nvidia-collector-json-metadata.md
@@ -37,7 +38,14 @@
 #include <winrt/base.h>
 
 namespace drivercrate {
-/** @see nvidia_collector_metadata.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 任意queryを許さずcanonical公開lookupを読みます。
+ * @param[in] url 定義内の未認証URLです。
+ * @param[out] lookup 成功時の公開条件です。拒否時は初期値です。
+ * @return 固定query条件に一致する場合trueです。
+ */
+//------------------------------------------------------------------------------
 bool parseNvidiaCollectorLookupUrl( const std::wstring_view url, NvidiaCollectorLookup &lookup)
 {
 	lookup = {} ;
@@ -59,7 +67,16 @@ bool parseNvidiaCollectorLookupUrl( const std::wstring_view url, NvidiaCollector
 	lookup = {match[1].str(), match[2].str(), match[3].str(), match[4].str() == L"1"} ;
 	return true ;
 }
-/** @see nvidia_collector_metadata.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存parserの公式host/ID検査と原Request echoを一致確認します。
+ * @param[in] json 同APIの有限原JSON本文です。
+ * @param[in] lookupUrl 登録したcanonical公開queryです。
+ * @param[out] selected SELECTEDのときだけ一意な原releaseを返します。
+ * @return 原metadataの不正・空結果または全行非対象・有効候補選択を区別します。
+ * @note marketing版をINF四要素版へ変換しません。呼出し中はCOM apartmentが必要です。
+ */
+//------------------------------------------------------------------------------
 NvidiaCollectorMetadataStatus selectNvidiaCollectorRelease( const std::wstring_view json,
 														   const std::wstring_view lookupUrl,
 														   NvidiaDriverEntry	  &selected)

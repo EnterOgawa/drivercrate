@@ -2,7 +2,7 @@
 /**
  * @file official_release_local_probe.h
  * @brief 公式release端末内fingerprint生成定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Worker内のnative device識別値を端末固有keyで不可逆化し、OSと対象device集合の失効判定用fingerprintを生成します。生識別値は保持しません。
@@ -59,24 +60,25 @@ struct OfficialReleaseEnvironmentFingerprints {
 	std::wstring deviceConfiguration ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Native device識別値から端末内限定binding fingerprintを生成する。
- * Native device識別値から端末内bindingを生成する。
- * 用途labelと長さ付きUTF-16だけをHMACし、生IDを保持しない。
+ * @brief Native device識別値から端末内限定binding fingerprintを生成する。Native device識別値から端末内bindingを生成する。用途labelと
+ *        長さ付きUTF-16だけをHMACし、生IDを保持しない。
  * @param[in] secret 管理者保護stateから得た32 byteの端末固有key。 端末固有HMAC key。
  * @param[in] nativeDeviceIdentity Worker内だけで保持するdevice instance ID。 Worker内のnative device ID。
  * @param[out] fingerprint 成功時の64桁小文字HMAC-SHA-256。失敗時は空。 成功時の小文字HMAC-SHA-256。
  * @return 成功時は0、不正入力またはCNG失敗時はHRESULT bit pattern。
  * @note 入力識別値、secret、fingerprintをnetworkまたはlogへ渡してはならない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError makeLocalOfficialDeviceBindingFingerprint(
 	const LocalOfficialBindingSecret &secret, std::wstring_view nativeDeviceIdentity,
 	std::wstring &fingerprint) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 現在OSと端末内device binding集合の失効用fingerprintを生成する。
- * OSとdevice構成の端末内fingerprintを生成する。
- * OS値とsort済みdevice集合を用途別SHA-256へ変換する。
+ * @brief 現在OSと端末内device binding集合の失効用fingerprintを生成する。OSとdevice構成の端末内fingerprintを生成する。OS値とsort済み
+ *        device集合を用途別SHA-256へ変換する。
  * @param[in] windowsServer Windows Serverの場合はtrue、clientの場合はfalse。 Serverならtrue。
  * @param[in] windowsBuild RtlGetVersionで取得した0ではないmajor build番号。 0ではない実OS build。
  * @param[in] windowsProductSku GetProductInfoで取得した0ではないPRODUCT_*値。
@@ -86,6 +88,7 @@ struct OfficialReleaseEnvironmentFingerprints {
  *         pattern。
  * @note Device集合は順序非依存であり、重複fingerprintは曖昧として拒否する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError makeLocalOfficialEnvironmentFingerprints(
 	bool windowsServer, std::uint32_t windowsBuild, std::uint32_t windowsProductSku,
 	std::span<const std::wstring>			deviceBindings,

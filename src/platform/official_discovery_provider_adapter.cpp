@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_provider_adapter.cpp
  * @brief 審査済みProviderの端末内matcherと固定root registrationを実装する。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  Intel Windows 11固定root registrationを実装。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Cache失効用parser identityをregistrationへ結合。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Matcherは表示hintをnetworkへ渡さず、registration callbackも組み込み固定root以外のURLを
@@ -58,12 +59,14 @@ constexpr std::array		INTEL_ETHERNET_SERIES{
 	   std::wstring_view( L"E610"), std::wstring_view( L"E810"),	std::wstring_view( L"E830"),
 	   std::wstring_view( L"E835"), std::wstring_view( L"V710")} ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 二つの有限文字列をWindows ordinal規則で大文字小文字を無視して比較する。
  * @param[in] left 左辺文字列。
  * @param[in] right 右辺文字列。
  * @return 同じ文字列の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool sameText( const std::wstring_view left, const std::wstring_view right) noexcept
 {
 	// Win32のsigned長へ安全に変換できない入力を一致させない。
@@ -76,24 +79,28 @@ constexpr std::array		INTEL_ETHERNET_SERIES{
 								static_cast<int>( right.size()), TRUE) == CSTR_EQUAL ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有限文字列が指定prefixから始まるか大文字小文字を無視して確認する。
  * @param[in] value 検証する表示文字列。
  * @param[in] prefix 先頭に要求する文字列。
  * @return Prefixが完全一致する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool startsWithText( const std::wstring_view value,
 								  const std::wstring_view prefix) noexcept
 {
 	return value.size() >= prefix.size() && sameText( value.substr( 0U, prefix.size()), prefix) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有限文字列が指定tokenを含むか大文字小文字を無視して確認する。
  * @param[in] value 検証する表示文字列。
  * @param[in] token 含有を要求する非空文字列。
  * @return 一箇所以上で完全一致する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool containsText( const std::wstring_view value,
 								const std::wstring_view token) noexcept
 {
@@ -115,7 +122,14 @@ constexpr std::array		INTEL_ETHERNET_SERIES{
 
 } // namespace
 
-/** @see official_discovery_provider_adapter.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Intel Ethernet Windows 11固定rootの端末内route対象を判定する。
+ * @param[in] hint Raw PnP IDを含まない一deviceの有限hint。
+ * @return PCI上のNet classと審査済みIntel Ethernet表示系列が一致する場合true。
+ * @note 本結果は探索先の選択だけに使用し、PnP適合、最新版、推奨または導入可能性を意味しません。
+ */
+//------------------------------------------------------------------------------
 bool matchesIntelEthernetWindows11OfficialDiscoveryHint(
 	const OfficialDiscoveryDeviceHint &hint) noexcept
 {
@@ -149,7 +163,18 @@ bool matchesIntelEthernetWindows11OfficialDiscoveryHint(
 	return false ;
 }
 
-/** @see official_discovery_provider_adapter.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 組み込みProvider正本から検証済み公式自動探索registrationを作成する。
+ * @param[in,out] recordSession Composite workerがregistrationより長く所有する秘密record session。
+ * @param[in] intelEthernetWindows11Resolver Intel固定rootだけを処理する型付きresolver。
+ * @param[in] cancellation 同じworker operationの非blocking取消し照会。
+ * @param[in] descriptors Provider registryの正本または同じ合成copy。
+ * @return 全Provider、source policy、root、callbackが一致するregistration集合。不正時は値なし。
+ * @throws std::bad_alloc Registrationまたはcallbackの所有領域を確保できない場合。
+ * @warning 戻り値はrecordSessionとresolverが参照する依存関係より先に破棄してください。
+ */
+//------------------------------------------------------------------------------
 std::optional<std::vector<OfficialDiscoveryRegistration>> makeBuiltInOfficialDiscoveryRegistrations(
 	OfficialDiscoveryRecordAdapterSession	 &recordSession,
 	OfficialDiscoveryFixedRootResolver		  intelEthernetWindows11Resolver,

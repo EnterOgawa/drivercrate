@@ -2,7 +2,7 @@
 /**
  * @file official_record_resolution.h
  * @brief 未信頼URL入力を組み込み公式rootへ限定して解決するworker契約を定義します。
- * @version 01.01.01
+ * @version 01.01.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  有限command、root resolver、session registryを追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  非cacheの一回grant再解決契約を追加。
  * Ver.01.01.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 一objectをProvider worker threadだけで直列使用します。利用者またはAIが提示したURLへ通信せず、
@@ -219,11 +220,13 @@ struct ResolvedOfficialDistributionRecord {
 	OfficialDistributionRecord		   record ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Root resolver registryが組み込みProvider・policy・endpointと一意に対応するか検証します。
  * @param[in] registrations 一Provider・resourceにつき一件の有限registration集合。
  * @return 全件が組み込み公式network Providerと固定endpointへ一致する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validateOfficialRecordResolverRegistrations(
 	std::span<const OfficialRecordResolverRegistration> registrations) noexcept ;
 

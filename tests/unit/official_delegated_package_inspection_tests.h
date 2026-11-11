@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_package_inspection_tests.h
  * @brief Record限定取得と共通package検査の接続単体試験を定義します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  取得・内容検査・表示専用評価の接続fixtureを追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実network、実driver、実installを使用せず、架空recordと存在しない入力pathだけを使用します。
@@ -32,10 +33,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Record限定取得から表示専用評価までの正常・拒否・後始末fixtureを実行します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void runOfficialDelegatedPackageInspectionTests( TestContext &context) ;
 
 } // namespace drivercrate::test

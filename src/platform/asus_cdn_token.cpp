@@ -2,7 +2,7 @@
 /**
  * @file asus_cdn_token.cpp
  * @brief 保存一次仕様の匿名CDN文脈とresponseを非永続で解決する。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/03  二段encodingと有限epoch/string文法を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note HTTPを開始せず、公開文脈の構築とsession限定responseの解釈だけを行う。
  */
@@ -39,27 +40,36 @@ constexpr std::wstring_view PAYLOAD_ORIGIN =
 	L"https://dlcdnta.asus.com" ;	// 保存一次JSのGlobal起点。
 constexpr std::wstring_view ENDPOINT =
 	L"https://cdnta.asus.com/api/v1/TokenHQ?filePath=" ;	// metadata起点。
-/** @brief 公開ASCII英数字だけを検査する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開ASCII英数字だけを検査する。
  * @param[in] c 原一文字。
  * @return ASCII英数字ならtrue。
  */
+//------------------------------------------------------------------------------
 bool alphaNumeric( const wchar_t c) noexcept
 {
 	return (c >= L'a' && c <= L'z') || (c >= L'A' && c <= L'Z') || (c >= L'0' && c <= L'9') ;
 }
-/** @brief ECMAScript両encodingの共通safe文字を検査する。
+//------------------------------------------------------------------------------
+/**
+ * @brief ECMAScript両encodingの共通safe文字を検査する。
  * @param[in] c 原ASCII文字。
  * @return encodeURIComponentが維持する場合true。
  */
+//------------------------------------------------------------------------------
 bool componentSafe( const wchar_t c) noexcept
 {
 	return alphaNumeric( c) || std::wstring_view( L"-_.!~*'()").find( c) != std::wstring_view::npos ;
 }
-/** @brief ASCII原URLを保存一次JSのsafe集合でencodeする。
+//------------------------------------------------------------------------------
+/**
+ * @brief ASCII原URLを保存一次JSのsafe集合でencodeする。
  * @param[in] text 固定grammar内のASCII原値。
  * @param[in] component trueは第二段でcolonだけを戻す。
  * @return 原caseを維持したpercent表現。
  */
+//------------------------------------------------------------------------------
 std::wstring encode( const std::wstring_view text, const bool component)
 {
 	constexpr std::wstring_view HEX = L"0123456789ABCDEF" ;	// JSと同じupper hex。
@@ -82,10 +92,13 @@ std::wstring encode( const std::wstring_view text, const bool component)
 
 	return value ;
 }
-/** @brief 変換済みsignatureの有限envelopeを検査する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 変換済みsignatureの有限envelopeを検査する。
  * @param[in] value response原文字列。
  * @return queryを構造変更しない現protocol文字だけならtrue。
  */
+//------------------------------------------------------------------------------
 bool signatureGrammar( const std::wstring_view value) noexcept
 {
 	return !value.empty() && value.size() <= 1024U &&
@@ -93,19 +106,25 @@ bool signatureGrammar( const std::wstring_view value) noexcept
 			   return alphaNumeric( c) || c == L'-' || c == L'_' || c == L'~' ;
 		   }) ;
 }
-/** @brief 現公開key identifierの有限文法を検査する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 現公開key identifierの有限文法を検査する。
  * @param[in] value response原key。
  * @return 非空ASCII英数字ならtrue。
  */
+//------------------------------------------------------------------------------
 bool keyGrammar( const std::wstring_view value) noexcept
 {
 	return !value.empty() && value.size() <= 128U && std::ranges::all_of( value, alphaNumeric) ;
 }
-/** @brief 原十進stringを単位推測せずUTC Unix秒へchecked変換する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原十進stringを単位推測せずUTC Unix秒へchecked変換する。
  * @param[in] text JSON stringの元内容。
  * @param[out] value 成功時の元整数。
  * @return canonical grammarと製品UTC範囲内ならtrue。
  */
+//------------------------------------------------------------------------------
 bool epochString( const std::wstring_view text, std::uint64_t &value) noexcept
 {
 	value = 0U ;
@@ -133,7 +152,9 @@ struct SecretFields {
 	std::wstring signature ;
 	/// raw key identifier。
 	std::wstring key ;
-	/** @brief 自身の二つの所有値だけを消去する。 */
+	/**
+	 * @brief 自身の二つの所有値だけを消去する。
+	 */
 	~SecretFields()
 	{
 		SecureZeroMemory( signature.data(), signature.size() * sizeof( wchar_t)) ;
@@ -142,7 +163,13 @@ struct SecretFields {
 } ;
 } // namespace
 
-/** @see official_cdn_token.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現固定protocolの公開値を有限文法へ検査する。
+ * @param[in] plan 元recordの公開文脈。
+ * @return 現protocolで表現可能ならtrue。
+ */
+//------------------------------------------------------------------------------
 bool validAsusAnonymousCdnPlan( const OfficialAnonymousCdnPlan &plan) noexcept
 {
 	return !plan.model.empty() && plan.model.size() <= 64U &&
@@ -158,14 +185,27 @@ bool validAsusAnonymousCdnPlan( const OfficialAnonymousCdnPlan &plan) noexcept
 			   return c == L'/' || componentSafe( c) ;
 		   }) ;
 }
-/** @see official_cdn_token.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元path/modelから唯一のpublic canonical URLを作る。
+ * @param[in] plan 検査済み公開文脈。
+ * @return 正常時の元URL。不成立なら空。
+ */
+//------------------------------------------------------------------------------
 std::wstring asusAnonymousCdnCanonicalUrl( const OfficialAnonymousCdnPlan &plan)
 {
 	return validAsusAnonymousCdnPlan( plan)
 			   ? std::wstring( PAYLOAD_ORIGIN) + plan.path + L"?model=" + plan.model
 			   : std::wstring{} ;
 }
-/** @see official_cdn_token.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存一次JSの二段encodingで固定POSTを作る。
+ * @param[in] plan 元recordの公開文脈。
+ * @param[out] request 全成功時だけ有効な閉request。
+ * @return 成功0、不正文脈またはallocationはHRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError makeAsusAnonymousCdnPost( const OfficialAnonymousCdnPlan &plan,
 									 OfficialEmptyJsonQueryPost		&request)
 {
@@ -194,7 +234,15 @@ NativeError makeAsusAnonymousCdnPost( const OfficialAnonymousCdnPlan &plan,
 		return E_OUTOFMEMORY ;
 	}
 }
-/** @see official_cdn_token.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限responseを元public URLとprotocol epochへ結ぶ。
+ * @param[in] response session内だけのUTF-16 JSON。保存しない。
+ * @param[in] plan 元recordの公開文脈。
+ * @param[out] result 全型/文法/量を成功した秘密URL。権限ではない。
+ * @return 全解釈成功0、不正応答は元HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError parseAsusAnonymousCdnResponse( const std::wstring_view		  response,
 										  const OfficialAnonymousCdnPlan &plan,
 										  OfficialAnonymousCdnResolution &result)
@@ -278,7 +326,15 @@ NativeError parseAsusAnonymousCdnResponse( const std::wstring_view		  response,
 		return E_UNEXPECTED ;
 	}
 }
-/** @see official_cdn_token.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 解決結果が元公開queryと同じepochを保持するか再照合する。
+ * @param[in] plan 同recordの公開文脈。
+ * @param[in] target session限定の完全解決URL。
+ * @param[in] expires 同responseのUTC Unix秒。
+ * @return 元URLと各認証fieldが一度だけ一致する場合true。
+ */
+//------------------------------------------------------------------------------
 bool matchesAsusAnonymousCdnTarget( const OfficialAnonymousCdnPlan &plan,
 								   const std::wstring_view target, const std::uint64_t expires)
 {

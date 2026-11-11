@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package_tests.h
  * @brief 公式標準INF driver package単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空INF packageにより、現在x64 section、参照file、許可値およびdriver-only境界をnetworkと実driver installなしで検証します。
@@ -39,12 +40,13 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 公式標準INF driver packageの構造検証境界を検証する。
- * 公式標準INF driver package単体試験を実行する。
- * 正常構造、policy、欠落、architecture、混入拒否試験を順番に実行する。
+ * @brief 公式標準INF driver packageの構造検証境界を検証する。公式標準INF driver package単体試験を実行する。正常構造、policy、欠落、
+ *        architecture、混入拒否試験を順番に実行する。
  * @param[in,out] context Assertion件数と失敗内容の集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialDriverPackageTests( TestContext &context) ;
 
 } // namespace drivercrate::test

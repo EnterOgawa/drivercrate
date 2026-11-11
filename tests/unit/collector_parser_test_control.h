@@ -2,7 +2,7 @@
 /**
  * @file collector_parser_test_control.h
  * @brief 解析内checkpointごとの決定的停止・例外注入fixture。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/28  制御付きparserの障害fixtureを追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実装や台帳を保持せず、呼出し中だけworker所有の制御を借用します。
@@ -63,7 +64,8 @@ public:
 	/// 固定観測値。
 	CollectorIoSnapshot observed{} ;
 
-	/** @brief 指定した一回だけ停止または例外を発生させます。
+	/**
+	 * @brief 指定した一回だけ停止または例外を発生させます。
 	 * @param[in] stage 本番coreが指定した段階。
 	 * @param[in] limit 正数のphase予算。
 	 * @return 継続なら予算、中止なら0。
@@ -112,12 +114,16 @@ public:
 
 		return limit ;
 	}
-	/** @brief 実送信は行いません。 @return 常にtrue。 */
+	/**
+	 * @brief 実送信は行いません。
+	 * @return 常にtrue。
+	 */
 	bool noteSendCall() override
 	{
 		return true ;
 	}
-	/** @brief 実読取りは行いません。
+	/**
+	 * @brief 実読取りは行いません。
 	 * @param[in] requested 未使用要求量。
 	 * @param[in] received 未使用取得量。
 	 * @return 常にtrue。
@@ -128,12 +134,16 @@ public:
 		(void)received ;
 		return true ;
 	}
-	/** @brief 実headerはありません。 @return 常にtrue。 */
+	/**
+	 * @brief 実headerはありません。
+	 * @return 常にtrue。
+	 */
 	bool noteHeaders() override
 	{
 		return true ;
 	}
-	/** @brief 第一原因を保持します。
+	/**
+	 * @brief 第一原因を保持します。
 	 * @param[in] cause 終了原因。
 	 * @param[in] error 原数値。
 	 * @param[in] bytesUnknown 未使用の本文欠測。
@@ -147,19 +157,27 @@ public:
 			observed.error = error ;
 		}
 	}
-	/** @brief 解放観測を更新します。 @param[in] released 解放状態。 */
+	/**
+	 * @brief 解放観測を更新します。
+	 * @param[in] released 解放状態。
+	 */
 	void setNativeReleased( bool released) override
 	{
 		observed.nativeReleased = released ;
 	}
-	/** @brief 固定観測を返します。 @return 整合した値。 */
+	/**
+	 * @brief 固定観測を返します。
+	 * @return 整合した値。
+	 */
 	CollectorIoSnapshot snapshot() const override
 	{
 		return observed ;
 	}
 } ;
 
-/** @brief 正常経路の全checkpointに取消し・例外を一回ずつ注入します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 正常経路の全checkpointに取消し・例外を一回ずつ注入します。
  * @tparam Call 実coreを呼ぶ関数型。
  * @tparam Empty 出力が空であることの検査型。
  * @param[in,out] context Assertion集計。
@@ -167,6 +185,7 @@ public:
  * @param[in] empty 部分結果の持出しがないことの検査。
  * @param[in] stage 期待段階。
  */
+//------------------------------------------------------------------------------
 template <class Call, class Empty>
 void testParserCheckpoints( TestContext &context, Call call, Empty empty,
 						   CollectorIoStage stage = CollectorIoStage::PARSE)

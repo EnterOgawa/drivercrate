@@ -2,7 +2,7 @@
 /**
  * @file broadcom_update_provider.cpp
  * @brief Broadcom NetXtreme-E公式配布情報の検索。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Workerで公式検索情報を保持し、明示承認後に取得・監査したINFだけを導入候補へ昇格します。
@@ -99,7 +100,10 @@ bool familyPrefix( const std::wstring_view text, const std::wstring_view prefix)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief 非機密device表示値がNetXtreme-E配布情報の参照対象か確認する。端末内のNet class・メーカー・系列表示名を照合する。N210TPへの適用保証には使わない。
+ * @param[in] device 現在deviceの非機密snapshot。
+ * @return Net classと審査済み系列表示名が一致すればtrue。 定義した検査に適合する場合true。不一致はfalse。
+ * @note 表示専用の関連付けであり、adapter型番やPnP適用性の合格ではない。
  */
 //------------------------------------------------------------------------------
 bool broadcomNetxtremeEDevice( const OfficialCatalogDevice &device) noexcept
@@ -115,7 +119,13 @@ bool broadcomNetxtremeEDevice( const OfficialCatalogDevice &device) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief 検証済み配布metadataから非選択・非推奨の表示専用行を作る。配布情報だけの非選択・導入不可行を作る。配布版をINF版へ転用しない。
+ * @param[in] session 0ではない有効なscan session ID。 0でない検索session。
+ * @param[in] ordinal Session内で一意な候補連番。 表示候補の0始まり連番。
+ * @param[in] device Local系列照合が成立したdevice。 現在deviceの非機密snapshot。
+ * @param[in] release 当該scanで製品・document情報を結合済みのrecord。 製品record。出力時の部分値は呼出し側が失敗時に破棄する。
+ * @return 内容／適用性監査待ちでinstallを禁止した表示DTO。 適用性・内容未監査の表示専用候補。
+ * @note 呼出し側で取得元根拠を確認する。INF版、日付、byte数を推測しない。
  */
 //------------------------------------------------------------------------------
 UpdateCandidate makeBroadcomDiscoveryCandidate( const ScanSessionId			session,
@@ -152,7 +162,9 @@ UpdateCandidate makeBroadcomDiscoveryCandidate( const ScanSessionId			session,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief 今回scanへ使用する前回観測と現在環境fingerprintを設定する。Worker内へ所有copyを作り、Broadcom live metadataとの差分だけへ使用する。
+ * @param[in] previous 現在OS／device構成へ事前照合済みの観測。最大4,096件。 現在環境へ事前照合済みの前回観測。
+ * @param[in] environment 現在OSとdevice集合の端末内fingerprint。
  */
 //------------------------------------------------------------------------------
 void BroadcomUpdateProvider::configureReleaseObservationContext(
@@ -166,7 +178,8 @@ void BroadcomUpdateProvider::configureReleaseObservationContext(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief 直前の成立したscanで生成した今回観測を参照する。Compositeのatomic統合保存だけが参照し、HMACとhashをUIへ渡さない。
+ * @return 次scanまたは明示失効まで有効な非所有span。 直前の成功scanで生成した観測の非所有span。
  */
 //------------------------------------------------------------------------------
 std::span<const LocalOfficialReleaseObservation> BroadcomUpdateProvider::releaseObservations()
@@ -177,7 +190,12 @@ std::span<const LocalOfficialReleaseObservation> BroadcomUpdateProvider::release
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief 対象系列が存在する場合だけ固定公開JSONを取得する。固定公式JSONをworkerで同期取得する。表示候補と別に本文付き配布情報を保持し、scanではZIPを取得しない。
+ * @param[in] scanSessionId 0ではない操作内session ID。 検索または要求元のsession ID。
+ * @param[in] devices 最大4096件の現在device。 最大4096件の非機密device情報。
+ * @param[in] hardwareIdMatcher 未使用。配布情報だけでPnP IDを推測しない。 本検索では未使用のPnP照合境界。
+ * @param[in] progressCallback 実際に終了した段階の通知先。必須。 検索の確定段階通知先。直接install拒否時は呼ばない。
+ * @return 表示候補、対象外、候補なし、通信失敗、metadata拒否を区別した結果。 表示候補と検索結果。本文解析が未対応なら取得対象は発行しない。
  */
 //------------------------------------------------------------------------------
 ScanResult BroadcomUpdateProvider::scan( const ScanSessionId							 scanSessionId,
@@ -384,7 +402,19 @@ ScanResult BroadcomUpdateProvider::scan( const ScanSessionId							 scanSessionI
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief Broadcom固定policyで発行済み候補を共通INF導入executorへ渡す。Broadcomの固定Provider／resourceだけを共通executorへ渡す薄い
+ *        wrapper。Session保持物の失効は所有するProviderが結果確定後に行う。
+ * @param[in] context 同じworker呼出し中だけ有効な取得物・閉包・routing。 同じworkerが所有する取得物・閉包・routing。
+ * @param[in] identities 利用者が一device一候補で明示選択したopaque ID群。 明示選択された監査合格候補ID群。
+ * @param[in] reverifier 本番では共通INF閉包再検証だけを渡す必須関数。 保持INF閉包の共通再検証。
+ * @param[in] rankAuditor 現在PnP／rankを再取得する必須関数。 現在PnP／rankの再監査。
+ * @param[in] installer 再検証合格INFだけを導入する必須関数。 再検証合格INFのWindows標準導入境界。
+ * @param[in] parentWindowNative Windows導入dialogの親Window値。
+ * @param[in] progressCallback 確定した外側file検証・候補処理の進捗通知先。 確定した処理段階の通知先。
+ * @return downloadとinstallを分離した入力順の個別結果。 入力順の外側ZIP再検証、INF／rank再監査および導入結果。
+ * @note Provider IDとpayload resourceは本wrapperが固定する。UI入力からsourceEvidenceConfirmed、policyまたはroutingを構
+ *       成してはならない。
+ * @note 本関数は保持物を解放しない。呼出し側が結果または例外の確定後にsessionを失効させる。
  */
 //------------------------------------------------------------------------------
 InstallResult executeBroadcomPreparedInstall( const BroadcomPreparedInstallContext &context,
@@ -404,7 +434,13 @@ InstallResult executeBroadcomPreparedInstall( const BroadcomPreparedInstallConte
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief 明示選択した監査済み候補を再検証してWindows標準APIで導入する。Provider所有sessionと公式取得根拠を確認して共通executorへ渡し、結果または例外の確定後
+ *        に保持物を失効させる。
+ * @param[in] scanSessionId 候補を発行した検索session ID。
+ * @param[in] identities UIへ発行済みのopaque候補ID群。 利用者が明示選択した監査合格候補ID群。
+ * @param[in] parentWindowNative Windows導入dialogの親Window値。
+ * @param[in] progressCallback 再検証と個別導入の確定進捗通知先。 外側ZIP再検証と候補別導入の確定進捗通知先。
+ * @return 外側取得物、INF、PnP／rankと個別導入を分離した結果。 入力順の再検証、downloadおよびinstall個別結果。
  */
 //------------------------------------------------------------------------------
 InstallResult BroadcomUpdateProvider::install( const ScanSessionId				  scanSessionId,

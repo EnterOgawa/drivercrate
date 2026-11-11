@@ -2,7 +2,7 @@
 /**
  * @file public_index_readback.h
  * @brief 監視PC専用の固定三resource匿名readbackと非機密reportを定義します。
- * @version 01.02.01
+ * @version 01.02.02
  * @date 2026/10/20
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/27  Daily/candidateの正規artifact名pairを明示。
  * Ver.01.02.00 Shunji Ogawa  2026/11/05  同親workerの省略可能な協調取消しを公開。
  * Ver.01.02.01 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.02.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note URL、credential、path、取得本文をreportへ渡さず、storeとcacheを書きません。
  * @see docs/adr/0385-public-anonymous-index-readback.md
@@ -112,23 +113,31 @@ struct PublicIndexReadbackReport {
 	/// 任意入力を含まない固定失敗段階です。
 	PublicIndexFailureStage failureStage{PublicIndexFailureStage::ARGUMENTS} ;
 } ;
-/** @brief 閉modeの個数とASCII十進残時間をfile読取前に検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 閉modeの個数とASCII十進残時間をfile読取前に検査します。
  * @param[in] count 実行file名込みで正確に5です。
  * @param[in] args count個の借用wide文字列です。
  * @param[out] milliseconds 成功時だけ1..90000の残時間です。
  * @return 固定mode、個数、非空path、残時間が成立した場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool publicIndexReadbackArguments( int count, wchar_t *const args[],
 												std::uint32_t &milliseconds) noexcept ;
-/** @brief 既存daily/candidate callerの同parent・同stem二file名だけを許可します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存daily/candidate callerの同parent・同stem二file名だけを許可します。
  * @param[in] envelopePath 原manifestへのpathです。呼出し中だけ借用します。
  * @param[in] gzipPath 同じfamilyとstemの圧縮indexへのpathです。
  * @return DailyのASCII8桁、またはcandidateのASCII16桁・世代1..9007199254740991の場合trueです。
  * @note 非I/Oの名前検査だけです。固定root/絶対正規path/ACL/同handle/reparse等は既存readerで別途必須です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool publicIndexReadbackArtifactPair( const std::filesystem::path &envelopePath,
 												   const std::filesystem::path &gzipPath) noexcept ;
-/** @brief 固定公開trustで元二byteと匿名三resourceを現在UTC検証します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定公開trustで元二byteと匿名三resourceを現在UTC検証します。
  * @param[in] envelope 保護readerから得た96KiB以下の原envelopeです。
  * @param[in] gzip 保護readerから得た32MiB以下の原gzipです。
  * @param[in] milliseconds 親が渡した元の正の残時間です。最大90000です。
@@ -138,16 +147,20 @@ struct PublicIndexReadbackReport {
  * @return 元診断、部分resource、同時計の実観測だけです。
  * @note 同期worker専用です。保存、cache、credential、任意URL入力はありません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] PublicIndexReadbackReport readbackFixedPublicIndex(
 	std::string_view envelope, std::string_view gzip, std::uint32_t milliseconds,
 	std::chrono::steady_clock::time_point operationStarted,
 	std::chrono::sys_seconds			  operationStartedAtUtc,
 	const HttpCancellationCallback		 &cancellation = {}) noexcept ;
-/** @brief 閉enumと原数値から順序固定10fieldのASCII JSONを生成します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 閉enumと原数値から順序固定10fieldのASCII JSONを生成します。
  * @param[in] report 同じnative実行が所有する非機密観測です。
  * @return 改行を持たない64KiB以下のcanonical JSONです。
  * @throws std::runtime_error 時刻またはdigestが閉wireに一致しない場合です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string publicIndexReadbackJson( const PublicIndexReadbackReport &report) ;
 
 namespace public_index_readback_detail {
@@ -168,7 +181,8 @@ struct Services {
 } ;
 /** @brief 私有HTTP roleとmonitor profileへ接続する唯一のglueです。 */
 struct Access {
-	/** @brief 全fake I/Oと既存の実native codecで同じ実装を検査します。
+	/**
+	 * @brief 全fake I/Oと既存の実native codecで同じ実装を検査します。
 	 * @param[in] services 欠損を許さない全fake依存です。
 	 * @param[in] envelope 期待原envelopeです。
 	 * @param[in] gzip 期待原gzipです。
@@ -179,7 +193,8 @@ struct Access {
 	[[nodiscard]] static PublicIndexReadbackReport forTest(
 		const Services &services, std::string_view envelope, std::string_view gzip,
 		std::uint32_t milliseconds, const HttpCancellationCallback &cancellation = {}) noexcept ;
-	/** @brief 固定clientと検査済み依存を三resourceへ一度だけ適用します。
+	/**
+	 * @brief 固定clientと検査済み依存を三resourceへ一度だけ適用します。
 	 * @param[in,out] client 非cacheの固定clientです。
 	 * @param[in] services 製品固定または完全fakeの依存です。
 	 * @param[in] envelope 期待原envelopeです。

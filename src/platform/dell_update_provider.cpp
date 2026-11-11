@@ -2,7 +2,7 @@
 /**
  * @file dell_update_provider.cpp
  * @brief Dell公式driver Provider実装。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Dell PCだけを対象に署名済み公式catalogを取得し、端末情報を送信せずlocal照合します。DUPはsize、SHA-256、Dell署名を再検証して対話実行します。
@@ -107,13 +108,14 @@ struct DellSystemIdentity {
 	bool		 windows11{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Win32 errorをProvider共通HRESULT bit patternへ変換する。
- * Win32 errorをHRESULT bit patternへ変換する。
- * Win32失敗理由をProvider共通表現へ変換する。
+ * @brief Win32 errorをProvider共通HRESULT bit patternへ変換する。Win32 errorをHRESULT bit patternへ変換する。Win32失
+ *        敗理由をProvider共通表現へ変換する。
  * @param[in] error GetLastErrorまたはWin32 API error code。
  * @return NativeErrorで保持できるHRESULT bit pattern。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError nativeErrorFromWin32( DWORD error) noexcept ;
 
 /**
@@ -282,7 +284,10 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/dell_update_provider.cpp 宣言側の契約を正本とする。
+ * @brief Win32 errorをProvider共通HRESULT bit patternへ変換する。Win32 errorをHRESULT bit patternへ変換する。Win32失
+ *        敗理由をProvider共通表現へ変換する。
+ * @param[in] error GetLastErrorまたはWin32 API error code。
+ * @return NativeErrorで保持できるHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError nativeErrorFromWin32( const DWORD error) noexcept
@@ -795,7 +800,13 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/dell_update_provider.h 宣言側の契約を正本とする。
+ * @brief Dell PCに対応する公式Windows x64 driver releaseを検索する。Dell PCに対応する公式Windows x64 releaseを検索する。Dell以
+ *        外は無通信で成功し、Dellでは署名・hash・model・OS・Hardware IDを全て満たすreleaseだけを候補化する。
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。 0ではないscan session ID。
+ * @param[in] devices Driver Store列挙から得た非機密device snapshot群。
+ * @param[in] hardwareIdMatcher Catalog側IDをlocal deviceへ解決する照合関数。 Catalog IDのlocal照合関数。
+ * @param[in] progressCallback Catalog取得・検証・照合の進捗通知先。 Catalog取得・照合進捗通知先。
+ * @return Dell候補または取得・検証失敗を含むscan結果。
  */
 //------------------------------------------------------------------------------
 ScanResult DellUpdateProvider::scan( const ScanSessionId							 scanSessionId,
@@ -1090,7 +1101,14 @@ ScanResult DellUpdateProvider::scan( const ScanSessionId							 scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/dell_update_provider.h 宣言側の契約を正本とする。
+ * @brief 選択されたDell公式DUPを取得・検証して対話起動する。Session、identity、device重複を検証し、同一DUPを一度だけhash・署名再検証して対話実行する。結果
+ *        は対応候補へ反映する。
+ * @param[in] scanSessionId 選択元のscan session ID。 選択元scan session ID。
+ * @param[in] identities UIに提示済みのopaque Dell候補identity群。 UIに提示済みopaque identity群。
+ * @param[in] parentWindowNative 将来のinstaller親Window連携用。現在は使用しない。 現在未使用の親Window値。
+ * @param[in] progressCallback Download、検証、install待機の進捗通知先。 Download/install進捗通知先。
+ * @return 選択候補ごとのdownload/install結果。
+ * @note G11-C／D未接続候補はtargetへ登録せず、identityを拒否する。
  */
 //------------------------------------------------------------------------------
 InstallResult DellUpdateProvider::install( const ScanSessionId				  scanSessionId,
@@ -1221,7 +1239,7 @@ InstallResult DellUpdateProvider::install( const ScanSessionId				  scanSessionI
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/dell_update_provider.h 宣言側の契約を正本とする。
+ * @brief scan sessionとinstaller targetを失効させる。Opaque identity再利用とstale公式URL実行を防ぐ。
  */
 //------------------------------------------------------------------------------
 void DellUpdateProvider::invalidateScanSession() noexcept

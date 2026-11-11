@@ -2,7 +2,7 @@
 /**
  * @file vaio_catalog_parser.cpp
  * @brief VAIO Global公式catalog parser実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Windows.Data.Jsonで公式JSONの型と上限を検証します。非driver分類とpayload欠損項目は候補へ変換せず、必須schema不正はfail-closedにしま
@@ -608,7 +609,10 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/vaio_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief Category IDが初期版で許可するPnP driver分類か判定する。Category IDが許可するPnP driver分類か判定する。BIOS、firmware、
+ *        application、utility、serviceを除外する。
+ * @param[in] categoryId VAIO公式category ID。
+ * @return Driver分類allowlistに完全一致する場合は`true`。
  */
 //------------------------------------------------------------------------------
 bool isVaioDriverCategory( const std::wstring_view categoryId) noexcept
@@ -619,7 +623,14 @@ bool isVaioDriverCategory( const std::wstring_view categoryId) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/vaio_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief VAIO categoryと公式titleを一意なlocal deviceへ解決する。VAIO driver metadataを一意なlocal deviceへ解決する。Setup
+ *        class、maker、model tokenだけで一意に解決し、versionと日付を適用性判定へ使用しない。
+ * @param[in] categoryId 検証済みVAIO category ID。 検証済みcategory ID。
+ * @param[in] officialTitle Updateとpre-installed項目を連結した公式title。 Updateとpre-installedの公式title。
+ * @param[in] devices 端末内だけで保持する非機密device snapshot群。 Local device snapshot群。
+ * @return 一意に適用可能なopaque device identity。0件または複数件なら`std::nullopt`。 一意なopaque identity。0件または複数件なら
+ *         `std::nullopt`。
+ * @note Versionと日付は照合に使用せず、Setup class、maker、device modelだけを使用する。
  */
 //------------------------------------------------------------------------------
 std::optional<std::wstring> matchVaioDriverDevice(
@@ -653,7 +664,11 @@ std::optional<std::wstring> matchVaioDriverDevice(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/vaio_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief Models.jsonからGlobal support対象model codeを取得する。VAIO Global model JSONを対応model集合へ変換する。全record
+ *        の必須field型を検証し、Global=Yだけを重複なく返す。
+ * @param[in] jsonUtf16 HTTPS上限確認済みのUTF-16 JSON。 Models.json UTF-16 text。
+ * @param[out] models 成功時の重複しないmodel集合。失敗時は空にする。 Global support対象model集合。
+ * @return 成功時は0、schema、型、上限、model code不正時はHRESULT bit pattern。 成功時は0、schemaまたは上限不正時はHRESULT。
  */
 //------------------------------------------------------------------------------
 NativeError parseVaioModelCatalog( const std::wstring_view jsonUtf16, std::vector<VaioModel> &models)
@@ -713,7 +728,11 @@ NativeError parseVaioModelCatalog( const std::wstring_view jsonUtf16, std::vecto
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/vaio_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief 公式model集合をlocal SMBIOS表示値へ一意に照合する。VAIO公式modelをlocal SMBIOS表示値へ一意に照合する。Model code直前を英数字境界にし
+ *        、code後のSKU suffixは許可する。Serial値は呼出し側から受け取らない。
+ * @param[in] models 検証済みGlobal model集合。
+ * @param[in] localValues SystemProductName等の端末内表示値。 SystemProductName等のlocal表示値。
+ * @return 一意なmodel code。0件または曖昧な場合は`std::nullopt`。
  */
 //------------------------------------------------------------------------------
 std::optional<std::wstring> matchVaioModelCode( const std::span<const VaioModel>	   models,
@@ -772,7 +791,11 @@ std::optional<std::wstring> matchVaioModelCode( const std::span<const VaioModel>
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/vaio_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief preinstDriversGlobal.jsonからmodelとcategoryの対応を取得する。VAIO pre-installed JSONをmodel／category対応
+ *        へ変換する。NAの有無にかかわらずTable 1のmodel／category正本を保持する。
+ * @param[in] jsonUtf16 HTTPS上限確認済みのUTF-16 JSON。 preinstDriversGlobal.json UTF-16 text。
+ * @param[out] drivers 成功時のpre-installed項目群。失敗時は空にする。 検証済みpre-installed項目群。
+ * @return 成功時は0、schema、型、上限、識別子不正時はHRESULT bit pattern。 成功時は0、schemaまたは上限不正時はHRESULT。
  */
 //------------------------------------------------------------------------------
 NativeError parseVaioPreinstalledCatalog( const std::wstring_view			  jsonUtf16,
@@ -854,7 +877,13 @@ NativeError parseVaioPreinstalledCatalog( const std::wstring_view			  jsonUtf16,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/vaio_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief UpdateListGlobal.jsonからinstall可能なdriver updateだけを取得する。VAIO update JSONをdriver release群へ変換す
+ *        る。無効または非driver recordを除外し、driver metadataの欠損はcatalog全体を拒否する。
+ * @param[in] jsonUtf16 HTTPS上限確認済みのUTF-16 JSON。 UpdateListGlobal.json UTF-16 text。
+ * @param[out] releases 成功時のdriver release群。失敗時は空にする。 Install可能なdriver release群。
+ * @return 成功時は0、schema、型、URL、size、hash不正時はHRESULT bit pattern。 成功時は0、schema、URL、size、hash不正時は
+ *         HRESULT。
+ * @note 既知の非driver category、無効項目、payload欠損項目は正常に除外する。
  */
 //------------------------------------------------------------------------------
 NativeError parseVaioUpdateCatalog( const std::wstring_view		   jsonUtf16,

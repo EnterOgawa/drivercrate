@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package_audit.cpp
  * @brief 固定profileによる公式driver閉包・署名・PnP監査。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note ASUS、Broadcom、WinOF-2、Intel EthernetおよびASIXの同一scan取得物を共通監査します。
@@ -582,7 +583,10 @@ NativeError cancelAudit( OfficialDriverPackageAudit &audit)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_driver_package_audit.h 宣言側の契約を正本とする。
+ * @brief 登録済み内容監査profileに固定されたProvider IDを参照する。共通監査policyを正本とし、report側へProvider一覧を複製しない。
+ * @param[in] profile 内部登録された監査profile。
+ * @return Registryと取得ledgerへ照合する固定Provider ID。未知値の場合は空。
+ * @note 戻り値はprocess寿命中有効であり、取得元証明または任意Providerの許可には使用しない。
  */
 //------------------------------------------------------------------------------
 std::wstring_view officialDriverAuditProviderId( const OfficialDriverAuditProfile profile) noexcept
@@ -593,7 +597,13 @@ std::wstring_view officialDriverAuditProviderId( const OfficialDriverAuditProfil
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_driver_package_audit.h 宣言側の契約を正本とする。
+ * @brief 取得済み公式 ZIP／CABの全INFを内容監査する。既存閉包・署名部品で全INFを監査する。取消し・全体失敗では部分閉包を破棄する。
+ * @param[in] request G11-B取得結果、公式公開hashおよび外側archive形式。 取得identity・公開hash・固定profile。
+ * @param[out] audit 内容・適用性の監査結果と所有閉包。既存値は初期化し、監査件数とCAT／publisher検証済みの非boot-critical INF閉包群を保持する。
+ * @param[in] cancellation 空または協調取消し照会。取消しは部分合格を破棄する。 空または非blockingの取消し照会。
+ * @return 全archive処理完了時は0、取得identityまたは全体処理失敗時はHRESULT。 成功時0、失敗時はHRESULT。個別拒否は監査件数へ残す。
+ * @note 個別INFの拒否は全INFを確認するため処理を継続し、summaryへ件数を残す。
+ * @note 外側にINFがなくnested ZIP／CABが一件だけある場合は、その一段内側を監査する。
  */
 //------------------------------------------------------------------------------
 NativeError auditOfficialDriverPackage( const OfficialDriverPackageAuditRequest &request,
@@ -774,7 +784,15 @@ NativeError auditOfficialDriverPackage( const OfficialDriverPackageAuditRequest 
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_driver_package_audit.h 宣言側の契約を正本とする。
+ * @brief 内容監査済み公式 INFを現在scanのlocal deviceとG11-D監査する。同一sessionの同class deviceだけを端末内で照合し、Applicableな組合
+ *        せだけを保持する。
+ * @param[in] scanSessionId Device inventoryと同じ0ではないscan session ID。 内容監査と同一の検索session。
+ * @param[in] devices Hardware IDを含まない現在device snapshot群。 現在deviceの非機密snapshot群。
+ * @param[in] rankAuditor Driver Storeのread-only PnP／Rank監査関数。 同じworker内のWindows標準PnP／rank監査。
+ * @param[in,out] audit 内容監査合格INFと、成功時に追加するG11-D合格組合せ。 内容・適用性監査結果と所有閉包。
+ * @param[in] cancellation 空または協調取消し照会。取消しは部分合格を破棄する。 空または非blockingの取消し照会。
+ * @return 全組合せを確認した場合は0、入力または全体処理失敗時はHRESULT。 成功時0、失敗時はHRESULT。個別拒否は監査件数へ残す。
+ * @note 個別SetupAPI失敗または非適用後も残りを確認し、`APPLICABLE`だけを保持する。
  */
 //------------------------------------------------------------------------------
 NativeError auditOfficialDriverApplicability( const ScanSessionId scanSessionId,
@@ -929,7 +947,10 @@ NativeError auditOfficialDriverApplicability( const ScanSessionId scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_driver_package_audit.h 宣言側の契約を正本とする。
+ * @brief 内容監査済み公式 INF閉包をinstall直前に完全再検証する。同じprofileで全file・INF構造・CAT memberを再検証する。導入許可は別途必要。
+ * @param[in] auditedPackage Scan時に固定した保護workspace、file hashおよびINF metadata。 取得後から保持したINF閉包とprofile。
+ * @return 全file、INF構造、CAT member、publisherがscan時と一致する場合は0。 成功時0、失敗時はHRESULT。個別拒否は監査件数へ残す。
+ * @note 管理者権限を持つ競合processによるscan後の差替えをSetupAPI呼出し前に拒否する。
  */
 //------------------------------------------------------------------------------
 NativeError reverifyOfficialAuditedInfPackage( const OfficialAuditedInfPackage &auditedPackage)

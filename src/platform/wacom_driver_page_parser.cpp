@@ -2,7 +2,7 @@
 /**
  * @file wacom_driver_page_parser.cpp
  * @brief Wacom Windows driver公式page parser実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 固定Wacom pageを実行せず、既知templateを除いた一意なWindows配布欄を解析します。統合EXE、EULA、Privacy Notice、Retail／OEM適用性
@@ -313,7 +314,12 @@ constexpr std::array		DOWNLOAD_HOSTS{									// Payload URLとして認識す�
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/wacom_driver_page_parser.h 宣言側の契約を正本とする。
+ * @brief Wacom Product Resources pageのWindows driver欄を有限規則で解析する。既知Mustache templateを読み飛ばし、URL、file名
+ *        、版、OS、size、日付を相互照合する。統合EXEの取得、実行、展開、EULA同意、PnP適用性判定は行わない。
+ * @param[in] html Wacom公式hostから取得したUTF-16 HTML。
+ * @param[out] metadata 成功時の表示専用metadata。失敗時は初期値。
+ * @return Windows x64を含む一意な配布情報が全属性で整合する場合true。 既知template以外のWindows x64配布欄が一件だけ整合する場合true。
+ * @note macOS、ARM64単独、旧版、別host、utility、firmwareは候補へ混入させない。
  */
 //------------------------------------------------------------------------------
 bool parseWacomWindowsDriverPage( const std::wstring_view html, WacomDriverPageMetadata &metadata)

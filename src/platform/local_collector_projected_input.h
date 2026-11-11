@@ -2,7 +2,7 @@
 /**
  * @file local_collector_projected_input.h
  * @brief 全共有jobの新収集profileを非保存canonical入力へ結合します。
- * @version 01.02.03
+ * @version 01.02.04
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.02.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
  * Ver.01.02.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.02.03   Shunji Ogawa  2026/10/16 private準備済み所有constructorの移譲元を明記。
+ * Ver.01.02.04 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 保存、予約、HTTP、導入を行いません。root v3は後続工程です。
@@ -66,25 +67,30 @@ struct CollectorProjectedCampaignIdentity {
 	std::vector<CollectorProjectedJobInput> jobs ;
 } ;
 
-/** @brief 元manifestと全jobを再計算して新v3入力・世代を固定します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元manifestと全jobを再計算して新v3入力・世代を固定します。
  * @param[in] definition 元manifest、組み込みsource、実artifact。
  * @param[in] startDay 予約開始JST日。YYYYMMDDの実在日付。
  * @param[out] identity 成功時だけ所有するcanonical入力と全job。
  * @return schema、全scope、768 KiB以下のcanonical化と二段SHA-256が成立した場合true。
- * @note 旧generation算法は呼ばず、旧request／job keyだけをbuilderで再利用します。
- * 通信・保存・予約・root移行は行いません。
+ * @note 旧generation算法は呼ばず、旧request／job keyだけをbuilderで再利用します。通信・保存・予約・root移行は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool makeCollectorProjectedCampaignIdentity(
 	const CollectorProjectedCampaignDefinition &definition, std::wstring_view startDay,
 	CollectorProjectedCampaignIdentity &identity) ;
 
-/** @brief 保存input-v3を元manifestから再構築し、実byteまで照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存input-v3を元manifestから再構築し、実byteまで照合します。
  * @param[in] canonicalInput 最大768 KiBの保存UTF-8本文。
  * @param[out] definition 全検査後だけ返す元公開定義。失敗時は空です。
  * @param[out] identity 全再構築した所有jobと実byte指紋。失敗時は空です。
  * @return 元builderの全fieldと保存byteが一致する場合true。
  * @note 保存sourceを新しい通信許可へ変換せず、未知fieldや重複fieldも拒否します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseCollectorProjectedCampaignIdentity(
 	std::string_view canonicalInput, CollectorProjectedCampaignDefinition &definition,
 	CollectorProjectedCampaignIdentity &identity) ;
@@ -96,24 +102,28 @@ class CollectorPreparedProjectedJob final {
 public:
 	/**
 	 * @brief 検査済み公開jobの所有fieldを複製して保持する。
-	 * @note 無名のコピー元から各fieldの既定コピーを行う。再解析や通信許可の発行は行わない。
+	 * @note 第1引数（const CollectorPreparedProjectedJob &、in）は無名のコピー元です。各fieldの既定コピーだけを行い、再解析や通信許可の発行は
+	 *       行いません。
 	 */
 	CollectorPreparedProjectedJob( const CollectorPreparedProjectedJob &) = default ;
 	/**
 	 * @brief 検査済み公開jobの所有fieldを複製して置き換える。
 	 * @return 代入後の自分自身への参照。
-	 * @note 無名のコピー元から各fieldの既定コピーを行う。再解析や通信許可の発行は行わない。
+	 * @note 第1引数（const CollectorPreparedProjectedJob &、in）は無名のコピー元です。各fieldの既定コピーだけを行い、再解析や通信許可の発行は
+	 *       行いません。
 	 */
 	CollectorPreparedProjectedJob &operator=( const CollectorPreparedProjectedJob &) = default ;
 	/**
 	 * @brief 検査済み公開jobの所有fieldを移動して保持する。
-	 * @note 無名の移動元から各fieldの既定移動を行う。再解析や通信許可の発行は行わない。
+	 * @note 第1引数（CollectorPreparedProjectedJob &&、in,out）は無名の移動元です。各fieldの既定移動だけを行い、再解析や通信許可の発行は行いま
+	 *       せん。
 	 */
 	CollectorPreparedProjectedJob( CollectorPreparedProjectedJob &&) noexcept = default ;
 	/**
 	 * @brief 検査済み公開jobの所有fieldを移動して置き換える。
 	 * @return 代入後の自分自身への参照。
-	 * @note 無名の移動元から各fieldの既定移動を行う。再解析や通信許可の発行は行わない。
+	 * @note 第1引数（CollectorPreparedProjectedJob &&、in,out）は無名の移動元です。各fieldの既定移動だけを行い、再解析や通信許可の発行は行いま
+	 *       せん。
 	 */
 	CollectorPreparedProjectedJob &operator=( CollectorPreparedProjectedJob &&) noexcept = default ;
 	/**
@@ -126,6 +136,19 @@ public:
 	}
 
 private:
+	/**
+	 * @brief 保存v3入力から組み込み契約を一度だけ再照合して全jobを準備します。
+	 * @note 第1引数（std :: string_view、in）はこの宣言では無名です。元登録済みのcanonical実byte。
+	 * @note 第2引数（std :: wstring_view、in）はこの宣言では無名です。元登録のinput hash。
+	 * @note 第3引数（std :: wstring_view、in）はこの宣言では無名です。元登録の専用G。
+	 * @note 第4引数（std :: wstring_view、in）はこの宣言では無名です。実行中の組み込みartifact hash。
+	 * @note 第5引数（std :: span < const CollectorCampaignSource >、in）はこの宣言では無名です。実行中の組み込みsource全契約。保存本
+	 *       文の値を流用しません。
+	 * @note 第6引数（std :: shared_ptr < const CollectorPreparedProjectedCampaign > &、out）はこの宣言では無名です。成
+	 *       功時だけ全jobを変更不能で所有します。失敗時は空です。
+	 * @return 実byte、G、artifact、全sourceと全jobの再構築が一致した場合true。
+	 * @note 予約・HTTP・保存は行いません。外から作った可変jobを引き取りません。
+	 */
 	friend bool prepareCollectorProjectedCampaign(
 		std::string_view, std::wstring_view, std::wstring_view, std::wstring_view,
 		std::span<const CollectorCampaignSource>,
@@ -189,6 +212,19 @@ public:
 	}
 
 private:
+	/**
+	 * @brief 保存v3入力から組み込み契約を一度だけ再照合して全jobを準備します。
+	 * @note 第1引数（std :: string_view、in）はこの宣言では無名です。元登録済みのcanonical実byte。
+	 * @note 第2引数（std :: wstring_view、in）はこの宣言では無名です。元登録のinput hash。
+	 * @note 第3引数（std :: wstring_view、in）はこの宣言では無名です。元登録の専用G。
+	 * @note 第4引数（std :: wstring_view、in）はこの宣言では無名です。実行中の組み込みartifact hash。
+	 * @note 第5引数（std :: span < const CollectorCampaignSource >、in）はこの宣言では無名です。実行中の組み込みsource全契約。保存本
+	 *       文の値を流用しません。
+	 * @note 第6引数（std :: shared_ptr < const CollectorPreparedProjectedCampaign > &、out）はこの宣言では無名です。成
+	 *       功時だけ全jobを変更不能で所有します。失敗時は空です。
+	 * @return 実byte、G、artifact、全sourceと全jobの再構築が一致した場合true。
+	 * @note 予約・HTTP・保存は行いません。外から作った可変jobを引き取りません。
+	 */
 	friend bool prepareCollectorProjectedCampaign(
 		std::string_view, std::wstring_view, std::wstring_view, std::wstring_view,
 		std::span<const CollectorCampaignSource>,
@@ -214,7 +250,9 @@ private:
 	std::wstring							   generationKey_ ;
 } ;
 
-/** @brief 保存v3入力から組み込み契約を一度だけ再照合して全jobを準備します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存v3入力から組み込み契約を一度だけ再照合して全jobを準備します。
  * @param[in] canonicalInput 元登録済みのcanonical実byte。
  * @param[in] expectedInputSha256 元登録のinput hash。
  * @param[in] expectedGenerationKey 元登録の専用G。
@@ -224,6 +262,7 @@ private:
  * @return 実byte、G、artifact、全sourceと全jobの再構築が一致した場合true。
  * @note 予約・HTTP・保存は行いません。外から作った可変jobを引き取りません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool prepareCollectorProjectedCampaign(
 	std::string_view canonicalInput, std::wstring_view expectedInputSha256,
 	std::wstring_view expectedGenerationKey, std::wstring_view currentArtifactSha256,

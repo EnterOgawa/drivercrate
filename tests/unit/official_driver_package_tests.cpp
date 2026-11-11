@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package_tests.cpp
  * @brief 公式標準INF driver package単体試験実装。
- * @version 01.16.01
+ * @version 01.16.02
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -58,6 +58,7 @@
  * Ver.01.15.00 Shunji Ogawa  2026/11/03  標準Componentのnull・Type1・原copy境界の回帰を追加。
  * Ver.01.16.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * Ver.01.16.01 Shunji Ogawa  2026/11/07  現非実行policyと旧fixture期待を照合。
+ * Ver.01.16.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実在するhardware IDや署名packageを使用せず、SetupAPIのINF構文とfail-closed条件を架空fixtureで検証します。
@@ -1087,11 +1088,13 @@ void testEmptyCoInstallerReferences( TestContext &context)
 		false, identity++) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 棚卸しと導入拒否を分離し、媒体pathと全CopyINFの境界を確認する。
  * @param[in,out] context Assertion集計先。
  * @note 実ID・署名済みpackage・導入APIを使わない。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceInfReferences( TestContext &context)
 {
 	OfficialDownloadWorkspace workspace ;	// 架空INFだけを所有する保護領域。
@@ -1200,11 +1203,13 @@ void testMaintenanceInfReferences( TestContext &context)
 	DRIVERCRATE_EXPECT( context, facts.infRelativePath.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 保守参照の先頭現在directoryだけを解決し、親参照と絶対pathは拒否する。
  * @param[in,out] context Assertion集計先。
  * @note 架空INFを保護領域へ置き、実導入・実署名packageを使用しない。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceRelativeReferences( TestContext &context)
 {
 	OfficialDownloadWorkspace workspace ;	// 架空fixtureだけを所有する保護領域。
@@ -1270,11 +1275,13 @@ void testMaintenanceRelativeReferences( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 空sourceでも署名を要求し、通常導入の構造policyを緩和しない。
  * @param[in,out] context Assertion集計先。
  * @note 架空CATを使用する負例であり、署名合格の正例は別の非実行実物試験で確認する。
  */
+//------------------------------------------------------------------------------
 void testInfOnlyIntegrityBoundary( TestContext &context)
 {
 	OfficialDownloadWorkspace workspace ;	// INF/CATのみを所有する架空fixture領域。
@@ -1314,6 +1321,7 @@ void testInfOnlyIntegrityBoundary( TestContext &context)
 	DRIVERCRATE_EXPECT( context, verifyWindowsInfPackageIntegrity( workspace, content) != 0) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一つの架空保守INFを構造回帰用に組み立てる。
  * @param[in] serviceBody 現OS対応Services節の宣言。空名も原文字列で保持する。
@@ -1322,6 +1330,7 @@ void testInfOnlyIntegrityBoundary( TestContext &context)
  * @param[in] extraModels 現OS Modelsへ加える架空行。
  * @return 元byte検証だけに使用する架空INF。実inventoryを含まない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string makeMaintenanceInf( std::string_view serviceBody,
 											 std::string_view installBody	= {},
 											 std::string_view extraSections = {},
@@ -1345,6 +1354,7 @@ void testInfOnlyIntegrityBoundary( TestContext &context)
 	return inf ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 架空INFとdummy CATをSetupAPIで構造観測する。
  * @param[in,out] context Assertion集計先。
@@ -1355,6 +1365,7 @@ void testInfOnlyIntegrityBoundary( TestContext &context)
  * @return 保守APIの元HRESULT。読取失敗は構造を空にする。
  * @throws std::runtime_error 架空workspace初期化に失敗した場合。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectMaintenanceFixture( TestContext &context, std::string_view inf,
 													MaintenanceInfStructure &structure,
 													bool					 payloadPresent = false,
@@ -1414,10 +1425,12 @@ struct MaintenanceFlagCase {
 	MaintenanceInfContentKind  kind ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Empty名・flags全field・Windows展開と個別不正／未対応の分離を回帰する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceNullFlags( TestContext &context)
 {
 	constexpr std::array<MaintenanceFlagCase, 18U> CASES{{
@@ -1519,10 +1532,12 @@ void testMaintenanceNullFlags( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全Models・参照ありnull・限定named／複数service・未追跡用途を分離する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceStructureBoundaries( TestContext &context)
 {
 	MaintenanceInfStructure structure ;	// 各観測の前に入口が空へresetする結果。
@@ -1633,11 +1648,13 @@ struct MaintenanceNamedServiceCase {
 	MaintenanceInspectionState state ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Named 0／2・省略flags・必須参照と限定nullを同じ有限queueで回帰する。
  * @param[in,out] context Assertion集計先。
  * @note 構造だけを検査し、架空CATを署名成功へ扱わない。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceNamedServices( TestContext &context)
 {
 	constexpr std::string_view SERVICE_BODY =
@@ -1817,12 +1834,14 @@ void testMaintenanceNamedServices( TestContext &context)
 	DRIVERCRATE_EXPECT( context, structure.parser.state == MaintenanceInspectionState::PASSED) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Class差分試験だけに使う三fileの架空ZIPを生成する。
  * @param[in] inf 架空INFの全byte。
  * @param[out] archive 成功時だけのZIP byte。実driverを含まない。
  * @return 三fileのZIP確定成功ならtrue。Miniz資源は全経路で解放する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool makeMaintenanceClassArchive( std::string_view inf, std::string &archive)
 {
 	archive.clear() ;
@@ -1854,12 +1873,13 @@ void testMaintenanceNamedServices( TestContext &context)
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 共通標準Classと内容専用・未知Classのpolicy差を実入口で確認する。
  * @param[in,out] context Assertion集計先。
- * @note Dummy CATは署名失敗の負例。ClassGuidを固定したClass名policy比較であり、
- *       WindowsのClass全体妥当性や実署名成功を認定しない。
+ * @note Dummy CATは署名失敗の負例。ClassGuidを固定したClass名policy比較であり、WindowsのClass全体妥当性や実署名成功を認定しない。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceClassSeparation( TestContext &context)
 {
 	constexpr std::array<std::string_view, 6U> CLASSES{
@@ -1981,10 +2001,12 @@ void testMaintenanceClassSeparation( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全体入力・対象OS・容量の失敗で部分構造が空になることを確認する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceStructureInputFailures( TestContext &context)
 {
 	OfficialDownloadWorkspace workspace ;	// 架空の一INFとdummy CATだけを所有する。
@@ -2047,10 +2069,12 @@ void testMaintenanceStructureInputFailures( TestContext &context)
 	DRIVERCRATE_EXPECT( context, structure.installs.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 明示seedのfile位置と具体的な不足を架空INFで確認する。
  * @param[in,out] context 一processの有限assertion集計。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceExplicitReferences( TestContext &context)
 {
 	constexpr std::array<std::string_view, 12U> BODIES{
@@ -2213,11 +2237,13 @@ struct MaintenanceBinarySourceCase {
 	bool					   changedInfBytes{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 展開済み全path・named固有導入先・明示sourceと合法未対応を実SetupAPIで回帰する。
  * @param[in,out] context 一processの有限assertion集計。
  * @note 位置観測でありCAT署名・導入先充足・端末適合を実行しない。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceBinarySources( TestContext &context)
 {
 	constexpr NativeError UNSUPPORTED = static_cast<drivercrate::NativeError>(
@@ -2696,11 +2722,13 @@ void testMaintenanceBinarySources( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 500 named listと500 binaryを同じINFの共同上限内で位置照合し、時間を記録する。
  * @param[in,out] context 一processの有限assertion集計。
  * @note 元sourceは一架空fileへ共有する。全候補比較を保持し、実directoryをopenしない。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceBinarySourceCapacity( TestContext &context)
 {
 	constexpr std::size_t COUNT = 500U ;					// 1,024節／4,096行を越えない閉じた容量構成。
@@ -2787,12 +2815,14 @@ struct MaintenanceDependencyZipFile {
 	std::string bytes ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 閉じた架空member集合をMinizの非実行archiveへまとめる。
  * @param[in] files fixtureが所有する元byteと一意相対名。
  * @return 全成功時のZIP byte。生成失敗はfixture例外とする。
  * @throws std::runtime_error Miniz初期化・確定失敗。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string makeMaintenanceDependencyArchive(
 	std::span<const MaintenanceDependencyZipFile> files)
 {
@@ -2823,12 +2853,13 @@ struct MaintenanceDependencyZipFile {
 	return {static_cast<const char *>( owned.get()), size} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 明示空sourceとnull参照の位置・必要byte・全現在OS選択を独立に確認する。
  * @param[in,out] context 一processの有限assertion集計。
- * @note 架空PortsのClass名policyとsource境界だけを比較し、dummy CATを署名成功にしない。
- *       内容構造の成功は端末適合・導入許可を発行しない。
+ * @note 架空PortsのClass名policyとsource境界だけを比較し、dummy CATを署名成功にしない。内容構造の成功は端末適合・導入許可を発行しない。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceSourceMatrix( TestContext &context)
 {
 	constexpr OfficialDriverClosurePolicy SOURCE_POLICY{
@@ -2994,11 +3025,13 @@ void testMaintenanceSourceMatrix( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief sourceなしnullと有限package依存の抽出・未知／FAILED保持を確認する。
  * @param[in,out] context 一processの有限assertion集計。
  * @note dummy CATは常に実署名の負例。実device列挙・staging・導入・追加取得を呼ばない。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceDependencyClosure( TestContext &context)
 {
 	constexpr OfficialDriverClosurePolicy DEPENDENCY_POLICY{
@@ -3280,11 +3313,13 @@ void testMaintenanceDependencyClosure( TestContext &context)
 			static_cast<drivercrate::NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 標準ComponentとSystem device serviceの内容・作用境界を確認します。
  * @param[in,out] context 架空INFの成功と具体的拒否を集計します。
  * @note CATを偽装せず、実driver/device/導入APIを使用しません。
  */
+//------------------------------------------------------------------------------
 void testStandardComponentActions( TestContext &context)
 {
 	// 架空の原ComponentとType1/null/copy宣言です。
@@ -3482,10 +3517,12 @@ void testStandardComponentActions( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 原Systemのfileなし継承と、宣言file/作用の欠損を区別します。
  * @param[in,out] context 架空INFだけの構造境界を集計します。
  */
+//------------------------------------------------------------------------------
 void testInheritedSystemContent( TestContext &context)
 {
 	constexpr std::string_view INF =
@@ -3566,7 +3603,9 @@ void testInheritedSystemContent( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_driver_package_tests.h 宣言側の契約を正本とする。
+ * @brief 公式標準INF driver packageの構造検証境界を検証する。公式標準INF driver package単体試験を実行する。正常構造、policy、欠落、
+ *        architecture、混入拒否試験を順番に実行する。
+ * @param[in,out] context Assertion件数と失敗内容の集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialDriverPackageTests( TestContext &context)

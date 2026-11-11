@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_tests.h
  * @brief 公式自動探索Core境界の単体試験宣言。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  自動探索Core境界試験を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実network、実PnP、payload取得、driver導入を行わない決定的fixtureだけを宣言します。
@@ -33,10 +34,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公式自動探索のrequest、device、route、summary拒否境界を検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialDiscoveryTests( TestContext &context) ;
 
 } // namespace drivercrate::test

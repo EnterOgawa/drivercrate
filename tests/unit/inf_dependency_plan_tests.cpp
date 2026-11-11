@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_plan_tests.cpp
  * @brief 偽loaderによる有限INF依存核と非実行計画の単体試験。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  偽loader・証拠分離・有限graphの試験を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/08  選択Include文脈と同名Needs転送の二REDを追加。
  * Ver.01.02.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空snapshotだけを使用し、INF・署名・実device・network・導入APIを呼ばない。
@@ -46,11 +47,14 @@
 namespace drivercrate::test {
 namespace {
 
-/** @brief 架空のrun内documentを作る。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空のrun内documentを作る。
  * @param[in] identity 一意の非零identity。
  * @param[in] origin packageまたはsystem。
  * @return 三証拠を独立にVERIFIEDとした架空snapshot。実署名ではない。
  */
+//------------------------------------------------------------------------------
 InfDependencyDocument document( std::uint64_t identity, InfDependencyOrigin origin)
 {
 	return {identity,
@@ -83,11 +87,14 @@ struct LookupFixture {
 	InfDependencyLookup value ;
 } ;
 
-/** @brief Windows ordinalで架空の節だけを比較する。
+//------------------------------------------------------------------------------
+/**
+ * @brief Windows ordinalで架空の節だけを比較する。
  * @param[in] left 有限な架空名。
  * @param[in] right 有限な架空名。
  * @return 大小文字だけを除いて一致ならtrue。
  */
+//------------------------------------------------------------------------------
 bool equalName( std::wstring_view left, std::wstring_view right)
 {
 	return CompareStringOrdinal( left.data(), static_cast<int>( left.size()), right.data(),
@@ -119,7 +126,8 @@ struct FakeLoader {
 	/// trueならrecheckで型付き例外を注入する。
 	bool						recheckException{} ;
 
-	/** @brief 同期借用の三callbackを生成する。
+	/**
+	 * @brief 同期借用の三callbackを生成する。
 	 * @return このFakeLoaderの寿命内だけで使う操作集合。
 	 */
 	InfDependencyOperations		operations()
@@ -183,9 +191,12 @@ struct FakeLoader {
 	}
 } ;
 
-/** @brief 二documentを結ぶ架空正例から拒否・上限・分離を検証する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 二documentを結ぶ架空正例から拒否・上限・分離を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testScenarios( TestContext &context)
 {
 	// 58の有限な架空シナリオを独立loaderで実行し、旧観測を変えない。
@@ -663,10 +674,13 @@ void testScenarios( TestContext &context)
 	}
 }
 
-/** @brief 選択base文脈と同名転送を既verified fakeだけで二例再現します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択base文脈と同名転送を既verified fakeだけで二例再現します。
  * @param[in,out] context 旧拒否を失敗として保持する集計先です。
  * @note 製品の任意文脈APIは未実装であり、旧seed形へ正しい解決期待を置きます。
  */
+//------------------------------------------------------------------------------
 void testIncludeContextRed( TestContext &context)
 {
 	// 追加した二つの入力だけを独立loaderで観測します。
@@ -748,9 +762,12 @@ void testIncludeContextRed( TestContext &context)
 	}
 }
 
-/** @brief 選択文脈の範囲と元曖昧/循環/証拠拒否を有限確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択文脈の範囲と元曖昧/循環/証拠拒否を有限確認します。
  * @param[in,out] context このprocessの元集計です。
  */
+//------------------------------------------------------------------------------
 void testSelectedContextGuards( TestContext &context)
 {
 	// 同じ正例から一条件だけを変え、別familyや未検査を成功へ補いません。
@@ -886,9 +903,15 @@ void testSelectedContextGuards( TestContext &context)
 } // namespace
 } // namespace drivercrate::test
 
-/** @brief 非通信の核試験を実行し件数だけを表示する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 非通信の核試験を実行し件数だけを表示する。
+ * @param[in] argc processから渡す引数個数です。無指定または既知の一selectorだけを受理します。
+ * @param[in] argv argc個のNUL終端引数です。process寿命の借用で保持しません。
  * @return 全成功0、assertionまたは予期しない例外の失敗1。
+ * @retval 2 未知のCLIを拒否した場合です。
  */
+//------------------------------------------------------------------------------
 int main( const int argc, const char *const argv[])
 {
 	const bool redOnly =

@@ -2,7 +2,7 @@
 /**
  * @file intel_wireless_package_tests.h
  * @brief Intel Wireless利用者指定ZIP検証単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空fileと未署名ZIPを使用し、利用者指定packageの拒否境界を検証します。
@@ -39,12 +40,13 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Intel Wireless利用者指定ZIPの入力、archive、署名拒否境界を検証する。
- * Intel Wireless利用者指定ZIPの全単体試験を実行する。
- * 入力、archive、署名のfail-closed境界を順に検証する。
+ * @brief Intel Wireless利用者指定ZIPの入力、archive、署名拒否境界を検証する。Intel Wireless利用者指定ZIPの全単体試験を実行する。入力、archive
+ *        、署名のfail-closed境界を順に検証する。
  * @param[in,out] context Assertion件数と失敗内容の集計先。 Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runIntelWirelessPackageTests( TestContext &context) ;
 
 } // namespace drivercrate::test

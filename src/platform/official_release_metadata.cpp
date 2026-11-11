@@ -2,7 +2,7 @@
 /**
  * @file official_release_metadata.cpp
  * @brief 公式配布情報の取得と系列照合。
- * @version 01.05.00
+ * @version 01.05.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -45,6 +45,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/09/28  収集専用Intel解析へ制御を伝播し旧field変換を共用。
  * Ver.01.04.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.05.00 Shunji Ogawa  2026/10/26  Ethernetの公開SHA-512と改訂parser版を保持。
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 系列ごとの有限な公式metadataを扱います。Broadcomの二文書解析は専用Providerへ委譲します。
@@ -153,12 +154,14 @@ bool containsText( const std::wstring_view text, const std::wstring_view token) 
 	return false ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief ASCII英数字が隣接しない型番tokenだけを端末内で照合する。
  * @param[in] text 最大512文字の表示名。
  * @param[in] token 審査済みASCII型番。
  * @return 完全tokenの大文字小文字を無視した一致時true。
  */
+//------------------------------------------------------------------------------
 bool containsProductToken( const std::wstring_view text, const std::wstring_view token) noexcept
 {
 	// 空token、過大な入力、減算underflowを拒否する。
@@ -188,7 +191,9 @@ bool containsProductToken( const std::wstring_view text, const std::wstring_view
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_metadata.h 宣言側の契約を正本とする。
+ * @brief 系列に対応する固定検索定義を返す。許可hostとcapabilityはsource policy／registryへ委譲する。
+ * @param[in] family 組み込み系列。 組み込みの系列識別子。
+ * @return Process寿命中有効な非所有定義。未知値はnullptr。 Process寿命中有効な非所有pointer。未知値はnullptr。
  */
 //------------------------------------------------------------------------------
 const OfficialSourceDefinition *officialSourceDefinition(
@@ -405,7 +410,18 @@ const OfficialSourceDefinition *officialSourceDefinition(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_metadata.h 宣言側の契約を正本とする。
+ * @brief Live metadataと端末内device bindingから今回のrelease観測を作る。表示名やURLからidentityを推測せず、組み込みsource定義とlocal
+ *        bindingだけを結合する。SHA-256のhex表記だけをlowercaseへ正規化し、一致結果をpayload取得または導入許可へ変換しない。
+ * @param[in] family 組み込み系列。Releaseとsource定義へ完全一致させる。 組み込みの公式配布系列。
+ * @param[in] release 同じscanで取得・解析済みの公式metadata。 Live取得・解析済みの公式metadata。
+ * @param[in] device Local probeでHMAC bindingを付与した現在device。 Local HMAC binding付きの現在device。
+ * @param[in] operatingSystemFingerprint 現在OS／x64条件の端末内fingerprint。 現在OS条件の端末内fingerprint。
+ * @param[in] deviceConfigurationFingerprint 現在device集合の端末内fingerprint。 現在device集合のfingerprint。
+ * @param[in] observedFileTime Live metadataを確認したUTC FILETIME値。 Live metadata確認時刻のUTC FILETIME値。
+ * @param[in] previous 現在環境へ事前照合済みの前回観測。最大4,096件。 現在環境へ事前照合済みの前回観測集合。
+ * @param[out] evaluation 成功時の今回観測と差分。失敗時は初期値。 成功時の今回観測と前回差分。
+ * @return 全入力と一意な前回対応を検証できた場合true。
+ * @note 前回一致でもpayload、EULA、署名、INF、PnP、rankの許可を返さない。
  */
 //------------------------------------------------------------------------------
 bool evaluateOfficialReleaseObservation(
@@ -518,7 +534,12 @@ bool evaluateOfficialReleaseObservation(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_metadata.h 宣言側の契約を正本とする。
+ * @brief 系列の配布情報を参照すべきdeviceか端末内だけで判断する。系列別のclass、GUID、manufacturer、model表示境界を確認する。いずれの系列も現在版不明だけを理
+ *        由に除外しない。
+ * @param[in] family 対象の組み込み系列。 探索系列。
+ * @param[in] device 非機密snapshot。生IDを含めない。 呼出し中だけ参照する非機密snapshot。
+ * @return 系列表示名と矛盾しないclassならtrue。不明な現在版は除外条件にしない。 系列参照の対象ならtrue。適用性を意味しない。
+ * @note 適用性、最新性、更新必要性、導入可能性の判定ではない。
  */
 //------------------------------------------------------------------------------
 bool officialReleaseDeviceMatches( const OfficialReleaseFamily  family,
@@ -642,7 +663,12 @@ bool officialReleaseDeviceMatches( const OfficialReleaseFamily  family,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_metadata.h 宣言側の契約を正本とする。
+ * @brief 系列の固定公式pageと実OSの組合せが一致するか判定する。系列が明示するClient／Server範囲だけを許可する。Server専用または列挙型のServer系列では不明
+ *        buildをfail-closedにする。
+ * @param[in] family 対象の組み込み系列。 固定公式pageの系列。
+ * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true。
+ * @param[in] windowsBuild 実OSのmajor build番号。判定不能時は0。 判定済みmajor build。0は不明。
+ * @return 当該系列が明示するOS境界と一致する場合true。 系列と実OSの固定境界が一致する場合true。
  */
 //------------------------------------------------------------------------------
 bool officialReleaseOperatingSystemMatches( const OfficialReleaseFamily family,
@@ -838,19 +864,31 @@ static bool parseOfficialReleaseRecordCore( CollectorParserContext	  *control,
 }
 
 //------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_metadata.h 宣言側の契約を正本とする。
+ * @brief 既存の系列別parserから共通の配布情報を作成する。既存parserを再利用する。公表情報の欠落をfile名等から推測しない。
+ * @param[in] family 使用する組み込みparser。 組み込みparser選択。
+ * @param[in] html 上限付き公式page本文。取得元証明は別途必要。 有限長の公式metadata本文。
+ * @param[out] record 成功時のworker内情報。失敗時は初期値。 成功時の共通情報。失敗時は初期値。
+ * @return 既存parserの必須条件を満たした場合true。 系列別必須metadataが整合すればtrue。
  */
 //------------------------------------------------------------------------------
-
-/** @see official_release_metadata.h */
 bool parseOfficialReleaseRecord( OfficialReleaseFamily family, std::wstring_view html,
 								OfficialReleaseRecord &record)
 {
 	return parseOfficialReleaseRecordCore( nullptr, family, html, record) ;
 }
 
-/** @see official_release_metadata.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 727998だけを同じ配布変換と必須制御で解析します。
+ * @param[in] html 同一GET本文。
+ * @param[out] record 旧fingerprintと互換のfield。
+ * @param[in,out] context 元制御。
+ * @return 配布非採用はfalse。停止・障害は上位へ伝播します。
+ */
+//------------------------------------------------------------------------------
 bool parseIntelCollectorReleaseRecord( std::wstring_view html, OfficialReleaseRecord &record,
 									  CollectorParserContext &context)
 {
@@ -862,6 +900,20 @@ bool parseIntelCollectorReleaseRecord( std::wstring_view html, OfficialReleaseRe
 	return parsed ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通HTTPと公式landing取得根拠で配布情報だけを取得する。固定landingをworkerで同期取得し、同sessionの根拠を確認する。Payload取得と同意操作を行わ
+ *        ない。
+ * @param[in] family 検索定義を選ぶ組み込み系列。 固定検索定義の系列。
+ * @param[in] session 0ではないscan session。
+ * @param[in,out] http Workerが所有するHTTP client。以前のsource sessionは失効する。 Workerが所有するclient。以前の根拠は失効。
+ * @param[out] record 成功時の配布情報。失敗時は初期値。 成功時の解析結果。失敗時は初期値。
+ * @param[out] metadataRejected 取得後の解析・取得根拠検証が失敗した場合true。 取得後の解析・根拠拒否でtrue。
+ * @param[in,out] execution 指定時は同じmetadata専用予算。解析前後にも停止を確認する。
+ * @return 成功時0。失敗時は元の通信errorまたは不正入力・metadataのHRESULT。 成功時0。失敗は通信または検証のHRESULT。
+ * @note 同期処理なのでUI threadでは呼ばない。PayloadとEULA同意を扱わない。
+ */
+//------------------------------------------------------------------------------
 NativeError readOfficialReleaseMetadata( const OfficialReleaseFamily family,
 										const ScanSessionId session, OfficialHttpClient &http,
 										OfficialReleaseRecord &record, bool &metadataRejected,

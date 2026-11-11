@@ -2,7 +2,7 @@
 /**
  * @file intel_wireless_package.cpp
  * @brief Intel Wireless署名済みINF ZIP検証実装。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 利用者選択ZIPを共有なしで読み取り、保護workspace内の複製だけを展開・検証します。Intel Net class INFとMicrosoft WHCP署名以外は拒否します。
@@ -878,7 +879,14 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/user_selected_inf_package.h 宣言側の契約を正本とする。
+ * @brief 利用者選択ZIPを保護領域へ複製して全driverを検証する。利用者選択INF ZIPを共通policyで検証する。実行fileを起動せず、全INFをfail-closedで検証する。
+ * @param[in] selectedPath File dialogで利用者が一件だけ選択したlocal ZIP path。 利用者が選択したlocal ZIP path。
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないscan session ID。
+ * @param[in] policy Provider固有の有限上限、INF条件、signerおよびfamily条件。 Provider固有の安全性とfamily条件。
+ * @param[in,out] workspace 未初期化の保護workspace。作成fileを単独所有する。 保護された複製・展開先。
+ * @param[out] contents 成功時のarchive hash、entry、検証済みINF。失敗時は完了段階だけを保持する。 全検証成功時のpackage情報。
+ * @return 全検証成功時は0、入力、ZIP、INF、CATまたは署名違反時はHRESULT。 全ZIP、INF、CAT、参照file検証成功時は0。
+ * @note Nested ZIPはpolicyが許す場合も一段だけで、展開量を全archive合計で検証する。
  */
 //------------------------------------------------------------------------------
 NativeError inspectUserSelectedInfPackageFile( const std::wstring_view			  selectedPath,
@@ -1097,7 +1105,14 @@ NativeError inspectUserSelectedInfPackageFile( const std::wstring_view			  selec
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_wireless_package.h 宣言側の契約を正本とする。
+ * @brief 利用者選択Intel Wireless ZIPを保護領域へ複製して全driverを検証する。利用者選択Intel Wireless ZIPを検証する。選択元の由来を公式とは断定せず
+ *        、Intel Provider、Windows driver署名、CAT member、x64 Net classを実内容で検証する。
+ * @param[in] selectedPath File dialogで利用者が一件だけ選択したlocal ZIP path。 利用者が選択したlocal ZIP path。
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないscan session ID。
+ * @param[in,out] workspace 未初期化の保護workspace。成功・失敗を問わずfileを所有する。 複製と展開fileを所有する保護領域。
+ * @param[out] contents 成功時のarchive hash、entryおよび検証済みINF。失敗時は空にする。 成功時の検証済みpackage情報。
+ * @return 全検証成功時は0、入力file、ZIP、INF、CATまたは署名違反時はHRESULT。 全ZIP、INF、CAT、参照file検証成功時は0。
+ * @note 本関数はdownload、EULA同意、driver installを行わない。選択元fileは共有なしで開く。
  */
 //------------------------------------------------------------------------------
 NativeError inspectIntelWirelessPackageFile( const std::wstring_view		  selectedPath,
@@ -1203,7 +1218,13 @@ NativeError inspectIntelWirelessPackageFile( const std::wstring_view		  selected
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_wireless_package.h 宣言側の契約を正本とする。
+ * @brief 一つのIntel Wireless INFをinstall直前に再検証する。再検証結果をscan時の完全なsnapshotへ比較し、差替えられたpackageをSetupAPIへ渡
+ *        さない。
+ * @param[in] workspace Scan時の複製ZIPと展開fileを所有する保護workspace。 Scan時の展開fileを所有する保護領域。
+ * @param[in] entries Scan時に確定した全ZIP entry。
+ * @param[in] expected Scan時に検証してcandidateへ対応付けたINF metadata。 Scan時に検証したINF metadata。
+ * @return 構造、署名、CAT member、全metadataがScan時と一致する場合は0。 構造、署名、CAT member、metadataが全て一致する場合は0。
+ * @note File変更、欠落、別INFへの差替えを検出した場合は導入前に拒否する。
  */
 //------------------------------------------------------------------------------
 NativeError reverifyIntelWirelessInfPackage( const OfficialDownloadWorkspace		   &workspace,
@@ -1230,7 +1251,13 @@ NativeError reverifyIntelWirelessInfPackage( const OfficialDownloadWorkspace		  
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/user_selected_inf_package.h 宣言側の契約を正本とする。
+ * @brief 一つの利用者選択INFをinstall直前に再検証する。利用者選択INFを共通policyでinstall直前に再検証する。Admin競合による展開file差替えをSetupAPI
+ *        呼出し前に拒否する。
+ * @param[in] workspace Scan時の複製ZIPと展開fileを所有する保護workspace。 Scan時の展開fileを所有する保護領域。
+ * @param[in] entries Scan時に確定した全ZIP entry。 Scan時に確定した全file entry。
+ * @param[in] expected Scan時に検証してcandidateへ対応付けたINF metadata。 Scan時に保持したINF metadata。
+ * @param[in] policy Scan時と同一のProvider固有検証条件。 Scan時と同じProvider固有条件。
+ * @return 構造、署名、CAT member、family、全metadataが一致する場合は0。 構造、family、署名、CAT member、metadata一致時は0。
  */
 //------------------------------------------------------------------------------
 NativeError reverifyUserSelectedInfPackage( const OfficialDownloadWorkspace		  &workspace,

@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_execution.h
  * @brief 共通route planを通常／metadata目的へ渡す有限実行契約。
- * @version 01.02.01
+ * @version 01.02.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  通信未許可summaryとProvider結果変換を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  Fresh cache優先とroute別通信許可を追加。
  * Ver.01.02.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.02.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 本関数はregistrationのresolverだけを同期呼出しし、network権限やpayload権限を補完しません。
@@ -49,6 +50,7 @@ using OfficialDiscoveryRouteCacheLookup =
 	std::function<std::optional<OfficialDiscoveryRouteSummary>( const OfficialDiscoveryRequest &,
 															   const OfficialDiscoveryRoute &)> ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 検証済みplanを専用、汎用の順で実行して非機密summaryへ集約する。
  * @param[in] binding 呼出側が保持する開始時binding。
@@ -61,9 +63,10 @@ using OfficialDiscoveryRouteCacheLookup =
  * @param[in] resolverApproved Cache miss時の固定root resolver実行が今回許可される場合trueです。
  * @return 全入力と結果が妥当ならsummary。開始契約を再現できない場合は値なし。
  * @throws std::bad_alloc 実行用hintまたはsummary領域を確保できない場合。
- * @note `FORCE_REFRESH`ではcache callbackを呼びません。Fresh cacheはresolverより先に使用し、miss時だけ
- *       `resolverApproved`を確認します。Cacheからdownload grantまたは導入権限を復元しません。
+ * @note `FORCE_REFRESH`ではcache callbackを呼びません。Fresh cacheはresolverより先に使用し、miss時だけ`resolverApproved`
+ *       を確認します。Cacheからdownload grantまたは導入権限を復元しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<OfficialDiscoverySummary> runOfficialDiscoveryRoutePlan(
 	const OfficialDiscoveryBinding &binding, const OfficialDiscoveryRequest &request,
 	const OfficialDiscoveryRoutePlan &plan, std::span<const OfficialDiscoveryDeviceHint> devices,
@@ -71,6 +74,7 @@ using OfficialDiscoveryRouteCacheLookup =
 	std::span<const ProviderDescriptor>			   descriptors,
 	OfficialDiscoveryRouteCacheLookup cacheLookup = {}, bool resolverApproved = true) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Resolverを呼ばず全routeを同じ制御終端へ確定する。
  * @param[in] binding 呼出側が保持する開始時binding。
@@ -84,12 +88,14 @@ using OfficialDiscoveryRouteCacheLookup =
  * @throws std::bad_alloc Summary領域を確保できない場合。
  * @note 回線確認等でHTTP開始前に停止した全routeを候補0件へ縮退させず保持します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<OfficialDiscoverySummary> makeOfficialDiscoveryControlSummary(
 	const OfficialDiscoveryBinding &binding, const OfficialDiscoveryRequest &request,
 	const OfficialDiscoveryRoutePlan &plan, std::span<const OfficialDiscoveryDeviceHint> devices,
 	std::span<const OfficialDiscoveryRegistration> registrations,
 	std::span<const ProviderDescriptor> descriptors, OfficialDiscoveryRouteState state) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 共通route summaryから一つのProviderの通常scan結果を構築する。
  * @param[in] scanSessionId 現在の通常scan session ID。
@@ -100,9 +106,9 @@ using OfficialDiscoveryRouteCacheLookup =
  * @param[in] descriptors Provider registryの正本または同じ合成copy。
  * @return 候補を発行せず到達状態とcoverageを保持する結果。入力不整合時は値なし。
  * @throws std::bad_alloc Coverageの一意性領域を確保できない場合。
- * @note Recordとpackageの解決はpayload取得または候補成立ではないため、packageがある場合も
- * `PAYLOAD_NOT_APPROVED`で返します。
+ * @note Recordとpackageの解決はpayload取得または候補成立ではないため、packageがある場合も`PAYLOAD_NOT_APPROVED`で返します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<ScanResult> makeOfficialDiscoveryProviderScanResult(
 	ScanSessionId scanSessionId, std::wstring_view providerId,
 	std::span<const OfficialDiscoveryDeviceHint> devices, const OfficialDiscoveryRoutePlan &plan,

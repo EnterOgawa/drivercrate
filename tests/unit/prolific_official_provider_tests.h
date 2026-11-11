@@ -2,7 +2,7 @@
 /**
  * @file prolific_official_provider_tests.h
  * @brief 公式serialの探索・新版受入境界試験。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 公式配布行、今回の取得同意、新版family受入の境界を試験します。実通信、実driver導入、実復元ポイントを使用しません。
@@ -37,11 +38,11 @@
 
 namespace drivercrate::test {
 class TestContext ;
+//------------------------------------------------------------------------------
 /**
- * @brief 公式serial取得と新版受入の内部試験を実行する。
- * 公式serial経路と新版受入の内部試験を実行する。
- * Network、実driver導入、実復元ポイントに依存しない。
+ * @brief 公式serial取得と新版受入の内部試験を実行する。公式serial経路と新版受入の内部試験を実行する。Network、実driver導入、実復元ポイントに依存しない。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runProlificOfficialProviderTests( TestContext &context) ;
 } // namespace drivercrate::test

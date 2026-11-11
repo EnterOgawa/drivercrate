@@ -2,7 +2,7 @@
 /**
  * @file official_prepared_install.cpp
  * @brief 監査済み公式INFの共通導入処理。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Provider workerが所有する取得物と監査済み閉包を再検証し、個別結果を保持します。本処理は保持物の解放、再取得または自動retryを行いません。
@@ -81,7 +82,19 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_prepared_install.h 宣言側の契約を正本とする。
+ * @brief 発行済み監査合格候補を再検証し、個別にWindows標準導入境界へ渡す。本番とtestで同じ検証順序を使い、全監査合格候補だけをinstallerへ渡す。保持物の失効は
+ *        Providerが結果確定後に行う。
+ * @param[in] policy 固定Provider／payload resourceの許可組合せ。 固定Provider／payload resource組合せ。
+ * @param[in] context 同じworker呼出し中だけ有効な取得物・閉包・routing。 Worker所有の取得物・閉包・routing。
+ * @param[in] identities 利用者が一device一候補で明示選択したopaque ID群。 明示選択された監査合格候補ID群。
+ * @param[in] reverifier 本番では共通INF閉包再検証だけを渡す必須関数。 保持INF閉包の共通再検証。
+ * @param[in] rankAuditor 現在PnP／rankを再取得する必須関数。 現在PnP／rankの再監査。
+ * @param[in] installer 再検証合格INFだけを導入する必須関数。 再検証合格INFのWindows標準導入境界。
+ * @param[in] parentWindowNative Windows導入dialogの親Window値。
+ * @param[in] progressCallback 確定した外側file検証・候補処理の進捗通知先。 確定した処理段階の通知先。
+ * @return Downloadとinstallを分離した入力順の個別結果。 外側file、INF、rank再検証と導入を分離した入力順の結果。
+ * @note Policy、公式根拠とroutingはProvider workerが構成し、UI入力から作成してはならない。
+ * @note 本関数は保持物を解放しない。呼出側が結果または例外の確定後に失効させる。
  */
 //------------------------------------------------------------------------------
 InstallResult executePreparedInfInstall(

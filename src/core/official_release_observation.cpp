@@ -2,7 +2,7 @@
 /**
  * @file official_release_observation.cpp
  * @brief 公式release端末内観測比較。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 保存前の上限とidentity形式を検証し、環境・policy・release差分を決定的に分類します。Network、永続化、driver導入は行いません。
@@ -242,7 +243,10 @@ constexpr std::size_t MAXIMUM_BINDING_COUNT			 = 4'096U ;	// 一回のlocal prob
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_release_observation.h 宣言側の契約を正本とする。
+ * @brief 公式release観測が有限で機密情報を直接保持しない保存契約を満たすか調べる。端末内公式release観測を検証する。必須fingerprint、有限ID、revision、観測
+ *        時刻を確認する。
+ * @param[in] observation 検証する端末内観測。 保存前に検証する観測。
+ * @return 保存可能な場合はtrue。不明enum、欠落、上限超過、不正hashはfalse。 保存契約を満たす場合はtrue。
  */
 //------------------------------------------------------------------------------
 bool isLocalOfficialReleaseObservationValid(
@@ -273,7 +277,12 @@ bool isLocalOfficialReleaseObservationValid(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_release_observation.h 宣言側の契約を正本とする。
+ * @brief 前回と今回の端末内release観測をfail-closedで比較する。端末内公式release観測を比較する。Binding、環境、実装revision、releaseの順に比較
+ *        する。一致しても導入許可や過去の監査結果は返さない。
+ * @param[in] previous 前回観測。初回はnullptrを指定できる。
+ * @param[in] current 今回の公式metadataから構築した観測。 今回の検証対象観測。
+ * @return 最初に再評価を必要とする差分。入力不正時はInvalid。
+ * @note 一致結果でも過去の監査、署名、rank、同意、取得根拠を再利用してはならない。
  */
 //------------------------------------------------------------------------------
 ReleaseObservationDifference compareLocalOfficialReleaseObservation(
@@ -361,7 +370,13 @@ ReleaseObservationDifference compareLocalOfficialReleaseObservation(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_release_observation.h 宣言側の契約を正本とする。
+ * @brief 保存済み観測を現在のbinding集合と環境へ照合する。保存済み観測のlocal probe再利用条件を分類する。入力全体を先に検証し、過去の監査結果を許可へ変換せず、X6-04へ
+ *        渡せる観測だけを分類する。
+ * @param[in] observation 保存済みの検証対象観測。 保存済み観測。
+ * @param[in] currentBindings local probeが生成した現在のbinding集合。最大4096件。 現在の有限binding集合。
+ * @param[in] currentEnvironment 現在のOS、device構成、policy、parser条件。 現在の環境と実装revision。
+ * @return 最初に検出した失効理由。一致時はLocalOfficialObservationReuse::Current。 最初に検出した失効理由。一致時はCurrent。
+ * @note Release metadata、署名、INF、PnP rank、EULA、install許可は再利用しない。
  */
 //------------------------------------------------------------------------------
 LocalOfficialObservationReuse classifyLocalOfficialObservationReuse(
@@ -428,7 +443,14 @@ LocalOfficialObservationReuse classifyLocalOfficialObservationReuse(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_release_observation.h 宣言側の契約を正本とする。
+ * @brief 成立したProviderの今回観測だけを前回snapshotへ置換する。成立Providerの旧recordだけを除去し、失敗・未実行Providerを保持する。全検証終了まで出力
+ *        を変更しない。
+ * @param[in] previous 前回の検証対象snapshot。最大4,096件。 前回の全Provider観測snapshot。
+ * @param[in] refreshedProviderIds 今回scanが成立し、旧recordを置換するProvider ID集合。 今回置換するProvider ID集合。
+ * @param[in] current 今回Providerが生成した観測集合。 今回scanで生成した観測集合。
+ * @param[out] merged 成功時の全Provider snapshot。失敗時は変更しない。 成功時の置換済み全Provider snapshot。
+ * @return 全record、Provider対応、重複、上限を検証できた場合true。 全入力、Provider対応、重複、件数上限が有効な場合true。
+ * @note 候補0件で成立したProvider IDも指定し、そのProviderの旧recordを除去できる。
  */
 //------------------------------------------------------------------------------
 bool mergeLocalOfficialReleaseObservations(

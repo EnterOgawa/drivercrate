@@ -1,5 +1,22 @@
 # Testing
 
+## ソースコメントの検査
+
+`check_source_standard.py`は、宣言と定義の各sourceに独立した概要・実引数名/方向・戻り値があるかを確認します。
+関数・メソッドの独立block、所属に応じた枠、参照だけの省略と代表的な閲覧委譲、無名引数・削除宣言の扱いも検査します。
+raw literal、型/field、macro定義の論理行は関数として数えず、未解析署名とdelimiter不整合は拒否します。
+Doxygenのmerge済み文書だけでは両sourceの合格にせず、実処理・所有・例外・threadの意味はbody reviewで確認します。
+
+```powershell
+python -B scripts/test_source_style.py
+python -B scripts/test_source_method_contracts.py
+python -B scripts/check_source_standard.py
+python -B scripts/audit_doxygen_members.py --check
+```
+
+`audit_source_contracts.py`は、XMLにある宣言/定義の位置から各raw契約を監査します。定義を`@see`だけに置換しません。
+手作業で実本体へ照合して不足を補い、参照省略の新たな生成や日本語の完全な自動意味判定を前提にしません。
+
 ## App用Setup・自動更新（1.0.5）
 
 `drivercrate_app_update_tests`は数値版・24h時計・GitHub JSON/正確asset、完全fake HTTP、byte/署名/版拒否、cache排他、取消しと専用workerを非通信で確認します。
@@ -45,6 +62,7 @@ Python 3.10以降、clang-format、Doxygen 1.10.0、開発用PowerShell 7とCMak
 py -3 -B scripts/test_public_source_closure.py
 py -3 -B scripts/check_public_source_closure.py
 py -3 -B scripts/test_source_style.py
+py -3 -B scripts/test_source_method_contracts.py
 py -3 -B scripts/format_source.py --check
 py -3 -B scripts/check_source_standard.py
 py -3 -B scripts/test_doxygen_members.py

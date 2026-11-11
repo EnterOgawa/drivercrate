@@ -2,7 +2,7 @@
 /**
  * @file candidate_audit_tests.cpp
  * @brief Driver候補監査状態単体試験実装。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  詳細assessmentと観測結合のfixtureを追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  公式installer実行範囲未確認の保留試験を追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 取得経路別の監査状態とinstall準備状態の矛盾を決定的に検証します。
@@ -332,10 +333,12 @@ void testUnknownStates( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !isCandidateAuditValid( candidate, official)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 実packageの合格ではない詳細契約用の架空snapshotを作る。
  * @return 全八軸の意味整合性だけを満たすfixture。
  */
+//------------------------------------------------------------------------------
 CandidateAssessment makeDetailedAssessment()
 {
 	CandidateAssessment result ;	// 実APIや署名証拠を持たない固定値。
@@ -376,10 +379,12 @@ CandidateAssessment makeDetailedAssessment()
 	return result ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 詳細の未知値・結合・明示条件と未実装方式の拒否を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testDetailedAssessments( TestContext &context)
 {
 	auto value = makeDetailedAssessment() ;	// 通信しない全軸fixture。
@@ -507,10 +512,12 @@ void testDetailedAssessments( TestContext &context)
 					   isCandidateAssessmentValid( value) && !isCandidateAssessmentReady( value)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 詳細付き初回候補と観測の結合拒否を、旧候補の互換性と分離して検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testDetailsPublication( TestContext &context)
 {
 	UpdateCandidate candidate ;	// 未実装executorを持つ架空公式初回候補。
@@ -607,10 +614,12 @@ void testDetailsPublication( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !isCandidateDetailsSetValid( {}, 0U)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全有限理由の正例と異なる成否への改変を決定的に照合する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testAllAssessmentReasons( TestContext &context)
 {
 	const std::array<std::pair<CandidateAssessmentAxis, CandidateAssessmentFinding>, 28> fixtures{
@@ -818,7 +827,8 @@ void testAllAssessmentReasons( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/candidate_audit_tests.h 宣言側の契約を正本とする。
+ * @brief Driver候補監査状態の単体試験群を実行する。Driver候補監査状態の全単体試験を順番に実行する。
+ * @param[in,out] context Assertion件数と失敗内容の記録先。
  */
 //------------------------------------------------------------------------------
 void runCandidateAuditTests( TestContext &context)

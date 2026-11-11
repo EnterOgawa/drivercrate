@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_eula.h
  * @brief 公式自動探索payloadのEULA完全一致groupと短命同意tokenを管理する契約。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  EULA完全一致groupと短命同意tokenを追加。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 一objectをProvider worker threadだけで直列使用します。EULA本文とtokenは永続化、通常log、
@@ -110,10 +111,14 @@ struct OfficialDiscoveryEulaGroup {
  */
 class OfficialDiscoveryEulaSession final {
 public:
-	/** @brief 無効なEULA sessionを作成する。 */
+	/**
+	 * @brief 無効なEULA sessionを作成する。
+	 */
 	OfficialDiscoveryEulaSession() = default ;
 
-	/** @brief 所有する本文、token、判断状態を破棄する。 */
+	/**
+	 * @brief 所有する本文、token、判断状態を破棄する。
+	 */
 	~OfficialDiscoveryEulaSession() = default ;
 
 	/**
@@ -173,7 +178,9 @@ public:
 	 */
 	[[nodiscard]] std::span<const OfficialDiscoveryEulaGroup> groups() const noexcept ;
 
-	/** @brief 新scan、取消し、終了時に本文、token、判断を全て失効させる。 */
+	/**
+	 * @brief 新scan、取消し、終了時に本文、token、判断を全て失効させる。
+	 */
 	void													  invalidate() noexcept ;
 
 	/**

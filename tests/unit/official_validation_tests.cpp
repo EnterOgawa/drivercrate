@@ -2,7 +2,7 @@
 /**
  * @file official_validation_tests.cpp
  * @brief 公式取得元共通検証単体試験実装。
- * @version 01.01.01
+ * @version 01.01.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/23  SHA-512既知値・入力失敗・出力消去を検証。
  * Ver.01.01.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Test用fileだけを一時作成し、HTTP requestやinstallerを実行しません。
@@ -849,7 +850,8 @@ void testFileMetadata( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_validation_tests.h 宣言側の契約を正本とする。
+ * @brief 公式取得元の共通検証単体試験を実行する。HTTP status、URL、redirect、file検証を順番に実行する。
+ * @param[in,out] context assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialValidationTests( TestContext &context)

@@ -2,7 +2,7 @@
 /**
  * @file openpgp_signature_verifier.cpp
  * @brief 固定OpenPGP detached signature検証実装。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note OpenPGP v4 RSA/SHA-256の必要最小限だけを解析し、未知critical subpacket、partial packet、複数packet、未知鍵を
@@ -1214,7 +1215,14 @@ struct PublicKeyView {
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/openpgp_signature_verifier.h 宣言側の契約を正本とする。
+ * @brief Memory上のbinary documentとASCII-armored detached signatureを検証する。Binary documentのOpenPGP
+ *        detached signatureを検証する。OpenPGP v4 binary RSA/SHA-256一packetだけをprocess内でfail-closed検証する。
+ * @param[in] document 署名対象のbinary byte列。有効期間は本呼出し中に限る。 署名対象binary byte列。
+ * @param[in] armoredSignature OpenPGP ASCII Armor全体。 Detached signature ASCII Armor。
+ * @param[in] publicKey Providerへ固定した公開鍵bodyとfingerprint。 固定公開鍵bodyとfingerprint。
+ * @return RSA/SHA-256署名とfingerprintが一致した場合は0、その他はHRESULT bit pattern。 鍵、issuer、digest、RSA署名が一致した場合は
+ *         0。
+ * @note OpenPGP v4、binary document、RSA、SHA-256、単一packetだけを受理する。
  */
 //------------------------------------------------------------------------------
 NativeError verifyOpenpgpDetachedSignature( const std::span<const std::byte> document,
@@ -1293,7 +1301,15 @@ NativeError verifyOpenpgpDetachedSignature( const std::span<const std::byte> doc
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/openpgp_signature_verifier.h 宣言側の契約を正本とする。
+ * @brief Local documentとdetached signature fileを上限付きで読み取り検証する。Local fileのOpenPGP detached signature
+ *        を上限付き検証する。Reparse pointを拒否して両fileを読み、networkやkeyringを参照せずmemory検証へ委譲する。
+ * @param[in] documentPath 署名対象binary fileのlocal絶対path。 署名対象binary file path。
+ * @param[in] maximumDocumentBytes Document読取りの最大byte数。 Document読取り上限byte数。
+ * @param[in] signaturePath ASCII-armored detached signatureのlocal絶対path。 Detached signature file
+ *                   path。
+ * @param[in] maximumSignatureBytes Signature file読取りの最大byte数。 Signature読取り上限byte数。
+ * @param[in] publicKey Providerへ固定した公開鍵bodyとfingerprint。 固定公開鍵bodyとfingerprint。
+ * @return 署名検証成功時は0、file、形式、鍵、署名の失敗時はHRESULT bit pattern。 File読取りと署名検証成功時は0、失敗時はHRESULT。
  */
 //------------------------------------------------------------------------------
 NativeError verifyOpenpgpDetachedFile( const std::wstring_view	 documentPath,

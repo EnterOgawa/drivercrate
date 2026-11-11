@@ -2,7 +2,7 @@
 /**
  * @file official_sfx.h
  * @brief 公式自己解凍形式の静的識別定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 公式EXEを実行せず、PE image後方に付加された単一7z streamの境界とCRCを検証します。Certificate直前はPE仕様に必要なzero paddingだけを受理
@@ -77,16 +78,17 @@ struct OfficialSfxLayout {
 	std::uint64_t certificateSize{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief PE image後方の単一7z streamを、実行も展開もせず識別する。
- * PE image後方の単一7z streamを識別する。
- * EXEを実行・展開せず、全検査成功後だけ出力範囲を確定する。
+ * @brief PE image後方の単一7z streamを、実行も展開もせず識別する。PE image後方の単一7z streamを識別する。EXEを実行・展開せず、全検査成功後だけ出力範囲を
+ *        確定する。
  * @param[in] executable 公式取得後のEXE全体。有効期間は本呼出し中に限る。
  * @param[in] policy 入力、stub走査、7z streamへ適用する有限上限。 入力、stub走査、7z streamの有限上限。
  * @param[out] layout 成功時の7z、zero padding、certificate table範囲。失敗時は既定値。 成功時の7zおよびcertificate範囲。
  * @return 成功時は0、引数、上限、PE／7z構造またはCRC不正時はHRESULT bit pattern。 成功時は0、引数、上限、PE／7z構造、CRC不正時はHRESULT。
  * @note 本関数はfileを実行・展開せず、署名、publisher、driver適用性も判定しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectOfficialSevenZipSfx( std::span<const std::byte>			executable,
 													 const OfficialSfxInspectionPolicy &policy,
 													 OfficialSfxLayout &layout) noexcept ;

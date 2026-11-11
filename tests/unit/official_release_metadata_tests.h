@@ -2,7 +2,7 @@
 /**
  * @file official_release_metadata_tests.h
  * @brief 共通配布情報と検索境界の内部試験宣言。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 通信と実driver導入を行わない試験だけを登録します。
@@ -38,10 +39,11 @@
 namespace drivercrate::test {
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 共通配布情報、local probe、表示専用検索の拒否境界を確認する。
- * 実network・復元・導入を使わない共通metadata試験を登録する。
+ * @brief 共通配布情報、local probe、表示専用検索の拒否境界を確認する。実network・復元・導入を使わない共通metadata試験を登録する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialReleaseMetadataTests( TestContext &context) ;
 } // namespace drivercrate::test

@@ -2,7 +2,7 @@
 /**
  * @file nvidia_winof2_catalog_parser.h
  * @brief NVIDIA Networking WinOF-2公式metadata parser定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note NVIDIA公式pageから委譲されたWinOF-2 JSONだけを有限な表示情報へ変換します。Package版をINF driver版へ転用せず、payload取得または
@@ -69,52 +70,60 @@ struct NvidiaWinof2Release {
 	std::wstring userManualUrl ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief NVIDIA WinOF-2製品pageが固定Download Centerを委譲しているか確認する。
- * Iframe先だけを独立した公式originとして扱わず、委譲を毎scan確認する。
+ * @brief NVIDIA WinOF-2製品pageが固定Download Centerを委譲しているか確認する。Iframe先だけを独立した公式originとして扱わず、委譲を毎scan確認
+ *        する。
  * @param[in] html NVIDIA公式hostから取得したUTF-16 HTML。
  * @return 製品名、対象系列、iframe URLが一意に存在する場合true。 製品名、系列説明、固定iframe URLが各一件の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseNvidiaWinof2LandingPage( std::wstring_view html) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Download Centerのversion応答から唯一のcurrent版を選ぶ。
- * ArchiveまたはLTS注釈付き版をlatestの代替として選択しない。
+ * @brief Download Centerのversion応答から唯一のcurrent版を選ぶ。ArchiveまたはLTS注釈付き版をlatestの代替として選択しない。
  * @param[in] json 固定`get_versions` POSTのUTF-16 JSON。 `get_versions`のUTF-16 JSON。
  * @param[out] version 成功時のcurrent package版。失敗時は空。
  * @return Latestがversionsとcurrent一覧の双方に一度だけ存在する場合true。 Latestがversionsとcurrent一覧に一度ずつ存在する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseNvidiaWinof2Versions( std::wstring_view json, std::wstring &version) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Download Centerのstringまたはstring array応答を有限listへ変換する。
- * 一件時と複数件時のPHP JSON型差だけを吸収し、他型へfallbackしない。
+ * @brief Download Centerのstringまたはstring array応答を有限listへ変換する。一件時と複数件時のPHP JSON型差だけを吸収し、他型へfallbackし
+ *        ない。
  * @param[in] json 固定action POSTのUTF-16 JSON。
  * @param[out] values 成功時の重複しない非空値。失敗時は空。 成功時の重複しない選択肢。
  * @return Root型、件数、各値が契約内の場合true。 Stringまたはstring array全体が有限schemaを満たす場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseNvidiaWinof2StringList( std::wstring_view		  json,
 											   std::vector<std::wstring> &values) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 実Windows buildをDownload Centerの明示OS選択肢へ対応付ける。
- * Client／Server同一buildをproduct typeで分離し、未知buildを拒否する。
+ * @brief 実Windows buildをDownload Centerの明示OS選択肢へ対応付ける。Client／Server同一buildをproduct typeで分離し、未知build
+ *        を拒否する。
  * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true。
  * @param[in] windowsBuild 実OSのmajor build番号。0は判定不能。 実OSのmajor build。0は不明。
  * @param[out] selection 成功時の固定distributionとOS label。失敗時は空。 成功時の公開distributionとOS label。
  * @return 2026-09-06時点のcurrent版が明示するOS buildの場合true。 Current版が明示する既知buildの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool selectNvidiaWinof2Os( bool windowsServer, std::uint32_t windowsBuild,
 										NvidiaWinof2OsSelection &selection) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Download Centerの最終応答から一つのx64 WinOF Driverを解析する。
- * URL、file名、版、hashを同一応答内で結合し、部分結果を返さない。
+ * @brief Download Centerの最終応答から一つのx64 WinOF Driverを解析する。URL、file名、版、hashを同一応答内で結合し、部分結果を返さない。
  * @param[in] json 固定`get_download_info` POSTのUTF-16 JSON。 `get_download_info`のUTF-16 JSON。
  * @param[in] expectedVersion 同一scanのversion応答で選んだcurrent版。 同一scanで選んだcurrent版。
  * @param[out] release 成功時の配布情報。失敗時は初期値。 成功時の所有配布情報。
  * @return File、size、SHA-256、payload URL、二つの文書URLが整合する場合true。 一つのx64 EXE、SHA-256、二文書URLが整合する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseNvidiaWinof2DownloadInfo( std::wstring_view	  json,
 												 std::wstring_view	  expectedVersion,
 												 NvidiaWinof2Release &release) ;

@@ -2,7 +2,7 @@
 /**
  * @file unsigned_index_probe_internal.h
  * @brief 未署名CLI診断だけの有限な匿名照合件数を集計します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -19,6 +19,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/07  CLI診断の既loopを非権限の共通値へ抽出。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 認証receipt/lookup/proof/planを発行しません。callerの同期callbackを借用するだけです。
  * @see docs/adr/0458-bounded-index-capacity-and-owned-state-maps.md
@@ -52,7 +53,9 @@ struct Result {
 	/// 原record順の完全行だけです。途中容量拒否は成功reportへ出しません。
 	std::vector<Row> rows ;
 } ;
-/** @brief 既CLIの件数loopを未認証値だけで同期実行します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既CLIの件数loopを未認証値だけで同期実行します。
  * @param[in] records callerが同じ値codecで全hash/schema/期限を確認した原recordです。
  * @param[in] context 同native factoryの元contextです。
  * @param[in] present 同factoryの全opaque集合です。resolverが毎query再照合します。
@@ -61,6 +64,7 @@ struct Result {
  * @throws 同期callback又は確保の例外をcallerへそのまま返します。
  * @note 全体枠は固定で、一recordの途中から後続へ飛びません。秘密値を保存しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] inline Result probe( std::span<const IndexDistributionRecord> records,
 								  IndexLookupContext context, std::span<const std::wstring> present,
 								  const IndexPublicIdResolver &resolver)

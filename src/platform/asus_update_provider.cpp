@@ -2,7 +2,7 @@
 /**
  * @file asus_update_provider.cpp
  * @brief ASUS公式support page Provider実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note ASUS端末でだけ公式pageとpayloadを取得し、全INFの選択閉包、CAT、publisher、local PnP／Rankを検証し、全gate合格候補だけを再検証して
@@ -288,7 +289,10 @@ constexpr std::size_t	MAXIMUM_CANDIDATE_COUNT = 4'096U ;	// 一scanで公開す�
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asus_update_provider.h 宣言側の契約を正本とする。
+ * @brief Driver Store監査／導入境界へ接続したASUS Providerを作成する。CallbackはComposite worker内だけで呼び、device秘密情報をASUS
+ *        Providerまたはnetworkへ渡さない。
+ * @param[in] rankAuditor 現在PnPと候補INFのG11-D監査関数。 G11-Dのread-only監査関数。
+ * @param[in] installer 再検証済みINFを指定deviceへ導入する関数。 再検証済みINFのSetupAPI導入関数。
  */
 //------------------------------------------------------------------------------
 AsusUpdateProvider::AsusUpdateProvider( AsusOfficialInfRankAuditor rankAuditor,
@@ -297,11 +301,22 @@ AsusUpdateProvider::AsusUpdateProvider( AsusOfficialInfRankAuditor rankAuditor,
 {
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 保持中の取得file、取得根拠およびscan sessionを解放する。
+ */
+//------------------------------------------------------------------------------
 AsusUpdateProvider::~AsusUpdateProvider() = default ;
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asus_update_provider.h 宣言側の契約を正本とする。
+ * @brief Local ASUS modelに対応する公式driverを取得、監査して候補化する。ASUS公式driver metadataを検索する。SMBIOS modelだけを固定
+ *        ASUS pageへ送り、全archiveを有限取得する。G11-C／D合格組合せだけを候補へ昇格する。
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。 0ではないscan session ID。
+ * @param[in] devices Networkへ送信せずlocal G11-Dと候補表示に使用するdevice群。 外部送信せずlocal監査するdevice群。
+ * @param[in] hardwareIdMatcher 使用しない。Hardware IDをnetworkへ渡さないため保持もしない。 呼び出さないlocal照合。
+ * @param[in] progressCallback Page取得、archive監査および候補化の進捗通知先。 取得、監査、候補化の進捗通知先。
+ * @return 対象外、監査失敗、候補0件または監査合格候補を含むscan結果。 対象外、監査失敗、候補0件または合格候補を含む結果。
  */
 //------------------------------------------------------------------------------
 ScanResult AsusUpdateProvider::scan( const ScanSessionId							 scanSessionId,
@@ -656,7 +671,13 @@ ScanResult AsusUpdateProvider::scan( const ScanSessionId							 scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asus_update_provider.h 宣言側の契約を正本とする。
+ * @brief 選択されたASUS候補を再検証して指定deviceへ導入する。ASUS監査済みINFを再検証して導入する。Stale／重複選択を拒否し、同じarchiveを一回再検証する。INF閉
+ *        包とRankを再監査し、選択deviceのrouteだけを消費して未処理の候補・取得物と元scanを保持する。
+ * @param[in] scanSessionId 要求元のscan session ID。 要求元session ID。
+ * @param[in] identities 要求されたopaque候補identity群。 要求された候補identity群。
+ * @param[in] parentWindowNative 呼出し側の親Window値。
+ * @param[in] progressCallback 呼出し側の進捗通知先。
+ * @return 選択順の再検証、download cache確認およびinstall結果。 選択順のcache再検証、INF導入および個別結果。
  */
 //------------------------------------------------------------------------------
 InstallResult AsusUpdateProvider::install( const ScanSessionId				  scanSessionId,
@@ -896,7 +917,17 @@ InstallResult AsusUpdateProvider::install( const ScanSessionId				  scanSessionI
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asus_update_provider.h 宣言側の契約を正本とする。
+ * @brief Scanで固定した一つのASUS archiveを候補化せず検査用取得する。ASUS archive一件を候補化せず検査用取得する。現sessionの完全一致IDだけを共通
+ *        G11-Bへ渡し、URLやpathを呼出し側に組み立てさせない。
+ * @param[in] scanSessionId 現在保持するscan session ID。
+ * @param[in] opaqueId Scan中だけ保持したASUS metadata record ID。 Scan session内のASUS record ID。
+ * @param[in] restrictedNetworkApproved 今回だけcost制限networkを許可する状態。 今回だけのcost同意。
+ * @param[in,out] costReader Machine-wide network cost照会境界。
+ * @param[in] progressCallback 確定済み受信byte数の通知先。 確定済み受信進捗通知先。
+ * @param[in] cancellationCallback 空または取消し状態を返す非blocking関数。 取消し状態確認先。
+ * @param[out] result 成功または失敗の監査前取得状態。URLを含まない。 URLを含まない監査前取得状態。
+ * @return 検査対象固定成功時は0、session、ID、取得失敗時はHRESULT bit pattern。
+ * @note 本結果だけで候補、適用可能またはinstall可能へ昇格してはならない。
  */
 //------------------------------------------------------------------------------
 NativeError AsusUpdateProvider::acquireForInspection(
@@ -934,7 +965,14 @@ NativeError AsusUpdateProvider::acquireForInspection(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asus_update_provider.h 宣言側の契約を正本とする。
+ * @brief G11-Bで取得した一つのASUS archiveの全INFを内容監査する。取得済みASUS archiveの全INFを内容監査する。Recordの公開SHA-256と取得
+ *        identityを再拘束し、G11-CとCAT／publisher合格閉包だけを後続G11-D用に保持する。
+ * @param[in] scanSessionId 現在保持するscan session ID。
+ * @param[in] opaqueId Scan中だけ保持したASUS metadata record ID。 Scan時ASUS metadataの内部record ID。
+ * @param[in] acquisition `acquireForInspection`が返した同一sessionの取得結果。 同一recordについてG11-Bが返した結果。
+ * @param[out] summary 全INF、合格、拒否件数と内容監査状態。 全INF、合格、拒否件数と監査状態。
+ * @return 全INF確認完了時は0、session、取得identityまたは全体処理失敗時はHRESULT。 全INF確認完了時は0、sessionまたは全体監査失敗はHRESULT。
+ * @note 合格閉包は後続G11-Dのlocal PnP／Rank監査用にworker内だけで保持する。
  */
 //------------------------------------------------------------------------------
 NativeError AsusUpdateProvider::auditAcquiredPackage( const ScanSessionId			  scanSessionId,
@@ -997,7 +1035,15 @@ NativeError AsusUpdateProvider::auditAcquiredPackage( const ScanSessionId			  sc
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asus_update_provider.h 宣言側の契約を正本とする。
+ * @brief 内容監査済みASUS archiveを現在のlocal PnP／Rankと照合する。内容監査済みASUS archiveをlocal PnP／Rank監査する。同一workerと
+ *        sessionの内容監査済み閉包だけをG11-Dへ渡し、合格組合せを後続routingまでProvider内に保持する。
+ * @param[in] scanSessionId 現在保持するDevice inventoryとASUS scan session ID。 Device inventoryと同じsession
+ *                   ID。
+ * @param[in] opaqueId 内容監査済みASUS metadataの内部record ID。 内容監査済みASUS record ID。
+ * @param[in] rankAuditor Driver Storeのread-only G11-D監査関数。 Driver StoreのG11-D監査関数。
+ * @param[out] summary 全組合せ、合格、拒否、失敗件数と到達状態。
+ * @return 全組合せを確認した場合は0、session、IDまたは全体処理失敗時はHRESULT。 全組合せを確認した場合は0、全体処理失敗時はHRESULT。
+ * @note 合格組合せはcandidate routing生成までworker内だけで保持する。
  */
 //------------------------------------------------------------------------------
 NativeError AsusUpdateProvider::auditRetainedPackageApplicability(
@@ -1033,7 +1079,8 @@ NativeError AsusUpdateProvider::auditRetainedPackageApplicability(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asus_update_provider.h 宣言側の契約を正本とする。
+ * @brief 保持中のscan session、取得計画、fileおよび取得根拠を失効させる。ASUS scan sessionと取得物を失効させる。Workspaceを先に破棄して既知file
+ *        を削除し、旧ID、ledger、HTTP取得根拠を次scanへ持ち越さない。
  */
 //------------------------------------------------------------------------------
 void AsusUpdateProvider::invalidateScanSession() noexcept

@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_http_request.h
  * @brief Record限定grantから一回のGETだけを作る秘密requestを定義します。
- * @version 01.05.00
+ * @version 01.05.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
  * Ver.01.04.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
  * Ver.01.05.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Provider worker threadで直列使用します。完全URLはHTTP送信境界だけへ貸し出し、
@@ -168,11 +169,13 @@ public:
 	 * @note 本値だけでは再解決を実行せず、期限または最初の401／403を別途要求します。
 	 */
 	[[nodiscard]] bool		  canReresolveExpiringTarget() const noexcept ;
-	/** @brief 現requestのgrant由来を非機密分類で返します。
+	/**
+	 * @brief 現requestのgrant由来を非機密分類で返します。
 	 * @return 結合済みgrant由来。空requestでは従来分類です。
 	 */
 	[[nodiscard]] OfficialDownloadGrantOrigin origin() const noexcept ;
-	/** @brief 索引grant自身の封印exact routeを再照合します。
+	/**
+	 * @brief 索引grant自身の封印exact routeを再照合します。
 	 * @param[in] target 現hopの完全URL。
 	 * @param[in] hop 0起点hop位置。
 	 * @param[in] finalResponse 最終200 responseの確認指定。
@@ -180,14 +183,16 @@ public:
 	 */
 	[[nodiscard]] NativeError validateSignedIndexHop( std::wstring_view target, std::uint32_t hop,
 													 bool finalResponse) const noexcept ;
-	/** @brief Grantが固定した期待content typeを借用します。
+	/**
+	 * @brief Grantが固定した期待content typeを借用します。
 	 * @return 結合grantの期待形式。空requestは空です。
 	 */
 	[[nodiscard]] std::wstring_view				   expectedContentType() const noexcept ;
 
-	/** @brief 同一要求の閉じた補助HTTP実数だけを返す。
- * @return 終端後も保持する要求数/本文量/status。秘密値はない。
- */
+	/**
+	 * @brief 同一要求の閉じた補助HTTP実数だけを返す。
+	 * @return 終端後も保持する要求数/本文量/status。秘密値はない。
+	 */
 	[[nodiscard]] OfficialAuxiliaryHttpObservation auxiliaryObservation() const noexcept
 	{
 		return auxiliary_ ;
@@ -195,15 +200,17 @@ public:
 
 private:
 	friend class OfficialHttpClient ;
-	/** @brief 同recordの未解決公開文脈だけを借用する。
-     * @return 同STARTED requestで元planが有効ならその値。なければnull。
-     */
+	/**
+	 * @brief 同recordの未解決公開文脈だけを借用する。
+	 * @return 同STARTED requestで元planが有効ならその値。なければnull。
+	 */
 	[[nodiscard]] const OfficialAnonymousCdnPlan *anonymousCdnPlan() const noexcept ;
-	/** @brief 新responseを元request/grantへ一度だけ結合する。
-     * @param[in,out] resolution 成功時に秘密URL所有権を引き取る同response。
-     * @param[in] now 現workerのUTC秒。
-     * @return 元record/route/expiry結合成功0、元HRESULT。
-     */
+	/**
+	 * @brief 新responseを元request/grantへ一度だけ結合する。
+	 * @param[in,out] resolution 成功時に秘密URL所有権を引き取る同response。
+	 * @param[in] now 現workerのUTC秒。
+	 * @return 元record/route/expiry結合成功0、元HRESULT。
+	 */
 	[[nodiscard]] NativeError					  acceptAnonymousCdnResolution(
 							OfficialAnonymousCdnResolution &resolution, std::uint64_t now) ;
 	/// HTTP clientだけが実送受信で更新する閉実数。

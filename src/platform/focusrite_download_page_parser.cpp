@@ -2,7 +2,7 @@
 /**
  * @file focusrite_download_page_parser.cpp
  * @brief Focusrite製品別Windows driver page parser実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 固定製品pageを実行せず、現行Windows driver欄の公開属性だけを解析します。EXEの取得、実行、展開、署名検証、PnP適用性判定またはEULA同意は行いません。
@@ -239,7 +240,12 @@ constexpr std::array DOWNLOAD_HOSTS{			// 公式payload host。
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/focusrite_download_page_parser.h 宣言側の契約を正本とする。
+ * @brief Scarlett 2i2 2nd Gen Downloads pageの現行Windows欄を有限規則で解析する。製品、OS、版、公式URL、file名、build、sizeを相互
+ *        照合する。旧USB driver、Mac欄、EXE取得、実行、内容監査またはPnP適用性判定は扱わない。
+ * @param[in] html Focusrite公式hostから取得したUTF-16 HTML。
+ * @param[out] metadata 成功時の表示専用metadata。失敗時は初期値。
+ * @return 製品、OS、版、URL、file名、sizeが一意に整合する場合true。 固定製品の現行Windows配布欄が一意に整合する場合true。
+ * @note 旧版、Mac、Control software、別製品または別hostを候補へ混入させない。
  */
 //------------------------------------------------------------------------------
 bool parseFocusriteScarlett2i2SecondGenPage( const std::wstring_view		   html,

@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_record_adapter.h
  * @brief 公式自動探索routeを固定root resolverと秘密record保持へ接続する契約。
- * @version 01.02.01
+ * @version 01.02.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  検査用取得対象とEULA snapshot生成を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  通常scanの表示専用payload descriptor生成を追加。
  * Ver.01.02.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.02.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 一objectをProvider worker threadだけで直列使用します。Resolverへは組み込みsource policyの
@@ -119,6 +120,7 @@ struct OfficialDiscoveryFixedRootAdapter {
 	OfficialDiscoveryFixedRootResolver resolver ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一adapterをroute、Provider registry、source policyへ完全一致で検証する。
  * @param[in] adapter 検証する固定root adapter。
@@ -127,6 +129,7 @@ struct OfficialDiscoveryFixedRootAdapter {
  * @param[in] descriptors Provider registryの正本または同じ合成copy。
  * @return Provider、root、種別、上限、callbackが全て一致する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validateOfficialDiscoveryFixedRootAdapter(
 	const OfficialDiscoveryFixedRootAdapter &adapter, const OfficialDiscoveryRoute &route,
 	std::span<const OfficialDiscoveryDeviceHint> devices,

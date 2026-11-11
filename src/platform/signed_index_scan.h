@@ -2,7 +2,7 @@
 /**
  * @file signed_index_scan.h
  * @brief 通常worker scanに結合する署名索引の秘密sessionを定義します。
- * @version 01.08.00
+ * @version 01.08.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * Ver.01.06.00 Shunji Ogawa  2026/11/03  拡大recordと有限保持quotaを通常経路へ整合。
  * Ver.01.07.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * Ver.01.08.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.08.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 全秘密所有はworker限定です。索引一致は導入権限を作りません。
@@ -55,11 +56,14 @@ namespace drivercrate {
 // 検査済みworkspaceの一意member保持枠。転送量や対応driver総数の上限ではない。
 inline constexpr std::uint64_t INDEX_SCAN_RETAINED_MAX_BYTES = 3ULL * 1024ULL * 1024ULL * 1024ULL ;
 
-/** @brief 同scanの保持量を有限枠内だけで加算する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scanの保持量を有限枠内だけで加算する。
  * @param[in] additional 今回検査が実保持したbyte数。
  * @param[in,out] total 元累計。失敗時は変更しない。
  * @return overflowせず3GiB以内へ加算できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool			   tryRetainIndexedInspectionBytes( std::uint64_t  additional,
 															   std::uint64_t &total) noexcept ;
 namespace provider_worker_index_detail {
@@ -69,9 +73,12 @@ struct Services ;
 /** @brief 同じ通常scanのDriver Store秘密stateを借りる独立seamです。 */
 class IIndexScanInventory {
 public:
-	/** @brief 所有Providerの派生資源を解放します。 */
+	/**
+	 * @brief 所有Providerの派生資源を解放します。
+	 */
 	virtual ~IIndexScanInventory() = default ;
-	/** @brief 同scanの全presentとweak resolverを発行します。
+	/**
+	 * @brief 同scanの全presentとweak resolverを発行します。
 	 * @param[in] operationId 正のworker operation。
 	 * @param[out] context 同scanの正のcontext。拒否時空です。
 	 * @param[out] present 全present opaque。拒否時空です。
@@ -215,9 +222,12 @@ struct IndexPreparationSummary {
 /** @brief 全record関係とconst原snapshotをworker内だけへ保持します。 */
 class SignedIndexScanSession final {
 public:
-	/** @brief 秘密snapshot・callback・関係を全て解放します。 */
+	/**
+	 * @brief 秘密snapshot・callback・関係を全て解放します。
+	 */
 	void						   invalidate() noexcept ;
-	/** @brief 通常workerの同scan完了後に全operation予算内で読取ります。
+	/**
+	 * @brief 通常workerの同scan完了後に全operation予算内で読取ります。
 	 * @param[in,out] provider 実scanを終えた同worker Provider。
 	 * @param[in] operationId 正のworker operation。
 	 * @param[in] sessionId 実scan結果と一致する正のsession。
@@ -232,7 +242,8 @@ public:
 		const provider_worker_index_detail::Services		&services,
 		const ProviderScanCancellation						&cancellation,
 		const std::function<void( const IndexScanSummary &)> &progress = {}) noexcept ;
-	/** @brief 同scanの全私有batchから既存計画へ取得対象だけを結合します。
+	/**
+	 * @brief 同scanの全私有batchから既存計画へ取得対象だけを結合します。
 	 * @param[in,out] plan Providerの元計画または同じ有限上限の空計画。
 	 * @param[in] services Worker開始前に固定した依存。任意公開鍵を受けません。
 	 * @param[out] summary 非機密の件数と未接続診断。原UNKNOWNは元snapshotへ保持します。
@@ -241,7 +252,8 @@ public:
 	[[nodiscard]] NativeError augmentPreparationPlan(
 		OfficialPreparationPlan &plan, const provider_worker_index_detail::Services &services,
 		IndexPreparationSummary &summary) ;
-	/** @brief 同active taskだけを共通grant・取得seal・通常内容検査へ接続します。
+	/**
+	 * @brief 同active taskだけを共通grant・取得seal・通常内容検査へ接続します。
 	 * @param[in,out] preparation 実approve／claimNextしたworker session。
 	 * @param[in] task 同計画の未変更active task。元scan操作とは別です。
 	 * @param[in] services Worker固定のHTTP・時計・回線依存。
@@ -255,35 +267,41 @@ public:
 		OfficialPreparationSession &preparation, const OfficialPreparationTask &task,
 		const provider_worker_index_detail::Services &services,
 		const PreparationCancellation				 &cancellation) ;
-	/** @brief 元計画と今回の操作へ非機密結果だけを複写します。
+	/**
+	 * @brief 元計画と今回の操作へ非機密結果だけを複写します。
 	 * @param[in] operationId 実取得operation。0では計画summaryです。
 	 * @return 同scan／planと有限個別結果。秘密所有を含みません。
 	 */
 	[[nodiscard]] IndexPreparationSummary preparationSummary( OperationId operationId) const ;
-	/** @brief 原metadataだけで残planを検証し当該summaryを開始します。
-     * @param[in,out] plan 原tuple/予算のsubsetです。失効対象だけを除きます。
-     * @param[in] services 元信頼時計です。HTTPは呼びません。
-     * @return 原context/新ID/予算が整合した場合trueです。
-     */
+	/**
+	 * @brief 原metadataだけで残planを検証し当該summaryを開始します。
+	 * @param[in,out] plan 原tuple/予算のsubsetです。失効対象だけを除きます。
+	 * @param[in] services 元信頼時計です。HTTPは呼びません。
+	 * @return 原context/新ID/予算が整合した場合trueです。
+	 */
 	[[nodiscard]] bool					  retainPreparationPlan(
 						   OfficialPreparationPlan &plan, const provider_worker_index_detail::Services &services) ;
-	/** @brief Adapterの取得能力とissuer leaseを失効し、確定結果と内容所有を保持します。
-	 * @note 新しいgrantと未使用grantの使用を拒否し、snapshot、lookup、取得ledger、
-	 *       workspace、summary、検査閉包は解放しません。同期callbackの借用を破壊しません。
+	/**
+	 * @brief Adapterの取得能力とissuer leaseを失効し、確定結果と内容所有を保持します。
+	 * @note 新しいgrantと未使用grantの使用を拒否し、snapshot、lookup、取得ledger、workspace、summary、検査閉包は解放しません。同期
+	 *       callbackの借用を破壊しません。
 	 */
 	void invalidateAcquisition() noexcept ;
-	/** @brief 新取得だけを閉鎖し、同期限内の消費済み元根拠を導入終端まで保持します。 */
+	/**
+	 * @brief 新取得だけを閉鎖し、同期限内の消費済み元根拠を導入終端まで保持します。
+	 */
 	void closeAcquisitionForInstall() noexcept ;
 
 private:
-	/** @brief 元owned bodyを新active taskで非通信再検査します。
-     * @param[in,out] preparation 当該active taskの所有者です。
-     * @param[in] task 新しい明示承認taskです。
-     * @param[in] sourceIndex 元TRANSFER recordの安定indexです。
-     * @param[in] services 元時計です。通信は呼びません。
-     * @param[in] cancellation 同検査の取消しです。
-     * @return 実検査の終端と当該local照合票です。取得成功は再発行しません。
-     */
+	/**
+	 * @brief 元owned bodyを新active taskで非通信再検査します。
+	 * @param[in,out] preparation 当該active taskの所有者です。
+	 * @param[in] task 新しい明示承認taskです。
+	 * @param[in] sourceIndex 元TRANSFER recordの安定indexです。
+	 * @param[in] services 元時計です。通信は呼びません。
+	 * @param[in] cancellation 同検査の取消しです。
+	 * @return 実検査の終端と当該local照合票です。取得成功は再発行しません。
+	 */
 	[[nodiscard]] OfficialPreparationTransferResult inspectRetainedBody(
 		OfficialPreparationSession &preparation, const OfficialPreparationTask &task,
 		std::size_t sourceIndex, const provider_worker_index_detail::Services &services,

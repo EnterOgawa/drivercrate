@@ -2,7 +2,7 @@
 /**
  * @file official_release_discovery_provider.cpp
  * @brief 共通配布情報の検索・取得・監査・指定導入処理。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -47,6 +47,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 同型deviceを個別に扱い、取得承認・内容／PnP監査が済むまで導入候補にしません。発行済み候補だけを保持bindingで指定deviceへ導入し、選択device subsetだけを消費して未処理ownerを保持します。
@@ -242,7 +243,19 @@ UpdateCandidate		  makeDiscoveryCandidate( const ScanSessionId session, const st
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief Local系列照合と一回のmetadata検索で表示専用行を作る。対象なしでは通信しない。同型deviceを一台へ集約せず、payload取得、適用性判定、導入を行わない。
+ * @param[in] family 組み込み検索系列。 共通検索の組み込み系列。
+ * @param[in] session 0ではないscan session。 0ではない検索session。
+ * @param[in] devices 最大4096件の非機密snapshot。同型でもidentityは個別。
+ * @param[in] windowsServer 実OSがServerならtrue。系列別OS境界に使用する。 実OSがServerの場合true。
+ * @param[in] reader Worker内の取得境界。成功時には当該sessionの公式取得根拠を要求する。 同sessionの公式根拠を要求するmetadata取得境界。
+ * @param[in] progress 実際に終了した段階を通知する関数。 確定した進捗の通知先。
+ * @param[in] windowsBuild 実OSのmajor build番号。client系列では使用せず、既定値は0。 実OSのmajor build。0は不明。
+ * @param[in] observationEvaluator 今回観測と前回差分を返す任意callback。
+ * @param[out] measurementEvidence 指定時は同じsessionの対象・query・record根拠。失敗時も段階を保持する。
+ * @param[in,out] execution 指定時は専用情報検索。Package identityと観測保存を生成しない。
+ * @return 配布情報の表示行または対象外・通信失敗・metadata拒否。 表示候補または対象外・通信失敗・metadata拒否。
+ * @note 内部の差替え境界であり、readerをUI／pluginから登録しない。
  */
 //------------------------------------------------------------------------------
 ScanResult scanOfficialReleaseMetadata(
@@ -493,7 +506,21 @@ ScanResult scanOfficialReleaseMetadata(
 	return result ;
 }
 
-/** @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 専用HTTPを一回の呼出し内だけ所有し、準備状態を保持せず情報検索する。
+ * @param[in] family 固定した審査済み系列。
+ * @param[in] session Contextと一致するsession。
+ * @param[in] devices 最大4096件の現在属性だけのsnapshot。
+ * @param[in] windowsServer Workerが固定した実OS区分。
+ * @param[in] windowsBuild Workerが固定した実OS build。
+ * @param[in,out] execution 同期呼出し中だけ借用する専用予算。
+ * @param[in] progress 確定進捗の通知先。
+ * @param[out] evidence 同じ呼出し内のT/Q/RとURLなし取得根拠。
+ * @return 全行表示専用の結果。部分停止でも確定行を保持する。
+ * @note 通常Provider scan、準備plan、取得、rank、snapshot保存を呼ばない。
+ */
+//------------------------------------------------------------------------------
 ScanResult scanOfficialMetadataOnly( const OfficialReleaseFamily family, const ScanSessionId session,
 									const std::span<const OfficialCatalogDevice> devices,
 									const bool windowsServer, const std::uint32_t windowsBuild,
@@ -528,7 +555,8 @@ ScanResult scanOfficialMetadataOnly( const OfficialReleaseFamily family, const S
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief 検索系列を固定し、取得後rank callbackを持たないProviderを作る。Source sessionを作らず、検索系列だけを固定する。監査callbackは空にする。
+ * @param[in] family 組み込み系列。変更せず、未知値はscan時に拒否する。 Instanceの検索系列。
  */
 //------------------------------------------------------------------------------
 OfficialReleaseDiscoveryProvider::OfficialReleaseDiscoveryProvider(
@@ -539,7 +567,10 @@ OfficialReleaseDiscoveryProvider::OfficialReleaseDiscoveryProvider(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief 検索系列と取得後の端末内PnP／rank監査境界を固定する。Callbackを外部登録可能にせず、Composite構築時のDriver Store境界へ固定する。
+ * @param[in] family 組み込み系列。Intel Ethernet以外へ監査能力を波及させない。 Instanceの検索系列。
+ * @param[in] rankAuditor 所有するDriver Store監査callback。空なら後続監査を拒否する。 Worker内で所有する端末内PnP／rank監査callback
+ *                   。
  */
 //------------------------------------------------------------------------------
 OfficialReleaseDiscoveryProvider::OfficialReleaseDiscoveryProvider(
@@ -550,7 +581,15 @@ OfficialReleaseDiscoveryProvider::OfficialReleaseDiscoveryProvider(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief Intel Ethernetの監査、binding発行、破棄および指定導入境界を固定する。全境界をComposite構築時のDriver Storeへ固定し、device情報を
+ *        networkへ渡さない。falseは明示実行するread-only live検証だけが指定する。
+ * @param[in] family 組み込み系列。Intel Ethernet以外へ導入準備能力を波及させない。 Instanceの検索系列。
+ * @param[in] rankAuditor 所有するDriver Store監査callback。 Worker内のPnP／rank監査callback。
+ * @param[in] bindingCreator 監査合格INFをWindows nodeへ拘束するcallback。 一意なWindows nodeのbinding発行callback。
+ * @param[in] bindingReleaser 未発行または失効候補のtokenを個別破棄するcallback。 未使用tokenの個別破棄callback。
+ * @param[in] boundInstaller Bindingを再検証してstaging・指定導入するcallback。 Bindingを再検証する指定導入callback。
+ * @param[in] useCatalogCache trueなら通常の公式catalog cacheを利用する。
+ * @note 空callbackでは選択候補を発行せず、取得後監査reportだけを返す。
  */
 //------------------------------------------------------------------------------
 OfficialReleaseDiscoveryProvider::OfficialReleaseDiscoveryProvider(
@@ -565,7 +604,11 @@ OfficialReleaseDiscoveryProvider::OfficialReleaseDiscoveryProvider(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief 今回scanへ使用する前回観測と現在環境fingerprintを設定する。Worker内へ所有copyを作り、次scanの差分評価だけへ使用する。Fingerprintと観測を
+ *        networkまたはUIへ渡さない。
+ * @param[in] previous 現在OS／device構成へ事前照合済みの観測。最大4,096件。 現在環境へ事前照合済みの前回観測。
+ * @param[in] environment 現在OSとdevice集合の端末内fingerprint。
+ * @note 設定値はworker内へcopyし、network requestまたはUIへ渡さない。
  */
 //------------------------------------------------------------------------------
 void OfficialReleaseDiscoveryProvider::configureReleaseObservationContext(
@@ -579,8 +622,9 @@ void OfficialReleaseDiscoveryProvider::configureReleaseObservationContext(
 
 //------------------------------------------------------------------------------
 /**
-	 * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
-	 */
+ * @brief 直前の成立したscanで生成した今回観測を参照する。Compositeのatomic統合保存に限って参照し、UIまたはlogへ渡さない。
+ * @return 次scanまたは明示失効まで有効な非所有span。 直前の成功scanで生成した観測の非所有span。
+ */
 //------------------------------------------------------------------------------
 std::span<const LocalOfficialReleaseObservation> OfficialReleaseDiscoveryProvider::
 	releaseObservations() const noexcept
@@ -590,7 +634,13 @@ std::span<const LocalOfficialReleaseObservation> OfficialReleaseDiscoveryProvide
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief 対象deviceがある場合だけ公式metadataを取得する。実OSを確認し、公式HTTPだけをreaderとしてworkerで接続する。Intel Ethernetの成立結果は、
+ *        取得後監査のため候補順のdevice対応をworker内へ保持する。
+ * @param[in] scanSessionId 0ではないsession。 当該検索session。
+ * @param[in] devices 外部送信しない現在device snapshot。 現在deviceの非機密snapshot。
+ * @param[in] hardwareIdMatcher 未使用。配布pageにPnP IDはない。 未使用。PageにPnP IDはない。
+ * @param[in] progressCallback 確定済み段階の通知先。 確定済み進捗の通知先。
+ * @return 非選択・非推奨の表示情報。Payloadを取得しない。 共通の表示専用検索結果。
  */
 //------------------------------------------------------------------------------
 ScanResult OfficialReleaseDiscoveryProvider::scan(
@@ -695,7 +745,18 @@ ScanResult OfficialReleaseDiscoveryProvider::scan(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief Intel Ethernet保持routingを共通再監査と指定device導入へ接続する。Intel固有routingを共通executor用に検証し、選択候補を一つの保持
+ *        bindingへ解決する。保持物の失効は呼出し側が全終端で行う。
+ * @param[in] context Provider workerが呼出し中だけ所有する取得物、監査閉包およびrouting。 Provider所有の取得物、監査閉包およびbinding
+ *                   routing。
+ * @param[in] identities 利用者が選択した発行済み候補ID群。
+ * @param[in] reverifier 外側hash確認後にINF閉包を再検証するcallback。 INF閉包の再検証callback。
+ * @param[in] rankAuditor 指定deviceとINFの現在PnP／rankを再監査するcallback。 現在PnP／rankの再監査callback。
+ * @param[in] boundInstaller 保持bindingで指定deviceへ導入するcallback。 保持bindingによる指定device導入callback。
+ * @param[in] parentWindowNative Windows導入dialogの親Window値。
+ * @param[in] progressCallback 確定済み段階と候補数を通知するcallback。 確定済み段階と候補数の通知先。
+ * @return Downloadとinstallを分離した入力順の個別結果。
+ * @note 本関数はrouting、binding、取得物を失効させない。Providerが全終端で破棄する。
  */
 //------------------------------------------------------------------------------
 InstallResult executeIntelEthernetPreparedInstall(
@@ -710,7 +771,14 @@ InstallResult executeIntelEthernetPreparedInstall(
 }
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief Intel Ethernetの公開済み監査合格候補を指定deviceへ導入する。Intel Server 2025の公開済み候補だけを共通executorへ渡す。保持binding
+ *        は候補とINFの完全一致で専用導入境界へ解決し、選択deviceのtokenだけを解放し、未処理候補・取得物と元scan観測を保持する。
+ * @param[in] scanSessionId 候補を発行した現在scan session。 候補を発行した現在session。
+ * @param[in] identities 利用者が明示選択した候補ID群。 利用者が選択した候補ID群。
+ * @param[in] parentWindowNative Windows導入dialogの親Window値。 Installer親HWNDの整数表現。
+ * @param[in] progressCallback 外側file再検証と候補処理の確定進捗通知先。 外側file再検証と候補処理の進捗通知先。
+ * @return Downloadとinstallを分離した入力順の個別結果。
+ * @note 対象外系列、未公開候補、旧sessionおよび不完全な保持物はfail-closedで拒否する。
  */
 //------------------------------------------------------------------------------
 InstallResult OfficialReleaseDiscoveryProvider::install(
@@ -801,7 +869,12 @@ InstallResult OfficialReleaseDiscoveryProvider::install(
 }
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief 解析済みIntel metadataを非機密の未承認対象へ変換する。Ethernetは許諾全文と取得前提確認を要求し、Wi-Fiは未解決のまま保持する。
+ * @param[in] release workerだけが所有する解析情報。公式由来の根拠は呼出し側が保持する。 worker内の解析済み配布情報。
+ * @param[in] scanSessionId 情報を取得した検索session。 配布情報の検索session。
+ * @param[in] planId workerが発行した新計画ID。 新計画の単調ID。
+ * @param[in] deviceCount 同じ配布物に関係するdevice数。1～4096。 同じ配布情報に関係する1～4096件のdevice数。
+ * @return 一対象または空。Ethernetは取得前提確認を要求し、Wi-FiはUnresolvedを維持する。 Intel Wi-FiまたはEthernetの未承認一対象。未結合は空。
  */
 //------------------------------------------------------------------------------
 std::vector<OfficialPreparationTarget> makeReleasePreparationTargets(
@@ -866,7 +939,11 @@ std::vector<OfficialPreparationTarget> makeReleasePreparationTargets(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief 同じscanで保持した配布情報から未承認の取得対象を返す。旧scanや失効済み情報から新しい取得対象を復活させない。
+ * @param[in] scanSessionId 有効な検索session。 計画を要求する検索session。
+ * @param[in] planId 新しい計画のID。 workerが発行した新計画ID。
+ * @return 一配布物の対象または空。Intel Ethernetは本文同意と取得前提確認を必須とする。 保持情報と一致する未承認対象または空。
+ * @note Worker専用。Wi-Fiは従来どおり未解決で取得不可。旧計画や再取得は拒否する。
  */
 //------------------------------------------------------------------------------
 std::vector<OfficialPreparationTarget> OfficialReleaseDiscoveryProvider::preparationTargets(
@@ -895,7 +972,8 @@ std::vector<OfficialPreparationTarget> OfficialReleaseDiscoveryProvider::prepara
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief 直前の共通公式metadata検索で得た対象・情報record根拠を取得する。
+ * @return Provider所有のworker内根拠への参照。次の失効まで有効である。
  */
 //------------------------------------------------------------------------------
 const ProviderMeasurementEvidence &OfficialReleaseDiscoveryProvider::measurementEvidence()
@@ -906,7 +984,7 @@ const ProviderMeasurementEvidence &OfficialReleaseDiscoveryProvider::measurement
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_discovery_provider.h 宣言側の契約を正本とする。
+ * @brief HTTPの検索根拠と配布情報を同時に失効させ、他の操作へ引き継がない。
  */
 //------------------------------------------------------------------------------
 void OfficialReleaseDiscoveryProvider::invalidatePreparation() noexcept

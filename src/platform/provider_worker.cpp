@@ -2,7 +2,7 @@
 /**
  * @file provider_worker.cpp
  * @brief Provider worker実装。
- * @version 01.12.00
+ * @version 01.12.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -52,6 +52,7 @@
  * Ver.01.10.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * Ver.01.11.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
  * Ver.01.12.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.12.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note COM MTA worker threadと有限command/result queueを実装します。UIへの通知はPostMessageを使用し、COM objectをUI
@@ -216,10 +217,13 @@ void bindPublishedScanMeasurement( const OperationId operationId, const ScanSess
 	return result ;
 }
 
-/** @brief 通常索引依存と明示指定の再検出callbackをworker開始前に固定します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常索引依存と明示指定の再検出callbackをworker開始前に固定します。
  * @param[in] hardwareRefresh 製品入口のnative、または試験で明示したcallbackです。空を補完しません。
  * @return Workerが単独所有する固定serviceです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::unique_ptr<provider_worker_index_detail::Services> makeFixedWorkerServices(
 	std::function<HardwareRefreshResult()> hardwareRefresh)
 {
@@ -260,7 +264,10 @@ void bindPublishedScanMeasurement( const OperationId operationId, const ScanSess
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief 全組み込みProviderを統合するProvider workerを開始する。
+ * @param[in] notificationWindow result 通知を受ける top-level Window。
+ * @param[in] notificationMessage result queue 到着時に送る WM_APP 範囲の message ID。 result queue 到着時に送る
+ *                   WM_APP範囲の message ID。
  */
 //------------------------------------------------------------------------------
 ProviderWorker::ProviderWorker( const HWND notificationWindow, const UINT notificationMessage)
@@ -271,7 +278,12 @@ ProviderWorker::ProviderWorker( const HWND notificationWindow, const UINT notifi
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief test 用 Provider factory を使用する worker を開始する。全組み込みProviderを統合するProvider workerを開始する。
+ * @param[in] notificationWindow result 通知を受ける top-level Window。
+ * @param[in] notificationMessage result queue 到着時に送る WM_APP 範囲の message ID。 result queue 到着時に送る
+ *                   WM_APP範囲の message ID。
+ * @param[in] providerFactory worker thread 内で Provider を生成する factory。 worker thread内でProviderを生成する
+ *                   factory。test以外では既定aggregateを使用する。
  */
 //------------------------------------------------------------------------------
 ProviderWorker::ProviderWorker( const HWND notificationWindow, const UINT notificationMessage,
@@ -283,7 +295,8 @@ ProviderWorker::ProviderWorker( const HWND notificationWindow, const UINT notifi
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief 未開始 command を破棄し、実行中 operation の完了後に worker を停止する。未開始 command を破棄し、実行中 operation の完了後に
+ *        workerを停止する。
  */
 //------------------------------------------------------------------------------
 ProviderWorker::~ProviderWorker()
@@ -293,7 +306,11 @@ ProviderWorker::~ProviderWorker()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief driver update scan を有限 command queue へ登録する。Provider選択条件を保持したdriver update scanを有限command
+ *        queueへ登録する。
+ * @param[in] operationId UI state machine が割り当てた operation ID。
+ * @param[in] options 今回有効にする組み込みProvider設定。 scanで使用するProvider選択条件。
+ * @return 登録できた場合は `true`。
  */
 //------------------------------------------------------------------------------
 bool ProviderWorker::requestScan( const OperationId operationId, ScanOptions options)
@@ -321,7 +338,10 @@ bool ProviderWorker::requestScan( const OperationId operationId, ScanOptions opt
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief 同じqueued／active通常scanにだけ協調取消しを要求する。
+ * @param[in] operationId 取り消す通常scanの操作ID。
+ * @return 同じ未完了scanの信号を設定した場合true。
+ * @note 情報検索、取得準備、導入の信号には作用しません。
  */
 //------------------------------------------------------------------------------
 bool ProviderWorker::requestScanCancel( const OperationId operationId)
@@ -354,7 +374,14 @@ bool ProviderWorker::requestScanCancel( const OperationId operationId)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief 選択 update の download/install を command queue へ登録する。選択 update の download/install を command
+ *        queueへ登録する。
+ * @param[in] operationId UI state machine が割り当てた operation ID。
+ * @param[in] scanSessionId 選択元 scan session ID。
+ * @param[in] identities UI に提示済みの opaque identity 群。
+ * @param[in] parentWindow WUA dialog の親 Window。
+ * @param[in] protectionMode OSと利用者確認に対応するinstall保護方針。 OS別のinstall保護方針。
+ * @return 登録できた場合は `true`。
  */
 //------------------------------------------------------------------------------
 bool ProviderWorker::requestInstall( const OperationId					operationId,
@@ -384,7 +411,8 @@ bool ProviderWorker::requestInstall( const OperationId					operationId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief 現在蓄積された event を ownership ごと UI thread へ移す。
+ * @return 到着順の event 群。
  */
 //------------------------------------------------------------------------------
 std::vector<WorkerEvent> ProviderWorker::takeEvents()
@@ -404,7 +432,10 @@ std::vector<WorkerEvent> ProviderWorker::takeEvents()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief 新規 command を拒否し、実行中 operation の安全な完了後に worker を停止する。新規 command を拒否し、実行中 operation の安全な完了後に
+ *        worker を停止する。新規 command を拒否し、実行中 operation の安全な完了後にworker を停止する。 注記: WUA operationを強制終了しないため、この呼出
+ *        しは実行中operationの完了まで待つ。
+ * @note WUA operation を強制終了しないため、この呼出しは実行中 operation の完了まで待つ。
  */
 //------------------------------------------------------------------------------
 void ProviderWorker::stop() noexcept
@@ -447,7 +478,8 @@ void ProviderWorker::stop() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief COM MTA を初期化して command を直列処理する thread entry である。COM MTA を初期化して command を直列処理する thread
+ *        entryである。
  */
 //------------------------------------------------------------------------------
 void ProviderWorker::run() noexcept
@@ -1264,7 +1296,8 @@ void ProviderWorker::run() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief result queue へ event を追加して UI へ通知する。
+ * @param[in] event 追加する event。
  */
 //------------------------------------------------------------------------------
 void ProviderWorker::publishEvent( WorkerEvent event) noexcept
@@ -1319,7 +1352,9 @@ void ProviderWorker::publishEvent( WorkerEvent event) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief 0 と重複しない scan session ID を割り当てる。
+ * @param[out] scanSessionId 割り当てた ID。
+ * @return 割り当てられた場合は `true`。
  */
 //------------------------------------------------------------------------------
 bool ProviderWorker::allocateScanSessionId( ScanSessionId &scanSessionId) noexcept
@@ -1336,7 +1371,9 @@ bool ProviderWorker::allocateScanSessionId( ScanSessionId &scanSessionId) noexce
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief 表示した全対象の取得可否を有限queueへコピーする。UIの判断を取得許可として信用せず、workerで固定計画へ再照合する。
+ * @param[in] approval 利用者の判断。承認自体はworker内で再照合する。 全対象のsnapshotと取得判断。
+ * @return 有界な新操作を登録した場合true。0／古い操作IDと停止中は拒否する。 有界な新操作をqueueへコピーした場合true。
  */
 //------------------------------------------------------------------------------
 bool ProviderWorker::requestPreparation( const OfficialPreparationApproval &approval)
@@ -1377,7 +1414,9 @@ bool ProviderWorker::requestPreparation( const OfficialPreparationApproval &appr
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief 同じ操作IDのqueued／active取得に協調取消しを要求する。他のprepare、scan、installを取消さず、workerの状態objectへ直接触れない。
+ * @param[in] operationId 取消すprepare操作。scan／installには作用しない。 取消すprepareのID。0は無効。
+ * @return 対象操作の信号を設定した場合true。 queuedまたはactiveの同じ取得へ信号を設定した場合true。
  */
 //------------------------------------------------------------------------------
 bool ProviderWorker::requestPreparationCancel( const OperationId operationId)
@@ -1410,7 +1449,12 @@ bool ProviderWorker::requestPreparationCancel( const OperationId operationId)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/provider_worker.h 宣言側の契約を正本とする。
+ * @brief Providerと復旧保護の双方を差し替えた内部試験用workerを開始する。両factoryを保持してからthreadを開始し、内部試験で実復元APIの初期化も避けられる。
+ * @param[in] notificationWindow 結果通知先の非所有Window。
+ * @param[in] notificationMessage 通知message ID。
+ * @param[in] providerFactory worker内のProvider生成関数。
+ * @param[in] restorePointFactory worker内の復旧保護service生成関数。
+ * @note 既定constructorは従来のWindows復旧保護serviceを使用する。
  */
 //------------------------------------------------------------------------------
 ProviderWorker::ProviderWorker( const HWND notificationWindow, const UINT notificationMessage,
@@ -1421,7 +1465,16 @@ ProviderWorker::ProviderWorker( const HWND notificationWindow, const UINT notifi
 {
 }
 
-/** @see provider_worker.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 製品固定serviceまたは内部fixtureをthread開始前に所有します。
+ * @param[in] notificationWindow 非所有通知Window。
+ * @param[in] notificationMessage 通知message。
+ * @param[in] providerFactory 同worker Provider生成関数。
+ * @param[in] restorePointFactory 同worker復旧service生成関数。
+ * @param[in] indexServices 内部固定索引能力。通常入口は任意設定を受理しません。
+ */
+//------------------------------------------------------------------------------
 ProviderWorker::ProviderWorker(
 	const HWND notificationWindow, const UINT notificationMessage, ProviderFactory providerFactory,
 	RestorePointFactory										restorePointFactory,
@@ -1433,7 +1486,15 @@ ProviderWorker::ProviderWorker(
 {
 }
 
-/** @see provider_worker_index_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実command queueと通常ScanCommandを使用する隔離workerを作ります。
+ * @param[in] providerFactory 非通信Providerをworker内で生成する関数。
+ * @param[in] restoreFactory 実復旧APIを呼ばない生成関数。
+ * @param[in] services 真署名・隔離storeだけを使用するservice。
+ * @return 通知Windowを持たない実worker。実native fallbackを許可しません。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<ProviderWorker> provider_worker_index_detail::Access::create(
 	ProviderFactory providerFactory, RestorePointFactory restoreFactory, Services services)
 {
@@ -1442,7 +1503,15 @@ std::unique_ptr<ProviderWorker> provider_worker_index_detail::Access::create(
 						   std::make_unique<Services>( std::move( services))}} ;
 }
 
-/** @see provider_worker_index_internal.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 真署名隔離snapshotの固定取得policyへ限定した実workerを作ります。
+ * @param[in] providerFactory 同threadの非通信inventory Provider生成関数。
+ * @param[in] restoreFactory 実復旧APIを呼ばない生成関数。
+ * @param[in] services 同scanの実store再認証・完全fake HTTP・costの依存。
+ * @return 任意鍵や許可boolを受けない内部worker。完全fake依存欠損ではnullptrです。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<ProviderWorker> provider_worker_index_detail::Access::createAcquisitionFixture(
 	ProviderFactory providerFactory, RestorePointFactory restoreFactory, Services services)
 {
@@ -1461,7 +1530,14 @@ std::unique_ptr<ProviderWorker> provider_worker_index_detail::Access::createAcqu
 	return create( std::move( providerFactory), std::move( restoreFactory), std::move( services)) ;
 }
 
-/** @see src/platform/provider_worker.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示集合と操作専用取消し信号を情報検索commandとして所有する。
+ * @param[in] operationId 単調増加する非ゼロ操作ID。
+ * @param[in] request 固定policyと専用Providerだけの明示要求。
+ * @return 不正要求、古いID、停止、queue上限はfalse。通常scanへ代替しない。
+ */
+//------------------------------------------------------------------------------
 bool ProviderWorker::requestMetadataSearch( const OperationId	 operationId,
 										   MetadataSearchRequest request)
 {
@@ -1484,7 +1560,13 @@ bool ProviderWorker::requestMetadataSearch( const OperationId	 operationId,
 	return true ;
 }
 
-/** @see src/platform/provider_worker.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じqueued／active情報検索へだけ協調取消しを要求する。
+ * @param[in] operationId 取消す情報検索の操作ID。通常scan等には作用しない。
+ * @return 同じ未完了操作の信号を設定した場合true。
+ */
+//------------------------------------------------------------------------------
 bool ProviderWorker::requestMetadataSearchCancel( const OperationId operationId)
 {
 	std::scoped_lock lock( commandMutex_) ;	// 操作IDと信号所有権を同時に確認する。

@@ -2,7 +2,7 @@
 /**
  * @file nvidia_winof2_driver_audit_tests.h
  * @brief WinOF-2内容・PnP監査と候補発行単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空閉包と差替え監査を使い、実driver、network、installへ依存せずWinOF-2のfail-closed境界を検証します。
@@ -39,11 +40,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief WinOF-2の内容・PnP／rank監査と候補発行の正常系・拒否系を検証する。
- * 正常候補、内容、PnP、rank、identity、class拒否を順に試す。
+ * @brief WinOF-2の内容・PnP／rank監査と候補発行の正常系・拒否系を検証する。正常候補、内容、PnP、rank、identity、class拒否を順に試す。
  * @param[in,out] context Assertion件数と失敗内容の集計先。
  */
+//------------------------------------------------------------------------------
 void runNvidiaWinof2DriverAuditTests( TestContext &context) ;
 
 } // namespace drivercrate::test

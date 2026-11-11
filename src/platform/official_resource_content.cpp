@@ -2,7 +2,7 @@
 /**
  * @file official_resource_content.cpp
  * @brief 固定親sliceと7z一memberから共通driver内容を非実行で読む。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -19,6 +19,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/03  親hash結合と有界memory内包fileを追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 中間EXEを保存・ロード・実行せず、取得由来や導入権限を発行しない。
  */
@@ -40,20 +41,26 @@ constexpr std::uint64_t					   SMALL_BYTES = 64ULL * MIB ;			// 原親/innerの�
 constexpr OfficialSevenZipExtractionPolicy SEVEN_POLICY{
 	64ULL * MIB,  64ULL * MIB, 128ULL * MIB, 64ULL * MIB, 64ULL * MIB,
 	128ULL * MIB, 64ULL * MIB, 4096U,		 260U,		  0U} ;	// 中間EXEはheap上の一memberだけ。
-/** @brief 完全な小文字hashだけを識別値へ使う。
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全な小文字hashだけを識別値へ使う。
  * @param[in] text 元hash。
  * @return 正確な64桁ならtrue。
  */
+//------------------------------------------------------------------------------
 bool validHash( const std::wstring_view text) noexcept
 {
 	return text.size() == 64U && std::ranges::all_of( text, []( const wchar_t c) {
 			   return (c >= L'0' && c <= L'9') || (c >= L'a' && c <= L'f') ;
 		   }) ;
 }
-/** @brief 原resource atomの閉じた表現を検査する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原resource atomの閉じた表現を検査する。
  * @param[in] value 数値または原UTF-16名。
  * @return 原契約が成立する場合true。
  */
+//------------------------------------------------------------------------------
 bool validAtom( const OfficialResourceIdentifier &value) noexcept
 {
 	// 数値を名前や不足値から推測しない。
@@ -67,11 +74,14 @@ bool validAtom( const OfficialResourceIdentifier &value) noexcept
 							   static_cast<int>( value.text.size()), nullptr, 0, nullptr,
 							   nullptr) > 0 ;
 }
-/** @brief 原sliceの静的範囲を親長へ結ぶ。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原sliceの静的範囲を親長へ結ぶ。
  * @param[in] slice 原範囲/hash/tuple。
  * @param[in] parentBytes 直近親の正確な長さ。
  * @return 正の有界範囲と完全な証拠ならtrue。
  */
+//------------------------------------------------------------------------------
 bool validSlice( const OfficialResourceSlice &slice, const std::uint64_t parentBytes) noexcept
 {
 	return validAtom( slice.resource.type) && validAtom( slice.resource.name) &&
@@ -79,20 +89,26 @@ bool validSlice( const OfficialResourceSlice &slice, const std::uint64_t parentB
 		   slice.offset <= parentBytes && slice.length <= parentBytes - slice.offset &&
 		   validHash( slice.sha256) ;
 }
-/** @brief flatな原logical file名だけを認める。
+//------------------------------------------------------------------------------
+/**
+ * @brief flatな原logical file名だけを認める。
  * @param[in] name 元basename。
  * @return 安全なASCII basenameならtrue。
  */
+//------------------------------------------------------------------------------
 bool flatName( const std::wstring_view name) noexcept
 {
 	return isSafeOfficialArchiveMember( name, L'\\') &&
 		   name.find_first_of( L"/\\") == std::wstring_view::npos ;
 }
-/** @brief 元memory全体を共通CNGへ渡す。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元memory全体を共通CNGへ渡す。
  * @param[in] bytes 固定原byte。
  * @param[in] expected 原期待hash。
  * @return 一致0、CNG失敗またはCRC不一致。
  */
+//------------------------------------------------------------------------------
 NativeError hashMatches( const std::span<const std::byte> bytes, const std::wstring_view expected)
 {
 	std::wstring hash ;	// 正規化しない実SHA-256。
@@ -100,13 +116,16 @@ NativeError hashMatches( const std::span<const std::byte> bytes, const std::wstr
 		  {reinterpret_cast<const char *>( bytes.data()), bytes.size()}, hash) ;	// 共通有界hash。
 	return error != 0 ? error : hash == expected ? 0 : HRESULT_FROM_WIN32( ERROR_CRC) ;
 }
-/** @brief 元7z一memberをhash/CRCへ結んでmemoryだけへ読む。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元7z一memberをhash/CRCへ結んでmemoryだけへ読む。
  * @param[in] root 固定原outer。
  * @param[in] plan 原選択。
  * @param[out] inner 全成功時だけ返す原中間byte。
  * @param[in] cancellation 元workerの取消し照会。
  * @return 完了0、元HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError readInner( const std::span<const std::byte>	 root,
 					  const OfficialResourceContentPlan &plan, std::vector<std::byte> &inner,
 					  const std::function<bool()> &cancellation)
@@ -155,7 +174,9 @@ NativeError readInner( const std::span<const std::byte>	 root,
 struct RoleHandle {
 	/// CREATE_NEWした現在file。
 	HANDLE value{INVALID_HANDLE_VALUE} ;
-	/** @brief 開いている現在handleだけを閉じる。 */
+	/**
+	 * @brief 開いている現在handleだけを閉じる。
+	 */
 	~RoleHandle()
 	{
 		// 未取得の値をWin32へ渡さない。
@@ -166,7 +187,13 @@ struct RoleHandle {
 } ;
 } // namespace
 
-/** @see official_resource_content.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 形式・byte数・親範囲・役割の有限な静的契約を検査する。
+ * @param[in] plan 元recordに結んだ計画。
+ * @return 全静的契約を満たす場合true。I/O・署名検証はしない。
+ */
+//------------------------------------------------------------------------------
 bool validOfficialResourceContentPlan( const OfficialResourceContentPlan &plan) noexcept
 {
 	// byte宣言と原名/hashが全て揃ってからfile保存を許可する。
@@ -240,7 +267,15 @@ bool validOfficialResourceContentPlan( const OfficialResourceContentPlan &plan) 
 	return infs == 1U && catalogs == 1U ;
 }
 
-/** @see official_resource_content.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定親の範囲と子hashを検査し、借用viewだけを返す。
+ * @param[in] parent 呼出し後も借用viewより長く生存する固定親。
+ * @param[in] slice 署名record由来の正の範囲とhash。
+ * @param[out] result 成功時だけ借用する原範囲。失敗時は空。
+ * @return 全範囲/hash一致0、元HRESULT。PE treeは解析しない。
+ */
+//------------------------------------------------------------------------------
 NativeError bindOfficialResourceSlice( const std::span<const std::byte> parent,
 									  const OfficialResourceSlice	  &slice,
 									  std::span<const std::byte>	  &result)
@@ -276,11 +311,27 @@ struct OfficialResourceContentReader::State {
 	/// 元同期操作の取消し照会。
 	std::function<bool()>		  cancellation ;
 } ;
-/** @see official_resource_content.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 空のownerを作る。
+ */
+//------------------------------------------------------------------------------
 OfficialResourceContentReader::OfficialResourceContentReader() noexcept = default ;
-/** @see official_resource_content.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全借用viewより後に原ownerを回収する。
+ */
+//------------------------------------------------------------------------------
 OfficialResourceContentReader::~OfficialResourceContentReader() = default ;
-/** @see official_resource_content.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全親子hash/CRCを検証してflat role inventoryを確定する。
+ * @param[in] path 非reparse原outer絶対path。
+ * @param[in] plan 原record由来の完全な計画。
+ * @param[in] cancellation 任意の非blocking取消し照会。
+ * @return 全検証成功0、元HRESULT。中間EXEはfile化しない。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialResourceContentReader::initialize( const std::wstring_view			 path,
 													  const OfficialResourceContentPlan &plan,
 													  const std::function<bool()> &cancellation)
@@ -353,13 +404,26 @@ NativeError OfficialResourceContentReader::initialize( const std::wstring_view		
 		return E_UNEXPECTED ;
 	}
 }
-/** @see official_resource_content.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全原hashに結んだrole一覧を借用する。
+ * @return owner生存中の原名/size/hash。未初期化では空。
+ */
+//------------------------------------------------------------------------------
 std::span<const OfficialZipEntry> OfficialResourceContentReader::entries() const noexcept
 {
 	return state_ ? std::span<const OfficialZipEntry>( state_->entries)
 				  : std::span<const OfficialZipEntry>{} ;
 }
-/** @see official_resource_content.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択roleだけを所有workspaceへ新規保存する。
+ * @param[in] selected inventory内の重複しない原名集合。
+ * @param[in,out] workspace 初期化済みの出力所有者。
+ * @param[out] entries 全成功時だけ保存済み原名/size/hash。
+ * @return 全保存成功0、取消し/保存失敗時は今回所有分だけ回収し元HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialResourceContentReader::extract(
 	const std::span<const std::wstring_view> selected, OfficialDownloadWorkspace &workspace,
 	std::vector<OfficialZipEntry> &entries)
@@ -474,7 +538,16 @@ NativeError OfficialResourceContentReader::extract(
 	return error ;
 }
 
-/** @see official_resource_content.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief collector専用に親identityと既知leaf hashから正式範囲を解決する。
+ * @param[in] path 非reparseの原outer絶対path。
+ * @param[in] requested 原root/7z/member/role size/hashとouter tuple。inner範囲は未確定可。
+ * @param[out] result 全原byte検証後だけinnerの一意tuple/offsetを確定する。
+ * @param[in] cancellation 任意の非blocking取消し照会。
+ * @return 解決成功0、曖昧・不一致・取消し等はHRESULT。中間EXEは保存しない。
+ */
+//------------------------------------------------------------------------------
 NativeError resolveOfficialResourceContentPlan( const std::wstring_view			  path,
 											   const OfficialResourceContentPlan &requested,
 											   OfficialResourceContentPlan		 &result,

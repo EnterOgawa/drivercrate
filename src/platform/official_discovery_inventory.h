@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_inventory.h
  * @brief Present inventoryを非機密な公式自動探索hintへ変換する境界。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  Bus分類とrouting hint変換を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Native enumeratorまたはinstance IDは分類関数の呼出し中だけ借用し、戻り値、
@@ -40,15 +41,18 @@
 
 namespace drivercrate {
 
+//------------------------------------------------------------------------------
 /**
  * @brief Native enumeratorまたはinstance IDを有限busへ分類して元文字列を破棄する。
  * @param[in] nativeIdentity Worker内だけで借用するenumeratorまたはinstance ID。
  * @return 既知prefix、OTHER、欠損／不正時のUNKNOWNのいずれか。
  * @note 大小文字だけを正規化し、部分一致または表示名からbusを推測しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryDeviceBus classifyOfficialDiscoveryDeviceBus(
 	std::wstring_view nativeIdentity) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 完全なpresent inventoryをraw ID非保持のrouting hint集合へ変換する。
  * @param[in] scanSessionId 全観測を結合する0ではないscan session ID。
@@ -57,6 +61,7 @@ namespace drivercrate {
  * @return 入力全体が妥当なら同順の所有hint集合。不完全・重複・不正時は値なし。
  * @throws std::bad_alloc 所有hint領域を確保できない場合。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::vector<OfficialDiscoveryDeviceHint>>
 makeOfficialDiscoveryDeviceHints( ScanSessionId scanSessionId, bool inventoryComplete,
 								 std::span<const OfficialCatalogDevice> devices) ;

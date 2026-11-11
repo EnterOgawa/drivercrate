@@ -2,7 +2,7 @@
 /**
  * @file signed_index_refresh_tests.cpp
  * @brief 実HTTP検証/codecと完全fake保存のrefresh回帰です。
- * @version 01.06.00
+ * @version 01.06.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/27  匿名readbackの正規daily/candidate名pairを検査。
  * Ver.01.05.00 Shunji Ogawa  2026/11/08  実隔離storeの同一索引GET省略と元拒否を有限確認。
  * Ver.01.06.00 Shunji Ogawa  2026/11/11  人工破損署名のRSA範囲とcache拒否の元数値を固定。
+ * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 暗号/HTTP policy/codecは製品実装、低位I/Oとstore観測はRAM fakeです。
  * 同一索引の追加群だけ実隔離storeを使います。製品鍵/実HTTP/実deviceは使いません。
@@ -59,9 +60,12 @@ namespace {
 // OS時計と無関係な架空wireの現在UTCです。
 const auto NOW = std::chrono::sys_days{std::chrono::year{2026} / 10 / 13} + std::chrono::hours{18} ;
 
-/** @brief RAM fixture生成失敗を製品拒否の合格にしません。
+//------------------------------------------------------------------------------
+/**
+ * @brief RAM fixture生成失敗を製品拒否の合格にしません。
  * @param[in] value 必須前提の成立値です。
  */
+//------------------------------------------------------------------------------
 void	   require( const bool value)
 {
 	// Fixture生成の不成立を検証対象の拒否成功へ変換しません。
@@ -80,9 +84,12 @@ struct RamKey {
 	BCRYPT_KEY_HANDLE		  key{} ;
 	/// Public blobだけです。
 	std::vector<std::uint8_t> publicBlob ;
-	/** @brief 未生成の資源所有者を初期化します。 */
+	/**
+	 * @brief 未生成の資源所有者を初期化します。
+	 */
 	RamKey() = default ;
-	/** @brief 部分生成の失敗も所有者で回収する一時鍵を作ります。
+	/**
+	 * @brief 部分生成の失敗も所有者で回収する一時鍵を作ります。
 	 * @throws std::runtime_error RAM暗号資源の生成に失敗した場合です。
 	 */
 	void generate()
@@ -97,7 +104,9 @@ struct RamKey {
 		require( BCryptExportKey( key, nullptr, BCRYPT_RSAPUBLIC_BLOB, publicBlob.data(), size, &size,
 								0) >= 0) ;
 	}
-	/** @brief 非永続資源を逆順で回収します。 */
+	/**
+	 * @brief 非永続資源を逆順で回収します。
+	 */
 	~RamKey()
 	{
 		// 各部分生成のhandleだけを解放します。
@@ -115,13 +124,16 @@ struct RamKey {
 			static_cast<void>( BCryptCloseAlgorithmProvider( rsa, 0)) ;
 		}
 	}
-	/** @brief 所有handleのcopyを禁止します。 */
+	/**
+	 * @brief 所有handleのcopyを禁止します。
+	 */
 	RamKey( const RamKey &) = delete ;
-	/** @brief 所有handleのcopy代入を禁止します。
-	 * @return 呼出しは禁止されます。
+	/**
+	 * @brief 所有handleのcopy代入を禁止します。
 	 */
 	RamKey							 &operator=( const RamKey &) = delete ;
-	/** @brief 原byteをRAM内CNG SHA256へ結合します。
+	/**
+	 * @brief 原byteをRAM内CNG SHA256へ結合します。
 	 * @param[in] raw 借用する架空byteです。
 	 * @return 固定32byteの独立digestです。
 	 */
@@ -133,7 +145,8 @@ struct RamKey {
 						   hash.data(), static_cast<ULONG>( hash.size())) >= 0) ;
 		return hash ;
 	}
-	/** @brief 秘密keyをexportせず原byteへPSS salt32署名します。
+	/**
+	 * @brief 秘密keyをexportせず原byteへPSS salt32署名します。
 	 * @param[in] raw 原manifestです。
 	 * @return RAMだけの実署名byteです。
 	 */
@@ -150,10 +163,13 @@ struct RamKey {
 		return value ;
 	}
 } ;
-/** @brief 独立digestを小文字hexへ表します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 独立digestを小文字hexへ表します。
  * @param[in] bytes 固定32byteのdigestです。
  * @return 全64桁のASCIIです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string hex( const IndexManifestSha256 &bytes)
 {
 	std::string				   out ;							// 全byteの所有表現です。
@@ -166,10 +182,13 @@ struct RamKey {
 
 	return out ;
 }
-/** @brief 人工byteを正規base64へ表します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 人工byteを正規base64へ表します。
  * @param[in] raw 原byteです。
  * @return Paddingを保持するASCIIです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string base64( const std::string_view raw)
 {
 	std::string				   out ;	// 人工wireの所有出力です。
@@ -190,10 +209,13 @@ struct RamKey {
 
 	return out ;
 }
-/** @brief 原JSONを一つのGZipへ実圧縮します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原JSONを一つのGZipへ実圧縮します。
  * @param[in] raw 架空indexの原byteです。
  * @return 実CRC/ISIZEを持つ一memberです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string gzip( const std::string_view raw)
 {
 	std::vector<unsigned char> packed( raw.size() + 128U) ;						// 有限zlib容量です。
@@ -219,10 +241,13 @@ struct RamKey {
 
 	return out ;
 }
-/** @brief 既知取得申告を持つ一件の完全人工v2 recordを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既知取得申告を持つ一件の完全人工v2 recordを返します。
  * @param[in] expired 元attestationだけが期限切れの負例です。
  * @return 実driver検査を証明しない人工wireです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string record( const bool expired)
 {
 	const std::string a( 64U, 'a') ;	// 架空公式出典digestです。
@@ -240,12 +265,15 @@ struct RamKey {
 		   R"(","authorityMethod":"OFFICIAL_SITE_CONTROL_AND_LINK","authorityEvidenceUrl":"https://vendor.example/support","authorityEvidenceSha256":")" +
 		   a + R"("}}})" ;
 }
-/** @brief 人工recordを原hashへ結ぶv2 indexを構成します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 人工recordを原hashへ結ぶv2 indexを構成します。
  * @param[in] key RAM hash helperです。
  * @param[in] generation Asset世代です。
  * @param[in] expired 元attestationの負例です。
  * @return 一source/一recordの原indexです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string index( const RamKey &key, const unsigned generation, const bool expired)
 {
 	const auto		  raw = record( expired) ;	// 原recordを再整形しません。
@@ -349,9 +377,12 @@ struct Fixture {
 // 同期単独unitだけの借用先です。native handleを作りません。
 thread_local Fixture			   *ACTIVE{} ;
 
-/** @brief 全WinHTTP ABIとresolverを完全fakeへ束ねます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全WinHTTP ABIとresolverを完全fakeへ束ねます。
  * @return 欠損時にnativeへ補完されない全I/O表です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialHttpTransport transport()
 {
 	OfficialHttpTransport api ;	// 全fieldを直後に完全置換します。
@@ -526,7 +557,9 @@ thread_local Fixture			   *ACTIVE{} ;
 	return api ;
 }
 
-/** @brief 一caseの原manifestを実RAM署名へ結合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一caseの原manifestを実RAM署名へ結合します。
  * @param[in] key 非永続署名ownerです。
  * @param[in] packed 原gzipです。
  * @param[in] generation Manifest世代です。
@@ -534,6 +567,7 @@ thread_local Fixture			   *ACTIVE{} ;
  * @param[in] mode 固定caseの番号です。
  * @return 再serializationしない署名envelopeです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string envelope( const RamKey &key, const std::string &packed,
 								   const unsigned generation, const unsigned assetGeneration,
 								   const unsigned mode)
@@ -574,12 +608,15 @@ thread_local Fixture			   *ACTIVE{} ;
 		   base64( signedBytes) + "\"}" ;
 }
 
-/** @brief 固定N01～N28を既存の完全fake transportと実codecへ到達させます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定N01～N28を既存の完全fake transportと実codecへ到達させます。
  * @param[in,out] context 実assertionと原失敗を保持する既存test集計です。
  * @param[in] key 同runの非永続RAM fixture鍵です。
  * @param[in] trust 同鍵の公開byteだけの借用集合です。
  * @note 実HTTP/DNS/credential、保護store、Task、公開署名を実行しません。
  */
+//------------------------------------------------------------------------------
 void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 							   const std::span<const signed_index_detail::TrustKey> trust)
 {
@@ -896,12 +933,15 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 }
 
 namespace {
-/** @brief 実隔離headと完全fake HTTPで同一索引の取得省略と拒否を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実隔離headと完全fake HTTPで同一索引の取得省略と拒否を確認します。
  * @param[in,out] context 既存群とは別に追加する原assertionです。
  * @param[in] key このrunだけの非永続署名鍵です。
  * @param[in] trust 同じ鍵の人工公開trustです。
  * @note 製品root・実HTTP・実inventory・driverへ接続しません。
  */
+//------------------------------------------------------------------------------
 void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 						   std::span<const signed_index_detail::TrustKey> trust)
 {
@@ -1164,7 +1204,13 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 }
 }
 
-/** @see runSignedIndexRefreshTests宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全fake HTTP/clock/storeとRAM暗号で固定全caseを実行します。
+ * @param[in,out] context 呼出し側が所有するassertion/failure集計先です。
+ * @note 製品store、永続鍵、通信、実機、導入を呼びません。
+ */
+//------------------------------------------------------------------------------
 void runSignedIndexRefreshTests( TestContext &context)
 {
 	const int groupFirstAssertion = context.assertionCount() ;	// 旧34件の開始時点です。

@@ -2,7 +2,7 @@
 /**
  * @file official_seven_zip_tests.cpp
  * @brief 公式7z有限展開単体試験実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 7-Zip 26.01で合成した非driver fixtureをBase64として保持します。Solid展開量判定はpacked dataを展開せず、過大時のfile非作成を確認しま
@@ -738,10 +739,12 @@ void testWorkspaceFailureCleanup( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !workspaceFileExists( crcWorkspace, L"driver.inf")) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 共有solidの再利用、上限拒否、CRCと取消しを確認する。
  * @param[in,out] context 架空archiveだけのassertion集計先。
  */
+//------------------------------------------------------------------------------
 void testMappedSolidSession( TestContext &context)
 {
 	std::vector<std::byte> archive ;	// 固定の二file一solid fixture。
@@ -802,10 +805,12 @@ void testMappedSolidSession( TestContext &context)
 	DRIVERCRATE_EXPECT( context, corrupt.extract( first, rejected, output) != 0 && output.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定入力と所有出力のmapping・保存失敗・回収だけを確認する。
  * @param[in,out] context 架空fileだけのassertion集計先。
  */
+//------------------------------------------------------------------------------
 void testOwnedFileMapping( TestContext &context)
 {
 	OfficialDownloadWorkspace workspace ;	// 既知新規fileだけを所有する領域。
@@ -846,7 +851,8 @@ void testOwnedFileMapping( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_seven_zip_tests.h 宣言側の契約を正本とする。
+ * @brief 公式7zの有限列挙、solid要求量、memory／workspace展開を検証する。正常memory展開と全fail-closed fixtureを順に実行する。
+ * @param[in,out] context Assertion件数と失敗内容の集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialSevenZipTests( TestContext &context)

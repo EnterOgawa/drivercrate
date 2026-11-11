@@ -2,7 +2,7 @@
 /**
  * @file nvidia_update_provider.cpp
  * @brief NVIDIA公式driver Provider実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -40,6 +40,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note NVIDIA公式lookup APIで製品名を照合し、Game ReadyとStudioの現行・過去版を表示します。EXEの非実行監査が未接続のため導入は拒否します。
@@ -737,7 +738,8 @@ void prioritizeSeries( const std::wstring_view model, std::vector<NvidiaLookupVa
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_update_provider.h 宣言側の契約を正本とする。
+ * @brief 空のNVIDIA Providerを作成する。明示live検証ではcacheを使わず、本番と同じ公式境界で取得する。
+ * @param[in] useCatalogCache falseはlive検証用の非cache取得。既定trueで通常検索を維持する。 trueは通常cache、falseは非cache。
  */
 //------------------------------------------------------------------------------
 NvidiaUpdateProvider::NvidiaUpdateProvider( const bool useCatalogCache) noexcept
@@ -747,7 +749,11 @@ NvidiaUpdateProvider::NvidiaUpdateProvider( const bool useCatalogCache) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_update_provider.h 宣言側の契約を正本とする。
+ * @brief 公開製品表示から公式seriesの照会順hintを作成する純粋関数。Product番号からseries名に含まれる世代keyを作る。優先seriesだけを先に照会するためのhint
+ *        を作成する。
+ * @param[in] model 製品表示名。呼出し中だけ参照する。 正規化前のNVIDIA product名。
+ * @return 所有値の世代hint。抽出できなければ空文字列。 `RTX30`、`GTX900`、`MX400`等のkey。抽出不能時は空。
+ * @note Hintは照会順だけに使用し、製品適用性やseries除外を決定しない。
  */
 //------------------------------------------------------------------------------
 std::wstring nvidiaProductGenerationKey( const std::wstring_view model)
@@ -790,7 +796,12 @@ std::wstring nvidiaProductGenerationKey( const std::wstring_view model)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_update_provider.h 宣言側の契約を正本とする。
+ * @brief NVIDIA公式lookup名がnotebook向けproductを示すか判定する。NVIDIA公式lookup名のnotebook区分を判定する。記号と大小文字だけを正規化し、公
+ *        式名にない区分を推測しない。
+ * @param[in] productName NVIDIA公式lookupが返したproduct名。 NVIDIA公式lookupのproduct名。
+ * @param[in] seriesName NVIDIA公式lookupが返したseries名。 NVIDIA公式lookupのseries名。
+ * @return いずれかにNotebookまたはLaptop区分が明示される場合は`true`。
+ * @note Local表示名だけでretail／OEM区分を推測せず、公式lookup結果にだけ使用する。
  */
 //------------------------------------------------------------------------------
 bool isNvidiaNotebookProduct( const std::wstring_view productName,
@@ -806,7 +817,10 @@ bool isNvidiaNotebookProduct( const std::wstring_view productName,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_update_provider.h 宣言側の契約を正本とする。
+ * @brief Windows形式のNVIDIA driver versionをNVIDIA表示versionへ変換する。Windows形式のNVIDIA versionをNVIDIA表示
+ *        versionへ変換する。NVIDIAがWindows driver version末尾5桁へ格納する表示versionを取り出す。UI分類だけに使用する。
+ * @param[in] windowsVersion SetupAPIが返した`a.b.c.d`形式のversion。 SetupAPIの`a.b.c.d` version。
+ * @return 変換できた`xxx.yy`形式。NVIDIA規則へ一致しない場合は空。 `xxx.yy`形式。規則へ一致しない場合は空。
  */
 //------------------------------------------------------------------------------
 std::wstring nvidiaVersionFromWindowsVersion( const std::wstring_view windowsVersion)
@@ -837,7 +851,13 @@ std::wstring nvidiaVersionFromWindowsVersion( const std::wstring_view windowsVer
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_update_provider.h 宣言側の契約を正本とする。
+ * @brief NVIDIA deviceに対応する公式Windows x64 driver releaseを検索する。NVIDIA deviceの公式Windows x64 releaseを検索
+ *        する。Local model名を公式product名へ完全一致させ、WHQL x64 releaseだけを候補化する。
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。 0ではないscan session ID。
+ * @param[in] devices Driver Store列挙から得た非機密device snapshot群。
+ * @param[in] hardwareIdMatcher NVIDIA検索では使用しないlocal照合関数。
+ * @param[in] progressCallback 検索段階、処理件数、完了率の通知先。 検索進捗通知先。
+ * @return NVIDIA候補または取得失敗を含むscan結果。
  */
 //------------------------------------------------------------------------------
 ScanResult NvidiaUpdateProvider::scan( const ScanSessionId						   scanSessionId,
@@ -1074,7 +1094,13 @@ ScanResult NvidiaUpdateProvider::scan( const ScanSessionId						   scanSessionId
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_update_provider.h 宣言側の契約を正本とする。
+ * @brief 未接続のNVIDIA Display download／install要求を拒否する。NVIDIA表示専用候補へのinstall要求を拒否する。Capabilityを持たない
+ *        Providerへの直接呼出しも拒否し、payload取得または実行へ進まない。
+ * @param[in] scanSessionId 拒否するscan session ID。
+ * @param[in] identities 拒否する候補identity群。
+ * @param[in] parentWindowNative 拒否処理では使用しない親Window値。
+ * @param[in] progressCallback 拒否処理では呼ばない進捗通知先。
+ * @return Downloadとinstallの双方が`E_NOTIMPL`の結果。 Downloadとinstallを`E_NOTIMPL`に固定した結果。
  */
 //------------------------------------------------------------------------------
 InstallResult NvidiaUpdateProvider::install( const ScanSessionId					scanSessionId,
@@ -1097,7 +1123,7 @@ InstallResult NvidiaUpdateProvider::install( const ScanSessionId					scanSession
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_update_provider.h 宣言側の契約を正本とする。
+ * @brief scan sessionと取得根拠を失効させる。次scanまたは拒否されたinstall要求で旧取得根拠を破棄する。
  */
 //------------------------------------------------------------------------------
 void NvidiaUpdateProvider::invalidateScanSession() noexcept

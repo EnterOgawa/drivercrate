@@ -2,7 +2,7 @@
 /**
  * @file intel_collector_identity_parser_tests.cpp
  * @brief Intel公開製品identityの所属・復号・衝突・有限上限試験。
- * @version 01.03.01
+ * @version 01.03.02
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/09/28  公開名の端末ID形状を拒否するfixtureを追加。
  * Ver.01.03.00 Shunji Ogawa  2026/09/28  制御付きcore全checkpointの停止・例外fixtureを追加。
  * Ver.01.03.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.03.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 関連階層は閉鎖を検証し、公式GETとのbindingは呼出し側の別責務です。
@@ -62,29 +63,34 @@ constexpr std::wstring_view END = L"</div></div></div></main></body></html>" ;	/
 constexpr std::wstring_view ROW_PREFIX =
 	LR"(<li class="dc-page-detailed-other-valid-products-panel__product"><a class="dc-page-detailed-other-valid-products-panel__product--fixed" href=")" ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 架空SKUと製品名の一行を生成します。
  * @param[in] sku 公開SKUの合成値。
  * @param[in] name Entityを含められる合成表示。
  * @return 一つの閉鎖済みli。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring row( std::wstring_view sku, std::wstring_view name)
 {
 	return std::wstring( ROW_PREFIX) + L"/content/www/us/en/products/sku/" + std::wstring( sku) +
 		   L"/fixture-adapter/downloads.html\">" + std::wstring( name) + L"</a></li>" ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一覧と配布所属を持つ合成本文を生成します。
  * @param[in] rows 合成li列。
  * @return 閉鎖済み本文。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring page( std::wstring_view rows)
 {
 	return std::wstring( START) + std::wstring( LIST_START) + std::wstring( rows) + L"</ul></div>" +
 		   std::wstring( END) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 合成本文の一箇所だけを置換します。
  * @param[in] text 元本文の所有値。
@@ -92,6 +98,7 @@ constexpr std::wstring_view ROW_PREFIX =
  * @param[in] newValue 差替え文字列。
  * @return 改変本文。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring replace( std::wstring text, std::wstring_view oldValue,
 								   std::wstring_view newValue)
 {
@@ -105,12 +112,14 @@ constexpr std::wstring_view ROW_PREFIX =
 	return text ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全体拒否が部分identityを残さないことを確認します。
  * @param[in,out] context Assertion集計。
  * @param[in] html 合成本文。
  * @param[in] status 期待する第一状態。
  */
+//------------------------------------------------------------------------------
 void expectEmpty( TestContext &context, std::wstring_view html, IntelCollectorIdentityStatus status)
 {
 	const auto result = parseIntelCollectorProductIdentity( html) ;	// 無通信の実parser結果。
@@ -120,10 +129,12 @@ void expectEmpty( TestContext &context, std::wstring_view html, IntelCollectorId
 									result.duplicates == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 基本所属とscript／footer等の偽装を検証します。
  * @param[in,out] context Assertion集計。
  */
+//------------------------------------------------------------------------------
 void testOwnership( TestContext &context)
 {
 	const auto rows	  = row( L"900001", L"Fixture® Adapter X1") ;	// 架空製品だけの原行。
@@ -215,10 +226,12 @@ void testOwnership( TestContext &context)
 									nested.rejected == 1U && nested.products.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 復号・NFC・文字差保持と危険な表示を検証します。
  * @param[in,out] context Assertion集計。
  */
+//------------------------------------------------------------------------------
 void testNames( TestContext &context)
 {
 	const auto normal = parseIntelCollectorProductIdentity(
@@ -266,10 +279,12 @@ void testNames( TestContext &context)
 	DRIVERCRATE_EXPECT( context, differences.products.size() == 3U && differences.collisions == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief SKU pathと双方向衝突・重複の全行隔離を検証します。
  * @param[in,out] context Assertion集計。
  */
+//------------------------------------------------------------------------------
 void testKeysAndCollisions( TestContext &context)
 {
 	const auto normalRow = row( L"920001", L"Fixture A") ;	// 基準の架空製品。
@@ -334,10 +349,12 @@ void testKeysAndCollisions( TestContext &context)
 	DRIVERCRATE_EXPECT( context, nfcCollision.collisions == 2U && nfcCollision.products.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 各有限予算と境界直後の終端検査を検証します。
  * @param[in,out] context Assertion集計。
  */
+//------------------------------------------------------------------------------
 void testLimits( TestContext &context)
 {
 	std::wstring rows ;	// 固定名表を使わない最大1024架空行。
@@ -393,10 +410,12 @@ void testLimits( TestContext &context)
 				IntelCollectorIdentityStatus::LIMIT_EXCEEDED) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 起点偽装と予算ちょうどの受理を追加検証します。
  * @param[in,out] context Assertion集計。
  */
+//------------------------------------------------------------------------------
 void testHostileStructureAndExactLimits( TestContext &context)
 {
 	const auto good = page( row( L"950001", L"Fixture A")) ;	// 境界検査の基準。
@@ -471,9 +490,12 @@ void testHostileStructureAndExactLimits( TestContext &context)
 										.rejected == 1U) ;
 }
 
-/** @brief 制御付き本番coreの全checkpointと終了分類を検証します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 制御付き本番coreの全checkpointと終了分類を検証します。
  * @param[in,out] context Assertion集計。
  */
+//------------------------------------------------------------------------------
 void testControlledIdentity( TestContext &context)
 {
 	const auto html =
@@ -517,7 +539,8 @@ void testControlledIdentity( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @copydoc drivercrate::test::runIntelCollectorIdentityParserTests
+ * @brief 架空HTMLだけで有限Intelidentity解析を検証します。
+ * @param[in,out] context Assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runIntelCollectorIdentityParserTests( TestContext &context)

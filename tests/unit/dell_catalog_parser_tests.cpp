@@ -2,7 +2,7 @@
 /**
  * @file dell_catalog_parser_tests.cpp
  * @brief Dell公式catalog parser単体試験実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空の最小Dell schemaを使用し、model/OS/x64/Hardware ID/hash/pathとDTD拒否を検証します。Networkおよび実driver
@@ -167,7 +168,8 @@ void testDtdRejection( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/dell_catalog_parser_tests.h 宣言側の契約を正本とする。
+ * @brief Dell catalog parserの正常系とsecurity境界を検証する。COM MTAを初期化し、networkなしのDell parser試験群を実行する。
+ * @param[in,out] context assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runDellCatalogParserTests( TestContext &context)

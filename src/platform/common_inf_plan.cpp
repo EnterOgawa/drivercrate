@@ -2,7 +2,7 @@
 /**
  * @file common_inf_plan.cpp
  * @brief 共通単一INFの元取得所有・binding準備と内部選択adapterを実装する。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.01.02 Shunji Ogawa  2026/11/03  present Componentを含む元単一INF役割の説明を整合。
  * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 呼出しworkerに限定する。準備のfile固定は返却時、一括実行の固定は全callback終了時まで保持する。
@@ -52,7 +53,8 @@ constexpr std::uint64_t MAXIMUM_ARCHIVE_BYTES = 128ULL * 1024ULL * 1024ULL ;	// 
 
 /** @brief 検査scope中のfile・祖先handleを単独所有する。 */
 struct PlanHandleCloser {
-	/** @brief 取得済みhandleだけを閉じる。
+	/**
+	 * @brief 取得済みhandleだけを閉じる。
 	 * @param[in] value 所有handle。無効値は閉じない。
 	 */
 	void operator()( void *value) const noexcept
@@ -72,20 +74,24 @@ using PlanHandle = std::unique_ptr<void, PlanHandleCloser> ;
 struct PlanBusyScope {
 	/// 当該workerだけが更新する借用flag。
 	bool &busy ;
-	/** @brief 操作中状態を開始する。
+	/**
+	 * @brief 操作中状態を開始する。
 	 * @param[in,out] value 事前にfalseを確認した所有者flag。
 	 */
 	explicit PlanBusyScope( bool &value) noexcept : busy( value)
 	{
 		busy = true ;
 	}
-	/** @brief 成功・失敗・例外のいずれでも操作中状態を解除する。 */
+	/**
+	 * @brief 成功・失敗・例外のいずれでも操作中状態を解除する。
+	 */
 	~PlanBusyScope()
 	{
 		busy = false ;
 	}
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 通常位置を実handleで確認し、祖先renameとleaf書換えをscope中拒否する。
  * @param[in] path 元workspace内の有限通常DOS path。
@@ -93,6 +99,7 @@ struct PlanBusyScope {
  * @return 全位置確認0、入力・reparse・別最終位置・競合のHRESULT。
  * @note Hash・署名は共通検証へ委譲する。この関数は内容を認証しない。
  */
+//------------------------------------------------------------------------------
 NativeError pinPlanFile( const std::wstring &path, std::vector<PlanHandle> &pins)
 {
 	// 取得由来のpathでも曖昧なDOS位置を受け取らない。
@@ -158,11 +165,14 @@ NativeError pinPlanFile( const std::wstring &path, std::vector<PlanHandle> &pins
 	return 0 ;
 }
 
-/** @brief 版ではなく完全rank監査の全fieldを一致させる。
+//------------------------------------------------------------------------------
+/**
+ * @brief 版ではなく完全rank監査の全fieldを一致させる。
  * @param[in] left 再監査値。
  * @param[in] right binding返却値。
  * @return 全fieldが一致する場合true。
  */
+//------------------------------------------------------------------------------
 bool equalPlanRank( const OfficialDriverRankAudit &left,
 				   const OfficialDriverRankAudit &right) noexcept
 {
@@ -177,7 +187,9 @@ bool equalPlanRank( const OfficialDriverRankAudit &left,
 }
 } // namespace
 
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 元取得session・archive・取得証拠と検査済み通常INF閉包を共有所有します。
+ */
 struct CommonInfPlanFactory::State {
 	/// 取得issuerを元取得物より長く所有する。
 	std::shared_ptr<const OfficialAcquisitionSession> session ;
@@ -203,7 +215,8 @@ struct CommonInfPlanFactory::State {
 	bool											  busy{} ;
 	/// 元HRESULTと別に保持する最後のrollback解放失敗。
 	NativeError										  cleanupError{} ;
-	/** @brief 既存tokenを除く本操作の解放を診断付きで呼ぶ。
+	/**
+	 * @brief 既存tokenを除く本操作の解放を診断付きで呼ぶ。
 	 * @param[in] token 本factoryの新規または保持token。
 	 * @return 解放0、失効またはcallback例外のHRESULT。
 	 */
@@ -218,7 +231,8 @@ struct CommonInfPlanFactory::State {
 			return E_UNEXPECTED ;
 		}
 	}
-	/** @brief 途中例外でも既存計画のtokenをrollbackで解放しない。
+	/**
+	 * @brief 途中例外でも既存計画のtokenをrollbackで解放しない。
 	 * @param[in] token 本操作が返却した未commit token。0と既存tokenは解放しない。
 	 * @return 解放成功または解放不要0、解放失敗のHRESULT。
 	 */
@@ -228,7 +242,9 @@ struct CommonInfPlanFactory::State {
 	}
 } ;
 
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 元factory状態と同scan/deviceの要求・検証済み導入bindingを保持します。
+ */
 struct CommonInfInstallPlan::State {
 	/// 元取得と閉包・issuerを同じfactory状態へ結合する所有。
 	std::shared_ptr<CommonInfPlanFactory::State> owner ;
@@ -238,7 +254,9 @@ struct CommonInfInstallPlan::State {
 	OfficialInfInstallBinding					 binding ;
 } ;
 
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 同workerの導入中にfactory所有者・archive/memberの固定handleと重複path集合を保持します。
+ */
 struct CommonInfPlanExecutor::Scope {
 	/// 終了まで元取得・閉包とcallbackを共有所有する有限集合。
 	std::vector<std::shared_ptr<CommonInfPlanFactory::State>> owners ;
@@ -248,12 +266,15 @@ struct CommonInfPlanExecutor::Scope {
 	std::set<std::wstring>									  paths ;
 	/// 全所有者を同workerで受理した場合だけtrue。
 	bool													  locked{} ;
-	/** @brief 例外を含む終了で全私有計画を失効する。 */
+	/**
+	 * @brief 例外を含む終了で全私有計画を失効する。
+	 */
 	~Scope()
 	{
 		static_cast<void>( finish()) ;
 	}
-	/** @brief 一度だけ全所有者のtokenを解放し、元診断とは別に返す。
+	/**
+	 * @brief 一度だけ全所有者のtokenを解放し、元診断とは別に返す。
 	 * @return 最初の解放失敗。未受理・完了済みでは0。
 	 */
 	NativeError finish() noexcept
@@ -293,7 +314,8 @@ struct CommonInfPlanExecutor::Scope {
 		locked = false ;
 		return first ;
 	}
-	/** @brief 同じ所有pathは重複openせず、実handle固定を継続する。
+	/**
+	 * @brief 同じ所有pathは重複openせず、実handle固定を継続する。
 	 * @param[in] path 所有者内の通常file位置。
 	 * @return 固定成功0、元の位置・競合HRESULT。
 	 */
@@ -312,7 +334,8 @@ struct CommonInfPlanExecutor::Scope {
 
 		return error ;
 	}
-	/** @brief 同じ計画の生存元取得・通常内容・完全rank・私有bindingを再検証する。
+	/**
+	 * @brief 同じ計画の生存元取得・通常内容・完全rank・私有bindingを再検証する。
 	 * @param[in] plan Factoryだけが発行した内部状態。
 	 * @param[in] revalidator Windows bindingの既存再検証境界。
 	 * @return 全検証成功0、元のHRESULTまたは完全rank変化のERROR_RETRY。
@@ -349,7 +372,23 @@ struct CommonInfPlanExecutor::Scope {
 	}
 } ;
 
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全選択の再検証後、直前再検証と指定導入を候補順に行う。
+ * @param[in] scanSessionId 現在workerで最終選択された非零scan。
+ * @param[in] selections 使用中変更しない有限選択集合。空・重複・一device複数を拒否する。
+ * @param[in] revalidator Driver Storeの既存binding再検証へ固定した同期境界。
+ * @param[in] installer Driver Storeの既存指定導入へ固定した同期境界。
+ * @param[in] parentWindowNative 既存workerが確認した親Window値。
+ * @param[in] progressCallback 空または確定済み項目数だけの同期通知先。
+ * @return 個別結果と呼出し観測、独立した全失効診断。
+ * @pre 既存Provider install内で、workerの実OS・最終同意・EULA・必須条件確認とclient復元開始成功またはServer専用backup確認を満たして呼ぶ。取得同意
+ *      で代替しない。
+ * @post 同workerで受理した参加factoryの全計画を失効する。別thread／再入は変更しない。
+ * @note 元取得・全memberと祖先を全callback終了まで固定する。GET・自動retry・INF削除をしない。Callback例外は結果へ変換する。結果のallocation失敗では
+ *       候補列が空の場合もある。
+ */
+//------------------------------------------------------------------------------
 CommonInfPlanExecutionResult CommonInfPlanExecutor::execute(
 	ScanSessionId scanSessionId, std::span<const CommonInfPlanSelection> selections,
 	const CommonInfBindingRevalidator &revalidator, const OfficialBoundInfInstaller &installer,
@@ -562,24 +601,59 @@ CommonInfPlanExecutionResult CommonInfPlanExecutor::execute(
 	return report ;
 }
 
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 取得物を持たない空factoryを作る。
+ */
+//------------------------------------------------------------------------------
 CommonInfPlanFactory::CommonInfPlanFactory() = default ;
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 自身の計画を失効させ、所有物とtokenをbest-effortで回収する。
+ */
+//------------------------------------------------------------------------------
 CommonInfPlanFactory::~CommonInfPlanFactory()
 {
 	static_cast<void>( invalidate()) ;
 }
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief bindingのない空計画を作る。
+ */
+//------------------------------------------------------------------------------
 CommonInfInstallPlan::CommonInfInstallPlan() = default ;
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 自分の未使用tokenをbest-effortで解放する。
+ */
+//------------------------------------------------------------------------------
 CommonInfInstallPlan::~CommonInfInstallPlan()
 {
 	static_cast<void>( invalidate()) ;
 }
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有を移し、移動元を空にする。
+ * @param[in,out] other 同じworkerで使用中でない元計画。
+ */
+//------------------------------------------------------------------------------
 CommonInfInstallPlan::CommonInfInstallPlan( CommonInfInstallPlan &&other) noexcept = default ;
 
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 封印元archiveから通常検査を行い、所有を全成功後にcommitする。
+ * @param[in] session 生存取得issuerの共有所有。Nullを拒否する。
+ * @param[in,out] archive 元取得workspace。成功時だけ所有を移し、失敗時は不変。
+ * @param[in,out] evidence 当該sessionが発行した封印。成功時だけ所有を移す。
+ * @param[in] format 実行しないZIPまたはCAB。
+ * @param[in] rankAuditor Driver Storeへ固定する完全rank照合。
+ * @param[in] binder Driver Storeへ固定するbinding発行。
+ * @param[in] releaser 本factoryのtokenだけを解放する境界。
+ * @param[in] cancellation 空または非blocking取消し照会。
+ * @return 成功0、由来・位置・内容・容量・取消し・例外のHRESULT。
+ * @note 全体検査完了は個別INF合格を意味しない。通信・staging・導入を行わない。
+ */
+//------------------------------------------------------------------------------
 NativeError CommonInfPlanFactory::initialize(
 	std::shared_ptr<const OfficialAcquisitionSession> session,
 	std::unique_ptr<OfficialDownloadWorkspace> &archive, OfficialAcquiredFileEvidence &evidence,
@@ -657,7 +731,16 @@ NativeError CommonInfPlanFactory::initialize(
 	}
 }
 
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常単一INFと完全rankから一deviceのbinding準備計画を発行する。
+ * @param[in] request 同じscanのopaque identityと現在driver snapshot。
+ * @param[out] plan 初期状態が空の出力。成功時だけ内部状態を保持する。
+ * @return 成功0、未対応・入力・再検証・rank・binding・rollback失敗のHRESULT。
+ * @pre 初期化workerで直列に呼び、callbackから再入しない。
+ * @note present Componentも元役割のまま扱い、不在childの作成や必要構成の追加は行わない。公開candidateを発行せず、methodや同意を合格へ変更しない。
+ */
+//------------------------------------------------------------------------------
 NativeError CommonInfPlanFactory::prepare( const CommonInfPlanRequest &request,
 										  CommonInfInstallPlan		 &plan)
 {
@@ -796,7 +879,12 @@ NativeError CommonInfPlanFactory::prepare( const CommonInfPlanRequest &request,
 	}
 }
 
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常検査の成功・拒否を含む全INF件数を返す。
+ * @return 非初期化・失効・別threadでは0。
+ */
+//------------------------------------------------------------------------------
 std::size_t CommonInfPlanFactory::infCount() const noexcept
 {
 	return state_ && state_->active && state_->thread == GetCurrentThreadId()
@@ -804,13 +892,25 @@ std::size_t CommonInfPlanFactory::infCount() const noexcept
 			   : 0U ;
 }
 
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 最後のrollback解放失敗を元処理のHRESULTと独立に返す。
+ * @return 同workerの保持診断。未初期化・別threadでは0。
+ * @note 0はWindows状態の包括的な復旧保証ではない。
+ */
+//------------------------------------------------------------------------------
 NativeError CommonInfPlanFactory::lastCleanupError() const noexcept
 {
 	return state_ && state_->thread == GetCurrentThreadId() ? state_->cleanupError : 0 ;
 }
 
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 本factoryの全計画を失効させ、発行tokenだけを解放する。
+ * @return 全解放成功0、別thread・再入または最初の解放失敗のHRESULT。
+ * @note 失敗時も同threadの計画は失効する。Windowsの導入済みINFを削除しない。
+ */
+//------------------------------------------------------------------------------
 NativeError CommonInfPlanFactory::invalidate() noexcept
 {
 	// 初期化callback内の失効要求を完了やcancelとして処理しない。
@@ -845,14 +945,24 @@ NativeError CommonInfPlanFactory::invalidate() noexcept
 	return first ;
 }
 
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 準備bindingの存在だけを観測する。導入可能を意味しない。
+ * @return 同じworker・生存所有者・未失効tokenの場合true。それ以外false。
+ */
+//------------------------------------------------------------------------------
 bool CommonInfInstallPlan::isBound() const noexcept
 {
 	return state_ && state_->owner->active && state_->owner->thread == GetCurrentThreadId() &&
 		   state_->owner->tokens.contains( state_->binding.token) ;
 }
 
-/** @see src/platform/common_inf_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 本計画だけを失効させ、私有tokenを解放する。
+ * @return 解放成功または空0、別thread・再入・解放失敗のHRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError CommonInfInstallPlan::invalidate() noexcept
 {
 	// 空やmove元はtokenを持たない。

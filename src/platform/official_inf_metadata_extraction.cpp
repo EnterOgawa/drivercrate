@@ -2,7 +2,7 @@
 /**
  * @file official_inf_metadata_extraction.cpp
  * @brief 原ZIP／PEから全INFと署名補助CATを非実行抽出する。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  全選択metadataの共通有限抽出を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 同期worker専用。危険な非選択も先行検査し、部分出力を返さない。
@@ -43,11 +44,14 @@ constexpr std::uint64_t MAX_INF_TOTAL	   = 16ULL * 1024ULL * 1024ULL ;	// 全INF
 constexpr std::uint64_t MAX_CAT_BYTES	   = 32ULL * 1024ULL * 1024ULL ;	// 一CAT上限。
 constexpr std::uint64_t MAX_METADATA_TOTAL = 64ULL * 1024ULL * 1024ULL ;	// 全metadata上限。
 
-/** @brief 原名の有限suffixだけをordinal case非依存で識別する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原名の有限suffixだけをordinal case非依存で識別する。
  * @param[in] name 全ZIP parserが検査した相対位置。
  * @param[in] suffix 四文字の固定suffix。
  * @return 同じsuffixならtrue。
  */
+//------------------------------------------------------------------------------
 bool					metadataSuffix( std::wstring_view name, std::wstring_view suffix) noexcept
 {
 	return name.size() >= suffix.size() &&
@@ -57,6 +61,20 @@ bool					metadataSuffix( std::wstring_view name, std::wstring_view suffix) noexc
 }
 } // namespace
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示ZIP／PEの全INFと全CATを、原byteから同じ保護領域へ抽出する。
+ * @param[in] raw 本呼出し中に不変の全container。ZIP128 MiB／PE64 MiBまで。
+ * @param[in] format 明示形式。自動判定や拒否後のfallbackを行わない。
+ * @param[in,out] workspace 初期化済み空領域。部分fileも同領域で追跡する。
+ * @param[out] metadata 完全成功時だけ全INF／CATの原相対位置・実size・原hashを返す。
+ * @return 完了0、形式・危険項目・容量・CRC・API・例外のHRESULT。
+ * @pre 同期worker専用。入力storageは出力とaliasしない。
+ * @post 失敗時のmetadataは空。部分fileはworkspaceで回収する。
+ * @note INF64／個別ZIP4 MiB・PE1 MiB／合計16 MiB、CAT64／個別32 MiB、全metadata64 MiB。CATなしでもINF抽出は成功できる。SYS／DLL
+ *       ／EXEは抽出・実行せず、署名は別に検査する。
+ */
+//------------------------------------------------------------------------------
 NativeError extractOfficialInfMetadata( std::span<const std::byte>	  raw,
 									   OfficialInfContainerFormat	  format,
 									   OfficialDownloadWorkspace	 &workspace,

@@ -2,7 +2,7 @@
 /**
  * @file vaio_catalog_parser_tests.cpp
  * @brief VAIO公式catalog parser単体試験実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実model、実URL、実Hardware IDを使用せず、schema変更時の拒否を含むoffline testを実行します。
@@ -294,7 +295,9 @@ void testRegistryResultLength( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/vaio_catalog_parser_tests.h 宣言側の契約を正本とする。
+ * @brief VAIO catalog parserの正常系とsecurity拒否系を実行する。VAIO catalog parserの正常系とsecurity境界を検証する。C++/WinRT
+ *        用COM MTAを初期化し、networkなしの試験を実行する。
+ * @param[in,out] context Assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runVaioCatalogParserTests( TestContext &context)

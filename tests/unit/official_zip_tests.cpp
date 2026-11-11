@@ -2,7 +2,7 @@
 /**
  * @file official_zip_tests.cpp
  * @brief 公式ZIP package安全展開単体試験実装。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/09/15  逆slash ZIPの正規化と危険path・衝突の回帰試験。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Minizでmemory上に架空ZIPを生成し、networkや実driverへ依存せず検証します。保護workspace外のpathは作成しません。
@@ -329,11 +330,13 @@ void testUnsafeZipPaths( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Windows区切りの通常entryを受理し、正規化後の逸脱と衝突を拒否する。
  * @param[in,out] context Assertion集計先。
  * @note 架空ZIPだけを使用し、固定名の保護workspace以外へ展開しない。
  */
+//------------------------------------------------------------------------------
 void testWindowsZipSeparators( TestContext &context)
 {
 	constexpr ZipFixtureEntry NORMAL[]{
@@ -439,7 +442,8 @@ void testZipLimitsAndIntegrity( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_zip_tests.h 宣言側の契約を正本とする。
+ * @brief 公式ZIPの安全な事前検証と展開境界を検証する。公式ZIP安全展開の全単体試験を実行する。正常階層、危険path、有限上限、CRC改ざん試験を順に実行する。
+ * @param[in,out] context Assertion件数と失敗内容の集計先。 Assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialZipTests( TestContext &context)

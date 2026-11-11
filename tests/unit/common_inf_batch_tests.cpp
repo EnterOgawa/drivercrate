@@ -2,7 +2,7 @@
 /**
  * @file common_inf_batch_tests.cpp
  * @brief 共通選択adapterの全件停止・直前照合・個別結果と失効を非導入で検証する。
- * @version 01.01.01
+ * @version 01.01.02
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  独立fakeの一括実行と共有所有試験を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/06  専用target向けの34定義試験hookを追加。
  * Ver.01.01.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実封印／file固定だけを使い、内容・rank・binding・導入は試験EXEだけのfakeとする。
@@ -61,20 +62,26 @@ thread_local CommonInfInspectionState fixtureState{
 	CommonInfInspectionState::VERIFIED} ;		// 内容境界の試験状態。
 thread_local std::size_t fixtureDownloads{} ;	// 非通信transportの確定呼出し数。
 
-/** @brief 架空fixtureを開いたfileへ保存する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空fixtureを開いたfileへ保存する。
  * @param[in] file 借用writer。
  * @return 全3 byte保存0、失敗E_FAIL。
  */
+//------------------------------------------------------------------------------
 NativeError				 writeBytes( HANDLE file)
 {
 	DWORD written{} ;	// 実確定保存量。
 	return WriteFile( file, "abc", 3U, &written, nullptr) && written == 3U ? 0 : E_FAIL ;
 }
 
-/** @brief 指定fixtureへのwriterが共有違反で拒否された事実だけを確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 指定fixtureへのwriterが共有違反で拒否された事実だけを確認する。
  * @param[in] path 当該試験workspace内の位置。
  * @return 正確な共有違反の場合true。それ以外false。
  */
+//------------------------------------------------------------------------------
 bool writerBlocked( const std::wstring &path)
 {
 	// 実writer競合の観測handle。成功時は必ず閉じる。
@@ -93,7 +100,8 @@ bool writerBlocked( const std::wstring &path)
 /** @brief 公式HTTPを行わず、架空3 byteだけを取得層へ返す。 */
 class BatchTransport final : public IOfficialAcquisitionTransport {
 public:
-	/** @brief 固定sourceの非通信保存を行う。
+	/**
+	 * @brief 固定sourceの非通信保存を行う。
 	 * @param[in] url 使用しない架空URL。
 	 * @param[in] resource 使用しない用途。
 	 * @param[in] maximum 使用しない予算。
@@ -114,7 +122,8 @@ public:
 		++fixtureDownloads ;
 		return writeBytes( file) ;
 	}
-	/** @brief 当該fixtureでは委譲取得を行わない。
+	/**
+	 * @brief 当該fixtureでは委譲取得を行わない。
 	 * @param[in,out] request 消費しない要求。
 	 * @param[in] file 使用しないfile。
 	 * @param[in] progress 使用しない通知。
@@ -134,7 +143,8 @@ public:
 		destination = {} ;
 		return E_NOTIMPL ;
 	}
-	/** @brief 非通信fixtureのsource根拠だけを返す。
+	/**
+	 * @brief 非通信fixtureのsource根拠だけを返す。
 	 * @param[in] session 使用しないsession。
 	 * @param[in] provider 使用しないProvider。
 	 * @param[in] resource 使用しない用途。
@@ -153,7 +163,8 @@ public:
 /** @brief 実回線状態を照会しないfixture。 */
 class BatchCost final : public IOfficialNetworkCostReader {
 public:
-	/** @brief 架空の非課金状態を返す。
+	/**
+	 * @brief 架空の非課金状態を返す。
 	 * @param[out] cost 常にUNRESTRICTED。
 	 * @return 常に0。
 	 */
@@ -165,7 +176,9 @@ public:
 } ;
 } // namespace
 
-/** @brief 当該EXEだけで通常内容検査を有限の独立fixture INFへ代替する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 当該EXEだけで通常内容検査を有限の独立fixture INFへ代替する。
  * @param[in] input 封印元file情報。
  * @param[in] format 実行しない形式。
  * @param[out] inspection 既定二つ、上限拒否試験では129の架空通常閉包。
@@ -173,6 +186,7 @@ public:
  * @return Fixture作成0、失敗E_FAIL。
  * @note 実CAT・INF合格の測定ではない。
  */
+//------------------------------------------------------------------------------
 NativeError inspectCommonDriverPackage( const DriverArchiveInput		 &input,
 									   OfficialDriverArchiveFormat	  format,
 									   CommonDriverPackageInspection &inspection,
@@ -230,10 +244,13 @@ NativeError inspectCommonDriverPackage( const DriverArchiveInput		 &input,
 	return 0 ;
 }
 
-/** @brief CAT署名だけをfakeにし、使用中固定と実fixture hashを確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief CAT署名だけをfakeにし、使用中固定と実fixture hashを確認する。
  * @param[in] inspected Factory所有の閉包。
  * @return 指定拒否E_FAIL、固定なしE_ACCESSDENIED、それ以外はhash照合結果。
  */
+//------------------------------------------------------------------------------
 NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected)
 {
 	++contentChecks ;
@@ -302,7 +319,8 @@ struct BatchFixture {
 	NativeError					 initializationError{} ;
 	/// 同期再入と途中変更を行う検査hook。借用先は実行終了まで生存する。
 	std::function<void()>		 duringInstall ;
-	/** @brief 架空元byteを取得し、内部factoryへ移動する。
+	/**
+	 * @brief 架空元byteを取得し、内部factoryへ移動する。
 	 * @param[in,out] target Assertion集計先。
 	 * @param[in] finishInitialization Falseの場合は封印取得までで止める。
 	 * @param[in] infCount Fake検査が返すINF数。上限拒否試験以外は2。
@@ -391,7 +409,8 @@ struct BatchFixture {
 										(infCount > 128U ? static_cast<NativeError>( E_INVALIDARG)
 														 : NativeError{})) ;
 	}
-	/** @brief 一device用の内部計画を発行する。
+	/**
+	 * @brief 一device用の内部計画を発行する。
 	 * @param[in,out] plan 空の発行先。
 	 * @param[in] number 架空candidate／device番号。
 	 * @param[in] infIndex 元archive内の0起点INF。
@@ -411,12 +430,15 @@ struct BatchFixture {
 		DRIVERCRATE_EXPECT( context, factory.prepare( request, plan) == 0) ;
 		return {&plan, request.candidateIdentity, request.deviceIdentity} ;
 	}
-	/** @brief 借用callback先のfieldを破棄する前にfactoryを失効する。 */
+	/**
+	 * @brief 借用callback先のfieldを破棄する前にfactoryを失効する。
+	 */
 	~BatchFixture()
 	{
 		static_cast<void>( factory.invalidate()) ;
 	}
-	/** @brief 既存API形状のfake再検証とfake指定導入だけで実行する。
+	/**
+	 * @brief 既存API形状のfake再検証とfake指定導入だけで実行する。
 	 * @param[in] selections 借用選択列。
 	 * @param[in] progress 空または試験通知。
 	 * @param[in] scan 現在選択scan。
@@ -467,9 +489,12 @@ struct BatchFixture {
 	}
 } ;
 
-/** @brief 基本成功・共有・全件拒否・部分結果と失効を確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 基本成功・共有・全件拒否・部分結果と失効を確認する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runBatchTests( TestContext &context)
 {
 	// 各停止位置を別fixtureで実行し、前試験の失効を次へ持ち込まない。
@@ -669,9 +694,12 @@ void runBatchTests( TestContext &context)
 #include "common_inf_contract_cases.h"
 #endif
 
-/** @brief 非通信・非導入の独立adapter試験を実行する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 非通信・非導入の独立adapter試験を実行する。
  * @return 全assertion成功0、失敗・例外1。
  */
+//------------------------------------------------------------------------------
 int main()
 {
 	try {

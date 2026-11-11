@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_tests.cpp
  * @brief 製品と同じWin32画面の情報検索専用内部試験。
- * @version 01.54.00
+ * @version 01.54.02
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -99,6 +99,8 @@
  * Ver.01.53.04 Shunji Ogawa  2026/11/11  README撮影だけをDWMの可視枠でPNGへ保存。
  * Ver.01.53.05 Shunji Ogawa  2026/11/11  README撮影の残る外周をclient左右下端に合わせる。
  * Ver.01.54.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
+ * Ver.01.54.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.54.02 Shunji Ogawa  2026/11/11  U21部分導入後の元scan保持期待をADR0474へ整合。
  * </pre>
  *
  * @note 明示optionでのみ起動し、実device・network・取得・復旧・導入へ接続しない。
@@ -176,10 +178,13 @@ std::atomic_bool	  privateLifecycleFailed{} ;
 // 実HWND観測の本文は一process一回とし、pumpの反復をlogへ増幅しません。
 std::atomic_bool	  privateUiObserved{} ;
 
-/** @brief 所有process handleから再利用されない作成時刻を読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有process handleから再利用されない作成時刻を読みます。
  * @param[in] process 本呼出し中に有効なprocess handleです。
  * @return 成功時のFILETIME値、失敗時は0です。
  */
+//------------------------------------------------------------------------------
 std::uint64_t		  nativeCreationTime( const HANDLE process) noexcept
 {
 	FILETIME creation{} ;	// 同handleに属する作成時刻です。
@@ -194,10 +199,13 @@ std::uint64_t		  nativeCreationTime( const HANDLE process) noexcept
 	return (static_cast<std::uint64_t>( creation.dwHighDateTime) << 32U) | creation.dwLowDateTime ;
 }
 
-/** @brief 借用desktopの名前を有限領域へ読み取ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 借用desktopの名前を有限領域へ読み取ります。
  * @param[in] desktop 自作または同threadの借用desktopです。解放しません。
  * @return 実名、取得失敗時は空です。
  */
+//------------------------------------------------------------------------------
 std::wstring nativeDesktopName( const HDESK desktop)
 {
 	wchar_t name[256]{} ;	// 自作名を上回る有限bufferです。
@@ -210,10 +218,13 @@ std::wstring nativeDesktopName( const HDESK desktop)
 	return name ;
 }
 
-/** @brief 指定した自作desktopが非入力であることを標本確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 指定した自作desktopが非入力であることを標本確認します。
  * @param[in] desktop 自作または起動時に照合済みのdesktopです。
  * @return UOI_IOの取得が成功しfalseの場合trueです。名前は検査しません。
  */
+//------------------------------------------------------------------------------
 bool nativeNonInput( const HDESK desktop)
 {
 	BOOL  input = TRUE ;	// 取得失敗を非入力へ変換しない初期値です。
@@ -222,10 +233,13 @@ bool nativeNonInput( const HDESK desktop)
 		   input == FALSE ;
 }
 
-/** @brief 実際のcallback threadを起動時desktopへ照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実際のcallback threadを起動時desktopへ照合します。
  * @param[in] role 非機密な観測点名です。
  * @return 非入力の同desktopに所属する場合trueです。
  */
+//------------------------------------------------------------------------------
 bool observePrivateThread( const char *role)
 {
 	const HDESK desktop = GetThreadDesktop( GetCurrentThreadId()) ;	// 借用handleです。
@@ -267,12 +281,15 @@ struct NativeUiResources {
 	std::array<HANDLE, 3U> streams{} ;
 	/// Held-childが待機到達を通知する所有eventです。
 	HANDLE				   ready{} ;
-	/** @brief 例外時も所有資源を回収し、失敗をprocess状態へ残します。 */
+	/**
+	 * @brief 例外時も所有資源を回収し、失敗をprocess状態へ残します。
+	 */
 	~NativeUiResources()
 	{
 		static_cast<void>( finish()) ;
 	}
-	/** @brief 所有process終端後に所属復帰・handle解放を確認します。
+	/**
+	 * @brief 所有process終端後に所属復帰・handle解放を確認します。
 	 * @return 全後始末が成功した場合trueです。二度目は空の所有状態を確認します。
 	 */
 	bool finish() noexcept
@@ -317,9 +334,12 @@ struct NativeUiResources {
 	}
 } ;
 
-/** @brief 元環境blockを例外経路でも回収し、解放失敗を終了状態へ残します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元環境blockを例外経路でも回収し、解放失敗を終了状態へ残します。
  * @param[in] block GetEnvironmentStringsWで取得した所有pointerです。
  */
+//------------------------------------------------------------------------------
 void nativeFreeEnvironment( wchar_t *block) noexcept
 {
 	// 一時環境を解放できない場合も黙って成功にしません。
@@ -328,11 +348,14 @@ void nativeFreeEnvironment( wchar_t *block) noexcept
 	}
 }
 
-/** @brief 環境entryのkeyが内部markerと完全一致するかを判定します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 環境entryのkeyが内部markerと完全一致するかを判定します。
  * @param[in] entry 呼出し中だけ借用するkey=valueです。drive entryも許可します。
  * @return 区切り前のkeyが大文字小文字非依存で完全一致する場合trueです。
  * @note 値と非一致entryを変更せず、外部I/Oや環境内容の出力は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool nativePrivateMarkerEntry( const std::wstring_view entry) noexcept
 {
 	const auto separator = entry.find( L'=') ;					// 値や類似prefixを比較へ混入させない境界です。
@@ -346,10 +369,13 @@ void nativeFreeEnvironment( wchar_t *block) noexcept
 								static_cast<int>( KEY.size()), TRUE) == CSTR_EQUAL ;
 }
 
-/** @brief Child専用markerを追加した環境blockを所有copyで作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief Child専用markerを追加した環境blockを所有copyで作ります。
  * @param[in] marker 起動先desktopの完全名です。
  * @return 二重NUL終端の環境blockです。
  */
+//------------------------------------------------------------------------------
 std::vector<wchar_t> nativeChildEnvironment( const std::wstring &marker)
 {
 	// 文字列/vectorの確保例外でも元blockを解放する専用deleterです。
@@ -393,11 +419,14 @@ std::vector<wchar_t> nativeChildEnvironment( const std::wstring &marker)
 	return result ;
 }
 
-/** @brief 実UI起動前のmarker指定owner epoch・desktop所属・成果物rootを照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実UI起動前のmarker指定owner epoch・desktop所属・成果物rootを照合します。
  * @param[in] marker 取得済みの有限な内部markerです。
  * @return 起動を許可できる場合trueです。
  * @note 指定ownerの生存を確認しますが、OSの実親子系譜は独立に検証しません。
  */
+//------------------------------------------------------------------------------
 bool validatePrivateStartup( const std::wstring &marker)
 {
 	const HDESK desktop = GetThreadDesktop( GetCurrentThreadId()) ;	// 起動時の借用所属です。
@@ -450,10 +479,13 @@ bool validatePrivateStartup( const std::wstring &marker)
 	return true ;
 }
 
-/** @brief 同じPE・元raw command・元CWDで専用desktopの子を有限監督します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じPE・元raw command・元CWDで専用desktopの子を有限監督します。
  * @param[in] mode 明示されたUI/control modeです。元argvは変更しません。
  * @return 子の終了code、marker拒否73、期限切れ74、監督失敗75です。
  */
+//------------------------------------------------------------------------------
 int supervisePrivateUi( const std::string_view mode)
 {
 	NativeUiResources owned ;												// 異常経路でも所有子とdesktopを回収します。
@@ -636,11 +668,12 @@ int supervisePrivateUi( const std::string_view mode)
 
 /** @brief 内部targetだけが使用する、非通信factory設定と既存UI状態の観測。 */
 struct MainWindowMetadataTestAccess {
-	/** @brief 取得前の一参照を普通の選択意図として指定します。
+	/**
+	 * @brief 取得前の一参照を普通の選択意図として指定します。
 	 * @param[in,out] window 元scanです。
 	 * @param[in,out] context 原assertionです。
-	 * @return 明示した元identityです。
 	 * @param[in] expectedVersion 空は旧metadata負例、正例は原INF由来の明示版です。
+	 * @return 明示した元identityです。
 	 */
 	static std::vector<std::wstring> selectTargetOnlyReference(
 		MainWindow &window, test::TestContext &context,
@@ -652,7 +685,8 @@ struct MainWindowMetadataTestAccess {
 		window.clearCandidateSelection() ;
 		return selectInstallIntents( window, context, true, false, expectedVersion) ;
 	}
-	/** @brief 同workerの実DS候補二件を選び一件だけを最初に送ります。
+	/**
+	 * @brief 同workerの実DS候補二件を選び一件だけを最初に送ります。
 	 * @param[in,out] window 元scanの本物Windowです。
 	 * @param[in,out] context 有限assertion集計先です。
 	 * @return 最初に実行した元candidate identityです。
@@ -695,7 +729,8 @@ struct MainWindowMetadataTestAccess {
 								   window.window_, InstallProtectionMode::WINDOWS_RESTORE_POINT)) ;
 		return selected.front() ;
 	}
-	/** @brief 最新解消だけ枠を隠し、次filterと未処理選択を確認します。
+	/**
+	 * @brief 最新解消だけ枠を隠し、次filterと未処理選択を確認します。
 	 * @param[in,out] window 元のnative Windowです。
 	 * @param[in,out] context 原assertionです。
 	 * @param[in] consumed 実際に導入した元候補です。
@@ -760,7 +795,8 @@ struct MainWindowMetadataTestAccess {
 						  12U) == 0U &&
 						 window.checkedCandidateIndexes().size() == 1U) ;
 	}
-	/** @brief 元scan・残check・通常入口を確認して二番目だけを開始します。
+	/**
+	 * @brief 元scan・残check・通常入口を確認して二番目だけを開始します。
 	 * @param[in,out] window 最初の終端を受理した本物Windowです。
 	 * @param[in,out] context 有限assertion集計先です。
 	 * @param[in] session 元scanです。
@@ -826,14 +862,16 @@ struct MainWindowMetadataTestAccess {
 		/// 64eventを超えた場合trueです。観測欠落を成功へ補完しません。
 		bool							 overflow{} ;
 	} ;
-	/** @brief 実workerのstop/joinを待ち、以後の非atomic観測を同期します。
+	/**
+	 * @brief 実workerのstop/joinを待ち、以後の非atomic観測を同期します。
 	 * @param[in,out] window 対象workerを単独所有する同UI threadのWindowです。
 	 */
 	static void stopIndexWorker( MainWindow &window)
 	{
 		window.worker_->stop() ;
 	}
-	/** @brief 待機せず同workerの現在queueを所有付きで取り出します。
+	/**
+	 * @brief 待機せず同workerの現在queueを所有付きで取り出します。
 	 * @param[in,out] window 同workerを所有するUI threadのWindowです。
 	 * @return 実queueの有限event集合です。成功eventを生成しません。
 	 */
@@ -841,7 +879,8 @@ struct MainWindowMetadataTestAccess {
 	{
 		return window.worker_->takeEvents() ;
 	}
-	/** @brief 完全低位fixture workerを本物Windowへ私有結合します。
+	/**
+	 * @brief 完全低位fixture workerを本物Windowへ私有結合します。
 	 * @param[in,out] window 既存fakeで生成済みの隠したWindowです。
 	 * @param[in] worker 実queueと元署名storeを保持するworkerの単独所有です。
 	 */
@@ -853,21 +892,24 @@ struct MainWindowMetadataTestAccess {
 													   std::wstring{SIGNED_INDEX_PROVIDER_ID}} ;
 		window.testSuppressPreparationResultDialog_ = true ;
 	}
-	/** @brief 通常scan buttonと同じ製品処理を開始します。
+	/**
+	 * @brief 通常scan buttonと同じ製品処理を開始します。
 	 * @param[in,out] window 完全低位fixture workerを所有するWindowです。
 	 */
 	static void beginIndexScan( MainWindow &window)
 	{
 		window.beginScan() ;
 	}
-	/** @brief 利用者の通常検索と同じcommandを送ります。取得準備commandは送りません。
+	/**
+	 * @brief 利用者の通常検索と同じcommandを送ります。取得準備commandは送りません。
 	 * @param[in,out] window 完全低位fake workerを結合した内部Windowです。
 	 */
 	static void beginSearchCommand( MainWindow &window)
 	{
 		SendMessageW( window.window_, WM_COMMAND, MAKEWPARAM( IDC_SCAN, BN_CLICKED), 0) ;
 	}
-	/** @brief 本体がpostした同Windowの一通知を、実dispatch前に所有します。
+	/**
+	 * @brief 本体がpostした同Windowの一通知を、実dispatch前に所有します。
 	 * @param[in] window 同じUI threadの所有Windowです。
 	 * @return 元通知、または未発行の場合nulloptです。成功通知を生成しません。
 	 */
@@ -878,7 +920,8 @@ struct MainWindowMetadataTestAccess {
 				   ? std::optional<MSG>{message}
 				   : std::nullopt ;
 	}
-	/** @brief 元候補が複数あるdeviceを勝手に一候補へ指定していないことを確認します。
+	/**
+	 * @brief 元候補が複数あるdeviceを勝手に一候補へ指定していないことを確認します。
 	 * @param[in] window 元検索を受理した本物Windowです。
 	 * @param[in,out] context 原assertionの集計先です。
 	 * @return 詳細閲覧へ使用する元参照位置です。欠落時は候補数です。
@@ -909,7 +952,8 @@ struct MainWindowMetadataTestAccess {
 							   !IsWindowEnabled( window.installButton_)) ;
 		return index ;
 	}
-	/** @brief 初回結果後の実fake新scanを、そのまま確認します。
+	/**
+	 * @brief 初回結果後の実fake新scanを、そのまま確認します。
 	 * @param[in,out] window 実fake新scanの所有Windowです。
 	 * @param[in,out] context Assertion集計先です。
 	 */
@@ -928,20 +972,22 @@ struct MainWindowMetadataTestAccess {
 			}
 		}
 	}
-	/** @brief 元workerに完全fakeのWUA slotを追加します。
+	/**
+	 * @brief 元workerに完全fakeのWUA slotを追加します。
 	 * @param[in,out] window 元workerを結合済みの内部Windowです。
 	 */
 	static void enableManagedFixture( MainWindow &window)
 	{
 		window.enabledProviderIds_.push_back( std::wstring{WINDOWS_UPDATE_PROVIDER_ID}) ;
 	}
-	/** @brief 元pending参照を同deviceの実checkboxから明示選択します。
+	/**
+	 * @brief 元pending参照を同deviceの実checkboxから明示選択します。
 	 * @param[in,out] window 元検索を受理した本物Windowです。
 	 * @param[in,out] context 正負の原assertion集計先です。
 	 * @param[in] one 一件だけを選択する場合trueです。
 	 * @param[in] mixed 別deviceの既存Driver Store候補を一件併せて選ぶ場合trueです。
-	 * @return 実行意思を与えた元opaque candidate identity集合です。
 	 * @param[in] expectedVersion 空は元metadata、指定時は原版への等値を要求します。
+	 * @return 実行意思を与えた元opaque candidate identity集合です。
 	 */
 	static std::vector<std::wstring> selectInstallIntents(
 		MainWindow &window, test::TestContext &context, const bool one, const bool mixed,
@@ -1015,7 +1061,8 @@ struct MainWindowMetadataTestAccess {
 										IsWindowEnabled( window.installButton_)) ;
 		return result ;
 	}
-	/** @brief 主画面の規約案内と、旧選択・差替えsnapshotの非実行を確認します。
+	/**
+	 * @brief 主画面の規約案内と、旧選択・差替えsnapshotの非実行を確認します。
 	 * @param[in,out] window 同scanの元planと実checkboxを保持する完全fake画面です。
 	 * @param[in,out] context 原assertionの集計先です。
 	 * @note 正常二件の選択だけに適用し、実workerへ取得・導入を要求しません。
@@ -1140,7 +1187,8 @@ struct MainWindowMetadataTestAccess {
 										window.preparationApproval_.operationId == 0U) ;
 		window.updateCommandState() ;
 	}
-	/** @brief 取消しとして選択を解除し、画面内案内と未承認値を破棄します。
+	/**
+	 * @brief 取消しとして選択を解除し、画面内案内と未承認値を破棄します。
 	 * @param[in,out] window 元選択と実controlを保持する完全fake画面です。
 	 * @param[in,out] context 原assertionの集計先です。
 	 */
@@ -1153,7 +1201,8 @@ struct MainWindowMetadataTestAccess {
 										(GetWindowLongPtrW( window.installTermsNote_, GWL_STYLE) &
 										 WS_VISIBLE) == 0) ;
 	}
-	/** @brief 元選択にないtargetを取得する承認を同workerへ直接送り、私有照合を検査します。
+	/**
+	 * @brief 元選択にないtargetを取得する承認を同workerへ直接送り、私有照合を検査します。
 	 * @param[in,out] window 元planとworkerを保持する内部Windowです。
 	 * @param[in] original 明示選択した一候補です。
 	 * @return 実queueが要求を受理した場合trueです。製品の承認照合はworkerが行います。
@@ -1178,7 +1227,8 @@ struct MainWindowMetadataTestAccess {
 
 		return window.worker_->requestPreparation( approval) ;
 	}
-	/** @brief 元未取得identityの直接導入をcontrollerが拒否することを確認します。
+	/**
+	 * @brief 元未取得identityの直接導入をcontrollerが拒否することを確認します。
 	 * @param[in,out] window 元参照と同scanを保持する内部Windowです。
 	 * @param[in] identity 明示checkした未検査参照です。
 	 * @return 実controllerの原拒否結果です。検査や導入は実行しません。
@@ -1189,7 +1239,8 @@ struct MainWindowMetadataTestAccess {
 		return window.controller_.beginInstall( window.controller_.scanSessionId(), identities,
 											   InstallConfirmation::CONFIRMED) ;
 	}
-	/** @brief 検査済みの唯一候補だけを通常行のcheckboxから明示選択します。
+	/**
+	 * @brief 検査済みの唯一候補だけを通常行のcheckboxから明示選択します。
 	 * @param[in,out] window 同scanの本物行と候補を保持する内部Windowです。
 	 * @param[in,out] context Assertionの集計先です。
 	 * @param[in] expected 発行された導入可能索引候補数です。
@@ -1268,14 +1319,16 @@ struct MainWindowMetadataTestAccess {
 										(!multiple && expected != 0U)) ;
 		return first ;
 	}
-	/** @brief 元Provider集合から索引だけを明示無効にします。
+	/**
+	 * @brief 元Provider集合から索引だけを明示無効にします。
 	 * @param[in,out] window 同fixtureの通常Windowです。
 	 */
 	static void disableIndex( MainWindow &window)
 	{
 		window.enabledProviderIds_ = {std::wstring{DRIVER_STORE_PROVIDER_ID}} ;
 	}
-	/** @brief 通常の結果buttonが表示する非機密本文を所有copyで観測します。
+	/**
+	 * @brief 通常の結果buttonが表示する非機密本文を所有copyで観測します。
 	 * @param[in] window 同operationの通常Windowです。
 	 * @return URL/ID/pathを追加しない製品本文です。
 	 */
@@ -1283,7 +1336,8 @@ struct MainWindowMetadataTestAccess {
 	{
 		return window.preparationResultText_ ;
 	}
-	/** @brief 元planに結合する唯一の索引候補が通常の選択guardを通ることを確認します。
+	/**
+	 * @brief 元planに結合する唯一の索引候補が通常の選択guardを通ることを確認します。
 	 * @param[in] window 通常scan終端を受理した同じWindowです。
 	 * @param[in,out] context 候補数と選択可能性の原assertionです。
 	 */
@@ -1314,7 +1368,8 @@ struct MainWindowMetadataTestAccess {
 
 		DRIVERCRATE_EXPECT( context, matched == 1U) ;
 	}
-	/** @brief 原時刻拒否だけの説明と既存HTTP/診断表示を決定的に確認します。
+	/**
+	 * @brief 原時刻拒否だけの説明と既存HTTP/診断表示を決定的に確認します。
 	 * @param[in] window 非通信factoryで作成した通常画面です。
 	 * @param[in,out] context 正負例の集計先です。
 	 */
@@ -1354,7 +1409,8 @@ struct MainWindowMetadataTestAccess {
 		summary.refresh.reset() ;
 		DRIVERCRATE_EXPECT( context, window.formatIndexRefreshSummary( summary).empty()) ;
 	}
-	/** @brief 製品と同じmenu構築から実項目の名称と有効状態を検査します。
+	/**
+	 * @brief 製品と同じmenu構築から実項目の名称と有効状態を検査します。
 	 * @param[in] window 同UI threadの本物Windowです。
 	 * @param[in,out] context 実control検査の集計先です。
 	 * @param[in] enabled この固定入力で期待する閲覧可否です。
@@ -1386,14 +1442,16 @@ struct MainWindowMetadataTestAccess {
 						 (!enabled || IsWindowEnabled( window.providerSourcesButton_) != FALSE)) ;
 		DestroyMenu( menu) ;
 	}
-	/** @brief 実menuと同じ独立commandから確定summaryを開きます。
+	/**
+	 * @brief 実menuと同じ独立commandから確定summaryを開きます。
 	 * @param[in,out] window 同scopeの本物Windowです。
 	 */
 	static void openRefreshDetails( MainWindow &window)
 	{
 		SendMessageW( window.window_, WM_COMMAND, IDM_INDEX_REFRESH_DETAILS, 0) ;
 	}
-	/** @brief 実dialog呼出しが渡した生成本文を内部観測へcopyします。
+	/**
+	 * @brief 実dialog呼出しが渡した生成本文を内部観測へcopyします。
 	 * @param[in] window 同dialogを同期表示しているUI threadのWindowです。
 	 * @return 埋込NULも保持する実生成本文です。可視証拠ではありません。
 	 */
@@ -1401,7 +1459,8 @@ struct MainWindowMetadataTestAccess {
 	{
 		return window.testIndexRefreshDetailBody_ ;
 	}
-	/** @brief 元publicationの同版候補を実Tree行へ照合し推奨一括選択対象外を確認します。
+	/**
+	 * @brief 元publicationの同版候補を実Tree行へ照合し推奨一括選択対象外を確認します。
 	 * @param[in,out] window 元scan/取得終端を受理した本物Windowです。
 	 * @param[in,out] context 同一入力の集計先です。
 	 */
@@ -1512,7 +1571,8 @@ struct MainWindowMetadataTestAccess {
 
 		return std::nullopt ;
 	}
-	/** @brief 元planへ対象別承認を結び、実controllerとworkerで取得を開始します。
+	/**
+	 * @brief 元planへ対象別承認を結び、実controllerとworkerで取得を開始します。
 	 * @param[in,out] window 元scanの候補とplanを保持する本物Windowです。
 	 * @param[in] plan 元workerが発行したplanです。
 	 * @return 同controllerの承認と実queue登録の双方が成功した場合trueです。
@@ -1538,14 +1598,16 @@ struct MainWindowMetadataTestAccess {
 		window.preparationCompleted_ = 0U ;
 		return window.worker_->requestPreparation( approval) ;
 	}
-	/** @brief 元本物MainWindowの通常取得commandから確認dialogを開始します。
+	/**
+	 * @brief 元本物MainWindowの通常取得commandから確認dialogを開始します。
 	 * @param[in,out] window 原scan/planを保持する実Windowです。
 	 */
 	static void reviewIndexPlan( MainWindow &window)
 	{
 		SendMessageW( window.window_, WM_COMMAND, IDC_PREPARATION, 0) ;
 	}
-	/** @brief 通常取得commandが保持した元対象別承認を同UI threadへ貸します。
+	/**
+	 * @brief 通常取得commandが保持した元対象別承認を同UI threadへ貸します。
 	 * @param[in] window 原scan/planと承認を保持する実Windowです。
 	 * @return 次の取得commandまたはworker dispatchまで有効な原承認です。
 	 */
@@ -1553,7 +1615,8 @@ struct MainWindowMetadataTestAccess {
 	{
 		return window.preparationApproval_ ;
 	}
-	/** @brief 元planの全文/出典/改訂/対象差替えを実controllerで拒否します。
+	/**
+	 * @brief 元planの全文/出典/改訂/対象差替えを実controllerで拒否します。
 	 * @param[in,out] window 元scanの実Windowです。
 	 * @param[in,out] context 元assertionの集計先です。
 	 * @param[in] plan 改変前のworker計画です。
@@ -1608,7 +1671,8 @@ struct MainWindowMetadataTestAccess {
 					  << (window.controller_.state() == ApplicationState::SCAN_READY) << '\n' ;
 		}
 	}
-	/** @brief 本体発行eventを既存私有dispatchへ通します。
+	/**
+	 * @brief 本体発行eventを既存私有dispatchへ通します。
 	 * @param[in,out] window 同operationの本物Windowです。
 	 * @param[in] event Workerから受けた所有通知です。
 	 */
@@ -1616,7 +1680,8 @@ struct MainWindowMetadataTestAccess {
 	{
 		window.processWorkerEvent( event) ;
 	}
-	/** @brief 結果確定後の旧scan要求を本物worker queueへ送ります。
+	/**
+	 * @brief 結果確定後の旧scan要求を本物worker queueへ送ります。
 	 * @param[in,out] window 結果を保持する同じ本物Windowです。
 	 * @param[in] operationId 元導入より後の有限な拒否要求IDです。
 	 * @param[in] scanSessionId 完了により失効した元scanです。
@@ -1630,7 +1695,8 @@ struct MainWindowMetadataTestAccess {
 		return window.worker_->requestInstall( operationId, scanSessionId, identities, nullptr,
 											  InstallProtectionMode::WINDOWS_RESTORE_POINT) ;
 	}
-	/** @brief 元scanに保持した全candidateを同期観測へ貸し出します。
+	/**
+	 * @brief 元scanに保持した全candidateを同期観測へ貸し出します。
 	 * @param[in] window 同じUI threadの所有Windowです。
 	 * @return 次のdispatchまでだけ有効な候補集合です。
 	 */
@@ -1638,7 +1704,8 @@ struct MainWindowMetadataTestAccess {
 	{
 		return window.candidates_ ;
 	}
-	/** @brief 通常rowの未選択と元candidateへのcheckbox対応を確認します。
+	/**
+	 * @brief 通常rowの未選択と元candidateへのcheckbox対応を確認します。
 	 * @param[in,out] window Publicationを受理した本物Windowです。
 	 * @param[in,out] context Assertion集計先です。
 	 * @param[in] identities 元publicationの選択可能candidateだけです。
@@ -1678,7 +1745,8 @@ struct MainWindowMetadataTestAccess {
 										(IsWindowEnabled( window.installButton_) != FALSE) ==
 											!identities.empty()) ;
 	}
-	/** @brief 同じ実確認dialogとworker requestを使って導入操作を開始します。
+	/**
+	 * @brief 同じ実確認dialogとworker requestを使って導入操作を開始します。
 	 * @param[in,out] window 元選択を保持する本物Windowです。
 	 */
 	static void beginIndexInstall( MainWindow &window)
@@ -1872,7 +1940,8 @@ struct MainWindowMetadataTestAccess {
 		DRIVERCRATE_EXPECT( context, text.find( window.loadString( IDS_SELECTION_REQUIRED)) !=
 										std::wstring_view::npos) ;
 	}
-	/** @brief 実確認dialogの対象・版・境界・復旧の本文を確認します。
+	/**
+	 * @brief 実確認dialogの対象・版・境界・復旧の本文を確認します。
 	 * @param[in] window 確認を作成した本物Windowです。
 	 * @param[in,out] context Assertion集計先です。
 	 * @param[in] text 実標準dialogから読んだ全文です。
@@ -1899,7 +1968,8 @@ struct MainWindowMetadataTestAccess {
 		DRIVERCRATE_EXPECT( context, text.find( window.loadString( IDS_INDEX_INSTALLER_WARNING)) !=
 										std::wstring::npos) ;
 	}
-	/** @brief 元表示にないidentityと旧sessionの導入開始を実controllerで拒否します。
+	/**
+	 * @brief 元表示にないidentityと旧sessionの導入開始を実controllerで拒否します。
 	 * @param[in,out] window 元publicationの有効sessionを保持する本物Windowです。
 	 * @param[in,out] context Assertion集計先です。
 	 * @param[in] identities 元publicationで発行したIDだけです。
@@ -1917,7 +1987,8 @@ struct MainWindowMetadataTestAccess {
 													   identities, InstallConfirmation::CONFIRMED)
 										 .accepted) ;
 	}
-	/** @brief 実結果rowと旧sessionの再選択拒否を確認します。
+	/**
+	 * @brief 実結果rowと旧sessionの再選択拒否を確認します。
 	 * @param[in,out] window 同install終端を受理済みの本物Windowです。
 	 * @param[in,out] context Assertion集計先です。
 	 * @param[in] result 実workerの個別結果です。
@@ -2001,7 +2072,8 @@ struct MainWindowMetadataTestAccess {
 			}
 		}
 	}
-	/** @brief 所有候補と外部copyの詳細表示を同じ製品整形へ通します。
+	/**
+	 * @brief 所有候補と外部copyの詳細表示を同じ製品整形へ通します。
 	 * @param[in] window 元候補と実行結果を保持するWindowです。
 	 * @param[in] candidate 同期中だけ借用する候補です。
 	 * @return 製品と同じ読取り専用本文です。
@@ -2010,7 +2082,8 @@ struct MainWindowMetadataTestAccess {
 	{
 		return window.formatCandidateDetails( candidate) ;
 	}
-	/** @brief 元二候補の固定役割結果だけを表示専用入力として与えます。
+	/**
+	 * @brief 元二候補の固定役割結果だけを表示専用入力として与えます。
 	 * @param[in,out] window 実worker終端により既に失効したWindowです。
 	 * @param[in] result 二候補の元部分結果です。変更しません。
 	 * @note 役割fixtureは元native結果ではありません。Providerやcontrollerを再実行しません。
@@ -2050,7 +2123,8 @@ struct MainWindowMetadataTestAccess {
 			 .reflection	 = DriverPlanReflectionState::FAILED}} ;
 		window.displayInstallResult( fixture, window.controller_.scanSessionId()) ;
 	}
-	/** @brief 保持結果の所有境界と失効した入力の拒否を確認します。
+	/**
+	 * @brief 保持結果の所有境界と失効した入力の拒否を確認します。
 	 * @param[in,out] window 二初回候補の実worker終端を受理したWindowです。
 	 * @param[in,out] context 元assertionの集計先です。
 	 * @param[in] result 同じ二候補の元部分結果です。
@@ -2719,7 +2793,8 @@ struct MainWindowMetadataTestAccess {
 
 		DRIVERCRATE_EXPECT( context, window.checkedCandidateIndexes().empty()) ;
 	}
-	/** @brief 詳細閲覧前後の指定候補とcheckboxを値で比較します。
+	/**
+	 * @brief 詳細閲覧前後の指定候補とcheckboxを値で比較します。
 	 * @param[in] window 同UI threadの所有Window。
 	 * @return 候補選択と各device行の指定indexを含むsnapshot。
 	 */
@@ -2734,7 +2809,8 @@ struct MainWindowMetadataTestAccess {
 
 		return values ;
 	}
-	/** @brief 名前・版・driver観測がないdeviceにも同じ詳細を開けるfixtureを作ります。
+	/**
+	 * @brief 名前・版・driver観測がないdeviceにも同じ詳細を開けるfixtureを作ります。
 	 * @param[in,out] window 通常scanを受理できる所有Window。
 	 * @param[in,out] context 元assertion集計先。
 	 */
@@ -2761,7 +2837,8 @@ struct MainWindowMetadataTestAccess {
 										window.candidateItems_.front() != nullptr &&
 										TreeView_GetCount( window.updateTree_) == 2U) ;
 	}
-	/** @brief 診断fixtureだけで元controllerへ一件の合成完了を渡します。
+	/**
+	 * @brief 診断fixtureだけで元controllerへ一件の合成完了を渡します。
 	 * @param[in,out] window 有効な通常local候補の所有Windowです。
 	 * @param[in,out] context 元assertion集計先です。
 	 */
@@ -2805,7 +2882,8 @@ struct MainWindowMetadataTestAccess {
 										window.checkedCandidateIndexes().empty() &&
 										!window.selectDeviceCandidate( 1U)) ;
 	}
-	/** @brief 既status帯の匿名保存案内と元候補数を確認します。
+	/**
+	 * @brief 既status帯の匿名保存案内と元候補数を確認します。
 	 * @param[in] window 所有候補と実controlです。
 	 * @param[in,out] context 元集計先です。
 	 * @param[in] failed 固定失敗案内を期待する場合trueです。
@@ -2824,7 +2902,8 @@ struct MainWindowMetadataTestAccess {
 							 std::wstring_view( text).find( L"3/8/1/29/") != std::wstring_view::npos) ;
 		}
 	}
-	/** @brief 所有する取得計画へ同deviceの新版/旧版参照を結ぶ表示fixtureです。
+	/**
+	 * @brief 所有する取得計画へ同deviceの新版/旧版参照を結ぶ表示fixtureです。
 	 * @param[in,out] window 同期試験の所有Windowです。
 	 * @param[in,out] context 原失敗を保持する集計先です。
 	 */
@@ -2967,7 +3046,8 @@ struct MainWindowMetadataTestAccess {
 		DRIVERCRATE_EXPECT( context, !window.selectDeviceCandidate( 2U)) ;
 		DRIVERCRATE_EXPECT( context, window.selectDeviceCandidate( 4U)) ;
 	}
-	/** @brief 実行権限を作らず、既観測fixtureで最新解消の有限な表示条件を確認します。
+	/**
+	 * @brief 実行権限を作らず、既観測fixtureで最新解消の有限な表示条件を確認します。
 	 * @param[in,out] window 元scan/planを受理する所有Windowです。
 	 * @param[in,out] context 正負のassertion集計先です。
 	 * @param[in] variant 元の固定15条件の一つです。
@@ -3067,7 +3147,8 @@ struct MainWindowMetadataTestAccess {
 				  << " expected=" << expected << " realOS=0\n"
 				  << std::flush ;
 	}
-	/** @brief 実checkboxから全候補表示へ切り替えます。
+	/**
+	 * @brief 実checkboxから全候補表示へ切り替えます。
 	 * @param[in,out] window 元plan/候補を保持するWindowです。
 	 */
 	static void historyShowAll( MainWindow &window)
@@ -3075,10 +3156,11 @@ struct MainWindowMetadataTestAccess {
 		SendMessageW( window.recommendedOnlyCheckbox_, BM_SETCHECK, BST_UNCHECKED, 0) ;
 		window.handleRecommendedFilterChange() ;
 	}
-	/** @brief 同版/未知/計画欠測を同じ元参照の表示copyへ一要因で与えます。
-     * @param[in,out] window 所有する原planと候補です。
-     * @param[in] variant 0同版、1未知版、2計画欠測、3元旧版へ復帰します。
-     */
+	/**
+	 * @brief 同版/未知/計画欠測を同じ元参照の表示copyへ一要因で与えます。
+	 * @param[in,out] window 所有する原planと候補です。
+	 * @param[in] variant 0同版、1未知版、2計画欠測、3元旧版へ復帰します。
+	 */
 	static void historyVariant( MainWindow &window, const unsigned variant)
 	{
 		auto &candidate	  = window.candidates_[2] ;	// 原旧版参照だけです。
@@ -3086,7 +3168,8 @@ struct MainWindowMetadataTestAccess {
 		candidate.preparationTargetIdentity = variant == 2U ? L"missing-target" : L"history-target" ;
 		window.populateCandidates( window.candidates_) ;
 	}
-	/** @brief 元選択二件と複数分類で準備失敗後の表示と権限を確認します。
+	/**
+	 * @brief 元選択二件と複数分類で準備失敗後の表示と権限を確認します。
 	 * @param[in,out] window 同private desktopの所有Windowです。
 	 * @param[in,out] context 原assertionの集計先です。
 	 * @param[in] variant 取得/内容/適用性/発行/結合/summary/取消し/遅延/表示選択拒否の番号です。
@@ -3369,7 +3452,8 @@ struct MainWindowMetadataTestAccess {
 		DRIVERCRATE_EXPECT( context, window.preparationResultText_.find(
 										window.loadString( expected)) != std::wstring::npos) ;
 	}
-	/** @brief 元checkbox枠/意図を実行権限から分離し入力拒否を確認します。
+	/**
+	 * @brief 元checkbox枠/意図を実行権限から分離し入力拒否を確認します。
 	 * @param[in,out] window 準備失敗後の元Windowです。
 	 * @param[in,out] context このprocessの原集計先です。
 	 * @param[in] variant 元九条件の番号です。
@@ -3471,7 +3555,8 @@ struct MainWindowMetadataTestAccess {
 													  TVIS_STATEIMAGEMASK) >>
 								12U) == 2U) ;
 	}
-	/** @brief 合成install終端だけから個別完了checkの解除と未処理保持を確認します。
+	/**
+	 * @brief 合成install終端だけから個別完了checkの解除と未処理保持を確認します。
 	 * @param[in,out] window 新たに明示選択した元WUA候補のWindowです。
 	 * @param[in,out] context このprocessの原集計先です。
 	 * @param[in] variant 成功/失敗/取消/未処理/役割待ち/引継ぎ/重複/遅延/復旧失敗です。
@@ -3567,7 +3652,8 @@ struct MainWindowMetadataTestAccess {
 													  TVIS_STATEIMAGEMASK) >>
 								12U) == 3U) ;
 	}
-	/** @brief 新scanで旧表示snapshotを捨てることを確認します。
+	/**
+	 * @brief 新scanで旧表示snapshotを捨てることを確認します。
 	 * @param[in,out] window 準備不成立後の所有Windowです。
 	 * @param[in,out] context 原assertionの集計先です。
 	 */
@@ -3577,10 +3663,11 @@ struct MainWindowMetadataTestAccess {
 		DRIVERCRATE_EXPECT( context, window.preparationDisplaySession_ == 0U &&
 										window.preparationDisplayBindings_.empty()) ;
 	}
-	/** @brief 取得後旧版のUI停止はworker成功DTOの人工注入として独立確認します。
-     * @param[in,out] window 元参照を保持した同scanのWindowです。
-     * @param[in,out] context 元集計先です。
-     */
+	/**
+	 * @brief 取得後旧版のUI停止はworker成功DTOの人工注入として独立確認します。
+	 * @param[in,out] window 元参照を保持した同scanのWindowです。
+	 * @param[in,out] context 元集計先です。
+	 */
 	static void historyPreparedBlock( MainWindow &window, test::TestContext &context)
 	{
 		window.preparationApproval_.installIntentIdentities = {window.candidates_[2].identity} ;
@@ -3595,11 +3682,12 @@ struct MainWindowMetadataTestAccess {
 											window.loadString( IDS_INSTALL_PREPARATION_DOWNGRADE)) !=
 											std::wstring::npos) ;
 	}
-	/** @brief 正常scanから検査済み旧版または拒否候補の閲覧/取消しを確認する表示入力です。
-     * @param[in,out] window 元fake workerの所有Windowです。
-     * @param[in,out] context 正常scanの集計先です。
-     * @param[in] blocked trueなら非適合で選択不可の索引候補へします。
-     */
+	/**
+	 * @brief 正常scanから検査済み旧版または拒否候補の閲覧/取消しを確認する表示入力です。
+	 * @param[in,out] window 元fake workerの所有Windowです。
+	 * @param[in,out] context 正常scanの集計先です。
+	 * @param[in] blocked trueなら非適合で選択不可の索引候補へします。
+	 */
 	static void historyLocalScan( MainWindow &window, test::TestContext &context,
 								 const bool blocked = false)
 	{
@@ -3649,7 +3737,8 @@ struct MainWindowMetadataTestAccess {
 		window.showRecommendedOnly_ = false ;
 		window.populateCandidates( window.candidates_) ;
 	}
-	/** @brief 元同scanの二参照へ表示同一性と一field差だけを置きます。
+	/**
+	 * @brief 元同scanの二参照へ表示同一性と一field差だけを置きます。
 	 * @param[in,out] window 元planと候補を保持するWindowです。
 	 * @param[in,out] context 元候補/選択の集計先です。
 	 * @param[in] variant 0は同内容、1〜6は別情報、7は個別結果です。
@@ -3717,11 +3806,12 @@ struct MainWindowMetadataTestAccess {
 			DRIVERCRATE_EXPECT( context, window.selectDeviceCandidate( 2U)) ;
 		}
 	}
-	/** @brief 初期highlightの有限条件を既同scan/元planへ置きます。
- * @param[in,out] window 元五候補の所有Windowです。
- * @param[in,out] context 元失敗を保持する集計先です。
- * @param[in] variant 数値/明示/暗黙/初回/readonly等の固定条件です。
- */
+	/**
+	 * @brief 初期highlightの有限条件を既同scan/元planへ置きます。
+	 * @param[in,out] window 元五候補の所有Windowです。
+	 * @param[in,out] context 元失敗を保持する集計先です。
+	 * @param[in] variant 数値/明示/暗黙/初回/readonly等の固定条件です。
+	 */
 	static void historyLatestVariant( MainWindow &window, test::TestContext &context,
 									 const unsigned variant)
 	{
@@ -3832,10 +3922,11 @@ struct MainWindowMetadataTestAccess {
 			window.treeRows_[window.candidateRowIndexes_[1]] ;	// 元checkboxへの一件結合です。
 		row.explicitCandidateChoice = variant == 2U || variant == 17U ;
 	}
-	/** @brief 新scanの拒否後も残る旧表示の選択を失効します。
-     * @param[in,out] window 同じprivate fake Windowです。
-     * @param[in,out] context 正規状態遷移の集計先です。
-     */
+	/**
+	 * @brief 新scanの拒否後も残る旧表示の選択を失効します。
+	 * @param[in,out] window 同じprivate fake Windowです。
+	 * @param[in,out] context 正規状態遷移の集計先です。
+	 */
 	static void historyInvalidate( MainWindow &window, test::TestContext &context)
 	{
 		const auto		 begin = window.controller_.beginScan() ;	// 新scanが旧sessionを失効します。
@@ -3938,7 +4029,8 @@ struct MainWindowMetadataTestAccess {
 		return window.closeAfterMetadataSearch_ ;
 	}
 
-	/** @brief 登録済み参照とCode28初回を同じ通常filter・実controlで区別します。
+	/**
+	 * @brief 登録済み参照とCode28初回を同じ通常filter・実controlで区別します。
 	 * @param[in,out] window 完全fake factoryを持つ内部Windowです。
 	 * @param[in,out] context 原失敗を保持するassertion集計先です。
 	 * @note 表示専用の人工入力であり、選択後に取得・導入commandを送信しません。
@@ -4280,7 +4372,8 @@ struct MainWindowMetadataTestAccess {
 				  << " failures=" << context.failureCount() - failures << '\n' ;
 	}
 
-	/** @brief 再検出段階・終端事実・未取得metadata案内と旧通知拒否を確認します。
+	/**
+	 * @brief 再検出段階・終端事実・未取得metadata案内と旧通知拒否を確認します。
 	 * @param[in,out] window 実native処理を持たないfake Windowです。
 	 * @param[in,out] context Assertion集計先です。
 	 */
@@ -4378,7 +4471,8 @@ struct MainWindowMetadataTestAccess {
 		window.hardwareRefresh_ = HardwareRefreshResult{true, HardwareRefreshStage::REENUMERATE} ;
 	}
 
-	/** @brief 取得待ち案内を混在候補数・filterと分離し、取得能力がない場合は表示しません。
+	/**
+	 * @brief 取得待ち案内を混在候補数・filterと分離し、取得能力がない場合は表示しません。
 	 * @param[in,out] window 先行するhardware表示試験を終えた非通信Windowです。
 	 * @param[in,out] context Assertion集計先です。
 	 */
@@ -4548,7 +4642,8 @@ struct MainWindowMetadataTestAccess {
 		/// 垂直scrollの元位置です。
 		int						  vertical{} ;
 	} ;
-	/** @brief 自作TreeViewの二階層だけから元の表示状態を読みます。
+	/**
+	 * @brief 自作TreeViewの二階層だけから元の表示状態を読みます。
 	 * @param[in] window 同private desktopの所有Windowです。
 	 * @return 結果やcheckを含まない同itemの比較値です。
 	 */
@@ -4591,7 +4686,8 @@ struct MainWindowMetadataTestAccess {
 		view.vertical	= GetScrollPos( window.updateTree_, SB_VERT) ;
 		return view ;
 	}
-	/** @brief 結果反映の前後で元行集合・順序・表示位置が完全に同じことを確認します。
+	/**
+	 * @brief 結果反映の前後で元行集合・順序・表示位置が完全に同じことを確認します。
 	 * @param[in] window 結果を反映した所有Windowです。
 	 * @param[in] before 操作前の比較値です。
 	 * @param[in,out] context このprocessの原集計先です。
@@ -4617,7 +4713,8 @@ struct MainWindowMetadataTestAccess {
 										after.horizontal == before.horizontal &&
 										after.vertical == before.vertical) ;
 	}
-	/** @brief 準備で追加された候補が元同deviceのitemへ正確に結合したことを確認します。
+	/**
+	 * @brief 準備で追加された候補が元同deviceのitemへ正確に結合したことを確認します。
 	 * @param[in] window 準備終端を受理した所有Windowです。
 	 * @param[in] originalCount 準備前の元候補数です。
 	 * @param[in,out] context 元assertion集計先です。
@@ -4646,7 +4743,8 @@ struct MainWindowMetadataTestAccess {
 			}
 		}
 	}
-	/** @brief 多数行・混在開閉・非零scrollのまま一対象だけ完了させます。
+	/**
+	 * @brief 多数行・混在開閉・非零scrollのまま一対象だけ完了させます。
 	 * @param[in,out] window 実Providerを呼ばない所有Windowです。
 	 * @param[in,out] context 元assertionの集計先です。
 	 * @param[in] filter 通常filterをONにする場合trueです。
@@ -4802,7 +4900,8 @@ struct MainWindowMetadataTestAccess {
 								   window.checkedCandidateIndexes().empty()) ;
 		}
 	}
-	/** @brief 選択した二deviceの事後観測だけを元行へ反映し、元結果と失効を保持します。
+	/**
+	 * @brief 選択した二deviceの事後観測だけを元行へ反映し、元結果と失効を保持します。
 	 * @param[in,out] window 先行する非通信表示試験を終えたWindowです。
 	 * @param[in] event 同じworkerが発行した元導入終端です。
 	 */
@@ -4811,7 +4910,8 @@ struct MainWindowMetadataTestAccess {
 		window.processWorkerEvent( event) ;
 	}
 
-	/** @brief 元結果の九条件で現在観測・個別結果・旧scan失効と元表示名を確認します。
+	/**
+	 * @brief 元結果の九条件で現在観測・個別結果・旧scan失効と元表示名を確認します。
 	 * @param[in,out] window 非通信factoryを持つ所有Windowです。
 	 * @param[in,out] context 原assertion集計先です。
 	 * @param[in] deliver 元結果dialogを閉じる同期関数です。
@@ -5645,11 +5745,13 @@ namespace {
  */
 using Access = MainWindowMetadataTestAccess ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同processの標準control本文を有限長で取得する。
  * @param[in] window 本試験が作成したWindowまたはcontrol。
  * @return 所有本文。異常な長さの場合は空。
  */
+//------------------------------------------------------------------------------
 std::wstring windowText( const HWND window)
 {
 	const int length = GetWindowTextLengthW( window) ;	// 同process controlの文字数。
@@ -5664,11 +5766,13 @@ std::wstring windowText( const HWND window)
 	return result ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief HWNDを破棄せず、有限待機中も通常messageをdispatchする。
  * @param[in] done 終了条件。UI threadでだけ同期実行する。
  * @return 五秒以内に条件を満たした場合true。
  */
+//------------------------------------------------------------------------------
 bool pumpUntil( const std::function<bool()> &done)
 {
 	const auto deadline =
@@ -5744,10 +5848,13 @@ thread_local unsigned		  independentRasterCaptures{} ;
 // 新描画の保存境界assertionだけを元VUI分母と区別します。
 thread_local std::size_t	  independentRenderAssertions{} ;
 
-/** @brief 非機密な実edit本文の同一性を撮影前後だけで比較します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 非機密な実edit本文の同一性を撮影前後だけで比較します。
  * @param[in] window 同fixtureのdialogまたは親Windowです。
  * @return UTF-16 code unit順の非暗号hashです。認証用途には使用しません。
  */
+//------------------------------------------------------------------------------
 std::uint64_t				  captureBodyHash( const HWND window)
 {
 	const auto text =
@@ -5766,7 +5873,8 @@ std::uint64_t				  captureBodyHash( const HWND window)
 /** @brief 実captureの全return経路で生存/本文/幾何とdepthを観測します。 */
 class CaptureObservation final {
 public:
-	/** @brief 同fixture所有HWNDの撮影開始を記録します。
+	/**
+	 * @brief 同fixture所有HWNDの撮影開始を記録します。
 	 * @param[in] window 撮影対象です。他アプリのhandleを渡しません。
 	 * @param[in] name 呼出元が所有する固定ASCII basenameです。
 	 */
@@ -5778,13 +5886,16 @@ public:
 		captureTelemetry.maxDepth = std::max( captureTelemetry.maxDepth, captureTelemetry.depth) ;
 		record( "begin") ;
 	}
-	/** @brief 早期returnも含め実終了順序を記録してdepthを戻します。 */
+	/**
+	 * @brief 早期returnも含め実終了順序を記録してdepthを戻します。
+	 */
 	~CaptureObservation()
 	{
 		record( "end") ;
 		--captureTelemetry.depth ;
 	}
-	/** @brief 同captureのWin32とWICの段階境界を記録します。
+	/**
+	 * @brief 同captureのWin32とWICの段階境界を記録します。
 	 * @param[in] phase 固定ASCII段階名です。
 	 */
 	void record( const char *phase) const
@@ -5837,7 +5948,9 @@ private:
 /** @brief timerの自然発生再入を全return経路で計測します。 */
 class CaptureTimerObservation final {
 public:
-	/** @brief capture中のcallback数と最大depthだけを実測します。 */
+	/**
+	 * @brief capture中のcallback数と最大depthだけを実測します。
+	 */
 	CaptureTimerObservation() : artificial_( artificialCaptureTimer)
 	{
 		// 人工callbackを自然発生の証拠へ足しません。
@@ -5862,7 +5975,9 @@ public:
 					  << " captureDepth=" << captureTelemetry.depth << '\n' ;
 		}
 	}
-	/** @brief callbackの所有scopeを抜けた場合だけdepthを戻します。 */
+	/**
+	 * @brief callbackの所有scopeを抜けた場合だけdepthを戻します。
+	 */
 	~CaptureTimerObservation()
 	{
 		--captureTelemetry.timerDepth ;
@@ -5873,7 +5988,11 @@ private:
 	bool artificial_{} ;
 } ;
 
-/** @brief 自然発生の実call数をunique画像数と区別して報告します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 自然発生の実call数をunique画像数と区別して報告します。
+ */
+//------------------------------------------------------------------------------
 void printCaptureTelemetry()
 {
 	std::cout << "CAPTURE_SUMMARY calls=" << captureTelemetry.calls
@@ -5900,7 +6019,9 @@ struct CaptureSurface {
 	HBITMAP bitmap{} ;
 	/// Memory DCへ元々選択されていた非所有object。
 	HGDIOBJ previous{} ;
-	/** @brief Bitmap選択を戻してGDI resourceを解放する。 */
+	/**
+	 * @brief Bitmap選択を戻してGDI resourceを解放する。
+	 */
 	~CaptureSurface()
 	{
 		// 選択中bitmapをDeleteObjectへ渡さない。
@@ -5920,6 +6041,7 @@ struct CaptureSurface {
 	}
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 合成WindowをPNGへ保存し、実desktopや端末情報をcaptureしない。
  * @param[in] window 本試験で作成したWindow。
@@ -5927,6 +6049,7 @@ struct CaptureSurface {
  * @param[in] visibleFrameOnly trueならREADME用に可視captionとclient左右下端を保存します。
  * @return PrintWindowとPNG保存の全段階が成功した場合true。
  */
+//------------------------------------------------------------------------------
 bool captureWindow( const HWND window, const std::wstring_view name,
 				   const bool visibleFrameOnly = false)
 {
@@ -6083,12 +6206,15 @@ struct RenderRaster {
 	std::vector<BYTE> bytes ;
 } ;
 
-/** @brief 寸法と16MiB上限を検証し、原pixel保存先を初期化します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 寸法と16MiB上限を検証し、原pixel保存先を初期化します。
  * @param[in] width Pixel幅です。
  * @param[in] height Pixel高さです。
  * @param[out] raster 成功時の有限保存先です。
  * @return 正の有限寸法を受理した場合trueです。
  */
+//------------------------------------------------------------------------------
 bool initializeRenderRaster( const UINT width, const UINT height, RenderRaster &raster)
 {
 	// 計算前に寸法を制限し、乗算とUINTへの切詰めを防ぎます。
@@ -6110,13 +6236,16 @@ bool initializeRenderRaster( const UINT width, const UINT height, RenderRaster &
 	return true ;
 }
 
-/** @brief 同fixtureのWIC sourceを比較用BGR形式へcopyします。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同fixtureのWIC sourceを比較用BGR形式へcopyします。
  * @param[in] factory 同UI threadの非null factoryです。
  * @param[in] source 同captureが所有する非null sourceです。
  * @param[out] raster 成功時の原copyです。失敗時は比較に使用しません。
  * @return 変換と全文copyが成功した場合trueです。
  * @note decode形式を揃えるだけで文字の追加や画像の補填をしません。
  */
+//------------------------------------------------------------------------------
 bool copyRenderWicPixels( IWICImagingFactory *factory, IWICBitmapSource *source,
 						 RenderRaster &raster)
 {
@@ -6135,11 +6264,14 @@ bool copyRenderWicPixels( IWICImagingFactory *factory, IWICBitmapSource *source,
 		nullptr, raster.stride, static_cast<UINT>( raster.bytes.size()), raster.bytes.data())) ;
 }
 
-/** @brief 自fixtureの原pixelを新しい一fileへ保存します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 自fixtureの原pixelを新しい一fileへ保存します。
  * @param[in] path 新限定入口の固定出力名です。
  * @param[in] raster 保存する原copyです。
  * @return 上書きせず全文保存できた場合trueです。
  */
+//------------------------------------------------------------------------------
 bool saveRenderRaw( const std::filesystem::path &path, const RenderRaster &raster)
 {
 	// 元の失敗artifactと同名の再実行結果を上書きしません。
@@ -6155,13 +6287,16 @@ bool saveRenderRaw( const std::filesystem::path &path, const RenderRaster &raste
 	return !output.fail() ;
 }
 
-/** @brief 二つの原pixel矩形のRGB不一致画素数を計算します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 二つの原pixel矩形のRGB不一致画素数を計算します。
  * @param[in] first 最初の原copyです。
  * @param[in] second 比較する原copyです。
  * @param[in] firstRect 最初のcopy内の半開pixel矩形です。
  * @param[in] secondRect 比較copy内の同寸法矩形です。
  * @return 不一致pixel数です。不正矩形はsize_t最大値です。
  */
+//------------------------------------------------------------------------------
 std::size_t renderPixelDifferences( const RenderRaster &first, const RenderRaster &second,
 								   const RECT &firstRect, const RECT &secondRect)
 {
@@ -6200,7 +6335,9 @@ std::size_t renderPixelDifferences( const RenderRaster &first, const RenderRaste
 	return differences ;
 }
 
-/** @brief 同fixtureだけを一回描画し、GDI/WIC/PNGの原copyを全て保持します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同fixtureだけを一回描画し、GDI/WIC/PNGの原copyを全て保持します。
  * @param[in] popup 同scopeの生存詳細dialogです。
  * @param[in] target 同dialogまたはそのread-only editです。
  * @param[in] name 事前固定したASCII basenameです。
@@ -6209,6 +6346,7 @@ std::size_t renderPixelDifferences( const RenderRaster &first, const RenderRaste
  * @return 保存と全RGB境界比較が成功した場合trueです。
  * @note 固定sleep・再試行・desktop読出し・他画像による補填は行いません。
  */
+//------------------------------------------------------------------------------
 bool captureRenderRaster( const HWND popup, const HWND target, const std::wstring_view name,
 						 const bool directClient, RenderRaster &original)
 {
@@ -6380,12 +6518,15 @@ bool captureRenderRaster( const HWND popup, const HWND target, const std::wstrin
 	return gdiWic == 0U && wicPng == 0U ;
 }
 
-/** @brief 元fresh/cacheの同位相で全体と独立editの原矩形を比較します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元fresh/cacheの同位相で全体と独立editの原矩形を比較します。
  * @param[in] popup 同fixtureが所有する生存詳細dialogです。
  * @param[in] stage 元fresh/cacheの前後を示す固定ASCII名です。
  * @param[in,out] context 新描画の保存境界結果を集計します。
  * @note 比較画像をcrop・合成せず、差と未知を元のまま報告します。
  */
+//------------------------------------------------------------------------------
 void captureIndependentRefreshEvidence( const HWND popup, const char *stage, TestContext &context)
 {
 	const auto before = context.assertionCount() ;						// 新描画assertionだけの開始分母です。
@@ -6505,10 +6646,13 @@ enum class DialogMode {
 	INDEX_INSTALL_SELECTION_REQUIRED,
 } ;
 
-/** @brief 同scopeが通常取得dialogを操作するmodeだけを判定します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scopeが通常取得dialogを操作するmodeだけを判定します。
  * @param[in] mode 一つの事前固定したdialog判断です。
  * @return 本物の取得確認dialogを操作するmodeならtrueです。
  */
+//------------------------------------------------------------------------------
 bool isPreparationDialogMode( const DialogMode mode) noexcept
 {
 	return mode == DialogMode::INDEX_PREPARATION_ACCEPT ||
@@ -6611,10 +6755,13 @@ struct DialogState {
 	unsigned		   detailEntryCount{} ;
 } ;
 
-/** @brief 同threadかつ同dialogが所有するtooltipだけを探す。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同threadかつ同dialogが所有するtooltipだけを探す。
  * @param[in] dialog Fixture自身のdialog。
  * @return 実tooltip、存在しなければnullptr。
  */
+//------------------------------------------------------------------------------
 HWND deviceTipWindow( const HWND dialog)
 {
 	struct Search {
@@ -6641,10 +6788,13 @@ HWND deviceTipWindow( const HWND dialog)
 	return search.result ;
 }
 
-/** @brief 可視の実native tooltipから現在の短文を読む。
+//------------------------------------------------------------------------------
+/**
+ * @brief 可視の実native tooltipから現在の短文を読む。
  * @param[in] dialog Fixture所有dialog。
  * @return 実表示文。非表示なら空文字。
  */
+//------------------------------------------------------------------------------
 std::wstring deviceTipText( const HWND dialog)
 {
 	const HWND tip = deviceTipWindow( dialog) ;	// 別windowのtooltipを読みません。
@@ -6665,10 +6815,13 @@ std::wstring deviceTipText( const HWND dialog)
 	return text ;
 }
 
-/** @brief 自分のnative tooltipの退場だけを有限時間観測します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 自分のnative tooltipの退場だけを有限時間観測します。
  * @param[in] dialog Fixtureが所有するdialogです。
  * @return 500ms以内に実tooltipが非表示になった場合trueです。
  */
+//------------------------------------------------------------------------------
 bool waitDeviceTipHidden( const HWND dialog)
 {
 	const HWND tip		= deviceTipWindow( dialog) ;	// 他のdialogの通知は処理しません。
@@ -6691,12 +6844,15 @@ bool waitDeviceTipHidden( const HWND dialog)
 	return deviceTipText( dialog).empty() ;
 }
 
-/** @brief 選択を変更せず実cellの文字へmouse hoverをreplayする。
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択を変更せず実cellの文字へmouse hoverをreplayする。
  * @param[in] dialog Fixture所有dialog。
  * @param[in] row 実row。
  * @param[in] column 実column。
  * @return 実tooltipの表示文。
  */
+//------------------------------------------------------------------------------
 std::wstring hoverDeviceCell( const HWND dialog, const int row, const int column)
 {
 	const HWND table = GetDlgItem( dialog, IDC_DEVICE_DETAIL_CANDIDATES) ;	// 実tableです。
@@ -6718,22 +6874,28 @@ std::wstring hoverDeviceCell( const HWND dialog, const int row, const int column
 	return deviceTipText( dialog) ;
 }
 
-/** @brief 説明を持たないcellへ移動した後の実tooltip退場を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 説明を持たないcellへ移動した後の実tooltip退場を確認します。
  * @param[in] dialog Fixtureが所有するdialogです。
  * @param[in] row 退場条件を試す元rowです。
  * @param[in] column 同じtableの元columnです。
  * @return 実tooltipが非表示になった場合trueです。
  */
+//------------------------------------------------------------------------------
 bool emptyDeviceTipAfterHover( const HWND dialog, const int row, const int column)
 {
 	static_cast<void>( hoverDeviceCell( dialog, row, column)) ;
 	return waitDeviceTipHidden( dialog) ;
 }
 
-/** @brief 非機密な通信説明だけをUTF-16 code unitのASCII列へ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 非機密な通信説明だけをUTF-16 code unitのASCII列へ変換します。
  * @param[in] value 本有限fixtureの通信本文です。端末ID/URLを渡しません。
  * @return NULを省略しない一unit四桁のhex列です。
  */
+//------------------------------------------------------------------------------
 std::string refreshTextHex( const std::wstring_view value)
 {
 	constexpr char DIGITS[] = "0123456789abcdef" ;	// Code unitを欠落なく残す固定文字です。
@@ -6754,10 +6916,13 @@ thread_local std::size_t refreshExactAssertions{} ;
 // 実fresh/cacheの前後dialog到達数を旧入力数へ混ぜません。
 thread_local unsigned	 refreshDetailObservations{} ;
 
-/** @brief 実本文と実可視editのcopy/geometry/独立数値を同じdialogで分離観測します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実本文と実可視editのcopy/geometry/独立数値を同じdialogで分離観測します。
  * @param[in] edit 同fixture所有の実read-only editです。
  * @param[in,out] state 同UI threadが保持する元fresh/cache入力と観測先です。
  */
+//------------------------------------------------------------------------------
 void					 inspectRefreshDetail( const HWND edit, DialogState &state)
 {
 	const auto before =
@@ -6880,11 +7045,13 @@ void					 inspectRefreshDetail( const HWND edit, DialogState &state)
 // 全dialog操作は単一UI threadで直列に行う。製品global hookは使わない。
 thread_local DialogState *activeDialog{} ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Metadata dialogの初期状態・keyboard選択・未対応拒否を確認する。
  * @param[in] dialog 本試験Windowが所有する同期dialog。
  * @param[in,out] state Timerの借用状態。
  */
+//------------------------------------------------------------------------------
 void					  exerciseSelectionDialog( const HWND dialog, DialogState &state)
 {
 	auto	  &context		  = *state.context ;									// Assertionの参照先。
@@ -6968,12 +7135,15 @@ struct DialogControlLookup {
 	/// 元dialogの子孫として観測した非所有handleです。
 	HWND found{} ;
 } ;
-/** @brief EnumChildWindows境界内で元control IDを照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief EnumChildWindows境界内で元control IDを照合します。
  * @param[in] child 原所有dialogの子孫controlです。
  * @param[in] parameter 同期列挙中だけ生存する検索状態への非所有pointerです。
  * @return 一致を観測した場合FALSE、未一致なら列挙継続のTRUEです。
  * @note Win32 callbackのLPARAM境界でだけpointerを復元し、例外を漏らしません。
  */
+//------------------------------------------------------------------------------
 BOOL CALLBACK findDialogControlCallback( const HWND child, const LPARAM parameter) noexcept
 {
 	// Win32同期callbackが借用する同scopeの検索状態です。
@@ -6986,11 +7156,14 @@ BOOL CALLBACK findDialogControlCallback( const HWND child, const LPARAM paramete
 
 	return TRUE ;
 }
-/** @brief TaskDialog内部paneを含む元dialogの子孫controlを取得します。
+//------------------------------------------------------------------------------
+/**
+ * @brief TaskDialog内部paneを含む元dialogの子孫controlを取得します。
  * @param[in] dialog 同試験所有popupです。Desktopや他windowは列挙しません。
  * @param[in] identity 元dialog定義のcontrol IDです。
  * @return 元dialogの子孫で一致した非所有handle。未存在ならnullptrです。
  */
+//------------------------------------------------------------------------------
 HWND findDialogControl( const HWND dialog, const int identity) noexcept
 {
 	// 同期Win32列挙中だけ生存する検索状態です。
@@ -6999,6 +7172,7 @@ HWND findDialogControl( const HWND dialog, const int identity) noexcept
 	return lookup.found ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同期dialogのmessage loopから、本試験所有Windowだけを操作する。
  * @param[in] window Timerの未使用Window。
@@ -7006,6 +7180,7 @@ HWND findDialogControl( const HWND dialog, const int identity) noexcept
  * @param[in] timer 未使用のtimer ID。
  * @param[in] ticks 未使用のsystem tick。
  */
+//------------------------------------------------------------------------------
 void CALLBACK dialogTimer( HWND window, UINT message, UINT_PTR timer, DWORD ticks) noexcept
 {
 	CaptureTimerObservation timerObservation ;	// 本callbackの実depthを例外経路でも戻します。
@@ -7740,7 +7915,9 @@ public:
 		timer_		 = SetTimer( nullptr, 0U, 20U, dialogTimer) ;
 		state.failed = timer_ == 0U ;
 	}
-	/** @brief Timer解除後に借用先を外し、遅延通知を無効化する。 */
+	/**
+	 * @brief Timer解除後に借用先を外し、遅延通知を無効化する。
+	 */
 	~DialogDriver()
 	{
 		// 生成できたtimerだけを終了する。
@@ -7756,10 +7933,13 @@ private:
 	UINT_PTR timer_{} ;
 } ;
 
-/** @brief 人工のcapture中callbackと自然発生観測を別分母で検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 人工のcapture中callbackと自然発生観測を別分母で検査します。
  * @param[in,out] context 旧五/六caseやexact60とは独立した集計先です。
  * @note 新しいbitmapや画像は作らず、実callbackのcapture限定guardを決定的に通します。
  */
+//------------------------------------------------------------------------------
 void runCaptureGuardRegression( TestContext &context)
 {
 	const auto before		 = context.assertionCount() ;		// 追加timer試験だけの開始分母です。
@@ -7817,6 +7997,7 @@ void runCaptureGuardRegression( TestContext &context)
 			  << " artificialBlocks=" << captureTelemetry.artificialBlocks - blocks << '\n' ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 専用buttonから本物の条件dialogを操作する。
  * @param[in,out] window 非通信factoryを設定済みのWindow。
@@ -7824,6 +8005,7 @@ void runCaptureGuardRegression( TestContext &context)
  * @param[in] cancel 条件選択を取消す場合true。
  * @param[in] queueFailure Queue停止後の固定errorを期待する場合true。
  */
+//------------------------------------------------------------------------------
 void beginMetadata( MainWindow &window, TestContext &context, const bool cancel = false,
 				   const bool queueFailure = false)
 {
@@ -7850,11 +8032,13 @@ void beginMetadata( MainWindow &window, TestContext &context, const bool cancel 
 	DRIVERCRATE_EXPECT( context, state.errors == (queueFailure ? 1U : 0U)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Metadata専用の処理中または取消し待ちかを判定する。
  * @param[in] window UI thread所有のWindow。
  * @return 終端event未受理ならtrue。
  */
+//------------------------------------------------------------------------------
 bool metadataBusy( const MainWindow &window)
 {
 	const auto state = Access::controller( window).state() ;	// 現在の状態機械。
@@ -7862,11 +8046,13 @@ bool metadataBusy( const MainWindow &window)
 		   state == ApplicationState::CANCELLING_METADATA_SEARCH ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 現DPI・最小sizeで新buttonやstatusの配置を確認する。
  * @param[in] window 実標準controlを持つ非通信Window。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void verifyGeometry( const MainWindow &window, TestContext &context)
 {
 	const HWND handle = Access::handle( window) ;	// 本試験のtop-level。
@@ -7943,12 +8129,15 @@ void verifyGeometry( const MainWindow &window, TestContext &context)
 	}
 }
 
-/** @brief 検索・明示選択Installの二段階を本物UI/workerと完全低位fakeで確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 検索・明示選択Installの二段階を本物UI/workerと完全低位fakeで確認します。
  * @param[in,out] context 原assertionの集計先です。
  * @param[in] viewOnly 元一件/混在候補の二条件だけで準備中の表示保持を確認する場合trueです。
- * @note 元署名・ZIP・INF閉包と実queueを使い、HTTP/Windows/復旧/指定導入は既存の完全fakeです。
  * @throws std::bad_alloc 元fixture ownerを確保できない場合。既試験の例外捕捉へ渡します。
+ * @note 元署名・ZIP・INF閉包と実queueを使い、HTTP/Windows/復旧/指定導入は既存の完全fakeです。
  */
+//------------------------------------------------------------------------------
 void runSearchPreparationUiScenarios( TestContext &context, const bool viewOnly = false)
 {
 	using Native = SignedIndexBindingNativeCase ;	// 元Windows低位fixtureの有限条件です。
@@ -8471,10 +8660,13 @@ void runSearchPreparationUiScenarios( TestContext &context, const bool viewOnly 
 			  << " failures=" << context.failureCount() - failuresBefore << '\n' ;
 }
 
-/** @brief 同taskの一取得本体と未消費routeを同scan第二Installへ接続します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同taskの一取得本体と未消費routeを同scan第二Installへ接続します。
  * @param[in,out] context 原assertionです。
  * @param[in] localReuse 別recordの独立時刻窓/新LOCAL claimを確認する場合trueです。
-	 */
+ */
+//------------------------------------------------------------------------------
 void runTargetOnlySharedUiScenario( TestContext &context, const bool localReuse = false)
 {
 	using Native = SignedIndexBindingNativeCase ;	// 原Ports二nativeです。
@@ -8631,11 +8823,14 @@ void runTargetOnlySharedUiScenario( TestContext &context, const bool localReuse 
 			  << std::flush ;
 }
 
-/** @brief 同低位Ports二nativeの直接DS一件後に同scanの第二Installを確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同低位Ports二nativeの直接DS一件後に同scanの第二Installを確認します。
  * @param[in,out] context 正負の原assertion集計先です。
  * @param[in] latestView 正常一件だけ再起動不要を明示し最新解消表示を確認します。
  * @note WUA/HTTP/復旧/指定導入は完全fake、実OS変更はありません。
  */
+//------------------------------------------------------------------------------
 void runTargetOnlyLocalUiScenario( TestContext &context, const bool latestView = false)
 {
 	using Native = SignedIndexBindingNativeCase ;	// 原低位条件です。
@@ -8710,9 +8905,12 @@ void runTargetOnlyLocalUiScenario( TestContext &context, const bool latestView =
 			  << std::flush ;
 }
 
-/** @brief 同じ非通信Windowで最新解消の既知新版/未確認等を有限確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ非通信Windowで最新解消の既知新版/未確認等を有限確認します。
  * @param[in,out] context 原assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void runLatestBoundaryUiScenarios( TestContext &context)
 {
 	// 元history fixtureと同じく各条件を独立したWindow/scanへ結びます。
@@ -8739,9 +8937,12 @@ void runLatestBoundaryUiScenarios( TestContext &context)
 	}
 }
 
-/** @brief 元結果九条件と非零scroll二条件を既fake HWNDで有限確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元結果九条件と非零scroll二条件を既fake HWNDで有限確認します。
  * @param[in,out] context 原assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void runInstallTreeViewUiScenarios( TestContext &context)
 {
 	auto	   state = std::make_shared<MetadataUiState>() ;	// 実Provider/復旧呼出しを禁止します。
@@ -8782,9 +8983,12 @@ void runInstallTreeViewUiScenarios( TestContext &context)
 	std::cout << "INSTALL_VIEW_END resultCases=9 scrolledCases=2 physicalInput=0 realOS=0\n" ;
 }
 
-/** @brief 新検索前段階と既存取得前案内だけを非通信Windowで確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 新検索前段階と既存取得前案内だけを非通信Windowで確認します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void runHardwareRefreshUiScenarios( TestContext &context)
 {
 	auto	   state = std::make_shared<MetadataUiState>() ;	// 正規fake factoryだけです。
@@ -8866,10 +9070,12 @@ void runHardwareRefreshUiScenarios( TestContext &context)
 	std::cout << "Hardware refresh UI: native CM/token/query/install=0\n" ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 通常・失敗・取消しの終端一覧と専用dialogを操作する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runUiScenarios( TestContext &context)
 {
 	auto	   state = std::make_shared<MetadataUiState>() ;	// WorkerとUIが共有する非機密counter。
@@ -9111,11 +9317,13 @@ void runUiScenarios( TestContext &context)
 	DRIVERCRATE_EXPECT( context, IsWindow( handle) == FALSE) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Window closeの非blocking取消し待ちとqueue拒否を確認する。
  * @param[in,out] context Assertion集計先。
  * @param[in] queueOnly 終了待ちではなくqueue拒否だけを独立processで試験する場合true。
  */
+//------------------------------------------------------------------------------
 void runCloseAndQueue( TestContext &context, const bool queueOnly)
 {
 	auto	   state = std::make_shared<MetadataUiState>() ;	// 待機だけを注入する合成worker状態。
@@ -9172,9 +9380,12 @@ void runCloseAndQueue( TestContext &context, const bool queueOnly)
 									state->restoreCalls == 0U) ;
 }
 
-/** @brief 同内容表示と別情報の有限八条件を元plan/実詳細へ通します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同内容表示と別情報の有限八条件を元plan/実詳細へ通します。
  * @param[in,out] context 原失敗を保持する集計先です。
  */
+//------------------------------------------------------------------------------
 void runHistoryDisplayUiScenarios( TestContext &context)
 {
 	// 各条件はfresh Windowと元五候補/同planで独立に確認します。
@@ -9232,9 +9443,12 @@ void runHistoryDisplayUiScenarios( TestContext &context)
 		<< "DISPLAY_IDENTITY_UI cases=8 originalCandidates=5 originalPlan=1 network=0 install=0\n" ;
 }
 
-/** @brief 準備不成立後の全device/元参照/開閉と実行拒否を有限確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 準備不成立後の全device/元参照/開閉と実行拒否を有限確認します。
  * @param[in,out] context 原assertionの集計先です。
  */
+//------------------------------------------------------------------------------
 void runPreparationFailureUiScenarios( TestContext &context)
 {
 	// 九つの固定原因だけを別Windowへ送り、実取得や実導入は行いません。
@@ -9290,10 +9504,13 @@ void runPreparationFailureUiScenarios( TestContext &context)
 	}
 }
 
-/** @brief 製品loggerと実status/結果dialogを非通信fixtureへ接続します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 製品loggerと実status/結果dialogを非通信fixtureへ接続します。
  * @param[in,out] context 元assertion集計先です。
  * @param[in] failed 固定writer失敗を注入する場合trueです。
  */
+//------------------------------------------------------------------------------
 void runDiagnosticUiScenarios( TestContext &context, const bool failed)
 {
 	startLocalDiagnostics() ;
@@ -9370,9 +9587,12 @@ void runDiagnosticUiScenarios( TestContext &context, const bool failed)
 			  << " dropped=" << storage.dropped << '\n' ;
 }
 
-/** @brief 最新候補の初期閲覧と元一件選択の非干渉を有限条件で確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 最新候補の初期閲覧と元一件選択の非干渉を有限条件で確認します。
  * @param[in,out] context 原失敗を保持する集計先です。
  */
+//------------------------------------------------------------------------------
 void runHistoryLatestUiScenarios( TestContext &context)
 {
 	constexpr std::array<int, 18> initialRows{2, 1, 1, 2, 2,  0, 0, 0, 2,
@@ -9461,10 +9681,13 @@ void runHistoryLatestUiScenarios( TestContext &context)
 		<< "LATEST_HIGHLIGHT_UI cases=18 originalPlan=1 beforeChooseSelectionUnchanged=1 network=0 install=0\n" ;
 }
 
-/** @brief 同device新版/旧版の実詳細を元planから開く限定回帰です。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同device新版/旧版の実詳細を元planから開く限定回帰です。
  * @param[in,out] context 初回期待失敗も保持する元集計先です。
  * @param[in] keysOnly trueなら失敗後のkeyboard診断だけへ限定します。
  */
+//------------------------------------------------------------------------------
 void runHistoryUiScenarios( TestContext &context, const bool keysOnly = false)
 {
 	std::cout << std::unitbuf ;
@@ -9763,9 +9986,12 @@ void runHistoryUiScenarios( TestContext &context, const bool keysOnly = false)
 	runHistoryLatestUiScenarios( context) ;
 }
 
-/** @brief 初回参照の実worker/元planをfresh private Windowのtableへ接続します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 初回参照の実worker/元planをfresh private Windowのtableへ接続します。
  * @param[in,out] context 元集計先です。
  */
+//------------------------------------------------------------------------------
 void runHistoryInitialUiScenarios( TestContext &context)
 {
 	std::cout << std::unitbuf ;						// 段階到達だけを原pipeへ直ちに保持します。
@@ -9830,11 +10056,13 @@ void runHistoryInitialUiScenarios( TestContext &context)
 									state->restoreCalls == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 本物MainWindowの索引結果受入を隠した標準controlで検証します。
  * @param[in,out] context Assertion集計先。
  * @note Fake workerとHWNDは例外時も停止・破棄し、実Providerへfallbackしません。
  */
+//------------------------------------------------------------------------------
 void runIndexUiScenarios( TestContext &context)
 {
 	auto	   state = std::make_shared<MetadataUiState>() ;	// 呼出しなしを確認する既存fake状態。
@@ -9877,10 +10105,13 @@ void runIndexUiScenarios( TestContext &context)
 		<< "Index UI fixture: hidden window, fake calls0, real network/inventory/restore/install0, candidate success0\n" ;
 }
 
-/** @brief 固定refresh・実隔離commit・queue・通常画面を五条件で確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定refresh・実隔離commit・queue・通常画面を五条件で確認します。
  * @param[in,out] context 旧assertionを保持する集計先です。
  * @note HTTPは完全fakeのP4回帰と分離し、この群は実隔離storeのworker接続です。
  */
+//------------------------------------------------------------------------------
 void runRefreshUiScenarios( TestContext &context)
 {
 	const auto originalAssertions = context.assertionCount() ;	// 旧五caseだけの開始分母です。
@@ -10088,10 +10319,13 @@ void runRefreshUiScenarios( TestContext &context)
 			  << " failures=" << context.failureCount() - originalFailures << '\n' ;
 }
 
-/** @brief 同一本体の再利用後も通常workerとMainWindowが候補を保持することを確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一本体の再利用後も通常workerとMainWindowが候補を保持することを確認します。
  * @param[in,out] context 元refresh二入力と分ける原assertionです。
  * @note Refresh終端だけを固定し、後続loadは元の実隔離storeを全再認証します。
  */
+//------------------------------------------------------------------------------
 void runUnchangedRefreshUiScenario( TestContext &context)
 {
 	const auto firstAssertion = context.assertionCount() ;	// この一条件だけの開始分母です。
@@ -10183,11 +10417,14 @@ void runUnchangedRefreshUiScenario( TestContext &context)
 			  << " failures=" << context.failureCount() - firstFailure << '\n' ;
 }
 
-/** @brief VUI01–06の固定入力で実menu/可視editと元同版publicationを確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief VUI01–06の固定入力で実menu/可視editと元同版publicationを確認します。
  * @param[in,out] context 原五caseと区別して加算する集計先です。
  * @param[in] probeOnly 元fresh/cacheだけを画像なしで観測し、修正後の受入と区別する場合trueです。
  * @note 実network/実inventory/実導入を使用しません。画像はDebug五枚・Release三枚です。
  */
+//------------------------------------------------------------------------------
 void runVisibleRefreshUiScenarios( TestContext &context, const bool probeOnly = false)
 {
 	const auto originalAssertions = context.assertionCount() ;	// 新六caseだけの開始分母です。
@@ -10454,10 +10691,13 @@ void runVisibleRefreshUiScenarios( TestContext &context, const bool probeOnly = 
 			  << " assertions=" << refreshExactAssertions - exactBefore << '\n' ;
 }
 
-/** @brief 真署名・実byte・同bindingから本物MainWindowの通常選択と導入結果を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 真署名・実byte・同bindingから本物MainWindowの通常選択と導入結果を確認します。
  * @param[in,out] context Assertion集計先です。
  * @note 実導入APIは完全低位fakeだけです。失敗caseを分母から除かず元診断を残します。
  */
+//------------------------------------------------------------------------------
 void runSignedIndexBindingUiScenarios( TestContext &context)
 {
 	const auto		 before			= context.assertionCount() ;	// 新有限caseの開始assertion数です。
@@ -10793,10 +11033,13 @@ void runSignedIndexBindingUiScenarios( TestContext &context)
 			  << ", native CAT positive UNCONFIRMED, driver coverage increase0\n" ;
 }
 
-/** @brief 原HTML全文から通常取得command・同active task・候補publicationへ固定正負を通します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原HTML全文から通常取得command・同active task・候補publicationへ固定正負を通します。
  * @param[in,out] context 原assertion分母の集計先です。
  * @note 真署名は既存RAM鍵fixtureだけです。HTTP/CAT/rankは完全低位fakeで、実取得や導入に数えません。
  */
+//------------------------------------------------------------------------------
 void runPreparationCommandUiScenarios( TestContext &context)
 {
 	using Native = SignedIndexBindingNativeCase ;	// 既存完全低位Windows境界だけです。
@@ -11410,7 +11653,9 @@ struct ApprovedIndexTaskProbeState {
 	std::array<ApprovedIndexTaskProbeReceipt, 2U> receipts{} ;
 } ;
 
-/** @brief 実claim済み元taskのcopyだけを変え、本物grant発行の拒否と不変状態を観測します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実claim済み元taskのcopyだけを変え、本物grant発行の拒否と不変状態を観測します。
  * @param[in,out] state 同workerのstop/joinまで共有所有する非null観測stateです。
  * @param[in,out] preparation 元workerがapprove/claimNextした実sessionです。同期中だけ借用します。
  * @param[in] task 同じprivate active taskの未変更所有値です。参照を保持せずcopyします。
@@ -11420,6 +11665,7 @@ struct ApprovedIndexTaskProbeState {
  * @param[in] scan 同workerの元summary所有者です。同期中だけ借用し内容処理を開始しません。
  * @note 例外はfailedへ保存し、元状態を復元しません。UI assertionは実終端の同期後だけです。
  */
+//------------------------------------------------------------------------------
 void observeApprovedIndexTask( void *state, OfficialPreparationSession &preparation,
 							  const OfficialPreparationTask &task,
 							  SignedIndexAcquisitionAdapter &adapter, IndexLookupContext context,
@@ -11514,11 +11760,14 @@ void observeApprovedIndexTask( void *state, OfficialPreparationSession &preparat
 	}
 }
 
-/** @brief 固定した規約・条件・CAB・installerを真署名/同worker/本物画面へ通します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定した規約・条件・CAB・installerを真署名/同worker/本物画面へ通します。
  * @param[in,out] context 元assertion集計先です。
  * @param[in] orderProbe 空は元29case、非空は確認要否に応じた一caseの有限順序試験です。
  * @note 原失敗や未到達を保持し、成功DTOまたは実network/起動を使用しません。
  */
+//------------------------------------------------------------------------------
 void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 											const std::string_view orderProbe = {})
 {
@@ -12638,23 +12887,29 @@ void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 	}
 }
 
-/** @brief 二初回候補の失効後に各履歴を通常の実詳細dialogから読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 二初回候補の実行権限消費後に各履歴を通常の実詳細dialogから読みます。
  * @param[in,out] window 元workerの部分結果を保持するWindowです。
  * @param[in,out] context 元assertionの集計先です。
  * @param[in] result 同じ二候補の元成功・失敗と原診断です。
  * @param[in] roles 表示専用の必要構成fixtureを確認する場合trueです。
+ * @param[in] expectedScanSessionId 元planが結合した非0のscanです。観測した実値から補完しません。
  */
+//------------------------------------------------------------------------------
 void verifyExpiredInitialDetails( MainWindow &window, TestContext &context,
-								 const InstallResult &result, const bool roles)
+								 const InstallResult &result, const bool roles,
+								 const ScanSessionId expectedScanSessionId)
 {
 	const auto candidates = Access::indexCandidates( window) ;	// Modal中も変更しない元所有集合です。
-	DRIVERCRATE_EXPECT( context, result.updates.size() == 2U &&
-									result.updates[0].installOutcome == OutcomeCode::SUCCESS &&
-									result.updates[0].installError == 0 &&
-									result.updates[1].installOutcome == OutcomeCode::FAILURE &&
-									result.updates[1].installError ==
-										static_cast<NativeError>( E_ACCESSDENIED) &&
-									Access::controller( window).scanSessionId() == 0U) ;
+	DRIVERCRATE_EXPECT(
+		context, result.updates.size() == 2U &&
+					 result.updates[0].installOutcome == OutcomeCode::SUCCESS &&
+					 result.updates[0].installError == 0 &&
+					 result.updates[1].installOutcome == OutcomeCode::FAILURE &&
+					 result.updates[1].installError == static_cast<NativeError>( E_ACCESSDENIED) &&
+					 expectedScanSessionId != 0U &&
+					 Access::controller( window).scanSessionId() == expectedScanSessionId) ;
 	std::wstring firstDevice ;	// 同名でも異なる実opaque deviceを要求します。
 	// 元結果の同candidateを探し、別deviceの履歴が混ざらないことを実controlで確認します。
 	for( std::size_t ordinal{}; ordinal < result.updates.size(); ++ordinal) {
@@ -12726,12 +12981,15 @@ void verifyExpiredInitialDetails( MainWindow &window, TestContext &context,
 	}
 }
 
-/** @brief 固定した複数INF・共有・初回・登録先条件を元workerと本物画面へ通します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定した複数INF・共有・初回・登録先条件を元workerと本物画面へ通します。
  * @param[in,out] context 原assertion集計先です。
  * @param[in] unknownClassOnly 新しい固定24条件と既知三回帰だけを実行する場合trueです。
- * @note 成功candidate DTOは作らず、全入力を真RSA索引・原ZIP・完全低位fakeから生成します。
  * @param[in] historyResultsOnly 元U21の二候補の失効詳細だけを確認する場合trueです。
+ * @note 成功candidate DTOは作らず、全入力を真RSA索引・原ZIP・完全低位fakeから生成します。
  */
+//------------------------------------------------------------------------------
 void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownClassOnly = false,
 									const bool historyResultsOnly = false)
 {
@@ -13244,10 +13502,10 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 				Access::verifyIndexResultRows( window, context, result) ;
 				// 利用者が遭遇した二初回partial終端を実詳細本文まで通します。
 				if( caseName == "U21") {
-					verifyExpiredInitialDetails( window, context, result, false) ;
+					verifyExpiredInitialDetails( window, context, result, false, plan.scanSessionId) ;
 					Access::verifyExpiredHistoryBoundary( window, context, result) ;
 					Access::displayRoleHistoryFixture( window, result) ;
-					verifyExpiredInitialDetails( window, context, result, true) ;
+					verifyExpiredInitialDetails( window, context, result, true, plan.scanSessionId) ;
 					DialogState rejected{
 						.context = &context,
 						.owner	 = handle,
@@ -13275,8 +13533,13 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 					// 古い通知で消してはいけない実結果です。
 					Access::displayText( window) ;
 				Access::dispatchIndex( window, *prepared) ;
+				// U21は元ownerを保ち、他caseの従来の全失効条件は変更しません。
+				const ScanSessionId expectedLateSession =
+					caseName == "U21" ? plan.scanSessionId : 0U ;
 				DRIVERCRATE_EXPECT( context, Access::displayText( window) == retained &&
-												Access::controller( window).scanSessionId() == 0U) ;
+												(caseName != "U21" || plan.scanSessionId != 0U) &&
+												Access::controller( window).scanSessionId() ==
+													expectedLateSession) ;
 				// 代表三条件はUI拒否だけでなく失効した元worker権限へ実要求を送り直します。
 				if( caseName == "M01" || caseName == "S01" || caseName == "I01" ||
 				   caseName == "U01" || caseName == "U02") {
@@ -13391,12 +13654,15 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 	DRIVERCRATE_EXPECT( context, executed == (historyResultsOnly ? 1U : 27U)) ;
 }
 
-/** @brief 元141/root-onlyと固定19依存条件を本物通常画面/dialog/製品workerへ直列に通します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元141/root-onlyと固定19依存条件を本物通常画面/dialog/製品workerへ直列に通します。
  * @param[in,out] context 元未到達と失敗も保持する集計先です。
  * @param[in] needsOnly trueの場合は同固定表の追加19依存条件だけを実行します。既存分母を変更しません。
  * @param[in] extensionOnly trueの場合は登録Extension保持の固定八条件だけを実行します。
  * @note CAT/native低位は隔離完全fakeです。実CAT/実device/実導入成功を意味しません。
  */
+//------------------------------------------------------------------------------
 void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const bool needsOnly = false,
 												const bool extensionOnly = false)
 {
@@ -14070,7 +14336,8 @@ struct NativeControlChecks {
 	unsigned assertions{} ;
 	/// 不成立だった追加期待数です。
 	unsigned failures{} ;
-	/** @brief 名前付き期待の実値を記録します。
+	/**
+	 * @brief 名前付き期待の実値を記録します。
 	 * @param[in] name 固定した非機密な期待名です。
 	 * @param[in] value 実API観測から求めた結果です。
 	 */
@@ -14098,7 +14365,9 @@ struct NativeModalState {
 // 同期MessageBox scopeだけを借用し、timer回収後に解除します。
 thread_local NativeModalState *nativeModal{} ;
 
-/** @brief Message照会前にpopupのprocessとthreadを現在の所有scopeへ照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Message照会前にpopupのprocessとthreadを現在の所有scopeへ照合します。
  * @param[in] process 観測したpopupのPIDです。
  * @param[in] thread 観測したpopupのthread IDです。
  * @param[in] expectedProcess 現在の試験PIDです。0は許可しません。
@@ -14106,6 +14375,7 @@ thread_local NativeModalState *nativeModal{} ;
  * @return 非0の期待PIDとthreadが両方一致する場合trueです。
  * @note 数値だけの純粋判定であり、window照会やmessage送信は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool			   nativeModalIdentityAllowed( const DWORD process, const DWORD thread,
 														  const DWORD expectedProcess,
 														  const DWORD expectedThread) noexcept
@@ -14114,7 +14384,9 @@ thread_local NativeModalState *nativeModal{} ;
 		   thread == expectedThread ;
 }
 
-/** @brief 所有関係とmodalの観測が揃った場合だけYESまたはNOを許可します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有関係とmodalの観測が揃った場合だけYESまたはNOを許可します。
  * @param[in] ownedPopup 自作ownerと異なるpopupがそのownerへ属する場合trueです。
  * @param[in] ownerDisabled Modalにより自作ownerが無効の場合trueです。
  * @param[in] defaultButton 実DM_GETDEFIDで観測したbutton IDです。
@@ -14123,6 +14395,7 @@ thread_local NativeModalState *nativeModal{} ;
  * @pre 実windowに使う場合はnativeModalIdentityAllowedの成功後であること。
  * @note 数値だけの純粋判定であり、window照会やmessage送信は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool nativeModalClickAllowed( const bool ownedPopup, const bool ownerDisabled,
 										   const UINT defaultButton, const int button) noexcept
 {
@@ -14130,12 +14403,15 @@ thread_local NativeModalState *nativeModal{} ;
 		   (button == IDYES || button == IDNO) ;
 }
 
-/** @brief 自作ownerの実popupだけを元と同じ20ms timerから操作します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 自作ownerの実popupだけを元と同じ20ms timerから操作します。
  * @param[in] window Thread timerの未使用HWNDです。
  * @param[in] message 未使用のmessageです。
  * @param[in] timer 当該scopeが所有するtimer IDです。
  * @param[in] ticks 未使用のtick値です。
  */
+//------------------------------------------------------------------------------
 void CALLBACK nativeModalTimer( HWND window, UINT message, UINT_PTR timer, DWORD ticks) noexcept
 {
 	static_cast<void>( window) ;
@@ -14177,9 +14453,12 @@ void CALLBACK nativeModalTimer( HWND window, UINT message, UINT_PTR timer, DWORD
 	SendDlgItemMessageW( popup, state.button, BM_CLICK, 0, 0) ;
 }
 
-/** @brief 起動・実UI/workerと元の終了手順を新制御だけで確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 起動・実UI/workerと元の終了手順を新制御だけで確認します。
  * @param[in,out] checks 元UI期待とは独立した集計先です。
  */
+//------------------------------------------------------------------------------
 void nativeStartupControl( NativeControlChecks &checks)
 {
 	auto	   state = std::make_shared<MetadataUiState>() ;	// 既存fakeだけの共有状態です。
@@ -14206,9 +14485,12 @@ void nativeStartupControl( NativeControlChecks &checks)
 				 state->forbiddenCalls == 0U && state->restoreCalls == 0U) ;
 }
 
-/** @brief 実YES/NO・既定NOとWM_CLOSE後の所有HWND消失を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実YES/NO・既定NOとWM_CLOSE後の所有HWND消失を確認します。
  * @param[in,out] checks 追加期待の集計先です。
  */
+//------------------------------------------------------------------------------
 void nativeModalControl( NativeControlChecks &checks)
 {
 	HWND owner = CreateWindowExW( 0U, L"STATIC", L"DriverCrate synthetic modal owner",
@@ -14255,10 +14537,13 @@ void nativeModalControl( NativeControlChecks &checks)
 	checks.check( "standalone-WM_CLOSE-owned-HWND-gone", !IsWindow( owner)) ;
 }
 
-/** @brief 共通の環境key・modal許可判定の固定正負例と実YES/NOを確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通の環境key・modal許可判定の固定正負例と実YES/NOを確認します。
  * @param[in,out] checks 元UI期待と独立した新boundaryの集計先です。
  * @note 全entryとIDは架空です。外部windowと実環境値は負例に使用しません。
  */
+//------------------------------------------------------------------------------
 void nativeBoundaryControl( NativeControlChecks &checks)
 {
 	// 共通選択predicateへ渡す架空entryと除去可否です。順序と分母を固定します。
@@ -14310,10 +14595,13 @@ void nativeBoundaryControl( NativeControlChecks &checks)
 	nativeModalControl( checks) ;
 }
 
-/** @brief live HWND時の所属拒否と実cleanupエラーの伝播を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief live HWND時の所属拒否と実cleanupエラーの伝播を検査します。
  * @param[in,out] checks 追加期待の集計先です。
  * @param[in] errors Launch失敗とcleanup拒否も検査する場合trueです。
  */
+//------------------------------------------------------------------------------
 void nativeReassignControl( NativeControlChecks &checks, const bool errors)
 {
 	const HDESK original  = GetThreadDesktop( GetCurrentThreadId()) ;	// 子初期desktopを借用します。
@@ -14379,10 +14667,13 @@ void nativeReassignControl( NativeControlChecks &checks, const bool errors)
 	checks.check( "reassign-secondary-closed", CloseDesktop( secondary) != FALSE) ;
 }
 
-/** @brief 明示control familyを元UI期待と独立して実行します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示control familyを元UI期待と独立して実行します。
  * @param[in] mode 起動前に固定したcontrol名です。
  * @return 新controlの成功は0、失敗は1です。held-childは親が74で終端します。
  */
+//------------------------------------------------------------------------------
 int runNativeControl( const std::string_view mode)
 {
 	NativeControlChecks checks ;	// 元453期待に追加しない独立分母です。
@@ -14433,6 +14724,7 @@ int runNativeControl( const std::string_view mode)
 
 } // namespace drivercrate::test
 
+//------------------------------------------------------------------------------
 /**
  * @brief 明示optionでだけ非通信Win32画面試験を実行する。
  * @param[in] argc 引数数。
@@ -14445,6 +14737,7 @@ int runNativeControl( const std::string_view mode)
  * @retval 74 所有子が期限切れとなり、同作成handleの終端を確認しました。
  * @retval 75 監督の初期化・起動・所有後始末または例外処理が失敗しました。
  */
+//------------------------------------------------------------------------------
 int main( const int argc, char **argv)
 {
 	const std::string_view mode = argc == 3 ? argv[2] : "default" ;	// 元の外部modeです。

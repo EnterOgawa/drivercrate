@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_internal.h
  * @brief 私有索引候補sessionの内部固定fixture接続を定義します。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.02.00 Shunji Ogawa  2026/10/15  発行前条件の非機密な内部同期観測を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/10/28  既検証WUA候補と未取得索引の明示混在fixtureを追加。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -56,25 +57,30 @@ struct InstallerNativeCalls {
 /** @brief 同worker threadだけへ完全なlaunch fixtureを固定する単独所有scopeです。 */
 class ScopedInstallerFixture final {
 public:
-	/** @brief 当該scopeの低位表だけを解除します。 */
+	/**
+	 * @brief 当該scopeの低位表だけを解除します。
+	 */
 	~ScopedInstallerFixture() noexcept ;
-	/** @brief 固定表のscope複製を禁止します。
+	/**
+	 * @brief 固定表のscope複製を禁止します。
 	 * @param[in] other 借用scopeです。本constructorは呼出し禁止です。
 	 */
 	ScopedInstallerFixture( const ScopedInstallerFixture &other) = delete ;
-	/** @brief 固定表のscope代入を禁止します。
+	/**
+	 * @brief 固定表のscope代入を禁止します。
 	 * @param[in] other 借用scopeです。本演算子は呼出し禁止です。
-	 * @return 本演算子は呼出し禁止です。
 	 */
 	ScopedInstallerFixture &operator=( const ScopedInstallerFixture &other) = delete ;
-	/** @brief 同scopeで固定した全低位表を借用します。
+	/**
+	 * @brief 同scopeで固定した全低位表を借用します。
 	 * @return 本scopeが生存する間だけ有効な完全表です。
 	 */
 	[[nodiscard]] const InstallerNativeCalls &calls() const noexcept ;
 
 private:
 	friend struct Access ;
-	/** @brief 完全表を同threadへ固定します。
+	/**
+	 * @brief 完全表を同threadへ固定します。
 	 * @param[in] calls 欠損のないWindows ABI表です。
 	 */
 	explicit ScopedInstallerFixture( InstallerNativeCalls calls) noexcept ;
@@ -118,7 +124,8 @@ struct PublicationDiagnostic {
 using PublicationObserver = void ( *)( const PublicationDiagnostic &, void *) noexcept ;
 /** @brief 通常workerと同じprivate本体接続の内部試験入口です。 */
 struct Access {
-	/** @brief 混在試験だけの明示fakeを既存WUA registryへ接続します。
+	/**
+	 * @brief 混在試験だけの明示fakeを既存WUA registryへ接続します。
 	 * @param[in,out] provider 同workerだけが所有する本物Compositeです。
 	 * @param[in] fake 実WUA APIを持たない完全な試験用Providerです。
 	 * @return 既存WUA slotをscan/installとも置換できた場合trueです。
@@ -155,18 +162,21 @@ struct Access {
 
 		return false ;
 	}
-	/** @brief 同threadだけの同期非機密観測を登録または解除します。
+	/**
+	 * @brief 同threadだけの同期非機密観測を登録または解除します。
 	 * @param[in] observer 解除時はnullです。元処理の結果を変更できません。
 	 * @param[in,out] state 同期呼出し中だけ借用する観測所有者です。
 	 */
 	static void observePublication( PublicationObserver observer, void *state) noexcept ;
-	/** @brief 完全なlaunch表だけを同worker threadへ結合します。
+	/**
+	 * @brief 完全なlaunch表だけを同worker threadへ結合します。
 	 * @param[in] calls 全五関数のWindows ABI fixtureです。
 	 * @return 欠損または同threadの重複scopeでは空、それ以外は単独所有scopeです。
 	 */
 	[[nodiscard]] static std::unique_ptr<ScopedInstallerFixture> createInstaller(
 		InstallerNativeCalls calls) ;
-	/** @brief 同worker所有者と完全固定依存を借用結合します。
+	/**
+	 * @brief 同worker所有者と完全固定依存を借用結合します。
 	 * @param[in,out] provider 本体Compositeです。
 	 * @param[in,out] session 終端まで生存する同scan ownerです。
 	 * @param[in] services 開始前固定の非通信fixture依存です。
@@ -178,7 +188,8 @@ struct Access {
 	{
 		provider.bindSignedIndexSession( session, services, operationId, {}) ;
 	}
-	/** @brief 同原lookupの参照を通常scanへ公開します。
+	/**
+	 * @brief 同原lookupの参照を通常scanへ公開します。
 	 * @param[in,out] provider 同本体Compositeです。
 	 * @param[in] plan 実adapter生成の同scan計画です。
 	 * @param[in,out] result 元通常scanの所有結果です。

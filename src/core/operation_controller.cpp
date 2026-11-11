@@ -2,7 +2,7 @@
 /**
  * @file operation_controller.cpp
  * @brief 操作状態管理実装。
- * @version 01.05.00
+ * @version 01.05.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -44,6 +44,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.04.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.05.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Operationの状態遷移と候補identityのfail-closed検証を実装します。
@@ -174,7 +175,8 @@ bool validPreparationResult( const OfficialPreparationOperationResult &result,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 新しい scan operation を開始する。
+ * @return 受付時は新しい operation ID、拒否時は理由を含む結果。
  */
 //------------------------------------------------------------------------------
 BeginResult OperationController::beginScan()
@@ -220,7 +222,9 @@ BeginResult OperationController::beginScan()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 同じ通常scanだけを協調取消し結果待ちへ移す。
+ * @param[in] operationId Workerへ取消しを要求した操作ID。
+ * @return 現在の通常scanへ適用した場合true。
  */
 //------------------------------------------------------------------------------
 bool OperationController::markScanCancelling( const OperationId operationId) noexcept
@@ -237,7 +241,12 @@ bool OperationController::markScanCancelling( const OperationId operationId) noe
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief Provider から返された scan 完了を現在の operation へ反映する。Provider から返された scan 完了を現在の operationへ反映する。 注記
+ *        : 遅延した古い resultは状態を変更せず拒否する。現在 operation の不正な成功結果は`FAILURE` として適用する。
+ * @param[in] operationId 完了対象の operation ID。
+ * @param[in] result Provider が返した scan 結果。
+ * @return 現在の operation に適用した場合は `true`。
+ * @note 遅延した古い result は状態を変更せず拒否する。現在 operation の不正な成功結果は`FAILURE` として適用する。
  */
 //------------------------------------------------------------------------------
 bool OperationController::completeScan( const OperationId operationId, const ScanResult &result)
@@ -323,7 +332,12 @@ bool OperationController::completeScan( const OperationId operationId, const Sca
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 現在の scan 候補から install operation を開始する。
+ * @param[in] scanSessionId 選択元として UI が保持する scan session ID。
+ * @param[in] identities 利用者が選択した opaque update identity 群。 利用者が選択した opaque update identity群。
+ * @param[in] confirmation 表示中の選択集合に対する今回限りの最終確認状態。 選択集合への今回限りの最終確認状態。
+ * @param[in] protectionMode OSと利用者確認に対応するinstall保護方針。 OS別のinstall保護方針。
+ * @return 受付時は新しい operation ID、拒否時は理由を含む結果。
  */
 //------------------------------------------------------------------------------
 BeginResult OperationController::beginInstall( const ScanSessionId				  scanSessionId,
@@ -423,7 +437,9 @@ BeginResult OperationController::beginInstall( const ScanSessionId				  scanSess
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 復元ポイント開始後に現在のoperationをdownload段階へ進める。
+ * @param[in] operationId 対象operation ID。
+ * @return 現在の復元ポイント作成operationに適用した場合は`true`。
  */
 //------------------------------------------------------------------------------
 bool OperationController::markDownloading( const OperationId operationId)
@@ -441,7 +457,9 @@ bool OperationController::markDownloading( const OperationId operationId)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 復元ポイント開始またはdownload完了後にinstall段階へ進める。
+ * @param[in] operationId 対象 operation ID。
+ * @return 現在の保護付きoperationに適用した場合は`true`。
  */
 //------------------------------------------------------------------------------
 bool OperationController::markInstalling( const OperationId operationId)
@@ -459,7 +477,13 @@ bool OperationController::markInstalling( const OperationId operationId)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief install operation の最終結果を状態へ反映する。install operation の最終結果を状態へ反映する。 注記:成功結果は開始時 selection と
+ *        identityが完全一致する場合だけ受理する。
+ * @param[in] operationId 対象 operation ID。
+ * @param[in] result workerが返した復元ポイントとupdateごとの最終結果。
+ * @param[in] retention 当該操作の実ownerが保持する元subsetです。空では従来の全失効です。
+ * @return 現在の operation に適用した場合は `true`。
+ * @note 成功結果は開始時 selection と identity が完全一致する場合だけ受理する。
  */
 //------------------------------------------------------------------------------
 bool OperationController::completeInstall( const OperationId					   operationId,
@@ -603,13 +627,27 @@ bool OperationController::completeInstall( const OperationId					   operationId,
 	return true ;
 }
 
-/** @see operation_controller.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原参照の残存scopeだけを照合します。
+ * @param[in] identity 元発行の参照です。
+ * @return 未処理planへ結合している場合trueです。
+ */
+//------------------------------------------------------------------------------
 bool OperationController::isPreparationReferenceAllowed( const std::wstring_view identity) const
 {
 	return state_ == ApplicationState::SCAN_READY && scanSessionId_ != 0U && preparationPlan_ &&
 		   retainedReferenceIdentities_.contains( std::wstring{identity}) ;
 }
-/** @see operation_controller.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 当該終端に限り新IDの残planを原subsetへ照合します。
+ * @param[in] operationId 受理した直前Install操作です。
+ * @param[in] session 未失効の元scanです。
+ * @param[in] plan 原metadata/予算のsubsetです。
+ * @return 一回の全検証と初期化が成立した場合trueです。
+ */
+//------------------------------------------------------------------------------
 bool OperationController::setRemainingPreparationPlan( const OperationId				 operationId,
 													  const ScanSessionId			 session,
 													  const OfficialPreparationPlan &plan)
@@ -661,12 +699,23 @@ bool OperationController::setRemainingPreparationPlan( const OperationId				 ope
 	return true ;
 }
 
-/** @see operation_controller.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 最後に受理したInstall結果の成功を次操作stateと分けます。
+ * @return 原結果の全検証に成功した場合trueです。
+ */
+//------------------------------------------------------------------------------
 bool OperationController::lastInstallSucceeded() const noexcept
 {
 	return lastInstallSucceeded_ ;
 }
-/** @see operation_controller.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scanで未消費の導入可能候補だけを照合します。
+ * @param[in] identity 元candidate identityです。
+ * @return 残存集合へ結合している場合trueです。
+ */
+//------------------------------------------------------------------------------
 bool OperationController::isInstallCandidateAllowed( const std::wstring_view identity) const
 {
 	return state_ == ApplicationState::SCAN_READY && scanSessionId_ != 0U &&
@@ -675,7 +724,10 @@ bool OperationController::isInstallCandidateAllowed( const std::wstring_view ide
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 成功した検索に付随する取得計画を固定する。同じ検索への計画差替えを許可せず、既存承認coreで形式と予算を検証する。
+ * @param[in] operationId 計画を受け取ったscan操作ID。 計画を受領した検索操作ID。
+ * @param[in] plan workerが検証した有限計画。 workerが発行した計画。
+ * @return 現在のscanへ初めて有効計画を保持した場合true。 有効計画を現在の検索へ固定した場合true。
  */
 //------------------------------------------------------------------------------
 bool OperationController::setPreparationPlan( const OperationId				operationId,
@@ -700,7 +752,8 @@ bool OperationController::setPreparationPlan( const OperationId				operationId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 未使用の取得計画をUI確認用に参照する。状態変更をまたいで返却pointerを保存しない。
+ * @return 計画なしはnullptr。次の状態変更まで有効な非所有pointer。 未使用計画、またはnullptr。所有権はcontrollerが保持する。
  */
 //------------------------------------------------------------------------------
 const OfficialPreparationPlan *OperationController::preparationPlan() const noexcept
@@ -713,7 +766,9 @@ const OfficialPreparationPlan *OperationController::preparationPlan() const noex
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 全対象の判断を照合して取得操作を開始する。取得選択はinstall選択から独立させ、workerとは別にsnapshotを照合する。
+ * @param[in,out] approval 操作IDが0の承認。受理時だけ新操作IDを反映する。 全対象判断。操作IDは0を要求し、受理時に採番する。
+ * @return 開始結果。不正承認ではworkerへ送信しない。 受理した操作ID、または拒否理由。
  */
 //------------------------------------------------------------------------------
 BeginResult OperationController::beginPreparation( OfficialPreparationApproval &approval)
@@ -775,7 +830,9 @@ BeginResult OperationController::beginPreparation( OfficialPreparationApproval &
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 取得取消し要求後の待機状態へ移行する。workerの確定結果まで排他を維持する。
+ * @param[in] operationId 取消し対象の取得操作ID。 取消し要求を送信した取得操作ID。
+ * @return 現在の取得操作を取消し待ちへ変更した場合true。 現在の取得を取消し待ちへ変更した場合true。
  */
 //------------------------------------------------------------------------------
 bool OperationController::markPreparationCancelling( const OperationId operationId) noexcept
@@ -791,7 +848,11 @@ bool OperationController::markPreparationCancelling( const OperationId operation
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 取得完了を検証し、導入状態を変更せず元の一覧へ戻す。監査reportを全件照合し、全監査合格として発行された候補だけを現在scanの導入許可集合へ追加する。
+ * @param[in] result operation／scan／planと対象別の確定結果。 同じoperation／scan／planの取得完了と監査report。
+ * @param[in] candidates 表示済み候補。監査reportがある場合は必須。変更しない。 同じscanの表示候補。監査reportがある場合は必須。
+ * @param[in] remainingPlan 当該承認の未選択原subsetです。新ID/原scope/予算を全検証します。
+ * @return 現在操作の結果を処理した場合true。不正内容はFailedとして適用する。 現在操作ならtrue。不正内容はFailedへ遷移し、旧操作はfalse。
  */
 //------------------------------------------------------------------------------
 bool OperationController::completePreparation( const OfficialPreparationOperationResult &result,
@@ -893,7 +954,7 @@ bool OperationController::completePreparation( const OfficialPreparationOperatio
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 新しい operation を拒否する停止状態へ移行する。
  */
 //------------------------------------------------------------------------------
 void OperationController::stop() noexcept
@@ -917,7 +978,8 @@ void OperationController::stop() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 現在の application state を返す。
+ * @return 現在 state。
  */
 //------------------------------------------------------------------------------
 ApplicationState OperationController::state() const noexcept
@@ -927,7 +989,8 @@ ApplicationState OperationController::state() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 現在有効な scan session ID を返す。
+ * @return scan result がない場合は 0。
  */
 //------------------------------------------------------------------------------
 ScanSessionId OperationController::scanSessionId() const noexcept
@@ -937,7 +1000,9 @@ ScanSessionId OperationController::scanSessionId() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 最後に受理したscan完了時点の段階別計測を参照する。
+ * @return 有効な公開計測への非所有pointer。未接続・不正・新scan中はnullptr。
+ * @note 準備操作で再計数せず、install後は選択作用subsetの履歴と未処理scanを保持する。
  */
 //------------------------------------------------------------------------------
 const ScanMeasurement *OperationController::scanMeasurement() const noexcept
@@ -947,7 +1012,8 @@ const ScanMeasurement *OperationController::scanMeasurement() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 現在実行中または最後に完了した operation ID を返す。
+ * @return operation 未開始の場合は 0。
  */
 //------------------------------------------------------------------------------
 OperationId OperationController::activeOperationId() const noexcept
@@ -957,7 +1023,9 @@ OperationId OperationController::activeOperationId() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/operation_controller.h 宣言側の契約を正本とする。
+ * @brief 0 と重複しない次の operation ID を割り当てる。
+ * @param[out] operationId 割り当てた ID。
+ * @return ID を割り当てられた場合は `true`。
  */
 //------------------------------------------------------------------------------
 bool OperationController::allocateOperationId( OperationId &operationId) noexcept
@@ -972,7 +1040,13 @@ bool OperationController::allocateOperationId( OperationId &operationId) noexcep
 	return true ;
 }
 
-/** @see src/core/operation_controller.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 新しい表示専用検索を受理し、旧候補・取得計画・同意を失効する。
+ * @param[in] request 今回だけの明示集合と通信判断。
+ * @return 開始した操作IDまたは拒否理由。拒否時は旧状態を変更しない。
+ */
+//------------------------------------------------------------------------------
 BeginResult OperationController::beginMetadataSearch( const MetadataSearchRequest &request)
 {
 	// 不正な設定では旧表示や権限を破壊せず、検索自体を受理しない。
@@ -991,7 +1065,13 @@ BeginResult OperationController::beginMetadataSearch( const MetadataSearchReques
 	return begin ;
 }
 
-/** @see src/core/operation_controller.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ情報検索だけを取消し結果待ちへ移す。
+ * @param[in] operationId Workerへ取消しを要求した操作ID。
+ * @return 現在の情報検索へ適用した場合true。
+ */
+//------------------------------------------------------------------------------
 bool OperationController::markMetadataSearchCancelling( const OperationId operationId) noexcept
 {
 	// 通常scanや古い操作を情報検索の取消しへ読み替えない。
@@ -1004,7 +1084,14 @@ bool OperationController::markMetadataSearchCancelling( const OperationId operat
 	return true ;
 }
 
-/** @see src/core/operation_controller.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 情報検索の全snapshotを検証し、導入権限なしの終端へ移す。
+ * @param[in] operationId 完了対象の操作ID。
+ * @param[in] result Workerから受け取った情報検索結果。
+ * @return 現在操作を処理した場合true。不正結果はFAILUREとしsummaryを保持しない。
+ */
+//------------------------------------------------------------------------------
 bool OperationController::completeMetadataSearch( const OperationId operationId,
 												 const ScanResult &result)
 {
@@ -1032,13 +1119,25 @@ bool OperationController::completeMetadataSearch( const OperationId operationId,
 	return true ;
 }
 
-/** @see src/core/operation_controller.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在または最後の検索の権限種別を返す。
+ * @return 結果行のフラグと独立した用途。
+ * @return 現在保持するscan用途です。
+ */
+//------------------------------------------------------------------------------
 ScanPurpose OperationController::scanPurpose() const noexcept
 {
 	return scanPurpose_ ;
 }
 
-/** @see src/core/operation_controller.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 検証済みの情報検索終端を参照する。
+ * @return 次の状態変更まで借用できる値。未保持はnullptr。
+ * @return 保持済みsummaryがあればその借用pointer、未設定ならnullです。次の状態更新またはcontroller破棄より前にだけ使用します。
+ */
+//------------------------------------------------------------------------------
 const MetadataSearchSummary *OperationController::metadataSearchSummary() const noexcept
 {
 	return metadataSearchSummary_ ? &*metadataSearchSummary_ : nullptr ;

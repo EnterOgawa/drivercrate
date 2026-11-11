@@ -2,7 +2,7 @@
 /**
  * @file provider_preparation_worker_tests.h
  * @brief 取得準備workerの内部試験宣言。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Fake Providerだけを使い、実driverと復元ポイントは変更しません。
@@ -37,10 +38,11 @@
 #pragma once
 namespace drivercrate::test {
 class TestContext ;
+//------------------------------------------------------------------------------
 /**
- * @brief 取得計画、queue、取消し、停止、一系列のWorker・Controller結合試験を実行する。
- * 有限待機のfakeだけでworkerの取得準備境界を確認する。
+ * @brief 取得計画、queue、取消し、停止、一系列のWorker・Controller結合試験を実行する。有限待機のfakeだけでworkerの取得準備境界を確認する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void runProviderPreparationWorkerTests( TestContext &context) ;
 } // namespace drivercrate::test

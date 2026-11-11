@@ -2,7 +2,7 @@
 /**
  * @file candidate_assessment.cpp
  * @brief 候補の詳細検証状態と証拠結合の純粋validator。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  検査で判明した構成役割と未収集を分離。
  * Ver.01.02.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 値は同じscanの証拠に結合し、未確認を合格へ補完しない。OS・networkへ作用しない。
@@ -38,6 +39,7 @@
 namespace drivercrate {
 namespace {
 
+//------------------------------------------------------------------------------
 /**
  * @brief 連続した有限enumの定義範囲を確認する。
  * @tparam Enum 0から始まる契約enum。
@@ -45,28 +47,33 @@ namespace {
  * @param[in] last 最後の定義値。
  * @return 未知値や負値でなければtrue。
  */
+//------------------------------------------------------------------------------
 template <typename Enum> bool isKnown( const Enum value, const Enum last) noexcept
 {
 	return static_cast<unsigned>( value) <= static_cast<unsigned>( last) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 条件の出典に使える実検査の種類を確認する。
  * @param[in] kind 証拠種別。
  * @return 公式recordまたはpackage検査の場合true。
  */
+//------------------------------------------------------------------------------
 bool isRequirementEvidence( const CandidateEvidenceKind kind) noexcept
 {
 	return kind == CandidateEvidenceKind::OFFICIAL_RECORD ||
 		   kind == CandidateEvidenceKind::PACKAGE_INSPECTION ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 当該軸の合格根拠に適切な種類だけを認める。
  * @param[in] axis 検証した軸。
  * @param[in] kind 証拠種別。
  * @return 利用者入力や別の検査を合格根拠へ転用していなければtrue。
  */
+//------------------------------------------------------------------------------
 bool isValidationEvidence( const CandidateAssessmentAxis axis,
 						  const CandidateEvidenceKind	kind) noexcept
 {
@@ -99,11 +106,13 @@ bool isValidationEvidence( const CandidateAssessmentAxis axis,
 	return false ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定八軸を所有snapshotから借用する。
  * @param[in] assessment 本関数と利用側の走査中に生存するsnapshot。
  * @return 軸とそのfindingの固定長対応。
  */
+//------------------------------------------------------------------------------
 auto findings( const CandidateAssessment &assessment) noexcept
 {
 	return std::array<std::pair<CandidateAssessmentAxis, const CandidateAssessmentFinding *>, 8>{{
@@ -118,23 +127,27 @@ auto findings( const CandidateAssessment &assessment) noexcept
 	}} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既存候補と同じ有限identity条件を確認する。
  * @param[in] value 本呼出し中だけ借用するidentity。
  * @param[in] allowEmpty Package未取得の場合だけ空を許す。
  * @return 上限内でNULを含まず空の許可と矛盾しなければtrue。
  */
+//------------------------------------------------------------------------------
 bool isIdentity( const std::wstring_view value, const bool allowEmpty = false) noexcept
 {
 	return (allowEmpty || !value.empty()) && value.size() <= 256U &&
 		   value.find( L'\0') == std::wstring_view::npos ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全明示条件と主理由を照合する。
  * @param[in] assessment 最大16条件のsnapshot。
  * @return 重複・未知値・必須条件不足の隠蔽がなければtrue。
  */
+//------------------------------------------------------------------------------
 bool areRequirementsValid( const CandidateAssessment &assessment) noexcept
 {
 	// 過大な条件集合は候補登録前に拒否する。
@@ -202,7 +215,14 @@ bool areRequirementsValid( const CandidateAssessment &assessment) noexcept
 }
 } // namespace
 
-/** @see src/core/candidate_assessment.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 一軸の状態・理由・証拠・診断の組を純粋検証する。
+ * @param[in] axis 固定の対象軸。
+ * @param[in] finding 当該軸の主理由。
+ * @return 未知enum、理由の軸違い、矛盾がなければtrue。
+ */
+//------------------------------------------------------------------------------
 bool isCandidateAssessmentFindingValid( const CandidateAssessmentAxis	 axis,
 									   const CandidateAssessmentFinding &finding) noexcept
 {
@@ -361,7 +381,13 @@ bool isCandidateAssessmentFindingValid( const CandidateAssessmentAxis	 axis,
 	return false ;
 }
 
-/** @see src/core/candidate_assessment.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全軸と明示条件・方式の内部整合性を検証する。
+ * @param[in] assessment 同じscanの詳細snapshot。
+ * @return 有限上限と状態の不変条件を満たす場合true。
+ */
+//------------------------------------------------------------------------------
 bool isCandidateAssessmentValid( const CandidateAssessment &assessment) noexcept
 {
 	// 結合不能なsnapshotと未知方式を拒否する。
@@ -418,7 +444,17 @@ bool isCandidateAssessmentValid( const CandidateAssessment &assessment) noexcept
 	return areRequirementsValid( assessment) ;
 }
 
-/** @see src/core/candidate_assessment.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 詳細の証拠が呼出し側の候補へ完全一致するか検証する。
+ * @param[in] assessment 検証対象の詳細。
+ * @param[in] scanSessionId 現在のscan session。
+ * @param[in] candidateIdentity 表示候補のidentity。
+ * @param[in] deviceIdentity Deviceのidentity。
+ * @param[in] packageIdentity Packageのidentity。未取得時は空。
+ * @return 全結合と内部整合性が成立する場合true。
+ */
+//------------------------------------------------------------------------------
 bool isCandidateAssessmentBound( const CandidateAssessment &assessment,
 								const std::uint64_t		   scanSessionId,
 								const std::wstring_view	   candidateIdentity,
@@ -431,7 +467,14 @@ bool isCandidateAssessmentBound( const CandidateAssessment &assessment,
 		   assessment.packageIdentity == packageIdentity ;
 }
 
-/** @see src/core/candidate_assessment.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 詳細の全必要条件が導入を妨げないか確認する。
+ * @param[in] assessment 内部整合性も再確認する詳細。
+ * @return 実装済み方式と全必要軸が合格・委譲・正当な非該当の場合true。
+ * @note これだけでは導入を許可せず、既存audit・session・Provider bindingも必須とする。
+ */
+//------------------------------------------------------------------------------
 bool isCandidateAssessmentReady( const CandidateAssessment &assessment) noexcept
 {
 	// 全内部条件と既存executorの存在を確認する。

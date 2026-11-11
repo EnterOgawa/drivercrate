@@ -2,7 +2,7 @@
 /**
  * @file official_inf_archive_binding_tests.cpp
  * @brief 封印ZIP／PE内INF結合の非通信・非導入境界試験。
- * @version 01.03.01
+ * @version 01.03.02
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/06  封印native由来と使用中固定の隔離試験を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/10/06  原CATの保持・未使用固定・非封印拒否を試験。
  * Ver.01.03.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.03.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空取得と自身の保護workspaceだけを使用し、署名・実device・導入を呼ばない。
@@ -76,11 +77,14 @@ struct BindingZipEntry {
 	std::string body ;
 } ;
 
-/** @brief 架空ZIPをmemoryで生成する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空ZIPをmemoryで生成する。
  * @param[in] entries 架空の名前と本文。空ZIPも許可する。
  * @return 完成したmemory ZIP。生成失敗では例外。
  * @throws std::runtime_error Miniz writerに失敗した場合。
  */
+//------------------------------------------------------------------------------
 std::vector<std::byte> bindingZip( std::span<const BindingZipEntry> entries)
 {
 	mz_zip_archive writer{} ;	// Memory writerの内部所有状態。
@@ -122,10 +126,13 @@ std::vector<std::byte> bindingZip( std::span<const BindingZipEntry> entries)
 	return bytes ;
 }
 
-/** @brief 本文byteを原値のstringへ複写する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 本文byteを原値のstringへ複写する。
  * @param[in] bytes memory ZIP。
  * @return NULを含めて同じbyte列。
  */
+//------------------------------------------------------------------------------
 std::string zipBody( const std::vector<std::byte> &bytes)
 {
 	// Byte列とchar列の表現境界だけを借用する。
@@ -137,7 +144,8 @@ class BindingTransport final : public IOfficialAcquisitionTransport {
 public:
 	/// Acquire中だけ借用する架空全byte。
 	std::span<const std::byte> bytes ;
-	/** @brief 架空全byteを所有外fileへ保存する。
+	/**
+	 * @brief 架空全byteを所有外fileへ保存する。
 	 * @param[in] url 使用しない架空URL。
 	 * @param[in] resourceId 使用しない組込みresource名。
 	 * @param[in] maximumBytes 有限取得上限。
@@ -169,7 +177,8 @@ public:
 
 		return written == bytes.size() ? 0 : E_FAIL ;
 	}
-	/** @brief このfixtureでは委譲取得を実行しない。
+	/**
+	 * @brief このfixtureでは委譲取得を実行しない。
 	 * @param[in,out] request 使用しない一回request。
 	 * @param[in] outputFile 使用しない所有外handle。
 	 * @param[in] progressCallback 使用しない通知先。
@@ -189,7 +198,8 @@ public:
 		destinationEvidence = {} ;
 		return E_NOTIMPL ;
 	}
-	/** @brief 正常fixtureだけの架空source認証を返す。
+	/**
+	 * @brief 正常fixtureだけの架空source認証を返す。
 	 * @param[in] scanSessionId 使用しないsession。
 	 * @param[in] providerId 使用しないProvider。
 	 * @param[in] resourceId 使用しないresource。
@@ -208,7 +218,8 @@ public:
 /** @brief 実回線へ依存しないcost fixture。 */
 class BindingCost final : public IOfficialNetworkCostReader {
 public:
-	/** @brief 非課金の架空回線を返す。
+	/**
+	 * @brief 非課金の架空回線を返す。
 	 * @param[out] cost 常にUNRESTRICTED。
 	 * @return 0。
 	 */
@@ -230,7 +241,8 @@ struct BindingFixture {
 	OfficialAcquiredFileEvidence evidence ;
 	/// 元fixture改変試験にだけ使う公開結果。
 	OfficialAcquisitionResult	 result ;
-	/** @brief 非通信取得から証拠発行までを実行する。
+	/**
+	 * @brief 非通信取得から証拠発行までを実行する。
 	 * @param[in] bytes 生存memory ZIP。
 	 * @return 全成功0、最初の境界失敗のHRESULT。
 	 */
@@ -264,11 +276,14 @@ struct BindingFixture {
 	}
 } ;
 
-/** @brief 自身のfixtureだけの通常fileを改変する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 自身のfixtureだけの通常fileを改変する。
  * @param[in] path 自身が所有するfixture file。
  * @param[in] bytes 書き換える架空全byte。
  * @return 全保存とclose成功の場合true。
  */
+//------------------------------------------------------------------------------
 bool changeBindingFile( const std::wstring &path, std::string_view bytes)
 {
 	HANDLE file = CreateFileW( path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
@@ -286,9 +301,12 @@ bool changeBindingFile( const std::wstring &path, std::string_view bytes)
 	return CloseHandle( file) && saved ;
 }
 
-/** @brief 正常全INF・改変・writer・別session・moveと失効を検証する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 正常全INF・改変・writer・別session・moveと失効を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testBindingDirect( TestContext &context)
 {
 	const std::array<BindingZipEntry, 4U> source{
@@ -365,9 +383,12 @@ void testBindingDirect( TestContext &context)
 	DRIVERCRATE_EXPECT( context, moved.verify( other, fixture.workspace) != 0) ;
 }
 
-/** @brief 明示一段・二段ZIPと誤った経路の非昇格を検証する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示一段・二段ZIPと誤った経路の非昇格を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testBindingNested( TestContext &context)
 {
 	const std::array<BindingZipEntry, 1U> innerEntries{
@@ -420,9 +441,12 @@ void testBindingNested( TestContext &context)
 		context, fixture.session->verifyAcquiredFile( fixture.evidence, fixture.workspace) == 0) ;
 }
 
-/** @brief 危険・過多・欠落・未対応形式を一部成功にしないことを確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 危険・過多・欠落・未対応形式を一部成功にしないことを確認する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testBindingRejections( TestContext &context)
 {
 	std::vector<std::vector<BindingZipEntry>> cases{
@@ -476,9 +500,12 @@ void testBindingRejections( TestContext &context)
 	DRIVERCRATE_EXPECT( context, rejected.workspace() == nullptr) ;
 }
 
-/** @brief 件数境界・CRC拒否・取得後改変と再bind時の空化を検証する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 件数境界・CRC拒否・取得後改変と再bind時の空化を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testBindingBoundaries( TestContext &context)
 {
 	std::vector<BindingZipEntry> entries ;	// 正例の件数境界64 INF。
@@ -579,10 +606,13 @@ struct BindingJunctionData {
 // Windowsの固定offset確認。
 static_assert( offsetof( BindingJunctionData, paths) == 16U) ;
 
-/** @brief 実junctionの祖先拒否を自身の架空領域だけで確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実junctionの祖先拒否を自身の架空領域だけで確認する。
  * @param[in,out] context Assertion集計先。
  * @note 作成したtagは同じhandleで解除する。元driverやWindows領域へ触れない。
  */
+//------------------------------------------------------------------------------
 void testBindingJunction( TestContext &context)
 {
 	const std::array<BindingZipEntry, 1U> entries{
@@ -652,12 +682,15 @@ void testBindingJunction( TestContext &context)
 	DRIVERCRATE_EXPECT( context,
 					   fixture.workspace.path( L"fixture.bin") == fixture.result.inspectionPath) ;
 }
-/** @brief 架空PEの有効fieldを独立little-endianで構築する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空PEの有効fieldを独立little-endianで構築する。
  * @param[in,out] raw 確保済みの所有memory。
  * @param[in] offset 有効field位置。
  * @param[in] value uint32値。
  * @param[in] count 2または4のfield幅。
  */
+//------------------------------------------------------------------------------
 void writePeBindingValue( std::vector<std::byte> &raw, std::size_t offset, std::uint32_t value,
 						 std::size_t count = 4U)
 {
@@ -667,11 +700,14 @@ void writePeBindingValue( std::vector<std::byte> &raw, std::size_t offset, std::
 	}
 }
 
-/** @brief 架空名・marker・本文を原byteへ配置する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空名・marker・本文を原byteへ配置する。
  * @param[in,out] raw 確保済みのzero memory。
  * @param[in] offset 有効先頭位置。
  * @param[in] text 架空の原byte。
  */
+//------------------------------------------------------------------------------
 void writePeBindingText( std::vector<std::byte> &raw, std::size_t offset, std::string_view text)
 {
 	// 符号付きcharをbyteの同じbit表現へ移す。
@@ -680,10 +716,13 @@ void writePeBindingText( std::vector<std::byte> &raw, std::size_t offset, std::s
 	}
 }
 
-/** @brief 一つ以上のINFと非選択PE／placeholderを持つ架空全表を作る。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一つ以上のINFと非選択PE／placeholderを持つ架空全表を作る。
  * @param[in] count 1～65のINF数。65は容量拒否試験用。
  * @return 非実行readonly data内の260名＋uint32長表を持つPE32+ x64。
  */
+//------------------------------------------------------------------------------
 std::vector<std::byte> bindingPe( std::size_t count)
 {
 	std::string peMember( 88U, '\0') ;	// 実行しない最低限のSYS／EXE形状。
@@ -737,9 +776,12 @@ std::vector<std::byte> bindingPe( std::size_t count)
 	return raw ;
 }
 
-/** @brief PE全表と原INF範囲・非実行member未抽出を確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief PE全表と原INF範囲・非実行member未抽出を確認する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPeBindingDirect( TestContext &context)
 {
 	const auto					 raw = bindingPe( 2U) ;	// 複数INFとCAT・SYS・placeholder・EXE。
@@ -794,9 +836,12 @@ void testPeBindingDirect( TestContext &context)
 	DRIVERCRATE_EXPECT( context, binding.verify( other, fixture.workspace) != 0) ;
 }
 
-/** @brief 明示ZIP経路一段・二段からだけPEへ接続する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示ZIP経路一段・二段からだけPEへ接続する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPeBindingNested( TestContext &context)
 {
 	const auto							  pe = bindingPe( 2U) ;	// 最終containerだけがPE。
@@ -826,9 +871,12 @@ void testPeBindingNested( TestContext &context)
 	}
 }
 
-/** @brief 未対応・危険全表・形式違いと容量超過を部分成功にしない。
+//------------------------------------------------------------------------------
+/**
+ * @brief 未対応・危険全表・形式違いと容量超過を部分成功にしない。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPeBindingRejections( TestContext &context)
 {
 	const auto							original = bindingPe( 1U) ;	// 各拒否で元正例へ戻る。
@@ -902,10 +950,13 @@ void testPeBindingRejections( TestContext &context)
 					   rejected.verify( *boundaryFixture.session, boundaryFixture.workspace) == 0) ;
 }
 #ifdef DRIVERCRATE_ACQUIRED_INF_NATIVE_TESTING
-/** @brief 架空CATを試験所有領域へ作成する。実署名を発行しない。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空CATを試験所有領域へ作成する。実署名を発行しない。
  * @param[in,out] binding 非constの試験所有者。CATは封印INF集合へ追加しない。
  * @return 作成・保存・close完了ならtrue。
  */
+//------------------------------------------------------------------------------
 bool createBindingNativeCat( OfficialInfArchiveBinding &binding)
 {
 	// 所有者自身が非constのfixtureであるため、追加fileのcleanup追跡だけへアクセスする。
@@ -922,11 +973,14 @@ bool createBindingNativeCat( OfficialInfArchiveBinding &binding)
 	return CloseHandle( file) && saved ;
 }
 
-/** @brief 全固定fileのwriter／deleteを試験する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全固定fileのwriter／deleteを試験する。
  * @param[in,out] context Assertion集計先。
  * @param[in] path 自身のfixtureの原fileまたは祖先。
  * @param[in] directory 祖先directoryならtrue。
  */
+//------------------------------------------------------------------------------
 void expectBindingPinned( TestContext &context, const std::wstring &path, bool directory)
 {
 	// DirectoryのDELETE openはrename拒否の代用ではないため、実renameを検査する。
@@ -964,9 +1018,12 @@ void expectBindingPinned( TestContext &context, const std::wstring &path, bool d
 	}
 }
 
-/** @brief 封印集合と旧経路の由来を、架空署名・実byte・使用中固定で分離する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 封印集合と旧経路の由来を、架空署名・実byte・使用中固定で分離する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testBindingNative( TestContext &context)
 {
 	const std::array<BindingZipEntry, 5U> entries{
@@ -1211,9 +1268,12 @@ void testBindingNative( TestContext &context)
 }
 #endif
 
-/** @brief CATの全byte・容量・CRC・失効と旧PE入口の互換性を検査する。
+//------------------------------------------------------------------------------
+/**
+ * @brief CATの全byte・容量・CRC・失効と旧PE入口の互換性を検査する。
  * @param[in,out] context 署名実績とは別の構造assertion集計。
  */
+//------------------------------------------------------------------------------
 void testCatalogBinding( TestContext &context)
 {
 	const std::array<BindingZipEntry, 4U> source{
@@ -1367,9 +1427,12 @@ void testCatalogBinding( TestContext &context)
 										found->uncompressedSize == entry.uncompressedSize) ;
 	}
 }
-/** @brief 用途別hashの既存上限と新container上限を独立して検証する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 用途別hashの既存上限と新container上限を独立して検証する。
  * @param[in,out] context driver署名実績とは別のhash集計。
  */
+//------------------------------------------------------------------------------
 void testContainerHash( TestContext &context)
 {
 	const std::string bytes( 2U * 1024U * 1024U, 'x') ;	// 旧原byte上限を越える架空入力。
@@ -1394,9 +1457,12 @@ void testContainerHash( TestContext &context)
 } // namespace
 } // namespace drivercrate::test
 
-/** @brief 架空取得から全INF封印と拒否境界を独立試験する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空取得から全INF封印と拒否境界を独立試験する。
  * @return 全assertion成功0、失敗または例外1。
  */
+//------------------------------------------------------------------------------
 int main()
 {
 	static_assert( !std::is_copy_constructible_v<drivercrate::OfficialInfArchiveBinding>) ;

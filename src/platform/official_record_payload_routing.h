@@ -2,7 +2,7 @@
 /**
  * @file official_record_payload_routing.h
  * @brief 検証済み公式record payloadのURL非保持方式分類定義。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  方式別の表示専用候補評価を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  自動探索のdevice別表示専用候補生成を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/09/23  開発用取得専用型の製品descriptor拒否を明示。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 本descriptorはworker内recordから表示可能metadataだけを複製します。秘密URL、hash値、EULA本文、
@@ -112,14 +113,17 @@ struct OfficialRecordPayloadDescriptor {
 	bool							executorAvailable{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Record payload descriptor一件の有限値と方式別能力を検証します。
  * @param[in] descriptor 検証するURL非保持descriptorです。
  * @return ID、route、公開metadata、能力の組が既知で整合する場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isOfficialRecordPayloadDescriptorValid(
 	const OfficialRecordPayloadDescriptor &descriptor) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 検証済みrecordの全payloadをURL非保持descriptorへ変換します。
  * @param[in] record 秘密URLと全型付きmetadataを所有するworker内recordです。
@@ -127,13 +131,15 @@ struct OfficialRecordPayloadDescriptor {
  * @param[out] descriptors 成功時にrecord順の全descriptor、失敗時に空です。
  * @return Record・証拠の完全一致と全descriptor構築に成功すれば0です。
  * @post `record`と全秘密URLは変更しません。Unsupported方式も表示専用descriptorとして保持します。
- * @note Routeはpayload kindだけから決め、file名、拡張子、content typeから別方式へ変更しません。
- *       開発用DOWNLOAD_ONLY_FILEは製品descriptorへ変換せず、全件を拒否します。
+ * @note Routeはpayload kindだけから決め、file名、拡張子、content typeから別方式へ変更しません。開発用DOWNLOAD_ONLY_FILEは製品
+ *       descriptorへ変換せず、全件を拒否します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError describeOfficialDistributionRecordPayloads(
 	const OfficialDistributionRecord &record, const OfficialDistributionRecordEvidence &evidence,
 	std::vector<OfficialRecordPayloadDescriptor> &descriptors) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief URL非保持payload descriptorを未取得の表示専用候補評価へ結合します。
  * @param[in] descriptor 検証済みrecordから作成した方式別descriptorです。
@@ -143,10 +149,12 @@ struct OfficialRecordPayloadDescriptor {
  * @post INF、installer、unsupportedのいずれもexecutorなしで導入可能になりません。
  * @note INFとinstallerは未取得、unsupportedと不正拡張子は内容検査未対応として区別します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool makeOfficialRecordPayloadDisplayAssessment(
 	const OfficialRecordPayloadDescriptor &descriptor, const UpdateCandidate &candidate,
 	CandidateAssessment &assessment) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一つの自動探索payloadを結合済みdeviceごとの非選択表示行へ変換します。
  * @param[in] group Record fingerprintから重複排除した一取得単位です。
@@ -157,6 +165,7 @@ struct OfficialRecordPayloadDescriptor {
  * @post 成功行は`action=NONE`、導入不可、未取得監査でありinstall routingを発行しません。
  * @note Recordのpackage版はProvider表示値として保持するだけで、現在版との比較に使用しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::vector<UpdateCandidate>>
 makeOfficialRecordPayloadDisplayCandidates( const OfficialDiscoveryPackageGroup		   &group,
 										   const OfficialRecordPayloadDescriptor	   &descriptor,

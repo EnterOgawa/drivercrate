@@ -2,7 +2,7 @@
 /**
  * @file indexed_driver_package_inspection.cpp
  * @brief 索引hintから通常共通検査への非導入結合を実装する。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
  * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * Ver.01.03.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note File検査は既存共通層へ委譲する。全体失敗時は部分閉包を保持せず、外部取得・
@@ -49,11 +50,13 @@ namespace {
 constexpr std::uint64_t MAXIMUM_ARCHIVE_BYTES =
 	2ULL * 1024ULL * 1024ULL * 1024ULL ;	// 通常共通層と同じ入力上限。
 
+//------------------------------------------------------------------------------
 /**
  * @brief 小文字64桁の非秘密hash参照だけを受理する。
  * @param[in] value 索引・record・archiveの識別hash。
  * @return 全桁がASCII小文字hexならtrue。
  */
+//------------------------------------------------------------------------------
 bool isLowerHash( const std::wstring_view value) noexcept
 {
 	// 短縮・欠損hashを完全なidentityとして使わない。
@@ -73,12 +76,14 @@ bool isLowerHash( const std::wstring_view value) noexcept
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 内部入力へnetwork・device path・ADSを混入させない。
  * @param[in] path 既存workspaceが所有するlocal drive上の絶対path。
  * @return Drive絶対構文と有限長を満たす場合true。
  * @note 保護store所有権の検証は呼出し側の既存取得／copy層が担当する。
  */
+//------------------------------------------------------------------------------
 bool isLocalInputPath( const std::wstring_view path) noexcept
 {
 	return path.size() >= 4U && path.size() <= 32767U && path[1] == L':' && path[2] == L'\\' &&
@@ -87,6 +92,7 @@ bool isLocalInputPath( const std::wstring_view path) noexcept
 		   path.find( L'\0') == std::wstring_view::npos ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全体失敗時の部分閉包を破棄し、入力結合の到達事実だけを残す。
  * @param[in,out] result 所有する通常検査結果を失う出力。
@@ -94,6 +100,7 @@ bool isLocalInputPath( const std::wstring_view path) noexcept
  * @param[in] error 0ではない元HRESULT。
  * @return 入力の元HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError fail( IndexedDriverPackageInspection &result, const IndexedDriverInspectionState state,
 				 const NativeError error)
 {
@@ -105,7 +112,17 @@ NativeError fail( IndexedDriverPackageInspection &result, const IndexedDriverIns
 
 } // namespace
 
-/** @see src/platform/indexed_driver_package_inspection.h 宣言側を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 索引hintと固定済み入力の有限identityだけを非I/Oで照合する。
+ * @param[in] activeScanSessionId 現在の0ではないworker scan session。
+ * @param[in] hint 呼出し側が選択した期待値。全hashは小文字64桁。
+ * @param[in] input 既存保護copyまたは共通取得層が固定したarchive。
+ * @param[in] format ZIP、CABINETまたは非実行SEVEN_ZIP_SFX。実行形式の推測は行わない。
+ * @return Session・hash・size・local path構文・形式が一致する場合true。
+ * @note 実byte、索引本文・署名、公式取得根拠や許可の検査を代替しない。
+ */
+//------------------------------------------------------------------------------
 bool matchesIndexedDriverArchiveHint( const ScanSessionId			   activeScanSessionId,
 									 const IndexedDriverArchiveHint	  &hint,
 									 const DriverArchiveInput		  &input,
@@ -143,7 +160,20 @@ bool matchesIndexedDriverArchiveHint( const ScanSessionId			   activeScanSession
 			format == OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER) ;
 }
 
-/** @see src/platform/indexed_driver_package_inspection.h 宣言側を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 索引の期待値と実fileを再照合し、通常の共通内容・署名検査へ接続する。
+ * @param[in] activeScanSessionId 現在のworker scan session。
+ * @param[in] hint 呼出し側が選択した元取得archiveの期待identity。
+ * @param[in] input 呼出し中に変更しない、既存の保護archive入力。
+ * @param[in] format ZIP、CABINETまたは非実行SEVEN_ZIP_SFX。未対応形式は拒否する。
+ * @param[out] result 全体完了時だけ通常検査結果を保持する。失敗時は段階・診断だけ。
+ * @param[in] cancellation 空またはworker内の非blocking取消し照会。
+ * @return 通常検査完了時0。それ以外は元HRESULT。0件内容合格も完了に含む。
+ * @pre Inputの保護workspaceは全呼出し中有効であり、入力はresultとaliasしない。
+ * @note Blockingする。通常policyを維持し、保守根拠・grant・Windows適合・導入へ昇格しない。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectIndexedDriverPackage( const ScanSessionId				  activeScanSessionId,
 										const IndexedDriverArchiveHint	 &hint,
 										const DriverArchiveInput		 &input,

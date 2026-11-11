@@ -2,7 +2,7 @@
 /**
  * @file official_serial_provider.h
  * @brief 公式serial ZIP共通Provider契約。
- * @version 01.01.03
+ * @version 01.01.04
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,7 @@
  * Ver.01.01.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
  * Ver.01.01.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.01.03 Shunji Ogawa  2026/11/11  導入後の対象scope消費と未処理・scan観測保持を現契約へ明記。
+ * Ver.01.01.04 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 署名済み原本を保持し、許可IDだけでdeviceとrankを監査します。未審査IDの許可や既存の監査条件の迂回は行いません。
@@ -86,20 +87,21 @@ using OfficialSerialRankAuditor =
 	std::function<NativeError( ScanSessionId, std::wstring_view, const OfficialDownloadWorkspace &,
 							  const OfficialInfPackage &, OfficialDriverRankAudit &)> ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Prolific製品HTMLの唯一のDCHU INF配布行から公式ZIP URLを抽出する。
- * 公式DCHU INF配布行の唯一のZIPリンクを解析する。
- * 任意の最初のZIPを選ばず、EXE用行や外部originを拒否する。
+ * @brief Prolific製品HTMLの唯一のDCHU INF配布行から公式ZIP URLを抽出する。公式DCHU INF配布行の唯一のZIPリンクを解析する。任意の最初のZIPを選ばず、
+ *        EXE用行や外部originを拒否する。
  * @param[in] html 公式landing由来の有限長HTML。端末情報を含めない。 有限長の公式HTML。
  * @param[out] url 成功時のworker内専用URL。失敗時は空。 成功時の内部URL。
  * @return 行とリンクが一意かつ許可構造ならtrue。 一意な配布行と許可pathに一致する場合true。
  * @note HTML構造の確認だけで取得元やpayload内容の検証を代替しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseProlificOfficialZipUrl( std::wstring_view html, std::wstring &url) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 組み込みfamilyごとの公開配布解析を選択する。
- * 未知familyを別のparserへfallbackせず出力を初期化する。
+ * @brief 組み込みfamilyごとの公開配布解析を選択する。未知familyを別のparserへfallbackせず出力を初期化する。
  * @param[in] family 審査済みの配布family。未知値は拒否する。
  * @param[in] html 対応する公式landing本文。 公式起点の本文。
  * @param[in] metadata Family固有metadata。Prolificでは空でなければ拒否する。 補助本文。
@@ -107,13 +109,14 @@ using OfficialSerialRankAuditor =
  * @return 指定familyのparserが一意な公式配布を確認した場合true。 審査済みparserが一致した場合true。
  * @note 本文の解析だけを行い、取得元証明と内容監査は別途要求する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseOfficialSerialZipUrl( OfficialSerialFamily family, std::wstring_view html,
 											 std::wstring_view metadata, std::wstring &url) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 内容監査済みINFの許可IDだけでdeviceを照合し、現在のPnP rankを監査する。
- * 許可IDに限定して現在deviceのrankを監査する。
- * 保護fileは改変せず、監査用copyのID集合だけを制限する。古いmatcherの一致だけで許可せず、現在のrank監査も要求する。
+ * @brief 内容監査済みINFの許可IDだけでdeviceを照合し、現在のPnP rankを監査する。許可IDに限定して現在deviceのrankを監査する。保護fileは改変せず、監査用
+ *        copyのID集合だけを制限する。古いmatcherの一致だけで許可せず、現在のrank監査も要求する。
  * @param[in] family 審査済みID境界を決める組み込みfamily。 審査済みserial family。
  * @param[in] session 現在inventoryの0ではないsession。 現在inventoryのsession。
  * @param[in] deviceIdentity 対象deviceの空ではないopaque identity。 現在のopaque device identity。
@@ -125,6 +128,7 @@ using OfficialSerialRankAuditor =
  * @return 判定成功時0、入力不正またはAPI失敗時はHRESULT。 判定成功は0、入力不正／API失敗はHRESULT。
  * @note 0は適用可能を意味しない。Scanと内容再検証後のinstallで共用する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError auditOfficialSerialDevice(
 	OfficialSerialFamily family, ScanSessionId session, std::wstring_view deviceIdentity,
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,

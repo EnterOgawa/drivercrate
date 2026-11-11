@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_package_inspection_tests.cpp
  * @brief Record限定取得と共通package検査の接続単体試験を実装します。
- * @version 01.03.01
+ * @version 01.03.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  PnP観測と取得後監査reportのfixtureを追加。
  * Ver.01.03.00 Shunji Ogawa  2026/09/15  OF02／03のpackage側ID限定照合と二device結果を明示。
  * Ver.01.03.01 Shunji Ogawa  2026/10/15  全体INF件数と照合開始前のpair上限を検証。
+ * Ver.01.03.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空URLはgrantだけが所有し、通信、driver取得、導入またはinstaller実行を行いません。
@@ -80,13 +81,13 @@ constexpr std::wstring_view				 PRIVATE_URL_TOKEN = L"token=private-fixture" ;
 //------------------------------------------------------------------------------
 // Fixture生成関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief Record限定取得adapterへ渡す有効な架空recordを作ります。
  * @param[in] fileDisplayName 公式recordが表示するpayload basenameです。
  * @param[in] kind Recordが明示するpayload方式です。
  * @return Intel組み込みrootへ結合できる一payload recordです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDistributionRecord makeRecord(
 	std::wstring fileDisplayName, const OfficialDistributionPayloadKind kind =
 									  OfficialDistributionPayloadKind::STANDARD_INF_PACKAGE)
@@ -132,6 +133,7 @@ constexpr std::wstring_view				 PRIVATE_URL_TOKEN = L"token=private-fixture" ;
 	return record ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 架空recordからgrantを発行し、必要なら取得成功として一回消費します。
  * @param[out] grant 成功時に発行済みまたは消費済みgrantを所有します。
@@ -140,6 +142,7 @@ constexpr std::wstring_view				 PRIVATE_URL_TOKEN = L"token=private-fixture" ;
  * @param[in] kind Recordが明示するpayload方式です。
  * @return Record検証、発行と指定した状態遷移が成功すれば0です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError makeGrant( RecordScopedDownloadGrant &grant, const bool consumeSuccess,
 									std::wstring fileDisplayName = L"fictional-driver.zip",
 									const OfficialDistributionPayloadKind kind =
@@ -180,10 +183,12 @@ constexpr std::wstring_view				 PRIVATE_URL_TOKEN = L"token=private-fixture" ;
 	return grant.finishAcquisition( OfficialDownloadGrantState::ACQUIRED_FOR_INSPECTION, 0) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 消費済みgrantへ一致する架空成功取得ledger結果を作ります。
  * @return 実pathとhashをworker内だけに持つ取得結果です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialAcquisitionResult makeAcquisition()
 {
 	return OfficialAcquisitionResult{
@@ -208,10 +213,12 @@ constexpr std::wstring_view				 PRIVATE_URL_TOKEN = L"token=private-fixture" ;
 		.destinationLocallyResolved		  = true} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 表示専用評価へ結合する架空候補を作ります。
  * @return Providerと内容metadataへ一致するopaque identity付き候補です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] UpdateCandidate makeCandidate()
 {
 	UpdateCandidate candidate ;	// 秘密値を含まない表示候補です。
@@ -225,11 +232,13 @@ constexpr std::wstring_view				 PRIVATE_URL_TOKEN = L"token=private-fixture" ;
 	return candidate ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 指定IDへ結合したraw ID非保持の架空device hintを作ります。
  * @param[in] identity UI行と結合するopaque identityです。
  * @return Intel公式固定rootへroute可能なNet classのPCI deviceです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryDeviceHint makeDevice( std::wstring identity)
 {
 	OfficialDiscoveryDeviceHint device ;	// 実PnP IDを含まない合成deviceです。
@@ -244,6 +253,7 @@ constexpr std::wstring_view				 PRIVATE_URL_TOKEN = L"token=private-fixture" ;
 	return device ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 架空recordとdevice集合からdescriptorと実行groupを生成します。
  * @param[in] devices Groupへ結合する検証済みdevice hint集合です。
@@ -252,6 +262,7 @@ constexpr std::wstring_view				 PRIVATE_URL_TOKEN = L"token=private-fixture" ;
  * @param[out] group 成功時のrecord／route／device結合groupです。
  * @return 全record、routeとgroup検証が成功すればtrueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool makePayloadBinding( const std::span<const OfficialDiscoveryDeviceHint> devices,
 									  const OfficialDistributionPayloadKind				 kind,
 									  OfficialRecordPayloadDescriptor					&descriptor,
@@ -310,12 +321,14 @@ constexpr std::wstring_view				 PRIVATE_URL_TOKEN = L"token=private-fixture" ;
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Descriptorとgroupへ一致する取得承認targetを作ります。
  * @param[in] descriptor Payload resourceと利用条件の正本です。
  * @param[in] group Opaque package identityとdevice件数の正本です。
  * @return 64 byte上限の架空準備対象です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialPreparationTarget makeTarget(
 	const OfficialRecordPayloadDescriptor &descriptor, const OfficialDiscoveryPackageGroup &group)
 {
@@ -334,11 +347,11 @@ constexpr std::wstring_view				 PRIVATE_URL_TOKEN = L"token=private-fixture" ;
 //------------------------------------------------------------------------------
 // 接続・拒否試験。
 //------------------------------------------------------------------------------
-
 /**
  * @brief 正常変換とstale、取消し、例外、内容拒否時の全体結果消去を検証します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testConversionAndInspectionFailures( TestContext &context)
 {
 	RecordScopedDownloadGrant grant ;	// 成功終端させる架空grantです。
@@ -379,10 +392,12 @@ void testConversionAndInspectionFailures( TestContext &context)
 									inspection.archiveSha256.empty() && inspection.infs.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Grant未消費、Provider不一致、公開metadata矛盾と未対応形式を拒否することを検証します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testConversionRejections( TestContext &context)
 {
 	RecordScopedDownloadGrant consumed ;	// 正常消費済みgrantです。
@@ -426,10 +441,12 @@ void testConversionRejections( TestContext &context)
 		context, makeDelegatedOfficialPackageInput( makeAcquisition(), installer, output) != 0) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 個別拒否を保持しつつ合格INFだけを公式由来の表示専用評価へ結合します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testPartialAssessmentAndPrivacy( TestContext &context)
 {
 	RecordScopedDownloadGrant grant ;	// 成功終端させる架空grantです。
@@ -531,10 +548,12 @@ void testPartialAssessmentAndPrivacy( TestContext &context)
 														   INVALID_FILE_ATTRIBUTES) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 内容合格後のread-only PnP観測と既存表示行reportを検証します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testApplicabilityAndPreparationReport( TestContext &context)
 {
 	RecordScopedDownloadGrant grant ;	// 共通内容検査入力へ結合する消費済みgrantです。
@@ -722,10 +741,12 @@ void testApplicabilityAndPreparationReport( TestContext &context)
 	DRIVERCRATE_EXPECT( context, applicability.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一般reportの全体INF件数と全照合開始前の有限予算を検証します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testWholePayloadCountAndPairBudget( TestContext &context)
 {
 	RecordScopedDownloadGrant grant ;	// 通信しない架空の消費済みgrantです。
@@ -821,7 +842,8 @@ void testWholePayloadCountAndPairBudget( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_delegated_package_inspection_tests.h 宣言側の契約を正本とします。
+ * @brief Record限定取得から表示専用評価までの正常・拒否・後始末fixtureを実行します。
+ * @param[in,out] context Assertion集計先です。
  */
 //------------------------------------------------------------------------------
 void runOfficialDelegatedPackageInspectionTests( TestContext &context)

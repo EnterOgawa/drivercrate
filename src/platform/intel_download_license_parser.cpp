@@ -2,7 +2,7 @@
 /**
  * @file intel_download_license_parser.cpp
  * @brief Intel配布pageの非実行許諾snapshot実装。
- * @version 01.04.01
+ * @version 01.04.02
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/09/23  全区間取得接続と公式module根拠付き許諾境界を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/09/28  許諾内部走査へ同一controlを伝播しOOMを保持。
  * Ver.01.04.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.04.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 単一page内の配布URLと許諾をworkerの一時recordへ結合します。本文を実行せず、未知構造や不完全な変換は拒否します。
@@ -78,13 +79,13 @@ constexpr std::array		BODY_TAGS{
 //------------------------------------------------------------------------------
 // 内部関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief 文書外枠に限ってASCII空白を除いた借用範囲を返します。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] value 外枠tag間の文字列。本文内部には使用しません。
  * @return 前後空白のないview。空白だけなら空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring_view trimFrameSpace( CollectorParserContext *control,
 											   std::wstring_view	   value)
 {
@@ -114,10 +115,9 @@ constexpr std::array		BODY_TAGS{
 //------------------------------------------------------------------------------
 /**
  * @brief 複数欄の最初の一件を同意対象へ推測採用しません。
- *
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] input 有限入力。
  * @param[in] marker 空でない完全一致marker。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] position 成功時の開始位置。
  * @return Markerが一つだけ存在する場合true。
  */
@@ -134,9 +134,8 @@ constexpr std::array		BODY_TAGS{
 //------------------------------------------------------------------------------
 /**
  * @brief 属性値の大なり記号をtag終端として解釈しません。
- *
- * @param[in] input 有限入力。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] input 有限入力。
  * @param[in] begin 開き山括弧の位置。
  * @return 引用符の外側の終端位置。不正時はnpos。
  */
@@ -179,10 +178,9 @@ constexpr std::array		BODY_TAGS{
 //------------------------------------------------------------------------------
 /**
  * @brief class等の引用符内に書かれた偽属性を結合根拠に使いません。
- *
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] tag 終端検証済みbutton tag。
  * @param[in] downloadUrl 系列parserが検証した同一pageの配布URL。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] requirePublicClass 公開download classも要求する場合true。
  * @return 属性としてmodal 1と対象URLが一意に指定される場合true。
  */
@@ -288,9 +286,8 @@ constexpr std::array		BODY_TAGS{
 //------------------------------------------------------------------------------
 /**
  * @brief 未知entity、NUL、surrogate、数値overflowを拒否します。
- *
- * @param[in] entity 最大12文字のentity本体。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] entity 最大12文字のentity本体。
  * @param[in,out] text 成功時だけ復号文字を追加する一時本文。
  * @return 既知名または有効なUnicode数値参照ならtrue。
  */
@@ -379,9 +376,8 @@ constexpr std::array		BODY_TAGS{
 //------------------------------------------------------------------------------
 /**
  * @brief 外部script参照は末尾だけで認識し、実行や取得を行いません。
- *
- * @param[in] body body tagの内側の有限許諾HTML。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] body body tagの内側の有限許諾HTML。
  * @param[in,out] text Titleを含む一時本文。失敗時は呼出側が破棄する。
  * @return 既知の入れ子を保ち本文を全て変換できた場合true。
  */
@@ -600,9 +596,8 @@ constexpr std::array		BODY_TAGS{
 //------------------------------------------------------------------------------
 /**
  * @brief URLや配布版を許諾改訂識別子として代用しません。
- *
- * @param[in] document 埋込み許諾HTML。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] document 埋込み許諾HTML。
  * @param[out] title 成功時の明示title。
  * @return Intelの許諾名とYYYY.MM.DD形式の版を一意に得た場合true。
  */
@@ -911,7 +906,16 @@ static bool parseIntelDownloadLicenseCore( CollectorParserContext *control,
 		return false ;
 	}
 }
-/** @see intel_download_license_parser.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開button・空raw欄・既知module参照の実HTML要素を結合します。
+ * @param[in] html 有限公式HTML。
+ * @param[in] downloadUrl 検証済みの対象配布URL。
+ * @param[in] modulePath 固定の公式script相対path。
+ * @return 一意な実要素だけで空欄の公開配布構造を確認できた場合true。
+ * @note Scriptのhash／HTTP根拠は別途必要です。単独では取得を許可しません。
+ */
+//------------------------------------------------------------------------------
 bool matchesIntelPublicEmptyDownloadLicense( const std::wstring_view html,
 											const std::wstring_view downloadUrl,
 											const std::wstring_view modulePath)
@@ -1017,14 +1021,34 @@ bool matchesIntelPublicEmptyDownloadLicense( const std::wstring_view html,
 	}
 }
 
-/** @see intel_download_license_parser.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Intel公式pageの単一配布buttonと許諾snapshotを結合する。部分変換を公開せず、同意の状態は一切変更しません。
+ * @param[in] html 同じ公式起点から取得した最大2 Mi UTF-16単位のpage。 有限な公式page。
+ * @param[in] downloadUrl 系列parserで別途検証済みの対象ZIP URL。 検証済み対象URL。
+ * @param[out] revision 成功時の明示許諾名と版。失敗時は空。
+ * @param[out] text 成功時のtitle付き完全plain text。失敗時は空。 Titleを含む全文。
+ * @return 既知構造を省略なく非実行変換できた場合true。 単一button・modal・許諾の結合成立時true。失敗時は両出力が空。
+ * @note 取得元検証、法的条件の確認、同意は呼出側の別工程で行う。
+ */
+//------------------------------------------------------------------------------
 bool parseIntelDownloadLicense( std::wstring_view html, std::wstring_view downloadUrl,
 							   std::wstring &revision, std::wstring &text)
 {
 	return parseIntelDownloadLicenseCore( nullptr, html, downloadUrl, revision, text) ;
 }
 
-/** @see intel_download_license_parser.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ許諾coreを使用し、停止・OOMは上位の型付き境界へ伝播します。
+ * @param[in] html 同じ公式本文。
+ * @param[in] downloadUrl 同じ配布URL。
+ * @param[out] revision 許諾識別子。
+ * @param[out] text 許諾本文。
+ * @param[in,out] context 必須の元制御。
+ * @return 許諾非採用はfalse。障害・停止は内部例外です。
+ */
+//------------------------------------------------------------------------------
 bool parseIntelDownloadLicenseForCollector( std::wstring_view html, std::wstring_view downloadUrl,
 										   std::wstring &revision, std::wstring &text,
 										   CollectorParserContext &context)

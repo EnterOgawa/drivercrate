@@ -2,7 +2,7 @@
 /**
  * @file scan_measurement.cpp
  * @brief 同一scanの段階別device集合と計測確定度の純粋集計。
- * @version 01.02.01
+ * @version 01.02.02
  * @date 2026/09/10
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.01.01 Shunji Ogawa  2026/09/15  自動探索capabilityを既知bitとして受理。
  * Ver.01.02.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
  * Ver.01.02.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.02.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 入力へのviewは呼出し内だけで借用します。Network、OS API、導入処理を呼びません。
@@ -95,38 +96,45 @@ struct ProviderState {
 	DeviceSet								   recordDevices ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 定義外の確定度を集合処理へ入れない。
  * @param[in] extent 検査する値。
  * @return 既知の確定度の場合はtrue。
  */
+//------------------------------------------------------------------------------
 bool knownExtent( const MeasurementExtent extent) noexcept
 {
 	return extent == MeasurementExtent::NOT_MEASURED || extent == MeasurementExtent::EXACT ||
 		   extent == MeasurementExtent::LOWER_BOUND || extent == MeasurementExtent::UNAVAILABLE ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 件数を持つ確定度か判定する。
  * @param[in] extent 既知の確定度。
  * @return 確認済み集合を数えられる場合はtrue。
  */
+//------------------------------------------------------------------------------
 bool hasCount( const MeasurementExtent extent) noexcept
 {
 	return extent == MeasurementExtent::EXACT || extent == MeasurementExtent::LOWER_BOUND ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 計測値の数値有無を確定度に対応付ける。
  * @param[in] count 確認済み集合の大きさ。
  * @param[in] extent 既知の確定度。
  * @return 値を持てない確定度ではnulloptを保持する件数。
  */
+//------------------------------------------------------------------------------
 CountMeasurement makeCount( const std::uint64_t count, const MeasurementExtent extent)
 {
 	return {hasCount( extent) ? std::optional<std::uint64_t>{count} : std::nullopt, extent} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 根拠集合が母数内で一意か検査して借用集合へ変換する。
  * @param[in] source Workerの段階別観測値。
@@ -134,6 +142,7 @@ CountMeasurement makeCount( const std::uint64_t count, const MeasurementExtent e
  * @param[out] destination 成功時の集合。失敗時は呼出し側が作業結果全体を破棄する。
  * @return 確定度、上限、identityが整合する場合はtrue。
  */
+//------------------------------------------------------------------------------
 bool loadSet( const MeasurementDeviceSet &source, const DeviceSet &devices, DeviceSet &destination)
 {
 	// 未計測・不明の値に隠れた集合や過大な入力を受理しない。
@@ -153,6 +162,7 @@ bool loadSet( const MeasurementDeviceSet &source, const DeviceSet &devices, Devi
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 肯定的な候補根拠を確定集合と照合し、未計測なら下限として保持する。
  * @param[in,out] state 当該Providerの集計状態。
@@ -160,6 +170,7 @@ bool loadSet( const MeasurementDeviceSet &source, const DeviceSet &devices, Devi
  * @param[in] identity 既にDへ照合したopaque device ID。
  * @return 確定済み集合と矛盾しない場合はtrue。
  */
+//------------------------------------------------------------------------------
 bool addFact( ProviderState &state, const std::size_t stage, const std::wstring_view identity)
 {
 	// 完全な対象／到達集合から漏れた候補を暗黙に補完しない。
@@ -177,23 +188,27 @@ bool addFact( ProviderState &state, const std::size_t stage, const std::wstring_
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 集合包含を確認する。
  * @param[in] superset 許可する母集合。
  * @param[in] subset その範囲内でなければならない集合。
  * @return 全要素が母集合内ならtrue。
  */
+//------------------------------------------------------------------------------
 bool includes( const DeviceSet &superset, const DeviceSet &subset)
 {
 	return std::includes( superset.begin(), superset.end(), subset.begin(), subset.end()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開可能な一resourceの実取得経路と固定IDを検証する。
  * @param[in] resource Provider根拠へ含まれる取得要約。
  * @param[in] descriptor 対応する組み込みProvider定義。
  * @return 固定policy、resource、時刻、cache経路が整合する場合はtrue。
  */
+//------------------------------------------------------------------------------
 bool validResource( const MeasurementResource &resource,
 				   const ProviderDescriptor	 &descriptor) noexcept
 {
@@ -255,17 +270,20 @@ bool validResource( const MeasurementResource &resource,
 	return false ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 内部配列の段階順を公開値型へ対応付ける。
  * @param[in] values T、Q、R、A、I順の件数。
  * @return 同じ件数を意味のあるfieldへ移した所有値。
  */
+//------------------------------------------------------------------------------
 StageDeviceCounts stageCounts( const std::array<CountMeasurement, STAGE_COUNT> &values)
 {
 	return {values[ELIGIBLE], values[QUERY], values[INFORMATION], values[APPLICABLE],
 			values[READY]} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有効Providerの集合を信頼境界・表示groupで絞って重複排除する。
  * @param[in] states Registry順の計測状態。
@@ -274,6 +292,7 @@ StageDeviceCounts stageCounts( const std::array<CountMeasurement, STAGE_COUNT> &
  * @param[in] inventoryComplete 全体列挙と詳細処理が完了している場合だけtrue。
  * @return 各段階の和集合。必要な計測の欠損や未照合を下限として保持する。
  */
+//------------------------------------------------------------------------------
 StageDeviceCounts unionCounts( const std::vector<ProviderState> &states, const DeviceSet &filter,
 							  const unsigned int boundary, const bool inventoryComplete)
 {
@@ -320,6 +339,7 @@ StageDeviceCounts unionCounts( const std::vector<ProviderState> &states, const D
 	return stageCounts( values) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じ母数に対する全network・管理・公式の三内訳を集約する。
  * @param[in] states 有効状態と段階別集合。
@@ -327,6 +347,7 @@ StageDeviceCounts unionCounts( const std::vector<ProviderState> &states, const D
  * @param[in] complete OS inventory完了の根拠。
  * @return Provider別件数を足さず集合で計算した三内訳。
  */
+//------------------------------------------------------------------------------
 NetworkCoverageMeasurement networkCounts( const std::vector<ProviderState> &states,
 										 const DeviceSet &devices, const bool complete)
 {
@@ -334,6 +355,7 @@ NetworkCoverageMeasurement networkCounts( const std::vector<ProviderState> &stat
 			unionCounts( states, devices, 2, complete)} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider根拠を同一sessionと母数へ拘束して読み込む。
  * @param[in] evidence 一Providerのworker限定観測。
@@ -341,6 +363,7 @@ NetworkCoverageMeasurement networkCounts( const std::vector<ProviderState> &stat
  * @param[in,out] state 対応する有効network Providerの作業領域。
  * @return 集合・scope・outcome・recordが整合する場合はtrue。
  */
+//------------------------------------------------------------------------------
 bool loadEvidence( const ProviderMeasurementEvidence &evidence, const DeviceSet &devices,
 				  ProviderState &state)
 {
@@ -454,12 +477,14 @@ bool loadEvidence( const ProviderMeasurementEvidence &evidence, const DeviceSet 
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開段階別件数の値、上限、包含関係を検証する。
  * @param[in] counts T、Q、R、A、Iの公開件数。
  * @param[in] maximumDeviceCount 同じscanまたはgroupのlocal device母数。
  * @return 全件数が有効で、Q/R/A/Iの包含上限を満たす場合はtrue。
  */
+//------------------------------------------------------------------------------
 bool validPublishedStageCounts( const StageDeviceCounts &counts,
 							   const std::uint64_t		maximumDeviceCount) noexcept
 {
@@ -491,12 +516,14 @@ bool validPublishedStageCounts( const StageDeviceCounts &counts,
 		   within( counts.installReadyUpdateDeviceCount, counts.applicableUpdateDeviceCount) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 三つのnetwork境界にある全段階件数を検証する。
  * @param[in] measurement 全network、managed、officialの公開件数。
  * @param[in] maximumDeviceCount 同じ表示母数のdevice数。
  * @return 各境界の件数が有効な場合はtrue。
  */
+//------------------------------------------------------------------------------
 bool validPublishedNetworkCounts( const NetworkCoverageMeasurement &measurement,
 								 const std::uint64_t			   maximumDeviceCount) noexcept
 {
@@ -505,11 +532,13 @@ bool validPublishedNetworkCounts( const NetworkCoverageMeasurement &measurement,
 		   validPublishedStageCounts( measurement.official, maximumDeviceCount) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開理由集計のenum、単位、重複を検証する。
  * @param[in] reasons 一Providerまたはinventoryの有限な理由集合。
  * @return 定義済みの理由・単位の組が一意な場合はtrue。
  */
+//------------------------------------------------------------------------------
 bool validPublishedReasons( const std::span<const MeasurementReasonCount> reasons)
 {
 	// Enumの直積以上を保持させず、無制限な診断履歴を拒否する。
@@ -532,6 +561,7 @@ bool validPublishedReasons( const std::span<const MeasurementReasonCount> reason
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider別のidentityを含まない公開計測をregistry定義へ照合する。
  * @param[in] measurement Provider別の公開件数と取得根拠。
@@ -539,6 +569,7 @@ bool validPublishedReasons( const std::span<const MeasurementReasonCount> reason
  * @param[in] maximumDeviceCount Scanのlocal device母数。
  * @return 全fieldが公開契約を満たす場合はtrue。
  */
+//------------------------------------------------------------------------------
 bool validPublishedProviderMeasurement( const ProviderMeasurement &measurement,
 									   const ProviderDescriptor	 &descriptor,
 									   const std::uint64_t		  maximumDeviceCount)
@@ -576,6 +607,7 @@ bool validPublishedProviderMeasurement( const ProviderMeasurement &measurement,
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 表現済み母数と属性欠損を現在版から確定し、OS列挙根拠との矛盾を検査する。
  * @param[in] candidates 全候補の借用集合。
@@ -583,6 +615,7 @@ bool validPublishedProviderMeasurement( const ProviderMeasurement &measurement,
  * @param[in,out] inventory 列挙地点の値を保持しつつ表示母数を確定する出力。
  * @return 件数・列挙完了・未収録数に矛盾がなければtrue。
  */
+//------------------------------------------------------------------------------
 bool completeInventory( const std::span<const UpdateCandidate> candidates, const DeviceSet &devices,
 					   DeviceInventoryMeasurement &inventory)
 {
@@ -674,14 +707,31 @@ bool completeInventory( const std::span<const UpdateCandidate> candidates, const
 
 } // namespace
 
-/** @see src/core/scan_measurement.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 数値の有無と確定度が矛盾しないか確認する。
+ * @param[in] measurement 検査する件数。
+ * @return 既知enumでEXACT／LOWER_BOUNDだけが値を持つ場合はtrue。
+ */
+//------------------------------------------------------------------------------
 bool isCountMeasurementValid( const CountMeasurement &measurement) noexcept
 {
 	return knownExtent( measurement.extent) &&
 		   measurement.value.has_value() == hasCount( measurement.extent) ;
 }
 
-/** @see src/core/scan_measurement.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 有界列挙の停止点と一回probeから確定度付き観測数を作る。
+ * @param[in] retainedItemCount 上限内で実際に保持した要素数。
+ * @param[in] itemLimit 列挙本体が保持できる正の上限。
+ * @param[in] stop 本体loopが停止した理由。
+ * @param[in] probe 上限時だけ実行した次の一件の確認結果。
+ * @param[in] error API_FAILUREの診断値。それ以外は0。
+ * @return 入力が整合する場合は分類結果、矛盾またはoverflow時は値なし。
+ * @note OS APIを呼ばず、上限到達だけを正常終端へ読み替えない。
+ */
+//------------------------------------------------------------------------------
 std::optional<BoundedEnumerationMeasurement> classifyBoundedEnumeration(
 	const std::uint64_t retainedItemCount, const std::uint64_t itemLimit,
 	const BoundedEnumerationStop stop, const BoundedEnumerationProbe probe,
@@ -755,7 +805,15 @@ std::optional<BoundedEnumerationMeasurement> classifyBoundedEnumeration(
 		.error				 = error} ;
 }
 
-/** @see src/core/scan_measurement.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式HTTP ledgerをURLなしの計測resourceへ変換する。
+ * @param[in] evidence 同一Provider・sessionの連続した取得根拠。
+ * @param[out] resources 成功時の固定policy／resource ID、実取得経路、時刻。失敗時は空。
+ * @return 全根拠がregistry・連番・実取得経路の契約を満たす場合はtrue。
+ * @note Network、cache I/O、時刻取得を行わず、既存根拠だけをcopyする。
+ */
+//------------------------------------------------------------------------------
 bool summarizeOfficialSourceEvidence( const std::span<const OfficialSourceEvidence> evidence,
 									 std::vector<MeasurementResource> &resources) noexcept
 {
@@ -804,7 +862,15 @@ bool summarizeOfficialSourceEvidence( const std::span<const OfficialSourceEviden
 	return true ;
 }
 
-/** @see src/core/scan_measurement.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Workerが公開するscan計測をoperation、session、DTO全体へ再照合する。
+ * @param[in] operationId UIが発行した現在の非ゼロscan operation ID。
+ * @param[in] result Compositeの候補、Provider report、group、任意measurementを持つ結果。
+ * @return Measurementなし、または全公開値が同じoperation／sessionと件数契約を満たす場合はtrue。
+ * @note 不正measurementを候補scan失敗へ昇格させず、Controllerが計測だけを破棄するために使う。
+ */
+//------------------------------------------------------------------------------
 bool isPublishedScanMeasurementValid( const OperationId operationId,
 									 const ScanResult &result) noexcept
 {
@@ -993,7 +1059,20 @@ bool isPublishedScanMeasurementValid( const OperationId operationId,
 	return true ;
 }
 
-/** @see src/core/scan_measurement.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Local現在版を母数に、検証済み根拠と候補から段階別和集合を作る。
+ * @param[in] context Scan開始時に固定した条件。operationIdはworker公開直前の設定まで0を許す。
+ * @param[in] candidates 同一sessionの全表示候補。Filterや取得元groupで削除していない集合。
+ * @param[in] providers 既存registryの定義。重複IDや信頼境界の重複を拒否する。
+ * @param[in] inventory 詳細列挙地点の根拠。未接続なら既定値を渡す。
+ * @param[in] evidence Worker内観測地点の根拠。未接続Providerは省略し旧二値を使わない。
+ * @param[in] routableCandidateIds 既存install routingが保持する候補ID。権限を新規発行しない。
+ * @return 正常時は所有値の集計。上限、identity、集合または候補契約に反する場合は値なし。
+ * @note 通信・OS API・永続化を行わず入力を変更しない。A／Iは既存監査validatorからのみ導く。
+ * @warning 計測失敗で正常候補の導入権限を増減しない。既存候補契約違反は別途scanを拒否する。
+ */
+//------------------------------------------------------------------------------
 std::optional<ScanMeasurementAggregation> aggregateScanMeasurement(
 	const ScanMeasurementContext &context, const std::span<const UpdateCandidate> candidates,
 	const std::span<const ProviderDescriptor>		   providers,

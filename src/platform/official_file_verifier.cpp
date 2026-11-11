@@ -2,7 +2,7 @@
 /**
  * @file official_file_verifier.cpp
  * @brief 公式配布file共通検証実装。
- * @version 01.14.00
+ * @version 01.14.01
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -46,6 +46,7 @@
  * Ver.01.12.00 Shunji Ogawa  2026/10/17 同一Authenticode実装に明示cached-only入口を追加。
  * Ver.01.13.00 Shunji Ogawa  2026/10/24  内部原archive試験から元native署名へ委譲。
  * Ver.01.14.00 Shunji Ogawa  2026/11/05  CAT宣言のmember算法と外側署名を分けて共通検証。
+ * Ver.01.14.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Windows CNGとWinTrustを使用し、Provider固有値をpolicyとして受け取ります。
@@ -162,7 +163,6 @@ public:
 	CatalogHashContext( const CatalogHashContext &) = delete ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	CatalogHashContext &operator=( const CatalogHashContext &) = delete ;
@@ -173,7 +173,6 @@ public:
 	CatalogHashContext( CatalogHashContext &&) = delete ;
 	/**
 	 * @brief 所有状態の移動をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	CatalogHashContext		 &operator=( CatalogHashContext &&) = delete ;
@@ -269,7 +268,6 @@ public:
 	ReadOnlyVerificationFile( const ReadOnlyVerificationFile &) = delete ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	ReadOnlyVerificationFile &operator=( const ReadOnlyVerificationFile &) = delete ;
@@ -280,7 +278,6 @@ public:
 	ReadOnlyVerificationFile( ReadOnlyVerificationFile &&) = delete ;
 	/**
 	 * @brief 所有状態の移動をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	ReadOnlyVerificationFile &operator=( ReadOnlyVerificationFile &&) = delete ;
@@ -310,9 +307,8 @@ private:
 //------------------------------------------------------------------------------
 /**
  * @brief WinTrust.dllのprocedureを型付きpointerへ取得する。
- *
  * FARPROCと対象function pointerの同一sizeをcompile時に確認し、未定義なobject/function pointer castを使用せず複写する。
- *
+ * @tparam Procedure FARPROCと同じsizeの呼出し先function pointer型です。
  * @param[in] module System32から読み込んだ非所有module handle。
  * @param[in] name Null終端のASCII export名。
  * @param[out] procedure 成功時の型付きprocedure pointer。
@@ -422,6 +418,7 @@ HRESULT CALLBACK closeXmlProvider( void *const statePointer) noexcept
 	return static_cast<NativeError>( HRESULT_FROM_WIN32( error)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Windows CATのmember宣言を既知算法と正確な長さへ結びます。
  * @param[in] indirect 原CATから借用するmemberの間接digest宣言です。
@@ -430,6 +427,7 @@ HRESULT CALLBACK closeXmlProvider( void *const statePointer) noexcept
  * @return 既知の完全な宣言なら0、未知・欠損・不正長はHRESULTです。
  * @note 外側署名の算法や信頼をこの宣言から推測しません。
  */
+//------------------------------------------------------------------------------
 NativeError readCatalogMemberAlgorithm( const SIP_INDIRECT_DATA &indirect, PCWSTR &algorithm,
 									   DWORD &bytes) noexcept
 {
@@ -474,6 +472,7 @@ NativeError readCatalogMemberAlgorithm( const SIP_INDIRECT_DATA &indirect, PCWST
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じCATの全memberの宣言算法・digest・tagを有限に取得します。
  * @param[in] path 置換防止の読取handleが保持される原CATの終端済みpathです。
@@ -481,6 +480,7 @@ NativeError readCatalogMemberAlgorithm( const SIP_INDIRECT_DATA &indirect, PCWST
  * @return 全宣言の取得なら0、空・未知・不正・容量超過ならHRESULTです。
  * @note CAT構造を読むだけです。全memberの署名と内容は後段で必ず検証します。
  */
+//------------------------------------------------------------------------------
 NativeError readCatalogAlgorithms( const std::wstring			   &path,
 								  std::vector<CatalogMemberDigest> &declarations)
 {
@@ -582,7 +582,15 @@ NativeError readCatalogAlgorithms( const std::wstring			   &path,
 	return error != 0 ? error : static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
 }
 
-/** @see CatalogHashContextの宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Catalog hash contextを初期化する。System32のWinTrust.dllだけを読み込み、元CATの検査済みmember算法だけでhash contextを作
+ *        ります。外側署名のcurrent strong-sign policyは各memberのWinVerifyTrustへ別に要求します。
+ * @param[in] algorithm 原CATの完全宣言から選んだ静的CNG名です。
+ * @param[in] hashBytes 同じ原宣言で検査済みのdigest byte数です。
+ * @return 宣言に一致するcontext作成成功時は0、失敗時はHRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError CatalogHashContext::initialize( PCWSTR algorithm, DWORD hashBytes)
 {
 	// 初期化済みの所有資源を上書きしないよう、重複初期化を拒否する。
@@ -616,7 +624,10 @@ NativeError CatalogHashContext::initialize( PCWSTR algorithm, DWORD hashBytes)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_file_verifier.cpp 宣言側の契約を正本とする。
+ * @brief FileのCAT宣言算法のmember hashを計算する。初期化済みcontextと動的取得した公式APIだけを使用する。
+ * @param[in] file 読取り可能な非所有file handle。
+ * @param[out] hash 成功時だけ宣言算法の全digest。失敗時は空です。
+ * @return 成功時は0、WinTrustまたはallocation失敗時はHRESULT。
  */
 //------------------------------------------------------------------------------
 NativeError CatalogHashContext::calculateHash( const HANDLE file, std::vector<BYTE> &hash) const
@@ -1302,9 +1313,7 @@ NativeError CatalogHashContext::calculateHash( const HANDLE file, std::vector<BY
 } // namespace
 
 //------------------------------------------------------------------------------
-/**
- * @see src/platform/official_file_verifier.h 宣言側の契約を正本とする。
- */
+
 //------------------------------------------------------------------------------
 namespace {
 /** @brief File hash用CNG資源を全return・例外経路で回収します。 */
@@ -1313,7 +1322,9 @@ struct FileHashHandles {
 	BCRYPT_ALG_HANDLE  algorithm{} ;
 	/// Algorithmより先に解放するhash handle。
 	BCRYPT_HASH_HANDLE hash{} ;
-	/** @brief 有効なCNG資源を依存順に解放します。 */
+	/**
+	 * @brief 有効なCNG資源を依存順に解放します。
+	 */
 	~FileHashHandles()
 	{
 		// 生成できたhashだけを先に破棄する。
@@ -1327,6 +1338,7 @@ struct FileHashHandles {
 		}
 	}
 } ;
+//------------------------------------------------------------------------------
 /**
  * @brief 固定SHA algorithmを使ってfile全体をstream計算します。
  * @tparam DigestBytes SHA-256の32またはSHA-512の64。
@@ -1335,6 +1347,7 @@ struct FileHashHandles {
  * @param[out] output 成功時だけ公開する小文字hex。
  * @return 成功0、入力・file・CNG・allocation失敗時はHRESULT。
  */
+//------------------------------------------------------------------------------
 template <std::size_t DigestBytes>
 [[nodiscard]] NativeError computeFileSha( const std::wstring_view path, const wchar_t *algorithmId,
 										 std::wstring &output)
@@ -1432,18 +1445,28 @@ template <std::size_t DigestBytes>
 }
 } // namespace
 
-/** @see official_file_verifier.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief File全体のSHA-256を小文字ASCII hexへ変換する。EOFまでの全byteをCNG SHA-256へ順序通り入力する。
+ * @param[in] path 読み取るfileの絶対path。
+ * @param[out] sha256 成功時の64桁小文字SHA-256。失敗時は空。
+ * @return 成功時は0、fileまたはCNG処理失敗時はHRESULT bit pattern。 成功時は0、fileまたはCNG失敗時はHRESULT bit pattern。
+ */
+//------------------------------------------------------------------------------
 NativeError computeFileSha256( const std::wstring_view path, std::wstring &sha256)
 {
 	return computeFileSha<32U>( path, BCRYPT_SHA256_ALGORITHM, sha256) ;
 }
 
-/** @brief 用途別の有限上限を適用する共通CNG byte hash処理です。
+//------------------------------------------------------------------------------
+/**
+ * @brief 用途別の有限上限を適用する共通CNG byte hash処理です。
  * @param[in] bytes Hashする原byte列。
  * @param[in] maximumBytes 呼出用途が固定した有限上限。
  * @param[out] sha256 成功時の小文字hash、失敗時は空です。
  * @return 成功0、上限拒否またはCNG失敗のHRESULT。
  */
+//------------------------------------------------------------------------------
 static NativeError computeBoundedBytesSha256( const std::string_view bytes,
 											 const std::size_t maximumBytes, std::wstring &sha256)
 {
@@ -1488,25 +1511,56 @@ static NativeError computeBoundedBytesSha256( const std::string_view bytes,
 	}
 }
 
-/** @see official_file_verifier.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 最大1 MiBの原byte列からSHA-256を計算します。
+ * @param[in] bytes 空でない有限入力。BOM等を正規化しません。
+ * @param[out] sha256 成功時の小文字64桁hex。失敗時は空。
+ * @return 成功0、入力不正またはCNG失敗時はHRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError computeBytesSha256( const std::string_view bytes, std::wstring &sha256)
 {
 	return computeBoundedBytesSha256( bytes, 1024U * 1024U, sha256) ;
 }
 
-/** @see official_file_verifier.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 収集した最大8 MiBの原metadata本文を同じCNG処理でhashします。
+ * @param[in] bytes 1 byte以上8 MiB以下のsession内本文。
+ * @param[out] sha256 成功時の小文字SHA-256、失敗時は空です。
+ * @return 成功0、上限拒否またはCNG失敗のHRESULT。
+ * @note 既存computeBytesSha256の1 MiB上限は変更しません。
+ */
+//------------------------------------------------------------------------------
 NativeError computeCollectorMetadataSha256( const std::string_view bytes, std::wstring &sha256)
 {
 	return computeBoundedBytesSha256( bytes, 8U * 1024U * 1024U, sha256) ;
 }
 
-/** @see official_file_verifier.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原container memoryの最大128 MiBを既存CNG処理でhashする。
+ * @param[in] bytes 空でない有限原byte。呼出し中に不変とする。
+ * @param[out] sha256 成功時の小文字64桁SHA-256、失敗時は空。
+ * @return 完了0、上限拒否またはCNG／allocation失敗のHRESULT。
+ * @note 従来の1 MiB／8 MiB入口は変更せず、用途別の抽出上限を代替しない。
+ */
+//------------------------------------------------------------------------------
 NativeError computeDriverContainerSha256( const std::string_view bytes, std::wstring &sha256)
 {
 	return computeBoundedBytesSha256( bytes, 128U * 1024U * 1024U, sha256) ;
 }
 
-/** @see official_file_verifier.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief File全体のSHA-512を有限bufferで計算します。
+ * @param[in] path 読み取るfileの絶対path。
+ * @param[out] sha512 成功時の128桁小文字hex。失敗時は空。
+ * @return 成功0、file／CNG／allocation失敗時はHRESULT。
+ * @note 公開hashの照合用であり、署名や導入許可を表しません。
+ */
+//------------------------------------------------------------------------------
 NativeError computeFileSha512( const std::wstring_view path, std::wstring &sha512)
 {
 	return computeFileSha<64U>( path, BCRYPT_SHA512_ALGORITHM, sha512) ;
@@ -1514,7 +1568,11 @@ NativeError computeFileSha512( const std::wstring_view path, std::wstring &sha51
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_file_verifier.h 宣言側の契約を正本とする。
+ * @brief 公式fileのsizeとSHA-256を親metadataの宣言へ完全一致させる。公式fileのsizeとSHA-256をmetadata宣言へ一致させる。Sizeを先に確認し、不
+ *        一致fileのhash計算を行わない。
+ * @param[in] path 検証するfileの絶対path。
+ * @param[in] policy 一つ以上のsizeまたはSHA-256条件。
+ * @return 全指定条件一致時は0、不正条件または不一致時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
 NativeError verifyOfficialFileMetadata( const std::wstring_view			 path,
@@ -1565,12 +1623,15 @@ NativeError verifyOfficialFileMetadata( const std::wstring_view			 path,
 }
 
 namespace {
-/** @brief 通常入口とcached-only入口の署名処理を同じ検証順で実行します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常入口とcached-only入口の署名処理を同じ検証順で実行します。
  * @param[in] path 対象絶対path。
  * @param[in] acceptedPublishers 完全一致を要求する許可publisher群。
  * @param[in] cachedOnly trueなら全URL取得をcache内へ制限します。
  * @return 成功0、最初の入力／署名／publisher拒否の元error。
  */
+//------------------------------------------------------------------------------
 NativeError verifyAuthenticodePublisherImpl(
 	const std::wstring_view path, const std::span<const std::wstring_view> acceptedPublishers,
 	const bool cachedOnly)
@@ -1631,14 +1692,30 @@ NativeError verifyAuthenticodePublisherImpl(
 }
 } // namespace
 
-/** @see src/platform/official_file_verifier.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief FileのAuthenticode chainと許可publisher完全一致を検証する。Windows trust policy成功後にembedded signerを完全一致する。
+ * @param[in] path 検証するfileの絶対path。
+ * @param[in] acceptedPublishers 許可するcertificate simple display name群。 許可するpublisher表示名群。
+ * @return Chain、revocation、publisher一致時は0、失敗時はtrust HRESULT。 Chain、revocation、publisher一致時は0、失敗時は
+ *         HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError verifyAuthenticodePublisher( const std::wstring_view					 path,
 										const std::span<const std::wstring_view> acceptedPublishers)
 {
 	return verifyAuthenticodePublisherImpl( path, acceptedPublishers, false) ;
 }
 
-/** @see src/platform/official_file_verifier.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 通信せずcache内のchainと失効情報だけで共通Authenticodeを検証します。
+ * @param[in] path 検証中に呼出側が実handleで変更・置換を防いだ絶対path。
+ * @param[in] acceptedPublishers 許可するembedded certificateの完全publisher名群。
+ * @return 成功0、cache不足・失効・chain・publisher不一致は元trust HRESULT。
+ * @note 通常入口のpolicyは変えず、online fallbackやcatalog-only signer推測は行いません。
+ */
+//------------------------------------------------------------------------------
 NativeError verifyAuthenticodePublisherCachedOnly(
 	const std::wstring_view path, const std::span<const std::wstring_view> acceptedPublishers)
 {
@@ -1647,7 +1724,13 @@ NativeError verifyAuthenticodePublisherCachedOnly(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_file_verifier.h 宣言側の契約を正本とする。
+ * @brief 署名catalogが全member fileの現在内容を収録していることを検証する。署名catalogと全member fileを検証する。各fileに原CATの
+ *        digest/tagが一致する既知算法をtrust前に選び、一件でも不一致なら全体を受理しません。
+ * @param[in] catalogPath 検証するCAT fileの絶対path。
+ * @param[in] memberPaths Catalog memberとして検証する通常fileの絶対path群。 Catalogへ収録されるべき通常file群。
+ * @return 全memberのhashとcatalog trustが有効なら0、最初の失敗はtrust HRESULT。 全memberのhashとcatalog trustが有効なら0、失敗
+ *         時はHRESULT。
+ * @note 外側署名のcurrent strong-sign policyを維持し、未知・不正算法を拒否します。blocking処理はworkerで実行します。
  */
 //------------------------------------------------------------------------------
 NativeError verifyOfficialCatalogMembers( const std::wstring_view			 catalogPath,
@@ -1742,7 +1825,14 @@ NativeError verifyOfficialCatalogMembers( const std::wstring_view			 catalogPath
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_file_verifier.h 宣言側の契約を正本とする。
+ * @brief XML Digital Signatureと埋込みcertificateのpublisherを検証する。XML Digital Signatureとpublisherを検証する。
+ *        Certificate公開鍵と文書全体の単一referenceを結び付け、CryptXML extensionを使用しない。
+ * @param[in] path 検証するUTF-8 XML fileの絶対path。 検証するUTF-8 XML file絶対path。
+ * @param[in] maximumBytes 読取りを許可するXML byte数上限。 XML read上限byte数。
+ * @param[in] validationFiletime 署名済み時刻を表す1601年起点100ns単位値。 署名済みSigningTime。
+ * @param[in] acceptedPublishers 許可するcertificate simple display name群。 許可publisher表示名群。
+ * @return 文書全体の署名、code-signing chain、publisher一致時は0。 XML署名、chain、publisherが全て有効なら0。
+ * @note 単一enveloped reference、RSA-SHA256、SHA-256、標準C14Nだけを許可する。
  */
 //------------------------------------------------------------------------------
 NativeError verifyXmlSignaturePublisher( const std::wstring_view					 path,
@@ -1925,7 +2015,12 @@ NativeError verifyXmlSignaturePublisher( const std::wstring_view					 path,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_file_verifier.h 宣言側の契約を正本とする。
+ * @brief Metadata条件とAuthenticode publisherを一つの順序で検証する。Metadata条件とAuthenticode publisherを順番に検証する。不一致
+ *        payloadへWinTrust処理を行わず、全条件をfail-closedにする。
+ * @param[in] path 検証するfileの絶対path。
+ * @param[in] metadataPolicy 親metadataが宣言したsize／SHA-256条件。 親metadataのsize／SHA-256条件。
+ * @param[in] acceptedPublishers 許可するcertificate simple display name群。 許可するpublisher表示名群。
+ * @return 全検証成功時は0、最初に失敗した検証のHRESULT bit pattern。 全検証成功時は0、最初の失敗時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
 NativeError verifyOfficialFile( const std::wstring_view					path,
@@ -1952,12 +2047,21 @@ const AuthenticodeApi NATIVE_AUTHENTICODE_API{&WinVerifyTrust,	   &CryptQueryObj
 // 同MTAにだけ生存する内部scopeです。製品経路は常にnullです。
 thread_local ScopedAuthenticodeFixture *activeAuthenticode = nullptr ;
 }
-/** @see ScopedAuthenticodeFixture 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全な内部表だけを同threadへ固定します。
+ * @param[in] api 欠損を持たない内部Windows ABI表です。
+ */
+//------------------------------------------------------------------------------
 ScopedAuthenticodeFixture::ScopedAuthenticodeFixture( const AuthenticodeApi api) noexcept : api_( api)
 {
 	activeAuthenticode = this ;
 }
-/** @see ScopedAuthenticodeFixture 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同threadの表を解除し、native backendを汚染しません。
+ */
+//------------------------------------------------------------------------------
 ScopedAuthenticodeFixture::~ScopedAuthenticodeFixture() noexcept
 {
 	// 同threadへ固定した元scopeだけを解除します。
@@ -1965,13 +2069,24 @@ ScopedAuthenticodeFixture::~ScopedAuthenticodeFixture() noexcept
 		activeAuthenticode = nullptr ;
 	}
 }
-/** @see authenticodeApi 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 製品は固定native、内部scopeは欠損のない元ABIへ戻します。
+ * @return 同threadの不変低位表です。部分的なnative fallbackはありません。
+ */
+//------------------------------------------------------------------------------
 const AuthenticodeApi &authenticodeApi() noexcept
 {
 	return activeAuthenticode ? activeAuthenticode->api() : NATIVE_AUTHENTICODE_API ;
 }
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
-/** @see Access 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全低位Authenticode表を同workerへ固定します。
+ * @param[in] api 全八ABIが揃った内部表です。外部設定は受理しません。
+ * @return 完全表だけの単独scope、不足または別scope存在時nullptrです。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<ScopedAuthenticodeFixture> Access::createAuthenticode( const AuthenticodeApi api)
 {
 	// 欠損表や別scopeの上書きでnativeを部分利用しません。
@@ -1987,10 +2102,13 @@ std::unique_ptr<ScopedAuthenticodeFixture> Access::createAuthenticode( const Aut
 // Worker threadの同期scopeだけへ固定する完全fixture。製品は常にnullptrです。
 thread_local ScopedFixture *activeFixture = nullptr ;
 
-/** @brief 内部署名fixtureの相対member名を安全な全segmentへ限定します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 内部署名fixtureの相対member名を安全な全segmentへ限定します。
  * @param[in] name 補正せず同期検査する元相対名です。
  * @return 全segmentが非空で絶対・traversal・不正文字を持たない場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool			validFixtureRelativeName( std::wstring_view name) noexcept
 {
 	std::size_t beginning{} ;	// 原segmentの開始位置です。
@@ -2032,12 +2150,15 @@ thread_local ScopedFixture *activeFixture = nullptr ;
 	return false ;
 }
 
-/** @brief 実fileが同rootの完全相対memberと元hashへ一致するか確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実fileが同rootの完全相対memberと元hashへ一致するか確認します。
  * @param[in] files 完全な固定期待集合。
  * @param[in] path 保護workspace内の実絶対path。
  * @param[in] root 元INFで確認する保護rootです。末尾区切りを含みます。
  * @return 実byteと元hash一致の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matchesFixtureFile( const std::vector<FixtureFile> &files,
 									  const std::wstring_view path, const std::wstring_view root)
 {
@@ -2055,7 +2176,15 @@ thread_local ScopedFixture *activeFixture = nullptr ;
 }
 
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
-/** @see readSyntheticCatalogDigests宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存の明示人工scopeだけで、確認済み同root/ownerの元member hashを取得します。
+ * @param[in] path 元固定CATの完全pathです。
+ * @param[out] hashes 全成功時だけ人工memberの元SHA256集合です。失敗時は空です。
+ * @return 元CAT/全file/root-ownerが同scopeで確認済みの場合だけtrueです。
+ * @note 実CATやnative adapterへは適用せず、署名や実適合の根拠を作りません。
+ */
+//------------------------------------------------------------------------------
 bool readSyntheticCatalogDigests( const std::wstring_view	path,
 								 std::vector<std::wstring> &hashes) noexcept
 {
@@ -2126,12 +2255,22 @@ bool readSyntheticCatalogDigests( const std::wstring_view	path,
 }
 #endif
 
-/** @see ScopedFixture宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 内部factoryだけが既存native署名への委譲scopeを作ります。
+ */
+//------------------------------------------------------------------------------
 ScopedFixture::ScopedFixture() noexcept : nativeAdapter_( true)
 {
 	activeFixture = this ;
 }
-/** @see ScopedFixture宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全な固定file集合だけを所有します。
+ * @param[in] files INF/CATと参照fileの固定hash集合。
+ * @param[in] maximumRoots 固定集合を許す保護root-INF-owner組数。内部factoryだけが1～129を指定します。
+ */
+//------------------------------------------------------------------------------
 ScopedFixture::ScopedFixture( std::vector<FixtureFile> files, const std::size_t maximumRoots)
 	: files_( std::move( files)), maximumRoots_( maximumRoots)
 {
@@ -2139,7 +2278,11 @@ ScopedFixture::ScopedFixture( std::vector<FixtureFile> files, const std::size_t 
 	rootOwners_.reserve( maximumRoots_) ;
 	activeFixture = this ;
 }
-/** @see ScopedFixture宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 本threadのfixtureを解除します。
+ */
+//------------------------------------------------------------------------------
 ScopedFixture::~ScopedFixture() noexcept
 {
 	// Scopeを使った同workerだけから解除し、別scopeを上書きしません。
@@ -2147,14 +2290,27 @@ ScopedFixture::~ScopedFixture() noexcept
 		activeFixture = nullptr ;
 	}
 }
-/** @see ScopedFixture宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 秘密pathを含まない呼出し件数を返します。
+ * @return Scope中だけ有効な有限receipt。
+ */
+//------------------------------------------------------------------------------
 Receipt ScopedFixture::receipt() const noexcept
 {
 	auto result			   = receipt_ ;	// Call数と実閉包root数を別の観測として返します。
 	result.inspectionRoots = roots_.size() ;
 	return result ;
 }
-/** @see setupVerifyInf宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 製品は固定native、内部scopeは実hash fixtureまたは明示native adapterへdispatchします。
+ * @param[in] path 実INF絶対path。
+ * @param[in] platform Windowsのplatform条件。
+ * @param[out] signer Windows標準のCAT/signature出力。
+ * @return 署名API成功TRUE、拒否FALSE。
+ */
+//------------------------------------------------------------------------------
 BOOL setupVerifyInf( const PCWSTR path, const PSP_ALTPLATFORM_INFO platform,
 					const PSP_INF_SIGNER_INFO_W signer) noexcept
 {
@@ -2246,7 +2402,15 @@ BOOL setupVerifyInf( const PCWSTR path, const PSP_ALTPLATFORM_INFO platform,
 		return FALSE ;
 	}
 }
-/** @see verifyTrust宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同member/tag/policyのVERIFYとCLOSEを同じbackendで処理します。
+ * @param[in] window 親window。内部fixtureはnullptrだけを受理します。
+ * @param[in] action Windows標準policy GUID。
+ * @param[in,out] data 完全なWINTRUST_DATA。
+ * @return 検証成功0、それ以外は元trust error。
+ */
+//------------------------------------------------------------------------------
 LONG verifyTrust( const HWND window, GUID *const action, LPVOID const data) noexcept
 {
 	// 製品は同じ固定native関数でVERIFYとCLOSEを処理します。
@@ -2407,7 +2571,14 @@ LONG verifyTrust( const HWND window, GUID *const action, LPVOID const data) noex
 }
 // 完全な内部factoryだけをtest構成に含め、製品設定から取得しません。
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
-/** @see Access宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元Windows署名APIへそのまま委譲する内部scopeを作ります。
+ * @return 同threadに既存scopeがなければ単独所有adapter、それ以外はnullptrです。
+ * @note 成功値/publisher/検証policyを補完せず、証明書通信を含む元APIの動作を保持します。公開JSON/成功bool/鍵を受けず、実inventoryや取得・導入能力を発行
+ *       しません。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<ScopedFixture> Access::createNativeAdapter()
 {
 	// 生存する元scopeを別backendへ切り替えません。
@@ -2417,7 +2588,14 @@ std::unique_ptr<ScopedFixture> Access::createNativeAdapter()
 
 	return std::unique_ptr<ScopedFixture>{new ScopedFixture{}} ;
 }
-/** @see Access宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 未登録file・未知hash・重複を拒否して本worker lifetimeへ固定します。
+ * @param[in] files 直下INF/CATと安全相対参照memberの完全な原byte hash。最大387file／129INFです。
+ * @param[in] maximumRoots 完全なroot-INF-owner組の数。1～129だけを受理します。
+ * @return 完全集合の場合だけscope。任意の署名合格boolを受理しません。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<ScopedFixture> Access::create( std::vector<FixtureFile> files,
 											  const std::size_t		   maximumRoots)
 {

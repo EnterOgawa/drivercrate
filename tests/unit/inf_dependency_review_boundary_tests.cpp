@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_review_boundary_tests.cpp
  * @brief 架空INFの全証拠組合せと確認計画の非実行境界を検証する。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  全証拠組合せ・差替え・計画非昇格の独立試験を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空tableだけを同期借用する。実file・network・署名・device・導入APIを呼ばない。
@@ -60,11 +61,14 @@ constexpr std::array  EVIDENCE_STATES{InfDependencyEvidence::NOT_CHECKED,
 									  InfDependencyEvidence::VERIFIED,
 									  InfDependencyEvidence::FAILED} ;	// 独立三状態の全列挙。
 
-/** @brief 架空の一documentを生成する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空の一documentを生成する。
  * @param[in] identity この試験内の非零identity。
  * @param[in] origin 架空の配布境界。
  * @return 三証拠を確認済みにした架空snapshot。実証拠ではない。
  */
+//------------------------------------------------------------------------------
 InfDependencyDocument makeDocument( std::uint64_t identity, InfDependencyOrigin origin)
 {
 	return {identity,
@@ -97,11 +101,14 @@ struct ReviewLookup {
 	InfDependencyLookup value ;
 } ;
 
-/** @brief 有限の架空名をWindows ordinal規則で比較する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限の架空名をWindows ordinal規則で比較する。
  * @param[in] left 架空の一明示名。
  * @param[in] right 架空の一明示名。
  * @return 大小文字を除いて一致すればtrue。
  */
+//------------------------------------------------------------------------------
 bool sameFixtureName( std::wstring_view left, std::wstring_view right)
 {
 	return CompareStringOrdinal( left.data(), static_cast<int>( left.size()), right.data(),
@@ -133,7 +140,8 @@ struct ReviewFixture {
 	/// trueなら失敗指定の再確認で一般例外を送出する。
 	bool					   throwRecheck{} ;
 
-	/** @brief このfixtureを呼出し中だけ借用する偽操作を作る。
+	/**
+	 * @brief このfixtureを呼出し中だけ借用する偽操作を作る。
 	 * @return 同期runの寿命内だけ使える三callback。
 	 */
 	InfDependencyOperations	   operations()
@@ -180,10 +188,13 @@ struct ReviewFixture {
 	}
 } ;
 
-/** @brief 成功の確認用計画に実行能力や検査済みの別軸が混入しないことを確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 成功の確認用計画に実行能力や検査済みの別軸が混入しないことを確認する。
  * @param[in,out] context assertionの集計先。
  * @param[in] result 今回の非実行観測。
  */
+//------------------------------------------------------------------------------
 void expectReviewOnly( TestContext &context, const InfDependencyResult &result)
 {
 	DRIVERCRATE_EXPECT( context, result.plan.actionCoverage == InfDependencyEvidence::NOT_CHECKED) ;
@@ -206,13 +217,16 @@ void expectReviewOnly( TestContext &context, const InfDependencyResult &result)
 	}
 }
 
-/** @brief 古い成功値を詰めた出力を使い、全失敗時の空化まで確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 古い成功値を詰めた出力を使い、全失敗時の空化まで確認する。
  * @param[in,out] context assertionの集計先。
  * @param[in,out] fixture 同期runだけの架空loader。
  * @param[in,out] cases 実行した有限caseの集計先。
  * @param[in] expected 期待する観測error。0は観測成功で導入成功ではない。
  * @return 今回の結果。拒否なら全出力が空。
  */
+//------------------------------------------------------------------------------
 InfDependencyResult exercise( TestContext &context, ReviewFixture &fixture, std::size_t &cases,
 							 NativeError expected = 0)
 {
@@ -256,10 +270,13 @@ InfDependencyResult exercise( TestContext &context, ReviewFixture &fixture, std:
 	return result ;
 }
 
-/** @brief 候補とrootの独立三証拠を全組合せで検証する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 候補とrootの独立三証拠を全組合せで検証する。
  * @param[in,out] context assertionの集計先。
  * @param[in,out] cases 実行したcase数。
  */
+//------------------------------------------------------------------------------
 void testEvidenceMatrix( TestContext &context, std::size_t &cases)
 {
 	// 配布境界を変えても同じ三証拠を全27組合せで要求する。
@@ -344,10 +361,13 @@ void testEvidenceMatrix( TestContext &context, std::size_t &cases)
 	}
 }
 
-/** @brief 文脈転用・同identity差替え・最後の再確認失敗を拒否する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 文脈転用・同identity差替え・最後の再確認失敗を拒否する。
  * @param[in,out] context assertionの集計先。
  * @param[in,out] cases 実行したcase数。
  */
+//------------------------------------------------------------------------------
 void testSnapshotBoundaries( TestContext &context, std::size_t &cases)
 {
 	// 全六OS文脈fieldを一つずつ変え、同hashでも転用を拒否する。
@@ -448,10 +468,13 @@ void testSnapshotBoundaries( TestContext &context, std::size_t &cases)
 	}
 }
 
-/** @brief 部分照会・複数候補・循環・空参照と資料役割を検証する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 部分照会・複数候補・循環・空参照と資料役割を検証する。
  * @param[in,out] context assertionの集計先。
  * @param[in,out] cases 実行したcase数。
  */
+//------------------------------------------------------------------------------
 void testGraphBoundaries( TestContext &context, std::size_t &cases)
 {
 	// 未照会・未発見・曖昧・循環と正当な空集合を独立したcaseへ残す。
@@ -568,9 +591,12 @@ void testGraphBoundaries( TestContext &context, std::size_t &cases)
 } // namespace
 } // namespace drivercrate::test
 
-/** @brief 架空境界試験の件数だけを表示する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空境界試験の件数だけを表示する。
  * @return 全assertion成功0、失敗または予期しない例外1。
  */
+//------------------------------------------------------------------------------
 int main()
 {
 	drivercrate::test::TestContext context ;	// このprocessだけのassertion集計。

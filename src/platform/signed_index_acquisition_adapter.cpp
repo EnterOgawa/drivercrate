@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_adapter.cpp
  * @brief 同snapshotの取得能力とtaskを封印し、既存grantと検査入力へ接続します。
- * @version 01.16.00
+ * @version 01.16.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -37,6 +37,7 @@
  * Ver.01.14.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
  * Ver.01.15.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * Ver.01.16.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.16.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 同workerの直列処理です。監視PCの申告と端末実byteを分け、live根拠を合成しません。
@@ -73,10 +74,13 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 		? std::span<const std::string_view>{local_index_profile::ACQUISITION_KEYS}
 		: std::span<const std::string_view>{index_distribution_trust::ACQUISITION_KEYS} ;
 
-/** @brief Strict codecが検査した原UTF-8公開textを欠損なくWindows表示へ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Strict codecが検査した原UTF-8公開textを欠損なくWindows表示へ変換します。
  * @param[in] text 元recordの変更していない有限UTF-8 textです。
  * @return 正確なUTF-16 textです。不正byteは例外でfail-closedにします。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring indexUtf8Text( const std::string_view text)
 {
 	// 未指定の任意属性だけは空のまま保持します。
@@ -103,11 +107,14 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 	return result ;
 }
 
-/** @brief Schema検査済みASCII HTTPS URLからexact小文字hostを取り出します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Schema検査済みASCII HTTPS URLからexact小文字hostを取り出します。
  * @param[in] value 元sourceまたはtextDocumentの未変更URLです。
  * @param[out] host 成功時だけ443/HTTPSのexact DNS hostです。失敗時は空です。
  * @return 共通Windows URL parserの成功時trueです。通信や公式性認定は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool exactHttpsHost( const std::string_view value, std::wstring &host)
 {
 	host.clear() ;
@@ -134,10 +141,13 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 	return true ;
 }
 
-/** @brief 原SHA-256を小文字hexへ表現します。暗号検証は複製しません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原SHA-256を小文字hexへ表現します。暗号検証は複製しません。
  * @param[in] digest 認証済み原digest。
  * @return 小文字64桁。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring hexDigest( const IndexManifestSha256 &digest)
 {
 	constexpr std::wstring_view HEX = L"0123456789abcdef" ;	// 固定hex表。
@@ -152,10 +162,13 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 	return value ;
 }
 
-/** @brief 固定信頼UTC秒を既存時刻型へ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定信頼UTC秒を既存時刻型へ変換します。
  * @param[in] seconds 正のUTC秒。
  * @return 範囲内だけ時刻。0またはsigned秒範囲外はnullopt。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::chrono::sys_seconds> utcFromSeconds(
 	const std::uint64_t seconds) noexcept
 {
@@ -168,12 +181,15 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 	return std::chrono::sys_seconds{std::chrono::seconds{static_cast<std::int64_t>( seconds)}} ;
 }
 
-/** @brief 完全内容根拠と取得policyが一致したrecordだけを共有対象とします。
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全内容根拠と取得policyが一致したrecordだけを共有対象とします。
  * @param[in] left 個別validateRecord済みの元record。
  * @param[in] right 個別validateRecord済みの元record。
- * @return 完全hash/正のsize/全取得条件一致時だけtrueです。名称や版を使用しません。
  * @param[in] sameTimeWindow 共有taskはtrue、独立期限検証後の同owned byte比較だけfalseです。
-	 */
+ * @return 完全hash/正のsize/全取得条件一致時だけtrueです。名称や版を使用しません。
+ */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool sameSharedPayloadEvidence( const IndexDistributionRecord &left,
 											 const IndexDistributionRecord &right,
 											 const bool sameTimeWindow = true) noexcept
@@ -292,14 +308,31 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 }
 } // namespace
 
-/** @see signed_index_acquisition_adapter.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常adapterと同じ完全payload/取得policyの値比較を行います。
+ * @param[in] left 個別codec検査済みの原recordです。
+ * @param[in] right 別の個別codec検査済み原recordです。
+ * @return 全内容根拠と取得条件が一致する場合だけtrueです。
+ * @note 認証型、共有claim、通信許可、端末適用性や導入能力を発行しません。
+ */
+//------------------------------------------------------------------------------
 bool matchesSharedIndexPayloadEvidence( const IndexDistributionRecord &left,
 									   const IndexDistributionRecord &right) noexcept
 {
 	return sameSharedPayloadEvidence( left, right) ;
 }
 
-/** @see SignedIndexAcquisitionAdapter 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存snapshotを含む同worker lookupへ固定policyで結合します。
+ * @param[in] lookup 非公開構築の不変lookup。Null・不足を拒否します。
+ * @param[in] current 同workerのoperation・scan・inventory。
+ * @param[in] targetOs 現workerが確認したOS分類。端末適合の合格ではありません。
+ * @param[in] nowUtc 信頼UTC。確認不能を拒否します。
+ * @return 開始0。未配備の製品policy・stale・期限・不足は拒否HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::begin(
 	std::shared_ptr<const SignedIndexRecordLookup> lookup, const IndexLookupContext current,
 	const IndexTargetOs targetOs, const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
@@ -307,7 +340,17 @@ NativeError SignedIndexAcquisitionAdapter::begin(
 	return beginImpl( std::move( lookup), current, targetOs, nowUtc, AuthorityProfile::PRODUCT) ;
 }
 
-/** @see SignedIndexAcquisitionAdapter 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 内部固定profileを使って同じ開始検査を行います。
+ * @param[in] lookup 保存済み元lookup。
+ * @param[in] current 現context。
+ * @param[in] targetOs 既知OS分類。
+ * @param[in] nowUtc 信頼UTC。
+ * @param[in] profile 外部設定ではない内部固定policy区分。
+ * @return 全開始検査成功0、それ以外は拒否HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::beginImpl(
 	std::shared_ptr<const SignedIndexRecordLookup> lookup, const IndexLookupContext current,
 	const IndexTargetOs targetOs, const std::optional<std::chrono::sys_seconds> nowUtc,
@@ -358,7 +401,11 @@ NativeError SignedIndexAcquisitionAdapter::beginImpl(
 	}
 }
 
-/** @see SignedIndexAcquisitionAdapter 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 私有issuerと未開始計画を失効します。原snapshotを修復・削除しません。
+ */
+//------------------------------------------------------------------------------
 void SignedIndexAcquisitionAdapter::invalidate() noexcept
 {
 	terms_.clear() ;
@@ -370,7 +417,11 @@ void SignedIndexAcquisitionAdapter::invalidate() noexcept
 	nextGrantId_ = 1U ;
 }
 
-/** @see SignedIndexAcquisitionAdapter 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 新しい取得だけを閉鎖し、消費済み成功grantの同期限内再検証を保持します。
+ */
+//------------------------------------------------------------------------------
 void SignedIndexAcquisitionAdapter::closeAcquisitionForInstall() noexcept
 {
 	// 同じissuerの消費済み成功根拠を保持し、新しい取得だけを不可逆に閉鎖します。
@@ -379,7 +430,16 @@ void SignedIndexAcquisitionAdapter::closeAcquisitionForInstall() noexcept
 	}
 }
 
-/** @see SignedIndexAcquisitionAdapter 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元tuple・descriptor・期限・通常driver条件を再照合します。
+ * @param[in] relationIndex 元関係位置。
+ * @param[in] current 現context。
+ * @param[in] nowUtc 信頼UTC。
+ * @param[out] reason 失敗時の具体的理由。成功時は空。
+ * @return 全条件成立0、それ以外は拒否または保留HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::validateRecord(
 	const std::size_t relationIndex, const IndexLookupContext current,
 	const std::optional<std::chrono::sys_seconds> nowUtc, std::string &reason) const
@@ -554,7 +614,18 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 	return 0 ;
 }
 
-/** @see SignedIndexAcquisitionAdapter 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元認証規約を有限共通GETで取得し、全文と出典をRAMの記述へ固定します。
+ * @param[in] relationIndex 私有lookupの原関係位置です。
+ * @param[in] current 元scanの全contextです。
+ * @param[in] nowUtc 信頼UTCです。前後の期限を再照合します。
+ * @param[in,out] client 同workerの完全共通HTTP依存です。公開URLは受理しません。
+ * @param[in] cancellation 同scanの協調停止です。
+ * @return 全原byte/全文成立0、未対応/変更/失効は元HRESULTです。
+ * @note 同意を発行せず、未取得本文を空の同意不要へ変更しません。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::readTermsText(
 	const std::size_t relationIndex, const IndexLookupContext current,
 	const std::optional<std::chrono::sys_seconds> nowUtc, OfficialHttpClient &client,
@@ -697,7 +768,17 @@ NativeError SignedIndexAcquisitionAdapter::readTermsText(
 	return 0U ;
 }
 
-/** @see SignedIndexAcquisitionAdapter 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元lookupの関係位置から取得対象を再記述します。
+ * @param[in] relationIndex 元lookup内の0起点位置。公開tupleは受理しません。
+ * @param[in] current 現worker context。
+ * @param[in] nowUtc 信頼UTC。
+ * @param[in] limits 共通preparationの有限予算。
+ * @param[out] description 全条件成功時だけtarget。失敗時は不足理由を保持します。
+ * @return 記述成功0、未知・未対応E_NOTIMPL、stale・権限・期限等の拒否HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::describe(
 	const std::size_t relationIndex, const IndexLookupContext current,
 	const std::optional<std::chrono::sys_seconds> nowUtc, const OfficialPreparationLimits &limits,
@@ -862,7 +943,16 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 	return 0 ;
 }
 
-/** @see SignedIndexAcquisitionAdapter宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 私有共有bindingの全原recordと期限を再確認します。
+ * @param[in] binding 同issuerが記述した未変更の取得binding。
+ * @param[in] current 元scan context。
+ * @param[in] nowUtc 信頼UTC。
+ * @param[out] reason 最初の拒否理由。
+ * @return 全原関係成立0、それ以外は元HRESULTです。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::validateBinding(
 	const PreparedBinding &binding, const IndexLookupContext current,
 	const std::optional<std::chrono::sys_seconds> nowUtc, std::string &reason) const
@@ -930,7 +1020,17 @@ NativeError SignedIndexAcquisitionAdapter::validateBinding(
 	return 0U ;
 }
 
-/** @see SignedIndexAcquisitionAdapter 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実claim済みtaskから同じRecordScopedDownloadGrantを一回発行します。
+ * @param[in] preparation 実active taskを所有する同worker session。
+ * @param[in] task 利用者承認後の未変更task。
+ * @param[in] current 現worker context。
+ * @param[in] nowUtcSeconds 発行直前の信頼UTC秒。
+ * @param[out] grant 未発行object。成功時だけ同じgrant状態機械へ進めます。
+ * @return 全再照合成功0、改変・再使用・失効・期限は拒否HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::claimApprovedRecord(
 	OfficialPreparationSession &preparation, const OfficialPreparationTask &task,
 	const IndexLookupContext current, const std::uint64_t nowUtcSeconds,
@@ -939,7 +1039,17 @@ NativeError SignedIndexAcquisitionAdapter::claimApprovedRecord(
 	return grant.issueSignedIndex( *this, preparation, task, current, nowUtcSeconds) ;
 }
 
-/** @see RecordScopedDownloadGrant 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 非公開adapterが実taskとsnapshotを再確認して同じgrantを発行します。
+ * @param[in,out] adapter 失効可能な元issuer。
+ * @param[in] preparation 実claimを保持するsession。
+ * @param[in] task 同じ未完了task。
+ * @param[in] current 現worker context。
+ * @param[in] nowUtcSeconds 発行UTC秒。
+ * @return 全sealed bindingの成立時0。未発行の入力だけを受理します。
+ */
+//------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::issueSignedIndex( SignedIndexAcquisitionAdapter &adapter,
 														OfficialPreparationSession	  &preparation,
 														const OfficialPreparationTask &task,
@@ -1051,7 +1161,13 @@ NativeError RecordScopedDownloadGrant::issueSignedIndex( SignedIndexAcquisitionA
 	return 0 ;
 }
 
-/** @see RecordScopedDownloadGrant 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 署名索引grantの失効leaseと同scanの非公開元lookupを照合します。
+ * @param[in] scanSessionId 現取得session。
+ * @return 元封印とissuerが生存し同scanの場合0。それ以外は拒否HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::validateSignedIndexAuthority(
 	const ScanSessionId scanSessionId) const noexcept
 {
@@ -1080,7 +1196,15 @@ NativeError RecordScopedDownloadGrant::validateSignedIndexAuthority(
 			   : E_ACCESSDENIED ;
 }
 
-/** @see RecordScopedDownloadGrant 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 封印した署名索引routeのexact URL順を再照合します。
+ * @param[in] exactTarget 現HTTP hopのURL。本呼出し中だけ借用します。
+ * @param[in] hop 0起点のhop位置。
+ * @param[in] finalResponse HTTP 200に達した場合だけtrue。
+ * @return 生存権限・URL完全一致・終端位置が成立した場合0。
+ */
+//------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::validateSignedIndexHop(
 	const std::wstring_view exactTarget, const std::uint32_t hop,
 	const bool finalResponse) const noexcept
@@ -1094,7 +1218,12 @@ NativeError RecordScopedDownloadGrant::validateSignedIndexHop(
 			   : E_ACCESSDENIED ;
 }
 
-/** @see official_download_grant.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元lookupの公開resolver文脈だけを同期借用する。
+ * @return 生存する同recordの未解決plan。それ以外はnull。
+ */
+//------------------------------------------------------------------------------
 const OfficialAnonymousCdnPlan *RecordScopedDownloadGrant::anonymousCdnPlan() const noexcept
 {
 	// 元lookup/issuer/同用途がなければresolverを起動しない。
@@ -1113,12 +1242,26 @@ const OfficialAnonymousCdnPlan *RecordScopedDownloadGrant::anonymousCdnPlan() co
 			   ? &*record.acquisitionDescriptor->anonymousCdn
 			   : nullptr ;
 }
-/** @see official_download_grant.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同recordで未解決の匿名CDN protocolがあるか返す。
+ * @return 元issuerが生存し未解決の同用途ならtrue。
+ */
+//------------------------------------------------------------------------------
 bool RecordScopedDownloadGrant::requiresAnonymousCdnResolution() const noexcept
 {
 	return anonymousCdnPlan() != nullptr ;
 }
-/** @see official_download_grant.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同recordの公開起点とresponseだけからexact解決routeを封印する。
+ * @param[in] canonical 元requestが単独所有する公開起点。
+ * @param[in] resolved 新responseの秘密完全URL。
+ * @param[in] expires 実responseのUTC Unix秒。
+ * @param[in] now 送信直前の同worker UTC秒。
+ * @return 全結合成功0、元HRESULT。失敗時は旧routeを維持する。
+ */
+//------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::sealAnonymousCdnResolution( const std::wstring_view canonical,
 																  const SecretOfficialUrl &resolved,
 																  const std::uint64_t	   expires,
@@ -1155,7 +1298,21 @@ NativeError RecordScopedDownloadGrant::sealAnonymousCdnResolution( const std::ws
 	return 0 ;
 }
 
-/** @see SignedIndexAcquisitionAdapter 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通取得sealを元recordと独立照合し、共通内容検査入力を生成します。
+ * @param[in] task 発行済みgrantと同じ実task。
+ * @param[in] current 現worker context。
+ * @param[in] nowUtcSeconds 封印入力確認直前の信頼UTC秒。
+ * @param[in] session 元取得sealのissuer。
+ * @param[in] workspace 元保護fileを所有する領域。
+ * @param[in] evidence 公開結果から構築できない元取得seal。
+ * @param[out] hint 全成功時だけ元index／record／実archiveの期待値。
+ * @param[out] input 全成功時だけ既存DriverArchiveInput。失敗時は空。
+ * @return 全実byteとrecord結合成功0、元HRESULTまたは拒否HRESULT。
+ * @note 内容署名・Windows適合・導入は別の共通検査で行います。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::bindInspectionInput(
 	const OfficialPreparationTask &task, const IndexLookupContext current,
 	const std::uint64_t nowUtcSeconds, const OfficialAcquisitionSession &session,
@@ -1253,7 +1410,14 @@ NativeError SignedIndexAcquisitionAdapter::bindInspectionInput(
 	return 0 ;
 }
 
-/** @see signed_index_acquisition_adapter.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同lookupの配布tupleを比較します。原期限検証は呼出側でも省きません。
+ * @param[in] task 新しい明示対象です。
+ * @param[in] sourceTask 元TRANSFER対象です。
+ * @return 原配布tupleが完全一致した場合だけtrueです。
+ */
+//------------------------------------------------------------------------------
 bool SignedIndexAcquisitionAdapter::matchesRetainedBody(
 	const OfficialPreparationTask &task, const OfficialPreparationTask &sourceTask) const
 {
@@ -1285,7 +1449,22 @@ bool SignedIndexAcquisitionAdapter::matchesRetainedBody(
 		   sameSharedPayloadEvidence( left, right, false) ;
 }
 
-/** @see signed_index_acquisition_adapter.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 新LOCAL taskのscopeへ同owned fileを結合します。
+ * @param[in] task 新しい明示承認taskです。
+ * @param[in] sourceTask 元所有を説明する過去TRANSFER taskです。
+ * @param[in] current 元scan contextです。
+ * @param[in] nowUtcSeconds 信頼UTC秒です。
+ * @param[in] session 元file sealのissuerです。
+ * @param[in] workspace 元保護領域です。
+ * @param[in] evidence 元fileの不変sealです。現在の読取許可ではありません。
+ * @param[in] localInspection 当該LOCAL claimの照合票です。
+ * @param[out] hint 新recordの原selectorです。
+ * @param[out] input 元ownerからの非所有byte入力です。
+ * @return 原A/B期限・所有・全tuple成立0です。通信/旧grant再消費は行いません。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::bindRetainedInspectionInput(
 	const OfficialPreparationTask &task, const OfficialPreparationTask &sourceTask,
 	const IndexLookupContext current, const std::uint64_t nowUtcSeconds,
@@ -1362,7 +1541,17 @@ NativeError SignedIndexAcquisitionAdapter::bindRetainedInspectionInput(
 }
 
 namespace signed_index_acquisition_detail {
-/** @see Access 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ実開始検査へ固定fixture-main／revision1だけを渡します。
+ * @param[in,out] adapter 未開始adapter。
+ * @param[in] lookup 真署名・隔離commit／reload済みlookup。
+ * @param[in] current 同worker context。
+ * @param[in] targetOs 既知OS分類。
+ * @param[in] nowUtc 信頼UTC。
+ * @return 全開始検査成功0、それ以外は元拒否HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError Access::beginFixture( SignedIndexAcquisitionAdapter				   &adapter,
 								 std::shared_ptr<const SignedIndexRecordLookup> lookup,
 								 const IndexLookupContext current, const IndexTargetOs targetOs,

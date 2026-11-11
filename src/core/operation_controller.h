@@ -2,7 +2,7 @@
 /**
  * @file operation_controller.h
  * @brief 操作状態管理定義。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -37,6 +37,7 @@
  * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  通常scanの協調取消し待ち状態を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note UI操作とProvider resultの順序を検証する状態機械を定義します。本classはUI thread専用であり、内部lockingを行いません。
@@ -231,36 +232,40 @@ public:
 	[[nodiscard]] bool markInstalling( OperationId operationId) ;
 
 	/**
-	 * @brief install operation の最終結果を状態へ反映する。
-	 * install operation の最終結果を状態へ反映する。 注記:成功結果は開始時 selection と identityが完全一致する場合だけ受理する。
+	 * @brief install operation の最終結果を状態へ反映する。install operation の最終結果を状態へ反映する。 注記:成功結果は開始時 selection
+	 *        と identityが完全一致する場合だけ受理する。
 	 * @param[in] operationId 対象 operation ID。
 	 * @param[in] result workerが返した復元ポイントとupdateごとの最終結果。
+	 * @param[in] retention 当該操作の実ownerが保持する元subsetです。空では従来の全失効です。
 	 * @return 現在の operation に適用した場合は `true`。
 	 * @note 成功結果は開始時 selection と identity が完全一致する場合だけ受理する。
-	 * @param[in] retention 当該操作の実ownerが保持する元subsetです。空では従来の全失効です。
 	 */
 	[[nodiscard]] bool completeInstall( OperationId operationId, const InstallResult &result,
 									   const InstallRetentionSummary *retention = nullptr) ;
-	/** @brief 最後に受理したInstall結果の成功を次操作stateと分けます。
+	/**
+	 * @brief 最後に受理したInstall結果の成功を次操作stateと分けます。
 	 * @return 原結果の全検証に成功した場合trueです。
 	 */
 	[[nodiscard]] bool lastInstallSucceeded() const noexcept ;
-	/** @brief 同scanで未消費の導入可能候補だけを照合します。
+	/**
+	 * @brief 同scanで未消費の導入可能候補だけを照合します。
 	 * @param[in] identity 元candidate identityです。
 	 * @return 残存集合へ結合している場合trueです。
 	 */
 	[[nodiscard]] bool isInstallCandidateAllowed( std::wstring_view identity) const ;
-	/** @brief 原参照の残存scopeだけを照合します。
-     * @param[in] identity 元発行の参照です。
-     * @return 未処理planへ結合している場合trueです。
-     */
+	/**
+	 * @brief 原参照の残存scopeだけを照合します。
+	 * @param[in] identity 元発行の参照です。
+	 * @return 未処理planへ結合している場合trueです。
+	 */
 	[[nodiscard]] bool isPreparationReferenceAllowed( std::wstring_view identity) const ;
-	/** @brief 当該終端に限り新IDの残planを原subsetへ照合します。
-     * @param[in] operationId 受理した直前Install操作です。
-     * @param[in] session 未失効の元scanです。
-     * @param[in] plan 原metadata/予算のsubsetです。
-     * @return 一回の全検証と初期化が成立した場合trueです。
-     */
+	/**
+	 * @brief 当該終端に限り新IDの残planを原subsetへ照合します。
+	 * @param[in] operationId 受理した直前Install操作です。
+	 * @param[in] session 未失効の元scanです。
+	 * @param[in] plan 原metadata/予算のsubsetです。
+	 * @return 一回の全検証と初期化が成立した場合trueです。
+	 */
 	[[nodiscard]] bool setRemainingPreparationPlan( OperationId operationId, ScanSessionId session,
 												   const OfficialPreparationPlan &plan) ;
 
@@ -298,12 +303,11 @@ public:
 	[[nodiscard]] bool		  markPreparationCancelling( OperationId operationId) noexcept ;
 
 	/**
-	 * @brief 取得完了を検証し、導入状態を変更せず元の一覧へ戻す。
-	 * 監査reportを全件照合し、全監査合格として発行された候補だけを現在scanの導入許可集合へ追加する。
+	 * @brief 取得完了を検証し、導入状態を変更せず元の一覧へ戻す。監査reportを全件照合し、全監査合格として発行された候補だけを現在scanの導入許可集合へ追加する。
 	 * @param[in] result operation／scan／planと対象別の確定結果。 同じoperation／scan／planの取得完了と監査report。
 	 * @param[in] candidates 表示済み候補。監査reportがある場合は必須。変更しない。 同じscanの表示候補。監査reportがある場合は必須。
-	 * @return 現在操作の結果を処理した場合true。不正内容はFailedとして適用する。 現在操作ならtrue。不正内容はFailedへ遷移し、旧操作はfalse。
 	 * @param[in] remainingPlan 当該承認の未選択原subsetです。新ID/原scope/予算を全検証します。
+	 * @return 現在操作の結果を処理した場合true。不正内容はFailedとして適用する。 現在操作ならtrue。不正内容はFailedへ遷移し、旧操作はfalse。
 	 */
 	[[nodiscard]] bool		  completePreparation( const OfficialPreparationOperationResult &result,
 												  std::span<const UpdateCandidate> candidates = {},
@@ -333,10 +337,18 @@ public:
 	 */
 	[[nodiscard]] const ScanMeasurement		  *scanMeasurement() const noexcept ;
 
-	/** @brief 現在または最後の検索の権限種別を返す。@return 結果行のフラグと独立した用途。 */
+	/**
+	 * @brief 現在または最後の検索の権限種別を返す。
+	 * @return 結果行のフラグと独立した用途。
+	 * @return 現在保持するscan用途です。
+	 */
 	[[nodiscard]] ScanPurpose				   scanPurpose() const noexcept ;
 
-	/** @brief 検証済みの情報検索終端を参照する。@return 次の状態変更まで借用できる値。未保持はnullptr。 */
+	/**
+	 * @brief 検証済みの情報検索終端を参照する。
+	 * @return 次の状態変更まで借用できる値。未保持はnullptr。
+	 * @return 保持済みsummaryがあればその借用pointer、未設定ならnullです。次の状態更新またはcontroller破棄より前にだけ使用します。
+	 */
 	[[nodiscard]] const MetadataSearchSummary *metadataSearchSummary() const noexcept ;
 
 	/**

@@ -2,7 +2,7 @@
 /**
  * @file asus_package_acquisition.h
  * @brief ASUS公式driver package検査用取得定義。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note ASUS公式pageで検証したURLとSHA-256を、候補化せずG11-Bの有限取得へ接続します。取得結果はworker内だけに保持し、system監査を迂回しません。
@@ -72,23 +73,24 @@ struct AsusPackageAcquisitionPlanEntry {
 	std::uint64_t maximumFileBytes{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief ASUS parser結果から有限で重複のない検査用取得計画を構築する。
- * ASUS parser結果から有限取得計画を構築する。
- * Origin、hash、size、opaque IDを再検証し、外部file名を使用しない有限計画へ固定する。
+ * @brief ASUS parser結果から有限で重複のない検査用取得計画を構築する。ASUS parser結果から有限取得計画を構築する。Origin、hash、size、opaque IDを
+ *        再検証し、外部file名を使用しない有限計画へ固定する。
  * @param[in] entries 同一model／OSの検証済みASUS page entry群。 同一model／OSの検証済みpage entry群。
  * @param[out] plan 成功時の取得順を維持した内部計画。失敗時は空にする。 成功時の内部取得計画。
  * @return 構築成功時は0、不正値、重複または件数超過時はHRESULT bit pattern。
  * @note 本関数はdownloadを開始せず、候補またはinstall可能状態を生成しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError makeAsusPackageAcquisitionPlan(
 	std::span<const AsusDriverPageEntry>		  entries,
 	std::vector<AsusPackageAcquisitionPlanEntry> &plan) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 一つのASUS計画entryをG11-Bの保護workspaceへ検査用取得する。
- * ASUS package一件をG11-Bへ検査用取得する。
- * Provider／resource IDを呼出し側に選ばせず、ASUS公式payload policyと公開SHA-256へ固定して共通取得を実行する。
+ * @brief 一つのASUS計画entryをG11-Bの保護workspaceへ検査用取得する。ASUS package一件をG11-Bへ検査用取得する。Provider／resource ID
+ *        を呼出し側に選ばせず、ASUS公式payload policyと公開SHA-256へ固定して共通取得を実行する。
  * @param[in] entry 検証済みASUS取得計画entry。
  * @param[in] restrictedNetworkApproved 今回だけRestricted／Unknown networkを許可する状態。 今回だけのcost同意。
  * @param[in,out] session 初期化済みのscan session共通取得ledger。 初期化済みscan session取得ledger。
@@ -101,6 +103,7 @@ struct AsusPackageAcquisitionPlanEntry {
  * @return `ACQUIRED_FOR_INSPECTION`到達時は0、それ以外はHRESULT bit pattern。 検査対象固定成功時は0、それ以外はHRESULT。
  * @note 取得成功は候補、PnP適用可能またはinstall可能を意味しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError acquireAsusPackageForInspection(
 	const AsusPackageAcquisitionPlanEntry &entry, bool restrictedNetworkApproved,
 	OfficialAcquisitionSession &session, OfficialDownloadWorkspace &workspace,

@@ -2,7 +2,7 @@
 /**
  * @file restore_point_service.h
  * @brief 復元ポイントサービス契約定義。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Driver変更を保護するWindows復元ポイント操作を抽象化します。unit testは本契約のfakeを使用し、実端末の復元ポイントを変更しません。
@@ -75,10 +76,11 @@ public:
      */
 	[[nodiscard]] virtual RestorePointOperationResult complete(
 		std::int64_t sequenceNumber) noexcept = 0 ;
-	/** @brief 最後の同service保護scopeの読取事実を返します。
-  * @return 実在/再利用/保存診断。既存実装の欠測は保護未成立として返します。
-  * @note Windows実装は必ず実在確認を返し、不完全fixtureをproductionへfallbackしません。
-  */
+	/**
+	 * @brief 最後の同service保護scopeの読取事実を返します。
+	 * @return 実在/再利用/保存診断。既存実装の欠測は保護未成立として返します。
+	 * @note Windows実装は必ず実在確認を返し、不完全fixtureをproductionへfallbackしません。
+	 */
 	[[nodiscard]] virtual RestorePointProtectionResult protection() const noexcept
 	{
 		return {.disposition  = RestorePointDisposition::UNAVAILABLE,

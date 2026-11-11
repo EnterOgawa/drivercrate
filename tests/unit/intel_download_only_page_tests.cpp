@@ -2,7 +2,7 @@
 /**
  * @file intel_download_only_page_tests.cpp
  * @brief 取得専用Intel heroの非通信試験です。
- * @version 01.01.02
+ * @version 01.01.03
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/23  全区間取得接続と公式module根拠付き許諾境界を追加。
  * Ver.01.01.01 Shunji Ogawa  2026/10/02  AI依存を撤去し非AI共通処理と試験を維持。
  * Ver.01.01.02 Shunji Ogawa  2026/10/12  共通索引を含む31登録でも開発用Intel ID非登録を確認。
+ * Ver.01.01.03 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  */
 //------------------------------------------------------------------------------
@@ -41,11 +42,13 @@
 
 namespace drivercrate::test {
 namespace {
+//------------------------------------------------------------------------------
 /**
  * @brief 架空EXEと架空EULAで実pageの構造だけを再現します。
  * @param[in] sha512 SHA-512だけを公開する場合true。
  * @return Networkへ送信しないHTML fixture。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring page( const bool sha512)
 {
 	return std::wstring( LR"(<html><body><h2>Available Downloads</h2>
@@ -58,11 +61,13 @@ namespace {
 		   LR"(</li></ul></div><h2 class="dc-page-detailed-description__title">Detailed Description</h2>
 <textarea id="content-raw" class="license-modal-content_body_license-text-raw" tabindex="0"><html lang="en"><head><title>Intel Fixture License Agreement [v2030.01.02]</title></head><body><p>Fictional evaluation terms.</p></body></html></textarea></body></html>)" ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 同一GETの架空公式根拠を作ります。
  * @param[in] source 明示評価起点。
  * @return Network本文と有限時刻を持つ根拠。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialSourceEvidence evidence( const IntelDownloadOnlySource source)
 {
 	OfficialSourceEvidence result ;	// 架空session。
@@ -78,10 +83,12 @@ namespace {
 	return result ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 二起点・三予算・二hashを共通parserで確認します。
  * @param[in,out] context assertion集計先。
  */
+//------------------------------------------------------------------------------
 void positive( TestContext &context)
 {
 	// 事前の製品family登録を増やさず共通HTTPだけへ接続する。
@@ -136,10 +143,12 @@ void positive( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 欠落・曖昧さ・別起点・許諾変化を部分成功にしないことを確認します。
  * @param[in,out] context assertion集計先。
  */
+//------------------------------------------------------------------------------
 void negative( TestContext &context)
 {
 	const auto valid = page( false) ;	// 共通の正常fixture。
@@ -228,10 +237,12 @@ void negative( TestContext &context)
 	DRIVERCRATE_EXPECT( context, intelDownloadOnlySourceDefinition(
 									static_cast<IntelDownloadOnlySource>( 99)) == nullptr) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 空欄を単独許可せず、公式module観測と実要素へ結合します。
  * @param[in,out] context assertion集計先。
  */
+//------------------------------------------------------------------------------
 void emptyTerms( TestContext &context)
 {
 	auto	   html		 = page( true) ;							// 実コードを転載しない構造fixture。
@@ -377,7 +388,12 @@ void emptyTerms( TestContext &context)
 }
 } // namespace
 
-/** @see intel_download_only_page_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Intel EXE共通parserと拒否境界を通信なしで検証します。
+ * @param[in,out] context assertion集計先。
+ */
+//------------------------------------------------------------------------------
 void runIntelDownloadOnlyPageTests( TestContext &context)
 {
 	emptyTerms( context) ;

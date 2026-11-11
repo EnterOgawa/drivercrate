@@ -2,7 +2,7 @@
 /**
  * @file provider_worker.h
  * @brief Provider worker定義。
- * @version 01.06.00
+ * @version 01.06.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -41,6 +41,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
  * Ver.01.05.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
  * Ver.01.06.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Blocking provider operationをCOM MTA worker threadへ隔離します。UI通知は有限result queueとPostMessageを使用し
@@ -192,7 +193,6 @@ public:
 	ProviderWorker( const ProviderWorker &) = delete ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	ProviderWorker &operator=( const ProviderWorker &) = delete ;
@@ -203,7 +203,6 @@ public:
 	ProviderWorker( ProviderWorker &&) = delete ;
 	/**
 	 * @brief 所有状態の移動をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	ProviderWorker	  &operator=( ProviderWorker &&) = delete ;
@@ -287,7 +286,8 @@ public:
 	void			   stop() noexcept ;
 
 private:
-	/** @brief 製品固定serviceまたは内部fixtureをthread開始前に所有します。
+	/**
+	 * @brief 製品固定serviceまたは内部fixtureをthread開始前に所有します。
 	 * @param[in] notificationWindow 非所有通知Window。
 	 * @param[in] notificationMessage 通知message。
 	 * @param[in] providerFactory 同worker Provider生成関数。

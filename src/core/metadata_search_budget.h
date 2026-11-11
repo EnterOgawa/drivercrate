@@ -2,7 +2,7 @@
 /**
  * @file metadata_search_budget.h
  * @brief 検索sessionの有限予算と協調停止契約。
- * @version 01.01.02
+ * @version 01.01.03
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  十Provider用の件数予算へ更新。
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.01.02   Shunji Ogawa  2026/10/16 使用量とsession取得の戻り値を正本宣言へ補足。
+ * Ver.01.01.03 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @see docs/adr/0153-intel-ethernet-windows11-provider-integration.md
@@ -127,7 +128,9 @@ public:
      */
 	[[nodiscard]] NativeError	beginResource( std::uint64_t maximumBytes) noexcept ;
 
-	/** @brief 同期resource呼出しの終端を通知する。消費量を返却しない。 */
+	/**
+	 * @brief 同期resource呼出しの終端を通知する。消費量を返却しない。
+	 */
 	void						finishResource() noexcept ;
 
 	/**

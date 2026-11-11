@@ -2,7 +2,7 @@
 /**
  * @file signed_index_record_lookup.cpp
  * @brief 保存snapshotの期限とcontextを確認して公開ID照合関係を保持します。
- * @version 01.04.00
+ * @version 01.04.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/14  同native私有証拠の部分positiveを元不足と分離。
  * Ver.01.03.00 Shunji Ogawa  2026/10/27  元cohort/診断と対象一件をprivate証拠へ完全結合。
  * Ver.01.04.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 原公開metadataを保持し、Windows適合・rank・導入許可へ昇格しません。
@@ -42,7 +43,16 @@
 
 namespace drivercrate {
 
-/** @see signed_index_record_lookup.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元context/ownerとweak寿命にread-open fieldの借用を結びます。
+ * @param[in] key 元DriverStoreのmint keyです。
+ * @param[in] context 元operation/scan/inventoryです。
+ * @param[in] ownerThread 元inventoryのthreadです。
+ * @param[in] owner 元stateのweak寿命です。強所有しません。
+ * @param[in] readOpen owner内の元read-open fieldです。lock成功時だけ参照します。
+ */
+//------------------------------------------------------------------------------
 NativeIndexLookupLease::NativeIndexLookupLease( MintKey key, IndexLookupContext context,
 											   std::uint32_t			 ownerThread,
 											   std::weak_ptr<const void> owner,
@@ -51,7 +61,14 @@ NativeIndexLookupLease::NativeIndexLookupLease( MintKey key, IndexLookupContext 
 {
 	static_cast<void>( key) ;
 }
-/** @see signed_index_record_lookup.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同context/owner thread・元state寿命/read-openを確認します。
+ * @param[in] context 元完全contextです。
+ * @param[in] ownerThread 現在実行中のthreadです。
+ * @return 元stateが同threadでread-openのときだけtrueです。I/Oを行いません。
+ */
+//------------------------------------------------------------------------------
 bool NativeIndexLookupLease::matches( IndexLookupContext context,
 									 std::uint32_t		ownerThread) const noexcept
 {
@@ -64,7 +81,21 @@ bool NativeIndexLookupLease::matches( IndexLookupContext context,
 	return owner && *readOpen_ ;
 }
 
-/** @see signed_index_record_lookup.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scanから確認した元公開tupleと既知device集合を不変保存します。
+ * @param[in] key DriverStoreだけが構築した発行keyです。
+ * @param[in] context 元worker／scan／inventoryの全contextです。
+ * @param[in] kind 元公開INF側のidentifier役割です。
+ * @param[in] publishedId 元公開ASCII identifierを本呼出し中だけ借用してcopyします。
+ * @param[in] classGuid 元公開Class文字列を本呼出し中だけ借用してcopyします。
+ * @param[in] ownerThread 同inventoryを所有するWindows thread IDです。
+ * @param[in] lease Providerが強所有する元scan stateへのweak leaseです。
+ * @param[in] devices 両native属性と既知Classが検証されたopaque集合を所有moveします。
+ * @param[in] error 同callbackが保持した元不足診断です。
+ * @note 元列挙完了と必要属性の検証は発行側の前提です。秘密IDやURLを保持しません。
+ */
+//------------------------------------------------------------------------------
 NativeIndexPositiveProof::NativeIndexPositiveProof(
 	MintKey key, IndexLookupContext context, IndexPnpIdKind kind, std::string_view publishedId,
 	std::string_view classGuid, std::uint32_t ownerThread, std::weak_ptr<const void> lease,
@@ -76,7 +107,20 @@ NativeIndexPositiveProof::NativeIndexPositiveProof(
 	static_cast<void>( key) ;
 }
 
-/** @see signed_index_record_lookup.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元tupleとdevice集合の完全一致および同ownerの生存を確認します。
+ * @param[in] context 現callbackの全contextです。
+ * @param[in] kind lookupが元recordから読んだ公開役割です。
+ * @param[in] publishedId lookupが元recordから読んだ公開identifierです。
+ * @param[in] classGuid lookupが元recordから読んだ公開Classです。
+ * @param[in] ownerThread lookupを実行中のWindows thread IDです。
+ * @param[in] devices callbackが返した全opaque集合を本呼出し中だけ借用します。
+ * @param[in] error callbackまたは私有relationが保持した元不足診断です。
+ * @return 全一致と生存確認が成立した場合だけtrueです。
+ * @note I/Oや参照の保持は行いません。失効したscanを再有効化しません。
+ */
+//------------------------------------------------------------------------------
 bool NativeIndexPositiveProof::matches( const IndexLookupContext context, const IndexPnpIdKind kind,
 									   const std::string_view			   publishedId,
 									   const std::string_view			   classGuid,
@@ -90,7 +134,22 @@ bool NativeIndexPositiveProof::matches( const IndexLookupContext context, const 
 		   std::equal( devices.begin(), devices.end(), devices_.begin()) ;
 }
 
-/** @see signed_index_record_lookup.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元公開tupleと全cohort、一deviceの完全観測を不変保存します。
+ * @param[in] key DriverStoreだけが構築した発行keyです。
+ * @param[in] context 元operation/scan/inventoryです。
+ * @param[in] kind 元公開IDの役割です。
+ * @param[in] publishedId 元公開IDをcopyします。端末raw IDではありません。
+ * @param[in] classGuid 元公開Classをcopyします。
+ * @param[in] ownerThread 元scanのWindows owner threadです。
+ * @param[in] lease Providerだけが強所有する元stateです。
+ * @param[in] devices 同callbackが返す全opaque cohortをcopyします。
+ * @param[in] error 他node不足も保持する元診断です。
+ * @param[in] completed 元callbackの全体完了区分です。
+ * @param[in] deviceIdentity 完全個別観測が成立したopaque一件をcopyします。
+ */
+//------------------------------------------------------------------------------
 NativeIndexDeviceProof::NativeIndexDeviceProof( MintKey key, IndexLookupContext context,
 											   IndexPnpIdKind kind, std::string_view publishedId,
 											   std::string_view			 classGuid,
@@ -105,7 +164,21 @@ NativeIndexDeviceProof::NativeIndexDeviceProof( MintKey key, IndexLookupContext 
 	static_cast<void>( key) ;
 }
 
-/** @see signed_index_record_lookup.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元tuple/診断/全cohortと対象一件、同ownerの生存を完全照合します。
+ * @param[in] context 使用時の全contextです。
+ * @param[in] kind 原recordの公開ID役割です。
+ * @param[in] publishedId 原recordの公開IDです。
+ * @param[in] classGuid 原recordの公開Classです。
+ * @param[in] ownerThread 使用中のWindows threadです。
+ * @param[in] devices 元callbackの全opaque cohortです。
+ * @param[in] error 消去しない元診断です。
+ * @param[in] completed 元callbackの完了区分です。
+ * @param[in] deviceIdentity 使用対象のopaque一件です。同cohortの他deviceも拒否します。
+ * @return 全一致と元leaseの生存が成立した場合だけtrueです。
+ */
+//------------------------------------------------------------------------------
 bool NativeIndexDeviceProof::matches( const IndexLookupContext context, const IndexPnpIdKind kind,
 									 const std::string_view				 publishedId,
 									 const std::string_view				 classGuid,
@@ -125,13 +198,16 @@ bool NativeIndexDeviceProof::matches( const IndexLookupContext context, const In
 
 namespace {
 
-/** @brief 元callbackの各個別証拠を全tuple/全cohortへ照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元callbackの各個別証拠を全tuple/全cohortへ照合します。
  * @param[in] resolution 元callbackの不変結果です。
  * @param[in] kind 原recordの公開役割です。
  * @param[in] publishedId 原recordの公開IDです。
  * @param[in] classGuid 原recordの公開Classです。
  * @return 一件以上の認証済みslotがあり、存在する証拠が全て完全一致した場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool verifiedDeviceProofs( const IndexPublicIdResolution &resolution,
 										IndexPnpIdKind kind, std::string_view publishedId,
 										std::string_view classGuid)
@@ -164,7 +240,9 @@ namespace {
 	return found ;
 }
 
-/** @brief 一公開IDのcallback結果を有限に検査し、関係へ反映します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一公開IDのcallback結果を有限に検査し、関係へ反映します。
  * @param[in,out] relation 元recordとcontextを持つ格納先。
  * @param[in] resolution Callbackの元結果。
  * @param[in] present 同contextの有限present検索集合。本呼出し中だけ借用します。
@@ -174,6 +252,7 @@ namespace {
  * @param[in] publishedId 元recordの公開identifierです。保持しません。
  * @param[in] classGuid 元recordの公開Classです。保持しません。
  */
+//------------------------------------------------------------------------------
 void applyResolution( IndexRecordRelation &relation, const IndexPublicIdResolution &resolution,
 					 const std::set<std::wstring_view> &present, std::size_t &retainedIdentities,
 					 std::size_t maximumRelatedIdentities, IndexPnpIdKind kind,
@@ -275,6 +354,16 @@ void applyResolution( IndexRecordRelation &relation, const IndexPublicIdResoluti
 
 } // namespace
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存済みconst snapshotの所有を共有し、関係を所有します。
+ * @param[in] snapshot 完全な原保存snapshot。
+ * @param[in] relations 同contextの有限関係。
+ * @param[in] context 元scanの完全context。取得operationへ書き換えません。
+ * @param[in] progress 同じlookup内だけで検査・commitした原record範囲です。
+ * @param[in] nativeLease Native元inventoryだけの共有weak寿命証拠です。genericでは空です。
+ */
+//------------------------------------------------------------------------------
 SignedIndexRecordLookup::SignedIndexRecordLookup(
 	std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
 	std::vector<IndexRecordRelation> relations, const IndexLookupContext context,
@@ -284,22 +373,54 @@ SignedIndexRecordLookup::SignedIndexRecordLookup(
 {
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 原hash・世代・policy・source／record／UNKNOWNを保持するsnapshotを借用します。
+ * @return 本lookupが所有する不変snapshot。
+ */
+//------------------------------------------------------------------------------
 const AuthenticatedIndexSnapshot &SignedIndexRecordLookup::snapshot() const noexcept
 {
 	return *snapshot_ ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開ID文字列を含まない有限関係を借用します。
+ * @return 本lookupの寿命まで有効な不変span。
+ */
+//------------------------------------------------------------------------------
 std::span<const IndexRecordRelation> SignedIndexRecordLookup::relations() const noexcept
 {
 	return relations_ ;
 }
 
-/** @see signed_index_record_lookup.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全record prefixと実callback数だけを借用します。
+ * @return 同object寿命まで有効な私有構築済み進行です。
+ */
+//------------------------------------------------------------------------------
 const IndexLookupProgress &SignedIndexRecordLookup::progress() const noexcept
 {
 	return progress_ ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 原保存snapshotの有限record batchを同worker resolverへ結びます。
+ * @param[in] snapshot Commit／reloadだけが発行した完全const snapshotの共有所有。Null・move元を拒否します。正規結果を一度moveしてconst
+ *                   所有とし、可変aliasを使いません。
+ * @param[in] request 呼出しが要求する正のcontext。
+ * @param[in] current 現workerが確認した正のcontext。
+ * @param[in] present 同contextのopaque present集合。本呼出し中不変です。
+ * @param[in] budget 有限batchとcallback枠。
+ * @param[in] nowUtc 現在信頼UTC。発行前・期限以上・確認不能は拒否します。
+ * @param[in] resolver 同workerの借用callback。nullptrは未実行として保持します。
+ * @return 入力拒否、または元snapshotと各関係を所有する読取り結果。
+ * @note 参照を外へ保持せず、例外を境界で診断へ変換します。独立入力は独立workerで呼出し可能です。
+ */
+//------------------------------------------------------------------------------
 IndexRecordLookupResult lookupSignedIndexRecords(
 	std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot, const IndexLookupContext request,
 	const IndexLookupContext current, const std::span<const std::wstring> present,
@@ -618,7 +739,16 @@ IndexRecordLookupResult lookupSignedIndexRecords(
 	return result ;
 }
 
-/** @see SignedIndexRecordLookup 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同ownerが発行した全batchだけを一つの不変lookupへ凍結します。
+ * @param[in] snapshot 同scanの原保存snapshotの共有所有。
+ * @param[in] context 元scanの完全context。
+ * @param[in] batches 私有構築済みbatch。公開relationから再構築しません。
+ * @param[in] nowUtc 現信頼UTC。期限は凍結時も再照合します。
+ * @return 同snapshot・全context・原record結合成立時だけ集約lookup。
+ */
+//------------------------------------------------------------------------------
 IndexRecordLookupResult SignedIndexRecordLookup::freezeOwnedBatches(
 	std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot, const IndexLookupContext context,
 	const std::span<const SignedIndexRecordLookup> batches,

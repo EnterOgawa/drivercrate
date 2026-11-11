@@ -2,7 +2,7 @@
 /**
  * @file asus_update_provider.h
  * @brief ASUS公式support page Provider定義。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Local SMBIOSに一致するASUS公式pageを取得し、G11-B取得物をG11-CのINF／CAT／publisherとG11-DのPnP／Rank監査へ接続し、全gate
@@ -124,9 +125,8 @@ public:
 									 const ProviderProgressCallback		   &progressCallback) override ;
 
 	/**
-	 * @brief 選択されたASUS候補を再検証して指定deviceへ導入する。
-	 * ASUS監査済みINFを再検証して導入する。
-	 * Stale／重複選択を拒否し、同じarchiveを一回再検証する。INF閉包とRankを再監査し、個別導入後にsessionを失効する。
+	 * @brief 選択されたASUS候補を再検証して指定deviceへ導入する。ASUS監査済みINFを再検証して導入する。Stale／重複選択を拒否し、同じarchiveを一回再検証する。
+	 *        INF閉包とRankを再監査し、選択deviceのrouteだけを消費して未処理の候補・取得物と元scanを保持する。
 	 * @param[in] scanSessionId 要求元のscan session ID。 要求元session ID。
 	 * @param[in] identities 要求されたopaque候補identity群。 要求された候補identity群。
 	 * @param[in] parentWindowNative 呼出し側の親Window値。

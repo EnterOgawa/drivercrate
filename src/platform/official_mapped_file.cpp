@@ -2,7 +2,7 @@
 /**
  * @file official_mapped_file.cpp
  * @brief 固定入力と私有file-backed mappingを実装する。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/03  有界file mappingと固定handleの所有を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 入力のwrite/deleteを許可せず、出力はCREATE_NEWされた自身のfileだけを後始末する。
@@ -53,9 +54,10 @@ struct OfficialMappedFile::State {
 	OfficialDownloadWorkspace *workspace{} ;
 	/// createで自身が生成した相対file名。入力時は空。
 	std::wstring			   name ;
-	/** @brief 全resourceを解放して最初のOS診断を返す。
-     * @return 元の最初の失敗HRESULT。再呼出し時は0。
-     */
+	/**
+	 * @brief 全resourceを解放して最初のOS診断を返す。
+	 * @return 元の最初の失敗HRESULT。再呼出し時は0。
+	 */
 	NativeError				   release() noexcept
 	{
 		NativeError error{} ;	// 最初の解放診断だけを保持します。
@@ -111,19 +113,36 @@ struct OfficialMappedFile::State {
 		name.clear() ;
 		return error ;
 	}
-	/** @brief 取得途中も含めbest-effortで自身のresourceだけを回収する。 */
+	/**
+	 * @brief 取得途中も含めbest-effortで自身のresourceだけを回収する。
+	 */
 	~State()
 	{
 		static_cast<void>( release()) ;
 	}
 } ;
 
-/** @see src/platform/official_mapped_file.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 未取得の空ownerを作る。
+ */
+//------------------------------------------------------------------------------
 OfficialMappedFile::OfficialMappedFile() noexcept = default ;
-/** @see src/platform/official_mapped_file.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief viewとhandleを閉じ、所有一時fileだけを回収する。
+ */
+//------------------------------------------------------------------------------
 OfficialMappedFile::~OfficialMappedFile() = default ;
 
-/** @see src/platform/official_mapped_file.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 非reparse通常fileをwrite/delete共有なしで固定し、read-only viewを作る。
+ * @param[in] path local絶対path。先祖directoryも固定する。
+ * @param[in] maximumBytes 空でない入力の有限上限。
+ * @return 全取得成功0、失敗時は空ownerと元HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialMappedFile::open( std::wstring_view path, std::uint64_t maximumBytes)
 {
 	// 既存ownerの上書きやlocal絶対path以外を拒否します。
@@ -218,7 +237,16 @@ NativeError OfficialMappedFile::open( std::wstring_view path, std::uint64_t maxi
 	}
 }
 
-/** @see src/platform/official_mapped_file.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有workspaceの新規fileだけへ有限なread/write viewを作る。
+ * @param[in,out] workspace 本ownerより長く生存する保護file所有者。
+ * @param[in] name 所有者が生成した安全な相対名。
+ * @param[in] bytes 共同quotaへ予約済みの正のfile byte数。
+ * @param[in] maximumBytes 一mappingの有限上限。
+ * @return 容量照会・新規file・view取得成功0、失敗時は元HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialMappedFile::create( OfficialDownloadWorkspace &workspace, std::wstring_view name,
 									   std::uint64_t bytes, std::uint64_t maximumBytes)
 {
@@ -268,21 +296,36 @@ NativeError OfficialMappedFile::create( OfficialDownloadWorkspace &workspace, st
 	}
 }
 
-/** @see src/platform/official_mapped_file.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同期中だけ有効なread-only viewを返す。
+ * @return owner終了またはcloseまで有効な借用byte列。
+ */
+//------------------------------------------------------------------------------
 std::span<const std::byte> OfficialMappedFile::bytes() const noexcept
 {
 	return state_ ? std::span<const std::byte>{static_cast<const std::byte *>( state_->view),
 											   state_->length}
 				  : std::span<const std::byte>{} ;
 }
-/** @see src/platform/official_mapped_file.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 出力mappingだけの書込みviewを返す。
+ * @return create成功時だけ非空。入力ownerでは空。
+ */
+//------------------------------------------------------------------------------
 std::span<std::byte> OfficialMappedFile::writableBytes() noexcept
 {
 	return state_ && state_->workspace
 			   ? std::span<std::byte>{static_cast<std::byte *>( state_->view), state_->length}
 			   : std::span<std::byte>{} ;
 }
-/** @see src/platform/official_mapped_file.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全resourceを解放し、所有一時fileだけを削除する。
+ * @return 最初の解放失敗のHRESULT。既に空なら0。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialMappedFile::close() noexcept
 {
 	// 明示closeはdestructorと異なり最初の元診断を呼出側へ返します。

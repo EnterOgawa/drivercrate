@@ -2,7 +2,7 @@
 /**
  * @file asus_system_identity_tests.h
  * @brief ASUS local system識別単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空SMBIOS表示値だけでASUS判定、model選択、URL encodeを検証します。
@@ -39,12 +40,13 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief ASUS local system識別の単体試験を実行する。
- * ASUS local system識別単体試験を実行する。
- * System、baseboard、対象外、拒否経路を順番に検証する。
+ * @brief ASUS local system識別の単体試験を実行する。ASUS local system識別単体試験を実行する。System、baseboard、対象外、拒否経路を順番に検証
+ *        する。
  * @param[in,out] context assertion件数と失敗内容の集計先。 Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runAsusSystemIdentityTests( TestContext &context) ;
 
 } // namespace drivercrate::test

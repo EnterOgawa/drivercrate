@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_provider_adapter_tests.cpp
  * @brief 組み込み公式自動探索registration接続試験を実装する。
- * @version 01.01.01
+ * @version 01.01.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  固定root registration接続試験を実装。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  部分失敗・重複・privacy試験を実装。
  * Ver.01.01.01 Shunji Ogawa  2026/09/15  Cache parser identityの固定登録を検証。
+ * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Resolverは有限な合成結果だけを返し、URL、Hardware ID、instance ID、serialを扱わない。
@@ -59,12 +60,14 @@ constexpr ScanSessionId					  SESSION_ID = 6'201U ;
 // Registration接続試験のinventory generation。
 constexpr std::uint64_t					  INVENTORY_GENERATION = 6'301U ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Intel E610表示を持つraw ID非保持device hintを作る。
  * @param[in] sessionId 観測元scan session ID。
  * @param[in] identity UI行へ結合する架空opaque identity。
  * @return PCI Net classへ固定した有効hint。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryDeviceHint makeIntelEthernetDevice( const ScanSessionId sessionId,
 																  std::wstring		  identity)
 {
@@ -80,10 +83,12 @@ constexpr std::uint64_t					  INVENTORY_GENERATION = 6'301U ;
 	return device ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Intel Windows 11 Provider一件だけを明示するmetadata専用要求を作る。
  * @return Payload取得許可を持たない有効request。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryRequest makeRequest()
 {
 	OfficialDiscoveryRequest request ;	// 固定root metadataだけを許可する開始要求。
@@ -93,10 +98,12 @@ constexpr std::uint64_t					  INVENTORY_GENERATION = 6'301U ;
 	return request ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief E610 matcherがbus、class、manufacturer、系列表示をfail-closedで判定することを確認する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testIntelMatcher( TestContext &context)
 {
 	const OfficialDiscoveryDeviceHint baseline =
@@ -123,10 +130,12 @@ void testIntelMatcher( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !matchesIntelEthernetWindows11OfficialDiscoveryHint( wrongSeries)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider正本から作ったregistrationを共通planner／executorへ接続する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testRegistrationConnection( TestContext &context)
 {
 	OfficialDiscoveryRecordAdapterSession recordSession ;		// 秘密recordを保持するworker相当session。
@@ -202,10 +211,12 @@ void testRegistrationConnection( TestContext &context)
 									recordSession.resolvedPackages().empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 空callbackとCapability不一致をregistration構築前に拒否する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testRegistrationRejections( TestContext &context)
 {
 	OfficialDiscoveryRecordAdapterSession	 session ;	// 各拒否で未開始を維持するsession。
@@ -243,10 +254,12 @@ void testRegistrationRejections( TestContext &context)
 	DRIVERCRATE_EXPECT( context, session.activeBinding().scanSessionId == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Production resolverが任意rootとcache有効clientを通信前に拒否することを確認する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testProductionResolverPreflight( TestContext &context)
 {
 	const OfficialSourceDefinition *const definition = officialSourceDefinition(
@@ -281,11 +294,13 @@ void testProductionResolverPreflight( TestContext &context)
 						   cachedClient.sourceEvidence().empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開文字列がURLまたはPnP raw IDに見える禁止tokenを含むか確認する。
  * @param[in] value Planまたはsummaryから得た公開文字列。
  * @return 禁止tokenを一つ以上含む場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool containsPrivateDiscoveryText( const std::wstring_view value) noexcept
 {
 	return value.find( L"https://") != std::wstring_view::npos ||
@@ -294,10 +309,12 @@ void testProductionResolverPreflight( TestContext &context)
 		   value.find( L"token=") != std::wstring_view::npos ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 複数routeの部分失敗保持、重複registration拒否、公開文字列のprivacyを検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPartialFailureDuplicateAndPrivacy( TestContext &context)
 {
 	OfficialDiscoveryRecordAdapterSession	 recordSession ;	// 二routeを同じscanへ保持するsession。
@@ -390,7 +407,12 @@ void testPartialFailureDuplicateAndPrivacy( TestContext &context)
 
 } // namespace
 
-/** @see official_discovery_provider_adapter_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Intel matcher、固定root接続、部分失敗、重複、privacy境界を検証する。
+ * @param[in,out] context Assertion集計先。
+ */
+//------------------------------------------------------------------------------
 void runOfficialDiscoveryProviderAdapterTests( TestContext &context)
 {
 	testIntelMatcher( context) ;

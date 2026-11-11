@@ -2,7 +2,7 @@
 /**
  * @file local_collector_projected_job.h
  * @brief 共有metadata jobの全公開対象と公式GET契約を所有します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/28  全対象scopeと公式requestの固定結合を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 本型は非通信・非保存です。公式recordや取得許可を発行しません。
@@ -105,7 +106,9 @@ struct CollectorProjectedJobInput {
 	std::wstring							   cacheBinding ;
 } ;
 
-/** @brief 検証済みmanifestの一共有jobを全targetごと再照合して所有します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 検証済みmanifestの一共有jobを全targetごと再照合して所有します。
  * @param[in] manifest 元実byteを検証済みのmanifest。
  * @param[in] jobIndex 対象jobのindex。
  * @param[in] artifactSha256 実binary等から別途固定された小文字SHA-256。
@@ -113,6 +116,7 @@ struct CollectorProjectedJobInput {
  * @return 旧公式request、source policy、全対象とcache bindingが成立した場合true。
  * @note 旧requestKey／jobKey算法は変更せず、通信や保存は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool makeCollectorProjectedJobInput( const CollectorCampaignManifest &manifest,
 												  std::size_t					   jobIndex,
 												  std::wstring_view				   artifactSha256,

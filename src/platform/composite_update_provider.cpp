@@ -2,7 +2,7 @@
 /**
  * @file composite_update_provider.cpp
  * @brief 複合update provider実装。
- * @version 01.19.00
+ * @version 01.19.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -106,6 +106,7 @@
  * Ver.01.17.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * Ver.01.18.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
  * Ver.01.19.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.19.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 既存registryで検索・選択取得・導入を振り分け、sessionとProviderの一致を維持します。
@@ -152,11 +153,13 @@
 namespace drivercrate {
 namespace {
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定familyだけをcaptureする非取得のregistry callbackを作る。
  * @param[in] family 当該登録に固定した初期metadata系列。
  * @return 専用HTTPを呼出し内だけ所有し、通常Provider instanceを参照しないcallback。
  */
+//------------------------------------------------------------------------------
 MetadataProviderScan metadataScanner( const OfficialReleaseFamily family)
 {
 	return
@@ -670,7 +673,15 @@ constexpr std::uint64_t UNIX_EPOCH_FILE_TIME = 116444736000000000ULL ;	// 1970�
 
 } // namespace
 
-/** @see composite_update_provider.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じComposite inventory scanの秘密resolverをworkerへ貸します。
+ * @param[in] operationId 正のworker operation。
+ * @param[out] context 元Driver Store発行context。拒否時空です。
+ * @param[out] present 全present opaque。拒否時空です。
+ * @return 実列挙stateをweak所有するcallback。追加I/Oや導入を行いません。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<IndexPublicIdResolver> CompositeUpdateProvider::indexScanInventory(
 	const OperationId operationId, IndexLookupContext &context, std::vector<std::wstring> &present)
 {
@@ -679,7 +690,8 @@ std::unique_ptr<IndexPublicIdResolver> CompositeUpdateProvider::indexScanInvento
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。
+ * @brief WUA、Driver Store、公式vendor catalogをregistryへ登録する。異なるProvider interfaceを型消去した共通dispatchへ登録する
+ *        。
  */
 //------------------------------------------------------------------------------
 CompositeUpdateProvider::CompositeUpdateProvider()
@@ -1563,7 +1575,10 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。
+ * @brief 公式catalog snapshotへ端末内bindingと環境失効条件を設定する。端末固有keyをworker内だけで使用し、OSまたは全device集合が変わった前回観測を保護
+ *        stateから除外する。失敗時も公式検索は継続し、再利用だけを無効化する。
+ * @param[in,out] devices 現在scanの非機密device snapshot。
+ * @note Stateまたはfingerprint生成失敗は公式検索を止めず、前回観測だけを使用不能にする。
  */
 //------------------------------------------------------------------------------
 void CompositeUpdateProvider::prepareLocalReleaseObservationContext(
@@ -1651,7 +1666,12 @@ void CompositeUpdateProvider::prepareLocalReleaseObservationContext(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。
+ * @brief 専用callbackと現在属性だけで情報検索し、旧routingを再使用不能にする。
+ * @param[in] scanSessionId 専用contextと一致するsession。
+ * @param[in] request 明示した専用Provider集合と今回の回線許可。
+ * @param[in,out] execution 同期実行中だけ借用する有限予算。
+ * @param[in] progressCallback 確定した全体進捗の通知先。
+ * @return 表示専用の部分結果と用途付きsummary。
  */
 //------------------------------------------------------------------------------
 ScanResult CompositeUpdateProvider::scanMetadataOnly(
@@ -1691,7 +1711,17 @@ ScanResult CompositeUpdateProvider::scanMetadataOnly(
 							 std::move( context), progressCallback) ;
 }
 
-/** @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief WUA、local Driver Store、公式vendor catalogを検索して候補へ統合する。WUA、local Driver Store、公式vendorを検索し、取得
+ *        元を保持した候補へ統合する。 注記:一方だけが失敗した場合は、取得できた候補を警告付き成功として返す。
+ * @param[in] scanSessionId 呼出し側が割り当てた 0 ではない session ID。 呼出し側が割り当てた 0 ではないsession ID。
+ * @param[in] options 有効にする組み込みProvider ID集合。 有効なProviderを指定するscan条件。
+ * @param[in] progressCallback 段階、処理件数、および全体完了率の通知先。
+ * @return 各Providerの候補と集約した成否を含むscan結果。
+ * @note 一方だけが失敗した場合は、取得できた候補を警告付き成功として返す。
+ */
+//------------------------------------------------------------------------------
 ScanResult CompositeUpdateProvider::scan( const ScanSessionId			 scanSessionId,
 										 const ScanOptions				&options,
 										 const ProviderProgressCallback &progressCallback)
@@ -1699,13 +1729,28 @@ ScanResult CompositeUpdateProvider::scan( const ScanSessionId			 scanSessionId,
 	return scanWithCancellation( scanSessionId, options, {}, progressCallback) ;
 }
 
-/** @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 直前の通常scanで共通自動探索が生成した非機密summaryを参照する。
+ * @return 現在scanにsummaryがあれば次scanまたは失効まで有効な借用pointer。なければnullptr。
+ * @note UI、永続logまたは診断保存へdevice identityをそのまま渡しません。
+ */
+//------------------------------------------------------------------------------
 const OfficialDiscoverySummary *CompositeUpdateProvider::officialDiscoverySummary() const noexcept
 {
 	return officialDiscoverySummary_ ? &*officialDiscoverySummary_ : nullptr ;
 }
 
-/** @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常scanの一操作限定取消しを公式自動探索へ渡す。
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。
+ * @param[in] options 選択Providerと一scan承認の不変snapshot。
+ * @param[in] cancellation 同期scan実行中だけ借用する非blocking取消し照会。
+ * @param[in] progressCallback 確定した段階と完了率の通知先。
+ * @return 各Providerの候補と取消しを含む有限結果。
+ */
+//------------------------------------------------------------------------------
 ScanResult CompositeUpdateProvider::scanWithCancellation(
 	const ScanSessionId scanSessionId, const ScanOptions &options,
 	const ProviderScanCancellation &cancellation, const ProviderProgressCallback &progressCallback)
@@ -3031,7 +3076,10 @@ ScanResult CompositeUpdateProvider::scanWithCancellation(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。
+ * @brief 元参照が残planの原targetへ結合することを照合します。
+ * @param[in] identity 元参照です。
+ * @param[in] plan 同scanの原subsetです。
+ * @return 元route/targetが残る場合trueです。
  */
 //------------------------------------------------------------------------------
 bool CompositeUpdateProvider::isRetainedPreparationReference(
@@ -3045,7 +3093,15 @@ bool CompositeUpdateProvider::isRetainedPreparationReference(
 			   return target.identity == candidate->preparationTargetIdentity ;
 		   }) ;
 }
-/** @see composite_update_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます。
+ * @param[in] operationId 当該新操作です。
+ * @param[in] session 未失効の元scanです。
+ * @param[in] identities 元表示の選択candidate subsetです。
+ * @return 元scopeの全件照合成功0、それ以外は拒否HRESULTです。
+ */
+//------------------------------------------------------------------------------
 NativeError CompositeUpdateProvider::beginInstallOperation(
 	const OperationId operationId, const ScanSessionId session,
 	const std::span<const std::wstring> identities)
@@ -3102,7 +3158,14 @@ NativeError CompositeUpdateProvider::beginInstallOperation(
 	installEntered_			= false ;
 	return 0 ;
 }
-/** @see composite_update_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます。
+ * @param[in] operationId 当該新操作です。
+ * @param[in] session 未失効の元scanです。
+ * @return 当該操作の原未消費subsetです。不明な操作は空です。
+ */
+//------------------------------------------------------------------------------
 std::optional<InstallRetentionSummary> CompositeUpdateProvider::finishInstallOperation(
 	const OperationId operationId, const ScanSessionId session)
 {
@@ -3202,7 +3265,17 @@ std::optional<InstallRetentionSummary> CompositeUpdateProvider::finishInstallOpe
 	return retained ;
 }
 
-/** @see composite_update_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択 identity を取得元 Provider へ振り分けて download/install する。選択identityを取得元Providerへ振り分けて
+ *        download/installする。
+ * @param[in] scanSessionId 選択元の aggregate scan session ID。 選択元のaggregate scan session ID。
+ * @param[in] identities UI に提示済みの opaque identity 群。 UIに提示済みのopaque identity群。
+ * @param[in] parentWindowNative Windows dialog の親 HWND を整数表現で渡す値。 Windows dialogの親HWNDを整数表現で渡す値。
+ * @param[in] progressCallback 段階、処理件数、および全体完了率の通知先。
+ * @return 元の選択順へ集約した update ごとの実行結果。
+ */
+//------------------------------------------------------------------------------
 InstallResult CompositeUpdateProvider::install( const ScanSessionId				   scanSessionId,
 											   const std::span<const std::wstring> identities,
 											   const std::uintptr_t			   parentWindowNative,
@@ -3421,7 +3494,8 @@ InstallResult CompositeUpdateProvider::install( const ScanSessionId				   scanSe
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。
+ * @brief Aggregate routing、表示候補、端末内release観測contextを失効させる。Candidate routing、表示snapshot、前回release観測の
+ *        memory copyを同時に破棄し、次scanへ持ち越さない。
  */
 //------------------------------------------------------------------------------
 void CompositeUpdateProvider::invalidateScanSession() noexcept
@@ -3454,7 +3528,10 @@ void CompositeUpdateProvider::invalidateScanSession() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。
+ * @brief 同じscanのregistry entryが保持した配布情報から取得計画を集約する。既存の取得付きscanを二重取得対象へ加えず、registryの任意callbackだけを使用する。
+ * @param[in] scanSessionId 現在有効なaggregate検索session。
+ * @param[in] planId workerが発行した新計画ID。
+ * @return 未承認対象の計画。対象なし／旧sessionの場合はnullopt。 登録済み保持情報を集約した未承認計画。対象がなければnullopt。
  */
 //------------------------------------------------------------------------------
 std::optional<OfficialPreparationPlan> CompositeUpdateProvider::preparationPlan(
@@ -3517,7 +3594,7 @@ std::optional<OfficialPreparationPlan> CompositeUpdateProvider::preparationPlan(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。
+ * @brief 既存installの候補routingを保ち、取得準備用の保持情報だけを失効させる。
  */
 //------------------------------------------------------------------------------
 void CompositeUpdateProvider::invalidatePreparation() noexcept
@@ -3544,7 +3621,10 @@ void CompositeUpdateProvider::invalidatePreparation() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。
+ * @brief 現在scanで有効なregistryの取得callbackへ承認済みtaskを渡す。既存registryの有効な取得callbackだけへ渡し、別のメーカー分岐や任意URLを使わない。
+ * @param[in] task workerがclaimした計画対象。 Workerが承認・claimした計画対象。
+ * @param[in] cancellation 空または協調取消し照会。
+ * @return 検査用取得の結果。未対応・別sessionは拒否する。 対象Providerの取得結果。旧session・未対応は拒否。
  */
 //------------------------------------------------------------------------------
 OfficialPreparationTransferResult CompositeUpdateProvider::acquireForInspection(
@@ -3846,7 +3926,10 @@ OfficialPreparationTransferResult CompositeUpdateProvider::acquireForInspection(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。
+ * @brief 取得成功対象だけの非機密監査結果をregistry経由で集約する。全reportを既存scanへ照合し、成功時だけ追加候補のdevice／Provider routingを一括反映
+ *        する。
+ * @param[in] result 同一scanの確定した取得結果。 同じworkerが確定した取得結果。
+ * @return 既存行の監査と全監査合格時の追加候補。別session、未取得は含めない。 取得成功対象の非機密reportと追加候補集合。旧結果は空。
  */
 //------------------------------------------------------------------------------
 
@@ -4004,7 +4087,15 @@ std::vector<OfficialPreparationAuditReport> CompositeUpdateProvider::preparation
 	return reports ;
 }
 
-/** @see composite_update_provider.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同workerの索引ownerと固定serviceを一回scanへ借用結合します。
+ * @param[in,out] session Workerが寿命を所有する元索引session。
+ * @param[in] services Worker開始前に固定した依存。
+ * @param[in] operationId 今回通常scan操作。
+ * @param[in] cancellation 同期処理だけへ限定する停止照会。
+ */
+//------------------------------------------------------------------------------
 void CompositeUpdateProvider::bindSignedIndexSession(
 	SignedIndexScanSession &session, const provider_worker_index_detail::Services &services,
 	const OperationId operationId, ProviderScanCancellation cancellation) noexcept
@@ -4016,7 +4107,13 @@ void CompositeUpdateProvider::bindSignedIndexSession(
 	signedIndexSummary_		 = {} ;
 	session.bindingStore_	 = &driverStoreProvider_ ;
 }
-/** @see composite_update_provider.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元索引targetへ非導入参照を結合して通常候補routingへ原子的に加えます。
+ * @param[in] plan 同lookupから発行した準備計画。
+ * @param[in,out] result 同scanでUIへ発行する結果。
+ */
+//------------------------------------------------------------------------------
 void CompositeUpdateProvider::finishSignedIndexScanPublication( const OfficialPreparationPlan &plan,
 															   ScanResult &result)
 {
@@ -4057,7 +4154,14 @@ void CompositeUpdateProvider::finishSignedIndexScanPublication( const OfficialPr
 	}
 }
 
-/** @see composite_update_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元Install選択と取得集合を同scanの私有参照へ完全照合します。
+ * @param[in] approval 全target判断と元候補の明示選択です。
+ * @return 未選択取得・未知候補・同device重複を含まない場合trueです。
+ * @note worker専用で、取得も導入も呼びません。
+ */
+//------------------------------------------------------------------------------
 bool CompositeUpdateProvider::validatePreparationInstallIntent(
 	const OfficialPreparationApproval &approval) const
 {
@@ -4115,7 +4219,13 @@ bool CompositeUpdateProvider::validatePreparationInstallIntent(
 	}) ;
 }
 
-/** @see composite_update_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 私有reference位置と元targetだけから唯一の検証済み候補へ解決します。
+ * @param[in] approval 同workerが取得前に照合した元選択です。
+ * @return 元順序・元件数の解決結果。曖昧・未適合・新旧版は候補identityなしです。
+ */
+//------------------------------------------------------------------------------
 std::vector<PreparedInstallResolution> CompositeUpdateProvider::resolvePreparationInstallIntent(
 	const OfficialPreparationApproval &approval) const
 {
@@ -4180,7 +4290,14 @@ std::vector<PreparedInstallResolution> CompositeUpdateProvider::resolvePreparati
 	return result ;
 }
 
-/** @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元選択の導入可否と必要roleを復旧開始前にread-onlyで一括確認します。
+ * @param[in] session 元通常scanです。
+ * @param[in] identities 通常画面の明示選択です。
+ * @return 元全byte/期限/状態一致0、不足はHRESULTです。
+ */
+//------------------------------------------------------------------------------
 NativeError CompositeUpdateProvider::preflightRequiredSignedIndexInstall(
 	const ScanSessionId session, const std::span<const std::wstring> identities) const
 {

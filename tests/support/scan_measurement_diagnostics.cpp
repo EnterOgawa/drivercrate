@@ -2,7 +2,7 @@
 /**
  * @file scan_measurement_diagnostics.cpp
  * @brief 固定条件scanのprofile検証と非機密ASCII report構築。
- * @version 01.01.01
+ * @version 01.01.02
  * @date 2026/09/10
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.00.02 Shunji Ogawa  2026/09/15  組み込みProvider件数を更新。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  未承認で停止した公式探索状態の診断名を追加。
  * Ver.01.01.01 Shunji Ogawa  2026/10/12  明示9件を維持し署名索引を含む31登録の固定境界を確認。
+ * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 全reportを1 MiB以下のmemory上で検証・構築してから一回だけ出力します。
@@ -213,13 +214,13 @@ private:
 //------------------------------------------------------------------------------
 // 内部変換関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief Provider descriptorの全registry fieldを完全一致で比較する。
  * @param[in] left Scan report側のdescriptor。
  * @param[in] right 組み込みregistry側のdescriptor。
  * @return 全fieldが一致する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool sameDescriptor( const ProviderDescriptor &left,
 								  const ProviderDescriptor &right) noexcept
 {
@@ -231,11 +232,13 @@ private:
 		   left.officialSourcePolicyId == right.officialSourcePolicyId ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 確定度を固定ASCII名へ変換する。
  * @param[in] extent 変換するenum値。
  * @return 定義済み値の名前。未知値は空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string_view extentName( const MeasurementExtent extent) noexcept
 {
 	// 全定義値を明示mappingし、数値castによる未知値の出力を防ぐ。
@@ -257,11 +260,13 @@ private:
 	return {} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider計測scopeを固定ASCII名へ変換する。
  * @param[in] scope 変換するenum値。
  * @return 定義済み値の名前。未知値は空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string_view scopeName( const MeasurementScope scope) noexcept
 {
 	// 個別／system queryと従来未接続を区別する。
@@ -280,11 +285,13 @@ private:
 	return {} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief OS区分を固定ASCII名へ変換する。
  * @param[in] kind 変換するenum値。
  * @return 定義済み値の名前。未知enumは空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string_view osKindName( const MeasurementOsKind kind) noexcept
 {
 	// 取得不能、client、serverを推測せずそのまま区別する。
@@ -303,11 +310,13 @@ private:
 	return {} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider scan状態を固定ASCII名へ変換する。
  * @param[in] state 変換するenum値。
  * @return 定義済み値の名前。未知enumは空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string_view providerStateName( const ProviderScanState state) noexcept
 {
 	// 正常0件と各拒否・失敗を同じ文字列へまとめない。
@@ -350,11 +359,13 @@ private:
 	return {} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Operation outcomeを固定ASCII名へ変換する。
  * @param[in] outcome 変換するenum値。
  * @return 定義済み値の名前。未知enumは空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string_view outcomeName( const OutcomeCode outcome) noexcept
 {
 	// 完了結果を未開始・実行中と区別した固定名へ変換する。
@@ -382,11 +393,13 @@ private:
 	return {} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 計測停止理由を固定ASCII名へ変換する。
  * @param[in] reason 変換するenum値。
  * @return 定義済み値の名前。未知enumは空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string_view reasonName( const MeasurementReason reason) noexcept
 {
 	// 公開契約にある20種類だけを文字列化する。
@@ -456,11 +469,13 @@ private:
 	return {} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 理由件数の単位を固定ASCII名へ変換する。
  * @param[in] unit 変換するenum値。
  * @return 定義済み値の名前。未知enumは空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string_view unitName( const MeasurementUnit unit) noexcept
 {
 	// Device、record、query、requestの数値を混同しない。
@@ -482,11 +497,13 @@ private:
 	return {} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Resourceの実取得区分を固定ASCII名へ変換する。
  * @param[in] acquisition 変換するenum値。
  * @return 定義済み値の名前。未知enumは空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string_view acquisitionName( const MeasurementAcquisition acquisition) noexcept
 {
 	// Network本文、cache、未接続を観測値のまま区別する。
@@ -514,11 +531,13 @@ private:
 	return {} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 許可された失敗理由だけを固定ASCII名へ変換する。
  * @param[in] reason 本文書込み前に確定した拒否理由。
  * @return 既知理由の固定名。未知enumは空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string_view failureReasonName( const ScanMeasurementFailureReason reason) noexcept
 {
 	// 拒否地点を固定名へ一対一に対応させ、任意文字列を出力しない。
@@ -549,7 +568,6 @@ private:
 //------------------------------------------------------------------------------
 // 内部出力関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief 固定keyとASCII値を一行として追加する。
  * @param[in,out] builder Report構築先。
@@ -557,6 +575,7 @@ private:
  * @param[in] value 検証済み固定ASCII値。
  * @return 行全体を追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendTextLine( AsciiReportBuilder &builder, const std::string_view key,
 								  const std::string_view value)
 {
@@ -564,6 +583,7 @@ private:
 		   builder.append( "\n") ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定keyとunsigned値を一行として追加する。
  * @param[in,out] builder Report構築先。
@@ -571,6 +591,7 @@ private:
  * @param[in] value 出力する整数。
  * @return 行全体を追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendUnsignedLine( AsciiReportBuilder &builder, const std::string_view key,
 									  const std::uint64_t value)
 {
@@ -578,6 +599,7 @@ private:
 		   builder.append( "\n") ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定keyとbool値を0／1で一行追加する。
  * @param[in,out] builder Report構築先。
@@ -585,12 +607,14 @@ private:
  * @param[in] value 出力するbool。
  * @return 行全体を追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendBoolLine( AsciiReportBuilder &builder, const std::string_view key,
 								  const bool value)
 {
 	return appendTextLine( builder, key, value ? "1" : "0") ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定keyと任意unsigned値を数値またはnullで一行追加する。
  * @param[in,out] builder Report構築先。
@@ -598,6 +622,7 @@ private:
  * @param[in] value 実測値。値なしはnullとして保持する。
  * @return 行全体を追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendOptionalUnsignedLine( AsciiReportBuilder				&builder,
 											  const std::string_view			 key,
 											  const std::optional<std::uint64_t> value)
@@ -610,6 +635,7 @@ private:
 	return appendUnsignedLine( builder, key, value.value()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定keyと任意32-bit unsigned値を数値またはnullで一行追加する。
  * @param[in,out] builder Report構築先。
@@ -617,6 +643,7 @@ private:
  * @param[in] value 実測値。値なしはnullとして保持する。
  * @return 行全体を追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendOptionalRevisionLine( AsciiReportBuilder				&builder,
 											  const std::string_view			 key,
 											  const std::optional<std::uint32_t> value)
@@ -629,6 +656,7 @@ private:
 	return appendUnsignedLine( builder, key, value.value()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定keyと任意bool値を0／1／nullで一行追加する。
  * @param[in,out] builder Report構築先。
@@ -636,6 +664,7 @@ private:
  * @param[in] value 方針値。値なしは未公開を表す。
  * @return 行全体を追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendOptionalBoolLine( AsciiReportBuilder &builder, const std::string_view key,
 										  const std::optional<bool> value)
 {
@@ -647,6 +676,7 @@ private:
 	return appendBoolLine( builder, key, value.value()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定keyとNative 32-bit診断を一行追加する。
  * @param[in,out] builder Report構築先。
@@ -654,6 +684,7 @@ private:
  * @param[in] value 出力するbit pattern。
  * @return 行全体を追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendErrorLine( AsciiReportBuilder &builder, const std::string_view key,
 								   const NativeError value)
 {
@@ -661,6 +692,7 @@ private:
 		   builder.append( "\n") ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定keyとregistry由来wide IDを一行追加する。
  * @param[in,out] builder Report構築先。
@@ -668,6 +700,7 @@ private:
  * @param[in] value 検証して出力するstable IDまたはversion。
  * @return 行全体を追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendIdentifierLine( AsciiReportBuilder &builder, const std::string_view key,
 										const std::wstring_view value)
 {
@@ -675,6 +708,7 @@ private:
 		   builder.append( "\n") ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 件数を確定度と値の不可分な一行として追加する。
  * @param[in,out] builder Report構築先。
@@ -682,6 +716,7 @@ private:
  * @param[in] measurement 出力する件数と確定度。
  * @return 既知enumと値の組を一行追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendCountLine( AsciiReportBuilder &builder, const std::string_view key,
 								   const CountMeasurement &measurement)
 {
@@ -708,6 +743,7 @@ private:
 	return builder.append( "\n") ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief T／Q／R／A／Iの五段階を指定prefixで追加する。
  * @param[in,out] builder Report構築先。
@@ -715,6 +751,7 @@ private:
  * @param[in] counts 出力する五段階件数。
  * @return 全五行を追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendStageCounts( AsciiReportBuilder &builder, const std::string_view prefix,
 									 const StageDeviceCounts &counts)
 {
@@ -734,6 +771,7 @@ private:
 		   appendStage( 'I', counts.installReadyUpdateDeviceCount) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定理由と単位の有限集計を指定prefixで追加する。
  * @param[in,out] builder Report構築先。
@@ -741,6 +779,7 @@ private:
  * @param[in] reasons 出力する一意な理由集計。
  * @return 全entryを固定enum名で追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendReasons( AsciiReportBuilder &builder, const std::string_view prefix,
 								 const std::span<const MeasurementReasonCount> reasons)
 {
@@ -768,12 +807,14 @@ private:
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Providerの登録済みresource根拠を任意文字列なしで追加する。
  * @param[in,out] builder Report構築先。
  * @param[in] resources 同一Providerの検証済みresource集合。
  * @return 全resourceを固定IDと固定enumだけで追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendResources( AsciiReportBuilder						 &builder,
 								   const std::span<const MeasurementResource> resources)
 {
@@ -814,12 +855,14 @@ private:
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider measurementの段階、理由、record、resourceを追加する。
  * @param[in,out] builder Report構築先。
  * @param[in] measurement 公開validatorを通過したProvider計測。
  * @return 全fieldを追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendProviderMeasurement( AsciiReportBuilder		   &builder,
 											 const ProviderMeasurement &measurement)
 {
@@ -843,12 +886,14 @@ private:
 		   appendResources( builder, measurement.resources) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 完全構築済みASCII payloadをstreamへ一回writeしてflushする。
  * @param[in,out] output 呼出し中だけ借用するstream。
  * @param[in] payload 既に容量検査した完全payload。
  * @return 全byteとflushが受理された場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool writeAsciiPayload( std::ostream &output, const std::string_view payload) noexcept
 {
 	bool succeeded{} ;	// 一回writeと明示flushの双方が成功した場合だけtrue。
@@ -878,11 +923,13 @@ private:
 	return succeeded ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief ScanOptionsが固定profileそのものか検証する。
  * @param[in] options Workerへ渡す候補設定。
  * @return 明示9 ID、同意false、file空およびregistry検証が成立する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isBaselineOptions( const ScanOptions &options) noexcept
 {
 	// 既定自動解決、個別file、inspection同意を初回実測へ混入させない。
@@ -904,12 +951,14 @@ private:
 	return validateScanOptions( options) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開contextの有効IDを固定profileへ順序非依存で一対一に照合する。
  * @param[in] providerIds 呼出し中だけ借用するID集合。元の順序と内容を変更しない。
  * @return 空・未知・重複・欠落・余剰がなく固定9 IDと一致する場合true。
  * @note 実行用ScanOptionsの固定順検証は別に維持し、contextの集合順だけを許容します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matchesBaselineProviderSet(
 	const std::span<const std::wstring> providerIds) noexcept
 {
@@ -943,6 +992,7 @@ private:
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Scan resultと固定profileの公開前提をまとめて検証する。
  * @param[in] operationId Controllerが発行したoperation ID。
@@ -952,6 +1002,7 @@ private:
  * @param[out] orderedReports 成功時にregistry順で参照する借用report索引。失敗時は使用しない。
  * @return 全31 reportと公開計測が同じ条件へ拘束される場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isExportableResult(
 	const OperationId operationId, const std::wstring_view applicationVersion,
 	const ScanOptions &options, const ScanResult &result,
@@ -1026,7 +1077,12 @@ private:
 } // namespace
 
 //------------------------------------------------------------------------------
-/** @see tests/support/scan_measurement_diagnostics.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 実行file名を除いた引数を副作用なしで分類する。
+ * @param[in] arguments 呼出し中だけ借用する引数。各値は完全一致で比較する。
+ * @return 引数なし／describe、単一run、または拒否の分類。
+ * @note Provider、COM、device、cache、networkおよびfile I/Oを開始しません。
+ */
 //------------------------------------------------------------------------------
 ScanMeasurementCommand parseScanMeasurementArguments(
 	const std::span<const std::wstring_view> arguments) noexcept
@@ -1055,7 +1111,10 @@ ScanMeasurementCommand parseScanMeasurementArguments(
 }
 
 //------------------------------------------------------------------------------
-/** @see tests/support/scan_measurement_diagnostics.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 初回実測で明示的に有効にするstable Provider IDを固定順で返す。
+ * @return Process lifetime中有効な9 IDの非所有view。
+ */
 //------------------------------------------------------------------------------
 std::span<const std::wstring_view> baselineScanProviderIds() noexcept
 {
@@ -1063,7 +1122,12 @@ std::span<const std::wstring_view> baselineScanProviderIds() noexcept
 }
 
 //------------------------------------------------------------------------------
-/** @see tests/support/scan_measurement_diagnostics.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 全31登録と通常既定10件を確認し、測定の明示9件を維持する。
+ * @param[in] descriptors 検証するProvider registry snapshot。
+ * @return ID、既定集合、capabilityおよび公式policy境界が一致する場合true。
+ * @note 索引は固定の通常SCAN／INSTALL能力だけを確認し、測定profileでは無効です。元9件以外の追加既定Providerや索引能力の変更を暗黙採用しません。
+ */
 //------------------------------------------------------------------------------
 bool isBaselineScanRegistryCompatible(
 	const std::span<const ProviderDescriptor> descriptors) noexcept
@@ -1162,7 +1226,12 @@ bool isBaselineScanRegistryCompatible(
 }
 
 //------------------------------------------------------------------------------
-/** @see tests/support/scan_measurement_diagnostics.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 組み込みregistryから固定profileの明示ScanOptionsを解決する。
+ * @param[out] options 成功時だけ更新する所有設定。失敗時は変更しない。
+ * @return 全31登録と明示9／無効22の設定が既存validatorへ一致する場合true。
+ * @note Inspection同意は全てfalse、利用者指定fileは空に固定します。
+ */
 //------------------------------------------------------------------------------
 bool resolveBaselineScanOptions( ScanOptions &options) noexcept
 {
@@ -1207,7 +1276,11 @@ bool resolveBaselineScanOptions( ScanOptions &options) noexcept
 }
 
 //------------------------------------------------------------------------------
-/** @see tests/support/scan_measurement_diagnostics.h 宣言側の契約を正本とする。 */
+/**
+ * @brief Workerを作らず固定profileと既存scanの副作用条件をASCIIへ構築する。
+ * @param[out] description 成功時だけ更新する完全な条件表示。失敗時は変更しない。
+ * @return 固定profileを現registryへ照合して構築できた場合true。
+ */
 //------------------------------------------------------------------------------
 bool buildBaselineScanDescription( std::string &description) noexcept
 {
@@ -1258,7 +1331,11 @@ bool buildBaselineScanDescription( std::string &description) noexcept
 }
 
 //------------------------------------------------------------------------------
-/** @see tests/support/scan_measurement_diagnostics.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 完全な条件表示を一回writeし、明示flushする。
+ * @param[in,out] output 呼出し中だけ借用するnarrow stream。失敗状態は解除しない。
+ * @return 構築、全byte書込みおよびflushが成功した場合true。
+ */
 //------------------------------------------------------------------------------
 bool writeBaselineScanDescription( std::ostream &output) noexcept
 {
@@ -1272,7 +1349,17 @@ bool writeBaselineScanDescription( std::ostream &output) noexcept
 }
 
 //------------------------------------------------------------------------------
-/** @see tests/support/scan_measurement_diagnostics.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 公開済みscan snapshotを検証し、1 MiB以下の固定ASCII reportを構築する。
+ * @param[in] operationId Controllerが発行した現在の非ゼロscan operation ID。
+ * @param[in] applicationVersion CMake生成値から渡す実行中application version。
+ * @param[in] options Workerへ渡した固定profileのScanOptions。
+ * @param[in] result ProviderWorkerから受け取りControllerへ適用したscan結果。
+ * @param[out] report 成功時だけ更新する完全report。失敗時は変更しない。
+ * @return Profile、registry、snapshot、enum、固定IDおよび容量が全て有効な場合true。
+ * @note 任意の候補文字列とbranch文字列を読み出力へ複写しません。Reportをstable IDで一対一に照合し、入力順に依存せずregistry順で出力します。Contextの有効9
+ *       IDも一意集合として照合し、headerは固定profile順で出力します。実行用optionsの固定順は維持し、元contextとreportの配列を変更しません。
+ */
 //------------------------------------------------------------------------------
 bool buildScanMeasurementReport( const OperationId		operationId,
 								const std::wstring_view applicationVersion,
@@ -1409,7 +1496,16 @@ bool buildScanMeasurementReport( const OperationId		operationId,
 }
 
 //------------------------------------------------------------------------------
-/** @see tests/support/scan_measurement_diagnostics.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 検証・完全構築したreportを一回writeし、明示flushする。
+ * @param[in,out] output 呼出し中だけ借用するnarrow stream。失敗状態は解除しない。
+ * @param[in] operationId Controllerが発行した現在の非ゼロscan operation ID。
+ * @param[in] applicationVersion CMake生成値から渡す実行中application version。
+ * @param[in] options Workerへ渡した固定profileのScanOptions。
+ * @param[in] result ProviderWorkerから受け取りControllerへ適用したscan結果。
+ * @return 全成功、部分成功、契約拒否またはI/O失敗の分類。
+ * @note 部分writeを再試行せず、I/O失敗をscan成功へ読み替えません。
+ */
 //------------------------------------------------------------------------------
 ScanMeasurementReportStatus writeScanMeasurementReport( std::ostream			  &output,
 													   const OperationId	   operationId,
@@ -1433,7 +1529,13 @@ ScanMeasurementReportStatus writeScanMeasurementReport( std::ostream			  &output
 }
 
 //------------------------------------------------------------------------------
-/** @see tests/support/scan_measurement_diagnostics.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 固定enumだけの1 KiB以下の失敗recordを一回writeしてflushする。
+ * @param[in,out] output 呼出し中だけ借用するstream。既存失敗状態を解除しない。
+ * @param[in] reason 本文出力前に確定した拒否理由。未知enumは無出力で拒否する。
+ * @return 構築、全byte書込みとflushが成功した場合true。
+ * @note Reportまたは診断のI/O失敗後の再送に使用しません。任意文字列を受け取りません。
+ */
 //------------------------------------------------------------------------------
 bool writeScanMeasurementFailure( std::ostream					   &output,
 								 const ScanMeasurementFailureReason reason) noexcept

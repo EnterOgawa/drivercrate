@@ -2,7 +2,7 @@
 /**
  * @file official_seven_zip_tests.h
  * @brief 公式7z有限展開単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 合成7z byte列だけを使用し、networkやdriver導入に依存しないmetadata、memory展開、solid要求量、保護workspace選択展開の試験を定義します。
@@ -41,11 +42,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 公式7zの有限列挙、solid要求量、memory／workspace展開を検証する。
- * 正常memory展開と全fail-closed fixtureを順に実行する。
+ * @brief 公式7zの有限列挙、solid要求量、memory／workspace展開を検証する。正常memory展開と全fail-closed fixtureを順に実行する。
  * @param[in,out] context Assertion件数と失敗内容の集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialSevenZipTests( TestContext &context) ;
 
 } // namespace drivercrate::test

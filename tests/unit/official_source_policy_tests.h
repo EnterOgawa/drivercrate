@@ -2,7 +2,7 @@
 /**
  * @file official_source_policy_tests.h
  * @brief 公式取得元policy registry単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 組み込みorigin policyとProvider対応のfail-closed条件を検証します。
@@ -39,12 +40,13 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 公式取得元policy registryの正常系と拒否条件を検証する。
- * 公式取得元policy registryの全単体試験を実行する。
- * 組み込み定義、host、拒否条件、opaque根拠を順に検証する。
+ * @brief 公式取得元policy registryの正常系と拒否条件を検証する。公式取得元policy registryの全単体試験を実行する。組み込み定義、host、拒否条件、opaque
+ *        根拠を順に検証する。
  * @param[in,out] context assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialSourcePolicyTests( TestContext &context) ;
 
 } // namespace drivercrate::test

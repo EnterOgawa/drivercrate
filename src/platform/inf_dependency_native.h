@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native.h
  * @brief 実INFの非実行依存観測と個別署名診断の定義。
- * @version 01.05.00
+ * @version 01.05.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/13  元共通内容の選択依存検査を私有factory入口へ限定。
  * Ver.01.04.00 Shunji Ogawa  2026/10/15  同元選択の依存と効果へ非機密拒否診断を追加。
  * Ver.01.05.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Workerで同期借用し、実device、実行command、導入許可を扱わない。
@@ -99,14 +100,17 @@ struct InfDependencyNativeResult {
 	std::uint64_t							fixedByteCount{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 相対member位置と絶対local DOS位置の構文を検査する。
  * @param[in] path 原位置。正規化やfilesystem探索を行わない。
  * @param[in] absolute trueの場合は通常のdrive絶対path、falseの場合はASCII相対path。
  * @return 構文合格の場合true。実path認証ではない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool		  validInfDependencyPath( std::wstring_view path, bool absolute) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 保護packageと現在WindowsのINFを共通核へ非実行接続する。
  * @param[in] workspace 全package memberを呼出し終了まで所有する保護領域。
@@ -117,9 +121,10 @@ struct InfDependencyNativeResult {
  * @param[out] result 全再確認成功時だけ保持し、全体失敗では空。
  * @return 観測完了0、不正入力・path・改変・OS差・容量・例外のHRESULT。
  * @pre 入力と出力の所有storageはaliasしない。同期workerで呼び、再入しない。
- * @note Packageの公式由来は未検査に固定する。署名成功を由来・導入許可へ流用しない。
- * OS trustがrevocation照会する場合がある。scan・staging・device導入は行わない。
+ * @note Packageの公式由来は未検査に固定する。署名成功を由来・導入許可へ流用しない。OS trustがrevocation照会する場合がある。scan・staging・device導入
+ *       は行わない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectNativeInfDependencies(
 	const OfficialDownloadWorkspace &workspace, std::span<const InfDependencyPackageMember> members,
 	std::size_t rootIndex, std::span<const std::wstring> seeds, std::uint64_t observationId,
@@ -152,7 +157,9 @@ private:
 #ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
 namespace test {
 struct InfDependencyNativeTestApi ;
-/** @brief 専用compileの架空APIで実Common私有入口を一同期検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 専用compileの架空APIで実Common私有入口を一同期検査します。
  * @param[in] api 既存の必須五callbackです。
  * @param[in] inspected このfixtureだけの原内容です。
  * @param[in] selected 実readerが再解析する元選択です。
@@ -161,6 +168,7 @@ struct InfDependencyNativeTestApi ;
  * @return Common入口の未変更HRESULTです。
  * @note 通常製品にはこの宣言/入口を含めません。
  */
+//------------------------------------------------------------------------------
 NativeError inspectCommonInfDependenciesWithTestApi( const InfDependencyNativeTestApi &api,
 													const CommonInfInspection		 &inspected,
 													const OfficialInfPackage		 &selected,
@@ -173,14 +181,36 @@ NativeError inspectCommonInfDependenciesWithTestApi( const InfDependencyNativeTe
 class CommonInfNativeAccess final {
 private:
 #ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
+	/**
+	 * @brief 専用compileの架空APIで実Common私有入口を一同期検査します。
+	 * @note 第1引数（const test :: InfDependencyNativeTestApi &、in）はこの宣言では無名です。既存の必須五callbackです。
+	 * @note 第2引数（const CommonInfInspection &、in）はこの宣言では無名です。このfixtureだけの原内容です。
+	 * @note 第3引数（const OfficialInfPackage &、in）はこの宣言では無名です。実readerが再解析する元選択です。
+	 * @note 第4引数（InfDependencyNativeResult &、out）はこの宣言では無名です。成功時だけの元graphです。
+	 * @note 第5引数（RequiredInfBindingDiagnostic *、out）はこの宣言では無名です。元数値の任意出力です。
+	 * @return Common入口の未変更HRESULTです。
+	 * @note 通常製品にはこの宣言/入口を含めません。
+	 */
 	friend NativeError test::inspectCommonInfDependenciesWithTestApi(
 		const test::InfDependencyNativeTestApi &, const CommonInfInspection &,
 		const OfficialInfPackage &, InfDependencyNativeResult &, RequiredInfBindingDiagnostic *) ;
 #endif
+	/**
+	 * @brief 実検査した元基本INF閉包から必要役割の関係を構築します。
+	 * @note 第1引数（const CommonInfInspection &、in）はこの宣言では無名です。元保護byteと全署名を保持する同workerの内容検査です。
+	 * @note 第2引数（std :: span < const OfficialInfPackage >、in）はこの宣言では無名です。baseと全importの元順copyです。選択機能
+	 *       関係は私有native nodeから解析します。
+	 * @note 第3引数（std :: shared_ptr < const RequiredDriverComponentPlan > &、out）はこの宣言では無名です。成功時だけ元閉包
+	 *       へ結合した不変計画です。失敗時は空です。
+	 * @note 第4引数（RequiredInfBindingDiagnostic *、out）はこの宣言では無名です。任意の数値診断です。nullなら採取せず合否へ使用しません。
+	 * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです。
+	 * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません。
+	 */
 	friend NativeError makeRequiredDriverComponentPlan(
 		const CommonInfInspection &, std::span<const OfficialInfPackage>,
 		std::shared_ptr<const RequiredDriverComponentPlan> &, RequiredInfBindingDiagnostic *) ;
-	/** @brief 元内容を前後確認し、選択節の全Needs効果を検査します。
+	/**
+	 * @brief 元内容を前後確認し、選択節の全Needs効果を検査します。
 	 * @param[in] inspected 元保護byteと全署名を所有する内容です。
 	 * @param[in] selected 同元packageの私有node選択copyです。
 	 * @param[out] result 非実行graphです。効果は独立に検査します。

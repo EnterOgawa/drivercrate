@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_operation.cpp
  * @brief 承認済み取得の直列実行。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 未選択対象を呼ばず、取消しとCallback例外を対象結果へ反映します。
@@ -94,7 +95,14 @@ bool notifyProgress( const PreparationProgressCallback &callback,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_preparation_operation.h 宣言側の契約を正本とする。
+ * @brief 固定計画と承認を照合し、選択対象だけの取得を直列実行する。選択分だけを一度ずつ取得し、取得後の監査・導入は行わない。
+ * @param[in,out] session workerが固定計画と予約予算を所有する管理object。 固定計画とscan予約予算を保持する状態。
+ * @param[in] approval 利用者が明示した全対象の可否。 全対象の明示判断。
+ * @param[in] acquire 取得境界。空の場合は承認前に拒否する。 worker内の取得境界。
+ * @param[in] cancellation 取消し照会。空は外部取消し信号なし。 空または協調取消し照会。
+ * @param[in] progress 確定件数の通知先。空の場合は承認前に拒否する。
+ * @return 承認の拒否理由または対象別の取得結果。監査表示はProviderが別途付加する。導入しない。 承認拒否または対象別確定結果。
+ * @note 同一worker threadで呼ぶ。Callbackの例外は制御／対象別errorへ変換する。
  */
 //------------------------------------------------------------------------------
 OfficialPreparationOperationResult executeOfficialPreparation(

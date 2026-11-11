@@ -2,7 +2,7 @@
 /**
  * @file local_collector_projected_response.cpp
  * @brief 応答v4の有限codec・元I/O結合・一回縮退を実装します。
- * @version 01.01.02
+ * @version 01.01.03
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/29  元成功参照の全再検証と減少最終化を追加。
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.01.02   Shunji Ogawa  2026/10/16 元結果の伝播・例外変換とcache操作引数の契約を補足。
+ * Ver.01.01.03 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 旧codecと保存storeを変更せず、予約受入・成功CACHE更新を実行しません。
@@ -107,11 +108,13 @@ struct Stop {
 	/// 数値と段階だけの失敗。
 	CollectorProjectedResponseResult value ;
 } ;
+//------------------------------------------------------------------------------
 /**
  * @brief 構造・関係違反を固定拒否します。
  * @param[in] condition 成立を必須とする構造・関係条件。
  * @throws Failure 条件不成立時。Status::INVALIDを保持する。
  */
+//------------------------------------------------------------------------------
 void require( bool condition)
 {
 	// 修復して成功へ進めません。
@@ -119,12 +122,14 @@ void require( bool condition)
 		throw Failure{Status::INVALID} ;
 	}
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 下位結果を元層付きで伝播します。
  * @param[in] result 検査する下位結果のcopy。OK以外は元の分類と数値を維持します。
  * @param[in] stage 失敗へ結合する元層。成功時は結果へ追加しません。
  * @throws Stop resultがOK以外の場合。元結果とstageを保持します。
  */
+//------------------------------------------------------------------------------
 void checked( Result result, Limit stage = Limit::NONE)
 {
 	// OOMを上限へ、原hashを構造拒否へ変換しません。
@@ -132,11 +137,13 @@ void checked( Result result, Limit stage = Limit::NONE)
 		throw Stop{{result, stage}} ;
 	}
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Catch内だけで元例外を有限結果へ変換します。
  * @return 元の停止結果と層、確保失敗、または構造拒否の分類です。例外を外へ渡しません。
  * @pre 現在の例外を処理するcatch節内から呼び出すこと。
  */
+//------------------------------------------------------------------------------
 CollectorProjectedResponseResult failure() noexcept
 {
 	try {
@@ -158,6 +165,7 @@ CollectorProjectedResponseResult failure() noexcept
 		return {{Status::INVALID, 0}, Limit::NONE} ;
 	}
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 成功digestの注入なしに実byte hashを計算します。
  * @param[in] bytes 実CNGへ渡す元byteの借用view。
@@ -166,6 +174,7 @@ CollectorProjectedResponseResult failure() noexcept
  * @param[in] layer Hash失敗を分類する外側の有限層。
  * @return 実byteから計算したSHA-256文字列。失敗時は値を返さず検査例外を送出する。
  */
+//------------------------------------------------------------------------------
 std::wstring hashBytes( std::string_view bytes, const CollectorProjectedHashProbe &probe,
 					   HashStage stage, Limit layer)
 {
@@ -181,12 +190,14 @@ std::wstring hashBytes( std::string_view bytes, const CollectorProjectedHashProb
 			layer) ;
 	return digest ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 旧保存と同じG／jobの操作keyを実CNGで作ります。
  * @param[in] generation 元Gの64桁小文字SHA-256。同期中だけ借用する。
  * @param[in] job 元job keyの64桁小文字SHA-256。同期中だけ借用する。
  * @return 固定profileとG/jobを結合した実CNGの操作key。入力・hash失敗は検査例外。
  */
+//------------------------------------------------------------------------------
 std::wstring operation( std::wstring_view generation, std::wstring_view job)
 {
 	require( isHash( generation) && isHash( job)) ;
@@ -194,11 +205,13 @@ std::wstring operation( std::wstring_view generation, std::wstring_view job)
 						 "\n",
 					 {}, HashStage::METADATA, Limit::NONE) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 元予約UTCだけから固定JST日を導きます。
  * @param[in] millis 1000～4102444799999の元予約UTC、Unix epochからのmillisecond。
  * @return 固定JSTへ9時間加算したYYYYMMDD。範囲違反は検査例外。
  */
+//------------------------------------------------------------------------------
 std::wstring reservationDay( std::uint64_t millis)
 {
 	require( millis >= 1000U && millis <= 4102444799999ULL) ;
@@ -483,6 +496,7 @@ private:
 	bool	first_{true} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 応答の全fieldを固定順で移送します。
  * @param[in,out] fields 同じ有限reader/writer context。
@@ -490,6 +504,7 @@ private:
  * @param[in,out] io 下位I/O objectの元byte。書込み元または読込み先。
  * @param[in,out] metadata 下位metadata objectの元byte。書込み元または読込み先。
  */
+//------------------------------------------------------------------------------
 void responseFields( Fields &fields, Response &response, std::string &io, std::string &metadata)
 {
 	fields.constant( "schema", L"collector-campaign-response-v4") ;
@@ -522,11 +537,13 @@ void responseFields( Fields &fields, Response &response, std::string &io, std::s
 	fields.decision( response.cacheDecision) ;
 	fields.literal( "}") ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 元I/Oと外側field・metadataの関係を検査します。
  * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する。
  * @param[in] response 外側field、元I/O、metadataの関係を検査する所有値。
  */
+//------------------------------------------------------------------------------
 void validate( const CollectorProjectedJobInput &job, const Response &response)
 {
 	const auto &io		 = response.io ;		// 元sealed観測。
@@ -649,12 +666,14 @@ void validate( const CollectorProjectedJobInput &job, const Response &response)
 			response.cacheDecision.reason == expected.reason) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Workerが消去したdraftへ残余が混入していないことを確認します。
  * @param[in] draft Workerが終端で消去したはずの公開draft。
  * @param[in] limited 上限到達用の消去形を検査する場合true。
  * @return 指定終端形の全消去条件が成立する場合true。残余・矛盾がある場合false。
  */
+//------------------------------------------------------------------------------
 bool clearedDraft( const CollectorMetadataProjectionDraft &draft, bool limited)
 {
 	return draft.status == (limited ? CollectorProjectionDraftStatus::HELD
@@ -668,11 +687,13 @@ bool clearedDraft( const CollectorMetadataProjectionDraft &draft, bool limited)
 					   []( auto value) { return value == 0U ; }) &&
 		   draft.slices.empty() && draft.records.empty() && draft.edges.empty() ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 下位I/O codecに渡す元byteを作ります。旧byte規則は変更しません。
  * @param[in] response 下位I/Oへ再結合する元応答。同期中だけ借用する。
  * @return 元観測を旧I/O codecで符号化した所有byte。Codec拒否時は検査例外。
  */
+//------------------------------------------------------------------------------
 std::string ioBytes( const Response &response)
 {
 	std::string bytes ;	// 旧v1のcanonical object。
@@ -681,6 +702,7 @@ std::string ioBytes( const Response &response)
 	require( bytes.size() <= IO_LIMIT) ;
 	return bytes ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 単一応答の全byteとhashを一度だけ生成します。
  * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する。
@@ -688,6 +710,7 @@ std::string ioBytes( const Response &response)
  * @param[in] probe 失敗HRESULTだけを注入する同期hash診断。空では実CNGだけを使う。
  * @return 全検査と実hash生成を終えた所有byte群。失敗時は途中出力を返さず例外。
  */
+//------------------------------------------------------------------------------
 CollectorProjectedResponseBytes encode( const CollectorProjectedJobInput	 &job,
 									   const Response					 &response,
 									   const CollectorProjectedHashProbe &probe)
@@ -726,9 +749,13 @@ CollectorProjectedResponseBytes encode( const CollectorProjectedJobInput	 &job,
 }
 } // namespace
 
+//------------------------------------------------------------------------------
 /**
- * @copydoc drivercrate::collectorProjectedCacheDecision(const CollectorProjectedResponse &)
+ * @brief 現metadataだけからcache更新候補を再導出します。
+ * @param[in] response 検査対象の値。減少・元200真正性は別途親contextが検査します。
+ * @return 固定操作と理由。保存や再送許可ではありません。
  */
+//------------------------------------------------------------------------------
 CollectorProjectedCacheDecision collectorProjectedCacheDecision( const Response &response) noexcept
 {
 	const auto reason = response.metadata.reason ;	// Metadata側の理由を優先します。
@@ -779,9 +806,17 @@ CollectorProjectedCacheDecision collectorProjectedCacheDecision( const Response 
 			response.responseValidator ? CacheReason::ACCEPTED : CacheReason::NO_VALIDATOR} ;
 }
 
+//------------------------------------------------------------------------------
 /**
- * @copydoc drivercrate::makeCollectorProjectedResponseCandidate(const CollectorProjectedJobInput &, const CollectorProjectedWorkerResult &, std::uint64_t, CollectorProjectedResponse &)
+ * @brief 同一GETの所有観測を履歴判定前の応答候補へ変換します。
+ * @param[in] job 元prepared jobの公開値。
+ * @param[in] worker 全join後に読み取った元結果。ここではjoin自体を証明しません。
+ * @param[in] acceptedUtc 親が観測した受領UTC。
+ * @param[out] response 成功時だけ非保存候補。失敗時は空。
+ * @return 型・元I/O・draft結合の検査結果。履歴なしとは判定しません。
+ * @note 通常200／元失敗だけです。304成功を生成しません。最終親入口は別工程です。
  */
+//------------------------------------------------------------------------------
 Result makeCollectorProjectedResponseCandidate( const CollectorProjectedJobInput		&job,
 											   const CollectorProjectedWorkerResult &worker,
 											   std::uint64_t						 acceptedUtc,
@@ -883,7 +918,19 @@ Result makeCollectorProjectedResponseCandidate( const CollectorProjectedJobInput
 	}
 }
 
-/** @see local_collector_projected_response.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元input・intent・応答byteと成功sliceを照合して減少を判定します。
+ * @param[in] prepared 今回の変更不能なprepared prepared。
+ * @param[in] worker 全join後の元結果。ここでは所有監督を証明しません。
+ * @param[in] acceptedUtc 今回の親受領UTC。
+ * @param[in] history 最大16件の元参照。重複slice・壊れた別bindingも拒否します。
+ * @param[out] output 成功時だけ最終候補。失敗時は空。入力とのaliasは禁止です。
+ * @param[in] probe 元応答を読む際のhash故障専用診断。
+ * @return 元codecのhash失敗または関係違反。縮退や再試行はしません。
+ * @note Root登録・直近成功・保存完了を証明しません。現200のoriginal200はnullのままです。
+ */
+//------------------------------------------------------------------------------
 Result finalizeCollectorProjectedHistory( const CollectorPreparedProjectedJob  &prepared,
 										 const CollectorProjectedWorkerResult &worker,
 										 std::uint64_t						   acceptedUtc,
@@ -995,9 +1042,16 @@ Result finalizeCollectorProjectedHistory( const CollectorPreparedProjectedJob  &
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
- * @copydoc drivercrate::encodeCollectorProjectedResponse(const CollectorProjectedJobInput &, const CollectorProjectedResponse &, CollectorProjectedResponseBytes &, const CollectorProjectedHashProbe &)
+ * @brief 全field・元I/Oを検査し、metadata／応答の実hashと外側を生成します。
+ * @param[in] job 元固定scope。
+ * @param[in] response 履歴判定を終えた値。値型だけでは親受入済みではありません。
+ * @param[out] encoded 成功時だけ実byte。失敗時は空。入力responseとのaliasは禁止です。
+ * @param[in] probe 数値だけの任意診断。
+ * @return 元hash errorと失敗層。入力projectionが非空なら実計算値との一致も必須です。
  */
+//------------------------------------------------------------------------------
 CollectorProjectedResponseResult encodeCollectorProjectedResponse(
 	const CollectorProjectedJobInput &job, const Response &response,
 	CollectorProjectedResponseBytes &encoded, const CollectorProjectedHashProbe &probe) noexcept
@@ -1011,7 +1065,16 @@ CollectorProjectedResponseResult encodeCollectorProjectedResponse(
 	}
 }
 
-/** @see local_collector_projected_response.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存byteを独立CNGと全field関係へ照合します。縮退・修復しません。
+ * @param[in] job 元固定scope。
+ * @param[in] envelope 最大2 MiBの保存byte。
+ * @param[out] decoded 成功時だけ元byteと所有値。入力envelopeとのaliasは禁止です。
+ * @param[in] probe 読込み時のhash失敗専用診断。
+ * @return 結果。元世代・intent・登録／履歴への再結合は保存監督の責任です。
+ */
+//------------------------------------------------------------------------------
 CollectorProjectedResponseResult decodeCollectorProjectedResponse(
 	const CollectorProjectedJobInput &job, std::string_view envelope,
 	CollectorProjectedResponseBytes &decoded, const CollectorProjectedHashProbe &probe) noexcept
@@ -1059,9 +1122,16 @@ CollectorProjectedResponseResult decodeCollectorProjectedResponse(
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
- * @copydoc drivercrate::encodeCollectorProjectedResponseWithFallback(const CollectorProjectedJobInput &, const CollectorProjectedResponse &, CollectorProjectedResponseBytes &, const CollectorProjectedHashProbe &)
+ * @brief Live候補だけの一回有限縮退とhash故障分類を行います。
+ * @param[in] job 元scope。
+ * @param[in] response 親が最終化する候補。元I/Oは変更しません。
+ * @param[out] encoded 成功時だけ保存前byte。入力responseとのaliasは禁止です。親の予約受入を実行しません。
+ * @param[in] probe 元段階の負HRESULTのみ。
+ * @return 失敗時は出力空。第一worker error／OOM／応答hash故障を置換しません。
  */
+//------------------------------------------------------------------------------
 CollectorProjectedResponseResult encodeCollectorProjectedResponseWithFallback(
 	const CollectorProjectedJobInput &job, const Response &response,
 	CollectorProjectedResponseBytes &encoded, const CollectorProjectedHashProbe &probe) noexcept

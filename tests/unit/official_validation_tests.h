@@ -2,7 +2,7 @@
 /**
  * @file official_validation_tests.h
  * @brief 公式取得元共通検証単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Networkへ接続せずURL、file、XML、CABの共通拒否条件を試験します。
@@ -40,11 +41,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 公式取得元の共通検証単体試験を実行する。
- * HTTP status、URL、redirect、file検証を順番に実行する。
+ * @brief 公式取得元の共通検証単体試験を実行する。HTTP status、URL、redirect、file検証を順番に実行する。
  * @param[in,out] context assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialValidationTests( TestContext &context) ;
 
 } // namespace drivercrate::test

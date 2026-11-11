@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_operation.h
  * @brief 承認済み検査用取得の実行契約。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.00.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.01.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Callbackはworker内だけで使用し、取得結果を導入許可へ変換しません。
@@ -108,9 +109,9 @@ struct OfficialPreparationOperationResult {
 	std::vector<PreparedInstallResolution>		installResolutions ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 固定計画と承認を照合し、選択対象だけの取得を直列実行する。
- * 選択分だけを一度ずつ取得し、取得後の監査・導入は行わない。
+ * @brief 固定計画と承認を照合し、選択対象だけの取得を直列実行する。選択分だけを一度ずつ取得し、取得後の監査・導入は行わない。
  * @param[in,out] session workerが固定計画と予約予算を所有する管理object。 固定計画とscan予約予算を保持する状態。
  * @param[in] approval 利用者が明示した全対象の可否。 全対象の明示判断。
  * @param[in] acquire 取得境界。空の場合は承認前に拒否する。 worker内の取得境界。
@@ -119,6 +120,7 @@ struct OfficialPreparationOperationResult {
  * @return 承認の拒否理由または対象別の取得結果。監査表示はProviderが別途付加する。導入しない。 承認拒否または対象別確定結果。
  * @note 同一worker threadで呼ぶ。Callbackの例外は制御／対象別errorへ変換する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialPreparationOperationResult executeOfficialPreparation(
 	OfficialPreparationSession &session, const OfficialPreparationApproval &approval,
 	const PreparationAcquireFunction &acquire, const PreparationCancellation &cancellation,

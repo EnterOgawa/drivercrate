@@ -449,15 +449,19 @@ def convert_member_comments(source: str,
 
 
 def doxy_entries(text: str) -> list[tuple[str, str]]:
+    """原sourceの一blockから項目を読み、inline tagとDoxygenの二種の導入記号を保つ。"""
     entries = []
     current_prefix = ""
     current_lines = []
     payload = re.sub(r'^/\*\*\s*', '', text)
     payload = re.sub(r'\s*\*/$', '', payload)
-    payload = re.sub(r'(?<=\S)[ \t]+(?=@(?:brief|param|tparam|return|retval|note|pre|post|throws|see)\b)', '\n', payload)
+    tags = r'(?:brief|param|tparam|returns?|retval|note|pre|post|throws|warning|see|copydoc|copybrief|copydetails|inheritdoc)'
+    payload = re.sub(r'\\(?=' + tags + r'\b)', '@', payload)
+    payload = re.sub(r'(?<=\S)[ \t]+(?=@' + tags + r'\b)', '\n', payload)
+    payload = re.sub(r'(?<=[。.;])(?=@' + tags + r'\b)', '\n', payload)
     for raw_line in payload.splitlines():
         line = re.sub(r"^\s*\* ?", "", raw_line).strip()
-        tag = re.match(r"^(@param\[[^\]]+\]\s+\w+|@\w+(?:\[[^\]]+\])?)\s*(.*)", line)
+        tag = re.match(r"^(@param\[[^\]]+\]\s+\w+|@tparam\s+\w+|@\w+(?:\[[^\]]+\])?)\s*(.*)", line)
         if tag or not line:
             if current_prefix or current_lines:
                 entries.append((current_prefix, combine(current_lines)))

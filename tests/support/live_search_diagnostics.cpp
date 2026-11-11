@@ -2,7 +2,7 @@
 /**
  * @file live_search_diagnostics.cpp
  * @brief Locale非依存のlive検索診断出力。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/08
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 固定ASCII recordを有限領域で構築し、出力失敗を呼出し側へ返します。
@@ -52,7 +53,12 @@ namespace drivercrate::test {
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/support/live_search_diagnostics.h 宣言側の契約を正本とする。
+ * @brief 診断値を固定ASCIIとして一回書込み、明示flushの結果を返す。
+ * @details Locale、format flag、exception maskを変更しない。部分出力を再試行しない。検索の成否は変更せず、出力失敗時は呼出し側でも成功表示を抑止する。非機密
+ *          の検索診断を固定ASCIIで出力する。構築失敗では書き込まず、I/O失敗では部分出力を再試行しない。出力先が故障した場合の診断値保存を保証しない。
+ * @param[in,out] output 呼出し中だけ借用するnarrow stream。失敗状態は解除しない。 借用stream。失敗状態・format設定を解除しない。
+ * @param[in] diagnostics 32-bit error、件数、取得根拠flagのsnapshot。 検索結果の数値とboolだけを保持する値。
+ * @return 全recordの書込みとflush成功時true。構築・I/O失敗と例外はfalse。 Record書込みとflush成功時true。例外と全失敗時false。
  */
 //------------------------------------------------------------------------------
 bool writeLiveSearchDiagnostics( std::ostream				&output,

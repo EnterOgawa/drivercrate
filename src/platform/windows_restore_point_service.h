@@ -2,7 +2,7 @@
 /**
  * @file windows_restore_point_service.h
  * @brief Windows復元ポイントサービス生成定義。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note SrClient.dllを動的に使用する復元ポイントサービスを生成します。Windows Server等でAPIを利用できない場合はinstallをfail-closedにします。
@@ -47,13 +48,13 @@ namespace drivercrate {
 //------------------------------------------------------------------------------
 // Windows復元ポイントサービス生成関数定義。
 //------------------------------------------------------------------------------
-
 /**
- * @brief 現在のworker COM apartmentでWindows復元ポイントサービスを生成する。
- * Provider COM object生成前に生成し、process-wide COM securityとSystem Restore APIを初期化する。
+ * @brief 現在のworker COM apartmentでWindows復元ポイントサービスを生成する。Provider COM object生成前に生成し、process-wide COM
+ *        securityとSystem Restore APIを初期化する。
  * @return 呼出し側が単独所有するサービス。初期化失敗は`begin`の結果として返す。
  * @note Provider COM objectの生成前に呼び出し、process-wide COM securityを設定する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::unique_ptr<IRestorePointService> makeWindowsRestorePointService() ;
 
 namespace restore_point_detail {
@@ -88,10 +89,13 @@ struct Calls {
 	/// 正常END後だけ固定memoを保存します。
 	std::function<NativeError( const RestorePointDayMemo &)>		  saveMemo ;
 } ;
-/** @brief 全callbackが明示された内部fixtureだけを生成します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全callbackが明示された内部fixtureだけを生成します。
  * @param[in] calls 完全fake。未指定時は一切実APIを呼ばず拒否します。
  * @return 完全表ならservice、不完全ならnullptrです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::unique_ptr<IRestorePointService> createFixture( Calls calls) ;
 }
 

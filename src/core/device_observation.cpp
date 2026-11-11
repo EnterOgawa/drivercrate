@@ -2,7 +2,7 @@
 /**
  * @file device_observation.cpp
  * @brief Device観測の有限検証と登録状態の純粋分類。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  Device観測と有限な分類契約を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note OS・network・導入APIを呼ばず、欠損を成功へ補完しない。
@@ -40,11 +41,13 @@ constexpr std::uint32_t NODE_HAS_PROBLEM				 = 0x00000400U ;
 constexpr std::uint32_t DRIVER_NOT_INSTALLED_PROBLEM	 = 28U ;	// WindowsのCM_PROB_FAILED_INSTALL。
 constexpr std::size_t	MAXIMUM_OPAQUE_DEVICE_CHARACTERS = 256U ;	// 既存の候補identity上限。
 
+//------------------------------------------------------------------------------
 /**
  * @brief 非成功の診断が既知APIの非0codeを持つか確認する。
  * @param[in] diagnostic 元APIまたは検証失敗の診断。
  * @return 成功と矛盾しない非0診断ならtrue。
  */
+//------------------------------------------------------------------------------
 bool					isFailureDiagnosticValid( const DeviceDiagnostic &diagnostic) noexcept
 {
 	// 成功codeを失敗として受理せず、観測不能を0へ補完させない。
@@ -71,7 +74,13 @@ bool					isFailureDiagnosticValid( const DeviceDiagnostic &diagnostic) noexcept
 }
 } // namespace
 
-/** @see src/core/device_observation.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 読取り区分と診断領域・値の整合性を確認する。
+ * @param[in] status 属性を含まない読取り結果。
+ * @return 定義済みの矛盾しない状態ならtrue。
+ */
+//------------------------------------------------------------------------------
 bool isDevicePropertyReadStatusValid( const DevicePropertyReadStatus &status) noexcept
 {
 	// 読取り区分に対応する診断の有無を固定し、不正enumを拒否する。
@@ -100,7 +109,13 @@ bool isDevicePropertyReadStatusValid( const DevicePropertyReadStatus &status) no
 	return false ;
 }
 
-/** @see src/core/device_observation.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Status成功とproblem codeの有効条件を照合する。
+ * @param[in] node 一回のOS照会の観測。
+ * @return 値と読取り状態が整合する場合true。
+ */
+//------------------------------------------------------------------------------
 bool isDeviceNodeObservationValid( const DeviceNodeObservation &node) noexcept
 {
 	// 読取り自体が不正な場合は登録状態の根拠に使わない。
@@ -122,7 +137,14 @@ bool isDeviceNodeObservationValid( const DeviceNodeObservation &node) noexcept
 		   !node.statusFlags && !node.problemCode ;
 }
 
-/** @see src/core/device_observation.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief WindowsのCode 28またはdriver keyの観測から登録状態を分類する。
+ * @param[in] node 有限なdevnode観測。不正な観測はUNKNOWNになる。
+ * @param[in] driverKey 生keyを含まない読取り結果。
+ * @return Code 28を優先した登録状態。正常動作や導入適合性を保証しない。
+ */
+//------------------------------------------------------------------------------
 DeviceDriverPresence classifyDeviceDriverPresence(
 	const DeviceNodeObservation &node, const DevicePropertyReadStatus &driverKey) noexcept
 {
@@ -141,7 +163,13 @@ DeviceDriverPresence classifyDeviceDriverPresence(
 															 : DeviceDriverPresence::UNKNOWN ;
 }
 
-/** @see src/core/device_observation.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 一device観測の有限性・全属性・登録分類を検証する。
+ * @param[in] observation 候補へ結合する表示用観測。
+ * @return 既知の状態であり登録分類も観測根拠と一致する場合true。
+ */
+//------------------------------------------------------------------------------
 bool isDeviceObservationValid( const DeviceObservation &observation) noexcept
 {
 	// 有限なsession/device結合とnode状態がない観測を候補へ渡さない。
@@ -169,7 +197,15 @@ bool isDeviceObservationValid( const DeviceObservation &observation) noexcept
 		   classifyDeviceDriverPresence( observation.node, observation.driverKey) ;
 }
 
-/** @see src/core/device_observation.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 観測を今回のsessionとdeviceへ完全一致で結合する。
+ * @param[in] observation 検証する観測。
+ * @param[in] scanSessionId 今回の0ではないsession。
+ * @param[in] deviceIdentity 借用した今回のopaque device identity。
+ * @return 観測全体が妥当で両identityが一致する場合true。
+ */
+//------------------------------------------------------------------------------
 bool isDeviceObservationBound( const DeviceObservation &observation,
 							  const std::uint64_t	   scanSessionId,
 							  const std::wstring_view  deviceIdentity) noexcept

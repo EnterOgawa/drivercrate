@@ -2,7 +2,7 @@
 /**
  * @file official_release_metadata_tests.cpp
  * @brief 共通配布情報と表示専用検索の内部試験。
- * @version 01.02.02
+ * @version 01.02.03
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -45,6 +45,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/09/23  Wi-Fiの新parser版と可視表示・取得元境界を検証。
  * Ver.01.02.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.02.02 Shunji Ogawa  2026/11/03  採用済み2GiB取得profileの独立期待へ整合。
+ * Ver.01.02.03 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 合成metadataとfake取得だけを使い、外部通信・復元・導入を行いません。
@@ -1761,7 +1762,8 @@ void testReleaseObservationEvaluation( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @copydoc drivercrate::test::runOfficialReleaseMetadataTests
+ * @brief 共通配布情報、local probe、表示専用検索の拒否境界を確認する。実network・復元・導入を使わない共通metadata試験を登録する。
+ * @param[in,out] context Assertionの集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialReleaseMetadataTests( TestContext &context)

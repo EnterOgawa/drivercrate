@@ -2,7 +2,7 @@
 /**
  * @file protected_install.h
  * @brief OS別回復保護付きinstall処理定義。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Clientでは復元ポイント成功後だけProvider installを実行します。Serverでは呼出側のOS判定と明示同意を前提に復元ポイントを使用しません。
@@ -51,10 +52,9 @@ namespace drivercrate {
 //------------------------------------------------------------------------------
 // 保護付きinstall関数定義。
 //------------------------------------------------------------------------------
-
 /**
- * @brief 復元ポイントで保護したdriver download/installを同期実行する。
- * 実在保護未成立時はProviderを呼ばない。native BEGIN所有時は正常・失敗・例外でもEND一回を試行する。同日再利用は両native操作を呼ばない。
+ * @brief 復元ポイントで保護したdriver download/installを同期実行する。実在保護未成立時はProviderを呼ばない。native BEGIN所有時は正常・失敗・例外で
+ *        もEND一回を試行する。同日再利用は両native操作を呼ばない。
  * @param[in,out] provider 選択候補を処理するProvider。worker thread専用である。
  * @param[in,out] restorePointService 復元ポイントを開始・終了するサービス。 復元ポイントサービス。
  * @param[in] scanSessionId 選択元のscan session ID。
@@ -65,16 +65,17 @@ namespace drivercrate {
  * @return 復元ポイントと候補ごとの実行結果。
  * @note 保護scopeは必ず閉じる。再利用の実在とnative呼出し事実を分け、メモ失敗だけで実導入成否を変更しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] InstallResult installWithRestorePoint(
 	IUpdateProvider &provider, IRestorePointService &restorePointService,
 	ScanSessionId scanSessionId, std::span<const std::wstring> identities,
 	std::uintptr_t parentWindowNative, const ProviderProgressCallback &progressCallback,
 	std::wstring_view restorePointDescription) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Windows Serverで復元ポイントを呼ばずdriver download/installを同期実行する。
- * Windows Serverで復元ポイントなしのinstallを実行する。
- * SRSetRestorePointWを呼ばずProviderを実行する。呼出側でOSと管理者同意を検証し、Provider例外は失敗結果へ変換する。
+ * @brief Windows Serverで復元ポイントを呼ばずdriver download/installを同期実行する。Windows Serverで復元ポイントなしのinstallを実行
+ *        する。SRSetRestorePointWを呼ばずProviderを実行する。呼出側でOSと管理者同意を検証し、Provider例外は失敗結果へ変換する。
  * @param[in,out] provider 選択候補を処理するProvider。worker thread専用である。
  * @param[in] scanSessionId 選択元のscan session ID。
  * @param[in] identities UIが明示選択したopaque identity群。 UIが選択したopaque identity群。
@@ -84,25 +85,30 @@ namespace drivercrate {
  * @note 呼出側は実OSがWindows Serverであり、利用者が復元ポイントなしの実行へ明示同意したことをworker境界で検証しなければならない。Provider例外は失敗結果へ変換す
  *       る。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] InstallResult installWithoutRestorePointOnServer(
 	IUpdateProvider &provider, ScanSessionId scanSessionId,
 	std::span<const std::wstring> identities, std::uintptr_t parentWindowNative,
 	const ProviderProgressCallback &progressCallback) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 指定したOS種別とinstall保護方針の組合せを検証する。
- * Clientで復元ポイント回避、Serverで非support API使用を許可しないfail-closed判定を行う。
+ * @brief 指定したOS種別とinstall保護方針の組合せを検証する。Clientで復元ポイント回避、Serverで非support API使用を許可しないfail-closed判定を行う。
  * @param[in] windowsServer 実OSがWindows Serverの場合は`true`。 Windows Serverの場合はtrue。
  * @param[in] protectionMode 利用者確認時に固定した保護方針。
  * @return ServerだけがServer専用mode、clientだけが復元ポイントmodeの場合は`true`。 OSに対応する唯一の保護方針の場合は`true`。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isInstallProtectionModeAllowed( bool					windowsServer,
 												  InstallProtectionMode protectionMode) noexcept ;
 
-/** @brief Native呼出し事実とOS別実在保護の整合性を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Native呼出し事実とOS別実在保護の整合性を検査します。
  * @param[in] result 受理するInstall結果です。
  * @return 指定保護契約に一致する場合trueです。memo保存失敗は実導入成否を変更しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isRestorePointProtectionValid( const InstallResult &result) noexcept ;
 
 } // namespace drivercrate

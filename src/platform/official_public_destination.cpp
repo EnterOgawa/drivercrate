@@ -2,7 +2,7 @@
 /**
  * @file official_public_destination.cpp
  * @brief Record限定HTTP targetのDNS名と全addressをpublic宛先へ限定します。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  DNSの全IPv4／IPv6宛先をpublic範囲へ限定。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Native resolverはworker threadで同期実行します。Hostとaddressは宛先検証中だけ保持します。
@@ -151,21 +152,25 @@ private:
 	PADDRINFOW value_{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Win32またはWinsock errorをHRESULT bit patternへ変換します。
  * @param[in] error 0ではないsystem error。
  * @return `NativeError`で保持するHRESULT bit pattern。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError nativeErrorFromSystem( const int error) noexcept
 {
 	return static_cast<NativeError>( HRESULT_FROM_WIN32( static_cast<unsigned long>( error))) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief ASCII DNS hostがdynamic targetの必須構文だけで構成されるか確認します。
  * @param[in] host 検証するhost。
  * @return 複数の正常labelを持ち、literal・禁止suffixでなければtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool hasValidDynamicDnsSyntax( const std::wstring_view host) noexcept
 {
 	// 空、全長上限超過、先頭／末尾dot、単一labelは解決しない。
@@ -229,11 +234,13 @@ private:
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief IPv4 addressがInternet向けglobal unicast候補か確認します。
  * @param[in] bytes Network byte orderの先頭4 byte。
  * @return Private・特殊・予約／文書用でなければtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isPublicIpv4( const std::array<std::byte, 16> &bytes) noexcept
 {
 	const unsigned int first  = std::to_integer<unsigned int>( bytes[0]) ;	// 第1 octet。
@@ -254,11 +261,13 @@ private:
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief IPv6 addressがInternet向けglobal unicast候補か確認します。
  * @param[in] bytes Network byte orderの16 byte。
  * @return `2000::/3`の通常unicastで特殊／文書／transition用でなければtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isPublicIpv6( const std::array<std::byte, 16> &bytes) noexcept
 {
 	const unsigned int first  = std::to_integer<unsigned int>( bytes[0]) ;	// 第1 octet。
@@ -285,7 +294,9 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_public_destination.h 宣言側の契約を正本とします。
+ * @brief 一つのresolved addressがpublic global unicast範囲に限定されるか判定します。
+ * @param[in] address Network byte orderのIPv4またはIPv6 address。
+ * @return Loopback、private、link-local、multicast、unspecified、予約／文書用を除く場合true。
  */
 //------------------------------------------------------------------------------
 bool isPublicOfficialNetworkAddress( const OfficialResolvedNetworkAddress &address) noexcept
@@ -306,7 +317,12 @@ bool isPublicOfficialNetworkAddress( const OfficialResolvedNetworkAddress &addre
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_public_destination.h 宣言側の契約を正本とします。
+ * @brief Dynamic targetのASCII DNS hostとresolverが返す全addressを検証します。
+ * @param[in] host 一文字以上253文字以下の秘密ASCII DNS host。
+ * @param[in] resolver 通信前に呼ぶ完全なname resolver。
+ * @param[out] evidence 成功時にだけ件数とlocal検証済みを返す非機密結果。
+ * @return Host構文と全addressがpublicなら0、それ以外はHRESULT bit pattern。
+ * @note IP literal、単一label、`localhost`、`.local`、`.internal`をresolver呼出し前に拒否します。
  */
 //------------------------------------------------------------------------------
 NativeError validatePublicOfficialDestination( const std::wstring_view			 host,
@@ -354,7 +370,11 @@ NativeError validatePublicOfficialDestination( const std::wstring_view			 host,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_public_destination.h 宣言側の契約を正本とします。
+ * @brief Windows Unicode name resolverで全IPv4／IPv6 addressを取得します。
+ * @param[in] host 検証済みASCII DNS host。
+ * @param[out] addresses 成功時の全address。失敗時は空です。
+ * @return 1件以上64件以下の解決成功時は0、Winsock失敗または不正結果はHRESULT bit pattern。
+ * @note `WSAStartup`／`WSACleanup`と`FreeAddrInfoW`は本関数内で対称に終了します。
  */
 //------------------------------------------------------------------------------
 NativeError resolveOfficialDestinationWithWindows(

@@ -2,7 +2,7 @@
 /**
  * @file signed_index_record_lookup.h
  * @brief 保存済み署名索引と同worker公開ID照合の読取り境界を定義します。
- * @version 01.04.00
+ * @version 01.04.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/14  Native私有証拠付き部分positiveと元公開ID役割を区別。
  * Ver.01.03.00 Shunji Ogawa  2026/10/27  元aggregateを保持した認証済み個別device投影を宣言。
  * Ver.01.04.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Worker内だけの読取りです。索引一致はWindows適合・導入許可ではありません。
@@ -105,7 +106,8 @@ struct IndexLookupContext {
 	std::uint64_t	   scanSessionId{} ;
 	/// 正のinventory世代。
 	std::uint64_t	   inventoryGeneration{} ;
-	/** @brief 全context fieldの完全一致を比較します。
+	/**
+	 * @brief 全context fieldの完全一致を比較します。
 	 * @param[in] other 比較対象。
 	 * @return 全field一致の場合だけtrue。
 	 */
@@ -118,20 +120,24 @@ private:
 	/** @brief DriverStoreの元factoryだけが作れるmint keyです。 */
 	class MintKey final {
 	public:
-		/** @brief 同発行呼出し内でkeyを値として渡します。
+		/**
+		 * @brief 同発行呼出し内でkeyを値として渡します。
 		 * @param[in] other 同factoryのkeyです。別の権限を追加しません。
 		 */
 		MintKey( const MintKey &other) = default ;
 
 	private:
-		/** @brief 元inventoryのfactoryだけから初期化します。 */
+		/**
+		 * @brief 元inventoryのfactoryだけから初期化します。
+		 */
 		MintKey() = default ;
 		friend class DriverStoreProvider ;
 	} ;
 	friend class DriverStoreProvider ;
 
 public:
-	/** @brief 元context/ownerとweak寿命にread-open fieldの借用を結びます。
+	/**
+	 * @brief 元context/ownerとweak寿命にread-open fieldの借用を結びます。
 	 * @param[in] key 元DriverStoreのmint keyです。
 	 * @param[in] context 元operation/scan/inventoryです。
 	 * @param[in] ownerThread 元inventoryのthreadです。
@@ -140,7 +146,8 @@ public:
 	 */
 	NativeIndexLookupLease( MintKey key, IndexLookupContext context, std::uint32_t ownerThread,
 						   std::weak_ptr<const void> owner, const bool *readOpen) ;
-	/** @brief 同context/owner thread・元state寿命/read-openを確認します。
+	/**
+	 * @brief 同context/owner thread・元state寿命/read-openを確認します。
 	 * @param[in] context 元完全contextです。
 	 * @param[in] ownerThread 現在実行中のthreadです。
 	 * @return 元stateが同threadでread-openのときだけtrueです。I/Oを行いません。
@@ -185,20 +192,24 @@ private:
 	/** @brief DriverStoreだけが初期構築できる非公開mint keyです。 */
 	class MintKey final {
 	public:
-		/** @brief 発行済みkeyを標準所有factory内へ値として渡します。
+		/**
+		 * @brief 発行済みkeyを標準所有factory内へ値として渡します。
 		 * @param[in] other 同じ発行呼出しのkeyです。状態や権限を追加しません。
 		 */
 		MintKey( const MintKey &other) = default ;
 
 	private:
-		/** @brief DriverStoreの内部発行だけで空のkeyを構築します。 */
+		/**
+		 * @brief DriverStoreの内部発行だけで空のkeyを構築します。
+		 */
 		MintKey() = default ;
 		friend class DriverStoreProvider ;
 	} ;
 	friend class DriverStoreProvider ;
 
 public:
-	/** @brief 同scanから確認した元公開tupleと既知device集合を不変保存します。
+	/**
+	 * @brief 同scanから確認した元公開tupleと既知device集合を不変保存します。
 	 * @param[in] key DriverStoreだけが構築した発行keyです。
 	 * @param[in] context 元worker／scan／inventoryの全contextです。
 	 * @param[in] kind 元公開INF側のidentifier役割です。
@@ -214,7 +225,8 @@ public:
 							 std::string_view publishedId, std::string_view classGuid,
 							 std::uint32_t ownerThread, std::weak_ptr<const void> lease,
 							 std::vector<std::wstring> devices, NativeError error) ;
-	/** @brief 元tupleとdevice集合の完全一致および同ownerの生存を確認します。
+	/**
+	 * @brief 元tupleとdevice集合の完全一致および同ownerの生存を確認します。
 	 * @param[in] context 現callbackの全contextです。
 	 * @param[in] kind lookupが元recordから読んだ公開役割です。
 	 * @param[in] publishedId lookupが元recordから読んだ公開identifierです。
@@ -257,20 +269,24 @@ private:
 	/** @brief DriverStoreだけが構築する個別観測用の発行keyです。 */
 	class MintKey final {
 	public:
-		/** @brief 発行済みkeyを同じ標準所有factoryへ渡します。
+		/**
+		 * @brief 発行済みkeyを同じ標準所有factoryへ渡します。
 		 * @param[in] other 同じ発行呼出しのkeyです。
 		 */
 		MintKey( const MintKey &other) = default ;
 
 	private:
-		/** @brief DriverStoreの認証済み観測だけから発行します。 */
+		/**
+		 * @brief DriverStoreの認証済み観測だけから発行します。
+		 */
 		MintKey() = default ;
 		friend class DriverStoreProvider ;
 	} ;
 	friend class DriverStoreProvider ;
 
 public:
-	/** @brief 元公開tupleと全cohort、一deviceの完全観測を不変保存します。
+	/**
+	 * @brief 元公開tupleと全cohort、一deviceの完全観測を不変保存します。
 	 * @param[in] key DriverStoreだけが構築した発行keyです。
 	 * @param[in] context 元operation/scan/inventoryです。
 	 * @param[in] kind 元公開IDの役割です。
@@ -288,7 +304,8 @@ public:
 						   std::uint32_t ownerThread, std::weak_ptr<const void> lease,
 						   std::vector<std::wstring> devices, NativeError error, bool completed,
 						   std::wstring deviceIdentity) ;
-	/** @brief 元tuple/診断/全cohortと対象一件、同ownerの生存を完全照合します。
+	/**
+	 * @brief 元tuple/診断/全cohortと対象一件、同ownerの生存を完全照合します。
 	 * @param[in] context 使用時の全contextです。
 	 * @param[in] kind 原recordの公開ID役割です。
 	 * @param[in] publishedId 原recordの公開IDです。
@@ -351,24 +368,28 @@ struct IndexPublicIdResolution {
  */
 class IndexPublicIdResolver {
 public:
-	/** @brief Callbackの所有者が派生資源を解放します。 */
+	/**
+	 * @brief Callbackの所有者が派生資源を解放します。
+	 */
 	virtual ~IndexPublicIdResolver() = default ;
-	/** @brief Nativeだけが元inventoryの私有leaseを共有します。
-	 * @return 元factory発行の不変証拠、generic callbackでは空です。寿命を延長しません。
+	/**
+	 * @brief Nativeだけが元inventoryの私有leaseを共有します。
+	 * @return 元factory発行の不変証拠の共有所有です。generic callbackでは空です。証拠objectは共有しても元inventory/contextの有効性や権限を
+	 *         延長しません。
 	 */
 	[[nodiscard]] virtual std::shared_ptr<const NativeIndexLookupLease> leaseProof() const noexcept
 	{
 		return {} ;
 	}
-	/** @brief 元公開ID役割を保持し、native両集合とClassGUIDを照合します。
+	/**
+	 * @brief 元公開ID役割を保持し、native両集合とClassGUIDを照合します。
 	 * @param[in] kind メーカー公表INF側identifierの元役割。native property指定ではありません。
 	 * @param[in] publishedId 元公開ASCII ID。端末actual IDではありません。
 	 * @param[in] classGuid 元申告ClassGUID。
 	 * @param[in] context 現在のworker context。
 	 * @param[in] present 現在の有限opaque集合。本呼出し中だけ借用します。
-	 * @return 完了区分・元HRESULTとopaque候補集合。全inventory列挙と照合の全完了だけがcompleted trueです。
-	 * 部分集合・列挙失敗・全presentか不明な入力ではcompleted falseを返します。
-	 * DriverStoreの私有証拠がある既知positiveだけを全体不足と分離でき、適合やrankは示しません。
+	 * @return 完了区分・元HRESULTとopaque候補集合。全inventory列挙と照合の全完了だけがcompleted trueです。部分集合・列挙失敗・全presentか不明
+	 *         な入力ではcompleted falseを返します。DriverStoreの私有証拠がある既知positiveだけを全体不足と分離でき、適合やrankは示しません。
 	 * @note 例外は共通入口で診断へ変換されます。同workerから呼び、再入しません。
 	 */
 	[[nodiscard]] virtual IndexPublicIdResolution resolve(
@@ -459,21 +480,25 @@ struct IndexRecordLookupResult ;
  */
 class SignedIndexRecordLookup final {
 public:
-	/** @brief 原hash・世代・policy・source／record／UNKNOWNを保持するsnapshotを借用します。
+	/**
+	 * @brief 原hash・世代・policy・source／record／UNKNOWNを保持するsnapshotを借用します。
 	 * @return 本lookupが所有する不変snapshot。
 	 */
 	[[nodiscard]] const AuthenticatedIndexSnapshot	  &snapshot() const noexcept ;
-	/** @brief 公開ID文字列を含まない有限関係を借用します。
+	/**
+	 * @brief 公開ID文字列を含まない有限関係を借用します。
 	 * @return 本lookupの寿命まで有効な不変span。
 	 */
 	[[nodiscard]] std::span<const IndexRecordRelation> relations() const noexcept ;
-	/** @brief 完全record prefixと実callback数だけを借用します。
+	/**
+	 * @brief 完全record prefixと実callback数だけを借用します。
 	 * @return 同object寿命まで有効な私有構築済み進行です。
 	 */
 	[[nodiscard]] const IndexLookupProgress			  &progress() const noexcept ;
 
 private:
-	/** @brief 保存済みconst snapshotの所有を共有し、関係を所有します。
+	/**
+	 * @brief 保存済みconst snapshotの所有を共有し、関係を所有します。
 	 * @param[in] snapshot 完全な原保存snapshot。
 	 * @param[in] relations 同contextの有限関係。
 	 * @param[in] context 元scanの完全context。取得operationへ書き換えません。
@@ -484,7 +509,8 @@ private:
 							std::vector<IndexRecordRelation> relations, IndexLookupContext context,
 							IndexLookupProgress							  progress,
 							std::shared_ptr<const NativeIndexLookupLease> nativeLease = {}) ;
-	/** @brief 同ownerが発行した全batchだけを一つの不変lookupへ凍結します。
+	/**
+	 * @brief 同ownerが発行した全batchだけを一つの不変lookupへ凍結します。
 	 * @param[in] snapshot 同scanの原保存snapshotの共有所有。
 	 * @param[in] context 元scanの完全context。
 	 * @param[in] batches 私有構築済みbatch。公開relationから再構築しません。
@@ -497,6 +523,19 @@ private:
 		std::optional<std::chrono::sys_seconds>	 nowUtc) noexcept ;
 	friend class SignedIndexScanSession ;
 	friend struct signed_index_acquisition_detail::Access ;
+	/**
+	 * @brief 原保存snapshotの有限record batchを同worker resolverへ結びます。
+	 * @param[in] snapshot Commit／reloadだけが発行した完全const snapshotの共有所有。Null・move元を拒否します。正規結果を一度moveして
+	 *                   const所有とし、可変aliasを使いません。
+	 * @param[in] request 呼出しが要求する正のcontext。
+	 * @param[in] current 現workerが確認した正のcontext。
+	 * @param[in] present 同contextのopaque present集合。本呼出し中不変です。
+	 * @param[in] budget 有限batchとcallback枠。
+	 * @param[in] nowUtc 現在信頼UTC。発行前・期限以上・確認不能は拒否します。
+	 * @param[in] resolver 同workerの借用callback。nullptrは未実行として保持します。
+	 * @return 入力拒否、または元snapshotと各関係を所有する読取り結果。
+	 * @note 参照を外へ保持せず、例外を境界で診断へ変換します。独立入力は独立workerで呼出し可能です。
+	 */
 	friend IndexRecordLookupResult lookupSignedIndexRecords(
 		std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot, IndexLookupContext request,
 		IndexLookupContext current, std::span<const std::wstring> present, IndexLookupBudget budget,
@@ -548,9 +587,11 @@ struct IndexRecordLookupResult {
 	std::optional<SignedIndexRecordLookup> lookup ;
 } ;
 
-/** @brief 原保存snapshotの有限record batchを同worker resolverへ結びます。
- * @param[in] snapshot Commit／reloadだけが発行した完全const snapshotの共有所有。
- * Null・move元を拒否します。正規結果を一度moveしてconst所有とし、可変aliasを使いません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原保存snapshotの有限record batchを同worker resolverへ結びます。
+ * @param[in] snapshot Commit／reloadだけが発行した完全const snapshotの共有所有。Null・move元を拒否します。正規結果を一度moveしてconst
+ *                   所有とし、可変aliasを使いません。
  * @param[in] request 呼出しが要求する正のcontext。
  * @param[in] current 現workerが確認した正のcontext。
  * @param[in] present 同contextのopaque present集合。本呼出し中不変です。
@@ -560,6 +601,7 @@ struct IndexRecordLookupResult {
  * @return 入力拒否、または元snapshotと各関係を所有する読取り結果。
  * @note 参照を外へ保持せず、例外を境界で診断へ変換します。独立入力は独立workerで呼出し可能です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexRecordLookupResult lookupSignedIndexRecords(
 	std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot, IndexLookupContext request,
 	IndexLookupContext current, std::span<const std::wstring> present, IndexLookupBudget budget,

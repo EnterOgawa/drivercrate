@@ -2,7 +2,7 @@
 /**
  * @file collector_parser_control.h
  * @brief 収集parserの明示制御と型付き終了の共通境界。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/28  解析内部の停止確認と失敗分類を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実装や台帳を保持せず、呼出し中だけworker所有の制御を借用します。
@@ -70,7 +71,8 @@ struct CollectorParserFailure {
 /** @brief Workerが所有する同じHTTP制御を同期呼出し中だけ借用します。 */
 class CollectorParserContext {
 public:
-	/** @brief 必須参照と現在の段階を固定します。
+	/**
+	 * @brief 必須参照と現在の段階を固定します。
 	 * @param[in,out] control 元GETの制御。
 	 * @param[in] stage PARSEまたはPROJECT。
 	 */
@@ -80,7 +82,9 @@ public:
 	{
 	}
 
-	/** @brief 元期限と停止を確認し、中止時は所有値の公開前にunwindします。 */
+	/**
+	 * @brief 元期限と停止を確認し、中止時は所有値の公開前にunwindします。
+	 */
 	void checkpoint()
 	{
 		// Phaseの設定は元予約期限を更新しません。
@@ -92,7 +96,8 @@ public:
 		work_ = 0U ;
 	}
 
-	/** @brief 内側走査の作業量を最大256単位で確認します。
+	/**
+	 * @brief 内側走査の作業量を最大256単位で確認します。
 	 * @param[in] units 文字数または比較数。飛び越える前の作業量。
 	 */
 	void step( std::size_t units = 1U)
@@ -105,7 +110,8 @@ public:
 		}
 	}
 
-	/** @brief 原API失敗を保持した固定例外を発生させます。
+	/**
+	 * @brief 原API失敗を保持した固定例外を発生させます。
 	 * @param[in] domain 元数値のdomain。
 	 * @param[in] code 元数値。
 	 */
@@ -114,7 +120,8 @@ public:
 		throw CollectorParserFailure{{CollectorParserStatus::FAILED, {domain, code, stage_}}} ;
 	}
 
-	/** @brief 型付き終了を第一原因へ結合します。結果のsealは行いません。
+	/**
+	 * @brief 型付き終了を第一原因へ結合します。結果のsealは行いません。
 	 * @param[in] result 解析手順の終了値。
 	 * @return 先着停止を保った終了値。
 	 */
@@ -135,7 +142,8 @@ public:
 		return result ;
 	}
 
-	/** @brief 現在の段階を返します。
+	/**
+	 * @brief 現在の段階を返します。
 	 * @return 初期化時の段階。
 	 */
 	[[nodiscard]] CollectorIoStage stage() const noexcept
@@ -143,7 +151,8 @@ public:
 		return stage_ ;
 	}
 
-	/** @brief 下位の型付き入口へ同じ制御を借用させます。
+	/**
+	 * @brief 下位の型付き入口へ同じ制御を借用させます。
 	 * @return この同期呼出し中だけ有効な元HTTP制御。
 	 */
 	[[nodiscard]] OfficialCollectorHttpControl &httpControl() const noexcept
@@ -160,9 +169,12 @@ private:
 	std::size_t					  work_{} ;
 } ;
 
-/** @brief 旧coreでは無操作、新coreでは明示制御を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 旧coreでは無操作、新coreでは明示制御を確認します。
  * @param[in,out] control 新経路のcontext。旧経路だけnull。
  */
+//------------------------------------------------------------------------------
 inline void collectorParserCheckpoint( CollectorParserContext *control)
 {
 	// 旧public wrapperの動作を変更しません。
@@ -171,10 +183,13 @@ inline void collectorParserCheckpoint( CollectorParserContext *control)
 	}
 }
 
-/** @brief 内側の文字・比較走査を計数します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 内側の文字・比較走査を計数します。
  * @param[in,out] control 新経路のcontext。旧経路だけnull。
  * @param[in] units 今回進める有限単位数。
  */
+//------------------------------------------------------------------------------
 inline void collectorParserStep( CollectorParserContext *control, std::size_t units = 1U)
 {
 	// 暗黙のglobal／thread-local制御を使いません。
@@ -183,13 +198,16 @@ inline void collectorParserStep( CollectorParserContext *control, std::size_t un
 	}
 }
 
-/** @brief 長い検索も256文字以下ごとの停止確認へ分割します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 長い検索も256文字以下ごとの停止確認へ分割します。
  * @param[in,out] control 新経路のcontext。旧経路だけnull。
  * @param[in] text 有限本文。
  * @param[in] needle 固定検索文字列。
  * @param[in] start 検索開始。
  * @return 最初の位置。未検出はnpos。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] inline std::size_t collectorParserFind( CollectorParserContext *control,
 													 std::wstring_view		 text,
 													 std::wstring_view		 needle,
@@ -220,13 +238,16 @@ inline void collectorParserStep( CollectorParserContext *control, std::size_t un
 	return text.npos ;
 }
 
-/** @brief 一文字検索を同じ有限scanへ接続します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一文字検索を同じ有限scanへ接続します。
  * @param[in,out] control 新経路のcontext。
  * @param[in] text 有限本文。
  * @param[in] needle 検索文字。
  * @param[in] start 検索開始。
  * @return 最初の位置またはnpos。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] inline std::size_t collectorParserFind( CollectorParserContext *control,
 													 std::wstring_view text, wchar_t needle,
 													 std::size_t start = 0U)
@@ -234,13 +255,16 @@ inline void collectorParserStep( CollectorParserContext *control, std::size_t un
 	return collectorParserFind( control, text, std::wstring_view( &needle, 1U), start) ;
 }
 
-/** @brief 逆方向の固定marker検索を有限checkpointへ接続します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 逆方向の固定marker検索を有限checkpointへ接続します。
  * @param[in,out] control 新経路のcontext。
  * @param[in] text 有限本文。
  * @param[in] needle 固定短文marker。
  * @param[in] start 最後に検索する位置。
  * @return 最後の一致位置またはnpos。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] inline std::size_t collectorParserRfind( CollectorParserContext *control,
 													  std::wstring_view		  text,
 													  std::wstring_view		  needle,
@@ -279,7 +303,9 @@ inline void collectorParserStep( CollectorParserContext *control, std::size_t un
 	return text.npos ;
 }
 
-/** @brief 文字集合検索を内側の有限走査へ接続します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 文字集合検索を内側の有限走査へ接続します。
  * @param[in,out] control 新経路のcontext。
  * @param[in] text 有限本文。
  * @param[in] characters 固定の短い文字集合。
@@ -288,6 +314,7 @@ inline void collectorParserStep( CollectorParserContext *control, std::size_t un
  * @param[in] start 開始位置。省略は方向に対応する端。
  * @return 最初の対象位置またはnpos。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] inline std::size_t collectorParserFindSet( CollectorParserContext *control,
 														std::wstring_view		text,
 														std::wstring_view characters, bool invert,
@@ -324,13 +351,16 @@ inline void collectorParserStep( CollectorParserContext *control, std::size_t un
 	return text.npos ;
 }
 
-/** @brief 解析の内部例外を型付き終了へ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 解析の内部例外を型付き終了へ変換します。
  * @tparam Function 同じcontextを使用し、出力は成功後だけ公開するcore。
  * @param[in,out] control 元GETの必須制御参照。
  * @param[in] function 同期core。falseは構造拒否。
  * @param[in] stage 原失敗に保持する段階。
  * @return 固定終了値。HTTPのseal・cleanup・再送は行いません。
  */
+//------------------------------------------------------------------------------
 template <class Function>
 [[nodiscard]] CollectorParserResult runCollectorParser(
 	OfficialCollectorHttpControl &control, Function function,
@@ -365,9 +395,12 @@ template <class Function>
 	return context.finishStep( result) ;
 }
 
-/** @brief 明示予算超過だけを型付きで中止します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示予算超過だけを型付きで中止します。
  * @param[in,out] control 新coreのcontext。旧coreでは無操作。
  */
+//------------------------------------------------------------------------------
 inline void collectorParserLimit( CollectorParserContext *control)
 {
 	// 旧APIのfalse／source statusを維持するため新経路だけunwindします。

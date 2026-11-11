@@ -2,7 +2,7 @@
 /**
  * @file asus_system_identity.h
  * @brief ASUS公式support page用local system識別定義。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/20  Registry実取得sizeに基づく有限decodeを追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/24  公開model明示の非registry公式page要求を追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Serial numberを読まず、SMBIOS表示名とWindows世代だけから固定ASUS support page要求を構築します。Hardware IDをnetworkへ送信
@@ -63,6 +64,7 @@ struct AsusSupportPageRequest {
 	std::wstring pageUrl ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Registryの確保領域から実取得byte数だけを検証して表示値を取り出す。
  * @param[in] buffer REG_SZ読取りに使用した借用buffer。未使用末尾は照合しない。
@@ -72,13 +74,14 @@ struct AsusSupportPageRequest {
  * @pre bufferとvalueはaliasしない。REG_SZ型とAPI成功は呼出し側で検証する。
  * @note Networkやregistryへ接続しない。途中NULと不正UTF-16境界を拒否する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool		  decodeAsusRegistryString( std::span<const wchar_t> buffer,
 												   std::uint32_t returnedBytes, std::wstring &value) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief SMBIOS表示値からASUS support page要求を決定的に構築する。
- * SMBIOS表示値からASUS support page要求を構築する。
- * System modelを優先し、該当しない場合だけbaseboard modelを使用する。Model以外をURLへ含めない。
+ * @brief SMBIOS表示値からASUS support page要求を決定的に構築する。SMBIOS表示値からASUS support page要求を構築する。System modelを優
+ *        先し、該当しない場合だけbaseboard modelを使用する。Model以外をURLへ含めない。
  * @param[in] systemManufacturer SMBIOS System Manufacturer表示値。 SMBIOS system maker表示値。
  * @param[in] systemProduct SMBIOS System Product Name表示値。 SMBIOS system product表示値。
  * @param[in] baseboardManufacturer SMBIOS BaseBoard Manufacturer表示値。 SMBIOS board maker表示値。
@@ -89,6 +92,7 @@ struct AsusSupportPageRequest {
  * @param[out] applicable ASUS clientとして安全に識別できた場合は`true`。 ASUS clientと安全に識別した場合`true`。
  * @return 入力構造を判定できた場合は`true`、ASUSなのにmodelまたはbuildが不正なら`false`。 判定成功時は`true`、ASUS必須値が不正なら`false`。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool		  makeAsusSupportPageRequest( std::wstring_view systemManufacturer,
 													 std::wstring_view systemProduct,
 													 std::wstring_view baseboardManufacturer,
@@ -96,6 +100,7 @@ struct AsusSupportPageRequest {
 													 std::uint32_t windowsBuild, bool windowsServer,
 													 AsusSupportPageRequest &request, bool &applicable) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 明示された公開ASUS model・Windows x64条件から公式support page要求を構築します。
  * @param[in] publicModel 利用者または公式製品一覧が示す公開model。端末IDではありません。
@@ -104,19 +109,21 @@ struct AsusSupportPageRequest {
  * @return 公開modelとOSが有限かつ正規形の場合true。
  * @note Registryを読まず、機種実在・driver適合・取得許可は証明しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool		  makeAsusPublicModelSupportPageRequest( std::wstring_view		publicModel,
 																std::wstring_view		osName,
 																AsusSupportPageRequest &request) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Local registryからASUS support page要求に必要な表示値だけを取得する。
- * Local registryからASUS support page要求を取得する。
- * Serverを除外後、serialを含まない五つのregistry値だけを読み、純粋な要求構築処理へ渡す。
+ * @brief Local registryからASUS support page要求に必要な表示値だけを取得する。Local registryからASUS support page要求を取得する
+ *        。Serverを除外後、serialを含まない五つのregistry値だけを読み、純粋な要求構築処理へ渡す。
  * @param[out] request ASUS clientの場合のmodel、OS名、固定公式URL。 ASUS clientの場合のmodel、OS、page URL。
  * @param[out] applicable ASUS clientとして安全に識別できた場合は`true`。 ASUS clientの場合は`true`。
  * @return 判定成功時は0、ASUS端末の必須値欠落またはWin32失敗時はHRESULT。 判定成功時は0、必須値またはWin32失敗時はHRESULT。
  * @note Windows Serverでは追加registry値を読まず対象外とする。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError readLocalAsusSupportPageRequest( AsusSupportPageRequest &request,
 														  bool					 &applicable) ;
 

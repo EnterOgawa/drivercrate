@@ -2,7 +2,7 @@
 /**
  * @file official_static_record_parser.cpp
  * @brief 公式配布record用の静的HTML／JSON抽出境界実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  有限HTML属性とJSON object path抽出境界を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 入力はworker内の公式応答だけを想定し、抽出値を表示、永続化、通信または取得許可へ
@@ -62,12 +63,12 @@ constexpr std::size_t MAXIMUM_OUTPUT_CHARACTERS		 = 8'192U ;	// 抽出値の絶�
 //------------------------------------------------------------------------------
 // 内部関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief HTML属性またはJSON field名に使う有限ASCII識別子か判定します。
  * @param[in] name 検証対象の名前。
  * @return ASCII英数字、hyphen、underscore、colonだけで構成される場合は`true`。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool	  isStaticName( const std::wstring_view name) noexcept
 {
 	return !name.empty() && name.size() <= MAXIMUM_NAME_CHARACTERS &&
@@ -79,12 +80,14 @@ constexpr std::size_t MAXIMUM_OUTPUT_CHARACTERS		 = 8'192U ;	// 抽出値の絶�
 		   }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 抽出後の文字列が非空、上限内、制御文字なしであるか判定します。
  * @param[in] text 検証するdecoded文字列。
  * @param[in] maximumCharacters 呼出し側が指定した有限上限。
  * @return 安全なplain文字列として保持できる場合は`true`。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isStaticValue( const std::wstring_view text,
 								 const std::size_t		 maximumCharacters) noexcept
 {
@@ -95,12 +98,14 @@ constexpr std::size_t MAXIMUM_OUTPUT_CHARACTERS		 = 8'192U ;	// 抽出値の絶�
 		   }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief ASCII大小を区別せずHTML tag名のprefixを比較します。
  * @param[in] value 比較元の開始tag断片。
  * @param[in] expected 小文字ASCIIの期待prefix。
  * @return ASCII大小以外が完全一致する場合は`true`。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool startsWithAsciiInsensitive( const std::wstring_view value,
 											  const std::wstring_view expected) noexcept
 {
@@ -130,7 +135,14 @@ constexpr std::size_t MAXIMUM_OUTPUT_CHARACTERS		 = 8'192U ;	// 抽出値の絶�
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_static_record_parser.h 宣言側の契約を正本とします。
+ * @brief 一意なProvider markerと同じHTML開始tagにある指定属性値を取得します。
+ * @param[in] html 4 Mi UTF-16 code unit以下の静的公式HTML。
+ * @param[in] uniqueMarker Provider parserが一件だけ存在すると定めたtag内marker。
+ * @param[in] attributeName 同じ開始tagから読むASCII属性名。
+ * @param[in] maximumValueCharacters 属性値へ許可する1以上8,192以下のUTF-16 code unit数。
+ * @param[out] value 成功時だけ設定する未解釈属性値。失敗時は空です。
+ * @return Marker、開始tag、属性と有限値が一意で安全な場合は`true`。
+ * @note `script`／`style`、HTML entity、単引用符、別tag、重複属性を解釈または補完しません。
  */
 //------------------------------------------------------------------------------
 bool extractUniqueOfficialHtmlAttribute( const std::wstring_view html,
@@ -205,7 +217,14 @@ bool extractUniqueOfficialHtmlAttribute( const std::wstring_view html,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_static_record_parser.h 宣言側の契約を正本とします。
+ * @brief Provider指定のJSON object pathにある文字列propertyを型付きで取得します。
+ * @param[in] json 4 Mi UTF-16 code unit以下の静的公式JSON object本文。
+ * @param[in] objectPath Rootから順に辿る0件以上8件以下のobject property名。
+ * @param[in] propertyName 最終objectから読む文字列property名。
+ * @param[in] maximumValueCharacters 値へ許可する1以上8,192以下のUTF-16 code unit数。
+ * @param[out] value 成功時だけ設定するdecoded文字列。失敗時は空です。
+ * @return Root、全path要素、最終propertyの型と有限値が有効な場合は`true`。
+ * @note Array検索、field名推測、数値から文字列への変換、script実行を行いません。
  */
 //------------------------------------------------------------------------------
 bool extractOfficialJsonStringAtObjectPath( const std::wstring_view					json,

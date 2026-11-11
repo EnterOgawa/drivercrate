@@ -2,7 +2,7 @@
 /**
  * @file signed_index_task_observer_internal.h
  * @brief 内部UI targetだけの承認済みtask同期観測を宣言します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/15  同workerの実claim済みtaskへnoexcept観測を限定。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 通常platformでは型と登録関数を生成しません。借用は同期callback中だけです。
@@ -46,12 +47,15 @@ using ApprovedTaskObserver = void ( *)( void *state, OfficialPreparationSession 
 									  IndexLookupContext context, std::uint64_t nowUtcSeconds,
 									  const SignedIndexScanSession &scan) noexcept ;
 
-/** @brief 同worker threadへ一組の観測pointerを登録し、null対で解除します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同worker threadへ一組の観測pointerを登録し、null対で解除します。
  * @param[in] observer 非nullはstateと対で登録します。nullはstateもnullの場合だけ解除します。
  * @param[in] state Workerのstop/joinまで有効な非所有pointerです。関数と対でnullを受理します。
  * @return 空slotへの登録またはnull対の解除はtrue、不整合または重複登録はfalseです。
  * @note 同workerだけから呼びます。例外・blocking・製品への登録fallbackはありません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool registerApprovedIndexTaskObserver( ApprovedTaskObserver observer,
 													 void				 *state) noexcept ;
 } // namespace drivercrate::signed_index_task_observer_detail

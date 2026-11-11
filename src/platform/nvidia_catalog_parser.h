@@ -2,7 +2,7 @@
 /**
  * @file nvidia_catalog_parser.h
  * @brief NVIDIA公式catalog応答parser定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note NVIDIA公式lookup XMLとdriver検索JSONを上限付きの内部値へ変換します。応答schema不一致時は候補を推測せず失敗します。
@@ -87,27 +88,27 @@ struct NvidiaDriverEntry {
 //------------------------------------------------------------------------------
 // NVIDIA catalog parser定義。
 //------------------------------------------------------------------------------
-
 /**
- * @brief NVIDIA lookup APIのXMLからbounded lookup value群を取得する。
- * NVIDIA lookup XMLをbounded lookup value群へ変換する。
- * LookupValueSearch container内のName/Value組だけを受理する。
+ * @brief NVIDIA lookup APIのXMLからbounded lookup value群を取得する。NVIDIA lookup XMLをbounded lookup value群へ
+ *        変換する。LookupValueSearch container内のName/Value組だけを受理する。
  * @param[in] xml NVIDIA公式APIから取得したUTF-16 XML text。 NVIDIA公式APIのUTF-16 XML。
  * @param[out] values 成功時のlookup value群。失敗時は空にする。
  * @return schemaと上限を満たす場合は`true`。 一件以上のschema準拠要素を取得できた場合は`true`。
  * @pre 呼出しthreadでCOM apartmentが初期化されていること。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseNvidiaLookupXml( std::wstring_view				xml,
 										std::vector<NvidiaLookupValue> &values) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief NVIDIA driver検索APIのJSONからbounded release群を取得する。
- * NVIDIA driver JSONをbounded release群へ変換する。
- * 必須fieldを上限付きで取得し、不完全entryを推測で補完しない。
+ * @brief NVIDIA driver検索APIのJSONからbounded release群を取得する。NVIDIA driver JSONをbounded release群へ変換する。必須
+ *        fieldを上限付きで取得し、不完全entryを推測で補完しない。
  * @param[in] json NVIDIA公式APIから取得したUTF-16 JSON text。 NVIDIA公式APIのUTF-16 JSON。
  * @param[out] entries 成功時のdriver release群。失敗時は空にする。
  * @return schemaと上限を満たす場合は`true`。 Schema準拠応答を解析できた場合は`true`。候補0件も成功。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseNvidiaDriverJson( std::wstring_view				 json,
 										 std::vector<NvidiaDriverEntry> &entries) ;
 

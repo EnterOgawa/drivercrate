@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_record_adapter_tests.cpp
  * @brief 公式自動探索固定root adapterの決定的単体試験を実装する。
- * @version 01.01.02
+ * @version 01.01.03
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  取得準備対象とEULA snapshot試験を追加。
  * Ver.01.01.01 Shunji Ogawa  2026/09/15  Registrationへcache parser identityを追加。
  * Ver.01.01.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.01.03 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 全resolverはmemory内だけで動作し、実URLへ通信しない。
@@ -67,10 +68,12 @@ constexpr std::wstring_view PRIVATE_PAYLOAD_URL =
 constexpr std::wstring_view PUBLISHED_SHA256 =
 	L"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Intel Server descriptorの合成copyへ自動探索能力だけを追加する。
  * @return 他fieldを組み込み正本と一致させたProvider集合。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::vector<ProviderDescriptor> makeProviders()
 {
 	const auto builtIn = builtInProviderDescriptors() ;								// 製品registryの検証済み正本。
@@ -92,10 +95,12 @@ constexpr std::wstring_view PUBLISHED_SHA256 =
 	return providers ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一つのProviderだけを明示するmetadata専用要求を作る。
  * @return 自動探索policyへ結合した合成request。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryRequest makeRequest()
 {
 	OfficialDiscoveryRequest request ;	// Payload権限を持たない開始要求。
@@ -105,10 +110,12 @@ constexpr std::wstring_view PUBLISHED_SHA256 =
 	return request ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じProviderへ検査用payload取得まで許可する通常scan要求を作る。
  * @return 固定payload予算と一Providerへ結合した合成request。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryRequest makePayloadRequest()
 {
 	OfficialDiscoveryRequest request = makeRequest() ;	// Metadata要求からProvider範囲を継承する。
@@ -118,12 +125,14 @@ constexpr std::wstring_view PUBLISHED_SHA256 =
 	return request ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 指定IDへ結合したraw ID非保持device hintを作る。
  * @param[in] sessionId 観測元scan session ID。
  * @param[in] identity UI行と結合するopaque identity。
  * @return Net classの合成PCI device hint。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryDeviceHint makeDevice( const ScanSessionId sessionId,
 													 std::wstring		 identity)
 {
@@ -138,12 +147,14 @@ constexpr std::wstring_view PUBLISHED_SHA256 =
 	return device ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 指定deviceを参照する専用固定root routeを作る。
  * @param[in] routeId Session内の一意なroute ID。
  * @param[in] deviceIdentity 参照するopaque device identity。
  * @return Intel Server固定landingへ結合したroute。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryRoute makeRoute( const std::uint64_t routeId,
 											   std::wstring		   deviceIdentity)
 {
@@ -157,22 +168,26 @@ constexpr std::wstring_view PUBLISHED_SHA256 =
 	return route ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief PCI busの合成deviceだけを専用route対象にする。
  * @param[in] device Plannerが借用するraw ID非保持hint。
  * @return PCIの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matchesPciDevice( const OfficialDiscoveryDeviceHint &device) noexcept
 {
 	return device.bus == OfficialDiscoveryDeviceBus::PCI ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Resolverへ渡されたidentityで一つの有効な秘密recordを作る。
  * @param[in] scanSessionId 現在のscan session ID。
  * @param[in] recordEvidenceId Sessionが割り当てたrecord証拠ID。
  * @return Intel Server固定landingへ結合した一payload record。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDistributionRecord makeRecord( const ScanSessionId scanSessionId,
 													const std::uint64_t recordEvidenceId)
 {
@@ -216,6 +231,7 @@ constexpr std::wstring_view PUBLISHED_SHA256 =
 	return record ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 指定終端状態を返す固定root adapterを作る。
  * @param[in] state Resolverが返す有限状態。
@@ -226,6 +242,7 @@ constexpr std::wstring_view PUBLISHED_SHA256 =
  * @return Intel Server専用route用の非通信adapter。
  * @note 返すadapterがcaptureするcallCountとfixedRootObservedは、adapterの呼出し完了まで呼出し側が保持する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryFixedRootAdapter makeAdapter(
 	const OfficialDiscoveryFixedRootState state, const NativeError error, std::uint32_t &callCount,
 	bool &fixedRootObserved, const bool acceptanceRequired = false)
@@ -263,10 +280,12 @@ constexpr std::wstring_view PUBLISHED_SHA256 =
 	return adapter ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Payload許可、group再照合、EULA snapshot、非claim性を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPreparationTargetDescription( TestContext &context)
 {
 	const std::vector<ProviderDescriptor> providers = makeProviders() ;			// 合成Provider snapshot。
@@ -408,10 +427,12 @@ void testPreparationTargetDescription( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定root成功時のpackage参照と秘密record claimを検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testResolvedRecordAndClaim( TestContext &context)
 {
 	const std::vector<ProviderDescriptor> providers = makeProviders() ;	// 合成Provider snapshot。
@@ -461,10 +482,12 @@ void testResolvedRecordAndClaim( TestContext &context)
 									session.resolvedPackages().empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定root adapterを共通planner／executorのresolverへ接続する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCoreExecutorConnection( TestContext &context)
 {
 	const std::vector<ProviderDescriptor> providers = makeProviders() ;	// 合成Provider snapshot。
@@ -522,10 +545,12 @@ void testCoreExecutorConnection( TestContext &context)
 					 session.resolvedPackages().front().deviceIdentities.size() == 2U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Resolverの五つの非成功理由を変更せずroute summaryへ保持する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testFailureStateMapping( TestContext &context)
 {
 	const std::vector<ProviderDescriptor> providers =
@@ -578,10 +603,12 @@ void testFailureStateMapping( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 取消し、二重route、stale request、adapter不整合をresolver前に拒否する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPreResolutionRejections( TestContext &context)
 {
 	const std::vector<ProviderDescriptor> providers = makeProviders() ;	// 合成Provider snapshot。
@@ -634,10 +661,12 @@ void testPreResolutionRejections( TestContext &context)
 									excessive.error != 0 && callCount == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Resolverの不正結果、source差替え、metadata不正を理由別に拒否する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPostResolutionRejections( TestContext &context)
 {
 	const std::vector<ProviderDescriptor> providers = makeProviders() ;	// 合成Provider snapshot。
@@ -730,7 +759,12 @@ void testPostResolutionRejections( TestContext &context)
 
 } // namespace
 
-/** @see official_discovery_record_adapter_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定root adapterの成功、失敗保持、stale、二重実行、claimを検証する。
+ * @param[in,out] context Assertion集計先。
+ */
+//------------------------------------------------------------------------------
 void runOfficialDiscoveryRecordAdapterTests( TestContext &context)
 {
 	testResolvedRecordAndClaim( context) ;

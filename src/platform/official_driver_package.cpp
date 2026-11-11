@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package.cpp
  * @brief 公式標準INF driver package検証実装。
- * @version 01.33.00
+ * @version 01.33.01
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -75,6 +75,7 @@
  * Ver.01.31.00 Shunji Ogawa  2026/11/06  Windows管理driver付属DATAと原source位置の非実行検査を追加。
  * Ver.01.32.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * Ver.01.33.00 Shunji Ogawa  2026/11/10  明示client targetと同INF hashのModels観測を結合。
+ * Ver.01.33.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note SetupAPIをINF構文と現在platformの選択規則の正本とし、外部文字列からpathを直接生成せず、ZIP検証済みentryとの完全一致だけを受理します。
@@ -161,6 +162,7 @@ constexpr std::size_t MAXIMUM_INSTALL_INVENTORY_LINES	 = 4096U ;	// 各走査段
 constexpr std::size_t MAXIMUM_INSTALL_INVENTORY_ITEMS	 = 4096U ;	// 作用と参照それぞれの保持上限。
 constexpr DWORD		  MAXIMUM_INSTALL_INVENTORY_FIELDS	 = 64U ;	// 一行の値field数上限。
 
+//------------------------------------------------------------------------------
 /**
  * @brief 元Type1宣言を同INFのDriverStoreコピーへ検証します。
  * @param[in] inf 呼出し中だけ借用する読取り専用INFです。
@@ -172,11 +174,13 @@ constexpr DWORD		  MAXIMUM_INSTALL_INVENTORY_FIELDS	 = 64U ;	// 一行の値fiel
  * @return 標準Type1の役割・原コピー成功0、不正・未対応時はHRESULTです。
  * @note 非SWCの内容成功は未評価作用のままです。実行せず、署名・適合・導入許可は後段の責務です。
  */
+//------------------------------------------------------------------------------
 NativeError			  validateRequiredSoftwareDeclaration( HINF inf, std::wstring_view software,
 														  INFCONTEXT &line, bool contentOnly = false,
 														  std::wstring *source	   = nullptr,
 														  bool		   *unassessed = nullptr) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同INFの正式CoInstallers文脈と元DLLコピーに結合した登録節を取得します。
  * @param[in] inf 同期中だけ借用する元INFです。
@@ -184,6 +188,7 @@ NativeError			  validateRequiredSoftwareDeclaration( HINF inf, std::wstring_view
  * @return 全節の構造検査成功0、不明作用・参照不一致・容量超過のHRESULTです。
  * @note DLLを実行せず、同じCATの全file検証は後段で必須です。
  */
+//------------------------------------------------------------------------------
 NativeError			  collectRequiredCoInstallerRegistry( HINF						inf,
 														 std::vector<std::wstring> &registrySections) ;
 
@@ -251,7 +256,6 @@ public:
 	/**
 	 * @brief 所有INF handleの複製代入をコンパイル時に禁止します。
 	 * @param[in] other 実行可能な呼出しを持たず、借用・変更・所有権移動を行わない元objectです。
-	 * @return 宣言された自己参照型です。削除宣言なので戻り値を生成しません。
 	 * @note 削除宣言だけで関数本体やresource操作はありません。
 	 */
 	UniqueInf &operator=( const UniqueInf &other) = delete ;
@@ -264,7 +268,6 @@ public:
 	/**
 	 * @brief 所有INF handleの移動代入をコンパイル時に禁止します。
 	 * @param[in] other 実行可能な呼出しを持たず、借用・変更・所有権移動を行わない元objectです。
-	 * @return 宣言された自己参照型です。削除宣言なので戻り値を生成しません。
 	 * @note 削除宣言だけで関数本体やresource操作はありません。
 	 */
 	UniqueInf		  &operator=( UniqueInf &&other) = delete ;
@@ -844,12 +847,14 @@ private:
 	return std::wstring( parent) + L"\\" + std::wstring( child) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 保守相対参照の先頭にある現在directory表記だけを除く。
  * @param[in] relative SetupAPI取得済みの有限field。呼出し側が参照中の文字列を所有する。
  * @return 元文字列を借用するview。親参照・絶対path・内部dot等は変更せず後段で拒否する。
  * @note 単独dotは空directoryとする。CopyINFでは空参照として別途拒否する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring_view stripReferenceCurrentDirectory( std::wstring_view relative) noexcept
 {
 	// 有限fieldの先頭にある明示現在directoryだけを取り除く。
@@ -1306,6 +1311,7 @@ private:
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 空fieldも含め、棚卸しの一fieldを有限文字列へ読む。
  * @param[in,out] line SetupAPIから取得した借用行context。
@@ -1313,6 +1319,7 @@ private:
  * @param[out] value 成功時の値。空も許可し、失敗時は空。
  * @return 読取成功0、過長またはSetupAPI失敗のHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError readInstallInventoryField( INFCONTEXT &line, DWORD field,
 													std::wstring &value)
 {
@@ -1328,17 +1335,20 @@ private:
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Section名の長さと構文区切りを検証する。
  * @param[in] name 外部から取得したsection名。
  * @return 空・過長・NUL・path・構文区切りがない場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validInstallInventorySectionName( std::wstring_view name) noexcept
 {
 	return !name.empty() && name.size() <= 254U &&
 		   name.find_first_of( std::wstring_view( L"\0\r\n[]\\/", 7U)) == std::wstring_view::npos ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Models所属を確認済みの導入名をWindowsの実在DDInstallへ解決する。
  * @param[in] inf 同期借用するINF handle。
@@ -1346,6 +1356,7 @@ private:
  * @param[out] selected 成功時だけ実在する節名を保持する。
  * @return Windows選択と実在確認成功0、選択失敗または節欠落のHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError resolveActualInstallInventorySection( HINF inf, const std::wstring &base,
 															   std::wstring &selected)
 {
@@ -1373,6 +1384,7 @@ private:
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 現OS用Modelsに属する導入名をDDInstallの実在節へ解決する。
  * @param[in] inf 本呼出し中有効な読取専用handle。
@@ -1380,6 +1392,7 @@ private:
  * @param[out] selected 成功時だけ実在する選択節名を保持する。
  * @return Modelsとの一致と実在を確認した場合0、未登録・欠落・容量・API失敗のHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError selectInstallInventorySection( HINF inf, const std::wstring &base,
 														std::wstring &selected)
 {
@@ -1444,6 +1457,7 @@ private:
 	return resolveActualInstallInventorySection( inf, base, selected) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief ローカルsectionを一度だけ有限queueへ追加する。
  * @param[in,out] pending 単独所有する最大1,024節の走査queue。
@@ -1451,6 +1465,7 @@ private:
  * @param[in] kind section行形式。
  * @return 追加・同形式既存時0、矛盾形式・容量違反のHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError queueInstallInventorySection(
 	std::vector<InstallInventorySection> &pending, const std::wstring &name,
 	InstallInventorySectionKind kind)
@@ -1472,11 +1487,13 @@ private:
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 棚卸しdirectiveの宣言種類を分類する。
  * @param[in] key 展開済みの有限key。値は参照しない。
  * @return 既知の宣言種類またはUNKNOWN_DIRECTIVE。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialInfInstallEffectKind installInventoryEffectKind(
 	std::wstring_view key) noexcept
 {
@@ -1548,12 +1565,14 @@ private:
 									  : OfficialInfInstallEffectKind::UNKNOWN_DIRECTIVE ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 現棚卸しが辿らない宣言範囲を既知種類へ分離する。
  * @param[in] key この行だけの有限directive名。
  * @param[in] values 値は同期借用し、本文を結果へ保存しない。
  * @return 一宣言の不足種類。該当なしも全構文の完全性を示さない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<OfficialInfInstallCoverageKind> installInventoryCoverageKind(
 	std::wstring_view key, std::span<const std::wstring> values)
 {
@@ -1647,11 +1666,13 @@ struct MaintenanceCopyBinding {
 	NativeError							   error{nativeErrorFromWin32( ERROR_NOT_SUPPORTED)} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 失敗を未対応・合格で上書きしないよう個別構造結果を併合する。
  * @param[in,out] target 集約先。未検査から開始できる。
  * @param[in] source 一つの観測結果。診断値は最初の同段階を保持する。
  */
+//------------------------------------------------------------------------------
 void mergeMaintenanceFinding( MaintenanceInspectionFinding		&target,
 							 const MaintenanceInspectionFinding &source) noexcept
 {
@@ -1664,6 +1685,7 @@ void mergeMaintenanceFinding( MaintenanceInspectionFinding		&target,
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 元宣言へ結合した個別診断を保持し選択parserへ射影する。
  * @param[in,out] install この選択だけの構造観測。
@@ -1672,6 +1694,7 @@ void mergeMaintenanceFinding( MaintenanceInspectionFinding		&target,
  * @param[in] reason 具体的な未対応または不正理由。
  * @param[in] finding 元HRESULTを持つ独立結果。
  */
+//------------------------------------------------------------------------------
 void addMaintenanceIssue( MaintenanceInfInstallStructure &install, const std::wstring &section,
 						 const std::wstring &directive, MaintenanceInfStructureReason reason,
 						 MaintenanceInspectionFinding finding)
@@ -1680,6 +1703,7 @@ void addMaintenanceIssue( MaintenanceInfInstallStructure &install, const std::ws
 	mergeMaintenanceFinding( install.parser, finding) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 展開後の全flags fieldを厳密なuint32十進／十六進へ変換する。
  * @param[in] value SetupAPIが選択localeで展開した全field。借用のみ。
@@ -1688,6 +1712,7 @@ void addMaintenanceIssue( MaintenanceInfInstallStructure &install, const std::ws
  * @return 数値成功PASSED、未展開・未対応表現UNSUPPORTED、不正・overflowはFAILED。
  * @note 元Strings単値がWindows内で切捨てられていないことまでは検証しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] MaintenanceInspectionFinding parseMaintenanceFlags(
 	std::wstring_view value, std::uint32_t &flags, MaintenanceInfStructureReason &reason) noexcept
 {
@@ -1771,6 +1796,7 @@ struct MaintenanceFieldRead {
 	bool  terminated{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 空を許可する既存readerへ必要長の上限確認を付ける。
  * @param[in,out] line 同期借用するSetupAPI行。
@@ -1779,6 +1805,7 @@ struct MaintenanceFieldRead {
  * @param[out] proof 非nullなら同じ二呼出しの元結果を捕捉する。通常構造読取はnull。
  * @return 成功0、終端込み4,096文字超過はERROR_BUFFER_OVERFLOW、読取失敗は元HRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError readMaintenanceField( INFCONTEXT &line, DWORD field, std::wstring &value,
 											   MaintenanceFieldRead *proof = nullptr)
 {
@@ -1895,9 +1922,13 @@ struct MaintenanceRegistryDataProof {
  */
 class MaintenanceInfByteProof final {
 public:
-	/** @brief 空の私有証明を構築する。 */
+	/**
+	 * @brief 空の私有証明を構築する。
+	 */
 	MaintenanceInfByteProof() = default ;
-	/** @brief HINF解放後に元fileとprivate componentを逆順に閉じる。 */
+	/**
+	 * @brief HINF解放後に元fileとprivate componentを逆順に閉じる。
+	 */
 	~MaintenanceInfByteProof() noexcept
 	{
 		// 元fileのshare境界をHINF終了まで維持する。
@@ -1910,25 +1941,29 @@ public:
 			CloseHandle( handles_[--handleCount_]) ;
 		}
 	}
-	/** @brief 同期leaseの複製をコンパイル時に禁止します。
+	/**
+	 * @brief 同期leaseの複製をコンパイル時に禁止します。
 	 * @param[in] other 呼出し不能な元proofです。借用・変更・resource移動を行いません。
 	 * @note 削除宣言だけで関数本体はありません。
 	 */
 	MaintenanceInfByteProof( const MaintenanceInfByteProof &other) = delete ;
-	/** @brief 同期leaseの代入をコンパイル時に禁止します。
+	/**
+	 * @brief 同期leaseの代入をコンパイル時に禁止します。
 	 * @param[in] other 呼出し不能な元proofです。借用・変更・resource移動を行いません。
-	 * @return 宣言された自己参照型です。削除宣言なので戻り値を生成しません。
 	 * @note 削除宣言だけで関数本体はありません。
 	 */
 	MaintenanceInfByteProof &operator=( const MaintenanceInfByteProof &other) = delete ;
-	/** @brief 現在全値証明へ使用できる場合trueを返す。
+	/**
+	 * @brief 現在全値証明へ使用できる場合trueを返す。
 	 * @return 私有proofが失効していなければtrue。
 	 */
 	[[nodiscard]] bool		 active() const noexcept
 	{
 		return active_ ;
 	}
-	/** @brief 私有予約を全て撤回し、元処理の容量へ返す。 */
+	/**
+	 * @brief 私有予約を全て撤回し、元処理の容量へ返す。
+	 */
 	void disable() noexcept
 	{
 		active_ = false ;
@@ -2092,7 +2127,8 @@ public:
 			return 0 ;
 		}
 	}
-	/** @brief 元通常hashへ一回のsnapshotを完全照合する。
+	/**
+	 * @brief 元通常hashへ一回のsnapshotを完全照合する。
 	 * @param[in] hash 同じreaderが通常入口で取得した元hash。
 	 * @return snapshotを取得していない保留は0。不一致はTRUST_E_BAD_DIGEST。
 	 */
@@ -2102,7 +2138,8 @@ public:
 				   ? 0
 				   : static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
 	}
-	/** @brief 元処理に必要な共同項目を優先し、私有予約を撤回する。
+	/**
+	 * @brief 元処理に必要な共同項目を優先し、私有予約を撤回する。
 	 * @param[in] coreItems 元保持量。private recordを含まない。
 	 */
 	void capacity( std::size_t coreItems) noexcept
@@ -2114,7 +2151,8 @@ public:
 			disable() ;
 		}
 	}
-	/** @brief 同raw節countと元API countからmerged ordinalを一意に結ぶ。
+	/**
+	 * @brief 同raw節countと元API countからmerged ordinalを一意に結ぶ。
 	 * @param[in] section 元APIで取得した節名。
 	 * @param[in] ordinal 同節の元0始まりindex。
 	 * @param[in] count 元APIの確定全行数。
@@ -2168,7 +2206,8 @@ public:
 			return NO_MAINTENANCE_RAW_ROW ;
 		}
 	}
-	/** @brief 同じ元query／readから一fieldの全値を比較する。
+	/**
+	 * @brief 同じ元query／readから一fieldの全値を比較する。
 	 * @param[in] index 同raw行index。
 	 * @param[in] field 0はkey、1以降は元field。
 	 * @param[in] value 元coreが一度だけ取得した全値。複写して保持しない。
@@ -2230,7 +2269,8 @@ public:
 			disable() ;
 		}
 	}
-	/** @brief core未取得fieldだけを同context内で一回補助取得する。
+	/**
+	 * @brief core未取得fieldだけを同context内で一回補助取得する。
 	 * @param[in,out] line 元の同rowcontext。保持しない。
 	 * @param[in] index 原row index。
 	 * @param[in] first 最初の未取得field。
@@ -2285,7 +2325,8 @@ public:
 
 		SetLastError( originalError) ;
 	}
-	/** @brief 元raw行を同期期間だけ参照する。
+	/**
+	 * @brief 元raw行を同期期間だけ参照する。
 	 * @param[in] index 私有原row index。
 	 * @return 同raw行。callerはactiveとrangeを先に確認する。
 	 */
@@ -2293,7 +2334,8 @@ public:
 	{
 		return rows_[index] ;
 	}
-	/** @brief keyと厳密全fieldの取得・比較完了を確認する。
+	/**
+	 * @brief keyと厳密全fieldの取得・比較完了を確認する。
 	 * @param[in] index 同raw row index。
 	 * @return 全field bitmapとkeyが揃った一行だけtrue。
 	 */
@@ -2310,7 +2352,8 @@ public:
 													   1U ;	// 全64bitの場合のshift overflowを避ける。
 		return row.verified && row.keyObserved && row.observed == expected ;
 	}
-	/** @brief 元source観測と原rowを私有indexだけでstageする。
+	/**
+	 * @brief 元source観測と原rowを私有indexだけでstageする。
 	 * @param[in] row 同元raw row。
 	 * @param[in] file 元observed.filesへのindex。
 	 */
@@ -2328,7 +2371,8 @@ public:
 			disable() ;
 		}
 	}
-	/** @brief 一件の元registry data位置だけを最後までstageする。
+	/**
+	 * @brief 一件の元registry data位置だけを最後までstageする。
 	 * @param[in] row 同raw row。
 	 * @param[in] use 元use ordinal。
 	 * @param[in] queue 元registry queue index。
@@ -2347,7 +2391,8 @@ public:
 			disable() ;
 		}
 	}
-	/** @brief 遅延DIRID全値を元制御用途の一件へ結ぶ。
+	/**
+	 * @brief 遅延DIRID全値を元制御用途の一件へ結ぶ。
 	 * @param[in] row 同raw row。
 	 * @param[in] use 同じ行の元fileUse index。
 	 */
@@ -2365,7 +2410,8 @@ public:
 			disable() ;
 		}
 	}
-	/** @brief 原fieldの一段Strings全展開を取得する。
+	/**
+	 * @brief 原fieldの一段Strings全展開を取得する。
 	 * @param[in] index 原row index。
 	 * @param[in] field 0はkey。
 	 * @param[out] value 成功時の有限全値。
@@ -2394,7 +2440,8 @@ public:
 	std::vector<std::pair<std::size_t, std::size_t>> controlUses ;
 
 private:
-	/** @brief 同HANDLEの通常種別・最終pathをtrusted上位と照合する。
+	/**
+	 * @brief 同HANDLEの通常種別・最終pathをtrusted上位と照合する。
 	 * @param[in] handle private所有HANDLE。
 	 * @param[in] path 既存workspaceの元path。
 	 * @param[in] directory trueはdirectory。
@@ -2415,7 +2462,8 @@ private:
 			   std::wstring_view( final.data(), 4U) == L"\\\\?\\" &&
 			   stringsEqual( std::wstring_view( final.data() + 4U, size - 4U), path) ;
 	}
-	/** @brief 原snapshotの一code unitを借用する。
+	/**
+	 * @brief 原snapshotの一code unitを借用する。
 	 * @param[in] index 検証済みcode unit位置。
 	 * @return ASCIIまたはUTF-16LE code unit。
 	 */
@@ -2429,7 +2477,8 @@ private:
 				: low | (static_cast<unsigned int>( static_cast<unsigned char>( bytes_[offset + 1U]))
 						 << 8U)) ;
 	}
-	/** @brief 一つの有限raw範囲だけを比較用文字列へ写す。
+	/**
+	 * @brief 一つの有限raw範囲だけを比較用文字列へ写す。
 	 * @param[in] span 原byte上の範囲。
 	 * @return 全code unitの比較用値。保持しない。
 	 */
@@ -2444,7 +2493,8 @@ private:
 
 		return value ;
 	}
-	/** @brief 一fieldのouter quoteとunquoted周辺spaceだけを除く。
+	/**
+	 * @brief 一fieldのouter quoteとunquoted周辺spaceだけを除く。
 	 * @param[in,out] span 元field範囲。成功時だけ有効なliteral範囲。
 	 * @return quote連結／continuation／不均衡percentなしならtrue。
 	 */
@@ -2487,7 +2537,8 @@ private:
 
 		return !percent && span.size < MAXIMUM_INF_FIELD_CHARACTERS ;
 	}
-	/** @brief private byteとrecordの総保持byte数を返す。
+	/**
+	 * @brief private byteとrecordの総保持byte数を返す。
 	 * @return capacityで確保された全private byte。元core値は複写しない。
 	 */
 	[[nodiscard]] std::size_t storage() const noexcept
@@ -2501,7 +2552,8 @@ private:
 			   (sourceRows.capacity() + controlUses.capacity()) *
 				   sizeof( std::pair<std::size_t, std::size_t>) ;
 	}
-	/** @brief 全private record／binding indexの共同項目数を返す。
+	/**
+	 * @brief 全private record／binding indexの共同項目数を返す。
 	 * @return 原offsetを含む全private record数。
 	 */
 	[[nodiscard]] std::size_t items() const noexcept
@@ -2509,7 +2561,8 @@ private:
 		return sections_.size() + rows_.size() + fields_.size() + data.size() + sourceRows.size() +
 			   controlUses.size() ;
 	}
-	/** @brief 原encodingと有限物理行・節・全field envelopeを一回だけ走査する。
+	/**
+	 * @brief 原encodingと有限物理行・節・全field envelopeを一回だけ走査する。
 	 * @return 最小形式内かつ全共同上限内ならtrue。
 	 */
 	[[nodiscard]] bool scan()
@@ -2729,7 +2782,8 @@ private:
 
 		return storage() <= MAXIMUM_MAINTENANCE_PROOF_BYTES && items() <= 4096U ;
 	}
-	/** @brief ASCII token識別子の最小形式を検査する。
+	/**
+	 * @brief ASCII token識別子の最小形式を検査する。
 	 * @param[in] value 全token名。
 	 * @return 一文字以上のASCII英数字／underscoreならtrue。
 	 */
@@ -2741,7 +2795,8 @@ private:
 				   (character >= L'0' && character <= L'9') || character == L'_' ;
 		}) ;
 	}
-	/** @brief defaultとdecorated Strings familyを区別する。
+	/**
+	 * @brief defaultとdecorated Strings familyを区別する。
 	 * @param[in] name 元section名。
 	 * @return Strings familyならtrue。
 	 */
@@ -2750,7 +2805,8 @@ private:
 		return stringsEqual( name, L"Strings") ||
 			   (name.size() >= 8U && stringsEqual( name.substr( 0U, 8U), L"Strings.")) ;
 	}
-	/** @brief defaultまたは四桁hex LanguageIDだけを採用する。
+	/**
+	 * @brief defaultまたは四桁hex LanguageIDだけを採用する。
 	 * @param[in] name 原Strings section名。
 	 * @return 最小locale形式ならtrue。
 	 */
@@ -2763,7 +2819,8 @@ private:
 						   (character >= L'A' && character <= L'F') ;
 				})) ;
 	}
-	/** @brief 全default／decorated定義が一意同値の一段tokenだけを展開する。
+	/**
+	 * @brief 全default／decorated定義が一意同値の一段tokenだけを展開する。
 	 * @param[in] span 原field全範囲。
 	 * @param[out] output 独立展開した全code unit。終端込み4096以内。
 	 * @return 全locale・全literalを確定できればtrue。
@@ -2886,6 +2943,7 @@ private:
 	bool							   active_{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 保守読取で明示空・不存在とその他のAPI失敗を分離する。
  * @param[in] inf 正常に開いた単独INF handle。
@@ -2893,6 +2951,7 @@ private:
  * @param[out] count 成功時は行数、不存在なら-1。
  * @return 観測成功0、不存在以外の元HRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError maintenanceLineCount( HINF inf, const std::wstring &name, LONG &count)
 {
 	SetLastError( ERROR_SUCCESS) ;
@@ -2911,6 +2970,7 @@ private:
 	return nativeErrorFromWin32( error == ERROR_SUCCESS ? ERROR_INVALID_DATA : error) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 確定行数内の一行をindexで取得し、途中終了を正常終端へ変換しない。
  * @param[in] inf 単独INF handle。
@@ -2919,6 +2979,7 @@ private:
  * @param[out] line 成功時だけの借用行context。
  * @return 取得成功0、元API診断。診断欠落も不正として返す。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError maintenanceLineAt( HINF inf, const std::wstring &name, LONG ordinal,
 											INFCONTEXT &line)
 {
@@ -2932,6 +2993,7 @@ private:
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 現OS用Modelsの全一意DDInstall名を一回の有限走査へ集める。
  * @param[in] inf 同期借用するINF handle。
@@ -2939,6 +3001,7 @@ private:
  * @param[out] names 成功時の元導入名群。署名・device適合ではない。
  * @return 一つ以上の現在OS選択名の取得成功0、容量・読取・不正・対象なしのHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError collectMaintenanceInstallNames( HINF						 inf,
 														 MaintenanceStructureBudget &budget,
 														 std::vector<std::wstring>	&names)
@@ -3022,6 +3085,7 @@ private:
 	return names.empty() ? nativeErrorFromWin32( ERROR_NOT_FOUND) : 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief AddServiceのnamed構造と限定nullを分けて非実行で読む。
  * @param[in,out] install この選択の構造と診断。
@@ -3030,6 +3094,7 @@ private:
  * @param[in] flagsReadError flagsの個別長さ診断。0の場合は展開値を解析する。
  * @param[in] expectedServices 選択DDInstallと同じ装飾のServices節。
  */
+//------------------------------------------------------------------------------
 void observeMaintenanceService( MaintenanceInfInstallStructure &install, const std::wstring &section,
 							   std::span<const std::wstring> values, NativeError flagsReadError,
 							   const std::wstring &expectedServices)
@@ -3147,6 +3212,7 @@ struct MaintenanceServiceFieldObservation {
 	MaintenanceInspectionFinding finding ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 読取済みの必須service行を限定構造として確認する。
  * @param[in] key 必須四項目の一つ。呼出し中だけ借用する。
@@ -3154,6 +3220,7 @@ struct MaintenanceServiceFieldObservation {
  * @return 構造認識PASSED、値欠落・不正FAILED、tokenと未対応値UNSUPPORTED。
  * @note ServiceBinaryの位置・実byteは既存参照readerへ委ね、SCMの完全validatorを作らない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] MaintenanceInspectionFinding observeMaintenanceServiceField(
 	std::wstring_view key, std::span<const std::wstring> values) noexcept
 {
@@ -3187,6 +3254,7 @@ struct MaintenanceServiceFieldObservation {
 												nativeErrorFromWin32( ERROR_NOT_SUPPORTED)} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Namedの必須参照と読取済み四項目を照合し具体的不足を保持する。
  * @param[in,out] install 同じ有限queueのservice・参照・用途観測。
@@ -3194,6 +3262,7 @@ struct MaintenanceServiceFieldObservation {
  * @return 観測成功0、診断または用途の保持上限超過のHRESULT。
  * @note 不足用途で全integrityを昇格させず、既知署名FAILEDは後段の既存優先規則で保持する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError assessMaintenanceNamedServices(
 	MaintenanceInfInstallStructure					   &install,
 	std::span<const MaintenanceServiceFieldObservation> fields)
@@ -3303,6 +3372,7 @@ struct MaintenanceServiceFieldObservation {
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既知の一明示参照を有限queueとworker内観測へ結合する。
  * @param[in] inf 同期借用するINF handle。
@@ -3318,6 +3388,7 @@ struct MaintenanceServiceFieldObservation {
  * @param[in,out] inventory 欠落参照も残す選択観測。
  * @return 安全な参照観測成功0、不正path・節形式・容量のHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError addMaintenanceReference(
 	HINF inf, const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
 	std::wstring_view parent, const std::wstring &section, const std::wstring &key,
@@ -3430,6 +3501,7 @@ struct MaintenanceEventLogMarkerProof {
 	std::size_t rawRow{NO_MAINTENANCE_RAW_ROW} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一DDInstallと同じ装飾の付随節を全INF予算内で非実行観測する。
  * @param[in] inf 同期借用するINF handle。
@@ -3439,13 +3511,13 @@ struct MaintenanceEventLogMarkerProof {
  * @param[in,out] budget 全選択共通の有限予算。
  * @param[in,out] install Models所属とWindowsの実在選択を確認した観測。
  * @param[in] explicitSeeds 非空なら原明示節だけを使い、付随suffixを追加しない。
- * @param[in,out] copyDestinations 非nullなら同じ読取済みnamed行を最大4,096件保持する私有sidecar。
- * nullでは通常の構造観測だけを行い、所有権を取得しない。
- * @param[out] eventLogProofs 非nullなら同行親markerと子Uの私有証明を返します。
- * 全体失敗時はcallerが破棄し、私有容量・曖昧時は元markerを保持します。
+ * @param[in,out] copyDestinations 非nullなら同じ読取済みnamed行を最大4,096件保持する私有sidecar。nullでは通常の構造観測だけを行い、所有権を
+ *                   取得しない。
+ * @param[out] eventLogProofs 非nullなら同行親markerと子Uの私有証明を返します。全体失敗時はcallerが破棄し、私有容量・曖昧時は元markerを保持します。
  * @param[in,out] byteProof 非nullなら同元byteの全値・元data indexを私有結合する。
  * @return 全節観測成功0。読取・不正参照・容量失敗は全体拒否のHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectMaintenanceInstallStructure(
 	HINF inf, const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
 	std::wstring_view parent, MaintenanceStructureBudget &budget,
@@ -4115,7 +4187,21 @@ struct MaintenanceEventLogMarkerProof {
 
 } // namespace
 
-/** @see src/platform/official_driver_package.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現OSの全DDInstallと付随節を有限に保守構造へ解析する。
+ * @param[in] workspace 同期借用する保護領域。呼出し中の変更は禁止する。
+ * @param[in] entries 固定済みの最大32,768 entry。INFは一意で最大4 MiB。
+ * @param[in] infRelativePath 安全な一INF相対path。worker外へ保存しない。
+ * @param[in] policy 有限ID／source上限と内容Class・Provider・構文識別子のpolicy。
+ * @param[out] structure 全体読取・元byte再照合に成功した場合だけ観測を保持する。
+ * @return 全観測完了0。全体入力・読取・容量・改変・例外失敗ではHRESULTと空結果。
+ * @note 個別未対応はUNSUPPORTED／ERROR_NOT_SUPPORTED、不正flagsはFAILED／ERROR_INVALID_DATA等を各選択へ残す。最大1,024節・
+ *       4,096行・4,096各項目・一行64 fieldをINF全体で消費する。SetupAPIが展開したflagsだけを厳密解析し、元Strings値の非切捨てまで認定しない。依存閉包・全file
+ *       coverage・署名・端末適合・導入許可は発行せず、workerでblockingする。
+ * @see docs/adr/0311-maintenance-inf-structure-and-install-policy-separation.md
+ */
+//------------------------------------------------------------------------------
 NativeError inspectMaintenanceInfStructure( const OfficialDownloadWorkspace		  &workspace,
 										   const std::span<const OfficialZipEntry> entries,
 										   const std::wstring_view				   infRelativePath,
@@ -4415,7 +4501,22 @@ NativeError inspectMaintenanceInfStructure( const OfficialDownloadWorkspace		  &
 	}
 }
 
-/** @see src/platform/official_driver_package.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現OSのModelsに属する導入名とその作用・参照を実行せず棚卸しする。
+ * @param[in] workspace 同期借用する保護領域。呼出し中の変更は禁止する。
+ * @param[in] entries 有限の元package一覧。対象INFは一意で実size一致を要求する。
+ * @param[in] infRelativePath 最大4 MiBの一INFの安全な相対path。
+ * @param[in] baseInstallSection 現OS用Modelsの第1 fieldと一致する最大254文字の導入名。
+ * @param[out] inventory 全観測と元byte再照合に成功した場合のみ保持し、失敗時は空。
+ * @return 有限棚卸し成功0、入力・選択・容量・改変・SetupAPI失敗のHRESULT。
+ * @note worker内でblockingする。署名・端末適合・依存充足・導入作用の許可を発行しない。最大1,024節・4,096行・作用4,096・参照4,096・一行64 field。別
+ *       INFを開かず通常作用拒否を変更しない。
+ * @see docs/adr/0264-selected-inf-install-inventory.md
+ * @see docs/adr/0266-selected-inf-inventory-capacity-expansion.md
+ * @see docs/adr/0268-selected-inf-reference-context-and-coverage.md
+ */
+//------------------------------------------------------------------------------
 NativeError inspectOfficialInfInstallInventory( const OfficialDownloadWorkspace		  &workspace,
 											   const std::span<const OfficialZipEntry> entries,
 											   const std::wstring_view		infRelativePath,
@@ -4762,7 +4863,19 @@ NativeError inspectOfficialInfInstallInventory( const OfficialDownloadWorkspace	
 }
 
 //------------------------------------------------------------------------------
-/** @see src/platform/official_driver_package.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 実行せずに保守用の全sourceとCopyINFを列挙する。
+ * @param[in] workspace INF実byteを所有する同期借用の保護領域。
+ * @param[in] entries 検証済み元archive metadata。未取得sourceを含められる。
+ * @param[in] infRelativePath 読取済みINFの安全な相対path。
+ * @param[out] inventory 成功時だけ参照集合を保持し、失敗時は到達stage以外を空にする。
+ * @return 棚卸し成功時0、最初の構文・path・容量違反のHRESULT。
+ * @note PnP IDを保持せず、署名・用途・適用性・導入を承認しない。Version構文識別子は$Windows NT$と$Chicago$を受理する。暗号署名の代わりにしない。
+ *       BlockingするためUI threadで呼ばない。CopyINFの再帰と実byte検証は呼出し側が必要。媒体・source subdir・CopyINFの先頭現在directory表記だけを
+ *       除き、残りは既存path境界で検証する。
+ * @see docs/adr/0244-maintenance-inf-reference-inventory.md
+ * @see docs/adr/0246-maintenance-relative-references-and-direct-content.md
+ */
 //------------------------------------------------------------------------------
 NativeError inspectOfficialInfReferences( const OfficialDownloadWorkspace		&workspace,
 										 const std::span<const OfficialZipEntry> entries,
@@ -4990,11 +5103,10 @@ NativeError inspectOfficialInfReferences( const OfficialDownloadWorkspace		&work
 }
 
 //------------------------------------------------------------------------------
-/**
- * @see src/platform/official_driver_package.h 宣言側の契約を正本とする。
- */
+
 //------------------------------------------------------------------------------
 namespace {
+//------------------------------------------------------------------------------
 /**
  * @brief 同service-install節の一意な必須一値を既存INF readerで読みます。
  * @param[in] inf 同期中だけ借用する元INF handleです。
@@ -5003,6 +5115,7 @@ namespace {
  * @param[out] value 成功時だけ元一値を保持し、失敗時は空です。
  * @return 読取成功0、欠損・多値・重複の元HRESULTです。
  */
+//------------------------------------------------------------------------------
 NativeError readRequiredServiceField( HINF inf, const std::wstring &section, const wchar_t *key,
 									 std::wstring &value)
 {
@@ -5024,6 +5137,7 @@ NativeError readRequiredServiceField( HINF inf, const std::wstring &section, con
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 元serviceの整数一値を既存の厳密数値readerで解釈します。
  * @param[in] inf 同期中だけ借用する元INF handleです。
@@ -5032,6 +5146,7 @@ NativeError readRequiredServiceField( HINF inf, const std::wstring &section, con
  * @param[out] value 成功時だけスカラー数値を確定します。
  * @return 成功0、未知文字列・複合文字列・欠損を補正しない元HRESULTです。
  */
+//------------------------------------------------------------------------------
 NativeError readRequiredServiceScalar( HINF inf, const std::wstring &section, const wchar_t *key,
 									  std::uint32_t &value)
 {
@@ -5049,12 +5164,14 @@ NativeError readRequiredServiceScalar( HINF inf, const std::wstring &section, co
 							   : nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 必要serviceのsubdirを相対directoryの有限形式へ限定します。
  * @param[in] directory 同期比較中だけ借用する元subdirです。空はrootです。
  * @return 絶対・空要素・traversal・不正文字・末尾dot/spaceを持たない場合trueです。
  * @note 元値を正規化しません。sourceの実位置は別途workspace/memberへ照合します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validRequiredServiceSubdirectory( std::wstring_view directory) noexcept
 {
 	// 空directoryは明示rootの正常形です。
@@ -5104,6 +5221,7 @@ NativeError readRequiredServiceScalar( HINF inf, const std::wstring &section, co
 	return false ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同INFのservice source subdirと媒体pathを共通SetupAPI readerから取得します。
  * @param[in] inf 同期中だけ借用する元INFです。
@@ -5114,6 +5232,7 @@ NativeError readRequiredServiceScalar( HINF inf, const std::wstring &section, co
  * @pre 出力二つは別の格納先であり、executableともaliasしないこと。
  * @note DIRID13一致用subdirに媒体pathを混ぜません。実byteは既存内容検査が照合します。
  */
+//------------------------------------------------------------------------------
 NativeError readRequiredServiceSourceDirectory( HINF inf, const std::wstring &executable,
 											   std::wstring &directory,
 											   std::wstring &mediaDirectory)
@@ -5139,6 +5258,7 @@ NativeError readRequiredServiceSourceDirectory( HINF inf, const std::wstring &ex
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同DDInstallの明示標準DIRID同名コピーを位置付きservice sourceへ一意に結びます。
  * @param[in] inf 同期中だけ借用する元INFです。
@@ -5151,6 +5271,7 @@ NativeError readRequiredServiceSourceDirectory( HINF inf, const std::wstring &ex
  * @return 一意な同名コピー成功0、欠損・rename・未対応DIRID・位置不一致・曖昧・容量のHRESULTです。
  * @note コピーは実行しません。元file byte/位置/CATの確認は既存source readerとintegrity検査です。
  */
+//------------------------------------------------------------------------------
 NativeError inspectRequiredServiceCopy( HINF inf, const std::wstring &install,
 									   const std::wstring &executable, const std::wstring &binary,
 									   std::wstring &sourceRelative, bool driverStoreOnly = false,
@@ -5331,6 +5452,7 @@ NativeError inspectRequiredServiceCopy( HINF inf, const std::wstring &install,
 	return nativeErrorFromWin32( ERROR_FILE_NOT_FOUND) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同INFのManufacturer/Modelsから参照されたDDInstallを確認します。
  * @param[in] inf 同期中だけ借用する原INFです。
@@ -5338,6 +5460,7 @@ NativeError inspectRequiredServiceCopy( HINF inf, const std::wstring &install,
  * @return 元Modelsの基本名または正式NT装飾へ一致する場合trueです。
  * @note 別INF・表示名・service節から根拠を生成せず、全OS宣言を有限に読みます。
  */
+//------------------------------------------------------------------------------
 bool hasModelsInstallReference( HINF inf, std::wstring_view install)
 {
 	INFCONTEXT manufacturer{} ;	// 原Manufacturerの有限列挙です。
@@ -5424,7 +5547,15 @@ bool hasModelsInstallReference( HINF inf, std::wstring_view install)
 	return false ;
 }
 
-/** @see 本fileの前方宣言の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同INFの正式CoInstallers文脈と元DLLコピーに結合した登録節を取得します。
+ * @param[in] inf 同期中だけ借用する元INFです。
+ * @param[out] registrySections 全成功時だけ検査済み元登録節です。失敗時は空です。
+ * @return 全節の構造検査成功0、不明作用・参照不一致・容量超過のHRESULTです。
+ * @note DLLを実行せず、同じCATの全file検証は後段で必須です。
+ */
+//------------------------------------------------------------------------------
 NativeError collectRequiredCoInstallerRegistry( HINF						  inf,
 											   std::vector<std::wstring> &registrySections)
 {
@@ -5600,12 +5731,14 @@ NativeError collectRequiredCoInstallerRegistry( HINF						  inf,
 	return nativeErrorFromWin32( ERROR_BUFFER_OVERFLOW) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同節に元コピーへ結んだ関連kernel serviceがあるか検査します。
  * @param[in] inf 呼出し中だけ借用する原INFです。
  * @param[in] services Win32 serviceと同じ元Services節です。
  * @return 同DDInstallの関連kernelと元コピーが確認できた場合trueです。
  */
+//------------------------------------------------------------------------------
 bool hasAssociatedKernelService( HINF inf, const std::wstring &services)
 {
 	INFCONTEXT kernel{} ;	// 同deviceの元service宣言です。
@@ -5654,6 +5787,7 @@ bool hasAssociatedKernelService( HINF inf, const std::wstring &services)
 	return false ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 元AddServiceの任意event-logとDependenciesを標準形式として有限に読みます。
  * @param[in] inf 同期中だけ借用する原INFです。
@@ -5662,6 +5796,7 @@ bool hasAssociatedKernelService( HINF inf, const std::wstring &services)
  * @return 任意値の欠損・不正参照・過大宣言を除く場合0です。
  * @note 原INFの値を変更せず、外部serviceの存在や実行成功を推測しません。
  */
+//------------------------------------------------------------------------------
 NativeError validateRequiredServiceOptions( HINF inf, INFCONTEXT &line, const std::wstring &section)
 {
 	const auto fields = SetupGetFieldCount( &line) ;	// Windows標準の最大六fieldです。
@@ -5723,6 +5858,7 @@ NativeError validateRequiredServiceOptions( HINF inf, INFCONTEXT &line, const st
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同INFの元AddServiceを役割と必須作用へ限定して検査します。
  * @param[in] inf 同期中だけ借用する元INFです。
@@ -5734,6 +5870,7 @@ NativeError validateRequiredServiceOptions( HINF inf, INFCONTEXT &line, const st
  * @return 成功0、未対応種別・欠損・誤role・位置/copy不一致のHRESULTです。
  * @note kernel/file-systemの既存境界を維持し、Win32は0x10/0x20の有限形式だけを扱います。
  */
+//------------------------------------------------------------------------------
 NativeError inspectRequiredServiceDeclaration( HINF inf, const std::wstring &services,
 											  INFCONTEXT &line, DriverPlanRole role,
 											  std::wstring &executable,
@@ -5844,6 +5981,7 @@ NativeError inspectRequiredServiceDeclaration( HINF inf, const std::wstring &ser
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 正式SWCまたは関連kernelに結合したdevice serviceの有限EXE source集合を取得します。
  * @param[in] inf 同期中だけ借用する元INFです。
@@ -5853,6 +5991,7 @@ NativeError inspectRequiredServiceDeclaration( HINF inf, const std::wstring &ser
  * @return 全宣言の検査成功0、列挙異常/誤GUID/未知service/容量/参照不一致のHRESULTです。
  * @note 内容集合だけであり導入authorityではありません。全CAT/member/hashを後段で要求します。
  */
+//------------------------------------------------------------------------------
 NativeError collectRequiredServiceExecutables( HINF inf, std::wstring_view className,
 											  std::vector<std::wstring> &executables,
 											  bool						 contentOnly = false)
@@ -5935,7 +6074,19 @@ NativeError collectRequiredServiceExecutables( HINF inf, std::wstring_view class
 	return nativeErrorFromWin32( ERROR_BUFFER_OVERFLOW) ;
 }
 
-/** @see 本fileの前方宣言の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元Type1宣言を同INFのDriverStoreコピーへ検証します。
+ * @param[in] inf 呼出し中だけ借用する読取り専用INFです。
+ * @param[in] software 元AddSoftwareを持つDDInstall.Software節です。
+ * @param[in,out] line 元AddSoftwareの全fieldを読むcontextです。
+ * @param[in] contentOnly 他Classは内容だけ検査し、導入許可へ変換しない場合trueです。
+ * @param[out] source 非nullなら全成功時だけ同元source相対位置、失敗時は空です。
+ * @param[out] unassessed 非nullなら当該参照が内容専用の場合true、失敗時はfalseです。
+ * @return 標準Type1の役割・原コピー成功0、不正・未対応時はHRESULTです。
+ * @note 非SWCの内容成功は未評価作用のままです。実行せず、署名・適合・導入許可は後段の責務です。
+ */
+//------------------------------------------------------------------------------
 NativeError validateRequiredSoftwareDeclaration( HINF inf, std::wstring_view software,
 												INFCONTEXT &line, bool contentOnly,
 												std::wstring *source, bool *unassessed)
@@ -6040,6 +6191,7 @@ NativeError validateRequiredSoftwareDeclaration( HINF inf, std::wstring_view sof
 	return error ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 正式Componentの明示コピーだけを同INFの参照program集合へ結びます。
  * @param[in] inf 呼出し中だけ借用する原INFです。
@@ -6048,6 +6200,7 @@ NativeError validateRequiredSoftwareDeclaration( HINF inf, std::wstring_view sof
  * @return 全コピー・原Type1の検証成功0、欠損・曖昧・不正配置時はHRESULTです。
  * @note 内容のコピーを検証するだけで、programの独自実行を許可しません。
  */
+//------------------------------------------------------------------------------
 NativeError collectRequiredCopyExecutables( HINF inf, std::wstring_view className,
 										   std::vector<std::wstring> &executables)
 {
@@ -6135,12 +6288,14 @@ NativeError collectRequiredCopyExecutables( HINF inf, std::wstring_view classNam
 	return nativeErrorFromWin32( ERROR_BUFFER_OVERFLOW) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 自身のfile作用を持たずInclude/Needsを継承する正式Systemの内容形式を確認します。
  * @param[in] inf 同期中だけ借用する原INFです。
  * @return 同じ原節にInclude/Needsを持ち、copy/source/serviceを宣言しない場合trueです。
  * @note 継承先の実在・Windows由来・適合や導入許可を生成しません。
  */
+//------------------------------------------------------------------------------
 bool isInheritedSystemContent( HINF inf)
 {
 	std::wstring guid ;	// 名称だけでSystem形式を認定しません。
@@ -6215,6 +6370,7 @@ bool isInheritedSystemContent( HINF inf)
 	return false ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 元現在OS選択からCopyINFと必要SWC関係を有限に解析します。
  * @param[in] inf 呼出し終了まで生存する読取専用Windows INFです。
@@ -6225,6 +6381,7 @@ bool isInheritedSystemContent( HINF inf)
  * @return 全関係解析0、欠損・曖昧・role不一致・容量・未対応は元HRESULTです。
  * @note byte/CATの検査や導入は呼出し側です。Include/Needsの充足を推測しません。
  */
+//------------------------------------------------------------------------------
 NativeError inspectRequiredDriverRelations( HINF inf, const OfficialDownloadWorkspace &workspace,
 										   std::span<const OfficialZipEntry> entries,
 										   OfficialInfPackage				&package,
@@ -6492,7 +6649,16 @@ NativeError inspectRequiredDriverRelations( HINF inf, const OfficialDownloadWork
 }
 } // namespace
 
-/** @see src/platform/official_driver_package.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同元CopyINFの内容検査用ClassをWindows readerから読みます。
+ * @param[in] workspace 原INFを所有する保護領域です。
+ * @param[in] infRelativePath 同領域内の元INFです。
+ * @param[out] className 非空Class/有効非zero GUID/既知Firmware範囲外を確認した原名です。
+ * @return 元読取成功0、不正・不明・既知FirmwareはHRESULTです。
+ * @note importの非実行内容だけです。root policy、適合または導入能力を変更しません。
+ */
+//------------------------------------------------------------------------------
 NativeError readOfficialInfImportClass( const OfficialDownloadWorkspace &workspace,
 									   std::wstring_view infRelativePath, std::wstring &className)
 {
@@ -6523,7 +6689,17 @@ NativeError readOfficialInfImportClass( const OfficialDownloadWorkspace &workspa
 	return 0 ;
 }
 
-/** @see src/platform/official_driver_package.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元INFの全現在architecture source相対位置を非実行で読み取ります。
+ * @param[in] workspace 元INFを保持する保護領域です。
+ * @param[in] infRelativePath 同領域内の元INF相対位置です。
+ * @param[in] maximumFiles 元sourceの有限件数上限です。
+ * @param[out] paths 全成功時だけ同INF/同媒体に結合する安全相対pathです。失敗時は空です。
+ * @return 全取得成功0、欠損・過長・不正位置・容量超過のHRESULTです。
+ * @note 原圧縮sourceの探索準備だけです。実byte/CAT/導入可能性の証明ではありません。
+ */
+//------------------------------------------------------------------------------
 NativeError readOfficialInfSourcePaths( const OfficialDownloadWorkspace &workspace,
 									   std::wstring_view infRelativePath, std::size_t maximumFiles,
 									   std::vector<std::wstring> &paths)
@@ -6593,7 +6769,19 @@ NativeError readOfficialInfSourcePaths( const OfficialDownloadWorkspace &workspa
 	}
 }
 
-/** @see src/platform/official_driver_package.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同保護元INFの私有node基本名から選択節の機能関係だけを解析します。
+ * @param[in] workspace 元byte検査済みINFを所有し、同期終了まで生存する保護領域です。
+ * @param[in] entries 全潜在importを含む元hash付きinventoryです。呼出し中だけ借用します。
+ * @param[in] original 同保護元INFの内容検査metadataです。選択成功や導入権限は表しません。
+ * @param[in] selectedBasicSection 同device/native nodeで確認した未修飾基本名です。空・NUL・過長は禁止です。
+ * @param[out] selected 成功時だけ全importと選択機能関係を保持するcopyです。失敗時は空です。
+ * @return 現OS Models所属/Windows装飾選択/実節/機能関係の確認0、その他は元HRESULTです。
+ * @pre originalとselectedは異なるobjectです。同じ元byteの再確認を呼出し側で行います。
+ * @note Worker内のread-only解析です。呼出し側の全byte再検査と同issuer bindingを代替しません。
+ */
+//------------------------------------------------------------------------------
 
 NativeError inspectSelectedOfficialInfRelations( const OfficialDownloadWorkspace	 &workspace,
 												std::span<const OfficialZipEntry> entries,
@@ -6651,6 +6839,7 @@ struct WindowsDriverCopy {
 	int			 dirid{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 実選択DDInstallのcopy/service/software関係だけを有限に読みます。
  * @param[in] inf 同元の読取専用HINFです。
@@ -6659,6 +6848,7 @@ struct WindowsDriverCopy {
  * @return 正式関係読取成功0、元節/参照/有限容量の診断です。
  * @note registry本文の未知vendor dataを処理許可へ変換せず、全内容の既知禁止作用検査を別に維持します。
  */
+//------------------------------------------------------------------------------
 NativeError readWindowsDriverScopeReferences( HINF inf, const OfficialInfPackage &selected,
 											 OfficialInfInstallInventory &inventory)
 {
@@ -6741,6 +6931,7 @@ NativeError readWindowsDriverScopeReferences( HINF inf, const OfficialInfPackage
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 選択コピー先を同HINFのWindows driver/system directoryへ限定します。
  * @param[in] inf 原読取専用INFです。
@@ -6750,6 +6941,7 @@ NativeError readWindowsDriverScopeReferences( HINF inf, const OfficialInfPackage
  * @param[out] target Windowsの完全解決先です。
  * @return 全成功0、外部/不正/曖昧な導入先はHRESULTです。
  */
+//------------------------------------------------------------------------------
 NativeError readWindowsDriverCopyDestination( HINF inf, const std::wstring &list, int &dirid,
 											 std::wstring &subdirectory, std::wstring &target)
 {
@@ -6803,6 +6995,7 @@ NativeError readWindowsDriverCopyDestination( HINF inf, const std::wstring &list
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一原CopyFiles行を元source/CAT所有位置とWindows宛先へ結びます。
  * @param[in] inf 原読取専用HINFです。
@@ -6816,6 +7009,7 @@ NativeError readWindowsDriverCopyDestination( HINF inf, const std::wstring &list
  * @param[in,out] diagnostic null可の最初の固定拒否段階です。
  * @return 同元位置/安全なWindows配置成功0、それ以外はHRESULTです。
  */
+//------------------------------------------------------------------------------
 NativeError bindWindowsDriverCopy( HINF inf, const OfficialDownloadWorkspace &workspace,
 								  std::span<const OfficialZipEntry> entries,
 								  const OfficialInfPackage &package, const std::wstring &list,
@@ -6883,6 +7077,7 @@ NativeError bindWindowsDriverCopy( HINF inf, const OfficialDownloadWorkspace &wo
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 選択service binaryを元コピーの完全宛先へ結びます。
  * @param[in] binary Windowsが展開した原ServiceBinaryです。元引数を保持します。
@@ -6891,6 +7086,7 @@ NativeError bindWindowsDriverCopy( HINF inf, const OfficialDownloadWorkspace &wo
  * @return 正確な元コピーと型へ一意に結合する場合trueです。
  * @note 引数を実行せずvendor binary内部の作用も推測しません。
  */
+//------------------------------------------------------------------------------
 bool boundWindowsServiceBinary( std::wstring_view binary, std::span<const WindowsDriverCopy> copies,
 							   bool kernel)
 {
@@ -6940,7 +7136,18 @@ bool boundWindowsServiceBinary( std::wstring_view binary, std::span<const Window
 }
 } // namespace
 
-/** @see src/platform/official_driver_package.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択元INFのWindows管理driver package範囲を非実行で再検査します。
+ * @param[in] workspace 全内容検査済み元fileを所有する保護領域です。
+ * @param[in] entries 全原参照のsize/hash付き閉包です。CAT検証は呼出側が別に要求します。
+ * @param[in] selected native compatible nodeから選んだ原DDInstall関係です。
+ * @param[out] diagnostic 任意の最初の固定拒否です。合否に使いません。
+ * @return 選択copy/source/Windows宛先/関連service/softwareの結合成功0、それ以外はHRESULTです。
+ * @note 本関数は実行能力を持ちません。元byte/CAT再検証後の私有factoryから使用します。vendor内部作用やDisplay Type1のWindows実行対応を証明せず、元未評
+ *       価flagも変更しません。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectSelectedWindowsDriverPackageScope( const OfficialDownloadWorkspace  &workspace,
 													 std::span<const OfficialZipEntry> entries,
 													 const OfficialInfPackage		  &selected,
@@ -7213,7 +7420,9 @@ NativeError inspectSelectedWindowsDriverPackageScope( const OfficialDownloadWork
 	}
 }
 
-/** @brief 同所有INFの前後hashとWindows Models選択を一つの読取りへ結びます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同所有INFの前後hashとWindows Models選択を一つの読取りへ結びます。
  * @param[in] workspace 元保護workspaceです。
  * @param[in] package 元構造検査です。
  * @param[out] identity 完全成功時だけ返す元identityです。
@@ -7221,6 +7430,7 @@ NativeError inspectSelectedWindowsDriverPackageScope( const OfficialDownloadWork
  * @param[in] expectedInfSha256 明示target時の元INF hashです。
  * @return 元読取り結果です。
  */
+//------------------------------------------------------------------------------
 static NativeError readPublishedIdentity( const OfficialDownloadWorkspace &workspace,
 										 const OfficialInfPackage		 &package,
 										 OfficialInfPublishedIdentity	 &identity,
@@ -7284,7 +7494,16 @@ static NativeError readPublishedIdentity( const OfficialDownloadWorkspace &works
 	}
 }
 
-/** @see official_driver_package.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元packageと一致する現OS公開IDを同HINFから原節名/種別付きで読み取ります。
+ * @param[in] workspace 保護された元INFを所有するworkspaceです。
+ * @param[in] package 通常構造検査で得た元INF相対pathと全ID列です。
+ * @param[out] identity 成功時だけ同INF前後hash/原ClassGUID/全Models節です。失敗時は空です。
+ * @return 有限な原metadataの全一致時0、欠損/上限/改変時は元HRESULTです。
+ * @note Read-onlyのmetadataです。CAT/member/公式性/実端末照合/取得同意を代替しません。
+ */
+//------------------------------------------------------------------------------
 NativeError readOfficialInfPublishedIdentity( const OfficialDownloadWorkspace &workspace,
 											 const OfficialInfPackage		 &package,
 											 OfficialInfPublishedIdentity	 &identity)
@@ -7292,7 +7511,18 @@ NativeError readOfficialInfPublishedIdentity( const OfficialDownloadWorkspace &w
 	return readPublishedIdentity( workspace, package, identity, nullptr, {}) ;
 }
 
-/** @see official_driver_package.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同所有INFのhashを固定し、collectorの明示client観測点でModelsを読みます。
+ * @param[in] workspace 元保護workspaceです。
+ * @param[in] package 元構造検査済みpackageです。
+ * @param[in] platform Win10/19045またはWin11/26100のAMD64 workstation/suite0です。
+ * @param[in] expectedInfSha256 同じ現OS構造検査から得た元INF hashです。
+ * @param[out] identity 成功した同targetの元Modelsです。失敗時は空です。
+ * @return 実Windows読取り成功0、不明target/改変/未観測は元HRESULTです。
+ * @note App現在OS入口/適用性/rank/CAT検証を代替せずfallbackしません。
+ */
+//------------------------------------------------------------------------------
 NativeError readOfficialInfPublishedIdentityForPlatform( const OfficialDownloadWorkspace &workspace,
 														const OfficialInfPackage		&package,
 														const OfficialInfModelsPlatform &platform,
@@ -7324,7 +7554,19 @@ NativeError readOfficialInfPublishedIdentityForPlatform( const OfficialDownloadW
 								 expectedInfSha256) ;
 }
 
-/** @see src/platform/official_driver_package.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 展開済み標準INF packageの構造と現在OSへの適用sectionを検証する。展開済み標準INF packageを検証する。SetupAPIの構文とplatform選択結果を
+ *        使用し、CAT署名前にpackageの有限性、driver-only境界、参照file存在を確認する。
+ * @param[in] workspace ZIP展開fileを所有する保護workspace。
+ * @param[in] entries ZIP検証で確定した全通常file。Directory entryは含めない。 ZIP検証済みの全通常file。
+ * @param[in] infRelativePath 検証対象INFのworkspace基準相対path。 検証するINF相対path。
+ * @param[in] policy 件数上限、許可class、ProviderおよびINF signature。 件数上限、許可class／Provider／signature。
+ * @param[out] package 成功時の検証済み構造。失敗時は空にする。 成功時だけ更新する検証済み構造。
+ * @return 成功時は0、INF構文、適用section、参照fileまたはpolicy違反時はHRESULT。 全構造検証成功時は0、最初の違反はHRESULT。
+ * @note 本関数はfileを変更せず、catalog署名とmember hashは別の署名検証で確認する。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectOfficialInfPackage( const OfficialDownloadWorkspace		 &workspace,
 									  const std::span<const OfficialZipEntry> entries,
 									  const std::wstring_view				  infRelativePath,
@@ -7508,12 +7750,11 @@ NativeError inspectOfficialInfPackage( const OfficialDownloadWorkspace		 &worksp
 }
 
 //------------------------------------------------------------------------------
-/**
- * @see src/platform/official_driver_package.h 宣言側の契約を正本とする。
- */
+
 //------------------------------------------------------------------------------
 namespace {
 
+//------------------------------------------------------------------------------
 /**
  * @brief 共通または固定signer policyでWindows署名とCATを検査する。
  * @param[in] workspace INF閉包の所有領域。
@@ -7523,6 +7764,7 @@ namespace {
  * @param[out] publisher 非null時だけ全署名/同CAT成功後の実DigitalSignerです。省略可です。
  * @return Windows署名、CATとsigner条件に合格した場合0。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError verifyInfCatalogSignature(
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 	const std::span<const std::wstring_view> acceptedSigners, const bool windowsPolicy,
@@ -7566,6 +7808,7 @@ namespace {
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同一の署名検証とCAT member処理を両policyで共有する。
  * @param[in] workspace INF閉包の所有領域。
@@ -7574,6 +7817,7 @@ namespace {
  * @param[in] windowsPolicy Windows検証済みの非空signerを使用する場合true。
  * @return 全署名と全memberが一致した場合0。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError verifyInfPackageIntegrity(
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 	const std::span<const std::wstring_view> acceptedSigners, const bool windowsPolicy)
@@ -7618,9 +7862,17 @@ namespace {
 
 } // namespace
 
+//------------------------------------------------------------------------------
 /**
- * @see src/platform/official_driver_package.h 宣言側の契約を正本とする。
+ * @brief INFと対応catalogのWindows driver署名およびsigner allowlistを検証する。INFと対応catalogの署名を検証する。
+ *        SetupVerifyInfFileをWindows driver署名の正本とし、返されたcatalogとsignerをProvider固定allowlistへ完全一致させる。
+ * @param[in] workspace Package fileを所有する保護workspace。
+ * @param[in] package 構造検証済みのINF package。
+ * @param[in] acceptedSigners 許可するWindows driver signer表示名群。 許可するdriver signer表示名群。
+ * @return 署名とcatalog名とsignerが一致した場合は0、それ以外はHRESULT。 署名、catalog名、signer一致時は0、それ以外はHRESULT。
+ * @note SetupVerifyInfFileはblockingし得るためProvider worker threadから呼び出す。
  */
+//------------------------------------------------------------------------------
 NativeError verifyOfficialInfCatalogSignature(
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 	const std::span<const std::wstring_view> acceptedSigners)
@@ -7628,9 +7880,18 @@ NativeError verifyOfficialInfCatalogSignature(
 	return verifyInfCatalogSignature( workspace, package, acceptedSigners, false) ;
 }
 
+//------------------------------------------------------------------------------
 /**
- * @see src/platform/official_driver_package.h 宣言側の契約を正本とする。
+ * @brief INF署名、signer、およびINFと全参照fileのcatalog member hashを検証する。INF package全体のcatalog整合性を検証する。
+ *        SetupAPIでINF signerを確定した後、INF自身と全参照fileを同じCATのmemberとして検証し、部分検証を候補化しない。静的参照検査でsourceが0件と確定した場合も、
+ *        INF自身のmember検証を省略しない。
+ * @param[in] workspace Package fileを所有する保護workspace。
+ * @param[in] package 構造検証済みのINF package。
+ * @param[in] acceptedSigners 許可するWindows driver signer表示名群。 許可するdriver signer表示名群。
+ * @return 全署名・hash検証成功時は0、最初に失敗した検証のHRESULT。 署名と全member hashが有効なら0、それ以外はHRESULT。
+ * @note 本関数の成功後だけ、現在deviceとのlocal PnP ID照合へ進める。
  */
+//------------------------------------------------------------------------------
 NativeError verifyOfficialInfPackageIntegrity(
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 	const std::span<const std::wstring_view> acceptedSigners)
@@ -7638,16 +7899,32 @@ NativeError verifyOfficialInfPackageIntegrity(
 	return verifyInfPackageIntegrity( workspace, package, acceptedSigners, false) ;
 }
 
+//------------------------------------------------------------------------------
 /**
- * @see src/platform/official_driver_package.h 宣言側の契約を正本とする。
+ * @brief Windowsが検証したsignerと同一CATの全memberを共通経路で検査する。
+ * @param[in] workspace INF閉包を所有する保護領域。
+ * @param[in] package 構造と全参照fileを検査したINF。
+ * @return SetupVerifyInfFile成功、非空signer、同一CAT、全member合格時0、それ以外はHRESULT。
+ * @note Maker表示名をsignerと比較しない。Windows署名失敗やtrust未確立を成功へ変換しない。静的参照検査でsourceが0件と確定した場合も、INF自身を必ずCATへ照合
+ *       する。Blockingするためworkerから呼ぶ。成功は導入policy・実device適合・公式由来を保証しない。
  */
+//------------------------------------------------------------------------------
 NativeError verifyWindowsInfPackageIntegrity( const OfficialDownloadWorkspace &workspace,
 											 const OfficialInfPackage		 &package)
 {
 	return verifyInfPackageIntegrity( workspace, package, {}, true) ;
 }
 
-/** @see official_driver_package.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同保護INF/CATの全memberを検査して実Windows signer名だけを返します。
+ * @param[in] workspace 同原閉包を所有する保護領域です。
+ * @param[in] package 同原INFとCATを示す構造検査済みmetadataです。
+ * @param[out] publisher 同Windows署名/全member成功時だけ実DigitalSignerです。失敗時空です。
+ * @return 同exact CAT、Windows署名、全member成功0、失敗は元HRESULTです。
+ * @note INF Providerを代入せず、公式性/実端末適合/導入許可を発行しません。Workerでblockingします。
+ */
+//------------------------------------------------------------------------------
 NativeError readWindowsInfPackagePublisher( const OfficialDownloadWorkspace &workspace,
 										   const OfficialInfPackage		   &package,
 										   std::wstring					   &publisher)
@@ -7666,7 +7943,14 @@ NativeError readWindowsInfPackagePublisher( const OfficialDownloadWorkspace &wor
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_driver_package.h 宣言側の契約を正本とする。
+ * @brief INFが参照する全fileのAuthenticode署名とpublisherを検証する。INF参照fileの埋込み署名を検証する。固定SHA-256で拘束したarchive内の実行
+ *        binaryを個別検証し、未署名fileまたは異なるpublisherを一件でも受理しない。
+ * @param[in] workspace Package fileを所有する保護workspace。
+ * @param[in] package 構造検証済みでsourceFilesが確定したINF package。 構造検証済みのINF package。
+ * @param[in] requiredRelativePaths 署名とINF参照を必須にするworkspace相対path群。 署名を必須にする相対path群。
+ * @param[in] acceptedSigners 許可する埋込み署名publisher表示名群。 許可する署名publisher表示名群。
+ * @return 全指定fileのINF参照、署名、publisherが有効なら0、最初の失敗はHRESULT。 全参照fileの署名とpublisherが有効なら0。
+ * @note CAT member hashを置換する一般fallbackではなく、固定archive hashと併用する。
  */
 //------------------------------------------------------------------------------
 NativeError verifyOfficialInfEmbeddedFileSignatures(
@@ -7717,7 +8001,13 @@ NativeError verifyOfficialInfEmbeddedFileSignatures(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_driver_package.h 宣言側の契約を正本とする。
+ * @brief INFの検証済みPnP IDを現在deviceのHardware IDとCompatible IDへ照合する。INFを現在deviceのPnP IDへ照合する。PnP IDは
+ *        worker内だけで大文字小文字を除く完全一致に使用し、部分一致、prefix一致、空IDによる適用範囲拡張を行わない。
+ * @param[in] package 構造検証済みのINF package。
+ * @param[in] deviceHardwareIds 現在deviceからworker内で取得したHardware ID群。 現在deviceのHardware ID群。
+ * @param[in] deviceCompatibleIds 現在deviceからworker内で取得したCompatible ID群。 現在deviceのCompatible ID群。
+ * @return Hardware ID、Compatible IDの優先順で得た完全一致結果。該当なしはNone。
+ * @note IDはnetwork、UI、logへ渡さず、呼出し中のlocal matchingだけに使用する。
  */
 //------------------------------------------------------------------------------
 OfficialInfDeviceMatch matchOfficialInfToDevice(
@@ -7749,6 +8039,7 @@ OfficialInfDeviceMatch matchOfficialInfToDevice(
 }
 
 namespace {
+//------------------------------------------------------------------------------
 /**
  * @brief 一file名の明示source媒体位置を固定memberへ結合する。
  * @param[in] inf 単独INFの同期handle。
@@ -7760,6 +8051,7 @@ namespace {
  * @param[in] requiredSubdirectory DIRID13の新照合時だけのSourceDisksFiles subdir期待。媒体pathは含めない。
  * @return 観測成功0、不正path・容量・不在以外の読取失敗HRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError locateMaintenanceSource(
 	HINF inf, const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
 	std::wstring_view parent, bool binaryTarget, MaintenanceInfFileReference &reference,
@@ -7870,6 +8162,7 @@ namespace {
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 到達named list固有の明示導入先を同INFの有限metadataから一度だけ観測する。
  * @param[in] inf 同期借用する単独HINF。Appendとdirectory再割当てを行わない。
@@ -7881,6 +8174,7 @@ namespace {
  * @param[in,out] byteProof 非nullなら同HINF・同rowの全field証明へ元取得値を結ぶ。通常読取はnull。
  * @return 観測成功0、不正数値・path・読取・容量失敗は元HRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError readMaintenanceDestinationDirectories(
 	HINF inf, const OfficialDownloadWorkspace &workspace,
 	std::span<const MaintenanceCopyDestination> copies, MaintenanceStructureBudget &budget,
@@ -8090,6 +8384,7 @@ namespace {
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 構築完了したnamed行とdirectoryを一度だけ結び、反復検索とpath再生成を除く。
  * @param[in] workspace destination leafの安全性だけへ同期借用する。
@@ -8098,6 +8393,7 @@ namespace {
  * @param[out] bindings 同scope内だけで有効な非所有pointerと元状態・全targetを最大4,096件保持する。
  * @return 構築成功0、不正destination・保持量／target長超過は元HRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError bindMaintenanceCopyDestinations(
 	const OfficialDownloadWorkspace &workspace, std::span<const MaintenanceCopyDestination> copies,
 	std::span<const MaintenanceDestinationDirectory> directories,
@@ -8156,6 +8452,7 @@ namespace {
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同HINFの成功した到達named13相対全targetとの一致だけを判定する。
  * @param[in] target 元binaryの展開後全値。先頭dotを取り除かず同期借用する。
@@ -8163,6 +8460,7 @@ namespace {
  * @return 明示13・非空dot-relative出力・全値一致ならtrue。それ以外はfalse。
  * @note 一宣言の対応だけを示し、候補一意性・元source・実Storeの充足は判定しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matchesMaintenanceRelative13Target(
 	std::wstring_view target, const MaintenanceCopyBinding &binding) noexcept
 {
@@ -8173,6 +8471,7 @@ namespace {
 		   stringsEqual( target, binding.fullTarget) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief binaryの展開済み導入先を到達named copyの明示sourceだけへ限定対応させる。
  * @param[in] inf 同じ一INFの同期handle。
@@ -8184,6 +8483,7 @@ namespace {
  * @param[in,out] reference 元binary用途を維持し、位置と元診断だけを更新する。
  * @return 観測成功0、不正path・source読取・容量等の全体拒否HRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError locateMaintenanceBinarySource(
 	HINF inf, const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
 	std::wstring_view parent, std::span<const MaintenanceCopyBinding> bindings,
@@ -8336,6 +8636,7 @@ namespace {
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全元値とnamed13／成功済み元sourceだけから位置stageの一意source indexを返す。
  * @param[in,out] proof 同HINF・同元byteの私有証明。allocation失敗では撤回する。
@@ -8347,6 +8648,7 @@ namespace {
  * @return 全値・一意source成立時の元観測index。未知では未結合値。
  * @note prefix／basename／dot除去を成功根拠にせず、同leafの不確定候補を保持する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::size_t locateMaintenanceCompleteValueSource(
 	MaintenanceInfByteProof &proof, std::size_t rawRow, std::size_t field, std::wstring_view target,
 	std::span<const MaintenanceCopyBinding>		 bindings,
@@ -8436,12 +8738,14 @@ namespace {
 	return sourceFile ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有限保持量を確認して原用途と位置を棚卸しへ加える。
  * @param[in,out] references 同じ一INFの累積観測。
  * @param[in] file 全観測値を所有する一file用途。
  * @return 追加成功0、保持量超過のHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError appendMaintenanceFile( MaintenanceInfReferences   &references,
 												MaintenanceInfFileReference file)
 {
@@ -8467,7 +8771,26 @@ namespace {
 }
 } // namespace
 
-/** @see src/platform/official_driver_package.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 一INFの明示seedからlocal file用途と同節依存を同期・有限に棚卸しする。
+ * @param[in] workspace 呼出し全期間固定される保護所有領域。
+ * @param[in] entries 閉じたarchive member一覧。未抽出memberも位置照合に使う。
+ * @param[in] infRelativePath 読取前後に元byteへ一致させる最大4 MiBのINF。
+ * @param[in] seeds 原明示節群。0～1,024。suffix補完と別節Include借用をしない。
+ * @param[in] policy 既存の内容参照数と非圧縮EXE限定条件。導入policyへ転用しない。
+ * @param[out] references 全体成功時の位置観測。全体読取・path・容量失敗では空。
+ * @return 観測成功0、重大な読取・入力・容量・元byte差のHRESULT。
+ * @pre 入力と出力はaliasしない。workerから同期呼出しし、同時にworkspaceを変更しない。
+ * @note 一INF4 MiB、1,024節／4,096行・参照／64 field。依存先の解決と署名は別検査。展開済みbinaryは到達named list固有DestinationDirsと
+ *       明示sourceへ限定照合する。親default文脈のない直接copy／defaultは位置未対応のまま保持する。DIRID13は同名とSourceDisksFiles／
+ *       DestinationDirs subdir一致を追加要求する。同HINFの成功したdot-relative named13全targetは全候補・元source行の一意性も要求する。
+ *       LOCATEDとcoverageは固定package内の元source位置だけで、実byte／CATは後段で検証する。実Driver Store導入先の充足・端末適合・rank／grantと導入
+ *       許可は未確認のまま分離する。
+ * @see docs/adr/0313-maintenance-expanded-service-binary-source-binding.md
+ * @see docs/adr/0314-maintenance-unstaged-dirid13-source-content-separation.md
+ */
+//------------------------------------------------------------------------------
 NativeError inspectMaintenanceInfReferences( const OfficialDownloadWorkspace	  &workspace,
 											std::span<const OfficialZipEntry>  entries,
 											std::wstring_view				   infRelativePath,
@@ -9095,6 +9418,17 @@ NativeError inspectMaintenanceInfReferences( const OfficialDownloadWorkspace	  &
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じHINF/source IDの完全source/media応答を共有します。
+ * @param[in] inf 同期借用する一INF handleです。
+ * @param[in] fileName 元basenameです。
+ * @param[out] sourceDirectory 完全取得した元subdirです。
+ * @param[out] mediaDirectory installation-root相対の元媒体です。
+ * @return 完全取得0、欠損・曖昧・部分応答・root-only policy拒否のHRESULTです。
+ * @note 保護領域とCAT/member検査は呼出し側で別途必要です。
+ */
+//------------------------------------------------------------------------------
 NativeError readOfficialInfSourceDirectories( void *inf, const std::wstring &fileName,
 											 std::wstring &sourceDirectory,
 											 std::wstring &mediaDirectory)

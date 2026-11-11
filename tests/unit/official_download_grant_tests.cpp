@@ -2,7 +2,7 @@
 /**
  * @file official_download_grant_tests.cpp
  * @brief 公式配布record、download grant、root resolution単体試験を実装します。
- * @version 01.10.01
+ * @version 01.10.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.09.00 Shunji Ogawa  2026/09/28  公開文字境界と変更前の通常record指紋を固定検証。
  * Ver.01.10.00 Shunji Ogawa  2026/09/29  CNG境界probeの通常hash・失敗後空出力を検証。
  * Ver.01.10.01 Shunji Ogawa  2026/10/02  AI依存を撤去し非AI共通処理と試験を維持。
+ * Ver.01.10.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空URLとcallbackだけを使用し、通信、file取得、driver導入、installer実行を行いません。
@@ -361,9 +362,12 @@ void testCollectorPublicBoundary( TestContext &context)
 									L"a/..", 32U, OfficialCollectorPublicTextKind::CONTENT_TYPE)) ;
 }
 
-/** @brief 通常recordと収集候補の射影を検証します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常recordと収集候補の射影を検証します。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCollectorRecordProjection( TestContext &context)
 {
 	OfficialDistributionRecord ordinary = makeRecord(
@@ -1253,9 +1257,12 @@ void testStaticJsonStringExtraction( TestContext &context)
 		context, !extractOfficialJsonStringAtObjectPath( json, invalidPath, L"url", 512U, value)) ;
 }
 
-/** @brief 公開SHA-512の有無・正規化・改変とgrant所有を検証します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開SHA-512の有無・正規化・改変とgrant所有を検証します。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testSha512RecordBinding( TestContext &context)
 {
 	auto record =
@@ -1305,7 +1312,8 @@ void testSha512RecordBinding( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_download_grant_tests.h 宣言側の契約を正本とします。
+ * @brief Record、grant、固定root、静的HTML／JSONと秘密非出力の全fixtureを実行します。
+ * @param[in,out] context Assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialDownloadGrantTests( TestContext &context)

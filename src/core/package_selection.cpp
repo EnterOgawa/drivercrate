@@ -2,7 +2,7 @@
 /**
  * @file package_selection.cpp
  * @brief Provider package選択group実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Candidate選択を初出package順へ決定的にgroup化します。
@@ -42,7 +43,10 @@ namespace drivercrate {
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/package_selection.h 宣言側の契約を正本とする。
+ * @brief Candidate選択を初出package順へまとめる。Package初出順と各group内のcandidate選択順を維持する。
+ * @param[in] entries Providerがscan時metadataから構築したcandidateとpackageの対応。 Candidateとpackageの検証済み対応。
+ * @return 正常時は重複packageをまとめたgroup。空値またはcandidate重複時は`std::nullopt`。 正常時はgroup集合。不正identityまたは
+ *         package時は空。
  */
 //------------------------------------------------------------------------------
 std::optional<std::vector<PackageSelectionGroup>> groupPackageSelection(

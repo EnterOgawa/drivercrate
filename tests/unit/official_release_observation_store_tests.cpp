@@ -2,7 +2,7 @@
 /**
  * @file official_release_observation_store_tests.cpp
  * @brief 公式release観測と自動探索cacheの端末内永続化単体試験実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  URL非保持cacheの往復、改ざんと分離破棄試験を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note ProductionのProgramData、実device、networkを使わず、架空観測、cacheとkeyを一時directoryへ
@@ -681,7 +682,8 @@ void testBindingSecret( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_release_observation_store_tests.h 宣言側の契約を正本とする。
+ * @brief 公式release端末内観測storeの全単体試験を実行する。Round-trip、入力拒否、改ざん破棄を順番に検証する。
+ * @param[in,out] context assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialReleaseObservationStoreTests( TestContext &context)

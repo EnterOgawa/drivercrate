@@ -2,7 +2,7 @@
 /**
  * @file local_collector_http_client.h
  * @brief 永続permitと共通公式HTTPの開発用adapterを定義します。
- * @version 01.02.03
+ * @version 01.02.04
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * Ver.01.02.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
  * Ver.01.02.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.02.03   Shunji Ogawa  2026/10/16 本文moveの移譲元・戻り値と自己代入時の状態保持を明記。
+ * Ver.01.02.04 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 台帳・公式parser・導入処理は実行しません。
@@ -73,7 +74,8 @@ public:
 	{
 		return valid_ ;
 	}
-	/** @brief 変更不能jobへ本文を一回だけ結合し、元controlを返します。
+	/**
+	 * @brief 変更不能jobへ本文を一回だけ結合し、元controlを返します。
 	 * @param[in] campaign 元保存inputから全再構築した所有campaign。
 	 * @param[in] jobIndex 元永続予約のjob index。
 	 * @param[out] control 成功時だけ同じGETのcontrol。失敗時は空です。
@@ -190,9 +192,12 @@ private:
 /** @brief 一つのworkerだけが所有する、一回GET専用adapterです。 */
 class LocalCollectorHttpClient final {
 public:
-	/** @brief 明示nativeの一回clientを作ります。構築だけでは通信しません。 */
+	/**
+	 * @brief 明示nativeの一回clientを作ります。構築だけでは通信しません。
+	 */
 	LocalCollectorHttpClient() ;
-	/** @brief 完全な非通信API表で一回clientを作ります。
+	/**
+	 * @brief 完全な非通信API表で一回clientを作ります。
 	 * @param[in] transport 全使用関数をfakeへ置換した表。Native混在を拒否します。
 	 * @param[in] dnsApi 全関数をfakeへ置換したDNS表。
 	 */
@@ -205,7 +210,8 @@ public:
 	 * @brief 一回GETの使用状態とHTTP・DNS依存を別個体の状態で上書きさせないため、コピー代入を禁止する。
 	 */
 	LocalCollectorHttpClient &operator=( const LocalCollectorHttpClient &) = delete ;
-	/** @brief 永続予約と再構築requestを照合して最大一回GETします。
+	/**
+	 * @brief 永続予約と再構築requestを照合して最大一回GETします。
 	 * @param[in] target 検証済み公開製品条件。
 	 * @param[in] binding 元dispatch。全fieldをpermitと照合します。
 	 * @param[in,out] permit 同じworkerへ移された一回許可。
@@ -222,7 +228,8 @@ public:
 								  std::wstring							&text,
 								  CollectorControlledHttpObservation	&observation,
 								  std::shared_ptr<CollectorHttpControl> &control) ;
-	/** @brief 元canonicalから再構築したjobだけを新接続から受け付けます。
+	/**
+	 * @brief 元canonicalから再構築したjobだけを新接続から受け付けます。
 	 * @param[in] campaign 全scopeと専用Gを所有する変更不能campaign。
 	 * @param[in] jobIndex 元予約の共有job index。
 	 * @param[in] binding 同じjobの永続予約。
@@ -243,7 +250,8 @@ public:
 											  std::shared_ptr<CollectorHttpControl>	   &control) ;
 
 private:
-	/** @brief prepared型からだけ呼び、固定一jobの元GETを発行します。
+	/**
+	 * @brief prepared型からだけ呼び、固定一jobの元GETを発行します。
 	 * @param[in] job 元canonicalから再構築した一job。
 	 * @param[in] binding 専用永続予約。
 	 * @param[in,out] permit 一回許可。

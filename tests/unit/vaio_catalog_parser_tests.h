@@ -2,7 +2,7 @@
 /**
  * @file vaio_catalog_parser_tests.h
  * @brief VAIO公式catalog parser単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空JSONだけでVAIO model、driver分類、payload検証を確認します。
@@ -39,12 +40,13 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief VAIO catalog parserの正常系とsecurity拒否系を実行する。
- * VAIO catalog parserの正常系とsecurity境界を検証する。
- * C++/WinRT用COM MTAを初期化し、networkなしの試験を実行する。
+ * @brief VAIO catalog parserの正常系とsecurity拒否系を実行する。VAIO catalog parserの正常系とsecurity境界を検証する。C++/WinRT
+ *        用COM MTAを初期化し、networkなしの試験を実行する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runVaioCatalogParserTests( TestContext &context) ;
 
 } // namespace drivercrate::test

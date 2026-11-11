@@ -2,7 +2,7 @@
 /**
  * @file maintenance_embedded_file_table.h
  * @brief 保守専用PE内固定長ファイル表の非実行解析定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/05  保守専用の有限表解析を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note byte列を借用する純粋な構造検査です。実行・展開・署名・端末照合・導入を行いません。
@@ -60,14 +61,16 @@ struct MaintenanceEmbeddedFileTable {
 	std::vector<MaintenanceEmbeddedFile> files ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief PE32+ x64のreadonly dataにある唯一の260名＋uint32長表を静的検査する。
- * 入力64 MiB、PE section96、file128、候補16に制限します。
+ * @brief PE32+ x64のreadonly dataにある唯一の260名＋uint32長表を静的検査する。入力64 MiB、PE section96、file128、候補16に制限します
+ *        。
  * @param[in] executable 呼出し中だけ借用する不変byte。署名検証は呼出し側の責務です。
  * @param[out] layout 全構造成功時だけ確定する原file範囲。失敗時は空です。
  * @return 成功0、不正・未対応・曖昧時は失敗HRESULT、allocation失敗時はE_OUTOFMEMORY。
  * @note Blocking I/O・実行・LoadLibraryは行いません。内容署名や導入許可を発行しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectMaintenanceEmbeddedFileTable(
 	std::span<const std::byte> executable, MaintenanceEmbeddedFileTable &layout) noexcept ;
 

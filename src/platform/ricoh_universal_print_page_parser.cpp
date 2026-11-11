@@ -2,7 +2,7 @@
 /**
  * @file ricoh_universal_print_page_parser.cpp
  * @brief Ricoh Universal Print公式download page parser実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 固定Ricoh pageを実行せず解析し、六つのx64 OS欄の一致を要求します。欠落、重複、別host、別製品またはOS別package分岐を推測で補完せず拒否します。
@@ -481,7 +482,11 @@ constexpr std::array DOWNLOAD_HOSTS{	// Download URLで許可する完全一致h
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/ricoh_universal_print_page_parser.h 宣言側の契約を正本とする。
+ * @brief Ricoh Universal Print Driver pageを有限規則で解析する。OS別の明示値が分岐した場合は一つの候補へ推測統合せず拒否する。
+ * @param[in] html Ricoh公式hostから取得したUTF-16 HTML。
+ * @param[out] metadata 成功時の表示専用metadata。失敗時は初期値。 成功時の六OS共通metadata。失敗時は初期値。
+ * @return 六つのWindows x64欄が同一の従来型PCL6配布情報を示す場合true。 六つの対象x64 OS欄が同一の従来型PCL6配布情報を示す場合true。
+ * @note V4、PostScript、utility、32-bit、別hostおよびOS別に分岐した配布物は拒否する。
  */
 //------------------------------------------------------------------------------
 bool parseRicohUniversalPrintPage( const std::wstring_view		   html,

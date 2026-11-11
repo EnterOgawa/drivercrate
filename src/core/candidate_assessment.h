@@ -2,7 +2,7 @@
 /**
  * @file candidate_assessment.h
  * @brief 候補の検証軸・具体的理由・必須条件・導入方式の有限契約。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  検査で判明した構成役割と未収集を分離。
  * Ver.01.02.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 値は同じscanの証拠に結合し、未確認を合格へ補完しない。OS・networkへ作用しない。
@@ -270,22 +271,27 @@ struct CandidateAssessment {
 	std::optional<CandidateComponentRole>	  componentRole ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一軸の状態・理由・証拠・診断の組を純粋検証する。
  * @param[in] axis 固定の対象軸。
  * @param[in] finding 当該軸の主理由。
  * @return 未知enum、理由の軸違い、矛盾がなければtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isCandidateAssessmentFindingValid(
 	CandidateAssessmentAxis axis, const CandidateAssessmentFinding &finding) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全軸と明示条件・方式の内部整合性を検証する。
  * @param[in] assessment 同じscanの詳細snapshot。
  * @return 有限上限と状態の不変条件を満たす場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isCandidateAssessmentValid( const CandidateAssessment &assessment) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 詳細の証拠が呼出し側の候補へ完全一致するか検証する。
  * @param[in] assessment 検証対象の詳細。
@@ -295,18 +301,21 @@ struct CandidateAssessment {
  * @param[in] packageIdentity Packageのidentity。未取得時は空。
  * @return 全結合と内部整合性が成立する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isCandidateAssessmentBound( const CandidateAssessment &assessment,
 											  std::uint64_t				 scanSessionId,
 											  std::wstring_view			 candidateIdentity,
 											  std::wstring_view			 deviceIdentity,
 											  std::wstring_view			 packageIdentity) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 詳細の全必要条件が導入を妨げないか確認する。
  * @param[in] assessment 内部整合性も再確認する詳細。
  * @return 実装済み方式と全必要軸が合格・委譲・正当な非該当の場合true。
  * @note これだけでは導入を許可せず、既存audit・session・Provider bindingも必須とする。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isCandidateAssessmentReady( const CandidateAssessment &assessment) noexcept ;
 
 } // namespace drivercrate

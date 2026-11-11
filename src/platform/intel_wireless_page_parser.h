@@ -2,7 +2,7 @@
 /**
  * @file intel_wireless_page_parser.h
  * @brief Intel Wireless公式download page parser定義。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/23  本文非保持の任意拒否段階診断を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Intel公式download pageの区分B metadataだけを有限規則で取得します。HTML変更、重複、欠落時は候補を推測せず拒否します。
@@ -60,10 +61,10 @@ struct IntelWirelessPageMetadata {
 	bool		 requiresEula{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Intel Wireless IT管理者向けdownload pageを有限schemaとして解析する。
- * Intel Wireless公式download pageを解析する。
- * Page探索結果だけを返し、INF／CAT、PnP適用性、EULA同意を完了済みとして扱わない。
+ * @brief Intel Wireless IT管理者向けdownload pageを有限schemaとして解析する。Intel Wireless公式download pageを解析する。
+ *        Page探索結果だけを返し、INF／CAT、PnP適用性、EULA同意を完了済みとして扱わない。
  * @param[in] html Intel公式hostから取得したUTF-16 HTML。
  * @param[out] metadata 成功時の探索metadata。失敗時は空にする。
  * @param[out] failureStage 任意診断。0=成功、1=表示変換、2=見出し、3=範囲、4=配布URL、5=目的、6=hash/size、7=資源。
@@ -71,6 +72,7 @@ struct IntelWirelessPageMetadata {
  *         metadataが一意で相互に一致する場合は`true`。
  * @note 本結果は探索区分Bであり、INF／CATと現在deviceの検証を代替しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseIntelWirelessDownloadPage( std::wstring_view			 html,
 												  IntelWirelessPageMetadata &metadata,
 												  std::uint32_t *failureStage = nullptr) ;

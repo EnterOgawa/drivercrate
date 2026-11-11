@@ -2,7 +2,7 @@
 /**
  * @file official_pe_resource.cpp
  * @brief collector専用の有界PE resource原範囲解決を実装する。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -19,6 +19,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/03  原tupleとRVA/raw範囲を非実行で解決。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 端末の内容slice処理からこのtree readerを呼ばない。
  */
@@ -42,9 +43,12 @@ struct ResourceFailure {
 	/// 最初の構造拒否。
 	NativeError error ;
 } ;
-/** @brief 条件違反を元構造エラーで中断する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 条件違反を元構造エラーで中断する。
  * @param[in] condition 要求する構造条件。
  */
+//------------------------------------------------------------------------------
 void need( const bool condition)
 {
 	// 不正byteを継続解析しない。
@@ -52,24 +56,30 @@ void need( const bool condition)
 		throw ResourceFailure{HRESULT_FROM_WIN32( ERROR_INVALID_DATA)} ;
 	}
 }
-/** @brief 原範囲を減算で検査して固定viewを作る。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原範囲を減算で検査して固定viewを作る。
  * @param[in] data 呼出し中固定の親。
  * @param[in] offset 開始位置。
  * @param[in] bytes 読む長さ。
  * @return 原範囲の借用view。
  */
+//------------------------------------------------------------------------------
 std::span<const std::byte> part( const std::span<const std::byte> data, const std::uint64_t offset,
 								const std::uint64_t bytes)
 {
 	need( offset <= data.size() && bytes <= data.size() - offset) ;
 	return data.subspan( static_cast<std::size_t>( offset), static_cast<std::size_t>( bytes)) ;
 }
-/** @brief 非整列のlittle-endian整数を原範囲内から読む。
+//------------------------------------------------------------------------------
+/**
+ * @brief 非整列のlittle-endian整数を原範囲内から読む。
  * @param[in] data 固定親。
  * @param[in] offset 読取り位置。
  * @param[in] count 2または4byte。
  * @return 幅を拡大した原整数。
  */
+//------------------------------------------------------------------------------
 std::uint32_t integer( const std::span<const std::byte> data, const std::uint64_t offset,
 					  const std::size_t count)
 {
@@ -91,10 +101,13 @@ struct RawSection {
 	/// 原SizeOfRawData。
 	std::uint64_t bytes ;
 } ;
-/** @brief UTF-16 resource名がNUL/不正surrogateを含まないか調べる。
+//------------------------------------------------------------------------------
+/**
+ * @brief UTF-16 resource名がNUL/不正surrogateを含まないか調べる。
  * @param[in] text 元名。
  * @return 有界で有効ならtrue。
  */
+//------------------------------------------------------------------------------
 bool validName( const std::wstring_view text)
 {
 	// 未選択名もparserの有限範囲に収める。
@@ -127,7 +140,14 @@ bool validName( const std::wstring_view text)
 }
 } // namespace
 
-/** @see official_resource_content.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief collector専用に原PEのtyped leafとraw範囲を有界列挙する。
+ * @param[in] executable 固定したPE32/PE32+原byte。最大64MiB。
+ * @param[out] resources 成功時だけ原tuple/range。hashは未計算。
+ * @return 全構造受理0、曖昧・破損・上限はHRESULT。fileを作らない。
+ */
+//------------------------------------------------------------------------------
 NativeError collectOfficialPeResourceRanges( const std::span<const std::byte>	executable,
 											std::vector<OfficialResourceSlice> &resources)
 {

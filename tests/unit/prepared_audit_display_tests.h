@@ -2,7 +2,7 @@
 /**
  * @file prepared_audit_display_tests.h
  * @brief 取得後監査表示の内部試験契約。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 非機密の監査表示と全監査合格候補の発行境界を合成値で確認します。
@@ -38,10 +39,11 @@
 
 namespace drivercrate::test {
 class TestContext ;
+//------------------------------------------------------------------------------
 /**
- * @brief 合成監査と候補だけで表示・発行境界を検証する。
- * 表示変換、候補発行、境界拒否、Controller選択を合成値だけで確認する。
+ * @brief 合成監査と候補だけで表示・発行境界を検証する。表示変換、候補発行、境界拒否、Controller選択を合成値だけで確認する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void runPreparedAuditDisplayTests( TestContext &context) ;
 } // namespace drivercrate::test

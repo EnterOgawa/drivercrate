@@ -2,7 +2,7 @@
 /**
  * @file windows_product_type.cpp
  * @brief Windows client／server種別判定実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Version Helper、RtlGetVersion、GetProductInfoで実OS条件を判定します。判定不能時は復元保護、公式検索、前回観測の条件を緩和しません。
@@ -47,7 +48,10 @@ namespace drivercrate {
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/windows_product_type.h 宣言側の契約を正本とする。
+ * @brief 実行中OSがWindows Server productかを判定する。Version Helperのproduct type判定を使用する。Serverと確認できない結果では復元ポ
+ *        イントなしinstallを許可しない。
+ * @return Windows Serverの場合は`true`。Clientまたは判定不能の場合は`false`。 Windows Serverの場合は`true`。その他は`false`。
+ * @note Server専用の復元ポイントなしinstallを許可するworker境界でも再確認する。
  */
 //------------------------------------------------------------------------------
 bool isWindowsServer() noexcept
@@ -57,7 +61,10 @@ bool isWindowsServer() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/windows_product_type.h 宣言側の契約を正本とする。
+ * @brief 実行中Windowsのmajor build番号を取得する。Processに既に存在するntdllのRtlGetVersionを使用し、固定OS向け公式配布を別世代へ表示しないため
+ *        に使用する。
+ * @return 取得できたbuild番号。判定不能、0、32bit超過の場合は0。 実行中Windowsのmajor build番号。判定不能時は0。
+ * @note Manifestによるversion仮想化を避けるためworker内のOS境界判定に使用する。
  */
 //------------------------------------------------------------------------------
 std::uint32_t currentWindowsBuildNumber() noexcept
@@ -90,7 +97,10 @@ std::uint32_t currentWindowsBuildNumber() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/windows_product_type.h 宣言側の契約を正本とする。
+ * @brief 実行中Windowsのproduct SKUを取得する。Windows 10以降の10.0 versionを指定して実product SKUを取得し、edition変更時に前回
+ *        release観測を失効可能にする。
+ * @return GetProductInfoが返したPRODUCT_*値。取得不能または未定義時は0。 GetProductInfoが返すPRODUCT_*値。取得不能時は0。
+ * @note 端末内OS fingerprintへedition差を反映するためだけに使用する。
  */
 //------------------------------------------------------------------------------
 std::uint32_t currentWindowsProductSku() noexcept

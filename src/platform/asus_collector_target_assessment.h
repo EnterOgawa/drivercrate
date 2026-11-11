@@ -2,7 +2,7 @@
 /**
  * @file asus_collector_target_assessment.h
  * @brief 同一ASUS本文の一時候補と公開対象を三状態で照合します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/28  公開target三状態と複数候補番号の純粋照合を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/28  必須制御付き候補／対象照合入口を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 公開値だけを結果へ保持します。HTTP・取得・端末PnP照合は行いません。
@@ -124,7 +125,6 @@ struct AsusCollectorTargetAssessment {
 //------------------------------------------------------------------------------
 // 公開関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief 同じ解析済みpageと一時候補を最大300公開対象に照合します。
  * @param[in] page 同一storeから得た所有解析結果。公式GET証拠は含みません。
@@ -134,12 +134,14 @@ struct AsusCollectorTargetAssessment {
  * @return 集合境界と候補の同一page結合が成立した場合true。
  * @note 本関数はURL、EULA本文、fingerprint、GET出典、取得許可を結果に含めません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool inspectAsusCollectorTargets(
 	const AsusCollectorPageResult					 &page,
 	std::span<const OfficialCollectorRecordCandidate> candidates,
 	std::span<const AsusCollectorTargetQuery>		  targets,
 	std::vector<AsusCollectorTargetAssessment>		 &assessments) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じcoreで停止・失敗と候補／対象の照合結果を分けます。
  * @param[in] page 同じ本文のpage。
@@ -149,6 +151,7 @@ struct AsusCollectorTargetAssessment {
  * @param[out] assessments 完了時のみ公開する所有値。
  * @return 解析／照合の型付き終了。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CollectorParserResult inspectAsusCollectorTargetsControlled(
 	const AsusCollectorPageResult					 &page,
 	std::span<const OfficialCollectorRecordCandidate> candidates,

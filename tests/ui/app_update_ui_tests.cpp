@@ -2,7 +2,7 @@
 /**
  * @file app_update_ui_tests.cpp
  * @brief App更新の非通信MainWindow境界を確認します。
- * @version 01.00.00
+ * @version 01.00.02
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,8 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  取消しterminalのUI受領を次の直接commandより先に確認。
  * </pre>
  * @note 実driver/HTTP/Explorer/Setupを呼ばず同じUIだけを操作します。
  * @see docs/adr/0481-app-inno-setup-and-update-checks.md
@@ -51,20 +53,22 @@ struct AppUiState {
 /** @brief 更新を完全fakeで返すUI専用backendです。 */
 class UiBackend final : public AppUpdateBackend {
 public:
-	/** @brief Window/workerでcounterだけを共有します。
+	/**
+	 * @brief Window/workerでcounterだけを共有します。
 	 * @param[in] state 完全fakeの共有状態です。
 	 */
 	explicit UiBackend( std::shared_ptr<AppUiState> state) : state_( std::move( state))
 	{
 	}
-	/** @brief 架空の新版だけを返します。
+	/**
+	 * @brief 架空の新版だけを返します。
 	 * @param[in] cancellation 同じ操作の取消しです。
 	 * @return 実行権限を持たない宣言です。
 	 */
 	AppUpdateEvent check( const AppUpdateCancellation &cancellation) noexcept override
 	{
 		++state_->checks ;
-		// close取消しまたは固定期限までだけ待ちます。
+		// close取消しを確認しながら最大3000回待機します。実時間の固定上界は保証しません。
 		for( unsigned count{}; state_->holdChecks && !cancellation() && count < 3000U; ++count) {
 			Sleep( 1U) ;
 		}
@@ -73,7 +77,8 @@ public:
 		event.release = AppUpdateRelease{{{1U, 0U, 6U}}, 1U, std::string( 64U, 'a')} ;
 		return event ;
 	}
-	/** @brief 明示同意後だけ取得を数えます。
+	/**
+	 * @brief 明示同意後だけ取得を数えます。
 	 * @param[in] release 元の完全宣言です。
 	 * @param[in] cancellation 同じ取得の取消しです。
 	 * @return 固定成功または取消しです。
@@ -83,7 +88,7 @@ public:
 	{
 		static_cast<void>( release) ;
 		++state_->downloads ;
-		// UIの取消しを最大3秒だけ待ちます。
+		// 取消しを確認しながらSleep(1)を最大3000回行います。実時間の3秒上界ではありません。
 		for( unsigned count{}; state_->holdDownloads && !cancellation() && count < 3000U; ++count) {
 			Sleep( 1U) ;
 		}
@@ -92,10 +97,12 @@ public:
 												 HRESULT_FROM_WIN32( ERROR_CANCELLED), 0U, 0U}
 							  : AppUpdateFailure{} ;
 	}
-	/** @brief Explorer失敗時に元Windowが残ることを確認します。
-	 * @param[in] release 元の完全宣言です。
-	 * @param[in] cancellation 引継ぎ前の取消しです。
-	 * @return 固定の失敗です。
+	/**
+	 * @brief 引継ぎ回数を記録し、固定のLAUNCH失敗を返すUI fakeです。
+	 * @param[in] release 使用しない架空の宣言です。検証しません。
+	 * @param[in] cancellation 使用せず呼び出さない取消し関数です。
+	 * @return 常にLAUNCH/E_ACCESSDENIEDです。
+	 * @note 実Explorer・process起動・取消し確認を行いません。失敗後のWindow保持は外側の試験で確認します。
 	 */
 	AppUpdateFailure launch( const AppUpdateRelease		&release,
 							const AppUpdateCancellation &cancellation) noexcept override
@@ -110,10 +117,14 @@ private:
 	/// workerが終了するまでだけ共有します。
 	std::shared_ptr<AppUiState> state_ ;
 } ;
-/** @brief 同じprivate desktopのmessageだけを有限に処理します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じprivate desktopのmessageだけを有限に処理します。
  * @param[in] done 終端の純粋照会です。
- * @return 最大5秒内に終端した場合はtrueです。
+ * @return 外側の期限確認を続けられる間にdoneがtrueを返した場合true、期限判定でloopを終えた場合falseです。
+ * @note GetTickCount64の約5秒期限を外側loopで検査します。message処理・doneやOS呼出しの所要時間まで5秒に制限しません。
  */
+//------------------------------------------------------------------------------
 bool until( const std::function<bool()> &done)
 {
 	const auto end = GetTickCount64() + 5000U ;	// fixture一段階だけの期限です。
@@ -142,7 +153,8 @@ bool until( const std::function<bool()> &done)
 }
 /** @brief 内部targetだけで通常MainWindowを直接確認します。 */
 struct MainWindowAppUpdateTestAccess {
-	/** @brief 元driver state/operationと更新stateの非混線を確認します。
+	/**
+	 * @brief 元driver state/operationと更新stateの非混線を確認します。
 	 * @param[in,out] context 固定期待の集計先です。
 	 */
 	static void run( test::TestContext &context)
@@ -193,7 +205,12 @@ struct MainWindowAppUpdateTestAccess {
 										window.controller_.activeOperationId() == operation) ;
 		DRIVERCRATE_EXPECT( context, window.handleAppUpdateCommand( IDM_APP_UPDATE_CHECK)) ;
 		DRIVERCRATE_EXPECT( context, until( [&]() { return !window.appUpdateActive() ; })) ;
-		DRIVERCRATE_EXPECT( context, app->launches == 0U && IsWindow( window.window_)) ;
+		// workerのIDLE公開だけでなく、同じUIへ取消しterminalを受領させます。
+		window.processAppUpdateEvents() ;
+		DRIVERCRATE_EXPECT( context, app->launches == 0U && IsWindow( window.window_) &&
+										window.appUpdates_->stage() == AppUpdateStage::IDLE &&
+										IsWindowEnabled( window.scanButton_) &&
+										window.testAppUpdateFailures_ == 0U) ;
 		app->holdDownloads = false ;
 		DRIVERCRATE_EXPECT( context, window.handleAppUpdateCommand( IDM_APP_UPDATE_CHECK)) ;
 		DRIVERCRATE_EXPECT( context, until( [&]() {
@@ -215,7 +232,12 @@ struct MainWindowAppUpdateTestAccess {
 	}
 } ;
 namespace test {
-/** @see app_update_ui_tests.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 通知/driver busy/modal/取消し/引継ぎ失敗/closeを確認します。
+ * @param[in,out] context 固定期待の集計先です。
+ */
+//------------------------------------------------------------------------------
 void runAppUpdateUiTests( TestContext &context)
 {
 	MainWindowAppUpdateTestAccess::run( context) ;

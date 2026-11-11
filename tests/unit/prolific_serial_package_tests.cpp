@@ -2,7 +2,7 @@
 /**
  * @file prolific_serial_package_tests.cpp
  * @brief Prolific Serial利用者指定ZIP検証単体試験実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Networkや実driverを使用せず、標準USB IDの完全一致とfail-closed入力を検証します。
@@ -139,7 +140,9 @@ void testInvalidPackageInput( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/prolific_serial_package_tests.h 宣言側の契約を正本とする。
+ * @brief Prolific Serial packageのPnP ID照合と入力拒否境界を検証する。Prolific Serial packageの全単体試験を実行する。USB ID境界と入
+ *        力拒否を順番に検証する。
+ * @param[in,out] context Assertion件数と失敗内容の集計先。 Assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runProlificSerialPackageTests( TestContext &context)

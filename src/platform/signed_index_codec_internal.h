@@ -2,7 +2,7 @@
 /**
  * @file signed_index_codec_internal.h
  * @brief 署名wrapperと未署名候補が共有する値codecを定義します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/23  認証型を作らない共通値codecを抽出。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 値の検査だけです。認証receipt、信頼鍵、通信能力を作りません。
  * @see docs/adr/0396-collector-distribution-pipeline-connection.md
@@ -87,32 +88,41 @@ struct DecodedIndexRecords {
 	std::optional<DecodedIndexRecordsData> data ;
 } ;
 
-/** @brief 既存manifest意味codecを認証型の作成なしで実行します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存manifest意味codecを認証型の作成なしで実行します。
  * @param[in] bytes 最大64KiBの原UTF-8です。
  * @param[in] expectedKeyId 署名側または候補channelで固定したkey IDです。
  * @param[in] nowUtc 確認済みUTCです。欠損は拒否します。
  * @return 同じschema/期限/asset検査の値結果です。署名検証は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] DecodedIndexManifest decodeIndexManifestData(
 	std::string_view bytes, std::string_view expectedKeyId,
 	std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
 
-/** @brief 実GZip byteを同じhash/容量/圧縮率/CRC規則で検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実GZip byteを同じhash/容量/圧縮率/CRC規則で検査します。
  * @param[in] manifest 呼出側が意味検査済みの値です。認証の有無を表しません。
  * @param[in] compressed 最大32MiBの実byteです。
  * @param[in] nowUtc 確認済みUTCです。
  * @return 未認証の展開値だけを所有する結果です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] DecodedIndexAsset decodeIndexAssetData(
 	const IndexManifestData &manifest, std::span<const std::byte> compressed,
 	std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
 
-/** @brief 展開byteの原record/schema/参照/qualityを共通codecで検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 展開byteの原record/schema/参照/qualityを共通codecで検査します。
  * @param[in] manifest 同じ原manifestの検査済み値です。
  * @param[in] expanded 同じasset値codecの展開byteです。
  * @param[in] nowUtc 確認済みUTCです。
  * @return 未認証の全値結果です。署名receiptは構築しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] DecodedIndexRecords decodeIndexRecordsData(
 	const IndexManifestData &manifest, std::span<const std::byte> expanded,
 	std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;

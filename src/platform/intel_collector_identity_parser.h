@@ -2,7 +2,7 @@
 /**
  * @file intel_collector_identity_parser.h
  * @brief Intel配布pageの公開製品identity純粋解析API。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/28  有限Intel製品identity解析を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/28  同じhero内の配布button拘束を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/28  必須制御付きの型付き入口を追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 通信・record生成・出典証明・driver適用性判定は行いません。
@@ -91,16 +92,18 @@ struct IntelCollectorIdentityResult {
 	std::vector<IntelCollectorProductIdentity> products ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 727998配布pageの専用対応製品一覧を通信なしで解析します。
  * @param[in] html 呼出し中だけ借用する最大4 Mi UTF-16本文。
  * @return 所有identityと診断。構造拒否時は部分identityを返さない。
- * @note 純粋関数であり、公式性・record・適用性・取得許可を発行しません。
- *       配布parserとの同一本文結合とGET所有型は後段の責務です。
+ * @note 純粋関数であり、公式性・record・適用性・取得許可を発行しません。配布parserとの同一本文結合とGET所有型は後段の責務です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IntelCollectorIdentityResult parseIntelCollectorProductIdentity(
 	std::wstring_view html) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 製品一覧と、同じ左panelの配布heroにある正確な一buttonを解析します。
  * @param[in] html 配布parserへも渡した同一UTF-16本文。
@@ -108,9 +111,11 @@ struct IntelCollectorIdentityResult {
  * @return URLを保持しないidentity結果。HeroでURLが一意に結べなければ全体拒否です。
  * @note URLと本文の公式GET出典・payload取得権限は検証しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IntelCollectorIdentityResult parseIntelCollectorProductIdentityForPayload(
 	std::wstring_view html, std::wstring_view expectedDownloadUrl) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じ内部coreで停止・上限・構造・例外を区別する収集専用入口です。
  * @param[in] html 最大4 Mi UTF-16の有限本文。
@@ -119,6 +124,7 @@ struct IntelCollectorIdentityResult {
  * @param[out] result COMPLETED時だけ公開する所有値。未掲載は正常終了のsource状態です。
  * @return 候補適合性とは独立した解析終了値。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CollectorParserResult parseIntelCollectorProductIdentityControlled(
 	std::wstring_view html, std::wstring_view expectedDownloadUrl,
 	OfficialCollectorHttpControl &control, IntelCollectorIdentityResult &result) ;

@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_fixture.cpp
  * @brief 専用Win32画面試験の非通信Provider契約。
- * @version 01.20.00
+ * @version 01.20.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -46,6 +46,7 @@
  * Ver.01.18.00 Shunji Ogawa  2026/11/09  導入後fresh metadataの原全文六応答scheduleを限定追加。
  * Ver.01.19.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.20.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.20.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 製品EXEへ組み込まず、内部UI試験だけで使用する。
@@ -403,7 +404,10 @@ private:
 /** @brief Windows System Restoreを初期化しない復旧fake。 */
 class MetadataUiRestore final : public IRestorePointService {
 public:
-	/** @brief 拒否専用fakeは実在保護を生成しません。@return 元拒否区分です。 */
+	/**
+	 * @brief 拒否専用fakeは実在保護を生成しません。
+	 * @return 元拒否区分です。
+	 */
 	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
 	{
 		return {.disposition  = RestorePointDisposition::UNAVAILABLE,
@@ -448,13 +452,25 @@ private:
 
 } // namespace
 
-/** @see support/metadata_ui_fixture.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 非通信Providerだけを生成するfactoryを返す。
+ * @param[in] state Worker終了まで両threadが共有する状態。
+ * @return 実Providerへfallbackしない生成関数。
+ */
+//------------------------------------------------------------------------------
 ProviderFactory metadataUiProviderFactory( std::shared_ptr<MetadataUiState> state)
 {
 	return [state = std::move( state)] { return std::make_unique<MetadataUiProvider>( state) ; } ;
 }
 
-/** @see support/metadata_ui_fixture.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Windows復旧APIを使用しないservice factoryを返す。
+ * @param[in] state 誤呼出しcounterの共有先。
+ * @return 常に合成失敗を返すserviceの生成関数。
+ */
+//------------------------------------------------------------------------------
 RestorePointFactory metadataUiRestoreFactory( std::shared_ptr<MetadataUiState> state)
 {
 	return [state = std::move( state)] { return std::make_unique<MetadataUiRestore>( state) ; } ;
@@ -472,9 +488,12 @@ const std::chrono::sys_seconds NOW =
 constexpr std::string_view ASSET_HASH =
 	"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" ;
 
-/** @brief API失敗をfixture成功へ変換せずunit processへ通知します。
+//------------------------------------------------------------------------------
+/**
+ * @brief API失敗をfixture成功へ変換せずunit processへ通知します。
  * @param[in] status 元NTSTATUS。
  */
+//------------------------------------------------------------------------------
 void checkNative( const NTSTATUS status)
 {
 	// 秘密materialを含まない固定説明だけでfixture生成失敗を通知する。
@@ -486,9 +505,13 @@ void checkNative( const NTSTATUS status)
 /** @brief 鍵生成・署名に使うCNG resourceをRAM内だけで単独所有します。 */
 class RamKey final {
 public:
-	/** @brief 取得前のownerを作ります。 */
+	/**
+	 * @brief 取得前のownerを作ります。
+	 */
 	RamKey() = default ;
-	/** @brief 秘密鍵を含むCNG handleとalgorithmを全経路で解放します。 */
+	/**
+	 * @brief 秘密鍵を含むCNG handleとalgorithmを全経路で解放します。
+	 */
 	~RamKey() noexcept
 	{
 		// 鍵をalgorithmより先に回収し、秘密鍵を永続化しない。
@@ -506,17 +529,20 @@ public:
 			static_cast<void>( BCryptCloseAlgorithmProvider( rsa_, 0U)) ;
 		}
 	}
-	/** @brief 単独所有のためコピー構築を禁止します。 */
+	/**
+	 * @brief 単独所有のためコピー構築を禁止します。
+	 */
 	RamKey( const RamKey &) = delete ;
-	/** @brief 単独所有のためコピー代入を禁止します。
-     * @return 呼出しは禁止されます。
-     */
+	/**
+	 * @brief 単独所有のためコピー代入を禁止します。
+	 */
 	RamKey &operator=( const RamKey &) = delete ;
 
-	/** @brief 名前を持たない非永続RSA鍵を一回生成します。
-     * @param[in] bits FixtureのRSA bit長。
-     * @note Public blobだけをexportします。秘密鍵exportやNCrypt永続storeを使いません。
-     */
+	/**
+	 * @brief 名前を持たない非永続RSA鍵を一回生成します。
+	 * @param[in] bits FixtureのRSA bit長。
+	 * @note Public blobだけをexportします。秘密鍵exportやNCrypt永続storeを使いません。
+	 */
 	void	generate( const ULONG bits)
 	{
 		checkNative( BCryptOpenAlgorithmProvider( &rsa_, BCRYPT_RSA_ALGORITHM, nullptr, 0U)) ;
@@ -531,10 +557,11 @@ public:
 		publicBlob.resize( bytes) ;
 	}
 
-	/** @brief Test側の独立CNG hashで原byteをSHA-256へ結合します。
-     * @param[in] bytes 原byte。
-     * @return 実CNG digest。
-     */
+	/**
+	 * @brief Test側の独立CNG hashで原byteをSHA-256へ結合します。
+	 * @param[in] bytes 原byte。
+	 * @return 実CNG digest。
+	 */
 	[[nodiscard]] IndexManifestSha256 digest( const std::string_view bytes) const
 	{
 		std::vector<std::uint8_t> input( bytes.begin(), bytes.end()) ;	// CNG境界だけの所有copy。
@@ -544,11 +571,12 @@ public:
 		return hash ;
 	}
 
-	/** @brief 原byteをRAM内private keyで実RSA-PSS署名します。
-     * @param[in] bytes 署名対象。再整形しません。
-     * @param[in] saltBytes 固定32または拒否fixture用の別salt長。
-     * @return 原byteに対する実署名。
-     */
+	/**
+	 * @brief 原byteをRAM内private keyで実RSA-PSS署名します。
+	 * @param[in] bytes 署名対象。再整形しません。
+	 * @param[in] saltBytes 固定32または拒否fixture用の別salt長。
+	 * @return 原byteに対する実署名。
+	 */
 	[[nodiscard]] std::vector<std::uint8_t> sign( const std::string_view bytes,
 												 const ULONG			saltBytes = 32U) const
 	{
@@ -575,10 +603,13 @@ private:
 	BCRYPT_ALG_HANDLE sha_{} ;
 } ;
 
-/** @brief Test側で正規base64を作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief Test側で正規base64を作ります。
  * @param[in] bytes 原byte。
  * @return 標準alphabetと正規paddingのASCII。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string encodeBase64( const std::span<const std::uint8_t> bytes)
 {
 	constexpr std::string_view ALPHABET =
@@ -600,10 +631,13 @@ private:
 	return encoded ;
 }
 
-/** @brief UTF-8原byteをtest側base64へ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief UTF-8原byteをtest側base64へ変換します。
  * @param[in] bytes 原UTF-8。
  * @return 原byteのbase64。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string encodeText( const std::string_view bytes)
 {
 	const std::vector<std::uint8_t> input( bytes.begin(),
@@ -612,9 +646,12 @@ private:
 	return encodeBase64( input) ;
 }
 
-/** @brief 人工manifest原byteを作ります。Field順は製品契約として固定しません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 人工manifest原byteを作ります。Field順は製品契約として固定しません。
  * @return 全必須値を持つ架空manifest。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string manifest()
 {
 	return "{\"schema\":\"driver-index-manifest-v1\",\"repository\":\"EnterOgawa/drivercrate\","
@@ -628,12 +665,15 @@ private:
 		   "\"metadataOnlyCount\":1,\"contentInspectedCount\":1,\"unconfirmedCount\":1}}" ;
 }
 
-/** @brief 一箇所だけを意図した値へ変える拒否fixtureを作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一箇所だけを意図した値へ変える拒否fixtureを作ります。
  * @param[in] bytes 元fixture。
  * @param[in] before 必ず存在する元断片。
  * @param[in] after 変更断片。
  * @return 一箇所を変更した所有原byte。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string replaced( std::string bytes, const std::string_view before,
 								   const std::string_view after)
 {
@@ -647,12 +687,15 @@ private:
 	return bytes ;
 }
 
-/** @brief Testで署名済み原byteを有限envelopeへ包みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief Testで署名済み原byteを有限envelopeへ包みます。
  * @param[in] raw 元manifest。
  * @param[in] signature 元署名。
  * @param[in] keyId 外側ID。
  * @return 署名対象を再serializationしない外側JSON。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string envelope( const std::string_view			   raw,
 								   const std::span<const std::uint8_t> signature,
 								   const std::string_view			   keyId = "fixture-main")
@@ -669,11 +712,14 @@ constexpr std::string_view RECORD_CLAIM_HASH =
 constexpr std::string_view RECORD_EVIDENCE_HASH =
 	"2222222222222222222222222222222222222222222222222222222222222222" ;
 
-/** @brief Test側の独立CNG原hashを小文字hexへ表現します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Test側の独立CNG原hashを小文字hexへ表現します。
  * @param[in] key 既存RAM鍵helper。秘密materialをexportしません。
  * @param[in] raw 元byte。
  * @return 実原bytehashの小文字64桁。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string recordDigest( const RamKey &key, const std::string_view raw)
 {
 	const auto				   hash = key.digest( raw) ;	// 同じRAM helperの独立実CNG digest。
@@ -688,12 +734,15 @@ constexpr std::string_view RECORD_EVIDENCE_HASH =
 	return result ;
 }
 
-/** @brief 原record byteだけをentryへ結びます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原record byteだけをentryへ結びます。
  * @param[in] key 既存RAM helper。
  * @param[in] raw 原UTF-8。
  * @param[in] hashOverride Hash取り違え用の明示digest。空は実原hashです。
  * @return 原byteを再整形しないbase64 entry。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string recordEntry( const RamKey &key, const std::string_view raw,
 									  const std::string_view hashOverride = {})
 {
@@ -701,11 +750,14 @@ constexpr std::string_view RECORD_EVIDENCE_HASH =
 		   (hashOverride.empty() ? recordDigest( key, raw) : std::string{hashOverride}) + "\"}" ;
 }
 
-/** @brief 架空sourceの公開申告またはUNKNOWNを作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空sourceの公開申告またはUNKNOWNを作ります。
  * @param[in] id 架空のASCII identity。
  * @param[in] unknown 元公式性未確認を保持する指定。
  * @return 通信しないtestだけのsource JSON。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string recordSource( const std::string_view id	  = "fixture-source",
 									   const bool			  unknown = false)
 {
@@ -720,16 +772,21 @@ constexpr std::string_view RECORD_EVIDENCE_HASH =
 		   "\"officialEvidence\":" + evidence + "}" ;
 }
 
-/** @brief 明示既知のtext条件を作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示既知のtext条件を作ります。
  * @param[in] value 固定架空値。Quoteを含みません。
  * @return Test用KNOWN JSON。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string recordKnown( const std::string_view value)
 {
 	return "{\"state\":\"KNOWN\",\"value\":\"" + std::string{value} + "\",\"reason\":\"\"}" ;
 }
 
-/** @brief 架空recordの完全な型付き元申告を作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空recordの完全な型付き元申告を作ります。
  * @param[in] id Source内の架空identity。
  * @param[in] identityPublished PnP evidenceの元申告を持つ指定。FalseではUNKNOWNを保持します。
  * @param[in] stage 発行側の段階。
@@ -737,6 +794,7 @@ constexpr std::string_view RECORD_EVIDENCE_HASH =
  * @return Test専用の元record byte。
  * @note 通常文字列で元byteを保持し、Doxygenのraw JSON誤解析によるmember欠落を避けます。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string distributionRecord( const std::string_view id				  = "metadata",
 											 const bool				identityPublished = true,
 											 const std::string_view stage  = "METADATA_ONLY",
@@ -783,11 +841,14 @@ constexpr std::string_view RECORD_EVIDENCE_HASH =
 		   "\",\"publishedIdentityEvidence\":" + identity + "}" ;
 }
 
-/** @brief 静的取得descriptorの完全な人工元申告を作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 静的取得descriptorの完全な人工元申告を作ります。
  * @param[in] unknown 取得情報だけを明示UNKNOWNへする指定。
  * @param[in] rich 規約全文と具体的条件を含む入れ子の正例を作る指定。
  * @return 通信や同意を行わない全13fieldの人工JSON。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string descriptorFixture( const bool unknown = false, const bool rich = false)
 {
 	const std::string evidence{RECORD_EVIDENCE_HASH} ;	// 元出典byteの架空申告。
@@ -816,11 +877,14 @@ constexpr std::string_view RECORD_EVIDENCE_HASH =
 		   evidence + "\"}}" ;
 }
 
-/** @brief Descriptorをschemaより先に置くv2原recordを作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief Descriptorをschemaより先に置くv2原recordを作ります。
  * @param[in] descriptor 全13fieldの人工元取得情報。
  * @param[in] raw 旧14fieldの人工record。欠損を補いません。
  * @return 原field順を明示した15fieldの人工record。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string descriptorRecord( const std::string_view descriptor,
 										   std::string			  raw = distributionRecord())
 {
@@ -828,11 +892,14 @@ constexpr std::string_view RECORD_EVIDENCE_HASH =
 	return "{\"acquisitionDescriptor\":" + std::string{descriptor} + "," + raw.substr( 1U) ;
 }
 
-/** @brief Sourcesとrecordsをouter schemaより先に置くv2原indexを作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief Sourcesとrecordsをouter schemaより先に置くv2原indexを作ります。
  * @param[in] sources 人工source集合。
  * @param[in] entries 原byteと実hashに結合した人工entry集合。
  * @return Outer field順を固定しない全4fieldの人工index。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string descriptorIndex( const std::string_view sources,
 										  const std::string_view entries)
 {
@@ -840,10 +907,13 @@ constexpr std::string_view RECORD_EVIDENCE_HASH =
 		   "],\"assetGeneration\":7,\"schema\":\"driver-index-records-v2\"}" ;
 }
 
-/** @brief 架空原byteをminizで実圧縮し、CRC／ISIZEを持つ単一GZipを作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空原byteをminizで実圧縮し、CRC／ISIZEを持つ単一GZipを作ります。
  * @param[in] raw 架空の不変原byte。最大128MiB+1で、巨大fixtureは同一文字の繰返しです。
  * @return 実Deflateを持つ単一member。失敗時はtest processへ例外を通知します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::vector<std::byte> assetGzip( const std::string_view raw)
 {
 	const std::size_t		   capacity = raw.size() > 1024U * 1024U
@@ -956,13 +1026,15 @@ struct DelegatedHttpFixture {
 // WinHttpOpenと注入clockから現在fixtureを解決する試験thread限定の借用先。
 thread_local DelegatedHttpFixture  *activeDelegatedHttpFixture{} ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Delegated GET専用の完全な非通信I/O表を作る。
  * @return WinHTTP、DNS、UTCの全境界を現在threadのfixtureへ委譲する表。
  * @pre 呼出しthreadのactiveDelegatedHttpFixtureは、そのworker停止まで所有するfixtureを指します。
- * @note Fake handleは同fixtureを借用し、実通信へのfallbackを持ちません。
- * 固定headerや安全optionが一致しない呼出しはsafeRequestへ残し、終端後の観測で拒否します。
+ * @note Fake handleは同fixtureを借用し、実通信へのfallbackを持ちません。固定headerや安全optionが一致しない呼出しはsafeRequestへ残し、終端後の
+ *       観測で拒否します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialHttpTransport makeDelegatedHttpTransport()
 {
 	OfficialHttpTransport transport ;	// 全低位I/Oを以下のfakeで置換する結果。
@@ -1225,7 +1297,9 @@ thread_local DelegatedHttpFixture  *activeDelegatedHttpFixture{} ;
 	return transport ;
 }
 
-/** @brief 有限recordとINF条件を持つ人工IDだけの非空ZIPをRAMで作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限recordとINF条件を持つ人工IDだけの非空ZIPをRAMで作ります。
  * @param[in] partial 二つの架空PnP IDを含める場合trueです。
  * @param[in] multiInf 独立して検証する二つ目の基本INFを含める場合trueです。
  * @param[in] capacityBoundary 正常なINFを33組含む入力の場合trueです。
@@ -1234,6 +1308,7 @@ thread_local DelegatedHttpFixture  *activeDelegatedHttpFixture{} ;
  * @param[in] archiveInfCount 0は従来入力、128または129は独立したarchive境界の基本INF閉包数です。
  * @return 実原container。人工CATは実署名の証明ではありません。
  */
+//------------------------------------------------------------------------------
 std::string uiDriverZip( const bool partial, const bool multiInf, const bool capacityBoundary,
 						const bool unknownDependency, const unsigned componentCase = 0U,
 						const unsigned archiveInfCount = 0U)
@@ -2026,7 +2101,9 @@ std::string uiDriverZip( const bool partial, const bool multiInf, const bool cap
 	return {static_cast<const char *>( owner.get()), bytes} ;
 }
 
-/** @brief 自作ZIPの元INFと明示Models節を署名fixtureの公開tupleへ結びます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 自作ZIPの元INFと明示Models節を署名fixtureの公開tupleへ結びます。
  * @param[in] key 同じRAM hash helperです。
  * @param[in] zip 自作した原ZIP byteです。
  * @param[in] member 同ZIPに実在する基本INF名です。
@@ -2035,6 +2112,7 @@ std::string uiDriverZip( const bool partial, const bool multiInf, const bool cap
  * @return 原INF hash/member/節/全公開IDへ結合した署名前のfixtureです。
  * @note SetupAPIのread-only HINFを使います。CAT/適合/候補成功を生成しません。
  */
+//------------------------------------------------------------------------------
 std::string uiInfIdentity( const RamKey &key, const std::string &zip, const std::string &member,
 						  const std::wstring &section, std::string raw)
 {
@@ -2169,7 +2247,8 @@ std::string uiInfIdentity( const RamKey &key, const std::string &zip, const std:
 /** @brief 実network cost照会を行わない固定低位境界です。 */
 class UiIndexCostReader final : public IOfficialNetworkCostReader {
 public:
-	/** @brief 無課金の架空回線条件だけを返します。
+	/**
+	 * @brief 無課金の架空回線条件だけを返します。
 	 * @param[out] cost 固定UNRESTRICTEDです。
 	 * @return 読取り成功0です。
 	 */
@@ -2181,12 +2260,15 @@ public:
 } ;
 } // namespace
 
-/** @brief 原ZIPの全memberを非圧縮CABへ実byte変換する有限fixtureです。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原ZIPの全memberを非圧縮CABへ実byte変換する有限fixtureです。
  * @param[in] zip 全原INF/CAT/memberを保持した実ZIPです。
  * @return 通常Windows CAB readerへ渡す非圧縮Cabinetの元全byteです。
  * @throws std::runtime_error 元ZIPを読めない場合、member上限超過または抽出失敗です。
  * @note zipは同期変換中だけ借用し、返却byteは呼出し側が所有します。実driver操作は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string uiDriverCabinet( const std::string &zip)
 {
 	mz_zip_archive reader{} ;	// 元ZIPをRAMで読む第三者readerです。
@@ -2261,7 +2343,24 @@ public:
 	cabinet += data ;
 	return cabinet ;
 }
-/** @see support/metadata_ui_fixture.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実CNG原byte署名から実commit/reloadした一または二record入力を作ります。
+ * @param[in] partial 異なる二deviceの二recordを生成する場合trueです。
+ * @param[in] shared 二recordの完全取得descriptorを一致させる場合trueです。
+ * @param[in] multiInf 二つの独立した基本INF/CAT/member閉包を含める場合trueです。
+ * @param[in] capacityBoundary 旧32件期待を超える33完全閉包の正常入力を生成する場合trueです。
+ * @param[in] unknownDependency 元INFへ未確認の具体的外部依存を含める場合trueです。
+ * @param[in] unknownPayloadEvidence 原recordのfull digest/size申告をUNKNOWNに保つ場合trueです。
+ * @param[in] options 事前固定した形式・規約全文・具体的条件です。
+ * @return 実認証を通した隔離storeと完全低位HTTP。生成失敗は例外です。
+ * @throws std::runtime_error 元署名・schema・保護storeまたは有限fixtureの生成が失敗した場合。
+ * @throws std::bad_alloc 所有する入力またはcallbackの確保が失敗した場合。
+ * @note 秘密鍵はRAMだけに保持し、製品trust・実network・実inventoryを使いません。CallbackはstoreとHTTP fixtureをworker停止まで共有所有し
+ *       ます。observeHttpは元終端eventの取得またはworker停止の同期完了後、または同workerのgrant直前の同期観測中だけ呼びます。HTTP callと並行しない条件で、同じ
+ *       fixtureの実安全option/header数を返します。
+ */
+//------------------------------------------------------------------------------
 SignedIndexUiInput makeSignedIndexUiInput( const bool partial, const bool shared,
 										  const bool multiInf, const bool capacityBoundary,
 										  const bool				 unknownDependency,

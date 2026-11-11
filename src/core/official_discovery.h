@@ -2,7 +2,7 @@
 /**
  * @file official_discovery.h
  * @brief 端末内起点の公式自動探索に使用する有限値型と検証契約。
- * @version 01.02.01
+ * @version 01.02.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Planner実行状態と未route device集合を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  一scan承認から固定自動探索要求を作る境界を追加。
  * Ver.01.02.01  Shunji Ogawa  2026/10/16  既定比較の引数と一致条件の契約を明記。
+ * Ver.01.02.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 本値型はURL、Hardware ID、Compatible ID、instance ID、serial、local pathを
@@ -254,49 +255,60 @@ struct OfficialDiscoverySummary {
 	std::vector<OfficialDiscoveryRouteSummary> routes ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 自動探索に使える既知capabilityと固定公式policyを検証する。
  * @param[in] descriptor 検証する一つのProvider登録定義。
  * @return 単一公式境界、SCAN、自動探索、固定policyが整合する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isOfficialDiscoveryProvider( const ProviderDescriptor &descriptor) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一回の要求とProvider集合を通信前に厳格検証する。
  * @param[in] request 開始時に所有copyする自動探索要求。
  * @param[in] descriptors Provider registryの正本または合成fixture。
  * @return Policy、purpose、権限、既定または明示集合が全て整合する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validateOfficialDiscoveryRequest(
 	const OfficialDiscoveryRequest	   &request,
 	std::span<const ProviderDescriptor> descriptors) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 通常scanの新しい一scan承認を自動探索requestへ権限拡張なしで変換する。
  * @param[in] options Provider集合と利用者へ表示した承認snapshot。
  * @param[in] descriptors Provider registryの正本または合成fixture。
  * @return 新承認と自動探索Providerが完全に整合する場合だけ固定request。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<OfficialDiscoveryRequest> makeStandardOfficialDiscoveryRequest(
 	const ScanOptions &options, std::span<const ProviderDescriptor> descriptors) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 遅延結果を拒否する三つの単調IDを検証する。
  * @param[in] binding Operation、scan session、inventory generationの結合。
  * @return 全IDが0ではない場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isOfficialDiscoveryBindingValid(
 	const OfficialDiscoveryBinding &binding) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Raw識別情報を持たない一deviceのhintと観測結合を検証する。
  * @param[in] hint 一つのpresent deviceから構築したlocal hint。
  * @param[in] scanSessionId 観測を結合する0ではないscan session ID。
  * @return 全有限値とopaque identityが妥当で観測が同じdeviceへ結合する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validateOfficialDiscoveryDeviceHint( const OfficialDiscoveryDeviceHint &hint,
 													   ScanSessionId scanSessionId) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一routeのProvider、固定root、device参照を完全一致で検証する。
  * @param[in] route 検証するroute。
@@ -304,19 +316,23 @@ struct OfficialDiscoverySummary {
  * @param[in] descriptors Provider registryの正本または合成fixture。
  * @return 全参照が一意で自動探索Providerと固定resourceへ結合する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validateOfficialDiscoveryRoute(
 	const OfficialDiscoveryRoute &route, std::span<const OfficialDiscoveryDeviceHint> devices,
 	std::span<const ProviderDescriptor> descriptors) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一route summaryのidentity、状態、診断、件数を元routeへ再結合する。
  * @param[in] route 開始時に検証した元route。
  * @param[in] summary Resolverまたはworkerが返した非機密集計。
  * @return Routeと全fieldが一致し、状態別件数が矛盾しない場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isOfficialDiscoveryRouteSummaryValid(
 	const OfficialDiscoveryRoute &route, const OfficialDiscoveryRouteSummary &summary) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開summaryを開始時binding、request、route集合へ一括で再結合する。
  * @param[in] binding 開始時に固定したoperation、session、inventoryの結合。
@@ -327,6 +343,7 @@ struct OfficialDiscoverySummary {
  * @param[in] descriptors Provider registryの正本または合成fixture。
  * @return 全snapshot、有限状態、件数が矛盾せず一対一に結合する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isOfficialDiscoverySummaryValid(
 	const OfficialDiscoveryBinding &binding, const OfficialDiscoveryRequest &request,
 	std::span<const OfficialDiscoveryDeviceHint> devices,

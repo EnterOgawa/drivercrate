@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_record_adapter_tests.h
  * @brief 公式自動探索固定root adapterの決定的単体試験を宣言する。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  固定root、失敗理由、秘密record保持試験を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実network、payload取得、実PnP、driver／installer実行を行わない合成fixtureだけを使用する。
@@ -33,10 +34,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定root adapterの成功、失敗保持、stale、二重実行、claimを検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialDiscoveryRecordAdapterTests( TestContext &context) ;
 
 } // namespace drivercrate::test

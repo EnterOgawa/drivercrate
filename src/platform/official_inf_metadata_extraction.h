@@ -2,7 +2,7 @@
 /**
  * @file official_inf_metadata_extraction.h
  * @brief ZIP／PEの全INFと署名補助CATを共通の有限境界で抽出する。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  非実行のINF／CAT共通抽出契約を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 同期worker専用。抽出は認証・署名合格・導入許可を発行しない。
@@ -48,6 +49,7 @@ enum class OfficialInfContainerFormat {
 inline constexpr OfficialZipExtractionPolicy OFFICIAL_INF_ARCHIVE_POLICY{
 	128ULL * 1024ULL * 1024ULL, 128ULL * 1024ULL * 1024ULL, 512ULL * 1024ULL * 1024ULL, 8192U} ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 明示ZIP／PEの全INFと全CATを、原byteから同じ保護領域へ抽出する。
  * @param[in] raw 本呼出し中に不変の全container。ZIP128 MiB／PE64 MiBまで。
@@ -57,9 +59,10 @@ inline constexpr OfficialZipExtractionPolicy OFFICIAL_INF_ARCHIVE_POLICY{
  * @return 完了0、形式・危険項目・容量・CRC・API・例外のHRESULT。
  * @pre 同期worker専用。入力storageは出力とaliasしない。
  * @post 失敗時のmetadataは空。部分fileはworkspaceで回収する。
- * @note INF64／個別ZIP4 MiB・PE1 MiB／合計16 MiB、CAT64／個別32 MiB、全metadata64 MiB。
- * CATなしでもINF抽出は成功できる。SYS／DLL／EXEは抽出・実行せず、署名は別に検査する。
+ * @note INF64／個別ZIP4 MiB・PE1 MiB／合計16 MiB、CAT64／個別32 MiB、全metadata64 MiB。CATなしでもINF抽出は成功できる。SYS／DLL
+ *       ／EXEは抽出・実行せず、署名は別に検査する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError extractOfficialInfMetadata( std::span<const std::byte>		raw,
 													 OfficialInfContainerFormat		format,
 													 OfficialDownloadWorkspace	   &workspace,

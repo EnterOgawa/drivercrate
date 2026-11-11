@@ -2,7 +2,7 @@
 /**
  * @file official_preparation.cpp
  * @brief 配布物単位の承認と取得taskの状態管理。
- * @version 01.05.00
+ * @version 01.05.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.04.01 Shunji Ogawa  2026/10/12  許諾本文の共通private helper契約を定義側へ補足。
  * Ver.01.05.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note URL解決と転送は行わず、ADR 0098の一度限りの承認境界を管理します。
@@ -56,7 +57,13 @@
 #include <vector>
 
 namespace drivercrate {
-/** @see official_preparation.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元sessionが所有するactive taskを固定します。
+ * @param[in] key 私有keyです。
+ * @param[in] task 所有検証済みtaskです。
+ */
+//------------------------------------------------------------------------------
 OfficialLocalInspectionEvidence::OfficialLocalInspectionEvidence(
 	MintKey key, const OfficialPreparationTask &task)
 	: operationId_( task.operationId), scanSessionId_( task.scanSessionId), planId_( task.planId),
@@ -64,7 +71,13 @@ OfficialLocalInspectionEvidence::OfficialLocalInspectionEvidence(
 {
 	static_cast<void>( key) ;
 }
-/** @see official_preparation.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief taskの全scopeを一対一照合します。
+ * @param[in] task 原承認から構成したtaskです。
+ * @return 全field一致だけtrueです。実行許可を生成しません。
+ */
+//------------------------------------------------------------------------------
 bool OfficialLocalInspectionEvidence::matches( const OfficialPreparationTask &task) const noexcept
 {
 	return operationId_ != 0U && operationId_ == task.operationId &&
@@ -386,13 +399,27 @@ static bool validPreparationEulaTextCore( const std::wstring_view   text,
 
 	return visible ;
 }
-/** @see official_preparation.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief EULA本文を変形せずに表示できる、有限なUTF-16 plain textか確認する。本文を切詰め・正規化せず、全文snapshotの比較で同revisionの変更も検出する。
+ * @param[in] text 同意対象の全文。呼出し中だけ参照する。 表示と同意に使用するUTF-16の全文。
+ * @return 非空・上限内で、制御文字や不正surrogateを含まない場合true。 非空・有限で、表示を妨げる制御を含まない場合true。
+ */
+//------------------------------------------------------------------------------
 bool validPreparationEulaText( std::wstring_view text) noexcept
 {
 	return validPreparationEulaTextCore( text, nullptr, nullptr) ;
 }
 
-/** @see official_preparation.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 旧入口と同じ検証を、最大256 UTF-16単位ごとの必須確認付きで行います。
+ * @param[in] text 有限許諾本文。
+ * @param[in] checkpoint 必須の同期callback。例外を変換しません。
+ * @param[in,out] context Callbackが借用する必須context。
+ * @return 有効な全文ならtrue。Null引数を無制御へ補完しません。
+ */
+//------------------------------------------------------------------------------
 bool validPreparationEulaTextControlled( std::wstring_view		  text,
 										PreparationTextCheckpoint checkpoint, void *context)
 {
@@ -407,7 +434,9 @@ bool validPreparationEulaTextControlled( std::wstring_view		  text,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_preparation.h 宣言側の契約を正本とする。
+ * @brief 新計画を固定する。同じscanでは予約予算を維持する。Active計画は維持する。それ以外の不正要求は旧計画を失効させ、予算高水位を残す。
+ * @param[in] plan workerが生成した新しい計画の所有値。 新計画の所有値。成功時に管理objectへ移す。
+ * @return 不正計画は拒否し、非active時には旧計画も失効させる。 受理時None。それ以外は拒否理由。
  */
 //------------------------------------------------------------------------------
 OfficialPreparationError OfficialPreparationSession::initialize( OfficialPreparationPlan plan)
@@ -449,7 +478,9 @@ OfficialPreparationError OfficialPreparationSession::initialize( OfficialPrepara
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_preparation.h 宣言側の契約を正本とする。
+ * @brief 全対象の判断を照合し、選択分の最大容量を一度だけ予約する。失敗時に一部だけ同意・予約しない。受理後の同じ計画は再使用できない。
+ * @param[in] approval 利用者が明示した計画全体への判断。 全対象の取得可否と提示時のsnapshot。
+ * @return 受理時None。それ以外はtaskを生成せず予算も変更しない。 全件照合と予約に成功した場合None。
  */
 //------------------------------------------------------------------------------
 OfficialPreparationError OfficialPreparationSession::approve(
@@ -558,7 +589,8 @@ OfficialPreparationError OfficialPreparationSession::approve(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_preparation.h 宣言側の契約を正本とする。
+ * @brief 未開始の選択対象を計画順に一つだけ開始済みにする。一度に一転送だけを許可し、コピー失敗時には開始済み状態へ変更しない。
+ * @return 次のtaskの所有値。未承認、取消し済み、別task実行中ならnullopt。 未開始の承認済みtask。開始できなければnullopt。
  */
 //------------------------------------------------------------------------------
 std::optional<OfficialPreparationTask> OfficialPreparationSession::claimNext()
@@ -589,7 +621,10 @@ std::optional<OfficialPreparationTask> OfficialPreparationSession::claimNext()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_preparation.h 宣言側の契約を正本とする。
+ * @brief 現在taskだけの確定結果を保存する。古い結果・矛盾したbyte数・未確定状態を拒否する。取得結果から導入許可を生成しない。
+ * @param[in] task claimNextが返した未変更token。 現在処理中の承認済みtoken。
+ * @param[in] result 共通取得層から変換した終端結果。 URLを含まない取得層の終端結果。
+ * @return 正しい結果を受理した場合true。不整合時は現在taskを維持してfalse。 一致する結果を受理した場合true。
  */
 //------------------------------------------------------------------------------
 bool OfficialPreparationSession::complete( const OfficialPreparationTask			  &task,
@@ -634,7 +669,7 @@ bool OfficialPreparationSession::complete( const OfficialPreparationTask			  &ta
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_preparation.h 宣言側の契約を正本とする。
+ * @brief 未開始の選択対象を取消す。開始済みtaskの結果は引き続き受け付ける。未開始だけを取消す。開始済みtaskは取得層の協調取消し結果まで保持する。
  */
 //------------------------------------------------------------------------------
 void OfficialPreparationSession::cancel() noexcept
@@ -666,7 +701,8 @@ void OfficialPreparationSession::cancel() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_preparation.h 宣言側の契約を正本とする。
+ * @brief 非active計画を失効させる。予算とIDの高水位は保持する。予約予算と単調IDを消さず、同じscanでの再初期化による予算回避を防ぐ。
+ * @return 失効時true。開始済み操作の完了待ちならfalse。 非active計画を失効させた場合true。
  */
 //------------------------------------------------------------------------------
 bool OfficialPreparationSession::invalidate() noexcept
@@ -690,7 +726,8 @@ bool OfficialPreparationSession::invalidate() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_preparation.h 宣言側の契約を正本とする。
+ * @brief 現在の計画状態を返す。Completedだけを根拠に全件取得成功と表示しない。
+ * @return 現在の計画状態。
  */
 //------------------------------------------------------------------------------
 OfficialPreparationState OfficialPreparationSession::state() const noexcept
@@ -700,7 +737,8 @@ OfficialPreparationState OfficialPreparationSession::state() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_preparation.h 宣言側の契約を正本とする。
+ * @brief 結果一覧を参照する。次の状態変更までだけ有効であり、別threadへviewを渡さない。
+ * @return 管理objectが所有する対象別状態の非所有view。
  */
 //------------------------------------------------------------------------------
 std::span<const OfficialPreparationItem> OfficialPreparationSession::items() const noexcept
@@ -710,7 +748,8 @@ std::span<const OfficialPreparationItem> OfficialPreparationSession::items() con
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_preparation.h 宣言側の契約を正本とする。
+ * @brief 確定した選択項目から進捗を返す。最大256件だけを集計し、経過時間や未選択項目で進捗を増やさない。
+ * @return 選択分の総件数と確定件数。
  */
 //------------------------------------------------------------------------------
 OfficialPreparationProgress OfficialPreparationSession::progress() const noexcept
@@ -732,14 +771,27 @@ OfficialPreparationProgress OfficialPreparationSession::progress() const noexcep
 	return result ;
 }
 
-/** @see OfficialPreparationSession 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 本sessionが実claimした未完了taskを公開tokenと完全照合します。
+ * @param[in] task 比較だけを行うtoken。自己申告では開始権限を得られません。
+ * @return PREPARINGで同じ私有active taskを保持する場合だけtrue。
+ * @note 同一workerで呼び、同意・公式性・導入許可の検査を代替しません。
+ */
+//------------------------------------------------------------------------------
 bool OfficialPreparationSession::ownsActiveTask( const OfficialPreparationTask &task) const noexcept
 {
 	return state_ == OfficialPreparationState::PREPARING && activeTask_.has_value() &&
 		   *activeTask_ == task ;
 }
 
-/** @see official_preparation.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同active taskを一回の非通信検査へ予約します。
+ * @param[in] task 所有active taskです。
+ * @return 未使用taskの照合票。失敗/別用途claim済みは空です。
+ */
+//------------------------------------------------------------------------------
 std::shared_ptr<const OfficialLocalInspectionEvidence> OfficialPreparationSession::
 	claimIndexLocalInspection( const OfficialPreparationTask &task) noexcept
 {
@@ -760,7 +812,13 @@ std::shared_ptr<const OfficialLocalInspectionEvidence> OfficialPreparationSessio
 	}
 }
 
-/** @see OfficialPreparationSession 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ実taskの索引grant発行をadapterをまたいで一回だけ予約します。
+ * @param[in] task 本sessionの未完了task。
+ * @return 完全一致の未使用taskを予約した場合だけtrue。
+ */
+//------------------------------------------------------------------------------
 bool OfficialPreparationSession::claimIndexAcquisition( const OfficialPreparationTask &task) noexcept
 {
 	// 別adapterや再初期化で同じ実taskの一回発行を回避しません。

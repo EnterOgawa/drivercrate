@@ -2,7 +2,7 @@
 /**
  * @file user_selected_inf_package_provider_tests.cpp
  * @brief 利用者選択INF Provider単体試験実装。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  共通Providerの未導入・欠損・複数port接続試験を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  複数INF、版分類、個別拒否の共通Provider試験を追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 署名検証済み相当の架空metadataだけを注入し、network、実Hardware ID、SetupAPI installを使用せずProviderのclass照合を検証します。
@@ -365,6 +366,7 @@ void testClassPolicyRejections( TestContext &context)
 	DRIVERCRATE_EXPECT( context, fixedMatcherResult.error == static_cast<NativeError>( E_INVALIDARG)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 共通Provider接続用の架空INF合格snapshotを一件生成する。
  * @param[in] scanSessionId 試験session。
@@ -374,6 +376,7 @@ void testClassPolicyRejections( TestContext &context)
  * @param[in] hasExternalDependencies 明示依存を未解決として保持する場合true。
  * @return 実fileや署名APIを使用しない個別合格snapshot。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CommonInfInspection makeFakeCommonInf( const ScanSessionId		scanSessionId,
 													const std::wstring_view infRelativePath,
 													const std::wstring_view driverVersion,
@@ -397,6 +400,7 @@ void testClassPolicyRejections( TestContext &context)
 	return inf ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 共通Provider接続だけに使う架空の内容合格snapshotを生成する。
  * @param[in] selectedPath 架空入力の非空path。
@@ -405,6 +409,7 @@ void testClassPolicyRejections( TestContext &context)
  * @param[out] contents 試験だけで生成する個別合格snapshot。
  * @return 正規の試験要求では0、それ以外はE_INVALIDARG。
  */
+//------------------------------------------------------------------------------
 NativeError inspectFakeCommonPackage( const std::wstring_view		 selectedPath,
 									 const ScanSessionId			 scanSessionId,
 									 OfficialDownloadWorkspace		&workspace,
@@ -438,6 +443,7 @@ NativeError inspectFakeCommonPackage( const std::wstring_view		 selectedPath,
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 改名・別directoryの二INFを同じ外側packageの個別結果として返す。
  * @param[in] selectedPath 架空入力の非空path。
@@ -446,6 +452,7 @@ NativeError inspectFakeCommonPackage( const std::wstring_view		 selectedPath,
  * @param[out] contents 試験だけで生成する二つの個別合格snapshot。
  * @return 正規の試験要求では0、それ以外はE_INVALIDARG。
  */
+//------------------------------------------------------------------------------
 NativeError inspectFakeMultipleCommonPackage( const std::wstring_view		 selectedPath,
 											 const ScanSessionId			 scanSessionId,
 											 OfficialDownloadWorkspace		&workspace,
@@ -470,6 +477,7 @@ NativeError inspectFakeMultipleCommonPackage( const std::wstring_view		 selected
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一INFの個別署名拒否と別INFの合格を同じpackage結果として返す。
  * @param[in] selectedPath 架空入力の非空path。
@@ -478,6 +486,7 @@ NativeError inspectFakeMultipleCommonPackage( const std::wstring_view		 selected
  * @param[out] contents 個別拒否と合格を保持するsnapshot。
  * @return 正規の試験要求では0、それ以外はE_INVALIDARG。
  */
+//------------------------------------------------------------------------------
 NativeError inspectFakePartialCommonPackage( const std::wstring_view			selectedPath,
 											const ScanSessionId				scanSessionId,
 											OfficialDownloadWorkspace	   &workspace,
@@ -500,10 +509,12 @@ NativeError inspectFakePartialCommonPackage( const std::wstring_view			selectedP
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 名称・現在版欠損と同一packageの複数portを共通Providerから候補化する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCommonProviderConnection( TestContext &context)
 {
 	UserSelectedInfProviderPolicy policy = makeFakePolicy( true, {}) ;	// 対象名で狭めない共通条件。
@@ -605,10 +616,12 @@ void testCommonProviderConnection( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !missing.succeeded && missing.candidates.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Local DB未登録の二INFと二portを、path非公開の独立候補へ展開する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCommonMultipleInfAndPortIdentity( TestContext &context)
 {
 	UserSelectedInfProviderPolicy policy = makeFakePolicy( true, {}) ;	// 共通検査だけを使う条件。
@@ -678,10 +691,12 @@ void testCommonMultipleInfAndPortIdentity( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 版不明・同版・更新・旧版・未導入のaction分類と順位未確認を固定する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCommonVersionActionsRemainDisplayOnly( TestContext &context)
 {
 	UserSelectedInfProviderPolicy policy = makeFakePolicy( true, {}) ;	// 共通検査だけを使う条件。
@@ -745,10 +760,12 @@ void testCommonVersionActionsRemainDisplayOnly( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一INFの内容拒否を別INFの表示候補と両立させ、全体成功へ誤変換しない。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCommonPartialContentRejection( TestContext &context)
 {
 	UserSelectedInfProviderPolicy policy = makeFakePolicy( true, {}) ;	// 個別拒否を返す共通条件。
@@ -784,7 +801,9 @@ void testCommonPartialContentRejection( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/user_selected_inf_package_provider_tests.h 宣言側の契約を正本とする。
+ * @brief 利用者選択INF Providerのclass照合とfail-closed policyを検証する。利用者選択INF Provider単体試験を実行する。汎用PnP ID入力、
+ *        class照合、policy矛盾を順番に検証する。
+ * @param[in,out] context Assertion件数と失敗内容の集計先。
  */
 //------------------------------------------------------------------------------
 void runUserSelectedInfPackageProviderTests( TestContext &context)

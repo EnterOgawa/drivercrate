@@ -2,7 +2,7 @@
 /**
  * @file maintenance_embedded_file_table_tests.h
  * @brief 保守専用PE内表の架空回帰入口。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/05  架空PE内表の回帰を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空byteを使用し、実署名・実機・networkへ依存しません。
@@ -32,10 +33,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 架空表の正例と破損・未対応・曖昧の拒否を検証する。
  * @param[in,out] context 呼出し側が所有するassertion集計。
  */
+//------------------------------------------------------------------------------
 void runMaintenanceEmbeddedFileTableTests( TestContext &context) ;
 
 } // namespace drivercrate::test

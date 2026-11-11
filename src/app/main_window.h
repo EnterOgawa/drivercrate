@@ -2,7 +2,7 @@
 /**
  * @file main_window.h
  * @brief DriverCrateメインウィンドウ定義。
- * @version 01.21.00
+ * @version 01.21.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -80,6 +80,7 @@
  * Ver.01.19.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.20.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * Ver.01.21.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
+ * Ver.01.21.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Top-level Win32 Window、TreeTable、およびUI stateを定義します。全member functionは、worker notificationを除き
@@ -161,28 +162,37 @@ public:
 	[[nodiscard]] int  run( int showCommand) ;
 
 private:
-	/** @brief App専用menu/worker/timerを初期化します。
+	/**
+	 * @brief App専用menu/worker/timerを初期化します。
 	 * @return menu構築成功はtrue。通信失敗とは独立です。
 	 */
 	[[nodiscard]] bool				  initializeAppUpdates() ;
-	/** @brief 起動/周期/確定結果をUI threadで確認します。 */
+	/**
+	 * @brief 起動/周期/確定結果をUI threadで確認します。
+	 */
 	void							  pollAppUpdates() ;
-	/** @brief 確定したApp更新結果を安全なidle時だけ表示します。 */
+	/**
+	 * @brief 確定したApp更新結果を安全なidle時だけ表示します。
+	 */
 	void							  processAppUpdateEvents() ;
-	/** @brief App専用menu commandを処理します。
+	/**
+	 * @brief App専用menu commandを処理します。
 	 * @param[in] command 固定menu IDです。
 	 * @return App更新commandならtrueです。
 	 */
 	[[nodiscard]] bool				  handleAppUpdateCommand( UINT command) ;
-	/** @brief 既Providerのbusy/modalがないか確認します。
+	/**
+	 * @brief 既Providerのbusy/modalがないか確認します。
 	 * @return 通知/引継ぎを許せる場合だけtrueです。
 	 */
 	[[nodiscard]] bool				  canPresentAppUpdate() const noexcept ;
-	/** @brief 新規driver操作と同時にしない取得/引継ぎ中か返します。
+	/**
+	 * @brief 新規driver操作と同時にしない取得/引継ぎ中か返します。
 	 * @return 取得/ready/引継ぎ中はtrueです。
 	 */
 	[[nodiscard]] bool				  appUpdateActive() const noexcept ;
-	/** @brief 元数値と固定の操作説明だけを表示します。
+	/**
+	 * @brief 元数値と固定の操作説明だけを表示します。
 	 * @param[in] failure App更新だけの確定結果です。
 	 */
 	void							  showAppUpdateFailure( const AppUpdateFailure &failure) ;
@@ -562,15 +572,18 @@ private:
 	 */
 	void					   showLocalCoverageDialog() const ;
 
-	/** @brief 確定した索引通信結果を操作中以外に閲覧できるか判定します。
+	/**
+	 * @brief 確定した索引通信結果を操作中以外に閲覧できるか判定します。
 	 * @return 受理済みrefreshがあり、現在の操作が終端ならtrueです。
 	 */
 	[[nodiscard]] bool		   canShowIndexRefreshDetails() const noexcept ;
-	/** @brief 取得元menuへ非機密な通信結果の独立入口を追加します。
+	/**
+	 * @brief 取得元menuへ非機密な通信結果の独立入口を追加します。
 	 * @param[in] menu 呼出し中に借用する有効なpopup menuです。所有権を取得しません。
 	 */
 	void					   appendIndexRefreshMenu( HMENU menu) const ;
-	/** @brief 受理済みsummaryを既存のread-only詳細dialogへ表示します。
+	/**
+	 * @brief 受理済みsummaryを既存のread-only詳細dialogへ表示します。
 	 * @note UI thread限定です。取得計画・進捗・導入権限を変更しません。
 	 */
 	void					   showIndexRefreshDetails() const ;
@@ -606,9 +619,13 @@ private:
 	 */
 	void					   beginScan() ;
 
-	/** @brief 通常scanの開始または同operationの協調取消しを要求する。 */
+	/**
+	 * @brief 通常scanの開始または同operationの協調取消しを要求する。
+	 */
 	void					   handleScanCommand() ;
-	/** @brief 通常scanを取消し待ちへ移し、確定進捗とWindowを維持する。 */
+	/**
+	 * @brief 通常scanを取消し待ちへ移し、確定進捗とWindowを維持する。
+	 */
 	void					   cancelScan() ;
 
 	/**
@@ -618,19 +635,36 @@ private:
 	 */
 	[[nodiscard]] bool		   showMetadataSearchDialog( MetadataSearchRequest &request) ;
 
-	/** @brief 情報検索の条件確認または同operationの協調取消しを要求する。 */
+	/**
+	 * @brief 情報検索の条件確認または同operationの協調取消しを要求する。
+	 */
 	void					   handleMetadataSearchCommand() ;
-	/** @brief 同operationの取消し待ちへ移し、確定進捗を維持する。 */
+	/**
+	 * @brief 同operationの取消し待ちへ移し、確定進捗を維持する。
+	 */
 	void					   cancelMetadataSearch() ;
-	/** @brief 表示専用の終端packetを検証して保持する。@param[in] event Workerの所有結果。 */
+	/**
+	 * @brief 表示専用の終端packetを検証して保持する。
+	 * @param[in] event Workerの所有結果。
+	 */
 	void					   processMetadataSearchCompleted( const WorkerEvent &event) ;
-	/** @brief 検索用途に応じて配布版と現在INF版を区別した見出しへ更新する。 */
+	/**
+	 * @brief 検索用途に応じて配布版と現在INF版を区別した見出しへ更新する。
+	 */
 	void					   updateMetadataSearchColumns() ;
-	/** @brief 情報検索の停止理由と未測定を表示する。 */
+	/**
+	 * @brief 情報検索の停止理由と未測定を表示する。
+	 */
 	void					   updateMetadataSearchStatus() ;
-	/** @brief 情報検索の条件と全Providerの停止理由を標準controlで表示する。 */
+	/**
+	 * @brief 情報検索の条件と全Providerの停止理由を標準controlで表示する。
+	 */
 	void					   showMetadataSearchDetails() const ;
-	/** @brief 固定理由をresourceへ変換する。@param[in] reason 検証済み停止理由。@return 日本語の理由。 */
+	/**
+	 * @brief 固定理由をresourceへ変換する。
+	 * @param[in] reason 検証済み停止理由。
+	 * @return 日本語の理由。
+	 */
 	[[nodiscard]] std::wstring metadataSearchReasonText( MetadataSearchReason reason) const ;
 
 	/**
@@ -651,45 +685,54 @@ private:
 	 * はworkerを呼ばない。
 	 */
 	void					   beginInstall() ;
-	/** @brief 同scanの未取得参照を含めて明示選択できるかを判定します。
+	/**
+	 * @brief 同scanの未取得参照を含めて明示選択できるかを判定します。
 	 * @param[in] candidate 現在表示中の元候補です。
 	 * @return 実導入可能または有効な元取得targetへ結合した選択意図ならtrueです。
 	 * @note 未取得参照のinstallableは変更しません。
 	 */
 	[[nodiscard]] bool isSelectableCandidate( const UpdateCandidate &candidate) const noexcept ;
-	/** @brief 未導入の実観測へ結合した取得前参照かを判定します。
+	/**
+	 * @brief 未導入の実観測へ結合した取得前参照かを判定します。
 	 * @param[in] candidate 同scanの元取得targetへ結合した選択意図です。
 	 * @return 妥当な同session/device観測が未導入を示す場合だけtrueです。
 	 * @note 現在版欠損から未導入を推測せず、取得・適用性は未検査のままです。
 	 */
 	[[nodiscard]] bool isInitialPreparationReference(
 		const UpdateCandidate &candidate) const noexcept ;
-	/** @brief 更新・検証済み初回と、未導入機器の初回確認だけを通常filterへ残します。
+	/**
+	 * @brief 更新・検証済み初回と、未導入機器の初回確認だけを通常filterへ残します。
 	 * @param[in] candidate 表示・件数・代表選択へ同じ分類を適用する元候補です。
 	 * @return 現在の通常filterに表示する候補の場合trueです。
 	 * @note 取得targetへの結合だけを更新推奨へ読み替えません。
 	 */
 	[[nodiscard]] bool visibleInRecommendedFilter( const UpdateCandidate &candidate) const noexcept ;
-	/** @brief 同scanの元選択から、未承認の取得snapshotを組み立てます。
+	/**
+	 * @brief 同scanの元選択から、未承認の取得snapshotを組み立てます。
 	 * @param[in] indexes 現在表示中に明示選択された候補位置です。
 	 * @return 完全な元snapshot。不明条件・共有規約不整合・旧scanはnulloptです。
 	 */
 	[[nodiscard]] std::optional<OfficialPreparationApproval> makeInstallPreparationApproval(
 		std::span<const std::size_t> indexes) const ;
-	/** @brief 主画面で案内した選択集合と全文snapshotが現在も一致するか照合します。
+	/**
+	 * @brief 主画面で案内した選択集合と全文snapshotが現在も一致するか照合します。
 	 * @param[in] approval 現在の元planと選択から再構築した未承認値です。
 	 * @return 案内済みの全対象・選択・上限・session/planが一致する場合trueです。
 	 */
 	[[nodiscard]] bool matchesPresentedInstallTerms(
 		const OfficialPreparationApproval &approval) const noexcept ;
-	/** @brief 現選択の規約案内と任意閲覧入口を更新します。同意は発行しません。
+	/**
+	 * @brief 現選択の規約案内と任意閲覧入口を更新します。同意は発行しません。
 	 * @return 必要な案内を表示できた場合trueです。失敗時はsnapshotを破棄します。
 	 * @note UI thread専用です。例外を外へ漏らさずInstallを無効にします。
 	 */
 	[[nodiscard]] bool		updateInstallTermsPresentation() noexcept ;
-	/** @brief 案内済みの原規約全文を任意閲覧します。取得・同意・導入は行いません。 */
+	/**
+	 * @brief 案内済みの原規約全文を任意閲覧します。取得・同意・導入は行いません。
+	 */
 	void					showInstallTerms() ;
-	/** @brief 原本文だけをread-only表示し、閉じる操作だけを受理します。
+	/**
+	 * @brief 原本文だけをread-only表示し、閉じる操作だけを受理します。
 	 * @param[in] dialog 同期閲覧dialogです。
 	 * @param[in] message Windowsが通知するmessageです。
 	 * @param[in] wordParameter command等の標準parameterです。
@@ -698,42 +741,50 @@ private:
 	 */
 	static INT_PTR CALLBACK installTermsDialogProc( HWND dialog, UINT message, WPARAM wordParameter,
 												   LPARAM longParameter) noexcept ;
-	/** @brief Install操作を案内済みの同一規約・元選択へ結合し、既存取得へ接続します。
+	/**
+	 * @brief Install操作を案内済みの同一規約・元選択へ結合し、既存取得へ接続します。
 	 * @param[in] indexes 現在表示中で明示checkした有限index集合です。
 	 */
 	void					beginInstallPreparation( std::span<const std::size_t> indexes) ;
-	/** @brief 全snapshot照合を経て既存workerへ取得を一回だけ登録します。
+	/**
+	 * @brief 全snapshot照合を経て既存workerへ取得を一回だけ登録します。
 	 * @param[in] approval 対象別判断と任意の元Install選択を持つ所有値です。
 	 * @param[in] continueInstall 元選択を検査後の唯一候補へ解決して継続する場合trueです。
 	 */
 	void startPreparation( OfficialPreparationApproval approval, bool continueInstall) ;
-	/** @brief 同operationのworker解決結果を元選択へ再照合して導入を継続します。
+	/**
+	 * @brief 同operationのworker解決結果を元選択へ再照合して導入を継続します。
 	 * @param[in] result 受理済みの元取得終端です。
 	 * @note 新たな曖昧候補・旧版や失敗を無断で選択しません。
 	 */
 	void continuePreparedInstall( const OfficialPreparationOperationResult &result) ;
-	/** @brief 同scanの元選択を失効前に表示専用値へ退避します。
+	/**
+	 * @brief 同scanの元選択を失効前に表示専用値へ退避します。
 	 * @return 一意に結合できた元候補だけの所有snapshotです。
 	 */
 	[[nodiscard]] std::vector<PreparationDisplayBinding> capturePreparationDisplayBindings() const ;
-	/** @brief 同scanの元device表示を一意に照合します。
-     * @param[in] row 現在のdevice表示行です。
-     * @return 旧実行権限を含まない元表示です。欠測/別scan/重複はnullptrです。
-     */
+	/**
+	 * @brief 同scanの元device表示を一意に照合します。
+	 * @param[in] row 現在のdevice表示行です。
+	 * @return 旧実行権限を含まない元表示です。欠測/別scan/重複はnullptrです。
+	 */
 	[[nodiscard]] const PreparationDisplayBinding		*retainedDisplayBinding(
 			  const TreeRow &row) const noexcept ;
-	/** @brief 通常とreadonlyのcheckboxをWindows標準描画で構成します。
-     * @return 全画像を所有してcontrolへ接続できた場合trueです。
-     */
+	/**
+	 * @brief 通常とreadonlyのcheckboxをWindows標準描画で構成します。
+	 * @return 全画像を所有してcontrolへ接続できた場合trueです。
+	 */
 	[[nodiscard]] bool						 initializeCheckboxImages() ;
 
-	/** @brief 有効な実行choiceが無い行の元表示候補を解決します。
+	/**
+	 * @brief 有効な実行choiceが無い行の元表示候補を解決します。
 	 * @param[in] row 同じ候補集合のdevice行です。
 	 * @return 元scan/candidate/deviceへ一意に結合した閲覧位置です。実行権限は含みません。
 	 */
 	[[nodiscard]] std::optional<std::size_t> preparationDisplayCandidate(
 		const TreeRow &row) const noexcept ;
-	/** @brief 準備から導入へ進めない理由と全deviceを表示します。
+	/**
+	 * @brief 準備から導入へ進めない理由と全deviceを表示します。
 	 * @param[in] result 受理済みの元準備終端です。
 	 * @param[in] reason native codeを創作しない固定理由です。
 	 */
@@ -803,12 +854,11 @@ private:
 	void					   processPreparationProgress( const WorkerEvent &event) ;
 
 	/**
-	 * @brief 取得結果を検証し、対象別に表示して元の一覧を保持する。
-	 * 既存行の監査を更新し、全監査合格候補を未選択で追加する。現在版と既存選択を保ち、自動scanしない。
+	 * @brief 取得結果を検証し、対象別に表示して元の一覧を保持する。既存行の監査を更新し、全監査合格候補を未選択で追加する。現在版と既存選択を保ち、自動scanしない。
 	 * @param[in] result workerの取得完了内容。 非機密の取得結果と独立した監査report。
 	 * @param[in] indexSummary 同operation／scan／planの有限な索引内容結果。空では索引未実施です。
-	 * @note 元承認・確定transfer・通常内容上限と矛盾する索引summaryは全拒否し、未確認理由を表示します。
 	 * @param[in] remainingPlan 同終端で発行した未選択の原plan subsetです。
+	 * @note 元承認・確定transfer・通常内容上限と矛盾する索引summaryは全拒否し、未確認理由を表示します。
 	 */
 	void			   processPreparationCompleted( const OfficialPreparationOperationResult &result,
 												   const IndexPreparationSummary			&indexSummary = {},
@@ -877,10 +927,10 @@ private:
 	 */
 	void			   populateCandidates( std::span<const UpdateCandidate> candidates) ;
 
-	/** @brief 同deviceの候補と現在版だけを既存行へ結合し、行集合とnative itemを保持します。
-	 * @note UI thread専用です。同scanへの候補/事後観測のappend後だけ使用します。
-	 * 分類・表示名・順序・開閉・caret・scrollを変更せず、非表示deviceの行を追加しません。
-	 * 実行choice/選択許可は作らず、呼出し側が既存の選択・結果描画を適用します。
+	/**
+	 * @brief 同deviceの候補と現在版だけを既存行へ結合し、行集合とnative itemを保持します。
+	 * @note UI thread専用です。同scanへの候補/事後観測のappend後だけ使用します。分類・表示名・順序・開閉・caret・scrollを変更せず、非表示deviceの行を
+	 *       追加しません。実行choice/選択許可は作らず、呼出し側が既存の選択・結果描画を適用します。
 	 */
 	void			   refreshCandidateRows() ;
 
@@ -892,12 +942,14 @@ private:
 	 */
 	void displayInstallResult( const InstallResult &result, ScanSessionId scanSessionId) ;
 
-	/** @brief 元選択deviceの事後観測だけを現在表示へ適用します。
+	/**
+	 * @brief 元選択deviceの事後観測だけを現在表示へ適用します。
 	 * @param[in] result 個別導入結果とread-only観測です。
 	 * @param[in] scanSessionId 失効直前の元scanです。0は観測を受理しません。
 	 */
 	void applyPostInstallObservations( const InstallResult &result, ScanSessionId scanSessionId) ;
-	/** @brief 実対象一致と個別成功で既知更新の解消だけを記録します。
+	/**
+	 * @brief 実対象一致と個別成功で既知更新の解消だけを記録します。
 	 * @param[in] result 受理済み元Installの結果です。
 	 * @param[in] session 同じ元scanです。
 	 */
@@ -966,7 +1018,8 @@ private:
 	 * @return resourceから取得した操作分類と非機密観測差分の文字列。
 	 */
 	[[nodiscard]] std::wstring formatCandidateState( const UpdateCandidate &candidate) const ;
-	/** @brief 索引refreshの元診断とcommit事実だけを表示本文へ変換します。
+	/**
+	 * @brief 索引refreshの元診断とcommit事実だけを表示本文へ変換します。
 	 * @param[in] summary 同operationから受理した非機密summaryです。
 	 * @return 未実行なら空、それ以外はURL/ID/pathを含まない独立本文です。
 	 */
@@ -1045,7 +1098,8 @@ private:
 	 * @param[in] progress Providerが確定したoperation進捗値。
 	 */
 	void					   setOperationProgress( const ProviderProgress &progress) ;
-	/** @brief 同operationで実行した再検出の完了または元領域付き失敗を整形します。
+	/**
+	 * @brief 同operationで実行した再検出の完了または元領域付き失敗を整形します。
 	 * @return 未実行は空文字。生IDや権限HANDLEを含みません。
 	 */
 	[[nodiscard]] std::wstring formatHardwareRefreshSummary() const ;

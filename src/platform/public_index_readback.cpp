@@ -2,7 +2,7 @@
 /**
  * @file public_index_readback.cpp
  * @brief 固定公開索引の原byte匿名照合を既存HTTPとnative codecへ接続します。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/10/20
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/27  Daily/candidateの正規二file名を共通検査。
  * Ver.01.02.00 Shunji Ogawa  2026/11/05  固定匿名三resourceへ親の取消しを引継ぎ。
  * Ver.01.03.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 全取得byteと期限付きCDN URLはRAMだけに保持し、永続storeを開きません。
  * @see docs/adr/0385-public-anonymous-index-readback.md
@@ -47,28 +48,37 @@ namespace drivercrate {
 namespace {
 // 親の現取得経路に一致する圧縮原byteの狭い上限です。
 constexpr std::size_t	  MAXIMUM_GZIP_BYTES = index_capacity::GZIP_BYTES ;
-/** @brief 元診断がない純粋拒否へ固定の非0 HRESULTを割当てます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元診断がない純粋拒否へ固定の非0 HRESULTを割当てます。
  * @param[in] error 元codecまたはHTTP診断です。
  * @return 元値またはERROR_INVALID_DATAです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError nonzero( const NativeError error) noexcept
 {
 	return error != 0U ? error : static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
 }
-/** @brief 原byteを文字変換せず共通hash/codecへ借用します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原byteを文字変換せず共通hash/codecへ借用します。
  * @param[in] raw HTTPが所有する有限原byteです。
  * @return 呼出し元vectorの寿命までのviewです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string_view bytesView( const std::vector<std::byte> &raw) noexcept
 {
 	return {reinterpret_cast<const char *>( raw.data()),
 			// 原byteの非所有codec境界です。
 			raw.size()} ;
 }
-/** @brief unsigned数値を最短十進で追加します。
+//------------------------------------------------------------------------------
+/**
+ * @brief unsigned数値を最短十進で追加します。
  * @param[in,out] out 固定fieldだけの所有writerです。
  * @param[in] value 狭めない元値です。
  */
+//------------------------------------------------------------------------------
 void number( std::string &out, const std::uint64_t value)
 {
 	std::array<char, 20U> buffer{} ;	// uint64最大値の十進容量です。
@@ -82,10 +92,13 @@ void number( std::string &out, const std::uint64_t value)
 
 	out.append( buffer.data(), converted.ptr) ;
 }
-/** @brief 現在UTCだけを閉20byte文字列またはnullへ表します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在UTCだけを閉20byte文字列またはnullへ表します。
  * @param[in] value 同実行が観測したUTCです。
  * @return 引用符を含む固定ASCIIまたはnullです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string timestamp( const std::optional<std::chrono::sys_seconds> value)
 {
 	// 時計不明を現在や公開時刻で補完しません。
@@ -117,7 +130,15 @@ void number( std::string &out, const std::uint64_t value)
 }
 }
 
-/** @see publicIndexReadbackArguments宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 閉modeの個数とASCII十進残時間をfile読取前に検査します。
+ * @param[in] count 実行file名込みで正確に5です。
+ * @param[in] args count個の借用wide文字列です。
+ * @param[out] milliseconds 成功時だけ1..90000の残時間です。
+ * @return 固定mode、個数、非空path、残時間が成立した場合trueです。
+ */
+//------------------------------------------------------------------------------
 bool publicIndexReadbackArguments( const int count, wchar_t *const args[],
 								  std::uint32_t &milliseconds) noexcept
 {
@@ -155,7 +176,15 @@ bool publicIndexReadbackArguments( const int count, wchar_t *const args[],
 	return true ;
 }
 
-/** @see publicIndexReadbackArtifactPair宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存daily/candidate callerの同parent・同stem二file名だけを許可します。
+ * @param[in] envelopePath 原manifestへのpathです。呼出し中だけ借用します。
+ * @param[in] gzipPath 同じfamilyとstemの圧縮indexへのpathです。
+ * @return DailyのASCII8桁、またはcandidateのASCII16桁・世代1..9007199254740991の場合trueです。
+ * @note 非I/Oの名前検査だけです。固定root/絶対正規path/ACL/同handle/reparse等は既存readerで別途必須です。
+ */
+//------------------------------------------------------------------------------
 bool publicIndexReadbackArtifactPair( const std::filesystem::path &envelopePath,
 									 const std::filesystem::path &gzipPath) noexcept
 {
@@ -207,7 +236,18 @@ bool publicIndexReadbackArtifactPair( const std::filesystem::path &envelopePath,
 	}
 }
 
-/** @see Access宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定clientと検査済み依存を三resourceへ一度だけ適用します。
+ * @param[in,out] client 非cacheの固定clientです。
+ * @param[in] services 製品固定または完全fakeの依存です。
+ * @param[in] envelope 期待原envelopeです。
+ * @param[in] gzip 期待原gzipです。
+ * @param[in] milliseconds 共有期限です。
+ * @param[in] cancellation 同operationの取消しです。
+ * @return 部分取得を保持する非機密観測です。
+ */
+//------------------------------------------------------------------------------
 PublicIndexReadbackReport public_index_readback_detail::Access::execute(
 	OfficialHttpClient &client, const Services &services, const std::string_view envelope,
 	const std::string_view gzip, const std::uint32_t milliseconds,
@@ -456,7 +496,17 @@ PublicIndexReadbackReport public_index_readback_detail::Access::execute(
 	}
 }
 
-/** @see Access宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全fake I/Oと既存の実native codecで同じ実装を検査します。
+ * @param[in] services 欠損を許さない全fake依存です。
+ * @param[in] envelope 期待原envelopeです。
+ * @param[in] gzip 期待原gzipです。
+ * @param[in] milliseconds 1..90000の共有期限です。
+ * @param[in] cancellation 同fixtureだけの取消しです。
+ * @return URLや本文を持たない実観測です。
+ */
+//------------------------------------------------------------------------------
 PublicIndexReadbackReport public_index_readback_detail::Access::forTest(
 	const Services &services, const std::string_view envelope, const std::string_view gzip,
 	const std::uint32_t milliseconds, const HttpCancellationCallback &cancellation) noexcept
@@ -469,7 +519,19 @@ PublicIndexReadbackReport public_index_readback_detail::Access::forTest(
 	OfficialHttpClient client( *services.transport) ;	// 同じ完全fakeだけの非cache clientです。
 	return execute( client, services, envelope, gzip, milliseconds, cancellation) ;
 }
-/** @see readbackFixedPublicIndex宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定公開trustで元二byteと匿名三resourceを現在UTC検証します。
+ * @param[in] envelope 保護readerから得た96KiB以下の原envelopeです。
+ * @param[in] gzip 保護readerから得た32MiB以下の原gzipです。
+ * @param[in] milliseconds 親が渡した元の正の残時間です。最大90000です。
+ * @param[in] operationStarted 保護reader開始前に一度だけ採取した単調開始です。
+ * @param[in] operationStartedAtUtc 同じ入口で採取した元UTCです。
+ * @param[in] cancellation 同じ親workerの協調取消しです。省略時は既存CLI動作です。
+ * @return 元診断、部分resource、同時計の実観測だけです。
+ * @note 同期worker専用です。保存、cache、credential、任意URL入力はありません。
+ */
+//------------------------------------------------------------------------------
 PublicIndexReadbackReport readbackFixedPublicIndex(
 	const std::string_view envelope, const std::string_view gzip, const std::uint32_t milliseconds,
 	const std::chrono::steady_clock::time_point operationStarted,
@@ -495,7 +557,14 @@ PublicIndexReadbackReport readbackFixedPublicIndex(
 		return result ;
 	}
 }
-/** @see publicIndexReadbackJson宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 閉enumと原数値から順序固定10fieldのASCII JSONを生成します。
+ * @param[in] report 同じnative実行が所有する非機密観測です。
+ * @return 改行を持たない64KiB以下のcanonical JSONです。
+ * @throws std::runtime_error 時刻またはdigestが閉wireに一致しない場合です。
+ */
+//------------------------------------------------------------------------------
 std::string publicIndexReadbackJson( const PublicIndexReadbackReport &report)
 {
 	constexpr std::array<std::string_view, 3U>	ROLES{"CURRENT_ENVELOPE", "IMMUTABLE_ENVELOPE",

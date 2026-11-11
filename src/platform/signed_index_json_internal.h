@@ -2,7 +2,7 @@
 /**
  * @file signed_index_json_internal.h
  * @brief 署名索引各層で共用する厳格JSON・base64・hash・UTC文法を定義します。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  必須fieldの既定を維持しschema別存在maskとnull読取りを追加。
  * Ver.01.02.00 Shunji Ogawa  2026/10/23  既定16fieldを維持した明示job上限指定を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 原byteを正規化せず、暗号認証・公式性・保存・端末照合を行いません。
@@ -55,11 +56,14 @@ template <class Status> struct Failure {
 	NativeError error{} ;
 } ;
 
-/** @brief 不成立の場合だけ最上位のfail-closed結果へ中断します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 不成立の場合だけ最上位のfail-closed結果へ中断します。
  * @tparam Status 呼出し層の固定拒否区分。
  * @param[in] valid 成立条件。
  * @param[in] status 不成立時の固定分類。
  */
+//------------------------------------------------------------------------------
 template <class Status> void require( const bool valid, const Status status)
 {
 	// 不成立の中間値を認証結果へ公開しない。
@@ -75,13 +79,14 @@ template <class Status> void require( const bool valid, const Status status)
  */
 template <class Status> class Reader final {
 public:
-	/** @brief 借用原byteのUTF-8を事前に検査します。
-     * @param[in] bytes 独立byte上限内の原UTF-8。Readerの寿命中に変更しません。
-     * @param[in] failure この層のJSON拒否理由。
-     * @param[in] byteLimit 呼出し層の独立実byte上限。
-     * @param[in] depthLimit Containerの最大深さ。既定8です。
-     * @param[in] objectFieldLimit 一objectのfield上限。既定16、明示jobだけ最大31です。
-     */
+	/**
+	 * @brief 借用原byteのUTF-8を事前に検査します。
+	 * @param[in] bytes 独立byte上限内の原UTF-8。Readerの寿命中に変更しません。
+	 * @param[in] failure この層のJSON拒否理由。
+	 * @param[in] byteLimit 呼出し層の独立実byte上限。
+	 * @param[in] depthLimit Containerの最大深さ。既定8です。
+	 * @param[in] objectFieldLimit 一objectのfield上限。既定16、明示jobだけ最大31です。
+	 */
 	Reader( const std::string_view bytes, const Status failure,
 		   const std::size_t byteLimit	= INDEX_ENVELOPE_MAX_BYTES,
 		   const std::size_t depthLimit = 8U, const std::size_t objectFieldLimit = 16U)
@@ -99,10 +104,11 @@ public:
 				failure_) ;
 	}
 
-	/** @brief 一つのJSON文字列を標準escapeに従って解除します。
-     * @param[in] limit 解除後の実byte上限。
-     * @return Unicodeを保持した所有UTF-8。正規化はしません。
-     */
+	/**
+	 * @brief 一つのJSON文字列を標準escapeに従って解除します。
+	 * @param[in] limit 解除後の実byte上限。
+	 * @return Unicodeを保持した所有UTF-8。正規化はしません。
+	 */
 	[[nodiscard]] std::string text( const std::size_t limit)
 	{
 		consume( '"') ;
@@ -187,7 +193,8 @@ public:
 		throw Failure<Status>{failure_} ;
 	}
 
-	/** @brief 次の値がtextかを原型の分岐だけに使う。
+	/**
+	 * @brief 次の値がtextかを原型の分岐だけに使う。
 	 * @return 次の非空白byteがquoteならtrue。値は消費しない。
 	 */
 	[[nodiscard]] bool textAhead()
@@ -196,9 +203,10 @@ public:
 		return position_ < bytes_.size() && bytes_[position_] == '"' ;
 	}
 
-	/** @brief 非負のJSON整数をoverflow前に検査します。
-     * @return uint64_tで正確に表現した値。小数・指数・符号は拒否します。
-     */
+	/**
+	 * @brief 非負のJSON整数をoverflow前に検査します。
+	 * @return uint64_tで正確に表現した値。小数・指数・符号は拒否します。
+	 */
 	[[nodiscard]] std::uint64_t number()
 	{
 		whitespace() ;
@@ -215,12 +223,13 @@ public:
 		return value ;
 	}
 
-	/** @brief 全必須fieldを順序に依存せず一度だけ消費します。
-     * @tparam Count 固定field数。既定16、明示上限指定時だけ最大31です。
-     * @tparam Handler Field indexに対応する型付き読取り関数。
-     * @param[in] fields Schemaが認める固定field名。
-     * @param[in] handler 本Readerだけを借用して値を消費する同期関数。
-     */
+	/**
+	 * @brief 全必須fieldを順序に依存せず一度だけ消費します。
+	 * @tparam Count 固定field数。既定16、明示上限指定時だけ最大31です。
+	 * @tparam Handler Field indexに対応する型付き読取り関数。
+	 * @param[in] fields Schemaが認める固定field名。
+	 * @param[in] handler 本Readerだけを借用して値を消費する同期関数。
+	 */
 	template <std::size_t Count, class Handler>
 	void object( const std::array<std::string_view, Count> &fields, Handler handler)
 	{
@@ -228,14 +237,15 @@ public:
 		require( objectWithPresence( fields, handler) == (1U << Count) - 1U, failure_) ;
 	}
 
-	/** @brief 許可fieldを一度だけ読み、schema確定後の必須集合照合へ存在maskを返します。
-     * @tparam Count 許可field数。既定16、明示上限指定時だけ最大31です。
-     * @tparam Handler Field番号から要求型だけを読む同期関数。
-     * @param[in] fields このobjectだけが許可する閉じたfield集合。
-     * @param[in] handler 本Readerを呼出し中だけ借用する同期handler。
-     * @return 読んだfieldのbit mask。呼出し側はschema確定後に全必須集合を厳格照合します。
-     * @note 未知field、解除後重複key、深さ、余剰commaを既存と同じ規則で拒否します。
-     */
+	/**
+	 * @brief 許可fieldを一度だけ読み、schema確定後の必須集合照合へ存在maskを返します。
+	 * @tparam Count 許可field数。既定16、明示上限指定時だけ最大31です。
+	 * @tparam Handler Field番号から要求型だけを読む同期関数。
+	 * @param[in] fields このobjectだけが許可する閉じたfield集合。
+	 * @param[in] handler 本Readerを呼出し中だけ借用する同期handler。
+	 * @return 読んだfieldのbit mask。呼出し側はschema確定後に全必須集合を厳格照合します。
+	 * @note 未知field、解除後重複key、深さ、余剰commaを既存と同じ規則で拒否します。
+	 */
 	template <std::size_t Count, class Handler>
 	[[nodiscard]] std::uint32_t objectWithPresence(
 		const std::array<std::string_view, Count> &fields, Handler handler)
@@ -270,10 +280,11 @@ public:
 		throw Failure<Status>{failure_} ;
 	}
 
-	/** @brief 次の値がJSON nullの場合だけ消費します。
-     * @return nullを消費した場合true。別型ではbyte位置を変えずfalseです。
-     * @note Nullの直後のdelimiterと余剰byteは親objectまたはfinishが検査します。
-     */
+	/**
+	 * @brief 次の値がJSON nullの場合だけ消費します。
+	 * @return nullを消費した場合true。別型ではbyte位置を変えずfalseです。
+	 * @note Nullの直後のdelimiterと余剰byteは親objectまたはfinishが検査します。
+	 */
 	[[nodiscard]] bool nullValue()
 	{
 		whitespace() ;
@@ -286,12 +297,13 @@ public:
 		return false ;
 	}
 
-	/** @brief 有限配列を順序どおり読みます。
-     * @tparam Handler 一要素を型付きで消費する同期関数。
-     * @param[in] limit 配列要素数の独立上限。
-     * @param[in] handler Readerと所有出力を呼出し期間だけ借用する同期関数。
-     * @param[in] limitFailure 上限超過の拒否区分。
-     */
+	/**
+	 * @brief 有限配列を順序どおり読みます。
+	 * @tparam Handler 一要素を型付きで消費する同期関数。
+	 * @param[in] limit 配列要素数の独立上限。
+	 * @param[in] handler Readerと所有出力を呼出し期間だけ借用する同期関数。
+	 * @param[in] limitFailure 上限超過の拒否区分。
+	 */
 	template <class Handler>
 	void array( const std::size_t limit, Handler handler, const Status limitFailure)
 	{
@@ -322,7 +334,9 @@ public:
 		throw Failure<Status>{limitFailure} ;
 	}
 
-	/** @brief 最終値以外の末尾byteを拒否します。 */
+	/**
+	 * @brief 最終値以外の末尾byteを拒否します。
+	 */
 	void finish()
 	{
 		whitespace() ;
@@ -330,13 +344,17 @@ public:
 	}
 
 private:
-	/** @brief Containerを開始し、次の入れ子が有限深さ以内か検査します。 */
+	/**
+	 * @brief Containerを開始し、次の入れ子が有限深さ以内か検査します。
+	 */
 	void enterContainer()
 	{
 		require( depth_ < depthLimit_, failure_) ;
 		++depth_ ;
 	}
-	/** @brief JSONで定義された四種類の空白だけを飛ばします。 */
+	/**
+	 * @brief JSONで定義された四種類の空白だけを飛ばします。
+	 */
 	void whitespace() noexcept
 	{
 		// 有限入力に含まれる標準空白だけを消費し、他のbyteで停止する。
@@ -346,18 +364,20 @@ private:
 			++position_ ;
 		}
 	}
-	/** @brief 次の標準delimiterを要求します。
-     * @param[in] expected 必須delimiter。
-     */
+	/**
+	 * @brief 次の標準delimiterを要求します。
+	 * @param[in] expected 必須delimiter。
+	 */
 	void consume( const char expected)
 	{
 		whitespace() ;
 		require( position_ < bytes_.size() && bytes_[position_] == expected, failure_) ;
 		++position_ ;
 	}
-	/** @brief 四hex桁をUTF-16 code unitとして読みます。
-     * @return 0～65535の値。不正桁は拒否します。
-     */
+	/**
+	 * @brief 四hex桁をUTF-16 code unitとして読みます。
+	 * @return 0～65535の値。不正桁は拒否します。
+	 */
 	[[nodiscard]] std::uint32_t hexQuad()
 	{
 		require( bytes_.size() - position_ >= 4U, failure_) ;
@@ -386,21 +406,23 @@ private:
 
 		return value ;
 	}
-	/** @brief 解除後byteを上限検査して追記します。
-     * @param[in,out] value 所有値。
-     * @param[in] character 追記byte。
-     * @param[in] limit 実byte上限。
-     */
+	/**
+	 * @brief 解除後byteを上限検査して追記します。
+	 * @param[in,out] value 所有値。
+	 * @param[in] character 追記byte。
+	 * @param[in] limit 実byte上限。
+	 */
 	void append( std::string &value, const char character, const std::size_t limit)
 	{
 		require( value.size() < limit, failure_) ;
 		value.push_back( character) ;
 	}
-	/** @brief 一つのUnicode scalarを正規UTF-8へ戻します。
-     * @param[in,out] value 所有値。
-     * @param[in] scalar 検査済みscalar。
-     * @param[in] limit 解除後byte上限。
-     */
+	/**
+	 * @brief 一つのUnicode scalarを正規UTF-8へ戻します。
+	 * @param[in,out] value 所有値。
+	 * @param[in] scalar 検査済みscalar。
+	 * @param[in] limit 解除後byte上限。
+	 */
 	void appendScalar( std::string &value, const std::uint32_t scalar, const std::size_t limit)
 	{
 		// ASCIIは一byteで同じ値を保持する。
@@ -439,10 +461,13 @@ private:
 	std::size_t		 position_{} ;
 } ;
 
-/** @brief 標準base64 alphabetを6bit値へ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 標準base64 alphabetを6bit値へ変換します。
  * @param[in] character 原ASCII。
  * @return 0～63。Alphabet以外は-1。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] inline int base64Digit( const char character) noexcept
 {
 	// 各alphabet領域だけを許可し、空白やURL-safe表現を補正しない。
@@ -473,14 +498,17 @@ private:
 	return -1 ;
 }
 
-/** @brief 正規paddingと未使用bitを検査してbase64を有限decodeします。
+//------------------------------------------------------------------------------
+/**
+ * @brief 正規paddingと未使用bitを検査してbase64を有限decodeします。
+ * @tparam Status 呼出し層の固定拒否区分。
  * @param[in] text 原base64。空白を認めません。
  * @param[in] limit Decode後の実byte上限。
- * @tparam Status 呼出し層の固定拒否区分。
  * @param[in] sizeFailure Decode後上限違反の分類。
  * @param[in] invalidBase64 不正base64の拒否区分。
  * @return 元順序の所有byte。
  */
+//------------------------------------------------------------------------------
 template <class Status>
 [[nodiscard]] std::vector<std::uint8_t> decodeBase64( const std::string_view text,
 													 const std::size_t		limit,
@@ -526,12 +554,15 @@ template <class Status>
 	return bytes ;
 }
 
-/** @brief 小文字64桁hexを固定hash型へ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 小文字64桁hexを固定hash型へ変換します。
  * @tparam Status 呼出し層の固定拒否区分。
  * @param[in] text 原hex。
  * @param[in] failure 不成立時の分類。
  * @return 正確な32byte。
  */
+//------------------------------------------------------------------------------
 template <class Status>
 [[nodiscard]] IndexManifestSha256 decodeHash( const std::string_view text, const Status failure)
 {
@@ -557,12 +588,15 @@ template <class Status>
 	return digest ;
 }
 
-/** @brief 固定桁のASCII十進値を読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定桁のASCII十進値を読みます。
  * @tparam Status 呼出し層の固定拒否区分。
  * @param[in] text 桁数が固定された借用値。
  * @param[in] failure 不正時の分類。
  * @return 小さな暦日・時刻値。
  */
+//------------------------------------------------------------------------------
 template <class Status>
 [[nodiscard]] unsigned decimal( const std::string_view text, const Status failure)
 {
@@ -576,12 +610,15 @@ template <class Status>
 	return value ;
 }
 
-/** @brief 実在するUTC暦日と秒単位時刻を読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実在するUTC暦日と秒単位時刻を読みます。
  * @tparam Status 呼出し層の固定拒否区分。
  * @param[in] text 固定20byteのUTC。
  * @param[in] failure 不正暦日・時刻の拒否区分。
  * @return 1970～9999年のUTC秒。
  */
+//------------------------------------------------------------------------------
 template <class Status>
 [[nodiscard]] std::chrono::sys_seconds utc( const std::string_view text, const Status failure)
 {

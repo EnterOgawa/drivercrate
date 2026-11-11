@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_tests.cpp
  * @brief 公式自動探索Core境界の決定的単体試験。
- * @version 01.07.00
+ * @version 01.07.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * Ver.01.05.00 Shunji Ogawa  2026/09/15  一scan承認の要求変換と予算改変拒否を追加。
  * Ver.01.06.00 Shunji Ogawa  2026/09/15  事前停止summaryとProvider状態変換を追加。
  * Ver.01.07.00 Shunji Ogawa  2026/09/15  Parser identityとfresh cache優先実行試験を追加。
+ * Ver.01.07.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空device identityだけを使用し、実端末の識別情報を保持しません。
@@ -56,10 +57,12 @@
 namespace drivercrate::test {
 namespace {
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既存公式Providerの合成copyへ自動探索capabilityを付与する。
  * @return Prolific公式Providerだけを明示選択できる合成registry。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::vector<ProviderDescriptor> makeDiscoveryProviders()
 {
 	const auto builtIn = builtInProviderDescriptors() ;								// 製品registryの検証済み正本。
@@ -81,10 +84,12 @@ namespace {
 	return providers ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 明示Provider一件のmetadata限定自動探索要求を作る。
  * @return 固定policyとProlific Providerへ結合した要求。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryRequest makeRequest()
 {
 	OfficialDiscoveryRequest request ;	// 権限を持ち越さない一回の要求。
@@ -93,11 +98,13 @@ namespace {
 	return request ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 名前と現在版が欠損しても保持できる架空device hintを作る。
  * @param[in] scanSessionId 観測を結合するscan session ID。
  * @return UNKNOWN busと有効なclass GUIDを持つ非機密fixture。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryDeviceHint makeDevice( const ScanSessionId scanSessionId)
 {
 	OfficialDiscoveryDeviceHint device ;	// 実PnP IDを持たない架空device。
@@ -109,10 +116,12 @@ namespace {
 	return device ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定landing resourceへ結合した専用routeを作る。
  * @return 一deviceだけを参照する架空route。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryRoute makeRoute()
 {
 	OfficialDiscoveryRoute route ;	// URLを含まない固定root route。
@@ -125,43 +134,51 @@ namespace {
 	return route ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief USB busの架空hintだけをroute対象にする。
  * @param[in] device Raw ID非保持の検証済みhint。
  * @return USB分類の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matchesUsbDevice( const OfficialDiscoveryDeviceHint &device) noexcept
 {
 	return device.bus == OfficialDiscoveryDeviceBus::USB ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief PCI busの架空hintだけをroute対象にする。
  * @param[in] device Raw ID非保持の検証済みhint。
  * @return PCI分類の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matchesPciDevice( const OfficialDiscoveryDeviceHint &device) noexcept
 {
 	return device.bus == OfficialDiscoveryDeviceBus::PCI ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有効な架空hintを表示属性の有無にかかわらずroute対象にする。
  * @param[in] device Raw ID非保持の検証済みhint。
  * @return 常にtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matchesAnyDevice( const OfficialDiscoveryDeviceHint &device) noexcept
 {
 	(void)device ;
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Prolific固定landingへ結合した合成registrationを作る。
  * @param[in] kind 専用または汎用固定rootの種別。
  * @param[in] matcher 端末内の非送信hint matcher。
  * @return Network hintなしで非空resolverを持つregistration。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryRegistration makeRegistration(
 	const OfficialDiscoveryRouteKind kind, const OfficialDiscoveryHintMatcher matcher)
 {
@@ -182,6 +199,7 @@ namespace {
 	return registration ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 元routeへ完全一致する合成resolver summaryを作る。
  * @param[in] route 実行対象の固定root route。
@@ -191,6 +209,7 @@ namespace {
  * @param[in] error 失敗状態だけに設定するnative診断値。
  * @return Route identityと全device件数へ結合したsummary。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryRouteSummary makeRouteResult( const OfficialDiscoveryRoute	 &route,
 															const OfficialDiscoveryRouteState state,
 															const std::uint32_t recordCount	 = 0U,
@@ -208,12 +227,14 @@ namespace {
 		.packageCount = packageCount} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 解決済みroute一件を持つ公開summaryを作る。
  * @param[in] binding 開始時に固定した三つのID。
  * @param[in] request 開始時に固定した要求。
  * @return 一record、一driver packageを示す合成summary。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoverySummary makeSummary( const OfficialDiscoveryBinding &binding,
 												   const OfficialDiscoveryRequest &request)
 {
@@ -234,10 +255,12 @@ namespace {
 	return summary ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider capabilityと一scan requestのfail-closed条件を検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testRequestValidation( TestContext &context)
 {
 	std::vector<ProviderDescriptor> providers = makeDiscoveryProviders() ;	// 合成registry。
@@ -299,10 +322,12 @@ void testRequestValidation( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !validateOfficialDiscoveryRequest( request, providers)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief UIの一scan承認を固定scopeの通常自動探索requestへ変換する境界を検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testStandardApprovalMapping( TestContext &context)
 {
 	const std::span descriptors = builtInProviderDescriptors() ;	// 製品registryの正本。
@@ -356,10 +381,12 @@ void testStandardApprovalMapping( TestContext &context)
 					   !makeStandardOfficialDiscoveryRequest( options, descriptors).has_value()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Binding、有限bus、raw識別情報拒否を検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testDeviceValidation( TestContext &context)
 {
 	OfficialDiscoveryBinding binding{
@@ -395,10 +422,12 @@ void testDeviceValidation( TestContext &context)
 					   !validateOfficialDiscoveryDeviceHint( device, binding.scanSessionId + 1U)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Worker内bus分類と完全inventoryからのraw ID非保持変換を検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testInventoryHintProjection( TestContext &context)
 {
 	DRIVERCRATE_EXPECT( context, classifyOfficialDiscoveryDeviceBus( L"PCI\\fixture") ==
@@ -468,10 +497,12 @@ void testInventoryHintProjection( TestContext &context)
 					   !makeOfficialDiscoveryDeviceHints( session, true, devices).has_value()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Registrationの固定root結合と専用優先route planを検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testRoutePlanner( TestContext &context)
 {
 	std::vector<ProviderDescriptor> providers = makeDiscoveryProviders() ;	// 合成registry。
@@ -598,10 +629,12 @@ void testRoutePlanner( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !validateOfficialDiscoveryRegistrations( registrations, providers)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 通常／metadata共通planと専用0件後の汎用継続状態を検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testRoutePlanExecution( TestContext &context)
 {
 	std::vector<ProviderDescriptor> providers = makeDiscoveryProviders() ;	// 合成registry。
@@ -755,10 +788,12 @@ void testRoutePlanExecution( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief HTTP前の制御終端とProvider別scan状態への変換を検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testProviderScanResultProjection( TestContext &context)
 {
 	std::vector<ProviderDescriptor> providers = makeDiscoveryProviders() ;	// 合成registry。
@@ -862,10 +897,12 @@ void testProviderScanResultProjection( TestContext &context)
 									noMatchResult->coverage.eligibleDeviceCount == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Fresh cache、cache miss、通信未許可と明示refreshの実行順を検証します。
  * @param[in,out] context Assertionの集計先です。
  */
+//------------------------------------------------------------------------------
 void testRouteCachePriority( TestContext &context)
 {
 	std::vector<ProviderDescriptor> providers = makeDiscoveryProviders() ;	// 合成registry。
@@ -943,10 +980,12 @@ void testRouteCachePriority( TestContext &context)
 	DRIVERCRATE_EXPECT( context, resolverCalls == 1U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 上限、stale、raw ID、重複、callback失敗のnegative fixtureを検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testDiscoveryNegativeFixtures( TestContext &context)
 {
 	std::vector<ProviderDescriptor> providers = makeDiscoveryProviders() ;	// 合成registry。
@@ -1109,10 +1148,12 @@ void testDiscoveryNegativeFixtures( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定root routeと公開summaryの一対一bindingを検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testRouteAndSummaryValidation( TestContext &context)
 {
 	std::vector<ProviderDescriptor> providers = makeDiscoveryProviders() ;	// 合成registry。
@@ -1174,7 +1215,12 @@ void testRouteAndSummaryValidation( TestContext &context)
 
 } // namespace
 
-/** @see official_discovery_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式自動探索のrequest、device、route、summary拒否境界を検証する。
+ * @param[in,out] context Assertionの集計先。
+ */
+//------------------------------------------------------------------------------
 void runOfficialDiscoveryTests( TestContext &context)
 {
 	testRequestValidation( context) ;

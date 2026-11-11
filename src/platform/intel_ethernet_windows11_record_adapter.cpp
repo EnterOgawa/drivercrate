@@ -2,7 +2,7 @@
 /**
  * @file intel_ethernet_windows11_record_adapter.cpp
  * @brief Intel ZIP releaseの共通record変換とWindows 11互換resolverの実装。
- * @version 01.06.00
+ * @version 01.06.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/09/28  未知より明示矛盾を優先し配布欠測理由を補修。
  * Ver.01.05.00 Shunji Ogawa  2026/09/28  配布・許諾・identity・全対象へ同一controlを接続。
  * Ver.01.06.00 Shunji Ogawa  2026/10/26  SHA-512を既存共通payloadへ区別して接続。
+ * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note AdapterはProvider parserが選んだ一つのreleaseだけを変換し、URLやexact sizeを推測しません。
@@ -86,16 +87,16 @@ constexpr NativeError SOURCE_ACCESS_DENIED = static_cast<NativeError>( E_ACCESSD
 //------------------------------------------------------------------------------
 // 内部関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief Plain textが有限で制御文字を含まないか確認します。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] value 検証する文字列。
  * @param[in] maximumCharacters 許可するUTF-16 code unit上限。
  * @param[in] allowEmpty 空文字列を許可する場合は`true`。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] allowLineBreaks Tab、CR、LFを許可する場合は`true`。
  * @return 指定した有限plain text条件を満たす場合は`true`。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool	  isFiniteText( CollectorParserContext *control, const std::wstring_view value,
 								   const std::size_t maximumCharacters, const bool allowEmpty,
 								   const bool allowLineBreaks)
@@ -121,11 +122,13 @@ constexpr NativeError SOURCE_ACCESS_DENIED = static_cast<NativeError>( E_ACCESSD
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Intel pageが公表したuppercase SHA-256形式か確認します。
  * @param[in] value 検証するhash文字列。
  * @return 64桁のuppercase ASCII hexの場合は`true`。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isUpperSha256( const std::wstring_view value) noexcept
 {
 	return value.size() == 64U && std::ranges::all_of( value, []( const wchar_t character) {
@@ -134,11 +137,13 @@ constexpr NativeError SOURCE_ACCESS_DENIED = static_cast<NativeError>( E_ACCESSD
 		   }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公表されたSHA-512を切り詰めずASCII hexとして再確認します。
  * @param[in] value 検証するhash文字列。
  * @return 128桁の大小文字ASCII hexの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isSha512( const std::wstring_view value) noexcept
 {
 	return value.size() == 128U && std::ranges::all_of( value, []( const wchar_t character) {
@@ -148,14 +153,16 @@ constexpr NativeError SOURCE_ACCESS_DENIED = static_cast<NativeError>( E_ACCESSD
 		   }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief URLを除くIntel ZIP release fieldが選択familyのprofileと整合するか確認します。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] release 専用parserから得たrelease metadata。
  * @param[in] expectedFileName 配布版から構築した期待basename。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] parserRevision Familyに対応する既存parser版。
  * @return Family、parser revision、file、hash、EULAが全て整合する場合は`true`。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool hasValidRelease( CollectorParserContext	   *control,
 								   const OfficialReleaseRecord &release,
 								   const std::wstring_view		expectedFileName,
@@ -193,6 +200,7 @@ constexpr NativeError SOURCE_ACCESS_DENIED = static_cast<NativeError>( E_ACCESSD
 		   isFiniteText( control, release.eulaText, MAXIMUM_EULA_CHARACTERS, false, true) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Adapterへ渡すroot evidenceとrecord時刻の最低限の整合性を確認します。
  * @param[in] evidence 固定root本文の取得証拠。
@@ -200,6 +208,7 @@ constexpr NativeError SOURCE_ACCESS_DENIED = static_cast<NativeError>( E_ACCESSD
  * @param[in] resolvedUtcSeconds Record固定時刻。
  * @return Network本文、非cache、landing、単調時刻の条件を満たす場合は`true`。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool hasValidRootBinding( const OfficialSourceEvidence &evidence,
 									   const std::uint64_t			 recordEvidenceId,
 									   const std::uint64_t			 resolvedUtcSeconds) noexcept
@@ -218,20 +227,24 @@ constexpr NativeError SOURCE_ACCESS_DENIED = static_cast<NativeError>( E_ACCESSD
 		   resolvedUtcSeconds >= *evidence.originValidatedUtcSeconds ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Win32 errorをHRESULT bit patternへ変換する。
  * @param[in] error 変換するWin32 error code。
  * @return NativeErrorで保持するHRESULT bit pattern。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError nativeErrorFromWin32( const DWORD error) noexcept
 {
 	return static_cast<NativeError>( HRESULT_FROM_WIN32( error)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 現在UTCをUnix epoch秒へ変換する。
  * @return 0ではないUTC秒。Clockがepoch以前または表現範囲外なら0。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::uint64_t currentUtcSeconds() noexcept
 {
 	const auto now = std::chrono::system_clock::now().time_since_epoch() ;	// 現在のepoch差。
@@ -246,6 +259,7 @@ constexpr NativeError SOURCE_ACCESS_DENIED = static_cast<NativeError>( E_ACCESSD
 	return static_cast<std::uint64_t>( seconds) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 検証済みIntel releaseの配布fieldだけを通常／収集recordへ組み立てます。
  * @tparam Record URLをworker内で所有する通常recordまたは収集候補。
@@ -256,6 +270,7 @@ constexpr NativeError SOURCE_ACCESS_DENIED = static_cast<NativeError>( E_ACCESSD
  * @param[out] record 出典証拠以外の全配布field。
  * @note URLやrootの検証結果を本関数の呼出しだけから推論しません。
  */
+//------------------------------------------------------------------------------
 template <class Record>
 void fillIntelZipRecordFields( OfficialReleaseRecord			&&release,
 							  const OfficialSourceDefinition &definition,
@@ -299,14 +314,16 @@ void fillIntelZipRecordFields( OfficialReleaseRecord			&&release,
 	record.payloads.push_back( std::move( payload)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開target fieldの有限性と制御文字／URL混入を検査します。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] value 明示された公開値。
  * @param[in] maximum UTF-16 code unit上限。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] allowEmpty 任意chip fieldに限り空を許可します。
  * @return 公開値として成立すればtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validCollectorText( CollectorParserContext *control,
 									  const std::wstring_view value, const std::size_t maximum,
 									  const bool allowEmpty = false)
@@ -333,13 +350,15 @@ void fillIntelZipRecordFields( OfficialReleaseRecord			&&release,
 	return collectorParserFind( control, value, L"://") == std::wstring_view::npos ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開target名を一覧と同じNFC比較表現へ変換します。
- * @param[in] model 明示された公開製品名。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] model 明示された公開製品名。
  * @param[out] comparison 成功時のNFC比較名。
  * @return 有限公開名ならtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool collectorComparisonName( CollectorParserContext *control,
 										   const std::wstring_view model, std::wstring &comparison)
 {
@@ -371,13 +390,15 @@ void fillIntelZipRecordFields( OfficialReleaseRecord			&&release,
 	return validCollectorText( control, comparison, 256U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開target入力のschemaを確認します。
- * @param[in] query 一対象の公開条件。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] query 一対象の公開条件。
  * @param[out] comparison 正規化した製品名。
  * @return 必須公開fieldが有効ならtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validCollectorQuery( CollectorParserContext		   *control,
 									   const IntelCollectorTargetQuery &query,
 									   std::wstring					   &comparison)
@@ -393,12 +414,14 @@ void fillIntelZipRecordFields( OfficialReleaseRecord			&&release,
 		   validCollectorText( control, query.chip, 128U, true) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 優先順位に従って確定した三状態を記録します。
  * @param[out] target 一時判定結果。
  * @param[in] state 確定した状態。
  * @param[in] reason 同じ状態内の最初の軸理由。
  */
+//------------------------------------------------------------------------------
 void setCollectorState( IntelCollectorTargetAssessment  &target,
 					   const IntelCollectorTargetState	state,
 					   const IntelCollectorTargetReason reason) noexcept
@@ -407,13 +430,15 @@ void setCollectorState( IntelCollectorTargetAssessment  &target,
 	target.reason = reason ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一つの対象と同一本文の一時候補を取得権限なしで照合します。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] query 一対象の公開条件。
  * @param[in] identity 同一本文の採用済み製品集合。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in,out] target 確定した状態と採用製品名を設定します。
  */
+//------------------------------------------------------------------------------
 void assessCollectorTarget( CollectorParserContext *control, const IntelCollectorTargetQuery &query,
 						   const IntelCollectorIdentityResult &identity,
 						   IntelCollectorTargetAssessment	  &target)
@@ -516,7 +541,8 @@ void assessCollectorTarget( CollectorParserContext *control, const IntelCollecto
 } // namespace
 
 //------------------------------------------------------------------------------
-/** @brief 旧入口と制御付き入口で配布・一覧・全対象を同じ順序で照合します。
+/**
+ * @brief 旧入口と制御付き入口で配布・一覧・全対象を同じ順序で照合します。
  * @param[in,out] control 新経路の制御。旧入口だけnull。
  * @param[in] html 同一本文。
  * @param[in] targets 全公開対象。
@@ -524,6 +550,7 @@ void assessCollectorTarget( CollectorParserContext *control, const IntelCollecto
  * @param[out] assessment 所有照合結果。
  * @return 集合契約の成立。
  */
+//------------------------------------------------------------------------------
 static bool inspectIntelCollectorMetadataPageCore(
 	CollectorParserContext *control, const std::wstring_view html,
 	const std::span<const IntelCollectorTargetQuery> targets,
@@ -642,7 +669,15 @@ static bool inspectIntelCollectorMetadataPageCore(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_ethernet_windows11_record_adapter.h 宣言側の契約を正本とします。
+ * @brief Intel record 727998のrelease metadataをURL秘密所有のdistribution recordへ変換します。
+ * @param[in,out] release Windows 11専用parserの結果。成功時は文字列の所有権を結果へ移します。
+ * @param[in] rootEvidence 固定Intel root本文のURL非保持取得証拠。
+ * @param[in] recordEvidenceId 同じscan session内で割り当てた0ではないrecord証拠ID。
+ * @param[in] resolvedUtcSeconds Root検証後にrecordを固定したUTC秒。
+ * @param[out] record 成功時の一payload record。失敗時は初期値です。
+ * @return Family、版、file、hash、EULA、root時刻が有限かつ整合する場合は`true`。
+ * @post 成功時は`release.downloadUrl`を含む文字列を結果へ移動します。
+ * @note 概算表示をexact byte数へ変換せず、`publishedSizeBytes`の欠落を維持します。
  */
 //------------------------------------------------------------------------------
 bool adaptIntelEthernetWindows11DistributionRecord( OfficialReleaseRecord	   &&release,
@@ -661,7 +696,18 @@ bool adaptIntelEthernetWindows11DistributionRecord( OfficialReleaseRecord	   &&r
 										   resolvedUtcSeconds, record) ;
 }
 
-/** @see intel_ethernet_windows11_record_adapter.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存Intel ZIP parserの結果をfamily別根拠と同意に結合して共通recordへ変換します。
+ * @param[in,out] release Wi-Fi、Windows 11またはServer 2025 Ethernetの解析結果。
+ * @param[in] rootEvidence 同じfamilyの公式root本文取得証拠。
+ * @param[in] recordEvidenceId Session内の非zero証拠ID。
+ * @param[in] resolvedUtcSeconds Record確定時刻。
+ * @param[out] record 成功時だけ公開する秘密URL所有record。失敗時は初期値。
+ * @return 既知parser、family、file、hash、同意本文、rootが一致する場合true。
+ * @note 端末適合・内容検査・導入許可は発行しません。EXEは対象外です。
+ */
+//------------------------------------------------------------------------------
 bool adaptIntelZipDistributionRecord( OfficialReleaseRecord		 &&release,
 									 const OfficialSourceEvidence &rootEvidence,
 									 const std::uint64_t		   recordEvidenceId,
@@ -711,7 +757,22 @@ bool adaptIntelZipDistributionRecord( OfficialReleaseRecord		 &&release,
 	}
 }
 
-/** @see intel_ethernet_windows11_record_adapter.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 組み込みIntel record 727998固定rootを取得して型付きdistribution recordへ解決する。
+ * @param[in] scanSessionId 現在のworker scan session ID。
+ * @param[in] recordEvidenceId Sessionが今回だけ割り当てた0ではないrecord証拠ID。
+ * @param[in] providerId Registryで検証済みのIntel Windows 11 Provider ID。
+ * @param[in] rootResourceId Source policyの固定landing resource ID。
+ * @param[in] builtInRootUrl 組み込みsource policyから得た固定landing URL。
+ * @param[in] maximumRecordBytes 固定定義と一致する2 MiB以下の本文上限。
+ * @param[in] fetchMode 秘密URLをcacheへ保存しない固定mode。
+ * @param[in,out] client Composite workerが所有するcache無効の公式HTTP client。
+ * @param[out] record 解決成功時だけ設定する秘密URL所有record。
+ * @return 解決、通常失敗、source拒否、metadata拒否を区別するURL非保持結果。
+ * @note 同期network処理を含むためUI threadから呼びません。Device hintまたは端末IDを受け取りません。
+ */
+//------------------------------------------------------------------------------
 OfficialDiscoveryFixedRootResult resolveIntelEthernetWindows11OfficialDiscoveryRecord(
 	const ScanSessionId scanSessionId, const std::uint64_t recordEvidenceId,
 	const std::wstring_view providerId, const std::wstring_view rootResourceId,
@@ -774,7 +835,18 @@ OfficialDiscoveryFixedRootResult resolveIntelEthernetWindows11OfficialDiscoveryR
 	return {.state = OfficialDiscoveryFixedRootState::RESOLVED, .error = 0} ;
 }
 
-/** @see intel_ethernet_windows11_record_adapter.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 一つの727998本文から配布候補と製品別照合案を組み立てます。
+ * @param[in] html 既存release parserと専用一覧parserへ同時に渡す借用本文。
+ * @param[in] targets 最大300件の公開targetと明示OS／architecture。
+ * @param[in] resolvedUtcSeconds 呼出元が別途確認した本文時刻以降の非zero UTC秒。
+ * @param[out] assessment 成功時のworker内一時値。入力拒否時は初期値。
+ * @return 入力集合と処理上限が有効ならtrue。配布・一覧の不成立はtrueの結果内で区別します。
+ * @note 本関数はGETや公式出典を検証しません。候補はgrantに変換できず、最終edgeのfingerprint／本文hash／policy証明は後続のGET所有wrapperで設定します
+ *       。
+ */
+//------------------------------------------------------------------------------
 bool inspectIntelCollectorMetadataPage( std::wstring_view						  html,
 									   std::span<const IntelCollectorTargetQuery> targets,
 									   std::uint64_t					 resolvedUtcSeconds,
@@ -784,7 +856,17 @@ bool inspectIntelCollectorMetadataPage( std::wstring_view						  html,
 												 assessment) ;
 }
 
-/** @see intel_ethernet_windows11_record_adapter.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一本文の配布・一覧・全対象を停止理由を保って解析します。
+ * @param[in] html 同一GET本文。
+ * @param[in] targets 最大300件の公開対象。
+ * @param[in] resolvedUtcSeconds 本文時刻。
+ * @param[in,out] control 元GETの必須制御。
+ * @param[out] assessment 完了後だけ公開する所有結果。
+ * @return 解析手順の型付き終了。
+ */
+//------------------------------------------------------------------------------
 CollectorParserResult inspectIntelCollectorMetadataPageControlled(
 	std::wstring_view html, std::span<const IntelCollectorTargetQuery> targets,
 	std::uint64_t resolvedUtcSeconds, OfficialCollectorHttpControl &control,

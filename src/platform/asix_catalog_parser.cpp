@@ -2,7 +2,7 @@
 /**
  * @file asix_catalog_parser.cpp
  * @brief ASIX AX88179A公式製品page・Terms parser実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 固定ASIX製品pageとTermsを実行せず、Windows client x64の取得前recordへ結合します。欠落、重複、未知構造、別OS、別hostを推測で補完せず拒否しま
@@ -818,7 +819,11 @@ void appendTermsBreak( std::wstring &text)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asix_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief ASIX AX88179A公式製品pageを有限規則で解析する。公開page情報だけを返し、hash、INF内容、PnP適用性、導入可否を補完しない。
+ * @param[in] html ASIX公式hostから取得したUTF-16 HTML。
+ * @param[out] catalog 成功時のWindows 10／11 x64表示情報。失敗時は初期値。 成功時のWindows 10／11 x64情報。失敗時は初期値。
+ * @return 製品名、二つのdriver行、版、日付、size、公式endpointが整合する場合true。 固定製品と二つの対象driver行が整合する場合true。
+ * @note 公開SHA-256がないため、本結果だけではpayload取得またはinstallを許可しない。
  */
 //------------------------------------------------------------------------------
 bool parseAsixAx88179aProductPage( const std::wstring_view html, AsixAx88179aCatalog &catalog)
@@ -858,7 +863,12 @@ bool parseAsixAx88179aProductPage( const std::wstring_view html, AsixAx88179aCat
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asix_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief ASIX公式Terms pageの単一mainを有限規則でplain textへ変換する。Main外のnavigationとfooterを混ぜず、本文hashだけで完全一致確認を代
+ *        替しない。
+ * @param[in] html 固定Terms起点から取得した最大256 Ki UTF-16単位のHTML。 ASIX固定Terms起点から取得したUTF-16 HTML。
+ * @param[out] snapshot 成功時の全文と算出識別子。失敗時は初期値。 成功時の正規化全文と算出識別子。
+ * @return 既知container、見出し、tag、entityを省略なく変換できた場合true。 単一mainの全文を既知構造から省略なく変換できた場合true。
+ * @note Navigationやfooterを同意対象へ混ぜず、未知構造を黙って除去しない。
  */
 //------------------------------------------------------------------------------
 bool parseAsixTermsPage( const std::wstring_view html, AsixTermsSnapshot &snapshot)
@@ -899,7 +909,12 @@ bool parseAsixTermsPage( const std::wstring_view html, AsixTermsSnapshot &snapsh
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asix_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief 実Windows client buildに対応するASIX表示情報を選ぶ。Serverとbuild不明をfail-closedにし、別OS向け行をfallbackに使用しない。
+ * @param[in] catalog 検証済み製品pageの所有値。
+ * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true。
+ * @param[in] windowsBuild 実OSのmajor build番号。0は判定不能。 実OSのmajor build。0は不明。
+ * @param[out] entry 成功時に選択した表示情報の複製。失敗時は初期値。
+ * @return 対応するWindows 10／11 x64 client系列を選択できた場合true。 対応するWindows client系列を選べた場合true。
  */
 //------------------------------------------------------------------------------
 bool selectAsixAx88179aWindowsEntry( const AsixAx88179aCatalog &catalog, const bool windowsServer,
@@ -917,7 +932,16 @@ bool selectAsixAx88179aWindowsEntry( const AsixAx88179aCatalog &catalog, const b
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asix_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief 同じsource sessionの製品pageとTerms pageをOS別の取得前recordへ結合する。呼出側が同一source sessionを保証する。未公開値を補完せず導
+ *        入許可しない。
+ * @param[in] productHtml 固定AX88179A製品pageのHTML。
+ * @param[in] termsHtml 製品pageが一意に参照する固定Terms pageのHTML。 同じsource sessionの固定Terms page HTML。
+ * @param[in] windowsServer 実OSがWindows Serverの場合true。
+ * @param[in] windowsBuild 実OSのmajor build番号。0は判定不能。
+ * @param[out] record 成功時のworker専用配布snapshot。失敗時は初期値。 成功時の取得前配布snapshot。
+ * @return 両pageの解析、client OS選択、本文識別、配布identityが全て成立した場合true。 二page、OS選択、本文識別、配布identityが全て成立した場合
+ *         true。
+ * @note 呼出側が両pageの同一公式source session証拠を保証する。本関数は取得・導入を許可しない。
  */
 //------------------------------------------------------------------------------
 bool makeAsixAx88179aPreparedRelease( const std::wstring_view productHtml,

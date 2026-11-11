@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_operation_tests.cpp
  * @brief 承認済み取得実行の内部試験。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 同期fakeだけを使用し、network・復元ポイント・実導入を呼びません。
@@ -338,7 +339,8 @@ void testExecutorControlCallbackFailure( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_preparation_operation_tests.h 宣言側の契約を正本とする。
+ * @brief 取得executorの選択・取消し・例外試験を実行する。合成対象だけの取得executor試験を実行する。
+ * @param[in,out] context Assertionの集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialPreparationOperationTests( TestContext &context)

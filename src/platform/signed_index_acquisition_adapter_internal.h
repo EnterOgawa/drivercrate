@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_adapter_internal.h
  * @brief 製品設定へ注入できない固定RAM fixture取得policyを宣言します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/12  署名snapshotと同grant・共通取得の有限接続を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  私有構築済みbatchの同snapshot集約fixtureを追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 固定fixture-mainの隔離署名snapshotだけを扱います。任意鍵・host・bool設定を受けません。
@@ -34,7 +35,8 @@
 namespace drivercrate::signed_index_acquisition_detail {
 /** @brief 固定RAM fixture policyだけを有効にする内部friendです。 */
 struct Access {
-	/** @brief 同じ実開始検査へ固定fixture-main／revision1だけを渡します。
+	/**
+	 * @brief 同じ実開始検査へ固定fixture-main／revision1だけを渡します。
 	 * @param[in,out] adapter 未開始adapter。
 	 * @param[in] lookup 真署名・隔離commit／reload済みlookup。
 	 * @param[in] current 同worker context。
@@ -46,7 +48,8 @@ struct Access {
 		SignedIndexAcquisitionAdapter				  &adapter,
 		std::shared_ptr<const SignedIndexRecordLookup> lookup, IndexLookupContext current,
 		IndexTargetOs targetOs, std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
-	/** @brief 公開relationでなく実lookupだけを私有集約入口へ渡します。
+	/**
+	 * @brief 公開relationでなく実lookupだけを私有集約入口へ渡します。
 	 * @param[in] snapshot 真署名・隔離保存の同じ原snapshot。
 	 * @param[in] context 元scanの全context。
 	 * @param[in] batches 正規lookupが私有構築したbatch。

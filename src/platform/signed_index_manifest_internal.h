@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest_internal.h
  * @brief 固定信頼公開鍵とnative fixtureだけに限定する内部注入境界を定義します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/11  固定trustとRAM内native fixtureの境界を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/11  通常workerの同scan署名索引読取り境界を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Envelopeや利用者入力をtrustへ登録しません。鍵生成・秘密鍵・永続化は含みません。
@@ -42,11 +43,15 @@ struct TrustKey {
 	std::span<const std::uint8_t> rsaPublicBlob ;
 } ;
 
-/** @brief Binary固定trustの配備有無だけを読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief Binary固定trustの配備有無だけを読みます。
  * @return 固定集合が非空の場合true。鍵materialは返しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool						productTrustAvailable() noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 最大8件の内部固定trustを用い、製品関数と同じ実CNG検証を行います。
  * @param[in] envelope 外側原byte。所有権は取得しません。
@@ -56,6 +61,7 @@ struct TrustKey {
  * @return 成功時だけ認証receipt。鍵登録・asset検査・保存・networkの作用はありません。
  * @warning Network、設定、利用者入力をtrustedKeysへ投影してはいけません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] SignedIndexManifestResult authenticateWithTrustKeys(
 	std::string_view envelope, std::optional<std::chrono::sys_seconds> nowUtc,
 	const std::optional<IndexManifestHighWater> &highWater,

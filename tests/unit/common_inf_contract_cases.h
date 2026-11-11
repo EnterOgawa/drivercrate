@@ -2,7 +2,7 @@
 /**
  * @file common_inf_contract_cases.h
  * @brief 共通INFの34定義に対応する内部挙動と未接続範囲を試験する。
- * @version 01.00.02
+ * @version 01.00.03
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  34定義の内部範囲別試験を追加。
  * Ver.01.00.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.00.02 Shunji Ogawa  2026/10/24  必須解析の同値NativeError比較を明示。
+ * Ver.01.00.03 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 専用試験TUがBatchFixture定義後にだけ読み込む。製品許可や公開candidateを生成しない。
@@ -52,7 +53,8 @@ namespace {
 
 /** @brief 架空fileへの操作handleだけを回収する。 */
 struct ContractHandleCloser {
-	/** @brief 正常に開いたfixture handleを閉じる。
+	/**
+	 * @brief 正常に開いたfixture handleを閉じる。
 	 * @param[in] value 単独所有handle。無効値は閉じない。
 	 */
 	void operator()( void *value) const noexcept
@@ -68,13 +70,16 @@ struct ContractHandleCloser {
  */
 using ContractHandle = std::unique_ptr<void, ContractHandleCloser> ;
 
-/** @brief 制御したfake rank・bindingで封印初期化の拒否を観測する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 制御したfake rank・bindingで封印初期化の拒否を観測する。
  * @param[in,out] target 空factory。
  * @param[in] session 生存issuer。
  * @param[in,out] archive 元workspace。失敗時も保持する。
  * @param[in,out] evidence 元封印。失敗時も保持する。
  * @return 検証対象initializeの元HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError initializeContractSource( CommonInfPlanFactory							  &target,
 									 std::shared_ptr<const OfficialAcquisitionSession> session,
 									 std::unique_ptr<OfficialDownloadWorkspace>		  &archive,
@@ -100,10 +105,13 @@ NativeError initializeContractSource( CommonInfPlanFactory							  &target,
 							 OfficialDriverArchiveFormat::ZIP, rank, binder, release) ;
 }
 
-/** @brief 任意の実IDを使わない現在版付き発行要求を作る。
+//------------------------------------------------------------------------------
+/**
+ * @brief 任意の実IDを使わない現在版付き発行要求を作る。
  * @param[in] number 架空candidate／device番号。
  * @return 同scanの一基本INF要求。
  */
+//------------------------------------------------------------------------------
 CommonInfPlanRequest contractRequest( unsigned number = 1U)
 {
 	return {91U,
@@ -115,10 +123,13 @@ CommonInfPlanRequest contractRequest( unsigned number = 1U)
 			L"2025/01/01"} ;
 }
 
-/** @brief 単一または共有INFの成功とfile固定・全失効を確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 単一または共有INFの成功とfile固定・全失効を確認する。
  * @param[in,out] context Assertion集計先。
  * @param[in] count 同じ元取得を使う架空device数。1～33。
  */
+//------------------------------------------------------------------------------
 void contractSuccess( TestContext &context, unsigned count = 1U)
 {
 	BatchFixture					  fixture( context) ;	// 一回だけ取得した元archive。
@@ -144,10 +155,13 @@ void contractSuccess( TestContext &context, unsigned count = 1U)
 	}
 }
 
-/** @brief 再検証失敗と導入callback失敗を別の停止位置へ注入する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 再検証失敗と導入callback失敗を別の停止位置へ注入する。
  * @param[in,out] context Assertion集計先。
  * @param[in] kind 0は共有内容、1はrank、2は第二の直前binding、3は第二導入、4は導入例外。
  */
+//------------------------------------------------------------------------------
 void contractFailure( TestContext &context, unsigned kind)
 {
 	BatchFixture						  fixture( context) ;	// 独立した一回の封印取得。
@@ -210,7 +224,8 @@ struct ContractRestore final : IRestorePointService {
 	unsigned					begins{} ;
 	/// 実coreからの終了回数。
 	unsigned					ends{} ;
-	/** @brief 架空開始結果だけを返す。
+	/**
+	 * @brief 架空開始結果だけを返す。
 	 * @param[in] description 使用しない説明。
 	 * @return 架空成功またはE_FAIL。
 	 */
@@ -221,7 +236,8 @@ struct ContractRestore final : IRestorePointService {
 		return reject ? RestorePointOperationResult{OutcomeCode::FAILURE, E_FAIL, 0}
 					  : RestorePointOperationResult{OutcomeCode::SUCCESS, 0, 23} ;
 	}
-	/** @brief 架空終了を数え、成功を返す。
+	/**
+	 * @brief 架空終了を数え、成功を返す。
 	 * @param[in] sequenceNumber 実coreが返した番号。
 	 * @return 架空成功。
 	 */
@@ -238,7 +254,8 @@ struct ContractProvider final : IUpdateProvider {
 	BatchFixture						   &fixture ;
 	/// 実行中変更しない私有計画の借用集合。
 	std::span<const CommonInfPlanSelection> selected ;
-	/** @brief 試験の借用を固定する。
+	/**
+	 * @brief 試験の借用を固定する。
 	 * @param[in,out] value 架空所有者。
 	 * @param[in] selection 借用集合。
 	 */
@@ -246,7 +263,8 @@ struct ContractProvider final : IUpdateProvider {
 		: fixture( value), selected( selection)
 	{
 	}
-	/** @brief この試験ではscanしない。
+	/**
+	 * @brief この試験ではscanしない。
 	 * @param[in] scan 使用しないsession。
 	 * @param[in] options 使用しない設定。
 	 * @param[in] progress 使用しない通知。
@@ -260,7 +278,8 @@ struct ContractProvider final : IUpdateProvider {
 		static_cast<void>( progress) ;
 		return {} ;
 	}
-	/** @brief 保護coreから内部adapterへ同期委譲する。
+	/**
+	 * @brief 保護coreから内部adapterへ同期委譲する。
 	 * @param[in] scan 同じscan。
 	 * @param[in] identities 使用しない架空表示ID。製品routingの代替ではない。
 	 * @param[in] parentWindowNative 使用しない親値。
@@ -277,11 +296,14 @@ struct ContractProvider final : IUpdateProvider {
 	}
 } ;
 
-/** @brief 実coreのclient／Server保護経路と拒否をfake adapterへ接続する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実coreのclient／Server保護経路と拒否をfake adapterへ接続する。
  * @param[in,out] context Assertion集計先。
  * @param[in] server Server専用core経路の場合true。実OS判定ではない。
  * @param[in] reject 保護開始拒否の場合true。Serverでは指定しない。
  */
+//------------------------------------------------------------------------------
 void contractProtection( TestContext &context, bool server, bool reject = false)
 {
 	BatchFixture						  fixture( context) ;						// Fake指定導入だけを行う所有者。
@@ -318,10 +340,13 @@ void contractProtection( TestContext &context, bool server, bool reject = false)
 	}
 }
 
-/** @brief 一定義の実装済み範囲だけを実行する。未接続の3定義は呼ばない。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一定義の実装済み範囲だけを実行する。未接続の3定義は呼ばない。
  * @param[in,out] context Assertion集計先。
  * @param[in] number 定義番号1～34。
  */
+//------------------------------------------------------------------------------
 void runContractCase( TestContext &context, unsigned number)
 {
 	// 認証・内容・選択・終了の実装済み範囲を原定義へ一対一対応する。
@@ -716,9 +741,12 @@ void runContractCase( TestContext &context, unsigned number)
 	}
 }
 
-/** @brief 34定義を境界全確認・部分確認・未接続のまま出力する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 34定義を境界全確認・部分確認・未接続のまま出力する。
  * @param[in,out] context Base試験に追加する集計先。
  */
+//------------------------------------------------------------------------------
 void runContractTests( TestContext &context)
 {
 	constexpr std::array<unsigned, 15> RUNTIME_CASES{

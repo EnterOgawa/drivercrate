@@ -2,7 +2,7 @@
 /**
  * @file nvidia_catalog_parser.cpp
  * @brief NVIDIA公式catalog応答parser実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note XMLは共通MSXML security境界の後にLookupValue schemaを検証し、JSONはWindows標準のWindows.Data.Json parserを使用し
@@ -400,7 +401,12 @@ constexpr std::array<std::wstring_view, 1> NVIDIA_DOWNLOAD_HOSTS{
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief NVIDIA lookup APIのXMLからbounded lookup value群を取得する。NVIDIA lookup XMLをbounded lookup value群へ
+ *        変換する。LookupValueSearch container内のName/Value組だけを受理する。
+ * @param[in] xml NVIDIA公式APIから取得したUTF-16 XML text。 NVIDIA公式APIのUTF-16 XML。
+ * @param[out] values 成功時のlookup value群。失敗時は空にする。
+ * @return schemaと上限を満たす場合は`true`。 一件以上のschema準拠要素を取得できた場合は`true`。
+ * @pre 呼出しthreadでCOM apartmentが初期化されていること。
  */
 //------------------------------------------------------------------------------
 bool parseNvidiaLookupXml( const std::wstring_view xml, std::vector<NvidiaLookupValue> &values)
@@ -477,7 +483,11 @@ bool parseNvidiaLookupXml( const std::wstring_view xml, std::vector<NvidiaLookup
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief NVIDIA driver検索APIのJSONからbounded release群を取得する。NVIDIA driver JSONをbounded release群へ変換する。必須
+ *        fieldを上限付きで取得し、不完全entryを推測で補完しない。
+ * @param[in] json NVIDIA公式APIから取得したUTF-16 JSON text。 NVIDIA公式APIのUTF-16 JSON。
+ * @param[out] entries 成功時のdriver release群。失敗時は空にする。
+ * @return schemaと上限を満たす場合は`true`。 Schema準拠応答を解析できた場合は`true`。候補0件も成功。
  */
 //------------------------------------------------------------------------------
 bool parseNvidiaDriverJson( const std::wstring_view json, std::vector<NvidiaDriverEntry> &entries)

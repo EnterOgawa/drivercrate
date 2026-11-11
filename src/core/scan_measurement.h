@@ -2,7 +2,7 @@
 /**
  * @file scan_measurement.h
  * @brief Worker内計測根拠と段階別和集合の純粋集計契約。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/10
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Evidenceはworker内だけに保持し、UI結果へは件数のみを渡します。Native IDを保持しません。
@@ -149,13 +150,16 @@ struct ScanMeasurementAggregation {
 	std::vector<LocalCoverageEntry>		  localCoverage ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 数値の有無と確定度が矛盾しないか確認する。
  * @param[in] measurement 検査する件数。
  * @return 既知enumでEXACT／LOWER_BOUNDだけが値を持つ場合はtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isCountMeasurementValid( const CountMeasurement &measurement) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有界列挙の停止点と一回probeから確定度付き観測数を作る。
  * @param[in] retainedItemCount 上限内で実際に保持した要素数。
@@ -166,10 +170,12 @@ struct ScanMeasurementAggregation {
  * @return 入力が整合する場合は分類結果、矛盾またはoverflow時は値なし。
  * @note OS APIを呼ばず、上限到達だけを正常終端へ読み替えない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<BoundedEnumerationMeasurement> classifyBoundedEnumeration(
 	std::uint64_t retainedItemCount, std::uint64_t itemLimit, BoundedEnumerationStop stop,
 	BoundedEnumerationProbe probe, NativeError error) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公式HTTP ledgerをURLなしの計測resourceへ変換する。
  * @param[in] evidence 同一Provider・sessionの連続した取得根拠。
@@ -177,10 +183,12 @@ struct ScanMeasurementAggregation {
  * @return 全根拠がregistry・連番・実取得経路の契約を満たす場合はtrue。
  * @note Network、cache I/O、時刻取得を行わず、既存根拠だけをcopyする。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool summarizeOfficialSourceEvidence(
 	std::span<const OfficialSourceEvidence> evidence,
 	std::vector<MeasurementResource>	   &resources) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Workerが公開するscan計測をoperation、session、DTO全体へ再照合する。
  * @param[in] operationId UIが発行した現在の非ゼロscan operation ID。
@@ -188,9 +196,11 @@ struct ScanMeasurementAggregation {
  * @return Measurementなし、または全公開値が同じoperation／sessionと件数契約を満たす場合はtrue。
  * @note 不正measurementを候補scan失敗へ昇格させず、Controllerが計測だけを破棄するために使う。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isPublishedScanMeasurementValid( OperationId		 operationId,
 												   const ScanResult &result) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Local現在版を母数に、検証済み根拠と候補から段階別和集合を作る。
  * @param[in] context Scan開始時に固定した条件。operationIdはworker公開直前の設定まで0を許す。
@@ -203,6 +213,7 @@ struct ScanMeasurementAggregation {
  * @note 通信・OS API・永続化を行わず入力を変更しない。A／Iは既存監査validatorからのみ導く。
  * @warning 計測失敗で正常候補の導入権限を増減しない。既存候補契約違反は別途scanを拒否する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<ScanMeasurementAggregation> aggregateScanMeasurement(
 	const ScanMeasurementContext &context, std::span<const UpdateCandidate> candidates,
 	std::span<const ProviderDescriptor> providers, const DeviceInventoryMeasurement &inventory,

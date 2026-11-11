@@ -2,7 +2,7 @@
 /**
  * @file metadata_search_report.h
  * @brief 情報検索専用の明示実行引数と非機密report定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/12  情報検索専用の非機密出力契約を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 任意の端末表示値・URL・path・EULA本文を出力しない。
@@ -59,22 +60,27 @@ struct MetadataSearchCommand {
 	MetadataSearchRequest	  request ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 実行file名を除く全引数を副作用なしで解析する。
  * @param[in] arguments 呼出し中だけ借用する入力。Provider IDは完全一致で照合。
  * @return 引数なし・describe、明示run、または拒否。拒否時は要求を空にする。
  * @note 許容する入力は固定flagと登録IDだけ。任意URL／file／cache消去flagを持たない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] MetadataSearchCommand parseMetadataSearchArguments(
 	std::span<const std::wstring_view> arguments) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Workerを生成せず、固定予算と選択可能な登録IDをASCIIで構築する。
  * @param[out] description 成功時だけ置き換える完全な条件表示。
  * @return 上限内で全条件を構築できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool buildMetadataSearchDescription( std::string &description) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開結果を開始条件へ再照合し、専用schema revision 1へ変換する。
  * @param[in] operationId Controllerが発行した非ゼロ操作ID。
@@ -85,6 +91,7 @@ struct MetadataSearchCommand {
  * @return 固定ID、enum、件数、消費、容量の全検証に成功した場合true。
  * @note Providerは正本registry順で出力し、入力配列を並べ替えない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool buildMetadataSearchReport( OperationId				  operationId,
 											 std::wstring_view			  applicationVersion,
 											 const MetadataSearchRequest &request,

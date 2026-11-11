@@ -2,7 +2,7 @@
 /**
  * @file official_mapped_file.h
  * @brief 通常入力fileの固定読取りと所有一時fileの有界mappingを定義する。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/03  固定handleと私有file-backed mappingを追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 全mappingの寿命は所有handle内に限定し、入力は変更せず、出力は自身の新規fileだけを削除する。
@@ -41,17 +42,29 @@ class OfficialDownloadWorkspace ;
 /** @brief 固定入力または所有一時出力のmappingとhandleを単独所有する。 */
 class OfficialMappedFile final {
 public:
-	/** @brief 未取得の空ownerを作る。 */
+	/**
+	 * @brief 未取得の空ownerを作る。
+	 */
 	OfficialMappedFile() noexcept ;
-	/** @brief viewとhandleを閉じ、所有一時fileだけを回収する。 */
+	/**
+	 * @brief viewとhandleを閉じ、所有一時fileだけを回収する。
+	 */
 	~OfficialMappedFile() ;
-	/** @brief mappingの複写所有を禁止する。 */
+	/**
+	 * @brief mappingの複写所有を禁止する。
+	 */
 	OfficialMappedFile( const OfficialMappedFile &) = delete ;
-	/** @brief 所有handleの複写代入を禁止する。 */
+	/**
+	 * @brief 所有handleの複写代入を禁止する。
+	 */
 	OfficialMappedFile &operator=( const OfficialMappedFile &) = delete ;
-	/** @brief 借用spanのownerを移動しない。 */
+	/**
+	 * @brief 借用spanのownerを移動しない。
+	 */
 	OfficialMappedFile( OfficialMappedFile &&) = delete ;
-	/** @brief 借用spanのownerを移動代入しない。 */
+	/**
+	 * @brief 借用spanのownerを移動代入しない。
+	 */
 	OfficialMappedFile		 &operator=( OfficialMappedFile &&) = delete ;
 	/**
 	 * @brief 非reparse通常fileをwrite/delete共有なしで固定し、read-only viewを作る。
@@ -70,15 +83,18 @@ public:
 	 */
 	[[nodiscard]] NativeError create( OfficialDownloadWorkspace &workspace, std::wstring_view name,
 									 std::uint64_t bytes, std::uint64_t maximumBytes) ;
-	/** @brief 同期中だけ有効なread-only viewを返す。
+	/**
+	 * @brief 同期中だけ有効なread-only viewを返す。
 	 * @return owner終了またはcloseまで有効な借用byte列。
 	 */
 	[[nodiscard]] std::span<const std::byte> bytes() const noexcept ;
-	/** @brief 出力mappingだけの書込みviewを返す。
+	/**
+	 * @brief 出力mappingだけの書込みviewを返す。
 	 * @return create成功時だけ非空。入力ownerでは空。
 	 */
 	[[nodiscard]] std::span<std::byte>		 writableBytes() noexcept ;
-	/** @brief 全resourceを解放し、所有一時fileだけを削除する。
+	/**
+	 * @brief 全resourceを解放し、所有一時fileだけを削除する。
 	 * @return 最初の解放失敗のHRESULT。既に空なら0。
 	 */
 	[[nodiscard]] NativeError				 close() noexcept ;

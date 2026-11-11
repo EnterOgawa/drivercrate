@@ -2,7 +2,7 @@
 /**
  * @file official_collector_dns.cpp
  * @brief 有限GetAddrInfoExWと所有者解放を実装します。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/27
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/27  有限DNS・共通HTTP制御接続を追加。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 台帳・公式parser・導入処理は実行しません。
@@ -39,7 +40,8 @@ namespace {
 /** @brief ListとWinsock参照を所有者threadで一度だけ解放します。 */
 class ResolverOwner final {
 public:
-	/** @brief 成功WSAStartupの参照を引き取ります。
+	/**
+	 * @brief 成功WSAStartupの参照を引き取ります。
 	 * @param[in] api 同scopeより長い完全依存。
 	 * @param[in,out] control 同scopeより長い制御。
 	 */
@@ -48,7 +50,9 @@ public:
 	{
 		control_.setNativeReleased( false) ;
 	}
-	/** @brief Listを先に解放し、cleanupの原診断を残します。 */
+	/**
+	 * @brief Listを先に解放し、cleanupの原診断を残します。
+	 */
 	~ResolverOwner()
 	{
 		// 失敗APIが返したlistも捨てずに同じ解放関数へ渡す。
@@ -87,12 +91,23 @@ private:
 } ;
 } // namespace
 
-/** @see official_collector_dns.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示native用の完全な不変依存を作ります。
+ * @return 同期Windows API表。通信はまだ行いません。
+ */
+//------------------------------------------------------------------------------
 OfficialCollectorDnsApi nativeCollectorDnsApi() noexcept
 {
 	return {WSAStartup, GetAddrInfoExW, FreeAddrInfoExW, WSACleanup, WSAGetLastError} ;
 }
-/** @see official_collector_dns.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定観測の終端errorを旧API互換HRESULTへ射影します。
+ * @param[in] control 観測元。原値自体は変更しません。
+ * @return 元HRESULT、またはdomain付きcodeからのHRESULT。未終端はE_ABORT。
+ */
+//------------------------------------------------------------------------------
 NativeError collectorControlError( const OfficialCollectorHttpControl &control)
 {
 	const auto error = control.snapshot().error ;	// 原値を壊さない戻り値射影。
@@ -109,7 +124,16 @@ NativeError collectorControlError( const OfficialCollectorHttpControl &control)
 	return error.code != 0U ? static_cast<NativeError>( HRESULT_FROM_WIN32( error.code))
 							: static_cast<NativeError>( E_ABORT) ;
 }
-/** @see official_collector_dns.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存の全public宛先検査を有限DNSへ接続します。
+ * @param[in] host 公式URLからのDNS名。保存しません。
+ * @param[in,out] control claim済みのworker制御。終了確定は呼出し側。
+ * @param[in] api 完全な同期依存表。関数は例外を投げません。
+ * @param[out] evidence 成功時だけ全address件数。失敗時は空。
+ * @return 成功0、拒否はHRESULT bit pattern。原Winsock値はcontrolに保持します。
+ */
+//------------------------------------------------------------------------------
 NativeError resolveCollectorPublicDestination( std::wstring_view					 host,
 											  OfficialCollectorHttpControl		&control,
 											  const OfficialCollectorDnsApi		&api,

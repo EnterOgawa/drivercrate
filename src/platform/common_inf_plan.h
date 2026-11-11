@@ -2,7 +2,7 @@
 /**
  * @file common_inf_plan.h
  * @brief 封印取得と通常単一INFの準備計画および内部選択adapterを定義する。
- * @version 01.01.01
+ * @version 01.01.02
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  共通単一INFの非実行計画と発行所有境界を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/06  内部選択一括adapterと個別実行観測を追加。
  * Ver.01.01.01 Shunji Ogawa  2026/11/03  単一present Componentも元役割のまま扱う契約を明記。
+ * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 同期worker専用。準備計画は導入許可ではなく、installerや公開候補を生成しない。
@@ -74,26 +75,32 @@ struct CommonInfPlanRequest {
  */
 class CommonInfPlanFactory final {
 public:
-	/** @brief 取得物を持たない空factoryを作る。 */
+	/**
+	 * @brief 取得物を持たない空factoryを作る。
+	 */
 	CommonInfPlanFactory() ;
-	/** @brief 自身の計画を失効させ、所有物とtokenをbest-effortで回収する。 */
+	/**
+	 * @brief 自身の計画を失効させ、所有物とtokenをbest-effortで回収する。
+	 */
 	~CommonInfPlanFactory() ;
-	/** @brief 取得物の複写を禁止する。
+	/**
+	 * @brief 取得物の複写を禁止する。
 	 * @param[in] other 複写不能な元factory。
 	 */
 	CommonInfPlanFactory( const CommonInfPlanFactory &other) = delete ;
-	/** @brief 複写代入を禁止する。
+	/**
+	 * @brief 複写代入を禁止する。
 	 * @param[in] other 複写不能な元factory。
-	 * @return 呼出し不能であり値を返さない。
 	 */
 	CommonInfPlanFactory &operator=( const CommonInfPlanFactory &other) = delete ;
-	/** @brief Borrowとthread固定のため移動を禁止する。
+	/**
+	 * @brief Borrowとthread固定のため移動を禁止する。
 	 * @param[in] other 移動不能な元factory。
 	 */
 	CommonInfPlanFactory( CommonInfPlanFactory &&other) = delete ;
-	/** @brief 移動代入を禁止する。
+	/**
+	 * @brief 移動代入を禁止する。
 	 * @param[in] other 移動不能な元factory。
-	 * @return 呼出し不能であり値を返さない。
 	 */
 	CommonInfPlanFactory	 &operator=( CommonInfPlanFactory &&other) = delete ;
 	/**
@@ -134,11 +141,13 @@ public:
 	 * @note 失敗時も同threadの計画は失効する。Windowsの導入済みINFを削除しない。
 	 */
 	[[nodiscard]] NativeError invalidate() noexcept ;
-	/** @brief 通常検査の成功・拒否を含む全INF件数を返す。
+	/**
+	 * @brief 通常検査の成功・拒否を含む全INF件数を返す。
 	 * @return 非初期化・失効・別threadでは0。
 	 */
 	[[nodiscard]] std::size_t infCount() const noexcept ;
-	/** @brief 最後のrollback解放失敗を元処理のHRESULTと独立に返す。
+	/**
+	 * @brief 最後のrollback解放失敗を元処理のHRESULTと独立に返す。
 	 * @return 同workerの保持診断。未初期化・別threadでは0。
 	 * @note 0はWindows状態の包括的な復旧保証ではない。
 	 */
@@ -161,33 +170,41 @@ private:
  */
 class CommonInfInstallPlan final {
 public:
-	/** @brief bindingのない空計画を作る。 */
+	/**
+	 * @brief bindingのない空計画を作る。
+	 */
 	CommonInfInstallPlan() ;
-	/** @brief 自分の未使用tokenをbest-effortで解放する。 */
+	/**
+	 * @brief 自分の未使用tokenをbest-effortで解放する。
+	 */
 	~CommonInfInstallPlan() ;
-	/** @brief tokenと取得物所有の複写を禁止する。
+	/**
+	 * @brief tokenと取得物所有の複写を禁止する。
 	 * @param[in] other 複写不能な元計画。
 	 */
 	CommonInfInstallPlan( const CommonInfInstallPlan &other) = delete ;
-	/** @brief 複写代入を禁止する。
+	/**
+	 * @brief 複写代入を禁止する。
 	 * @param[in] other 複写不能な元計画。
-	 * @return 呼出し不能であり値を返さない。
 	 */
 	CommonInfInstallPlan &operator=( const CommonInfInstallPlan &other) = delete ;
-	/** @brief 所有を移し、移動元を空にする。
+	/**
+	 * @brief 所有を移し、移動元を空にする。
 	 * @param[in,out] other 同じworkerで使用中でない元計画。
 	 */
 	CommonInfInstallPlan( CommonInfInstallPlan &&other) noexcept ;
-	/** @brief 移動代入を禁止し、未解放tokenの暗黙破棄を避ける。
+	/**
+	 * @brief 移動代入を禁止し、未解放tokenの暗黙破棄を避ける。
 	 * @param[in] other 移動代入不能な元計画。
-	 * @return 呼出し不能であり値を返さない。
 	 */
 	CommonInfInstallPlan	 &operator=( CommonInfInstallPlan &&other) = delete ;
-	/** @brief 準備bindingの存在だけを観測する。導入可能を意味しない。
+	/**
+	 * @brief 準備bindingの存在だけを観測する。導入可能を意味しない。
 	 * @return 同じworker・生存所有者・未失効tokenの場合true。それ以外false。
 	 */
 	[[nodiscard]] bool		  isBound() const noexcept ;
-	/** @brief 本計画だけを失効させ、私有tokenを解放する。
+	/**
+	 * @brief 本計画だけを失効させ、私有tokenを解放する。
 	 * @return 解放成功または空0、別thread・再入・解放失敗のHRESULT。
 	 */
 	[[nodiscard]] NativeError invalidate() noexcept ;

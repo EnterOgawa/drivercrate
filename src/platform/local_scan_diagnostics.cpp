@@ -2,7 +2,7 @@
 /**
  * @file local_scan_diagnostics.cpp
  * @brief 索引通信/照合/候補分類の匿名終端診断を組み立てます。
- * @version 01.05.00
+ * @version 01.05.01
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * Ver.01.05.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 文字列本文・端末identity・版文字列は記録しません。未判定を不適合へ換算しません。
  * @see docs/adr/0427-local-anonymous-scan-diagnostics.md
@@ -40,10 +41,13 @@
 
 namespace drivercrate {
 namespace {
-/** @brief 固定recordだけを既sinkへ非待機投入します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定recordだけを既sinkへ非待機投入します。
  * @param[in] record 匿名数値だけの所有値。
  * @param[in,out] sink 内部試験の保存先。
  */
+//------------------------------------------------------------------------------
 void emitDiagnostic( const DiagnosticRecord &record, LocalDiagnosticLog *sink) noexcept
 {
 	// Test sinkも同じwriterを使います。
@@ -55,7 +59,16 @@ void emitDiagnostic( const DiagnosticRecord &record, LocalDiagnosticLog *sink) n
 }
 }
 
-/** @see local_scan_diagnostics.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Install要求または受理開始の固定件数を記録します。
+ * @param[in] operation 元操作連番。要求は現scan、受理開始は新installです。
+ * @param[in] candidates 元所有候補。文字列はserializeしません。
+ * @param[in] indexes 実行要求に使う元indexです。
+ * @param[in] accepted controllerが開始を受理した事実です。
+ * @param[in,out] sink 内部試験だけの保存先。nullptrはprocess logger。
+ */
+//------------------------------------------------------------------------------
 void recordInstallSelectionDiagnostics( const OperationId					  operation,
 									   const std::span<const UpdateCandidate> candidates,
 									   const std::span<const std::size_t>	  indexes,
@@ -87,7 +100,15 @@ void recordInstallSelectionDiagnostics( const OperationId					  operation,
 	emitDiagnostic( record, sink) ;
 }
 
-/** @see local_scan_diagnostics.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 準備開始/受理終端の件数と元codeだけを記録します。
+ * @param[in] approval 元承認。identity等は出力しません。
+ * @param[in] result nullptrは開始、非nullは受理された終端です。
+ * @param[in] applicationState 元controller区分です。
+ * @param[in,out] sink 内部試験の保存先。
+ */
+//------------------------------------------------------------------------------
 void recordPreparationDiagnostics( const OfficialPreparationApproval				 &approval,
 								  const OfficialPreparationOperationResult *const result,
 								  const std::int32_t							  applicationState,
@@ -114,7 +135,15 @@ void recordPreparationDiagnostics( const OfficialPreparationApproval				 &approv
 	emitDiagnostic( record, sink) ;
 }
 
-/** @see local_scan_diagnostics.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 受理済み選択targetと解決意図を各先頭16件まで原数値へ投影します。
+ * @param[in] approval 元計画と選択です。本文を出力しません。
+ * @param[in] result controllerが受理した同操作終端です。
+ * @param[in] verifiedIndex 元操作と全件照合済みのsummaryだけです。不成立はnullptr。
+ * @param[in,out] sink 内部試験の保存先です。
+ */
+//------------------------------------------------------------------------------
 void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &approval,
 										const OfficialPreparationOperationResult &result,
 										const IndexPreparationSummary			 *verifiedIndex,
@@ -292,7 +321,16 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 	}
 }
 
-/** @see local_scan_diagnostics.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元codeを創作せずUI継続の固定理由と件数だけを記録します。
+ * @param[in] operation 元準備操作です。
+ * @param[in] reason 固定の継続区分です。
+ * @param[in] intentCount 元選択数です。
+ * @param[in] readyCount 元READY数です。取得成功数ではありません。
+ * @param[in,out] sink 内部試験の保存先です。
+ */
+//------------------------------------------------------------------------------
 void recordPreparationContinuationDiagnostics( const OperationId					  operation,
 											  const PreparationContinuationReason reason,
 											  const std::size_t					  intentCount,
@@ -309,7 +347,16 @@ void recordPreparationContinuationDiagnostics( const OperationId					  operation
 	emitDiagnostic( record, sink) ;
 }
 
-/** @see local_scan_diagnostics.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元個別/role/保護/事後観測を匿名数値へ投影します。
+ * @param[in] event controllerが受理した同operationの終端です。
+ * @param[in] scanSession 元の失効前scan。表示照合だけに使います。
+ * @param[in] candidates 失効flag変更前の元候補です。生文字列は記録しません。
+ * @param[in] applicationState 元controller区分です。
+ * @param[in,out] sink 内部試験の保存先。
+ */
+//------------------------------------------------------------------------------
 void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId scanSession,
 							  const std::span<const UpdateCandidate> candidates,
 							  const std::int32_t					 applicationState,
@@ -501,7 +548,15 @@ void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId sca
 	}
 }
 
-/** @see local_scan_diagnostics.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 受理済み終端eventのenum/数値だけを記録します。
+ * @param[in] event 同operationへ受理された元event。文字列は参照しません。
+ * @param[in] applicationState 元状態機械の固定区分。
+ * @param[in] measurementAccepted Controllerのsnapshot受理事実。
+ * @param[in,out] sink 内部試験だけの保存先。nullptrは製品process logger。
+ */
+//------------------------------------------------------------------------------
 void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applicationState,
 						   const bool measurementAccepted, LocalDiagnosticLog *const sink) noexcept
 {

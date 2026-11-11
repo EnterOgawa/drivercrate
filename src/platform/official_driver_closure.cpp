@@ -2,7 +2,7 @@
 /**
  * @file official_driver_closure.cpp
  * @brief 公式archiveの選択的driver閉包抽出実装。
- * @version 01.10.00
+ * @version 01.10.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,7 @@
  * Ver.01.08.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * Ver.01.09.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
  * Ver.01.10.00 Shunji Ogawa  2026/11/06  標準圧縮sourceの有限解凍と原/展開byte来歴を保持。
+ * Ver.01.10.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note ZIP／CABの全entryを有限に事前検証し、INFを先に展開して参照閉包を確定後、CATと参照fileだけを追加展開します。
@@ -111,21 +112,44 @@ struct DriverArchiveExtractionCache::State {
 	std::function<bool()>							   cancellation ;
 } ;
 
-/** @see src/platform/official_driver_closure.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原入力をまだ借用しない空ownerを作る。
+ */
+//------------------------------------------------------------------------------
 DriverArchiveExtractionCache::DriverArchiveExtractionCache() noexcept = default ;
-/** @see src/platform/official_driver_closure.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定入力と私有solidを回収する。選択出力workspaceは借用する。
+ */
+//------------------------------------------------------------------------------
 DriverArchiveExtractionCache::~DriverArchiveExtractionCache() = default ;
-/** @see src/platform/official_driver_closure.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一workspaceへ実保持した一意member byte数を返す。
+ * @return 未抽出なら0、成功抽出済みの総byte数。
+ */
+//------------------------------------------------------------------------------
 std::uint64_t DriverArchiveExtractionCache::retainedBytes() const noexcept
 {
 	return state ? state->retained : 0U ;
 }
-/** @see src/platform/official_driver_closure.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief solid outputの実mapped peakを返す。
+ * @return headerを含む同時保持最大byte数。
+ */
+//------------------------------------------------------------------------------
 std::uint64_t DriverArchiveExtractionCache::mappedPeakBytes() const noexcept
 {
 	return state ? state->seven.mappedPeakBytes() : 0U ;
 }
-/** @see src/platform/official_driver_closure.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実decodeした一意solid block数を返す。
+ * @return 未使用なら0。
+ */
+//------------------------------------------------------------------------------
 std::size_t DriverArchiveExtractionCache::decodedBlockCount() const noexcept
 {
 	return state ? state->seven.decodedBlockCount() : 0U ;
@@ -325,6 +349,7 @@ struct ArchiveSource {
 	return stringsEqual( actualSha256, expectedSha256) ? 0 : nativeErrorFromWin32( ERROR_CRC) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定通常fileをmapし、同期期間だけ原viewを借用する。
  * @param[in] source 同じ原入力へ結んだ形式とpath。
@@ -333,6 +358,7 @@ struct ArchiveSource {
  * @param[out] bytes 成功時だけ固定入力のview。
  * @return mapping成功0、失敗は元HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError mapArchive( const ArchiveSource &source, const OfficialDriverClosurePolicy &policy,
 					   OfficialMappedFile &local, std::span<const std::byte> &bytes)
 {
@@ -351,6 +377,7 @@ NativeError mapArchive( const ArchiveSource &source, const OfficialDriverClosure
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定SFXの標準PE/7z範囲を非実行で検査してreaderへ結ぶ。
  * @param[in] source 同じ原SFXの固定位置。
@@ -360,6 +387,7 @@ NativeError mapArchive( const ArchiveSource &source, const OfficialDriverClosure
  * @param[out] reader 成功時だけ同操作のreaderを借用する。
  * @return 全形式検査成功0、失敗は元HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError prepareSevenReader( const ArchiveSource				 &source,
 							   const OfficialDriverClosurePolicy &policy,
 							   OfficialMappedFile &localMap, OfficialSevenZipSession &localReader,
@@ -416,21 +444,14 @@ NativeError prepareSevenReader( const ArchiveSource				 &source,
 }
 
 //------------------------------------------------------------------------------
-/**
- * @brief Archive形式ごとに全entryを事前検証する。
- *
- * ZIPとCABの個別parserを同じ閉包選択処理へ接続する。
- *
- * @param[in] source 形式と絶対pathを持つarchive入力。
- * @param[in] policy ZIPとCABの有限上限。
- * @param[out] entries 成功時の全通常file一覧。
- * @return 形式別の事前検証成功時は0。
- */
+
 //------------------------------------------------------------------------------
-/** @brief 同一操作のresource readerを原親/計画へ一度だけ結ぶ。
+/**
+ * @brief 同一操作のresource readerを原親/計画へ一度だけ結ぶ。
  * @param[in] source 原入力と閉じた選択。
  * @return 全親子検証成功0、元HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError prepareResourceReader( const ArchiveSource &source)
 {
 	// 任意pathだけからrecipeを発行しない。
@@ -448,6 +469,17 @@ NativeError prepareResourceReader( const ArchiveSource &source)
 														  : std::function<bool()>{}) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定元入力の形式ごとに全archive entryを事前検証します。
+ * @param[in] source 形式・絶対pathと同操作の元resource/cacheを持つ固定入力です。
+ * @param[in] policy ZIP/CAB/7zの有限上限です。
+ * @param[out] entries 成功時に形式別の通常entry一覧を保持します。
+ * @return 形式別検査に成功した場合0、非対応形式はE_INVALIDARG、ほかは元検査errorです。
+ * @throws std::bad_alloc 所有するentry一覧の確保に失敗した場合です。
+ * @note 元resource plan、CAB、7z SFX、ZIPへ分岐し、同操作のreader/cacheを同期中だけ使用します。
+ */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectNewArchive( const ArchiveSource				  &source,
 											const OfficialDriverClosurePolicy &policy,
 											std::vector<OfficialZipEntry>	  &entries)
@@ -501,6 +533,7 @@ NativeError prepareResourceReader( const ArchiveSource &source)
 	return error != 0 ? error : inspectOfficialZip( bytes, policy.zipPolicy, entries) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じflat入力の全metadataを一度だけ検査して共有する。
  * @param[in] source 元入力と同期cache。
@@ -508,6 +541,7 @@ NativeError prepareResourceReader( const ArchiveSource &source)
  * @param[out] entries 全検査済み一覧。失敗時は空。
  * @return 元parserの診断。
  */
+//------------------------------------------------------------------------------
 NativeError inspectArchive( const ArchiveSource &source, const OfficialDriverClosurePolicy &policy,
 						   std::vector<OfficialZipEntry> &entries)
 {
@@ -671,6 +705,7 @@ NativeError inspectArchive( const ArchiveSource &source, const OfficialDriverClo
 	return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じ所有workspaceの一意memberだけを追加抽出する。
  * @param[in] source 固定入力と同操作cache。
@@ -680,6 +715,7 @@ NativeError inspectArchive( const ArchiveSource &source, const OfficialDriverClo
  * @param[out] entries 全成功時だけ原hash付き選択結果。
  * @return 元抽出/再照合の診断。失敗時の新規出力は操作ownerが回収する。
  */
+//------------------------------------------------------------------------------
 NativeError extractArchiveFiles( const ArchiveSource				  &source,
 								const OfficialDriverClosurePolicy &policy,
 								std::span<const std::wstring_view> selectedFiles,
@@ -753,6 +789,7 @@ NativeError extractArchiveFiles( const ArchiveSource				  &source,
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 元INFの同位置標準圧縮sourceだけを有限に実体化します。
  * @param[in] source 原archiveと同操作cacheです。
@@ -766,6 +803,7 @@ NativeError extractArchiveFiles( const ArchiveSource				  &source,
  * @return 全必要source実体化0、未知・曖昧・過大・解凍/実byte不一致はHRESULTです。
  * @note Windowsの同期解凍だけを使います。payloadを実行せず、CATは後段で必須です。
  */
+//------------------------------------------------------------------------------
 NativeError materializeCompressedDriverSources(
 	const ArchiveSource &source, const OfficialDriverClosurePolicy &policy,
 	OfficialDownloadWorkspace &workspace, std::wstring_view infPath,
@@ -1198,7 +1236,12 @@ void appendUniquePath( std::vector<std::wstring> &paths, const std::wstring_view
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_driver_closure.h 宣言側の契約を正本とする。
+ * @brief 固定したarchiveを由来判定なしで有限一覧化する。
+ * @param[in] request 保護fileの固定identityと解析対象。
+ * @param[in] policy Archive、展開倍率、nested深度の有限上限。
+ * @param[out] inventory 成功時の一覧。失敗時は空。
+ * @return 全entryと解析前後のsize／hashが一致した場合0、それ以外はHRESULT。
+ * @note Worker内でblockingする。結果は内容一覧だけで公式取得の証拠にならない。
  */
 //------------------------------------------------------------------------------
 NativeError inspectDriverArchiveInventory( const DriverArchiveInventoryRequest &request,
@@ -1345,6 +1388,7 @@ NativeError inspectDriverArchiveInventory( const DriverArchiveInventoryRequest &
 }
 
 namespace {
+//------------------------------------------------------------------------------
 /**
  * @brief 一rootの構造・明示package候補・同節依存を元archiveの共同予算内で抽出する。
  * @param[in] source 固定した外側または一段内側archive。
@@ -1356,6 +1400,7 @@ namespace {
  * @param[out] closure 全体成功時の保守観測。未解決・FAILEDの独立状態も残す。
  * @return 観測成功0、元byte・path・累積容量・重大なAPI失敗のHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError collectMaintenanceClosure(
 	const ArchiveSource &source, std::span<const OfficialZipEntry> sourceEntries,
 	std::span<const std::wstring_view> selectedInfPaths, const OfficialDriverClosurePolicy &policy,
@@ -1798,11 +1843,18 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 }
 
 //------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
 /**
- * @see src/platform/official_driver_closure.h 宣言側の契約を正本とする。
+ * @brief 固定したarchiveから選択INFの内容閉包を非実行抽出する。
+ * @param[in] request 保護fileの固定identityと選択INF群。
+ * @param[in] policy Archive、INF、閉包の有限上限。
+ * @param[in,out] workspace 未初期化の出力領域。生成fileをscope終了まで所有する。
+ * @param[out] closure 全成功時だけ閉包を保持し、失敗時は空。
+ * @return 静的検査と解析前後のsize／hash一致時0、それ以外はHRESULT。
+ * @note Worker内でblockingする。署名、由来、PnP、導入許可は別の検証を必要とする。
  */
 //------------------------------------------------------------------------------
-/** @see src/platform/official_driver_closure.h 宣言側の契約を正本とする。 */
 NativeError extractDriverClosure( const DriverClosureRequest		   &request,
 								 const OfficialDriverClosurePolicy &policy,
 								 OfficialDownloadWorkspace		   &workspace,
@@ -1811,7 +1863,18 @@ NativeError extractDriverClosure( const DriverClosureRequest		   &request,
 	return extractDriverClosureImpl( request, policy, workspace, closure, false) ;
 }
 
-/** @see src/platform/official_driver_closure.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 導入作用を実行せず、保守検証だけに使う内容閉包を抽出する。
+ * @param[in] request 元hashへ固定したarchiveと一root INF選択。複数rootは今回未対応。
+ * @param[in] policy 内容構文と参照・展開量の条件。導入作用を拒否する条件は別検査する。
+ * @param[in,out] workspace 未初期化領域。生成物をscope終了まで単独所有する。
+ * @param[out] closure 成功時の保守用内容。失敗時は空。
+ * @return 有限観測と元identity再確認成功0。用途未対応・依存未解決も結果へ残す。全体失敗はHRESULT。
+ * @note Blockingする。抽出成功は全参照・全署名の合格ではなく、通常導入の条件を変更しない。
+ * @see docs/adr/0258-maintenance-package-verdict-separation.md
+ */
+//------------------------------------------------------------------------------
 NativeError extractMaintenanceDriverClosure( const DriverClosureRequest		  &request,
 											const OfficialDriverClosurePolicy &policy,
 											OfficialDownloadWorkspace		  &workspace,
@@ -1827,7 +1890,17 @@ NativeError extractMaintenanceDriverClosure( const DriverClosureRequest		  &requ
 	return extractDriverClosureImpl( request, policy, workspace, unused, true, &closure) ;
 }
 
-/** @see src/platform/official_driver_closure.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief G11-B取得済みZIP／CABの全通常fileを展開せず一覧化する。取得済み公式archiveの全通常fileを一覧化する。外側および任意の一段nested archiveを実行
+ *        せず一覧化し、解析前後のsizeとSHA-256差替えを拒否する。
+ * @param[in] request G11-B取得結果、archive形式および任意の一段nested選択。 G11-B取得結果、形式と一段nested選択。
+ * @param[in] policy Archiveと展開倍率の有限上限。一段nestedの許可も含む。 Archive、展開倍率、nested深度の有限上限。
+ * @param[out] inventory 成功時の全通常file一覧とarchive深度。 成功時の全通常file一覧と深度。
+ * @return 一覧化成功時は0、identity差替え、構造または有限上限違反時はHRESULT。 全entryと取得identityの検証成功時は0。
+ * @note 処理はblockingのためProvider worker threadで実行し、任意codeを起動しない。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectOfficialDriverArchiveInventory(
 	const OfficialDriverArchiveInventoryRequest &request, const OfficialDriverClosurePolicy &policy,
 	OfficialDriverArchiveInventory &inventory)
@@ -1859,7 +1932,14 @@ NativeError inspectOfficialDriverArchiveInventory(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_driver_closure.h 宣言側の契約を正本とする。
+ * @brief 取得済み公式ZIP／CABから選択INFのdriver閉包だけを抽出する。取得済み公式archiveから選択INFのdriver閉包を抽出する。INFだけを先行展開し、CATと参照
+ *        fileの閉包確定後に追加展開する。
+ * @param[in] request G11-B取得結果、一段nested選択、INF選択と出力識別子。 G11-B取得結果、nested archiveとINF選択。
+ * @param[in] policy Archive、INF、閉包の有限上限と許可値。
+ * @param[in,out] workspace 成功閉包を所有する未初期化の保護workspace。 成功閉包を所有する保護領域。
+ * @param[out] closure 全検証成功時の選択file、INF構造、合計size。 全検証成功時の選択fileとINF構造。
+ * @return 閉包の選択展開成功時は0、identity差替えまたは構造違反時はHRESULT。 選択的閉包の完全な抽出とidentity再検証成功時は0。
+ * @note 処理はblockingのためProvider worker threadで実行し、任意codeを起動しない。
  */
 //------------------------------------------------------------------------------
 NativeError extractOfficialDriverClosure( const OfficialDriverClosureRequest &request,
@@ -1908,11 +1988,13 @@ struct MaintenanceClosureCandidate {
 	MaintenanceInfReferences  references ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 保守専用構造の全選択と同装飾付随節から原seedを一意に集める。
  * @param[in] structure 現在OSの全選択構造。
  * @return 実在を観測した原DDInstall／付随節だけの有限一意集合。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::vector<std::wstring> maintenanceRootSeeds(
 	const MaintenanceInfStructure &structure)
 {
@@ -1944,10 +2026,12 @@ struct MaintenanceClosureCandidate {
 	return seeds ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既知署名FAILEDを独立診断と依存summaryへ保持する。
  * @param[in,out] closure 同じ一rootの観測結果。
  */
+//------------------------------------------------------------------------------
 void summarizeMaintenanceDependency( MaintenanceDriverClosure &closure)
 {
 	auto	   &summary = closure.structure.dependency ;	// 外向き射影前のworker内summary。
@@ -2043,7 +2127,19 @@ void summarizeMaintenanceDependency( MaintenanceDriverClosure &closure)
 	}
 }
 
-/** @see collectMaintenanceClosure 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 一rootの構造・明示package候補・同節依存を元archiveの共同予算内で抽出する。
+ * @param[in] source 固定した外側または一段内側archive。
+ * @param[in] sourceEntries 全memberの閉じた一覧。
+ * @param[in] selectedInfPaths 正式pathへ一意解決した一root。
+ * @param[in] policy 元archive・閉包・内容の有限条件。
+ * @param[in,out] workspace 一rootと到達package fileを単独所有する保護領域。
+ * @param[in,out] extractedEntries 抽出済みINFと後段fileの累積固定一覧。
+ * @param[out] closure 全体成功時の保守観測。未解決・FAILEDの独立状態も残す。
+ * @return 観測成功0、元byte・path・累積容量・重大なAPI失敗のHRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError collectMaintenanceClosure( const ArchiveSource				&source,
 									  std::span<const OfficialZipEntry>	 sourceEntries,
 									  std::span<const std::wstring_view> selectedInfPaths,

@@ -2,7 +2,7 @@
 /**
  * @file official_gzip.cpp
  * @brief 公式GZip catalog展開実装。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Network由来GZipを一つのmemberとして厳密に検証します。入力fileと出力handleの所有権は呼出し側にあり、失敗時に候補metadataを返しません。
@@ -367,7 +368,13 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_gzip.h 宣言側の契約を正本とする。
+ * @brief 一つのGZip memberをmemory上で上限付き展開する。Header、optional field、単一Deflate stream、CRC32、ISIZEを完全検証し、成
+ *        功時だけ出力を更新する。
+ * @param[in] compressed GZip container全体。有効期間は本呼出し中に限る。
+ * @param[in] maximumExpandedBytes 展開を許可する最大byte数。
+ * @param[out] expanded 成功時の展開済みbyte列。失敗時は空にする。 成功時の展開結果。失敗時は空。
+ * @return 成功時は0、形式不正、上限超過、展開失敗時はHRESULT bit pattern。
+ * @note Concatenated member、予約flag、壊れたCRC32またはISIZEを拒否する。
  */
 //------------------------------------------------------------------------------
 NativeError decompressOfficialGzip( const std::span<const std::byte> compressed,
@@ -494,7 +501,14 @@ NativeError decompressOfficialGzip( const std::span<const std::byte> compressed,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_gzip.h 宣言側の契約を正本とする。
+ * @brief Local GZip fileを読み、呼出し側が所有する新規file handleへ展開する。Local GZip fileを新規file handleへ上限付き展開する。入出力
+ *        pathをcontainer metadataから構成せず、署名済みbyte列全体を検証した後だけ保護workspaceへ書き込む。
+ * @param[in] inputPath 署名検証済みGZipのlocal絶対path。 署名検証済みGZip絶対path。
+ * @param[in] maximumCompressedBytes 入力fileの最大byte数。 入力file上限byte数。
+ * @param[in] maximumExpandedBytes 展開後の最大byte数。 展開後上限byte数。
+ * @param[in] outputFile 書込み可能で現在位置が先頭の所有外file handle。 呼出し側所有の新規file handle。
+ * @return 成功時は0、file検証、展開、書込み失敗時はHRESULT bit pattern。 成功時は0、file、展開、書込み失敗時はHRESULT。
+ * @pre `outputFile`は保護workspace内へCREATE_NEWした通常fileであること。
  */
 //------------------------------------------------------------------------------
 NativeError decompressOfficialGzipFile( const std::wstring_view inputPath,

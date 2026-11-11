@@ -2,7 +2,7 @@
 /**
  * @file official_sfx.cpp
  * @brief 公式自己解凍形式の静的識別実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 未信頼EXEを実行せず、PE raw image、7z stream、任意のcertificate tableと必要最小限のzero alignmentを検査します。成功するまで呼出
@@ -716,7 +717,13 @@ struct PeLayout {
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_sfx.h 宣言側の契約を正本とする。
+ * @brief PE image後方の単一7z streamを、実行も展開もせず識別する。PE image後方の単一7z streamを識別する。EXEを実行・展開せず、全検査成功後だけ出力範囲を
+ *        確定する。
+ * @param[in] executable 公式取得後のEXE全体。有効期間は本呼出し中に限る。
+ * @param[in] policy 入力、stub走査、7z streamへ適用する有限上限。 入力、stub走査、7z streamの有限上限。
+ * @param[out] layout 成功時の7z、zero padding、certificate table範囲。失敗時は既定値。 成功時の7zおよびcertificate範囲。
+ * @return 成功時は0、引数、上限、PE／7z構造またはCRC不正時はHRESULT bit pattern。 成功時は0、引数、上限、PE／7z構造、CRC不正時はHRESULT。
+ * @note 本関数はfileを実行・展開せず、署名、publisher、driver適用性も判定しない。
  */
 //------------------------------------------------------------------------------
 NativeError inspectOfficialSevenZipSfx( const std::span<const std::byte>	  executable,

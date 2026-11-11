@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest.cpp
  * @brief 原UTF-8 manifestをRSA-PSSで認証し、固定schema・期限・世代を検査します。
- * @version 01.04.00
+ * @version 01.04.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.03.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.03.02 Shunji Ogawa  2026/10/16  通常固定配布trustをlocal受入と排他的に接続。
  * Ver.01.04.00 Shunji Ogawa  2026/10/23  認証型を発行しない共通manifest値codecを公開。
+ * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 内部固定trustだけを使用します。Asset実byte、保護cache、導入許可へ昇格しません。
@@ -85,9 +86,13 @@ using signed_index_json::decimal ;
 /** @brief 取得済みCNG RSA resourceを逆順に解放する単独ownerです。 */
 class RsaHandles final {
 public:
-	/** @brief 未取得のhandleを持つownerを作ります。 */
+	/**
+	 * @brief 未取得のhandleを持つownerを作ります。
+	 */
 	RsaHandles() = default ;
-	/** @brief 取得済みkeyとalgorithmを全終了経路で解放します。 */
+	/**
+	 * @brief 取得済みkeyとalgorithmを全終了経路で解放します。
+	 */
 	~RsaHandles() noexcept
 	{
 		// Keyをalgorithmより先に解放するため、取得できたkeyだけを回収する。
@@ -100,11 +105,13 @@ public:
 			static_cast<void>( BCryptCloseAlgorithmProvider( algorithm, 0U)) ;
 		}
 	}
-	/** @brief Handleの二重解放を防ぐためコピー構築を禁止します。 */
+	/**
+	 * @brief Handleの二重解放を防ぐためコピー構築を禁止します。
+	 */
 	RsaHandles( const RsaHandles &) = delete ;
-	/** @brief Handleの二重解放を防ぐためコピー代入を禁止します。
-     * @return 呼出しは禁止されます。
-     */
+	/**
+	 * @brief Handleの二重解放を防ぐためコピー代入を禁止します。
+	 */
 	RsaHandles		 &operator=( const RsaHandles &) = delete ;
 	/// BCryptCloseAlgorithmProviderで回収するalgorithm。
 	BCRYPT_ALG_HANDLE algorithm{} ;
@@ -112,9 +119,12 @@ public:
 	BCRYPT_KEY_HANDLE key{} ;
 } ;
 
-/** @brief CNGの失敗値をHRESULTとして失わず中断します。
+//------------------------------------------------------------------------------
+/**
+ * @brief CNGの失敗値をHRESULTとして失わず中断します。
  * @param[in] status 元NTSTATUS。
  */
+//------------------------------------------------------------------------------
 void requireCrypto( const NTSTATUS status)
 {
 	// API失敗と署名不一致の入力拒否を区別する。
@@ -127,13 +137,14 @@ void requireCrypto( const NTSTATUS status)
 //------------------------------------------------------------------------------
 // Base64とhash・暦日の検査。
 //------------------------------------------------------------------------------
-
-/** @brief 共通base64文法へmanifest固有の拒否区分を渡します。
+/**
+ * @brief 共通base64文法へmanifest固有の拒否区分を渡します。
  * @param[in] text 原base64。
  * @param[in] limit Decode後の独立上限。
  * @param[in] sizeFailure 上限拒否区分。
  * @return 原byte順序のdecode結果。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::vector<std::uint8_t> decodeBase64( const std::string_view			 text,
 													 const std::size_t				 limit,
 													 const SignedIndexManifestStatus sizeFailure)
@@ -142,10 +153,13 @@ void requireCrypto( const NTSTATUS status)
 										   SignedIndexManifestStatus::INVALID_BASE64) ;
 }
 
-/** @brief 既存共通hash APIで原byteをSHA-256へ結合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存共通hash APIで原byteをSHA-256へ結合します。
  * @param[in] bytes 署名対象原byte。
  * @return 実CNGの32byte hash。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexManifestSha256 hashManifest( const std::string_view bytes)
 {
 	std::wstring	  hex ;										// 共通APIが返す小文字64桁hash。
@@ -166,19 +180,25 @@ void requireCrypto( const NTSTATUS status)
 	return decodeHash( narrow, SignedIndexManifestStatus::CRYPTO_FAILURE) ;
 }
 
-/** @brief 共通UTC文法へ既存manifestの拒否区分を渡します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通UTC文法へ既存manifestの拒否区分を渡します。
  * @param[in] text 原UTC。
  * @return 1970～9999年のUTC秒。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::chrono::sys_seconds utc( const std::string_view text)
 {
 	return signed_index_json::utc( text, SignedIndexManifestStatus::INVALID_TIME) ;
 }
 
-/** @brief 内部trustとmanifestが使うkey IDの有限文法です。
+//------------------------------------------------------------------------------
+/**
+ * @brief 内部trustとmanifestが使うkey IDの有限文法です。
  * @param[in] keyId 原ID。
  * @return 非空で64byte以内、ASCII英数字または._-だけの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validKeyId( const std::string_view keyId) noexcept
 {
 	return !keyId.empty() && keyId.size() <= 64U &&
@@ -194,11 +214,12 @@ void requireCrypto( const NTSTATUS status)
 //------------------------------------------------------------------------------
 // 型付きmanifestとCNG認証。
 //------------------------------------------------------------------------------
-
-/** @brief 署名されたasset identityを型付きで検査します。
+/**
+ * @brief 署名されたasset identityを型付きで検査します。
  * @param[in,out] reader 元manifestの借用reader。
  * @return 実byte検査前の署名された固定asset値。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexManifestAsset readAsset( Reader &reader)
 {
 	constexpr std::array<std::string_view, 5U> FIELDS{"tag", "name", "compression", "sizeBytes",
@@ -264,10 +285,13 @@ void requireCrypto( const NTSTATUS status)
 	return asset ;
 }
 
-/** @brief 発行側の非負集計とoverflowしない三段階合計を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 発行側の非負集計とoverflowしない三段階合計を検査します。
  * @param[in,out] reader 元manifest reader。
  * @return 署名された集計。実recordとの照合は別工程です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexManifestQuality readQuality( Reader &reader)
 {
 	constexpr std::array<std::string_view, 5U> FIELDS{"sourceCount", "recordCount",
@@ -288,12 +312,15 @@ void requireCrypto( const NTSTATUS status)
 	return quality ;
 }
 
-/** @brief 認証済み原byteの全必須fieldを型付きで読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 認証済み原byteの全必須fieldを型付きで読みます。
  * @param[in] bytes Decodeした原UTF-8。
  * @param[in] envelopeKeyId Trustへ解決済みの外側key ID。
  * @param[in] nowUtc 検査時刻。
  * @return 全manifest意味検査を通過した値。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexManifestData readManifest( const std::string_view bytes,
 											 const std::string_view envelopeKeyId,
 											 const std::optional<std::chrono::sys_seconds> nowUtc)
@@ -379,9 +406,12 @@ void requireCrypto( const NTSTATUS status)
 	return data ;
 }
 
-/** @brief 余剰・private成分・不正指数を含む公開blobをimport前に拒否します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 余剰・private成分・不正指数を含む公開blobをimport前に拒否します。
  * @param[in] blob 内部trustの借用public blob。
  */
+//------------------------------------------------------------------------------
 void validatePublicBlob( const std::span<const std::uint8_t> blob)
 {
 	constexpr auto FAILURE = SignedIndexManifestStatus::INVALID_TRUST_KEY ;	// 内部trust拒否分類。
@@ -398,11 +428,14 @@ void validatePublicBlob( const std::span<const std::uint8_t> blob)
 			FAILURE) ;
 }
 
-/** @brief 内部固定集合から一意の既知public keyへ解決します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 内部固定集合から一意の既知public keyへ解決します。
  * @param[in] keyId 外側key ID。Materialの取得元には使用しません。
  * @param[in] keys Binary固定またはtest専用の最大8件。
  * @return 呼出し中だけ借用する既知public blob。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::span<const std::uint8_t> resolveKey(
 	const std::string_view keyId, const std::span<const signed_index_detail::TrustKey> keys)
 {
@@ -428,11 +461,14 @@ void validatePublicBlob( const std::span<const std::uint8_t> blob)
 	return selected ;
 }
 
-/** @brief 原manifest SHA-256を実CNG RSA-PSS 3072bit／salt32で検証します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原manifest SHA-256を実CNG RSA-PSS 3072bit／salt32で検証します。
  * @param[in] blob 検査済み内部public blob。
  * @param[in] digest 原manifestのSHA-256。
  * @param[in,out] signature 呼出し内所有の384byte署名。CNGへ渡します。
  */
+//------------------------------------------------------------------------------
 void verifySignature( const std::span<const std::uint8_t> blob, const IndexManifestSha256 &digest,
 					 std::vector<std::uint8_t> &signature)
 {
@@ -474,7 +510,15 @@ void verifySignature( const std::span<const std::uint8_t> blob, const IndexManif
 
 namespace signed_index_detail {
 
-/** @see signed_index_codec_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存manifest意味codecを認証型の作成なしで実行します。
+ * @param[in] bytes 最大64KiBの原UTF-8です。
+ * @param[in] expectedKeyId 署名側または候補channelで固定したkey IDです。
+ * @param[in] nowUtc 確認済みUTCです。欠損は拒否します。
+ * @return 同じschema/期限/asset検査の値結果です。署名検証は行いません。
+ */
+//------------------------------------------------------------------------------
 DecodedIndexManifest decodeIndexManifestData(
 	const std::string_view bytes, const std::string_view expectedKeyId,
 	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
@@ -499,17 +543,28 @@ DecodedIndexManifest decodeIndexManifestData(
 
 /** @brief 共通認証処理だけがprivate constructorを呼ぶ内部境界です。 */
 struct AuthenticationAccess {
-	/** @brief 全検査後の値を認証wrapperへ移します。
-     * @param[in] data 署名・schema・期限・世代を検査済みの所有値。
-     * @return 外部DTOからは構築できない認証結果。
-     */
+	/**
+	 * @brief 全検査後の値を認証wrapperへ移します。
+	 * @param[in] data 署名・schema・期限・世代を検査済みの所有値。
+	 * @return 外部DTOからは構築できない認証結果。
+	 */
 	[[nodiscard]] static AuthenticatedIndexManifest make( IndexManifestData data) noexcept
 	{
 		return AuthenticatedIndexManifest{std::move( data)} ;
 	}
 } ;
 
-/** @see signed_index_manifest_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 最大8件の内部固定trustを用い、製品関数と同じ実CNG検証を行います。
+ * @param[in] envelope 外側原byte。所有権は取得しません。
+ * @param[in] nowUtc 確認済みUTC。時刻なしでは拒否します。
+ * @param[in] highWater 保護store由来の最大世代。変更しません。
+ * @param[in] trustedKeys 呼出し中有効なbinary固定集合またはnative testのRAM public key。
+ * @return 成功時だけ認証receipt。鍵登録・asset検査・保存・networkの作用はありません。
+ * @warning Network、設定、利用者入力をtrustedKeysへ投影してはいけません。
+ */
+//------------------------------------------------------------------------------
 SignedIndexManifestResult authenticateWithTrustKeys(
 	const std::string_view envelope, const std::optional<std::chrono::sys_seconds> nowUtc,
 	const std::optional<IndexManifestHighWater> &highWater,
@@ -601,19 +656,39 @@ SignedIndexManifestResult authenticateWithTrustKeys(
 
 } // namespace signed_index_detail
 
-/** @see signed_index_manifest.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通認証処理だけが全検証後の値を移譲します。
+ * @param[in] data 全検査に成功した所有値。
+ */
+//------------------------------------------------------------------------------
 AuthenticatedIndexManifest::AuthenticatedIndexManifest( IndexManifestData data) noexcept
 	: data_( std::move( data))
 {
 }
 
-/** @see signed_index_manifest.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 認証された値を変更できない参照で借用します。
+ * @return この認証結果の寿命まで有効な型付き値と原byte。
+ */
+//------------------------------------------------------------------------------
 const IndexManifestData &AuthenticatedIndexManifest::data() const noexcept
 {
 	return data_ ;
 }
 
-/** @see signed_index_manifest.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 製品binaryの固定鍵集合で署名manifestを認証します。
+ * @param[in] envelope 最大96KiBの原UTF-8 JSON。呼出し中だけ借用します。
+ * @param[in] nowUtc 信頼する検査UTC。確認不能の場合はnulloptです。
+ * @param[in] highWater 保護storeの最大世代。初回はnulloptです。副作用なく照合します。
+ * @return 全検査成功時だけ認証receiptを持つ結果。失敗時はreceiptなしです。
+ * @note 通常profileはsource固定の配布公開鍵を使い、明示local受入の固定pinと排他です。実配布鍵の真署名正常例は別受入で、RAM fixture鍵を製品trustへ登録しま
+ *       せん。通信・保存・最大世代更新は行いません。独立入力で同時に呼び出せます。
+ */
+//------------------------------------------------------------------------------
 SignedIndexManifestResult authenticateSignedIndexManifest(
 	const std::string_view envelope, const std::optional<std::chrono::sys_seconds> nowUtc,
 	const std::optional<IndexManifestHighWater> &highWater) noexcept
@@ -622,7 +697,12 @@ SignedIndexManifestResult authenticateSignedIndexManifest(
 														  PRODUCT_TRUST_KEYS) ;
 }
 
-/** @see signed_index_manifest_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Binary固定trustの配備有無だけを読みます。
+ * @return 固定集合が非空の場合true。鍵materialは返しません。
+ */
+//------------------------------------------------------------------------------
 bool signed_index_detail::productTrustAvailable() noexcept
 {
 	return !PRODUCT_TRUST_KEYS.empty() ;

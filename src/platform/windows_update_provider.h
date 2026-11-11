@@ -2,7 +2,7 @@
 /**
  * @file windows_update_provider.h
  * @brief Windows Update provider定義。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  WUA／WSUS既定service選択の試験境界を追加。
  * Ver.01.01.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
  * Ver.01.02.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Windows Update Agentを利用するdriver update providerを定義します。Instanceと全WUA COM objectは一つのCOM MTA
@@ -61,23 +62,24 @@ namespace drivercrate {
 //------------------------------------------------------------------------------
 // Candidate policy関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief WUA検索で使用する端末既定のupdate service選択を返す。
  * @return Windows Update、Microsoft UpdateまたはWSUSの管理policyを尊重する`ssDefault`。
  * @note Providerはこの値を`IUpdateSearcher::ServerSelection`へ設定し、管理対象serviceを迂回しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] ServerSelection windowsUpdateServerSelection() noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief WUA driver metadataが初期版のdriver-only境界を満たすか判定する。
- * WUA driver metadataがdriver-only境界を満たすか判定する。
- * Classを必須とし、firmware／UEFI／BIOSを示す候補をdefense-in-depthでtitleからも除外する。
+ * @brief WUA driver metadataが初期版のdriver-only境界を満たすか判定する。WUA driver metadataがdriver-only境界を満たすか判定する。
+ *        Classを必須とし、firmware／UEFI／BIOSを示す候補をdefense-in-depthでtitleからも除外する。
  * @param[in] driverClass WUAが返した空でないDriverClass。 WUAが返したDriverClass。
  * @param[in] title WUAが返したupdate title。
  * @return 通常のPnP driver候補として扱える場合は`true`。
  * @note Firmware、UEFI、BIOSを示す候補は大小文字を区別せず拒否する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool			  isWuaDriverCandidateAllowed( std::wstring_view driverClass,
 														  std::wstring_view title) noexcept ;
 
@@ -166,12 +168,13 @@ public:
 	  [[nodiscard]] const ProviderMeasurementEvidence &measurementEvidence() const noexcept ;
 
 private:
-	  /** @brief 次の明示Install対象だけを元ID/revisionで再評価します。
-     * @param[in] original 元collectionが所有する未消費updateです。
-     * @param[out] current WUAが現適用とした同ID/revisionだけを返します。
-     * @return 元policyの対象限定Searchと完全一致成功S_OKです。
-     * @note 全体再検索/元collectionのindex移動/未選択通信を行いません。
-     */
+	  /**
+	   * @brief 次の明示Install対象だけを元ID/revisionで再評価します。
+	   * @param[in] original 元collectionが所有する未消費updateです。
+	   * @param[out] current WUAが現適用とした同ID/revisionだけを返します。
+	   * @return 元policyの対象限定Searchと完全一致成功S_OKです。
+	   * @note 全体再検索/元collectionのindex移動/未選択通信を行いません。
+	   */
 	  [[nodiscard]] HRESULT							 resolveSelectedUpdate( IUpdate						   *original,
 																		   Microsoft::WRL::ComPtr<IUpdate> &current) ;
 	  /**

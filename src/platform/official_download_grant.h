@@ -2,7 +2,7 @@
 /**
  * @file official_download_grant.h
  * @brief 型付き公式配布recordの検証と短命download grantを定義します。
- * @version 01.11.00
+ * @version 01.11.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.10.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
  * Ver.01.10.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
  * Ver.01.11.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.11.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Provider worker threadだけで直列使用します。Recordは検査用取得の入口であり、内容、適用性、
@@ -150,20 +151,25 @@ struct OfficialDistributionPayloadRecord {
 	SecretOfficialUrl				targetUrl ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 明示された三つの非実行取得profileをbyte上限へ解決します。
  * @param[in] profile 呼出元が明示したprofile。
  * @return 既知profileの上限。無効・未知の場合0。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::uint64_t officialDownloadOnlyMaximumBytes(
 	OfficialDownloadOnlyProfile profile) noexcept ;
+//------------------------------------------------------------------------------
 /**
  * @brief 取得専用payloadの有限profile・公開hash・形式metadataを検証します。
  * @param[in] payload URLを参照せず判定するpayload。
  * @return 条件を満たす宣言形式。不整合時UNKNOWN。実byteを検査した値ではありません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDownloadOnlyFormat officialDownloadOnlyFormat(
 	const OfficialDistributionPayloadRecord &payload) noexcept ;
+//------------------------------------------------------------------------------
 /**
  * @brief Parentが明示したprofileへ標準ZIPまたは公式EXEの取得方式を変更します。
  * @param[in,out] payload 成功時だけkindとmaximumBytesを変更するpayload。
@@ -171,6 +177,7 @@ struct OfficialDistributionPayloadRecord {
  * @return 形式・公開hash・exact sizeが整合する場合true。失敗時は入力不変。
  * @note 公式根拠・EULA同意を発行しません。変更後は共通record検証とbinding固定が必須です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool setOfficialDownloadOnlyProfile( OfficialDistributionPayloadRecord &payload,
 												  OfficialDownloadOnlyProfile profile) noexcept ;
 
@@ -314,6 +321,7 @@ struct OfficialCollectorRecordProjection {
 	std::vector<OfficialCollectorPayloadProjection> payloads ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同一の検証済み200本文から作った候補を検証し、収集専用射影へ変換します。
  * @param[in] candidate Worker内だけの候補。通常evidenceを合成してはなりません。
@@ -323,9 +331,10 @@ struct OfficialCollectorRecordProjection {
  * @param[out] projection 成功時だけURL非保持の所有値を設定します。
  * @return 全fieldとpolicy結合、有限射影、SHA-256計算が成立した場合0。
  * @note 呼出元はbody／policy／resourceの同一GET結合を保証します。本関数は取得証明もgrantも発行しません。
- * @note metadata専用に制御文字・不正Unicode・path／query／端末ID形状とUTF-8 byte上限を検査します。
- * 日付とMIMEに限りfield別のslash文法を認めます。通常record検証の文字列契約は変更しません。
+ * @note metadata専用に制御文字・不正Unicode・path／query／端末ID形状とUTF-8 byte上限を検査します。日付とMIMEに限りfield別のslash文法を認めま
+ *       す。通常record検証の文字列契約は変更しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError projectOfficialCollectorRecord(
 	const OfficialCollectorRecordCandidate &candidate, std::wstring_view policyId,
 	std::wstring_view resourceId, std::uint64_t bodyValidatedUtcSeconds,
@@ -334,7 +343,9 @@ struct OfficialCollectorRecordProjection {
 /** @brief CNG Hash直前に元NTSTATUS失敗だけを注入します。成功時は実hashを実行します。 */
 using OfficialCollectorHashProbe = std::function<std::int32_t()> ;
 
-/** @brief 共通record検証へ失敗専用probeを明示する開発入口です。
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通record検証へ失敗専用probeを明示する開発入口です。
  * @param[in] candidate 同じGETからのworker限定候補。
  * @param[in] policyId 同GETの組み込みpolicy。
  * @param[in] resourceId 同GETのmetadata用途。
@@ -344,12 +355,14 @@ using OfficialCollectorHashProbe = std::function<std::int32_t()> ;
  * @return 通常検証結果または注入NTSTATUSから変換した元HRESULT。
  * @note Probeへ本文・正規形・digestを渡さず、成功値の注入や再hashを認めません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError projectOfficialCollectorRecordWithHashProbe(
 	const OfficialCollectorRecordCandidate &candidate, std::wstring_view policyId,
 	std::wstring_view resourceId, std::uint64_t bodyValidatedUtcSeconds,
 	OfficialCollectorRecordProjection &projection,
 	const OfficialCollectorHashProbe  &probe) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 型付きrecordを有限検証し、URL非保持の証拠とstable fingerprintを作ります。
  * @param[in] record Provider workerが一つの検証済みroot応答から構築したrecord。
@@ -357,6 +370,7 @@ using OfficialCollectorHashProbe = std::function<std::int32_t()> ;
  * @return 全field、root evidence、payload集合とSHA-256計算の成功時は0、それ以外はHRESULT bit pattern。
  * @note URLは存在と文字数だけを確認し、fingerprintへ含めません。HTTPS宛先検証はHTTP境界で行います。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError validateOfficialDistributionRecord(
 	const OfficialDistributionRecord   &record,
 	OfficialDistributionRecordEvidence &evidence) noexcept ;
@@ -416,7 +430,6 @@ public:
 	RecordScopedDownloadGrant( const RecordScopedDownloadGrant &) = delete ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	RecordScopedDownloadGrant &operator=( const RecordScopedDownloadGrant &) = delete ;
@@ -524,13 +537,15 @@ public:
 	 */
 	[[nodiscard]] NativeError compareConsumedTarget( std::wstring_view candidate,
 													bool			 &sameTarget) const noexcept ;
-	/** @brief 署名索引grantの失効leaseと同scanの非公開元lookupを照合します。
+	/**
+	 * @brief 署名索引grantの失効leaseと同scanの非公開元lookupを照合します。
 	 * @param[in] scanSessionId 現取得session。
 	 * @return 元封印とissuerが生存し同scanの場合0。それ以外は拒否HRESULT。
 	 */
 	[[nodiscard]] NativeError validateSignedIndexAuthority(
 		ScanSessionId scanSessionId) const noexcept ;
-	/** @brief 封印した署名索引routeのexact URL順を再照合します。
+	/**
+	 * @brief 封印した署名索引routeのexact URL順を再照合します。
 	 * @param[in] exactTarget 現HTTP hopのURL。本呼出し中だけ借用します。
 	 * @param[in] hop 0起点のhop位置。
 	 * @param[in] finalResponse HTTP 200に達した場合だけtrue。
@@ -540,24 +555,27 @@ public:
 													 std::uint32_t	   hop,
 													 bool finalResponse) const noexcept ;
 
-	/** @brief 同recordで未解決の匿名CDN protocolがあるか返す。
- * @return 元issuerが生存し未解決の同用途ならtrue。
- */
+	/**
+	 * @brief 同recordで未解決の匿名CDN protocolがあるか返す。
+	 * @return 元issuerが生存し未解決の同用途ならtrue。
+	 */
 	[[nodiscard]] bool		  requiresAnonymousCdnResolution() const noexcept ;
 
 private:
 	friend class OfficialDelegatedGetRequest ;
-	/** @brief 元lookupの公開resolver文脈だけを同期借用する。
-     * @return 生存する同recordの未解決plan。それ以外はnull。
-     */
+	/**
+	 * @brief 元lookupの公開resolver文脈だけを同期借用する。
+	 * @return 生存する同recordの未解決plan。それ以外はnull。
+	 */
 	[[nodiscard]] const OfficialAnonymousCdnPlan *anonymousCdnPlan() const noexcept ;
-	/** @brief 同recordの公開起点とresponseだけからexact解決routeを封印する。
-     * @param[in] canonical 元requestが単独所有する公開起点。
-     * @param[in] resolved 新responseの秘密完全URL。
-     * @param[in] expires 実responseのUTC Unix秒。
-     * @param[in] now 送信直前の同worker UTC秒。
-     * @return 全結合成功0、元HRESULT。失敗時は旧routeを維持する。
-     */
+	/**
+	 * @brief 同recordの公開起点とresponseだけからexact解決routeを封印する。
+	 * @param[in] canonical 元requestが単独所有する公開起点。
+	 * @param[in] resolved 新responseの秘密完全URL。
+	 * @param[in] expires 実responseのUTC Unix秒。
+	 * @param[in] now 送信直前の同worker UTC秒。
+	 * @return 全結合成功0、元HRESULT。失敗時は旧routeを維持する。
+	 */
 	[[nodiscard]] NativeError sealAnonymousCdnResolution( std::wstring_view		  canonical,
 														 const SecretOfficialUrl &resolved,
 														 std::uint64_t expires, std::uint64_t now) ;
@@ -565,7 +583,8 @@ private:
 	bool					  signedIndexResolverPending_{} ;
 	friend class SignedIndexAcquisitionAdapter ;
 	friend class OfficialAcquisitionSession ;
-	/** @brief 非公開adapterが実taskとsnapshotを再確認して同じgrantを発行します。
+	/**
+	 * @brief 非公開adapterが実taskとsnapshotを再確認して同じgrantを発行します。
 	 * @param[in,out] adapter 失効可能な元issuer。
 	 * @param[in] preparation 実claimを保持するsession。
 	 * @param[in] task 同じ未完了task。

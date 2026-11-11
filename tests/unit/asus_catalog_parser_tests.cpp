@@ -2,7 +2,7 @@
 /**
  * @file asus_catalog_parser_tests.cpp
  * @brief ASUS公式Web parser単体試験実装。
- * @version 01.06.01
+ * @version 01.06.02
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.05.00 Shunji Ogawa  2026/09/28  複数候補・chip欠測・300対象の三状態fixtureを追加。
  * Ver.01.06.00 Shunji Ogawa  2026/09/28  制御付きcore全checkpointの停止・例外fixtureを追加。
  * Ver.01.06.01 Shunji Ogawa  2026/10/02  AI依存を撤去し非AI共通処理と試験を維持。
+ * Ver.01.06.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空Nuxt flattened JSONだけを使用し、model、OS、origin、hashの拒否を確認します。Payloadを取得または実行しません。
@@ -114,6 +115,7 @@ constexpr std::wstring_view PAYLOAD_PATH =
 	return html ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同一pdSupportStoreから製品、OS、LANを参照する収集専用fixtureを作ります。
  * @param[in] opaqueId 固定7 fieldの架空ASUS entry ID。
@@ -121,6 +123,7 @@ constexpr std::wstring_view PAYLOAD_PATH =
  * @param[in] hash 架空の公開SHA-256。
  * @return 参照indexを固定した有限Nuxt HTML。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring makeCollectorPage( const std::wstring_view opaqueId,
 											 const std::wstring_view path,
 											 const std::wstring_view hash)
@@ -139,11 +142,13 @@ constexpr std::wstring_view PAYLOAD_PATH =
 	return html ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 行数だけを変えた一意なLAN一覧を組み立てます。
  * @param[in] count 配布行数。試験内では最大17。
  * @return 同じ公開modelとOSを持つ有限Nuxt HTML。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring makeCollectorRows( const std::size_t count)
 {
 	std::wstring html =
@@ -181,10 +186,12 @@ constexpr std::wstring_view PAYLOAD_PATH =
 	return html + L"]</script></html>" ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 収集専用route、公開identity、第一理由と旧経路からの分離を検査します。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCollectorIdentity( TestContext &context)
 {
 	const std::wstring opaqueId =
@@ -335,10 +342,12 @@ void testCollectorIdentity( TestContext &context)
 			1U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 収集の参照・表示・件数境界を決定的に検査します。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCollectorCrosscut( TestContext &context)
 {
 	constexpr std::uint64_t LIMIT	 = 128ULL * 1024ULL * 1024ULL ;	// 既存取得検査profile。
@@ -415,10 +424,12 @@ void testCollectorCrosscut( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !parsed.targetModelMatches && parsed.entries.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同一storeの複数候補と公開対象を三状態へ照合します。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCollectorTargetAssessment( TestContext &context)
 {
 	constexpr std::uint64_t LIMIT	   = 128ULL * 1'024ULL * 1'024ULL ;				// 既存ZIP予算。
@@ -750,10 +761,12 @@ void testSecurityRejections( TestContext &context)
 														 L"Windows 11 64-bit", entries)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 対象外0 KBを取得せず、対象内の不正と全体構造違反を拒否する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testExplicitNetworkCategory( TestContext &context)
 {
 	const std::wstring validId =
@@ -848,9 +861,12 @@ void testExplicitNetworkCategory( TestContext &context)
 	}
 }
 
-/** @brief Nuxtから候補・全targetまで同じ制御を伝播する内部試験です。
+//------------------------------------------------------------------------------
+/**
+ * @brief Nuxtから候補・全targetまで同じ制御を伝播する内部試験です。
  * @param[in,out] context Assertion集計。
  */
+//------------------------------------------------------------------------------
 void testControlledAsus( TestContext &context)
 {
 	const auto				html   = makeCollectorRows( 2U) ;	// 同じ公開boardの二配布。
@@ -916,7 +932,8 @@ void testControlledAsus( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/asus_catalog_parser_tests.h 宣言側の契約を正本とする。
+ * @brief ASUS公式Web parserの正常系とsecurity拒否系を実行する。正常、scope外、security拒否を順番に検証する。
+ * @param[in,out] context Assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runAsusCatalogParserTests( TestContext &context)

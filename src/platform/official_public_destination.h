@@ -2,7 +2,7 @@
 /**
  * @file official_public_destination.h
  * @brief Record限定HTTP targetのDNS名と全addressをpublic宛先へ限定します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  DNSの全IPv4／IPv6宛先をpublic範囲へ限定。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note HostとIP addressはworker内の検証中だけ所有し、成功結果には件数だけを返します。
@@ -79,14 +80,17 @@ struct OfficialPublicDestinationEvidence {
 	bool		  locallyResolved{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一つのresolved addressがpublic global unicast範囲に限定されるか判定します。
  * @param[in] address Network byte orderのIPv4またはIPv6 address。
  * @return Loopback、private、link-local、multicast、unspecified、予約／文書用を除く場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isPublicOfficialNetworkAddress(
 	const OfficialResolvedNetworkAddress &address) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Dynamic targetのASCII DNS hostとresolverが返す全addressを検証します。
  * @param[in] host 一文字以上253文字以下の秘密ASCII DNS host。
@@ -95,10 +99,12 @@ struct OfficialPublicDestinationEvidence {
  * @return Host構文と全addressがpublicなら0、それ以外はHRESULT bit pattern。
  * @note IP literal、単一label、`localhost`、`.local`、`.internal`をresolver呼出し前に拒否します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError validatePublicOfficialDestination(
 	std::wstring_view host, const OfficialDestinationResolver &resolver,
 	OfficialPublicDestinationEvidence &evidence) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Windows Unicode name resolverで全IPv4／IPv6 addressを取得します。
  * @param[in] host 検証済みASCII DNS host。
@@ -106,6 +112,7 @@ struct OfficialPublicDestinationEvidence {
  * @return 1件以上64件以下の解決成功時は0、Winsock失敗または不正結果はHRESULT bit pattern。
  * @note `WSAStartup`／`WSACleanup`と`FreeAddrInfoW`は本関数内で対称に終了します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError resolveOfficialDestinationWithWindows(
 	std::wstring_view host, std::vector<OfficialResolvedNetworkAddress> &addresses) noexcept ;
 

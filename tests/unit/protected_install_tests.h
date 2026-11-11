@@ -2,7 +2,7 @@
 /**
  * @file protected_install_tests.h
  * @brief 復元ポイント保護付きinstall単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note fakeサービスにより実端末を変更せず保護付きinstall境界を検証します。
@@ -39,11 +40,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 復元ポイント保護付きinstall処理の単体試験を実行する。
- * fakeだけを使用して正常、開始失敗、終了失敗、例外経路を検証する。
+ * @brief 復元ポイント保護付きinstall処理の単体試験を実行する。fakeだけを使用して正常、開始失敗、終了失敗、例外経路を検証する。
  * @param[in,out] context assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runProtectedInstallTests( TestContext &context) ;
 
 } // namespace drivercrate::test

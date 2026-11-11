@@ -2,7 +2,7 @@
 /**
  * @file local_diagnostic_log_tests.cpp
  * @brief 匿名診断の保存先/秘密非出力/有界保存/非阻害を実fileで確認します。
- * @version 01.04.03
+ * @version 01.04.04
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * Ver.01.04.01 Shunji Ogawa  2026/11/09  準備投影の全recordと、pause再開・停止・固定queue満杯を検証。
  * Ver.01.04.02 Shunji Ogawa  2026/11/09  module/pathの同容量bufferをheapへ移し全期待を保持。
  * Ver.01.04.03 Shunji Ogawa  2026/11/09  fixture handleの有効所有とwrite/closeの元結果を明示。
+ * Ver.01.04.04 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 実device/通信/導入/製品UIを使いません。Fixtureを削除せず検査結果として保持します。
  * @see docs/adr/0427-local-anonymous-scan-diagnostics.md
@@ -56,9 +57,12 @@ namespace {
 unsigned assertions{} ;	// 固定期待の分母です。
 unsigned failures{} ;	// 原失敗を後続成功で隠しません。
 
-/** @brief 個別期待を数値だけで集計します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 個別期待を数値だけで集計します。
  * @param[in] value 実測した期待成立値。
  */
+//------------------------------------------------------------------------------
 void	 expect( const bool value)
 {
 	++assertions ;
@@ -69,10 +73,13 @@ void	 expect( const bool value)
 	}
 }
 
-/** @brief 自己所有の新しいfixture directoryだけを作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 自己所有の新しいfixture directoryだけを作ります。
  * @param[in] path 絶対fixture位置。
  * @return 作成済みの同位置。
  */
+//------------------------------------------------------------------------------
 std::filesystem::path directory( const std::filesystem::path &path)
 {
 	// 古い成果物を無条件再利用せず、各実行で新しい有限fixtureを作ります。
@@ -83,10 +90,13 @@ std::filesystem::path directory( const std::filesystem::path &path)
 	return path ;
 }
 
-/** @brief FixtureだけをCREATE_NEWで書きます。
+//------------------------------------------------------------------------------
+/**
+ * @brief FixtureだけをCREATE_NEWで書きます。
  * @param[in] path 未作成の自己所有path。
  * @param[in] bytes 非機密の架空本文。
  */
+//------------------------------------------------------------------------------
 void write( const std::filesystem::path &path, const std::string_view bytes)
 {
 	Microsoft::WRL::Wrappers::FileHandle file(
@@ -106,28 +116,37 @@ void write( const std::filesystem::path &path, const std::string_view bytes)
 	expect( closed != FALSE) ;
 }
 
-/** @brief 試験fileの有限本文を読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 試験fileの有限本文を読みます。
  * @param[in] path 自己所有fileだけです。
  * @return 保存された原byte。不在は空です。
  */
+//------------------------------------------------------------------------------
 std::string read( const std::filesystem::path &path)
 {
 	std::ifstream stream( path, std::ios::binary) ;	// Fixtureの読取だけです。
 	return std::string( std::istreambuf_iterator<char>( stream), std::istreambuf_iterator<char>()) ;
 }
 
-/** @brief 固定2slotの本文を試験中だけ連結します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定2slotの本文を試験中だけ連結します。
  * @param[in] folder 所有fixtureの親。
  * @return 固定2fileの原byteだけです。
  */
+//------------------------------------------------------------------------------
 std::string logs( const std::filesystem::path &folder)
 {
 	return read( folder / L"log/scan-0.log") + read( folder / L"log/scan-1.log") ;
 }
 
-/** @brief 架空の秘密本文と正常/未判定数を同じ元DTOへ入れます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空の秘密本文と正常/未判定数を同じ元DTOへ入れます。
  * @return 認証能力や導入許可を持たない架空event。
  */
+//------------------------------------------------------------------------------
 drivercrate::WorkerEvent sample()
 {
 	using namespace drivercrate ;
@@ -186,9 +205,12 @@ drivercrate::WorkerEvent sample()
 	return event ;
 }
 
-/** @brief 元snapshotの秘密非出力と0/不明/関係/計画の区別を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元snapshotの秘密非出力と0/不明/関係/計画の区別を確認します。
  * @param[in] root 新規自己所有fixture。
  */
+//------------------------------------------------------------------------------
 void privacy( const std::filesystem::path &root)
 {
 	using namespace drivercrate ;
@@ -225,9 +247,12 @@ void privacy( const std::filesystem::path &root)
 	expect( logs( folder).find( "attemptedGeneration=12") != std::string::npos) ;
 }
 
-/** @brief 本体再取得の省略と元HTTP失敗のfallbackを既存数値だけで区別します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 本体再取得の省略と元HTTP失敗のfallbackを既存数値だけで区別します。
  * @param[in] root 新規自己所有fixtureです。
  */
+//------------------------------------------------------------------------------
 void indexReuseProjection( const std::filesystem::path &root)
 {
 	using namespace drivercrate ;
@@ -271,10 +296,13 @@ void indexReuseProjection( const std::filesystem::path &root)
 		   bytes.find( "https:") == std::string::npos) ;
 }
 
-/** @brief 通常EXE位置を使いcwdへfallbackしないことを確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常EXE位置を使いcwdへfallbackしないことを確認します。
  * @param[in] root 新規自己所有fixture。
  * @throws std::bad_alloc module位置bufferを確保できない場合。mainの既存捕捉へ渡します。
  */
+//------------------------------------------------------------------------------
 void destination( const std::filesystem::path &root)
 {
 	using namespace drivercrate ;
@@ -296,9 +324,12 @@ void destination( const std::filesystem::path &root)
 	expect( !std::filesystem::exists( cwd / L"log")) ;
 }
 
-/** @brief 不明/容量超過/保存不能fileを変更せず通常callerへ戻ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 不明/容量超過/保存不能fileを変更せず通常callerへ戻ります。
  * @param[in] root 新規自己所有fixture。
  */
+//------------------------------------------------------------------------------
 void failuresNonblocking( const std::filesystem::path &root)
 {
 	using namespace drivercrate ;
@@ -336,9 +367,12 @@ void failuresNonblocking( const std::filesystem::path &root)
 	expect( !std::filesystem::exists( L"relative/log")) ;
 }
 
-/** @brief 実hardlinkが別fileへ追記/切詰めしないことを確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実hardlinkが別fileへ追記/切詰めしないことを確認します。
  * @param[in] root 新規自己所有fixture。
  */
+//------------------------------------------------------------------------------
 void hardlink( const std::filesystem::path &root)
 {
 	using namespace drivercrate ;
@@ -356,9 +390,12 @@ void hardlink( const std::filesystem::path &root)
 	expect( read( folder / L"outside.txt") == "UNCHANGED_HARDLINK_TARGET") ;
 }
 
-/** @brief 自己所有directoryの実junctionを使ってreparse拒否を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 自己所有directoryの実junctionを使ってreparse拒否を確認します。
  * @param[in] root 新規自己所有fixture。
  */
+//------------------------------------------------------------------------------
 void junction( const std::filesystem::path &root)
 {
 	using namespace drivercrate ;
@@ -405,9 +442,12 @@ void junction( const std::filesystem::path &root)
 	expect( std::filesystem::is_empty( target)) ;
 }
 
-/** @brief 実writeで固定2slotの容量と所有形式の再利用を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実writeで固定2slotの容量と所有形式の再利用を確認します。
  * @param[in] root 新規自己所有fixture。
  */
+//------------------------------------------------------------------------------
 void capacity( const std::filesystem::path &root)
 {
 	using namespace drivercrate ;
@@ -448,9 +488,12 @@ void capacity( const std::filesystem::path &root)
 }
 }
 
-/** @brief 起動flush/保存失敗/有界終了の元状態を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 起動flush/保存失敗/有界終了の元状態を確認します。
  * @param[in] root 自己所有の新規fixtureです。
  */
+//------------------------------------------------------------------------------
 void storageHealth( const std::filesystem::path &root)
 {
 	using namespace drivercrate ;
@@ -530,9 +573,12 @@ void storageHealth( const std::filesystem::path &root)
 		   read( locked / L"log/scan-1.log") == "UNKNOWN_ORIGINAL") ;
 }
 
-/** @brief 元個別/role/postの数値投影と、版文字列の非出力を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元個別/role/postの数値投影と、版文字列の非出力を確認します。
  * @param[in] root 自己所有の新規fixtureです。
  */
+//------------------------------------------------------------------------------
 void installProjection( const std::filesystem::path &root)
 {
 	using namespace drivercrate ;
@@ -665,9 +711,12 @@ void installProjection( const std::filesystem::path &root)
 	}
 }
 
-/** @brief 元の準備段階・省略数・UI拒否を本文なしで保存します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元の準備段階・省略数・UI拒否を本文なしで保存します。
  * @param[in] root このtestだけが所有する新規fixture親です。
  */
+//------------------------------------------------------------------------------
 void preparationProjection( const std::filesystem::path &root)
 {
 	using namespace drivercrate ;
@@ -772,9 +821,12 @@ void preparationProjection( const std::filesystem::path &root)
 	}
 }
 
-/** @brief 内部pauseの再開・停止解除と、固定queue満杯の欠落計上を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 内部pauseの再開・停止解除と、固定queue満杯の欠落計上を確認します。
  * @param[in] root 自己所有の新規fixture親です。
  */
+//------------------------------------------------------------------------------
 void pausedWriterControl( const std::filesystem::path &root)
 {
 	using namespace drivercrate ;
@@ -845,11 +897,14 @@ void pausedWriterControl( const std::filesystem::path &root)
 	expect( allAcceptedPresent && bytes.find( "operation=257 status=") == std::string::npos) ;
 }
 
-/** @brief 自己所有の新規fixtureで非通信回帰だけを実行します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 自己所有の新規fixtureで非通信回帰だけを実行します。
  * @param[in] argc 引数数。
  * @param[in] argv 任意の絶対fixture親を一つだけ受けます。
  * @return 全期待成立0。それ以外1。
  */
+//------------------------------------------------------------------------------
 int wmain( const int argc, wchar_t **argv)
 {
 	try {

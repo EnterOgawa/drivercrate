@@ -2,7 +2,7 @@
 /**
  * @file intel_collector_identity_parser.cpp
  * @brief Intel対応製品一覧の有限token・所属・全行衝突検証。
- * @version 01.04.00
+ * @version 01.04.01
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/09/28  保存HTMLの非採用navigationと空span構文へ限定対応。
  * Ver.01.03.00 Shunji Ogawa  2026/09/28  収集公開名の端末ID形状拒否を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/09/28  明示制御付きcoreと型付き終了を追加。
+ * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 関連階層は閉鎖を検証し、公式GETとのbindingは呼出し側の別責務です。
@@ -89,12 +90,14 @@ struct ParseFailure {
 	IntelCollectorIdentityStatus status ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 内部解析の前提を満たさない場合に処理を中止します。
  * @param[in] condition 継続可能な条件。
  * @param[in] status 中止時の第一理由。
  * @throws ParseFailure 条件が成立しない場合。
  */
+//------------------------------------------------------------------------------
 void require( bool						  condition,
 			 IntelCollectorIdentityStatus status = IntelCollectorIdentityStatus::SCHEMA_REJECTED)
 {
@@ -104,31 +107,37 @@ void require( bool						  condition,
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief HTML構文用のASCII空白を識別します。
  * @param[in] ch 判定する一文字。
  * @return HTMLの整形空白ならtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool htmlSpace( wchar_t ch)
 {
 	return ch == L' ' || ch == L'\t' || ch == L'\r' || ch == L'\n' || ch == L'\f' ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 名前比較だけに使うASCII小文字化です。
  * @param[in] ch 元の一文字。
  * @return ASCII大文字だけを小文字へ変換した値。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] wchar_t lowerAscii( wchar_t ch)
 {
 	return ch >= L'A' && ch <= L'Z' ? static_cast<wchar_t>( ch - L'A' + L'a') : ch ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief HTML tagと属性名に許す有限文字集合です。
  * @param[in] ch 判定文字。
  * @return ASCII英数字または名前区切りならtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool nameCharacter( wchar_t ch)
 {
 	return (ch >= L'a' && ch <= L'z') || (ch >= L'A' && ch <= L'Z') || (ch >= L'0' && ch <= L'9') ||
@@ -161,15 +170,17 @@ struct Token {
 	bool				   selfClosing{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一つの有限tokenを読みます。Commentからtagを生成しません。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] html 借用本文。
  * @param[in,out] position 次の読取位置。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in,out] tags 本文全体のtag数。
  * @return 検査済みtoken。Commentは空token。
  * @throws ParseFailure 構文または有限上限の違反時。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] Token nextToken( CollectorParserContext *control, std::wstring_view html,
 							  std::size_t &position, std::size_t &tags)
 {
@@ -352,11 +363,13 @@ struct Token {
 	return token ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 終了tagを要求しない標準HTML要素を識別します。
  * @param[in] name 小文字tag名。
  * @return Void要素ならtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool voidElement( std::wstring_view name)
 {
 	constexpr std::array names{L"area",	 L"base",	L"br",	  L"col",  L"embed",
@@ -365,11 +378,13 @@ struct Token {
 	return std::find( names.begin(), names.end(), name) != names.end() ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 内容の見かけ上のtagを解析しない要素を識別します。
  * @param[in] name 小文字tag名。
  * @return Raw-textまたはRCDATA等の不透明要素ならtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool rawElement( std::wstring_view name)
 {
 	constexpr std::array names{
@@ -378,15 +393,17 @@ struct Token {
 	return std::find( names.begin(), names.end(), name) != names.end() ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Raw-textの対応する終了tagまでを有限に読み飛ばします。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] html 借用本文。
  * @param[in] name 小文字開始tag名。
  * @param[in,out] position 内容開始から終了tag後へ更新する位置。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in,out] tags 全文tag数。
  * @throws ParseFailure 終端欠落または構文不正時。
  */
+//------------------------------------------------------------------------------
 void skipRaw( CollectorParserContext *control, std::wstring_view html, std::wstring_view name,
 			 std::size_t &position, std::size_t &tags)
 {
@@ -427,14 +444,16 @@ void skipRaw( CollectorParserContext *control, std::wstring_view html, std::wstr
 	require( false) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Template内部を有限入れ子として読み飛ばします。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] html 借用本文。
  * @param[in,out] position Template内容開始から終端後へ更新する位置。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in,out] tags 全文tag数。
  * @throws ParseFailure 閉鎖不成立または上限超過時。
  */
+//------------------------------------------------------------------------------
 void skipTemplate( CollectorParserContext *control, std::wstring_view html, std::size_t &position,
 				  std::size_t &tags)
 {
@@ -479,6 +498,7 @@ struct Node {
 	bool					 opaque{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有限treeを作り、関連するhead／mainの閉鎖を厳格確認します。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
@@ -486,6 +506,7 @@ struct Node {
  * @return 本文内解析用tree。Viewはhtmlの寿命内だけ有効。
  * @throws ParseFailure 構造違反・上限超過時。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::vector<Node> readTree( CollectorParserContext *control, std::wstring_view html)
 {
 	collectorParserCheckpoint( control) ;
@@ -576,12 +597,14 @@ struct Node {
 	return nodes ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 重複検査済みの属性を借用します。
  * @param[in] node 読取要素。
  * @param[in] name 小文字属性名。
  * @return 値。未掲載と空値はどちらも空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring_view attribute( const Node &node, std::wstring_view name)
 {
 	const auto found =
@@ -590,13 +613,15 @@ struct Node {
 	return found == node.attributes.end() ? std::wstring_view{} : found->value ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 空白区切り属性をtoken単位で照合します。
- * @param[in] value 元属性値。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] value 元属性値。
  * @param[in] expected 期待token。
  * @return 完全tokenが存在すればtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool hasToken( CollectorParserContext *control, std::wstring_view value,
 							std::wstring_view expected)
 {
@@ -627,12 +652,14 @@ struct Node {
 	return false ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief UTF-16列に公開不可の文字と形状がないことを確認します。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] value 整形済み表示名。
  * @return 有効な公開名ならtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool publicName( CollectorParserContext *control, std::wstring_view value)
 {
 	collectorParserCheckpoint( control) ;
@@ -666,14 +693,16 @@ struct Node {
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有限entity集合を復号して整形空白をまとめます。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] raw 元の直接text。
  * @param[out] display 空白整形済み表示名。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] comparison NFC比較名。
  * @return 有限公開名として成立すればtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool decodeName( CollectorParserContext *control, std::wstring_view raw,
 							  std::wstring &display, std::wstring &comparison)
 {
@@ -813,13 +842,15 @@ struct Node {
 	return publicName( control, comparison) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 指定pathだけから公開SKUを取り出します。URLを返しません。
- * @param[in] href 元のhref属性。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] href 元のhref属性。
  * @param[out] sku 成功時の十進SKU。
  * @return 固定host・path・桁・slug契約が成立すればtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseSku( CollectorParserContext *control, std::wstring_view href,
 							std::wstring &sku)
 {
@@ -866,15 +897,17 @@ struct Node {
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一意なselectorを全treeから解決します。
  * @tparam Predicate 要素条件の関数型。
- * @param[in] nodes 有限tree。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] nodes 有限tree。
  * @param[in] predicate 対象要素条件。
  * @return 一致index。未掲載はNONE。
  * @throws ParseFailure 二つ以上が一致する場合。
  */
+//------------------------------------------------------------------------------
 template <class Predicate>
 [[nodiscard]] std::size_t uniqueNode( CollectorParserContext	 *control,
 									 const std::vector<Node> &nodes, Predicate predicate)
@@ -894,6 +927,7 @@ template <class Predicate>
 	return result ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 要素が指定祖先の子孫であり、異なる意味の領域を跨がないことを検査します。
  * @param[in] nodes 有限tree。
@@ -901,6 +935,7 @@ template <class Predicate>
  * @param[in] ancestor 期待祖先index。
  * @return 所属が成立すればtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool belongs( const std::vector<Node> &nodes, std::size_t child, std::size_t ancestor)
 {
 	// Parserが作った有限親chainだけを辿る。
@@ -921,13 +956,15 @@ template <class Predicate>
 	return false ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Text-only要素を有限復号して期待値と比較します。
- * @param[in] node 検査対象要素。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] node 検査対象要素。
  * @param[in] expected 完全一致の期待表示。
  * @return 直接textだけで一致すればtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool exactText( CollectorParserContext *control, const Node &node,
 							 std::wstring_view expected)
 {
@@ -938,14 +975,16 @@ template <class Predicate>
 		   decodeName( control, node.text, display, comparison) && comparison == expected ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 対応一覧の所属・閉鎖・全行を検証します。
- * @param[in] nodes 閉鎖検査済みの有限tree。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] nodes 閉鎖検査済みの有限tree。
  * @param[in] expectedDownloadUrl 配布parserが選んだURL。空ならidentityだけを検証。
  * @return 出典未発行の所有identityと診断。
  * @throws ParseFailure 全体構造の拒否時。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IntelCollectorIdentityResult inspectTree( CollectorParserContext  *control,
 													   const std::vector<Node> &nodes,
 													   const std::wstring_view	expectedDownloadUrl)
@@ -1198,7 +1237,10 @@ template <class Predicate>
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_collector_identity_parser.h 宣言側の契約を正本とする。
+ * @brief 727998配布pageの専用対応製品一覧を通信なしで解析します。
+ * @param[in] html 呼出し中だけ借用する最大4 Mi UTF-16本文。
+ * @return 所有identityと診断。構造拒否時は部分identityを返さない。
+ * @note 純粋関数であり、公式性・record・適用性・取得許可を発行しません。配布parserとの同一本文結合とGET所有型は後段の責務です。
  */
 //------------------------------------------------------------------------------
 IntelCollectorIdentityResult parseIntelCollectorProductIdentity( std::wstring_view html)
@@ -1216,7 +1258,11 @@ IntelCollectorIdentityResult parseIntelCollectorProductIdentity( std::wstring_vi
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_collector_identity_parser.h 宣言側の契約を正本とする。
+ * @brief 製品一覧と、同じ左panelの配布heroにある正確な一buttonを解析します。
+ * @param[in] html 配布parserへも渡した同一UTF-16本文。
+ * @param[in] expectedDownloadUrl 配布parserが確定したworker内秘密URL。空は禁止です。
+ * @return URLを保持しないidentity結果。HeroでURLが一意に結べなければ全体拒否です。
+ * @note URLと本文の公式GET出典・payload取得権限は検証しません。
  */
 //------------------------------------------------------------------------------
 IntelCollectorIdentityResult parseIntelCollectorProductIdentityForPayload(
@@ -1235,7 +1281,16 @@ IntelCollectorIdentityResult parseIntelCollectorProductIdentityForPayload(
 	}
 }
 
-/** @see intel_collector_identity_parser.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ内部coreで停止・上限・構造・例外を区別する収集専用入口です。
+ * @param[in] html 最大4 Mi UTF-16の有限本文。
+ * @param[in] expectedDownloadUrl 空ならidentityのみ、非空なら同じheroへ拘束します。
+ * @param[in,out] control 元GETと同じ必須制御。sealはしません。
+ * @param[out] result COMPLETED時だけ公開する所有値。未掲載は正常終了のsource状態です。
+ * @return 候補適合性とは独立した解析終了値。
+ */
+//------------------------------------------------------------------------------
 CollectorParserResult parseIntelCollectorProductIdentityControlled(
 	std::wstring_view html, std::wstring_view expectedDownloadUrl,
 	OfficialCollectorHttpControl &control, IntelCollectorIdentityResult &result)

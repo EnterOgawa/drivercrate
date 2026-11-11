@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_cache.h
  * @brief URL非保持の公式自動探索cache schemaとfreshness判定。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  Cache schema、生成と失効判定を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Fresh positiveの表示専用候補復元を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 本型はProvider worker内だけで使用します。URL、host、path、query、token、EULA本文、grant、
@@ -175,14 +176,17 @@ struct OfficialDiscoveryCacheQuery {
 	std::wstring			   deviceConfigurationFingerprint ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Cache entryの有限値、Provider固定root、期限とpayload集合を検証します。
  * @param[in] entry 検証するURL非保持entryです。
  * @return 永続化可能な完全entryの場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isOfficialDiscoveryCacheEntryValid(
 	const OfficialDiscoveryCacheEntry &entry) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Entryを現在scanの環境・revision・時刻へ照合します。
  * @param[in] entry 構造検証も行う保存済みentryです。
@@ -190,9 +194,11 @@ struct OfficialDiscoveryCacheQuery {
  * @return 不正、stale、fresh positiveまたはfresh negativeです。
  * @note `FORCE_REFRESH`は正常entryもstaleにし、network失敗時のfallbackを許可しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryCacheDisposition evaluateOfficialDiscoveryCacheEntry(
 	const OfficialDiscoveryCacheEntry &entry, const OfficialDiscoveryCacheQuery &query) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 検証済みrecord descriptor集合から24時間のpositive entryを作ります。
  * @param[in] descriptors 同じrecordから生成したordinal完全集合です。
@@ -204,11 +210,13 @@ struct OfficialDiscoveryCacheQuery {
  * @param[in] deviceConfigurationFingerprint 現在device集合の64桁fingerprintです。
  * @return 全fieldを保存境界へ縮退できる場合のentry、それ以外は値なしです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<OfficialDiscoveryCacheEntry> makeOfficialDiscoveryPositiveCacheEntry(
 	std::span<const OfficialRecordPayloadDescriptor> descriptors, std::uint32_t policyRevision,
 	std::wstring parserId, std::uint32_t parserRevision, std::uint64_t observedUtcSeconds,
 	std::wstring operatingSystemFingerprint, std::wstring deviceConfigurationFingerprint) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 正常な対象外またはrecordなしから6時間のnegative entryを作ります。
  * @param[in] kind `NOT_APPLICABLE`または`NO_RECORD`です。
@@ -223,12 +231,14 @@ struct OfficialDiscoveryCacheQuery {
  * @param[in] deviceConfigurationFingerprint 現在device集合の64桁fingerprintです。
  * @return 保存可能なnegative entry、それ以外は値なしです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<OfficialDiscoveryCacheEntry> makeOfficialDiscoveryNegativeCacheEntry(
 	OfficialDiscoveryCacheEntryKind kind, std::wstring providerId, std::wstring policyId,
 	std::wstring rootResourceId, std::uint32_t policyRevision, std::wstring parserId,
 	std::uint32_t parserRevision, std::uint64_t observedUtcSeconds,
 	std::wstring operatingSystemFingerprint, std::wstring deviceConfigurationFingerprint) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Fresh positive entryを現在routeの非選択・導入不可表示行へ復元します。
  * @param[in] entry URL非保持のpositive cache entryです。
@@ -240,6 +250,7 @@ struct OfficialDiscoveryCacheQuery {
  * @return 全bindingとcandidate詳細が有効な場合の表示行集合、それ以外は値なしです。
  * @note Cacheからdownload grant、EULA同意、現在PnP適合、rankまたはinstall routingを復元しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::vector<UpdateCandidate>>
 makeOfficialDiscoveryCachedDisplayCandidates( const OfficialDiscoveryCacheEntry &entry,
 											 const OfficialDiscoveryCacheQuery &query,

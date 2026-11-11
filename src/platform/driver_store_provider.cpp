@@ -2,7 +2,7 @@
 /**
  * @file driver_store_provider.cpp
  * @brief Driver Store provider実装。
- * @version 01.24.00
+ * @version 01.24.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -71,6 +71,7 @@
  * Ver.01.22.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
  * Ver.01.23.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.24.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.24.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note SetupAPIによるPnP deviceとDriver Store履歴の列挙を実装します。選択された指定版は実行直前に再照合します。Native device identityと
@@ -132,7 +133,12 @@ namespace drivercrate {
 namespace driver_store_inf_detail {
 // 本worker lifetimeだけの内部fixture。製品は常にnullptrです。
 thread_local ScopedFixture *activeFixture = nullptr ;
-/** @see driver_store_inf_transport_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同workerへ完全fake表が固定されているか確認します。
+ * @return 内部scopeの生存中だけtrueです。
+ */
+//------------------------------------------------------------------------------
 bool						fixtureActive() noexcept
 {
 	return activeFixture != nullptr ;
@@ -153,12 +159,21 @@ const Transport NATIVE_CALLS{.inventory		   = {},
 							 .architecture	   = GetNativeSystemInfo,
 							 .windowsDirectory = GetWindowsDirectoryW,
 							 .infClass		   = SetupDiGetINFClassW} ;
-/** @see ScopedFixture宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全guardが使用する完全表を固定します。
+ * @param[in] calls Nativeを含まない完全fake表。
+ */
+//------------------------------------------------------------------------------
 ScopedFixture::ScopedFixture( Transport calls) noexcept : calls_( std::move( calls))
 {
 	activeFixture = this ;
 }
-/** @see ScopedFixture宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同workerのAPI表を解除します。
+ */
+//------------------------------------------------------------------------------
 ScopedFixture::~ScopedFixture() noexcept
 {
 	// 別workerや既存scopeのtableを解除しません。
@@ -166,14 +181,25 @@ ScopedFixture::~ScopedFixture() noexcept
 		activeFixture = nullptr ;
 	}
 }
-/** @see transport宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 製品nativeまたは同worker固定完全表を参照します。
+ * @return 同期呼出し中有効な借用参照。欠損fallbackはありません。
+ */
+//------------------------------------------------------------------------------
 const Transport &transport() noexcept
 {
 	return activeFixture ? activeFixture->calls_ : NATIVE_CALLS ;
 }
 // 固定低位表のfactoryは内部test構成へ限定します。
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
-/** @see Access宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 欠損・native混在・scope上書きを拒否します。
+ * @param[in] calls 完全なfake WinAPI表。成功DTOを受けません。
+ * @return 完全表だけを所有するscope。不足時はnullptrです。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<ScopedFixture> Access::create( Transport calls)
 {
 	// 欠損やnative混在を拒否し、fixture要求で実OSを変更しません。
@@ -263,7 +289,6 @@ public:
 	DeviceInfoSet( const DeviceInfoSet &) = delete ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	DeviceInfoSet		  &operator=( const DeviceInfoSet &) = delete ;
@@ -333,7 +358,6 @@ public:
 	DriverInfoList( const DriverInfoList &) = delete ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	DriverInfoList &operator=( const DriverInfoList &) = delete ;
@@ -470,9 +494,13 @@ struct CandidateDriverNodeSnapshot {
 /** @brief 登録先照合中のfile/directory handleを単独所有します。 */
 class RegisteredInfHandle final {
 public:
-	/** @brief 未取得handleを作ります。 */
+	/**
+	 * @brief 未取得handleを作ります。
+	 */
 	RegisteredInfHandle() = default ;
-	/** @brief 取得したhandleだけを解放します。 */
+	/**
+	 * @brief 取得したhandleだけを解放します。
+	 */
 	~RegisteredInfHandle() noexcept
 	{
 		// 所有している一handleだけをWindowsへ返します。
@@ -480,13 +508,16 @@ public:
 			CloseHandle( handle_) ;
 		}
 	}
-	/** @brief Handleの二重所有を禁止します。 */
+	/**
+	 * @brief Handleの二重所有を禁止します。
+	 */
 	RegisteredInfHandle( const RegisteredInfHandle &) = delete ;
-	/** @brief Handleのcopy代入を禁止します。
-	 * @return 呼出しは禁止されます。
+	/**
+	 * @brief Handleのcopy代入を禁止します。
 	 */
 	RegisteredInfHandle &operator=( const RegisteredInfHandle &) = delete ;
-	/** @brief 新しい一handleの所有だけを取得します。
+	/**
+	 * @brief 新しい一handleの所有だけを取得します。
 	 * @param[in] handle CreateFileWの返却値。INVALID_HANDLE_VALUEも保持できます。
 	 */
 	void				 reset( HANDLE handle) noexcept
@@ -498,14 +529,16 @@ public:
 
 		handle_ = handle ;
 	}
-	/** @brief 読取り用の借用handleを返します。
+	/**
+	 * @brief 読取り用の借用handleを返します。
 	 * @return このguardの生存中だけ有効なhandleです。
 	 */
 	[[nodiscard]] HANDLE get() const noexcept
 	{
 		return handle_ ;
 	}
-	/** @brief Handle取得が成功しているか確認します。
+	/**
+	 * @brief Handle取得が成功しているか確認します。
 	 * @return NullとINVALID_HANDLE_VALUE以外だけtrueです。
 	 */
 	[[nodiscard]] bool valid() const noexcept
@@ -521,7 +554,8 @@ private:
 /** @brief 登録rootと元INF/登録INFを指定導入終端までpinし、実byte一致を確認します。 */
 class RegisteredInfGuard final {
 public:
-	/** @brief 既知Windows INF rootと元保護INFを変更不能な読取りへ固定します。
+	/**
+	 * @brief 既知Windows INF rootと元保護INFを変更不能な読取りへ固定します。
 	 * @param[in] source 元保護workspaceの完全INF path。
 	 * @return 全root/source確認成功0、元API失敗またはpath拒否HRESULTです。
 	 */
@@ -588,7 +622,8 @@ public:
 		sourceBytes_ = static_cast<std::uint64_t>( size.QuadPart) ;
 		return computeFileSha256( source, sourceSha256_) ;
 	}
-	/** @brief 完全返却pathのroot containmentと元INF全byteを照合します。
+	/**
+	 * @brief 完全返却pathのroot containmentと元INF全byteを照合します。
 	 * @param[in] staged Windows stageが返した未変更の完全path。
 	 * @return 登録rootと全byte一致0、それ以外は元HRESULTです。
 	 */
@@ -651,7 +686,8 @@ public:
 
 		return verifyOfficialFileMetadata( staged, {sourceBytes_, sourceSha256_}) ;
 	}
-	/** @brief Stage cacheを元完全内容へ結合するhashを返します。
+	/**
+	 * @brief Stage cacheを元完全内容へ結合するhashを返します。
 	 * @return Guard生存中の元INF SHA-256です。取得権限ではありません。
 	 */
 	[[nodiscard]] const std::wstring &sourceSha256() const noexcept
@@ -713,6 +749,7 @@ private:
  * @param[in] error 元APIまたは検証失敗のcode。0は不正応答として扱う。
  * @return 値を持たない読取り結果。
  */
+//------------------------------------------------------------------------------
 DevicePropertyReadStatus propertyFailure( const DWORD error) noexcept
 {
 	DevicePropertyReadState state = DevicePropertyReadState::FAILED ;	// 原因を保持する既定区分。
@@ -734,6 +771,7 @@ DevicePropertyReadStatus propertyFailure( const DWORD error) noexcept
 			 error == ERROR_SUCCESS ? ERROR_INVALID_DATA : error}} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Propertyを必要量照会と一回の取得で検証する。
  * @param[in] set 借用するdevice information set。
@@ -745,6 +783,7 @@ DevicePropertyReadStatus propertyFailure( const DWORD error) noexcept
  * @return 型・size・API成否を区別した結果。
  * @note STRING_LISTの実一文字はここではbyte境界だけを確認し、内容と終端は専用parserで検証する。
  */
+//------------------------------------------------------------------------------
 DevicePropertyReadStatus readObservedProperty( const HDEVINFO set, SP_DEVINFO_DATA &device,
 											  const DEVPROPKEY &key, const DEVPROPTYPE expectedType,
 											  std::vector<std::byte>			  &bytes,
@@ -797,6 +836,7 @@ DevicePropertyReadStatus readObservedProperty( const HDEVINFO set, SP_DEVINFO_DA
 	return {DevicePropertyReadState::VALUE, {}} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 文字列の実sizeと終端を検証し、空値と失敗を分離する。
  * @param[in] set 借用するdevice information set。
@@ -806,6 +846,7 @@ DevicePropertyReadStatus readObservedProperty( const HDEVINFO set, SP_DEVINFO_DA
  * @param[in] transport 同じ集合のAPI表。
  * @return 値・空・欠損・失敗・不正・上限を区別した結果。
  */
+//------------------------------------------------------------------------------
 DevicePropertyReadStatus readObservedDeviceString( const HDEVINFO set, SP_DEVINFO_DATA &device,
 												  const DEVPROPKEY &key, std::wstring &value,
 												  const DriverStoreInventoryTransport &transport)
@@ -833,9 +874,9 @@ DevicePropertyReadStatus readObservedDeviceString( const HDEVINFO set, SP_DEVINF
 	return {value.empty() ? DevicePropertyReadState::EMPTY : DevicePropertyReadState::VALUE, {}} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief DEVPROP_TYPE_STRING property を上限付きで取得する。
- *
  * @param[in] set device information set。
  * @param[in] device 対象 device。
  * @param[in] key property key。
@@ -979,6 +1020,7 @@ DevicePropertyReadStatus readObservedDeviceString( const HDEVINFO set, SP_DEVINF
 	return {DevicePropertyReadState::VALUE, {}} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既存のnative照合へ有限なinstance IDを渡す。
  * @param[in] set 借用device集合。
@@ -987,6 +1029,7 @@ DevicePropertyReadStatus readObservedDeviceString( const HDEVINFO set, SP_DEVINF
  * @param[in] transport 集合と同じAPI表。
  * @return 有効な非空IDを取得した場合true。失敗診断をGetLastErrorへ保持する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool readDeviceInstanceId(
 	const HDEVINFO set, SP_DEVINFO_DATA &device, std::wstring &instanceId,
 	const DriverStoreInventoryTransport &transport = driver_store_inf_detail::transport().inventory)
@@ -1046,12 +1089,14 @@ DevicePropertyReadStatus readObservedDeviceString( const HDEVINFO set, SP_DEVINF
 	return {DevicePropertyReadState::VALUE, {}} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一回のConfiguration Manager照会から有限なnode状態を得る。
  * @param[in] device 列挙したdevice。DevInstを同じmachineでのみ使用する。
  * @param[in] transport 照会するread-only API表。
  * @return 元CONFIGRETまたは成功時のstatus／problem。秘密を保持しない。
  */
+//------------------------------------------------------------------------------
 DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 									   const DriverStoreInventoryTransport &transport) noexcept
 {
@@ -1379,7 +1424,8 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 }
 
 //------------------------------------------------------------------------------
-/** @brief 再open直後のClass名/GUIDを失敗と未確定から区別します。
+/**
+ * @brief 再open直後のClass名/GUIDを失敗と未確定から区別します。
  * @param[in] set 同deviceを所有する借用集合です。
  * @param[in,out] device 一覧構築前の元deviceです。Classを推測更新しません。
  * @param[in] inventory 同backendの完全property表です。
@@ -2138,23 +2184,24 @@ DeviceNodeObservation readObservedNode( const SP_DEVINFO_DATA			   &device,
 }
 
 //------------------------------------------------------------------------------
-/** @brief 任意の既診断へ原errorと最初の拒否だけを保持します。
+/**
+ * @brief 任意の既診断へ原errorと最初の拒否だけを保持します。
  * @param[in,out] diagnostic 呼出し元が所有する任意診断です。
  * @param[in] error 元HRESULTです。
  * @param[in] stage 固定拒否位置です。
  * @param[in] observed 元enumまたは件数です。
  * @return 未変更の元HRESULTです。
  */
+//------------------------------------------------------------------------------
 NativeError bindingFailure( RequiredInfBindingDiagnostic *diagnostic, const NativeError error,
 						   const InfBindingReject stage, const std::uint32_t observed = 0U) noexcept
 {
 	return diagnostic ? diagnostic->reject( error, stage, observed) : error ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 公式INF binding用の現在状態とcandidate nodeを同時に固定する。
- *
  * Rank取得の前後で現在INF、版、日付を含む全snapshotを比較し、異なる時点の根拠を一bindingへ混在させない。
- *
  * @param[in] instanceId Worker内の秘密device instance ID。
  * @param[in] infPath 保護workspace内の単一INF絶対path。
  * @param[in] package 内容監査済みINF package metadata。
@@ -2163,6 +2210,7 @@ NativeError bindingFailure( RequiredInfBindingDiagnostic *diagnostic, const Nati
  * @param[out] deviceSnapshot 監査前後で一致した現在device状態。
  * @param[out] candidateSnapshot 一意に固定したWindows node。
  * @param[out] rankAudit 現在状態に対する具体性とrank監査結果。
+ * @param[out] diagnostic null可の同期中だけ借用する拒否段階記録先です。記録する失敗branchだけで更新し、それ以外は元値を保持します。
  * @return 状態固定完了時は0、変更、曖昧性またはSetupAPI失敗時はHRESULT。
  */
 //------------------------------------------------------------------------------
@@ -2304,10 +2352,13 @@ NativeError bindingFailure( RequiredInfBindingDiagnostic *diagnostic, const Nati
 	return DriverAction::REINSTALL ;
 }
 
-/** @brief 索引の有限ASCII PnP文法を端末内の照合keyに限定します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 索引の有限ASCII PnP文法を端末内の照合keyに限定します。
  * @param[in] value 公開入力または大文字化した秘密ID。
  * @return 一bus区切り、512文字以下、許可ASCIIだけの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validIndexPnpId( const std::wstring_view value) noexcept
 {
 	const auto slash = value.find( L'\\') ;	// Bus区切りの位置。
@@ -2323,10 +2374,13 @@ NativeError bindingFailure( RequiredInfBindingDiagnostic *diagnostic, const Nati
 		   }) ;
 }
 
-/** @brief Native IDの安全な有限ASCIIだけを確認し、公表文法へ制限しません。
+//------------------------------------------------------------------------------
+/**
+ * @brief Native IDの安全な有限ASCIIだけを確認し、公表文法へ制限しません。
  * @param[in] value 元propertyの一ID。
  * @return 1～512文字の非空・非制御ASCIIの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validIndexNativeId( const std::wstring_view value) noexcept
 {
 	return !value.empty() && value.size() <= 512U &&
@@ -2336,7 +2390,9 @@ NativeError bindingFailure( RequiredInfBindingDiagnostic *diagnostic, const Nati
 		   }) ;
 }
 
-/** @brief 原propertyの型・実size・明示空listまたは二重終端と全IDを検証します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原propertyの型・実size・明示空listまたは二重終端と全IDを検証します。
  * @param[in] set 同scanで所有する集合。
  * @param[in,out] device 同じ集合の現在node。
  * @param[in] key 固定したHardwareまたはCompatible property。
@@ -2344,6 +2400,7 @@ NativeError bindingFailure( RequiredInfBindingDiagnostic *diagnostic, const Nati
  * @param[out] ids 成功した大文字IDだけ。失敗時は空です。
  * @return 全property成功時0、欠損や不正時は元診断に対応するHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError readIndexIds( const HDEVINFO set, SP_DEVINFO_DATA &device,
 									   const DEVPROPKEY					   &key,
 									   const DriverStoreInventoryTransport &transport,
@@ -2462,10 +2519,11 @@ struct DriverStoreProvider::IndexInventoryState {
 /** @brief Providerだけが強所有する秘密stateへの失効可能なcallbackです。 */
 class DriverStoreProvider::IndexInventoryResolver final : public IndexPublicIdResolver {
 public:
-	/** @brief 秘密stateの所有を増やさずcontextを固定します。
+	/**
+	 * @brief 秘密stateの所有を増やさずcontextを固定します。
 	 * @param[in] state Providerの不変stateへのweak所有。
 	 * @param[in] context 本callbackの発行context。
-     * @param[in] lease 同factoryが元stateへ結ぶread-openのweak寿命証拠です。
+	 * @param[in] lease 同factoryが元stateへ結ぶread-openのweak寿命証拠です。
 	 */
 	IndexInventoryResolver( std::weak_ptr<const IndexInventoryState>		 state,
 						   IndexLookupContext							 context,
@@ -2473,12 +2531,29 @@ public:
 		: state_( std::move( state)), context_( context), lease_( std::move( lease))
 	{
 	}
-	/** @copydoc IndexPublicIdResolver::leaseProof */
+	/**
+	 * @brief Nativeだけが元inventoryの私有leaseを共有します。
+	 * @return 元factory発行の不変証拠の共有所有です。generic callbackでは空です。証拠objectは共有しても元inventory/contextの有効性や権限を
+	 *         延長しません。
+	 * @note このresolverが既に保持するlease_のshared_ptrを返します。この関数からinventory列挙やleaseの新発行は行いません。
+	 */
 	[[nodiscard]] std::shared_ptr<const NativeIndexLookupLease> leaseProof() const noexcept override
 	{
 		return lease_ ;
 	}
-	/** @copydoc IndexPublicIdResolver::resolve */
+	/**
+	 * @brief 元公開ID役割を保持し、native両集合とClassGUIDを照合します。
+	 * @param[in] kind メーカー公表INF側identifierの元役割。native property指定ではありません。
+	 * @param[in] publishedId 元公開ASCII ID。端末actual IDではありません。
+	 * @param[in] classGuid 元申告ClassGUID。
+	 * @param[in] context 現在のworker context。
+	 * @param[in] present 現在の有限opaque集合。本呼出し中だけ借用します。
+	 * @return 完了区分・元HRESULTとopaque候補集合。全inventory列挙と照合の全完了だけがcompleted trueです。部分集合・列挙失敗・全presentか不明
+	 *         な入力ではcompleted falseを返します。DriverStoreの私有証拠がある既知positiveだけを全体不足と分離でき、適合やrankは示しません。
+	 * @note 例外は共通入口で診断へ変換されます。同workerから呼び、再入しません。
+	 * @note 元scanの弱参照state・所有thread・完全present集合を検査し、保存済みの両ID集合とClassGUIDを照合します。この関数から新しいinventoryを取
+	 *       得しません。
+	 */
 	[[nodiscard]] IndexPublicIdResolution resolve(
 		const IndexPnpIdKind kind, const std::string_view publishedId,
 		const std::string_view classGuid, const IndexLookupContext context,
@@ -2718,14 +2793,25 @@ private:
 	std::shared_ptr<const NativeIndexLookupLease> lease_ ;
 } ;
 
-/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同workerの検証済みProviderと元世代だけを借用します。
+ * @param[in] owner 借用Provider。nullは開始拒否で、終了時に何も変更しません。
+ * @param[in] generation ownerが保持した正の元inventory世代。null ownerでは0です。
+ * @param[in] operation 当該予約済みの新操作です。
+ */
+//------------------------------------------------------------------------------
 DriverStoreProvider::IndexInstallProofScope::IndexInstallProofScope(
 	DriverStoreProvider *owner, const std::uint64_t generation,
 	const OperationId operation) noexcept
 	: owner_( owner), generation_( generation), operation_( operation)
 {
 }
-/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 当該Sの借用だけを終了し、未処理Uの元proofを保持します。
+ */
+//------------------------------------------------------------------------------
 DriverStoreProvider::IndexInstallProofScope::~IndexInstallProofScope()
 {
 	// 古いscopeから新operation/新世代の所有を変更しません。
@@ -2739,12 +2825,23 @@ DriverStoreProvider::IndexInstallProofScope::~IndexInstallProofScope()
 		}
 	}
 }
-/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元同worker/scanのscope開始が成立したか確認します。
+ * @return 開始した元scopeだけtrueです。
+ */
+//------------------------------------------------------------------------------
 bool DriverStoreProvider::IndexInstallProofScope::active() const noexcept
 {
 	return owner_ != nullptr ;
 }
-/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原lookup完了後の再factory/全体再列挙を不可逆に閉じます。
+ * @param[in] origin 元完全contextです。
+ * @return 同じ原ownerへ適用した場合trueです。
+ */
+//------------------------------------------------------------------------------
 bool DriverStoreProvider::sealIndexLookup( const IndexLookupContext origin) noexcept
 {
 	// 原lookupだけを一度閉じ、失効後のreadOpenを再開しません。
@@ -2757,7 +2854,16 @@ bool DriverStoreProvider::sealIndexLookup( const IndexLookupContext origin) noex
 	indexInventory_->lookupFrozen = true ;
 	return true ;
 }
-/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 未処理または当該実行中subsetへの結合を検証します。
+ * @param[in] origin 元contextです。
+ * @param[in] operation 明示操作です。
+ * @param[in] devices 元一意subsetです。
+ * @param[in] executing trueは当該scopeのS、falseは未処理Uです。
+ * @return 完全一致だけtrueです。新しい権限を作りません。
+ */
+//------------------------------------------------------------------------------
 bool DriverStoreProvider::validateRetainedIndexSelection(
 	const IndexLookupContext origin, const OperationId operation,
 	const std::span<const std::wstring> devices, const bool executing) const noexcept
@@ -2789,7 +2895,16 @@ bool DriverStoreProvider::validateRetainedIndexSelection(
 
 	return true ;
 }
-/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全選択事前検証後だけ新resolverを閉じ、元proofの解放を一batch終端へ延期します。
+ * @param[in] origin 元factoryの原contextです。
+ * @param[in] operation 当該予約済み新操作です。
+ * @param[in] devices 元Uの一意な選択subsetです。
+ * @return 同worker/scanの一回scope。不一致/閉鎖済みはinactiveです。
+ * @note 新取得・proof・導入許可を発行せず、各deviceの直前再検証は別に必須です。
+ */
+//------------------------------------------------------------------------------
 DriverStoreProvider::IndexInstallProofScope DriverStoreProvider::beginIndexInstallProofScope(
 	const IndexLookupContext origin, const OperationId operation,
 	const std::span<const std::wstring> devices) noexcept
@@ -2818,7 +2933,13 @@ DriverStoreProvider::IndexInstallProofScope DriverStoreProvider::beginIndexInsta
 	}
 }
 
-/** @see driver_store_provider.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在属性の非通信内部試験用API表を所有copyする。
+ * @param[in] transport 完全なSetupAPI代替表。欠損をnative呼出しで補完しない。
+ * @note このinstanceはscanCurrentInventory専用。通常scanと導入sessionを発行しない。
+ */
+//------------------------------------------------------------------------------
 DriverStoreProvider::DriverStoreProvider( DriverStoreInventoryTransport transport) noexcept
 	: testInventoryTransport_( std::move( transport))
 {
@@ -2826,7 +2947,13 @@ DriverStoreProvider::DriverStoreProvider( DriverStoreInventoryTransport transpor
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief 現在の PnP device と compatible Driver Store 履歴を列挙する。現在の PnP device と compatible Driver Store履
+ *        歴を列挙する。 注記: network 通信、download、およびsystem state の変更は行わない。
+ * @param[in] scanSessionId 呼出し側が割り当てた 0 ではない session ID。 呼出し側が割り当てた 0 ではないsession ID。
+ * @param[in] options Aggregate Provider以外では既定値を使用するscan設定。 複合Providerで検証済みのscan条件。
+ * @param[in] progressCallback 段階、処理件数、および全体完了率の通知先。
+ * @return 現在版と切替可能な local driver 候補を含む scan 結果。
+ * @note network 通信、download、および system state の変更は行わない。
  */
 //------------------------------------------------------------------------------
 ScanResult DriverStoreProvider::scan( const ScanSessionId scanSessionId, const ScanOptions &options,
@@ -2836,7 +2963,15 @@ ScanResult DriverStoreProvider::scan( const ScanSessionId scanSessionId, const S
 	return scanInventory( scanSessionId, progressCallback, nullptr, true) ;
 }
 
-/** @see driver_store_provider.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 履歴・native照合map・install targetを生成せず現在属性だけを列挙する。
+ * @param[in] scanSessionId 専用contextと一致するworker session。
+ * @param[in,out] execution 同期呼出し中だけ借用する取消し・期限context。
+ * @param[in] progressCallback 確定した列挙件数の通知先。
+ * @return 表示専用の現在行。途中停止では検証済み行と不完全な計測を保持。
+ */
+//------------------------------------------------------------------------------
 ScanResult DriverStoreProvider::scanCurrentInventory(
 	const ScanSessionId scanSessionId, MetadataSearchExecutionContext &execution,
 	const ProviderProgressCallback &progressCallback)
@@ -2844,7 +2979,16 @@ ScanResult DriverStoreProvider::scanCurrentInventory(
 	return scanInventory( scanSessionId, progressCallback, &execution) ;
 }
 
-/** @see driver_store_provider.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在属性scanへ索引専用の秘密ID captureだけを追加します。
+ * @param[in] scanSessionId 専用contextと一致する正のsession。
+ * @param[in,out] execution 同期呼出し中だけ借用する停止context。
+ * @param[in] progressCallback 確定進捗の通知先。
+ * @return 表示専用の現在行と独立した秘密resolver state。
+ * @note 完全transport内だけで実行し、履歴・install session・native fallbackを発行しません。
+ */
+//------------------------------------------------------------------------------
 ScanResult DriverStoreProvider::scanCurrentIndexInventory(
 	const ScanSessionId scanSessionId, MetadataSearchExecutionContext &execution,
 	const ProviderProgressCallback &progressCallback)
@@ -2852,7 +2996,17 @@ ScanResult DriverStoreProvider::scanCurrentIndexInventory(
 	return scanInventory( scanSessionId, progressCallback, &execution, true) ;
 }
 
-/** @see driver_store_provider.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scanの秘密snapshotをweak所有するread-only resolverを発行します。
+ * @param[in] operationId 結合する正のworker operation。
+ * @param[out] context 発行時だけsessionと単調inventory世代を返します。拒否時は空です。
+ * @param[out] present 全観測opaque集合。拒否時は空です。生IDは含みません。
+ * @return 所有threadの有効snapshotだけがcallbackを持ちます。拒否時はnullptrです。
+ * @note Workerで同期呼出しし再入しません。新scan・install・Provider破棄で旧callbackは失効します。不完全snapshotのcallbackも発行できますが、
+ *       resolveのcompletedはfalseです。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<IndexPublicIdResolver> DriverStoreProvider::makeIndexPublicIdResolver(
 	const std::uint64_t operationId, IndexLookupContext &context,
 	std::vector<std::wstring> &present) const
@@ -2881,7 +3035,16 @@ std::unique_ptr<IndexPublicIdResolver> DriverStoreProvider::makeIndexPublicIdRes
 	return resolver ;
 }
 
-/** @see driver_store_provider.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常scanと現在属性専用scanが共有する有界present列挙。
+ * @param[in] scanSessionId 呼出側が発行した非ゼロsession。
+ * @param[in] progressCallback 同期の進捗通知先。
+ * @param[in,out] execution Nullは通常履歴検索、非nullは表示専用。
+ * @param[in] captureIndexIds 同scanの索引照合用秘密属性を保持する場合true。
+ * @return 列挙結果。専用modeではinstall sessionを発行しない。
+ */
+//------------------------------------------------------------------------------
 ScanResult DriverStoreProvider::scanInventory( const ScanSessionId			  scanSessionId,
 											  const ProviderProgressCallback &progressCallback,
 											  MetadataSearchExecutionContext *execution,
@@ -3723,7 +3886,9 @@ ScanResult DriverStoreProvider::scanInventory( const ScanSessionId			  scanSessi
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief 直前のscanで実際に観測したlocal inventory計測を取得する。
+ * @return Providerが所有する計測値への参照。次のscan、installまたは失効まで有効である。
+ * @note 生のdevice識別子を含まず、呼出し元はworker thread内でだけ参照する。
  */
 //------------------------------------------------------------------------------
 const DeviceInventoryMeasurement &DriverStoreProvider::inventoryMeasurement() const noexcept
@@ -3732,10 +3897,14 @@ const DeviceInventoryMeasurement &DriverStoreProvider::inventoryMeasurement() co
 }
 
 //------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief 原deviceの未処理Uまたは当該実行Sへの所属を照合します。
+ * @param[in] device 元opaque deviceです。
+ * @return 未消費または当該scopeへ予約済みだけtrueです。
  */
-/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
 bool DriverStoreProvider::ownsInstallDevice( const std::wstring_view device) const noexcept
 {
 	return std::ranges::any_of( pendingIndexDevices_,
@@ -3744,6 +3913,14 @@ bool DriverStoreProvider::ownsInstallDevice( const std::wstring_view device) con
 			std::ranges::find( activeIndexDevices_, device) != activeIndexDevices_.end()) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます。
+ * @param[in] operationId 当該新操作です。
+ * @param[in] session 未失効の元scanです。
+ * @param[in] identities 元表示の選択candidate subsetです。
+ * @return 元scopeの全件照合成功0、それ以外は拒否HRESULTです。
+ */
 //------------------------------------------------------------------------------
 NativeError DriverStoreProvider::beginInstallOperation(
 	const OperationId operationId, const ScanSessionId session,
@@ -3771,7 +3948,16 @@ NativeError DriverStoreProvider::beginInstallOperation(
 
 	return bindInstallDevices( operationId, session, devices) ;
 }
-/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Compositeで検証した元device subsetを当該操作へ拘束します。
+ * @param[in] operationId 新しいInstall操作です。
+ * @param[in] session 未失効の元scanです。
+ * @param[in] devices 元発行の一意なdevice subsetです。
+ * @param[in] allowEmpty WUAだけの操作にnative実行scopeを作らず元ownerを保持する内部指定です。
+ * @return 成功0、stale/不明/重複は失敗です。native変更は行いません。
+ */
+//------------------------------------------------------------------------------
 NativeError DriverStoreProvider::bindInstallDevices( const OperationId					operationId,
 													const ScanSessionId					session,
 													const std::span<const std::wstring> devices,
@@ -3804,12 +3990,23 @@ NativeError DriverStoreProvider::bindInstallDevices( const OperationId					opera
 	installEntered_				  = false ;
 	return 0 ;
 }
-/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実Provider入口を通った当該操作だけを消費対象へ記録します。
+ */
+//------------------------------------------------------------------------------
 void DriverStoreProvider::markInstallEntered() noexcept
 {
 	installEntered_ = activeInstallOperation_ != 0U ;
 }
-/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます。
+ * @param[in] operationId 当該新操作です。
+ * @param[in] session 未失効の元scanです。
+ * @return 当該操作の原未消費subsetです。不明な操作は空です。
+ */
+//------------------------------------------------------------------------------
 std::optional<InstallRetentionSummary> DriverStoreProvider::finishInstallOperation(
 	const OperationId operationId, const ScanSessionId session)
 {
@@ -3864,7 +4061,19 @@ std::optional<InstallRetentionSummary> DriverStoreProvider::finishInstallOperati
 	return retained ;
 }
 
-/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択された local driver node を再照合して device へ導入する。選択された local driver node を再照合して deviceへ導入する。 注記
+ *        : scan 時の INF path を直接信用せず、実行直前に全 metadata を再照合する。
+ * @param[in] scanSessionId 選択元の Driver Store scan session ID。
+ * @param[in] identities UI に提示済みの opaque identity 群。
+ * @param[in] parentWindowNative device installer の親 HWND を整数表現で渡す値。 device installer の親 HWNDを整数表現で渡
+ *                   す値。
+ * @param[in] progressCallback 段階、処理件数、および全体完了率の通知先。
+ * @return 選択候補ごとの導入結果。
+ * @note scan 時の INF path を直接信用せず、実行直前に全 metadata を再照合する。
+ */
+//------------------------------------------------------------------------------
 InstallResult DriverStoreProvider::install( const ScanSessionId				   scanSessionId,
 										   const std::span<const std::wstring> identities,
 										   const std::uintptr_t				   parentWindowNative,
@@ -3958,7 +4167,9 @@ InstallResult DriverStoreProvider::install( const ScanSessionId				   scanSessio
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief WUA の Hardware ID と一致する local device の opaque identity を取得する。
+ * @param[in] hardwareId WUA が返した Hardware ID。外部へ公開しない。
+ * @return 現在の scan で一致する device identity。曖昧または未検出なら `std::nullopt`。
  */
 //------------------------------------------------------------------------------
 std::optional<std::wstring> DriverStoreProvider::deviceIdentityForHardwareId(
@@ -3982,7 +4193,12 @@ std::optional<std::wstring> DriverStoreProvider::deviceIdentityForHardwareId(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief 公式catalog snapshotへ端末内限定binding fingerprintを付与する。公式catalog snapshotへ端末内bindingを付与する。Opaque
+ *        identityをworker内mapでnative IDへ解決し、全件成功した場合だけfingerprintを反映する。生IDは返さない。
+ * @param[in] secret 管理者保護stateから読み取った端末固有HMAC key。 管理者保護stateの端末固有HMAC key。
+ * @param[in,out] devices 現在scanのopaque identityを持つ非機密snapshot。 現在scanの公式catalog用snapshot。
+ * @return 全deviceへ付与できた場合は0、session、identity、CNG失敗時はHRESULT。 全deviceへ付与できた場合は0、入力またはCNG失敗時はHRESULT。
+ * @note Native device instance IDは本関数から返さず、network、UI、logへ渡さない。
  */
 //------------------------------------------------------------------------------
 NativeError DriverStoreProvider::attachLocalOfficialBindingFingerprints(
@@ -4030,7 +4246,16 @@ NativeError DriverStoreProvider::attachLocalOfficialBindingFingerprints(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief G11-Cで分離した一つのINFを現在deviceのrankとread-onlyで比較する。G11-Cで分離した一INFのPnP具体性とrankを監査する。現在driverと単一候
+ *        補INFのWindows rankをread-onlyで取得し、ID具体性とrankが退行しない場合だけApplicableとする。
+ * @param[in] scanSessionId Device inventoryを作成した現在session ID。 Device inventoryの現在session ID。
+ * @param[in] deviceIdentity UIへ提示済みのopaque device identity。
+ * @param[in] workspace Candidate driver閉包を所有する保護workspace。 Candidate閉包を所有する保護workspace。
+ * @param[in] package G11-Cで構造を検証した一つのINF package。 G11-Cで構造検証した一INF package。
+ * @param[out] audit PnP ID文字列を含まない具体性とrankの監査結果。 PnP ID文字列を含まない監査結果。
+ * @return 拒否を含む監査判定の生成時は0、入力またはSetupAPI失敗時はHRESULT。 拒否を含む監査判定の生成時は0、処理失敗時はHRESULT。
+ * @note 戻り値0だけでinstallを許可せず、auditのApplicableを別途確認する。
+ * @note Driver Storeへのstage、driver選択、installまたはdevice state変更を行わない。
  */
 //------------------------------------------------------------------------------
 NativeError DriverStoreProvider::auditOfficialInfRank( const ScanSessionId	  scanSessionId,
@@ -4157,7 +4382,14 @@ NativeError DriverStoreProvider::auditOfficialInfRank( const ScanSessionId	  sca
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief 現在版を要求せず単一INFのWindows compatible nodeを観測する。
+ * @param[in] scanSessionId 現在inventoryのsession。
+ * @param[in] deviceIdentity 当該sessionのopaque device identity。
+ * @param[in] workspace 検証済みINF閉包の所有領域。
+ * @param[in] package 内容と署名を検証したINF。
+ * @param[out] candidateRank 一致nodeの最小Windows rank。非適用・失敗時は空。
+ * @return 全列挙完了時0、入力・SetupAPI・有限上限違反時はHRESULT。
+ * @note 空結果とAPI失敗を区別する。現在driverとの順位比較や導入許可は発行しない。Workerから呼び、staging、driver選択、installを行わない。
  */
 //------------------------------------------------------------------------------
 NativeError DriverStoreProvider::observeInfCandidateRank(
@@ -4211,9 +4443,24 @@ NativeError DriverStoreProvider::observeInfCandidateRank(
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief 監査済み公式INFを現在device状態と一意なWindows nodeへ拘束する。監査済み公式INFを現在状態と一意なWindows nodeへ拘束する。現在状態と候補nodeを
+ *        再取得し、全照合成功後だけ単調増加tokenへ秘密metadataをcommitする。OS状態は変更しない。
+ * @param[in] scanSessionId Device inventoryを作成した現在session ID。 Device inventoryの現在session ID。
+ * @param[in] deviceIdentity UIへ提示済みのopaque device identity。
+ * @param[in] workspace Candidate driver閉包を所有する保護workspace。 Candidate閉包を所有する保護workspace。
+ * @param[in] package G11-Cで構造を検証した一つのINF package。 内容監査済みの一INF package。
+ * @param[in] expectedCurrentProvider Scan結果に固定した現在Provider表示名。 Scan時の現在Provider名。
+ * @param[in] expectedCurrentVersion Scan結果に固定した現在version。 Scan時の現在version。
+ * @param[in] expectedCurrentDate Scan結果に固定した現在のYYYY/MM/DD日付。 Scan時の現在日付。
+ * @param[in] expectedRankAudit 発行前に合格したPnP具体性とrank監査結果。 直前に合格したrank監査結果。
+ * @param[out] binding 成功時の一scan限定opaque binding。失敗時は空値。 成功時の非機密opaque binding。
+ * @param[out] diagnostic 任意の元拒否位置です。実行判定に使用しません。
+ * @return 発行成功時は0、入力、状態変更、一意性またはSetupAPI失敗時はHRESULT。 Binding発行時は0、状態変更、曖昧性またはSetupAPI失敗時はHRESULT。
+ * @note 生のinstance ID、PnP ID、INF path、sectionはDriver Store内だけに保持する。
  */
+//------------------------------------------------------------------------------
 NativeError DriverStoreProvider::createOfficialInfInstallBinding(
 	const ScanSessionId scanSessionId, const std::wstring_view deviceIdentity,
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
@@ -4240,7 +4487,22 @@ NativeError DriverStoreProvider::createOfficialInfInstallBinding(
 	return bindingFailure( diagnostic, error, InfBindingReject::BINDING_STATE) ;
 }
 
-/** @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 標準入口または私有計画入口で確認したbase nodeを発行します。
+ * @param[in] scanSessionId 元scanです。
+ * @param[in] deviceIdentity 元opaqueです。
+ * @param[in] workspace 検証済み閉包です。
+ * @param[in] package 検証済み一INFです。
+ * @param[in] expectedCurrentProvider 元現在providerです。
+ * @param[in] expectedCurrentVersion 元現在versionです。
+ * @param[in] expectedCurrentDate 元現在日付です。
+ * @param[in] expectedRankAudit 元Windows rankです。
+ * @param[out] binding 同状態の一意nodeだけです。
+ * @param[out] diagnostic 任意の元拒否位置です。実行判定に使用しません。
+ * @return 一意性/全状態一致0、それ以外はHRESULTです。
+ */
+//------------------------------------------------------------------------------
 NativeError DriverStoreProvider::createOfficialInfInstallBindingImpl(
 	const ScanSessionId scanSessionId, const std::wstring_view deviceIdentity,
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
@@ -4427,7 +4689,13 @@ NativeError DriverStoreProvider::createOfficialInfInstallBindingImpl(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief 同issuer元記録から全import内容とdevice別選択関係を再構築します。
+ * @param[in] inspection 同保護元byteと全CAT/memberの検査所有者です。
+ * @param[in] record 同session/device/元INFに固定した私有binding記録です。
+ * @param[out] plan 成功時だけ同原順の不変内容計画です。失敗時は空です。
+ * @param[out] diagnosticStage 任意の数値段階です。生ID・path・節名を含みません。
+ * @return 元byteと選択節/role関係確認0、その他は元HRESULTです。
+ * @note Worker内read-only処理です。単独の導入許可を発行しません。
  */
 //------------------------------------------------------------------------------
 NativeError DriverStoreProvider::buildRequiredInfComponentPlan(
@@ -4567,7 +4835,22 @@ NativeError DriverStoreProvider::buildRequiredInfComponentPlan(
 	}
 }
 
-/** @see src/platform/driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 検証済み役割計画を単一親の私有bindingへ固定します。
+ * @param[in] session 元scan sessionです。
+ * @param[in] identity 元選択親のopaque identityです。
+ * @param[in] inspection 同byte/CAT検証済み閉包です。
+ * @param[out] plan 同deviceの私有node選択から生成した不変関係です。失敗時は空です。
+ * @param[in] provider 元現在行のproviderです。
+ * @param[in] version 元現在行のversionです。
+ * @param[in] date 元現在行の日付です。
+ * @param[in] audit 元baseのWindows rank監査です。
+ * @param[out] binding 全照合成功時だけ発行する元親bindingです。
+ * @param[out] diagnosticStage 任意の非所有数値診断先です。nullなら採取せず権限判定へ使いません。
+ * @return 成功0、関係/適用性/元状態の拒否はHRESULTです。
+ */
+//------------------------------------------------------------------------------
 NativeError DriverStoreProvider::createRequiredInfInstallBinding(
 	const ScanSessionId session, const std::wstring_view identity,
 	const CommonInfInspection &inspection, std::shared_ptr<const RequiredDriverComponentPlan> &plan,
@@ -4645,7 +4928,18 @@ NativeError DriverStoreProvider::createRequiredInfInstallBinding(
 	return error ;
 }
 
-/** @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元親と全必要役割を変更前にread-onlyで再検証します。
+ * @param[in] session 元scanです。
+ * @param[in] identity 元親opaqueです。
+ * @param[in] inspection 元保護閉包です。
+ * @param[in] plan 元私有関係です。
+ * @param[in] binding 元親bindingです。
+ * @param[in,out] diagnosticStage null可の最初の固定拒否段階です。
+ * @return 全byte/関係/元状態一致0、失効/未確認はHRESULTです。
+ */
+//------------------------------------------------------------------------------
 NativeError DriverStoreProvider::revalidateRequiredInfInstallBinding(
 	const ScanSessionId session, const std::wstring_view identity,
 	const CommonInfInspection								 &inspection,
@@ -4742,7 +5036,21 @@ NativeError DriverStoreProvider::revalidateRequiredInfInstallBinding(
 											   inspection.closure.packages.front(), binding) ;
 }
 
-/** @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 必要役割をstageし指定親と一意な必要SWC子だけを導入します。
+ * @param[in] session 元scanです。
+ * @param[in] identity 元選択親です。
+ * @param[in] inspection 元検証済み閉包です。
+ * @param[in] plan 元私有関係です。
+ * @param[in] binding 元親bindingです。
+ * @param[in] parentWindowNative 明示操作の親windowです。
+ * @param[out] roles 実際のstage/指定導入/Windows反映待ちを役割別に保持します。
+ * @param[out] rebootRequired 実APIが返した再起動要否です。
+ * @return 全指定API完了0、反映待ちS_FALSE、部分失敗はHRESULTです。
+ * @note 必要roleの元/登録INF/rootを変更非共有で計画終端まで保持します。Extension反映をbase API成功から推測しません。全device導入APIを呼びません。
+ */
+//------------------------------------------------------------------------------
 NativeError DriverStoreProvider::installBoundRequiredInfPlan(
 	const ScanSessionId session, const std::wstring_view identity,
 	const CommonInfInspection								 &inspection,
@@ -4976,7 +5284,19 @@ NativeError DriverStoreProvider::installBoundRequiredInfPlan(
 	return pending ? static_cast<NativeError>( S_FALSE) : 0 ;
 }
 
-/** @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式INF導入bindingと現在のdeviceおよびWindows nodeを再照合する。公式INF導入bindingと現在状態を再照合する。発行時の現在INF、版、日付、PnP
+ *        状態と候補section、版、日付、rankを再取得値へ比較する。OS状態は変更しない。
+ * @param[in] scanSessionId Bindingを発行した現在session ID。 Binding発行元のscan session ID。
+ * @param[in] deviceIdentity Bindingに対応するopaque device identity。 Bindingに対応するopaque device ID。
+ * @param[in] workspace 再検証済みcandidate閉包を所有する保護workspace。 再検証済みcandidateの保護workspace。
+ * @param[in] package 再検証済みの一つのINF package。 再検証済みの一INF package。
+ * @param[in] binding Provider workerが保持した非機密binding。 Provider workerが保持する非機密binding。
+ * @return 全記録が一致する場合は0、失効、変更またはSetupAPI失敗時はHRESULT。 全記録一致時は0、失効、変更またはSetupAPI失敗時はHRESULT。
+ * @note 本関数はDriver Storeへのstage、driver選択、installを行わない。
+ */
+//------------------------------------------------------------------------------
 NativeError DriverStoreProvider::revalidateOfficialInfInstallBinding(
 	const ScanSessionId scanSessionId, const std::wstring_view deviceIdentity,
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
@@ -5108,7 +5428,12 @@ NativeError DriverStoreProvider::revalidateOfficialInfInstallBinding(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief 指定scanに属する一つの公式INF導入bindingを明示的に破棄する。現在sessionと所有workerを照合し、他候補のbindingを維持したまま未発行候補の秘密記録だけ
+ *        を破棄する。
+ * @param[in] scanSessionId Bindingを発行したscan session ID。
+ * @param[in] token Driver Storeが発行した0ではないopaque token。 Driver Storeが発行したopaque token。
+ * @return 一件を破棄した場合true。別session、別workerまたは未登録ならfalse。 一件を破棄した場合true。不一致または未登録ならfalse。
+ * @note 他Providerが同じscanで保持するbindingは変更しない。
  */
 //------------------------------------------------------------------------------
 bool DriverStoreProvider::discardOfficialInfInstallBinding( const ScanSessionId scanSessionId,
@@ -5125,7 +5450,10 @@ bool DriverStoreProvider::discardOfficialInfInstallBinding( const ScanSessionId 
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief 指定scanに属する全公式INF導入bindingを明示的に失効させる。指定scanの公式INF導入bindingを明示的に失効させる。現在sessionと所有workerが一致す
+ *        る場合だけ全tokenを破棄する。旧sessionから現在bindingを失効させない。
+ * @param[in] scanSessionId Bindingを発行したscan session ID。
+ * @note 旧sessionまたは所有worker以外からの要求では現在bindingを変更しない。
  */
 //------------------------------------------------------------------------------
 void DriverStoreProvider::invalidateOfficialInfInstallBindings(
@@ -5142,7 +5470,11 @@ void DriverStoreProvider::invalidateOfficialInfInstallBindings(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief 同保護INFのbyteを再確認して一度だけstoreへimportします。
+ * @param[in] workspace 元保護領域です。
+ * @param[in] package 同byte検証済みINFです。
+ * @param[out] stagedInfPath 検証済み登録root直下の秘密pathです。
+ * @return stageと元/登録byte一致0、それ以外はHRESULTです。
  */
 //------------------------------------------------------------------------------
 NativeError DriverStoreProvider::stageOfficialInfPackage( const OfficialDownloadWorkspace &workspace,
@@ -5215,7 +5547,21 @@ NativeError DriverStoreProvider::stageOfficialInfPackage( const OfficialDownload
 	return 0 ;
 }
 
-/** @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Bindingで固定した監査済み公式INFをstagingして指定deviceへ導入する。Bindingを再検証後、SetupCopyOEMInfWが返した登録先INFから一意な
+ *        nodeを再構築する。導入直前にも現在状態を確認し、DiInstallDeviceへ非nullのDriverInfoDataとFlags 0を渡す。
+ * @param[in] scanSessionId Bindingを発行した現在scan session ID。 Bindingを発行した現在session。
+ * @param[in] deviceIdentity Bindingに対応するopaque device identity。 対象のopaque device identity。
+ * @param[in] workspace 再検証済みcandidate閉包を所有する保護workspace。 再検証済みINF閉包の保護workspace。
+ * @param[in] package 再検証済みの一つのINF package。 再検証済みの一INF package。
+ * @param[in] binding Provider workerが保持する一scan限定binding。 Providerが保持する一scan限定binding。
+ * @param[in] parentWindowNative Windows導入dialogの親Window値。 Installer親HWNDの整数表現。
+ * @param[out] rebootRequired 導入完了に再起動が必要な場合はtrue。
+ * @return Stagingと指定device導入の成功時は0、それ以外はHRESULT。
+ * @note Windowsが返した登録先INFだけを再照合し、登録済みpackageを自動削除しない。
+ */
+//------------------------------------------------------------------------------
 NativeError DriverStoreProvider::installBoundOfficialInf( const ScanSessionId	 scanSessionId,
 														 const std::wstring_view deviceIdentity,
 														 const OfficialDownloadWorkspace &workspace,
@@ -5235,7 +5581,21 @@ NativeError DriverStoreProvider::installBoundOfficialInf( const ScanSessionId	 s
 									   parentWindowNative, rebootRequired) ;
 }
 
-/** @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 私有前提を満たした指定一deviceの元実装を実行します。
+ * @param[in] scanSessionId 元scanです。
+ * @param[in] deviceIdentity 元opaqueです。
+ * @param[in] workspace 元保護閉包です。
+ * @param[in] package 元検証済みINFです。
+ * @param[in] binding 元一意nodeです。
+ * @param[in] parentWindowNative 明示操作の親windowです。
+ * @param[out] rebootRequired 実APIの再起動値です。
+ * @param[out] diagnosticMissing 非nullは同期中だけ借用する出力です。FALSE/LastError0の観測だけtrueです。
+ * @return stage/指定API完了0、それ以外はHRESULTです。
+ * @note FALSE/LastError0では内部ERROR_INVALID_DATAを返し、実Windowsの同error観測と区別します。
+ */
+//------------------------------------------------------------------------------
 NativeError DriverStoreProvider::installBoundOfficialInfImpl(
 	const ScanSessionId scanSessionId, const std::wstring_view deviceIdentity,
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
@@ -5497,7 +5857,17 @@ NativeError DriverStoreProvider::installBoundOfficialInfImpl(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief 検証済み外部INFを現在scanの一つのopaque deviceへ導入する。検証済み外部INFを現在scanの一deviceへ導入する。指定INF一件だけからcompatible
+ *        listを構築し、Providerとversionが一意なnodeだけを対象deviceへ導入する。
+ * @param[in] scanSessionId Device inventoryを作成した現在session ID。 Device inventoryの現在session ID。
+ * @param[in] deviceIdentity UIへ提示済みのopaque device identity。 対象のopaque device identity。
+ * @param[in] infPath Providerが再検証した保護workspace内INF絶対path。 再検証済みINFの保護workspace絶対path。
+ * @param[in] expectedProvider Scan時に検証したINF Provider表示名。 Scan時のINF Provider表示名。
+ * @param[in] expectedVersion Scan時に検証した4要素numeric driver version。 Scan時の4要素numeric version。
+ * @param[in] parentWindowNative Device installerの親HWNDを整数表現で渡す値。 Installer親HWNDの整数表現。
+ * @param[out] rebootRequired 完了に再起動が必要な場合は`true`。
+ * @return 導入成功時は0、session、再照合またはWindows API失敗時はHRESULT。 対象nodeの再照合と導入成功時は0、それ以外はHRESULT。
+ * @pre 呼出し側はINF、CAT、全参照fileの署名とPnP適用性を直前に再検証する。
  */
 //------------------------------------------------------------------------------
 NativeError DriverStoreProvider::installVerifiedExternalInf(
@@ -5630,7 +6000,11 @@ NativeError DriverStoreProvider::installVerifiedExternalInf(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief scan で照合済みの Driver Store 候補を再列挙して導入する。
+ * @param[in] target worker 内に保持した対象 metadata。
+ * @param[in] parentWindowNative device installer UI の親 HWND。
+ * @param[out] rebootRequired 完了に再起動が必要な場合は `true`。
+ * @return 成功時は 0、失敗時は HRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
 NativeError DriverStoreProvider::installTarget( const InstallTarget &target,
@@ -5720,7 +6094,16 @@ NativeError DriverStoreProvider::installTarget( const InstallTarget &target,
 	return 0 ;
 }
 
-/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 成功した指定対象だけを実事後照合用へ保持します。
+ * @param[in] instance Worker内だけの元instanceです。
+ * @param[in] inf 指定済みの実INFです。
+ * @param[in] provider 指定nodeのproviderです。
+ * @param[in] version 指定nodeのpacked版です。
+ * @note 確保失敗は読取証明を省き、実導入結果を変更しません。
+ */
+//------------------------------------------------------------------------------
 void DriverStoreProvider::rememberInstalledObservationTarget(
 	const std::wstring_view instance, const std::wstring_view inf, const std::wstring_view provider,
 	const std::uint64_t version) const noexcept
@@ -5749,6 +6132,16 @@ void DriverStoreProvider::rememberInstalledObservationTarget(
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 元scanの対象だけを同worker内で導入後にread-only照会する関数を作ります。
+ * @param[in] session 元scan sessionです。導入権限を延長しません。
+ * @param[in] devices 同scanの選択済みopaque device集合です。
+ * @return 同workerのinstall呼出し内だけで一回使用する読取関数。生IDをUIへ渡しません。
+ * @note 対象instanceとAPI表を一時所有し、期待mapはProviderから借用します。同owner thread・Provider生存中の同期呼出しだけが有効です。captured
+ *       sessionと現在scanの不一致では期待mapを使いません。全PnP scan/再検出/候補発行は行いません。
+ */
+//------------------------------------------------------------------------------
 std::function<std::vector<PostInstallDeviceObservation>()> DriverStoreProvider::
 	capturePostInstallObservations( const ScanSessionId				   session,
 								   const std::span<const std::wstring> devices) const
@@ -5897,7 +6290,7 @@ std::function<std::vector<PostInstallDeviceObservation>()> DriverStoreProvider::
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
+ * @brief scan session と秘密性のある device metadata を失効させる。
  */
 //------------------------------------------------------------------------------
 void DriverStoreProvider::invalidateScanSession() noexcept
@@ -5923,7 +6316,19 @@ void DriverStoreProvider::invalidateScanSession() noexcept
 	ownerThreadId_		  = 0 ;
 }
 
-/** @see DriverStoreProvider 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元scanのpresent deviceを公式installer専用の秘密guardへ固定します。
+ * @param[in] session 元scan sessionです。
+ * @param[in] device 元表示のopaque deviceです。
+ * @param[in] provider 元現在行のproviderです。native再観測へ完全一致を要求します。
+ * @param[in] version 元現在行の版です。
+ * @param[in] date 元現在行の日付です。
+ * @param[out] token 全原状態一致時だけ非zero guardです。失敗時0です。
+ * @return 同worker/native x64/present/原現在状態確認0、拒否は元HRESULTです。
+ * @note 標準INFのWindows rank合格を発行しません。
+ */
+//------------------------------------------------------------------------------
 NativeError DriverStoreProvider::createOfficialInstallerDeviceBinding(
 	const ScanSessionId session, const std::wstring_view device, const std::wstring_view provider,
 	const std::wstring_view version, const std::wstring_view date, std::uint64_t &token)
@@ -5989,7 +6394,15 @@ NativeError DriverStoreProvider::createOfficialInstallerDeviceBinding(
 	token = issued ;
 	return 0U ;
 }
-/** @see DriverStoreProvider 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元installer guardを変更直前のpresent/全秘密状態へ再照合します。
+ * @param[in] session 元scanです。
+ * @param[in] device 元opaque deviceです。
+ * @param[in] token 未使用の同issuer guardです。
+ * @return 全native状態一致0、それ以外は元HRESULTです。
+ */
+//------------------------------------------------------------------------------
 NativeError DriverStoreProvider::revalidateOfficialInstallerDeviceBinding(
 	const ScanSessionId session, const std::wstring_view device, const std::uint64_t token) const
 {
@@ -6031,7 +6444,15 @@ NativeError DriverStoreProvider::revalidateOfficialInstallerDeviceBinding(
 
 	return 0U ;
 }
-/** @see DriverStoreProvider 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示選択済みguardを一回だけ消費します。
+ * @param[in] session 元scanです。
+ * @param[in] device 元opaque deviceです。
+ * @param[in] token 元未使用guardです。
+ * @return 全再照合成功0、再使用/変化は元HRESULTです。
+ */
+//------------------------------------------------------------------------------
 NativeError DriverStoreProvider::consumeOfficialInstallerDeviceBinding(
 	const ScanSessionId session, const std::wstring_view device, const std::uint64_t token)
 {
@@ -6045,7 +6466,14 @@ NativeError DriverStoreProvider::consumeOfficialInstallerDeviceBinding(
 
 	return error ;
 }
-/** @see DriverStoreProvider 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同issuerの未公開installer guardだけをrollbackします。
+ * @param[in] session 元scanです。
+ * @param[in] token 当該issuerの元guardです。
+ * @return 元sessionのguardを除去した場合trueです。
+ */
+//------------------------------------------------------------------------------
 bool DriverStoreProvider::discardOfficialInstallerDeviceBinding( const ScanSessionId session,
 																const std::uint64_t token) noexcept
 {

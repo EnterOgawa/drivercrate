@@ -2,7 +2,7 @@
 /**
  * @file local_collector_projected_cache.cpp
  * @brief CACHEの有限codecと決定的な履歴保持を実装します。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/29  固定CACHEと履歴保持更新を追加。
  * Ver.01.00.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 成功CACHEの稼働保存・304送信・登録履歴の受入は行いません。
@@ -69,10 +70,13 @@ constexpr std::array  REASONS{
 	 std::pair{Reason::METADATA_HASH, L"METADATA_HASH"sv},
 	 std::pair{Reason::INTERRUPTED, L"INTERRUPTED"sv}} ;	// 未実装304の理由は含めません。
 
-/** @brief 関係違反を修復せず停止します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 関係違反を修復せず停止します。
  * @param[in] ok 継続可能条件。
  * @throws Failure 不成立の場合。
  */
+//------------------------------------------------------------------------------
 void require( bool ok)
 {
 	// 不完全な値を保存候補へ渡しません。
@@ -80,10 +84,13 @@ void require( bool ok)
 		throw Failure{Status::INVALID} ;
 	}
 }
-/** @brief Catch境界でOOMと字句・関係違反を分けます。
+//------------------------------------------------------------------------------
+/**
+ * @brief Catch境界でOOMと字句・関係違反を分けます。
  * @return 元例外の分類とOOM数値。
  * @pre Catch節内からだけ呼びます。
  */
+//------------------------------------------------------------------------------
 Result failure() noexcept
 {
 	try {
@@ -103,11 +110,14 @@ Result failure() noexcept
 		return {Status::INVALID, 0} ;
 	}
 }
-/** @brief 定義外enumを文字列へ昇格させません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 定義外enumを文字列へ昇格させません。
  * @param[in] reason 固定理由。
  * @return 静的固定名。
  * @throws Failure 定義外値の場合。
  */
+//------------------------------------------------------------------------------
 std::wstring_view reasonName( Reason reason)
 {
 	// 固定十値だけを照合します。
@@ -120,11 +130,14 @@ std::wstring_view reasonName( Reason reason)
 
 	throw Failure{Status::INVALID} ;
 }
-/** @brief 固定名以外を保存理由へ変換しません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定名以外を保存理由へ変換しません。
  * @param[in] name 元固定名。
  * @return 完全一致した理由。
  * @throws Failure 未定義名の場合。
  */
+//------------------------------------------------------------------------------
 Reason parseReason( std::wstring_view name)
 {
 	// 定義された十理由だけを消費します。
@@ -137,38 +150,50 @@ Reason parseReason( std::wstring_view name)
 
 	throw Failure{Status::INVALID} ;
 }
-/** @brief 共通するG／O／応答参照の文法を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通するG／O／応答参照の文法を検査します。
  * @tparam T 三参照fieldを持つ型。
  * @param[in] value 検査対象。
  * @throws Failure 文法違反の場合。
  */
+//------------------------------------------------------------------------------
 template <class T> void validateReference( const T &value)
 {
 	require( isHash( value.generation) && isHash( value.operation) && isHash( value.response)) ;
 }
-/** @brief 二つの公開参照が同じ元応答を指すか比較します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 二つの公開参照が同じ元応答を指すか比較します。
  * @tparam T 左辺参照型。
  * @tparam U 右辺参照型。
  * @param[in] a 左辺。
  * @param[in] b 右辺。
  * @return 三参照fieldが全て等しい場合true。
  */
+//------------------------------------------------------------------------------
 template <class T, class U> bool sameReference( const T &a, const U &b)
 {
 	return a.generation == b.generation && a.operation == b.operation && a.response == b.response ;
 }
-/** @brief UTCをJSONで正確に表せる実行範囲へ限定します。
+//------------------------------------------------------------------------------
+/**
+ * @brief UTCをJSONで正確に表せる実行範囲へ限定します。
  * @param[in] value UTC millisecond。
  * @throws Failure 範囲外の場合。
  */
+//------------------------------------------------------------------------------
 void validateUtc( std::uint64_t value)
 {
 	require( value >= 1000U && value <= 4102444799999ULL) ;
 }
-/** @brief 参照間の構造を検査します。参照先の実在は検査しません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 参照間の構造を検査します。参照先の実在は検査しません。
  * @param[in] cache 最大16成功の公開値。
  * @throws Failure 構造・関係・有限上限に違反した場合。
  */
+//------------------------------------------------------------------------------
 void validate( const Cache &cache)
 {
 	require( isHash( cache.request) && isHash( cache.binding)) ;
@@ -216,12 +241,15 @@ void validate( const Cache &cache)
 		})) ; // 検査中だけ借用し、現在の成功sliceが少なくとも一つ必要です。
 	}
 }
-/** @brief G／O／応答の固定順prefixを出力します。末尾はcallerが閉じます。
+//------------------------------------------------------------------------------
+/**
+ * @brief G／O／応答の固定順prefixを出力します。末尾はcallerが閉じます。
  * @tparam T 三参照fieldを持つ型。
  * @param[in,out] writer 有限sink。
  * @param[in] value 検査済み参照。
  * @throws Failure 有限sinkが拒否した場合。
  */
+//------------------------------------------------------------------------------
 template <class T> void writeReference( Writer &writer, const T &value)
 {
 	writer.append( "{\"generation\":") ;
@@ -231,23 +259,29 @@ template <class T> void writeReference( Writer &writer, const T &value)
 	writer.append( ",\"response\":") ;
 	writer.wideText( value.response) ;
 }
-/** @brief 成功参照に共通するprojectionまでを出力します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 成功参照に共通するprojectionまでを出力します。
  * @tparam T 四参照fieldを持つ型。
  * @param[in,out] writer 有限sink。
  * @param[in] value 検査済み参照。
  * @throws Failure 有限sinkが拒否した場合。
  */
+//------------------------------------------------------------------------------
 template <class T> void writeProjection( Writer &writer, const T &value)
 {
 	writeReference( writer, value) ;
 	writer.append( ",\"projection\":") ;
 	writer.wideText( value.projection) ;
 }
-/** @brief 検査済み値を既存中断形と同じ順序・byteで符号化します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 検査済み値を既存中断形と同じ順序・byteで符号化します。
  * @param[in] cache 符号化前に検査する公開値。
  * @return 最大24 KiBの本文。
  * @throws Failure 構造・上限が不成立の場合。
  */
+//------------------------------------------------------------------------------
 std::string serialize( const Cache &cache)
 {
 	validate( cache) ;
@@ -311,44 +345,56 @@ std::string serialize( const Cache &cache)
 	writer.append( "}") ;
 	return writer.take() ;
 }
-/** @brief 有限JSONから文字列型だけを取得します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限JSONから文字列型だけを取得します。
  * @param[in] object 有限JSON。
  * @param[in] key 必須field名。
  * @return 元文字列。
  * @throws winrt::hresult_error 欠損・型違反の場合。
  */
+//------------------------------------------------------------------------------
 std::wstring text( const Object &object, std::wstring_view key)
 {
 	return std::wstring( object.GetNamedString( key)) ;
 }
-/** @brief 固定参照の三fieldを読みます。余剰fieldはcanonical比較で拒否します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定参照の三fieldを読みます。余剰fieldはcanonical比較で拒否します。
  * @tparam T 三参照fieldを持つ型。
  * @param[in] object 有限JSON。
  * @param[out] value 読み取り途中の値。例外時はcallerが破棄します。
  * @throws winrt::hresult_error 欠損・型違反の場合。
  */
+//------------------------------------------------------------------------------
 template <class T> void readReference( const Object &object, T &value)
 {
 	value.generation = text( object, L"generation") ;
 	value.operation	 = text( object, L"operation") ;
 	value.response	 = text( object, L"response") ;
 }
-/** @brief projectionを含む固定参照を読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief projectionを含む固定参照を読みます。
  * @tparam T 四参照fieldを持つ型。
  * @param[in] object 有限JSON。
  * @param[out] value 読み取り途中の値。例外時はcallerが破棄します。
  * @throws winrt::hresult_error 欠損・型違反の場合。
  */
+//------------------------------------------------------------------------------
 template <class T> void readProjection( const Object &object, T &value)
 {
 	readReference( object, value) ;
 	value.projection = text( object, L"projection") ;
 }
-/** @brief 数値型と丸めなしのUTC範囲を変換前に確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 数値型と丸めなしのUTC範囲を変換前に確認します。
  * @param[in] object headerUtcを持つ有限JSON。
  * @return 検査したUTC整数。
  * @throws Failure 範囲・精度違反の場合。
  */
+//------------------------------------------------------------------------------
 std::uint64_t readUtc( const Object &object)
 {
 	const auto number = object.GetNamedNumber( L"headerUtc") ;	// 有限JSON numberのみ。
@@ -356,7 +402,9 @@ std::uint64_t readUtc( const Object &object)
 			number <= 4102444799999.0) ;
 	return static_cast<std::uint64_t>( number) ;
 }
-/** @brief 旧値を検査し、最新試行だけ更新して再利用を解除します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 旧値を検査し、最新試行だけ更新して再利用を解除します。
  * @param[in] request 同じ要求key。
  * @param[in] binding 今回binding。
  * @param[in] attempt 今回直接参照。
@@ -364,6 +412,7 @@ std::uint64_t readUtc( const Object &object)
  * @return 過去成功を保持した非再利用値。
  * @throws Failure 不整合・同操作再適用の場合。
  */
+//------------------------------------------------------------------------------
 Cache begin( std::wstring_view request, std::wstring_view binding,
 			const CollectorCacheAttempt &attempt, const Cache *before)
 {
@@ -383,11 +432,14 @@ Cache begin( std::wstring_view request, std::wstring_view binding,
 	validate( after) ;
 	return after ;
 }
-/** @brief 応答側理由を明示対応させ、未実装の再検証を拒否します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 応答側理由を明示対応させ、未実装の再検証を拒否します。
  * @param[in] reason 元応答codecの理由。
  * @return 対応するCACHE理由。
  * @throws Failure 再検証・未定義値の場合。
  */
+//------------------------------------------------------------------------------
 Reason fromResponse( CollectorProjectedCacheReason reason)
 {
 	using R = CollectorProjectedCacheReason ;
@@ -427,9 +479,14 @@ Reason fromResponse( CollectorProjectedCacheReason reason)
 }
 } // namespace
 
+//------------------------------------------------------------------------------
 /**
- * @copydoc drivercrate::encodeCollectorProjectedCache(const CollectorProjectedCache &, std::string &)
+ * @brief 固定順・最大24 KiBのCACHE本文を作ります。保存はしません。
+ * @param[in] cache 構造と相互参照を検査する公開値。
+ * @param[out] body 成功時の本文、失敗時は空。
+ * @return 固定分類と元OOM数値。
  */
+//------------------------------------------------------------------------------
 Result encodeCollectorProjectedCache( const Cache &cache, std::string &body) noexcept
 {
 	body.clear() ;
@@ -441,9 +498,14 @@ Result encodeCollectorProjectedCache( const Cache &cache, std::string &body) noe
 		return failure() ;
 	}
 }
+//------------------------------------------------------------------------------
 /**
- * @copydoc drivercrate::decodeCollectorProjectedCache(std::string_view, CollectorProjectedCache &)
+ * @brief 有限canonical本文を読み、全fieldと参照関係を検査します。
+ * @param[in] body 元CACHE本文。外側envelope hashは保存層の責任です。
+ * @param[out] cache 成功時の値、失敗時は空。
+ * @return 固定分類。登録・元応答の実在は証明しません。
  */
+//------------------------------------------------------------------------------
 Result decodeCollectorProjectedCache( std::string_view body, Cache &cache) noexcept
 {
 	cache = {} ;
@@ -502,9 +564,17 @@ Result decodeCollectorProjectedCache( std::string_view body, Cache &cache) noexc
 		return failure() ;
 	}
 }
+//------------------------------------------------------------------------------
 /**
- * @copydoc drivercrate::deriveCollectorProjectedCache(const CollectorProjectedJobInput &, std::string_view, const CollectorProjectedCache *, CollectorProjectedCache &, const CollectorProjectedHashProbe &)
+ * @brief 元v4を独立検証し、成功参照を保持した次CACHE値を導出します。
+ * @param[in] job 今回の元scope。
+ * @param[in] envelope 今回の元応答。減少は親で最終化済みであること。
+ * @param[in] before 過去値またはnull。登録と全履歴の再検証は親が行います。
+ * @param[out] after 成功時の値、失敗時は空。全入力とのaliasは禁止です。
+ * @param[in] probe 下位hashの失敗専用診断。
+ * @return 原hash HRESULT／OOMを保持する結果。REVALIDATEDは拒否します。
  */
+//------------------------------------------------------------------------------
 Result deriveCollectorProjectedCache( const CollectorProjectedJobInput &job,
 									 std::string_view envelope, const Cache *before, Cache &after,
 									 const CollectorProjectedHashProbe &probe) noexcept
@@ -586,9 +656,17 @@ Result deriveCollectorProjectedCache( const CollectorProjectedJobInput &job,
 		return failure() ;
 	}
 }
+//------------------------------------------------------------------------------
 /**
- * @copydoc drivercrate::makeInterruptedCollectorCache(std::wstring_view, std::wstring_view, const CollectorCacheAttempt &, const CollectorProjectedCache *, CollectorProjectedCache &)
+ * @brief 中断時に過去成功を保持し、validatorだけを解除します。
+ * @param[in] request 同じrequest key。
+ * @param[in] binding 今回binding。
+ * @param[in] attempt 保存監督が元中断応答から導いた直接参照。
+ * @param[in] before 過去値または初回のnull。
+ * @param[out] after 成功時の値、失敗時は空。全入力とのaliasは禁止です。
+ * @return 構造検査結果。元応答や登録の証明は監督の責任です。
  */
+//------------------------------------------------------------------------------
 Result makeInterruptedCollectorCache( std::wstring_view request, std::wstring_view binding,
 									 const CollectorCacheAttempt &attempt, const Cache *before,
 									 Cache &after) noexcept

@@ -2,7 +2,7 @@
 /**
  * @file windows_update_provider_tests.cpp
  * @brief Windows Update Provider単体試験実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  WUA／WSUS既定service選択の回帰試験を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実Windows Updateへ接続せず、表示前のfirmware除外条件を検証します。
@@ -45,7 +46,9 @@ namespace drivercrate::test {
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/windows_update_provider_tests.h 宣言側の契約を正本とする。
+ * @brief WUA候補からfirmware／UEFI／BIOSを除外するpolicyを検証する。WUA候補のdriver-only分類policyを検証する。通常driverを許可し、
+ *        classまたはtitleでfirmware、UEFI、BIOSを示す候補と必須metadata不足を拒否する。
+ * @param[in,out] context assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runWindowsUpdateProviderTests( TestContext &context)

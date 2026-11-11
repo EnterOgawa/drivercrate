@@ -2,7 +2,7 @@
 /**
  * @file official_catalog_algorithm_tests.cpp
  * @brief CAT宣言算法の非通信境界と明示された原CATを検査します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/05  元算法の直接境界試験と非実行CAT測定を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 共通実装を専用compileし、製品に試験用入口を追加しません。実導入・file変更をしません。
@@ -36,11 +37,13 @@
 #include <exception>
 #include <iostream>
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既存人工scopeの元hash/root-ownerと新しいCAT宣言検査を接続します。
  * @param[in,out] context 一processの有限集計先です。
  * @note 実署名を持たない人工fileだけで、実CATの受入証拠には使用しません。
  */
+//------------------------------------------------------------------------------
 void testSyntheticCatalogScope( drivercrate::test::TestContext &context)
 {
 	drivercrate::OfficialDownloadWorkspace workspace ;	// この試験だけの保護所有領域です。
@@ -99,6 +102,7 @@ void testSyntheticCatalogScope( drivercrate::test::TestContext &context)
 									workspace.path( L"sample.cat"), members) != 0) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 原CAT診断または架空算法の有限matrixを実行します。
  * @param[in] count 実行fileを含む引数数です。
@@ -106,6 +110,7 @@ void testSyntheticCatalogScope( drivercrate::test::TestContext &context)
  * @return 全検査成功0、入力不正2、境界試験・例外・原検査失敗1です。
  * @note CRT/OSの非対話設定を入力とassertionより前に適用します。
  */
+//------------------------------------------------------------------------------
 int wmain( const int count, wchar_t *arguments[])
 {
 	SetErrorMode( SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX) ;

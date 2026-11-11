@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_fixture.h
  * @brief 専用Win32画面試験の非通信Provider契約。
- * @version 01.18.00
+ * @version 01.18.01
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -41,6 +41,7 @@
  * Ver.01.16.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.17.00 Shunji Ogawa  2026/11/09  導入後fresh metadataの原全文六応答scheduleを限定追加。
  * Ver.01.18.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.18.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 製品EXEへ組み込まず、内部UI試験だけで使用する。
@@ -107,18 +108,22 @@ struct MetadataUiState {
 	std::atomic_uint32_t			waitTimeouts{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 非通信Providerだけを生成するfactoryを返す。
  * @param[in] state Worker終了まで両threadが共有する状態。
  * @return 実Providerへfallbackしない生成関数。
  */
+//------------------------------------------------------------------------------
 ProviderFactory		metadataUiProviderFactory( std::shared_ptr<MetadataUiState> state) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Windows復旧APIを使用しないservice factoryを返す。
  * @param[in] state 誤呼出しcounterの共有先。
  * @return 常に合成失敗を返すserviceの生成関数。
  */
+//------------------------------------------------------------------------------
 RestorePointFactory metadataUiRestoreFactory( std::shared_ptr<MetadataUiState> state) ;
 
 /** @brief 同operation終端後に読む完全fake HTTPの非機密観測です。 */
@@ -188,7 +193,9 @@ struct SignedIndexUiOptions {
 	/// 二recordの第二公開terms revisionだけをOriginal 2.0へ固定します。
 	bool								 secondTermsRevision{} ;
 } ;
-/** @brief 実CNG原byte署名から実commit/reloadした一または二record入力を作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実CNG原byte署名から実commit/reloadした一または二record入力を作ります。
  * @param[in] partial 異なる二deviceの二recordを生成する場合trueです。
  * @param[in] shared 二recordの完全取得descriptorを一致させる場合trueです。
  * @param[in] multiInf 二つの独立した基本INF/CAT/member閉包を含める場合trueです。
@@ -199,11 +206,11 @@ struct SignedIndexUiOptions {
  * @return 実認証を通した隔離storeと完全低位HTTP。生成失敗は例外です。
  * @throws std::runtime_error 元署名・schema・保護storeまたは有限fixtureの生成が失敗した場合。
  * @throws std::bad_alloc 所有する入力またはcallbackの確保が失敗した場合。
- * @note 秘密鍵はRAMだけに保持し、製品trust・実network・実inventoryを使いません。
- * CallbackはstoreとHTTP fixtureをworker停止まで共有所有します。observeHttpは元終端eventの
- * 取得またはworker停止の同期完了後、または同workerのgrant直前の同期観測中だけ呼びます。
- * HTTP callと並行しない条件で、同じfixtureの実安全option/header数を返します。
+ * @note 秘密鍵はRAMだけに保持し、製品trust・実network・実inventoryを使いません。CallbackはstoreとHTTP fixtureをworker停止まで共有所有し
+ *       ます。observeHttpは元終端eventの取得またはworker停止の同期完了後、または同workerのgrant直前の同期観測中だけ呼びます。HTTP callと並行しない条件で、同じ
+ *       fixtureの実安全option/header数を返します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] SignedIndexUiInput makeSignedIndexUiInput( bool partial, bool shared = false,
 														bool multiInf				 = false,
 														bool capacityBoundary		 = false,

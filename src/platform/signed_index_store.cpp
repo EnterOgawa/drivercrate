@@ -2,7 +2,7 @@
 /**
  * @file signed_index_store.cpp
  * @brief 署名索引の原入力と最大世代を一つのDPAPI headへ原子保存します。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.02.01 Shunji Ogawa  2026/10/24 現行仕様へ限定し旧版専用の入口・移動を整理。
  * Ver.01.02.02 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
  * Ver.01.03.00 Shunji Ogawa  2026/10/27  履歴下限の原byte認証と現在schema復元を分離。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 製品rootは固定です。実lockと保持directory handleを用い、mutexを保持しません。
@@ -75,11 +76,14 @@ constexpr std::size_t		MAX_PROTECTED = 33U * 1024U * 1024U ;
 // 旧共用名は開かず、新storeの迂回初期化を拒否して既存dataを保持します。
 constexpr std::wstring_view LEGACY_NAME = L"SignedIndex-v1" ;
 
-/** @brief 用途と完全公開pinから固定保存名を構成します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 用途と完全公開pinから固定保存名を構成します。
  * @param[in] local 検証用domainの場合trueです。
  * @param[in] fingerprint 検証用だけで使用する固定ASCII完全SHA-256です。
  * @return 同じ親の単一leaf名です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring	domainName( const bool local, const std::string_view fingerprint)
 {
 	return local ? L"SignedIndex-local-" + std::wstring{fingerprint.begin(), fingerprint.end()} +
@@ -89,7 +93,8 @@ constexpr std::wstring_view LEGACY_NAME = L"SignedIndex-v1" ;
 
 /** @brief Win32 file／token handleを単独解放します。 */
 struct HandleCloser {
-	/** @brief 有効なhandleを閉じます。
+	/**
+	 * @brief 有効なhandleを閉じます。
 	 * @param[in] value Unique ownerが持つ非null handle。
 	 */
 	void operator()( void *value) const noexcept
@@ -99,7 +104,8 @@ struct HandleCloser {
 } ;
 /** @brief OSがLocalAllocしたdescriptor／DPAPI byteを解放します。 */
 struct LocalCloser {
-	/** @brief OS allocationを返します。
+	/**
+	 * @brief OS allocationを返します。
 	 * @param[in] value LocalFree可能な非null値。
 	 */
 	void operator()( void *value) const noexcept
@@ -109,7 +115,8 @@ struct LocalCloser {
 } ;
 /** @brief KnownFolder APIが割り当てたpathを解放します。 */
 struct TaskMemoryCloser {
-	/** @brief COM task allocatorへ返します。
+	/**
+	 * @brief COM task allocatorへ返します。
 	 * @param[in] value CoTaskMemFree可能な非null値。
 	 */
 	void operator()( wchar_t *value) const noexcept
@@ -174,11 +181,14 @@ struct OwnedTrust {
 	std::vector<std::uint8_t> blob ;
 } ;
 
-/** @brief 不成立条件を元診断付きの拒否へ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 不成立条件を元診断付きの拒否へ変換します。
  * @param[in] condition 必須条件。
  * @param[in] status 拒否区分。
  * @param[in] error 元数値診断。純粋な入力拒否は0です。
  */
+//------------------------------------------------------------------------------
 void require( const bool condition, const IndexStoreStatus status, const NativeError error = 0)
 {
 	// 一つでも境界が欠けた場合は後続のI/Oとsnapshot発行を行いません。
@@ -187,10 +197,13 @@ void require( const bool condition, const IndexStoreStatus status, const NativeE
 	}
 }
 
-/** @brief API失敗を最初のGetLastErrorへ結合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief API失敗を最初のGetLastErrorへ結合します。
  * @param[in] succeeded Win32 APIの結果。
  * @param[in] status 拒否区分。
  */
+//------------------------------------------------------------------------------
 void requireApi( const BOOL succeeded, const IndexStoreStatus status)
 {
 	// Errorを後続APIで失う前に拒否へ変換します。
@@ -199,18 +212,24 @@ void requireApi( const BOOL succeeded, const IndexStoreStatus status)
 	}
 }
 
-/** @brief INVALID_HANDLE_VALUEを空ownerへ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief INVALID_HANDLE_VALUEを空ownerへ変換します。
  * @param[in] raw 所有権を引き取るAPI結果。
  * @return Scope終了時に閉じるowner。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] Handle own( const HANDLE raw)
 {
 	return Handle{raw == INVALID_HANDLE_VALUE ? nullptr : raw} ;
 }
 
-/** @brief 旧rootの存在や照会不能を新domainの初回へ補完しません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 旧rootの存在や照会不能を新domainの初回へ補完しません。
  * @param[in] path 固定旧rootです。空は隔離testだけです。
  */
+//------------------------------------------------------------------------------
 void requireLegacyAbsent( const std::filesystem::path &path)
 {
 	// 隔離fixtureだけは通常入口の旧root guardを使いません。
@@ -231,20 +250,26 @@ void requireLegacyAbsent( const std::filesystem::path &path)
 			IndexStoreStatus::PROTECTION_FAILURE, static_cast<NativeError>( code)) ;
 }
 
-/** @brief 固定pathをextended DOS形式でAPIへ渡します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定pathをextended DOS形式でAPIへ渡します。
  * @param[in] path 正規化済みのlocal絶対path。
  * @return 有限のAPI用表現。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring apiPath( const std::filesystem::path &path)
 {
 	return L"\\\\?\\" + path.native() ;
 }
 
-/** @brief 同じhandleのpath・属性・link数を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じhandleのpath・属性・link数を検査します。
  * @param[in] handle I/Oにも使う実handle。
  * @param[in] expected 固定された期待path。
  * @param[in] directory Directoryの場合true。
  */
+//------------------------------------------------------------------------------
 void checkObject( HANDLE handle, const std::filesystem::path &expected, const bool directory)
 {
 	BY_HANDLE_FILE_INFORMATION info{} ;	// 同じ実fileの属性とlink数です。
@@ -276,13 +301,16 @@ void checkObject( HANDLE handle, const std::filesystem::path &expected, const bo
 			IndexStoreStatus::PROTECTION_FAILURE, ERROR_ACCESS_DENIED) ;
 }
 
-/** @brief 製品二principalと隔離三principalを分けて保護DACLを検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 製品二principalと隔離三principalを分けて保護DACLを検査します。
  * @param[in] descriptor OSが返した有効descriptor。
  * @param[in] userSid Process userの有効SID。
  * @param[in] directory 継承用OICIを要求する場合true。
  * @param[in] isolated 隔離profileだけでuser owner／許可を認める区分。
  * @return Profileのownerと明示full-control ACEが完全一致する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool allowedDescriptor( PSECURITY_DESCRIPTOR descriptor, PSID userSid,
 									 const bool directory, const bool isolated)
 {
@@ -361,12 +389,15 @@ void checkObject( HANDLE handle, const std::filesystem::path &expected, const bo
 	return (!isolated || user) && system && admins ;
 }
 
-/** @brief 同じ生成規則から製品二ACEまたは隔離三ACEのSDDLを作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ生成規則から製品二ACEまたは隔離三ACEのSDDLを作ります。
  * @param[in] sid 隔離profileだけで使うprocess userの文字列。
  * @param[in] directory 継承用OICIを付ける場合true。
  * @param[in] isolated User owner／明示許可を加える場合true。
  * @return 作成時の保護profile。製品ownerはAdministratorsです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring protectionSddl( const std::wstring_view sid, const bool directory,
 										  const bool isolated)
 {
@@ -378,9 +409,12 @@ void checkObject( HANDLE handle, const std::filesystem::path &expected, const bo
 					: L"O:BAD:P" + fixed ;
 }
 
-/** @brief Current threadのimpersonationを拒否します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Current threadのimpersonationを拒否します。
  * @note Process userで作成したDACLとDPAPIを別identityで使用しません。
  */
+//------------------------------------------------------------------------------
 void rejectImpersonation()
 {
 	HANDLE raw{} ;	// 照会で取得したthread tokenを直ちに所有します。
@@ -395,10 +429,13 @@ void rejectImpersonation()
 			static_cast<NativeError>( error)) ;
 }
 
-/** @brief 既存の用途別CNG hash入口を使って原byte digestを求めます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存の用途別CNG hash入口を使って原byte digestを求めます。
  * @param[in] bytes 事前に有限量を確認した非空原byte。
  * @return 原byteの32byte SHA-256。API失敗は元HRESULTで拒否します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexManifestSha256 digest( std::span<const std::byte> bytes)
 {
 	std::wstring		   hex ;	// 共通APIの所有digest表現です。
@@ -424,11 +461,14 @@ void rejectImpersonation()
 	return result ;
 }
 
-/** @brief 固定幅整数をpaddingなしでlittle-endianへ追加します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定幅整数をpaddingなしでlittle-endianへ追加します。
  * @param[in,out] bytes 所有wire。
  * @param[in] value 幅内の値。
  * @param[in] width 4または8byte。
  */
+//------------------------------------------------------------------------------
 void appendInteger( std::vector<std::byte> &bytes, const std::uint64_t value, const unsigned width)
 {
 	// 指定の有限幅だけ下位byteから追加します。
@@ -437,12 +477,15 @@ void appendInteger( std::vector<std::byte> &bytes, const std::uint64_t value, co
 	}
 }
 
-/** @brief Wireの有限範囲を先に確認して切り出します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Wireの有限範囲を先に確認して切り出します。
  * @param[in] bytes 全plain byte。
  * @param[in,out] offset 消費位置。成功時だけ進めます。
  * @param[in] count 必要なbyte数。
  * @return 全長が存在する借用範囲。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::span<const std::byte> take( std::span<const std::byte> bytes, std::size_t &offset,
 											  const std::size_t count)
 {
@@ -453,12 +496,15 @@ void appendInteger( std::vector<std::byte> &bytes, const std::uint64_t value, co
 	return result ;
 }
 
-/** @brief 固定幅little-endianをoverflowなしで読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定幅little-endianをoverflowなしで読みます。
  * @param[in] bytes 全plain byte。
  * @param[in,out] offset 消費位置。
  * @param[in] width 4または8byte。
  * @return その幅内のuint64値。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::uint64_t readInteger( std::span<const std::byte> bytes, std::size_t &offset,
 										const unsigned width)
 {
@@ -472,19 +518,25 @@ void appendInteger( std::vector<std::byte> &bytes, const std::uint64_t value, co
 	return value ;
 }
 
-/** @brief 全0 digestか確認し、genesisの厳格例外へ使います。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全0 digestか確認し、genesisの厳格例外へ使います。
  * @param[in] hash 固定digest。
  * @return 全byte0の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool zeroHash( const IndexManifestSha256 &hash)
 {
 	return std::ranges::all_of( hash, []( const auto value) { return value == 0U ; }) ;
 }
 
-/** @brief 原入力とhighwaterを一つのstrict plainへ結びます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原入力とhighwaterを一つのstrict plainへ結びます。
  * @param[in] wire 検証済みまたはtestの有限所有値。
  * @return 元byteを維持したplainと末尾digest。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::vector<std::byte> encodeWire( const Wire &wire)
 {
 	std::vector<std::byte> bytes ;	// 原入力を一つの保存単位で所有します。
@@ -524,10 +576,13 @@ void appendInteger( std::vector<std::byte> &bytes, const std::uint64_t value, co
 	return bytes ;
 }
 
-/** @brief DPAPIが返したplainにも厳格長・版・digestを要求します。
+//------------------------------------------------------------------------------
+/**
+ * @brief DPAPIが返したplainにも厳格長・版・digestを要求します。
  * @param[in] bytes 有限plain byte。
  * @return 厳格wire。余剰や破損・不正genesisは拒否します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] Wire decodeWire( std::span<const std::byte> bytes)
 {
 	require( bytes.size() >= 150U && bytes.size() <= MAX_PLAIN, IndexStoreStatus::STATE_REJECTED) ;
@@ -575,10 +630,13 @@ void appendInteger( std::vector<std::byte> &bytes, const std::uint64_t value, co
 	return wire ;
 }
 
-/** @brief 現在期限を履歴検証から独立して確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在期限を履歴検証から独立して確認します。
  * @param[in] data 署名・schema再認証済みmanifest。
  * @param[in] nowUtc 現在の信頼UTC。
  */
+//------------------------------------------------------------------------------
 void requireCurrentTime( const IndexManifestData						 &data,
 						const std::optional<std::chrono::sys_seconds> nowUtc)
 {
@@ -587,12 +645,15 @@ void requireCurrentTime( const IndexManifestData						 &data,
 	require( *nowUtc < data.expiresAtUtc, IndexStoreStatus::EXPIRED) ;
 }
 
-/** @brief 内部例外の元診断を公開結果へ維持します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 内部例外の元診断を公開結果へ維持します。
  * @param[in] failure 拒否段階と元error。
  * @param[in] commit 実commit点の到達区分。
  * @param[in] generation 最新headで確認した最大世代。
  * @return Snapshotなしの失敗結果。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexStoreResult failureResult( const Failure					   &failure,
 											 const IndexStoreCommitDisposition	commit,
 											 const std::optional<std::uint64_t> generation)
@@ -640,7 +701,8 @@ struct SignedIndexStore::State {
 	/// 再openしたfixtureが元の隔離rootの後始末能力だけを延長します。
 	std::shared_ptr<State>	rootOwner ;
 
-	/** @brief Isolatedで自作した固定fileだけを回収します。
+	/**
+	 * @brief Isolatedで自作した固定fileだけを回収します。
 	 * @note 失敗時も任意再帰削除を行いません。製品rootは触りません。
 	 */
 	~State() noexcept
@@ -657,7 +719,8 @@ struct SignedIndexStore::State {
 		}
 	}
 
-	/** @brief Process userのborrowed SIDを返します。
+	/**
+	 * @brief Process userのborrowed SIDを返します。
 	 * @return TokenUser所有期間に有効なSID。
 	 */
 	[[nodiscard]] PSID userSid() const noexcept
@@ -666,7 +729,9 @@ struct SignedIndexStore::State {
 		return reinterpret_cast<const TOKEN_USER *>( tokenUser.data())->User.Sid ;
 	}
 
-	/** @brief 製品管理者profileと隔離user profileの作成時descriptorを分離します。 */
+	/**
+	 * @brief 製品管理者profileと隔離user profileの作成時descriptorを分離します。
+	 */
 	void makeSecurity()
 	{
 		rejectImpersonation() ;
@@ -707,7 +772,8 @@ struct SignedIndexStore::State {
 		}
 	}
 
-	/** @brief 同じhandleの実owner／DACLを検査します。
+	/**
+	 * @brief 同じhandleの実owner／DACLを検査します。
 	 * @param[in] handle READ_CONTROL付き実handle。
 	 * @param[in] directory Directoryの場合true。
 	 */
@@ -724,7 +790,8 @@ struct SignedIndexStore::State {
 				IndexStoreStatus::PROTECTION_FAILURE, ERROR_ACCESS_DENIED) ;
 	}
 
-	/** @brief Directoryを削除共有せず開き、path・reparseとprivate ACLを検査します。
+	/**
+	 * @brief Directoryを削除共有せず開き、path・reparseとprivate ACLを検査します。
 	 * @param[in] path Pinする絶対path。
 	 * @param[in] privateDirectory 専用階層だけで保護ACLを要求する区分。
 	 */
@@ -747,7 +814,8 @@ struct SignedIndexStore::State {
 		directories.push_back( std::move( handle)) ;
 	}
 
-	/** @brief 作成時にだけ保護descriptorを付け、既存fileを修復せず開きます。
+	/**
+	 * @brief 作成時にだけ保護descriptorを付け、既存fileを修復せず開きます。
 	 * @param[in] name 固定した一file名。
 	 * @param[in] access 要求するI/O権限。
 	 * @param[in] share 有限の共有flag。
@@ -780,7 +848,8 @@ struct SignedIndexStore::State {
 		return handle ;
 	}
 
-	/** @brief 同じfile handleの実長を確認して有限byteを読みます。
+	/**
+	 * @brief 同じfile handleの実長を確認して有限byteを読みます。
 	 * @param[in] file 検査済みread handle。
 	 * @param[in] maximum 実byte上限。
 	 * @return 完全に読み取った所有byte。部分readは拒否します。
@@ -801,7 +870,8 @@ struct SignedIndexStore::State {
 		return bytes ;
 	}
 
-	/** @brief 実rootを再確認してshare0のlockを取得します。
+	/**
+	 * @brief 実rootを再確認してshare0のlockを取得します。
 	 * @return 固定本文・属性・ACLも成立した排他的owner。
 	 */
 	[[nodiscard]] Handle lock() const
@@ -821,7 +891,8 @@ struct SignedIndexStore::State {
 		return file ;
 	}
 
-	/** @brief 用途とroot identityのentropyで実DPAPIを実行します。
+	/**
+	 * @brief 用途とroot identityのentropyで実DPAPIを実行します。
 	 * @param[in] bytes Protect時plain、unprotect時実disk byte。
 	 * @param[in] protect Protectの場合true。
 	 * @return 完全なOS出力。上限外／障害では拒否します。
@@ -859,7 +930,8 @@ struct SignedIndexStore::State {
 		return result ;
 	}
 
-	/** @brief 実署名・gzip・展開hashを既存共通verifierへ再投入します。
+	/**
+	 * @brief 実署名・gzip・展開hashを既存共通verifierへ再投入します。
 	 * @param[in] wire 原入力とplain claims。
 	 * @param[in] nowUtc 現在の信頼UTCまたは履歴検証専用発行秒。
 	 * @param[in] highWater 排他的に再読取りした最新headのauthority。
@@ -903,7 +975,8 @@ struct SignedIndexStore::State {
 		return std::move( *bytes.receipt) ;
 	}
 
-	/** @brief 認証済み原byteへ現在期限と現行全record検証を適用します。
+	/**
+	 * @brief 認証済み原byteへ現在期限と現行全record検証を適用します。
 	 * @param[in] wire 検証する原入力です。
 	 * @param[in] bytes 同じwireの実署名/asset認証結果です。
 	 * @param[in] nowUtc 現在信頼UTC。履歴発行時刻で代用しません。
@@ -926,7 +999,8 @@ struct SignedIndexStore::State {
 		return {std::move( wire), std::move( records.receipt)} ;
 	}
 
-	/** @brief Fresh原入力を最新下限と現在の全検証へ結合します。
+	/**
+	 * @brief Fresh原入力を最新下限と現在の全検証へ結合します。
 	 * @param[in] wire 保存候補の原入力です。
 	 * @param[in] nowUtc 現在信頼UTCです。
 	 * @param[in] highWater 同じlockで再読取りした履歴下限です。
@@ -939,7 +1013,8 @@ struct SignedIndexStore::State {
 		return hydrate( std::move( wire), std::move( bytes), nowUtc) ;
 	}
 
-	/** @brief 履歴下限から現在使えるsnapshotの全前段を再構成します。
+	/**
+	 * @brief 履歴下限から現在使えるsnapshotの全前段を再構成します。
 	 * @param[in] floor 原byteだけの認証を通った履歴下限です。Genesisは呼出し元で分けます。
 	 * @param[in] nowUtc 現在信頼UTCです。
 	 * @return 現在期限/全schema/attestationに成功した場合だけreceiptを返します。
@@ -956,7 +1031,8 @@ struct SignedIndexStore::State {
 		return hydrate( std::move( floor.wire), std::move( bytes), nowUtc) ;
 	}
 
-	/** @brief Lock保持中の実headから原byte認証だけで最大世代を回収します。
+	/**
+	 * @brief Lock保持中の実headから原byte認証だけで最大世代を回収します。
 	 * @return Genesisまたは履歴下限。Record/receipt/snapshotを持ちません。
 	 */
 	[[nodiscard]] AuthenticatedHistoryFloor readHistoryFloor() const
@@ -986,7 +1062,8 @@ struct SignedIndexStore::State {
 		}
 	}
 
-	/** @brief 完全write／flushから一headだけを置換します。
+	/**
+	 * @brief 完全write／flushから一headだけを置換します。
 	 * @param[in] protectedBytes 実DPAPI出力。
 	 * @param[in] fault Isolatedだけの拒否点。
 	 * @param[in,out] disposition Rename呼出し前後の確定区分。
@@ -1027,7 +1104,8 @@ struct SignedIndexStore::State {
 		disposition = IndexStoreCommitDisposition::COMMITTED ;
 	}
 
-	/** @brief 保護directoryとgenesisを新規rootだけへ初期化します。
+	/**
+	 * @brief 保護directoryとgenesisを新規rootだけへ初期化します。
 	 * @param[in] path 内部で選定した固定製品または一意fixture絶対path。
 	 * @param[in] production 製品の専用親も保護する場合true。
 	 * @param[in] allowExisting 再openまたは製品入口だけで既存rootを認める区分。
@@ -1130,41 +1208,84 @@ struct SignedIndexStore::State {
 	}
 } ;
 
-/** @see signed_index_store.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実head確認が終わった所有値だけを受け取ります。
+ * @param[in] receipt 全schema再認証済みの所有値。
+ * @param[in] envelope 実headから読んだ原外側byte。
+ * @param[in] gzip 実headから読んだ原転送byte。
+ */
+//------------------------------------------------------------------------------
 AuthenticatedIndexSnapshot::AuthenticatedIndexSnapshot( IndexRecordsSchemaReceipt receipt,
 													   std::string				 envelope,
 													   std::vector<std::byte>	 gzip) noexcept
 	: receipt_( std::move( receipt)), envelope_( std::move( envelope)), gzip_( std::move( gzip))
 {
 }
-/** @see signed_index_store.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原index／recordと段階・UNKNOWNを保持するschema receiptを借用します。
+ * @return Snapshotの寿命まで有効な不変参照。
+ */
+//------------------------------------------------------------------------------
 const IndexRecordsSchemaReceipt &AuthenticatedIndexSnapshot::schemaReceipt() const noexcept
 {
 	return receipt_ ;
 }
-/** @see signed_index_store.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 再読取りで実署名を確認した原envelopeを借用します。
+ * @return Snapshotの寿命まで有効な原UTF-8 byte。
+ */
+//------------------------------------------------------------------------------
 std::string_view AuthenticatedIndexSnapshot::originalEnvelope() const noexcept
 {
 	return envelope_ ;
 }
-/** @see signed_index_store.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実hash／GZip検査を確認した原gzipを借用します。
+ * @return Snapshotの寿命まで有効な圧縮byte。
+ */
+//------------------------------------------------------------------------------
 std::span<const std::byte> AuthenticatedIndexSnapshot::originalGzip() const noexcept
 {
 	return gzip_ ;
 }
-/** @see signed_index_store.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Snapshotを発行した索引保存policy版を返します。
+ * @return Store policy v1。
+ */
+//------------------------------------------------------------------------------
 std::uint32_t AuthenticatedIndexSnapshot::storePolicyVersion() const noexcept
 {
 	return INDEX_STORE_POLICY_VERSION ;
 }
-/** @see signed_index_store.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 検証済みrootと内部固定trustを単独の入口から受け取ります。
+ * @param[in] state 保護初期化済みの所有state。
+ */
+//------------------------------------------------------------------------------
 SignedIndexStore::SignedIndexStore( std::shared_ptr<State> state) noexcept : state_( std::move( state))
 {
 }
-/** @see signed_index_store.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 保持directory handleを解放し、製品headを削除しません。
+ */
+//------------------------------------------------------------------------------
 SignedIndexStore::~SignedIndexStore() = default ;
 
-/** @see signed_index_store.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定既存rootだけを読み、初回root／genesisを作成しません。
+ * @param[in] nowUtc 現在信頼UTC。確認不能ではsnapshotを発行しません。
+ * @return 固定trust未配備・欠損・失敗を明示する実reload結果。
+ * @note 未配備時はProgramDataも照会しません。任意path／trustは受け付けません。
+ */
+//------------------------------------------------------------------------------
 IndexStoreResult SignedIndexStore::reloadFixedExisting(
 	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
 {
@@ -1200,7 +1321,14 @@ IndexStoreResult SignedIndexStore::reloadFixedExisting(
 	}
 }
 
-/** @see signed_index_store.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定ProgramData rootだけを保護して開きます。
+ * @return 成功時store、失敗時元error。通常と検証用の固定domainを分離します。
+ * @note 履歴下限だけを認証し、現在有効なcacheは保証しません。Reloadで全schema/現在期限を確認します。旧共用rootが残る間はERROR_REVISION_MISMATCHで
+ *       拒否し、既存dataを変更しません。
+ */
+//------------------------------------------------------------------------------
 IndexStoreOpenResult SignedIndexStore::openFixedProtectedStore() noexcept
 {
 	try {
@@ -1229,7 +1357,13 @@ IndexStoreOpenResult SignedIndexStore::openFixedProtectedStore() noexcept
 	}
 }
 
-/** @see signed_index_store.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存済み原入力から実暗号・schema・現在期限を再確認します。
+ * @param[in] nowUtc 現在の信頼UTC。履歴highwater検証を現在期限の代用にしません。
+ * @return 有効headだけsnapshotを返し、期限切れ／破損を初回へ戻しません。
+ */
+//------------------------------------------------------------------------------
 IndexStoreResult SignedIndexStore::reload(
 	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
 {
@@ -1267,7 +1401,16 @@ IndexStoreResult SignedIndexStore::reload(
 	}
 }
 
-/** @see signed_index_store.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Schema receiptと原入力を再認証し、最新headと一回のcommitで保存します。
+ * @param[in] receipt 完全な保存前receipt。Move元を拒否します。
+ * @param[in] envelope 元manifestを持つ原外側byte。本呼出し中不変に保ちます。
+ * @param[in] gzip 元転送byte。本呼出し中不変に保ちます。
+ * @param[in] nowUtc 現在の信頼UTC。確認不能では保存しません。
+ * @return Commit前／後を区別する結果。Save失敗ではsnapshotなしです。
+ */
+//------------------------------------------------------------------------------
 IndexStoreResult SignedIndexStore::commit(
 	const IndexRecordsSchemaReceipt &receipt, const std::string_view envelope,
 	const std::span<const std::byte>			  gzip,
@@ -1276,7 +1419,17 @@ IndexStoreResult SignedIndexStore::commit(
 	return commitImpl( receipt, envelope, gzip, nowUtc, signed_index_store_detail::Fault::NONE) ;
 }
 
-/** @see signed_index_store.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 内部の有限拒否診断付きで同じ実保存経路を実行します。
+ * @param[in] receipt 保存前receipt。
+ * @param[in] envelope 原外側byte。
+ * @param[in] gzip 原転送byte。
+ * @param[in] nowUtc 現在信頼UTC。
+ * @param[in] fault Test専用の拒否点。製品入口ではNONEです。
+ * @return 保存とsnapshotを独立した区分へ変換した実結果。
+ */
+//------------------------------------------------------------------------------
 IndexStoreResult SignedIndexStore::commitImpl( const IndexRecordsSchemaReceipt &receipt,
 											  const std::string_view		   envelope,
 											  const std::span<const std::byte> gzip,
@@ -1384,17 +1537,35 @@ IndexStoreResult SignedIndexStore::commitImpl( const IndexRecordsSchemaReceipt &
 
 namespace signed_index_store_detail {
 
-/** @see signed_index_store_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 検査済みの実lockを所有します。
+ * @param[in] handle 非nullの実file handle。
+ */
+//------------------------------------------------------------------------------
 TestLock::TestLock( const HANDLE handle) noexcept : handle_( handle)
 {
 }
-/** @see signed_index_store_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 取得したlockを閉じます。
+ */
+//------------------------------------------------------------------------------
 TestLock::~TestLock() noexcept
 {
 	CloseHandle( handle_) ;
 }
 
-/** @see signed_index_store_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 自作parentの固定三leafだけを通常と同じdomain規則で開きます。
+ * @param[in] parent 自作隔離rootを所有するsandboxです。
+ * @param[in] leaf 固定三名の選択です。
+ * @param[in] trust 人工RAM公開鍵だけです。
+ * @param[in] createMissing 初回作成を許可する場合trueです。
+ * @return 保護/旧root guard成功時だけstoreです。
+ */
+//------------------------------------------------------------------------------
 IndexStoreOpenResult Access::openNamespaceIsolated(
 	const SignedIndexStore &parent, const NamespaceLeaf leaf,
 	const std::span<const signed_index_detail::TrustKey> trust, const bool createMissing) noexcept
@@ -1435,7 +1606,13 @@ IndexStoreOpenResult Access::openNamespaceIsolated(
 	}
 }
 
-/** @see signed_index_store_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 一意な保護temp rootを自分で作成します。
+ * @param[in] trust UnitのRAM public keyだけ。所有copyを作ります。
+ * @return 実保護初期化後だけstore。任意pathや製品storeを受理しません。
+ */
+//------------------------------------------------------------------------------
 IndexStoreOpenResult Access::createIsolated(
 	const std::span<const signed_index_detail::TrustKey> trust) noexcept
 {
@@ -1484,7 +1661,13 @@ IndexStoreOpenResult Access::createIsolated(
 	}
 }
 
-/** @see signed_index_store_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ隔離rootを指す別のstore ownerを作ります。
+ * @param[in] store Isolated能力を持つstore。
+ * @return 製品storeは拒否します。Headのauthorityをcopyしません。
+ */
+//------------------------------------------------------------------------------
 IndexStoreOpenResult Access::reopenIsolated( const SignedIndexStore &store) noexcept
 {
 	// 任意path・製品storeの診断能力を発行しません。
@@ -1510,13 +1693,27 @@ IndexStoreOpenResult Access::reopenIsolated( const SignedIndexStore &store) noex
 	}
 }
 
-/** @see signed_index_store_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 自作isolated rootのpathだけをtestへ開示します。
+ * @param[in] store Isolated能力を持つstore。
+ * @return 製品storeなら空pathです。
+ */
+//------------------------------------------------------------------------------
 std::filesystem::path Access::isolatedRoot( const SignedIndexStore &store)
 {
 	return store.state_->isolated ? store.state_->root : std::filesystem::path{} ;
 }
 
-/** @see signed_index_store_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実作成と共通のSDDL生成規則をRAM fixtureへ返します。
+ * @param[in] store Isolated能力とprocess SIDを持つstore。
+ * @param[in] directory Directory用OICIを要求する場合true。
+ * @param[in] product 管理者二ACE profileを要求する場合true。
+ * @return RAMだけのSDDL。製品storeまたは任意pathは扱いません。
+ */
+//------------------------------------------------------------------------------
 std::wstring Access::protectionSddl( const SignedIndexStore &store, const bool directory,
 									const bool product)
 {
@@ -1532,7 +1729,16 @@ std::wstring Access::protectionSddl( const SignedIndexStore &store, const bool d
 	return drivercrate::protectionSddl( raw, directory, !product) ;
 }
 
-/** @see signed_index_store_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実同handle検査と共通のprofile検査をRAM内descriptorへ適用します。
+ * @param[in] store Isolated能力とprocess SIDを持つstore。
+ * @param[in] sddl RAM内の人工descriptor。実fileへ設定しません。
+ * @param[in] directory Directory用OICIを要求する場合true。
+ * @param[in] product 管理者二ACE profileを要求する場合true。
+ * @return 完全一致時true。製品store・不正SDDL・例外はfalseです。
+ */
+//------------------------------------------------------------------------------
 bool Access::acceptsProtectionSddl( const SignedIndexStore &store, const std::wstring_view sddl,
 								   const bool directory, const bool product) noexcept
 {
@@ -1558,7 +1764,18 @@ bool Access::acceptsProtectionSddl( const SignedIndexStore &store, const std::ws
 	}
 }
 
-/** @see signed_index_store_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ実保存経路へ有限な失敗だけを指定します。
+ * @param[in,out] store Isolated能力を持つstore。
+ * @param[in] receipt 保存前receipt。
+ * @param[in] envelope 原外側byte。
+ * @param[in] gzip 原転送byte。
+ * @param[in] nowUtc 現在の信頼UTC。
+ * @param[in] fault 有限の拒否点。
+ * @return 実commit結果。製品storeや定義外faultは拒否します。
+ */
+//------------------------------------------------------------------------------
 IndexStoreResult Access::commitWithFault( SignedIndexStore							  &store,
 										 const IndexRecordsSchemaReceipt			  &receipt,
 										 const std::string_view						   envelope,
@@ -1575,7 +1792,13 @@ IndexStoreResult Access::commitWithFault( SignedIndexStore							  &store,
 	return store.commitImpl( receipt, envelope, gzip, nowUtc, fault) ;
 }
 
-/** @see signed_index_store_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 競合試験だけへshare0の実lockを保持します。
+ * @param[in] store Isolated能力を持つstore。
+ * @return 検査済みowner。製品storeまたは競合時は空です。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<TestLock> Access::holdLock( const SignedIndexStore &store)
 {
 	// 隔離能力がない場合は実lock pathへ触りません。
@@ -1594,7 +1817,14 @@ std::unique_ptr<TestLock> Access::holdLock( const SignedIndexStore &store)
 	}
 }
 
-/** @see signed_index_store_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実DPAPIからisolated headのplainを読みます。
+ * @param[in] store Isolated能力を持つstore。
+ * @param[out] plain 成功時のwire。失敗時空です。
+ * @return 元error。Testが暗号とwireの異なる拒否を作る用途だけです。
+ */
+//------------------------------------------------------------------------------
 NativeError Access::readPlain( const SignedIndexStore &store, std::vector<std::byte> &plain)
 {
 	plain.clear() ;
@@ -1615,7 +1845,14 @@ NativeError Access::readPlain( const SignedIndexStore &store, std::vector<std::b
 	}
 }
 
-/** @see signed_index_store_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 改変wireも実DPAPI保護してisolated headへ書きます。
+ * @param[in] store Isolated能力を持つstore。
+ * @param[in] plain 有限なtest wire。Crypto／schema検証成功を注入しません。
+ * @return 元error。製品rootでは拒否します。
+ */
+//------------------------------------------------------------------------------
 NativeError Access::replacePlain( const SignedIndexStore			 &store,
 								 const std::span<const std::byte> plain)
 {

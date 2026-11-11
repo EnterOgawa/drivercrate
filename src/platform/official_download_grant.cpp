@@ -2,7 +2,7 @@
 /**
  * @file official_download_grant.cpp
  * @brief 型付き公式配布recordの検証と短命download grantを実装します。
- * @version 01.13.00
+ * @version 01.13.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.11.01 Shunji Ogawa  2026/10/12  正規形の型と取得境界識別引数の説明を補足。
  * Ver.01.12.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
  * Ver.01.13.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.13.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note URLは正規形と非機密metadataへ含めず、grantの秘密所有領域だけへ移動します。
@@ -381,6 +382,7 @@ constexpr NativeError OUT_OF_MEMORY = static_cast<NativeError>( E_OUTOFMEMORY) ;
 //------------------------------------------------------------------------------
 /**
  * @brief 利用条件区分とEULA fieldの組合せを検証します。
+ * @tparam Record terms、eulaRevision、eulaTextを持つ配布record型です。
  * @param[in] record 検証する配布record。
  * @return 同意不要または同意必須のfield関係が成立する場合true。
  */
@@ -973,12 +975,14 @@ void makeCanonicalRecord( const Record &record, const std::wstring_view provider
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Basenameと期待応答型が一致する取得専用形式を返します。
  * @param[in] name 公開basename。
  * @param[in] contentType Parserが明示した期待型。
  * @return 宣言上のZIP／EXE形式。不整合はUNKNOWN。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDownloadOnlyFormat downloadOnlyFormat(
 	const std::wstring_view name, const std::wstring_view contentType) noexcept
 {
@@ -1010,12 +1014,14 @@ void makeCanonicalRecord( const Record &record, const std::wstring_view provider
 	return OfficialDownloadOnlyFormat::UNKNOWN ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 取得専用metadataを既存公開hash規則と有限profileで検証します。
  * @param[in] payload 形式判定対象。
  * @param[in] maximum 明示profileの解決済みbyte上限。
  * @return 構文・容量・hashが揃う宣言形式。不正時UNKNOWN。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDownloadOnlyFormat validatedDownloadOnlyFormat(
 	const OfficialDistributionPayloadRecord &payload, const std::uint64_t maximum) noexcept
 {
@@ -1033,7 +1039,13 @@ void makeCanonicalRecord( const Record &record, const std::wstring_view provider
 
 } // namespace
 
-/** @see official_download_grant.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示された三つの非実行取得profileをbyte上限へ解決します。
+ * @param[in] profile 呼出元が明示したprofile。
+ * @return 既知profileの上限。無効・未知の場合0。
+ */
+//------------------------------------------------------------------------------
 std::uint64_t officialDownloadOnlyMaximumBytes( const OfficialDownloadOnlyProfile profile) noexcept
 {
 	// 列挙された三つだけを許可し、任意数値castを予算へ流用しない。
@@ -1053,7 +1065,13 @@ std::uint64_t officialDownloadOnlyMaximumBytes( const OfficialDownloadOnlyProfil
 	return 0U ;
 }
 
-/** @see official_download_grant.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 取得専用payloadの有限profile・公開hash・形式metadataを検証します。
+ * @param[in] payload URLを参照せず判定するpayload。
+ * @return 条件を満たす宣言形式。不整合時UNKNOWN。実byteを検査した値ではありません。
+ */
+//------------------------------------------------------------------------------
 OfficialDownloadOnlyFormat officialDownloadOnlyFormat(
 	const OfficialDistributionPayloadRecord &payload) noexcept
 {
@@ -1067,7 +1085,15 @@ OfficialDownloadOnlyFormat officialDownloadOnlyFormat(
 					 static_cast<OfficialDownloadOnlyProfile>( payload.maximumBytes))) ;
 }
 
-/** @see official_download_grant.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Parentが明示したprofileへ標準ZIPまたは公式EXEの取得方式を変更します。
+ * @param[in,out] payload 成功時だけkindとmaximumBytesを変更するpayload。
+ * @param[in] profile 明示的な有限取得上限。
+ * @return 形式・公開hash・exact sizeが整合する場合true。失敗時は入力不変。
+ * @note 公式根拠・EULA同意を発行しません。変更後は共通record検証とbinding固定が必須です。
+ */
+//------------------------------------------------------------------------------
 bool setOfficialDownloadOnlyProfile( OfficialDistributionPayloadRecord &payload,
 									const OfficialDownloadOnlyProfile  profile) noexcept
 {
@@ -1088,7 +1114,11 @@ bool setOfficialDownloadOnlyProfile( OfficialDistributionPayloadRecord &payload,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief 型付きrecordを有限検証し、URL非保持の証拠とstable fingerprintを作ります。
+ * @param[in] record Provider workerが一つの検証済みroot応答から構築したrecord。
+ * @param[out] evidence 成功時だけrecord証拠を設定します。失敗時は既定値へ戻します。
+ * @return 全field、root evidence、payload集合とSHA-256計算の成功時は0、それ以外はHRESULT bit pattern。
+ * @note URLは存在と文字数だけを確認し、fingerprintへ含めません。HTTPS宛先検証はHTTP境界で行います。
  */
 //------------------------------------------------------------------------------
 NativeError validateOfficialDistributionRecord(
@@ -1198,7 +1228,16 @@ NativeError validateOfficialDistributionRecord(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief 同一の検証済み200本文から作った候補を検証し、収集専用射影へ変換します。
+ * @param[in] candidate Worker内だけの候補。通常evidenceを合成してはなりません。
+ * @param[in] policyId 制御付きGETの検証済みsource policy ID。
+ * @param[in] resourceId 同GETの検証済みlanding／metadata resource ID。
+ * @param[in] bodyValidatedUtcSeconds 同GET本文の検証UTC秒。
+ * @param[out] projection 成功時だけURL非保持の所有値を設定します。
+ * @return 全fieldとpolicy結合、有限射影、SHA-256計算が成立した場合0。
+ * @note 呼出元はbody／policy／resourceの同一GET結合を保証します。本関数は取得証明もgrantも発行しません。
+ * @note metadata専用に制御文字・不正Unicode・path／query／端末ID形状とUTF-8 byte上限を検査します。日付とMIMEに限りfield別のslash文法を認めま
+ *       す。通常record検証の文字列契約は変更しません。
  */
 //------------------------------------------------------------------------------
 NativeError projectOfficialCollectorRecord( const OfficialCollectorRecordCandidate &candidate,
@@ -1211,7 +1250,19 @@ NativeError projectOfficialCollectorRecord( const OfficialCollectorRecordCandida
 													   bodyValidatedUtcSeconds, projection, {}) ;
 }
 
-/** @see official_download_grant.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通record検証へ失敗専用probeを明示する開発入口です。
+ * @param[in] candidate 同じGETからのworker限定候補。
+ * @param[in] policyId 同GETの組み込みpolicy。
+ * @param[in] resourceId 同GETのmetadata用途。
+ * @param[in] bodyValidatedUtcSeconds 同GET本文の検証時刻。
+ * @param[out] projection 全成功時だけ公開値。失敗時は空。
+ * @param[in] probe CNG開始後、Hash直前の非秘密通知。空なら通常動作です。
+ * @return 通常検証結果または注入NTSTATUSから変換した元HRESULT。
+ * @note Probeへ本文・正規形・digestを渡さず、成功値の注入や再hashを認めません。
+ */
+//------------------------------------------------------------------------------
 NativeError projectOfficialCollectorRecordWithHashProbe(
 	const OfficialCollectorRecordCandidate &candidate, const std::wstring_view policyId,
 	const std::wstring_view resourceId, const std::uint64_t bodyValidatedUtcSeconds,
@@ -1284,7 +1335,9 @@ NativeError projectOfficialCollectorRecordWithHashProbe(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief Grant metadataと秘密URLの所有権を移動します。
+ * @param[in,out] other 未発行状態へ戻る移動元。
+ * @post `other.metadata().state`は`NOT_REQUESTED`です。
  */
 //------------------------------------------------------------------------------
 RecordScopedDownloadGrant::RecordScopedDownloadGrant( RecordScopedDownloadGrant &&other) noexcept
@@ -1294,7 +1347,7 @@ RecordScopedDownloadGrant::RecordScopedDownloadGrant( RecordScopedDownloadGrant 
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief 秘密URLとsession内target fingerprintを消去します。
  */
 //------------------------------------------------------------------------------
 RecordScopedDownloadGrant::~RecordScopedDownloadGrant() noexcept
@@ -1306,7 +1359,10 @@ RecordScopedDownloadGrant::~RecordScopedDownloadGrant() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief 現在の秘密URLを消去し、別grantの所有権を移動します。
+ * @param[in,out] other 未発行状態へ戻る移動元。自己代入も許可します。
+ * @return このobjectへの参照。
+ * @post 自己代入でない場合、`other.metadata().state`は`NOT_REQUESTED`です。
  */
 //------------------------------------------------------------------------------
 RecordScopedDownloadGrant &RecordScopedDownloadGrant::operator=(
@@ -1325,7 +1381,16 @@ RecordScopedDownloadGrant &RecordScopedDownloadGrant::operator=(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief 検証済みrecordの一payloadを消費し、短命grantを発行します。
+ * @param[in,out] record 成功時だけ対象payloadの秘密URL所有権を失う型付きrecord。
+ * @param[in] evidence 同じrecordから作成したURL非保持証拠。
+ * @param[in] payloadOrdinal 発行対象の0起点payload行番号。
+ * @param[in] grantId 同じscan session内で一意な0ではないgrant ID。
+ * @param[in] issuedUtcSeconds 発行時点のUTC秒。
+ * @param[in] reresolutionCount 組み込みrootから再解決した回数。初回0、再解決後1です。
+ * @return 発行成功時は0、不正record、証拠不一致、期限不足または再発行はHRESULT bit pattern。
+ * @pre このobjectは一度も発行していないこと。
+ * @post 成功時は`GRANT_ISSUED`、失敗時は秘密URLを取得せず`NOT_REQUESTED`を維持します。
  */
 //------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::issue( OfficialDistributionRecord				  &record,
@@ -1433,7 +1498,12 @@ NativeError RecordScopedDownloadGrant::issue( OfficialDistributionRecord				  &r
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief Sessionとgrant ID、30秒の期限余裕を照合して一回だけ取得開始をclaimします。
+ * @param[in] scanSessionId 現在のworker scan session ID。
+ * @param[in] grantId 呼出し側が保持するopaque grant ID。
+ * @param[in] nowUtcSeconds Request開始直前のUTC秒。
+ * @return Claim成功時は0、stale、期限切れまたは再使用時はHRESULT bit pattern。
+ * @post 成功時は`ACQUIRING`です。期限切れ時は秘密URLを消去して`CONSUMED`へ移ります。
  */
 //------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::claim( const ScanSessionId scanSessionId,
@@ -1485,7 +1555,11 @@ NativeError RecordScopedDownloadGrant::claim( const ScanSessionId scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief Claim前の拒否または取消しを終端結果として一回だけ確定します。
+ * @param[in] outcome `GRANT_EXPIRED`、`TARGET_REJECTED`、`RECORD_CHANGED`、`CANCELLED`または`FAILED`。
+ * @param[in] error 0ではない具体的なHRESULT bit pattern。
+ * @return 終端確定成功時は0、不正状態・結果・診断値はHRESULT bit pattern。
+ * @post 成功時は秘密URLを消去し、stateを`CONSUMED`、outcomeを指定値へ設定します。
  */
 //------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::finishBeforeAcquisition(
@@ -1503,7 +1577,12 @@ NativeError RecordScopedDownloadGrant::finishBeforeAcquisition(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief 取得開始後の成功、拒否、取消しまたは失敗を一回だけ確定します。
+ * @param[in] outcome `ACQUIRED_FOR_INSPECTION`、`GRANT_EXPIRED`、`TARGET_REJECTED`、`CANCELLED`または
+ *                   `FAILED`。
+ * @param[in] error 成功結果では0、その他では0ではないHRESULT bit pattern。
+ * @return 終端確定成功時は0、不正状態・結果・診断値はHRESULT bit pattern。
+ * @post 成功時は秘密URLを消去し、stateを`CONSUMED`、outcomeを指定値へ設定します。
  */
 //------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::finishAcquisition( const OfficialDownloadGrantState outcome,
@@ -1523,7 +1602,8 @@ NativeError RecordScopedDownloadGrant::finishAcquisition( const OfficialDownload
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief URLを含まない現在のgrant metadataを参照します。
+ * @return Object lifetime中有効な非所有参照。
  */
 //------------------------------------------------------------------------------
 const RecordScopedDownloadGrantMetadata &RecordScopedDownloadGrant::metadata() const noexcept
@@ -1533,7 +1613,9 @@ const RecordScopedDownloadGrantMetadata &RecordScopedDownloadGrant::metadata() c
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief Claim済みgrantのpayloadをHTTP／取得境界へ貸し出します。
+ * @return `ACQUIRING`の間だけ秘密URLを含むview。それ以外はURLが空のviewです。
+ * @warning 戻り値と各viewを本objectの次の操作より長く保持してはなりません。
  */
 //------------------------------------------------------------------------------
 RecordScopedDownloadGrantPayloadView RecordScopedDownloadGrant::payloadView() const noexcept
@@ -1555,7 +1637,10 @@ RecordScopedDownloadGrantPayloadView RecordScopedDownloadGrant::payloadView() co
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief Claim済みの秘密URL所有権を一回のHTTP requestへ移します。
+ * @return `ACQUIRING`中でURLが未移動ならその所有値。それ以外は空です。
+ * @post 成功時はgrant内のURLが空になり、stateは`ACQUIRING`を維持します。
+ * @warning 戻り値はworker内の専用HTTP requestだけが所有してください。
  */
 //------------------------------------------------------------------------------
 SecretOfficialUrl RecordScopedDownloadGrant::takeTargetUrlForHttp() noexcept
@@ -1570,7 +1655,10 @@ SecretOfficialUrl RecordScopedDownloadGrant::takeTargetUrlForHttp() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief Claim済みgrantがrequest開始の30秒余裕を保つか再検証します。
+ * @param[in] nowUtcSeconds 当該requestまたはredirect開始直前のUTC秒。
+ * @return 開始可能なら0、状態不整合・時計異常・期限不足はHRESULT bit pattern。
+ * @note 開始済みstreamの成功可否は本関数で再評価しません。
  */
 //------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::validateRequestStartDeadline(
@@ -1599,7 +1687,11 @@ NativeError RecordScopedDownloadGrant::validateRequestStartDeadline(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief 再解決した秘密URLが消費済みgrantと同じtargetか比較します。
+ * @param[in] candidate 再解決recordが所有する完全URL。
+ * @param[out] sameTarget 成功時に同じURLならtrue、異なるURLならfalse。
+ * @return 比較成功時は0、状態不整合・空URL・hash失敗はHRESULT bit pattern。
+ * @warning URLとfingerprintを返さず、再解決worker内だけで使用してください。
  */
 //------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::compareConsumedTarget( const std::wstring_view candidate,
@@ -1628,7 +1720,10 @@ NativeError RecordScopedDownloadGrant::compareConsumedTarget( const std::wstring
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief 終端結果を検証済みとして保持し、秘密URLを消去します。
+ * @param[in] outcome 保持する終端結果。
+ * @param[in] error 結果と整合する診断値。
+ * @post Stateは`CONSUMED`です。
  */
 //------------------------------------------------------------------------------
 void RecordScopedDownloadGrant::consume( const OfficialDownloadGrantState outcome,
@@ -1644,7 +1739,8 @@ void RecordScopedDownloadGrant::consume( const OfficialDownloadGrantState outcom
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_download_grant.h 宣言側の契約を正本とします。
+ * @brief 移動元の全所有値を引き取り、移動元を未発行へ戻します。
+ * @param[in,out] other 所有権を失う移動元。
  */
 //------------------------------------------------------------------------------
 void RecordScopedDownloadGrant::moveFrom( RecordScopedDownloadGrant &other) noexcept

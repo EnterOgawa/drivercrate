@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_eula_tests.h
  * @brief 公式自動探索EULA groupと短命同意tokenの単体試験宣言。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  EULA完全一致groupの非通信試験を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実network、payload取得、driver導入、実EULA同意を行わない決定的fixtureだけを宣言します。
@@ -33,10 +34,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief EULA完全一致group、判断、stale・改変拒否を検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialDiscoveryEulaTests( TestContext &context) ;
 
 } // namespace drivercrate::test

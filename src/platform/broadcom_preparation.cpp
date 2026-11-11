@@ -2,7 +2,7 @@
 /**
  * @file broadcom_preparation.cpp
  * @brief Broadcom公式配布物の承認対象化と選択取得。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 取得と導入を分離し、成功ZIPをworkerの保護workspaceで所有します。
@@ -212,7 +213,8 @@ std::wstring broadcomPackageIdentity( const ScanSessionId session, const std::ui
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief 同じworkerのDriver Store適用性監査へ接続する。監査callbackを保持する。未設定の場合は取得を導入可能と判定しない。
+ * @param[in] rankAuditor 所有するcallback。空なら適用性監査を拒否する。 同じworkerのDriver Store監査を所有するcallback。
  */
 //------------------------------------------------------------------------------
 BroadcomUpdateProvider::BroadcomUpdateProvider( OfficialInfRankAuditor rankAuditor)
@@ -222,7 +224,9 @@ BroadcomUpdateProvider::BroadcomUpdateProvider( OfficialInfRankAuditor rankAudit
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief Driver Storeの監査と導入境界へ接続する。二つの境界を同じworker所有Providerへ固定し、Networkへdevice情報を渡さない。
+ * @param[in] rankAuditor 現在PnPと候補INFのG11-D監査関数。 Driver Store内のPnP／rank監査callback。
+ * @param[in] installer 再検証済みINFのWindows標準導入関数。 再検証済みINFだけを導入するcallback。
  */
 //------------------------------------------------------------------------------
 BroadcomUpdateProvider::BroadcomUpdateProvider( OfficialInfRankAuditor		rankAuditor,
@@ -233,7 +237,15 @@ BroadcomUpdateProvider::BroadcomUpdateProvider( OfficialInfRankAuditor		rankAudi
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief Broadcomの同一scan取得物を内容監査と端末内PnP監査へ接続する。固定Net profileで監査し、署名合格INFだけを端末内で照合する。導入許可は発行しない。
+ * @param[in] scanSessionId 保持deviceと取得結果に共通の検索session。
+ * @param[in] acquisition 公式由来を確認し、workerが所有している取得結果。 同じworkerが所有する公式取得結果。
+ * @param[in] expectedSha256 公開hash。未公開なら空。実測hashで代替記入しない。 公開hash。未公開は空。
+ * @param[in] devices 同じscanで系列照合したdevice群。IDはnetworkへ渡さない。 同一scanで系列照合済みのdevice群。
+ * @param[in] rankAuditor 同じworkerのDriver Store照合callback。 Windows標準PnP／rank監査。
+ * @param[in] cancellation 空または協調取消し照会。
+ * @param[out] audit 内容と適用性の独立した結果。導入候補は作らない。 内容・適用性の結果と単独所有閉包。
+ * @return 全体処理成功時0。入力・内容・全体処理失敗時はHRESULT。 全体処理成功時0、拒否・失敗時はHRESULT。
  */
 //------------------------------------------------------------------------------
 NativeError auditBroadcomPreparedPackage( const ScanSessionId			  scanSessionId,
@@ -283,7 +295,14 @@ NativeError auditBroadcomPreparedPackage( const ScanSessionId			  scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief Broadcom監査合格INF／device組合せを明示版付き候補へ変換する。INFの明示値だけを表示へ渡し、候補を推奨または初期選択へ昇格しない。
+ * @param[in] session 同じ取得・監査を所有する0でないscan session。 取得・監査と同じ検索session。
+ * @param[in] acquisition 同じ公式取得層が固定したsize／hashとopaque取得identity。 共通取得層が固定した外側ZIPのidentity。
+ * @param[in] devices 検索時と同じ非機密device snapshot群。
+ * @param[in] audit 内容・PnP／rank監査済みの保持結果。 内容・PnP／rank監査結果と保持閉包。
+ * @return 同device／同版を重複排除した、初期未選択の全監査合格候補。 同device／同版を重複排除した全監査合格候補。
+ * @throws std::logic_error 同一scan、取得identityまたは監査保持構造が矛盾する場合。
+ * @note INFのversion／dateだけを使用し、Web配布版やURLから値を推測しない。
  */
 //------------------------------------------------------------------------------
 std::vector<UpdateCandidate> makeBroadcomPreparedCandidates(
@@ -398,7 +417,10 @@ std::vector<UpdateCandidate> makeBroadcomPreparedCandidates(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief 同一scanで取得後に実行した監査の集計だけを返す。監査所有物をUIへ公開せず、現在workerで実行した集計だけを返す。
+ * @param[in] scanSessionId 保持している検索session。 保持監査の検索session。
+ * @return 内容・適用性の集計。旧sessionまたは未取得・未監査はnullopt。 非機密の内容・適用性集計。旧session・未監査はnullopt。
+ * @note Worker thread内専用。UIは専用reportを使用し、本集計自体を導入許可にしない。
  */
 //------------------------------------------------------------------------------
 std::optional<BroadcomPreparedAuditSummary> BroadcomUpdateProvider::preparationAuditSummary(
@@ -416,7 +438,12 @@ std::optional<BroadcomPreparedAuditSummary> BroadcomUpdateProvider::preparationA
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief 解析済みBroadcom配布物からURLを含まない未承認対象を作る。公開URLをUIへ渡さず、一配布物を同型device数だけ重複取得しない。
+ * @param[in] release 公式由来を別途確認したworker所有record。 同一scanの公式配布情報。
+ * @param[in] scanSessionId 0でない検索session。
+ * @param[in] planId 0でない計画ID。
+ * @param[in] deviceCount 関連device数。1～4096。 配布物に関係するdevice数。1～4096。
+ * @return 本文付きの一対象。不完全recordは空。 未承認の一対象。不完全なrecordは空。
  */
 //------------------------------------------------------------------------------
 std::vector<OfficialPreparationTarget> makeBroadcomPreparationTargets(
@@ -455,7 +482,10 @@ std::vector<OfficialPreparationTarget> makeBroadcomPreparationTargets(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief 同じscanの保持配布物から一対象を作り、後続task照合用に固定する。旧session・取得済みへの対象再発行を拒否し、有効な計画だけを後続照合用に保存する。
+ * @param[in] scanSessionId 保持情報の検索session。 対象を発行する検索session。
+ * @param[in] planId workerが発行する新しい計画ID。 Workerの新しい計画ID。
+ * @return 一対象または空。取得試行後は新scanまで再発行しない。 現在の配布物を表す一対象または空。
  */
 //------------------------------------------------------------------------------
 std::vector<OfficialPreparationTarget> BroadcomUpdateProvider::preparationTargets(
@@ -481,7 +511,10 @@ std::vector<OfficialPreparationTarget> BroadcomUpdateProvider::preparationTarget
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief 固定製品とdocumentを再確認し、同一配布物の共通recordを返す。固定製品JSONと同じdocumentを再確認する。変更後の配布物へ承認を転用しない。
+ * @param[out] current 成功時の再取得metadata。失敗時は空。 成功時の再取得配布情報。
+ * @param[out] rejected 内容・根拠の不一致時true。通信失敗はfalse。 公式recordまたは根拠の不一致時true。
+ * @return 成功時0。失敗時は元の通信または検証HRESULT。
  */
 //------------------------------------------------------------------------------
 NativeError BroadcomUpdateProvider::refreshPreparedRelease( OfficialReleaseRecord &current,
@@ -533,7 +566,11 @@ NativeError BroadcomUpdateProvider::refreshPreparedRelease( OfficialReleaseRecor
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief workerがclaimした対象を公式再確認後に一度だけ取得する。同じ配布物を一度だけ取得する。保持物は次scan開始またはinstall結果確定時に解放する。
+ * @param[in] task 承認済み計画の照合token。UIからURLを受け取らない。 Workerがclaimした一度限りの固定対象。
+ * @param[in] cancellation 協調取消し照会。空は取消し信号なし。 空または協調取消し照会。
+ * @return 検査用取得の結果。監査結果は別集計へ保持し、導入許可は発行しない。 検査用取得の結果。監査と導入の成功は含めない。
+ * @note 取得成功後に同期の内容・PnP監査を行う。取消しは監査の項目間で反映する。
  */
 //------------------------------------------------------------------------------
 OfficialPreparationTransferResult BroadcomUpdateProvider::acquireForInspection(
@@ -589,7 +626,7 @@ OfficialPreparationTransferResult BroadcomUpdateProvider::acquireForInspection(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief Provider workerで保持配布情報と自分のworkspaceだけを解放し、次scanへ持ち越さない。
  */
 //------------------------------------------------------------------------------
 void BroadcomUpdateProvider::invalidatePreparation() noexcept
@@ -619,7 +656,14 @@ void BroadcomUpdateProvider::invalidatePreparation() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief Broadcom監査集計を既存表示行へ変換する。導入権限を付加しない。Broadcom対象系列と既存候補IDを確定してから、固定profileの共通helperへ集約を委譲する。候
+ *        補発行と導入routingは変更しない。
+ * @param[in] session 保持している0でない検索session。 検索時の有効session。
+ * @param[in] targetIdentity 取得を承認済みのopaque計画対象ID。 同じ取得対象のopaque ID。
+ * @param[in] devices 検索時と同じ順序の系列照合device。最大4096件。 検索時と同じ順序の非機密snapshot。
+ * @param[in] audit 同じ取得物の内容・PnP監査結果。所有物は参照中のみ利用する。 保持物の監査結果。Path等は出力しない。
+ * @return 非機密report。不正な件数または入力には例外で全体拒否する。 既存候補の表示用report。不正入力は例外。
+ * @note Broadcom対象と既存候補IDを確定後に共通集約へ委譲し、表示状態だけを生成する。
  */
 //------------------------------------------------------------------------------
 
@@ -654,7 +698,11 @@ OfficialPreparationAuditReport makeBroadcomPreparationAuditReport(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/broadcom_update_provider.h 宣言側の契約を正本とする。
+ * @brief 保持監査を同じ取得対象の非機密表示へ変換する。全監査合格時だけ候補IDと保持INFのroutingを一度作る。未取得、旧session、別threadまたは再発行要求には候補を返さ
+ *        ない。
+ * @param[in] scanSessionId 現在の検索session。
+ * @param[in] targetIdentity 承認した計画内のopaque対象ID。 承認した計画対象のopaque ID。
+ * @return 同じ取得成功対象のreport。旧session・別対象・未取得ならnullopt。 既存表示監査と新しい選択候補を持つ非機密report。不一致はnullopt。
  */
 //------------------------------------------------------------------------------
 std::optional<OfficialPreparationAuditReport> BroadcomUpdateProvider::preparationAuditReport(

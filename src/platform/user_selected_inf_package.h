@@ -2,7 +2,7 @@
 /**
  * @file user_selected_inf_package.h
  * @brief 利用者選択INF ZIP共通検証定義。
- * @version 01.01.01
+ * @version 01.01.02
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  共通個別INF検査の所有結果を追加。
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 利用者が明示した一つのZIPだけを保護領域で検証します。入手元を公式と証明せず、INF、CAT、参照fileの内容を検証します。
@@ -145,10 +146,9 @@ struct UserSelectedInfPackageContents {
 	UserSelectedInfPackageVerificationStage		   verificationStage{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 利用者選択ZIPを保護領域へ複製して全driverを検証する。
- * 利用者選択INF ZIPを共通policyで検証する。
- * 実行fileを起動せず、全INFをfail-closedで検証する。
+ * @brief 利用者選択ZIPを保護領域へ複製して全driverを検証する。利用者選択INF ZIPを共通policyで検証する。実行fileを起動せず、全INFをfail-closedで検証する。
  * @param[in] selectedPath File dialogで利用者が一件だけ選択したlocal ZIP path。 利用者が選択したlocal ZIP path。
  * @param[in] scanSessionId 呼出し側が割り当てた0ではないscan session ID。
  * @param[in] policy Provider固有の有限上限、INF条件、signerおよびfamily条件。 Provider固有の安全性とfamily条件。
@@ -157,21 +157,23 @@ struct UserSelectedInfPackageContents {
  * @return 全検証成功時は0、入力、ZIP、INF、CATまたは署名違反時はHRESULT。 全ZIP、INF、CAT、参照file検証成功時は0。
  * @note Nested ZIPはpolicyが許す場合も一段だけで、展開量を全archive合計で検証する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectUserSelectedInfPackageFile(
 	std::wstring_view selectedPath, ScanSessionId scanSessionId,
 	const UserSelectedInfPackagePolicy &policy, OfficialDownloadWorkspace &workspace,
 	UserSelectedInfPackageContents &contents) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 一つの利用者選択INFをinstall直前に再検証する。
- * 利用者選択INFを共通policyでinstall直前に再検証する。
- * Admin競合による展開file差替えをSetupAPI呼出し前に拒否する。
+ * @brief 一つの利用者選択INFをinstall直前に再検証する。利用者選択INFを共通policyでinstall直前に再検証する。Admin競合による展開file差替えをSetupAPI
+ *        呼出し前に拒否する。
  * @param[in] workspace Scan時の複製ZIPと展開fileを所有する保護workspace。 Scan時の展開fileを所有する保護領域。
  * @param[in] entries Scan時に確定した全ZIP entry。 Scan時に確定した全file entry。
  * @param[in] expected Scan時に検証してcandidateへ対応付けたINF metadata。 Scan時に保持したINF metadata。
  * @param[in] policy Scan時と同一のProvider固有検証条件。 Scan時と同じProvider固有条件。
  * @return 構造、署名、CAT member、family、全metadataが一致する場合は0。 構造、family、署名、CAT member、metadata一致時は0。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError reverifyUserSelectedInfPackage(
 	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
 	const OfficialInfPackage &expected, const UserSelectedInfPackagePolicy &policy) ;

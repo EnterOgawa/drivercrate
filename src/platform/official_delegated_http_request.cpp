@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_http_request.cpp
  * @brief Record限定grantから一回のGETだけを作る秘密requestを実装します。
- * @version 01.05.00
+ * @version 01.05.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/09/15  取得予算でgrant上限を狭める準備引数を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
  * Ver.01.05.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 例外をworker境界へ漏らさず、放棄時もgrantを失敗終端してURLを消去します。
@@ -52,7 +53,7 @@ constexpr NativeError INVALID_REQUEST =
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief 未終端requestを失敗とし、秘密URLを消去します。
  */
 //------------------------------------------------------------------------------
 OfficialDelegatedGetRequest::~OfficialDelegatedGetRequest() noexcept
@@ -62,7 +63,8 @@ OfficialDelegatedGetRequest::~OfficialDelegatedGetRequest() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief Requestとgrantへの終端責務を移動します。
+ * @param[in,out] other 空状態へ戻る移動元。
  */
 //------------------------------------------------------------------------------
 OfficialDelegatedGetRequest::OfficialDelegatedGetRequest(
@@ -73,7 +75,9 @@ OfficialDelegatedGetRequest::OfficialDelegatedGetRequest(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief 現在のrequestを安全に中止し、別requestの所有権を移動します。
+ * @param[in,out] other 空状態へ戻る移動元。自己代入も許可します。
+ * @return このobjectへの参照。
  */
 //------------------------------------------------------------------------------
 OfficialDelegatedGetRequest &OfficialDelegatedGetRequest::operator=(
@@ -90,7 +94,15 @@ OfficialDelegatedGetRequest &OfficialDelegatedGetRequest::operator=(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief SessionとID・30秒余裕をgrantで検証し、秘密URL所有権を引き取ります。
+ * @param[in,out] grant 成功時に`ACQUIRING`となり、request終了まで生存するgrant。
+ * @param[in] scanSessionId 現在のworker scan session ID。
+ * @param[in] grantId 操作が指定したopaque grant ID。
+ * @param[in] nowUtcSeconds 最初のrequest開始直前UTC秒。
+ * @param[in] maximumBytes Session予算と公開sizeで狭めた0ではない受信上限。
+ * @return 準備成功時は0、再使用・stale・期限切れ・所有権不整合はHRESULT bit pattern。
+ * @pre 本requestは`EMPTY`です。
+ * @post 成功時は`READY`です。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialDelegatedGetRequest::prepare( RecordScopedDownloadGrant &grant,
@@ -132,7 +144,11 @@ NativeError OfficialDelegatedGetRequest::prepare( RecordScopedDownloadGrant &gra
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief 所有中のexact targetを一回のHTTP GET開始境界へ貸し出します。
+ * @param[out] exactTarget 成功時にだけrequest所有の完全URLを参照するview。
+ * @return 最初の開始成功時は0、未準備・再使用・空URLはHRESULT bit pattern。
+ * @post 成功時は`STARTED`です。
+ * @warning ViewをHTTP parserと`WinHttpOpenRequest`呼出しより長く保持しないでください。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialDelegatedGetRequest::beginGet( std::wstring_view &exactTarget) noexcept
@@ -151,7 +167,11 @@ NativeError OfficialDelegatedGetRequest::beginGet( std::wstring_view &exactTarge
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief Grantの取得結果を確定し、requestの秘密URLを消去します。
+ * @param[in] outcome `RecordScopedDownloadGrant::finishAcquisition`が許可する終端結果。
+ * @param[in] error 成功は0、それ以外は0ではない診断値。
+ * @return Grantの終端成功時は0、不正状態・結果・診断値はHRESULT bit pattern。
+ * @post 成功時は`CONSUMED`でURLを保持しません。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialDelegatedGetRequest::finish( const OfficialDownloadGrantState outcome,
@@ -186,7 +206,8 @@ NativeError OfficialDelegatedGetRequest::finish( const OfficialDownloadGrantStat
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief URLを公開せず現在のrequest状態を返します。
+ * @return Worker内requestの現在状態。
  */
 //------------------------------------------------------------------------------
 OfficialDelegatedGetState OfficialDelegatedGetRequest::state() const noexcept
@@ -196,7 +217,8 @@ OfficialDelegatedGetState OfficialDelegatedGetRequest::state() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief Grantが許可した有限受信上限を返します。
+ * @return `READY`または`STARTED`の上限byte数。それ以外は0。
  */
 //------------------------------------------------------------------------------
 std::uint64_t OfficialDelegatedGetRequest::maximumBytes() const noexcept
@@ -209,7 +231,8 @@ std::uint64_t OfficialDelegatedGetRequest::maximumBytes() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief 固定payload policy照合に使うProvider stable IDを返します。
+ * @return `READY`または`STARTED`のProvider ID。それ以外は空view。
  */
 //------------------------------------------------------------------------------
 std::wstring_view OfficialDelegatedGetRequest::providerId() const noexcept
@@ -223,7 +246,8 @@ std::wstring_view OfficialDelegatedGetRequest::providerId() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief 固定payload policy照合に使うresource IDを返します。
+ * @return `READY`または`STARTED`のpayload resource ID。それ以外は空view。
  */
 //------------------------------------------------------------------------------
 std::wstring_view OfficialDelegatedGetRequest::payloadResourceId() const noexcept
@@ -236,7 +260,9 @@ std::wstring_view OfficialDelegatedGetRequest::payloadResourceId() const noexcep
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief 現在のGET hopを開始できる期限余裕があるか検証します。
+ * @param[in] nowUtcSeconds Hop開始直前のUTC秒。
+ * @return 30秒以上の余裕があれば0、状態不整合・時計異常・期限不足はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialDelegatedGetRequest::validateStartDeadline(
@@ -252,7 +278,9 @@ NativeError OfficialDelegatedGetRequest::validateStartDeadline(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief 索引以外の認識済み外部expiryを持つ初回grantか返します。
+ * @return 索引以外で外部expiryがあり、root再解決回数が0の有効requestならtrue。
+ * @note 本値だけでは再解決を実行せず、期限または最初の401／403を別途要求します。
  */
 //------------------------------------------------------------------------------
 bool OfficialDelegatedGetRequest::canReresolveExpiringTarget() const noexcept
@@ -268,7 +296,8 @@ bool OfficialDelegatedGetRequest::canReresolveExpiringTarget() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief 現requestのgrant由来を非機密分類で返します。
+ * @return 結合済みgrant由来。空requestでは従来分類です。
  */
 //------------------------------------------------------------------------------
 OfficialDownloadGrantOrigin OfficialDelegatedGetRequest::origin() const noexcept
@@ -277,7 +306,15 @@ OfficialDownloadGrantOrigin OfficialDelegatedGetRequest::origin() const noexcept
 							 : grant_->metadata().origin ;
 }
 
-/** @see OfficialDelegatedGetRequest 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 索引grant自身の封印exact routeを再照合します。
+ * @param[in] target 現hopの完全URL。
+ * @param[in] hop 0起点hop位置。
+ * @param[in] finalResponse 最終200 responseの確認指定。
+ * @return 生存封印・exact順一致時0。それ以外は拒否HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialDelegatedGetRequest::validateSignedIndexHop(
 	const std::wstring_view target, const std::uint32_t hop,
 	const bool finalResponse) const noexcept
@@ -286,13 +323,22 @@ NativeError OfficialDelegatedGetRequest::validateSignedIndexHop(
 							 : grant_->validateSignedIndexHop( target, hop, finalResponse) ;
 }
 
-/** @see OfficialDelegatedGetRequest 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Grantが固定した期待content typeを借用します。
+ * @return 結合grantの期待形式。空requestは空です。
+ */
+//------------------------------------------------------------------------------
 std::wstring_view OfficialDelegatedGetRequest::expectedContentType() const noexcept
 {
 	return grant_ == nullptr ? std::wstring_view{} : grant_->payloadView().expectedContentType ;
 }
 
-/** @see OfficialDelegatedGetRequest 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 未終端grantを失敗へ進め、request所有値を消去します。
+ */
+//------------------------------------------------------------------------------
 void OfficialDelegatedGetRequest::abandon() noexcept
 {
 	// 終端前のgrantをrequest破棄後にACQUIRINGへ残さない。
@@ -313,7 +359,8 @@ void OfficialDelegatedGetRequest::abandon() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_http_request.h 宣言側の契約を正本とします。
+ * @brief 秘密URL・grant終端責務と非機密状態を移動します。
+ * @param[in,out] other 空に戻る移動元。
  */
 //------------------------------------------------------------------------------
 void OfficialDelegatedGetRequest::moveFrom( OfficialDelegatedGetRequest &other) noexcept
@@ -325,13 +372,25 @@ void OfficialDelegatedGetRequest::moveFrom( OfficialDelegatedGetRequest &other) 
 	maximumBytes_ = std::exchange( other.maximumBytes_, 0U) ;
 }
 
-/** @see official_delegated_http_request.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同recordの未解決公開文脈だけを借用する。
+ * @return 同STARTED requestで元planが有効ならその値。なければnull。
+ */
+//------------------------------------------------------------------------------
 const OfficialAnonymousCdnPlan *OfficialDelegatedGetRequest::anonymousCdnPlan() const noexcept
 {
 	return state_ == OfficialDelegatedGetState::STARTED && grant_ ? grant_->anonymousCdnPlan()
 																  : nullptr ;
 }
-/** @see official_delegated_http_request.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 新responseを元request/grantへ一度だけ結合する。
+ * @param[in,out] resolution 成功時に秘密URL所有権を引き取る同response。
+ * @param[in] now 現workerのUTC秒。
+ * @return 元record/route/expiry結合成功0、元HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialDelegatedGetRequest::acceptAnonymousCdnResolution(
 	OfficialAnonymousCdnResolution &resolution, const std::uint64_t now)
 {

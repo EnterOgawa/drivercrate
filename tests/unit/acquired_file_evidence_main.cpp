@@ -2,7 +2,7 @@
 /**
  * @file acquired_file_evidence_main.cpp
  * @brief 封印取得証拠の非通信・非導入試験を独立実行する。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  封印取得証拠の独立試験入口を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空transportだけを用い、実通信・署名・PnP・導入を扱わない。
@@ -31,10 +32,12 @@
 
 #include <iostream>
 
+//------------------------------------------------------------------------------
 /**
  * @brief 封印取得証拠の所有権と失敗境界を検査する。
  * @return 全成功0、assertionまたは例外失敗1。
  */
+//------------------------------------------------------------------------------
 int main()
 {
 	try {

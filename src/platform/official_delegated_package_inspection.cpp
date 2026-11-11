@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_package_inspection.cpp
  * @brief Record限定取得結果と共通driver package検査の接続実装。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  Device別PnP観測と取得後表示reportを追加。
  * Ver.01.02.01 Shunji Ogawa  2026/10/15  全体INF件数と照合開始前のpair予算を共通化。
  * Ver.01.03.00 Shunji Ogawa  2026/11/03  明示非実行formatを元grant/record/hintへ結合。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Adapterはworker内の取得証拠と内容入力を分離し、秘密URL、実pathまたはhashをUIへ渡しません。
@@ -72,22 +73,24 @@ constexpr std::size_t	  MAXIMUM_IDENTITY_CHARACTERS	   = 256U ;		// Opaque IDの
 //------------------------------------------------------------------------------
 // 内部関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief Win32 errorをHRESULT bit patternへ変換します。
  * @param[in] error Win32 error codeです。
  * @return 対応するHRESULT bit patternです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError fromWin32( const DWORD error) noexcept
 {
 	return static_cast<NativeError>( HRESULT_FROM_WIN32( error)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定済み実file hashが64桁のlowercase ASCII SHA-256か確認します。
  * @param[in] value 検証するhashです。
  * @return 形式を満たす場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isLowerSha256( const std::wstring_view value) noexcept
 {
 	return value.size() == SHA256_CHARACTERS &&
@@ -97,12 +100,14 @@ constexpr std::size_t	  MAXIMUM_IDENTITY_CHARACTERS	   = 256U ;		// Opaque IDの
 		   }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開SHA-256とlowercase実取得SHA-256がASCII caseを除き一致するか確認します。
  * @param[in] published 公式recordが保持する64桁hex hashです。
  * @param[in] actual 取得層が実fileから算出したlowercase hashです。
  * @return 両hashが同じ値の場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool sameSha256( const std::wstring_view published,
 							  const std::wstring_view actual) noexcept
 {
@@ -121,22 +126,26 @@ constexpr std::size_t	  MAXIMUM_IDENTITY_CHARACTERS	   = 256U ;		// Opaque IDの
 	}) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Stable record fingerprintが未設定の全zeroでないか確認します。
  * @param[in] fingerprint 検証するURL非保持fingerprintです。
  * @return 1 byte以上が0以外ならtrueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool hasRecordFingerprint( const OfficialStableRecordFingerprint &fingerprint) noexcept
 {
 	return std::ranges::any_of( fingerprint.bytes,
 							   []( const std::byte value) noexcept { return value != std::byte{} ; }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開basenameの最終拡張子から共通検査形式を決めます。
  * @param[in] fileDisplayName Grantが保持する公開basenameです。
  * @return ZIP／CABの場合は形式、それ以外は空です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<OfficialDriverArchiveFormat> archiveFormat(
 	const std::wstring_view fileDisplayName)
 {
@@ -171,11 +180,13 @@ constexpr std::size_t	  MAXIMUM_IDENTITY_CHARACTERS	   = 256U ;		// Opaque IDの
 	return std::nullopt ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 変換後のworker内入力が改変されていない有限値か確認します。
  * @param[in] input 検証する変換済み入力です。
  * @return 共通検査へ渡せる構造ならtrueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isValidInput( const DelegatedOfficialPackageInput &input) noexcept
 {
 	const DelegatedOfficialPackageProvenance &provenance = input.provenance ;	// URL非保持証拠。
@@ -204,11 +215,10 @@ constexpr std::size_t	  MAXIMUM_IDENTITY_CHARACTERS	   = 256U ;		// Opaque IDの
 } // namespace
 
 //------------------------------------------------------------------------------
-/**
- * @see src/platform/official_delegated_package_inspection.h 宣言側の契約を正本とします。
- */
+
 //------------------------------------------------------------------------------
-/** @brief 既存の全取得結合を共用し、検査形式だけを選ぶ。
+/**
+ * @brief 既存の全取得結合を共用し、検査形式だけを選ぶ。
  * @param[in] acquisition 元成功ledger。
  * @param[in] grant 同じ消費済みgrant。
  * @param[out] input 全成功時だけの検査入力。
@@ -216,6 +226,7 @@ constexpr std::size_t	  MAXIMUM_IDENTITY_CHARACTERS	   = 256U ;		// Opaque IDの
  * @param[in] resourcePlan 元recordに結ぶ任意の原範囲計画。
  * @return 変換成功0、元HRESULT。
  */
+//------------------------------------------------------------------------------
 static NativeError makeDelegatedOfficialPackageInputImpl(
 	const OfficialAcquisitionResult &acquisition, const RecordScopedDownloadGrant &grant,
 	DelegatedOfficialPackageInput					  &input,
@@ -335,7 +346,17 @@ static NativeError makeDelegatedOfficialPackageInputImpl(
 	}
 }
 
-/** @see official_delegated_package_inspection.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Record限定取得結果と消費済みgrantを共通package検査入力へ変換します。
+ * @param[in] acquisition 成功取得ledgerが公開したworker内結果です。
+ * @param[in] grant 当該取得で一回使用され、成功終端したrecord限定grantです。
+ * @param[out] input 成功時だけ設定するURL非保持の共通検査入力です。
+ * @return 全ID、状態、公開metadata検証結果、形式と実file identityが一致すれば0です。
+ * @post 失敗時は`input`を初期値へ戻します。
+ * @note 形式はgrantが保持する公開basenameからだけ決定し、実pathやURLから推測しません。
+ */
+//------------------------------------------------------------------------------
 NativeError makeDelegatedOfficialPackageInput( const OfficialAcquisitionResult &acquisition,
 											  const RecordScopedDownloadGrant &grant,
 											  DelegatedOfficialPackageInput	  &input) noexcept
@@ -343,7 +364,17 @@ NativeError makeDelegatedOfficialPackageInput( const OfficialAcquisitionResult &
 	return makeDelegatedOfficialPackageInputImpl( acquisition, grant, input, {}, {}) ;
 }
 
-/** @see official_delegated_package_inspection.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 認証recordの明示非実行formatを同じ消費済みgrantへ結ぶ。
+ * @param[in] acquisition 元sessionの成功ledger行。
+ * @param[in] grant 同じSIGNED_INDEX recordの一回消費済みgrant。
+ * @param[in] hint 元adapterが封印解除後に結んだindex/record/outer/content選択。
+ * @param[in] format 明示SEVEN_ZIP_SFXまたはPE_RESOURCE_CONTAINER。
+ * @param[out] input 全既存結合を成功したworker入力。失敗時は空。
+ * @return 全結合成功0、元HRESULT。署名/実byte/適合の成功ではない。
+ */
+//------------------------------------------------------------------------------
 NativeError makeDelegatedOfficialPackageInput( const OfficialAcquisitionResult  &acquisition,
 											  const RecordScopedDownloadGrant  &grant,
 											  const IndexedDriverArchiveHint   &hint,
@@ -391,7 +422,13 @@ NativeError makeDelegatedOfficialPackageInput( const OfficialAcquisitionResult  
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_package_inspection.h 宣言側の契約を正本とします。
+ * @brief 現在sessionのrecord限定取得fileをADR 0151の共通内容検査へ渡します。
+ * @param[in] activeScanSessionId 現在のworker scan session IDです。
+ * @param[in] input 取得workspaceの存続中だけ有効な変換済み入力です。
+ * @param[out] inspection 全体成功時は個別INF結果、全体失敗時は診断値だけを保持します。
+ * @param[in] cancellation 空またはworker内で呼ぶ非blocking取消し照会です。
+ * @return 共通検査完了時0、stale、入力不整合、取消しまたは検査失敗時はHRESULTです。
+ * @note 個別INF拒否は他のINF検査を止めません。導入、stagingまたは由来合格は行いません。
  */
 //------------------------------------------------------------------------------
 NativeError inspectDelegatedOfficialDriverPackage( const ScanSessionId activeScanSessionId,
@@ -417,7 +454,16 @@ NativeError inspectDelegatedOfficialDriverPackage( const ScanSessionId activeSca
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_package_inspection.h 宣言側の契約を正本とします。
+ * @brief 内容合格INFを結合済みdeviceへWindows標準APIでread-only照合します。
+ * @param[in] activeScanSessionId 現在のworker scan session IDです。
+ * @param[in] input 同じ取得物のURL非保持入力です。
+ * @param[in] packageInspection 全体成功済みの共通INF検査結果です。
+ * @param[in] devices Package groupへ結合した重複なしdevice hint集合です。
+ * @param[in] rankObserver Driver Storeが所有する現在PnP候補node照会です。
+ * @param[out] results 成功時だけdevicesと同順の有限件数結果です。
+ * @param[in] cancellation 空またはworker内で呼ぶ非blocking取消し照会です。
+ * @return 全組合せを確認した場合0、stale、入力不整合、取消しまたは例外時はHRESULTです。
+ * @post 失敗時は全結果を空にし、stage、driver選択またはinstallを行いません。
  */
 //------------------------------------------------------------------------------
 NativeError inspectDelegatedOfficialDriverApplicability(
@@ -549,7 +595,18 @@ NativeError inspectDelegatedOfficialDriverApplicability(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_package_inspection.h 宣言側の契約を正本とします。
+ * @brief 取得、内容検査、device別PnP観測を既存表示行の非機密reportへ変換します。
+ * @param[in] target 利用者が取得を承認したURL非保持準備対象です。
+ * @param[in] group 同じpayloadをrecord、routeとdeviceへ結合した実行groupです。
+ * @param[in] descriptor Scan時に同じtargetへ結合したpayload方式と公開metadataです。
+ * @param[in] candidateIdentities Groupのdevice順にscanで発行済みの候補ID集合です。
+ * @param[in] acquisition Record限定取得の成功ledger行です。
+ * @param[in] inspectionError 内容検査または専用監査未接続の診断値です。
+ * @param[in] packageInspection 標準INF方式で得た全体・個別内容検査結果です。
+ * @param[in] applicabilityError Device別PnP観測の全体診断値です。正常完了時は0です。
+ * @param[in] applicability 正常完了時だけcandidateIdentitiesと同順のPnP集計です。
+ * @return 全bindingと件数が整合する場合は監査report、それ以外は値なしです。
+ * @post 適用性が合格しても候補発行とinstall routingは開始しません。
  */
 //------------------------------------------------------------------------------
 std::optional<OfficialPreparationAuditReport> makeDelegatedOfficialPreparationAuditReport(
@@ -792,7 +849,18 @@ std::optional<OfficialPreparationAuditReport> makeDelegatedOfficialPreparationAu
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_delegated_package_inspection.h 宣言側の契約を正本とします。
+ * @brief 共通内容検査の一INFと公式record由来を表示専用候補の八軸評価へ再結合します。
+ * @param[in] activeScanSessionId 現在のworker scan session IDです。
+ * @param[in] input 当該package検査を開始したURL非保持入力です。
+ * @param[in] candidate Provider IDとopaque identityを設定済みの表示候補です。
+ * @param[in] packageInspection `input`から得た全体成功の共通検査結果です。
+ * @param[in] infOrdinal 結合する0起点INF結果番号です。
+ * @param[in] packageEvidenceId Scan内で実内容検査へ割り当てた0ではない証拠IDです。
+ * @param[in] applicabilityError Windows適合観測のHRESULTです。未実施を0で渡しません。
+ * @param[in] candidateRank Windowsの一致node rankです。非適用・失敗時は空です。
+ * @param[out] assessment 成功時の表示専用八軸評価です。失敗時は空です。
+ * @return Session、Provider、archive、INF、由来と候補identityを安全に結合できればtrueです。
+ * @post 成功時もmethodは未対応、executorはfalseで、導入可能にはなりません。
  */
 //------------------------------------------------------------------------------
 bool makeDelegatedOfficialInfCandidateAssessment(

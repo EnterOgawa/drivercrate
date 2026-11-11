@@ -2,7 +2,7 @@
 /**
  * @file official_source_policy_tests.cpp
  * @brief 公式取得元policy registry単体試験実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -50,6 +50,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/09/15  Windows 11 Ethernet取得元件数を検証。
  * Ver.01.01.00 Shunji Ogawa  2026/10/15  Payload媒体型と単一UTF-8 charsetの正負を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 公式originをruntime入力から追加せず、用途別hostとProviderを完全一致で解決する境界をnetworkへ接続せず検証します。
@@ -612,7 +613,9 @@ void testCatalogCacheModes( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_source_policy_tests.h 宣言側の契約を正本とする。
+ * @brief 公式取得元policy registryの正常系と拒否条件を検証する。公式取得元policy registryの全単体試験を実行する。組み込み定義、host、拒否条件、opaque
+ *        根拠を順に検証する。
+ * @param[in,out] context assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialSourcePolicyTests( TestContext &context)

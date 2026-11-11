@@ -2,7 +2,7 @@
 /**
  * @file local_collector_metadata_projection.cpp
  * @brief 制御付き公式本文をURL検証後に秘密値なしの全対象射影へ変換します。
- * @version 01.05.01
+ * @version 01.05.02
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/09/29  指紋関係・ordinal解決を本番共通の非所有helperへ抽出。
  * Ver.01.05.00 Shunji Ogawa  2026/09/29  汎用件数guardをworker公開直前へ接続。
  * Ver.01.05.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.05.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 通信、取得、controlのfinish、親の受入・保存を行いません。
@@ -47,13 +48,16 @@
 namespace drivercrate {
 namespace {
 
-/** @brief 数値通知の前後で同じ元期限を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 数値通知の前後で同じ元期限を検査します。
  * @param[in] diagnostics 秘密値を受け取らない診断依存。
  * @param[in] jobIndex 元job index。
  * @param[in] point 有限の診断位置。
  * @param[in] ordinal 元候補または対象の位置。
  * @param[in,out] control 元GETのPROJECT制御。
  */
+//------------------------------------------------------------------------------
 void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
 						  const std::size_t jobIndex, const CollectorProjectionPoint point,
 						  const std::size_t ordinal, CollectorParserContext &control)
@@ -66,12 +70,14 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開projectionの同一性をfingerprint以外の全fieldでも確認します。
  * @param[in] a 先行recordの公開射影。同期中だけ借用する。
  * @param[in] b 後続recordの公開射影。同期中だけ借用する。
  * @return Fingerprint以外の全公開fieldとpayload順序が一致する場合true。差がある場合false。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool samePublicRecord( const OfficialCollectorRecordProjection &a,
 									const OfficialCollectorRecordProjection &b)
 {
@@ -104,12 +110,14 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief metadata専用にauthority以降の曖昧なURL表記を拒否します。
  * @param[in] url 検査対象URLの元表記。同期中だけ借用し、外部送信しない。
  * @param[in,out] control 同じGETの有限parser制御。走査量と期限を更新・確認する。
  * @return Path、文字、segmentの全表記条件を満たす場合true。不正表記はfalse。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool safeCollectorUrlShape( const std::wstring_view url,
 										 CollectorParserContext &control)
 {
@@ -175,6 +183,7 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 元候補をpayload用途の組み込みhostとsourceの公開行へ再結合します。
  * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する。
@@ -184,6 +193,7 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
  * @param[in,out] control 同じGETの有限parser制御。
  * @return 組み込みpayload用途、公式URL表記、元行の全結合条件を満たす場合true。違反時はfalse。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validateCollectorPayload( const CollectorProjectedJobInput		&job,
 											const OfficialCollectorRecordCandidate	&candidate,
 											const OfficialDistributionPayloadRecord &payload,
@@ -235,6 +245,7 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
 	return false ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief URL検証済み候補だけを通常canonicalと同じrecord射影へ渡します。
  * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する。
@@ -248,6 +259,7 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
  * @param[in] recordOrdinal 元候補列の0始まり位置。
  * @return 検査済みrecordを追加または同値の既存recordへ結べた場合true。構造拒否・衝突時はfalse。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendCollectorRecord(
 	const CollectorProjectedJobInput &job, const OfficialCollectorRecordCandidate &candidate,
 	const AsusDriverPageEntry *asusEntry, const std::uint64_t validatedUtcSeconds,
@@ -317,6 +329,7 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 候補ordinalを検証済みfingerprintへ変換し一edgeへ加えます。
  * @param[in] ordinal 元候補列の0始まり位置。
@@ -325,6 +338,7 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
  * @param[in,out] edge 対応するfingerprintの追加先。拒否前に追加した値は保持する。
  * @return 有効な対応先を確認してedgeへ結べた場合true。対応先不正時はfalse。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendEdgeFingerprint( const std::uint32_t			 ordinal,
 										 const std::vector<std::size_t> &ordinalToRecord,
 										 const std::vector<CollectorProjectedRecord> &records,
@@ -348,6 +362,7 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief ASUSの同一store候補と全公開対象を元順序で射影します。
  * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する。
@@ -359,6 +374,7 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
  * @param[in] diagnostics 数値だけを扱う同期診断callback群。
  * @return 元本文を解析して許可された公開scopeへ射影できた場合true。構造・対応不成立時はfalse。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool projectAsus( const CollectorProjectedJobInput &job, const std::wstring_view html,
 							   const std::uint64_t					 validatedUtcSeconds,
 							   OfficialCollectorHttpControl			&httpControl,
@@ -505,6 +521,7 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Intelの一候補を全対象へ共有して元順序のedgeへ射影します。
  * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する。
@@ -516,6 +533,7 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
  * @param[in] diagnostics 数値だけを扱う同期診断callback群。
  * @return 元本文を解析して許可された公開scopeへ射影できた場合true。構造・対応不成立時はfalse。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool projectIntel( const CollectorProjectedJobInput &job, const std::wstring_view html,
 								const std::uint64_t					  validatedUtcSeconds,
 								OfficialCollectorHttpControl		 &httpControl,
@@ -629,7 +647,16 @@ void projectionCheckpoint( const CollectorProjectionDiagnostics &diagnostics,
 
 } // namespace
 
-/** @see local_collector_metadata_projection.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実CNG後の二recordだけを比較する本番と共通の非所有判定です。
+ * @param[in] prior 先にURLと通常recordを検証した公開値。
+ * @param[in] priorSlice 先行recordの元slice key。
+ * @param[in] incoming 新候補の通常record公開値。
+ * @param[in] incomingSlice 新候補の元slice key。
+ * @return 指紋と全公開field・sliceの関係。取得・保存許可は発行しません。
+ */
+//------------------------------------------------------------------------------
 collector_projection_detail::RecordRelation collector_projection_detail::compareRecords(
 	const OfficialCollectorRecordProjection &prior, const std::wstring_view priorSlice,
 	const OfficialCollectorRecordProjection &incoming,
@@ -646,7 +673,15 @@ collector_projection_detail::RecordRelation collector_projection_detail::compare
 			   : RecordRelation::CONFLICT ;
 }
 
-/** @see local_collector_metadata_projection.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元candidate ordinalが検証済みrecordを指す場合だけindexを返します。
+ * @param[in] ordinal 元候補配列内の位置。
+ * @param[in] ordinalToRecord 元順序から折畳み後record indexへの対応。
+ * @param[in] recordCount 実際に検証・保持したrecord件数。
+ * @return 範囲内index。欠損・範囲外ならnullで、0へ補完しません。
+ */
+//------------------------------------------------------------------------------
 std::optional<std::size_t> collector_projection_detail::resolveOrdinal(
 	const std::uint32_t ordinal, const std::span<const std::size_t> ordinalToRecord,
 	const std::size_t recordCount) noexcept
@@ -659,7 +694,17 @@ std::optional<std::size_t> collector_projection_detail::resolveOrdinal(
 	return ordinalToRecord[ordinal] ;
 }
 
-/** @see local_collector_metadata_projection.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 五つの汎用件数だけをoverflowなしで比較します。
+ * @param[in] records 一jobのrecord件数。
+ * @param[in] payloads 一jobのpayload合計件数。
+ * @param[in] slices 一jobのslice件数。
+ * @param[in] edges 一jobのedge件数。
+ * @param[in] references 一edge内のrecord参照件数。
+ * @return 全て第5節の上限内ならtrue。初期profileの適合・保存許可は含みません。
+ */
+//------------------------------------------------------------------------------
 bool collector_projection_detail::withinCountLimits( const std::size_t records,
 													const std::size_t payloads,
 													const std::size_t slices,
@@ -670,7 +715,16 @@ bool collector_projection_detail::withinCountLimits( const std::size_t records,
 		   references <= 16U ;
 }
 
-/** @see local_collector_metadata_projection.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実配列だけから件数を測り、上限と配列長の矛盾を分類します。
+ * @param[in] records URL非保持の公開record配列。
+ * @param[in] slices 元scope順のslice配列。
+ * @param[in] edges 全対象のedge配列。
+ * @return 件数上限内／上限超過／payload配列長不一致。
+ * @note 結果は取得・保存許可ではなく、field同値・scope・byte数は別途検査します。
+ */
+//------------------------------------------------------------------------------
 collector_projection_detail::CountResult collector_projection_detail::checkCounts(
 	const std::span<const CollectorProjectedRecord>		records,
 	const std::span<const CollectorProjectedSliceScope> slices,
@@ -709,7 +763,17 @@ collector_projection_detail::CountResult collector_projection_detail::checkCount
 	return CountResult::WITHIN_LIMIT ;
 }
 
-/** @see local_collector_metadata_projection.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 一回GET本文を消費し、二つの固定公式sourceだけを射影します。
+ * @param[in] body 同じworkerからmoveされた未消費の正常200本文。
+ * @param[in] campaign 保存canonicalから再構築した変更不能全job。
+ * @param[in] jobIndex 元予約jobのindex。
+ * @param[out] projection 完了時だけ所有する公開値。失敗時は最小失敗の空配列です。
+ * @return 解析・URL・共通record・全edgeの型付き結果。
+ * @note 成功でも取得権限、HTTP終端、CACHE許可を発行しません。元制御は本文内からのみ取得します。
+ */
+//------------------------------------------------------------------------------
 CollectorParserResult projectCollectorMetadataBody(
 	CollectorMetadataBody body, const CollectorPreparedProjectedCampaign &campaign,
 	const std::size_t jobIndex, CollectorMetadataProjectionDraft &projection) noexcept
@@ -718,7 +782,18 @@ CollectorParserResult projectCollectorMetadataBody(
 													   projection, {}) ;
 }
 
-/** @see local_collector_metadata_projection.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元本文と同じ本番coreへ数値だけの診断依存を接続します。
+ * @param[in] body 同じGETの未消費本文。
+ * @param[in] campaign 元の変更不能全job。
+ * @param[in] jobIndex 元予約のjob index。
+ * @param[out] projection 成功時だけ公開値。失敗時は空配列。
+ * @param[in] diagnostics 同期呼出し中だけ借用する依存。停止は元controlへ伝えます。
+ * @return 通常入口と同じ型付き終了値。
+ * @note 診断callbackへ秘密値を渡さず、取得許可や成功DTOの注入を認めません。
+ */
+//------------------------------------------------------------------------------
 CollectorParserResult projectCollectorMetadataBodyWithDiagnostics(
 	CollectorMetadataBody body, const CollectorPreparedProjectedCampaign &campaign,
 	const std::size_t jobIndex, CollectorMetadataProjectionDraft &projection,

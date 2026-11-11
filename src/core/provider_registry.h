@@ -2,7 +2,7 @@
 /**
  * @file provider_registry.h
  * @brief 組み込みProvider registry定義。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -59,6 +59,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Intel Ethernet Windows 11検索IDを追加。
  * Ver.01.02.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 組み込み取得元のstable ID、表示名、capability、既定状態を一元管理します。Driver metadataや端末識別情報は保持しません。
@@ -143,113 +144,129 @@ inline constexpr std::wstring_view ASUS_PROVIDER_ID =
 inline constexpr std::wstring_view ASROCK_PROVIDER_ID =
 	L"asrock-official" ;	// ASRock公式最新driver一覧Provider ID。
 
+//------------------------------------------------------------------------------
 /**
  * @brief 単一registryから通常scanへ接続済みのSCAN能力viewを登録順で返す。
  * @return Process lifetime中有効なSCAN群。取得専用entryは含めません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::span<const ProviderDescriptor> builtInProviderDescriptors() noexcept ;
 
-/** @brief 通常scanと取得専用を含む単一canonical registry全体からIDを解決します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常scanと取得専用を含む単一canonical registry全体からIDを解決します。
  * @param[in] providerId 完全一致のstable ID。
  * @return 整合したregistryの一意なentry。不明または不整合はnullptr。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] const ProviderDescriptor			 *findProviderDescriptor(
 			  std::wstring_view providerId) noexcept ;
 
-/** @brief 同じregistry正本から共通索引の取得専用entryだけを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じregistry正本から共通索引の取得専用entryだけを返します。
  * @return 全registry整合時だけ不変entryのprocess lifetime参照。不整合時nullptr。
  * @note 通常scan／metadata検索の実接続済みviewへ追加せず、取得能力は封印grantで別検証します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] const ProviderDescriptor		  *signedIndexAcquisitionProviderDescriptor() noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Stable Provider IDに対応するinstall注意種別を取得する。
- * Stable Provider IDからinstall注意種別を取得する。
- * 未知IDまたは不正registryをNoneへ縮退せず、呼出側がinstallをfail-closedで中止できる値を返す。
+ * @brief Stable Provider IDに対応するinstall注意種別を取得する。Stable Provider IDからinstall注意種別を取得する。未知IDまたは不正
+ *        registryをNoneへ縮退せず、呼出側がinstallをfail-closedで中止できる値を返す。
  * @param[in] providerId 完全一致で検索する組み込みProvider ID。
  * @return Registryが整合しIDが一意な場合は注意種別、それ以外は値なし。 Registryが整合しIDが一意なら注意種別、それ以外は値なし。
  * @note 値なしを`InstallNoticeKind::None`へ読み替えず、installをfail-closedで中止する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<InstallNoticeKind> providerInstallNotice(
 	std::wstring_view providerId) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Scan設定が既知Provider IDだけを重複なく指定しているか検証する。
- * Scan設定のProvider ID集合を検証する。
- * 未知または重複ID、入力fileとの矛盾、公式origin policyの不整合をProvider呼出し前に拒否する。
+ * @brief Scan設定が既知Provider IDだけを重複なく指定しているか検証する。Scan設定のProvider ID集合を検証する。未知または重複ID、入力fileとの矛盾、公式
+ *        origin policyの不整合をProvider呼出し前に拒否する。
  * @param[in] options UIまたは呼出し側が指定したscan設定。
  * @return 既定設定または検証済み明示設定の場合は`true`。 既定設定または既知IDだけの明示設定なら`true`。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool				validateScanOptions( const ScanOptions &options) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 指定Providerを今回のscanで有効にするか判定する。
- * Providerのscan有効状態を解決する。
- * 未知IDを推測せず、registryのstable IDだけを比較する。
+ * @brief 指定Providerを今回のscanで有効にするか判定する。Providerのscan有効状態を解決する。未知IDを推測せず、registryのstable IDだけを比較する。
  * @param[in] options 検証対象のscan設定。 Scan設定。
  * @param[in] descriptor 判定する登録済みProvider。
  * @return 既定値または明示選択で有効な場合は`true`。 既定値または明示選択で有効なら`true`。
  * @note 未検証設定でも未知IDを有効と判断しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool				isProviderEnabled( const ScanOptions		   &options,
 												  const ProviderDescriptor &descriptor) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief UserSelectedFile Providerへ明示された一つのlocal file pathを取得する。
- * UserSelectedFile Providerのlocal file pathを取得する。
- * Pathを複製せずworker commandの有効期間だけ参照し、不正設定を推測で補完しない。
+ * @brief UserSelectedFile Providerへ明示された一つのlocal file pathを取得する。UserSelectedFile Providerのlocal
+ *        file pathを取得する。Pathを複製せずworker commandの有効期間だけ参照し、不正設定を推測で補完しない。
  * @param[in] options 検証済みの明示scan設定。
  * @param[in] providerId UserSelectedFile capability付きの既知Provider ID。 UserSelectedFile capability付き
  *                   Provider。
  * @return 一意な入力path。未指定、重複、不正Providerの場合は空view。 一意な入力path。設定不正または未指定の場合は空view。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring_view userSelectedFileForProvider( const ScanOptions &options,
 															std::wstring_view  providerId) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 現在版を除く一つのProviderの表示候補件数を数える。
- * 現在版を除くProviderの表示候補件数を数える。
- * Local inventoryの現在版をupdate候補件数へ含めない。
+ * @brief 現在版を除く一つのProviderの表示候補件数を数える。現在版を除くProviderの表示候補件数を数える。Local inventoryの現在版をupdate候補件数へ含めない
+ *        。
  * @param[in] result 単一Providerのscan結果。
  * @return 更新、再導入、旧版候補の合計件数。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::uint64_t		countDisplayCandidates( const ScanResult &result) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 単一Providerのscan結果をUI用到達状態へ正規化する。
- * 単一Provider結果をUI用scan状態へ正規化する。
- * Providerが明示した対象外と監査段階別の拒否を維持する。
+ * @brief 単一Providerのscan結果をUI用到達状態へ正規化する。単一Provider結果をUI用scan状態へ正規化する。Providerが明示した対象外と監査段階別の拒否を維持する。
  * @param[in] result 単一Providerのscan結果。
  * @param[in] enabled scan条件で有効だった場合は`true`。 Scan条件で有効だった場合true。
  * @return 無効、対象外、候補有無、失敗または監査段階別拒否の分類。 無効、対象外、候補なし、候補あり、失敗、拒否の分類。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] ProviderScanState resolveProviderScanState( const ScanResult &result,
 														 bool			   enabled) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Providerの成功flag、outcome、到達状態が矛盾しないか確認する。
- * Providerのscan結果field間の整合性を検証する。
- * 成功flag、outcome、到達状態を独立に信用せず、相互に矛盾する結果をaggregateへ渡さない。
+ * @brief Providerの成功flag、outcome、到達状態が矛盾しないか確認する。Providerのscan結果field間の整合性を検証する。成功flag、outcome、到達状態
+ *        を独立に信用せず、相互に矛盾する結果をaggregateへ渡さない。
  * @param[in] result 単一Providerが返したscan結果。
  * @param[in] enabled scan条件で有効だった場合は`true`。 Scan条件で有効だった場合は`true`。
  * @return 無効Providerまたは整合する実行結果の場合は`true`。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isProviderScanResultConsistent( const ScanResult &result, bool enabled) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Provider coverageの件数関係が矛盾していないか確認する。
- * Provider coverageの件数関係を検証する。
- * Providerまたはaggregateの計数誤りをUIへ渡す前に検出する。
+ * @brief Provider coverageの件数関係が矛盾していないか確認する。Provider coverageの件数関係を検証する。Providerまたはaggregateの計数誤りを
+ *        UIへ渡す前に検出する。
  * @param[in] coverage 端末内で集計した対象／判定device数。
  * @return 判定数が対象数以下の場合は`true`。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isValidProviderCoverage( const ProviderCoverage &coverage) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief ProviderCapabilityをmaskへ変換する。
  * @param[in] capability 変換対象の単一capability。
  * @return capabilityを表すbit mask。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] constexpr ProviderCapabilityMask capabilityMask(
 	const ProviderCapability capability) noexcept
 {

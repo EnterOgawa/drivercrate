@@ -2,7 +2,7 @@
 /**
  * @file official_release_observation_store.cpp
  * @brief 公式release観測と自動探索cacheの端末内永続化実装。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  URL非保持の公式自動探索cache永続化を追加。
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.02.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Version付きsnapshotと端末固有keyを有限bufferで扱い、reparse pointを拒否します。Production rootは
@@ -1639,10 +1640,14 @@ void discardFile( const std::wstring_view path) noexcept
 	return 0 ;
 }
 
-/** @brief 復元memo用途の既保護rootを検査し、既存ACLを変更しません。
- * @param[in] handle 同じ実file/directoryです。@param[in] directory Directoryならtrueです。
+//------------------------------------------------------------------------------
+/**
+ * @brief 復元memo用途の既保護rootを検査し、既存ACLを変更しません。
+ * @param[in] handle 同じ実file/directoryです。
+ * @param[in] directory Directoryならtrueです。
  * @return 不明owner/ACL/reparse/複数linkを拒否する元errorです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError validateDailyRestoreHandle( HANDLE handle, bool directory)
 {
 	BY_HANDLE_FILE_INFORMATION info{} ;	// 同じhandleの属性です。
@@ -1730,10 +1735,14 @@ void discardFile( const std::wstring_view path) noexcept
 	LocalFree( descriptor) ;
 	return valid ? 0 : nativeErrorFromWin32( ERROR_ACCESS_DENIED) ;
 }
-/** @brief 固定memoの既rootだけを開き、新規directoryは元の管理者DACLで作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定memoの既rootだけを開き、新規directoryは元の管理者DACLで作ります。
  * @param[in] overridePath 既constructorの明示fixtureだけです。
- * @param[out] root 固定既保護領域です。@return 元errorです。
+ * @param[out] root 固定既保護領域です。
+ * @return 元errorです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError dailyRestoreRoot( std::wstring_view overridePath, std::wstring &root)
 {
 	// 完全fakeが明示した絶対rootだけを通常rootから分離します。
@@ -1804,7 +1813,9 @@ struct DailyRestoreLease {
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_observation_store.h 宣言側の契約を正本とする。
+ * @brief 単体試験が所有する既存親directory内のstate rootを使用する。試験用state rootを使用するobjectを作成する。Productionの
+ *        ProgramDataとDACLを使用せずfile境界を試験する。
+ * @param[in] rootOverride 試験終了時に呼出し側が削除する絶対path。 試験が所有する絶対directory path。
  */
 //------------------------------------------------------------------------------
 OfficialReleaseObservationStore::OfficialReleaseObservationStore( std::wstring rootOverride)
@@ -1814,7 +1825,10 @@ OfficialReleaseObservationStore::OfficialReleaseObservationStore( std::wstring r
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_observation_store.h 宣言側の契約を正本とする。
+ * @brief 端末内release観測fileを整合性検証付きで読み取る。不在を正常状態として返し、破損fileはInvalidatedとして破棄する。
+ * @param[out] result 成功時のfile状態と検証済み観測。Missing時は空集合。
+ * @return 処理成功時は0、root初期化またはI/O失敗時はHRESULT bit pattern。
+ * @note 破損fileはbest-effortで破棄し、Invalidatedを返す。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialReleaseObservationStore::load( ReleaseObservationStoreResult &result) const
@@ -1893,7 +1907,11 @@ NativeError OfficialReleaseObservationStore::load( ReleaseObservationStoreResult
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_observation_store.h 宣言側の契約を正本とする。
+ * @brief 現在の全release観測を一つのatomic snapshotとして保存する。全内容を先にencodeし、一時fileをflushしてからatomic置換する。失敗時は既存
+ *        snapshotを維持する。
+ * @param[in] observations 保存する検証済み観測。空集合も有効なsnapshotである。
+ * @return 保存成功時は0、不正入力、上限、初期化、I/O失敗時はHRESULT bit pattern。
+ * @note 保存失敗時は既存snapshotを変更しない。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialReleaseObservationStore::store(
@@ -1938,7 +1956,10 @@ NativeError OfficialReleaseObservationStore::store(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_observation_store.h 宣言側の契約を正本とします。
+ * @brief URL非保持の公式自動探索cache fileを整合性検証付きで読み取ります。不在を正常状態として返し、破損fileはInvalidatedとして破棄します。
+ * @param[out] result 成功時のfile状態と検証済みentryです。Missing時は空集合です。
+ * @return 処理成功時は0、root初期化またはI/O失敗時はHRESULT bit patternです。
+ * @note 読取り結果はfreshness判定前であり、取得または導入権限を持ちません。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialReleaseObservationStore::loadDiscoveryCache(
@@ -2020,7 +2041,11 @@ NativeError OfficialReleaseObservationStore::loadDiscoveryCache(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_observation_store.h 宣言側の契約を正本とします。
+ * @brief URL非保持の公式自動探索cacheを一つのatomic snapshotとして保存します。全entryを先に検証して一時fileをflushし、成功した場合だけ既存
+ *        snapshotを置換します。
+ * @param[in] entries 保存する検証済みentryです。空集合も有効なsnapshotです。
+ * @return 保存成功時は0、不正入力、上限、初期化またはI/O失敗時はHRESULT bit patternです。
+ * @note URL、token、EULA本文、grant、PnP IDまたはlocal pathを受理するfieldはありません。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialReleaseObservationStore::storeDiscoveryCache(
@@ -2065,7 +2090,12 @@ NativeError OfficialReleaseObservationStore::storeDiscoveryCache(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_observation_store.h 宣言側の契約を正本とする。
+ * @brief 端末固有binding keyを保護stateから読み、未作成時は生成する。既存keyを優先し、通常fileの不正sizeまたは全0だけを破棄してCNGで再生成する。Reparse
+ *        やACL失敗では置換しない。
+ * @param[out] secret 成功時の32 byte HMAC key。失敗時は全byte 0。
+ * @param[out] regenerated 新規作成または破損file再生成時はtrue。
+ * @return 成功時は0、root、reparse、ACL、I/O、CNG失敗時はHRESULT bit pattern。
+ * @note KeyをUI、log、network、診断出力へ渡してはならない。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialReleaseObservationStore::loadOrCreateBindingSecret(
@@ -2166,7 +2196,7 @@ NativeError OfficialReleaseObservationStore::loadOrCreateBindingSecret(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_observation_store.h 宣言側の契約を正本とする。
+ * @brief 保存済み観測fileをbest-effortで破棄する。保存済みrelease観測fileを破棄する。Shutdownや明示失効時に使用し、I/O errorを外へ漏らさない。
  */
 //------------------------------------------------------------------------------
 void OfficialReleaseObservationStore::discard() const noexcept
@@ -2186,7 +2216,7 @@ void OfficialReleaseObservationStore::discard() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_release_observation_store.h 宣言側の契約を正本とします。
+ * @brief 保存済み公式自動探索cache fileをbest-effortで破棄します。明示失効時に使用し、I/O errorを外へ漏らしません。
  */
 //------------------------------------------------------------------------------
 void OfficialReleaseObservationStore::discardDiscoveryCache() const noexcept
@@ -2204,7 +2234,13 @@ void OfficialReleaseObservationStore::discardDiscoveryCache() const noexcept
 	}
 }
 
-/** @see official_release_observation_store.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定復元memo用途だけの保護rootとshare0排他を取得します。
+ * @param[out] lease 成功時だけ存在する所有handle群です。
+ * @return 元保護/共有違反errorです。任意pathを受理しません。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialReleaseObservationStore::lockDailyRestoreMemo(
 	std::shared_ptr<void> &lease) const
 {
@@ -2258,7 +2294,13 @@ NativeError OfficialReleaseObservationStore::lockDailyRestoreMemo(
 	lease = std::move( owned) ;
 	return 0 ;
 }
-/** @see official_release_observation_store.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定一件の非authority memoを有限読取します。
+ * @param[out] memo 不在/不正では空、成功時は原値です。
+ * @return 不在は0、不正/I/Oは元errorです。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialReleaseObservationStore::loadDailyRestoreMemo( RestorePointDayMemo &memo) const
 {
 	memo = {} ;
@@ -2321,7 +2363,13 @@ NativeError OfficialReleaseObservationStore::loadDailyRestoreMemo( RestorePointD
 			static_cast<std::int64_t>( values[3]), static_cast<std::int64_t>( values[4])} ;
 	return 0 ;
 }
-/** @see official_release_observation_store.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 正常終了した保護scopeのmemoだけをatomic保存します。
+ * @param[in] memo Windows実在を別途再確認する原値です。
+ * @return 保存結果。実導入結果へ合算しません。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialReleaseObservationStore::storeDailyRestoreMemo(
 	const RestorePointDayMemo &memo) const
 {

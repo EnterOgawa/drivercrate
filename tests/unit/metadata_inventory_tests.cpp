@@ -2,7 +2,7 @@
 /**
  * @file metadata_inventory_tests.cpp
  * @brief 現在属性列挙の上限・欠損・停止境界の決定的試験。
- * @version 01.12.00
+ * @version 01.12.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,7 @@
  * Ver.01.10.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補継続と元意図の正負回帰を追加。
  * Ver.01.11.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.12.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.12.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 現在属性とdevnodeの六APIを全てfakeへ置換し、実device列挙と導入を行わない。
@@ -83,7 +84,8 @@ namespace drivercrate {
 /** @brief 完全低位inventory試験だけで私有proof scopeの所有境界を確認します。 */
 class DriverStoreBindingProbe final {
 public:
-	/** @brief 新しい導入許可を発行せず元inventoryの寿命scopeだけを開始します。
+	/**
+	 * @brief 新しい導入許可を発行せず元inventoryの寿命scopeだけを開始します。
 	 * @param[in] store 同threadの完全fake inventory所有者です。
 	 * @param[in] session 元index scanです。
 	 * @return 同thread/scanだけ有効な非copy/nonmove scopeです。
@@ -117,15 +119,17 @@ public:
 		return store.beginIndexInstallProofScope( origin, operation, selected) ;
 	}
 
-	/** @brief 元index ownerの全体再列挙だけを明示的に閉じます。
-     * @param[in,out] store 元captureの所有者です。
-     * @return 元origin/thread/generation一致だけtrueです。install許可は発行しません。
-     */
+	/**
+	 * @brief 元index ownerの全体再列挙だけを明示的に閉じます。
+	 * @param[in,out] store 元captureの所有者です。
+	 * @return 元origin/thread/generation一致だけtrueです。install許可は発行しません。
+	 */
 	[[nodiscard]] static bool seal( DriverStoreProvider &store)
 	{
 		return store.sealIndexLookup( store.issuedIndexContext_) ;
 	}
-	/** @brief 元Providerの通常失効を呼び、scopeが寿命を延ばさないことを確認します。
+	/**
+	 * @brief 元Providerの通常失効を呼び、scopeが寿命を延ばさないことを確認します。
 	 * @param[in,out] store 同threadの完全fake所有者です。
 	 */
 	static void invalidate( DriverStoreProvider &store)
@@ -289,10 +293,12 @@ struct InventoryFixture {
 // 集合openには借用handleがないため、試験thread内だけの所有fixtureを参照する。
 thread_local InventoryFixture *activeInventoryFixture{} ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全ての現在属性APIをfixtureで置換する。
  * @return 実SetupAPI handleを生成しない完全なI/O表。
  */
+//------------------------------------------------------------------------------
 DriverStoreInventoryTransport  inventoryTransport()
 {
 	DriverStoreInventoryTransport transport ;	// 六つ全てを非実機callbackへ置換する。
@@ -619,7 +625,9 @@ struct InventoryCase {
 	/// 確定進捗を検査する有限通知列。
 	std::vector<ProviderProgress>  progress ;
 
-	/** @brief 一回の独立した専用contextを生成する。 */
+	/**
+	 * @brief 一回の独立した専用contextを生成する。
+	 */
 	InventoryCase()
 		: execution(
 			  83U,
@@ -631,7 +639,9 @@ struct InventoryCase {
 		activeInventoryFixture = &fixture ;
 	}
 
-	/** @brief 同期handle解放後にthread内の借用先を外す。 */
+	/**
+	 * @brief 同期handle解放後にthread内の借用先を外す。
+	 */
 	~InventoryCase()
 	{
 		activeInventoryFixture = nullptr ;
@@ -646,7 +656,8 @@ struct InventoryCase {
 		return provider.scanCurrentInventory(
 			83U, execution, [this]( const ProviderProgress &value) { progress.push_back( value) ; }) ;
 	}
-	/** @brief 履歴・導入を発行せず、同じ本番captureを明示的に使用します。
+	/**
+	 * @brief 履歴・導入を発行せず、同じ本番captureを明示的に使用します。
 	 * @return 現在表示行と独立した秘密snapshot。
 	 */
 	ScanResult scanForIndex()
@@ -660,13 +671,15 @@ struct InventoryCase {
 /** @brief 発行済みpartial値の改変だけを返し、native証拠を新規発行しないnegative seamです。 */
 class PartialReplayResolver final : public IndexPublicIdResolver {
 public:
-	/** @brief 一回発行済みの結果を値として所有します。
+	/**
+	 * @brief 一回発行済みの結果を値として所有します。
 	 * @param[in] result Native fixture由来または証拠を除去したpartial結果です。
 	 */
 	explicit PartialReplayResolver( IndexPublicIdResolution result) : result_( std::move( result))
 	{
 	}
-	/** @brief 元公開tupleを書き換えず、保存済みpartialだけを返します。
+	/**
+	 * @brief 元公開tupleを書き換えず、保存済みpartialだけを返します。
 	 * @param[in] kind lookupからの元役割です。返却証拠へ代入しません。
 	 * @param[in] publishedId 元公開identifierです。返却証拠へ代入しません。
 	 * @param[in] classGuid 元公開Classです。返却証拠へ代入しません。
@@ -691,10 +704,12 @@ private:
 	IndexPublicIdResolution result_ ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 実loopで4095／4096／4097とprobe障害を再現する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testInventoryLimits( TestContext &context)
 {
 	// 正常空集合と固定上限前後を同じ列挙実装で確認する。
@@ -750,10 +765,12 @@ void testInventoryLimits( TestContext &context)
 	DRIVERCRATE_EXPECT( context, failedProbe.fixture.countCalls == 4097U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 属性欠損・二巡目消失・API停止を確認する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testInventoryFailures( TestContext &context)
 {
 	InventoryCase missing ;	// 表示属性が全て不明でも現在deviceの存在は残す。
@@ -821,10 +838,12 @@ void testInventoryFailures( TestContext &context)
 									MetadataSearchReason::DEADLINE_EXCEEDED) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Windows型に依存しない観測分類と整合性を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testObservationContract( TestContext &context)
 {
 	DeviceObservation observation ;	// 全属性は未照会であり、正常動作を仮定しない。
@@ -876,10 +895,12 @@ void testObservationContract( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !isDeviceObservationValid( observation)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Propertyの欠損・失敗・空・型と実sizeの異常を本番readerで検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testObservedPropertyFailures( TestContext &context)
 {
 	const std::array<std::pair<PropertyFault, DevicePropertyReadState>, 12> cases{{
@@ -928,10 +949,12 @@ void testObservedPropertyFailures( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 未導入・問題・CONFIGRET失敗と名前fallbackを本番列挙で検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testObservedNodeStates( TestContext &context)
 {
 	// Code 28、別問題、無効problem buffer、API失敗を独立したrunで比較する。
@@ -983,10 +1006,12 @@ void testObservedNodeStates( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Key未確認と日付の型・size・暦変換を独立に検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testObservedKeyAndDate( TestContext &context)
 {
 	// Key欠損と正規の空値を未導入と誤分類しない。
@@ -1063,10 +1088,12 @@ void testObservedKeyAndDate( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 開始失敗後の公式callback非実行とtest入口の用途拒否を確認する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testInventoryIsolation( TestContext &context)
 {
 	InventoryCase run ;	// 実inventory開始だけをAPI失敗させる。
@@ -1185,7 +1212,8 @@ struct WorkerIndexState {
 /** @brief 同threadの実resolver復帰直後に有限な停止条件だけを注入します。 */
 class WorkerIndexStoppingResolver final : public IndexPublicIdResolver {
 public:
-	/** @brief 実capture由来のcallbackと非通信fixture信号を所有します。
+	/**
+	 * @brief 実capture由来のcallbackと非通信fixture信号を所有します。
 	 * @param[in] inner 同worker threadで生成した実resolver。NULL不可です。
 	 * @param[in] state UI役と共有する非機密fixture信号です。
 	 */
@@ -1194,12 +1222,18 @@ public:
 		: inner_( std::move( inner)), state_( std::move( state))
 	{
 	}
-	/** @copydoc IndexPublicIdResolver::leaseProof */
+	/**
+	 * @brief Nativeだけが元inventoryの私有leaseを共有します。
+	 * @return 元factory発行の不変証拠の共有所有です。generic callbackでは空です。証拠objectは共有しても元inventory/contextの有効性や権限を
+	 *         延長しません。
+	 * @note 試験が所有する内側resolverのleaseProofへ一回委譲します。このwrapper自身はWindows列挙やlease発行を行いません。
+	 */
 	[[nodiscard]] std::shared_ptr<const NativeIndexLookupLease> leaseProof() const noexcept override
 	{
 		return inner_->leaseProof() ;
 	}
-	/** @brief 元種別・context・全presentを実resolverへそのまま渡します。
+	/**
+	 * @brief 元種別・context・全presentを実resolverへそのまま渡します。
 	 * @param[in] kind 元公開ID種別です。
 	 * @param[in] publishedId 公表IDの借用です。保持しません。
 	 * @param[in] classGuid 公表classの借用です。保持しません。
@@ -1257,7 +1291,8 @@ private:
 /** @brief 六fake inventoryを通常worker commandへ返す試験専用Providerです。 */
 class WorkerIndexProvider final : public IUpdateProvider, public IIndexScanInventory {
 public:
-	/** @brief Worker thread内で完全fake transportを所有します。
+	/**
+	 * @brief Worker thread内で完全fake transportを所有します。
 	 * @param[in] state 非通信試験信号。
 	 */
 	explicit WorkerIndexProvider( std::shared_ptr<WorkerIndexState> state)
@@ -1265,12 +1300,15 @@ public:
 	{
 		activeInventoryFixture = &fixture_ ;
 	}
-	/** @brief 秘密inventoryの同thread所有が終わると借用先を外します。 */
+	/**
+	 * @brief 秘密inventoryの同thread所有が終わると借用先を外します。
+	 */
 	~WorkerIndexProvider() override
 	{
 		activeInventoryFixture = nullptr ;
 	}
-	/** @brief Fake scanを通常commandとして有限captureへ結びます。
+	/**
+	 * @brief Fake scanを通常commandとして有限captureへ結びます。
 	 * @param[in] sessionId 実worker発行session。
 	 * @param[in] options Fakeは使用しない設定。
 	 * @param[in] progress Fakeは使用しない通知。
@@ -1281,7 +1319,8 @@ public:
 	{
 		return scanWithCancellation( sessionId, options, {}, progress) ;
 	}
-	/** @brief 既存禁止を緩めず現在属性captureだけを通常fake結果へ接続します。
+	/**
+	 * @brief 既存禁止を緩めず現在属性captureだけを通常fake結果へ接続します。
 	 * @param[in] sessionId 同worker発行session。
 	 * @param[in] options Fakeは使用しない設定。
 	 * @param[in] cancellation 同operationの信号。
@@ -1355,7 +1394,8 @@ public:
 
 		return result ;
 	}
-	/** @brief 同captureの実resolverを借り、不正contextだけを人工注入します。
+	/**
+	 * @brief 同captureの実resolverを借り、不正contextだけを人工注入します。
 	 * @param[in] operationId 正の実operation。
 	 * @param[out] context 実発行context。
 	 * @param[out] present 全opaque。
@@ -1379,7 +1419,8 @@ public:
 
 		return std::make_unique<WorkerIndexStoppingResolver>( std::move( resolver), state_) ;
 	}
-	/** @brief 索引後の最終取消しを試す有限計画待機です。
+	/**
+	 * @brief 索引後の最終取消しを試す有限計画待機です。
 	 * @param[in] sessionId 使用しないsession。
 	 * @param[in] planId 使用しないplan。
 	 * @return Fakeは取得計画を発行しません。
@@ -1397,7 +1438,8 @@ public:
 
 		return std::nullopt ;
 	}
-	/** @brief 誤って導入境界を呼んだ回数だけを記録します。
+	/**
+	 * @brief 誤って導入境界を呼んだ回数だけを記録します。
 	 * @param[in] sessionId 使用しないsession。
 	 * @param[in] identities 使用しない選択。
 	 * @param[in] parent 使用しないWindow。
@@ -1429,7 +1471,10 @@ private:
 /** @brief 実復旧APIへ入らない拒否専用fakeです。 */
 class WorkerIndexRestore final : public IRestorePointService {
 public:
-	/** @brief 拒否専用fakeは実在保護を生成しません。@return 元拒否区分です。 */
+	/**
+	 * @brief 拒否専用fakeは実在保護を生成しません。
+	 * @return 元拒否区分です。
+	 */
 	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
 	{
 		return {.disposition  = RestorePointDisposition::UNAVAILABLE,
@@ -1437,13 +1482,15 @@ public:
 				.error		  = static_cast<NativeError>( 0x80070005U)} ;
 	}
 
-	/** @brief 誤呼出し検出信号を共有します。
+	/**
+	 * @brief 誤呼出し検出信号を共有します。
 	 * @param[in] state Fixture信号。
 	 */
 	explicit WorkerIndexRestore( std::shared_ptr<WorkerIndexState> state) : state_( std::move( state))
 	{
 	}
-	/** @brief 誤beginを数えて拒否します。
+	/**
+	 * @brief 誤beginを数えて拒否します。
 	 * @param[in] description 使用しない本文。
 	 * @return 元診断付き失敗。
 	 */
@@ -1453,7 +1500,8 @@ public:
 		++state_->restores ;
 		return {.error = static_cast<NativeError>( E_ACCESSDENIED)} ;
 	}
-	/** @brief 誤completeを数えて拒否します。
+	/**
+	 * @brief 誤completeを数えて拒否します。
 	 * @param[in] sequenceNumber 使用しない番号。
 	 * @return 元診断付き失敗。
 	 */
@@ -1470,12 +1518,15 @@ private:
 	std::shared_ptr<WorkerIndexState> state_ ;
 } ;
 
-/** @brief 同operationの実worker終端を最大3秒以内だけ待ちます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同operationの実worker終端を最大3秒以内だけ待ちます。
  * @param[in,out] worker 実command queueを持つworker。
  * @param[in] operationId 待つoperation。
  * @param[in] kind 待つ終端用途。
  * @return 同operationのheap所有event。期限後nullptrです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::unique_ptr<WorkerEvent> indexWorkerEvent(
 	ProviderWorker &worker, OperationId operationId,
 	WorkerEventKind kind = WorkerEventKind::SCAN_COMPLETED)
@@ -1497,11 +1548,14 @@ private:
 	return nullptr ;
 }
 
-/** @brief UTF-16の実要素だけをraw propertyへcopyし、終端を追加しません。
+//------------------------------------------------------------------------------
+/**
+ * @brief UTF-16の実要素だけをraw propertyへcopyし、終端を追加しません。
  * @param[in] text 呼出し中だけ借用する架空要素列です。長さに終端も明示します。
  * @param[in] capacity 必要byte数です。0は実要素数と同じ容量です。
  * @return 実byteと必要量・返却量を独立変更できるfixture値です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexIdProperty indexIdProperty( const std::wstring_view text,
 											  const DWORD			  capacity = 0U)
 {
@@ -1545,13 +1599,17 @@ struct IndexDiagnosticCapture {
 	std::streambuf	  *previousOutput ;
 	/// 借用期間後に必ず戻す元stderrです。
 	std::streambuf	  *previousError ;
-	/** @brief 同threadの診断だけをscope内でRAMへ保持します。 */
+	/**
+	 * @brief 同threadの診断だけをscope内でRAMへ保持します。
+	 */
 	IndexDiagnosticCapture()
 		: previousOutput( std::cout.rdbuf( output.rdbuf())),
 		  previousError( std::cerr.rdbuf( error.rdbuf()))
 	{
 	}
-	/** @brief 元のstreamを復元し、private値を外部へ転送しません。 */
+	/**
+	 * @brief 元のstreamを復元し、private値を外部へ転送しません。
+	 */
 	~IndexDiagnosticCapture()
 	{
 		std::cout.rdbuf( previousOutput) ;
@@ -1559,10 +1617,13 @@ struct IndexDiagnosticCapture {
 	}
 } ;
 
-/** @brief 事前固定したempty-listの62新条件を61実行・1未実行として保持します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 事前固定したempty-listの62新条件を61実行・1未実行として保持します。
  * @param[in,out] context 旧groupと分離するassertion集計先です。
  * @note 全APIはInventoryCaseのfakeだけを使用し、欠損をemptyへ変換しません。
  */
+//------------------------------------------------------------------------------
 void testIndexIdExplicitEmptyLists( TestContext &context)
 {
 	const int		  first	   = context.assertionCount() ;	// 新groupだけの実assertion数です。
@@ -1777,7 +1838,15 @@ void testIndexIdExplicitEmptyLists( TestContext &context)
 
 } // namespace
 
-/** @see metadata_inventory_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実通常ScanCommandへ隔離保存storeと完全fake inventoryを結びます。
+ * @param[in,out] context 共通assertion集計先。
+ * @param[in] store 実署名・commit済みの隔離store。製品rootではありません。
+ * @param[in] nowUtc Fixtureの信頼UTC。
+ * @param[in] expectedRecords 保存storeの元record件数。
+ */
+//------------------------------------------------------------------------------
 void runWorkerSignedIndexScanTests( TestContext &context, std::shared_ptr<SignedIndexStore> store,
 								   const std::chrono::sys_seconds nowUtc,
 								   const std::size_t			  expectedRecords)
@@ -2149,9 +2218,12 @@ void runWorkerSignedIndexScanTests( TestContext &context, std::shared_ptr<Signed
 			  << ", failures: " << context.failureCount() - failures << '\n' ;
 }
 
-/** @brief 新再検出を先行し、二回目には新device/説明/Code28を再列挙します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 新再検出を先行し、二回目には新device/説明/Code28を再列挙します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testHardwareRefreshInventoryOrder( TestContext &context)
 {
 	const int first = context.assertionCount() ;				// 有限の新順序試験分母です。
@@ -2216,7 +2288,12 @@ void testHardwareRefreshInventoryOrder( TestContext &context)
 			  << context.assertionCount() - first << " real CM/inventory/query=0\n" ;
 }
 
-/** @see metadata_inventory_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在属性列挙の有限境界と停止を実機非依存で検証する。
+ * @param[in,out] context Assertion集計先。
+ */
+//------------------------------------------------------------------------------
 void runMetadataInventoryTests( TestContext &context)
 {
 	testHardwareRefreshInventoryOrder( context) ;
@@ -2229,7 +2306,15 @@ void runMetadataInventoryTests( TestContext &context)
 	testObservedKeyAndDate( context) ;
 }
 
-/** @see metadata_inventory_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全fake現在属性scanの秘密stateを真の保存snapshotへ結びます。
+ * @param[in,out] context 共通assertion集計先。
+ * @param[in] snapshot 実commit／reload済みconst原snapshot。
+ * @param[in] nowUtc Fixtureの信頼UTC。
+ * @note 実inventory・履歴・network・導入を行いません。
+ */
+//------------------------------------------------------------------------------
 void runDriverStoreIndexResolverTests( TestContext									   &context,
 									  std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
 									  const std::chrono::sys_seconds					nowUtc)
@@ -2856,11 +2941,14 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 			  << ", failures: " << context.failureCount() - initialFailures << '\n' ;
 }
 
-/** @brief 元native二device証拠と公開DTO改変のadmissionを分離して確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元native二device証拠と公開DTO改変のadmissionを分離して確認します。
  * @param[in,out] context 元assertion集計先です。
  * @param[in] snapshot 真署名の同じ原recordです。
  * @param[in] nowUtc 固定した信頼UTCです。
  */
+//------------------------------------------------------------------------------
 void testAuthenticatedDeviceProjection( TestContext										&context,
 									   std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
 									   std::chrono::sys_seconds							 nowUtc)
@@ -3140,7 +3228,15 @@ void testAuthenticatedDeviceProjection( TestContext										&context,
 	}
 }
 
-/** @see metadata_inventory_tests.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Native証拠付き部分positiveだけを同v2取得準備へ接続します。
+ * @param[in,out] context 共通assertion集計先です。
+ * @param[in] snapshot 真署名・隔離保存された同意不要v2 fixtureです。
+ * @param[in] nowUtc 同snapshotの信頼UTCです。
+ * @note HTTP、実端末、実取得・導入、製品storeや署名秘密鍵を使用しません。
+ */
+//------------------------------------------------------------------------------
 void runNativePartialIndexPreparationTests(
 	TestContext &context, std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
 	const std::chrono::sys_seconds nowUtc)

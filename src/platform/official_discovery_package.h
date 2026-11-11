@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_package.h
  * @brief 公式自動探索recordからopaque package実行groupを作る境界。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  Record／payload単位の重複排除契約を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 本値型はURL、title、版、Hardware ID、instance ID、serial、local pathを保持しません。
@@ -98,6 +99,7 @@ struct OfficialDiscoveryPackageGroup {
 	std::vector<std::wstring>		deviceIdentities ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 検証済みrouteとURL非保持payload descriptorをpackage参照へ結合する。
  * @param[in] route 自動探索plannerが作成した元route。
@@ -107,19 +109,23 @@ struct OfficialDiscoveryPackageGroup {
  * @return 全bindingが一致する場合のpackage参照。不正または不一致は値なし。
  * @throws std::bad_alloc Opaque identityまたは所有値の領域を確保できない場合。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<OfficialDiscoveryResolvedPackage> makeOfficialDiscoveryResolvedPackage(
 	const OfficialDiscoveryRoute &route, const OfficialRecordPayloadDescriptor &payload,
 	std::span<const OfficialDiscoveryDeviceHint> devices,
 	std::span<const ProviderDescriptor>			 descriptors) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一つのpackage参照がrecord／payload由来だけへ結合しているか検証する。
  * @param[in] package 検証する一route分のpackage参照。
  * @return 全field、opaque ID、device集合が整合する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isOfficialDiscoveryResolvedPackageValid(
 	const OfficialDiscoveryResolvedPackage &package) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じopaque packageを一回の取得・検査単位へまとめる。
  * @param[in] packages Route resolverが返した初出順のpackage参照集合。
@@ -127,14 +133,17 @@ struct OfficialDiscoveryPackageGroup {
  * @throws std::bad_alloc Groupまたは一意性検査領域を確保できない場合。
  * @note Provider、fingerprint、ordinalが完全一致する場合だけまとめます。Title、版、URLは使用しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::vector<OfficialDiscoveryPackageGroup>>
 groupOfficialDiscoveryPackages( std::span<const OfficialDiscoveryResolvedPackage> packages) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 重複排除済みpackage groupの全fieldと一意性を検証する。
  * @param[in] group 検証する一つのpackage実行group。
  * @return Opaque identity、record、route、device集合が整合する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isOfficialDiscoveryPackageGroupValid(
 	const OfficialDiscoveryPackageGroup &group) noexcept ;
 

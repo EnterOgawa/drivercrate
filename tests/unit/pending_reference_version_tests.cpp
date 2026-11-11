@@ -2,7 +2,7 @@
 /**
  * @file pending_reference_version_tests.cpp
  * @brief 取得前の版比較とsession/現在観測不足の非導入回帰。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/03  新版/同版/旧版/不明と元選択境界を確認。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 全deviceと版は架空です。Windows適合・導入許可・networkを使用しません。
  * @see docs/adr/0428-newer-index-reference-confirmation.md
@@ -35,9 +36,12 @@
 namespace {
 unsigned assertions{} ;	// 固定期待の分母です。
 unsigned failures{} ;	// 失敗を後続成功で隠しません。
-/** @brief 固定期待を数値だけで集計します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定期待を数値だけで集計します。
  * @param[in] value 実際の期待成立値。
  */
+//------------------------------------------------------------------------------
 void	 expect( const bool value)
 {
 	++assertions ;
@@ -47,9 +51,12 @@ void	 expect( const bool value)
 		std::printf( "FAIL assertion=%u\n", assertions) ;
 	}
 }
-/** @brief 有効な登録済み現在行と同deviceの非導入参照を作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 有効な登録済み現在行と同deviceの非導入参照を作ります。
  * @return 架空の二行。私有導入tokenを持ちません。
  */
+//------------------------------------------------------------------------------
 std::array<drivercrate::UpdateCandidate, 2U> sample()
 {
 	using namespace drivercrate ;
@@ -82,7 +89,11 @@ std::array<drivercrate::UpdateCandidate, 2U> sample()
 	reference.audit.sourceOrigin		= CandidateAuditGateState::PASSED ;
 	return rows ;
 }
-/** @brief 十三個の不足と正当な新版/同版/旧版を同じ純粋入口へ通します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 十三個の不足と正当な新版/同版/旧版を同じ純粋入口へ通します。
+ */
+//------------------------------------------------------------------------------
 void run()
 {
 	using namespace drivercrate ;
@@ -198,9 +209,12 @@ void run()
 	expect( parseFourPartDriverVersion( L"65535.65535.65535.65535") == UINT64_MAX) ;
 }
 }
-/** @brief 非通信の有限比較回帰だけを実行します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 非通信の有限比較回帰だけを実行します。
  * @return 全期待成立0。それ以外1。
  */
+//------------------------------------------------------------------------------
 int main()
 {
 	run() ;

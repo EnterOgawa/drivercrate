@@ -2,7 +2,7 @@
 /**
  * @file dell_server_update_provider.cpp
  * @brief Dell PowerEdge公式driver Provider実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Dell PowerEdge／Windows Server x64以外では無通信で対象外とします。DUPはcatalog宣言size、SHA-256、Dell
@@ -579,7 +580,13 @@ struct DellServerSystemIdentity {
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/dell_server_update_provider.h 宣言側の契約を正本とする。
+ * @brief Dell PowerEdgeに対応する公式Windows Server x64 driverを検索する。PowerEdge公式Windows Server x64 driverを検
+ *        索する。Server、Dell、PowerEdgeをlocal確認後だけ公式catalogへ接続し、端末IDを送信せずlocal matcherでcandidateを作成する。
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。
+ * @param[in] devices Driver Store列挙から得た非機密device snapshot群。 非機密local device snapshot群。
+ * @param[in] hardwareIdMatcher Catalog側PCI IDをlocal deviceへ解決する関数。 Catalog PCI IDのlocal照合関数。
+ * @param[in] progressCallback Catalog取得、検証、照合の進捗通知先。 Catalog処理の進捗通知先。
+ * @return PowerEdge候補または取得・検証失敗を含むscan結果。
  */
 //------------------------------------------------------------------------------
 ScanResult DellServerUpdateProvider::scan( const ScanSessionId scanSessionId,
@@ -803,7 +810,14 @@ ScanResult DellServerUpdateProvider::scan( const ScanSessionId scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/dell_server_update_provider.h 宣言側の契約を正本とする。
+ * @brief 選択されたPowerEdge driver DUPを取得・検証して対話起動する。選択されたPowerEdge DUPを取得・検証して対話起動する。実OS、session、
+ *        identity、一device一候補を再検証し、同じDUPを一度だけ実行して結果を全対応candidateへ反映する。
+ * @param[in] scanSessionId 選択元のscan session ID。 選択元scan session ID。
+ * @param[in] identities UIへ提示済みのopaque candidate identity群。 UIへ提示済みopaque identity群。
+ * @param[in] parentWindowNative 将来のinstaller親Window連携用。現在は使用しない。 現在未使用の親Window値。
+ * @param[in] progressCallback Download、検証、install待機の進捗通知先。 Download/install進捗通知先。
+ * @return 選択候補ごとのdownload/install結果。
+ * @note G11-C／D未接続候補はtargetへ登録せず、identityを拒否する。
  */
 //------------------------------------------------------------------------------
 InstallResult DellServerUpdateProvider::install( const ScanSessionId					scanSessionId,
@@ -936,7 +950,7 @@ InstallResult DellServerUpdateProvider::install( const ScanSessionId					scanSes
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/dell_server_update_provider.h 宣言側の契約を正本とする。
+ * @brief 現在のscan sessionと全DUP targetを失効させる。Opaque identity再利用とstale公式URL実行を防ぐ。
  */
 //------------------------------------------------------------------------------
 void DellServerUpdateProvider::invalidateScanSession() noexcept

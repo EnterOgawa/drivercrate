@@ -2,7 +2,7 @@
 /**
  * @file official_sfx_tests.cpp
  * @brief 公式自己解凍形式の静的識別単体試験実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空PE／7z fixtureでrange、CRC、重複signature、certificate tableと必要最小zero paddingを検証します。実配布物の実行合格ではあ
@@ -426,7 +427,8 @@ void testLimitAndRangeRejection( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_sfx_tests.h 宣言側の契約を正本とする。
+ * @brief PE末尾7z形式、Certificate直前padding、fail-closed境界を検証する。正常構造と全fail-closed fixtureを順に実行する。
+ * @param[in,out] context Assertion件数と失敗内容の集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialSfxTests( TestContext &context)

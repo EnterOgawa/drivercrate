@@ -2,7 +2,7 @@
 /**
  * @file asus_package_acquisition.cpp
  * @brief ASUS公式driver package検査用取得実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note ASUS公式CDN、公開SHA-256、有限sizeを再検証して共通取得境界へ渡します。本処理ではarchive内容、PnP適用性、rankまたは署名合格を決定しません。
@@ -189,7 +190,12 @@ constexpr std::wstring_view PAYLOAD_URL_PREFIX =
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asus_package_acquisition.h 宣言側の契約を正本とする。
+ * @brief ASUS parser結果から有限で重複のない検査用取得計画を構築する。ASUS parser結果から有限取得計画を構築する。Origin、hash、size、opaque IDを
+ *        再検証し、外部file名を使用しない有限計画へ固定する。
+ * @param[in] entries 同一model／OSの検証済みASUS page entry群。 同一model／OSの検証済みpage entry群。
+ * @param[out] plan 成功時の取得順を維持した内部計画。失敗時は空にする。 成功時の内部取得計画。
+ * @return 構築成功時は0、不正値、重複または件数超過時はHRESULT bit pattern。
+ * @note 本関数はdownloadを開始せず、候補またはinstall可能状態を生成しない。
  */
 //------------------------------------------------------------------------------
 NativeError makeAsusPackageAcquisitionPlan( const std::span<const AsusDriverPageEntry>	 entries,
@@ -240,7 +246,19 @@ NativeError makeAsusPackageAcquisitionPlan( const std::span<const AsusDriverPage
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asus_package_acquisition.h 宣言側の契約を正本とする。
+ * @brief 一つのASUS計画entryをG11-Bの保護workspaceへ検査用取得する。ASUS package一件をG11-Bへ検査用取得する。Provider／resource ID
+ *        を呼出し側に選ばせず、ASUS公式payload policyと公開SHA-256へ固定して共通取得を実行する。
+ * @param[in] entry 検証済みASUS取得計画entry。
+ * @param[in] restrictedNetworkApproved 今回だけRestricted／Unknown networkを許可する状態。 今回だけのcost同意。
+ * @param[in,out] session 初期化済みのscan session共通取得ledger。 初期化済みscan session取得ledger。
+ * @param[in,out] workspace 初期化済みで成功fileを所有する保護領域。
+ * @param[in,out] transport ASUS source session開始済みの公式取得境界。 ASUS source session開始済み取得境界。
+ * @param[in,out] costReader Machine-wide network cost照会境界。
+ * @param[in] progressCallback 確定済み受信byte数の通知先。 確定済み受信進捗通知先。
+ * @param[in] cancellationCallback 空または取消し状態を返す非blocking関数。 取消し状態確認先。
+ * @param[out] result 成功または失敗の監査前取得状態。URLを含まない。 URLを含まない監査前取得状態。
+ * @return `ACQUIRED_FOR_INSPECTION`到達時は0、それ以外はHRESULT bit pattern。 検査対象固定成功時は0、それ以外はHRESULT。
+ * @note 取得成功は候補、PnP適用可能またはinstall可能を意味しない。
  */
 //------------------------------------------------------------------------------
 NativeError acquireAsusPackageForInspection(

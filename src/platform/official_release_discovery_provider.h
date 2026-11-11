@@ -2,7 +2,7 @@
 /**
  * @file official_release_discovery_provider.h
  * @brief 共通公式検索と限定系列の取得・監査・指定導入契約。
- * @version 01.00.03
+ * @version 01.00.04
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -48,6 +48,7 @@
  * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加。
  * Ver.01.00.02 Shunji Ogawa  2026/10/13  観測field説明を完全な宣言開始前へ配置。
  * Ver.01.00.03   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.00.04 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 初回検索行は表示専用です。Intel Ethernetだけは承認後の取得・監査・候補発行を行います。取得後監査をProvider内へ保持し、既存行、候補発行状態と未選択候補を返します
@@ -99,9 +100,10 @@ using IntelEthernetPreparedInstallTargets = BoundPreparedInstallTargets ;
 /** @brief Intel導入context。固定profileは専用wrapperが選択する。 */
 using IntelEthernetPreparedInstallContext = BoundPreparedInstallContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Intel Ethernet保持routingを共通再監査と指定device導入へ接続する。
- * Intel固有routingを共通executor用に検証し、選択候補を一つの保持bindingへ解決する。保持物の失効は呼出し側が全終端で行う。
+ * @brief Intel Ethernet保持routingを共通再監査と指定device導入へ接続する。Intel固有routingを共通executor用に検証し、選択候補を一つの保持
+ *        bindingへ解決する。保持物の失効は呼出し側が全終端で行う。
  * @param[in] context Provider workerが呼出し中だけ所有する取得物、監査閉包およびrouting。 Provider所有の取得物、監査閉包およびbinding
  *                   routing。
  * @param[in] identities 利用者が選択した発行済み候補ID群。
@@ -113,15 +115,16 @@ using IntelEthernetPreparedInstallContext = BoundPreparedInstallContext ;
  * @return Downloadとinstallを分離した入力順の個別結果。
  * @note 本関数はrouting、binding、取得物を失効させない。Providerが全終端で破棄する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] InstallResult executeIntelEthernetPreparedInstall(
 	const IntelEthernetPreparedInstallContext &context, std::span<const std::wstring> identities,
 	const PreparedInfReverifier &reverifier, const OfficialInfRankAuditor &rankAuditor,
 	const OfficialBoundInfInstaller &boundInstaller, std::uintptr_t parentWindowNative,
 	const ProviderProgressCallback &progressCallback) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Local系列照合と一回のmetadata検索で表示専用行を作る。
- * 対象なしでは通信しない。同型deviceを一台へ集約せず、payload取得、適用性判定、導入を行わない。
+ * @brief Local系列照合と一回のmetadata検索で表示専用行を作る。対象なしでは通信しない。同型deviceを一台へ集約せず、payload取得、適用性判定、導入を行わない。
  * @param[in] family 組み込み検索系列。 共通検索の組み込み系列。
  * @param[in] session 0ではないscan session。 0ではない検索session。
  * @param[in] devices 最大4096件の非機密snapshot。同型でもidentityは個別。
@@ -135,6 +138,7 @@ using IntelEthernetPreparedInstallContext = BoundPreparedInstallContext ;
  * @return 配布情報の表示行または対象外・通信失敗・metadata拒否。 表示候補または対象外・通信失敗・metadata拒否。
  * @note 内部の差替え境界であり、readerをUI／pluginから登録しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] ScanResult scanOfficialReleaseMetadata(
 	OfficialReleaseFamily family, ScanSessionId session,
 	std::span<const OfficialCatalogDevice> devices, bool windowsServer,
@@ -144,6 +148,7 @@ using IntelEthernetPreparedInstallContext = BoundPreparedInstallContext ;
 	ProviderMeasurementEvidence				  *measurementEvidence	= nullptr,
 	MetadataSearchExecutionContext			  *execution			= nullptr) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 専用HTTPを一回の呼出し内だけ所有し、準備状態を保持せず情報検索する。
  * @param[in] family 固定した審査済み系列。
@@ -157,6 +162,7 @@ using IntelEthernetPreparedInstallContext = BoundPreparedInstallContext ;
  * @return 全行表示専用の結果。部分停止でも確定行を保持する。
  * @note 通常Provider scan、準備plan、取得、rank、snapshot保存を呼ばない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] ScanResult			   scanOfficialMetadataOnly( OfficialReleaseFamily				   family,
 																ScanSessionId						   session,
 																std::span<const OfficialCatalogDevice> devices,
@@ -203,7 +209,9 @@ public:
 									 OfficialInfInstallBindingReleaser bindingReleaser,
 									 OfficialBoundInfInstaller		   boundInstaller,
 									 bool useCatalogCache = true) noexcept ;
-	/** @brief Workerが所有する取得fileと公式HTTP根拠を解放する。 */
+	/**
+	 * @brief Workerが所有する取得fileと公式HTTP根拠を解放する。
+	 */
 	~OfficialReleaseDiscoveryProvider() override ;
 
 	/**
@@ -272,16 +280,20 @@ public:
 	void invalidatePreparation() noexcept ;
 
 	// 公式source sessionの所有権を複製しない。
-	/** @brief 公式source sessionの単独所有を保つためコピー構築を禁止します。 */
+	/**
+	 * @brief 公式source sessionの単独所有を保つためコピー構築を禁止します。
+	 */
 	OfficialReleaseDiscoveryProvider( const OfficialReleaseDiscoveryProvider &) = delete ;
-	/** @brief 公式source sessionの単独所有を保つためコピー代入を禁止します。
-	 * @return 削除された関数のため戻り値はありません。
+	/**
+	 * @brief 公式source sessionの単独所有を保つためコピー代入を禁止します。
 	 */
 	OfficialReleaseDiscoveryProvider &operator=( const OfficialReleaseDiscoveryProvider &) = delete ;
-	/** @brief 公式source sessionのthread所有を保つため移動構築を禁止します。 */
+	/**
+	 * @brief 公式source sessionのthread所有を保つため移動構築を禁止します。
+	 */
 	OfficialReleaseDiscoveryProvider( OfficialReleaseDiscoveryProvider &&) = delete ;
-	/** @brief 公式source sessionのthread所有を保つため移動代入を禁止します。
-	 * @return 削除された関数のため戻り値はありません。
+	/**
+	 * @brief 公式source sessionのthread所有を保つため移動代入を禁止します。
 	 */
 	OfficialReleaseDiscoveryProvider &operator=( OfficialReleaseDiscoveryProvider &&) = delete ;
 
@@ -300,9 +312,8 @@ public:
 										   const ProviderProgressCallback		 &progressCallback) override ;
 
 	/**
-	 * @brief Intel Ethernetの公開済み監査合格候補を指定deviceへ導入する。
-	 * Intel Server 2025の公開済み候補だけを共通executorへ渡す。保持bindingは候補とINFの完全一致で専用導入境界へ解決し、成否または例外の確定後に全保持物を失効
-	 * させる。
+	 * @brief Intel Ethernetの公開済み監査合格候補を指定deviceへ導入する。Intel Server 2025の公開済み候補だけを共通executorへ渡す。保持
+	 *        bindingは候補とINFの完全一致で専用導入境界へ解決し、選択deviceのtokenだけを解放し、未処理候補・取得物と元scan観測を保持する。
 	 * @param[in] scanSessionId 候補を発行した現在scan session。 候補を発行した現在session。
 	 * @param[in] identities 利用者が明示選択した候補ID群。 利用者が選択した候補ID群。
 	 * @param[in] parentWindowNative Windows導入dialogの親Window値。 Installer親HWNDの整数表現。
@@ -375,22 +386,24 @@ private:
 	bool										 publicationResolved_{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 解析済みIntel metadataを非機密の未承認対象へ変換する。
- * Ethernetは許諾全文と取得前提確認を要求し、Wi-Fiは未解決のまま保持する。
+ * @brief 解析済みIntel metadataを非機密の未承認対象へ変換する。Ethernetは許諾全文と取得前提確認を要求し、Wi-Fiは未解決のまま保持する。
  * @param[in] release workerだけが所有する解析情報。公式由来の根拠は呼出し側が保持する。 worker内の解析済み配布情報。
  * @param[in] scanSessionId 情報を取得した検索session。 配布情報の検索session。
  * @param[in] planId workerが発行した新計画ID。 新計画の単調ID。
  * @param[in] deviceCount 同じ配布物に関係するdevice数。1～4096。 同じ配布情報に関係する1～4096件のdevice数。
  * @return 一対象または空。Ethernetは取得前提確認を要求し、Wi-FiはUnresolvedを維持する。 Intel Wi-FiまたはEthernetの未承認一対象。未結合は空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::vector<OfficialPreparationTarget> makeReleasePreparationTargets(
 	const OfficialReleaseRecord &release, ScanSessionId scanSessionId, std::uint64_t planId,
 	std::uint32_t deviceCount) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Intel Ethernetの同一scan取得物を内容監査と端末内PnP監査へ接続する。
- * Server 2025向け固定Net profileで全INFを監査し、署名合格INFだけを端末内で照合する。製品名一致だけでは適用や導入を許可しない。
+ * @brief Intel Ethernetの同一scan取得物を内容監査と端末内PnP監査へ接続する。Server 2025向け固定Net profileで全INFを監査し、署名合格INFだけを
+ *        端末内で照合する。製品名一致だけでは適用や導入を許可しない。
  * @param[in] scanSessionId 保持deviceと取得結果に共通の検索session。
  * @param[in] acquisition 公式由来と公開hashを確認し、workerが所有する取得結果。 同じworkerが所有する公開hash確認済み取得結果。
  * @param[in] expectedSha256 公式metadataの公開SHA-256。空または実測値の代用を拒否する。 公式metadataに掲載された公開SHA-256。
@@ -401,15 +414,17 @@ private:
  * @return 全体処理成功時0。入力・内容・全体処理失敗時はHRESULT。 全体処理成功時0、拒否・失敗時はHRESULT。
  * @note 製品名は対象範囲の事前確認に限り、適用性はPnP／rank監査を正本とする。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError auditIntelEthernetPreparedPackage(
 	ScanSessionId scanSessionId, const OfficialAcquisitionResult &acquisition,
 	std::wstring_view expectedSha256, std::span<const OfficialCatalogDevice> devices,
 	const OfficialInfRankAuditor &rankAuditor, const PreparationCancellation &cancellation,
 	OfficialDriverPackageAudit &audit) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Intel Ethernet監査を検索時の既存候補行へ反映する非機密reportを作る。
- * Intel対象系列と既知非対応OEMだけを確認してから、固定profileの共通helperへ集約を委譲する。候補発行とinstall準備状態の昇格は行わない。
+ * @brief Intel Ethernet監査を検索時の既存候補行へ反映する非機密reportを作る。Intel対象系列と既知非対応OEMだけを確認してから、固定profileの共通helper
+ *        へ集約を委譲する。候補発行とinstall準備状態の昇格は行わない。
  * @param[in] session 保持している0ではない検索session。 監査対象を取得した検索session。
  * @param[in] targetIdentity 利用者が取得を承認したopaque対象ID。
  * @param[in] devices 検索候補順に保持した非機密device snapshot。 検索候補順の非機密device snapshot。
@@ -419,14 +434,16 @@ private:
  * @throws std::logic_error session、件数、identityまたは監査保持構造が矛盾する場合。
  * @note Intel対象確認後に共通集約へ委譲する。候補追加はProvider methodが別に実行する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialPreparationAuditReport makeIntelEthernetPreparationAuditReport(
 	ScanSessionId session, std::wstring_view targetIdentity,
 	std::span<const OfficialCatalogDevice> devices,
 	std::span<const std::wstring> candidateIdentities, const OfficialDriverPackageAudit &audit) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Intel Ethernet監査合格組合せから候補と導入routingを同時に構成する。
- * 個別の版不明、既知非対応、重複、binding失敗は除外する。構造矛盾では今回発行した全tokenと候補を破棄し、例外をworker境界へ漏らさない。
+ * @brief Intel Ethernet監査合格組合せから候補と導入routingを同時に構成する。個別の版不明、既知非対応、重複、binding失敗は除外する。構造矛盾では今回発行した全
+ *        tokenと候補を破棄し、例外をworker境界へ漏らさない。
  * @param[in] session 候補を発行する0ではない検索session。 候補を発行する検索session。
  * @param[in] acquisitionId 同じ取得成功物の0ではないopaque ID。 検証済み外側取得物のopaque ID。
  * @param[in] maximumDownloadBytes 検証済み外側取得物のbyte数。1以上。
@@ -438,6 +455,7 @@ private:
  * @param[out] installTargets 全件成功時だけ候補ID別routingを返す。失敗時は空。 成功時だけ返す候補ID別routing。
  * @note 個別の版不明、既知非対応、重複、binding失敗は除外し、構造矛盾では全件破棄する。
  */
+//------------------------------------------------------------------------------
 void publishIntelEthernetPreparedCandidates(
 	ScanSessionId session, std::uint64_t acquisitionId, std::uint64_t maximumDownloadBytes,
 	std::span<const OfficialCatalogDevice> devices, const OfficialDriverPackageAudit &audit,

@@ -2,7 +2,7 @@
 /**
  * @file candidate_selection_tests.h
  * @brief Driver候補の既定選択単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Networkと実deviceを使用せず、候補別検証根拠と一device一選択を試験します。
@@ -39,12 +40,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 候補別既定選択の順位、除外条件、およびfail-closed条件を検証する。
- * Driver候補の既定選択単体試験を実行する。
- * 固定順位、選択、除外、入力拒否を順に検証する。
+ * @brief 候補別既定選択の順位、除外条件、およびfail-closed条件を検証する。Driver候補の既定選択単体試験を実行する。固定順位、選択、除外、入力拒否を順に検証する。
  * @param[in,out] context assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runCandidateSelectionTests( TestContext &context) ;
 
 } // namespace drivercrate::test

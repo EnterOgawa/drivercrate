@@ -10,6 +10,7 @@ from audit_source_comments import case_nodes, control_nodes
 from audit_source_declarations import local_declaration_nodes
 from source_structure import brace_insertions
 from source_style import read_source, source_paths
+from source_method_contracts import method_contract_nodes
 
 
 COPYRIGHT_LINE = '@copyright Copyright (c) 2026 EnterSystem CO.,LTD.'
@@ -133,7 +134,7 @@ def file_metadata_errors(source: str, path: Path, _product_version: str | None =
 
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
-    counts = {'files': 0, 'controls': 0, 'cases': 0}
+    counts = {'files': 0, 'controls': 0, 'cases': 0, 'methodContracts': 0}
     errors = []
     for path in source_paths(root):
         relative = path.relative_to(root).as_posix()
@@ -145,6 +146,10 @@ def main() -> int:
         counts['files'] += 1
         if path.suffix in {'.rc', '.in'}:
             continue
+        methods = method_contract_nodes(source)
+        counts['methodContracts'] += len(methods)
+        errors.extend(f"{relative}:{node['line']}: {error}"
+                      for node in methods for error in node['errors'])
         for key, nodes in (('controls', control_nodes(source)), ('cases', case_nodes(source))):
             counts[key] += len(nodes)
             errors.extend(f"{relative}:{node['line']}: {node['kind']} explanation is missing"

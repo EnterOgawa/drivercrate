@@ -2,7 +2,7 @@
 /**
  * @file lenovo_catalog_parser.h
  * @brief Lenovo公式catalog parser定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Lenovo公式model catalogとpackage descriptorを有限なdriver metadataへ変換します。端末由来identifierと任意install
@@ -90,21 +91,22 @@ struct LenovoDriverRelease {
 	std::vector<std::wstring> hardwareIds ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Lenovo model catalogから検証可能なdescriptor参照を取得する。
- * Lenovo model catalogをdescriptor参照へ変換する。
- * Root宣言件数と実要素数を一致させ、重複矛盾を拒否する。
+ * @brief Lenovo model catalogから検証可能なdescriptor参照を取得する。Lenovo model catalogをdescriptor参照へ変換する。Root宣言
+ *        件数と実要素数を一致させ、重複矛盾を拒否する。
  * @param[in] xmlUtf16 HTTPS上限確認済みのUTF-16 XML。 HTTPS上限確認済みUTF-16 XML。
  * @param[out] references 成功時の一意なdescriptor参照群。0件も成功とする。
  * @return 成功時は0、schema、URL、hash、件数不正時はHRESULT bit pattern。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError parseLenovoModelCatalog( std::wstring_view					   xmlUtf16,
 												  std::vector<LenovoCatalogReference> &references) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Lenovo package descriptorからdriver package metadataを取得する。
- * Lenovo package descriptorをdriver releaseへ変換する。
- * 任意commandを読まず、local照合とfile検証に必要な値だけ返す。
+ * @brief Lenovo package descriptorからdriver package metadataを取得する。Lenovo package descriptorをdriver
+ *        releaseへ変換する。任意commandを読まず、local照合とfile検証に必要な値だけ返す。
  * @param[in] xmlUtf16 Catalog hash確認済みのUTF-16 XML。 Catalog hash確認済みUTF-16 XML。
  * @param[in] descriptorUrl Model catalogで検証済みのdescriptor URL。 検証済みdescriptor URL。
  * @param[out] release Driver型ならmetadata、既知の非driver型なら`std::nullopt`。 Driver型のrelease、非driver型は
@@ -112,6 +114,7 @@ struct LenovoDriverRelease {
  * @return 成功時は0、driver schema、URL、size、hash不正時はHRESULT bit pattern。 成功時は0、driver schema不正時はHRESULT。
  * @note XML Digital Signatureの暗号検証はraw fileに対してProviderが別途必須で行う。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError parseLenovoPackageDescriptor( std::wstring_view xmlUtf16,
 													   std::wstring_view descriptorUrl,
 													   std::optional<LenovoDriverRelease> &release) ;

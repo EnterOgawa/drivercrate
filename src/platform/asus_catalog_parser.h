@@ -2,7 +2,7 @@
 /**
  * @file asus_catalog_parser.h
  * @brief ASUS公式support page parser定義。
- * @version 01.05.00
+ * @version 01.05.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/09/28  収集専用の同一store製品識別と行診断を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/09/28  収集専用model比較keyを公開target照合へ共有。
  * Ver.01.05.00 Shunji Ogawa  2026/09/28  収集専用の必須制御付き入口を追加。
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note ASUS公式製品pageのserver-side HTMLに埋め込まれたNuxt JSONだけを有限に解析します。本結果だけでPnP適用性またはinstall可否を決定しません。
@@ -64,11 +65,13 @@ struct AsusDriverCatalogObservation {
 	std::size_t rejected{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既存の非boot-critical driver分類か判定します。
  * @param[in] category 公式pageが表示する分類名。
  * @return Driver分類の場合true。BIOS・firmware・utility・SATA等はfalse。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isAsusDriverCatalogCategory( std::wstring_view category) noexcept ;
 
 //------------------------------------------------------------------------------
@@ -164,14 +167,17 @@ struct AsusCollectorPageResult {
 	std::vector<AsusDriverPageEntry> entries ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 収集専用parserと同じASUS_ASCII_SPACE_V1比較keyを構築します。
  * @param[in] publicModel 公式pageまたは公開targetの有限製品名。
  * @return 有効な公開製品名なら所有key、不正または空なら空文字列。
  * @note 公式出典や端末の適合性は証明しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring asusCollectorModelComparisonKey( std::wstring_view publicModel) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じNuxt本文内のASUS公開identity・対象分類・行理由を収集専用に解析します。
  * @param[in] html 制御付きGETから借用した公式HTML。本文の出典はcallerが別に確認します。
@@ -184,6 +190,7 @@ struct AsusCollectorPageResult {
  * @pre 呼出しthreadでCOM apartmentが初期化されていること。
  * @note 出典・公式URL・取得許可を発行しません。通常のparseAsusDriverPageHtmlの受理条件は変更しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool		   parseAsusCollectorDriverPageHtml( std::wstring_view		 html,
 															std::wstring_view		 expectedModel,
 															std::wstring_view		 expectedOsName,
@@ -194,10 +201,9 @@ struct AsusCollectorPageResult {
 //------------------------------------------------------------------------------
 // ASUS公式page parser定義。
 //------------------------------------------------------------------------------
-
 /**
- * @brief ASUS製品別support pageから公式driver archive metadataを取得する。
- * Nuxt flattened参照を有限に解決し、公式CDNのSHA-256付きZIP／CABだけをG11取得前metadataとして返す。
+ * @brief ASUS製品別support pageから公式driver archive metadataを取得する。Nuxt flattened参照を有限に解決し、公式CDNのSHA-256付
+ *        きZIP／CABだけをG11取得前metadataとして返す。
  * @param[in] html ASUS公式起点から取得したUTF-16 HTML。 ASUS公式起点pageのUTF-16 HTML。
  * @param[in] expectedModel 端末内SMBIOSから得たsystemまたはbaseboard product名。 Local SMBIOSのsystem／board
  *                   model。
@@ -207,14 +213,15 @@ struct AsusCollectorPageResult {
  * @param[out] catalogObservation 非nullなら明示catalog mode。既存driver分類一つを要求し、個別不正は拒否件数として隔離する。
  * @return 全体構造・model・OSの検証成功時true。従来modeでは対象内の個別不正もfalse。
  * @pre 呼出しthreadでCOM apartmentが初期化されていること。
- * @note Category限定時も全categoryの型・Count・Files参照と全体model／OSを検証する。
- * 対象外本文の有効性は保証せず、未知category引数は拒否する。
+ * @note Category限定時も全categoryの型・Count・Files参照と全体model／OSを検証する。対象外本文の有効性は保証せず、未知category引数は拒否する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool		   parseAsusDriverPageHtml(
 			std::wstring_view html, std::wstring_view expectedModel, std::wstring_view expectedOsName,
 			std::vector<AsusDriverPageEntry> &entries, std::wstring_view expectedCategory = {},
 			AsusDriverCatalogObservation *catalogObservation = nullptr) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同一Nuxt coreの構造・上限・停止・障害を分離します。
  * @param[in] html 同一GET本文。
@@ -226,6 +233,7 @@ struct AsusCollectorPageResult {
  * @param[out] result 完了時だけ公開する所有結果。
  * @return 候補採用とは独立した型付き終了。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CollectorParserResult parseAsusCollectorDriverPageHtmlControlled(
 	std::wstring_view html, std::wstring_view expectedModel, std::wstring_view expectedOsName,
 	std::wstring_view expectedCategory, std::uint64_t maximumBytes,

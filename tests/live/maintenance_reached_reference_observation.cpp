@@ -2,7 +2,7 @@
 /**
  * @file maintenance_reached_reference_observation.cpp
  * @brief 最終保守参照の有限射影と同run sidecarの新規保存。
- * @version 01.01.02
+ * @version 01.01.03
  * @date 2026/10/08
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/08  最終directive・作用gapの独立細分類と固定54保存を追加。
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.01.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.01.03 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note stack collectorだけが同期借用します。名前は射影scopeの終了時に失われます。
@@ -82,10 +83,11 @@ constexpr std::array GAP_KINDS{"UNFOLLOWED_SECTION_REFERENCES",
 /** @brief append前に全serialized量を守る射影専用builder。 */
 class ReachedJson	 final {
 public:
-	   /** @brief 固定語・検査済みhash・数だけを上限確認後に追加する。
-	 * @param[in] value 任意の元file値を含まないbyte列。
-	 * @throws std::length_error 全1 MiB上限を超える場合。
-	 */
+	   /**
+	    * @brief 固定語・検査済みhash・数だけを上限確認後に追加する。
+	    * @param[in] value 任意の元file値を含まないbyte列。
+	    * @throws std::length_error 全1 MiB上限を超える場合。
+	    */
 	   void add( const std::string_view value)
 	   {
 		   // 切捨てと分割で全package上限を回避しない。
@@ -99,7 +101,9 @@ public:
 	   std::string text ;
 } ;
 
-/** @brief 未知enumを既存語へ変換せず拒否する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 未知enumを既存語へ変換せず拒否する。
  * @tparam Enum 元の固定enum型。
  * @tparam Count 固定語数。
  * @param[in] value 元値。
@@ -107,6 +111,7 @@ public:
  * @return 既知の固定語。
  * @throws std::invalid_argument 未知enumの場合。
  */
+//------------------------------------------------------------------------------
 template <typename Enum, std::size_t Count>
 std::string_view enumName( const Enum value, const std::array<const char *, Count> &names)
 {
@@ -119,11 +124,14 @@ std::string_view enumName( const Enum value, const std::array<const char *, Coun
 	return names[index] ;
 }
 
-/** @brief 原byte hashだけを安全なJSON文字列へ変換する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原byte hashだけを安全なJSON文字列へ変換する。
  * @param[in] hash 空または小文字64桁hash。
  * @return 空ならnull、既知hashなら引用済みASCII。
  * @throws std::invalid_argument 不正な非空hashの場合。
  */
+//------------------------------------------------------------------------------
 std::string hashJson( const std::wstring_view hash)
 {
 	// 元未解析のhashを捏造しない。
@@ -148,10 +156,13 @@ std::string hashJson( const std::wstring_view hash)
 	return result ;
 }
 
-/** @brief 有限run IDだけを許可する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限run IDだけを許可する。
  * @param[in] runId Runnerが決めた識別子。
  * @return 1～64文字の小文字ASCII・数字・ハイフンならtrue。
  */
+//------------------------------------------------------------------------------
 bool validRunId( const std::string_view runId) noexcept
 {
 	return !runId.empty() && runId.size() <= 64U &&
@@ -161,22 +172,28 @@ bool validRunId( const std::string_view runId) noexcept
 		   }) ; // 名前やpathを識別子として受理しない。
 }
 
-/** @brief 原HRESULTを元状態と組にした固定JSONへ変換する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原HRESULTを元状態と組にした固定JSONへ変換する。
  * @param[in] finding 元独立判定。
  * @return 元stateとHRESULTだけのJSON。
  */
+//------------------------------------------------------------------------------
 std::string findingJson( const MaintenanceInspectionFinding &finding)
 {
 	return "{\"state\":\"" + std::string( enumName( finding.state, STATES)) +
 		   "\",\"error\":" + std::to_string( finding.error) + "}" ;
 }
 
-/** @brief 名前を保存せず、元全値同士の完全一致だけでopaque節IDを割り当てる。
+//------------------------------------------------------------------------------
+/**
+ * @brief 名前を保存せず、元全値同士の完全一致だけでopaque節IDを割り当てる。
  * @param[in,out] sections この参照scopeだけの非所有名前一覧。
  * @param[in] value 同期借用する原全値。
  * @return 空なら0、それ以外は1起点opaque ID。
  * @throws std::length_error 同scopeの4,096項目上限を超えた場合。
  */
+//------------------------------------------------------------------------------
 std::size_t sectionId( std::vector<std::wstring_view> &sections, const std::wstring_view value)
 {
 	// 元空値を実在節へ補完しない。
@@ -199,10 +216,13 @@ std::size_t sectionId( std::vector<std::wstring_view> &sections, const std::wstr
 	return sections.size() ;
 }
 
-/** @brief readerが保持したdirectiveだけを固定用途へ分類する。
+//------------------------------------------------------------------------------
+/**
+ * @brief readerが保持したdirectiveだけを固定用途へ分類する。
  * @param[in] file 元用途。原値を保存しない。
  * @return metadata／localの固定用途名。
  */
+//------------------------------------------------------------------------------
 std::string_view useKind( const MaintenanceInfFileReference &file)
 {
 	// 欠落local節をbinary欠落と混同しない。
@@ -264,12 +284,15 @@ std::string_view useKind( const MaintenanceInfFileReference &file)
 	return "OTHER_UNSUPPORTED_USE" ;
 }
 
-/** @brief 同INF内の保持済み節・directiveをreaderと同じWindows規則で比較する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同INF内の保持済み節・directiveをreaderと同じWindows規則で比較する。
  * @param[in] left 同期借用の元値。
  * @param[in] right 同期借用の元値。
  * @return 大文字小文字を区別しない全文一致ならtrue。
  * @note 元opaque用途IDの割当て規則を変更せず、外部へ文字列を保存しない。
  */
+//------------------------------------------------------------------------------
 bool residualEqual( const std::wstring_view left, const std::wstring_view right) noexcept
 {
 	// 空値同士は一致として扱うが、後続の対応は実在節を別に要求する。
@@ -287,12 +310,15 @@ bool residualEqual( const std::wstring_view left, const std::wstring_view right)
 								static_cast<int>( right.size()), TRUE) == CSTR_EQUAL ;
 }
 
-/** @brief 元用途を先に割当てた辞書へgapの節だけを追加する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元用途を先に割当てた辞書へgapの節だけを追加する。
  * @param[in,out] sections 元用途のopaque順を保持する同参照の借用辞書。
  * @param[in] value 保持済みgapの元節。
  * @return 元節とのreader一致ID、なければ有限な追加ID。空は0。
  * @throws std::length_error 用途とgapの共同4,096節を超える場合。
  */
+//------------------------------------------------------------------------------
 std::size_t gapSectionId( std::vector<std::wstring_view> &sections, const std::wstring_view value)
 {
 	// 既存用途の最初のopaque IDを優先し、case違いだけで別節を捏造しない。
@@ -306,11 +332,14 @@ std::size_t gapSectionId( std::vector<std::wstring_view> &sections, const std::w
 	return sectionId( sections, value) ;
 }
 
-/** @brief 保持済み用途とgapの対応範囲を固定し、行の因果を作らない。
+//------------------------------------------------------------------------------
+/**
+ * @brief 保持済み用途とgapの対応範囲を固定し、行の因果を作らない。
  * @param[in] file 元用途。位置・HRESULTを再判定しない。
  * @param[in] gap 元の作用不足。
  * @return 同節のmarkerならSAME_SECTION_ONLY、同directiveならSAME_SECTION_DIRECTIVE_ONLY、他はNOT_OBSERVED。
  */
+//------------------------------------------------------------------------------
 std::string_view residualGapBinding( const MaintenanceInfFileReference	&file,
 									const OfficialInfInstallCoverageGap &gap) noexcept
 {
@@ -357,11 +386,14 @@ std::string_view residualGapBinding( const MaintenanceInfFileReference	&file,
 	return "NOT_OBSERVED" ;
 }
 
-/** @brief 元UNSUPPORTED用途を保持済みdirective・作用・参照の範囲だけで細分類する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元UNSUPPORTED用途を保持済みdirective・作用・参照の範囲だけで細分類する。
  * @param[in] file 元位置と元directive。値の形やHRESULTは分類根拠にしない。
  * @param[in] inventory 同INFの既存最終棚卸し。一回借用する。
  * @return 元UNSUPPORTED以外は空、根拠がある固定分類、根拠不足はOTHER_UNSUPPORTED_USE。
  */
+//------------------------------------------------------------------------------
 std::string_view residualClassification( const MaintenanceInfFileReference &file,
 										const OfficialInfInstallInventory &inventory)
 {
@@ -456,12 +488,15 @@ std::string_view residualClassification( const MaintenanceInfFileReference &file
 	return "OTHER_UNSUPPORTED_USE" ;
 }
 
-/** @brief 新modeだけの独立分類と全一致gap ordinalを有限JSONへ追加する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 新modeだけの独立分類と全一致gap ordinalを有限JSONへ追加する。
  * @param[in,out] out 全serialized上限を共有するbuilder。
  * @param[in] file 元用途。
  * @param[in] inventory 同INF内の最終保持済み棚卸し。
  * @note 同節・directiveの一致であり行因果は保持しない。
  */
+//------------------------------------------------------------------------------
 void appendResidualUse( ReachedJson &out, const MaintenanceInfFileReference &file,
 					   const OfficialInfInstallInventory &inventory)
 {
@@ -493,10 +528,13 @@ void appendResidualUse( ReachedJson &out, const MaintenanceInfFileReference &fil
 	out.add( "],\"coverageGapBinding\":\"" + std::string( binding) + "\"") ;
 }
 
-/** @brief 展開後の値の形だけを分類しliteralやhelper分岐を逆証明しない。
+//------------------------------------------------------------------------------
+/**
+ * @brief 展開後の値の形だけを分類しliteralやhelper分岐を逆証明しない。
  * @param[in] target 保持済み元展開後値。
  * @return 有限形態語。
  */
+//------------------------------------------------------------------------------
 std::string_view outputShape( const std::wstring_view target) noexcept
 {
 	// 明示空を無参照へ変換しない。
@@ -527,11 +565,14 @@ std::string_view outputShape( const std::wstring_view target) noexcept
 	return target.find_first_of( L"\\/") == std::wstring_view::npos ? "LEAF" : "OTHER_RELATIVE" ;
 }
 
-/** @brief 保持済みentryへの一意な全値対応だけを位置IDにする。
+//------------------------------------------------------------------------------
+/**
+ * @brief 保持済みentryへの一意な全値対応だけを位置IDにする。
  * @param[in] closure 同scopeの保持済みclosure。
  * @param[in] path 元全relativePath。外部へ保存しない。
  * @return 一意な固定位置の1起点ordinal、それ以外0。
  */
+//------------------------------------------------------------------------------
 std::size_t positionId( const MaintenanceDriverClosure &closure, const std::wstring_view path)
 {
 	std::size_t identity{} ;	// 同hash別位置も別entry ordinalへ残す。
@@ -548,7 +589,9 @@ std::size_t positionId( const MaintenanceDriverClosure &closure, const std::wstr
 	return count == 1U ? identity : 0U ;
 }
 
-/** @brief 元最終rootを再照会なしでprivacy保持のJSONへ射影する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元最終rootを再照会なしでprivacy保持のJSONへ射影する。
  * @param[in] closure 同scopeで生存する最終結果。
  * @param[in] row 同じrootの通常row。
  * @param[in] ordinal Archive順root位置。
@@ -556,6 +599,7 @@ std::size_t positionId( const MaintenanceDriverClosure &closure, const std::wstr
  * @return 原値を含まない有限JSON。
  * @throws std::exception 容量、元opaque整合、enum/hash不正の場合。
  */
+//------------------------------------------------------------------------------
 std::string rootJson( const MaintenanceDriverClosure &closure, const MaintenanceInfInspection &row,
 					 const std::size_t ordinal, const bool residual)
 {
@@ -907,7 +951,8 @@ std::string rootJson( const MaintenanceDriverClosure &closure, const Maintenance
 
 /** @brief 研究writerが所有するHANDLEだけを必ず解放する。 */
 struct ReachedHandleCloser {
-	/** @brief 正常取得したhandleを閉じる。
+	/**
+	 * @brief 正常取得したhandleを閉じる。
 	 * @param[in] handle 所有対象。Nullはunique_ptrが呼ばない。
 	 */
 	void operator()( void *handle) const noexcept
@@ -920,11 +965,14 @@ struct ReachedHandleCloser {
  */
 using ReachedHandle = std::unique_ptr<void, ReachedHandleCloser> ;
 
-/** @brief 同じ保持handleの最終pathとreparse属性を確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ保持handleの最終pathとreparse属性を確認する。
  * @param[in] handle 呼出し全期間所有された通常handle。
  * @param[in] path 完全一致すべきDOS絶対path。
  * @return 最終path／非reparse一致true。
  */
+//------------------------------------------------------------------------------
 bool fixedHandlePath( const HANDLE handle, const std::wstring &path)
 {
 	FILE_ATTRIBUTE_TAG_INFO attributes{} ;			// handle自身の属性。path再照会を正本にしない。
@@ -939,11 +987,14 @@ bool fixedHandlePath( const HANDLE handle, const std::wstring &path)
 		   std::wstring_view( finalPath.data(), size) == L"\\\\?\\" + path ;
 }
 
-/** @brief 部分writeを含む元OS診断を失わず全byteを送る。
+//------------------------------------------------------------------------------
+/**
+ * @brief 部分writeを含む元OS診断を失わず全byteを送る。
  * @param[in] handle 保存先の保持handle。
  * @param[in] bytes 上限確認済み有限byte。
  * @return 全送信0、元write失敗／0進捗のHRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError writeBytes( const HANDLE handle, const std::string_view bytes)
 {
 	std::size_t offset{} ;	// 完了したbyteだけから進捗を得る。
@@ -968,6 +1019,12 @@ NativeError writeBytes( const HANDLE handle, const std::string_view bytes)
 }
 } // namespace
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 一同期scopeで使用する固定研究modeを保持する。
+ * @param[in] mode 元53または新54。未知値は計測拒否とする。
+ */
+//------------------------------------------------------------------------------
 ReachedReferenceCollector::ReachedReferenceCollector( const ReachedReferenceMode mode) noexcept
 	: mode_( mode)
 {
@@ -977,6 +1034,15 @@ ReachedReferenceCollector::ReachedReferenceCollector( const ReachedReferenceMode
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scopeの最終closureと通常rowを同期借用する。
+ * @param[in] closure 再照会しない保持済み結果。空は元抽出失敗の未観測。
+ * @param[in] row 同じINFの通常射影。原状態とHRESULTを変更しない。
+ * @param[in] ordinal Archive順の0起点root連番。
+ * @note 容量・整合・例外は独立計測失敗として保持し、元判定へ返さない。
+ */
+//------------------------------------------------------------------------------
 void ReachedReferenceCollector::append( const MaintenanceDriverClosure &closure,
 									   const MaintenanceInfInspection &row,
 									   const std::size_t			   ordinal) noexcept
@@ -1019,6 +1085,13 @@ void ReachedReferenceCollector::append( const MaintenanceDriverClosure &closure,
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 元全体判定の成功後だけ仮観測を確定する。
+ * @param[in] inspection 取消し・累積量・最終byte再照合を完了した元結果。
+ * @note 元失敗では部分観測を破棄する。
+ */
+//------------------------------------------------------------------------------
 void ReachedReferenceCollector::finish(
 	const MaintenanceDriverPackageInspection &inspection) noexcept
 {
@@ -1053,15 +1126,36 @@ void ReachedReferenceCollector::finish(
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 独立計測の元診断を返す。
+ * @return 計測正常0、それ以外は保持したHRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError ReachedReferenceCollector::error() const noexcept
 {
 	return error_ ;
 }
+//------------------------------------------------------------------------------
+/**
+ * @brief 計測失敗と元全体失敗で部分観測がないことを確認する。
+ * @return 仮保持中または確定済みroot数。
+ */
+//------------------------------------------------------------------------------
 std::size_t ReachedReferenceCollector::rootCount() const noexcept
 {
 	return roots_.size() ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 確定済み観測と送信するv2全byteを有限sidecarへ結ぶ。
+ * @param[in] runId 1～64文字の有限ASCII識別子。
+ * @param[in] inspection 元全体成功の同じ通常結果。
+ * @param[in] stdoutBytes CRLFを含む実際に送信するUTF-8全byte。
+ * @return 全整合と1 MiB上限を満たすJSON、計測・整合失敗なら空。
+ */
+//------------------------------------------------------------------------------
 std::optional<std::string> ReachedReferenceCollector::serialize(
 	const std::string_view runId, const MaintenanceDriverPackageInspection &inspection,
 	const std::string_view stdoutBytes) const noexcept
@@ -1115,6 +1209,17 @@ std::optional<std::string> ReachedReferenceCollector::serialize(
 	} // 独立serialization失敗で元判定を変更しない。
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定研究modeの正確な絶対pathへCREATE_NEWで全byteを保存する。
+ * @param[in] path modeごとのworkspaceとstem／run IDが完全一致する出力先。
+ * @param[in] runId 1～64文字の有限ASCII識別子。
+ * @param[in] bytes 全serialization成功済みの1～1 MiB byte列。
+ * @param[in] mode 元53または新54。未知値はopen前に拒否する。
+ * @return 保存成功0、既存file・逸脱・reparse・書込失敗のHRESULT。
+ * @note 親handleを保持して付替えを拒否する。部分fileを削除・再送しない。
+ */
+//------------------------------------------------------------------------------
 NativeError writeReachedReferenceSidecar( const std::wstring_view path, const std::string_view runId,
 										 const std::string_view		bytes,
 										 const ReachedReferenceMode mode) noexcept
@@ -1203,6 +1308,13 @@ NativeError writeReachedReferenceSidecar( const std::wstring_view path, const st
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ実byteをCRT変換なしで標準出力へ送る。
+ * @param[in] bytes Hash済みCRLF付きの1～256 KiB byte列。
+ * @return 全送信0、それ以外は元HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError writeReachedReferenceStdout( const std::string_view bytes) noexcept
 {
 	// 研究stdoutも全byte上限と元CRLFを要求する。

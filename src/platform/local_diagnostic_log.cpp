@@ -2,7 +2,7 @@
 /**
  * @file local_diagnostic_log.cpp
  * @brief 匿名診断を非reparseのEXE隣へ有界保存します。
- * @version 01.04.02
+ * @version 01.04.03
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * Ver.01.04.01 Shunji Ogawa  2026/11/09  開始時pauseと元wakeによる一方向再開・停止解除を接続。
  * Ver.01.04.02 Shunji Ogawa  2026/11/09  最終pathの同容量bufferをheapへ移しstack使用を抑制。
+ * Ver.01.04.03 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note I/Oは専用workerだけです。未知file・linkを置換せず保存不能は診断だけを停止します。
  * @see docs/adr/0427-local-anonymous-scan-diagnostics.md
@@ -186,9 +187,10 @@ static_assert( EVENT_NAMES.size() ==
 
 /** @brief 無効値を除く単一Windows handleを閉じます。 */
 struct HandleCloser {
-	/** @brief 所有handleだけを解放します。
-     * @param[in] handle 所有値または無効値。
-     */
+	/**
+	 * @brief 所有handleだけを解放します。
+	 * @param[in] handle 所有値または無効値。
+	 */
 	void operator()( void *handle) const noexcept
 	{
 		// 未取得値にCloseHandleを呼びません。
@@ -201,10 +203,13 @@ struct HandleCloser {
 using Handle = std::unique_ptr<void, HandleCloser> ;
 LocalDiagnosticLog processLog ;	// 通常Mainの開始後だけ投入されるprocess所有loggerです。
 
-/** @brief 任意入力でなくcanonical static IDだけをASCIIへ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 任意入力でなくcanonical static IDだけをASCIIへ変換します。
  * @param[in] provider Registry発行token。
  * @return ASCIIの固定Provider ID。
  */
+//------------------------------------------------------------------------------
 std::string		   providerName( const DiagnosticProvider &provider)
 {
 	std::string name ;	// Static IDの有限copyだけです。
@@ -216,10 +221,13 @@ std::string		   providerName( const DiagnosticProvider &provider)
 	return name ;
 }
 
-/** @brief Provider列が固定literalまたはcanonical registryのIDか確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Provider列が固定literalまたはcanonical registryのIDか確認します。
  * @param[in] value 保存済みfileの有限token。
  * @return 任意文字列でない場合true。
  */
+//------------------------------------------------------------------------------
 bool validProviderName( const std::string_view value)
 {
 	// Application/unknownはloggerの固定tokenです。
@@ -236,11 +244,14 @@ bool validProviderName( const std::string_view value)
 	return findProviderDescriptor( wide) != nullptr ;
 }
 
-/** @brief 完全な整数tokenだけを受けます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全な整数tokenだけを受けます。
  * @param[in] value 終端を除く一token。
  * @param[in] signedValue HRESULTだけ符号を許します。
  * @return Overflowやsuffixのない整数の場合true。
  */
+//------------------------------------------------------------------------------
 bool validNumber( const std::string_view value, const bool signedValue)
 {
 	// 空tokenを0へ補いません。
@@ -261,10 +272,13 @@ bool validNumber( const std::string_view value, const bool signedValue)
 	return result.ec == std::errc{} && result.ptr == last ;
 }
 
-/** @brief 所有markerだけでなく全行の閉じた形式を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有markerだけでなく全行の閉じた形式を確認します。
  * @param[in] bytes 256KiB以内の元file。
  * @return 全行がloggerの型付き形式である場合true。
  */
+//------------------------------------------------------------------------------
 bool validOwnedBytes( std::string_view bytes)
 {
 	// 不明・旧版・途中headerを上書きしません。
@@ -341,7 +355,9 @@ bool validOwnedBytes( std::string_view bytes)
 	return true ;
 }
 
-/** @brief 実通常位置を固定してlinkとrenameを拒否します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実通常位置を固定してlinkとrenameを拒否します。
  * @param[in] path 検証済み絶対DOS位置。
  * @param[in] directory Directoryまたは通常fileの期待。
  * @param[in] access 必要最小のaccess mask。
@@ -351,6 +367,7 @@ bool validOwnedBytes( std::string_view bytes)
  * @return 同最終位置の所有handle。拒否時は無効handleです。
  * @throws std::bad_alloc 実位置bufferを確保できない場合。既workerのRESOURCE捕捉へ渡します。
  */
+//------------------------------------------------------------------------------
 Handle openPinned( const std::wstring &path, const bool directory, const DWORD access,
 				  const DWORD creation = OPEN_EXISTING, DWORD *error = nullptr,
 				  bool *errorKnown = nullptr)
@@ -441,7 +458,8 @@ struct FileSink {
 	DWORD				   error{} ;
 	/// 元API直後のcodeを取得しました。
 	bool				   errorKnown{} ;
-	/** @brief 最初の失敗だけを保持します。
+	/**
+	 * @brief 最初の失敗だけを保持します。
 	 * @param[in] stage 固定段階。
 	 * @param[in] code 元API code、またはpolicy拒否の0。
 	 * @param[in] known 元API直後のcodeを取得した事実です。
@@ -469,10 +487,11 @@ struct FileSink {
 	/// 0/1または無効値2です。
 	std::size_t					   active{2U} ;
 
-	/** @brief EXE祖先とlogを固定し、所有形式のslotだけを開きます。
-     * @param[in] folder 実EXEの絶対directory。
-     * @return 一つ以上の安全slotを確保できた場合true。
-     */
+	/**
+	 * @brief EXE祖先とlogを固定し、所有形式のslotだけを開きます。
+	 * @param[in] folder 実EXEの絶対directory。
+	 * @return 一つ以上の安全slotを確保できた場合true。
+	 */
 	bool						   initialize( const std::wstring &folder)
 	{
 		// 共通の絶対DOS path文法を使いcwdやdevice namespaceへ逃げません。
@@ -616,9 +635,10 @@ struct FileSink {
 		return reset() ;
 	}
 
-	/** @brief 検証済み所有slotだけを固定headerへ戻します。
-     * @return Headerの完全writeが成立した場合true。
-     */
+	/**
+	 * @brief 検証済み所有slotだけを固定headerへ戻します。
+	 * @return Headerの完全writeが成立した場合true。
+	 */
 	bool reset()
 	{
 		LARGE_INTEGER begin{} ;		// 所有handleの先頭だけです。
@@ -635,10 +655,11 @@ struct FileSink {
 		return written == HEADER.size() || reject( DiagnosticStorageStage::HEADER) ;
 	}
 
-	/** @brief 一行を有界writeし、必要時もう一方の所有slotだけを再利用します。
-     * @param[in] line 2048byte以内の閉じた形式。
-     * @return 全write/flushが成立した場合true。
-     */
+	/**
+	 * @brief 一行を有界writeし、必要時もう一方の所有slotだけを再利用します。
+	 * @param[in] line 2048byte以内の閉じた形式。
+	 * @return 全write/flushが成立した場合true。
+	 */
 	bool write( const std::string_view line)
 	{
 		// 一記録を切り詰めて保存しません。
@@ -677,10 +698,13 @@ struct FileSink {
 	}
 } ;
 
-/** @brief 閉enum/整数だけをUTF-8の一行へserializeします。
+//------------------------------------------------------------------------------
+/**
+ * @brief 閉enum/整数だけをUTF-8の一行へserializeします。
  * @param[in] record Queueへ投入済みの固定snapshot。
  * @return 固定名と数値だけのUTF-8行。不正enumは空です。
  */
+//------------------------------------------------------------------------------
 std::string serialize( const DiagnosticRecord &record)
 {
 	const auto event = static_cast<std::size_t>( record.event) ;	// 閉じた表の位置です。
@@ -767,7 +791,9 @@ struct LocalDiagnosticLog::State {
 	/// Workerが保存する唯一の絶対folderです。
 	std::wstring							  folder ;
 
-	/** @brief UIから独立してqueueを排出し全例外を診断停止へ変換します。 */
+	/**
+	 * @brief UIから独立してqueueを排出し全例外を診断停止へ変換します。
+	 */
 	void									  run() noexcept
 	{
 		try {
@@ -877,7 +903,13 @@ struct LocalDiagnosticLog::State {
 	}
 } ;
 
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 任意文字列を保存せずcanonical registryへ照合します。
+ * @param[in] id 呼出し中だけ借用する元stable ID。
+ * @return 既知registryの静的IDまたは固定unknown token。
+ */
+//------------------------------------------------------------------------------
 DiagnosticProvider DiagnosticProvider::fromId( const std::wstring_view id) noexcept
 {
 	DiagnosticProvider result ;								// Registry以外は固定unknownへ縮退します。
@@ -891,12 +923,24 @@ DiagnosticProvider DiagnosticProvider::fromId( const std::wstring_view id) noexc
 
 	return result ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Canonical static IDだけを同期serializeへ貸します。
+ * @return Process lifetimeの固定ID。任意入力のviewではありません。
+ */
+//------------------------------------------------------------------------------
 std::wstring_view DiagnosticProvider::id() const noexcept
 {
 	return id_ ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定枠へ一つの数値列を追加します。
+ * @param[in] field 閉じた列識別子。
+ * @param[in] value 個数/enum/boolだけの値。
+ * @return 同じ記録。超過分は保持しません。
+ */
+//------------------------------------------------------------------------------
 DiagnosticRecord &DiagnosticRecord::add( const DiagnosticField field,
 										const std::uint64_t	  value) noexcept
 {
@@ -907,12 +951,20 @@ DiagnosticRecord &DiagnosticRecord::add( const DiagnosticField field,
 
 	return *this ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 最大200msだけ終了を待ち、残worker所有を安全に残します。
+ */
+//------------------------------------------------------------------------------
 LocalDiagnosticLog::~LocalDiagnosticLog()
 {
 	stop() ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実EXEの絶対directoryだけで非同期保存を開始します。
+ */
+//------------------------------------------------------------------------------
 void LocalDiagnosticLog::start() noexcept
 {
 	try {
@@ -941,7 +993,13 @@ void LocalDiagnosticLog::start() noexcept
 		startFailure_ = {DiagnosticStorageState::FAILED, DiagnosticStorageStage::RESOURCE} ;
 	}
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 製品または内部fixtureの絶対folderへだけ開始します。
+ * @param[in] folder 元EXE directoryまたは内部fixtureの新規directory。
+ * @param[in] paused 内部fixtureだけがthread開始前にqueue排出を止めます。
+ */
+//------------------------------------------------------------------------------
 void LocalDiagnosticLog::startInFolder( const std::wstring_view folder, const bool paused) noexcept
 {
 	// Process中の別保存先への再初期化を許しません。
@@ -978,7 +1036,12 @@ void LocalDiagnosticLog::startInFolder( const std::wstring_view folder, const bo
 		startFailure_ = {DiagnosticStorageState::FAILED, DiagnosticStorageStage::RESOURCE} ;
 	}
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief I/Oを行わずqueueへ非待機で投入します。
+ * @param[in] record 文字列本文を持たない有界snapshotです。
+ */
+//------------------------------------------------------------------------------
 void LocalDiagnosticLog::append( const DiagnosticRecord &record) noexcept
 {
 	// 開始不能・保存不能・停止後は通常処理へ即時復帰します。
@@ -1012,7 +1075,11 @@ void LocalDiagnosticLog::append( const DiagnosticRecord &record) noexcept
 	ReleaseSRWLockExclusive( &state_->lock) ;
 	SetEvent( state_->wake.get()) ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 新規投入を止め、終了を最大200msだけ待ちます。
+ */
+//------------------------------------------------------------------------------
 void LocalDiagnosticLog::stop() noexcept
 {
 	// 既に停止済みなら二回待機しません。
@@ -1034,7 +1101,12 @@ void LocalDiagnosticLog::stop() noexcept
 		}
 	}
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief I/Oや待機をせず保存状態を読みます。
+ * @return 保存済みと未保存/失敗を区別した固定snapshot。
+ */
+//------------------------------------------------------------------------------
 DiagnosticStorageStatus LocalDiagnosticLog::status() const noexcept
 {
 	// Worker開始前の元失敗も隠しません。
@@ -1065,7 +1137,11 @@ DiagnosticStorageStatus LocalDiagnosticLog::status() const noexcept
 
 	return value ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 製品のprocess loggerを開始し、昇格有無だけを記録します。
+ */
+//------------------------------------------------------------------------------
 void startLocalDiagnostics() noexcept
 {
 	processLog.start() ;
@@ -1087,34 +1163,66 @@ void startLocalDiagnostics() noexcept
 		.add( DiagnosticField::ELEVATED, known && elevation.TokenIsElevated != 0U) ;
 	processLog.append( record) ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 製品のprocess loggerへ数値snapshotを非待機投入します。
+ * @param[in] record 有界な匿名記録です。
+ */
+//------------------------------------------------------------------------------
 void recordLocalDiagnostic( const DiagnosticRecord &record) noexcept
 {
 	processLog.append( record) ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Message loop終了後に最大200msだけ保存終了を待ちます。
+ */
+//------------------------------------------------------------------------------
 void stopLocalDiagnostics() noexcept
 {
 	processLog.stop() ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Process loggerの保存状態を非待機で読みます。
+ * @return 固定数値だけの現在snapshot。
+ */
+//------------------------------------------------------------------------------
 DiagnosticStorageStatus localDiagnosticStatus() noexcept
 {
 	return processLog.status() ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Fixture folderで製品と同じ保存処理を開始します。
+ * @param[in,out] log 未開始logger。
+ * @param[in] folder Fixtureの絶対folder。製品設定には接続しません。
+ */
+//------------------------------------------------------------------------------
 void local_diagnostic_detail::Access::start( LocalDiagnosticLog	   &log,
 											const std::wstring_view folder) noexcept
 {
 	log.startInFolder( folder) ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 内部fixtureのqueue排出だけをthread開始前から止めます。
+ * @param[in,out] log 未開始loggerです。
+ * @param[in] folder Fixtureの絶対folderです。製品設定には接続しません。
+ * @note 通常の投入は非待機のままです。resumeまたはstopが元wakeで排出を許可します。
+ */
+//------------------------------------------------------------------------------
 void local_diagnostic_detail::Access::startPaused( LocalDiagnosticLog	 &log,
 												  const std::wstring_view folder) noexcept
 {
 	log.startInFolder( folder, true) ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 内部fixtureの排出を一度だけ再開します。再pauseや再初期化はしません。
+ * @param[in,out] log startPausedで開始した試験所有loggerです。
+ */
+//------------------------------------------------------------------------------
 void local_diagnostic_detail::Access::resume( LocalDiagnosticLog &log) noexcept
 {
 	// 未開始/再開済み/停止済みを再初期化したり、pauseへ戻したりしません。
@@ -1124,7 +1232,13 @@ void local_diagnostic_detail::Access::resume( LocalDiagnosticLog &log) noexcept
 
 	SetEvent( log.state_->wake.get()) ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 投入済み記録の保存を有限に待ちます。
+ * @param[in] log 試験所有logger。
+ * @return Queue空か保存停止を観測した場合true。
+ */
+//------------------------------------------------------------------------------
 bool local_diagnostic_detail::Access::drain( const LocalDiagnosticLog &log) noexcept
 {
 	// 未開始も非阻害の結果として扱います。
@@ -1151,7 +1265,13 @@ bool local_diagnostic_detail::Access::drain( const LocalDiagnosticLog &log) noex
 
 	return false ;
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 自己所有fixtureだけでwriter失敗/有界終了を注入します。
+ * @param[in,out] log 試験所有logger。
+ * @param[in] stage WRITE/FLUSH/STOPだけ。製品から呼びません。
+ */
+//------------------------------------------------------------------------------
 void local_diagnostic_detail::Access::fail( LocalDiagnosticLog		   &log,
 										   const DiagnosticStorageStage stage) noexcept
 {
@@ -1162,7 +1282,12 @@ void local_diagnostic_detail::Access::fail( LocalDiagnosticLog		   &log,
 		log.state_->testFailure = stage ;
 	}
 }
-/** @see local_diagnostic_log.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 内部UI fixtureのprocess writerだけへ固定失敗を与えます。
+ * @param[in] stage WRITE/FLUSH/STOPだけです。製品から呼びません。
+ */
+//------------------------------------------------------------------------------
 void local_diagnostic_detail::Access::failProcess( const DiagnosticStorageStage stage) noexcept
 {
 	fail( processLog, stage) ;

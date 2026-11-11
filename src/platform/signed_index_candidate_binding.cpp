@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding.cpp
  * @brief 索引の私有取得根拠とWindows指定bindingを原子的候補へ接続します。
- * @version 01.16.00
+ * @version 01.16.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -43,6 +43,7 @@
  * Ver.01.14.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持。
  * Ver.01.15.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * Ver.01.16.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.16.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -88,12 +89,21 @@ thread_local PublicationObserver publicationObserver{} ;
 thread_local void				*publicationObserverState{} ;
 #endif
 }
-/** @see ScopedInstallerFixture宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全表を同threadへ固定します。
+ * @param[in] calls 欠損のないWindows ABI表です。
+ */
+//------------------------------------------------------------------------------
 ScopedInstallerFixture::ScopedInstallerFixture( InstallerNativeCalls calls) noexcept : calls_( calls)
 {
 	activeInstaller = this ;
 }
-/** @see ScopedInstallerFixture宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 当該scopeの低位表だけを解除します。
+ */
+//------------------------------------------------------------------------------
 ScopedInstallerFixture::~ScopedInstallerFixture() noexcept
 {
 	// 別scopeの表を解除しません。
@@ -101,26 +111,42 @@ ScopedInstallerFixture::~ScopedInstallerFixture() noexcept
 		activeInstaller = nullptr ;
 	}
 }
-/** @see ScopedInstallerFixture宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scopeで固定した全低位表を借用します。
+ * @return 本scopeが生存する間だけ有効な完全表です。
+ */
+//------------------------------------------------------------------------------
 const InstallerNativeCalls &ScopedInstallerFixture::calls() const noexcept
 {
 	return calls_ ;
 }
-/** @brief 同threadの完全表または固定native表だけを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同threadの完全表または固定native表だけを返します。
  * @return 同workerのscope終端まで有効な固定表です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] const InstallerNativeCalls &installerCalls() noexcept
 {
 	return activeInstaller ? activeInstaller->calls() : NATIVE_INSTALLER_CALLS ;
 }
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
-/** @see Access::observePublication宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同threadだけの同期非機密観測を登録または解除します。
+ * @param[in] observer 解除時はnullです。元処理の結果を変更できません。
+ * @param[in,out] state 同期呼出し中だけ借用する観測所有者です。
+ */
+//------------------------------------------------------------------------------
 void Access::observePublication( const PublicationObserver observer, void *const state) noexcept
 {
 	publicationObserver		 = observer ;
 	publicationObserverState = state ;
 }
-/** @brief 同byte候補の発行条件だけを同期観測し、元結果へ書込みません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同byte候補の発行条件だけを同期観測し、元結果へ書込みません。
  * @param[in] stage 内容評価前1、READY検証前3です。
  * @param[in] ordinal 同recordの元INF順序です。
  * @param[in] session 元scanです。
@@ -133,6 +159,7 @@ void Access::observePublication( const PublicationObserver observer, void *const
  * @param[in] needs 同実計画の検証済みNeeds辺数です。
  * @param[in] members 同実計画の追加INF数です。
  */
+//------------------------------------------------------------------------------
 void observePublication( const unsigned stage, const std::size_t ordinal,
 						const ScanSessionId session, const UpdateCandidate &candidate,
 						const CommonInfInspection &inf, const std::uint64_t evidence,
@@ -181,7 +208,13 @@ void observePublication( const unsigned stage, const std::size_t ordinal,
 
 	publicationObserver( diagnostic, publicationObserverState) ;
 }
-/** @see Access::createInstaller宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全なlaunch表だけを同worker threadへ結合します。
+ * @param[in] calls 全五関数のWindows ABI fixtureです。
+ * @return 欠損または同threadの重複scopeでは空、それ以外は単独所有scopeです。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<ScopedInstallerFixture> Access::createInstaller( InstallerNativeCalls calls)
 {
 	// 全低位表の欠損とscopeの重複を拒否し、部分native fallbackを設けません。
@@ -197,11 +230,14 @@ std::unique_ptr<ScopedInstallerFixture> Access::createInstaller( InstallerNative
 
 namespace drivercrate {
 namespace {
-/** @brief 原digestとnative小文字SHA-256の完全一致だけを検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原digestとnative小文字SHA-256の完全一致だけを検査します。
  * @param[in] digest 認証recordの原SHA-256です。
  * @param[in] text 同owned byteから計算した小文字hexです。
  * @return 全64桁一致の場合だけtrueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matchesDigest( const IndexManifestSha256 &digest,
 								 const std::wstring_view	text) noexcept
 {
@@ -223,12 +259,15 @@ namespace {
 	return true ;
 }
 
-/** @brief 公開ASCIIとnativeの元文字列を実path化せず比較します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開ASCIIとnativeの元文字列を実path化せず比較します。
  * @param[in] published 認証recordの原公開値です。
  * @param[in] actual 同HINFまたは同owned inventoryの原値です。
  * @param[in] member trueは公開slashとnative backslashの区切りだけを対応させます。
  * @return memberは原case一致、他はWindows ordinalのcase非依存一致だけtrueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matchesPublishedText( const std::string_view	published,
 										const std::wstring_view actual, const bool member = false)
 {
@@ -249,11 +288,14 @@ namespace {
 			   }) ;
 }
 
-/** @brief 有限ASCIIの大文字小文字だけを既存Windows identity比較へ揃えます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限ASCIIの大文字小文字だけを既存Windows identity比較へ揃えます。
  * @param[in] left 元codecが検査した文字列です。
  * @param[in] right 比較対象の原文字列です。
  * @return 同じ文字列の場合trueです。値を変更しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool sameChoiceText( const std::string_view left,
 								  const std::string_view right) noexcept
 {
@@ -265,10 +307,13 @@ namespace {
 	}) ;
 }
 
-/** @brief 曖昧な独自suffixを受理せず、標準x64 OS装飾のbaseだけを借用します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 曖昧な独自suffixを受理せず、標準x64 OS装飾のbaseだけを借用します。
  * @param[in] section 元Models sectionです。
  * @return NTamd64と省略なしmajor/minor・最大五つの数値OS fieldだけならbase、それ以外は空です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::string_view> modelChoiceBase(
 	const std::string_view section) noexcept
 {
@@ -324,7 +369,9 @@ namespace {
 	return std::nullopt ;
 }
 
-/** @brief 元認証recordの完全identityを同owned INF/現HINFの観測へ照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元認証recordの完全identityを同owned INF/現HINFの観測へ照合します。
  * @param[in] original 原lookupのrelationIndexから戻った未変更recordです。
  * @param[in] inspection 同取得のouter原hash/sizeです。
  * @param[in] hint 同private sealが原recordへ結んだ実outer identityです。
@@ -332,6 +379,7 @@ namespace {
  * @param[in] actual 同元HINFの原hash/Class/現在Modelsと公開ID全集合です。
  * @return 全tuple一致の場合だけtrueです。rankやtokenは発行しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matchesPublishedInf( const IndexDistributionRecord	   &original,
 									   const CommonDriverPackageInspection &inspection,
 									   const IndexedDriverArchiveHint	   &hint,
@@ -387,16 +435,18 @@ namespace {
 /** @brief 起動前から終端まで取得済みfileを書換え・削除から固定するRAIIです。 */
 class InstallerReadFile final {
 public:
-	/** @brief 所有fileの複製を禁止します。
+	/**
+	 * @brief 所有fileの複製を禁止します。
 	 * @param[in] other 借用元です。本constructorは呼出し禁止です。
 	 */
 	InstallerReadFile( const InstallerReadFile &other) = delete ;
-	/** @brief 所有fileの代入を禁止します。
+	/**
+	 * @brief 所有fileの代入を禁止します。
 	 * @param[in] other 借用元です。本演算子は呼出し禁止です。
-	 * @return 本演算子は呼出し禁止です。
 	 */
 	InstallerReadFile &operator=( const InstallerReadFile &other) = delete ;
-	/** @brief 元workspaceの実pathだけを読取り共有で開きます。
+	/**
+	 * @brief 元workspaceの実pathだけを読取り共有で開きます。
 	 * @param[in] path 私有元取得の完全pathです。
 	 */
 	explicit InstallerReadFile( const std::wstring &path) noexcept
@@ -404,7 +454,9 @@ public:
 							FILE_ATTRIBUTE_NORMAL, nullptr))
 	{
 	}
-	/** @brief 同scopeが開いたfileだけを全return・例外経路で閉じます。 */
+	/**
+	 * @brief 同scopeが開いたfileだけを全return・例外経路で閉じます。
+	 */
 	~InstallerReadFile() noexcept
 	{
 		// File生成失敗を所有handleとして閉じません。
@@ -412,7 +464,8 @@ public:
 			CloseHandle( file_) ;
 		}
 	}
-	/** @brief Fileを所有できたか確認します。
+	/**
+	 * @brief Fileを所有できたか確認します。
 	 * @return 開けた場合trueです。失敗直後のGetLastErrorは呼出し側が保持します。
 	 */
 	[[nodiscard]] bool valid() const noexcept
@@ -427,16 +480,18 @@ private:
 /** @brief 指定した完全表のprocess/thread handleを同scopeで閉じるRAIIです。 */
 class InstallerProcess final {
 public:
-	/** @brief 所有process/threadの複製を禁止します。
+	/**
+	 * @brief 所有process/threadの複製を禁止します。
 	 * @param[in] other 借用元です。本constructorは呼出し禁止です。
 	 */
 	InstallerProcess( const InstallerProcess &other) = delete ;
-	/** @brief 所有process/threadの代入を禁止します。
+	/**
+	 * @brief 所有process/threadの代入を禁止します。
 	 * @param[in] other 借用元です。本演算子は呼出し禁止です。
-	 * @return 本演算子は呼出し禁止です。
 	 */
 	InstallerProcess &operator=( const InstallerProcess &other) = delete ;
-	/** @brief 完全表と所有handleを借用・所有します。
+	/**
+	 * @brief 完全表と所有handleを借用・所有します。
 	 * @param[in] calls Scope終端まで生存する完全表です。
 	 * @param[in] handles 起動APIが返した二handleです。
 	 */
@@ -445,7 +500,9 @@ public:
 		: calls_( calls), handles_( handles)
 	{
 	}
-	/** @brief 起動APIが返した二handleだけを閉じます。 */
+	/**
+	 * @brief 起動APIが返した二handleだけを閉じます。
+	 */
 	~InstallerProcess() noexcept
 	{
 		// Process生成の二handleを同じ表へ返します。
@@ -465,13 +522,16 @@ private:
 	/// 外へ流出させない所有process/thread handleです。
 	PROCESS_INFORMATION												   handles_{} ;
 } ;
-/** @brief 検証済み公式EXEまたは固定Windows MSI UIだけへ明示的に引継ぎます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 検証済み公式EXEまたは固定Windows MSI UIだけへ明示的に引継ぎます。
  * @param[in] path 元private workspaceの完全pathです。
  * @param[in] msi 元署名recordのMSI形式だけでtrueです。
  * @param[out] exitCode 原processの終端codeです。起動失敗時は空です。
  * @param[out] reboot 終端codeが明示する再起動だけを保持します。
  * @return Windows APIまたはinstaller原終了codeのHRESULTです。導入成功ではありません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError launchOfficialInstaller( const std::filesystem::path &path, const bool msi,
 												  std::optional<std::uint32_t> &exitCode,
 												  bool						   &reboot)
@@ -528,19 +588,25 @@ private:
 	reboot	 = code == ERROR_SUCCESS_REBOOT_REQUIRED || code == ERROR_SUCCESS_REBOOT_INITIATED ;
 	return code == ERROR_SUCCESS || reboot ? 0 : static_cast<NativeError>( HRESULT_FROM_WIN32( code)) ;
 }
-/** @brief Guard通過済み明示4要素versionをaction分類だけへ使用します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Guard通過済み明示4要素versionをaction分類だけへ使用します。
  * @param[in] value Binderが保持した明示version。
  * @return 正規4要素ならpacked値、それ以外は空です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::uint64_t> numericVersion( std::wstring_view value) noexcept
 {
 	return parseFourPartDriverVersion( value) ;
 }
-/** @brief 取得済み成功を保持した全選択拒否結果を作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 取得済み成功を保持した全選択拒否結果を作ります。
  * @param[in] identities 元選択順。
  * @param[in] error 元拒否HRESULT。
  * @return 個別download成功とinstall失敗の結果。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] InstallResult rejectedInstall( std::span<const std::wstring> identities,
 											NativeError					  error)
 {
@@ -561,7 +627,8 @@ private:
 /** @brief 未commitの新tokenを例外経路でも当該issuerへ戻すguardです。 */
 class NewTokenGuard final {
 public:
-	/** @brief 発行済み一tokenを同期scopeへ固定します。
+	/**
+	 * @brief 発行済み一tokenを同期scopeへ固定します。
 	 * @param[in,out] store 元issuer。
 	 * @param[in] session 元scan。
 	 * @param[in] token 新token。
@@ -572,7 +639,9 @@ public:
 		: store_( store), session_( session), token_( token), installer_( installer)
 	{
 	}
-	/** @brief Pending所有に移していない新tokenだけを破棄します。 */
+	/**
+	 * @brief Pending所有に移していない新tokenだけを破棄します。
+	 */
 	~NewTokenGuard() noexcept
 	{
 		// 別Providerのtokenへ触れず、この同期scopeで作った一tokenだけを戻します。
@@ -585,7 +654,9 @@ public:
 			}
 		}
 	}
-	/** @brief 新tokenの所有をpending transactionへ渡します。 */
+	/**
+	 * @brief 新tokenの所有をpending transactionへ渡します。
+	 */
 	void release() noexcept
 	{
 		token_ = 0U ;
@@ -603,7 +674,18 @@ private:
 } ;
 } // namespace
 
-/** @see signed_index_candidate_binding.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原record申告を通常候補と同じINF完全tuple比較へ渡します。許可を発行しません。
+ * @param[in] original 共通codecが検査した元record値です。認証の有無は表しません。
+ * @param[in] inspection 同元outerを所有する通常内容検査結果です。
+ * @param[in] hint 同元outerのsize/hashとrecord参照です。
+ * @param[in] inf 同保護workspaceの一INFです。
+ * @param[in] actual 同元HINFから再読取りした公開identityです。
+ * @return 元outer/INF/Models/Class/種別付き公開ID全集合が一致する場合trueです。
+ * @note Windows適合、rank、候補session、tokenを生成しません。
+ */
+//------------------------------------------------------------------------------
 bool matchesIndexPublishedInf( const IndexDistributionRecord		  &original,
 							  const CommonDriverPackageInspection &inspection,
 							  const IndexedDriverArchiveHint &hint, const CommonInfInspection &inf,
@@ -612,7 +694,12 @@ bool matchesIndexPublishedInf( const IndexDistributionRecord		  &original,
 	return matchesPublishedInf( original, inspection, hint, inf, actual) ;
 }
 
-/** @see SignedIndexCandidateBindingSession宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 新candidate・tokenを一括rollbackします。
+ * @param[in,out] store 元token issuer。
+ */
+//------------------------------------------------------------------------------
 void SignedIndexCandidateBindingSession::rollback( DriverStoreProvider &store) noexcept
 {
 	// 全既存routeのcopyより後の新tokenだけを破棄します。
@@ -630,11 +717,14 @@ void SignedIndexCandidateBindingSession::rollback( DriverStoreProvider &store) n
 	pending_ = false ;
 }
 namespace {
-/** @brief 既Models選択と表示比較で共有する完全INF証拠だけを照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既Models選択と表示比較で共有する完全INF証拠だけを照合します。
  * @param[in] left 原recordです。
  * @param[in] right 別原recordです。
  * @return 同payload/policyとINF/全公表ID/versionが一致した場合trueです。
  */
+//------------------------------------------------------------------------------
 bool sameIndexInfChoiceEvidence( const IndexDistributionRecord &left,
 								const IndexDistributionRecord &right) noexcept
 {
@@ -660,7 +750,15 @@ bool sameIndexInfChoiceEvidence( const IndexDistributionRecord &left,
 }
 } // namespace
 
-/** @see signed_index_candidate_binding.h 宣言側の表示専用契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じINF/Modelsの原内容とpolicyだけを比較する表示専用判定です。
+ * @param[in] left 同じ署名snapshotから参照する原recordです。
+ * @param[in] right 同snapshotの別原recordです。
+ * @return 完全payload/policy・INF証拠・同Models/公表ID・version/日付一致時だけtrueです。
+ * @note 原Reference/record/routingを統合せず、取得・導入権限を発行しません。
+ */
+//------------------------------------------------------------------------------
 bool areIdenticalIndexDisplayChoices( const IndexDistributionRecord &left,
 									 const IndexDistributionRecord &right) noexcept
 {
@@ -671,7 +769,15 @@ bool areIdenticalIndexDisplayChoices( const IndexDistributionRecord &left,
 		   left.publishedDate.value == right.publishedDate.value ;
 }
 
-/** @see signed_index_candidate_binding.h 宣言側の値比較契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一INFの異なる標準x64 OS装飾を持つ代替recordの厳密値比較です。
+ * @param[in] left 個別codec検査済みの元recordです。
+ * @param[in] right 同じ署名snapshotから参照する別の元recordです。
+ * @return 元payload/policy/期限・INF/hash/Class/版/公表ID全集合とModels base一致時だけtrueです。
+ * @note 認証/通信/適合/導入権限を発行しません。私有Referenceが元relation集合を別に所有します。
+ */
+//------------------------------------------------------------------------------
 bool areEquivalentIndexModelChoices( const IndexDistributionRecord &left,
 									const IndexDistributionRecord &right) noexcept
 {
@@ -684,7 +790,11 @@ bool areEquivalentIndexModelChoices( const IndexDistributionRecord &left,
 		   !sameChoiceText( a.modelSection, b.modelSection) ;
 }
 
-/** @see SignedIndexCandidateBindingSession宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全検証後だけ新routeをnoexcept swapします。
+ */
+//------------------------------------------------------------------------------
 void SignedIndexCandidateBindingSession::commit() noexcept
 {
 	// 全reportとComposite mapの検証後だけ、allocationなしでroutingを公開します。
@@ -694,7 +804,12 @@ void SignedIndexCandidateBindingSession::commit() noexcept
 		pending_ = false ;
 	}
 }
-/** @see SignedIndexCandidateBindingSession宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全route・record・参照行を終端失効します。
+ * @param[in,out] store 元issuer。未結合の場合nullptrです。
+ */
+//------------------------------------------------------------------------------
 void SignedIndexCandidateBindingSession::invalidate( DriverStoreProvider *const store) noexcept
 {
 	// Issuerが生存している間に新tokenとcommit済みtokenを全て失効します。
@@ -719,7 +834,17 @@ void SignedIndexCandidateBindingSession::invalidate( DriverStoreProvider *const 
 	pending_	   = false ;
 	retainedBytes_ = 0U ;
 }
-/** @see SignedIndexCandidateBindingSession宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同describeのtargetへ一意に元current行を結合します。
+ * @param[in] lookup 原認証lookup。
+ * @param[in] adapter 同原lookupの全元関係を保持する取得issuer。
+ * @param[in] plan 同scanの未変更取得計画。
+ * @param[in] candidates 同scanの既表示現在行。
+ * @param[in] hints 同deviceの検証済みopaque hint。
+ * @return 元recordと同deviceへ結合した非導入参照行。
+ */
+//------------------------------------------------------------------------------
 std::vector<UpdateCandidate> SignedIndexCandidateBindingSession::makeReferences(
 	const std::shared_ptr<const SignedIndexRecordLookup> &lookup,
 	const SignedIndexAcquisitionAdapter &adapter, const OfficialPreparationPlan &plan,
@@ -883,7 +1008,15 @@ std::vector<UpdateCandidate> SignedIndexCandidateBindingSession::makeReferences(
 	references_.swap( pending) ;
 	return result ;
 }
-/** @see SignedIndexCandidateBindingSession宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元task/grant/期限/seal/実byteを同所有者へ再照合します。
+ * @param[in] owner 同取得issuer/元workspace。
+ * @param[in] record 同所有record。
+ * @param[in] services Worker固定のUTC。
+ * @return 完全一致0、失効・期限・内容変化の元HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexCandidateBindingSession::reverifyRecord(
 	const SignedIndexScanSession &owner, const PreparedRecord &record,
 	const provider_worker_index_detail::Services &services) const
@@ -1011,7 +1144,17 @@ NativeError SignedIndexCandidateBindingSession::reverifyRecord(
 
 	return 0U ;
 }
-/** @see SignedIndexCandidateBindingSession宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元取得と実sealを再確認して内容・rank・bindingをpendingへ監査します。
+ * @param[in,out] owner 元scan/取得の私有owner。
+ * @param[in,out] store 同workerのDriver Store。
+ * @param[in] services 元worker固定service。
+ * @param[in] targetIdentity 元取得target。
+ * @param[in] displayed 同scan既表示行。
+ * @return 当該取得成功を保持する有限report。別targetでは空です。
+ */
+//------------------------------------------------------------------------------
 std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession::
 	auditPreparedRecord( SignedIndexScanSession &owner, DriverStoreProvider &store,
 						const provider_worker_index_detail::Services &services,
@@ -1679,7 +1822,18 @@ std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession
 
 	return report ;
 }
-/** @see SignedIndexCandidateBindingSession宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 必要役割を含む元選択を復旧開始前に一括検証します。
+ * @param[in] owner 元取得ownerです。
+ * @param[in] store 同workerの元binding issuerです。
+ * @param[in] services 元期限serviceです。
+ * @param[in] session 元scanです。
+ * @param[in] identities 通常画面の元選択ID集合です。
+ * @return 全元必要計画のbyte/期限/状態一致0、不足はHRESULTです。
+ * @note 他Providerを変更せず、stage/復旧/導入を呼びません。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexCandidateBindingSession::preflightRequiredInstall(
 	const SignedIndexScanSession &owner, const DriverStoreProvider &store,
 	const provider_worker_index_detail::Services &services, const ScanSessionId session,
@@ -1758,7 +1912,19 @@ NativeError SignedIndexCandidateBindingSession::preflightRequiredInstall(
 	return 0 ;
 }
 
-/** @see SignedIndexCandidateBindingSession宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 本体保護境界内で元選択routeだけを指定導入します。
+ * @param[in,out] owner 元取得と内容の私有owner。
+ * @param[in,out] store 同workerのDriver Store。
+ * @param[in] services Worker固定service。
+ * @param[in] session 元scan session。
+ * @param[in] identities 本体が許可した元表示/選択ID。
+ * @param[in] parentWindowNative 最終dialog親window。
+ * @param[in] progress 確定件数の通知先。
+ * @return 元選択順の独立取得/導入/元HRESULTと再起動結果。
+ */
+//------------------------------------------------------------------------------
 InstallResult SignedIndexCandidateBindingSession::executeBoundInstall(
 	SignedIndexScanSession &owner, DriverStoreProvider &store,
 	const provider_worker_index_detail::Services &services, const ScanSessionId session,

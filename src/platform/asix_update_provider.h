@@ -2,7 +2,7 @@
 /**
  * @file asix_update_provider.h
  * @brief ASIX AX88179A公式検索・取得準備Provider定義。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/10/13  観測field説明を完全な宣言開始前へ配置。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 固定製品pageと端末内表示名を照合し、Windows client x64配布情報だけを表示します。Hardware IDを送信せず、取得準備snapshotをworker
@@ -94,18 +95,19 @@ using AsixTermsPageReader =
 using AsixReleaseObservationEvaluator = std::function<std::optional<ReleaseObservationDifference>(
 	const OfficialCatalogDevice &device, const OfficialReleaseRecord &release)> ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Local device表示がASIX AX88179AのNet deviceに限定されるか確認する。
- * 通信要否だけを判定し、PnP適用性または最新版を保証しない。
+ * @brief Local device表示がASIX AX88179AのNet deviceに限定されるか確認する。通信要否だけを判定し、PnP適用性または最新版を保証しない。
  * @param[in] device 端末内だけで参照する非機密device snapshot。 端末内だけで参照する非機密snapshot。
  * @return Net class、ASIX表示、AX88179A tokenが全て一致する場合true。 Net class、ASIX表示、AX88179A tokenが一致する場合true。
  * @note 通信要否を決めるprobeであり、Hardware IDまたはpackage適用性の確認ではない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool		 isAsixAx88179aDevice( const OfficialCatalogDevice &device) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Local probeと固定page readerを使いASIX表示専用候補を作る。
- * 対象deviceがない場合は通信せず、URLを候補DTOへ渡さない。
+ * @brief Local probeと固定page readerを使いASIX表示専用候補を作る。対象deviceがない場合は通信せず、URLを候補DTOへ渡さない。
  * @param[in] scanSessionId 0ではないscan session。 0ではない検索session。
  * @param[in] devices 最大4096件の非機密snapshot。
  * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true。
@@ -115,21 +117,23 @@ using AsixReleaseObservationEvaluator = std::function<std::optional<ReleaseObser
  * @param[in] observationEvaluator 任意の端末内release観測評価境界。
  * @return 表示候補または対象外・通信失敗・metadata拒否。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] ScanResult scanAsixAx88179aProductPage(
 	ScanSessionId scanSessionId, std::span<const OfficialCatalogDevice> devices, bool windowsServer,
 	std::uint32_t windowsBuild, const AsixProductPageReader &reader,
 	const ProviderProgressCallback		  &progressCallback,
 	const AsixReleaseObservationEvaluator &observationEvaluator = {}) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief ASIXのTerms結合済み配布情報を一つの未承認取得対象へ変換する。
- * 公表概算sizeを予約量へ使わず、8 MiBと本文・前提確認を固定する。
+ * @brief ASIXのTerms結合済み配布情報を一つの未承認取得対象へ変換する。公表概算sizeを予約量へ使わず、8 MiBと本文・前提確認を固定する。
  * @param[in] release Workerだけが所有する二page結合済み配布情報。 Worker内の二page結合済み配布情報。
  * @param[in] scanSessionId 配布情報を取得した検索session。
  * @param[in] planId Workerが発行した新しい計画ID。
  * @param[in] deviceCount 同じ配布物に関係するdevice数。1～4096。 同じ配布物に関係する1～4096件のdevice数。
  * @return 本文同意と取得前提確認が必要な一対象。不整合時は空。 全対象deviceを集約した未承認一対象。不整合時は空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::vector<OfficialPreparationTarget> makeAsixPreparationTargets(
 	const OfficialReleaseRecord &release, ScanSessionId scanSessionId, std::uint64_t planId,
 	std::uint32_t deviceCount) ;
@@ -137,7 +141,9 @@ using AsixReleaseObservationEvaluator = std::function<std::optional<ReleaseObser
 /** @brief ASIX AX88179Aの固定公式pageを検索し、明示同意後の検査用取得を行うProvider。 */
 class AsixUpdateProvider final : public IOfficialCatalogProvider {
 public:
-	/** @brief 取得根拠を持たないASIX Providerを作成する。 */
+	/**
+	 * @brief 取得根拠を持たないASIX Providerを作成する。
+	 */
 	AsixUpdateProvider() = default ;
 
 	/**
@@ -165,16 +171,20 @@ public:
 	~AsixUpdateProvider() override ;
 
 	// OfficialHttpClientのsource sessionを単独所有するためcopy／moveを禁止する。
-	/** @brief 公式source sessionの単独所有を保つためコピー構築を禁止します。 */
+	/**
+	 * @brief 公式source sessionの単独所有を保つためコピー構築を禁止します。
+	 */
 	AsixUpdateProvider( const AsixUpdateProvider &) = delete ;
-	/** @brief 公式source sessionの単独所有を保つためコピー代入を禁止します。
-	 * @return 削除された関数のため戻り値はありません。
+	/**
+	 * @brief 公式source sessionの単独所有を保つためコピー代入を禁止します。
 	 */
 	AsixUpdateProvider &operator=( const AsixUpdateProvider &) = delete ;
-	/** @brief 公式source sessionのthread所有を保つため移動構築を禁止します。 */
+	/**
+	 * @brief 公式source sessionのthread所有を保つため移動構築を禁止します。
+	 */
 	AsixUpdateProvider( AsixUpdateProvider &&) = delete ;
-	/** @brief 公式source sessionのthread所有を保つため移動代入を禁止します。
-	 * @return 削除された関数のため戻り値はありません。
+	/**
+	 * @brief 公式source sessionのthread所有を保つため移動代入を禁止します。
 	 */
 	AsixUpdateProvider &operator=( AsixUpdateProvider &&) = delete ;
 
@@ -265,14 +275,14 @@ public:
 									 const ProviderProgressCallback		   &progressCallback) override ;
 
 	/**
-	 * @brief 復旧保護後のASIX発行候補を再監査して指定INF導入へ渡す。
-	 * 同一scanの公開候補だけを再検証し、成否・例外で保持物を失効する。
+	 * @brief 復旧保護後のASIX発行候補を再監査して指定INF導入へ渡す。同一scanの公開候補だけを再検証し、選択deviceの導入routeだけを消費し、未処理のtoken・取得物
+	 *        と元scan観測を保持する。
 	 * @param[in] scanSessionId 候補を発行した現在session。
 	 * @param[in] identities 利用者が選択したopaque候補ID。 明示選択された候補identity群。
 	 * @param[in] parentWindowNative Windows導入dialogの親Window。 導入dialogの親Window値。
 	 * @param[in] progressCallback 確定段階と候補処理の通知先。 確定段階の通知先。
 	 * @return 保持物の再検証と導入を区別した個別結果。 再検証とinstallを分離した候補別の結果。
-	 * @note 成否・例外で保持物を失効する。別threadでは状態を変更せず拒否する。
+	 * @note 選択deviceの導入routeだけを消費し、未処理のtoken・取得物と元scan観測を保持する。別threadでは状態を変更せず拒否する。
 	 */
 	[[nodiscard]] InstallResult install( ScanSessionId					scanSessionId,
 										std::span<const std::wstring>	identities,

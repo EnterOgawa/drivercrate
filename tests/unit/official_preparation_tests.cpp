@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_tests.cpp
  * @brief 取得承認と一度限りのtaskの内部試験。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  EULA group tokenのsnapshot検証を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/11/06  既定2GiBと明示小予算/累計/overflowの境界を追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 合成対象の状態だけを検証し、network・復元ポイント・導入を使用しません。
@@ -1222,12 +1223,13 @@ void testPrerequisiteConfirmation( TestContext &context)
 } // namespace
 
 //------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_preparation_tests.h 宣言側の契約を正本とする。
- */
-/** @brief LOCALという状態/flagだけで新対象の実検査成功を偽装できないことを確認します。
+ * @brief LOCALという状態/flagだけで新対象の実検査成功を偽装できないことを確認します。
  * @param[in,out] context 原assertionです。
  */
+//------------------------------------------------------------------------------
 void testUnclaimedLocalInspection( TestContext &context)
 {
 	OfficialPreparationSession session ;			// 既state machineだけです。
@@ -1253,6 +1255,11 @@ void testUnclaimedLocalInspection( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 配布物単位の承認・有限予算・取消しの内部試験を実行する。合成計画の試験だけを実行し、実取得と実導入を行わない。
+ * @param[in,out] context Assertionの集計先。
+ */
 //------------------------------------------------------------------------------
 void runOfficialPreparationTests( TestContext &context)
 {

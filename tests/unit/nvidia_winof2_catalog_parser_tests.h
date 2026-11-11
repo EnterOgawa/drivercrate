@@ -2,7 +2,7 @@
 /**
  * @file nvidia_winof2_catalog_parser_tests.h
  * @brief NVIDIA Networking WinOF-2公式検索単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Networkと実deviceを使用せず、有限parser、OS選択、段階的表示検索を検証します。
@@ -39,11 +40,12 @@
 
 namespace drivercrate::test {
 
+//------------------------------------------------------------------------------
 /**
- * @brief NVIDIA WinOF-2 parserと表示専用Provider helperの単体試験を実行する。
- * WinOF-2公式表示検索の決定的な単体試験群を順に実行する。
+ * @brief NVIDIA WinOF-2 parserと表示専用Provider helperの単体試験を実行する。WinOF-2公式表示検索の決定的な単体試験群を順に実行する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void runNvidiaWinof2CatalogParserTests( TestContext &context) ;
 
 } // namespace drivercrate::test

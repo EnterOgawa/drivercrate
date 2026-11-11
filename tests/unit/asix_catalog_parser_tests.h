@@ -2,7 +2,7 @@
 /**
  * @file asix_catalog_parser_tests.h
  * @brief ASIX AX88179A公式検索単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Networkと実deviceを使用せず、製品・Terms parser、OS選択、表示専用scanを検証します。
@@ -40,11 +41,13 @@
 
 namespace drivercrate::test {
 
+//------------------------------------------------------------------------------
 /**
- * @brief ASIX製品・Terms parser、OS別record、表示専用Provider helperの試験を実行する。
- * 製品・Terms parser、OS別record、local probeと拒否経路を登録する。
+ * @brief ASIX製品・Terms parser、OS別record、表示専用Provider helperの試験を実行する。製品・Terms parser、OS別record、local
+ *        probeと拒否経路を登録する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void runAsixCatalogParserTests( TestContext &context) ;
 
 } // namespace drivercrate::test

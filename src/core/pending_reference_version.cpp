@@ -2,7 +2,7 @@
 /**
  * @file pending_reference_version.cpp
  * @brief 登録driverに対する取得前版の純粋比較を実装します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/03  同じ現在観測だけから取得前の比較分類を生成。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note version-onlyの適用性判定やUNKNOWNの成功換算を行いません。
  * @see docs/adr/0428-newer-index-reference-confirmation.md
@@ -31,7 +32,13 @@
 #include "core/provider_registry.h"
 
 namespace drivercrate {
-/** @see pending_reference_version.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示4個の16bit十進数だけをWindows版比較へ変換します。
+ * @param[in] version 元の版文字列。欠損/省略/任意suffixを補完しません。
+ * @return 四要素のpacked値。不正/不足はnullopt。
+ */
+//------------------------------------------------------------------------------
 std::optional<std::uint64_t> parseFourPartDriverVersion( std::wstring_view version) noexcept
 {
 	std::uint64_t packed{} ;	// 4個の16bit整数を順に保持します。
@@ -73,7 +80,15 @@ std::optional<std::uint64_t> parseFourPartDriverVersion( std::wstring_view versi
 	return std::nullopt ;
 }
 
-/** @see pending_reference_version.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scanの一意な登録済み現在観測との取得前比較を行います。
+ * @param[in] candidate 記述済みの署名索引参照。producerが原metadataだけを投影します。
+ * @param[in] candidates 同じsnapshotの現在行と候補。
+ * @param[in] scanSessionId 現在有効な同scan。
+ * @return 比較条件が全て成立した場合だけNEWER/SAME/OLDER。導入actionは変更しません。
+ */
+//------------------------------------------------------------------------------
 PendingReferenceVersion classifyPendingReferenceVersion(
 	const UpdateCandidate &candidate, const std::span<const UpdateCandidate> candidates,
 	const ScanSessionId scanSessionId) noexcept

@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_planner.h
  * @brief 公式自動探索registrationと端末内route planの契約。
- * @version 01.02.01
+ * @version 01.02.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Purpose伝達と専用adapter欠損集合を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  Cache失効用parser identityをregistrationへ追加。
  * Ver.01.02.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.02.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Plannerはmatcherだけを端末内で呼び、resolver、network、cache、payload処理を開始しません。
@@ -103,16 +104,19 @@ struct OfficialDiscoveryRoutePlan {
 	std::vector<std::wstring>			noTrustedRootDeviceIdentities ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 自動探索registration全体をProvider registryと公式source policyへ照合する。
  * @param[in] registrations 一回の実行に使用するregistration snapshot。
  * @param[in] descriptors Provider registryの正本または合成copy。
  * @return 全自動探索Providerを一意な固定rootと非空callbackへ結合できる場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validateOfficialDiscoveryRegistrations(
 	std::span<const OfficialDiscoveryRegistration> registrations,
 	std::span<const ProviderDescriptor>			   descriptors) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有限hintを専用、汎用の順で固定公式rootへまとめる。
  * @param[in] binding Operation、scan session、inventory generationの開始時binding。
@@ -125,12 +129,14 @@ struct OfficialDiscoveryRoutePlan {
  * @throws std::bad_alloc Planまたは検証領域を確保できない場合。
  * @note Matcherだけを呼び、resolver、HTTP、cache、payload処理は呼び出さない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<OfficialDiscoveryRoutePlan> makeOfficialDiscoveryRoutePlan(
 	const OfficialDiscoveryBinding &binding, const OfficialDiscoveryRequest &request,
 	bool inventoryComplete, std::span<const OfficialDiscoveryDeviceHint> devices,
 	std::span<const OfficialDiscoveryRegistration> registrations,
 	std::span<const ProviderDescriptor>			   descriptors) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開前のplanを開始時snapshotとregistrationへ完全一致で再結合する。
  * @param[in] binding 開始時のoperation、scan session、inventory generation。
@@ -142,6 +148,7 @@ struct OfficialDiscoveryRoutePlan {
  * @return 件数、順序、root、group、未route deviceが全て整合する場合true。
  * @throws std::bad_alloc 検証用の一意性またはgroup領域を確保できない場合。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isOfficialDiscoveryRoutePlanValid(
 	const OfficialDiscoveryBinding &binding, const OfficialDiscoveryRequest &request,
 	std::span<const OfficialDiscoveryDeviceHint>   devices,

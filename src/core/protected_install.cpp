@@ -2,7 +2,7 @@
 /**
  * @file protected_install.cpp
  * @brief OS別回復保護付きinstall処理実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
  * Ver.01.01.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Clientの復元ポイント保護とServerの明示同意済み経路を実装します。Server専用経路の利用可否はworkerが実OSを再検証します。
@@ -75,7 +76,6 @@ public:
 	RestorePointScope( const RestorePointScope &) = delete ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	RestorePointScope &operator=( const RestorePointScope &) = delete ;
@@ -86,7 +86,6 @@ public:
 	RestorePointScope( RestorePointScope &&) = delete ;
 	/**
 	 * @brief 所有状態の移動をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	RestorePointScope						 &operator=( RestorePointScope &&) = delete ;
@@ -168,7 +167,9 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/protected_install.cpp RestorePointScope宣言側の契約を正本とする。
+ * @brief 終了通知対象のサービスとsequence numberを保持する。
+ * @param[in,out] service 復元ポイントサービス。
+ * @param[in] sequenceNumber 開始済み復元ポイントの識別番号。
  */
 //------------------------------------------------------------------------------
 RestorePointScope::RestorePointScope( IRestorePointService &service,
@@ -179,7 +180,7 @@ RestorePointScope::RestorePointScope( IRestorePointService &service,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/protected_install.cpp 宣言側の契約を正本とする。
+ * @brief 明示終了されていない復元ポイントへ終了通知を行う。
  */
 //------------------------------------------------------------------------------
 RestorePointScope::~RestorePointScope()
@@ -192,7 +193,8 @@ RestorePointScope::~RestorePointScope()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/protected_install.cpp 宣言側の契約を正本とする。
+ * @brief 復元ポイントへ終了通知し、結果を返す。
+ * @return Windows復元ポイントAPIの終了結果。
  */
 //------------------------------------------------------------------------------
 RestorePointOperationResult RestorePointScope::complete() noexcept
@@ -203,7 +205,17 @@ RestorePointOperationResult RestorePointScope::complete() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/protected_install.h 宣言側の契約を正本とする。
+ * @brief 復元ポイントで保護したdriver download/installを同期実行する。実在保護未成立時はProviderを呼ばない。native BEGIN所有時は正常・失敗・例外で
+ *        もEND一回を試行する。同日再利用は両native操作を呼ばない。
+ * @param[in,out] provider 選択候補を処理するProvider。worker thread専用である。
+ * @param[in,out] restorePointService 復元ポイントを開始・終了するサービス。 復元ポイントサービス。
+ * @param[in] scanSessionId 選択元のscan session ID。
+ * @param[in] identities UIが明示選択したopaque identity群。
+ * @param[in] parentWindowNative Windows dialogの親HWNDを整数表現で渡す値。
+ * @param[in] progressCallback 復元、download、installの全体進捗通知先。
+ * @param[in] restorePointDescription Windowsの復元UIへ表示する説明。 復元UIに表示する説明。
+ * @return 復元ポイントと候補ごとの実行結果。
+ * @note 保護scopeは必ず閉じる。再利用の実在とnative呼出し事実を分け、メモ失敗だけで実導入成否を変更しない。
  */
 //------------------------------------------------------------------------------
 InstallResult installWithRestorePoint( IUpdateProvider					 &provider,
@@ -305,7 +317,15 @@ InstallResult installWithRestorePoint( IUpdateProvider					 &provider,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/protected_install.h 宣言側の契約を正本とする。
+ * @brief Windows Serverで復元ポイントを呼ばずdriver download/installを同期実行する。Windows Serverで復元ポイントなしのinstallを実行
+ *        する。SRSetRestorePointWを呼ばずProviderを実行する。呼出側でOSと管理者同意を検証し、Provider例外は失敗結果へ変換する。
+ * @param[in,out] provider 選択候補を処理するProvider。worker thread専用である。
+ * @param[in] scanSessionId 選択元のscan session ID。
+ * @param[in] identities UIが明示選択したopaque identity群。 UIが選択したopaque identity群。
+ * @param[in] parentWindowNative Windows dialogの親HWNDを整数表現で渡す値。
+ * @param[in] progressCallback download、installの進捗通知先。
+ * @return Server専用modeと候補ごとの実行結果。復元ポイント結果は`NOT_STARTED`である。
+ * @note 呼出側は実OSがWindows Serverであり、利用者が復元ポイントなしの実行へ明示同意したことをworker境界で検証しなければならない。Provider例外は失敗結果へ変換する。
  */
 //------------------------------------------------------------------------------
 InstallResult installWithoutRestorePointOnServer( IUpdateProvider					&provider,
@@ -331,7 +351,10 @@ InstallResult installWithoutRestorePointOnServer( IUpdateProvider					&provider,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/protected_install.h 宣言側の契約を正本とする。
+ * @brief 指定したOS種別とinstall保護方針の組合せを検証する。Clientで復元ポイント回避、Serverで非support API使用を許可しないfail-closed判定を行う。
+ * @param[in] windowsServer 実OSがWindows Serverの場合は`true`。 Windows Serverの場合はtrue。
+ * @param[in] protectionMode 利用者確認時に固定した保護方針。
+ * @return ServerだけがServer専用mode、clientだけが復元ポイントmodeの場合は`true`。 OSに対応する唯一の保護方針の場合は`true`。
  */
 //------------------------------------------------------------------------------
 bool isInstallProtectionModeAllowed( const bool					windowsServer,
@@ -345,7 +368,13 @@ bool isInstallProtectionModeAllowed( const bool					windowsServer,
 	return protectionMode == InstallProtectionMode::WINDOWS_RESTORE_POINT ;
 }
 
-/** @see protected_install.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Native呼出し事実とOS別実在保護の整合性を検査します。
+ * @param[in] result 受理するInstall結果です。
+ * @return 指定保護契約に一致する場合trueです。memo保存失敗は実導入成否を変更しません。
+ */
+//------------------------------------------------------------------------------
 bool isRestorePointProtectionValid( const InstallResult &result) noexcept
 {
 	const auto &begin = result.restorePointCreation ;	// 実native開始です。

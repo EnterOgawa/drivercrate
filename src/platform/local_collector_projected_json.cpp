@@ -2,7 +2,7 @@
 /**
  * @file local_collector_projected_json.cpp
  * @brief 有限JSON字句と新v4 envelopeの原byte整合を検査します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/29  有限byte・厳密字句・envelope部品を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 旧WinRT codecは変更せず、v4保存や予約精算を有効化しません。
@@ -44,10 +45,13 @@ constexpr std::string_view ENVELOPE_PREFIX =
 // 新形式だけに使う外側部品です。残りのfield集合は型付きcodecが検査します。
 constexpr std::string_view RESPONSE_PREFIX = "{\"schema\":\"collector-campaign-response-v4\"," ;
 
-/** @brief 数値だけの不成立で処理を中止します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 数値だけの不成立で処理を中止します。
  * @param[in] valid 成立条件。
  * @param[in] status 不成立時の固定分類。
  */
+//------------------------------------------------------------------------------
 void					   require( bool valid, Status status = Status::INVALID)
 {
 	// 呼出し側の出力は最上位の境界で破棄する。
@@ -56,17 +60,23 @@ void					   require( bool valid, Status status = Status::INVALID)
 	}
 }
 
-/** @brief 追記・解析の予算自体を固定範囲へ限定します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 追記・解析の予算自体を固定範囲へ限定します。
  * @param[in] limit 層別上限。
  */
+//------------------------------------------------------------------------------
 void checkLimit( std::size_t limit)
 {
 	require( limit > 0U && limit <= ENVELOPE_LIMIT) ;
 }
 
-/** @brief 過長表現・surrogate・範囲外を含むUTF-8を確保なしで拒否します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 過長表現・surrogate・範囲外を含むUTF-8を確保なしで拒否します。
  * @param[in] value 原byte。空文字列は許可します。
  */
+//------------------------------------------------------------------------------
 void unicode( std::string_view value)
 {
 	// 各scalarの先頭と継続byteを一度ずつ確認する。
@@ -115,21 +125,27 @@ void unicode( std::string_view value)
 	}
 }
 
-/** @brief 元byteの一delimiterを消費します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元byteの一delimiterを消費します。
  * @param[in] bytes 事前検査済みの入力。
  * @param[in,out] position 消費位置。
  * @param[in] expected 固定delimiter。
  */
+//------------------------------------------------------------------------------
 void delimiter( std::string_view bytes, std::size_t &position, char expected)
 {
 	require( position < bytes.size() && bytes[position] == expected) ;
 	++position ;
 }
 
-/** @brief Escapeを含む一文字列を確保せず走査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Escapeを含む一文字列を確保せず走査します。
  * @param[in] bytes 厳密UTF-8を検査済みの入力。
  * @param[in,out] position 文字列の開始位置から直後へ移します。
  */
+//------------------------------------------------------------------------------
 void scanText( std::string_view bytes, std::size_t &position)
 {
 	delimiter( bytes, position, '"') ;
@@ -151,11 +167,14 @@ void scanText( std::string_view bytes, std::size_t &position)
 	throw Failure{Status::INVALID} ;
 }
 
-/** @brief 正確な整数だけをoverflow前に検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 正確な整数だけをoverflow前に検査します。
  * @param[in] bytes 元入力。
  * @param[in,out] position 数値の開始位置から直後へ移します。
  * @return MAX_INTEGER以下の値。
  */
+//------------------------------------------------------------------------------
 std::uint64_t scanNumber( std::string_view bytes, std::size_t &position)
 {
 	const std::size_t start = position ;	// 先頭zeroの検査位置。
@@ -171,22 +190,28 @@ std::uint64_t scanNumber( std::string_view bytes, std::size_t &position)
 	return value ;
 }
 
-/** @brief 固定tokenを完全一致で消費します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定tokenを完全一致で消費します。
  * @param[in] bytes 元入力。
  * @param[in,out] position 現在位置。
  * @param[in] token 固定ASCII。
  */
+//------------------------------------------------------------------------------
 void token( std::string_view bytes, std::size_t &position, std::string_view token)
 {
 	require( position <= bytes.size() && bytes.substr( position).starts_with( token)) ;
 	position += token.size() ;
 }
 
-/** @brief 一つのcanonical値を最大16段で確保なし走査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一つのcanonical値を最大16段で確保なし走査します。
  * @param[in] bytes 事前Unicode検査済みの有限byte。
  * @param[in,out] position 一値の始点から終点へ移します。
  * @param[in] depth 外側のobject／arrayの数。
  */
+//------------------------------------------------------------------------------
 void scanValue( std::string_view bytes, std::size_t &position, std::size_t depth)
 {
 	require( position < bytes.size()) ;
@@ -242,12 +267,15 @@ void scanValue( std::string_view bytes, std::size_t &position, std::size_t depth
 	}
 }
 
-/** @brief 既存CNGへ元byteだけを渡し、失敗診断を保持します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存CNGへ元byteだけを渡し、失敗診断を保持します。
  * @param[in] bytes hash対象の原byte。
  * @param[out] digest 実CNGによる小文字hash。
  * @param[in] probe 任意の失敗だけの診断。
  * @return 原HRESULT。0は実CNG成功時のみ。
  */
+//------------------------------------------------------------------------------
 NativeError hashBytes( std::string_view bytes, std::wstring &digest, const HashFailureProbe &probe)
 {
 	const NativeError injected = probe ? probe() : 0 ;	// 成功digestを外部から受け取らない。
@@ -260,10 +288,13 @@ NativeError hashBytes( std::string_view bytes, std::wstring &digest, const HashF
 	return computeBytesSha256( bytes, digest) ;
 }
 
-/** @brief Hashの確保失敗をCNG障害から分離します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Hashの確保失敗をCNG障害から分離します。
  * @param[in] error 元HRESULT。
  * @return 成功、OOM、hash失敗の固定結果。
  */
+//------------------------------------------------------------------------------
 Result hashResult( NativeError error)
 {
 	return {error == 0				 ? Status::OK
@@ -272,9 +303,12 @@ Result hashResult( NativeError error)
 			error} ;
 }
 
-/** @brief 外側に入れる応答の有限字句と新schemaだけを検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 外側に入れる応答の有限字句と新schemaだけを検査します。
  * @param[in] response 元byte。意味検査済みと呼ばない値です。
  */
+//------------------------------------------------------------------------------
 void checkResponseBytes( std::string_view response)
 {
 	const Reader checked( response, RESPONSE_LIMIT) ;	// 全byte・Unicode・深さを先に検査する。
@@ -283,18 +317,37 @@ void checkResponseBytes( std::string_view response)
 }
 } // namespace
 
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定上限内の空sinkを作ります。
+ * @param[in] limit 1～ENVELOPE_LIMITの実byte上限。
+ * @throws Failure 上限指定が不正な場合。
+ */
+//------------------------------------------------------------------------------
 Writer::Writer( std::size_t limit) : limit_( limit)
 {
 	checkLimit( limit) ;
 }
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定構文または検証済み断片をそのまま追加します。
+ * @param[in] bytes 借用断片。UTF-8やschemaはこの関数では検査しません。
+ * @throws Failure 追加前の容量検査に失敗した場合。
+ * @note byte上限違反では元sinkを変更しません。確保失敗は伝播します。
+ */
+//------------------------------------------------------------------------------
 void Writer::append( std::string_view bytes)
 {
 	require( bytes.size() <= limit_ - bytes_.size(), Status::SIZE_LIMIT) ;
 	bytes_.append( bytes) ;
 }
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 正しいUTF-8文字列を二種類のescapeだけで出力します。
+ * @param[in] value NUL／制御文字を含まない元文字列。
+ * @throws Failure 不正Unicodeまたは実byte超過。
+ */
+//------------------------------------------------------------------------------
 void Writer::text( std::string_view value)
 {
 	require( value.size() <= limit_ - bytes_.size(), Status::SIZE_LIMIT) ;
@@ -312,7 +365,13 @@ void Writer::text( std::string_view value)
 
 	append( "\"") ;
 }
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief UTF-16のscalarを正規化せずUTF-8へ符号化します。
+ * @param[in] value Windowsの元公開文字列。孤立surrogateは拒否します。
+ * @throws Failure 不正Unicodeまたは実byte超過。
+ */
+//------------------------------------------------------------------------------
 void Writer::wideText( std::wstring_view value)
 {
 	require( value.size() <= limit_ - bytes_.size(), Status::SIZE_LIMIT) ;
@@ -367,7 +426,13 @@ void Writer::wideText( std::wstring_view value)
 
 	append( "\"") ;
 }
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 正確な非負整数を十進で出力します。
+ * @param[in] value MAX_INTEGER以下の値。
+ * @throws Failure 範囲外または実byte超過。
+ */
+//------------------------------------------------------------------------------
 void Writer::number( std::uint64_t value)
 {
 	require( value <= MAX_INTEGER) ;
@@ -378,18 +443,35 @@ void Writer::number( std::uint64_t value)
 	require( encoded.ec == std::errc{}) ;
 	append( std::string_view( buffer.data(), static_cast<std::size_t>( encoded.ptr - buffer.data()))) ;
 }
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有byteを変更せず借用します。
+ * @return このsinkの変更・破棄まで有効なview。
+ */
+//------------------------------------------------------------------------------
 std::string_view Writer::view() const noexcept
 {
 	return bytes_ ;
 }
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 完成byteを移譲します。
+ * @return 元順序の所有byte。この後のsinkは空です。
+ */
+//------------------------------------------------------------------------------
 std::string Writer::take() noexcept
 {
 	return std::exchange( bytes_, {}) ;
 }
 
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全入力を確保なしで事前走査し、読み位置を先頭へ置きます。
+ * @param[in] bytes Readerの寿命中に変更しない元byte。
+ * @param[in] limit 対象層の独立した実byte上限。
+ * @throws Failure サイズ・UTF-8・文法・深さが不成立の場合。
+ */
+//------------------------------------------------------------------------------
 Reader::Reader( std::string_view bytes, std::size_t limit) : bytes_( bytes)
 {
 	checkLimit( limit) ;
@@ -399,12 +481,25 @@ Reader::Reader( std::string_view bytes, std::size_t limit) : bytes_( bytes)
 	scanValue( bytes, scanned, 0U) ;
 	require( scanned == bytes.size()) ;
 }
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定field順序やdelimiterを完全一致で消費します。
+ * @param[in] expected 型付きcodecが固定した構文。
+ * @throws Failure 一致しない場合。
+ */
+//------------------------------------------------------------------------------
 void Reader::literal( std::string_view expected)
 {
 	token( bytes_, position_, expected) ;
 }
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 文字列を解除し、解除後のbyte上限も検査します。
+ * @param[in] limit 解除後の独立上限。
+ * @return 元Unicodeを保持するUTF-8。公開text policyは別検査です。
+ * @throws Failure 文字列型以外または上限超過。
+ */
+//------------------------------------------------------------------------------
 std::string Reader::text( std::size_t limit)
 {
 	Writer decoded( limit) ;	// 解除後の別予算を持つsink。
@@ -429,25 +524,48 @@ std::string Reader::text( std::size_t limit)
 
 	throw Failure{Status::INVALID} ;
 }
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Canonical非負整数を読みます。
+ * @return MAX_INTEGER以下の元値。
+ * @throws Failure 数値型以外の場合。
+ */
+//------------------------------------------------------------------------------
 std::uint64_t Reader::number()
 {
 	return scanNumber( bytes_, position_) ;
 }
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 次の値を原byteのまま借用します。
+ * @return 一つの有限JSON値。型と関係の検証はcallerが行います。
+ * @throws Failure 値がない場合。
+ */
+//------------------------------------------------------------------------------
 std::string_view Reader::value()
 {
 	const std::size_t start = position_ ;	// 原byteの借用開始。
 	scanValue( bytes_, position_, 0U) ;
 	return bytes_.substr( start, position_ - start) ;
 }
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 末尾の余分なfield・byteを拒否します。
+ * @throws Failure 全入力を消費していない場合。
+ */
+//------------------------------------------------------------------------------
 void Reader::finish() const
 {
 	require( position_ == bytes_.size()) ;
 }
 
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 内部identityに使う小文字64桁hexだけを許可します。
+ * @param[in] value 原文字列。
+ * @return 長さと全byteが固定文法に一致する場合true。
+ */
+//------------------------------------------------------------------------------
 bool isHash( std::wstring_view value) noexcept
 {
 	return value.size() == 64U && std::all_of( value.begin(), value.end(), []( wchar_t current) {
@@ -455,7 +573,16 @@ bool isHash( std::wstring_view value) noexcept
 		   }) ;
 }
 
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 新v4の外側だけを有限encodeし、本文hashを実CNGで作ります。
+ * @param[in] response 字句検査とv4 schema prefixを満たす本文。型付き意味検査は別途必須です。
+ * @param[out] envelope 成立時の外側byte。失敗時は空です。入力とのaliasは禁止です。
+ * @param[out] body 成立時の元応答とhash。失敗時は空です。
+ * @param[in] probe 任意の失敗専用診断。digestや成功DTOを返せません。
+ * @return 有限処理結果。保存・親受入・CACHE更新は行いません。
+ */
+//------------------------------------------------------------------------------
 Result encodeEnvelope( std::string_view response, std::string &envelope, EnvelopeBytes &body,
 					  const HashFailureProbe &probe) noexcept
 {
@@ -491,7 +618,15 @@ Result encodeEnvelope( std::string_view response, std::string &envelope, Envelop
 	}
 }
 
-/** @see local_collector_projected_json.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 新形式envelopeの固定順序と実本文hashを独立に検査します。
+ * @param[in] envelope 最大2 MiBの元byte。
+ * @param[out] body 成立時の元応答とhash。失敗時は空です。入力とのaliasは禁止です。
+ * @param[in] probe 任意の失敗専用診断。0でもhash照合を省略しません。
+ * @return 有限処理結果。metadataの全field・関係は後続の専用codecが検査します。
+ */
+//------------------------------------------------------------------------------
 Result decodeEnvelope( std::string_view envelope, EnvelopeBytes &body,
 					  const HashFailureProbe &probe) noexcept
 {

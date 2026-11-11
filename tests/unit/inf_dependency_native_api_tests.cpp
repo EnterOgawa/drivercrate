@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native_api_tests.cpp
  * @brief 架空OS・署名・Storeと実fileでnative障害を再現する専用試験。
- * @version 01.05.00
+ * @version 01.05.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * Ver.01.04.01 Shunji Ogawa  2026/10/24 実openのfile／path不在と未解決保持を別条件で確認。
  * Ver.01.04.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * Ver.01.05.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note この専用targetではtrust／OS APIを全て架空化する。実署名・実device・導入の測定ではない。
@@ -57,11 +58,14 @@ namespace {
 thread_local const CommonInfInspection *commonContentUnderTest{} ;	// 専用EXEの現在fixtureだけです。
 thread_local std::size_t				commonContentRechecks{} ;	// 所有byteの実再確認回数です。
 }
-/** @brief 専用EXEだけで元内容の署名境界をfake化し、全原byteは実hashへ再照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 専用EXEだけで元内容の署名境界をfake化し、全原byteは実hashへ再照合します。
  * @param[in] inspected この同期fixtureが登録した元内容だけです。
  * @return 同一fixtureと原byte一致0、それ以外は元拒否HRESULTです。
  * @note 通常製品の再検証関数を変更せず、このtargetにだけ定義します。
  */
+//------------------------------------------------------------------------------
 NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected)
 {
 	// 任意の成功boolや別所有者を内容証拠として受理しません。
@@ -273,7 +277,8 @@ struct Fixture {
 	/// 二threadで異なる文脈を確認する架空build。
 	DWORD									   build{26100U} ;
 
-	/** @brief 架空fileとAPI集合を初期化する。
+	/**
+	 * @brief 架空fileとAPI集合を初期化する。
 	 * @param[in] selected このrunの一障害。
 	 * @param[in] payloadBody 到達Shared節からの架空file用途。実payload fileは作成しない。
 	 * @param[in] rootBody 空なら既存root本文、それ以外はこのfixtureだけの明示節群。
@@ -450,7 +455,8 @@ struct Fixture {
 		} ;
 	}
 
-	/** @brief 一架空fileを新規作成し実hashを固定する。
+	/**
+	 * @brief 一架空fileを新規作成し実hashを固定する。
 	 * @param[in] name 所有領域内のASCII相対位置。
 	 * @param[in] bytes 架空の原byte。
 	 * @return 実byte／sizeに結合したmember。
@@ -482,7 +488,8 @@ struct Fixture {
 		return result ;
 	}
 
-	/** @brief 開始／終了の架空OS応答を生成する。
+	/**
+	 * @brief 開始／終了の架空OS応答を生成する。
 	 * @param[out] version 未知product typeも含む元応答。
 	 * @param[out] native native architectureの元応答。
 	 * @return API成功0、注入した診断値。
@@ -549,7 +556,8 @@ struct Fixture {
 		return 0 ;
 	}
 
-	/** @brief 架空署名応答と保持中fileのwriter／再入を再現する。
+	/**
+	 * @brief 架空署名応答と保持中fileのwriter／再入を再現する。
 	 * @param[in] path 固定した原INF位置。
 	 * @param[out] signer 有限の架空応答。
 	 * @return 成功0、注入した診断値。
@@ -648,7 +656,8 @@ struct Fixture {
 		return 0 ;
 	}
 
-	/** @brief 同期fixtureを一回だけ実行する。
+	/**
+	 * @brief 同期fixtureを一回だけ実行する。
 	 * @param[out] result 全成功時の架空観測。
 	 * @return adapterの元診断値。
 	 */
@@ -659,9 +668,12 @@ struct Fixture {
 	}
 } ;
 
-/** @brief 拒否・独立証拠・非実行計画とRAII解除を検査する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 拒否・独立証拠・非実行計画とRAII解除を検査する。
  * @param[in,out] context このprocessのassertion集計。
  */
+//------------------------------------------------------------------------------
 void matrix( TestContext &context)
 {
 	// 一種類の障害ごとに新しい実fileとAPI状態を所有する。
@@ -843,12 +855,13 @@ void matrix( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同節Services・明示Needs名と未採用参照節の分離を実readerで確認する。
  * @param[in,out] context 一processの有限assertion集計。
- * @note OS／INF署名／CAT／Store応答は既存のfake境界だけを使用する。
- *       実hash・節読取は実APIで、fake成功を全payload署名や端末導入能力へ昇格しない。
+ * @note OS／INF署名／CAT／Store応答は既存のfake境界だけを使用する。実hash・節読取は実APIで、fake成功を全payload署名や端末導入能力へ昇格しない。
  */
+//------------------------------------------------------------------------------
 void referenceSelection( TestContext &context)
 {
 	// 同節正例・Include借用拒否・三suffix不一致・Includeだけの未採用節を全て確認する。
@@ -987,10 +1000,13 @@ struct JunctionData {
 // APIの固定headerとoffset群。
 static_assert( offsetof( JunctionData, paths) == 16U) ;
 
-/** @brief 所有領域内だけの実junctionを作成・拒否確認・tag解除する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有領域内だけの実junctionを作成・拒否確認・tag解除する。
  * @param[in,out] context 実path拒否を別に集計する。
  * @note OS領域は変更しない。参照先も同じ架空領域内で、driverを導入しない。
  */
+//------------------------------------------------------------------------------
 void junction( TestContext &context)
 {
 	Fixture fixture( Fault::NONE) ;	// 署名／OSは架空で、fileとreparseは実物。
@@ -1047,11 +1063,13 @@ void junction( TestContext &context)
 	DRIVERCRATE_EXPECT( context, result.dependency.documents.empty() && result.findings.empty()) ;
 	DRIVERCRATE_EXPECT( context, fixture.signatureCalls == 0U) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief INF自身のfake署名とSYSTEM payload未検証を独立に保持する。
  * @param[in,out] context 一processの有限assertion集計。
  * @note fakeの署名成功は実Windows署名の測定ではなく、payloadも取得・複写しない。
  */
+//------------------------------------------------------------------------------
 void payloadObservation( TestContext &context)
 {
 	constexpr std::array FAULTS{Fault::NONE, Fault::STORE_START,
@@ -1115,10 +1133,13 @@ void payloadObservation( TestContext &context)
 		}
 	}
 }
-/** @brief 実openのfile／path不在だけを未解決候補へ保持する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実openのfile／path不在だけを未解決候補へ保持する。
  * @param[in,out] context 非通信の二条件を集計する。
  * @note 既存matrixの有効handle後不在・権限・reparse拒否を代用しない。
  */
+//------------------------------------------------------------------------------
 void referenceOpenAbsence( TestContext &context)
 {
 	constexpr std::array PARENTS{false, true} ;	// 親なしpath不在と親ありfile不在。
@@ -1157,9 +1178,12 @@ void referenceOpenAbsence( TestContext &context)
 			})) ; // 元Include欠落を保持し、版や署名成功で補完しない。
 	}
 }
-/** @brief NeedsのHKR設定を正負の実INFと有限予算で検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief NeedsのHKR設定を正負の実INFと有限予算で検査します。
  * @param[in,out] context 同一processの集計です。
  */
+//------------------------------------------------------------------------------
 void needsRegistry( TestContext &context)
 {
 	InfDependencyNativeResult graph ;	// 架空identityだけの文脈伝播graphです。
@@ -1263,9 +1287,12 @@ void needsRegistry( TestContext &context)
 		}
 	}
 }
-/** @brief 実Common入口の正規選択文脈と同名二段転送・HW効果を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実Common入口の正規選択文脈と同名二段転送・HW効果を確認します。
  * @param[in,out] context 元assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void selectedCommonContext( TestContext &context)
 {
 	// HWの正当なHKRと拒否すべきHKLMだけを別fixtureへ渡します。
@@ -1427,9 +1454,12 @@ void selectedCommonContext( TestContext &context)
 } // namespace
 } // namespace drivercrate::test
 
-/** @brief 非通信の架空API matrixだけを実行し件数を表示する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 非通信の架空API matrixだけを実行し件数を表示する。
  * @return 全成功0、assertion・fixture例外の失敗1。
  */
+//------------------------------------------------------------------------------
 int main()
 {
 	drivercrate::test::TestContext context ;	// 一processの有限集計。

@@ -2,7 +2,7 @@
 /**
  * @file local_collector_metadata_codec.h
  * @brief 収集metadataの固定所有型と非保存codecを定義します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/29  有限metadata往復とscope関係検査を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 純粋な値の検査です。予約受入、cache決定、永続保存を行いません。
@@ -213,33 +214,42 @@ struct CollectorMetadataDocument {
 	std::optional<CollectorMetadataError> error ;
 } ;
 
-/** @brief 正常draftを全scope照合後に非保存metadataへ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 正常draftを全scope照合後に非保存metadataへ変換します。
  * @param[in] job 元prepared jobの公開値。
  * @param[in] draft 正常parserが作った未確定値。
  * @param[in] parser 元COMPLETED観測。
  * @param[out] document 成功時だけ所有値。失敗時は空の初期型。
  * @return 有限検査結果。I/O、予約、減少、cache採否は後続の親入口で必ず検査します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] collector_projected_json::Result makeCollectorMetadataDocument(
 	const CollectorProjectedJobInput &job, const CollectorMetadataProjectionDraft &draft,
 	const CollectorParserResult &parser, CollectorMetadataDocument &document) noexcept ;
 
-/** @brief 全field・公開値・元scopeの関係を検査して有限符号化します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全field・公開値・元scopeの関係を検査して有限符号化します。
  * @param[in] job 元入力の公開scope。HTTP観測の代用にはしません。
  * @param[in] document 型付き全field。
  * @param[out] bytes Canonical UTF-8。失敗時は空。入力とのaliasは禁止です。
  * @return 結果。Hash、保存、予約受入は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] collector_projected_json::Result encodeCollectorMetadata(
 	const CollectorProjectedJobInput &job, const CollectorMetadataDocument &document,
 	std::string &bytes) noexcept ;
 
-/** @brief 有限事前走査・型検査・全関係検査・再符号化完全一致を行います。
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限事前走査・型検査・全関係検査・再符号化完全一致を行います。
  * @param[in] job 元入力の公開scope。
  * @param[in] bytes 最大512 KiBの元UTF-8。
  * @param[out] document 成功時だけ所有値。失敗時は空の初期型。
  * @return 結果。Worker成功、通常record evidence、取得権限を発行しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] collector_projected_json::Result decodeCollectorMetadata(
 	const CollectorProjectedJobInput &job, std::string_view bytes,
 	CollectorMetadataDocument &document) noexcept ;

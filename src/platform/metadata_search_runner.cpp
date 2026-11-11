@@ -2,7 +2,7 @@
 /**
  * @file metadata_search_runner.cpp
  * @brief 現在属性と専用metadata callbackの有界な直列実行。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/12  非取得専用のRegistry実行境界を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  端末内の観測snapshotと候補詳細を結合。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 許可の入力は専用callbackだけであり、通常scanや導入へのfallbackを持たない。
@@ -51,12 +52,14 @@ namespace {
 constexpr NativeError INVALID_ARGUMENT = static_cast<NativeError>( E_INVALIDARG) ;	// 契約拒否。
 constexpr NativeError INTERNAL_ERROR   = static_cast<NativeError>( E_UNEXPECTED) ;	// 例外と内部矛盾。
 
+//------------------------------------------------------------------------------
 /**
  * @brief 表示名とpolicyを含む全descriptor fieldを正本へ照合する。
  * @param[in] left 一回の実行snapshot。
  * @param[in] right Registry正本。
  * @return 全登録fieldが完全一致した場合true。
  */
+//------------------------------------------------------------------------------
 bool sameDescriptor( const ProviderDescriptor &left, const ProviderDescriptor &right) noexcept
 {
 	return left.id == right.id && left.displayName == right.displayName &&
@@ -67,6 +70,7 @@ bool sameDescriptor( const ProviderDescriptor &left, const ProviderDescriptor &r
 		   left.officialSourcePolicyId == right.officialSourcePolicyId ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一Providerが返した行の由来と非導入契約を確認する。
  * @param[in] result 検査する結果。
@@ -76,6 +80,7 @@ bool sameDescriptor( const ProviderDescriptor &left, const ProviderDescriptor &r
  * @param[in] devices 現在属性から得たD。Inventory検証時は使用しない。
  * @return 行が一意で発行元・用途・device結合・監査が整合する場合true。
  */
+//------------------------------------------------------------------------------
 bool validRows( const ScanResult &result, const ProviderDescriptor &descriptor,
 			   const ScanSessionId session, const bool inventory,
 			   const std::set<std::wstring> &devices)
@@ -113,12 +118,14 @@ bool validRows( const ScanResult &result, const ProviderDescriptor &descriptor,
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 子結果の非機密なProvider終端を作成する。
  * @param[in] descriptor Registry正本。
  * @param[in] result 検証済みの子結果。
  * @return 発行元、状態、診断、件数と元outcomeの所有report。
  */
+//------------------------------------------------------------------------------
 ProviderScanReport providerReport( const ProviderDescriptor &descriptor, const ScanResult &result)
 {
 	return {.descriptor		= descriptor,
@@ -130,7 +137,13 @@ ProviderScanReport providerReport( const ProviderDescriptor &descriptor, const S
 }
 } // namespace
 
-/** @see src/platform/metadata_search_runner.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全registryのdescriptorと専用能力・callbackの両側を検証する。
+ * @param[in] registrations 正本registryから得た有限snapshot。順序には依存しない。
+ * @return 正本と同じ一意集合で、能力とcallbackが完全対応する場合true。
+ */
+//------------------------------------------------------------------------------
 bool validateMetadataSearchRegistrations(
 	const std::span<const MetadataSearchRegistration> registrations) noexcept
 {
@@ -161,7 +174,20 @@ bool validateMetadataSearchRegistrations(
 	return true ;
 }
 
-/** @see src/platform/metadata_search_runner.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在属性と明示した公式情報を有界実行し、非導入の部分結果を保持する。
+ * @param[in] session Contextと同じ非ゼロsession。
+ * @param[in] request 空でない専用Provider集合と今回の回線許可。
+ * @param[in,out] execution Workerが所有し、inventoryを含む実行全体へ借用する予算。
+ * @param[in] registrations 既存registryの専用callback。別のProvider一覧を作らない。
+ * @param[in] inventory 現在属性だけを取得する必須依存。
+ * @param[in] measurementContext 開始時刻、OS、実行版の固定条件。選択集合は要求から設定する。
+ * @param[in] progress UIへの確定進捗通知。取消しを含む通常の例外はcallerが処理する。
+ * @return 全registryの終端と専用summary。契約不正ではsummaryを発行しない。
+ * @note 20／70／10の段階配分。未実行Provider分を架空の進捗で埋めない。
+ */
+//------------------------------------------------------------------------------
 ScanResult runMetadataSearch( const ScanSessionId session, const MetadataSearchRequest &request,
 							 MetadataSearchExecutionContext					  &execution,
 							 const std::span<const MetadataSearchRegistration> registrations,

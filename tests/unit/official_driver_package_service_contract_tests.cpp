@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package_service_contract_tests.cpp
  * @brief 専用compileでサービス内容集合の正常終端と途中失敗を直接観測します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/13
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/13  同有効HINFの正常集合と途中失敗empty契約を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 製品ではcompileしません。署名・実device・サービス起動・導入の成功は認定しません。
@@ -42,6 +43,7 @@
 #include <vector>
 
 namespace drivercrate::test {
+//------------------------------------------------------------------------------
 /**
  * @brief 専用翻訳単位の列挙呼出しを実APIまたは固定障害へ結びます。
  * @param[in] inf 呼出し中に生存する有効な実INFです。
@@ -51,6 +53,7 @@ namespace drivercrate::test {
  * @param[out] required 元APIの必要長です。null可です。
  * @return 実APIの成功値、または固定Win32診断を伴うFALSEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI serviceContractEnumInfSections( HINF inf, UINT index, PWSTR buffer, UINT capacity,
 										   PUINT required) ;
 }
@@ -101,6 +104,7 @@ constexpr std::string_view SERVICE_INF =
 	"[SourceDisksNames]\r\n1=\"fixture\"\r\n[SourceDisksFiles]\r\n"
 	"first.exe=1\r\nsecond.exe=1\r\n" ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 所有workspaceへ固定fixture全byteを新規保存します。
  * @param[in,out] workspace 作成したfileをscope終了時に削除する所有者です。
@@ -108,6 +112,7 @@ constexpr std::string_view SERVICE_INF =
  * @param[in] bytes 同期中だけ借用する有限fixtureです。
  * @return 全byte保存時true、作成または部分書込み失敗時falseです。
  */
+//------------------------------------------------------------------------------
 bool writeServiceFixture( OfficialDownloadWorkspace &workspace, std::wstring_view path,
 						 std::string_view bytes)
 {
@@ -127,12 +132,14 @@ bool writeServiceFixture( OfficialDownloadWorkspace &workspace, std::wstring_vie
 	return complete ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定番号の実private出力と元診断を記録します。
  * @param[in] id 新規条件番号です。
  * @param[in] error 実呼出しの戻り診断です。
  * @param[in] outputs 実private出力の件数です。
  */
+//------------------------------------------------------------------------------
 void printServiceCase( const char *id, NativeError error, std::size_t outputs)
 {
 	std::cout << "SERVICE_CONTRACT " << id << " error=" << error << " outputs=" << outputs
@@ -141,6 +148,17 @@ void printServiceCase( const char *id, NativeError error, std::size_t outputs)
 }
 } // namespace
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 専用翻訳単位の列挙呼出しを実APIまたは固定障害へ結びます。
+ * @param[in] inf 呼出し中に生存する有効な実INFです。
+ * @param[in] index 元section indexです。
+ * @param[out] buffer 元APIの出力先です。障害注入時は使用しません。
+ * @param[in] capacity 元bufferの文字容量です。
+ * @param[out] required 元APIの必要長です。null可です。
+ * @return 実APIの成功値、または固定Win32診断を伴うFALSEです。
+ */
+//------------------------------------------------------------------------------
 BOOL WINAPI serviceContractEnumInfSections( HINF inf, UINT index, PWSTR buffer, UINT capacity,
 										   PUINT required)
 {
@@ -165,7 +183,13 @@ BOOL WINAPI serviceContractEnumInfSections( HINF inf, UINT index, PWSTR buffer, 
 	return result ;
 }
 
-/** @see tests/support/inf_dependency_native_test_api.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 有効な実INFでサービス集合の正常終端と途中失敗の出力契約を直接確認します。
+ * @param[in,out] context 同期中だけ借用する試験集計です。
+ * @note 列挙障害だけを専用翻訳単位で注入し、製品API・設定・実導入を追加しません。
+ */
+//------------------------------------------------------------------------------
 void runOfficialServiceOutputContractTests( TestContext &context)
 {
 	OfficialDownloadWorkspace workspace ;	// 架空fixtureだけを所有します。

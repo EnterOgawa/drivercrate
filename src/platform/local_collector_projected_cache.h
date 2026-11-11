@@ -2,7 +2,7 @@
 /**
  * @file local_collector_projected_cache.h
  * @brief 成功履歴と最新試行を分ける有限CACHE値を定義します。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/29  CACHE値と非保存更新を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/29  親の非保存応答・CACHE結合結果を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/30  登録履歴の変更不能な読取りcontextを追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note CACHE値単独は登録・参照先実在を証明しません。専用contextも送信許可ではありません。
@@ -129,10 +130,13 @@ public:
 	/** @brief 保存監督だけが作れる構築keyです。 */
 	class ConstructionKey {
 		friend class LocalCollectorRecovery ;
-		/** @brief 任意callerによる履歴context生成を禁止します。 */
+		/**
+		 * @brief 任意callerによる履歴context生成を禁止します。
+		 */
 		ConstructionKey() = default ;
 	} ;
-	/** @brief 全保存根拠の検査後だけ値を所有します。
+	/**
+	 * @brief 全保存根拠の検査後だけ値を所有します。
 	 * @param[in] key 保存監督だけが作る構築key。
 	 * @param[in] cache 検証した最新CACHE。
 	 * @param[in] slices 全保存根拠と結合した成功slice。
@@ -149,35 +153,40 @@ public:
 	{
 		(void)key ;
 	}
-	/** @brief 登録と更新後像を照合した最新値を借用します。
+	/**
+	 * @brief 登録と更新後像を照合した最新値を借用します。
 	 * @return Contextと同じ寿命のconst参照。
 	 */
 	[[nodiscard]] const CollectorProjectedCache &cache() const noexcept
 	{
 		return cache_ ;
 	}
-	/** @brief 全参照検証済みの成功sliceを借用します。
+	/**
+	 * @brief 全参照検証済みの成功sliceを借用します。
 	 * @return 最大16件、contextと同じ寿命のconst参照。
 	 */
 	[[nodiscard]] const std::vector<CollectorProjectedHistoryEvidence> &slices() const noexcept
 	{
 		return slices_ ;
 	}
-	/** @brief 検査したroot本文hashを返します。
+	/**
+	 * @brief 検査したroot本文hashを返します。
 	 * @return Contextと同じ寿命のconst参照。
 	 */
 	[[nodiscard]] const std::wstring &rootHash() const noexcept
 	{
 		return rootHash_ ;
 	}
-	/** @brief 最新CACHEの登録hashを返します。
+	/**
+	 * @brief 最新CACHEの登録hashを返します。
 	 * @return Contextと同じ寿命のconst参照。
 	 */
 	[[nodiscard]] const std::wstring &cacheHash() const noexcept
 	{
 		return cacheHash_ ;
 	}
-	/** @brief 更新前後を再計算した操作数を返します。
+	/**
+	 * @brief 更新前後を再計算した操作数を返します。
 	 * @return 1～300。
 	 */
 	[[nodiscard]] std::size_t operations() const noexcept
@@ -198,21 +207,29 @@ private:
 	std::size_t									   operations_{} ;
 } ;
 
-/** @brief 固定順・最大24 KiBのCACHE本文を作ります。保存はしません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定順・最大24 KiBのCACHE本文を作ります。保存はしません。
  * @param[in] cache 構造と相互参照を検査する公開値。
  * @param[out] body 成功時の本文、失敗時は空。
  * @return 固定分類と元OOM数値。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] collector_projected_json::Result encodeCollectorProjectedCache(
 	const CollectorProjectedCache &cache, std::string &body) noexcept ;
-/** @brief 有限canonical本文を読み、全fieldと参照関係を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限canonical本文を読み、全fieldと参照関係を検査します。
  * @param[in] body 元CACHE本文。外側envelope hashは保存層の責任です。
  * @param[out] cache 成功時の値、失敗時は空。
  * @return 固定分類。登録・元応答の実在は証明しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] collector_projected_json::Result decodeCollectorProjectedCache(
 	std::string_view body, CollectorProjectedCache &cache) noexcept ;
-/** @brief 元v4を独立検証し、成功参照を保持した次CACHE値を導出します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元v4を独立検証し、成功参照を保持した次CACHE値を導出します。
  * @param[in] job 今回の元scope。
  * @param[in] envelope 今回の元応答。減少は親で最終化済みであること。
  * @param[in] before 過去値またはnull。登録と全履歴の再検証は親が行います。
@@ -220,11 +237,14 @@ private:
  * @param[in] probe 下位hashの失敗専用診断。
  * @return 原hash HRESULT／OOMを保持する結果。REVALIDATEDは拒否します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] collector_projected_json::Result deriveCollectorProjectedCache(
 	const CollectorProjectedJobInput &job, std::string_view envelope,
 	const CollectorProjectedCache *before, CollectorProjectedCache &after,
 	const CollectorProjectedHashProbe &probe = {}) noexcept ;
-/** @brief 中断時に過去成功を保持し、validatorだけを解除します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 中断時に過去成功を保持し、validatorだけを解除します。
  * @param[in] request 同じrequest key。
  * @param[in] binding 今回binding。
  * @param[in] attempt 保存監督が元中断応答から導いた直接参照。
@@ -232,6 +252,7 @@ private:
  * @param[out] after 成功時の値、失敗時は空。全入力とのaliasは禁止です。
  * @return 構造検査結果。元応答や登録の証明は監督の責任です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] collector_projected_json::Result makeInterruptedCollectorCache(
 	std::wstring_view request, std::wstring_view binding, const CollectorCacheAttempt &attempt,
 	const CollectorProjectedCache *before, CollectorProjectedCache &after) noexcept ;

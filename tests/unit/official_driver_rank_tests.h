@@ -2,7 +2,7 @@
 /**
  * @file official_driver_rank_tests.h
  * @brief 公式driver rank監査単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実deviceへ依存しないPnP具体性とWindows rank evidenceを検証します。
@@ -39,11 +40,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 公式driver rank監査の単体試験を実行する。
- * 同等／改善と、class、ID、rank evidence各拒否条件を検証する。
+ * @brief 公式driver rank監査の単体試験を実行する。同等／改善と、class、ID、rank evidence各拒否条件を検証する。
  * @param[in,out] context Assertion件数と失敗件数の集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialDriverRankTests( TestContext &context) ;
 
 } // namespace drivercrate::test

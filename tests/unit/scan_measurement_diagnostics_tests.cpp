@@ -2,7 +2,7 @@
 /**
  * @file scan_measurement_diagnostics_tests.cpp
  * @brief 固定条件scan profileと非機密ASCII reportの決定的試験。
- * @version 01.00.04
+ * @version 01.00.05
  * @date 2026/09/10
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.00.02 Shunji Ogawa  2026/10/12  31登録と明示9件を分離し解決拒否後の空集合参照を防止。
  * Ver.01.00.03 Shunji Ogawa  2026/10/12  metadata探索判定の必要宣言を直接includeして単独compileを修正。
  * Ver.01.00.04 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.00.05 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空candidate、公開registryの固定IDおよびfake streamだけを使います。
@@ -206,32 +207,36 @@ private:
 //------------------------------------------------------------------------------
 // 合成fixture関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief 値を持つEXACT件数を作る。
  * @param[in] value 合成する確定件数。
  * @return `EXACT:value`のCountMeasurement。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CountMeasurement exactCount( const std::uint64_t value)
 {
 	return {value, MeasurementExtent::EXACT} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 値を持つLOWER_BOUND件数を作る。
  * @param[in] value 合成する確認済み下限。
  * @return `LOWER_BOUND:value`のCountMeasurement。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CountMeasurement lowerBoundCount( const std::uint64_t value)
 {
 	return {value, MeasurementExtent::LOWER_BOUND} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定profileを解決し、test継続用の所有設定を返す。
  * @param[in,out] context 解決失敗を記録するAssertion集計先。
  * @return 実registryに一致した明示9 Provider設定。失敗時は既定値。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] ScanOptions fixtureOptions( TestContext &context)
 {
 	ScanOptions options ;	// Helperから受け取る固定profile。
@@ -239,12 +244,14 @@ private:
 	return options ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Device 0件で全31 reportを持つ有効な公開snapshotを作る。
  * @param[in] options Contextとreportの有効状態に使用する固定profile。
  * @param[in] outcome 全体scanのSUCCESSまたはSUCCEEDED_WITH_ERRORS。
  * @return Networkや実deviceへ接続しない合成ScanResult。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] ScanResult fixtureResult( const ScanOptions &options,
 									   const OutcomeCode  outcome = OutcomeCode::SUCCESS)
 {
@@ -291,12 +298,14 @@ private:
 	return result ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 指定Providerのreportをstable IDで検索する。
  * @param[in,out] result 検索対象の所有ScanResult。
  * @param[in] providerId 完全一致させる組み込みProvider ID。
  * @return 一致reportへの非所有pointer。欠落時はnullptr。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] ProviderScanReport *findReport( ScanResult &result, const std::wstring_view providerId)
 {
 	const auto found = std::find_if( result.providerReports.begin(), result.providerReports.end(),
@@ -306,6 +315,7 @@ private:
 	return found == result.providerReports.end() ? nullptr : &*found ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 登録済みresource一件をProvider measurementへ追加する。
  * @param[in,out] context 前提欠落を記録するAssertion集計先。
@@ -314,6 +324,7 @@ private:
  * @param[in] branch 任意branchの合成値。出力時は複写されない。
  * @return Resourceを追加できた場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendFixtureResource( TestContext &context, ScanResult &result,
 										 const std::wstring_view providerId,
 										 const std::wstring_view branch)
@@ -337,12 +348,14 @@ private:
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 文字列内にある非重複開始位置の出現数を数える。
  * @param[in] text 検索対象ASCII文字列。
  * @param[in] token 空でない固定token。
  * @return 見つかった開始位置の件数。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::size_t countOccurrences( const std::string_view text,
 										   const std::string_view token)
 {
@@ -366,11 +379,11 @@ private:
 //------------------------------------------------------------------------------
 // 内部試験関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief 引数分類、固定9／無効22、同意falseとregistry drift拒否を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testArgumentsAndProfile( TestContext &context)
 {
 	const std::span<const std::wstring_view> noArguments ;							// 暗黙scanを禁止する空引数。
@@ -482,10 +495,12 @@ void testArgumentsAndProfile( TestContext &context)
 			std::string::npos) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 四確定度、全31 report、任意branch非出力と候補文字列非出力を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCompleteReportAndRedaction( TestContext &context)
 {
 	const ScanOptions options = fixtureOptions( context) ;	// 明示9 Provider設定。
@@ -556,10 +571,12 @@ void testCompleteReportAndRedaction( TestContext &context)
 					   })) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 部分成功の終了区分と不正snapshotの無出力拒否を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPartialAndRejectedReports( TestContext &context)
 {
 	// 各戻り値とtemporaryを短命なfactory内で生成し、元の検証期間はheapで所有する。
@@ -886,10 +903,12 @@ void testPartialAndRejectedReports( TestContext &context)
 	expectRejectedOptions( fileOptions) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 1 MiB上限、完全構築前の無出力、部分writeとflush失敗を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCapacityAndIoFailures( TestContext &context)
 {
 	const ScanOptions options = fixtureOptions( context) ;	// 明示9 Provider設定。
@@ -977,10 +996,12 @@ void testCapacityAndIoFailures( TestContext &context)
 									oversizedBuffer.bytes.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Report先頭二件の入替えと逆順を同じ登録順出力へ変換できることを検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testReportOrdering( TestContext &context)
 {
 	const ScanOptions options  = fixtureOptions( context) ;	// 同じprofileを全順序へ適用する。
@@ -1013,10 +1034,12 @@ void testReportOrdering( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全31 reportと有効9 IDを独立に並べ替え、同じ出力と入力不変を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testContextAndReportOrdering( TestContext &context)
 {
 	const ScanOptions options = fixtureOptions( context) ;	// 全組合せで変更しない固定profile。
@@ -1102,10 +1125,12 @@ void testContextAndReportOrdering( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 六つの固定診断、未知enumの無出力、1 KiB上限とI/O再試行禁止を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testFailureDiagnostics( TestContext &context)
 {
 	// 固定enumと期待ASCII名を独立した定数で一対一に照合する。
@@ -1174,7 +1199,10 @@ void testFailureDiagnostics( TestContext &context)
 } // namespace
 
 //------------------------------------------------------------------------------
-/** @see tests/unit/scan_measurement_diagnostics_tests.h 宣言側の契約を正本とする。 */
+/**
+ * @brief 固定profile、四確定度、非機密化、容量およびI/O失敗を検証する。
+ * @param[in,out] context Assertion集計先。
+ */
 //------------------------------------------------------------------------------
 void runScanMeasurementDiagnosticsTests( TestContext &context)
 {

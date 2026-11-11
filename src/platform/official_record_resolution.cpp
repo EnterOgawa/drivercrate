@@ -2,7 +2,7 @@
 /**
  * @file official_record_resolution.cpp
  * @brief 未信頼URL入力を組み込み公式rootへ限定して解決するworker境界を実装します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  固定root routingと有限session registryを実装。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  非cacheの一回grant再解決を実装。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Submitted URLをresolverへ渡さず、Provider registryとsource policyの固定endpointだけを
@@ -265,7 +266,9 @@ constexpr NativeError	OUT_OF_MEMORY = static_cast<NativeError>( E_OUTOFMEMORY) ;
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_record_resolution.h 宣言側の契約を正本とします。
+ * @brief Root resolver registryが組み込みProvider・policy・endpointと一意に対応するか検証します。
+ * @param[in] registrations 一Provider・resourceにつき一件の有限registration集合。
+ * @return 全件が組み込み公式network Providerと固定endpointへ一致する場合true。
  */
 //------------------------------------------------------------------------------
 bool validateOfficialRecordResolverRegistrations(
@@ -303,7 +306,10 @@ bool validateOfficialRecordResolverRegistrations(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_record_resolution.h 宣言側の契約を正本とします。
+ * @brief 旧recordを失効させ、より新しいscan sessionを開始します。
+ * @param[in] scanSessionId Workerが単調発行した0ではないscan session ID。
+ * @return 開始成功時は0、0または再使用・逆行IDはHRESULT bit pattern。
+ * @post 成功時は保持record 0件、次record証拠ID 1です。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialRecordResolutionSession::beginSession(
@@ -323,7 +329,12 @@ NativeError OfficialRecordResolutionSession::beginSession(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_record_resolution.h 宣言側の契約を正本とします。
+ * @brief 一つの未信頼URL commandを固定root resolverへ限定して実行します。
+ * @param[in] command 秘密URLの所有権を渡す一回のcommand。
+ * @param[in] registrations 組み込み正本と照合する有限resolver registry。
+ * @param[in] cancellation Workerが所有する同一operationの取消しcallback。
+ * @return URL、host、path、query、record本文を含まない終端結果。
+ * @post 受理したoperation IDは失敗・取消しでも再使用できません。
  */
 //------------------------------------------------------------------------------
 OfficialRecordResolutionResult OfficialRecordResolutionSession::resolve(
@@ -456,7 +467,14 @@ OfficialRecordResolutionResult OfficialRecordResolutionSession::resolve(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_record_resolution.h 宣言側の契約を正本とします。
+ * @brief Expiring grantを同じ組み込みrootからcacheなしで一回だけ再解決します。
+ * @param[in] command 単調operation、新grant ID、時刻と有限root上限。
+ * @param[in] consumedGrant 期限切れまたは最初の401／403で消費済みの初回grant。
+ * @param[in] registrations 組み込み正本と照合する有限resolver registry。
+ * @param[in] cancellation Workerが所有する同一operationの取消しcallback。
+ * @param[out] replacementGrant URLだけが変わった場合に発行する新grant。開始時は未発行が必須です。
+ * @return URL、host、query、record本文を含まない終端結果。
+ * @post 成功時だけ`replacementGrant`は再解決回数1の`GRANT_ISSUED`です。
  */
 //------------------------------------------------------------------------------
 OfficialGrantReresolutionResult OfficialRecordResolutionSession::reresolveGrant(
@@ -627,7 +645,12 @@ OfficialGrantReresolutionResult OfficialRecordResolutionSession::reresolveGrant(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_record_resolution.h 宣言側の契約を正本とします。
+ * @brief 保持recordをsession・証拠IDで一回だけclaimします。
+ * @param[in] scanSessionId 現在のworker scan session ID。
+ * @param[in] recordEvidenceId `resolve`が返した0ではないopaque ID。
+ * @param[out] record 成功時だけ所有権を受け取るworker内record。失敗時は既定値です。
+ * @return Claim成功時は0、stale、未知または再使用IDはHRESULT bit pattern。
+ * @post 成功したrecordはregistryから除かれ、同じIDを再claimできません。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialRecordResolutionSession::claimResolvedRecord(
@@ -652,7 +675,8 @@ NativeError OfficialRecordResolutionSession::claimResolvedRecord(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_record_resolution.h 宣言側の契約を正本とします。
+ * @brief 現在sessionと全未claim recordを失効させます。
+ * @post `activeSessionId()`は0、`retainedRecordCount()`は0です。
  */
 //------------------------------------------------------------------------------
 void OfficialRecordResolutionSession::invalidate() noexcept
@@ -664,7 +688,8 @@ void OfficialRecordResolutionSession::invalidate() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_record_resolution.h 宣言側の契約を正本とします。
+ * @brief 現在有効なscan session IDを返します。
+ * @return 有効session ID。未開始・失効後は0です。
  */
 //------------------------------------------------------------------------------
 ScanSessionId OfficialRecordResolutionSession::activeSessionId() const noexcept
@@ -674,7 +699,8 @@ ScanSessionId OfficialRecordResolutionSession::activeSessionId() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_record_resolution.h 宣言側の契約を正本とします。
+ * @brief 未claimで保持するrecord件数を返します。
+ * @return 0件以上64件以下の保持数。
  */
 //------------------------------------------------------------------------------
 std::size_t OfficialRecordResolutionSession::retainedRecordCount() const noexcept

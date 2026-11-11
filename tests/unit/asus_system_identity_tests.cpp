@@ -2,7 +2,7 @@
 /**
  * @file asus_system_identity_tests.cpp
  * @brief ASUS local system識別単体試験実装。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/20  Registry確保容量と実size差の回帰を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/24  公開model明示の正規pageと拒否条件を検証。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実registryやnetworkへ接続せず、架空の非機密表示値だけを使用します。
@@ -46,10 +47,12 @@
 namespace drivercrate::test {
 namespace {
 
+//------------------------------------------------------------------------------
 /**
  * @brief API返却sizeと確保容量の差、および不正文字列の拒否を再現する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testRegistryReturnedSize( TestContext &context)
 {
 	const std::array<wchar_t, 6> buffer{L'A', L'S', L'U', L'S', L'\0', L'\0'} ;	// 架空取得値と余白。
@@ -189,10 +192,12 @@ void testInvalidAsusValues( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !applicable) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 端末registryに依存しない公開model要求と拒否を確認します。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPublicModelPageRequest( TestContext &context)
 {
 	AsusSupportPageRequest request ;	// 公開modelからだけ構築する公式page。
@@ -227,7 +232,9 @@ void testPublicModelPageRequest( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/asus_system_identity_tests.h 宣言側の契約を正本とする。
+ * @brief ASUS local system識別の単体試験を実行する。ASUS local system識別単体試験を実行する。System、baseboard、対象外、拒否経路を順番に検証
+ *        する。
+ * @param[in,out] context assertion件数と失敗内容の集計先。 Assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runAsusSystemIdentityTests( TestContext &context)

@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_plan.h
  * @brief 有限INF依存の共通観測核と非実行計画の定義。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  有限依存核・三証拠軸・非実行計画を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note worker内でloaderを同期借用する。名称はworkerだけで保持し、実loader・導入許可は提供しない。
@@ -268,6 +269,7 @@ struct InfDependencySelectedContext {
 	std::vector<std::wstring> companionSections ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同節または明示選択文脈のInclude／Needsを有限に観測します。
  * @param[in] root byte結合済みの開始INF snapshot。
@@ -279,6 +281,7 @@ struct InfDependencySelectedContext {
  * @pre 入力と出力の所有storageはaliasしない。
  * @note 最大64 INF・1,024節・4,096辺・32段。実byte loader、署名検証、導入許可は核自身では提供しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError resolveInfDependencies(
 	const InfDependencyDocument &root, std::span<const std::wstring> seeds,
 	const InfDependencyOperations &operations, InfDependencyResult &result,

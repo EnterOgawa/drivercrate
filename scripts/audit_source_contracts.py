@@ -1,4 +1,4 @@
-"""Doxygenの宣言位置を利用し、既存の契約を宣言側へ集約する移行補助。"""
+"""Doxygenの位置を手掛かりに宣言・定義のraw独立契約を確認する。省略は生成しない。"""
 
 from __future__ import annotations
 
@@ -8,8 +8,9 @@ import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from source_comments import doxy_entries, render_doxygen
+from source_comments import doxy_entries
 from source_style import IGNORED_KINDS, apply_edits, ensure_same_tokens, source_paths, tokenize
+from source_method_contracts import contract_errors, method_contract_nodes
 
 
 def preceding_contract(source: str, line: int):
@@ -97,11 +98,24 @@ def cleanup_contracts(source: str, path: Path) -> str:
     return converted
 
 
-def main() -> int:
-    """契約整理を計画し、--write時だけ元sourceの再読確認後に逐次上書きする。
+def pair_contract_errors(declaration_source, declaration_line, definition_source, definition_line):
+    """双方を独立に検査する。本文の集約・移動・参照による置換は行わない。"""
+    errors = []
+    for role, source, line in (('declaration', declaration_source, declaration_line),
+                               ('definition', definition_source, definition_line)):
+        token = preceding_contract(source, line)
+        if token is None:
+            errors.append(role + ': independent Doxygen contract is missing')
+        else:
+            errors.extend(role + ': ' + error for error in contract_errors(source, token))
+    return errors
 
-    入力/整合拒否とI/O例外は伝播する。全件を検証しても複数fileのcommitは
-    原子的ではなく、書込み途中の失敗では先行変更を残して自動復元しない。
+
+def main() -> int:
+    """通常は双方のraw契約を監査し、cleanup明示時だけ整形差分を計画する。
+
+    --writeでも通常監査は契約を移動・省略しない。cleanupは全件検証と元sourceの
+    再読後に逐次保存する。I/O例外と途中変更は伝播し、複数fileのrollbackはしない。
     """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--xml', default='work/tmp/source-style-analysis/doxygen/xml')
@@ -112,15 +126,19 @@ def main() -> int:
     sources = {path.relative_to(root).as_posix(): path.read_text(encoding='utf-8') for path in source_paths(root)}
     edits = {}
     seen = set()
-    consolidated = []
+    checked = []
     unresolved = []
+    owned_function_locations = 0
     if args.cleanup:
         for relative, source in sources.items():
             converted = cleanup_contracts(source, Path(relative))
             if source != converted:
                 edits[relative] = [(0, len(source), converted)]
     else:
-        for path in sorted(Path(args.xml).glob('*.xml')):
+        xml_directory = Path(args.xml)
+        if not (xml_directory / 'index.xml').is_file():
+            parser.error('Doxygen XML index is missing; an absent analysis is not a successful audit')
+        for path in sorted(xml_directory.glob('*.xml')):
             for member in ET.parse(path).findall('.//memberdef[@kind="function"]'):
                 location = member.find('location')
                 if location is None or not location.get('bodyfile'):
@@ -133,30 +151,27 @@ def main() -> int:
                 if key in seen or declaration_file not in sources or definition_file not in sources:
                     continue
                 seen.add(key)
+                owned_function_locations += 1
                 if declaration_file == definition_file and declaration_line == definition_line:
                     continue
-                declaration = preceding_contract(sources[declaration_file], declaration_line)
-                definition = preceding_contract(sources[definition_file], definition_line)
-                if declaration is None or definition is None:
-                    unresolved.append((key, member.findtext('qualifiedname')))
-                    continue
-                # 既に宣言参照だけの定義は再処理しない。
-                if not any(tag in definition.text for tag in ('@brief', '@param', '@return', '@note')):
-                    continue
-                entries = merge_contracts(declaration.text, definition.text)
-                indentation = re.match(r'[ \t]*', sources[declaration_file].splitlines()[declaration_line - 1]).group()
-                text = render_doxygen(entries, indentation)[len(indentation):]
-                edits.setdefault(declaration_file, []).append((declaration.start, declaration.end, text))
-                indentation = re.match(r'[ \t]*', sources[definition_file].splitlines()[definition_line - 1]).group()
-                reference = render_doxygen([('@see ', declaration_file + ' 宣言側の契約を正本とする。')], indentation)[len(indentation):]
-                edits.setdefault(definition_file, []).append((definition.start, definition.end, reference))
-                consolidated.append((key, member.findtext('qualifiedname')))
+                problems = pair_contract_errors(sources[declaration_file], declaration_line,
+                                                sources[definition_file], definition_line)
+                checked.append((key, member.findtext('qualifiedname')))
+                if problems:
+                    unresolved.append((key, member.findtext('qualifiedname'), problems))
+        if not owned_function_locations:
+            parser.error('Doxygen XML contains no owned function locations')
     pending = []
     for relative, changes in edits.items():
         converted = apply_edits(sources[relative], changes)
         ensure_same_tokens(sources[relative], converted)
+        problems = [node for node in method_contract_nodes(converted) if node['errors']]
+        if problems:
+            unresolved.append((relative, problems))
         pending.append((root / relative, converted))
-    print(json.dumps({'files': len(pending), 'consolidated': len(consolidated), 'unresolved': unresolved}, ensure_ascii=False))
+    print(json.dumps({'files': len(pending), 'checkedPairs': len(checked), 'unresolved': unresolved}, ensure_ascii=False))
+    if unresolved:
+        return 1
     if args.write:
         for path, _ in pending:
             if path.read_text(encoding='utf-8') != sources[path.relative_to(root).as_posix()]:

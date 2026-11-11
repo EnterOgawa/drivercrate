@@ -2,7 +2,7 @@
 /**
  * @file nvidia_winof2_update_provider.h
  * @brief NVIDIA Networking WinOF-2公式表示専用Provider定義。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note NVIDIA公式pageの委譲を確認後、公開OS名だけでWinOF-2 metadataを検索します。Hardware ID等を送信せず、混在EXEをdownload／install
@@ -67,18 +68,19 @@ using NvidiaWinof2LandingPageReader =
 using NvidiaWinof2MetadataReader = std::function<NativeError(
 	ScanSessionId scanSessionId, std::string_view formBody, std::wstring &json)> ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Local deviceがWinOF-2の表示検索対象となるNVIDIA Networking製品か確認する。
- * 通信要否だけを判定し、PnP適用性または最新版を保証しない。
+ * @brief Local deviceがWinOF-2の表示検索対象となるNVIDIA Networking製品か確認する。通信要否だけを判定し、PnP適用性または最新版を保証しない。
  * @param[in] device 端末内だけで参照する非機密device snapshot。 端末内だけで参照する非機密snapshot。
  * @return Net class、NVIDIA／Mellanox表示、対応系列が全て一致する場合true。 Net class、vendor表示、対応系列が一致する場合true。
  * @note 通信要否を決めるprobeであり、Hardware IDまたはpackage適用性の確認ではない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool				 isNvidiaWinof2Device( const OfficialCatalogDevice &device) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Local probeと固定readerでWinOF-2の表示専用候補を作る。
- * 対象deviceまたは既知OSがない場合は通信せず、途中応答を補完しない。
+ * @brief Local probeと固定readerでWinOF-2の表示専用候補を作る。対象deviceまたは既知OSがない場合は通信せず、途中応答を補完しない。
  * @param[in] scanSessionId 0ではないscan session。 0ではない検索session。
  * @param[in] devices 最大4096件の外部送信しないdevice snapshot。 最大4096件の外部送信しないsnapshot。
  * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true。
@@ -88,6 +90,7 @@ using NvidiaWinof2MetadataReader = std::function<NativeError(
  * @param[in] progressCallback 確定した処理件数と進捗の通知先。 確定した進捗通知先。
  * @return 表示候補または対象外・通信失敗・metadata拒否。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] ScanResult		 scanNvidiaWinof2Catalog( ScanSessionId scanSessionId,
 														 std::span<const OfficialCatalogDevice> devices,
 														 bool windowsServer, std::uint32_t windowsBuild,
@@ -98,7 +101,9 @@ using NvidiaWinof2MetadataReader = std::function<NativeError(
 /** @brief NVIDIA Networking WinOF-2の公式metadataを検索する表示専用Provider。 */
 class NvidiaWinof2UpdateProvider final : public IOfficialCatalogProvider {
 public:
-	/** @brief 取得根拠を持たないWinOF-2 Providerを作成する。 */
+	/**
+	 * @brief 取得根拠を持たないWinOF-2 Providerを作成する。
+	 */
 	NvidiaWinof2UpdateProvider() = default ;
 	/**
 	 * @brief WinOF-2の取得元sessionと保持中の取得根拠をメンバーの破棄で解放する。

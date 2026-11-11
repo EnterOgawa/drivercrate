@@ -2,7 +2,7 @@
 /**
  * @file official_seven_zip.cpp
  * @brief 公式7z package有限展開実装。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
  * Ver.01.01.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * Ver.01.02.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note LZMA SDKをread-only memory streamと有限allocatorの内側で使用します。選択fileが要求するsolid folder量をdecodeとfile作
@@ -143,10 +144,13 @@ struct MemoryLookStream {
 	const std::function<bool()> *cancellation{} ;
 } ;
 
-/** @brief C callback境界から例外を出さず取消しを照会する。
+//------------------------------------------------------------------------------
+/**
+ * @brief C callback境界から例外を出さず取消しを照会する。
  * @param[in] stream 同期readerの元stream。
  * @return 明示取消しまたはcallback異常ならtrue。
  */
+//------------------------------------------------------------------------------
 bool cancelledStream( const MemoryLookStream &stream) noexcept
 {
 	// 照会のない従来callerを変更しません。
@@ -279,7 +283,8 @@ static_assert( offsetof( MemoryLookStream, interface) == 0U) ;
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_seven_zip.cpp 宣言側の契約を正本とする。
+ * @brief 所有handleを明示的に閉じる。所有file handleを明示的に閉じる。Hash計算またはcleanupより前にhandleを閉じ、二重解放を防ぐ。
+ * @return 成功または既に閉じている場合は0、CloseHandle失敗時はHRESULT。
  */
 //------------------------------------------------------------------------------
 NativeError UniqueFile::close() noexcept
@@ -931,21 +936,24 @@ public:
 	{
 		return {extractedBuffer_, extractedBufferSize_} ;
 	}
-	/** @brief OSのmapping診断を取得する。
+	/**
+	 * @brief OSのmapping診断を取得する。
 	 * @return 最初の元HRESULT。
 	 */
 	[[nodiscard]] NativeError ioError() const noexcept
 	{
 		return mainAllocator_.ioError ;
 	}
-	/** @brief 私有mapped出力の実最大byte数を取得する。
+	/**
+	 * @brief 私有mapped出力の実最大byte数を取得する。
 	 * @return headerを含むpeak byte数。
 	 */
 	[[nodiscard]] std::uint64_t mappedPeakBytes() const noexcept
 	{
 		return mainAllocator_.mappedPeakBytes ;
 	}
-	/** @brief 共有された一意folderのdecode回数を取得する。
+	/**
+	 * @brief 共有された一意folderのdecode回数を取得する。
 	 * @return cacheに保持したfolder数。
 	 */
 	[[nodiscard]] std::size_t decodedBlockCount() const noexcept
@@ -2059,11 +2067,27 @@ struct OfficialSevenZipSession::State {
 	std::vector<OfficialSevenZipEntry> entries ;
 } ;
 
-/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 空のreaderを作る。
+ */
+//------------------------------------------------------------------------------
 OfficialSevenZipSession::OfficialSevenZipSession() noexcept = default ;
-/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 共有solid、mappingと私有一時fileを全て回収する。
+ */
+//------------------------------------------------------------------------------
 OfficialSevenZipSession::~OfficialSevenZipSession() = default ;
-/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原byteのviewと有限policyへ全entryを検査して結ぶ。
+ * @param[in] archive readerより長く固定される原7z view。
+ * @param[in] policy heapとfile-backed出力の有限枠。
+ * @param[in] cancellation 同期期間中生存する任意の非blocking取消し照会。
+ * @return 全metadata受理0、失敗は元HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialSevenZipSession::initialize( std::span<const std::byte>				archive,
 												const OfficialSevenZipExtractionPolicy &policy,
 												const std::function<bool()> &cancellation)
@@ -2097,13 +2121,26 @@ NativeError OfficialSevenZipSession::initialize( std::span<const std::byte>				a
 		return E_OUTOFMEMORY ;
 	}
 }
-/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全検査済み通常entryを借用する。
+ * @return readerの寿命内だけ有効な元一覧。
+ */
+//------------------------------------------------------------------------------
 std::span<const OfficialSevenZipEntry> OfficialSevenZipSession::entries() const noexcept
 {
 	return state_ ? std::span<const OfficialSevenZipEntry>{state_->entries}
 				  : std::span<const OfficialSevenZipEntry>{} ;
 }
-/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一solidを一度decodeし、選択memberだけを新規保存する。
+ * @param[in] requested 同じreaderの検査済み通常index集合。
+ * @param[in,out] workspace 自身が作成する選択fileだけを所有する領域。
+ * @param[out] result 全成功時だけSHA付き選択一覧。失敗時は空。
+ * @return CRC・保存・hash成功0、失敗時は今回分だけを回収する。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialSevenZipSession::extract( std::span<const std::uint32_t>		 requested,
 											 OfficialDownloadWorkspace			&workspace,
 											 std::vector<OfficialSevenZipEntry> &result)
@@ -2142,12 +2179,22 @@ NativeError OfficialSevenZipSession::extract( std::span<const std::uint32_t>		 r
 		return E_OUTOFMEMORY ;
 	}
 }
-/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 私有solid fileの実同時保持最大byteを返す。
+ * @return SDK headerを含む最大mapping byte数。
+ */
+//------------------------------------------------------------------------------
 std::uint64_t OfficialSevenZipSession::mappedPeakBytes() const noexcept
 {
 	return state_ ? state_->reader->mappedPeakBytes() : 0U ;
 }
-/** @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実decodeした一意solid block数を返す。
+ * @return 同操作のdecode成功回数。
+ */
+//------------------------------------------------------------------------------
 std::size_t OfficialSevenZipSession::decodedBlockCount() const noexcept
 {
 	return state_ ? state_->reader->decodedBlockCount() : 0U ;
@@ -2155,7 +2202,13 @@ std::size_t OfficialSevenZipSession::decodedBlockCount() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。
+ * @brief 公式7zの全entry、coder、展開量を、fileを作成せず検証する。Fileを作成せず、全検証成功時だけ通常file一覧を公開する。
+ * @param[in] archive 7z container全体。有効期間は本呼出し中に限る。 7z container全byte列。
+ * @param[in] policy Providerが固定したmetadataとallocatorの有限上限。 Providerが固定した有限上限。
+ * @param[out] entries 成功時の通常file一覧。Directory entryは含めない。
+ * @return 成功時は0、形式、path、codec、dictionary、容量不正時はHRESULT bit pattern。 全entryとfolderが安全なら0、拒否時はHRESULT
+ *         bit pattern。
+ * @note ASCII名、Copy／LZMA／LZMA2およびx86 BCJ／BCJ2だけを受理する。
  */
 //------------------------------------------------------------------------------
 NativeError inspectOfficialSevenZip( const std::span<const std::byte>		archive,
@@ -2180,7 +2233,16 @@ NativeError inspectOfficialSevenZip( const std::span<const std::byte>		archive,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。
+ * @brief 公式7zを再検証し、選択fileが要求する一意なsolid folder量を算出する。Archiveをmetadata用の総allocation上限で再preflightし、
+ *        packed dataのdecodeやfile作成を行わず、現在decoderで必要な連続buffer量を個別allocation上限と比較する。
+ * @param[in] archive 7z container全体。有効期間は本呼出し中に限る。 7z container全byte列。
+ * @param[in] policy Metadata上限と現decoderの一allocation上限。 Metadataとdecoder allocationの有限上限。
+ * @param[in] selectedArchiveIndices 一件以上の検証済み通常file index集合。 選択する通常file index集合。
+ * @param[out] assessment 成功時の一意folder要求。失敗時は既定値に戻す。 成功時の一意folder要求と上限判定。
+ * @return Metadataと選択が有効なら0、形式、上限、重複、未知indexはHRESULT bit pattern。 Metadataと選択が有効なら0、拒否時はHRESULT bit
+ *         pattern。
+ * @note `SOLID_BLOCK_TOO_LARGE`は判定成功だが、現decoderでの展開許可ではない。
+ * @note Metadata解析は総allocator上限、decode可否は一allocation上限で個別に判定する。
  */
 //------------------------------------------------------------------------------
 NativeError assessOfficialSevenZipSelection(
@@ -2237,7 +2299,15 @@ NativeError assessOfficialSevenZipSelection(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。
+ * @brief 公式7zの全体を再検証し、明示indexの通常file一件をmemoryへ展開する。SDK bufferのrangeとadvertised size一致後にだけ内容を複写し、失敗時
+ *        は部分byteを公開しない。
+ * @param[in] archive 7z container全体。有効期間は本呼出し中に限る。 7z container全byte列。
+ * @param[in] policy Providerが固定した全有限上限。 Providerが固定した有限上限。
+ * @param[in] archiveIndex 直前の検証済み一覧から選んだ元archiveのentry index。 検証済み一覧から選んだentry index。
+ * @param[out] content 成功時のCRC検証済みfile内容。失敗時は空にする。
+ * @param[in] cancellation 元workerの任意の非blocking取消し照会。
+ * @return 成功時は0、事前検証、index照合、CRCまたは展開失敗時はHRESULT bit pattern。 再検証と選択file展開の成功時は0、拒否時はHRESULT。
+ * @note 本関数はfileを作成せず、選択外fileを呼出側へ公開しない。
  */
 //------------------------------------------------------------------------------
 NativeError extractOfficialSevenZipFile( const std::span<const std::byte>		archive,
@@ -2313,7 +2383,15 @@ NativeError extractOfficialSevenZipFile( const std::span<const std::byte>		archi
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_seven_zip.h 宣言側の契約を正本とする。
+ * @brief 公式7z全体を再検証し、明示indexの通常fileだけを保護workspaceへ展開する。重複、directory、未知indexを作成前に拒否し、途中失敗時は今回作成した
+ *        fileだけを逆順cleanupする。
+ * @param[in] archive 7z container全体。有効期間は本呼出し中に限る。 7z container全byte列。
+ * @param[in] policy Providerが固定した全有限上限。 全entryとSDK allocationへ適用する有限上限。
+ * @param[in] selectedArchiveIndices 一件以上の検証済み通常file index集合。 選択する通常file index集合。
+ * @param[in,out] workspace 初期化済みの保護workspace。既存fileは変更しない。 今回のfileを追跡する初期化済み保護領域。
+ * @param[out] entries 成功時のSHA-256付き選択file一覧。失敗時は空にする。
+ * @return 全entry再検証、CRC、file作成、完全書込み、hash成功時は0。 再検証、選択照合、CRC、書込み、hash成功時は0。
+ * @note 重複、directory、未知indexをfile作成前に拒否し、途中失敗時は今回作成分を破棄する。
  */
 //------------------------------------------------------------------------------
 NativeError extractOfficialSevenZipFiles(

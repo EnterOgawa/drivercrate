@@ -2,7 +2,7 @@
 /**
  * @file official_gzip_tests.h
  * @brief 公式GZip展開単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note GZip正常展開、CRC、ISIZE、展開上限、単一member境界をnetworkなしで検証します。
@@ -39,12 +40,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 公式GZip展開の正常系とfail-closed境界を検証する。
- * 公式GZip展開の全単体試験を実行する。
- * 正常展開、integrity、上限、単一member試験を順に実行する。
+ * @brief 公式GZip展開の正常系とfail-closed境界を検証する。公式GZip展開の全単体試験を実行する。正常展開、integrity、上限、単一member試験を順に実行する。
  * @param[in,out] context Assertion件数と失敗内容の集計先。 Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialGzipTests( TestContext &context) ;
 
 } // namespace drivercrate::test

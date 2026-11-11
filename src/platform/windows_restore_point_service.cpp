@@ -2,7 +2,7 @@
 /**
  * @file windows_restore_point_service.cpp
  * @brief Windows復元ポイントサービス実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
  * Ver.01.00.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.01.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note MicrosoftのSystem Restore契約に従いCOM securityを初期化し、SrClient.dllのSRSetRestorePointWを動的に呼び出します。
@@ -192,7 +193,12 @@ using SrSetRestorePointFunction = BOOL( WINAPI *)( PRESTOREPOINTINFOW, PSTATEMGR
 	return result ;
 }
 
-/** @brief Windows local暦日とUTC秒を同じ準備時点で得ます。@return 実時刻です。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Windows local暦日とUTC秒を同じ準備時点で得ます。
+ * @return 実時刻です。
+ */
+//------------------------------------------------------------------------------
 [[nodiscard]] restore_point_detail::Clock readRestoreClock()
 {
 	FILETIME utc{} ;	// 実UTCです。
@@ -205,9 +211,13 @@ using SrSetRestorePointFunction = BOOL( WINAPI *)( PRESTOREPOINTINFOW, PSTATEMGR
 	return {static_cast<std::int64_t>( ticks.QuadPart / 10000000ULL) - 11644473600LL,
 			static_cast<std::uint32_t>( local.wYear * 10000U + local.wMonth * 100U + local.wDay)} ;
 }
-/** @brief WMI日時の原offsetをUTC秒へ解釈します。
- * @param[in] value Windows CreationTimeです。@return 不正時は空です。
+//------------------------------------------------------------------------------
+/**
+ * @brief WMI日時の原offsetをUTC秒へ解釈します。
+ * @param[in] value Windows CreationTimeです。
+ * @return 不正時は空です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::int64_t> restoreCreationUtc( std::wstring_view value)
 {
 	// 固定CIM日時形式とoffset符号以外を拒否します。
@@ -267,9 +277,13 @@ using SrSetRestorePointFunction = BOOL( WINAPI *)( PRESTOREPOINTINFOW, PSTATEMGR
 	return static_cast<std::int64_t>( ticks.QuadPart / 10000000ULL) - 11644473600LL +
 		   (value[21] == L'+' ? -1 : 1) * static_cast<std::int64_t>( *offset) * 60LL ;
 }
-/** @brief SystemRestore一覧だけを有限read-only照会します。
- * @param[out] points 元sequence/CreationTimeだけです。@return 原HRESULTです。
+//------------------------------------------------------------------------------
+/**
+ * @brief SystemRestore一覧だけを有限read-only照会します。
+ * @param[out] points 元sequence/CreationTimeだけです。
+ * @return 原HRESULTです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError readRestorePoints( std::vector<restore_point_detail::Point> &points)
 {
 	points.clear() ;
@@ -432,23 +446,35 @@ public:
 	[[nodiscard]] RestorePointOperationResult complete(
 		std::int64_t sequenceNumber) noexcept override ;
 
-	/** @brief 全callback検査済みの内部fixtureを所有します。
-  * @param[in] calls productionを含まない完全fakeです。
-  */
+	/**
+	 * @brief 全callback検査済みの内部fixtureを所有します。
+	 * @param[in] calls productionを含まない完全fakeです。
+	 */
 	explicit WindowsRestorePointService( restore_point_detail::Calls calls)
 		: calls_( std::move( calls))
 	{
 	}
-	/** @brief 最後の実在確認を返します。@return 再利用/元時刻/保存診断です。 */
+	/**
+	 * @brief 最後の実在確認を返します。
+	 * @return 再利用/元時刻/保存診断です。
+	 */
 	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
 	{
 		return protection_ ;
 	}
 
 private:
-	/** @brief 実BEGINだけを呼びます。@param[in] description 元説明。@return 原native結果。 */
+	/**
+	 * @brief 実BEGINだけを呼びます。
+	 * @param[in] description 元説明。
+	 * @return 原native結果。
+	 */
 	[[nodiscard]] RestorePointOperationResult nativeBegin( std::wstring_view description) noexcept ;
-	/** @brief 実ENDだけを呼びます。@param[in] sequenceNumber 元番号。@return 原native結果。 */
+	/**
+	 * @brief 実ENDだけを呼びます。
+	 * @param[in] sequenceNumber 元番号。
+	 * @return 原native結果。
+	 */
 	[[nodiscard]] RestorePointOperationResult nativeEnd( std::int64_t sequenceNumber) noexcept ;
 	/// 全callbackを明示した同service専用表です。
 	restore_point_detail::Calls				  calls_ ;
@@ -479,7 +505,8 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/windows_restore_point_service.cpp 宣言側の契約を正本とする。
+ * @brief COM securityとSrClient.dll entry pointを初期化する。Provider COM object生成前にprocess-wide securityを設
+ *        定し、API利用不能時は後続beginをfail-closedにする。
  */
 //------------------------------------------------------------------------------
 WindowsRestorePointService::WindowsRestorePointService() noexcept
@@ -527,7 +554,7 @@ WindowsRestorePointService::WindowsRestorePointService() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/windows_restore_point_service.cpp 宣言側の契約を正本とする。
+ * @brief 読み込んだSrClient.dllを解放する。
  */
 //------------------------------------------------------------------------------
 WindowsRestorePointService::~WindowsRestorePointService()
@@ -546,7 +573,9 @@ WindowsRestorePointService::~WindowsRestorePointService()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/windows_restore_point_service.cpp 宣言側の契約を正本とする。
+ * @brief 実BEGINだけを呼びます。
+ * @param[in] description 元説明。
+ * @return 原native結果。
  */
 //------------------------------------------------------------------------------
 RestorePointOperationResult WindowsRestorePointService::nativeBegin(
@@ -583,7 +612,9 @@ RestorePointOperationResult WindowsRestorePointService::nativeBegin(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/windows_restore_point_service.cpp 宣言側の契約を正本とする。
+ * @brief 実ENDだけを呼びます。
+ * @param[in] sequenceNumber 元番号。
+ * @return 原native結果。
  */
 //------------------------------------------------------------------------------
 RestorePointOperationResult WindowsRestorePointService::nativeEnd(
@@ -613,7 +644,13 @@ RestorePointOperationResult WindowsRestorePointService::nativeEnd(
 	return {.outcome = OutcomeCode::SUCCESS, .error = 0, .sequenceNumber = sequenceNumber} ;
 }
 
-/** @see WindowsRestorePointService 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実在pointで保護を準備し、同日再利用と実BEGINを分ける。保護未成立ではProvider installを開始させない。再利用ではnative BEGINを呼ばない。
+ * @param[in] description Windowsの復元UIへ表示する説明。
+ * @return 実native結果または再利用時NOT_STARTEDと元sequence。実在事実はprotectionで返す。
+ */
+//------------------------------------------------------------------------------
 RestorePointOperationResult WindowsRestorePointService::begin(
 	const std::wstring_view description) noexcept
 {
@@ -772,7 +809,13 @@ RestorePointOperationResult WindowsRestorePointService::begin(
 				.sequenceNumber = activeSequence_} ;
 	}
 }
-/** @see WindowsRestorePointService 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元scopeの実在を再確認し、実BEGIN所有時だけENDを一回通知する。終了失敗時も既に行われたdriver変更は取り消さない。日内reuseではnative ENDを呼ばない。
+ * @param[in] sequenceNumber `begin`が返した識別番号。 beginが返した識別番号。
+ * @return 終了結果。
+ */
+//------------------------------------------------------------------------------
 RestorePointOperationResult WindowsRestorePointService::complete(
 	const std::int64_t sequenceNumber) noexcept
 {
@@ -851,7 +894,10 @@ RestorePointOperationResult WindowsRestorePointService::complete(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/windows_restore_point_service.h 宣言側の契約を正本とする。
+ * @brief 現在のworker COM apartmentでWindows復元ポイントサービスを生成する。Provider COM object生成前に生成し、process-wide COM
+ *        securityとSystem Restore APIを初期化する。
+ * @return 呼出し側が単独所有するサービス。初期化失敗は`begin`の結果として返す。
+ * @note Provider COM objectの生成前に呼び出し、process-wide COM securityを設定する。
  */
 //------------------------------------------------------------------------------
 std::unique_ptr<IRestorePointService> makeWindowsRestorePointService()
@@ -859,6 +905,13 @@ std::unique_ptr<IRestorePointService> makeWindowsRestorePointService()
 	return std::make_unique<WindowsRestorePointService>() ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 全callbackが明示された内部fixtureだけを生成します。
+ * @param[in] calls 完全fake。未指定時は一切実APIを呼ばず拒否します。
+ * @return 完全表ならservice、不完全ならnullptrです。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<IRestorePointService> restore_point_detail::createFixture( Calls calls)
 {
 	// 不完全表ではCOM/WMI/ProgramData/実復元APIへ一切fallbackしません。

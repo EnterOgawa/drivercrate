@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition_tests.h
  * @brief 公式file検査用取得境界単体試験定義。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/10/06  独立取得証拠試験の入口を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Networkへ接続せず、検査用取得の予算、取消し、根拠、hashを検証します。
@@ -41,24 +42,30 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 公式file検査用取得境界の正常系とfail-closed条件を検証する。
- * 公式file検査用取得境界の全単体試験を実行する。
- * 初期化、取得、根拠、network、取消し、予算試験を順に行う。
+ * @brief 公式file検査用取得境界の正常系とfail-closed条件を検証する。公式file検査用取得境界の全単体試験を実行する。初期化、取得、根拠、network、取消し、予算試験を順
+ *        に行う。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialAcquisitionTests( TestContext &context) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 非通信の架空取得から封印証拠の所有権・拒否・失効を検証する。
  * @param[in,out] context 独立processのassertion集計先。
  * @note 通常unitの件数を変更せず、専用targetからだけ呼ぶ。
  */
+//------------------------------------------------------------------------------
 void runOfficialAcquiredFileEvidenceTests( TestContext &context) ;
 
-/** @brief 匿名CDNの純粋protocolとCOM-only MTA前提を非通信で確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 匿名CDNの純粋protocolとCOM-only MTA前提を非通信で確認する。
  * @param[in,out] context 同processのassertion集計先。
  */
+//------------------------------------------------------------------------------
 void runAsusCdnTokenTests( TestContext &context) ;
 
 } // namespace drivercrate::test

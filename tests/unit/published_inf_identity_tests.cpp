@@ -2,7 +2,7 @@
 /**
  * @file published_inf_identity_tests.cpp
  * @brief 架空INFの原Models節/ID種別/ClassGUIDの非許可receiptを確認します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/14  原節/種別と欠測/元package不一致の限定試験を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空INFだけを保護workspaceへ書きます。実device/署名成功/HTTP/導入を使用しません。
@@ -44,9 +45,12 @@ unsigned assertions{} ;
 // 原不成立を除外しない集計です。
 unsigned failures{} ;
 
-/** @brief 一つの固定期待を集計します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一つの固定期待を集計します。
  * @param[in] value 全条件成立時だけtrueです。
  */
+//------------------------------------------------------------------------------
 void	 expect( const bool value)
 {
 	++assertions ;
@@ -57,12 +61,15 @@ void	 expect( const bool value)
 	}
 }
 
-/** @brief 小さな架空fileを同保護workspaceへ作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 小さな架空fileを同保護workspaceへ作ります。
  * @param[in,out] workspace 新規fileだけを追跡するownerです。
  * @param[in] name 架空の安全な相対basenameです。
  * @param[in] bytes 同期中だけ借用する有限原byteです。
  * @return 元createFileが追跡するfileの全write/flush/close成立時trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool writeFile( drivercrate::OfficialDownloadWorkspace &workspace,
 							 const std::wstring_view name, const std::string_view bytes)
 {
@@ -82,7 +89,11 @@ void	 expect( const bool value)
 	return saved && closed ;
 }
 
-/** @brief 現x64節/ID区分と元INF不一致/欠測の有限分母を確認します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現x64節/ID区分と元INF不一致/欠測の有限分母を確認します。
+ */
+//------------------------------------------------------------------------------
 void run()
 {
 	using namespace drivercrate ;
@@ -165,9 +176,12 @@ void run()
 
 } // namespace
 
-/** @brief 架空INFのread-only試験だけを実行します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空INFのread-only試験だけを実行します。
  * @return 全固定期待成立0、失敗1です。
  */
+//------------------------------------------------------------------------------
 int main()
 {
 	try {

@@ -2,7 +2,7 @@
 /**
  * @file common_inf_plan_tests.cpp
  * @brief 共通単一INF準備計画の封印所有・拒否・rollbackを非導入で検証する。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  非通信取得とfake内容／bindingの独立試験を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/03  present Componentの元役割を変えず単一計画へ結ぶ回帰を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 通常内容関数のfakeはこのEXEだけに定義する。製品policy・署名を変更しない。
@@ -57,10 +58,13 @@ thread_local bool unassessedPrograms{} ;									// 内容だけで受理した�
 thread_local bool rejectedInf{} ;											// 試験専用の個別署名拒否。
 thread_local bool componentFixture{} ;										// present SWCの元役割を検査する条件です。
 
-/** @brief 架空3 byteを既に開いたfixture fileへ書く。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空3 byteを既に開いたfixture fileへ書く。
  * @param[in] file 所有外の書込み可能handle。
  * @return 正確な全byte書込み0、失敗はHRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError		  writeFixture( HANDLE file)
 {
 	DWORD written{} ;	// 実確定書込み量。
@@ -70,7 +74,8 @@ NativeError		  writeFixture( HANDLE file)
 /** @brief 真のHTTPを行わずabcだけを取得境界へ返す。 */
 class FixtureTransport final : public IOfficialAcquisitionTransport {
 public:
-	/** @brief この固定source試験ではdelegated GETを扱わない。
+	/**
+	 * @brief この固定source試験ではdelegated GETを扱わない。
 	 * @param[in,out] request 消費しない未対応request。
 	 * @param[in] file 書き込まない出力handle。
 	 * @param[in] progress 使用しない進捗通知。
@@ -90,7 +95,8 @@ public:
 		destination = {} ;
 		return E_NOTIMPL ;
 	}
-	/** @brief 架空本文だけを保存する。
+	/**
+	 * @brief 架空本文だけを保存する。
 	 * @param[in] url 実通信しない架空fileの公式host形式URL。
 	 * @param[in] resource 取得層が確認する用途。
 	 * @param[in] maximum 許可byte予算。
@@ -110,7 +116,8 @@ public:
 		static_cast<void>( cancellation) ;
 		return writeFixture( file) ;
 	}
-	/** @brief 非通信fixtureの取得根拠照会だけを成功にする。
+	/**
+	 * @brief 非通信fixtureの取得根拠照会だけを成功にする。
 	 * @param[in] session 実取得session。
 	 * @param[in] provider 取得層のProvider。
 	 * @param[in] resource 取得層の用途。
@@ -129,7 +136,8 @@ public:
 /** @brief 実NLMを使わず非課金状態を返す。 */
 class FixtureCost final : public IOfficialNetworkCostReader {
 public:
-	/** @brief 試験専用の回線分類を返す。
+	/**
+	 * @brief 試験専用の回線分類を返す。
 	 * @param[out] cost 常にUNRESTRICTED。
 	 * @return 常に0。実回線確認ではない。
 	 */
@@ -141,6 +149,7 @@ public:
 } ;
 } // namespace
 
+//------------------------------------------------------------------------------
 /**
  * @brief 試験EXEだけで実通常検査を代替する。製品libraryの実関数へlinkしない。
  * @param[in] input 封印から生成された元byte identity。
@@ -150,6 +159,7 @@ public:
  * @return 架空完了0、設定した全体失敗または取消しのHRESULT。
  * @note 内容・CAT署名の実検査ではない。実file操作は架空workspaceだけへ行う。
  */
+//------------------------------------------------------------------------------
 NativeError inspectCommonDriverPackage( const DriverArchiveInput		 &input,
 									   OfficialDriverArchiveFormat	  format,
 									   CommonDriverPackageInspection &inspection,
@@ -224,11 +234,14 @@ NativeError inspectCommonDriverPackage( const DriverArchiveInput		 &input,
 	return 0 ;
 }
 
-/** @brief 試験EXEだけで署名再検証を代替し、実fixture byteは共通hashへ照合する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 試験EXEだけで署名再検証を代替し、実fixture byteは共通hashへ照合する。
  * @param[in] inspected Factoryが所有する架空内容閉包。
  * @return 実byte一致0、設定した再検証失敗はE_FAIL。
  * @note 実Windows署名の検証成功を意味しない。
  */
+//------------------------------------------------------------------------------
 NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected)
 {
 	// 設定した失敗を適合やbindingで補わない。
@@ -288,7 +301,8 @@ struct PlanFixture {
 	bool						 corruptRank{} ;
 	/// Binding中に同じfactoryへ再入する試験用callback。
 	std::function<void()>		 duringBind ;
-	/** @brief 架空3 byteを取得し、実封印証拠を作る。
+	/**
+	 * @brief 架空3 byteを取得し、実封印証拠を作る。
 	 * @param[in,out] context Assertion集計先。
 	 */
 	explicit PlanFixture( TestContext &context)
@@ -315,7 +329,8 @@ struct PlanFixture {
 		DRIVERCRATE_EXPECT(
 			context, session->bindAcquiredFile( *archive, result.acquisitionId, evidence) == 0) ;
 	}
-	/** @brief 既存単一INF API形状のfakeをfactoryへ渡す。
+	/**
+	 * @brief 既存単一INF API形状のfakeをfactoryへ渡す。
 	 * @param[in,out] factory 検証対象の空factory。
 	 * @param[in] cancellation 初期化再入・取消し試験用の任意callback。
 	 * @return 検証対象initializeの元HRESULT。
@@ -383,9 +398,12 @@ struct PlanFixture {
 	}
 } ;
 
-/** @brief 実IDを使わない同じscanの正常なbinding要求を作る。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実IDを使わない同じscanの正常なbinding要求を作る。
  * @return 一candidate・一device・現在版ありの架空要求。
  */
+//------------------------------------------------------------------------------
 CommonInfPlanRequest makePlanRequest()
 {
 	return {91U,
@@ -397,9 +415,12 @@ CommonInfPlanRequest makePlanRequest()
 			L"2025/01/01"} ;
 }
 
-/** @brief 取得所有・発行・拒否・rollback・失効を実行する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 取得所有・発行・拒否・rollback・失効を実行する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runPlanTests( TestContext &context)
 {
 	static_assert( !std::is_copy_constructible_v<CommonInfInstallPlan>) ;
@@ -579,9 +600,12 @@ void runPlanTests( TestContext &context)
 } // namespace
 } // namespace drivercrate::test
 
-/** @brief 非通信・非導入の独立準備計画試験を実行する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 非通信・非導入の独立準備計画試験を実行する。
  * @return 全assertion成功0、失敗・例外は1。
  */
+//------------------------------------------------------------------------------
 int main()
 {
 	try {

@@ -2,7 +2,7 @@
 /**
  * @file local_collector_executor.h
  * @brief 四slotのworker所有権・結果保存・全回収を定義します。
- * @version 01.01.01
+ * @version 01.01.02
  * @date 2026/09/27
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/27  応答v3・所有worker回収を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/27  保存中取消しと全体診断の契約を補足。
  * Ver.01.01.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 開発用の有限収集に限定し、製品の取得・導入を許可しません。
@@ -84,27 +85,36 @@ struct CollectorExecutorReport {
 	/// 個別GET等が失敗したjob数。製品対応率ではありません。
 	std::size_t				 failedJobs{} ;
 } ;
-/** @brief 通信権限を加えず、明示した通常thread開始を返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 通信権限を加えず、明示した通常thread開始を返します。
  * @return 一件のjoin可能threadを作る関数。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CollectorExecutorStart collectorNativeThreadStarter() ;
-/** @brief 所有するjob順の公開条件からworker専用clientを作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有するjob順の公開条件からworker専用clientを作ります。
  * @param[in] targets 検証済みmanifestの共有jobと同順序の所有条件。
  * @return 一回GET依存。構築だけでは通信しません。
  * @note Parser／cache未接続なので取得成功は監督側でHELDです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CollectorExecutorGet	 makeNativeCollectorExecutorGet(
 	  std::vector<LocalCollectorTarget> targets) ;
 /** @brief 一つのwriter監督で四枠を保存・joinまで占有します。 */
 class LocalCollectorExecutor final {
 public:
-	/** @brief 通知・四結果領域・permit poolを予約前に確保します。
-     * @param[in] dependencies 全関数が必要な明示依存。
-     * @throws std::invalid_argument 依存欠損の場合。
-     * @throws std::bad_alloc 予約前の確保に失敗した場合。
-     */
+	/**
+	 * @brief 通知・四結果領域・permit poolを予約前に確保します。
+	 * @param[in] dependencies 全関数が必要な明示依存。
+	 * @throws std::invalid_argument 依存欠損の場合。
+	 * @throws std::bad_alloc 予約前の確保に失敗した場合。
+	 */
 	explicit LocalCollectorExecutor( CollectorExecutorDependencies dependencies) ;
-	/** @brief 所有workerを停止・joinし、未保存予約を勝手に削除しません。 */
+	/**
+	 * @brief 所有workerを停止・joinし、未保存予約を勝手に削除しません。
+	 */
 	~LocalCollectorExecutor() ;
 	/**
 	 * @brief workerの停止・joinと四枠の管理責務の二重管理を防ぐため、コピー構築を禁止する。
@@ -114,14 +124,16 @@ public:
 	 * @brief workerの停止・joinと四枠の管理責務を別個体の状態で上書きさせないため、コピー代入を禁止する。
 	 */
 	LocalCollectorExecutor				 &operator=( const LocalCollectorExecutor &) = delete ;
-	/** @brief 初期化済み復旧監督を同じwriter threadで一回実行します。
-     * @param[in,out] recovery Executorより長く存続する単一writer監督。
-     * @return 予約・回収・保存件数と第一error。Summaryや製品成功ではありません。
-     * @pre 初期化で旧予約回収を完了しており、他のexecutor／permit poolを同じ監督へ混在させません。
-     * @note 保護store操作はこの呼出しthreadだけです。COM MTA内で使用します。
-     */
+	/**
+	 * @brief 初期化済み復旧監督を同じwriter threadで一回実行します。
+	 * @param[in,out] recovery Executorより長く存続する単一writer監督。
+	 * @return 予約・回収・保存件数と第一error。Summaryや製品成功ではありません。
+	 * @pre 初期化で旧予約回収を完了しており、他のexecutor／permit poolを同じ監督へ混在させません。
+	 * @note 保護store操作はこの呼出しthreadだけです。COM MTA内で使用します。
+	 */
 	[[nodiscard]] CollectorExecutorReport run( LocalCollectorRecovery &recovery) ;
-	/** @brief Run共通signalを公開し、workerが次checkpointで取消しを観測します。
+	/**
+	 * @brief Run共通signalを公開し、workerが次checkpointで取消しを観測します。
 	 * @note 保存やnative APIを待たず通知します。COMPLETE確定後の結果は変更しません。
 	 */
 	void								  requestStop() noexcept ;

@@ -2,7 +2,7 @@
 /**
  * @file signed_index_records.h
  * @brief 署名済み展開byteから読む配布record schema receiptを定義します。
- * @version 01.10.00
+ * @version 01.10.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.08.00 Shunji Ogawa  2026/11/03  拡大recordと有限保持quotaを通常経路へ整合。
  * Ver.01.09.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
  * Ver.01.10.00 Shunji Ogawa  2026/11/07  全公開ID入力総数と用途別共通容量の拒否を追加。
+ * Ver.01.10.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 保存前のschema receiptです。公式性・端末適合・導入許可を成立させません。
@@ -520,42 +521,58 @@ struct IndexRecordsResult ;
  */
 class IndexRecordsSchemaReceipt final {
 public:
-	/** @brief 認証byte receiptを変更できない参照で借用します。
-     * @return 本receiptの寿命まで有効なbyte receipt。
-     */
+	/**
+	 * @brief 認証byte receiptを変更できない参照で借用します。
+	 * @return 本receiptの寿命まで有効なbyte receipt。
+	 */
 	[[nodiscard]] const AuthenticatedIndexAssetBytes	  &assetBytes() const noexcept ;
-	/** @brief 展開index原byteのhashを借用します。
-     * @return 圧縮hashと各record hashから独立したdigest。
-     */
+	/**
+	 * @brief 展開index原byteのhashを借用します。
+	 * @return 圧縮hashと各record hashから独立したdigest。
+	 */
 	[[nodiscard]] const IndexManifestSha256				  &indexSha256() const noexcept ;
-	/** @brief 元申告のsource集合を借用します。
-     * @return 本receiptの寿命まで有効な不変span。
-     */
+	/**
+	 * @brief 元申告のsource集合を借用します。
+	 * @return 本receiptの寿命まで有効な不変span。
+	 */
 	[[nodiscard]] std::span<const IndexRecordSource>	   sources() const noexcept ;
-	/** @brief 原byteに結合したrecord集合を借用します。
-     * @return 本receiptの寿命まで有効な不変span。端末適合は未評価です。
-     */
+	/**
+	 * @brief 原byteに結合したrecord集合を借用します。
+	 * @return 本receiptの寿命まで有効な不変span。端末適合は未評価です。
+	 */
 	[[nodiscard]] std::span<const IndexDistributionRecord> records() const noexcept ;
-	/** @brief 署名quality全fieldに一致した実件数を借用します。
-     * @return 発行側の段階別件数。端末の実検査件数ではありません。
-     */
+	/**
+	 * @brief 署名quality全fieldに一致した実件数を借用します。
+	 * @return 発行側の段階別件数。端末の実検査件数ではありません。
+	 */
 	[[nodiscard]] const IndexManifestQuality			  &actualQuality() const noexcept ;
-	/** @brief 読取りを実行した現codec policy版を返します。
-     * @return 現reader revisionの2。保存head互換値とwire record版とは別です。
-     */
+	/**
+	 * @brief 読取りを実行した現codec policy版を返します。
+	 * @return 現reader revisionの2。保存head互換値とwire record版とは別です。
+	 */
 	[[nodiscard]] std::uint32_t							   schemaPolicyVersion() const noexcept ;
 
 private:
-	/** @brief Schema・参照・hash・qualityの全成功後に値を所有します。
-     * @param[in] asset 認証済みbyte receiptの所有copy。
-     * @param[in] sources 検査した所有source。
-     * @param[in] records 検査した所有record。
-     * @param[in] quality 実source／record／stage件数。
-     */
+	/**
+	 * @brief Schema・参照・hash・qualityの全成功後に値を所有します。
+	 * @param[in] asset 認証済みbyte receiptの所有copy。
+	 * @param[in] sources 検査した所有source。
+	 * @param[in] records 検査した所有record。
+	 * @param[in] quality 実source／record／stage件数。
+	 */
 	IndexRecordsSchemaReceipt( AuthenticatedIndexAssetBytes		   asset,
 							  std::vector<IndexRecordSource>	   sources,
 							  std::vector<IndexDistributionRecord> records,
 							  IndexManifestQuality				   quality) noexcept ;
+	/**
+	 * @brief 認証済みbyteだけから配布schema・原record hash・参照・qualityを読みます。
+	 * @note 第1引数（const AuthenticatedIndexAssetBytes &、in）はこの宣言では無名です。呼出し中不変で完全な前段byte receipt。DTOや未
+	 *       認証byteは受理しません。
+	 * @note 第2引数（std :: optional < std :: chrono :: sys_seconds >、in）はこの宣言では無名です。信頼UTCの再確認。発行前・期限以上
+	 *       ・確認不能は拒否します。
+	 * @return 全検査成功時だけschema receipt。拒否は理由と元診断を保持します。
+	 * @note 独立入力では同時呼出し可能です。Network・保存・highwater更新・端末ID・通常UI・導入は扱いません。
+	 */
 	friend IndexRecordsResult readSignedIndexRecords(
 		const AuthenticatedIndexAssetBytes &, std::optional<std::chrono::sys_seconds>) noexcept ;
 	/// 原manifest・圧縮identity・展開原byteとhashの認証根拠を所有します。
@@ -632,12 +649,15 @@ struct IndexRecordsResult {
 	std::optional<IndexRecordsSchemaReceipt> receipt ;
 } ;
 
-/** @brief 認証済みbyteだけから配布schema・原record hash・参照・qualityを読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 認証済みbyteだけから配布schema・原record hash・参照・qualityを読みます。
  * @param[in] asset 呼出し中不変で完全な前段byte receipt。DTOや未認証byteは受理しません。
  * @param[in] nowUtc 信頼UTCの再確認。発行前・期限以上・確認不能は拒否します。
  * @return 全検査成功時だけschema receipt。拒否は理由と元診断を保持します。
  * @note 独立入力では同時呼出し可能です。Network・保存・highwater更新・端末ID・通常UI・導入は扱いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexRecordsResult readSignedIndexRecords(
 	const AuthenticatedIndexAssetBytes	   &asset,
 	std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;

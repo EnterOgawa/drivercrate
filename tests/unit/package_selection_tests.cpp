@@ -2,7 +2,7 @@
 /**
  * @file package_selection_tests.cpp
  * @brief Package選択group単体試験実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実installerを起動せず、opaque package IDのgroup化だけを試験します。
@@ -102,7 +103,8 @@ void testInvalidEntries( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/package_selection_tests.h 宣言側の契約を正本とする。
+ * @brief Package選択groupの順序、重複排除、拒否条件を検証する。Package選択groupの全単体試験を実行する。正常group化と不正入力拒否を順番に検証する。
+ * @param[in,out] context assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runPackageSelectionTests( TestContext &context)

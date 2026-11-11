@@ -2,7 +2,7 @@
 /**
  * @file local_collector_metadata_codec.cpp
  * @brief 収集metadataの有限往復と元scope関係を検査します。
- * @version 01.00.03
+ * @version 01.00.04
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.00.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.00.02   Shunji Ogawa  2026/10/16 codec引数の読書き状態と例外変換の戻り値を明記。
  * Ver.01.00.03 Shunji Ogawa  2026/10/26  IntelのSHA-512単独射影を算法別に検証。
+ * Ver.01.00.04 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Hash生成、予約受入、永続保存は行いません。
@@ -89,11 +90,13 @@ using Phase = CollectorMetadataErrorPhase ;
  */
 using State = CollectorProjectedTargetState ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 型・関係違反を数値だけで伝えます。
  * @param[in] condition 成立を必須とする型・関係条件。
  * @throws Failure conditionがfalseの場合。Status::INVALIDを保持する。
  */
+//------------------------------------------------------------------------------
 void require( bool condition)
 {
 	// 欠測や矛盾を補正して成功へ変更しません。
@@ -102,12 +105,14 @@ void require( bool condition)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 元例外をOOMと構造拒否へ区別します。呼出しはcatch内限定です。
  * @return Failureの元分類、確保失敗のOUT_OF_MEMORYとE_OUTOFMEMORY、またはINVALIDと0です。
  * @pre 現在の例外を処理するcatch節内から呼び出すこと。
  * @note 例外を外へ渡さず、戻り値は参照や新しい資源の所有権を保持しません。
  */
+//------------------------------------------------------------------------------
 Result currentFailure() noexcept
 {
 	try {
@@ -143,7 +148,9 @@ public:
 	{
 		writer_.append( "{") ;
 	}
-	/** @brief 明示したfieldを終えます。Destructorからは出力しません。 */
+	/**
+	 * @brief 明示したfieldを終えます。Destructorからは出力しません。
+	 */
 	void end()
 	{
 		writer_.append( "}") ;
@@ -414,12 +421,14 @@ private:
 	bool	first_{true} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定理由の名前を明示移送します。
  * @param[in,out] fields 同じ有限sinkと読込みobjectを扱う移送context。
  * @param[in] key 固定schemaのASCII field名。同期呼出し中だけ借用する。
  * @param[in,out] reason 書込み元または保存理由の読込み先。未知名は拒否する。
  */
+//------------------------------------------------------------------------------
 void reasonField( Fields &fields, std::string_view key, Reason &reason)
 {
 	fields.enumeration( key, reason,
@@ -433,11 +442,13 @@ void reasonField( Fields &fields, std::string_view key, Reason &reason)
 						{Reason::CACHE_BASIS_INVALID, L"CACHE_BASIS_INVALID"},
 						{Reason::METADATA_HASH, L"METADATA_HASH"}}) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Error domainを既存列挙名に結合します。
  * @param[in,out] fields 同期中だけ借用する読込み・書込み状態。例外時は途中の状態を保持します。
  * @param[in,out] domain 書込み時の元分類。読込み時は検証した保存値へ更新します。
  */
+//------------------------------------------------------------------------------
 void domainField( Fields &fields, CollectorIoErrorDomain &domain)
 {
 	using D = CollectorIoErrorDomain ;
@@ -449,6 +460,7 @@ void domainField( Fields &fields, CollectorIoErrorDomain &domain)
 						{D::HTTP, L"HTTP"},
 						{D::PARSER, L"PARSER"}}) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Array内objectを同じ有限sinkへ移送します。
  * @tparam T 子objectの所有値型。
@@ -458,6 +470,7 @@ void domainField( Fields &fields, CollectorIoErrorDomain &domain)
  * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する。
  * @param[in] transfer 子値を同じsinkへ移送する同期callback。引数の参照を呼出し後まで保持しない。
  */
+//------------------------------------------------------------------------------
 template <class T, class F> void element( Writer &writer, Value raw, T &value, F transfer)
 {
 	require( !raw || raw.ValueType() == Type::Object) ;
@@ -465,11 +478,13 @@ template <class T, class F> void element( Writer &writer, Value raw, T &value, F
 	transfer( child, value) ;
 	child.end() ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Fingerprintの元32 byteを小文字hexとして保持します。
  * @param[in] fingerprint 全32 byteを保持する元指紋。同期中だけ借用する。
  * @return 元byteと同順の64桁小文字hexを所有して返す。
  */
+//------------------------------------------------------------------------------
 std::wstring fingerprintText( const OfficialStableRecordFingerprint &fingerprint)
 {
 	constexpr std::wstring_view HEX = L"0123456789abcdef" ;	// 内部指紋の固定表記。
@@ -483,12 +498,14 @@ std::wstring fingerprintText( const OfficialStableRecordFingerprint &fingerprint
 
 	return value ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 小文字hexからだけ元指紋を復元します。
  * @param[in] value 64桁小文字hexの借用view。入力形式を検査してから復元する。
  * @param[out] fingerprint 形式検査成功後に全32 byteを設定する。形式拒否時は変更しない。
  * @throws Failure 入力が固定hash表記ではない場合。
  */
+//------------------------------------------------------------------------------
 void parseFingerprint( std::wstring_view value, OfficialStableRecordFingerprint &fingerprint)
 {
 	require( isHash( value)) ;
@@ -499,12 +516,14 @@ void parseFingerprint( std::wstring_view value, OfficialStableRecordFingerprint 
 														  HEX.find( value[index * 2U + 1U])) ;
 	}
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 配列の公開文字列要素を有限移送します。
  * @param[in,out] writer 呼出し中だけ借用する有限sink。例外時は途中までの出力を保持する。
  * @param[in] raw 読込み時の元JSON値の共有参照。nullは書込みだけを行う。
  * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する。
  */
+//------------------------------------------------------------------------------
 void textElement( Writer &writer, Value raw, std::wstring &value)
 {
 	// 保存要素を文字列に限定します。
@@ -516,11 +535,13 @@ void textElement( Writer &writer, Value raw, std::wstring &value)
 	require( value.size() <= 256U) ;
 	writer.wideText( value) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Payloadの九公開値と検証観測を固定順に移送します。
  * @param[in,out] fields 同期中だけ借用する読込み・書込み状態。例外時は途中の状態を保持します。
  * @param[in,out] payload 書込み時の元payload。読込み時は保存値へ更新し、例外時は途中の値を保持します。
  */
+//------------------------------------------------------------------------------
 void payloadFields( Fields &fields, CollectorProjectedPayload &payload)
 {
 	auto &value = payload.value ;	// 検査済み公開fieldの所有値。
@@ -537,11 +558,13 @@ void payloadFields( Fields &fields, CollectorProjectedPayload &payload)
 	fields.text( "expectedContentType", value.expectedContentType, 128U) ;
 	fields.boolean( "payloadLinkValidated", payload.payloadLinkValidated) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Recordを一payload配列に限定して移送します。
  * @param[in,out] fields 同期中だけ借用する読込み・書込み状態。例外時は途中の状態を保持します。
  * @param[in,out] record 書込み時の元record。読込み時は保存値へ更新し、例外時は途中の値を保持します。
  */
+//------------------------------------------------------------------------------
 void recordFields( Fields &fields, CollectorProjectedRecord &record)
 {
 	auto		&value		 = record.value ;								// 元の公開record。
@@ -578,11 +601,13 @@ void recordFields( Fields &fields, CollectorProjectedRecord &record)
 		}
 	}
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Sliceと最終採否を固定順に移送します。
  * @param[in,out] fields 同期中だけ借用する読込み・書込み状態。例外時は途中の状態を保持します。
  * @param[in,out] slice 書込み時の元slice。読込み時は保存値へ更新し、例外時は途中の値を保持します。
  */
+//------------------------------------------------------------------------------
 void sliceFields( Fields &fields, CollectorMetadataSlice &slice)
 {
 	fields.text( "key", slice.scope.key, 256U) ;
@@ -595,11 +620,13 @@ void sliceFields( Fields &fields, CollectorMetadataSlice &slice)
 	reasonField( fields, "reason", slice.reason) ;
 	fields.boolean( "complete", slice.complete) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 元targetの全fieldを省略せず移送します。
  * @param[in,out] fields 同期中だけ借用する読込み・書込み状態。例外時は途中の状態を保持します。
  * @param[in,out] target 書込み時の元target。読込み時は保存値へ更新し、例外時は途中の値を保持します。
  */
+//------------------------------------------------------------------------------
 void targetFields( Fields &fields, CollectorProjectedTargetScope &target)
 {
 	fields.number( "index", target.index) ;
@@ -612,11 +639,13 @@ void targetFields( Fields &fields, CollectorProjectedTargetScope &target)
 	fields.text( "architecture", target.architecture) ;
 	fields.text( "chip", target.chip) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 全対象edgeと順序固定参照を移送します。
  * @param[in,out] fields 同期中だけ借用する読込み・書込み状態。例外時は途中の状態を保持します。
  * @param[in,out] edge 書込み時の元edge。読込み時は保存値へ更新し、例外時は途中の値を保持します。
  */
+//------------------------------------------------------------------------------
 void edgeFields( Fields &fields, CollectorProjectedEdge &edge)
 {
 	fields.object( "target", edge.target, targetFields) ;
@@ -639,11 +668,13 @@ void edgeFields( Fields &fields, CollectorProjectedEdge &edge)
 					parseFingerprint( value, fingerprint) ;
 				}) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Parserの元状態とerrorを移送します。
  * @param[in,out] fields 同期中だけ借用する読込み・書込み状態。例外時は途中の状態を保持します。
  * @param[in,out] parser 書込み時の元診断。読込み時は保存値へ更新し、例外時は途中の値を保持します。
  */
+//------------------------------------------------------------------------------
 void parserFields( Fields &fields, CollectorParserResult &parser)
 {
 	using P = CollectorParserStatus ;
@@ -675,11 +706,13 @@ void parserFields( Fields &fields, CollectorParserResult &parser)
 						   {S::COMPLETE, L"COMPLETE"}}) ;
 	}) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Source別数値診断を固定順で移送します。
  * @param[in,out] fields 同期中だけ借用する読込み・書込み状態。例外時は途中の状態を保持します。
  * @param[in,out] source 書込み時の元診断。読込み時は保存値へ更新し、例外時は途中の値を保持します。
  */
+//------------------------------------------------------------------------------
 void sourceFields( Fields &fields, CollectorMetadataSource &source)
 {
 	fields.number( "status", source.status) ;
@@ -706,11 +739,13 @@ void sourceFields( Fields &fields, CollectorMetadataSource &source)
 	fields.number( "collisions", source.collisions) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全schema fieldを一つの固定順で移送します。
  * @param[in,out] fields 同期中だけ借用する読込み・書込み状態。例外時は途中の状態を保持します。
  * @param[in,out] document 書込み時の元全体値。読込み時は保存値へ更新し、例外時は途中の値を保持します。
  */
+//------------------------------------------------------------------------------
 void documentFields( Fields &fields, CollectorMetadataDocument &document)
 {
 	fields.constant( "schema", L"collector-metadata-projection-v1") ;
@@ -786,6 +821,7 @@ void documentFields( Fields &fields, CollectorMetadataDocument &document)
 	}) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開fieldを旧短文字数と新byte予算の両方へ照合します。
  * @param[in] value 検査対象のUTF-16 view。同期呼出し中だけ借用する。
@@ -793,17 +829,20 @@ void documentFields( Fields &fields, CollectorMetadataDocument &document)
  * @param[in] characters 変換前に確認する最大UTF-16 code unit数。
  * @param[in] kind 共通公開文字列policyで使用するfieldの用途。
  */
+//------------------------------------------------------------------------------
 void publicText( std::wstring_view value, std::size_t bytes = 1024U, std::size_t characters = 4096U,
 				OfficialCollectorPublicTextKind kind = OfficialCollectorPublicTextKind::TEXT)
 {
 	require( value.size() <= characters && isOfficialCollectorPublicText( value, bytes, kind)) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 元公開digestの大小文字を保持してhex桁数だけを検査します。
  * @param[in] value 検査対象のUTF-16 view。同期呼出し中だけ借用する。
  * @param[in] length 許可するhex文字数。大文字と小文字は変更しない。
  * @return 指定桁数のASCII hexだけならtrue。それ以外はfalse。
  */
+//------------------------------------------------------------------------------
 bool publicHash( std::wstring_view value, std::size_t length)
 {
 	return value.size() == length && std::all_of( value.begin(), value.end(), []( wchar_t character) {
@@ -812,12 +851,14 @@ bool publicHash( std::wstring_view value, std::size_t length)
 					  (character >= L'A' && character <= L'F') ;
 		   }) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Payloadの全九fieldが元順序で同値か検査します。
  * @param[in] left 比較する先行の公開値。同期中だけ借用する。
  * @param[in] right 比較する後続の公開値。同期中だけ借用する。
  * @return 対象の全公開fieldと要素順序が一致する場合true。差がある場合false。
  */
+//------------------------------------------------------------------------------
 bool samePayload( const OfficialCollectorPayloadProjection &left,
 				 const OfficialCollectorPayloadProjection &right)
 {
@@ -828,24 +869,28 @@ bool samePayload( const OfficialCollectorPayloadProjection &left,
 		   left.publishedSha512 == right.publishedSha512 && left.publisher == right.publisher &&
 		   left.expectedContentType == right.expectedContentType ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 元sliceの全公開fieldとkeyを比較します。
  * @param[in] left 比較する先行の公開値。同期中だけ借用する。
  * @param[in] right 比較する後続の公開値。同期中だけ借用する。
  * @return 対象の全公開fieldと要素順序が一致する場合true。差がある場合false。
  */
+//------------------------------------------------------------------------------
 bool sameSlice( const CollectorProjectedSliceScope &left, const CollectorProjectedSliceScope &right)
 {
 	return left.key == right.key && left.category == right.category &&
 		   left.purpose == right.purpose && left.operatingSystem == right.operatingSystem &&
 		   left.architecture == right.architecture ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 元対象のindexを含む全fieldを比較します。
  * @param[in] left 比較する先行の公開値。同期中だけ借用する。
  * @param[in] right 比較する後続の公開値。同期中だけ借用する。
  * @return 対象の全公開fieldと要素順序が一致する場合true。差がある場合false。
  */
+//------------------------------------------------------------------------------
 bool sameTarget( const CollectorProjectedTargetScope &left,
 				const CollectorProjectedTargetScope &right)
 {
@@ -855,12 +900,14 @@ bool sameTarget( const CollectorProjectedTargetScope &left,
 		   left.operatingSystem == right.operatingSystem &&
 		   left.architecture == right.architecture && left.chip == right.chip ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Recordと一payloadを初期source契約へ照合します。
  * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する。
  * @param[in] record Scopeとpayload条件を検査する元record。
  * @param[in] asus ASUS固有のschema・理由対応を選ぶ場合true。falseはIntelの対応を使う。
  */
+//------------------------------------------------------------------------------
 void validateRecord( const CollectorProjectedJobInput &job, const CollectorProjectedRecord &record,
 					bool asus)
 {
@@ -928,11 +975,13 @@ void validateRecord( const CollectorProjectedJobInput &job, const CollectorProje
 				payload.fileDisplayName == L"Wired_driver_" + value.packageVersion + L"_x64.zip") ;
 	}
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Source診断の元enum集合と件数関係を検査します。
  * @param[in] source 元enum、件数、HTTP診断の関係を検査するsource値。
  * @param[in] asus ASUS固有のschema・理由対応を選ぶ場合true。falseはIntelの対応を使う。
  */
+//------------------------------------------------------------------------------
 void validateSource( const CollectorMetadataSource &source, bool asus)
 {
 	// 初期ASUS正常配列にschema拒否・limitを許しません。
@@ -949,12 +998,14 @@ void validateSource( const CollectorMetadataSource &source, bool asus)
 			std::all_of( source.reasonCounts.begin(), source.reasonCounts.end(),
 						[]( auto count) { return count == 0U ; })) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 数値理由をsource別三状態へ明示対応します。
  * @param[in] reason 元sourceが返した数値理由。未知値は検査例外で拒否する。
  * @param[in] asus ASUS固有のschema・理由対応を選ぶ場合true。falseはIntelの対応を使う。
  * @return 許可した理由へ明示対応する対象状態。
  */
+//------------------------------------------------------------------------------
 State expectedState( std::uint32_t reason, bool asus)
 {
 	require( reason <= (asus ? 11U : 13U)) ;
@@ -971,11 +1022,13 @@ State expectedState( std::uint32_t reason, bool asus)
 
 	return State::UNKNOWN ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Source identityの三optionalと元比較規則を照合します。
  * @param[in] edge 公開identityと元比較規則を検査する参照edge。
  * @param[in] asus ASUS固有のschema・理由対応を選ぶ場合true。falseはIntelの対応を使う。
  */
+//------------------------------------------------------------------------------
 void validateIdentity( const CollectorProjectedEdge &edge, bool asus)
 {
 	require( edge.sourceProductId.has_value() == edge.sourceDisplayName.has_value() &&
@@ -1031,12 +1084,14 @@ void validateIdentity( const CollectorProjectedEdge &edge, bool asus)
 					*edge.sourceComparisonName) ;
 	}
 }
+//------------------------------------------------------------------------------
 /**
  * @brief Scope全体と全record参照を一行も省略せず検査します。
  * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する。
  * @param[in] document 全record、slice、edgeの所属を検査する所有値。
  * @param[in] asus ASUS固有のschema・理由対応を選ぶ場合true。falseはIntelの対応を使う。
  */
+//------------------------------------------------------------------------------
 void validateArrays( const CollectorProjectedJobInput &job,
 					const CollectorMetadataDocument &document, bool asus)
 {
@@ -1088,11 +1143,13 @@ void validateArrays( const CollectorProjectedJobInput &job,
 		require( edge.state != State::MATCH || !edge.recordFingerprints.empty()) ;
 	}
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 現配列からだけ診断件数を導きます。呼出し前に件数上限が必要です。
  * @param[in] document 配列上限を検査済みのmetadata。同期中だけ借用する。
  * @return 現在の配列とsource診断から計数した値。元入力は変更しない。
  */
+//------------------------------------------------------------------------------
 CollectorMetadataCounts measuredCounts( const CollectorMetadataDocument &document)
 {
 	CollectorMetadataCounts counts ;	// 測定済みの0を含む実件数。
@@ -1112,12 +1169,14 @@ CollectorMetadataCounts measuredCounts( const CollectorMetadataDocument &documen
 
 	return counts ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 正常200の固定理由を、親の減少判定以外から導きます。
  * @param[in] document 正常200の元source診断と候補配列。
  * @param[in] rawComplete 元sourceの完全性を確認できた場合true。
  * @return 完全性・適格record・照合対象の有無に対応する理由。
  */
+//------------------------------------------------------------------------------
 Reason normalReason( const CollectorMetadataDocument &document, bool rawComplete)
 {
 	// 候補欠測を最優先に残します。
@@ -1133,22 +1192,26 @@ Reason normalReason( const CollectorMetadataDocument &document, bool rawComplete
 
 	return rawComplete ? Reason::NONE : Reason::SOURCE_INCOMPLETE ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 正常200の完全性を元source診断から導きます。
  * @param[in] document 元sourceの完了と件数診断。
  * @param[in] asus ASUS固有のschema・理由対応を選ぶ場合true。falseはIntelの対応を使う。
  * @return 当該sourceの全完全性条件を満たす場合true。不完全または矛盾時はfalse。
  */
+//------------------------------------------------------------------------------
 bool rawComplete( const CollectorMetadataDocument &document, bool asus)
 {
 	return asus ? document.diagnostics.source->status == 7U
 				: document.diagnostics.source->status == 0U && !document.records.empty() ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 全fieldの意味関係を検査します。元HTTPや以前の成功は検査しません。
  * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する。
  * @param[in] document 全fieldの意味関係を検査するmetadata。元HTTPの実在を証明する値ではない。
  */
+//------------------------------------------------------------------------------
 void validate( const CollectorProjectedJobInput &job, const CollectorMetadataDocument &document)
 {
 	const bool asus = job.source.sourceId == L"ASUS_CATALOG" ;	// 初期source分岐。
@@ -1285,11 +1348,13 @@ void validate( const CollectorProjectedJobInput &job, const CollectorMetadataDoc
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Draftの文字列を複写する前に有限長へ制限します。意味検査は後続です。
  * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する。
  * @param[in] draft 複写前の公開draft。全対象の上限と各文字列長を検査する。
  */
+//------------------------------------------------------------------------------
 void boundDraftBeforeCopy( const CollectorProjectedJobInput		 &job,
 						  const CollectorMetadataProjectionDraft &draft)
 {
@@ -1337,7 +1402,16 @@ void boundDraftBeforeCopy( const CollectorProjectedJobInput		 &job,
 
 } // namespace
 
-/** @see local_collector_metadata_codec.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 正常draftを全scope照合後に非保存metadataへ変換します。
+ * @param[in] job 元prepared jobの公開値。
+ * @param[in] draft 正常parserが作った未確定値。
+ * @param[in] parser 元COMPLETED観測。
+ * @param[out] document 成功時だけ所有値。失敗時は空の初期型。
+ * @return 有限検査結果。I/O、予約、減少、cache採否は後続の親入口で必ず検査します。
+ */
+//------------------------------------------------------------------------------
 Result makeCollectorMetadataDocument( const CollectorProjectedJobInput		&job,
 									 const CollectorMetadataProjectionDraft &draft,
 									 const CollectorParserResult			&parser,
@@ -1384,7 +1458,15 @@ Result makeCollectorMetadataDocument( const CollectorProjectedJobInput		&job,
 	}
 }
 
-/** @see local_collector_metadata_codec.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全field・公開値・元scopeの関係を検査して有限符号化します。
+ * @param[in] job 元入力の公開scope。HTTP観測の代用にはしません。
+ * @param[in] document 型付き全field。
+ * @param[out] bytes Canonical UTF-8。失敗時は空。入力とのaliasは禁止です。
+ * @return 結果。Hash、保存、予約受入は行いません。
+ */
+//------------------------------------------------------------------------------
 Result encodeCollectorMetadata( const CollectorProjectedJobInput &job,
 							   const CollectorMetadataDocument	&document,
 							   std::string						&bytes) noexcept
@@ -1405,7 +1487,15 @@ Result encodeCollectorMetadata( const CollectorProjectedJobInput &job,
 	}
 }
 
-/** @see local_collector_metadata_codec.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限事前走査・型検査・全関係検査・再符号化完全一致を行います。
+ * @param[in] job 元入力の公開scope。
+ * @param[in] bytes 最大512 KiBの元UTF-8。
+ * @param[out] document 成功時だけ所有値。失敗時は空の初期型。
+ * @return 結果。Worker成功、通常record evidence、取得権限を発行しません。
+ */
+//------------------------------------------------------------------------------
 Result decodeCollectorMetadata( const CollectorProjectedJobInput &job, std::string_view bytes,
 							   CollectorMetadataDocument &document) noexcept
 {

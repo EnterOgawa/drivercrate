@@ -2,7 +2,7 @@
 /**
  * @file nvidia_winof2_driver_package.cpp
  * @brief NVIDIA WinOF-2 MSI driver閉包選択実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note MSIのMedia／File mappingとCAB全entryを照合し、許可した一INFが参照するfileだけを論理名で分離します。MSI、EXE、custom actionは実行
@@ -527,7 +528,14 @@ void discardCreatedFiles( OfficialDownloadWorkspace				 &workspace,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/nvidia_winof2_driver_package.h 宣言側の契約を正本とする。
+ * @brief 取得済みWinOF-2 MSIから選択INF一件のdriver閉包だけを分離する。MSI／CABを実行せず、選択INFが参照しないmixed内容を除外する。
+ * @param[in] request 外側取得連番、MSI identity、scan session、選択INF、出力識別子。 外側取得連番、MSI identity、session、選択
+ *                   INF。
+ * @param[in] policy MSI、CAB、INF、閉包、複写bufferの有限上限。 MSI、CAB、INF、閉包、複写の有限上限。
+ * @param[in,out] workspace 成功した論理名driver fileだけを所有する保護領域。 成功した論理名driver閉包の所有領域。
+ * @param[out] result 取得元identity、全mapping照合件数と構造検証済みdriver閉包。 取得元identity、CAB照合件数、検証済み閉包。
+ * @return 全identity、mapping、選択展開、INF構造検証成功時は0。
+ * @note 処理はblockingのためProvider worker threadで実行し、任意codeを起動しない。
  */
 //------------------------------------------------------------------------------
 NativeError extractNvidiaWinof2DriverClosure( const NvidiaWinof2DriverClosureRequest &request,

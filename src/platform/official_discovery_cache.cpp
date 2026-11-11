@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_cache.cpp
  * @brief URL非保持の公式自動探索cache schemaとfreshness判定実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  Cache schema、生成と失効判定を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Fresh positiveの表示専用候補復元を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note URL、host、path、query、token、EULA本文、grant、PnP ID、rankまたはinstall tokenを
@@ -60,12 +61,12 @@ constexpr std::size_t MAXIMUM_DISPLAY_CANDIDATE_COUNT = 32'768U ;	// 一scanの�
 //------------------------------------------------------------------------------
 // 内部関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief 文字列が有限で非制御の識別子か確認します。
  * @param[in] value 検証するstable IDです。
  * @return 1～128文字で制御文字と埋込NULを含まない場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool	  isFiniteIdentifier( const std::wstring_view value) noexcept
 {
 	return !value.empty() && value.size() <= MAXIMUM_ID_CHARACTERS && value.front() != L' ' &&
@@ -77,11 +78,13 @@ constexpr std::size_t MAXIMUM_DISPLAY_CANDIDATE_COUNT = 32'768U ;	// 一scanの�
 		   }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 値が64桁lowercase ASCII SHA-256か確認します。
  * @param[in] value 検証する環境fingerprintです。
  * @return 固定形式を満たす場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isLowerSha256( const std::wstring_view value) noexcept
 {
 	return value.size() == SHA256_CHARACTERS &&
@@ -91,17 +94,20 @@ constexpr std::size_t MAXIMUM_DISPLAY_CANDIDATE_COUNT = 32'768U ;	// 一scanの�
 		   }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Stable record fingerprintが全zeroでないか確認します。
  * @param[in] fingerprint 検証するURL非保持fingerprintです。
  * @return 一byte以上が0以外ならtrueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool hasRecordFingerprint( const OfficialStableRecordFingerprint &fingerprint) noexcept
 {
 	return std::ranges::any_of( fingerprint.bytes,
 							   []( const std::byte value) noexcept { return value != std::byte{} ; }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider、policyとrootが組み込みsource policyへ完全一致するか確認します。
  * @param[in] providerId Provider registryのstable IDです。
@@ -109,6 +115,7 @@ constexpr std::size_t MAXIMUM_DISPLAY_CANDIDATE_COUNT = 32'768U ;	// 一scanの�
  * @param[in] rootResourceId Landingまたはmetadata resource IDです。
  * @return 自動探索の固定rootとして利用できる関係ならtrueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isFixedRootBinding( const std::wstring_view providerId,
 									  const std::wstring_view policyId,
 									  const std::wstring_view rootResourceId) noexcept
@@ -125,6 +132,7 @@ constexpr std::size_t MAXIMUM_DISPLAY_CANDIDATE_COUNT = 32'768U ;	// 一scanの�
 			resource->kind == OfficialSourceResourceKind::METADATA) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Payload方式からrecord時点の表示・検査能力を再構築します。
  * @param[in] entry Cacheの共通record由来です。
@@ -132,6 +140,7 @@ constexpr std::size_t MAXIMUM_DISPLAY_CANDIDATE_COUNT = 32'768U ;	// 一scanの�
  * @param[in] payloadCount 同じrecordのpayload総数です。
  * @return 既存record descriptor validatorに合格する場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isCachedPayloadValid( const OfficialDiscoveryCacheEntry	 &entry,
 										const OfficialDiscoveryCachedPayload &payload,
 										const std::uint32_t					  payloadCount) noexcept
@@ -210,11 +219,13 @@ constexpr std::size_t MAXIMUM_DISPLAY_CANDIDATE_COUNT = 32'768U ;	// 一scanの�
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Entry種別の最大fresh秒数を返します。
  * @param[in] kind Positiveまたはnegative entry種別です。
  * @return 定義済み種別の最大秒数、未知値は0です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::uint64_t maximumFreshSeconds( const OfficialDiscoveryCacheEntryKind kind) noexcept
 {
 	// Positiveと二つのnegativeだけを固定期限へ対応させる。
@@ -233,11 +244,13 @@ constexpr std::size_t MAXIMUM_DISPLAY_CANDIDATE_COUNT = 32'768U ;	// 一scanの�
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 現在queryの構造が有限か確認します。
  * @param[in] query 一scanのcache照会条件です。
  * @return 全fieldが現在条件として有効ならtrueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isCacheQueryValid( const OfficialDiscoveryCacheQuery &query) noexcept
 {
 	return (query.cacheMode == OfficialDiscoveryCacheMode::USE_FRESH ||
@@ -254,7 +267,9 @@ constexpr std::size_t MAXIMUM_DISPLAY_CANDIDATE_COUNT = 32'768U ;	// 一scanの�
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_discovery_cache.h 宣言側の契約を正本とします。
+ * @brief Cache entryの有限値、Provider固定root、期限とpayload集合を検証します。
+ * @param[in] entry 検証するURL非保持entryです。
+ * @return 永続化可能な完全entryの場合trueです。
  */
 //------------------------------------------------------------------------------
 bool isOfficialDiscoveryCacheEntryValid( const OfficialDiscoveryCacheEntry &entry) noexcept
@@ -312,7 +327,11 @@ bool isOfficialDiscoveryCacheEntryValid( const OfficialDiscoveryCacheEntry &entr
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_discovery_cache.h 宣言側の契約を正本とします。
+ * @brief Entryを現在scanの環境・revision・時刻へ照合します。
+ * @param[in] entry 構造検証も行う保存済みentryです。
+ * @param[in] query 現在の固定root、環境、revisionとcache modeです。
+ * @return 不正、stale、fresh positiveまたはfresh negativeです。
+ * @note `FORCE_REFRESH`は正常entryもstaleにし、network失敗時のfallbackを許可しません。
  */
 //------------------------------------------------------------------------------
 OfficialDiscoveryCacheDisposition evaluateOfficialDiscoveryCacheEntry(
@@ -343,7 +362,15 @@ OfficialDiscoveryCacheDisposition evaluateOfficialDiscoveryCacheEntry(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_discovery_cache.h 宣言側の契約を正本とします。
+ * @brief 検証済みrecord descriptor集合から24時間のpositive entryを作ります。
+ * @param[in] descriptors 同じrecordから生成したordinal完全集合です。
+ * @param[in] policyRevision 現在の自動探索policy revisionです。
+ * @param[in] parserId Recordを生成したparser stable IDです。
+ * @param[in] parserRevision Recordを生成したparser revisionです。
+ * @param[in] observedUtcSeconds Network検証が完了したUTC秒です。
+ * @param[in] operatingSystemFingerprint 現在OSの64桁fingerprintです。
+ * @param[in] deviceConfigurationFingerprint 現在device集合の64桁fingerprintです。
+ * @return 全fieldを保存境界へ縮退できる場合のentry、それ以外は値なしです。
  */
 //------------------------------------------------------------------------------
 std::optional<OfficialDiscoveryCacheEntry> makeOfficialDiscoveryPositiveCacheEntry(
@@ -424,7 +451,18 @@ std::optional<OfficialDiscoveryCacheEntry> makeOfficialDiscoveryPositiveCacheEnt
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_discovery_cache.h 宣言側の契約を正本とします。
+ * @brief 正常な対象外またはrecordなしから6時間のnegative entryを作ります。
+ * @param[in] kind `NOT_APPLICABLE`または`NO_RECORD`です。
+ * @param[in] providerId Provider registryのstable IDです。
+ * @param[in] policyId 組み込みsource policy IDです。
+ * @param[in] rootResourceId Landingまたはmetadata固定root resource IDです。
+ * @param[in] policyRevision 現在の自動探索policy revisionです。
+ * @param[in] parserId Record parserのstable IDです。
+ * @param[in] parserRevision Record parserの単調revisionです。
+ * @param[in] observedUtcSeconds 正常な否定結果を確定したUTC秒です。
+ * @param[in] operatingSystemFingerprint 現在OSの64桁fingerprintです。
+ * @param[in] deviceConfigurationFingerprint 現在device集合の64桁fingerprintです。
+ * @return 保存可能なnegative entry、それ以外は値なしです。
  */
 //------------------------------------------------------------------------------
 std::optional<OfficialDiscoveryCacheEntry> makeOfficialDiscoveryNegativeCacheEntry(
@@ -471,7 +509,15 @@ std::optional<OfficialDiscoveryCacheEntry> makeOfficialDiscoveryNegativeCacheEnt
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_discovery_cache.h 宣言側の契約を正本とします。
+ * @brief Fresh positive entryを現在routeの非選択・導入不可表示行へ復元します。
+ * @param[in] entry URL非保持のpositive cache entryです。
+ * @param[in] query 現在環境、parser、時刻とcache modeです。
+ * @param[in] scanSessionId 現在の0ではないscan session IDです。
+ * @param[in] route 現在planが検証した固定root routeです。
+ * @param[in] devices 現在inventoryのraw ID非保持device hint集合です。
+ * @param[in] provider Routeを所有するProvider registry正本です。
+ * @return 全bindingとcandidate詳細が有効な場合の表示行集合、それ以外は値なしです。
+ * @note Cacheからdownload grant、EULA同意、現在PnP適合、rankまたはinstall routingを復元しません。
  */
 //------------------------------------------------------------------------------
 std::optional<std::vector<UpdateCandidate>> makeOfficialDiscoveryCachedDisplayCandidates(

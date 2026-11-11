@@ -2,7 +2,7 @@
 /**
  * @file collector_inspection_acquisition.h
  * @brief 外部台帳の一recordを生存検査取得へ接続する収集専用境界。
- * @version 01.05.01
+ * @version 01.05.02
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/11/04  定義候補の同process metadata再確認付き取得を追加。
  * Ver.01.05.00 Shunji Ogawa  2026/11/04  通常resolverの公開本文・Catalog family・現在EULA照合を追加。
  * Ver.01.05.01 Shunji Ogawa  2026/11/05  静的取得と定義専用固定queryの契約を区別。
+ * Ver.01.05.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 同期収集workerで所有し、公開JSONから取得証拠を復元しない。
@@ -70,27 +71,35 @@ struct CollectorInspectionSource {
 	/// 一意なanchorで確認する原href。最大480文字、entity・queryは扱わない。
 	std::wstring href ;
 } ;
-/** @brief 定義のexact URLとhref解決を非通信で照合する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 定義のexact URLとhref解決を非通信で照合する。
  * @param[in] source 保守担当の一record定義。
  * @return 有限・exact host・href解決が一致する場合true。公式性の認定ではない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validateCollectorInspectionSource( const CollectorInspectionSource &source) ;
-/** @brief 静的HTMLの有効な一意anchorを確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 静的HTMLの有効な一意anchorを確認する。
  * @param[in] html 実本文またはfixture。最大2 Mi UTF-16 code unit。
  * @param[in] source 非通信検査を通る対象定義。
  * @return 対象hrefが一意な有効anchorである場合true。権限は発行しない。
  * @note Comment・script・style・template・noscript内を根拠にしない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool verifyCollectorInspectionLink( std::wstring_view				  html,
 												 const CollectorInspectionSource &source) ;
 
-/** @brief 原PAGEの厳密末尾診断コメントだけを区別する比較SHA-256を計算します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原PAGEの厳密末尾診断コメントだけを区別する比較SHA-256を計算します。
  * @param[in] raw 1 byte以上2 MiB以下の原本文です。呼出し中に不変とします。
  * @param[out] sha256 成功時は小文字64桁、失敗時は空です。原本文hashとは別の値です。
  * @return 成功0、入力不正またはCNG失敗のHRESULTです。
- * @note ADR0399の完全末尾書式と実HTML終端だけを除外し、その他は全rawをhashします。
- *       本文・原観測を変更せず、公式性や権限を発行しません。
+ * @note ADR0399の完全末尾書式と実HTML終端だけを除外し、その他は全rawをhashします。本文・原観測を変更せず、公式性や権限を発行しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError computeCollectorPageContentSha256( std::string_view raw,
 															std::wstring	&sha256) ;
 
@@ -105,11 +114,13 @@ struct CollectorRunPageLifetime ;
  */
 class CollectorRunPageProof final {
 public:
-	/** @brief 私有生成値の所有権移動だけを許します。
+	/**
+	 * @brief 私有生成値の所有権移動だけを許します。
 	 * @param[in,out] other 既に私有生成された一証拠です。
 	 */
 	CollectorRunPageProof( CollectorRunPageProof &&other) noexcept = default ;
-	/** @brief 元本文と所有境界の暗黙複写を禁止します。
+	/**
+	 * @brief 元本文と所有境界の暗黙複写を禁止します。
 	 * @param[in] other 複写しない元証拠です。
 	 */
 	CollectorRunPageProof( const CollectorRunPageProof &other) = delete ;
@@ -119,7 +130,8 @@ private:
 	friend class CollectorInspectionAcquisition ;
 	friend class CollectorRegistryJobProtectedCaller ;
 	friend class CollectorRegistryJobTestAccess ;
-	/** @brief 実HTTPの完全本文だけを不変所有へ移します。
+	/**
+	 * @brief 実HTTPの完全本文だけを不変所有へ移します。
 	 * @param[in] lifetime 元runの生存と全bindingです。
 	 * @param[in] source 元exact起点です。payload/grantは保存しません。
 	 * @param[in] raw 同HTTPの原byteです。
@@ -153,15 +165,18 @@ private:
  */
 class CollectorRunPageScope final {
 public:
-	/** @brief 残る借用を失効し、所有本文を解放します。 */
+	/**
+	 * @brief 残る借用を失効し、所有本文を解放します。
+	 */
 	~CollectorRunPageScope() ;
-	/** @brief Run所有権の複写を禁止します。
+	/**
+	 * @brief Run所有権の複写を禁止します。
 	 * @param[in] other 複写しないscopeです。
 	 */
 	CollectorRunPageScope( const CollectorRunPageScope &other) = delete ;
-	/** @brief Run所有権の上書きを禁止します。
+	/**
+	 * @brief Run所有権の上書きを禁止します。
 	 * @param[in] other 代入しないscopeです。
-	 * @return 呼出し不能です。
 	 */
 	CollectorRunPageScope &operator=( const CollectorRunPageScope &other) = delete ;
 
@@ -169,7 +184,8 @@ private:
 	friend class CollectorRegistryJobProtectedCaller ;
 	friend class CollectorRegistryJobTestAccess ;
 	friend class CollectorInspectionAcquisition ;
-	/** @brief 将来parentが実検証して固定する全bindingから有限scopeを作ります。
+	/**
+	 * @brief 将来parentが実検証して固定する全bindingから有限scopeを作ります。
 	 * @param[in] runId 親が所有する空でないrun識別子です。
 	 * @param[in] parentLease 元writer leaseの0でないidentityです。
 	 * @param[in] childProcess 元監督childの0でないprocess identityです。
@@ -184,26 +200,32 @@ private:
 						  std::chrono::steady_clock::time_point					 deadline,
 						  HttpCancellationCallback								 cancellation,
 						  std::function<std::chrono::steady_clock::time_point()> now = {}) ;
-	/** @brief 終了後の借用を永久拒否し、cacheを破棄します。 */
+	/**
+	 * @brief 終了後の借用を永久拒否し、cacheを破棄します。
+	 */
 	void													   finish() noexcept ;
-	/** @brief 生存・単調時計・取消しを同じrunへ確認します。
+	/**
+	 * @brief 生存・単調時計・取消しを同じrunへ確認します。
 	 * @return 継続時true、停止時は全proofを失効してfalseです。
 	 */
 	[[nodiscard]] bool										   checkpoint() noexcept ;
-	/** @brief 先行予約前に同runの完全PAGEだけを検索します。
+	/**
+	 * @brief 先行予約前に同runの完全PAGEだけを検索します。
 	 * @param[in] source 今回のexact起点です。
 	 * @return 同scope/期限内の共有不変証拠、未取得または停止時はnullです。
 	 */
 	[[nodiscard]] std::shared_ptr<const CollectorRunPageProof> find(
 		const CollectorInspectionSource &source) noexcept ;
-	/** @brief 借用証拠の全bindingと当該起点を再確認します。
+	/**
+	 * @brief 借用証拠の全bindingと当該起点を再確認します。
 	 * @param[in] proof 借用する私有証拠です。
 	 * @param[in] source 今回のexact起点です。
 	 * @return 同じ生存scopeと完全PAGEの場合だけtrueです。
 	 */
 	[[nodiscard]] bool accepts( const CollectorRunPageProof	   &proof,
 							   const CollectorInspectionSource &source) noexcept ;
-	/** @brief 同HTTPの完全本文を有限cacheへ保存します。
+	/**
+	 * @brief 同HTTPの完全本文を有限cacheへ保存します。
 	 * @param[in] source 原起点です。
 	 * @param[in] raw 実原本文です。
 	 * @param[in] html 同じ復号本文です。
@@ -227,16 +249,22 @@ private:
  */
 class CollectorInspectionAcquisition final : private IOfficialAcquisitionTransport {
 public:
-	/** @brief Cacheなしの実HTTPを作る。構築だけでは通信しない。 */
+	/**
+	 * @brief Cacheなしの実HTTPを作る。構築だけでは通信しない。
+	 */
 	CollectorInspectionAcquisition() ;
-	/** @brief 非通信fixtureの低位HTTP表を所有する。
+	/**
+	 * @brief 非通信fixtureの低位HTTP表を所有する。
 	 * @param[in] transport Native関数を使用しない完全な試験I/O表。
 	 * @note 通常collector設定から指定しない。
 	 */
 	explicit CollectorInspectionAcquisition( OfficialHttpTransport transport) ;
-	/** @brief 内部scopeを解放する。取得領域はcallerが所有する。 */
+	/**
+	 * @brief 内部scopeを解放する。取得領域はcallerが所有する。
+	 */
 	~CollectorInspectionAcquisition() = default ;
-	/** @brief 定義resolver向けの未認証公開本文を同じ通常HTTPで取得します。
+	/**
+	 * @brief 定義resolver向けの未認証公開本文を同じ通常HTTPで取得します。
 	 * @param[in] url 登録済み公開起点またはCatalogの有限endpointです。
 	 * @param[in] host 同じ定義のexact公開hostです。
 	 * @param[in] modelJson 閉model APIのJSON用途だけtrueです。
@@ -259,7 +287,8 @@ public:
 	 * @brief 一回取得の使用状態とHTTP境界を別個体の状態で上書きさせないため、コピー代入を禁止する。
 	 */
 	CollectorInspectionAcquisition &operator=( const CollectorInspectionAcquisition &) = delete ;
-	/** @brief 実起点本文の確認後、一payloadを共通保護sessionへ取得する。
+	/**
+	 * @brief 実起点本文の確認後、一payloadを共通保護sessionへ取得する。
 	 * @param[in] scanSessionId 同じsessionに固定した0でないID。
 	 * @param[in] source 手動調査済みの対象定義。成功boolは含めない。
 	 * @param[in,out] session 初期化済みの有限元取得session。
@@ -280,42 +309,48 @@ public:
 			  OfficialAcquisitionResult &result,
 			  std::uint64_t				 maximumBytes = COLLECTOR_INSPECTION_MAXIMUM_BYTES,
 			  std::wstring_view publishedSha256 = {}, std::wstring_view expectedPageContentSha256 = {}) ;
-	/** @brief 未認証定義候補を同processの実metadataへ再結合して一回取得します。
-     * @param[in] scanSessionId 初期化済み元sessionと一致する非零ID。
-     * @param[in] definition ローカル定義と未認証選択。成功boolや外部proofを持ちません。
-     * @param[in,out] session 元取得と封印issuerを所有するsession。
-     * @param[in,out] workspace 同じIDの空保護領域。
-     * @param[in,out] costReader 元回線照会。
-     * @param[in] cancellation 元runの固定期限/取消し照会。
-     * @param[out] result 実取得の元結果。metadata拒否時は取得しません。
-     * @param[out] metadata 同じI/Oの実要求数/byte/status。
-     * @param[out] confirmed 任意の同取得で確認済み公開metadata。秘密URLと取得能力を含みません。
-     * @return 全固定成功0、入力/HTTP/metadata/取得の元HRESULT。
-     * @note 管理workspaceの所有/待機/予算/同意は外側callerが要求前に検査します。
-     */
+	/**
+	 * @brief 未認証定義候補を同processの実metadataへ再結合して一回取得します。
+	 * @param[in] scanSessionId 初期化済み元sessionと一致する非零ID。
+	 * @param[in] definition ローカル定義と未認証選択。成功boolや外部proofを持ちません。
+	 * @param[in,out] session 元取得と封印issuerを所有するsession。
+	 * @param[in,out] workspace 同じIDの空保護領域。
+	 * @param[in,out] costReader 元回線照会。
+	 * @param[in] cancellation 元runの固定期限/取消し照会。
+	 * @param[out] result 実取得の元結果。metadata拒否時は取得しません。
+	 * @param[out] metadata 同じI/Oの実要求数/byte/status。
+	 * @param[out] confirmed 任意の同取得で確認済み公開metadata。秘密URLと取得能力を含みません。
+	 * @return 全固定成功0、入力/HTTP/metadata/取得の元HRESULT。
+	 * @note 管理workspaceの所有/待機/予算/同意は外側callerが要求前に検査します。
+	 */
 	[[nodiscard]] NativeError acquireDefinition(
 		ScanSessionId scanSessionId, const CollectorDefinitionRequest &definition,
 		OfficialAcquisitionSession &session, OfficialDownloadWorkspace &workspace,
 		IOfficialNetworkCostReader &costReader, const HttpCancellationCallback &cancellation,
 		OfficialAcquisitionResult &result, CollectorDefinitionMetadataObservation &metadata,
 		CollectorDefinitionPublicMetadata *confirmed = nullptr) ;
-	/** @brief 同じ実起点GETの成功観測を同期借用します。
+	/**
+	 * @brief 同じ実起点GETの成功観測を同期借用します。
 	 * @return 次の破棄まで有効な原byte観測です。入力JSONから復元しません。
 	 */
 	[[nodiscard]] const CollectorInspectionPageObservation &pageObservation() const noexcept ;
-	/** @brief 同じ実PAGE転送を借用します。
+	/**
+	 * @brief 同じ実PAGE転送を借用します。
 	 * @return 共有時も元PAGEの原観測です。
 	 */
 	[[nodiscard]] const CollectorHttpTransferObservation   &pageTransfer() const noexcept ;
-	/** @brief 今回の実payload転送を借用します。
+	/**
+	 * @brief 今回の実payload転送を借用します。
 	 * @return 未送信・失敗でも実数とUNKNOWNを保持します。
 	 */
 	[[nodiscard]] const CollectorHttpTransferObservation   &payloadTransfer() const noexcept ;
-	/** @brief 同runのPAGEを借用した事実を返します。
+	/**
+	 * @brief 同runのPAGEを借用した事実を返します。
 	 * @return trueなら今回のPAGE増分は0要求/0byteです。
 	 */
 	[[nodiscard]] bool										pageReusedInRun() const noexcept ;
-	/** @brief 同じ実HTTP二段のprivate完了を観測する。
+	/**
+	 * @brief 同じ実HTTP二段のprivate完了を観測する。
 	 * @return Private起点確認とpayload保存が両方成功した場合true。
 	 * @note このboolで封印証拠の再照合を代替しない。
 	 */
@@ -324,20 +359,34 @@ public:
 private:
 	friend class OfficialAcquisitionSession ;
 	friend class CollectorRegistryJobRunner ;
-	/** @brief 同CDN取得scopeのUTC秒を返します。
+	/**
+	 * @brief 同CDN取得scopeのUTC秒を返します。
 	 * @return 有効なUTC Unix秒。不正時計は0です。
 	 */
 	[[nodiscard]] std::uint64_t definitionUtcNow() const ;
-	/** @brief 元scopeの時計と取消しを実send直前に再検査します。
+	/**
+	 * @brief 元scopeの時計と取消しを実send直前に再検査します。
 	 * @param[in] cancellation 同じworkerの協調停止です。
 	 * @return 開始可能0、時計後退・期限・取消しの元HRESULTです。
 	 */
 	[[nodiscard]] NativeError	definitionCheckpoint(
 		  const HttpCancellationCallback &cancellation) const ;
-	/** @brief 私有runの実PAGEを確定し、一jobだけ取得します。
-	 * @copydoc acquire
-	 * @param[in,out] scope 元parentの生存runです。
-	 * @param[in] proof nullなら新PAGE、非nullなら同runの完全本文だけを借用します。
+	/**
+	 * @brief 私有runの実PAGEを確定し、同じ元取得境界で一jobだけ取得します。
+	 * @param[in] scanSessionId 同じsessionに固定した0でないID。
+	 * @param[in] source 手動調査済みの対象定義。成功boolは含めない。
+	 * @param[in,out] session 初期化済みの有限元取得session。
+	 * @param[in,out] workspace 同じID・収集scopeの空保護領域。
+	 * @param[in,out] costReader 実OSまたは試験回線照会。
+	 * @param[in] cancellation 空または非blocking取消し関数。
+	 * @param[out] result 共通取得結果。失敗時に旧成功を残さない。
+	 * @param[in] maximumBytes 今回だけの1～32MiB上限です。既定は従来上限です。
+	 * @param[in] publishedSha256 空または実byteへ比較する小文字SHA-256です。
+	 * @param[in] expectedPageContentSha256 空または手動確認の比較digestです。不一致時はpayloadを開始しません。
+	 * @param[in,out] scope 元parentの生存runです。呼出し中だけ借用し、runのcheckpointを検証します。
+	 * @param[in] proof nullなら元PAGEを取得し、非nullならscope内の完全本文を検証して借用します。
+	 * @return 全固定成功0、起点・回線・共通検証拒否のHRESULT。
+	 * @note 同期COM内で直列に使用し、制限付き／不明回線を自動承認しない。
 	 */
 	[[nodiscard]] NativeError acquireWithRunPage(
 		ScanSessionId scanSessionId, const CollectorInspectionSource &source,
@@ -346,9 +395,22 @@ private:
 		OfficialAcquisitionResult &result, std::uint64_t maximumBytes,
 		std::wstring_view publishedSha256, std::wstring_view expectedPageContentSha256,
 		CollectorRunPageScope &scope, const CollectorRunPageProof *proof) ;
-	/** @brief 通常一回取得と私有run取得の共通境界です。
-	 * @copydoc acquireWithRunPage
-	 * @note scope=nullは従来一回入口で、proofは必ずnullです。
+	/**
+	 * @brief 通常一回取得と私有run取得の共通検証・一回消費を実行します。
+	 * @param[in] scanSessionId 同じsessionに固定した0でないID。
+	 * @param[in] source 手動調査済みの対象定義。成功boolは含めない。
+	 * @param[in,out] session 初期化済みの有限元取得session。
+	 * @param[in,out] workspace 同じID・収集scopeの空保護領域。
+	 * @param[in,out] costReader 実OSまたは試験回線照会。
+	 * @param[in] cancellation 空または非blocking取消し関数。
+	 * @param[out] result 共通取得結果。失敗時に旧成功を残さない。
+	 * @param[in] maximumBytes 今回だけの1～32MiB上限です。既定は従来上限です。
+	 * @param[in] publishedSha256 空または実byteへ比較する小文字SHA-256です。
+	 * @param[in] expectedPageContentSha256 空または手動確認の比較digestです。不一致時はpayloadを開始しません。
+	 * @param[in,out] scope nullは通常一回入口でproofもnullです。非nullは呼出し中だけ借用する同runです。
+	 * @param[in] proof nullなら元PAGEを取得し、非nullならscope内の完全本文を検証して借用します。
+	 * @return 全固定成功0、起点・回線・共通検証拒否のHRESULT。
+	 * @note 同期COM内で直列に使用し、制限付き／不明回線を自動承認しない。
 	 */
 	[[nodiscard]] NativeError acquireCore(
 		ScanSessionId scanSessionId, const CollectorInspectionSource &source,
@@ -357,7 +419,8 @@ private:
 		OfficialAcquisitionResult &result, std::uint64_t maximumBytes,
 		std::wstring_view publishedSha256, std::wstring_view expectedPageContentSha256,
 		CollectorRunPageScope *scope, const CollectorRunPageProof *proof) ;
-	/** @brief 同じprivate scopeへ共通sessionの要求を完全一致させる。
+	/**
+	 * @brief 同じprivate scopeへ共通sessionの要求を完全一致させる。
 	 * @param[in] scanSessionId 元取得sessionのID。
 	 * @param[in] request adapter自身が生成した要求。
 	 * @return 起点確認後・payload未取得の同じ要求の場合true。
@@ -365,16 +428,29 @@ private:
 	[[nodiscard]] bool		  matches( ScanSessionId						scanSessionId,
 									  const OfficialAcquisitionRequest &request) const noexcept ;
 	/**
-	 * @copydoc drivercrate::IOfficialAcquisitionTransport::download
-	 * @note 起点確認後の同じ一payloadだけを受け付ける。
+	 * @brief 公式source policyを使用して一fileを保存する。
+	 * @param[in] url 登録済み公式payloadの絶対HTTPS URL。
+	 * @param[in] resourceId Payload用途の組み込みresource ID。
+	 * @param[in] maximumBytes 受信を許可する有限byte数。
+	 * @param[in] outputFile 書込み可能な所有外file handle。
+	 * @param[in] progressCallback 確定済み受信進捗の通知先。
+	 * @param[in] cancellationCallback 取消し状態を返す非blocking関数。
+	 * @return 保存と公式取得根拠記録の成功時は0、失敗時はHRESULT bit pattern。
+	 * @note 起点確認後の同じ一payload要求だけを受理します。元HTTP/保存境界の成功と内容検査成功は区別します。
 	 */
 	[[nodiscard]] NativeError download(
 		std::wstring_view url, std::wstring_view resourceId, std::uint64_t maximumBytes,
 		HANDLE outputFile, const HttpDownloadProgressCallback &progressCallback,
 		const HttpCancellationCallback &cancellationCallback) override ;
 	/**
-	 * @copydoc drivercrate::IOfficialAcquisitionTransport::downloadDelegated
-	 * @note このadapterは別grant経路を受理しない。
+	 * @brief この収集adapterでは委譲grantによる取得を固定拒否します。
+	 * @param[in] request 使用せず変更しない委譲要求です。
+	 * @param[in] outputFile 使用せず書き込まない非所有handleです。
+	 * @param[in] progressCallback 呼び出さない進捗関数です。
+	 * @param[in] cancellationCallback 呼び出さない取消し関数です。
+	 * @param[out] destinationEvidence 常に空へ初期化します。
+	 * @return 常にE_ACCESSDENIEDです。
+	 * @note HTTP・file書込み・grant消費を行いません。基底interfaceの実取得能力はこのoverrideでは提供しません。
 	 */
 	[[nodiscard]] NativeError downloadDelegated(
 		OfficialDelegatedGetRequest &request, HANDLE outputFile,
@@ -382,8 +458,12 @@ private:
 		const HttpCancellationCallback	   &cancellationCallback,
 		OfficialPublicDestinationEvidence  &destinationEvidence) override ;
 	/**
-	 * @copydoc drivercrate::IOfficialAcquisitionTransport::hasSourceEvidence
-	 * @note 同じ起点とpayloadの実取得状態を照合する。
+	 * @brief 指定sessionとresourceに有効な公式取得根拠があるか確認する。
+	 * @param[in] scanSessionId 照合するscan session ID。
+	 * @param[in] providerId 照合する組み込みProvider ID。
+	 * @param[in] resourceId 照合するpayload resource ID。
+	 * @return 取得根拠ledger全体と指定resourceが有効な場合は`true`。
+	 * @note 保存済みのused/root/payload状態と元session/provider/resourceの完全一致を読むだけで、追加取得や状態更新を行いません。
 	 */
 	[[nodiscard]] bool hasSourceEvidence( ScanSessionId scanSessionId, std::wstring_view providerId,
 										 std::wstring_view resourceId) const noexcept override ;

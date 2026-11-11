@@ -2,7 +2,7 @@
 /**
  * @file main_window_assessment.cpp
  * @brief Device観測と全候補の詳細表示・一候補の明示選択。
- * @version 01.11.01
+ * @version 01.11.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.10.00 Shunji Ogawa  2026/11/08  明示指定を保持して比較可能な最新候補を初期表示。
  * Ver.01.11.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
  * Ver.01.11.01 Shunji Ogawa  2026/11/09  所有型と初期値を保って詳細dialog四memberを個別に文書化。
+ * Ver.01.11.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note UI thread限定。固定理由と診断だけを表示し、取得・導入・同意を実行しない。
@@ -113,6 +114,7 @@ constexpr std::array<UINT, 5>  ROLE_RESOURCES{
 static_assert( REASON_RESOURCES.size() ==
 			  static_cast<std::size_t>( CandidateAssessmentReason::INSTALLER_SCOPE_ATTESTED) + 1U) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 不正enumでも範囲外参照せず固定resourceへ変換する。
  * @tparam Enum 表示対象の有限enum。
@@ -121,6 +123,7 @@ static_assert( REASON_RESOURCES.size() ==
  * @param[in] resources 対応表。
  * @return 定義済みresource、または矛盾説明のresource。
  */
+//------------------------------------------------------------------------------
 template <typename Enum, std::size_t Size>
 UINT resourceFor( const Enum value, const std::array<UINT, Size> &resources) noexcept
 {
@@ -173,12 +176,15 @@ struct DeviceDetailDialog {
 // 候補IDとは独立した、dialog内のtooltip/subclass/timer識別子。
 constexpr UINT_PTR		 DETAIL_TIP_ID = 0x7790U ;
 
-/** @brief 元順の実row/paramを照合し、所有snapshotだけを返す。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元順の実row/paramを照合し、所有snapshotだけを返す。
  * @param[in] table 当該dialogの実table。
  * @param[in] state 同期dialogの所有値。
  * @param[in] row 実controlから得た0始まり行。
  * @return 元順ordinalも一致したentry、またはnullptr。
  */
+//------------------------------------------------------------------------------
 const DeviceDetailEntry *deviceDetailEntryAtRow( const HWND table, const DeviceDetailDialog &state,
 												const int row) noexcept
 {
@@ -195,9 +201,12 @@ const DeviceDetailEntry *deviceDetailEntryAtRow( const HWND table, const DeviceD
 	return &state.entries[static_cast<std::size_t>( row)] ;
 }
 
-/** @brief 古いpopupとhover期限だけを解除し、選択は変更しない。
+//------------------------------------------------------------------------------
+/**
+ * @brief 古いpopupとhover期限だけを解除し、選択は変更しない。
  * @param[in,out] state 同期dialogの所有値。
  */
+//------------------------------------------------------------------------------
 void hideDeviceDetailTip( DeviceDetailDialog &state) noexcept
 {
 	// 借用文字列はcontrolの破棄/更新まで保持します。
@@ -216,7 +225,9 @@ void hideDeviceDetailTip( DeviceDetailDialog &state) noexcept
 	state.hoverText					   = {} ;
 }
 
-/** @brief Hover先の実cellと可視文字runを測り、余白/header/破損を拒否する。
+//------------------------------------------------------------------------------
+/**
+ * @brief Hover先の実cellと可視文字runを測り、余白/header/破損を拒否する。
  * @param[in] state 同期dialogの所有値。
  * @param[in] point Table client座標。
  * @param[out] row 照合済みの実row。
@@ -224,6 +235,7 @@ void hideDeviceDetailTip( DeviceDetailDialog &state) noexcept
  * @param[out] textRect 可視文字runの矩形。
  * @return 文字上で短い説明を持つ場合true。
  */
+//------------------------------------------------------------------------------
 bool hitDeviceDetailText( const DeviceDetailDialog &state, const POINT point, int &row, int &column,
 						 RECT &textRect)
 {
@@ -293,7 +305,9 @@ bool hitDeviceDetailText( const DeviceDetailDialog &state, const POINT point, in
 		   IntersectRect( &textRect, &clipped, &client) && PtInRect( &textRect, point) ;
 }
 
-/** @brief 標準table入力を保持し、実hover文字だけにtracking balloonを表示する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 標準table入力を保持し、実hover文字だけにtracking balloonを表示する。
  * @param[in] table 同dialogの実table。
  * @param[in] message 標準window message。
  * @param[in] wordParameter 元messageの値。
@@ -302,6 +316,7 @@ bool hitDeviceDetailText( const DeviceDetailDialog &state, const POINT point, in
  * @param[in] reference 同期dialog所有stateの借用pointer。
  * @return 標準controlの処理結果。
  */
+//------------------------------------------------------------------------------
 LRESULT CALLBACK deviceDetailTableProc( HWND table, UINT message, WPARAM wordParameter,
 									   LPARAM longParameter, UINT_PTR subclassId,
 									   DWORD_PTR reference) noexcept
@@ -378,10 +393,13 @@ LRESULT CALLBACK deviceDetailTableProc( HWND table, UINT message, WPARAM wordPar
 	return DefSubclassProc( table, message, wordParameter, longParameter) ;
 }
 
-/** @brief 元の匿名化済み結果を短くし、原診断の数値を優先保持する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元の匿名化済み結果を短くし、原診断の数値を優先保持する。
  * @param[in] text 既存UIが生成した成否/数値だけの文字列。
  * @return 有限の要約。元本文・ID・pathを渡さない。
  */
+//------------------------------------------------------------------------------
 std::wstring deviceResultCodes( const std::wstring_view text)
 {
 	std::wstring result ;		// 検証した原数値だけです。
@@ -407,22 +425,27 @@ std::wstring deviceResultCodes( const std::wstring_view text)
 	return result ;
 }
 
-/** @brief 既存UIが生成した一候補の成否と原数値だけを短く保持する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存UIが生成した一候補の成否と原数値だけを短く保持する。
  * @param[in] text 匿名化済みの元候補の結果。元本文/ID/pathを渡さない。
  * @return 有限の成否要約と原数値。
  */
+//------------------------------------------------------------------------------
 std::wstring shortDeviceResult( const std::wstring_view text)
 {
 	return std::wstring( text.substr( 0U, 160U)) + (text.size() > 160U ? L"…" : L"") +
 		   deviceResultCodes( text) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 実controlの唯一選択と所有entryのordinalを再照合する。
  * @param[in] dialog 同期dialogの借用handle。
  * @param[in] state Dialog中に固定した元順の所有snapshot。
  * @return 全照合を満たす借用entry。不正または未選択ならnullptr。
  */
+//------------------------------------------------------------------------------
 const DeviceDetailEntry *selectedDeviceDetailEntry( const HWND				 dialog,
 												   const DeviceDetailDialog &state) noexcept
 {
@@ -438,19 +461,25 @@ const DeviceDetailEntry *selectedDeviceDetailEntry( const HWND				 dialog,
 	return deviceDetailEntryAtRow( table, state, row) ;
 }
 
-/** @brief 不正選択では以前のbutton許可を残さない。
+//------------------------------------------------------------------------------
+/**
+ * @brief 不正選択では以前のbutton許可を残さない。
  * @param[in] dialog 同期dialogの借用handle。
  */
+//------------------------------------------------------------------------------
 void clearDeviceDetailPage( const HWND dialog) noexcept
 {
 	EnableWindow( GetDlgItem( dialog, IDYES), FALSE) ;
 }
 
-/** @brief 実tableの一entryだけを明示選択buttonへ反映する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実tableの一entryだけを明示選択buttonへ反映する。
  * @param[in] dialog 同期dialogの借用handle。
  * @param[in] state 同期dialog中の所有snapshot。
  * @return 有効な一entryを照合できた場合true。
  */
+//------------------------------------------------------------------------------
 bool updateDeviceDetailPage( const HWND dialog, const DeviceDetailDialog &state) noexcept
 {
 	const auto *entry = selectedDeviceDetailEntry( dialog, state) ;	// 元順とparamを照合済みです。
@@ -458,11 +487,13 @@ bool updateDeviceDetailPage( const HWND dialog, const DeviceDetailDialog &state)
 	return entry != nullptr ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既dialog単位を使い、tableと明示buttonを非重複で並べる。
  * @param[in] dialog 当該dialogの借用handle。
  * @note Columnは利用者の幅変更を保持し、狭幅では標準水平scrollを使用する。
  */
+//------------------------------------------------------------------------------
 void layoutDeviceDetails( const HWND dialog) noexcept
 {
 	RECT client{} ;					// 当該dialogだけのclient寸法。
@@ -485,6 +516,7 @@ void layoutDeviceDetails( const HWND dialog) noexcept
 			   closeWidth, units.bottom, TRUE) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 標準controlへ同deviceの候補を表示し、明示buttonだけから一候補を返す。
  * @param[in] dialog 同期dialogの借用handle。
@@ -494,6 +526,7 @@ void layoutDeviceDetails( const HWND dialog) noexcept
  * @return 処理済みの場合TRUE。
  * @note Callbackから例外を漏らさず、失敗時は選択しない。
  */
+//------------------------------------------------------------------------------
 INT_PTR CALLBACK detailDialogProc( const HWND dialog, const UINT message, const WPARAM wordParameter,
 								  const LPARAM longParameter) noexcept
 {
@@ -738,7 +771,13 @@ INT_PTR CALLBACK detailDialogProc( const HWND dialog, const UINT message, const 
 }
 } // namespace
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 検索時点のdriver登録・問題・読取り失敗を短く表示する。
+ * @param[in] candidate 現在構成行。観測未収集を許す。
+ * @return 状態を過大評価しないresource文字列。
+ */
+//------------------------------------------------------------------------------
 std::wstring MainWindow::formatDeviceObservation( const UpdateCandidate &candidate) const
 {
 	// 観測未収集をdriver導入済みへ補完しない。
@@ -787,7 +826,14 @@ std::wstring MainWindow::formatDeviceObservation( const UpdateCandidate &candida
 	return text ;
 }
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限な観測と候補検証の全詳細をread-only表示用に整形する。
+ * @param[in] candidate 同じscanの候補。
+ * @return 固定属性・軸・理由と次の操作。生の証拠や識別子を含めない。
+ * @note 検証不整合は拒否表示を維持する。所有候補要素の過去実行結果だけは履歴として併記する。
+ */
+//------------------------------------------------------------------------------
 std::wstring MainWindow::formatCandidateDetails( const UpdateCandidate &candidate) const
 {
 	const auto appendHistory = [this, &candidate]( std::wstring text) {
@@ -942,7 +988,13 @@ std::wstring MainWindow::formatCandidateDetails( const UpdateCandidate &candidat
 	return appendHistory( std::move( text)) ;
 }
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 候補の方式と最初の未確認・拒否理由を一覧用に整形する。
+ * @param[in] candidate 表示する候補。
+ * @return 詳細未収集または方式と主理由。全軸は詳細画面に保持する。
+ */
+//------------------------------------------------------------------------------
 std::wstring MainWindow::formatCandidateAssessment( const UpdateCandidate &candidate) const
 {
 	// 旧Providerの集約合格から個別検査を捏造しない。
@@ -978,7 +1030,13 @@ std::wstring MainWindow::formatCandidateAssessment( const UpdateCandidate &candi
 	return text ;
 }
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択したdeviceの全観測・候補詳細と一候補の選択欄を標準dialogで表示する。
+ * @return Device行を処理した場合true。分類行や処理中はfalse。
+ * @note 閲覧は選択を変えない。明示buttonだけが同deviceの一候補を選ぶ。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::showSelectedCandidateDetails()
 {
 	// 処理中または未作成のTreeViewからmodal表示を開始しない。

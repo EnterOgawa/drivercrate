@@ -2,7 +2,7 @@
 /**
  * @file signed_index_asset_bytes.cpp
  * @brief 共通hashとGZip検査を使って署名済みassetの実byteを結合します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/11  原byte hash・期限再検査と上限付きGZipの認証receiptを追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/23  同じGZip/hash検査を未認証の値codecへ共通化。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 認証済みmanifestだけを受理し、JSON意味・保存・highwater更新は行いません。
@@ -45,11 +46,14 @@
 namespace drivercrate {
 namespace {
 
-/** @brief 共通APIの原byte hashを固定32byteへ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通APIの原byte hashを固定32byteへ変換します。
  * @param[in] bytes 用途別上限を事前検査した空でない原byte。正規化しません。
  * @param[out] hash 成功時だけ原byte digest、失敗時は全0です。
  * @return 共通CNG APIの元HRESULT。共通戻り値の形式不成立はE_UNEXPECTEDです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError hashOriginalBytes( const std::span<const std::byte> bytes,
 											IndexManifestSha256				&hash)
 {
@@ -86,11 +90,14 @@ namespace {
 	return 0 ;
 }
 
-/** @brief API障害を理由付き拒否へ変換し、成功receiptを持たせません。
+//------------------------------------------------------------------------------
+/**
+ * @brief API障害を理由付き拒否へ変換し、成功receiptを持たせません。
  * @param[in] error 元API HRESULT。
  * @param[in] status 確保失敗以外の拒否区分。
  * @return 元診断値を保持した拒否。E_OUTOFMEMORYは独立区分です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] signed_index_detail::DecodedIndexAsset apiFailure(
 	const NativeError error, const IndexAssetBytesStatus status) noexcept
 {
@@ -101,7 +108,15 @@ namespace {
 
 } // namespace
 
-/** @see signed_index_asset_bytes.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全検査後の所有値だけを受け取ります。
+ * @param[in] manifest 認証済みmanifestの所有copy。
+ * @param[in] expanded 検査済み展開原byteの所有値。
+ * @param[in] expandedSha256 展開原byteに対する実digest。
+ * @param[in] maximumExpandedBytes Decompressorへ適用した展開byte上限。
+ */
+//------------------------------------------------------------------------------
 AuthenticatedIndexAssetBytes::AuthenticatedIndexAssetBytes(
 	AuthenticatedIndexManifest manifest, std::vector<std::byte> expanded,
 	const IndexManifestSha256 expandedSha256, const std::uint64_t maximumExpandedBytes) noexcept
@@ -110,37 +125,72 @@ AuthenticatedIndexAssetBytes::AuthenticatedIndexAssetBytes(
 {
 }
 
-/** @see signed_index_asset_bytes.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原byte署名を認証したmanifestを変更できない参照で借用します。
+ * @return Receiptの寿命まで有効な認証済みmanifest。
+ */
+//------------------------------------------------------------------------------
 const AuthenticatedIndexManifest &AuthenticatedIndexAssetBytes::manifest() const noexcept
 {
 	return manifest_ ;
 }
 
-/** @see signed_index_asset_bytes.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief GZip検査に成功した展開原byteを借用します。
+ * @return Receiptの寿命まで有効な不変byte列。JSONとしての合格は意味しません。
+ */
+//------------------------------------------------------------------------------
 std::span<const std::byte> AuthenticatedIndexAssetBytes::expandedBytes() const noexcept
 {
 	return expanded_ ;
 }
 
-/** @see signed_index_asset_bytes.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 展開原byteだけの実SHA-256を借用します。
+ * @return 圧縮asset hashやmanifest hashとは別の原byte digest。
+ */
+//------------------------------------------------------------------------------
 const IndexManifestSha256 &AuthenticatedIndexAssetBytes::expandedSha256() const noexcept
 {
 	return expandedSha256_ ;
 }
 
-/** @see signed_index_asset_bytes.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief この検査に適用したbyte policy版を返します。
+ * @return 有限準備policy v1。
+ */
+//------------------------------------------------------------------------------
 std::uint32_t AuthenticatedIndexAssetBytes::bytePolicyVersion() const noexcept
 {
 	return INDEX_ASSET_BYTE_POLICY_VERSION ;
 }
 
-/** @see signed_index_asset_bytes.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 展開前に適用した絶対量と圧縮倍率の小さい方を返します。
+ * @return Decompressorへ渡した最大展開byte数。
+ */
+//------------------------------------------------------------------------------
 std::uint64_t AuthenticatedIndexAssetBytes::maximumExpandedBytes() const noexcept
 {
 	return maximumExpandedBytes_ ;
 }
 
-/** @see signed_index_asset_bytes.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 認証済みmanifestへ実圧縮byteを結合し、上限付き単一GZipとして検査します。
+ * @param[in] manifest 前段認証成功から構築された不変receipt。呼出し中だけ借用します。
+ * @param[in] compressed 原転送byte。呼出し中に全要素を読取り可能かつ不変に保ちます。
+ * @param[in] nowUtc 信頼UTCの再確認値。Nullopt、発行前、期限以上では拒否します。
+ * @return 全検査成功時だけbyte receipt、拒否時は理由と元API HRESULTです。
+ * @note 圧縮size／hash検査後にmin(128MiB, 実圧縮size×128)をdecompressorへ渡します。JSON／record・最新highwater・公式性・端末適合は
+ *       検査しません。通信・保存・世代更新・scanを行いません。独立入力では同時呼出し可能です。時刻やhighwaterの保護store transactionは後段が再確認します。
+ */
+//------------------------------------------------------------------------------
 IndexAssetBytesResult authenticateIndexAssetBytes(
 	const AuthenticatedIndexManifest &manifest, const std::span<const std::byte> compressed,
 	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
@@ -171,7 +221,15 @@ IndexAssetBytesResult authenticateIndexAssetBytes(
 										 decoded.data->maximumExpandedBytes}} ;
 }
 
-/** @see signed_index_codec_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実GZip byteを同じhash/容量/圧縮率/CRC規則で検査します。
+ * @param[in] data 呼出側が意味検査済みの値です。認証の有無を表しません。
+ * @param[in] compressed 最大32MiBの実byteです。
+ * @param[in] nowUtc 確認済みUTCです。
+ * @return 未認証の展開値だけを所有する結果です。
+ */
+//------------------------------------------------------------------------------
 signed_index_detail::DecodedIndexAsset signed_index_detail::decodeIndexAssetData(
 	const IndexManifestData &data, const std::span<const std::byte> compressed,
 	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept

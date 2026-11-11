@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native.cpp
  * @brief 実path・署名・OSを固定する非実行INF依存adapterの実装。
- * @version 01.07.00
+ * @version 01.07.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.06.03   Shunji Ogawa  2026/10/24 不在比較のHRESULT値をNativeErrorへ明示変換する。
  * Ver.01.06.04 Shunji Ogawa  2026/10/24  必須解析の型・有限所有buffer・失敗制御を明示。
  * Ver.01.07.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
+ * Ver.01.07.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 共通内容factoryの私有選択節へ接続します。旧引数経路のpackage由来は未検査を維持します。
@@ -68,23 +69,43 @@ namespace inf_dependency_native_detail {
 namespace {
 thread_local const Api *ownedApi{} ;	// 同threadの所有scopeだけを借用します。
 }
-/** @see inf_dependency_native_internal.h 宣言側の所有契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 検証済み完全表を同threadへ固定します。
+ * @param[in] api 所有権を移す完全表です。
+ */
+//------------------------------------------------------------------------------
 ScopedFixture::ScopedFixture( Api api) : api_( std::move( api))
 {
 	ownedApi = &api_ ;
 }
-/** @see inf_dependency_native_internal.h 宣言側の解放契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有表を解除します。作成threadで破棄します。
+ */
+//------------------------------------------------------------------------------
 ScopedFixture::~ScopedFixture()
 {
 	ownedApi = nullptr ;
 }
-/** @see inf_dependency_native_internal.h 宣言側の借用契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定native処理または完全内部表へ同期分岐します。
+ * @return 内部scopeがある場合だけ非所有表、製品ではnullptrです。
+ */
+//------------------------------------------------------------------------------
 const Api *activeApi() noexcept
 {
 	return ownedApi ;
 }
 #ifdef DRIVERCRATE_INTERNAL_INDEX_TESTS
-/** @see inf_dependency_native_internal.h 宣言側の完全表契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 欠落表と再入を拒否して所有scopeを作ります。
+ * @param[in] api 全五APIを持つ表です。
+ * @return 正常時のscope、不完全または再入時nullptrです。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<ScopedFixture> Access::create( Api api)
 {
 	// 欠落表と二重scopeを実nativeへ補完しません。
@@ -107,11 +128,14 @@ constexpr std::uint64_t MAX_CAT_BYTES	= 32U * 1024U * 1024U ;		// 一CATの有�
 constexpr std::uint64_t MAX_TOTAL_BYTES = 128U * 1024U * 1024U ;	// 全固定fileの累積上限。
 constexpr std::size_t	MAX_FILES		= 256U ;					// INF・CAT・対応Storeを含む固定file上限。
 
-/** @brief Windows ordinalで有限path／明示名を比較する。
+//------------------------------------------------------------------------------
+/**
+ * @brief Windows ordinalで有限path／明示名を比較する。
  * @param[in] left 一方の有限名称。
  * @param[in] right 他方の有限名称。
  * @return 大小文字を除いて一致する場合true。
  */
+//------------------------------------------------------------------------------
 bool					equalName( std::wstring_view left, std::wstring_view right)
 {
 	return left.size() < MAX_PATH && right.size() < MAX_PATH &&
@@ -119,10 +143,13 @@ bool					equalName( std::wstring_view left, std::wstring_view right)
 								static_cast<int>( right.size()), TRUE) == CSTR_EQUAL ;
 }
 
-/** @brief 一相対componentのdevice aliasを拒否する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一相対componentのdevice aliasを拒否する。
  * @param[in] part 末尾正規化を含まない一component。
  * @return 予約device名の場合true。
  */
+//------------------------------------------------------------------------------
 bool reservedName( std::wstring_view part)
 {
 	const auto base = part.substr( 0U, part.find( L'.')) ;	// 拡張子前のdevice名。
@@ -134,20 +161,26 @@ bool reservedName( std::wstring_view part)
 			(equalName( base.substr( 0U, 3U), L"COM") || equalName( base.substr( 0U, 3U), L"LPT"))) ;
 }
 
-/** @brief 元Win32失敗をHRESULTへ変換する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元Win32失敗をHRESULTへ変換する。
  * @param[in] error 最初のWin32診断値。
  * @return 非零HRESULT。診断欠損はE_FAIL。
  */
+//------------------------------------------------------------------------------
 NativeError winError( DWORD error)
 {
 	return error == 0U ? E_FAIL : HRESULT_FROM_WIN32( error) ;
 }
 
-/** @brief 明示openの不在だけを後続の検証失敗から分離する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示openの不在だけを後続の検証失敗から分離する。
  * @param[in] error CreateFileWの直後の元診断。
  * @param[out] missing 任意の不在観測出力。file／path不在の場合だけtrue。
  * @return 元の失敗HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError openError( DWORD error, bool *missing)
 {
 	// 有効handle取得後の属性・hash・CAT等の失敗から不在を生成しない。
@@ -158,11 +191,14 @@ NativeError openError( DWORD error, bool *missing)
 	return winError( error) ;
 }
 
-/** @brief 初回／終了の実OS情報を取得する。注入は専用targetだけで有効。
+//------------------------------------------------------------------------------
+/**
+ * @brief 初回／終了の実OS情報を取得する。注入は専用targetだけで有効。
  * @param[out] version EX layoutのversion・product type。
  * @param[out] native OSのnative architecture。
  * @return 取得0、APIの失敗HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError nativeVersion( OSVERSIONINFOEXW &version, SYSTEM_INFO &native)
 {
 #ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
@@ -191,10 +227,13 @@ NativeError nativeVersion( OSVERSIONINFOEXW &version, SYSTEM_INFO &native)
 	return 0 ;
 }
 
-/** @brief OS起点を取得する。環境変数や任意入力を使用しない。
+//------------------------------------------------------------------------------
+/**
+ * @brief OS起点を取得する。環境変数や任意入力を使用しない。
  * @param[out] path 成功時の終端を除いた有限位置。
  * @return 取得0、容量またはAPI失敗HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError nativeWindowsDirectory( std::wstring &path)
 {
 #ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
@@ -221,11 +260,14 @@ NativeError nativeWindowsDirectory( std::wstring &path)
 	return 0 ;
 }
 
-/** @brief INF自身の現OS署名情報を取得する。
+//------------------------------------------------------------------------------
+/**
+ * @brief INF自身の現OS署名情報を取得する。
  * @param[in] path 固定INFの絶対位置。
  * @param[in,out] signer cbSizeを設定した有限応答。
  * @return 署名情報取得0、元の失敗HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError nativeInfSignature( const std::wstring &path, SP_INF_SIGNER_INFO_W &signer)
 {
 #ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
@@ -244,11 +286,14 @@ NativeError nativeInfSignature( const std::wstring &path, SP_INF_SIGNER_INFO_W &
 			   : winError( GetLastError()) ;
 }
 
-/** @brief 同じCATとINF memberを共通署名検証へ渡す。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じCATとINF memberを共通署名検証へ渡す。
  * @param[in] catalog 安全に固定したCAT位置。
  * @param[in] members 同期借用するINF member集合。
  * @return 検証0、元の失敗HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError nativeCatalogSignature( const std::wstring			&catalog,
 								   std::span<const std::wstring> members)
 {
@@ -266,11 +311,14 @@ NativeError nativeCatalogSignature( const std::wstring			&catalog,
 	return verifyOfficialCatalogMembers( catalog, members) ;
 }
 
-/** @brief 現OSの対応Store位置を有限に取得する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 現OSの対応Store位置を有限に取得する。
  * @param[in] path 固定INF位置。
  * @param[out] location 成功時の有限対応位置。
  * @return 照会0、応答不正または元の失敗HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError nativeDriverStore( const std::wstring &path, std::wstring &location)
 {
 #ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
@@ -301,11 +349,14 @@ NativeError nativeDriverStore( const std::wstring &path, std::wstring &location)
 	return 0 ;
 }
 
-/** @brief 開いたhandleの実属性を取得する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 開いたhandleの実属性を取得する。
  * @param[in] handle 同期借用する固定handle。
  * @param[out] attributes 実属性または専用targetの架空応答。
  * @return 照会0、元の失敗HRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError nativeAttributes( HANDLE handle, FILE_ATTRIBUTE_TAG_INFO &attributes)
 {
 #ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
@@ -322,7 +373,8 @@ NativeError nativeAttributes( HANDLE handle, FILE_ATTRIBUTE_TAG_INFO &attributes
 
 /** @brief Windows handleを単独所有して全return経路で閉じる。 */
 struct HandleCloser {
-	/** @brief 有効な所有handleを閉じる。
+	/**
+	 * @brief 有効な所有handleを閉じる。
 	 * @param[in] value 所有する一handle。
 	 */
 	void operator()( void *value) const noexcept
@@ -354,12 +406,15 @@ struct PinnedFile {
 	std::uint64_t			   bytes{} ;
 } ;
 
-/** @brief pathとhandleの同じ位置・種類を確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief pathとhandleの同じ位置・種類を確認する。
  * @param[in] handle 固定済みのfile／directory。
  * @param[in] path 終端付き通常DOS位置。
  * @param[in] directory directoryを期待する場合true。
  * @return 境界一致0、reparse・位置差・API失敗のHRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError checkHandle( HANDLE handle, const std::wstring &path, bool directory)
 {
 	FILE_ATTRIBUTE_TAG_INFO attributes{} ;	// Handleが示す実属性。
@@ -391,11 +446,14 @@ NativeError checkHandle( HANDLE handle, const std::wstring &path, bool directory
 			   : HRESULT_FROM_WIN32( ERROR_FILE_INVALID) ;
 }
 
-/** @brief 開始と終了の物理file・size・時刻を比較する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 開始と終了の物理file・size・時刻を比較する。
  * @param[in] left 開始観測。
  * @param[in] right 再観測。
  * @return 同じfile・size・最終書込時刻の場合true。
  */
+//------------------------------------------------------------------------------
 bool sameFile( const BY_HANDLE_FILE_INFORMATION &left, const BY_HANDLE_FILE_INFORMATION &right)
 {
 	return left.dwVolumeSerialNumber == right.dwVolumeSerialNumber &&
@@ -406,11 +464,14 @@ bool sameFile( const BY_HANDLE_FILE_INFORMATION &left, const BY_HANDLE_FILE_INFO
 		   left.ftLastWriteTime.dwLowDateTime == right.ftLastWriteTime.dwLowDateTime ;
 }
 
-/** @brief 実OS version・product typeとnative x64を取得する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実OS version・product typeとnative x64を取得する。
  * @param[in] observationId 非零のrun世代。
  * @param[out] context 成功時の実OS文脈。
  * @return 完了0、未知OSまたはAPI失敗のHRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError currentContext( std::uint64_t observationId, InfDependencyContext &context)
 {
 	OSVERSIONINFOEXW version{} ;	// 実versionとproduct type。
@@ -439,11 +500,14 @@ NativeError currentContext( std::uint64_t observationId, InfDependencyContext &c
 	return 0 ;
 }
 
-/** @brief 全値が同じOS／run文脈であることを確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全値が同じOS／run文脈であることを確認する。
  * @param[in] left 開始値。
  * @param[in] right 再確認値。
  * @return 全field一致の場合true。
  */
+//------------------------------------------------------------------------------
 bool sameContext( const InfDependencyContext &left, const InfDependencyContext &right)
 {
 	return left.major == right.major && left.minor == right.minor && left.build == right.build &&
@@ -453,7 +517,8 @@ bool sameContext( const InfDependencyContext &left, const InfDependencyContext &
 
 /** @brief 一INF handleを所有する。Appendや導入を行わない。 */
 struct InfCloser {
-	/** @brief 単独のINF解析handleを閉じる。
+	/**
+	 * @brief 単独のINF解析handleを閉じる。
 	 * @param[in] value 所有する有効handle。
 	 */
 	void operator()( void *value) const noexcept
@@ -466,12 +531,15 @@ struct InfCloser {
  */
 using InfHandle = std::unique_ptr<void, InfCloser> ;
 
-/** @brief fieldの原値を有限bufferへ取得する。
+//------------------------------------------------------------------------------
+/**
+ * @brief fieldの原値を有限bufferへ取得する。
  * @param[in,out] line SetupAPIの同期context。
  * @param[in] index keyは0、valueは1以上。
  * @param[out] value 成功時の有限field。
  * @return 完了0、過長またはSetupAPI失敗のHRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError field( INFCONTEXT &line, DWORD index, std::wstring &value)
 {
 	std::array<wchar_t, 255U> buffer{} ;	// 最大254文字と終端。
@@ -491,13 +559,16 @@ NativeError field( INFCONTEXT &line, DWORD index, std::wstring &value)
 	return 0 ;
 }
 
-/** @brief Needs到達先のAddRegを明示文脈と全行の有限policyへ照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Needs到達先のAddRegを明示文脈と全行の有限policyへ照合します。
  * @param[in] inf 同同期の検証済みdocument読取handleです。
  * @param[in,out] line 元到達節のAddReg行です。呼出し中だけ借用します。
  * @param[in] contexts DDInstallは1、HWは2、未対応文脈は4のbit集合です。
  * @param[in,out] registryRows 全Needsの累積行数です。4096を上限とします。
  * @return 全行確認0、元読取または未対応のHRESULTです。書込みは行いません。
  */
+//------------------------------------------------------------------------------
 NativeError verifyNeedsAddReg( const HINF inf, INFCONTEXT &line, const unsigned char contexts,
 							  std::size_t &registryRows)
 {
@@ -638,12 +709,15 @@ NativeError verifyNeedsAddReg( const HINF inf, INFCONTEXT &line, const unsigned 
 	return 0U ;
 }
 
-/** @brief 元選択seedから正確なNeeds辺だけへHKRの設置文脈を伝播します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元選択seedから正確なNeeds辺だけへHKRの設置文脈を伝播します。
  * @param[in] result 解決と全証拠を別に確認済みの同graphです。
  * @param[in] seeds 元DDInstallと実在付随節です。先頭が基本選択です。
  * @param[in] rootIdentity 同graphの元内容documentです。
  * @return sectionsと同順の文脈bitです。未到達は0、未対応の経路は4を保持します。
  */
+//------------------------------------------------------------------------------
 std::vector<unsigned char> needsRegistryContexts( const InfDependencyNativeResult	&result,
 												 const std::span<const std::wstring> seeds,
 												 const std::uint64_t				 rootIdentity)
@@ -714,7 +788,8 @@ struct NativeDocument {
 /** @brief 一同期runのfile固定・OS根拠とcallbackを所有する。 */
 class NativeLoader {
 public:
-	/** @brief 保護workspaceと閉じたmember一覧を同期借用する。
+	/**
+	 * @brief 保護workspaceと閉じたmember一覧を同期借用する。
 	 * @param[in] workspace package所有領域。
 	 * @param[in] members 全INF memberの固定一覧。
 	 * @param[in] context 開始OS観測。
@@ -738,7 +813,8 @@ public:
 		  diagnostic_( diagnostic), selectedBase_( selectedBase)
 	{
 	}
-	/** @brief rootを固定し共通核と全根拠の再確認へ接続する。
+	/**
+	 * @brief rootを固定し共通核と全根拠の再確認へ接続する。
 	 * @param[in] rootIndex 開始member位置。
 	 * @param[in] seeds 明示節群。
 	 * @param[out] result 全成功時だけ保持する非実行結果。
@@ -777,7 +853,8 @@ private:
 	/// Workspace内のroot基準位置。
 	std::wstring								packageRoot_ ;
 
-	/** @brief fileと全祖先を安全に固定し実hashを計算する。
+	/**
+	 * @brief fileと全祖先を安全に固定し実hashを計算する。
 	 * @param[in] path 検査対象の通常絶対位置。
 	 * @param[in] maximumBytes 一file上限。
 	 * @param[out] index 成功時の固定file位置。
@@ -786,12 +863,14 @@ private:
 	 */
 	NativeError		pin( const std::wstring &path, std::uint64_t maximumBytes, std::size_t &index,
 						bool *missing = nullptr) ;
-	/** @brief 固定fileのpath・identity・hashを再確認する。
+	/**
+	 * @brief 固定fileのpath・identity・hashを再確認する。
 	 * @param[in] index 安定したfile位置。
 	 * @return 全一致0、改変／API失敗のHRESULT。
 	 */
 	NativeError		recheckFile( std::size_t index) ;
-	/** @brief byte固定した一INFと署名／system由来を保持する。
+	/**
+	 * @brief byte固定した一INFと署名／system由来を保持する。
 	 * @param[in] path 候補の実位置。
 	 * @param[in] member package期待member。systemではnullptr。
 	 * @param[out] document 成功時の共通snapshot。
@@ -800,17 +879,20 @@ private:
 	 */
 	NativeError		observe( const std::wstring &path, const InfDependencyPackageMember *member,
 							InfDependencyDocument &document, bool *fileMissing = nullptr) ;
-	/** @brief 署名と由来の根拠をbyte固定する。失敗もfindingに残す。
+	/**
+	 * @brief 署名と由来の根拠をbyte固定する。失敗もfindingに残す。
 	 * @param[in,out] document 安定したINF snapshotと根拠位置。
 	 * @return 境界確認完了0、固定fileの重大失敗HRESULT。
 	 */
 	NativeError		trust( NativeDocument &document) ;
-	/** @brief 検証済み署名のCAT位置・完全score・memberを終了時に再確認する。
+	/**
+	 * @brief 検証済み署名のCAT位置・完全score・memberを終了時に再確認する。
 	 * @param[in] document 開始時に固定した署名根拠。
 	 * @return 全一致0、失効・根拠変更・API失敗のHRESULT。
 	 */
 	NativeError		recheckTrust( const NativeDocument &document) ;
-	/** @brief 同節Includeの明示候補を全照会する。
+	/**
+	 * @brief 同節Includeの明示候補を全照会する。
 	 * @param[in] source 元の固定document。
 	 * @param[in] target 有限Include相対名。
 	 * @param[out] output 全照会成功時の候補。
@@ -818,7 +900,8 @@ private:
 	 */
 	NativeError		lookup( const InfDependencyDocument &source, std::wstring_view target,
 						   InfDependencyLookup &output) ;
-	/** @brief 一固定INFの明示節からInclude／Needsだけを読む。
+	/**
+	 * @brief 一固定INFの明示節からInclude／Needsだけを読む。
 	 * @param[in] document 固定snapshot。
 	 * @param[in] name 原明示節名。
 	 * @param[out] output 完了時の存在状態と有限参照。
@@ -826,19 +909,22 @@ private:
 	 */
 	NativeError		section( const InfDependencyDocument &document, std::wstring_view name,
 							InfDependencySection &output) ;
-	/** @brief 共通identityから固定documentを取得する。
+	/**
+	 * @brief 共通identityから固定documentを取得する。
 	 * @param[in] identity 非零のrun内identity。
 	 * @return 存在すれば借用pointer、不明ならnullptr。
 	 */
 	NativeDocument *find( std::uint64_t identity) ;
-	/** @brief Needs先の有限CopyFilesを実byteとCATへ結合し、AddRegの到達効果を検査します。
+	/**
+	 * @brief Needs先の有限CopyFilesを実byteとCATへ結合し、AddRegの到達効果を検査します。
 	 * @param[in] result 解決済みの同run graphです。
 	 * @param[in] seeds 元選択DDInstallと実在付随節です。
 	 * @return 全効果確認0、未知・欠損・署名・byte差のHRESULTです。
 	 */
 	NativeError		verifyNeedsEffects( const InfDependencyNativeResult &result,
 									   std::span<const std::wstring>	seeds) ;
-	/** @brief 全到達節とVersion／sourceのfile用途を非実行で観測する。
+	/**
+	 * @brief 全到達節とVersion／sourceのfile用途を非実行で観測する。
 	 * @param[in,out] result 全体成功前のgraphと有限用途観測。
 	 * @return 全行観測成功0、入力・読取・容量・元byte差のHRESULT。
 	 * @note payload位置と全member署名は解決せず、実SYSTEM fileを複写しない。
@@ -848,7 +934,14 @@ private:
 
 } // namespace
 
-/** @see src/platform/inf_dependency_native.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 相対member位置と絶対local DOS位置の構文を検査する。
+ * @param[in] path 原位置。正規化やfilesystem探索を行わない。
+ * @param[in] absolute trueの場合は通常のdrive絶対path、falseの場合はASCII相対path。
+ * @return 構文合格の場合true。実path認証ではない。
+ */
+//------------------------------------------------------------------------------
 bool validInfDependencyPath( std::wstring_view path, bool absolute) noexcept
 {
 	// 通常DOS位置以外や埋込みNULを正規化で救済しない。
@@ -887,7 +980,16 @@ bool validInfDependencyPath( std::wstring_view path, bool absolute) noexcept
 }
 
 namespace {
-/** @see NativeLoader 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief fileと全祖先を安全に固定し実hashを計算する。
+ * @param[in] path 検査対象の通常絶対位置。
+ * @param[in] maximumBytes 一file上限。
+ * @param[out] index 成功時の固定file位置。
+ * @param[out] missing 明示openの不在だけを返す任意出力。nullptr可。
+ * @return 完了0、path・容量・読取失敗のHRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError NativeLoader::pin( const std::wstring &path, std::uint64_t maximumBytes,
 							  std::size_t &index, bool *missing)
 {
@@ -974,7 +1076,13 @@ NativeError NativeLoader::pin( const std::wstring &path, std::uint64_t maximumBy
 	return recheckFile( index) ;
 }
 
-/** @see NativeLoader 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定fileのpath・identity・hashを再確認する。
+ * @param[in] index 安定したfile位置。
+ * @return 全一致0、改変／API失敗のHRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError NativeLoader::recheckFile( std::size_t index)
 {
 	const auto				  &file = *files_.at( index) ;					// 同期run内の安定所有者。
@@ -995,7 +1103,13 @@ NativeError NativeLoader::recheckFile( std::size_t index)
 	return error != 0 ? error : (hash == file.sha256 ? 0 : HRESULT_FROM_WIN32( ERROR_FILE_INVALID)) ;
 }
 
-/** @see NativeLoader 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通identityから固定documentを取得する。
+ * @param[in] identity 非零のrun内identity。
+ * @return 存在すれば借用pointer、不明ならnullptr。
+ */
+//------------------------------------------------------------------------------
 NativeDocument *NativeLoader::find( std::uint64_t identity)
 {
 	const auto found = std::ranges::find_if( documents_, [identity]( const auto &document) {
@@ -1005,7 +1119,16 @@ NativeDocument *NativeLoader::find( std::uint64_t identity)
 	return found == documents_.end() ? nullptr : &*found ;
 }
 
-/** @see NativeLoader 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief byte固定した一INFと署名／system由来を保持する。
+ * @param[in] path 候補の実位置。
+ * @param[in] member package期待member。systemではnullptr。
+ * @param[out] document 成功時の共通snapshot。
+ * @param[out] fileMissing INF自身の明示openで不在を観測した場合だけtrue。nullptr可。
+ * @return 存在観測完了0、byte／path等の全体失敗HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError NativeLoader::observe( const std::wstring			   &path,
 								  const InfDependencyPackageMember *member,
 								  InfDependencyDocument &document, bool *fileMissing)
@@ -1072,7 +1195,13 @@ NativeError NativeLoader::observe( const std::wstring			   &path,
 	return 0 ;
 }
 
-/** @see NativeLoader 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 署名と由来の根拠をbyte固定する。失敗もfindingに残す。
+ * @param[in,out] document 安定したINF snapshotと根拠位置。
+ * @return 境界確認完了0、固定fileの重大失敗HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError NativeLoader::trust( NativeDocument &document)
 {
 	const std::wstring	 path = files_[document.fileIndex]->path ;	// callback内の安定した原位置。
@@ -1214,7 +1343,13 @@ NativeError NativeLoader::trust( NativeDocument &document)
 	return 0 ;
 }
 
-/** @see NativeLoader 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 検証済み署名のCAT位置・完全score・memberを終了時に再確認する。
+ * @param[in] document 開始時に固定した署名根拠。
+ * @return 全一致0、失効・根拠変更・API失敗のHRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError NativeLoader::recheckTrust( const NativeDocument &document)
 {
 	// 未確認／失敗の根拠は再照会で昇格させず、正の証拠だけを失効確認する。
@@ -1246,7 +1381,15 @@ NativeError NativeLoader::recheckTrust( const NativeDocument &document)
 	return nativeCatalogSignature( files_[document.catalogIndex]->path, memberPaths) ;
 }
 
-/** @see NativeLoader 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同節Includeの明示候補を全照会する。
+ * @param[in] source 元の固定document。
+ * @param[in] target 有限Include相対名。
+ * @param[out] output 全照会成功時の候補。
+ * @return 完了0、最初の全体HRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError NativeLoader::lookup( const InfDependencyDocument &source, std::wstring_view target,
 								 InfDependencyLookup &output)
 {
@@ -1327,7 +1470,15 @@ NativeError NativeLoader::lookup( const InfDependencyDocument &source, std::wstr
 	return 0 ;
 }
 
-/** @see NativeLoader 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 一固定INFの明示節からInclude／Needsだけを読む。
+ * @param[in] document 固定snapshot。
+ * @param[in] name 原明示節名。
+ * @param[out] output 完了時の存在状態と有限参照。
+ * @return 完了0、構文・容量・改変のHRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError NativeLoader::section( const InfDependencyDocument &document, std::wstring_view name,
 								  InfDependencySection &output)
 {
@@ -1443,7 +1594,14 @@ NativeError NativeLoader::section( const InfDependencyDocument &document, std::w
 	return recheckFile( stored->fileIndex) ;
 }
 
-/** @see NativeLoader 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全到達節とVersion／sourceのfile用途を非実行で観測する。
+ * @param[in,out] result 全体成功前のgraphと有限用途観測。
+ * @return 全行観測成功0、入力・読取・容量・元byte差のHRESULT。
+ * @note payload位置と全member署名は解決せず、実SYSTEM fileを複写しない。
+ */
+//------------------------------------------------------------------------------
 NativeError NativeLoader::observeFileUses( InfDependencyNativeResult &result)
 {
 	std::vector<InfDependencyVisitedSection> pending =
@@ -1607,7 +1765,14 @@ NativeError NativeLoader::observeFileUses( InfDependencyNativeResult &result)
 	return 0 ;
 }
 
-/** @see NativeLoader 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Needs先の有限CopyFilesを実byteとCATへ結合し、AddRegの到達効果を検査します。
+ * @param[in] result 解決済みの同run graphです。
+ * @param[in] seeds 元選択DDInstallと実在付随節です。
+ * @return 全効果確認0、未知・欠損・署名・byte差のHRESULTです。
+ */
+//------------------------------------------------------------------------------
 NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&result,
 											 const std::span<const std::wstring> seeds)
 {
@@ -1951,7 +2116,15 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 	return 0 ;
 }
 
-/** @see NativeLoader 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief rootを固定し共通核と全根拠の再確認へ接続する。
+ * @param[in] rootIndex 開始member位置。
+ * @param[in] seeds 明示節群。
+ * @param[out] result 全成功時だけ保持する非実行結果。
+ * @return 完了0、最初のHRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError NativeLoader::run( std::size_t rootIndex, std::span<const std::wstring> seeds,
 							  InfDependencyNativeResult &result)
 {
@@ -2133,7 +2306,9 @@ NativeError NativeLoader::run( std::size_t rootIndex, std::span<const std::wstri
 } // namespace
 
 namespace {
-/** @brief 旧経路と封印私有経路で共用する有限native入口。
+//------------------------------------------------------------------------------
+/**
+ * @brief 旧経路と封印私有経路で共用する有限native入口。
  * @param[in] workspace 閉じたpackage所有領域。
  * @param[in] members 全INFの固定一覧。
  * @param[in] rootIndex 開始INF位置。
@@ -2145,6 +2320,7 @@ namespace {
  * @param[in] archiveWorkspace 元領域。bindingと同時にだけ指定する。
  * @return 観測完了0、不正入力・path・byte・OS・例外のHRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError inspectNativeInfDependenciesImpl(
 	const OfficialDownloadWorkspace &workspace, std::span<const InfDependencyPackageMember> members,
 	std::size_t rootIndex, std::span<const std::wstring> seeds, std::uint64_t observationId,
@@ -2204,6 +2380,21 @@ NativeError inspectNativeInfDependenciesImpl(
 }
 } // namespace
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 保護packageと現在WindowsのINFを共通核へ非実行接続する。
+ * @param[in] workspace 全package memberを呼出し終了まで所有する保護領域。
+ * @param[in] members 全抽出INFの閉じた固定一覧。1～64件、重複を禁止する。
+ * @param[in] rootIndex members内の開始INF位置。
+ * @param[in] seeds 同じroot内の明示節群。作用完全性を認定しない。
+ * @param[in] observationId 非零のworker内観測世代。
+ * @param[out] result 全再確認成功時だけ保持し、全体失敗では空。
+ * @return 観測完了0、不正入力・path・改変・OS差・容量・例外のHRESULT。
+ * @pre 入力と出力の所有storageはaliasしない。同期workerで呼び、再入しない。
+ * @note Packageの公式由来は未検査に固定する。署名成功を由来・導入許可へ流用しない。OS trustがrevocation照会する場合がある。scan・staging・device導入
+ *       は行わない。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectNativeInfDependencies( const OfficialDownloadWorkspace			&workspace,
 										 std::span<const InfDependencyPackageMember> members,
 										 std::size_t rootIndex, std::span<const std::wstring> seeds,
@@ -2214,6 +2405,20 @@ NativeError inspectNativeInfDependencies( const OfficialDownloadWorkspace			&wor
 											result, nullptr, nullptr, nullptr) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 使用中固定した封印集合を同じnative loaderへ渡す。
+ * @param[in] binding 同期使用中固定を所有する封印結果。
+ * @param[in] session 元証拠の生存issuer。
+ * @param[in] archiveWorkspace 元取得領域。
+ * @param[in] rootIndex 全INF内の開始位置。
+ * @param[in] seeds 明示節群。
+ * @param[in] observationId 非零の観測世代。
+ * @param[out] result 全成功時だけの非実行結果。
+ * @return 完了0、最初の検証／API／例外のHRESULT。
+ * @pre 呼出し元が元／派生全fileを呼出し終了まで固定する。
+ */
+//------------------------------------------------------------------------------
 NativeError AcquiredInfNativeAccess::inspect( const OfficialInfArchiveBinding  &binding,
 											 const OfficialAcquisitionSession &session,
 											 const OfficialDownloadWorkspace  &archiveWorkspace,
@@ -2233,7 +2438,16 @@ NativeError AcquiredInfNativeAccess::inspect( const OfficialInfArchiveBinding  &
 											&archiveWorkspace) ;
 }
 
-/** @see inf_dependency_native.h 宣言側の選択内容契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元内容を前後確認し、選択節の全Needs効果を検査します。
+ * @param[in] inspected 元保護byteと全署名を所有する内容です。
+ * @param[in] selected 同元packageの私有node選択copyです。
+ * @param[out] result 非実行graphです。効果は独立に検査します。
+ * @param[out] diagnostic 任意の非機密数値です。合否を変更する入力ではありません。
+ * @return 全依存と有限効果の充足0、未観測・未知・不合格のHRESULTです。
+ */
+//------------------------------------------------------------------------------
 NativeError CommonInfNativeAccess::inspect( const CommonInfInspection	&inspected,
 										   const OfficialInfPackage		&selected,
 										   InfDependencyNativeResult	&result,
@@ -2351,7 +2565,15 @@ NativeError CommonInfNativeAccess::inspect( const CommonInfInspection	&inspected
 }
 #ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
 namespace test {
-/** @see tests/support/inf_dependency_native_test_api.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元選択からの正確なNeeds文脈伝播を架空graphで確認します。
+ * @param[in] result 架空の元graphです。導入能力を持ちません。
+ * @param[in] seeds 元rootの基本節と付随節です。
+ * @param[in] rootIdentity 架空の元document identityです。
+ * @return 元sectionsと同順の文脈bit集合です。
+ */
+//------------------------------------------------------------------------------
 std::vector<unsigned char> inspectNeedsRegistryContextsForTest(
 	const InfDependencyNativeResult &result, const std::span<const std::wstring> seeds,
 	const std::uint64_t rootIdentity)
@@ -2359,7 +2581,15 @@ std::vector<unsigned char> inspectNeedsRegistryContextsForTest(
 	return needsRegistryContexts( result, seeds, rootIdentity) ;
 }
 
-/** @see tests/support/inf_dependency_native_test_api.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 専用compileだけで実AddReg parserの全行と文脈拒否を検査します。
+ * @param[in] path 架空保護workspace内の実INFです。
+ * @param[in] contexts DDInstall/HW/未対応の既定bit集合です。
+ * @param[in,out] registryRows 元累積予算です。
+ * @return 実parserの元HRESULTです。署名・由来・device適合の認定ではありません。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectNeedsAddRegForTest( const std::wstring &path, const unsigned char contexts,
 									  std::size_t &registryRows)
 {
@@ -2381,7 +2611,18 @@ NativeError inspectNeedsAddRegForTest( const std::wstring &path, const unsigned 
 	return verifyNeedsAddReg( inf.get(), line, contexts, registryRows) ;
 }
 
-/** @see src/platform/inf_dependency_native.h 専用compile宣言の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 専用compileの架空APIで実Common私有入口を一同期検査します。
+ * @param[in] api 既存の必須五callbackです。
+ * @param[in] inspected このfixtureだけの原内容です。
+ * @param[in] selected 実readerが再解析する元選択です。
+ * @param[out] result 成功時だけの元graphです。
+ * @param[out] diagnostic 元数値の任意出力です。
+ * @return Common入口の未変更HRESULTです。
+ * @note 通常製品にはこの宣言/入口を含めません。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectCommonInfDependenciesWithTestApi( const InfDependencyNativeTestApi &api,
 													const CommonInfInspection		 &inspected,
 													const OfficialInfPackage		 &selected,
@@ -2397,7 +2638,9 @@ NativeError inspectCommonInfDependenciesWithTestApi( const InfDependencyNativeTe
 
 	/** @brief 専用compileの同期API借用を全returnで解除します。 */
 	struct CommonApiScope {
-		/** @brief 所有しないthread-local借用だけを終了します。 */
+		/**
+		 * @brief 所有しないthread-local借用だけを終了します。
+		 */
 		~CommonApiScope()
 		{
 			testApi = nullptr ;
@@ -2408,7 +2651,20 @@ NativeError inspectCommonInfDependenciesWithTestApi( const InfDependencyNativeTe
 	return CommonInfNativeAccess::inspect( inspected, selected, result, diagnostic) ;
 }
 
-/** @see tests/support/inf_dependency_native_test_api.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief このthreadの一同期呼出しにだけ架空APIを結合する。
+ * @param[in] api 必須五callbackと任意属性callback。呼出し終了まで生存し再入しない。
+ * @param[in] workspace 架空fileの所有領域。
+ * @param[in] members 閉じたINF一覧。
+ * @param[in] rootIndex 開始member。
+ * @param[in] seeds 明示節群。
+ * @param[in] observationId 非零の架空run。
+ * @param[out] result 全再確認成功時だけ保持し、失敗時は空。
+ * @return 内部観測0、不完全API・再入・例外またはadapterの失敗HRESULT。
+ * @note 製品buildにはこの関数もthread-local slotも含めない。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectInfDependenciesWithTestApi( const InfDependencyNativeTestApi			 &api,
 											  const OfficialDownloadWorkspace			 &workspace,
 											  std::span<const InfDependencyPackageMember> members,
@@ -2426,7 +2682,9 @@ NativeError inspectInfDependenciesWithTestApi( const InfDependencyNativeTestApi	
 
 	/** @brief 全return／例外経路でthread-local借用を解除する。 */
 	struct TestApiScope {
-		/** @brief 同期借用を解除する。callbackの所有権を持たない。 */
+		/**
+		 * @brief 同期借用を解除する。callbackの所有権を持たない。
+		 */
 		~TestApiScope()
 		{
 			testApi = nullptr ;
@@ -2438,6 +2696,20 @@ NativeError inspectInfDependenciesWithTestApi( const InfDependencyNativeTestApi	
 										result) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 封印所有者の同期入口へ専用APIを借用する。実取得・署名を認定しない。
+ * @param[in] api 必須五callbackと任意属性callback。同期呼出し中だけ生存する。
+ * @param[in] binding 架空取得から作った封印所有者。
+ * @param[in] session 架空取得の生存issuer。
+ * @param[in] archiveWorkspace 架空原取得領域。
+ * @param[in] rootIndex 開始INF位置。
+ * @param[in] seeds 明示節群。
+ * @param[in] observationId 非零の架空run世代。
+ * @param[out] result 全成功時だけのsnapshot。失敗時は空。
+ * @return 完了0、不完全API・再入・境界・例外のHRESULT。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectAcquiredInfDependenciesWithTestApi(
 	const InfDependencyNativeTestApi &api, const OfficialInfArchiveBinding &binding,
 	const OfficialAcquisitionSession &session, const OfficialDownloadWorkspace &archiveWorkspace,
@@ -2453,7 +2725,9 @@ NativeError inspectAcquiredInfDependenciesWithTestApi(
 
 	/** @brief 全失敗／例外でもこの同期呼出しのAPI借用を解除する。 */
 	struct AcquiredApiScope {
-		/** @brief 非所有のthread-local slotを空にする。 */
+		/**
+		 * @brief 非所有のthread-local slotを空にする。
+		 */
 		~AcquiredApiScope()
 		{
 			testApi = nullptr ;

@@ -2,7 +2,7 @@
 /**
  * @file nvidia_winof2_driver_package.h
  * @brief NVIDIA WinOF-2 MSI driver閉包選択定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 取得済みWinOF-2 MSIを実行せず、Data1.cabと選択INFが参照するfileだけを保護workspaceへ分離します。PnP／rank、署名、導入可否は確定しません。
@@ -112,9 +113,9 @@ struct NvidiaWinof2DriverClosure {
 	OfficialDriverClosure closure ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 取得済みWinOF-2 MSIから選択INF一件のdriver閉包だけを分離する。
- * MSI／CABを実行せず、選択INFが参照しないmixed内容を除外する。
+ * @brief 取得済みWinOF-2 MSIから選択INF一件のdriver閉包だけを分離する。MSI／CABを実行せず、選択INFが参照しないmixed内容を除外する。
  * @param[in] request 外側取得連番、MSI identity、scan session、選択INF、出力識別子。 外側取得連番、MSI identity、session、選択
  *                   INF。
  * @param[in] policy MSI、CAB、INF、閉包、複写bufferの有限上限。 MSI、CAB、INF、閉包、複写の有限上限。
@@ -123,6 +124,7 @@ struct NvidiaWinof2DriverClosure {
  * @return 全identity、mapping、選択展開、INF構造検証成功時は0。
  * @note 処理はblockingのためProvider worker threadで実行し、任意codeを起動しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError extractNvidiaWinof2DriverClosure(
 	const NvidiaWinof2DriverClosureRequest &request, const NvidiaWinof2DriverClosurePolicy &policy,
 	OfficialDownloadWorkspace &workspace, NvidiaWinof2DriverClosure &result) ;

@@ -2,7 +2,7 @@
 /**
  * @file intel_ethernet_server_page_parser.cpp
  * @brief Intel Ethernet Server／Windows 11公式download page parser実装。
- * @version 01.04.00
+ * @version 01.04.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  現行pageのplain text配布版表記を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/09/28  配布・許諾へ元controlを伝播しOOMを保持。
  * Ver.01.04.00 Shunji Ogawa  2026/10/26  SHA-512単独と両hash掲載の有限検証を追加。
+ * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 固定Intel download pageを実行せず解析します。ServerとClientのprofileを混同せず、
@@ -97,10 +98,9 @@ constexpr IntelEthernetPageProfile WINDOWS11_PROFILE{
 //------------------------------------------------------------------------------
 /**
  * @brief 欠落と重複を区別せずmetadata拒否にする。
- *
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] text 有限長の検索対象。
  * @param[in] marker 一度だけ存在すべき固定文字列。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] position 成功時の開始位置。
  * @return Markerが一度だけ存在する場合true。
  */
@@ -190,11 +190,10 @@ constexpr IntelEthernetPageProfile WINDOWS11_PROFILE{
 //------------------------------------------------------------------------------
 /**
  * @brief hrefとdata-hrefの共通末尾を読み、query、fragment、別host、複数候補を拒否する。
- *
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] html 固定Intel pageのraw HTML。
  * @param[out] url 成功時の公式HTTPS URL。
  * @param[out] fileName 成功時の対象ZIP basename。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] version 成功時の明示配布版。
  * @return 条件を満たすURLが一件だけならtrue。
  */
@@ -276,11 +275,10 @@ constexpr IntelEthernetPageProfile WINDOWS11_PROFILE{
 //------------------------------------------------------------------------------
 /**
  * @brief HTMLを実行せず、現在pageの単一text nodeだけを読み取る。
- *
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] html 固定公式pageのraw HTML。
  * @param[in] label 一度だけ存在すべきASCII label。
  * @param[in] maximum 受理する値の最大文字数。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] value 成功時のtrim済みvisible値。
  * @return Label直後から次のtagまでに有限な値が一件ある場合true。
  */
@@ -361,11 +359,13 @@ constexpr IntelEthernetPageProfile WINDOWS11_PROFILE{
 		   }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief SHA-512の公表値を大小文字のASCII hexだけに限定します。
  * @param[in] value 同じ配布pageのhash表示。
  * @return 省略や切詰めのない128桁ASCII hexならtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isSha512( const std::wstring_view value) noexcept
 {
 	return value.size() == 128U && std::ranges::all_of( value, []( const wchar_t character) {
@@ -378,9 +378,8 @@ constexpr IntelEthernetPageProfile WINDOWS11_PROFILE{
 //------------------------------------------------------------------------------
 /**
  * @brief Button labelの二重出現を説明欄の版一致として代用しません。
- *
- * @param[in] html 同一配布page。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] html 同一配布page。
  * @param[in] fileName URLから検証したZIP名。
  * @return 一意な説明欄のdriver package名と完全一致する場合true。
  */
@@ -448,9 +447,9 @@ constexpr IntelEthernetPageProfile WINDOWS11_PROFILE{
 //------------------------------------------------------------------------------
 /**
  * @brief 一つのIntel Ethernet profileだけを静的pageから解析します。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] html 固定公式rootから得た有限HTML。
  * @param[in] profile 呼出し側が固定した製品、OS、対象製品marker。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] metadata 成功時の型付きmetadata。失敗時は初期値。
  * @return Profileと配布行、hash、EULAが整合する場合は`true`。
  */
@@ -544,7 +543,13 @@ constexpr IntelEthernetPageProfile WINDOWS11_PROFILE{
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_ethernet_server_page_parser.h 宣言側の契約を正本とします。
+ * @brief Intel Ethernet Windows Server 2025向けdownload pageを有限規則で解析する。公式page情報だけを返す。INF／CAT、現在PnP ID
+ *        、OEM差分、導入可否は後段で判定する。
+ * @param[in] html Intel公式hostから取得したUTF-16 HTML。
+ * @param[out] metadata 成功時の表示専用metadata。失敗時は初期値。
+ * @return 対象OS、x64 ZIP、公式URL、版、size、少なくとも一方の公開SHA-256／SHA-512、EULA表示が整合する場合true。
+ * @note 本結果は公式配布情報であり、現在deviceへの適用性やOEM推奨を保証しない。
+ * @note 許諾欄がある場合は完全なsnapshotを要求する。不正欄を空として受理しない。
  */
 //------------------------------------------------------------------------------
 bool parseIntelEthernetServerDownloadPage( const std::wstring_view		   html,
@@ -555,7 +560,11 @@ bool parseIntelEthernetServerDownloadPage( const std::wstring_view		   html,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_ethernet_server_page_parser.h 宣言側の契約を正本とします。
+ * @brief Intel record 727998のWindows 11 x64 download pageを有限規則で解析します。
+ * @param[in] html Intel公式hostの固定recordから取得したUTF-16 HTML。
+ * @param[out] metadata 成功時のWindows 11配布metadata。失敗時は初期値。
+ * @return Windows 11、E610-XT2掲載、x64 ZIP、公式URL、版、size表示、公開SHA-256／SHA-512、EULA表示が整合する場合は`true`。
+ * @note Exact byte数を概算sizeから推測せず、取得、同意、適用性または導入を行いません。
  */
 //------------------------------------------------------------------------------
 bool parseIntelEthernetWindows11DownloadPage( const std::wstring_view			html,
@@ -564,7 +573,15 @@ bool parseIntelEthernetWindows11DownloadPage( const std::wstring_view			html,
 	return parseIntelEthernetDownloadPage( nullptr, html, WINDOWS11_PROFILE, metadata) ;
 }
 
-/** @see intel_ethernet_server_page_parser.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じWindows 11配布coreへ必須制御を伝播します。
+ * @param[in] html 同じ公式本文。
+ * @param[out] metadata 非採用時は初期値。
+ * @param[in,out] context 元GETの制御。
+ * @return 配布非採用はfalse。停止・障害は上位境界へ伝播します。
+ */
+//------------------------------------------------------------------------------
 bool parseIntelEthernetWindows11DownloadPageForCollector(
 	std::wstring_view html, IntelEthernetDownloadPageMetadata &metadata,
 	CollectorParserContext &context)

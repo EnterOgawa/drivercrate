@@ -2,7 +2,7 @@
 /**
  * @file dell_server_catalog_parser.cpp
  * @brief Dell PowerEdge Enterprise catalog parser実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note MSXML 6.0のDTDと外部参照を無効にし、PowerEdge model、Windows Server build、x64、driver種別、PCI IDを全て満たす個別DUP
@@ -833,7 +834,15 @@ using Microsoft::WRL::ComPtr ;
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/dell_server_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief Dell Enterprise catalogから対象Server buildの個別driver DUPを取得する。Dell Enterprise catalogから
+ *        PowerEdge driverを取得する。ComponentType DRVRのうちmodel／Server build／x64が一致し、PCI IDを持つindividual DUPだけを成
+ *        功時に一括反映する。
+ * @param[in] xmlUtf16 OpenPGP、GZip、encoding検証済みEnterprise catalog XML。 署名・GZip・encoding検証済みXML。
+ * @param[in] systemModel SMBIOS由来のDell system product名。 SMBIOS由来system product名。
+ * @param[in] windowsBuild 実行中Windows ServerのCurrentBuildNumber。 実Windows Server build番号。
+ * @param[out] releases 成功時のmodel／OS／x64／PCI適合driver群。0件も成功。 成功時の適合driver群。0件も成功。
+ * @return 成功時は0、schema、上限、metadata不正時はHRESULT bit pattern。
+ * @note BIOS、firmware、application、bundle、PCI IDなしcomponentは返さない。
  */
 //------------------------------------------------------------------------------
 NativeError parseDellServerCatalog( const std::wstring_view				 xmlUtf16,

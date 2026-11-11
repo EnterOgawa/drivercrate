@@ -2,7 +2,7 @@
 /**
  * @file official_static_record_parser.h
  * @brief 公式配布record用の静的HTML／JSON抽出境界定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  有限HTML属性とJSON object path抽出境界を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Provider parserだけが対象区画とfieldの意味を決めます。本境界はscriptを実行せず、URL、
@@ -37,6 +38,7 @@
 
 namespace drivercrate {
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一意なProvider markerと同じHTML開始tagにある指定属性値を取得します。
  * @param[in] html 4 Mi UTF-16 code unit以下の静的公式HTML。
@@ -47,12 +49,14 @@ namespace drivercrate {
  * @return Marker、開始tag、属性と有限値が一意で安全な場合は`true`。
  * @note `script`／`style`、HTML entity、単引用符、別tag、重複属性を解釈または補完しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool extractUniqueOfficialHtmlAttribute( std::wstring_view html,
 													  std::wstring_view uniqueMarker,
 													  std::wstring_view attributeName,
 													  std::size_t		maximumValueCharacters,
 													  std::wstring	   &value) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider指定のJSON object pathにある文字列propertyを型付きで取得します。
  * @param[in] json 4 Mi UTF-16 code unit以下の静的公式JSON object本文。
@@ -63,6 +67,7 @@ namespace drivercrate {
  * @return Root、全path要素、最終propertyの型と有限値が有効な場合は`true`。
  * @note Array検索、field名推測、数値から文字列への変換、script実行を行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool extractOfficialJsonStringAtObjectPath(
 	std::wstring_view json, std::span<const std::wstring_view> objectPath,
 	std::wstring_view propertyName, std::size_t maximumValueCharacters, std::wstring &value) ;

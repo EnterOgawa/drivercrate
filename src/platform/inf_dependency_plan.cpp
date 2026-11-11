@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_plan.cpp
  * @brief 明示選択Include文脈とNeedsの有限解決核・非実行計画の実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  有限依存核・曖昧／循環・snapshot再確認を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note loaderの証拠を独立に保持し、実byte取得・署名・実device導入を直接行わない。
@@ -45,11 +46,14 @@ constexpr std::size_t MAX_REFERENCES = 4096U ;	// 全節の累積参照数と出
 constexpr std::size_t MAX_DEPTH		 = 32U ;	// C++再帰の最大段数。
 constexpr std::size_t MAX_NAME		 = 254U ;	// 明示名の最大文字数。
 
-/** @brief Windows ordinal規則で有限節名を比較する。
+//------------------------------------------------------------------------------
+/**
+ * @brief Windows ordinal規則で有限節名を比較する。
  * @param[in] left 有限な一名称。
  * @param[in] right 有限な一名称。
  * @return 大小文字を除いて一致する場合true。
  */
+//------------------------------------------------------------------------------
 bool				  sameName( std::wstring_view left, std::wstring_view right)
 {
 	return left.size() <= MAX_NAME && right.size() <= MAX_NAME &&
@@ -57,21 +61,27 @@ bool				  sameName( std::wstring_view left, std::wstring_view right)
 								static_cast<int>( right.size()), TRUE) == CSTR_EQUAL ;
 }
 
-/** @brief 証拠enumの未知値を拒否する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 証拠enumの未知値を拒否する。
  * @param[in] value 調べる証拠軸。
  * @return 三既知値のいずれかならtrue。
  */
+//------------------------------------------------------------------------------
 bool validEvidence( InfDependencyEvidence value)
 {
 	return value == InfDependencyEvidence::NOT_CHECKED ||
 		   value == InfDependencyEvidence::VERIFIED || value == InfDependencyEvidence::FAILED ;
 }
 
-/** @brief OSと観測世代を完全一致させる。
+//------------------------------------------------------------------------------
+/**
+ * @brief OSと観測世代を完全一致させる。
  * @param[in] left 開始文脈。
  * @param[in] right 候補文脈。
  * @return 全field一致ならtrue。
  */
+//------------------------------------------------------------------------------
 bool sameContext( const InfDependencyContext &left, const InfDependencyContext &right)
 {
 	return left.major == right.major && left.minor == right.minor && left.build == right.build &&
@@ -79,10 +89,13 @@ bool sameContext( const InfDependencyContext &left, const InfDependencyContext &
 		   left.observationId == right.observationId ;
 }
 
-/** @brief 一documentの形を検査する。検査済み状態へ昇格しない。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一documentの形を検査する。検査済み状態へ昇格しない。
  * @param[in] document 有限なsnapshot。
  * @return 全必須fieldが有効ならtrue。
  */
+//------------------------------------------------------------------------------
 bool validDocument( const InfDependencyDocument &document)
 {
 	return document.identity != 0U && document.byteCount > 0U &&
@@ -99,11 +112,14 @@ bool validDocument( const InfDependencyDocument &document)
 		   validEvidence( document.signature) ;
 }
 
-/** @brief 同identityの証拠差替えを検出する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同identityの証拠差替えを検出する。
  * @param[in] left 保存済みsnapshot。
  * @param[in] right 再取得snapshot。
  * @return 全byte／証拠／文脈が一致ならtrue。
  */
+//------------------------------------------------------------------------------
 bool sameDocument( const InfDependencyDocument &left, const InfDependencyDocument &right)
 {
 	return left.identity == right.identity && left.sha256 == right.sha256 &&
@@ -112,10 +128,13 @@ bool sameDocument( const InfDependencyDocument &left, const InfDependencyDocumen
 		   left.signature == right.signature && sameContext( left.context, right.context) ;
 }
 
-/** @brief 一明示名の長さと制御文字等を検査する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一明示名の長さと制御文字等を検査する。
  * @param[in] name worker内だけの一名称。
  * @return 境界に適合する場合true。
  */
+//------------------------------------------------------------------------------
 bool validSectionName( std::wstring_view name)
 {
 	return !name.empty() && name.size() <= MAX_NAME && name.front() != L' ' &&
@@ -126,10 +145,13 @@ bool validSectionName( std::wstring_view name)
 		   }) ;
 }
 
-/** @brief Includeの安全な相対INF名だけを受理する。
+//------------------------------------------------------------------------------
+/**
+ * @brief Includeの安全な相対INF名だけを受理する。
  * @param[in] name 原相対名称。
  * @return 親移動・絶対path・予約文字を含まないINF名ならtrue。
  */
+//------------------------------------------------------------------------------
 bool validIncludeName( std::wstring_view name)
 {
 	// 長さと拡張子の不正からpath検索へ進ませない。
@@ -165,10 +187,13 @@ bool validIncludeName( std::wstring_view name)
 	return false ;
 }
 
-/** @brief 三証拠が全て確認済みかを調べる。
+//------------------------------------------------------------------------------
+/**
+ * @brief 三証拠が全て確認済みかを調べる。
  * @param[in] document 独立証拠を持つsnapshot。
  * @return 全軸VERIFIEDならtrue。device適用性は表さない。
  */
+//------------------------------------------------------------------------------
 bool verifiedDocument( const InfDependencyDocument &document)
 {
 	return document.byteBinding == InfDependencyEvidence::VERIFIED &&
@@ -179,7 +204,8 @@ bool verifiedDocument( const InfDependencyDocument &document)
 /** @brief 同期runの有限cacheと非実行結果を所有する。 */
 class DependencyResolver {
 public:
-	/** @brief loaderと開始文脈を同期借用する。
+	/**
+	 * @brief loaderと開始文脈を同期借用する。
 	 * @param[in] operations 呼出し完了まで有効なloader。
 	 * @param[in] context rootと全候補を結合する文脈。
 	 * @param[in] selectedContext 同期callだけ借用する元rootの正規選択です。null可です。
@@ -192,7 +218,8 @@ public:
 		result_.context = context ;
 	}
 
-	/** @brief seedを観測し全snapshot再確認後にだけ結果を移す。
+	/**
+	 * @brief seedを観測し全snapshot再確認後にだけ結果を移す。
 	 * @param[in] root 開始snapshot。
 	 * @param[in] seeds 明示開始節。
 	 * @param[out] result 全成功後だけ保持する結果。
@@ -279,7 +306,8 @@ private:
 	/// 走査すべきseed／再帰元が全てPRESENTの場合true。
 	bool								sourcesPresent_{true} ;
 
-	/** @brief candidateを一意identityとOS文脈へ結合する。
+	/**
+	 * @brief candidateを一意identityとOS文脈へ結合する。
 	 * @param[in] document 観測snapshot。
 	 * @param[out] index 成功時の保存位置。
 	 * @return 成功0、不正・OS差・差替え・容量のHRESULT。
@@ -320,7 +348,8 @@ private:
 		return 0 ;
 	}
 
-	/** @brief 明示節を一度だけ照会し有限snapshotへ固定する。
+	/**
+	 * @brief 明示節を一度だけ照会し有限snapshotへ固定する。
 	 * @param[in] documentIndex 保存済みdocument位置。
 	 * @param[in] section 安全な明示節。
 	 * @param[out] index 成功時のcache位置。
@@ -386,7 +415,8 @@ private:
 		return 0 ;
 	}
 
-	/** @brief 一意候補の独立証拠を辺へ注釈する。
+	/**
+	 * @brief 一意候補の独立証拠を辺へ注釈する。
 	 * @param[in,out] edge 元参照の結果。
 	 * @param[in] document 対象snapshot。
 	 */
@@ -406,7 +436,8 @@ private:
 		edge.reason = InfDependencyReason::NONE ;
 	}
 
-	/** @brief 同節Includeを全照会して一意性と証拠を保持する。
+	/**
+	 * @brief 同節Includeを全照会して一意性と証拠を保持する。
 	 * @param[in] source 元snapshot。
 	 * @param[in,out] edge 原Include辺。
 	 * @param[out] indexes 発見候補のdocument位置。
@@ -465,7 +496,8 @@ private:
 		return 0 ;
 	}
 
-	/** @brief 明示節を有限再帰で走査し、共有と循環を分離する。
+	/**
+	 * @brief 明示節を有限再帰で走査し、共有と循環を分離する。
 	 * @param[in] documentIndex 保存document位置。
 	 * @param[in] section 明示節。
 	 * @param[in] depth 1～32の再帰段数。
@@ -686,7 +718,19 @@ private:
 
 } // namespace
 
-/** @see src/platform/inf_dependency_plan.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同節または明示選択文脈のInclude／Needsを有限に観測します。
+ * @param[in] root byte結合済みの開始INF snapshot。
+ * @param[in] seeds 同じroot内で観測する1～1,024の明示節名。
+ * @param[in] operations worker内で同期借用するloader。再入・別thread操作は禁止する。
+ * @param[out] result 全観測・全document再確認成功時のみ保持し、失敗時は空。
+ * @param[in] selectedContext nullなら従来の同節だけです。元root/seedへ完全結合した任意選択文脈です。
+ * @return 観測成功0、入力／容量／OS差／callback失敗のHRESULT。
+ * @pre 入力と出力の所有storageはaliasしない。
+ * @note 最大64 INF・1,024節・4,096辺・32段。実byte loader、署名検証、導入許可は核自身では提供しない。
+ */
+//------------------------------------------------------------------------------
 NativeError resolveInfDependencies( const InfDependencyDocument		  &root,
 								   std::span<const std::wstring>	   seeds,
 								   const InfDependencyOperations	  &operations,

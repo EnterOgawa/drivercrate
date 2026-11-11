@@ -2,7 +2,7 @@
 /**
  * @file signed_index_refresh.h
  * @brief 固定署名索引のrefreshと非機密な保存観測を定義します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/16
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/16  固定currentと原子storeの有限接続を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/08  同一currentの保護cache再認証と通信省略を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note URL・snapshot・候補・grantを通常summaryへ保持しません。
  */
@@ -107,11 +108,14 @@ struct IndexRefreshSummary {
 	/// 同一currentの再利用または元HTTP失敗を保持したcache利用です。
 	bool										usedAuthenticatedCache{} ;
 } ;
-/** @brief 固定GitHubと固定保護storeだけを同期workerでrefreshします。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定GitHubと固定保護storeだけを同期workerでrefreshします。
  * @param[in] cancellation 同worker寿命中の非blocking取消しです。空は取消しなしです。
  * @return 元失敗・commit事実・明示cacheを保持する非機密summaryです。
  * @note 呼出しはnetwork/保存を行います。UIからURL/path/trustを指定できません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexRefreshSummary refreshFixedSignedIndex(
 	const HttpCancellationCallback &cancellation = {}) noexcept ;
 
@@ -138,14 +142,16 @@ struct Services {
 } ;
 /** @brief 製品固定入口と完全fixtureを分ける内部接続です。 */
 struct Access {
-	/** @brief 完全fakeの全依存で同じHTTP/codec/glueを実行します。
+	/**
+	 * @brief 完全fakeの全依存で同じHTTP/codec/glueを実行します。
 	 * @param[in] services 呼出し中有効な全依存とRAM public trustです。
 	 * @param[in] cancellation 同fixtureの協調停止です。
 	 * @return 非機密summaryだけです。snapshotやgrantを作りません。
 	 */
 	[[nodiscard]] static IndexRefreshSummary forTest(
 		const Services &services, const HttpCancellationCallback &cancellation = {}) noexcept ;
-	/** @brief 共通実装へ固定clientと検査済み依存を渡します。
+	/**
+	 * @brief 共通実装へ固定clientと検査済み依存を渡します。
 	 * @param[in,out] client 専用非cache clientです。
 	 * @param[in] services 固定製品または完全fake依存です。
 	 * @param[in] cancellation 同workerの停止確認です。

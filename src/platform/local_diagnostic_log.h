@@ -2,7 +2,7 @@
 /**
  * @file local_diagnostic_log.h
  * @brief EXE隣へ保存する匿名数値診断の有界入口。
- * @version 01.04.01
+ * @version 01.04.02
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * Ver.01.04.01 Shunji Ogawa  2026/11/09  内部fixtureの排出開始制御を追加し、通常非待機契約を維持。
+ * Ver.01.04.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 保存不能は通常処理へ伝播しません。文字列本文や端末identityを受けません。
  * @see docs/adr/0427-local-anonymous-scan-diagnostics.md
@@ -367,16 +368,20 @@ struct DiagnosticStorageStatus {
 /** @brief Registryからだけ生成するProvider名token。 */
 class DiagnosticProvider final {
 public:
-	/** @brief applicationを既定値にします。 */
+	/**
+	 * @brief applicationを既定値にします。
+	 */
 	DiagnosticProvider() noexcept = default ;
-	/** @brief 任意文字列を保存せずcanonical registryへ照合します。
-     * @param[in] id 呼出し中だけ借用する元stable ID。
-     * @return 既知registryの静的IDまたは固定unknown token。
-     */
+	/**
+	 * @brief 任意文字列を保存せずcanonical registryへ照合します。
+	 * @param[in] id 呼出し中だけ借用する元stable ID。
+	 * @return 既知registryの静的IDまたは固定unknown token。
+	 */
 	[[nodiscard]] static DiagnosticProvider fromId( std::wstring_view id) noexcept ;
-	/** @brief Canonical static IDだけを同期serializeへ貸します。
-     * @return Process lifetimeの固定ID。任意入力のviewではありません。
-     */
+	/**
+	 * @brief Canonical static IDだけを同期serializeへ貸します。
+	 * @return Process lifetimeの固定ID。任意入力のviewではありません。
+	 */
 	[[nodiscard]] std::wstring_view			id() const noexcept ;
 
 private:
@@ -400,34 +405,49 @@ struct DiagnosticRecord {
 	std::array<std::pair<DiagnosticField, std::uint64_t>, 16U> fields{} ;
 	/// 実使用列数です。
 	std::uint8_t											   fieldCount{} ;
-	/** @brief 固定枠へ一つの数値列を追加します。
-     * @param[in] field 閉じた列識別子。
-     * @param[in] value 個数/enum/boolだけの値。
-     * @return 同じ記録。超過分は保持しません。
-     */
+	/**
+	 * @brief 固定枠へ一つの数値列を追加します。
+	 * @param[in] field 閉じた列識別子。
+	 * @param[in] value 個数/enum/boolだけの値。
+	 * @return 同じ記録。超過分は保持しません。
+	 */
 	DiagnosticRecord &add( DiagnosticField field, std::uint64_t value) noexcept ;
 } ;
 
 /** @brief 専用workerへ固定queueで渡し、保存失敗を機能へ返さないlogger。 */
 class LocalDiagnosticLog final {
 public:
-	/** @brief 未開始loggerを構築します。 */
+	/**
+	 * @brief 未開始loggerを構築します。
+	 */
 	LocalDiagnosticLog() noexcept = default ;
-	/** @brief 最大200msだけ終了を待ち、残worker所有を安全に残します。 */
+	/**
+	 * @brief 最大200msだけ終了を待ち、残worker所有を安全に残します。
+	 */
 	~LocalDiagnosticLog() ;
-	/** @brief 単一queue所有のcopyを禁止します。 */
+	/**
+	 * @brief 単一queue所有のcopyを禁止します。
+	 */
 	LocalDiagnosticLog( const LocalDiagnosticLog &) = delete ;
-	/** @brief 単一queue所有のcopyを禁止します。 */
+	/**
+	 * @brief 単一queue所有のcopyを禁止します。
+	 */
 	LocalDiagnosticLog					 &operator=( const LocalDiagnosticLog &) = delete ;
-	/** @brief 実EXEの絶対directoryだけで非同期保存を開始します。 */
+	/**
+	 * @brief 実EXEの絶対directoryだけで非同期保存を開始します。
+	 */
 	void								  start() noexcept ;
-	/** @brief I/Oを行わずqueueへ非待機で投入します。
-     * @param[in] record 文字列本文を持たない有界snapshotです。
-     */
+	/**
+	 * @brief I/Oを行わずqueueへ非待機で投入します。
+	 * @param[in] record 文字列本文を持たない有界snapshotです。
+	 */
 	void								  append( const DiagnosticRecord &record) noexcept ;
-	/** @brief 新規投入を止め、終了を最大200msだけ待ちます。 */
+	/**
+	 * @brief 新規投入を止め、終了を最大200msだけ待ちます。
+	 */
 	void								  stop() noexcept ;
-	/** @brief I/Oや待機をせず保存状態を読みます。
+	/**
+	 * @brief I/Oや待機をせず保存状態を読みます。
 	 * @return 保存済みと未保存/失敗を区別した固定snapshot。
 	 */
 	[[nodiscard]] DiagnosticStorageStatus status() const noexcept ;
@@ -439,56 +459,77 @@ private:
 	std::shared_ptr<State>	state_ ;
 	/// Workerを開始できなかった元理由です。開始threadだけが書きます。
 	DiagnosticStorageStatus startFailure_ ;
-	/** @brief 製品または内部fixtureの絶対folderへだけ開始します。
-     * @param[in] folder 元EXE directoryまたは内部fixtureの新規directory。
-     * @param[in] paused 内部fixtureだけがthread開始前にqueue排出を止めます。
-     */
+	/**
+	 * @brief 製品または内部fixtureの絶対folderへだけ開始します。
+	 * @param[in] folder 元EXE directoryまたは内部fixtureの新規directory。
+	 * @param[in] paused 内部fixtureだけがthread開始前にqueue排出を止めます。
+	 */
 	void					startInFolder( std::wstring_view folder, bool paused = false) noexcept ;
 	friend struct local_diagnostic_detail::Access ;
 } ;
 
-/** @brief 製品のprocess loggerを開始し、昇格有無だけを記録します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 製品のprocess loggerを開始し、昇格有無だけを記録します。
+ */
+//------------------------------------------------------------------------------
 void startLocalDiagnostics() noexcept ;
-/** @brief 製品のprocess loggerへ数値snapshotを非待機投入します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 製品のprocess loggerへ数値snapshotを非待機投入します。
  * @param[in] record 有界な匿名記録です。
  */
+//------------------------------------------------------------------------------
 void recordLocalDiagnostic( const DiagnosticRecord &record) noexcept ;
-/** @brief Message loop終了後に最大200msだけ保存終了を待ちます。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Message loop終了後に最大200msだけ保存終了を待ちます。
+ */
+//------------------------------------------------------------------------------
 void stopLocalDiagnostics() noexcept ;
-/** @brief Process loggerの保存状態を非待機で読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief Process loggerの保存状態を非待機で読みます。
  * @return 固定数値だけの現在snapshot。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] DiagnosticStorageStatus localDiagnosticStatus() noexcept ;
 
 namespace local_diagnostic_detail {
 /** @brief 通信・実inventoryを使わない内部file回帰用入口。 */
 struct Access {
-	/** @brief Fixture folderで製品と同じ保存処理を開始します。
-     * @param[in,out] log 未開始logger。
-     * @param[in] folder Fixtureの絶対folder。製品設定には接続しません。
-     */
+	/**
+	 * @brief Fixture folderで製品と同じ保存処理を開始します。
+	 * @param[in,out] log 未開始logger。
+	 * @param[in] folder Fixtureの絶対folder。製品設定には接続しません。
+	 */
 	static void start( LocalDiagnosticLog &log, std::wstring_view folder) noexcept ;
-	/** @brief 内部fixtureのqueue排出だけをthread開始前から止めます。
-     * @param[in,out] log 未開始loggerです。
-     * @param[in] folder Fixtureの絶対folderです。製品設定には接続しません。
-     * @note 通常の投入は非待機のままです。resumeまたはstopが元wakeで排出を許可します。
-     */
+	/**
+	 * @brief 内部fixtureのqueue排出だけをthread開始前から止めます。
+	 * @param[in,out] log 未開始loggerです。
+	 * @param[in] folder Fixtureの絶対folderです。製品設定には接続しません。
+	 * @note 通常の投入は非待機のままです。resumeまたはstopが元wakeで排出を許可します。
+	 */
 	static void startPaused( LocalDiagnosticLog &log, std::wstring_view folder) noexcept ;
-	/** @brief 内部fixtureの排出を一度だけ再開します。再pauseや再初期化はしません。
-     * @param[in,out] log startPausedで開始した試験所有loggerです。
-     */
+	/**
+	 * @brief 内部fixtureの排出を一度だけ再開します。再pauseや再初期化はしません。
+	 * @param[in,out] log startPausedで開始した試験所有loggerです。
+	 */
 	static void resume( LocalDiagnosticLog &log) noexcept ;
-	/** @brief 投入済み記録の保存を有限に待ちます。
-     * @param[in] log 試験所有logger。
-     * @return Queue空か保存停止を観測した場合true。
-     */
+	/**
+	 * @brief 投入済み記録の保存を有限に待ちます。
+	 * @param[in] log 試験所有logger。
+	 * @return Queue空か保存停止を観測した場合true。
+	 */
 	[[nodiscard]] static bool drain( const LocalDiagnosticLog &log) noexcept ;
-	/** @brief 自己所有fixtureだけでwriter失敗/有界終了を注入します。
+	/**
+	 * @brief 自己所有fixtureだけでwriter失敗/有界終了を注入します。
 	 * @param[in,out] log 試験所有logger。
 	 * @param[in] stage WRITE/FLUSH/STOPだけ。製品から呼びません。
 	 */
 	static void				  fail( LocalDiagnosticLog &log, DiagnosticStorageStage stage) noexcept ;
-	/** @brief 内部UI fixtureのprocess writerだけへ固定失敗を与えます。
+	/**
+	 * @brief 内部UI fixtureのprocess writerだけへ固定失敗を与えます。
 	 * @param[in] stage WRITE/FLUSH/STOPだけです。製品から呼びません。
 	 */
 	static void				  failProcess( DiagnosticStorageStage stage) noexcept ;

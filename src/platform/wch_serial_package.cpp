@@ -2,7 +2,7 @@
 /**
  * @file wch_serial_package.cpp
  * @brief WCH USB serial署名済みINF ZIP検証実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 公式ZIP全体を未信頼入力として事前検査し、製品familyごとの固定directory内にある現行x64 INF packageだけを選択します。Setup executableは
@@ -411,7 +412,10 @@ constexpr std::wstring_view MULTI_ACCEPTED_DRIVER_VERSION =
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/wch_serial_package.h 宣言側の契約を正本とする。
+ * @brief INF内のPnP IDがWCH公式CH341SER packageの固定USB IDか判定する。PnP IDがWCH CH341SER固定USB IDか判定する。Prefixや
+ *        PIDの部分一致を許さず、custom VID／PIDを除外する。
+ * @param[in] hardwareId 署名済みINFから取得したPnP ID。 署名済みINFから得たPnP ID。
+ * @return 固定VID／PIDまたは公式INFの固定revision IDと完全一致する場合は`true`。 固定allowlistへ完全一致する場合は`true`。
  */
 //------------------------------------------------------------------------------
 bool isWchSerialCandidateHardwareId( const std::wstring_view hardwareId) noexcept
@@ -424,7 +428,10 @@ bool isWchSerialCandidateHardwareId( const std::wstring_view hardwareId) noexcep
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/wch_serial_package.h 宣言側の契約を正本とする。
+ * @brief INF内のPnP IDがWCH公式CH343SER 2.2の固定USB IDか判定する。PnP IDがWCH CH343SER 2.2の固定USB IDか判定する。
+ *        Interfaceとrevisionを含むIDを短縮せず、custom IDを除外する。
+ * @param[in] hardwareId 署名済みINFから取得したPnP ID。 署名済みINFから得たPnP ID。
+ * @return 固定VID／PID／interface／revision IDと完全一致する場合は`true`。 固定allowlistへ完全一致する場合は`true`。
  */
 //------------------------------------------------------------------------------
 bool isWchMultiSerialCandidateHardwareId( const std::wstring_view hardwareId) noexcept
@@ -437,7 +444,14 @@ bool isWchMultiSerialCandidateHardwareId( const std::wstring_view hardwareId) no
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/wch_serial_package.h 宣言側の契約を正本とする。
+ * @brief 利用者選択WCH CH341SER ZIPを保護領域へ複製して検証する。利用者選択WCH CH341SER ZIPを検証する。ZIP全体を検査し、現行subtreeだけを展開して署
+ *        名検証する。
+ * @param[in] selectedPath 利用者が公式siteから取得して選択した一つのZIP path。 利用者選択ZIP path。
+ * @param[in] scanSessionId 0ではないscan session ID。
+ * @param[in,out] workspace 未初期化の保護workspace。選択fileだけを単独所有する。 複製と選択fileの保護領域。
+ * @param[out] contents 成功時のarchive identity、選択entry、検証済みINF。 全検証成功時のWCH package情報。
+ * @return 全検証成功時は0、入力、ZIP、INF、CATまたは署名違反時はHRESULT。 共通検証とWCH固有検証の成功時は0。
+ * @note 入手元を証明せず、固定`CH341SER\\WIN 1X` directory以外を展開しない。
  */
 //------------------------------------------------------------------------------
 NativeError inspectWchSerialPackageFile( const std::wstring_view	   selectedPath,
@@ -451,7 +465,11 @@ NativeError inspectWchSerialPackageFile( const std::wstring_view	   selectedPath
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/wch_serial_package.h 宣言側の契約を正本とする。
+ * @brief WCH INFをinstall直前に再検証する。Scan時と同じWCH policyでSetupAPI呼出し前に再検証する。
+ * @param[in] workspace Scan時の選択fileを所有する保護workspace。 Scan時の保護領域。
+ * @param[in] entries Scan時に確定した選択ZIP entry群。 Scan時に選択した展開file群。
+ * @param[in] expected Scan時に候補へ対応付けたINF metadata。 Scan時のINF metadata。
+ * @return 構造、WCH family、署名、CAT member、全metadataが一致する場合は0。 全metadata、family、CAT member、署名の一致時は0。
  */
 //------------------------------------------------------------------------------
 NativeError reverifyWchSerialInfPackage( const OfficialDownloadWorkspace		   &workspace,
@@ -463,7 +481,14 @@ NativeError reverifyWchSerialInfPackage( const OfficialDownloadWorkspace		   &wo
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/wch_serial_package.h 宣言側の契約を正本とする。
+ * @brief 利用者選択WCH CH343SER ZIPを保護領域へ複製して検証する。利用者選択WCH CH343SER 2.2 ZIPを検証する。ZIP全体を検査し、固定現行subtreeだけ
+ *        を展開・検証する。
+ * @param[in] selectedPath 利用者が公式siteから取得して選択した一つのZIP path。 利用者選択ZIP path。
+ * @param[in] scanSessionId 0ではないscan session ID。
+ * @param[in,out] workspace 未初期化の保護workspace。選択fileだけを単独所有する。 複製と選択fileの保護領域。
+ * @param[out] contents 成功時のarchive identity、選択entry、検証済みINF。 全検証成功時のWCH package情報。
+ * @return 全検証成功時は0、入力、ZIP、INF、CATまたは署名違反時はHRESULT。 固定archiveとWCH固有検証の成功時は0。
+ * @note 入手元を証明せず、固定`CH343SER\\Driver\\WIN 1X`以外を展開しない。
  */
 //------------------------------------------------------------------------------
 NativeError inspectWchMultiSerialPackageFile( const std::wstring_view	selectedPath,
@@ -477,7 +502,11 @@ NativeError inspectWchMultiSerialPackageFile( const std::wstring_view	selectedPa
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/wch_serial_package.h 宣言側の契約を正本とする。
+ * @brief WCH CH342／CH343系INFをinstall直前に再検証する。Scan時と同じCH343SER 2.2 policyでSetupAPI前に再検証する。
+ * @param[in] workspace Scan時の選択fileを所有する保護workspace。 Scan時の保護領域。
+ * @param[in] entries Scan時に確定した選択ZIP entry群。 Scan時に選択した展開file群。
+ * @param[in] expected Scan時に候補へ対応付けたINF metadata。 Scan時のINF metadata。
+ * @return 固定archive、全file hash、構造、WCH family、署名が一致する場合は0。 固定archive、全file hash、metadata、署名一致時は0。
  */
 //------------------------------------------------------------------------------
 NativeError reverifyWchMultiSerialInfPackage( const OfficialDownloadWorkspace		&workspace,

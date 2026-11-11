@@ -2,7 +2,7 @@
 /**
  * @file protected_install_tests.cpp
  * @brief 復元ポイント保護付きinstall単体試験実装。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note fake Providerとfake復元ポイントサービスだけを使用します。SRSetRestorePointW、download、driver installは呼び出しません。
@@ -76,7 +77,10 @@ public:
 	/// 同fakeの実行済みcallbackからだけ作る明示観測です。
 	RestorePointProtectionResult fakeProtection_{.disposition =
 													 RestorePointDisposition::UNAVAILABLE} ;
-	/** @brief 完全fakeの原開始/終了に対応した観測を返します。@return 本番APIを呼ばない観測です。 */
+	/**
+	 * @brief 完全fakeの原開始/終了に対応した観測を返します。
+	 * @return 本番APIを呼ばない観測です。
+	 */
 	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
 	{
 		return fakeProtection_ ;
@@ -124,8 +128,8 @@ public:
 	/**
 	 * @brief 本試験では使用しない既定scan結果を返す。
 	 * @param[in] scanSessionId 呼出し側が指定したsession ID。
-	 * @param[in] progressCallback 未使用の進捗通知先。
 	 * @param[in] options 本試験では未使用のscan条件。
+	 * @param[in] progressCallback 未使用の進捗通知先。
 	 * @return 未開始のscan結果。
 	 */
 	[[nodiscard]] ScanResult	 scan( ScanSessionId scanSessionId, const ScanOptions &options,
@@ -148,7 +152,9 @@ public:
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/protected_install_tests.cpp 宣言側の契約を正本とする。
+ * @brief 設定済み開始結果を返し、呼出し回数を記録する。
+ * @param[in] description 試験対象が渡した復元ポイント説明。
+ * @return `beginResult`の複製。 beginResultの複製。
  */
 //------------------------------------------------------------------------------
 RestorePointOperationResult FakeRestorePointService::begin(
@@ -176,7 +182,9 @@ RestorePointOperationResult FakeRestorePointService::begin(
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/protected_install_tests.cpp 宣言側の契約を正本とする。
+ * @brief 設定済み終了結果を返し、呼出し回数を記録する。
+ * @param[in] sequenceNumber 試験対象が渡した識別番号。
+ * @return `completeResult`の複製。 completeResultの複製。
  */
 //------------------------------------------------------------------------------
 RestorePointOperationResult FakeRestorePointService::complete(
@@ -204,7 +212,11 @@ RestorePointOperationResult FakeRestorePointService::complete(
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/protected_install_tests.cpp 宣言側の契約を正本とする。
+ * @brief 本試験では使用しない既定scan結果を返す。
+ * @param[in] scanSessionId 呼出し側が指定したsession ID。
+ * @param[in] options 本試験では未使用のscan条件。
+ * @param[in] progressCallback 未使用の進捗通知先。
+ * @return 未開始のscan結果。
  */
 //------------------------------------------------------------------------------
 ScanResult FakeUpdateProvider::scan( const ScanSessionId scanSessionId, const ScanOptions &options,
@@ -217,7 +229,12 @@ ScanResult FakeUpdateProvider::scan( const ScanSessionId scanSessionId, const Sc
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/protected_install_tests.cpp 宣言側の契約を正本とする。
+ * @brief 選択候補の成功結果を返すか、設定により例外を送出する。install呼出しを記録し、例外設定時は結果を返さず送出する。
+ * @param[in] scanSessionId 選択元session ID。
+ * @param[in] identities 選択されたopaque identity群。
+ * @param[in] parentWindowNative 未使用の親Window値。
+ * @param[in] progressCallback 進捗通知callback。
+ * @return 全候補成功のinstall結果。
  */
 //------------------------------------------------------------------------------
 InstallResult FakeUpdateProvider::install( const ScanSessionId				  scanSessionId,
@@ -509,9 +526,13 @@ struct DailyRestoreFixture {
 	/// 既排他の代わりに同scopeだけ所有します。
 	bool									 locked{} ;
 } ;
-/** @brief 必須callbackを全て明示する復元fakeを構築します。
- * @param[in] state 同fixture寿命の所有状態です。@return production fallbackのない完全表です。
+//------------------------------------------------------------------------------
+/**
+ * @brief 必須callbackを全て明示する復元fakeを構築します。
+ * @param[in] state 同fixture寿命の所有状態です。
+ * @return production fallbackのない完全表です。
  */
+//------------------------------------------------------------------------------
 restore_point_detail::Calls dailyRestoreCalls( std::shared_ptr<DailyRestoreFixture> state)
 {
 	restore_point_detail::Calls calls ;	// 全fieldを明示します。
@@ -562,9 +583,12 @@ restore_point_detail::Calls dailyRestoreCalls( std::shared_ptr<DailyRestoreFixtu
 	} ;
 	return calls ;
 }
-/** @brief 初回/同日二操作/再起動相当の原point再利用を製品保護経路で確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 初回/同日二操作/再起動相当の原point再利用を製品保護経路で確認します。
  * @param[in,out] context 原assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testDailyRestorePositive( TestContext &context)
 {
 	auto state = std::make_shared<DailyRestoreFixture>() ;	// 本番stateを読みません。
@@ -621,9 +645,12 @@ void testDailyRestorePositive( TestContext &context)
 			  << " nativeEnd=" << state->ends << " realRestore=0 realWMI=0 productionMemo=0\n" ;
 }
 
-/** @brief 日内保護の有限16条件を完全fakeで確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 日内保護の有限16条件を完全fakeで確認します。
  * @param[in,out] context 原assertionです。
  */
+//------------------------------------------------------------------------------
 void testDailyRestoreBoundaries( TestContext &context)
 {
 	const std::array			   ids{std::wstring( L"daily-boundary")} ;	// 架空対象だけです。
@@ -944,10 +971,13 @@ void testDailyRestoreBoundaries( TestContext &context)
 									clock->ends == 1U) ;
 }
 
-/** @brief 明示所有した私有fixture rootだけで固定memoのbyteと排他を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示所有した私有fixture rootだけで固定memoのbyteと排他を確認します。
  * @param[in,out] context 元assertionの集計先です。
  * @note ProgramData/実WMI/復元APIを使いません。削除は新規所有したout直下だけです。
  */
+//------------------------------------------------------------------------------
 void testDailyRestoreMemoFiles( TestContext &context)
 {
 	const auto parent = std::filesystem::absolute( L"out").lexically_normal() ;	// 唯一の許可親です。
@@ -1021,7 +1051,8 @@ void testDailyRestoreMemoFiles( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/protected_install_tests.h 宣言側の契約を正本とする。
+ * @brief 復元ポイント保護付きinstall処理の単体試験を実行する。fakeだけを使用して正常、開始失敗、終了失敗、例外経路を検証する。
+ * @param[in,out] context assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runProtectedInstallTests( TestContext &context)

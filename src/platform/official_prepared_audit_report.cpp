@@ -2,7 +2,7 @@
 /**
  * @file official_prepared_audit_report.cpp
  * @brief 公式取得後監査の非機密report共通生成処理。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/08
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 監査状態と既存候補IDだけを表示用へ変換し、機密値と導入routingを出力しません。入力構造の矛盾は例外で全体拒否し、部分的なreportを返しません。
@@ -63,7 +64,17 @@ constexpr std::size_t MAXIMUM_PAIRS =
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_prepared_audit_report.h 宣言側の契約を正本とする。
+ * @brief 固定profileの監査結果を検索時の既存候補行へ反映する非機密reportを作る。件数、identity、profile、合格組合せを検証し、URL・path・PnP IDを出力
+ *        しない。入力矛盾時は例外で全体拒否し、候補発行や導入状態を作らない。
+ * @param[in] profile 取得Providerと監査済み閉包へ完全一致を要求する登録済みprofile。 固定Providerと閉包へ要求する登録済みprofile。
+ * @param[in] session 監査対象を取得した0ではない検索session。 監査対象を取得した検索session。
+ * @param[in] targetIdentity 利用者が取得を承認した最大128文字のopaque対象ID。 取得承認済みのopaque対象ID。
+ * @param[in] devices 検索候補順に保持した1～4,096件の一意なdevice snapshot。 検索候補順の非機密device snapshot。
+ * @param[in] candidateIdentities devicesと同じ順序・件数の一意な既存候補ID。 同じ順序の既存候補ID。
+ * @param[in] audit 同一取得物の内容・PnP／rank監査結果。 内容・PnP／rank監査結果と保持閉包。
+ * @return 既存候補の監査fieldだけを持つ非機密report。
+ * @throws std::logic_error 未知profile、session、件数、identityまたは監査構造が不正な場合。
+ * @note DeviceがProviderの対象製品かは呼出し側が先に確認する。本関数は候補を発行しない。
  */
 //------------------------------------------------------------------------------
 OfficialPreparationAuditReport makeOfficialPreparedAuditReport(

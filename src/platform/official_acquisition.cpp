@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition.cpp
  * @brief 公式fileの検査用取得境界実装。
- * @version 01.06.00
+ * @version 01.06.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.05.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
  * Ver.01.05.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
  * Ver.01.06.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Provider worker threadで公式fileを直列取得し、成功fileだけをsession容量へ計上します。取得物を実行、候補化またはUIへ公開しません。
@@ -123,7 +124,6 @@ public:
 	FileHandle( const FileHandle &) = delete ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	FileHandle &operator=( const FileHandle &) = delete ;
@@ -134,7 +134,6 @@ public:
 	FileHandle( FileHandle &&) = delete ;
 	/**
 	 * @brief 所有状態の移動をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	FileHandle			&operator=( FileHandle &&) = delete ;
@@ -216,7 +215,6 @@ public:
 	AcquiringGuard( const AcquiringGuard &) = delete ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	AcquiringGuard &operator=( const AcquiringGuard &) = delete ;
@@ -393,7 +391,9 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_acquisition.h 宣言側の契約を正本とする。
+ * @brief 呼出し側が所有するHTTP clientへの非所有参照を保持する。HTTP client adapterを初期化する。Source sessionを所有せず、呼出し側clientへ
+ *        全処理を委譲する。
+ * @param[in,out] client Adapterより長く有効なsource session開始済みclient。 Adapterより長く有効なHTTP client。
  */
 //------------------------------------------------------------------------------
 OfficialHttpAcquisitionTransport::OfficialHttpAcquisitionTransport(
@@ -404,7 +404,15 @@ OfficialHttpAcquisitionTransport::OfficialHttpAcquisitionTransport(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_acquisition.h 宣言側の契約を正本とする。
+ * @brief 公式HTTP sourceから検査対象fileを取得する。任意hostを受け取らずHTTP clientの組み込みsource policyを使用する。
+ * @param[in] url 登録済み公式payloadの絶対HTTPS URL。
+ * @param[in] resourceId Payload用途resource ID。
+ * @param[in] maximumBytes 受信上限byte数。
+ * @param[in] outputFile 書込み可能な所有外file handle。
+ * @param[in] progressCallback 確定済み受信進捗の通知先。
+ * @param[in] cancellationCallback 取消し状態の確認先。
+ * @return 保存と取得根拠記録の成功時は0、失敗時はHRESULT。
+ * @see drivercrate::IOfficialAcquisitionTransport::download
  */
 //------------------------------------------------------------------------------
 NativeError OfficialHttpAcquisitionTransport::download(
@@ -419,7 +427,13 @@ NativeError OfficialHttpAcquisitionTransport::download(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_acquisition.h 宣言側の契約を正本とする。
+ * @brief Record限定GETを共通HTTP clientへ委譲します。
+ * @param[in,out] request Claim済みgrantと秘密URLを所有する一回request。
+ * @param[in] outputFile 書込み可能な所有外file handle。
+ * @param[in] progressCallback 確定済み受信進捗の通知先。
+ * @param[in] cancellationCallback 取消し状態の確認先。
+ * @param[out] destinationEvidence 成功時のURL非保持public宛先根拠。
+ * @return 保存とgrant終端成功時は0、失敗時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialHttpAcquisitionTransport::downloadDelegated(
@@ -434,7 +448,12 @@ NativeError OfficialHttpAcquisitionTransport::downloadDelegated(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_acquisition.h 宣言側の契約を正本とする。
+ * @brief HTTP clientの公式取得根拠を照合する。Adapter独自の根拠を生成せずHTTP clientのledgerを正本にする。
+ * @param[in] scanSessionId 照合するscan session ID。
+ * @param[in] providerId 照合する組み込みProvider ID。
+ * @param[in] resourceId 照合するpayload resource ID。
+ * @return Ledger全体と指定resourceが有効な場合は`true`。
+ * @see drivercrate::IOfficialAcquisitionTransport::hasSourceEvidence
  */
 //------------------------------------------------------------------------------
 bool OfficialHttpAcquisitionTransport::hasSourceEvidence(
@@ -446,7 +465,10 @@ bool OfficialHttpAcquisitionTransport::hasSourceEvidence(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_acquisition.h 宣言側の契約を正本とする。
+ * @brief Machine-wide network costを取得する。呼出し済みCOM apartment内でNetwork List Managerを使用し、network設定を変更しない。
+ * @param[out] cost 成功時のcost分類。失敗時はUnknown。
+ * @return 照会成功時は0、COMまたはNLM失敗時はHRESULT。
+ * @see drivercrate::IOfficialNetworkCostReader::read
  */
 //------------------------------------------------------------------------------
 NativeError WindowsOfficialNetworkCostReader::read( OfficialNetworkCostKind &cost) noexcept
@@ -494,7 +516,11 @@ NativeError WindowsOfficialNetworkCostReader::read( OfficialNetworkCostKind &cos
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_acquisition.h 宣言側の契約を正本とする。
+ * @brief 空のscan session取得ledgerを有限予算付きで開始する。検査用取得sessionを有限予算付きで開始する。File上限、Provider上限、session上限の包含
+ *        関係も検証する。
+ * @param[in] scanSessionId 0ではないscan session ID。
+ * @param[in] limits ApplicationとProvider群へ適用する有限上限。 Session全体へ固定する有限予算。
+ * @return 開始成功時は0、再初期化または不正上限時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialAcquisitionSession::initialize( const ScanSessionId				scanSessionId,
@@ -526,7 +552,16 @@ NativeError OfficialAcquisitionSession::initialize( const ScanSessionId				scanS
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_acquisition.h 宣言側の契約を正本とする。
+ * @brief 公式payloadを保護workspaceへ取得して検査対象として固定する。公式payloadを取得して検査対象として固定する。予算予約、cost、disk、取消し、source根
+ *        拠、size、SHA-256を順に検証し、成功fileだけをledgerへ計上する。
+ * @param[in] request 公式取得元、公開metadata、今回のnetwork同意。 取得元、上限、公開metadata、network同意。
+ * @param[in,out] workspace 成功fileを所有し、失敗fileを削除する保護領域。 成功fileを所有する保護workspace。
+ * @param[in,out] transport 公式source取得と根拠照合を行う境界。 公式source取得と根拠照合境界。
+ * @param[in,out] costReader Machine-wide network cost照会境界。
+ * @param[in] progressCallback 確定済み受信進捗の通知先。
+ * @param[in] cancellationCallback 空または取消し状態を返す非blocking関数。 空または取消し状態の確認先。
+ * @param[out] result 成功または失敗の監査前状態。URLを含まない。 URLを含まない監査前取得状態。
+ * @return `ACQUIRED_FOR_INSPECTION`到達時は0、それ以外はHRESULT bit pattern。 検査対象固定成功時は0、それ以外はHRESULT。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialAcquisitionSession::acquire(
@@ -539,7 +574,21 @@ NativeError OfficialAcquisitionSession::acquire(
 					   cancellationCallback, result, nullptr) ;
 }
 
-/** @see OfficialAcquisitionSession 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常policyと収集private scopeを分けて共通取得する。
+ * @param[in] request 通常またはadapter自身の有限要求。
+ * @param[in,out] workspace 元fileを所有する保護領域。
+ * @param[in,out] transport 同じ公式取得または非通信試験の境界。
+ * @param[in,out] costReader 回線照会。
+ * @param[in] progressCallback 確定byte進捗。
+ * @param[in] cancellationCallback 取消し。
+ * @param[out] result 共通結果。
+ * @param[in] collector Nullは従来policy、非nullは同じ具体adapter。
+ * @return 全固定成功0、拒否HRESULT。
+ * @note 公開boolからscopeを作らず、adapterの私有状態を再照合する。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialAcquisitionSession::acquireCore(
 	const OfficialAcquisitionRequest &request, OfficialDownloadWorkspace &workspace,
 	IOfficialAcquisitionTransport &transport, IOfficialNetworkCostReader &costReader,
@@ -997,26 +1046,53 @@ NativeError OfficialAcquisitionSession::acquireCore(
 	return 0 ;
 }
 
-/** @see OfficialAcquiredFileEvidence 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 発行時の取得metadataを同期借用する。認証の再確認ではない。
+ * @return 次のmove／代入／破棄まで有効なread-only値。既定時は空。
+ * @note 実pathはworker内だけで利用し、UI／log／永続JSONへ渡さない。
+ */
+//------------------------------------------------------------------------------
 const OfficialAcquisitionResult &OfficialAcquiredFileEvidence::observation() const noexcept
 {
 	return observation_ ;
 }
 
-/** @see OfficialAcquiredFileEvidence 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 発行時のstable record fingerprintを同期借用する。
+ * @return 固定resource経路では全zero。Record経路では発行時に固定した値。
+ * @note この値だけで公式性を認定せず、sessionの再照合を必須とする。
+ */
+//------------------------------------------------------------------------------
 const OfficialStableRecordFingerprint &OfficialAcquiredFileEvidence::recordFingerprint()
 	const noexcept
 {
 	return recordFingerprint_ ;
 }
 
-/** @see OfficialAcquiredFileEvidence 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有issuerの生存だけを観測する。公式性や元byteの再確認ではない。
+ * @return 同じissuerが生存中ならtrue、既定・move元・session終了後はfalse。
+ * @note 本値で検証を代替せず、verifyAcquiredFileを必須とする。
+ */
+//------------------------------------------------------------------------------
 bool OfficialAcquiredFileEvidence::issuerAlive() const noexcept
 {
 	return !issuer_.expired() ;
 }
 
-/** @see OfficialAcquisitionSession 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 最後の成功取得から、元byteを再確認して封印証拠を発行する。
+ * @param[in] workspace 当該取得を今も所有する元workspace。
+ * @param[in] acquisitionId このsessionの最後の成功取得ID。
+ * @param[out] evidence 成功時だけ有効な証拠。失敗時は空。
+ * @return 発行成功0、失効・再入・入力不一致・実byte不一致・例外のHRESULT。
+ * @note 同期worker専用。公開取得結果・bool・JSONを認証入力にしない。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialAcquisitionSession::bindAcquiredFile(
 	const OfficialDownloadWorkspace &workspace, const std::uint64_t acquisitionId,
 	OfficialAcquiredFileEvidence &evidence) const
@@ -1051,7 +1127,15 @@ NativeError OfficialAcquisitionSession::bindAcquiredFile(
 	}
 }
 
-/** @see OfficialAcquisitionSession 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 封印証拠のissuerと元workspace／原byteを再照合する。
+ * @param[in] evidence 本sessionが発行した改変不能な取得証拠。
+ * @param[in] workspace 元取得を所有し続ける保護領域。
+ * @return 再照合成功0、失効・再入・位置／byte差・例外のHRESULT。
+ * @note 取得・削除・修復・署名認定を行わない。次の成功取得後も発行済みの元証拠だけを照合できる。
+ */
+//------------------------------------------------------------------------------
 NativeError OfficialAcquisitionSession::verifyAcquiredFile(
 	const OfficialAcquiredFileEvidence &evidence, const OfficialDownloadWorkspace &workspace) const
 {

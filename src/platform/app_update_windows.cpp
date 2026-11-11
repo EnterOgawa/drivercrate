@@ -2,7 +2,7 @@
 /**
  * @file app_update_windows.cpp
  * @brief 通常userのSetup取得・検査・Explorer引継ぎを実装します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 専用cacheの固定二fileだけを扱い、管理者AppのtokenでSetupを実行しません。
  * @see docs/adr/0481-app-inno-setup-and-update-checks.md
@@ -48,7 +49,8 @@ namespace drivercrate {
 namespace {
 /** @brief Windows handleの単独所有を解放します。 */
 struct HandleCloser {
-	/** @brief 有効な実handleだけを閉じます。
+	/**
+	 * @brief 有効な実handleだけを閉じます。
 	 * @param[in] value 解放する所有handleです。
 	 */
 	void operator()( void *value) const noexcept
@@ -61,19 +63,27 @@ struct HandleCloser {
 } ;
 /** @brief nullを空所有とするWindows handleです。 */
 using Handle = std::unique_ptr<void, HandleCloser> ;
-/** @brief Windows失敗を元数値のまま分類します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Windows失敗を元数値のまま分類します。
  * @param[in] kind 操作に対応する固定分類です。
  * @param[in] error 元Win32 errorです。
  * @return 表示用の固定結果です。
  */
+//------------------------------------------------------------------------------
 AppUpdateFailure failed( const AppUpdateFailureKind kind,
 						const DWORD				   error = GetLastError()) noexcept
 {
 	return {kind, HRESULT_FROM_WIN32( error), 0U, 0U} ;
 }
-/** @brief 実moduleの絶対位置だけを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実moduleの絶対位置だけを返します。
  * @return 有限の実path。不明は例外です。
+ * @throws std::runtime_error 実module pathの取得または長さ確認に失敗した場合です。
+ * @throws std::bad_alloc 所有pathの確保に失敗した場合です。
  */
+//------------------------------------------------------------------------------
 std::filesystem::path modulePath()
 {
 	std::wstring text( 32768U, L'\0') ;	// 実moduleの有限受信先です。
@@ -88,11 +98,14 @@ std::filesystem::path modulePath()
 	text.resize( length) ;
 	return std::filesystem::path( text) ;
 }
-/** @brief Disk上の通常file/directoryを検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Disk上の通常file/directoryを検査します。
  * @param[in] file 開いた非所有handleです。
  * @param[in] directory Directoryを要求する場合はtrueです。
  * @return 再解析点/複数link等がない場合だけtrueです。
  */
+//------------------------------------------------------------------------------
 bool regular( const HANDLE file, const bool directory = false) noexcept
 {
 	BY_HANDLE_FILE_INFORMATION info{} ;	// 同じhandleの属性です。
@@ -102,10 +115,13 @@ bool regular( const HANDLE file, const bool directory = false) noexcept
 		   ((info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0U) == directory &&
 		   (directory || info.nNumberOfLinks == 1U) ;
 }
-/** @brief 使用中のcache folderをpinし再解析点を拒否します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 使用中のcache folderをpinし再解析点を拒否します。
  * @param[in] path 所有するApp専用folderです。
  * @return 通常folderの所有handle。不正は空です。
  */
+//------------------------------------------------------------------------------
 Handle openFolder( const std::filesystem::path &path)
 {
 	Handle result( CreateFileW( path.c_str(), FILE_READ_ATTRIBUTES,
@@ -124,10 +140,13 @@ Handle openFolder( const std::filesystem::path &path)
 
 	return result ;
 }
-/** @brief 通常fileを検査してから初期化し、link先をtruncateしません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常fileを検査してから初期化し、link先をtruncateしません。
  * @param[in] path 固定された自己管理fileです。
  * @return read/writeの所有handle。不正は空です。
  */
+//------------------------------------------------------------------------------
 Handle mutableFile( const std::filesystem::path &path)
 {
 	Handle result( CreateFileW( path.c_str(), GENERIC_READ | GENERIC_WRITE, 0U, nullptr, OPEN_ALWAYS,
@@ -151,11 +170,14 @@ Handle mutableFile( const std::filesystem::path &path)
 
 	return result ;
 }
-/** @brief 任意resource文字列を有限の版情報から読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 任意resource文字列を有限の版情報から読みます。
  * @param[in] bytes 読取り済みversion resourceです。
  * @param[in] name 固定のfield名です。
  * @return 最初の宣言言語の値。不足は空です。
  */
+//------------------------------------------------------------------------------
 std::wstring versionString( std::vector<std::byte> &bytes, const wchar_t *name)
 {
 	/** @brief version resourceの宣言言語とcodepageです。 */
@@ -198,11 +220,14 @@ std::wstring versionString( std::vector<std::byte> &bytes, const wchar_t *name)
 
 	return result ;
 }
-/** @brief 元宣言に一致する署名済みApp Setupだけを認めます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元宣言に一致する署名済みApp Setupだけを認めます。
  * @param[in] path 書換え/削除を禁止して保持したfileです。
  * @param[in] release 元の同意と一致する宣言です。
  * @return 全検査成功または最初の元失敗です。
  */
+//------------------------------------------------------------------------------
 AppUpdateFailure verifyInstaller( const std::filesystem::path &path, const AppUpdateRelease &release)
 {
 	std::wstring hash ;												// 通常logへ渡さない実hashです。
@@ -261,10 +286,13 @@ AppUpdateFailure verifyInstaller( const std::filesystem::path &path, const AppUp
 
 	return {} ;
 }
-/** @brief Explorerと同じ元userのLocalAppDataを取得します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Explorerと同じ元userのLocalAppDataを取得します。
  * @param[out] root 成功時だけのuser領域です。
  * @return OS成功0、元errorのHRESULTです。
  */
+//------------------------------------------------------------------------------
 NativeError explorerUserRoot( std::wstring &root)
 {
 	root.clear() ;
@@ -298,11 +326,14 @@ NativeError explorerUserRoot( std::wstring &root)
 	CoTaskMemFree( path) ;
 	return 0 ;
 }
-/** @brief 元user領域内の同じ配置へ通常Setupを渡します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元user領域内の同じ配置へ通常Setupを渡します。
  * @param[in] setup 保護handleで保持した正規Setupです。
  * @param[in] directory 元Appの絶対配置です。
  * @return Explorer要求の結果。Setupの完了結果ではありません。
  */
+//------------------------------------------------------------------------------
 AppUpdateFailure launchFromExplorer( const std::filesystem::path &setup,
 									const std::filesystem::path &directory)
 {
@@ -379,18 +410,26 @@ AppUpdateFailure launchFromExplorer( const std::filesystem::path &setup,
 /** @brief このthread内だけの公式HTTP/署名/Setupを所有します。 */
 class NativeBackend final : public AppUpdateBackend {
 public:
-	/** @brief 製品の実API経路を作ります。 */
+	/**
+	 * @brief 製品の実API経路を作ります。
+	 */
 	NativeBackend() : appPath_( modulePath()), current_( *parseAppVersion( DRIVERCRATE_VERSION_STRING))
 	{
 	}
-	/** @brief 完全fixtureだけを所有します。
+	/**
+	 * @brief 完全fixtureだけを所有します。
 	 * @param[in] fixture 非通信の完全I/Oです。
 	 */
 	explicit NativeBackend( app_update_detail::Fixture fixture)
 		: appPath_( fixture.appPath), current_( fixture.current), fixture_( std::move( fixture))
 	{
 	}
-	/** @see AppUpdateBackend::check */
+	/**
+	 * @brief 正式Releaseだけを確認し、実行物は取得しません。
+	 * @param[in] cancellation 同じ操作の取消し照会です。
+	 * @return 確認結果。ドライバーへの作用を持ちません。
+	 * @note 製品backendは固定Release metadataだけを共通HTTPで確認します。完全fixtureでは指定transportを使い、Setup本体は取得しません。
+	 */
 	AppUpdateEvent check( const AppUpdateCancellation &cancellation) noexcept override
 	{
 		AppUpdateEvent event ;	// 失敗でも固定結果を返します。
@@ -419,7 +458,13 @@ public:
 
 		return event ;
 	}
-	/** @see AppUpdateBackend::download */
+	/**
+	 * @brief 明示同意した一件だけを取得・検査します。
+	 * @param[in] release 元確認の完全宣言です。
+	 * @param[in] cancellation 同じ操作の取消し照会です。
+	 * @return 取得・検査結果。成功時だけ保護したfileを保持します。
+	 * @note 製品backendは同じApp配置の一時fileへ取得・検証します。完全fixtureでは指定transport/verifyを使い、検査成功から起動までを一操作へ省略しません。
+	 */
 	AppUpdateFailure download( const AppUpdateRelease	  &release,
 							  const AppUpdateCancellation &cancellation) noexcept override
 	{
@@ -509,7 +554,13 @@ public:
 			return {AppUpdateFailureKind::STORAGE, E_UNEXPECTED, 0U, 0U} ;
 		}
 	}
-	/** @see AppUpdateBackend::launch */
+	/**
+	 * @brief 保護したfileを再検査して通常userへ渡します。
+	 * @param[in] release 元同意と取得に一致する宣言です。
+	 * @param[in] cancellation 引継ぎ前の取消し照会です。
+	 * @return 引継ぎ要求の結果。Setup完了結果ではありません。
+	 * @note 製品backendはbyte/署名/版を再検査して元Explorerへ渡します。完全fixtureでは指定launchだけを呼び、Windowsの起動へfallbackしません。
+	 */
 	AppUpdateFailure launch( const AppUpdateRelease		&release,
 							const AppUpdateCancellation &cancellation) noexcept override
 	{
@@ -539,7 +590,8 @@ public:
 	}
 
 private:
-	/** @brief 完全な一用途だけを共通HTTPへ渡します。
+	/**
+	 * @brief 完全な一用途だけを共通HTTPへ渡します。
 	 * @param[in] release Nullはmetadata、非nullはSetupです。
 	 * @param[in] output Setup専用の書込みhandleです。
 	 * @param[in] cancellation 同操作の取消しです。
@@ -576,7 +628,8 @@ private:
 
 		return error ;
 	}
-	/** @brief HTTP失敗を取消しと区別して返します。
+	/**
+	 * @brief HTTP失敗を取消しと区別して返します。
 	 * @param[in] error 元のHTTP/OS数値です。
 	 * @param[in] result 実観測statusと待機です。
 	 * @param[in] cancellation 同操作の取消しです。
@@ -607,14 +660,32 @@ private:
 	std::chrono::steady_clock::time_point	  notBefore_{} ;
 } ;
 }
-/** @see app_update_service_internal.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 任意URLを受け取らず固定用途だけを要求します。
+ * @param[in,out] client cacheなしの専用clientです。
+ * @param[in] release nullは固定latest、非nullは固定Setupです。
+ * @param[in] output Setup時だけの書込みfileです。
+ * @param[in,out] control この一回だけの期限/取消しです。
+ * @param[out] result status/待機と成功metadataです。
+ * @return 共通HTTPの元診断値です。
+ */
+//------------------------------------------------------------------------------
 NativeError app_update_detail::Access::http( OfficialHttpClient	   &client,
 											const AppUpdateRelease *release, const HANDLE output,
 											SignedIndexHttpControl &control, HttpResult &result)
 {
 	return client.getAppUpdateResource( release, output, control, result) ;
 }
-/** @see app_update_service_internal.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全てをfakeへ置換したbackendを構築します。
+ * @param[in] fixture 完全なI/Oと所有配置です。
+ * @return 完全backend。欠損は例外で拒否します。
+ * @throws std::invalid_argument 配置が不正、必須seam欠損、または実通信APIが残る場合です。
+ * @throws std::bad_alloc 完全fixture backendの確保に失敗した場合です。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<AppUpdateBackend> app_update_detail::Access::fixtureBackend( Fixture fixture)
 {
 	const auto nativeResolver = fixture.transport.resolveDestination.target<
@@ -633,12 +704,23 @@ std::unique_ptr<AppUpdateBackend> app_update_detail::Access::fixtureBackend( Fix
 
 	return std::make_unique<NativeBackend>( std::move( fixture)) ;
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 既Windows APIを使う公式backendを生成します。
+ * @return 所有backend。確保失敗は例外です。
+ */
+//------------------------------------------------------------------------------
 std::unique_ptr<AppUpdateBackend> makeAppUpdateBackend()
 {
 	return std::make_unique<NativeBackend>() ;
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 任意boolだけの現在配置設定を読みます。
+ * @param[out] enabled 不在はtrue。不正/失敗はfalseです。
+ * @return 成功0、設定fileを扱えない場合は元数値です。
+ */
+//------------------------------------------------------------------------------
 NativeError loadAppUpdatePreference( bool &enabled) noexcept
 {
 	enabled = false ;
@@ -707,7 +789,13 @@ NativeError loadAppUpdatePreference( bool &enabled) noexcept
 		return E_UNEXPECTED ;
 	}
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 自動確認boolを現在配置に保存します。
+ * @param[in] enabled 保存する設定です。URL等は保存しません。
+ * @return 保存成功0、失敗時は元数値です。
+ */
+//------------------------------------------------------------------------------
 NativeError saveAppUpdatePreference( const bool enabled) noexcept
 {
 	try {

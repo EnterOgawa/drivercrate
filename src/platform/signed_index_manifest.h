@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest.h
  * @brief 署名manifestの認証結果と有限な世代・期限契約を定義します。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/13  Local受入の固定公開pinと通常profileの空trustを明示。
  * Ver.01.01.01 Shunji Ogawa  2026/10/16  通常配布trustとlocal受入の排他契約を説明。
  * Ver.01.02.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 通信・asset取得・保存・端末照合・導入を行いません。失敗時は認証出力を生成しません。
@@ -125,15 +126,17 @@ struct AuthenticationAccess ;
  */
 class AuthenticatedIndexManifest final {
 public:
-	/** @brief 認証された値を変更できない参照で借用します。
-     * @return この認証結果の寿命まで有効な型付き値と原byte。
-     */
+	/**
+	 * @brief 認証された値を変更できない参照で借用します。
+	 * @return この認証結果の寿命まで有効な型付き値と原byte。
+	 */
 	[[nodiscard]] const IndexManifestData &data() const noexcept ;
 
 private:
-	/** @brief 共通認証処理だけが全検証後の値を移譲します。
-     * @param[in] data 全検査に成功した所有値。
-     */
+	/**
+	 * @brief 共通認証処理だけが全検証後の値を移譲します。
+	 * @param[in] data 全検査に成功した所有値。
+	 */
 	explicit AuthenticatedIndexManifest( IndexManifestData data) noexcept ;
 	friend struct signed_index_detail::AuthenticationAccess ;
 	/// 外部から書き換えず所有する認証済み値。
@@ -202,16 +205,17 @@ struct SignedIndexManifestResult {
 	std::optional<AuthenticatedIndexManifest> manifest ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 製品binaryの固定鍵集合で署名manifestを認証します。
  * @param[in] envelope 最大96KiBの原UTF-8 JSON。呼出し中だけ借用します。
  * @param[in] nowUtc 信頼する検査UTC。確認不能の場合はnulloptです。
  * @param[in] highWater 保護storeの最大世代。初回はnulloptです。副作用なく照合します。
  * @return 全検査成功時だけ認証receiptを持つ結果。失敗時はreceiptなしです。
- * @note 通常profileはsource固定の配布公開鍵を使い、明示local受入の固定pinと排他です。
- * 実配布鍵の真署名正常例は別受入で、RAM fixture鍵を製品trustへ登録しません。
- * 通信・保存・最大世代更新は行いません。独立入力で同時に呼び出せます。
+ * @note 通常profileはsource固定の配布公開鍵を使い、明示local受入の固定pinと排他です。実配布鍵の真署名正常例は別受入で、RAM fixture鍵を製品trustへ登録しま
+ *       せん。通信・保存・最大世代更新は行いません。独立入力で同時に呼び出せます。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] SignedIndexManifestResult authenticateSignedIndexManifest(
 	std::string_view envelope, std::optional<std::chrono::sys_seconds> nowUtc,
 	const std::optional<IndexManifestHighWater> &highWater) noexcept ;

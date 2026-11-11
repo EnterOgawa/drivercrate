@@ -2,7 +2,7 @@
 /**
  * @file nvidia_update_provider.h
  * @brief NVIDIA公式driver Provider定義。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note NVIDIA公式catalog APIから製品別の現行版と過去版を検索します。EXEの非実行内容監査が未接続のため、download／installは拒否します。
@@ -137,34 +138,37 @@ private:
 	OfficialHttpClient httpClient_ ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 公開製品表示から公式seriesの照会順hintを作成する純粋関数。
- * Product番号からseries名に含まれる世代keyを作る。
- * 優先seriesだけを先に照会するためのhintを作成する。
+ * @brief 公開製品表示から公式seriesの照会順hintを作成する純粋関数。Product番号からseries名に含まれる世代keyを作る。優先seriesだけを先に照会するためのhint
+ *        を作成する。
  * @param[in] model 製品表示名。呼出し中だけ参照する。 正規化前のNVIDIA product名。
  * @return 所有値の世代hint。抽出できなければ空文字列。 `RTX30`、`GTX900`、`MX400`等のkey。抽出不能時は空。
  * @note Hintは照会順だけに使用し、製品適用性やseries除外を決定しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring nvidiaProductGenerationKey( std::wstring_view model) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Windows形式のNVIDIA driver versionをNVIDIA表示versionへ変換する。
- * Windows形式のNVIDIA versionをNVIDIA表示versionへ変換する。
- * NVIDIAがWindows driver version末尾5桁へ格納する表示versionを取り出す。UI分類だけに使用する。
+ * @brief Windows形式のNVIDIA driver versionをNVIDIA表示versionへ変換する。Windows形式のNVIDIA versionをNVIDIA表示
+ *        versionへ変換する。NVIDIAがWindows driver version末尾5桁へ格納する表示versionを取り出す。UI分類だけに使用する。
  * @param[in] windowsVersion SetupAPIが返した`a.b.c.d`形式のversion。 SetupAPIの`a.b.c.d` version。
  * @return 変換できた`xxx.yy`形式。NVIDIA規則へ一致しない場合は空。 `xxx.yy`形式。規則へ一致しない場合は空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring nvidiaVersionFromWindowsVersion( std::wstring_view windowsVersion) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief NVIDIA公式lookup名がnotebook向けproductを示すか判定する。
- * NVIDIA公式lookup名のnotebook区分を判定する。
- * 記号と大小文字だけを正規化し、公式名にない区分を推測しない。
+ * @brief NVIDIA公式lookup名がnotebook向けproductを示すか判定する。NVIDIA公式lookup名のnotebook区分を判定する。記号と大小文字だけを正規化し、公
+ *        式名にない区分を推測しない。
  * @param[in] productName NVIDIA公式lookupが返したproduct名。 NVIDIA公式lookupのproduct名。
  * @param[in] seriesName NVIDIA公式lookupが返したseries名。 NVIDIA公式lookupのseries名。
  * @return いずれかにNotebookまたはLaptop区分が明示される場合は`true`。
  * @note Local表示名だけでretail／OEM区分を推測せず、公式lookup結果にだけ使用する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool		   isNvidiaNotebookProduct( std::wstring_view productName,
 												   std::wstring_view seriesName) ;
 

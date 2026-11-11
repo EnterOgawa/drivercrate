@@ -2,7 +2,7 @@
 /**
  * @file composite_update_provider.h
  * @brief 複合update provider定義。
- * @version 01.13.00
+ * @version 01.13.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -85,6 +85,7 @@
  * Ver.01.11.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * Ver.01.12.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
  * Ver.01.13.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.13.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 組み込みProviderの検索・取得・導入を同じregistryで管理し、旧sessionを拒否します。
@@ -151,7 +152,8 @@ namespace drivercrate {
  */
 class CompositeUpdateProvider final : public IUpdateProvider, public IIndexScanInventory {
 public:
-	/** @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます。
+	/**
+	 * @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます。
 	 * @param[in] operationId 当該新操作です。
 	 * @param[in] session 未失効の元scanです。
 	 * @param[in] identities 元表示の選択candidate subsetです。
@@ -160,21 +162,24 @@ public:
 	[[nodiscard]] NativeError beginInstallOperation(
 		OperationId operationId, ScanSessionId session,
 		std::span<const std::wstring> identities) override ;
-	/** @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます。
+	/**
+	 * @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます。
 	 * @param[in] operationId 当該新操作です。
 	 * @param[in] session 未失効の元scanです。
 	 * @return 当該操作の原未消費subsetです。不明な操作は空です。
 	 */
 	[[nodiscard]] std::optional<InstallRetentionSummary> finishInstallOperation(
 		OperationId operationId, ScanSessionId session) override ;
-	/** @brief 元参照が残planの原targetへ結合することを照合します。
-     * @param[in] identity 元参照です。
-     * @param[in] plan 同scanの原subsetです。
-     * @return 元route/targetが残る場合trueです。
-     */
+	/**
+	 * @brief 元参照が残planの原targetへ結合することを照合します。
+	 * @param[in] identity 元参照です。
+	 * @param[in] plan 同scanの原subsetです。
+	 * @return 元route/targetが残る場合trueです。
+	 */
 	[[nodiscard]] bool isRetainedPreparationReference( std::wstring_view				 identity,
 													  const OfficialPreparationPlan &plan) const ;
-	/** @brief 同じComposite inventory scanの秘密resolverをworkerへ貸します。
+	/**
+	 * @brief 同じComposite inventory scanの秘密resolverをworkerへ貸します。
 	 * @param[in] operationId 正のworker operation。
 	 * @param[out] context 元Driver Store発行context。拒否時空です。
 	 * @param[out] present 全present opaque。拒否時空です。
@@ -237,7 +242,6 @@ public:
 	/**
 	 * @brief Provider sessionと私有routing tableの複製代入をコンパイル時に禁止します。
 	 * @param[in] other 実行可能な呼出しを持たず、借用・変更・所有権移動を行わない元objectです。
-	 * @return 宣言された自己参照型です。削除宣言なので戻り値を生成しません。
 	 * @note 削除宣言だけで関数本体やresource操作はありません。
 	 */
 	CompositeUpdateProvider &operator=( const CompositeUpdateProvider &other) = delete ;
@@ -250,7 +254,6 @@ public:
 	/**
 	 * @brief Provider sessionと私有routing tableの移動代入をコンパイル時に禁止します。
 	 * @param[in] other 実行可能な呼出しを持たず、借用・変更・所有権移動を行わない元objectです。
-	 * @return 宣言された自己参照型です。削除宣言なので戻り値を生成しません。
 	 * @note 削除宣言だけで関数本体やresource操作はありません。
 	 */
 	CompositeUpdateProvider &operator=( CompositeUpdateProvider &&other) = delete ;
@@ -317,20 +320,23 @@ public:
 
 private:
 	friend class ProviderWorker ;
-	/** @brief 元Install選択と取得集合を同scanの私有参照へ完全照合します。
+	/**
+	 * @brief 元Install選択と取得集合を同scanの私有参照へ完全照合します。
 	 * @param[in] approval 全target判断と元候補の明示選択です。
 	 * @return 未選択取得・未知候補・同device重複を含まない場合trueです。
 	 * @note worker専用で、取得も導入も呼びません。
 	 */
 	[[nodiscard]] bool validatePreparationInstallIntent(
 		const OfficialPreparationApproval &approval) const ;
-	/** @brief 私有reference位置と元targetだけから唯一の検証済み候補へ解決します。
+	/**
+	 * @brief 私有reference位置と元targetだけから唯一の検証済み候補へ解決します。
 	 * @param[in] approval 同workerが取得前に照合した元選択です。
 	 * @return 元順序・元件数の解決結果。曖昧・未適合・新旧版は候補identityなしです。
 	 */
 	[[nodiscard]] std::vector<PreparedInstallResolution> resolvePreparationInstallIntent(
 		const OfficialPreparationApproval &approval) const ;
-	/** @brief 元選択の導入可否と必要roleを復旧開始前にread-onlyで一括確認します。
+	/**
+	 * @brief 元選択の導入可否と必要roleを復旧開始前にread-onlyで一括確認します。
 	 * @param[in] session 元通常scanです。
 	 * @param[in] identities 通常画面の明示選択です。
 	 * @return 元全byte/期限/状態一致0、不足はHRESULTです。
@@ -338,7 +344,8 @@ private:
 	[[nodiscard]] NativeError preflightRequiredSignedIndexInstall(
 		ScanSessionId session, std::span<const std::wstring> identities) const ;
 	friend struct signed_index_candidate_binding_detail::Access ;
-	/** @brief 同workerの索引ownerと固定serviceを一回scanへ借用結合します。
+	/**
+	 * @brief 同workerの索引ownerと固定serviceを一回scanへ借用結合します。
 	 * @param[in,out] session Workerが寿命を所有する元索引session。
 	 * @param[in] services Worker開始前に固定した依存。
 	 * @param[in] operationId 今回通常scan操作。
@@ -348,7 +355,8 @@ private:
 								const provider_worker_index_detail::Services &services,
 								OperationId									  operationId,
 								ProviderScanCancellation cancellation) noexcept ;
-	/** @brief 元索引targetへ非導入参照を結合して通常候補routingへ原子的に加えます。
+	/**
+	 * @brief 元索引targetへ非導入参照を結合して通常候補routingへ原子的に加えます。
 	 * @param[in] plan 同lookupから発行した準備計画。
 	 * @param[in,out] result 同scanでUIへ発行する結果。
 	 */

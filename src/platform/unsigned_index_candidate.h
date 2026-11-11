@@ -2,7 +2,7 @@
 /**
  * @file unsigned_index_candidate.h
  * @brief 共通codecを使う未署名配布候補の検査receiptを定義します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/23  認証型を発行しない配布候補検査を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 鍵照会・署名・通信・high-water変更を行いません。
  * @see docs/adr/0396-collector-distribution-pipeline-connection.md
@@ -76,13 +77,16 @@ struct UnsignedIndexCandidateResult {
 	std::optional<UnsignedIndexCandidateReceipt> receipt ;
 } ;
 
-/** @brief 配布用の実manifest/GZipを署名型を生成せず共通codecで検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 配布用の実manifest/GZipを署名型を生成せず共通codecで検査します。
  * @param[in] manifest 原UTF-8 manifestです。最大64KiBです。
  * @param[in] gzip 原GZipです。最大32MiBです。
  * @param[in] nowUtc 確認済みUTCです。欠損時は拒否します。
  * @return 元codec診断と、全成功時だけ未署名receiptを返します。
  * @note 配布channelの固定公開key IDだけを照合します。鍵storeは開きません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] UnsignedIndexCandidateResult validateUnsignedIndexCandidate(
 	std::string_view manifest, std::span<const std::byte> gzip,
 	std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;

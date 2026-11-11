@@ -2,7 +2,7 @@
 /**
  * @file official_driver_rank.h
  * @brief 公式driverのPnP具体性およびrank非退行判定定義。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  Native未導入根拠を既知現在driverと別のrank modeへ結合。
  * Ver.01.02.00 Shunji Ogawa  2026/10/13  観測Class未確定とINF/native ClassGUIDの独立照合を追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note SetupAPIが算出したrankと端末内PnP IDだけを比較し、versionや日付で適用性を補完しません。実PnP IDを結果へ複写しません。
@@ -172,15 +173,16 @@ struct OfficialDriverRankAudit {
 	OfficialDriverRankCurrentState currentState{OfficialDriverRankCurrentState::KNOWN_DRIVER} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief PnP identifierの具体性とSetupAPI rankが現在driverから退行しないか判定する。
- * 公式driverのPnP具体性とrank非退行を判定する。
- * Policy拒否はdecisionに残し、Windows rankを独自再計算せずversionまたは日付を判断へ使用しない。
+ * @brief PnP identifierの具体性とSetupAPI rankが現在driverから退行しないか判定する。公式driverのPnP具体性とrank非退行を判定する。Policy拒
+ *        否はdecisionに残し、Windows rankを独自再計算せずversionまたは日付を判断へ使用しない。
  * @param[in] evidence Worker内で固定したdevice、candidateおよびrank evidence。 Worker内で固定したIDとWindows rank。
  * @param[out] audit ID文字列を含まない監査結果。 ID文字列を含まない判断結果。
  * @return 入力構造が有限で妥当な場合は`true`。不正入力の場合は`false`。 入力構造が妥当なら`true`、不正なら`false`。
  * @note Policy上の拒否は`true`と各decisionで返し、versionまたは日付を使用しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool evaluateOfficialDriverRank( const OfficialDriverRankEvidence &evidence,
 											  OfficialDriverRankAudit		   &audit) noexcept ;
 

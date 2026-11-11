@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native_internal.h
  * @brief 同worker内の完全な低位依存API表を隔離して所有します。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/10/13
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/13  完全五APIの内部所有scopeを追加。
  * Ver.01.00.01 Shunji Ogawa  2026/10/13  完全五API所有scopeの前置契約と採用書式を整合。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  */
 //------------------------------------------------------------------------------
@@ -51,33 +52,42 @@ class Access ;
 /** @brief 同一threadだけで完全表を所有する非公開構築scopeです。 */
 class ScopedFixture final {
 public:
-	/** @brief 所有表を解除します。作成threadで破棄します。 */
+	/**
+	 * @brief 所有表を解除します。作成threadで破棄します。
+	 */
 	~ScopedFixture() ;
-	/** @brief 同threadの所有表を複製しないためコピー構築を禁止します。 */
+	/**
+	 * @brief 同threadの所有表を複製しないためコピー構築を禁止します。
+	 */
 	ScopedFixture( const ScopedFixture &) = delete ;
-	/** @brief 同threadの所有表を複製しないためコピー代入を禁止します。
-	 * @return 削除された関数のため戻り値はありません。
+	/**
+	 * @brief 同threadの所有表を複製しないためコピー代入を禁止します。
 	 */
 	ScopedFixture &operator=( const ScopedFixture &) = delete ;
 
 private:
 	friend class Access ;
-	/** @brief 検証済み完全表を同threadへ固定します。
+	/**
+	 * @brief 検証済み完全表を同threadへ固定します。
 	 * @param[in] api 所有権を移す完全表です。
 	 */
 	explicit ScopedFixture( Api api) ;
 	/// scopeと同じ寿命の所有表です。
 	Api api_ ;
 } ;
-/** @brief 固定native処理または完全内部表へ同期分岐します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定native処理または完全内部表へ同期分岐します。
  * @return 内部scopeがある場合だけ非所有表、製品ではnullptrです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] const Api *activeApi() noexcept ;
 #ifdef DRIVERCRATE_INTERNAL_INDEX_TESTS
 /** @brief 内部検証targetだけが完全表を作れます。 */
 class Access final {
 public:
-	/** @brief 欠落表と再入を拒否して所有scopeを作ります。
+	/**
+	 * @brief 欠落表と再入を拒否して所有scopeを作ります。
 	 * @param[in] api 全五APIを持つ表です。
 	 * @return 正常時のscope、不完全または再入時nullptrです。
 	 */

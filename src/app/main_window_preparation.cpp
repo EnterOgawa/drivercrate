@@ -2,7 +2,7 @@
 /**
  * @file main_window_preparation.cpp
  * @brief 公式配布物の取得確認と結果表示。
- * @version 01.13.00
+ * @version 01.13.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -49,6 +49,7 @@
  * Ver.01.12.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * Ver.01.12.01 Shunji Ogawa  2026/11/09  Install意図の準備監査で元ツリー行を保持。
  * Ver.01.13.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.13.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note UI thread専用です。Payload URL・端末識別子は非表示で、EULA内のURLは文字列に限ります。
@@ -166,11 +167,13 @@ struct ReviewedPreparationEula {
 	bool		  accepted{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 索引workerが実際に返す取得stateの変換だけを元transferへ対応させます。
  * @param[in] state 独立summaryが申告した取得終端。
  * @return 現workerと同じ元transfer状態。未開始・定義外は値なしです。
  */
+//------------------------------------------------------------------------------
 std::optional<OfficialPreparationItemState> indexTransferState( const OfficialAcquisitionState state)
 {
 	// 取得成功・取消し・拒否を同名終端へ、その他の実失敗をFAILUREへ対応させます。
@@ -195,12 +198,14 @@ std::optional<OfficialPreparationItemState> indexTransferState( const OfficialAc
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 通常検査の有限件数と独立した内容段階の整合を確認します。
  * @param[in] item 同じ原承認とtransferへ別途照合する一結果。
  * @return 通常file／INF上限、状態、errorと入力結合が整合する場合trueです。
  * @note 構造解析・署名合格を実証せず、画面への結果受理だけを判定します。
  */
+//------------------------------------------------------------------------------
 bool validIndexContentSummary( const IndexPreparationItemSummary &item)
 {
 	// 計算前に包含と上限を確認し、合計overflowと存在しないINF件数を拒否します。
@@ -249,7 +254,14 @@ bool validIndexContentSummary( const IndexPreparationItemSummary &item)
 
 } // namespace
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scanの未取得参照を含めて明示選択できるかを判定します。
+ * @param[in] candidate 現在表示中の元候補です。
+ * @return 実導入可能または有効な元取得targetへ結合した選択意図ならtrueです。
+ * @note 未取得参照のinstallableは変更しません。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::isSelectableCandidate( const UpdateCandidate &candidate) const noexcept
 {
 	// 現在行や同deviceへ結合できない行を選択意図へ読み替えません。
@@ -276,7 +288,13 @@ bool MainWindow::isSelectableCandidate( const UpdateCandidate &candidate) const 
 		   }) ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scanの元選択から、未承認の取得snapshotを組み立てます。
+ * @param[in] indexes 現在表示中に明示選択された候補位置です。
+ * @return 完全な元snapshot。不明条件・共有規約不整合・旧scanはnulloptです。
+ */
+//------------------------------------------------------------------------------
 std::optional<OfficialPreparationApproval> MainWindow::makeInstallPreparationApproval(
 	const std::span<const std::size_t> indexes) const
 {
@@ -343,7 +361,13 @@ std::optional<OfficialPreparationApproval> MainWindow::makeInstallPreparationApp
 	return approval ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 主画面で案内した選択集合と全文snapshotが現在も一致するか照合します。
+ * @param[in] approval 現在の元planと選択から再構築した未承認値です。
+ * @return 案内済みの全対象・選択・上限・session/planが一致する場合trueです。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::matchesPresentedInstallTerms(
 	const OfficialPreparationApproval &approval) const noexcept
 {
@@ -365,7 +389,13 @@ bool MainWindow::matchesPresentedInstallTerms(
 							  }) ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現選択の規約案内と任意閲覧入口を更新します。同意は発行しません。
+ * @return 必要な案内を表示できた場合trueです。失敗時はsnapshotを破棄します。
+ * @note UI thread専用です。例外を外へ漏らさずInstallを無効にします。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::updateInstallTermsPresentation() noexcept
 {
 	const bool wasVisible = (GetWindowLongPtrW( installTermsNote_, GWL_STYLE) & WS_VISIBLE) !=
@@ -425,7 +455,16 @@ bool MainWindow::updateInstallTermsPresentation() noexcept
 	return accepted ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原本文だけをread-only表示し、閉じる操作だけを受理します。
+ * @param[in] dialog 同期閲覧dialogです。
+ * @param[in] message Windowsが通知するmessageです。
+ * @param[in] wordParameter command等の標準parameterです。
+ * @param[in] longParameter 初期化中だけ借用する全文文字列pointerです。
+ * @return 処理したmessageはTRUE、既定処理へ渡す場合FALSEです。
+ */
+//------------------------------------------------------------------------------
 INT_PTR CALLBACK MainWindow::installTermsDialogProc( const HWND dialog, const UINT message,
 													const WPARAM wordParameter,
 													const LPARAM longParameter) noexcept
@@ -458,7 +497,11 @@ INT_PTR CALLBACK MainWindow::installTermsDialogProc( const HWND dialog, const UI
 	return FALSE ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 案内済みの原規約全文を任意閲覧します。取得・同意・導入は行いません。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::showInstallTerms()
 {
 	// 処理中・別dialog中・旧案内から本文閲覧を開始しません。
@@ -506,7 +549,12 @@ void MainWindow::showInstallTerms()
 	}
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Install操作を案内済みの同一規約・元選択へ結合し、既存取得へ接続します。
+ * @param[in] indexes 現在表示中で明示checkした有限index集合です。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::beginInstallPreparation( const std::span<const std::size_t> indexes)
 {
 	auto current = makeInstallPreparationApproval( indexes) ;	// 明示Install時の元選択です。
@@ -569,7 +617,13 @@ void MainWindow::beginInstallPreparation( const std::span<const std::size_t> ind
 	preparationReviewOpen_ = false ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 準備から導入へ進めない理由と全deviceを表示します。
+ * @param[in] result 受理済みの元準備終端です。
+ * @param[in] reason native codeを創作しない固定理由です。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::failPreparedInstall( const OfficialPreparationOperationResult &result,
 									 const PreparationContinuationReason	   reason)
 {
@@ -628,7 +682,13 @@ void MainWindow::failPreparedInstall( const OfficialPreparationOperationResult &
 	updateCommandState() ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同operationのworker解決結果を元選択へ再照合して導入を継続します。
+ * @param[in] result 受理済みの元取得終端です。
+ * @note 新たな曖昧候補・旧版や失敗を無断で選択しません。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::continuePreparedInstall( const OfficialPreparationOperationResult &result)
 {
 	const auto &intent = preparationApproval_.installIntentIdentities ;	// 元選択だけです。
@@ -737,7 +797,13 @@ void MainWindow::continuePreparedInstall( const OfficialPreparationOperationResu
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief EULA全文の標準dialog messageを処理する。例外を境界外へ漏らさない。初期化時に全文とrevisionをcopyし、HTMLや外部linkを実行しない。本文の切詰めを
+ *        許さない。取得前提の確認が必要な対象では未確認の同意を拒否する。
+ * @param[in] dialog 本callback中の非所有dialog handle。 Windowsが所有する同期dialog handle。
+ * @param[in] message Windows message ID。
+ * @param[in] wordParameter Button ID等のmessage値。
+ * @param[in] longParameter 初期化時だけ有効な非所有対象pointer。 初期化時だけの非所有対象pointer。
+ * @return Messageを処理した場合TRUE。初期focus指定時はFALSE。 処理済みの場合TRUE。初期focusを指定した場合FALSE。
  */
 //------------------------------------------------------------------------------
 INT_PTR CALLBACK MainWindow::preparationEulaDialogProc( const HWND dialog, const UINT message,
@@ -830,7 +896,9 @@ INT_PTR CALLBACK MainWindow::preparationEulaDialogProc( const HWND dialog, const
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 対象のEULA全文とrevisionを表示して今回だけの同意を確認する。同期dialogの寿命中だけsnapshotを参照する。拒否は他対象への拒否へ拡大しない。
+ * @param[in] target 本文とrevisionを固定した当該対象。 今回同意を求める対象の固定本文とrevision。
+ * @return 明示同意した場合true。拒否・取消し・表示失敗はfalse。 全文表示後に同意を明示した場合true。
  */
 //------------------------------------------------------------------------------
 bool MainWindow::confirmPreparationEula( const OfficialPreparationTarget &target) const
@@ -861,7 +929,10 @@ bool MainWindow::confirmPreparationEula( const OfficialPreparationTarget &target
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief URLを含まない取得対象の表示を構築する。Provider名称は既存registryを正本とし、device数を適用性合格数として表示しない。
+ * @param[in] target 表示する固定対象snapshot。
+ * @param[in] index 0始まりの対象番号。 計画内の0始まり対象番号。
+ * @return Provider、配布参照、上限、条件を含む表示。 URLを含まない対象明細。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::formatPreparationTarget( const OfficialPreparationTarget &target,
@@ -897,7 +968,12 @@ std::wstring MainWindow::formatPreparationTarget( const OfficialPreparationTarge
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 取得確認用の標準dialogを表示する。既定は取得拒否で、network checkboxは未選択。Dialog失敗時の自動承認は行わない。
+ * @param[in] content Dialogの要約。
+ * @param[in] details 対象明細。 固定対象の明細。
+ * @param[in] select trueは一対象の取得可否確認、falseは閲覧のみ。
+ * @param[out] network 今回だけの課金／不明network承認。閲覧時と拒否時はfalse。 当該対象への明示network承認。拒否と閲覧はfalse。
+ * @return Button ID。表示失敗はIDCANCELとして通信を開始しない。 選択button ID。表示失敗はIDCANCEL。
  */
 //------------------------------------------------------------------------------
 int MainWindow::showPreparationDialog( const std::wstring &content, const std::wstring &details,
@@ -944,7 +1020,11 @@ int MainWindow::showPreparationDialog( const std::wstring &content, const std::w
 	return selected ;
 }
 
-/** @see src/app/main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 取得中は協調取消しだけを送り、未使用計画があれば確認し、消費後は結果だけを表示する。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::handlePreparationCommand()
 {
 	// Modal確認の再入と終了開始後の新規操作を拒否する。
@@ -998,7 +1078,7 @@ void MainWindow::handlePreparationCommand()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 個別取得条件を確認し、承認された対象だけをworkerへ送る。確認の最後まで通信しない。EULA本文未提示対象を選択不可とし、全承認をworkerへ渡す。
  */
 //------------------------------------------------------------------------------
 void MainWindow::beginPreparationReview()
@@ -1146,7 +1226,13 @@ void MainWindow::beginPreparationReview()
 	startPreparation( std::move( approval), false) ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全snapshot照合を経て既存workerへ取得を一回だけ登録します。
+ * @param[in] approval 対象別判断と任意の元Install選択を持つ所有値です。
+ * @param[in] continueInstall 元選択を検査後の唯一候補へ解決して継続する場合trueです。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::startPreparation( OfficialPreparationApproval approval, const bool continueInstall)
 {
 	const auto selected = static_cast<std::uint32_t>(
@@ -1200,7 +1286,8 @@ void MainWindow::startPreparation( OfficialPreparationApproval approval, const b
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 取得対象の確定件数を下部progressへ反映する。件数に整合する単調な進捗だけを表示し、時間経過による推定率を使わない。
+ * @param[in] event 現在操作の取得進捗。 workerが確定した取得件数。
  */
 //------------------------------------------------------------------------------
 void MainWindow::processPreparationProgress( const WorkerEvent &event)
@@ -1232,7 +1319,11 @@ void MainWindow::processPreparationProgress( const WorkerEvent &event)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 取得結果を検証し、対象別に表示して元の一覧を保持する。既存行の監査を更新し、全監査合格候補を未選択で追加する。現在版と既存選択を保ち、自動scanしない。
+ * @param[in] result workerの取得完了内容。 非機密の取得結果と独立した監査report。
+ * @param[in] indexSummary 同operation／scan／planの有限な索引内容結果。空では索引未実施です。
+ * @param[in] remainingPlan 同終端で発行した未選択の原plan subsetです。
+ * @note 元承認・確定transfer・通常内容上限と矛盾する索引summaryは全拒否し、未確認理由を表示します。
  */
 //------------------------------------------------------------------------------
 void MainWindow::processPreparationCompleted( const OfficialPreparationOperationResult &result,

@@ -2,7 +2,7 @@
 /**
  * @file official_prepared_audit_report.h
  * @brief 公式取得後監査の非機密report共通生成契約。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/08
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 固定profile、同一scan、既存候補IDだけからURL・path・PnP IDを含まないreportを作ります。Provider固有の対象製品判定、候補発行および導入
@@ -46,9 +47,10 @@
 
 namespace drivercrate {
 
+//------------------------------------------------------------------------------
 /**
- * @brief 固定profileの監査結果を検索時の既存候補行へ反映する非機密reportを作る。
- * 件数、identity、profile、合格組合せを検証し、URL・path・PnP IDを出力しない。入力矛盾時は例外で全体拒否し、候補発行や導入状態を作らない。
+ * @brief 固定profileの監査結果を検索時の既存候補行へ反映する非機密reportを作る。件数、identity、profile、合格組合せを検証し、URL・path・PnP IDを出力
+ *        しない。入力矛盾時は例外で全体拒否し、候補発行や導入状態を作らない。
  * @param[in] profile 取得Providerと監査済み閉包へ完全一致を要求する登録済みprofile。 固定Providerと閉包へ要求する登録済みprofile。
  * @param[in] session 監査対象を取得した0ではない検索session。 監査対象を取得した検索session。
  * @param[in] targetIdentity 利用者が取得を承認した最大128文字のopaque対象ID。 取得承認済みのopaque対象ID。
@@ -59,6 +61,7 @@ namespace drivercrate {
  * @throws std::logic_error 未知profile、session、件数、identityまたは監査構造が不正な場合。
  * @note DeviceがProviderの対象製品かは呼出し側が先に確認する。本関数は候補を発行しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialPreparationAuditReport makeOfficialPreparedAuditReport(
 	OfficialDriverAuditProfile profile, ScanSessionId session, std::wstring_view targetIdentity,
 	std::span<const OfficialCatalogDevice> devices,

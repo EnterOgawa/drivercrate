@@ -2,7 +2,7 @@
 /**
  * @file app_update.h
  * @brief App自身の版と有限な更新policyを定義します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note ドライバー候補・索引・導入許可とは独立した値だけを扱います。
  * @see docs/adr/0481-app-inno-setup-and-update-checks.md
@@ -39,7 +40,8 @@ namespace drivercrate {
 struct AppVersion {
 	/// major/minor/patchの16bit値です。PEの末尾は0に固定します。
 	std::array<std::uint16_t, 3U> parts{} ;
-	/** @brief 数値の辞書順で版を比較します。
+	/**
+	 * @brief 数値の辞書順で版を比較します。
 	 * @param[in] other 比較するApp版。
 	 * @return 各要素を数値比較した順序。
 	 */
@@ -54,7 +56,8 @@ struct AppUpdateRelease {
 	std::uint64_t	   sizeBytes{} ;
 	/// GitHub assetが宣言した小文字64桁SHA-256です。
 	std::string		   sha256 ;
-	/** @brief 確認時の全宣言を比較します。
+	/**
+	 * @brief 確認時の全宣言を比較します。
 	 * @param[in] other 比較先の宣言。
 	 * @return 版・size・hashが全て一致する場合はtrue。
 	 */
@@ -95,43 +98,57 @@ struct AppUpdateFailure {
 	std::uint64_t		 retryAfterSeconds{} ;
 } ;
 
-/** @brief 更新取得の最大実byte数です。 */
+// 更新取得の最大実byte数です。
 inline constexpr std::uint64_t			APP_UPDATE_MAX_BYTES = 128U * 1024U * 1024U ;
-/** @brief 通常起動中の一回の自動確認間隔です。 */
+// 通常起動中の一回の自動確認間隔です。
 inline constexpr std::uint64_t			APP_UPDATE_INTERVAL_MS = 24ULL * 60ULL * 60ULL * 1000ULL ;
 
-/** @brief ASCIIのcanonical三要素版をoverflowなしで読みます。
- * @param[in] text major.minor.patch。先頭0やsuffixを許しません。
+//------------------------------------------------------------------------------
+/**
+ * @brief ASCIIのcanonical三要素版をoverflowなしで読みます。
+ * @param[in] text ASCIIの三要素版です。text.size() byteのviewを呼出し中だけ借用し、NUL終端を要求せず保持しません。
  * @return 全て成立した値。不正はnulloptです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<AppVersion> parseAppVersion( std::string_view text) noexcept ;
-/** @brief canonicalな三要素版を表示と固定tag用に作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief canonicalな三要素版を表示と固定tag用に作ります。
  * @param[in] version 表示する版。
  * @return major.minor.patchのASCII文字列。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string				formatAppVersion( const AppVersion &version) ;
-/** @brief 正しい版・size/hashだけをSetup取得へ渡します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 正しい版・size/hashだけをSetup取得へ渡します。
  * @param[in] release 検査対象の宣言。
  * @return sizeとhashが正しい場合はtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool		   validAppUpdateRelease( const AppUpdateRelease &release) noexcept ;
-/** @brief 公式repoと正確asset名だけの起点を組み立てます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式repoと正確asset名だけの起点を組み立てます。
  * @param[in] release 正しい版・size/hashを持つ宣言。
  * @return 成立時の固定HTTPS URL。不正時は空文字列です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring appUpdateAssetUrl( const AppUpdateRelease &release) ;
 
 /** @brief 単調時計の起動一回と24hを管理する非通信policyです。 */
 class AppUpdateSchedule	   final {
 public:
-	   /** @brief 初回または24h期限の到来を照会します。
-	 * @param[in] nowMilliseconds 現在の単調millisecond。
-	 * @return 期限に達している場合はtrue。
-	 */
+	   /**
+	    * @brief 初回または24h期限の到来を照会します。
+	    * @param[in] nowMilliseconds 現在の単調millisecond。
+	    * @return 期限に達している場合はtrue。
+	    */
 	   [[nodiscard]] bool due( std::uint64_t nowMilliseconds) noexcept ;
-	   /** @brief 実際に受理した一回から次の24hを予約します。
-	 * @param[in] nowMilliseconds 受理時の単調millisecond。
-	 */
+	   /**
+	    * @brief 実際に受理した一回から次の24hを予約します。
+	    * @param[in] nowMilliseconds 受理時の単調millisecond。
+	    */
 	   void				  attempted( std::uint64_t nowMilliseconds) noexcept ;
 
 private:

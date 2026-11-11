@@ -2,7 +2,7 @@
 /**
  * @file provider_preparation_worker_tests.cpp
  * @brief 取得準備workerの内部試験。
- * @version 01.06.00
+ * @version 01.06.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -43,6 +43,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補継続と元意図の正負回帰を追加。
  * Ver.01.05.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.06.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note COM workerを使用しますが、通信・実driver導入・実復元ポイントは使用しません。
@@ -147,7 +148,10 @@ public:
 	/// 同fakeの実行済みcallbackからだけ作る明示観測です。
 	RestorePointProtectionResult			   fakeProtection_{.disposition =
 													   RestorePointDisposition::UNAVAILABLE} ;
-	/** @brief 完全fakeの原開始/終了に対応した観測を返します。@return 本番APIを呼ばない観測です。 */
+	/**
+	 * @brief 完全fakeの原開始/終了に対応した観測を返します。
+	 * @return 本番APIを呼ばない観測です。
+	 */
 	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
 	{
 		return fakeProtection_ ;
@@ -290,7 +294,8 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief 合成状態の所有権を共有する。実ProviderやHTTPを生成せず、試験状態だけを共有する。
+ * @param[in] state 試験中に有効な共有状態。 Fixtureが所有する合成状態。
  */
 //------------------------------------------------------------------------------
 FakePreparationProvider::FakePreparationProvider( std::shared_ptr<FakePreparationState> state)
@@ -300,7 +305,11 @@ FakePreparationProvider::FakePreparationProvider( std::shared_ptr<FakePreparatio
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief 有界な偽scan結果を返す。待機は一回かつ最大3秒に限定する。一系列試験でも実deviceは列挙しない。
+ * @param[in] session workerが発行した検索ID。 workerの検索ID。
+ * @param[in] options 使用しない合成検索設定。 未使用の設定。
+ * @param[in] progress 使用しない通知先。 未使用の通知先。
+ * @return 通常は実deviceを含まない結果。一系列試験時は非機密の架空候補を含む。 通常は空、一系列試験では架空の表示専用候補を持つ成功結果。
  */
 //------------------------------------------------------------------------------
 ScanResult FakePreparationProvider::scan( const ScanSessionId session, const ScanOptions &options,
@@ -384,7 +393,12 @@ ScanResult FakePreparationProvider::scan( const ScanSessionId session, const Sca
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief Workerが所有する通常scan取消しを有限待機中に観測する。
+ * @param[in] session Workerが発行した検索session ID。
+ * @param[in] options 実networkを含まない合成検索設定。
+ * @param[in] cancellation 同じoperationの非blocking取消し照会。
+ * @param[in] progress 使用しない合成通知先。
+ * @return 取消し時はABORTED、それ以外は通常の合成scan結果。
  */
 //------------------------------------------------------------------------------
 ScanResult FakePreparationProvider::scanWithCancellation(
@@ -428,7 +442,10 @@ ScanResult FakePreparationProvider::scanWithCancellation(
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief 保持sessionの有限な架空対象を計画へ返す。実metadataやURLを使わず、workerでの照合だけを確認する。
+ * @param[in] session 計画を要求する検索ID。
+ * @param[in] planId workerが発行した計画ID。 workerが発行する計画ID。
+ * @return 一系列試験は一対象、既存試験は三対象の計画。旧sessionはnullopt。
  */
 //------------------------------------------------------------------------------
 std::optional<OfficialPreparationPlan> FakePreparationProvider::preparationPlan(
@@ -472,7 +489,10 @@ std::optional<OfficialPreparationPlan> FakePreparationProvider::preparationPlan(
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief 転送せず取得済み、または協調取消しを返す。実fileを取得せず、有限待機中も取消しを観測する。
+ * @param[in] task 選択されたtask。 workerがclaimした対象。
+ * @param[in] cancellation workerの取消し照会。 協調取消し照会。
+ * @return 合成した取得結果。 合成した取得成功または取消し。
  */
 //------------------------------------------------------------------------------
 OfficialPreparationTransferResult FakePreparationProvider::acquireForInspection(
@@ -508,7 +528,7 @@ OfficialPreparationTransferResult FakePreparationProvider::acquireForInspection(
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief workerの失効順序を数え、実driverの状態は変更しない。
  */
 //------------------------------------------------------------------------------
 void FakePreparationProvider::invalidatePreparation() noexcept
@@ -519,7 +539,12 @@ void FakePreparationProvider::invalidatePreparation() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief 実installを行わず呼出回数だけを記録する。実installを行わず、呼出し時に保持物が生存しているか記録する。
+ * @param[in] session 保持している検索IDとの照合値。 Fakeが保持している検索sessionとの照合値。
+ * @param[in] identities 未使用の選択一覧。 実driverでない合成選択。一系列試験ではIDを照合する。
+ * @param[in] parent 未使用の親Window値。 使用しない親Window値。
+ * @param[in] progress 未使用の通知先。 使用しない通知先。
+ * @return 通常は未開始結果。一系列試験時は全選択候補の合成成功結果。 通常は未実行結果。一系列試験時は入力順の合成成功結果。指定時は合成例外。
  */
 //------------------------------------------------------------------------------
 InstallResult FakePreparationProvider::install( const ScanSessionId				   session,
@@ -567,7 +592,7 @@ InstallResult FakePreparationProvider::install( const ScanSessionId				   sessio
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief Fake Providerだけのworkerを生成する。Windowを生成せず、event queueから結果を回収する。
  */
 //------------------------------------------------------------------------------
 WorkerFixture::WorkerFixture()
@@ -581,7 +606,7 @@ WorkerFixture::WorkerFixture()
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief 失敗時の早期returnでもfake待機を解放し、workerを残さない。
  */
 //------------------------------------------------------------------------------
 WorkerFixture::~WorkerFixture()
@@ -593,7 +618,10 @@ WorkerFixture::~WorkerFixture()
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief 指定eventを最大3秒待つ。未消費eventは次の要求へ保持する。異なるeventを捨てず、後続の検証へ保持する。
+ * @param[in] kind 必要なeventの種類。 待つevent種類。
+ * @param[in] operation 必要な操作ID。 待つ操作ID。
+ * @return 該当eventまたはtimeoutのnullopt。 該当eventまたは3秒経過後のnullopt。
  */
 //------------------------------------------------------------------------------
 std::optional<WorkerEvent> WorkerFixture::waitEvent( const WorkerEventKind kind,
@@ -1029,7 +1057,8 @@ void testWorkerMeasurementPublicationBoundary( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief Fixture状態を共有する。Windows復元APIを初期化せず、試験状態だけを保持する。
+ * @param[in] state 誤呼出しを記録する共有状態。 Fixtureの共有状態。
  */
 //------------------------------------------------------------------------------
 FakePreparationRestoreService::FakePreparationRestoreService(
@@ -1040,7 +1069,9 @@ FakePreparationRestoreService::FakePreparationRestoreService(
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief 実復元ポイントを作らず呼出回数を記録する。実復元APIを呼ばず、許可したfixtureだけで保護後のworker順序を検証する。
+ * @param[in] description 使用しない復旧説明。 使用しない合成説明。
+ * @return Fixture指定時は合成成功、それ以外は既定の未成功結果。 指定時だけ合成成功と番号77。それ以外は既定の未成功結果。
  */
 //------------------------------------------------------------------------------
 RestorePointOperationResult FakePreparationRestoreService::begin(
@@ -1069,7 +1100,9 @@ RestorePointOperationResult FakePreparationRestoreService::begin(
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief 実APIを呼ばず誤呼出しを記録する。実APIを呼ばず、fake復旧処理の終了回数を記録する。
+ * @param[in] sequenceNumber 使用しない合成番号。 使用しない合成復元番号。
+ * @return Fixture指定時は合成成功、それ以外は既定の未成功結果。 指定時だけ合成成功と番号77。それ以外は既定の未成功結果。
  */
 //------------------------------------------------------------------------------
 RestorePointOperationResult FakePreparationRestoreService::complete(
@@ -1097,7 +1130,9 @@ RestorePointOperationResult FakePreparationRestoreService::complete(
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.cpp 宣言側の契約を正本とする。
+ * @brief 実監査を行わず、非機密reportまたは集約例外を合成する。実監査を行わず、worker通知と表示集約失敗の扱いを確認する。
+ * @param[in] result 同一workerの合成取得結果。 Fake取得の確定結果。
+ * @return 合成対象の表示report。通常試験では空。 合成監査report。例外指定時は合成例外。
  */
 //------------------------------------------------------------------------------
 
@@ -1438,14 +1473,16 @@ void testAsixClientRestoreBoundary( TestContext &context)
 /** @brief 空のload結果だけを使うworker refresh接続の非通信Providerです。 */
 class RefreshProbeProvider final : public IUpdateProvider, public IIndexScanInventory {
 public:
-	/** @brief 既存非通信scanの状態だけを共有します。
+	/**
+	 * @brief 既存非通信scanの状態だけを共有します。
 	 * @param[in] state 同workerを停止するまで所有するfake状態です。
 	 */
 	explicit RefreshProbeProvider( std::shared_ptr<FakePreparationState> state)
 		: inner_( std::move( state))
 	{
 	}
-	/** @brief 既存fakeだけへ通常scanを委譲します。
+	/**
+	 * @brief 既存fakeだけへ通常scanを委譲します。
 	 * @param[in] session 元worker sessionです。
 	 * @param[in] options 元の有限Provider選択です。
 	 * @param[in] progress 元同期通知です。
@@ -1456,7 +1493,8 @@ public:
 	{
 		return inner_.scan( session, options, progress) ;
 	}
-	/** @brief 導入を実行せず元fake結果だけを返します。
+	/**
+	 * @brief 導入を実行せず元fake結果だけを返します。
 	 * @param[in] session 元fake sessionです。
 	 * @param[in] ids 元fake対象です。
 	 * @param[in] parent 未使用の親window値です。
@@ -1468,7 +1506,8 @@ public:
 	{
 		return inner_.install( session, ids, parent, progress) ;
 	}
-	/** @brief 空store負例の後段でresolverを捏造しません。
+	/**
+	 * @brief 空store負例の後段でresolverを捏造しません。
 	 * @param[in] operation 未使用の元operationです。
 	 * @param[out] context 空へ初期化します。
 	 * @param[out] present 空へ初期化します。
@@ -1489,9 +1528,12 @@ private:
 	FakePreparationProvider inner_ ;
 } ;
 
-/** @brief 固定W01–W07を実worker queueの元終端で照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定W01–W07を実worker queueの元終端で照合します。
  * @param[in,out] context 旧assertionを保持する集計先です。
  */
+//------------------------------------------------------------------------------
 void testWorkerRefreshConnection( TestContext &context)
 {
 	// 七条件は分母から除外せず一workerずつ停止してから次へ進みます。
@@ -1617,9 +1659,12 @@ struct HardwareApiState {
 // 同じ試験threadの完全fake表だけが参照します。
 thread_local HardwareApiState	  *activeHardwareApi{} ;
 
-/** @brief 全APIを置換した同ABI表を生成します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全APIを置換した同ABI表を生成します。
  * @return 実token/CM関数を一つも持たない完全表です。
  */
+//------------------------------------------------------------------------------
 hardware_refresh_detail::Transport hardwareApiTransport()
 {
 	hardware_refresh_detail::Transport calls ;	// 欠損をnativeで補いません。
@@ -1712,9 +1757,12 @@ hardware_refresh_detail::Transport hardwareApiTransport()
 	return calls ;
 }
 
-/** @brief 必要権限・CONFIGRET・復帰・HANDLE寿命を完全fakeで確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 必要権限・CONFIGRET・復帰・HANDLE寿命を完全fakeで確認します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testHardwareRefreshNativeBoundary( TestContext &context)
 {
 	const int first = context.assertionCount() ;	// 新有限条件だけの分母です。
@@ -1776,9 +1824,12 @@ void testHardwareRefreshNativeBoundary( TestContext &context)
 			  << context.assertionCount() - first << " real CM/token calls=0\n" ;
 }
 
-/** @brief 再検出失敗/例外/取消しではqueryを開始せず、旧sessionを失効させます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 再検出失敗/例外/取消しではqueryを開始せず、旧sessionを失効させます。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testWorkerHardwareRefreshBoundary( TestContext &context)
 {
 	// 失敗値・例外・取消し・停止・未実行seamを独立したworkerで確認します。
@@ -1917,7 +1968,8 @@ void testWorkerHardwareRefreshBoundary( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_preparation_worker_tests.h 宣言側の契約を正本とする。
+ * @brief 取得計画、queue、取消し、停止、一系列のWorker・Controller結合試験を実行する。有限待機のfakeだけでworkerの取得準備境界を確認する。
+ * @param[in,out] context Assertionの集計先。
  */
 //------------------------------------------------------------------------------
 void runProviderPreparationWorkerTests( TestContext &context)

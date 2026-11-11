@@ -2,7 +2,7 @@
 /**
  * @file official_msi_tests.cpp
  * @brief 公式MSI stream選択取得単体試験実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 小さい架空MSIとbinary streamだけを作成し、network、実driver、MSI install、custom actionへ依存せず選択取得と失敗cleanupを検
@@ -378,7 +379,8 @@ void testIdentityAndOutputRejection( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_msi_tests.h 宣言側の契約を正本とする。
+ * @brief 公式MSI streamのread-only取得と拒否境界を検証する。正常取得と全fail-closed MSI fixtureを順に実行する。
+ * @param[in,out] context Assertion件数と失敗内容の集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialMsiTests( TestContext &context)

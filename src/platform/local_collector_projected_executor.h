@@ -2,7 +2,7 @@
 /**
  * @file local_collector_projected_executor.h
  * @brief 新GET・解析・秘密資源回収から親への所有結果移譲を定義します。
- * @version 01.02.02
+ * @version 01.02.03
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/09/29  同一監督identity・一回親prepareの非公開結合を追加。
  * Ver.01.02.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
  * Ver.01.02.02   Shunji Ogawa  2026/10/16 native client factoryの戻り値と所有・実行境界を明記。
+ * Ver.01.02.03 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 開発用の保存前接続です。v4保存・精算・slot再利用は未接続です。
@@ -56,10 +57,12 @@ struct CollectorProjectedExecutorDependencies {
 	/// 各workerから数値だけを通知する任意依存。借用先は全joinまで存続します。
 	CollectorProjectionDiagnostics							  diagnostics ;
 } ;
+//------------------------------------------------------------------------------
 /**
  * @brief 明示native clientだけを生成する依存を返します。構築では通信しません。
  * @return 呼出しごとにnative clientを単独所有するfactory。clientの生成は呼出しworkerのMTAで行います。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CollectorProjectedClientFactory collectorNativeProjectedClientFactory() ;
 /** @brief 正常解析・明示上限・原失敗を区別する固定理由です。 */
 enum class CollectorProjectedWorkerReason {
@@ -103,13 +106,16 @@ struct CollectorProjectedExecutorReport {
 /** @brief 同一process内の専用四slotを予約から全joinまで所有します。保存は行いません。 */
 class LocalCollectorProjectedExecutor final {
 public:
-	/** @brief 全slot・元controlを最初の予約より前に確保します。
+	/**
+	 * @brief 全slot・元controlを最初の予約より前に確保します。
 	 * @param[in] dependencies 空を許さない明示依存。Captured借用先は全joinまで必要です。
 	 * @throws std::invalid_argument 依存またはprepared入力が欠ける場合。
 	 * @throws std::bad_alloc 予約前の確保が失敗した場合。
 	 */
 	explicit LocalCollectorProjectedExecutor( CollectorProjectedExecutorDependencies dependencies) ;
-	/** @brief 全workerを停止・joinします。未精算予約・保存物は削除しません。 */
+	/**
+	 * @brief 全workerを停止・joinします。未精算予約・保存物は削除しません。
+	 */
 	~LocalCollectorProjectedExecutor() ;
 	/**
 	 * @brief 専用四slotと全workerのjoin責務の二重管理を防ぐため、コピー構築を禁止する。
@@ -119,20 +125,25 @@ public:
 	 * @brief 専用四slotと全workerのjoin責務を別個体の状態で上書きさせないため、コピー代入を禁止する。
 	 */
 	LocalCollectorProjectedExecutor &operator=( const LocalCollectorProjectedExecutor &) = delete ;
-	/** @brief 同じ親writerで次の一件を予約し専用workerへ渡します。
+	/**
+	 * @brief 同じ親writerで次の一件を予約し専用workerへ渡します。
 	 * @param[in,out] recovery 同じprepared世代の監督。他poolとの混在は禁止です。
 	 * @return 成功0、未準備／四枠使用済み1237、取消し995、または原error。
 	 * @note 待機・保存・slot再利用はしません。失敗した起動もjoinで回収してください。
 	 */
 	[[nodiscard]] DWORD				 startNext( LocalCollectorRecovery &recovery) ;
-	/** @brief 追加受付を閉じ、全通知を待ってjoinします。同じwriterから使用します。
+	/**
+	 * @brief 追加受付を閉じ、全通知を待ってjoinします。同じwriterから使用します。
 	 * @return 未精算予約数・実join数・第一error。二度目は同じ結果を返します。
 	 * @note 待機は500msごとに取消し／全体失敗を観測します。強制thread終了は行いません。
 	 */
 	[[nodiscard]] CollectorProjectedExecutorReport		join() ;
-	/** @brief 他threadから取消しsignalだけを公開します。確定済み結果は変更しません。 */
+	/**
+	 * @brief 他threadから取消しsignalだけを公開します。確定済み結果は変更しません。
+	 */
 	void												requestStop() noexcept ;
-	/** @brief 全join後だけ元slotの不変結果を参照します。
+	/**
+	 * @brief 全join後だけ元slotの不変結果を参照します。
 	 * @param[in] slot 予約した順の0～3。
 	 * @return 全join後の予約済みslotのみ非null。寿命はexecutorと同じです。
 	 */
@@ -140,7 +151,8 @@ public:
 
 private:
 	friend class LocalCollectorRecovery ;
-	/** @brief 同じ監督へ全join済みの一結果を一度だけ渡します。
+	/**
+	 * @brief 同じ監督へ全join済みの一結果を一度だけ渡します。
 	 * @param[in] owner 予約元監督の非再利用token。
 	 * @param[in] slot 元予約slot。
 	 * @param[out] campaign 成功時だけ元prepared入力の借用。失敗時null。
@@ -151,7 +163,8 @@ private:
 											   std::size_t								  slot,
 											   const CollectorPreparedProjectedCampaign *&campaign,
 											   const CollectorProjectedWorkerResult		*&worker) ;
-	/** @brief 親の第一準備失敗を全体停止へ伝播します。
+	/**
+	 * @brief 親の第一準備失敗を全体停止へ伝播します。
 	 * @param[in] error 非zeroの元数値。既存の第一errorは置換しません。
 	 */
 	void				failPreparation( DWORD error) ;

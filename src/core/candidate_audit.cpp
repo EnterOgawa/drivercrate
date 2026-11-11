@@ -2,7 +2,7 @@
 /**
  * @file candidate_audit.cpp
  * @brief Driver候補監査状態の生成と整合性検証。
- * @version 01.05.00
+ * @version 01.05.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -37,6 +37,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
  * Ver.01.04.00 Shunji Ogawa  2026/10/12  私有native bindingの署名索引初回だけREADYへ受理。
  * Ver.01.05.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 監査状態からURL、端末識別子、local pathを推測せず、Providerが明示した取得経路とinstall可否の関係だけを決定的に検証します。
@@ -376,7 +377,10 @@ bool isUserSelectedCandidateAuditValid( const CandidateAuditStatus &audit) noexc
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/candidate_audit.h 宣言側の契約を正本とする。
+ * @brief WUAまたはWindows標準APIへ監査を委譲する候補状態を生成する。WUAまたはWindows標準APIへの委譲をDriverCrate独自の監査合格と表現せず、表示専用行だけ
+ *        installを禁止する。
+ * @param[in] displayOnly 現在版等の表示専用候補の場合は`true`。 現在版等の表示専用候補なら`true`。
+ * @return Windows管理経路とinstall準備状態を明示した監査状態。
  */
 //------------------------------------------------------------------------------
 CandidateAuditStatus makeWindowsManagedCandidateAudit( const bool displayOnly) noexcept
@@ -393,7 +397,9 @@ CandidateAuditStatus makeWindowsManagedCandidateAudit( const bool displayOnly) n
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/candidate_audit.h 宣言側の契約を正本とする。
+ * @brief 公式metadata確認済みでpayload監査前の候補状態を生成する。Catalogとlocal deviceのProvider固有照合は保持するが、G11-C／D未接続の候補を
+ *        選択可能にしない。
+ * @return 由来確認済み、download／内容監査待ち、Provider照合済み、install禁止の状態。 由来確認済み、取得／内容監査待ち、Provider照合済みの状態。
  */
 //------------------------------------------------------------------------------
 CandidateAuditStatus makeOfficialMetadataCandidateAudit() noexcept
@@ -409,7 +415,9 @@ CandidateAuditStatus makeOfficialMetadataCandidateAudit() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/candidate_audit.h 宣言側の契約を正本とする。
+ * @brief 公式取得物が由来、download、内容およびsystem監査を全て通過した状態を生成する。登録済み公式originから取得し、G11-B～Dを通過した候補だけへ設定する。個別
+ *        gateを呼出し側で推測して組み立てない。
+ * @return 全監査gate合格済みでinstall可能な状態。
  */
 //------------------------------------------------------------------------------
 CandidateAuditStatus makeOfficialReadyCandidateAudit() noexcept
@@ -425,7 +433,8 @@ CandidateAuditStatus makeOfficialReadyCandidateAudit() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/candidate_audit.h 宣言側の契約を正本とする。
+ * @brief 公式page由来だけを確認した表示専用候補状態を生成する。公式pageとlocal表示名の照合をPnP適用性合格へ昇格せず、配布情報だけを表示できる状態を生成する。
+ * @return 由来確認済み、download／内容／system監査待ち、install禁止の状態。 由来確認済み、download／内容／system監査待ちの禁止状態。
  */
 //------------------------------------------------------------------------------
 CandidateAuditStatus makeOfficialDiscoveryCandidateAudit() noexcept
@@ -441,7 +450,8 @@ CandidateAuditStatus makeOfficialDiscoveryCandidateAudit() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/candidate_audit.h 宣言側の契約を正本とする。
+ * @brief 利用者が指定し静的package監査を通過した候補状態を生成する。利用者指定fileを公式由来へ昇格せず、既存package検証とProvider固有照合が完了した範囲だけを記録する。
+ * @return 取得元未証明、内容監査済み、Provider照合済みの状態。 取得元未証明、静的内容監査済みの候補状態。
  */
 //------------------------------------------------------------------------------
 CandidateAuditStatus makeUserSelectedCandidateAudit() noexcept
@@ -457,7 +467,10 @@ CandidateAuditStatus makeUserSelectedCandidateAudit() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/candidate_audit.h 宣言側の契約を正本とする。
+ * @brief 候補監査状態とProvider経路、表示／install可否の整合性を検証する。定義外enumと過大な成功表現を拒否し、URLや表示名から不足状態を推測しない。
+ * @param[in] candidate Scan sessionへ登録する候補。
+ * @param[in] descriptor 候補を生成した登録済みProvider定義。 候補を生成したProviderのregistry定義。
+ * @return 全enumと取得経路別の状態が矛盾しない場合は`true`。 経路、監査状態、表示／install可否が整合する場合は`true`。
  */
 //------------------------------------------------------------------------------
 bool isCandidateAuditValid( const UpdateCandidate	&candidate,
@@ -569,7 +582,15 @@ bool isCandidateAuditValid( const UpdateCandidate	&candidate,
 	return false ;
 }
 
-/** @see src/core/candidate_audit.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 観測・詳細assessment・初回actionを既存候補へ照合する。
+ * @param[in] candidate 同じscanの候補。
+ * @param[in] scanSessionId 現在session。0は候補自身との内部結合だけを検証する。
+ * @return 新詳細の結合・集約auditとの整合性・表示専用条件を満たせばtrue。
+ * @note 値なしの旧Providerを詳細合格へ補完しない。既存audit自体の検証は別途必須。
+ */
+//------------------------------------------------------------------------------
 bool isCandidateDetailsValid( const UpdateCandidate &candidate,
 							 const ScanSessionId	scanSessionId) noexcept
 {
@@ -663,7 +684,15 @@ bool isCandidateDetailsValid( const UpdateCandidate &candidate,
 						  : candidate.audit.inspectionDownload) ;
 }
 
-/** @see src/core/candidate_audit.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全代表行の一意性と観測・詳細のsessionを検証する。
+ * @param[in] candidates 同じ結果の全候補。
+ * @param[in] scanSessionId 0ではない結果のsession。
+ * @return 全代表行が一device一行で新詳細が正しく結合する場合true。
+ * @note 一時索引の確保失敗もfalseで返す。既存の候補ID・Provider監査を置き換えない。
+ */
+//------------------------------------------------------------------------------
 bool isCandidateDetailsSetValid( const std::span<const UpdateCandidate> candidates,
 								const ScanSessionId					   scanSessionId) noexcept
 {

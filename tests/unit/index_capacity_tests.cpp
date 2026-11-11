@@ -2,7 +2,7 @@
 /**
  * @file index_capacity_tests.cpp
  * @brief 原368recordを保持した大規模codec/store/lookupの有限回帰を定義します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -19,6 +19,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/07  旧byte保持・全ID進行・大規模上限回帰を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note signed_index_manifest_tests.cpp末尾へincludeし既RAM鍵/隔離storeを共有します。
  * 新IDは架空公開IDだけです。本番key、実inventory、HTTP、installedを使用しません。
@@ -62,10 +63,13 @@ using CapacityValue = winrt::Windows::Data::Json::JsonValue ;
 const auto CAPACITY_NOW =
 	std::chrono::sys_days{std::chrono::year{2026} / 11 / 7} + std::chrono::hours{1} ;
 
-/** @brief 架空公開IDに使う全単射の64bit mixerです。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空公開IDに使う全単射の64bit mixerです。
  * @param[in] value 生成対象の非秘密ordinalです。
  * @return 圧縮比だけで巨大入力を救済しない決定的なbit列です。
  */
+//------------------------------------------------------------------------------
 std::uint64_t capacityMix( std::uint64_t value)
 {
 	value += 0x9e3779b97f4a7c15ULL ;
@@ -73,10 +77,13 @@ std::uint64_t capacityMix( std::uint64_t value)
 	value = (value ^ (value >> 27U)) * 0x94d049bb133111ebULL ;
 	return value ^ (value >> 31U) ;
 }
-/** @brief 実端末から独立した一意の架空公開IDを作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実端末から独立した一意の架空公開IDを作ります。
  * @param[in] ordinal 新fixtureの0起点位置です。
  * @return 合法ASCIIの合成IDです。実inventory値ではありません。
  */
+//------------------------------------------------------------------------------
 std::string capacityId( std::uint64_t ordinal)
 {
 	constexpr std::string_view alphabet =
@@ -92,10 +99,13 @@ std::string capacityId( std::uint64_t ordinal)
 
 	return result ;
 }
-/** @brief 元fixture fileを有限byteで読み、oversize/途中変更を拒否します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元fixture fileを有限byteで読み、oversize/途中変更を拒否します。
  * @param[in] path 764基準から新規作成した私有index fileです。
  * @return 元UTF-8 byteです。
  */
+//------------------------------------------------------------------------------
 std::string capacityRead( const std::filesystem::path &path)
 {
 	const auto count = std::filesystem::file_size( path) ;	// 開く前の有限量です。
@@ -114,10 +124,13 @@ std::string capacityRead( const std::filesystem::path &path)
 
 	return raw ;
 }
-/** @brief fixture重複寿命と製品scanを分ける補助資源観測です。
+//------------------------------------------------------------------------------
+/**
+ * @brief fixture重複寿命と製品scanを分ける補助資源観測です。
  * @param[in] phase 非機密の固定生成段階名です。
  * @note Peakはprocess全体の原OS値であり、resetやscanだけへの置換を行いません。
  */
+//------------------------------------------------------------------------------
 void capacityPhase( std::string_view phase)
 {
 	PROCESS_MEMORY_COUNTERS_EX counters{} ;	// OSのcurrent/peakをそのまま観測します。
@@ -147,7 +160,9 @@ struct CapacityFixture {
 	std::string						  tailId ;
 } ;
 
-/** @brief 原368のencoded byte/期限を保ち合法なcompact IDを末尾へ追加します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原368のencoded byte/期限を保ち合法なcompact IDを末尾へ追加します。
  * @param[in,out] context 共通assertion集計先です。
  * @param[in] key 名前を持たないRAM CNG鍵です。
  * @param[in] baselineIndex 新規私有base368/index.jsonです。元SHAを必須にします。
@@ -155,6 +170,7 @@ struct CapacityFixture {
  * @param[in] tailUnknown trueだけ末尾へ0-ID UNKNOWN recordを追加します。
  * @return 実codec/署名/保護保存から得た隔離storeと元件数です。
  */
+//------------------------------------------------------------------------------
 CapacityFixture capacityFixture( TestContext &context, const RamKey &key,
 								const std::filesystem::path &baselineIndex, std::size_t totalInputs,
 								bool tailUnknown)
@@ -329,7 +345,17 @@ public:
 	unsigned							  mode{} ;
 	/// 未署名probe fixtureだけが一意positiveにする架空公開IDです。
 	std::string							  tailId ;
-	/** @copydoc IndexPublicIdResolver::resolve */
+	/**
+	 * @brief 人工modeと呼出回数で索引容量の境界結果を返すfakeです。
+	 * @param[in] kind メーカー公表INF側identifierの元役割。native property指定ではありません。
+	 * @param[in] publishedId 元公開ASCII ID。端末actual IDではありません。
+	 * @param[in] classGuid 元申告ClassGUID。
+	 * @param[in] context 現在のworker context。
+	 * @param[in] present 現在の有限opaque集合。本呼出し中だけ借用します。
+	 * @return 同じcontextを持つ人工結果です。mode2だけ未完了、mode1またはmode3のtailId一致ではpresent先頭一件を返します。
+	 * @note kind/classGuidは使用せず、publishedIdはmode3の文字列比較だけに使います。実inventory/ClassGUID適合やrankを検査しません。
+	 *       presentはpositive modeで非空である試験前提です。
+	 */
 	[[nodiscard]] IndexPublicIdResolution resolve(
 		IndexPnpIdKind kind, std::string_view publishedId, std::string_view classGuid,
 		IndexLookupContext context, std::span<const std::wstring> present) const override
@@ -348,10 +374,13 @@ public:
 	}
 } ;
 
-/** @brief 32000+2000の全record prefixと途中取消し/保持不足を独立に確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 32000+2000の全record prefixと途中取消し/保持不足を独立に確認します。
  * @param[in,out] context 共通集計先です。
  * @param[in] key 同processのRAM鍵です。
  */
+//------------------------------------------------------------------------------
 void capacityRecordBoundaries( TestContext &context, const RamKey &key)
 {
 	std::vector<std::string> rows ;			// 異なる原record九件です。
@@ -436,10 +465,13 @@ void capacityRecordBoundaries( TestContext &context, const RamKey &key)
 }
 } // namespace
 
-/** @brief 独立byte条件を満たす最小UNKNOWN65536/65537 recordを共通値codecで確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 独立byte条件を満たす最小UNKNOWN65536/65537 recordを共通値codecで確認します。
  * @param[in,out] context 共通集計先です。
  * @note v1値codecの容量だけです。未署名値から認証receiptや内容成功を発行しません。
  */
+//------------------------------------------------------------------------------
 void runIndexCapacityRecordCountTests( TestContext &context)
 {
 	const auto before = context.assertionCount() ;	// 本境界だけの実分母です。
@@ -514,7 +546,13 @@ void runIndexCapacityRecordCountTests( TestContext &context)
 		<< ",\"valueCodecOnly\":true,\"assertions\":" << context.assertionCount() - before << "}\n" ;
 }
 
-/** @see signed_index_manifest_tests.h 宣言側の隔離fixture契約です。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief native producer原fileをRAM署名/隔離store/通常scan/planへ接続します。
+ * @param[in,out] context 共通集計先です。
+ * @param[in] directory 私有native producerの保存先です。
+ */
+//------------------------------------------------------------------------------
 void runIndexCapacityProducedConsumerTests( TestContext				   &context,
 										   const std::filesystem::path &directory)
 {
@@ -655,7 +693,18 @@ void runIndexCapacityProducedConsumerTests( TestContext				   &context,
 	DRIVERCRATE_EXPECT( context, summary.status == IndexScanStatus::COMPLETED) ;
 }
 
-/** @see signed_index_manifest_tests.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 旧368原byteを保持し全ID/record容量とnative matcherを有限確認します。
+ * @param[in,out] context 共通assertion集計先です。
+ * @param[in] baselineIndex 764基準から作った私有base368/index.jsonです。
+ * @param[in] requestedInputs 0は旧上限超/境界matrix、正値はその全公開ID数です。
+ * @param[in] large trueは4096nodeの完全低位fakeを使います。
+ * @param[in] realClock trueだけ実時間/メモリ性能を受入分母にします。
+ * @param[in] tailUnknown trueだけ全入力枠消費後に0-ID UNKNOWNを追加します。
+ * @note 実鍵/store/inventory/通信/導入を使用せずRAM署名の隔離storeだけです。
+ */
+//------------------------------------------------------------------------------
 void runIndexCapacityTests( TestContext &context, const std::filesystem::path &baselineIndex,
 						   std::size_t requestedInputs, bool large, bool realClock,
 						   bool tailUnknown)
@@ -698,7 +747,12 @@ void runIndexCapacityTests( TestContext &context, const std::filesystem::path &b
 	}
 }
 
-/** @see signed_index_manifest_tests.h 宣言側の保持境界契約です。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief positive/UNKNOWN/native projectionの保持32768/32769を確認します。
+ * @param[in,out] context 共通集計先です。
+ */
+//------------------------------------------------------------------------------
 void runIndexCapacityRetainedTests( TestContext &context)
 {
 	// 名称を持たない同processだけのsoftware RAM鍵です。

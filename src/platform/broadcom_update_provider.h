@@ -2,7 +2,7 @@
 /**
  * @file broadcom_update_provider.h
  * @brief Broadcom NetXtreme-E公式配布情報Provider契約。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/10/13  観測field説明を完全な宣言開始前へ配置。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 検索と承認済みZIP取得の境界を持ち、取得を適用性や導入成功へ変換しません。
@@ -79,9 +80,10 @@ using BroadcomPreparedInstallTarget = PreparedInfInstallTarget ;
 /** @brief Broadcom互換名からProvider非依存の非所有worker contextを参照する。 */
 using BroadcomPreparedInstallContext = PreparedInfInstallContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Broadcom固定policyで発行済み候補を共通INF導入executorへ渡す。
- * Broadcomの固定Provider／resourceだけを共通executorへ渡す薄いwrapper。Session保持物の失効は所有するProviderが結果確定後に行う。
+ * @brief Broadcom固定policyで発行済み候補を共通INF導入executorへ渡す。Broadcomの固定Provider／resourceだけを共通executorへ渡す薄い
+ *        wrapper。Session保持物の失効は所有するProviderが結果確定後に行う。
  * @param[in] context 同じworker呼出し中だけ有効な取得物・閉包・routing。 同じworkerが所有する取得物・閉包・routing。
  * @param[in] identities 利用者が一device一候補で明示選択したopaque ID群。 明示選択された監査合格候補ID群。
  * @param[in] reverifier 本番では共通INF閉包再検証だけを渡す必須関数。 保持INF閉包の共通再検証。
@@ -94,6 +96,7 @@ using BroadcomPreparedInstallContext = PreparedInfInstallContext ;
  *       成してはならない。
  * @note 本関数は保持物を解放しない。呼出し側が結果または例外の確定後にsessionを失効させる。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] InstallResult executeBroadcomPreparedInstall(
 	const BroadcomPreparedInstallContext &context, std::span<const std::wstring> identities,
 	const BroadcomInfReverifier &reverifier, const OfficialInfRankAuditor &rankAuditor,
@@ -108,18 +111,19 @@ struct BroadcomPreparedAuditSummary {
 	OfficialDriverApplicabilitySummary applicability ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 非機密device表示値がNetXtreme-E配布情報の参照対象か確認する。
- * 端末内のNet class・メーカー・系列表示名を照合する。N210TPへの適用保証には使わない。
+ * @brief 非機密device表示値がNetXtreme-E配布情報の参照対象か確認する。端末内のNet class・メーカー・系列表示名を照合する。N210TPへの適用保証には使わない。
  * @param[in] device 現在deviceの非機密snapshot。
  * @return Net classと審査済み系列表示名が一致すればtrue。 定義した検査に適合する場合true。不一致はfalse。
  * @note 表示専用の関連付けであり、adapter型番やPnP適用性の合格ではない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool broadcomNetxtremeEDevice( const OfficialCatalogDevice &device) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 検証済み配布metadataから非選択・非推奨の表示専用行を作る。
- * 配布情報だけの非選択・導入不可行を作る。配布版をINF版へ転用しない。
+ * @brief 検証済み配布metadataから非選択・非推奨の表示専用行を作る。配布情報だけの非選択・導入不可行を作る。配布版をINF版へ転用しない。
  * @param[in] session 0ではない有効なscan session ID。 0でない検索session。
  * @param[in] ordinal Session内で一意な候補連番。 表示候補の0始まり連番。
  * @param[in] device Local系列照合が成立したdevice。 現在deviceの非機密snapshot。
@@ -127,6 +131,7 @@ struct BroadcomPreparedAuditSummary {
  * @return 内容／適用性監査待ちでinstallを禁止した表示DTO。 適用性・内容未監査の表示専用候補。
  * @note 呼出し側で取得元根拠を確認する。INF版、日付、byte数を推測しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] UpdateCandidate makeBroadcomDiscoveryCandidate( ScanSessionId				  session,
 															 std::size_t				  ordinal,
 															 const OfficialCatalogDevice &device,
@@ -138,7 +143,9 @@ struct BroadcomPreparedAuditSummary {
  */
 class BroadcomUpdateProvider  final : public IOfficialCatalogProvider {
 public:
-	 /** @brief 取得根拠とcallbackを既定状態で所有するProviderを構築します。 */
+	 /**
+	  * @brief 取得根拠とcallbackを既定状態で所有するProviderを構築します。
+	  */
 	 BroadcomUpdateProvider() = default ;
 	 /**
 	 * @brief 同じworkerのDriver Store適用性監査へ接続する。
@@ -154,7 +161,9 @@ public:
 	 */
 	 BroadcomUpdateProvider( OfficialInfRankAuditor		 rankAuditor,
 							BroadcomVerifiedInfInstaller installer) ;
-	 /** @brief Providerの所有状態を破棄します。 */
+	 /**
+	  * @brief Providerの所有状態を破棄します。
+	  */
 	 ~BroadcomUpdateProvider() override = default ;
 
 	 /**
@@ -176,17 +185,21 @@ public:
 		 const noexcept ;
 
 	 // Source sessionを単独所有するためcopy/moveを禁止する。
-	 /** @brief 公式source sessionの単独所有を保つためコピー構築を禁止します。 */
+	 /**
+	  * @brief 公式source sessionの単独所有を保つためコピー構築を禁止します。
+	  */
 	 BroadcomUpdateProvider( const BroadcomUpdateProvider &) = delete ;
-	 /** @brief 公式source sessionの単独所有を保つためコピー代入を禁止します。
-	 * @return 削除された関数のため戻り値はありません。
-	 */
+	 /**
+	  * @brief 公式source sessionの単独所有を保つためコピー代入を禁止します。
+	  */
 	 BroadcomUpdateProvider &operator=( const BroadcomUpdateProvider &) = delete ;
-	 /** @brief 公式source sessionのthread所有を保つため移動構築を禁止します。 */
+	 /**
+	  * @brief 公式source sessionのthread所有を保つため移動構築を禁止します。
+	  */
 	 BroadcomUpdateProvider( BroadcomUpdateProvider &&) = delete ;
-	 /** @brief 公式source sessionのthread所有を保つため移動代入を禁止します。
-	 * @return 削除された関数のため戻り値はありません。
-	 */
+	 /**
+	  * @brief 公式source sessionのthread所有を保つため移動代入を禁止します。
+	  */
 	 BroadcomUpdateProvider		&operator=( BroadcomUpdateProvider &&) = delete ;
 
 	 /**
@@ -317,22 +330,23 @@ private:
 	 std::uint32_t													 ownerThreadId_{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 解析済みBroadcom配布物からURLを含まない未承認対象を作る。
- * 公開URLをUIへ渡さず、一配布物を同型device数だけ重複取得しない。
+ * @brief 解析済みBroadcom配布物からURLを含まない未承認対象を作る。公開URLをUIへ渡さず、一配布物を同型device数だけ重複取得しない。
  * @param[in] release 公式由来を別途確認したworker所有record。 同一scanの公式配布情報。
  * @param[in] scanSessionId 0でない検索session。
  * @param[in] planId 0でない計画ID。
  * @param[in] deviceCount 関連device数。1～4096。 配布物に関係するdevice数。1～4096。
  * @return 本文付きの一対象。不完全recordは空。 未承認の一対象。不完全なrecordは空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::vector<OfficialPreparationTarget> makeBroadcomPreparationTargets(
 	const OfficialReleaseRecord &release, ScanSessionId scanSessionId, std::uint64_t planId,
 	std::uint32_t deviceCount) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Broadcomの同一scan取得物を内容監査と端末内PnP監査へ接続する。
- * 固定Net profileで監査し、署名合格INFだけを端末内で照合する。導入許可は発行しない。
+ * @brief Broadcomの同一scan取得物を内容監査と端末内PnP監査へ接続する。固定Net profileで監査し、署名合格INFだけを端末内で照合する。導入許可は発行しない。
  * @param[in] scanSessionId 保持deviceと取得結果に共通の検索session。
  * @param[in] acquisition 公式由来を確認し、workerが所有している取得結果。 同じworkerが所有する公式取得結果。
  * @param[in] expectedSha256 公開hash。未公開なら空。実測hashで代替記入しない。 公開hash。未公開は空。
@@ -342,15 +356,17 @@ private:
  * @param[out] audit 内容と適用性の独立した結果。導入候補は作らない。 内容・適用性の結果と単独所有閉包。
  * @return 全体処理成功時0。入力・内容・全体処理失敗時はHRESULT。 全体処理成功時0、拒否・失敗時はHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError auditBroadcomPreparedPackage(
 	ScanSessionId scanSessionId, const OfficialAcquisitionResult &acquisition,
 	std::wstring_view expectedSha256, std::span<const OfficialCatalogDevice> devices,
 	const OfficialInfRankAuditor &rankAuditor, const PreparationCancellation &cancellation,
 	OfficialDriverPackageAudit &audit) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Broadcom監査集計を既存表示行へ変換する。導入権限を付加しない。
- * Broadcom対象系列と既存候補IDを確定してから、固定profileの共通helperへ集約を委譲する。候補発行と導入routingは変更しない。
+ * @brief Broadcom監査集計を既存表示行へ変換する。導入権限を付加しない。Broadcom対象系列と既存候補IDを確定してから、固定profileの共通helperへ集約を委譲する。候
+ *        補発行と導入routingは変更しない。
  * @param[in] session 保持している0でない検索session。 検索時の有効session。
  * @param[in] targetIdentity 取得を承認済みのopaque計画対象ID。 同じ取得対象のopaque ID。
  * @param[in] devices 検索時と同じ順序の系列照合device。最大4096件。 検索時と同じ順序の非機密snapshot。
@@ -358,13 +374,14 @@ private:
  * @return 非機密report。不正な件数または入力には例外で全体拒否する。 既存候補の表示用report。不正入力は例外。
  * @note Broadcom対象と既存候補IDを確定後に共通集約へ委譲し、表示状態だけを生成する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialPreparationAuditReport makeBroadcomPreparationAuditReport(
 	ScanSessionId session, std::wstring_view targetIdentity,
 	std::span<const OfficialCatalogDevice> devices, const OfficialDriverPackageAudit &audit) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Broadcom監査合格INF／device組合せを明示版付き候補へ変換する。
- * INFの明示値だけを表示へ渡し、候補を推奨または初期選択へ昇格しない。
+ * @brief Broadcom監査合格INF／device組合せを明示版付き候補へ変換する。INFの明示値だけを表示へ渡し、候補を推奨または初期選択へ昇格しない。
  * @param[in] session 同じ取得・監査を所有する0でないscan session。 取得・監査と同じ検索session。
  * @param[in] acquisition 同じ公式取得層が固定したsize／hashとopaque取得identity。 共通取得層が固定した外側ZIPのidentity。
  * @param[in] devices 検索時と同じ非機密device snapshot群。
@@ -373,6 +390,7 @@ private:
  * @throws std::logic_error 同一scan、取得identityまたは監査保持構造が矛盾する場合。
  * @note INFのversion／dateだけを使用し、Web配布版やURLから値を推測しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::vector<UpdateCandidate> makeBroadcomPreparedCandidates(
 	ScanSessionId session, const OfficialAcquisitionResult &acquisition,
 	std::span<const OfficialCatalogDevice> devices, const OfficialDriverPackageAudit &audit) ;

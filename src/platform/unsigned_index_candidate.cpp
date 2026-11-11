@@ -2,7 +2,7 @@
 /**
  * @file unsigned_index_candidate.cpp
  * @brief 実GZipと全recordを未署名候補の共通検査へ接続します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/23  共通値codecと原期限の最小値検査を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 認証型のconstructorを呼びません。副作用はCNG hashと有限な確保だけです。
  * @see docs/adr/0396-collector-distribution-pipeline-connection.md
@@ -32,7 +33,16 @@
 #include <utility>
 
 namespace drivercrate {
-/** @see unsigned_index_candidate.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 配布用の実manifest/GZipを署名型を生成せず共通codecで検査します。
+ * @param[in] manifest 原UTF-8 manifestです。最大64KiBです。
+ * @param[in] gzip 原GZipです。最大32MiBです。
+ * @param[in] nowUtc 確認済みUTCです。欠損時は拒否します。
+ * @return 元codec診断と、全成功時だけ未署名receiptを返します。
+ * @note 配布channelの固定公開key IDだけを照合します。鍵storeは開きません。
+ */
+//------------------------------------------------------------------------------
 UnsignedIndexCandidateResult validateUnsignedIndexCandidate(
 	const std::string_view manifest, const std::span<const std::byte> gzip,
 	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept

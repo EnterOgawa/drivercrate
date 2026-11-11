@@ -2,7 +2,7 @@
 /**
  * @file metadata_search_runner_tests.cpp
  * @brief 専用Registry実行と表示専用終端の決定的試験。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * Ver.01.02.01 Shunji Ogawa  2026/10/12  索引専用callback空と選択拒否・不成立fixtureの参照安全を確認。
  * Ver.01.02.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * Ver.01.03.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note OS列挙とnetworkをfakeに置換し、実payloadと実導入を呼ばない。
@@ -297,10 +298,12 @@ struct MetadataFixture {
 	}
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 専用registry、全終端、和集合、非導入のfake実行を検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testRunner( TestContext &context)
 {
 	MetadataSearchRequest request ;	// 通常設定や同意を含まない今回の明示集合。
@@ -462,10 +465,12 @@ void testRunner( TestContext &context)
 									OutcomeCode::FAILURE) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 実際の共用metadata helperが停止後commitとpackage権限を作らないことを検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testDedicatedHelper( TestContext &context)
 {
 	MetadataSearchRequest request ;	// 審査済み一系列だけの明示集合。
@@ -517,10 +522,12 @@ void testDedicatedHelper( TestContext &context)
 									reads == 1U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 正規の全終端、改ざん、状態遷移と旧権限の失効を検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testPublicationAndController( TestContext &context)
 {
 	MetadataSearchRequest request ;	// 正本から全専用能力を明示するfixture。
@@ -704,7 +711,10 @@ struct MetadataWorkerState {
 /** @brief 復旧APIを初期化せず誤呼出しだけを記録する。 */
 class MetadataWorkerRestore final : public IRestorePointService {
 public:
-	/** @brief 拒否専用fakeは実在保護を生成しません。@return 元拒否区分です。 */
+	/**
+	 * @brief 拒否専用fakeは実在保護を生成しません。
+	 * @return 元拒否区分です。
+	 */
 	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
 	{
 		return {.disposition  = RestorePointDisposition::UNAVAILABLE,
@@ -712,19 +722,30 @@ public:
 				.error		  = static_cast<NativeError>( 0x80070005U)} ;
 	}
 
-	/** @brief Counterを共有する。@param[in] state 両threadで所有するfixture。 */
+	/**
+	 * @brief Counterを共有する。
+	 * @param[in] state 両threadで所有するfixture。
+	 */
 	explicit MetadataWorkerRestore( std::shared_ptr<MetadataWorkerState> state)
 		: state_( std::move( state))
 	{
 	}
-	/** @brief 実APIを呼ばず失敗する。@param[in] description 未使用の説明。@return 合成失敗。 */
+	/**
+	 * @brief 実APIを呼ばず失敗する。
+	 * @param[in] description 未使用の説明。
+	 * @return 合成失敗。
+	 */
 	RestorePointOperationResult begin( std::wstring_view description) noexcept override
 	{
 		static_cast<void>( description) ;
 		++state_->restoreCalls ;
 		return {.outcome = OutcomeCode::FAILURE, .error = static_cast<NativeError>( E_FAIL)} ;
 	}
-	/** @brief 実APIを呼ばず失敗する。@param[in] sequenceNumber 未使用の番号。@return 合成失敗。 */
+	/**
+	 * @brief 実APIを呼ばず失敗する。
+	 * @param[in] sequenceNumber 未使用の番号。
+	 * @return 合成失敗。
+	 */
 	RestorePointOperationResult complete( std::int64_t sequenceNumber) noexcept override
 	{
 		static_cast<void>( sequenceNumber) ;
@@ -740,7 +761,10 @@ private:
 /** @brief 専用runner以外をcounterに置き換えるworker用fake。 */
 class MetadataWorkerProvider final : public IUpdateProvider {
 public:
-	/** @brief Fixtureを共有する。@param[in] state 誤呼出しと待機の所有状態。 */
+	/**
+	 * @brief Fixtureを共有する。
+	 * @param[in] state 誤呼出しと待機の所有状態。
+	 */
 	explicit MetadataWorkerProvider( std::shared_ptr<MetadataWorkerState> state)
 		: state_( std::move( state))
 	{
@@ -864,6 +888,7 @@ private:
 	std::shared_ptr<MetadataWorkerState> state_ ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じ操作の終端を最大3秒の有限pollで取り出す。
  * @param[in,out] worker 停止まで所有するfake worker。
@@ -871,6 +896,7 @@ private:
  * @param[in] kind 対象の専用event種別。
  * @return 一致した所有event。未着は値なし。
  */
+//------------------------------------------------------------------------------
 std::optional<WorkerEvent> waitMetadataWorker( ProviderWorker &worker, OperationId operationId,
 											  WorkerEventKind kind)
 {
@@ -890,10 +916,12 @@ std::optional<WorkerEvent> waitMetadataWorker( ProviderWorker &worker, Operation
 	return std::nullopt ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Workerの用途照合、取消し寿命、旧承認拒否と副作用0回を検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testMetadataWorker( TestContext &context)
 {
 	const auto	   state = std::make_shared<MetadataWorkerState>() ;	// Fake factoryだけへ共有する。
@@ -970,10 +998,12 @@ void testMetadataWorker( TestContext &context)
 									state->restoreCalls == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 明示引数、新schema、旧baseline拒否と禁止field非出力を検証する。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void testMetadataReport( TestContext &context)
 {
 	const std::vector<std::vector<std::wstring_view>> rejected{
@@ -1072,10 +1102,12 @@ void testMetadataReport( TestContext &context)
 					 report.find( "outcome=aborted\nreason=cancelled\n") != std::string::npos &&
 					 report.find( "provider.reason=not_run_after_stop\n") != std::string::npos) ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 観測の非通信引継ぎ、分母保持とstale結果のnetwork前拒否を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testObservationSnapshot( TestContext &context)
 {
 	MetadataSearchRequest request ;	// 選択した一つのfakeのみを呼ぶ。
@@ -1101,7 +1133,12 @@ void testObservationSnapshot( TestContext &context)
 
 } // namespace
 
-/** @see metadata_search_runner_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Registry、部分結果、非取得、権限と専用metadata helperを検証する。
+ * @param[in,out] context Assertionの集計先。
+ */
+//------------------------------------------------------------------------------
 void runMetadataSearchRunnerTests( TestContext &context)
 {
 	testRunner( context) ;

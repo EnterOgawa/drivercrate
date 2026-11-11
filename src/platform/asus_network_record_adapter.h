@@ -2,7 +2,7 @@
 /**
  * @file asus_network_record_adapter.h
  * @brief ASUS公式ネットワーク配布を共通recordへ接続します。
- * @version 01.06.00
+ * @version 01.06.01
  * @date 2026/09/20
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/09/24  旧用途hintと別の公開model付きquery v2を追加。
  * Ver.01.05.00 Shunji Ogawa  2026/09/28  収集専用候補と共通配布field組立てを追加。
  * Ver.01.06.00 Shunji Ogawa  2026/09/28  必須制御付き候補／対象照合入口を追加。
+ * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 呼出しthreadで同期実行します。取得用recordは適用性または導入許可ではありません。
@@ -82,14 +83,17 @@ struct AsusDriverCatalogQuery {
 	/// v2だけの明示ASUS公開modelとOS。旧queryでは空で現PC識別を維持します。
 	std::optional<AsusSupportPageRequest> publicPage ;
 } ;
+//------------------------------------------------------------------------------
 /**
  * @brief 有限のcanonical query fileを通信なしで検証します。
  * @param[in] bytes DCASUSQUERY1の5行、または公開model／OSを追加したDCASUSQUERY2の7行。
  * @return 正常時の公開条件。不正文字、未知分類、過大予算では空。
  * @note URL、path、制御文字、ID形式を公開hintとして受け入れません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<AsusDriverCatalogQuery> parseAsusDriverCatalogQuery(
 	std::string_view bytes) ;
+//------------------------------------------------------------------------------
 /**
  * @brief 検証済みASUS解析結果を同一rootの有限record集合へ変換します。
  * @param[in] entries 既存parserが同じ応答から返した配布metadata。
@@ -104,6 +108,7 @@ struct AsusDriverCatalogQuery {
  * @return 公式根拠、公開hash、ZIP、有限集合を検証できた場合true。
  * @note URLをログやAIへ渡しません。端末の生ID照合は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool adaptAsusNetworkDistributionRecords(
 	std::span<const AsusDriverPageEntry> entries, const AsusSupportPageRequest &request,
 	AsusNetworkRecordTarget target, const OfficialSourceEvidence &rootEvidence,
@@ -111,6 +116,7 @@ struct AsusDriverCatalogQuery {
 	std::wstring_view category = {}, std::uint64_t maximumBytes = 128ULL * 1024ULL * 1024ULL,
 	std::size_t *overBudget = nullptr) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 収集専用の同一store解析結果から、証拠未発行の一時record候補を作ります。
  * @param[in] page 同じ本文・同じrequestで解析したASUS公開identityと採用行。
@@ -120,9 +126,11 @@ struct AsusDriverCatalogQuery {
  * @return 同一scope、公式URL、公開hash、一意性と16件上限を満たした場合true。
  * @note 呼出元はpageとrequestの同一本文結合を保証します。取得証拠・grantは発行しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool adaptAsusCollectorNetworkRecordCandidates(
 	const AsusCollectorPageResult &page, const AsusSupportPageRequest &request,
 	std::uint64_t resolvedUtcSeconds, std::vector<OfficialCollectorRecordCandidate> &candidates) ;
+//------------------------------------------------------------------------------
 /**
  * @brief 現在のASUS公開model起点を一回取得し、既存parserからrecordを作ります。
  * @param[in] session 現在操作の0でないsession。
@@ -136,12 +144,14 @@ struct AsusDriverCatalogQuery {
  * @return 成功0、対象外・通信・schema拒否はHRESULT。
  * @note COM apartment内で同期実行します。Payload取得や実行は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError resolveAsusNetworkDistributionRecords(
 	ScanSessionId session, AsusNetworkRecordTarget target, OfficialHttpClient &client,
 	std::vector<OfficialDistributionRecord> &records, AsusNetworkRecordObservation &observation,
 	std::wstring_view category = {}, std::uint64_t maximumBytes = 128ULL * 1024ULL * 1024ULL,
 	const AsusSupportPageRequest *publicRequest = nullptr) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 明示した公開ASUS modelの公式pageを一回取得し型付きrecordを作ります。
  * @param[in] session 現在操作の0でないsession。
@@ -156,11 +166,13 @@ struct AsusDriverCatalogQuery {
  * @return 成功0、model／OS・通信・schema拒否はHRESULT。
  * @note 現PCのregistryは読まず、成功だけで端末PnP適合としません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError resolveAsusNetworkDistributionRecordsForPublicModel(
 	ScanSessionId session, AsusNetworkRecordTarget target, OfficialHttpClient &client,
 	std::wstring_view publicModel, std::wstring_view osName,
 	std::vector<OfficialDistributionRecord> &records, AsusNetworkRecordObservation &observation,
 	std::wstring_view category = {}, std::uint64_t maximumBytes = 128ULL * 1024ULL * 1024ULL) ;
+//------------------------------------------------------------------------------
 /**
  * @brief 同じcoreで停止・失敗と候補／対象の照合結果を分けます。
  * @param[in] page 同じ本文のpage。
@@ -170,6 +182,7 @@ struct AsusDriverCatalogQuery {
  * @param[out] candidates 完了時のみ公開する所有値。
  * @return 解析／照合の型付き終了。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CollectorParserResult adaptAsusCollectorNetworkRecordCandidatesControlled(
 	const AsusCollectorPageResult &page, const AsusSupportPageRequest &request,
 	std::uint64_t resolvedUtcSeconds, OfficialCollectorHttpControl &control,

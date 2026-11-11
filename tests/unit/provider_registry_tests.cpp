@@ -2,7 +2,7 @@
 /**
  * @file provider_registry_tests.cpp
  * @brief Provider registry単体試験実装。
- * @version 01.05.01
+ * @version 01.05.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -74,6 +74,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/12  真署名索引から共通取得・検査と拒否の内部fixtureを追加。
  * Ver.01.05.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
  * Ver.01.05.01 Shunji Ogawa  2026/10/12  通常索引の指定導入を含むINSTALL登録22件を確認。
+ * Ver.01.05.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 端末情報やnetworkを使用せずProvider設定のfail-closed条件を試験します。
@@ -782,7 +783,9 @@ void testCoverage( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/provider_registry_tests.h 宣言側の契約を正本とする。
+ * @brief Provider registryのID、既定値、明示選択、拒否条件を検証する。Provider registryの全単体試験を実行する。定義、選択、fail-closed条件を順
+ *        番に検証する。
+ * @param[in,out] context assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runProviderRegistryTests( TestContext &context)

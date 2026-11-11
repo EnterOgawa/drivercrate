@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_package_inspection.h
  * @brief Record限定取得結果と共通driver package検査の接続定義。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  公式由来を表示専用候補評価へ再結合。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  Device別PnP観測と取得後表示reportを追加。
  * Ver.01.03.00 Shunji Ogawa  2026/11/03  明示非実行formatを元grant/record/hintへ結合。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 本型と関数はProvider worker内だけで使用します。秘密URLと実pathをUI、log、cacheへ渡さず、
@@ -133,6 +134,7 @@ using DelegatedOfficialInfRankObserver = std::function<NativeError(
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 	std::optional<std::uint32_t> &candidateRank)> ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Record限定取得結果と消費済みgrantを共通package検査入力へ変換します。
  * @param[in] acquisition 成功取得ledgerが公開したworker内結果です。
@@ -142,11 +144,14 @@ using DelegatedOfficialInfRankObserver = std::function<NativeError(
  * @post 失敗時は`input`を初期値へ戻します。
  * @note 形式はgrantが保持する公開basenameからだけ決定し、実pathやURLから推測しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError makeDelegatedOfficialPackageInput(
 	const OfficialAcquisitionResult &acquisition, const RecordScopedDownloadGrant &grant,
 	DelegatedOfficialPackageInput &input) noexcept ;
 
-/** @brief 認証recordの明示非実行formatを同じ消費済みgrantへ結ぶ。
+//------------------------------------------------------------------------------
+/**
+ * @brief 認証recordの明示非実行formatを同じ消費済みgrantへ結ぶ。
  * @param[in] acquisition 元sessionの成功ledger行。
  * @param[in] grant 同じSIGNED_INDEX recordの一回消費済みgrant。
  * @param[in] hint 元adapterが封印解除後に結んだindex/record/outer/content選択。
@@ -154,11 +159,13 @@ using DelegatedOfficialInfRankObserver = std::function<NativeError(
  * @param[out] input 全既存結合を成功したworker入力。失敗時は空。
  * @return 全結合成功0、元HRESULT。署名/実byte/適合の成功ではない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError makeDelegatedOfficialPackageInput(
 	const OfficialAcquisitionResult &acquisition, const RecordScopedDownloadGrant &grant,
 	const IndexedDriverArchiveHint &hint, OfficialDriverArchiveFormat format,
 	DelegatedOfficialPackageInput &input) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 現在sessionのrecord限定取得fileをADR 0151の共通内容検査へ渡します。
  * @param[in] activeScanSessionId 現在のworker scan session IDです。
@@ -168,10 +175,12 @@ using DelegatedOfficialInfRankObserver = std::function<NativeError(
  * @return 共通検査完了時0、stale、入力不整合、取消しまたは検査失敗時はHRESULTです。
  * @note 個別INF拒否は他のINF検査を止めません。導入、stagingまたは由来合格は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectDelegatedOfficialDriverPackage(
 	ScanSessionId activeScanSessionId, const DelegatedOfficialPackageInput &input,
 	CommonDriverPackageInspection &inspection, const std::function<bool()> &cancellation = {}) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 内容合格INFを結合済みdeviceへWindows標準APIでread-only照合します。
  * @param[in] activeScanSessionId 現在のworker scan session IDです。
@@ -184,6 +193,7 @@ using DelegatedOfficialInfRankObserver = std::function<NativeError(
  * @return 全組合せを確認した場合0、stale、入力不整合、取消しまたは例外時はHRESULTです。
  * @post 失敗時は全結果を空にし、stage、driver選択またはinstallを行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectDelegatedOfficialDriverApplicability(
 	ScanSessionId activeScanSessionId, const DelegatedOfficialPackageInput &input,
 	const CommonDriverPackageInspection				  &packageInspection,
@@ -192,6 +202,7 @@ using DelegatedOfficialInfRankObserver = std::function<NativeError(
 	std::vector<DelegatedOfficialDeviceApplicability> &results,
 	const std::function<bool()>						  &cancellation = {}) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 取得、内容検査、device別PnP観測を既存表示行の非機密reportへ変換します。
  * @param[in] target 利用者が取得を承認したURL非保持準備対象です。
@@ -206,6 +217,7 @@ using DelegatedOfficialInfRankObserver = std::function<NativeError(
  * @return 全bindingと件数が整合する場合は監査report、それ以外は値なしです。
  * @post 適用性が合格しても候補発行とinstall routingは開始しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<OfficialPreparationAuditReport>
 makeDelegatedOfficialPreparationAuditReport(
 	const OfficialPreparationTarget &target, const OfficialDiscoveryPackageGroup &group,
@@ -215,6 +227,7 @@ makeDelegatedOfficialPreparationAuditReport(
 	NativeError											  applicabilityError,
 	std::span<const DelegatedOfficialDeviceApplicability> applicability) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 共通内容検査の一INFと公式record由来を表示専用候補の八軸評価へ再結合します。
  * @param[in] activeScanSessionId 現在のworker scan session IDです。
@@ -229,6 +242,7 @@ makeDelegatedOfficialPreparationAuditReport(
  * @return Session、Provider、archive、INF、由来と候補identityを安全に結合できればtrueです。
  * @post 成功時もmethodは未対応、executorはfalseで、導入可能にはなりません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool makeDelegatedOfficialInfCandidateAssessment(
 	ScanSessionId activeScanSessionId, const DelegatedOfficialPackageInput &input,
 	const UpdateCandidate &candidate, const CommonDriverPackageInspection &packageInspection,

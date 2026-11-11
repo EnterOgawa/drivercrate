@@ -2,7 +2,7 @@
 /**
  * @file app_update_tests.cpp
  * @brief App更新の版/JSON/worker/完全fake HTTPを確認します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 実network・署名鍵・driver操作・Setup実行を行いません。
  * @see docs/adr/0481-app-inno-setup-and-update-checks.md
@@ -42,9 +43,12 @@ namespace {
 using namespace drivercrate ;
 unsigned assertions{} ;	// 固定期待の分母です。
 unsigned failures{} ;	// 失敗を後続成功で隠しません。
-/** @brief 固定期待を集計します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定期待を集計します。
  * @param[in] value 期待成立値です。
  */
+//------------------------------------------------------------------------------
 void	 expect( const bool value)
 {
 	++assertions ;
@@ -54,9 +58,12 @@ void	 expect( const bool value)
 		std::printf( "FAIL assertion=%u\n", assertions) ;
 	}
 }
-/** @brief 正常な架空Setup宣言を作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 正常な架空Setup宣言を作ります。
  * @return 非実行payloadのhashを持つ値です。
  */
+//------------------------------------------------------------------------------
 AppUpdateRelease sample()
 {
 	const std::string bytes = "synthetic setup bytes" ;	// 署名や実行物ではありません。
@@ -70,10 +77,13 @@ AppUpdateRelease sample()
 
 	return {{{1U, 0U, 5U}}, bytes.size(), ascii} ;
 }
-/** @brief 一assetだけの架空GitHub JSONを作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一assetだけの架空GitHub JSONを作ります。
  * @param[in] release 正常な架空宣言です。
  * @return 固定repo/tag/assetのJSONです。
  */
+//------------------------------------------------------------------------------
 std::string metadata( const AppUpdateRelease &release)
 {
 	return "{\"tag_name\":\"v" + formatAppVersion( release.version) +
@@ -83,12 +93,15 @@ std::string metadata( const AppUpdateRelease &release)
 		   "\",\"browser_download_url\":\"https://github.com/EnterOgawa/drivercrate/releases/download/v" +
 		   formatAppVersion( release.version) + "/DriverCrateSetup-windows-x64.exe\"}]}" ;
 }
-/** @brief 一箇所だけの入力破損を作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一箇所だけの入力破損を作ります。
  * @param[in] text 元の架空JSONです。
  * @param[in] from 置換対象です。
  * @param[in] to 不正な値です。
  * @return 置換後のJSONです。
  */
+//------------------------------------------------------------------------------
 std::string changed( std::string text, std::string_view from, std::string_view to)
 {
 	const auto position = text.find( from) ;	// 一意の対象位置です。
@@ -100,7 +113,11 @@ std::string changed( std::string text, std::string_view from, std::string_view t
 
 	return text ;
 }
-/** @brief 版とJSONの正常/拒否境界を確認します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 版とJSONの正常/拒否境界を確認します。
+ */
+//------------------------------------------------------------------------------
 void policy()
 {
 	const AppVersion current{{1U, 0U, 4U}} ;	// 架空の元版です。
@@ -180,13 +197,15 @@ struct WorkerState {
 /** @brief workerを完全な非通信I/Oで動かします。 */
 class Backend final : public AppUpdateBackend {
 public:
-	/** @brief 非機密counterだけを共有します。
+	/**
+	 * @brief 非機密counterだけを共有します。
 	 * @param[in] state workerより長生きする状態です。
 	 */
 	explicit Backend( std::shared_ptr<WorkerState> state) : state_( std::move( state))
 	{
 	}
-	/** @brief 架空の新版を返します。
+	/**
+	 * @brief 架空の新版を返します。
 	 * @param[in] cancel 元の取消しです。
 	 * @return 架空の一件です。
 	 */
@@ -202,7 +221,8 @@ public:
 		result.release = AppUpdateRelease{{{1U, 0U, 5U}}, 2U, std::string( 64U, 'a')} ;
 		return result ;
 	}
-	/** @brief 明示取得だけを数えます。
+	/**
+	 * @brief 明示取得だけを数えます。
 	 * @param[in] release 元の宣言です。
 	 * @param[in] cancel 元の取消しです。
 	 * @return 固定成功です。
@@ -215,7 +235,8 @@ public:
 		++state_->downloads ;
 		return {} ;
 	}
-	/** @brief 起動失敗を注入し、元App維持を確認します。
+	/**
+	 * @brief 起動失敗を注入し、元App維持を確認します。
 	 * @param[in] release 元の宣言です。
 	 * @param[in] cancel 元の取消しです。
 	 * @return 固定の起動失敗です。
@@ -233,10 +254,13 @@ private:
 	/// 両threadの非機密counterだけです。
 	std::shared_ptr<WorkerState> state_ ;
 } ;
-/** @brief 一結果を有限時間だけ待ちます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一結果を有限時間だけ待ちます。
  * @param[in,out] service 試験するworkerです。
  * @return 受信した結果。不達は失敗分類です。
  */
+//------------------------------------------------------------------------------
 AppUpdateEvent wait( AppUpdateService &service)
 {
 	// 同期API待機を含まないfixtureを最大3秒で終えます。
@@ -253,7 +277,11 @@ AppUpdateEvent wait( AppUpdateService &service)
 	expect( false) ;
 	return {AppUpdateStage::IDLE, {AppUpdateFailureKind::NETWORK, E_FAIL, 0U, 0U}, {}, false} ;
 }
-/** @brief 二重要求/同意前0/見送り/明示再確認/取消しを確認します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 二重要求/同意前0/見送り/明示再確認/取消しを確認します。
+ */
+//------------------------------------------------------------------------------
 void worker()
 {
 	auto			 state = std::make_shared<WorkerState>() ;					// thread停止まで共有します。
@@ -309,7 +337,9 @@ struct HttpState {
 } ;
 /** @brief 同期fixtureだけに有効な完全I/Oの参照です。 */
 thread_local HttpState *active{} ;
-/** @brief 非通信のsessionを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 非通信のsessionを返します。
  * @param[in] agent 固定識別子です。
  * @param[in] access proxy modeです。
  * @param[in] proxy 未使用です。
@@ -317,6 +347,7 @@ thread_local HttpState *active{} ;
  * @param[in] flags 未使用です。
  * @return fake handleです。
  */
+//------------------------------------------------------------------------------
 HINTERNET WINAPI open( LPCWSTR agent, DWORD access, LPCWSTR proxy, LPCWSTR bypass, DWORD flags)
 {
 	static_cast<void>( agent) ;
@@ -326,13 +357,16 @@ HINTERNET WINAPI open( LPCWSTR agent, DWORD access, LPCWSTR proxy, LPCWSTR bypas
 	static_cast<void>( flags) ;
 	return active ;
 }
-/** @brief 実connect先だけを観測します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実connect先だけを観測します。
  * @param[in] session fake handleです。
  * @param[in] host 検証済みhostです。
  * @param[in] port HTTPS portです。
  * @param[in] reserved 未使用です。
  * @return fake handleです。
  */
+//------------------------------------------------------------------------------
 HINTERNET WINAPI connect( HINTERNET session, LPCWSTR host, INTERNET_PORT port, DWORD reserved)
 {
 	static_cast<void>( session) ;
@@ -341,7 +375,9 @@ HINTERNET WINAPI connect( HINTERNET session, LPCWSTR host, INTERNET_PORT port, D
 	active->hosts.emplace_back( host) ;
 	return active ;
 }
-/** @brief GETだけのfake requestを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief GETだけのfake requestを返します。
  * @param[in] connection fake handleです。
  * @param[in] verb 固定GETです。
  * @param[in] object 固定pathです。
@@ -351,6 +387,7 @@ HINTERNET WINAPI connect( HINTERNET session, LPCWSTR host, INTERNET_PORT port, D
  * @param[in] flags HTTPS flagです。
  * @return fake handleです。
  */
+//------------------------------------------------------------------------------
 HINTERNET WINAPI request( HINTERNET connection, LPCWSTR verb, LPCWSTR object, LPCWSTR version,
 						 LPCWSTR referer, LPCWSTR *accept, DWORD flags)
 {
@@ -362,7 +399,9 @@ HINTERNET WINAPI request( HINTERNET connection, LPCWSTR verb, LPCWSTR object, LP
 	expect( std::wstring_view( verb) == L"GET" && (flags & WINHTTP_FLAG_SECURE) != 0U) ;
 	return active ;
 }
-/** @brief finite timeoutを受理します。
+//------------------------------------------------------------------------------
+/**
+ * @brief finite timeoutを受理します。
  * @param[in] handle fake handleです。
  * @param[in] resolve 正のtimeoutです。
  * @param[in] connection 正のtimeoutです。
@@ -370,19 +409,23 @@ HINTERNET WINAPI request( HINTERNET connection, LPCWSTR verb, LPCWSTR object, LP
  * @param[in] receive 正のtimeoutです。
  * @return TRUEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI timeouts( HINTERNET handle, int resolve, int connection, int send, int receive)
 {
 	static_cast<void>( handle) ;
 	expect( resolve > 0 && connection > 0 && send > 0 && receive > 0) ;
 	return TRUE ;
 }
-/** @brief option設定を受理します。
+//------------------------------------------------------------------------------
+/**
+ * @brief option設定を受理します。
  * @param[in] handle fake handleです。
  * @param[in] option 固定optionです。
  * @param[in] value 借用値です。
  * @param[in] size 借用byte数です。
  * @return TRUEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI option( HINTERNET handle, DWORD option, LPVOID value, DWORD size)
 {
 	static_cast<void>( handle) ;
@@ -391,13 +434,16 @@ BOOL WINAPI option( HINTERNET handle, DWORD option, LPVOID value, DWORD size)
 	static_cast<void>( size) ;
 	return TRUE ;
 }
-/** @brief 固定headerを受理します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定headerを受理します。
  * @param[in] handle fake handleです。
  * @param[in] value 固定headerです。
  * @param[in] size 文字数です。
  * @param[in] flags 固定flagです。
  * @return TRUEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI headers( HINTERNET handle, LPCWSTR value, DWORD size, DWORD flags)
 {
 	static_cast<void>( handle) ;
@@ -406,7 +452,9 @@ BOOL WINAPI headers( HINTERNET handle, LPCWSTR value, DWORD size, DWORD flags)
 	static_cast<void>( flags) ;
 	return TRUE ;
 }
-/** @brief 各応答の先頭へ進めます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 各応答の先頭へ進めます。
  * @param[in] handle fake handleです。
  * @param[in] headers 固定headerです。
  * @param[in] headerSize 文字数です。
@@ -416,6 +464,7 @@ BOOL WINAPI headers( HINTERNET handle, LPCWSTR value, DWORD size, DWORD flags)
  * @param[in] context 未使用です。
  * @return 応答があればTRUEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI send( HINTERNET handle, LPCWSTR headers, DWORD headerSize, LPVOID data, DWORD length,
 				 DWORD total, DWORD_PTR context)
 {
@@ -430,18 +479,23 @@ BOOL WINAPI send( HINTERNET handle, LPCWSTR headers, DWORD headerSize, LPVOID da
 	active->offset = 0U ;
 	return active->sends <= active->responses.size() ;
 }
-/** @brief 応答開始を受理します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 応答開始を受理します。
  * @param[in] handle fake handleです。
  * @param[in] reserved 未使用です。
  * @return TRUEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI receive( HINTERNET handle, LPVOID reserved)
 {
 	static_cast<void>( handle) ;
 	static_cast<void>( reserved) ;
 	return TRUE ;
 }
-/** @brief 同名一件の有限headerを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同名一件の有限headerを返します。
  * @param[in] handle fake handleです。
  * @param[in] level header selectorです。
  * @param[in] name 未使用です。
@@ -450,6 +504,7 @@ BOOL WINAPI receive( HINTERNET handle, LPVOID reserved)
  * @param[in,out] index 同名headerの位置です。
  * @return 本読取り成功ならTRUEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI query( HINTERNET handle, DWORD level, LPCWSTR name, LPVOID buffer, LPDWORD size,
 				  LPDWORD index)
 {
@@ -507,11 +562,14 @@ BOOL WINAPI query( HINTERNET handle, DWORD level, LPCWSTR name, LPVOID buffer, L
 
 	return TRUE ;
 }
-/** @brief 残body量だけを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 残body量だけを返します。
  * @param[in] handle fake handleです。
  * @param[out] count 残byteです。
  * @return TRUEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI available( HINTERNET handle, LPDWORD count)
 {
 	static_cast<void>( handle) ;
@@ -519,13 +577,16 @@ BOOL WINAPI available( HINTERNET handle, LPDWORD count)
 		static_cast<DWORD>( active->responses.at( active->sends - 1U).body.size() - active->offset) ;
 	return TRUE ;
 }
-/** @brief 指定chunkだけを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 指定chunkだけを返します。
  * @param[in] handle fake handleです。
  * @param[out] buffer 借用出力です。
  * @param[in] maximum 最大byte数です。
  * @param[out] received 実byte数です。
  * @return TRUEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI read( HINTERNET handle, LPVOID buffer, DWORD maximum, LPDWORD received)
 {
 	static_cast<void>( handle) ;
@@ -537,18 +598,24 @@ BOOL WINAPI read( HINTERNET handle, LPVOID buffer, DWORD maximum, LPDWORD receiv
 	*received = static_cast<DWORD>( count) ;
 	return TRUE ;
 }
-/** @brief fake handleの解放を受理します。
+//------------------------------------------------------------------------------
+/**
+ * @brief fake handleの解放を受理します。
  * @param[in] handle fake handleです。
  * @return TRUEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI close( HINTERNET handle)
 {
 	static_cast<void>( handle) ;
 	return TRUE ;
 }
-/** @brief 全通信をfakeへ置き換えます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全通信をfakeへ置き換えます。
  * @return native DNSを含まない完全I/Oです。
  */
+//------------------------------------------------------------------------------
 OfficialHttpTransport transport()
 {
 	OfficialHttpTransport io ;	// 各ABIを完全に置き換えます。
@@ -577,12 +644,15 @@ OfficialHttpTransport transport()
 	} ;
 	return io ;
 }
-/** @brief 一回だけの共通HTTPへfakeを渡します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一回だけの共通HTTPへfakeを渡します。
  * @param[in,out] state 完全な非通信応答です。
  * @param[out] result 最小結果です。
  * @param[in] cancelled 送信前取消しです。
  * @return 元HTTP結果です。
  */
+//------------------------------------------------------------------------------
 NativeError get( HttpState &state, app_update_detail::HttpResult &result,
 				const bool cancelled = false)
 {
@@ -596,7 +666,11 @@ NativeError get( HttpState &state, app_update_detail::HttpResult &result,
 	control.cancellation = [cancelled]() { return cancelled ; } ;
 	return app_update_detail::Access::http( client, nullptr, nullptr, control, result) ;
 }
-/** @brief 固定route/HTTP拒否/取消しとfile保護を確認します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定route/HTTP拒否/取消しとfile保護を確認します。
+ */
+//------------------------------------------------------------------------------
 void http()
 {
 	const auto					  release = sample() ;	// 架空配布物です。
@@ -711,9 +785,12 @@ void http()
 	active = nullptr ;
 }
 }
-/** @brief 全て非通信の固定試験だけを実行します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全て非通信の固定試験だけを実行します。
  * @return 全期待成立時は0です。
  */
+//------------------------------------------------------------------------------
 int main()
 {
 	try {

@@ -2,7 +2,7 @@
 /**
  * @file local_collector_projected_executor.cpp
  * @brief 専用workerの同一GET解析・一回終端・全joinを実装します。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/29  四slotの専用worker終端を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/29  元本文と失敗専用診断を同じworkerへ結合。
  * Ver.01.02.00 Shunji Ogawa  2026/09/29  別監督・未join・二重prepareの非公開gateを追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 新応答を旧v3保存へ渡さず、全予約を未精算のまま保持します。
@@ -87,7 +88,8 @@ struct LocalCollectorProjectedExecutor::State {
 	/// 最初の予約前に固定する監督の所有identity。address再利用を防ぎます。
 	std::shared_ptr<const std::byte>	   recoveryOwner ;
 
-	/** @brief 全依存を保存前に検査します。
+	/**
+	 * @brief 全依存を保存前に検査します。
 	 * @param[in] value 所有して渡す明示依存。
 	 */
 	explicit State( CollectorProjectedExecutorDependencies value)
@@ -100,7 +102,8 @@ struct LocalCollectorProjectedExecutor::State {
 			throw std::invalid_argument( "projected collector dependencies") ;
 		}
 	}
-	/** @brief 第一の全体errorを保持し、未終端だけを停止します。
+	/**
+	 * @brief 第一の全体errorを保持し、未終端だけを停止します。
 	 * @param[in] error 原監督error。利用者取消しは0です。
 	 */
 	void stop( DWORD error)
@@ -115,7 +118,8 @@ struct LocalCollectorProjectedExecutor::State {
 							 ? CollectorIoCause::CANCELLED
 							 : CollectorIoCause::SHARED_STOP) ;
 	}
-	/** @brief 同一slotの原失敗を追加allocationなしで保持します。
+	/**
+	 * @brief 同一slotの原失敗を追加allocationなしで保持します。
 	 * @param[in] index 対象slot。
 	 * @param[in] domain 原codeのdomain。
 	 * @param[in] code 32bitの原値。
@@ -125,7 +129,8 @@ struct LocalCollectorProjectedExecutor::State {
 		pool.controls_[index]->fail( CollectorIoCause::SETUP,
 									{domain, code, CollectorIoStage::SETUP}, false) ;
 	}
-	/** @brief 元先着causeを維持して射影を確定し、一度だけ通知します。
+	/**
+	 * @brief 元先着causeを維持して射影を確定し、一度だけ通知します。
 	 * @param[in] index 秘密資源とCOMを回収済みのslot。
 	 */
 	void finish( std::size_t index) noexcept
@@ -187,7 +192,8 @@ struct LocalCollectorProjectedExecutor::State {
 		}
 		changed.notify_all() ;
 	}
-	/** @brief 元prepared入力と同じGETだけを解析する専用callbackです。
+	/**
+	 * @brief 元prepared入力と同じGETだけを解析する専用callbackです。
 	 * @param[in] index Workerが所有するslot。
 	 */
 	void getAndProject( std::size_t index)
@@ -232,7 +238,8 @@ struct LocalCollectorProjectedExecutor::State {
 			control->fail( CollectorIoCause::PARSER, slot.value.parser->error, false) ;
 		}
 	}
-	/** @brief COM・秘密値のscopeを閉じてから一回finishします。
+	/**
+	 * @brief COM・秘密値のscopeを閉じてから一回finishします。
 	 * @param[in] index 一回起動したslot。
 	 */
 	void worker( std::size_t index) noexcept
@@ -265,7 +272,8 @@ struct LocalCollectorProjectedExecutor::State {
 
 		finish( index) ;
 	}
-	/** @brief Prepared jobの文字列だけを予約前に所有します。
+	/**
+	 * @brief Prepared jobの文字列だけを予約前に所有します。
 	 * @param[in] index 次に使うslot。
 	 * @param[in] jobIndex Readinessが示した共有job。
 	 * @return 元prepared jobが存在する場合true。
@@ -295,21 +303,37 @@ struct LocalCollectorProjectedExecutor::State {
 	}
 } ;
 
-/** @see local_collector_projected_executor.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示native clientだけを生成する依存を返します。構築では通信しません。
+ * @return 呼出しごとにnative clientを単独所有するfactory。clientの生成は呼出しworkerのMTAで行います。
+ */
+//------------------------------------------------------------------------------
 CollectorProjectedClientFactory collectorNativeProjectedClientFactory()
 {
 	// Clientの生成先は呼出しworkerのMTAだけです。
 	return [] { return std::make_unique<LocalCollectorHttpClient>() ; } ;
 }
 
-/** @see local_collector_projected_executor.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全slot・元controlを最初の予約より前に確保します。
+ * @param[in] dependencies 空を許さない明示依存。Captured借用先は全joinまで必要です。
+ * @throws std::invalid_argument 依存またはprepared入力が欠ける場合。
+ * @throws std::bad_alloc 予約前の確保が失敗した場合。
+ */
+//------------------------------------------------------------------------------
 LocalCollectorProjectedExecutor::LocalCollectorProjectedExecutor(
 	CollectorProjectedExecutorDependencies dependencies)
 	: state_( std::make_unique<State>( std::move( dependencies)))
 {
 }
 
-/** @see local_collector_projected_executor.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全workerを停止・joinします。未精算予約・保存物は削除しません。
+ */
+//------------------------------------------------------------------------------
 LocalCollectorProjectedExecutor::~LocalCollectorProjectedExecutor()
 {
 	// 通常の明示join後は確定観測と取消し報告を変更しません。
@@ -319,7 +343,14 @@ LocalCollectorProjectedExecutor::~LocalCollectorProjectedExecutor()
 	}
 }
 
-/** @see local_collector_projected_executor.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ親writerで次の一件を予約し専用workerへ渡します。
+ * @param[in,out] recovery 同じprepared世代の監督。他poolとの混在は禁止です。
+ * @return 成功0、未準備／四枠使用済み1237、取消し995、または原error。
+ * @note 待機・保存・slot再利用はしません。失敗した起動もjoinで回収してください。
+ */
+//------------------------------------------------------------------------------
 DWORD LocalCollectorProjectedExecutor::startNext( LocalCollectorRecovery &recovery)
 {
 	auto &state = *state_ ;	// Parent writerだけが予約・報告を変更します。
@@ -453,7 +484,13 @@ DWORD LocalCollectorProjectedExecutor::startNext( LocalCollectorRecovery &recove
 	return state.report.error ;
 }
 
-/** @see local_collector_projected_executor.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 追加受付を閉じ、全通知を待ってjoinします。同じwriterから使用します。
+ * @return 未精算予約数・実join数・第一error。二度目は同じ結果を返します。
+ * @note 待機は500msごとに取消し／全体失敗を観測します。強制thread終了は行いません。
+ */
+//------------------------------------------------------------------------------
 CollectorProjectedExecutorReport LocalCollectorProjectedExecutor::join()
 {
 	auto &state = *state_ ;	// 親writerだけがjoinと報告を更新します。
@@ -521,14 +558,24 @@ CollectorProjectedExecutorReport LocalCollectorProjectedExecutor::join()
 	return state.report ;
 }
 
-/** @see local_collector_projected_executor.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 他threadから取消しsignalだけを公開します。確定済み結果は変更しません。
+ */
+//------------------------------------------------------------------------------
 void LocalCollectorProjectedExecutor::requestStop() noexcept
 {
 	state_->cancelled->store( true, std::memory_order_release) ;
 	state_->changed.notify_all() ;
 }
 
-/** @see local_collector_projected_executor.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 全join後だけ元slotの不変結果を参照します。
+ * @param[in] slot 予約した順の0～3。
+ * @return 全join後の予約済みslotのみ非null。寿命はexecutorと同じです。
+ */
+//------------------------------------------------------------------------------
 const CollectorProjectedWorkerResult *LocalCollectorProjectedExecutor::result(
 	std::size_t slot) const noexcept
 {
@@ -540,7 +587,16 @@ const CollectorProjectedWorkerResult *LocalCollectorProjectedExecutor::result(
 	return &state_->slots[slot].value ;
 }
 
-/** @see local_collector_projected_executor.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ監督へ全join済みの一結果を一度だけ渡します。
+ * @param[in] owner 予約元監督の非再利用token。
+ * @param[in] slot 元予約slot。
+ * @param[out] campaign 成功時だけ元prepared入力の借用。失敗時null。
+ * @param[out] worker 成功時だけ元const結果の借用。失敗時null。
+ * @return 元の全体error、関係拒否13、または成功0。両借用はexecutorまで存続します。
+ */
+//------------------------------------------------------------------------------
 DWORD LocalCollectorProjectedExecutor::takeInitialPreparation(
 	const std::shared_ptr<const std::byte> &owner, std::size_t slot,
 	const CollectorPreparedProjectedCampaign *&campaign,
@@ -567,7 +623,12 @@ DWORD LocalCollectorProjectedExecutor::takeInitialPreparation(
 	worker							   = &state.slots[slot].value ;
 	return ERROR_SUCCESS ;
 }
-/** @see local_collector_projected_executor.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 親の第一準備失敗を全体停止へ伝播します。
+ * @param[in] error 非zeroの元数値。既存の第一errorは置換しません。
+ */
+//------------------------------------------------------------------------------
 void LocalCollectorProjectedExecutor::failPreparation( DWORD error)
 {
 	state_->stop( error) ;

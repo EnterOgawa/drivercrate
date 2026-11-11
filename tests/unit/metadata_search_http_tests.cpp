@@ -2,7 +2,7 @@
 /**
  * @file metadata_search_http_tests.cpp
  * @brief 共通HTTPの非通信backendによる情報検索境界試験。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/12  固定起点・cache・受信・停止のfake試験を追加。
  * Ver.01.00.01 Shunji Ogawa  2026/09/15  Windows 11 Ethernet固定起点を検証。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  透明な共通User-Agentの完全一致検証を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 全I/Oをfixtureへ置換し、実通信・既存cache変更を行わない。
@@ -134,10 +135,12 @@ struct HttpFixture {
 // WinHttpOpenにはhandle引数がないため、試験threadだけの借用先を使う。
 thread_local HttpFixture *activeHttpFixture{} ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全十二APIを非通信callbackへ置換する。
  * @return 実WinHTTP handleを作らない完全な関数table。
  */
+//------------------------------------------------------------------------------
 OfficialHttpTransport	  fakeTransport()
 {
 	OfficialHttpTransport transport ;	// 既定APIを全て以下のfakeで置換する。
@@ -361,7 +364,9 @@ struct HttpCase {
 		static_cast<void>( client.beginSourceSession( 79U, PROLIFIC_OFFICIAL_PROVIDER_ID)) ;
 	}
 
-	/** @brief 全HTTP handleが同期解放された後にthread-local借用先を外す。 */
+	/**
+	 * @brief 全HTTP handleが同期解放された後にthread-local借用先を外す。
+	 */
 	~HttpCase()
 	{
 		activeHttpFixture = nullptr ;
@@ -380,11 +385,13 @@ struct HttpCase {
 	}
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 文字列fixtureを検証済みcache本文相当へcopyする。
  * @param[in] body 非機密の固定test本文。
  * @return 本文と同じbyte列。
  */
+//------------------------------------------------------------------------------
 std::vector<std::byte> cacheBytes( const std::string_view body)
 {
 	const auto bytes =
@@ -393,10 +400,12 @@ std::vector<std::byte> cacheBytes( const std::string_view body)
 	return {bytes.begin(), bytes.end()} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定起点と全I/O遮断、完全な依存注入を確認する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testFixedEndpoints( TestContext &context)
 {
 	unsigned endpoints{} ;	// 九providerの登録された十二起点を数える。
@@ -448,10 +457,12 @@ void testFixedEndpoints( TestContext &context)
 	DRIVERCRATE_EXPECT( context, run.fixture.opened == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 本文上限、宣言長、chunk異常、UTF-8失敗の消費を確認する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testBodyBoundaries( TestContext &context)
 {
 	// 実固定2MiBの直前・一致・probe超過を実ReadData境界で検証する。
@@ -530,10 +541,12 @@ void testBodyBoundaries( TestContext &context)
 						   static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_WINHTTP_TIMEOUT))) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Fresh・304・破損cacheと回線許可の組合せを確認する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCacheAndStatus( TestContext &context)
 {
 	// Freshと304は同じ本文を一度だけ消費し、送信数は区別する。
@@ -608,10 +621,12 @@ void testCacheAndStatus( TestContext &context)
 									oversized.fixture.sends == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief API復帰・chunk・cacheの各段階で停止し、後続処理を遮断する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCancellation( TestContext &context)
 {
 	// 各同期API中の取消しを、実APIの戻り直後に観測させる。
@@ -660,10 +675,12 @@ void testCancellation( TestContext &context)
 														  MetadataSearchReason::DEADLINE_EXCEEDED) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Schema拒否時の消費保持とparser前後の協調停止を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testParserBoundaries( TestContext &context)
 {
 	// 配布file名は合成値。取得先として使用せずmetadata本文にだけ含める。
@@ -709,7 +726,12 @@ void testParserBoundaries( TestContext &context)
 
 } // namespace
 
-/** @see metadata_search_http_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通HTTPのmetadata専用境界を非通信fakeで検証する。
+ * @param[in,out] context Assertion集計先。
+ */
+//------------------------------------------------------------------------------
 void runMetadataSearchHttpTests( TestContext &context)
 {
 	testFixedEndpoints( context) ;

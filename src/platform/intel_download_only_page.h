@@ -2,7 +2,7 @@
 /**
  * @file intel_download_only_page.h
  * @brief Intel共通heroから非実行取得recordを構築します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/23  取得専用の公式起点とparser契約を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/23  全区間取得接続と公式module根拠付き許諾境界を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  */
 //------------------------------------------------------------------------------
@@ -68,14 +69,17 @@ struct IntelDownloadOnlySourceDefinition {
 	std::wstring_view recordKey ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 明示sourceの固定起点だけを返します。
  * @param[in] source 明示評価source。
  * @return 既知sourceの定義。未知enumはnullptr。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] const IntelDownloadOnlySourceDefinition *intelDownloadOnlySourceDefinition(
 	IntelDownloadOnlySource source) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同一HTML内の単一download heroとEULAを取得専用recordへ結合します。
  * @param[in] source 明示した固定起点。
@@ -84,11 +88,12 @@ struct IntelDownloadOnlySourceDefinition {
  * @param[in] profile 呼出元が明示した有限取得上限。
  * @param[in] resolvedUtcSeconds 解決時刻。
  * @param[out] record 全検証成功時だけ公開する取得専用record。
- * @param[in] behavior 空raw欄の独立判定に必要なfresh module観測。既定では許可しません。
  * @param[out] failureStage 非秘密の拒否段階。成功時0。
+ * @param[in] behavior 空raw欄の独立判定に必要なfresh module観測。既定では許可しません。
  * @return 一意な配布・hash・EULA・公式根拠を結合できた場合true。
  * @note 内容検査・署名確認・実機適合・installer実行は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseIntelDownloadOnlyPage(
 	IntelDownloadOnlySource source, std::wstring_view html,
 	const OfficialSourceEvidence &rootEvidence, OfficialDownloadOnlyProfile profile,

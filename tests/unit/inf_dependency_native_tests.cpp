@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native_tests.cpp
  * @brief 架空fileと明示実行の標準INFによるnative依存adapter試験。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  架空file境界と標準INF専用測定を追加。
  * Ver.01.00.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 通常試験は架空INFだけを読む。別targetの明示optionだけが標準INFを読む。
@@ -49,13 +50,16 @@ using namespace drivercrate ;
 constexpr std::string_view PREFIX =
 	"[Version]\r\nSignature=\"$Windows NT$\"\r\n" ;	// 架空WIN4の形式だけ。
 
-/** @brief 架空byteを保護workspaceへ作成し、実hashとsizeを固定する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空byteを保護workspaceへ作成し、実hashとsizeを固定する。
  * @param[in,out] workspace この試験だけの保護領域。
  * @param[in] name 安全な架空相対名。
  * @param[in] text 架空INF本文。実device IDを含めない。
  * @return 閉じたmember一覧へ登録する実byte期待値。
  * @throws std::runtime_error 作成・書込み・hash失敗。
  */
+//------------------------------------------------------------------------------
 InfDependencyPackageMember makeMember( OfficialDownloadWorkspace &workspace,
 									  const std::wstring &name, std::string_view text)
 {
@@ -84,10 +88,13 @@ InfDependencyPackageMember makeMember( OfficialDownloadWorkspace &workspace,
 	return member ;
 }
 
-/** @brief 架空workspaceを初期化する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空workspaceを初期化する。
  * @param[in,out] workspace 一試験だけの単独所有領域。
  * @throws std::runtime_error 保護領域の初期化失敗。
  */
+//------------------------------------------------------------------------------
 void initialize( OfficialDownloadWorkspace &workspace)
 {
 	// 権限不足を成功やskipとして隠さない。
@@ -96,10 +103,13 @@ void initialize( OfficialDownloadWorkspace &workspace)
 	}
 }
 
-/** @brief 成功観測を導入許可へ昇格させないことを確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 成功観測を導入許可へ昇格させないことを確認する。
  * @param[in,out] context 集計先。
  * @param[in] result 架空fileの観測結果。
  */
+//------------------------------------------------------------------------------
 void expectNonExecutable( drivercrate::test::TestContext	 &context,
 						 const InfDependencyNativeResult &result)
 {
@@ -118,9 +128,12 @@ void expectNonExecutable( drivercrate::test::TestContext	 &context,
 	}
 }
 
-/** @brief path・実byte・明示節・書込競合を架空fileで検証する。
+//------------------------------------------------------------------------------
+/**
+ * @brief path・実byte・明示節・書込競合を架空fileで検証する。
  * @param[in,out] context assertion集計先。
  */
+//------------------------------------------------------------------------------
 void fixtures( drivercrate::test::TestContext &context)
 {
 	const std::array<std::wstring_view, 24U> invalid{
@@ -363,9 +376,12 @@ void fixtures( drivercrate::test::TestContext &context)
 	}
 }
 
-/** @brief 標準INF4件を明示optionだけで読み、署名と由来の実測数を出力する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 標準INF4件を明示optionだけで読み、署名と由来の実測数を出力する。
  * @return 観測成功0、native失敗1。導入や全package検証の成功値ではない。
  */
+//------------------------------------------------------------------------------
 int windowsProbe()
 {
 	OfficialDownloadWorkspace workspace ;	// 架空rootだけを所有する測定領域。
@@ -424,11 +440,14 @@ int windowsProbe()
 }
 } // namespace
 
-/** @brief 通常の架空試験または明示測定targetを実行する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常の架空試験または明示測定targetを実行する。
  * @param[in] argc optionを含む引数数。
  * @param[in] argv 呼出し中有効な終端付きoption。
  * @return 全assertionまたは測定成功0、入力・試験失敗1。
  */
+//------------------------------------------------------------------------------
 int wmain( int argc, wchar_t **argv)
 {
 	try {

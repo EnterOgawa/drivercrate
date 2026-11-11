@@ -2,7 +2,7 @@
 /**
  * @file local_collector_projected_response.h
  * @brief 収集応答v4の非保存所有型と元I/O再結合codecです。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/29  応答v4全field・元I/O・実byte hashを追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/29  成功参照と減少の非保存最終化を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Codec成功は予約受入や保存許可ではありません。履歴contextは親入口で必須です。
@@ -215,7 +216,9 @@ struct CollectorProjectedHistoryFinalization {
 	std::optional<std::wstring>					 previousValidator ;
 } ;
 
-/** @brief 元input・intent・応答byteと成功sliceを照合して減少を判定します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元input・intent・応答byteと成功sliceを照合して減少を判定します。
  * @param[in] job 今回の変更不能なprepared job。
  * @param[in] worker 全join後の元結果。ここでは所有監督を証明しません。
  * @param[in] acceptedUtc 今回の親受領UTC。
@@ -225,20 +228,26 @@ struct CollectorProjectedHistoryFinalization {
  * @return 元codecのhash失敗または関係違反。縮退や再試行はしません。
  * @note Root登録・直近成功・保存完了を証明しません。現200のoriginal200はnullのままです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] collector_projected_json::Result finalizeCollectorProjectedHistory(
 	const CollectorPreparedProjectedJob &job, const CollectorProjectedWorkerResult &worker,
 	std::uint64_t acceptedUtc, std::span<const CollectorProjectedHistoryEvidence> history,
 	CollectorProjectedHistoryFinalization &output,
 	const CollectorProjectedHashProbe	  &probe = {}) noexcept ;
 
-/** @brief 現metadataだけからcache更新候補を再導出します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 現metadataだけからcache更新候補を再導出します。
  * @param[in] response 検査対象の値。減少・元200真正性は別途親contextが検査します。
  * @return 固定操作と理由。保存や再送許可ではありません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CollectorProjectedCacheDecision collectorProjectedCacheDecision(
 	const CollectorProjectedResponse &response) noexcept ;
 
-/** @brief 同一GETの所有観測を履歴判定前の応答候補へ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一GETの所有観測を履歴判定前の応答候補へ変換します。
  * @param[in] job 元prepared jobの公開値。
  * @param[in] worker 全join後に読み取った元結果。ここではjoin自体を証明しません。
  * @param[in] acceptedUtc 親が観測した受領UTC。
@@ -246,41 +255,51 @@ struct CollectorProjectedHistoryFinalization {
  * @return 型・元I/O・draft結合の検査結果。履歴なしとは判定しません。
  * @note 通常200／元失敗だけです。304成功を生成しません。最終親入口は別工程です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] collector_projected_json::Result makeCollectorProjectedResponseCandidate(
 	const CollectorProjectedJobInput &job, const CollectorProjectedWorkerResult &worker,
 	std::uint64_t acceptedUtc, CollectorProjectedResponse &response) noexcept ;
 
-/** @brief 全field・元I/Oを検査し、metadata／応答の実hashと外側を生成します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全field・元I/Oを検査し、metadata／応答の実hashと外側を生成します。
  * @param[in] job 元固定scope。
  * @param[in] response 履歴判定を終えた値。値型だけでは親受入済みではありません。
  * @param[out] encoded 成功時だけ実byte。失敗時は空。入力responseとのaliasは禁止です。
  * @param[in] probe 数値だけの任意診断。
  * @return 元hash errorと失敗層。入力projectionが非空なら実計算値との一致も必須です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CollectorProjectedResponseResult encodeCollectorProjectedResponse(
 	const CollectorProjectedJobInput &job, const CollectorProjectedResponse &response,
 	CollectorProjectedResponseBytes	  &encoded,
 	const CollectorProjectedHashProbe &probe = {}) noexcept ;
 
-/** @brief 保存byteを独立CNGと全field関係へ照合します。縮退・修復しません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存byteを独立CNGと全field関係へ照合します。縮退・修復しません。
  * @param[in] job 元固定scope。
  * @param[in] envelope 最大2 MiBの保存byte。
  * @param[out] decoded 成功時だけ元byteと所有値。入力envelopeとのaliasは禁止です。
  * @param[in] probe 読込み時のhash失敗専用診断。
  * @return 結果。元世代・intent・登録／履歴への再結合は保存監督の責任です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CollectorProjectedResponseResult decodeCollectorProjectedResponse(
 	const CollectorProjectedJobInput &job, std::string_view envelope,
 	CollectorProjectedResponseBytes	  &decoded,
 	const CollectorProjectedHashProbe &probe = {}) noexcept ;
 
-/** @brief Live候補だけの一回有限縮退とhash故障分類を行います。
+//------------------------------------------------------------------------------
+/**
+ * @brief Live候補だけの一回有限縮退とhash故障分類を行います。
  * @param[in] job 元scope。
  * @param[in] response 親が最終化する候補。元I/Oは変更しません。
  * @param[out] encoded 成功時だけ保存前byte。入力responseとのaliasは禁止です。親の予約受入を実行しません。
  * @param[in] probe 元段階の負HRESULTのみ。
  * @return 失敗時は出力空。第一worker error／OOM／応答hash故障を置換しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CollectorProjectedResponseResult encodeCollectorProjectedResponseWithFallback(
 	const CollectorProjectedJobInput &job, const CollectorProjectedResponse &response,
 	CollectorProjectedResponseBytes	  &encoded,

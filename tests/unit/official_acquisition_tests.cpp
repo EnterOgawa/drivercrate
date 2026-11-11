@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition_tests.cpp
  * @brief 公式file検査用取得境界単体試験実装。
- * @version 01.28.00
+ * @version 01.28.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -62,6 +62,7 @@
  * Ver.01.26.01 Shunji Ogawa  2026/11/09  同scopeのworker event ownerをheapへ移し全modeを保持。
  * Ver.01.27.00 Shunji Ogawa  2026/11/10  対象限定拒否と未処理ownerの保持を検証。
  * Ver.01.28.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.28.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Fake transportとcost readerを使用し、実network、実driver、実installへ依存せず検査用取得状態を検証します。
@@ -235,13 +236,15 @@ struct DelegatedHttpFixture {
 // WinHttpOpenと注入clockから現在fixtureを解決する試験thread限定の借用先。
 thread_local DelegatedHttpFixture  *activeDelegatedHttpFixture{} ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Delegated GET専用の完全な非通信I/O表を作る。
  * @return WinHTTP、DNS、UTCの全境界を現在threadのfixtureへ委譲する表。
  * @pre 呼出しthreadのactiveDelegatedHttpFixtureは、そのworker停止まで所有するfixtureを指します。
- * @note Fake handleは同fixtureを借用し、全依存を置換してnative通信へfallbackしません。
- * 指定されたsend保持が五秒で解除されなければERROR_TIMEOUTを保持してFALSEを返します。
+ * @note Fake handleは同fixtureを借用し、全依存を置換してnative通信へfallbackしません。指定されたsend保持が五秒で解除されなければERROR_TIMEOUT
+ *       を保持してFALSEを返します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialHttpTransport makeDelegatedHttpTransport()
 {
 	OfficialHttpTransport transport ;	// 全低位I/Oを以下のfakeで置換する結果。
@@ -641,7 +644,15 @@ public:
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_acquisition_tests.cpp 宣言側の契約を正本とする。
+ * @brief 架空payloadを取得先fileへ保存する。実networkを使用せず、partial file、取消し、例外を再現する。
+ * @param[in] url 検証対象の架空公式URL。
+ * @param[in] resourceId 検証対象のpayload resource ID。
+ * @param[in] maximumBytes 書込みを許可する上限byte数。
+ * @param[in] outputFile 呼出し側が所有する書込み先handle。
+ * @param[in] progressCallback 書込み後の確定進捗通知先。
+ * @param[in] cancellationCallback 書込み後の取消し確認先。
+ * @return 保存成功時は0、上限、書込み、取消し失敗時はHRESULT。
+ * @see drivercrate::IOfficialAcquisitionTransport::download
  */
 //------------------------------------------------------------------------------
 NativeError FakeAcquisitionTransport::download( const std::wstring_view			   url,
@@ -688,7 +699,14 @@ NativeError FakeAcquisitionTransport::download( const std::wstring_view			   url
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_acquisition_tests.cpp 宣言側の契約を正本とする。
+ * @brief Claim済み架空grantから一回のGETを再現する。秘密URLを保存せず、固定取得と同じbyte書込み・取消し・例外注入を使用する。
+ * @param[in,out] request Claim済みgrantを所有する一回request。
+ * @param[in] outputFile 呼出し側が所有する書込み先handle。
+ * @param[in] progressCallback 書込み後の確定進捗通知先。
+ * @param[in] cancellationCallback 書込み後の取消し確認先。
+ * @param[out] destinationEvidence 成功時に設定する架空public宛先根拠。
+ * @return 保存とgrant終端成功時は0、拒否、取消しまたは失敗時はHRESULT。
+ * @see drivercrate::IOfficialAcquisitionTransport::downloadDelegated
  */
 //------------------------------------------------------------------------------
 NativeError FakeAcquisitionTransport::downloadDelegated(
@@ -733,7 +751,12 @@ NativeError FakeAcquisitionTransport::downloadDelegated(
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_acquisition_tests.cpp 宣言側の契約を正本とする。
+ * @brief 架空の公式取得根拠を照合する。引数はsession側の伝達確認に使用し、実ledgerは参照しない。
+ * @param[in] scanSessionId 呼出し側が照合するsession ID。
+ * @param[in] providerId 呼出し側が照合するProvider ID。
+ * @param[in] resourceId 呼出し側が照合するresource ID。
+ * @return 設定上、取得根拠がある場合は`true`。
+ * @see drivercrate::IOfficialAcquisitionTransport::hasSourceEvidence
  */
 //------------------------------------------------------------------------------
 bool FakeAcquisitionTransport::hasSourceEvidence( const ScanSessionId	 scanSessionId,
@@ -748,7 +771,10 @@ bool FakeAcquisitionTransport::hasSourceEvidence( const ScanSessionId	 scanSessi
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_acquisition_tests.cpp 宣言側の契約を正本とする。
+ * @brief 設定済みnetwork costを返す。OS設定へ依存せずcost成功、不明、失敗経路を再現する。
+ * @param[out] cost 設定済みcost分類。
+ * @return 設定済みの成功値またはHRESULT。
+ * @see drivercrate::IOfficialNetworkCostReader::read
  */
 //------------------------------------------------------------------------------
 NativeError FakeNetworkCostReader::read( OfficialNetworkCostKind &cost) noexcept
@@ -2056,9 +2082,12 @@ void testBudgetAndDiskRejection( TestContext &context)
 	DRIVERCRATE_EXPECT( context, diskTransport.downloadCalls == 0U) ;
 }
 
-/** @brief 固定と委譲でSHA-512の必須照合と失敗file回収を検証します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定と委譲でSHA-512の必須照合と失敗file回収を検証します。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testPublishedSha512Acquisition( TestContext &context)
 {
 	const std::wstring correct256 =
@@ -2158,11 +2187,13 @@ void testPublishedSha512Acquisition( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 三つの取得専用profileを実file書込みfakeで確認し、内容検査への流用を拒否します。
  * @param[in,out] context Assertion集計先。
  * @note 本文はabcの3 byteです。大容量転送やEXE構造の実測ではありません。
  */
+//------------------------------------------------------------------------------
 void testDownloadOnlyAcquisition( TestContext &context)
 {
 	const std::wstring correctHash =
@@ -2248,12 +2279,14 @@ void testDownloadOnlyAcquisition( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 所有する架空取得fileだけを改変し、元byte再確認を試験する。
  * @param[in] path 当該fixtureの保護workspace内file。
  * @param[in] bytes 最大四byteの生成済み架空本文。
  * @return 完全書込み成功ならtrue。handleはscope終了で解放する。
  */
+//------------------------------------------------------------------------------
 bool overwriteAcquiredEvidenceFixture( const std::wstring &path, std::string_view bytes)
 {
 	const HANDLE opened =
@@ -2271,10 +2304,12 @@ bool overwriteAcquiredEvidenceFixture( const std::wstring &path, std::string_vie
 		   written == bytes.size() ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定resourceの取得証拠を、公開結果と別sessionから偽造できないことを検証する。
  * @param[in,out] context 専用targetのassertion集計先。
  */
+//------------------------------------------------------------------------------
 void testSealedFixedAcquisitionEvidence( TestContext &context)
 {
 	static_assert( !std::is_copy_constructible_v<OfficialAcquiredFileEvidence>) ;
@@ -2442,10 +2477,12 @@ void testSealedFixedAcquisitionEvidence( TestContext &context)
 	DRIVERCRATE_EXPECT( context, session.verifyAcquiredFile( empty, workspace) == 0) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Record限定grantの成功IDとfingerprintを封印し、旧grant再使用を拒否する。
  * @param[in,out] context 専用targetのassertion集計先。
  */
+//------------------------------------------------------------------------------
 void testSealedDelegatedAcquisitionEvidence( TestContext &context)
 {
 	OfficialDownloadWorkspace workspace ;	// Record成功fileだけを所有する架空領域。
@@ -2496,7 +2533,12 @@ void testSealedDelegatedAcquisitionEvidence( TestContext &context)
 
 } // namespace
 
-/** @see official_acquisition_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 匿名CDNの純粋protocolとCOM-only MTA前提を非通信で確認する。
+ * @param[in,out] context 同processのassertion集計先。
+ */
+//------------------------------------------------------------------------------
 void runAsusCdnTokenTests( TestContext &context)
 {
 	const OfficialAnonymousCdnPlan plan{L"G614FR", L"/pub/ASUS/fixture.exe",
@@ -2600,7 +2642,13 @@ void runAsusCdnTokenTests( TestContext &context)
 	std::cout << "Anonymous CDN protocol: COM-only MTA, real HTTP: 0\n" ;
 }
 
-/** @see official_acquisition_tests.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 非通信の架空取得から封印証拠の所有権・拒否・失効を検証する。
+ * @param[in,out] context 独立processのassertion集計先。
+ * @note 通常unitの件数を変更せず、専用targetからだけ呼ぶ。
+ */
+//------------------------------------------------------------------------------
 void runOfficialAcquiredFileEvidenceTests( TestContext &context)
 {
 	testSealedFixedAcquisitionEvidence( context) ;
@@ -2609,7 +2657,9 @@ void runOfficialAcquiredFileEvidenceTests( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_acquisition_tests.h 宣言側の契約を正本とする。
+ * @brief 公式file検査用取得境界の正常系とfail-closed条件を検証する。公式file検査用取得境界の全単体試験を実行する。初期化、取得、根拠、network、取消し、予算試験を順
+ *        に行う。
+ * @param[in,out] context Assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialAcquisitionTests( TestContext &context)
@@ -2631,12 +2681,15 @@ void runOfficialAcquisitionTests( TestContext &context)
 	testBudgetAndDiskRejection( context) ;
 }
 
-/** @brief 真署名lookupから既存preparation・同grant・fake HTTP・seal・通常検査を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 真署名lookupから既存preparation・同grant・fake HTTP・seal・通常検査を確認します。
  * @param[in,out] context 共通assertion集計先。
  * @param[in] lookup 真署名・隔離reloadから構築した不変lookup。
  * @param[in] nowUtc 固定信頼UTC。
  * @param[in] scenario 0は通常、1は計算hash不一致、2はsize不一致、3は保留、4はCDN、6は未知hash／size、7/8は非実行SFX/resourceです。
  */
+//------------------------------------------------------------------------------
 void runSignedIndexAcquisitionAdapterTests( TestContext									 &context,
 										   std::shared_ptr<const SignedIndexRecordLookup> lookup,
 										   const std::chrono::sys_seconds				  nowUtc,
@@ -3103,7 +3156,8 @@ namespace {
 /** @brief 非通信の同scan関係を通常commandへ返す有限resolverです。 */
 class WorkerAcquisitionResolver final : public IndexPublicIdResolver {
 public:
-	/** @brief 元scan contextと前半の対象外関係数を固定します。
+	/**
+	 * @brief 元scan contextと前半の対象外関係数を固定します。
 	 * @param[in] context 同workerの元scan context。
 	 * @param[in] skip 完了不一致へ残す先頭callback数。
 	 */
@@ -3111,7 +3165,8 @@ public:
 		: context_( context), skip_( skip)
 	{
 	}
-	/** @brief 全presentが一つというfixtureだけを一意opaqueへ照合します。
+	/**
+	 * @brief 全presentが一つというfixtureだけを一意opaqueへ照合します。
 	 * @param[in] kind 使用しない公開種別。
 	 * @param[in] id 使用しない公開ID。外部送信しません。
 	 * @param[in] guid 使用しない公開class。
@@ -3148,7 +3203,8 @@ private:
 /** @brief 実inventoryと導入を呼ばない通常command用Providerです。 */
 class WorkerAcquisitionProvider final : public IUpdateProvider, public IIndexScanInventory {
 public:
-	/** @brief 対象外関係数だけを固定します。
+	/**
+	 * @brief 対象外関係数だけを固定します。
 	 * @param[in] skip 最初に完了不一致を返す関係数。
 	 * @param[in] providerTargets 元Provider計画の人工対象数。0または1です。
 	 * @param[in] providerCalls 元Provider acquire callbackの実呼出し集計先。
@@ -3161,7 +3217,8 @@ public:
 		  maximumProviderFiles_( maximumProviderFiles)
 	{
 	}
-	/** @brief 現在sessionの空candidate集合を正常scan結果として返します。
+	/**
+	 * @brief 現在sessionの空candidate集合を正常scan結果として返します。
 	 * @param[in] sessionId 実worker発行session。
 	 * @param[in] options 使用しないscan設定。
 	 * @param[in] progress 実確定したProvider段階の通知。
@@ -3180,7 +3237,8 @@ public:
 		result.outcome		 = OutcomeCode::SUCCESS ;
 		return result ;
 	}
-	/** @brief 同commandの完全contextと全opaqueを返します。
+	/**
+	 * @brief 同commandの完全contextと全opaqueを返します。
 	 * @param[in] operationId 元scanの実operation。
 	 * @param[out] context 元operation／session／inventory。
 	 * @param[out] present 架空の全present集合。
@@ -3194,7 +3252,8 @@ public:
 		present = {L"worker-index-device"} ;
 		return std::make_unique<WorkerAcquisitionResolver>( context, skip_) ;
 	}
-	/** @brief 小さな同scan予約枠を索引と共有します。
+	/**
+	 * @brief 小さな同scan予約枠を索引と共有します。
 	 * @param[in] sessionId 同scanのsession。
 	 * @param[in] planId 実worker発行計画ID。
 	 * @return 人工Provider対象一件までの固定有限計画。索引も同じ上限へ追加します。
@@ -3223,7 +3282,8 @@ public:
 
 		return plan ;
 	}
-	/** @brief 非索引対象の既存Provider dispatchだけを観測します。
+	/**
+	 * @brief 非索引対象の既存Provider dispatchだけを観測します。
 	 * @param[in] task 実executorがclaimした元Provider対象。
 	 * @param[in] cancellation 使用しない協調取消し照会。
 	 * @return 非実fileの合成取得結果。索引の実内容正例には使用しません。
@@ -3242,7 +3302,8 @@ public:
 		++*providerCalls_ ;
 		return {OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION, 0U, 100U} ;
 	}
-	/** @brief 禁止された実導入を一切行わず拒否します。
+	/**
+	 * @brief 禁止された実導入を一切行わず拒否します。
 	 * @param[in] sessionId 使用しないsession。
 	 * @param[in] identities 使用しない選択。
 	 * @param[in] parent 使用しないWindow。
@@ -3277,7 +3338,10 @@ private:
 /** @brief 誤った復旧API呼出しも拒否する非通信fixtureです。 */
 class WorkerAcquisitionRestore final : public IRestorePointService {
 public:
-	/** @brief 拒否専用fakeは実在保護を生成しません。@return 元拒否区分です。 */
+	/**
+	 * @brief 拒否専用fakeは実在保護を生成しません。
+	 * @return 元拒否区分です。
+	 */
 	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
 	{
 		return {.disposition  = RestorePointDisposition::UNAVAILABLE,
@@ -3285,7 +3349,8 @@ public:
 				.error		  = static_cast<NativeError>( 0x80070005U)} ;
 	}
 
-	/** @brief 復元ポイントを作らず拒否します。
+	/**
+	 * @brief 復元ポイントを作らず拒否します。
 	 * @param[in] description 使用しない説明。
 	 * @return 誤呼出しの診断。
 	 */
@@ -3294,7 +3359,8 @@ public:
 		static_cast<void>( description) ;
 		return {.error = E_ACCESSDENIED} ;
 	}
-	/** @brief 実復旧終了APIも呼びません。
+	/**
+	 * @brief 実復旧終了APIも呼びません。
 	 * @param[in] sequence 使用しない番号。
 	 * @return 誤呼出しの診断。
 	 */
@@ -3305,13 +3371,16 @@ public:
 	}
 } ;
 
-/** @brief 実queueを3秒以内だけ読み、進捗の単調性も確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実queueを3秒以内だけ読み、進捗の単調性も確認します。
  * @param[in,out] context UI役threadのassertion所有者。
  * @param[in,out] worker 実command queueとworker。
  * @param[in] kind 待つ終端種類。
  * @param[in] operationId 待つ操作ID。
  * @return 同operationの終端。未到着はnulloptです。
  */
+//------------------------------------------------------------------------------
 std::optional<WorkerEvent> waitIndexWorkerEvent( TestContext &context, ProviderWorker &worker,
 												WorkerEventKind kind, OperationId operationId)
 {
@@ -3352,17 +3421,20 @@ std::optional<WorkerEvent> waitIndexWorkerEvent( TestContext &context, ProviderW
 }
 } // namespace
 
-/** @brief 真署名隔離storeから実command・承認・grant・非空INF内容へ接続します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 真署名隔離storeから実command・承認・grant・非空INF内容へ接続します。
  * @param[in,out] context 共通assertion集計先。
  * @param[in] store 真署名原byteを保存した隔離store。製品rootへ置きません。
  * @param[in] nowUtc 固定信頼UTC。
  * @param[in] zip 文法上有効なINF・参照SYS・未署名CATを含む原非空ZIP。
  * @param[in] recordCount 署名recordの有限件数。
  * @param[in] skip 前半の完了不一致数。batch境界の後で対象を作れます。
- * @note 元十四条件を保持し、取消しは五秒以内の低位phase同期で送信前と開始済みに分けます。
- * Fixtureの非atomic観測は、元終端eventの取得またはworker停止の同期完了後だけ読みます。
  * @throws std::bad_alloc 元fixture ownerを確保できない場合。既試験の例外捕捉へ渡します。
+ * @note 元十四条件を保持し、取消しは五秒以内の低位phase同期で送信前と開始済みに分けます。Fixtureの非atomic観測は、元終端eventの取得またはworker停止の同期完了後だ
+ *       け読みます。
  */
+//------------------------------------------------------------------------------
 void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 										  std::shared_ptr<SignedIndexStore> store,
 										  std::chrono::sys_seconds nowUtc, const std::string &zip,
@@ -3960,7 +4032,16 @@ void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 
 // 独立した取得証拠targetへ通常候補・指定導入fixtureの依存を持ち込まない。
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
-/** @see signed_index_candidate_binding_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存完全fake HTTPを新正常候補fixtureへ結合します。
+ * @param[in,out] context Assertion正本です。
+ * @param[in] store 実commit/reload済み隔離索引storeです。
+ * @param[in] nowUtc 固定信頼UTCです。
+ * @param[in] zip 実原containerです。
+ * @param[in] network Net classの固定fixtureならtrueです。
+ */
+//------------------------------------------------------------------------------
 void runNormalSignedIndexCandidateBindingTests( TestContext						&context,
 											   std::shared_ptr<SignedIndexStore> store,
 											   const std::chrono::sys_seconds	 nowUtc,
@@ -4007,12 +4088,15 @@ void runNormalSignedIndexCandidateBindingTests( TestContext						&context,
 									fixture->sends == expectedSends) ;
 }
 
-/** @brief 原生成索引の同一recordを通常候補adapterと全fake terms GETへ接続します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原生成索引の同一recordを通常候補adapterと全fake terms GETへ接続します。
  * @param[in,out] context 原assertion集計先です。
  * @param[in] lookup 同原manifest/GZipの認証・隔離保存・再読取済みlookupです。
  * @param[in] nowUtc 信頼UTCです。
  * @param[in] body 同recordがpinした完全人工terms本文です。呼出し中だけ借用します。
  */
+//------------------------------------------------------------------------------
 void runMetadataBoundAdapterFixtureTests( TestContext								   &context,
 										 std::shared_ptr<const SignedIndexRecordLookup> lookup,
 										 const std::chrono::sys_seconds					nowUtc,
@@ -4161,7 +4245,17 @@ void runMetadataBoundAdapterFixtureTests( TestContext								   &context,
 		<< " realNetwork=0 actualCatAccepted=0\n" ;
 }
 
-/** @see signed_index_candidate_binding_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ原archiveを既存完全HTTP fixtureと通常workerへ固定します。
+ * @param[in,out] context 元assertion集計先です。
+ * @param[in] store 原producer manifest/GZipを認証・保存した隔離storeです。
+ * @param[in] nowUtc 信頼UTCです。
+ * @param[in] zipA A共通archiveの原byteです。
+ * @param[in] zipB B別archiveの原byteです。
+ * @param[in] devices 認証record由来の新しい架空local identityです。
+ */
+//------------------------------------------------------------------------------
 void runNormalDistributionApplicationTests( TestContext						&context,
 										   std::shared_ptr<SignedIndexStore> store,
 										   const std::chrono::sys_seconds	 nowUtc,
@@ -4200,7 +4294,21 @@ void runNormalDistributionApplicationTests( TestContext						&context,
 				  << " realNetwork=0\n" ;
 	}
 }
-/** @see signed_index_candidate_binding_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原recordと同owned INFの完全tupleを通常workerで非導入検証します。
+ * @param[in,out] context 元assertion集計先です。
+ * @param[in] store 原署名recordを保持する隔離storeです。
+ * @param[in] nowUtc 固定信頼UTCです。
+ * @param[in] zip 同実取得に返す人工archiveです。
+ * @param[in] references 元record/deviceへ結ばれる期待参照数です。
+ * @param[in] candidates 完全tuple一致後だけ発行される期待候補数です。
+ * @param[in] targets 同一既知payload共有後の期待取得数です。
+ * @param[in] resolution 指定時は元先頭参照の通常選択意図を解決し、この状態を確認します。
+ * @param[in] failure 0は通常、1はscan後の失効、2は原payload一byte改変です。
+ * @note 完全HTTP/署名/Windows低位fakeを使い、導入/復旧を呼びません。
+ */
+//------------------------------------------------------------------------------
 void runNormalIndexIdentityBindingCase(
 	TestContext &context, std::shared_ptr<SignedIndexStore> store,
 	const std::chrono::sys_seconds nowUtc, const std::string &zip, const std::size_t references,
@@ -4380,7 +4488,18 @@ void runNormalIndexIdentityBindingCase(
 			  << " nativeRankDelta=" << observed.rankCalls - ranksBefore
 			  << " network=0 install=0\n" ;
 }
-/** @see signed_index_candidate_binding_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原archive/規約byteを既存完全fake HTTPへ固定します。
+ * @param[in,out] context 元assertion集計先です。
+ * @param[in] store 同原recordをRAM署名・隔離保存したownerです。
+ * @param[in] replayUtc 原publication秒の明示historical fake時刻です。
+ * @param[in] archive 元40477087Bの未変更archiveです。
+ * @param[in] terms 原HTTP bodyの未変更byteです。
+ * @param[in] device 元recordの一IDだけを持つ明示fake deviceです。
+ * @param[in] scenario 0正常、1誤byte、2同意欠落、3完全tuple拒否です。
+ */
+//------------------------------------------------------------------------------
 void runNormalNativeIntelArchiveCase( TestContext &context, std::shared_ptr<SignedIndexStore> store,
 									 const std::chrono::sys_seconds replayUtc,
 									 const std::string &archive, const std::string &terms,

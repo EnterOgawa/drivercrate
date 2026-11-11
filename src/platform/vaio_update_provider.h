@@ -2,7 +2,7 @@
 /**
  * @file vaio_update_provider.h
  * @brief VAIO Global公式driver Provider定義。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note VAIO client PCをlocal modelへ照合し、公式Global JSONのdriver updateだけを一意なPnP deviceへ対応付けます。
@@ -49,10 +50,10 @@
 
 namespace drivercrate {
 
+//------------------------------------------------------------------------------
 /**
- * @brief REG_SZの実取得長に限定して終端と文字列内部のNULを検証する。
- * Registry文字列を実取得長の範囲だけで検証する。
- * 確保領域と有効な値を分離し、未使用NULによる誤拒否を防ぐ。
+ * @brief REG_SZの実取得長に限定して終端と文字列内部のNULを検証する。Registry文字列を実取得長の範囲だけで検証する。確保領域と有効な値を分離し、未使用NULによる誤拒否を防ぐ
+ *        。
  * @param[in] buffer 値取得APIへ渡した受信領域。未使用の末尾領域は値に含めない。 API受信領域。未使用の末尾を含み得る。
  * @param[in] returnedBytes 成功した値取得APIが返した、終端を含む実byte数。 API成功時の実取得byte数。
  * @param[in] type 値取得APIが返したregistry型。REG_SZ以外は拒否する。 API成功時のregistry型。
@@ -60,6 +61,7 @@ namespace drivercrate {
  * @return 成功時0、型・長さ・終端・内部NUL不正時はHRESULT。 検証成功時0、不正な型／長さ／終端／内部NULはHRESULT。
  * @note 読取り結果の検証のみであり、registryへのアクセスは行わない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError decodeVaioRegistryString( std::span<const wchar_t> buffer,
 												   std::uint32_t returnedBytes, std::uint32_t type,
 												   std::wstring &value) ;

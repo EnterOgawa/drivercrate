@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition.h
  * @brief 公式fileの検査用取得境界定義。
- * @version 01.06.00
+ * @version 01.06.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.05.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
  * Ver.01.05.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
  * Ver.01.06.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 公式由来を確認したfileを候補化せず保護workspaceへ取得し、容量予算、network cost、取消し、size、SHA-256をfail-closedで検証します。
@@ -206,9 +207,13 @@ struct OfficialAcquisitionResult {
  */
 class OfficialAcquiredFileEvidence final {
 public:
-	/** @brief 無効な空証拠を作る。 */
+	/**
+	 * @brief 無効な空証拠を作る。
+	 */
 	OfficialAcquiredFileEvidence() = default ;
-	/** @brief 弱いissuer参照と非秘密metadataを解放する。 */
+	/**
+	 * @brief 弱いissuer参照と非秘密metadataを解放する。
+	 */
 	~OfficialAcquiredFileEvidence() = default ;
 	/**
 	 * @brief 取得権限と区別する証拠の暗黙複写を禁止する。
@@ -218,7 +223,6 @@ public:
 	/**
 	 * @brief 証拠の複写代入を禁止する。
 	 * @param[in] other 複写を許可しない元証拠。
-	 * @return 本演算子は呼出し不能であり、値を返さない。
 	 */
 	OfficialAcquiredFileEvidence &operator=( const OfficialAcquiredFileEvidence &other) = delete ;
 	/**
@@ -441,7 +445,6 @@ public:
 	OfficialAcquisitionSession( const OfficialAcquisitionSession &) = delete ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	OfficialAcquisitionSession &operator=( const OfficialAcquisitionSession &) = delete ;
@@ -452,7 +455,6 @@ public:
 	OfficialAcquisitionSession( OfficialAcquisitionSession &&) = delete ;
 	/**
 	 * @brief 所有状態の移動をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	OfficialAcquisitionSession &operator=( OfficialAcquisitionSession &&) = delete ;
@@ -523,7 +525,8 @@ private:
 		std::uint32_t files{} ;
 	} ;
 	friend class CollectorInspectionAcquisition ;
-	/** @brief 通常policyと収集private scopeを分けて共通取得する。
+	/**
+	 * @brief 通常policyと収集private scopeを分けて共通取得する。
 	 * @param[in] request 通常またはadapter自身の有限要求。
 	 * @param[in,out] workspace 元fileを所有する保護領域。
 	 * @param[in,out] transport 同じ公式取得または非通信試験の境界。

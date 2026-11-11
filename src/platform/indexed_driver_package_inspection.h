@@ -2,7 +2,7 @@
 /**
  * @file indexed_driver_package_inspection.h
  * @brief 索引hintと固定済みarchiveの通常共通検査を結合する。
- * @version 01.04.00
+ * @version 01.04.01
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
  * Ver.01.03.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * Ver.01.04.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
+ * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Worker内だけで使用する。Hintはmetadata参照であり、索引署名、公式由来、取得許可、
@@ -49,7 +50,8 @@ struct IndexedDriverInfSelector {
 	std::wstring nestedArchive ;
 	/// 同container内のINF相対名です。
 	std::wstring infIdentity ;
-	/** @brief 原member組を完全一致で比較します。
+	/**
+	 * @brief 原member組を完全一致で比較します。
 	 * @param[in] other 別recordの元selectorです。
 	 * @return 二つの原相対名が同じ場合trueです。
 	 */
@@ -100,6 +102,7 @@ struct IndexedDriverPackageInspection {
 	CommonDriverPackageInspection inspection ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 索引hintと固定済み入力の有限identityだけを非I/Oで照合する。
  * @param[in] activeScanSessionId 現在の0ではないworker scan session。
@@ -109,11 +112,13 @@ struct IndexedDriverPackageInspection {
  * @return Session・hash・size・local path構文・形式が一致する場合true。
  * @note 実byte、索引本文・署名、公式取得根拠や許可の検査を代替しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool		  matchesIndexedDriverArchiveHint( ScanSessionId activeScanSessionId,
 														  const IndexedDriverArchiveHint &hint,
 														  const DriverArchiveInput		 &input,
 														  OfficialDriverArchiveFormat	  format) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 索引の期待値と実fileを再照合し、通常の共通内容・署名検査へ接続する。
  * @param[in] activeScanSessionId 現在のworker scan session。
@@ -126,6 +131,7 @@ struct IndexedDriverPackageInspection {
  * @pre Inputの保護workspaceは全呼出し中有効であり、入力はresultとaliasしない。
  * @note Blockingする。通常policyを維持し、保守根拠・grant・Windows適合・導入へ昇格しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectIndexedDriverPackage(
 	ScanSessionId activeScanSessionId, const IndexedDriverArchiveHint &hint,
 	const DriverArchiveInput &input, OfficialDriverArchiveFormat format,

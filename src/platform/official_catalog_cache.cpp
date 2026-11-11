@@ -2,7 +2,7 @@
 /**
  * @file official_catalog_cache.cpp
  * @brief 公式catalog cache実装。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Production rootへ保護DACLを設定し、reparse pointを拒否します。本文とmetadataは別一時fileから置換し、途中終了時の不整合を次回破棄します。
@@ -761,7 +762,9 @@ void discardPaths( const std::wstring_view bodyPath, const std::wstring_view met
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_catalog_cache.h 宣言側の契約を正本とする。
+ * @brief 単体試験が所有する既存親directory内のcache rootを使用する。試験用cache rootを使用するobjectを作成する。Rootのlifetimeと削除は呼出し側
+ *        が管理する。
+ * @param[in] rootOverride 試験終了時に呼出し側が削除する絶対path。 試験が所有する絶対directory path。
  */
 //------------------------------------------------------------------------------
 OfficialCatalogCache::OfficialCatalogCache( std::wstring rootOverride)
@@ -771,7 +774,13 @@ OfficialCatalogCache::OfficialCatalogCache( std::wstring rootOverride)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_catalog_cache.h 宣言側の契約を正本とする。
+ * @brief URLに対応するcache本文をsize、SHA-256、期限付きで読み取る。URLに対応するcache本文を検証付きで読み取る。不正metadata、size、hash、
+ *        reparseを検出したentryは破棄する。
+ * @param[in] url 公式HTTPS resourceの完全なURL。 Cache keyの公式HTTPS URL。
+ * @param[in] maximumBytes 読取りを許可する本文上限byte数。
+ * @param[in] maximumAgeSeconds Freshとみなす最大経過秒数。0は常にStaleとする。 Fresh期限秒数。
+ * @param[out] entry 成功時のcache状態と検証済み本文。Missing時は本文なし。 検証済みcache状態と本文。
+ * @return Cache処理成功時は0、初期化またはI/O失敗時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialCatalogCache::load( const std::wstring_view url,
@@ -864,7 +873,11 @@ NativeError OfficialCatalogCache::load( const std::wstring_view url,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_catalog_cache.h 宣言側の契約を正本とする。
+ * @brief Networkで再検証したcatalog本文をatomicに保存する。Bodyを先に置換しmetadataを最後に置換してcommit pointとする。
+ * @param[in] url 公式HTTPS resourceの完全なURL。 Cache keyの公式HTTPS URL。
+ * @param[in] content 空ではない検証対象本文。 空ではないcatalog本文。
+ * @param[in] etag Responseが返した任意ETag。不正値は保存せず本文だけを保存する。 任意のresponse ETag。
+ * @return 保存成功時は0、初期化またはI/O失敗時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
 NativeError OfficialCatalogCache::store( const std::wstring_view			 url,
@@ -940,7 +953,9 @@ NativeError OfficialCatalogCache::store( const std::wstring_view			 url,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_catalog_cache.h 宣言側の契約を正本とする。
+ * @brief URLに対応する本文とmetadataをbest-effortで破棄する。URLに対応する本文とmetadataを破棄する。例外とI/O errorを呼出し側へ伝播せず、cache
+ *        を正本にしない。
+ * @param[in] url 破棄対象resourceの完全なURL。 破棄対象resource URL。
  */
 //------------------------------------------------------------------------------
 void OfficialCatalogCache::discard( const std::wstring_view url) const noexcept

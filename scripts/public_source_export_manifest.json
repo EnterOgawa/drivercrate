@@ -21,6 +21,7 @@
     "cmake/local_index_acceptance.h.in",
     "docs/adr/0141-revised-source-standard-contract.md",
     "docs/adr/0481-app-inno-setup-and-update-checks.md",
+    "docs/adr/0482-independent-function-contracts.md",
     "docs/architecture.md",
     "docs/c_cpp_coding_standard.md",
     "docs/examples/c_cpp_coding_standard_sample.cpp",
@@ -28,6 +29,7 @@
     "docs/images/device-list.png",
     "docs/release-checklist.md",
     "docs/release-notes-1.0.1.md",
+    "docs/release-notes-1.0.6.md",
     "docs/security.md",
     "docs/testing.md",
     "docs/user-guide.md",
@@ -49,6 +51,7 @@
     "scripts/release_signing.ps1",
     "scripts/source-audit.doxyfile",
     "scripts/source_comments.py",
+    "scripts/source_method_contracts.py",
     "scripts/source_structure.py",
     "scripts/source_style.py",
     "scripts/test_app_distribution_documents.ps1",
@@ -56,6 +59,7 @@
     "scripts/test_index_build_profile.py",
     "scripts/test_public_source_closure.py",
     "scripts/test_release_signing.ps1",
+    "scripts/test_source_method_contracts.py",
     "scripts/test_source_style.py",
     "src/app/app.manifest",
     "src/app/app.rc",
@@ -11871,6 +11875,51 @@
       "owner": "docs/security.md",
       "input": "docs/adr/0481-app-inno-setup-and-update-checks.md",
       "kind": "app-update-contract"
+    },
+    {
+      "owner": "scripts/check_source_standard.py",
+      "input": "scripts/source_method_contracts.py",
+      "kind": "python-local-import"
+    },
+    {
+      "owner": "scripts/audit_source_contracts.py",
+      "input": "scripts/source_method_contracts.py",
+      "kind": "python-local-import"
+    },
+    {
+      "owner": "scripts/source_method_contracts.py",
+      "input": "scripts/source_style.py",
+      "kind": "python-local-import"
+    },
+    {
+      "owner": "scripts/source_method_contracts.py",
+      "input": "scripts/source_comments.py",
+      "kind": "python-local-import"
+    },
+    {
+      "owner": "scripts/source_method_contracts.py",
+      "input": "scripts/source_structure.py",
+      "kind": "python-local-import"
+    },
+    {
+      "owner": "scripts/test_source_method_contracts.py",
+      "input": "scripts/audit_source_contracts.py",
+      "kind": "python-local-import"
+    },
+    {
+      "owner": "scripts/test_source_method_contracts.py",
+      "input": "scripts/source_method_contracts.py",
+      "kind": "python-local-import"
+    },
+    {
+      "owner": "docs/release-checklist.md",
+      "input": "docs/release-notes-1.0.6.md",
+      "kind": "release-document"
+    },
+    {
+      "owner": "docs/c_cpp_coding_standard.md",
+      "input": "docs/adr/0482-independent-function-contracts.md",
+      "kind": "independent-contract-rule"
     }
   ],
   "externalInputs": [

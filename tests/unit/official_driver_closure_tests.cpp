@@ -2,7 +2,7 @@
 /**
  * @file official_driver_closure_tests.cpp
  * @brief 公式driver package監査単体試験実装。
- * @version 01.10.01
+ * @version 01.10.02
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -61,6 +61,7 @@
  * Ver.01.09.03 Shunji Ogawa  2026/11/03  通常公開IDと署名済み参照データの境界を更新。
  * Ver.01.10.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * Ver.01.10.01 Shunji Ogawa  2026/11/07  現非実行policyと旧fixture期待を照合。
+ * Ver.01.10.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Minizで生成した架空ZIPを使用し、INF、CAT、参照fileだけが保護workspaceへ抽出されることを検証します。
@@ -4447,10 +4448,12 @@ void testAsixBoundInstallResultsAndGuards( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 共通入力が公式取得を捏造せず、同じ非実行閉包へ到達することを検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCommonArchiveContentBoundary( TestContext &context)
 {
 	const ZipFixtureEntry fixtureEntries[]{
@@ -4531,10 +4534,12 @@ void testCommonArchiveContentBoundary( TestContext &context)
 	DRIVERCRATE_EXPECT( context, inspection.infs.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じflat payloadの共通memberを一度保持し、quotaと別入力再利用を拒否します。
  * @param[in,out] context 架空ZIPだけの内容・所有境界を集計します。
  */
+//------------------------------------------------------------------------------
 void testSharedArchiveMemberRetention( TestContext &context)
 {
 	const std::array entries{
@@ -4613,10 +4618,12 @@ void testSharedArchiveMemberRetention( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Intel Windows 11の型付きrecordから生成ZIPの共通内容検査までを接続検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testIntelWindows11DelegatedArchiveContentConnection( TestContext &context)
 {
 	const ZipFixtureEntry fixtureEntries[]{
@@ -4747,10 +4754,12 @@ void testIntelWindows11DelegatedArchiveContentConnection( TestContext &context)
 	DRIVERCRATE_EXPECT( context, inspection.error != 0 && inspection.infs.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Local入力・件数・nested上限・公開直前の差替えを検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCommonArchiveBounds( TestContext &context)
 {
 	const std::array invalidPaths{std::wstring_view( L"payload.zip"),
@@ -4806,10 +4815,12 @@ void testCommonArchiveBounds( TestContext &context)
 														   inspection) != 0) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 八軸が内容・Windows適合・由来・未接続方式を混同しないことを検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCommonInfAssessmentBinding( TestContext &context)
 {
 	CommonInfInspection inspected ;	// File検査は行わず、testだけで渡す署名成功snapshot。
@@ -4889,10 +4900,12 @@ void testCommonInfAssessmentBinding( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !rank) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 合格snapshotの保護fileが同じ長さで改変されても再検証で拒否する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCommonReverificationTamperRejection( TestContext &context)
 {
 	constexpr std::array ORIGINAL{std::byte{0x41}, std::byte{0x42}, std::byte{0x43},
@@ -4930,10 +4943,12 @@ void testCommonReverificationTamperRejection( TestContext &context)
 	DRIVERCRATE_EXPECT( context, reverifyCommonDriverInf( inspected) != 0) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 外側INFと一段nested INFを両方検査し、最後の入力変化も拒否する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCommonNestedAndLateChange( TestContext &context)
 {
 	const ZipFixtureEntry innerEntries[]{
@@ -4987,10 +5002,12 @@ void testCommonNestedAndLateChange( TestContext &context)
 					   calls == 5U && inspection.infs.empty() && inspection.scanSessionId == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 明示依存があるINFでも署名検査を行い、架空CATを署名合格へ進めない。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testCommonExplicitDependencyObservation( TestContext &context)
 {
 	std::string		  inf( VALID_INF) ;								// 明示的な未解決依存を追加する架空INF。
@@ -5037,11 +5054,13 @@ void testCommonExplicitDependencyObservation( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 通常の標準二構文を認識し、架空CAT・作用・形式・欠損を拒否する。
  * @param[in,out] context 架空回帰のassertion集計先。
  * @note 実署名合格・実device・導入を偽装せず、構造から署名への到達だけを確認する。
  */
+//------------------------------------------------------------------------------
 void testCommonStandardSyntaxBoundary( TestContext &context)
 {
 	constexpr std::array SYNTAXES{
@@ -5162,11 +5181,13 @@ void testCommonStandardSyntaxBoundary( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 非実行棚卸しの選択範囲・間接作用・欠落参照・容量・改変を架空INFで検証する。
  * @param[in,out] context 既存groupに追加するassertion集計先。
  * @note 実CAT・device・installを使用しない。metadata存在だけのIncludeを開いてはならない。
  */
+//------------------------------------------------------------------------------
 void testSelectedInfInstallInventory( TestContext &context)
 {
 	static_assert( !std::is_convertible_v<OfficialInfInstallInventory, OfficialInfPackage>) ;
@@ -5558,11 +5579,13 @@ void testSelectedInfInstallInventory( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同節／別節の明示依存と全不足種類・最大量を架空INFで確認する。
  * @param[in,out] context 一度だけ実行するassertion集計先。
  * @note 値とIDは架空。Include先・未走査節は開かず、実行と導入は行わない。
  */
+//------------------------------------------------------------------------------
 void testSelectedInfReferenceContext( TestContext &context)
 {
 	constexpr std::array<std::string_view, 7> UNFOLLOWED{
@@ -5747,11 +5770,13 @@ void testSelectedInfReferenceContext( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 標準構文・参照coverage・root署名・従来作用拒否を独立に確認する。
  * @param[in,out] context 架空fixtureのassertion集計先。
  * @note 架空CATはどの経路でも合格しない。実device・導入APIを呼ばない。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceVerdictSeparation( TestContext &context)
 {
 	// 標準二識別子・作用あり・未知識別子・参照欠落を有限に比較する。
@@ -5921,11 +5946,13 @@ void testMaintenanceVerdictSeparation( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 保守EXEの構造と参照欠落を分け、通常入口と禁止拡張子を緩和しない。
  * @param[in,out] context 架空fixtureのassertion集計先。
  * @note 架空CATは必ず失敗し、EXEは実行・導入・library loadしない。
  */
+//------------------------------------------------------------------------------
 void testMaintenanceReferencedExecutableBoundary( TestContext &context)
 {
 	constexpr std::array NAMES{std::string_view( "setup.exe"), std::string_view( "setup.EXE"),
@@ -6091,7 +6118,9 @@ void testMaintenanceReferencedExecutableBoundary( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_driver_closure_tests.h 宣言側の契約を正本とする。
+ * @brief 公式driver package監査、選択的閉包抽出の安全性と有限上限を検証する。Intel／ASIX固定profile、PnP／report、Mixed archive分離、禁止
+ *        参照、directiveおよび一段nested ZIPを順に検証する。
+ * @param[in,out] context Assertion件数と失敗内容の集計先。
  */
 //------------------------------------------------------------------------------
 void runOfficialDriverClosureTests( TestContext &context)

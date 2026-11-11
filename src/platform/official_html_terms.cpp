@@ -2,7 +2,7 @@
 /**
  * @file official_html_terms.cpp
  * @brief 静的HTML許諾の原要素・原文書・全文をメーカー非依存で検査します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/14  有限selectorとraw textarea文書の全文検査を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Script/CSSを取得・評価せず、同意や取得能力を生成しません。
@@ -73,38 +74,50 @@ struct HtmlTag {
 	bool													selfClosing{} ;
 } ;
 
-/** @brief HTML外枠で許可するASCII空白です。
+//------------------------------------------------------------------------------
+/**
+ * @brief HTML外枠で許可するASCII空白です。
  * @param[in] value 原一文字です。
  * @return 許可する外枠空白の場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool space( const wchar_t value)
 {
 	return value == L' ' || value == L'\t' || value == L'\r' || value == L'\n' ;
 }
 
-/** @brief 解析名のASCII一文字を照合用に小文字へ写します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 解析名のASCII一文字を照合用に小文字へ写します。
  * @param[in] value 原一文字です。
  * @return 名前の照合値です。原本文は変更しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] wchar_t lower( const wchar_t value)
 {
 	return value >= L'A' && value <= L'Z' ? value - L'A' + L'a' : value ;
 }
 
-/** @brief 公開tag/属性名の閉じた文字集合です。
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開tag/属性名の閉じた文字集合です。
  * @param[in] value 原一文字です。
  * @return ASCII名に使用できる場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool nameCharacter( const wchar_t value)
 {
 	return (lower( value) >= L'a' && lower( value) <= L'z') || (value >= L'0' && value <= L'9') ||
 		   value == L'-' || value == L'_' || value == L':' ;
 }
 
-/** @brief 文書外枠の空白だけを取り除いた借用範囲です。
+//------------------------------------------------------------------------------
+/**
+ * @brief 文書外枠の空白だけを取り除いた借用範囲です。
  * @param[in] value 原外枠です。本文内部には使用しません。
  * @return 前後空白を除いた借用範囲です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring_view frame( std::wstring_view value)
 {
 	// 有限外枠の先頭空白だけを除きます。
@@ -120,13 +133,16 @@ struct HtmlTag {
 	return value ;
 }
 
-/** @brief 引用符と重複属性を確認して一tagだけを読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 引用符と重複属性を確認して一tagだけを読みます。
  * @param[in] page 呼出し中だけ借用する原文字列です。
  * @param[in] begin less-thanの原位置です。
  * @param[out] tag 全成功時だけ有効なtagです。失敗出力は使用しません。
  * @param[in] staticSection 独立profileだけHTML属性名のdotを認識します。
  * @return 最大4096文字以内で全属性を読めた場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool readTag( const std::wstring_view page, const std::size_t begin, HtmlTag &tag,
 						   const bool staticSection = false)
 {
@@ -250,11 +266,14 @@ struct HtmlTag {
 	return false ;
 }
 
-/** @brief 一意に解析済みの実属性だけを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一意に解析済みの実属性だけを返します。
  * @param[in] tag 原tagです。
  * @param[in] name ASCII小文字の照合名です。
  * @return 実属性値。欠損は空です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring_view attribute( const HtmlTag &tag, const std::wstring_view name)
 {
 	const auto found = std::ranges::find_if( tag.attributes, [&name]( const auto &value) {
@@ -263,11 +282,14 @@ struct HtmlTag {
 	return found == tag.attributes.end() ? std::wstring_view{} : found->second ;
 }
 
-/** @brief 公開selectorを実tag属性へ完全一致させます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開selectorを実tag属性へ完全一致させます。
  * @param[in] tag 原要素です。
  * @param[in] selector 認証済みまたはproducerの有限ASCII selectorです。
  * @return 元tag/属性/値が全て一致する場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matches( const HtmlTag &tag, const IndexHtmlTermsSelector &selector)
 {
 	return !tag.closing && tag.name == std::wstring( selector.tag.begin(), selector.tag.end()) &&
@@ -275,7 +297,9 @@ struct HtmlTag {
 			   std::wstring( selector.value.begin(), selector.value.end()) ;
 }
 
-/** @brief 外pageの実tagだけを順に訪問します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 外pageの実tagだけを順に訪問します。
  * @tparam Visitor 呼出し中だけpageを借用する同期visitorです。
  * @param[in] page 原pageです。
  * @param[in] visitor 各実tagと原開始位置を確認する同期関数です。
@@ -284,6 +308,7 @@ struct HtmlTag {
  * @return 文法とvisitorが全て成立する場合trueです。
  * @note Script/style/textareaの原内側は外page要素へ数えません。
  */
+//------------------------------------------------------------------------------
 template <class Visitor>
 [[nodiscard]] bool visitOuterTags( const std::wstring_view page, Visitor visitor,
 								  std::size_t *rejectedOffset = nullptr,
@@ -368,11 +393,14 @@ template <class Visitor>
 	return true ;
 }
 
-/** @brief 一つの既知文字参照をUnicode scalarへ復元します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一つの既知文字参照をUnicode scalarへ復元します。
  * @param[in] entity Ampersandとsemicolonの内側です。
  * @param[in,out] text 成功した文字だけを追加する一時全文です。
  * @return Unicodeと閉じたentity集合が成立する場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool appendEntity( const std::wstring_view entity, std::wstring &text)
 {
 	constexpr std::array<std::pair<std::wstring_view, std::uint32_t>, 6U> ENTITIES{
@@ -438,12 +466,15 @@ template <class Visitor>
 	return true ;
 }
 
-/** @brief 許可本文の全tagと文字を既存の表示規則へ写します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 許可本文の全tagと文字を既存の表示規則へ写します。
  * @param[in] body 原body内部です。
  * @param[in,out] text Title付きの一時全文です。失敗時は呼出し側が破棄します。
  * @param[in] section 独立sectionの表示要素と非実行連絡先だけを追加で認識します。
  * @return 本文を切り詰めず全て写せた場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool renderBody( const std::wstring_view body, std::wstring &text,
 							  const bool section = false)
 {
@@ -607,12 +638,15 @@ template <class Visitor>
 	return stack.empty() && hasText && validPreparationEulaText( text) ;
 }
 
-/** @brief Raw文書のhead/bodyを一意に確認してtitle付き全文へ写します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Raw文書のhead/bodyを一意に確認してtitle付き全文へ写します。
  * @param[in] document 選択した完全原文書です。
  * @param[in] revision 公開titleです。空は比較しません。
  * @param[out] text 全成功時だけtitle付き全文です。
  * @return 文書全体を欠損なく認識した場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool renderDocument( const std::wstring_view document,
 								  const std::wstring_view revision, std::wstring &text)
 {
@@ -731,11 +765,14 @@ template <class Visitor>
 	return renderBody( raw.substr( body.end + 1U, end - body.end - 1U), text) ;
 }
 
-/** @brief 一つのUTF-16原値を厳密UTF-8へ写します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一つのUTF-16原値を厳密UTF-8へ写します。
  * @param[in] value 元Unicode値です。
  * @param[out] bytes 成功時だけ完全UTF-8です。
  * @return 全文字を表現できた場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool utf8( const std::wstring_view value, std::string &bytes)
 {
 	// API整数境界はpage上限から確認します。
@@ -757,11 +794,14 @@ template <class Visitor>
 							   nullptr) == count ;
 }
 
-/** @brief 共通SHA-256の結果を元固定digestへ完全一致させます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通SHA-256の結果を元固定digestへ完全一致させます。
  * @param[in] bytes 同じ原文書または全文の完全UTF-8です。
  * @param[in] expected 署名recordの元digestです。
  * @return 共通SHA-256が成功し全byteが一致した場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool hashMatches( const std::string_view bytes, const IndexManifestSha256 &expected)
 {
 	constexpr std::wstring_view HEX = L"0123456789abcdef" ;	// 共通digest表示の字句です。
@@ -783,13 +823,16 @@ template <class Visitor>
 	return true ;
 }
 
-/** @brief 独立文書の一意なsection全体を非実行で抽出します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 独立文書の一意なsection全体を非実行で抽出します。
  * @param[in] page 原HTMLです。
  * @param[in] extraction 元一意selectorです。
  * @param[in] revision 同意対象の原公開revisionです。
  * @param[out] observation 全成功時だけ原sectionと可読全文です。
  * @return 成功0、構造不一致は元HRESULTです。
  */
+//------------------------------------------------------------------------------
 NativeError extractSection( const std::wstring_view page, const IndexHtmlTermsExtraction &extraction,
 						   const std::wstring_view revision, HtmlTermsTextObservation &observation)
 {
@@ -856,7 +899,18 @@ NativeError extractSection( const std::wstring_view page, const IndexHtmlTermsEx
 
 } // namespace
 
-/** @see official_html_terms.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示したtextareaまたは独立sectionの原文書と全文を共通抽出します。
+ * @param[in] page 厳密UTF-8復号pageです。旧profileは256KiB、新sectionだけ2MiB相当以内です。
+ * @param[in] extraction 認証前producerまたは認証後adapterが持つ元selectorです。
+ * @param[in] payloadUrl 元descriptorの完全ASCII HTTPS URLです。
+ * @param[in] revision 原公開titleです。空の場合だけ原titleを保持し比較しません。
+ * @param[out] observation 全成功時だけ原文書と全文です。失敗時は本文空と数値診断だけです。
+ * @return 全構造成功0、未対応/不一致は元HRESULTです。
+ * @note 所有権を借用し、メーカー別parser、ネットワーク、許可状態は使用しません。
+ */
+//------------------------------------------------------------------------------
 NativeError extractStaticHtmlTerms( const std::wstring_view		   page,
 								   const IndexHtmlTermsExtraction &extraction,
 								   const std::string_view		   payloadUrl,
@@ -972,7 +1026,18 @@ NativeError extractStaticHtmlTerms( const std::wstring_view		   page,
 	}
 }
 
-/** @see official_html_terms.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通抽出した原文書と全文の二つのexact size/hashを検査します。
+ * @param[in] page 同じ使用時HTTPから復号した原pageです。
+ * @param[in] extraction 署名recordの原文書/全文hashとselectorです。
+ * @param[in] payloadUrl 同じ署名recordの原payload URLです。
+ * @param[in] revision 同じ署名recordの原公開revisionです。
+ * @param[out] text 全検査成立時だけ全文です。失敗時は空です。
+ * @return 成功0、構造/全文/原文書不一致は元HRESULTです。
+ * @note 観測pageのprovenance hashを新観測へ更新せず、HTMLの明示契約だけを検査します。
+ */
+//------------------------------------------------------------------------------
 NativeError verifyStaticHtmlTerms( const std::wstring_view		  page,
 								  const IndexHtmlTermsExtraction &extraction,
 								  const std::string_view		  payloadUrl,
@@ -1006,7 +1071,15 @@ NativeError verifyStaticHtmlTerms( const std::wstring_view		  page,
 	}
 }
 
-/** @see official_html_terms.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 外pageに一つだけ存在する非実行script参照を確認します。
+ * @param[in] page 保存された元pageです。Textarea/script/style内部を外要素へ数えません。
+ * @param[in] absoluteUrl 公式originへ照合済みの元script URLです。
+ * @param[in] relativePath 同じURLの原root-relative pathです。
+ * @return 原srcへ一意に一致する場合true。実通信やJSの意味確認は行いません。
+ */
+//------------------------------------------------------------------------------
 bool hasSingleStaticHtmlScriptReference( const std::wstring_view page,
 										const std::wstring_view absoluteUrl,
 										const std::wstring_view relativePath)
@@ -1034,7 +1107,15 @@ bool hasSingleStaticHtmlScriptReference( const std::wstring_view page,
 	return parsed && matchesCount == 1U ;
 }
 
-/** @see official_html_terms.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式根拠HTMLの実anchorが明示された規約URLを参照するか確認します。
+ * @param[in] page 最大2MiB相当の厳密UTF-8復号HTMLです。
+ * @param[in] documentUrl queryなしの明示HTTPS原URLです。
+ * @param[out] rejectedOffset 任意の構造停止文字位置です。本文は返しません。
+ * @return script/comment外に同URLへの実anchorが一つ以上あればtrueです。
+ */
+//------------------------------------------------------------------------------
 bool hasStaticHtmlDocumentLink( const std::wstring_view page, const std::string_view documentUrl,
 							   std::size_t *rejectedOffset)
 {

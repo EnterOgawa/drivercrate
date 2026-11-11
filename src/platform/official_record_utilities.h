@@ -2,7 +2,7 @@
 /**
  * @file official_record_utilities.h
  * @brief 公式recordの指紋表記とgrant限定取得の共通契約。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/02  旧AI adapterの非AI共通処理を移設。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Fingerprint byte列と既存grant・容量・進捗検証を維持し、推論や導入は行いません。
@@ -39,16 +40,17 @@ namespace drivercrate {
 //------------------------------------------------------------------------------
 // 公式record共通処理。
 //------------------------------------------------------------------------------
-
 /**
  * @brief 非機密record fingerprintを小文字hexへ変換します。
  * @param[in] evidence 検証済みrecord証拠。呼出し中だけ借用します。
  * @return 元byte順を維持した固定64文字のfingerprint。
  * @note Record検証は行わず、与えられたSHA-256 byte列を表記します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string officialRecordFingerprint(
 	const OfficialDistributionRecordEvidence &evidence) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既存grant限定取得と進捗一致を同じ同期境界で検証します。
  * @param[in,out] session 呼出しthreadが所有する有限取得session。
@@ -65,6 +67,7 @@ namespace drivercrate {
  * @note 型とprofile不一致は回線照会・grant消費・network開始前に拒否します。
  * @warning 成功は検査用byte取得だけであり、実行・内容合格・導入許可ではありません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError acquireGrantedOfficialPayload(
 	OfficialAcquisitionSession &session, OfficialDownloadWorkspace &workspace,
 	IOfficialAcquisitionTransport &transport, IOfficialNetworkCostReader &costReader,

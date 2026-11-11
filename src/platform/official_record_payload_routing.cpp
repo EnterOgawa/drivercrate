@@ -2,7 +2,7 @@
 /**
  * @file official_record_payload_routing.cpp
  * @brief 検証済み公式record payloadのURL非保持方式分類実装。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  方式別の表示専用候補評価を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  自動探索のdevice別表示専用候補生成を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/09/23  取得専用型を内容検査・導入routingから拒否。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 方式分類はrecord parserの型付き値を正本とし、拡張子やcontent typeによるfallbackを行いません。
@@ -71,7 +72,6 @@ constexpr std::wstring_view AUTOMATIC_CANDIDATE_PREFIX = L"official-candidate:" 
 //------------------------------------------------------------------------------
 // 内部関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief Plain textが有限で制御文字を含まないか確認します。
  * @param[in] value 検証する文字列です。
@@ -79,6 +79,7 @@ constexpr std::wstring_view AUTOMATIC_CANDIDATE_PREFIX = L"official-candidate:" 
  * @param[in] allowEmpty 空文字列を許可する場合trueです。
  * @return 指定した有限plain text条件を満たす場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isFiniteText( const std::wstring_view value, const std::size_t maximumCharacters,
 								const bool allowEmpty) noexcept
 {
@@ -98,6 +99,7 @@ constexpr std::wstring_view AUTOMATIC_CANDIDATE_PREFIX = L"official-candidate:" 
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Scan内のrecord証拠とpayload順だけから有限の表示行identityを作ります。
  * @param[in] descriptor 検証済みpayload descriptorです。
@@ -105,6 +107,7 @@ constexpr std::wstring_view AUTOMATIC_CANDIDATE_PREFIX = L"official-candidate:" 
  * @return URL、表示名、PnP IDを含まない256文字以下のopaque identityです。
  * @throws std::bad_alloc 文字列領域を確保できない場合です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring makeAutomaticCandidateIdentity(
 	const OfficialRecordPayloadDescriptor &descriptor, const std::size_t deviceOrdinal)
 {
@@ -119,23 +122,27 @@ constexpr std::wstring_view AUTOMATIC_CANDIDATE_PREFIX = L"official-candidate:" 
 	return identity ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Stable record fingerprintが未設定の全zeroでないか確認します。
  * @param[in] fingerprint 検証するURL非保持fingerprintです。
  * @return 1 byte以上が0以外ならtrueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool hasRecordFingerprint( const OfficialStableRecordFingerprint &fingerprint) noexcept
 {
 	return std::ranges::any_of( fingerprint.bytes,
 							   []( const std::byte value) noexcept { return value != std::byte{} ; }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 二つの公式root取得証拠が全fieldで一致するか確認します。
  * @param[in] left 比較元です。
  * @param[in] right 比較先です。
  * @return URL非保持の全取得fieldが一致する場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool sameSourceEvidence( const OfficialSourceEvidence &left,
 									  const OfficialSourceEvidence &right) noexcept
 {
@@ -149,12 +156,14 @@ constexpr std::wstring_view AUTOMATIC_CANDIDATE_PREFIX = L"official-candidate:" 
 		   left.cachePermitted == right.cachePermitted ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 二つのrecord evidenceが同じ検証snapshotか確認します。
  * @param[in] left 比較元です。
  * @param[in] right 比較先です。
  * @return Root、record ID、parser、fingerprint、件数と時刻が一致する場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool sameRecordEvidence( const OfficialDistributionRecordEvidence &left,
 									  const OfficialDistributionRecordEvidence &right) noexcept
 {
@@ -166,11 +175,13 @@ constexpr std::wstring_view AUTOMATIC_CANDIDATE_PREFIX = L"official-candidate:" 
 		   left.resolvedUtcSeconds == right.resolvedUtcSeconds ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Payload kindを拡張子に依存しない次段routeへ写像します。
  * @param[in] kind Parserが明示したpayload kindです。
  * @return 三方式に対応する固定routeです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialRecordPayloadRoute routeForKind(
 	const OfficialDistributionPayloadKind kind) noexcept
 {
@@ -193,11 +204,13 @@ constexpr std::wstring_view AUTOMATIC_CANDIDATE_PREFIX = L"official-candidate:" 
 	return OfficialRecordPayloadRoute::DISPLAY_ONLY_UNSUPPORTED ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開basenameが共通INF検査で扱うZIP／CABか確認します。
  * @param[in] fileDisplayName Recordが明示したdirectoryなしbasenameです。
  * @return 最終拡張子がcase-insensitiveな`.zip`または`.cab`の場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isCommonInfArchiveName( const std::wstring_view fileDisplayName)
 {
 	const std::size_t dot = fileDisplayName.find_last_of( L'.') ;	// 最終拡張子の開始位置です。
@@ -219,7 +232,9 @@ constexpr std::wstring_view AUTOMATIC_CANDIDATE_PREFIX = L"official-candidate:" 
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_record_payload_routing.h 宣言側の契約を正本とします。
+ * @brief Record payload descriptor一件の有限値と方式別能力を検証します。
+ * @param[in] descriptor 検証するURL非保持descriptorです。
+ * @return ID、route、公開metadata、能力の組が既知で整合する場合trueです。
  */
 //------------------------------------------------------------------------------
 bool isOfficialRecordPayloadDescriptorValid(
@@ -285,7 +300,14 @@ bool isOfficialRecordPayloadDescriptorValid(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_record_payload_routing.h 宣言側の契約を正本とします。
+ * @brief 検証済みrecordの全payloadをURL非保持descriptorへ変換します。
+ * @param[in] record 秘密URLと全型付きmetadataを所有するworker内recordです。
+ * @param[in] evidence 同じrecordから作成したURL非保持証拠です。
+ * @param[out] descriptors 成功時にrecord順の全descriptor、失敗時に空です。
+ * @return Record・証拠の完全一致と全descriptor構築に成功すれば0です。
+ * @post `record`と全秘密URLは変更しません。Unsupported方式も表示専用descriptorとして保持します。
+ * @note Routeはpayload kindだけから決め、file名、拡張子、content typeから別方式へ変更しません。開発用DOWNLOAD_ONLY_FILEは製品
+ *       descriptorへ変換せず、全件を拒否します。
  */
 //------------------------------------------------------------------------------
 NativeError describeOfficialDistributionRecordPayloads(
@@ -364,7 +386,13 @@ NativeError describeOfficialDistributionRecordPayloads(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_record_payload_routing.h 宣言側の契約を正本とします。
+ * @brief URL非保持payload descriptorを未取得の表示専用候補評価へ結合します。
+ * @param[in] descriptor 検証済みrecordから作成した方式別descriptorです。
+ * @param[in] candidate 公式探索経路、opaque identity、Providerと表示専用状態を設定済みの候補です。
+ * @param[out] assessment 成功時のrecord由来だけが合格した八軸評価です。失敗時は空です。
+ * @return Session、Provider、候補状態とdescriptorを安全に結合できればtrueです。
+ * @post INF、installer、unsupportedのいずれもexecutorなしで導入可能になりません。
+ * @note INFとinstallerは未取得、unsupportedと不正拡張子は内容検査未対応として区別します。
  */
 //------------------------------------------------------------------------------
 bool makeOfficialRecordPayloadDisplayAssessment( const OfficialRecordPayloadDescriptor &descriptor,
@@ -454,7 +482,14 @@ bool makeOfficialRecordPayloadDisplayAssessment( const OfficialRecordPayloadDesc
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/official_record_payload_routing.h 宣言側の契約を正本とします。
+ * @brief 一つの自動探索payloadを結合済みdeviceごとの非選択表示行へ変換します。
+ * @param[in] group Record fingerprintから重複排除した一取得単位です。
+ * @param[in] descriptor 同じgroupから再生成したURL非保持表示metadataです。
+ * @param[in] devices 同じscanの完全なraw ID非保持device hint集合です。
+ * @param[in] provider Provider registryへ登録された同じ取得元の定義です。
+ * @return 全deviceを一意な表示行へ変換できた場合はgroup順の候補集合、それ以外は値なしです。
+ * @post 成功行は`action=NONE`、導入不可、未取得監査でありinstall routingを発行しません。
+ * @note Recordのpackage版はProvider表示値として保持するだけで、現在版との比較に使用しません。
  */
 //------------------------------------------------------------------------------
 std::optional<std::vector<UpdateCandidate>> makeOfficialRecordPayloadDisplayCandidates(

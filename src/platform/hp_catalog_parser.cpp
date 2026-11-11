@@ -2,7 +2,7 @@
 /**
  * @file hp_catalog_parser.cpp
  * @brief HP公式reference catalog parser実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note MSXML 6.0のDTDと外部参照を無効化し、HP公式referenceのうちdriver候補とfile検証に必要な値だけを抽出します。任意commandは読み取りません。
@@ -650,7 +651,13 @@ using Microsoft::WRL::ComPtr ;
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/hp_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief HP platform listから端末のPlatform IDとWindows buildに一致する参照を取得する。HP platform listから端末に一致する
+ *        referenceを取得する。Platform ID、x64、buildを完全一致させ、URL用値を検証する。
+ * @param[in] xmlUtf16 HP署名確認済みCABから読み取ったUTF-16 XML。 HP署名確認済みplatform list XML。
+ * @param[in] systemId 4桁大文字hexへ検証済みのlocal Platform ID。 検証済みlocal Platform ID。
+ * @param[in] osBuild local Windows build番号。
+ * @param[out] reference 成功時の一意なplatform reference。
+ * @return 成功時は0、未対応、重複矛盾、schema不正時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
 NativeError parseHpPlatformCatalog( const std::wstring_view xmlUtf16,
@@ -801,7 +808,12 @@ NativeError parseHpPlatformCatalog( const std::wstring_view xmlUtf16,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/hp_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief HP platform別referenceからdeviceへ対応するdriver SoftPaqを取得する。HP referenceをdevice対応driver SoftPaqへ
+ *        変換する。Driver分類だけを分離し、DeviceIdとIdRefの明示対応を保持する。
+ * @param[in] xmlUtf16 HP署名確認済みCABから読み取ったUTF-16 XML。 HP署名確認済みreference XML。
+ * @param[in] reference 検証済みplatform listから得た期待system／OS値。 Platform list由来の期待system／OS値。
+ * @param[out] releases 成功時の一意なdriver SoftPaq群。0件も成功とする。 成功時のdevice対応driver SoftPaq群。
+ * @return 成功時は0、schema、URL、hash、device対応不正時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
 NativeError parseHpReferenceCatalog( const std::wstring_view		  xmlUtf16,

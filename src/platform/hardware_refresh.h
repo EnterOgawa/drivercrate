@@ -2,7 +2,7 @@
 /**
  * @file hardware_refresh.h
  * @brief 通常検索前のWindowsハードウェア再検出と非機密結果を定義します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/28  検索前再検出の結果と一時権限境界を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 再検出成功は全deviceの開始やdriver導入完了の保証ではありません。
@@ -67,9 +68,12 @@ struct HardwareRefreshResult {
 	/// 主失敗と独立した権限復帰のWin32 error。成功では0です。
 	NativeError				   restoreError{} ;
 } ;
-/** @brief 既存token権限を一時使用し、local rootの同期再検出を一回実行します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存token権限を一時使用し、local rootの同期再検出を一回実行します。
  * @return 元error領域・値と権限復帰結果。失敗時の自動retryはありません。
  * @note Blocking処理です。Productionの通常検索workerからだけ呼び、UIから呼びません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] HardwareRefreshResult refreshHardware() noexcept ;
 } // namespace drivercrate

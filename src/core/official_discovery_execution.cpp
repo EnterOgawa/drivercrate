@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_execution.cpp
  * @brief 共通route planのpurpose伝達と専用／汎用実行状態集約。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.00.01 Shunji Ogawa  2026/09/15  開始時bindingとrequestの再照合を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  通信未許可summaryとProvider結果変換を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  Fresh cache優先とroute別通信許可を追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Resolver例外と不正summaryは有限な失敗状態へ変換し、汎用routeの成功で削除しません。
@@ -54,12 +55,14 @@ constexpr NativeError CONTROL_FAILURE_ERROR = -2147467259 ;
 // 通常scan取消しを表すHRESULT_FROM_WIN32(ERROR_CANCELLED)のbit pattern。
 constexpr NativeError CANCELLED_ERROR = std::bit_cast<NativeError>( std::uint32_t{0x800704C7U}) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Routeへ一致する唯一のregistrationを検索する。
  * @param[in] route Plan内の検証済み想定route。
  * @param[in] registrations Plan生成時と同じregistration集合。
  * @return 一件だけ一致する場合の借用pointer。それ以外はnullptr。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] const OfficialDiscoveryRegistration *findExecutionRegistration(
 	const OfficialDiscoveryRoute						&route,
 	const std::span<const OfficialDiscoveryRegistration> registrations) noexcept
@@ -84,6 +87,7 @@ constexpr NativeError CANCELLED_ERROR = std::bit_cast<NativeError>( std::uint32_
 	return &*found ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じProvider、root、deviceの専用解決状態を表す端末内keyを作る。
  * @param[in] providerId Provider stable ID。
@@ -91,6 +95,7 @@ constexpr NativeError CANCELLED_ERROR = std::bit_cast<NativeError>( std::uint32_
  * @param[in] deviceIdentity Scan内のopaque device identity。
  * @return 表示値やURLを含まない重複抑止key。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring makeDedicatedResolutionKey( const std::wstring_view providerId,
 													  const std::wstring_view rootResourceId,
 													  const std::wstring_view deviceIdentity)
@@ -103,6 +108,7 @@ constexpr NativeError CANCELLED_ERROR = std::bit_cast<NativeError>( std::uint32_
 	return key ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Routeと状態へ結合した件数0の内部summaryを作る。
  * @param[in] route 元planのroute。
@@ -110,6 +116,7 @@ constexpr NativeError CANCELLED_ERROR = std::bit_cast<NativeError>( std::uint32_
  * @param[in] error 状態に対応する0またはnative診断値。
  * @return Route identityと全device件数を保持するsummary。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryRouteSummary makeInternalRouteSummary(
 	const OfficialDiscoveryRoute &route, const OfficialDiscoveryRouteState state,
 	const NativeError error)
@@ -125,12 +132,14 @@ constexpr NativeError CANCELLED_ERROR = std::bit_cast<NativeError>( std::uint32_
 		.packageCount = 0U} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Providerが開始時requestで選択されているか確認する。
  * @param[in] request 検証済みの既定または明示scope。
  * @param[in] descriptor Registry正本の自動探索Provider。
  * @return Registry既定または明示IDにより選択されている場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isSelectedDiscoveryProvider( const OfficialDiscoveryRequest &request,
 											   const ProviderDescriptor		  &descriptor) noexcept
 {
@@ -143,11 +152,13 @@ constexpr NativeError CANCELLED_ERROR = std::bit_cast<NativeError>( std::uint32_
 					 descriptor.id) != request.enabledProviderIds.end() ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider結果へ候補なしで保持できる成功route状態か確認する。
  * @param[in] state 一routeの検証済み状態。
  * @return Recordなしまたは専用成功後の重複抑止ならtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isSuccessfulEmptyState( const OfficialDiscoveryRouteState state) noexcept
 {
 	return state == OfficialDiscoveryRouteState::CACHE_NEGATIVE ||
@@ -155,11 +166,13 @@ constexpr NativeError CANCELLED_ERROR = std::bit_cast<NativeError>( std::uint32_
 		   state == OfficialDiscoveryRouteState::NO_RECORD ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider結果へmetadata解決済みとして保持できるroute状態か確認する。
  * @param[in] state 一routeの検証済み状態。
  * @return Cache、専用、汎用またはEULA待ちでrecordがある場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isResolvedState( const OfficialDiscoveryRouteState state) noexcept
 {
 	return state == OfficialDiscoveryRouteState::CACHE_POSITIVE ||
@@ -168,11 +181,13 @@ constexpr NativeError CANCELLED_ERROR = std::bit_cast<NativeError>( std::uint32_
 		   state == OfficialDiscoveryRouteState::AWAITING_EULA ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Cache callbackだけが返せる二つの正常状態か確認します。
  * @param[in] state 検証するroute状態です。
  * @return Fresh positiveまたはfresh negativeの場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isCacheState( const OfficialDiscoveryRouteState state) noexcept
 {
 	return state == OfficialDiscoveryRouteState::CACHE_POSITIVE ||
@@ -181,7 +196,23 @@ constexpr NativeError CANCELLED_ERROR = std::bit_cast<NativeError>( std::uint32_
 
 } // namespace
 
-/** @see official_discovery_execution.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 検証済みplanを専用、汎用の順で実行して非機密summaryへ集約する。
+ * @param[in] binding 呼出側が保持する開始時binding。
+ * @param[in] request 呼出側が保持する開始時request。
+ * @param[in] plan 同じbinding、request、inventoryへ結合したroute plan。
+ * @param[in] devices Plan生成時と同じraw ID非保持hint集合。
+ * @param[in] registrations Plan生成時と同じmatcher／resolver registration集合。
+ * @param[in] descriptors Provider registryの正本または同じ合成copy。
+ * @param[in] cacheLookup Fresh positive／negativeだけを返す任意のURL非保持cache照会です。
+ * @param[in] resolverApproved Cache miss時の固定root resolver実行が今回許可される場合trueです。
+ * @return 全入力と結果が妥当ならsummary。開始契約を再現できない場合は値なし。
+ * @throws std::bad_alloc 実行用hintまたはsummary領域を確保できない場合。
+ * @note `FORCE_REFRESH`ではcache callbackを呼びません。Fresh cacheはresolverより先に使用し、miss時だけ`resolverApproved`
+ *       を確認します。Cacheからdownload grantまたは導入権限を復元しません。
+ */
+//------------------------------------------------------------------------------
 std::optional<OfficialDiscoverySummary> runOfficialDiscoveryRoutePlan(
 	const OfficialDiscoveryBinding &binding, const OfficialDiscoveryRequest &request,
 	const OfficialDiscoveryRoutePlan					&plan,
@@ -314,7 +345,21 @@ std::optional<OfficialDiscoverySummary> runOfficialDiscoveryRoutePlan(
 	return summary ;
 }
 
-/** @see official_discovery_execution.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Resolverを呼ばず全routeを同じ制御終端へ確定する。
+ * @param[in] binding 呼出側が保持する開始時binding。
+ * @param[in] request 呼出側が保持する開始時request。
+ * @param[in] plan 同じbinding、request、inventoryへ結合したroute plan。
+ * @param[in] devices Plan生成時と同じraw ID非保持hint集合。
+ * @param[in] registrations Plan生成時と同じregistration集合。
+ * @param[in] descriptors Provider registryの正本または同じ合成copy。
+ * @param[in] state Network未許可、予算到達または取消しの制御終端。
+ * @return 全入力と制御状態が妥当ならURL非保持summary。それ以外は値なし。
+ * @throws std::bad_alloc Summary領域を確保できない場合。
+ * @note 回線確認等でHTTP開始前に停止した全routeを候補0件へ縮退させず保持します。
+ */
+//------------------------------------------------------------------------------
 std::optional<OfficialDiscoverySummary> makeOfficialDiscoveryControlSummary(
 	const OfficialDiscoveryBinding &binding, const OfficialDiscoveryRequest &request,
 	const OfficialDiscoveryRoutePlan					&plan,
@@ -357,7 +402,20 @@ std::optional<OfficialDiscoverySummary> makeOfficialDiscoveryControlSummary(
 	return summary ;
 }
 
-/** @see official_discovery_execution.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通route summaryから一つのProviderの通常scan結果を構築する。
+ * @param[in] scanSessionId 現在の通常scan session ID。
+ * @param[in] providerId 変換対象の自動探索Provider stable ID。
+ * @param[in] devices Plan生成時と同じraw ID非保持hint集合。
+ * @param[in] plan 実行または制御終端へ使用したroute plan。
+ * @param[in] summary Planと一対一に結合した非機密summary。
+ * @param[in] descriptors Provider registryの正本または同じ合成copy。
+ * @return 候補を発行せず到達状態とcoverageを保持する結果。入力不整合時は値なし。
+ * @throws std::bad_alloc Coverageの一意性領域を確保できない場合。
+ * @note Recordとpackageの解決はpayload取得または候補成立ではないため、packageがある場合も`PAYLOAD_NOT_APPROVED`で返します。
+ */
+//------------------------------------------------------------------------------
 std::optional<ScanResult> makeOfficialDiscoveryProviderScanResult(
 	const ScanSessionId scanSessionId, const std::wstring_view providerId,
 	const std::span<const OfficialDiscoveryDeviceHint> devices,

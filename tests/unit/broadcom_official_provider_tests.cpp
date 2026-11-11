@@ -2,7 +2,7 @@
 /**
  * @file broadcom_official_provider_tests.cpp
  * @brief Broadcom公開配布情報の合成metadata試験。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空metadata・一時file・fake導入で境界を確認し、実HTTP・実driver導入は行いません。
@@ -1140,7 +1141,9 @@ void testBroadcomUnpreparedDownload( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/broadcom_official_provider_tests.h 宣言側の契約を正本とする。
+ * @brief Broadcom公開metadata・監査合格候補・導入再検証・拒否動作を試験する。合成metadata・取得対象化・導入再検証・部分失敗を確認する。実配布物、実PnP監査、実
+ *        driver導入は行わない。
+ * @param[in,out] context Assertion集計先。 回帰試験のassertion集計先。
  */
 //------------------------------------------------------------------------------
 void runBroadcomOfficialProviderTests( TestContext &context)

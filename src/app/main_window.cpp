@@ -2,7 +2,7 @@
 /**
  * @file main_window.cpp
  * @brief DriverCrateメインウィンドウ実装。
- * @version 01.31.00
+ * @version 01.31.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -112,6 +112,7 @@
  * Ver.01.29.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.30.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * Ver.01.31.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
+ * Ver.01.31.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Win32 TreeTable、候補選択、およびworker eventの表示を実装します。全UI操作はUI threadで実行します。
@@ -160,10 +161,13 @@ namespace {
 //------------------------------------------------------------------------------
 
 constexpr wchar_t WINDOW_CLASS_NAME[] = L"DriverCrate.MainWindow" ;	// RegisterClass用の固有名。
-/** @brief 保存状態だけを固定resourceと数値で表示します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存状態だけを固定resourceと数値で表示します。
  * @param[in] instance 製品resourceを持つmoduleです。
  * @return 既loggerの保存/未保存案内。未開始は空です。
  */
+//------------------------------------------------------------------------------
 std::wstring	  diagnosticStorageText( const HINSTANCE instance)
 {
 	const auto storage = localDiagnosticStatus() ;	// 非待機の数値snapshotです。
@@ -220,7 +224,9 @@ constexpr std::size_t MAXIMUM_STATUS_CHARACTERS		  = 2048U ;	// Status帯へ描�
 constexpr UINT		  PROVIDER_MENU_COMMAND_BASE	  = 3000U ;	// Provider popup内の先頭command ID。
 constexpr UINT	 LOCAL_COVERAGE_MENU_COMMAND = 3100U ;			// Local coverage dialogを開くcommand ID。
 
-/** @brief 索引通信結果の同期read-only dialogだけを制御します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 索引通信結果の同期read-only dialogだけを制御します。
  * @param[in] dialog 呼出し元MainWindowが所有する同期dialogです。
  * @param[in] message 処理するWin32通知です。
  * @param[in] wordParameter 終了buttonのcommand IDです。
@@ -228,6 +234,7 @@ constexpr UINT	 LOCAL_COVERAGE_MENU_COMMAND = 3100U ;			// Local coverage dialog
  * @return 処理済みならTRUE、標準処理へ委譲する場合FALSEです。
  * @note 本文はDialogBoxParamWの終了まで呼出し元が保持し、ここでは保存しません。
  */
+//------------------------------------------------------------------------------
 INT_PTR CALLBACK indexRefreshDetailsProc( HWND dialog, UINT message, WPARAM wordParameter,
 										 LPARAM longParameter) noexcept
 {
@@ -436,7 +443,8 @@ constexpr std::size_t MAXIMUM_COVERAGE_LABEL_CHARACTERS = 128U ;
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 本classが所有するmessage font、TreeTable font、class image listを解放する。本classが所有するUI resourceを解放する。
+ *        DPI変更時に作成した上下message用font、TreeTable用font、SetupAPIから取得したclass image listを一度だけ解放する。
  */
 //------------------------------------------------------------------------------
 MainWindow::~MainWindow()
@@ -465,7 +473,10 @@ MainWindow::~MainWindow()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Window class と top-level Window を作成する。専用iconを設定したWindow classとtop-level Windowを作成する。
+ *        Resource取得失敗時はWindows標準iconへfallbackする。
+ * @param[in] instance application module instance。
+ * @return Window 作成に成功した場合は `true`。
  */
 //------------------------------------------------------------------------------
 bool MainWindow::create( const HINSTANCE instance)
@@ -518,7 +529,11 @@ bool MainWindow::create( const HINSTANCE instance)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Window を表示して UI message loop を実行する。Window を表示して UI message loop を実行する。 事前条件: `create` が成功し
+ *        ていること。
+ * @param[in] showCommand `wWinMain` が受け取った初期表示 command。
+ * @return process exit code。
+ * @pre `create` が成功していること。
  */
 //------------------------------------------------------------------------------
 int MainWindow::run( const int showCommand)
@@ -542,7 +557,12 @@ int MainWindow::run( const int showCommand)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Win32 callback を instance method へ転送する。
+ * @param[in] window 対象 Window。
+ * @param[in] message Win32 message ID。
+ * @param[in] wordParameter message 固有の WPARAM。
+ * @param[in] longParameter message 固有の LPARAM。
+ * @return message 処理結果。
  */
 //------------------------------------------------------------------------------
 LRESULT CALLBACK MainWindow::windowProc( const HWND window, const UINT message,
@@ -578,7 +598,15 @@ LRESULT CALLBACK MainWindow::windowProc( const HWND window, const UINT message,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 標準checkboxの動作を維持したまま背景をWindowと一体化して描画する。推奨更新filter checkboxの描画messageを処理する。Checkboxの標準入力処理
+ *        をDefSubclassProcへ委譲し、paintだけを親Windowと同じ背景へ置き換える。WM_NCDESTROYでsubclassを必ず解除する。
+ * @param[in] window 対象checkbox Window。
+ * @param[in] message Win32 message ID。
+ * @param[in] wordParameter message固有のWPARAM。
+ * @param[in] longParameter message固有のLPARAM。
+ * @param[in] subclassId 登録時に指定したsubclass ID。
+ * @param[in] referenceData 非所有MainWindow pointerの整数表現。
+ * @return message処理結果。
  */
 //------------------------------------------------------------------------------
 LRESULT CALLBACK MainWindow::recommendedFilterProc( const HWND window, const UINT message,
@@ -645,7 +673,9 @@ LRESULT CALLBACK MainWindow::recommendedFilterProc( const HWND window, const UIN
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 推奨更新filter checkboxのcheck記号、label、およびfocusを描画する。推奨更新filter checkboxを背景枠なしで描画する。親Windowと同じ背
+ *        景上へ標準check記号、label、および必要時のfocus枠だけを描画する。Button control全体を囲む背景矩形は描画せず、有効状態変更後も白背景へ再描画する。
+ * @param[in] deviceContext 本描画中だけ有効な描画先device context。
  */
 //------------------------------------------------------------------------------
 void MainWindow::drawRecommendedFilter( const HDC deviceContext) const noexcept
@@ -752,7 +782,9 @@ void MainWindow::drawRecommendedFilter( const HDC deviceContext) const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 下部status帯へ通常messageまたは全幅progressとmessageを描画する。処理中は帯全体へ確定済み完了率を塗り、塗り部分と未塗り部分でsystem text色を切
+ *        り替えて同一messageを描画する。
+ * @param[in] drawItem `WM_DRAWITEM`中だけ有効な描画情報。 WM_DRAWITEM中だけ有効な描画情報。
  */
 //------------------------------------------------------------------------------
 void MainWindow::drawStatusBand( const DRAWITEMSTRUCT &drawItem) const noexcept
@@ -845,7 +877,12 @@ void MainWindow::drawStatusBand( const DRAWITEMSTRUCT &drawItem) const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief TreeView itemの表示値を指定columnと方向で比較する。分類行は種類名の昇順とし、不明分類は末尾へ置く。Device行は三列の表示値でsortする。同値は第一
+ *        columnの昇順で安定化し、候補identityを変更しない。
+ * @param[in] leftParameter 左側itemの1始まりrow index。
+ * @param[in] rightParameter 右側itemの1始まりrow index。
+ * @param[in] contextParameter 本呼出し中だけ有効なTreeSortContext pointer。
+ * @return 左側が先なら負、等しければ0、右側が先なら正の値。
  */
 //------------------------------------------------------------------------------
 int CALLBACK MainWindow::compareTreeItems( const LPARAM leftParameter, const LPARAM rightParameter,
@@ -892,7 +929,11 @@ int CALLBACK MainWindow::compareTreeItems( const LPARAM leftParameter, const LPA
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief instance に関連付けられた Win32 message を処理する。
+ * @param[in] message Win32 message ID。
+ * @param[in] wordParameter message 固有の WPARAM。
+ * @param[in] longParameter message 固有の LPARAM。
+ * @return message 処理結果。
  */
 //------------------------------------------------------------------------------
 LRESULT MainWindow::handleMessage( const UINT message, const WPARAM wordParameter,
@@ -1169,7 +1210,8 @@ LRESULT MainWindow::handleMessage( const UINT message, const WPARAM wordParamete
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief child control と Provider worker を初期化する。
+ * @return 全必須 resource を初期化できた場合は `true`。
  */
 //------------------------------------------------------------------------------
 bool MainWindow::onCreate()
@@ -1291,7 +1333,10 @@ bool MainWindow::onCreate()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 現在DPIに合わせて最下段message用fontを更新する。Windowsのmessage fontを基準に10 point以上のfontを作成し、最下段のstatusへ適用する
+ *        。System設定が既に大きい場合は縮小せず、新font適用後に旧fontを解放する。
+ * @param[in] dpi fontを作成する対象DPI。
+ * @return fontを作成してcontrolへ適用できた場合は`true`。
  */
 //------------------------------------------------------------------------------
 bool MainWindow::updateMessageFont( const UINT dpi) noexcept
@@ -1342,7 +1387,10 @@ bool MainWindow::updateMessageFont( const UINT dpi) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 現在DPIに合わせてTreeTable用fontと行高を更新する。Windowsのmessage fontを基準に11 point以上のfontを作成し、Header、
+ *        TreeView、custom draw、行高へ一括適用する。新fontの適用後に旧fontを解放し、controlの参照を残さない。
+ * @param[in] dpi fontを作成する対象DPI。
+ * @return fontを作成してcontrolへ適用できた場合は`true`。
  */
 //------------------------------------------------------------------------------
 bool MainWindow::updateTreeFont( const UINT dpi) noexcept
@@ -1397,7 +1445,9 @@ bool MainWindow::updateTreeFont( const UINT dpi) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Windows標準のsetup class image listをTreeTableへ設定する。Device Manager形式に近いSetupAPI class image
+ *        listを使用し、GUIDを取得できない候補用のUnknown iconも解決する。image listのownershipはMainWindowが保持する。
+ * @return image listを取得しTreeViewへ設定できた場合は`true`。
  */
 //------------------------------------------------------------------------------
 bool MainWindow::initializeDeviceClassImages() noexcept
@@ -1424,7 +1474,11 @@ bool MainWindow::initializeDeviceClassImages() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Candidateのsetup class GUIDに対応するimage indexを取得する。DTOのcanonical GUIDだけをSetupAPIへ渡し、hardware
+ *        IDやdevice instance IDをUI threadへ持ち込まない。
+ * @param[in] candidate 表示対象のcandidate。
+ * @return SetupAPI class image index。取得できない場合は汎用image index。 SetupAPI class image index。取得できない場合は汎用
+ *         index。
  */
 //------------------------------------------------------------------------------
 int MainWindow::deviceClassImageIndex( const UpdateCandidate &candidate) noexcept
@@ -1451,7 +1505,10 @@ int MainWindow::deviceClassImageIndex( const UpdateCandidate &candidate) noexcep
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 表示GUIDを正規化し、種類groupのkeyへ変換する。
+ * @param[in] value 現在行を優先して選んだ表示用GUID。
+ * @return Brace付きGUID。不正・欠損は空文字列。
+ * @note Device照合や導入権限の根拠には使用しない。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::deviceClassKey( const std::wstring_view value) const
@@ -1475,7 +1532,10 @@ std::wstring MainWindow::deviceClassKey( const std::wstring_view value) const
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Local Windowsの分類説明を有限bufferで読み取る。
+ * @param[in] key 正規GUID。空または取得失敗はその他の分類とする。
+ * @return Windowsの分類説明。取得不能は空文字列。
+ * @note UI threadで種類ごとに一回だけ使用し、network・device列挙を行わない。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::deviceClassName( const std::wstring_view key) const
@@ -1502,7 +1562,9 @@ std::wstring MainWindow::deviceClassName( const std::wstring_view key) const
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 表示中の二階層からdevice数と情報／通常更新device数を集計する。
+ * @param[in] expired trueならinstall後の失効表示とし、導入可能件数を提示しない。
+ * @note Candidateを変更せず、分類行の表示値とaccessibility本文だけを更新する。
  */
 //------------------------------------------------------------------------------
 void MainWindow::updateDeviceClassSummaries( const bool expired)
@@ -1581,7 +1643,7 @@ void MainWindow::updateDeviceClassSummaries( const bool expired)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief client size と DPI に合わせて child control を配置する。
  */
 //------------------------------------------------------------------------------
 void MainWindow::layoutControls() noexcept
@@ -1650,7 +1712,8 @@ void MainWindow::layoutControls() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief TreeTable の固定columnをresource文字列から作成する。
+ * @return 全columnを作成できた場合は `true`。
  */
 //------------------------------------------------------------------------------
 bool MainWindow::initializeTreeColumns()
@@ -1680,7 +1743,8 @@ bool MainWindow::initializeTreeColumns()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Window幅の変化に合わせて利用者が調整したcolumn比率を維持する。
+ * @param[in] tableWidth TreeTable controlへ割り当てた幅（physical pixel）。
  */
 //------------------------------------------------------------------------------
 void MainWindow::resizeTreeColumns( const int tableWidth) noexcept
@@ -1735,7 +1799,9 @@ void MainWindow::resizeTreeColumns( const int tableWidth) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Header clickに応じてsort columnと昇順・降順を更新する。新しいcolumnは昇順、同じcolumnの再clickは方向を反転し、Header矢印と
+ *        TreeView順序を同じ状態へ更新する。
+ * @param[in] columnIndex clickされた0始まりcolumn index。
  */
 //------------------------------------------------------------------------------
 void MainWindow::handleHeaderClick( const int columnIndex) noexcept
@@ -1763,7 +1829,7 @@ void MainWindow::handleHeaderClick( const int columnIndex) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 現在のsort条件をHeaderの方向矢印へ反映する。HDF_SORTUPとHDF_SORTDOWNを選択columnだけに設定し、以前のcolumnに残った方向表示を除去する。
  */
 //------------------------------------------------------------------------------
 void MainWindow::updateTreeSortIndicator() const noexcept
@@ -1796,7 +1862,8 @@ void MainWindow::updateTreeSortIndicator() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 種類・deviceの二階層を表示値で並べ替える。TreeViewのitem自体をsortし、item handle、checkbox、展開状態、candidate indexと
+ *        identityの対応を変更しない。
  */
 //------------------------------------------------------------------------------
 void MainWindow::sortTreeItems() noexcept
@@ -1828,7 +1895,8 @@ void MainWindow::sortTreeItems() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief TreeViewの標準階層描画後に各table columnの値とgridを描画する。
+ * @param[in] customDraw `NM_CUSTOMDRAW`中だけ有効なTreeView描画情報。
  */
 //------------------------------------------------------------------------------
 void MainWindow::drawTreeRow( const NMTVCUSTOMDRAW &customDraw) const noexcept
@@ -1917,7 +1985,8 @@ void MainWindow::drawTreeRow( const NMTVCUSTOMDRAW &customDraw) const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 利用者操作または operation state に応じて button を更新する。利用者操作またはoperation stateに応じてscan、install、一括選択、
+ *        filter controlの有効状態を更新する。
  */
 //------------------------------------------------------------------------------
 void MainWindow::updateCommandState() noexcept
@@ -1995,7 +2064,12 @@ void MainWindow::updateCommandState() noexcept
 	EnableWindow( recommendedOnlyCheckbox_, state == ApplicationState::SCAN_READY ? TRUE : FALSE) ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同operationで実行した再検出の完了または元領域付き失敗を整形します。
+ * @return 未実行は空文字。生IDや権限HANDLEを含みません。
+ */
+//------------------------------------------------------------------------------
 std::wstring MainWindow::formatHardwareRefreshSummary() const
 {
 	// 実行していないfixtureや旧scanへ完了事実を補いません。
@@ -2025,7 +2099,10 @@ std::wstring MainWindow::formatHardwareRefreshSummary() const
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 未導入の実観測へ結合した取得前参照かを判定します。
+ * @param[in] candidate 同scanの元取得targetへ結合した選択意図です。
+ * @return 妥当な同session/device観測が未導入を示す場合だけtrueです。
+ * @note 現在版欠損から未導入を推測せず、取得・適用性は未検査のままです。
  */
 //------------------------------------------------------------------------------
 bool MainWindow::isInitialPreparationReference( const UpdateCandidate &candidate) const noexcept
@@ -2058,7 +2135,14 @@ bool MainWindow::isInitialPreparationReference( const UpdateCandidate &candidate
 		   observed->deviceObservation->driverPresence == DeviceDriverPresence::NOT_INSTALLED ;
 }
 
-/** @see src/app/main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 更新・検証済み初回と、未導入機器の初回確認だけを通常filterへ残します。
+ * @param[in] candidate 表示・件数・代表選択へ同じ分類を適用する元候補です。
+ * @return 現在の通常filterに表示する候補の場合trueです。
+ * @note 取得targetへの結合だけを更新推奨へ読み替えません。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::visibleInRecommendedFilter( const UpdateCandidate &candidate) const noexcept
 {
 	// 取得前情報は根拠ある初回または新版確認へ限定し、検証済み導入候補とは分けます。
@@ -2082,7 +2166,12 @@ bool MainWindow::visibleInRecommendedFilter( const UpdateCandidate &candidate) c
 			(candidate.action == DriverAction::UPDATE && (candidate.recommended || indexedUpdate))) ;
 }
 
-/** @see src/app/main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在のscan結果とfilter状態に対応する件数statusを表示する。Scan結果とfilter状態に対応する件数statusを表示する。Filter中は表示中の推奨更新件数を
+ *        示す。Filter解除時は全install可能候補件数とProvider warningを復元する。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::updateScanSummaryStatus()
 {
 	// 情報検索0行を適用可能更新なしという通常検索の成功文言へ変換しない。
@@ -2208,7 +2297,8 @@ void MainWindow::updateScanSummaryStatus()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Checkboxの状態を推奨更新表示filterへ反映してTreeTableを再構築する。Checkboxの状態を推奨更新表示filterへ反映する。ScanReadyの間だけ
+ *        filterを変更し、保持済みselectionから表示対象のcheck状態を復元する。非表示候補はinstall対象へ含めない。
  */
 //------------------------------------------------------------------------------
 void MainWindow::handleRecommendedFilterChange()
@@ -2227,7 +2317,8 @@ void MainWindow::handleRecommendedFilterChange()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 推奨かつinstall可能な候補を一device一件ずつ一括選択する。推奨かつinstall可能な候補を一括選択する。ScanReadyの間だけ、Providerが推奨する
+ *        install可能候補を一device一件ずつ選択する。現在版と過去版は選択せず、利用者が選んでいた旧版も推奨更新へ置き換える。
  */
 //------------------------------------------------------------------------------
 void MainWindow::selectAllRecommendedUpdates()
@@ -2249,7 +2340,8 @@ void MainWindow::selectAllRecommendedUpdates()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 現在のscan sessionにある全候補の選択を解除する。全candidateの選択を解除する。ScanReadyの間だけ、表示状態にかかわらず現在scan sessionの全
+ *        candidate selectionを解除してTreeTableへ反映する。
  */
 //------------------------------------------------------------------------------
 void MainWindow::clearCandidateSelection()
@@ -2271,7 +2363,8 @@ void MainWindow::clearCandidateSelection()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 組み込みProvider状態とlocal候補到達dialog入口をpopupへ表示する。Provider状態とlocal候補到達dialog入口を表示する。Button直下の
+ *        check付きpopupでProvider設定を切り替え、前回scanのlocal候補到達dialogを開く。
  */
 //------------------------------------------------------------------------------
 void MainWindow::showProviderSourcesMenu()
@@ -2499,7 +2592,14 @@ void MainWindow::showProviderSourcesMenu()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 区分C Providerへ渡すZIPを利用者に一件選択させる。区分C ProviderのZIPを一件選択する。選択pathはprocess memoryだけに保持する。取消と
+ *        dialog失敗を区別し、失敗時だけ診断値を利用者へ表示する。最大path領域はstackを圧迫しないよう動的領域へ確保する。
+ * @param[in] noticeResourceId 由来と利用許諾の確認文字列resource ID。 選択前確認文字列resource ID。
+ * @param[in] titleResourceId File dialog titleのresource ID。 Dialog titleのresource ID。
+ * @param[in] filterResourceId ZIP filter表示名のresource ID。
+ * @param[out] selectedPath 成功時に上書きする選択local path。 成功時だけ更新するlocal path。
+ * @return Fileを選択した場合は`true`、取消またはdialog失敗時は`false`。 Fileを選択した場合は`true`、取消または失敗時は`false`。
+ * @note 選択pathはprocess memoryだけに保持し、表示、永続log、networkへ渡さない。
  */
 //------------------------------------------------------------------------------
 bool MainWindow::selectUserPackage( const UINT noticeResourceId, const UINT titleResourceId,
@@ -2556,7 +2656,9 @@ bool MainWindow::selectUserPackage( const UINT noticeResourceId, const UINT titl
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 未計測、確定値、下限値、取得不能を色に依存しない文字列へ変換する。
+ * @param[in] measurement 表示する件数と確定度。
+ * @return Resource文字列だけを使った日本語表示値。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::formatMeasurementCount( const CountMeasurement &measurement) const
@@ -2591,7 +2693,9 @@ std::wstring MainWindow::formatMeasurementCount( const CountMeasurement &measure
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief T／Q／R／A／Iの五段階を固定順の表示文字列へ変換する。
+ * @param[in] measurement 同じ母数に対する段階別device件数。
+ * @return 各件数の確定度を保持したresource format文字列。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::formatStageMeasurement( const StageDeviceCounts &measurement) const
@@ -2608,7 +2712,9 @@ std::wstring MainWindow::formatStageMeasurement( const StageDeviceCounts &measur
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 公式HTTP resourceの実取得経路を種類別件数へ要約する。
+ * @param[in] resources URLを含まない固定source取得根拠。
+ * @return Network本文、fresh cache、304再検証、不明のresource件数。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::formatMeasurementAcquisitions(
@@ -2668,7 +2774,8 @@ std::wstring MainWindow::formatMeasurementAcquisitions(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 前回scanのmanufacturer／setup class別候補到達件数を表示する。前回scanのmanufacturer／class別候補到達件数を表示する。S63+未列挙
+ *        groupを先に並べ、端末内だけに保持した集計値を標準Task Dialogへ表示する。Review状態や候補0件を最新、対応済み、または適用可能とは表示しない。
  */
 //------------------------------------------------------------------------------
 void MainWindow::showLocalCoverageDialog() const
@@ -2994,7 +3101,9 @@ void MainWindow::showLocalCoverageDialog() const
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief UIで有効にしたProvider IDと利用者指定fileから次回scan設定を作る。次回scanへ渡すProviderと利用者指定file設定を作る。全無効を既定値と誤解せず、利
+ *        用者選択pathは対応Providerだけへ渡す明示設定を作る。
+ * @return 未知IDを含まず、区分C Providerと一件のfileを対応付けた明示設定。 UIで有効にしたstable Provider IDと区分C fileの対応。
  */
 //------------------------------------------------------------------------------
 ScanOptions MainWindow::currentScanOptions() const
@@ -3066,7 +3175,7 @@ ScanOptions MainWindow::currentScanOptions() const
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Provider取得元buttonへ有効数を表示する。Provider取得元buttonへ現在の有効数を表示する。Popupを開かなくても有効Provider数を確認できるようにする。
  */
 //------------------------------------------------------------------------------
 void MainWindow::updateProviderSourcesCaption() const
@@ -3091,7 +3200,10 @@ void MainWindow::updateProviderSourcesCaption() const
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Providerの前回scan状態をresource文字列へ変換する。Provider scan状態を短い表示文字列へ変換する。候補有無、対象外、一般失敗、監査段階別拒否を区別する
+ *        。
+ * @param[in] state 表示対象のProvider状態。 表示する取得元別scan状態。
+ * @return Popup menuへ付加する短い日本語状態。 Popup menuへ付加するresource文字列。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::providerStateText( const ProviderScanState state) const
@@ -3138,7 +3250,7 @@ std::wstring MainWindow::providerStateText( const ProviderScanState state) const
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 新しい WUA scan を開始する。選択した取得元による新しいscanを開始する。UIのProvider選択を固定した新しいscan sessionを開始する。
  */
 //------------------------------------------------------------------------------
 void MainWindow::beginScan()
@@ -3223,7 +3335,7 @@ void MainWindow::beginScan()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 通常scanの開始または同operationの協調取消しを要求する。
  */
 //------------------------------------------------------------------------------
 void MainWindow::handleScanCommand()
@@ -3261,7 +3373,7 @@ void MainWindow::handleScanCommand()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 通常scanを取消し待ちへ移し、確定進捗とWindowを維持する。
  */
 //------------------------------------------------------------------------------
 void MainWindow::cancelScan()
@@ -3291,7 +3403,8 @@ void MainWindow::cancelScan()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief checked candidate を確認して download/install を開始する。Provider registryから注意種別を検証し、device、現在版から候補版
+ *        への操作、取得元、およびOS別の復旧条件を表示する。不明なProvider、操作、Server条件ではworkerを呼ばない。
  */
 //------------------------------------------------------------------------------
 void MainWindow::beginInstall()
@@ -3591,7 +3704,7 @@ void MainWindow::beginInstall()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief worker result queue を到着順に処理する。
  */
 //------------------------------------------------------------------------------
 void MainWindow::processWorkerEvents()
@@ -3609,7 +3722,11 @@ void MainWindow::processWorkerEvents()
 }
 
 //------------------------------------------------------------------------------
-/** @see src/app/main_window.h 宣言側の契約を正本とします。 */
+/**
+ * @brief 現在operationの一通知を種別ごとの検証へ渡します。
+ * @param[in] event 同期呼出し中だけ借用するworker通知。
+ * @note 製品queueと内部friendが同じ私有dispatchを使用します。古い通知は表示を変更しません。
+ */
 //------------------------------------------------------------------------------
 void MainWindow::processWorkerEvent( const WorkerEvent &event)
 {
@@ -3661,7 +3778,8 @@ void MainWindow::processWorkerEvent( const WorkerEvent &event)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Provider進捗eventを状態機械と決定型progress表示へ反映する。現在operationの段階遷移を検証し、件数と全体完了率を表示する。
+ * @param[in] event Provider workerから受け取った進捗event。
  */
 //------------------------------------------------------------------------------
 void MainWindow::processOperationProgress( const WorkerEvent &event)
@@ -3738,11 +3856,14 @@ void MainWindow::processOperationProgress( const WorkerEvent &event)
 }
 
 //------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 索引refreshの元診断とcommit事実だけを表示本文へ変換します。
+ * @param[in] summary 同operationから受理した非機密summaryです。
+ * @return 未実行なら空、それ以外はURL/ID/pathを含まない独立本文です。
  */
 //------------------------------------------------------------------------------
-/** @see main_window.h 宣言側の契約を正本とします。 */
 std::wstring MainWindow::formatIndexRefreshSummary( const IndexScanSummary &summary) const
 {
 	// 純local fixtureや無効Providerを通信成功へ表示しません。
@@ -3783,7 +3904,12 @@ std::wstring MainWindow::formatIndexRefreshSummary( const IndexScanSummary &summ
 							  : L"—") ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 確定した索引通信結果を操作中以外に閲覧できるか判定します。
+ * @return 受理済みrefreshがあり、現在の操作が終端ならtrueです。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::canShowIndexRefreshDetails() const noexcept
 {
 	const auto state = controller_.state() ;	// 新規処理中の前回結果を成功表示しない状態境界です。
@@ -3793,7 +3919,12 @@ bool MainWindow::canShowIndexRefreshDetails() const noexcept
 			state == ApplicationState::FAILURE || state == ApplicationState::IDLE) ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 取得元menuへ非機密な通信結果の独立入口を追加します。
+ * @param[in] menu 呼出し中に借用する有効なpopup menuです。所有権を取得しません。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::appendIndexRefreshMenu( HMENU menu) const
 {
 	// 未実行やbusyの結果を成功への入口として有効にしません。
@@ -3802,7 +3933,12 @@ void MainWindow::appendIndexRefreshMenu( HMENU menu) const
 								  loadString( IDS_INDEX_REFRESH_DETAILS).c_str())) ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 受理済みsummaryを既存のread-only詳細dialogへ表示します。
+ * @note UI thread限定です。取得計画・進捗・導入権限を変更しません。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::showIndexRefreshDetails() const
 {
 	// 未実行・無効・操作中の状態から成功dialogを作りません。
@@ -3820,7 +3956,12 @@ void MainWindow::showIndexRefreshDetails() const
 									  indexRefreshDetailsProc, reinterpret_cast<LPARAM>( &body))) ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief scan 完了 event を UI と状態機械へ反映する。
+ * @param[in] event Provider worker から受け取った event。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::processScanCompleted( const WorkerEvent &event)
 {
 	const bool cancellationPending =
@@ -3967,7 +4108,8 @@ void MainWindow::processScanCompleted( const WorkerEvent &event)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief install 完了 event を UI と状態機械へ反映する。
+ * @param[in] event Provider worker から受け取った event。
  */
 //------------------------------------------------------------------------------
 void MainWindow::processInstallCompleted( const WorkerEvent &event)
@@ -4105,7 +4247,8 @@ void MainWindow::processInstallCompleted( const WorkerEvent &event)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Providerの推奨順から一device一候補の初期selectionを作成する。Providerが明示した検証根拠から推奨通常更新を一device一件選択する。矛盾した候補は
+ *        fail-closedで全て未選択にする。
  */
 //------------------------------------------------------------------------------
 void MainWindow::initializeCandidateSelection()
@@ -4123,7 +4266,8 @@ void MainWindow::initializeCandidateSelection()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 同scanの元選択を失効前に表示専用値へ退避します。
+ * @return 一意に結合できた元候補だけの所有snapshotです。
  */
 //------------------------------------------------------------------------------
 std::vector<MainWindow::PreparationDisplayBinding> MainWindow::capturePreparationDisplayBindings()
@@ -4211,7 +4355,13 @@ std::vector<MainWindow::PreparationDisplayBinding> MainWindow::capturePreparatio
 	return bindings ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scanの元device表示を一意に照合します。
+ * @param[in] row 現在のdevice表示行です。
+ * @return 旧実行権限を含まない元表示です。欠測/別scan/重複はnullptrです。
+ */
+//------------------------------------------------------------------------------
 const MainWindow::PreparationDisplayBinding *MainWindow::retainedDisplayBinding(
 	const TreeRow &row) const noexcept
 {
@@ -4236,7 +4386,12 @@ const MainWindow::PreparationDisplayBinding *MainWindow::retainedDisplayBinding(
 			   : nullptr ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常とreadonlyのcheckboxをWindows標準描画で構成します。
+ * @return 全画像を所有してcontrolへ接続できた場合trueです。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::initializeCheckboxImages()
 {
 	const UINT dpi	  = GetDpiForWindow( updateTree_) ;					// 元controlと同じ画像寸法です。
@@ -4320,7 +4475,13 @@ bool MainWindow::initializeCheckboxImages()
 	return true ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 有効な実行choiceが無い行の元表示候補を解決します。
+ * @param[in] row 同じ候補集合のdevice行です。
+ * @return 元scan/candidate/deviceへ一意に結合した閲覧位置です。実行権限は含みません。
+ */
+//------------------------------------------------------------------------------
 std::optional<std::size_t> MainWindow::preparationDisplayCandidate(
 	const TreeRow &row) const noexcept
 {
@@ -4352,7 +4513,12 @@ std::optional<std::size_t> MainWindow::preparationDisplayCandidate(
 																: std::nullopt ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 保持しているcandidate selectionを表示中TreeTableへ反映する。保持selectionを表示中TreeTableへ反映する。Deviceごとに選択済みの一候
+ *        補をcheckboxへ結合し、候補版と短い状態を更新する。複数候補の未指定状態は詳細へ案内し、表示専用deviceからstate imageを除く。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::applyCandidateSelectionToTree()
 {
 	updatingTreeChecks_ = true ;
@@ -4546,7 +4712,15 @@ void MainWindow::applyCandidateSelectionToTree()
 	InvalidateRect( updateTree_, nullptr, TRUE) ;
 }
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同deviceのinstall可能な一候補を明示選択し、device行とcheckboxへ反映する。
+ * @param[in] candidateIndex 現scanの候補index。異なるsession・表示外・非導入候補は拒否する。
+ * @param[in] preserveDisplayIntent 内部READY解決中だけ元表示を未commitのまま保持します。
+ * @return 現在のdevice行に結合した一候補だけを選択できた場合true。
+ * @note UI thread限定。取得・導入・EULA同意は開始しない。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::selectDeviceCandidate( const std::size_t candidateIndex,
 									   const bool		 preserveDisplayIntent)
 {
@@ -4597,7 +4771,9 @@ bool MainWindow::selectDeviceCandidate( const std::size_t candidateIndex,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief scan candidateを種類・deviceの二階層TreeTableへまとめて表示する。Filter有効時はinstall可能なrecommendedまたは初回導入候補を持つ
+ *        deviceを表示する。同deviceの現在観測・全候補を詳細へ保持し、現在行優先の名前・分類を一行だけに示す。
+ * @param[in] candidates 表示する immutable candidate 群。
  */
 //------------------------------------------------------------------------------
 void MainWindow::populateCandidates( const std::span<const UpdateCandidate> candidates)
@@ -4824,7 +5000,13 @@ void MainWindow::populateCandidates( const std::span<const UpdateCandidate> cand
 	InvalidateRect( updateTree_, nullptr, TRUE) ;
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同deviceの候補と現在版だけを既存行へ結合し、行集合とnative itemを保持します。
+ * @note UI thread専用です。同scanへの候補/事後観測のappend後だけ使用します。分類・表示名・順序・開閉・caret・scrollを変更せず、非表示deviceの行を追加しま
+ *       せん。実行choice/選択許可は作らず、呼出し側が既存の選択・結果描画を適用します。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::refreshCandidateRows()
 {
 	std::unordered_map<std::wstring_view, std::vector<std::size_t>>
@@ -4874,7 +5056,13 @@ void MainWindow::refreshCandidateRows()
 	}
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実対象一致と個別成功で既知更新の解消だけを記録します。
+ * @param[in] result 受理済み元Installの結果です。
+ * @param[in] session 同じ元scanです。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::recordResolvedInstallDevices( const InstallResult &result,
 											  const ScanSessionId  session)
 {
@@ -4992,7 +5180,13 @@ void MainWindow::recordResolvedInstallDevices( const InstallResult &result,
 	}
 }
 
-/** @see main_window.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元選択deviceの事後観測だけを現在表示へ適用します。
+ * @param[in] result 個別導入結果とread-only観測です。
+ * @param[in] scanSessionId 失効直前の元scanです。0は観測を受理しません。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::applyPostInstallObservations( const InstallResult &result,
 											  const ScanSessionId  scanSessionId)
 {
@@ -5083,7 +5277,9 @@ void MainWindow::applyPostInstallObservations( const InstallResult &result,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief install resultをTreeTableへ表示し、失効した候補を表示専用へ変更する。候補identityに結合した個別結果を保持し、device行の状態と詳細へ表示する。
+ * @param[in] result Provider が返した update ごとの結果。
+ * @param[in] scanSessionId 失効直前の元scan。事後DTOの結合だけに使用します。
  */
 //------------------------------------------------------------------------------
 void MainWindow::displayInstallResult( const InstallResult &result,
@@ -5304,7 +5500,8 @@ void MainWindow::displayInstallResult( const InstallResult &result,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief TreeTableでcheckedのcandidate indexを取得する。
+ * @return candidate vector の有効 index 群。
  */
 //------------------------------------------------------------------------------
 std::vector<std::size_t> MainWindow::checkedCandidateIndexes() const
@@ -5334,7 +5531,9 @@ std::vector<std::size_t> MainWindow::checkedCandidateIndexes() const
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Device行のcheckboxを、明示指定または唯一の一候補へ反映する。複数候補が未指定なら詳細を開く。分類・閲覧専用・失効候補のcheckは除く。
+ * @param[in] item 状態が変化したdeviceまたは分類item。
+ * @param[in] checked 新しい check state。
  */
 //------------------------------------------------------------------------------
 void MainWindow::handleTreeCheckChange( const HTREEITEM item, const bool checked)
@@ -5400,7 +5599,9 @@ void MainWindow::handleTreeCheckChange( const HTREEITEM item, const bool checked
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief TreeView item parameterから検証済みの表示行を取得する。
+ * @param[in] parameter itemへ格納した1始まりのrow index。
+ * @return 有効な場合はTreeRowへの非所有pointer、それ以外は`nullptr`。
  */
 //------------------------------------------------------------------------------
 const MainWindow::TreeRow *MainWindow::treeRowFromParameter( const LPARAM parameter) const noexcept
@@ -5416,7 +5617,9 @@ const MainWindow::TreeRow *MainWindow::treeRowFromParameter( const LPARAM parame
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Candidateの公式探索経路区分を表示文字列へ変換する。探索方法だけを示し、安全性または適用性の格付けにはしない。
+ * @param[in] candidate 表示対象。
+ * @return 公式区分A～Cのresource文字列。WUA／localの場合は空文字列。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::formatCandidateDiscoveryBasis( const UpdateCandidate &candidate) const
@@ -5450,7 +5653,12 @@ std::wstring MainWindow::formatCandidateDiscoveryBasis( const UpdateCandidate &c
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 一つの監査gate状態を段階別のresource文字列へ変換する。一つの候補監査gateを表示文字列へ変換する。Windows委譲、Provider照合、利用者指定を独立状態として
+ *        保ち、DriverCrateによる合格へ読み替えない。
+ * @param[in] state 表示対象の監査gate状態。
+ * @param[in] passedResourceId 当該gateの合格表示resource ID。
+ * @param[in] pendingResourceId 当該gateの未完了表示resource ID。
+ * @return 監査結果を過大評価しない短い日本語文字列。 監査結果を過大評価しないresource文字列。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::formatCandidateAuditGate( const CandidateAuditGateState state,
@@ -5490,7 +5698,10 @@ std::wstring MainWindow::formatCandidateAuditGate( const CandidateAuditGateState
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Candidateの監査gateとinstall準備状態を一列の表示値へ変換する。Candidate監査状態とinstall準備状態を整形する。Scan時点のimmutableな監
+ *        査事実を一列へ段階名付きで表示し、operation結果列とは混在させない。
+ * @param[in] candidate 表示対象。
+ * @return 由来、download、内容、system、installの独立状態。 由来、取得、内容、system、installの独立状態。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::formatCandidateAudit( const UpdateCandidate &candidate) const
@@ -5568,7 +5779,9 @@ std::wstring MainWindow::formatCandidateAudit( const UpdateCandidate &candidate)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief accessibility用にcandidateの全metadataを一行のitem textへ整形する。
+ * @param[in] candidate 表示対象。
+ * @return 制御文字を除いた表示文字列。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::formatCandidateText( const UpdateCandidate &candidate) const
@@ -5643,7 +5856,9 @@ std::wstring MainWindow::formatCandidateText( const UpdateCandidate &candidate) 
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief candidateの操作、公式release観測差分、同一版取得元を表示文字列へ変換する。導入不可の公式配布情報は現在版と誤表示せず未監査と明示する。
+ * @param[in] candidate 表示対象。
+ * @return resourceから取得した操作分類と非機密観測差分の文字列。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::formatCandidateState( const UpdateCandidate &candidate) const
@@ -5780,7 +5995,11 @@ std::wstring MainWindow::formatCandidateState( const UpdateCandidate &candidate)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief candidateのdownload sizeまたはlocal取得状態を表示文字列へ変換する。正確なbyte数を優先し、次に公式pageの概算表示を使用する。どちらもないlocal
+ *        候補は取得済み状態を表示する。
+ * @param[in] candidate 表示対象。
+ * @param[in] unknown 欠損値へ使用する代替表示。
+ * @return TreeTableのsize columnへ表示する文字列。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::formatCandidateSize( const UpdateCandidate	&candidate,
@@ -5823,7 +6042,9 @@ std::wstring MainWindow::formatCandidateSize( const UpdateCandidate	&candidate,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief static resource 文字列を読み取る。
+ * @param[in] resourceId STRINGTABLE ID。
+ * @return 未定義時は空文字列。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::loadString( const UINT resourceId) const
@@ -5844,7 +6065,10 @@ std::wstring MainWindow::loadString( const UINT resourceId) const
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief `%1` placeholder 一つを指定値で置換する。
+ * @param[in] resourceId format string の resource ID。
+ * @param[in] value `%1` と置換する文字列。
+ * @return format 済み文字列。
  */
 //------------------------------------------------------------------------------
 std::wstring MainWindow::formatResource( const UINT resourceId, const std::wstring_view value) const
@@ -5861,7 +6085,9 @@ std::wstring MainWindow::formatResource( const UINT resourceId, const std::wstri
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief status text と決定型progressの表示状態を更新する。
+ * @param[in] text 新しい status text。
+ * @param[in] busy 長時間 operation 実行中の場合は `true`。
  */
 //------------------------------------------------------------------------------
 void MainWindow::setStatus( const std::wstring_view text, const bool busy)
@@ -5879,7 +6105,8 @@ void MainWindow::setStatus( const std::wstring_view text, const bool busy)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief Providerの段階、件数、および全体完了率を下部status帯へ表示する。現在段階、完了件数、総件数、および全体百分率を表示する。
+ * @param[in] progress Providerが確定したoperation進捗値。
  */
 //------------------------------------------------------------------------------
 void MainWindow::setOperationProgress( const ProviderProgress &progress)
@@ -5981,7 +6208,7 @@ void MainWindow::setOperationProgress( const ProviderProgress &progress)
 
 //------------------------------------------------------------------------------
 /**
- * @see src/app/main_window.h 宣言側の契約を正本とする。
+ * @brief 実行中 operation を確認して Window を安全に閉じる。
  */
 //------------------------------------------------------------------------------
 void MainWindow::requestClose()

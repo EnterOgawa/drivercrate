@@ -2,7 +2,7 @@
 /**
  * @file official_collector_http_control.h
  * @brief 台帳へ依存しない収集HTTPの制御interfaceと観測型です。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/27
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/27  共通HTTPの固定観測と抽象制御境界を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実装や台帳を保持せず、呼出し中だけworker所有の制御を借用します。
@@ -168,40 +169,49 @@ struct CollectorIoSnapshot {
 /** @brief 共通HTTPが借用する制御境界です。台帳・worker・native I/Oは所有しません。 */
 class OfficialCollectorHttpControl {
 public:
-	/** @brief 実装を所有する呼出し側が破棄します。 */
+	/**
+	 * @brief 実装を所有する呼出し側が破棄します。
+	 */
 	virtual ~OfficialCollectorHttpControl() = default ;
-	/** @brief 停止と二clockを確認します。
+	/**
+	 * @brief 停止と二clockを確認します。
 	 * @param[in] stage 次の固定段階。
 	 * @param[in] phaseLimitMillis 正数のphase上限。
 	 * @return 許可する正数timeout、停止は0。
 	 */
 	[[nodiscard]] virtual std::uint32_t begin( CollectorIoStage stage,
 											  std::uint32_t	   phaseLimitMillis) = 0 ;
-	/** @brief SEND開始確定後、API呼出しを一度だけ計数します。
+	/**
+	 * @brief SEND開始確定後、API呼出しを一度だけ計数します。
 	 * @return 呼出し可能ならtrue。
 	 */
 	[[nodiscard]] virtual bool			noteSendCall() = 0 ;
-	/** @brief 成功read量を停止確認より先に計数します。
+	/**
+	 * @brief 成功read量を停止確認より先に計数します。
 	 * @param[in] requested 正数の要求量。
 	 * @param[in] received 実際に返された量。
 	 * @return 範囲内ならtrue。
 	 */
 	[[nodiscard]] virtual bool noteRead( std::uint32_t requested, std::uint32_t received) = 0 ;
-	/** @brief Header観測UTCを一度だけ保存します。
+	/**
+	 * @brief Header観測UTCを一度だけ保存します。
 	 * @return 停止していなければtrue。
 	 */
 	[[nodiscard]] virtual bool noteHeaders() = 0 ;
-	/** @brief 最初の失敗とnative副診断を保持します。
+	/**
+	 * @brief 最初の失敗とnative副診断を保持します。
 	 * @param[in] cause 固定終端原因。
 	 * @param[in] error 元errorと段階。
 	 * @param[in] bytesUnknown 完全な受信量が未知ならtrue。
 	 */
 	virtual void fail( CollectorIoCause cause, CollectorIoError error, bool bytesUnknown) = 0 ;
-	/** @brief 所有native資源の全解放確認を更新します。
+	/**
+	 * @brief 所有native資源の全解放確認を更新します。
 	 * @param[in] released 全解放が確認できた場合true。
 	 */
 	virtual void setNativeReleased( bool released) = 0 ;
-	/** @brief 整合した固定観測値を取得します。
+	/**
+	 * @brief 整合した固定観測値を取得します。
 	 * @return URLを含まない観測値。
 	 */
 	[[nodiscard]] virtual CollectorIoSnapshot snapshot() const = 0 ;

@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_provider_adapter_tests.h
  * @brief 組み込み公式自動探索registration接続試験を宣言する。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  固定root registration接続試験を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  部分失敗・重複・privacy試験を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実network、payload取得、driverまたはinstaller実行を行わない合成fixtureだけを使用する。
@@ -34,10 +35,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Intel matcher、固定root接続、部分失敗、重複、privacy境界を検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialDiscoveryProviderAdapterTests( TestContext &context) ;
 
 } // namespace drivercrate::test

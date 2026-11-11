@@ -2,7 +2,7 @@
 /**
  * @file resource_content_tests.cpp
  * @brief resource原範囲と実公式packageの非実行接続を有限検証する。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/03  独立小PEと実原outerの通常内容接続を検証。
  * Ver.01.00.01 Shunji Ogawa  2026/11/09  取消/CRC code期待のNativeError型だけを明示。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note network・製品UI・driver/FW実行・Windows stagingを行わない。
  */
@@ -42,9 +43,12 @@
 namespace {
 using namespace drivercrate ;
 using Writer = collector_projected_json::Writer ;
-/** @brief 公開packageの原期待値だけを作る。
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開packageの原期待値だけを作る。
  * @return 642の受入済みsize/hash。inner tuple/offsetは既定値の未確定。
  */
+//------------------------------------------------------------------------------
 OfficialResourceContentPlan request()
 {
 	OfficialResourceContentPlan plan ;	// 研究済み原byteの非authority期待値。
@@ -70,10 +74,13 @@ OfficialResourceContentPlan request()
 	plan.selectedInf = L"asmfilter64.inf" ;
 	return plan ;
 }
-/** @brief 原resource atomを既存有界JSON writerへ出す。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原resource atomを既存有界JSON writerへ出す。
  * @param[in,out] out 出力sink。
  * @param[in] value 原atom。
  */
+//------------------------------------------------------------------------------
 void emitAtom( Writer &out, const OfficialResourceIdentifier &value)
 {
 	out.append( value.named ? "{\"kind\":\"STRING\",\"value\":" : "{\"kind\":\"ID\",\"value\":") ;
@@ -86,10 +93,13 @@ void emitAtom( Writer &out, const OfficialResourceIdentifier &value)
 
 	out.append( "}") ;
 }
-/** @brief native確定tupleと原範囲を出す。
+//------------------------------------------------------------------------------
+/**
+ * @brief native確定tupleと原範囲を出す。
  * @param[in,out] out 有界sink。
  * @param[in] value 全検証済み原slice。
  */
+//------------------------------------------------------------------------------
 void emitSlice( Writer &out, const OfficialResourceSlice &value)
 {
 	out.append( "\"resource\":{\"type\":") ;
@@ -105,10 +115,13 @@ void emitSlice( Writer &out, const OfficialResourceSlice &value)
 	out.append( ",\"sha256\":") ;
 	out.wideText( value.sha256) ;
 }
-/** @brief 全native証拠を公開wireと同じ閉じたcontentへ出す。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全native証拠を公開wireと同じ閉じたcontentへ出す。
  * @param[in] plan native解決成功値。
  * @return 有界な原選択JSON。署名/正式recordではない。
  */
+//------------------------------------------------------------------------------
 std::string emitPlan( const OfficialResourceContentPlan &plan)
 {
 	Writer out( 64U * 1024U) ;	// 単一小型recipeの有界sink。
@@ -149,10 +162,13 @@ std::string emitPlan( const OfficialResourceContentPlan &plan)
 	out.append( "}") ;
 	return out.take() ;
 }
-/** @brief 独立645の六small PEと静的role境界を確認する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 独立645の六small PEと静的role境界を確認する。
  * @param[in,out] test 有限assertion集計。
  * @param[in] directory 受入済みvector directory。
  */
+//------------------------------------------------------------------------------
 void vectors( test::TestContext &test, std::wstring directory)
 {
 	std::ranges::replace( directory, L'/', L'\\') ;
@@ -216,10 +232,13 @@ void vectors( test::TestContext &test, std::wstring directory)
 								 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))) ;
 	DRIVERCRATE_EXPECT( test, cancelled.entries().empty()) ;
 }
-/** @brief 原642をcollector解決から通常indexed content/identityへ通す。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原642をcollector解決から通常indexed content/identityへ通す。
  * @param[in,out] test 有限assertion集計。
  * @param[in] path 原outer絶対path。
  */
+//------------------------------------------------------------------------------
 void real( test::TestContext &test, const std::wstring_view path)
 {
 	OfficialResourceContentPlan plan ;	// nativeで初めて確定するinner tuple/offset。
@@ -395,11 +414,14 @@ void real( test::TestContext &test, const std::wstring_view path)
 		static_cast<long>( crcError), static_cast<long>( missingError)) ;
 }
 } // namespace
-/** @brief 読取限定の有限modeだけを受理する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 読取限定の有限modeだけを受理する。
  * @param[in] argc 元引数件数。
  * @param[in] argv modeと明示入力。
  * @return 全期待成功0、拒否2、境界失敗1。
  */
+//------------------------------------------------------------------------------
 int wmain( const int argc, wchar_t **argv)
 {
 	// 任意追加引数や未知modeを実行へ解釈しない。

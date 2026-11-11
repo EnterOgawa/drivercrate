@@ -2,7 +2,7 @@
 /**
  * @file provider_worker_index_internal.h
  * @brief 通常workerの固定索引serviceと隔離fixture能力を定義します。
- * @version 01.07.00
+ * @version 01.07.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * Ver.01.05.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.06.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
  * Ver.01.07.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.07.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 製品constructorはこの能力を外部入力から作りません。
@@ -101,7 +102,8 @@ struct Services {
 } ;
 /** @brief Unit専用serviceをprivate worker constructorへ結ぶ内部能力です。 */
 struct Access {
-	/** @brief 実command queueと通常ScanCommandを使用する隔離workerを作ります。
+	/**
+	 * @brief 実command queueと通常ScanCommandを使用する隔離workerを作ります。
 	 * @param[in] providerFactory 非通信Providerをworker内で生成する関数。
 	 * @param[in] restoreFactory 実復旧APIを呼ばない生成関数。
 	 * @param[in] services 真署名・隔離storeだけを使用するservice。
@@ -110,7 +112,8 @@ struct Access {
 	[[nodiscard]] static std::unique_ptr<ProviderWorker> create( ProviderFactory		providerFactory,
 																RestorePointFactory restoreFactory,
 																Services			services) ;
-	/** @brief 真署名隔離snapshotの固定取得policyへ限定した実workerを作ります。
+	/**
+	 * @brief 真署名隔離snapshotの固定取得policyへ限定した実workerを作ります。
 	 * @param[in] providerFactory 同threadの非通信inventory Provider生成関数。
 	 * @param[in] restoreFactory 実復旧APIを呼ばない生成関数。
 	 * @param[in] services 同scanの実store再認証・完全fake HTTP・costの依存。

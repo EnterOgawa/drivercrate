@@ -2,7 +2,7 @@
 /**
  * @file nvidia_catalog_parser_tests.cpp
  * @brief NVIDIA公式catalog parser単体試験実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Networkへ接続せず、固定したschema最小例と不正応答を検証します。
@@ -291,7 +292,8 @@ void testNvidiaGenerationHint( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/nvidia_catalog_parser_tests.h 宣言側の契約を正本とする。
+ * @brief NVIDIA catalog parserとversion変換の境界条件を検証する。Networkを使用しないNVIDIA Provider単体試験群を実行する。
+ * @param[in,out] context assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runNvidiaCatalogParserTests( TestContext &context)

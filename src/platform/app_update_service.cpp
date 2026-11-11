@@ -2,7 +2,7 @@
 /**
  * @file app_update_service.cpp
  * @brief 公式Release解析と一要求のApp更新workerを実装します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note COM/JSONはworker内で使い、UIへURLやfile handleを渡しません。
  * @see docs/adr/0481-app-inno-setup-and-update-checks.md
@@ -37,10 +38,15 @@
 
 namespace drivercrate {
 namespace {
-/** @brief 原UTF-8をWindows JSONへ渡すUTF-16へ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原UTF-8をWindows JSONへ渡すUTF-16へ変換します。
  * @param[in] raw 上限内の原byteです。
  * @return 変換結果。不正は例外です。
+ * @throws std::invalid_argument 空/過大入力・不正UTF-8または変換長不一致の場合です。
+ * @throws std::bad_alloc UTF-16所有文字列の確保に失敗した場合です。
  */
+//------------------------------------------------------------------------------
 std::wstring jsonText( const std::string_view raw)
 {
 	// 空/過大入力をWin32のint長へ変換しません。
@@ -65,12 +71,18 @@ std::wstring jsonText( const std::string_view raw)
 
 	return text ;
 }
-/** @brief 必須JSON文字列を型/長さ付きで読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 必須JSON文字列を型/長さ付きで読みます。
  * @param[in] object 検査済みobjectです。
- * @param[in] key 固定のfield名です。
+ * @param[in] key 固定field名の非null・NUL終端UTF-16です。呼出し中だけ借用し、保持しません。
  * @param[in] maximum 許容文字数です。
  * @return 所有文字列。不正は例外です。
+ * @throws std::invalid_argument 型・空値・長さ・埋込NULを拒否した場合です。
+ * @throws winrt::hresult_error 必須fieldの取得などWinRTの呼出しが失敗した場合です。
+ * @throws std::bad_alloc 戻す所有文字列の確保に失敗した場合です。
  */
+//------------------------------------------------------------------------------
 std::wstring stringValue( const winrt::Windows::Data::Json::JsonObject &object, const wchar_t *key,
 						 const std::size_t maximum)
 {
@@ -90,7 +102,15 @@ std::wstring stringValue( const winrt::Windows::Data::Json::JsonObject &object, 
 	return std::wstring( text) ;
 }
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式JSONから必要な宣言だけを検査します。
+ * @param[in] raw 256KiB以内の原UTF-8です。
+ * @param[in] current 実行中Appの数値版です。
+ * @param[out] release 新版の正しい宣言だけを返します。失敗/同版以下では空です。
+ * @return 失敗分類と元数値。正しい同版以下も成功です。
+ */
+//------------------------------------------------------------------------------
 AppUpdateFailure parseAppUpdateReleaseJson( const std::string_view raw, const AppVersion &current,
 										   std::optional<AppUpdateRelease> &release) noexcept
 {
@@ -223,7 +243,17 @@ AppUpdateFailure parseAppUpdateReleaseJson( const std::string_view raw, const Ap
 		return {AppUpdateFailureKind::METADATA, static_cast<NativeError>( E_INVALIDARG), 0U, 0U} ;
 	}
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全backendとWindow通知先を所有します。
+ * @param[in] window 非所有通知先です。停止前に破棄しません。
+ * @param[in] message WM_APP範囲の通知です。
+ * @param[in] backend worker専用backendです。nullは拒否します。
+ * @throws std::invalid_argument backendがnullの場合です。
+ * @throws std::system_error 専用threadの開始に失敗した場合です。
+ * @throws std::bad_alloc thread開始に必要な資源確保が失敗した場合です。
+ */
+//------------------------------------------------------------------------------
 AppUpdateService::AppUpdateService( const HWND window, const UINT message,
 								   std::unique_ptr<AppUpdateBackend> backend)
 	: window_( window), message_( message), backend_( std::move( backend))
@@ -236,12 +266,23 @@ AppUpdateService::AppUpdateService( const HWND window, const UINT message,
 	// このobjectの停止までだけ借用します。
 	thread_ = std::thread( [this]() { run() ; }) ;
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 取消しを通知し、worker終了を待って解放します。
+ */
+//------------------------------------------------------------------------------
 AppUpdateService::~AppUpdateService()
 {
 	stop() ;
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定の段階を一件だけ予約します。
+ * @param[in] operation 受理する操作です。
+ * @param[in] manual 明示操作かどうかです。
+ * @return 同時要求/停止/未受領結果を拒否した場合はfalseです。
+ */
+//------------------------------------------------------------------------------
 bool AppUpdateService::enqueue( const AppUpdateStage operation, const bool manual)
 {
 	std::scoped_lock lock( mutex_) ;	// 一要求/一結果の排他です。
@@ -271,22 +312,42 @@ bool AppUpdateService::enqueue( const AppUpdateStage operation, const bool manua
 	ready_.notify_one() ;
 	return true ;
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実行物を取らない一回の確認を受理します。
+ * @param[in] manual 手動確認ならtrueです。
+ * @return idle/offeredかつ未受領結果がない場合だけtrueです。
+ */
+//------------------------------------------------------------------------------
 bool AppUpdateService::requestCheck( const bool manual)
 {
 	return enqueue( AppUpdateStage::CHECKING, manual) ;
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元の提示に対する明示同意を受理します。
+ * @return offeredかつ元の提示がある場合だけtrueです。
+ */
+//------------------------------------------------------------------------------
 bool AppUpdateService::requestDownload()
 {
 	return enqueue( AppUpdateStage::DOWNLOADING, true) ;
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief UIがidleを再確認した引継ぎ要求を受理します。
+ * @return 元取得のreadyである場合だけtrueです。
+ */
+//------------------------------------------------------------------------------
 bool AppUpdateService::requestLaunch()
 {
 	return enqueue( AppUpdateStage::HANDING_OFF, true) ;
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在提示の再通知を見送ります。取得は行いません。
+ */
+//------------------------------------------------------------------------------
 void AppUpdateService::dismiss() noexcept
 {
 	std::scoped_lock lock( mutex_) ;	// 提示中だけを見送ります。
@@ -297,12 +358,20 @@ void AppUpdateService::dismiss() noexcept
 		stage_ = AppUpdateStage::IDLE ;
 	}
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実行中のApp更新だけを協調取消しします。
+ */
+//------------------------------------------------------------------------------
 void AppUpdateService::cancel() noexcept
 {
 	cancelled_ = true ;
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 新規要求を閉じ、所有threadをjoinします。
+ */
+//------------------------------------------------------------------------------
 void AppUpdateService::stop() noexcept
 {
 	stopping_  = true ;
@@ -313,7 +382,12 @@ void AppUpdateService::stop() noexcept
 		thread_.join() ;
 	}
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有された確定結果一件を取り出します。
+ * @return 結果なしはnulloptです。
+ */
+//------------------------------------------------------------------------------
 std::optional<AppUpdateEvent> AppUpdateService::takeEvent()
 {
 	std::scoped_lock lock( mutex_) ;				// 結果を一回だけ所有移転します。
@@ -321,13 +395,22 @@ std::optional<AppUpdateEvent> AppUpdateService::takeEvent()
 	event_.reset() ;
 	return result ;
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 現段階のsnapshotを返します。
+ * @return mutexで保護した現在段階です。
+ */
+//------------------------------------------------------------------------------
 AppUpdateStage AppUpdateService::stage() const noexcept
 {
 	std::scoped_lock lock( mutex_) ;	// 同期I/Oのlockではありません。
 	return stage_ ;
 }
-/** @see app_update_service.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 例外をthread境界から漏らさず直列処理します。
+ */
+//------------------------------------------------------------------------------
 void AppUpdateService::run() noexcept
 {
 	try {

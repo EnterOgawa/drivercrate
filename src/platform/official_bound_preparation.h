@@ -2,7 +2,7 @@
 /**
  * @file official_bound_preparation.h
  * @brief 公式INFのbinding付き候補と導入契約。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/09
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 審査済み二profileに限定し、秘密bindingはworker内だけで所有します。
@@ -47,13 +48,14 @@
 #include <unordered_map>
 
 namespace drivercrate {
+//------------------------------------------------------------------------------
 /**
- * @brief Intel公式READMEが明示した非対応OEMを完全一致で識別する。
- * 部分一致や別名推測を行わず、ADR 0132の既知非対応だけを除外する。
+ * @brief Intel公式READMEが明示した非対応OEMを完全一致で識別する。部分一致や別名推測を行わず、ADR 0132の既知非対応だけを除外する。
  * @param[in] model Local inventoryの製品表示名。外部へ送信しない。
  * @return 大文字小文字を除いて既知の二表示と一致する場合true。 既知の二つのHPE非対応表示と大文字小文字を除き完全一致ならtrue。
  * @note 共通候補発行とIntel監査reportで同じ除外規則を共有する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isKnownUnsupportedIntelEthernetModel( std::wstring_view model) noexcept ;
 
 /** @brief 監査済みINFと一scan限定のWindows nodeを結ぶ保持routing。 */
@@ -84,9 +86,9 @@ struct BoundPreparedInstallContext {
 	bool									   sourceEvidenceConfirmed{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 合格した組合せから未選択候補とbinding付きroutingを一括発行する。
- * 既知profileの合格組合せを有限処理し、失敗時は未commit tokenを破棄する。
+ * @brief 合格した組合せから未選択候補とbinding付きroutingを一括発行する。既知profileの合格組合せを有限処理し、失敗時は未commit tokenを破棄する。
  * @param[in] profile Intel Ethernet Server 2025またはASIX AX88179Aの固定profile。 二つの固定profileに限る。
  * @param[in] session 取得・device・監査が共有する検索session。 同一scanの識別子。
  * @param[in] acquisitionId 検証済み外側取得物のopaque ID。 検証済み取得ID。
@@ -99,6 +101,7 @@ struct BoundPreparedInstallContext {
  * @param[out] installTargets 成功時だけ返すrouting。入力時は空であること。 全件検証後に返すrouting。入力は空。
  * @note 拒否はreportのpublicationへ記録する。 失敗はpublicationへ記録する。
  */
+//------------------------------------------------------------------------------
 void publishBoundPreparedCandidates( OfficialDriverAuditProfile profile, ScanSessionId session,
 									std::uint64_t acquisitionId, std::uint64_t maximumDownloadBytes,
 									std::span<const OfficialCatalogDevice>	 devices,
@@ -108,9 +111,9 @@ void publishBoundPreparedCandidates( OfficialDriverAuditProfile profile, ScanSes
 									OfficialPreparationAuditReport			&report,
 									BoundPreparedInstallTargets &installTargets) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 固定profileの保持routingを再監査して指定device導入境界へ接続する。
- * 固定profileと全routingを先に照合する。保持物の失効はProviderが行う。
+ * @brief 固定profileの保持routingを再監査して指定device導入境界へ接続する。固定profileと全routingを先に照合する。保持物の失効はProviderが行う。
  * @param[in] profile Intel Ethernet Server 2025またはASIX AX88179Aの固定profile。 固定ProviderとOSの選択値。
  * @param[in] context 同じworkerで保持する取得物・閉包・binding。 呼出し中に有効な保持物の非所有参照。
  * @param[in] identities 明示選択した候補ID。一device一候補。 利用者が選択した候補ID。
@@ -122,6 +125,7 @@ void publishBoundPreparedCandidates( OfficialDriverAuditProfile profile, ScanSes
  * @return 選択順の個別結果。外側再確認と導入を区別する。 入力順の個別結果。失敗を候補ごとに保持する。
  * @note 復旧保護はworkerが先に確立し、Providerは結果確定後に保持物を失効させる。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] InstallResult executeBoundPreparedInstall(
 	OfficialDriverAuditProfile profile, const BoundPreparedInstallContext &context,
 	std::span<const std::wstring> identities, const PreparedInfReverifier &reverifier,

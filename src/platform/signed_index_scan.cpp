@@ -2,7 +2,7 @@
 /**
  * @file signed_index_scan.cpp
  * @brief 通常worker scanの全batchと協調期限を管理します。
- * @version 01.14.00
+ * @version 01.14.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * Ver.01.12.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * Ver.01.13.00 Shunji Ogawa  2026/11/08  同一署名索引の本体再利用から通常loadと照合を継続。
  * Ver.01.14.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.14.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Crypto・schema・端末照合は既存の共通実装へ委譲します。
@@ -57,7 +58,14 @@
 
 namespace drivercrate {
 
-/** @see signed_index_scan.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scanの保持量を有限枠内だけで加算する。
+ * @param[in] additional 今回検査が実保持したbyte数。
+ * @param[in,out] total 元累計。失敗時は変更しない。
+ * @return overflowせず3GiB以内へ加算できた場合true。
+ */
+//------------------------------------------------------------------------------
 bool tryRetainIndexedInspectionBytes( const std::uint64_t additional, std::uint64_t &total) noexcept
 {
 	// 既に不正な累計も、加算overflowも小さい正常値へ戻さない。
@@ -81,7 +89,15 @@ thread_local signed_index_task_observer_detail::ApprovedTaskObserver approvedInd
 thread_local void *approvedIndexTaskObserverState = nullptr ;
 }
 
-/** @see signed_index_task_observer_internal.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同worker threadへ一組の観測pointerを登録し、null対で解除します。
+ * @param[in] observer 非nullはstateと対で登録します。nullはstateもnullの場合だけ解除します。
+ * @param[in] state Workerのstop/joinまで有効な非所有pointerです。関数と対でnullを受理します。
+ * @return 空slotへの登録またはnull対の解除はtrue、不整合または重複登録はfalseです。
+ * @note 同workerだけから呼びます。例外・blocking・製品への登録fallbackはありません。
+ */
+//------------------------------------------------------------------------------
 bool signed_index_task_observer_detail::registerApprovedIndexTaskObserver(
 	ApprovedTaskObserver observer, void *state) noexcept
 {
@@ -100,7 +116,8 @@ namespace {
 /** @brief Callback回数と時計・取消しを全batch共通で制限します。 */
 class LimitedResolver final : public IndexPublicIdResolver {
 public:
-	/** @brief 同期scan期間だけ全参照を借用します。
+	/**
+	 * @brief 同期scan期間だけ全参照を借用します。
 	 * @param[in] inner 元の同scan callback。
 	 * @param[in] services 固定service。
 	 * @param[in] cancellation 操作限定取消し。
@@ -115,7 +132,8 @@ public:
 		  summary_( summary), batchDeadline_( deadline)
 	{
 	}
-	/** @brief 種別・contextを保ったまま予算内のcallbackだけを呼びます。
+	/**
+	 * @brief 種別・contextを保ったまま予算内のcallbackだけを呼びます。
 	 * @param[in] kind 元公開ID種別。
 	 * @param[in] publishedId 元公開ID。
 	 * @param[in] classGuid 元class。
@@ -151,19 +169,27 @@ public:
 
 		return result ;
 	}
-	/** @copydoc IndexPublicIdResolver::leaseProof */
+	/**
+	 * @brief Nativeだけが元inventoryの私有leaseを共有します。
+	 * @return 元factory発行の不変証拠の共有所有です。generic callbackでは空です。証拠objectは共有しても元inventory/contextの有効性や権限を
+	 *         延長しません。
+	 * @note 内側resolverのleaseProofを一回呼び、そのshared_ptrを返します。このwrapper自身はleaseを新発行しません。
+	 */
 	[[nodiscard]] std::shared_ptr<const NativeIndexLookupLease> leaseProof() const noexcept override
 	{
 		return inner_.leaseProof() ;
 	}
-	/** @brief 元全体期限以内の一batch協調期限を開始します。 */
+	/**
+	 * @brief 元全体期限以内の一batch協調期限を開始します。
+	 */
 	void startBatch()
 	{
 		batchDeadline_ =
 			std::min( deadline_, services_.monotonic() +
 									std::chrono::milliseconds{index_capacity::BATCH_MILLISECONDS}) ;
 	}
-	/** @brief 現在の協調停止条件を確認します。
+	/**
+	 * @brief 現在の協調停止条件を確認します。
 	 * @return 取消しまたは期限以上ならtrue。
 	 */
 	[[nodiscard]] bool stopped() const
@@ -187,10 +213,13 @@ private:
 	std::chrono::steady_clock::time_point		  batchDeadline_ ;
 } ;
 
-/** @brief Store／lookupの期限拒否を索引専用区分へ保ちます。
+//------------------------------------------------------------------------------
+/**
+ * @brief Store／lookupの期限拒否を索引専用区分へ保ちます。
  * @param[in] status Storeの元区分。
  * @return 読取り成立以外の明示区分。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] IndexScanStatus loadStatus( const IndexStoreStatus status) noexcept
 {
 	// 元拒否分類だけを映し、空・未配備を成功へまとめません。
@@ -222,7 +251,11 @@ private:
 }
 } // namespace
 
-/** @see signed_index_scan.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 秘密snapshot・callback・関係を全て解放します。
+ */
+//------------------------------------------------------------------------------
 void SignedIndexScanSession::invalidate() noexcept
 {
 	nextOwnedPayloadOrdinal_ = 1U ;
@@ -239,7 +272,19 @@ void SignedIndexScanSession::invalidate() noexcept
 	snapshot_.reset() ;
 }
 
-/** @see signed_index_scan.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常workerの同scan完了後に全operation予算内で読取ります。
+ * @param[in,out] provider 実scanを終えた同worker Provider。
+ * @param[in] operationId 正のworker operation。
+ * @param[in] sessionId 実scan結果と一致する正のsession。
+ * @param[in] services 固定製品入口または内部fixture能力。
+ * @param[in] cancellation 同operation限定の協調取消し。
+ * @param[in] progress 確定record数だけの同期通知。空では通知しません。
+ * @return 非機密件数と独立status。元scanの成否を変更しません。
+ * @note 例外は秘密所有を破棄して診断へ変換します。
+ */
+//------------------------------------------------------------------------------
 IndexScanSummary SignedIndexScanSession::scan(
 	IUpdateProvider &provider, const OperationId operationId, const ScanSessionId sessionId,
 	const provider_worker_index_detail::Services		&services,
@@ -503,7 +548,15 @@ IndexScanSummary SignedIndexScanSession::scan(
 	return summary ;
 }
 
-/** @see SignedIndexScanSession 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同scanの全私有batchから既存計画へ取得対象だけを結合します。
+ * @param[in,out] plan Providerの元計画または同じ有限上限の空計画。
+ * @param[in] services Worker開始前に固定した依存。任意公開鍵を受けません。
+ * @param[out] summary 非機密の件数と未接続診断。原UNKNOWNは元snapshotへ保持します。
+ * @return 計画の結合成立0。取得能力不足はsummaryへ独立保持して元Provider計画を維持します。
+ */
+//------------------------------------------------------------------------------
 NativeError SignedIndexScanSession::augmentPreparationPlan(
 	OfficialPreparationPlan &plan, const provider_worker_index_detail::Services &services,
 	IndexPreparationSummary &summary)
@@ -619,7 +672,19 @@ NativeError SignedIndexScanSession::augmentPreparationPlan(
 	return 0U ;
 }
 
-/** @see SignedIndexScanSession 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同active taskだけを共通grant・取得seal・通常内容検査へ接続します。
+ * @param[in,out] preparation 実approve／claimNextしたworker session。
+ * @param[in] task 同計画の未変更active task。元scan操作とは別です。
+ * @param[in] services Worker固定のHTTP・時計・回線依存。
+ * @param[in] cancellation 同取得操作の協調停止。
+ * @return 取得の確定結果。内容失敗は独立summaryへ残します。
+ * @throws std::bad_alloc 内部allocationに失敗した場合。
+ * @throws ... 内部serviceが送出した元例外。
+ * @note Workerの取得callbackは例外を再throwする前にinvalidateAcquisitionを呼びます。
+ */
+//------------------------------------------------------------------------------
 OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 	OfficialPreparationSession &preparation, const OfficialPreparationTask &task,
 	const provider_worker_index_detail::Services &services,
@@ -874,7 +939,17 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 			acquireError, acquired.byteCount} ;
 }
 
-/** @see signed_index_scan.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元owned bodyを新active taskで非通信再検査します。
+ * @param[in,out] preparation 当該active taskの所有者です。
+ * @param[in] task 新しい明示承認taskです。
+ * @param[in] sourceIndex 元TRANSFER recordの安定indexです。
+ * @param[in] services 元時計です。通信は呼びません。
+ * @param[in] cancellation 同検査の取消しです。
+ * @return 実検査の終端と当該local照合票です。取得成功は再発行しません。
+ */
+//------------------------------------------------------------------------------
 OfficialPreparationTransferResult SignedIndexScanSession::inspectRetainedBody(
 	OfficialPreparationSession &preparation, const OfficialPreparationTask &task,
 	const std::size_t sourceIndex, const provider_worker_index_detail::Services &services,
@@ -988,7 +1063,13 @@ OfficialPreparationTransferResult SignedIndexScanSession::inspectRetainedBody(
 														   error, 0U} ;
 }
 
-/** @see SignedIndexScanSession 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元計画と今回の操作へ非機密結果だけを複写します。
+ * @param[in] operationId 実取得operation。0では計画summaryです。
+ * @return 同scan／planと有限個別結果。秘密所有を含みません。
+ */
+//------------------------------------------------------------------------------
 IndexPreparationSummary SignedIndexScanSession::preparationSummary(
 	const OperationId operationId) const
 {
@@ -997,7 +1078,14 @@ IndexPreparationSummary SignedIndexScanSession::preparationSummary(
 	return summary ;
 }
 
-/** @see signed_index_scan.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 原metadataだけで残planを検証し当該summaryを開始します。
+ * @param[in,out] plan 原tuple/予算のsubsetです。失効対象だけを除きます。
+ * @param[in] services 元信頼時計です。HTTPは呼びません。
+ * @return 原context/新ID/予算が整合した場合trueです。
+ */
+//------------------------------------------------------------------------------
 bool SignedIndexScanSession::retainPreparationPlan(
 	OfficialPreparationPlan &plan, const provider_worker_index_detail::Services &services)
 {
@@ -1036,13 +1124,23 @@ bool SignedIndexScanSession::retainPreparationPlan(
 	return true ;
 }
 
-/** @see SignedIndexScanSession 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Adapterの取得能力とissuer leaseを失効し、確定結果と内容所有を保持します。
+ * @note 新しいgrantと未使用grantの使用を拒否し、snapshot、lookup、取得ledger、workspace、summary、検査閉包は解放しません。同期callbackの
+ *       借用を破壊しません。
+ */
+//------------------------------------------------------------------------------
 void SignedIndexScanSession::invalidateAcquisition() noexcept
 {
 	adapter_.invalidate() ;
 }
 
-/** @see SignedIndexScanSession宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 新取得だけを閉鎖し、同期限内の消費済み元根拠を導入終端まで保持します。
+ */
+//------------------------------------------------------------------------------
 void SignedIndexScanSession::closeAcquisitionForInstall() noexcept
 {
 	adapter_.closeAcquisitionForInstall() ;

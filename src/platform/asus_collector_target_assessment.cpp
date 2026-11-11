@@ -2,7 +2,7 @@
 /**
  * @file asus_collector_target_assessment.cpp
  * @brief 同一ASUS本文の一時候補と公開対象を三状態で照合します。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/28  公開target三状態と複数候補番号の純粋照合を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/28  同一controlの対象／候補照合と型付き終了を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/28  元表記record keyと正規化model keyの帰属を修正。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 本文所有worker内でだけ候補を参照します。GET出典・配布許可は発行しません。
@@ -43,15 +44,15 @@ namespace {
 //------------------------------------------------------------------------------
 // 内部関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief 一つの公開target fieldの上限と秘密形状を確認します。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] value 公開対象のfield。
  * @param[in] maximumCharacters UTF-16単位の上限。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] allowEmpty chipだけ空を許す場合true。
  * @return 対象条件として有効ならtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validQueryText( CollectorParserContext *control, const std::wstring_view value,
 								  const std::size_t maximumCharacters,
 								  const bool		allowEmpty = false)
@@ -63,13 +64,15 @@ namespace {
 							   : isOfficialCollectorPublicText( value, 1'024U)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開対象の全fieldを個別に確認します。
- * @param[in] query 一つの借用対象。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] query 一つの借用対象。
  * @param[out] modelKey 成立時の製品比較key。
  * @return 有限公開値だけならtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validQuery( CollectorParserContext		 *control,
 							  const AsusCollectorTargetQuery &query, std::wstring &modelKey)
 {
@@ -84,12 +87,14 @@ namespace {
 		   validQueryText( control, query.chip, 128U, true) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開pageの製品identityだけを独立に確認します。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] page 解析済みの一本文。
  * @return 比較可能なLAN製品identityがある場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validPageIdentity( CollectorParserContext		   *control,
 									 const AsusCollectorPageResult &page)
 {
@@ -117,13 +122,15 @@ namespace {
 			(page.productId.size() == maximumId.size() && page.productId <= maximumId)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 候補集合と採用行の順序・所有値が同じであることを確認します。
- * @param[in] page 同一storeで採用した行。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] page 同一storeで採用した行。
  * @param[in] candidates その行から構築した一時record。
  * @return 候補が空、または全行一対一で結合した場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool boundCandidates(
 	CollectorParserContext *control, const AsusCollectorPageResult &page,
 	const std::span<const OfficialCollectorRecordCandidate> candidates)
@@ -174,11 +181,13 @@ namespace {
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 最初に判明した同状態の理由を上書きしません。
  * @param[in,out] first 先着の理由。初期MATCHEDは未設定を表します。
  * @param[in] next 現在の軸の理由。
  */
+//------------------------------------------------------------------------------
 void rememberFirst( AsusCollectorTargetReason &first, const AsusCollectorTargetReason next) noexcept
 {
 	// 診断を後の軸で上書きしません。
@@ -187,6 +196,7 @@ void rememberFirst( AsusCollectorTargetReason &first, const AsusCollectorTargetR
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一対象の軸をすべて評価し、明示矛盾を未知より優先します。
  * @param[in] query 公開対象。
@@ -195,6 +205,7 @@ void rememberFirst( AsusCollectorTargetReason &first, const AsusCollectorTargetR
  * @param[in] hasCandidates 一件以上の結合済み候補がある場合true。
  * @param[in,out] result 出力状態と第一理由。
  */
+//------------------------------------------------------------------------------
 void assessTarget( const AsusCollectorTargetQuery &query, const std::wstring_view modelKey,
 				  const AsusCollectorPageResult &page, const bool hasCandidates,
 				  AsusCollectorTargetAssessment &result) noexcept
@@ -273,7 +284,6 @@ void assessTarget( const AsusCollectorTargetQuery &query, const std::wstring_vie
 //------------------------------------------------------------------------------
 // 公開関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief 旧入口と制御付き入口の共通coreです。
  * @param[in,out] control 新経路の制御。旧入口だけnull。
@@ -283,6 +293,7 @@ void assessTarget( const AsusCollectorTargetQuery &query, const std::wstring_vie
  * @param[out] assessments 全成立後だけ公開する値。
  * @return 集合契約が成立すればtrue。
  */
+//------------------------------------------------------------------------------
 static bool inspectAsusCollectorTargetsCore(
 	CollectorParserContext *control, const AsusCollectorPageResult &page,
 	const std::span<const OfficialCollectorRecordCandidate> candidates,
@@ -372,7 +383,17 @@ static bool inspectAsusCollectorTargetsCore(
 	}
 }
 
-/** @see asus_collector_target_assessment.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ解析済みpageと一時候補を最大300公開対象に照合します。
+ * @param[in] page 同一storeから得た所有解析結果。公式GET証拠は含みません。
+ * @param[in] candidates 同じpageから作った最大16候補。空なら全対象に候補なしを記録します。
+ * @param[in] targets 重複しない公開keyを持つ最大300件の対象。
+ * @param[out] assessments 入力順の一時判定。集合拒否時は空です。
+ * @return 集合境界と候補の同一page結合が成立した場合true。
+ * @note 本関数はURL、EULA本文、fingerprint、GET出典、取得許可を結果に含めません。
+ */
+//------------------------------------------------------------------------------
 bool inspectAsusCollectorTargets( const AsusCollectorPageResult					  &page,
 								 std::span<const OfficialCollectorRecordCandidate> candidates,
 								 std::span<const AsusCollectorTargetQuery>		   targets,
@@ -381,7 +402,17 @@ bool inspectAsusCollectorTargets( const AsusCollectorPageResult					  &page,
 	return inspectAsusCollectorTargetsCore( nullptr, page, candidates, targets, assessments) ;
 }
 
-/** @see asus_collector_target_assessment.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じcoreで停止・失敗と候補／対象の照合結果を分けます。
+ * @param[in] page 同じ本文のpage。
+ * @param[in] candidates 同じpageの候補。
+ * @param[in] targets 全公開対象。
+ * @param[in,out] control 元GETの必須制御。
+ * @param[out] assessments 完了時のみ公開する所有値。
+ * @return 解析／照合の型付き終了。
+ */
+//------------------------------------------------------------------------------
 CollectorParserResult inspectAsusCollectorTargetsControlled(
 	const AsusCollectorPageResult					 &page,
 	std::span<const OfficialCollectorRecordCandidate> candidates,

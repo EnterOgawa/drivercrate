@@ -2,7 +2,7 @@
 /**
  * @file dell_catalog_parser.cpp
  * @brief Dell公式catalog parser実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note MSXML 6.0の外部entityとDTDを無効化し、Dell公式schemaから必要項目だけを抽出します。実端末のHardware IDは入力にも出力にも含めません。
@@ -744,7 +745,11 @@ using Microsoft::WRL::ComPtr ;
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/dell_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief Dell index XMLから端末modelのplatform catalog参照を取得する。Model Displayを完全一致し、SHA-256付き参照だけを採用する。
+ * @param[in] xmlUtf16 署名検証済みCABから展開したUTF-16 XML。 署名検証済みCAB内のUTF-16 XML。
+ * @param[in] systemModel local registryから得たsystem product名。 Local system product名。
+ * @param[out] reference 成功時の相対path、size、SHA-256。 成功時のplatform CAB metadata。
+ * @return 成功時は0、schema不正またはmodel未収録時はHRESULT bit pattern。 成功時は0、model未収録またはschema不正時はHRESULT。
  */
 //------------------------------------------------------------------------------
 NativeError parseDellCatalogIndex( const std::wstring_view		xmlUtf16,
@@ -869,7 +874,13 @@ NativeError parseDellCatalogIndex( const std::wstring_view		xmlUtf16,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/dell_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief Dell platform catalog XMLから対象OSのdriver releaseを取得する。Dell platform catalogから対象OSのdriver
+ *        releaseを取得する。Driver、model、OS、x64、SHA-256、Hardware IDを全て満たすSoftwareComponentだけを出力する。
+ * @param[in] xmlUtf16 署名・hash検証済みCABから展開したUTF-16 XML。 検証済みplatform CAB内のUTF-16 XML。
+ * @param[in] systemModel indexへ完全一致したsystem product名。 Indexへ一致したsystem product名。
+ * @param[in] windows11 trueならWindows 11、falseならWindows 10を対象にする。
+ * @param[out] releases 成功時のdriver release群。対象0件も成功とする。 成功時のlocal照合可能driver群。
+ * @return 成功時は0、schema不正または上限超過時はHRESULT bit pattern。
  */
 //------------------------------------------------------------------------------
 NativeError parseDellPlatformCatalog( const std::wstring_view xmlUtf16,

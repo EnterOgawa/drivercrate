@@ -2,7 +2,7 @@
 /**
  * @file signed_index_store.h
  * @brief 保護headの原子保存後だけ発行する署名索引snapshotを定義します。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/19  用途別storeと旧head不変の明示移動を追加。
  * Ver.01.02.01 Shunji Ogawa  2026/10/24 現行仕様へ限定し旧版専用の入口・移動を整理。
  * Ver.01.03.00 Shunji Ogawa  2026/10/27  Openの履歴下限と現在snapshotの能力を区別。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Workerで同期I/Oします。通常UI・通信・端末照合・導入許可を実装しません。
@@ -57,25 +58,30 @@ class SignedIndexStore ;
 /** @brief 全再認証と保存確認後だけ構築するworker所有の不変snapshotです。 */
 class AuthenticatedIndexSnapshot final {
 public:
-	/** @brief 原index／recordと段階・UNKNOWNを保持するschema receiptを借用します。
+	/**
+	 * @brief 原index／recordと段階・UNKNOWNを保持するschema receiptを借用します。
 	 * @return Snapshotの寿命まで有効な不変参照。
 	 */
 	[[nodiscard]] const IndexRecordsSchemaReceipt &schemaReceipt() const noexcept ;
-	/** @brief 再読取りで実署名を確認した原envelopeを借用します。
+	/**
+	 * @brief 再読取りで実署名を確認した原envelopeを借用します。
 	 * @return Snapshotの寿命まで有効な原UTF-8 byte。
 	 */
 	[[nodiscard]] std::string_view				   originalEnvelope() const noexcept ;
-	/** @brief 実hash／GZip検査を確認した原gzipを借用します。
+	/**
+	 * @brief 実hash／GZip検査を確認した原gzipを借用します。
 	 * @return Snapshotの寿命まで有効な圧縮byte。
 	 */
 	[[nodiscard]] std::span<const std::byte>	   originalGzip() const noexcept ;
-	/** @brief Snapshotを発行した索引保存policy版を返します。
+	/**
+	 * @brief Snapshotを発行した索引保存policy版を返します。
 	 * @return Store policy v1。
 	 */
 	[[nodiscard]] std::uint32_t					   storePolicyVersion() const noexcept ;
 
 private:
-	/** @brief 実head確認が終わった所有値だけを受け取ります。
+	/**
+	 * @brief 実head確認が終わった所有値だけを受け取ります。
 	 * @param[in] receipt 全schema再認証済みの所有値。
 	 * @param[in] envelope 実headから読んだ原外側byte。
 	 * @param[in] gzip 実headから読んだ原転送byte。
@@ -166,28 +172,35 @@ struct IndexStoreOpenResult ;
  */
 class SignedIndexStore final {
 public:
-	/** @brief 固定既存rootだけを読み、初回root／genesisを作成しません。
+	/**
+	 * @brief 固定既存rootだけを読み、初回root／genesisを作成しません。
 	 * @param[in] nowUtc 現在信頼UTC。確認不能ではsnapshotを発行しません。
 	 * @return 固定trust未配備・欠損・失敗を明示する実reload結果。
 	 * @note 未配備時はProgramDataも照会しません。任意path／trustは受け付けません。
 	 */
 	[[nodiscard]] static IndexStoreResult reloadFixedExisting(
 		std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
-	/** @brief 固定ProgramData rootだけを保護して開きます。
+	/**
+	 * @brief 固定ProgramData rootだけを保護して開きます。
 	 * @return 成功時store、失敗時元error。通常と検証用の固定domainを分離します。
-	 * @note 履歴下限だけを認証し、現在有効なcacheは保証しません。Reloadで全schema/現在期限を確認します。
-	 * 旧共用rootが残る間はERROR_REVISION_MISMATCHで拒否し、既存dataを変更しません。
+	 * @note 履歴下限だけを認証し、現在有効なcacheは保証しません。Reloadで全schema/現在期限を確認します。旧共用rootが残る間は
+	 *       ERROR_REVISION_MISMATCHで拒否し、既存dataを変更しません。
 	 */
 	[[nodiscard]] static IndexStoreOpenResult openFixedProtectedStore() noexcept ;
-	/** @brief 保持directory handleを解放し、製品headを削除しません。 */
+	/**
+	 * @brief 保持directory handleを解放し、製品headを削除しません。
+	 */
 	~SignedIndexStore() ;
-	/** @brief Storeの別名copyを禁止します。 */
+	/**
+	 * @brief Storeの別名copyを禁止します。
+	 */
 	SignedIndexStore( const SignedIndexStore &) = delete ;
-	/** @brief Storeのcopy代入を禁止します。
-	 * @return 呼出しは禁止されます。
+	/**
+	 * @brief Storeのcopy代入を禁止します。
 	 */
 	SignedIndexStore			  &operator=( const SignedIndexStore &) = delete ;
-	/** @brief Schema receiptと原入力を再認証し、最新headと一回のcommitで保存します。
+	/**
+	 * @brief Schema receiptと原入力を再認証し、最新headと一回のcommitで保存します。
 	 * @param[in] receipt 完全な保存前receipt。Move元を拒否します。
 	 * @param[in] envelope 元manifestを持つ原外側byte。本呼出し中不変に保ちます。
 	 * @param[in] gzip 元転送byte。本呼出し中不変に保ちます。
@@ -198,7 +211,8 @@ public:
 										  std::string_view						  envelope,
 										  std::span<const std::byte>			  gzip,
 										  std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
-	/** @brief 保存済み原入力から実暗号・schema・現在期限を再確認します。
+	/**
+	 * @brief 保存済み原入力から実暗号・schema・現在期限を再確認します。
 	 * @param[in] nowUtc 現在の信頼UTC。履歴highwater検証を現在期限の代用にしません。
 	 * @return 有効headだけsnapshotを返し、期限切れ／破損を初回へ戻しません。
 	 */
@@ -207,11 +221,13 @@ public:
 private:
 	/** @brief root、DACL、entropy、内部固定trustを所有する実装専用stateです。 */
 	struct State ;
-	/** @brief 検証済みrootと内部固定trustを単独の入口から受け取ります。
+	/**
+	 * @brief 検証済みrootと内部固定trustを単独の入口から受け取ります。
 	 * @param[in] state 保護初期化済みの所有state。
 	 */
 	explicit SignedIndexStore( std::shared_ptr<State> state) noexcept ;
-	/** @brief 内部の有限拒否診断付きで同じ実保存経路を実行します。
+	/**
+	 * @brief 内部の有限拒否診断付きで同じ実保存経路を実行します。
 	 * @param[in] receipt 保存前receipt。
 	 * @param[in] envelope 原外側byte。
 	 * @param[in] gzip 原転送byte。

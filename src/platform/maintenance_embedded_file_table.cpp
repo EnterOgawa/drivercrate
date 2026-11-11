@@ -2,7 +2,7 @@
 /**
  * @file maintenance_embedded_file_table.cpp
  * @brief 保守専用PE内固定長ファイル表の有限解析実装。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/05  保守専用の有限表解析を追加。
  * Ver.01.00.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note byteを再配置せず原範囲だけを返します。型番・section名・固定offsetへ依存しません。
@@ -69,6 +70,7 @@ struct Section {
 	bool		eligible{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既知の有効範囲からlittle-endian整数をalignment非依存で読む。
  * @param[in] raw 不変の原byte。
@@ -76,6 +78,7 @@ struct Section {
  * @param[in] count 2または4のfield長。
  * @return uint32に収まるfield値。
  */
+//------------------------------------------------------------------------------
 std::uint32_t readInteger( const Bytes raw, const std::size_t offset,
 						  const std::size_t count) noexcept
 {
@@ -88,11 +91,13 @@ std::uint32_t readInteger( const Bytes raw, const std::size_t offset,
 	return result ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 許容されるflat名のASCII文字だけを識別する。
  * @param[in] character 不変の一byte。
  * @return 英数字・underscore・hyphen・periodならtrue。
  */
+//------------------------------------------------------------------------------
 bool isNameCharacter( const unsigned char character) noexcept
 {
 	return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
@@ -100,11 +105,13 @@ bool isNameCharacter( const unsigned char character) noexcept
 		   character == '.' ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief ASCII名を比較用の小文字へ変換する。
  * @param[in] name 最大259 byteの借用名。
  * @return 同じbyte数の小文字名。
  */
+//------------------------------------------------------------------------------
 std::string lowerName( const std::string_view name)
 {
 	std::string result( name) ;	// File名のcase非依存比較専用。
@@ -119,6 +126,7 @@ std::string lowerName( const std::string_view name)
 	return result ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief NUL後zeroの固定field形状だけを識別する。
  * @param[in] raw 原EXEの不変byte。
@@ -127,6 +135,7 @@ std::string lowerName( const std::string_view name)
  * @return 形状が整合する場合の名byte数。形状不一致は0。
  * @note 安全性は別検査とし、危険名の隣接項目を無視しません。
  */
+//------------------------------------------------------------------------------
 std::size_t headerNameSize( const Bytes raw, const std::size_t offset,
 						   const std::size_t end) noexcept
 {
@@ -147,12 +156,14 @@ std::size_t headerNameSize( const Bytes raw, const std::size_t offset,
 	return static_cast<std::size_t>( zero - field.begin()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief PE header・非重複raw section・certificate範囲を検査する。
  * @param[in] raw 最大64 MiBの原byte。
  * @param[out] sections 成功時の最大96 raw section。失敗時は利用禁止です。
  * @return PE32+ x64の有限な範囲が整合すればtrue。
  */
+//------------------------------------------------------------------------------
 bool readSections( const Bytes raw, std::vector<Section> &sections)
 {
 	// DOS headerより短い入力と異形式を静的拒否する。
@@ -222,11 +233,13 @@ bool readSections( const Bytes raw, std::vector<Section> &sections)
 	return !sections.empty() ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 安全なflat名と許容file種類を確認する。
  * @param[in] name 比較用小文字ASCII名。
  * @return 許容拡張子ならそのsuffix、危険名なら空です。
  */
+//------------------------------------------------------------------------------
 std::string_view safeSuffix( const std::string_view name) noexcept
 {
 	// 隠し名・path区切り・JSON制御文字を受理しない。
@@ -255,6 +268,7 @@ std::string_view safeSuffix( const std::string_view name) noexcept
 																			  : std::string_view{} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 唯一候補の全項目・本文範囲・zero paddingを検査する。
  * @param[in] raw 原EXEの不変byte。
@@ -263,6 +277,7 @@ std::string_view safeSuffix( const std::string_view name) noexcept
  * @param[out] result 成功時の全表。失敗時は利用禁止です。
  * @return 全項目と最低限のINF／CAT／SYS形状が整合すればtrue。
  */
+//------------------------------------------------------------------------------
 bool readTable( const Bytes raw, const Section &section, const std::size_t start,
 			   MaintenanceEmbeddedFileTable &result)
 {
@@ -376,9 +391,16 @@ bool readTable( const Bytes raw, const Section &section, const std::size_t start
 
 } // namespace
 
+//------------------------------------------------------------------------------
 /**
- * @copydoc drivercrate::inspectMaintenanceEmbeddedFileTable(std::span<const std::byte>, MaintenanceEmbeddedFileTable &)
+ * @brief PE32+ x64のreadonly dataにある唯一の260名＋uint32長表を静的検査する。入力64 MiB、PE section96、file128、候補16に制限します
+ *        。
+ * @param[in] executable 呼出し中だけ借用する不変byte。署名検証は呼出し側の責務です。
+ * @param[out] layout 全構造成功時だけ確定する原file範囲。失敗時は空です。
+ * @return 成功0、不正・未対応・曖昧時は失敗HRESULT、allocation失敗時はE_OUTOFMEMORY。
+ * @note Blocking I/O・実行・LoadLibraryは行いません。内容署名や導入許可を発行しません。
  */
+//------------------------------------------------------------------------------
 NativeError inspectMaintenanceEmbeddedFileTable( const Bytes					  executable,
 												MaintenanceEmbeddedFileTable &layout) noexcept
 {

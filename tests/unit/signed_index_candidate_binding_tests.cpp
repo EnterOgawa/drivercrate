@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_tests.cpp
  * @brief 真署名索引から通常候補とfake指定導入へ接続する有限fixtureを検証します。
- * @version 01.31.00
+ * @version 01.31.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -56,6 +56,7 @@
  * Ver.01.29.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * Ver.01.30.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.31.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.31.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -106,14 +107,19 @@ constexpr GUID COMPONENT_CLASS{
 // 必要Extensionの元Class/GUIDです。
 constexpr GUID EXTENSION_CLASS{
 	0xe2f84ce7, 0x8efa, 0x411c, {0xaa, 0x69, 0x97, 0x45, 0x4c, 0xa4, 0xcb, 0x57}} ;
-/** @brief 同実INF byteのClassを返す低位fakeの宣言です。
- * @param[in] path 元INFの完全pathです。
- * @param[out] guid 元directiveのGUIDです。
- * @param[out] name 元Class名です。
- * @param[in] capacity nameの要素上限です。
- * @param[out] required NUL込み必要数です。
- * @return 全元byte/ABI一致TRUE、不正は原Windows診断のFALSEです。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同実INF byteのClassを返す低位fakeの宣言です。
+ * @param[in] path 同期中だけ借用する非nullのNUL終端INF pathです。通常は隔離file、明示Intel replayでは元保護INFです。
+ * @param[out] guid 成功時のClassGUIDです。nullは拒否します。
+ * @param[out] name capacity文字のClass名bufferです。成功時にNUL終端し、容量不足を拒否します。
+ * @param[in] capacity nameのUTF-16文字容量です。
+ * @param[out] required 必要なClass名文字容量の出力です。nullは拒否します。
+ * @return Class情報の取得/出力成功時TRUE、入力・file・容量の拒否時FALSEと元LastErrorです。
+ * @note 通常の人工scopeは1MiB以下の隔離INFだけを読みます。originalIntelArchiveの明示replayではSetupDiGetINFClassWへ委譲します。
+ *       driver導入は行いません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWORD required) ;
 /** @brief 成功DTOでなく低位APIの状態だけを有限所有します。 */
 struct NativeFixtureState {
@@ -233,21 +239,26 @@ struct NativeFixtureState {
 	std::uint32_t								   dependencyRootSignerCalls{} ;
 } ;
 thread_local NativeFixtureState *activeNative = nullptr ;	// 一workerの固定低位状態です。
-/** @brief 第一の実fake指定成功後だけ、指定した第二の低位faultを有効にします。
+//------------------------------------------------------------------------------
+/**
+ * @brief 第一の実fake指定成功後だけ、指定した第二の低位faultを有効にします。
  * @param[in] fault 事前固定した元低位条件です。
  * @param[in] instance 今回照会した人工nodeです。
  * @return 同workerの第一成功後かつ第二の一致したfaultだけtrueです。
  */
+//------------------------------------------------------------------------------
 bool batchFaultApplies( const SignedIndexBindingBatchFault fault, const DEVINST instance) noexcept
 {
 	return activeNative && activeNative->reflectOwnInstall && instance == 2U &&
 		   activeNative->appliedDeviceInstalls[0] != 0U && activeNative->batchFault == fault ;
 }
+//------------------------------------------------------------------------------
 /**
  * @brief 隔離登録Extensionだけへの変更権限と元全byteを実file APIで確認します。
- * @note 同workerのbase stageと指定API入口から同期使用し、実Windows INFへ触れません。
- *       書換条件は許可された場合に一byte追記し、DELETE条件は権限openだけで終了します。
+ * @note 同workerのbase stageと指定API入口から同期使用し、実Windows INFへ触れません。書換条件は許可された場合に一byte追記し、DELETE条件は権限openだ
+ *       けで終了します。
  */
+//------------------------------------------------------------------------------
 void probeRegisteredExtension()
 {
 	// 固定した二条件以外にはfile変更の試行を追加しません。
@@ -310,22 +321,28 @@ struct InstallerFixtureState {
 } ;
 // 同workerだけが完全表へ結ぶ人工状態です。
 thread_local InstallerFixtureState *activeInstallerFixture{} ;
-/** @brief 低位Windows境界でも実file全byteを元hashへ結合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 低位Windows境界でも実file全byteを元hashへ結合します。
  * @param[in] path 元保護fileです。
  * @return 全hash一致時trueです。実trustや起動を呼びません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool					installerBytes( const wchar_t *path)
 {
 	std::wstring hash ;	// 非公開の実検査値です。
 	return activeInstallerFixture && path && computeFileSha256( path, hash) == 0 &&
 		   hash == activeInstallerFixture->hash ;
 }
-/** @brief 原fileとWindows Authenticode policyの全設定を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原fileとWindows Authenticode policyの全設定を確認します。
  * @param[in] parent nullのABI親です。
  * @param[in] action Generic Verify V2です。
  * @param[in,out] value 元WINTRUST_DATAです。
  * @return 原正例0またはTRUST_E_BAD_DIGESTです。実trustを呼びません。
  */
+//------------------------------------------------------------------------------
 LONG WINAPI installerVerify( HWND parent, GUID *action, LPVOID value)
 {
 	const GUID expected = WINTRUST_ACTION_GENERIC_VERIFY_V2 ;	// 製品と同policyです。
@@ -353,7 +370,9 @@ LONG WINAPI installerVerify( HWND parent, GUID *action, LPVOID value)
 	activeInstallerFixture->path = trust.pFile->pcwszFilePath ;
 	return ERROR_SUCCESS ;
 }
-/** @brief 同実fileのembedded signerだけを人工queryへ結合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同実fileのembedded signerだけを人工queryへ結合します。
  * @param[in] objectType FILEです。
  * @param[in] object 元完全pathです。
  * @param[in] content PKCS7 embeddedです。
@@ -367,6 +386,7 @@ LONG WINAPI installerVerify( HWND parent, GUID *action, LPVOID value)
  * @param[out] context nullだけです。
  * @return 全byte/ABIが一致時TRUEです。実CryptQueryObjectは呼びません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI installerQuery( DWORD objectType, const void *object, DWORD content, DWORD format,
 						   DWORD flags, DWORD *encoding, DWORD *type, DWORD *outputFormat,
 						   HCERTSTORE *store, HCRYPTMSG *message, const void **context)
@@ -388,7 +408,9 @@ BOOL WINAPI installerQuery( DWORD objectType, const void *object, DWORD content,
 	*message	  = activeInstallerFixture ;
 	return TRUE ;
 }
-/** @brief 同queryの原issuer/serialを二段階で返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同queryの原issuer/serialを二段階で返します。
  * @param[in] message 元人工messageです。
  * @param[in] type SIGNER_INFOです。
  * @param[in] index 0です。
@@ -396,6 +418,7 @@ BOOL WINAPI installerQuery( DWORD objectType, const void *object, DWORD content,
  * @param[in,out] bytes 終端出力長です。
  * @return 原ABI一致時TRUEです。実messageは使用しません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI installerMessage( HCRYPTMSG message, DWORD type, DWORD index, void *output, DWORD *bytes)
 {
 	// 元ABI・容量・証拠の拒否を原診断へ残し、成功やnative fallbackで補完しません。
@@ -426,7 +449,9 @@ BOOL WINAPI installerMessage( HCRYPTMSG message, DWORD type, DWORD index, void *
 	*bytes = sizeof( signer) ;
 	return TRUE ;
 }
-/** @brief 原issuer/serialへ人工certificateを一意に結合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原issuer/serialへ人工certificateを一意に結合します。
  * @param[in] store 元人工storeです。
  * @param[in] encoding X509/PKCS7です。
  * @param[in] flags 0です。
@@ -435,6 +460,7 @@ BOOL WINAPI installerMessage( HCRYPTMSG message, DWORD type, DWORD index, void *
  * @param[in] previous nullです。
  * @return 人工certificateまたは空です。実storeへ触れません。
  */
+//------------------------------------------------------------------------------
 PCCERT_CONTEXT WINAPI installerFind( HCERTSTORE store, DWORD encoding, DWORD flags, DWORD type,
 									const void *match, PCCERT_CONTEXT previous)
 {
@@ -456,7 +482,9 @@ PCCERT_CONTEXT WINAPI installerFind( HCERTSTORE store, DWORD encoding, DWORD fla
 
 	return &activeInstallerFixture->certificate ;
 }
-/** @brief 原signer名を二段階で返し期待publisher差を保存します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原signer名を二段階で返し期待publisher差を保存します。
  * @param[in] certificate 元人工certificateです。
  * @param[in] type SIMPLE_DISPLAYです。
  * @param[in] flags 0です。
@@ -465,6 +493,7 @@ PCCERT_CONTEXT WINAPI installerFind( HCERTSTORE store, DWORD encoding, DWORD fla
  * @param[in] capacity wchar_t上限です。
  * @return 終端込み原名長です。実certificateを読みません。
  */
+//------------------------------------------------------------------------------
 DWORD WINAPI installerName( PCCERT_CONTEXT certificate, DWORD type, DWORD flags, void *parameters,
 						   LPWSTR output, DWORD capacity)
 {
@@ -494,32 +523,43 @@ DWORD WINAPI installerName( PCCERT_CONTEXT certificate, DWORD type, DWORD flags,
 	wcscpy_s( output, capacity, name.c_str()) ;
 	return count ;
 }
-/** @brief 原人工certificateだけを返却します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原人工certificateだけを返却します。
  * @param[in] certificate 元構造です。
  * @return 元構造ならTRUEです。実certificateを解放しません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI installerFree( PCCERT_CONTEXT certificate)
 {
 	return activeInstallerFixture && certificate == &activeInstallerFixture->certificate ;
 }
-/** @brief 原人工messageだけを返却します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原人工messageだけを返却します。
  * @param[in] message 元構造です。
  * @return 元構造ならTRUEです。実messageを解放しません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI installerCloseMessage( HCRYPTMSG message)
 {
 	return activeInstallerFixture && message == activeInstallerFixture ;
 }
-/** @brief 原人工storeだけを返却します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原人工storeだけを返却します。
  * @param[in] store 元構造です。
  * @param[in] flags 0です。
  * @return 元構造ならTRUEです。実storeを解放しません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI installerCloseStore( HCERTSTORE store, DWORD flags)
 {
 	return activeInstallerFixture && store == activeInstallerFixture && !flags ;
 }
-/** @brief 原全byteとexact非silent commandだけを受理します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原全byteとexact非silent commandだけを受理します。
  * @param[in] application 原EXEまたは固定msiexecです。
  * @param[in,out] command 引用済み元commandです。
  * @param[in] processAttributes nullです。
@@ -532,6 +572,7 @@ BOOL WINAPI installerCloseStore( HCERTSTORE store, DWORD flags)
  * @param[out] handles 人工二handleです。
  * @return 原正例TRUEまたは元ACCESS_DENIEDです。実processは作成しません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI installerCreate( LPCWSTR application, LPWSTR command,
 							LPSECURITY_ATTRIBUTES processAttributes,
 							LPSECURITY_ATTRIBUTES threadAttributes, BOOL inherit, DWORD flags,
@@ -570,22 +611,28 @@ BOOL WINAPI installerCreate( LPCWSTR application, LPWSTR command,
 	activeInstallerFixture->exitCode = msi ? ERROR_SUCCESS_REBOOT_REQUIRED : ERROR_SUCCESS ;
 	return TRUE ;
 }
-/** @brief 人工processの終端だけを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 人工processの終端だけを返します。
  * @param[in] process 元人工processです。
  * @param[in] timeout INFINITEです。
  * @return 原processならWAIT_OBJECT_0です。実待機は行いません。
  */
+//------------------------------------------------------------------------------
 DWORD WINAPI installerWait( HANDLE process, DWORD timeout)
 {
 	return activeInstallerFixture && process == activeInstallerFixture && timeout == INFINITE
 			   ? WAIT_OBJECT_0
 			   : WAIT_FAILED ;
 }
-/** @brief 人工processの原終了codeだけを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 人工processの原終了codeだけを返します。
  * @param[in] process 元人工processです。
  * @param[out] code 原終了codeです。
  * @return 原processならTRUEです。driver導入を合成しません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI installerExit( HANDLE process, LPDWORD code)
 {
 	// 元ABI・容量・証拠の拒否を原診断へ残し、成功やnative fallbackで補完しません。
@@ -596,10 +643,13 @@ BOOL WINAPI installerExit( HANDLE process, LPDWORD code)
 	*code = activeInstallerFixture->exitCode ;
 	return TRUE ;
 }
-/** @brief 同起動の人工二handleだけを返却します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同起動の人工二handleだけを返却します。
  * @param[in] handle 元processまたはthreadです。
  * @return 原二handleならTRUEです。実handleを閉じません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI installerClose( HANDLE handle)
 {
 	// 元ABI・容量・証拠の拒否を原診断へ残し、成功やnative fallbackで補完しません。
@@ -611,11 +661,14 @@ BOOL WINAPI installerClose( HANDLE handle)
 	++activeInstallerFixture->observation.closes ;
 	return TRUE ;
 }
-/** @brief 固定Windows標準directoryだけを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定Windows標準directoryだけを返します。
  * @param[out] output 終端付き受信です。
  * @param[in] capacity wchar_t上限です。
  * @return 原directoryの長さです。実systemへ触れません。
  */
+//------------------------------------------------------------------------------
 UINT WINAPI installerSystemDirectory( LPWSTR output, UINT capacity)
 {
 	const std::wstring path = L"C:\\Windows\\System32" ;	// 実起動へ渡さない架空固定値です。
@@ -627,9 +680,12 @@ UINT WINAPI installerSystemDirectory( LPWSTR output, UINT capacity)
 	wcscpy_s( output, capacity, path.c_str()) ;
 	return static_cast<UINT>( path.size()) ;
 }
-/** @brief Class未確定初回の固定した追加低位条件か確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Class未確定初回の固定した追加低位条件か確認します。
  * @return 新しいClass条件の有限範囲に属する場合trueです。
  */
+//------------------------------------------------------------------------------
 bool unknownClassScenario() noexcept
 {
 	return activeNative &&
@@ -637,10 +693,13 @@ bool unknownClassScenario() noexcept
 		   activeNative->nativeCase <= SignedIndexBindingNativeCase::INITIAL_CLASS_AFTER_STAGE ;
 }
 
-/** @brief 元deviceのClassが既知へ変わった固定条件を判定します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元deviceのClassが既知へ変わった固定条件を判定します。
  * @param[in] instance 同じ低位呼出し対象の人工nodeです。既存必要roleの既定値は第一親です。
  * @return 原低位状態の変更条件が成立した場合だけtrueです。
  */
+//------------------------------------------------------------------------------
 bool observedClassChanged( const DEVINST instance = 1U) noexcept
 {
 	return activeNative &&
@@ -655,9 +714,12 @@ bool observedClassChanged( const DEVINST instance = 1U) noexcept
 			 activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_CLASS_AFTER_STAGE)) ;
 }
 
-/** @brief 同workerのnative現在状態が明示初回条件か確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同workerのnative現在状態が明示初回条件か確認します。
  * @return 属性欠損とCode28を返す固定状態の場合trueです。
  */
+//------------------------------------------------------------------------------
 bool initialState() noexcept
 {
 	return activeNative &&
@@ -672,10 +734,13 @@ bool initialState() noexcept
 			(activeNative->nativeCase == SignedIndexBindingNativeCase::DRIVER_ADDED &&
 			 !activeNative->changed)) ;
 }
-/** @brief Fake registrationの保護rootを一度だけ作ります。実OS登録先へ書込みません。
+//------------------------------------------------------------------------------
+/**
+ * @brief Fake registrationの保護rootを一度だけ作ります。実OS登録先へ書込みません。
  * @param[in,out] state 一workerの隔離所有です。
  * @return 実fixture workspace生成が完了した場合trueです。
  */
+//------------------------------------------------------------------------------
 bool initializeRegistration( NativeFixtureState &state)
 {
 	// 同workerへ重複したrootを作成しません。
@@ -696,18 +761,24 @@ bool initializeRegistration( NativeFixtureState &state)
 		path.substr( 0U, path.size() - std::wstring_view{L"\\INF\\marker.tmp"}.size()) ;
 	return !state.windowsRoot.empty() ;
 }
-/** @brief 固定handleを有限indexへ戻します。WinAPI ABI境界だけのpointer表現です。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定handleを有限indexへ戻します。WinAPI ABI境界だけのpointer表現です。
  * @param[in] set Fake生成handleです。
  * @return 有効なindex、または有限上限です。
  */
+//------------------------------------------------------------------------------
 std::size_t setIndex( HDEVINFO set) noexcept
 {
 	const auto value = reinterpret_cast<std::uintptr_t>( set) ;	// 実pointerをdereferenceしません。
 	return value >= 0x100U && value < 0x120U ? static_cast<std::size_t>( value - 0x100U) : 32U ;
 }
-/** @brief Nativeへfallbackせず固定handleを生成します。
+//------------------------------------------------------------------------------
+/**
+ * @brief Nativeへfallbackせず固定handleを生成します。
  * @return 有限fake handleです。
  */
+//------------------------------------------------------------------------------
 HDEVINFO createSet() noexcept
 {
 	// worker固定状態がなければnative handle生成へfallbackしません。
@@ -733,7 +804,9 @@ HDEVINFO createSet() noexcept
 	SetLastError( ERROR_TOO_MANY_OPEN_FILES) ;
 	return INVALID_HANDLE_VALUE ;
 }
-/** @brief 同workerのpresent全class列挙に限って有限fake handleを発行します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同workerのpresent全class列挙に限って有限fake handleを発行します。
  * @param[in] classGuid ABIで借用するclass指定です。このfixtureは全classのflagsを検査します。
  * @param[in] enumerator ABIで借用する列挙名です。実端末を列挙しません。
  * @param[in] parent ABIで渡される親Windowです。画面を作成しません。
@@ -741,6 +814,7 @@ HDEVINFO createSet() noexcept
  * @return 有効なfake handle、条件不一致時はINVALID_HANDLE_VALUEと元errorです。
  * @note activeNativeを同worker threadでだけ借用し、closeInventoryで解放します。
  */
+//------------------------------------------------------------------------------
 HDEVINFO WINAPI openInventory( [[maybe_unused]] const GUID *classGuid,
 							  [[maybe_unused]] PCWSTR enumerator, [[maybe_unused]] HWND parent,
 							  DWORD flags)
@@ -758,21 +832,27 @@ HDEVINFO WINAPI openInventory( [[maybe_unused]] const GUID *classGuid,
 
 	return createSet() ;
 }
-/** @brief 指定INF照合用の有限fake device集合を生成します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 指定INF照合用の有限fake device集合を生成します。
  * @param[in] classGuid ABIで借用するclass指定です。native集合は作成しません。
  * @param[in] parent ABIで渡される親Windowです。画面を作成しません。
  * @return 所有するfake handle、枠不足時はINVALID_HANDLE_VALUEと元errorです。
  * @note 同workerのactiveNativeを借用し、closeInventoryで解放します。
  */
+//------------------------------------------------------------------------------
 HDEVINFO WINAPI createInventory( [[maybe_unused]] const GUID *classGuid,
 								[[maybe_unused]] HWND		 parent)
 {
 	return createSet() ;
 }
-/** @brief 同workerで所有するfake handleを一度だけ解放します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同workerで所有するfake handleを一度だけ解放します。
  * @param[in] set createSetで生成したopaque handleです。
  * @return 解放時TRUE、無効または二重解放時FALSEとERROR_INVALID_HANDLEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI closeInventory( HDEVINFO set)
 {
 	// Fake handleを参照する前に確認する有限slot位置。
@@ -787,12 +867,15 @@ BOOL WINAPI closeInventory( HDEVINFO set)
 	++activeNative->closes ;
 	return TRUE ;
 }
-/** @brief 有限の人工deviceを列挙し、原Windows終端を返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限の人工deviceを列挙し、原Windows終端を返します。
  * @param[in] set ABIの集合handleです。このfixtureはactiveNativeの固定集合を使います。
  * @param[in] index 0から始まる人工device位置です。
  * @param[in,out] device 非nullかつSDK cbSizeを持つ借用出力です。成功時だけnodeを設定します。
  * @return 成功時TRUE、上限でERROR_NO_MORE_ITEMS、不正出力でERROR_INVALID_PARAMETERのFALSEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI enumInventory( [[maybe_unused]] HDEVINFO set, DWORD index, PSP_DEVINFO_DATA device)
 {
 	// 固定一または二人工device以降は正式な列挙終端を返します。
@@ -852,7 +935,9 @@ BOOL WINAPI enumInventory( [[maybe_unused]] HDEVINFO set, DWORD index, PSP_DEVIN
 
 	return TRUE ;
 }
-/** @brief 固定人工instanceだけを同集合のdeviceへ解決します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定人工instanceだけを同集合のdeviceへ解決します。
  * @param[in] set 有限集合handleです。
  * @param[in] instance 同期呼出し中借用する非null終端付き人工instanceです。
  * @param[in] parent ABIの親Windowです。画面を作成しません。
@@ -860,6 +945,7 @@ BOOL WINAPI enumInventory( [[maybe_unused]] HDEVINFO set, DWORD index, PSP_DEVIN
  * @param[in,out] device SDK cbSizeを持つ借用出力です。成功時だけnodeを設定します。
  * @return 固定instance解決時TRUE、それ以外は元errorを持つFALSEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI openDevice( HDEVINFO set, PCWSTR instance, [[maybe_unused]] HWND parent, DWORD flags,
 					   PSP_DEVINFO_DATA device)
 {
@@ -910,7 +996,9 @@ BOOL WINAPI openDevice( HDEVINFO set, PCWSTR instance, [[maybe_unused]] HWND par
 	return enumInventory(
 		set, std::wstring_view{instance} == L"TESTBUS\\SYNTH_0002\\FIXTURE" ? 1U : 0U, device) ;
 }
-/** @brief 実端末IDを参照せず人工instanceの二段階照会を処理します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実端末IDを参照せず人工instanceの二段階照会を処理します。
  * @param[in] set ABIの集合handleです。このfixtureは固定device位置を参照します。
  * @param[in] device 同期中借用するdeviceです。nullは第一人工deviceを意味します。
  * @param[out] buffer 終端込み出力先です。nullまたは不足時は書込みません。
@@ -918,6 +1006,7 @@ BOOL WINAPI openDevice( HDEVINFO set, PCWSTR instance, [[maybe_unused]] HWND par
  * @param[out] required null可の必要要素数です。終端を含みます。
  * @return 全値コピー時TRUE、buffer不足時FALSEとERROR_INSUFFICIENT_BUFFERです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI instanceId( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, PWSTR buffer,
 					   DWORD capacity, PDWORD required)
 {
@@ -962,13 +1051,16 @@ BOOL WINAPI instanceId( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, 
 	buffer[value.size()] = L'\0' ;
 	return TRUE ;
 }
-/** @brief 同人工状態のCode28または既知driver状態を返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同人工状態のCode28または既知driver状態を返します。
  * @param[out] status 非nullのnode状態出力です。成功時だけ更新します。
  * @param[out] problem 非nullの問題code出力です。成功時だけ更新します。
  * @param[in] instance ABIの人工nodeです。このfixtureは同workerの固定状態を使用します。
  * @param[in] flags 0だけを受理する条件です。
  * @return 成功時CR_SUCCESS、不正出力またはflags時CR_INVALID_FLAGです。
  */
+//------------------------------------------------------------------------------
 CONFIGRET WINAPI nodeStatus( PULONG status, PULONG problem, [[maybe_unused]] DEVINST instance,
 							ULONG flags)
 {
@@ -1005,19 +1097,25 @@ CONFIGRET WINAPI nodeStatus( PULONG status, PULONG problem, [[maybe_unused]] DEV
 
 	return CR_SUCCESS ;
 }
-/** @brief property keyのGUIDと番号を完全比較します。
+//------------------------------------------------------------------------------
+/**
+ * @brief property keyのGUIDと番号を完全比較します。
  * @param[in] a 同期中借用する第一keyです。
  * @param[in] b 同期中借用する第二keyです。
  * @return 両要素が同じ場合trueです。
  */
+//------------------------------------------------------------------------------
 bool sameKey( const DEVPROPKEY &a, const DEVPROPKEY &b) noexcept
 {
 	return a.pid == b.pid && IsEqualGUID( a.fmtid, b.fmtid) ;
 }
-/** @brief 現在nodeと候補nodeの固定日付をWindows表現へ変換します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在nodeと候補nodeの固定日付をWindows表現へ変換します。
  * @param[in] candidate trueは候補日付、falseは現在日付を選びます。
  * @return 固定SYSTEMTIMEから変換した所有FILETIMEです。
  */
+//------------------------------------------------------------------------------
 FILETIME date( bool candidate) noexcept
 {
 	// 現在版と候補版へ返す固定UTC日付。実時計を参照しない。
@@ -1030,7 +1128,9 @@ FILETIME date( bool candidate) noexcept
 	SystemTimeToFileTime( &time, &result) ;
 	return result ;
 }
-/** @brief 固定人工propertyと明示NOT_FOUNDを型付きの二段階照会へ返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定人工propertyと明示NOT_FOUNDを型付きの二段階照会へ返します。
  * @param[in] set ABIの集合handleです。このfixtureはactiveNativeの状態を使います。
  * @param[in] device 同期中借用するdeviceです。nullは第一人工deviceを選びます。
  * @param[in] key 非nullの要求property keyです。
@@ -1042,6 +1142,7 @@ FILETIME date( bool candidate) noexcept
  * @return 成功時TRUE、欠損・不正・不足時は保持したWindows errorを持つFALSEです。
  * @note 同workerだけでactiveNativeを借用し、実Windows propertyへfallbackしません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, const DEVPROPKEY *key,
 					 DEVPROPTYPE *type, PBYTE buffer, DWORD capacity, PDWORD required, DWORD flags)
 {
@@ -1310,12 +1411,15 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 	SetLastError( ERROR_SUCCESS) ;
 	return TRUE ;
 }
-/** @brief 同fake handleが所有する検索条件をコピーします。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同fake handleが所有する検索条件をコピーします。
  * @param[in] set 有限fake handleです。
  * @param[in] device ABIで借用するdeviceです。handle別の保存条件を正本にします。
  * @param[out] params 非null出力です。成功時に保存条件全体を設定します。
  * @return 成功時TRUE、不正handleまたは出力欠損時FALSEとERROR_INVALID_HANDLEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI getParameters( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 						  PSP_DEVINSTALL_PARAMS_W params)
 {
@@ -1330,12 +1434,15 @@ BOOL WINAPI getParameters( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA devic
 	*params = activeNative->parameters[i] ;
 	return TRUE ;
 }
-/** @brief 同handleの検索条件をSDK cbSize確認後だけ更新します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同handleの検索条件をSDK cbSize確認後だけ更新します。
  * @param[in] set 有限fake handleです。
  * @param[in] device ABIで借用するdeviceです。handle別の保存条件を正本にします。
  * @param[in] params 同期中借用する非nullかつ正しいcbSizeの条件です。
  * @return 成功時TRUE、不正入力時FALSEとERROR_INVALID_HANDLEで保存値を変更しません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI setParameters( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 						  PSP_DEVINSTALL_PARAMS_W params)
 {
@@ -1357,23 +1464,29 @@ BOOL WINAPI setParameters( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA devic
 
 	return TRUE ;
 }
-/** @brief 固定現在版をWindows driver nodeの版数表現へ投影します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定現在版をWindows driver nodeの版数表現へ投影します。
  * @return 同activeNativeの三つの既知現在版に対応する所有数値です。
  * @pre 同workerのactiveNativeが設定済みです。
  */
+//------------------------------------------------------------------------------
 std::uint64_t packedCurrent() noexcept
 {
 	return activeNative->currentVersion == L"0.9.0.0"	? 9ULL << 32U
 		   : activeNative->currentVersion == L"2.0.0.0" ? 2ULL << 48U
 														: 1ULL << 48U ;
 }
-/** @brief 原検索条件を照合しinstalled-onlyの完全照会回数を保持します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原検索条件を照合しinstalled-onlyの完全照会回数を保持します。
  * @param[in] set 有限fake handleです。
  * @param[in] device ABIで借用するdeviceです。handle別の条件を検査します。
  * @param[in] type SPDIT_COMPATDRIVERだけを受理します。
  * @return 全条件成立時TRUE、不正typeまたは矛盾したinstalled-only条件時FALSEと元errorです。
  * @pre 同workerのactiveNativeが設定済みです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI buildDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device, DWORD type)
 {
 	const auto slot = setIndex( set) ;	// 元handleが所有する検索条件の有限位置です。
@@ -1417,12 +1530,15 @@ BOOL WINAPI buildDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device
 
 	return TRUE ;
 }
-/** @brief 同じ元INFをSetupAPIで読み、fake Windows nodeのmetadataへ結びます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ元INFをSetupAPIで読み、fake Windows nodeのmetadataへ結びます。
  * @param[in] path 同保護workspaceの選択INFです。
  * @param[out] driver 同じ原DriverVer/Providerから作る人工nodeです。
  * @return 全directive読取成功true、失敗falseです。
  * @note 適用性とrankだけがfakeです。metadataは固定成功値へ置換しません。
  */
+//------------------------------------------------------------------------------
 bool readDistributionDriverNode( const wchar_t *path, SP_DRVINFO_DATA_W &driver)
 {
 	const auto raw = SetupOpenInfFileW( path, nullptr, INF_STYLE_WIN4,
@@ -1469,7 +1585,9 @@ bool readDistributionDriverNode( const wchar_t *path, SP_DRVINFO_DATA_W &driver)
 						   (static_cast<std::uint64_t>( parts[2]) << 16U) | parts[3] ;
 	return SystemTimeToFileTime( &day, &driver.DriverDate) != FALSE ;
 }
-/** @brief 原INF検索と現在検索を区別し固定nodeまたは明示的空終端を返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原INF検索と現在検索を区別し固定nodeまたは明示的空終端を返します。
  * @param[in] set 保存検索条件を持つ有限fake handleです。
  * @param[in] device ABIで借用するdeviceです。handle別の固定nodeを使用します。
  * @param[in] type SPDIT_COMPATDRIVERだけを受理します。
@@ -1477,6 +1595,7 @@ bool readDistributionDriverNode( const wchar_t *path, SP_DRVINFO_DATA_W &driver)
  * @param[in,out] driver 非nullかつSDK cbSizeを持つ借用出力です。成功時だけnodeを設定します。
  * @return 成功時TRUE、非適用・空終端・原観測失敗時FALSEとそのWindows errorです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device, DWORD type,
 						DWORD index, PSP_DRVINFO_DATA_W driver)
 {
@@ -1636,7 +1755,9 @@ BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 
 	return TRUE ;
 }
-/** @brief 同検索handleの元INFと固定sectionをdetailへ返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同検索handleの元INFと固定sectionをdetailへ返します。
  * @param[in] set 保存検索条件を持つ有限fake handleです。
  * @param[in] device ABIで借用するdeviceです。同元deviceの基本名選択を返します。
  * @param[in] driver ABIで借用するnodeです。固定detailを返しnativeを呼びません。
@@ -1645,6 +1766,7 @@ BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
  * @param[out] required null可の必要byte数です。不足時にも返します。
  * @return 完全detail成功TRUE、容量不足/無効handle/固定C44の可変部分不足はFALSEと元診断です。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI driverDetail( HDEVINFO set, PSP_DEVINFO_DATA device, PSP_DRVINFO_DATA_W driver,
 						 PSP_DRVINFO_DETAIL_DATA_W detail, DWORD capacity, PDWORD required)
 {
@@ -1794,7 +1916,9 @@ BOOL WINAPI driverDetail( HDEVINFO set, PSP_DEVINFO_DATA device, PSP_DRVINFO_DAT
 
 	return TRUE ;
 }
-/** @brief 原検索条件に結び付く候補rankと現在rankを別々に返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原検索条件に結び付く候補rankと現在rankを別々に返します。
  * @param[in] set 保存検索条件を持つ有限fake handleです。
  * @param[in] device ABIで借用するdeviceです。handleの元検索条件を使用します。
  * @param[in] driver ABIで借用するnodeです。固定rankを返しnativeを呼びません。
@@ -1802,6 +1926,7 @@ BOOL WINAPI driverDetail( HDEVINFO set, PSP_DEVINFO_DATA device, PSP_DRVINFO_DAT
  * @return 成功時TRUE、必要rank欠損または無効入力時FALSEと元errorです。
  * @note 同workerだけでcounterを更新し、登録後のrank差を成功へ補完しません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI driverRank( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 					   PSP_DRVINFO_DATA_W driver, PSP_DRVINSTALL_PARAMS params)
 {
@@ -1880,18 +2005,23 @@ BOOL WINAPI driverRank( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 
 	return TRUE ;
 }
-/** @brief 固定互換driver一覧の終了条件を照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定互換driver一覧の終了条件を照合します。
  * @param[in] set ABIの集合handleです。実Windows一覧を解放しません。
  * @param[in] device ABIで借用するdeviceです。実端末へ触れません。
  * @param[in] type SPDIT_COMPATDRIVERだけを受理します。
  * @return 正しい一覧typeならTRUE、それ以外はFALSEです。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI destroyDrivers( [[maybe_unused]] HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 						   DWORD type)
 {
 	return type == SPDIT_COMPATDRIVER ? TRUE : FALSE ;
 }
-/** @brief 元INF実byteを隔離登録rootへ一回copyし登録pathを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元INF実byteを隔離登録rootへ一回copyし登録pathを返します。
  * @param[in] source 同期中借用する非null終端付き元INF pathです。
  * @param[in] media nullだけを受理するmedia引数です。
  * @param[in] type SPOST_PATHだけを受理します。
@@ -1903,6 +2033,7 @@ BOOL WINAPI destroyDrivers( [[maybe_unused]] HDEVINFO set, [[maybe_unused]] PSP_
  * @return 完全copyと所有確認時TRUE、それ以外は元Windows errorを持つFALSEです。
  * @note 実Windows INFへ書込みません。失敗前に作成した隔離fileもregistrationが所有します。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI stage( PCWSTR source, PCWSTR media, DWORD type, DWORD flags, PWSTR destination,
 				  DWORD capacity, PDWORD required, PWSTR *component)
 {
@@ -2004,7 +2135,9 @@ BOOL WINAPI stage( PCWSTR source, PCWSTR media, DWORD type, DWORD flags, PWSTR d
 
 	return TRUE ;
 }
-/** @brief 元登録pathと完全指定nodeの一致時だけfake導入を一度記録します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元登録pathと完全指定nodeの一致時だけfake導入を一度記録します。
  * @param[in] parent ABIの親Windowです。画面を作成しません。
  * @param[in] set 元検索条件を持つ有限fake handleです。
  * @param[in] device 非nullの選択済み人工deviceです。
@@ -2014,6 +2147,7 @@ BOOL WINAPI stage( PCWSTR source, PCWSTR media, DWORD type, DWORD flags, PWSTR d
  * @return 固定導入成功時TRUE、不正bindingまたは原導入失敗時FALSEと元errorです。
  * @note 実DiInstallDeviceを呼びません。個別実行回数と元部分失敗を同workerに保持します。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI install( [[maybe_unused]] HWND parent, HDEVINFO set, PSP_DEVINFO_DATA device,
 					PSP_DRVINFO_DATA_W driver, DWORD flags, PBOOL reboot)
 {
@@ -2097,20 +2231,26 @@ BOOL WINAPI install( [[maybe_unused]] HWND parent, HDEVINFO set, PSP_DEVINFO_DAT
 
 	return TRUE ;
 }
-/** @brief 有限fixtureのx64 native architectureを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限fixtureのx64 native architectureを返します。
  * @param[out] system 非nullの借用SYSTEM_INFOです。内容を初期化しAMD64だけを設定します。
  * @pre systemは呼出し側が同期中所有する有効出力です。
  */
+//------------------------------------------------------------------------------
 void WINAPI architecture( LPSYSTEM_INFO system)
 {
 	*system						   = {} ;
 	system->wProcessorArchitecture = PROCESSOR_ARCHITECTURE_AMD64 ;
 }
-/** @brief 実Windows directoryへfallbackせず隔離rootの完全値を返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実Windows directoryへfallbackせず隔離rootの完全値を返します。
  * @param[out] buffer 所有rootの終端付き出力です。
  * @param[in] capacity wchar_t要素数です。
  * @return 成功時は終端を除く長さ、buffer不足時は必要長です。
  */
+//------------------------------------------------------------------------------
 UINT WINAPI windowsDirectory( LPWSTR buffer, UINT capacity)
 {
 	// Workerへ固定した完全rootがなければnativeを呼びません。
@@ -2130,10 +2270,20 @@ UINT WINAPI windowsDirectory( LPWSTR buffer, UINT capacity)
 	wcscpy_s( buffer, capacity, activeNative->windowsRoot.c_str()) ;
 	return length ;
 }
-/** @brief 同検査rootの実INF byteへClass名/GUID返却を結合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同検査rootの実INF byteへClass名/GUID返却を結合します。
+ * @param[in] path 同期中だけ借用する非nullのNUL終端INF pathです。通常は隔離file、明示Intel replayでは元保護INFです。
+ * @param[out] guid 成功時のClassGUIDです。nullは拒否します。
+ * @param[out] name capacity文字のClass名bufferです。成功時にNUL終端し、容量不足を拒否します。
+ * @param[in] capacity nameのUTF-16文字容量です。
+ * @param[out] required 必要なClass名文字容量の出力です。nullは拒否します。
+ * @return Class情報の取得/出力成功時TRUE、入力・file・容量の拒否時FALSEと元LastErrorです。
+ * @note 通常の人工scopeは1MiB以下の隔離INFだけを読みます。originalIntelArchiveの明示replayではSetupDiGetINFClassWへ委譲します。
+ *       driver導入は行いません。
  * @see infClass(PCWSTR,LPGUID,PWSTR,DWORD,PDWORD)
- * @note 読取は1MiB以下の隔離fileだけで、native SetupAPIを呼ばず本体の判断は生成しません。
  */
+//------------------------------------------------------------------------------
 BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWORD required)
 {
 	// 原Intel replayだけは元保護INFのClassをWindows readerからそのまま返します。
@@ -2208,10 +2358,13 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 	return TRUE ;
 }
 
-/** @brief 全低位呼出しを同worker限定fixtureへ固定した完全tableを返します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全低位呼出しを同worker限定fixtureへ固定した完全tableを返します。
  * @return Native fallbackを含まない借用callback tableの所有コピーです。
  * @note 各callbackはScopedFixtureの有効期間に同workerのactiveNativeだけを借用します。
  */
+//------------------------------------------------------------------------------
 driver_store_inf_detail::Transport calls()
 {
 	return {.inventory		  = {openInventory, enumInventory, property, instanceId, closeInventory,
@@ -2234,14 +2387,16 @@ driver_store_inf_detail::Transport calls()
 /** @brief 既検証一候補を同scanへ発行し、元選択だけを実OS変更なしで導入するWUA fakeです。 */
 class MixedManagedProvider final : public IUpdateProvider {
 public:
-	/** @brief 同workerの非機密counterだけを共有所有します。
+	/**
+	 * @brief 同workerの非機密counterだけを共有所有します。
 	 * @param[in] state 完全低位fixtureと同じ寿命の観測先です。
 	 */
 	explicit MixedManagedProvider( std::shared_ptr<NativeFixtureState> state)
 		: state_( std::move( state))
 	{
 	}
-	/** @brief 同scanの既検証候補を一件だけ発行します。
+	/**
+	 * @brief 同scanの既検証候補を一件だけ発行します。
 	 * @param[in] session 元workerのscanです。
 	 * @param[in] options 明示Provider集合です。外部通信に使用しません。
 	 * @param[in] progress 本fakeでは通知しない同期先です。
@@ -2274,7 +2429,8 @@ public:
 				.state		   = ProviderScanState::CANDIDATES_AVAILABLE,
 				.candidates	   = {std::move( candidate)}} ;
 	}
-	/** @brief 同scanの唯一の元明示選択だけへfake個別結果を返します。
+	/**
+	 * @brief 同scanの唯一の元明示選択だけへfake個別結果を返します。
 	 * @param[in] session scanと完全一致させる元sessionです。
 	 * @param[in] identities Canonical registryから渡された元選択です。
 	 * @param[in] parentWindow 同scopeの試験親です。外部Windowを操作しません。
@@ -2315,13 +2471,17 @@ public:
 	/// 同fakeの実行済みcallbackからだけ作る明示観測です。
 	RestorePointProtectionResult			   fakeProtection_{.disposition =
 													   RestorePointDisposition::UNAVAILABLE} ;
-	/** @brief 完全fakeの原開始/終了に対応した観測を返します。@return 本番APIを呼ばない観測です。 */
+	/**
+	 * @brief 完全fakeの原開始/終了に対応した観測を返します。
+	 * @return 本番APIを呼ばない観測です。
+	 */
 	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
 	{
 		return fakeProtection_ ;
 	}
 
-	/** @brief 復旧開始の固定成功または元失敗だけを返します。
+	/**
+	 * @brief 復旧開始の固定成功または元失敗だけを返します。
 	 * @param[in] description 同期中借用する操作説明です。保存せず実復旧APIを呼びません。
 	 * @return 固定sequence42の成功、または元E_ACCESSDENIEDの失敗です。
 	 */
@@ -2363,7 +2523,8 @@ public:
 						   .nativeBeginCalled = true} ;
 		return result ;
 	}
-	/** @brief 開始済みfake sequenceの終了通知と元終了失敗を保持します。
+	/**
+	 * @brief 開始済みfake sequenceの終了通知と元終了失敗を保持します。
 	 * @param[in] sequence 元開始が返したsequenceです。
 	 * @return 同sequenceの成功、または同sequenceを保持する元E_ACCESSDENIEDの失敗です。
 	 */
@@ -2399,7 +2560,9 @@ public:
 		return result ;
 	}
 } ;
-/** @brief 有限な協調待機で要求operationの実worker eventを取り出します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限な協調待機で要求operationの実worker eventを取り出します。
  * @param[in,out] worker 同期待機中生存するworkerです。queueを順に消費します。
  * @param[in] kind 待機するevent種別です。
  * @param[in] operation 元要求operationです。
@@ -2407,6 +2570,7 @@ public:
  * @return 一致したeventの所有値、期限時はnulloptです。
  * @note workerのUI側threadで使用し、mutexを保持して待ちません。
  */
+//------------------------------------------------------------------------------
 std::optional<WorkerEvent> waitEvent( ProviderWorker &worker, WorkerEventKind kind,
 									 OperationId				operation,
 									 const std::chrono::seconds timeout = std::chrono::seconds{5})
@@ -2429,13 +2593,16 @@ std::optional<WorkerEvent> waitEvent( ProviderWorker &worker, WorkerEventKind ki
 
 	return std::nullopt ;
 }
-/** @brief 元ZIPの全member実byteから完全署名fixture期待値を作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元ZIPの全member実byteから完全署名fixture期待値を作ります。
  * @param[in] zip 同期解析中生存する人工ZIP全byteの借用viewです。
  * @param[in] depth 0はouter、1は現在の一段nestedです。二段を拒否します。
  * @return 各元INF/CAT/member名と実SHA-256を所有する集合です。
  * @throws std::runtime_error 元ZIP・member・hash計算を確認できない場合です。
  * @note 展開したheapは各反復で解放し、実署名や実端末の合格を発行しません。
  */
+//------------------------------------------------------------------------------
 std::vector<driver_package_signature_detail::FixtureFile> signatureFiles( std::string_view zip,
 																		 const unsigned depth = 0U)
 {
@@ -2546,6 +2713,27 @@ std::vector<driver_package_signature_detail::FixtureFile> signatureFiles( std::s
 }
 }
 // tests/unit/signed_index_candidate_binding_tests.hの同宣言を契約の正本とする。
+//------------------------------------------------------------------------------
+/**
+ * @brief 二deviceまでの固定低位Windows境界を実workerへ結びます。
+ * @param[in] services 真署名隔離store・完全HTTP・固定UTCの所有callbackです。
+ * @param[in] zip 全member hashを固定する非空原ZIPです。欠損CAT負例は期待表だけを完全にします。
+ * @param[in] partial 二record/二deviceを作ります。共有正常条件以外では二番目指定導入だけを失敗させます。
+ * @param[in] restoreFailure 復旧開始を拒否しProviderへ到達させません。
+ * @param[in] stagingFailure SetupCopyOEMInfWだけを元ERROR_ACCESS_DENIEDで拒否します。
+ * @param[in] nativeCase 元Windows property/node/rank/登録先へ与える有限状態です。
+ * @param[in] installerPayload 原実byteを完全署名/起動fakeで確認する架空EXE/MSIです。
+ * @param[in] observeWorkerStart 低位署名scope開始時の同期観測です。空は何もしません。Worker停止まで所有し、callback自身が借用stateの寿命を保持
+ *                   します。署名検証の返却値を変更しません。
+ * @param[in] beforeRestore fake復旧開始直前の有限な同期callbackです。空は何もしません。同workerだけが呼び、callbackは借用状態を所有します。例外は
+ *                   fake復旧失敗へ変換します。
+ * @param[in] reflectOwnInstall 指定API成功後に当該deviceだけの現在状態を反映する場合trueです。
+ * @param[in] batchFault 第一指定成功後だけ第二または元byte/期限へ与える低位拒否入力です。
+ * @param[in] localDriverCandidates 同じ二nativeの互換Driver Store新版を発行する有限条件です。
+ * @param[in] noReboot この正常caseだけ再起動要求を返さない場合trueです。
+ * @return 実workerと非機密call観測。Native成功fallbackはありません。
+ */
+//------------------------------------------------------------------------------
 SignedIndexBindingWorker makeSignedIndexBindingWorker(
 	provider_worker_index_detail::Services services, const std::string_view zip, const bool partial,
 	const bool restoreFailure, const bool stagingFailure,
@@ -3135,11 +3323,14 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 	return result ;
 }
 // tests/unit/signed_index_candidate_binding_tests.hの同宣言を契約の正本とする。
-/** @brief 同ID二deviceを通常準備し、一件選択と二件batchのfake指定導入を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同ID二deviceを通常準備し、一件選択と二件batchのfake指定導入を確認します。
  * @param[in,out] context 原assertion集計先です。
  * @param[in] services 真署名隔離store・完全fake HTTP・固定UTCです。
  * @param[in] zip 原INF/SYS/CATの実人工archiveです。
  */
+//------------------------------------------------------------------------------
 void testAuthenticatedSameIdDevices( TestContext							  &context,
 									provider_worker_index_detail::Services services,
 									std::string_view					   zip)
@@ -3348,11 +3539,14 @@ void testAuthenticatedSameIdDevices( TestContext							  &context,
 			  << ", shared acquisition=1, explicit one/two device selection, real OS changes=0\n" ;
 }
 
-/** @brief 元tuple内の唯一最小rankと全列挙・指定直前の変化を通常workerで確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元tuple内の唯一最小rankと全列挙・指定直前の変化を通常workerで確認します。
  * @param[in,out] context 原assertionと失敗を保持する集計先です。
  * @param[in] services 真署名隔離store、完全fake HTTP、固定UTCの所有callbackです。
  * @param[in] zip 元人工INF/SYS/CAT全byteです。実Windowsのstage/導入/復元は呼びません。
  */
+//------------------------------------------------------------------------------
 void testUniqueWindowsRankBinding( TestContext							&context,
 								  provider_worker_index_detail::Services services,
 								  const std::string_view				 zip)
@@ -3538,7 +3732,15 @@ void testUniqueWindowsRankBinding( TestContext							&context,
 			  << ", real OS changes=0\n" ;
 }
 
-/** @see signed_index_candidate_binding_tests.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 真署名reload・実HTTP fake・正常ZIPを通常本体へ接続します。
+ * @param[in,out] context Assertion正本です。
+ * @param[in] services 真署名store・固定UTC・完全HTTPの依存です。
+ * @param[in] zip 非空INF/SYS/CATの実原containerです。
+ * @param[in] network Net classの固定fixtureならtrueです。
+ */
+//------------------------------------------------------------------------------
 void runSignedIndexCandidateBindingTests( TestContext						   &context,
 										 provider_worker_index_detail::Services services,
 										 const std::string_view zip, const bool network)
@@ -3917,6 +4119,17 @@ void runSignedIndexCandidateBindingTests( TestContext						   &context,
 }
 
 // tests/unit/signed_index_candidate_binding_tests.hの同宣言を契約の正本とする。
+//------------------------------------------------------------------------------
+/**
+ * @brief 実producerの原byteと三deviceを通常workerの候補publicationまで通します。
+ * @param[in,out] context 元assertion集計先です。
+ * @param[in] services RAM認証隔離store・完全HTTP・固定UTCの所有依存です。
+ * @param[in] zipA A二製品が共有する原archiveです。
+ * @param[in] zipB B一製品の別原archiveです。
+ * @param[in] devices 同じ認証recordから読んだ三identityです。
+ * @param[in] scenario 0は正常、1は初回、2はID、3はClass、4はINF path、5はrank、6はCAT hash、7は現在状態未知です。
+ */
+//------------------------------------------------------------------------------
 void runDistributionApplicationBindingTests( TestContext							  &context,
 											provider_worker_index_detail::Services services,
 											const std::string &zipA, const std::string &zipB,
@@ -4180,7 +4393,16 @@ void runDistributionApplicationBindingTests( TestContext							  &context,
 			  << " failures=" << context.failureCount() - failures
 			  << " actualCatAccepted=0 installs=0\n" ;
 }
-/** @see signed_index_candidate_binding_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 元Intel archiveを明示fake deviceと通常workerへ結び、native内容署名を検査します。
+ * @param[in,out] context 元assertion集計先です。
+ * @param[in] services RAM署名store・明示historical UTC・完全fake HTTPの所有依存です。
+ * @param[in] device 原公開tupleから明示した一架空deviceです。実端末ではありません。
+ * @param[in] scenario 0は正常、1は誤archive byte、2は同意欠落、3は原ID集合欠損の別copyです。
+ * @note 実Windows署名APIを使い、実導入/復旧/実inventoryは行いません。
+ */
+//------------------------------------------------------------------------------
 void runNativeIntelArchiveBindingCase( TestContext							&context,
 									  provider_worker_index_detail::Services services,
 									  DistributionBindingDevice device, const unsigned scenario)
@@ -4355,7 +4577,15 @@ void runNativeIntelArchiveBindingCase( TestContext							&context,
 		<< " fakeInventory=1 historicalClock=1 driverHttp=0 certificateNetwork=unobserved installs=0 assertions="
 		<< context.assertionCount() - before << '\n' ;
 }
-/** @see tests/unit/signed_index_candidate_binding_tests.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同原人工ZIPから通常候補/明示選択/fakeNewDevと保護境界を検査します。
+ * @param[in,out] context 有限assertion集計先です。
+ * @param[in] services 真署名隔離storeと完全fake HTTP/costです。
+ * @param[in] zip 同取得と全内容期待hashへ固定する小さい原ZIPです。
+ * @note 実CAB検査とは別のB fixtureです。program実行や実Windows変更はありません。
+ */
+//------------------------------------------------------------------------------
 void runWindowsManagedDriverBindingTests( TestContext						   &context,
 										 provider_worker_index_detail::Services services,
 										 std::string_view						zip)

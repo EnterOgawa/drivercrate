@@ -2,7 +2,7 @@
 /**
  * @file prolific_official_provider_tests.cpp
  * @brief 公式serial取得・候補境界の内部試験。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 通信と実driver導入を行わず、候補IDの境界を検証します。未審査IDの許可や既存の監査条件の迂回は行いません。
@@ -395,7 +396,8 @@ void testDeviceAudit( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/prolific_official_provider_tests.h 宣言側の契約を正本とする。
+ * @brief 公式serial取得と新版受入の内部試験を実行する。公式serial経路と新版受入の内部試験を実行する。Network、実driver導入、実復元ポイントに依存しない。
+ * @param[in,out] context Assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runProlificOfficialProviderTests( TestContext &context)

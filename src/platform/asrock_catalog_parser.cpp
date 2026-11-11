@@ -2,7 +2,7 @@
 /**
  * @file asrock_catalog_parser.cpp
  * @brief ASRock公式最新driver一覧parser実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note ASRock公式の固定一覧だけを解析し、local SMBIOS modelとWindows x64区分へ端末内で照合します。個別製品pageやpayloadへは接続しません。
@@ -635,7 +636,13 @@ constexpr std::wstring_view CELL_END_MARKER = L"</td>" ;
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asrock_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief 固定ASRock公式pageからlocal boardとOSに一致するdriver表示情報を取得する。ASRock公式最新driver一覧を解析する。ModelとOSが一致し、
+ *        PnP classとmakerを限定できる行だけを返す。不正な一行があれば部分結果を公開しない。
+ * @param[in] html ASRock公式Latest Drivers Update pageのUTF-16 HTML。 固定公式pageのUTF-16 HTML。
+ * @param[in] boardModel SMBIOSから得たASRock baseboard model表示値。 Local ASRock boardの完全一致model。
+ * @param[in] osName `Windows 10 64bit`または`Windows 11 64bit`。 Local Windows x64区分。
+ * @param[out] entries 成功時の対応driver表示情報。該当なしの場合は空にする。 成功時の表示専用driver情報。
+ * @return Table schemaと全採用行の必須metadataが有効な場合は`true`。 公式table schemaと全採用行が有効な場合は`true`。
  */
 //------------------------------------------------------------------------------
 bool parseAsrockLatestDriverHtml( const std::wstring_view html, const std::wstring_view boardModel,
@@ -747,7 +754,12 @@ bool parseAsrockLatestDriverHtml( const std::wstring_view html, const std::wstri
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asrock_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief ASRock表示情報を一つのlocal PnP deviceへ関連付けられるか判定する。ASRock表示情報をlocal PnP deviceへ関連付ける。Versionまたは日付
+ *        を使わず、表示専用の関連付けだけを行う。
+ * @param[in] entry 検証済みASRock表示情報。
+ * @param[in] device Driver Store列挙から得た非機密device snapshot。 非機密local device snapshot。
+ * @return Driver classとmaker表示が両方一致する場合は`true`。 Setup classとmaker表示が両方一致する場合は`true`。
+ * @note 本判定は表示用の関連付けだけであり、PnP適用性またはinstall許可を意味しない。
  */
 //------------------------------------------------------------------------------
 bool asrockEntryMatchesDevice( const AsrockDriverPageEntry &entry,

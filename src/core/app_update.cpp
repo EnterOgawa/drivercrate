@@ -2,7 +2,7 @@
 /**
  * @file app_update.cpp
  * @brief App版比較と24時間の非通信policyを実装します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note URLは固定repo/tag/assetからだけ生成します。
  * @see docs/adr/0481-app-inno-setup-and-update-checks.md
@@ -29,7 +30,13 @@
 #include <limits>
 
 namespace drivercrate {
-/** @see app_update.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief ASCIIのcanonical三要素版をoverflowなしで読みます。
+ * @param[in] text ASCIIの三要素版です。text.size() byteのviewを呼出し中だけ借用し、NUL終端を要求せず保持しません。
+ * @return 全て成立した値。不正はnulloptです。
+ */
+//------------------------------------------------------------------------------
 std::optional<AppVersion> parseAppVersion( const std::string_view text) noexcept
 {
 	AppVersion	result ;		// 一致した三要素だけを返します。
@@ -72,13 +79,25 @@ std::optional<AppVersion> parseAppVersion( const std::string_view text) noexcept
 
 	return result ;
 }
-/** @see app_update.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief canonicalな三要素版を表示と固定tag用に作ります。
+ * @param[in] version 表示する版。
+ * @return major.minor.patchのASCII文字列。
+ */
+//------------------------------------------------------------------------------
 std::string formatAppVersion( const AppVersion &version)
 {
 	return std::to_string( version.parts[0]) + "." + std::to_string( version.parts[1]) + "." +
 		   std::to_string( version.parts[2]) ;
 }
-/** @see app_update.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 正しい版・size/hashだけをSetup取得へ渡します。
+ * @param[in] release 検査対象の宣言。
+ * @return sizeとhashが正しい場合はtrue。
+ */
+//------------------------------------------------------------------------------
 bool validAppUpdateRelease( const AppUpdateRelease &release) noexcept
 {
 	// 取得上限と正確なdigest長を先に要求します。
@@ -97,7 +116,13 @@ bool validAppUpdateRelease( const AppUpdateRelease &release) noexcept
 
 	return true ;
 }
-/** @see app_update.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式repoと正確asset名だけの起点を組み立てます。
+ * @param[in] release 正しい版・size/hashを持つ宣言。
+ * @return 成立時の固定HTTPS URL。不正時は空文字列です。
+ */
+//------------------------------------------------------------------------------
 std::wstring appUpdateAssetUrl( const AppUpdateRelease &release)
 {
 	// 任意宣言からのURL組立てを拒否します。
@@ -109,7 +134,13 @@ std::wstring appUpdateAssetUrl( const AppUpdateRelease &release)
 	return L"https://github.com/EnterOgawa/drivercrate/releases/download/v" +
 		   std::wstring( version.begin(), version.end()) + L"/DriverCrateSetup-windows-x64.exe" ;
 }
-/** @see app_update.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 初回または24h期限の到来を照会します。
+ * @param[in] nowMilliseconds 現在の単調millisecond。
+ * @return 期限に達している場合はtrue。
+ */
+//------------------------------------------------------------------------------
 bool AppUpdateSchedule::due( const std::uint64_t nowMilliseconds) noexcept
 {
 	// 時計逆行を即時確認にせず、新しい24hへ送り直します。
@@ -120,7 +151,12 @@ bool AppUpdateSchedule::due( const std::uint64_t nowMilliseconds) noexcept
 	lastNow_ = nowMilliseconds ;
 	return !scheduled_ || nowMilliseconds >= nextDue_ ;
 }
-/** @see app_update.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実際に受理した一回から次の24hを予約します。
+ * @param[in] nowMilliseconds 受理時の単調millisecond。
+ */
+//------------------------------------------------------------------------------
 void AppUpdateSchedule::attempted( const std::uint64_t nowMilliseconds) noexcept
 {
 	scheduled_ = true ;

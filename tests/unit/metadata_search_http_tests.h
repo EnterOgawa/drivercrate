@@ -2,7 +2,7 @@
 /**
  * @file metadata_search_http_tests.h
  * @brief 共通HTTPの非通信backendによる情報検索境界試験。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/12  固定起点・cache・受信・停止のfake試験を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 全I/Oをfixtureへ置換し、実通信・既存cache変更を行わない。
@@ -30,9 +31,11 @@
 #pragma once
 namespace drivercrate::test {
 class TestContext ;
+//------------------------------------------------------------------------------
 /**
  * @brief 共通HTTPのmetadata専用境界を非通信fakeで検証する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runMetadataSearchHttpTests( TestContext &context) ;
 }

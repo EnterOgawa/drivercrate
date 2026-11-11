@@ -2,7 +2,7 @@
 /**
  * @file common_driver_content_tests.cpp
  * @brief 同INF付属内容の必要参照と未評価作用を局所検証します。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/11/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/11/05  CoInstaller・Type1の正負例と既存局所回帰を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/06  Windows管理driver scopeの実byte正負fixtureを追加。
  * Ver.01.02.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 共通実装を専用compileし、製品へ診断入口を追加しません。署名や導入成功を偽装しません。
@@ -56,6 +57,7 @@ constexpr std::string_view ATTACHED_INF =
 	"[CoFiles]\r\nhelper.dll\r\n[SourceDisksNames]\r\n1=fixture,,,\r\n"
 	"[SourceDisksFiles]\r\nsample.sys=1\r\nhelper.exe=1\r\nhelper.dll=1\r\n" ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一つの正負条件を元fixtureへ適用し、全内容と未評価flagを確認します。
  * @param[in,out] context 一processの有限集計先です。
@@ -67,6 +69,7 @@ constexpr std::string_view ATTACHED_INF =
  * @param[in] unassessed 成功時の未評価program flagです。
  * @param[in] identity この条件だけの所有workspace番号です。
  */
+//------------------------------------------------------------------------------
 void attachedCase( TestContext &context, std::string_view suffix, std::string_view before,
 				  std::string_view after, bool contentOnly, bool accepted, bool unassessed,
 				  std::uint64_t identity)
@@ -120,6 +123,7 @@ void attachedCase( TestContext &context, std::string_view suffix, std::string_vi
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Windows-only scopeを元byteのcopy/service/softwareから検査します。
  * @param[in,out] context 一processの有限集計先です。
@@ -129,6 +133,7 @@ void attachedCase( TestContext &context, std::string_view suffix, std::string_vi
  * @param[in] identity 条件ごとの保護workspace番号です。
  * @param[in] contentRejected trueは既知autorunが全内容の既存guardで先に拒否される条件です。
  */
+//------------------------------------------------------------------------------
 void windowsScopeCase( TestContext &context, std::string_view before, std::string_view after,
 					  bool accepted, std::uint64_t identity, bool contentRejected = false)
 {
@@ -237,9 +242,12 @@ void windowsScopeCase( TestContext &context, std::string_view before, std::strin
 					   inspectSelectedWindowsDriverPackageScope( workspace, entries, selected) != 0) ;
 }
 
-/** @brief 受動コピーと既知外部操作を異なる原条件で局所検証します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 受動コピーと既知外部操作を異なる原条件で局所検証します。
  * @param[in,out] context このprocessの有限集計先です。
  */
+//------------------------------------------------------------------------------
 void windowsScopeMatrix( TestContext &context)
 {
 	windowsScopeCase( context, {}, {}, true, 71201U) ;
@@ -273,10 +281,12 @@ void windowsScopeMatrix( TestContext &context)
 		false, 71212U, true) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 原software参照と限定CoInstallerの正負例を確認します。
  * @param[in,out] context 一processの有限集計先です。
  */
+//------------------------------------------------------------------------------
 void attachedMatrix( TestContext &context)
 {
 	constexpr std::string_view SOFTWARE =
@@ -354,6 +364,7 @@ void attachedMatrix( TestContext &context)
 } // namespace
 } // namespace drivercrate::test
 
+//------------------------------------------------------------------------------
 /**
  * @brief 非対話の局所回帰または明示INFの最初の構造診断を実行します。
  * @param[in] count 実行fileを含む引数数です。
@@ -361,6 +372,7 @@ void attachedMatrix( TestContext &context)
  * @return 全試験成功0、不正入力2、fixtureまたは診断段階の失敗1です。
  * @note CRT/OSの非対話設定を入力やassertionより前に適用します。
  */
+//------------------------------------------------------------------------------
 int wmain( const int count, wchar_t *arguments[])
 {
 	SetErrorMode( SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX) ;

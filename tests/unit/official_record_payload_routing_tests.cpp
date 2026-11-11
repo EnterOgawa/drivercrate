@@ -2,7 +2,7 @@
 /**
  * @file official_record_payload_routing_tests.cpp
  * @brief 公式record payload三方式のrouting単体試験を実装します。
- * @version 01.04.00
+ * @version 01.04.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  自動探索のdevice別表示専用候補fixtureを追加。
  * Ver.01.03.00 Shunji Ogawa  2026/09/15  URL非保持cache schemaと失効fixtureを追加。
  * Ver.01.04.00 Shunji Ogawa  2026/09/15  OF17の全binding失効と対象外negativeを追加。
+ * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空の秘密URLとEULA本文はrecord内だけに置き、通信、file取得またはprocess生成を行いません。
@@ -83,13 +84,13 @@ constexpr std::wstring_view DEVICE_CONFIGURATION_FINGERPRINT =
 //------------------------------------------------------------------------------
 // Fixture生成関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief 指定方式と公開basenameを持つ有効な架空recordを作ります。
  * @param[in] kind Parserが明示するpayload方式です。
  * @param[in] fileDisplayName 公式recordが表示するbasenameです。
  * @return Intel組み込みrootへ結合できる一payload recordです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDistributionRecord makeRecord( const OfficialDistributionPayloadKind kind,
 													std::wstring fileDisplayName)
 {
@@ -135,12 +136,14 @@ constexpr std::wstring_view DEVICE_CONFIGURATION_FINGERPRINT =
 	return record ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一payload recordを検証してURL非保持descriptor一件へ変換します。
  * @param[in] record 変換中に変更しない架空recordです。
  * @param[out] descriptor 成功時の唯一のdescriptorです。
  * @return Record検証と一件変換に成功すれば0です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError describeSinglePayload( const OfficialDistributionRecord &record,
 												OfficialRecordPayloadDescriptor	 &descriptor)
 {
@@ -165,10 +168,12 @@ constexpr std::wstring_view DEVICE_CONFIGURATION_FINGERPRINT =
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Record由来だけを示す表示専用候補を作ります。
  * @return 公式Web探索とblocked監査を持つopaque候補です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] UpdateCandidate makeCandidate()
 {
 	UpdateCandidate candidate ;	// Descriptorと結合する表示専用候補です。
@@ -182,10 +187,12 @@ constexpr std::wstring_view DEVICE_CONFIGURATION_FINGERPRINT =
 	return candidate ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Intel Server Providerへ自動探索能力を付けた合成registryを作ります。
  * @return 製品正本のcopyへ試験能力だけを追加したProvider集合です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::vector<ProviderDescriptor> makeDiscoveryProviders()
 {
 	const auto builtIn = builtInProviderDescriptors() ;								// 製品registryの検証済み正本です。
@@ -202,11 +209,13 @@ constexpr std::wstring_view DEVICE_CONFIGURATION_FINGERPRINT =
 	return providers ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Package routeへ結合する架空device hintを作ります。
  * @param[in] identity Scan session内のopaque device identityです。
  * @return Net classへ結合したraw ID非保持hintです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryDeviceHint makeDiscoveryDevice( std::wstring identity)
 {
 	OfficialDiscoveryDeviceHint device ;	// 実PnP IDを持たない架空deviceです。
@@ -218,12 +227,14 @@ constexpr std::wstring_view DEVICE_CONFIGURATION_FINGERPRINT =
 	return device ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 指定device集合を参照する架空の専用固定root routeを作ります。
  * @param[in] routeId Scan session内で一意なroute IDです。
  * @param[in] deviceIdentities Routeへ結合するopaque device identity集合です。
  * @return Intel Server固定landingへ結合したrouteです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryRoute makeDiscoveryRoute( const std::uint64_t		  routeId,
 														std::vector<std::wstring> deviceIdentities)
 {
@@ -237,11 +248,13 @@ constexpr std::wstring_view DEVICE_CONFIGURATION_FINGERPRINT =
 	return route ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Descriptorの全表示文字列に秘密URL要素またはhash値がないか確認します。
  * @param[in] descriptor 検証するURL非保持descriptorです。
  * @return 秘密token、完全URL、hash値、EULA本文のいずれも含まない場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool excludesPrivateText( const OfficialRecordPayloadDescriptor &descriptor) noexcept
 {
 	return descriptor.providerId.find( PRIVATE_TOKEN) == std::wstring::npos &&
@@ -260,11 +273,11 @@ constexpr std::wstring_view DEVICE_CONFIGURATION_FINGERPRINT =
 //------------------------------------------------------------------------------
 // 三方式分類試験。
 //------------------------------------------------------------------------------
-
 /**
  * @brief INF、installer、unsupportedをrecord型だけで固定routeへ分類します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testTypedRoutesAndPrivacy( TestContext &context)
 {
 	OfficialDistributionRecord infRecord =	// 共通INF検査へ進む架空ZIP recordです。
@@ -312,10 +325,12 @@ void testTypedRoutesAndPrivacy( TestContext &context)
 						   !unsupportedRecord.payloads[0].targetUrl.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 偽拡張子でrecord方式を別routeへfallbackしないことを検証します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testNoExtensionFallback( TestContext &context)
 {
 	OfficialDistributionRecord fakeInf =	// EXE名でもINF kindを変更しないrecordです。
@@ -367,10 +382,12 @@ void testNoExtensionFallback( TestContext &context)
 									!assessment.executorAvailable) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Stale証拠、route改変、未知同意区分と候補能力の不一致を拒否します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testStaleAndCapabilityRejections( TestContext &context)
 {
 	OfficialDistributionRecord record =	// Stale故障注入元の正常recordです。
@@ -410,10 +427,12 @@ void testStaleAndCapabilityRejections( TestContext &context)
 		context, !makeOfficialRecordPayloadDisplayAssessment( descriptor, candidate, assessment)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Record fingerprintとpayload ordinalだけで複数portの実行単位をまとめます。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testAutomaticDiscoveryPackageGrouping( TestContext &context)
 {
 	OfficialDistributionRecord record =
@@ -535,10 +554,12 @@ void testAutomaticDiscoveryPackageGrouping( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Positive／negative cacheのURL非保持schema、期限と全失効条件を検証します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testOfficialDiscoveryCacheContract( TestContext &context)
 {
 	OfficialDistributionRecord record =
@@ -730,7 +751,8 @@ void testOfficialDiscoveryCacheContract( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/official_record_payload_routing_tests.h 宣言側の契約を正本とします。
+ * @brief Record payloadの分類、表示評価、拒否と秘密非出力fixtureを実行します。
+ * @param[in,out] context Assertion集計先です。
  */
 //------------------------------------------------------------------------------
 void runOfficialRecordPayloadRoutingTests( TestContext &context)

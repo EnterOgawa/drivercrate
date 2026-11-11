@@ -2,7 +2,7 @@
 /**
  * @file asrock_update_provider.cpp
  * @brief ASRock公式Web表示専用Provider実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 固定ASRock公式pageだけを取得し、local board model、PnP class、maker表示へ端末内で照合します。個別製品pageとpayloadは取得しません。
@@ -134,7 +135,13 @@ constexpr std::size_t	  MAXIMUM_LOCAL_DEVICES = 4'096U ;				// 一scanのlocal d
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asrock_update_provider.h 宣言側の契約を正本とする。
+ * @brief Local ASRock boardに対応する公式配布表示情報を検索する。Local ASRock boardに対応する公式配布情報を検索する。固定一覧をlocal board、
+ *        class、makerへ照合し、payloadを取得せず監査待ち候補として表示する。
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。 0ではないscan session ID。
+ * @param[in] devices Driver Store列挙から得た非機密device snapshot群。 非機密local device snapshot群。
+ * @param[in] hardwareIdMatcher 本Providerでは使用しないlocal照合関数。
+ * @param[in] progressCallback 公式page取得とlocal照合の進捗通知先。 Page取得と照合の進捗通知先。
+ * @return ASRock表示専用候補または取得・検証失敗を含むscan結果。
  */
 //------------------------------------------------------------------------------
 ScanResult AsrockUpdateProvider::scan( const ScanSessionId						   scanSessionId,
@@ -300,7 +307,13 @@ ScanResult AsrockUpdateProvider::scan( const ScanSessionId						   scanSessionId
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asrock_update_provider.h 宣言側の契約を正本とする。
+ * @brief ASRock表示専用候補へのinstall要求をfail-closedで拒否する。ASRock表示専用候補へのinstall要求を拒否する。Capabilityを持たない
+ *        Providerへの直接呼出しも拒否し、payload取得または実行へ進まない。
+ * @param[in] scanSessionId 要求元のscan session ID。 要求元session ID。
+ * @param[in] identities 要求されたopaque候補identity群。 要求された候補identity群。
+ * @param[in] parentWindowNative 呼出し側の親Window値。
+ * @param[in] progressCallback 呼出し側の進捗通知先。
+ * @return Downloadとinstallを`FAILURE`とした拒否結果。 Downloadとinstallを失敗に固定した結果。
  */
 //------------------------------------------------------------------------------
 InstallResult AsrockUpdateProvider::install( const ScanSessionId					scanSessionId,
@@ -323,7 +336,7 @@ InstallResult AsrockUpdateProvider::install( const ScanSessionId					scanSession
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asrock_update_provider.h 宣言側の契約を正本とする。
+ * @brief 保持中のscan sessionと取得根拠を失効させる。次scanまたは拒否された直接install要求で旧根拠を破棄する。
  */
 //------------------------------------------------------------------------------
 void AsrockUpdateProvider::invalidateScanSession() noexcept

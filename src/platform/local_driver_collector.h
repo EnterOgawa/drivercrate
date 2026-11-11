@@ -2,7 +2,7 @@
 /**
  * @file local_driver_collector.h
  * @brief 開発用の公式metadata継続収集と非公開checkpointの契約を定義します。
- * @version 01.12.00
+ * @version 01.12.01
  * @date 2026/09/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.10.00 Shunji Ogawa  2026/10/25  明示取得失敗の完全200本文を別診断へ分離。
  * Ver.01.11.00 Shunji Ogawa  2026/10/26 全公開hash・metadata期待値と共通承認readerを追加。
  * Ver.01.12.00 Shunji Ogawa  2026/11/05  原repositoryを明示する非変更reservation照合を追加。
+ * Ver.01.12.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 明示日次取得だけが検査用本体へ接続し、driver導入および通常製品scanは行いません。
@@ -89,11 +90,14 @@ struct LocalCollectorPayloadRequest {
 		commitArchive ;
 } ;
 
-/** @brief 保存解析v1/v2の全掲載hashとpayload/terms期待値だけを読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存解析v1/v2の全掲載hashとpayload/terms期待値だけを読みます。
  * @param[in] raw 明示pinを確認済みの有限UTF-8原JSON。呼出し中だけ借用します。
  * @param[out] request 成功時はmetadata期待値だけ、失敗時は空です。同意/予算/authorityは発行しません。
  * @return schema・全algorithm・任意exact size・許諾全文hashが整合する場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool decodeLocalCollectorPayloadApproval( std::string_view				 raw,
 													   LocalCollectorPayloadRequest &request) ;
 
@@ -287,6 +291,7 @@ struct LocalCollectorTestHooks {
 	std::function<bool( LocalCollectorCheckpoint, std::size_t)> stopAfterCheckpoint ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有限UTF-8 JSON manifestから既存公式sourceに限定したtargetを読み取ります。
  * @param[in] path 実在する通常file。256 KiB以下です。
@@ -294,10 +299,12 @@ struct LocalCollectorTestHooks {
  * @param[out] sha256 成功時だけ実file SHA-256を返します。
  * @return 完全な形式・重複・公開値検証に成功した場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool loadLocalCollectorManifest( const std::filesystem::path		&path,
 											  std::vector<LocalCollectorTarget> &targets,
 											  std::wstring						&sha256) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同じstate rootのmetadataを一回収集し、明示時だけ同recordの本体を取得します。
  * @param[in] stateRoot repositoryのwork/state配下の専用directory。
@@ -310,6 +317,7 @@ struct LocalCollectorTestHooks {
  * @param[in] payload 非nullなら日次新200から一回だけ取得/commitします。call中だけ借用します。
  * @return 全target完了時0、部分失敗時1、入力・状態破損時2、日次due前HOLD時3。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] int  runLocalDriverCollector( const std::filesystem::path			   &stateRoot,
 										   const std::vector<LocalCollectorTarget> &targets,
 										   const std::wstring &manifestSha256, bool dryRun,
@@ -317,7 +325,9 @@ struct LocalCollectorTestHooks {
 										   bool								   dailyMode = false,
 										   const LocalCollectorPayloadRequest *payload	 = nullptr) ;
 
-/** @brief 開発fixtureだけに時計とHTTPを差し込む同一収集coreです。
+//------------------------------------------------------------------------------
+/**
+ * @brief 開発fixtureだけに時計とHTTPを差し込む同一収集coreです。
  * @param[in] stateRoot 現workspaceのwork/stateの専用保護root。
  * @param[in] targets 完全検証済みの固定target集合。
  * @param[in] manifestSha256 元manifestの実byte指紋。
@@ -330,21 +340,27 @@ struct LocalCollectorTestHooks {
  * @return 完了0、部分失敗1、入力／state拒否2、日次due前HOLD3。
  * @note 同一rootは実lockで直列化し、fixture注入を通常CLIへ公開しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] int  runLocalDriverCollectorWithHooks(
 	 const std::filesystem::path &stateRoot, const std::vector<LocalCollectorTarget> &targets,
 	 const std::wstring &manifestSha256, bool dryRun, const LocalCollectorTestHooks &hooks,
 	 LocalCollectorRun &run, bool retainMetadata = false, bool dailyMode = false,
 	 const LocalCollectorPayloadRequest *payload = nullptr) ;
 
-/** @brief 日次の実200・実304・未通信・HOLDを区別した有限receiptを生成します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 日次の実200・実304・未通信・HOLDを区別した有限receiptを生成します。
  * @param[in] run 同じ収集coreが返したIntel一対象の結果。参照を保持しません。
  * @param[out] bytes 成功時だけ最大1MiBのJSON。失敗時は空です。
  * @return 実観測なら本文/hash/射影を検証し、未通信・HOLD等との区別を保持できた場合true。
  * @note 通信・保存・署名・取得許可を発行せず、元fetch時刻を304で変更しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool makeLocalCollectorDailyReceipt( const LocalCollectorRun &run, std::string &bytes) ;
 
-/** @brief 同呼出しの完全200失敗本文を原receiptへ結ぶ私有診断JSONにします。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同呼出しの完全200失敗本文を原receiptへ結ぶ私有診断JSONにします。
  * @param[in] run 明示日次本体取得の元失敗結果。保持・永続化しません。
  * @param[in] receiptBytes 同runから生成した原daily receipt全byte。最大1MiBです。
  * @param[in] collectorCode 元collector終了値。部分失敗1だけを受理します。
@@ -352,6 +368,7 @@ struct LocalCollectorTestHooks {
  * @return 今回の完全200・失敗段階・最大2MiB原byte/hash・元receipt一致が成立した場合true。
  * @note 通信・保存・署名・取得権限を発行せず、成功checkpointや成功evidenceを変更しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool makeLocalCollectorFailedPageDiagnostic( const LocalCollectorRun &run,
 														  std::string_view		   receiptBytes,
 														  int collectorCode, std::string &bytes) ;
@@ -374,7 +391,9 @@ struct LocalCollectorReservationFacts {
 	std::wstring  reason ;
 } ;
 
-/** @brief 既存writer lock下で原receiptと全旧store・headを非変更照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存writer lock下で原receiptと全旧store・headを非変更照合します。
  * @param[in] stateRoot workspace work/state直下の既存保護root。
  * @param[in] manifestSha256 検証済みIntel一対象manifestの全byte hash。
  * @param[in] receiptBytes 保護readerが固定した原receipt全byte。最大1MiB、call中だけ借用。
@@ -382,15 +401,17 @@ struct LocalCollectorReservationFacts {
  * @param[out] facts 成功時だけ世代/hash、失敗時は固定理由だけを返します。
  * @param[in] hooks 非通信fixture専用時計。通常CLIでは既定値を使用します。
  * @return 成功0、欠損・破損・競合・期限・契約不一致は元Win32 errorまたは13。
- * @note 既存lockを取得して同期読取します。新規作成・修復・採番・通信・grant発行は0です。
- *       同じrootのwriterとは排他します。例外を境界外へ渡しません。
+ * @note 既存lockを取得して同期読取します。新規作成・修復・採番・通信・grant発行は0です。同じrootのwriterとは排他します。例外を境界外へ渡しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::uint32_t verifyLocalCollectorDailyReservation(
 	const std::filesystem::path &stateRoot, const std::wstring &manifestSha256,
 	std::string_view receiptBytes, LocalCollectorReservationMode mode,
 	LocalCollectorReservationFacts &facts, const LocalCollectorTestHooks &hooks = {}) noexcept ;
 
-/** @brief 保護された明示repositoryRootで原予約を非変更照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 保護された明示repositoryRootで原予約を非変更照合します。
  * @param[in] stateRoot 元repositoryのwork/state直下の既存保護rootです。
  * @param[in] repositoryRoot 保護configがpinした原workspace絶対pathです。
  * @param[in] manifestSha256 検証済み原manifest全byteのhashです。
@@ -401,6 +422,7 @@ struct LocalCollectorReservationFacts {
  * @return 既存の全scope／保護store／head照合が成立した場合0です。
  * @note CWDを変更せず、旧入口のcurrent workspace契約と共通検証を維持します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::uint32_t verifyLocalCollectorDailyReservation(
 	const std::filesystem::path &stateRoot, const std::filesystem::path &repositoryRoot,
 	const std::wstring &manifestSha256, std::string_view receiptBytes,

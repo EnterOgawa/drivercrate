@@ -2,7 +2,7 @@
 /**
  * @file official_discovery.cpp
  * @brief 公式自動探索のrequest、device、route、summary検証実装。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  自動探索の値型と厳格validatorを追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Planner実行状態と未route device検証を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  一scan承認の固定要求変換と予算検証を追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 検証はI/Oを行わず、入力に含まれないURL、端末識別子、Providerを推測しません。
@@ -47,12 +48,14 @@ constexpr ProviderCapabilityMask KNOWN_PROVIDER_CAPABILITIES = 0x3FFU ;
 // 相互排他的な四つのProvider trust boundary bit集合。
 constexpr ProviderCapabilityMask PROVIDER_TRUST_BOUNDARIES = 0xF0U ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider、resource、opaque identityに使用する有限ASCII表記を検証する。
  * @param[in] value 検証する文字列。
  * @param[in] maximumCharacters 許可する最大文字数。
  * @return 非空かつ許可文字だけで上限内の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool				 isBoundedIdentifier( const std::wstring_view value,
 													 const std::size_t		 maximumCharacters) noexcept
 {
@@ -78,11 +81,13 @@ constexpr ProviderCapabilityMask PROVIDER_TRUST_BOUNDARIES = 0xF0U ;
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Local表示hintに制御文字、生PnP ID形式、過大値がないか検証する。
  * @param[in] value 検証する空を許す表示値。
  * @return 空または上限内の非機密表示値の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isBoundedDisplayHint( const std::wstring_view value) noexcept
 {
 	// 上限超過とWindows識別子の区切りをroute DTOへ複製させない。
@@ -102,11 +107,13 @@ constexpr ProviderCapabilityMask PROVIDER_TRUST_BOUNDARIES = 0xF0U ;
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Setup class GUIDのcanonical波括弧表記を検証する。
  * @param[in] value 検証するGUID文字列。
  * @return 8-4-4-4-12桁の16進表記の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isCanonicalGuid( const std::wstring_view value) noexcept
 {
 	// 固定長と波括弧を満たさない値をclass識別子として扱わない。
@@ -140,21 +147,25 @@ constexpr ProviderCapabilityMask PROVIDER_TRUST_BOUNDARIES = 0xF0U ;
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有限bus enumが定義済みか検証する。
  * @param[in] bus 検証するbus値。
  * @return UNKNOWNを含む定義済み値の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isKnownBus( const OfficialDiscoveryDeviceBus bus) noexcept
 {
 	return bus >= OfficialDiscoveryDeviceBus::PCI && bus <= OfficialDiscoveryDeviceBus::UNKNOWN ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Inspection permissionが定義済みか検証する。
  * @param[in] permission 検証する権限値。
  * @return 二つの定義済み値のいずれかの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isKnownInspectionPermission(
 	const OfficialDiscoveryInspectionPermission permission) noexcept
 {
@@ -162,45 +173,53 @@ constexpr ProviderCapabilityMask PROVIDER_TRUST_BOUNDARIES = 0xF0U ;
 		   permission == OfficialDiscoveryInspectionPermission::ALLOW_VERIFIED_DRIVER_PACKAGE ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Cache modeが定義済みか検証する。
  * @param[in] mode 検証するcache mode。
  * @return 二つの定義済み値のいずれかの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isKnownCacheMode( const OfficialDiscoveryCacheMode mode) noexcept
 {
 	return mode == OfficialDiscoveryCacheMode::USE_FRESH ||
 		   mode == OfficialDiscoveryCacheMode::FORCE_REFRESH ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Route種別が定義済みか検証する。
  * @param[in] kind 検証するroute種別。
  * @return 専用または汎用固定rootの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isKnownRouteKind( const OfficialDiscoveryRouteKind kind) noexcept
 {
 	return kind == OfficialDiscoveryRouteKind::DEDICATED ||
 		   kind == OfficialDiscoveryRouteKind::GENERIC_OFFICIAL_ROOT ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Route状態が定義済みか検証する。
  * @param[in] state 検証するroute状態。
  * @return ADR 0157で定めた有限状態の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isKnownRouteState( const OfficialDiscoveryRouteState state) noexcept
 {
 	return state >= OfficialDiscoveryRouteState::NOT_STARTED &&
 		   state <= OfficialDiscoveryRouteState::METADATA_REJECTED ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider IDを重複のないregistry定義へ解決する。
  * @param[in] providerId 完全一致で検索するstable ID。
  * @param[in] descriptors 検索するProvider定義集合。
  * @return 一意な一致があればその要素、なければnullptr。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] const ProviderDescriptor *findUniqueProvider(
 	const std::wstring_view					  providerId,
 	const std::span<const ProviderDescriptor> descriptors) noexcept
@@ -224,12 +243,14 @@ constexpr ProviderCapabilityMask PROVIDER_TRUST_BOUNDARIES = 0xF0U ;
 	return found ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Route summaryの状態、診断、有限件数の整合性を検証する。
  * @param[in] route 開始時に検証した元route。
  * @param[in] summary Workerが返した一routeの集計。
  * @return 元routeとの結合と状態別件数が矛盾しない場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isRouteSummaryValidInternal(
 	const OfficialDiscoveryRoute &route, const OfficialDiscoveryRouteSummary &summary) noexcept
 {
@@ -307,14 +328,27 @@ constexpr ProviderCapabilityMask PROVIDER_TRUST_BOUNDARIES = 0xF0U ;
 
 } // namespace
 
-/** @see official_discovery.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 一route summaryのidentity、状態、診断、件数を元routeへ再結合する。
+ * @param[in] route 開始時に検証した元route。
+ * @param[in] summary Resolverまたはworkerが返した非機密集計。
+ * @return Routeと全fieldが一致し、状態別件数が矛盾しない場合true。
+ */
+//------------------------------------------------------------------------------
 bool isOfficialDiscoveryRouteSummaryValid( const OfficialDiscoveryRoute		  &route,
 										  const OfficialDiscoveryRouteSummary &summary) noexcept
 {
 	return isRouteSummaryValidInternal( route, summary) ;
 }
 
-/** @see official_discovery.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 自動探索に使える既知capabilityと固定公式policyを検証する。
+ * @param[in] descriptor 検証する一つのProvider登録定義。
+ * @return 単一公式境界、SCAN、自動探索、固定policyが整合する場合true。
+ */
+//------------------------------------------------------------------------------
 bool isOfficialDiscoveryProvider( const ProviderDescriptor &descriptor) noexcept
 {
 	// 自動探索Providerに必須のoperationとtrust boundary bit。
@@ -334,7 +368,14 @@ bool isOfficialDiscoveryProvider( const ProviderDescriptor &descriptor) noexcept
 	return policy != nullptr && descriptor.officialSourcePolicyId == policy->id ;
 }
 
-/** @see official_discovery.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 一回の要求とProvider集合を通信前に厳格検証する。
+ * @param[in] request 開始時に所有copyする自動探索要求。
+ * @param[in] descriptors Provider registryの正本または合成fixture。
+ * @return Policy、purpose、権限、既定または明示集合が全て整合する場合true。
+ */
+//------------------------------------------------------------------------------
 bool validateOfficialDiscoveryRequest(
 	const OfficialDiscoveryRequest			 &request,
 	const std::span<const ProviderDescriptor> descriptors) noexcept
@@ -412,7 +453,14 @@ bool validateOfficialDiscoveryRequest(
 	return selectedCount != 0U ;
 }
 
-/** @see official_discovery.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常scanの新しい一scan承認を自動探索requestへ権限拡張なしで変換する。
+ * @param[in] options Provider集合と利用者へ表示した承認snapshot。
+ * @param[in] descriptors Provider registryの正本または合成fixture。
+ * @return 新承認と自動探索Providerが完全に整合する場合だけ固定request。
+ */
+//------------------------------------------------------------------------------
 std::optional<OfficialDiscoveryRequest> makeStandardOfficialDiscoveryRequest(
 	const ScanOptions &options, const std::span<const ProviderDescriptor> descriptors) noexcept
 {
@@ -440,14 +488,27 @@ std::optional<OfficialDiscoveryRequest> makeStandardOfficialDiscoveryRequest(
 	return request ;
 }
 
-/** @see official_discovery.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 遅延結果を拒否する三つの単調IDを検証する。
+ * @param[in] binding Operation、scan session、inventory generationの結合。
+ * @return 全IDが0ではない場合true。
+ */
+//------------------------------------------------------------------------------
 bool isOfficialDiscoveryBindingValid( const OfficialDiscoveryBinding &binding) noexcept
 {
 	return binding.operationId != 0U && binding.scanSessionId != 0U &&
 		   binding.inventoryGeneration != 0U ;
 }
 
-/** @see official_discovery.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Raw識別情報を持たない一deviceのhintと観測結合を検証する。
+ * @param[in] hint 一つのpresent deviceから構築したlocal hint。
+ * @param[in] scanSessionId 観測を結合する0ではないscan session ID。
+ * @return 全有限値とopaque identityが妥当で観測が同じdeviceへ結合する場合true。
+ */
+//------------------------------------------------------------------------------
 bool validateOfficialDiscoveryDeviceHint( const OfficialDiscoveryDeviceHint &hint,
 										 const ScanSessionId				scanSessionId) noexcept
 {
@@ -463,7 +524,15 @@ bool validateOfficialDiscoveryDeviceHint( const OfficialDiscoveryDeviceHint &hin
 	return isDeviceObservationBound( hint.observation, scanSessionId, hint.deviceIdentity) ;
 }
 
-/** @see official_discovery.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 一routeのProvider、固定root、device参照を完全一致で検証する。
+ * @param[in] route 検証するroute。
+ * @param[in] devices 同じinventory snapshotの検証済みdevice hint集合。
+ * @param[in] descriptors Provider registryの正本または合成fixture。
+ * @return 全参照が一意で自動探索Providerと固定resourceへ結合する場合true。
+ */
+//------------------------------------------------------------------------------
 bool validateOfficialDiscoveryRoute( const OfficialDiscoveryRoute					  &route,
 									const std::span<const OfficialDiscoveryDeviceHint> devices,
 									const std::span<const ProviderDescriptor> descriptors) noexcept
@@ -514,7 +583,18 @@ bool validateOfficialDiscoveryRoute( const OfficialDiscoveryRoute					  &route,
 	return true ;
 }
 
-/** @see official_discovery.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開summaryを開始時binding、request、route集合へ一括で再結合する。
+ * @param[in] binding 開始時に固定したoperation、session、inventoryの結合。
+ * @param[in] request 開始時に固定した自動探索要求。
+ * @param[in] devices 開始時に検証したpresent device hint集合。
+ * @param[in] routes 開始時に検証した重複なしroute集合。
+ * @param[in] summary Workerが公開する非機密summary。
+ * @param[in] descriptors Provider registryの正本または合成fixture。
+ * @return 全snapshot、有限状態、件数が矛盾せず一対一に結合する場合true。
+ */
+//------------------------------------------------------------------------------
 bool isOfficialDiscoverySummaryValid( const OfficialDiscoveryBinding					   &binding,
 									 const OfficialDiscoveryRequest					   &request,
 									 const std::span<const OfficialDiscoveryDeviceHint> devices,

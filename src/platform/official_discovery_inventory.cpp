@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_inventory.cpp
  * @brief Present inventoryの有限bus分類と公式自動探索hint変換実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  Bus分類とrouting hint変換を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Raw identityはbus分類中だけ参照し、出力値へ含めません。入力全件の検証後にだけ
@@ -43,12 +44,14 @@ namespace {
 // Native identity入力を不正としてUNKNOWNにする最大UTF-16文字数。
 constexpr std::size_t MAXIMUM_NATIVE_IDENTITY_CHARACTERS = 4096U ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief ASCII大小文字を区別せず二つのenumerator名を完全一致で比較する。
  * @param[in] left 比較元のenumerator。
  * @param[in] right 大文字で固定した既知enumerator。
  * @return 同じ長さとASCII文字を持つ場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool	  equalsAsciiInsensitive( const std::wstring_view left,
 											 const std::wstring_view right) noexcept
 {
@@ -75,7 +78,14 @@ constexpr std::size_t MAXIMUM_NATIVE_IDENTITY_CHARACTERS = 4096U ;
 
 } // namespace
 
-/** @see official_discovery_inventory.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Native enumeratorまたはinstance IDを有限busへ分類して元文字列を破棄する。
+ * @param[in] nativeIdentity Worker内だけで借用するenumeratorまたはinstance ID。
+ * @return 既知prefix、OTHER、欠損／不正時のUNKNOWNのいずれか。
+ * @note 大小文字だけを正規化し、部分一致または表示名からbusを推測しない。
+ */
+//------------------------------------------------------------------------------
 OfficialDiscoveryDeviceBus classifyOfficialDiscoveryDeviceBus(
 	const std::wstring_view nativeIdentity) noexcept
 {
@@ -134,7 +144,16 @@ OfficialDiscoveryDeviceBus classifyOfficialDiscoveryDeviceBus(
 	return OfficialDiscoveryDeviceBus::OTHER ;
 }
 
-/** @see official_discovery_inventory.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全なpresent inventoryをraw ID非保持のrouting hint集合へ変換する。
+ * @param[in] scanSessionId 全観測を結合する0ではないscan session ID。
+ * @param[in] inventoryComplete 全present nodeを上限内で表現できた場合true。
+ * @param[in] devices Driver Store現在行から構築した非機密snapshot。
+ * @return 入力全体が妥当なら同順の所有hint集合。不完全・重複・不正時は値なし。
+ * @throws std::bad_alloc 所有hint領域を確保できない場合。
+ */
+//------------------------------------------------------------------------------
 std::optional<std::vector<OfficialDiscoveryDeviceHint>> makeOfficialDiscoveryDeviceHints(
 	const ScanSessionId scanSessionId, const bool inventoryComplete,
 	const std::span<const OfficialCatalogDevice> devices)

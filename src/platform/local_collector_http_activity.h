@@ -2,7 +2,7 @@
 /**
  * @file local_collector_http_activity.h
  * @brief 私有HTTP所有ticketと排他的な再発行停止の寿命を定義します。
- * @version 01.00.01
+ * @version 01.00.02
  * @date 2026/10/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/02  実所有の閉鎖と再発行停止を追加。
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 構築keyはstoreだけが所有します。保存許可や任意threadの停止証明ではありません。
@@ -40,10 +41,13 @@ public:
 	/** @brief Storeの私有発行だけに使用する構築keyです。 */
 	class ConstructionKey {
 		friend class LocalCollectorStateStore ;
-		/** @brief Callerによる登録数の操作を禁止します。 */
+		/**
+		 * @brief Callerによる登録数の操作を禁止します。
+		 */
 		ConstructionKey() = default ;
 	} ;
-	/** @brief 発行前に登録の所有領域を確保します。
+	/**
+	 * @brief 発行前に登録の所有領域を確保します。
 	 * @param[in] key Storeだけの構築key。
 	 * @param[in] activity 実storeと同じprocess内所有状態。
 	 */
@@ -53,7 +57,9 @@ public:
 	{
 		(void)key ;
 	}
-	/** @brief 最後の実所有者が返す登録をatomicに減らします。 */
+	/**
+	 * @brief 最後の実所有者が返す登録をatomicに減らします。
+	 */
 	~CollectorStoreHttpLease() ;
 	/**
 	 * @brief HTTP登録数の返却責務の二重管理を防ぐため、コピー構築を禁止する。
@@ -77,10 +83,13 @@ public:
 	/** @brief 実storeの私有閉鎖だけに使用する構築keyです。 */
 	class ConstructionKey {
 		friend class LocalCollectorStateStore ;
-		/** @brief Callerの真偽値からの停止認定を禁止します。 */
+		/**
+		 * @brief Callerの真偽値からの停止認定を禁止します。
+		 */
 		ConstructionKey() = default ;
 	} ;
-	/** @brief 閉鎖前に所有領域を確保します。
+	/**
+	 * @brief 閉鎖前に所有領域を確保します。
 	 * @param[in] key Storeだけの構築key。
 	 * @param[in] activity 同じ実writerのprocess内登録状態。
 	 */
@@ -90,7 +99,9 @@ public:
 	{
 		(void)key ;
 	}
-	/** @brief 最後の参照が再発行停止をatomicに返します。 */
+	/**
+	 * @brief 最後の参照が再発行停止をatomicに返します。
+	 */
 	~CollectorStoreHttpFreeze() ;
 	/**
 	 * @brief HTTP再発行停止の返却責務の二重管理を防ぐため、コピー構築を禁止する。

@@ -2,7 +2,7 @@
 /**
  * @file official_source_policy.cpp
  * @brief 公式取得元policy registry実装。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -51,6 +51,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Intel Ethernet Windows 11取得元を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/23  Wi-Fi ZIPのrecord限定payload用途を分離して追加。
  * Ver.01.03.00 Shunji Ogawa  2026/09/23  製品一覧外の取得専用開発policyを独立検証・解決。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 公式Providerの用途別hostとredirect方針を一元管理し、内容・導入監査とは分離します。
@@ -813,7 +814,9 @@ constexpr std::array<OfficialSourcePolicy, 22> BUILT_IN_POLICIES{
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_source_policy.h 宣言側の契約を正本とする。
+ * @brief Applicationへ組み込んだ公式取得元policyを登録順で返す。組み込み公式取得元policyを返す。NetworkまたはAIから変更できないcompile-time
+ *        registryを返す。
+ * @return Process lifetime中有効なpolicy群。
  */
 //------------------------------------------------------------------------------
 std::span<const OfficialSourcePolicy> builtInOfficialSourcePolicies() noexcept
@@ -823,7 +826,10 @@ std::span<const OfficialSourcePolicy> builtInOfficialSourcePolicies() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_source_policy.h 宣言側の契約を正本とする。
+ * @brief Stable policy IDに対応する組み込み公式取得元policyを検索する。Stable IDから公式取得元policyを検索する。表示名、URLまたは部分一致から
+ *        policyを推測しない。
+ * @param[in] policyId 検索する空でないpolicy ID。 検索するpolicy ID。
+ * @return 一致したprocess lifetime中有効なpolicy。未登録時はnullptr。 一致policy。未登録の場合はnullptr。
  */
 //------------------------------------------------------------------------------
 const OfficialSourcePolicy *findOfficialSourcePolicy( const std::wstring_view policyId) noexcept
@@ -844,7 +850,10 @@ const OfficialSourcePolicy *findOfficialSourcePolicy( const std::wstring_view po
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_source_policy.h 宣言側の契約を正本とする。
+ * @brief Provider IDに対応する組み込み公式取得元policyを検索する。Provider IDから公式取得元policyを検索する。一つのProviderに一つだけ存在する検証済
+ *        みpolicyを返す。
+ * @param[in] providerId Provider registryのstable ID。
+ * @return 一致したprocess lifetime中有効なpolicy。未登録時はnullptr。 一致policy。未登録の場合はnullptr。
  */
 //------------------------------------------------------------------------------
 const OfficialSourcePolicy *officialSourcePolicyForProvider(
@@ -866,7 +875,11 @@ const OfficialSourcePolicy *officialSourcePolicyForProvider(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_source_policy.h 宣言側の契約を正本とする。
+ * @brief Policy内のstable resource IDに対応するresource policyを検索する。Policy内resourceをstable IDで検索する。
+ *        Resource表示用途またはhostから別resourceを推測しない。
+ * @param[in] policy 検索対象の組み込みまたはtest用policy。 検索対象policy。
+ * @param[in] resourceId 検索する空でないresource ID。 検索するresource ID。
+ * @return 一致したpolicy内resource。未登録時はnullptr。 一致resource。未登録の場合はnullptr。
  */
 //------------------------------------------------------------------------------
 const OfficialSourceResourcePolicy *findOfficialSourceResource(
@@ -881,7 +894,10 @@ const OfficialSourceResourcePolicy *findOfficialSourceResource(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_source_policy.h 宣言側の契約を正本とする。
+ * @brief 正本policyから専用metadataの固定起点を取得する。
+ * @param[in] providerId 正本のstable Provider ID。
+ * @param[in] resourceId 当該policyの用途別resource ID。
+ * @return Process寿命の固定URL。未登録は空であり、通常URLへfallbackしない。
  */
 //------------------------------------------------------------------------------
 std::wstring_view officialMetadataEndpoint( const std::wstring_view providerId,
@@ -901,7 +917,15 @@ std::wstring_view officialMetadataEndpoint( const std::wstring_view providerId,
 	return found == policy->metadataEndpoints.end() ? std::wstring_view{} : found->url ;
 }
 
-/** @see core/official_source_policy.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Providerと公式取得元policy registryの一対一関係を検証する。Providerと公式取得元policy registryを検証する。未登録、重複、network
+ *        capability不一致をfail-closedにする。
+ * @param[in] policies 検証する公式取得元policy群。 検証するpolicy群。
+ * @param[in] providers 検証するProvider定義群。 対応Provider定義群。
+ * @return ID、host、resource、Provider対応が全て有効な場合は`true`。 全構造と一対一対応が有効な場合は`true`。
+ */
+//------------------------------------------------------------------------------
 bool validateOfficialSourcePolicies( const std::span<const OfficialSourcePolicy> policies,
 									const std::span<const ProviderDescriptor>	providers) noexcept
 {
@@ -1029,7 +1053,9 @@ bool validateOfficialSourcePolicies( const std::span<const OfficialSourcePolicy>
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_source_policy.h 宣言側の契約を正本とする。
+ * @brief 組み込み公式取得元policy registryの整合性を検証する。組み込み公式取得元policy registryを検証する。Runtime入力を受けずcompile-time
+ *        registry全体を検証する。
+ * @return 組み込みProviderとの一対一関係を含めて有効な場合は`true`。 組み込みProviderとの整合性を満たす場合は`true`。
  */
 //------------------------------------------------------------------------------
 bool validateBuiltInOfficialSourcePolicies() noexcept
@@ -1054,7 +1080,11 @@ bool validateBuiltInOfficialSourcePolicies() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_source_policy.h 宣言側の契約を正本とする。
+ * @brief Providerとresource IDに対応する公式host allowlistを返す。Provider resourceの公式host allowlistを返す。
+ *        Provider内にhost定数を複製せず、用途別最小allowlistを返す。
+ * @param[in] providerId Provider registryのstable ID。
+ * @param[in] resourceId Provider policy内のstable resource ID。 Policy内のstable resource ID。
+ * @return Process lifetime中有効なhost群。未登録または不整合時は空span。 登録済みhost群。不正または未登録の場合は空span。
  */
 //------------------------------------------------------------------------------
 std::span<const std::wstring_view> officialSourceHosts( const std::wstring_view providerId,
@@ -1081,7 +1111,11 @@ std::span<const std::wstring_view> officialSourceHosts( const std::wstring_view 
 
 //------------------------------------------------------------------------------
 /**
- * @see src/core/official_source_policy.h 宣言側の契約を正本とする。
+ * @brief Scan session内の取得根拠が組み込みpolicyと一致するか検証する。Opaqueな公式取得根拠を組み込みpolicyへ照合する。未登録IDとredirect上限超過を候
+ *        補またはUIへ渡さない。
+ * @param[in] evidence URLまたはhostを含まない取得根拠。 URLとhostを含まない取得根拠。
+ * @return Session、Provider、policy、resource、redirect回数とorigin列が有効なら`true`。 Sessionとpolicy境界が全て有効な場合は
+ *         `true`。
  */
 //------------------------------------------------------------------------------
 bool isValidOfficialSourceEvidence( const OfficialSourceEvidence &evidence) noexcept

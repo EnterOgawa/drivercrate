@@ -2,7 +2,7 @@
 /**
  * @file indexed_driver_package_inspection_tests.h
  * @brief 索引hint結合の架空回帰入口。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/05  索引hintと通常検査の非導入接続を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実driver・実署名・network・導入へ依存しない。
@@ -33,10 +34,12 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 索引hintのidentity・取消し・架空byte拒否を検証する。
  * @param[in,out] context 呼出し側が所有するassertion集計。
  */
+//------------------------------------------------------------------------------
 void runIndexedDriverPackageInspectionTests( TestContext &context) ;
 
 } // namespace drivercrate::test

@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding.h
  * @brief 元認証recordと実取得閉包から候補と指定導入routeを私有保持します。
- * @version 01.07.00
+ * @version 01.07.01
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * Ver.01.05.00 Shunji Ogawa  2026/11/06  同一INFの代替OS Modelsを私有選択集合へ保持。
  * Ver.01.06.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持。
  * Ver.01.07.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.07.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -46,23 +47,31 @@
 #include <vector>
 
 namespace drivercrate {
-/** @brief 同じINF/Modelsの原内容とpolicyだけを比較する表示専用判定です。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じINF/Modelsの原内容とpolicyだけを比較する表示専用判定です。
  * @param[in] left 同じ署名snapshotから参照する原recordです。
  * @param[in] right 同snapshotの別原recordです。
  * @return 完全payload/policy・INF証拠・同Models/公表ID・version/日付一致時だけtrueです。
  * @note 原Reference/record/routingを統合せず、取得・導入権限を発行しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool areIdenticalIndexDisplayChoices( const IndexDistributionRecord &left,
 												   const IndexDistributionRecord &right) noexcept ;
-/** @brief 同一INFの異なる標準x64 OS装飾を持つ代替recordの厳密値比較です。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一INFの異なる標準x64 OS装飾を持つ代替recordの厳密値比較です。
  * @param[in] left 個別codec検査済みの元recordです。
  * @param[in] right 同じ署名snapshotから参照する別の元recordです。
  * @return 元payload/policy/期限・INF/hash/Class/版/公表ID全集合とModels base一致時だけtrueです。
  * @note 認証/通信/適合/導入権限を発行しません。私有Referenceが元relation集合を別に所有します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool areEquivalentIndexModelChoices( const IndexDistributionRecord &left,
 												  const IndexDistributionRecord &right) noexcept ;
-/** @brief 原record申告を通常候補と同じINF完全tuple比較へ渡します。許可を発行しません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原record申告を通常候補と同じINF完全tuple比較へ渡します。許可を発行しません。
  * @param[in] original 共通codecが検査した元record値です。認証の有無は表しません。
  * @param[in] inspection 同元outerを所有する通常内容検査結果です。
  * @param[in] hint 同元outerのsize/hashとrecord参照です。
@@ -71,6 +80,7 @@ namespace drivercrate {
  * @return 元outer/INF/Models/Class/種別付き公開ID全集合が一致する場合trueです。
  * @note Windows適合、rank、候補session、tokenを生成しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool matchesIndexPublishedInf( const IndexDistributionRecord		&original,
 											const CommonDriverPackageInspection &inspection,
 											const IndexedDriverArchiveHint		&hint,
@@ -144,7 +154,9 @@ private:
 		NativeError											   installerError{} ;
 		/// 同私有参照行の0起点位置。
 		std::size_t											   referenceIndex{} ;
-		/** @brief 元recordを同workerで未発行状態に作ります。 */
+		/**
+		 * @brief 元recordを同workerで未発行状態に作ります。
+		 */
 		PreparedRecord() = default ;
 		/**
 		 * @brief 所有状態の複製をコンパイル時に禁止します。
@@ -153,15 +165,16 @@ private:
 		PreparedRecord( const PreparedRecord &) = delete ;
 		/**
 		 * @brief 所有状態の複製をコンパイル時に禁止します。
-		 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 		 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 		 */
 		PreparedRecord &operator=( const PreparedRecord &) = delete ;
-		/** @brief 元権限・実byte・内容の所有だけを移します。
+		/**
+		 * @brief 元権限・実byte・内容の所有だけを移します。
 		 * @param[in,out] other 再検証不能になる移動元。
 		 */
 		PreparedRecord( PreparedRecord &&other) noexcept = default ;
-		/** @brief 元権限・実byte・内容を同所有者へ移します。
+		/**
+		 * @brief 元権限・実byte・内容を同所有者へ移します。
 		 * @param[in,out] other 再検証不能になる移動元。
 		 * @return 移動先。
 		 */
@@ -196,19 +209,26 @@ private:
 		/// 全guard後の表示用候補。権限は元record/tokenに保持します。
 		UpdateCandidate									   candidate ;
 	} ;
-	/** @brief 未発行の私有ownerを作ります。 */
+	/**
+	 * @brief 未発行の私有ownerを作ります。
+	 */
 	SignedIndexCandidateBindingSession() = default ;
-	/** @brief 新candidate・tokenを一括rollbackします。
+	/**
+	 * @brief 新candidate・tokenを一括rollbackします。
 	 * @param[in,out] store 元token issuer。
 	 */
 	void									   rollback( DriverStoreProvider &store) noexcept ;
-	/** @brief 全検証後だけ新routeをnoexcept swapします。 */
+	/**
+	 * @brief 全検証後だけ新routeをnoexcept swapします。
+	 */
 	void									   commit() noexcept ;
-	/** @brief 全route・record・参照行を終端失効します。
+	/**
+	 * @brief 全route・record・参照行を終端失効します。
 	 * @param[in,out] store 元issuer。未結合の場合nullptrです。
 	 */
 	void									   invalidate( DriverStoreProvider *store) noexcept ;
-	/** @brief 同describeのtargetへ一意に元current行を結合します。
+	/**
+	 * @brief 同describeのtargetへ一意に元current行を結合します。
 	 * @param[in] lookup 原認証lookup。
 	 * @param[in] adapter 同原lookupの全元関係を保持する取得issuer。
 	 * @param[in] plan 同scanの未変更取得計画。
@@ -221,7 +241,8 @@ private:
 		const SignedIndexAcquisitionAdapter &adapter, const OfficialPreparationPlan &plan,
 		std::span<const UpdateCandidate>			 candidates,
 		std::span<const OfficialDiscoveryDeviceHint> hints) ;
-	/** @brief 元取得と実sealを再確認して内容・rank・bindingをpendingへ監査します。
+	/**
+	 * @brief 元取得と実sealを再確認して内容・rank・bindingをpendingへ監査します。
 	 * @param[in,out] owner 元scan/取得の私有owner。
 	 * @param[in,out] store 同workerのDriver Store。
 	 * @param[in] services 元worker固定service。
@@ -233,7 +254,8 @@ private:
 		SignedIndexScanSession &owner, DriverStoreProvider &store,
 		const provider_worker_index_detail::Services &services, std::wstring_view targetIdentity,
 		std::span<const UpdateCandidate> displayed) ;
-	/** @brief 元task/grant/期限/seal/実byteを同所有者へ再照合します。
+	/**
+	 * @brief 元task/grant/期限/seal/実byteを同所有者へ再照合します。
 	 * @param[in] owner 同取得issuer/元workspace。
 	 * @param[in] record 同所有record。
 	 * @param[in] services Worker固定のUTC。
@@ -242,7 +264,8 @@ private:
 	[[nodiscard]] NativeError reverifyRecord(
 		const SignedIndexScanSession &owner, const PreparedRecord &record,
 		const provider_worker_index_detail::Services &services) const ;
-	/** @brief 必要役割を含む元選択を復旧開始前に一括検証します。
+	/**
+	 * @brief 必要役割を含む元選択を復旧開始前に一括検証します。
 	 * @param[in] owner 元取得ownerです。
 	 * @param[in] store 同workerの元binding issuerです。
 	 * @param[in] services 元期限serviceです。
@@ -255,7 +278,8 @@ private:
 		const SignedIndexScanSession &owner, const DriverStoreProvider &store,
 		const provider_worker_index_detail::Services &services, ScanSessionId session,
 		std::span<const std::wstring> identities) const ;
-	/** @brief 本体保護境界内で元選択routeだけを指定導入します。
+	/**
+	 * @brief 本体保護境界内で元選択routeだけを指定導入します。
 	 * @param[in,out] owner 元取得と内容の私有owner。
 	 * @param[in,out] store 同workerのDriver Store。
 	 * @param[in] services Worker固定service。

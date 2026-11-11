@@ -2,7 +2,7 @@
 /**
  * @file common_driver_package.cpp
  * @brief 由来と独立したdriver packageの保護取込みと個別検査。
- * @version 01.20.00
+ * @version 01.20.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -40,6 +40,7 @@
  * Ver.01.18.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
  * Ver.01.19.00 Shunji Ogawa  2026/11/06  元driver付属DATAとWindows標準導入scopeを分離。
  * Ver.01.20.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.20.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 入力と閉包をworker内だけで保持し、取得元証明や導入許可を発行しません。
@@ -209,7 +210,9 @@ public:
 	explicit ArchiveFile( const HANDLE handle) noexcept : handle_( handle)
 	{
 	}
-	/** @brief 有効な所有handleだけを閉じる。 */
+	/**
+	 * @brief 有効な所有handleだけを閉じる。
+	 */
 	~ArchiveFile()
 	{
 		// 失敗したopenのsentinelをCloseHandleへ渡さない。
@@ -226,11 +229,13 @@ public:
 	/**
 	 * @brief copy中の所有file handleの複製代入をコンパイル時に禁止します。
 	 * @param[in] other 実行可能な呼出しを持たず、借用・変更・所有権移動を行わない元objectです。
-	 * @return 宣言された自己参照型です。削除宣言なので戻り値を生成しません。
 	 * @note 削除宣言だけで関数本体やresource操作はありません。
 	 */
 	ArchiveFile			&operator=( const ArchiveFile &other) = delete ;
-	/** @brief 呼出し中だけ有効な非所有handleを返す。 @return 所有handleまたはsentinel。 */
+	/**
+	 * @brief 呼出し中だけ有効な非所有handleを返す。
+	 * @return 所有handleまたはsentinel。
+	 */
 	[[nodiscard]] HANDLE get() const noexcept
 	{
 		return handle_ ;
@@ -241,21 +246,25 @@ private:
 	HANDLE handle_{INVALID_HANDLE_VALUE} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Win32診断値をHRESULTへ変換する。
  * @param[in] error Windows APIまたは検査の診断値。
  * @return 元のcodeを保持するHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError fromWin32( const DWORD error) noexcept
 {
 	return static_cast<NativeError>( HRESULT_FROM_WIN32( error)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 最終path要素の拡張子をASCII小文字で得る。
  * @param[in] path 呼出し中有効なpath。
  * @return 拡張子または空。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring extensionOf( const std::wstring_view path)
 {
 	const std::size_t separator = path.find_last_of( L"/\\") ;	// 最終directory境界。
@@ -273,6 +282,7 @@ private:
 	return extension ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一つのlocal通常fileを共有なしで有限copyする。
  * @param[in] path 検証済み絶対local path。
@@ -280,6 +290,7 @@ private:
  * @param[out] byteCount 成功時だけcopy byte数。
  * @return 完全copy時0、それ以外はHRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError copyArchiveBytes( const std::wstring		 &path,
 										   OfficialDownloadWorkspace &workspace,
 										   std::uint64_t			 &byteCount)
@@ -367,12 +378,14 @@ private:
 	return 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全体失敗で部分閉包を破棄し、診断値だけを残す。
  * @param[in,out] inspection 今回所有する結果。
  * @param[in] error 0ではない失敗HRESULT。
  * @return 指定された診断値。
  */
+//------------------------------------------------------------------------------
 NativeError failInspection( CommonDriverPackageInspection &inspection, const NativeError error)
 {
 	inspection		 = {} ;
@@ -380,6 +393,7 @@ NativeError failInspection( CommonDriverPackageInspection &inspection, const Nat
 	return error ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 個別INFを非実行閉包とWindows署名まで検査する。
  * @param[in] input 固定した内容入力。
@@ -392,6 +406,7 @@ NativeError failInspection( CommonDriverPackageInspection &inspection, const Nat
  * @param[in,out] cache 同じ入力とworkspaceだけの内容cache。単独旧callerはnull。
  * @param[in] policy 既に保持した別閉包を除いた有限な残量と元構造条件。
  */
+//------------------------------------------------------------------------------
 void inspectOneInf( const DriverArchiveInput &input, const OfficialDriverArchiveFormat format,
 				   const std::wstring &nested, const std::wstring &path, const std::size_t infIndex,
 				   CommonInfInspection						 &inspected,
@@ -448,6 +463,7 @@ void inspectOneInf( const DriverArchiveInput &input, const OfficialDriverArchive
 	inspected.closure	= std::move( closure) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 保守用一INFの内容と導入経路を非実行で独立評価する。
  * @param[in] input 元archiveの固定内容identity。
@@ -459,6 +475,7 @@ void inspectOneInf( const DriverArchiveInput &input, const OfficialDriverArchive
  * @param[in,out] collector 研究compileだけの同期stack所有者。Nullなら観測しない。
  * @note 閉包は関数終了で破棄する。端末適合を照合せず、導入用結果を返さない。
  */
+//------------------------------------------------------------------------------
 void inspectMaintenanceInf( const DriverArchiveInput			&input,
 						   const OfficialDriverArchiveFormat format, const std::wstring &nested,
 						   const std::wstring &path, const std::size_t index,
@@ -547,12 +564,14 @@ void inspectMaintenanceInf( const DriverArchiveInput			&input,
 #endif
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 保守検査の全体失敗で部分結果を破棄する。
  * @param[in,out] result 破棄する保守観測。
  * @param[in] error 0ではないHRESULT。
  * @return 同じ診断値。
  */
+//------------------------------------------------------------------------------
 NativeError failMaintenance( MaintenanceDriverPackageInspection &result, const NativeError error)
 {
 	result		 = {} ;
@@ -562,9 +581,18 @@ NativeError failMaintenance( MaintenanceDriverPackageInspection &result, const N
 
 } // namespace
 
+//------------------------------------------------------------------------------
 /**
- * @see src/platform/common_driver_package.h 宣言側の契約を正本とする。
+ * @brief 明示されたlocal archive一件を保護領域へ有限複製する。
+ * @param[in] selectedPath 利用者が選択したlocal drive上の絶対ZIP／CAB／非実行PE path。
+ * @param[in] scanSessionId 0ではないscan session。
+ * @param[in,out] workspace 未初期化領域。複製fileをscope終了まで所有する。
+ * @param[out] input 成功時の固定内容identity。失敗時は空。
+ * @param[out] format 成功時の形式。失敗時は使用しない。
+ * @return 通常file、有限copy、実size／hash固定に成功した場合0、それ以外はHRESULT。
+ * @note 2 GiB上限、1 MiB以下のchunkでcopyする。Networkも入力fileの実行も行わない。
  */
+//------------------------------------------------------------------------------
 NativeError copyLocalDriverArchive( const std::wstring_view	  selectedPath,
 								   const ScanSessionId		  scanSessionId,
 								   OfficialDownloadWorkspace &workspace, DriverArchiveInput &input,
@@ -623,6 +651,7 @@ NativeError copyLocalDriverArchive( const std::wstring_view	  selectedPath,
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 元選択一件だけを、操作の残り保持予算へ結んで検査する。
  * @param[in] input 固定した元archiveの内容identity。
@@ -636,6 +665,7 @@ NativeError copyLocalDriverArchive( const std::wstring_view	  selectedPath,
  * @param[in] maximumRetainedBytes 今回の作成前から適用する保持残量。
  * @return 通常内容検査完了0。個別不合格も行へ残し、全体失敗は元HRESULT。
  */
+//------------------------------------------------------------------------------
 static NativeError inspectSelectedCommonDriverPackageImpl(
 	const DriverArchiveInput &input, const OfficialDriverArchiveFormat format,
 	const std::wstring_view selectedInf, CommonDriverPackageInspection &inspection,
@@ -719,7 +749,18 @@ static NativeError inspectSelectedCommonDriverPackageImpl(
 	}
 }
 
-/** @see src/platform/common_driver_package.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ原payloadの明示selectorを通常policyと一度の実保持で検査する。
+ * @param[in] input 同操作中固定する原archive identity。
+ * @param[in] format 明示ZIP/CAB/SFX形式。EXEは非実行解析だけを行う。
+ * @param[in] selectors firstが一段nested、secondが元INF相対名の検証済み集合。最大128件。
+ * @param[out] inspection 全成功時だけ元個別結果を保持する。
+ * @param[in] cancellation 空または同期workerの取消し照会。
+ * @return 元内容検査のHRESULT。個別拒否は元行へ残す。
+ * @note flat集合の同じmemberだけを共有し、任意UI/pathから由来や導入権限を作らない。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectSelectedCommonDriverPackages(
 	const DriverArchiveInput &input, OfficialDriverArchiveFormat format,
 	std::span<const std::pair<std::wstring_view, std::wstring_view>> selectors,
@@ -798,7 +839,19 @@ NativeError inspectSelectedCommonDriverPackages(
 	}
 }
 
-/** @see src/platform/common_driver_package.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 監視側が固定した一INFだけを既存通常policyで内容検査します。
+ * @param[in] input 同operationが所有する固定archiveの原identityです。
+ * @param[in] format 元copyが判別したZIP/CABINETです。
+ * @param[in] selectedInf 実inventoryへ完全一致させる原相対INF名です。空/別形式を拒否します。
+ * @param[out] inspection 一INFの成功/拒否と全外側inventory件数です。全packageの完了ではありません。
+ * @param[in] cancellation 同workerの協調停止です。
+ * @param[in] nestedArchive 空または原outer内の一段nested memberです。実行しません。
+ * @return 一INFの評価完了0、入力/全体破損/取消し時は元HRESULTです。
+ * @note 旧全INF入口を変更しません。未選択INFは未検査で、取得/公式性/端末適用性/導入を認定しません。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectSelectedCommonDriverPackage( const DriverArchiveInput		 &input,
 											   OfficialDriverArchiveFormat	  format,
 											   std::wstring_view			  selectedInf,
@@ -810,7 +863,17 @@ NativeError inspectSelectedCommonDriverPackage( const DriverArchiveInput		 &inpu
 	return inspectSelectedCommonDriverPackages( input, format, selectors, inspection, cancellation) ;
 }
 
-/** @see common_driver_package.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定済み入力の全INFを個別の保護閉包とWindows署名で検査する。
+ * @param[in] input 呼出し中有効な保護archive identity。由来判定は含まない。
+ * @param[in] format ZIPまたはCAB。実行形式を拒否する。
+ * @param[out] inspection 全体成功時は全個別結果。全体失敗時はerrorだけを保持する。
+ * @param[in] cancellation 空またはworker内で呼ぶ非blocking取消し照会。
+ * @return 全INFの検査完了時0、入力・全体上限・取消し・例外時はHRESULT。
+ * @note 個別拒否でも残りを検査する。全体失敗では部分合格を破棄する。導入・stagingは行わない。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectCommonDriverPackage( const DriverArchiveInput			&input,
 									   const OfficialDriverArchiveFormat format,
 									   CommonDriverPackageInspection	&inspection,
@@ -932,7 +995,9 @@ NativeError inspectCommonDriverPackage( const DriverArchiveInput			&input,
 }
 
 namespace {
-/** @brief 通常と研究入口が共有する元有限loopを実行する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常と研究入口が共有する元有限loopを実行する。
  * @param[in] input 元固定archive。
  * @param[in] format 既存非実行形式。
  * @param[out] inspection 元判定と通常row。
@@ -940,6 +1005,7 @@ namespace {
  * @param[in,out] collector 研究compileだけのstack借用。Nullなら観測しない。
  * @return 元有限判定のHRESULT。計測失敗は元判定へ反映しない。
  */
+//------------------------------------------------------------------------------
 NativeError inspectMaintenanceDriverPackageImpl( const DriverArchiveInput		   &input,
 												const OfficialDriverArchiveFormat	format,
 												MaintenanceDriverPackageInspection &inspection,
@@ -1064,7 +1130,19 @@ NativeError inspectMaintenanceDriverPackageImpl( const DriverArchiveInput		   &i
 }
 } // namespace
 
-/** @see src/platform/common_driver_package.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 非実行で保守用の解析・内容署名・適合未検査・導入方式を分離する。
+ * @param[in] input 呼出し中有効な保護archiveの固定identity。
+ * @param[in] format ZIPまたはCAB。EXEの実行へfallbackしない。
+ * @param[out] inspection 完了時は失敗行も保持する。全体失敗時はerrorだけを残す。
+ * @param[in] cancellation 空またはworker内の非blocking取消し照会。
+ * @return 全体評価完了0、破損・上限・取消し・例外時はHRESULT。
+ * @note 128 INF・一段nested・有限展開量を維持する。適合照合・導入・stagingを行わない。parser・root／全署名・参照位置・依存を独立に保持し、従来静的routeを別
+ *       評価する。既存のcandidate生成・再検証APIへ渡せる型を返さない。
+ * @see docs/adr/0258-maintenance-package-verdict-separation.md
+ */
+//------------------------------------------------------------------------------
 NativeError inspectMaintenanceDriverPackage( const DriverArchiveInput		   &input,
 											const OfficialDriverArchiveFormat	format,
 											MaintenanceDriverPackageInspection &inspection,
@@ -1081,7 +1159,17 @@ NativeError inspectMaintenanceDriverPackage( const DriverArchiveInput		   &input
 
 // 通常platformの公開API・DTOを変更せず、研究EXE内だけの入口を定義する。
 #if defined( DRIVERCRATE_REACHED_REFERENCE_RESEARCH)
-/** @see tests/live/maintenance_reached_reference_observation.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 研究専用compile内だけで元loopとstack collectorを接続する。
+ * @param[in] input 固定済み元archive。
+ * @param[in] format ZIPまたはCAB。
+ * @param[out] inspection 既存通常row。元失敗では空。
+ * @param[in,out] collector この同期呼出しだけの未使用所有者。
+ * @param[in] cancellation 既存と同じ取消し契約。
+ * @return 元判定のHRESULT。独立計測失敗はcollector.errorに分離する。
+ */
+//------------------------------------------------------------------------------
 NativeError inspectReachedMaintenanceDriverPackage( const DriverArchiveInput			  &input,
 												   const OfficialDriverArchiveFormat   format,
 												   MaintenanceDriverPackageInspection &inspection,
@@ -1095,7 +1183,14 @@ NativeError inspectReachedMaintenanceDriverPackage( const DriverArchiveInput			 
 }
 #endif
 
-/** @see src/platform/common_driver_package.h 宣言側の契約を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 成功閉包の全file、metadata、署名を同一policyで再検証する。
+ * @param[in] inspected 保護領域を保持するVERIFIED結果。
+ * @return 全fileのsize／hash、INF metadata、Windows署名一致時0、それ以外はHRESULT。
+ * @note 導入許可やdevice bindingの検査を代替しない。Workerから呼ぶ。
+ */
+//------------------------------------------------------------------------------
 NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected)
 {
 	// 合格閉包を所有していない値を再検証へ渡さない。
@@ -1190,14 +1285,30 @@ NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected)
 	return 0 ;
 }
 
-/** @see src/platform/common_driver_package.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 非秘密の役割件数だけを返します。
+ * @param[in] role 観測する追加役割です。
+ * @return 一計画内0～7の確認済みmember数です。
+ */
+//------------------------------------------------------------------------------
 std::size_t RequiredDriverComponentPlan::count( const DriverPlanRole role) const noexcept
 {
 	return static_cast<std::size_t>( std::ranges::count_if(
 		members_, [role]( const auto &member) { return member.role == role ; })) ;
 }
 
-/** @see src/platform/common_driver_package.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実検査した元基本INF閉包から必要役割の関係を構築します。
+ * @param[in] inspected 元保護byteと全署名を保持する同workerの内容検査です。
+ * @param[in] selectedPackages baseと全importの元順copyです。選択機能関係は私有native nodeから解析します。
+ * @param[out] plan 成功時だけ元閉包へ結合した不変計画です。失敗時は空です。
+ * @param[out] diagnostic 任意の数値診断です。nullなら採取せず合否へ使用しません。
+ * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです。
+ * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません。
+ */
+//------------------------------------------------------------------------------
 NativeError makeRequiredDriverComponentPlan(
 	const CommonInfInspection &inspected, std::span<const OfficialInfPackage> selectedPackages,
 	std::shared_ptr<const RequiredDriverComponentPlan> &plan,
@@ -1487,9 +1598,21 @@ NativeError makeRequiredDriverComponentPlan(
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
- * @see src/platform/common_driver_package.h 宣言側の契約を正本とする。
+ * @brief 内容合格INFとWindows適合観測を候補の八軸へ結合する。
+ * @param[in] scanSessionId 内容検査と一致するscan session。
+ * @param[in] candidate 結合先のopaque IDを持つ表示候補。
+ * @param[in] inspected 本workerが実検査したVERIFIED閉包。
+ * @param[in] evidenceId Scan内で当該検査へ一意に割り当てた0ではない証拠ID。
+ * @param[in] origin 取得層が確認した由来finding。LocalはUSER_PROVIDEDのままとする。
+ * @param[in] applicabilityError Windows適合観測のHRESULT。未実施を0で渡さない。
+ * @param[in] candidateRank Windowsの一致nodeのrank。非適用・失敗時は空。
+ * @param[out] assessment 全成功時の八軸。入力不正では空。
+ * @return 証拠とidentityを結合できた場合true。実行可能を意味しない。
+ * @note 現在driverとの順位比較とexecutor接続は行わず、導入可能へ昇格させない。
  */
+//------------------------------------------------------------------------------
 bool makeCommonInfCandidateAssessment(
 	const ScanSessionId scanSessionId, const UpdateCandidate &candidate,
 	const CommonInfInspection &inspected, const std::uint64_t evidenceId,

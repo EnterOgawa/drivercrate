@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_audit.h
  * @brief 取得後監査の非機密表示契約。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.01.01 Shunji Ogawa  2026/10/15  全体内容INF数とWindows照合予算を分離。
  * Ver.01.02.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 取得成功と独立した監査結果を扱い、全監査合格時だけ新規候補を検証します。
@@ -149,26 +150,28 @@ struct OfficialPreparationAuditReport {
 	std::vector<UpdateCandidate>				   publishedCandidates ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 一つの取得後監査reportが発行する新規候補を既存scanへ照合する。
- * 既存候補、Provider能力、device対応、監査状態および同版重複を照合する。
+ * @brief 一つの取得後監査reportが発行する新規候補を既存scanへ照合する。既存候補、Provider能力、device対応、監査状態および同版重複を照合する。
  * @param[in] report Providerが同じ取得成功対象から生成した監査report。 取得後監査と発行候補。
  * @param[in] candidates 同じscanで既に表示した候補。変更しない。 同じscanの既存表示候補。
  * @return 未発行状態または全候補が監査・Provider・device境界と一致する場合true。 未発行または全候補が既存scanへ安全に追加できる場合true。
  * @note 候補発行済みの場合は、既存ID上書きと同一Provider内の同device／同版重複を拒否する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validatePreparationCandidatePublication(
 	const OfficialPreparationAuditReport &report, std::span<const UpdateCandidate> candidates) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 承認済み取得結果と表示専用候補に結び付く監査reportだけを受理する。
- * 有限のID対応と監査状態を確認する。候補や導入権限を変更しない。
+ * @brief 承認済み取得結果と表示専用候補に結び付く監査reportだけを受理する。有限のID対応と監査状態を確認する。候補や導入権限を変更しない。
  * @param[in] result Operation／scan／planに拘束した確定結果。 取得完了と独立した監査report。
  * @param[in] approval 開始時に固定した対象別取得判断。 同一操作の固定承認。
  * @param[in] candidates 同じscanでUIに提示済みの候補。変更しない。 UIの既存候補。参照は本呼出し中だけ有効。
  * @return 未接続の空report、または全reportと全行が整合する場合true。 全件整合または空reportならtrue。不整合はfalse。
  * @note 発行候補を含む場合は全候補を検証する。件数・ID・状態の矛盾は全件拒否する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validatePreparationAuditReports( const OfficialPreparationOperationResult &result,
 												   const OfficialPreparationApproval &approval,
 												   std::span<const UpdateCandidate>	  candidates) ;

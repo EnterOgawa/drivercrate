@@ -2,7 +2,7 @@
 /**
  * @file prepared_audit_display_tests.cpp
  * @brief 取得後監査表示と候補発行境界の内部試験。
- * @version 01.01.01
+ * @version 01.01.02
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  準備後の詳細sessionと初回導入拒否を検証。
  * Ver.01.01.01 Shunji Ogawa  2026/10/15  全体INF件数と有限pair境界の回帰を追加。
+ * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 非機密の監査表示と全監査合格候補の発行境界を合成値で確認します。
@@ -627,10 +628,12 @@ void testPreparedAuditControllerInvalidResult( TestContext &context)
 	DRIVERCRATE_EXPECT( context, controller.scanSessionId() == 0U) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 全体内容件数と実device照合数を分け、過大・逆転・overflowを拒否します。
  * @param[in,out] context Assertion集計先です。
  */
+//------------------------------------------------------------------------------
 void testPreparedAuditPayloadCounts( TestContext &context)
 {
 	// 旧32件超の拒否を33件・実測相当57件・既存総INF上限で再現します。
@@ -691,7 +694,8 @@ void testPreparedAuditPayloadCounts( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/prepared_audit_display_tests.h 宣言側の契約を正本とする。
+ * @brief 合成監査と候補だけで表示・発行境界を検証する。表示変換、候補発行、境界拒否、Controller選択を合成値だけで確認する。
+ * @param[in,out] context Assertionの集計先。
  */
 //------------------------------------------------------------------------------
 

@@ -2,7 +2,7 @@
 /**
  * @file user_selected_inf_package_provider_tests.h
  * @brief 利用者選択INF Provider単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 実driverを導入せず、検証済みINF由来classの候補化境界を確認します。
@@ -39,12 +40,13 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 利用者選択INF Providerのclass照合とfail-closed policyを検証する。
- * 利用者選択INF Provider単体試験を実行する。
- * 汎用PnP ID入力、class照合、policy矛盾を順番に検証する。
+ * @brief 利用者選択INF Providerのclass照合とfail-closed policyを検証する。利用者選択INF Provider単体試験を実行する。汎用PnP ID入力、
+ *        class照合、policy矛盾を順番に検証する。
  * @param[in,out] context Assertion件数と失敗内容の集計先。
  */
+//------------------------------------------------------------------------------
 void runUserSelectedInfPackageProviderTests( TestContext &context) ;
 
 } // namespace drivercrate::test

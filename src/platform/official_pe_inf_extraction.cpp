@@ -2,7 +2,7 @@
 /**
  * @file official_pe_inf_extraction.cpp
  * @brief PE内全表を検査し、INFと署名補助CATを原範囲から保護抽出する。
- * @version 01.01.01
+ * @version 01.01.02
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/06  既存PE parserから全INFを原byteで複写する。
  * Ver.01.01.00 Shunji Ogawa  2026/10/06  有限CAT補助抽出を追加し旧INF-onlyを維持。
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 同期worker専用。元PEや実行可能memberを実行・loadしない。
@@ -52,7 +53,8 @@ constexpr std::size_t MAX_METADATA_TOTAL = 64U * 1024U * 1024U ;	// INF＋CATの
 
 /** @brief 部分書込でも所有handleを回収する。 */
 struct PeInfHandleCloser {
-	/** @brief 有効な所有handleを閉じる。
+	/**
+	 * @brief 有効な所有handleを閉じる。
 	 * @param[in] value Workspaceから所有を受け取ったfile handle。
 	 */
 	void operator()( void *value) const noexcept
@@ -68,10 +70,13 @@ struct PeInfHandleCloser {
  */
 using PeInfHandle = std::unique_ptr<void, PeInfHandleCloser> ;
 
-/** @brief 検査済みflat名からcase非依存のINFだけを識別する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 検査済みflat名からcase非依存のINFだけを識別する。
  * @param[in] name Parserが検査したASCII名。
  * @return INF suffixだけならtrue。
  */
+//------------------------------------------------------------------------------
 bool isPeInfName( std::string_view name) noexcept
 {
 	// Suffixより短い名を末尾参照しない。
@@ -84,10 +89,13 @@ bool isPeInfName( std::string_view name) noexcept
 		   (suffix[2] == 'n' || suffix[2] == 'N') && (suffix[3] == 'f' || suffix[3] == 'F') ;
 }
 
-/** @brief 検査済みflat名からcase非依存のCATを識別する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 検査済みflat名からcase非依存のCATを識別する。
  * @param[in] name Parserが検査したASCII名。
  * @return CAT suffixだけならtrue。
  */
+//------------------------------------------------------------------------------
 bool isPeCatName( std::string_view name) noexcept
 {
 	// Suffixより短い名を末尾参照しない。
@@ -100,13 +108,16 @@ bool isPeCatName( std::string_view name) noexcept
 		   (suffix[2] == 'a' || suffix[2] == 'A') && (suffix[3] == 't' || suffix[3] == 'T') ;
 }
 
-/** @brief 原範囲の全byteを新fileへ保存し、共通size／hashへ一致させる。
+//------------------------------------------------------------------------------
+/**
+ * @brief 原範囲の全byteを新fileへ保存し、共通size／hashへ一致させる。
  * @param[in] body 呼出し側が全表と個別上限を検査した32 MiB以下の原metadata。
  * @param[in] name 検査済みflat相対名。
  * @param[in,out] workspace 新fileを単独追跡する領域。
  * @param[out] entry 成功時だけ原sizeとSHA-256を保持する。
  * @return 完了0、hash・file作成・書込・close・再照合のHRESULT。
  */
+//------------------------------------------------------------------------------
 NativeError copyPeMetadataRange( std::span<const std::byte> body, const std::wstring &name,
 								OfficialDownloadWorkspace &workspace, OfficialZipEntry &entry)
 {
@@ -152,7 +163,9 @@ NativeError copyPeMetadataRange( std::span<const std::byte> body, const std::wst
 
 	return error ;
 }
-/** @brief 共通の原範囲抽出で旧INF-onlyとCAT補助選択を扱う。
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通の原範囲抽出で旧INF-onlyとCAT補助選択を扱う。
  * @param[in] executable 不変の全PE byte。
  * @param[in,out] workspace 抽出fileを追跡する初期化済み空領域。
  * @param[out] entries 完全成功時だけ全選択metadataを返す。
@@ -161,6 +174,7 @@ NativeError copyPeMetadataRange( std::span<const std::byte> body, const std::wst
  * @return 完了0、元parser・容量・API・例外のHRESULT。
  * @note 選択boolは私有の抽出形式だけで、認証・署名許可ではない。
  */
+//------------------------------------------------------------------------------
 NativeError extractPeMetadata( std::span<const std::byte>	 executable,
 							  OfficialDownloadWorkspace		&workspace,
 							  std::vector<OfficialZipEntry> &entries,
@@ -252,6 +266,19 @@ NativeError extractPeMetadata( std::span<const std::byte>	 executable,
 }
 } // namespace
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 唯一のPE flat-table全体を検査し、全INF原byteだけを保護領域へ複写する。
+ * @param[in] executable 本呼出し中に不変の全PE byte。最大64 MiB。
+ * @param[in,out] workspace 初期化済み空の保護領域。新fileは同領域の追跡に残る。
+ * @param[out] entries 全成功時だけ原名・実size・原byte SHA-256を保持する全INF。
+ * @param[out] table 全成功時だけ元PE内の全member原範囲を保持する。認証能力はない。
+ * @return 全抽出0、形式・危険項目・容量・byte差・API・例外のHRESULT。
+ * @pre 全入力storageは出力とaliasしない。同期workerで使用する。
+ * @post 失敗時はentriesとtableを空にする。部分fileはworkspaceの追跡に従い回収する。
+ * @note Parserの原規則を緩和しない。CAT／SYS／DLL／EXEを展開・実行しない。取得証拠や生存sessionを扱わず、単独成功を公式由来にしない。
+ */
+//------------------------------------------------------------------------------
 NativeError extractPeTableInfFiles( std::span<const std::byte>	  executable,
 								   OfficialDownloadWorkspace	 &workspace,
 								   std::vector<OfficialZipEntry> &entries,
@@ -260,6 +287,20 @@ NativeError extractPeTableInfFiles( std::span<const std::byte>	  executable,
 	return extractPeMetadata( executable, workspace, entries, table, false) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 唯一のPE表から全INFと署名補助CATだけを同じ原範囲で抽出する。
+ * @param[in] executable 呼出し中に不変の全PE byte。最大64 MiB。
+ * @param[in,out] workspace 初期化済み空の保護領域。部分fileも追跡する。
+ * @param[out] entries 成功時だけ全INF／CATの原名・実size・原SHA-256を保持する。
+ * @param[out] table 成功時だけ元表の全範囲を保持し、認証能力を持たない。
+ * @return 完了0、形式・位置・容量・byte差・API・例外のHRESULT。
+ * @pre 同期worker専用。入力storageと出力はaliasしない。
+ * @post 失敗時は全出力を空にし、部分fileはworkspaceで回収する。
+ * @note INF64／個別1 MiB／合計16 MiB、CAT64／個別32 MiB、全metadata64 MiB。SYS／DLL／EXEを抽出・実行せず、CATの存在を署名合格や公式由来に
+ *       しない。
+ */
+//------------------------------------------------------------------------------
 NativeError extractPeTableInfCatalogFiles( std::span<const std::byte>	 executable,
 										  OfficialDownloadWorkspace		&workspace,
 										  std::vector<OfficialZipEntry> &entries,

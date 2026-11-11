@@ -2,7 +2,7 @@
 /**
  * @file hardware_refresh.cpp
  * @brief 一時権限を元へ戻すWindows root再検出を実装します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/28  一回の同期再検出と完全fake境界を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 同期APIからの復帰を待ち、無条件retryとdriver導入完了の推測は行いません。
@@ -43,7 +44,8 @@ const Transport NATIVE_CALLS{GetCurrentProcess,		OpenProcessToken,	LookupPrivile
 struct TokenCloser {
 	/// 閉鎖完了まで借用する低位表です。
 	const Transport *calls{} ;
-	/** @brief 所有tokenを閉じます。
+	/**
+	 * @brief 所有tokenを閉じます。
 	 * @param[in] token 非nullの所有HANDLEです。
 	 */
 	void			 operator()( void *token) const noexcept
@@ -52,10 +54,13 @@ struct TokenCloser {
 	}
 } ;
 
-/** @brief 権限有効化後にlocal root再検出を一回実行します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 権限有効化後にlocal root再検出を一回実行します。
  * @param[in] calls 呼出し期間中有効な完全表です。
  * @return 元CONFIGRETを維持した再検出結果です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] HardwareRefreshResult reenumerateRoot( const Transport &calls) noexcept
 {
 	DEVINST			root{} ;	// この呼出しだけのlocal root HANDLE値です。
@@ -78,10 +83,13 @@ struct TokenCloser {
 			static_cast<NativeError>( refreshed)} ;
 }
 
-/** @brief 元token属性を保存・復帰してroot再検出を行います。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元token属性を保存・復帰してroot再検出を行います。
  * @param[in] calls 全APIを持ち、戻るまで有効な表です。
  * @return 主失敗と復帰失敗を分離した結果です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] HardwareRefreshResult performRefresh( const Transport &calls) noexcept
 {
 	HANDLE rawToken{} ;	// 成功後はRAIIへ所有権を移します。
@@ -144,13 +152,25 @@ struct TokenCloser {
 }
 } // namespace
 
-/** @see hardware_refresh.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存token権限を一時使用し、local rootの同期再検出を一回実行します。
+ * @return 元error領域・値と権限復帰結果。失敗時の自動retryはありません。
+ * @note Blocking処理です。Productionの通常検索workerからだけ呼び、UIから呼びません。
+ */
+//------------------------------------------------------------------------------
 HardwareRefreshResult refreshHardware() noexcept
 {
 	return performRefresh( NATIVE_CALLS) ;
 }
 
-/** @see hardware_refresh_internal.h 宣言側の契約を正本とします。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 実API不在の完全表で製品と同じ順序・権限復帰を実行します。
+ * @param[in] calls 呼出し完了まで借用する完全fake表です。
+ * @return 欠損/混在はE_INVALIDARGで失敗しAPIを一つも呼びません。
+ */
+//------------------------------------------------------------------------------
 HardwareRefreshResult hardware_refresh_detail::Access::refresh( const Transport &calls) noexcept
 {
 	// 不完全表・native混在を呼出し前に拒否し、欠損APIを製品表で補いません。

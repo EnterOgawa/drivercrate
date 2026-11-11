@@ -2,7 +2,7 @@
 /**
  * @file local_collector_recovery.h
  * @brief 応答先行の固定commitとv2登録監督を定義します。
- * @version 01.27.01
+ * @version 01.27.02
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -52,6 +52,7 @@
  * Ver.01.26.00 Shunji Ogawa  2026/10/02  同親結合専用の私有同時再照合入口を追加。
  * Ver.01.27.00 Shunji Ogawa  2026/10/02  HTTP実所有の私有発行とfreeze拒否を追加。
  * Ver.01.27.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
+ * Ver.01.27.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 開発用の単一writer監督です。明示中断・日次切替／末尾完了prefix回復に対応し、通常CLIは後続です。
@@ -113,31 +114,40 @@ class CollectorCompletedRootInventory ;
 struct CollectorCompletedRootEvidence ;
 enum class CollectorProjectedHashStage ;
 
-/** @brief 四roleとCACHEの保守的な追加保存枠を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 四roleとCACHEの保守的な追加保存枠を検査します。
  * @param[in] usage 現在の全保存量。
  * @param[in] jobCount 0～300のjob数。
  * @param[in] requestCount 0～jobCountの異なるrequest数。
  * @return 成功0、容量不足68、範囲外87。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] DWORD checkCollectorProjectedRecoveryCapacity( const CollectorStoreUsage &usage,
 															std::size_t				   jobCount,
 															std::size_t requestCount) noexcept ;
 
-/** @brief 四role保存枠に初回完了記録の有限枠を加えて検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 四role保存枠に初回完了記録の有限枠を加えて検査します。
  * @param[in] usage 既存の全entry／byte。
  * @param[in] jobCount 元入力の0～300 job。
  * @param[in] requestCount 異なるrequest数。jobCount以下です。
  * @return 成功0、範囲外87、容量不足68。保存はしません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] DWORD checkCollectorProjectedCompletionCapacity( const CollectorStoreUsage &usage,
 															  std::size_t				 jobCount,
 															  std::size_t requestCount) noexcept ;
 
-/** @brief 元保存量と固定job数から全応答・前後像の有限保存枠を検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元保存量と固定job数から全応答・前後像の有限保存枠を検査します。
  * @param[in] usage 保護handleで集計した既存entry／byte。ここではfileを読みません。
  * @param[in] jobCount 元入力のjob数0～300。
  * @return 容量内0、容量不足68、範囲外job数87。保存・削除・予約は行いません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] DWORD checkCollectorRecoveryCapacity( const CollectorStoreUsage &usage,
 												   std::size_t				  jobCount) noexcept ;
 
@@ -276,11 +286,14 @@ struct CollectorRecoveryDispatch {
 	std::uint64_t			deadlineSteadyMillis{} ;
 } ;
 
-/** @brief 元予約の全fieldを再送許可を作らずに照合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元予約の全fieldを再送許可を作らずに照合します。
  * @param[in] first 永続予約の正本。
  * @param[in] second 再照合するworkerの結合。
  * @return 全fieldが一致する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool sameCollectorRecoveryDispatch( const CollectorRecoveryDispatch &first,
 												 const CollectorRecoveryDispatch &second) noexcept ;
 
@@ -315,18 +328,22 @@ struct CollectorRecoveryReadiness {
 /** @brief 単一writer下で保存応答を優先し、固定順の更新を回収します。 */
 class LocalCollectorRecovery final {
 public:
-	/** @brief 未接続の監督を作ります。 */
+	/**
+	 * @brief 未接続の監督を作ります。
+	 */
 	LocalCollectorRecovery() ;
-	/** @brief Storeの借用だけを解放します。保存物は保持します。 */
+	/**
+	 * @brief Storeの借用だけを解放します。保存物は保持します。
+	 */
 	~LocalCollectorRecovery() ;
 
-	/** @brief 初回射影世代の全終端を再検証し、完了記録を固定順で保存します。
+	/**
+	 * @brief 初回射影世代の全終端を再検証し、完了記録を固定順で保存します。
 	 * @param[in] utcMillis 現監督のUTC millisecond。巻戻しを拒否します。
 	 * @param[in] steadyMillis 現processの単調millisecond。
 	 * @return 保存成功0、未終端1237、次回末尾の非対応50、拒否13、第一I/O／HRESULT／OOM。
-	 * @note 初回保存と登録済み全完了の再検査用入口です。任意summary値を受け取らず、新世代・HTTPは開始しません。
-	 * 登録後の再呼出しは非変更です。保存窓の回復はinitializeProjectedで行います。
-	 * 明示次回開始後の末尾は、この初回専用入口で完了させません。
+	 * @note 初回保存と登録済み全完了の再検査用入口です。任意summary値を受け取らず、新世代・HTTPは開始しません。登録後の再呼出しは非変更です。保存窓の回復は
+	 *       initializeProjectedで行います。明示次回開始後の末尾は、この初回専用入口で完了させません。
 	 */
 	[[nodiscard]] DWORD finishInitialProjected( std::uint64_t utcMillis, std::uint64_t steadyMillis) ;
 	/**
@@ -338,7 +355,8 @@ public:
 	 */
 	LocalCollectorRecovery &operator=( const LocalCollectorRecovery &) = delete ;
 
-	/** @brief 旧全契約を検査し、応答・中断を回収して固定入力を登録します。
+	/**
+	 * @brief 旧全契約を検査し、応答・中断を回収して固定入力を登録します。
 	 * @param[in,out] store Writer初期化済みの借用store。
 	 * @param[in] input 公開manifestと呼出し側固定契約。
 	 * @param[in] utcMillis 現在のUTC millisecond。
@@ -351,49 +369,49 @@ public:
 									   std::uint64_t									steadyMillis,
 									   std::function<bool( CollectorRecoveryCheckpoint)> stop = {}) ;
 
-	/** @brief 射影専用input-v3を登録し、旧世代が残る場合は回収して待機します。
+	/**
+	 * @brief 射影専用input-v3を登録し、旧世代が残る場合は回収して待機します。
 	 * @param[in,out] store 同じworkspace内の単一writer store。
 	 * @param[in] input 元manifestと組み込みsource定義。
 	 * @param[in] utcMillis 現在のUTC millisecond。
 	 * @param[in] steadyMillis 現processの単調millisecond。
 	 * @param[in] stop 非通信fixtureの保存後停止。通常は空です。
 	 * @return 登録・再読込成功0、旧世代待ち1237、形式13、元I/O code。
-	 * @note 専用poolだけが射影予約を発行します。初回所有workerのv4保存に対応し、旧reserve／acceptは拒否します。
-	 * 全世代完了・activeなしは最新完了入力を非変更再読込みし、入力変更でも次回世代を開始しません。
-	 * 完了prefixと末尾を全検査し、元v4応答と未登録準備prefix一件だけを非再送で精算します。
-	 * 登録v4／canonical v2中断commitは固定前像の全履歴検査後だけ反映suffixを回復します。
-	 * 入力一致のPENDINGだけ予約を許可し、応答のないRUNNINGは明示中断入口まで非変更です。
-	 * 二開始prefixは明示中断まで非変更です。全完了履歴に残った日次切替は元時刻で一回だけ回復します。
-	 * 未完了末尾の固定完了prefixは全履歴検査後だけ元時刻で不足suffixを保存します。
-	 * 切替証跡のない全完了再読込みは非変更です。通常CLI接続は後続です。
+	 * @note 専用poolだけが射影予約を発行します。初回所有workerのv4保存に対応し、旧reserve／acceptは拒否します。全世代完了・activeなしは最新完了入力を非変更
+	 *       再読込みし、入力変更でも次回世代を開始しません。完了prefixと末尾を全検査し、元v4応答と未登録準備prefix一件だけを非再送で精算します。登録v4／canonical v2中断
+	 *       commitは固定前像の全履歴検査後だけ反映suffixを回復します。入力一致のPENDINGだけ予約を許可し、応答のないRUNNINGは明示中断入口まで非変更です。二開始prefixは
+	 *       明示中断まで非変更です。全完了履歴に残った日次切替は元時刻で一回だけ回復します。未完了末尾の固定完了prefixは全履歴検査後だけ元時刻で不足suffixを保存します。切替証跡のない全完
+	 *       了再読込みは非変更です。通常CLI接続は後続です。
 	 */
 	[[nodiscard]] DWORD		initializeProjected(
 			LocalCollectorStateStore &store, const CollectorProjectedCampaignDefinition &input,
 			std::uint64_t utcMillis, std::uint64_t steadyMillis,
 			std::function<bool( CollectorRecoveryCheckpoint)> stop = {}) ;
 
-	/** @brief 再検査済み全完了から明示的に次の未応答世代を登録します。
+	/**
+	 * @brief 再検査済み全完了から明示的に次の未応答世代を登録します。
 	 * @param[in] input 新しい公開定義。既登録Gを作り直しません。
 	 * @param[in] utcMillis 次回開始の現在UTC。
 	 * @param[in] steadyMillis 同じ監督の単調時計。
 	 * @return 登録成功0、既登録／待機1237、上限68、元I/O／HRESULT／OOM。
- * @note 初回initialize後だけ。次回RUNNINGと二開始prefixは別の明示中断入口を持ち、日次切替途中は通常起動で全検査します。
+	 * @note 初回initialize後だけ。次回RUNNINGと二開始prefixは別の明示中断入口を持ち、日次切替途中は通常起動で全検査します。
 	 */
 	[[nodiscard]] DWORD beginNextProjected( const CollectorProjectedCampaignDefinition &input,
 										   std::uint64_t utcMillis, std::uint64_t steadyMillis) ;
 
-	/** @brief 再起動後の次世代RUNNINGと二開始prefixを全履歴検査後だけ欠測中断として精算します。
+	/**
+	 * @brief 再起動後の次世代RUNNINGと二開始prefixを全履歴検査後だけ欠測中断として精算します。
 	 * @param[in] utcMillis 復旧監督の現在UTC。初回中断のfinished／acceptedだけへ固定します。
 	 * @param[in] steadyMillis 復旧processの単調時計。後退を拒否します。
 	 * @return 精算／非変更反復0、稼働所有170、元I/O／HRESULT／OOM／関係error。
-	 * @note 開発用の明示入口です。通常initializeの非変更待機を維持し、通信・新規dispatch・完了は行いません。
- * 元応答なしの予約だけをv2中断へ固定し、旧成功sliceを保持します。PENDINGの開始intentを補完しません。
- * 日次切替の復旧はこの明示精算へ流用せず、通常の全完了起動へ分離します。
+	 * @note 開発用の明示入口です。通常initializeの非変更待機を維持し、通信・新規dispatch・完了は行いません。元応答なしの予約だけをv2中断へ固定し、旧成功sliceを保
+	 *       持します。PENDINGの開始intentを補完しません。日次切替の復旧はこの明示精算へ流用せず、通常の全完了起動へ分離します。
 	 */
 	[[nodiscard]] DWORD recoverNextProjectedReservations( std::uint64_t utcMillis,
 														 std::uint64_t steadyMillis) ;
 
-	/** @brief 最大4枠、同group一件の未予約jobを永続予約します。
+	/**
+	 * @brief 最大4枠、同group一件の未予約jobを永続予約します。
 	 * @param[in] utcMillis 現在のUTC millisecond。
 	 * @param[in] steadyMillis process内の単調millisecond。
 	 * @param[out] dispatch 成功時だけ利用する元予約。
@@ -403,16 +421,18 @@ public:
 	[[nodiscard]] DWORD reserve( std::uint64_t utcMillis, std::uint64_t steadyMillis,
 								CollectorRecoveryDispatch &dispatch) ;
 
-	/** @brief v3必須の予約を保存し、旧acceptへの観測省略を拒否します。
-     * @param[in] utcMillis 元予約直前のUTC。
-     * @param[in] steadyMillis 同じprocessの単調時計。
-     * @param[out] dispatch 成功時だけの元予約。
-     * @return 保存成功0、枠待ち1237、拒否または元I/O code。
-     */
+	/**
+	 * @brief v3必須の予約を保存し、旧acceptへの観測省略を拒否します。
+	 * @param[in] utcMillis 元予約直前のUTC。
+	 * @param[in] steadyMillis 同じprocessの単調時計。
+	 * @param[out] dispatch 成功時だけの元予約。
+	 * @return 保存成功0、枠待ち1237、拒否または元I/O code。
+	 */
 	[[nodiscard]] DWORD reserveControlled( std::uint64_t utcMillis, std::uint64_t steadyMillis,
 										  CollectorRecoveryDispatch &dispatch) ;
 
-	/** @brief reserveと同じ選択判定を、台帳と監督時計を変更せず照会します。
+	/**
+	 * @brief reserveと同じ選択判定を、台帳と監督時計を変更せず照会します。
 	 * @param[in] utcMillis 現在のUTC millisecond。
 	 * @param[in] steadyMillis 同一processの単調millisecond。
 	 * @param[out] readiness 成功0の場合だけ有効な候補／待機分類。失敗時は空です。
@@ -422,7 +442,8 @@ public:
 	[[nodiscard]] DWORD readiness( std::uint64_t utcMillis, std::uint64_t steadyMillis,
 								  CollectorRecoveryReadiness &readiness) const ;
 
-	/** @brief 元応答を先に保存し、CONTROL→JOB→BUDGETを一度反映します。
+	/**
+	 * @brief 元応答を先に保存し、CONTROL→JOB→BUDGETを一度反映します。
 	 * @param[in] jobIndex 元予約のjob index。
 	 * @param[in] response 型付きの有限応答。中断intentの自作は認めません。
 	 * @param[in] utcMillis 現在の検査UTC millisecond。
@@ -432,20 +453,22 @@ public:
 	[[nodiscard]] DWORD accept( std::size_t jobIndex, const CollectorRecoveryResponse &response,
 							   std::uint64_t utcMillis, std::uint64_t steadyMillis) ;
 
-	/** @brief 元dispatchと確定I/O観測を結合したv3を一回保存・精算します。
-     * @param[in] binding 元の制御付き予約。全fieldを保存時の値と照合します。
-     * @param[in] response 元終了と監督受領を分けた基本結果。
-     * @param[in] observation Workerが確定した観測。変更・未確定・時計欠測を拒否します。
-     * @param[in] utcMillis 現在の監督UTC。
-     * @param[in] steadyMillis 現在のprocess単調時計。
-     * @return 成功0、拒否または第一I/O error。
-     */
+	/**
+	 * @brief 元dispatchと確定I/O観測を結合したv3を一回保存・精算します。
+	 * @param[in] binding 元の制御付き予約。全fieldを保存時の値と照合します。
+	 * @param[in] response 元終了と監督受領を分けた基本結果。
+	 * @param[in] observation Workerが確定した観測。変更・未確定・時計欠測を拒否します。
+	 * @param[in] utcMillis 現在の監督UTC。
+	 * @param[in] steadyMillis 現在のprocess単調時計。
+	 * @return 成功0、拒否または第一I/O error。
+	 */
 	[[nodiscard]] DWORD acceptControlled( const CollectorRecoveryDispatch &binding,
 										 const CollectorRecoveryResponse &response,
 										 const CollectorIoSnapshot		 &observation,
 										 std::uint64_t utcMillis, std::uint64_t steadyMillis) ;
 
-	/** @brief 全join済み初回収集を元予約へ結合し、非保存応答を一度だけ生成します。
+	/**
+	 * @brief 全join済み初回収集を元予約へ結合し、非保存応答を一度だけ生成します。
 	 * @param[in,out] executor 同じ監督が予約した専用executor。任意DTOは受け取りません。
 	 * @param[in] slot 元予約slot。二度目の試行を拒否します。
 	 * @param[in] utcMillis 親writerが観測した現在UTC。
@@ -460,7 +483,8 @@ public:
 		std::uint64_t steadyMillis, CollectorProjectedResponseBytes &prepared,
 		const std::function<std::int32_t( CollectorProjectedHashStage)> &probe = {}) ;
 
-	/** @brief 予約前に固定した初回履歴根拠を再照合し、応答とCACHE候補を一度作ります。
+	/**
+	 * @brief 予約前に固定した初回履歴根拠を再照合し、応答とCACHE候補を一度作ります。
 	 * @param[in,out] executor 同じ監督が予約した全join済みexecutor。
 	 * @param[in] slot 元予約slot。一回だけ準備可能です。
 	 * @param[in] utcMillis 親の現在UTC。
@@ -474,7 +498,8 @@ public:
 		LocalCollectorProjectedExecutor &executor, std::size_t slot, std::uint64_t utcMillis,
 		std::uint64_t steadyMillis, CollectorProjectedPreparedUpdate &prepared,
 		const std::function<std::int32_t( CollectorProjectedHashStage)> &probe = {}) ;
-	/** @brief 全join済み初回所有結果からv4を保存し、四roleとCACHE登録を確定します。
+	/**
+	 * @brief 全join済み初回所有結果からv4を保存し、四roleとCACHE登録を確定します。
 	 * @param[in,out] executor 元予約を所有する専用executor。任意DTOは受け取りません。
 	 * @param[in] slot 元予約slot。一回prepareと共用し、二重保存を拒否します。
 	 * @param[in] utcMillis 親writerが観測した現在UTC。
@@ -487,7 +512,8 @@ public:
 		LocalCollectorProjectedExecutor &executor, std::size_t slot, std::uint64_t utcMillis,
 		std::uint64_t													steadyMillis,
 		const std::function<std::int32_t( CollectorProjectedHashStage)> &probe = {}) ;
-	/** @brief 次世代の全join済み所有結果を検査済み成功履歴で最終化します。
+	/**
+	 * @brief 次世代の全join済み所有結果を検査済み成功履歴で最終化します。
 	 * @param[in,out] executor 同じ監督の予約と元観測を所有するexecutor。
 	 * @param[in] slot 元予約slot。一回prepare／acceptと共用します。
 	 * @param[in] utcMillis 現在の親UTC。
@@ -501,28 +527,31 @@ public:
 		LocalCollectorProjectedExecutor &executor, std::size_t slot, std::uint64_t utcMillis,
 		std::uint64_t steadyMillis, CollectorProjectedPreparedUpdate &prepared,
 		const std::function<std::int32_t( CollectorProjectedHashStage)> &probe = {}) ;
-	/** @brief 次世代の所有結果を元CACHE前像と四roleへ一度保存します。
+	/**
+	 * @brief 次世代の所有結果を元CACHE前像と四roleへ一度保存します。
 	 * @param[in,out] executor 元予約を所有する全join済みexecutor。
 	 * @param[in] slot 元slot。prepareとの二重受領は拒否します。
 	 * @param[in] utcMillis 親の現在UTC。
 	 * @param[in] steadyMillis 親の現在単調時計。
 	 * @param[in] probe 元hash失敗専用診断。
 	 * @return 全保存成功0、第一I/O／HRESULT／OOMまたは関係拒否。
-	 * @note 保存途中は停止し証跡を保持します。応答と四role反映中はinitializeで復旧します。
-	 * 未応答RUNNINGと二開始prefixは明示中断入口を持ち、日次切替／末尾完了の保存窓は通常起動で別検査します。
+	 * @note 保存途中は停止し証跡を保持します。応答と四role反映中はinitializeで復旧します。未応答RUNNINGと二開始prefixは明示中断入口を持ち、日次切替／末尾完了の
+	 *       保存窓は通常起動で別検査します。
 	 */
 	[[nodiscard]] DWORD acceptNextProjected(
 		LocalCollectorProjectedExecutor &executor, std::size_t slot, std::uint64_t utcMillis,
 		std::uint64_t													steadyMillis,
 		const std::function<std::int32_t( CollectorProjectedHashStage)> &probe = {}) ;
-	/** @brief 全履歴と全終端を検証し最後の次世代だけを明示完了します。
+	/**
+	 * @brief 全履歴と全終端を検証し最後の次世代だけを明示完了します。
 	 * @param[in] utcMillis 現在の親UTC。元完了時刻の再保存はしません。
 	 * @param[in] steadyMillis 同じprocessの単調時計。
 	 * @return 完了0、未終端1237、第一I/O／HRESULT／OOMまたは関係拒否。
 	 * @note 既完了の再呼出しは非変更です。末尾完了の保存途中はinitializeProjectedが元時刻で復旧します。
 	 */
 	[[nodiscard]] DWORD finishNextProjected( std::uint64_t utcMillis, std::uint64_t steadyMillis) ;
-	/** @brief 保護storeの登録済みCACHEと全参照を読み取り専用で検査します。
+	/**
+	 * @brief 保護storeの登録済みCACHEと全参照を読み取り専用で検査します。
 	 * @param[in,out] store 保護handleで開いたstore。同じwriter threadから呼びます。
 	 * @param[in] job 今回の元prepared job。履歴と同requestを要求します。
 	 * @param[in] sources 組み込みsourceの全契約。保存sourceを通信許可にしません。
@@ -531,9 +560,8 @@ public:
 	 * @param[in] probe 元v4 codecのhash失敗専用診断。
 	 * @param[out] diagnostics 任意の容量部分観測。開始時resetし失敗時も残します。権限ではありません。
 	 * @return 成功0、元I/O／hash／OOM、関係拒否13、閉包容量超過68。
-	 * @note 全世代が保存版3・完了済みなら全CACHE／全job／完了像／日次archiveを再導出します。
-	 * 全request合計300操作・6000名／再照合込み64 MiB。完了保存途中・稼働との混在は拒否します。
-	 * 登録なしは拒否。保存・回収・精算・HTTPと稼働予約への接続は行いません。
+	 * @note 全世代が保存版3・完了済みなら全CACHE／全job／完了像／日次archiveを再導出します。全request合計300操作・6000名／再照合込み64 MiB。完了保存途
+	 *       中・稼働との混在は拒否します。登録なしは拒否。保存・回収・精算・HTTPと稼働予約への接続は行いません。
 	 */
 	[[nodiscard]] static DWORD inspectRegisteredProjectedHistory(
 		LocalCollectorStateStore &store, const CollectorPreparedProjectedJob &job,
@@ -542,24 +570,29 @@ public:
 		const std::function<std::int32_t( CollectorProjectedHashStage)> &probe		= {},
 		CollectorHistoryReadDiagnostics								   *diagnostics = nullptr) ;
 
-	/** @brief Terminal化したjob数を返します。
+	/**
+	 * @brief Terminal化したjob数を返します。
 	 * @return DEFERREDも含む非再送job数。製品成功数ではありません。
 	 */
 	[[nodiscard]] std::size_t		  terminalJobs() const noexcept ;
-	/** @brief 登録中のgenerationを返します。
+	/**
+	 * @brief 登録中のgenerationを返します。
 	 * @return 未登録時は空。Object存続中だけ有効です。
 	 */
 	[[nodiscard]] const std::wstring &generationKey() const noexcept ;
-	/** @brief 元errorを保持して返します。
+	/**
+	 * @brief 元errorを保持して返します。
 	 * @return 成功0、または最初の拒否code。
 	 */
 	[[nodiscard]] DWORD				  lastError() const noexcept ;
-	/** @brief 最後の停止理由を返します。
+	/**
+	 * @brief 最後の停止理由を返します。
 	 * @return URLや端末IDを持たない固定codeです。
 	 */
 	[[nodiscard]] const std::wstring &reason() const noexcept ;
 
-	/** @brief 全完了v3 rootを元rawから封印検査します。保存・回復・通信は行いません。
+	/**
+	 * @brief 全完了v3 rootを元rawから封印検査します。保存・回復・通信は行いません。
 	 * @param[in,out] store Writer初期化済みの単一thread store。既存監督借用は170で拒否します。
 	 * @param[in] sources 元履歴を再構築する固定source契約。1～20件です。
 	 * @param[in] utcMillis 検査UTC。元時刻・期限を更新しません。
@@ -578,7 +611,8 @@ public:
 private:
 	friend class LocalCollectorProjectedExecutor ;
 	friend class LocalCollectorSegmentInventory ;
-	/** @brief 結合監督だけが両借用中の最終再照合を組み立てます。
+	/**
+	 * @brief 結合監督だけが両借用中の最終再照合を組み立てます。
 	 * @param[in,out] store 同じleaseのhistory writer。
 	 * @param[in] sources 元source契約。
 	 * @param[in] utcMillis 検査UTC。
@@ -596,7 +630,8 @@ private:
 		CollectorHistoryReadDiagnostics							   *diagnostics,
 		const std::function<DWORD( const CollectorCompletedRootEvidence &,
 								  const std::function<DWORD()> &)> &couple) ;
-	/** @brief 読取りcontextと通常全完了inventoryの有限検査を共有します。
+	/**
+	 * @brief 読取りcontextと通常全完了inventoryの有限検査を共有します。
 	 * @param[in,out] store Writer初期化済みの借用store。保存・lease変更は行いません。
 	 * @param[in] job 要求context用の借用job。nullは通常inventory／内部末尾完了の検査です。
 	 * @param[in] sources 今回の組み込みsource契約。
@@ -634,7 +669,8 @@ private:
 		const std::function<DWORD()>							   &beforeFinalRecheck = {},
 		const std::function<DWORD( const CollectorCompletedRootEvidence &,
 								  const std::function<DWORD()> &)> &couple			   = {}) ;
-	/** @brief 初回と次世代で同じ所有・原I/O検査と最終化を共有します。
+	/**
+	 * @brief 初回と次世代で同じ所有・原I/O検査と最終化を共有します。
 	 * @param[in,out] executor 元所有executor。
 	 * @param[in] slot 元slot。
 	 * @param[in] utcMillis 親UTC。
@@ -648,7 +684,8 @@ private:
 		LocalCollectorProjectedExecutor &executor, std::size_t slot, std::uint64_t utcMillis,
 		std::uint64_t steadyMillis, CollectorProjectedPreparedUpdate &prepared,
 		const std::function<std::int32_t( CollectorProjectedHashStage)> &probe, bool next) ;
-	/** @brief 初回と次世代の所有結果保存を共通順序で行います。
+	/**
+	 * @brief 初回と次世代の所有結果保存を共通順序で行います。
 	 * @param[in,out] executor 元所有executor。
 	 * @param[in] slot 元slot。
 	 * @param[in] utcMillis 親UTC。
@@ -661,11 +698,13 @@ private:
 		LocalCollectorProjectedExecutor &executor, std::size_t slot, std::uint64_t utcMillis,
 		std::uint64_t													steadyMillis,
 		const std::function<std::int32_t( CollectorProjectedHashStage)> &probe, bool next) ;
-	/** @brief 同一Gの別監督と区別する非再利用tokenを専用executorだけへ貸します。
+	/**
+	 * @brief 同一Gの別監督と区別する非再利用tokenを専用executorだけへ貸します。
 	 * @return 監督存続後もexecutorが保持する唯一の所有identity。保存や通信許可ではありません。
 	 */
 	[[nodiscard]] const std::shared_ptr<const std::byte> &projectedOwnerToken() const noexcept ;
-	/** @brief 専用executorだけが新世代の次候補を非変更照会します。
+	/**
+	 * @brief 専用executorだけが新世代の次候補を非変更照会します。
 	 * @param[in] utcMillis 現在UTC。
 	 * @param[in] steadyMillis 現在単調時計。
 	 * @param[out] readiness 成功時だけ元選択結果。失敗時は空です。
@@ -673,7 +712,8 @@ private:
 	 */
 	[[nodiscard]] DWORD readinessProjected( std::uint64_t utcMillis, std::uint64_t steadyMillis,
 										   CollectorRecoveryReadiness &readiness) const ;
-	/** @brief 世代別gate後だけ元selectJobへ渡す非変更照会です。
+	/**
+	 * @brief 世代別gate後だけ元selectJobへ渡す非変更照会です。
 	 * @param[in] utcMillis 現在UTC。
 	 * @param[in] steadyMillis 現在単調時計。
 	 * @param[out] readiness 成功時だけ元選択結果。
@@ -683,7 +723,8 @@ private:
 	[[nodiscard]] DWORD readinessForMode( std::uint64_t utcMillis, std::uint64_t steadyMillis,
 										 CollectorRecoveryReadiness &readiness,
 										 bool						 projected) const ;
-	/** @brief 元v3入力に結合した開発用予約。専用permit発行元だけが呼びます。
+	/**
+	 * @brief 元v3入力に結合した開発用予約。専用permit発行元だけが呼びます。
 	 * @param[in] utcMillis 元UTC。
 	 * @param[in] steadyMillis 元単調時計。
 	 * @param[out] dispatch 全保存後の予約。失敗時は空。
@@ -692,13 +733,15 @@ private:
 	[[nodiscard]] DWORD reserveProjected( std::uint64_t utcMillis, std::uint64_t steadyMillis,
 										 CollectorRecoveryDispatch &dispatch) ;
 	friend class CollectorHttpPermitPool ;
-	/** @brief 元writerのHTTP実所有を予約前に登録します。
+	/**
+	 * @brief 元writerのHTTP実所有を予約前に登録します。
 	 * @param[out] lease 同じstoreの私有所有ticket。失敗時は空です。
 	 * @return 第一監督error、能力87、freeze170、上限68、確保8。
 	 */
 	[[nodiscard]] DWORD acquireHttpActivity(
 		std::shared_ptr<const CollectorStoreHttpLease> &lease) noexcept ;
-	/** @brief 同じwriter・旧回収を共有し、世代schemaだけを入口別に検査します。
+	/**
+	 * @brief 同じwriter・旧回収を共有し、世代schemaだけを入口別に検査します。
 	 * @param[in,out] store 借用writer。
 	 * @param[in] input 旧profileだけの入力。
 	 * @param[in] projected 新profileの場合だけの定義。
@@ -712,26 +755,28 @@ private:
 										  const CollectorProjectedCampaignDefinition *projected,
 										  std::uint64_t utcMillis, std::uint64_t steadyMillis,
 										  std::function<bool( CollectorRecoveryCheckpoint)> stop) ;
-	/** @brief 旧予約と制御付き予約で同じ選択・保存順を使用します。
-     * @param[in] utcMillis 元UTC。
-     * @param[in] steadyMillis 元単調時計。
-     * @param[out] dispatch 保存後の結合。
-     * @param[in] controlled v3必須の場合true。
-     * @param[in] projected 新input-v3の専用予約の場合true。
-     * @return 保存結果。
-     */
+	/**
+	 * @brief 旧予約と制御付き予約で同じ選択・保存順を使用します。
+	 * @param[in] utcMillis 元UTC。
+	 * @param[in] steadyMillis 元単調時計。
+	 * @param[out] dispatch 保存後の結合。
+	 * @param[in] controlled v3必須の場合true。
+	 * @param[in] projected 新input-v3の専用予約の場合true。
+	 * @return 保存結果。
+	 */
 	[[nodiscard]] DWORD reserveForMode( std::uint64_t utcMillis, std::uint64_t steadyMillis,
 									   CollectorRecoveryDispatch &dispatch, bool controlled,
 									   bool projected = false) ;
-	/** @brief 保存・commitの共通手順で旧／制御付き応答を別codecへ渡します。
-     * @param[in] jobIndex 元job。
-     * @param[in] response 基本結果。
-     * @param[in] utcMillis 監督UTC。
-     * @param[in] steadyMillis 監督単調時計。
-     * @param[in] observation 制御付きの場合だけ非null。
-     * @param[in] binding 制御付きの場合だけ元dispatch。
-     * @return 保存結果または第一error。
-     */
+	/**
+	 * @brief 保存・commitの共通手順で旧／制御付き応答を別codecへ渡します。
+	 * @param[in] jobIndex 元job。
+	 * @param[in] response 基本結果。
+	 * @param[in] utcMillis 監督UTC。
+	 * @param[in] steadyMillis 監督単調時計。
+	 * @param[in] observation 制御付きの場合だけ非null。
+	 * @param[in] binding 制御付きの場合だけ元dispatch。
+	 * @return 保存結果または第一error。
+	 */
 	[[nodiscard]] DWORD acceptForMode( std::size_t					   jobIndex,
 									  const CollectorRecoveryResponse &response,
 									  std::uint64_t utcMillis, std::uint64_t steadyMillis,

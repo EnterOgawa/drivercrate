@@ -2,7 +2,7 @@
 /**
  * @file intel_download_only_page.cpp
  * @brief Intel download heroと許諾を取得専用recordへ結合します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/23  共通EXE解析と公開hash結合を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/23  全区間取得接続と公式module根拠付き許諾境界を追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  */
 //------------------------------------------------------------------------------
@@ -45,6 +46,7 @@ constexpr std::array<IntelDownloadOnlySourceDefinition, 2> SOURCES{
 	 {L"https://www.intel.com/content/www/us/en/download/785597/intel-arc-graphics-windows.html",
 	  OFFICIAL_PRIMARY_METADATA_RESOURCE_ID, L"Intel Arc Graphics", L"785597"}}} ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一意な開始markerから最初の終端までの有限部分を借用します。
  * @param[in] input 検証する領域。
@@ -53,6 +55,7 @@ constexpr std::array<IntelDownloadOnlySourceDefinition, 2> SOURCES{
  * @param[in] maximum 内側の文字数上限。
  * @return 曖昧さのない部分。欠落・重複・過大は値なし。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::wstring_view> between( const std::wstring_view input,
 													   const std::wstring_view begin,
 													   const std::wstring_view end,
@@ -74,6 +77,7 @@ constexpr std::array<IntelDownloadOnlySourceDefinition, 2> SOURCES{
 	return input.substr( first, last - first) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 公開SHA値をそのまま取得し、欠落と不正を区別します。
  * @param[in] details 同一heroの詳細list。
@@ -82,6 +86,7 @@ constexpr std::array<IntelDownloadOnlySourceDefinition, 2> SOURCES{
  * @param[out] value 有効な公開値。欠落時は空。
  * @return 欠落または一意な有効値の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool readHash( const std::wstring_view details, const std::wstring_view label,
 							const std::size_t length, std::wstring &value)
 {
@@ -118,7 +123,13 @@ constexpr std::array<IntelDownloadOnlySourceDefinition, 2> SOURCES{
 }
 } // namespace
 
-/** @see intel_download_only_page.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示sourceの固定起点だけを返します。
+ * @param[in] source 明示評価source。
+ * @return 既知sourceの定義。未知enumはnullptr。
+ */
+//------------------------------------------------------------------------------
 const IntelDownloadOnlySourceDefinition *intelDownloadOnlySourceDefinition(
 	const IntelDownloadOnlySource source) noexcept
 {
@@ -126,7 +137,21 @@ const IntelDownloadOnlySourceDefinition *intelDownloadOnlySourceDefinition(
 	return index < SOURCES.size() ? &SOURCES[index] : nullptr ;
 }
 
-/** @see intel_download_only_page.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一HTML内の単一download heroとEULAを取得専用recordへ結合します。
+ * @param[in] source 明示した固定起点。
+ * @param[in] html 同じ公式GET応答。2 Mi文字以下。
+ * @param[in] rootEvidence そのGETの公式根拠。
+ * @param[in] profile 呼出元が明示した有限取得上限。
+ * @param[in] resolvedUtcSeconds 解決時刻。
+ * @param[out] record 全検証成功時だけ公開する取得専用record。
+ * @param[out] failureStage 非秘密の拒否段階。成功時0。
+ * @param[in] behavior 空raw欄の独立判定に必要なfresh module観測。既定では許可しません。
+ * @return 一意な配布・hash・EULA・公式根拠を結合できた場合true。
+ * @note 内容検査・署名確認・実機適合・installer実行は行いません。
+ */
+//------------------------------------------------------------------------------
 bool parseIntelDownloadOnlyPage( const IntelDownloadOnlySource source, const std::wstring_view html,
 								const OfficialSourceEvidence	 &rootEvidence,
 								const OfficialDownloadOnlyProfile profile,

@@ -2,7 +2,7 @@
 /**
  * @file local_collector_http_observation.h
  * @brief 固定I/O観測の厳密codecを定義します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/27
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/27  応答v3・所有worker回収を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 開発用の有限収集に限定し、製品の取得・導入を許可しません。
@@ -32,20 +33,26 @@
 #include <string_view>
 
 namespace drivercrate {
-/** @brief 固定I/O objectを4 KiB以内でcanonical保存します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定I/O objectを4 KiB以内でcanonical保存します。
  * @param[in] observation 元workerの観測。Finished／基本結果は外側応答で検証します。
  * @param[in] permit 元G／jobから導出した小文字SHA-256。
  * @param[out] bytes 成功時だけcanonical UTF-8。失敗時は空です。
  * @return 型・有限値・既知enumを検証した場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool encodeCollectorHttpObservation( const CollectorIoSnapshot &observation,
 												  std::wstring_view permit, std::string &bytes) ;
-/** @brief 固定field集合とcanonical byteを照合して観測を復号します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定field集合とcanonical byteを照合して観測を復号します。
  * @param[in] bytes 最大4 KiBのcanonical UTF-8。
  * @param[in] permit 呼出し側が導出した元permit key。
  * @param[out] observation 成功時だけ固定I/O観測。外側fieldは呼出し側が再結合します。
  * @return 改変・未知field・型不一致がない場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool decodeCollectorHttpObservation( std::string_view bytes, std::wstring_view permit,
 												  CollectorIoSnapshot &observation) ;
 } // namespace drivercrate

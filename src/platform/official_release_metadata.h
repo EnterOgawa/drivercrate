@@ -2,7 +2,7 @@
 /**
  * @file official_release_metadata.h
  * @brief 公式配布情報の共通契約。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Intel Ethernet Windows 11 record系列を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/28  収集用Intel配布coreを追加。
  * Ver.01.03.00 Shunji Ogawa  2026/10/26  公開SHA-512を独立fieldとして保持。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Worker内の配布情報を表し、未確認の版・容量・許諾を補完しません。
@@ -177,42 +178,47 @@ struct OfficialReleaseObservationEvaluation {
 	ReleaseObservationDifference	difference{ReleaseObservationDifference::INVALID} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 系列に対応する固定検索定義を返す。
- * 許可hostとcapabilityはsource policy／registryへ委譲する。
+ * @brief 系列に対応する固定検索定義を返す。許可hostとcapabilityはsource policy／registryへ委譲する。
  * @param[in] family 組み込み系列。 組み込みの系列識別子。
  * @return Process寿命中有効な非所有定義。未知値はnullptr。 Process寿命中有効な非所有pointer。未知値はnullptr。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] const OfficialSourceDefinition *officialSourceDefinition(
 	OfficialReleaseFamily family) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 系列の配布情報を参照すべきdeviceか端末内だけで判断する。
- * 系列別のclass、GUID、manufacturer、model表示境界を確認する。いずれの系列も現在版不明だけを理由に除外しない。
+ * @brief 系列の配布情報を参照すべきdeviceか端末内だけで判断する。系列別のclass、GUID、manufacturer、model表示境界を確認する。いずれの系列も現在版不明だけを理
+ *        由に除外しない。
  * @param[in] family 対象の組み込み系列。 探索系列。
  * @param[in] device 非機密snapshot。生IDを含めない。 呼出し中だけ参照する非機密snapshot。
  * @return 系列表示名と矛盾しないclassならtrue。不明な現在版は除外条件にしない。 系列参照の対象ならtrue。適用性を意味しない。
  * @note 適用性、最新性、更新必要性、導入可能性の判定ではない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool officialReleaseDeviceMatches( OfficialReleaseFamily		 family,
 												const OfficialCatalogDevice &device) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 系列の固定公式pageと実OSの組合せが一致するか判定する。
- * 系列が明示するClient／Server範囲だけを許可する。Server専用または列挙型のServer系列では不明buildをfail-closedにする。
+ * @brief 系列の固定公式pageと実OSの組合せが一致するか判定する。系列が明示するClient／Server範囲だけを許可する。Server専用または列挙型のServer系列では不明
+ *        buildをfail-closedにする。
  * @param[in] family 対象の組み込み系列。 固定公式pageの系列。
  * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true。
  * @param[in] windowsBuild 実OSのmajor build番号。判定不能時は0。 判定済みmajor build。0は不明。
  * @return 当該系列が明示するOS境界と一致する場合true。 系列と実OSの固定境界が一致する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool officialReleaseOperatingSystemMatches( OfficialReleaseFamily family,
 														 bool				   windowsServer,
 														 std::uint32_t windowsBuild) noexcept ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief Live metadataと端末内device bindingから今回のrelease観測を作る。
- * 表示名やURLからidentityを推測せず、組み込みsource定義とlocal bindingだけを結合する。SHA-256のhex表記だけをlowercaseへ正規化し、一致結果を
- * payload取得または導入許可へ変換しない。
+ * @brief Live metadataと端末内device bindingから今回のrelease観測を作る。表示名やURLからidentityを推測せず、組み込みsource定義とlocal
+ *        bindingだけを結合する。SHA-256のhex表記だけをlowercaseへ正規化し、一致結果をpayload取得または導入許可へ変換しない。
  * @param[in] family 組み込み系列。Releaseとsource定義へ完全一致させる。 組み込みの公式配布系列。
  * @param[in] release 同じscanで取得・解析済みの公式metadata。 Live取得・解析済みの公式metadata。
  * @param[in] device Local probeでHMAC bindingを付与した現在device。 Local HMAC binding付きの現在device。
@@ -224,6 +230,7 @@ struct OfficialReleaseObservationEvaluation {
  * @return 全入力と一意な前回対応を検証できた場合true。
  * @note 前回一致でもpayload、EULA、署名、INF、PnP、rankの許可を返さない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool evaluateOfficialReleaseObservation(
 	OfficialReleaseFamily family, const OfficialReleaseRecord &release,
 	const OfficialCatalogDevice &device, std::wstring_view operatingSystemFingerprint,
@@ -231,20 +238,22 @@ struct OfficialReleaseObservationEvaluation {
 	std::span<const LocalOfficialReleaseObservation> previous,
 	OfficialReleaseObservationEvaluation			&evaluation) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 既存の系列別parserから共通の配布情報を作成する。
- * 既存parserを再利用する。公表情報の欠落をfile名等から推測しない。
+ * @brief 既存の系列別parserから共通の配布情報を作成する。既存parserを再利用する。公表情報の欠落をfile名等から推測しない。
  * @param[in] family 使用する組み込みparser。 組み込みparser選択。
  * @param[in] html 上限付き公式page本文。取得元証明は別途必要。 有限長の公式metadata本文。
  * @param[out] record 成功時のworker内情報。失敗時は初期値。 成功時の共通情報。失敗時は初期値。
  * @return 既存parserの必須条件を満たした場合true。 系列別必須metadataが整合すればtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseOfficialReleaseRecord( OfficialReleaseFamily family, std::wstring_view html,
 											  OfficialReleaseRecord &record) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 共通HTTPと公式landing取得根拠で配布情報だけを取得する。
- * 固定landingをworkerで同期取得し、同sessionの根拠を確認する。Payload取得と同意操作を行わない。
+ * @brief 共通HTTPと公式landing取得根拠で配布情報だけを取得する。固定landingをworkerで同期取得し、同sessionの根拠を確認する。Payload取得と同意操作を行わ
+ *        ない。
  * @param[in] family 検索定義を選ぶ組み込み系列。 固定検索定義の系列。
  * @param[in] session 0ではないscan session。
  * @param[in,out] http Workerが所有するHTTP client。以前のsource sessionは失効する。 Workerが所有するclient。以前の根拠は失効。
@@ -254,10 +263,12 @@ struct OfficialReleaseObservationEvaluation {
  * @return 成功時0。失敗時は元の通信errorまたは不正入力・metadataのHRESULT。 成功時0。失敗は通信または検証のHRESULT。
  * @note 同期処理なのでUI threadでは呼ばない。PayloadとEULA同意を扱わない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError readOfficialReleaseMetadata(
 	OfficialReleaseFamily family, ScanSessionId session, OfficialHttpClient &http,
 	OfficialReleaseRecord &record, bool &metadataRejected,
 	MetadataSearchExecutionContext *execution = nullptr) ;
+//------------------------------------------------------------------------------
 /**
  * @brief 727998だけを同じ配布変換と必須制御で解析します。
  * @param[in] html 同一GET本文。
@@ -265,6 +276,7 @@ struct OfficialReleaseObservationEvaluation {
  * @param[in,out] context 元制御。
  * @return 配布非採用はfalse。停止・障害は上位へ伝播します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool parseIntelCollectorReleaseRecord( std::wstring_view		html,
 													OfficialReleaseRecord  &record,
 													CollectorParserContext &context) ;

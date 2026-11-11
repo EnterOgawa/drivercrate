@@ -2,7 +2,7 @@
 /**
  * @file vaio_update_provider.cpp
  * @brief VAIO Global公式driver Provider実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note VAIO公式の固定HTTPS JSONだけを取得し、model、OS、driver category、local device、payload hashを検証します。任意
@@ -602,7 +603,14 @@ struct VaioSystemIdentity {
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/vaio_update_provider.h 宣言側の契約を正本とする。
+ * @brief REG_SZの実取得長に限定して終端と文字列内部のNULを検証する。Registry文字列を実取得長の範囲だけで検証する。確保領域と有効な値を分離し、未使用NULによる誤拒否を防ぐ
+ *        。
+ * @param[in] buffer 値取得APIへ渡した受信領域。未使用の末尾領域は値に含めない。 API受信領域。未使用の末尾を含み得る。
+ * @param[in] returnedBytes 成功した値取得APIが返した、終端を含む実byte数。 API成功時の実取得byte数。
+ * @param[in] type 値取得APIが返したregistry型。REG_SZ以外は拒否する。 API成功時のregistry型。
+ * @param[out] value 成功時の終端を除く文字列。失敗時は空。 終端を除いた値。失敗時は空。
+ * @return 成功時0、型・長さ・終端・内部NUL不正時はHRESULT。 検証成功時0、不正な型／長さ／終端／内部NULはHRESULT。
+ * @note 読取り結果の検証のみであり、registryへのアクセスは行わない。
  */
 //------------------------------------------------------------------------------
 NativeError decodeVaioRegistryString( const std::span<const wchar_t> buffer,
@@ -636,7 +644,13 @@ NativeError decodeVaioRegistryString( const std::span<const wchar_t> buffer,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/vaio_update_provider.h 宣言側の契約を正本とする。
+ * @brief VAIO client PCに対応する公式Windows driver updateを検索する。VAIO client PCに対応する公式driver updateを検索する。固定
+ *        JSONを取得し、Global model、OS、driver分類、local deviceの一意性を検証する。
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。 0ではないscan session ID。
+ * @param[in] devices Driver Store列挙から得た非機密device snapshot群。 Local device表示metadata群。
+ * @param[in] hardwareIdMatcher 本Providerでは使用しないlocal照合関数。
+ * @param[in] progressCallback JSON取得・検証・local照合の進捗通知先。 Catalog処理の進捗通知先。
+ * @return VAIO候補または取得・検証失敗を含むscan結果。
  */
 //------------------------------------------------------------------------------
 ScanResult VaioUpdateProvider::scan( const ScanSessionId							 scanSessionId,
@@ -884,7 +898,14 @@ ScanResult VaioUpdateProvider::scan( const ScanSessionId							 scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/vaio_update_provider.h 宣言側の契約を正本とする。
+ * @brief 選択されたVAIO driver packageを取得・検証して対話起動する。選択されたVAIO driver packageを取得して対話起動する。Session、
+ *        identity、device重複を検証し、同じpayloadを一度だけsize、hash、署名再検証して対話実行する。
+ * @param[in] scanSessionId 選択元のscan session ID。 選択元scan session ID。
+ * @param[in] identities UIに提示済みのopaque VAIO候補identity群。 UIに提示済みopaque identity群。
+ * @param[in] parentWindowNative 将来のinstaller親Window連携用。現在は使用しない。 現在未使用の親Window値。
+ * @param[in] progressCallback Download、検証、install待機の進捗通知先。 Download/install進捗通知先。
+ * @return 選択候補ごとのdownload/install結果。
+ * @note G11-C／D未接続候補はtargetへ登録せず、identityを拒否する。
  */
 //------------------------------------------------------------------------------
 InstallResult VaioUpdateProvider::install( const ScanSessionId				  scanSessionId,
@@ -1014,7 +1035,7 @@ InstallResult VaioUpdateProvider::install( const ScanSessionId				  scanSessionI
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/vaio_update_provider.h 宣言側の契約を正本とする。
+ * @brief Scan sessionとinstaller targetを失効させる。Opaque identity再利用とstale公式URL実行を防ぐ。
  */
 //------------------------------------------------------------------------------
 void VaioUpdateProvider::invalidateScanSession() noexcept

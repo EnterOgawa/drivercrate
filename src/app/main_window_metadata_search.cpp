@@ -2,7 +2,7 @@
 /**
  * @file main_window_metadata_search.cpp
  * @brief 情報検索の対象確認・協調取消し・表示専用結果。
- * @version 01.00.04
+ * @version 01.00.05
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.00.02  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
  * Ver.01.00.03 Shunji Ogawa  2026/10/27  四列一覧の配布版見出しを実装へ整合。
  * Ver.01.00.04 Shunji Ogawa  2026/10/28  通常画面から撤去した説明controlへの参照を除去。
+ * Ver.01.00.05 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 一覧は端末内で表示し、詳細診断には端末識別値・URL・path・EULA本文を含めない。
@@ -50,12 +51,14 @@
 namespace drivercrate {
 namespace {
 
+//------------------------------------------------------------------------------
 /**
  * @brief Resourceの位置placeholderへ表示値を一回ずつ代入する。
  * @param[in] text 信頼できるresource由来の書式。
  * @param[in] fields 数値またはresource由来の各表示値。
  * @return 位置指定を置換した所有文字列。
  */
+//------------------------------------------------------------------------------
 std::wstring formatMetadataFields( std::wstring								text,
 								  const std::initializer_list<std::wstring> fields)
 {
@@ -73,6 +76,7 @@ std::wstring formatMetadataFields( std::wstring								text,
 	return text ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 有限の非機密結果を標準read-only editへ表示する。
  * @param[in] dialog 同期dialogの非所有handle。
@@ -81,6 +85,7 @@ std::wstring formatMetadataFields( std::wstring								text,
  * @param[in] longParameter 初期化時だけ有効な所有文字列の借用pointer。
  * @return 処理済みならTRUE。
  */
+//------------------------------------------------------------------------------
 INT_PTR CALLBACK metadataDetailsProc( const HWND dialog, const UINT message,
 									 const WPARAM wordParameter,
 									 const LPARAM longParameter) noexcept
@@ -124,12 +129,17 @@ struct MetadataDialogState {
 /** @brief 例外を含む同期dialog終了時に再入禁止flagを戻す。 */
 class MetadataDialogReviewScope final {
 public:
-	/** @brief 呼出し期間だけflagを有効にする。@param[in,out] flag 同期scopeより長生きする借用flag。 */
+	/**
+	 * @brief 呼出し期間だけflagを有効にする。
+	 * @param[in,out] flag 同期scopeより長生きする借用flag。
+	 */
 	explicit MetadataDialogReviewScope( bool &flag) noexcept : flag_( flag)
 	{
 		flag_ = true ;
 	}
-	/** @brief Window操作へ戻る前に再入禁止を解除する。 */
+	/**
+	 * @brief Window操作へ戻る前に再入禁止を解除する。
+	 */
 	~MetadataDialogReviewScope() noexcept
 	{
 		flag_ = false ;
@@ -150,7 +160,16 @@ private:
 
 } // namespace
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 情報検索の標準listviewと今回限りの通信判断を処理する。
+ * @param[in] dialog 同期dialogの非所有handle。
+ * @param[in] message Windows message ID。
+ * @param[in] wordParameter Control ID等のmessage値。
+ * @param[in] longParameter 初期化時の借用snapshotまたは通知buffer。
+ * @return 処理済みならTRUE。例外・表示不整合は取消しで終端する。
+ */
+//------------------------------------------------------------------------------
 INT_PTR CALLBACK MainWindow::metadataSearchDialogProc( const HWND dialog, const UINT message,
 													  const WPARAM wordParameter,
 													  const LPARAM longParameter) noexcept
@@ -353,7 +372,13 @@ INT_PTR CALLBACK MainWindow::metadataSearchDialogProc( const HWND dialog, const 
 	}
 }
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief Registryから初期選択空の情報検索条件dialogを作る。
+ * @param[out] request 開始を明示承認した場合だけ更新する今回の要求。
+ * @return 専用能力と非空集合を再検証して承認した場合true。
+ */
+//------------------------------------------------------------------------------
 bool MainWindow::showMetadataSearchDialog( MetadataSearchRequest &request)
 {
 	// 他の確認中に再入して今回の同意対象を差し替えない。
@@ -388,7 +413,11 @@ bool MainWindow::showMetadataSearchDialog( MetadataSearchRequest &request)
 	return true ;
 }
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 情報検索の条件確認または同operationの協調取消しを要求する。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::handleMetadataSearchCommand()
 {
 	// Modal確認・終了待ち中の合成commandも新しい同意へ変換しない。
@@ -448,7 +477,11 @@ void MainWindow::handleMetadataSearchCommand()
 	}
 }
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同operationの取消し待ちへ移し、確定進捗を維持する。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::cancelMetadataSearch()
 {
 	const auto operation = controller_.activeOperationId() ;	// 同operationだけを取消し対象にする。
@@ -470,7 +503,12 @@ void MainWindow::cancelMetadataSearch()
 	updateCommandState() ;
 }
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 表示専用の終端packetを検証して保持する。
+ * @param[in] event Workerの所有結果。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::processMetadataSearchCompleted( const WorkerEvent &event)
 {
 	// 型・用途・operationを通常完了と混用せず、旧eventを表示へ適用しない。
@@ -514,7 +552,11 @@ void MainWindow::processMetadataSearchCompleted( const WorkerEvent &event)
 	}
 }
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 検索用途に応じて配布版と現在INF版を区別した見出しへ更新する。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::updateMetadataSearchColumns()
 {
 	const bool metadata = controller_.scanPurpose() == ScanPurpose::METADATA_ONLY ;	// 見出しの用途。
@@ -531,7 +573,13 @@ void MainWindow::updateMetadataSearchColumns()
 	}
 }
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定理由をresourceへ変換する。
+ * @param[in] reason 検証済み停止理由。
+ * @return 日本語の理由。
+ */
+//------------------------------------------------------------------------------
 std::wstring MainWindow::metadataSearchReasonText( const MetadataSearchReason reason) const
 {
 	// 新modeの停止と非実行を通常の更新有無へ置き換えない。
@@ -569,7 +617,11 @@ std::wstring MainWindow::metadataSearchReasonText( const MetadataSearchReason re
 	}
 }
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 情報検索の停止理由と未測定を表示する。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::updateMetadataSearchStatus()
 {
 	const auto *summary = controller_.metadataSearchSummary() ;	// 検証済み結果の非所有snapshot。
@@ -595,7 +647,11 @@ void MainWindow::updateMetadataSearchStatus()
 			  false) ;
 }
 
-/** @see src/app/main_window.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 情報検索の条件と全Providerの停止理由を標準controlで表示する。
+ */
+//------------------------------------------------------------------------------
 void MainWindow::showMetadataSearchDetails() const
 {
 	const auto *summary = controller_.metadataSearchSummary() ;	// 次の明示検索まで保持する条件。

@@ -2,7 +2,7 @@
 /**
  * @file hp_update_provider.cpp
  * @brief HP公式SoftPaq Provider実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note HP公式HTTPSから署名付きplatform listとreference CABを取得し、driver category、Platform／OS、Hardware ID、
@@ -631,7 +632,13 @@ struct HpSystemIdentity {
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/hp_update_provider.h 宣言側の契約を正本とする。
+ * @brief HP client PCに対応する公式Windows x64 driver SoftPaqを検索する。HP client PCに対応する公式Windows x64 SoftPaqを
+ *        検索する。HP client PCだけで署名付きplatform／reference CABを取得し、driver分類、Platform／OS、local Hardware IDを検証する。
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。 0ではないscan session ID。
+ * @param[in] devices Driver Store列挙から得た非機密device snapshot群。 Local device表示metadata群。
+ * @param[in] hardwareIdMatcher Catalog側DeviceIdをlocal deviceへ解決する照合関数。 Catalog DeviceIdのlocal照合関数。
+ * @param[in] progressCallback CAB取得・検証・照合の進捗通知先。 Catalog処理の進捗通知先。
+ * @return HP候補または取得・検証失敗を含むscan結果。
  */
 //------------------------------------------------------------------------------
 ScanResult HpUpdateProvider::scan( const ScanSessionId						   scanSessionId,
@@ -935,7 +942,14 @@ ScanResult HpUpdateProvider::scan( const ScanSessionId						   scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/hp_update_provider.h 宣言側の契約を正本とする。
+ * @brief 選択されたHP SoftPaqを取得・検証して対話起動する。Session、identity、device重複を検証し、同じSoftPaqを一度だけsize、hash、署名再検証し
+ *        て対話実行する。
+ * @param[in] scanSessionId 選択元のscan session ID。 選択元scan session ID。
+ * @param[in] identities UIに提示済みのopaque HP候補identity群。 UIに提示済みopaque identity群。
+ * @param[in] parentWindowNative 将来のinstaller親Window連携用。現在は使用しない。 現在未使用の親Window値。
+ * @param[in] progressCallback Download、検証、install待機の進捗通知先。 Download/install進捗通知先。
+ * @return 選択候補ごとのdownload/install結果。
+ * @note G11-C／D未接続候補はtargetへ登録せず、identityを拒否する。
  */
 //------------------------------------------------------------------------------
 InstallResult HpUpdateProvider::install( const ScanSessionId					scanSessionId,
@@ -1066,7 +1080,7 @@ InstallResult HpUpdateProvider::install( const ScanSessionId					scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/hp_update_provider.h 宣言側の契約を正本とする。
+ * @brief Scan sessionとinstaller targetを失効させる。Opaque identity再利用とstale公式URL実行を防ぐ。
  */
 //------------------------------------------------------------------------------
 void HpUpdateProvider::invalidateScanSession() noexcept

@@ -2,7 +2,7 @@
 /**
  * @file amd_update_provider.cpp
  * @brief AMD公式Web表示専用Provider実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 固定AMD公式pageだけを取得し、local Radeon表示名へ完全一致させます。Hardware IDを送信せず、AMD EXEをdownloadまたは実行しません。
@@ -183,7 +184,12 @@ constexpr std::wstring_view DISPLAY_CLASS_GUID_KEY =
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/amd_update_provider.h 宣言側の契約を正本とする。
+ * @brief AMD Display deviceに対応する公式配布情報を検索する。固定起点を取得してlocal製品名へ完全一致させ、payloadを取得せず監査待ち候補として表示する。
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。 0ではないscan session ID。
+ * @param[in] devices Driver Store列挙から得た非機密device snapshot群。 非機密local device snapshot群。
+ * @param[in] hardwareIdMatcher 本Providerでは使用しないlocal照合関数。
+ * @param[in] progressCallback 公式page取得とlocal照合の進捗通知先。 Page取得と照合の進捗通知先。
+ * @return AMD表示専用候補または取得・検証失敗を含むscan結果。
  */
 //------------------------------------------------------------------------------
 ScanResult AmdUpdateProvider::scan( const ScanSessionId							scanSessionId,
@@ -377,7 +383,13 @@ ScanResult AmdUpdateProvider::scan( const ScanSessionId							scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/amd_update_provider.h 宣言側の契約を正本とする。
+ * @brief AMD表示専用候補へのinstall要求をfail-closedで拒否する。AMD表示専用候補へのinstall要求を拒否する。Capabilityを持たないProviderへの直
+ *        接呼出しも拒否し、payload取得または実行へ進まない。
+ * @param[in] scanSessionId 要求元のscan session ID。 要求元session ID。
+ * @param[in] identities 要求されたopaque候補identity群。 要求された候補identity群。
+ * @param[in] parentWindowNative 呼出し側の親Window値。
+ * @param[in] progressCallback 呼出し側の進捗通知先。
+ * @return Downloadとinstallを`FAILURE`とした拒否結果。 Downloadとinstallを失敗に固定した結果。
  */
 //------------------------------------------------------------------------------
 InstallResult AmdUpdateProvider::install( const ScanSessionId				 scanSessionId,
@@ -400,7 +412,7 @@ InstallResult AmdUpdateProvider::install( const ScanSessionId				 scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/amd_update_provider.h 宣言側の契約を正本とする。
+ * @brief 保持中のscan sessionと取得根拠を失効させる。次scanまたは拒否された直接install要求で旧根拠を破棄する。
  */
 //------------------------------------------------------------------------------
 void AmdUpdateProvider::invalidateScanSession() noexcept

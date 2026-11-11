@@ -2,7 +2,7 @@
 /**
  * @file official_workflow_evaluation_tests.cpp
  * @brief 固定評価case・入口・方式・未測定の決定的試験。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  固定case・入口・方式の集計契約を検証。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空の固定集合を扱う試験専用実装。実機対応率を計測・公開せず、OSへ作用しない。
@@ -117,6 +118,7 @@ struct EvaluationCounts {
 	std::size_t installerProposed{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定集合に対して一入口の元件数を数える試験専用helper。
  * @param[in] cases 評価前に固定した架空device／OSと正解。
@@ -124,6 +126,7 @@ struct EvaluationCounts {
  * @param[in] entry 集計する一入口。
  * @return 元件数。結果は実機再現率や全メーカー対応率を表さない。
  */
+//------------------------------------------------------------------------------
 EvaluationCounts evaluateFixture( const std::span<const EvaluationCase>		cases,
 								 const std::span<const EvaluationCandidate> candidates,
 								 const EvaluationEntry						entry)
@@ -210,12 +213,14 @@ EvaluationCounts evaluateFixture( const std::span<const EvaluationCase>		cases,
 	return result ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 分母0・未実行を数値0や100パーセントへ補完しない。
  * @param[in] executed 試験の当該指標を実行した場合true。
  * @param[in] denominator 固定した当該指標の分母。
  * @return 数値計算を許可するか、未実行か、分母0かの状態。
  */
+//------------------------------------------------------------------------------
 RatioState ratioState( const bool executed, const std::size_t denominator) noexcept
 {
 	// 実行前は分母が既知でも達成率を作らない。
@@ -228,7 +233,12 @@ RatioState ratioState( const bool executed, const std::size_t denominator) noexc
 
 } // namespace
 
-/** @see tests/unit/official_workflow_evaluation_tests.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定集合と未測定を分離した評価契約のfixtureを実行する。
+ * @param[in,out] context Assertion集計先。
+ */
+//------------------------------------------------------------------------------
 void runOfficialWorkflowEvaluationTests( TestContext &context)
 {
 	const std::array<EvaluationCase, 8> cases{

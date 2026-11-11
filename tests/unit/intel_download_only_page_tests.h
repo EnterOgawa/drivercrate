@@ -2,7 +2,7 @@
 /**
  * @file intel_download_only_page_tests.h
  * @brief Intel非実行取得parser試験の宣言です。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/23  試験entryを追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  */
 //------------------------------------------------------------------------------
@@ -27,9 +28,11 @@
 #pragma once
 namespace drivercrate::test {
 class TestContext ;
+//------------------------------------------------------------------------------
 /**
  * @brief Intel EXE共通parserと拒否境界を通信なしで検証します。
  * @param[in,out] context assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runIntelDownloadOnlyPageTests( TestContext &context) ;
 } // namespace drivercrate::test

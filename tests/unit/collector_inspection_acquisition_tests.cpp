@@ -2,7 +2,7 @@
 /**
  * @file collector_inspection_acquisition_tests.cpp
  * @brief 外部台帳の一回収集取得scopeを完全非通信で検証する独立試験。
- * @version 01.01.01
+ * @version 01.01.02
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.00.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
  * Ver.01.01.00 Shunji Ogawa  2026/11/04  定義候補の実metadata再確認と単一GUID拘束を追加。
  * Ver.01.01.01 Shunji Ogawa  2026/11/09  timeout/取消code期待のNativeError型だけを明示。
+ * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 全HTTP／DNSをfixtureへ置換し、実network・導入・Taskを使用しない。
@@ -89,9 +90,12 @@ struct Fixture {
 thread_local Fixture *fixture{} ;	// 同期試験scopeだけの非所有参照。
 std::size_t			  checks{} ;	// 独立した有限assertion数。
 
-/** @brief 失敗時は固定診断だけで終了する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 失敗時は固定診断だけで終了する。
  * @param[in] condition 個別の期待条件。
  */
+//------------------------------------------------------------------------------
 void				  check( bool condition)
 {
 	++checks ;
@@ -101,9 +105,12 @@ void				  check( bool condition)
 	}
 }
 
-/** @brief 全WinHTTP／DNS関数を架空表へ置換する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 全WinHTTP／DNS関数を架空表へ置換する。
  * @return Native呼出しへfallbackしない完全表。
  */
+//------------------------------------------------------------------------------
 drivercrate::OfficialHttpTransport transport()
 {
 	drivercrate::OfficialHttpTransport api ;	// 下の全関数で上書きする所有表。
@@ -273,7 +280,8 @@ class Cost final : public drivercrate::IOfficialNetworkCostReader {
 public:
 	/// 今回のfixture区分。
 	drivercrate::OfficialNetworkCostKind value{drivercrate::OfficialNetworkCostKind::UNRESTRICTED} ;
-	/** @brief 不変区分を返す。
+	/**
+	 * @brief 不変区分を返す。
 	 * @param[out] output 試験区分。
 	 * @return 成功0。
 	 */
@@ -284,7 +292,11 @@ public:
 	}
 } ;
 
-/** @brief 正例と拒否例を有限に実行する。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 正例と拒否例を有限に実行する。
+ */
+//------------------------------------------------------------------------------
 void run()
 {
 	{
@@ -477,7 +489,11 @@ void run()
 	fixture = nullptr ;
 }
 
-/** @brief 定義選択を実native I/Oへ再結合し、同processの取得証拠だけを発行します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 定義選択を実native I/Oへ再結合し、同processの取得証拠だけを発行します。
+ */
+//------------------------------------------------------------------------------
 void runDefinitions()
 {
 	constexpr std::wstring_view guid =
@@ -578,7 +594,11 @@ void runDefinitions()
 	fixture = nullptr ;
 }
 
-/** @brief Intelの同page解析・両hash算法・候補変更拒否を実保存へ結びます。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Intelの同page解析・両hash算法・候補変更拒否を実保存へ結びます。
+ */
+//------------------------------------------------------------------------------
 void runDefinitionIntel()
 {
 	const std::string prefix =
@@ -655,7 +675,11 @@ void runDefinitionIntel()
 	fixture = nullptr ;
 }
 
-/** @brief 公開model再照合→秘密POST→exact GETと元期限の拒否を非通信で検証します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開model再照合→秘密POST→exact GETと元期限の拒否を非通信で検証します。
+ */
+//------------------------------------------------------------------------------
 void runDefinitionModel()
 {
 	const std::string path =
@@ -748,9 +772,12 @@ void runDefinitionModel()
 }
 } // namespace
 
-/** @brief CLIから入力を受けず全非通信試験を行う。
+//------------------------------------------------------------------------------
+/**
+ * @brief CLIから入力を受けず全非通信試験を行う。
  * @return 全合格0、拒否fixture不一致1。
  */
+//------------------------------------------------------------------------------
 int main()
 {
 	const auto initialized =

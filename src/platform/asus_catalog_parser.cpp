@@ -2,7 +2,7 @@
 /**
  * @file asus_catalog_parser.cpp
  * @brief ASUS公式support page parser実装。
- * @version 01.06.01
+ * @version 01.06.02
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * Ver.01.05.00 Shunji Ogawa  2026/09/28  収集target照合へ製品比較key規則を共有。
  * Ver.01.06.00 Shunji Ogawa  2026/09/28  共通controlをNuxt内部まで伝播し終了を型分離。
  * Ver.01.06.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.06.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note ASUS公式HTML内のNuxt JSONをscriptとして実行せず解析します。Schema、model、OS、originのいずれかが不明な場合は部分結果を公開しません。
@@ -143,9 +144,8 @@ enum class EntryParseResult {
 //------------------------------------------------------------------------------
 /**
  * @brief JSON文字列をUIやURL検証へ渡す前に有限な表示値へ制限する。
- *
- * @param[in] value 検証対象文字列。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] value 検証対象文字列。
  * @param[in] maximumCharacters 許可する最大UTF-16 code unit数。
  * @return 非空で制御文字を含まず上限内の場合は`true`。
  */
@@ -219,10 +219,9 @@ enum class EntryParseResult {
 //------------------------------------------------------------------------------
 /**
  * @brief Double表現のfraction、負値、範囲外を参照として拒否する。
- *
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] root Nuxt flattened root array。
  * @param[in] reference Root要素を指すJSON number。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] index 成功時のroot内index。
  * @return 非負整数でroot範囲内の場合は`true`。
  */
@@ -256,10 +255,9 @@ enum class EntryParseResult {
 //------------------------------------------------------------------------------
 /**
  * @brief Field値そのものを信用せずflattened rootへ一段だけ解決する。
- *
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] root Nuxt flattened root array。
  * @param[in] object 参照fieldを持つobject。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] name 取得するfield名。
  * @return 有効な参照先JSON value。欠損または不正参照時はnullopt。
  */
@@ -286,12 +284,11 @@ enum class EntryParseResult {
 //------------------------------------------------------------------------------
 /**
  * @brief 必須文字列fieldの型、参照、内容を一箇所で検証する。
- *
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] root Nuxt flattened root array。
  * @param[in] object 参照fieldを持つobject。
  * @param[in] name 取得するfield名。
  * @param[in] maximumCharacters 許可する文字数上限。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] output 成功時の文字列。失敗時は空。
  * @return 参照先が有限な非空文字列の場合は`true`。
  */
@@ -335,9 +332,8 @@ enum class EntryParseResult {
 //------------------------------------------------------------------------------
 /**
  * @brief 任意の表示文字列ではなくpage data objectだけからmodelを得る。
- *
- * @param[in] root Nuxt flattened root array。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] root Nuxt flattened root array。
  * @param[out] model 一意に確認したASUS page model名。
  * @return `model`／`productId`／`downloadUrl` objectが一件の場合`true`。
  */
@@ -385,10 +381,9 @@ enum class EntryParseResult {
 //------------------------------------------------------------------------------
 /**
  * @brief Driver recordのopaque IDを対象OSへfail-closedで拘束する。
- *
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] root Nuxt flattened root array。
  * @param[in] osName 利用者端末に対応するASUS page OS名。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] osId 一意に解決したASCII decimal OS ID。
  * @return 同じ名前が一つの有効IDだけを指す場合は`true`。
  */
@@ -532,9 +527,8 @@ enum class EntryParseResult {
 //------------------------------------------------------------------------------
 /**
  * @brief 公開hashをG11取得時のexact identityとして使用可能にする。
- *
- * @param[in] value ASUS pageが公開するSHA-256。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] value ASUS pageが公開するSHA-256。
  * @param[out] normalized 成功時の小文字64桁hex。
  * @return 64桁ASCII hexadecimalの場合は`true`。
  */
@@ -638,10 +632,9 @@ enum class EntryParseResult {
 //------------------------------------------------------------------------------
 /**
  * @brief Origin、path traversal、record IDとのfile差替えを拒否する。
- *
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] path Nuxt JSONのGlobal download相対path。
  * @param[in] opaqueId OSとfile名を含むASUS record ID。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] url 成功時の固定ASUS CDN絶対URL。
  * @return ZIP／CABはAccepted、他形式はIgnored、不正pathはRejected。
  */
@@ -693,9 +686,8 @@ enum class EntryParseResult {
 //------------------------------------------------------------------------------
 /**
  * @brief Architectureはx64のOS選択肢で拘束し、製品別に変わる第2 fieldをarchitectureと推測しない。
- *
- * @param[in] opaqueId ASUS flattened record ID。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] opaqueId ASUS flattened record ID。
  * @param[in] osId Page OS選択肢から解決したID。
  * @return 先頭6 fieldがdecimalの7 field schemaでOS ID一致時は`true`。
  */
@@ -766,12 +758,11 @@ enum class EntryParseResult {
 //------------------------------------------------------------------------------
 /**
  * @brief URL、hash、sizeは取得用入力に限定し、INF適用性を推測しない。
- *
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] root Nuxt flattened root array。
  * @param[in] record ASUS driver record object。
  * @param[in] category 親driver分類。
  * @param[in] osId 対象OSのASUS ID。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] entry Accepted時の取得前metadata。
  * @return Schema不正、対象外または採用可能の三状態。
  */
@@ -875,12 +866,11 @@ enum class EntryParseResult {
 //------------------------------------------------------------------------------
 /**
  * @brief 一recordの不正を無視せず、部分的な公式一覧へ縮退しない。
- *
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] root Nuxt flattened root array。
  * @param[in] osId 対象OSのASUS ID。
  * @param[out] entries 全成功時のSHA-256付きarchive一覧。
  * @param[in] expectedCategory 空なら全record、明示時は指定category本文だけを検証する。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] observation 非nullなら全体構造を維持した行単位拒否を集計する。
  * @return 全category構造と指定範囲のrecord本文が有限schemaを満たす場合はtrue。
  */
@@ -1021,12 +1011,14 @@ enum class EntryParseResult {
 	return categoryCount != 0U ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief WinRT JSON解析が上書きする復号後の重複propertyを拒否します。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] json 文法検証済みの有限Nuxt JSON。
  * @return 全objectの復号済みkeyが各scope内で一意の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool collectorUniqueKeys( CollectorParserContext *control,
 									   const std::wstring_view json)
 {
@@ -1107,14 +1099,16 @@ enum class EntryParseResult {
 	return scopes.empty() ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Nuxt参照を指定されたJSON objectへ一段だけ解決します。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] root Flattened root。
  * @param[in] parent 参照元object。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] key 参照field名。
  * @return Objectへ解決した場合だけ所有viewを返します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<JsonObject> collectorObject( CollectorParserContext *control,
 														const JsonArray		   &root,
 														const JsonObject	   &parent,
@@ -1130,14 +1124,16 @@ enum class EntryParseResult {
 	return value->GetObject() ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Nuxt参照を指定されたJSON arrayへ一段だけ解決します。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] root Flattened root。
  * @param[in] parent 参照元object。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] key 参照field名。
  * @return Arrayへ解決した場合だけ所有viewを返します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::optional<JsonArray> collectorArray( CollectorParserContext *control,
 													  const JsonArray		 &root,
 													  const JsonObject		 &parent,
@@ -1153,15 +1149,17 @@ enum class EntryParseResult {
 	return value->GetArray() ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 収集結果へ保持する文字列の制御文字とUTF-16境界を確認します。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] value 元の公式公開field。
  * @param[in] maximumCharacters 公開field上限。
  * @param[in] allowEmpty 非公開page markerだけを認める場合true。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] kind 公開fieldのslash文法。
  * @return 有限かつ有効Unicodeの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool collectorPublicText(
 	CollectorParserContext *control, const std::wstring_view value,
 	const std::size_t maximumCharacters, const bool allowEmpty = false,
@@ -1208,13 +1206,15 @@ enum class EntryParseResult {
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief ASUS opaque IDの型とOS位置を別の第一理由に分けます。
- * @param[in] opaqueId 公式entry ID。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] opaqueId 公式entry ID。
  * @param[in] osId 同一support storeの要求OS ID。
  * @return 不正schemaは拒否、別OSはOTHER_OS、一致ならACCEPTED。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] AsusCollectorRowReason collectorRecordOs( CollectorParserContext *control,
 													   const std::wstring_view opaqueId,
 													   const std::wstring_view osId)
@@ -1253,12 +1253,14 @@ enum class EntryParseResult {
 	return fields[4] == osId ? AsusCollectorRowReason::ACCEPTED : AsusCollectorRowReason::OTHER_OS ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 収集専用で公開日を実在する暦日へ限定します。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] value 公式表示のYYYY/MM/DD。
  * @return 年1以上、実在する日ならtrue。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validCollectorDate( CollectorParserContext *control,
 									  const std::wstring_view value)
 {
@@ -1282,16 +1284,18 @@ enum class EntryParseResult {
 			   .ok() ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 収集専用の行順序でOS・path・形式・hash・sizeを判定します。
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] root 同一Nuxt root。
  * @param[in] record 同一categoryに所属する行。
  * @param[in] osId 同一storeの要求OS ID。
  * @param[in] maximumBytes 一配布物の明示予算。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[out] entry ACCEPTED時だけURL付きのworker内行を設定します。
  * @return 最初に確定した行理由。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] AsusCollectorRowReason parseCollectorRow(
 	CollectorParserContext *control, const JsonArray &root, const JsonObject &record,
 	const std::wstring_view osId, const std::uint64_t maximumBytes, AsusDriverPageEntry &entry)
@@ -1460,7 +1464,13 @@ enum class EntryParseResult {
 
 } // namespace
 
-/** @see asus_catalog_parser.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存の非boot-critical driver分類か判定します。
+ * @param[in] category 公式pageが表示する分類名。
+ * @return Driver分類の場合true。BIOS・firmware・utility・SATA等はfalse。
+ */
+//------------------------------------------------------------------------------
 bool isAsusDriverCatalogCategory( const std::wstring_view category) noexcept
 {
 	return isSupportedDriverCategory( category) ;
@@ -1468,7 +1478,18 @@ bool isAsusDriverCatalogCategory( const std::wstring_view category) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asus_catalog_parser.h 宣言側の契約を正本とする。
+ * @brief ASUS製品別support pageから公式driver archive metadataを取得する。Nuxt flattened参照を有限に解決し、公式CDNのSHA-256付
+ *        きZIP／CABだけをG11取得前metadataとして返す。
+ * @param[in] html ASUS公式起点から取得したUTF-16 HTML。 ASUS公式起点pageのUTF-16 HTML。
+ * @param[in] expectedModel 端末内SMBIOSから得たsystemまたはbaseboard product名。 Local SMBIOSのsystem／board
+ *                   model。
+ * @param[in] expectedOsName ASUS page上の対象OS名。例は`Windows 11 64-bit`。
+ * @param[out] entries 成功時のSHA-256付きZIP／CAB一覧。該当なしの場合は空にする。 全検証成功時の検査可能archive一覧。
+ * @param[in] expectedCategory 空の場合は従来の全record、LANまたはWirelessの場合は当該category本文だけを検証する。
+ * @param[out] catalogObservation 非nullなら明示catalog mode。既存driver分類一つを要求し、個別不正は拒否件数として隔離する。
+ * @return 全体構造・model・OSの検証成功時true。従来modeでは対象内の個別不正もfalse。
+ * @pre 呼出しthreadでCOM apartmentが初期化されていること。
+ * @note Category限定時も全categoryの型・Count・Files参照と全体model／OSを検証する。対象外本文の有効性は保証せず、未知category引数は拒否する。
  */
 //------------------------------------------------------------------------------
 bool parseAsusDriverPageHtml( const std::wstring_view html, const std::wstring_view expectedModel,
@@ -1545,7 +1566,14 @@ bool parseAsusDriverPageHtml( const std::wstring_view html, const std::wstring_v
 	}
 }
 
-/** @see asus_catalog_parser.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 収集専用parserと同じASUS_ASCII_SPACE_V1比較keyを構築します。
+ * @param[in] publicModel 公式pageまたは公開targetの有限製品名。
+ * @return 有効な公開製品名なら所有key、不正または空なら空文字列。
+ * @note 公式出典や端末の適合性は証明しません。
+ */
+//------------------------------------------------------------------------------
 std::wstring asusCollectorModelComparisonKey( const std::wstring_view publicModel)
 {
 	CollectorParserContext *control = nullptr ;	// 旧入口は無制御coreを維持します。
@@ -1557,7 +1585,9 @@ std::wstring asusCollectorModelComparisonKey( const std::wstring_view publicMode
 	return normalizeModel( control, publicModel) ;
 }
 
-/** @brief 旧入口と制御付き入口が共有するNuxt解析coreです。
+//------------------------------------------------------------------------------
+/**
+ * @brief 旧入口と制御付き入口が共有するNuxt解析coreです。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] html 同じ有限本文。
  * @param[in] expectedModel 公開model。
@@ -1567,6 +1597,7 @@ std::wstring asusCollectorModelComparisonKey( const std::wstring_view publicMode
  * @param[out] result 所有結果。
  * @return 同一storeの構造が成立した場合true。
  */
+//------------------------------------------------------------------------------
 static bool parseAsusCollectorDriverPageHtmlCore( CollectorParserContext	 *control,
 												 const std::wstring_view  html,
 												 const std::wstring_view  expectedModel,
@@ -1936,7 +1967,20 @@ static bool parseAsusCollectorDriverPageHtmlCore( CollectorParserContext	 *contr
 	}
 }
 
-/** @see asus_catalog_parser.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じNuxt本文内のASUS公開identity・対象分類・行理由を収集専用に解析します。
+ * @param[in] html 制御付きGETから借用した公式HTML。本文の出典はcallerが別に確認します。
+ * @param[in] expectedModel 固定planで要求した公開製品名。
+ * @param[in] expectedOsName 初期scopeのWindows 11 64-bit表記。
+ * @param[in] expectedCategory 初期scopeのLAN分類。
+ * @param[in] maximumBytes 一配布物の明示受信予算。
+ * @param[out] result 成功時だけ同一storeの所有値を返します。失敗時は既定値です。
+ * @return Nuxtと同一storeの構造が成立した場合true。対象model違いと空sliceは結果の状態で区別します。
+ * @pre 呼出しthreadでCOM apartmentが初期化されていること。
+ * @note 出典・公式URL・取得許可を発行しません。通常のparseAsusDriverPageHtmlの受理条件は変更しません。
+ */
+//------------------------------------------------------------------------------
 bool parseAsusCollectorDriverPageHtml( std::wstring_view html, std::wstring_view expectedModel,
 									  std::wstring_view expectedOsName,
 									  std::wstring_view expectedCategory,
@@ -1946,7 +1990,19 @@ bool parseAsusCollectorDriverPageHtml( std::wstring_view html, std::wstring_view
 												expectedCategory, maximumBytes, result) ;
 }
 
-/** @see asus_catalog_parser.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一Nuxt coreの構造・上限・停止・障害を分離します。
+ * @param[in] html 同一GET本文。
+ * @param[in] expectedModel 固定planの公開model。
+ * @param[in] expectedOsName 固定OS表示。
+ * @param[in] expectedCategory 固定LAN分類。
+ * @param[in] maximumBytes 明示配布予算。
+ * @param[in,out] control 元GETの必須制御。
+ * @param[out] result 完了時だけ公開する所有結果。
+ * @return 候補採用とは独立した型付き終了。
+ */
+//------------------------------------------------------------------------------
 CollectorParserResult parseAsusCollectorDriverPageHtmlControlled(
 	std::wstring_view html, std::wstring_view expectedModel, std::wstring_view expectedOsName,
 	std::wstring_view expectedCategory, std::uint64_t maximumBytes,

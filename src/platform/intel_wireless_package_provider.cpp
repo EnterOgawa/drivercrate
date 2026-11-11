@@ -2,7 +2,7 @@
 /**
  * @file intel_wireless_package_provider.cpp
  * @brief 利用者選択INF package Provider共通実装。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  共通個別INF検査とWindows適合観測の接続を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 利用者選択INF ZIPを探索区分Cとして扱い、署名済みINFのPnP IDが現在deviceへ完全一致した場合だけ候補化します。Package pathとPnP IDはworker
@@ -352,7 +353,8 @@ struct MatchedPackages {
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_wireless_package_provider.h 宣言側の契約を正本とする。
+ * @brief Intel Wireless用policyを持つProviderを作成する。Intel Wireless用の利用者選択Providerを作成する。Intel固有policyを所有す
+ *        る共通実装へ委譲する。
  */
 //------------------------------------------------------------------------------
 UserSelectedInfPackageProvider::UserSelectedInfPackageProvider()
@@ -362,7 +364,9 @@ UserSelectedInfPackageProvider::UserSelectedInfPackageProvider()
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_wireless_package_provider.h 宣言側の契約を正本とする。
+ * @brief 明示されたProvider固有policyを単独所有するProviderを作成する。明示Provider policyを所有する共通実装を作成する。文字列と関数pointerを所有
+ *        し、scan時に必須値を再検証する。
+ * @param[in] policy Stable ID、表示文字列、検証関数およびPnP ID条件。 本instanceが単独所有するProvider固有条件。
  */
 //------------------------------------------------------------------------------
 UserSelectedInfPackageProvider::UserSelectedInfPackageProvider( UserSelectedInfProviderPolicy policy)
@@ -381,7 +385,15 @@ UserSelectedInfPackageProvider::~UserSelectedInfPackageProvider() = default ;
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_wireless_package_provider.h 宣言側の契約を正本とする。
+ * @brief 利用者選択ZIPを検証し現在deviceに完全一致する候補を作成する。利用者選択ZIPを現在device候補へ変換する。全INFの検証完了後だけ候補を公開し、複数INFが同じ
+ *        deviceへ一致した場合はそのdeviceを候補化しない。
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。 0ではないscan session ID。
+ * @param[in] options Provider IDと一件のlocal fileを持つ検証対象scan設定。 Provider IDとlocal fileを持つscan設定。
+ * @param[in] devices Driver Store列挙から得た非機密device snapshot群。 非機密current device snapshot群。
+ * @param[in] hardwareIdMatcher INF由来PnP IDをlocal deviceへ解決する照合関数。 INF PnP IDのlocal照合関数。
+ * @param[in] progressCallback 検証段階、件数、完了率の通知先。 検証進捗の通知先。
+ * @param[in] rankObserver 共通検査経路で必須の非実行Windows適合観測。従来経路では空を許す。
+ * @return 検証済み候補、候補なし、入力失敗またはmetadata拒否を含むscan結果。 一意にPnP一致した候補または検証結果を含むscan結果。
  */
 //------------------------------------------------------------------------------
 ScanResult UserSelectedInfPackageProvider::scan(
@@ -630,7 +642,14 @@ ScanResult UserSelectedInfPackageProvider::scan(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_wireless_package_provider.h 宣言側の契約を正本とする。
+ * @brief 選択候補のINF／CATを再検証して対応deviceへ導入する。選択INFをProvider固有policyで再検証して導入する。Stale／重複selectionを変更前に拒否し
+ *        、各INFの署名、CAT member、metadataを再検証してから一deviceずつ導入する。
+ * @param[in] scanSessionId 選択元のscan session ID。 選択元scan session ID。
+ * @param[in] identities UIへ提示済みのopaque candidate identity群。 UI提示済みopaque candidate ID群。
+ * @param[in] parentWindowNative Device installerの親HWNDを整数表現で渡す値。 Installer親HWNDの整数表現。
+ * @param[in] installer 現在inventoryのopaque deviceへINFを導入する関数。 Opaque deviceへINFを適用するworker関数。
+ * @param[in] progressCallback 検証とinstallの進捗通知先。 検証・install進捗通知先。
+ * @return 選択候補ごとの検証・install結果。 選択順の個別検証・install結果。
  */
 //------------------------------------------------------------------------------
 InstallResult UserSelectedInfPackageProvider::install(
@@ -742,7 +761,8 @@ InstallResult UserSelectedInfPackageProvider::install(
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_wireless_package_provider.h 宣言側の契約を正本とする。
+ * @brief Scan session、秘密metadata、展開fileを失効させる。次回scanまたはinstall完了後にstale identityとlocal pathを再利用できない
+ *        状態へ戻す。
  */
 //------------------------------------------------------------------------------
 void UserSelectedInfPackageProvider::invalidateScanSession() noexcept
@@ -755,9 +775,17 @@ void UserSelectedInfPackageProvider::invalidateScanSession() noexcept
 	ownerThreadId_ = 0 ;
 }
 
+//------------------------------------------------------------------------------
 /**
- * @see src/platform/intel_wireless_package_provider.h 宣言側の契約を正本とする。
+ * @brief 共通内容検査をWindows適合観測へ渡し、表示専用の候補を生成する。
+ * @param[in] scanSessionId 現在scan session。
+ * @param[in] devices 現在構成の非機密snapshot。
+ * @param[in] rankObserver 単一INFとdeviceの非実行Windows観測。
+ * @param[in] progressCallback 確定した件数の通知先。
+ * @param[in] inspection 全体検査を完了し、本Providerが所有する個別INF群。
+ * @return 部分拒否と観測失敗を含む候補結果。導入許可を発行しない。
  */
+//------------------------------------------------------------------------------
 ScanResult UserSelectedInfPackageProvider::buildCommonCandidates(
 	const ScanSessionId scanSessionId, const std::span<const OfficialCatalogDevice> devices,
 	const CommonInfRankObserver &rankObserver, const ProviderProgressCallback &progressCallback,

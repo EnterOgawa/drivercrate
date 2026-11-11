@@ -2,7 +2,7 @@
 /**
  * @file intel_ethernet_windows11_record_adapter.h
  * @brief Intel Ethernet Windows 11 releaseから型付きdistribution recordへの変換定義。
- * @version 01.06.01
+ * @version 01.06.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * Ver.01.05.00 Shunji Ogawa  2026/09/28  三状態の優先順位と製品fieldの保持条件を明記。
  * Ver.01.06.00 Shunji Ogawa  2026/09/28  型付き制御入口を追加。
  * Ver.01.06.01 Shunji Ogawa  2026/10/26  SHA-512解釈のparser revisionへ更新。
+ * Ver.01.06.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note URLは成功時に秘密所有型へ移し、UI、log、cacheへ渡しません。本変換だけではroot証拠、
@@ -151,6 +152,7 @@ struct IntelCollectorMetadataAssessment {
 	std::vector<IntelCollectorTargetAssessment>		targets ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一つの727998本文から配布候補と製品別照合案を組み立てます。
  * @param[in] html 既存release parserと専用一覧parserへ同時に渡す借用本文。
@@ -158,13 +160,15 @@ struct IntelCollectorMetadataAssessment {
  * @param[in] resolvedUtcSeconds 呼出元が別途確認した本文時刻以降の非zero UTC秒。
  * @param[out] assessment 成功時のworker内一時値。入力拒否時は初期値。
  * @return 入力集合と処理上限が有効ならtrue。配布・一覧の不成立はtrueの結果内で区別します。
- * @note 本関数はGETや公式出典を検証しません。候補はgrantに変換できず、最終edgeの
- *       fingerprint／本文hash／policy証明は後続のGET所有wrapperで設定します。
+ * @note 本関数はGETや公式出典を検証しません。候補はgrantに変換できず、最終edgeのfingerprint／本文hash／policy証明は後続のGET所有wrapperで設定します
+ *       。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool inspectIntelCollectorMetadataPage(
 	std::wstring_view html, std::span<const IntelCollectorTargetQuery> targets,
 	std::uint64_t resolvedUtcSeconds, IntelCollectorMetadataAssessment &assessment) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 既存Intel ZIP parserの結果をfamily別根拠と同意に結合して共通recordへ変換します。
  * @param[in,out] release Wi-Fi、Windows 11またはServer 2025 Ethernetの解析結果。
@@ -175,12 +179,14 @@ struct IntelCollectorMetadataAssessment {
  * @return 既知parser、family、file、hash、同意本文、rootが一致する場合true。
  * @note 端末適合・内容検査・導入許可は発行しません。EXEは対象外です。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool adaptIntelZipDistributionRecord( OfficialReleaseRecord	   &&release,
 												   const OfficialSourceEvidence &rootEvidence,
 												   std::uint64_t				 recordEvidenceId,
 												   std::uint64_t				 resolvedUtcSeconds,
 												   OfficialDistributionRecord	&record) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief Intel record 727998のrelease metadataをURL秘密所有のdistribution recordへ変換します。
  * @param[in,out] release Windows 11専用parserの結果。成功時は文字列の所有権を結果へ移します。
@@ -192,11 +198,13 @@ struct IntelCollectorMetadataAssessment {
  * @post 成功時は`release.downloadUrl`を含む文字列を結果へ移動します。
  * @note 概算表示をexact byte数へ変換せず、`publishedSizeBytes`の欠落を維持します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool adaptIntelEthernetWindows11DistributionRecord(
 	OfficialReleaseRecord &&release, const OfficialSourceEvidence &rootEvidence,
 	std::uint64_t recordEvidenceId, std::uint64_t resolvedUtcSeconds,
 	OfficialDistributionRecord &record) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 組み込みIntel record 727998固定rootを取得して型付きdistribution recordへ解決する。
  * @param[in] scanSessionId 現在のworker scan session ID。
@@ -211,12 +219,14 @@ struct IntelCollectorMetadataAssessment {
  * @return 解決、通常失敗、source拒否、metadata拒否を区別するURL非保持結果。
  * @note 同期network処理を含むためUI threadから呼びません。Device hintまたは端末IDを受け取りません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryFixedRootResult resolveIntelEthernetWindows11OfficialDiscoveryRecord(
 	ScanSessionId scanSessionId, std::uint64_t recordEvidenceId, std::wstring_view providerId,
 	std::wstring_view rootResourceId, std::wstring_view builtInRootUrl,
 	std::uint64_t maximumRecordBytes, OfficialRecordFetchMode fetchMode, OfficialHttpClient &client,
 	OfficialDistributionRecord &record) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同一本文の配布・一覧・全対象を停止理由を保って解析します。
  * @param[in] html 同一GET本文。
@@ -226,6 +236,7 @@ struct IntelCollectorMetadataAssessment {
  * @param[out] assessment 完了後だけ公開する所有結果。
  * @return 解析手順の型付き終了。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] CollectorParserResult inspectIntelCollectorMetadataPageControlled(
 	std::wstring_view html, std::span<const IntelCollectorTargetQuery> targets,
 	std::uint64_t resolvedUtcSeconds, OfficialCollectorHttpControl &control,

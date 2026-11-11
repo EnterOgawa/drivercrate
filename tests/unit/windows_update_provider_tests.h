@@ -2,7 +2,7 @@
 /**
  * @file windows_update_provider_tests.h
  * @brief Windows Update Provider単体試験定義。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note WUA候補のdriver-only分類policyをnetwork非依存で検証します。
@@ -39,12 +40,13 @@ namespace drivercrate::test {
 
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief WUA候補からfirmware／UEFI／BIOSを除外するpolicyを検証する。
- * WUA候補のdriver-only分類policyを検証する。
- * 通常driverを許可し、classまたはtitleでfirmware、UEFI、BIOSを示す候補と必須metadata不足を拒否する。
+ * @brief WUA候補からfirmware／UEFI／BIOSを除外するpolicyを検証する。WUA候補のdriver-only分類policyを検証する。通常driverを許可し、
+ *        classまたはtitleでfirmware、UEFI、BIOSを示す候補と必須metadata不足を拒否する。
  * @param[in,out] context assertion集計先。
  */
+//------------------------------------------------------------------------------
 void runWindowsUpdateProviderTests( TestContext &context) ;
 
 } // namespace drivercrate::test

@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_package.cpp
  * @brief 公式自動探索record payloadのopaque identity生成と重複排除。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  Record／payload単位の重複排除を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 検証済みrecord fingerprintをopaque package IDへ符号化し、表示metadataから推測しません。
@@ -48,12 +49,14 @@ namespace {
 // Fingerprintをlowercase hexadecimalへ変換する固定alphabet。
 constexpr std::wstring_view HEX_DIGITS = L"0123456789abcdef" ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief URLやpathを表せない有限ASCII opaque identityか確認する。
  * @param[in] value 検証する文字列。
  * @param[in] maximumCharacters 許可する最大文字数。
  * @return 非空、上限内、限定文字だけの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool			isBoundedIdentity( const std::wstring_view value,
 											  const std::size_t		  maximumCharacters) noexcept
 {
@@ -79,17 +82,20 @@ constexpr std::wstring_view HEX_DIGITS = L"0123456789abcdef" ;
 	return true ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Fingerprintが全zeroの未設定値でないか確認する。
  * @param[in] fingerprint 検証する32 byte値。
  * @return 一byte以上が非zeroの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool hasFingerprint( const OfficialStableRecordFingerprint &fingerprint) noexcept
 {
 	return std::any_of( fingerprint.bytes.begin(), fingerprint.bytes.end(),
 					   []( const std::byte value) { return value != std::byte{} ; }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider、record fingerprint、payload ordinalからopaque package IDを作る。
  * @param[in] providerId 検証済みProvider stable ID。
@@ -98,6 +104,7 @@ constexpr std::wstring_view HEX_DIGITS = L"0123456789abcdef" ;
  * @return 表示値を含まない決定的なpackage ID。
  * @throws std::bad_alloc 文字列領域を確保できない場合。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring makePackageIdentity( const std::wstring_view				  providerId,
 											   const OfficialStableRecordFingerprint &fingerprint,
 											   const std::uint32_t payloadOrdinal)
@@ -118,12 +125,14 @@ constexpr std::wstring_view HEX_DIGITS = L"0123456789abcdef" ;
 	return identity ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Package groupと一route分参照のstable fieldが完全一致するか確認する。
  * @param[in] group 既存の初出package group。
  * @param[in] package 追加する一route分参照。
  * @return 表示値以外の全package由来が一致する場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool samePackage( const OfficialDiscoveryPackageGroup	  &group,
 							   const OfficialDiscoveryResolvedPackage &package) noexcept
 {
@@ -137,7 +146,17 @@ constexpr std::wstring_view HEX_DIGITS = L"0123456789abcdef" ;
 
 } // namespace
 
-/** @see official_discovery_package.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 検証済みrouteとURL非保持payload descriptorをpackage参照へ結合する。
+ * @param[in] route 自動探索plannerが作成した元route。
+ * @param[in] payload 検証済み公式recordから作ったURL非保持payload descriptor。
+ * @param[in] devices 同じinventory snapshotのraw ID非保持device hint集合。
+ * @param[in] descriptors Provider registryの正本または同じ合成copy。
+ * @return 全bindingが一致する場合のpackage参照。不正または不一致は値なし。
+ * @throws std::bad_alloc Opaque identityまたは所有値の領域を確保できない場合。
+ */
+//------------------------------------------------------------------------------
 std::optional<OfficialDiscoveryResolvedPackage> makeOfficialDiscoveryResolvedPackage(
 	const OfficialDiscoveryRoute &route, const OfficialRecordPayloadDescriptor &payload,
 	const std::span<const OfficialDiscoveryDeviceHint> devices,
@@ -178,7 +197,13 @@ std::optional<OfficialDiscoveryResolvedPackage> makeOfficialDiscoveryResolvedPac
 	return package ;
 }
 
-/** @see official_discovery_package.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 一つのpackage参照がrecord／payload由来だけへ結合しているか検証する。
+ * @param[in] package 検証する一route分のpackage参照。
+ * @return 全field、opaque ID、device集合が整合する場合true。
+ */
+//------------------------------------------------------------------------------
 bool isOfficialDiscoveryResolvedPackageValid(
 	const OfficialDiscoveryResolvedPackage &package) noexcept
 {
@@ -230,7 +255,15 @@ bool isOfficialDiscoveryResolvedPackageValid(
 	}
 }
 
-/** @see official_discovery_package.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じopaque packageを一回の取得・検査単位へまとめる。
+ * @param[in] packages Route resolverが返した初出順のpackage参照集合。
+ * @return Package初出順の重複排除group。不正、空、上限超過は値なし。
+ * @throws std::bad_alloc Groupまたは一意性検査領域を確保できない場合。
+ * @note Provider、fingerprint、ordinalが完全一致する場合だけまとめます。Title、版、URLは使用しません。
+ */
+//------------------------------------------------------------------------------
 std::optional<std::vector<OfficialDiscoveryPackageGroup>> groupOfficialDiscoveryPackages(
 	const std::span<const OfficialDiscoveryResolvedPackage> packages)
 {
@@ -313,7 +346,13 @@ std::optional<std::vector<OfficialDiscoveryPackageGroup>> groupOfficialDiscovery
 	return groups ;
 }
 
-/** @see official_discovery_package.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 重複排除済みpackage groupの全fieldと一意性を検証する。
+ * @param[in] group 検証する一つのpackage実行group。
+ * @return Opaque identity、record、route、device集合が整合する場合true。
+ */
+//------------------------------------------------------------------------------
 bool isOfficialDiscoveryPackageGroupValid( const OfficialDiscoveryPackageGroup &group) noexcept
 {
 	OfficialDiscoveryResolvedPackage base ;	// 共通fieldを単体validatorへ再利用する合成参照。

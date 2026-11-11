@@ -2,7 +2,7 @@
 /**
  * @file official_collector_public_text.cpp
  * @brief 収集専用の公開文字列形状とUTF-8上限を検証します。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/28  metadata専用公開値境界を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/28  公開値の内側走査へ明示制御を伝播。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  */
 //------------------------------------------------------------------------------
@@ -35,13 +36,13 @@ namespace {
 //------------------------------------------------------------------------------
 // 内部関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief ASCII大小文字に依存せず端末識別子形状を見つけます。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
  * @param[in] value 有限の公開field。
  * @return PnP識別子のmarkerを含む場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool hasDeviceMarker( CollectorParserContext *control, const std::wstring_view value)
 {
 	collectorParserCheckpoint( control) ;
@@ -81,13 +82,15 @@ namespace {
 	return false ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Slashを含むfieldの文法を限定します。
- * @param[in] value 有限field。
  * @param[in,out] control 新経路の制御。旧wrapperだけnull。
+ * @param[in] value 有限field。
  * @param[in] kind Field別文法。
  * @return Slashなし、または指定文法で許される場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validSlash( CollectorParserContext *control, const std::wstring_view value,
 							  const OfficialCollectorPublicTextKind kind)
 {
@@ -149,7 +152,6 @@ namespace {
 //------------------------------------------------------------------------------
 // 公開関数定義。
 //------------------------------------------------------------------------------
-
 /**
  * @brief 公開fieldの同じ形状・文字数検証を共有します。
  * @param[in,out] control 新経路の制御。旧経路だけnull。
@@ -158,6 +160,7 @@ namespace {
  * @param[in] kind Slash文法。
  * @return 公開契約の成立。
  */
+//------------------------------------------------------------------------------
 static bool isOfficialCollectorPublicTextCore( CollectorParserContext			   *control,
 											  const std::wstring_view				value,
 											  const std::size_t						maximumBytes,
@@ -198,14 +201,32 @@ static bool isOfficialCollectorPublicTextCore( CollectorParserContext			   *cont
 	return bytes <= maximumBytes ;
 }
 
-/** @see official_collector_public_text.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 収集metadataの公開形状、Unicode、実UTF-8 byte数を検証します。
+ * @param[in] value Sourceが選んだ公開field。空値の必須性はcallerが検証します。
+ * @param[in] maximumBytes UTF-8変換後の有限上限。最大1,024 byte。
+ * @param[in] kind Slashのfield別文法。
+ * @return 不可視制御、path／query／端末ID形状がなく上限内ならtrue。
+ * @note 通常record契約には適用せず、公式性や任意値の非秘密性を証明しません。
+ */
+//------------------------------------------------------------------------------
 bool isOfficialCollectorPublicText( std::wstring_view value, std::size_t maximumBytes,
 								   OfficialCollectorPublicTextKind kind) noexcept
 {
 	return isOfficialCollectorPublicTextCore( nullptr, value, maximumBytes, kind) ;
 }
 
-/** @see official_collector_public_text.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開値の形状・Unicode走査を元control付きで検証します。
+ * @param[in] value 有限公開値。
+ * @param[in] maximumBytes 最大UTF-8 byte数。
+ * @param[in] kind Slash文法。
+ * @param[in,out] context 必須の元制御。
+ * @return 文字検証の成立。停止・例外は上位境界へ伝播します。
+ */
+//------------------------------------------------------------------------------
 bool isOfficialCollectorPublicTextForCollector( std::wstring_view value, std::size_t maximumBytes,
 											   OfficialCollectorPublicTextKind kind,
 											   CollectorParserContext		  &context)

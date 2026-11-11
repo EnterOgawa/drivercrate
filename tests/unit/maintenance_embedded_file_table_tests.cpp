@@ -2,7 +2,7 @@
 /**
  * @file maintenance_embedded_file_table_tests.cpp
  * @brief 保守専用PE内表の架空境界回帰実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/05  架空PE内表の回帰を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 原tableとdataを独立に構築します。架空CATの形状成功を署名成功と扱いません。
@@ -44,6 +45,7 @@ constexpr std::size_t	   BLOB_OFFSET	= TABLE_OFFSET + 3U * 264U ;	// 三項目�
 constexpr std::string_view INF_TEXT =
 	"; fictional\r\n[Version]\r\nSignature=\"$Windows NT$\"\r\n" ;	// 生IDなしの架空INF。
 
+//------------------------------------------------------------------------------
 /**
  * @brief 十分なfixture範囲へ独立little-endian値を書く。
  * @param[in,out] raw 呼出し側が確保した所有byte。
@@ -51,6 +53,7 @@ constexpr std::string_view INF_TEXT =
  * @param[in] value uint32の期待値。
  * @param[in] count 既定4、uint16 fieldなら2。
  */
+//------------------------------------------------------------------------------
 void writeInteger( std::vector<std::byte> &raw, const std::size_t offset, const std::uint32_t value,
 				  const std::size_t count = 4U)
 {
@@ -60,12 +63,14 @@ void writeInteger( std::vector<std::byte> &raw, const std::size_t offset, const 
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Fixtureへ終端NULを除くASCII textをコピーする。
  * @param[in,out] raw 十分なzero初期化fixture。
  * @param[in] offset コピー先の有効範囲。
  * @param[in] text 原構造markerまたは架空file名。
  */
+//------------------------------------------------------------------------------
 void writeText( std::vector<std::byte> &raw, const std::size_t offset, const std::string_view text)
 {
 	// 架空textをbyteとしてのみ配置する。
@@ -74,10 +79,12 @@ void writeText( std::vector<std::byte> &raw, const std::size_t offset, const std
 	}
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定offset・section名へ依存しない最小PE32+表を作る。
  * @return 架空CAT・INF・SYSを持つreadonly dataの原byte。
  */
+//------------------------------------------------------------------------------
 std::vector<std::byte> fixture()
 {
 	std::vector<std::byte> raw( 0x1000U) ;	// 完全zeroで始める原PE範囲。
@@ -112,11 +119,13 @@ std::vector<std::byte> fixture()
 	return raw ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 拒否時に直前成功の範囲も残らないことを検証する。
  * @param[in,out] context 共通集計の所有者。
  * @param[in] raw 架空破損入力。
  */
+//------------------------------------------------------------------------------
 void expectRejected( TestContext &context, const std::vector<std::byte> &raw)
 {
 	MaintenanceEmbeddedFileTable layout ;	// 失敗で消えるべき架空旧結果。
@@ -131,6 +140,12 @@ void expectRejected( TestContext &context, const std::vector<std::byte> &raw)
 
 } // namespace
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空表の正例と破損・未対応・曖昧の拒否を検証する。
+ * @param[in,out] context 呼出し側が所有するassertion集計。
+ */
+//------------------------------------------------------------------------------
 void runMaintenanceEmbeddedFileTableTests( TestContext &context)
 {
 	const std::vector<std::byte> valid = fixture() ;	// 架空の正例。CAT trustは含まない。

@@ -2,7 +2,7 @@
 /**
  * @file official_html_terms_tests.cpp
  * @brief 架空HTML許諾の一意性・全文・改変とstrict schemaを決定的に検査します。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/14  共通HTML/plain契約と一INF入力拒否の固定分母を追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 架空原byteだけをRAMで確認します。実device/HTTP/署名鍵/store/導入は使用しません。
@@ -50,9 +51,12 @@ constexpr std::string_view	PAYLOAD = "https://cdn.example.com/driver.zip" ;
 // 原公開改訂です。package版やURLを代用しません。
 constexpr std::wstring_view REVISION = L"Example License [v2026.10.14]" ;
 
-/** @brief 一つの事前固定した期待を集計します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一つの事前固定した期待を集計します。
  * @param[in] value その条件が全て成立する場合trueです。
  */
+//------------------------------------------------------------------------------
 void						expect( const bool value)
 {
 	++assertions ;
@@ -63,10 +67,13 @@ void						expect( const bool value)
 	}
 }
 
-/** @brief 同原byteから共通digestを固定型へ写します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同原byteから共通digestを固定型へ写します。
  * @param[in] bytes 架空の完全UTF-8です。
  * @return 共通hashの固定32byteです。API失敗は期待失敗へ残します。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] drivercrate::IndexManifestSha256 digest( const std::string_view bytes)
 {
 	std::wstring hash ;	// 同原byteからの共通digestです。
@@ -88,10 +95,13 @@ void						expect( const bool value)
 	return result ;
 }
 
-/** @brief 架空Unicode本文を厳密UTF-8 byteへ写します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空Unicode本文を厳密UTF-8 byteへ写します。
  * @param[in] value 有限な架空原文書/全文です。
  * @return 欠損なく符号化した架空byteです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::string bytes( const std::wstring_view value)
 {
 	const int count = WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, value.data(),
@@ -110,9 +120,12 @@ void						expect( const bool value)
 	return result ;
 }
 
-/** @brief 固定共通selector集合を作ります。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定共通selector集合を作ります。
  * @return 未認証の架空selectorです。取得能力は持ちません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] drivercrate::IndexHtmlTermsExtraction extraction()
 {
 	drivercrate::IndexHtmlTermsExtraction value ;	// 固定した架空の要素集合です。
@@ -124,10 +137,13 @@ void						expect( const bool value)
 	return value ;
 }
 
-/** @brief 同じ架空pageへ一つの原文書とpayload操作を結合します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ架空pageへ一つの原文書とpayload操作を結合します。
  * @param[in] document 完全な架空HTML文書です。
  * @return 原pageです。本文を再整形しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring page( const std::wstring_view document)
 {
 	return L"<html><body><div id=\"consent\"><div><textarea id=\"terms\">" +
@@ -136,12 +152,16 @@ void						expect( const bool value)
 		   L"data-href=\"https://cdn.example.com/driver.zip\">Download</button></body></html>" ;
 }
 
-/** @brief 一つの原文字列置換だけを行う固定改変fixtureです。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一つの原文字列置換だけを行う固定改変fixtureです。
+ * @tparam String find/replaceを備える合成文字列型です。
  * @param[in] value 架空原入力です。
  * @param[in] from 事前固定した一意な元文字列です。
  * @param[in] to 改変文字列です。
  * @return 改変入力です。置換位置欠損は期待失敗へ残します。
  */
+//------------------------------------------------------------------------------
 template <class String>
 [[nodiscard]] String replace( String value, const String &from, const String &to)
 {
@@ -155,7 +175,11 @@ template <class String>
 	return value ;
 }
 
-/** @brief 同原文書/全文と周辺markup・本文・別recordの正負を確認します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 同原文書/全文と周辺markup・本文・別recordの正負を確認します。
+ */
+//------------------------------------------------------------------------------
 void runHtml()
 {
 	constexpr std::wstring_view DOCUMENT =
@@ -238,10 +262,13 @@ void runHtml()
 		L"https://example.com/binding.js", L"/binding.js")) ;
 }
 
-/** @brief Descriptor testだけで使う元Known textを要求型で読みます。
+//------------------------------------------------------------------------------
+/**
+ * @brief Descriptor testだけで使う元Known textを要求型で読みます。
  * @param[in,out] reader 同原descriptorのreaderです。
  * @return 元Unknown理由または明示値です。能力へ昇格させません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] drivercrate::IndexObservedValue<std::string> readText(
 	drivercrate::signed_index_acquisition::DescriptorReader &reader)
 {
@@ -259,10 +286,13 @@ void runHtml()
 	return result ;
 }
 
-/** @brief 完全な原descriptor文法を共通native readerへ渡します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 完全な原descriptor文法を共通native readerへ渡します。
  * @param[in] document 原textDocumentの固定JSONです。
  * @return 同意必須の全schemaが成功した場合trueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool schema( const std::string_view document)
 {
 	const std::string value =
@@ -286,7 +316,11 @@ void runHtml()
 	}
 }
 
-/** @brief Plainの既存exact形とHTMLの全必須fieldを確認します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief Plainの既存exact形とHTMLの全必須fieldを確認します。
+ */
+//------------------------------------------------------------------------------
 void runSchema()
 {
 	const std::string hash( 64U, '1') ;	// 架空の非秘密元hashです。
@@ -321,7 +355,11 @@ void runSchema()
 						   std::string{R"("selector":null,"selector":)"}))) ;
 }
 
-/** @brief 未保護/未取得入力を一INF成功へ変換しない追加拒否を確認します。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 未保護/未取得入力を一INF成功へ変換しない追加拒否を確認します。
+ */
+//------------------------------------------------------------------------------
 void runSelectedInfRejection()
 {
 	drivercrate::DriverArchiveInput input ;						// 保護archiveや取得証拠を持たない架空入力です。
@@ -365,9 +403,12 @@ void runSelectedInfRejection()
 
 } // namespace
 
-/** @brief 固定した共通HTML/plain/schema/一INF拒否条件を一度ずつ検査します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定した共通HTML/plain/schema/一INF拒否条件を一度ずつ検査します。
  * @return 全期待成功0、原失敗が一件以上あれば1です。
  */
+//------------------------------------------------------------------------------
 int main()
 {
 	runHtml() ;

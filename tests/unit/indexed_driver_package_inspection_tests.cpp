@@ -2,7 +2,7 @@
 /**
  * @file indexed_driver_package_inspection_tests.cpp
  * @brief 索引hint結合と通常検査の拒否境界を検証する。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記。
  * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
  * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 小さい架空fileだけを保護workspaceへ置き、実device・導入APIを呼ばない。
@@ -56,9 +57,13 @@ constexpr wchar_t FIXTURE_HASH[] =
 /** @brief 架空writerの唯一のHANDLEをscope終了時に閉じる。 */
 class FixtureHandle final {
 public:
-	/** @brief 未所有のwriterを作成する。 */
+	/**
+	 * @brief 未所有のwriterを作成する。
+	 */
 	FixtureHandle() = default ;
-	/** @brief 成功時だけ取得したwriterを必ず閉じる。 */
+	/**
+	 * @brief 成功時だけ取得したwriterを必ず閉じる。
+	 */
 	~FixtureHandle()
 	{
 		// 未所有HANDLEへCloseHandleを呼ばない。
@@ -78,28 +83,34 @@ public:
 	HANDLE		   value{INVALID_HANDLE_VALUE} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 同一recordを参照する架空hintを作る。
  * @return 3 byteの期待identity。索引認証を意味しない。
  */
+//------------------------------------------------------------------------------
 IndexedDriverArchiveHint hintFixture()
 {
 	return {std::wstring( 64, L'1'), std::wstring( 64, L'2'), FIXTURE_HASH, 3} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 非I/Oの照合専用入力を作る。
  * @return 実在を要求しない架空local入力。
  */
+//------------------------------------------------------------------------------
 DriverArchiveInput inputFixture()
 {
 	return {SESSION, L"C:\\fixture.zip", 3, FIXTURE_HASH} ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 正例とmetadata・pathの拒否を検証する。
  * @param[in,out] context Assertionの所有者。
  */
+//------------------------------------------------------------------------------
 void testHintIdentity( TestContext &context)
 {
 	const auto hint			  = hintFixture() ;		// 常に有効な比較基準。
@@ -188,10 +199,12 @@ void testHintIdentity( TestContext &context)
 																 OfficialDriverArchiveFormat::ZIP)) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 不正hint・事前取消し・callback例外でI/Oを始めないことを検証する。
  * @param[in,out] context Assertionの所有者。
  */
+//------------------------------------------------------------------------------
 void testEarlyTermination( TestContext &context)
 {
 	auto						   hint	 = hintFixture() ;	// 最初だけ不一致へ変えるhint。
@@ -228,10 +241,12 @@ void testEarlyTermination( TestContext &context)
 									!result.inputBound && result.inspection.infs.empty()) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 架空3 byteを実照合し、不正ZIPと偽装hash・sizeを別段階で拒否する。
  * @param[in,out] context Assertionの所有者。
  */
+//------------------------------------------------------------------------------
 void testActualFixtureBytes( TestContext &context)
 {
 	OfficialDownloadWorkspace workspace ;	// Scope内だけの架空file所有者。
@@ -294,7 +309,12 @@ void testActualFixtureBytes( TestContext &context)
 
 } // namespace
 
-/** @see tests/unit/indexed_driver_package_inspection_tests.h 宣言側を正本とする。 */
+//------------------------------------------------------------------------------
+/**
+ * @brief 索引hintのidentity・取消し・架空byte拒否を検証する。
+ * @param[in,out] context 呼出し側が所有するassertion集計。
+ */
+//------------------------------------------------------------------------------
 void runIndexedDriverPackageInspectionTests( TestContext &context)
 {
 	const auto acceptsUrl = []( const std::string_view url, const bool payload) {

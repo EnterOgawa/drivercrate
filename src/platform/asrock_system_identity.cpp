@@ -2,7 +2,7 @@
 /**
  * @file asrock_system_identity.cpp
  * @brief ASRock公式一覧用local system識別実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Local SMBIOS表示値をASRock board modelへfail-closedで照合します。Serial number、Hardware ID、device
@@ -274,7 +275,17 @@ constexpr std::array<std::wstring_view, 5> GENERIC_MODELS{
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asrock_system_identity.h 宣言側の契約を正本とする。
+ * @brief SMBIOS表示値からASRock固定一覧要求を決定的に構築する。SMBIOS表示値からASRock固定一覧要求を構築する。Baseboard modelを優先し、固定URLへ端末
+ *        情報を付加しない。
+ * @param[in] systemManufacturer SMBIOS System Manufacturer表示値。 SMBIOS system maker表示値。
+ * @param[in] systemProduct SMBIOS System Product Name表示値。 SMBIOS system product表示値。
+ * @param[in] baseboardManufacturer SMBIOS BaseBoard Manufacturer表示値。 SMBIOS board maker表示値。
+ * @param[in] baseboardProduct SMBIOS BaseBoard Product表示値。 SMBIOS board product表示値。
+ * @param[in] windowsBuild CurrentBuildNumberを検証した値。 検証済みCurrentBuildNumber。
+ * @param[in] windowsServer 実行中OSがWindows Serverの場合は`true`。
+ * @param[out] request ASRock clientの場合のboard名、OS名、固定公式URL。 ASRock clientの場合の固定一覧要求。
+ * @param[out] applicable ASRock clientとして安全に識別できた場合は`true`。 ASRock clientの場合は`true`。
+ * @return 入力構造を判定できた場合は`true`、必須値が不正なら`false`。 判定成功時は`true`、ASRock必須値が不正なら`false`。
  */
 //------------------------------------------------------------------------------
 bool makeAsrockCatalogRequest( const std::wstring_view systemManufacturer,
@@ -323,7 +334,12 @@ bool makeAsrockCatalogRequest( const std::wstring_view systemManufacturer,
 
 //------------------------------------------------------------------------------
 /**
- * @see src/platform/asrock_system_identity.h 宣言側の契約を正本とする。
+ * @brief Local registryからASRock固定一覧照合に必要な表示値だけを取得する。Local registryからASRock固定一覧要求を取得する。Serverを除外後、
+ *        serialを含まない五つのregistry値だけを読み、純粋な要求構築処理へ渡す。
+ * @param[out] request ASRock clientの場合のboard名、OS名、固定公式URL。 ASRock clientの場合のmodel、OS、固定URL。
+ * @param[out] applicable ASRock clientとして安全に識別できた場合は`true`。 ASRock clientの場合は`true`。
+ * @return 判定成功時は0、ASRock端末の必須値欠落またはWin32失敗時はHRESULT。 判定成功時は0、必須値またはWin32失敗時はHRESULT。
+ * @note Windows Serverでは追加registry値を読まず対象外とする。
  */
 //------------------------------------------------------------------------------
 NativeError readLocalAsrockCatalogRequest( AsrockCatalogRequest &request, bool &applicable)

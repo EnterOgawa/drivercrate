@@ -2,7 +2,7 @@
 /**
  * @file official_discovery_planner.cpp
  * @brief 公式自動探索registration検証と決定的route plan生成実装。
- * @version 01.02.00
+ * @version 01.02.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  Registration検証と決定的route plannerを追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  Purpose伝達と専用adapter欠損集合を追加。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  Cache失効用parser identityの検証を追加。
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 表示値は端末内のgroup key作成中だけ正規化し、routeへ複製しません。
@@ -46,22 +47,26 @@
 namespace drivercrate {
 namespace {
 
+//------------------------------------------------------------------------------
 /**
  * @brief Route種別が定義済みか確認する。
  * @param[in] kind 検証するroute種別。
  * @return 専用または汎用固定rootの場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isKnownRegistrationKind( const OfficialDiscoveryRouteKind kind) noexcept
 {
 	return kind == OfficialDiscoveryRouteKind::DEDICATED ||
 		   kind == OfficialDiscoveryRouteKind::GENERIC_OFFICIAL_ROOT ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Parser stable IDが有限ASCII識別子か確認します。
  * @param[in] value 検証するregistrationのparser IDです。
  * @return 1～128文字のlowercase英数、dot、underscoreまたはhyphenだけならtrueです。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isParserStableId( const std::wstring_view value) noexcept
 {
 	return !value.empty() && value.size() <= OFFICIAL_DISCOVERY_STABLE_ID_LIMIT &&
@@ -72,11 +77,13 @@ namespace {
 		   }) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定集合に含めるUnicode空白か確認する。
  * @param[in] character 検証するUTF-16 code unit。
  * @return ASCII空白またはUnicode White_Spaceの固定値の場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isRoutingWhitespace( const wchar_t character) noexcept
 {
 	return character == L' ' || character == L'\u0085' || character == L'\u00A0' ||
@@ -85,11 +92,13 @@ namespace {
 		   character == L'\u205F' || character == L'\u3000' ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 表示値のASCII大小文字と連続Unicode空白だけを比較用に正規化する。
  * @param[in] value Raw ID形式を含まない検証済み表示値。
  * @return 前後空白を除去し、内部空白を一つへまとめた端末内比較値。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring normalizeRoutingDisplay( const std::wstring_view value)
 {
 	std::wstring normalized ;	// Routeへ公開しない比較専用文字列。
@@ -118,11 +127,13 @@ namespace {
 	return normalized ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 一deviceの表示hintを境界付きの端末内group keyへ変換する。
  * @param[in] device Core検証済みのraw ID非保持hint。
  * @return Bus、class、manufacturer、model、現在Providerを分離した比較key。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring makeRoutingGroupKey( const OfficialDiscoveryDeviceHint &device)
 {
 	std::wstring key = std::to_wstring( static_cast<std::uint32_t>( device.bus)) ;	// 有限bus。
@@ -140,12 +151,14 @@ namespace {
 	return key ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Requestで一つのProviderが選択されているか判定する。
  * @param[in] request 検証済みの既定または明示scope。
  * @param[in] descriptor Registry正本の一Provider。
  * @return 既定状態または明示IDにより今回選択されている場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool isDiscoveryProviderSelected( const OfficialDiscoveryRequest &request,
 											   const ProviderDescriptor		  &descriptor) noexcept
 {
@@ -158,6 +171,7 @@ namespace {
 					 descriptor.id) != request.enabledProviderIds.end() ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Provider IDとroute種別に一致するregistrationを数える。
  * @param[in] registrations 検証対象集合。
@@ -166,6 +180,7 @@ namespace {
  * @param[in] kind 完全一致させるroute種別。
  * @return 一致件数。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::size_t countMatchingRegistrations(
 	const std::span<const OfficialDiscoveryRegistration> registrations,
 	const std::wstring_view providerId, const std::wstring_view rootResourceId,
@@ -179,12 +194,14 @@ namespace {
 		})) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Routeが参照する唯一のregistrationを取得する。
  * @param[in] route 検証するroute。
  * @param[in] registrations 検証済み想定のregistration集合。
  * @return 一件だけ一致する場合の借用pointer。それ以外はnullptr。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] const OfficialDiscoveryRegistration *findRouteRegistration(
 	const OfficialDiscoveryRoute						&route,
 	const std::span<const OfficialDiscoveryRegistration> registrations) noexcept
@@ -205,11 +222,13 @@ namespace {
 	return &*found ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief Route IDから外部情報を含まないhint group identityを作る。
  * @param[in] routeId Plan内で1から単調増加するroute ID。
  * @return Core opaque identity規則に収まる固定prefixと10進ID。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] std::wstring makeHintGroupIdentity( const std::uint64_t routeId)
 {
 	return L"hint-group:" + std::to_wstring( routeId) ;
@@ -217,7 +236,14 @@ namespace {
 
 } // namespace
 
-/** @see official_discovery_planner.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 自動探索registration全体をProvider registryと公式source policyへ照合する。
+ * @param[in] registrations 一回の実行に使用するregistration snapshot。
+ * @param[in] descriptors Provider registryの正本または合成copy。
+ * @return 全自動探索Providerを一意な固定rootと非空callbackへ結合できる場合true。
+ */
+//------------------------------------------------------------------------------
 bool validateOfficialDiscoveryRegistrations(
 	const std::span<const OfficialDiscoveryRegistration> registrations,
 	const std::span<const ProviderDescriptor>			 descriptors) noexcept
@@ -296,7 +322,20 @@ bool validateOfficialDiscoveryRegistrations(
 	return true ;
 }
 
-/** @see official_discovery_planner.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 有限hintを専用、汎用の順で固定公式rootへまとめる。
+ * @param[in] binding Operation、scan session、inventory generationの開始時binding。
+ * @param[in] request Provider範囲と権限を固定した検証対象request。
+ * @param[in] inventoryComplete 全present nodeを表現できた場合true。
+ * @param[in] devices 同じscan sessionの重複なしraw ID非保持hint。
+ * @param[in] registrations 検証済みであることを再確認する実行registration。
+ * @param[in] descriptors Provider registryの正本または合成copy。
+ * @return 全入力が妥当でroute上限内なら所有plan。不正または上限超過は値なし。
+ * @throws std::bad_alloc Planまたは検証領域を確保できない場合。
+ * @note Matcherだけを呼び、resolver、HTTP、cache、payload処理は呼び出さない。
+ */
+//------------------------------------------------------------------------------
 std::optional<OfficialDiscoveryRoutePlan> makeOfficialDiscoveryRoutePlan(
 	const OfficialDiscoveryBinding &binding, const OfficialDiscoveryRequest &request,
 	const bool inventoryComplete, const std::span<const OfficialDiscoveryDeviceHint> devices,
@@ -414,7 +453,19 @@ std::optional<OfficialDiscoveryRoutePlan> makeOfficialDiscoveryRoutePlan(
 	return plan ;
 }
 
-/** @see official_discovery_planner.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開前のplanを開始時snapshotとregistrationへ完全一致で再結合する。
+ * @param[in] binding 開始時のoperation、scan session、inventory generation。
+ * @param[in] request 開始時のProvider範囲と権限。
+ * @param[in] devices 開始時のraw ID非保持hint集合。
+ * @param[in] registrations 計画時と同じ実行registration集合。
+ * @param[in] descriptors Provider registryの正本または合成copy。
+ * @param[in] plan 検証する所有plan。
+ * @return 件数、順序、root、group、未route deviceが全て整合する場合true。
+ * @throws std::bad_alloc 検証用の一意性またはgroup領域を確保できない場合。
+ */
+//------------------------------------------------------------------------------
 bool isOfficialDiscoveryRoutePlanValid(
 	const OfficialDiscoveryBinding &binding, const OfficialDiscoveryRequest &request,
 	const std::span<const OfficialDiscoveryDeviceHint>	 devices,

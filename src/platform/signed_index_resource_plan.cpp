@@ -2,7 +2,7 @@
 /**
  * @file signed_index_resource_plan.cpp
  * @brief descriptor-v2の閉じた親範囲計画をstrict readerで読む。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/11/03  STATIC_URLと三段content計画の読取りを追加。
  * Ver.01.01.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  * @note 元申告を読むだけで、取得・由来・署名・適合・導入を許可しない。
  */
@@ -33,10 +34,13 @@ namespace drivercrate::signed_index_acquisition {
 namespace {
 using signed_index_json::require ;
 constexpr auto BAD = IndexRecordsStatus::INVALID_EVIDENCE ;	// この元申告の固定拒否区分。
-/** @brief strict UTF-8原textをWindowsの原UTF-16へ変換する。
+//------------------------------------------------------------------------------
+/**
+ * @brief strict UTF-8原textをWindowsの原UTF-16へ変換する。
  * @param[in] text 既存readerの検査済み有限text。
  * @return 正規化しない元値。
  */
+//------------------------------------------------------------------------------
 std::wstring   resourceWide( const std::string &text)
 {
 	const auto size = MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, text.data(),
@@ -49,10 +53,13 @@ std::wstring   resourceWide( const std::string &text)
 			BAD) ;
 	return value ;
 }
-/** @brief 順序によらず型付きresource atomを読む。
+//------------------------------------------------------------------------------
+/**
+ * @brief 順序によらず型付きresource atomを読む。
  * @param[in,out] reader 元recordのstrict reader。
  * @return 数値と文字列を区別した元atom。
  */
+//------------------------------------------------------------------------------
 OfficialResourceIdentifier atom( DescriptorReader &reader)
 {
 	constexpr std::array<std::string_view, 2U> fields{"kind", "value"} ;	// 閉じたatom field。
@@ -77,10 +84,13 @@ OfficialResourceIdentifier atom( DescriptorReader &reader)
 	value.id	= static_cast<std::uint32_t>( id) ;
 	return value ;
 }
-/** @brief PEの三段tupleを読む。
+//------------------------------------------------------------------------------
+/**
+ * @brief PEの三段tupleを読む。
  * @param[in,out] reader 元strict reader。
  * @return 明示languageを含む元tuple。
  */
+//------------------------------------------------------------------------------
 OfficialResourceTuple tuple( DescriptorReader &reader)
 {
 	constexpr std::array<std::string_view, 3U> fields{"type", "name",
@@ -102,10 +112,13 @@ OfficialResourceTuple tuple( DescriptorReader &reader)
 	}) ;
 	return value ;
 }
-/** @brief 親範囲へ後で結ぶ原sliceを読む。
+//------------------------------------------------------------------------------
+/**
+ * @brief 親範囲へ後で結ぶ原sliceを読む。
  * @param[in,out] reader 元strict reader。
  * @return 全必須fieldを読んだslice。
  */
+//------------------------------------------------------------------------------
 OfficialResourceSlice slice( DescriptorReader &reader)
 {
 	constexpr std::array<std::string_view, 4U> fields{"resource", "offset", "length",
@@ -129,10 +142,13 @@ OfficialResourceSlice slice( DescriptorReader &reader)
 	}) ;
 	return value ;
 }
-/** @brief 一roleの元名と原範囲を読む。
+//------------------------------------------------------------------------------
+/**
+ * @brief 一roleの元名と原範囲を読む。
  * @param[in,out] reader 元strict reader。
  * @return 全必須fieldを読んだfile。
  */
+//------------------------------------------------------------------------------
 OfficialResourceRoleFile file( DescriptorReader &reader)
 {
 	constexpr std::array<std::string_view, 6U> fields{"role",	"basename", "resource", "offset",
@@ -168,10 +184,13 @@ OfficialResourceRoleFile file( DescriptorReader &reader)
 	}) ;
 	return value ;
 }
-/** @brief 再帰を持たない三段contentだけを読む。
+//------------------------------------------------------------------------------
+/**
+ * @brief 再帰を持たない三段contentだけを読む。
  * @param[in,out] reader 元strict reader。
  * @return 原親と全roleに静的結合した計画。
  */
+//------------------------------------------------------------------------------
 OfficialResourceContentPlan content( DescriptorReader &reader)
 {
 	constexpr std::array<std::string_view, 6U> fields{"kind",  "root",		 "archive", "member",
@@ -228,7 +247,14 @@ OfficialResourceContentPlan content( DescriptorReader &reader)
 	return value ;
 }
 } // namespace
-/** @see signed_index_acquisition_descriptor_internal.h */
+//------------------------------------------------------------------------------
+/**
+ * @brief v2の閉じた取得方法と三段resource計画をstrict readerで読む。
+ * @param[in,out] reader 元recordを借用するstrict reader。
+ * @param[out] anonymousCdn 明示された匿名解決の公開値。STATIC_URL時は空。
+ * @return 全静的結合を成功した計画。取得/導入能力はない。
+ */
+//------------------------------------------------------------------------------
 OfficialResourceContentPlan readResourcePayloadPlan(
 	DescriptorReader &reader, std::optional<OfficialAnonymousCdnPlan> &anonymousCdn)
 {

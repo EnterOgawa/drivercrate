@@ -2,7 +2,7 @@
 /**
  * @file update_provider.h
  * @brief Driver update provider契約定義。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,7 @@
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.02.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
  * Ver.01.03.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Driver updateの検索、download、およびinstallを抽象化します。
@@ -109,7 +110,8 @@ public:
      * @brief 実装固有の scan session と resource を解放する。
      */
 	virtual ~IUpdateProvider() = default ;
-	/** @brief 元scanの一回Install操作を実ownerへ拘束します。
+	/**
+	 * @brief 元scanの一回Install操作を実ownerへ拘束します。
 	 * @param[in] operationId Controllerが発行した新操作です。
 	 * @param[in] scanSessionId 元scanです。
 	 * @param[in] identities 元発行の選択subsetです。
@@ -118,7 +120,8 @@ public:
 	[[nodiscard]] virtual NativeError beginInstallOperation(
 		OperationId operationId, ScanSessionId scanSessionId,
 		std::span<const std::wstring> identities) ;
-	/** @brief 操作終了後に未消費の実所有だけを返します。
+	/**
+	 * @brief 操作終了後に未消費の実所有だけを返します。
 	 * @param[in] operationId 直前の操作です。
 	 * @param[in] scanSessionId 元scanです。
 	 * @return 継続を証明できる場合だけ元subset。既定はnulloptです。

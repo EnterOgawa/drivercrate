@@ -2,7 +2,7 @@
 /**
  * @file operation_controller_tests.cpp
  * @brief OperationController単体試験実装。
- * @version 01.04.00
+ * @version 01.04.01
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -40,6 +40,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  通常scanの取消し待ちとABORTED終端を検証。
  * Ver.01.03.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * Ver.01.04.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 正常遷移、stale result、およびidentityのfail-closed検証を試験します。
@@ -1108,10 +1109,12 @@ void testPreparationPlanInvalidation( TestContext &context)
 	DRIVERCRATE_EXPECT( context, unresolved.state() == ApplicationState::SCAN_READY) ;
 }
 
+//------------------------------------------------------------------------------
 /**
  * @brief 代表観測の古い結合・重複・初回導入への偽装を状態機械で拒否する。
  * @param[in,out] context Assertion集計先。
  */
+//------------------------------------------------------------------------------
 void testObservationRegistration( TestContext &context)
 {
 	// 同じ正常結果を起点に、一つの拒否理由だけを各試行へ注入する。
@@ -1177,12 +1180,13 @@ void testObservationRegistration( TestContext &context)
 } // namespace
 
 //------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
 /**
- * @see tests/unit/operation_controller_tests.h 宣言側の契約を正本とする。
- */
-/** @brief 元subset/操作/結果へ残存所有を照合し、旧許可を復活させない有限caseです。
+ * @brief 元subset/操作/結果へ残存所有を照合し、旧許可を復活させない有限caseです。
  * @param[in,out] context 原assertionです。
  */
+//------------------------------------------------------------------------------
 void testTargetOnlyRetention( TestContext &context)
 {
 	// 正常/五つの改変/保護前拒否を独立した元scanで確認します。
@@ -1271,9 +1275,12 @@ void testTargetOnlyRetention( TestContext &context)
 	}
 }
 
-/** @brief 準備取消しと残planの原subset/期限なし予算・旧ID拒否を確認します。
+//------------------------------------------------------------------------------
+/**
+ * @brief 準備取消しと残planの原subset/期限なし予算・旧ID拒否を確認します。
  * @param[in,out] context 原assertionです。
  */
+//------------------------------------------------------------------------------
 void testTargetOnlyRemainingPreparation( TestContext &context)
 {
 	// 正常取消し/規約変化/予算拡大/消費対象/旧IDを分けます。
@@ -1328,6 +1335,12 @@ void testTargetOnlyRemainingPreparation( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief OperationController の状態遷移と fail-closed 条件を検証する。OperationController の状態遷移と fail-closed条件を検証
+ *        する。
+ * @param[in,out] context assertion 集計先。
+ */
 //------------------------------------------------------------------------------
 void runOperationControllerTests( TestContext &context)
 {

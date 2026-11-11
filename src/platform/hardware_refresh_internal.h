@@ -2,7 +2,7 @@
 /**
  * @file hardware_refresh_internal.h
  * @brief ハードウェア再検出を完全fakeで検証する低位API表です。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/10/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -20,6 +20,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/28  Nativeへ補完しない再検出fixtureを追加。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 欠損表と実API混在を拒否し、fixtureで実OS再検出や権限変更を行いません。
@@ -54,7 +55,8 @@ struct Transport {
 } ;
 /** @brief 完全fakeのみを許可する内部試験入口です。 */
 struct Access {
-	/** @brief 実API不在の完全表で製品と同じ順序・権限復帰を実行します。
+	/**
+	 * @brief 実API不在の完全表で製品と同じ順序・権限復帰を実行します。
 	 * @param[in] calls 呼出し完了まで借用する完全fake表です。
 	 * @return 欠損/混在はE_INVALIDARGで失敗しAPIを一つも呼びません。
 	 */

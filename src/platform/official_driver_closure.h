@@ -2,7 +2,7 @@
 /**
  * @file official_driver_closure.h
  * @brief 公式archiveの選択的driver閉包抽出定義。
- * @version 01.07.00
+ * @version 01.07.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.05.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
  * Ver.01.06.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
  * Ver.01.07.00 Shunji Ogawa  2026/11/06  標準圧縮sourceの原byteと展開byteを閉包へ保持。
+ * Ver.01.07.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note G11-Bで固定した公式ZIP／CABから、選択INF、CATおよびINFが参照するfileだけを保護workspaceへ分離し、任意codeは実行しません。
@@ -63,13 +64,21 @@ struct OfficialResourceContentPlan ;
 
 /** @brief 一操作だけの固定入力・選択memberと私有solidを共有する内容cache。 */
 struct DriverArchiveExtractionCache {
-	/** @brief 原入力をまだ借用しない空ownerを作る。 */
+	/**
+	 * @brief 原入力をまだ借用しない空ownerを作る。
+	 */
 	DriverArchiveExtractionCache() noexcept ;
-	/** @brief 固定入力と私有solidを回収する。選択出力workspaceは借用する。 */
+	/**
+	 * @brief 固定入力と私有solidを回収する。選択出力workspaceは借用する。
+	 */
 	~DriverArchiveExtractionCache() ;
-	/** @brief 単一操作ownerの複写を禁止する。 */
+	/**
+	 * @brief 単一操作ownerの複写を禁止する。
+	 */
 	DriverArchiveExtractionCache( const DriverArchiveExtractionCache &) = delete ;
-	/** @brief 単一操作ownerの複写代入を禁止する。 */
+	/**
+	 * @brief 単一操作ownerの複写代入を禁止する。
+	 */
 	DriverArchiveExtractionCache &operator=( const DriverArchiveExtractionCache &) = delete ;
 	/// 実装だけが定義するworker内状態。由来・適合・導入権限を持たない。
 	struct State ;
@@ -77,15 +86,18 @@ struct DriverArchiveExtractionCache {
 	std::unique_ptr<State>		state ;
 	/// 同期操作中だけ使う非blocking取消し照会。
 	std::function<bool()>		cancellation ;
-	/** @brief 同一workspaceへ実保持した一意member byte数を返す。
+	/**
+	 * @brief 同一workspaceへ実保持した一意member byte数を返す。
 	 * @return 未抽出なら0、成功抽出済みの総byte数。
 	 */
 	[[nodiscard]] std::uint64_t retainedBytes() const noexcept ;
-	/** @brief solid outputの実mapped peakを返す。
+	/**
+	 * @brief solid outputの実mapped peakを返す。
 	 * @return headerを含む同時保持最大byte数。
 	 */
 	[[nodiscard]] std::uint64_t mappedPeakBytes() const noexcept ;
-	/** @brief 実decodeした一意solid block数を返す。
+	/**
+	 * @brief 実decodeした一意solid block数を返す。
 	 * @return 未使用なら0。
 	 */
 	[[nodiscard]] std::size_t	decodedBlockCount() const noexcept ;
@@ -254,6 +266,7 @@ struct MaintenanceDriverClosure {
 	MaintenanceInspectionFinding		  integrity ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 導入作用を実行せず、保守検証だけに使う内容閉包を抽出する。
  * @param[in] request 元hashへ固定したarchiveと一root INF選択。複数rootは今回未対応。
@@ -264,11 +277,13 @@ struct MaintenanceDriverClosure {
  * @note Blockingする。抽出成功は全参照・全署名の合格ではなく、通常導入の条件を変更しない。
  * @see docs/adr/0258-maintenance-package-verdict-separation.md
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError extractMaintenanceDriverClosure( const DriverClosureRequest &request,
 														  const OfficialDriverClosurePolicy &policy,
 														  OfficialDownloadWorkspace &workspace,
 														  MaintenanceDriverClosure	&closure) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定したarchiveを由来判定なしで有限一覧化する。
  * @param[in] request 保護fileの固定identityと解析対象。
@@ -277,10 +292,12 @@ struct MaintenanceDriverClosure {
  * @return 全entryと解析前後のsize／hashが一致した場合0、それ以外はHRESULT。
  * @note Worker内でblockingする。結果は内容一覧だけで公式取得の証拠にならない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectDriverArchiveInventory(
 	const DriverArchiveInventoryRequest &request, const OfficialDriverClosurePolicy &policy,
 	OfficialDriverArchiveInventory &inventory) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 固定したarchiveから選択INFの内容閉包を非実行抽出する。
  * @param[in] request 保護fileの固定identityと選択INF群。
@@ -290,29 +307,31 @@ struct MaintenanceDriverClosure {
  * @return 静的検査と解析前後のsize／hash一致時0、それ以外はHRESULT。
  * @note Worker内でblockingする。署名、由来、PnP、導入許可は別の検証を必要とする。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError extractDriverClosure( const DriverClosureRequest		 &request,
 											   const OfficialDriverClosurePolicy &policy,
 											   OfficialDownloadWorkspace		 &workspace,
 											   OfficialDriverClosure			 &closure) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief G11-B取得済みZIP／CABの全通常fileを展開せず一覧化する。
- * 取得済み公式archiveの全通常fileを一覧化する。
- * 外側および任意の一段nested archiveを実行せず一覧化し、解析前後のsizeとSHA-256差替えを拒否する。
+ * @brief G11-B取得済みZIP／CABの全通常fileを展開せず一覧化する。取得済み公式archiveの全通常fileを一覧化する。外側および任意の一段nested archiveを実行
+ *        せず一覧化し、解析前後のsizeとSHA-256差替えを拒否する。
  * @param[in] request G11-B取得結果、archive形式および任意の一段nested選択。 G11-B取得結果、形式と一段nested選択。
  * @param[in] policy Archiveと展開倍率の有限上限。一段nestedの許可も含む。 Archive、展開倍率、nested深度の有限上限。
  * @param[out] inventory 成功時の全通常file一覧とarchive深度。 成功時の全通常file一覧と深度。
  * @return 一覧化成功時は0、identity差替え、構造または有限上限違反時はHRESULT。 全entryと取得identityの検証成功時は0。
  * @note 処理はblockingのためProvider worker threadで実行し、任意codeを起動しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectOfficialDriverArchiveInventory(
 	const OfficialDriverArchiveInventoryRequest &request, const OfficialDriverClosurePolicy &policy,
 	OfficialDriverArchiveInventory &inventory) ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 取得済み公式ZIP／CABから選択INFのdriver閉包だけを抽出する。
- * 取得済み公式archiveから選択INFのdriver閉包を抽出する。
- * INFだけを先行展開し、CATと参照fileの閉包確定後に追加展開する。
+ * @brief 取得済み公式ZIP／CABから選択INFのdriver閉包だけを抽出する。取得済み公式archiveから選択INFのdriver閉包を抽出する。INFだけを先行展開し、CATと参照
+ *        fileの閉包確定後に追加展開する。
  * @param[in] request G11-B取得結果、一段nested選択、INF選択と出力識別子。 G11-B取得結果、nested archiveとINF選択。
  * @param[in] policy Archive、INF、閉包の有限上限と許可値。
  * @param[in,out] workspace 成功閉包を所有する未初期化の保護workspace。 成功閉包を所有する保護領域。
@@ -320,6 +339,7 @@ struct MaintenanceDriverClosure {
  * @return 閉包の選択展開成功時は0、identity差替えまたは構造違反時はHRESULT。 選択的閉包の完全な抽出とidentity再検証成功時は0。
  * @note 処理はblockingのためProvider worker threadで実行し、任意codeを起動しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError extractOfficialDriverClosure( const OfficialDriverClosureRequest &request,
 													   const OfficialDriverClosurePolicy  &policy,
 													   OfficialDownloadWorkspace &workspace,

@@ -2,7 +2,7 @@
 /**
  * @file official_prepared_install.h
  * @brief 監査済み公式INFの共通導入契約。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 公式取得後の監査に合格したINFだけを再検証し、Providerが固定したWindows標準導入境界へ渡します。保持物の所有と失効は呼出側が担います。
@@ -106,9 +107,10 @@ struct PreparedInfInstallContext {
 	bool															  sourceEvidenceConfirmed{} ;
 } ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 発行済み監査合格候補を再検証し、個別にWindows標準導入境界へ渡す。
- * 本番とtestで同じ検証順序を使い、全監査合格候補だけをinstallerへ渡す。保持物の失効はProviderが結果確定後に行う。
+ * @brief 発行済み監査合格候補を再検証し、個別にWindows標準導入境界へ渡す。本番とtestで同じ検証順序を使い、全監査合格候補だけをinstallerへ渡す。保持物の失効は
+ *        Providerが結果確定後に行う。
  * @param[in] policy 固定Provider／payload resourceの許可組合せ。 固定Provider／payload resource組合せ。
  * @param[in] context 同じworker呼出し中だけ有効な取得物・閉包・routing。 Worker所有の取得物・閉包・routing。
  * @param[in] identities 利用者が一device一候補で明示選択したopaque ID群。 明示選択された監査合格候補ID群。
@@ -121,6 +123,7 @@ struct PreparedInfInstallContext {
  * @note Policy、公式根拠とroutingはProvider workerが構成し、UI入力から作成してはならない。
  * @note 本関数は保持物を解放しない。呼出側が結果または例外の確定後に失効させる。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] InstallResult executePreparedInfInstall(
 	const PreparedInfInstallPolicy &policy, const PreparedInfInstallContext &context,
 	std::span<const std::wstring> identities, const PreparedInfReverifier &reverifier,

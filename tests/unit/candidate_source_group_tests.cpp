@@ -2,7 +2,7 @@
 /**
  * @file candidate_source_group_tests.cpp
  * @brief 同一版取得元候補group単体試験実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note Candidate行とroutingを削除せず、明示版完全一致の関連付けを試験します。
@@ -329,7 +330,8 @@ void testInvalidInput( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/candidate_source_group_tests.h 宣言側の契約を正本とする。
+ * @brief 同一版group、既定取得元、曖昧候補、入力拒否条件を検証する。同一版取得元候補groupの全単体試験を実行する。Group、既定取得元、非group条件、入力拒否を順に検証する。
+ * @param[in,out] context assertion集計先。
  */
 //------------------------------------------------------------------------------
 void runCandidateSourceGroupTests( TestContext &context)

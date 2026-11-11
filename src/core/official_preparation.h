@@ -2,7 +2,7 @@
 /**
  * @file official_preparation.h
  * @brief 配布物単位の検査用取得承認と予算管理。
- * @version 01.06.00
+ * @version 01.06.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -37,6 +37,7 @@
  * Ver.01.04.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
  * Ver.01.05.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
  * Ver.01.06.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 一objectは同一threadだけで使用し、取得taskを導入許可として扱いません。
@@ -62,12 +63,13 @@ inline constexpr std::size_t MAXIMUM_PREPARATION_EULA_CHARACTERS = 65536U ;
 // 最大256対象の計画全体に保持できる本文量。Copy前にも同じ上限を検査する。
 inline constexpr std::size_t MAXIMUM_PREPARATION_PLAN_EULA_CHARACTERS = 262144U ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief EULA本文を変形せずに表示できる、有限なUTF-16 plain textか確認する。
- * 本文を切詰め・正規化せず、全文snapshotの比較で同revisionの変更も検出する。
+ * @brief EULA本文を変形せずに表示できる、有限なUTF-16 plain textか確認する。本文を切詰め・正規化せず、全文snapshotの比較で同revisionの変更も検出する。
  * @param[in] text 同意対象の全文。呼出し中だけ参照する。 表示と同意に使用するUTF-16の全文。
  * @return 非空・上限内で、制御文字や不正surrogateを含まない場合true。 非空・有限で、表示を妨げる制御を含まない場合true。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool			 validPreparationEulaText( std::wstring_view text) noexcept ;
 
 /** @brief Download前の利用条件についてProviderが確認した状態。 */
@@ -244,28 +246,33 @@ class OfficialLocalInspectionEvidence final {
 	/** @brief 既sessionだけがactive task照合票を構築するための非公開keyです。 */
 	class MintKey final {
 	public:
-		/** @brief 元session内だけでkeyを渡します。
-         * @param[in] other 元keyです。
-         */
+		/**
+		 * @brief 元session内だけでkeyを渡します。
+		 * @param[in] other 元keyです。
+		 */
 		MintKey( const MintKey &other) = default ;
 
 	private:
-		/** @brief 元sessionだけが生成します。 */
+		/**
+		 * @brief 元sessionだけが生成します。
+		 */
 		MintKey() = default ;
 		friend class OfficialPreparationSession ;
 	} ;
 	friend class OfficialPreparationSession ;
 
 public:
-	/** @brief 元sessionが所有するactive taskを固定します。
-     * @param[in] key 私有keyです。
-     * @param[in] task 所有検証済みtaskです。
-     */
+	/**
+	 * @brief 元sessionが所有するactive taskを固定します。
+	 * @param[in] key 私有keyです。
+	 * @param[in] task 所有検証済みtaskです。
+	 */
 	OfficialLocalInspectionEvidence( MintKey key, const OfficialPreparationTask &task) ;
-	/** @brief taskの全scopeを一対一照合します。
-     * @param[in] task 原承認から構成したtaskです。
-     * @return 全field一致だけtrueです。実行許可を生成しません。
-     */
+	/**
+	 * @brief taskの全scopeを一対一照合します。
+	 * @param[in] task 原承認から構成したtaskです。
+	 * @return 全field一致だけtrueです。実行許可を生成しません。
+	 */
 	[[nodiscard]] bool matches( const OfficialPreparationTask &task) const noexcept ;
 
 private:
@@ -337,7 +344,9 @@ struct OfficialPreparationProgress {
  */
 class OfficialPreparationSession final {
 public:
-	/** @brief 有効計画と予約のない管理objectを生成する。 */
+	/**
+	 * @brief 有効計画と予約のない管理objectを生成する。
+	 */
 	OfficialPreparationSession() = default ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
@@ -346,7 +355,6 @@ public:
 	OfficialPreparationSession( const OfficialPreparationSession &) = delete ;
 	/**
 	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	OfficialPreparationSession &operator=( const OfficialPreparationSession &) = delete ;
@@ -357,7 +365,6 @@ public:
 	OfficialPreparationSession( OfficialPreparationSession &&) = delete ;
 	/**
 	 * @brief 所有状態の移動をコンパイル時に禁止します。
-	 * @return 宣言された自己参照型。削除宣言のため戻り値を生成する呼出しは成立しません。
 	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
 	 */
 	OfficialPreparationSession			  &operator=( OfficialPreparationSession &&) = delete ;
@@ -384,7 +391,8 @@ public:
 	 * @return 次のtaskの所有値。未承認、取消し済み、別task実行中ならnullopt。 未開始の承認済みtask。開始できなければnullopt。
 	 */
 	[[nodiscard]] std::optional<OfficialPreparationTask> claimNext() ;
-	/** @brief 本sessionが実claimした未完了taskを公開tokenと完全照合します。
+	/**
+	 * @brief 本sessionが実claimした未完了taskを公開tokenと完全照合します。
 	 * @param[in] task 比較だけを行うtoken。自己申告では開始権限を得られません。
 	 * @return PREPARINGで同じ私有active taskを保持する場合だけtrue。
 	 * @note 同一workerで呼び、同意・公式性・導入許可の検査を代替しません。
@@ -438,15 +446,17 @@ public:
 private:
 	friend class RecordScopedDownloadGrant ;
 	friend class SignedIndexScanSession ;
-	/** @brief 同active taskを一回の非通信検査へ予約します。
-     * @param[in] task 所有active taskです。
-     * @return 未使用taskの照合票。失敗/別用途claim済みは空です。
-     */
+	/**
+	 * @brief 同active taskを一回の非通信検査へ予約します。
+	 * @param[in] task 所有active taskです。
+	 * @return 未使用taskの照合票。失敗/別用途claim済みは空です。
+	 */
 	[[nodiscard]] std::shared_ptr<const OfficialLocalInspectionEvidence> claimIndexLocalInspection(
 		const OfficialPreparationTask &task) noexcept ;
 	/// 同taskのLOCAL目的です。TRANSFERと共通bitで排他です。
 	std::shared_ptr<const OfficialLocalInspectionEvidence> activeLocalInspection_ ;
-	/** @brief 同じ実taskの索引grant発行をadapterをまたいで一回だけ予約します。
+	/**
+	 * @brief 同じ実taskの索引grant発行をadapterをまたいで一回だけ予約します。
 	 * @param[in] task 本sessionの未完了task。
 	 * @return 完全一致の未使用taskを予約した場合だけtrue。
 	 */
@@ -496,6 +506,7 @@ private:
  */
 using PreparationTextCheckpoint = void ( *)( void *context) ;
 
+//------------------------------------------------------------------------------
 /**
  * @brief 旧入口と同じ検証を、最大256 UTF-16単位ごとの必須確認付きで行います。
  * @param[in] text 有限許諾本文。
@@ -503,6 +514,7 @@ using PreparationTextCheckpoint = void ( *)( void *context) ;
  * @param[in,out] context Callbackが借用する必須context。
  * @return 有効な全文ならtrue。Null引数を無制御へ補完しません。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] bool validPreparationEulaTextControlled( std::wstring_view			text,
 													  PreparationTextCheckpoint checkpoint,
 													  void					   *context) ;

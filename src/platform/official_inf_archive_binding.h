@@ -2,7 +2,7 @@
 /**
  * @file official_inf_archive_binding.h
  * @brief 封印公式取得からZIP／PE内INFと署名補助CATへ結合する所有境界。
- * @version 01.03.00
+ * @version 01.03.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/06  最終PE形式を明示して同じ封印結果へ接続。
  * Ver.01.02.00 Shunji Ogawa  2026/10/06  使用中全file固定のnative依存観測を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/10/06  原CAT全体の保持と署名根拠限定を追加。
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 同期worker専用。由来の瞬時再照合と署名・作用・導入可否を分離する。
@@ -51,24 +52,31 @@ namespace drivercrate {
  */
 class OfficialInfArchiveBinding final {
 public:
-	/** @brief 認証とworkspaceを持たない空結果を作る。 */
+	/**
+	 * @brief 認証とworkspaceを持たない空結果を作る。
+	 */
 	OfficialInfArchiveBinding() = default ;
-	/** @brief 所有する派生fileだけをworkspaceの追跡に従って回収する。 */
+	/**
+	 * @brief 所有する派生fileだけをworkspaceの追跡に従って回収する。
+	 */
 	~OfficialInfArchiveBinding() = default ;
-	/** @brief 所有と認証の複写を禁止する。
+	/**
+	 * @brief 所有と認証の複写を禁止する。
 	 * @param[in] other 複写不能の元結果。
 	 */
 	OfficialInfArchiveBinding( const OfficialInfArchiveBinding &other) = delete ;
-	/** @brief 複写代入を禁止する。
+	/**
+	 * @brief 複写代入を禁止する。
 	 * @param[in] other 複写不能の元結果。
-	 * @return 本演算子は呼出し不能である。
 	 */
 	OfficialInfArchiveBinding &operator=( const OfficialInfArchiveBinding &other) = delete ;
-	/** @brief 派生workspaceと証拠を移動する。
+	/**
+	 * @brief 派生workspaceと証拠を移動する。
 	 * @param[in,out] other 移動後は検証不能となる元結果。
 	 */
 	OfficialInfArchiveBinding( OfficialInfArchiveBinding &&other) noexcept = default ;
-	/** @brief 既存派生fileを回収し、所有を移動する。
+	/**
+	 * @brief 既存派生fileを回収し、所有を移動する。
 	 * @param[in,out] other 自身以外の移動元。
 	 * @return 移動先の自身。
 	 * @pre 自己moveを行わない。
@@ -99,16 +107,19 @@ public:
 	 */
 	[[nodiscard]] NativeError					   verify( const OfficialAcquisitionSession &session,
 														  const OfficialDownloadWorkspace  &archiveWorkspace) const ;
-	/** @brief 全INFと署名補助CATを所有する領域をworkerへ同期借用する。
+	/**
+	 * @brief 全INFと署名補助CATを所有する領域をworkerへ同期借用する。
 	 * @return 空結果ではnullptr。取得由来の再照合を代替しない。
 	 */
 	[[nodiscard]] const OfficialDownloadWorkspace *workspace() const noexcept ;
-	/** @brief 最終containerから確定した全INFの固定一覧を借用する。
+	/**
+	 * @brief 最終containerから確定した全INFの固定一覧を借用する。
 	 * @return 原相対位置・実size・SHA-256の全INF。空結果では空。
 	 * @note 原pathはworker内だけで使用し、logや永続JSONへ出さない。
 	 */
 	[[nodiscard]] std::span<const InfDependencyPackageMember> members() const noexcept ;
-	/** @brief 全署名補助CATの原metadataだけをworkerへ同期借用する。
+	/**
+	 * @brief 全署名補助CATの原metadataだけをworkerへ同期借用する。
 	 * @return 原相対位置・実size・SHA-256。CATなしまたは空結果では空。
 	 * @note 値の複写を認証へ使わず、native使用中の封印所有者を移動・変更しない。
 	 */

@@ -2,7 +2,7 @@
 /**
  * @file maintenance_reached_reference_observation.h
  * @brief 同じ保守閉包の最終参照をprivacy保持で借用する研究専用契約。
- * @version 01.01.00
+ * @version 01.01.01
  * @date 2026/10/08
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/10/08  同scope最終参照とv2実byteを結ぶ有限研究観測を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/10/08  保持済み用途・作用gapの明示細分類modeを追加。
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 一同期呼出しのstack所有者だけが使用し、名前・path・IDを保持しません。
@@ -53,12 +54,14 @@ enum class ReachedReferenceMode {
 /** @brief 保持済みclosureだけを射影し、元成功後に確定する具体的な研究collector。 */
 class ReachedReferenceCollector final {
 public:
-	/** @brief 一同期scopeで使用する固定研究modeを保持する。
+	/**
+	 * @brief 一同期scopeで使用する固定研究modeを保持する。
 	 * @param[in] mode 元53または新54。未知値は計測拒否とする。
 	 */
 	explicit ReachedReferenceCollector(
 		ReachedReferenceMode mode = ReachedReferenceMode::REACHED) noexcept ;
-	/** @brief 同scopeの最終closureと通常rowを同期借用する。
+	/**
+	 * @brief 同scopeの最終closureと通常rowを同期借用する。
 	 * @param[in] closure 再照会しない保持済み結果。空は元抽出失敗の未観測。
 	 * @param[in] row 同じINFの通常射影。原状態とHRESULTを変更しない。
 	 * @param[in] ordinal Archive順の0起点root連番。
@@ -66,20 +69,24 @@ public:
 	 */
 	void append( const MaintenanceDriverClosure &closure, const MaintenanceInfInspection &row,
 				std::size_t ordinal) noexcept ;
-	/** @brief 元全体判定の成功後だけ仮観測を確定する。
+	/**
+	 * @brief 元全体判定の成功後だけ仮観測を確定する。
 	 * @param[in] inspection 取消し・累積量・最終byte再照合を完了した元結果。
 	 * @note 元失敗では部分観測を破棄する。
 	 */
 	void finish( const MaintenanceDriverPackageInspection &inspection) noexcept ;
-	/** @brief 独立計測の元診断を返す。
+	/**
+	 * @brief 独立計測の元診断を返す。
 	 * @return 計測正常0、それ以外は保持したHRESULT。
 	 */
 	[[nodiscard]] NativeError				 error() const noexcept ;
-	/** @brief 計測失敗と元全体失敗で部分観測がないことを確認する。
+	/**
+	 * @brief 計測失敗と元全体失敗で部分観測がないことを確認する。
 	 * @return 仮保持中または確定済みroot数。
 	 */
 	[[nodiscard]] std::size_t				 rootCount() const noexcept ;
-	/** @brief 確定済み観測と送信するv2全byteを有限sidecarへ結ぶ。
+	/**
+	 * @brief 確定済み観測と送信するv2全byteを有限sidecarへ結ぶ。
 	 * @param[in] runId 1～64文字の有限ASCII識別子。
 	 * @param[in] inspection 元全体成功の同じ通常結果。
 	 * @param[in] stdoutBytes CRLFを含む実際に送信するUTF-8全byte。
@@ -104,7 +111,9 @@ private:
 	bool					  committed_{} ;
 } ;
 
-/** @brief 研究専用compile内だけで元loopとstack collectorを接続する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 研究専用compile内だけで元loopとstack collectorを接続する。
  * @param[in] input 固定済み元archive。
  * @param[in] format ZIPまたはCAB。
  * @param[out] inspection 既存通常row。元失敗では空。
@@ -112,12 +121,15 @@ private:
  * @param[in] cancellation 既存と同じ取消し契約。
  * @return 元判定のHRESULT。独立計測失敗はcollector.errorに分離する。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectReachedMaintenanceDriverPackage(
 	const DriverArchiveInput &input, OfficialDriverArchiveFormat format,
 	MaintenanceDriverPackageInspection &inspection, ReachedReferenceCollector &collector,
 	const std::function<bool()> &cancellation = {}) ;
 
-/** @brief 固定研究modeの正確な絶対pathへCREATE_NEWで全byteを保存する。
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定研究modeの正確な絶対pathへCREATE_NEWで全byteを保存する。
  * @param[in] path modeごとのworkspaceとstem／run IDが完全一致する出力先。
  * @param[in] runId 1～64文字の有限ASCII識別子。
  * @param[in] bytes 全serialization成功済みの1～1 MiB byte列。
@@ -125,14 +137,18 @@ private:
  * @return 保存成功0、既存file・逸脱・reparse・書込失敗のHRESULT。
  * @note 親handleを保持して付替えを拒否する。部分fileを削除・再送しない。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError writeReachedReferenceSidecar(
 	std::wstring_view path, std::string_view runId, std::string_view bytes,
 	ReachedReferenceMode mode = ReachedReferenceMode::REACHED) noexcept ;
 
-/** @brief 同じ実byteをCRT変換なしで標準出力へ送る。
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ実byteをCRT変換なしで標準出力へ送る。
  * @param[in] bytes Hash済みCRLF付きの1～256 KiB byte列。
  * @return 全送信0、それ以外は元HRESULT。
  */
+//------------------------------------------------------------------------------
 [[nodiscard]] NativeError writeReachedReferenceStdout( std::string_view bytes) noexcept ;
 
 } // namespace drivercrate

@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_tests.h
  * @brief 取得対象別承認の内部試験宣言。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 合成計画だけを使う試験を登録し、外部通信と実導入は行いません。
@@ -38,10 +39,11 @@
 namespace drivercrate::test {
 class TestContext ;
 
+//------------------------------------------------------------------------------
 /**
- * @brief 配布物単位の承認・有限予算・取消しの内部試験を実行する。
- * 合成計画の試験だけを実行し、実取得と実導入を行わない。
+ * @brief 配布物単位の承認・有限予算・取消しの内部試験を実行する。合成計画の試験だけを実行し、実取得と実導入を行わない。
  * @param[in,out] context Assertionの集計先。
  */
+//------------------------------------------------------------------------------
 void runOfficialPreparationTests( TestContext &context) ;
 } // namespace drivercrate::test

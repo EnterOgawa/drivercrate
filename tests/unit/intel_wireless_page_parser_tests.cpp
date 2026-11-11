@@ -2,7 +2,7 @@
 /**
  * @file intel_wireless_page_parser_tests.cpp
  * @brief Intel Wireless page parser単体試験実装。
- * @version 01.00.00
+ * @version 01.00.01
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
  * </pre>
  *
  * @note 公式pageの必須表示を一般化した架空fixtureで、欠落、重複、別host、version不整合を候補化前に拒否することを確認します。
@@ -161,7 +162,9 @@ void testUrlAndUniquenessRejections( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @see tests/unit/intel_wireless_page_parser_tests.h 宣言側の契約を正本とする。
+ * @brief Intel Wireless page parserの正常系とfail-closed条件を検証する。Intel Wireless page parser単体試験を実行する。正常取得
+ *        、欠落、version、host、重複、architectureを検証する。
+ * @param[in,out] context Assertion件数と失敗内容の集計先。
  */
 //------------------------------------------------------------------------------
 void runIntelWirelessPageParserTests( TestContext &context)
