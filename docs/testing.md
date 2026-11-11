@@ -45,3 +45,5 @@ Releaseでは同じbuildをDRIVERCRATE_ENABLE_ANALYZE=ONで再構成してconsum
 別のbuild treeや旧build archiveは作りません。source/工具/options/依存、graphのcommand/cwd/TIMEOUTと失敗を私有記録へ残します。
 public source/cacheの結合を実署名・packageまで保持し、配布候補を保全後に通常source/optionsへD/R復帰します。
 失敗時もfinallyで復帰し、未実施を合格にしません。詳細は[release checklist](release-checklist.md)を参照してください。
+
+1.0.4の関連試験では、処理済み対象の結果と未処理の選択を保持すること、既知の推奨更新を実観測で解消した対象の表示、同日の復元ポイント再利用と保護失敗を検証します。

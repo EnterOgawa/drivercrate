@@ -2,7 +2,7 @@
 /**
  * @file resource.h
  * @brief DriverCrateリソースID定義。
- * @version 01.28.00
+ * @version 01.31.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -99,6 +99,9 @@
  * Ver.01.26.00 Shunji Ogawa  2026/11/08  同一署名索引の本体再取得省略を区別するIDを追加。
  * Ver.01.27.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
  * Ver.01.28.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.29.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
+ * Ver.01.30.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.31.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note Win32 control、icon、および日本語文字列のresource IDを定義します。
@@ -721,3 +724,38 @@
 #define IDS_DIAGNOSTIC_STORAGE_FAILED 1550			// 固定診断番号だけで保存不能を案内します。
 
 #define IDS_RETAINED_CHECKBOX_TIP 1554	// 元checkboxのreadonly表示を説明します。
+
+/** @def IDS_PREPARATION_LOCAL_INSPECTED
+ * @brief 取得成功を再発行せず、新対象の非通信再検査完了を表示します。
+ */
+#define IDS_PREPARATION_LOCAL_INSPECTED 1555	// 元所有本体を新対象で独立検査した表示です。
+
+/** @def IDS_RESTORE_WINDOWS_SELECTED
+ * @brief Windowsが選んだ既存pointの利用結果です。
+ */
+#define IDS_RESTORE_WINDOWS_SELECTED 1556	// Windowsが選んだ既存pointの利用結果です。
+
+/** @def IDS_RESTORE_DAY_REUSED
+ * @brief 同日のpointを実在確認して再利用した結果です。
+ */
+#define IDS_RESTORE_DAY_REUSED 1557	// 同日のpointを実在確認して再利用した結果です。
+
+/** @def IDS_RESTORE_VERIFICATION_ERROR
+ * @brief 復元保護の確認失敗です。
+ */
+#define IDS_RESTORE_VERIFICATION_ERROR 1558	// 復元保護の確認失敗です。
+
+/** @def IDS_RESTORE_MEMO_WARNING
+ * @brief 日内最適化情報の非致命的保存/読取診断です。
+ */
+#define IDS_RESTORE_MEMO_WARNING 1559	// 日内最適化情報の非致命的保存/読取診断です。
+
+/** @def IDS_STATUS_VERIFYING_RESTORE
+ * @brief 復元pointを確認する進捗です。
+ */
+#define IDS_STATUS_VERIFYING_RESTORE 1560	// 復元pointを確認する進捗です。
+
+/** @def IDS_STATUS_REUSING_RESTORE
+ * @brief 既存pointを利用する進捗です。
+ */
+#define IDS_STATUS_REUSING_RESTORE 1561	// 既存pointを利用する進捗です。

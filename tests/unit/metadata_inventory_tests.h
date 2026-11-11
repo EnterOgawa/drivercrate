@@ -2,7 +2,7 @@
 /**
  * @file metadata_inventory_tests.h
  * @brief 現在属性列挙の上限・欠損・停止境界の決定的試験。
- * @version 01.04.00
+ * @version 01.06.00
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,8 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/11  通常workerの同scan署名索引読取り境界を接続。
  * Ver.01.03.00 Shunji Ogawa  2026/10/14  Native部分positiveから同署名取得準備の正負を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/09  導入後native対応の限定selectorを追加。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 現在属性の五APIを全てfakeへ置換し、実device列挙と導入を行わない。

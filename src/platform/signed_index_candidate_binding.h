@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding.h
  * @brief 元認証recordと実取得閉包から候補と指定導入routeを私有保持します。
- * @version 01.06.00
+ * @version 01.07.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/11/03  未署名検査と通常候補の完全tuple比較を共用。
  * Ver.01.05.00 Shunji Ogawa  2026/11/06  同一INFの代替OS Modelsを私有選択集合へ保持。
  * Ver.01.06.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持。
+ * Ver.01.07.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -110,35 +111,39 @@ private:
 	/** @brief 元取得task・grant・seal・全内容をmove所有します。 */
 	struct PreparedRecord {
 		/// 共有寿命を権限寿命にしない同認証lookup。
-		std::shared_ptr<const SignedIndexRecordLookup> lookup ;
+		std::shared_ptr<const SignedIndexRecordLookup>		   lookup ;
 		/// 原scan operationとinventoryの未変更context。
-		IndexLookupContext							   context ;
+		IndexLookupContext									   context ;
 		/// claimした元取得task全文。
-		OfficialPreparationTask						   task ;
+		OfficialPreparationTask								   task ;
+		/// 同vectorの元owned recordを直接指します。連鎖/循環は許可しません。
+		std::optional<std::size_t>							   ownedBodyRecordIndex ;
+		/// 当該LOCAL taskの実検査照合票です。TRANSFER証拠を複写しません。
+		std::shared_ptr<const OfficialLocalInspectionEvidence> localInspection ;
 		/// 同issuerが発行し消費した一回grant。
-		RecordScopedDownloadGrant					   grant ;
+		RecordScopedDownloadGrant							   grant ;
 		/// 私有ledgerへ結合する実取得結果。
-		OfficialAcquisitionResult					   acquisition ;
+		OfficialAcquisitionResult							   acquisition ;
 		/// 公開DTOから作れない実file seal。
-		OfficialAcquiredFileEvidence				   seal ;
+		OfficialAcquiredFileEvidence						   seal ;
 		/// 原record・実archiveの期待値。
-		IndexedDriverArchiveHint					   hint ;
+		IndexedDriverArchiveHint							   hint ;
 		/// 同元保護archive入力。
-		DriverArchiveInput							   input ;
+		DriverArchiveInput									   input ;
 		/// 同消費済みgrantから作った非authorityの入力。
-		DelegatedOfficialPackageInput				   delegated ;
+		DelegatedOfficialPackageInput						   delegated ;
 		/// 本体共通検査がmove所有する個別INFと閉包。
-		IndexedDriverPackageInspection				   inspection ;
+		IndexedDriverPackageInspection						   inspection ;
 		/// 原EXE/MSIの専用検査です。標準INFへ変換しません。
-		bool										   installerHandoff{} ;
+		bool												   installerHandoff{} ;
 		/// 元認証方式がWINDOWS_MSIの場合だけtrueです。
-		bool										   msi{} ;
+		bool												   msi{} ;
 		/// 元descriptorのexact期待publisherです。
-		std::wstring								   publisher ;
+		std::wstring										   publisher ;
 		/// 専用内容検査の元HRESULTです。検査未実施を成功へ数えません。
-		NativeError									   installerError{} ;
+		NativeError											   installerError{} ;
 		/// 同私有参照行の0起点位置。
-		std::size_t									   referenceIndex{} ;
+		std::size_t											   referenceIndex{} ;
 		/** @brief 元recordを同workerで未発行状態に作ります。 */
 		PreparedRecord() = default ;
 		/**

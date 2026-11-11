@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_adapter.h
  * @brief 保存署名索引を既存取得承認・一回grantと内容検査入力へ結びます。
- * @version 01.06.00
+ * @version 01.07.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * Ver.01.04.01 Shunji Ogawa  2026/10/16  通常配布の独立取得集合とlocal排他を説明。
  * Ver.01.05.00 Shunji Ogawa  2026/10/24  原関係集合とunique device数を分離する共有claim契約へ整合。
  * Ver.01.06.00 Shunji Ogawa  2026/11/03  同payload/取得policyの値比較を開発用集合観測と共用。
+ * Ver.01.07.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 同workerで直列使用します。通常profileは配布鍵のrevision1取得認可を別登録します。
@@ -157,6 +158,33 @@ public:
 		IndexedDriverArchiveHint &hint, DriverArchiveInput &input) const ;
 
 private:
+	/** @brief 同lookupの配布tupleを比較します。原期限検証は呼出側でも省きません。
+     * @param[in] task 新しい明示対象です。
+     * @param[in] sourceTask 元TRANSFER対象です。
+     * @return 原配布tupleが完全一致した場合だけtrueです。
+     */
+	[[nodiscard]] bool		  matchesRetainedBody( const OfficialPreparationTask &task,
+												  const OfficialPreparationTask &sourceTask) const ;
+	/** @brief 新LOCAL taskのscopeへ同owned fileを結合します。
+     * @param[in] task 新しい明示承認taskです。
+     * @param[in] sourceTask 元所有を説明する過去TRANSFER taskです。
+     * @param[in] current 元scan contextです。
+     * @param[in] nowUtcSeconds 信頼UTC秒です。
+     * @param[in] session 元file sealのissuerです。
+     * @param[in] workspace 元保護領域です。
+     * @param[in] evidence 元fileの不変sealです。現在の読取許可ではありません。
+     * @param[in] localInspection 当該LOCAL claimの照合票です。
+     * @param[out] hint 新recordの原selectorです。
+     * @param[out] input 元ownerからの非所有byte入力です。
+     * @return 原A/B期限・所有・全tuple成立0です。通信/旧grant再消費は行いません。
+     */
+	[[nodiscard]] NativeError bindRetainedInspectionInput(
+		const OfficialPreparationTask &task, const OfficialPreparationTask &sourceTask,
+		IndexLookupContext current, std::uint64_t nowUtcSeconds,
+		const OfficialAcquisitionSession &session, const OfficialDownloadWorkspace &workspace,
+		const OfficialAcquiredFileEvidence	  &evidence,
+		const OfficialLocalInspectionEvidence &localInspection, IndexedDriverArchiveHint &hint,
+		DriverArchiveInput &input) const ;
 	/** @brief 製品policyと固定内部fixture policyを分離します。 */
 	enum class AuthorityProfile {
 		/// 通常は固定配布の独立取得集合、local受入は独立optionの固定集合です。
@@ -178,6 +206,8 @@ private:
 		std::uint64_t						   grantId{} ;
 		/// 同完全payload根拠と全取得policyへ結合した原関係位置。既存lookup最大32768枠内です。
 		std::vector<std::size_t>			   relationIndices ;
+		/// 新LOCAL taskから検査した場合だけtrueです。grant発行と排他です。
+		bool								   localInspectionClaimed{} ;
 	} ;
 	/** @brief 原recordへ結合した有限全文のRAM所有値です。 */
 	struct TermsSnapshot {
@@ -224,6 +254,7 @@ private:
 	friend struct signed_index_acquisition_detail::Access ;
 	friend class RecordScopedDownloadGrant ;
 	friend class SignedIndexCandidateBindingSession ;
+	friend class SignedIndexScanSession ;
 	/// 生存能力を表す独立issuer。Grantは弱参照だけを保持します。
 	std::shared_ptr<const std::byte>			   issuer_ ;
 	/// Issuerと独立した新規取得開始可否。閉鎖後は再開せず新scanを必要とします。

@@ -23,6 +23,8 @@
     "docs/architecture.md",
     "docs/c_cpp_coding_standard.md",
     "docs/examples/c_cpp_coding_standard_sample.cpp",
+    "docs/images/candidate-details.png",
+    "docs/images/device-list.png",
     "docs/release-checklist.md",
     "docs/release-notes-1.0.1.md",
     "docs/security.md",
@@ -11809,6 +11811,16 @@
       "owner": "scripts/test_doxygen_members.py",
       "input": "scripts/source-audit.doxyfile",
       "kind": "test-doxygen-configuration"
+    },
+    {
+      "owner": "README.md",
+      "input": "docs/images/device-list.png",
+      "kind": "readme-versioned-image"
+    },
+    {
+      "owner": "README.md",
+      "input": "docs/images/candidate-details.png",
+      "kind": "readme-versioned-image"
     }
   ],
   "externalInputs": [

@@ -2,7 +2,7 @@
 /**
  * @file official_preparation.cpp
  * @brief 配布物単位の承認と取得taskの状態管理。
- * @version 01.04.01
+ * @version 01.05.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.04.01 Shunji Ogawa  2026/10/12  許諾本文の共通private helper契約を定義側へ補足。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note URL解決と転送は行わず、ADR 0098の一度限りの承認境界を管理します。
@@ -55,6 +56,22 @@
 #include <vector>
 
 namespace drivercrate {
+/** @see official_preparation.h 宣言側の契約を正本とします。 */
+OfficialLocalInspectionEvidence::OfficialLocalInspectionEvidence(
+	MintKey key, const OfficialPreparationTask &task)
+	: operationId_( task.operationId), scanSessionId_( task.scanSessionId), planId_( task.planId),
+	  target_( task.target), restrictedNetworkApproved_( task.restrictedNetworkApproved)
+{
+	static_cast<void>( key) ;
+}
+/** @see official_preparation.h 宣言側の契約を正本とします。 */
+bool OfficialLocalInspectionEvidence::matches( const OfficialPreparationTask &task) const noexcept
+{
+	return operationId_ != 0U && operationId_ == task.operationId &&
+		   scanSessionId_ == task.scanSessionId && planId_ == task.planId &&
+		   target_ == task.target && restrictedNetworkApproved_ == task.restrictedNetworkApproved ;
+}
+
 namespace {
 //------------------------------------------------------------------------------
 // 定数定義。
@@ -276,6 +293,8 @@ bool terminalState( const OfficialPreparationItemState state) noexcept
 	// 今回の取得が終了した状態だけを数え、未選択や実行待ちを進捗へ含めない。
 	switch( state) {
 		// 取得完了は今回の転送試行が終わった状態として共通判定へ進む。
+		case OfficialPreparationItemState::LOCAL_INSPECTION_COMPLETED:
+			// 非通信検査の終端も完了件数だけへ数えます。
 		case OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION:
 		// 通信同意待ちは今回の転送試行を終える状態として共通判定へ進む。
 		case OfficialPreparationItemState::AWAITING_NETWORK_CONSENT:
@@ -558,8 +577,9 @@ std::optional<OfficialPreparationTask> OfficialPreparationSession::claimNext()
 										 networkApprovals_[index]} ;	// 呼出し側へ返す所有値。
 			activeTask_					   = task ;
 			activeIndexAcquisitionClaimed_ = false ;
-			activeIndex_				   = index ;
-			items_[index].result.state	   = OfficialPreparationItemState::IN_PROGRESS ;
+			activeLocalInspection_.reset() ;
+			activeIndex_			   = index ;
+			items_[index].result.state = OfficialPreparationItemState::IN_PROGRESS ;
 			return std::optional<OfficialPreparationTask>{std::move( task)} ;
 		}
 	}
@@ -583,13 +603,22 @@ bool OfficialPreparationSession::complete( const OfficialPreparationTask			  &ta
 	// 取得成功の通知は、errorと実byte数が承認範囲に整合するか追加で照合する。
 	if( result.state == OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION) {
 		// 成功の条件と承認された転送上限の矛盾を拒否する。
-		if( result.error != 0 || result.byteCount == 0U ||
-		   result.byteCount > task.target.maximumBytes) {
+		if( result.error != 0 || result.byteCount == 0U || activeLocalInspection_ ||
+		   result.localInspection || result.byteCount > task.target.maximumBytes) {
+			return false ;
+		}
+	}
+	// LOCALは当該active claimの同じ照合票だけを受理します。
+	else if( result.state == OfficialPreparationItemState::LOCAL_INSPECTION_COMPLETED) {
+		// 元検証の成否を保持し、不成立を後続の許可へ補完しません。
+		if( result.error != 0 || result.byteCount != 0U || !result.localInspection ||
+		   result.localInspection != activeLocalInspection_ ||
+		   !result.localInspection->matches( task)) {
 			return false ;
 		}
 	}
 	// 非取得結果を成功や取得済みbyte数で偽装させない。
-	else if( result.error >= 0 || result.byteCount != 0U) {
+	else if( result.error >= 0 || result.byteCount != 0U || result.localInspection) {
 		return false ;
 	}
 
@@ -654,6 +683,7 @@ bool OfficialPreparationSession::invalidate() noexcept
 	items_.clear() ;
 	networkApprovals_.clear() ;
 	activeTask_.reset() ;
+	activeLocalInspection_.reset() ;
 	state_ = OfficialPreparationState::EMPTY ;
 	return true ;
 }
@@ -707,6 +737,27 @@ bool OfficialPreparationSession::ownsActiveTask( const OfficialPreparationTask &
 {
 	return state_ == OfficialPreparationState::PREPARING && activeTask_.has_value() &&
 		   *activeTask_ == task ;
+}
+
+/** @see official_preparation.h 宣言側の契約を正本とします。 */
+std::shared_ptr<const OfficialLocalInspectionEvidence> OfficialPreparationSession::
+	claimIndexLocalInspection( const OfficialPreparationTask &task) noexcept
+{
+	// 別task/TRANSFER/再claimへ承認を複写しません。
+	if( activeIndexAcquisitionClaimed_ || !ownsActiveTask( task)) {
+		return {} ;
+	}
+
+	try {
+		auto evidence = std::make_shared<const OfficialLocalInspectionEvidence>(
+			OfficialLocalInspectionEvidence::MintKey{}, task) ;	// 当該taskだけです。
+		activeLocalInspection_		   = evidence ;
+		activeIndexAcquisitionClaimed_ = true ;
+		return evidence ;
+	} catch( ...) {
+		// 確保失敗でclaimを消費せず、成功へ変更しません。
+		return {} ;
+	}
 }
 
 /** @see OfficialPreparationSession 宣言側の契約を正本とする。 */

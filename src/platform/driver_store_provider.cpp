@@ -2,7 +2,7 @@
 /**
  * @file driver_store_provider.cpp
  * @brief Driver Store provider実装。
- * @version 01.21.00
+ * @version 01.24.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -68,6 +68,9 @@
  * Ver.01.19.00 Shunji Ogawa  2026/11/06  元CopyINF stage内容と別deviceの機能導入を分離。
  * Ver.01.20.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * Ver.01.21.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.22.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
+ * Ver.01.23.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.24.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note SetupAPIによるPnP deviceとDriver Store履歴の列挙を実装します。選択された指定版は実行直前に再照合します。Native device identityと
@@ -2436,8 +2439,10 @@ struct DriverStoreProvider::IndexInventoryState {
 	std::uint64_t													generation{} ;
 	/// 実際にscanした所有threadです。
 	std::uint32_t													ownerThread{} ;
-	/// 一つの導入scope開始で不可逆に閉じるresolver能力です。同workerだけが変更します。
+	/// 元未処理ownerが残る間だけ保持するleaseです。同workerだけが変更します。
 	mutable bool													resolutionOpen{true} ;
+	/// 原lookup以外の再列挙を不可逆に拒否します。
+	mutable bool													lookupFrozen{} ;
 	/// 全列挙と二巡目の必要属性captureが完了した場合trueです。
 	bool															enumerationComplete{} ;
 	/// 部分列挙の元HRESULTです。
@@ -2482,7 +2487,7 @@ public:
 		IndexPublicIdResolution result{context_, false, 0U, {}} ;	// 成功を推測しない初期状態。
 		const auto				state = state_.lock() ;				// 呼出し中だけの秘密state所有。
 		// 新scan・install・破棄とcontext違いを現在stateへ結び直しません。
-		if( !state || !state->resolutionOpen || context != context_ ||
+		if( !state || !state->resolutionOpen || state->lookupFrozen || context != context_ ||
 		   state->ownerThread != GetCurrentThreadId()) {
 			result.error = nativeErrorFromWin32( ERROR_INVALID_STATE) ;
 			return result ;
@@ -2715,42 +2720,102 @@ private:
 
 /** @see driver_store_provider.h 宣言側の契約を正本とします。 */
 DriverStoreProvider::IndexInstallProofScope::IndexInstallProofScope(
-	const DriverStoreProvider *owner, const std::uint64_t generation) noexcept
-	: owner_( owner), generation_( generation)
+	DriverStoreProvider *owner, const std::uint64_t generation,
+	const OperationId operation) noexcept
+	: owner_( owner), generation_( generation), operation_( operation)
 {
 }
-
 /** @see driver_store_provider.h 宣言側の契約を正本とします。 */
 DriverStoreProvider::IndexInstallProofScope::~IndexInstallProofScope()
 {
-	// 新scan/明示失効後の別世代は旧batch終了で変更しません。
-	if( owner_ && owner_->installProofInventory_ &&
+	// 古いscopeから新operation/新世代の所有を変更しません。
+	if( owner_ && owner_->installProofInventory_ && owner_->activeInstallOperation_ == operation_ &&
 	   owner_->installProofInventory_->generation == generation_) {
+		owner_->activeIndexDevices_.clear() ;
 		owner_->installProofInventory_.reset() ;
+		// 最後の未処理scope終了または明示失効だけで閉じます。
+		if( owner_->pendingIndexDevices_.empty() && owner_->indexInventory_) {
+			owner_->indexInventory_->resolutionOpen = false ;
+		}
 	}
 }
-
 /** @see driver_store_provider.h 宣言側の契約を正本とします。 */
 bool DriverStoreProvider::IndexInstallProofScope::active() const noexcept
 {
 	return owner_ != nullptr ;
 }
-
 /** @see driver_store_provider.h 宣言側の契約を正本とします。 */
-DriverStoreProvider::IndexInstallProofScope DriverStoreProvider::beginIndexInstallProofScope(
-	const ScanSessionId session) const noexcept
+bool DriverStoreProvider::sealIndexLookup( const IndexLookupContext origin) noexcept
 {
-	// 別thread/scan、終了済みsnapshot、二重scopeからproof寿命を開始しません。
-	if( !indexInventory_ || installProofInventory_ || !indexInventory_->resolutionOpen ||
-	   session == 0U || session != indexInventory_->session ||
-	   GetCurrentThreadId() != ownerThreadId_ ||
-	   GetCurrentThreadId() != indexInventory_->ownerThread) {
-		return {nullptr, 0U} ;
+	// 原lookupだけを一度閉じ、失効後のreadOpenを再開しません。
+	if( !indexInventory_ || origin != issuedIndexContext_ || !indexInventory_->resolutionOpen ||
+	   indexInventory_->lookupFrozen || GetCurrentThreadId() != indexInventory_->ownerThread ||
+	   origin.inventoryGeneration != indexInventory_->generation) {
+		return false ;
 	}
 
-	indexInventory_->resolutionOpen = false ;
-	installProofInventory_			= std::move( indexInventory_) ;
-	return {this, installProofInventory_->generation} ;
+	indexInventory_->lookupFrozen = true ;
+	return true ;
+}
+/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+bool DriverStoreProvider::validateRetainedIndexSelection(
+	const IndexLookupContext origin, const OperationId operation,
+	const std::span<const std::wstring> devices, const bool executing) const noexcept
+{
+	// 生存leaseだけで新device/旧操作へ許可しません。
+	if( !indexInventory_ || origin != issuedIndexContext_ || !indexInventory_->resolutionOpen ||
+	   !indexInventory_->lookupFrozen || origin.scanSessionId != scanSessionId_ ||
+	   origin.inventoryGeneration != indexInventory_->generation ||
+	   GetCurrentThreadId() != ownerThreadId_ || operation == 0U || devices.empty() ||
+	   devices.size() > 4096U ||
+	   (operation != activeInstallOperation_ && operation <= lastAcceptedInstallOperation_)) {
+		return false ;
+	}
+
+	// 全対象を不変の元device集合と現在のU/Sへ照合します。
+	for( std::size_t index{}; index < devices.size(); ++index) {
+		const auto &device = devices[index] ;	// 元opaqueです。
+		// 重複/原対応喪失/別scopeを拒否します。
+		if( !deviceInstances_.contains( device) ||
+		   std::find( devices.begin(), devices.begin() + static_cast<std::ptrdiff_t>( index),
+					 device) != devices.begin() + static_cast<std::ptrdiff_t>( index) ||
+		   (executing
+				? operation != activeInstallOperation_ ||
+					  std::ranges::find( activeIndexDevices_, device) == activeIndexDevices_.end()
+				: !pendingIndexDevices_.contains( device))) {
+			return false ;
+		}
+	}
+
+	return true ;
+}
+/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+DriverStoreProvider::IndexInstallProofScope DriverStoreProvider::beginIndexInstallProofScope(
+	const IndexLookupContext origin, const OperationId operation,
+	const std::span<const std::wstring> devices) noexcept
+{
+	// 原owner/Uの検証が終わる前に一部だけ消費しません。
+	if( installProofInventory_ || operation != activeInstallOperation_ ||
+	   !validateRetainedIndexSelection( origin, operation, devices, false)) {
+		return {nullptr, 0U, 0U} ;
+	}
+
+	try {
+		std::vector<std::wstring> selected{devices.begin(),
+										   // 確保失敗時はUを変更しません。
+										   devices.end()} ;
+		activeIndexDevices_.swap( selected) ;
+		installProofInventory_ = indexInventory_ ;
+		// 検証と全確保後だけUからSへ移します。
+		for( const auto &device : devices) {
+			pendingIndexDevices_.erase( device) ;
+		}
+
+		return {this, indexInventory_->generation, operation} ;
+	} catch( ...) {
+		// noexceptの確保例外をabortさせずinactiveへ返します。状態変更は確保後だけです。
+		return {nullptr, 0U, 0U} ;
+	}
 }
 
 /** @see driver_store_provider.h */
@@ -2795,17 +2860,19 @@ std::unique_ptr<IndexPublicIdResolver> DriverStoreProvider::makeIndexPublicIdRes
 	context = {} ;
 	present.clear() ;
 	// 未発行、別thread、0 operationへ秘密stateの能力を渡しません。
-	if( !indexInventory_ || !indexInventory_->resolutionOpen || operationId == 0U ||
+	if( !indexInventory_ || !indexInventory_->resolutionOpen || indexInventory_->lookupFrozen ||
+	   issuedIndexContext_.operationId != 0U || operationId == 0U ||
 	   indexInventory_->ownerThread != GetCurrentThreadId()) {
 		return nullptr ;
 	}
 
 	const IndexLookupContext issued{operationId, indexInventory_->session,
 									indexInventory_->generation} ;	// このcallbackだけの結合tuple。
-	auto					 lease = std::make_shared<const NativeIndexLookupLease>(
-		NativeIndexLookupLease::MintKey{}, issued, indexInventory_->ownerThread,
-		std::weak_ptr<const void>{indexInventory_},
-		&indexInventory_->resolutionOpen) ;	// 秘密stateを強所有しません。
+	issuedIndexContext_ = issued ;
+	auto lease			= std::make_shared<const NativeIndexLookupLease>(
+		 NativeIndexLookupLease::MintKey{}, issued, indexInventory_->ownerThread,
+		 std::weak_ptr<const void>{indexInventory_},
+		 &indexInventory_->resolutionOpen) ;	// 秘密stateを強所有しません。
 	auto resolver = std::make_unique<IndexInventoryResolver>( indexInventory_, issued,
 															 // Weak所有。
 															 std::move( lease)) ;
@@ -3631,7 +3698,12 @@ ScanResult DriverStoreProvider::scanInventory( const ScanSessionId			  scanSessi
 		indexInventory_ = std::move( indexState) ;
 	}
 
-	scanSessionId_	 = execution == nullptr ? scanSessionId : 0U ;
+	scanSessionId_ = execution == nullptr ? scanSessionId : 0U ;
+	// 未処理集合は元scanで一度だけ作り、導入後に追加しません。
+	for( const auto &entry : deviceInstances_) {
+		pendingIndexDevices_.insert( entry.first) ;
+	}
+
 	result.succeeded = true ;
 	result.outcome	 = partialFailure ? OutcomeCode::SUCCEEDED_WITH_ERRORS : OutcomeCode::SUCCESS ;
 	// 現在属性だけの列挙を従来のcompatible driver判定数へ数えない。
@@ -3663,13 +3735,141 @@ const DeviceInventoryMeasurement &DriverStoreProvider::inventoryMeasurement() co
 /**
  * @see src/platform/driver_store_provider.h 宣言側の契約を正本とする。
  */
+/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+bool DriverStoreProvider::ownsInstallDevice( const std::wstring_view device) const noexcept
+{
+	return std::ranges::any_of( pendingIndexDevices_,
+							   [&]( const auto &entry) { return entry == device ; }) ||
+		   (activeInstallOperation_ != 0U &&
+			std::ranges::find( activeIndexDevices_, device) != activeIndexDevices_.end()) ;
+}
+
 //------------------------------------------------------------------------------
+NativeError DriverStoreProvider::beginInstallOperation(
+	const OperationId operationId, const ScanSessionId session,
+	const std::span<const std::wstring> identities)
+{
+	std::vector<std::wstring> devices ;	// 元mapからだけ選択deviceを求めます。
+	// 別候補やnative値を外から補完しません。
+	for( const auto &identity : identities) {
+		const auto target = installTargets_.find( identity) ;	// 元発行候補です。
+		// 存在しない候補から予約を作りません。
+		if( target == installTargets_.end()) {
+			return E_INVALIDARG ;
+		}
+
+		const auto device = std::ranges::find(
+			deviceInstances_, target->second.deviceInstanceId,
+			[]( const auto &entry) { return entry.second ; }) ;	// 同nativeの元opaqueです。
+		// 元native対応を失った候補を使いません。
+		if( device == deviceInstances_.end()) {
+			return E_INVALIDARG ;
+		}
+
+		devices.push_back( device->first) ;
+	}
+
+	return bindInstallDevices( operationId, session, devices) ;
+}
+/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+NativeError DriverStoreProvider::bindInstallDevices( const OperationId					operationId,
+													const ScanSessionId					session,
+													const std::span<const std::wstring> devices,
+													const bool							allowEmpty)
+{
+	// 別scan/thread、旧操作、二重操作を予約前に拒否します。
+	if( session == 0U || session != scanSessionId_ || ownerThreadId_ != GetCurrentThreadId() ||
+	   operationId == 0U || operationId <= lastAcceptedInstallOperation_ ||
+	   activeInstallOperation_ != 0U || (!allowEmpty && devices.empty()) ||
+	   devices.size() > 4096U) {
+		return E_INVALIDARG ;
+	}
+
+	std::unordered_set<std::wstring> unique ;	// 全件検証後だけcommitします。
+	std::vector<std::wstring>		 pending ;	// 確保失敗時に元集合を変えません。
+	// 同scanの未処理deviceだけを一度ずつ予約します。
+	for( const auto &device : devices) {
+		// 新device/消費済みdevice/重複を権限へ追加しません。
+		if( !deviceInstances_.contains( device) || !pendingIndexDevices_.contains( device) ||
+		   !unique.insert( device).second) {
+			return E_INVALIDARG ;
+		}
+
+		pending.push_back( device) ;
+	}
+
+	activeInstallDevices_.swap( pending) ;
+	activeInstallOperation_		  = operationId ;
+	lastAcceptedInstallOperation_ = operationId ;
+	installEntered_				  = false ;
+	return 0 ;
+}
+/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+void DriverStoreProvider::markInstallEntered() noexcept
+{
+	installEntered_ = activeInstallOperation_ != 0U ;
+}
+/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+std::optional<InstallRetentionSummary> DriverStoreProvider::finishInstallOperation(
+	const OperationId operationId, const ScanSessionId session)
+{
+	// 他操作の終端から残存所有を公開しません。
+	if( operationId == 0U || operationId != activeInstallOperation_ || session != scanSessionId_) {
+		return std::nullopt ;
+	}
+
+	InstallRetentionSummary retained{
+		operationId, session, installEntered_, {}, {}} ;	// 元subsetです。
+	// 実行入口を通ったdeviceの候補だけを消費します。
+	if( installEntered_) {
+		// 元集合の各要素を同じscopeへ一度ずつ照合します。
+		for( const auto &device : activeInstallDevices_) {
+			const auto native = deviceInstances_.find( device) ;	// 元所有の対応です。
+			pendingIndexDevices_.erase( device) ;
+			// 他deviceの候補や元native対応は破棄しません。
+			if( native != deviceInstances_.end()) {
+				std::erase_if( installTargets_, [&]( const auto &entry) {
+					return entry.second.deviceInstanceId == native->second ;
+				}) ;
+			}
+		}
+	}
+
+	// 同selected deviceの未使用tokenも一括終了し、old eventから再検査許可を作りません。
+	if( installEntered_) {
+		std::erase_if( officialInfInstallBindings_, [&]( const auto &entry) {
+			return std::ranges::find( activeInstallDevices_, entry.second.deviceIdentity) !=
+				   activeInstallDevices_.end() ;
+		}) ;
+		std::erase_if( officialInstallerBindings_, [&]( const auto &entry) {
+			return std::ranges::find( activeInstallDevices_, entry.second.identity) !=
+				   activeInstallDevices_.end() ;
+		}) ;
+	}
+
+	// 未消費の実targetだけを同scanの元opaqueへ結びます。
+	for( const auto &entry : installTargets_) {
+		const auto device =
+			std::ranges::find( deviceInstances_, entry.second.deviceInstanceId,
+							  []( const auto &item) { return item.second ; }) ;	// 同nativeです。
+		// 原対応を失った候補を継続しません。
+		if( device != deviceInstances_.end() && pendingIndexDevices_.contains( device->first)) {
+			retained.candidates.push_back( {entry.first, device->first}) ;
+		}
+	}
+
+	activeInstallDevices_.clear() ;
+	activeInstallOperation_ = 0U ;
+	installEntered_			= false ;
+	return retained ;
+}
+
+/** @see driver_store_provider.h 宣言側の契約を正本とします。 */
 InstallResult DriverStoreProvider::install( const ScanSessionId				   scanSessionId,
 										   const std::span<const std::wstring> identities,
 										   const std::uintptr_t				   parentWindowNative,
 										   const ProviderProgressCallback	  &progressCallback)
 {
-	indexInventory_.reset() ;
 	InstallResult result{} ;	// 選択identity順で個別結果を保持するinstall結果。
 	result.updates.reserve( identities.size()) ;
 	// 後続検証の成否にかかわらず、全選択identityへ個別結果を返す領域を用意する。
@@ -3687,7 +3887,6 @@ InstallResult DriverStoreProvider::install( const ScanSessionId				   scanSessio
 		result.downloadError   = static_cast<NativeError>( E_INVALIDARG) ;
 		result.installOutcome  = OutcomeCode::FAILURE ;
 		result.installError	   = static_cast<NativeError>( E_INVALIDARG) ;
-		invalidateScanSession() ;
 		return result ;
 	}
 
@@ -3701,12 +3900,12 @@ InstallResult DriverStoreProvider::install( const ScanSessionId				   scanSessio
 			result.downloadError   = static_cast<NativeError>( E_INVALIDARG) ;
 			result.installOutcome  = OutcomeCode::FAILURE ;
 			result.installError	   = static_cast<NativeError>( E_INVALIDARG) ;
-			invalidateScanSession() ;
 			return result ;
 		}
 	}
 
 	result.downloadOutcome = OutcomeCode::SUCCESS ;
+	markInstallEntered() ;
 	// Local Driver Store候補は追加downloadを必要としないため全件を成功扱いにする。
 	for( UpdateExecutionResult &update : result.updates) {
 		update.downloadOutcome = OutcomeCode::SUCCESS ;
@@ -3754,7 +3953,6 @@ InstallResult DriverStoreProvider::install( const ScanSessionId				   scanSessio
 			? OutcomeCode::SUCCESS
 			: (successCount == 0 ? OutcomeCode::FAILURE : OutcomeCode::SUCCEEDED_WITH_ERRORS) ;
 	result.installError = result.succeeded ? 0 : lastError ;
-	invalidateScanSession() ;
 	return result ;
 }
 
@@ -4068,8 +4266,9 @@ NativeError DriverStoreProvider::createOfficialInfInstallBindingImpl(
 	// 現在版、候補版、日付、適用可能rankを含むbindingの全前提を確認する。
 	if( scanSessionId == 0U || scanSessionId != scanSessionId_ ||
 	   GetCurrentThreadId() != ownerThreadId_ || deviceIdentity.empty() ||
-	   instance == deviceInstances_.end() || package.infRelativePath.empty() ||
-	   package.className.empty() || package.providerName.empty() || package.hardwareIds.empty() ||
+	   instance == deviceInstances_.end() || !ownsInstallDevice( deviceIdentity) ||
+	   package.infRelativePath.empty() || package.className.empty() ||
+	   package.providerName.empty() || package.hardwareIds.empty() ||
 	   (initialInstall
 			? !expectedCurrentProvider.empty() || !expectedCurrentVersion.empty() ||
 				  !expectedCurrentDate.empty()
@@ -4791,7 +4990,7 @@ NativeError DriverStoreProvider::revalidateOfficialInfInstallBinding(
 	if( scanSessionId == 0U || scanSessionId != scanSessionId_ ||
 	   GetCurrentThreadId() != ownerThreadId_ || binding.token == 0U || deviceIdentity.empty() ||
 	   stored == officialInfInstallBindings_.end() || instance == deviceInstances_.end() ||
-	   stored->second.scanSessionId != scanSessionId ||
+	   !ownsInstallDevice( deviceIdentity) || stored->second.scanSessionId != scanSessionId ||
 	   stored->second.deviceIdentity != deviceIdentity ||
 	   stored->second.device.deviceInstanceId != instance->second) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
@@ -5048,11 +5247,6 @@ NativeError DriverStoreProvider::installBoundOfficialInfImpl(
 		*diagnosticMissing = false ;
 	}
 
-	// 同workerの導入入口で、旧索引read-only能力を事前に解放します。
-	if( ownerThreadId_ == GetCurrentThreadId()) {
-		indexInventory_.reset() ;
-	}
-
 	rebootRequired			= false ;
 	NativeError nativeError = revalidateOfficialInfInstallBinding(
 		scanSessionId, deviceIdentity, workspace, package, binding) ;	// Staging前の固定状態確認。
@@ -5296,6 +5490,8 @@ NativeError DriverStoreProvider::installBoundOfficialInfImpl(
 	}
 
 	rebootRequired = nativeRebootRequired != FALSE ;
+	rememberInstalledObservationTarget( instance->second, stagedInfPath, selectedDriver.ProviderName,
+									   selectedDriver.DriverVersion) ;
 	return 0 ;
 }
 
@@ -5310,10 +5506,6 @@ NativeError DriverStoreProvider::installVerifiedExternalInf(
 	const std::wstring_view expectedVersion, const std::uintptr_t parentWindowNative,
 	bool &rebootRequired) const
 {
-	// 指定INFの導入入口も同workerの索引能力を失効させます。
-	if( ownerThreadId_ == GetCurrentThreadId()) {
-		indexInventory_.reset() ;
-	}
 
 	rebootRequired = false ;
 	const std::optional<std::uint64_t> packedVersion =
@@ -5431,6 +5623,8 @@ NativeError DriverStoreProvider::installVerifiedExternalInf(
 	}
 
 	rebootRequired = nativeRebootRequired != FALSE ;
+	rememberInstalledObservationTarget( instance->second, externalInf, selectedDriver.ProviderName,
+									   selectedDriver.DriverVersion) ;
 	return 0 ;
 }
 
@@ -5521,14 +5715,46 @@ NativeError DriverStoreProvider::installTarget( const InstallTarget &target,
 	}
 
 	rebootRequired = nativeRebootRequired != FALSE ;
+	rememberInstalledObservationTarget( target.deviceInstanceId, target.infFileName,
+									   target.providerName, target.driverVersion) ;
 	return 0 ;
 }
 
 /** @see driver_store_provider.h 宣言側の契約を正本とします。 */
+void DriverStoreProvider::rememberInstalledObservationTarget(
+	const std::wstring_view instance, const std::wstring_view inf, const std::wstring_view provider,
+	const std::uint64_t version) const noexcept
+{
+	// 再記録前に当該instanceの旧証明を無確保で消し、例外時は未確認にします。
+	for( auto found = installedObservationTargets_.begin();
+		found != installedObservationTargets_.end(); ++found) {
+		// 同operationの旧対象を先に消して確保失敗時の流用を防ぎます。
+		if( found->first == instance) {
+			installedObservationTargets_.erase( found) ;
+			break ;
+		}
+	}
+
+	// 証明用copyの確保失敗を実API成功の失敗へ置き換えません。
+	try {
+		installedObservationTargets_.insert_or_assign( std::wstring( instance),
+													  InstallTarget{std::wstring( instance),
+																	std::wstring( inf),
+																	{},
+																	std::wstring( provider),
+																	version,
+																	0U}) ;
+	} catch( ...) {
+		// 欠測は後続で未確認として扱います。
+	}
+}
+
 std::function<std::vector<PostInstallDeviceObservation>()> DriverStoreProvider::
 	capturePostInstallObservations( const ScanSessionId				   session,
 								   const std::span<const std::wstring> devices) const
 {
+	// 前operationの表示証明を再使用しません。
+	installedObservationTargets_.clear() ;
 	// 通常scanの元deviceだけを有限に保持し、専用metadata fixtureをnativeへ補完しません。
 	if( devices.empty() || devices.size() > MAXIMUM_OFFICIAL_INF_BINDINGS) {
 		return {} ;
@@ -5551,7 +5777,7 @@ std::function<std::vector<PostInstallDeviceObservation>()> DriverStoreProvider::
 		// 同worker fixtureまたは製品固定の完全表です。
 		driver_store_inf_detail::transport() ;
 	const DWORD owner = GetCurrentThreadId() ;	// 別threadへread処理を移しません。
-	return [targets = std::move( targets), calls, owner, session] {
+	return [targets = std::move( targets), calls, owner, session, this] {
 		std::vector<PostInstallDeviceObservation> observations ;	// 生IDを含まない返却値です。
 		observations.reserve( targets.size()) ;
 		// 最大元選択件数だけを一件ずつ再openし、compatible listやdriver候補を列挙しません。
@@ -5628,11 +5854,45 @@ std::function<std::vector<PostInstallDeviceObservation>()> DriverStoreProvider::
 			observed.provider	= current.provider ;
 			observed.version	= current.version ;
 			observed.driverDate = current.date ;
+			const auto expected =
+				session == scanSessionId_ && GetCurrentThreadId() == ownerThreadId_
+					? installedObservationTargets_.find( instance)
+					: installedObservationTargets_.end() ;	// 元scanの今回実指定したtargetだけです。
+			bool sameInf = expected != installedObservationTargets_.end() &&
+						   normalizedFileName( current.infFileName) ==
+							   // 原名一致です。
+							   normalizedFileName( expected->second.infFileName) ;
+			// OEM別名でも、既登録rootと元INF全byteの一致を要求します。
+			if( !sameInf && expected != installedObservationTargets_.end()) {
+				RegisteredInfGuard			  registration ;	// 既保護root/元byteのscopeです。
+				std::array<wchar_t, MAX_PATH> directory{} ;		// 同backendのWindows rootです。
+				const auto					  length = calls.windowsDirectory( directory.data(),
+																			  // production/fakeを混在させません。
+																			  static_cast<UINT>( directory.size())) ;
+				// 同backendのWindows rootと元INF検証が成立する場合だけ別名を照合します。
+				if( length > 0 && length < directory.size() && directory[length] == L'\0' &&
+				   registration.initialize( expected->second.infFileName) == 0) {
+					const auto published = std::wstring( directory.data(), length) + L"\\INF\\" +
+										   // 私有の登録先です。
+										   normalizedFileName( current.infFileName) ;
+					sameInf = registration.verify( published) == 0 ;
+				}
+			}
+
+			observed.selectedTargetMatched =
+				expected != installedObservationTargets_.end() &&
+				current.infRead.state == DevicePropertyReadState::VALUE &&
+				current.providerRead.state == DevicePropertyReadState::VALUE &&
+				current.packedVersion && sameInf &&
+				normalizeIdentifier( current.provider) ==
+					normalizeIdentifier( expected->second.providerName) &&
+				*current.packedVersion == expected->second.driverVersion ;
+
 			observations.push_back( std::move( observed)) ;
 		}
 
 		return observations ;
-	} ; // 元install呼出し内だけで使用し、install許可・secret map・leaseはcaptureしません。
+	} ; // 元install呼出し内・Provider生存中にだけ使うread-only map借用です。install許可・leaseはcaptureしません。
 }
 
 //------------------------------------------------------------------------------
@@ -5642,6 +5902,14 @@ std::function<std::vector<PostInstallDeviceObservation>()> DriverStoreProvider::
 //------------------------------------------------------------------------------
 void DriverStoreProvider::invalidateScanSession() noexcept
 {
+	installedObservationTargets_.clear() ;
+	issuedIndexContext_ = {} ;
+	activeIndexDevices_.clear() ;
+	pendingIndexDevices_.clear() ;
+	activeInstallDevices_.clear() ;
+	activeInstallOperation_		  = 0U ;
+	lastAcceptedInstallOperation_ = 0U ;
+	installEntered_				  = false ;
 	indexInventory_.reset() ;
 	installProofInventory_.reset() ;
 	installTargets_.clear() ;
@@ -5664,7 +5932,7 @@ NativeError DriverStoreProvider::createOfficialInstallerDeviceBinding(
 	const auto instance = deviceInstances_.find( std::wstring{device}) ;	// 同scan秘密instanceです。
 	// 別thread/session/未知deviceや枠超過からguardを発行しません。
 	if( session == 0U || session != scanSessionId_ || ownerThreadId_ != GetCurrentThreadId() ||
-	   instance == deviceInstances_.end() ||
+	   instance == deviceInstances_.end() || !ownsInstallDevice( device) ||
 	   officialInstallerBindings_.size() >= MAXIMUM_OFFICIAL_INF_BINDINGS ||
 	   nextOfficialBindingToken_ == 0U ||
 	   nextOfficialBindingToken_ == std::numeric_limits<std::uint64_t>::max()) {
@@ -5729,7 +5997,7 @@ NativeError DriverStoreProvider::revalidateOfficialInstallerDeviceBinding(
 	// 別thread/元選択外/古session/使用済みguardの引継ぎを拒否します。
 	if( session == 0U || session != scanSessionId_ || ownerThreadId_ != GetCurrentThreadId() ||
 	   stored == officialInstallerBindings_.end() || stored->second.session != session ||
-	   stored->second.identity != device || stored->second.consumed) {
+	   stored->second.identity != device || stored->second.consumed || !ownsInstallDevice( device)) {
 		return E_ACCESSDENIED ;
 	}
 

@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_fixture.cpp
  * @brief 専用Win32画面試験の非通信Provider契約。
- * @version 01.17.01
+ * @version 01.20.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -43,6 +43,9 @@
  * Ver.01.16.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.17.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
  * Ver.01.17.01 Shunji Ogawa  2026/11/07  同原packageの共同保持と現非実行policyを整合。
+ * Ver.01.18.00 Shunji Ogawa  2026/11/09  導入後fresh metadataの原全文六応答scheduleを限定追加。
+ * Ver.01.19.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.20.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note 製品EXEへ組み込まず、内部UI試験だけで使用する。
@@ -400,6 +403,14 @@ private:
 /** @brief Windows System Restoreを初期化しない復旧fake。 */
 class MetadataUiRestore final : public IRestorePointService {
 public:
+	/** @brief 拒否専用fakeは実在保護を生成しません。@return 元拒否区分です。 */
+	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
+	{
+		return {.disposition  = RestorePointDisposition::UNAVAILABLE,
+				.verification = OutcomeCode::FAILURE,
+				.error		  = static_cast<NativeError>( 0x80070005U)} ;
+	}
+
 	/**
      * @brief 誤呼出しcounterを共有する。
      * @param[in] state UIとWorkerが所有する状態。
@@ -2044,6 +2055,20 @@ std::string uiInfIdentity( const RamKey &key, const std::string &zip, const std:
 		throw std::runtime_error( "UI identity INF missing") ;
 	}
 
+	// 正常一件の申告は生成INF原byteの版/Class/二Modelsへ等値で結びます。
+	if( raw.find( "CONTENT_INSPECTED") != std::string::npos) {
+		const std::string_view original{static_cast<const char *>( bytes.get()),
+										size} ;	// 原抽出byteです。
+		// 旧metadata版空の負例は変更せず、正の入力だけ元fixtureとの不一致で停止します。
+		if( original.find( "DriverVer=10/11/2026,1.0.0.0") == std::string_view::npos ||
+		   original.find( "Class=Ports") == std::string_view::npos ||
+		   original.find( "{4d36e978-e325-11ce-bfc1-08002be10318}") == std::string_view::npos ||
+		   original.find( "Models.NTamd64") == std::string_view::npos ||
+		   original.find( "SecondModels.NTamd64") == std::string_view::npos) {
+			throw std::runtime_error( "target-only original INF tuple mismatch") ;
+		}
+	}
+
 	OfficialDownloadWorkspace workspace ;					// HINF読取だけの自作保護領域です。
 	HANDLE					  file = INVALID_HANDLE_VALUE ;	// 成功時だけRAIIへ移します。
 	// 保護領域を所有できなければ元fileを直接読取りません。
@@ -2447,6 +2472,17 @@ SignedIndexUiInput makeSignedIndexUiInput( const bool partial, const bool shared
 			"{\"state\":\"UNKNOWN\",\"valueBytes\":0,\"reason\":\"exact payload size unavailable\"}") ;
 	}
 
+	// 正常一件だけ原INFと同じ明示versionを要求し、従来metadata負例は保持します。
+	if( !options.contentInspectedVersion.empty()) {
+		// 原uiDriverZipのDriverVer以外へ推測補完しません。
+		if( options.contentInspectedVersion != L"1.0.0.0") {
+			throw std::runtime_error( "target-only original INF version mismatch") ;
+		}
+
+		raw = replaced( std::move( raw), "METADATA_ONLY", "CONTENT_INSPECTED") ;
+		raw = replaced( std::move( raw), "1.2.3.4", "1.0.0.0") ;
+	}
+
 	const auto templateRaw = raw ;	// 各実INFへ独立した公開tupleを結ぶ前の元条件です。
 	raw = uiInfIdentity( key, result.zip, "fixture.inf", L"Models.NTamd64", std::move( raw)) ;
 	std::string entries = recordEntry( key, raw) ;	// 元byteと実hashを結ぶ第一entryです。
@@ -2467,6 +2503,12 @@ SignedIndexUiInput makeSignedIndexUiInput( const bool partial, const bool shared
 		if( options.secondTermsRevision) {
 			second = replaced( std::move( second), "\"revision\":\"Original 1.0\"",
 							  "\"revision\":\"Original 2.0\"") ;
+		}
+
+		// 原A/Bの独立時刻窓を署名byteへ固定します。共有taskへ統合しません。
+		if( options.secondAttestationWindow) {
+			second = replaced( std::move( second), "2026-10-10T03:00:00Z", "2026-10-10T04:00:00Z") ;
+			second = replaced( std::move( second), "2026-10-12T03:00:00Z", "2026-10-12T02:00:00Z") ;
 		}
 
 		// 旧P05は同URLでも取得descriptorが異なる独立対として原分母を維持します。
@@ -2539,8 +2581,10 @@ SignedIndexUiInput makeSignedIndexUiInput( const bool partial, const bool shared
 		  std::move( manifestBytes),
 		  "{\"sourceCount\":1,\"recordCount\":3,\"metadataOnlyCount\":1,\"contentInspectedCount\":1,\"unconfirmedCount\":1}",
 		  "{\"sourceCount\":" + std::string{partial && options.secondTermsSubject ? "2" : "1"} +
-			  ",\"recordCount\":" + std::string{count} + ",\"metadataOnlyCount\":" + count +
-			  ",\"contentInspectedCount\":0,\"unconfirmedCount\":0}") ;
+			  ",\"recordCount\":" + std::string{count} +
+			  ",\"metadataOnlyCount\":" + (options.contentInspectedVersion.empty() ? count : "0") +
+			  ",\"contentInspectedCount\":" +
+			  (options.contentInspectedVersion.empty() ? "0" : count) + ",\"unconfirmedCount\":0}") ;
 	const auto signedEnvelope =
 		// 実RSA-PSS3072/salt32署名です。
 		envelope( manifestBytes, key.sign( manifestBytes)) ;

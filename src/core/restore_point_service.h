@@ -2,7 +2,7 @@
 /**
  * @file restore_point_service.h
  * @brief 復元ポイントサービス契約定義。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note Driver変更を保護するWindows復元ポイント操作を抽象化します。unit testは本契約のfakeを使用し、実端末の復元ポイントを変更しません。
@@ -59,20 +60,31 @@ public:
 	virtual ~IRestorePointService() = default ;
 
 	/**
-     * @brief system変更直前に復元ポイントを開始する。
+     * @brief system変更直前に実在保護を準備し、同日のpoint再利用を区別する。
      * @param[in] description Windowsの復元UIへ表示する説明。呼出し中だけ有効である。
-     * @return 開始結果と、成功時は後続の`complete`へ渡すsequence number。
+     * @return 実native開始結果、または再利用時のNOT_STARTED。保護成立はprotectionで確認する。
+     * @note 返されたsequenceをcompleteへ渡しscopeを閉じる。再利用ではnative BEGINを呼ばない。
      */
 	[[nodiscard]] virtual RestorePointOperationResult begin(
 		std::wstring_view description) noexcept = 0 ;
 
 	/**
-     * @brief 開始済みの復元ポイントへsystem変更完了を通知する。
-     * @param[in] sequenceNumber `begin`が成功時に返した識別番号。
+     * @brief 保護scopeの実在を再確認し、native BEGIN所有時だけENDを通知する。
+     * @param[in] sequenceNumber `begin`が保護scopeへ結合した識別番号。
      * @return 終了結果。失敗時も既に行われたdriver変更は取り消さない。
      */
 	[[nodiscard]] virtual RestorePointOperationResult complete(
 		std::int64_t sequenceNumber) noexcept = 0 ;
+	/** @brief 最後の同service保護scopeの読取事実を返します。
+  * @return 実在/再利用/保存診断。既存実装の欠測は保護未成立として返します。
+  * @note Windows実装は必ず実在確認を返し、不完全fixtureをproductionへfallbackしません。
+  */
+	[[nodiscard]] virtual RestorePointProtectionResult protection() const noexcept
+	{
+		return {.disposition  = RestorePointDisposition::UNAVAILABLE,
+				.verification = OutcomeCode::FAILURE,
+				.error		  = static_cast<NativeError>( 0x80004001U)} ;
+	}
 } ;
 
 } // namespace drivercrate

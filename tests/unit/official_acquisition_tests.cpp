@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition_tests.cpp
  * @brief 公式file検査用取得境界単体試験実装。
- * @version 01.26.01
+ * @version 01.28.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -60,6 +60,8 @@
  * Ver.01.25.00 Shunji Ogawa  2026/11/06  代替Modelsの元選択/唯一実tuple引継ぎを追加。
  * Ver.01.26.00 Shunji Ogawa  2026/11/07  全体入力と保持relation ordinalを分離したfixtureへ整合。
  * Ver.01.26.01 Shunji Ogawa  2026/11/09  同scopeのworker event ownerをheapへ移し全modeを保持。
+ * Ver.01.27.00 Shunji Ogawa  2026/11/10  対象限定拒否と未処理ownerの保持を検証。
+ * Ver.01.28.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note Fake transportとcost readerを使用し、実network、実driver、実installへ依存せず検査用取得状態を検証します。
@@ -3275,6 +3277,14 @@ private:
 /** @brief 誤った復旧API呼出しも拒否する非通信fixtureです。 */
 class WorkerAcquisitionRestore final : public IRestorePointService {
 public:
+	/** @brief 拒否専用fakeは実在保護を生成しません。@return 元拒否区分です。 */
+	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
+	{
+		return {.disposition  = RestorePointDisposition::UNAVAILABLE,
+				.verification = OutcomeCode::FAILURE,
+				.error		  = static_cast<NativeError>( 0x80070005U)} ;
+	}
+
 	/** @brief 復元ポイントを作らず拒否します。
 	 * @param[in] description 使用しない説明。
 	 * @return 誤呼出しの診断。
@@ -3667,10 +3677,19 @@ void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 						following->result.byteCount == 0U) ;
 			}
 
+			std::cout << "SCOPED_EXCEPTION mode=" << mode << " throwAt=" << throwAt
+					  << " sends=" << beforeSends << " http=" << beforeHttp
+					  << " cost=" << beforeCost
+					  << " authorityError=" << prepared->indexPreparation.authorityError
+					  << '\n' ;	// 元数値だけです。
 			DRIVERCRATE_EXPECT(
 				context, beforeSends == throwAt - 1U && beforeHttp == throwAt &&
 							 beforeCost == (mode == 9U || mode == 11U ? throwAt - 1U : throwAt) &&
-							 prepared->indexPreparation.authorityError ==
+							 prepared->indexPreparation.authorityError == 0U &&
+							 !prepared->indexPreparation.items.empty() &&
+							 prepared->indexPreparation.items.back().acquisition ==
+								 OfficialAcquisitionState::REJECTED &&
+							 prepared->indexPreparation.items.back().acquisitionError ==
 								 static_cast<NativeError>( E_ACCESSDENIED)) ;
 			// 先行確定結果は能力失効と別の同event所有へ保持します。
 			if( throwAt == 2U) {

@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package.cpp
  * @brief 公式標準INF driver package検証実装。
- * @version 01.32.00
+ * @version 01.33.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -74,6 +74,7 @@
  * Ver.01.30.00 Shunji Ogawa  2026/11/05  同元CoInstallerと非実行Type1内容検査を必要参照へ結合。
  * Ver.01.31.00 Shunji Ogawa  2026/11/06  Windows管理driver付属DATAと原source位置の非実行検査を追加。
  * Ver.01.32.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.33.00 Shunji Ogawa  2026/11/10  明示client targetと同INF hashのModels観測を結合。
  * </pre>
  *
  * @note SetupAPIをINF構文と現在platformの選択規則の正本とし、外部文字列からpathを直接生成せず、ZIP検証済みentryとの完全一致だけを受理します。
@@ -893,12 +894,14 @@ private:
  * @param[in] maximumHardwareIds 保持する一意ID数上限。
  * @param[out] hardwareIds 成功時の現在OS／architecture用PnP ID群。
  * @param[out] published 新metadata用途だけの元節/種別です。Nullでは既存ID列だけを保持します。
+ * @param[in] alternatePlatform NULLは現在OS、非NULLはcollectorが検証したV3観測点です。
  * @return 一件以上取得時は0、適用section欠落または上限超過時HRESULT。
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError collectHardwareIds(
 	const HINF inf, const std::size_t maximumHardwareIds, std::vector<std::wstring> &hardwareIds,
-	std::vector<OfficialInfPublishedModelSection> *published = nullptr)
+	std::vector<OfficialInfPublishedModelSection> *published		 = nullptr,
+	PSP_ALTPLATFORM_INFO						   alternatePlatform = nullptr)
 {
 	hardwareIds.clear() ;
 	// 新receiptの部分集合を別INFへ持ち越しません。
@@ -916,15 +919,15 @@ private:
 	do {
 		DWORD required{} ;	// Null終端を含むModels section名の必要文字数。
 		// 現在platform用Models sectionの必要長が取得不能または不正なら除外する。
-		if( SetupDiGetActualModelsSectionW( &manufacturer, nullptr, nullptr, 0, &required, nullptr) ==
-			   FALSE ||
+		if( SetupDiGetActualModelsSectionW( &manufacturer, alternatePlatform, nullptr, 0, &required,
+										  nullptr) == FALSE ||
 		   required <= 1 || required > MAXIMUM_MODEL_SECTION_CHARACTERS) {
 			continue ;
 		}
 
 		std::vector<wchar_t> sectionBuffer( required) ;	// Models section名の受信buffer。
 		// 現在platform用Models sectionを取得できない項目を除外する。
-		if( SetupDiGetActualModelsSectionW( &manufacturer, nullptr, sectionBuffer.data(),
+		if( SetupDiGetActualModelsSectionW( &manufacturer, alternatePlatform, sectionBuffer.data(),
 										  static_cast<DWORD>( sectionBuffer.size()), nullptr,
 										  nullptr) == FALSE) {
 			continue ;
@@ -7210,10 +7213,19 @@ NativeError inspectSelectedWindowsDriverPackageScope( const OfficialDownloadWork
 	}
 }
 
-/** @see official_driver_package.h */
-NativeError readOfficialInfPublishedIdentity( const OfficialDownloadWorkspace &workspace,
-											 const OfficialInfPackage		 &package,
-											 OfficialInfPublishedIdentity	 &identity)
+/** @brief 同所有INFの前後hashとWindows Models選択を一つの読取りへ結びます。
+ * @param[in] workspace 元保護workspaceです。
+ * @param[in] package 元構造検査です。
+ * @param[out] identity 完全成功時だけ返す元identityです。
+ * @param[in] alternatePlatform NULLは既存現在OS、それ以外は検証済みV3です。
+ * @param[in] expectedInfSha256 明示target時の元INF hashです。
+ * @return 元読取り結果です。
+ */
+static NativeError readPublishedIdentity( const OfficialDownloadWorkspace &workspace,
+										 const OfficialInfPackage		 &package,
+										 OfficialInfPublishedIdentity	 &identity,
+										 PSP_ALTPLATFORM_INFO			  alternatePlatform,
+										 std::wstring_view				  expectedInfSha256)
 {
 	identity = {} ;
 	const auto path =
@@ -7228,8 +7240,8 @@ NativeError readOfficialInfPublishedIdentity( const OfficialDownloadWorkspace &w
 		OfficialInfPublishedIdentity parsed ;						// 全成立前は外へ出さない一時値です。
 		auto error = computeFileSha256( path, parsed.infSha256) ;	// 元原INFの先行identityです。
 		// 読取り前の原byte未確認を成功へ補完しません。
-		if( error != 0) {
-			return error ;
+		if( error != 0 || (!expectedInfSha256.empty() && parsed.infSha256 != expectedInfSha256)) {
+			return error != 0 ? error : nativeErrorFromWin32( ERROR_CRC) ;
 		}
 
 		UINT			errorLine{} ;	// 元HINFの構文診断位置です。
@@ -7250,10 +7262,11 @@ NativeError readOfficialInfPublishedIdentity( const OfficialDownloadWorkspace &w
 		}
 
 		std::vector<std::wstring> ids ;	// 既存readerの元順ID列です。
-		error = collectHardwareIds( inf.get(), 4096U, ids,
-								   &parsed.models) ;	// 同readerへだけ新用途を追加します。
+		error = collectHardwareIds( inf.get(), 4096U, ids, &parsed.models,
+								   alternatePlatform) ;	// 同readerへだけ新用途を追加します。
 		// 元構造検査と異なるID列や節不足を公開identityへ変えません。
-		if( error != 0 || ids != package.hardwareIds || parsed.models.empty()) {
+		if( error != 0 || (alternatePlatform == nullptr && ids != package.hardwareIds) ||
+		   parsed.models.empty()) {
 			return error != 0 ? error : nativeErrorFromWin32( ERROR_REVISION_MISMATCH) ;
 		}
 
@@ -7269,6 +7282,46 @@ NativeError readOfficialInfPublishedIdentity( const OfficialDownloadWorkspace &w
 	} catch( const std::bad_alloc &) {
 		return static_cast<NativeError>( E_OUTOFMEMORY) ;
 	}
+}
+
+/** @see official_driver_package.h */
+NativeError readOfficialInfPublishedIdentity( const OfficialDownloadWorkspace &workspace,
+											 const OfficialInfPackage		 &package,
+											 OfficialInfPublishedIdentity	 &identity)
+{
+	return readPublishedIdentity( workspace, package, identity, nullptr, {}) ;
+}
+
+/** @see official_driver_package.h */
+NativeError readOfficialInfPublishedIdentityForPlatform( const OfficialDownloadWorkspace &workspace,
+														const OfficialInfPackage		&package,
+														const OfficialInfModelsPlatform &platform,
+														const std::wstring_view expectedInfSha256,
+														OfficialInfPublishedIdentity &identity)
+{
+	identity = {} ;
+	// 採用した二client metadata観測点以外を現在OSへ補完しません。
+	if( platform.majorVersion != 10U || platform.minorVersion != 0U ||
+	   (platform.buildNumber != 19045U && platform.buildNumber != 26100U) ||
+	   platform.processorArchitecture != PROCESSOR_ARCHITECTURE_AMD64 ||
+	   platform.productType != VER_NT_WORKSTATION || platform.suiteMask != 0U ||
+	   expectedInfSha256.size() != 64U) {
+		return static_cast<NativeError>( E_INVALIDARG) ;
+	}
+
+	SP_ALTPLATFORM_INFO_V3 requested{} ;	// 同呼出しだけの明示SDK V3です。
+	requested.cbSize				= sizeof( requested) ;
+	requested.Platform				= VER_PLATFORM_WIN32_NT ;
+	requested.MajorVersion			= platform.majorVersion ;
+	requested.MinorVersion			= platform.minorVersion ;
+	requested.BuildNumber			= platform.buildNumber ;
+	requested.ProcessorArchitecture = platform.processorArchitecture ;
+	requested.ProductType			= platform.productType ;
+	requested.SuiteMask				= platform.suiteMask ;
+	requested.Flags					= SP_ALTPLATFORM_FLAGS_SUITE_MASK ;
+	return readPublishedIdentity( workspace, package, identity,
+								 reinterpret_cast<PSP_ALTPLATFORM_INFO>( &requested),
+								 expectedInfSha256) ;
 }
 
 /** @see src/platform/official_driver_package.h 宣言側の契約を正本とします。 */

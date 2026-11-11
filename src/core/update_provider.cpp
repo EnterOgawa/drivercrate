@@ -2,7 +2,7 @@
 /**
  * @file update_provider.cpp
  * @brief 任意取得準備APIの未対応時動作。
- * @version 01.01.00
+ * @version 01.03.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,8 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索専用の型と拒否境界を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  通常scan取消しの互換委譲を追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 未対応Providerは取得計画なしと取得拒否を返し、既存導入を変更しません。
@@ -44,6 +46,24 @@
 #include <vector>
 
 namespace drivercrate {
+
+/** @see update_provider.h 宣言側の契約を正本とします。 */
+NativeError IUpdateProvider::beginInstallOperation( const OperationId   operationId,
+												   const ScanSessionId scanSessionId,
+												   const std::span<const std::wstring> identities)
+{
+	return operationId != 0U && scanSessionId != 0U && !identities.empty()
+			   ? 0
+			   : std::bit_cast<NativeError>( std::uint32_t{0x80070057U}) ;
+}
+/** @see update_provider.h 宣言側の契約を正本とします。 */
+std::optional<InstallRetentionSummary> IUpdateProvider::finishInstallOperation(
+	const OperationId operationId, const ScanSessionId scanSessionId)
+{
+	static_cast<void>( operationId) ;
+	static_cast<void>( scanSessionId) ;
+	return std::nullopt ;
+}
 
 /** @see update_provider.h */
 ScanResult IUpdateProvider::scanMetadataOnly( const ScanSessionId			 scanSessionId,

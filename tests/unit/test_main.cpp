@@ -2,8 +2,8 @@
 /**
  * @file test_main.cpp
  * @brief DriverCrate単体試験エントリーポイント。
- * @version 01.41.00
- * @date 2026/10/24
+ * @version 01.44.01
+ * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
@@ -81,6 +81,10 @@
  * Ver.01.39.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
  * Ver.01.40.00 Shunji Ogawa  2026/11/06  driver DATA通常経路の非対話局所入口を追加。
  * Ver.01.41.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.42.00 Shunji Ogawa  2026/11/09  導入後native対応の限定selectorを追加。
+ * Ver.01.43.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.44.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
+ * Ver.01.44.01 Shunji Ogawa  2026/11/11  aggregate専用の二試験selectorを既分岐内に移動。
  * </pre>
  *
  * @note 全unit test groupを順に実行し、process終了codeを返します。
@@ -324,6 +328,24 @@ int main( const int argc, const char *const argv[])
 		drivercrate::test::runCandidateAuditTests( context) ;
 		// 通常aggregateは既存の全groupと限定optionをそのまま維持します。
 #else
+		// 今回変更したcontroller/一回taskだけを既fixtureで有限確認します。
+
+		if( argc == 2 && std::string_view{argv[1]} == "--daily-restore") {
+			drivercrate::test::runProtectedInstallTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
+		// 今回のcontrollerと同scan準備だけを既selectorで確認します。
+		if( argc == 2 && std::string_view{argv[1]} == "--target-only-guards") {
+			drivercrate::test::runOperationControllerTests( context) ;
+			drivercrate::test::runOfficialPreparationTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
 		// 実DPAPIの自作rootだけで現在のstoreとtrust domain境界を固定実行します。
 		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-store") {
 			drivercrate::test::runSignedIndexStoreTests( context) ;

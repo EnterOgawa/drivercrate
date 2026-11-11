@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_adapter.cpp
  * @brief 同snapshotの取得能力とtaskを封印し、既存grantと検査入力へ接続します。
- * @version 01.15.00
+ * @version 01.16.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,7 @@
  * Ver.01.13.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
  * Ver.01.14.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
  * Ver.01.15.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.16.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 同workerの直列処理です。監視PCの申告と端末実byteを分け、live根拠を合成しません。
@@ -171,9 +172,11 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
  * @param[in] left 個別validateRecord済みの元record。
  * @param[in] right 個別validateRecord済みの元record。
  * @return 完全hash/正のsize/全取得条件一致時だけtrueです。名称や版を使用しません。
- */
+ * @param[in] sameTimeWindow 共有taskはtrue、独立期限検証後の同owned byte比較だけfalseです。
+	 */
 [[nodiscard]] bool sameSharedPayloadEvidence( const IndexDistributionRecord &left,
-											 const IndexDistributionRecord &right) noexcept
+											 const IndexDistributionRecord &right,
+											 const bool sameTimeWindow = true) noexcept
 {
 	const auto &firstEvidence  = left.packageEvidence ;		// 発行側の認証された完全内容根拠。
 	const auto &secondEvidence = right.packageEvidence ;	// 別原recordの独立根拠。
@@ -275,8 +278,8 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 	const auto &firstAuthority	= *first.attestation ;	// 元公式確認主体と個別期限。
 	const auto &secondAuthority = *second.attestation ;	// 観測時刻を共有で更新しません。
 	return firstAuthority.policyRevision == secondAuthority.policyRevision &&
-		   firstAuthority.checkedAtUtc == secondAuthority.checkedAtUtc &&
-		   firstAuthority.validUntilUtc == secondAuthority.validUntilUtc &&
+		   (!sameTimeWindow || (firstAuthority.checkedAtUtc == secondAuthority.checkedAtUtc &&
+								firstAuthority.validUntilUtc == secondAuthority.validUntilUtc)) &&
 		   firstAuthority.authorityMethod == secondAuthority.authorityMethod &&
 		   firstAuthority.authorityEvidenceUrl == secondAuthority.authorityEvidenceUrl &&
 		   firstAuthority.authorityEvidenceSha256 == secondAuthority.authorityEvidenceSha256 &&
@@ -1248,6 +1251,114 @@ NativeError SignedIndexAcquisitionAdapter::bindInspectionInput(
 	input = {observed.scanSessionId, observed.inspectionPath, observed.byteCount, observed.sha256,
 			 hint.resourceContent} ;
 	return 0 ;
+}
+
+/** @see signed_index_acquisition_adapter.h 宣言側の契約を正本とします。 */
+bool SignedIndexAcquisitionAdapter::matchesRetainedBody(
+	const OfficialPreparationTask &task, const OfficialPreparationTask &sourceTask) const
+{
+	// 元owner以外やlocalからの連鎖参照を作りません。
+	if( !lookup_ || !issuer_ || task.scanSessionId != context_.scanSessionId ||
+	   sourceTask.scanSessionId != context_.scanSessionId) {
+		return false ;
+	}
+
+	const auto target =
+		// 新原targetです。
+		std::ranges::find( bindings_, task.target, &PreparedBinding::target) ;
+	const auto source = std::ranges::find( bindings_, sourceTask.target,
+										  &PreparedBinding::target) ;	// 原所有targetです。
+	// 原TRANSFERの実claimが存在し、新しいtargetは別recordです。
+	if( target == bindings_.end() || source == bindings_.end() || target == source ||
+	   !source->claimedTask || *source->claimedTask != sourceTask ||
+	   source->localInspectionClaimed || source->grantId == 0U) {
+		return false ;
+	}
+
+	const auto &records = lookup_->snapshot().schemaReceipt().records() ;	// 原署名recordです。
+	const auto &left =
+		records[lookup_->relations()[target->relationIndex].recordIndex] ;	// 新対象です。
+	const auto &right =
+		records[lookup_->relations()[source->relationIndex].recordIndex] ;	// 原ownerです。
+	return left.acquisition.value == IndexAcquisitionKind::STANDARD_INF_ARCHIVE &&
+		   right.acquisition.value == IndexAcquisitionKind::STANDARD_INF_ARCHIVE &&
+		   sameSharedPayloadEvidence( left, right, false) ;
+}
+
+/** @see signed_index_acquisition_adapter.h 宣言側の契約を正本とします。 */
+NativeError SignedIndexAcquisitionAdapter::bindRetainedInspectionInput(
+	const OfficialPreparationTask &task, const OfficialPreparationTask &sourceTask,
+	const IndexLookupContext current, const std::uint64_t nowUtcSeconds,
+	const OfficialAcquisitionSession &session, const OfficialDownloadWorkspace &workspace,
+	const OfficialAcquiredFileEvidence	  &evidence,
+	const OfficialLocalInspectionEvidence &localInspection, IndexedDriverArchiveHint &hint,
+	DriverArchiveInput &input) const
+{
+	hint  = {} ;
+	input = {} ;
+	const auto target =
+		// 原Bです。
+		std::ranges::find( bindings_, task.target, &PreparedBinding::target) ;
+	const auto source =
+		// 原Aです。
+		std::ranges::find( bindings_, sourceTask.target, &PreparedBinding::target) ;
+	// 過去TRANSFER証拠は現在の読取許可にせず、新LOCALの実claimを必須にします。
+	if( !localInspection.matches( task) || !matchesRetainedBody( task, sourceTask) ||
+	   target == bindings_.end() || source == bindings_.end() || !target->claimedTask ||
+	   *target->claimedTask != task || !target->localInspectionClaimed || target->grantId != 0U) {
+		return static_cast<NativeError>( E_ACCESSDENIED) ;
+	}
+
+	std::string reason ;	// 原metadataの独立再検証結果です。
+	auto		error =
+		// 原A期限です。
+		validateBinding( *source, current, utcFromSeconds( nowUtcSeconds), reason) ;
+	// 時刻窓が異なっても原Bの実時刻・全relationを独立検証します。
+	if( error == 0U) {
+		error = validateBinding( *target, current, utcFromSeconds( nowUtcSeconds), reason) ;
+	}
+
+	// 元issuer/ledger/seal/workspace/全file byteを新LOCAL scopeの下で再検証します。
+	if( error == 0U) {
+		error = bindInspectionInput( sourceTask, current, nowUtcSeconds, session, workspace,
+									evidence, hint, input) ;
+	}
+
+	// 不一致を同hash/pathだけで補完しません。
+	if( error != 0U) {
+		hint  = {} ;
+		input = {} ;
+		return error ;
+	}
+
+	const auto &receipt = lookup_->snapshot().schemaReceipt() ;	// 原署名snapshotです。
+	const auto &record =
+		// 原Bです。
+		receipt.records()[lookup_->relations()[target->relationIndex].recordIndex] ;
+	hint.recordSha256 = hexDigest( record.recordSha256) ;
+	hint.selectedInfs.clear() ;
+	// 新Bの元relationだけを実INF検査へ渡します。Aの検査結果は複写しません。
+	for( const auto relationIndex : target->relationIndices) {
+		const auto &selected =
+			receipt
+				.records()[lookup_->relations()[relationIndex].recordIndex] ;	// Bの原selectorです。
+		const auto &identity = selected.publishedIdentityEvidence ;				// 認証済みINF名です。
+		// 元INFの公開selector以外を再利用対象へ広げません。
+		if( identity.state == IndexEvidenceState::PUBLISHED &&
+		   identity.kind == IndexIdentityEvidenceKind::INF) {
+			IndexedDriverInfSelector selector{indexUtf8Text( identity.nestedArchiveIdentity),
+											  // 元Unicode値です。
+											  indexUtf8Text( identity.infIdentity)} ;
+			std::ranges::replace( selector.nestedArchive, L'/', L'\\') ;
+			std::ranges::replace( selector.infIdentity, L'/', L'\\') ;
+			// 同一memberを重複検査しません。
+			if( std::ranges::find( hint.selectedInfs, selector) == hint.selectedInfs.end()) {
+				hint.selectedInfs.push_back( std::move( selector)) ;
+			}
+		}
+	}
+
+	return 0U ;
 }
 
 namespace signed_index_acquisition_detail {

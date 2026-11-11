@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_tests.h
  * @brief 通常本体の真署名索引候補とfake指定導入試験を宣言します。
- * @version 01.24.00
+ * @version 01.26.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -45,6 +45,8 @@
  * Ver.01.22.00 Shunji Ogawa  2026/10/28  既検証WUA候補と未取得索引の明示混在fixtureを追加。
  * Ver.01.23.00 Shunji Ogawa  2026/11/06  Windows-only driver DATAの通常worker試験を宣言。
  * Ver.01.24.00 Shunji Ogawa  2026/11/06  代替Models集合の通常選択引継ぎ/拒否を追加。
+ * Ver.01.25.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.26.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -408,8 +410,10 @@ struct SignedIndexBindingWorker {
  * Worker停止まで所有し、callback自身が借用stateの寿命を保持します。署名検証の返却値を変更しません。
  * @param[in] beforeRestore fake復旧開始直前の有限な同期callbackです。空は何もしません。
  * 同workerだけが呼び、callbackは借用状態を所有します。例外はfake復旧失敗へ変換します。
+ * @param[in] noReboot この正常caseだけ再起動要求を返さない場合trueです。
  * @param[in] reflectOwnInstall 指定API成功後に当該deviceだけの現在状態を反映する場合trueです。
  * @param[in] batchFault 第一指定成功後だけ第二または元byte/期限へ与える低位拒否入力です。
+ * @param[in] localDriverCandidates 同じ二nativeの互換Driver Store新版を発行する有限条件です。
  * @return 実workerと非機密call観測。Native成功fallbackはありません。
  */
 [[nodiscard]] SignedIndexBindingWorker makeSignedIndexBindingWorker(
@@ -418,7 +422,8 @@ struct SignedIndexBindingWorker {
 	SignedIndexBindingNativeCase nativeCase = SignedIndexBindingNativeCase::NORMAL,
 	std::string_view installerPayload = {}, std::function<void()> observeWorkerStart = {},
 	std::function<void()> beforeRestore = {}, bool reflectOwnInstall = false,
-	SignedIndexBindingBatchFault batchFault = SignedIndexBindingBatchFault::NONE) ;
+	SignedIndexBindingBatchFault batchFault = SignedIndexBindingBatchFault::NONE,
+	bool localDriverCandidates = false, bool noReboot = false) ;
 /** @brief 真署名reload・実HTTP fake・正常ZIPを通常本体へ接続します。
  * @param[in,out] context Assertion正本です。
  * @param[in] services 真署名store・固定UTC・完全HTTPの依存です。

@@ -2,7 +2,7 @@
 /**
  * @file official_release_discovery_provider.cpp
  * @brief 共通配布情報の検索・取得・監査・指定導入処理。
- * @version 01.00.01
+ * @version 01.01.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -46,9 +46,10 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
- * @note 同型deviceを個別に扱い、取得承認・内容／PnP監査が済むまで導入候補にしません。発行済み候補だけを保持bindingで指定deviceへ導入し、全終端でscanを失効させます。
+ * @note 同型deviceを個別に扱い、取得承認・内容／PnP監査が済むまで導入候補にしません。発行済み候補だけを保持bindingで指定deviceへ導入し、選択device subsetだけを消費して未処理ownerを保持します。
  */
 //------------------------------------------------------------------------------
 
@@ -766,8 +767,31 @@ InstallResult OfficialReleaseDiscoveryProvider::install(
 		} ; // 本番閉包再検証。
 		InstallResult result = executeIntelEthernetPreparedInstall(
 			context, identities, reverifier, rankAuditor_, boundInstaller_, parentWindowNative,
-			progressCallback) ;	// 保持物の有効期間内だけ実行する。
-		invalidatePreparation() ;
+			progressCallback) ;						// 保持物の有効期間内だけ実行する。
+		std::unordered_set<std::wstring> devices ;	// 元選択subsetです。
+		// 既routeのdeviceだけを対象にします。新しい作用範囲を推測しません。
+		for( const auto &identity : identities) {
+			const auto target = installTargets_.find( identity) ;	// 元発行routeです。
+			// 不明なIDから他のdeviceを消費しません。
+			if( target != installTargets_.end()) {
+				devices.insert( target->second.prepared.deviceIdentity) ;
+			}
+		}
+
+		// 元owned file/監査閉包/未処理tokenは保持し、対象tokenだけを解放します。
+		std::erase_if( installTargets_, [&]( const auto &entry) {
+			// 他deviceの未消費routeへ波及させません。
+			if( !devices.contains( entry.second.prepared.deviceIdentity)) {
+				return false ;
+			}
+
+			// 同issuerが発行した当該tokenだけを終了します。
+			if( bindingReleaser_) {
+				static_cast<void>( bindingReleaser_( retainedSessionId_, entry.second.binding.token)) ;
+			}
+
+			return true ;
+		}) ;
 		return result ;
 	} catch( ...) {
 		// Callbackまたは一時copyの例外でもbindingと取得物を解放してからworker境界へ返す。

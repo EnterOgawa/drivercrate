@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_audit.cpp
  * @brief 取得後監査と表示候補の照合。
- * @version 01.04.00
+ * @version 01.05.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.03.01 Shunji Ogawa  2026/10/15  全体INF件数と元承認deviceの有限pair数を照合。
  * Ver.01.04.00 Shunji Ogawa  2026/10/24  同device複数原参照をunique作用device数と分けて検証。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 取得成功と独立した監査結果を扱い、全監査合格時だけ新規候補を検証します。
@@ -289,9 +290,16 @@ bool validatePreparationAuditReports( const OfficialPreparationOperationResult &
 		   decision == approval.decisions.end() || !decision->acquire ||
 		   decision->target.deviceCount == 0U || decision->target.deviceCount > 4096U ||
 		   report.providerId != decision->target.providerId || item == result.items.end() ||
-		   item->result.state != OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION ||
-		   item->result.error != 0 || item->result.byteCount == 0U ||
-		   item->result.byteCount > decision->target.maximumBytes ||
+		   !((item->result.state == OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION &&
+			  item->result.error == 0U && item->result.byteCount > 0U &&
+			  item->result.byteCount <= decision->target.maximumBytes &&
+			  !item->result.localInspection) ||
+			 (item->result.state == OfficialPreparationItemState::LOCAL_INSPECTION_COMPLETED &&
+			  item->result.error == 0U && item->result.byteCount == 0U &&
+			  item->result.localInspection &&
+			  item->result.localInspection->matches( {approval.operationId, approval.scanSessionId,
+													 approval.planId, decision->target,
+													 decision->restrictedNetworkApproved}))) ||
 		   descriptor == descriptors.end() || report.candidates.empty() ||
 		   report.candidates.size() > 4096U - updated.size()) {
 			return false ;

@@ -2,7 +2,7 @@
 /**
  * @file update_types.h
  * @brief Driver update共通値型定義。
- * @version 01.15.00
+ * @version 01.16.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -76,6 +76,7 @@
  * Ver.01.13.01 Shunji Ogawa  2026/11/03  匿名件数の明示要求local診断例外を契約へ明記。
  * Ver.01.14.00 Shunji Ogawa  2026/11/06  有限payloadの単一file/累計既定を各2GiBへ統一。
  * Ver.01.15.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持。
+ * Ver.01.16.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note Provider、状態管理、およびUI間で交換する値型を定義します。Windows固有型を公開せず、unit testからも利用できる構成とします。
@@ -871,6 +872,58 @@ struct PostInstallDeviceObservation {
 	std::wstring	  driverDate ;
 	/// 対象解決/open/presentの失敗。属性ごとの失敗はobservationへ保持します。
 	NativeError		  error{} ;
+	/// 実指定導入したprivate INF/provider/版と事後現在driverが一致した読取事実です。
+	bool			  selectedTargetMatched{} ;
+} ;
+
+/** @brief 復元保護の取得事実であり、新規作成と再利用を区別します。 */
+enum class RestorePointDisposition {
+	/// 実在確認が未分類の旧native結果です。Client保護成立には使用しません。
+	NATIVE_TRANSACTION,
+	/// Windows一覧で今回の新規pointを確認しました。
+	NEW_POINT_VERIFIED,
+	/// Windowsが選んだ実在point。作成時刻は原値のままです。
+	WINDOWS_SELECTED_POINT,
+	/// 同local日付の正常終了済みpointを実在確認して再利用しました。
+	SAME_DAY_REUSED,
+	/// 保護を成立できませんでした。
+	UNAVAILABLE,
+} ;
+/** @brief Native呼出し結果とは独立した復元pointの実在確認です。 */
+struct RestorePointProtectionResult {
+	/// 取得方式。未分類のnative結果だけではClient保護が成立しません。
+	RestorePointDisposition disposition{RestorePointDisposition::NATIVE_TRANSACTION} ;
+	/// 実在確認の結果です。
+	OutcomeCode				verification{OutcomeCode::NOT_STARTED} ;
+	/// 実在確認失敗の元codeです。
+	NativeError				error{} ;
+	/// 実在を確認したsequenceです。
+	std::int64_t			sequenceNumber{} ;
+	/// Windowsが保持する元作成UTC秒です。
+	std::int64_t			createdUtc{} ;
+	/// 今回保護準備を行ったWindows local暦日YYYYMMDDです。
+	std::uint32_t			localDay{} ;
+	/// Provider呼出し前の実在確認です。
+	bool					verifiedBefore{} ;
+	/// 保護scope終了時の実在確認です。
+	bool					verifiedAfter{} ;
+	/// 同scopeがnative BEGINを実際に呼んだ事実です。
+	bool					nativeBeginCalled{} ;
+	/// 同scopeがnative ENDを実際に呼んだ事実です。
+	bool					nativeEndCalled{} ;
+	/// 最適化用memo保存失敗。実導入の失敗へ合算しません。
+	NativeError				memoError{} ;
+} ;
+/** @brief 既保護領域に一件だけ保持する非authorityな日内memoです。 */
+struct RestorePointDayMemo {
+	/// 初回保護準備のlocal暦日です。
+	std::uint32_t localDay{} ;
+	/// Windows一覧へ毎回照合する番号です。
+	std::int64_t  sequenceNumber{} ;
+	/// 同一point判定用の元作成時刻です。
+	std::int64_t  createdUtc{} ;
+	/// 正常終了した初回準備のUTC秒です。再利用時に書き換えません。
+	std::int64_t  preparedUtc{} ;
 } ;
 
 /**
@@ -883,6 +936,8 @@ struct InstallResult {
 	RestorePointOperationResult		   restorePointCreation ;
 	/// Driver変更処理後の復元ポイント終了結果。
 	RestorePointOperationResult		   restorePointCompletion ;
+	/// Native開始/終了とは独立した保護実在と再利用の事実です。
+	RestorePointProtectionResult	   restorePointProtection ;
 	/// trueの場合はOS別の回復保護契約と全選択対象のinstallが成功した。
 	bool							   succeeded{} ;
 	/// Collection全体のdownload結果。
@@ -923,6 +978,10 @@ enum class ProviderStage {
 	FINALIZING_RESTORE_POINT,
 	/// Windows rootへハードウェア再検出を一回要求する段階です。
 	REFRESHING_HARDWARE,
+	/// 復元pointの実在と日内利用可否を確認する段階です。
+	VERIFYING_RESTORE_POINT,
+	/// 実在する既存pointの利用を確認した段階です。
+	REUSING_RESTORE_POINT,
 } ;
 
 /**

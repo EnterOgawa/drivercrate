@@ -2,7 +2,7 @@
 /**
  * @file official_serial_provider.cpp
  * @brief 公式serial ZIP共通Provider実装。
- * @version 01.01.00
+ * @version 01.02.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  新一scan承認と回線許可をpayload取得へ結合。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 署名済み原本を保持し、許可IDだけでdeviceとrankを監査します。未審査IDの許可や既存の監査条件の迂回は行いません。
@@ -977,7 +978,9 @@ try {
 	result.installError =
 		result.succeeded ? 0
 						 : (lastError != 0 ? lastError : static_cast<NativeError>( E_INVALIDARG)) ;
-	invalidate() ;
+	// 未処理deviceの元workspace/INFを保持し、選択scopeだけを一回消費します。
+	std::erase_if( targets_,
+				  [&]( const auto &entry) { return devices.contains( entry.second.device) ; }) ;
 	return result ;
 } catch( ...) {
 	// 外側の保護installは復元ポイント終了と失敗報告を行う。再利用可能なtargetを残さない。

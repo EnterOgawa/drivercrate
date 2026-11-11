@@ -2,7 +2,7 @@
 /**
  * @file update_provider.h
  * @brief Driver update provider契約定義。
- * @version 01.01.01
+ * @version 01.03.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -37,6 +37,8 @@
  * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索専用の型と拒否境界を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  通常scanの協調取消し境界を追加。
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note Driver updateの検索、download、およびinstallを抽象化します。
@@ -73,6 +75,29 @@ using ProviderProgressCallback = std::function<void( const ProviderProgress &)> 
  */
 using ProviderScanCancellation = std::function<bool()> ;
 
+/** @brief 同scanで未消費のまま所有される一候補です。 */
+struct RetainedInstallCandidate {
+	/// 元発行candidate identityです。新しい候補を追加しません。
+	std::wstring identity ;
+	/// 元candidateへ結合したopaque deviceです。
+	std::wstring deviceIdentity ;
+} ;
+/** @brief 当該Installだけを終えたworkerの残存所有summaryです。 */
+struct InstallRetentionSummary {
+	/// 消費したInstall操作です。
+	OperationId							   operationId{} ;
+	/// 失効させていない元scanです。
+	ScanSessionId						   scanSessionId{} ;
+	/// Provider install入口へ渡した場合trueです。
+	bool								   providerEntered{} ;
+	/// 原発行集合の未消費subsetだけです。
+	std::vector<RetainedInstallCandidate>  candidates ;
+	/// 新たな承認ではない、残対象の原計画記述です。
+	std::optional<OfficialPreparationPlan> preparationPlan ;
+	/// 原発行の未準備参照subsetです。導入permitではありません。
+	std::vector<RetainedInstallCandidate>  references ;
+} ;
+
 /**
  * @brief driver update の検索、download、install を提供する同期 interface である。
  *
@@ -84,6 +109,22 @@ public:
      * @brief 実装固有の scan session と resource を解放する。
      */
 	virtual ~IUpdateProvider() = default ;
+	/** @brief 元scanの一回Install操作を実ownerへ拘束します。
+	 * @param[in] operationId Controllerが発行した新操作です。
+	 * @param[in] scanSessionId 元scanです。
+	 * @param[in] identities 元発行の選択subsetです。
+	 * @return 成功0。既定は継続未対応ですが通常Installを妨げません。
+	 */
+	[[nodiscard]] virtual NativeError beginInstallOperation(
+		OperationId operationId, ScanSessionId scanSessionId,
+		std::span<const std::wstring> identities) ;
+	/** @brief 操作終了後に未消費の実所有だけを返します。
+	 * @param[in] operationId 直前の操作です。
+	 * @param[in] scanSessionId 元scanです。
+	 * @return 継続を証明できる場合だけ元subset。既定はnulloptです。
+	 */
+	[[nodiscard]] virtual std::optional<InstallRetentionSummary> finishInstallOperation(
+		OperationId operationId, ScanSessionId scanSessionId) ;
 
 	/**
 	 * @brief Payload非取得の専用検索。未対応は通常scanへfallbackせず拒否する。

@@ -2,7 +2,7 @@
 /**
  * @file metadata_search_runner_tests.cpp
  * @brief 専用Registry実行と表示専用終端の決定的試験。
- * @version 01.02.02
+ * @version 01.03.00
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
  * Ver.01.02.01 Shunji Ogawa  2026/10/12  索引専用callback空と選択拒否・不成立fixtureの参照安全を確認。
  * Ver.01.02.02 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note OS列挙とnetworkをfakeに置換し、実payloadと実導入を呼ばない。
@@ -703,6 +704,14 @@ struct MetadataWorkerState {
 /** @brief 復旧APIを初期化せず誤呼出しだけを記録する。 */
 class MetadataWorkerRestore final : public IRestorePointService {
 public:
+	/** @brief 拒否専用fakeは実在保護を生成しません。@return 元拒否区分です。 */
+	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
+	{
+		return {.disposition  = RestorePointDisposition::UNAVAILABLE,
+				.verification = OutcomeCode::FAILURE,
+				.error		  = static_cast<NativeError>( 0x80070005U)} ;
+	}
+
 	/** @brief Counterを共有する。@param[in] state 両threadで所有するfixture。 */
 	explicit MetadataWorkerRestore( std::shared_ptr<MetadataWorkerState> state)
 		: state_( std::move( state))

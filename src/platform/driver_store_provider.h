@@ -2,7 +2,7 @@
 /**
  * @file driver_store_provider.h
  * @brief Driver Store provider定義。
- * @version 01.10.00
+ * @version 01.13.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -48,6 +48,9 @@
  * Ver.01.08.01 Shunji Ogawa  2026/10/28  索引proofを明示選択batchの終端まで私有scopeで保持。
  * Ver.01.09.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
  * Ver.01.10.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.11.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
+ * Ver.01.12.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.13.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note 現在のPnP deviceとlocal Driver Storeの互換driver providerを定義します。Hardware IDとdevice instance IDは
@@ -75,6 +78,7 @@
 #include <string_view>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace drivercrate {
@@ -99,6 +103,34 @@ public:
      * @brief 現在 thread に所属する空の Driver Store Provider を作成する。
      */
 	DriverStoreProvider() = default ;
+	/** @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます。
+	 * @param[in] operationId 当該新操作です。
+	 * @param[in] session 未失効の元scanです。
+	 * @param[in] identities 元表示の選択candidate subsetです。
+	 * @return 元scopeの全件照合成功0、それ以外は拒否HRESULTです。
+	 */
+	[[nodiscard]] NativeError beginInstallOperation(
+		OperationId operationId, ScanSessionId session,
+		std::span<const std::wstring> identities) override ;
+	/** @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます。
+	 * @param[in] operationId 当該新操作です。
+	 * @param[in] session 未失効の元scanです。
+	 * @return 当該操作の原未消費subsetです。不明な操作は空です。
+	 */
+	[[nodiscard]] std::optional<InstallRetentionSummary> finishInstallOperation(
+		OperationId operationId, ScanSessionId session) override ;
+	/** @brief Compositeで検証した元device subsetを当該操作へ拘束します。
+	 * @param[in] operationId 新しいInstall操作です。
+	 * @param[in] session 未失効の元scanです。
+	 * @param[in] devices 元発行の一意なdevice subsetです。
+	 * @return 成功0、stale/不明/重複は失敗です。native変更は行いません。
+	 * @param[in] allowEmpty WUAだけの操作にnative実行scopeを作らず元ownerを保持する内部指定です。
+	 */
+	[[nodiscard]] NativeError bindInstallDevices( OperationId operationId, ScanSessionId session,
+												 std::span<const std::wstring> devices,
+												 bool						   allowEmpty = false) ;
+	/** @brief 実Provider入口を通った当該操作だけを消費対象へ記録します。 */
+	void					  markInstallEntered() noexcept ;
 
 	/**
 	 * @brief 現在属性の非通信内部試験用API表を所有copyする。
@@ -194,7 +226,8 @@ public:
 	 * @param[in] session 元scan sessionです。導入権限を延長しません。
 	 * @param[in] devices 同scanの選択済みopaque device集合です。
 	 * @return 同workerのinstall呼出し内だけで一回使用する読取関数。生IDをUIへ渡しません。
-	 * @note 対象のprivate instanceとAPI表だけを一時所有します。全PnP scan/再検出/候補発行は行いません。
+	 * @note 対象instanceとAPI表を一時所有し、期待mapはProviderから借用します。同owner thread・Provider生存中の同期呼出しだけが有効です。
+	 * captured sessionと現在scanの不一致では期待mapを使いません。全PnP scan/再検出/候補発行は行いません。
 	 */
 	[[nodiscard]] std::function<std::vector<PostInstallDeviceObservation>()>
 											  capturePostInstallObservations( ScanSessionId				   session,
@@ -415,9 +448,15 @@ public:
 	bool discardOfficialInstallerDeviceBinding( ScanSessionId session, std::uint64_t token) noexcept ;
 
 private:
+	/** @brief 原deviceの未処理Uまたは当該実行Sへの所属を照合します。
+     * @param[in] device 元opaque deviceです。
+     * @return 未消費または当該scopeへ予約済みだけtrueです。
+     */
+	[[nodiscard]] bool ownsInstallDevice( std::wstring_view device) const noexcept ;
 	friend class SignedIndexCandidateBindingSession ;
+	friend class CompositeUpdateProvider ;
 	friend class DriverStoreBindingProbe ;
-	/** @brief 一つの選択batchだけ元proof寿命を維持し、終了時に同世代を失効させます。
+	/** @brief 一つの選択subsetだけを借用し、終了時も未処理ownerを保持します。
 	 * @note Snapshotを強所有せず、新scan/明示失効を妨げません。同workerのstack上だけで使用します。
 	 */
 	class IndexInstallProofScope final {
@@ -425,9 +464,11 @@ private:
 		/** @brief 同workerの検証済みProviderと元世代だけを借用します。
 		 * @param[in] owner 借用Provider。nullは開始拒否で、終了時に何も変更しません。
 		 * @param[in] generation ownerが保持した正の元inventory世代。null ownerでは0です。
+		 * @param[in] operation 当該予約済みの新操作です。
 		 */
-		IndexInstallProofScope( const DriverStoreProvider *owner, std::uint64_t generation) noexcept ;
-		/** @brief 元世代のProvider所有だけを解放し、残るweak proofを失効させます。 */
+		IndexInstallProofScope( DriverStoreProvider *owner, std::uint64_t generation,
+							   OperationId operation) noexcept ;
+		/** @brief 当該Sの借用だけを終了し、未処理Uの元proofを保持します。 */
 		~IndexInstallProofScope() ;
 		/** @brief 一batchの終了責任を複製しません。 */
 		IndexInstallProofScope( const IndexInstallProofScope &) = delete ;
@@ -448,17 +489,45 @@ private:
 
 	private:
 		/// 同期中だけ借用し、scopeより長く生存する元Providerです。拒否時nullです。
-		const DriverStoreProvider *owner_{} ;
+		DriverStoreProvider *owner_{} ;
 		/// 旧scope終了で新scan世代を解放しないための元世代です。
-		std::uint64_t			   generation_{} ;
+		std::uint64_t		 generation_{} ;
+		/// 当該scopeだけのInstall操作です。
+		OperationId			 operation_{} ;
 	} ;
 	/** @brief 全選択事前検証後だけ新resolverを閉じ、元proofの解放を一batch終端へ延期します。
-	 * @param[in] session 元選択の正のscan sessionです。
+	 * @param[in] origin 元factoryの原contextです。
 	 * @return 同worker/scanの一回scope。不一致/閉鎖済みはinactiveです。
 	 * @note 新取得・proof・導入許可を発行せず、各deviceの直前再検証は別に必須です。
+	 * @param[in] operation 当該予約済み新操作です。
+	 * @param[in] devices 元Uの一意な選択subsetです。
 	 */
 	[[nodiscard]] IndexInstallProofScope beginIndexInstallProofScope(
-		ScanSessionId session) const noexcept ;
+		IndexLookupContext origin, OperationId operation,
+		std::span<const std::wstring> devices) noexcept ;
+	/** @brief 原lookup完了後の再factory/全体再列挙を不可逆に閉じます。
+     * @param[in] origin 元完全contextです。
+     * @return 同じ原ownerへ適用した場合trueです。
+     */
+	[[nodiscard]] bool		  sealIndexLookup( IndexLookupContext origin) noexcept ;
+	/** @brief 未処理または当該実行中subsetへの結合を検証します。
+     * @param[in] origin 元contextです。
+     * @param[in] operation 明示操作です。
+     * @param[in] devices 元一意subsetです。
+     * @param[in] executing trueは当該scopeのS、falseは未処理Uです。
+     * @return 完全一致だけtrueです。新しい権限を作りません。
+     */
+	[[nodiscard]] bool		  validateRetainedIndexSelection( IndexLookupContext			   origin,
+															 OperationId				   operation,
+															 std::span<const std::wstring> devices,
+															 bool executing) const noexcept ;
+	/** @brief 既workerに拘束した当該操作を同期参照します。
+     * @return 未予約は0です。値だけでは導入許可になりません。
+     */
+	[[nodiscard]] OperationId activeInstallOperation() const noexcept
+	{
+		return activeInstallOperation_ ;
+	}
 	/** @brief 検証済み役割計画を単一親の私有bindingへ固定します。
 	 * @param[in] session 元scan sessionです。
 	 * @param[in] identity 元選択親のopaque identityです。
@@ -588,6 +657,19 @@ private:
 		/// FILETIMEを64-bit値にしたdriver日付。
 		std::uint64_t driverDateTicks{} ;
 	} ;
+
+	/** @brief 成功した指定対象だけを実事後照合用へ保持します。
+	 * @param[in] instance Worker内だけの元instanceです。
+	 * @param[in] inf 指定済みの実INFです。
+	 * @param[in] provider 指定nodeのproviderです。
+	 * @param[in] version 指定nodeのpacked版です。
+	 * @note 確保失敗は読取証明を省き、実導入結果を変更しません。
+	 */
+	void rememberInstalledObservationTarget( std::wstring_view instance, std::wstring_view inf,
+											std::wstring_view provider,
+											std::uint64_t	  version) const noexcept ;
+	/// 同一install内だけの実指定対象。実行能力は含みません。
+	mutable std::unordered_map<std::wstring, InstallTarget> installedObservationTargets_ ;
 
 	/**
      * @brief Binding発行時の現在deviceとdriver状態をworker内だけで保持する。
@@ -758,6 +840,20 @@ private:
 	mutable std::shared_ptr<const IndexInventoryState>			installProofInventory_ ;
 	/// 失敗scanも消費し、新scanやinstall失効で再利用しないinventory世代。
 	std::uint64_t												indexInventoryGeneration_{} ;
+	/// 原scanからまだ消費していないopaque deviceだけです。
+	std::unordered_set<std::wstring>							pendingIndexDevices_ ;
+	/// 一度だけ発行した原lookup contextです。
+	mutable IndexLookupContext									issuedIndexContext_ ;
+	/// 一回scopeへ移した選択subsetです。
+	std::vector<std::wstring>									activeIndexDevices_ ;
+	/// 今回だけの選択deviceで、native IDを外へ出しません。
+	std::vector<std::wstring>									activeInstallDevices_ ;
+	/// 現operationです。0は未予約です。
+	OperationId													activeInstallOperation_{} ;
+	/// 同scanで受理した最後の操作です。再受理しません。
+	OperationId													lastAcceptedInstallOperation_{} ;
+	/// 実Provider入口へ渡した場合trueです。
+	bool														installEntered_{} ;
 } ;
 
 } // namespace drivercrate

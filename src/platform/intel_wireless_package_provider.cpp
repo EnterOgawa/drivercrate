@@ -2,7 +2,7 @@
 /**
  * @file intel_wireless_package_provider.cpp
  * @brief 利用者選択INF package Provider共通実装。
- * @version 01.01.00
+ * @version 01.02.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  共通個別INF検査とWindows適合観測の接続を追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 利用者選択INF ZIPを探索区分Cとして扱い、署名済みINFのPnP IDが現在deviceへ完全一致した場合だけ候補化します。Package pathとPnP IDはworker
@@ -732,7 +733,10 @@ InstallResult UserSelectedInfPackageProvider::install(
 			? OutcomeCode::SUCCESS
 			: (installed == 0 ? OutcomeCode::FAILURE : OutcomeCode::SUCCEEDED_WITH_ERRORS) ;
 	result.installError = result.succeeded ? 0 : lastError ;
-	invalidateScanSession() ;
+	// 元owned閉包/期限を保持し、選択したdeviceの全代替routeだけを消費します。
+	std::erase_if( installTargets_, [&]( const auto &entry) {
+		return uniqueDevices.contains( entry.second.deviceIdentity) ;
+	}) ;
 	return result ;
 }
 

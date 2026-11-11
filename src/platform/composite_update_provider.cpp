@@ -2,7 +2,7 @@
 /**
  * @file composite_update_provider.cpp
  * @brief 複合update provider実装。
- * @version 01.17.00
+ * @version 01.19.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -104,6 +104,8 @@
  * Ver.01.15.00 Shunji Ogawa  2026/10/13  元workerから必要構成の全選択preflightへ接続。
  * Ver.01.16.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
  * Ver.01.17.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
+ * Ver.01.18.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
+ * Ver.01.19.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 既存registryで検索・選択取得・導入を振り分け、sessionとProviderの一致を維持します。
@@ -780,8 +782,9 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 			std::pair{&wchOfficialProvider_, OfficialReleaseFamily::WCH_CH341},
 			std::pair{&wchMultiOfficialProvider_, OfficialReleaseFamily::WCH_CH343}}) {
 		providerRegistry_.push_back(
-			{.descriptor = descriptorFor( serial->providerId()),
-			 .phase		 = ProviderPhase::OFFICIAL_CATALOG,
+			{.descriptor					 = descriptorFor( serial->providerId()),
+			 .retainsUnprocessedInstallScope = true,
+			 .phase							 = ProviderPhase::OFFICIAL_CATALOG,
 			 .scan =
 				 [this, serial]( const ScanSessionId sessionId, const ScanOptions &options,
 								const std::span<const OfficialCatalogDevice> devices,
@@ -830,8 +833,9 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 	}
 
 	providerRegistry_.push_back(
-		{.descriptor = descriptorFor( DRIVER_STORE_PROVIDER_ID),
-		 .phase		 = ProviderPhase::INVENTORY,
+		{.descriptor					 = descriptorFor( DRIVER_STORE_PROVIDER_ID),
+		 .retainsUnprocessedInstallScope = true,
+		 .phase							 = ProviderPhase::INVENTORY,
 		 .scan =
 			 [this]( const ScanSessionId sessionId, const ScanOptions &options,
 					const std::span<const OfficialCatalogDevice>, const LocalHardwareIdMatcher &,
@@ -844,8 +848,9 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 				 return driverStoreProvider_.install( sessionId, identities, parentWindow, progress) ;
 			 }}) ;
 	providerRegistry_.push_back(
-		{.descriptor = descriptorFor( WINDOWS_UPDATE_PROVIDER_ID),
-		 .phase		 = ProviderPhase::MANAGED_SERVICE,
+		{.descriptor					 = descriptorFor( WINDOWS_UPDATE_PROVIDER_ID),
+		 .retainsUnprocessedInstallScope = true,
+		 .phase							 = ProviderPhase::MANAGED_SERVICE,
 		 .scan =
 			 [this]( const ScanSessionId sessionId, const ScanOptions &options,
 					const std::span<const OfficialCatalogDevice>, const LocalHardwareIdMatcher &,
@@ -878,8 +883,9 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 													  progress) ;
 			 }}) ;
 	providerRegistry_.push_back(
-		{.descriptor = descriptorFor( INTEL_WIRELESS_PACKAGE_PROVIDER_ID),
-		 .phase		 = ProviderPhase::OFFICIAL_CATALOG,
+		{.descriptor					 = descriptorFor( INTEL_WIRELESS_PACKAGE_PROVIDER_ID),
+		 .retainsUnprocessedInstallScope = true,
+		 .phase							 = ProviderPhase::OFFICIAL_CATALOG,
 		 .scan =
 			 [this]( const ScanSessionId sessionId, const ScanOptions &options,
 					const std::span<const OfficialCatalogDevice> devices,
@@ -905,8 +911,9 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 															  installer, progress) ;
 			 }}) ;
 	providerRegistry_.push_back(
-		{.descriptor = descriptorFor( PROLIFIC_SERIAL_PACKAGE_PROVIDER_ID),
-		 .phase		 = ProviderPhase::OFFICIAL_CATALOG,
+		{.descriptor					 = descriptorFor( PROLIFIC_SERIAL_PACKAGE_PROVIDER_ID),
+		 .retainsUnprocessedInstallScope = true,
+		 .phase							 = ProviderPhase::OFFICIAL_CATALOG,
 		 .scan =
 			 [this]( const ScanSessionId sessionId, const ScanOptions &options,
 					const std::span<const OfficialCatalogDevice> devices,
@@ -932,8 +939,9 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 															   installer, progress) ;
 			 }}) ;
 	providerRegistry_.push_back(
-		{.descriptor = descriptorFor( SILICON_LABS_SERIAL_PACKAGE_PROVIDER_ID),
-		 .phase		 = ProviderPhase::OFFICIAL_CATALOG,
+		{.descriptor					 = descriptorFor( SILICON_LABS_SERIAL_PACKAGE_PROVIDER_ID),
+		 .retainsUnprocessedInstallScope = true,
+		 .phase							 = ProviderPhase::OFFICIAL_CATALOG,
 		 .scan =
 			 [this]( const ScanSessionId sessionId, const ScanOptions &options,
 					const std::span<const OfficialCatalogDevice> devices,
@@ -959,8 +967,9 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 					 sessionId, identities, parentWindow, installer, progress) ;
 			 }}) ;
 	providerRegistry_.push_back(
-		{.descriptor = descriptorFor( WCH_SERIAL_PACKAGE_PROVIDER_ID),
-		 .phase		 = ProviderPhase::OFFICIAL_CATALOG,
+		{.descriptor					 = descriptorFor( WCH_SERIAL_PACKAGE_PROVIDER_ID),
+		 .retainsUnprocessedInstallScope = true,
+		 .phase							 = ProviderPhase::OFFICIAL_CATALOG,
 		 .scan =
 			 [this]( const ScanSessionId sessionId, const ScanOptions &options,
 					const std::span<const OfficialCatalogDevice> devices,
@@ -986,8 +995,9 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 														  installer, progress) ;
 			 }}) ;
 	providerRegistry_.push_back(
-		{.descriptor = descriptorFor( WCH_MULTI_SERIAL_PACKAGE_PROVIDER_ID),
-		 .phase		 = ProviderPhase::OFFICIAL_CATALOG,
+		{.descriptor					 = descriptorFor( WCH_MULTI_SERIAL_PACKAGE_PROVIDER_ID),
+		 .retainsUnprocessedInstallScope = true,
+		 .phase							 = ProviderPhase::OFFICIAL_CATALOG,
 		 .scan =
 			 [this]( const ScanSessionId sessionId, const ScanOptions &options,
 					const std::span<const OfficialCatalogDevice> devices,
@@ -1013,8 +1023,9 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 															   installer, progress) ;
 			 }}) ;
 	providerRegistry_.push_back(
-		{.descriptor = descriptorFor( GENERIC_SIGNED_INF_PACKAGE_PROVIDER_ID),
-		 .phase		 = ProviderPhase::OFFICIAL_CATALOG,
+		{.descriptor					 = descriptorFor( GENERIC_SIGNED_INF_PACKAGE_PROVIDER_ID),
+		 .retainsUnprocessedInstallScope = true,
+		 .phase							 = ProviderPhase::OFFICIAL_CATALOG,
 		 .scan =
 			 [this]( const ScanSessionId sessionId, const ScanOptions &options,
 					const std::span<const OfficialCatalogDevice> devices,
@@ -1139,8 +1150,9 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 				 return amdUpdateProvider_.install( sessionId, identities, parentWindow, progress) ;
 			 }}) ;
 	providerRegistry_.push_back(
-		{.descriptor = descriptorFor( ASUS_PROVIDER_ID),
-		 .phase		 = ProviderPhase::OFFICIAL_CATALOG,
+		{.descriptor					 = descriptorFor( ASUS_PROVIDER_ID),
+		 .retainsUnprocessedInstallScope = true,
+		 .phase							 = ProviderPhase::OFFICIAL_CATALOG,
 		 .scan =
 			 [this]( const ScanSessionId							 sessionId, const ScanOptions &,
 					const std::span<const OfficialCatalogDevice> devices,
@@ -1243,7 +1255,8 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 		 .metadataScan = metadataScanner( OfficialReleaseFamily::INTEL_WIFI)}) ;
 	providerRegistry_.push_back(
 		{.descriptor = descriptorFor( INTEL_ETHERNET_SERVER2025_OFFICIAL_PROVIDER_ID),
-		 .phase		 = ProviderPhase::OFFICIAL_CATALOG,
+		 .retainsUnprocessedInstallScope = true,
+		 .phase							 = ProviderPhase::OFFICIAL_CATALOG,
 		 .scan =
 			 [this]( const ScanSessionId							 sessionId, const ScanOptions &,
 					const std::span<const OfficialCatalogDevice> devices,
@@ -1319,8 +1332,9 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 		 },
 		 .metadataScan = metadataScanner( OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11)}) ;
 	providerRegistry_.push_back(
-		{.descriptor = descriptorFor( ASIX_AX88179A_PROVIDER_ID),
-		 .phase		 = ProviderPhase::OFFICIAL_CATALOG,
+		{.descriptor					 = descriptorFor( ASIX_AX88179A_PROVIDER_ID),
+		 .retainsUnprocessedInstallScope = true,
+		 .phase							 = ProviderPhase::OFFICIAL_CATALOG,
 		 .scan =
 			 [this]( const ScanSessionId							 sessionId, const ScanOptions &,
 					const std::span<const OfficialCatalogDevice> devices,
@@ -1463,8 +1477,9 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 
 	// 同じcanonical索引entryへscan・監査・指定導入を全て結合します。
 	providerRegistry_.push_back(
-		{.descriptor = descriptorFor( SIGNED_INDEX_PROVIDER_ID),
-		 .phase		 = ProviderPhase::OFFICIAL_CATALOG,
+		{.descriptor					 = descriptorFor( SIGNED_INDEX_PROVIDER_ID),
+		 .retainsUnprocessedInstallScope = true,
+		 .phase							 = ProviderPhase::OFFICIAL_CATALOG,
 		 .scan =
 			 [this]( const ScanSessionId session, const ScanOptions &,
 					std::span<const OfficialCatalogDevice>, const LocalHardwareIdMatcher &,
@@ -3019,6 +3034,175 @@ ScanResult CompositeUpdateProvider::scanWithCancellation(
  * @see src/platform/composite_update_provider.h 宣言側の契約を正本とする。
  */
 //------------------------------------------------------------------------------
+bool CompositeUpdateProvider::isRetainedPreparationReference(
+	const std::wstring_view identity, const OfficialPreparationPlan &plan) const
+{
+	const auto candidate = std::ranges::find( displayedCandidates_, identity,
+											 &UpdateCandidate::identity) ;	// 元公開値です。
+	return candidate != displayedCandidates_.end() && !candidate->installable &&
+		   identityDevices_.contains( candidate->identity) && plan.scanSessionId == scanSessionId_ &&
+		   std::ranges::any_of( plan.targets, [&]( const auto &target) {
+			   return target.identity == candidate->preparationTargetIdentity ;
+		   }) ;
+}
+/** @see composite_update_provider.h 宣言側の契約を正本とします。 */
+NativeError CompositeUpdateProvider::beginInstallOperation(
+	const OperationId operationId, const ScanSessionId session,
+	const std::span<const std::wstring> identities)
+{
+	// 元scan/所有routeのない選択から継続予約を作りません。
+	if( session == 0U || session != scanSessionId_ || activeInstallOperation_ != 0U ||
+	   identities.empty()) {
+		return E_INVALIDARG ;
+	}
+
+	std::vector<std::wstring>		 devices ;	// 原deviceの一意subsetです。
+	std::unordered_set<std::wstring> selected ;	// candidate重複を拒否します。
+	// 完全な元routeへ照合してからDSへ同じ集合を渡します。
+	for( const auto &identity : identities) {
+		const auto device = identityDevices_.find( identity) ;	// 元対応です。
+		// 不明/重複/同deviceの複数候補を実行しません。
+		if( device == identityDevices_.end() || !identityProviders_.contains( identity) ||
+		   !selected.insert( identity).second ||
+		   std::ranges::find( devices, device->second) != devices.end()) {
+			return E_INVALIDARG ;
+		}
+
+		devices.push_back( device->second) ;
+	}
+
+	std::vector<std::wstring> nativeDevices ;	// 元DS ownerの対象だけです。
+	// WUAのみの未対応deviceを別のnative IDへ推測接続しません。
+	for( const auto &device : devices) {
+		// 原DS inventoryへ存在したdeviceだけがnative leaseを借用します。
+		if( driverStoreProvider_.deviceInstances_.contains( device)) {
+			nativeDevices.push_back( device) ;
+		} else {
+			const auto selectedIdentity =
+				std::ranges::find( identityDevices_, device, []( const auto &entry) {
+					return entry.second ;
+				}) ; // 元WUA対応です。
+			// 未対応を許すのは元WUA routeだけであり、INF native権限を作りません。
+			if( selectedIdentity == identityDevices_.end() ||
+			   identityProviders_.at( selectedIdentity->first) != WINDOWS_UPDATE_PROVIDER_ID) {
+				return E_INVALIDARG ;
+			}
+		}
+	}
+
+	const auto error = driverStoreProvider_.bindInstallDevices( operationId, session, nativeDevices,
+															   true) ;	// 元native ownerです。
+	// DSの原ownerを保持できない場合は継続しません。
+	if( error != 0U) {
+		return error ;
+	}
+
+	activeInstallDevices_.swap( devices) ;
+	activeInstallOperation_ = operationId ;
+	installEntered_			= false ;
+	return 0 ;
+}
+/** @see composite_update_provider.h 宣言側の契約を正本とします。 */
+std::optional<InstallRetentionSummary> CompositeUpdateProvider::finishInstallOperation(
+	const OperationId operationId, const ScanSessionId session)
+{
+	// 古い終端で現在のrouteを消費しません。
+	if( operationId == 0U || operationId != activeInstallOperation_ || session != scanSessionId_) {
+		return std::nullopt ;
+	}
+
+	const auto native =
+		// 実ownerの終了です。
+		driverStoreProvider_.finishInstallOperation( operationId, session) ;
+	// 原native ownerを失った場合にUI候補だけを復活させません。
+	if( !native) {
+		return std::nullopt ;
+	}
+
+	InstallRetentionSummary retained{
+		operationId, session, installEntered_, {}, {}} ;	// 元集合だけです。
+	// 実Providerへ渡したdeviceの代替候補も消費します。
+	if( installEntered_) {
+		std::erase_if( identityProviders_, [&]( const auto &entry) {
+			const auto device = identityDevices_.find( entry.first) ;	// 原route対応です。
+			return heldInstallIdentities_.contains( entry.first) ||
+				   heldInstallProviders_.contains( entry.second) ||
+				   (device != identityDevices_.end() &&
+					std::ranges::find( activeInstallDevices_, device->second) !=
+						activeInstallDevices_.end()) ;
+		}) ;
+		std::erase_if( identityDevices_, [&]( const auto &entry) {
+			const auto candidate = std::ranges::find( displayedCandidates_, entry.first,
+													 &UpdateCandidate::identity) ;	// 元scopeです。
+			return heldInstallIdentities_.contains( entry.first) ||
+				   std::ranges::find( activeInstallDevices_, entry.second) !=
+					   activeInstallDevices_.end() ||
+				   (candidate != displayedCandidates_.end() &&
+					heldInstallProviders_.contains( candidate->providerId)) ;
+		}) ;
+	}
+
+	// 私有route/tokenだけを消費し、原TRANSFER recordとowned本体の安定indexは保持します。
+	if( installEntered_ && signedIndexSession_) {
+		const auto consumed = [&]( const auto &route) {
+			return std::ranges::find( activeInstallDevices_, route.deviceIdentity) !=
+				   activeInstallDevices_.end() ;
+		} ; // 元Sだけです。
+		std::erase_if( signedIndexSession_->binding_.routes_, consumed) ;
+		std::erase_if( signedIndexSession_->binding_.pairs_, consumed) ;
+		std::erase_if( signedIndexSession_->binding_.pendingRoutes_, consumed) ;
+	}
+
+	// 元発行の導入可能候補から、今も所有しているsubsetだけを返します。
+	for( const auto &candidate : displayedCandidates_) {
+		// 消費候補/現在行/取得前参照を実行permitへ追加しません。
+		if( candidate.installable && identityProviders_.contains( candidate.identity) &&
+		   identityDevices_.contains( candidate.identity)) {
+			retained.candidates.push_back( {candidate.identity, candidate.deviceIdentity}) ;
+		}
+	}
+
+	// 未準備の元参照だけを原plan記述へ投影し、承認は作りません。
+	if( retainedPreparationPlan_) {
+		auto plan = *retainedPreparationPlan_ ;	// 原予算/規約/scopeを変更しません。
+		std::erase_if( plan.targets, [&]( const auto &target) {
+			const bool prepared =
+				signedIndexSession_ &&
+				std::ranges::any_of( signedIndexSession_->binding_.records_,
+									[&]( const auto &record) {
+										return record.task.target.identity == target.identity ;
+									}) ; // 元owned内容です。
+			return prepared ||
+				   !std::ranges::any_of( displayedCandidates_, [&]( const auto &candidate) {
+					   return !candidate.installable &&
+							  candidate.preparationTargetIdentity == target.identity &&
+							  identityDevices_.contains( candidate.identity) ;
+				   }) ;
+		}) ;
+		// 空なら取得前参照を実行選択へ戻しません。
+		if( !plan.targets.empty()) {
+			retained.preparationPlan = std::move( plan) ;
+			// 元集合の各要素を同じscopeへ一度ずつ照合します。
+			for( const auto &candidate : displayedCandidates_) {
+				// 元未処理の当該target/device対応だけを返します。
+				if( !candidate.current && !candidate.installable &&
+				   identityDevices_.contains( candidate.identity) &&
+				   std::ranges::any_of( retained.preparationPlan->targets, [&]( const auto &target) {
+					   return target.identity == candidate.preparationTargetIdentity ;
+				   })) {
+					retained.references.push_back( {candidate.identity, candidate.deviceIdentity}) ;
+				}
+			}
+		}
+	}
+
+	activeInstallDevices_.clear() ;
+	activeInstallOperation_ = 0U ;
+	installEntered_			= false ;
+	return retained ;
+}
+
+/** @see composite_update_provider.h 宣言側の契約を正本とします。 */
 InstallResult CompositeUpdateProvider::install( const ScanSessionId				   scanSessionId,
 											   const std::span<const std::wstring> identities,
 											   const std::uintptr_t			   parentWindowNative,
@@ -3061,13 +3245,15 @@ InstallResult CompositeUpdateProvider::install( const ScanSessionId				   scanSe
 													// 元選択deviceだけです。
 													uniqueDevices.end()} ;
 	const auto observeCurrent = driverStoreProvider_.capturePostInstallObservations(
-		scanSessionId, observedDevices) ;			// 同worker内の読取先だけを保持します。
+		scanSessionId, observedDevices) ;	// 同worker内の読取先だけを保持します。
+	installEntered_ = true ;
+	driverStoreProvider_.markInstallEntered() ;
 	std::vector<InstallResult> providerResults ;	// 実行したproviderごとのinstall結果。
 	providerResults.reserve( providerSelections.size()) ;
 	const std::uint64_t totalItems = identities.size() ;	// 複合処理の選択候補総数。
 	std::uint64_t		completedProviderItems{} ;			// 完了済み取得元に属する候補数。
 	const auto			executeProvider = [&providerSelections, &providerResults, &progressCallback,
-								   &completedProviderItems, totalItems, scanSessionId,
+								   &completedProviderItems, this, totalItems, scanSessionId,
 								   parentWindowNative]( RegisteredProvider &provider) {
 		 const auto selection = providerSelections.find( provider.descriptor.id) ;	// Provider選択。
 		 // 選択対象のないProviderと無効Providerのinstallを呼び出さない。
@@ -3087,8 +3273,51 @@ InstallResult CompositeUpdateProvider::install( const ScanSessionId				   scanSe
 					 totalItems) ;
 				 progressCallback( aggregateProgress) ;
 			 } ;
-		 providerResults.push_back( provider.install( scanSessionId, selection->second,
-															parentWindowNative, providerProgress)) ;
+		 try {
+			 auto executed = provider.install( scanSessionId, selection->second, parentWindowNative,
+													  providerProgress) ;	// 元個別結果は改作しません。
+			 // 未処理ownerを保持できない既経路/影響不明の引継ぎは当該Providerだけ保留します。
+			 if( !provider.retainsUnprocessedInstallScope) {
+				 heldInstallProviders_.insert( provider.descriptor.id) ;
+			 }
+
+			 // 再起動待ちは既選択deviceの作用です。未処理deviceを全体失効しません。
+			 // Index installer引継ぎは同じ元recordの全routeだけを保留します。
+			 if( signedIndexSession_) {
+				 // 元集合の各要素を同じscopeへ一度ずつ照合します。
+				 for( const auto &update : executed.updates) {
+					 // 元対象のscopeを満たした場合だけ次の処理へ進みます。
+					 if( !update.installerHandoff) {
+						 continue ;
+					 }
+
+					 const auto origin = std::ranges::find( signedIndexSession_->binding_.routes_,
+																   update.identity, []( const auto &route) {
+															   return route.candidate.identity ;
+														   }) ; // 元recordだけです。
+					 // 元対象のscopeを満たした場合だけ次の処理へ進みます。
+					 if( origin == signedIndexSession_->binding_.routes_.end()) {
+						 heldInstallProviders_.insert( provider.descriptor.id) ;
+						 continue ;
+					 }
+
+					 // 元集合の各要素を同じscopeへ一度ずつ照合します。
+					 for( const auto &route : signedIndexSession_->binding_.routes_) {
+						 // 元対象のscopeを満たした場合だけ次の処理へ進みます。
+						 if( route.recordIndex == origin->recordIndex) {
+							 heldInstallIdentities_.insert( route.candidate.identity) ;
+						 }
+					 }
+				 }
+			 }
+
+			 providerResults.push_back( std::move( executed)) ;
+		 } catch( ...) {
+			 // 例外の作用範囲は当該Providerへ閉じ、他ownerを破棄しません。
+			 heldInstallProviders_.insert( provider.descriptor.id) ;
+			 throw ;
+		 }
+
 		 completedProviderItems += providerItems ;
 	} ; // Provider一件の進捗範囲と結果をaggregateへ追加する処理。
 
@@ -3100,7 +3329,7 @@ InstallResult CompositeUpdateProvider::install( const ScanSessionId				   scanSe
 		}
 	}
 
-	// Driver Store自身のinstallはinventory sessionを失効させるため、必ず最後に実行する。
+	// Driver Store自身の選択scopeは他Providerの処理後に消費する。
 	for( RegisteredProvider &provider : providerRegistry_) {
 		// Driver Storeの選択は他Providerの処理後に実行する。
 		if( provider.phase == ProviderPhase::INVENTORY) {
@@ -3187,7 +3416,6 @@ InstallResult CompositeUpdateProvider::install( const ScanSessionId				   scanSe
 		}
 	}
 
-	invalidateScanSession() ;
 	return result ;
 }
 
@@ -3198,6 +3426,12 @@ InstallResult CompositeUpdateProvider::install( const ScanSessionId				   scanSe
 //------------------------------------------------------------------------------
 void CompositeUpdateProvider::invalidateScanSession() noexcept
 {
+	heldInstallProviders_.clear() ;
+	heldInstallIdentities_.clear() ;
+	retainedPreparationPlan_.reset() ;
+	activeInstallOperation_ = 0U ;
+	activeInstallDevices_.clear() ;
+	installEntered_ = false ;
 	invalidatePreparation() ;
 	officialDiscoveryRecordSession_.invalidate() ;
 	officialDiscoveryHttpClient_.invalidateSourceSession() ;
@@ -3639,7 +3873,9 @@ std::vector<OfficialPreparationAuditReport> CompositeUpdateProvider::preparation
 		// 取得成功した対象だけを照会し、未取得対象へ監査結果を発行しない。
 		for( const OfficialPreparationItem &item : result.items) {
 			// 検査用取得が完了していない対象から監査reportを要求しない。
-			if( item.result.state != OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION) {
+			if( item.result.state != OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION &&
+			   (item.result.state != OfficialPreparationItemState::LOCAL_INSPECTION_COMPLETED ||
+				!item.result.localInspection)) {
 				continue ;
 			}
 
@@ -3784,6 +4020,7 @@ void CompositeUpdateProvider::bindSignedIndexSession(
 void CompositeUpdateProvider::finishSignedIndexScanPublication( const OfficialPreparationPlan &plan,
 															   ScanResult &result)
 {
+	retainedPreparationPlan_ = plan ;
 	// 署名索引が未成立・未有効なら通常Provider候補をそのまま維持します。
 	if( !signedIndexSession_ || !signedIndexSession_->acquisitionLookup_) {
 		return ;
@@ -3814,6 +4051,10 @@ void CompositeUpdateProvider::finishSignedIndexScanPublication( const OfficialPr
 	identityDevices_.swap( devices) ;
 	displayedCandidates_.swap( candidates) ;
 	result.candidates.swap( publication) ;
+	// 初回lookupの再factory/全体再列挙だけを閉じ、未処理leaseは保持します。
+	if( !driverStoreProvider_.sealIndexLookup( signedIndexSession_->context_)) {
+		throw std::logic_error( "index lookup sealing failed") ;
+	}
 }
 
 /** @see composite_update_provider.h 宣言側の契約を正本とします。 */

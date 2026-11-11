@@ -2,7 +2,7 @@
 /**
  * @file operation_controller.h
  * @brief 操作状態管理定義。
- * @version 01.01.00
+ * @version 01.02.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  通常scanの協調取消し待ち状態を追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note UI操作とProvider resultの順序を検証する状態機械を定義します。本classはUI thread専用であり、内部lockingを行いません。
@@ -51,10 +52,13 @@
 
 #include <span>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 
 namespace drivercrate {
+
+struct InstallRetentionSummary ;
 
 //------------------------------------------------------------------------------
 // 操作状態型定義。
@@ -233,8 +237,32 @@ public:
 	 * @param[in] result workerが返した復元ポイントとupdateごとの最終結果。
 	 * @return 現在の operation に適用した場合は `true`。
 	 * @note 成功結果は開始時 selection と identity が完全一致する場合だけ受理する。
+	 * @param[in] retention 当該操作の実ownerが保持する元subsetです。空では従来の全失効です。
 	 */
-	[[nodiscard]] bool completeInstall( OperationId operationId, const InstallResult &result) ;
+	[[nodiscard]] bool completeInstall( OperationId operationId, const InstallResult &result,
+									   const InstallRetentionSummary *retention = nullptr) ;
+	/** @brief 最後に受理したInstall結果の成功を次操作stateと分けます。
+	 * @return 原結果の全検証に成功した場合trueです。
+	 */
+	[[nodiscard]] bool lastInstallSucceeded() const noexcept ;
+	/** @brief 同scanで未消費の導入可能候補だけを照合します。
+	 * @param[in] identity 元candidate identityです。
+	 * @return 残存集合へ結合している場合trueです。
+	 */
+	[[nodiscard]] bool isInstallCandidateAllowed( std::wstring_view identity) const ;
+	/** @brief 原参照の残存scopeだけを照合します。
+     * @param[in] identity 元発行の参照です。
+     * @return 未処理planへ結合している場合trueです。
+     */
+	[[nodiscard]] bool isPreparationReferenceAllowed( std::wstring_view identity) const ;
+	/** @brief 当該終端に限り新IDの残planを原subsetへ照合します。
+     * @param[in] operationId 受理した直前Install操作です。
+     * @param[in] session 未失効の元scanです。
+     * @param[in] plan 原metadata/予算のsubsetです。
+     * @return 一回の全検証と初期化が成立した場合trueです。
+     */
+	[[nodiscard]] bool setRemainingPreparationPlan( OperationId operationId, ScanSessionId session,
+												   const OfficialPreparationPlan &plan) ;
 
 	/**
 	 * @brief 成功した検索に付随する取得計画を固定する。
@@ -275,9 +303,11 @@ public:
 	 * @param[in] result operation／scan／planと対象別の確定結果。 同じoperation／scan／planの取得完了と監査report。
 	 * @param[in] candidates 表示済み候補。監査reportがある場合は必須。変更しない。 同じscanの表示候補。監査reportがある場合は必須。
 	 * @return 現在操作の結果を処理した場合true。不正内容はFailedとして適用する。 現在操作ならtrue。不正内容はFailedへ遷移し、旧操作はfalse。
+	 * @param[in] remainingPlan 当該承認の未選択原subsetです。新ID/原scope/予算を全検証します。
 	 */
 	[[nodiscard]] bool		  completePreparation( const OfficialPreparationOperationResult &result,
-												  std::span<const UpdateCandidate> candidates = {}) ;
+												  std::span<const UpdateCandidate> candidates = {},
+												  const OfficialPreparationPlan *remainingPlan = nullptr) ;
 
 	/**
 	 * @brief 新しい operation を拒否する停止状態へ移行する。
@@ -299,7 +329,7 @@ public:
 	/**
 	 * @brief 最後に受理したscan完了時点の段階別計測を参照する。
 	 * @return 有効な公開計測への非所有pointer。未接続・不正・新scan中はnullptr。
-	 * @note 準備操作で再計数せず、install後は失効済みscanの履歴として保持する。
+	 * @note 準備操作で再計数せず、install後は選択作用subsetの履歴と未処理scanを保持する。
 	 */
 	[[nodiscard]] const ScanMeasurement		  *scanMeasurement() const noexcept ;
 
@@ -351,9 +381,17 @@ private:
 	std::unordered_map<std::wstring, std::wstring> candidateDevices_ ;
 	/// Install対象identity集合。
 	std::unordered_set<std::wstring>			   activeInstallIdentities_ ;
+	/// 次操作可能stateと分離した原結果の成功です。
+	bool										   lastInstallSucceeded_{} ;
+	/// 初回planの不変scope/予算です。承認ではありません。
+	std::optional<OfficialPreparationPlan>		   originalPreparationPlan_ ;
+	/// 元参照identityからdevice/targetへの表示結合です。
+	std::unordered_map<std::wstring, std::pair<std::wstring, std::wstring>> scanReferenceScopes_ ;
+	/// 現planに残る元参照だけです。
+	std::unordered_set<std::wstring> retainedReferenceIdentities_ ;
 	/// 現在のinstall開始時に固定し、worker結果との一致を検証する回復保護方針。
-	InstallProtectionMode						   activeInstallProtectionMode_{
-		 InstallProtectionMode::WINDOWS_RESTORE_POINT} ;
+	InstallProtectionMode			 activeInstallProtectionMode_{
+		   InstallProtectionMode::WINDOWS_RESTORE_POINT} ;
 } ;
 
 } // namespace drivercrate

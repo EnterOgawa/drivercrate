@@ -2,7 +2,7 @@
 /**
  * @file provider_worker.cpp
  * @brief Provider worker実装。
- * @version 01.10.00
+ * @version 01.12.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -50,6 +50,8 @@
  * Ver.01.08.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
  * Ver.01.09.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
  * Ver.01.10.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
+ * Ver.01.11.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
+ * Ver.01.12.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note COM MTA worker threadと有限command/result queueを実装します。UIへの通知はPostMessageを使用し、COM objectをUI
@@ -909,24 +911,29 @@ void ProviderWorker::run() noexcept
 					}
 					// Install command では旧承認を失効させ、OS 別の保護手順を選択する。
 					else if constexpr( std::is_same_v<CommandType, InstallCommand>) {
-						indexSession.closeAcquisitionForInstall() ;
-						static_cast<void>(
-							// 導入開始後に旧承認を使わせない。
-							preparation.invalidate()) ;
 						// 監査済み保持物は保護判定と導入結果の確定まで生存させる。
-						InstallResult installResult ;	// 保護付きProvider処理または初期化失敗結果。
+						InstallResult installResult ;		// 保護付きProvider処理または初期化失敗結果。
+						NativeError	  operationError{} ;	// 操作予約の原診断です。
 						const bool	  restorePointServiceRequired =
 							typedCommand.protectionMode ==
 							InstallProtectionMode::WINDOWS_RESTORE_POINT ;
 						// Provider または必要な復元ポイント service がない場合は導入を呼ばない。
 						if( scanPurpose != ScanPurpose::STANDARD || installSession == 0U ||
 						   typedCommand.scanSessionId != installSession || provider == nullptr ||
-						   (restorePointServiceRequired && restorePointService == nullptr)) {
+						   (restorePointServiceRequired && restorePointService == nullptr) ||
+						   (operationError = provider->beginInstallOperation(
+								typedCommand.operationId, typedCommand.scanSessionId,
+								typedCommand.identities)) != 0U) {
 							installResult = makeFailedInstall(
 								typedCommand.identities,
-								FAILED( apartment.result()) ? apartment.result() : E_UNEXPECTED,
+								operationError != 0U
+									? static_cast<HRESULT>( operationError)
+									: (FAILED( apartment.result()) ? apartment.result()
+																  : E_UNEXPECTED),
 								typedCommand.protectionMode) ;
 						} else {
+							// 元所有へ予約できた当該操作だけが旧一回承認を閉じます。
+							static_cast<void>( preparation.invalidate()) ;
 							// Provider進捗を現在のinstall operationへ関連付けてUIへ渡す通知関数。
 							const ProviderProgressCallback progressCallback =
 								[this, operationId = typedCommand.operationId](
@@ -976,17 +983,62 @@ void ProviderWorker::run() noexcept
 							}
 						}
 
-						// Provider が存在する場合は保護拒否や部分失敗でも導入後の保持物を失効させる。
-						if( provider != nullptr) {
-							// 保護拒否・部分失敗でも解放する。
-							provider->invalidatePreparation() ;
+						std::optional<InstallRetentionSummary>
+							retention ;	// 実ownerだけの残存証明です。
+						// 元操作へ拘束したownerからだけ継続を受理します。
+						if( provider) {
+							retention = provider->finishInstallOperation(
+								typedCommand.operationId, typedCommand.scanSessionId) ;
 						}
 
-						publishEvent( {.kind			 = WorkerEventKind::INSTALL_COMPLETED,
-									  .operationId	 = typedCommand.operationId,
-									  .installResult = std::move( installResult)}) ;
-						indexSession.invalidate() ;
-						installSession = 0U ;
+						// 原記述subsetに新IDを与えるだけで同意/通信は発行しません。
+						if( retention && retention->preparationPlan) {
+							auto &plan = *retention->preparationPlan ;	// 原予算/termsのcopyです。
+							// ID再使用は参照だけの保留へ戻します。
+							if( nextPreparationPlanId_ ==
+							   std::numeric_limits<std::uint64_t>::max()) {
+								retention->preparationPlan.reset() ;
+								retention->references.clear() ;
+							} else {
+								plan.planId = nextPreparationPlanId_++ ;
+								// 元期限と既sessionの累積予算を再検証します。
+								if( !indexServices_ ||
+								   !indexSession.retainPreparationPlan( plan, *indexServices_) ||
+								   plan.targets.empty() ||
+								   preparation.initialize( plan) != OfficialPreparationError::NONE) {
+									retention->preparationPlan.reset() ;
+									retention->references.clear() ;
+								} else {
+									std::erase_if(
+										retention->references, [&]( const auto &reference) {
+											const auto *composite =
+												dynamic_cast<CompositeUpdateProvider *>(
+													// 原ownerです。
+													provider.get()) ;
+											return !composite ||
+												   !composite->isRetainedPreparationReference(
+													   reference.identity, plan) ;
+										}) ;
+								}
+							}
+						}
+
+						// 所有継続が証明されない経路では元安全境界を維持します。
+						if( !retention && operationError == 0U &&
+						   typedCommand.scanSessionId == installSession) {
+							// 元対象のscopeを満たした場合だけ次の処理へ進みます。
+							if( provider) {
+								provider->invalidatePreparation() ;
+							}
+
+							indexSession.invalidate() ;
+							installSession = 0U ;
+						}
+
+						publishEvent( {.kind				= WorkerEventKind::INSTALL_COMPLETED,
+									  .operationId		= typedCommand.operationId,
+									  .installResult	= std::move( installResult),
+									  .installRetention = std::move( retention)}) ;
 					}
 					// 準備 command は操作専用の取消し signal と取得境界で処理する。
 					else if constexpr( std::is_same_v<CommandType, PreparationCommand>) {
@@ -1065,7 +1117,7 @@ void ProviderWorker::run() noexcept
 						auto result = executeOfficialPreparation( preparation, typedCommand.approval,
 																 acquire, cancellation, progress) ;
 						// 承認と制御処理が成功し Provider がある場合だけ監査 report を集約する。
-						if( provider != nullptr &&
+						if( provider != nullptr && !cancellation() &&
 						   result.approvalError == OfficialPreparationError::NONE &&
 						   result.controlError == 0) {
 							try {
@@ -1095,17 +1147,38 @@ void ProviderWorker::run() noexcept
 									typedCommand.approval) ;
 						}
 
-						// 確定取消し・承認拒否・制御異常で未使用取得能力を残しません。
-						if( cancellation() ||
-						   result.approvalError != OfficialPreparationError::NONE ||
-						   result.controlError != 0U || indexResult.authorityError != 0U) {
-							indexSession.invalidate() ;
+						std::optional<OfficialPreparationPlan>
+							remainingPlan ;	// 未選択の原記述だけです。
+						// 不正承認/制御異常を新しいplanへ補完しません。取消しは原結果のままです。
+						if( result.approvalError == OfficialPreparationError::NONE &&
+						   result.controlError == 0U && indexResult.authorityError == 0U &&
+						   nextPreparationPlanId_ != std::numeric_limits<std::uint64_t>::max()) {
+							OfficialPreparationPlan plan{typedCommand.approval.scanSessionId,
+														 nextPreparationPlanId_++,
+														 typedCommand.approval.limits,
+														 {}} ;	// 期限/予算を更新しません。
+							// 原承認で未選択だったtargetだけへ限定します。
+							for( const auto &decision : typedCommand.approval.decisions) {
+								// 元対象のscopeを満たした場合だけ次の処理へ進みます。
+								if( !decision.acquire) {
+									plan.targets.push_back( decision.target) ;
+								}
+							}
+
+							// 同scanの未消費adapter/原期限と既累積予約を再照合します。
+							if( !plan.targets.empty() && indexServices_ &&
+							   indexSession.retainPreparationPlan( plan, *indexServices_) &&
+							   !plan.targets.empty() && preparation.invalidate() &&
+							   preparation.initialize( plan) == OfficialPreparationError::NONE) {
+								remainingPlan = std::move( plan) ;
+							}
 						}
 
 						// URLも実device IDも含まない確定結果だけをUIへ渡す。
 						publishEvent( {.indexPreparation	 = std::move( indexResult),
 									  .kind				 = WorkerEventKind::PREPARATION_COMPLETED,
 									  .operationId		 = operationId,
+									  .preparationPlan	 = std::move( remainingPlan),
 									  .preparationResult = std::move( result)}) ;
 					}
 				},

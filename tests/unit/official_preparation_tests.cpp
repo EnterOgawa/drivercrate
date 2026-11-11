@@ -1225,9 +1225,38 @@ void testPrerequisiteConfirmation( TestContext &context)
 /**
  * @see tests/unit/official_preparation_tests.h 宣言側の契約を正本とする。
  */
+/** @brief LOCALという状態/flagだけで新対象の実検査成功を偽装できないことを確認します。
+ * @param[in,out] context 原assertionです。
+ */
+void testUnclaimedLocalInspection( TestContext &context)
+{
+	OfficialPreparationSession session ;			// 既state machineだけです。
+	const auto				   plan = makePlan() ;	// 原対象/予算です。
+	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
+	DRIVERCRATE_EXPECT( context,
+					   session.approve( makeApproval( plan, 1U)) == OfficialPreparationError::NONE) ;
+	const auto task = session.claimNext() ;	// 正規active taskです。
+	DRIVERCRATE_EXPECT( context, task.has_value()) ;
+	// 実active task不在を成功にしません。
+	if( task) {
+		DRIVERCRATE_EXPECT(
+			context,
+			!session.complete( *task,
+							  {OfficialPreparationItemState::LOCAL_INSPECTION_COMPLETED, 0U, 0U})) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			!session.complete( *task,
+							  {OfficialPreparationItemState::LOCAL_INSPECTION_COMPLETED, 0U, 10U})) ;
+		DRIVERCRATE_EXPECT( context, session.ownsActiveTask( *task)) ;
+		DRIVERCRATE_EXPECT( context, session.complete( *task, {OfficialPreparationItemState::REJECTED,
+															 FAILURE, 0U})) ;
+	}
+}
+
 //------------------------------------------------------------------------------
 void runOfficialPreparationTests( TestContext &context)
 {
+	testUnclaimedLocalInspection( context) ;
 	testPrerequisiteConfirmation( context) ;
 	testEulaTextValidation( context) ;
 	testEulaBodyBoundApproval( context) ;

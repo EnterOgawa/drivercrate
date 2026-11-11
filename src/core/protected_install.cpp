@@ -2,7 +2,7 @@
 /**
  * @file protected_install.cpp
  * @brief OS別回復保護付きinstall処理実装。
- * @version 01.00.01
+ * @version 01.01.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.00.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note Clientの復元ポイント保護とServerの明示同意済み経路を実装します。Server専用経路の利用可否はworkerが実OSを再検証します。
@@ -213,25 +214,56 @@ InstallResult installWithRestorePoint( IUpdateProvider					 &provider,
 									  const ProviderProgressCallback	 &progressCallback,
 									  const std::wstring_view			  restorePointDescription)
 {
-	progressCallback( {.stage = ProviderStage::CREATING_RESTORE_POINT}) ;
+	progressCallback( {.stage = ProviderStage::VERIFYING_RESTORE_POINT}) ;
 	// Driver変更前にWindowsへ復元ポイント開始を要求する。
 	const RestorePointOperationResult creation = restorePointService.begin( restorePointDescription) ;
+	const auto protection = restorePointService.protection() ;	// native結果と実在確認を分けます。
+	const bool legacy	  = protection.disposition ==
+						RestorePointDisposition::NATIVE_TRANSACTION ;	// 旧serviceのnative契約です。
+	const bool daily = protection.disposition ==
+					   RestorePointDisposition::SAME_DAY_REUSED ;	// native未実行の再利用です。
+	const bool knownDisposition =
+		daily || protection.disposition == RestorePointDisposition::NEW_POINT_VERIFIED ||
+		protection.disposition ==
+			RestorePointDisposition::WINDOWS_SELECTED_POINT ;	// 実在保護を許す閉集合です。
 	// 復元ポイントの開始成功と有効な番号がそろわなければ、Providerを呼ばず中止する。
-	if( creation.outcome != OutcomeCode::SUCCESS || creation.sequenceNumber <= 0) {
-		InstallResult result		= makeUnstartedInstallResult( identities) ;	// Fail-closed結果。
-		result.protectionMode		= InstallProtectionMode::WINDOWS_RESTORE_POINT ;
-		result.restorePointCreation = creation ;
-		// 成功通知でも復元ポイント番号が無効なら、保護開始失敗として結果を補正する。
-		if( creation.outcome == OutcomeCode::SUCCESS) {
-			result.restorePointCreation.outcome = OutcomeCode::FAILURE ;
-			result.restorePointCreation.error	= static_cast<NativeError>( 0x8000FFFFU) ;
+	const bool prepared =
+		knownDisposition && protection.verifiedBefore &&
+		protection.verification == OutcomeCode::SUCCESS && protection.error == 0 &&
+		protection.sequenceNumber > 0 && creation.error == 0 && protection.createdUtc > 0 &&
+		protection.localDay != 0 && !protection.nativeEndCalled &&
+		(daily ? creation.outcome == OutcomeCode::NOT_STARTED && !protection.nativeBeginCalled &&
+					 creation.sequenceNumber == protection.sequenceNumber
+			   : creation.outcome == OutcomeCode::SUCCESS && protection.nativeBeginCalled &&
+					 creation.sequenceNumber == protection.sequenceNumber) ;
+	// 実在保護が成立しなければProviderを実行しません。
+	if( !prepared) {
+		InstallResult result  = makeUnstartedInstallResult( identities) ;	// Fail-closed結果。
+		result.protectionMode = InstallProtectionMode::WINDOWS_RESTORE_POINT ;
+		result.restorePointCreation =
+			legacy || protection.nativeBeginCalled ? creation : RestorePointOperationResult{} ;
+		// BEGIN成功後に実在確認だけが失敗したscopeも、元sequenceへENDを一回通知します。
+		if( creation.outcome == OutcomeCode::SUCCESS && creation.sequenceNumber > 0) {
+			result.restorePointCompletion = restorePointService.complete( creation.sequenceNumber) ;
 		}
 
-		progressCallback( {.stage = ProviderStage::CREATING_RESTORE_POINT, .percentComplete = 100}) ;
+		result.restorePointProtection = restorePointService.protection() ;
+		// 不正な区分/結合を実在保護成功へ表示せず、元native結果は保持します。
+		result.restorePointProtection.verification = OutcomeCode::FAILURE ;
+		// 元診断が欠けた場合だけ未成立のcodeを補います。
+		if( result.restorePointProtection.error == 0) {
+			result.restorePointProtection.error =
+				creation.error ? creation.error : static_cast<NativeError>( 0x8000FFFFU) ;
+		}
+
+		progressCallback( {.stage = ProviderStage::VERIFYING_RESTORE_POINT, .percentComplete = 100}) ;
 		return result ;
 	}
 
-	progressCallback( {.stage = ProviderStage::CREATING_RESTORE_POINT, .percentComplete = 10}) ;
+	progressCallback( {.stage = protection.disposition == RestorePointDisposition::NEW_POINT_VERIFIED
+								   ? ProviderStage::CREATING_RESTORE_POINT
+								   : ProviderStage::REUSING_RESTORE_POINT,
+					  .percentComplete = 10}) ;
 
 	RestorePointScope			   restorePointScope( restorePointService,
 													 creation.sequenceNumber) ;	// 終了通知guard。
@@ -254,15 +286,20 @@ InstallResult installWithRestorePoint( IUpdateProvider					 &provider,
 
 	result.restorePointCreation = creation ;
 	result.protectionMode		= InstallProtectionMode::WINDOWS_RESTORE_POINT ;
-	progressCallback( {.stage = ProviderStage::FINALIZING_RESTORE_POINT, .percentComplete = 90}) ;
+	progressCallback( {.stage		   = daily ? ProviderStage::VERIFYING_RESTORE_POINT
+											   : ProviderStage::FINALIZING_RESTORE_POINT,
+					  .percentComplete = 90}) ;
 	result.restorePointCompletion = restorePointScope.complete() ;
+	result.restorePointProtection = restorePointService.protection() ;
 	// 終了通知の失敗は全体成功へ含めず、実際の個別導入結果を保持したまま報告する。
-	if( result.restorePointCompletion.outcome != OutcomeCode::SUCCESS) {
+	if( !isRestorePointProtectionValid( result)) {
 		// 終了通知失敗を全体成功として表示しないが、実際の候補別結果は保持する。
 		result.succeeded = false ;
 	}
 
-	progressCallback( {.stage = ProviderStage::FINALIZING_RESTORE_POINT, .percentComplete = 100}) ;
+	progressCallback( {.stage		   = daily ? ProviderStage::VERIFYING_RESTORE_POINT
+											   : ProviderStage::FINALIZING_RESTORE_POINT,
+					  .percentComplete = 100}) ;
 	return result ;
 }
 
@@ -288,6 +325,7 @@ InstallResult installWithoutRestorePointOnServer( IUpdateProvider					&provider,
 	result.protectionMode		  = InstallProtectionMode::SERVER_WITHOUT_RESTORE_POINT ;
 	result.restorePointCreation	  = {} ;
 	result.restorePointCompletion = {} ;
+	result.restorePointProtection = {} ;
 	return result ;
 }
 
@@ -305,6 +343,55 @@ bool isInstallProtectionModeAllowed( const bool					windowsServer,
 	}
 
 	return protectionMode == InstallProtectionMode::WINDOWS_RESTORE_POINT ;
+}
+
+/** @see protected_install.h 宣言側の契約を正本とします。 */
+bool isRestorePointProtectionValid( const InstallResult &result) noexcept
+{
+	const auto &begin = result.restorePointCreation ;	// 実native開始です。
+	const auto &end	  = result.restorePointCompletion ;	// 実native終了です。
+	const auto &p	  = result.restorePointProtection ;	// 実在確認です。
+	// Serverでは実在確認と両native操作が未実行であることを要求します。
+	if( result.protectionMode == InstallProtectionMode::SERVER_WITHOUT_RESTORE_POINT) {
+		return begin.outcome == OutcomeCode::NOT_STARTED &&
+			   end.outcome == OutcomeCode::NOT_STARTED &&
+			   p.verification == OutcomeCode::NOT_STARTED && !p.nativeBeginCalled &&
+			   !p.nativeEndCalled ;
+	}
+
+	// 定義外の保護modeを受理しません。
+	if( result.protectionMode != InstallProtectionMode::WINDOWS_RESTORE_POINT) {
+		return false ;
+	}
+
+	// bare native成功はClientの実在保護に使いません。
+	if( p.disposition == RestorePointDisposition::NATIVE_TRANSACTION) {
+		// Bare API成功だけでは現在の実在保護を証明しません。
+		return false ;
+	}
+
+	// 同じscopeの開始前後の実在と原番号を要求します。
+	if( !p.verifiedBefore || !p.verifiedAfter || p.verification != OutcomeCode::SUCCESS ||
+	   p.error != 0 || p.sequenceNumber <= 0 || p.createdUtc <= 0 || p.localDay == 0) {
+		return false ;
+	}
+
+	// 日内再利用ではnative操作の未実行を要求します。
+	if( p.disposition == RestorePointDisposition::SAME_DAY_REUSED) {
+		return !p.nativeBeginCalled && !p.nativeEndCalled &&
+			   begin.outcome == OutcomeCode::NOT_STARTED &&
+			   end.outcome == OutcomeCode::NOT_STARTED && begin.error == 0 && end.error == 0 ;
+	}
+
+	// 新規またはWindows選択の区分以外を拒否します。
+	if( p.disposition != RestorePointDisposition::NEW_POINT_VERIFIED &&
+	   p.disposition != RestorePointDisposition::WINDOWS_SELECTED_POINT) {
+		return false ;
+	}
+
+	return p.nativeBeginCalled && p.nativeEndCalled && begin.outcome == OutcomeCode::SUCCESS &&
+		   end.outcome == OutcomeCode::SUCCESS && begin.error == 0 && end.error == 0 &&
+		   begin.sequenceNumber == p.sequenceNumber && end.sequenceNumber == p.sequenceNumber ;
 }
 
 } // namespace drivercrate

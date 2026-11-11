@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_tests.cpp
  * @brief 真署名索引から通常候補とfake指定導入へ接続する有限fixtureを検証します。
- * @version 01.29.00
+ * @version 01.31.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -54,6 +54,8 @@
  * Ver.01.27.00 Shunji Ogawa  2026/11/03  原INF参照の版投影と非導入境界を確認。
  * Ver.01.28.00 Shunji Ogawa  2026/11/06  driver DATAとstage-only importの通常保護導入を検査。
  * Ver.01.29.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.30.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.31.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -155,8 +157,14 @@ struct NativeFixtureState {
 	std::array<std::uint32_t, 2U>				   deviceInstalls{} ;
 	/// 同IDbatchでは指定API成功後だけ当該deviceの現在属性を反映します。
 	bool										   reflectOwnInstall{} ;
+	/// 新しい正常caseだけ再起動不要を明示します。
+	bool										   noReboot{} ;
+	/// 直接Driver Storeの二target正例だけが互換新版nodeを発行します。
+	bool										   localDriverCandidates{} ;
 	/// 指定APIへ到達した回数と分けた成功反映数です。
 	std::array<std::uint32_t, 2U>				   appliedDeviceInstalls{} ;
+	/// 成功した元指定INFのbasenameだけを同deviceの現在propertyへ反映します。
+	std::array<std::wstring, 2U>				   appliedInfNames ;
 	/// 第一成功後に第二の低位条件だけを変える事前固定入力です。
 	SignedIndexBindingBatchFault				   batchFault{SignedIndexBindingBatchFault::NONE} ;
 	/// 原INFの実byte変更を一回だけに限定する印です。
@@ -1212,7 +1220,10 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 		}
 		// 現在INF要求だけへ固定公開名を返します。
 		else if( sameKey( *key, DEVPKEY_Device_DriverInfPath)) {
-			text = L"oemfixture.inf" ;
+			text = updated && device->DevInst >= 1U && device->DevInst <= 2U &&
+						   !activeNative->appliedInfNames[device->DevInst - 1U].empty()
+					   ? activeNative->appliedInfNames[device->DevInst - 1U]
+					   : L"oemfixture.inf" ;
 		}
 		// 現在版要求へ各試験modeの既知版を返します。
 		else if( sameKey( *key, DEVPKEY_Device_DriverVersion)) {
@@ -1567,7 +1578,11 @@ BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 		}
 	}
 
-	driver->DriverVersion = candidate || updated ? 1ULL << 48U : packedCurrent() ;
+	const bool localCandidate =
+		activeNative->localDriverCandidates &&
+		(activeNative->parameters[i].FlagsEx & DI_FLAGSEX_INSTALLEDDRIVER) ==
+			0U ;	// 現在属性と互換新版を分けます。
+	driver->DriverVersion = candidate || updated || localCandidate ? 1ULL << 48U : packedCurrent() ;
 	// 登録nodeが元指定nodeと変わった条件だけを原APIへ返します。
 	if( candidate && activeNative->stages != 0U &&
 	   activeNative->nativeCase == SignedIndexBindingNativeCase::STAGE_WRONG_NODE &&
@@ -1576,9 +1591,10 @@ BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 		driver->DriverVersion = 2ULL << 48U ;
 	}
 
-	driver->DriverDate = date( candidate || updated) ;
-	wcscpy_s( driver->ProviderName,
-			 candidate || updated ? L"Fixture Vendor" : activeNative->currentProvider.c_str()) ;
+	driver->DriverDate = date( candidate || updated || localCandidate) ;
+	wcscpy_s( driver->ProviderName, candidate || updated || localCandidate
+									   ? L"Fixture Vendor"
+									   : activeNative->currentProvider.c_str()) ;
 	wcscpy_s( driver->MfgName, L"Fixture Vendor") ;
 	wcscpy_s( driver->Description, L"Fixture Device") ;
 	driver->Reserved = rankCase ? static_cast<ULONG_PTR>( index) + 1U : 1U ;
@@ -2014,12 +2030,14 @@ BOOL WINAPI install( [[maybe_unused]] HWND parent, HDEVINFO set, PSP_DEVINFO_DAT
 		(child ? activeNative->componentChild &&
 					 activeNative->childInstalls[device->DevInst - 3U] == 0U
 			   : activeNative->deviceInstalls[device->DevInst - 1U] == 0U) &&
-		std::ranges::any_of(
-			activeNative->stagedPaths,
-			[&]( const auto &path) {
-				return !path.empty() && path.front() != L'\0' &&
-					   std::wstring_view{activeNative->parameters[slot].DriverPath} == path.data() ;
-			}) &&
+		((activeNative->localDriverCandidates &&
+		  activeNative->parameters[slot].DriverPath[0] == L'\0') ||
+		 std::ranges::any_of(
+			 activeNative->stagedPaths,
+			 [&]( const auto &path) {
+				 return !path.empty() && path.front() != L'\0' &&
+						std::wstring_view{activeNative->parameters[slot].DriverPath} == path.data() ;
+			 })) &&
 		driver->cbSize == sizeof( *driver) && driver->DriverVersion == (1ULL << 48U) &&
 		std::wstring_view{driver->ProviderName} == L"Fixture Vendor" &&
 		// 元nodeの完全指定です。
@@ -2044,8 +2062,10 @@ BOOL WINAPI install( [[maybe_unused]] HWND parent, HDEVINFO set, PSP_DEVINFO_DAT
 		++activeNative->deviceInstalls[device->DevInst - 1U] ;
 	}
 
-	*reboot = activeNative->mode == 4U || (activeNative->multiple && device->DevInst == 1U) ? TRUE
-																							: FALSE ;
+	*reboot = !activeNative->noReboot && (activeNative->mode == 4U ||
+										  (activeNative->multiple && device->DevInst == 1U))
+				  ? TRUE
+				  : FALSE ;
 	// FALSEの欠落診断を0の成功へ上げない追加C31の低位入力です。
 	if( !child &&
 	   activeNative->nativeCase == SignedIndexBindingNativeCase::REQUIRED_BASE_DIAGNOSTIC_MISSING) {
@@ -2067,6 +2087,12 @@ BOOL WINAPI install( [[maybe_unused]] HWND parent, HDEVINFO set, PSP_DEVINFO_DAT
 	// 完了した自己deviceだけを反映し、第二の未実行状態は変更しません。
 	if( !child && activeNative->reflectOwnInstall) {
 		++activeNative->appliedDeviceInstalls[device->DevInst - 1U] ;
+		activeNative->appliedInfNames[device->DevInst - 1U] =
+			activeNative->parameters[slot].DriverPath[0]
+				? std::filesystem::path( activeNative->parameters[slot].DriverPath)
+					  .filename()
+					  .wstring()
+				: L"oemfixture.inf" ;
 	}
 
 	return TRUE ;
@@ -2286,6 +2312,15 @@ private:
 /** @brief Windows復旧APIを呼ばず既存保護契約へ結果を返します。 */
 class FakeRestore final : public IRestorePointService {
 public:
+	/// 同fakeの実行済みcallbackからだけ作る明示観測です。
+	RestorePointProtectionResult			   fakeProtection_{.disposition =
+													   RestorePointDisposition::UNAVAILABLE} ;
+	/** @brief 完全fakeの原開始/終了に対応した観測を返します。@return 本番APIを呼ばない観測です。 */
+	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
+	{
+		return fakeProtection_ ;
+	}
+
 	/** @brief 復旧開始の固定成功または元失敗だけを返します。
 	 * @param[in] description 同期中借用する操作説明です。保存せず実復旧APIを呼びません。
 	 * @return 固定sequence42の成功、または元E_ACCESSDENIEDの失敗です。
@@ -2293,25 +2328,40 @@ public:
 	RestorePointOperationResult begin(
 		[[maybe_unused]] std::wstring_view description) noexcept override
 	{
-		// 同workerの固定復旧境界だけを観測し、実System Restoreへfallbackしません。
-		if( activeNative) {
-			// 制御した遅延を実復旧APIへ渡さず、例外時もworker境界を越えません。
-			if( activeNative->beforeRestore) {
-				try {
-					activeNative->beforeRestore() ;
-				} catch( ...) {
-					return {OutcomeCode::FAILURE, static_cast<NativeError>( E_UNEXPECTED), 0} ;
+		const auto result = [&]() noexcept -> RestorePointOperationResult {
+			// 同workerの固定復旧境界だけを観測し、実System Restoreへfallbackしません。
+			if( activeNative) {
+				// 制御した遅延を実復旧APIへ渡さず、例外時もworker境界を越えません。
+				if( activeNative->beforeRestore) {
+					try {
+						activeNative->beforeRestore() ;
+					} catch( ...) {
+						return {OutcomeCode::FAILURE, static_cast<NativeError>( E_UNEXPECTED), 0} ;
+					}
+				}
+
+				++activeNative->restoreBegins ;
+				// 復旧開始失敗は元HRESULTを返してProvider導入を止めます。
+				if( activeNative->restoreFailure) {
+					return {OutcomeCode::FAILURE, static_cast<NativeError>( E_ACCESSDENIED), 0} ;
 				}
 			}
 
-			++activeNative->restoreBegins ;
-			// 復旧開始失敗は元HRESULTを返してProvider導入を止めます。
-			if( activeNative->restoreFailure) {
-				return {OutcomeCode::FAILURE, static_cast<NativeError>( E_ACCESSDENIED), 0} ;
-			}
-		}
-
-		return {OutcomeCode::SUCCESS, 0U, 42} ;
+			return {OutcomeCode::SUCCESS, 0U, 42} ;
+		}() ; // 元fake API結果とcounterはそのままです。
+		fakeProtection_ = {.disposition	   = RestorePointDisposition::WINDOWS_SELECTED_POINT,
+						   .verification   = result.outcome == OutcomeCode::SUCCESS &&
+													 result.error == 0 && result.sequenceNumber > 0
+												 ? OutcomeCode::SUCCESS
+												 : OutcomeCode::FAILURE,
+						   .error		   = result.error,
+						   .sequenceNumber = result.sequenceNumber,
+						   .createdUtc	   = 1,
+						   .localDay	   = 20261110U,
+						   .verifiedBefore = result.outcome == OutcomeCode::SUCCESS &&
+											 result.error == 0 && result.sequenceNumber > 0,
+						   .nativeBeginCalled = true} ;
+		return result ;
 	}
 	/** @brief 開始済みfake sequenceの終了通知と元終了失敗を保持します。
 	 * @param[in] sequence 元開始が返したsequenceです。
@@ -2319,18 +2369,34 @@ public:
 	 */
 	RestorePointOperationResult complete( std::int64_t sequence) noexcept override
 	{
-		// 開始したfake復旧だけの終了通知回数を保持します。
-		if( activeNative) {
-			++activeNative->restoreCompletes ;
-			// 完了失敗は導入個別結果を消さずcontrollerへ元診断を返します。
-			if( activeNative->nativeCase == SignedIndexBindingNativeCase::RESTORE_END_FAILURE ||
-			   activeNative->nativeCase ==
-				   SignedIndexBindingNativeCase::INITIAL_RESTORE_END_FAILURE) {
-				return {OutcomeCode::FAILURE, static_cast<NativeError>( E_ACCESSDENIED), sequence} ;
+		const auto result = [&]() noexcept -> RestorePointOperationResult {
+			// 開始したfake復旧だけの終了通知回数を保持します。
+			if( activeNative) {
+				++activeNative->restoreCompletes ;
+				// 完了失敗は導入個別結果を消さずcontrollerへ元診断を返します。
+				if( activeNative->nativeCase == SignedIndexBindingNativeCase::RESTORE_END_FAILURE ||
+				   activeNative->nativeCase ==
+					   SignedIndexBindingNativeCase::INITIAL_RESTORE_END_FAILURE) {
+					return {OutcomeCode::FAILURE, static_cast<NativeError>( E_ACCESSDENIED),
+							sequence} ;
+				}
 			}
+
+			return {OutcomeCode::SUCCESS, 0U, sequence} ;
+		}() ; // 元fake API結果とcounterはそのままです。
+		fakeProtection_.nativeEndCalled = true ;
+		fakeProtection_.verifiedAfter	= result.outcome == OutcomeCode::SUCCESS &&
+										result.error == 0 &&
+										result.sequenceNumber == fakeProtection_.sequenceNumber ;
+		fakeProtection_.verification =
+			fakeProtection_.verifiedBefore && fakeProtection_.verifiedAfter ? OutcomeCode::SUCCESS
+																			: OutcomeCode::FAILURE ;
+		// 元fake終了診断を実在確認へ保持します。
+		if( result.error != 0) {
+			fakeProtection_.error = result.error ;
 		}
 
-		return {OutcomeCode::SUCCESS, 0U, sequence} ;
+		return result ;
 	}
 } ;
 /** @brief 有限な協調待機で要求operationの実worker eventを取り出します。
@@ -2485,13 +2551,16 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 	const bool restoreFailure, const bool stagingFailure,
 	const SignedIndexBindingNativeCase nativeCase, const std::string_view installerPayload,
 	std::function<void()> observeWorkerStart, std::function<void()> beforeRestore,
-	const bool reflectOwnInstall, const SignedIndexBindingBatchFault batchFault)
+	const bool reflectOwnInstall, const SignedIndexBindingBatchFault batchFault,
+	const bool localDriverCandidates, const bool noReboot)
 {
 	auto native = std::make_shared<NativeFixtureState>() ;	// 同worker低位状態の共有所有です。
-	native->beforeRestore	  = std::move( beforeRestore) ;
-	native->reflectOwnInstall = reflectOwnInstall ;
-	native->batchFault		  = batchFault ;
-	const auto originalUtc	  = services.utc ;	// 原信頼時刻callbackを同workerだけで借用します。
+	native->beforeRestore		  = std::move( beforeRestore) ;
+	native->reflectOwnInstall	  = reflectOwnInstall ;
+	native->localDriverCandidates = localDriverCandidates ;
+	native->noReboot			  = noReboot ;
+	native->batchFault			  = batchFault ;
+	const auto originalUtc		  = services.utc ;	// 原信頼時刻callbackを同workerだけで借用します。
 	// 第一成功前は元UTC/byteを保ち、第二前だけ期限または実byteを一回変更します。
 	services.utc = [native, originalUtc]() -> std::optional<std::chrono::sys_seconds> {
 		const auto now = originalUtc ? originalUtc() : std::nullopt ;	// 欠測は補完しません。
@@ -3495,10 +3564,12 @@ void runSignedIndexCandidateBindingTests( TestContext						   &context,
 		auto bound = makeSignedIndexBindingWorker(
 			services, zip, false, false, false,
 			SignedIndexBindingNativeCase::
-				INDEX_VERIFIED_PARTIAL) ;						// 低位APIだけを固定した通常workerです。
-		OperationController controller ;						// 実UIと同じ受付/終端を使います。
-		const auto			begin = controller.beginScan() ;	// 正の元operationです。
-		ScanOptions			options ;							// 索引と現在観測だけです。
+				INDEX_VERIFIED_PARTIAL) ;	// 低位APIだけを固定した通常workerです。
+		auto controllerOwner =
+			std::make_unique<OperationController>() ;		// 大きい原stateをheapへ所有します。
+		auto	   &controller = *controllerOwner ;			// 同scopeの実受付/終端を借用します。
+		const auto	begin	   = controller.beginScan() ;	// 正の元operationです。
+		ScanOptions options ;								// 索引と現在観測だけです。
 		options.useDefaultProviders = false ;
 		options.enabledProviderIds	= {std::wstring( DRIVER_STORE_PROVIDER_ID),
 									   std::wstring( SIGNED_INDEX_PROVIDER_ID)} ;
@@ -3619,9 +3690,11 @@ void runSignedIndexCandidateBindingTests( TestContext						   &context,
 		options.useDefaultProviders = false ;
 		options.enabledProviderIds	= {std::wstring{DRIVER_STORE_PROVIDER_ID},
 									   std::wstring{SIGNED_INDEX_PROVIDER_ID}} ;
-		OperationController controller ;	// MainWindowと同じ実core状態機械です。
+		auto controllerOwner =
+			std::make_unique<OperationController>() ;	// 元scopeで原stateを所有します。
+		auto	  &controller = *controllerOwner ;		// MainWindowと同じ実core状態機械です。
 		// 元scan operationの開始許可とidentity。
-		const auto			scan = controller.beginScan() ;
+		const auto scan = controller.beginScan() ;
 		DRIVERCRATE_EXPECT( context,
 						   scan.accepted && worker->requestScan( scan.operationId, options)) ;
 		// 同scanの実終端event。以後の同期確認期間を通して所有する。

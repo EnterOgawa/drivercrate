@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding.cpp
  * @brief 索引の私有取得根拠とWindows指定bindingを原子的候補へ接続します。
- * @version 01.15.00
+ * @version 01.16.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -42,6 +42,7 @@
  * Ver.01.13.01 Shunji Ogawa  2026/11/07  同原packageの共同保持と現非実行policyを整合。
  * Ver.01.14.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持。
  * Ver.01.15.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.16.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません。
@@ -887,14 +888,62 @@ NativeError SignedIndexCandidateBindingSession::reverifyRecord(
 	const SignedIndexScanSession &owner, const PreparedRecord &record,
 	const provider_worker_index_detail::Services &services) const
 {
+	// Local recordは原TRANSFER ownerだけを直接借用します。過去grantを新許可にしません。
+	if( record.ownedBodyRecordIndex) {
+		const auto index = *record.ownedBodyRecordIndex ;	// 安定ordinalです。
+		// 元owner以外・循環・照合票のないflagだけを拒否します。
+		if( index >= records_.size() || &records_[index] == &record ||
+		   records_[index].ownedBodyRecordIndex || !record.localInspection ||
+		   !record.localInspection->matches( record.task) ||
+		   record.lookup != owner.acquisitionLookup_ || record.context != owner.context_ ||
+		   !owner.acquisition_ || !owner.workspace_) {
+			return static_cast<NativeError>( E_ACCESSDENIED) ;
+		}
+
+		const auto &source = records_[index] ;	// 元TRANSFERの不変由来/期限です。
+		const auto	sourceError =
+			// 原A全期限を再確認します。
+			reverifyRecord( owner, source, services) ;
+		// 元ownerの拒否をBの別時刻窓で上書きしません。
+		if( sourceError != 0U) {
+			return sourceError ;
+		}
+
+		const auto current = services.utc ? services.utc() : std::nullopt ;	// Bも現時計へ結びます。
+		const auto seconds = current && current->time_since_epoch().count() > 0
+								 ? static_cast<std::uint64_t>( current->time_since_epoch().count())
+								 : 0U ;		// 原UTCです。
+		IndexedDriverArchiveHint hint ;		// B独立selectorです。
+		DriverArchiveInput		 input ;	// 原owned byteを借用します。
+		const auto				 error = owner.adapter_.bindRetainedInspectionInput(
+			  record.task, source.task, record.context, seconds, *owner.acquisition_,
+			  *owner.workspace_, source.seal, *record.localInspection, hint,
+			  input) ;	// 原B全期限も独立再確認します。
+		// 同hashだけでrecord/device scope不一致を補完しません。
+		if( error != 0U) {
+			return error ;
+		}
+
+		return hint.indexSha256 == record.hint.indexSha256 &&
+					   hint.recordSha256 == record.hint.recordSha256 &&
+					   hint.archiveSha256 == record.hint.archiveSha256 &&
+					   hint.archiveBytes == record.hint.archiveBytes &&
+					   hint.selectedInfs == record.hint.selectedInfs &&
+					   input.inspectionPath == record.input.inspectionPath &&
+					   input.sha256 == record.input.sha256 &&
+					   input.byteCount == record.input.byteCount
+				   ? 0U
+				   : static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CRC)) ;
+	}
+
 	const auto	now		 = services.utc ? services.utc() : std::nullopt ;	// 元workerの信頼UTC。
 	const auto &metadata = record.grant.metadata() ;						// 元grant期限を延長しません。
 	// 元claim/private owner/同context/同消費済みgrant以外を受理しません。
 	if( !now || now->time_since_epoch().count() <= 0 || record.lookup != owner.acquisitionLookup_ ||
 	   record.context != owner.context_ ||
-	   record.task.scanSessionId != owner.context_.scanSessionId ||
-	   record.task.planId != owner.preparationSummary_.planId || !owner.acquisition_ ||
-	   !owner.workspace_ || metadata.state != OfficialDownloadGrantState::CONSUMED ||
+	   record.task.scanSessionId != owner.context_.scanSessionId || record.task.planId == 0U ||
+	   !owner.acquisition_ || !owner.workspace_ ||
+	   metadata.state != OfficialDownloadGrantState::CONSUMED ||
 	   metadata.outcome != OfficialDownloadGrantState::ACQUIRED_FOR_INSPECTION ||
 	   metadata.error != 0 ||
 	   record.grant.validateSignedIndexAuthority( record.task.scanSessionId) != 0) {
@@ -979,7 +1028,11 @@ std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession
 
 	const auto recordIndex = static_cast<std::size_t>( found - records_.begin()) ;	// Stable ordinal。
 	auto	  &record	   = *found ;												// 同task/grant/seal/閉包の所有値。
-	OfficialPreparationAuditReport report ;											// 非機密reportだけを本体へ渡します。
+	const auto &contentOwner =
+		record.ownedBodyRecordIndex && *record.ownedBodyRecordIndex < records_.size()
+			? records_[*record.ownedBodyRecordIndex]
+			: record ;						// reverifyRecordで直接ownerを検証します。
+	OfficialPreparationAuditReport report ;	// 非機密reportだけを本体へ渡します。
 	report.targetIdentity = targetIdentity ;
 	report.providerId	  = SIGNED_INDEX_PROVIDER_ID ;
 	const bool finiteInfCount =
@@ -1175,7 +1228,7 @@ std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession
 			return error ;
 		} ; // 同期callだけ借用し、元recordと元INFのordinalを保持します。
 		report.applicabilityError = inspectDelegatedOfficialDriverApplicability(
-			record.task.scanSessionId, record.delegated, record.inspection.inspection, hints,
+			record.task.scanSessionId, contentOwner.delegated, record.inspection.inspection, hints,
 			observer, applicability) ;
 		// 全observer完了後だけ完全rank監査とunique bindingを発行します。
 		for( auto &pair : pairs_) {
@@ -1260,11 +1313,12 @@ std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession
 			NewTokenGuard	guard{store, record.task.scanSessionId,
 								  pair.binding.token} ;				// 例外時の新token cleanup。
 			UpdateCandidate candidate = pairReference.candidate ;	// 元同device表示値。
-			candidate.identity =
-				L"index-candidate-" + std::to_wstring( record.acquisition.acquisitionId) + L"-" +
-				std::to_wstring( pair.infOrdinal) + L"-" + std::to_wstring( pair.referenceIndex) ;
+			candidate.identity		  = L"index-candidate-" +
+								 std::to_wstring( contentOwner.acquisition.acquisitionId) + L"-" +
+								 std::to_wstring( pair.infOrdinal) + L"-" +
+								 std::to_wstring( pair.referenceIndex) ;
 			candidate.packageIdentity =
-				L"index-package-" + std::to_wstring( record.acquisition.acquisitionId) ;
+				L"index-package-" + std::to_wstring( contentOwner.acquisition.acquisitionId) ;
 			candidate.title		 = L"署名索引（収集者確認）" ;
 			candidate.provider	 = pair.binding.candidateProvider ;
 			candidate.version	 = pair.binding.candidateVersion ;
@@ -1298,8 +1352,9 @@ std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession
 			candidate.audit = {CandidateAuditGateState::PASSED, CandidateAuditGateState::PASSED,
 							   CandidateAuditGateState::PASSED, CandidateAuditGateState::PASSED,
 							   CandidateInstallReadiness::READY} ;
-			CandidateAssessment assessment ;							// 元実byteと同tokenへ結合した八軸。
-			const auto evidenceId = record.acquisition.acquisitionId ;	// 同実ledgerのopaque証拠。
+			CandidateAssessment assessment ;	// 元実byteと同tokenへ結合した八軸。
+			const auto			evidenceId =
+				contentOwner.acquisition.acquisitionId ;	// 同実ledgerのopaque証拠。
 			// メーカー署名へ読み替えず同取得根拠へ結合する収集者attestation所見。
 			const CandidateAssessmentFinding origin{
 				CandidateAssessmentState::PASSED, CandidateAssessmentReason::VALIDATED,
@@ -1491,10 +1546,10 @@ std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession
 			}
 
 			candidate.identity = L"index-installer-" +
-								 std::to_wstring( record.acquisition.acquisitionId) + L"-" +
+								 std::to_wstring( contentOwner.acquisition.acquisitionId) + L"-" +
 								 std::to_wstring( referenceIndex) ;
-			candidate.packageIdentity =
-				L"index-installer-package-" + std::to_wstring( record.acquisition.acquisitionId) ;
+			candidate.packageIdentity = L"index-installer-package-" +
+										std::to_wstring( contentOwner.acquisition.acquisitionId) ;
 			candidate.title			   = L"署名索引（公式installer引継ぎ・導入状態未確認）" ;
 			candidate.provider		   = record.publisher ;
 			candidate.driverDate	   = original.publishedDate.value
@@ -1516,16 +1571,17 @@ std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession
 			assessment.candidateIdentity = candidate.identity ;
 			assessment.deviceIdentity	 = candidate.deviceIdentity ;
 			assessment.packageIdentity	 = candidate.packageIdentity ;
-			const auto evidence	   = record.acquisition.acquisitionId ;	// 原成功ledgerの同証拠です。
-			assessment.origin	   = {CandidateAssessmentState::PASSED,
-									  CandidateAssessmentReason::VALIDATED,
-									  CandidateEvidenceKind::COLLECTOR_ATTESTATION, evidence} ;
-			assessment.acquisition = {CandidateAssessmentState::PASSED,
-									  CandidateAssessmentReason::VALIDATED,
-									  CandidateEvidenceKind::PACKAGE_INSPECTION, evidence} ;
-			assessment.signature   = {CandidateAssessmentState::PASSED,
-									  CandidateAssessmentReason::VALIDATED,
-									  CandidateEvidenceKind::WINDOWS_API, evidence} ;
+			const auto evidence =
+				contentOwner.acquisition.acquisitionId ;	// 原成功ledgerの同証拠です。
+			assessment.origin			= {CandidateAssessmentState::PASSED,
+										   CandidateAssessmentReason::VALIDATED,
+										   CandidateEvidenceKind::COLLECTOR_ATTESTATION, evidence} ;
+			assessment.acquisition		= {CandidateAssessmentState::PASSED,
+										   CandidateAssessmentReason::VALIDATED,
+										   CandidateEvidenceKind::PACKAGE_INSPECTION, evidence} ;
+			assessment.signature		= {CandidateAssessmentState::PASSED,
+										   CandidateAssessmentReason::VALIDATED,
+										   CandidateEvidenceKind::WINDOWS_API, evidence} ;
 			assessment.applicability	= {CandidateAssessmentState::PASSED,
 										   CandidateAssessmentReason::VALIDATED,
 										   CandidateEvidenceKind::WINDOWS_API, pair.installerToken} ;
@@ -1794,9 +1850,15 @@ InstallResult SignedIndexCandidateBindingSession::executeBoundInstall(
 		}
 	}
 
-	const auto proofScope =
-		// 元選択batchの終端までだけproofを保持します。
-		store.beginIndexInstallProofScope( session) ;
+	std::vector<std::wstring> selectedDevices ;	// 元routeの選択subsetだけです。
+	// 元選択に属するdeviceだけを一回scopeへ渡します。
+	for( const auto ordinal : selected) {
+		selectedDevices.push_back( routes_[ordinal].deviceIdentity) ;
+	}
+
+	// 元Sだけの借用を所有し、scope終了時に解放します。
+	const auto proofScope = store.beginIndexInstallProofScope(
+		owner.context_, store.activeInstallOperation(), selectedDevices) ;
 	// 新resolverを閉じた同worker/scanのscopeがなければ指定導入を開始しません。
 	if( !proofScope.active()) {
 		return rejectedInstall( identities, static_cast<NativeError>( E_ACCESSDENIED)) ;

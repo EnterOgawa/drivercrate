@@ -1,4 +1,4 @@
-# Release checklist — DriverCrate 1.0.1 App
+# Release checklist — DriverCrate 1.0.4 App
 
 対象は利用者向けAppだけです。私有Collector/Setup/定義/registry、driver本体や実端末情報は公開しません。
 この一覧は工程条件であり、未完了項目を過去版の成功で埋めません。最新のrelease指示は必要なsource push/tag/Release登録を含み、
@@ -6,7 +6,7 @@
 
 ## Sourceと検証
 
-- [ ] CMake正本、VERSIONINFO、package、Release title、tag v1.0.1を一致させる。
+- [ ] CMake正本、VERSIONINFO、package、Release title、tag v1.0.4を一致させる。
 - [ ] consumerの明示集合についてpath/mode/checkout byte/SHA-256、include/fixture/文書link、license/noticeを固定する。
 - [ ] 私有source/registry/定義、work、鍵、credential、inventory、driver、build/PDB、個人絶対pathを除外する。
 - [ ] 公開mainの既履歴を親として保持する。Private履歴の混入・force・root作り直しをしない。

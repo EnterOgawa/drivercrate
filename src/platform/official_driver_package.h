@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package.h
  * @brief 公式標準INF driver package検証定義。
- * @version 01.22.00
+ * @version 01.23.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -61,6 +61,7 @@
  * Ver.01.20.00 Shunji Ogawa  2026/11/05  同INF付属内容と未評価Type1作用の境界を明記。
  * Ver.01.21.00 Shunji Ogawa  2026/11/06  Windows管理driver付属DATAと原source位置の非実行読取を分離。
  * Ver.01.22.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.23.00 Shunji Ogawa  2026/11/10  明示client targetと同INF hashのModels観測を結合。
  * </pre>
  *
  * @note 保護workspaceへ展開済みの標準INF packageを、現在のWindows x64に対する構造、適用ID、参照fileおよびcatalog署名の境界で検証します。
@@ -86,7 +87,28 @@ struct RequiredInfBindingDiagnostic ;
 
 class OfficialDownloadWorkspace ;
 
-/** @brief 現OSでWindowsが選択した一Models節の公開IDだけを保持します。 */
+/** @brief collectorの有限なModels metadata観測点です。導入許可を持ちません。 */
+struct OfficialInfModelsPlatform {
+	/// Windows majorです。
+	std::uint32_t majorVersion{10U} ;
+	/// Windows minorです。
+	std::uint32_t minorVersion{} ;
+	/// 明示buildです。
+	std::uint32_t buildNumber{} ;
+	/// AMD64だけを採用します。
+	std::uint16_t processorArchitecture{9U} ;
+	/// VER_NT_WORKSTATIONだけを採用します。
+	std::uint8_t  productType{1U} ;
+	/// 今回はsuite0です。
+	std::uint16_t suiteMask{} ;
+	/** @brief 全target fieldを比較します。
+	 * @param[in] other 比較対象です。
+	 * @return 全field一致時trueです。
+	 */
+	bool		  operator==( const OfficialInfModelsPlatform &other) const = default ;
+} ;
+
+/** @brief Windowsが選択した一Models節の公開IDだけを保持します。 */
 struct OfficialInfPublishedModelSection {
 	/// 原HINFが返したModels節名です。端末選択nodeではありません。
 	std::wstring			  modelSection ;
@@ -102,7 +124,7 @@ struct OfficialInfPublishedIdentity {
 	std::wstring								  infSha256 ;
 	/// Versionの原ClassGUIDです。推測や端末情報を使いません。
 	std::wstring								  classGuid ;
-	/// 最大128節の現OS選択結果です。空/部分失敗を公開しません。
+	/// 最大128節の指定OS（未指定時は現OS）選択結果です。空/部分失敗を公開しません。
 	std::vector<OfficialInfPublishedModelSection> models ;
 } ;
 
@@ -766,6 +788,20 @@ struct MaintenanceInfStructure {
  */
 [[nodiscard]] NativeError readOfficialInfPublishedIdentity(
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
+	OfficialInfPublishedIdentity &identity) ;
+
+/** @brief 同所有INFのhashを固定し、collectorの明示client観測点でModelsを読みます。
+ * @param[in] workspace 元保護workspaceです。
+ * @param[in] package 元構造検査済みpackageです。
+ * @param[in] platform Win10/19045またはWin11/26100のAMD64 workstation/suite0です。
+ * @param[in] expectedInfSha256 同じ現OS構造検査から得た元INF hashです。
+ * @param[out] identity 成功した同targetの元Modelsです。失敗時は空です。
+ * @return 実Windows読取り成功0、不明target/改変/未観測は元HRESULTです。
+ * @note App現在OS入口/適用性/rank/CAT検証を代替せずfallbackしません。
+ */
+[[nodiscard]] NativeError readOfficialInfPublishedIdentityForPlatform(
+	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
+	const OfficialInfModelsPlatform &platform, std::wstring_view expectedInfSha256,
 	OfficialInfPublishedIdentity &identity) ;
 
 /**

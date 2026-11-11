@@ -2,7 +2,7 @@
 /**
  * @file operation_controller.cpp
  * @brief 操作状態管理実装。
- * @version 01.03.00
+ * @version 01.05.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -42,13 +42,17 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  観測結合と初回actionの導入権限を検証。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  通常scanの協調取消し遷移を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note Operationの状態遷移と候補identityのfail-closed検証を実装します。
  */
 //------------------------------------------------------------------------------
 
+#include "core/protected_install.h"
 #include "core/operation_controller.h"
+#include "core/update_provider.h"
 #include "core/candidate_audit.h"
 #include "core/metadata_search.h"
 #include "core/provider_registry.h"
@@ -144,6 +148,17 @@ bool validPreparationResult( const OfficialPreparationOperationResult &result,
 				return false ;
 			}
 		}
+		// LOCAL成功は新しい明示承認taskの実claim照合票だけを受理します。
+		else if( item.result.state == OfficialPreparationItemState::LOCAL_INSPECTION_COMPLETED) {
+			const OfficialPreparationTask task{
+				approval.operationId, approval.scanSessionId, approval.planId, decision->target,
+				decision->restrictedNetworkApproved} ;	// 元承認全文です。
+			// flagだけや取得byte再発行を拒否します。
+			if( item.result.error != 0U || item.result.byteCount != 0U ||
+			   !item.result.localInspection || !item.result.localInspection->matches( task)) {
+				return false ;
+			}
+		}
 		// 未完了、定義外、エラーなし失敗、失敗時の成功byteを拒否する。
 		else if( item.result.state < OfficialPreparationItemState::AWAITING_NETWORK_CONSENT ||
 				item.result.state > OfficialPreparationItemState::FAILURE ||
@@ -187,6 +202,9 @@ BeginResult OperationController::beginScan()
 
 	static_cast<void>( preparationSession_.invalidate()) ;
 	preparationPlan_.reset() ;
+	originalPreparationPlan_.reset() ;
+	scanReferenceScopes_.clear() ;
+	retainedReferenceIdentities_.clear() ;
 	candidateIdentities_.clear() ;
 	candidateDevices_.clear() ;
 	activeInstallIdentities_.clear() ;
@@ -284,6 +302,19 @@ bool OperationController::completeScan( const OperationId operationId, const Sca
 		scanMeasurement_ = result.measurement ;
 	} else {
 		scanMeasurement_.reset() ;
+	}
+
+	scanReferenceScopes_.clear() ;
+	retainedReferenceIdentities_.clear() ;
+	originalPreparationPlan_.reset() ;
+	// 元scan参照は実行permitと分離してscopeだけを凍結します。
+	for( const auto &candidate : result.candidates) {
+		// 現在行/取得対象のないmetadataを後から権限へ使いません。
+		if( !candidate.current && !candidate.preparationTargetIdentity.empty()) {
+			scanReferenceScopes_.emplace(
+				candidate.identity,
+				std::pair{candidate.deviceIdentity, candidate.preparationTargetIdentity}) ;
+		}
 	}
 
 	state_ = ApplicationState::SCAN_READY ;
@@ -431,8 +462,9 @@ bool OperationController::markInstalling( const OperationId operationId)
  * @see src/core/operation_controller.h 宣言側の契約を正本とする。
  */
 //------------------------------------------------------------------------------
-bool OperationController::completeInstall( const OperationId	   operationId,
-										  const InstallResult &result)
+bool OperationController::completeInstall( const OperationId					   operationId,
+										  const InstallResult				  &result,
+										  const InstallRetentionSummary *const retention)
 {
 	// 復元ポイントまたはdownload段階でfail-closedに終了できるため各実行stateから受け付ける。
 	if( (state_ != ApplicationState::CREATING_RESTORE_POINT &&
@@ -474,17 +506,9 @@ bool OperationController::completeInstall( const OperationId	   operationId,
 
 	// 開始時の保護方針と結果が一致し、方針ごとの復元ポイント契約を満たす必要がある。
 	const bool protectionModeMatches = result.protectionMode == activeInstallProtectionMode_ ;
-	bool	   restorePointResultValid{} ;	// 開始時の保護方針に対応する復元結果の検証値。
-	// Clientの成功結果には復元ポイントの開始と終了の両方を要求し、保護失敗を隠さない。
-	if( activeInstallProtectionMode_ == InstallProtectionMode::WINDOWS_RESTORE_POINT) {
-		restorePointResultValid = isSuccessOutcome( result.restorePointCreation.outcome) &&
-								  isSuccessOutcome( result.restorePointCompletion.outcome) ;
-	}
-	// Serverでは復元ポイントを実行していない結果だけを許可し、作成済みと誤表示しない。
-	else if( activeInstallProtectionMode_ == InstallProtectionMode::SERVER_WITHOUT_RESTORE_POINT) {
-		restorePointResultValid = result.restorePointCreation.outcome == OutcomeCode::NOT_STARTED &&
-								  result.restorePointCompletion.outcome == OutcomeCode::NOT_STARTED ;
-	}
+	const bool restorePointResultValid =
+		// 作成と実在再利用を分岐検証します。
+		isRestorePointProtectionValid( result) ;
 
 	// 保護modeや復元ポイント、取得・導入結果に矛盾する全体成功を拒否する。
 	if( result.succeeded &&
@@ -494,14 +518,159 @@ bool OperationController::completeInstall( const OperationId	   operationId,
 	}
 
 	// Provider成功とidentity契約の両方を満たす最終成功判定。
-	const bool succeeded = result.succeeded && validResult ;
-	candidateIdentities_.clear() ;
-	candidateDevices_.clear() ;
+	const bool succeeded  = result.succeeded && validResult ;
+	lastInstallSucceeded_ = succeeded ;
+	bool retained		  = validResult && retention && retention->operationId == operationId &&
+					retention->scanSessionId == scanSessionId_ && scanSessionId_ != 0U &&
+					retention->candidates.size() <= candidateIdentities_.size() &&
+					retention->references.size() <= scanReferenceScopes_.size() &&
+					(retention->references.empty() || retention->preparationPlan.has_value()) &&
+					(retention->providerEntered || !result.succeeded) ;	// 元所有の証明だけです。
+	std::unordered_set<std::wstring> remaining ;						// 全件検証後だけ置換する元subsetです。
+	std::unordered_map<std::wstring, std::wstring> remainingDevices ;	// 元対応を変更しません。
+	std::unordered_set<std::wstring> selectedDevices ;					// 他候補経由の同device再実行も拒否します。
+	// 元開始selectionだけから消費対象を求めます。
+	for( const auto &identity : activeInstallIdentities_) {
+		selectedDevices.insert( candidateDevices_.at( identity)) ;
+	}
+
+	// Providerが返した全残存候補を元許可と一対一照合します。
+	if( retained) {
+		// 元集合の各要素を同じscopeへ一度ずつ照合します。
+		for( const auto &candidate : retention->candidates) {
+			const auto original = candidateDevices_.find( candidate.identity) ;	// 元発行だけです。
+			// 新candidate/deviceや重複、消費deviceを継続へ追加しません。
+			if( !candidateIdentities_.contains( candidate.identity) ||
+			   original == candidateDevices_.end() ||
+			   original->second != candidate.deviceIdentity ||
+			   !remaining.insert( candidate.identity).second ||
+			   (retention->providerEntered && selectedDevices.contains( candidate.deviceIdentity))) {
+				retained = false ;
+				break ;
+			}
+
+			remainingDevices.emplace( candidate.identity, candidate.deviceIdentity) ;
+		}
+	}
+
+	std::unordered_set<std::wstring> references ;	// 原参照subsetだけです。
+	// 新しい参照や消費deviceを残planへ追加しません。
+	if( retained) {
+		// 元集合の各要素を同じscopeへ一度ずつ照合します。
+		for( const auto &reference : retention->references) {
+			const auto origin = scanReferenceScopes_.find( reference.identity) ;	// 元scanの結合です。
+			// 元scopeの一対一subsetだけを許します。
+			if( origin == scanReferenceScopes_.end() ||
+			   origin->second.first != reference.deviceIdentity ||
+			   !references.insert( reference.identity).second ||
+			   (retention->providerEntered && selectedDevices.contains( reference.deviceIdentity))) {
+				retained = false ;
+				break ;
+			}
+		}
+	}
+
+	retainedReferenceIdentities_.clear() ;
+	// 残参照は全件検証後だけ公開します。
+	if( retained) {
+		retainedReferenceIdentities_.swap( references) ;
+	}
+
+	// 継続を証明できない場合も原導入結果を失敗へ改作しません。
+	if( retained) {
+		candidateIdentities_.swap( remaining) ;
+		candidateDevices_.swap( remainingDevices) ;
+	} else {
+		candidateIdentities_.clear() ;
+		candidateDevices_.clear() ;
+	}
+
 	activeInstallIdentities_.clear() ;
 	activeInstallProtectionMode_ = InstallProtectionMode::WINDOWS_RESTORE_POINT ;
-	scanSessionId_				 = 0 ;
-	state_ = succeeded ? ApplicationState::COMPLETED : ApplicationState::FAILURE ;
+	// 未失効の元scanだけを次の明示操作へ保持します。
+	if( !retained) {
+		scanSessionId_ = 0 ;
+	}
+
+	state_ = retained ? ApplicationState::SCAN_READY
+					  : (succeeded ? ApplicationState::COMPLETED : ApplicationState::FAILURE) ;
+	// 原plan/予算/scope検証に失敗した参照だけを保留し、原導入結果は保ちます。
+	if( retained && retention->preparationPlan &&
+	   !setRemainingPreparationPlan( operationId, scanSessionId_, *retention->preparationPlan)) {
+		retainedReferenceIdentities_.clear() ;
+	}
+
 	return true ;
+}
+
+/** @see operation_controller.h 宣言側の契約を正本とします。 */
+bool OperationController::isPreparationReferenceAllowed( const std::wstring_view identity) const
+{
+	return state_ == ApplicationState::SCAN_READY && scanSessionId_ != 0U && preparationPlan_ &&
+		   retainedReferenceIdentities_.contains( std::wstring{identity}) ;
+}
+/** @see operation_controller.h 宣言側の契約を正本とします。 */
+bool OperationController::setRemainingPreparationPlan( const OperationId				 operationId,
+													  const ScanSessionId			 session,
+													  const OfficialPreparationPlan &plan)
+{
+	// 既setPreparationPlanを緩めず直前の受理終端だけへ限定します。
+	if( state_ != ApplicationState::SCAN_READY || operationId != activeOperationId_ ||
+	   session == 0U || session != scanSessionId_ || plan.scanSessionId != session ||
+	   preparationPlan_ || !originalPreparationPlan_ ||
+	   plan.planId <= originalPreparationPlan_->planId ||
+	   plan.limits != originalPreparationPlan_->limits || plan.targets.empty() ||
+	   plan.targets.size() > originalPreparationPlan_->targets.size()) {
+		return false ;
+	}
+
+	std::unordered_set<std::wstring> targets ;	// 一対象一回です。
+	// 全原tupleと未処理device数を照合してから初期化します。
+	for( const auto &target : plan.targets) {
+		const auto original =
+			std::ranges::find( originalPreparationPlan_->targets, target.identity,
+							  &OfficialPreparationTarget::identity) ;	// 元申告です。
+		// 別条件や重複を新planへ混ぜません。
+		if( original == originalPreparationPlan_->targets.end() || *original != target ||
+		   !targets.insert( target.identity).second) {
+			return false ;
+		}
+
+		std::unordered_set<std::wstring> devices ;	// 元参照からのscopeです。
+		// 元集合の各要素を同じscopeへ一度ずつ照合します。
+		for( const auto &identity : retainedReferenceIdentities_) {
+			const auto &scope = scanReferenceScopes_.at( identity) ;	// 原mapの検証済みkeyです。
+			// 他targetをこの対象の件数へ足しません。
+			if( scope.second == target.identity) {
+				devices.insert( scope.first) ;
+			}
+		}
+
+		// 消費したcohortを件数縮小や推測で補完しません。
+		if( devices.size() != target.deviceCount) {
+			return false ;
+		}
+	}
+
+	// 同scan予算と累積予約、新plan IDを既sessionで再検証します。
+	if( preparationSession_.initialize( plan) != OfficialPreparationError::NONE) {
+		return false ;
+	}
+
+	preparationPlan_ = plan ;
+	return true ;
+}
+
+/** @see operation_controller.h 宣言側の契約を正本とします。 */
+bool OperationController::lastInstallSucceeded() const noexcept
+{
+	return lastInstallSucceeded_ ;
+}
+/** @see operation_controller.h 宣言側の契約を正本とします。 */
+bool OperationController::isInstallCandidateAllowed( const std::wstring_view identity) const
+{
+	return state_ == ApplicationState::SCAN_READY && scanSessionId_ != 0U &&
+		   candidateIdentities_.contains( std::wstring{identity}) ;
 }
 
 //------------------------------------------------------------------------------
@@ -524,7 +693,8 @@ bool OperationController::setPreparationPlan( const OperationId				operationId,
 		return false ;
 	}
 
-	preparationPlan_ = plan ;
+	originalPreparationPlan_ = plan ;
+	preparationPlan_		 = plan ;
 	return true ;
 }
 
@@ -625,7 +795,8 @@ bool OperationController::markPreparationCancelling( const OperationId operation
  */
 //------------------------------------------------------------------------------
 bool OperationController::completePreparation( const OfficialPreparationOperationResult &result,
-											  const std::span<const UpdateCandidate>	candidates)
+											  const std::span<const UpdateCandidate>	candidates,
+											  const OfficialPreparationPlan *remainingPlan)
 {
 	// 遅延した別操作／計画の結果を適用しない。
 	if( (state_ != ApplicationState::PREPARING &&
@@ -636,11 +807,14 @@ bool OperationController::completePreparation( const OfficialPreparationOperatio
 		return false ;
 	}
 
+	const bool wasCancelled =
+		// 元取消し意図です。
+		state_ == ApplicationState::CANCELLING_PREPARATION ;
 	bool valid = validPreparationResult( result, activePreparation_) &&
 				 // 全件検証。
 				 validatePreparationAuditReports( result, activePreparation_, candidates) ;
 	// 全体の監査通知が妥当な場合だけ複製へ候補を追加し、検証途中の状態を公開しない。
-	if( valid) {
+	if( valid && !wasCancelled) {
 		auto nextCandidateIdentities = candidateIdentities_ ;	// 成功時だけ反映する候補ID集合。
 		auto nextCandidateDevices	 = candidateDevices_ ;		// 成功時だけ反映するdevice対応。
 		// 監査合格として発行された候補だけを、導入許可集合の複製へ追加する。
@@ -670,6 +844,31 @@ bool OperationController::completePreparation( const OfficialPreparationOperatio
 		}
 	}
 
+	std::unordered_set<std::wstring> unselectedReferences ;	// 当該承認の元未処理subsetです。
+	// 新しい任意targetや取得済みtargetを残planへ接続しません。
+	if( valid && remainingPlan) {
+		// 元集合の各要素を同じscopeへ一度ずつ照合します。
+		for( const auto &target : remainingPlan->targets) {
+			const auto decision =
+				std::ranges::find( activePreparation_.decisions, target,
+								  &OfficialPreparationDecision::target) ;	// 元全tupleです。
+			// 選択済み/不明targetがあれば残plan全体を拒否します。
+			if( decision == activePreparation_.decisions.end() || decision->acquire) {
+				unselectedReferences.clear() ;
+				remainingPlan = nullptr ;
+				break ;
+			}
+
+			// 元集合の各要素を同じscopeへ一度ずつ照合します。
+			for( const auto &entry : scanReferenceScopes_) {
+				// 元対象のscopeを満たした場合だけ次の処理へ進みます。
+				if( entry.second.second == target.identity) {
+					unselectedReferences.insert( entry.first) ;
+				}
+			}
+		}
+	}
+
 	preparationSession_.cancel() ;
 	static_cast<void>( preparationSession_.invalidate()) ;
 	preparationPlan_.reset() ;
@@ -682,6 +881,13 @@ bool OperationController::completePreparation( const OfficialPreparationOperatio
 	}
 
 	state_ = valid ? ApplicationState::SCAN_READY : ApplicationState::FAILURE ;
+	retainedReferenceIdentities_.swap( unselectedReferences) ;
+	// 既二重setPlan guardを緩めず、受理した同operationの原subsetだけを初期化します。
+	if( valid && remainingPlan &&
+	   !setRemainingPreparationPlan( result.operationId, scanSessionId_, *remainingPlan)) {
+		retainedReferenceIdentities_.clear() ;
+	}
+
 	return true ;
 }
 
@@ -696,6 +902,9 @@ void OperationController::stop() noexcept
 	preparationSession_.cancel() ;
 	static_cast<void>( preparationSession_.invalidate()) ;
 	preparationPlan_.reset() ;
+	originalPreparationPlan_.reset() ;
+	scanReferenceScopes_.clear() ;
+	retainedReferenceIdentities_.clear() ;
 	activePreparation_ = {} ;
 	candidateIdentities_.clear() ;
 	candidateDevices_.clear() ;

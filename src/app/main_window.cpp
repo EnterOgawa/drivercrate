@@ -2,7 +2,7 @@
 /**
  * @file main_window.cpp
  * @brief DriverCrateメインウィンドウ実装。
- * @version 01.27.01
+ * @version 01.30.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -108,6 +108,9 @@
  * Ver.01.26.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
  * Ver.01.27.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * Ver.01.27.01 Shunji Ogawa  2026/11/09  導入終端のfilterと既存ツリー行・表示位置を保持。
+ * Ver.01.28.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
+ * Ver.01.29.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.30.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note Win32 TreeTable、候補選択、およびworker eventの表示を実装します。全UI操作はUI threadで実行します。
@@ -3159,6 +3162,9 @@ void MainWindow::beginScan()
 	preparationApproval_	   = {} ;
 	preparationDisplaySession_ = 0U ;
 	preparationDisplayBindings_.clear() ;
+	// 新scanで旧表示事実を破棄します。
+	resolvedInstallDevices_.clear() ;
+	knownRecommendedBeforeInstall_.clear() ;
 	treeClassExpansion_.clear() ;
 	preparationResultText_.clear() ;
 	indexScanSummary_		 = {} ;
@@ -3282,6 +3288,17 @@ void MainWindow::beginInstall()
 		MessageBoxW( window_, loadString( IDS_SELECTION_REQUIRED).c_str(),
 					loadString( IDS_ERROR_TITLE).c_str(), MB_OK | MB_ICONINFORMATION) ;
 		return ;
+	}
+
+	// 取得/導入でplanを消費する前の既predicateをそのまま使い、元選択参照は除きます。
+	knownRecommendedBeforeInstall_.clear() ;
+	// 未選択の元推奨候補だけを事後比較用に保持します。
+	for( std::size_t index = 0; index < candidates_.size(); ++index) {
+		// 元選択以外で既推奨predicateが認識したidentityだけを記録します。
+		if( std::ranges::find( checkedIndexes, index) == checkedIndexes.end() &&
+		   visibleInRecommendedFilter( candidates_[index])) {
+			knownRecommendedBeforeInstall_.insert( candidates_[index].identity) ;
+		}
 	}
 
 	// 新たなInstall操作で以前の継続意図を再利用しません。
@@ -3606,7 +3623,8 @@ void MainWindow::processWorkerEvent( const WorkerEvent &event)
 
 		// 公式取得準備の完了を監査・候補公開結果の処理へ渡す。
 		case WorkerEventKind::PREPARATION_COMPLETED:
-			processPreparationCompleted( event.preparationResult, event.indexPreparation) ;
+			processPreparationCompleted( event.preparationResult, event.indexPreparation,
+										event.preparationPlan ? &*event.preparationPlan : nullptr) ;
 			break ;
 
 		// 未知の worker event は UI 状態へ適用しない。
@@ -3657,6 +3675,8 @@ void MainWindow::processOperationProgress( const WorkerEvent &event)
 			break ;
 
 		// 復元ポイント開始の進捗は同じ保護段階にある場合だけ受理する。
+		case ProviderStage::REUSING_RESTORE_POINT:
+		// native作成段階も同じ保護開始stateだけへ結びます。
 		case ProviderStage::CREATING_RESTORE_POINT:
 			accepted = controller_.state() == ApplicationState::CREATING_RESTORE_POINT ;
 			break ;
@@ -3672,6 +3692,8 @@ void MainWindow::processOperationProgress( const WorkerEvent &event)
 			break ;
 
 		// 復元ポイント終了は保護開始後の導入経路にある場合だけ受理する。
+		case ProviderStage::VERIFYING_RESTORE_POINT:
+		// 実ENDの進捗も元の保護scopeだけへ結びます。
 		case ProviderStage::FINALIZING_RESTORE_POINT:
 			accepted = controller_.state() == ApplicationState::CREATING_RESTORE_POINT ||
 					   controller_.state() == ApplicationState::DOWNLOADING ||
@@ -3925,11 +3947,12 @@ void MainWindow::processScanCompleted( const WorkerEvent &event)
 void MainWindow::processInstallCompleted( const WorkerEvent &event)
 {
 	const auto scanSessionId =
-		// 終端で失効する前の表示結合だけを保持します。
+		// 元scanの表示結合を保持します。作用subsetだけを消費します。
 		controller_.scanSessionId() ;
 	auto displayBindings = capturePreparationDisplayBindings() ;	// 失効前の元枠/意図です。
 	// 状態機械が受理しないinstall完了を候補行へ反映しない。
-	if( !controller_.completeInstall( event.operationId, event.installResult)) {
+	if( !controller_.completeInstall( event.operationId, event.installResult,
+									event.installRetention ? &*event.installRetention : nullptr)) {
 		return ;
 	}
 
@@ -3979,7 +4002,7 @@ void MainWindow::processInstallCompleted( const WorkerEvent &event)
 	// 元filterと行集合を保持したまま、同じ行へ結果と失効だけを反映します。
 	displayInstallResult( event.installResult, scanSessionId) ;
 	// trueの場合は全選択候補のinstallが成功した。
-	const bool succeeded = controller_.state() == ApplicationState::COMPLETED ;
+	const bool succeeded = controller_.lastInstallSucceeded() ;
 	const bool includesHandoff =
 		std::ranges::any_of( event.installResult.updates, []( const auto &update) {
 			return update.installerHandoff ;
@@ -4007,22 +4030,42 @@ void MainWindow::processInstallCompleted( const WorkerEvent &event)
 		message = loadString( IDS_RESTORE_POINT_FINALIZE_ERROR_PREFIX) +
 				  formatOperationError( event.installResult.restorePointCompletion.error,
 									   event.installResult.restorePointCompletion.outcome) ;
+	}
+	// native成功と独立した実在確認の失敗を案内します。
+	else if( event.installResult.restorePointProtection.verification == OutcomeCode::FAILURE) {
+		message = loadString( IDS_RESTORE_VERIFICATION_ERROR) +
+				  formatOperationError( event.installResult.restorePointProtection.error,
+									   OutcomeCode::FAILURE) ;
+
 	} else {
 		message = loadString( includesHandoff ? (succeeded ? IDS_INDEX_INSTALLER_COMPLETED
 														  : IDS_INDEX_INSTALLER_FAILED)
 											 : messageId) ;
-		// 復元ポイントが実際に開始された場合にだけその番号を表示する。
-		if( event.installResult.restorePointCreation.outcome == OutcomeCode::SUCCESS) {
-			message += L"\r\n\r\n" +
-					   formatResource( IDS_RESTORE_POINT_CREATED,
-									  std::to_wstring(
-										  event.installResult.restorePointCreation.sequenceNumber)) ;
+		// 作成、OS既存point利用、日内reuseを実際の区分だけで表示します。
+		const auto &protection = event.installResult.restorePointProtection ;	// 元の実在結果です。
+		// 実在確認済みの番号についてだけ取得方式を表示します。
+		if( protection.verification == OutcomeCode::SUCCESS && protection.sequenceNumber > 0) {
+			const auto resource =
+				protection.disposition == RestorePointDisposition::NEW_POINT_VERIFIED
+					? IDS_RESTORE_POINT_CREATED
+				: protection.disposition == RestorePointDisposition::SAME_DAY_REUSED
+					? IDS_RESTORE_DAY_REUSED
+					: IDS_RESTORE_WINDOWS_SELECTED ;	// Native TRUEだけで作成としません。
+			message +=
+				L"\r\n\r\n" + formatResource( resource, std::to_wstring( protection.sequenceNumber)) ;
 		}
+
 		// Server保護modeでは復元ポイントを作成していない事実を明示する。
 		else if( event.installResult.protectionMode ==
 				InstallProtectionMode::SERVER_WITHOUT_RESTORE_POINT) {
 			message += L"\r\n\r\n" + loadString( IDS_SERVER_NO_RESTORE_POINT_RESULT) ;
 		}
+	}
+
+	// メモの診断は実導入結果と分けて付記します。
+	if( event.installResult.restorePointProtection.memoError != 0) {
+		message += L"\r\n\r\n" + loadString( IDS_RESTORE_MEMO_WARNING) + L" " +
+				   formatNativeError( event.installResult.restorePointProtection.memoError) ;
 	}
 
 	const auto storage = diagnosticStorageText( instance_) ;	// 元処理結果と保存状態を分けます。
@@ -4566,6 +4609,17 @@ void MainWindow::populateCandidates( const std::span<const UpdateCandidate> cand
 		}
 	}
 
+	// 同scanで未失効の実選択だけを表示choiceへ保持し、履歴checkから復活させません。
+	for( std::size_t index = 0; index < candidates.size() && index < candidateSelected_.size();
+		++index) {
+		// 同scanの有効な未処理選択だけを再描画へ引き継ぎます。
+		if( candidateSelected_[index] && isSelectableCandidate( candidates[index]) &&
+		   (controller_.isInstallCandidateAllowed( candidates[index].identity) ||
+			controller_.isPreparationReferenceAllowed( candidates[index].identity))) {
+			choices.try_emplace( candidates[index].deviceIdentity, candidates[index].identity) ;
+		}
+	}
+
 	updatingTreeChecks_ = true ;
 	TreeView_DeleteAllItems( updateTree_) ;
 	candidateItems_.assign( candidates.size(), nullptr) ;
@@ -4614,7 +4668,8 @@ void MainWindow::populateCandidates( const std::span<const UpdateCandidate> cand
 			}) ; // 失効後も明示対象の結果行をfilterで消しません。
 		// Filterで除くdeviceの候補selectionは保持し、別deviceへ移さない。
 		if( controller_.scanPurpose() == ScanPurpose::STANDARD && showRecommendedOnly_ &&
-		   !recommended && !hasExecutionResult) {
+		   (resolvedInstallDevices_.contains( device.deviceIdentity) ||
+			(!recommended && !hasExecutionResult))) {
 			continue ;
 		}
 
@@ -4794,6 +4849,124 @@ void MainWindow::refreshCandidateRows()
 }
 
 /** @see main_window.h 宣言側の契約を正本とします。 */
+void MainWindow::recordResolvedInstallDevices( const InstallResult &result,
+											  const ScanSessionId  session)
+{
+	// 表示比較は元適合済み候補の四要素数値版に限定します。
+	const auto version = []( std::wstring_view text) -> std::optional<std::uint64_t> {
+		std::uint64_t packed{} ;	// 4個の16bit版だけを保持します。
+		// 四要素を順番に有限なpacked版へ変換します。
+		for( unsigned part = 0; part < 4; ++part) {
+			const auto end	  = text.find( L'.') ;		// 現要素の境界です。
+			const auto digits = text.substr( 0, end) ;	// 同期中だけ借用します。
+			// 空要素や桁数超過を比較不能として返します。
+			if( digits.empty() || digits.size() > 5) {
+				return {} ;
+			}
+
+			unsigned value{} ;	// 有限な一要素です。
+			// 各文字を十進数字として検証します。
+			for( const auto c : digits) {
+				// 数字以外から版を推測しません。
+				if( c < L'0' || c > L'9') {
+					return {} ;
+				}
+
+				value = value * 10U + static_cast<unsigned>( c - L'0') ;
+			}
+
+			// 16bit上限と四要素の区切りを要求します。
+			if( value > 65535U || (part < 3) == (end == std::wstring_view::npos)) {
+				return {} ;
+			}
+
+			packed = (packed << 16U) | value ;
+			// 最終要素以外は次の区切りへ進みます。
+			if( part < 3) {
+				text.remove_prefix( end + 1) ;
+			}
+		}
+
+		return packed ;
+	} ;
+	// 受理した元結果だけを一意な同deviceへ照合します。
+	for( const auto &update : result.updates) {
+		const auto original = std::ranges::find( candidates_, update.identity,
+												&UpdateCandidate::identity) ;	// 元選択です。
+		// 元選択に一意に結合する通常成功だけを解消判定へ進めます。
+		if( original == candidates_.end() || original->current ||
+		   original->action == DriverAction::DOWNGRADE ||
+		   std::ranges::count( result.updates, update.identity, &UpdateExecutionResult::identity) !=
+			   1 ||
+		   std::ranges::count( candidates_, update.identity, &UpdateCandidate::identity) != 1 ||
+		   update.installOutcome != OutcomeCode::SUCCESS || update.installError != 0 ||
+		   update.downloadOutcome != OutcomeCode::SUCCESS || update.downloadError != 0 ||
+		   update.rebootRequired || update.installerHandoff) {
+			continue ;
+		}
+
+		const auto observed = std::ranges::find_if( result.currentDevices, [&]( const auto &v) {
+			return v.observation.deviceIdentity == original->deviceIdentity ;
+		}) ; // 同対象の実観測です。
+		// 元deviceの有効な実一致と必要role完了を要求します。
+		if( observed == result.currentDevices.end() ||
+		   std::ranges::count_if( result.currentDevices,
+								 [&]( const auto &v) {
+									 return v.observation.deviceIdentity ==
+											original->deviceIdentity ;
+								 }) != 1 ||
+		   !observed->selectedTargetMatched || observed->error != 0 ||
+		   !isDeviceObservationBound( observed->observation, session, original->deviceIdentity) ||
+		   observed->observation.driverPresence != DeviceDriverPresence::REGISTERED ||
+		   observed->observation.node.read.state != DevicePropertyReadState::VALUE ||
+		   CompareStringOrdinal( original->deviceClassGuid.c_str(), -1,
+								observed->deviceClassGuid.c_str(), -1, TRUE) != CSTR_EQUAL ||
+		   std::ranges::count( update.requiredRoles, DriverPlanRole::EXTENSION,
+							  &DriverPlanRoleExecutionResult::role) !=
+			   original->requiredExtensionCount ||
+		   std::ranges::count( update.requiredRoles, DriverPlanRole::DRIVER_COMPONENT,
+							  &DriverPlanRoleExecutionResult::role) !=
+			   original->requiredDriverComponentCount ||
+		   !std::ranges::all_of( update.requiredRoles, []( const auto &r) {
+			   return r.stageOutcome == OutcomeCode::SUCCESS && r.stageError == 0 &&
+					  r.installOutcome == OutcomeCode::SUCCESS && r.installError == 0 &&
+					  !r.installDiagnosticMissing &&
+					  r.reflection == DriverPlanReflectionState::INSTALL_API_COMPLETED ;
+		   })) {
+			continue ;
+		}
+
+		const auto current = version( observed->version) ;	// 元INF一致とは独立した版の表示比較です。
+		// 比較不能な現在版を最新と推測しません。
+		if( !current) {
+			continue ;
+		}
+
+		const bool newer = std::ranges::any_of( candidates_, [&]( const auto &c) {
+			const auto candidateVersion = version( c.version) ;	// 同deviceの既知推奨だけです。
+			return !c.current && c.deviceIdentity == original->deviceIdentity &&
+				   (knownRecommendedBeforeInstall_.contains( c.identity) ||
+					visibleInRecommendedFilter( c)) &&
+				   candidateVersion && *candidateVersion > *current ;
+		}) ;
+		// 同deviceに既知のより新しい推奨があれば解消にしません。
+		if( newer) {
+			continue ;
+		}
+
+		resolvedInstallDevices_.insert( original->deviceIdentity) ;
+		// 元deviceへ結合した履歴枠だけを更新します。
+		for( auto &binding : preparationDisplayBindings_) {
+			// 解消確認した対象だけ枠とcheckを外します。
+			if( binding.deviceIdentity == original->deviceIdentity) {
+				binding.frame	= false ;
+				binding.checked = false ;
+			}
+		}
+	}
+}
+
+/** @see main_window.h 宣言側の契約を正本とします。 */
 void MainWindow::applyPostInstallObservations( const InstallResult &result,
 											  const ScanSessionId  scanSessionId)
 {
@@ -4892,14 +5065,21 @@ void MainWindow::displayInstallResult( const InstallResult &result,
 {
 	updatingTreeChecks_ = true ;
 	candidateResultTexts_.resize( candidates_.size()) ;
-	// Scan session失効後は全候補を表示専用にし、明示的な再検索まで再選択させない。
+	// 未消費の元候補/選択だけを保持し、消費した対象を表示専用へ移す。
 	for( std::size_t index = 0; index < candidates_.size(); ++index) {
 		UpdateCandidate &candidate = candidates_[index] ;	// Session失効を反映する表示候補。
-		candidate.installable	   = false ;
-		candidate.preparationTargetIdentity.clear() ;
-		// install後に失効した候補の保持中選択を解除する。
-		if( index < candidateSelected_.size()) {
-			candidateSelected_[index] = false ;
+		const bool		 retained  = controller_.scanSessionId() == scanSessionId &&
+							  (controller_.isInstallCandidateAllowed( candidate.identity) ||
+							   controller_.isPreparationReferenceAllowed(
+								   candidate.identity)) ;	// 元未消費scopeだけです。
+		// 実ownerを失った候補だけをreadonly履歴へ移します。
+		if( !retained) {
+			candidate.installable = false ;
+			candidate.preparationTargetIdentity.clear() ;
+			// 未処理の元checkは実選択のまま保持します。
+			if( index < candidateSelected_.size()) {
+				candidateSelected_[index] = false ;
+			}
 		}
 
 		// Candidate identityと一致する個別実行結果。
@@ -4915,7 +5095,9 @@ void MainWindow::displayInstallResult( const InstallResult &result,
 
 		std::wstring statusText ;	// Download/install結果を示す候補別status。
 		// 復元ポイント未作成による中止を候補ごとの結果にも示す。
-		if( result.restorePointCreation.outcome == OutcomeCode::FAILURE) {
+		if( result.restorePointCreation.outcome == OutcomeCode::FAILURE ||
+		   (result.restorePointProtection.verification == OutcomeCode::FAILURE &&
+			updateResult->installOutcome == OutcomeCode::NOT_STARTED)) {
 			statusText = loadString( IDS_RESTORE_POINT_NOT_CREATED) ;
 		}
 		// download未成功をinstall失敗やinstall成功と区別して表示する。
@@ -5010,7 +5192,9 @@ void MainWindow::displayInstallResult( const InstallResult &result,
 		if( index < candidateRowIndexes_.size() && candidateRowIndexes_[index] < treeRows_.size()) {
 			auto &row = treeRows_[candidateRowIndexes_[index]] ;	// 実行対象deviceの唯一の表示行。
 			const UINT summary =
-				result.restorePointCreation.outcome == OutcomeCode::FAILURE
+				(result.restorePointCreation.outcome == OutcomeCode::FAILURE ||
+				 (result.restorePointProtection.verification == OutcomeCode::FAILURE &&
+				  updateResult->installOutcome == OutcomeCode::NOT_STARTED))
 					? IDS_RESTORE_POINT_NOT_CREATED
 				: updateResult->downloadOutcome != OutcomeCode::SUCCESS &&
 						updateResult->downloadOutcome != OutcomeCode::SUCCEEDED_WITH_ERRORS
@@ -5033,6 +5217,7 @@ void MainWindow::displayInstallResult( const InstallResult &result,
 	}
 
 	applyPostInstallObservations( result, scanSessionId) ;
+	recordResolvedInstallDevices( result, scanSessionId) ;
 	refreshCandidateRows() ;
 	// 元行の分類・表示名・個別結果を保持し、実際に読めた同deviceの現在状態だけを付記します。
 	for( auto &row : treeRows_) {
@@ -5707,6 +5892,16 @@ void MainWindow::setOperationProgress( const ProviderProgress &progress)
 			break ;
 
 		// 復元ポイントを開始する保護段階の名称を表示する。
+		case ProviderStage::VERIFYING_RESTORE_POINT:
+			resourceId = IDS_STATUS_VERIFYING_RESTORE ;
+			break ;
+
+		// 実在するpointの再利用を新規作成と区別します。
+		case ProviderStage::REUSING_RESTORE_POINT:
+			resourceId = IDS_STATUS_REUSING_RESTORE ;
+			break ;
+
+		// 新規point確認を含む準備段階を表示します。
 		case ProviderStage::CREATING_RESTORE_POINT:
 			resourceId = IDS_STATUS_CREATING_RESTORE_POINT ;
 			break ;

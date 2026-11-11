@@ -2,7 +2,7 @@
 /**
  * @file main_window_preparation.cpp
  * @brief 公式配布物の取得確認と結果表示。
- * @version 01.12.01
+ * @version 01.13.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -48,6 +48,7 @@
  * Ver.01.11.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
  * Ver.01.12.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * Ver.01.12.01 Shunji Ogawa  2026/11/09  Install意図の準備監査で元ツリー行を保持。
+ * Ver.01.13.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note UI thread専用です。Payload URL・端末識別子は非表示で、EULA内のURLは文字列に限ります。
@@ -101,6 +102,9 @@ UINT preparationStateResource( const OfficialPreparationItemState state) noexcep
 		// 取得完了は内容監査待ちの表示とし、導入済みと扱わない。
 		case OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION:
 			return IDS_PREPARATION_ACQUIRED ;
+		// 取得成功を再発行せず、owned本体の実再検査だけを表示します。
+		case OfficialPreparationItemState::LOCAL_INSPECTION_COMPLETED:
+			return IDS_PREPARATION_LOCAL_INSPECTED ;
 		// 通信条件の同意待ちを取得中や失敗と区別する。
 		case OfficialPreparationItemState::AWAITING_NETWORK_CONSENT:
 			return IDS_PREPARATION_AWAITING_NETWORK ;
@@ -215,7 +219,8 @@ bool validIndexContentSummary( const IndexPreparationItemSummary &item)
 							 // 全体未完了で保持しない個別結果。
 							 item.firstInfRejection == 0 ;
 	// 未取得の内容段階から件数、入力結合または診断を合成しません。
-	if( item.acquisition != OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION) {
+	if( item.acquisition != OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION &&
+	   !item.reusedOwnedBody) {
 		return item.content == IndexedDriverInspectionState::NOT_STARTED &&
 			   item.contentError == 0 && !item.inputBound && countsEmpty ;
 	}
@@ -573,7 +578,17 @@ void MainWindow::failPreparedInstall( const OfficialPreparationOperationResult &
 		static_cast<std::size_t>( std::ranges::count( result.installResolutions,
 													PreparedInstallResolutionState::READY,
 													&PreparedInstallResolution::state))) ;
-	candidateSelected_.assign( candidates_.size(), false) ;
+	// 未処理の原選択を保持し、今回の失敗対象だけをreadonly表示へ戻します。
+	for( std::size_t index{}; index < candidates_.size() && index < candidateSelected_.size();
+		++index) {
+		// 元対象のscopeを満たした場合だけ次の処理へ進みます。
+		if( std::ranges::find( preparationApproval_.installIntentIdentities,
+							 candidates_[index].identity) !=
+		   preparationApproval_.installIntentIdentities.end()) {
+			candidateSelected_[index] = false ;
+		}
+	}
+
 	// 終了処理中に再描画や新しいdialogを挟みません。
 	if( closing_ || closeAfterPreparation_) {
 		return ;
@@ -608,9 +623,7 @@ void MainWindow::failPreparedInstall( const OfficialPreparationOperationResult &
 	}
 
 	preparationResultText_ += L"\r\n" + loadString( message) ;
-	showRecommendedOnly_ = false ;
-	SendMessageW( recommendedOnlyCheckbox_, BM_SETCHECK, BST_UNCHECKED, 0) ;
-	populateCandidates( candidates_) ;
+	applyCandidateSelectionToTree() ;
 	setStatus( loadString( message), false) ;
 	updateCommandState() ;
 }
@@ -1223,7 +1236,8 @@ void MainWindow::processPreparationProgress( const WorkerEvent &event)
  */
 //------------------------------------------------------------------------------
 void MainWindow::processPreparationCompleted( const OfficialPreparationOperationResult &result,
-											 const IndexPreparationSummary			  &indexSummary)
+											 const IndexPreparationSummary			  &indexSummary,
+											 const OfficialPreparationPlan *remainingPlan)
 {
 	const bool cancelled = controller_.state() ==
 						   ApplicationState::CANCELLING_PREPARATION ;	// 終端受理前の取消し意図です。
@@ -1232,7 +1246,7 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 	// 取消し後も元Install要求があった事実だけを保持します。
 	const bool hadInstallIntent = !preparationApproval_.installIntentIdentities.empty() ;
 	// 古いsession／planの通知は現在のUIを変更しない。
-	if( !controller_.completePreparation( result, candidates_)) {
+	if( !controller_.completePreparation( result, candidates_, remainingPlan)) {
 		return ;
 	}
 
@@ -1245,9 +1259,16 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 
 	const bool continueInstall = std::exchange( continueInstallAfterPreparation_, false) &&
 								 !cancelled ;	// 同操作だけ一回消費します。
-	// 使用済みplanの未検査参照を再選択可能なまま残しません。
+	// 取得したtargetだけを消費し、未選択の原参照metadataは初めから保持します。
 	for( auto &candidate : candidates_) {
-		candidate.preparationTargetIdentity.clear() ;
+		const auto decision = std::ranges::find(
+			preparationApproval_.decisions, candidate.preparationTargetIdentity,
+			[]( const auto &entry) { return entry.target.identity ; }) ;	// 原承認です。
+		// 使用済み/不明targetを再選択させず、未選択Bの権限は残plan検証まで作りません。
+		if( controller_.state() == ApplicationState::FAILURE ||
+		   decision == preparationApproval_.decisions.end() || decision->acquire) {
+			candidate.preparationTargetIdentity.clear() ;
+		}
 	}
 
 	const auto indexTargetCount	  = static_cast<std::size_t>( std::ranges::count_if(
@@ -1300,10 +1321,25 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 		}
 
 		const auto expectedTransfer = indexTransferState( item.acquisition) ;	// 現workerの確定変換。
-		indexBound &= decision->acquire && item.acquisitionError == transfer->result.error &&
-					  expectedTransfer && *expectedTransfer == transfer->result.state ;
+		indexBound &= decision->acquire && item.acquisitionError == transfer->result.error ;
+		// LOCALは同active taskの照合票と実検査事実を併せて要求します。
+		if( item.reusedOwnedBody) {
+			const OfficialPreparationTask task{
+				preparationApproval_.operationId, preparationApproval_.scanSessionId,
+				preparationApproval_.planId, decision->target,
+				decision->restrictedNetworkApproved} ;	// 当該新承認です。
+			indexBound &= item.acquisition == OfficialAcquisitionState::NOT_STARTED &&
+						  transfer->result.state ==
+							  OfficialPreparationItemState::LOCAL_INSPECTION_COMPLETED &&
+						  transfer->result.localInspection &&
+						  transfer->result.localInspection->matches( task) &&
+						  transfer->result.byteCount == 0U && item.acquisitionError == 0U &&
+						  item.content == IndexedDriverInspectionState::INSPECTION_COMPLETED &&
+						  item.inputBound && item.contentError == 0U ;
+		}
 		// 取得成功の内容到達は共通executorが確定した取得成功とだけ結合します。
-		if( item.acquisition == OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION) {
+		else if( item.acquisition == OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION) {
+			indexBound &= expectedTransfer && *expectedTransfer == transfer->result.state ;
 			indexBound &=
 				transfer->result.state == OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION &&
 				item.acquisitionError == 0U &&
@@ -1311,6 +1347,7 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 				  item.content != IndexedDriverInspectionState::INSTALLER_INSPECTION_COMPLETED) ||
 				 (item.inputBound && item.contentError == 0U)) ;
 		} else {
+			indexBound &= expectedTransfer && *expectedTransfer == transfer->result.state ;
 			indexBound &=
 				transfer->result.state != OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION &&
 				item.content == IndexedDriverInspectionState::NOT_STARTED && !item.inputBound &&

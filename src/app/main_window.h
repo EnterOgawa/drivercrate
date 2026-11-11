@@ -2,7 +2,7 @@
 /**
  * @file main_window.h
  * @brief DriverCrateメインウィンドウ定義。
- * @version 01.17.01
+ * @version 01.20.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -76,6 +76,9 @@
  * Ver.01.16.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
  * Ver.01.17.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
  * Ver.01.17.01 Shunji Ogawa  2026/11/09  導入中と終端で既存ツリー行の表示位置を保持。
+ * Ver.01.18.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
+ * Ver.01.19.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.20.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note Top-level Win32 Window、TreeTable、およびUI stateを定義します。全member functionは、worker notificationを除き
@@ -106,6 +109,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace drivercrate {
@@ -746,9 +750,11 @@ private:
 	 * @param[in] result workerの取得完了内容。 非機密の取得結果と独立した監査report。
 	 * @param[in] indexSummary 同operation／scan／planの有限な索引内容結果。空では索引未実施です。
 	 * @note 元承認・確定transfer・通常内容上限と矛盾する索引summaryは全拒否し、未確認理由を表示します。
+	 * @param[in] remainingPlan 同終端で発行した未選択の原plan subsetです。
 	 */
 	void			   processPreparationCompleted( const OfficialPreparationOperationResult &result,
-												   const IndexPreparationSummary			&indexSummary = {}) ;
+												   const IndexPreparationSummary			&indexSummary = {},
+												   const OfficialPreparationPlan *remainingPlan = nullptr) ;
 
 	/**
 	 * @brief worker result queue を到着順に処理する。
@@ -833,6 +839,15 @@ private:
 	 * @param[in] scanSessionId 失効直前の元scanです。0は観測を受理しません。
 	 */
 	void applyPostInstallObservations( const InstallResult &result, ScanSessionId scanSessionId) ;
+	/** @brief 実対象一致と個別成功で既知更新の解消だけを記録します。
+	 * @param[in] result 受理済み元Installの結果です。
+	 * @param[in] session 同じ元scanです。
+	 */
+	void recordResolvedInstallDevices( const InstallResult &result, ScanSessionId session) ;
+	/// 同scanだけの表示事実。実行許可を持たず新scanで破棄します。
+	std::unordered_set<std::wstring> resolvedInstallDevices_ ;
+	/// 明示Install前の既推奨predicateで認識した未選択候補だけです。許可ではありません。
+	std::unordered_set<std::wstring> knownRecommendedBeforeInstall_ ;
 
 	/**
 	 * @brief Device行のcheckboxを、明示指定または唯一の一候補へ反映する。
@@ -840,21 +855,21 @@ private:
 	 * @param[in] item 状態が変化したdeviceまたは分類item。
 	 * @param[in] checked 新しい check state。
 	 */
-	void handleTreeCheckChange( HTREEITEM item, bool checked) ;
+	void							 handleTreeCheckChange( HTREEITEM item, bool checked) ;
 
 	/**
 	 * @brief TreeView item parameterから検証済みの表示行を取得する。
 	 * @param[in] parameter itemへ格納した1始まりのrow index。
 	 * @return 有効な場合はTreeRowへの非所有pointer、それ以外は`nullptr`。
 	 */
-	[[nodiscard]] const TreeRow *treeRowFromParameter( LPARAM parameter) const noexcept ;
+	[[nodiscard]] const TreeRow		*treeRowFromParameter( LPARAM parameter) const noexcept ;
 
 	/**
 	 * @brief accessibility用にcandidateの全metadataを一行のitem textへ整形する。
 	 * @param[in] candidate 表示対象。
 	 * @return 制御文字を除いた表示文字列。
 	 */
-	[[nodiscard]] std::wstring	 formatCandidateText( const UpdateCandidate &candidate) const ;
+	[[nodiscard]] std::wstring		 formatCandidateText( const UpdateCandidate &candidate) const ;
 
 	/**
 	 * @brief Candidateの公式探索経路区分を表示文字列へ変換する。
@@ -862,8 +877,8 @@ private:
 	 * @param[in] candidate 表示対象。
 	 * @return 公式区分A～Cのresource文字列。WUA／localの場合は空文字列。
 	 */
-	[[nodiscard]] std::wstring	 formatCandidateDiscoveryBasis(
-		  const UpdateCandidate &candidate) const ;
+	[[nodiscard]] std::wstring		 formatCandidateDiscoveryBasis(
+			  const UpdateCandidate &candidate) const ;
 
 	/**
 	 * @brief 一つの監査gate状態を段階別のresource文字列へ変換する。

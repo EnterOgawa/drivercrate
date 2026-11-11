@@ -2,7 +2,7 @@
 /**
  * @file official_release_observation_store.cpp
  * @brief 公式release観測と自動探索cacheの端末内永続化実装。
- * @version 01.01.01
+ * @version 01.02.00
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  URL非保持の公式自動探索cache永続化を追加。
  * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note Version付きsnapshotと端末固有keyを有限bufferで扱い、reparse pointを拒否します。Production rootは
@@ -39,6 +40,7 @@
 //------------------------------------------------------------------------------
 
 #include "platform/official_release_observation_store.h"
+#include <cstring>
 
 #include <Windows.h>
 #include <aclapi.h>
@@ -1637,6 +1639,167 @@ void discardFile( const std::wstring_view path) noexcept
 	return 0 ;
 }
 
+/** @brief 復元memo用途の既保護rootを検査し、既存ACLを変更しません。
+ * @param[in] handle 同じ実file/directoryです。@param[in] directory Directoryならtrueです。
+ * @return 不明owner/ACL/reparse/複数linkを拒否する元errorです。
+ */
+[[nodiscard]] NativeError validateDailyRestoreHandle( HANDLE handle, bool directory)
+{
+	BY_HANDLE_FILE_INFORMATION info{} ;	// 同じhandleの属性です。
+	// 同handleの属性を取得できなければ所有検査を止めます。
+	if( !GetFileInformationByHandle( handle, &info)) {
+		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	// reparse・種別不一致・複数linkを保護memoに使いません。
+	if( (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 ||
+	   ((info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) != directory ||
+	   (!directory && info.nNumberOfLinks != 1U)) {
+		return nativeErrorFromWin32( ERROR_ACCESS_DENIED) ;
+	}
+
+	// OS descriptor内のownerを借用します。
+	PSID				 owner{} ;
+	// OS descriptor内のDACLを借用します。
+	PACL				 acl{} ;
+	PSECURITY_DESCRIPTOR descriptor{} ;	// OSがLocalAllocするdescriptorです。
+	const auto			 error = GetSecurityInfo(
+		  handle, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION, &owner,
+		  nullptr, &acl, nullptr, &descriptor) ;	// 読取だけです。
+	// ownerとDACLを読めなければ元errorを返します。
+	if( error != ERROR_SUCCESS) {
+		return nativeErrorFromWin32( error) ;
+	}
+
+	alignas( DWORD) std::array<std::byte, SECURITY_MAX_SID_SIZE>
+		systemSid{} ;	// 固定well-known SIDだけです。
+	alignas( DWORD) std::array<std::byte, SECURITY_MAX_SID_SIZE>
+		  adminSid{} ;	// Administrator groupです。
+	// SYSTEM SIDの固定容量です。
+	DWORD systemSize = static_cast<DWORD>( systemSid.size()) ;
+	DWORD adminSize	 = static_cast<DWORD>( adminSid.size()) ;	// 固定容量です。
+	// 固定ownerと両ACLだけを受理する検証状態です。
+	bool  valid =
+		CreateWellKnownSid( WinLocalSystemSid, nullptr, systemSid.data(), &systemSize) != FALSE &&
+		CreateWellKnownSid( WinBuiltinAdministratorsSid, nullptr, adminSid.data(), &adminSize) !=
+			FALSE &&
+		owner && IsValidSid( owner) && acl && IsValidAcl( acl) &&
+		(EqualSid( owner, systemSid.data()) != FALSE || EqualSid( owner, adminSid.data()) != FALSE) ;
+	// 正常なownerとACLだけを固定principalへ照合します。
+	if( valid) {
+		// SYSTEMの許可ACEを確認した場合trueです。
+		bool systemAllowed{} ;
+		bool adminAllowed{} ;	// 他principalのwriteを採用しません。
+		// 全ACEを有限に検査し他principalへの書込みを採用しません。
+		for( DWORD i = 0; i < acl->AceCount && valid; ++i) {
+			void *raw{} ;	// 元ACEだけを借用します。
+			// 不明ACEや破損ACEを許可へ読み替えません。
+			if( !GetAce( acl, i, &raw) || !raw ||
+			   static_cast<ACE_HEADER *>( raw)->AceType != ACCESS_ALLOWED_ACE_TYPE) {
+				valid = false ;
+				break ;
+			}
+
+			const auto *ace = static_cast<ACCESS_ALLOWED_ACE *>( raw) ;	// 固定allow ACEです。
+			const auto	sid =
+				const_cast<DWORD *>( &ace->SidStart) ;	// SID APIは非const pointerを要求します。
+			// 元ACEがSYSTEMを示す場合trueです。
+			const bool isSystem = EqualSid( sid, systemSid.data()) != FALSE ;
+			const bool isAdmin =
+				// 同じ二principalだけです。
+				EqualSid( sid, adminSid.data()) != FALSE ;
+			// SYSTEMとAdministrators以外を拒否します。
+			if( !isSystem && !isAdmin) {
+				valid = false ;
+				break ;
+			}
+
+			// 両固定principalに必要なfile権限を要求します。
+			if( (ace->Mask & FILE_ALL_ACCESS) != FILE_ALL_ACCESS) {
+				valid = false ;
+				break ;
+			}
+
+			systemAllowed = systemAllowed || isSystem ;
+			adminAllowed  = adminAllowed || isAdmin ;
+		}
+
+		valid = valid && systemAllowed && adminAllowed ;
+	}
+
+	LocalFree( descriptor) ;
+	return valid ? 0 : nativeErrorFromWin32( ERROR_ACCESS_DENIED) ;
+}
+/** @brief 固定memoの既rootだけを開き、新規directoryは元の管理者DACLで作ります。
+ * @param[in] overridePath 既constructorの明示fixtureだけです。
+ * @param[out] root 固定既保護領域です。@return 元errorです。
+ */
+[[nodiscard]] NativeError dailyRestoreRoot( std::wstring_view overridePath, std::wstring &root)
+{
+	// 完全fakeが明示した絶対rootだけを通常rootから分離します。
+	if( !overridePath.empty()) {
+		return initializeRoot( overridePath, root) ;
+	}
+
+	PWSTR	   raw{} ;	// Windows known folderだけです。
+	// 固定ProgramData解決の元HRESULTです。
+	const auto result = SHGetKnownFolderPath( FOLDERID_ProgramData, KF_FLAG_DEFAULT, nullptr, &raw) ;
+	// Windows既知folderの失敗を任意pathへfallbackしません。
+	if( FAILED( result)) {
+		return static_cast<NativeError>( result) ;
+	}
+
+	const UniqueCoTaskMemory path( raw, &CoTaskMemFree) ;	// 元pathを所有します。
+	root = static_cast<const wchar_t *>( path.get()) ;
+	PSECURITY_DESCRIPTOR descriptor{} ;	// 新規作成にだけ適用し既存ACLを書換えません。
+	// 新規作成時の固定DACLを生成できなければ停止します。
+	if( !ConvertStringSecurityDescriptorToSecurityDescriptorW(
+		   L"D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)", SDDL_REVISION_1, &descriptor, nullptr)) {
+		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	const std::unique_ptr<void, decltype( &LocalFree)> security(
+		descriptor, &LocalFree) ;	// 既存helperと同じDACLです。
+	SECURITY_ATTRIBUTES attributes{sizeof( SECURITY_ATTRIBUTES), descriptor,
+								   FALSE} ;	// 作成時から保護します。
+	// 既製品parentとstateの二段階だけを確認します。
+	for( const auto name : {PRODUCT_DIRECTORY_NAME, STATE_DIRECTORY_NAME}) {
+		root += L"\\" ;
+		root += name ;
+		// 新規directory作成の失敗を未知rootの採用へ変換しません。
+		if( !CreateDirectoryW( root.c_str(), &attributes) && GetLastError() != ERROR_ALREADY_EXISTS) {
+			return nativeErrorFromWin32( GetLastError()) ;
+		}
+
+		UniqueWin32Handle directory(
+			CreateFileW( root.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES,
+						FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+						FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr),
+			&CloseHandle) ;	// 不明directoryをadoptしません。
+		// 同directoryをno-follow handleで開けることを要求します。
+		if( directory.get() == INVALID_HANDLE_VALUE) {
+			return nativeErrorFromWin32( GetLastError()) ;
+		}
+
+		const auto error = validateDailyRestoreHandle( directory.get(), true) ;	// read-only検査です。
+		// 既存ownerとACLの不一致では変更せず元errorを返します。
+		if( error) {
+			return error ;
+		}
+	}
+
+	return 0 ;
+}
+/** @brief 復元memoだけのroot pinとshare0 lockを所有します。 */
+struct DailyRestoreLease {
+	/// 元製品parentの差替えを防ぎます。
+	UniqueWin32Handle parent{nullptr, &CloseHandle} ;
+	/// 固定state rootの差替えを防ぎます。
+	UniqueWin32Handle root{nullptr, &CloseHandle} ;
+	/// 同用途だけの実排他です。
+	UniqueWin32Handle file{nullptr, &CloseHandle} ;
+} ;
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -2039,6 +2202,207 @@ void OfficialReleaseObservationStore::discardDiscoveryCache() const noexcept
 	} catch( ...) {
 		// noexcept cleanup境界では破棄失敗を外へ伝播せず、呼出し側を終了可能にします。
 	}
+}
+
+/** @see official_release_observation_store.h 宣言側の契約を正本とします。 */
+NativeError OfficialReleaseObservationStore::lockDailyRestoreMemo(
+	std::shared_ptr<void> &lease) const
+{
+	lease.reset() ;
+	std::wstring root ;	// 固定rootまたは明示fixtureです。
+	// 固定rootと後続lockの元診断です。
+	auto		 error = dailyRestoreRoot( rootOverride_, root) ;
+	// 固定rootの保護検査失敗を返します。
+	if( error) {
+		return error ;
+	}
+
+	auto	   owned = std::make_shared<DailyRestoreLease>() ;	// 既share0 handle所有の方式です。
+	const auto parent =
+		// 元product parentです。
+		std::filesystem::path( root).parent_path().wstring() ;
+	owned->parent.reset( CreateFileW( parent.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES,
+									FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+									FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+									nullptr)) ;
+	owned->root.reset( CreateFileW( root.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES,
+								  FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
+								  FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+								  nullptr)) ;
+	// 固定親とrootの両handleが揃うことを要求します。
+	if( owned->parent.get() == INVALID_HANDLE_VALUE || owned->root.get() == INVALID_HANDLE_VALUE) {
+		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	// Productionではpinした両directoryの所有を検証します。
+	if( rootOverride_.empty() &&
+	   ((error = validateDailyRestoreHandle( owned->parent.get(), true)) != 0 ||
+		(error = validateDailyRestoreHandle( owned->root.get(), true)) != 0)) {
+		return error ;
+	}
+
+	const auto path = root + L"\\restore-day.lock" ;	// 新generic pathを受理しません。
+	owned->file.reset( CreateFileW( path.c_str(), GENERIC_READ | GENERIC_WRITE | READ_CONTROL, 0,
+								  nullptr, OPEN_ALWAYS, FILE_FLAG_OPEN_REPARSE_POINT, nullptr)) ;
+	// 同用途のshare0 lockを取得できなければ拒否します。
+	if( owned->file.get() == INVALID_HANDLE_VALUE) {
+		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	// Productionではlock fileのownerとlinkも検証します。
+	if( rootOverride_.empty() &&
+	   (error = validateDailyRestoreHandle( owned->file.get(), false)) != 0) {
+		return error ;
+	}
+
+	lease = std::move( owned) ;
+	return 0 ;
+}
+/** @see official_release_observation_store.h 宣言側の契約を正本とします。 */
+NativeError OfficialReleaseObservationStore::loadDailyRestoreMemo( RestorePointDayMemo &memo) const
+{
+	memo = {} ;
+	std::wstring root ;	// 固定rootだけです。
+	// 固定memo読取の元診断です。
+	auto		 error = dailyRestoreRoot( rootOverride_, root) ;
+	// 固定rootを取得できなければメモを読みません。
+	if( error) {
+		return error ;
+	}
+
+	const auto path = root + L"\\restore-day.memo" ;	// 一件だけです。
+	// 正式なfile不在だけは再利用根拠なしとして返します。
+	if( GetFileAttributesW( path.c_str()) == INVALID_FILE_ATTRIBUTES &&
+	   GetLastError() == ERROR_FILE_NOT_FOUND) {
+		return 0 ;
+	}
+
+	// Productionの既存memoは所有検査後にだけ読みます。
+	if( rootOverride_.empty()) {
+		UniqueWin32Handle file( CreateFileW( path.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES,
+										   FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+										   FILE_FLAG_OPEN_REPARSE_POINT, nullptr),
+							   &CloseHandle) ;	// 不明ACLは読取りません。
+		// 同fileのno-follow handleが開けることを要求します。
+		if( file.get() == INVALID_HANDLE_VALUE) {
+			return nativeErrorFromWin32( GetLastError()) ;
+		}
+
+		// 元memoのownerまたはlink不一致を拒否します。
+		if( (error = validateDailyRestoreHandle( file.get(), false)) != 0) {
+			return error ;
+		}
+	}
+
+	std::vector<std::byte> bytes ;	// 40byteの原値＋32byte digestだけです。
+	error = readFile( path, 72U, 72U, bytes) ;
+	// 固定sizeを読めなければ内容を採用しません。
+	if( error) {
+		return error ;
+	}
+
+	std::array<std::byte, DIGEST_BYTES> digest{} ;	// 非authorityな破損検知です。
+	error = sha256Bytes( std::span( bytes).first( 40U), digest) ;
+	// digest不一致を実在pointの証明に使いません。
+	if( error || !std::ranges::equal( digest, std::span( bytes).subspan( 40U))) {
+		return error ? error : nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+	}
+
+	std::array<std::uint64_t, 5U> values{} ;	// x64固定LE形式です。
+	std::memcpy( values.data(), bytes.data(), 40U) ;
+	// 固定形式と元時刻順序に反するメモを拒否します。
+	if( values[0] != 0x314D50524344ULL || values[1] < 20000101U || values[1] > 99991231U ||
+	   values[2] == 0 || values[2] > 0xffffffffULL || values[3] == 0 || values[4] < values[3] ||
+	   values[4] > static_cast<std::uint64_t>( (std::numeric_limits<std::int64_t>::max)())) {
+		return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+	}
+
+	memo = {static_cast<std::uint32_t>( values[1]), static_cast<std::int64_t>( values[2]),
+			static_cast<std::int64_t>( values[3]), static_cast<std::int64_t>( values[4])} ;
+	return 0 ;
+}
+/** @see official_release_observation_store.h 宣言側の契約を正本とします。 */
+NativeError OfficialReleaseObservationStore::storeDailyRestoreMemo(
+	const RestorePointDayMemo &memo) const
+{
+	// 保存する一件の範囲と元時刻順序を検証します。
+	if( memo.localDay < 20000101U || memo.localDay > 99991231U || memo.sequenceNumber <= 0 ||
+	   memo.sequenceNumber > 0xffffffffLL || memo.createdUtc <= 0 ||
+	   memo.preparedUtc < memo.createdUtc) {
+		return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+	}
+
+	std::wstring root ;	// 固定保護領域です。
+	// 固定memo保存の元診断です。
+	auto		 error = dailyRestoreRoot( rootOverride_, root) ;
+	// 固定root失敗を保存成功へ変換しません。
+	if( error) {
+		return error ;
+	}
+
+	const auto			final = root + L"\\restore-day.memo" ;	// 原観測/secret/indexへ触りません。
+	RestorePointDayMemo previous ;								// 不正な既存fileを保存の名目で上書きしません。
+	// 不正な既存byteを保存処理で上書きしません。
+	if( (error = loadDailyRestoreMemo( previous)) != 0) {
+		return error ;
+	}
+
+	const auto temporary =
+		root + L"\\restore-day.stage" ;	// CREATE_NEWで不明stageを上書き/削除しません。
+	// Productionの既存宛先は元ownerとlinkを再確認します。
+	if( GetFileAttributesW( final.c_str()) != INVALID_FILE_ATTRIBUTES && rootOverride_.empty()) {
+		UniqueWin32Handle file( CreateFileW( final.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES,
+										   FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+										   FILE_FLAG_OPEN_REPARSE_POINT, nullptr),
+							   &CloseHandle) ;	// 元memoの所有を検査します。
+		// 保存宛先を同じno-follow handleで開けることを要求します。
+		if( file.get() == INVALID_HANDLE_VALUE) {
+			return nativeErrorFromWin32( GetLastError()) ;
+		}
+
+		// 既存宛先が不明所有なら置換しません。
+		if( (error = validateDailyRestoreHandle( file.get(), false)) != 0) {
+			return error ;
+		}
+	}
+
+	const std::array<std::uint64_t, 5U> values{0x314D50524344ULL, memo.localDay,
+											   static_cast<std::uint64_t>( memo.sequenceNumber),
+											   static_cast<std::uint64_t>( memo.createdUtc),
+											   // 一件だけです。
+											   static_cast<std::uint64_t>( memo.preparedUtc)} ;
+	std::vector<std::byte>				bytes( 40U) ;	// 固定layoutです。
+	std::memcpy( bytes.data(), values.data(), 40U) ;
+	std::array<std::byte, DIGEST_BYTES> digest{} ;	// 内容破損だけを検出します。
+	// digest生成失敗ではstageを書きません。
+	if( (error = sha256Bytes( bytes, digest)) != 0) {
+		return error ;
+	}
+
+	bytes.insert( bytes.end(), digest.begin(), digest.end()) ;
+	error = writeNewFile( temporary, bytes) ;
+	// 未知stageとの衝突は削除せず元errorを返します。
+	if( error) {
+		return error ;
+	}
+
+	// 自分がCREATE_NEWしたfileだけです。
+	if( rootOverride_.empty()) {
+		error = protectPath( temporary) ;
+	}
+
+	// 自分が新規所有したstageだけをatomic置換します。
+	if( error == 0 && !MoveFileExW( temporary.c_str(), final.c_str(),
+								  MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+		error = nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	// この呼出しが作成したstageだけを片付けます。
+	if( error != 0) {
+		DeleteFileW( temporary.c_str()) ;
+	}
+
+	return error ;
 }
 
 } // namespace drivercrate

@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_fixture.h
  * @brief 専用Win32画面試験の非通信Provider契約。
- * @version 01.16.00
+ * @version 01.18.00
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,8 @@
  * Ver.01.14.00 Shunji Ogawa  2026/10/15  追加INFなしの選択Needs条件の入力範囲を明示。
  * Ver.01.15.00 Shunji Ogawa  2026/10/15  33INF正例とarchive128/129境界の完全閉包入力を分離。
  * Ver.01.16.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
+ * Ver.01.17.00 Shunji Ogawa  2026/11/09  導入後fresh metadataの原全文六応答scheduleを限定追加。
+ * Ver.01.18.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 製品EXEへ組み込まず、内部UI試験だけで使用する。
@@ -177,6 +179,10 @@ struct SignedIndexUiOptions {
 	bool								 unknownLocal{} ;
 	/// 予定範囲を未確認として保持するinstaller拒否条件です。
 	bool								 wrongScope{} ;
+	/// 正常一件だけ原INF由来の明示版をCONTENT_INSPECTED申告へ結びます。空は従来metadataです。
+	std::wstring						 contentInspectedVersion ;
+	/// 同配布tupleでも第二原attestationだけ独立した有効時刻窓へ固定します。
+	bool								 secondAttestationWindow{} ;
 	/// 二recordの第二source subjectだけを別の署名元source IDへ固定します。
 	bool								 secondTermsSubject{} ;
 	/// 二recordの第二公開terms revisionだけをOriginal 2.0へ固定します。

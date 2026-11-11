@@ -2,7 +2,7 @@
 /**
  * @file signed_index_scan.h
  * @brief 通常worker scanに結合する署名索引の秘密sessionを定義します。
- * @version 01.07.00
+ * @version 01.08.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * Ver.01.05.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
  * Ver.01.06.00 Shunji Ogawa  2026/11/03  拡大recordと有限保持quotaを通常経路へ整合。
  * Ver.01.07.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.08.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 全秘密所有はworker限定です。索引一致は導入権限を作りません。
@@ -165,6 +166,8 @@ struct IndexPreparationItemSummary {
 	std::wstring					 targetIdentity ;
 	/// 実byte取得の確定状態。内容合格とは独立です。
 	OfficialAcquisitionState		 acquisition{OfficialAcquisitionState::NOT_STARTED} ;
+	/// 同owned byteをこのtaskで独立検査した場合trueです。成功許可ではありません。
+	bool							 reusedOwnedBody{} ;
 	/// 実byte取得の元HRESULT。未実行は0です。
 	NativeError						 acquisitionError{} ;
 	/// 共通内容検査の到達段階。Windows適合を示しません。
@@ -257,15 +260,34 @@ public:
 	 * @return 同scan／planと有限個別結果。秘密所有を含みません。
 	 */
 	[[nodiscard]] IndexPreparationSummary preparationSummary( OperationId operationId) const ;
+	/** @brief 原metadataだけで残planを検証し当該summaryを開始します。
+     * @param[in,out] plan 原tuple/予算のsubsetです。失効対象だけを除きます。
+     * @param[in] services 元信頼時計です。HTTPは呼びません。
+     * @return 原context/新ID/予算が整合した場合trueです。
+     */
+	[[nodiscard]] bool					  retainPreparationPlan(
+						   OfficialPreparationPlan &plan, const provider_worker_index_detail::Services &services) ;
 	/** @brief Adapterの取得能力とissuer leaseを失効し、確定結果と内容所有を保持します。
 	 * @note 新しいgrantと未使用grantの使用を拒否し、snapshot、lookup、取得ledger、
 	 *       workspace、summary、検査閉包は解放しません。同期callbackの借用を破壊しません。
 	 */
-	void								  invalidateAcquisition() noexcept ;
+	void invalidateAcquisition() noexcept ;
 	/** @brief 新取得だけを閉鎖し、同期限内の消費済み元根拠を導入終端まで保持します。 */
-	void								  closeAcquisitionForInstall() noexcept ;
+	void closeAcquisitionForInstall() noexcept ;
 
 private:
+	/** @brief 元owned bodyを新active taskで非通信再検査します。
+     * @param[in,out] preparation 当該active taskの所有者です。
+     * @param[in] task 新しい明示承認taskです。
+     * @param[in] sourceIndex 元TRANSFER recordの安定indexです。
+     * @param[in] services 元時計です。通信は呼びません。
+     * @param[in] cancellation 同検査の取消しです。
+     * @return 実検査の終端と当該local照合票です。取得成功は再発行しません。
+     */
+	[[nodiscard]] OfficialPreparationTransferResult inspectRetainedBody(
+		OfficialPreparationSession &preparation, const OfficialPreparationTask &task,
+		std::size_t sourceIndex, const provider_worker_index_detail::Services &services,
+		const PreparationCancellation &cancellation) ;
 	friend class CompositeUpdateProvider ;
 	friend class SignedIndexCandidateBindingSession ;
 	friend struct signed_index_candidate_binding_detail::Access ;
@@ -293,5 +315,7 @@ private:
 	SignedIndexCandidateBindingSession				  binding_ ;
 	/// Binding issuer。Compositeより長くsessionを保持し、detach時にnullptrへ戻します。
 	DriverStoreProvider								 *bindingStore_{} ;
+	/// 同scanで保護file名を再使用しない単調ordinalです。
+	std::uint64_t									  nextOwnedPayloadOrdinal_{1U} ;
 } ;
 } // namespace drivercrate

@@ -2,7 +2,7 @@
 /**
  * @file windows_update_provider.cpp
  * @brief Windows Update provider実装。
- * @version 01.01.00
+ * @version 01.02.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -37,6 +37,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  WUA／WSUS既定service選択の試験境界を追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note WUAによるdriver updateの検索、download、およびinstallを実装します。WUAの適用性判定を正本とし、独自URLとversion比較を使用しません。
@@ -798,6 +799,146 @@ const ProviderMeasurementEvidence &WindowsUpdateProvider::measurementEvidence() 
 /**
  * @see src/platform/windows_update_provider.h 宣言側の契約を正本とする。
  */
+/** @see windows_update_provider.h 宣言側の契約を正本とします。 */
+HRESULT WindowsUpdateProvider::resolveSelectedUpdate( IUpdate						 *original,
+													 Microsoft::WRL::ComPtr<IUpdate> &current)
+{
+	current.Reset() ;
+	Microsoft::WRL::ComPtr<IUpdateIdentity> origin ;	// 元ID/revisionです。
+	// 元collectionを失った要求を新しい探索へ広げません。
+	if( !original || !session_) {
+		return E_INVALIDARG ;
+	}
+
+	HRESULT	   error = original->get_Identity( origin.GetAddressOf()) ;	// 原identityです。
+	UniqueBstr identity ;												// 同workerだけで所有します。
+	LONG	   revision{} ;												// 元revisionです。
+	// 全fieldが存在する元updateだけを対象にします。
+	if( SUCCEEDED( error)) {
+		error = origin->get_UpdateID( identity.put()) ;
+	}
+
+	// 不明revisionから最新revisionを自動採用しません。
+	if( SUCCEEDED( error)) {
+		error = origin->get_RevisionNumber( &revision) ;
+	}
+
+	GUID parsed{} ;	// queryへ任意文字列を差込みません。
+	// 有効な元GUIDと正のrevisionだけを検索条件へ使います。
+	if( FAILED( error) || !identity.get() || revision <= 0 ||
+	   FAILED( CLSIDFromString( identity.get(), &parsed))) {
+		return FAILED( error) ? error : E_INVALIDARG ;
+	}
+
+	const std::wstring criteriaText = L"UpdateID='" + std::wstring{identity.get()} +
+									  L"' and RevisionNumber=" + std::to_wstring( revision) +
+									  L" and " + DRIVER_SEARCH_CRITERIA ;	// 元対象だけです。
+	UniqueBstr criteria( criteriaText.c_str()) ;							// 有限GUID/revisionです。
+	UniqueBstr client( CLIENT_APPLICATION_ID) ;								// 元client契約です。
+	Microsoft::WRL::ComPtr<IUpdateSearcher> searcher ;						// 次の明示対象の適用性です。
+	error = session_->CreateUpdateSearcher( searcher.GetAddressOf()) ;
+	// 設定済みWindows Update/WSUS policyを維持します。
+	if( SUCCEEDED( error)) {
+		error = searcher->put_ServerSelection( windowsUpdateServerSelection()) ;
+	}
+
+	// cached IsInstalledだけで導入権限を保証しません。
+	if( SUCCEEDED( error)) {
+		error = searcher->put_Online( VARIANT_TRUE) ;
+	}
+
+	// BSTR不足を空queryへ変換しません。
+	if( SUCCEEDED( error) && (!criteria.get() || !client.get())) {
+		error = E_OUTOFMEMORY ;
+	}
+
+	// 元clientの明示対象だけを検索します。
+	if( SUCCEEDED( error)) {
+		error = searcher->put_ClientApplicationID( client.get()) ;
+	}
+
+	Microsoft::WRL::ComPtr<ISearchResult> result ;	// 完全なWUA応答だけを受理します。
+	// Install終端では呼ばず、今回選択updateだけの再評価です。
+	if( SUCCEEDED( error)) {
+		error = searcher->Search( criteria.get(), result.GetAddressOf()) ;
+	}
+
+	OperationResultCode outcome{} ;	// 部分検索を合格にしません。
+	// WUA API HRESULTと検索結果を分けます。
+	if( SUCCEEDED( error)) {
+		error = result->get_ResultCode( &outcome) ;
+	}
+
+	// 部分/取消/失敗は当該選択だけを拒否します。
+	if( FAILED( error) || outcome != orcSucceeded) {
+		return FAILED( error) ? error : E_FAIL ;
+	}
+
+	Microsoft::WRL::ComPtr<IUpdateCollection> updates ;	// 対象限定の現collectionです。
+	error = result->get_Updates( updates.GetAddressOf()) ;
+	LONG count{} ;	// 消滅/重複を拒否します。
+	// 件数を実collectionから確認します。
+	if( SUCCEEDED( error)) {
+		error = updates->get_Count( &count) ;
+	}
+
+	// 元ID/revisionの唯一候補以外を自動選択しません。
+	if( FAILED( error) || count != 1) {
+		return FAILED( error) ? error : HRESULT_FROM_WIN32( ERROR_NOT_FOUND) ;
+	}
+
+	error = updates->get_Item( 0, current.GetAddressOf()) ;
+	Microsoft::WRL::ComPtr<IUpdateIdentity> freshIdentity ;				// 元値へ完全再照合します。
+	UniqueBstr								freshId ;					// 同workerだけの生IDです。
+	LONG									freshRevision{} ;			// 別revisionを受理しません。
+	VARIANT_BOOL							installed = VARIANT_TRUE ;	// 欠測は拒否です。
+	VARIANT_BOOL							hidden	  = VARIANT_TRUE ;	// 非表示を再提示しません。
+	UpdateType								type	  = utSoftware ;	// driver以外を既定拒否します。
+	// 現結果の全必要属性を独立に確認します。
+	if( SUCCEEDED( error)) {
+		error = current->get_Identity( freshIdentity.GetAddressOf()) ;
+	}
+
+	// 元検証の成否を保持し、不成立を後続の許可へ補完しません。
+	if( SUCCEEDED( error)) {
+		error = freshIdentity->get_UpdateID( freshId.put()) ;
+	}
+
+	// 元検証の成否を保持し、不成立を後続の許可へ補完しません。
+	if( SUCCEEDED( error)) {
+		error = freshIdentity->get_RevisionNumber( &freshRevision) ;
+	}
+
+	// 元検証の成否を保持し、不成立を後続の許可へ補完しません。
+	if( SUCCEEDED( error)) {
+		error = current->get_IsInstalled( &installed) ;
+	}
+
+	// 元検証の成否を保持し、不成立を後続の許可へ補完しません。
+	if( SUCCEEDED( error)) {
+		error = current->get_IsHidden( &hidden) ;
+	}
+
+	// 元検証の成否を保持し、不成立を後続の許可へ補完しません。
+	if( SUCCEEDED( error)) {
+		error = current->get_Type( &type) ;
+	}
+
+	// 一意ID/revision・現適用性の全一致以外を拒否します。
+	if( SUCCEEDED( error) && (!freshId.get() || std::wstring_view{freshId.get()} != identity.get() ||
+							freshRevision != revision || installed != VARIANT_FALSE ||
+							hidden != VARIANT_FALSE || type != utDriver)) {
+		error = E_ACCESSDENIED ;
+	}
+
+	// 不正な現COM参照を後続へ残しません。
+	if( FAILED( error)) {
+		current.Reset() ;
+	}
+
+	return error ;
+}
+
 //------------------------------------------------------------------------------
 InstallResult WindowsUpdateProvider::install( const ScanSessionId				 scanSessionId,
 											 const std::span<const std::wstring> identities,
@@ -829,7 +970,6 @@ InstallResult WindowsUpdateProvider::install( const ScanSessionId				 scanSessio
 	// 導入準備の失敗時は未開始 download を失敗にし session を失効させる。
 	if( FAILED( operationResult)) {
 		applyDownloadFailure( result, operationResult) ;
-		invalidateScanSession() ;
 		return result ;
 	}
 
@@ -856,6 +996,15 @@ InstallResult WindowsUpdateProvider::install( const ScanSessionId				 scanSessio
 			break ;
 		}
 
+		Microsoft::WRL::ComPtr<IUpdate> applicable ;	// 次の明示対象だけを再評価します。
+		operationResult = resolveSelectedUpdate( update.Get(), applicable) ;
+		// 元検索時のcached状態を現在適用性へ読み替えません。
+		if( FAILED( operationResult)) {
+			break ;
+		}
+
+		update = std::move( applicable) ;
+
 		VARIANT_BOOL eulaAccepted = VARIANT_FALSE ;	// TRUEの場合はWUA EULA受諾済み。
 		operationResult			  = update->get_EulaAccepted( &eulaAccepted) ;
 		// 同意状態を確認でき、未同意である選択対象だけを最終確認後に承認する。
@@ -877,8 +1026,12 @@ InstallResult WindowsUpdateProvider::install( const ScanSessionId				 scanSessio
 		}
 	}
 
-	// Installを一度試みたselectionは再利用せず、次回操作前の明示的な再scanを要求する。
-	invalidateScanSession() ;
+	// 選択IDだけを消費し、元collectionのindexと未選択updateは最初から保持します。
+	for( const auto &identity : identities) {
+		updateIndexes_.erase( identity) ;
+		hardwareIds_.erase( identity) ;
+	}
+
 	// 選択 collection の準備失敗を download の失敗として全対象へ反映する。
 	if( FAILED( operationResult)) {
 		applyDownloadFailure( result, operationResult) ;

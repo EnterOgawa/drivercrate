@@ -2,7 +2,7 @@
 /**
  * @file metadata_inventory_tests.cpp
  * @brief 現在属性列挙の上限・欠損・停止境界の決定的試験。
- * @version 01.09.00
+ * @version 01.12.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,9 @@
  * Ver.01.07.00 Shunji Ogawa  2026/10/28  私有batch内proofとresolver閉鎖・終端/新scan失効を回帰。
  * Ver.01.08.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
  * Ver.01.09.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
+ * Ver.01.10.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補継続と元意図の正負回帰を追加。
+ * Ver.01.11.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.12.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note 現在属性とdevnodeの六APIを全てfakeへ置換し、実device列挙と導入を行わない。
@@ -85,9 +88,42 @@ public:
 	 * @param[in] session 元index scanです。
 	 * @return 同thread/scanだけ有効な非copy/nonmove scopeです。
 	 */
-	[[nodiscard]] static auto begin( const DriverStoreProvider &store, const ScanSessionId session)
+	[[nodiscard]] static auto begin( DriverStoreProvider &store, const ScanSessionId session)
 	{
-		return store.beginIndexInstallProofScope( session) ;
+		const auto origin = store.issuedIndexContext_ ;	// 元factory一回のcontextです。
+		// 不正session/二重scopeは元Uへ触れず拒否します。
+		if( session != origin.scanSessionId || store.activeInstallOperation_ != 0U ||
+		   !store.indexInventory_ || store.deviceInstances_.empty()) {
+			return store.beginIndexInstallProofScope( {}, 0U, {}) ;
+		}
+
+		// 正規install scopeだけが開始前にlookupを凍結します。
+		if( store.scanSessionId_ != 0U) {
+			static_cast<void>( store.sealIndexLookup( origin)) ;
+		}
+
+		const auto first =
+			std::ranges::min_element( store.deviceInstances_, {}, []( const auto &entry) {
+				return entry.first ;
+			}) ;												  // 原順の最初です。
+		const std::array selected{first->first} ;				// 元Aだけです。
+		const auto		 operation = origin.operationId + 1U ;	// 新しい明示操作だけです。
+		// 原map/Sの予約失敗をscope成功へ補完しません。
+		if( store.bindInstallDevices( operation, session, selected) != 0U) {
+			return store.beginIndexInstallProofScope( {}, 0U, {}) ;
+		}
+
+		store.markInstallEntered() ;
+		return store.beginIndexInstallProofScope( origin, operation, selected) ;
+	}
+
+	/** @brief 元index ownerの全体再列挙だけを明示的に閉じます。
+     * @param[in,out] store 元captureの所有者です。
+     * @return 元origin/thread/generation一致だけtrueです。install許可は発行しません。
+     */
+	[[nodiscard]] static bool seal( DriverStoreProvider &store)
+	{
+		return store.sealIndexLookup( store.issuedIndexContext_) ;
 	}
 	/** @brief 元Providerの通常失効を呼び、scopeが寿命を延ばさないことを確認します。
 	 * @param[in,out] store 同threadの完全fake所有者です。
@@ -1393,6 +1429,14 @@ private:
 /** @brief 実復旧APIへ入らない拒否専用fakeです。 */
 class WorkerIndexRestore final : public IRestorePointService {
 public:
+	/** @brief 拒否専用fakeは実在保護を生成しません。@return 元拒否区分です。 */
+	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
+	{
+		return {.disposition  = RestorePointDisposition::UNAVAILABLE,
+				.verification = OutcomeCode::FAILURE,
+				.error		  = static_cast<NativeError>( 0x80070005U)} ;
+	}
+
 	/** @brief 誤呼出し検出信号を共有します。
 	 * @param[in] state Fixture信号。
 	 */
@@ -2344,10 +2388,10 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 		83U, selection, 0U, []( const ProviderProgress &) {}) ;	// 実導入なし。
 	DRIVERCRATE_EXPECT( context, !deniedInstall.succeeded) ;
 	DRIVERCRATE_EXPECT( context,
-					   renewedResolver && !renewedResolver
-											   ->resolve( IndexPnpIdKind::HARDWARE, PUBLISHED_ID,
-														 PUBLISHED_CLASS, renewed, renewedPresent)
-											   .completed) ;
+					   renewedResolver && renewedResolver
+											  ->resolve( IndexPnpIdKind::HARDWARE, PUBLISHED_ID,
+														PUBLISHED_CLASS, renewed, renewedPresent)
+											  .completed) ;
 
 	// 同型二台、class相違、class欠損、表示欠損を独立の同scanで比較します。
 	for( unsigned mode = 0U; mode < 4U; ++mode) {
@@ -3045,14 +3089,21 @@ void testAuthenticatedDeviceProjection( TestContext										&context,
 			const auto scope =
 				DriverStoreBindingProbe::begin( run->provider,
 											   batchContext.scanSessionId) ;	// stack限定です。
-			DRIVERCRATE_EXPECT( context, scope.active() && proofValid()) ;
+			DRIVERCRATE_EXPECT( context, !scope.active() && proofValid()) ;
 			DRIVERCRATE_EXPECT(
 				context, !DriverStoreBindingProbe::begin( run->provider, batchContext.scanSessionId)
 							  .active()) ;
 			DRIVERCRATE_EXPECT( context, batchResolver
 												->resolve( id.kind, id.value, evidence.classGuid,
 														  batchContext, batchPresent)
-												.error != 0U) ;
+												.error == 0U) ;
+			// 未bind拒否とは別に、明示sealで再resolveだけを閉じ、元proofは保持します。
+			DRIVERCRATE_EXPECT( context, DriverStoreBindingProbe::seal( run->provider) &&
+											batchResolver
+													->resolve( id.kind, id.value, evidence.classGuid,
+															  batchContext, batchPresent)
+													.error != 0U &&
+											proofValid()) ;
 			IndexLookupContext		  deniedContext ;	// 新callback発行拒否の出力です。
 			std::vector<std::wstring> deniedPresent ;	// 拒否で空になります。
 			DRIVERCRATE_EXPECT( context, !run->provider.makeIndexPublicIdResolver(
@@ -3078,7 +3129,7 @@ void testAuthenticatedDeviceProjection( TestContext										&context,
 			DRIVERCRATE_EXPECT( context, mode == 3U) ;
 		}
 
-		DRIVERCRATE_EXPECT( context, !proofValid()) ;
+		DRIVERCRATE_EXPECT( context, mode == 0U || mode == 3U ? proofValid() : !proofValid()) ;
 		// 旧scope終了で新世代のcallbackを巻き添えに失効させません。
 		if( renewedResolver) {
 			DRIVERCRATE_EXPECT( context, renewedResolver

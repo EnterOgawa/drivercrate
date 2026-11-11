@@ -2,7 +2,7 @@
 /**
  * @file official_preparation.h
  * @brief 配布物単位の検査用取得承認と予算管理。
- * @version 01.05.00
+ * @version 01.06.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
  * Ver.01.04.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
  * Ver.01.05.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 一objectは同一threadだけで使用し、取得taskを導入許可として扱いません。
@@ -49,6 +50,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -231,7 +233,52 @@ enum class OfficialPreparationItemState {
 	/// 共通取得層等の検証が拒否した。
 	REJECTED,
 	/// 取得処理でエラーが発生した。
-	FAILURE
+	FAILURE,
+	/// 原owned本体を当該taskで再検査した非取得終端です。
+	LOCAL_INSPECTION_COMPLETED
+} ;
+
+struct OfficialPreparationTask ;
+/** @brief 実active local claimだけの不変照合票です。権限/issuerではありません。 */
+class OfficialLocalInspectionEvidence final {
+	/** @brief 既sessionだけがactive task照合票を構築するための非公開keyです。 */
+	class MintKey final {
+	public:
+		/** @brief 元session内だけでkeyを渡します。
+         * @param[in] other 元keyです。
+         */
+		MintKey( const MintKey &other) = default ;
+
+	private:
+		/** @brief 元sessionだけが生成します。 */
+		MintKey() = default ;
+		friend class OfficialPreparationSession ;
+	} ;
+	friend class OfficialPreparationSession ;
+
+public:
+	/** @brief 元sessionが所有するactive taskを固定します。
+     * @param[in] key 私有keyです。
+     * @param[in] task 所有検証済みtaskです。
+     */
+	OfficialLocalInspectionEvidence( MintKey key, const OfficialPreparationTask &task) ;
+	/** @brief taskの全scopeを一対一照合します。
+     * @param[in] task 原承認から構成したtaskです。
+     * @return 全field一致だけtrueです。実行許可を生成しません。
+     */
+	[[nodiscard]] bool matches( const OfficialPreparationTask &task) const noexcept ;
+
+private:
+	/// 元active操作です。
+	OperationId				  operationId_{} ;
+	/// 元scanです。
+	ScanSessionId			  scanSessionId_{} ;
+	/// 当該新planです。
+	std::uint64_t			  planId_{} ;
+	/// 元target全文です。秘密値は含みません。
+	OfficialPreparationTarget target_ ;
+	/// 元承認のnetwork例外です。LOCALは通信しません。
+	bool					  restrictedNetworkApproved_{} ;
 } ;
 
 /** @brief 一対象の完了通知に使用する、URLを含まない結果。 */
@@ -242,6 +289,8 @@ struct OfficialPreparationTransferResult {
 	NativeError					 error{} ;
 	/// 成功時だけ実取得byte数。失敗／取消しは0。
 	std::uint64_t				 byteCount{} ;
+	/// 同active LOCAL claimだけの照合票です。取得/導入許可ではありません。
+	std::shared_ptr<const OfficialLocalInspectionEvidence> localInspection ;
 } ;
 
 /** @brief 表示へ渡せる対象別の状態。 */
@@ -388,6 +437,15 @@ public:
 
 private:
 	friend class RecordScopedDownloadGrant ;
+	friend class SignedIndexScanSession ;
+	/** @brief 同active taskを一回の非通信検査へ予約します。
+     * @param[in] task 所有active taskです。
+     * @return 未使用taskの照合票。失敗/別用途claim済みは空です。
+     */
+	[[nodiscard]] std::shared_ptr<const OfficialLocalInspectionEvidence> claimIndexLocalInspection(
+		const OfficialPreparationTask &task) noexcept ;
+	/// 同taskのLOCAL目的です。TRANSFERと共通bitで排他です。
+	std::shared_ptr<const OfficialLocalInspectionEvidence> activeLocalInspection_ ;
 	/** @brief 同じ実taskの索引grant発行をadapterをまたいで一回だけ予約します。
 	 * @param[in] task 本sessionの未完了task。
 	 * @return 完全一致の未使用taskを予約した場合だけtrue。

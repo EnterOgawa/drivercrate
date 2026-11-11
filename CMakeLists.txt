@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(
     DriverCrate
-    VERSION 1.0.1
+    VERSION 1.0.4
     DESCRIPTION "Torrent-free Windows driver update manager"
     LANGUAGES C CXX RC
 )
@@ -379,6 +379,7 @@ target_link_libraries(drivercrate_platform
         ws2_32
         ole32
         oleaut32
+        wbemuuid
         setupapi
         newdev
         normaliz

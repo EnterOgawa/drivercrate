@@ -2,7 +2,7 @@
 /**
  * @file operation_controller_tests.cpp
  * @brief OperationController単体試験実装。
- * @version 01.02.00
+ * @version 01.04.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -38,6 +38,8 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  観測結合と初回actionの登録拒否を検証。
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  通常scanの取消し待ちとABORTED終端を検証。
+ * Ver.01.03.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note 正常遷移、stale result、およびidentityのfail-closed検証を試験します。
@@ -46,6 +48,7 @@
 
 #include "operation_controller_tests.h"
 
+#include "core/update_provider.h"
 #include "core/operation_controller.h"
 #include "test_framework.h"
 
@@ -174,9 +177,19 @@ void testScanMeasurementLifetime( TestContext &context)
 	installed.protectionMode		 = InstallProtectionMode::WINDOWS_RESTORE_POINT ;
 	installed.restorePointCreation	 = {.outcome = OutcomeCode::SUCCESS, .sequenceNumber = 42} ;
 	installed.restorePointCompletion = {.outcome = OutcomeCode::SUCCESS, .sequenceNumber = 42} ;
-	installed.succeeded				 = true ;
-	installed.downloadOutcome		 = OutcomeCode::SUCCESS ;
-	installed.installOutcome		 = OutcomeCode::SUCCESS ;
+	installed.restorePointProtection = {
+		.disposition	   = RestorePointDisposition::WINDOWS_SELECTED_POINT,
+		.verification	   = OutcomeCode::SUCCESS,
+		.sequenceNumber	   = installed.restorePointCreation.sequenceNumber,
+		.createdUtc		   = 1,
+		.localDay		   = 20261110U,
+		.verifiedBefore	   = true,
+		.verifiedAfter	   = true,
+		.nativeBeginCalled = true,
+		.nativeEndCalled   = true} ;	// 人工DTOの明示fake実在です。
+	installed.succeeded		  = true ;
+	installed.downloadOutcome = OutcomeCode::SUCCESS ;
+	installed.installOutcome  = OutcomeCode::SUCCESS ;
 	installed.updates.push_back( {.identity		  = L"update",
 								 .downloadOutcome = OutcomeCode::SUCCESS,
 								 .installOutcome  = OutcomeCode::SUCCESS}) ;
@@ -494,9 +507,19 @@ void testInstallLifecycle( TestContext &context)
 	InstallResult installResult{} ;	// 全段階成功を表すProvider result。
 	installResult.restorePointCreation	 = {.outcome = OutcomeCode::SUCCESS, .sequenceNumber = 42} ;
 	installResult.restorePointCompletion = {.outcome = OutcomeCode::SUCCESS, .sequenceNumber = 42} ;
-	installResult.succeeded				 = true ;
-	installResult.downloadOutcome		 = OutcomeCode::SUCCESS ;
-	installResult.installOutcome		 = OutcomeCode::SUCCESS ;
+	installResult.restorePointProtection = {
+		.disposition	   = RestorePointDisposition::WINDOWS_SELECTED_POINT,
+		.verification	   = OutcomeCode::SUCCESS,
+		.sequenceNumber	   = installResult.restorePointCreation.sequenceNumber,
+		.createdUtc		   = 1,
+		.localDay		   = 20261110U,
+		.verifiedBefore	   = true,
+		.verifiedAfter	   = true,
+		.nativeBeginCalled = true,
+		.nativeEndCalled   = true} ;	// 人工DTOの明示fake実在です。
+	installResult.succeeded		  = true ;
+	installResult.downloadOutcome = OutcomeCode::SUCCESS ;
+	installResult.installOutcome  = OutcomeCode::SUCCESS ;
 	installResult.updates.push_back( {.identity		  = L"update-b#1",
 									 .downloadOutcome = OutcomeCode::SUCCESS,
 									 .installOutcome  = OutcomeCode::SUCCESS}) ;
@@ -539,9 +562,19 @@ void testInvalidInstallSuccessIsRejected( TestContext &context)
 	InstallResult invalidResult{} ;	// 未選択identityを成功とする不正Provider result。
 	invalidResult.restorePointCreation	 = {.outcome = OutcomeCode::SUCCESS, .sequenceNumber = 43} ;
 	invalidResult.restorePointCompletion = {.outcome = OutcomeCode::SUCCESS, .sequenceNumber = 43} ;
-	invalidResult.succeeded				 = true ;
-	invalidResult.downloadOutcome		 = OutcomeCode::SUCCESS ;
-	invalidResult.installOutcome		 = OutcomeCode::SUCCESS ;
+	invalidResult.restorePointProtection = {
+		.disposition	   = RestorePointDisposition::WINDOWS_SELECTED_POINT,
+		.verification	   = OutcomeCode::SUCCESS,
+		.sequenceNumber	   = invalidResult.restorePointCreation.sequenceNumber,
+		.createdUtc		   = 1,
+		.localDay		   = 20261110U,
+		.verifiedBefore	   = true,
+		.verifiedAfter	   = true,
+		.nativeBeginCalled = true,
+		.nativeEndCalled   = true} ;	// 人工DTOの明示fake実在です。
+	invalidResult.succeeded		  = true ;
+	invalidResult.downloadOutcome = OutcomeCode::SUCCESS ;
+	invalidResult.installOutcome  = OutcomeCode::SUCCESS ;
 	invalidResult.updates.push_back( {.identity		  = L"update-b#1",
 									 .downloadOutcome = OutcomeCode::SUCCESS,
 									 .installOutcome  = OutcomeCode::SUCCESS}) ;
@@ -639,6 +672,15 @@ void testInstallProtectionModeMismatch( TestContext &context)
 	InstallResult result{} ;	// Client用保護modeを持つ不正な成功結果。
 	result.restorePointCreation	  = {.outcome = OutcomeCode::SUCCESS, .sequenceNumber = 45} ;
 	result.restorePointCompletion = {.outcome = OutcomeCode::SUCCESS, .sequenceNumber = 45} ;
+	result.restorePointProtection = {.disposition = RestorePointDisposition::WINDOWS_SELECTED_POINT,
+									 .verification	 = OutcomeCode::SUCCESS,
+									 .sequenceNumber = result.restorePointCreation.sequenceNumber,
+									 .createdUtc	 = 1,
+									 .localDay		 = 20261110U,
+									 .verifiedBefore = true,
+									 .verifiedAfter	 = true,
+									 .nativeBeginCalled = true,
+									 .nativeEndCalled	= true} ;	// 人工DTOの明示fake実在です。
 	result.succeeded			  = true ;
 	result.downloadOutcome		  = OutcomeCode::SUCCESS ;
 	result.installOutcome		  = OutcomeCode::SUCCESS ;
@@ -1138,9 +1180,159 @@ void testObservationRegistration( TestContext &context)
 /**
  * @see tests/unit/operation_controller_tests.h 宣言側の契約を正本とする。
  */
+/** @brief 元subset/操作/結果へ残存所有を照合し、旧許可を復活させない有限caseです。
+ * @param[in,out] context 原assertionです。
+ */
+void testTargetOnlyRetention( TestContext &context)
+{
+	// 正常/五つの改変/保護前拒否を独立した元scanで確認します。
+	for( unsigned mode{}; mode < 8U; ++mode) {
+		OperationController controller ;					// 他caseへ権限を持ち越しません。
+		const auto			scan = controller.beginScan() ;	// 元operationです。
+		DRIVERCRATE_EXPECT( context, controller.completeScan( scan.operationId,
+															makeSuccessfulScan( 1U, {L"a", L"b"}))) ;
+		const std::array selected{std::wstring{L"a"}} ;	// Aだけを消費します。
+		const auto		 begin = controller.beginInstall(
+			  1U, selected, InstallConfirmation::CONFIRMED) ;	// 新明示操作です。
+		DRIVERCRATE_EXPECT( context, begin.accepted) ;
+		InstallResult installed ;	// 個別結果の原値は残します。
+		installed.succeeded				 = mode != 7U ;
+		installed.downloadOutcome		 = mode == 7U ? OutcomeCode::FAILURE : OutcomeCode::SUCCESS ;
+		installed.installOutcome		 = installed.downloadOutcome ;
+		installed.downloadError			 = mode == 7U ? static_cast<NativeError>( -1) : 0 ;
+		installed.installError			 = installed.downloadError ;
+		installed.restorePointCreation	 = {.outcome		= mode == 7U ? OutcomeCode::FAILURE
+																		 : OutcomeCode::SUCCESS,
+											.error			= installed.installError,
+											.sequenceNumber = 1} ;
+		installed.restorePointCompletion = {.outcome		= mode == 7U ? OutcomeCode::NOT_STARTED
+																		 : OutcomeCode::SUCCESS,
+											.sequenceNumber = mode == 7U ? 0 : 1} ;
+		installed.restorePointProtection = {
+			.disposition	   = RestorePointDisposition::WINDOWS_SELECTED_POINT,
+			.verification	   = OutcomeCode::SUCCESS,
+			.sequenceNumber	   = installed.restorePointCreation.sequenceNumber,
+			.createdUtc		   = 1,
+			.localDay		   = 20261110U,
+			.verifiedBefore	   = true,
+			.verifiedAfter	   = true,
+			.nativeBeginCalled = true,
+			.nativeEndCalled   = true} ;	// 人工DTOの明示fake実在です。
+		installed.updates.push_back( {.identity		  = L"a",
+									 .downloadOutcome = installed.downloadOutcome,
+									 .downloadError	  = installed.downloadError,
+									 .installOutcome  = installed.installOutcome,
+									 .installError	  = installed.installError}) ;
+		InstallRetentionSummary retained{
+			begin.operationId, 1U, mode != 7U, {{L"b", L"device-b"}}, {}} ;	// 元Uだけです。
+		// 別操作の所有を現在終端へ混ぜません。
+		if( mode == 1U) {
+			++retained.operationId ;
+		}
+
+		// 別scanを拒否します。
+		if( mode == 2U) {
+			++retained.scanSessionId ;
+		}
+
+		// 同名でも別deviceを拒否します。
+		if( mode == 3U) {
+			retained.candidates[0].deviceIdentity = L"other" ;
+		}
+
+		// 新candidateや重複から許可を作りません。
+		if( mode == 4U) {
+			retained.candidates[0].identity = L"unpublished" ;
+		}
+
+		// 元対象のscopeを満たした場合だけ次の処理へ進みます。
+		if( mode == 5U) {
+			retained.candidates.push_back( retained.candidates.front()) ;
+		}
+
+		// 実行済みAを戻すpacketを拒否します。
+		if( mode == 6U) {
+			retained.candidates = {{L"a", L"device-a"}} ;
+		}
+
+		DRIVERCRATE_EXPECT( context,
+						   controller.completeInstall( begin.operationId, installed, &retained)) ;
+		DRIVERCRATE_EXPECT( context, controller.lastInstallSucceeded() == (mode != 7U)) ;
+		const bool valid = mode == 0U || mode == 7U ;	// 原保護前拒否は未消費Bを維持します。
+		DRIVERCRATE_EXPECT( context, valid ? controller.scanSessionId() == 1U &&
+												controller.isInstallCandidateAllowed( L"b")
+										  : controller.scanSessionId() == 0U &&
+												!controller.isInstallCandidateAllowed( L"b")) ;
+		DRIVERCRATE_EXPECT( context, !controller.isInstallCandidateAllowed( L"a")) ;
+		DRIVERCRATE_EXPECT( context,
+						   !controller.completeInstall( begin.operationId, installed, &retained)) ;
+		controller.stop() ;
+		DRIVERCRATE_EXPECT( context, !controller.isInstallCandidateAllowed( L"b")) ;
+	}
+}
+
+/** @brief 準備取消しと残planの原subset/期限なし予算・旧ID拒否を確認します。
+ * @param[in,out] context 原assertionです。
+ */
+void testTargetOnlyRemainingPreparation( TestContext &context)
+{
+	// 正常取消し/規約変化/予算拡大/消費対象/旧IDを分けます。
+	for( unsigned mode{}; mode < 5U; ++mode) {
+		OperationController controller ;									// 原scanだけです。
+		const auto			begin = controller.beginScan() ;				// 初回検索です。
+		auto				scan  = makeSuccessfulScan( 1U, {L"a", L"b"}) ;	// 原二参照です。
+		auto				plan  = makeControllerPreparationPlan() ;		// 元全tuple/予算です。
+		// 現在行や実行permitへ参照を昇格しません。
+		for( std::size_t index{}; index < scan.candidates.size(); ++index) {
+			scan.candidates[index].installable				 = false ;
+			scan.candidates[index].preparationTargetIdentity = plan.targets[index].identity ;
+		}
+
+		DRIVERCRATE_EXPECT( context, controller.completeScan( begin.operationId, scan)) ;
+		DRIVERCRATE_EXPECT( context, controller.setPreparationPlan( begin.operationId, plan)) ;
+		auto approval = makeControllerPreparationApproval( plan) ;	// Aだけを今回選びます。
+		DRIVERCRATE_EXPECT( context, controller.beginPreparation( approval).accepted) ;
+		DRIVERCRATE_EXPECT( context, controller.markPreparationCancelling( approval.operationId)) ;
+		auto result = makeControllerPreparationResult( approval) ;	// 元取消しを偽成功にしません。
+		result.items[0].result = {OfficialPreparationItemState::CANCELLED,
+								  static_cast<NativeError>( -1), 0U} ;
+		OfficialPreparationPlan remaining{
+			1U, 2U, plan.limits, {plan.targets[1]}} ;	// 未選択Bだけです。
+		// 新しい条件への旧同意流用を拒否します。
+		if( mode == 1U) {
+			remaining.targets[0].eulaRevision = L"changed" ;
+		}
+
+		// 元対象のscopeを満たした場合だけ次の処理へ進みます。
+		if( mode == 2U) {
+			++remaining.limits.maximumSessionBytes ;
+		}
+
+		// 元対象のscopeを満たした場合だけ次の処理へ進みます。
+		if( mode == 3U) {
+			remaining.targets[0] = plan.targets[0] ;
+		}
+
+		// 元対象のscopeを満たした場合だけ次の処理へ進みます。
+		if( mode == 4U) {
+			remaining.planId = plan.planId ;
+		}
+
+		DRIVERCRATE_EXPECT( context,
+						   controller.completePreparation( result, scan.candidates, &remaining)) ;
+		DRIVERCRATE_EXPECT( context, !controller.isPreparationReferenceAllowed( L"a")) ;
+		DRIVERCRATE_EXPECT( context, controller.isPreparationReferenceAllowed( L"b") == (mode == 0U)) ;
+		DRIVERCRATE_EXPECT( context, !controller.setPreparationPlan( approval.operationId, plan)) ;
+		DRIVERCRATE_EXPECT( context,
+						   !controller.completePreparation( result, scan.candidates, &remaining)) ;
+	}
+}
+
 //------------------------------------------------------------------------------
 void runOperationControllerTests( TestContext &context)
 {
+	testTargetOnlyRetention( context) ;
+	testTargetOnlyRemainingPreparation( context) ;
 	testScanSuccess( context) ;
 	testScanMeasurementLifetime( context) ;
 	testStaleScanResultIsRejected( context) ;

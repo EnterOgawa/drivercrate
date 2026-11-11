@@ -2,7 +2,7 @@
 /**
  * @file app.rc
  * @brief DriverCrate Windows resource定義。
- * @version 01.28.00
+ * @version 01.31.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -105,6 +105,9 @@
  * Ver.01.26.00 Shunji Ogawa  2026/11/08  署名更新情報と保存本体の一致時の取得省略を表示。
  * Ver.01.27.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
  * Ver.01.28.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.29.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
+ * Ver.01.30.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.31.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note Application icon、executable version、manifest、および日本語UI文字列を定義します。
@@ -489,7 +492,7 @@ BEGIN
 	IDS_STATUS_CREATING_RESTORE_POINT "Windowsの復元ポイントを作成しています…"
 	IDS_RESTORE_POINT_ERROR_PREFIX "Windowsの復元ポイントを作成できないため、インストールを中止しました。システム保護を確認してください。\r\n\r\n"
 	IDS_RESTORE_POINT_FINALIZE_ERROR_PREFIX "ドライバー処理後に復元ポイントを終了できませんでした。処理結果を確認してください。\r\n\r\n"
-	IDS_RESTORE_POINT_NOT_CREATED "未インストール（復元ポイント作成失敗）"
+	IDS_RESTORE_POINT_NOT_CREATED "未インストール（復元ポイントの準備未成立）"
 	IDS_RESTORE_POINT_CREATED     "Windowsの復元ポイントを作成しました（番号: %1）。"
 	IDS_RECOMMENDED_ONLY_FILTER   "推奨・初回候補を表示(&R)"
 	IDS_STATUS_RECOMMENDED_COUNT  "更新・初回の導入候補 %1 件。"
@@ -627,6 +630,7 @@ BEGIN
 	IDS_PREPARATION_FAILED "取得・検査に失敗しました。詳細を確認し、「更新を検索」から再試行してください。"
 	IDS_PREPARATION_CLOSE "取得を取り消して終了しますか？ 処理終了の通知まで画面を保持します。"
 	IDS_PREPARATION_ACQUIRED "検査用取得済み（監査結果は別表示・インストールなし）"
+	IDS_PREPARATION_LOCAL_INSPECTED "取得済み本体を再検査しました。"
 	IDS_PREPARATION_NOT_SELECTED "未選択・取得なし"
 	IDS_PREPARATION_AWAITING_NETWORK "ネットワーク条件への同意不足・取得なし"
 	IDS_PREPARATION_CANCELLED "取消し"
@@ -757,4 +761,14 @@ BEGIN
 	IDS_DIAGNOSTIC_STORAGE_SAVED "匿名診断: EXE隣のlogへ保存済み（保存/未保存/欠落: %1）"
 	IDS_DIAGNOSTIC_STORAGE_PENDING "匿名診断: 保存待ち・未保存あり（保存/未保存/欠落: %1）"
 	IDS_DIAGNOSTIC_STORAGE_FAILED "匿名診断を保存できません。既存logは変更せず、診断番号をお知らせください（状態/段階/元コード有無/コード/保存/未保存/欠落: %1）。"
+END
+
+STRINGTABLE
+BEGIN
+ IDS_RESTORE_WINDOWS_SELECTED "Windowsが選んだ既存の復元ポイントを確認しました（番号: %1）。"
+ IDS_RESTORE_DAY_REUSED "同日の復元ポイントを確認して再利用しました（番号: %1）。"
+ IDS_RESTORE_VERIFICATION_ERROR "Windowsの復元ポイントを確認できませんでした。ドライバー処理結果とシステム保護を確認してください。\r\n\r\n"
+ IDS_RESTORE_MEMO_WARNING "同日の再利用情報を保持できませんでした。次の操作では保護を再確認します。"
+ IDS_STATUS_VERIFYING_RESTORE "Windowsの復元ポイントを確認しています…"
+ IDS_STATUS_REUSING_RESTORE "確認済みの復元ポイントを利用しています…"
 END

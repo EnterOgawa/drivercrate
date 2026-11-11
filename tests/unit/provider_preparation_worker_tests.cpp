@@ -2,7 +2,7 @@
 /**
  * @file provider_preparation_worker_tests.cpp
  * @brief 取得準備workerの内部試験。
- * @version 01.03.01
+ * @version 01.06.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -40,6 +40,9 @@
  * Ver.01.02.01 Shunji Ogawa  2026/10/24  通常計測の版期待を既存製品version正本へ結合。
  * Ver.01.03.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
  * Ver.01.03.01 Shunji Ogawa  2026/11/09  不正なfake返却先を原valid失敗のままguard。
+ * Ver.01.04.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補継続と元意図の正負回帰を追加。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note COM workerを使用しますが、通信・実driver導入・実復元ポイントは使用しません。
@@ -141,6 +144,15 @@ struct FakePreparationState {
 /** @brief 復元APIを初期化せず、呼出し順序を記録するfake。 */
 class FakePreparationRestoreService final : public IRestorePointService {
 public:
+	/// 同fakeの実行済みcallbackからだけ作る明示観測です。
+	RestorePointProtectionResult			   fakeProtection_{.disposition =
+													   RestorePointDisposition::UNAVAILABLE} ;
+	/** @brief 完全fakeの原開始/終了に対応した観測を返します。@return 本番APIを呼ばない観測です。 */
+	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
+	{
+		return fakeProtection_ ;
+	}
+
 	/**
 	 * @brief Fixture状態を共有する。
 	 * Windows復元APIを初期化せず、試験状態だけを保持する。
@@ -1034,10 +1046,25 @@ FakePreparationRestoreService::FakePreparationRestoreService(
 RestorePointOperationResult FakePreparationRestoreService::begin(
 	const std::wstring_view description) noexcept
 {
-	static_cast<void>( description) ;
-	++state_->restoreCalls ;
-	return state_->allowFakeRestore ? RestorePointOperationResult{OutcomeCode::SUCCESS, 0, 77}
-									: RestorePointOperationResult{} ;
+	const auto result = [&]() noexcept -> RestorePointOperationResult {
+		static_cast<void>( description) ;
+		++state_->restoreCalls ;
+		return state_->allowFakeRestore ? RestorePointOperationResult{OutcomeCode::SUCCESS, 0, 77}
+										: RestorePointOperationResult{} ;
+	}() ; // 元fake API結果とcounterはそのままです。
+	fakeProtection_ = {.disposition	   = RestorePointDisposition::WINDOWS_SELECTED_POINT,
+					   .verification   = result.outcome == OutcomeCode::SUCCESS &&
+												 result.error == 0 && result.sequenceNumber > 0
+											 ? OutcomeCode::SUCCESS
+											 : OutcomeCode::FAILURE,
+					   .error		   = result.error,
+					   .sequenceNumber = result.sequenceNumber,
+					   .createdUtc	   = 1,
+					   .localDay	   = 20261110U,
+					   .verifiedBefore = result.outcome == OutcomeCode::SUCCESS &&
+										 result.error == 0 && result.sequenceNumber > 0,
+					   .nativeBeginCalled = true} ;
+	return result ;
 }
 
 //------------------------------------------------------------------------------
@@ -1048,10 +1075,24 @@ RestorePointOperationResult FakePreparationRestoreService::begin(
 RestorePointOperationResult FakePreparationRestoreService::complete(
 	const std::int64_t sequenceNumber) noexcept
 {
-	static_cast<void>( sequenceNumber) ;
-	++state_->restoreCalls ;
-	return state_->allowFakeRestore ? RestorePointOperationResult{OutcomeCode::SUCCESS, 0, 77}
-									: RestorePointOperationResult{} ;
+	const auto result = [&]() noexcept -> RestorePointOperationResult {
+		static_cast<void>( sequenceNumber) ;
+		++state_->restoreCalls ;
+		return state_->allowFakeRestore ? RestorePointOperationResult{OutcomeCode::SUCCESS, 0, 77}
+										: RestorePointOperationResult{} ;
+	}() ; // 元fake API結果とcounterはそのままです。
+	fakeProtection_.nativeEndCalled = true ;
+	fakeProtection_.verifiedAfter	= result.outcome == OutcomeCode::SUCCESS && result.error == 0 &&
+									result.sequenceNumber == fakeProtection_.sequenceNumber ;
+	fakeProtection_.verification = fakeProtection_.verifiedBefore && fakeProtection_.verifiedAfter
+									   ? OutcomeCode::SUCCESS
+									   : OutcomeCode::FAILURE ;
+	// fakeの元終了診断を実在結果へ保持します。
+	if( result.error != 0) {
+		fakeProtection_.error = result.error ;
+	}
+
+	return result ;
 }
 
 //------------------------------------------------------------------------------

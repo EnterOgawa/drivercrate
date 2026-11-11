@@ -2,7 +2,7 @@
 /**
  * @file provider_worker.h
  * @brief Provider worker定義。
- * @version 01.04.00
+ * @version 01.06.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,8 @@
  * Ver.01.03.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
  * Ver.01.03.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.04.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
+ * Ver.01.06.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note Blocking provider operationをCOM MTA worker threadへ隔離します。UI通知は有限result queueとPostMessageを使用し
@@ -116,6 +118,8 @@ struct WorkerEvent {
 	ScanResult							   scanResult ;
 	/// InstallCompleted時だけ参照するinstall結果。
 	InstallResult						   installResult ;
+	/// 同Installの実ownerが保持する未消費subsetです。
+	std::optional<InstallRetentionSummary> installRetention ;
 	/// Scan成功時の任意の取得計画。
 	std::optional<OfficialPreparationPlan> preparationPlan ;
 	/// 計画だけの失敗。driver scan結果とは独立。

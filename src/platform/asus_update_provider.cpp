@@ -2,7 +2,7 @@
 /**
  * @file asus_update_provider.cpp
  * @brief ASUS公式support page Provider実装。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note ASUS端末でだけ公式pageとpayloadを取得し、全INFの選択閉包、CAT、publisher、local PnP／Rankを検証し、全gate合格候補だけを再検証して
@@ -886,7 +887,10 @@ InstallResult AsusUpdateProvider::install( const ScanSessionId				  scanSessionI
 		installed == identities.size()
 			? OutcomeCode::SUCCESS
 			: (installed == 0U ? OutcomeCode::FAILURE : OutcomeCode::SUCCEEDED_WITH_ERRORS) ;
-	invalidateScanSession() ;
+	// 元owned閉包/期限を保持し、選択したdeviceの全代替routeだけを消費します。
+	std::erase_if( installTargets_, [&]( const auto &entry) {
+		return uniqueDevices.contains( entry.second.deviceIdentity) ;
+	}) ;
 	return result ;
 }
 

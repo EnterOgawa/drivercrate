@@ -2,7 +2,7 @@
 /**
  * @file composite_update_provider.h
  * @brief 複合update provider定義。
- * @version 01.11.00
+ * @version 01.13.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -83,6 +83,8 @@
  * Ver.01.10.01 Shunji Ogawa  2026/10/13  Field説明を完全な宣言開始前へ配置。
  * Ver.01.10.02   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
  * Ver.01.11.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
+ * Ver.01.12.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
+ * Ver.01.13.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 組み込みProviderの検索・取得・導入を同じregistryで管理し、旧sessionを拒否します。
@@ -149,6 +151,29 @@ namespace drivercrate {
  */
 class CompositeUpdateProvider final : public IUpdateProvider, public IIndexScanInventory {
 public:
+	/** @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます。
+	 * @param[in] operationId 当該新操作です。
+	 * @param[in] session 未失効の元scanです。
+	 * @param[in] identities 元表示の選択candidate subsetです。
+	 * @return 元scopeの全件照合成功0、それ以外は拒否HRESULTです。
+	 */
+	[[nodiscard]] NativeError beginInstallOperation(
+		OperationId operationId, ScanSessionId session,
+		std::span<const std::wstring> identities) override ;
+	/** @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます。
+	 * @param[in] operationId 当該新操作です。
+	 * @param[in] session 未失効の元scanです。
+	 * @return 当該操作の原未消費subsetです。不明な操作は空です。
+	 */
+	[[nodiscard]] std::optional<InstallRetentionSummary> finishInstallOperation(
+		OperationId operationId, ScanSessionId session) override ;
+	/** @brief 元参照が残planの原targetへ結合することを照合します。
+     * @param[in] identity 元参照です。
+     * @param[in] plan 同scanの原subsetです。
+     * @return 元route/targetが残る場合trueです。
+     */
+	[[nodiscard]] bool isRetainedPreparationReference( std::wstring_view				 identity,
+													  const OfficialPreparationPlan &plan) const ;
 	/** @brief 同じComposite inventory scanの秘密resolverをworkerへ貸します。
 	 * @param[in] operationId 正のworker operation。
 	 * @param[out] context 元Driver Store発行context。拒否時空です。
@@ -369,6 +394,8 @@ private:
 	struct RegisteredProvider {
 		/// Stable ID、表示名、capability、既定状態。
 		ProviderDescriptor		descriptor ;
+		/// 元未処理ownerをinstall後も保持する既経路だけtrueです。
+		bool					retainsUnprocessedInstallScope{} ;
 		/// Aggregate scan内の実行順序。
 		ProviderPhase			phase{} ;
 		/// Provider固有scanを呼び出す関数。
@@ -448,6 +475,10 @@ private:
 	void prepareLocalReleaseObservationContext( std::span<OfficialCatalogDevice> devices) ;
 
 	// Callbackを保持する全Providerの破棄までbinding所有者を生存させる。
+	/// 影響不明/例外/未対応ownerの当該Providerだけを保留します。
+	std::unordered_set<std::wstring> heldInstallProviders_ ;
+	/// 既index installerの元record作用scopeへ限定した保留routeです。
+	std::unordered_set<std::wstring> heldInstallIdentities_ ;
 	/// Local deviceとDriver Storeの所有者。
 	DriverStoreProvider				 driverStoreProvider_ ;
 	/// AMD公式Web表示情報を扱うprovider。
@@ -559,6 +590,14 @@ private:
 	std::vector<OfficialDiscoveryDeviceHint>	   officialDiscoveryHints_ ;
 	/// 現在有効なaggregate scan session ID。
 	ScanSessionId								   scanSessionId_{} ;
+	/// 当該workerの現在Install操作です。
+	OperationId									   activeInstallOperation_{} ;
+	/// 今回の元選択deviceだけです。
+	std::vector<std::wstring>					   activeInstallDevices_ ;
+	/// 復旧後に実Provider入口へ渡した場合trueです。
+	bool										   installEntered_{} ;
+	/// 最初のplanの不変記述です。同意/実行権限へ流用しません。
+	std::optional<OfficialPreparationPlan>		   retainedPreparationPlan_ ;
 	/// 現在の権限用途。表示専用sessionから準備・導入を受理しない。
 	ScanPurpose									   scanPurpose_{ScanPurpose::STANDARD} ;
 } ;

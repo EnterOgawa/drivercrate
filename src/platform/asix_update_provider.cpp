@@ -2,7 +2,7 @@
 /**
  * @file asix_update_provider.cpp
  * @brief ASIX AX88179A公式検索・取得準備Provider実装。
- * @version 01.00.00
+ * @version 01.01.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * <pre>
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
+ * Ver.01.01.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note 固定ASIX pageへの要求に端末識別情報を加えず、取得URLはUIへ渡しません。二page結合済み情報だけを一配布物の未承認targetへ変換します。同意・前提確認後に一回だけ検
@@ -1179,7 +1180,30 @@ InstallResult AsixUpdateProvider::install( const ScanSessionId				  scanSessionI
 		InstallResult result =
 			executeAsixPreparedInstall( context, identities, reverifier, rankAuditor_,
 									   boundInstaller_, parentWindowNative, progressCallback) ;
-		invalidateScanSession() ;
+		std::unordered_set<std::wstring> devices ;	// 元選択subsetです。
+		// 既routeのdeviceだけを対象にします。新しい作用範囲を推測しません。
+		for( const auto &identity : identities) {
+			const auto target = installTargets_.find( identity) ;	// 元発行routeです。
+			// 不明なIDから他のdeviceを消費しません。
+			if( target != installTargets_.end()) {
+				devices.insert( target->second.prepared.deviceIdentity) ;
+			}
+		}
+
+		// 元owned file/監査閉包/未処理tokenは保持し、対象tokenだけを解放します。
+		std::erase_if( installTargets_, [&]( const auto &entry) {
+			// 他deviceの未消費routeへ波及させません。
+			if( !devices.contains( entry.second.prepared.deviceIdentity)) {
+				return false ;
+			}
+
+			// 同issuerが発行した当該tokenだけを終了します。
+			if( bindingReleaser_) {
+				static_cast<void>( bindingReleaser_( retainedSessionId_, entry.second.binding.token)) ;
+			}
+
+			return true ;
+		}) ;
 		return result ;
 	} catch( ...) {
 		// 例外でもtokenを閉包より先に解放し、workerが失敗結果と復旧処理を確定する。

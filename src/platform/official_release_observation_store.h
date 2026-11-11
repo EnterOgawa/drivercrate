@@ -2,7 +2,7 @@
 /**
  * @file official_release_observation_store.h
  * @brief 公式release観測と自動探索cacheの端末内永続化定義。
- * @version 01.01.00
+ * @version 01.02.00
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  URL非保持の公式自動探索cache永続化を追加。
+ * Ver.01.02.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  *
  * @note 端末固有binding key、検証済みrelease観測とURL非保持の探索cacheをProgramDataへ保存します。
@@ -41,6 +42,7 @@
 
 #include "core/official_release_observation.h"
 #include "core/update_types.h"
+#include <memory>
 #include "platform/official_discovery_cache.h"
 
 #include <array>
@@ -181,6 +183,22 @@ public:
 	 * 明示失効時に使用し、I/O errorを外へ漏らしません。
 	 */
 	void					  discardDiscoveryCache() const noexcept ;
+
+	/** @brief 固定復元memo用途だけの保護rootとshare0排他を取得します。
+  * @param[out] lease 成功時だけ存在する所有handle群です。
+  * @return 元保護/共有違反errorです。任意pathを受理しません。
+  */
+	[[nodiscard]] NativeError lockDailyRestoreMemo( std::shared_ptr<void> &lease) const ;
+	/** @brief 固定一件の非authority memoを有限読取します。
+  * @param[out] memo 不在/不正では空、成功時は原値です。
+  * @return 不在は0、不正/I/Oは元errorです。
+  */
+	[[nodiscard]] NativeError loadDailyRestoreMemo( RestorePointDayMemo &memo) const ;
+	/** @brief 正常終了した保護scopeのmemoだけをatomic保存します。
+  * @param[in] memo Windows実在を別途再確認する原値です。
+  * @return 保存結果。実導入結果へ合算しません。
+  */
+	[[nodiscard]] NativeError storeDailyRestoreMemo( const RestorePointDayMemo &memo) const ;
 
 private:
 	/// 空でない場合だけ試験用rootとして使用する絶対path。

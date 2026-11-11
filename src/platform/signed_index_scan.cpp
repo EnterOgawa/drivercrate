@@ -2,7 +2,7 @@
 /**
  * @file signed_index_scan.cpp
  * @brief 通常worker scanの全batchと協調期限を管理します。
- * @version 01.13.00
+ * @version 01.14.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.11.00 Shunji Ogawa  2026/11/03  拡大recordと有限保持quotaを通常経路へ整合。
  * Ver.01.12.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
  * Ver.01.13.00 Shunji Ogawa  2026/11/08  同一署名索引の本体再利用から通常loadと照合を継続。
+ * Ver.01.14.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
  * </pre>
  *
  * @note Crypto・schema・端末照合は既存の共通実装へ委譲します。
@@ -224,6 +225,7 @@ private:
 /** @see signed_index_scan.h */
 void SignedIndexScanSession::invalidate() noexcept
 {
+	nextOwnedPayloadOrdinal_ = 1U ;
 	adapter_.invalidate() ;
 	binding_.invalidate( bindingStore_) ;
 	acquisition_.reset() ;
@@ -633,6 +635,15 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 				0U} ;
 	}
 
+	// 原TRANSFERのowned fileだけを直接参照します。local→localの連鎖を作りません。
+	for( std::size_t sourceIndex = 0U; sourceIndex < binding_.records_.size(); ++sourceIndex) {
+		const auto &source = binding_.records_[sourceIndex] ;	// 原owned recordです。
+		// 同配布tupleの原所有があれば通信へfallbackせず、新承認の独立検査へ進みます。
+		if( !source.ownedBodyRecordIndex && adapter_.matchesRetainedBody( task, source.task)) {
+			return inspectRetainedBody( preparation, task, sourceIndex, services, cancellation) ;
+		}
+	}
+
 	const auto utcClock = [&services]() -> std::uint64_t {
 		const auto now = services.utc() ;	// 信頼時計の再照会。失敗では0です。
 		return now && now->time_since_epoch().count() > 0
@@ -666,10 +677,9 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 		adapter_.claimApprovedRecord( preparation, task, context_, utcClock(), grant) ;
 	// 改変・再使用・期限切れ・別issuerでは取得を開始しません。
 	if( grantError != 0U) {
-		adapter_.invalidate() ;
-		preparationSummary_.authorityError = grantError ;
-		item.acquisition				   = OfficialAcquisitionState::REJECTED ;
-		item.acquisitionError			   = grantError ;
+		// 拒否した当該taskの結果だけを残し、未処理owner/issuerを失効させません。
+		item.acquisition	  = OfficialAcquisitionState::REJECTED ;
+		item.acquisitionError = grantError ;
 		preparationSummary_.items.push_back( item) ;
 		return {OfficialPreparationItemState::REJECTED, grantError, 0U} ;
 	}
@@ -740,7 +750,7 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 						   : payloadFormat == IndexPayloadFormat::WINDOWS_MSI
 							   ? L".msi"
 							   : L".zip" ;	// 固定四形式だけです。
-	const auto fileName	 = L"index-payload-" + std::to_wstring( preparationSummary_.items.size()) +
+	const auto fileName	 = L"index-payload-" + std::to_wstring( nextOwnedPayloadOrdinal_++) +
 						  extension ;	// 元wireのfilenameではなく保護所有者の不透明名です。
 	// 同一保護領域の各対象でCREATE_NEW用相対名を一意にします。
 	const OfficialAcquisitionRequest request{.workspaceFileName = fileName,
@@ -864,6 +874,120 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 			acquireError, acquired.byteCount} ;
 }
 
+/** @see signed_index_scan.h 宣言側の契約を正本とします。 */
+OfficialPreparationTransferResult SignedIndexScanSession::inspectRetainedBody(
+	OfficialPreparationSession &preparation, const OfficialPreparationTask &task,
+	const std::size_t sourceIndex, const provider_worker_index_detail::Services &services,
+	const PreparationCancellation &cancellation)
+{
+	IndexPreparationItemSummary item{.targetIdentity =
+										 task.target.identity} ;		// 取得を再発行しません。
+	NativeError error	= static_cast<NativeError>( E_ACCESSDENIED) ;	// 原拒否を保持します。
+	const auto	binding = std::ranges::find(
+		 adapter_.bindings_, task.target,
+		 &SignedIndexAcquisitionAdapter::PreparedBinding::target) ;	// 新Bの元targetです。
+	// 現在承認と原ownerがなければhash/pathだけで許可しません。
+	if( preparation.ownsActiveTask( task) && sourceIndex < binding_.records_.size() &&
+	   binding != adapter_.bindings_.end() && !binding->claimedTask &&
+	   !binding_.records_[sourceIndex].ownedBodyRecordIndex) {
+		error = binding_.reverifyRecord( *this, binding_.records_[sourceIndex], services) ;
+	}
+
+	SignedIndexCandidateBindingSession::PreparedRecord
+		record ;	// Bの新しい実検査結果だけを所有します。
+	// 原TRANSFERの期限/所有/実byte成立後だけ、新しいLOCAL taskを一回claimします。
+	if( error == 0U) {
+		record.localInspection = preparation.claimIndexLocalInspection( task) ;
+		// 他用途の既claimや別active taskを拒否します。
+		if( !record.localInspection) {
+			error = static_cast<NativeError>( E_ACCESSDENIED) ;
+		}
+	}
+
+	// 元grant/report/token/sealをBへ複写しません。
+	if( error == 0U) {
+		record.lookup					= acquisitionLookup_ ;
+		record.context					= context_ ;
+		record.task						= task ;
+		record.ownedBodyRecordIndex		= sourceIndex ;
+		binding->claimedTask			= task ;
+		binding->localInspectionClaimed = true ;
+		const auto reference			= std::ranges::find(
+			   binding_.references_, task.target,
+			   &SignedIndexCandidateBindingSession::Reference::target) ;	// Bの原参照です。
+		record.referenceIndex = static_cast<std::size_t>( reference - binding_.references_.begin()) ;
+		const auto	now		  = services.utc ? services.utc() : std::nullopt ;	// 原時計です。
+		const auto	seconds	  = now && now->time_since_epoch().count() > 0
+									? static_cast<std::uint64_t>( now->time_since_epoch().count())
+									: 0U ;							// 正のUTCだけです。
+		const auto &source	  = binding_.records_[sourceIndex] ;	// 原ownerを借用し移動しません。
+		error				  = adapter_.bindRetainedInspectionInput(
+			task, source.task, context_, seconds, *acquisition_, *workspace_, source.seal,
+			*record.localInspection, record.hint, record.input) ;
+		// 新対象の原selectorへ実INF/CATを独立検査します。Aの合格を流用しません。
+		if( error == 0U) {
+			error = inspectIndexedDriverPackage( task.scanSessionId, record.hint, record.input,
+												source.delegated.format, record.inspection,
+												cancellation) ;
+		}
+
+		item.reusedOwnedBody	= true ;
+		item.content			= record.inspection.state ;
+		item.inputBound			= record.inspection.inputBound ;
+		item.inventoryFileCount = record.inspection.inspection.inventoryFileCount ;
+		item.infCount			= record.inspection.inspection.infs.size() ;
+		// 新しい検査事実だけを数え、過去取得日時を変更しません。
+		for( const auto &inf : record.inspection.inspection.infs) {
+			item.acceptedInfCount += inf.state == CommonInfInspectionState::VERIFIED ? 1U : 0U ;
+			item.signatureRejectedInfCount +=
+				inf.state == CommonInfInspectionState::SIGNATURE_REJECTED ? 1U : 0U ;
+			item.parsedInfCount += inf.state == CommonInfInspectionState::VERIFIED ||
+										   inf.state == CommonInfInspectionState::SIGNATURE_REJECTED
+									   ? 1U
+									   : 0U ;
+			// 最初の個別拒否を合格件数で消しません。
+			if( item.firstInfRejection == 0U && inf.error != 0U) {
+				item.firstInfRejection = inf.error ;
+			}
+		}
+
+		// 同scanの既保持上限を独立検査でも維持します。
+		if( !tryRetainIndexedInspectionBytes( record.inspection.inspection.retainedBytes,
+											binding_.retainedBytes_)) {
+			error			  = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_FILE_TOO_LARGE)) ;
+			record.inspection = {} ;
+			item.content	  = IndexedDriverInspectionState::INSPECTION_FAILED ;
+			item.inventoryFileCount		   = 0U ;
+			item.infCount				   = 0U ;
+			item.parsedInfCount			   = 0U ;
+			item.acceptedInfCount		   = 0U ;
+			item.signatureRejectedInfCount = 0U ;
+			item.firstInfRejection		   = 0U ;
+		}
+	}
+
+	item.contentError = error ;
+	// 入力未成立を未開始成功や再取得成功へ変えません。
+	if( !item.reusedOwnedBody) {
+		item.acquisition	  = OfficialAcquisitionState::REJECTED ;
+		item.acquisitionError = error ;
+		item.contentError	  = 0U ;
+	}
+
+	const auto local = record.localInspection ;	// 同active claimの照合票だけを結果へ結びます。
+	// 原recordは安定indexで保持し、原Aのownerを消費routeと一緒に消しません。
+	if( record.localInspection) {
+		binding_.records_.push_back( std::move( record)) ;
+	}
+
+	preparationSummary_.items.push_back( std::move( item)) ;
+	return error == 0U ? OfficialPreparationTransferResult{OfficialPreparationItemState::
+															   LOCAL_INSPECTION_COMPLETED,
+														   0U, 0U, local}
+					   : OfficialPreparationTransferResult{OfficialPreparationItemState::REJECTED,
+														   error, 0U} ;
+}
+
 /** @see SignedIndexScanSession 宣言側の契約を正本とする。 */
 IndexPreparationSummary SignedIndexScanSession::preparationSummary(
 	const OperationId operationId) const
@@ -871,6 +995,45 @@ IndexPreparationSummary SignedIndexScanSession::preparationSummary(
 	auto summary		= preparationSummary_ ;	// 非機密の確定snapshotだけを複写します。
 	summary.operationId = operationId ;
 	return summary ;
+}
+
+/** @see signed_index_scan.h 宣言側の契約を正本とします。 */
+bool SignedIndexScanSession::retainPreparationPlan(
+	OfficialPreparationPlan &plan, const provider_worker_index_detail::Services &services)
+{
+	// 原索引ownerなしで索引targetを新たに追加しません。
+	if( !acquisitionLookup_) {
+		return std::ranges::none_of( plan.targets, []( const auto &target) {
+			return target.providerId == SIGNED_INDEX_PROVIDER_ID ;
+		}) ;
+	}
+
+	// 原予算/scanと新しいplan IDだけを使います。
+	if( plan.scanSessionId != context_.scanSessionId || plan.planId <= preparationSummary_.planId ||
+	   plan.limits != limits_) {
+		return false ;
+	}
+
+	const auto now = services.utc ? services.utc() : std::nullopt ;	// 原時計です。
+	std::erase_if( plan.targets, [&]( const auto &target) {
+		// 他Providerの原記述はこのadapterで変更しません。
+		if( target.providerId != SIGNED_INDEX_PROVIDER_ID) {
+			return false ;
+		}
+
+		const auto	binding = std::ranges::find_if( adapter_.bindings_, [&]( const auto &entry) {
+			 return entry.target == target ;
+		 }) ;				// 元targetです。
+		std::string reason ;	// 非公開診断です。
+		return binding == adapter_.bindings_.end() || binding->claimedTask ||
+			   adapter_.validateBinding( *binding, context_, now, reason) != 0U ;
+	}) ;
+	preparationSummary_.planId = plan.planId ;
+	preparationSummary_.items.clear() ;
+	preparationSummary_.plannedTargets = static_cast<std::uint64_t>(
+		std::ranges::count( plan.targets, std::wstring{SIGNED_INDEX_PROVIDER_ID},
+						   &OfficialPreparationTarget::providerId)) ;
+	return true ;
 }
 
 /** @see SignedIndexScanSession 宣言側の契約を正本とする。 */

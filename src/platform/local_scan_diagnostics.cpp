@@ -2,7 +2,7 @@
 /**
  * @file local_scan_diagnostics.cpp
  * @brief 索引通信/照合/候補分類の匿名終端診断を組み立てます。
- * @version 01.04.00
+ * @version 01.05.00
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/11/08  匿名導入診断と保存状態・元数値の有限確認を追加。
  * Ver.01.03.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
  * Ver.01.04.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
+ * Ver.01.05.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
  * </pre>
  * @note 文字列本文・端末identity・版文字列は記録しません。未判定を不適合へ換算しません。
  * @see docs/adr/0427-local-anonymous-scan-diagnostics.md
@@ -339,6 +340,34 @@ void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId sca
 		record.add( DiagnosticField::STAGE, index)
 			.add( DiagnosticField::ACTION, static_cast<std::uint64_t>( result.protectionMode)) ;
 		emitDiagnostic( record, sink) ;
+	}
+
+	const auto &restoreObservation =
+		result.restorePointProtection ;	// 原日付/番号を一般logへ出しません。
+	// 実在保護の区分を固定enumと数値だけで記録します。
+	if( restoreObservation.disposition != RestorePointDisposition::NATIVE_TRANSACTION) {
+		auto record =
+			make( DiagnosticEvent::
+					 INSTALL_PROTECTION) ;	// 固定stageで作成/既存/日内reuse/未成立を区別します。
+		record.status = static_cast<std::int32_t>( restoreObservation.verification) ;
+		record.error  = restoreObservation.error ;
+		record
+			.add( DiagnosticField::STAGE,
+				 2U + static_cast<std::uint64_t>( restoreObservation.disposition))
+			.add( DiagnosticField::ACTION, static_cast<std::uint64_t>( result.protectionMode)) ;
+		emitDiagnostic( record, sink) ;
+	}
+
+	// メモ診断をnative実行結果と別stageへ記録します。
+	if( restoreObservation.memoError != 0) {
+		auto warning =
+			// 非致命的memo I/Oを別codeへ残します。
+			make( DiagnosticEvent::INSTALL_PROTECTION) ;
+		warning.status = static_cast<std::int32_t>( OutcomeCode::FAILURE) ;
+		warning.error  = restoreObservation.memoError ;
+		warning.add( DiagnosticField::STAGE, 7U)
+			.add( DiagnosticField::ACTION, static_cast<std::uint64_t>( result.protectionMode)) ;
+		emitDiagnostic( warning, sink) ;
 	}
 
 	// 個別ordinalは当該操作だけの連番です。
