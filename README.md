@@ -24,12 +24,12 @@ DriverCrateは、Windows Updateやメーカーの公式配布元、PC内から�
 
 ## 📊 収録しているドライバー情報
 
-2026年11月11日に確認した[公開索引（世代32）](https://github.com/EnterOgawa/drivercrate/releases/tag/index-v1-20261111-9c1d39670cb67463733d86b70018419f1726ad01b27638b9519a6471c626f953)の収録数です。
+2026年11月12日（日本時間）に確認した[公開索引（世代34）](https://github.com/EnterOgawa/drivercrate/releases/tag/index-v1-20261112-4dae1594f8d08460fa1aa220d63156ff55728e5beef6c17b53daa50ddd8fdef3)の収録数です。
 
 | 項目 | 件数 |
 | --- | ---: |
-| ドライバー情報（索引レコード） | 442件 |
-| デバイスID（重複除去） | 27,500件 |
+| ドライバー情報（索引レコード） | 388件 |
+| デバイスID（重複除去） | 24,499件 |
 
 実機で確認した台数や機種数ではありません。お使いのPCに合う候補は「更新を検索」で確認してください。
 
