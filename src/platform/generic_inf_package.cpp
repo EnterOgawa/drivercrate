@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file generic_inf_package.cpp
- * @brief 汎用署名済みINF ZIP検証実装。
- * @version 01.03.01
+ * @brief 汎用署名済みINF ZIP検証実装
+ * @version 01.03.02
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,32 +19,33 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  SYS不要Printer INF対応追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  PrinterとPrintQueueの照合追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  WIA user-mode Image INF対応追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  Nested archive拒否を厳格化。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  Peripheral firmware拒否を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  Virtual audio PnP ID拒否を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  Virtual capture PnP ID拒否を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  Mobile flash payload拒否を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  Virtual payload拒否を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  Software device全class拒否を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  SYS不要Printer INF対応追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  PrinterとPrintQueueの照合追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  WIA user-mode Image INF対応追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  Nested archive拒否を厳格化
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  Peripheral firmware拒否を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  Virtual audio PnP ID拒否を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  Virtual capture PnP ID拒否を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  Mobile flash payload拒否を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  Virtual payload拒否を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  Software device全class拒否を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.01.00 Shunji Ogawa  2026/09/15  共通個別INF検査のlocal入力adapterを追加。
- * Ver.01.02.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
- * Ver.01.03.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
- * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/15  共通個別INF検査のlocal入力adapterを追加
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続
+ * Ver.01.03.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.03.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
  * @note Provider名を入手元の証明に使用せず、現在Windows x64用の非boot-critical INF、WHCP署名、CAT SHA-256 member、現在deviceと
- *       の照合だけを許可します。
+ *       の照合だけを許可します
  */
 //------------------------------------------------------------------------------
 
@@ -67,19 +68,19 @@ namespace drivercrate {
 namespace {
 
 //------------------------------------------------------------------------------
-// 定数定義。
+// 定数定義
 //------------------------------------------------------------------------------
 
 constexpr std::uint64_t MAXIMUM_ARCHIVE_BYTES = 128ULL * 1024ULL * 1024ULL ;
-// 利用者指定archiveから受理する単一fileの展開後byte上限。
+// 利用者指定archiveから受理する単一fileの展開後byte上限
 constexpr std::uint64_t MAXIMUM_SINGLE_FILE_BYTES = 64ULL * 1024ULL * 1024ULL ;
-// 利用者指定package全体を展開する際の累積byte上限。
+// 利用者指定package全体を展開する際の累積byte上限
 constexpr std::uint64_t MAXIMUM_EXPANDED_BYTES		 = 512ULL * 1024ULL * 1024ULL ;
-constexpr std::uint32_t MAXIMUM_ENTRY_COUNT			 = 4096U ;	// ZIP内の通常file数上限。
-constexpr std::size_t	MAXIMUM_INF_COUNT			 = 128U ;	// 一ZIP内のINF数上限。
-constexpr std::size_t	MAXIMUM_HARDWARE_IDS_PER_INF = 1024U ;	// 一INFのPnP ID数上限。
-constexpr std::size_t	MAXIMUM_SOURCE_FILES_PER_INF = 2048U ;	// 一INFの参照file数上限。
-// 汎用driver-only境界外のpayloadを検出した場合に返す共通HRESULT。
+constexpr std::uint32_t MAXIMUM_ENTRY_COUNT			 = 4096U ;	// ZIP内の通常file数上限
+constexpr std::size_t	MAXIMUM_INF_COUNT			 = 128U ;	// 一ZIP内のINF数上限
+constexpr std::size_t	MAXIMUM_HARDWARE_IDS_PER_INF = 1024U ;	// 一INFのPnP ID数上限
+constexpr std::size_t	MAXIMUM_SOURCE_FILES_PER_INF = 2048U ;	// 一INFの参照file数上限
+// 汎用driver-only境界外のpayloadを検出した場合に返す共通HRESULT
 constexpr NativeError	DISALLOWED_PAYLOAD_ERROR =
 	static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) ;
 
@@ -88,7 +89,7 @@ constexpr OfficialZipExtractionPolicy ZIP_POLICY{
 	.maximumSingleFileBytes	   = MAXIMUM_SINGLE_FILE_BYTES,
 	.maximumTotalExpandedBytes = MAXIMUM_EXPANDED_BYTES,
 	.maximumEntryCount		   = MAXIMUM_ENTRY_COUNT,
-} ; // 汎用driver-only ZIPへ適用する有限展開上限。
+} ; // 汎用driver-only ZIPへ適用する有限展開上限
 
 constexpr std::array ACCEPTED_CLASSES{
 	std::wstring_view( L"Biometric"), std::wstring_view( L"Bluetooth"), std::wstring_view( L"Camera"),
@@ -97,13 +98,13 @@ constexpr std::array ACCEPTED_CLASSES{
 	std::wstring_view( L"Monitor"), std::wstring_view( L"Mouse"), std::wstring_view( L"Multifunction"),
 	std::wstring_view( L"Net"), std::wstring_view( L"Ports"), std::wstring_view( L"Printer"),
 	std::wstring_view( L"Sensor"), std::wstring_view( L"SmartCardReader"), std::wstring_view( L"USB"),
-	// 汎用導入を許可する非boot-critical class。
+	// 汎用導入を許可する非boot-critical class
 	std::wstring_view( L"USBDevice")} ;
 
-constexpr std::array ACCEPTED_INF_SIGNATURES{	// 現行Windows packageに許可するINF signature。
+constexpr std::array ACCEPTED_INF_SIGNATURES{	// 現行Windows packageに許可するINF signature
 											 std::wstring_view( L"$Windows NT$")} ;
 constexpr std::array ACCEPTED_SIGNERS{
-	// CAT signer。
+	// CAT signer
 	std::wstring_view( L"Microsoft Windows Hardware Compatibility Publisher")} ;
 constexpr std::array REJECTED_NESTED_CONTAINER_EXTENSIONS{
 	std::wstring_view( L".7z"), std::wstring_view( L".bz2"), std::wstring_view( L".cab"),
@@ -113,7 +114,7 @@ constexpr std::array REJECTED_NESTED_CONTAINER_EXTENSIONS{
 	std::wstring_view( L".tgz"), std::wstring_view( L".txz"), std::wstring_view( L".vfd"),
 	std::wstring_view( L".vhd"), std::wstring_view( L".vhdx"), std::wstring_view( L".vmdk"),
 	std::wstring_view( L".xz"), std::wstring_view( L".zip"),
-	// 拒否する内側archive／virtual image拡張子。
+	// 拒否する内側archive／virtual image拡張子
 	std::wstring_view( L".zi_")} ;
 constexpr std::array REJECTED_FIRMWARE_EXTENSIONS{
 	std::wstring_view( L".cap"), std::wstring_view( L".dfuse"), std::wstring_view( L".fls"),
@@ -121,11 +122,11 @@ constexpr std::array REJECTED_FIRMWARE_EXTENSIONS{
 	std::wstring_view( L".ihx"), std::wstring_view( L".img"), std::wstring_view( L".kdz"),
 	std::wstring_view( L".ofp"), std::wstring_view( L".pac"), std::wstring_view( L".pit"),
 	std::wstring_view( L".rom"), std::wstring_view( L".sin"),
-	// Firmware／flash image拡張子。
+	// Firmware／flash image拡張子
 	std::wstring_view( L".tot"), std::wstring_view( L".uf2")} ;
 constexpr std::array REJECTED_SOFTWARE_DEVICE_ID_PREFIXES{
 	std::wstring_view( L"ROOT\\"), std::wstring_view( L"SWD\\"), std::wstring_view( L"HTREE\\"),
-	// 別capabilityで扱うsoftware enumeratorのPnP ID prefix。
+	// 別capabilityで扱うsoftware enumeratorのPnP ID prefix
 	std::wstring_view( L"UMB\\")} ;
 constexpr OfficialInfInspectionPolicy INF_POLICY{
 	.maximumHardwareIds	 = MAXIMUM_HARDWARE_IDS_PER_INF,
@@ -135,42 +136,42 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 	.acceptedSignatures	 = ACCEPTED_INF_SIGNATURES,
 	.acceptAnyProvider	 = true,
 	.requireDriverBinary = false,
-} ; // CATで保護されたProvider名だけを汎用的に受理するINF構造policy。
+} ; // CATで保護されたProvider名だけを汎用的に受理するINF構造policy
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASCII文字列を大文字小文字を除いて比較する。
+ * @brief ASCII文字列を大文字小文字を除いて比較する
  *
- * 検証済み相対pathの拡張子比較だけに使用する。
+ * 検証済み相対pathの拡張子比較だけに使用する
  *
- * @param[in] left 左辺文字列。
- * @param[in] right 右辺文字列。
- * @return ASCII英字のcaseだけを無視して完全一致する場合は`true`。
+ * @param[in] left 左辺文字列
+ * @param[in] right 右辺文字列
+ * @return ASCII英字のcaseだけを無視して完全一致する場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool asciiStringsEqual( const std::wstring_view left,
 									 const std::wstring_view right) noexcept
 {
-	// 長さの異なるASCII文字列を同一識別子とみなさない。
+	// 長さの異なるASCII文字列を同一識別子とみなさない
 	if( left.size() != right.size()) {
 		return false ;
 	}
 
-	// 全文字を有限回比較し、locale依存のcase変換を使用しない。
+	// 全文字を有限回比較し、locale依存のcase変換を使用しない
 	for( std::size_t index = 0; index < left.size(); ++index) {
-		const wchar_t leftCharacter	  = left[index] ;	// 現在位置の左辺文字。
-		const wchar_t rightCharacter  = right[index] ;	// 現在位置の右辺文字。
+		const wchar_t leftCharacter	  = left[index] ;	// 現在位置の左辺文字
+		const wchar_t rightCharacter  = right[index] ;	// 現在位置の右辺文字
 		const wchar_t normalizedLeft  = leftCharacter >= L'A' && leftCharacter <= L'Z'
 											? static_cast<wchar_t>( leftCharacter - L'A' + L'a')
-											: leftCharacter ;	// ASCII小文字化した左辺文字。
+											: leftCharacter ;	// ASCII小文字化した左辺文字
 		const wchar_t normalizedRight = rightCharacter >= L'A' && rightCharacter <= L'Z'
 											? static_cast<wchar_t>( rightCharacter - L'A' + L'a')
-											: rightCharacter ;	// ASCII小文字化した右辺文字。
-		// 大小文字を除いても異なる文字があれば不一致とする。
+											: rightCharacter ;	// ASCII小文字化した右辺文字
+		// 大小文字を除いても異なる文字があれば不一致とする
 		if( normalizedLeft != normalizedRight) {
 			return false ;
 		}
@@ -181,13 +182,13 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASCII prefixを大文字小文字を除いて確認する。
+ * @brief ASCII prefixを大文字小文字を除いて確認する
  *
- * PnP IDのenumeratorだけを有限prefixへ照合する。部分的なdevice identity照合には使用しない。
+ * PnP IDのenumeratorだけを有限prefixへ照合する。部分的なdevice identity照合には使用しない
  *
- * @param[in] value 検査する文字列。
- * @param[in] prefix 文字列先頭へ要求するASCII文字列。
- * @return ASCII英字のcaseを除いてprefixが一致する場合は`true`。
+ * @param[in] value 検査する文字列
+ * @param[in] prefix 文字列先頭へ要求するASCII文字列
+ * @return ASCII英字のcaseを除いてprefixが一致する場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool hasAsciiPrefix( const std::wstring_view value,
@@ -199,20 +200,20 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 
 //------------------------------------------------------------------------------
 /**
- * @brief Pathが指定拡張子で終わるか確認する。
+ * @brief Pathが指定拡張子で終わるか確認する
  *
- * File名prefixやdirectory名のdotを拡張子として扱わない。
+ * File名prefixやdirectory名のdotを拡張子として扱わない
  *
- * @param[in] path ZIP検証済みの相対path。
- * @param[in] extension `.`から始まるASCII拡張子。
- * @return 最終path要素の拡張子が完全一致する場合は`true`。
+ * @param[in] path ZIP検証済みの相対path
+ * @param[in] extension `.`から始まるASCII拡張子
+ * @return 最終path要素の拡張子が完全一致する場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool hasExtension( const std::wstring_view path,
 								const std::wstring_view extension) noexcept
 {
-	const std::size_t separator = path.find_last_of( L"\\/") ;	// 最終separator位置。
-	const std::size_t dot		= path.find_last_of( L'.') ;	// 最終dot位置。
+	const std::size_t separator = path.find_last_of( L"\\/") ;	// 最終separator位置
+	const std::size_t dot		= path.find_last_of( L'.') ;	// 最終dot位置
 	return dot != std::wstring_view::npos &&
 		   (separator == std::wstring_view::npos || dot > separator) &&
 		   asciiStringsEqual( path.substr( dot), extension) ;
@@ -220,12 +221,12 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 
 //------------------------------------------------------------------------------
 /**
- * @brief Pathが拒否対象のnested containerか確認する。
+ * @brief Pathが拒否対象のnested containerか確認する
  *
- * 汎用経路は内側containerを解釈せず、署名済みINFから参照されないarchive、virtual disk、applianceもdriver-only packageとして受理しない。
+ * 汎用経路は内側containerを解釈せず、署名済みINFから参照されないarchive、virtual disk、applianceもdriver-only packageとして受理しない
  *
- * @param[in] path ZIP検証済みの相対path。
- * @return 拒否対象archive／virtual image拡張子の場合は`true`。
+ * @param[in] path ZIP検証済みの相対path
+ * @return 拒否対象archive／virtual image拡張子の場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isRejectedNestedContainer( const std::wstring_view path) noexcept
@@ -238,12 +239,12 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 
 //------------------------------------------------------------------------------
 /**
- * @brief Pathが拒否対象のfirmware imageか確認する。
+ * @brief Pathが拒否対象のfirmware imageか確認する
  *
- * Driverとdevice firmwareの一括導入を汎用INF経路へ混在させず、INFから参照されないimageもfail-closedで拒否する。
+ * Driverとdevice firmwareの一括導入を汎用INF経路へ混在させず、INFから参照されないimageもfail-closedで拒否する
  *
- * @param[in] path ZIP検証済みの相対path。
- * @return Firmware imageとして拒否する拡張子の場合は`true`。
+ * @param[in] path ZIP検証済みの相対path
+ * @return Firmware imageとして拒否する拡張子の場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isRejectedFirmwarePayload( const std::wstring_view path) noexcept
@@ -256,12 +257,12 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 
 //------------------------------------------------------------------------------
 /**
- * @brief Pathが汎用driver-only境界外のpayloadか確認する。
+ * @brief Pathが汎用driver-only境界外のpayloadか確認する
  *
- * ADR 0078／0079／0082／0083の拒否条件をscan時とinstall直前で共有する。
+ * ADR 0078／0079／0082／0083の拒否条件をscan時とinstall直前で共有する
  *
- * @param[in] path ZIP検証済みの相対path。
- * @return 内側container、virtual image、firmwareの場合は`true`。
+ * @param[in] path ZIP検証済みの相対path
+ * @return 内側container、virtual image、firmwareの場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isDisallowedGenericPayload( const std::wstring_view path) noexcept
@@ -271,12 +272,12 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 
 //------------------------------------------------------------------------------
 /**
- * @brief INFがsoftware enumeratorを対象にするか確認する。
+ * @brief INFがsoftware enumeratorを対象にするか確認する
  *
- * ADR 0080／0081／0083に従いvirtual device、filter、bus、software endpointを物理PnP device用経路から分離する。
+ * ADR 0080／0081／0083に従いvirtual device、filter、bus、software endpointを物理PnP device用経路から分離する
  *
- * @param[in] package 構造検証済みのINF metadata。
- * @return 拒否enumeratorを一つでも含む場合は`true`。
+ * @param[in] package 構造検証済みのINF metadata
+ * @return 拒否enumeratorを一つでも含む場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isSoftwareEnumeratedPackage( const OfficialInfPackage &package) noexcept
@@ -291,28 +292,28 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 4要素numeric driver versionか確認する。
+ * @brief 4要素numeric driver versionか確認する
  *
- * 表示文字列から版を推測せず、INFの明示4要素だけを扱う。
+ * 表示文字列から版を推測せず、INFの明示4要素だけを扱う
  *
- * @param[in] version INF DriverVerのversion field。
- * @return `a.b.c.d`の全要素がuint32範囲なら`true`。
+ * @param[in] version INF DriverVerのversion field
+ * @return `a.b.c.d`の全要素がuint32範囲なら`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isFourPartVersion( const std::wstring_view version) noexcept
 {
-	std::size_t	  partCount{} ;	// 確定した数値要素数。
-	std::uint64_t value{} ;		// 現在要素のoverflow検査用値。
-	bool		  hasDigit{} ;	// 現在要素が一桁以上持つ場合true。
-	// 終端を仮想separatorとして扱い、空要素と5要素以上を拒否する。
+	std::size_t	  partCount{} ;	// 確定した数値要素数
+	std::uint64_t value{} ;		// 現在要素のoverflow検査用値
+	bool		  hasDigit{} ;	// 現在要素が一桁以上持つ場合true
+	// 終端を仮想separatorとして扱い、空要素と5要素以上を拒否する
 	for( std::size_t index = 0; index <= version.size(); ++index) {
-		const wchar_t character = index == version.size() ? L'.' : version[index] ;	// 現在文字。
-		// 版の数字を現在要素へ取り込み、区切りと分けて検証する。
+		const wchar_t character = index == version.size() ? L'.' : version[index] ;	// 現在文字
+		// 版の数字を現在要素へ取り込み、区切りと分けて検証する
 		if( character >= L'0' && character <= L'9') {
 			const std::uint64_t digit =
-				// 現在桁の数値。
+				// 現在桁の数値
 				static_cast<std::uint64_t>( character - L'0') ;
-			// 次の桁を加える前に32-bit要素のoverflowを防ぐ。
+			// 次の桁を加える前に32-bit要素のoverflowを防ぐ
 			if( value > (std::numeric_limits<std::uint32_t>::max() - digit) / 10U) {
 				return false ;
 			}
@@ -322,7 +323,7 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 			continue ;
 		}
 
-		// 不正な区切り、空要素、過剰な版要素を拒否する。
+		// 不正な区切り、空要素、過剰な版要素を拒否する
 		if( character != L'.' || !hasDigit || partCount >= 4U) {
 			return false ;
 		}
@@ -337,18 +338,18 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 汎用経路で扱える署名済みINFか判定する。
+ * @brief 汎用経路で扱える署名済みINFか判定する
  *
  * Provider名はfamily判定に使わず、CAT保護された表示値として保持する。Printerとvendor DLLを参照するWIA Image INFだけはADR 0076／0077の限定
- * 条件でSYSなしを許可する。ADR 0078～0083に従い、複合payload、software device、firmwareを拒否する。
+ * 条件でSYSなしを許可する。ADR 0078～0083に従い、複合payload、software device、firmwareを拒否する
  *
- * @param[in] package ClassとProvider名を構造検証済みのINF。
- * @return Container／virtual image／firmware参照がなく、Printer、DLL型Image、またはSYSを持つ場合は`true`。
+ * @param[in] package ClassとProvider名を構造検証済みのINF
+ * @return Container／virtual image／firmware参照がなく、Printer、DLL型Image、またはSYSを持つ場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isGenericInfPackage( const OfficialInfPackage &package)
 {
-	// 必須metadataの欠落、禁止payload、software列挙packageを汎用経路から除外する。
+	// 必須metadataの欠落、禁止payload、software列挙packageを汎用経路から除外する
 	if( package.hasUnassessedProgramReferences || package.providerName.empty() ||
 	   !isFourPartVersion( package.driverVersion) || package.hardwareIds.empty() ||
 	   package.sourceFiles.empty() ||
@@ -363,8 +364,8 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 
 	const bool hasSys = std::ranges::any_of( package.sourceFiles, []( const auto &file) {
 		return hasExtension( file, L".sys") ;
-	}) ; // 受動deviceデータを単独firmware packageへ昇格させません。
-	// 拡張子だけでflashと断定せず、SYSを伴うINF参照データに限定します。
+	}) ; // 受動deviceデータを単独firmware packageへ昇格させません
+	// 拡張子だけでflashと断定せず、SYSを伴うINF参照データに限定します
 	if( !hasSys && std::ranges::any_of( package.sourceFiles, []( const auto &file) {
 		   return hasExtension( file, L".bin") || hasExtension( file, L".dfu") ||
 				  hasExtension( file, L".mbn") || hasExtension( file, L".elf") ;
@@ -372,12 +373,12 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 		return false ;
 	}
 
-	// 基本条件を満たすPrinter classを汎用driver-only対象として認める。
+	// 基本条件を満たすPrinter classを汎用driver-only対象として認める
 	if( asciiStringsEqual( package.className, L"Printer")) {
 		return true ;
 	}
 
-	// Image classは参照DLLを含む場合に汎用対象として認める。
+	// Image classは参照DLLを含む場合に汎用対象として認める
 	if( asciiStringsEqual( package.className, L"Image") &&
 	   std::ranges::any_of( package.sourceFiles, []( const std::wstring &sourceFile) {
 		   return hasExtension( sourceFile, L".dll") ;
@@ -392,10 +393,10 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 汎用署名済みINF ZIPの固定policyを返す。
+ * @brief 汎用署名済みINF ZIPの固定policyを返す
  *
- * Nested container、firmware、実行installer、software deviceを許可せず、全INFをCAT SHA-256 member境界で検証する。
- * @return Process lifetime中有効な変更不可policy。
+ * Nested container、firmware、実行installer、software deviceを許可せず、全INFをCAT SHA-256 member境界で検証する
+ * @return Process lifetime中有効な変更不可policy
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] const UserSelectedInfPackagePolicy &genericInfPackagePolicy() noexcept
@@ -413,7 +414,7 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 		.infPolicy				   = INF_POLICY,
 		.signers				   = ACCEPTED_SIGNERS,
 		.packagePredicate		   = isGenericInfPackage,
-	} ; // 汎用経路の変更不可policy。
+	} ; // 汎用経路の変更不可policy
 	return POLICY ;
 }
 
@@ -422,14 +423,14 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 //------------------------------------------------------------------------------
 /**
  * @brief 構造検証済みINFが汎用Providerのdriver-only条件を満たすか判定する。汎用INF packageのdriver-only条件を確認する。ADR 0076／0077
- *        に従い、SYS不要条件をPrinterとDLL型Imageへ限定し、ADR 0078～0083の複合payload、software device、firmwareを拒否する。
- * @param[in] package Class、version、PnP ID、参照fileを検証済みのINF。 構造検証済みのINF metadata。
+ *        に従い、SYS不要条件をPrinterとDLL型Imageへ限定し、ADR 0078～0083の複合payload、software device、firmwareを拒否する
+ * @param[in] package Class、version、PnP ID、参照fileを検証済みのINF。 構造検証済みのINF metadata
  * @return Printer、DLL型Image、またはSYSを持つ許可packageの場合は`true`。 Container／virtual image／firmware参照がなく、
- *         Printer、DLL型Image、またはSYSを持つ場合は`true`。
- * @note PrinterはWindows inbox print stackを利用する正規packageに限りSYSなしを許可する。
- * @note ImageはCAT保護されたvendor DLLを参照するWIA packageだけを許可する。
- * @note 内側container、virtual image、firmwareを参照する複合packageは拒否する。
- * @note 全許可classのsoftware enumeratorは別capabilityがないため拒否する。
+ *         Printer、DLL型Image、またはSYSを持つ場合は`true`
+ * @note PrinterはWindows inbox print stackを利用する正規packageに限りSYSなしを許可する
+ * @note ImageはCAT保護されたvendor DLLを参照するWIA packageだけを許可する
+ * @note 内側container、virtual image、firmwareを参照する複合packageは拒否する
+ * @note 全許可classのsoftware enumeratorは別capabilityがないため拒否する
  */
 //------------------------------------------------------------------------------
 bool isGenericInfPackageSupported( const OfficialInfPackage &package)
@@ -440,10 +441,10 @@ bool isGenericInfPackageSupported( const OfficialInfPackage &package)
 //------------------------------------------------------------------------------
 /**
  * @brief 汎用INFのsetup classと現在device classの対応を判定する。汎用INFと現在deviceのsetup classを照合する。Windowsのprinter
- *        driver INFとPnP inventoryのclass差だけを一方向に許可する。PnP IDの完全一致は別途必須とする。
- * @param[in] infClass 検証済みINFのsetup class。
- * @param[in] deviceClass 現在deviceのsetup class。
- * @return 完全一致または`Printer`から`PrintQueue`への対応なら`true`。 完全一致またはPrinterからPrintQueueへの対応なら`true`。
+ *        driver INFとPnP inventoryのclass差だけを一方向に許可する。PnP IDの完全一致は別途必須とする
+ * @param[in] infClass 検証済みINFのsetup class
+ * @param[in] deviceClass 現在deviceのsetup class
+ * @return 完全一致または`Printer`から`PrintQueue`への対応なら`true`。 完全一致またはPrinterからPrintQueueへの対応なら`true`
  */
 //------------------------------------------------------------------------------
 bool isGenericInfDeviceClassMatch( const std::wstring_view infClass,
@@ -457,14 +458,14 @@ bool isGenericInfDeviceClassMatch( const std::wstring_view infClass,
 //------------------------------------------------------------------------------
 /**
  * @brief 利用者指定の汎用driver-only ZIPを保護領域で検証する。利用者指定の汎用driver-only ZIPを検証する。入手元や最新版を推測せず、ADR 0075／0078／
- *        0079／0082／0083の汎用境界を共通検証器へ委譲し、複合payloadを全entryから拒否する。
- * @param[in] selectedPath 利用者が一件だけ選択したlocal ZIP path。 利用者が選択したlocal ZIP path。
- * @param[in] scanSessionId 呼出し側が割り当てた0ではないscan session ID。
- * @param[in,out] workspace 複製と展開fileを単独所有する保護領域。 複製と展開fileを所有する保護領域。
- * @param[out] contents 成功時の全検証済みINF群。失敗時は完了段階だけを保持する。
- * @return 全検証成功時は0、構造、class、署名、CAT member違反時はHRESULT。 全検証成功時は0、最初の構造・署名違反はHRESULT。
- * @note Packageの入手元、最新版、OEM推奨を証明せず、network通信も行わない。
- * @note INFからの参照有無を問わず、内側container、virtual image、firmwareを拒否する。
+ *        0079／0082／0083の汎用境界を共通検証器へ委譲し、複合payloadを全entryから拒否する
+ * @param[in] selectedPath 利用者が一件だけ選択したlocal ZIP path。 利用者が選択したlocal ZIP path
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないscan session ID
+ * @param[in,out] workspace 複製と展開fileを単独所有する保護領域。 複製と展開fileを所有する保護領域
+ * @param[out] contents 成功時の全検証済みINF群。失敗時は完了段階だけを保持する
+ * @return 全検証成功時は0、構造、class、署名、CAT member違反時はHRESULT。 全検証成功時は0、最初の構造・署名違反はHRESULT
+ * @note Packageの入手元、最新版、OEM推奨を証明せず、network通信も行わない
+ * @note INFからの参照有無を問わず、内側container、virtual image、firmwareを拒否する
  */
 //------------------------------------------------------------------------------
 NativeError inspectGenericInfPackageFile( const std::wstring_view	selectedPath,
@@ -472,19 +473,19 @@ NativeError inspectGenericInfPackageFile( const std::wstring_view	selectedPath,
 										 OfficialDownloadWorkspace &workspace,
 										 GenericInfPackageContents &contents)
 {
-	// 共通検証器が返した最初の構造・署名違反、または成功を保持する診断値。
+	// 共通検証器が返した最初の構造・署名違反、または成功を保持する診断値
 	const NativeError error = inspectUserSelectedInfPackageFile(
 		selectedPath, scanSessionId, genericInfPackagePolicy(), workspace, contents) ;
-	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
+	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 	if( error != 0) {
 		return error ;
 	}
 
-	// 禁止payloadを一つでも含むarchiveは抽出結果を破棄して拒否する。
+	// 禁止payloadを一つでも含むarchiveは抽出結果を破棄して拒否する
 	if( std::ranges::any_of( contents.entries, []( const OfficialZipEntry &entry) {
 		   return isDisallowedGenericPayload( entry.relativePath) ;
 	   })) {
-		// 参照有無にかかわらず複合payloadを含むpackageはfail-closedで破棄する。
+		// 参照有無にかかわらず複合payloadを含むpackageはfail-closedで破棄する
 		contents = {} ;
 		contents.verificationStage =
 			UserSelectedInfPackageVerificationStage::OUTER_ARCHIVE_EXTRACTED ;
@@ -497,19 +498,19 @@ NativeError inspectGenericInfPackageFile( const std::wstring_view	selectedPath,
 //------------------------------------------------------------------------------
 /**
  * @brief 汎用INFをinstall直前にscan時の内容へ再照合する。汎用INFをinstall直前に再検証する。管理者権限を持つ競合processによるscan後差替えと、内側
- *        container／virtual image／firmwareを含むscan entryをinstall前に拒否する。
- * @param[in] workspace Scan時の複製ZIPと展開fileを所有する保護領域。 Scan時の展開fileを所有する保護領域。
- * @param[in] entries Scan時にsizeとSHA-256を確定した全通常file。 Scan時にhashを確定した全通常file。
- * @param[in] expected Candidateへ対応付けたscan時のINF metadata。 Scan時の検証済みINF metadata。
- * @return 全file、metadata、CAT member、署名が一致する場合は0。 Scan時の全fileとINF metadataが再成立する場合は0。
- * @note Scan時entryに内側container、virtual image、firmwareがある場合はfail-closedで拒否する。
+ *        container／virtual image／firmwareを含むscan entryをinstall前に拒否する
+ * @param[in] workspace Scan時の複製ZIPと展開fileを所有する保護領域。 Scan時の展開fileを所有する保護領域
+ * @param[in] entries Scan時にsizeとSHA-256を確定した全通常file。 Scan時にhashを確定した全通常file
+ * @param[in] expected Candidateへ対応付けたscan時のINF metadata。 Scan時の検証済みINF metadata
+ * @return 全file、metadata、CAT member、署名が一致する場合は0。 Scan時の全fileとINF metadataが再成立する場合は0
+ * @note Scan時entryに内側container、virtual image、firmwareがある場合はfail-closedで拒否する
  */
 //------------------------------------------------------------------------------
 NativeError reverifyGenericInfPackage( const OfficialDownloadWorkspace		 &workspace,
 									  const std::span<const OfficialZipEntry> entries,
 									  const OfficialInfPackage				 &expected)
 {
-	// 導入直前にも全entryを確認し、禁止payloadの混入を拒否する。
+	// 導入直前にも全entryを確認し、禁止payloadの混入を拒否する
 	if( std::ranges::any_of( entries, []( const OfficialZipEntry &entry) {
 		   return isDisallowedGenericPayload( entry.relativePath) ;
 	   })) {
@@ -522,10 +523,10 @@ NativeError reverifyGenericInfPackage( const OfficialDownloadWorkspace		 &worksp
 //------------------------------------------------------------------------------
 /**
  * @brief 汎用package検証済みPnP IDをlocal matcherへ渡せるか判定する。汎用packageのPnP IDをlocal matcherへ渡せるか判定する。Vendor
- *        prefixを推測せず、後段で現在deviceへ完全一致させる。
- * @param[in] hardwareId CATで保護されたINFから取得したPnP ID。 CATで保護されたINF由来PnP ID。
- * @return 空でないIDの場合は`true`。 空でない場合は`true`。
- * @note IDはworker内の完全一致だけに使用し、UI、log、networkへ渡さない。
+ *        prefixを推測せず、後段で現在deviceへ完全一致させる
+ * @param[in] hardwareId CATで保護されたINFから取得したPnP ID。 CATで保護されたINF由来PnP ID
+ * @return 空でないIDの場合は`true`。 空でない場合は`true`
+ * @note IDはworker内の完全一致だけに使用し、UI、log、networkへ渡さない
  */
 //------------------------------------------------------------------------------
 bool isGenericInfCandidateHardwareId( const std::wstring_view hardwareId) noexcept
@@ -535,13 +536,13 @@ bool isGenericInfCandidateHardwareId( const std::wstring_view hardwareId) noexce
 
 //------------------------------------------------------------------------------
 /**
- * @brief 明示local ZIP／CABを共通個別INF検査へ渡す。
- * @param[in] selectedPath 利用者が選択した一file。
- * @param[in] scanSessionId 0ではないscan session。
- * @param[in,out] workspace Copyを所有する未初期化の保護領域。
- * @param[out] contents 個別成功と拒否を所有する共通結果。全体失敗では空。
- * @return 全体検査完了時0、取込み・上限・全体検査失敗時はHRESULT。
- * @note 公式由来の証明、実行、導入許可は発行しない。
+ * @brief 明示local ZIP／CABを共通個別INF検査へ渡す
+ * @param[in] selectedPath 利用者が選択した一file
+ * @param[in] scanSessionId 0ではないscan session
+ * @param[in,out] workspace Copyを所有する未初期化の保護領域
+ * @param[out] contents 個別成功と拒否を所有する共通結果。全体失敗では空
+ * @return 全体検査完了時0、取込み・上限・全体検査失敗時はHRESULT
+ * @note 公式由来の証明、実行、導入許可は発行しない
  */
 //------------------------------------------------------------------------------
 NativeError inspectCommonLocalInfPackageFile( const std::wstring_view		 selectedPath,
@@ -550,19 +551,19 @@ NativeError inspectCommonLocalInfPackageFile( const std::wstring_view		 selected
 											 UserSelectedInfPackageContents &contents)
 {
 	contents = {} ;
-	DriverArchiveInput			input ;		// 公式由来を持たない内容identity。
-	OfficialDriverArchiveFormat format{} ;	// Local取込みが確定した静的形式。
+	DriverArchiveInput			input ;		// 公式由来を持たない内容identity
+	OfficialDriverArchiveFormat format{} ;	// Local取込みが確定した静的形式
 	NativeError					error =
-		// 保護copy。
+		// 保護copy
 		copyLocalDriverArchive( selectedPath, scanSessionId, workspace, input, format) ;
-	// 取込み失敗時は元fileを検査経路へ直接渡さない。
+	// 取込み失敗時は元fileを検査経路へ直接渡さない
 	if( error != 0) {
 		return error ;
 	}
 
-	auto inspection = std::make_unique<CommonDriverPackageInspection>() ;	// 個別閉包の所有結果。
+	auto inspection = std::make_unique<CommonDriverPackageInspection>() ;	// 個別閉包の所有結果
 	error			= inspectCommonDriverPackage( input, format, *inspection) ;
-	// 全体失敗では個別成功と拒否の部分集合も公開しない。
+	// 全体失敗では個別成功と拒否の部分集合も公開しない
 	if( error != 0) {
 		return error ;
 	}

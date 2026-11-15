@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file provider_registry_tests.cpp
- * @brief Provider registry単体試験実装。
- * @version 01.05.02
+ * @brief Provider registry単体試験実装
+ * @version 01.05.03
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,65 +19,66 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/09  ASIX候補発行と指定導入の共通接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  ASIXのDownload能力とInstall無効を照合。
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  Registry検証loopの目的を明示。
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  Intel Ethernet導入能力の期待値を更新。
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  Install注意種別の登録試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  Intel Ethernetの取得前提確認と選択取得を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  Focusrite表示検索登録試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  Wacom Windows登録試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  Ricoh PCL6登録試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  NVIDIA表示専用capability試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  NVIDIA WinOF-2登録試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  ASIX AX88179A登録試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  Intel Ethernet Server登録試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  Broadcom導入capability試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/05  共通配布情報とIntel公式検索を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/05  NetXtreme-E表示専用検索を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/05  WCH公式2経路とfamily別予算を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/05  CP210x公式取得とserial共通化。
- * Ver.0.1.0    Shunji Ogawa  2026/09/05  公式serial取得と新版受入境界を更新。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  既定取得元優先段階試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  Coverage整合性試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  Lenovo Provider登録試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  HP Provider登録試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  VAIO Provider登録試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  Dell PowerEdge登録試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  Provider探索経路試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  利用者選択file設定試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  Prolific区分C登録試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  WCH区分C登録試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  WCH CH342／CH343系登録試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  Silicon Labs区分C登録試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  ASUS routing capability試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  汎用署名済みINF登録試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  監査段階別scan状態試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  AMD表示専用Provider試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  Scan成功／拒否矛盾試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  Provider outcome矛盾試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  ASUS段階Provider登録試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  ASRock表示専用Provider試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/09  ASIX候補発行と指定導入の共通接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  ASIXのDownload能力とInstall無効を照合
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  Registry検証loopの目的を明示
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  Intel Ethernet導入能力の期待値を更新
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  Install注意種別の登録試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Intel Ethernetの取得前提確認と選択取得を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Focusrite表示検索登録試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Wacom Windows登録試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Ricoh PCL6登録試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  NVIDIA表示専用capability試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  NVIDIA WinOF-2登録試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  ASIX AX88179A登録試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  Intel Ethernet Server登録試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  Broadcom導入capability試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  共通配布情報とIntel公式検索を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  NetXtreme-E表示専用検索を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  WCH公式2経路とfamily別予算を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  CP210x公式取得とserial共通化
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  公式serial取得と新版受入境界を更新
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  既定取得元優先段階試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Coverage整合性試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Lenovo Provider登録試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  HP Provider登録試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  VAIO Provider登録試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Dell PowerEdge登録試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Provider探索経路試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  利用者選択file設定試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Prolific区分C登録試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  WCH区分C登録試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  WCH CH342／CH343系登録試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Silicon Labs区分C登録試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  ASUS routing capability試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  汎用署名済みINF登録試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  監査段階別scan状態試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  AMD表示専用Provider試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  Scan成功／拒否矛盾試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  Provider outcome矛盾試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  ASUS段階Provider登録試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  ASRock表示専用Provider試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加。
- * Ver.01.00.02 Shunji Ogawa  2026/09/15  Windows 11 Ethernet検索Providerを検証。
- * Ver.01.01.00 Shunji Ogawa  2026/09/15  Windows 11固定root自動探索能力を検証。
- * Ver.01.02.00 Shunji Ogawa  2026/09/15  一scan承認のscope・予算・新旧排他試験を追加。
- * Ver.01.03.00 Shunji Ogawa  2026/09/15  公式探索の通信・payload未承認状態を検証。
- * Ver.01.04.00 Shunji Ogawa  2026/10/12  真署名索引から共通取得・検査と拒否の内部fixtureを追加。
- * Ver.01.05.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
- * Ver.01.05.01 Shunji Ogawa  2026/10/12  通常索引の指定導入を含むINSTALL登録22件を確認。
- * Ver.01.05.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加
+ * Ver.01.00.02 Shunji Ogawa  2026/09/15  Windows 11 Ethernet検索Providerを検証
+ * Ver.01.01.00 Shunji Ogawa  2026/09/15  Windows 11固定root自動探索能力を検証
+ * Ver.01.02.00 Shunji Ogawa  2026/09/15  一scan承認のscope・予算・新旧排他試験を追加
+ * Ver.01.03.00 Shunji Ogawa  2026/09/15  公式探索の通信・payload未承認状態を検証
+ * Ver.01.04.00 Shunji Ogawa  2026/10/12  真署名索引から共通取得・検査と拒否の内部fixtureを追加
+ * Ver.01.05.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続
+ * Ver.01.05.01 Shunji Ogawa  2026/10/12  通常索引の指定導入を含むINSTALL登録22件を確認
+ * Ver.01.05.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.05.03 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 端末情報やnetworkを使用せずProvider設定のfail-closed条件を試験します。
+ * @note 端末情報やnetworkを使用せずProvider設定のfail-closed条件を試験します
  */
 //------------------------------------------------------------------------------
 
@@ -95,25 +96,25 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 組み込みProvider定義の一意性と必須capabilityを検証する。
+ * @brief 組み込みProvider定義の一意性と必須capabilityを検証する
  *
- * Stable ID、表示名、Scan capability、既定有効を確認する。
+ * Stable ID、表示名、Scan capability、既定有効を確認する
  *
- * @param[in,out] context assertion集計先。
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void testDescriptors( TestContext &context)
 {
-	const std::span descriptors = builtInProviderDescriptors() ;	// Registry試験対象。
+	const std::span descriptors = builtInProviderDescriptors() ;	// Registry試験対象
 	DRIVERCRATE_EXPECT( context, descriptors.size() == 31U) ;
-	// 到達可能な実device数とは区別し、導入能力を宣言するstable Provider ID数を集計する。
+	// 到達可能な実device数とは区別し、導入能力を宣言するstable Provider ID数を集計する
 	const auto installProviderCount =
 		std::ranges::count_if( descriptors, []( const ProviderDescriptor &descriptor) {
 			return (descriptor.capabilities & capabilityMask( ProviderCapability::INSTALL)) != 0U ;
 		}) ;
 	DRIVERCRATE_EXPECT( context, installProviderCount == 22) ;
-	std::unordered_set<std::wstring> ids ;	// Stable ID重複検出集合。
-	// 全組み込みProviderの必須metadata、stable ID一意性、能力、注意種別を確認する。
+	std::unordered_set<std::wstring> ids ;	// Stable ID重複検出集合
+	// 全組み込みProviderの必須metadata、stable ID一意性、能力、注意種別を確認する
 	for( const ProviderDescriptor &descriptor : descriptors) {
 		DRIVERCRATE_EXPECT( context, !descriptor.id.empty()) ;
 		DRIVERCRATE_EXPECT( context, !descriptor.displayName.empty()) ;
@@ -122,13 +123,13 @@ void testDescriptors( TestContext &context)
 			context, (descriptor.capabilities & capabilityMask( ProviderCapability::SCAN)) != 0) ;
 		DRIVERCRATE_EXPECT( context,
 						   descriptor.discoveryBasis != CandidateDiscoveryBasis::UNSPECIFIED) ;
-		const InstallNoticeKind expectedNotice =	// 固定Provider別の最終確認注意種別。
+		const InstallNoticeKind expectedNotice =	// 固定Provider別の最終確認注意種別
 			descriptor.id == INTEL_ETHERNET_SERVER2025_OFFICIAL_PROVIDER_ID
 				? InstallNoticeKind::INTEL_ETHERNET_SERVER
 				: (descriptor.id == ASIX_AX88179A_PROVIDER_ID ? InstallNoticeKind::ASIX_CLIENT_NIC
 															  : InstallNoticeKind::NONE) ;
 		DRIVERCRATE_EXPECT( context, descriptor.installNotice == expectedNotice) ;
-		const bool defaultDisabled =	// 利用者入力または監査完了待ちで既定無効のProvider。
+		const bool defaultDisabled =	// 利用者入力または監査完了待ちで既定無効のProvider
 			descriptor.id == INTEL_WIRELESS_PACKAGE_PROVIDER_ID ||
 			descriptor.id == PROLIFIC_SERIAL_PACKAGE_PROVIDER_ID ||
 			descriptor.id == SILICON_LABS_SERIAL_PACKAGE_PROVIDER_ID ||
@@ -153,7 +154,7 @@ void testDescriptors( TestContext &context)
 	}
 
 	const auto *indexAcquisition =
-		// 同じregistryの用途限定entry。
+		// 同じregistryの用途限定entry
 		signedIndexAcquisitionProviderDescriptor() ;
 	DRIVERCRATE_EXPECT(
 		context, indexAcquisition != nullptr && indexAcquisition->id == SIGNED_INDEX_PROVIDER_ID &&
@@ -167,7 +168,7 @@ void testDescriptors( TestContext &context)
 	DRIVERCRATE_EXPECT( context,
 					   findProviderDescriptor( SIGNED_INDEX_PROVIDER_ID) == indexAcquisition &&
 						   findProviderDescriptor( L"unknown-index") == nullptr) ;
-	ScanOptions acquisitionOnly ;	// 取得専用IDを通常scan能力へ昇格させない確認。
+	ScanOptions acquisitionOnly ;	// 取得専用IDを通常scan能力へ昇格させない確認
 	acquisitionOnly.useDefaultProviders = false ;
 	acquisitionOnly.enabledProviderIds.emplace_back( SIGNED_INDEX_PROVIDER_ID) ;
 	DRIVERCRATE_EXPECT( context, validateScanOptions( acquisitionOnly)) ;
@@ -176,7 +177,7 @@ void testDescriptors( TestContext &context)
 					   descriptors[0].selectionTier == ProviderSelectionTier::MANAGED_SERVICE) ;
 	DRIVERCRATE_EXPECT( context,
 					   descriptors[1].selectionTier == ProviderSelectionTier::LOCAL_INVENTORY) ;
-	const ProviderCapabilityMask nvidiaExpectedCapabilities =	// NVIDIA表示専用の能力集合。
+	const ProviderCapabilityMask nvidiaExpectedCapabilities =	// NVIDIA表示専用の能力集合
 		capabilityMask( ProviderCapability::SCAN) | capabilityMask( ProviderCapability::HISTORY) |
 		capabilityMask( ProviderCapability::OFFICIAL_NETWORK) ;
 	DRIVERCRATE_EXPECT( context, descriptors[2].id == NVIDIA_PROVIDER_ID) ;
@@ -184,9 +185,9 @@ void testDescriptors( TestContext &context)
 	const auto broadcom = std::find_if( descriptors.begin(), descriptors.end(),
 									   []( const ProviderDescriptor &descriptor) {
 										   return descriptor.id == BROADCOM_NET_XTREME_PROVIDER_ID ;
-									   }) ; // Broadcomの登録定義。
+									   }) ; // Broadcomの登録定義
 	DRIVERCRATE_EXPECT( context, broadcom != descriptors.end()) ;
-	// Broadcom定義を取得できた場合にだけinstall capabilityを検証する。
+	// Broadcom定義を取得できた場合にだけinstall capabilityを検証する
 	if( broadcom != descriptors.end()) {
 		DRIVERCRATE_EXPECT(
 			context, (broadcom->capabilities & capabilityMask( ProviderCapability::INSTALL)) != 0U) ;
@@ -195,9 +196,9 @@ void testDescriptors( TestContext &context)
 	const auto intelEthernet = std::find_if(
 		descriptors.begin(), descriptors.end(), []( const ProviderDescriptor &descriptor) {
 			return descriptor.id == INTEL_ETHERNET_SERVER2025_OFFICIAL_PROVIDER_ID ;
-		}) ; // Server検索定義。
+		}) ; // Server検索定義
 	DRIVERCRATE_EXPECT( context, intelEthernet != descriptors.end()) ;
-	// Intel Ethernet定義を取得できた場合にだけ既定状態と取得元境界を検証する。
+	// Intel Ethernet定義を取得できた場合にだけ既定状態と取得元境界を検証する
 	if( intelEthernet != descriptors.end()) {
 		DRIVERCRATE_EXPECT( context, !intelEthernet->enabledByDefault) ;
 		DRIVERCRATE_EXPECT( context, intelEthernet->capabilities ==
@@ -217,9 +218,9 @@ void testDescriptors( TestContext &context)
 	const auto intelWindows11 = std::find_if(
 		descriptors.begin(), descriptors.end(), []( const ProviderDescriptor &descriptor) {
 			return descriptor.id == INTEL_ETHERNET_WINDOWS11_OFFICIAL_PROVIDER_ID ;
-		}) ; // Windows 11表示検索定義。
+		}) ; // Windows 11表示検索定義
 	DRIVERCRATE_EXPECT( context, intelWindows11 != descriptors.end()) ;
-	// 登録を取得できた場合だけ既定OFFと固定root探索能力を確認する。
+	// 登録を取得できた場合だけ既定OFFと固定root探索能力を確認する
 	if( intelWindows11 != descriptors.end()) {
 		DRIVERCRATE_EXPECT( context, !intelWindows11->enabledByDefault) ;
 		DRIVERCRATE_EXPECT( context, intelWindows11->capabilities ==
@@ -237,10 +238,10 @@ void testDescriptors( TestContext &context)
 									 capabilityMask( ProviderCapability::INSTALL)) == 0U) ;
 	}
 
-	const auto intelNotice =	// Stable IDから取得したIntel Server固有注意種別。
+	const auto intelNotice =	// Stable IDから取得したIntel Server固有注意種別
 		providerInstallNotice( INTEL_ETHERNET_SERVER2025_OFFICIAL_PROVIDER_ID) ;
 	DRIVERCRATE_EXPECT( context, intelNotice.has_value()) ;
-	// 結果の存在と参照範囲が確認できた場合にだけ内容を検証し、前提失敗を不正な参照へ波及させない。
+	// 結果の存在と参照範囲が確認できた場合にだけ内容を検証し、前提失敗を不正な参照へ波及させない
 	if( intelNotice.has_value()) {
 		DRIVERCRATE_EXPECT( context, *intelNotice == InstallNoticeKind::INTEL_ETHERNET_SERVER) ;
 	}
@@ -249,9 +250,9 @@ void testDescriptors( TestContext &context)
 	const auto asix = std::find_if( descriptors.begin(), descriptors.end(),
 								   []( const ProviderDescriptor &descriptor) {
 									   return descriptor.id == ASIX_AX88179A_PROVIDER_ID ;
-								   }) ; // ASIX検索定義。
+								   }) ; // ASIX検索定義
 	DRIVERCRATE_EXPECT( context, asix != descriptors.end()) ;
-	// ASIX定義を取得できた場合にだけ専用注意区分とcapabilityを検証する。
+	// ASIX定義を取得できた場合にだけ専用注意区分とcapabilityを検証する
 	if( asix != descriptors.end()) {
 		DRIVERCRATE_EXPECT( context, !asix->enabledByDefault) ;
 		DRIVERCRATE_EXPECT( context, providerInstallNotice( ASIX_AX88179A_PROVIDER_ID) ==
@@ -268,9 +269,9 @@ void testDescriptors( TestContext &context)
 	const auto ricoh = std::find_if( descriptors.begin(), descriptors.end(),
 									[]( const ProviderDescriptor &descriptor) {
 										return descriptor.id == RICOH_UNIVERSAL_PRINT_PROVIDER_ID ;
-									}) ; // Ricoh検索定義。
+									}) ; // Ricoh検索定義
 	DRIVERCRATE_EXPECT( context, ricoh != descriptors.end()) ;
-	// Ricoh定義を取得できた場合にだけ表示専用の取得元境界を検証する。
+	// Ricoh定義を取得できた場合にだけ表示専用の取得元境界を検証する
 	if( ricoh != descriptors.end()) {
 		DRIVERCRATE_EXPECT( context, !ricoh->enabledByDefault) ;
 		DRIVERCRATE_EXPECT( context, ricoh->capabilities ==
@@ -286,9 +287,9 @@ void testDescriptors( TestContext &context)
 	const auto wacom = std::find_if( descriptors.begin(), descriptors.end(),
 									[]( const ProviderDescriptor &descriptor) {
 										return descriptor.id == WACOM_WINDOWS_PROVIDER_ID ;
-									}) ; // Wacom検索定義。
+									}) ; // Wacom検索定義
 	DRIVERCRATE_EXPECT( context, wacom != descriptors.end()) ;
-	// Wacom定義を取得できた場合にだけ表示専用の取得元境界を検証する。
+	// Wacom定義を取得できた場合にだけ表示専用の取得元境界を検証する
 	if( wacom != descriptors.end()) {
 		DRIVERCRATE_EXPECT( context, !wacom->enabledByDefault) ;
 		DRIVERCRATE_EXPECT( context, wacom->capabilities ==
@@ -304,9 +305,9 @@ void testDescriptors( TestContext &context)
 	const auto focusrite = std::find_if(
 		descriptors.begin(), descriptors.end(), []( const ProviderDescriptor &descriptor) {
 			return descriptor.id == FOCUSRITE_SCARLETT2I2_PROVIDER_ID ;
-		}) ; // Focusrite検索定義。
+		}) ; // Focusrite検索定義
 	DRIVERCRATE_EXPECT( context, focusrite != descriptors.end()) ;
-	// Focusrite定義を取得できた場合にだけ表示専用の取得元境界を検証する。
+	// Focusrite定義を取得できた場合にだけ表示専用の取得元境界を検証する
 	if( focusrite != descriptors.end()) {
 		DRIVERCRATE_EXPECT( context, !focusrite->enabledByDefault) ;
 		DRIVERCRATE_EXPECT( context, focusrite->capabilities ==
@@ -326,9 +327,9 @@ void testDescriptors( TestContext &context)
 	const auto nvidiaWinof2 = std::find_if( descriptors.begin(), descriptors.end(),
 										   []( const ProviderDescriptor &descriptor) {
 											   return descriptor.id == NVIDIA_WINOF2_PROVIDER_ID ;
-										   }) ; // WinOF-2検索定義。
+										   }) ; // WinOF-2検索定義
 	DRIVERCRATE_EXPECT( context, nvidiaWinof2 != descriptors.end()) ;
-	// NVIDIA WinOF-2定義を取得できた場合にだけ構造化catalog境界を検証する。
+	// NVIDIA WinOF-2定義を取得できた場合にだけ構造化catalog境界を検証する
 	if( nvidiaWinof2 != descriptors.end()) {
 		DRIVERCRATE_EXPECT( context, !nvidiaWinof2->enabledByDefault) ;
 		DRIVERCRATE_EXPECT( context, nvidiaWinof2->capabilities ==
@@ -374,7 +375,7 @@ void testDescriptors( TestContext &context)
 					   descriptors[0].discoveryBasis == CandidateDiscoveryBasis::MANAGED_SERVICE) ;
 	DRIVERCRATE_EXPECT( context,
 					   descriptors[1].discoveryBasis == CandidateDiscoveryBasis::LOCAL_INVENTORY) ;
-	// 構造化公式catalogとして登録する既存6 Providerの探索根拠を確認する。
+	// 構造化公式catalogとして登録する既存6 Providerの探索根拠を確認する
 	for( std::size_t index = 2; index < 8; ++index) {
 		DRIVERCRATE_EXPECT( context, descriptors[index].discoveryBasis ==
 										CandidateDiscoveryBasis::OFFICIAL_STRUCTURED_CATALOG) ;
@@ -437,32 +438,32 @@ void testDescriptors( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 既定設定と明示的なProvider選択を検証する。
+ * @brief 既定設定と明示的なProvider選択を検証する
  *
- * 全無効を含む明示設定と既定設定を別の状態として確認する。
+ * 全無効を含む明示設定と既定設定を別の状態として確認する
  *
- * @param[in,out] context assertion集計先。
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void testSelection( TestContext &context)
 {
-	const std::span	  descriptors = builtInProviderDescriptors() ;	// 判定対象Provider群。
-	const ScanOptions defaults{} ;									// Registry既定設定。
+	const std::span	  descriptors = builtInProviderDescriptors() ;	// 判定対象Provider群
+	const ScanOptions defaults{} ;									// Registry既定設定
 	DRIVERCRATE_EXPECT( context, validateScanOptions( defaults)) ;
-	// 既定設定が全Registry entryのenabled_by_defaultと一致することを確認する。
+	// 既定設定が全Registry entryのenabled_by_defaultと一致することを確認する
 	for( const ProviderDescriptor &descriptor : descriptors) {
 		DRIVERCRATE_EXPECT( context,
 						   isProviderEnabled( defaults, descriptor) == descriptor.enabledByDefault) ;
 	}
 
-	const ScanOptions none{.useDefaultProviders = false} ;	// 利用者が全て無効にした設定。
+	const ScanOptions none{.useDefaultProviders = false} ;	// 利用者が全て無効にした設定
 	DRIVERCRATE_EXPECT( context, validateScanOptions( none)) ;
-	// 明示的な全無効設定が全Providerの実行を拒否することを確認する。
+	// 明示的な全無効設定が全Providerの実行を拒否することを確認する
 	for( const ProviderDescriptor &descriptor : descriptors) {
 		DRIVERCRATE_EXPECT( context, !isProviderEnabled( none, descriptor)) ;
 	}
 
-	// WUAとNVIDIAだけを明示的に有効化するscan設定fixture。
+	// WUAとNVIDIAだけを明示的に有効化するscan設定fixture
 	const ScanOptions selected{.useDefaultProviders = false,
 							   .enabledProviderIds	= {std::wstring( WINDOWS_UPDATE_PROVIDER_ID),
 													   std::wstring( NVIDIA_PROVIDER_ID)}} ;
@@ -487,16 +488,16 @@ void testSelection( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 新しい一scan承認を公式Provider集合と固定予算へ厳格に結合することを検証する。
+ * @brief 新しい一scan承認を公式Provider集合と固定予算へ厳格に結合することを検証する
  *
- * 旧Provider別同意との同時指定、対象外scope、operation欠損、予算改変を拒否する。
+ * 旧Provider別同意との同時指定、対象外scope、operation欠損、予算改変を拒否する
  *
- * @param[in,out] context assertion集計先。
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void testOfficialDiscoveryApproval( TestContext &context)
 {
-	// Windows 11 Intel Ethernetだけへ結合する固定予算の基準承認。
+	// Windows 11 Intel Ethernetだけへ結合する固定予算の基準承認
 	ScanOptions options{
 		.useDefaultProviders = false,
 		.enabledProviderIds	 = {std::wstring( INTEL_ETHERNET_WINDOWS11_OFFICIAL_PROVIDER_ID)}} ;
@@ -530,18 +531,18 @@ void testOfficialDiscoveryApproval( TestContext &context)
 	options.enabledProviderIds						 = {std::wstring( DRIVER_STORE_PROVIDER_ID)} ;
 	DRIVERCRATE_EXPECT( context, !validateScanOptions( options)) ;
 
-	ScanOptions defaults ;	// 移行中も既定Provider集合を明示承認へ結合できる。
+	ScanOptions defaults ;	// 移行中も既定Provider集合を明示承認へ結合できる
 	defaults.officialDiscoveryApproval = OfficialDiscoveryScanApproval{.operationId = 18U} ;
 	DRIVERCRATE_EXPECT( context, validateScanOptions( defaults)) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 利用者選択fileとProviderの一対一対応を検証する。
+ * @brief 利用者選択fileとProviderの一対一対応を検証する
  *
- * File入力可能Providerだけが、有効時に一つのpathを受け取るfail-closed設定を確認する。
+ * File入力可能Providerだけが、有効時に一つのpathを受け取るfail-closed設定を確認する
  *
- * @param[in,out] context assertion集計先。
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void testUserSelectedFiles( TestContext &context)
@@ -551,7 +552,7 @@ void testUserSelectedFiles( TestContext &context)
 		.enabledProviderIds	 = {std::wstring( DRIVER_STORE_PROVIDER_ID),
 								std::wstring( INTEL_WIRELESS_PACKAGE_PROVIDER_ID)},
 		.userSelectedFiles	 = {{.providerId = std::wstring( INTEL_WIRELESS_PACKAGE_PROVIDER_ID),
-								 .path		 = L"C:\\Fictional\\wireless.zip"}}} ;	// 正常な一件入力。
+								 .path		 = L"C:\\Fictional\\wireless.zip"}}} ;	// 正常な一件入力
 	DRIVERCRATE_EXPECT( context, validateScanOptions( valid)) ;
 	DRIVERCRATE_EXPECT( context,
 					   userSelectedFileForProvider( valid, INTEL_WIRELESS_PACKAGE_PROVIDER_ID) ==
@@ -579,7 +580,7 @@ void testUserSelectedFiles( TestContext &context)
 			  {.providerId = std::wstring( WCH_MULTI_SERIAL_PACKAGE_PROVIDER_ID),
 			   .path	   = L"C:\\Fictional\\wch343.zip"},
 			  {.providerId = std::wstring( GENERIC_SIGNED_INF_PACKAGE_PROVIDER_ID),
-			   .path	   = L"C:\\Fictional\\generic-driver.zip"}}} ;	// 区分C Provider別入力。
+			   .path	   = L"C:\\Fictional\\generic-driver.zip"}}} ;	// 区分C Provider別入力
 	DRIVERCRATE_EXPECT( context, validateScanOptions( sixFiles)) ;
 	DRIVERCRATE_EXPECT( context,
 					   userSelectedFileForProvider( sixFiles, PROLIFIC_SERIAL_PACKAGE_PROVIDER_ID) ==
@@ -599,21 +600,21 @@ void testUserSelectedFiles( TestContext &context)
 
 	const ScanOptions missingFile{
 		.useDefaultProviders = false,
-		.enabledProviderIds	 = {std::wstring( INTEL_WIRELESS_PACKAGE_PROVIDER_ID)}} ;	// 入力欠落。
+		.enabledProviderIds	 = {std::wstring( INTEL_WIRELESS_PACKAGE_PROVIDER_ID)}} ;	// 入力欠落
 	DRIVERCRATE_EXPECT( context, !validateScanOptions( missingFile)) ;
 
 	const ScanOptions disabledFile{
 		.useDefaultProviders = false,
 		.enabledProviderIds	 = {std::wstring( DRIVER_STORE_PROVIDER_ID)},
 		.userSelectedFiles	 = {{.providerId = std::wstring( INTEL_WIRELESS_PACKAGE_PROVIDER_ID),
-								 .path = L"C:\\Fictional\\wireless.zip"}}} ;	// 無効Provider入力。
+								 .path		 = L"C:\\Fictional\\wireless.zip"}}} ;	// 無効Provider入力
 	DRIVERCRATE_EXPECT( context, !validateScanOptions( disabledFile)) ;
 
 	const ScanOptions wrongCapability{
 		.useDefaultProviders = false,
 		.enabledProviderIds	 = {std::wstring( DRIVER_STORE_PROVIDER_ID)},
 		.userSelectedFiles	 = {{.providerId = std::wstring( DRIVER_STORE_PROVIDER_ID),
-								 .path = L"C:\\Fictional\\wireless.zip"}}} ;	// 非対応Provider入力。
+								 .path = L"C:\\Fictional\\wireless.zip"}}} ;	// 非対応Provider入力
 	DRIVERCRATE_EXPECT( context, !validateScanOptions( wrongCapability)) ;
 
 	const ScanOptions duplicateFiles{
@@ -623,33 +624,33 @@ void testUserSelectedFiles( TestContext &context)
 			  {.providerId = std::wstring( INTEL_WIRELESS_PACKAGE_PROVIDER_ID),
 			   .path	   = L"C:\\Fictional\\wireless-a.zip"},
 			  {.providerId = std::wstring( INTEL_WIRELESS_PACKAGE_PROVIDER_ID),
-			   .path	   = L"C:\\Fictional\\wireless-b.zip"}}} ;	// 同一Providerへの重複入力。
+			   .path	   = L"C:\\Fictional\\wireless-b.zip"}}} ;	// 同一Providerへの重複入力
 	DRIVERCRATE_EXPECT( context, !validateScanOptions( duplicateFiles)) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 未知ID、重複ID、矛盾する既定設定を拒否することを検証する。
+ * @brief 未知ID、重複ID、矛盾する既定設定を拒否することを検証する
  *
- * UI迂回時も未知Providerへ通信またはroutingしない条件を確認する。
+ * UI迂回時も未知Providerへ通信またはroutingしない条件を確認する
  *
- * @param[in,out] context assertion集計先。
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void testInvalidSelection( TestContext &context)
 {
-	// 未知のstable IDを指定したscan設定の拒否用入力。
+	// 未知のstable IDを指定したscan設定の拒否用入力
 	const ScanOptions unknown{.useDefaultProviders = false,
 							  .enabledProviderIds  = {L"unknown-provider"}} ;
 	DRIVERCRATE_EXPECT( context, !validateScanOptions( unknown)) ;
 
-	// 同じProviderを重複指定したscan設定の拒否用入力。
+	// 同じProviderを重複指定したscan設定の拒否用入力
 	const ScanOptions duplicate{
 		.useDefaultProviders = false,
 		.enabledProviderIds	 = {std::wstring( DELL_PROVIDER_ID), std::wstring( DELL_PROVIDER_ID)}} ;
 	DRIVERCRATE_EXPECT( context, !validateScanOptions( duplicate)) ;
 
-	// 既定設定と明示集合を併記した矛盾設定の拒否用入力。
+	// 既定設定と明示集合を併記した矛盾設定の拒否用入力
 	const ScanOptions contradictory{
 		.useDefaultProviders = true,
 		.enabledProviderIds	 = {std::wstring( WINDOWS_UPDATE_PROVIDER_ID)}} ;
@@ -657,22 +658,22 @@ void testInvalidSelection( TestContext &context)
 
 	const ScanOptions contradictoryFile{
 		.userSelectedFiles = {{.providerId = std::wstring( INTEL_WIRELESS_PACKAGE_PROVIDER_ID),
-							   .path = L"C:\\Fictional\\wireless.zip"}}} ;	// 既定設定との矛盾。
+							   .path	   = L"C:\\Fictional\\wireless.zip"}}} ;	// 既定設定との矛盾
 	DRIVERCRATE_EXPECT( context, !validateScanOptions( contradictoryFile)) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief Provider結果を取得元別scan状態へ正規化することを検証する。
+ * @brief Provider結果を取得元別scan状態へ正規化することを検証する
  *
- * 無効、対象外、候補有無、失敗、監査段階別拒否を確認する。
+ * 無効、対象外、候補有無、失敗、監査段階別拒否を確認する
  *
- * @param[in,out] context assertion集計先。
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void testScanStates( TestContext &context)
 {
-	ScanResult result{.succeeded = true, .outcome = OutcomeCode::SUCCESS} ;	// 基本成功結果。
+	ScanResult result{.succeeded = true, .outcome = OutcomeCode::SUCCESS} ;	// 基本成功結果
 	DRIVERCRATE_EXPECT( context,
 					   resolveProviderScanState( result, false) == ProviderScanState::DISABLED) ;
 	DRIVERCRATE_EXPECT( context,
@@ -760,20 +761,20 @@ void testScanStates( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Provider coverageの対象／判定件数関係を検証する。
+ * @brief Provider coverageの対象／判定件数関係を検証する
  *
- * 判定済みdevice数が対象device数を超える矛盾を拒否する。
+ * 判定済みdevice数が対象device数を超える矛盾を拒否する
  *
- * @param[in,out] context assertion集計先。
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void testCoverage( TestContext &context)
 {
 	constexpr ProviderCoverage VALID{.eligibleDeviceCount = 4,
-									 .assessedDeviceCount = 3} ;	// 正常coverage。
-	constexpr ProviderCoverage EMPTY{} ;							// 対象外coverage。
+									 .assessedDeviceCount = 3} ;	// 正常coverage
+	constexpr ProviderCoverage EMPTY{} ;							// 対象外coverage
 	constexpr ProviderCoverage INVALID{.eligibleDeviceCount = 3,
-									   .assessedDeviceCount = 4} ;	// 矛盾coverage。
+									   .assessedDeviceCount = 4} ;	// 矛盾coverage
 	DRIVERCRATE_EXPECT( context, isValidProviderCoverage( VALID)) ;
 	DRIVERCRATE_EXPECT( context, isValidProviderCoverage( EMPTY)) ;
 	DRIVERCRATE_EXPECT( context, !isValidProviderCoverage( INVALID)) ;
@@ -784,8 +785,8 @@ void testCoverage( TestContext &context)
 //------------------------------------------------------------------------------
 /**
  * @brief Provider registryのID、既定値、明示選択、拒否条件を検証する。Provider registryの全単体試験を実行する。定義、選択、fail-closed条件を順
- *        番に検証する。
- * @param[in,out] context assertion集計先。
+ *        番に検証する
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void runProviderRegistryTests( TestContext &context)

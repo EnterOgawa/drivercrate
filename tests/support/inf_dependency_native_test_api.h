@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file inf_dependency_native_test_api.h
- * @brief 専用compileだけに存在する同期INF native API注入契約。
- * @version 01.03.01
+ * @brief 専用compileだけに存在する同期INF native API注入契約
+ * @version 01.03.05
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,14 +19,18 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/06  専用targetの同期借用API契約を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/10/06  封印所有者のnative接続試験入口を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/10/13  専用compileのサービス出力契約回帰入口を追加。
- * Ver.01.03.00 Shunji Ogawa  2026/10/15  専用compileのHKR設定と正確な文脈伝播回帰を追加。
- * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/06  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/10/06  封印所有者のnative接続試験入口を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/10/13  専用compileのサービス出力契約回帰入口を追加
+ * Ver.01.03.00 Shunji Ogawa  2026/10/15  専用compileのHKR設定と正確な文脈伝播回帰を追加
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.03.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.03.03 Shunji Ogawa  2026/11/13  Needs AddRegの元拒否leafを既匿名診断へ接続
+ * Ver.01.03.04 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
+ * Ver.01.03.05 Shunji Ogawa  2026/11/13  847p9の型付きSYSTEM全作用と全選択資格を接続
  * </pre>
  *
- * @note 製品にcompileしない。架空署名を導入許可や実署名の測定値へ変換しない。
+ * @note 製品にcompileしない。架空署名を導入許可や実署名の測定値へ変換しない
  * @see docs/adr/0271-compile-isolated-inf-native-api-tests.md
  */
 //------------------------------------------------------------------------------
@@ -47,23 +51,24 @@ namespace drivercrate::test {
 class TestContext ;
 //------------------------------------------------------------------------------
 /**
- * @brief 専用compileだけで実AddReg parserの全行と文脈拒否を検査します。
- * @param[in] path 架空保護workspace内の実INFです。
- * @param[in] contexts DDInstall/HW/未対応の既定bit集合です。
- * @param[in,out] registryRows 元累積予算です。
- * @return 実parserの元HRESULTです。署名・由来・device適合の認定ではありません。
+ * @brief 専用compileだけで実AddReg parserの全行と文脈拒否を検査します
+ * @param[in] path 架空保護workspace内の実INFです
+ * @param[in] contexts DDInstall/HW/未対応の既定bit集合です
+ * @param[in,out] registryRows 元累積予算です
+ * @param[in,out] diagnostic 任意の元pair診断です。合否の入力に使いません
+ * @return 実parserの元HRESULTです。署名・由来・device適合の認定ではありません
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] NativeError				 inspectNeedsAddRegForTest( const std::wstring &path,
-																   unsigned char	   contexts,
-																   std::size_t		  &registryRows) ;
+[[nodiscard]] NativeError inspectNeedsAddRegForTest(
+	const std::wstring &path, unsigned char contexts, std::size_t &registryRows,
+	RequiredInfBindingDiagnostic *diagnostic = nullptr) ;
 //------------------------------------------------------------------------------
 /**
- * @brief 元選択からの正確なNeeds文脈伝播を架空graphで確認します。
- * @param[in] result 架空の元graphです。導入能力を持ちません。
- * @param[in] seeds 元rootの基本節と付随節です。
- * @param[in] rootIdentity 架空の元document identityです。
- * @return 元sectionsと同順の文脈bit集合です。
+ * @brief 元選択からの正確なNeeds文脈伝播を架空graphで確認します
+ * @param[in] result 架空の元graphです。導入能力を持ちません
+ * @param[in] seeds 元rootの基本節と付随節です
+ * @param[in] rootIdentity 架空の元document identityです
+ * @return 元sectionsと同順の文脈bit集合です
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::vector<unsigned char> inspectNeedsRegistryContextsForTest(
@@ -72,44 +77,48 @@ class TestContext ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 有効な実INFでサービス集合の正常終端と途中失敗の出力契約を直接確認します。
- * @param[in,out] context 同期中だけ借用する試験集計です。
- * @note 列挙障害だけを専用翻訳単位で注入し、製品API・設定・実導入を追加しません。
+ * @brief 有効な実INFでサービス集合の正常終端と途中失敗の出力契約を直接確認します
+ * @param[in,out] context 同期中だけ借用する試験集計です
+ * @note 列挙障害だけを専用翻訳単位で注入し、製品API・設定・実導入を追加しません
  */
 //------------------------------------------------------------------------------
 void runOfficialServiceOutputContractTests( TestContext &context) ;
 
-/** @brief 固定CATとINF memberを同期借用し元診断を返す専用callback型。 */
+/** @brief 固定CATとINF memberを同期借用し元診断を返す専用callback型 */
 using InfDependencyCatalogTestFunction =
 	std::function<NativeError( const std::wstring &, std::span<const std::wstring>)> ;
-/** @brief 一同期runで借用する架空API。0以外は元HRESULTを保持する。 */
+/** @brief 一同期runで借用する架空API。0以外は元HRESULTを保持する */
 struct InfDependencyNativeTestApi {
-	/// 初回と終了時のOS情報。未知product typeの検査は実adapterに委譲する。
-	std::function<NativeError( OSVERSIONINFOEXW &, SYSTEM_INFO &)>			 version ;
-	/// 有限な架空Windows directory。path検査は実adapterに委譲する。
-	std::function<NativeError( std::wstring &)>								 windowsDirectory ;
-	/// INF自身の架空署名応答。CAT固定とscore照合は実adapterに委譲する。
-	std::function<NativeError( const std::wstring &, SP_INF_SIGNER_INFO_W &)> infSignature ;
-	/// CATとINF memberの架空署名。実signatureではない。
-	InfDependencyCatalogTestFunction										 catalogSignature ;
-	/// 現OSの架空Store対応位置。実fileのhashはadapterで計算する。
-	std::function<NativeError( const std::wstring &, std::wstring &)>		 driverStore ;
-	/// 任意の属性API注入。空の場合は実属性APIを必ず呼ぶ。
-	std::function<NativeError( HANDLE, FILE_ATTRIBUTE_TAG_INFO &)>			 attributes ;
+	/// 初回と終了時のOS情報。未知product typeの検査は実adapterに委譲する
+	std::function<NativeError( OSVERSIONINFOEXW &, SYSTEM_INFO &)>			   version ;
+	/// 有限な架空Windows directory。path検査は実adapterに委譲する
+	std::function<NativeError( std::wstring &)>								   windowsDirectory ;
+	/// INF自身の架空署名応答。CAT固定とscore照合は実adapterに委譲する
+	std::function<NativeError( const std::wstring &, SP_INF_SIGNER_INFO_W &)>   infSignature ;
+	/// CATとINF memberの架空署名。実signatureではない
+	InfDependencyCatalogTestFunction										   catalogSignature ;
+	/// 現OSの架空Store対応位置。実fileのhashはadapterで計算する
+	std::function<NativeError( const std::wstring &, std::wstring &)>		   driverStore ;
+	/// 任意の属性API注入。空の場合は実属性APIを必ず呼ぶ
+	std::function<NativeError( HANDLE, FILE_ATTRIBUTE_TAG_INFO &)>			   attributes ;
+	/// 標準SYSTEM登録だけの完全な元helper/CAT期待です。空の場合は作用拒否です
+	std::function<NativeError( const std::wstring &, WindowsSystemFileTrust &)> systemFileTrust ;
+	/// 必要な正確なinbox serviceの安定証拠です。空なら実SCMへfallbackしません
+	std::function<NativeError( std::wstring_view, SystemServiceEvidence &)>	   systemService ;
 } ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief このthreadの一同期呼出しにだけ架空APIを結合する。
- * @param[in] api 必須五callbackと任意属性callback。呼出し終了まで生存し再入しない。
- * @param[in] workspace 架空fileの所有領域。
- * @param[in] members 閉じたINF一覧。
- * @param[in] rootIndex 開始member。
- * @param[in] seeds 明示節群。
- * @param[in] observationId 非零の架空run。
- * @param[out] result 全再確認成功時だけ保持し、失敗時は空。
- * @return 内部観測0、不完全API・再入・例外またはadapterの失敗HRESULT。
- * @note 製品buildにはこの関数もthread-local slotも含めない。
+ * @brief このthreadの一同期呼出しにだけ架空APIを結合する
+ * @param[in] api 必須五callbackと任意属性callback。呼出し終了まで生存し再入しない
+ * @param[in] workspace 架空fileの所有領域
+ * @param[in] members 閉じたINF一覧
+ * @param[in] rootIndex 開始member
+ * @param[in] seeds 明示節群
+ * @param[in] observationId 非零の架空run
+ * @param[out] result 全再確認成功時だけ保持し、失敗時は空
+ * @return 内部観測0、不完全API・再入・例外またはadapterの失敗HRESULT
+ * @note 製品buildにはこの関数もthread-local slotも含めない
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectInfDependenciesWithTestApi(
@@ -120,16 +129,16 @@ struct InfDependencyNativeTestApi {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 封印所有者の同期入口へ専用APIを借用する。実取得・署名を認定しない。
- * @param[in] api 必須五callbackと任意属性callback。同期呼出し中だけ生存する。
- * @param[in] binding 架空取得から作った封印所有者。
- * @param[in] session 架空取得の生存issuer。
- * @param[in] archiveWorkspace 架空原取得領域。
- * @param[in] rootIndex 開始INF位置。
- * @param[in] seeds 明示節群。
- * @param[in] observationId 非零の架空run世代。
- * @param[out] result 全成功時だけのsnapshot。失敗時は空。
- * @return 完了0、不完全API・再入・境界・例外のHRESULT。
+ * @brief 封印所有者の同期入口へ専用APIを借用する。実取得・署名を認定しない
+ * @param[in] api 必須五callbackと任意属性callback。同期呼出し中だけ生存する
+ * @param[in] binding 架空取得から作った封印所有者
+ * @param[in] session 架空取得の生存issuer
+ * @param[in] archiveWorkspace 架空原取得領域
+ * @param[in] rootIndex 開始INF位置
+ * @param[in] seeds 明示節群
+ * @param[in] observationId 非零の架空run世代
+ * @param[out] result 全成功時だけのsnapshot。失敗時は空
+ * @return 完了0、不完全API・再入・境界・例外のHRESULT
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectAcquiredInfDependenciesWithTestApi(

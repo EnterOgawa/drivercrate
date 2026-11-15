@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_mapped_file.cpp
- * @brief 固定入力と私有file-backed mappingを実装する。
- * @version 01.00.01
+ * @brief 固定入力と私有file-backed mappingを実装する
+ * @version 01.00.02
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,11 +19,12 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/11/03  有界file mappingと固定handleの所有を追加。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/11/03  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 入力のwrite/deleteを許可せず、出力はCREATE_NEWされた自身のfileだけを後始末する。
+ * @note 入力のwrite/deleteを許可せず、出力はCREATE_NEWされた自身のfileだけを後始末する
  */
 //------------------------------------------------------------------------------
 #include "platform/official_mapped_file.h"
@@ -38,71 +39,71 @@
 
 namespace drivercrate {
 
-/** @brief view、mapping、file、先祖固定handleを逆順解放する所有状態。 */
+/** @brief view、mapping、file、先祖固定handleを逆順解放する所有状態 */
 struct OfficialMappedFile::State {
-	/// 入力または出力fileを固定するhandle。
+	/// 入力または出力fileを固定するhandle
 	HANDLE					   file{INVALID_HANDLE_VALUE} ;
-	/// viewの元となる所有mapping。
+	/// viewの元となる所有mapping
 	HANDLE					   mapping{} ;
-	/// mappingの先頭。未取得ならnull。
+	/// mappingの先頭。未取得ならnull
 	void					  *view{} ;
-	/// 実file byte数。
+	/// 実file byte数
 	std::size_t				   length{} ;
-	/// rename/reparse差替えを防ぐ先祖directoryの固定handle。
+	/// rename/reparse差替えを防ぐ先祖directoryの固定handle
 	std::vector<HANDLE>		   parents ;
-	/// 出力時だけ借用する所有workspace。
+	/// 出力時だけ借用する所有workspace
 	OfficialDownloadWorkspace *workspace{} ;
-	/// createで自身が生成した相対file名。入力時は空。
+	/// createで自身が生成した相対file名。入力時は空
 	std::wstring			   name ;
 	/**
-	 * @brief 全resourceを解放して最初のOS診断を返す。
-	 * @return 元の最初の失敗HRESULT。再呼出し時は0。
+	 * @brief 全resourceを解放して最初のOS診断を返す
+	 * @return 元の最初の失敗HRESULT。再呼出し時は0
 	 */
 	NativeError				   release() noexcept
 	{
-		NativeError error{} ;	// 最初の解放診断だけを保持します。
-		// Win32失敗の直後に元診断を取り込みます。
+		NativeError error{} ;	// 最初の解放診断だけを保持します
+		// Win32失敗の直後に元診断を取り込みます
 		const auto	record = [&]( BOOL success) noexcept {
-			 // 後続cleanupの成功で先の失敗を隠しません。
+			 // 後続cleanupの成功で先の失敗を隠しません
 			 if( !success && error == 0) {
-				 const auto native = GetLastError() ;	// 元APIの診断です。
+				 const auto native = GetLastError() ;	// 元APIの診断です
 				 error = HRESULT_FROM_WIN32( native == ERROR_SUCCESS ? ERROR_GEN_FAILURE : native) ;
 			 }
 		 } ;
-		// viewを失効させてからmapping/fileを閉じます。
+		// viewを失効させてからmapping/fileを閉じます
 		if( view != nullptr) {
 			record( UnmapViewOfFile( view)) ;
 			view = nullptr ;
 		}
 
-		// 有効なmappingだけを一度閉じます。
+		// 有効なmappingだけを一度閉じます
 		if( mapping != nullptr) {
 			record( CloseHandle( mapping)) ;
 			mapping = nullptr ;
 		}
 
-		// 所有fileの終了診断を保持します。
+		// 所有fileの終了診断を保持します
 		if( file != INVALID_HANDLE_VALUE) {
 			record( CloseHandle( file)) ;
 			file = INVALID_HANDLE_VALUE ;
 		}
 
-		// 固定した先祖だけを逆順に閉じます。
+		// 固定した先祖だけを逆順に閉じます
 		for( auto parent = parents.rbegin(); parent != parents.rend(); ++parent) {
 			record( CloseHandle( *parent)) ;
 		}
 
 		parents.clear() ;
-		// 自身の新規fileだけを所有workspaceから回収します。
+		// 自身の新規fileだけを所有workspaceから回収します
 		if( workspace != nullptr && !name.empty()) {
 			try {
-				const auto discarded = workspace->discardFile( name) ;	// 元所有者の回収診断です。
-				// 先行errorを保持し、後続の回収失敗も成功へ丸めません。
+				const auto discarded = workspace->discardFile( name) ;	// 元所有者の回収診断です
+				// 先行errorを保持し、後続の回収失敗も成功へ丸めません
 				if( error == 0) {
 					error = discarded ;
 				}
 			} catch( const std::bad_alloc &) {
-				// workspaceの追跡を残して最終回収へ委ねます。
+				// workspaceの追跡を残して最終回収へ委ねます
 				if( error == 0) {
 					error = E_OUTOFMEMORY ;
 				}
@@ -114,7 +115,7 @@ struct OfficialMappedFile::State {
 		return error ;
 	}
 	/**
-	 * @brief 取得途中も含めbest-effortで自身のresourceだけを回収する。
+	 * @brief 取得途中も含めbest-effortで自身のresourceだけを回収する
 	 */
 	~State()
 	{
@@ -124,28 +125,28 @@ struct OfficialMappedFile::State {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 未取得の空ownerを作る。
+ * @brief 未取得の空ownerを作る
  */
 //------------------------------------------------------------------------------
 OfficialMappedFile::OfficialMappedFile() noexcept = default ;
 //------------------------------------------------------------------------------
 /**
- * @brief viewとhandleを閉じ、所有一時fileだけを回収する。
+ * @brief viewとhandleを閉じ、所有一時fileだけを回収する
  */
 //------------------------------------------------------------------------------
 OfficialMappedFile::~OfficialMappedFile() = default ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 非reparse通常fileをwrite/delete共有なしで固定し、read-only viewを作る。
- * @param[in] path local絶対path。先祖directoryも固定する。
- * @param[in] maximumBytes 空でない入力の有限上限。
- * @return 全取得成功0、失敗時は空ownerと元HRESULT。
+ * @brief 非reparse通常fileをwrite/delete共有なしで固定し、read-only viewを作る
+ * @param[in] path local絶対path。先祖directoryも固定する
+ * @param[in] maximumBytes 空でない入力の有限上限
+ * @return 全取得成功0、失敗時は空ownerと元HRESULT
  */
 //------------------------------------------------------------------------------
 NativeError OfficialMappedFile::open( std::wstring_view path, std::uint64_t maximumBytes)
 {
-	// 既存ownerの上書きやlocal絶対path以外を拒否します。
+	// 既存ownerの上書きやlocal絶対path以外を拒否します
 	if( state_ || maximumBytes == 0U || path.size() < 4U || path.size() > 32767U ||
 	   path[1] != L':' || path[2] != L'\\' || path.find( L':', 2U) != path.npos ||
 	   path.find( L'\0') != path.npos ||
@@ -154,29 +155,29 @@ NativeError OfficialMappedFile::open( std::wstring_view path, std::uint64_t maxi
 	}
 
 	try {
-		auto			   state = std::make_unique<State>() ;	// 全取得成功まで非公開のownerです。
-		const std::wstring input( path) ;						// Win32用の完全終端です。
-		// Rootから先祖を固定し、既存junctionを辿りません。
+		auto			   state = std::make_unique<State>() ;	// 全取得成功まで非公開のownerです
+		const std::wstring input( path) ;						// Win32用の完全終端です
+		// Rootから先祖を固定し、既存junctionを辿りません
 		for( std::size_t end = 3U; end < input.size(); ++end) {
-			// directoryの境界だけを開きます。
+			// directoryの境界だけを開きます
 			if( end != 3U && input[end] != L'\\') {
 				continue ;
 			}
 
-			const auto	 parent = input.substr( 0U, end) ;	// 元の先祖pathです。
-			// 先祖directoryを固定する所有handleです。
+			const auto	 parent = input.substr( 0U, end) ;	// 元の先祖pathです
+			// 先祖directoryを固定する所有handleです
 			const HANDLE handle = CreateFileW(
 				parent.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
 				OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr) ;
-			// 未取得handleを固定済みへ数えません。
+			// 未取得handleを固定済みへ数えません
 			if( handle == INVALID_HANDLE_VALUE) {
 				return HRESULT_FROM_WIN32( GetLastError()) ;
 			}
 
-			BY_HANDLE_FILE_INFORMATION info{} ;	// 同handleの実属性です。
-			// 同じhandleの属性取得結果です。
+			BY_HANDLE_FILE_INFORMATION info{} ;	// 同handleの実属性です
+			// 同じhandleの属性取得結果です
 			const BOOL				   known = GetFileInformationByHandle( handle, &info) ;
-			// 再解析先やdirectory以外を入力の先祖にしません。
+			// 再解析先やdirectory以外を入力の先祖にしません
 			if( !known || (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U ||
 			   (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0U) {
 				CloseHandle( handle) ;
@@ -194,13 +195,13 @@ NativeError OfficialMappedFile::open( std::wstring_view path, std::uint64_t maxi
 		state->file =
 			CreateFileW( input.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
 						FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_SEQUENTIAL_SCAN, nullptr) ;
-		// 固定入力を開けない場合はmappingを作りません。
+		// 固定入力を開けない場合はmappingを作りません
 		if( state->file == INVALID_HANDLE_VALUE) {
 			return HRESULT_FROM_WIN32( GetLastError()) ;
 		}
 
-		BY_HANDLE_FILE_INFORMATION info{} ;	// path照会ではなく固定handleの実属性です。
-		// 不正属性の入力をmemoryへ公開しません。
+		BY_HANDLE_FILE_INFORMATION info{} ;	// path照会ではなく固定handleの実属性です
+		// 不正属性の入力をmemoryへ公開しません
 		if( !GetFileInformationByHandle( state->file, &info) ||
 		   (info.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) !=
 			   0U ||
@@ -208,10 +209,10 @@ NativeError OfficialMappedFile::open( std::wstring_view path, std::uint64_t maxi
 			return HRESULT_FROM_WIN32( ERROR_ACCESS_DENIED) ;
 		}
 
-		ULARGE_INTEGER size{} ;	// 64bitの実byte数です。
+		ULARGE_INTEGER size{} ;	// 64bitの実byte数です
 		size.LowPart  = info.nFileSizeLow ;
 		size.HighPart = info.nFileSizeHigh ;
-		// 宣言上限とaddress可能長を有限に保ちます。
+		// 宣言上限とaddress可能長を有限に保ちます
 		if( size.QuadPart == 0U || size.QuadPart > maximumBytes ||
 		   size.QuadPart > std::numeric_limits<std::size_t>::max()) {
 			return HRESULT_FROM_WIN32( ERROR_FILE_TOO_LARGE) ;
@@ -219,13 +220,13 @@ NativeError OfficialMappedFile::open( std::wstring_view path, std::uint64_t maxi
 
 		state->length  = static_cast<std::size_t>( size.QuadPart) ;
 		state->mapping = CreateFileMappingW( state->file, nullptr, PAGE_READONLY, 0U, 0U, nullptr) ;
-		// OSのmapping失敗をheap全読取りへfallbackしません。
+		// OSのmapping失敗をheap全読取りへfallbackしません
 		if( !state->mapping) {
 			return HRESULT_FROM_WIN32( GetLastError()) ;
 		}
 
 		state->view = MapViewOfFile( state->mapping, FILE_MAP_READ, 0U, 0U, state->length) ;
-		// 全view取得成功までownerを外へ渡しません。
+		// 全view取得成功までownerを外へ渡しません
 		if( !state->view) {
 			return HRESULT_FROM_WIN32( GetLastError()) ;
 		}
@@ -239,36 +240,36 @@ NativeError OfficialMappedFile::open( std::wstring_view path, std::uint64_t maxi
 
 //------------------------------------------------------------------------------
 /**
- * @brief 所有workspaceの新規fileだけへ有限なread/write viewを作る。
- * @param[in,out] workspace 本ownerより長く生存する保護file所有者。
- * @param[in] name 所有者が生成した安全な相対名。
- * @param[in] bytes 共同quotaへ予約済みの正のfile byte数。
- * @param[in] maximumBytes 一mappingの有限上限。
- * @return 容量照会・新規file・view取得成功0、失敗時は元HRESULT。
+ * @brief 所有workspaceの新規fileだけへ有限なread/write viewを作る
+ * @param[in,out] workspace 本ownerより長く生存する保護file所有者
+ * @param[in] name 所有者が生成した安全な相対名
+ * @param[in] bytes 共同quotaへ予約済みの正のfile byte数
+ * @param[in] maximumBytes 一mappingの有限上限
+ * @return 容量照会・新規file・view取得成功0、失敗時は元HRESULT
  */
 //------------------------------------------------------------------------------
 NativeError OfficialMappedFile::create( OfficialDownloadWorkspace &workspace, std::wstring_view name,
 									   std::uint64_t bytes, std::uint64_t maximumBytes)
 {
-	// 共同quotaと一要求の有限枠は呼出側でも固定します。
+	// 共同quotaと一要求の有限枠は呼出側でも固定します
 	if( state_ || bytes == 0U || bytes > maximumBytes ||
 	   bytes > std::numeric_limits<std::size_t>::max()) {
 		return E_INVALIDARG ;
 	}
 
 	try {
-		std::uint64_t available{} ;	// quotaを反映した同volumeの空きです。
-		// 同volumeでの有限容量照会の元診断です。
+		std::uint64_t available{} ;	// quotaを反映した同volumeの空きです
+		// 同volumeでの有限容量照会の元診断です
 		const auto	  capacity = workspace.queryAvailableBytes( available) ;
-		// 不明容量や不足を大きなsparse fileで回避しません。
+		// 不明容量や不足を大きなsparse fileで回避しません
 		if( capacity != 0 || bytes > available) {
 			return capacity != 0 ? capacity : HRESULT_FROM_WIN32( ERROR_DISK_FULL) ;
 		}
 
-		auto state		   = std::make_unique<State>() ;	// 部分取得も回収するownerです。
+		auto state		   = std::make_unique<State>() ;	// 部分取得も回収するownerです
 		state->name		   = name ;
-		const auto created = workspace.createFile( name, state->file) ;	// 既知新規fileだけです。
-		// 既存fileやlinkを上書きしません。
+		const auto created = workspace.createFile( name, state->file) ;	// 既知新規fileだけです
+		// 既存fileやlinkを上書きしません
 		if( created != 0) {
 			return created ;
 		}
@@ -278,13 +279,13 @@ NativeError OfficialMappedFile::create( OfficialDownloadWorkspace &workspace, st
 		state->mapping	 = CreateFileMappingW( state->file, nullptr, PAGE_READWRITE,
 											  static_cast<DWORD>( bytes >> 32U),
 											  static_cast<DWORD>( bytes & 0xffffffffU), nullptr) ;
-		// 確保失敗時も所有fileだけを回収します。
+		// 確保失敗時も所有fileだけを回収します
 		if( !state->mapping) {
 			return HRESULT_FROM_WIN32( GetLastError()) ;
 		}
 
 		state->view = MapViewOfFile( state->mapping, FILE_MAP_WRITE, 0U, 0U, state->length) ;
-		// 失敗を大容量heap確保へfallbackしません。
+		// 失敗を大容量heap確保へfallbackしません
 		if( !state->view) {
 			return HRESULT_FROM_WIN32( GetLastError()) ;
 		}
@@ -298,8 +299,8 @@ NativeError OfficialMappedFile::create( OfficialDownloadWorkspace &workspace, st
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同期中だけ有効なread-only viewを返す。
- * @return owner終了またはcloseまで有効な借用byte列。
+ * @brief 同期中だけ有効なread-only viewを返す
+ * @return owner終了またはcloseまで有効な借用byte列
  */
 //------------------------------------------------------------------------------
 std::span<const std::byte> OfficialMappedFile::bytes() const noexcept
@@ -310,8 +311,8 @@ std::span<const std::byte> OfficialMappedFile::bytes() const noexcept
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 出力mappingだけの書込みviewを返す。
- * @return create成功時だけ非空。入力ownerでは空。
+ * @brief 出力mappingだけの書込みviewを返す
+ * @return create成功時だけ非空。入力ownerでは空
  */
 //------------------------------------------------------------------------------
 std::span<std::byte> OfficialMappedFile::writableBytes() noexcept
@@ -322,18 +323,18 @@ std::span<std::byte> OfficialMappedFile::writableBytes() noexcept
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 全resourceを解放し、所有一時fileだけを削除する。
- * @return 最初の解放失敗のHRESULT。既に空なら0。
+ * @brief 全resourceを解放し、所有一時fileだけを削除する
+ * @return 最初の解放失敗のHRESULT。既に空なら0
  */
 //------------------------------------------------------------------------------
 NativeError OfficialMappedFile::close() noexcept
 {
-	// 明示closeはdestructorと異なり最初の元診断を呼出側へ返します。
+	// 明示closeはdestructorと異なり最初の元診断を呼出側へ返します
 	if( !state_) {
 		return 0 ;
 	}
 
-	const auto error = state_->release() ;	// 全resourceを一度だけ失効させます。
+	const auto error = state_->release() ;	// 全resourceを一度だけ失効させます
 	state_.reset() ;
 	return error ;
 }

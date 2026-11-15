@@ -44,3 +44,6 @@ scripts/__pycache__/
 # Local reference material; these files are not part of DriverCrate.
 snappy-driver-installer-origin-code-r886-trunk/
 snappy-driver-installer-origin-code-r886-trunk.zip
+
+# Private pending-reference ledger and imported evidence mirrors stay local (ADR 0435).
+/data/collector-pending-references/

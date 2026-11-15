@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file maintenance_inf_structure_main.cpp
- * @brief 架空INFによる保守構造と既存package境界の非実行回帰を起動する。
- * @version 01.00.01
+ * @brief 架空INFによる保守構造と既存package境界の非実行回帰を起動する
+ * @version 01.00.02
  * @date 2026/10/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,11 +19,12 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/07  既存package回帰と保守構造の限定targetを追加。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/07  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 非通信の架空INF/CATだけを使用する。実device列挙・staging・導入は呼ばない。
+ * @note 非通信の架空INF/CATだけを使用する。実device列挙・staging・導入は呼ばない
  */
 //------------------------------------------------------------------------------
 
@@ -34,13 +35,13 @@
 
 //------------------------------------------------------------------------------
 /**
- * @brief 架空INFの決定的回帰を起動し実行件数と失敗件数を表示する。
- * @return 全assertion成功0、例外または不一致1。
+ * @brief 架空INFの決定的回帰を起動し実行件数と失敗件数を表示する
+ * @return 全assertion成功0、例外または不一致1
  */
 //------------------------------------------------------------------------------
 int main()
 {
-	drivercrate::test::TestContext context ;	// このprocessだけの有限なassertion集計。
+	drivercrate::test::TestContext context ;	// このprocessだけの有限なassertion集計
 	try {
 		drivercrate::test::runOfficialDriverPackageTests( context) ;
 	} catch( ...) {

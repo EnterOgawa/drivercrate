@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file common_driver_package.h
- * @brief 由来と独立したdriver packageの共通検査定義。
- * @version 01.10.01
+ * @brief 由来と独立したdriver packageの共通検査定義
+ * @version 01.10.04
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,23 +19,26 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/15  新規作成。
- * Ver.01.01.00 Shunji Ogawa  2026/10/05  保守内容検査の四軸と導入非互換型を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/10/07  保守構造と依存・参照coverage・root署名を独立状態へ分離。
- * Ver.01.02.01 Shunji Ogawa  2026/10/07  接続済み保守状態と互換boolの意味を明記。
- * Ver.01.03.00 Shunji Ogawa  2026/10/13  検証済み追加役割の不変計画と非authority契約を追加。
- * Ver.01.04.00 Shunji Ogawa  2026/10/13  全import内容とdevice別選択関係の不変計画を定義。
- * Ver.01.05.00 Shunji Ogawa  2026/10/14  監視側の明示一INFへ同じ通常閉包/署名検査を接続。
- * Ver.01.06.00 Shunji Ogawa  2026/10/15  必要INF bindingの任意数値診断を定義。
- * Ver.01.07.00 Shunji Ogawa  2026/10/15  実選択graphの検証済みNeeds件数を私有計画へ保持。
- * Ver.01.08.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
- * Ver.01.09.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
- * Ver.01.09.01 Shunji Ogawa  2026/11/03  拡大recordと有限保持quotaを通常経路へ整合。
- * Ver.01.10.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
- * Ver.01.10.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/15  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/10/05  保守内容検査の四軸と導入非互換型を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/10/07  保守構造と依存・参照coverage・root署名を独立状態へ分離
+ * Ver.01.02.01 Shunji Ogawa  2026/10/07  接続済み保守状態と互換boolの意味を明記
+ * Ver.01.03.00 Shunji Ogawa  2026/10/13  検証済み追加役割の不変計画と非authority契約を追加
+ * Ver.01.04.00 Shunji Ogawa  2026/10/13  全import内容とdevice別選択関係の不変計画を定義
+ * Ver.01.05.00 Shunji Ogawa  2026/10/14  監視側の明示一INFへ同じ通常閉包/署名検査を接続
+ * Ver.01.06.00 Shunji Ogawa  2026/10/15  必要INF bindingの任意数値診断を定義
+ * Ver.01.07.00 Shunji Ogawa  2026/10/15  実選択graphの検証済みNeeds件数を私有計画へ保持
+ * Ver.01.08.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続
+ * Ver.01.09.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続
+ * Ver.01.09.01 Shunji Ogawa  2026/11/03  拡大recordと有限保持quotaを通常経路へ整合
+ * Ver.01.10.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続
+ * Ver.01.10.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.10.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.10.03 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
+ * Ver.01.10.04 Shunji Ogawa  2026/11/13  847p9の型付きSYSTEM全作用と全選択資格を接続
  * </pre>
  *
- * @note Path、hash、INF内IDはworker専用です。署名と静的内容の合格を実device適合と混同しません。
+ * @note Path、hash、INF内IDはworker専用です。署名と静的内容の合格を実device適合と混同しません
  * @see docs/adr/0151-common-package-content-and-origin-separation.md
  */
 //------------------------------------------------------------------------------
@@ -47,6 +50,7 @@
 #include "platform/official_download_workspace.h"
 #include "platform/official_driver_closure.h"
 #include "platform/official_driver_package.h"
+#include "platform/inf_dependency_native.h"
 
 #include <cstddef>
 #include <span>
@@ -61,66 +65,66 @@
 
 namespace drivercrate {
 
-/** @brief 導入用workspace・path・PnP IDを持たない一INFの保守結果。 */
+/** @brief 導入用workspace・path・PnP IDを持たない一INFの保守結果 */
 struct MaintenanceInfInspection {
-	/// 抽出できた元INFのSHA-256。未抽出時は空。
+	/// 抽出できた元INFのSHA-256。未抽出時は空
 	std::wstring					infSha256 ;
-	/// 外側0または一段nestedの1。
+	/// 外側0または一段nestedの1
 	std::uint32_t					archiveDepth{} ;
-	/// 保守構造parserの結果。参照・署名・導入経路の合否ではない。
+	/// 保守構造parserの結果。参照・署名・導入経路の合否ではない
 	MaintenanceInspectionFinding	parser ;
-	/// Windows署名とINF・全参照CAT memberの結果。
+	/// Windows署名とINF・全参照CAT memberの結果
 	MaintenanceInspectionFinding	integrity ;
-	/// 現在端末への適合。保守検査では未検査に固定する。
+	/// 現在端末への適合。保守検査では未検査に固定する
 	MaintenanceInspectionFinding	applicability ;
-	/// 従来導入policyの静的通過結果。合格でも導入は許可しない。
+	/// 従来導入policyの静的通過結果。合格でも導入は許可しない
 	MaintenanceInspectionFinding	installRoute ;
-	/// 同一保守閉包の内容構造種別。署名・適合・導入能力を付与しない。
+	/// 同一保守閉包の内容構造種別。署名・適合・導入能力を付与しない
 	MaintenanceInfContentKind		contentKind{MaintenanceInfContentKind::UNKNOWN} ;
-	/// 全必要file参照の位置coverage。byte・署名・由来とは独立し、未解析時はNOT_CHECKED。
+	/// 全必要file参照の位置coverage。byte・署名・由来とは独立し、未解析時はNOT_CHECKED
 	MaintenanceInfReferenceCoverage referenceCoverage{MaintenanceInfReferenceCoverage::NOT_CHECKED} ;
-	/// Root INFと確認したlocal参照の独立した署名結果。未解析時はNOT_CHECKED。
+	/// Root INFと確認したlocal参照の独立した署名結果。未解析時はNOT_CHECKED
 	MaintenanceInspectionFinding	rootIntegrity ;
-	/// 明示依存の独立summary。旧boolだけで不在を認定しない。
+	/// 明示依存の独立summary。旧boolだけで不在を認定しない
 	MaintenanceInfDependencySummary dependency ;
-	/// 新summaryの棚卸し済み明示参照数が非零ならtrue。未検査のfalseは不在ではない。
+	/// 新summaryの棚卸し済み明示参照数が非零ならtrue。未検査のfalseは不在ではない
 	bool							hasExternalDependencies{} ;
-	/// 新summaryがNOT_CHECKED以外ならtrue。由来・署名・依存充足の成功ではない。
+	/// 新summaryがNOT_CHECKED以外ならtrue。由来・署名・依存充足の成功ではない
 	bool							dependenciesChecked{} ;
-	/// この閉包の展開byte数。署名失敗でも予算へ加える。
+	/// この閉包の展開byte数。署名失敗でも予算へ加える
 	std::uint64_t					inspectedBytes{} ;
 } ;
 
-/** @brief 保守専用archive評価。導入用の共通検査結果と互換でない。 */
+/** @brief 保守専用archive評価。導入用の共通検査結果と互換でない */
 struct MaintenanceDriverPackageInspection {
-	/// 全体失敗時は0の入力session。
+	/// 全体失敗時は0の入力session
 	ScanSessionId						  scanSessionId{} ;
-	/// 元archiveの内容identity。公式由来証明ではない。
+	/// 元archiveの内容identity。公式由来証明ではない
 	std::wstring						  archiveSha256 ;
-	/// 元archiveのbyte数。
+	/// 元archiveのbyte数
 	std::uint64_t						  archiveBytes{} ;
-	/// 全体破損・予算・取消し等のHRESULT。部分結果は破棄する。
+	/// 全体破損・予算・取消し等のHRESULT。部分結果は破棄する
 	NativeError							  error{} ;
-	/// 解析完了またはINF抽出未対応の結果。
+	/// 解析完了またはINF抽出未対応の結果
 	MaintenanceInspectionFinding		  parser ;
-	/// 直下・一段nestedの全通常file数。
+	/// 直下・一段nestedの全通常file数
 	std::size_t							  inventoryFileCount{} ;
-	/// 解析に使った全閉包byte合計。
+	/// 解析に使った全閉包byte合計
 	std::uint64_t						  inspectedBytes{} ;
-	/// 全個別結果。失敗行も分母へ含める。
+	/// 全個別結果。失敗行も分母へ含める
 	std::vector<MaintenanceInfInspection> infs ;
 } ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 非実行で保守用の解析・内容署名・適合未検査・導入方式を分離する。
- * @param[in] input 呼出し中有効な保護archiveの固定identity。
- * @param[in] format ZIPまたはCAB。EXEの実行へfallbackしない。
- * @param[out] inspection 完了時は失敗行も保持する。全体失敗時はerrorだけを残す。
- * @param[in] cancellation 空またはworker内の非blocking取消し照会。
- * @return 全体評価完了0、破損・上限・取消し・例外時はHRESULT。
+ * @brief 非実行で保守用の解析・内容署名・適合未検査・導入方式を分離する
+ * @param[in] input 呼出し中有効な保護archiveの固定identity
+ * @param[in] format ZIPまたはCAB。EXEの実行へfallbackしない
+ * @param[out] inspection 完了時は失敗行も保持する。全体失敗時はerrorだけを残す
+ * @param[in] cancellation 空またはworker内の非blocking取消し照会
+ * @return 全体評価完了0、破損・上限・取消し・例外時はHRESULT
  * @note 128 INF・一段nested・有限展開量を維持する。適合照合・導入・stagingを行わない。parser・root／全署名・参照位置・依存を独立に保持し、従来静的routeを別
- *       評価する。既存のcandidate生成・再検証APIへ渡せる型を返さない。
+ *       評価する。既存のcandidate生成・再検証APIへ渡せる型を返さない
  * @see docs/adr/0258-maintenance-package-verdict-separation.md
  */
 //------------------------------------------------------------------------------
@@ -128,101 +132,101 @@ struct MaintenanceDriverPackageInspection {
 	const DriverArchiveInput &input, OfficialDriverArchiveFormat format,
 	MaintenanceDriverPackageInspection &inspection, const std::function<bool()> &cancellation = {}) ;
 
-/** @brief 個別INFが内容検査で到達した段階。 */
+/** @brief 個別INFが内容検査で到達した段階 */
 enum class CommonInfInspectionState {
-	/// 静的閉包を作れなかった。未対応構文と欠落等の診断値を別に持つ。
+	/// 静的閉包を作れなかった。未対応構文と欠落等の診断値を別に持つ
 	CLOSURE_REJECTED,
-	/// 静的閉包は作れたがWindows署名またはCAT member検証に失敗した。
+	/// 静的閉包は作れたがWindows署名またはCAT member検証に失敗した
 	SIGNATURE_REJECTED,
-	/// 静的閉包、Windows署名、全CAT memberを検査済み。
+	/// 静的閉包、Windows署名、全CAT memberを検査済み
 	VERIFIED,
 } ;
 
-/** @brief 一つのINFの検査結果と成功閉包を単独所有する。 */
+/** @brief 一つのINFの検査結果と成功閉包を単独所有する */
 struct CommonInfInspection {
-	/// 本検査を所有する0ではないscan session。
+	/// 本検査を所有する0ではないscan session
 	ScanSessionId							   scanSessionId{} ;
-	/// Worker内だけに保持する対象INF相対path。
+	/// Worker内だけに保持する対象INF相対path
 	std::wstring							   infRelativePath ;
-	/// 空または一段nested archive相対path。
+	/// 空または一段nested archive相対path
 	std::wstring							   nestedArchivePath ;
-	/// 個別到達段階。
+	/// 個別到達段階
 	CommonInfInspectionState				   state{CommonInfInspectionState::CLOSURE_REJECTED} ;
-	/// 個別失敗のHRESULT。VERIFIEDの場合だけ0。
+	/// 個別失敗のHRESULT。VERIFIEDの場合だけ0
 	NativeError								   error{} ;
-	/// VERIFIEDの場合だけ保持する閉包所有領域。
+	/// VERIFIEDの場合だけ保持する閉包所有領域
 	std::shared_ptr<OfficialDownloadWorkspace> workspace ;
-	/// VERIFIEDの場合だけ保持する静的内容。
+	/// VERIFIEDの場合だけ保持する静的内容
 	OfficialDriverClosure					   closure ;
-	/// 全節の潜在CopyINFから到達し、同保護workspaceで全CAT/memberを検査したimport内容です。
+	/// 全節の潜在CopyINFから到達し、同保護workspaceで全CAT/memberを検査したimport内容です
 	std::vector<OfficialInfPackage>			   requiredInfPackages ;
 } ;
 
 class DriverStoreProvider ;
 class SignedIndexCandidateBindingSession ;
 class RequiredDriverComponentPlan ;
-/** @brief binding拒否の固定位置です。合否の入力には使いません。 */
+/** @brief binding拒否の固定位置です。合否の入力には使いません */
 enum class InfBindingReject : std::uint32_t {
-	/// 未観測です。
+	/// 未観測です
 	NONE,
-	/// 明示依存を単一INF入口で受理できません。
+	/// 明示依存を単一INF入口で受理できません
 	SINGLE_DEPENDENCY,
-	/// native architectureがx64ではありません。
+	/// native architectureがx64ではありません
 	ARCHITECTURE,
-	/// binding入力が不正です。
+	/// binding入力が不正です
 	INPUT,
-	/// 元INFの属性またはpathを取得できません。
+	/// 元INFの属性またはpathを取得できません
 	INF_FILE,
-	/// 最初の現在device状態を読めません。
+	/// 最初の現在device状態を読めません
 	CURRENT_BEFORE,
-	/// 現在driverのrankを読めません。
+	/// 現在driverのrankを読めません
 	CURRENT_RANK,
-	/// 候補driver nodeを一意に読めません。
+	/// 候補driver nodeを一意に読めません
 	CANDIDATE_NODE,
-	/// 後の現在device状態を読めません。
+	/// 後の現在device状態を読めません
 	CURRENT_AFTER,
-	/// 元binding状態が変化しました。
+	/// 元binding状態が変化しました
 	BINDING_STATE,
-	/// 元内容閉包を再検証できません。
+	/// 元内容閉包を再検証できません
 	CONTENT_REVERIFY,
-	/// 選択節の関係を解析できません。
+	/// 選択節の関係を解析できません
 	SELECTED_RELATIONS,
-	/// 選択CopyINFの元importがありません。
+	/// 選択CopyINFの元importがありません
 	COPY_INF_MISSING,
-	/// 必要計画の入力が不正です。
+	/// 必要計画の入力が不正です
 	PLAN_INPUT,
-	/// 独立roleを基本driverとして扱えません。
+	/// 独立roleを基本driverとして扱えません
 	BASE_ROLE,
-	/// 選択roleの構成が未対応です。
+	/// 選択roleの構成が未対応です
 	FUNCTIONAL_ROLE,
-	/// 依存graphまたはNeeds効果を検証できません。
+	/// 依存graphまたはNeeds効果を検証できません
 	DEPENDENCY,
-	/// Windowsコピー先を元sourceへ結合できません。
+	/// Windowsコピー先を元sourceへ結合できません
 	WINDOWS_COPY,
-	/// DIRID13の原sourceと宛先subdirectoryが異なります。
+	/// DIRID13の原sourceと宛先subdirectoryが異なります
 	DIRID13_SOURCE,
-	/// 実選択scopeの先頭の固定拒否位置です。続く値は同関数の原拒否順です。
+	/// 実選択scopeの先頭の固定拒否位置です。続く値は同関数の原拒否順です
 	WINDOWS_SCOPE_FIRST = 200,
 } ;
-/** @brief 必要INF bindingの拒否を元の数値だけで保持する任意診断です。権限を持ちません。 */
+/** @brief 必要INF bindingの拒否を元の数値だけで保持する任意診断です。権限を持ちません */
 struct RequiredInfBindingDiagnostic {
-	/// 単一INF1/必要構成2の元呼出し経路です。
+	/// 単一INF1/必要構成2の元呼出し経路です
 	std::uint32_t	 path{} ;
-	/// 最初の具体的な拒否位置です。後続で上書きしません。
+	/// 最初の具体的な拒否位置です。後続で上書きしません
 	InfBindingReject rejection{InfBindingReject::NONE} ;
-	/// 拒否時の元architecture/role等の数値です。
+	/// 拒否時の元architecture/role等の数値です
 	std::uint32_t	 observed{} ;
 	/**
-	 * @brief 原errorを変えず最初の拒否位置だけを記録します。
-	 * @param[in] error 元の非zero HRESULTです。0は記録しません。
-	 * @param[in] location 固定された元拒否位置です。
-	 * @param[in] value 原観測enumまたは件数です。
-	 * @return 未変更の元errorです。
+	 * @brief 原errorを変えず最初の拒否位置だけを記録します
+	 * @param[in] error 元の非zero HRESULTです。0は記録しません
+	 * @param[in] location 固定された元拒否位置です
+	 * @param[in] value 原観測enumまたは件数です
+	 * @return 未変更の元errorです
 	 */
 	NativeError		 reject( const NativeError error, const InfBindingReject location,
 							const std::uint32_t value = 0U) noexcept
 	{
-		// 成功や後段の汎用位置で最初の拒否を上書きしません。
+		// 成功や後段の汎用位置で最初の拒否を上書きしません
 		if( error != 0 && rejection == InfBindingReject::NONE) {
 			rejection = location ;
 			observed  = value ;
@@ -231,34 +235,34 @@ struct RequiredInfBindingDiagnostic {
 		return error ;
 	}
 
-	/// 内部到達段階です。未開始は0です。
+	/// 内部到達段階です。未開始は0です
 	std::uint32_t stage{} ;
-	/// 実graphの全参照が解決した場合trueです。
+	/// 実graphの全参照が解決した場合trueです
 	bool		  referencesResolved{} ;
-	/// 実graphのroot証拠が全検証済みの場合trueです。
+	/// 実graphのroot証拠が全検証済みの場合trueです
 	bool		  rootEvidenceVerified{} ;
-	/// 元graphの未解決参照件数です。
+	/// 元graphの未解決参照件数です
 	std::size_t	  unresolvedReferenceCount{} ;
-	/// 最初の未解決参照の有限reason値です。未観測は0です。
+	/// 最初の未解決参照の有限reason値です。未観測は0です
 	std::uint32_t firstReferenceReason{} ;
-	/// 実root署名の元HRESULTです。未観測または合格は0です。
+	/// 実root署名の元HRESULTです。未観測または合格は0です
 	NativeError	  rootSignatureError{} ;
-	/// 最初の依存署名の元HRESULTです。未観測または合格は0です。
+	/// 最初の依存署名の元HRESULTです。未観測または合格は0です
 	NativeError	  firstDependencySignatureError{} ;
-	/// 最初の依存由来の元HRESULTです。未観測または合格は0です。
+	/// 最初の依存由来の元HRESULTです。未観測または合格は0です
 	NativeError	  firstDependencyProvenanceError{} ;
-	/// 選択文脈と全fieldを検査したNeedsの累積HKR設定行数です。
+	/// 選択文脈と全fieldを検査したNeedsの累積HKR設定行数です
 	std::size_t	  verifiedRegistryRowCount{} ;
 } ;
 //------------------------------------------------------------------------------
 /**
- * @brief 実検査した元基本INF閉包から必要役割の関係を構築します。
- * @param[in] inspected 元保護byteと全署名を保持する同workerの内容検査です。
- * @param[in] selectedPackages baseと全importの元順copyです。選択機能関係は私有native nodeから解析します。
- * @param[out] plan 成功時だけ元閉包へ結合した不変計画です。失敗時は空です。
- * @param[out] diagnostic 任意の数値診断です。nullなら採取せず合否へ使用しません。
- * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです。
- * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません。
+ * @brief 実検査した元基本INF閉包から必要役割の関係を構築します
+ * @param[in] inspected 元保護byteと全署名を保持する同workerの内容検査です
+ * @param[in] selectedPackages baseと全importの元順copyです。選択機能関係は私有native nodeから解析します
+ * @param[out] plan 成功時だけ元閉包へ結合した不変計画です。失敗時は空です
+ * @param[out] diagnostic 任意の数値診断です。nullなら採取せず合否へ使用しません
+ * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです
+ * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError makeRequiredDriverComponentPlan(
@@ -266,17 +270,17 @@ struct RequiredInfBindingDiagnostic {
 	std::shared_ptr<const RequiredDriverComponentPlan> &plan,
 	RequiredInfBindingDiagnostic					   *diagnostic = nullptr) ;
 
-/** @brief 公開index/DTOから必要memberを追加できない不変内容計画です。導入能力を持ちません。 */
+/** @brief 公開index/DTOから必要memberを追加できない不変内容計画です。導入能力を持ちません */
 class RequiredDriverComponentPlan final {
 public:
 	/**
-	 * @brief 必要関係を持たない空計画を作ります。factoryだけが内容を結合します。
+	 * @brief 必要関係を持たない空計画を作ります。factoryだけが内容を結合します
 	 */
 	RequiredDriverComponentPlan() = default ;
 	/**
-	 * @brief 非秘密の役割件数だけを返します。
-	 * @param[in] role 観測する追加役割です。
-	 * @return 一計画内0～7の確認済みmember数です。
+	 * @brief 非秘密の役割件数だけを返します
+	 * @param[in] role 観測する追加役割です
+	 * @return 一計画内0～7の確認済みmember数です
 	 */
 	[[nodiscard]] std::size_t count( DriverPlanRole role) const noexcept ;
 
@@ -284,72 +288,82 @@ private:
 	friend class DriverStoreProvider ;
 	friend class SignedIndexCandidateBindingSession ;
 	/**
-	 * @brief 実検査した元基本INF閉包から必要役割の関係を構築します。
-	 * @param[in] inspected 元保護byteと全署名を保持する同workerの内容検査です。
-	 * @param[in] selectedPackages baseと全importの元順copyです。選択機能関係は私有native nodeから解析します。
-	 * @param[out] plan 成功時だけ元閉包へ結合した不変計画です。失敗時は空です。
-	 * @note 第4引数（RequiredInfBindingDiagnostic *、out）はこの宣言では無名です。任意の数値診断です。nullなら採取せず合否へ使用しません。
-	 * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです。
-	 * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません。
+	 * @brief 実検査した元基本INF閉包から必要役割の関係を構築します
+	 * @param[in] inspected 元保護byteと全署名を保持する同workerの内容検査です
+	 * @param[in] selectedPackages baseと全importの元順copyです。選択機能関係は私有native nodeから解析します
+	 * @param[out] plan 成功時だけ元閉包へ結合した不変計画です。失敗時は空です
+	 * @note 第4引数（RequiredInfBindingDiagnostic *、out）はこの宣言では無名です。任意の数値診断です。nullなら採取せず合否へ使用しません
+	 * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです
+	 * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません
 	 */
 	friend NativeError makeRequiredDriverComponentPlan(
 		const CommonInfInspection &inspected, std::span<const OfficialInfPackage> selectedPackages,
 		std::shared_ptr<const RequiredDriverComponentPlan> &plan, RequiredInfBindingDiagnostic *) ;
-	/** @brief 元CopyINFとAddComponentに一意に結合した役割memberです。 */
+	/** @brief 元CopyINFとAddComponentに一意に結合した役割memberです */
 	struct Member {
-		/// 同CommonInfInspection.requiredInfPackagesの0起点位置です。
+		/// 同CommonInfInspection.requiredInfPackagesの0起点位置です
 		std::size_t				  packageOrdinal{} ;
-		/// 元class/GUIDで確認した追加役割です。
+		/// 元class/GUIDで確認した追加役割です
 		DriverPlanRole			  role{DriverPlanRole::EXTENSION} ;
-		/// 必要SWCを作る元packageです。0はbase、以降はrequiredInfPackagesの1起点位置です。
+		/// 必要SWCを作る元packageです。0はbase、以降はrequiredInfPackagesの1起点位置です
 		std::size_t				  parentPackageOrdinal{} ;
-		/// 当該元AddComponentの検証済みSWC IDです。Extensionでは空です。
+		/// 当該元AddComponentの検証済みSWC IDです。Extensionでは空です
 		std::vector<std::wstring> componentHardwareIds ;
 	} ;
-	/// 内容検査の非零scan sessionです。
-	ScanSessionId					session_{} ;
-	/// 元基本INFの相対pathです。worker内だけで保持します。
-	std::wstring					basePath_ ;
-	/// 元AddComponentの子、次に元閉包のExtensionを置く不変集合です。適用順の保証ではありません。
-	std::vector<Member>				members_ ;
-	/// 元順の全import copyです。selectedInstallSectionとactive関係は私有nodeへ結合します。
-	std::vector<OfficialInfPackage> selectedPackages_ ;
-	/// 実選択節のnative依存・全効果を検証したNeeds辺数です。八graphの累積最大32768です。
-	std::size_t						verifiedNeedsEdgeCount_{} ;
+	/// 内容検査の非零scan sessionです
+	ScanSessionId						session_{} ;
+	/// 元基本INFの相対pathです。worker内だけで保持します
+	std::wstring						basePath_ ;
+	/// 元AddComponentの子、次に元閉包のExtensionを置く不変集合です。適用順の保証ではありません
+	std::vector<Member>					members_ ;
+	/// 元順の全import copyです。selectedInstallSectionとactive関係は私有nodeへ結合します
+	std::vector<OfficialInfPackage>		selectedPackages_ ;
+	/// 実選択節のnative依存・全効果を検証したNeeds辺数です。八graphの累積最大32768です
+	std::size_t							verifiedNeedsEdgeCount_{} ;
+	/// 元選択NeedsのINF/Store/CAT/固定helper全fileの不変tupleです
+	std::vector<InfDependencyFixedFile> dependencyFiles_ ;
+	/// 同選択の標準Windows登録helper/CAT/権限をnative直前に完全比較します
+	std::vector<WindowsSystemFileTrust> systemFiles_ ;
+	/// 同原文/文脈/所有者/全fieldの作用をfresh再構築へ比較します
+	std::vector<SystemInfEffect>		systemEffects_ ;
+	/// 必要な既存serviceの安定configと元SDです
+	std::vector<SystemServiceEvidence>	systemServices_ ;
+	/// 固定RunOnceの成立からだけ発行する遅延factです
+	bool								delayedRegistration_{} ;
 } ;
 
-/** @brief 全INF検査の結果。全体失敗と個別INF拒否を分離する。 */
+/** @brief 全INF検査の結果。全体失敗と個別INF拒否を分離する */
 struct CommonDriverPackageInspection {
-	/// 入力を固定したscan session。全体失敗では0。
+	/// 入力を固定したscan session。全体失敗では0
 	ScanSessionId					 scanSessionId{} ;
-	/// 外側入力の同一性hash。公式由来の証明ではない。
+	/// 外側入力の同一性hash。公式由来の証明ではない
 	std::wstring					 archiveSha256 ;
-	/// 外側入力のbyte数。
+	/// 外側入力のbyte数
 	std::uint64_t					 archiveBytes{} ;
-	/// 全体失敗のHRESULT。個別拒否だけなら0。
+	/// 全体失敗のHRESULT。個別拒否だけなら0
 	NativeError						 error{} ;
-	/// 直下と一段内側を検査した通常fileの総数。
+	/// 直下と一段内側を検査した通常fileの総数
 	std::size_t						 inventoryFileCount{} ;
-	/// 成功閉包の保持byte合計。
+	/// 成功閉包の保持byte合計
 	std::uint64_t					 retainedBytes{} ;
-	/// 同操作の私有solid fileの実同時保持最大byte数。
+	/// 同操作の私有solid fileの実同時保持最大byte数
 	std::uint64_t					 mappedSolidPeakBytes{} ;
-	/// 同操作でdecodeした一意solid block数。
+	/// 同操作でdecodeした一意solid block数
 	std::size_t						 decodedSolidBlockCount{} ;
-	/// 成功と失敗を含む最大128 INF。PathとIDをUIへ渡さない。
+	/// 成功と失敗を含む最大128 INF。PathとIDをUIへ渡さない
 	std::vector<CommonInfInspection> infs ;
 } ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じ原payloadの明示selectorを通常policyと一度の実保持で検査する。
- * @param[in] input 同操作中固定する原archive identity。
- * @param[in] format 明示ZIP/CAB/SFX形式。EXEは非実行解析だけを行う。
- * @param[in] selectors firstが一段nested、secondが元INF相対名の検証済み集合。最大128件。
- * @param[out] inspection 全成功時だけ元個別結果を保持する。
- * @param[in] cancellation 空または同期workerの取消し照会。
- * @return 元内容検査のHRESULT。個別拒否は元行へ残す。
- * @note flat集合の同じmemberだけを共有し、任意UI/pathから由来や導入権限を作らない。
+ * @brief 同じ原payloadの明示selectorを通常policyと一度の実保持で検査する
+ * @param[in] input 同操作中固定する原archive identity
+ * @param[in] format 明示ZIP/CAB/SFX形式。EXEは非実行解析だけを行う
+ * @param[in] selectors firstが一段nested、secondが元INF相対名の検証済み集合。最大128件
+ * @param[out] inspection 全成功時だけ元個別結果を保持する
+ * @param[in] cancellation 空または同期workerの取消し照会
+ * @return 元内容検査のHRESULT。個別拒否は元行へ残す
+ * @note flat集合の同じmemberだけを共有し、任意UI/pathから由来や導入権限を作らない
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectSelectedCommonDriverPackages(
@@ -359,14 +373,14 @@ struct CommonDriverPackageInspection {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 明示されたlocal archive一件を保護領域へ有限複製する。
- * @param[in] selectedPath 利用者が選択したlocal drive上の絶対ZIP／CAB／非実行PE path。
- * @param[in] scanSessionId 0ではないscan session。
- * @param[in,out] workspace 未初期化領域。複製fileをscope終了まで所有する。
- * @param[out] input 成功時の固定内容identity。失敗時は空。
- * @param[out] format 成功時の形式。失敗時は使用しない。
- * @return 通常file、有限copy、実size／hash固定に成功した場合0、それ以外はHRESULT。
- * @note 2 GiB上限、1 MiB以下のchunkでcopyする。Networkも入力fileの実行も行わない。
+ * @brief 明示されたlocal archive一件を保護領域へ有限複製する
+ * @param[in] selectedPath 利用者が選択したlocal drive上の絶対ZIP／CAB／非実行PE path
+ * @param[in] scanSessionId 0ではないscan session
+ * @param[in,out] workspace 未初期化領域。複製fileをscope終了まで所有する
+ * @param[out] input 成功時の固定内容identity。失敗時は空
+ * @param[out] format 成功時の形式。失敗時は使用しない
+ * @return 通常file、有限copy、実size／hash固定に成功した場合0、それ以外はHRESULT
+ * @note 2 GiB上限、1 MiB以下のchunkでcopyする。Networkも入力fileの実行も行わない
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError copyLocalDriverArchive( std::wstring_view			  selectedPath,
@@ -377,13 +391,13 @@ struct CommonDriverPackageInspection {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 固定済み入力の全INFを個別の保護閉包とWindows署名で検査する。
- * @param[in] input 呼出し中有効な保護archive identity。由来判定は含まない。
- * @param[in] format ZIPまたはCAB。実行形式を拒否する。
- * @param[out] inspection 全体成功時は全個別結果。全体失敗時はerrorだけを保持する。
- * @param[in] cancellation 空またはworker内で呼ぶ非blocking取消し照会。
- * @return 全INFの検査完了時0、入力・全体上限・取消し・例外時はHRESULT。
- * @note 個別拒否でも残りを検査する。全体失敗では部分合格を破棄する。導入・stagingは行わない。
+ * @brief 固定済み入力の全INFを個別の保護閉包とWindows署名で検査する
+ * @param[in] input 呼出し中有効な保護archive identity。由来判定は含まない
+ * @param[in] format ZIPまたはCAB。実行形式を拒否する
+ * @param[out] inspection 全体成功時は全個別結果。全体失敗時はerrorだけを保持する
+ * @param[in] cancellation 空またはworker内で呼ぶ非blocking取消し照会
+ * @return 全INFの検査完了時0、入力・全体上限・取消し・例外時はHRESULT
+ * @note 個別拒否でも残りを検査する。全体失敗では部分合格を破棄する。導入・stagingは行わない
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectCommonDriverPackage(
@@ -392,15 +406,15 @@ struct CommonDriverPackageInspection {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 監視側が固定した一INFだけを既存通常policyで内容検査します。
- * @param[in] input 同operationが所有する固定archiveの原identityです。
- * @param[in] format 元copyが判別したZIP/CABINETです。
- * @param[in] selectedInf 実inventoryへ完全一致させる原相対INF名です。空/別形式を拒否します。
- * @param[out] inspection 一INFの成功/拒否と全外側inventory件数です。全packageの完了ではありません。
- * @param[in] cancellation 同workerの協調停止です。
- * @param[in] nestedArchive 空または原outer内の一段nested memberです。実行しません。
- * @return 一INFの評価完了0、入力/全体破損/取消し時は元HRESULTです。
- * @note 旧全INF入口を変更しません。未選択INFは未検査で、取得/公式性/端末適用性/導入を認定しません。
+ * @brief 監視側が固定した一INFだけを既存通常policyで内容検査します
+ * @param[in] input 同operationが所有する固定archiveの原identityです
+ * @param[in] format 元copyが判別したZIP/CABINETです
+ * @param[in] selectedInf 実inventoryへ完全一致させる原相対INF名です。空/別形式を拒否します
+ * @param[out] inspection 一INFの成功/拒否と全外側inventory件数です。全packageの完了ではありません
+ * @param[in] cancellation 同workerの協調停止です
+ * @param[in] nestedArchive 空または原outer内の一段nested memberです。実行しません
+ * @return 一INFの評価完了0、入力/全体破損/取消し時は元HRESULTです
+ * @note 旧全INF入口を変更しません。未選択INFは未検査で、取得/公式性/端末適用性/導入を認定しません
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectSelectedCommonDriverPackage(
@@ -410,27 +424,27 @@ struct CommonDriverPackageInspection {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 成功閉包の全file、metadata、署名を同一policyで再検証する。
- * @param[in] inspected 保護領域を保持するVERIFIED結果。
- * @return 全fileのsize／hash、INF metadata、Windows署名一致時0、それ以外はHRESULT。
- * @note 導入許可やdevice bindingの検査を代替しない。Workerから呼ぶ。
+ * @brief 成功閉包の全file、metadata、署名を同一policyで再検証する
+ * @param[in] inspected 保護領域を保持するVERIFIED結果
+ * @return 全fileのsize／hash、INF metadata、Windows署名一致時0、それ以外はHRESULT
+ * @note 導入許可やdevice bindingの検査を代替しない。Workerから呼ぶ
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected) ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 内容合格INFとWindows適合観測を候補の八軸へ結合する。
- * @param[in] scanSessionId 内容検査と一致するscan session。
- * @param[in] candidate 結合先のopaque IDを持つ表示候補。
- * @param[in] inspected 本workerが実検査したVERIFIED閉包。
- * @param[in] evidenceId Scan内で当該検査へ一意に割り当てた0ではない証拠ID。
- * @param[in] origin 取得層が確認した由来finding。LocalはUSER_PROVIDEDのままとする。
- * @param[in] applicabilityError Windows適合観測のHRESULT。未実施を0で渡さない。
- * @param[in] candidateRank Windowsの一致nodeのrank。非適用・失敗時は空。
- * @param[out] assessment 全成功時の八軸。入力不正では空。
- * @return 証拠とidentityを結合できた場合true。実行可能を意味しない。
- * @note 現在driverとの順位比較とexecutor接続は行わず、導入可能へ昇格させない。
+ * @brief 内容合格INFとWindows適合観測を候補の八軸へ結合する
+ * @param[in] scanSessionId 内容検査と一致するscan session
+ * @param[in] candidate 結合先のopaque IDを持つ表示候補
+ * @param[in] inspected 本workerが実検査したVERIFIED閉包
+ * @param[in] evidenceId Scan内で当該検査へ一意に割り当てた0ではない証拠ID
+ * @param[in] origin 取得層が確認した由来finding。LocalはUSER_PROVIDEDのままとする
+ * @param[in] applicabilityError Windows適合観測のHRESULT。未実施を0で渡さない
+ * @param[in] candidateRank Windowsの一致nodeのrank。非適用・失敗時は空
+ * @param[out] assessment 全成功時の八軸。入力不正では空
+ * @return 証拠とidentityを結合できた場合true。実行可能を意味しない
+ * @note 現在driverとの順位比較とexecutor接続は行わず、導入可能へ昇格させない
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool		  makeCommonInfCandidateAssessment(

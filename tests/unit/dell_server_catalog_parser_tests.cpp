@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file dell_server_catalog_parser_tests.cpp
- * @brief Dell PowerEdge catalog parser単体試験実装。
- * @version 01.00.01
+ * @brief Dell PowerEdge catalog parser単体試験実装
+ * @version 01.00.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,18 +19,19 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 実model、Hardware ID、download URLを含まない架空XMLだけを使用します。
+ * @note 実model、Hardware ID、download URLを含まない架空XMLだけを使用します
  */
 //------------------------------------------------------------------------------
 
@@ -80,29 +81,29 @@ constexpr std::wstring_view VALID_CATALOG = LR"(<?xml version="1.0" encoding="ut
   <SoftwareComponent releaseID="BIOS1" packageType="LW64">
     <ComponentType value="BIOS"><Display lang="en">BIOS</Display></ComponentType>
   </SoftwareComponent>
-</Manifest>)" ;	// 一件の架空PowerEdge driverを含む正常catalog。
+</Manifest>)" ;	// 一件の架空PowerEdge driverを含む正常catalog
 
 //------------------------------------------------------------------------------
 /**
- * @brief Model／Server build／PCI ID一致driverを抽出する。
+ * @brief Model／Server build／PCI ID一致driverを抽出する
  *
- * BIOSを除外し、DUP metadataとSUBSYS付きIDを保持する。
+ * BIOSを除外し、DUP metadataとSUBSYS付きIDを保持する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testValidCatalog( TestContext &context)
 {
-	std::vector<DellServerDriverRelease> releases ;	// Parserが設定するdriver群。
+	std::vector<DellServerDriverRelease> releases ;	// Parserが設定するdriver群
 	DRIVERCRATE_EXPECT(
 		context, parseDellServerCatalog( VALID_CATALOG, L"PowerEdge R9000", 20348, releases) == 0) ;
 	DRIVERCRATE_EXPECT( context, releases.size() == 1) ;
-	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ。
+	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ
 	if( releases.size() != 1) {
 		return ;
 	}
 
-	const DellServerDriverRelease &release = releases.front() ;	// 検証対象release。
+	const DellServerDriverRelease &release = releases.front() ;	// 検証対象release
 	DRIVERCRATE_EXPECT( context, release.releaseId == L"ABC12") ;
 	DRIVERCRATE_EXPECT( context, release.version == L"2.3.4") ;
 	DRIVERCRATE_EXPECT( context, release.size == 123456) ;
@@ -115,16 +116,16 @@ void testValidCatalog( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Model、build、OS用途の不一致を候補0件にすることを検証する。
+ * @brief Model、build、OS用途の不一致を候補0件にすることを検証する
  *
- * 部分model、別Server build、Azure Stack HCIを推測採用しない。
+ * 部分model、別Server build、Azure Stack HCIを推測採用しない
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testApplicability( TestContext &context)
 {
-	std::vector<DellServerDriverRelease> releases ;	// 各不一致caseの出力。
+	std::vector<DellServerDriverRelease> releases ;	// 各不一致caseの出力
 	DRIVERCRATE_EXPECT(
 		context, parseDellServerCatalog( VALID_CATALOG, L"PowerEdge R900", 20348, releases) == 0) ;
 	DRIVERCRATE_EXPECT( context, releases.empty()) ;
@@ -132,12 +133,12 @@ void testApplicability( TestContext &context)
 		context, parseDellServerCatalog( VALID_CATALOG, L"PowerEdge R9000", 26100, releases) == 0) ;
 	DRIVERCRATE_EXPECT( context, releases.empty()) ;
 
-	std::wstring	   hciCatalog( VALID_CATALOG) ;	// Server表示をHCIへ置換するcatalog copy。
-	// Server OS名の照合に使用する、明示したLTSC edition表記。
+	std::wstring	   hciCatalog( VALID_CATALOG) ;	// Server表示をHCIへ置換するcatalog copy
+	// Server OS名の照合に使用する、明示したLTSC edition表記
 	const std::wstring serverText = L"Microsoft - Windows Server 2022 LTSC - Standard" ;
-	const std::size_t  position	  = hciCatalog.find( serverText) ;	// OS表示の置換位置。
+	const std::size_t  position	  = hciCatalog.find( serverText) ;	// OS表示の置換位置
 	DRIVERCRATE_EXPECT( context, position != std::wstring::npos) ;
-	// 対象位置を取得できた場合だけfixtureを変形し、範囲外の編集で検証を中断させない。
+	// 対象位置を取得できた場合だけfixtureを変形し、範囲外の編集で検証を中断させない
 	if( position != std::wstring::npos) {
 		hciCatalog.replace( position, serverText.size(), L"Microsoft - Azure Stack HCI") ;
 		DRIVERCRATE_EXPECT(
@@ -148,27 +149,27 @@ void testApplicability( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Relevant driverの危険なpayload metadataを拒否する。
+ * @brief Relevant driverの危険なpayload metadataを拒否する
  *
- * Model／OS一致componentのpath traversalを全catalog失敗にする。
+ * Model／OS一致componentのpath traversalを全catalog失敗にする
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testMetadataRejection( TestContext &context)
 {
-	std::wstring	   invalid( VALID_CATALOG) ;	// Pathだけを改ざんするcatalog copy。
-	// DUP相対pathの正常条件を確認する架空配布path。
+	std::wstring	   invalid( VALID_CATALOG) ;	// Pathだけを改ざんするcatalog copy
+	// DUP相対pathの正常条件を確認する架空配布path
 	const std::wstring safePath = L"FOLDER00000001M/1/Network_Driver_ABC12_WN64_2.3.4_A01.EXE" ;
-	const std::size_t  position = invalid.find( safePath) ;	// Path置換位置。
+	const std::size_t  position = invalid.find( safePath) ;	// Path置換位置
 	DRIVERCRATE_EXPECT( context, position != std::wstring::npos) ;
-	// 変形箇所がない場合は範囲外編集を避けて詳細検証を中止する。
+	// 変形箇所がない場合は範囲外編集を避けて詳細検証を中止する
 	if( position == std::wstring::npos) {
 		return ;
 	}
 
 	invalid.replace( position, safePath.size(), L"../driver.exe") ;
-	std::vector<DellServerDriverRelease> releases ;	// 失敗時に空であるべき出力。
+	std::vector<DellServerDriverRelease> releases ;	// 失敗時に空であるべき出力
 	DRIVERCRATE_EXPECT( context,
 					   parseDellServerCatalog( invalid, L"PowerEdge R9000", 20348, releases) != 0) ;
 	DRIVERCRATE_EXPECT( context, releases.empty()) ;
@@ -179,15 +180,15 @@ void testMetadataRejection( TestContext &context)
 //------------------------------------------------------------------------------
 /**
  * @brief Dell PowerEdge catalog parserの正常系とfail-closed境界を検証する。Dell PowerEdge parserの全単体試験を実行する。正常抽出
- *        、適用性、metadata拒否試験をCOM MTA内で実行する。
- * @param[in,out] context Assertion件数と失敗内容の集計先。 Assertion集計先。
+ *        、適用性、metadata拒否試験をCOM MTA内で実行する
+ * @param[in,out] context Assertion件数と失敗内容の集計先。 Assertion集計先
  */
 //------------------------------------------------------------------------------
 void runDellServerCatalogParserTests( TestContext &context)
 {
-	const HRESULT initialization = CoInitializeEx( nullptr, COINIT_MULTITHREADED) ;	// COM MTA結果。
+	const HRESULT initialization = CoInitializeEx( nullptr, COINIT_MULTITHREADED) ;	// COM MTA結果
 	DRIVERCRATE_EXPECT( context, SUCCEEDED( initialization)) ;
-	// COM初期化に失敗したthreadではparser試験を開始しない。
+	// COM初期化に失敗したthreadではparser試験を開始しない
 	if( FAILED( initialization)) {
 		return ;
 	}

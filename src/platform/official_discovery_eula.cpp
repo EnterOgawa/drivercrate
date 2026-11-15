@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_discovery_eula.cpp
- * @brief 公式自動探索payloadのEULA完全一致groupと短命同意tokenを実装する。
- * @version 01.00.01
+ * @brief 公式自動探索payloadのEULA完全一致groupと短命同意tokenを実装する
+ * @version 01.00.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,11 +19,12 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/15  EULA完全一致groupと短命同意tokenを実装。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/15  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note SHA-256はWindows CNGで計算し、EULA本文、hash、tokenをdiskまたはlogへ出力しません。
+ * @note SHA-256はWindows CNGで計算し、EULA本文、hash、tokenをdiskまたはlogへ出力しません
  * @see docs/adr/0157-automatic-official-discovery-consent-and-cache.md
  */
 //------------------------------------------------------------------------------
@@ -51,25 +52,25 @@
 namespace drivercrate {
 namespace {
 
-// 一payloadへ許可するADR 0157の検査用取得上限。
+// 一payloadへ許可するADR 0157の検査用取得上限
 constexpr std::uint64_t	  MAXIMUM_PACKAGE_BYTES = 128ULL * 1'024ULL * 1'024ULL ;
-// EULA revisionに許可する有限UTF-16 code unit数。
+// EULA revisionに許可する有限UTF-16 code unit数
 constexpr std::size_t	  MAXIMUM_EULA_REVISION_CHARACTERS = 1'024U ;
-// Stable Providerまたはpackage IDに許可する文字数。
+// Stable Providerまたはpackage IDに許可する文字数
 constexpr std::size_t	  MAXIMUM_STABLE_ID_CHARACTERS = 256U ;
 
-// 入力またはsession結合違反を表すHRESULT bit pattern。
+// 入力またはsession結合違反を表すHRESULT bit pattern
 constexpr NativeError	  INVALID_ARGUMENT = static_cast<NativeError>( E_INVALIDARG) ;
-// 一時領域または所有snapshotの確保失敗を表すHRESULT bit pattern。
+// 一時領域または所有snapshotの確保失敗を表すHRESULT bit pattern
 constexpr NativeError	  OUT_OF_MEMORY = static_cast<NativeError>( E_OUTOFMEMORY) ;
-// C++境界の未知例外を表すHRESULT bit pattern。
+// C++境界の未知例外を表すHRESULT bit pattern
 constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_UNEXPECTED) ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief Win32 errorをHRESULT bit patternへ変換する。
- * @param[in] error 変換するWin32 error code。
- * @return NativeErrorで保持するHRESULT bit pattern。
+ * @brief Win32 errorをHRESULT bit patternへ変換する
+ * @param[in] error 変換するWin32 error code
+ * @return NativeErrorで保持するHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError nativeErrorFromWin32( const DWORD error) noexcept
@@ -79,9 +80,9 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_UNEXPEC
 
 //------------------------------------------------------------------------------
 /**
- * @brief CNGのNTSTATUSをHRESULT bit patternへ変換する。
- * @param[in] status BCrypt APIが返したNTSTATUS。
- * @return NativeErrorで保持するHRESULT bit pattern。
+ * @brief CNGのNTSTATUSをHRESULT bit patternへ変換する
+ * @param[in] status BCrypt APIが返したNTSTATUS
+ * @return NativeErrorで保持するHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError nativeErrorFromNt( const NTSTATUS status) noexcept
@@ -91,21 +92,21 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_UNEXPEC
 
 //------------------------------------------------------------------------------
 /**
- * @brief Stable IDとして使用できる有限ASCII文字列か検証する。
- * @param[in] value Providerまたはopaque package ID。
- * @return 空、過大、制御文字、非ASCIIを含まない場合true。
+ * @brief Stable IDとして使用できる有限ASCII文字列か検証する
+ * @param[in] value Providerまたはopaque package ID
+ * @return 空、過大、制御文字、非ASCIIを含まない場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isStableId( const std::wstring_view value) noexcept
 {
-	// 空または上限外の文字列をidentityとして受理しない。
+	// 空または上限外の文字列をidentityとして受理しない
 	if( value.empty() || value.size() > MAXIMUM_STABLE_ID_CHARACTERS) {
 		return false ;
 	}
 
-	// ASCIIの表示可能文字だけを確認し、本文やURLをIDへ混入させない。
+	// ASCIIの表示可能文字だけを確認し、本文やURLをIDへ混入させない
 	for( const wchar_t character : value) {
-		// 制御文字または非ASCII値をopaque IDとして扱わない。
+		// 制御文字または非ASCII値をopaque IDとして扱わない
 		if( character < 0x21 || character > 0x7e) {
 			return false ;
 		}
@@ -116,29 +117,29 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_UNEXPEC
 
 //------------------------------------------------------------------------------
 /**
- * @brief EULA revisionを有限plain textとして検証する。
- * @param[in] value Providerが明示したrevision。
- * @return 空、過大、制御文字、壊れたsurrogateを含まない場合true。
+ * @brief EULA revisionを有限plain textとして検証する
+ * @param[in] value Providerが明示したrevision
+ * @return 空、過大、制御文字、壊れたsurrogateを含まない場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isEulaRevision( const std::wstring_view value) noexcept
 {
-	// Revisionは共有keyなので欠損や大きすぎる値を許可しない。
+	// Revisionは共有keyなので欠損や大きすぎる値を許可しない
 	if( value.empty() || value.size() > MAXIMUM_EULA_REVISION_CHARACTERS) {
 		return false ;
 	}
 
-	// 改行を含まない表示可能値と正しいsurrogate pairだけを受理する。
+	// 改行を含まない表示可能値と正しいsurrogate pairだけを受理する
 	for( std::size_t index = 0U; index < value.size(); ++index) {
-		const wchar_t character = value[index] ;	// 現在検証するUTF-16 code unit。
-		// 制御文字、単独low surrogate、範囲外値をrevisionへ含めない。
+		const wchar_t character = value[index] ;	// 現在検証するUTF-16 code unit
+		// 制御文字、単独low surrogate、範囲外値をrevisionへ含めない
 		if( character < 0x20 || (character >= 0xdc00 && character <= 0xdfff)) {
 			return false ;
 		}
 
-		// High surrogateは直後のlow surrogateと一組の場合だけ読み進める。
+		// High surrogateは直後のlow surrogateと一組の場合だけ読み進める
 		if( character >= 0xd800 && character <= 0xdbff) {
-			// 終端または非low surrogateなら壊れたUTF-16として拒否する。
+			// 終端または非low surrogateなら壊れたUTF-16として拒否する
 			if( index + 1U >= value.size() || value[index + 1U] < 0xdc00 ||
 			   value[index + 1U] > 0xdfff) {
 				return false ;
@@ -153,26 +154,26 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_UNEXPEC
 
 //------------------------------------------------------------------------------
 /**
- * @brief UTF-16全文を厳格なUTF-8 byte列へ変換する。
- * @param[in] text 有限検証済みのEULA全文。
- * @param[out] utf8 成功時だけ全文のUTF-8 byte列。
- * @return 成功時0、変換不能または領域不足時はHRESULT bit pattern。
+ * @brief UTF-16全文を厳格なUTF-8 byte列へ変換する
+ * @param[in] text 有限検証済みのEULA全文
+ * @param[out] utf8 成功時だけ全文のUTF-8 byte列
+ * @return 成功時0、変換不能または領域不足時はHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError toUtf8( const std::wstring_view text,
 								 std::vector<std::byte> &utf8) noexcept
 {
 	utf8.clear() ;
-	// Win32 APIのsigned文字数へ変換できない入力を渡さない。
+	// Win32 APIのsigned文字数へ変換できない入力を渡さない
 	if( text.empty() || text.size() > static_cast<std::size_t>( std::numeric_limits<int>::max())) {
 		return INVALID_ARGUMENT ;
 	}
 
-	const int inputCharacters = static_cast<int>( text.size()) ;	// 検証済みのUTF-16文字数。
+	const int inputCharacters = static_cast<int>( text.size()) ;	// 検証済みのUTF-16文字数
 	const int requiredBytes =
 		WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, text.data(), inputCharacters, nullptr, 0,
-							nullptr, nullptr) ;	// 必要byte数。
-	// 壊れたUTF-16または変換失敗では空hashを作らない。
+							nullptr, nullptr) ;	// 必要byte数
+	// 壊れたUTF-16または変換失敗では空hashを作らない
 	if( requiredBytes <= 0) {
 		return nativeErrorFromWin32( GetLastError()) ;
 	}
@@ -185,11 +186,11 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_UNEXPEC
 		return UNEXPECTED_FAILURE ;
 	}
 
-	// Win32宣言がchar出力を要求するため、byte storageを境界でだけ変換する。
+	// Win32宣言がchar出力を要求するため、byte storageを境界でだけ変換する
 	const int converted =
 		WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, text.data(), inputCharacters,
 							reinterpret_cast<char *>( utf8.data()), requiredBytes, nullptr, nullptr) ;
-	// 事前計測と変換結果が一致しない場合は部分byte列を破棄する。
+	// 事前計測と変換結果が一致しない場合は部分byte列を破棄する
 	if( converted != requiredBytes) {
 		utf8.clear() ;
 		return nativeErrorFromWin32( GetLastError()) ;
@@ -200,47 +201,47 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_UNEXPEC
 
 //------------------------------------------------------------------------------
 /**
- * @brief UTF-8 byte列のSHA-256をWindows CNGで計算する。
- * @param[in] bytes UTF-8化したEULA全文。
- * @param[out] hash 成功時だけ32 byte SHA-256。
- * @return 成功時0、CNG失敗時はHRESULT bit pattern。
+ * @brief UTF-8 byte列のSHA-256をWindows CNGで計算する
+ * @param[in] bytes UTF-8化したEULA全文
+ * @param[out] hash 成功時だけ32 byte SHA-256
+ * @return 成功時0、CNG失敗時はHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError hashSha256( const std::span<const std::byte> bytes,
 									 std::array<std::byte, 32U>		 &hash) noexcept
 {
 	hash.fill( std::byte{}) ;
-	// BCryptHashのULONG入力上限へ変換できないbyte列を渡さない。
+	// BCryptHashのULONG入力上限へ変換できないbyte列を渡さない
 	if( bytes.empty() ||
 	   bytes.size() > static_cast<std::size_t>( std::numeric_limits<ULONG>::max())) {
 		return INVALID_ARGUMENT ;
 	}
 
-	BCRYPT_ALG_HANDLE rawAlgorithm{} ;	// 成功時にRAIIへ移すalgorithm handle。
-	// SHA-256 Algorithm Providerを開いた結果。
+	BCRYPT_ALG_HANDLE rawAlgorithm{} ;	// 成功時にRAIIへ移すalgorithm handle
+	// SHA-256 Algorithm Providerを開いた結果
 	const NTSTATUS	  openStatus =
 		BCryptOpenAlgorithmProvider( &rawAlgorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) ;
-	// Algorithm Providerを開けない場合はhashを公開しない。
+	// Algorithm Providerを開けない場合はhashを公開しない
 	if( openStatus < 0) {
 		return nativeErrorFromNt( openStatus) ;
 	}
 
 	const auto closeAlgorithm = []( void *value) noexcept {
-		// 非null handleだけをCNGへ返す。
+		// 非null handleだけをCNGへ返す
 		if( value != nullptr) {
 			static_cast<void>(
 				BCryptCloseAlgorithmProvider( static_cast<BCRYPT_ALG_HANDLE>( value), 0)) ;
 		}
-	} ; // Scope終了時にalgorithm handleを必ず閉じる。
+	} ; // Scope終了時にalgorithm handleを必ず閉じる
 	const std::unique_ptr<void, decltype( closeAlgorithm)> algorithm(
-		rawAlgorithm, closeAlgorithm) ;	// CNG algorithm handleの所有者。
-	// BCryptHashは入力を変更しないがWindows宣言がmutable pointerを要求する。
+		rawAlgorithm, closeAlgorithm) ;	// CNG algorithm handleの所有者
+	// BCryptHashは入力を変更しないがWindows宣言がmutable pointerを要求する
 	const NTSTATUS hashStatus =
 		BCryptHash( static_cast<BCRYPT_ALG_HANDLE>( algorithm.get()), nullptr, 0U,
 				   reinterpret_cast<PUCHAR>( const_cast<std::byte *>( bytes.data())),
 				   static_cast<ULONG>( bytes.size()), reinterpret_cast<PUCHAR>( hash.data()),
 				   static_cast<ULONG>( hash.size())) ;
-	// Hash失敗時は部分digestを残さない。
+	// Hash失敗時は部分digestを残さない
 	if( hashStatus < 0) {
 		hash.fill( std::byte{}) ;
 		return nativeErrorFromNt( hashStatus) ;
@@ -251,18 +252,18 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_UNEXPEC
 
 //------------------------------------------------------------------------------
 /**
- * @brief EULA全文をUTF-8化してSHA-256を計算する。
- * @param[in] text 検証済みplain text全文。
- * @param[out] hash 成功時だけ32 byte SHA-256。
- * @return 成功時0、変換またはCNG失敗時はHRESULT bit pattern。
+ * @brief EULA全文をUTF-8化してSHA-256を計算する
+ * @param[in] text 検証済みplain text全文
+ * @param[out] hash 成功時だけ32 byte SHA-256
+ * @return 成功時0、変換またはCNG失敗時はHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError eulaTextHash( const std::wstring_view	   text,
 									   std::array<std::byte, 32U> &hash) noexcept
 {
-	std::vector<std::byte> utf8 ;									// Hash計算中だけ所有する全文UTF-8 byte列。
-	const NativeError	   conversionError = toUtf8( text, utf8) ;	// 厳格変換結果。
-	// 変換失敗ではCNGへ空または部分入力を渡さない。
+	std::vector<std::byte> utf8 ;									// Hash計算中だけ所有する全文UTF-8 byte列
+	const NativeError	   conversionError = toUtf8( text, utf8) ;	// 厳格変換結果
+	// 変換失敗ではCNGへ空または部分入力を渡さない
 	if( conversionError != 0) {
 		return conversionError ;
 	}
@@ -272,9 +273,9 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_UNEXPEC
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一つのEULA package snapshotをgroup化可能か検証する。
- * @param[in] package 検証する一payload。
- * @return ID、revision、本文、予約byte数が全て有限な場合true。
+ * @brief 一つのEULA package snapshotをgroup化可能か検証する
+ * @param[in] package 検証する一payload
+ * @return ID、revision、本文、予約byte数が全て有限な場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isValidPackage( const OfficialDiscoveryEulaPackage &package) noexcept
@@ -286,11 +287,11 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_UNEXPEC
 
 //------------------------------------------------------------------------------
 /**
- * @brief Tokenが現在bindingとgroup indexへ一致するか検証する。
- * @param[in] binding 現在有効なsession binding。
- * @param[in] token 照合する短命token。
- * @param[in] groupCount 現在sessionのgroup件数。
- * @return Bindingと1始まりtoken値が有効な場合true。
+ * @brief Tokenが現在bindingとgroup indexへ一致するか検証する
+ * @param[in] binding 現在有効なsession binding
+ * @param[in] token 照合する短命token
+ * @param[in] groupCount 現在sessionのgroup件数
+ * @return Bindingと1始まりtoken値が有効な場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isCurrentToken( const OfficialDiscoveryBinding		&binding,
@@ -304,11 +305,11 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_UNEXPEC
 
 //------------------------------------------------------------------------------
 /**
- * @brief 新しいscan bindingへEULA対象を固定し完全一致groupを構築する。
- * @param[in] binding Operation、scan session、inventory generationの開始時binding。
- * @param[in] packages 今回取得候補にした4件以下の変更不可payload snapshot。
- * @return 全入力をgroup化できた場合0、それ以外はHRESULT bit pattern。
- * @post 成功時は全groupが未判断であり、旧tokenは利用できない。
+ * @brief 新しいscan bindingへEULA対象を固定し完全一致groupを構築する
+ * @param[in] binding Operation、scan session、inventory generationの開始時binding
+ * @param[in] packages 今回取得候補にした4件以下の変更不可payload snapshot
+ * @return 全入力をgroup化できた場合0、それ以外はHRESULT bit pattern
+ * @post 成功時は全groupが未判断であり、旧tokenは利用できない
  */
 //------------------------------------------------------------------------------
 NativeError OfficialDiscoveryEulaSession::beginSession(
@@ -316,7 +317,7 @@ NativeError OfficialDiscoveryEulaSession::beginSession(
 	const std::span<const OfficialDiscoveryEulaPackage> packages) noexcept
 {
 	invalidate() ;
-	// Stale、空、予算外件数を受理せず旧sessionの本文と判断も残さない。
+	// Stale、空、予算外件数を受理せず旧sessionの本文と判断も残さない
 	if( !isOfficialDiscoveryBindingValid( binding) || binding.operationId <= latestOperationId_ ||
 	   binding.scanSessionId <= latestScanSessionId_ ||
 	   packages.size() > OFFICIAL_DISCOVERY_EULA_PACKAGE_LIMIT) {
@@ -324,13 +325,13 @@ NativeError OfficialDiscoveryEulaSession::beginSession(
 	}
 
 	try {
-		std::vector<OfficialDiscoveryEulaPackage> newPackages ;	// 全検証後にcommitする所有copy。
-		std::vector<OfficialDiscoveryEulaGroup>	  newGroups ;	// 全検証後にcommitするgroup集合。
+		std::vector<OfficialDiscoveryEulaPackage> newPackages ;	// 全検証後にcommitする所有copy
+		std::vector<OfficialDiscoveryEulaGroup>	  newGroups ;	// 全検証後にcommitするgroup集合
 		newPackages.reserve( packages.size()) ;
 		newGroups.reserve( packages.size()) ;
-		// 入力順を維持し、同じpackage IDの二重同意対象化を拒否する。
+		// 入力順を維持し、同じpackage IDの二重同意対象化を拒否する
 		for( const OfficialDiscoveryEulaPackage &package : packages) {
-			// 不正snapshotまたは重複packageを部分groupへ変換しない。
+			// 不正snapshotまたは重複packageを部分groupへ変換しない
 			if( !isValidPackage( package) ||
 			   std::any_of( newPackages.begin(), newPackages.end(),
 						   [&package]( const OfficialDiscoveryEulaPackage &existing) {
@@ -339,10 +340,10 @@ NativeError OfficialDiscoveryEulaSession::beginSession(
 				return INVALID_ARGUMENT ;
 			}
 
-			std::array<std::byte, 32U> hash{} ;	// UTF-8本文の完全一致group key。
-			// 現在packageのUTF-8全文を固定するhash計算結果。
+			std::array<std::byte, 32U> hash{} ;	// UTF-8本文の完全一致group key
+			// 現在packageのUTF-8全文を固定するhash計算結果
 			const NativeError		   hashError = eulaTextHash( package.eulaText, hash) ;
-			// Hash不能な本文をrevisionだけで共有しない。
+			// Hash不能な本文をrevisionだけで共有しない
 			if( hashError != 0) {
 				return hashError ;
 			}
@@ -353,11 +354,11 @@ NativeError OfficialDiscoveryEulaSession::beginSession(
 								 return group.providerId == package.providerId &&
 										group.eulaRevision == package.eulaRevision &&
 										group.eulaTextSha256 == hash ;
-							 }) ; // Provider、revision、UTF-8全文SHA-256が完全一致するgroup。
-			// 初出keyは新しいtokenと本文を所有するgroupとして追加する。
+							 }) ; // Provider、revision、UTF-8全文SHA-256が完全一致するgroup
+			// 初出keyは新しいtokenと本文を所有するgroupとして追加する
 			if( existingGroup == newGroups.end()) {
 				const std::uint64_t tokenValue =
-					// 1始まりtoken値。
+					// 1始まりtoken値
 					static_cast<std::uint64_t>( newGroups.size()) + 1U ;
 				newGroups.push_back( {.token				= {.binding = binding, .value = tokenValue},
 									 .providerId		= package.providerId,
@@ -367,7 +368,7 @@ NativeError OfficialDiscoveryEulaSession::beginSession(
 									 .packageIdentities = {package.packageIdentity},
 									 .maximumTotalBytes = package.maximumBytes}) ;
 			} else {
-				// 合計上限をoverflowさせるgroupへ対象を追加しない。
+				// 合計上限をoverflowさせるgroupへ対象を追加しない
 				if( existingGroup->maximumTotalBytes >
 				   std::numeric_limits<std::uint64_t>::max() - package.maximumBytes) {
 					return INVALID_ARGUMENT ;
@@ -398,26 +399,26 @@ NativeError OfficialDiscoveryEulaSession::beginSession(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一つの完全一致groupへ利用者の許可または拒否を一度だけ記録する。
- * @param[in] binding 現在画面が保持する開始時binding。
- * @param[in] token 表示したgroupに含まれる短命token。
- * @param[in] accepted 利用者が全文と全対象を許可した場合true。
- * @return 初回判断を記録した場合0、stale、未知、再判断はHRESULT bit pattern。
- * @note 本判断は検査用取得だけに使用し、installまたはWUA EULA同意へ流用しない。
+ * @brief 一つの完全一致groupへ利用者の許可または拒否を一度だけ記録する
+ * @param[in] binding 現在画面が保持する開始時binding
+ * @param[in] token 表示したgroupに含まれる短命token
+ * @param[in] accepted 利用者が全文と全対象を許可した場合true
+ * @return 初回判断を記録した場合0、stale、未知、再判断はHRESULT bit pattern
+ * @note 本判断は検査用取得だけに使用し、installまたはWUA EULA同意へ流用しない
  */
 //------------------------------------------------------------------------------
 NativeError OfficialDiscoveryEulaSession::recordDecision(
 	const OfficialDiscoveryBinding &binding, const OfficialDiscoveryEulaGroupToken &token,
 	const bool accepted) noexcept
 {
-	// Staleまたは未知tokenを現在groupへ位置だけで対応付けない。
+	// Staleまたは未知tokenを現在groupへ位置だけで対応付けない
 	if( binding != binding_ || !isCurrentToken( binding_, token, groups_.size()) ||
 	   decisions_.size() != groups_.size()) {
 		return INVALID_ARGUMENT ;
 	}
 
-	const std::size_t index = static_cast<std::size_t>( token.value - 1U) ;	// 検証済みgroup index。
-	// 一度記録した許可または拒否を後の呼出しで反転させない。
+	const std::size_t index = static_cast<std::size_t>( token.value - 1U) ;	// 検証済みgroup index
+	// 一度記録した許可または拒否を後の呼出しで反転させない
 	if( decisions_[index] != Decision::PENDING) {
 		return nativeErrorFromWin32( ERROR_ALREADY_EXISTS) ;
 	}
@@ -428,25 +429,25 @@ NativeError OfficialDiscoveryEulaSession::recordDecision(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 現在packageが許可済みgroup snapshotと完全一致するか照合する。
- * @param[in] binding 取得開始直前に再確認する現在binding。
- * @param[in] token 利用者が判断したgroup token。
- * @param[in] package 取得直前のProvider、revision、全文、予算を含むsnapshot。
- * @return 同じgroupが許可済みで全fieldと本文SHA-256が不変の場合true。
+ * @brief 現在packageが許可済みgroup snapshotと完全一致するか照合する
+ * @param[in] binding 取得開始直前に再確認する現在binding
+ * @param[in] token 利用者が判断したgroup token
+ * @param[in] package 取得直前のProvider、revision、全文、予算を含むsnapshot
+ * @return 同じgroupが許可済みで全fieldと本文SHA-256が不変の場合true
  */
 //------------------------------------------------------------------------------
 bool OfficialDiscoveryEulaSession::isPackageAccepted(
 	const OfficialDiscoveryBinding &binding, const OfficialDiscoveryEulaGroupToken &token,
 	const OfficialDiscoveryEulaPackage &package) const noexcept
 {
-	// Stale、未知、未判断、拒否済みgroupへ取得許可を返さない。
+	// Stale、未知、未判断、拒否済みgroupへ取得許可を返さない
 	if( binding != binding_ || !isCurrentToken( binding_, token, groups_.size()) ||
 	   decisions_.size() != groups_.size()) {
 		return false ;
 	}
 
-	const std::size_t index = static_cast<std::size_t>( token.value - 1U) ;	// 検証済みgroup index。
-	// 明示許可されていないgroupを同意済みにしない。
+	const std::size_t index = static_cast<std::size_t>( token.value - 1U) ;	// 検証済みgroup index
+	// 明示許可されていないgroupを同意済みにしない
 	if( decisions_[index] != Decision::ACCEPTED || !isValidPackage( package)) {
 		return false ;
 	}
@@ -454,29 +455,29 @@ bool OfficialDiscoveryEulaSession::isPackageAccepted(
 	const auto original = std::find_if( packages_.begin(), packages_.end(),
 									   [&package]( const OfficialDiscoveryEulaPackage &value) {
 										   return value.packageIdentity == package.packageIdentity ;
-									   }) ; // 開始時の同じopaque package snapshot。
-	// Package ID、Provider、revision、本文、予算のどれかが変化した取得を拒否する。
+									   }) ; // 開始時の同じopaque package snapshot
+	// Package ID、Provider、revision、本文、予算のどれかが変化した取得を拒否する
 	if( original == packages_.end() || *original != package) {
 		return false ;
 	}
 
-	const OfficialDiscoveryEulaGroup &group = groups_[index] ;	// 利用者が許可した完全一致group。
-	// Packageが別group tokenへ差し替えられていないことを確認する。
+	const OfficialDiscoveryEulaGroup &group = groups_[index] ;	// 利用者が許可した完全一致group
+	// Packageが別group tokenへ差し替えられていないことを確認する
 	if( std::find( group.packageIdentities.begin(), group.packageIdentities.end(),
 				 package.packageIdentity) == group.packageIdentities.end() ||
 	   group.providerId != package.providerId || group.eulaRevision != package.eulaRevision) {
 		return false ;
 	}
 
-	std::array<std::byte, 32U> currentHash{} ;	// 取得直前本文の再計算SHA-256。
-	// Hash計算不能または開始時groupと不一致なら同意を失効扱いにする。
+	std::array<std::byte, 32U> currentHash{} ;	// 取得直前本文の再計算SHA-256
+	// Hash計算不能または開始時groupと不一致なら同意を失効扱いにする
 	return eulaTextHash( package.eulaText, currentHash) == 0 && currentHash == group.eulaTextSha256 ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 利用者へ表示する未永続のEULA group集合を借用する。
- * @return 次のbegin、invalidate、object破棄まで有効なgroup span。
+ * @brief 利用者へ表示する未永続のEULA group集合を借用する
+ * @return 次のbegin、invalidate、object破棄まで有効なgroup span
  */
 //------------------------------------------------------------------------------
 std::span<const OfficialDiscoveryEulaGroup> OfficialDiscoveryEulaSession::groups() const noexcept
@@ -486,7 +487,7 @@ std::span<const OfficialDiscoveryEulaGroup> OfficialDiscoveryEulaSession::groups
 
 //------------------------------------------------------------------------------
 /**
- * @brief 新scan、取消し、終了時に本文、token、判断を全て失効させる。
+ * @brief 新scan、取消し、終了時に本文、token、判断を全て失効させる
  */
 //------------------------------------------------------------------------------
 void OfficialDiscoveryEulaSession::invalidate() noexcept
@@ -499,8 +500,8 @@ void OfficialDiscoveryEulaSession::invalidate() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 現在有効な開始時bindingを返す。
- * @return 有効sessionのbinding。未開始または失効後は全0。
+ * @brief 現在有効な開始時bindingを返す
+ * @return 有効sessionのbinding。未開始または失効後は全0
  */
 //------------------------------------------------------------------------------
 OfficialDiscoveryBinding OfficialDiscoveryEulaSession::activeBinding() const noexcept

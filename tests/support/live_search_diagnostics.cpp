@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file live_search_diagnostics.cpp
- * @brief Locale非依存のlive検索診断出力。
- * @version 01.00.01
+ * @brief Locale非依存のlive検索診断出力
+ * @version 01.00.02
  * @date 2026/09/08
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,18 +19,19 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 固定ASCII recordを有限領域で構築し、出力失敗を呼出し側へ返します。
+ * @note 固定ASCII recordを有限領域で構築し、出力失敗を呼出し側へ返します
  */
 //------------------------------------------------------------------------------
 
@@ -53,29 +54,29 @@ namespace drivercrate::test {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 診断値を固定ASCIIとして一回書込み、明示flushの結果を返す。
+ * @brief 診断値を固定ASCIIとして一回書込み、明示flushの結果を返す
  * @details Locale、format flag、exception maskを変更しない。部分出力を再試行しない。検索の成否は変更せず、出力失敗時は呼出し側でも成功表示を抑止する。非機密
- *          の検索診断を固定ASCIIで出力する。構築失敗では書き込まず、I/O失敗では部分出力を再試行しない。出力先が故障した場合の診断値保存を保証しない。
- * @param[in,out] output 呼出し中だけ借用するnarrow stream。失敗状態は解除しない。 借用stream。失敗状態・format設定を解除しない。
- * @param[in] diagnostics 32-bit error、件数、取得根拠flagのsnapshot。 検索結果の数値とboolだけを保持する値。
- * @return 全recordの書込みとflush成功時true。構築・I/O失敗と例外はfalse。 Record書込みとflush成功時true。例外と全失敗時false。
+ *          の検索診断を固定ASCIIで出力する。構築失敗では書き込まず、I/O失敗では部分出力を再試行しない。出力先が故障した場合の診断値保存を保証しない
+ * @param[in,out] output 呼出し中だけ借用するnarrow stream。失敗状態は解除しない。 借用stream。失敗状態・format設定を解除しない
+ * @param[in] diagnostics 32-bit error、件数、取得根拠flagのsnapshot。 検索結果の数値とboolだけを保持する値
+ * @return 全recordの書込みとflush成功時true。構築・I/O失敗と例外はfalse。 Record書込みとflush成功時true。例外と全失敗時false
  */
 //------------------------------------------------------------------------------
 bool writeLiveSearchDiagnostics( std::ostream				&output,
 								const LiveSearchDiagnostics &diagnostics) noexcept
 {
-	bool succeeded{} ;	// 全byte受理と明示flushの双方が成功した場合だけtrue。
+	bool succeeded{} ;	// 全byte受理と明示flushの双方が成功した場合だけtrue
 	try {
-		// 既に失敗したstreamへ再出力せず、呼出し側に終了判断を返す。
+		// 既に失敗したstreamへ再出力せず、呼出し側に終了判断を返す
 		if( !output.good() || output.rdbuf() == nullptr) {
 			return false ;
 		}
 
-		std::array<char, 512> record{} ;	// 固定labelと最大整数を含むrecord構築領域。
-		std::size_t			  used{} ;		// 有効ASCII byte数。record.size()以下を維持する。
-		// 固定labelだけを残領域へ追加し、上限超過を呼出し側へ返す。
+		std::array<char, 512> record{} ;	// 固定labelと最大整数を含むrecord構築領域
+		std::size_t			  used{} ;		// 有効ASCII byte数。record.size()以下を維持する
+		// 固定labelだけを残領域へ追加し、上限超過を呼出し側へ返す
 		const auto			  appendText = [&record, &used]( const std::string_view text) {
-			   // 診断recordの残り容量を超える文字列を追加しない。
+			   // 診断recordの残り容量を超える文字列を追加しない
 			   if( text.size() > record.size() - used) {
 				   return false ;
 			   }
@@ -84,11 +85,11 @@ bool writeLiveSearchDiagnostics( std::ostream				&output,
 			   used += text.size() ;
 			   return true ;
 		   } ;
-		// Localeを参照せず件数とHTTP statusを10進へ変換する。
+		// Localeを参照せず件数とHTTP statusを10進へ変換する
 		const auto appendNumber = [&record, &used]( const std::size_t number) {
 			const auto result = std::to_chars( record.data() + used, record.data() + record.size(),
-											  number) ;	// 未確定領域への有限変換結果。
-			// 数値のASCII変換に失敗した場合は不完全な診断recordを出力しない。
+											  number) ;	// 未確定領域への有限変換結果
+			// 数値のASCII変換に失敗した場合は不完全な診断recordを出力しない
 			if( result.ec != std::errc{}) {
 				return false ;
 			}
@@ -96,25 +97,25 @@ bool writeLiveSearchDiagnostics( std::ostream				&output,
 			used = static_cast<std::size_t>( result.ptr - record.data()) ;
 			return true ;
 		} ;
-		// 32-bit bit patternを符号拡張せず固定8桁へ変換する。
+		// 32-bit bit patternを符号拡張せず固定8桁へ変換する
 		const auto				   errorBits = static_cast<std::uint32_t>( diagnostics.error) ;
-		std::array<char, 8>		   errorHex{} ;							// 先行zeroを含む固定長のerror表示。
-		constexpr std::string_view HEX_DIGITS = "0123456789ABCDEF" ;	// Locale非依存の16進文字。
-		// 上位nibbleから8桁だけを生成し、0および負数のbit patternを維持する。
+		std::array<char, 8>		   errorHex{} ;							// 先行zeroを含む固定長のerror表示
+		constexpr std::string_view HEX_DIGITS = "0123456789ABCDEF" ;	// Locale非依存の16進文字
+		// 上位nibbleから8桁だけを生成し、0および負数のbit patternを維持する
 		for( std::size_t index = 0; index < errorHex.size(); ++index) {
-			// 現在の16進桁に対応する、32-bit範囲内の右shift量。
+			// 現在の16進桁に対応する、32-bit範囲内の右shift量
 			const auto shift = static_cast<unsigned>( (errorHex.size() - index - 1U) * 4U) ;
-			// 固定8桁の範囲から取り出す現在の4-bit値。
+			// 固定8桁の範囲から取り出す現在の4-bit値
 			errorHex[index] = HEX_DIGITS[(errorBits >> shift) & 0xFU] ;
 		}
 
-		// HTTP失敗由来かつ共通clientの受理するstatus範囲だけをHTTPとして表示する。
+		// HTTP失敗由来かつ共通clientの受理するstatus範囲だけをHTTPとして表示する
 		const auto httpStatus = static_cast<unsigned>( HRESULT_CODE( diagnostics.error)) ;
 		const bool hasHttpStatus =
 			FAILED( diagnostics.error) && HRESULT_FACILITY( diagnostics.error) == FACILITY_HTTP &&
-			httpStatus >= 100U && httpStatus <= 599U ;	// 取得前の失敗からstatusを推測しない。
+			httpStatus >= 100U && httpStatus <= 599U ;	// 取得前の失敗からstatusを推測しない
 
-		// 完全なrecordを構築できなければ部分recordを出力しない。
+		// 完全なrecordを構築できなければ部分recordを出力しない
 		if( !appendText( "Official search diagnostics: error=0x") ||
 		   !appendText( std::string_view( errorHex.data(), errorHex.size())) ||
 		   !appendText( " http_status=") ||
@@ -129,20 +130,20 @@ bool writeLiveSearchDiagnostics( std::ostream				&output,
 			return false ;
 		}
 
-		// Sentryによるunitbufの暗黙flushを避け、例外を捕捉できるscopeで一回ずつI/Oする。
-		std::streambuf *const buffer = output.rdbuf() ;				// Outputに接続された非nullの借用buffer。
-		const auto count = static_cast<std::streamsize>( used) ;	// 512 byte以下の確定record長。
+		// Sentryによるunitbufの暗黙flushを避け、例外を捕捉できるscopeで一回ずつI/Oする
+		std::streambuf *const buffer = output.rdbuf() ;				// Outputに接続された非nullの借用buffer
+		const auto count = static_cast<std::streamsize>( used) ;	// 512 byte以下の確定record長
 		succeeded		 = buffer->sputn( record.data(), count) == count && buffer->pubsync() == 0 ;
 	} catch( ...) {
-		// 例外の本文を出力せず、下段でstreamの失敗状態とfalseの両方へ変換する。
+		// 例外の本文を出力せず、下段でstreamの失敗状態とfalseの両方へ変換する
 	}
 
-	// 出力失敗をstream状態へ反映し、exception maskによる再送出も境界内で処理する。
+	// 出力失敗をstream状態へ反映し、exception maskによる再送出も境界内で処理する
 	if( !succeeded) {
 		try {
 			output.setstate( std::ios::badbit) ;
 		} catch( ...) {
-			// Badbitを設定した結果のexception maskによる再送出も呼出し境界で終える。
+			// Badbitを設定した結果のexception maskによる再送出も呼出し境界で終える
 			return false ;
 		}
 	}

@@ -10,6 +10,9 @@
 > 見本と全sourceのformatter固定点、metadata、Doxygen member集合突合を現行gateで検証する。
 > 2026-11-11の最新利用者指示と[ADR0482](adr/0482-independent-function-contracts.md)により、
 > 宣言/定義双方の独立した関数契約を必須とし、参照だけの省略を禁止する。ADR0141の過去の移行記録は保持する。
+> 2026-11-12の最新利用者指示により、コメントの各記載行末の句点「。」を省き、
+> 現行ファイル履歴の初行commentを「新規作成」に統一する。本改訂は表記の変更であり、
+> literal、文中の区切り、英語のperiod、元日付・作者・版数、移行前履歴の本文を保持する。
 
 > 公開版の読者へ（2026-10-18）: 本文と見本の採用契約、権利表示、当時の移行結果を保持している。
 > AGENTS.md、旧案、ロードマップは保守側の参照資料で、公開用sourceの必須入力ではない。
@@ -20,10 +23,10 @@
 | 項目 | 内容 |
 |---|---|
 | 文書名称 | C/C++コーディング規約（JNI Native準拠） |
-| 文書版数 | 01.01.06 |
+| 文書版数 | 01.01.07 |
 | 制作者 | Shunji Ogawa |
 | 作成日 | 2026/09/02 |
-| 更新日 | 2026/11/11 |
+| 更新日 | 2026/11/12 |
 | 基準プロジェクト | `jp.co.entersystem.jninative` |
 | 適用対象 | 新規C/C++ソース、および既存C/C++ソースの変更箇所 |
 
@@ -65,6 +68,12 @@ JNI、カーネルドライバ、他architecture、基準プロジェクトのCP
 - WindowsユーザーモードDLLおよび実行ファイル
 - Windowsカーネルモードドライバ
 - C/C++のテストコード
+- DriverCrateの自作resource（`.rc`）とC/C++／resourceの生成元template（`.h.in`、`.rc.in`）
+
+DriverCrateの全体適用集合は`source_style.source_paths`の`src`、`tests`、`cmake`、
+`docs/examples`から列挙する。Python／PowerShell／CMake／Inno等の保守scriptはC/C++の
+file header契約へ移さず、C/C++コメントを生成・監査する共通toolの規則だけを本書へ整合する。
+scriptの文字列に埋め込まれた人工sourceや期待値はliteralとして保護し、今回の一括移行に含めない。
 
 ### 2.2 適用除外
 
@@ -107,6 +116,10 @@ Shunji Ogawa
 第三者コード、生成コードの著作者表示は改変しない。
 
 ### 3.2 コメントの目的
+
+コメントの各記載行末と一行blockの`*/`直前に句点「。」を付けない。
+文中の句点は意味の区切りとして残す。string／character／raw literal内の内容、
+英語のperiod、Copyrightと英語licenseの原表記は変更しない。
 
 コメントは、コードを日本語へ置き換えるためではなく、次の情報を残すために記述する。
 
@@ -450,7 +463,7 @@ local classのフィールドも対象とし、関数引数は関数の`@param`�
 //------------------------------------------------------------------------------
 /**
  * @file device_controller.cpp
- * @brief デバイスの初期化、入出力、終了を制御します。
+ * @brief デバイスの初期化、入出力、終了を制御します
  * @version 01.00.00
  * @date 2026/09/02
  * @author Shunji Ogawa
@@ -458,8 +471,8 @@ local classのフィールドも対象とし、関数引数は関数の`@param`�
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -471,7 +484,7 @@ local classのフィールドも対象とし、関数引数は関数の`@param`�
  * Ver.01.00.00   Shunji Ogawa  2026/09/02 新規作成
  * </pre>
  *
- * @note 本ファイルはデバイスハンドルの所有権を管理します。
+ * @note 本ファイルはデバイスハンドルの所有権を管理します
  */
 //------------------------------------------------------------------------------
 ```
@@ -493,8 +506,8 @@ DriverCrateの自作file headerは、`@author`直後へ`@copyright`を一件記�
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
 ```
 
@@ -513,6 +526,8 @@ DriverCrateの自作file headerは、`@author`直後へ`@copyright`を一件記�
 ファイルを変更した場合は変更区分に応じて版数を上げ、更新履歴を末尾へ一行追加する。
 同じ版数を複数の更新履歴へ再利用せず、新しい版数は直前の版数より大きくする。
 過去行は変更せず、最新更新履歴の`Ver.`を除いた版数と`@version`を一致させる。
+ただし2026/11/12の表記統一では、現行`@par 更新履歴`の初行commentだけを`新規作成`とし、
+その初期版・日付・作者を保持する。以降の既存行は末尾句点以外を保持する。
 
 | 変更 | 版数例 |
 |---|---|
@@ -539,7 +554,9 @@ DriverCrateの製品版はCMakeの`project(VERSION)`、本節は独立したフ�
 旧製品版`Ver.0.1.0`等の履歴は、file header内の
 `@par 移行前更新履歴（製品版）`の`<pre>`へ、内容・順序を保持して移す。
 旧行を新しいfile版の連番へ改変せず、`@par 更新履歴`に`Ver.01.00.00`で
-独立版への移行理由を記載する。作成日は維持し、既に新形式のfileは現版を引き継ぐ。
+初行commentを`新規作成`とする。作成日は維持し、既に新形式のfileは現版を引き継ぐ。
+移行前節は独立版の現行履歴ではなく原製品版の歴史であり、初行も含め本文・順序を保持する。
+この表記統一で移行前節へ適用する変更は、各コメント行末の句点除去だけとする。
 移行前節に新変更を追記しない。厳密な移行・検査条件はADR 0141第3節へ従う。
 
 ### 8.4 関数・メソッドコメントの適用範囲
@@ -565,20 +582,20 @@ DriverCrateの製品版はCMakeの`project(VERSION)`、本節は独立したフ�
 ```cpp
 //------------------------------------------------------------------------------
 /**
- * @brief デバイスドライバをロードします。
+ * @brief デバイスドライバをロードします
  *
  * 既存サービスを停止・削除した後、指定ファイルをサービスとして登録し、
- * 呼び出し元が使用するデバイスハンドルを取得します。
+ * 呼び出し元が使用するデバイスハンドルを取得します
  *
- * @param[in] driverName ドライバ名称。NULL不可、NULL終端文字列。
- * @param[in] driverPath ドライバファイルの絶対パス。NULL不可、NULL終端文字列。
- * @param[out] deviceHandle 取得したハンドルの格納先。NULL不可。
- *                          成功時は呼び出し元がCloseHandleで解放します。
- * @return 処理結果。
- * @retval true ロードおよびハンドル取得に成功。
- * @retval false ロードまたはハンドル取得に失敗。
- * @pre 管理者権限で実行されていること。
- * @post 失敗時、deviceHandleの参照先はINVALID_HANDLE_VALUEです。
+ * @param[in] driverName ドライバ名称。NULL不可、NULL終端文字列
+ * @param[in] driverPath ドライバファイルの絶対パス。NULL不可、NULL終端文字列
+ * @param[out] deviceHandle 取得したハンドルの格納先。NULL不可
+ *                          成功時は呼び出し元がCloseHandleで解放します
+ * @return 処理結果
+ * @retval true ロードおよびハンドル取得に成功
+ * @retval false ロードまたはハンドル取得に失敗
+ * @pre 管理者権限で実行されていること
+ * @post 失敗時、deviceHandleの参照先はINVALID_HANDLE_VALUEです
  */
 //------------------------------------------------------------------------------
 bool loadDeviceDriver( const char *driverName,
@@ -623,13 +640,13 @@ bool loadDeviceDriver( const char *driverName,
 
 ```c
 /**
- * @brief 受信データを解析します。
+ * @brief 受信データを解析します
  *
- * @param[in] data 読み取り専用データ。NULL不可。
- * @param[in] dataSizeBytes dataが指す有効データ長（byte）。1以上。
- * @param[out] result 解析結果の格納先。NULL不可。
- *                    失敗時はRESULT_INVALIDに設定します。
- * @return 解析に成功した場合はtrue、失敗した場合はfalse。
+ * @param[in] data 読み取り専用データ。NULL不可
+ * @param[in] dataSizeBytes dataが指す有効データ長（byte）。1以上
+ * @param[out] result 解析結果の格納先。NULL不可
+ *                    失敗時はRESULT_INVALIDに設定します
+ * @return 解析に成功した場合はtrue、失敗した場合はfalse
  */
 bool parseData( const uint8_t *data,
                 size_t dataSizeBytes,
@@ -670,20 +687,20 @@ constexpr std::uint32_t RESPONSE_TIMEOUT_MS = 3'000U ;
 static HANDLE driverHandle = INVALID_HANDLE_VALUE ;
 
 /**
- * @brief デバイスの動作状態を表します。
- * @note 制御スレッドだけが更新します。
+ * @brief デバイスの動作状態を表します
+ * @note 制御スレッドだけが更新します
  */
 enum class DeviceState {
-	/// 停止中。
+	/// 停止中
 	STOPPED,
 
-	/// 入出力を実行中。
+	/// 入出力を実行中
 	RUNNING,
 
-	/// デバイス応答待ち。
+	/// デバイス応答待ち
 	WAITING_REPLY,
 
-	/// 復旧操作が必要な異常状態。
+	/// 復旧操作が必要な異常状態
 	FAULT
 } ;
 ```
@@ -694,19 +711,19 @@ enum class DeviceState {
 
 ```c
 /**
- * @brief サンプリングリングバッファの管理情報を保持します。
+ * @brief サンプリングリングバッファの管理情報を保持します
  */
 typedef struct SamplingInfo {
-	/// ISRだけが更新する書き込み位置。
+	/// ISRだけが更新する書き込み位置
 	uint32_t	writeIndex ;
 
-	/// 読み出しスレッドだけが更新する読み込み位置。
+	/// 読み出しスレッドだけが更新する読み込み位置
 	uint32_t	readIndex ;
 
-	/// 所有バッファ。samplingInfoFinalizeで解放する。
+	/// 所有バッファ。samplingInfoFinalizeで解放する
 	uint8_t		*buffer ;
 
-	/// bufferの確保容量（byte）。
+	/// bufferの確保容量（byte）
 	size_t		capacityBytes ;
 } SamplingInfo ;
 ```
@@ -714,8 +731,8 @@ typedef struct SamplingInfo {
 フィールドの説明が一行に収まらない場合も、宣言直前で`///`を各行に繰り返す。
 
 ```c
-/// ISRだけが更新する書き込み位置です。
-/// readIndexと一致した場合は、バッファが空であることを表します。
+/// ISRだけが更新する書き込み位置です
+/// readIndexと一致した場合は、バッファが空であることを表します
 uint32_t	writeIndex ;
 ```
 
@@ -821,8 +838,8 @@ C++ではRAIIを優先する。Cでは、単一の`cleanup`節を使う場合、
 
 ```c
 /**
- * @brief 設定ファイルを読み込みます。
- * @note fileとbufferは本関数内で取得し、成功・失敗にかかわらず本関数内で解放します。
+ * @brief 設定ファイルを読み込みます
+ * @note fileとbufferは本関数内で取得し、成功・失敗にかかわらず本関数内で解放します
  */
 bool loadConfig( const char *path)
 {
@@ -862,10 +879,10 @@ cleanup:
 
 ```cpp
 /**
- * @brief 受信キューへイベントを登録します。
- * @param[in] event 登録するイベント。
- * @note 複数の受信スレッドから同時に呼び出せます。
- * @note queueMutexを内部で取得します。callbackMutex保持中に呼び出してはいけません。
+ * @brief 受信キューへイベントを登録します
+ * @param[in] event 登録するイベント
+ * @note 複数の受信スレッドから同時に呼び出せます
+ * @note queueMutexを内部で取得します。callbackMutex保持中に呼び出してはいけません
  */
 ```
 
@@ -885,14 +902,14 @@ JNI関数では、通常の関数契約に加えて次を記載する。
 ```cpp
 //------------------------------------------------------------------------------
 /**
- * @brief Java側のRtScan.initからドライバを初期化します。
+ * @brief Java側のRtScan.initからドライバを初期化します
  *
- * @param[in] env 呼び出しスレッドに属するJNI環境。保持禁止。
- * @param[in] self 呼び出し元オブジェクト。本関数の終了後は参照しません。
- * @param[in] driverPath CP932のドライバパスを格納したbyte配列。NULL不可。
- * @return 初期化結果。JNI_TRUEは成功、JNI_FALSEは失敗。
- * @throws java.lang.IllegalArgumentException driverPathが不正な場合。
- * @post 取得した配列要素は全終了経路でReleaseByteArrayElementsにより解放します。
+ * @param[in] env 呼び出しスレッドに属するJNI環境。保持禁止
+ * @param[in] self 呼び出し元オブジェクト。本関数の終了後は参照しません
+ * @param[in] driverPath CP932のドライバパスを格納したbyte配列。NULL不可
+ * @return 初期化結果。JNI_TRUEは成功、JNI_FALSEは失敗
+ * @throws java.lang.IllegalArgumentException driverPathが不正な場合
+ * @post 取得した配列要素は全終了経路でReleaseByteArrayElementsにより解放します
  */
 //------------------------------------------------------------------------------
 JNIEXPORT jboolean JNICALL Java_example_RtScan_init(
@@ -915,12 +932,12 @@ JNIが生成したヘッダは直接編集せず、Java宣言を変更して再�
 
 ```cpp
 /**
- * @brief IOCTL_SCAN_START要求を処理します。
- * @param[in] deviceObject 対象デバイス。NULL不可。
- * @param[in,out] irp 完了対象のIRP。NULL不可。本関数が必ず完了します。
- * @return IRPへ設定した完了ステータス。
- * @pre PASSIVE_LEVELで呼び出すこと。
- * @warning 入力長がsizeof(ScanStartInput)未満の場合はバッファを参照しません。
+ * @brief IOCTL_SCAN_START要求を処理します
+ * @param[in] deviceObject 対象デバイス。NULL不可
+ * @param[in,out] irp 完了対象のIRP。NULL不可。本関数が必ず完了します
+ * @return IRPへ設定した完了ステータス
+ * @pre PASSIVE_LEVELで呼び出すこと
+ * @warning 入力長がsizeof(ScanStartInput)未満の場合はバッファを参照しません
  */
 ```
 
@@ -1248,7 +1265,7 @@ logError( "CreateFile failed", devicePath, errorCode) ;
 //------------------------------------------------------------------------------
 /**
  * @file device_control.c
- * @brief デバイス要求の送信と応答待ちを制御します。
+ * @brief デバイス要求の送信と応答待ちを制御します
  * @version 01.00.00
  * @date 2026/09/02
  * @author Shunji Ogawa
@@ -1256,8 +1273,8 @@ logError( "CreateFile failed", devicePath, errorCode) ;
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -1292,13 +1309,13 @@ static bool sendRequest( DeviceContext *context) ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief デバイス要求を再試行上限まで送信します。
+ * @brief デバイス要求を再試行上限まで送信します
  *
- * @param[in,out] context デバイス制御情報。NULL不可。
- * @return 処理結果。
- * @retval true いずれかの送信で成功。
- * @retval false 入力不正またはすべての送信に失敗。
- * @post 成功時はcontext->stateをDEVICE_STATE_WAITING_REPLYへ変更します。
+ * @param[in,out] context デバイス制御情報。NULL不可
+ * @return 処理結果
+ * @retval true いずれかの送信で成功
+ * @retval false 入力不正またはすべての送信に失敗
+ * @post 成功時はcontext->stateをDEVICE_STATE_WAITING_REPLYへ変更します
  */
 //------------------------------------------------------------------------------
 bool executeDeviceControl( DeviceContext *context)
@@ -1322,9 +1339,9 @@ bool executeDeviceControl( DeviceContext *context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 1回分のデバイス要求を送信します。
- * @param[in] context デバイス制御情報。NULL不可。
- * @return 送信に成功した場合はtrue、失敗した場合はfalse。
+ * @brief 1回分のデバイス要求を送信します
+ * @param[in] context デバイス制御情報。NULL不可
+ * @return 送信に成功した場合はtrue、失敗した場合はfalse
  */
 //------------------------------------------------------------------------------
 static bool sendRequest( DeviceContext *context)
@@ -1340,7 +1357,7 @@ static bool sendRequest( DeviceContext *context)
 //------------------------------------------------------------------------------
 /**
  * @file device_controller.h
- * @brief デバイス制御クラスを定義します。
+ * @brief デバイス制御クラスを定義します
  * @version 01.00.00
  * @date 2026/09/02
  * @author Shunji Ogawa
@@ -1348,8 +1365,8 @@ static bool sendRequest( DeviceContext *context)
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -1372,46 +1389,46 @@ static bool sendRequest( DeviceContext *context)
 #include <windows.h>
 
 /**
- * @brief デバイス要求の送信状態と応答待ち時間を管理します。
+ * @brief デバイス要求の送信状態と応答待ち時間を管理します
  *
- * 本クラスはデバイスハンドルを単独所有し、デストラクタで解放します。
- * 同時呼び出しには対応しません。
+ * 本クラスはデバイスハンドルを単独所有し、デストラクタで解放します
+ * 同時呼び出しには対応しません
  */
 class DeviceController final {
 public:
 	/**
-	 * @brief デバイス制御クラスを初期化します。
-	 * @param[in] responseTimeout 応答待ち時間。0msより大きいこと。
+	 * @brief デバイス制御クラスを初期化します
+	 * @param[in] responseTimeout 応答待ち時間。0msより大きいこと
 	 */
 	explicit DeviceController( std::chrono::milliseconds responseTimeout) ;
 
 	/**
-	 * @brief 所有するデバイスハンドルを解放します。
+	 * @brief 所有するデバイスハンドルを解放します
 	 */
 	~DeviceController() noexcept ;
 
 	/**
-	 * @brief ハンドルの二重解放を防ぐため、コピー構築を禁止します。
+	 * @brief ハンドルの二重解放を防ぐため、コピー構築を禁止します
 	 */
 	DeviceController( const DeviceController &) = delete ;
 
 	/**
-	 * @brief ハンドルの二重解放を防ぐため、コピー代入を禁止します。
+	 * @brief ハンドルの二重解放を防ぐため、コピー代入を禁止します
 	 */
 	DeviceController &operator=( const DeviceController &) = delete ;
 
 	/**
-	 * @brief デバイス要求を送信します。
-	 * @return 送信に成功した場合はtrue、失敗した場合はfalse。
-	 * @pre initializeの成功後に呼び出すこと。
+	 * @brief デバイス要求を送信します
+	 * @return 送信に成功した場合はtrue、失敗した場合はfalse
+	 * @pre initializeの成功後に呼び出すこと
 	 */
 	bool send() ;
 
 private:
-	/// 応答待ち時間（ms）。
+	/// 応答待ち時間（ms）
 	std::chrono::milliseconds	responseTimeout_ ;
 
-	/// デバイスハンドル。無効時はINVALID_HANDLE_VALUE。
+	/// デバイスハンドル。無効時はINVALID_HANDLE_VALUE
 	HANDLE				deviceHandle_ ;
 } ;
 
@@ -1565,11 +1582,13 @@ private:
 基本clang-formatだけの出力を理由に本書を変更しない。
 本文で規定しない継続引数や集約初期化の配置は基本formatterに委ねる。
 見本はtool追従後に一度だけ正規化し、以後は再整形差分0を要求する。
-formatterの日常実行では版数・著作権・説明本文を自動更新しない。
+formatterの日常実行では版数・著作権・説明内容を自動更新しない。
+コメント行末の句点だけは共通字句処理で正規化し、literalと文中の句点を保持する。
 
 現行checkerは独立file版、現行履歴の一意性・単調増加・header版との一致、移行前履歴の分離、
-手動確定したCopyright／Apache-2.0ライセンス節を検査する。formatterは全対象で二回目の
-差分0を要求し、版数・著作権・説明本文を更新しない。
+手動確定したCopyright／Apache-2.0ライセンス節、初回commentの`新規作成`、
+コメント行末の句点がないことを検査する。formatterは全対象で二回目の差分0を要求し、
+版数・著作権・説明内容を更新しない。
 
 フィールドと列挙値は、Doxygen 1.10.0で`EXTRACT_ALL=YES`の対象集合と文書抽出集合を生成し、
 宣言直前の`///`、空でない説明、file・owner・識別子・行の対応を
@@ -1587,5 +1606,6 @@ formatterの日常実行では版数・著作権・説明本文を自動更新�
 | Ver.01.01.03 | 2026/09/11 | Shunji Ogawa | CPP見本一件のheader試行と未完了の書式検証範囲を明示。 |
 | Ver.01.01.04 | 2026/09/11 | Shunji Ogawa | 手動確定したDoxygen著作権・Apache-2.0ライセンス節へ正本を同期。 |
 | Ver.01.01.05 | 2026/09/11 | Shunji Ogawa | 全355自作source移行と現行formatter・metadata・Doxygen集合gateの完了を反映。 |
+| Ver.01.01.07 | 2026/11/12 | Shunji Ogawa | 最新指示のコメント行末句点省略と現行初回履歴「新規作成」、原歴史・literal保持と共通toolの契約を反映。 |
 
 本節は01.01.01で追加した。追加前の文書は01.01.00であり、その変更履歴を推測して作成しない。

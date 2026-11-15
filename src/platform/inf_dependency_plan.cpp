@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file inf_dependency_plan.cpp
- * @brief 明示選択Include文脈とNeedsの有限解決核・非実行計画の実装。
- * @version 01.01.01
+ * @brief 明示選択Include文脈とNeedsの有限解決核・非実行計画の実装
+ * @version 01.01.02
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,12 +19,13 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/06  有限依存核・曖昧／循環・snapshot再確認を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
- * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/06  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note loaderの証拠を独立に保持し、実byte取得・署名・実device導入を直接行わない。
+ * @note loaderの証拠を独立に保持し、実byte取得・署名・実device導入を直接行わない
  * @see docs/adr/0269-bounded-inf-dependency-core-and-review-plan.md
  */
 //------------------------------------------------------------------------------
@@ -40,18 +41,18 @@
 namespace drivercrate {
 namespace {
 
-constexpr std::size_t MAX_DOCUMENTS	 = 64U ;	// 一runのINF snapshot数上限。
-constexpr std::size_t MAX_SECTIONS	 = 1024U ;	// 未発見を含む節照会上限。
-constexpr std::size_t MAX_REFERENCES = 4096U ;	// 全節の累積参照数と出力辺数上限。
-constexpr std::size_t MAX_DEPTH		 = 32U ;	// C++再帰の最大段数。
-constexpr std::size_t MAX_NAME		 = 254U ;	// 明示名の最大文字数。
+constexpr std::size_t MAX_DOCUMENTS	 = 64U ;	// 一runのINF snapshot数上限
+constexpr std::size_t MAX_SECTIONS	 = 1024U ;	// 未発見を含む節照会上限
+constexpr std::size_t MAX_REFERENCES = 4096U ;	// 全節の累積参照数と出力辺数上限
+constexpr std::size_t MAX_DEPTH		 = 32U ;	// C++再帰の最大段数
+constexpr std::size_t MAX_NAME		 = 254U ;	// 明示名の最大文字数
 
 //------------------------------------------------------------------------------
 /**
- * @brief Windows ordinal規則で有限節名を比較する。
- * @param[in] left 有限な一名称。
- * @param[in] right 有限な一名称。
- * @return 大小文字を除いて一致する場合true。
+ * @brief Windows ordinal規則で有限節名を比較する
+ * @param[in] left 有限な一名称
+ * @param[in] right 有限な一名称
+ * @return 大小文字を除いて一致する場合true
  */
 //------------------------------------------------------------------------------
 bool				  sameName( std::wstring_view left, std::wstring_view right)
@@ -63,9 +64,9 @@ bool				  sameName( std::wstring_view left, std::wstring_view right)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 証拠enumの未知値を拒否する。
- * @param[in] value 調べる証拠軸。
- * @return 三既知値のいずれかならtrue。
+ * @brief 証拠enumの未知値を拒否する
+ * @param[in] value 調べる証拠軸
+ * @return 三既知値のいずれかならtrue
  */
 //------------------------------------------------------------------------------
 bool validEvidence( InfDependencyEvidence value)
@@ -76,10 +77,10 @@ bool validEvidence( InfDependencyEvidence value)
 
 //------------------------------------------------------------------------------
 /**
- * @brief OSと観測世代を完全一致させる。
- * @param[in] left 開始文脈。
- * @param[in] right 候補文脈。
- * @return 全field一致ならtrue。
+ * @brief OSと観測世代を完全一致させる
+ * @param[in] left 開始文脈
+ * @param[in] right 候補文脈
+ * @return 全field一致ならtrue
  */
 //------------------------------------------------------------------------------
 bool sameContext( const InfDependencyContext &left, const InfDependencyContext &right)
@@ -91,9 +92,9 @@ bool sameContext( const InfDependencyContext &left, const InfDependencyContext &
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一documentの形を検査する。検査済み状態へ昇格しない。
- * @param[in] document 有限なsnapshot。
- * @return 全必須fieldが有効ならtrue。
+ * @brief 一documentの形を検査する。検査済み状態へ昇格しない
+ * @param[in] document 有限なsnapshot
+ * @return 全必須fieldが有効ならtrue
  */
 //------------------------------------------------------------------------------
 bool validDocument( const InfDependencyDocument &document)
@@ -102,7 +103,7 @@ bool validDocument( const InfDependencyDocument &document)
 		   document.byteCount <= 4U * 1024U * 1024U && document.sha256.size() == 64U &&
 		   std::ranges::all_of( document.sha256,
 							   []( wchar_t value) {
-								   // 小文字hexだけを原hashの表現として受理する。
+								   // 小文字hexだけを原hashの表現として受理する
 								   return (value >= L'0' && value <= L'9') ||
 										  (value >= L'a' && value <= L'f') ;
 							   }) &&
@@ -114,10 +115,10 @@ bool validDocument( const InfDependencyDocument &document)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同identityの証拠差替えを検出する。
- * @param[in] left 保存済みsnapshot。
- * @param[in] right 再取得snapshot。
- * @return 全byte／証拠／文脈が一致ならtrue。
+ * @brief 同identityの証拠差替えを検出する
+ * @param[in] left 保存済みsnapshot
+ * @param[in] right 再取得snapshot
+ * @return 全byte／証拠／文脈が一致ならtrue
  */
 //------------------------------------------------------------------------------
 bool sameDocument( const InfDependencyDocument &left, const InfDependencyDocument &right)
@@ -130,16 +131,16 @@ bool sameDocument( const InfDependencyDocument &left, const InfDependencyDocumen
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一明示名の長さと制御文字等を検査する。
- * @param[in] name worker内だけの一名称。
- * @return 境界に適合する場合true。
+ * @brief 一明示名の長さと制御文字等を検査する
+ * @param[in] name worker内だけの一名称
+ * @return 境界に適合する場合true
  */
 //------------------------------------------------------------------------------
 bool validSectionName( std::wstring_view name)
 {
 	return !name.empty() && name.size() <= MAX_NAME && name.front() != L' ' &&
 		   name.back() != L' ' && std::ranges::none_of( name, []( wchar_t value) {
-			   // section名からpath・多値・制御文字への切替えを許可しない。
+			   // section名からpath・多値・制御文字への切替えを許可しない
 			   return value < L' ' || value == 0x7f ||
 					  std::wstring_view( L"[]\\/,:\"").find( value) != std::wstring_view::npos ;
 		   }) ;
@@ -147,36 +148,37 @@ bool validSectionName( std::wstring_view name)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Includeの安全な相対INF名だけを受理する。
- * @param[in] name 原相対名称。
- * @return 親移動・絶対path・予約文字を含まないINF名ならtrue。
+ * @brief Includeの安全な相対INF名だけを受理する
+ * @param[in] name 原相対名称
+ * @return 親移動・絶対path・予約文字を含まないINF名ならtrue
  */
 //------------------------------------------------------------------------------
 bool validIncludeName( std::wstring_view name)
 {
-	// 長さと拡張子の不正からpath検索へ進ませない。
+	// 長さと拡張子の不正からpath検索へ進ませない
 	if( name.size() < 5U || name.size() > MAX_NAME ||
 	   !sameName( name.substr( name.size() - 4U), L".inf")) {
 		return false ;
 	}
 
-	std::size_t begin{} ;	// 各相対componentの開始位置。
-	// 有限な全componentを確認し、途中の親移動も拒否する。
+	std::size_t begin{} ;	// 各相対componentの開始位置
+	// 有限な全componentを確認し、途中の親移動も拒否する
 	while( begin < name.size()) {
-		const std::size_t		end	 = name.find_first_of( L"\\/", begin) ;	// 次の相対component境界。
-		const std::wstring_view part = name.substr(
-			begin, end == std::wstring_view::npos ? end : end - begin) ;	// 借用component。
-		// 空component、親移動、末尾正規化、任意検索文字を許可しない。
+		const std::size_t		end = name.find_first_of( L"\\/", begin) ;	// 次の相対component境界
+		const std::wstring_view part =
+			// 借用component
+			name.substr( begin, end == std::wstring_view::npos ? end : end - begin) ;
+		// 空component、親移動、末尾正規化、任意検索文字を許可しない
 		if( part.empty() || part == L"." || part == L".." || part.back() == L'.' ||
 		   part.back() == L' ' || std::ranges::any_of( part, []( wchar_t value) {
-			   // loaderのpath解決前に制御・予約・環境展開文字を拒否する。
+			   // loaderのpath解決前に制御・予約・環境展開文字を拒否する
 			   return value < L' ' || value == 0x7f ||
 					  std::wstring_view( L":<>|\"?*%").find( value) != std::wstring_view::npos ;
 		   })) {
 			return false ;
 		}
 
-		// 最後のcomponentを検証した時点で完了する。
+		// 最後のcomponentを検証した時点で完了する
 		if( end == std::wstring_view::npos) {
 			return true ;
 		}
@@ -189,9 +191,9 @@ bool validIncludeName( std::wstring_view name)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 三証拠が全て確認済みかを調べる。
- * @param[in] document 独立証拠を持つsnapshot。
- * @return 全軸VERIFIEDならtrue。device適用性は表さない。
+ * @brief 三証拠が全て確認済みかを調べる
+ * @param[in] document 独立証拠を持つsnapshot
+ * @return 全軸VERIFIEDならtrue。device適用性は表さない
  */
 //------------------------------------------------------------------------------
 bool verifiedDocument( const InfDependencyDocument &document)
@@ -201,14 +203,14 @@ bool verifiedDocument( const InfDependencyDocument &document)
 		   document.signature == InfDependencyEvidence::VERIFIED ;
 }
 
-/** @brief 同期runの有限cacheと非実行結果を所有する。 */
+/** @brief 同期runの有限cacheと非実行結果を所有する */
 class DependencyResolver {
 public:
 	/**
-	 * @brief loaderと開始文脈を同期借用する。
-	 * @param[in] operations 呼出し完了まで有効なloader。
-	 * @param[in] context rootと全候補を結合する文脈。
-	 * @param[in] selectedContext 同期callだけ借用する元rootの正規選択です。null可です。
+	 * @brief loaderと開始文脈を同期借用する
+	 * @param[in] operations 呼出し完了まで有効なloader
+	 * @param[in] context rootと全候補を結合する文脈
+	 * @param[in] selectedContext 同期callだけ借用する元rootの正規選択です。null可です
 	 */
 	DependencyResolver( const InfDependencyOperations	  &operations,
 					   const InfDependencyContext		  &context,
@@ -219,37 +221,37 @@ public:
 	}
 
 	/**
-	 * @brief seedを観測し全snapshot再確認後にだけ結果を移す。
-	 * @param[in] root 開始snapshot。
-	 * @param[in] seeds 明示開始節。
-	 * @param[out] result 全成功後だけ保持する結果。
-	 * @return 成功0、最初の拒否HRESULT。
+	 * @brief seedを観測し全snapshot再確認後にだけ結果を移す
+	 * @param[in] root 開始snapshot
+	 * @param[in] seeds 明示開始節
+	 * @param[out] result 全成功後だけ保持する結果
+	 * @return 成功0、最初の拒否HRESULT
 	 */
 	NativeError run( const InfDependencyDocument &root, std::span<const std::wstring> seeds,
 					InfDependencyResult &result)
 	{
-		std::size_t rootIndex{} ;							// 一意rootの保存位置。
-		NativeError error = addDocument( root, rootIndex) ;	// rootも同じsnapshot規則へ結合する。
-		// 正規選択基本の原Includeを先に観測し、seedの並び順から親を推定しません。
+		std::size_t rootIndex{} ;							// 一意rootの保存位置
+		NativeError error = addDocument( root, rootIndex) ;	// rootも同じsnapshot規則へ結合する
+		// 正規選択基本の原Includeを先に観測し、seedの並び順から親を推定しません
 		if( error == 0 && selectedContext_ != nullptr) {
-			bool cycle{} ;	// 元基本節だけの有限再帰です。
+			bool cycle{} ;	// 元基本節だけの有限再帰です
 			error = walk( rootIndex, selectedContext_->baseSection, 1U, cycle) ;
 		}
 
-		// 全seedを順に確認し、重複・共有はcacheで再走査を止める。
+		// 全seedを順に確認し、重複・共有はcacheで再走査を止める
 		for( const auto &seed : seeds) {
-			// 先行する失敗の部分値を結果へ移さない。
+			// 先行する失敗の部分値を結果へ移さない
 			if( error != 0) {
 				return error ;
 			}
 
-			bool cycle{} ;	// seedでは通常falseで、再帰辺だけが循環を注釈する。
+			bool cycle{} ;	// seedでは通常falseで、再帰辺だけが循環を注釈する
 			error = walk( rootIndex, seed, 1U, cycle) ;
 		}
 
-		// 全発見snapshotを再確認し、照会後の改変・OS差を止める。
+		// 全発見snapshotを再確認し、照会後の改変・OS差を止める
 		for( const auto &document : result_.documents) {
-			// 観測失敗または一つの再確認失敗でも全体を破棄する。
+			// 観測失敗または一つの再確認失敗でも全体を破棄する
 			if( error != 0) {
 				return error ;
 			}
@@ -257,19 +259,19 @@ public:
 			error = operations_.recheck( document) ;
 		}
 
-		// 最後のcallbackの失敗も成功結果へ変換しない。
+		// 最後のcallbackの失敗も成功結果へ変換しない
 		if( error != 0) {
 			return error ;
 		}
 
 		result_.plan.referencesResolved =
 			sourcesPresent_ && std::ranges::all_of( result_.edges, []( const auto &edge) {
-				// 明示辺の解決だけを集計し、存在・未検査を含めない。
+				// 明示辺の解決だけを集計し、存在・未検査を含めない
 				return edge.state == InfDependencyState::RESOLVED_PACKAGE ||
 					   edge.state == InfDependencyState::RESOLVED_SYSTEM ;
 			}) ;
 		result_.plan.rootEvidenceVerified = verifiedDocument( result_.documents[rootIndex]) ;
-		// rootと参照資料の役割だけを保存し、追加導入や実行順序を作らない。
+		// rootと参照資料の役割だけを保存し、追加導入や実行順序を作らない
 		for( const auto &document : result_.documents) {
 			result_.plan.entries.push_back(
 				{document.identity, document.identity == result_.documents[rootIndex].identity}) ;
@@ -280,55 +282,55 @@ public:
 	}
 
 private:
-	/** @brief 一照会節と再帰状態のcache。 */
+	/** @brief 一照会節と再帰状態のcache */
 	struct CachedSection {
-		/// result.sectionsと同じ位置のdocument保存index。
+		/// result.sectionsと同じ位置のdocument保存index
 		std::size_t							  documentIndex{} ;
-		/// 原名の有限snapshot。read callbackの再呼出しを防ぐ。
+		/// 原名の有限snapshot。read callbackの再呼出しを防ぐ
 		InfDependencySection				  snapshot ;
-		/// 0は照会のみ、1は再帰中、2は走査完了。
+		/// 0は照会のみ、1は再帰中、2は走査完了
 		unsigned int						  phase{} ;
-		/// 元snapshotの参照ordinalに対応したInclude候補です。宣言元は同cacheのdocument/sectionです。
+		/// 元snapshotの参照ordinalに対応したInclude候補です。宣言元は同cacheのdocument/sectionです
 		std::vector<std::vector<std::size_t>> includes ;
-		/// 同じ元Include照会の完了状態です。Needsはfalseのままです。
+		/// 同じ元Include照会の完了状態です。Needsはfalseのままです
 		std::vector<bool>					  includeChecked ;
 	} ;
-	/// 呼出し中だけ有効な同期loader。
+	/// 呼出し中だけ有効な同期loader
 	const InfDependencyOperations	   &operations_ ;
-	/// 呼出し中だけ借用する元root/正規選択の有限文脈です。null可です。
+	/// 呼出し中だけ借用する元root/正規選択の有限文脈です。null可です
 	const InfDependencySelectedContext *selectedContext_ ;
-	/// 全成功前の非公開結果。
+	/// 全成功前の非公開結果
 	InfDependencyResult					result_ ;
-	/// result.sectionsに一対一対応する有限cache。
+	/// result.sectionsに一対一対応する有限cache
 	std::vector<CachedSection>			cache_ ;
-	/// 全snapshotで累積した参照数。最大4,096。
+	/// 全snapshotで累積した参照数。最大4,096
 	std::size_t							observedReferences_{} ;
-	/// 走査すべきseed／再帰元が全てPRESENTの場合true。
+	/// 走査すべきseed／再帰元が全てPRESENTの場合true
 	bool								sourcesPresent_{true} ;
 
 	/**
-	 * @brief candidateを一意identityとOS文脈へ結合する。
-	 * @param[in] document 観測snapshot。
-	 * @param[out] index 成功時の保存位置。
-	 * @return 成功0、不正・OS差・差替え・容量のHRESULT。
+	 * @brief candidateを一意identityとOS文脈へ結合する
+	 * @param[in] document 観測snapshot
+	 * @param[out] index 成功時の保存位置
+	 * @return 成功0、不正・OS差・差替え・容量のHRESULT
 	 */
 	NativeError addDocument( const InfDependencyDocument &document, std::size_t &index)
 	{
-		// 不正hash・証拠・由来を単なる未検査へ弱めない。
+		// 不正hash・証拠・由来を単なる未検査へ弱めない
 		if( !validDocument( document)) {
 			return E_INVALIDARG ;
 		}
 
-		// 他OSや別観測世代のsystem充足を持ち込ませない。
+		// 他OSや別観測世代のsystem充足を持ち込ませない
 		if( !sameContext( result_.context, document.context)) {
 			return HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH) ;
 		}
 
-		// 同identityの再発見を保存済みの全証拠へ結合する。
+		// 同identityの再発見を保存済みの全証拠へ結合する
 		for( std::size_t position = 0U; position < result_.documents.size(); ++position) {
-			// 名称や同hashだけで別documentを同一化しない。
+			// 名称や同hashだけで別documentを同一化しない
 			if( result_.documents[position].identity == document.identity) {
-				// 同identityの内容・証拠変更は全体拒否する。
+				// 同identityの内容・証拠変更は全体拒否する
 				if( !sameDocument( result_.documents[position], document)) {
 					return HRESULT_FROM_WIN32( ERROR_FILE_INVALID) ;
 				}
@@ -338,7 +340,7 @@ private:
 			}
 		}
 
-		// 一runのINF数を無制限に広げない。
+		// 一runのINF数を無制限に広げない
 		if( result_.documents.size() >= MAX_DOCUMENTS) {
 			return HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
 		}
@@ -349,17 +351,17 @@ private:
 	}
 
 	/**
-	 * @brief 明示節を一度だけ照会し有限snapshotへ固定する。
-	 * @param[in] documentIndex 保存済みdocument位置。
-	 * @param[in] section 安全な明示節。
-	 * @param[out] index 成功時のcache位置。
-	 * @return 成功0、callback・容量・応答不正のHRESULT。
+	 * @brief 明示節を一度だけ照会し有限snapshotへ固定する
+	 * @param[in] documentIndex 保存済みdocument位置
+	 * @param[in] section 安全な明示節
+	 * @param[out] index 成功時のcache位置
+	 * @return 成功0、callback・容量・応答不正のHRESULT
 	 */
 	NativeError read( std::size_t documentIndex, std::wstring_view section, std::size_t &index)
 	{
-		// 同document／節の共有照会をcacheへ戻す。
+		// 同document／節の共有照会をcacheへ戻す
 		for( std::size_t position = 0U; position < cache_.size(); ++position) {
-			// Windows ordinalの大小文字だけを同一節として扱う。
+			// Windows ordinalの大小文字だけを同一節として扱う
 			if( cache_[position].documentIndex == documentIndex &&
 			   sameName( result_.sections[position].section, section)) {
 				index = position ;
@@ -367,20 +369,20 @@ private:
 			}
 		}
 
-		// 候補の未発見も有限節予算へ含める。
+		// 候補の未発見も有限節予算へ含める
 		if( cache_.size() >= MAX_SECTIONS) {
 			return HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
 		}
 
-		InfDependencySection snapshot ;	// 一callbackの局所結果。
+		InfDependencySection snapshot ;	// 一callbackの局所結果
 		const NativeError error = operations_.readSection( result_.documents[documentIndex], section,
-														  snapshot) ;	// 明示名だけ。
-		// callback失敗の部分snapshotを保持しない。
+														  snapshot) ;	// 明示名だけ
+		// callback失敗の部分snapshotを保持しない
 		if( error != 0) {
 			return error ;
 		}
 
-		// 未知段階と未検査／未発見に付いた参照集合は不正応答とする。
+		// 未知段階と未検査／未発見に付いた参照集合は不正応答とする
 		if( (snapshot.state != InfDependencyReadState::NOT_CHECKED &&
 			snapshot.state != InfDependencyReadState::MISSING &&
 			snapshot.state != InfDependencyReadState::PRESENT) ||
@@ -388,20 +390,20 @@ private:
 			return E_INVALIDARG ;
 		}
 
-		// 個別と累積の両参照予算を超えた結果を切り捨てない。
+		// 個別と累積の両参照予算を超えた結果を切り捨てない
 		if( snapshot.references.size() > MAX_REFERENCES - observedReferences_) {
 			return HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
 		}
 
-		// 既知参照enumだけを受理し、過長名称の複製を止める。
+		// 既知参照enumだけを受理し、過長名称の複製を止める
 		for( auto &reference : snapshot.references) {
-			// 未知directiveをNeedsとして解釈しない。
+			// 未知directiveをNeedsとして解釈しない
 			if( reference.directive != InfDependencyDirective::INCLUDE &&
 			   reference.directive != InfDependencyDirective::NEEDS) {
 				return E_INVALIDARG ;
 			}
 
-			// 過長名は空のINVALID_REFERENCE辺に残し、本文を複製しない。
+			// 過長名は空のINVALID_REFERENCE辺に残し、本文を複製しない
 			if( reference.target.size() > MAX_NAME) {
 				reference.target.clear() ;
 			}
@@ -416,14 +418,14 @@ private:
 	}
 
 	/**
-	 * @brief 一意候補の独立証拠を辺へ注釈する。
-	 * @param[in,out] edge 元参照の結果。
-	 * @param[in] document 対象snapshot。
+	 * @brief 一意候補の独立証拠を辺へ注釈する
+	 * @param[in,out] edge 元参照の結果
+	 * @param[in] document 対象snapshot
 	 */
 	void bindEdge( InfDependencyEdge &edge, const InfDependencyDocument &document)
 	{
 		edge.targetIdentity = document.identity ;
-		// 存在だけでは署名・由来未確認を解決済みへ昇格しない。
+		// 存在だけでは署名・由来未確認を解決済みへ昇格しない
 		if( !verifiedDocument( document)) {
 			edge.state	= InfDependencyState::OBSERVED ;
 			edge.reason = InfDependencyReason::EVIDENCE_INCOMPLETE ;
@@ -437,44 +439,44 @@ private:
 	}
 
 	/**
-	 * @brief 同節Includeを全照会して一意性と証拠を保持する。
-	 * @param[in] source 元snapshot。
-	 * @param[in,out] edge 原Include辺。
-	 * @param[out] indexes 発見候補のdocument位置。
-	 * @param[out] checked 照会済みならtrue。
-	 * @return 成功0、callback・応答・容量のHRESULT。
+	 * @brief 同節Includeを全照会して一意性と証拠を保持する
+	 * @param[in] source 元snapshot
+	 * @param[in,out] edge 原Include辺
+	 * @param[out] indexes 発見候補のdocument位置
+	 * @param[out] checked 照会済みならtrue
+	 * @return 成功0、callback・応答・容量のHRESULT
 	 */
 	NativeError include( const InfDependencyDocument &source, InfDependencyEdge &edge,
 						std::vector<std::size_t> &indexes, bool &checked)
 	{
-		InfDependencyLookup lookup ;	// このIncludeだけの有限照会結果。
+		InfDependencyLookup lookup ;	// このIncludeだけの有限照会結果
 		const NativeError	error =
-			// 表示名からpathを合成しない。
+			// 表示名からpathを合成しない
 			operations_.lookup( source, edge.target, lookup) ;
-		// callback拒否を未発見へ変換しない。
+		// callback拒否を未発見へ変換しない
 		if( error != 0) {
 			return error ;
 		}
 
-		// 未検査の部分候補と一照会の過大集合を拒否する。
+		// 未検査の部分候補と一照会の過大集合を拒否する
 		if( (!lookup.checked && !lookup.documents.empty()) ||
 		   lookup.documents.size() > MAX_DOCUMENTS) {
 			return E_INVALIDARG ;
 		}
 
 		checked = lookup.checked ;
-		// 一照会の候補重複をloader不正として拒否する。
+		// 一照会の候補重複をloader不正として拒否する
 		for( const auto &document : lookup.documents) {
-			std::size_t		  index{} ;	// 全結果内の保存位置。
+			std::size_t		  index{} ;	// 全結果内の保存位置
 			const NativeError added =
-				// 同identityの差替えも検査する。
+				// 同identityの差替えも検査する
 				addDocument( document, index) ;
-			// 一候補だけの失敗でも部分graphを返さない。
+			// 一候補だけの失敗でも部分graphを返さない
 			if( added != 0) {
 				return added ;
 			}
 
-			// 同じ実documentを別候補として水増ししない。
+			// 同じ実documentを別候補として水増ししない
 			if( std::ranges::find( indexes, index) != indexes.end()) {
 				return E_INVALIDARG ;
 			}
@@ -483,7 +485,7 @@ private:
 		}
 
 		edge.candidateCount = indexes.size() ;
-		// 一意であっても三証拠を独立に確認する。
+		// 一意であっても三証拠を独立に確認する
 		if( indexes.size() == 1U) {
 			bindEdge( edge, result_.documents[indexes.front()]) ;
 		} else {
@@ -497,37 +499,37 @@ private:
 	}
 
 	/**
-	 * @brief 明示節を有限再帰で走査し、共有と循環を分離する。
-	 * @param[in] documentIndex 保存document位置。
-	 * @param[in] section 明示節。
-	 * @param[in] depth 1～32の再帰段数。
-	 * @param[out] cycle 再帰中の同じ節ならtrue。
-	 * @return 成功0、callback・容量のHRESULT。
+	 * @brief 明示節を有限再帰で走査し、共有と循環を分離する
+	 * @param[in] documentIndex 保存document位置
+	 * @param[in] section 明示節
+	 * @param[in] depth 1～32の再帰段数
+	 * @param[out] cycle 再帰中の同じ節ならtrue
+	 * @return 成功0、callback・容量のHRESULT
 	 */
 	NativeError walk( std::size_t documentIndex, std::wstring_view section, std::size_t depth,
 					 bool &cycle)
 	{
 		cycle = false ;
-		// 有限再帰を超えた観測を部分成功にしない。
+		// 有限再帰を超えた観測を部分成功にしない
 		if( depth > MAX_DEPTH) {
 			return HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
 		}
 
-		std::size_t position{} ;										// 元節cacheの安定した位置。
-		NativeError error = read( documentIndex, section, position) ;	// 一度だけの明示照会。
-		// 読取失敗のgraphを処理しない。
+		std::size_t position{} ;										// 元節cacheの安定した位置
+		NativeError error = read( documentIndex, section, position) ;	// 一度だけの明示照会
+		// 読取失敗のgraphを処理しない
 		if( error != 0) {
 			return error ;
 		}
 
-		// 再帰中と走査完了を区別して循環辺を保持する。
+		// 再帰中と走査完了を区別して循環辺を保持する
 		if( cache_[position].phase != 0U) {
 			cycle = cache_[position].phase == 1U ;
 			return 0 ;
 		}
 
 		cache_[position].phase = 1U ;
-		// 未検査／未発見のseedを空の完全graphへ昇格しない。
+		// 未検査／未発見のseedを空の完全graphへ昇格しない
 		if( cache_[position].snapshot.state != InfDependencyReadState::PRESENT) {
 			sourcesPresent_		   = false ;
 			cache_[position].phase = 2U ;
@@ -535,33 +537,33 @@ private:
 		}
 
 		const InfDependencyDocument source =
-			result_.documents[documentIndex] ;							// vector拡張から独立した同期借用元。
-		const std::wstring sourceSection( section) ;					// 再帰によるvector再配置から独立した原節。
-		const auto references = cache_[position].snapshot.references ;	// 最大4,096の局所所有参照。
+			result_.documents[documentIndex] ;							// vector拡張から独立した同期借用元
+		const std::wstring sourceSection( section) ;					// 再帰によるvector再配置から独立した原節
+		const auto references = cache_[position].snapshot.references ;	// 最大4,096の局所所有参照
 		std::vector<std::vector<std::size_t>> included(
-			// 各Includeの候補を同じ元節だけで保持する。
+			// 各Includeの候補を同じ元節だけで保持する
 			references.size()) ;
-		std::vector<bool> checked( references.size(), false) ;	// 各Include照会の完了状態。
-		std::vector<InfDependencyEdge> edges ;					// 元順序を維持する局所辺。
-		// 同節の全Includeを先に照会し、Needsの前後順に依存させない。
+		std::vector<bool>			   checked( references.size(), false) ;	// 各Include照会の完了状態
+		std::vector<InfDependencyEdge> edges ;								// 元順序を維持する局所辺
+		// 同節の全Includeを先に照会し、Needsの前後順に依存させない
 		for( std::size_t ordinal = 0U; ordinal < references.size(); ++ordinal) {
-			const auto		 &reference = references[ordinal] ;	// 一明示参照の同期借用。
+			const auto		 &reference = references[ordinal] ;	// 一明示参照の同期借用
 			InfDependencyEdge edge{source.identity, sourceSection, reference.target,
-								   reference.directive} ;	// 初期未検査辺。
+								   reference.directive} ;	// 初期未検査辺
 			const bool		  valid = reference.directive == InfDependencyDirective::INCLUDE
 										  ? validIncludeName( reference.target)
-										  : validSectionName( reference.target) ;	// 原名の境界。
-			// 不正名は辺へ残すが、loaderのpath／節探索へ渡さない。
+										  : validSectionName( reference.target) ;	// 原名の境界
+			// 不正名は辺へ残すが、loaderのpath／節探索へ渡さない
 			if( !valid) {
 				edge.state	= InfDependencyState::INVALID_REFERENCE ;
 				edge.reason = InfDependencyReason::INVALID_NAME ;
 			}
-			// 正当なIncludeだけを同節の候補照会へ進める。
+			// 正当なIncludeだけを同節の候補照会へ進める
 			else if( reference.directive == InfDependencyDirective::INCLUDE) {
-				bool done{} ;	// vector<bool>のproxyをcallbackへ渡さない。
+				bool done{} ;	// vector<bool>のproxyをcallbackへ渡さない
 				error			 = include( source, edge, included[ordinal], done) ;
 				checked[ordinal] = done ;
-				// 一つの照会不正でも部分結果を破棄する。
+				// 一つの照会不正でも部分結果を破棄する
 				if( error != 0) {
 					return error ;
 				}
@@ -572,27 +574,27 @@ private:
 
 		cache_[position].includes		= included ;
 		cache_[position].includeChecked = checked ;
-		// 全原辺を順序通り保存し、Needsだけを一意候補へ再帰する。
+		// 全原辺を順序通り保存し、Needsだけを一意候補へ再帰する
 		for( std::size_t ordinal = 0U; ordinal < edges.size(); ++ordinal) {
-			InfDependencyEdge		 edge = edges[ordinal] ;	// 再帰の出力vectorから独立する辺。
-			std::vector<std::size_t> matches ;					// 明示Needsを含む異なるdocument候補。
-			bool					 unknown{} ;				// 未照会またはbyte未結合候補を隠さない。
-			// Includeと不正名はNeeds節として再解釈しない。
+			InfDependencyEdge		 edge = edges[ordinal] ;	// 再帰の出力vectorから独立する辺
+			std::vector<std::size_t> matches ;					// 明示Needsを含む異なるdocument候補
+			bool					 unknown{} ;				// 未照会またはbyte未結合候補を隠さない
+			// Includeと不正名はNeeds節として再解釈しない
 			if( edge.directive == InfDependencyDirective::NEEDS &&
 			   edge.state != InfDependencyState::INVALID_REFERENCE) {
-				std::vector<std::size_t> candidates{documentIndex} ;	// 同INFの明示節も独立に調べる。
-				// 同じ元節のIncludeだけから候補を集める。
+				std::vector<std::size_t> candidates{documentIndex} ;	// 同INFの明示節も独立に調べる
+				// 同じ元節のIncludeだけから候補を集める
 				for( std::size_t item = 0U; item < references.size(); ++item) {
-					// 他のNeedsをIncludeへ読み替えない。
+					// 他のNeedsをIncludeへ読み替えない
 					if( references[item].directive != InfDependencyDirective::INCLUDE) {
 						continue ;
 					}
 
 					unknown = unknown || !checked[item] ||
 							  edges[item].state == InfDependencyState::INVALID_REFERENCE ;
-					// 共有Include先は同じ一候補として節を調べる。
+					// 共有Include先は同じ一候補として節を調べる
 					for( const auto candidate : included[item]) {
-						// 異なるidentityを同hashだけで合併しない。
+						// 異なるidentityを同hashだけで合併しない
 						if( std::ranges::find( candidates, candidate) == candidates.end()) {
 							candidates.push_back( candidate) ;
 						}
@@ -600,36 +602,36 @@ private:
 				}
 
 				const auto explicitCandidates =
-					candidates ;	// 同じ元節で明示した別document候補だけです。
-				// 元rootの正確な付属節だけへ、同じ選択基本のIncludeを一方向に渡します。
+					candidates ;	// 同じ元節で明示した別document候補だけです
+				// 元rootの正確な付属節だけへ、同じ選択基本のIncludeを一方向に渡します
 				if( selectedContext_ != nullptr &&
 				   source.identity == selectedContext_->root.identity &&
 				   std::ranges::any_of( selectedContext_->companionSections, [&]( const auto &name) {
 					   return sameName( name, sourceSection) ;
 				   })) {
-					std::size_t basePosition{} ;	// 先に観測済みの正規基本cacheです。
+					std::size_t basePosition{} ;	// 先に観測済みの正規基本cacheです
 					error = read( documentIndex, selectedContext_->baseSection, basePosition) ;
-					// 元基本の読取失敗を空Includeへ置換しません。
+					// 元基本の読取失敗を空Includeへ置換しません
 					if( error != 0) {
 						return error ;
 					}
 
 					const auto &base =
-						cache_[basePosition] ;	// 宣言元identity/sectionを保持した元候補です。
-					// 正確な基本節の元Includeだけを借用し、他節や他documentを探索しません。
+						cache_[basePosition] ;	// 宣言元identity/sectionを保持した元候補です
+					// 正確な基本節の元Includeだけを借用し、他節や他documentを探索しません
 					for( std::size_t item{}; item < base.snapshot.references.size(); ++item) {
 						const auto &reference =
-							base.snapshot.references[item] ;	// 原宣言の同ordinalです。
-						// Needsや別の作用をIncludeへ読み替えません。
+							base.snapshot.references[item] ;	// 原宣言の同ordinalです
+						// Needsや別の作用をIncludeへ読み替えません
 						if( reference.directive != InfDependencyDirective::INCLUDE) {
 							continue ;
 						}
 
 						unknown = unknown || !validIncludeName( reference.target) ||
 								  !base.includeChecked[item] ;
-						// 原候補のidentityを保持し、付属節へ架空Include辺を作りません。
+						// 原候補のidentityを保持し、付属節へ架空Include辺を作りません
 						for( const auto candidate : base.includes[item]) {
-							// 同じ物理documentの共有を候補数へ水増ししません。
+							// 同じ物理documentの共有を候補数へ水増ししません
 							if( std::ranges::find( candidates, candidate) == candidates.end()) {
 								candidates.push_back( candidate) ;
 							}
@@ -637,31 +639,31 @@ private:
 					}
 				}
 
-				// byte結合した明示節だけを一度ずつ照会する。
+				// byte結合した明示節だけを一度ずつ照会する
 				for( const auto candidate : candidates) {
-					// byte未確認の候補を実存在や充足へ昇格しない。
+					// byte未確認の候補を実存在や充足へ昇格しない
 					if( result_.documents[candidate].byteBinding !=
 					   InfDependencyEvidence::VERIFIED) {
 						unknown = true ;
 						continue ;
 					}
 
-					std::size_t target{} ;	// 明示対象のcache位置。
+					std::size_t target{} ;	// 明示対象のcache位置
 					error = read( candidate, edge.target, target) ;
-					// 一つの照会エラーを未発見で隠さない。
+					// 一つの照会エラーを未発見で隠さない
 					if( error != 0) {
 						return error ;
 					}
 
 					unknown = unknown ||
 							  cache_[target].snapshot.state == InfDependencyReadState::NOT_CHECKED ;
-					// PRESENTだけを節候補へ加え、MISSINGは別候補の一意性を妨げない。
+					// PRESENTだけを節候補へ加え、MISSINGは別候補の一意性を妨げない
 					if( cache_[target].snapshot.state == InfDependencyReadState::PRESENT) {
 						matches.push_back( candidate) ;
 					}
 				}
 
-				// 同名source節から同節の明示Include先へ転送する場合だけ自己を二重候補にしません。
+				// 同名source節から同節の明示Include先へ転送する場合だけ自己を二重候補にしません
 				if( sameName( edge.target, sourceSection) &&
 				   std::ranges::any_of( matches, [&]( const auto candidate) {
 					   return candidate != documentIndex &&
@@ -672,30 +674,30 @@ private:
 				}
 
 				edge.candidateCount = matches.size() ;
-				// 複数の実在節から勝手に最初を選ばない。
+				// 複数の実在節から勝手に最初を選ばない
 				if( matches.size() > 1U) {
 					edge.state	= InfDependencyState::UNRESOLVED ;
 					edge.reason = InfDependencyReason::AMBIGUOUS ;
 				}
-				// 未照会候補が残る間は一意性を認定しない。
+				// 未照会候補が残る間は一意性を認定しない
 				else if( unknown) {
 					edge.state	= InfDependencyState::NOT_CHECKED ;
 					edge.reason = InfDependencyReason::NOT_CHECKED ;
 				}
-				// 全候補を照会した未発見と未検査を区別する。
+				// 全候補を照会した未発見と未検査を区別する
 				else if( matches.empty()) {
 					edge.state	= InfDependencyState::UNRESOLVED ;
 					edge.reason = InfDependencyReason::MISSING ;
 				} else {
 					bindEdge( edge, result_.documents[matches.front()]) ;
-					bool recursiveCycle{} ;	// 共有はfalse、active節へ戻る辺だけtrue。
+					bool recursiveCycle{} ;	// 共有はfalse、active節へ戻る辺だけtrue
 					error = walk( matches.front(), edge.target, depth + 1U, recursiveCycle) ;
-					// 再帰容量・callback失敗の部分辺を返さない。
+					// 再帰容量・callback失敗の部分辺を返さない
 					if( error != 0) {
 						return error ;
 					}
 
-					// 存在・署名が正当でも循環を全充足としない。
+					// 存在・署名が正当でも循環を全充足としない
 					if( recursiveCycle) {
 						edge.state	= InfDependencyState::UNRESOLVED ;
 						edge.reason = InfDependencyReason::CYCLE ;
@@ -703,7 +705,7 @@ private:
 				}
 			}
 
-			// 重複辺を維持しつつ出力集合にも有限境界を適用する。
+			// 重複辺を維持しつつ出力集合にも有限境界を適用する
 			if( result_.edges.size() >= MAX_REFERENCES) {
 				return HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
 			}
@@ -720,15 +722,15 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同節または明示選択文脈のInclude／Needsを有限に観測します。
- * @param[in] root byte結合済みの開始INF snapshot。
- * @param[in] seeds 同じroot内で観測する1～1,024の明示節名。
- * @param[in] operations worker内で同期借用するloader。再入・別thread操作は禁止する。
- * @param[out] result 全観測・全document再確認成功時のみ保持し、失敗時は空。
- * @param[in] selectedContext nullなら従来の同節だけです。元root/seedへ完全結合した任意選択文脈です。
- * @return 観測成功0、入力／容量／OS差／callback失敗のHRESULT。
- * @pre 入力と出力の所有storageはaliasしない。
- * @note 最大64 INF・1,024節・4,096辺・32段。実byte loader、署名検証、導入許可は核自身では提供しない。
+ * @brief 同節または明示選択文脈のInclude／Needsを有限に観測します
+ * @param[in] root byte結合済みの開始INF snapshot
+ * @param[in] seeds 同じroot内で観測する1～1,024の明示節名
+ * @param[in] operations worker内で同期借用するloader。再入・別thread操作は禁止する
+ * @param[out] result 全観測・全document再確認成功時のみ保持し、失敗時は空
+ * @param[in] selectedContext nullなら従来の同節だけです。元root/seedへ完全結合した任意選択文脈です
+ * @return 観測成功0、入力／容量／OS差／callback失敗のHRESULT
+ * @pre 入力と出力の所有storageはaliasしない
+ * @note 最大64 INF・1,024節・4,096辺・32段。実byte loader、署名検証、導入許可は核自身では提供しない
  */
 //------------------------------------------------------------------------------
 NativeError resolveInfDependencies( const InfDependencyDocument		  &root,
@@ -739,25 +741,25 @@ NativeError resolveInfDependencies( const InfDependencyDocument		  &root,
 {
 	result = {} ;
 	try {
-		// 実loaderの欠落、他architecture、観測世代未指定から解決済みを作らない。
+		// 実loaderの欠落、他architecture、観測世代未指定から解決済みを作らない
 		if( !operations.lookup || !operations.readSection || !operations.recheck ||
 		   !validDocument( root) || root.context.major == 0U || root.context.build == 0U ||
 		   root.context.machine != 0x8664U || root.context.observationId == 0U ||
 		   root.byteBinding != InfDependencyEvidence::VERIFIED || seeds.empty() ||
 		   seeds.size() > MAX_SECTIONS || std::ranges::any_of( seeds, []( const auto &seed) {
-			   // loaderへ渡す開始節は事前に明示名境界へ結合する。
+			   // loaderへ渡す開始節は事前に明示名境界へ結合する
 			   return !validSectionName( seed) ;
 		   })) {
 			return E_INVALIDARG ;
 		}
 
-		// 元rootの全証拠と明示seedへ結合できない選択文脈を使用しません。
+		// 元rootの全証拠と明示seedへ結合できない選択文脈を使用しません
 		if( selectedContext != nullptr) {
 			const auto seeded = [&]( const auto &name) {
 				return std::ranges::any_of( seeds,
 										   [&]( const auto &seed) { return sameName( seed, name) ; }) ;
-			} ; // 同期入力の正確な名前だけを比較します。
-			// 任意の別root/別OS/親推定/非選択節を基本候補へ救済しません。
+			} ; // 同期入力の正確な名前だけを比較します
+			// 任意の別root/別OS/親推定/非選択節を基本候補へ救済しません
 			if( !sameDocument( root, selectedContext->root) ||
 			   !validSectionName( selectedContext->baseSection) ||
 			   !seeded( selectedContext->baseSection) ||
@@ -765,10 +767,10 @@ NativeError resolveInfDependencies( const InfDependencyDocument		  &root,
 				return E_INVALIDARG ;
 			}
 
-			// 同じ元seedに明示された、重複しない付属節だけを受理します。
+			// 同じ元seedに明示された、重複しない付属節だけを受理します
 			for( std::size_t index{}; index < selectedContext->companionSections.size(); ++index) {
-				const auto &name = selectedContext->companionSections[index] ;	// 元付属節です。
-				// 同じ基本名や重複を別の付属選択へ変換しません。
+				const auto &name = selectedContext->companionSections[index] ;	// 元付属節です
+				// 同じ基本名や重複を別の付属選択へ変換しません
 				if( !validSectionName( name) || !seeded( name) ||
 				   sameName( name, selectedContext->baseSection) ||
 				   std::ranges::any_of( selectedContext->companionSections.begin(),
@@ -781,7 +783,7 @@ NativeError resolveInfDependencies( const InfDependencyDocument		  &root,
 		}
 
 		DependencyResolver resolver( operations, root.context,
-									selectedContext) ;	// この同期runだけの有限所有者。
+									selectedContext) ;	// この同期runだけの有限所有者
 		return resolver.run( root, seeds, result) ;
 	} catch( const std::bad_alloc &) {
 		return E_OUTOFMEMORY ;

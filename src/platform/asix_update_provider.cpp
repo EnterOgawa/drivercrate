@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file asix_update_provider.cpp
- * @brief ASIX AX88179A公式検索・取得準備Provider実装。
- * @version 01.01.01
+ * @brief ASIX AX88179A公式検索・取得準備Provider実装
+ * @version 01.01.02
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,26 +19,27 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/09  ASIX候補発行と指定導入の共通接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/09  取得成功後の一回監査と独立結果保持を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/09  Driver Store rank監査callbackを保持。
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  二page再確認と一回限定の検査用取得を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  取得準備snapshotと失効境界を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  Release観測差分を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/09  ASIX候補発行と指定導入の共通接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/09  取得成功後の一回監査と独立結果保持を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/09  Driver Store rank監査callbackを保持
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  二page再確認と一回限定の検査用取得を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  取得準備snapshotと失効境界を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Release観測差分を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.01.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
- * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
  * @note 固定ASIX pageへの要求に端末識別情報を加えず、取得URLはUIへ渡しません。二page結合済み情報だけを一配布物の未承認targetへ変換します。同意・前提確認後に一回だけ検
- *       査用取得を行い、内容監査と導入は許可しません。
+ *       査用取得を行い、内容監査と導入は許可しません
  */
 //------------------------------------------------------------------------------
 
@@ -70,33 +71,33 @@ namespace drivercrate {
 namespace {
 
 //------------------------------------------------------------------------------
-// 定数定義。
+// 定数定義
 //------------------------------------------------------------------------------
 
-constexpr std::size_t	MAXIMUM_DEVICES			   = 4096U ;					// 一回のscanで扱うdevice snapshot上限。
-constexpr std::size_t	MAXIMUM_DISPLAY_CHARACTERS = 512U ;						// Local表示値の文字数上限。
-constexpr std::uint64_t MAXIMUM_PRODUCT_PAGE_BYTES = 2ULL * 1024ULL * 1024ULL ;	// 製品page受信上限。
-constexpr std::uint64_t MAXIMUM_TERMS_PAGE_BYTES   = 256ULL * 1024ULL ;			// 固定Termsの受信上限。
+constexpr std::size_t	MAXIMUM_DEVICES			   = 4096U ;					// 一回のscanで扱うdevice snapshot上限
+constexpr std::size_t	MAXIMUM_DISPLAY_CHARACTERS = 512U ;						// Local表示値の文字数上限
+constexpr std::uint64_t MAXIMUM_PRODUCT_PAGE_BYTES = 2ULL * 1024ULL * 1024ULL ;	// 製品page受信上限
+constexpr std::uint64_t MAXIMUM_TERMS_PAGE_BYTES   = 256ULL * 1024ULL ;			// 固定Termsの受信上限
 constexpr std::uint64_t MAXIMUM_ASIX_PAYLOAD_BYTES =
-	8ULL * 1024ULL * 1024ULL ;									// 一file／Provider／scanに予約する取得上限。
-constexpr std::uint32_t		WINDOWS10_MINIMUM_BUILD = 10'240U ;	// 対象Windows clientの下限。
-// 端末情報を付加せず取得する、AX88179A英語製品pageの固定URL。
+	8ULL * 1024ULL * 1024ULL ;									// 一file／Provider／scanに予約する取得上限
+constexpr std::uint32_t		WINDOWS10_MINIMUM_BUILD = 10'240U ;	// 対象Windows clientの下限
+// 端末情報を付加せず取得する、AX88179A英語製品pageの固定URL
 constexpr std::wstring_view PRODUCT_PAGE_URL =
 	L"https://www.asix.com.tw/en/product/USBEthernet/Super-Speed_USB_Ethernet/AX88179A" ;
 constexpr std::wstring_view TERMS_PAGE_URL =
-	L"https://www.asix.com.tw/en/useterm" ;	// 製品pageから参照する固定許諾起点。
+	L"https://www.asix.com.tw/en/useterm" ;	// 製品pageから参照する固定許諾起点
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief Class名やGUIDの部分一致を対象deviceとして受理しない。
+ * @brief Class名やGUIDの部分一致を対象deviceとして受理しない
  *
- * @param[in] value 最大512文字のlocal表示値。
- * @param[in] expected 完全一致を要求するsetup class値。
- * @return 大文字小文字以外が完全一致する場合true。
+ * @param[in] value 最大512文字のlocal表示値
+ * @param[in] expected 完全一致を要求するsetup class値
+ * @return 大文字小文字以外が完全一致する場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool sameText( const std::wstring_view value,
@@ -110,25 +111,25 @@ constexpr std::wstring_view TERMS_PAGE_URL =
 
 //------------------------------------------------------------------------------
 /**
- * @brief Hardware IDを構築せず、有限なlocal表示名のprobeだけに使用する。
+ * @brief Hardware IDを構築せず、有限なlocal表示名のprobeだけに使用する
  *
- * @param[in] text 最大512文字のlocal表示値。
- * @param[in] token 大文字小文字を無視して探す系列語。
- * @return Tokenが含まれる場合true。
+ * @param[in] text 最大512文字のlocal表示値
+ * @param[in] token 大文字小文字を無視して探す系列語
+ * @return Tokenが含まれる場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool containsText( const std::wstring_view text,
 								const std::wstring_view token) noexcept
 {
-	// 空、上限外または長さ不整合を拒否する。
+	// 空、上限外または長さ不整合を拒否する
 	if( text.empty() || text.size() > MAXIMUM_DISPLAY_CHARACTERS || token.empty() ||
 	   token.size() > text.size()) {
 		return false ;
 	}
 
-	// Tokenを配置可能な全開始位置で有限回比較する。
+	// Tokenを配置可能な全開始位置で有限回比較する
 	for( std::size_t offset = 0U; offset <= text.size() - token.size(); ++offset) {
-		// 表示名内の有限な比較範囲が大小を無視して一致した場合にだけprobeを成立とする。
+		// 表示名内の有限な比較範囲が大小を無視して一致した場合にだけprobeを成立とする
 		if( CompareStringOrdinal( text.data() + offset, static_cast<int>( token.size()), token.data(),
 								static_cast<int>( token.size()), TRUE) == CSTR_EQUAL) {
 			return true ;
@@ -140,11 +141,11 @@ constexpr std::wstring_view TERMS_PAGE_URL =
 
 //------------------------------------------------------------------------------
 /**
- * @brief Server、Windows 10未満、build不明をnetwork検索前に除外する。
+ * @brief Server、Windows 10未満、build不明をnetwork検索前に除外する
  *
- * @param[in] windowsServer 実OSがServerの場合true。
- * @param[in] windowsBuild 実OSのmajor build。0は判定不能。
- * @return Windows 10以降のclient buildならtrue。
+ * @param[in] windowsServer 実OSがServerの場合true
+ * @param[in] windowsBuild 実OSのmajor build。0は判定不能
+ * @return Windows 10以降のclient buildならtrue
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isSupportedWindowsClient( const bool			windowsServer,
@@ -155,13 +156,13 @@ constexpr std::wstring_view TERMS_PAGE_URL =
 
 //------------------------------------------------------------------------------
 /**
- * @brief Page版をtitleだけへ表示し、INF版または更新必要性として扱わない。
+ * @brief Page版をtitleだけへ表示し、INF版または更新必要性として扱わない
  *
- * @param[in] session 当該検索session。
- * @param[in] ordinal Session内の0始まり表示行連番。
- * @param[in] device Local probeが一致したdevice snapshot。
- * @param[in] release 実OSに対応する公式pageの配布情報。
- * @return URLを含まない非選択・非推奨の所有DTO。
+ * @param[in] session 当該検索session
+ * @param[in] ordinal Session内の0始まり表示行連番
+ * @param[in] device Local probeが一致したdevice snapshot
+ * @param[in] release 実OSに対応する公式pageの配布情報
+ * @return URLを含まない非選択・非推奨の所有DTO
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] UpdateCandidate makeAsixCandidate( const ScanSessionId			 session,
@@ -169,8 +170,8 @@ constexpr std::wstring_view TERMS_PAGE_URL =
 												const OfficialCatalogDevice &device,
 												const AsixDriverPageEntry	&release)
 {
-	UpdateCandidate	   candidate ;								// UIへ返す表示専用の所有DTO。
-	const std::wstring sourceId( ASIX_AX88179A_PROVIDER_ID) ;	// Registryと一致する取得元ID。
+	UpdateCandidate	   candidate ;								// UIへ返す表示専用の所有DTO
+	const std::wstring sourceId( ASIX_AX88179A_PROVIDER_ID) ;	// Registryと一致する取得元ID
 	candidate.identity =
 		sourceId + L":info:" + std::to_wstring( session) + L":" + std::to_wstring( ordinal) ;
 	candidate.packageIdentity = sourceId + L":release:" + std::to_wstring( session) + L":0" ;
@@ -182,9 +183,9 @@ constexpr std::wstring_view TERMS_PAGE_URL =
 	candidate.driverClass	  = device.driverClass ;
 	candidate.deviceClassGuid = device.deviceClassGuid ;
 	candidate.driverDate	  = release.releaseDate ;
-	// Registryの表示名だけを取得元名称の正本として使用する。
+	// Registryの表示名だけを取得元名称の正本として使用する
 	for( const ProviderDescriptor &descriptor : builtInProviderDescriptors()) {
-		// ASIXの正式表示名は同じstable IDのregistry定義から取得する。
+		// ASIXの正式表示名は同じstable IDのregistry定義から取得する
 		if( descriptor.id == ASIX_AX88179A_PROVIDER_ID) {
 			candidate.sourceName = descriptor.displayName ;
 			break ;
@@ -207,15 +208,15 @@ constexpr std::wstring_view TERMS_PAGE_URL =
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公開hashとEULAがない事実を維持し、観測比較以外の許可へ変換しない。
+ * @brief 公開hashとEULAがない事実を維持し、観測比較以外の許可へ変換しない
  *
- * @param[in] release 専用parserが検証した公式pageの配布情報。
- * @return 数値download IDをstable keyとするworker内専用record。
+ * @param[in] release 専用parserが検証した公式pageの配布情報
+ * @return 数値download IDをstable keyとするworker内専用record
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] OfficialReleaseRecord makeAsixReleaseRecord( const AsixDriverPageEntry &release)
 {
-	OfficialReleaseRecord record ;	// 全fieldを所有し、候補DTOへは渡さない配布情報。
+	OfficialReleaseRecord record ;	// 全fieldを所有し、候補DTOへは渡さない配布情報
 	record.family		  = OfficialReleaseFamily::ASIX_AX88179A ;
 	record.releaseKey	  = release.releaseKey ;
 	record.packageVersion = release.version ;
@@ -228,17 +229,17 @@ constexpr std::wstring_view TERMS_PAGE_URL =
 
 //------------------------------------------------------------------------------
 /**
- * @brief Scanと取得直前再確認が同じ順序・parser・OS選択を使用する。
+ * @brief Scanと取得直前再確認が同じ順序・parser・OS選択を使用する
  *
- * @param[in] session 二pageに共通する検索session。
- * @param[in] windowsServer Serverでは取得前に拒否する。
- * @param[in] windowsBuild 対象clientのmajor build。
- * @param[in] productReader 製品pageと取得根拠を確認する同期境界。
- * @param[in] termsReader 同じsource sessionのTerms取得境界。
- * @param[out] productHtml 成功時に表示候補解析へ再利用する製品本文。
- * @param[out] record 全条件成立時の結合済み配布record。失敗時は空。
- * @param[out] rejected 入力・metadata拒否の場合true。
- * @return 成功時0。通信失敗は元の診断値、metadata不成立はERROR_INVALID_DATA。
+ * @param[in] session 二pageに共通する検索session
+ * @param[in] windowsServer Serverでは取得前に拒否する
+ * @param[in] windowsBuild 対象clientのmajor build
+ * @param[in] productReader 製品pageと取得根拠を確認する同期境界
+ * @param[in] termsReader 同じsource sessionのTerms取得境界
+ * @param[out] productHtml 成功時に表示候補解析へ再利用する製品本文
+ * @param[out] record 全条件成立時の結合済み配布record。失敗時は空
+ * @param[out] rejected 入力・metadata拒否の場合true
+ * @return 成功時0。通信失敗は元の診断値、metadata不成立はERROR_INVALID_DATA
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError readPreparedPages( const ScanSessionId session, const bool windowsServer,
@@ -251,37 +252,37 @@ constexpr std::wstring_view TERMS_PAGE_URL =
 	productHtml.clear() ;
 	record	 = {} ;
 	rejected = false ;
-	// 不正session、reader欠落、未対応OSでは製品page取得を開始しない。
+	// 不正session、reader欠落、未対応OSでは製品page取得を開始しない
 	if( session == 0U || !productReader || !termsReader ||
 	   !isSupportedWindowsClient( windowsServer, windowsBuild)) {
 		rejected = true ;
-		// 不正条件でpage取得を開始しない。
+		// 不正条件でpage取得を開始しない
 		return static_cast<NativeError>( E_INVALIDARG) ;
 	}
 
-	NativeError error = productReader( session, productHtml) ;	// 元の通信診断値。
-	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
+	NativeError error = productReader( session, productHtml) ;	// 元の通信診断値
+	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 	if( error != 0) {
 		return error ;
 	}
 
-	AsixAx88179aCatalog catalog ;	// Terms取得前に検査する製品metadata。
-	AsixDriverPageEntry entry ;		// 実OSに対応する一配布行。
-	// 製品pageのschemaまたはOS選択が不正ならmetadata拒否として返す。
+	AsixAx88179aCatalog catalog ;	// Terms取得前に検査する製品metadata
+	AsixDriverPageEntry entry ;		// 実OSに対応する一配布行
+	// 製品pageのschemaまたはOS選択が不正ならmetadata拒否として返す
 	if( !parseAsixAx88179aProductPage( productHtml, catalog) ||
 	   !selectAsixAx88179aWindowsEntry( catalog, windowsServer, windowsBuild, entry)) {
 		rejected = true ;
 		return static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
 	}
 
-	std::wstring termsHtml ;	// この同期呼出しの間だけ保持するTerms本文。
+	std::wstring termsHtml ;	// この同期呼出しの間だけ保持するTerms本文
 	error = termsReader( session, termsHtml) ;
-	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
+	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 	if( error != 0) {
 		return error ;
 	}
 
-	// 製品pageとTermsの結合に失敗した場合は準備用recordを発行しない。
+	// 製品pageとTermsの結合に失敗した場合は準備用recordを発行しない
 	if( !makeAsixAx88179aPreparedRelease( productHtml, termsHtml, windowsServer, windowsBuild,
 										record)) {
 		rejected = true ;
@@ -293,14 +294,14 @@ constexpr std::wstring_view TERMS_PAGE_URL =
 
 //------------------------------------------------------------------------------
 /**
- * @brief 候補のdevice identityを対応の正本とし、入力順や表示名から推測しない。全検証完了まで出力を変更しない。
+ * @brief 候補のdevice identityを対応の正本とし、入力順や表示名から推測しない。全検証完了まで出力を変更しない
  *
- * @param[in] session 候補を生成した0ではないscan session。
- * @param[in] devices 検索へ渡した全deviceの非機密snapshot。
- * @param[in] result ASIX検索が返した候補順の結果。
- * @param[out] retainedDevices 成功時に候補順で更新する対象device群。
- * @param[out] retainedCandidateIdentities 同順で更新するopaque候補ID群。
- * @return 全候補が一意なASIX対象deviceへ一対一対応する場合true。
+ * @param[in] session 候補を生成した0ではないscan session
+ * @param[in] devices 検索へ渡した全deviceの非機密snapshot
+ * @param[in] result ASIX検索が返した候補順の結果
+ * @param[out] retainedDevices 成功時に候補順で更新する対象device群
+ * @param[out] retainedCandidateIdentities 同順で更新するopaque候補ID群
+ * @return 全候補が一意なASIX対象deviceへ一対一対応する場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool makeAsixScanBindings( const ScanSessionId							 session,
@@ -309,56 +310,56 @@ constexpr std::wstring_view TERMS_PAGE_URL =
 										std::vector<OfficialCatalogDevice> &retainedDevices,
 										std::vector<std::wstring> &retainedCandidateIdentities)
 {
-	// 失敗・空・旧session・上限外の結果を取得後監査へ保持しない。
+	// 失敗・空・旧session・上限外の結果を取得後監査へ保持しない
 	if( session == 0U || !result.succeeded || result.scanSessionId != session ||
 	   result.state != ProviderScanState::CANDIDATES_AVAILABLE || result.candidates.empty() ||
 	   result.candidates.size() > MAXIMUM_DEVICES || devices.size() > MAXIMUM_DEVICES) {
 		return false ;
 	}
 
-	// 全inventory identityの重複を再確認する集合。
+	// 全inventory identityの重複を再確認する集合
 	std::unordered_set<std::wstring>								inventoryIdentities ;
-	// ASIX候補が参照できるdevice identityと入力snapshotの対応表。
+	// ASIX候補が参照できるdevice identityと入力snapshotの対応表
 	std::unordered_map<std::wstring, const OfficialCatalogDevice *> eligibleDevices ;
 	inventoryIdentities.reserve( devices.size()) ;
 	eligibleDevices.reserve( result.candidates.size()) ;
-	// 検索と同じ対象条件を再適用し、候補から逆引きできる有限な対応表を作る。
-	for( const OfficialCatalogDevice &device : devices)	// 現在検証中の非機密snapshot。
+	// 検索と同じ対象条件を再適用し、候補から逆引きできる有限な対応表を作る
+	for( const OfficialCatalogDevice &device : devices)	// 現在検証中の非機密snapshot
 	{
-		// 空または重複identityを同じdeviceとして扱わない。
+		// 空または重複identityを同じdeviceとして扱わない
 		if( device.deviceIdentity.empty() || device.deviceIdentity.size() > 256U ||
 		   !inventoryIdentities.insert( device.deviceIdentity).second) {
 			return false ;
 		}
 
-		// 一つのASIX identityへ複数snapshotを割り当てない。
+		// 一つのASIX identityへ複数snapshotを割り当てない
 		if( isAsixAx88179aDevice( device) &&
 		   !eligibleDevices.emplace( device.deviceIdentity, &device).second) {
 			return false ;
 		}
 	}
 
-	// 表示されていない対象deviceまたは対応deviceのない候補を拒否する。
+	// 表示されていない対象deviceまたは対応deviceのない候補を拒否する
 	if( eligibleDevices.size() != result.candidates.size()) {
 		return false ;
 	}
 
-	std::vector<OfficialCatalogDevice> matchedDevices ;			// 候補順へ揃えた一時device群。
-	std::vector<std::wstring>		   candidateIdentities ;	// 同じindexの一時候補ID群。
-	// 候補identityの重複を検証する集合。
+	std::vector<OfficialCatalogDevice> matchedDevices ;			// 候補順へ揃えた一時device群
+	std::vector<std::wstring>		   candidateIdentities ;	// 同じindexの一時候補ID群
+	// 候補identityの重複を検証する集合
 	std::unordered_set<std::wstring>   uniqueCandidateIdentities ;
-	// 一つのdeviceへ複数候補を対応付けないための消費済みidentity集合。
+	// 一つのdeviceへ複数候補を対応付けないための消費済みidentity集合
 	std::unordered_set<std::wstring>   consumedDeviceIdentities ;
 	matchedDevices.reserve( result.candidates.size()) ;
 	candidateIdentities.reserve( result.candidates.size()) ;
 	uniqueCandidateIdentities.reserve( result.candidates.size()) ;
 	consumedDeviceIdentities.reserve( result.candidates.size()) ;
-	// Resultの候補順を維持し、明示device identityだけで入力snapshotへ対応付ける。
-	for( const UpdateCandidate &candidate : result.candidates)	// 現在対応付ける表示候補。
+	// Resultの候補順を維持し、明示device identityだけで入力snapshotへ対応付ける
+	for( const UpdateCandidate &candidate : result.candidates)	// 現在対応付ける表示候補
 	{
-		// 候補が指す対象deviceを検索する一時iterator。
+		// 候補が指す対象deviceを検索する一時iterator
 		const auto device = eligibleDevices.find( candidate.deviceIdentity) ;
-		// 別Provider、未知deviceまたは重複対応を保持しない。
+		// 別Provider、未知deviceまたは重複対応を保持しない
 		if( candidate.identity.empty() || candidate.providerId != ASIX_AX88179A_PROVIDER_ID ||
 		   device == eligibleDevices.end() ||
 		   !uniqueCandidateIdentities.insert( candidate.identity).second ||
@@ -379,15 +380,15 @@ constexpr std::wstring_view TERMS_PAGE_URL =
 
 //------------------------------------------------------------------------------
 /**
- * @brief Local device表示がASIX AX88179AのNet deviceに限定されるか確認する。通信要否だけを判定し、PnP適用性または最新版を保証しない。
- * @param[in] device 端末内だけで参照する非機密device snapshot。 端末内だけで参照する非機密snapshot。
- * @return Net class、ASIX表示、AX88179A tokenが全て一致する場合true。 Net class、ASIX表示、AX88179A tokenが一致する場合true。
- * @note 通信要否を決めるprobeであり、Hardware IDまたはpackage適用性の確認ではない。
+ * @brief Local device表示がASIX AX88179AのNet deviceに限定されるか確認する。通信要否だけを判定し、PnP適用性または最新版を保証しない
+ * @param[in] device 端末内だけで参照する非機密device snapshot。 端末内だけで参照する非機密snapshot
+ * @return Net class、ASIX表示、AX88179A tokenが全て一致する場合true。 Net class、ASIX表示、AX88179A tokenが一致する場合true
+ * @note 通信要否を決めるprobeであり、Hardware IDまたはpackage適用性の確認ではない
  */
 //------------------------------------------------------------------------------
 bool isAsixAx88179aDevice( const OfficialCatalogDevice &device) noexcept
 {
-	// 不正identityまたは過大表示値をnetwork対象にしない。
+	// 不正identityまたは過大表示値をnetwork対象にしない
 	if( device.deviceIdentity.empty() || device.deviceIdentity.size() > 256U ||
 	   device.model.size() > MAXIMUM_DISPLAY_CHARACTERS ||
 	   device.manufacturer.size() > MAXIMUM_DISPLAY_CHARACTERS) {
@@ -397,9 +398,9 @@ bool isAsixAx88179aDevice( const OfficialCatalogDevice &device) noexcept
 	const bool netClass =
 		sameText( device.driverClass, L"Net") &&
 		sameText( device.deviceClassGuid,
-				 L"{4d36e972-e325-11ce-bfc1-08002be10318}") ;	// Net classの完全一致境界。
+				 L"{4d36e972-e325-11ce-bfc1-08002be10318}") ;	// Net classの完全一致境界
 	const bool asixName = containsText( device.manufacturer, L"ASIX") ||
-						  // Localメーカー表示境界。
+						  // Localメーカー表示境界
 						  containsText( device.model, L"ASIX") ;
 	return netClass && asixName && containsText( device.model, L"AX88179A") ;
 }
@@ -407,10 +408,10 @@ bool isAsixAx88179aDevice( const OfficialCatalogDevice &device) noexcept
 //------------------------------------------------------------------------------
 /**
  * @brief 同じworkerのDriver Store rank監査境界を保持するASIX Providerを作成する。CallbackをProvider寿命へ固定する。未設定時は取得計画を発
- *        行しない。
+ *        行しない
  * @param[in] rankAuditor 取得後にだけ使用するWindows標準PnP／rank監査callback。 同じworkerのDriver Store rank監査
- *                   callback。
- * @note Callbackが空の場合は取得計画を発行しない。
+ *                   callback
+ * @note Callbackが空の場合は取得計画を発行しない
  */
 //------------------------------------------------------------------------------
 AsixUpdateProvider::AsixUpdateProvider( OfficialInfRankAuditor rankAuditor)
@@ -420,11 +421,11 @@ AsixUpdateProvider::AsixUpdateProvider( OfficialInfRankAuditor rankAuditor)
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASIX監査・候補発行・指定導入に使うworker境界を固定する。同じworkerのcallbackだけを所有し、構築時にはOS操作を行わない。
- * @param[in] rankAuditor 内容合格後のWindows PnP／rank監査。 Windows PnP／rank監査境界。
- * @param[in] binder 現在driverと対象nodeの固定境界。 現在driverとnodeの固定境界。
- * @param[in] releaser 未commit／失効tokenの非throw破棄境界。 Tokenの非throw破棄境界。
- * @param[in] installer 固定bindingによる再照合・指定導入境界。 Binding再検証と指定導入境界。
+ * @brief ASIX監査・候補発行・指定導入に使うworker境界を固定する。同じworkerのcallbackだけを所有し、構築時にはOS操作を行わない
+ * @param[in] rankAuditor 内容合格後のWindows PnP／rank監査。 Windows PnP／rank監査境界
+ * @param[in] binder 現在driverと対象nodeの固定境界。 現在driverとnodeの固定境界
+ * @param[in] releaser 未commit／失効tokenの非throw破棄境界。 Tokenの非throw破棄境界
+ * @param[in] installer 固定bindingによる再照合・指定導入境界。 Binding再検証と指定導入境界
  */
 //------------------------------------------------------------------------------
 AsixUpdateProvider::AsixUpdateProvider( OfficialInfRankAuditor			 rankAuditor,
@@ -438,7 +439,7 @@ AsixUpdateProvider::AsixUpdateProvider( OfficialInfRankAuditor			 rankAuditor,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 所有workerでroutingとtokenをINF閉包より先に解放する。
+ * @brief 所有workerでroutingとtokenをINF閉包より先に解放する
  */
 //------------------------------------------------------------------------------
 AsixUpdateProvider::~AsixUpdateProvider()
@@ -448,9 +449,9 @@ AsixUpdateProvider::~AsixUpdateProvider()
 
 //------------------------------------------------------------------------------
 /**
- * @brief 今回scanへ使用する前回観測と現在環境fingerprintを設定する。Worker内へ所有copyを作り、ASIX live metadataとの差分だけへ使用する。
- * @param[in] previous 現在OS／device構成へ事前照合済みの観測。最大4,096件。 現在環境へ事前照合済みの前回観測。
- * @param[in] environment 現在OSとdevice集合の端末内fingerprint。
+ * @brief 今回scanへ使用する前回観測と現在環境fingerprintを設定する。Worker内へ所有copyを作り、ASIX live metadataとの差分だけへ使用する
+ * @param[in] previous 現在OS／device構成へ事前照合済みの観測。最大4,096件。 現在環境へ事前照合済みの前回観測
+ * @param[in] environment 現在OSとdevice集合の端末内fingerprint
  */
 //------------------------------------------------------------------------------
 void AsixUpdateProvider::configureReleaseObservationContext(
@@ -464,8 +465,8 @@ void AsixUpdateProvider::configureReleaseObservationContext(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 直前の成立したscanで生成した今回観測を参照する。Compositeのatomic統合保存だけが参照し、配布IDとHMACをUIへ渡さない。
- * @return 次scanまたは明示失効まで有効な非所有span。 直前の成功scanで生成した観測の非所有span。
+ * @brief 直前の成立したscanで生成した今回観測を参照する。Compositeのatomic統合保存だけが参照し、配布IDとHMACをUIへ渡さない
+ * @return 次scanまたは明示失効まで有効な非所有span。 直前の成功scanで生成した観測の非所有span
  */
 //------------------------------------------------------------------------------
 std::span<const LocalOfficialReleaseObservation> AsixUpdateProvider::releaseObservations()
@@ -476,15 +477,15 @@ std::span<const LocalOfficialReleaseObservation> AsixUpdateProvider::releaseObse
 
 //------------------------------------------------------------------------------
 /**
- * @brief Local probeと固定page readerを使いASIX表示専用候補を作る。対象deviceがない場合は通信せず、URLを候補DTOへ渡さない。
- * @param[in] scanSessionId 0ではないscan session。 0ではない検索session。
- * @param[in] devices 最大4096件の非機密snapshot。
- * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true。
- * @param[in] windowsBuild 実OSのmajor build番号。0は判定不能。
- * @param[in] reader Worker内で固定公式pageを取得する差替え境界。 固定公式pageの取得境界。
- * @param[in] progressCallback 確定した処理件数と進捗の通知先。 確定した進捗通知先。
- * @param[in] observationEvaluator 任意の端末内release観測評価境界。
- * @return 表示候補または対象外・通信失敗・metadata拒否。
+ * @brief Local probeと固定page readerを使いASIX表示専用候補を作る。対象deviceがない場合は通信せず、URLを候補DTOへ渡さない
+ * @param[in] scanSessionId 0ではないscan session。 0ではない検索session
+ * @param[in] devices 最大4096件の非機密snapshot
+ * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true
+ * @param[in] windowsBuild 実OSのmajor build番号。0は判定不能
+ * @param[in] reader Worker内で固定公式pageを取得する差替え境界。 固定公式pageの取得境界
+ * @param[in] progressCallback 確定した処理件数と進捗の通知先。 確定した進捗通知先
+ * @param[in] observationEvaluator 任意の端末内release観測評価境界
+ * @return 表示候補または対象外・通信失敗・metadata拒否
  */
 //------------------------------------------------------------------------------
 ScanResult scanAsixAx88179aProductPage( const ScanSessionId							scanSessionId,
@@ -496,34 +497,34 @@ ScanResult scanAsixAx88179aProductPage( const ScanSessionId							scanSessionId,
 {
 	ScanResult result{.scanSessionId = scanSessionId,
 					  .outcome		 = OutcomeCode::FAILURE,
-					  .state		 = ProviderScanState::FAILURE} ;	// 全条件成立までは失敗。
-	// 未発行session、過大な対象集合、callback欠落では通信しない。
+					  .state		 = ProviderScanState::FAILURE} ;	// 全条件成立までは失敗
+	// 未発行session、過大な対象集合、callback欠落では通信しない
 	if( scanSessionId == 0U || devices.size() > MAXIMUM_DEVICES || !reader || !progressCallback) {
 		result.error = static_cast<NativeError>( E_INVALIDARG) ;
-		// 不正session、上限またはcallback欠落では通信しない。
+		// 不正session、上限またはcallback欠落では通信しない
 		return result ;
 	}
 
-	std::vector<const OfficialCatalogDevice *> matched ;	// 呼出し中だけ有効な対象device参照。
-	std::unordered_set<std::wstring>		   identities ;	// Opaque identityの重複検出集合。
-	// 全deviceを有限回確認し、ASIX AX88179Aだけを検索対象へ残す。
+	std::vector<const OfficialCatalogDevice *> matched ;	// 呼出し中だけ有効な対象device参照
+	std::unordered_set<std::wstring>		   identities ;	// Opaque identityの重複検出集合
+	// 全deviceを有限回確認し、ASIX AX88179Aだけを検索対象へ残す
 	for( const OfficialCatalogDevice &device : devices) {
-		// 空・過長・重複のdevice identityを曖昧な候補へ変換しない。
+		// 空・過長・重複のdevice identityを曖昧な候補へ変換しない
 		if( device.deviceIdentity.empty() || device.deviceIdentity.size() > 256U ||
 		   !identities.insert( device.deviceIdentity).second) {
 			result.error = static_cast<NativeError>( E_INVALIDARG) ;
-			// 空または重複identityから曖昧な候補を生成しない。
+			// 空または重複identityから曖昧な候補を生成しない
 			return result ;
 		}
 
-		// ASIX AX88179Aに対応するlocal deviceだけを検索対象へ含める。
+		// ASIX AX88179Aに対応するlocal deviceだけを検索対象へ含める
 		if( isAsixAx88179aDevice( device)) {
 			matched.push_back( &device) ;
 		}
 	}
 
 	result.coverage.eligibleDeviceCount = matched.size() ;
-	// 対応deviceがない場合と未対応OSでは通信せず対象外を返す。
+	// 対応deviceがない場合と未対応OSでは通信せず対象外を返す
 	if( matched.empty() || !isSupportedWindowsClient( windowsServer, windowsBuild)) {
 		result.succeeded = true ;
 		result.outcome	 = OutcomeCode::SUCCESS ;
@@ -539,21 +540,21 @@ ScanResult scanAsixAx88179aProductPage( const ScanSessionId							scanSessionId,
 					  .percentComplete = 0U,
 					  .completedItems  = 0U,
 					  .totalItems	   = matched.size()}) ;
-	std::wstring html ;	// 固定上限内のASIX製品page本文。
+	std::wstring html ;	// 固定上限内のASIX製品page本文
 	result.error = reader( scanSessionId, html) ;
-	// 通信失敗を候補なしとして扱わない。
+	// 通信失敗を候補なしとして扱わない
 	if( result.error != 0) {
 		return result ;
 	}
 
-	AsixAx88179aCatalog catalog ;	// Schema検証済み二OS分の表示情報。
-	AsixDriverPageEntry release ;	// 実OSへ対応する一行の表示情報。
-	// page schema変更とOS行欠落を推測で補わずmetadata拒否にする。
+	AsixAx88179aCatalog catalog ;	// Schema検証済み二OS分の表示情報
+	AsixDriverPageEntry release ;	// 実OSへ対応する一行の表示情報
+	// page schema変更とOS行欠落を推測で補わずmetadata拒否にする
 	if( !parseAsixAx88179aProductPage( html, catalog) ||
 	   !selectAsixAx88179aWindowsEntry( catalog, windowsServer, windowsBuild, release)) {
 		result.state = ProviderScanState::METADATA_REJECTED ;
 		result.error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
-		// Page変更またはOS行欠落を推測で補完しない。
+		// Page変更またはOS行欠落を推測で補完しない
 		return result ;
 	}
 
@@ -562,20 +563,20 @@ ScanResult scanAsixAx88179aProductPage( const ScanSessionId							scanSessionId,
 					  .completedItems  = 0U,
 					  .totalItems	   = matched.size()}) ;
 	const OfficialReleaseRecord releaseRecord =
-		// 数値IDを表示行から分離した観測入力。
+		// 数値IDを表示行から分離した観測入力
 		makeAsixReleaseRecord( release) ;
-	bool observationFailed{} ;	// 一件でも評価不能なら全候補の差分表示を破棄する。
-	// 同じ配布情報を対象deviceごとの表示行へ変換する。
+	bool observationFailed{} ;	// 一件でも評価不能なら全候補の差分表示を破棄する
+	// 同じ配布情報を対象deviceごとの表示行へ変換する
 	for( std::size_t index = 0U; index < matched.size(); ++index) {
 		UpdateCandidate candidate =
-			// 表示行。
+			// 表示行
 			makeAsixCandidate( scanSessionId, index, *matched[index], release) ;
-		// 観測callbackがあり先行失敗もない場合にだけrelease差分を評価する。
+		// 観測callbackがあり先行失敗もない場合にだけrelease差分を評価する
 		if( observationEvaluator && !observationFailed) {
 			const std::optional<ReleaseObservationDifference> difference =
-				// 非機密差分だけを受領。
+				// 非機密差分だけを受領
 				observationEvaluator( *matched[index], releaseRecord) ;
-			// 評価済みの差分が得られた候補にだけ観測情報を付記する。
+			// 評価済みの差分が得られた候補にだけ観測情報を付記する
 			if( difference.has_value()) {
 				candidate.releaseObservationDifference = *difference ;
 			} else {
@@ -591,9 +592,9 @@ ScanResult scanAsixAx88179aProductPage( const ScanSessionId							scanSessionId,
 						  .totalItems	  = matched.size()}) ;
 	}
 
-	// 観測評価が一件でも失敗した場合は部分的な差分表示を全候補から除く。
+	// 観測評価が一件でも失敗した場合は部分的な差分表示を全候補から除く
 	if( observationFailed) {
-		// 部分的な差分表示を残さず、従来の表示専用候補だけを維持する。
+		// 部分的な差分表示を残さず、従来の表示専用候補だけを維持する
 		for( UpdateCandidate &candidate : result.candidates) {
 			candidate.releaseObservationDifference.reset() ;
 		}
@@ -608,19 +609,19 @@ ScanResult scanAsixAx88179aProductPage( const ScanSessionId							scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASIXのTerms結合済み配布情報を一つの未承認取得対象へ変換する。公表概算sizeを予約量へ使わず、8 MiBと本文・前提確認を固定する。
- * @param[in] release Workerだけが所有する二page結合済み配布情報。 Worker内の二page結合済み配布情報。
- * @param[in] scanSessionId 配布情報を取得した検索session。
- * @param[in] planId Workerが発行した新しい計画ID。
- * @param[in] deviceCount 同じ配布物に関係するdevice数。1～4096。 同じ配布物に関係する1～4096件のdevice数。
- * @return 本文同意と取得前提確認が必要な一対象。不整合時は空。 全対象deviceを集約した未承認一対象。不整合時は空。
+ * @brief ASIXのTerms結合済み配布情報を一つの未承認取得対象へ変換する。公表概算sizeを予約量へ使わず、8 MiBと本文・前提確認を固定する
+ * @param[in] release Workerだけが所有する二page結合済み配布情報。 Worker内の二page結合済み配布情報
+ * @param[in] scanSessionId 配布情報を取得した検索session
+ * @param[in] planId Workerが発行した新しい計画ID
+ * @param[in] deviceCount 同じ配布物に関係するdevice数。1～4096。 同じ配布物に関係する1～4096件のdevice数
+ * @return 本文同意と取得前提確認が必要な一対象。不整合時は空。 全対象deviceを集約した未承認一対象。不整合時は空
  */
 //------------------------------------------------------------------------------
 std::vector<OfficialPreparationTarget> makeAsixPreparationTargets(
 	const OfficialReleaseRecord &release, const ScanSessionId scanSessionId,
 	const std::uint64_t planId, const std::uint32_t deviceCount)
 {
-	// 未結合、対象外または予約上限外の情報を取得承認へ渡さない。
+	// 未結合、対象外または予約上限外の情報を取得承認へ渡さない
 	if( release.family != OfficialReleaseFamily::ASIX_AX88179A || scanSessionId == 0U ||
 	   planId == 0U || deviceCount == 0U || deviceCount > MAXIMUM_DEVICES ||
 	   release.parserRevision < 2U || release.packageVersion.empty() ||
@@ -638,14 +639,14 @@ std::vector<OfficialPreparationTarget> makeAsixPreparationTargets(
 	}
 
 	const OfficialSourceDefinition *const definition =
-		// Registryとsource policyに結合した定義。
+		// Registryとsource policyに結合した定義
 		officialSourceDefinition( release.family) ;
-	// 未登録系列からProvider IDを推測しない。
+	// 未登録系列からProvider IDを推測しない
 	if( definition == nullptr) {
 		return {} ;
 	}
 
-	OfficialPreparationTarget target ;	// URLを含まず、利用者へ提示できる固定snapshot。
+	OfficialPreparationTarget target ;	// URLを含まず、利用者へ提示できる固定snapshot
 	target.providerId = definition->providerId ;
 	target.identity	  = target.providerId + L":prepare:" + std::to_wstring( planId) ;
 	target.resourceId = OFFICIAL_PAYLOAD_RESOURCE_ID ;
@@ -663,9 +664,9 @@ std::vector<OfficialPreparationTarget> makeAsixPreparationTargets(
 										   .maximumSessionBytes	 = MAXIMUM_ASIX_PAYLOAD_BYTES,
 										   .maximumProviderFiles = 1U,
 										   .maximumSessionFiles =
-											   1U} ;	// ASIXだけへ適用する一file／一回の予約上限。
-	OfficialPreparationSession		validation ;		// 共通のID、本文、件数、容量検証境界。
-	// UIへ提示した後で不正になるtargetを発行しない。
+											   1U} ;	// ASIXだけへ適用する一file／一回の予約上限
+	OfficialPreparationSession		validation ;		// 共通のID、本文、件数、容量検証境界
+	// UIへ提示した後で不正になるtargetを発行しない
 	if( validation.initialize( {scanSessionId, planId, limits, {target}}) !=
 	   OfficialPreparationError::NONE) {
 		return {} ;
@@ -676,17 +677,17 @@ std::vector<OfficialPreparationTarget> makeAsixPreparationTargets(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 差替えreaderから二pageを同じscanへ結合し、取得準備snapshotを保持する。両page確認後に観測・候補・完了進捗へ進み、失敗時は旧準備も失効する。
- * @param[in] scanSessionId 0ではないscan session。 二pageに共通する0ではない検索session。
- * @param[in] devices 外部送信しない現在device snapshot。 外部送信しないdevice snapshot。
- * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true。
- * @param[in] windowsBuild 実OSのmajor build番号。0は判定不能。
- * @param[in] productReader 固定製品pageの取得境界。 固定製品pageの同期取得境界。
- * @param[in] termsReader 同じsource sessionに属する固定Terms pageの取得境界。 同じsource sessionの固定Terms取得境界。
- * @param[in] progressCallback 確定済み段階の通知先。 確定した進捗通知先。
- * @param[in] observationEvaluator Terms結合済みrecordを評価する任意の端末内境界。 Terms結合済みrecordの端末内評価境界。
- * @return 二page結合が成立した表示候補またはProvider別失敗状態。
- * @note Worker専用。Source evidenceの照合は実readerを接続する呼出し側が行う。
+ * @brief 差替えreaderから二pageを同じscanへ結合し、取得準備snapshotを保持する。両page確認後に観測・候補・完了進捗へ進み、失敗時は旧準備も失効する
+ * @param[in] scanSessionId 0ではないscan session。 二pageに共通する0ではない検索session
+ * @param[in] devices 外部送信しない現在device snapshot。 外部送信しないdevice snapshot
+ * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true
+ * @param[in] windowsBuild 実OSのmajor build番号。0は判定不能
+ * @param[in] productReader 固定製品pageの取得境界。 固定製品pageの同期取得境界
+ * @param[in] termsReader 同じsource sessionに属する固定Terms pageの取得境界。 同じsource sessionの固定Terms取得境界
+ * @param[in] progressCallback 確定済み段階の通知先。 確定した進捗通知先
+ * @param[in] observationEvaluator Terms結合済みrecordを評価する任意の端末内境界。 Terms結合済みrecordの端末内評価境界
+ * @return 二page結合が成立した表示候補またはProvider別失敗状態
+ * @note Worker専用。Source evidenceの照合は実readerを接続する呼出し側が行う
  */
 //------------------------------------------------------------------------------
 ScanResult AsixUpdateProvider::scanWithPreparedPageReaders(
@@ -698,57 +699,57 @@ ScanResult AsixUpdateProvider::scanWithPreparedPageReaders(
 {
 	ScanResult result{.scanSessionId = scanSessionId,
 					  .outcome		 = OutcomeCode::FAILURE,
-					  .state = ProviderScanState::FAILURE} ;	// 全条件成立まで保持を許可しない結果。
-	// 別threadのscanでは所有workerのsnapshotに触れず拒否する。
+					  .state = ProviderScanState::FAILURE} ;	// 全条件成立まで保持を許可しない結果
+	// 別threadのscanでは所有workerのsnapshotに触れず拒否する
 	if( ownerThreadId_ != 0U && GetCurrentThreadId() != ownerThreadId_) {
 		result.error = static_cast<NativeError>( E_ACCESSDENIED) ;
-		// 別threadの新scanで所有workerのsnapshotを失効させない。
+		// 別threadの新scanで所有workerのsnapshotを失効させない
 		return result ;
 	}
 
 	resetPreparedSnapshot() ;
 	httpClient_.invalidateSourceSession() ;
 	currentReleaseObservations_.clear() ;
-	// readerと進捗通知先が揃わない要求を対象外へ変換しない。
+	// readerと進捗通知先が揃わない要求を対象外へ変換しない
 	if( !productReader || !termsReader || !progressCallback) {
 		result.error = static_cast<NativeError>( E_INVALIDARG) ;
-		// Reader欠落を対象外や許諾不要に変換しない。
+		// Reader欠落を対象外や許諾不要に変換しない
 		return result ;
 	}
 
 	try {
-		OfficialReleaseRecord		release ;				// 候補と観測へ共通使用する二page結合済みrecord。
-		bool						metadataRejected{} ;	// 通信失敗とparser拒否の区別。
+		OfficialReleaseRecord		release ;				// 候補と観測へ共通使用する二page結合済みrecord
+		bool						metadataRejected{} ;	// 通信失敗とparser拒否の区別
 		const AsixProductPageReader joinedReader = [&]( const ScanSessionId session,
 													   std::wstring		  &html) {
 			return readPreparedPages( session, windowsServer, windowsBuild, productReader,
 									 termsReader, html, release, metadataRejected) ;
-		} ; // Local probe成功後だけ二pageを読み、完了前にTermsを確認する。
-		AsixReleaseObservationEvaluator joinedEvaluator ;	// 任意の端末内観測境界。
-		// 観測評価が必要な場合は二page結合後のrecordを渡すcallbackを使用する。
+		} ; // Local probe成功後だけ二pageを読み、完了前にTermsを確認する
+		AsixReleaseObservationEvaluator joinedEvaluator ;	// 任意の端末内観測境界
+		// 観測評価が必要な場合は二page結合後のrecordを渡すcallbackを使用する
 		if( observationEvaluator) {
 			joinedEvaluator = [&]( const OfficialCatalogDevice &device,
 								  const OfficialReleaseRecord &) {
 				return observationEvaluator( device, release) ;
-			} ; // Revision 1の旧recordを渡さない。
+			} ; // Revision 1の旧recordを渡さない
 		}
 
 		result = scanAsixAx88179aProductPage( scanSessionId, devices, windowsServer, windowsBuild,
 											 joinedReader, progressCallback, joinedEvaluator) ;
-		// scan不成立時はsource sessionと部分観測を破棄して次工程へ引き継がない。
+		// scan不成立時はsource sessionと部分観測を破棄して次工程へ引き継がない
 		if( !result.succeeded || result.state != ProviderScanState::CANDIDATES_AVAILABLE) {
-			// metadataに起因する失敗を一般的な通信失敗から区別する。
+			// metadataに起因する失敗を一般的な通信失敗から区別する
 			if( metadataRejected) {
 				result.state = ProviderScanState::METADATA_REJECTED ;
 			}
 
 			httpClient_.invalidateSourceSession() ;
 			currentReleaseObservations_.clear() ;
-			// 不成立の取得根拠や部分観測を次工程へ引き継がない。
+			// 不成立の取得根拠や部分観測を次工程へ引き継がない
 			return result ;
 		}
 
-		// 配布familyまたはdevice・候補bindingが不正なら準備状態を確定しない。
+		// 配布familyまたはdevice・候補bindingが不正なら準備状態を確定しない
 		if( release.family != OfficialReleaseFamily::ASIX_AX88179A ||
 		   !makeAsixScanBindings( scanSessionId, devices, result, retainedDevices_,
 								 retainedCandidateIdentities_)) {
@@ -764,7 +765,7 @@ ScanResult AsixUpdateProvider::scanWithPreparedPageReaders(
 	} catch( const std::bad_alloc &) {
 		result.error = static_cast<NativeError>( E_OUTOFMEMORY) ;
 	} catch( ...) {
-		// Callback例外も診断値へ変換する。
+		// Callback例外も診断値へ変換する
 		result.error = static_cast<NativeError>( E_UNEXPECTED) ;
 	}
 
@@ -781,17 +782,17 @@ ScanResult AsixUpdateProvider::scanWithPreparedPageReaders(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じscanで保持した配布情報から未承認の取得対象を返す。旧scan、別thread、同じまたは小さいplan IDから対象を復活させない。
- * @param[in] scanSessionId 有効な検索session。 計画を要求する検索session。
- * @param[in] planId 同じProvider instanceで単調増加する計画ID。
- * @return 全対象deviceを一配布物へ集約した一対象。不一致時は空。 保持情報と一致する一つの未承認対象。不一致時は空。
- * @note Worker専用。旧session、別thread、同じまたは小さいplan IDを拒否する。
+ * @brief 同じscanで保持した配布情報から未承認の取得対象を返す。旧scan、別thread、同じまたは小さいplan IDから対象を復活させない
+ * @param[in] scanSessionId 有効な検索session。 計画を要求する検索session
+ * @param[in] planId 同じProvider instanceで単調増加する計画ID
+ * @return 全対象deviceを一配布物へ集約した一対象。不一致時は空。 保持情報と一致する一つの未承認対象。不一致時は空
+ * @note Worker専用。旧session、別thread、同じまたは小さいplan IDを拒否する
  */
 //------------------------------------------------------------------------------
 std::vector<OfficialPreparationTarget> AsixUpdateProvider::preparationTargets(
 	const ScanSessionId scanSessionId, const std::uint64_t planId)
 {
-	// Session、thread、監査境界またはsnapshotが不成立なら計画を発行しない。
+	// Session、thread、監査境界またはsnapshotが不成立なら計画を発行しない
 	if( scanSessionId == 0U || scanSessionId != retainedSessionId_ ||
 	   GetCurrentThreadId() != ownerThreadId_ || acquisitionAttempted_ || planId == 0U ||
 	   planId <= preparedPlanId_ || retainedDeviceCount_ == 0U || !rankAuditor_ ||
@@ -801,8 +802,8 @@ std::vector<OfficialPreparationTarget> AsixUpdateProvider::preparationTargets(
 	}
 
 	auto targets = makeAsixPreparationTargets( retainedRelease_, scanSessionId, planId,
-											  retainedDeviceCount_) ;	// 一配布物の対象。
-	// 有効な準備対象が生成された場合にだけ対象とplan IDを保持する。
+											  retainedDeviceCount_) ;	// 一配布物の対象
+	// 有効な準備対象が生成された場合にだけ対象とplan IDを保持する
 	if( !targets.empty()) {
 		preparedTarget_ = targets.front() ;
 		preparedPlanId_ = planId ;
@@ -813,15 +814,15 @@ std::vector<OfficialPreparationTarget> AsixUpdateProvider::preparationTargets(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 新scanまたは失効時に監査閉包、取得物、検索snapshotの順で破棄する。Plan ID高水位と構築時callbackは維持する。
+ * @brief 新scanまたは失効時に監査閉包、取得物、検索snapshotの順で破棄する。Plan ID高水位と構築時callbackは維持する
  */
 //------------------------------------------------------------------------------
 void AsixUpdateProvider::resetPreparedSnapshot() noexcept
 {
-	// 自分が発行したtokenだけを破棄し、他Providerのbindingを失効させない。
+	// 自分が発行したtokenだけを破棄し、他Providerのbindingを失効させない
 	if( bindingReleaser_) {
-		// 保持routingの上限内で、一候補に一つのtokenを解放する。
-		for( const auto &entry : installTargets_)	// 現在解放する候補routing。
+		// 保持routingの上限内で、一候補に一つのtokenを解放する
+		for( const auto &entry : installTargets_)	// 現在解放する候補routing
 		{
 			static_cast<void>( bindingReleaser_( retainedSessionId_, entry.second.binding.token)) ;
 		}
@@ -829,18 +830,18 @@ void AsixUpdateProvider::resetPreparedSnapshot() noexcept
 
 	installTargets_.clear() ;
 	candidatesPublished_ = false ;
-	// INF閉包を外側取得fileとworkspaceより先に解放する。
+	// INF閉包を外側取得fileとworkspaceより先に解放する
 	preparedAudit_ = {} ;
 	acquisition_   = {} ;
 	acquisitionSession_.reset() ;
-	// 専用RAIIが自分で作成した取得fileだけを解放する。
+	// 専用RAIIが自分で作成した取得fileだけを解放する
 	workspace_.reset() ;
 	acquisitionAttempted_ = false ;
 	auditReportResolved_  = false ;
 	preparedTarget_.reset() ;
 	retainedRelease_ = {} ;
 	retainedCandidateIdentities_.clear() ;
-	// 候補IDより後に参照先deviceの所有copyを解放する。
+	// 候補IDより後に参照先deviceの所有copyを解放する
 	retainedDevices_.clear() ;
 	retainedSessionId_	  = 0U ;
 	retainedDeviceCount_  = 0U ;
@@ -850,23 +851,23 @@ void AsixUpdateProvider::resetPreparedSnapshot() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 固定製品pageを取得して新しい公式source sessionを開始する。Scanと取得直前再確認で同じ固定起点と用途を使用する。
- * @param[in] session 今回のscan session。 今回の検索session。
- * @param[out] html 成功時の製品page本文。失敗時は使用しない。
- * @return 取得根拠を確認できた場合0。それ以外はnative error。 公式取得根拠が成立した場合0。それ以外はnative error。
+ * @brief 固定製品pageを取得して新しい公式source sessionを開始する。Scanと取得直前再確認で同じ固定起点と用途を使用する
+ * @param[in] session 今回のscan session。 今回の検索session
+ * @param[out] html 成功時の製品page本文。失敗時は使用しない
+ * @return 取得根拠を確認できた場合0。それ以外はnative error。 公式取得根拠が成立した場合0。それ以外はnative error
  */
 //------------------------------------------------------------------------------
 NativeError AsixUpdateProvider::readProductPage( const ScanSessionId session, std::wstring &html)
 {
 	NativeError error = httpClient_.beginSourceSession(
-		session, ASIX_AX88179A_PROVIDER_ID) ;	// Source session開始の元診断値。
-	// Session開始と取得の元診断値を保持し、根拠が成立した本文だけを返す。
+		session, ASIX_AX88179A_PROVIDER_ID) ;	// Source session開始の元診断値
+	// Session開始と取得の元診断値を保持し、根拠が成立した本文だけを返す
 	if( error == 0) {
 		error = httpClient_.getUtf8TextForSource( PRODUCT_PAGE_URL, OFFICIAL_LANDING_RESOURCE_ID,
 												 MAXIMUM_PRODUCT_PAGE_BYTES, html) ;
 	}
 
-	// 本文だけで公式由来と判断しない。
+	// 本文だけで公式由来と判断しない
 	if( error == 0 && !httpClient_.hasSourceEvidence( session, ASIX_AX88179A_PROVIDER_ID,
 													OFFICIAL_LANDING_RESOURCE_ID)) {
 		return static_cast<NativeError>( E_ACCESSDENIED) ;
@@ -877,15 +878,15 @@ NativeError AsixUpdateProvider::readProductPage( const ScanSessionId session, st
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じsource sessionで固定Termsを取得する。Sessionを再開始せず、製品pageの根拠を維持して固定Termsを取得する。
- * @param[in] session 製品pageと同じscan session。 製品pageと同じ検索session。
- * @param[out] html 成功時のTerms本文。失敗時は使用しない。
- * @return 両pageの取得根拠を確認できた場合0。それ以外はnative error。 両pageの公式取得根拠が成立した場合0。それ以外はnative error。
+ * @brief 同じsource sessionで固定Termsを取得する。Sessionを再開始せず、製品pageの根拠を維持して固定Termsを取得する
+ * @param[in] session 製品pageと同じscan session。 製品pageと同じ検索session
+ * @param[out] html 成功時のTerms本文。失敗時は使用しない
+ * @return 両pageの取得根拠を確認できた場合0。それ以外はnative error。 両pageの公式取得根拠が成立した場合0。それ以外はnative error
  */
 //------------------------------------------------------------------------------
 NativeError AsixUpdateProvider::readTermsPage( const ScanSessionId session, std::wstring &html)
 {
-	// 別sessionのTermsだけを取得しない。
+	// 別sessionのTermsだけを取得しない
 	if( !httpClient_.hasSourceEvidence( session, ASIX_AX88179A_PROVIDER_ID,
 									  OFFICIAL_LANDING_RESOURCE_ID)) {
 		return static_cast<NativeError>( E_ACCESSDENIED) ;
@@ -893,8 +894,8 @@ NativeError AsixUpdateProvider::readTermsPage( const ScanSessionId session, std:
 
 	const NativeError error = httpClient_.getUtf8TextForSource(
 		TERMS_PAGE_URL, OFFICIAL_PRIMARY_METADATA_RESOURCE_ID, MAXIMUM_TERMS_PAGE_BYTES,
-		html) ;	// 固定Termsの取得診断値。
-	// 先行する製品pageの取得根拠がない状態ではTerms取得を許可しない。
+		html) ;	// 固定Termsの取得診断値
+	// 先行する製品pageの取得根拠がない状態ではTerms取得を許可しない
 	if( error == 0 && !httpClient_.hasSourceEvidence( session, ASIX_AX88179A_PROVIDER_ID,
 													OFFICIAL_PRIMARY_METADATA_RESOURCE_ID)) {
 		return static_cast<NativeError>( E_ACCESSDENIED) ;
@@ -906,18 +907,18 @@ NativeError AsixUpdateProvider::readTermsPage( const ScanSessionId session, std:
 //------------------------------------------------------------------------------
 /**
  * @brief 承認済みASIX配布物を同じscanで一回だけ検査用に取得する。両pageを再確認し、一回だけ保護workspaceへ取得する。取得成功後だけ監査し、監査の拒否・失敗では確定済みの
- *        取得結果と実受信量を書き換えない。
- * @param[in] task 共通workerが本文同意・前提確認を照合してclaimした対象。 Workerが本文同意・前提確認後にclaimした固定対象。
- * @param[in] cancellation 空または協調取消し照会。取消しでも試行は消費する。
- * @return 取得の終端状態。内容・署名・適用性監査や導入許可を含めない。 共通取得の終端状態、元診断値、実byte数。導入許可ではない。
- * @note 同じworker thread、scan、plan、両pageの公式取得根拠を必須とする。
- * @note 取得成功後の監査結果は別に保持し、この戻り値の取得成功を書き換えない。
+ *        取得結果と実受信量を書き換えない
+ * @param[in] task 共通workerが本文同意・前提確認を照合してclaimした対象。 Workerが本文同意・前提確認後にclaimした固定対象
+ * @param[in] cancellation 空または協調取消し照会。取消しでも試行は消費する
+ * @return 取得の終端状態。内容・署名・適用性監査や導入許可を含めない。 共通取得の終端状態、元診断値、実byte数。導入許可ではない
+ * @note 同じworker thread、scan、plan、両pageの公式取得根拠を必須とする
+ * @note 取得成功後の監査結果は別に保持し、この戻り値の取得成功を書き換えない
  */
 //------------------------------------------------------------------------------
 OfficialPreparationTransferResult AsixUpdateProvider::acquireForInspection(
 	const OfficialPreparationTask &task, const PreparationCancellation &cancellation)
 {
-	// 同意済みtaskと保持snapshot・所有thread・両pageの公式由来が一致しない取得を拒否する。
+	// 同意済みtaskと保持snapshot・所有thread・両pageの公式由来が一致しない取得を拒否する
 	if( !preparedTarget_ || acquisitionAttempted_ || task.operationId == 0U ||
 	   task.scanSessionId == 0U || task.scanSessionId != retainedSessionId_ ||
 	   task.planId != preparedPlanId_ || task.target != *preparedTarget_ ||
@@ -935,16 +936,16 @@ OfficialPreparationTransferResult AsixUpdateProvider::acquireForInspection(
 		return {OfficialPreparationItemState::REJECTED, static_cast<NativeError>( E_INVALIDARG), 0} ;
 	}
 
-	// 受理した試行は取消し・失敗も含め一回で消費する。
+	// 受理した試行は取消し・失敗も含め一回で消費する
 	acquisitionAttempted_ = true ;
-	// 検索時と実OSが変わっていれば、別OS向け配布物を取得せず手動再検索を要求する。
+	// 検索時と実OSが変わっていれば、別OS向け配布物を取得せず手動再検索を要求する
 	if( isWindowsServer() || currentWindowsBuildNumber() != retainedWindowsBuild_) {
 		return {OfficialPreparationItemState::REJECTED,
 				static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH)), 0} ;
 	}
 
 	try {
-		// 利用者の取消しが確定済みなら、workspace作成とmetadata再取得も開始しない。
+		// 利用者の取消しが確定済みなら、workspace作成とmetadata再取得も開始しない
 		if( cancellation && cancellation()) {
 			return {OfficialPreparationItemState::CANCELLED,
 					static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED)), 0} ;
@@ -957,41 +958,41 @@ OfficialPreparationTransferResult AsixUpdateProvider::acquireForInspection(
 											   MAXIMUM_ASIX_PAYLOAD_BYTES,
 											   256ULL * 1024ULL * 1024ULL,
 											   1U,
-											   1U} ;	// ASIX一fileと256 MiBの空き容量reserve。
+											   1U} ;	// ASIX一fileと256 MiBの空き容量reserve
 		NativeError						error = workspace_->initialize( ASIX_AX88179A_PROVIDER_ID,
-																	   retainedSessionId_) ;	// 初期化診断値。
-		// 先行段階が成功した場合だけ次の処理へ進み、最初の失敗原因を後続の結果で上書きしない。
+																	   retainedSessionId_) ;	// 初期化診断値
+		// 先行段階が成功した場合だけ次の処理へ進み、最初の失敗原因を後続の結果で上書きしない
 		if( error == 0) {
 			error = acquisitionSession_->initialize( retainedSessionId_, limits) ;
 		}
 
 		OfficialPreparationTransferResult transfer{OfficialPreparationItemState::FAILURE, error,
-												   0} ;	// 初期化失敗は取得を呼ばない。
-		// 先行検証に成功した場合だけ同じsource sessionで再確認と取得へ進む。
+												   0} ;	// 初期化失敗は取得を呼ばない
+		// 先行検証に成功した場合だけ同じsource sessionで再確認と取得へ進む
 		if( error == 0) {
-			OfficialHttpAcquisitionTransport transport( httpClient_) ;	// 同じsource session。
-			WindowsOfficialNetworkCostReader costReader ;				// Windows標準の課金状態照会。
+			OfficialHttpAcquisitionTransport transport( httpClient_) ;	// 同じsource session
+			WindowsOfficialNetworkCostReader costReader ;				// Windows標準の課金状態照会
 			const PreparedReleaseRefresh	 refresh = [this]( OfficialReleaseRecord &current,
 														  bool					&rejected) {
 				const AsixProductPageReader productReader = [this]( const ScanSessionId session,
 																   std::wstring		  &html) {
 					return readProductPage( session, html) ;
-				} ; // 同じ固定製品pageを再確認する。
+				} ; // 同じ固定製品pageを再確認する
 				const AsixTermsPageReader termsReader = [this]( const ScanSessionId session,
 															   std::wstring		  &html) {
 					return readTermsPage( session, html) ;
-				} ; // 両pageの公式取得根拠を再構築する。
-				std::wstring productHtml ;	// この同期再確認だけで使う製品本文。
+				} ; // 両pageの公式取得根拠を再構築する
+				std::wstring productHtml ;	// この同期再確認だけで使う製品本文
 				return readPreparedPages( retainedSessionId_, false, retainedWindowsBuild_,
 											 productReader, termsReader, productHtml, current,
 											 rejected) ;
-			} ; // 本文・版・日付・ID・URL・hash等の全field一致を共通adapterが要求する。
+			} ; // 本文・版・日付・ID・URL・hash等の全field一致を共通adapterが要求する
 			transfer = acquirePreparedRelease( task, *preparedTarget_, retainedRelease_, refresh,
 											  *acquisitionSession_, *workspace_, transport,
 											  costReader, cancellation, acquisition_) ;
 		}
 
-		// 実際に取得成功したpayloadだけを内容・適用性監査へ渡す。
+		// 実際に取得成功したpayloadだけを内容・適用性監査へ渡す
 		if( transfer.state == OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION &&
 		   transfer.error == 0) {
 			try {
@@ -999,7 +1000,7 @@ OfficialPreparationTransferResult AsixUpdateProvider::acquireForInspection(
 					retainedSessionId_, acquisition_, retainedRelease_.publishedSha256,
 					retainedDevices_, rankAuditor_, cancellation, preparedAudit_)) ;
 			} catch( ...) {
-				// 監査例外では部分閉包を破棄し、確定済みの取得成功と実受信量を維持する。
+				// 監査例外では部分閉包を破棄し、確定済みの取得成功と実受信量を維持する
 				preparedAudit_					   = {} ;
 				preparedAudit_.scanSessionId	   = retainedSessionId_ ;
 				preparedAudit_.summary.state	   = OfficialDriverPackageAuditState::FAILURE ;
@@ -1011,7 +1012,7 @@ OfficialPreparationTransferResult AsixUpdateProvider::acquireForInspection(
 			preparedAudit_ = {} ;
 			acquisition_   = {} ;
 			acquisitionSession_.reset() ;
-			// 取得失敗の保持物を解放し、試行済み状態は戻さない。
+			// 取得失敗の保持物を解放し、試行済み状態は戻さない
 			workspace_.reset() ;
 		}
 
@@ -1034,17 +1035,17 @@ OfficialPreparationTransferResult AsixUpdateProvider::acquireForInspection(
 //------------------------------------------------------------------------------
 /**
  * @brief 同一scanのASIX取得後監査を既存候補行の非機密reportへ変換する。取得成功と独立した監査結果を一回だけ表示と候補へ変換する。現在版は書き換えず、binding付き
- *        routingを候補と同時に固定する。
- * @param[in] scanSessionId 現在保持している検索session。
- * @param[in] targetIdentity 承認済み取得計画内のopaque対象ID。
- * @return 同じ取得成功対象の監査report。未取得・旧session・再照会はnullopt。 監査reportと未選択候補。不一致または再照会はnullopt。
- * @note 監査合格時はbinding付き未選択候補を一回だけ発行する。
+ *        routingを候補と同時に固定する
+ * @param[in] scanSessionId 現在保持している検索session
+ * @param[in] targetIdentity 承認済み取得計画内のopaque対象ID
+ * @return 同じ取得成功対象の監査report。未取得・旧session・再照会はnullopt。 監査reportと未選択候補。不一致または再照会はnullopt
+ * @note 監査合格時はbinding付き未選択候補を一回だけ発行する
  */
 //------------------------------------------------------------------------------
 std::optional<OfficialPreparationAuditReport> AsixUpdateProvider::preparationAuditReport(
 	const ScanSessionId scanSessionId, const std::wstring_view targetIdentity)
 {
-	// 未取得・旧session・未監査・別thread・再照会を補完しない。
+	// 未取得・旧session・未監査・別thread・再照会を補完しない
 	if( scanSessionId == 0U || scanSessionId != retainedSessionId_ || !preparedTarget_ ||
 	   preparedTarget_->identity != targetIdentity || !acquisitionAttempted_ ||
 	   acquisition_.state != OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION ||
@@ -1061,20 +1062,20 @@ std::optional<OfficialPreparationAuditReport> AsixUpdateProvider::preparationAud
 
 	OfficialPreparationAuditReport report = makeAsixPreparationAuditReport(
 		scanSessionId, targetIdentity, retainedDevices_, retainedCandidateIdentities_,
-		preparedAudit_) ;	// URL、path、生PnP IDを含まない既存行snapshot。
-	// 失敗・0件も再発行しない。
+		preparedAudit_) ;	// URL、path、生PnP IDを含まない既存行snapshot
+	// 失敗・0件も再発行しない
 	auditReportResolved_ = true ;
-	// 内容・適用性合格前にはbindingを発行しない。
+	// 内容・適用性合格前にはbindingを発行しない
 	if( report.content != CandidateAuditGateState::PASSED ||
 	   report.applicability != CandidateAuditGateState::PASSED) {
 		return report ;
 	}
 
-	// binding作成・解放・指定導入callbackが揃わない間は導入候補を公開しない。
+	// binding作成・解放・指定導入callbackが揃わない間は導入候補を公開しない
 	if( !bindingCreator_ || !bindingReleaser_ || !boundInstaller_) {
 		report.publication.state	  = OfficialPreparationCandidatePublicationState::FAILURE ;
 		report.publication.firstError = static_cast<NativeError>( E_NOTIMPL) ;
-		// 全callbackが揃うまで選択可能な候補を公開しない。
+		// 全callbackが揃うまで選択可能な候補を公開しない
 		return report ;
 	}
 
@@ -1088,12 +1089,12 @@ std::optional<OfficialPreparationAuditReport> AsixUpdateProvider::preparationAud
 
 //------------------------------------------------------------------------------
 /**
- * @brief 対象deviceがある場合だけ固定ASIX製品pageとTermsを取得する。固定URLだけを取得し、取得根拠がない結果を成功として返さない。
- * @param[in] scanSessionId 0ではないscan session。 0ではない検索session。
- * @param[in] devices 外部送信しない現在device snapshot。 外部送信しないdevice snapshot。
- * @param[in] hardwareIdMatcher 使用しない。公式pageにPnP ID対応表がない。 使用しないlocal照合関数。
- * @param[in] progressCallback 確定済み段階の通知先。 確定した進捗通知先。
- * @return 非選択・非推奨の公式配布情報。Payloadを取得しない。 表示候補またはProvider別失敗状態。
+ * @brief 対象deviceがある場合だけ固定ASIX製品pageとTermsを取得する。固定URLだけを取得し、取得根拠がない結果を成功として返さない
+ * @param[in] scanSessionId 0ではないscan session。 0ではない検索session
+ * @param[in] devices 外部送信しない現在device snapshot。 外部送信しないdevice snapshot
+ * @param[in] hardwareIdMatcher 使用しない。公式pageにPnP ID対応表がない。 使用しないlocal照合関数
+ * @param[in] progressCallback 確定済み段階の通知先。 確定した進捗通知先
+ * @return 非選択・非推奨の公式配布情報。Payloadを取得しない。 表示候補またはProvider別失敗状態
  */
 //------------------------------------------------------------------------------
 ScanResult AsixUpdateProvider::scan( const ScanSessionId							 scanSessionId,
@@ -1102,7 +1103,7 @@ ScanResult AsixUpdateProvider::scan( const ScanSessionId							 scanSessionId,
 									const ProviderProgressCallback				&progressCallback)
 {
 	static_cast<void>( hardwareIdMatcher) ;
-	// 所有thread以外からのscan要求は保持中状態を変更せず拒否する。
+	// 所有thread以外からのscan要求は保持中状態を変更せず拒否する
 	if( ownerThreadId_ != 0U && GetCurrentThreadId() != ownerThreadId_) {
 		return {.scanSessionId = scanSessionId,
 				.outcome	   = OutcomeCode::FAILURE,
@@ -1110,44 +1111,44 @@ ScanResult AsixUpdateProvider::scan( const ScanSessionId							 scanSessionId,
 				.error		   = static_cast<NativeError>( E_ACCESSDENIED)} ;
 	}
 
-	// Public失効は観測contextも消去するため、Compositeが今回設定した値だけを退避する。
+	// Public失効は観測contextも消去するため、Compositeが今回設定した値だけを退避する
 	std::vector<LocalOfficialReleaseObservation> previousObservations =
-		// 今回scan用の前回観測。
+		// 今回scan用の前回観測
 		std::move( previousReleaseObservations_) ;
 	OfficialReleaseEnvironmentFingerprints observationEnvironment =
-		// 今回scan用の現在環境。
+		// 今回scan用の現在環境
 		std::move( observationEnvironment_) ;
 	invalidateScanSession() ;
 	previousReleaseObservations_	   = std::move( previousObservations) ;
 	observationEnvironment_			   = std::move( observationEnvironment) ;
 	const AsixProductPageReader reader = [this]( const ScanSessionId session, std::wstring &html) {
 		return readProductPage( session, html) ;
-	} ; // 端末情報を付加しない固定製品page取得境界。
+	} ; // 端末情報を付加しない固定製品page取得境界
 	const AsixTermsPageReader termsReader = [this]( const ScanSessionId session,
 												   std::wstring		  &html) {
 		return readTermsPage( session, html) ;
-	} ; // 同じsource sessionの固定Terms取得境界。
-	FILETIME observedTime{} ;	// Live metadata確認へ使用する現在UTC FILETIME。
+	} ; // 同じsource sessionの固定Terms取得境界
+	FILETIME observedTime{} ;	// Live metadata確認へ使用する現在UTC FILETIME
 	GetSystemTimeAsFileTime( &observedTime) ;
-	ULARGE_INTEGER observedTimeValue{} ;	// FILETIMEを永続64-bit値へ変換する共用体。
+	ULARGE_INTEGER observedTimeValue{} ;	// FILETIMEを永続64-bit値へ変換する共用体
 	observedTimeValue.LowPart  = observedTime.dwLowDateTime ;
 	observedTimeValue.HighPart = observedTime.dwHighDateTime ;
-	bool observationFailed{} ;								// 一件でも失敗した場合に今回観測全体を破棄する。
-	AsixReleaseObservationEvaluator observationEvaluator ;	// 環境成立時だけ設定する評価境界。
-	// OSとdevice構成の観測境界が揃う場合にだけrelease比較を有効にする。
+	bool observationFailed{} ;								// 一件でも失敗した場合に今回観測全体を破棄する
+	AsixReleaseObservationEvaluator observationEvaluator ;	// 環境成立時だけ設定する評価境界
+	// OSとdevice構成の観測境界が揃う場合にだけrelease比較を有効にする
 	if( !observationEnvironment_.operatingSystem.empty() &&
 	   !observationEnvironment_.deviceConfiguration.empty()) {
 		observationEvaluator =
 			[this, &observationFailed, observedFileTime = observedTimeValue.QuadPart](
 				const OfficialCatalogDevice &device, const OfficialReleaseRecord &release)
 			-> std::optional<ReleaseObservationDifference> {
-			// 先行device失敗後は部分観測を追加しない。
+			// 先行device失敗後は部分観測を追加しない
 			if( observationFailed) {
 				return std::nullopt ;
 			}
 
-			OfficialReleaseObservationEvaluation evaluation ;	// 今回観測と非機密差分。
-			// 一件の観測不整合でもProvider全体の部分観測を破棄する。
+			OfficialReleaseObservationEvaluation evaluation ;	// 今回観測と非機密差分
+			// 一件の観測不整合でもProvider全体の部分観測を破棄する
 			if( !evaluateOfficialReleaseObservation( OfficialReleaseFamily::ASIX_AX88179A, release,
 												   device, observationEnvironment_.operatingSystem,
 												   observationEnvironment_.deviceConfiguration,
@@ -1155,7 +1156,7 @@ ScanResult AsixUpdateProvider::scan( const ScanSessionId							 scanSessionId,
 												   evaluation)) {
 				observationFailed = true ;
 				currentReleaseObservations_.clear() ;
-				// 一件の不整合でProvider全体の観測を破棄する。
+				// 一件の不整合でProvider全体の観測を破棄する
 				return std::nullopt ;
 			}
 
@@ -1167,8 +1168,8 @@ ScanResult AsixUpdateProvider::scan( const ScanSessionId							 scanSessionId,
 	ScanResult result = scanWithPreparedPageReaders(
 		scanSessionId, devices, isWindowsServer(), currentWindowsBuildNumber(), reader, termsReader,
 		progressCallback,
-		observationEvaluator) ;	// 実OSとlocal probe成立後に二pageを確認する。
-	// 候補があっても公式originの取得根拠が揃わなければsessionごと拒否する。
+		observationEvaluator) ;	// 実OSとlocal probe成立後に二pageを確認する
+	// 候補があっても公式originの取得根拠が揃わなければsessionごと拒否する
 	if( result.succeeded && result.state == ProviderScanState::CANDIDATES_AVAILABLE &&
 	   (!httpClient_.hasSourceEvidence( scanSessionId, ASIX_AX88179A_PROVIDER_ID,
 									   OFFICIAL_LANDING_RESOURCE_ID) ||
@@ -1181,7 +1182,7 @@ ScanResult AsixUpdateProvider::scan( const ScanSessionId							 scanSessionId,
 		result.error						= static_cast<NativeError>( E_UNEXPECTED) ;
 		result.coverage.assessedDeviceCount = 0U ;
 		result.candidates.clear() ;
-		// 公式origin根拠がない候補をUIへ渡さない。
+		// 公式origin根拠がない候補をUIへ渡さない
 		return result ;
 	}
 
@@ -1191,13 +1192,13 @@ ScanResult AsixUpdateProvider::scan( const ScanSessionId							 scanSessionId,
 //------------------------------------------------------------------------------
 /**
  * @brief 復旧保護後のASIX発行候補を再監査して指定INF導入へ渡す。同一scanの公開候補だけを再検証し、選択deviceの導入routeだけを消費し、未処理のtoken・取得物と元
- *        scan観測を保持する。
- * @param[in] scanSessionId 候補を発行した現在session。
- * @param[in] identities 利用者が選択したopaque候補ID。 明示選択された候補identity群。
- * @param[in] parentWindowNative Windows導入dialogの親Window。 導入dialogの親Window値。
- * @param[in] progressCallback 確定段階と候補処理の通知先。 確定段階の通知先。
- * @return 保持物の再検証と導入を区別した個別結果。 再検証とinstallを分離した候補別の結果。
- * @note 選択deviceの導入routeだけを消費し、未処理のtoken・取得物と元scan観測を保持する。別threadでは状態を変更せず拒否する。
+ *        scan観測を保持する
+ * @param[in] scanSessionId 候補を発行した現在session
+ * @param[in] identities 利用者が選択したopaque候補ID。 明示選択された候補identity群
+ * @param[in] parentWindowNative Windows導入dialogの親Window。 導入dialogの親Window値
+ * @param[in] progressCallback 確定段階と候補処理の通知先。 確定段階の通知先
+ * @return 保持物の再検証と導入を区別した個別結果。 再検証とinstallを分離した候補別の結果
+ * @note 選択deviceの導入routeだけを消費し、未処理のtoken・取得物と元scan観測を保持する。別threadでは状態を変更せず拒否する
  */
 //------------------------------------------------------------------------------
 InstallResult AsixUpdateProvider::install( const ScanSessionId				  scanSessionId,
@@ -1205,9 +1206,9 @@ InstallResult AsixUpdateProvider::install( const ScanSessionId				  scanSessionI
 										  const std::uintptr_t				  parentWindowNative,
 										  const ProviderProgressCallback	 &progressCallback)
 {
-	// 別threadのinstall要求では所有workerの保持物にも触れず失敗を返す。
+	// 別threadのinstall要求では所有workerの保持物にも触れず失敗を返す
 	if( ownerThreadId_ != 0U && GetCurrentThreadId() != ownerThreadId_) {
-		InstallResult rejected ;	// 別threadでは保持物にも触れず拒否する。
+		InstallResult rejected ;	// 別threadでは保持物にも触れず拒否する
 		rejected.downloadOutcome = OutcomeCode::FAILURE ;
 		rejected.installOutcome	 = OutcomeCode::FAILURE ;
 		rejected.downloadError	 = static_cast<NativeError>( E_INVALIDARG) ;
@@ -1234,7 +1235,7 @@ InstallResult AsixUpdateProvider::install( const ScanSessionId				  scanSessionI
 		httpClient_.hasSourceEvidence( scanSessionId, ASIX_AX88179A_PROVIDER_ID,
 									  OFFICIAL_PRIMARY_METADATA_RESOURCE_ID) &&
 		httpClient_.hasSourceEvidence( scanSessionId, ASIX_AX88179A_PROVIDER_ID,
-									  OFFICIAL_PAYLOAD_RESOURCE_ID) ;	// 固定同意と公式取得根拠。
+									  OFFICIAL_PAYLOAD_RESOURCE_ID) ;	// 固定同意と公式取得根拠
 	try {
 		const BoundPreparedInstallContext context{.scanSessionId   = scanSessionId,
 												  .acquisition	   = &acquisition_,
@@ -1243,32 +1244,32 @@ InstallResult AsixUpdateProvider::install( const ScanSessionId				  scanSessionI
 												  .windowsServer   = isWindowsServer(),
 												  .windowsBuild	   = currentWindowsBuildNumber(),
 												  .sourceEvidenceConfirmed =
-													  sourceConfirmed} ;	// 同じworkerの非所有入力。
+													  sourceConfirmed} ;	// 同じworkerの非所有入力
 		const PreparedInfReverifier reverifier = []( const OfficialAuditedInfPackage &package) {
 			return reverifyOfficialAuditedInfPackage( package) ;
-		} ; // 本番の共通CAT再検証。
-		// 再検証と指定INF導入を経た候補別結果。保存session失効後も返却用に保持する。
+		} ; // 本番の共通CAT再検証
+		// 再検証と指定INF導入を経た候補別結果。保存session失効後も返却用に保持する
 		InstallResult result =
 			executeAsixPreparedInstall( context, identities, reverifier, rankAuditor_,
 									   boundInstaller_, parentWindowNative, progressCallback) ;
-		std::unordered_set<std::wstring> devices ;	// 元選択subsetです。
-		// 既routeのdeviceだけを対象にします。新しい作用範囲を推測しません。
+		std::unordered_set<std::wstring> devices ;	// 元選択subsetです
+		// 既routeのdeviceだけを対象にします。新しい作用範囲を推測しません
 		for( const auto &identity : identities) {
-			const auto target = installTargets_.find( identity) ;	// 元発行routeです。
-			// 不明なIDから他のdeviceを消費しません。
+			const auto target = installTargets_.find( identity) ;	// 元発行routeです
+			// 不明なIDから他のdeviceを消費しません
 			if( target != installTargets_.end()) {
 				devices.insert( target->second.prepared.deviceIdentity) ;
 			}
 		}
 
-		// 元owned file/監査閉包/未処理tokenは保持し、対象tokenだけを解放します。
+		// 元owned file/監査閉包/未処理tokenは保持し、対象tokenだけを解放します
 		std::erase_if( installTargets_, [&]( const auto &entry) {
-			// 他deviceの未消費routeへ波及させません。
+			// 他deviceの未消費routeへ波及させません
 			if( !devices.contains( entry.second.prepared.deviceIdentity)) {
 				return false ;
 			}
 
-			// 同issuerが発行した当該tokenだけを終了します。
+			// 同issuerが発行した当該tokenだけを終了します
 			if( bindingReleaser_) {
 				static_cast<void>( bindingReleaser_( retainedSessionId_, entry.second.binding.token)) ;
 			}
@@ -1277,20 +1278,20 @@ InstallResult AsixUpdateProvider::install( const ScanSessionId				  scanSessionI
 		}) ;
 		return result ;
 	} catch( ...) {
-		// 例外でもtokenを閉包より先に解放し、workerが失敗結果と復旧処理を確定する。
+		// 例外でもtokenを閉包より先に解放し、workerが失敗結果と復旧処理を確定する
 		invalidateScanSession() ;
 		throw ;
 	}
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 保持中のsource session、配布情報、準備計画を同時に失効させる。所有workerだけが旧取得根拠と計画を同時に破棄する。別threadは拒否する。
- * @note 成功scanを保持している間は所有worker thread以外から状態を変更しない。
+ * @brief 保持中のsource session、配布情報、準備計画を同時に失効させる。所有workerだけが旧取得根拠と計画を同時に破棄する。別threadは拒否する
+ * @note 成功scanを保持している間は所有worker thread以外から状態を変更しない
  */
 //------------------------------------------------------------------------------
 void AsixUpdateProvider::invalidateScanSession() noexcept
 {
-	// 別threadから保持物の寿命を変更せず、所有workerでの明示失効を要求する。
+	// 別threadから保持物の寿命を変更せず、所有workerでの明示失効を要求する
 	if( ownerThreadId_ != 0U && GetCurrentThreadId() != ownerThreadId_) {
 		return ;
 	}

@@ -154,7 +154,8 @@ def main() -> int:
             for name, comment in entries.items():
                 matches = [node for node in missing if node['path'] == relative and
                            (str(node.get('token_index')) == name if args.locals else node['name'] == name)]
-                if len(matches) != 1 or not comment.endswith('。') or '\n' in comment:
+                if (len(matches) != 1 or not comment.strip() or comment.rstrip().endswith('。')
+                        or '\n' in comment or '\r' in comment):
                     raise ValueError('declaration comment plan is invalid or ambiguous')
                 offset = sum(len(part) for part in source.splitlines(keepends=True)[:matches[0]['line'] - 1])
                 indentation = re.match(r'[ \t]*', source[offset:]).group()

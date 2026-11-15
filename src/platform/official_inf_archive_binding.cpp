@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_inf_archive_binding.cpp
- * @brief 封印取得と閉じたZIP／PE内INF・署名補助CAT集合の非実行結合。
- * @version 01.03.02
+ * @brief 封印取得と閉じたZIP／PE内INF・署名補助CAT集合の非実行結合
+ * @version 01.04.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,15 +19,17 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/06  元byteと全祖先を固定したZIP派生結合を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/10/06  明示PE形式の全INF原範囲を共通所有へ接続。
- * Ver.01.02.00 Shunji Ogawa  2026/10/06  全fileをnative使用終了まで固定し由来へ接続。
- * Ver.01.03.00 Shunji Ogawa  2026/10/06  全CATも原byte再照合と使用中固定へ追加。
- * Ver.01.03.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
- * Ver.01.03.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/06  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/10/06  明示PE形式の全INF原範囲を共通所有へ接続
+ * Ver.01.02.00 Shunji Ogawa  2026/10/06  全fileをnative使用終了まで固定し由来へ接続
+ * Ver.01.03.00 Shunji Ogawa  2026/10/06  全CATも原byte再照合と使用中固定へ追加
+ * Ver.01.03.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける
+ * Ver.01.03.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.04.00 Shunji Ogawa  2026/11/12  本人検査入力を管理者用導入準備bindingから拒否
+ * Ver.01.04.01 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 同期workerだけで使用する。native署名の失効照会はOSに委ね、導入許可を発行しない。
+ * @note 同期workerだけで使用する。native署名の失効照会はOSに委ね、導入許可を発行しない
  * @see docs/adr/0274-sealed-zip-inf-member-binding.md
  */
 //------------------------------------------------------------------------------
@@ -51,37 +53,36 @@
 namespace drivercrate {
 namespace {
 //------------------------------------------------------------------------------
-// 有限容量とhandle所有定義。
+// 有限容量とhandle所有定義
 //------------------------------------------------------------------------------
-constexpr std::uint64_t MAX_ARCHIVE_BYTES = 128ULL * 1024ULL * 1024ULL ;	// 一archive上限。
-constexpr OfficialZipExtractionPolicy ZIP_POLICY =
-	OFFICIAL_INF_ARCHIVE_POLICY ;	// 全宣言の共通予算。
+constexpr std::uint64_t MAX_ARCHIVE_BYTES		 = 128ULL * 1024ULL * 1024ULL ;		// 一archive上限
+constexpr OfficialZipExtractionPolicy ZIP_POLICY = OFFICIAL_INF_ARCHIVE_POLICY ;	// 全宣言の共通予算
 
-/** @brief 通常Windows handleを単独所有する。 */
+/** @brief 通常Windows handleを単独所有する */
 struct BindingHandleCloser {
 	/**
-	 * @brief 有効handleだけを閉じる。
-	 * @param[in] value 所有するfileまたはdirectory handle。
+	 * @brief 有効handleだけを閉じる
+	 * @param[in] value 所有するfileまたはdirectory handle
 	 */
 	void operator()( void *value) const noexcept
 	{
-		// 未取得handleをOSへ渡さない。
+		// 未取得handleをOSへ渡さない
 		if( value != nullptr && value != INVALID_HANDLE_VALUE) {
 			CloseHandle( value) ;
 		}
 	}
 } ;
 /**
- * @brief scope限定のhandle所有。
+ * @brief scope限定のhandle所有
  */
 using BindingHandle = std::unique_ptr<void, BindingHandleCloser> ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief Ordinal case非依存で同じ有限名を照合する。
- * @param[in] left 一つ目の原名。
- * @param[in] right 二つ目の原名。
- * @return 同じ長さとordinal名の場合true。
+ * @brief Ordinal case非依存で同じ有限名を照合する
+ * @param[in] left 一つ目の原名
+ * @param[in] right 二つ目の原名
+ * @return 同じ長さとordinal名の場合true
  */
 //------------------------------------------------------------------------------
 bool equalBindingName( std::wstring_view left, std::wstring_view right) noexcept
@@ -93,40 +94,40 @@ bool equalBindingName( std::wstring_view left, std::wstring_view right) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実handleが通常位置と期待種別を示すことを確認する。
- * @param[in] handle 生存中の所有handle。
- * @param[in] path 終端付き通常DOS位置。
- * @param[in] directory directoryを期待する場合true。
- * @return 完了0、reparse・位置差・API失敗のHRESULT。
+ * @brief 実handleが通常位置と期待種別を示すことを確認する
+ * @param[in] handle 生存中の所有handle
+ * @param[in] path 終端付き通常DOS位置
+ * @param[in] directory directoryを期待する場合true
+ * @return 完了0、reparse・位置差・API失敗のHRESULT
  */
 //------------------------------------------------------------------------------
 NativeError checkBindingHandle( HANDLE handle, const std::wstring &path, bool directory)
 {
-	FILE_ATTRIBUTE_TAG_INFO attributes{} ;	// 名前ではなく実handleの属性。
-	// 属性を取得できないfileは認証しない。
+	FILE_ATTRIBUTE_TAG_INFO attributes{} ;	// 名前ではなく実handleの属性
+	// 属性を取得できないfileは認証しない
 	if( !GetFileInformationByHandleEx( handle, FileAttributeTagInfo, &attributes,
 									 sizeof( attributes))) {
 		return HRESULT_FROM_WIN32( GetLastError()) ;
 	}
 
-	// Reparseを辿った結果で元位置を救済しない。
+	// Reparseを辿った結果で元位置を救済しない
 	if( GetFileType( handle) != FILE_TYPE_DISK ||
 	   (attributes.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U ||
 	   ((attributes.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0U) != directory) {
 		return HRESULT_FROM_WIN32( ERROR_ACCESS_DENIED) ;
 	}
 
-	std::array<wchar_t, MAX_PATH + 4U> name{} ;	// DOS接頭辞を含む有限応答。
+	std::array<wchar_t, MAX_PATH + 4U> name{} ;	// DOS接頭辞を含む有限応答
 	const DWORD						   count =
 		GetFinalPathNameByHandleW( handle, name.data(), static_cast<DWORD>( name.size()),
-								  FILE_NAME_NORMALIZED | VOLUME_NAME_DOS) ;	// 実最終位置。
-	// 切詰めや未取得を原位置との一致にしない。
+								  FILE_NAME_NORMALIZED | VOLUME_NAME_DOS) ;	// 実最終位置
+	// 切詰めや未取得を原位置との一致にしない
 	if( count == 0U || count >= name.size()) {
 		return count == 0U ? HRESULT_FROM_WIN32( GetLastError())
 						   : HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
 	}
 
-	const std::wstring_view actual( name.data(), count) ;	// 終端を除く応答借用。
+	const std::wstring_view actual( name.data(), count) ;	// 終端を除く応答借用
 	return actual.starts_with( L"\\\\?\\") && equalBindingName( actual.substr( 4U), path)
 			   ? 0
 			   : HRESULT_FROM_WIN32( ERROR_FILE_INVALID) ;
@@ -134,46 +135,46 @@ NativeError checkBindingHandle( HANDLE handle, const std::wstring &path, bool di
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全祖先とleafを固定し、共通hash検証後に任意で同じhandleの全byteを読む。
- * @param[in] path 原通常DOS位置。
- * @param[in] bytes 期待する正のbyte数。最大128 MiB。
- * @param[in] hash 期待SHA-256。
- * @param[out] raw nullptrならhash再確認だけ、非nullなら成功時の全byte。
- * @param[out] retained Hash再確認時だけ全handleの所有を末尾へ移す任意出力。
- * @return 完了0、位置・容量・byte差・API失敗のHRESULT。
- * @note Rawは先行検証前に変更しない。retained指定時以外のhandle固定は本呼出し中に限る。
+ * @brief 全祖先とleafを固定し、共通hash検証後に任意で同じhandleの全byteを読む
+ * @param[in] path 原通常DOS位置
+ * @param[in] bytes 期待する正のbyte数。最大128 MiB
+ * @param[in] hash 期待SHA-256
+ * @param[out] raw nullptrならhash再確認だけ、非nullなら成功時の全byte
+ * @param[out] retained Hash再確認時だけ全handleの所有を末尾へ移す任意出力
+ * @return 完了0、位置・容量・byte差・API失敗のHRESULT
+ * @note Rawは先行検証前に変更しない。retained指定時以外のhandle固定は本呼出し中に限る
  */
 //------------------------------------------------------------------------------
 NativeError readBoundFile( const std::wstring &path, std::uint64_t bytes, std::wstring_view hash,
 						  std::vector<std::byte>	 *raw,
 						  std::vector<BindingHandle> *retained = nullptr)
 {
-	// 認証結果から得た入力でも実位置と絶対容量を再確認する。
+	// 認証結果から得た入力でも実位置と絶対容量を再確認する
 	if( !validInfDependencyPath( path, true) || bytes == 0U || bytes > MAX_ARCHIVE_BYTES ||
 	   hash.size() != 64U || (raw != nullptr && retained != nullptr)) {
 		return E_INVALIDARG ;
 	}
 
-	std::vector<BindingHandle> parents ;	// 呼出し中の全祖先renameを拒否する所有列。
-	// Drive rootからleaf親まで、reparseを辿らず順に固定する。
+	std::vector<BindingHandle> parents ;	// 呼出し中の全祖先renameを拒否する所有列
+	// Drive rootからleaf親まで、reparseを辿らず順に固定する
 	for( std::size_t end = 3U; end < path.size(); ++end) {
-		// Component境界だけを開く。
+		// Component境界だけを開く
 		if( end != 3U && path[end] != L'\\') {
 			continue ;
 		}
 
-		const std::wstring parent = path.substr( 0U, end) ;	// Rootには終端separatorを含む。
+		const std::wstring parent = path.substr( 0U, end) ;	// Rootには終端separatorを含む
 		BindingHandle	   handle( CreateFileW( parent.c_str(), FILE_READ_ATTRIBUTES,
 											  FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
 											  FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
-											  nullptr)) ;	// 削除を共有しない。
-		// 明示open失敗は元診断のまま返す。
+											  nullptr)) ;	// 削除を共有しない
+		// 明示open失敗は元診断のまま返す
 		if( handle.get() == INVALID_HANDLE_VALUE) {
 			return HRESULT_FROM_WIN32( GetLastError()) ;
 		}
 
-		const auto error = checkBindingHandle( handle.get(), parent, true) ;	// 種別・最終位置。
-		// 祖先の一つでも異常ならleafへ進まない。
+		const auto error = checkBindingHandle( handle.get(), parent, true) ;	// 種別・最終位置
+		// 祖先の一つでも異常ならleafへ進まない
 		if( error != 0) {
 			return error ;
 		}
@@ -183,22 +184,22 @@ NativeError readBoundFile( const std::wstring &path, std::uint64_t bytes, std::w
 
 	BindingHandle file( CreateFileW( path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
 								   OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT,
-								   nullptr)) ;	// Writer・削除を共有しないleaf。
-	// Writer競合を成功履歴で補わない。
+								   nullptr)) ;	// Writer・削除を共有しないleaf
+	// Writer競合を成功履歴で補わない
 	if( file.get() == INVALID_HANDLE_VALUE) {
 		return HRESULT_FROM_WIN32( GetLastError()) ;
 	}
 
-	auto error = checkBindingHandle( file.get(), path, false) ;	// 原位置の通常file確認。
-	// 共通file検証を私有固定metadataへ適用する。
+	auto error = checkBindingHandle( file.get(), path, false) ;	// 原位置の通常file確認
+	// 共通file検証を私有固定metadataへ適用する
 	if( error == 0) {
 		error = verifyOfficialFileMetadata( path, {bytes, hash}) ;
 	}
 
-	// 全成功の位置・byteだけを呼出し側の使用中固定へ移す。
+	// 全成功の位置・byteだけを呼出し側の使用中固定へ移す
 	if( error == 0 && retained != nullptr) {
 		retained->reserve( retained->size() + parents.size() + 1U) ;
-		// 全祖先のrename拒否をleafと同じ使用scopeへ引き継ぐ。
+		// 全祖先のrename拒否をleafと同じ使用scopeへ引き継ぐ
 		for( auto &parent : parents) {
 			retained->push_back( std::move( parent)) ;
 		}
@@ -206,24 +207,24 @@ NativeError readBoundFile( const std::wstring &path, std::uint64_t bytes, std::w
 		retained->push_back( std::move( file)) ;
 	}
 
-	// 読取不要または先行拒否ではmemoryを作らない。
+	// 読取不要または先行拒否ではmemoryを作らない
 	if( error != 0 || raw == nullptr) {
 		return error ;
 	}
 
-	std::vector<std::byte> captured( static_cast<std::size_t>( bytes)) ;	// 固定済みsizeだけのmemory。
-	std::size_t			   offset{} ;										// 読取成功したbyte位置。
-	// 全byteを有限chunkで同じ固定handleから読み取る。
+	std::vector<std::byte> captured( static_cast<std::size_t>( bytes)) ;	// 固定済みsizeだけのmemory
+	std::size_t			   offset{} ;										// 読取成功したbyte位置
+	// 全byteを有限chunkで同じ固定handleから読み取る
 	while( offset < captured.size()) {
 		const DWORD requested = static_cast<DWORD>(
-			std::min<std::size_t>( 65536U, captured.size() - offset)) ;	// 一chunk量。
-		DWORD received{} ;												// 実読取量。
-		// Short readも全byte取得として扱わない。
+			std::min<std::size_t>( 65536U, captured.size() - offset)) ;	// 一chunk量
+		DWORD received{} ;												// 実読取量
+		// Short readも全byte取得として扱わない
 		if( !ReadFile( file.get(), captured.data() + offset, requested, &received, nullptr)) {
 			return HRESULT_FROM_WIN32( GetLastError()) ;
 		}
 
-		// EOFを期待sizeまでの読取成功へ変換しない。
+		// EOFを期待sizeまでの読取成功へ変換しない
 		if( received != requested) {
 			return HRESULT_FROM_WIN32( ERROR_HANDLE_EOF) ;
 		}
@@ -231,9 +232,9 @@ NativeError readBoundFile( const std::wstring &path, std::uint64_t bytes, std::w
 		offset += received ;
 	}
 
-	// 終了時も同じ固定byteを確認。
+	// 終了時も同じ固定byteを確認
 	error = verifyOfficialFileMetadata( path, {bytes, hash}) ;
-	// 全確認完了時だけmemoryを公開する。
+	// 全確認完了時だけmemoryを公開する
 	if( error == 0) {
 		*raw = std::move( captured) ;
 	}
@@ -244,15 +245,16 @@ NativeError readBoundFile( const std::wstring &path, std::uint64_t bytes, std::w
 
 //------------------------------------------------------------------------------
 /**
- * @brief 生存取得sessionから元archive・明示member経路・全INFを固定する。
- * @param[in] session 当該証拠を発行した生存session。
- * @param[in,out] evidence 成功commit時だけ所有を移す証拠。失敗時は不変。
- * @param[in] archiveWorkspace 元取得fileを全使用期間所有する領域。
- * @param[in] nestedMembers ZIP内の原相対member位置。最大二段、空なら直接の最終file。
- * @param[in] format 最終fileの明示形式。既定はZIPで、拡張子から推測しない。
- * @return 全INF結合0、入力・形式・path・容量・CRC・byte差・例外のHRESULT。
- * @post 失敗時は自身を空にする。元fileを削除・修復しない。
- * @note 最終ZIPまたは唯一PE表の全INF／CATの原byteを結合する。署名・作用閉包・端末適合ではない。
+ * @brief 生存取得sessionから元archive・明示member経路・全INFを固定する
+ * @param[in] session 当該証拠を発行した生存session
+ * @param[in,out] evidence 成功commit時だけ所有を移す証拠。失敗時は不変
+ * @param[in] archiveWorkspace 元取得fileを全使用期間所有する領域
+ * @param[in] nestedMembers ZIP内の原相対member位置。最大二段、空なら直接の最終file
+ * @param[in] format 最終fileの明示形式。既定はZIPで、拡張子から推測しない
+ * @return 全INF結合0、入力・形式・path・容量・CRC・byte差・例外のHRESULT
+ * @post 失敗時は自身を空にする。元fileを削除・修復しない
+ * @note 最終ZIPまたは唯一PE表の全INF／CATの原byteを結合する。署名・作用閉包・端末適合ではない
+ * CURRENT_USER_INSPECTION入力は由来検査・派生領域作成前に拒否します
  */
 //------------------------------------------------------------------------------
 NativeError OfficialInfArchiveBinding::bind( const OfficialAcquisitionSession &session,
@@ -262,16 +264,22 @@ NativeError OfficialInfArchiveBinding::bind( const OfficialAcquisitionSession &s
 											OfficialInfContainerFormat		  format)
 {
 	try {
-		// 明示経路の上限と生存証拠を展開前に必須化する。
+		// 本人検査入力を管理者用派生領域へ付け替えて導入準備bindingにしません
+		if( archiveWorkspace.protectionMode() != OfficialWorkspaceMode::ADMINISTRATOR) {
+			*this = OfficialInfArchiveBinding{} ;
+			return E_ACCESSDENIED ;
+		}
+
+		// 明示経路の上限と生存証拠を展開前に必須化する
 		if( nestedMembers.size() > 2U || (format != OfficialInfContainerFormat::ZIP &&
 										 format != OfficialInfContainerFormat::PE_FLAT_TABLE)) {
 			*this = OfficialInfArchiveBinding{} ;
 			return E_INVALIDARG ;
 		}
 
-		// 自身の公開memberからのborrowも回収前に構文確認し、過長copyを防ぐ。
+		// 自身の公開memberからのborrowも回収前に構文確認し、過長copyを防ぐ
 		for( const auto &name : nestedMembers) {
-			// 原名の危険構文は旧領域を回収して拒否する。
+			// 原名の危険構文は旧領域を回収して拒否する
 			if( !validInfDependencyPath( name, false)) {
 				*this = OfficialInfArchiveBinding{} ;
 				return E_INVALIDARG ;
@@ -279,95 +287,95 @@ NativeError OfficialInfArchiveBinding::bind( const OfficialAcquisitionSession &s
 		}
 
 		const std::vector<std::wstring> names( nestedMembers.begin(),
-											  // 入力borrowを有限所有へ移す。
+											  // 入力borrowを有限所有へ移す
 											  nestedMembers.end()) ;
 		*this = OfficialInfArchiveBinding{} ;
 
-		auto error = session.verifyAcquiredFile( evidence, archiveWorkspace) ;	// 私有issuer・元byte。
-		// 公開boolや履歴だけでは元archiveを開かない。
+		auto error = session.verifyAcquiredFile( evidence, archiveWorkspace) ;	// 私有issuer・元byte
+		// 公開boolや履歴だけでは元archiveを開かない
 		if( error != 0) {
 			return error ;
 		}
 
-		const auto			  &original = evidence.observation() ;	// 生存私有証拠のread-only借用。
-		std::vector<std::byte> raw ;								// 現層の固定memory archive。
+		const auto			  &original = evidence.observation() ;	// 生存私有証拠のread-only借用
+		std::vector<std::byte> raw ;								// 現層の固定memory archive
 		error = readBoundFile( original.inspectionPath, original.byteCount, original.sha256, &raw) ;
-		OfficialInfArchiveBinding pending ;	// 全成功前は自身へ移さない部分所有者。
-		// 最大二段の明示内側memberだけを辿り、再帰探索をしない。
+		OfficialInfArchiveBinding pending ;	// 全成功前は自身へ移さない部分所有者
+		// 最大二段の明示内側memberだけを辿り、再帰探索をしない
 		for( const auto &name : names) {
-			// 前段拒否を後段展開で消さない。
+			// 前段拒否を後段展開で消さない
 			if( error != 0) {
 				return error ;
 			}
 
-			std::vector<OfficialZipEntry> entries ;	// 全entryのpreflight結果。
+			std::vector<OfficialZipEntry> entries ;	// 全entryのpreflight結果
 			error = inspectOfficialZip( raw, ZIP_POLICY, entries) ;
-			// 原相対位置の構文も公式entryの存在も必須とする。
+			// 原相対位置の構文も公式entryの存在も必須とする
 			if( error != 0 || !validInfDependencyPath( name, false)) {
 				return error != 0 ? error : E_INVALIDARG ;
 			}
 
 			const auto found =
 				std::ranges::find_if( entries, [&name]( const OfficialZipEntry &entry) {
-					// 原memberをordinal名で一意に解決する。
+					// 原memberをordinal名で一意に解決する
 					return equalBindingName( entry.relativePath, name) ;
-				}) ; // Parserが全重複を事前拒否した一覧。
-			// 同名に似たmemberや別branchへfallbackしない。
+				}) ; // Parserが全重複を事前拒否した一覧
+			// 同名に似たmemberや別branchへfallbackしない
 			if( found == entries.end() || found->uncompressedSize == 0U ||
 			   found->uncompressedSize > MAX_ARCHIVE_BYTES) {
 				return HRESULT_FROM_WIN32( ERROR_NOT_FOUND) ;
 			}
 
-			auto derived = std::make_unique<OfficialDownloadWorkspace>() ;	// この層だけの保護領域。
+			auto derived = std::make_unique<OfficialDownloadWorkspace>() ;	// この層だけの保護領域
 			error		 = derived->initialize( L"sealed-zip", original.scanSessionId) ;
 			const std::array<std::wstring_view, 1U> selected{
-				found->relativePath} ;					// 一原memberだけの明示選択。
-			std::vector<OfficialZipEntry> extracted ;	// CRCとhashを固定した実member。
-			// 領域確保後にだけ共通選択展開へ進む。
+				found->relativePath} ;					// 一原memberだけの明示選択
+			std::vector<OfficialZipEntry> extracted ;	// CRCとhashを固定した実member
+			// 領域確保後にだけ共通選択展開へ進む
 			if( error == 0) {
 				error = extractOfficialZipFiles( raw, ZIP_POLICY, selected, *derived, extracted) ;
 			}
 
-			// 完全に一件固定されなければ派生を記録しない。
+			// 完全に一件固定されなければ派生を記録しない
 			if( error != 0 || extracted.size() != 1U) {
 				return error != 0 ? error : E_UNEXPECTED ;
 			}
 
-			const auto &member = extracted.front() ;	// 生存抽出metadataの同期借用。
+			const auto &member = extracted.front() ;	// 生存抽出metadataの同期借用
 			error = readBoundFile( derived->path( member.relativePath), member.uncompressedSize,
 								  member.sha256, &raw) ;
 			pending.archiveMembers_.push_back( member) ;
 			pending.archiveWorkspaces_.push_back( std::move( derived)) ;
 		}
 
-		// 最終層までのbyte固定に失敗したら全INFを列挙しない。
+		// 最終層までのbyte固定に失敗したら全INFを列挙しない
 		if( error != 0) {
 			return error ;
 		}
 
-		std::vector<OfficialZipEntry> extracted ;	// 全INF／CATの原byte metadata。
+		std::vector<OfficialZipEntry> extracted ;	// 全INF／CATの原byte metadata
 		pending.infWorkspace_ = std::make_unique<OfficialDownloadWorkspace>() ;
 		error = pending.infWorkspace_->initialize( L"sealed-inf", original.scanSessionId) ;
-		// 生存取得からの同じ最終memoryへ共通metadata抽出を適用する。
+		// 生存取得からの同じ最終memoryへ共通metadata抽出を適用する
 		if( error == 0) {
 			error = extractOfficialInfMetadata( raw, format, *pending.infWorkspace_, extracted) ;
 		}
 
-		// 明示形式の失敗や空集合を別形式の成功へfallbackしない。
+		// 明示形式の失敗や空集合を別形式の成功へfallbackしない
 		if( error != 0 || extracted.empty()) {
 			return error != 0 ? error : E_UNEXPECTED ;
 		}
 
-		// 実抽出だけから私有固定集合を作り、外部memberを取り込まない。
+		// 実抽出だけから私有固定集合を作り、外部memberを取り込まない
 		for( const auto &entry : extracted) {
 			error = readBoundFile( pending.infWorkspace_->path( entry.relativePath),
 								  entry.uncompressedSize, entry.sha256, nullptr) ;
-			// 抽出後の実byteまで一致することを要求する。
+			// 抽出後の実byteまで一致することを要求する
 			if( error != 0) {
 				return error ;
 			}
 
-			// CATを開始INF一覧へ混ぜず、同じ原metadataを私有の補助一覧へ保存する。
+			// CATを開始INF一覧へ混ぜず、同じ原metadataを私有の補助一覧へ保存する
 			if( equalBindingName(
 				   std::wstring_view( entry.relativePath).substr( entry.relativePath.size() - 4U),
 				   L".cat")) {
@@ -379,7 +387,7 @@ NativeError OfficialInfArchiveBinding::bind( const OfficialAcquisitionSession &s
 		}
 
 		error = session.verifyAcquiredFile( evidence, archiveWorkspace) ;
-		// 全派生成功後も同じ生存issuerへ結合してからcommitする。
+		// 全派生成功後も同じ生存issuerへ結合してからcommitする
 		if( error != 0) {
 			return error ;
 		}
@@ -398,11 +406,11 @@ NativeError OfficialInfArchiveBinding::bind( const OfficialAcquisitionSession &s
 
 //------------------------------------------------------------------------------
 /**
- * @brief 元byte・全内側ZIPと全INF／CATを同じ生存sessionへ再結合する。
- * @param[in] session 元証拠を発行したsession。
- * @param[in] archiveWorkspace 元取得領域。別領域への付替えを拒否する。
- * @return 全再確認0、失効・変更・path・競合・例外のHRESULT。
- * @note 成功は呼出し中の観測で、後続のfile使用を固定し続ける許可ではない。
+ * @brief 元byte・全内側ZIPと全INF／CATを同じ生存sessionへ再結合する
+ * @param[in] session 元証拠を発行したsession
+ * @param[in] archiveWorkspace 元取得領域。別領域への付替えを拒否する
+ * @return 全再確認0、失効・変更・path・競合・例外のHRESULT
+ * @note 成功は呼出し中の観測で、後続のfile使用を固定し続ける許可ではない
  */
 //------------------------------------------------------------------------------
 NativeError OfficialInfArchiveBinding::verify(
@@ -410,33 +418,33 @@ NativeError OfficialInfArchiveBinding::verify(
 	const OfficialDownloadWorkspace	 &archiveWorkspace) const
 {
 	try {
-		// 空／move元／部分集合を有効な認証結果にしない。
+		// 空／move元／部分集合を有効な認証結果にしない
 		if( !infWorkspace_ || infMembers_.empty() ||
 		   archiveWorkspaces_.size() != archiveMembers_.size()) {
 			return E_INVALIDARG ;
 		}
 
 		auto error =
-			// 同じ生存issuer必須。
+			// 同じ生存issuer必須
 			session.verifyAcquiredFile( evidence_, archiveWorkspace) ;
-		// 元取得を再確認できないときは派生成功を返さない。
+		// 元取得を再確認できないときは派生成功を返さない
 		if( error != 0) {
 			return error ;
 		}
 
-		const auto &original = evidence_.observation() ;	// 私有原byte identity。
+		const auto &original = evidence_.observation() ;	// 私有原byte identity
 		error =
 			readBoundFile( original.inspectionPath, original.byteCount, original.sha256, nullptr) ;
-		// 全明示内側ZIPを順に原memberの固定byteへ再照合する。
+		// 全明示内側ZIPを順に原memberの固定byteへ再照合する
 		for( std::size_t index = 0U; error == 0 && index < archiveMembers_.size(); ++index) {
-			const auto &member = archiveMembers_[index] ;	// 該当層の私有metadata。
+			const auto &member = archiveMembers_[index] ;	// 該当層の私有metadata
 			error			   = readBoundFile( archiveWorkspaces_[index]->path( member.relativePath),
 											   member.uncompressedSize, member.sha256, nullptr) ;
 		}
 
-		// 最終ZIPの全INFを一部成功に縮約せず再照合する。
+		// 最終ZIPの全INFを一部成功に縮約せず再照合する
 		for( const auto &member : infMembers_) {
-			// 先行失敗の元診断を保持する。
+			// 先行失敗の元診断を保持する
 			if( error != 0) {
 				return error ;
 			}
@@ -445,9 +453,9 @@ NativeError OfficialInfArchiveBinding::verify(
 								  member.sha256, nullptr) ;
 		}
 
-		// 未使用CATも含め全署名補助byteを再照合する。
+		// 未使用CATも含め全署名補助byteを再照合する
 		for( const auto &member : catalogMembers_) {
-			// 元失敗の診断を維持して部分成功を返さない。
+			// 元失敗の診断を維持して部分成功を返さない
 			if( error != 0) {
 				return error ;
 			}
@@ -466,8 +474,8 @@ NativeError OfficialInfArchiveBinding::verify(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全INFと署名補助CATを所有する領域をworkerへ同期借用する。
- * @return 空結果ではnullptr。取得由来の再照合を代替しない。
+ * @brief 全INFと署名補助CATを所有する領域をworkerへ同期借用する
+ * @return 空結果ではnullptr。取得由来の再照合を代替しない
  */
 //------------------------------------------------------------------------------
 const OfficialDownloadWorkspace *OfficialInfArchiveBinding::workspace() const noexcept
@@ -477,9 +485,9 @@ const OfficialDownloadWorkspace *OfficialInfArchiveBinding::workspace() const no
 
 //------------------------------------------------------------------------------
 /**
- * @brief 最終containerから確定した全INFの固定一覧を借用する。
- * @return 原相対位置・実size・SHA-256の全INF。空結果では空。
- * @note 原pathはworker内だけで使用し、logや永続JSONへ出さない。
+ * @brief 最終containerから確定した全INFの固定一覧を借用する
+ * @return 原相対位置・実size・SHA-256の全INF。空結果では空
+ * @note 原pathはworker内だけで使用し、logや永続JSONへ出さない
  */
 //------------------------------------------------------------------------------
 std::span<const InfDependencyPackageMember> OfficialInfArchiveBinding::members() const noexcept
@@ -489,9 +497,9 @@ std::span<const InfDependencyPackageMember> OfficialInfArchiveBinding::members()
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全署名補助CATの原metadataだけをworkerへ同期借用する。
- * @return 原相対位置・実size・SHA-256。CATなしまたは空結果では空。
- * @note 値の複写を認証へ使わず、native使用中の封印所有者を移動・変更しない。
+ * @brief 全署名補助CATの原metadataだけをworkerへ同期借用する
+ * @return 原相対位置・実size・SHA-256。CATなしまたは空結果では空
+ * @note 値の複写を認証へ使わず、native使用中の封印所有者を移動・変更しない
  */
 //------------------------------------------------------------------------------
 std::span<const OfficialZipEntry> OfficialInfArchiveBinding::catalogs() const noexcept
@@ -501,16 +509,16 @@ std::span<const OfficialZipEntry> OfficialInfArchiveBinding::catalogs() const no
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全元／派生fileを使用中固定して公式由来をnative依存観測へ結合する。
- * @param[in] session 元証拠を発行した生存session。
- * @param[in] archiveWorkspace 元取得物を所有する同じ領域。
- * @param[in] rootIndex 封印全INF一覧内の開始位置。
- * @param[in] seeds 開始INF内の有限明示節群。
- * @param[in] observationId 非零のworker内観測世代。
- * @param[out] result 全再確認成功時だけ返し、失敗時は空にする。
- * @return 完了0、取得失効・path・byte差・native確認・例外のHRESULT。
- * @pre 同期workerで呼び、再入・move・再bind・破棄と入力出力aliasを行わない。
- * @note 署名・作用・device適用性・導入許可は別軸。返却後のfile使用は固定しない。
+ * @brief 全元／派生fileを使用中固定して公式由来をnative依存観測へ結合する
+ * @param[in] session 元証拠を発行した生存session
+ * @param[in] archiveWorkspace 元取得物を所有する同じ領域
+ * @param[in] rootIndex 封印全INF一覧内の開始位置
+ * @param[in] seeds 開始INF内の有限明示節群
+ * @param[in] observationId 非零のworker内観測世代
+ * @param[out] result 全再確認成功時だけ返し、失敗時は空にする
+ * @return 完了0、取得失効・path・byte差・native確認・例外のHRESULT
+ * @pre 同期workerで呼び、再入・move・再bind・破棄と入力出力aliasを行わない
+ * @note 署名・作用・device適用性・導入許可は別軸。返却後のfile使用は固定しない
  */
 //------------------------------------------------------------------------------
 NativeError OfficialInfArchiveBinding::inspectDependencies(
@@ -520,26 +528,26 @@ NativeError OfficialInfArchiveBinding::inspectDependencies(
 {
 	result = {} ;
 	try {
-		auto error = verify( session, archiveWorkspace) ;	// 元issuer・全固定集合の開始確認。
-		// 空結果や失効をnative署名の検査で救済しない。
+		auto error = verify( session, archiveWorkspace) ;	// 元issuer・全固定集合の開始確認
+		// 空結果や失効をnative署名の検査で救済しない
 		if( error != 0) {
 			return error ;
 		}
 
-		std::vector<BindingHandle> pins ;					// 使用終了まで全元／派生と祖先を固定する。
-		const auto &original = evidence_.observation() ;	// 外部入力ではない原取得metadata。
+		std::vector<BindingHandle> pins ;					// 使用終了まで全元／派生と祖先を固定する
+		const auto &original = evidence_.observation() ;	// 外部入力ではない原取得metadata
 		error = readBoundFile( original.inspectionPath, original.byteCount, original.sha256, nullptr,
 							  &pins) ;
-		// 最終PEを含む明示経路の全memberを同じscopeで固定する。
+		// 最終PEを含む明示経路の全memberを同じscopeで固定する
 		for( std::size_t index = 0U; error == 0 && index < archiveMembers_.size(); ++index) {
-			const auto &member = archiveMembers_[index] ;	// 当該層の私有原metadata。
+			const auto &member = archiveMembers_[index] ;	// 当該層の私有原metadata
 			error			   = readBoundFile( archiveWorkspaces_[index]->path( member.relativePath),
 											   member.uncompressedSize, member.sha256, nullptr, &pins) ;
 		}
 
-		// 未訪問INFも含めた全封印集合を、native照会の前に固定する。
+		// 未訪問INFも含めた全封印集合を、native照会の前に固定する
 		for( const auto &member : infMembers_) {
-			// 先行失敗の元診断を別fileの確認で上書きしない。
+			// 先行失敗の元診断を別fileの確認で上書きしない
 			if( error != 0) {
 				return error ;
 			}
@@ -548,10 +556,10 @@ NativeError OfficialInfArchiveBinding::inspectDependencies(
 								  member.sha256, nullptr, &pins) ;
 		}
 
-		InfDependencyNativeResult observed ;	// 全再確認まで外部へ出さないsnapshot。
-		// 署名で参照されないCATもnative使用の前に全て固定する。
+		InfDependencyNativeResult observed ;	// 全再確認まで外部へ出さないsnapshot
+		// 署名で参照されないCATもnative使用の前に全て固定する
 		for( const auto &member : catalogMembers_) {
-			// 先行失敗を別CATの確認で救済しない。
+			// 先行失敗を別CATの確認で救済しない
 			if( error != 0) {
 				return error ;
 			}
@@ -560,18 +568,18 @@ NativeError OfficialInfArchiveBinding::inspectDependencies(
 								  member.sha256, nullptr, &pins) ;
 		}
 
-		// 全固定成功時だけ同じnative loaderへ公式由来を接続する。
+		// 全固定成功時だけ同じnative loaderへ公式由来を接続する
 		if( error == 0) {
 			error = AcquiredInfNativeAccess::inspect( *this, session, archiveWorkspace, rootIndex,
 													 seeds, observationId, observed) ;
 		}
 
-		// native使用後も、生存issuerと全固定byteを確認する。
+		// native使用後も、生存issuerと全固定byteを確認する
 		if( error == 0) {
 			error = verify( session, archiveWorkspace) ;
 		}
 
-		// 全成功の非実行観測だけを返し、導入用計画に変換しない。
+		// 全成功の非実行観測だけを返し、導入用計画に変換しない
 		if( error == 0) {
 			result = std::move( observed) ;
 		}

@@ -23,7 +23,7 @@ ADR0141の過去の判断・当時の移行実績は履歴として保持し、�
 
 ## 修正・検査
 
-修正対象の元sourceと参照blockを原rawと対応表に固定し、不明な対応を一般的な作文で埋めず個別解決する。
+元734file/1685参照blockを原rawと対応表に固定し、不明な対応を一般的な作文で埋めず個別解決する。
 sourceごとに契約を検査し、Doxygenが宣言/定義をmergeしたXMLだけで両側の記述を合格にしない。
 既字句処理を使うcheckerへ関数・メソッドの形式・実引数/戻り値・参照省略を追加し、literal/型/field/条件コンパイル/overload等の境界を回帰確認する。
 `source_method_contracts.py`を既標準gateへ結び、コメント無し関数と各raw blockを検査する。macro論理行は展開せず、即時lambdaのpostfixは同じinitializerとして扱う。

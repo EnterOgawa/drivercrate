@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_release_local_probe_tests.cpp
- * @brief 公式release端末内fingerprint単体試験実装。
- * @version 01.00.01
+ * @brief 公式release端末内fingerprint単体試験実装
+ * @version 01.00.02
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,18 +19,19 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note Network、実PnP情報、永続stateを使わず決定的な架空入力で検証します。
+ * @note Network、実PnP情報、永続stateを使わず決定的な架空入力で検証します
  */
 //------------------------------------------------------------------------------
 
@@ -47,28 +48,28 @@ namespace drivercrate::test {
 namespace {
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief 端末内device bindingの決定性と用途分離を検証する。
+ * @brief 端末内device bindingの決定性と用途分離を検証する
  *
- * 同じkeyと架空device値だけが同じHMACを返し、keyまたは値の変更を別bindingとして扱うことを確認する。
+ * 同じkeyと架空device値だけが同じHMACを返し、keyまたは値の変更を別bindingとして扱うことを確認する
  *
- * @param[in,out] context assertion集計先。
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void testDeviceBinding( TestContext &context)
 {
-	LocalOfficialBindingSecret firstSecret{} ;	// 一台目を表す架空HMAC key。
-	LocalOfficialBindingSecret secondSecret{} ;	// 別端末を表す架空HMAC key。
+	LocalOfficialBindingSecret firstSecret{} ;	// 一台目を表す架空HMAC key
+	LocalOfficialBindingSecret secondSecret{} ;	// 別端末を表す架空HMAC key
 	firstSecret.fill( std::byte{0x11}) ;
 	secondSecret.fill( std::byte{0x22}) ;
-	std::wstring first ;		// 最初のbinding結果。
-	std::wstring repeated ;		// 同じ入力の再計算結果。
-	std::wstring otherKey ;		// 別keyでの結果。
-	std::wstring otherValue ;	// 別device値での結果。
+	std::wstring first ;		// 最初のbinding結果
+	std::wstring repeated ;		// 同じ入力の再計算結果
+	std::wstring otherKey ;		// 別keyでの結果
+	std::wstring otherValue ;	// 別device値での結果
 	DRIVERCRATE_EXPECT( context, makeLocalOfficialDeviceBindingFingerprint(
 									firstSecret, L"fictional-device-alpha", first) == 0) ;
 	DRIVERCRATE_EXPECT( context, makeLocalOfficialDeviceBindingFingerprint(
@@ -82,8 +83,8 @@ void testDeviceBinding( TestContext &context)
 	DRIVERCRATE_EXPECT( context, first != otherKey) ;
 	DRIVERCRATE_EXPECT( context, first != otherValue) ;
 
-	LocalOfficialBindingSecret zeroSecret{} ;				// 未初期化として拒否するkey。
-	std::wstring			   rejected = L"unchanged" ;	// 失敗時に空となる出力。
+	LocalOfficialBindingSecret zeroSecret{} ;				// 未初期化として拒否するkey
+	std::wstring			   rejected = L"unchanged" ;	// 失敗時に空となる出力
 	DRIVERCRATE_EXPECT( context, makeLocalOfficialDeviceBindingFingerprint(
 									zeroSecret, L"fictional-device-alpha", rejected) != 0) ;
 	DRIVERCRATE_EXPECT( context, rejected.empty()) ;
@@ -91,24 +92,24 @@ void testDeviceBinding( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief OSとdevice構成fingerprintの決定性を検証する。
+ * @brief OSとdevice構成fingerprintの決定性を検証する
  *
- * Device順序を無視し、OS種別、build、集合変更を失効条件へ反映することを確認する。
+ * Device順序を無視し、OS種別、build、集合変更を失効条件へ反映することを確認する
  *
- * @param[in,out] context assertion集計先。
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void testEnvironmentFingerprints( TestContext &context)
 {
-	const std::wstring					   firstBinding( 64U, L'a') ;				// 架空device AのHMAC。
-	const std::wstring					   secondBinding( 64U, L'b') ;				// 架空device BのHMAC。
-	const std::array					   ordered{firstBinding, secondBinding} ;	// 基準順序。
-	const std::array					   reversed{secondBinding, firstBinding} ;	// 逆順。
-	OfficialReleaseEnvironmentFingerprints baseline ;								// 基準環境hash。
-	OfficialReleaseEnvironmentFingerprints reordered ;								// 逆順集合hash。
-	OfficialReleaseEnvironmentFingerprints server ;									// Serverへ変更した環境hash。
-	OfficialReleaseEnvironmentFingerprints build ;									// Build変更後の環境hash。
-	OfficialReleaseEnvironmentFingerprints edition ;								// Edition変更後の環境hash。
+	const std::wstring					   firstBinding( 64U, L'a') ;				// 架空device AのHMAC
+	const std::wstring					   secondBinding( 64U, L'b') ;				// 架空device BのHMAC
+	const std::array					   ordered{firstBinding, secondBinding} ;	// 基準順序
+	const std::array					   reversed{secondBinding, firstBinding} ;	// 逆順
+	OfficialReleaseEnvironmentFingerprints baseline ;								// 基準環境hash
+	OfficialReleaseEnvironmentFingerprints reordered ;								// 逆順集合hash
+	OfficialReleaseEnvironmentFingerprints server ;									// Serverへ変更した環境hash
+	OfficialReleaseEnvironmentFingerprints build ;									// Build変更後の環境hash
+	OfficialReleaseEnvironmentFingerprints edition ;								// Edition変更後の環境hash
 	DRIVERCRATE_EXPECT( context, makeLocalOfficialEnvironmentFingerprints( false, 26'100U, 48U,
 																		 ordered, baseline) == 0) ;
 	DRIVERCRATE_EXPECT( context, makeLocalOfficialEnvironmentFingerprints( false, 26'100U, 48U,
@@ -130,32 +131,32 @@ void testEnvironmentFingerprints( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 曖昧または不正な環境入力を拒否する。
+ * @brief 曖昧または不正な環境入力を拒否する
  *
- * 空集合、build 0、重複、非canonical hashをfail-closedで拒否する。
+ * 空集合、build 0、重複、非canonical hashをfail-closedで拒否する
  *
- * @param[in,out] context assertion集計先。
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void testInvalidEnvironment( TestContext &context)
 {
-	OfficialReleaseEnvironmentFingerprints output ;		// 失敗時に空となる出力。
-	const std::array<std::wstring, 0>	   empty{} ;	// 対象deviceなしの集合。
+	OfficialReleaseEnvironmentFingerprints output ;		// 失敗時に空となる出力
+	const std::array<std::wstring, 0>	   empty{} ;	// 対象deviceなしの集合
 	DRIVERCRATE_EXPECT(
 		context, makeLocalOfficialEnvironmentFingerprints( false, 26'100U, 48U, empty, output) != 0) ;
 
-	const std::wstring binding( 64U, L'a') ;			// 正常な架空fingerprint。
-	const std::array   one{binding} ;					// 一件の正常集合。
-	const std::array   duplicate{binding, binding} ;	// 曖昧な重複集合。
+	const std::wstring binding( 64U, L'a') ;			// 正常な架空fingerprint
+	const std::array   one{binding} ;					// 一件の正常集合
+	const std::array   duplicate{binding, binding} ;	// 曖昧な重複集合
 	DRIVERCRATE_EXPECT( context,
 					   makeLocalOfficialEnvironmentFingerprints( false, 0U, 48U, one, output) != 0) ;
 	DRIVERCRATE_EXPECT(
 		context, makeLocalOfficialEnvironmentFingerprints( false, 26'100U, 0U, one, output) != 0) ;
 	DRIVERCRATE_EXPECT( context, makeLocalOfficialEnvironmentFingerprints( false, 26'100U, 48U,
 																		 duplicate, output) != 0) ;
-	std::wstring uppercase = binding ;	// Canonicalでない大文字hash。
+	std::wstring uppercase = binding ;	// Canonicalでない大文字hash
 	uppercase[0]		   = L'A' ;
-	const std::array invalid{uppercase} ;	// 不正fingerprint集合。
+	const std::array invalid{uppercase} ;	// 不正fingerprint集合
 	DRIVERCRATE_EXPECT( context, makeLocalOfficialEnvironmentFingerprints( false, 26'100U, 48U,
 																		 invalid, output) != 0) ;
 	DRIVERCRATE_EXPECT( context, output.operatingSystem.empty()) ;
@@ -166,8 +167,8 @@ void testInvalidEnvironment( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式release端末内fingerprintの全単体試験を実行する。Device binding、環境差分、不正入力を順に検証する。
- * @param[in,out] context assertion集計先。
+ * @brief 公式release端末内fingerprintの全単体試験を実行する。Device binding、環境差分、不正入力を順に検証する
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void runOfficialReleaseLocalProbeTests( TestContext &context)

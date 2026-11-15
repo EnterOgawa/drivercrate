@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file silicon_labs_official_provider_tests.cpp
- * @brief CP210x公式検索と共通serial境界の試験実装。
- * @version 01.01.01
+ * @brief CP210x公式検索と共通serial境界の試験実装
+ * @version 01.01.02
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,21 +19,22 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/05  CP210x公式検索の拒否境界を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  Serial計測根拠の同意・失効回帰を追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  CP210x公式検索の拒否境界を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  Serial計測根拠の同意・失効回帰を追加
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/11/11  不正導入拒否と作用0・元scan証拠保持を現契約へ整合。
- * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加
+ * Ver.01.01.00 Shunji Ogawa  2026/11/11  不正導入拒否と作用0・元scan証拠保持を現契約へ整合
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 公開schemaの合成fixtureとfake照合を使い、通信・導入を行わない。
+ * @note 公開schemaの合成fixtureとfake照合を使い、通信・導入を行わない
  */
 //------------------------------------------------------------------------------
 
@@ -60,20 +61,20 @@ namespace {
 constexpr std::wstring_view HTML =
 	LR"(<div class="software-document-list row" data-resource="softwaredocumentlist" )"
 	LR"(data-contenttypes="content-type:software" )"
-	LR"(data-softwaretag="silicon-labs-software:drivers/vcp-drivers"></div>)" ;	// 公開区画の合成例。
+	LR"(data-softwaretag="silicon-labs-software:drivers/vcp-drivers"></div>)" ;	// 公開区画の合成例
 constexpr std::wstring_view RECORD =
 	LR"({"name":"CP210x Universal Windows Driver",)"
 	LR"("externalPath":"/documents/public/software/CP210x_Universal_Windows_Driver.zip",)"
 	LR"("contentTypeTagId":"content-type:software","format":"application/zip",)"
 	LR"("sourceType":"DAM","language":"en","version":"12.0.0",)"
-	LR"("softwareTypeTagId":["silicon-labs-software:drivers/vcp-drivers"]})" ;	// 架空新版。
+	LR"("softwareTypeTagId":["silicon-labs-software:drivers/vcp-drivers"]})" ;	// 架空新版
 
 //------------------------------------------------------------------------------
 /**
- * @brief Networkや実payloadを使わず対象行の検証を試験する。
+ * @brief Networkや実payloadを使わず対象行の検証を試験する
  *
- * @param[in] record 正常／拒否用の合成配布行。
- * @return 配列に一行を格納した公式schemaの合成JSON。
+ * @param[in] record 正常／拒否用の合成配布行
+ * @return 配列に一行を格納した公式schemaの合成JSON
  */
 //------------------------------------------------------------------------------
 std::wstring catalog( const std::wstring_view record)
@@ -83,20 +84,20 @@ std::wstring catalog( const std::wstring_view record)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Testの誤記で拒否例が正常fixtureのまま残ることを防ぐ。
+ * @brief Testの誤記で拒否例が正常fixtureのまま残ることを防ぐ
  *
- * @param[in] input 合成fixture。
- * @param[in] from 一意の変更対象。
- * @param[in] to 注入する正常／不正値。
- * @return 一箇所を変更したfixture。対象欠損は例外で試験失敗とする。
+ * @param[in] input 合成fixture
+ * @param[in] from 一意の変更対象
+ * @param[in] to 注入する正常／不正値
+ * @return 一箇所を変更したfixture。対象欠損は例外で試験失敗とする
  */
 //------------------------------------------------------------------------------
 std::wstring replaced( const std::wstring_view input, const std::wstring_view from,
 					  const std::wstring_view to)
 {
-	std::wstring	  result( input) ;					// 変更後fixtureの所有copy。
-	const std::size_t position = result.find( from) ;	// 注入するfieldの位置。
-	// 誤ったtest設定を黙認しない。
+	std::wstring	  result( input) ;					// 変更後fixtureの所有copy
+	const std::size_t position = result.find( from) ;	// 注入するfieldの位置
+	// 誤ったtest設定を黙認しない
 	if( position == result.npos) {
 		throw std::runtime_error( "missing fixture field") ;
 	}
@@ -107,17 +108,17 @@ std::wstring replaced( const std::wstring_view input, const std::wstring_view fr
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一意な公式配布、上限、型、URLと旧出力の破棄を検証する。
+ * @brief 一意な公式配布、上限、型、URLと旧出力の破棄を検証する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testCatalog( TestContext &context)
 {
-	const std::wstring valid = catalog( RECORD) ;	// 正常な合成catalog。
-	std::wstring	   url ;						// Parserの内部URL結果。
+	const std::wstring valid = catalog( RECORD) ;	// 正常な合成catalog
+	std::wstring	   url ;						// Parserの内部URL結果
 	DRIVERCRATE_EXPECT( context, parseSiliconLabsOfficialZipUrl( HTML, valid, url)) ;
-	OfficialReleaseRecord detailed ;	// URL wrapperと明示表示版の共通結果。
+	OfficialReleaseRecord detailed ;	// URL wrapperと明示表示版の共通結果
 	DRIVERCRATE_EXPECT( context, parseSiliconLabsOfficialRelease( HTML, valid, detailed)) ;
 	DRIVERCRATE_EXPECT( context, detailed.downloadUrl == url &&
 									detailed.family == OfficialReleaseFamily::SILICON_LABS_CP210X &&
@@ -130,8 +131,8 @@ void testCatalog( TestContext &context)
 									   L"CP210x_Universal_Windows_Driver.zip") ;
 	constexpr std::array BAD_VERSIONS{L"",			 L"12",		   L"12..0",
 									  L"12.0.0.0.1", L"65536.0.0", L"12.0-beta",
-									  L"12.0.0 ",	 L"-12.0"} ;	// 不正な表示版。
-	// 架空新版の受入を維持しつつ数値以外を拒否する。
+									  L"12.0.0 ",	 L"-12.0"} ;	// 不正な表示版
+	// 架空新版の受入を維持しつつ数値以外を拒否する
 	for( const wchar_t *const version : BAD_VERSIONS) {
 		detailed.packageVersion = L"previous" ;
 		DRIVERCRATE_EXPECT( context, !parseSiliconLabsOfficialRelease(
@@ -159,8 +160,8 @@ void testCatalog( TestContext &context)
 		 {L"silicon-labs-software:drivers/vcp-drivers", L"silicon-labs-software:tools"},
 		 {L"CP210x Universal Windows Driver", L"CP210x Macintosh OSX Driver"},
 		 {L"\"contentTypeTagId\":\"content-type:software\"",
-		  L"\"contentTypeTagId\":\"content-type:document\""}}} ;	// 配布境界の拒否例。
-	// 各fieldの単独不正が、前回の正常URLを残さないことを検証する。
+		  L"\"contentTypeTagId\":\"content-type:document\""}}} ;	// 配布境界の拒否例
+	// 各fieldの単独不正が、前回の正常URLを残さないことを検証する
 	for( const auto &[from, to] : mutations) {
 		DRIVERCRATE_EXPECT(
 			context, !parseSiliconLabsOfficialRelease( HTML, replaced( valid, from, to), detailed)) ;
@@ -171,14 +172,15 @@ void testCatalog( TestContext &context)
 		DRIVERCRATE_EXPECT( context, url.empty()) ;
 	}
 
-	const std::array badCatalogs{
-		catalog( std::wstring( RECORD) + L"," + std::wstring( RECORD)),
-		std::wstring( L"{\"content-type:software\":{}}"),
-		std::wstring( L"{\"content-type:software\":[]}"),
-		std::wstring( L"<html>challenge</html>"),
-		std::wstring( 2U * 1024U * 1024U + 1U, L' '),
-		valid + std::wstring( 1U, L'\0')} ;	// 曖昧性、型、上限、中途終端の拒否例。
-	// 大容量もJSON parserの前で止め、実networkには接続しない。
+	const std::array badCatalogs{catalog( std::wstring( RECORD) + L"," + std::wstring( RECORD)),
+								 std::wstring( L"{\"content-type:software\":{}}"),
+								 std::wstring( L"{\"content-type:software\":[]}"),
+								 std::wstring( L"<html>challenge</html>"),
+								 std::wstring( 2U * 1024U * 1024U + 1U, L' '),
+								 valid +
+									 // 曖昧性、型、上限、中途終端の拒否例
+									 std::wstring( 1U, L'\0')} ;
+	// 大容量もJSON parserの前で止め、実networkには接続しない
 	for( const std::wstring &json : badCatalogs) {
 		detailed.packageVersion = L"previous" ;
 		DRIVERCRATE_EXPECT( context, !parseSiliconLabsOfficialRelease( HTML, json, detailed)) ;
@@ -193,9 +195,9 @@ void testCatalog( TestContext &context)
 							  replaced( HTML, L"vcp-drivers", L"another-driver"),
 							  replaced( HTML, L"content-type:software", L"content-type:document"),
 							  std::wstring( HTML) + std::wstring( 1U, L'\0'),
-							  // 正しいJSONだけでは許可しないpage例。
+							  // 正しいJSONだけでは許可しないpage例
 							  std::wstring( 2U * 1024U * 1024U + 1U, L' ')} ;
-	// Landingの対象区画が不正なら配布URLを公開しない。
+	// Landingの対象区画が不正なら配布URLを公開しない
 	for( const std::wstring &html : badPages) {
 		detailed.packageVersion = L"previous" ;
 		DRIVERCRATE_EXPECT( context, !parseSiliconLabsOfficialRelease( html, valid, detailed)) ;
@@ -208,44 +210,44 @@ void testCatalog( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 2メーカーの同意組合せと固定host／用途を副作用なしで試験する。
+ * @brief 2メーカーの同意組合せと固定host／用途を副作用なしで試験する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testConsentAndRegistry( TestContext &context)
 {
-	// 選択2bitと同意2bitの全16組合せで、他メーカーへの同意転用を拒否する。
+	// 選択2bitと同意2bitの全16組合せで、他メーカーへの同意転用を拒否する
 	for( unsigned mask = 0U; mask < 16U; ++mask) {
-		ScanOptions options{.useDefaultProviders = false} ;	// 今回だけの試験設定。
-		// 組合せmaskのProlific bitが指定されたscenarioにだけProviderを含める。
+		ScanOptions options{.useDefaultProviders = false} ;	// 今回だけの試験設定
+		// 組合せmaskのProlific bitが指定されたscenarioにだけProviderを含める
 		if( (mask & 1U) != 0U) {
 			options.enabledProviderIds.emplace_back( PROLIFIC_OFFICIAL_PROVIDER_ID) ;
 		}
 
-		// 組合せmaskのSilicon Labs bitが指定されたscenarioにだけProviderを含める。
+		// 組合せmaskのSilicon Labs bitが指定されたscenarioにだけProviderを含める
 		if( (mask & 2U) != 0U) {
 			options.enabledProviderIds.emplace_back( SILICON_LABS_OFFICIAL_PROVIDER_ID) ;
 		}
 
 		options.prolificInspectionApproved	  = (mask & 4U) != 0U ;
 		options.siliconLabsInspectionApproved = (mask & 8U) != 0U ;
-		const bool expected = (mask & 3U) == (mask >> 2U) ;	// 両方の対応が一致する場合のみ有効。
+		const bool expected = (mask & 3U) == (mask >> 2U) ;	// 両方の対応が一致する場合のみ有効
 		DRIVERCRATE_EXPECT( context, validateScanOptions( options) == expected) ;
 	}
 
-	ScanOptions defaults ;	// 既定OFFのProviderへ同意だけを与える拒否例。
+	ScanOptions defaults ;	// 既定OFFのProviderへ同意だけを与える拒否例
 	defaults.siliconLabsInspectionApproved = true ;
 	DRIVERCRATE_EXPECT( context, !validateScanOptions( defaults)) ;
 	const OfficialSourcePolicy *const policy =
-		// 組み込み取得契約。
+		// 組み込み取得契約
 		officialSourcePolicyForProvider( SILICON_LABS_OFFICIAL_PROVIDER_ID) ;
 	DRIVERCRATE_EXPECT( context, policy != nullptr) ;
-	// Silicon Labs policyがある場合にだけ三用途の固定hostとredirect禁止を検証する。
+	// Silicon Labs policyがある場合にだけ三用途の固定hostとredirect禁止を検証する
 	if( policy != nullptr) {
 		DRIVERCRATE_EXPECT( context, policy->id == SILICON_LABS_OFFICIAL_SOURCE_POLICY_ID) ;
 		DRIVERCRATE_EXPECT( context, policy->resources.size() == 3U) ;
-		// Landing、JSON、payloadの全用途が一つの完全一致hostだけを許可する。
+		// Landing、JSON、payloadの全用途が一つの完全一致hostだけを許可する
 		for( const OfficialSourceResourcePolicy &resource : policy->resources) {
 			DRIVERCRATE_EXPECT( context, resource.maximumRedirects == 0U) ;
 			DRIVERCRATE_EXPECT( context, resource.allowedHosts.size() == 1U) ;
@@ -253,21 +255,21 @@ void testConsentAndRegistry( TestContext &context)
 		}
 	}
 
-	OfficialSerialProvider provider{OfficialSerialFamily::SILICON_LABS} ;	// IO前の未検索instance。
+	OfficialSerialProvider provider{OfficialSerialFamily::SILICON_LABS} ;	// IO前の未検索instance
 	DRIVERCRATE_EXPECT( context, provider.providerId() == SILICON_LABS_OFFICIAL_PROVIDER_ID) ;
-	const ScanResult rejected = provider.scan( 1U, defaults, {}, {}, {}, {}) ;	// 同意不正で拒否。
+	const ScanResult rejected = provider.scan( 1U, defaults, {}, {}, {}, {}) ;	// 同意不正で拒否
 	DRIVERCRATE_EXPECT( context, !rejected.succeeded && rejected.error != 0) ;
 	const LocalHardwareIdMatcher unusedMatcher = []( const std::wstring_view) {
 		return std::optional<std::wstring>{} ;
-	} ; // 空inventory試験で照合や通信へ進めないfake。
+	} ; // 空inventory試験で照合や通信へ進めないfake
 	const OfficialSerialRankAuditor unusedAuditor =
 		[]( const ScanSessionId, const std::wstring_view, const OfficialDownloadWorkspace &,
 		   const OfficialInfPackage &, OfficialDriverRankAudit &) {
 			return NativeError{} ;
-		} ; // 実OSに依存しない入力gate試験用callback。
+		} ; // 実OSに依存しない入力gate試験用callback
 	const ProviderProgressCallback unusedProgress = []( const ProviderProgress &) {
-	} ; // 空inventoryで進捗通知が必要でもUIへ接続しない。
-	ScanOptions otherFamily{	// 設定自体は有効だが、CP210xへは取得を許可していない。
+	} ; // 空inventoryで進捗通知が必要でもUIへ接続しない
+	ScanOptions otherFamily{	// 設定自体は有効だが、CP210xへは取得を許可していない
 							.useDefaultProviders = false,
 							.enabledProviderIds	 = {std::wstring( PROLIFIC_OFFICIAL_PROVIDER_ID)},
 							.prolificInspectionApproved = true} ;
@@ -285,7 +287,7 @@ void testConsentAndRegistry( TestContext &context)
 	otherFamily.prolificInspectionApproved	  = false ;
 	otherFamily.siliconLabsInspectionApproved = true ;
 	const ScanResult empty = provider.scan( 1U, otherFamily, {}, unusedMatcher, unusedAuditor,
-										   unusedProgress) ;	// 同意が有効でも対象なしなら通信なし。
+										   unusedProgress) ;	// 同意が有効でも対象なしなら通信なし
 	DRIVERCRATE_EXPECT( context, empty.succeeded && empty.candidates.empty()) ;
 	DRIVERCRATE_EXPECT( context, empty.state == ProviderScanState::NOT_APPLICABLE) ;
 	DRIVERCRATE_EXPECT( context,
@@ -295,37 +297,37 @@ void testConsentAndRegistry( TestContext &context)
 	DRIVERCRATE_EXPECT( context,
 					   provider.measurementEvidence().recordExtent == MeasurementExtent::EXACT) ;
 	const auto before =
-		// 導入権限ではない元scan観測を独立copyします。
+		// 導入権限ではない元scan観測を独立copyします
 		provider.measurementEvidence() ;
-	unsigned					 matchCalls{} ;		// 未知IDでは照合にも進みません。
-	unsigned					 rankCalls{} ;		// 未知IDでは再監査にも進みません。
-	unsigned					 installCalls{} ;	// 実導入の代わりの作用counterです。
+	unsigned					 matchCalls{} ;		// 未知IDでは照合にも進みません
+	unsigned					 rankCalls{} ;		// 未知IDでは再監査にも進みません
+	unsigned					 installCalls{} ;	// 実導入の代わりの作用counterです
 	const LocalHardwareIdMatcher guardedMatcher = [&]( std::wstring_view) {
 		++matchCalls ;
 		return std::optional<std::wstring>{} ;
-	} ; // 意図しない呼出しだけを記録します。
+	} ; // 意図しない呼出しだけを記録します
 	const OfficialSerialRankAuditor guardedAuditor =
 		[&]( ScanSessionId, std::wstring_view, const OfficialDownloadWorkspace &,
 			const OfficialInfPackage &, OfficialDriverRankAudit &) {
 			++rankCalls ;
 			return static_cast<NativeError>( E_FAIL) ;
-		} ; // Windowsの監査APIを呼びません。
+		} ; // Windowsの監査APIを呼びません
 	const VerifiedExternalInfInstaller guardedInstaller =
 		[&]( ScanSessionId, std::wstring_view, std::wstring_view, std::wstring_view,
 			std::wstring_view, std::uintptr_t, bool &) {
 			++installCalls ;
 			return static_cast<NativeError>( E_FAIL) ;
-		} ; // Windowsの導入APIを呼びません。
-	const std::array<std::wstring, 1> unknown{L"unissued"} ;	// 他sessionの未表示IDを模します。
+		} ; // Windowsの導入APIを呼びません
+	const std::array<std::wstring, 1> unknown{L"unissued"} ;	// 他sessionの未表示IDを模します
 	const InstallResult				  install =
 		provider.install( 1U, unknown, 0U, guardedMatcher, guardedAuditor, guardedInstaller,
-						 unusedProgress) ;	// 実I/Oのない拒否です。
+						 unusedProgress) ;	// 実I/Oのない拒否です
 	DRIVERCRATE_EXPECT( context, !install.succeeded && install.installError != 0) ;
 	DRIVERCRATE_EXPECT( context, install.installOutcome == OutcomeCode::FAILURE &&
 									install.updates.size() == 1U &&
 									install.updates.front().identity == unknown.front()) ;
 	DRIVERCRATE_EXPECT( context, matchCalls == 0U && rankCalls == 0U && installCalls == 0U) ;
-	const auto &after = provider.measurementEvidence() ;	// 元観測を新しい成功として再発行しません。
+	const auto &after = provider.measurementEvidence() ;	// 元観測を新しい成功として再発行しません
 	DRIVERCRATE_EXPECT(
 		context, !before.providerId.empty() && after.providerId == before.providerId &&
 					 after.scanSessionId == before.scanSessionId && after.scope == before.scope &&
@@ -342,31 +344,31 @@ void testConsentAndRegistry( TestContext &context)
 									after.recordExtent == before.recordExtent) ;
 	DRIVERCRATE_EXPECT( context, before.records.empty() && before.resources.empty() &&
 									after.records.empty() && after.resources.empty()) ;
-	OfficialSerialProvider invalid{static_cast<OfficialSerialFamily>( 99)} ;	// 定義外enum。
+	OfficialSerialProvider invalid{static_cast<OfficialSerialFamily>( 99)} ;	// 定義外enum
 	DRIVERCRATE_EXPECT( context, invalid.providerId().empty()) ;
 	DRIVERCRATE_EXPECT( context, !invalid.scan( 1U, {}, {}, {}, {}, {}).succeeded) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief Family限定、署名原本不変、現在rankと失敗の保持を検証する。
+ * @brief Family限定、署名原本不変、現在rankと失敗の保持を検証する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testFamilyAudit( TestContext &context)
 {
-	OfficialInfPackage package ;	// 実端末由来ではない公開標準IDを含む合成metadata。
+	OfficialInfPackage package ;	// 実端末由来ではない公開標準IDを含む合成metadata
 	package.hardwareIds = {L"USB\\VID_10C4&PID_EA60", L"USB\\VID_067B&PID_2303"} ;
-	const auto original = package.hardwareIds ;										// 許可subset処理で原本を変えない比較値。
-	OfficialDownloadWorkspace  workspace ;											// Fakeのためfileを作成しない保護領域。
-	std::size_t				   calls{} ;											// 許可ID一致後に呼ばれたrank監査の件数。
-	NativeError				   failure{} ;											// API失敗注入時の保存診断値。
-	OfficialDriverRankDecision decision	 = OfficialDriverRankDecision::APPLICABLE ;	// Fake現在rank。
-	const LocalHardwareIdMatcher matcher = [&context]( const std::wstring_view id) {
-		DRIVERCRATE_EXPECT( context, isSiliconLabsSerialCandidateHardwareId( id)) ;
-		return std::optional<std::wstring>( L"device:test") ;
-	} ; // 未審査IDがlocal照合へ流れないことを確認する。
+	const auto original = package.hardwareIds ;											// 許可subset処理で原本を変えない比較値
+	OfficialDownloadWorkspace	 workspace ;											// Fakeのためfileを作成しない保護領域
+	std::size_t					 calls{} ;												// 許可ID一致後に呼ばれたrank監査の件数
+	NativeError					 failure{} ;											// API失敗注入時の保存診断値
+	OfficialDriverRankDecision	 decision = OfficialDriverRankDecision::APPLICABLE ;	// Fake現在rank
+	const LocalHardwareIdMatcher matcher  = [&context]( const std::wstring_view id) {
+		 DRIVERCRATE_EXPECT( context, isSiliconLabsSerialCandidateHardwareId( id)) ;
+		 return std::optional<std::wstring>( L"device:test") ;
+	} ; // 未審査IDがlocal照合へ流れないことを確認する
 	const OfficialSerialRankAuditor auditor = [&context, &calls, &failure,
 											   &decision]( const ScanSessionId	  session,
 														  const std::wstring_view device,
@@ -380,8 +382,8 @@ void testFamilyAudit( TestContext &context)
 						   isSiliconLabsSerialCandidateHardwareId( restricted.hardwareIds.front())) ;
 		audit.decision = decision ;
 		return failure ;
-	} ; // 現在rankを注入するだけで実Windows APIへ接続しない。
-	OfficialDriverRankAudit audit ;	// 各呼出しが初期化する監査結果。
+	} ; // 現在rankを注入するだけで実Windows APIへ接続しない
+	OfficialDriverRankAudit audit ;	// 各呼出しが初期化する監査結果
 	DRIVERCRATE_EXPECT( context, auditOfficialSerialDevice( OfficialSerialFamily::SILICON_LABS, 7U,
 														  L"device:test", workspace, package,
 														  matcher, auditor, audit) == 0) ;
@@ -398,7 +400,7 @@ void testFamilyAudit( TestContext &context)
 														  L"device:test", workspace, package,
 														  matcher, auditor, audit) == failure) ;
 	DRIVERCRATE_EXPECT( context, audit.decision != OfficialDriverRankDecision::APPLICABLE) ;
-	// 別familyだけなら照合も監査も行わない。
+	// 別familyだけなら照合も監査も行わない
 	package.hardwareIds = {L"USB\\VID_067B&PID_2303"} ;
 	calls				= 0U ;
 	DRIVERCRATE_EXPECT( context, auditOfficialSerialDevice( OfficialSerialFamily::SILICON_LABS, 7U,
@@ -416,8 +418,8 @@ void testFamilyAudit( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief CP210x公式metadata、同意、family限定監査を通信なしで検証する。Parser、同意、family監査をnetworkと実導入なしで実行する。
- * @param[in,out] context Assertion結果の集計先。 全試験のassertion集計先。
+ * @brief CP210x公式metadata、同意、family限定監査を通信なしで検証する。Parser、同意、family監査をnetworkと実導入なしで実行する
+ * @param[in,out] context Assertion結果の集計先。 全試験のassertion集計先
  */
 //------------------------------------------------------------------------------
 void runSiliconLabsOfficialProviderTests( TestContext &context)

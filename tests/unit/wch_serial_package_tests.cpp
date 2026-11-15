@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file wch_serial_package_tests.cpp
- * @brief WCH USB serial利用者指定ZIP検証単体試験実装。
- * @version 01.00.01
+ * @brief WCH USB serial利用者指定ZIP検証単体試験実装
+ * @version 01.00.02
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,19 +19,20 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  CH342／CH343系PnP ID境界試験追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  CH342／CH343系PnP ID境界試験追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 実driverを導入せず、署名済みINFで確認したPnP IDだけを候補化する境界を決定的に検証します。
+ * @note 実driverを導入せず、署名済みINFで確認したPnP IDだけを候補化する境界を決定的に検証します
  */
 //------------------------------------------------------------------------------
 
@@ -47,25 +48,25 @@ namespace drivercrate::test {
 namespace {
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief WCH署名済みINFの固定USB IDを受理することを検証する。
+ * @brief WCH署名済みINFの固定USB IDを受理することを検証する
  *
- * 現行CH341SER INF 4.0の全固定IDをcase非依存で確認する。
+ * 現行CH341SER INF 4.0の全固定IDをcase非依存で確認する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testSupportedHardwareIds( TestContext &context)
 {
-	// CH341SER 4.0のNTamd64 model sectionにある重複なしPnP ID群。
+	// CH341SER 4.0のNTamd64 model sectionにある重複なしPnP ID群
 	constexpr std::array SUPPORTED_IDS{
 		L"USB\\VID_1A86&PID_7523", L"USB\\VID_1A86&PID_5523", L"USB\\VID_1A86&PID_7522",
 		L"USB\\VID_1A86&PID_E523", L"USB\\VID_4348&PID_5523", L"USB\\VID_4348&PID_5523&REV_0250"} ;
-	// 固定allowlistの全IDを個別に確認する。
+	// 固定allowlistの全IDを個別に確認する
 	for( const wchar_t *const hardwareId : SUPPORTED_IDS) {
 		DRIVERCRATE_EXPECT( context, isWchSerialCandidateHardwareId( hardwareId)) ;
 	}
@@ -75,22 +76,22 @@ void testSupportedHardwareIds( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief WCH固定範囲外のUSB IDを拒否することを検証する。
+ * @brief WCH固定範囲外のUSB IDを拒否することを検証する
  *
- * Custom VID／PID、suffix追加、部分一致、別busを拒否する。
+ * Custom VID／PID、suffix追加、部分一致、別busを拒否する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testRejectedHardwareIds( TestContext &context)
 {
-	// CH341SERの既知境界違反を網羅する拒否PnP ID群。
+	// CH341SERの既知境界違反を網羅する拒否PnP ID群
 	constexpr std::array REJECTED_IDS{
 		L"USB\\VID_1A86&PID_7524",			L"USB\\VID_1A86&PID_7523&REV_0400",
 		L"USB\\VID_4348&PID_5523&REV_0251", L"USB\\VID_1A86&PID_752",
 		L"USB\\VID_1A86&PID_75230",			L"PCI\\VEN_1A86&DEV_7523",
 		L"USB\\VID_0000&PID_7523",			L"USB\\VID_1A86&PID_7523&MI_00"} ;
-	// 固定allowlistにない各形式を部分一致させないことを確認する。
+	// 固定allowlistにない各形式を部分一致させないことを確認する
 	for( const wchar_t *const hardwareId : REJECTED_IDS) {
 		DRIVERCRATE_EXPECT( context, !isWchSerialCandidateHardwareId( hardwareId)) ;
 	}
@@ -98,16 +99,16 @@ void testRejectedHardwareIds( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief WCH CH343SER 2.2の固定USB IDを受理することを検証する。
+ * @brief WCH CH343SER 2.2の固定USB IDを受理することを検証する
  *
- * NTamd64 model sectionの全40 IDをcase非依存で確認する。
+ * NTamd64 model sectionの全40 IDをcase非依存で確認する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testMultiSupportedHardwareIds( TestContext &context)
 {
-	// CH343SER 2.2のNTamd64 model sectionにある重複なしPnP ID群。
+	// CH343SER 2.2のNTamd64 model sectionにある重複なしPnP ID群
 	constexpr std::array SUPPORTED_IDS{
 		L"USB\\VID_1A86&PID_55D2&MI_00", L"USB\\VID_1A86&PID_55D2&MI_02",
 		L"USB\\VID_1A86&PID_55D3",		 L"USB\\VID_1A86&PID_55D4",
@@ -129,7 +130,7 @@ void testMultiSupportedHardwareIds( TestContext &context)
 		L"USB\\VID_1A86&PID_55EF&MI_00", L"USB\\VID_1A86&PID_55EF&MI_02",
 		L"USB\\VID_1A86&PID_55EF&MI_04", L"USB\\VID_1A86&PID_55EF&MI_06",
 		L"USB\\VID_1A86&PID_5610&MI_01", L"USB\\VID_1A86&PID_7523&REV_8234"} ;
-	// 固定allowlistの全IDを個別に確認する。
+	// 固定allowlistの全IDを個別に確認する
 	for( const wchar_t *const hardwareId : SUPPORTED_IDS) {
 		DRIVERCRATE_EXPECT( context, isWchMultiSerialCandidateHardwareId( hardwareId)) ;
 	}
@@ -139,22 +140,22 @@ void testMultiSupportedHardwareIds( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief WCH CH343SER固定範囲外のUSB IDを拒否することを検証する。
+ * @brief WCH CH343SER固定範囲外のUSB IDを拒否することを検証する
  *
- * Comment化ID、interface省略、suffix、別busを拒否する。
+ * Comment化ID、interface省略、suffix、別busを拒否する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testMultiRejectedHardwareIds( TestContext &context)
 {
-	// 既知の境界違反を網羅する拒否PnP ID群。
+	// 既知の境界違反を網羅する拒否PnP ID群
 	constexpr std::array REJECTED_IDS{
 		L"USB\\VID_1A86&PID_55EB&MI_02", L"USB\\VID_1A86&PID_55D2",
 		L"USB\\VID_1A86&PID_55D3&MI_00", L"USB\\VID_1A86&PID_55D3&REV_0100",
 		L"USB\\VID_1A86&PID_55D",		 L"USB\\VID_1A86&PID_55D30",
 		L"PCI\\VEN_1A86&DEV_55D3",		 L"USB\\VID_0000&PID_55D3"} ;
-	// 固定allowlistにない各形式を部分一致させないことを確認する。
+	// 固定allowlistにない各形式を部分一致させないことを確認する
 	for( const wchar_t *const hardwareId : REJECTED_IDS) {
 		DRIVERCRATE_EXPECT( context, !isWchMultiSerialCandidateHardwareId( hardwareId)) ;
 	}
@@ -162,17 +163,17 @@ void testMultiRejectedHardwareIds( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 不正な利用者選択入力を候補なしで拒否することを検証する。
+ * @brief 不正な利用者選択入力を候補なしで拒否することを検証する
  *
- * 空pathとsession 0でworkspaceを使用せず結果を公開しない。
+ * 空pathとsession 0でworkspaceを使用せず結果を公開しない
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testInvalidInput( TestContext &context)
 {
-	OfficialDownloadWorkspace workspace ;	// 初期化されていない保護workspace。
-	WchSerialPackageContents  contents ;	// 失敗時は段階以外を保持しない結果。
+	OfficialDownloadWorkspace workspace ;	// 初期化されていない保護workspace
+	WchSerialPackageContents  contents ;	// 失敗時は段階以外を保持しない結果
 	DRIVERCRATE_EXPECT( context, inspectWchSerialPackageFile( {}, 0, workspace, contents) != 0) ;
 	DRIVERCRATE_EXPECT( context, contents.archiveSha256.empty()) ;
 	DRIVERCRATE_EXPECT( context, contents.entries.empty()) ;
@@ -180,7 +181,7 @@ void testInvalidInput( TestContext &context)
 	DRIVERCRATE_EXPECT( context, contents.verificationStage ==
 									UserSelectedInfPackageVerificationStage::NOT_STARTED) ;
 
-	WchSerialPackageContents multiContents ;	// CH343SER失敗時の非公開結果。
+	WchSerialPackageContents multiContents ;	// CH343SER失敗時の非公開結果
 	DRIVERCRATE_EXPECT( context,
 					   inspectWchMultiSerialPackageFile( {}, 0, workspace, multiContents) != 0) ;
 	DRIVERCRATE_EXPECT( context, multiContents.archiveSha256.empty()) ;
@@ -195,8 +196,8 @@ void testInvalidInput( TestContext &context)
 //------------------------------------------------------------------------------
 /**
  * @brief WCH CH341SER packageのPnP ID照合と入力拒否境界を検証する。WCH CH341SER packageの全単体試験を実行する。固定PnP IDの正常・拒否境界
- *        とfail-closed入力を検証する。
- * @param[in,out] context Assertion結果の集計先。 Assertion集計先。
+ *        とfail-closed入力を検証する
+ * @param[in,out] context Assertion結果の集計先。 Assertion集計先
  */
 //------------------------------------------------------------------------------
 void runWchSerialPackageTests( TestContext &context)

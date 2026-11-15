@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file broadcom_preparation.cpp
- * @brief Broadcom公式配布物の承認対象化と選択取得。
- * @version 01.00.01
+ * @brief Broadcom公式配布物の承認対象化と選択取得
+ * @version 01.00.02
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,23 +19,24 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  Broadcom監査report集約を共通helperへ移行。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  候補発行の非機密集計を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  Release観測context失効を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  監査合格候補と導入routingを追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得後監査の表示境界を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  Broadcomの取得後監査を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  Broadcom監査report集約を共通helperへ移行
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  候補発行の非機密集計を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Release観測context失効を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  監査合格候補と導入routingを追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得後監査の表示境界を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  Broadcomの取得後監査を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 取得と導入を分離し、成功ZIPをworkerの保護workspaceで所有します。
+ * @note 取得と導入を分離し、成功ZIPをworkerの保護workspaceで所有します
  */
 //------------------------------------------------------------------------------
 
@@ -67,32 +68,32 @@
 
 namespace drivercrate {
 namespace {
-// 一配布物の取得上限。共通計画の一file上限128 MiBを超えない。
+// 一配布物の取得上限。共通計画の一file上限128 MiBを超えない
 constexpr std::uint64_t						ARCHIVE_BYTES = 128ULL * 1024ULL * 1024ULL ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 数値を補完・正規化せず、比較不能な版は明示再導入へ残す。
+ * @brief 数値を補完・正規化せず、比較不能な版は明示再導入へ残す
  *
- * @param[in] version INFまたは現在driverのversion文字列。
- * @return 4要素を厳密に解析できた場合は数値配列、それ以外は空。
+ * @param[in] version INFまたは現在driverのversion文字列
+ * @return 4要素を厳密に解析できた場合は数値配列、それ以外は空
  */
 //------------------------------------------------------------------------------
 std::optional<std::array<std::uint32_t, 4>> parseBroadcomDriverVersion(
 	const std::wstring_view version) noexcept
 {
-	std::array<std::uint32_t, 4> parts{} ;		// 解析済みの四要素。
-	std::size_t					 partIndex{} ;	// 現在確定する要素index。
-	std::uint64_t				 value{} ;		// 32-bit超過を検出する現在値。
-	bool						 hasDigit{} ;	// 現在要素へ数字を一つ以上読んだ場合true。
-	// 全文字を一度走査し、四要素以外、空要素、ASCII数字以外、overflowを拒否する。
+	std::array<std::uint32_t, 4> parts{} ;		// 解析済みの四要素
+	std::size_t					 partIndex{} ;	// 現在確定する要素index
+	std::uint64_t				 value{} ;		// 32-bit超過を検出する現在値
+	bool						 hasDigit{} ;	// 現在要素へ数字を一つ以上読んだ場合true
+	// 全文字を一度走査し、四要素以外、空要素、ASCII数字以外、overflowを拒否する
 	for( const wchar_t character : version) {
-		// ASCII数字を現在のversion componentへ取り込み、有限整数として比較する。
+		// ASCII数字を現在のversion componentへ取り込み、有限整数として比較する
 		if( character >= L'0' && character <= L'9') {
 			const std::uint32_t digit =
-				// 現在の十進一桁。
+				// 現在の十進一桁
 				static_cast<std::uint32_t>( character - L'0') ;
-			// version componentの桁追加でuint32上限を超える前に拒否する。
+			// version componentの桁追加でuint32上限を超える前に拒否する
 			if( value > (std::numeric_limits<std::uint32_t>::max() - digit) / 10U) {
 				return std::nullopt ;
 			}
@@ -102,7 +103,7 @@ std::optional<std::array<std::uint32_t, 4>> parseBroadcomDriverVersion(
 			continue ;
 		}
 
-		// 不正区切り・空component・過剰componentをversionとして受理しない。
+		// 不正区切り・空component・過剰componentをversionとして受理しない
 		if( character != L'.' || !hasDigit || partIndex >= parts.size() - 1U) {
 			return std::nullopt ;
 		}
@@ -113,7 +114,7 @@ std::optional<std::array<std::uint32_t, 4>> parseBroadcomDriverVersion(
 		hasDigit = false ;
 	}
 
-	// 四要素と末尾の数字が揃わないversionは比較不能とする。
+	// 四要素と末尾の数字が揃わないversionは比較不能とする
 	if( !hasDigit || partIndex != parts.size() - 1U) {
 		return std::nullopt ;
 	}
@@ -124,29 +125,29 @@ std::optional<std::array<std::uint32_t, 4>> parseBroadcomDriverVersion(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 比較不能時は最新版と推測せず、利用者が明示確認する再導入へ分類する。
+ * @brief 比較不能時は最新版と推測せず、利用者が明示確認する再導入へ分類する
  *
- * @param[in] candidateVersion INFが明示した候補version。
- * @param[in] currentVersion 同じdeviceの現在driver version。
- * @return 数値比較に対応する更新、再導入または旧版への切替。
+ * @param[in] candidateVersion INFが明示した候補version
+ * @param[in] currentVersion 同じdeviceの現在driver version
+ * @return 数値比較に対応する更新、再導入または旧版への切替
  */
 //------------------------------------------------------------------------------
 DriverAction classifyBroadcomAction( const std::wstring_view candidateVersion,
 									const std::wstring_view currentVersion) noexcept
 {
-	const auto candidate = parseBroadcomDriverVersion( candidateVersion) ;	// INF版。
-	const auto current	 = parseBroadcomDriverVersion( currentVersion) ;	// 現在版。
-	// 比較不能な版を最新と断定せず、明示確認が必要な再導入へ分類する。
+	const auto candidate = parseBroadcomDriverVersion( candidateVersion) ;	// INF版
+	const auto current	 = parseBroadcomDriverVersion( currentVersion) ;	// 現在版
+	// 比較不能な版を最新と断定せず、明示確認が必要な再導入へ分類する
 	if( !candidate || !current) {
 		return DriverAction::REINSTALL ;
 	}
 
-	// 比較可能な候補版が現在版より大きい場合だけ更新に分類する。
+	// 比較可能な候補版が現在版より大きい場合だけ更新に分類する
 	if( *candidate > *current) {
 		return DriverAction::UPDATE ;
 	}
 
-	// 比較可能な候補版が現在版より小さい場合だけ旧版に分類する。
+	// 比較可能な候補版が現在版より小さい場合だけ旧版に分類する
 	if( *candidate < *current) {
 		return DriverAction::DOWNGRADE ;
 	}
@@ -156,22 +157,22 @@ DriverAction classifyBroadcomAction( const std::wstring_view candidateVersion,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 日付は表示専用とし、適用性や版の新旧判定には使用しない。
+ * @brief 日付は表示専用とし、適用性や版の新旧判定には使用しない
  *
- * @param[in] value INF DriverVerのMM/DD/YYYY日付。
- * @return YYYY/MM/DD形式。形式不正時は空文字列。
+ * @param[in] value INF DriverVerのMM/DD/YYYY日付
+ * @return YYYY/MM/DD形式。形式不正時は空文字列
  */
 //------------------------------------------------------------------------------
 std::wstring formatBroadcomDriverDate( const std::wstring_view value)
 {
-	// INF日付の固定書式が一致しなければ表示用に並べ替えない。
+	// INF日付の固定書式が一致しなければ表示用に並べ替えない
 	if( value.size() != 10U || value[2U] != L'/' || value[5U] != L'/') {
 		return {} ;
 	}
 
-	// 区切り以外の全位置をASCII数字に限定する。
+	// 区切り以外の全位置をASCII数字に限定する
 	for( std::size_t index = 0U; index < value.size(); ++index) {
-		// 日付の数字位置に非数字がある場合は空表示を返す。
+		// 日付の数字位置に非数字がある場合は空表示を返す
 		if( index != 2U && index != 5U && (value[index] < L'0' || value[index] > L'9')) {
 			return {} ;
 		}
@@ -183,11 +184,11 @@ std::wstring formatBroadcomDriverDate( const std::wstring_view value)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Provider内の監査順序だけから同じsessionで一意な候補IDを発行する。
+ * @brief Provider内の監査順序だけから同じsessionで一意な候補IDを発行する
  *
- * @param[in] session 候補が属する検索session。
- * @param[in] rankTargetIndex 監査合格組合せの保持index。
- * @return 表示値から復元しないopaque候補ID。
+ * @param[in] session 候補が属する検索session
+ * @param[in] rankTargetIndex 監査合格組合せの保持index
+ * @return 表示値から復元しないopaque候補ID
  */
 //------------------------------------------------------------------------------
 std::wstring broadcomCandidateIdentity( const ScanSessionId session,
@@ -198,11 +199,11 @@ std::wstring broadcomCandidateIdentity( const ScanSessionId session,
 
 //------------------------------------------------------------------------------
 /**
- * @brief URL、title、versionを識別子へ使用せず、検証済み取得identityだけを使用する。
+ * @brief URL、title、versionを識別子へ使用せず、検証済み取得identityだけを使用する
  *
- * @param[in] session 候補が属する検索session。
- * @param[in] acquisitionId 共通取得層が発行した取得連番。
- * @return 同じ外側ZIPを束ねるopaque package ID。
+ * @param[in] session 候補が属する検索session
+ * @param[in] acquisitionId 共通取得層が発行した取得連番
+ * @return 同じ外側ZIPを束ねるopaque package ID
  */
 //------------------------------------------------------------------------------
 std::wstring broadcomPackageIdentity( const ScanSessionId session, const std::uint64_t acquisitionId)
@@ -213,8 +214,8 @@ std::wstring broadcomPackageIdentity( const ScanSessionId session, const std::ui
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じworkerのDriver Store適用性監査へ接続する。監査callbackを保持する。未設定の場合は取得を導入可能と判定しない。
- * @param[in] rankAuditor 所有するcallback。空なら適用性監査を拒否する。 同じworkerのDriver Store監査を所有するcallback。
+ * @brief 同じworkerのDriver Store適用性監査へ接続する。監査callbackを保持する。未設定の場合は取得を導入可能と判定しない
+ * @param[in] rankAuditor 所有するcallback。空なら適用性監査を拒否する。 同じworkerのDriver Store監査を所有するcallback
  */
 //------------------------------------------------------------------------------
 BroadcomUpdateProvider::BroadcomUpdateProvider( OfficialInfRankAuditor rankAuditor)
@@ -224,9 +225,9 @@ BroadcomUpdateProvider::BroadcomUpdateProvider( OfficialInfRankAuditor rankAudit
 
 //------------------------------------------------------------------------------
 /**
- * @brief Driver Storeの監査と導入境界へ接続する。二つの境界を同じworker所有Providerへ固定し、Networkへdevice情報を渡さない。
- * @param[in] rankAuditor 現在PnPと候補INFのG11-D監査関数。 Driver Store内のPnP／rank監査callback。
- * @param[in] installer 再検証済みINFのWindows標準導入関数。 再検証済みINFだけを導入するcallback。
+ * @brief Driver Storeの監査と導入境界へ接続する。二つの境界を同じworker所有Providerへ固定し、Networkへdevice情報を渡さない
+ * @param[in] rankAuditor 現在PnPと候補INFのG11-D監査関数。 Driver Store内のPnP／rank監査callback
+ * @param[in] installer 再検証済みINFのWindows標準導入関数。 再検証済みINFだけを導入するcallback
  */
 //------------------------------------------------------------------------------
 BroadcomUpdateProvider::BroadcomUpdateProvider( OfficialInfRankAuditor		rankAuditor,
@@ -237,15 +238,15 @@ BroadcomUpdateProvider::BroadcomUpdateProvider( OfficialInfRankAuditor		rankAudi
 
 //------------------------------------------------------------------------------
 /**
- * @brief Broadcomの同一scan取得物を内容監査と端末内PnP監査へ接続する。固定Net profileで監査し、署名合格INFだけを端末内で照合する。導入許可は発行しない。
- * @param[in] scanSessionId 保持deviceと取得結果に共通の検索session。
- * @param[in] acquisition 公式由来を確認し、workerが所有している取得結果。 同じworkerが所有する公式取得結果。
- * @param[in] expectedSha256 公開hash。未公開なら空。実測hashで代替記入しない。 公開hash。未公開は空。
- * @param[in] devices 同じscanで系列照合したdevice群。IDはnetworkへ渡さない。 同一scanで系列照合済みのdevice群。
- * @param[in] rankAuditor 同じworkerのDriver Store照合callback。 Windows標準PnP／rank監査。
- * @param[in] cancellation 空または協調取消し照会。
- * @param[out] audit 内容と適用性の独立した結果。導入候補は作らない。 内容・適用性の結果と単独所有閉包。
- * @return 全体処理成功時0。入力・内容・全体処理失敗時はHRESULT。 全体処理成功時0、拒否・失敗時はHRESULT。
+ * @brief Broadcomの同一scan取得物を内容監査と端末内PnP監査へ接続する。固定Net profileで監査し、署名合格INFだけを端末内で照合する。導入許可は発行しない
+ * @param[in] scanSessionId 保持deviceと取得結果に共通の検索session
+ * @param[in] acquisition 公式由来を確認し、workerが所有している取得結果。 同じworkerが所有する公式取得結果
+ * @param[in] expectedSha256 公開hash。未公開なら空。実測hashで代替記入しない。 公開hash。未公開は空
+ * @param[in] devices 同じscanで系列照合したdevice群。IDはnetworkへ渡さない。 同一scanで系列照合済みのdevice群
+ * @param[in] rankAuditor 同じworkerのDriver Store照合callback。 Windows標準PnP／rank監査
+ * @param[in] cancellation 空または協調取消し照会
+ * @param[out] audit 内容と適用性の独立した結果。導入候補は作らない。 内容・適用性の結果と単独所有閉包
+ * @return 全体処理成功時0。入力・内容・全体処理失敗時はHRESULT。 全体処理成功時0、拒否・失敗時はHRESULT
  */
 //------------------------------------------------------------------------------
 NativeError auditBroadcomPreparedPackage( const ScanSessionId			  scanSessionId,
@@ -257,18 +258,18 @@ NativeError auditBroadcomPreparedPackage( const ScanSessionId			  scanSessionId,
 										 OfficialDriverPackageAudit					 &audit)
 {
 	audit = {} ;
-	// session不一致と空・過大な対象集合を監査開始前に拒否する。
+	// session不一致と空・過大な対象集合を監査開始前に拒否する
 	if( scanSessionId == 0U || acquisition.scanSessionId != scanSessionId || devices.empty() ||
 	   devices.size() > 4096U) {
 		audit.summary.state = OfficialDriverPackageAuditState::REJECTED ;
 		audit.summary.error = static_cast<NativeError>( E_INVALIDARG) ;
-		// 取得元sessionと対象deviceが不明なまま監査しない。
+		// 取得元sessionと対象deviceが不明なまま監査しない
 		return audit.summary.error ;
 	}
 
-	// 全deviceを有限照合し、別系列の表示候補をBroadcomの対象へ混入させない。
+	// 全deviceを有限照合し、別系列の表示候補をBroadcomの対象へ混入させない
 	for( const OfficialCatalogDevice &device : devices) {
-		// Broadcom対象系列以外のdeviceを固定Net profileで監査しない。
+		// Broadcom対象系列以外のdeviceを固定Net profileで監査しない
 		if( !broadcomNetxtremeEDevice( device)) {
 			audit.summary.state = OfficialDriverPackageAuditState::REJECTED ;
 			audit.summary.error = static_cast<NativeError>( E_INVALIDARG) ;
@@ -280,11 +281,11 @@ NativeError auditBroadcomPreparedPackage( const ScanSessionId			  scanSessionId,
 		.acquisition	= &acquisition,
 		.expectedSha256 = expectedSha256,
 		.archiveFormat	= OfficialDriverArchiveFormat::ZIP,
-		.profile = OfficialDriverAuditProfile::BROADCOM_NET_XTREME_E} ;	// 登録済みのNet限定profile。
+		.profile = OfficialDriverAuditProfile::BROADCOM_NET_XTREME_E} ;	// 登録済みのNet限定profile
 	const NativeError error =
-		// 閉包・CAT・全参照fileの結果。
+		// 閉包・CAT・全参照fileの結果
 		auditOfficialDriverPackage( request, audit, cancellation) ;
-	// 内容拒否をPnP適用性の合格へ変換しない。
+	// 内容拒否をPnP適用性の合格へ変換しない
 	if( error != 0 || audit.summary.state != OfficialDriverPackageAuditState::AUDITED) {
 		return error ;
 	}
@@ -295,21 +296,21 @@ NativeError auditBroadcomPreparedPackage( const ScanSessionId			  scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @brief Broadcom監査合格INF／device組合せを明示版付き候補へ変換する。INFの明示値だけを表示へ渡し、候補を推奨または初期選択へ昇格しない。
- * @param[in] session 同じ取得・監査を所有する0でないscan session。 取得・監査と同じ検索session。
- * @param[in] acquisition 同じ公式取得層が固定したsize／hashとopaque取得identity。 共通取得層が固定した外側ZIPのidentity。
- * @param[in] devices 検索時と同じ非機密device snapshot群。
- * @param[in] audit 内容・PnP／rank監査済みの保持結果。 内容・PnP／rank監査結果と保持閉包。
- * @return 同device／同版を重複排除した、初期未選択の全監査合格候補。 同device／同版を重複排除した全監査合格候補。
- * @throws std::logic_error 同一scan、取得identityまたは監査保持構造が矛盾する場合。
- * @note INFのversion／dateだけを使用し、Web配布版やURLから値を推測しない。
+ * @brief Broadcom監査合格INF／device組合せを明示版付き候補へ変換する。INFの明示値だけを表示へ渡し、候補を推奨または初期選択へ昇格しない
+ * @param[in] session 同じ取得・監査を所有する0でないscan session。 取得・監査と同じ検索session
+ * @param[in] acquisition 同じ公式取得層が固定したsize／hashとopaque取得identity。 共通取得層が固定した外側ZIPのidentity
+ * @param[in] devices 検索時と同じ非機密device snapshot群
+ * @param[in] audit 内容・PnP／rank監査済みの保持結果。 内容・PnP／rank監査結果と保持閉包
+ * @return 同device／同版を重複排除した、初期未選択の全監査合格候補。 同device／同版を重複排除した全監査合格候補
+ * @throws std::logic_error 同一scan、取得identityまたは監査保持構造が矛盾する場合
+ * @note INFのversion／dateだけを使用し、Web配布版やURLから値を推測しない
  */
 //------------------------------------------------------------------------------
 std::vector<UpdateCandidate> makeBroadcomPreparedCandidates(
 	const ScanSessionId session, const OfficialAcquisitionResult &acquisition,
 	const std::span<const OfficialCatalogDevice> devices, const OfficialDriverPackageAudit &audit)
 {
-	// 取得identityと全監査結果・対象件数が整合しなければ導入候補を発行しない。
+	// 取得identityと全監査結果・対象件数が整合しなければ導入候補を発行しない
 	if( session == 0U || acquisition.state != OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION ||
 	   acquisition.scanSessionId != session || acquisition.acquisitionId == 0U ||
 	   acquisition.providerId != BROADCOM_NET_XTREME_PROVIDER_ID ||
@@ -327,27 +328,26 @@ std::vector<UpdateCandidate> makeBroadcomPreparedCandidates(
 		throw std::logic_error( "invalid Broadcom candidate publication") ;
 	}
 
-	std::unordered_map<std::wstring_view, const OfficialCatalogDevice *>
-		deviceIndex ;	// Device索引。
+	std::unordered_map<std::wstring_view, const OfficialCatalogDevice *> deviceIndex ;	// Device索引
 	deviceIndex.reserve( devices.size()) ;
-	// 検索時の系列snapshotを一意に索引化し、監査外のdeviceを候補へ混ぜない。
+	// 検索時の系列snapshotを一意に索引化し、監査外のdeviceを候補へ混ぜない
 	for( const OfficialCatalogDevice &device : devices) {
-		// 対象外deviceと重複identityを候補発行用索引へ取り込まない。
+		// 対象外deviceと重複identityを候補発行用索引へ取り込まない
 		if( !broadcomNetxtremeEDevice( device) ||
 		   !deviceIndex.emplace( device.deviceIdentity, &device).second) {
 			throw std::logic_error( "invalid Broadcom candidate device") ;
 		}
 	}
 
-	std::set<std::pair<std::wstring, std::wstring>> publishedVersions ;	// Device／版の重複集合。
-	std::vector<UpdateCandidate>					candidates ;		// UIへ渡す非機密の全監査合格候補。
+	std::set<std::pair<std::wstring, std::wstring>> publishedVersions ;	// Device／版の重複集合
+	std::vector<UpdateCandidate>					candidates ;		// UIへ渡す非機密の全監査合格候補
 	candidates.reserve( audit.rankApprovedTargets.size()) ;
-	// G11-Dに合格した保持順で候補を生成し、同じdevice／versionの複数INFは一件へまとめる。
+	// G11-Dに合格した保持順で候補を生成し、同じdevice／versionの複数INFは一件へまとめる
 	for( std::size_t index = 0U; index < audit.rankApprovedTargets.size(); ++index) {
 		const OfficialRankApprovedInfTarget &approved =
-			audit.rankApprovedTargets[index] ;								// 現在の合格組合せ。
-		const auto device = deviceIndex.find( approved.deviceIdentity) ;	// 同じscanのdevice。
-		// 適用性未合格、未知device、範囲外package参照を候補へ変換しない。
+			audit.rankApprovedTargets[index] ;								// 現在の合格組合せ
+		const auto device = deviceIndex.find( approved.deviceIdentity) ;	// 同じscanのdevice
+		// 適用性未合格、未知device、範囲外package参照を候補へ変換しない
 		if( approved.rankAudit.decision != OfficialDriverRankDecision::APPLICABLE ||
 		   device == deviceIndex.end() ||
 		   approved.auditedPackageIndex >= audit.auditedPackages.size()) {
@@ -355,27 +355,27 @@ std::vector<UpdateCandidate> makeBroadcomPreparedCandidates(
 		}
 
 		const OfficialAuditedInfPackage &audited =
-			audit.auditedPackages[approved.auditedPackageIndex] ;	// 対応する保持閉包。
-		// 保護領域・固定profile・一INF閉包が揃わないpackageを候補へ変換しない。
+			audit.auditedPackages[approved.auditedPackageIndex] ;	// 対応する保持閉包
+		// 保護領域・固定profile・一INF閉包が揃わないpackageを候補へ変換しない
 		if( !audited.workspace ||
 		   audited.profile != OfficialDriverAuditProfile::BROADCOM_NET_XTREME_E ||
 		   audited.closure.packages.size() != 1U) {
 			throw std::logic_error( "invalid Broadcom audited package") ;
 		}
 
-		const OfficialInfPackage &package = audited.closure.packages.front() ;	// INF明示metadata。
-		// INFの明示版・publisher・Net classが揃わないpackageを公開しない。
+		const OfficialInfPackage &package = audited.closure.packages.front() ;	// INF明示metadata
+		// INFの明示版・publisher・Net classが揃わないpackageを公開しない
 		if( package.driverVersion.empty() || package.providerName.empty() ||
 		   package.className != L"Net") {
 			throw std::logic_error( "invalid Broadcom INF metadata") ;
 		}
 
-		// 同じdevice／同版は一候補とし、一device一候補選択を明瞭に保つ。
+		// 同じdevice／同版は一候補とし、一device一候補選択を明瞭に保つ
 		if( !publishedVersions.emplace( approved.deviceIdentity, package.driverVersion).second) {
 			continue ;
 		}
 
-		UpdateCandidate candidate ;	// 保持pathやPnP IDを含まない選択候補。
+		UpdateCandidate candidate ;	// 保持pathやPnP IDを含まない選択候補
 		candidate.identity		  = broadcomCandidateIdentity( session, index) ;
 		candidate.deviceIdentity  = approved.deviceIdentity ;
 		candidate.providerId	  = std::wstring( BROADCOM_NET_XTREME_PROVIDER_ID) ;
@@ -402,12 +402,12 @@ std::vector<UpdateCandidate> makeBroadcomPreparedCandidates(
 		candidate.eulaAccepted		  = true ;
 		candidate.allContentCached	  = true ;
 		candidate.rebootMayBeRequired = true ;
-		// WUA optional候補ではなく、明示選択は探索区分で制御する。
+		// WUA optional候補ではなく、明示選択は探索区分で制御する
 		candidate.browseOnly = false ;
 		candidates.push_back( std::move( candidate)) ;
 	}
 
-	// 監査合格対象があるのに公開候補が空となる不整合を成功扱いにしない。
+	// 監査合格対象があるのに公開候補が空となる不整合を成功扱いにしない
 	if( candidates.empty()) {
 		throw std::logic_error( "empty Broadcom candidate publication") ;
 	}
@@ -417,16 +417,16 @@ std::vector<UpdateCandidate> makeBroadcomPreparedCandidates(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同一scanで取得後に実行した監査の集計だけを返す。監査所有物をUIへ公開せず、現在workerで実行した集計だけを返す。
- * @param[in] scanSessionId 保持している検索session。 保持監査の検索session。
- * @return 内容・適用性の集計。旧sessionまたは未取得・未監査はnullopt。 非機密の内容・適用性集計。旧session・未監査はnullopt。
- * @note Worker thread内専用。UIは専用reportを使用し、本集計自体を導入許可にしない。
+ * @brief 同一scanで取得後に実行した監査の集計だけを返す。監査所有物をUIへ公開せず、現在workerで実行した集計だけを返す
+ * @param[in] scanSessionId 保持している検索session。 保持監査の検索session
+ * @return 内容・適用性の集計。旧sessionまたは未取得・未監査はnullopt。 非機密の内容・適用性集計。旧session・未監査はnullopt
+ * @note Worker thread内専用。UIは専用reportを使用し、本集計自体を導入許可にしない
  */
 //------------------------------------------------------------------------------
 std::optional<BroadcomPreparedAuditSummary> BroadcomUpdateProvider::preparationAuditSummary(
 	const ScanSessionId scanSessionId) const
 {
-	// 旧監査や未実行を合格集計として返さない。
+	// 旧監査や未実行を合格集計として返さない
 	if( scanSessionId == 0U || scanSessionId != retainedSessionId_ ||
 	   acquisition_.state != OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION ||
 	   preparedAudit_.summary.state == OfficialDriverPackageAuditState::NOT_STARTED) {
@@ -438,19 +438,19 @@ std::optional<BroadcomPreparedAuditSummary> BroadcomUpdateProvider::preparationA
 
 //------------------------------------------------------------------------------
 /**
- * @brief 解析済みBroadcom配布物からURLを含まない未承認対象を作る。公開URLをUIへ渡さず、一配布物を同型device数だけ重複取得しない。
- * @param[in] release 公式由来を別途確認したworker所有record。 同一scanの公式配布情報。
- * @param[in] scanSessionId 0でない検索session。
- * @param[in] planId 0でない計画ID。
- * @param[in] deviceCount 関連device数。1～4096。 配布物に関係するdevice数。1～4096。
- * @return 本文付きの一対象。不完全recordは空。 未承認の一対象。不完全なrecordは空。
+ * @brief 解析済みBroadcom配布物からURLを含まない未承認対象を作る。公開URLをUIへ渡さず、一配布物を同型device数だけ重複取得しない
+ * @param[in] release 公式由来を別途確認したworker所有record。 同一scanの公式配布情報
+ * @param[in] scanSessionId 0でない検索session
+ * @param[in] planId 0でない計画ID
+ * @param[in] deviceCount 関連device数。1～4096。 配布物に関係するdevice数。1～4096
+ * @return 本文付きの一対象。不完全recordは空。 未承認の一対象。不完全なrecordは空
  */
 //------------------------------------------------------------------------------
 std::vector<OfficialPreparationTarget> makeBroadcomPreparationTargets(
 	const OfficialReleaseRecord &release, const ScanSessionId scanSessionId,
 	const std::uint64_t planId, const std::uint32_t deviceCount)
 {
-	// 専用parserを通った本文付き配布物だけを計画へ渡す。
+	// 専用parserを通った本文付き配布物だけを計画へ渡す
 	if( release.family != OfficialReleaseFamily::BROADCOM_NET_XTREME_E ||
 	   release.license != OfficialReleaseLicense::ACCEPTANCE_BEFORE_DOWNLOAD ||
 	   release.parserRevision != 1U || release.downloadUrl.empty() || release.fileName.empty() ||
@@ -468,9 +468,9 @@ std::vector<OfficialPreparationTarget> makeBroadcomPreparationTargets(
 									  deviceCount,
 									  OfficialPreparationTerms::ACCEPTANCE_REQUIRED,
 									  release.eulaRevision,
-									  release.eulaText} ;	// 表示・同意・実行の全field照合対象。
-	OfficialPreparationSession validation ;					// ID・件数・本文の共通契約を再利用する。
-	// 共通の計画validatorが拒否する準備対象を公開しない。
+									  release.eulaText} ;	// 表示・同意・実行の全field照合対象
+	OfficialPreparationSession validation ;					// ID・件数・本文の共通契約を再利用する
+	// 共通の計画validatorが拒否する準備対象を公開しない
 	if( validation.initialize(
 		   {scanSessionId, planId, DEFAULT_OFFICIAL_PREPARATION_LIMITS, {target}}) !=
 	   OfficialPreparationError::NONE) {
@@ -482,16 +482,16 @@ std::vector<OfficialPreparationTarget> makeBroadcomPreparationTargets(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じscanの保持配布物から一対象を作り、後続task照合用に固定する。旧session・取得済みへの対象再発行を拒否し、有効な計画だけを後続照合用に保存する。
- * @param[in] scanSessionId 保持情報の検索session。 対象を発行する検索session。
- * @param[in] planId workerが発行する新しい計画ID。 Workerの新しい計画ID。
- * @return 一対象または空。取得試行後は新scanまで再発行しない。 現在の配布物を表す一対象または空。
+ * @brief 同じscanの保持配布物から一対象を作り、後続task照合用に固定する。旧session・取得済みへの対象再発行を拒否し、有効な計画だけを後続照合用に保存する
+ * @param[in] scanSessionId 保持情報の検索session。 対象を発行する検索session
+ * @param[in] planId workerが発行する新しい計画ID。 Workerの新しい計画ID
+ * @return 一対象または空。取得試行後は新scanまで再発行しない。 現在の配布物を表す一対象または空
  */
 //------------------------------------------------------------------------------
 std::vector<OfficialPreparationTarget> BroadcomUpdateProvider::preparationTargets(
 	const ScanSessionId scanSessionId, const std::uint64_t planId)
 {
-	// 古い計画や一度消費した配布物へ承認を再利用しない。
+	// 古い計画や一度消費した配布物へ承認を再利用しない
 	if( scanSessionId == 0U || scanSessionId != retainedSessionId_ ||
 	   GetCurrentThreadId() != ownerThreadId_ || acquisitionAttempted_ || planId == 0U ||
 	   planId <= preparedPlanId_) {
@@ -499,8 +499,8 @@ std::vector<OfficialPreparationTarget> BroadcomUpdateProvider::preparationTarget
 	}
 
 	auto targets = makeBroadcomPreparationTargets( retainedRelease_, scanSessionId, planId,
-												  retainedDeviceCount_) ;	// 有限な一対象。
-	// 有効な準備対象がある場合にだけ次工程照合用の対象とplan IDを保持する。
+												  retainedDeviceCount_) ;	// 有限な一対象
+	// 有効な準備対象がある場合にだけ次工程照合用の対象とplan IDを保持する
 	if( !targets.empty()) {
 		preparedTarget_ = targets.front() ;
 		preparedPlanId_ = planId ;
@@ -511,10 +511,10 @@ std::vector<OfficialPreparationTarget> BroadcomUpdateProvider::preparationTarget
 
 //------------------------------------------------------------------------------
 /**
- * @brief 固定製品とdocumentを再確認し、同一配布物の共通recordを返す。固定製品JSONと同じdocumentを再確認する。変更後の配布物へ承認を転用しない。
- * @param[out] current 成功時の再取得metadata。失敗時は空。 成功時の再取得配布情報。
- * @param[out] rejected 内容・根拠の不一致時true。通信失敗はfalse。 公式recordまたは根拠の不一致時true。
- * @return 成功時0。失敗時は元の通信または検証HRESULT。
+ * @brief 固定製品とdocumentを再確認し、同一配布物の共通recordを返す。固定製品JSONと同じdocumentを再確認する。変更後の配布物へ承認を転用しない
+ * @param[out] current 成功時の再取得metadata。失敗時は空。 成功時の再取得配布情報
+ * @param[out] rejected 内容・根拠の不一致時true。通信失敗はfalse。 公式recordまたは根拠の不一致時true
+ * @return 成功時0。失敗時は元の通信または検証HRESULT
  */
 //------------------------------------------------------------------------------
 NativeError BroadcomUpdateProvider::refreshPreparedRelease( OfficialReleaseRecord &current,
@@ -522,17 +522,17 @@ NativeError BroadcomUpdateProvider::refreshPreparedRelease( OfficialReleaseRecor
 {
 	current	 = {} ;
 	rejected = false ;
-	std::wstring catalog ;	// 固定公式起点からの現行配布一覧。
+	std::wstring catalog ;	// 固定公式起点からの現行配布一覧
 	NativeError	 error = httpClient_.getUtf8TextForSource(
 		 BROADCOM_CATALOG_URL, OFFICIAL_PRIMARY_METADATA_RESOURCE_ID, 2ULL * 1024ULL * 1024ULL,
-		 catalog) ;	// HTTP失敗を保持する診断値。
-	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
+		 catalog) ;	// HTTP失敗を保持する診断値
+	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 	if( error != 0) {
 		return error ;
 	}
 
-	std::optional<BroadcomDriverRelease> release ;	// 再確認した製品record。
-	// 現在catalogのdocument identityが保持値から変わっていれば承認を転用しない。
+	std::optional<BroadcomDriverRelease> release ;	// 再確認した製品record
+	// 現在catalogのdocument identityが保持値から変わっていれば承認を転用しない
 	if( !parseBroadcomCatalog( catalog, release) || !release ||
 	   release->contentId != retainedDocument_.contentId ||
 	   release->assetVersion != retainedDocument_.assetVersion ||
@@ -541,16 +541,16 @@ NativeError BroadcomUpdateProvider::refreshPreparedRelease( OfficialReleaseRecor
 		return static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH)) ;
 	}
 
-	std::wstring document ;	// 同じ配布物の公開document／license情報。
+	std::wstring document ;	// 同じ配布物の公開document／license情報
 	error = httpClient_.getUtf8TextForSource( release->documentApiUrl,
 											 OFFICIAL_SECONDARY_METADATA_RESOURCE_ID,
 											 256ULL * 1024ULL, document) ;
-	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
+	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 	if( error != 0) {
 		return error ;
 	}
 
-	// 結合recordと一次・二次取得根拠を検証できなければ現在metadataを破棄する。
+	// 結合recordと一次・二次取得根拠を検証できなければ現在metadataを破棄する
 	if( !parseBroadcomPreparedRelease( document, *release, current) ||
 	   !httpClient_.hasSourceEvidence( retainedSessionId_, BROADCOM_NET_XTREME_PROVIDER_ID,
 									  OFFICIAL_PRIMARY_METADATA_RESOURCE_ID) ||
@@ -566,24 +566,24 @@ NativeError BroadcomUpdateProvider::refreshPreparedRelease( OfficialReleaseRecor
 
 //------------------------------------------------------------------------------
 /**
- * @brief workerがclaimした対象を公式再確認後に一度だけ取得する。同じ配布物を一度だけ取得する。保持物は次scan開始またはinstall結果確定時に解放する。
- * @param[in] task 承認済み計画の照合token。UIからURLを受け取らない。 Workerがclaimした一度限りの固定対象。
- * @param[in] cancellation 協調取消し照会。空は取消し信号なし。 空または協調取消し照会。
- * @return 検査用取得の結果。監査結果は別集計へ保持し、導入許可は発行しない。 検査用取得の結果。監査と導入の成功は含めない。
- * @note 取得成功後に同期の内容・PnP監査を行う。取消しは監査の項目間で反映する。
+ * @brief workerがclaimした対象を公式再確認後に一度だけ取得する。同じ配布物を一度だけ取得する。保持物は次scan開始またはinstall結果確定時に解放する
+ * @param[in] task 承認済み計画の照合token。UIからURLを受け取らない。 Workerがclaimした一度限りの固定対象
+ * @param[in] cancellation 協調取消し照会。空は取消し信号なし。 空または協調取消し照会
+ * @return 検査用取得の結果。監査結果は別集計へ保持し、導入許可は発行しない。 検査用取得の結果。監査と導入の成功は含めない
+ * @note 取得成功後に同期の内容・PnP監査を行う。取消しは監査の項目間で反映する
  */
 //------------------------------------------------------------------------------
 OfficialPreparationTransferResult BroadcomUpdateProvider::acquireForInspection(
 	const OfficialPreparationTask &task, const PreparationCancellation &cancellation)
 {
-	// 対象再取得、古いsession・plan、承認snapshot差替え、別threadの要求を拒否する。
+	// 対象再取得、古いsession・plan、承認snapshot差替え、別threadの要求を拒否する
 	if( !preparedTarget_ || acquisitionAttempted_ || task.operationId == 0U ||
 	   task.scanSessionId != retainedSessionId_ || task.planId != preparedPlanId_ ||
 	   task.target != *preparedTarget_ || GetCurrentThreadId() != ownerThreadId_) {
 		return {OfficialPreparationItemState::REJECTED, static_cast<NativeError>( E_INVALIDARG), 0} ;
 	}
 
-	// 失敗・取消しでも次scanまで自動retryしない。
+	// 失敗・取消しでも次scanまで自動retryしない
 	acquisitionAttempted_ = true ;
 	workspace_			  = std::make_unique<OfficialDownloadWorkspace>() ;
 	acquisitionSession_	  = std::make_unique<OfficialAcquisitionSession>() ;
@@ -592,41 +592,41 @@ OfficialPreparationTransferResult BroadcomUpdateProvider::acquireForInspection(
 										   ARCHIVE_BYTES,
 										   256ULL * 1024ULL * 1024ULL,
 										   1U,
-										   1U} ;	// 共通計画より広げない一配布物の取得ledger。
-	// 保護領域と取得ledgerの初期化に失敗した元の診断値を保持する。
+										   1U} ;	// 共通計画より広げない一配布物の取得ledger
+	// 保護領域と取得ledgerの初期化に失敗した元の診断値を保持する
 	NativeError error = workspace_->initialize( BROADCOM_NET_XTREME_PROVIDER_ID, retainedSessionId_) ;
-	// 初期化失敗時はnetworkを呼ばず、元の診断値で終端にする。
+	// 初期化失敗時はnetworkを呼ばず、元の診断値で終端にする
 	if( error == 0) {
 		error = acquisitionSession_->initialize( retainedSessionId_, limits) ;
 	}
 
-	// 取得準備の失敗を未取得の結果として返し、payload取得へ進まない。
+	// 取得準備の失敗を未取得の結果として返し、payload取得へ進まない
 	if( error != 0) {
 		return {OfficialPreparationItemState::FAILURE, error, 0} ;
 	}
 
-	OfficialHttpAcquisitionTransport transport( httpClient_) ;	// 共通取得層への非所有adapter。
-	WindowsOfficialNetworkCostReader costReader ;				// Windowsの課金状態だけを照会する。
+	OfficialHttpAcquisitionTransport transport( httpClient_) ;	// 共通取得層への非所有adapter
+	WindowsOfficialNetworkCostReader costReader ;				// Windowsの課金状態だけを照会する
 	const PreparedReleaseRefresh refresh = [this]( OfficialReleaseRecord &record, bool &rejected) {
 		return refreshPreparedRelease( record, rejected) ;
-	} ; // 起点を固定した再確認処理。
+	} ; // 起点を固定した再確認処理
 	const OfficialPreparationTransferResult transfer = acquirePreparedRelease(
 		task, *preparedTarget_, retainedRelease_, refresh, *acquisitionSession_, *workspace_,
-		transport, costReader, cancellation, acquisition_) ;	// Downloadと監査は別結果で保持する。
-	// 検査用取得が成功したpayloadだけを固定profileの監査へ渡す。
+		transport, costReader, cancellation, acquisition_) ;	// Downloadと監査は別結果で保持する
+	// 検査用取得が成功したpayloadだけを固定profileの監査へ渡す
 	if( transfer.state == OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION) {
 		static_cast<void>( auditBroadcomPreparedPackage(
 			retainedSessionId_, acquisition_, retainedRelease_.publishedSha256, retainedDevices_,
 			rankAuditor_, cancellation, preparedAudit_)) ;
 	}
 
-	// 内容拒否・非適用でも、完了したdownloadを失敗へ書き換えない。
+	// 内容拒否・非適用でも、完了したdownloadを失敗へ書き換えない
 	return transfer ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief Provider workerで保持配布情報と自分のworkspaceだけを解放し、次scanへ持ち越さない。
+ * @brief Provider workerで保持配布情報と自分のworkspaceだけを解放し、次scanへ持ち越さない
  */
 //------------------------------------------------------------------------------
 void BroadcomUpdateProvider::invalidatePreparation() noexcept
@@ -636,12 +636,12 @@ void BroadcomUpdateProvider::invalidatePreparation() noexcept
 	preparedTarget_.reset() ;
 	preparedPlanId_		  = 0U ;
 	acquisitionAttempted_ = false ;
-	// 閉包を元ZIPより先に解放する。
+	// 閉包を元ZIPより先に解放する
 	preparedAudit_ = {} ;
 	retainedDevices_.clear() ;
 	acquisition_ = {} ;
 	acquisitionSession_.reset() ;
-	// 所有する既知の一時fileだけを既存RAIIで破棄する。
+	// 所有する既知の一時fileだけを既存RAIIで破棄する
 	workspace_.reset() ;
 	retainedRelease_ = {} ;
 	previousReleaseObservations_.clear() ;
@@ -657,13 +657,13 @@ void BroadcomUpdateProvider::invalidatePreparation() noexcept
 //------------------------------------------------------------------------------
 /**
  * @brief Broadcom監査集計を既存表示行へ変換する。導入権限を付加しない。Broadcom対象系列と既存候補IDを確定してから、固定profileの共通helperへ集約を委譲する。候
- *        補発行と導入routingは変更しない。
- * @param[in] session 保持している0でない検索session。 検索時の有効session。
- * @param[in] targetIdentity 取得を承認済みのopaque計画対象ID。 同じ取得対象のopaque ID。
- * @param[in] devices 検索時と同じ順序の系列照合device。最大4096件。 検索時と同じ順序の非機密snapshot。
- * @param[in] audit 同じ取得物の内容・PnP監査結果。所有物は参照中のみ利用する。 保持物の監査結果。Path等は出力しない。
- * @return 非機密report。不正な件数または入力には例外で全体拒否する。 既存候補の表示用report。不正入力は例外。
- * @note Broadcom対象と既存候補IDを確定後に共通集約へ委譲し、表示状態だけを生成する。
+ *        補発行と導入routingは変更しない
+ * @param[in] session 保持している0でない検索session。 検索時の有効session
+ * @param[in] targetIdentity 取得を承認済みのopaque計画対象ID。 同じ取得対象のopaque ID
+ * @param[in] devices 検索時と同じ順序の系列照合device。最大4096件。 検索時と同じ順序の非機密snapshot
+ * @param[in] audit 同じ取得物の内容・PnP監査結果。所有物は参照中のみ利用する。 保持物の監査結果。Path等は出力しない
+ * @return 非機密report。不正な件数または入力には例外で全体拒否する。 既存候補の表示用report。不正入力は例外
+ * @note Broadcom対象と既存候補IDを確定後に共通集約へ委譲し、表示状態だけを生成する
  */
 //------------------------------------------------------------------------------
 
@@ -671,23 +671,23 @@ OfficialPreparationAuditReport makeBroadcomPreparationAuditReport(
 	const ScanSessionId session, const std::wstring_view targetIdentity,
 	const std::span<const OfficialCatalogDevice> devices, const OfficialDriverPackageAudit &audit)
 {
-	// 過大入力からID群を作らない。
+	// 過大入力からID群を作らない
 	if( devices.empty() || devices.size() > 4096U) {
 		throw std::logic_error( "invalid prepared audit display") ;
 	}
 
-	std::vector<std::wstring> candidateIdentities ;	// 検索時と同じ規則で作る既存候補ID群。
+	std::vector<std::wstring> candidateIdentities ;	// 検索時と同じ規則で作る既存候補ID群
 	candidateIdentities.reserve( devices.size()) ;
-	// Broadcom対象系列だけに、既存表示行と一致する有限連番IDを生成する。
+	// Broadcom対象系列だけに、既存表示行と一致する有限連番IDを生成する
 	for( std::size_t index = 0U; index < devices.size(); ++index) {
-		const OfficialCatalogDevice &device = devices[index] ;	// 対応する既存の非機密device。
-		// Broadcom対象外のdeviceを監査表示へ関連付けない。
+		const OfficialCatalogDevice &device = devices[index] ;	// 対応する既存の非機密device
+		// Broadcom対象外のdeviceを監査表示へ関連付けない
 		if( !broadcomNetxtremeEDevice( device)) {
 			throw std::logic_error( "invalid prepared display device") ;
 		}
 
 		candidateIdentities.push_back( L"broadcom-info:" + std::to_wstring( session) + L":" +
-									  // 表示済みopaque候補ID。
+									  // 表示済みopaque候補ID
 									  std::to_wstring( index)) ;
 	}
 
@@ -699,16 +699,16 @@ OfficialPreparationAuditReport makeBroadcomPreparationAuditReport(
 //------------------------------------------------------------------------------
 /**
  * @brief 保持監査を同じ取得対象の非機密表示へ変換する。全監査合格時だけ候補IDと保持INFのroutingを一度作る。未取得、旧session、別threadまたは再発行要求には候補を返さ
- *        ない。
- * @param[in] scanSessionId 現在の検索session。
- * @param[in] targetIdentity 承認した計画内のopaque対象ID。 承認した計画対象のopaque ID。
- * @return 同じ取得成功対象のreport。旧session・別対象・未取得ならnullopt。 既存表示監査と新しい選択候補を持つ非機密report。不一致はnullopt。
+ *        ない
+ * @param[in] scanSessionId 現在の検索session
+ * @param[in] targetIdentity 承認した計画内のopaque対象ID。 承認した計画対象のopaque ID
+ * @return 同じ取得成功対象のreport。旧session・別対象・未取得ならnullopt。 既存表示監査と新しい選択候補を持つ非機密report。不一致はnullopt
  */
 //------------------------------------------------------------------------------
 std::optional<OfficialPreparationAuditReport> BroadcomUpdateProvider::preparationAuditReport(
 	const ScanSessionId scanSessionId, const std::wstring_view targetIdentity)
 {
-	// 未取得・旧session・別thread・再発行の要求に導入候補を返さない。
+	// 未取得・旧session・別thread・再発行の要求に導入候補を返さない
 	if( scanSessionId == 0U || scanSessionId != retainedSessionId_ || !preparedTarget_ ||
 	   preparedTarget_->identity != targetIdentity ||
 	   acquisition_.state != OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION ||
@@ -717,45 +717,45 @@ std::optional<OfficialPreparationAuditReport> BroadcomUpdateProvider::preparatio
 	}
 
 	OfficialPreparationAuditReport report = makeBroadcomPreparationAuditReport(
-		scanSessionId, targetIdentity, retainedDevices_, preparedAudit_) ;	// 既存行の監査結果。
-	// 拒否・失敗を選択可能候補へ読み替えない。
+		scanSessionId, targetIdentity, retainedDevices_, preparedAudit_) ;	// 既存行の監査結果
+	// 拒否・失敗を選択可能候補へ読み替えない
 	if( report.content != CandidateAuditGateState::PASSED ||
 	   report.applicability != CandidateAuditGateState::PASSED) {
 		return report ;
 	}
 
 	std::vector<UpdateCandidate> candidates = makeBroadcomPreparedCandidates(
-		scanSessionId, acquisition_, retainedDevices_, preparedAudit_) ;	// 全監査合格候補。
+		scanSessionId, acquisition_, retainedDevices_, preparedAudit_) ;	// 全監査合格候補
 	std::unordered_map<std::wstring, BroadcomPreparedInstallTarget>
-		installTargets ;	// 候補と保持物の新routing。
+		installTargets ;	// 候補と保持物の新routing
 	installTargets.reserve( candidates.size()) ;
-	std::set<std::pair<std::wstring, std::wstring>> routedVersions ;	// Device／版の重複集合。
-	// 候補生成と同じ保持順・重複規則で、opaque IDを監査済みINFへ結び付ける。
+	std::set<std::pair<std::wstring, std::wstring>> routedVersions ;	// Device／版の重複集合
+	// 候補生成と同じ保持順・重複規則で、opaque IDを監査済みINFへ結び付ける
 	for( std::size_t index = 0U; index < preparedAudit_.rankApprovedTargets.size(); ++index) {
 		const OfficialRankApprovedInfTarget &approved =
-			preparedAudit_.rankApprovedTargets[index] ;	// 現在の監査合格組合せ。
-		// 監査済みpackage範囲外の参照から導入routingを作らない。
+			preparedAudit_.rankApprovedTargets[index] ;	// 現在の監査合格組合せ
+		// 監査済みpackage範囲外の参照から導入routingを作らない
 		if( approved.auditedPackageIndex >= preparedAudit_.auditedPackages.size()) {
 			throw std::logic_error( "invalid Broadcom route package") ;
 		}
 
 		const OfficialAuditedInfPackage &audited =
-			preparedAudit_.auditedPackages[approved.auditedPackageIndex] ;	// 保持INF閉包。
-		// 一INFに固定されていない閉包から導入routingを作らない。
+			preparedAudit_.auditedPackages[approved.auditedPackageIndex] ;	// 保持INF閉包
+		// 一INFに固定されていない閉包から導入routingを作らない
 		if( audited.closure.packages.size() != 1U) {
 			throw std::logic_error( "invalid Broadcom route closure") ;
 		}
 
-		const OfficialInfPackage &package = audited.closure.packages.front() ;	// INF明示metadata。
-		// 公開候補と同じdevice／version重複排除を適用する。
+		const OfficialInfPackage &package = audited.closure.packages.front() ;	// INF明示metadata
+		// 公開候補と同じdevice／version重複排除を適用する
 		if( !routedVersions.emplace( approved.deviceIdentity, package.driverVersion).second) {
 			continue ;
 		}
 
 		const std::wstring identity =
-			// 公開候補との完全一致ID。
+			// 公開候補との完全一致ID
 			broadcomCandidateIdentity( scanSessionId, index) ;
-		// 同じcandidate identityの導入routingが重複する場合は公開を中止する。
+		// 同じcandidate identityの導入routingが重複する場合は公開を中止する
 		if( !installTargets
 				.emplace( identity,
 						 BroadcomPreparedInstallTarget{
@@ -769,7 +769,7 @@ std::optional<OfficialPreparationAuditReport> BroadcomUpdateProvider::preparatio
 		}
 	}
 
-	// 公開候補と導入routingの件数が一致しなければ状態を確定しない。
+	// 公開候補と導入routingの件数が一致しなければ状態を確定しない
 	if( installTargets.size() != candidates.size()) {
 		throw std::logic_error( "Broadcom publication route mismatch") ;
 	}
@@ -779,7 +779,7 @@ std::optional<OfficialPreparationAuditReport> BroadcomUpdateProvider::preparatio
 	report.publication.publishedCount	 = static_cast<std::uint32_t>( candidates.size()) ;
 	report.publication.excludedPairCount =
 		report.publication.examinedPairCount - report.publication.publishedCount ;
-	// 重複除外された組合せがある場合は発行reportへ診断を残す。
+	// 重複除外された組合せがある場合は発行reportへ診断を残す
 	if( report.publication.excludedPairCount != 0U) {
 		report.publication.firstError =
 			static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_ALREADY_EXISTS)) ;
@@ -787,7 +787,7 @@ std::optional<OfficialPreparationAuditReport> BroadcomUpdateProvider::preparatio
 
 	report.candidatePublicationAttempted = true ;
 	report.publishedCandidates			 = std::move( candidates) ;
-	// 全検証成功後だけProvider状態へ反映する。
+	// 全検証成功後だけProvider状態へ反映する
 	installTargets_		 = std::move( installTargets) ;
 	candidatesPublished_ = true ;
 	return report ;

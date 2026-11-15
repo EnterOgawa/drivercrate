@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file package_selection_tests.cpp
- * @brief Package選択group単体試験実装。
- * @version 01.00.01
+ * @brief Package選択group単体試験実装
+ * @version 01.00.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,18 +19,19 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 実installerを起動せず、opaque package IDのgroup化だけを試験します。
+ * @note 実installerを起動せず、opaque package IDのgroup化だけを試験します
  */
 //------------------------------------------------------------------------------
 
@@ -47,21 +48,21 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同一packageのcandidateを一つのgroupへまとめることを検証する。
+ * @brief 同一packageのcandidateを一つのgroupへまとめることを検証する
  *
- * Package初出順とgroup内のcandidate選択順を確認する。
+ * Package初出順とgroup内のcandidate選択順を確認する
  *
- * @param[in,out] context assertion集計先。
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void testGrouping( TestContext &context)
 {
-	// 複数候補で共有するpayloadを一groupへまとめる正常入力。
+	// 複数候補で共有するpayloadを一groupへまとめる正常入力
 	const std::array entries{
 		PackageSelectionEntry{.candidateIdentity = L"device-a", .packageIdentity = L"dup-1"},
 		PackageSelectionEntry{.candidateIdentity = L"device-b", .packageIdentity = L"dup-2"},
 		PackageSelectionEntry{.candidateIdentity = L"device-c", .packageIdentity = L"dup-1"}} ;
-	const auto groups = groupPackageSelection( entries) ;	// 重複packageを含む選択結果。
+	const auto groups = groupPackageSelection( entries) ;	// 重複packageを含む選択結果
 	DRIVERCRATE_EXPECT( context, groups.has_value()) ;
 	DRIVERCRATE_EXPECT( context, groups->size() == 2) ;
 	DRIVERCRATE_EXPECT( context, (*groups)[0].packageIdentity == L"dup-1") ;
@@ -74,25 +75,25 @@ void testGrouping( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 不正なpackage選択を拒否することを検証する。
+ * @brief 不正なpackage選択を拒否することを検証する
  *
- * 空集合、空ID、candidate重複をfail-closedで拒否する。
+ * 空集合、空ID、candidate重複をfail-closedで拒否する
  *
- * @param[in,out] context assertion集計先。
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void testInvalidEntries( TestContext &context)
 {
-	// 選択0件の境界を確認する空の入力集合。
+	// 選択0件の境界を確認する空の入力集合
 	const std::vector<PackageSelectionEntry> empty ;
 	DRIVERCRATE_EXPECT( context, !groupPackageSelection( empty).has_value()) ;
 
-	// Package identityが欠けた選択を拒否する入力。
+	// Package identityが欠けた選択を拒否する入力
 	const std::array missingPackage{
 		PackageSelectionEntry{.candidateIdentity = L"device-a", .packageIdentity = L""}} ;
 	DRIVERCRATE_EXPECT( context, !groupPackageSelection( missingPackage).has_value()) ;
 
-	// 同じ候補が別packageへ重複登録された場合の拒否用入力。
+	// 同じ候補が別packageへ重複登録された場合の拒否用入力
 	const std::array duplicateCandidate{
 		PackageSelectionEntry{.candidateIdentity = L"device-a", .packageIdentity = L"dup-1"},
 		PackageSelectionEntry{.candidateIdentity = L"device-a", .packageIdentity = L"dup-2"}} ;
@@ -103,8 +104,8 @@ void testInvalidEntries( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Package選択groupの順序、重複排除、拒否条件を検証する。Package選択groupの全単体試験を実行する。正常group化と不正入力拒否を順番に検証する。
- * @param[in,out] context assertion集計先。
+ * @brief Package選択groupの順序、重複排除、拒否条件を検証する。Package選択groupの全単体試験を実行する。正常group化と不正入力拒否を順番に検証する
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void runPackageSelectionTests( TestContext &context)

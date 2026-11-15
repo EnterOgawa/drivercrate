@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_html_terms.cpp
- * @brief 静的HTML許諾の原要素・原文書・全文をメーカー非依存で検査します。
- * @version 01.01.01
+ * @brief 静的HTML許諾の原要素・原文書・全文をメーカー非依存で検査します
+ * @version 01.01.02
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,12 +19,13 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/14  有限selectorとraw textarea文書の全文検査を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
- * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/14  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note Script/CSSを取得・評価せず、同意や取得能力を生成しません。
+ * @note Script/CSSを取得・評価せず、同意や取得能力を生成しません
  * @see docs/adr/0339-common-static-html-terms-binding.md
  */
 //------------------------------------------------------------------------------
@@ -48,37 +49,37 @@
 namespace drivercrate {
 namespace {
 
-// 原pageと選択文書の独立した有限文字上限です。
+// 原pageと選択文書の独立した有限文字上限です
 constexpr std::size_t MAX_PAGE_CHARACTERS = 256U * 1024U ;
 constexpr std::size_t STATIC_PAGE_CHARACTERS =
-	2U * 1024U * 1024U ;	// 独立sectionとリンク根拠だけの上限です。
-// 属性を含む一tagの走査上限です。
+	2U * 1024U * 1024U ;	// 独立sectionとリンク根拠だけの上限です
+// 属性を含む一tagの走査上限です
 constexpr std::size_t						 MAX_TAG_CHARACTERS = 4096U ;
-// 入れ子と一tagの属性数の上限です。
+// 入れ子と一tagの属性数の上限です
 constexpr std::size_t						 MAX_DEPTH = 64U ;
-// 認識した本文tagだけを全文へ写します。
+// 認識した本文tagだけを全文へ写します
 constexpr std::array<std::wstring_view, 11U> BODY_TAGS{
 	L"b", L"br", L"div", L"p", L"table", L"tbody", L"td", L"tr", L"ul", L"li", L"a"} ;
 
-/** @brief 原pageを借用する一tagと一意な属性集合です。 */
+/** @brief 原pageを借用する一tagと一意な属性集合です */
 struct HtmlTag {
-	/// ASCII小文字へ照合用に写したtag名です。
+	/// ASCII小文字へ照合用に写したtag名です
 	std::wstring											name ;
-	/// 原pageを借用する属性名/値です。名前だけを小文字へ写します。
+	/// 原pageを借用する属性名/値です。名前だけを小文字へ写します
 	std::vector<std::pair<std::wstring, std::wstring_view>> attributes ;
-	/// tagを閉じるgreater-thanの原位置です。
+	/// tagを閉じるgreater-thanの原位置です
 	std::size_t												end{} ;
-	/// 閉じtagの場合trueです。
+	/// 閉じtagの場合trueです
 	bool													closing{} ;
-	/// 明示self-closingの場合trueです。
+	/// 明示self-closingの場合trueです
 	bool													selfClosing{} ;
 } ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief HTML外枠で許可するASCII空白です。
- * @param[in] value 原一文字です。
- * @return 許可する外枠空白の場合trueです。
+ * @brief HTML外枠で許可するASCII空白です
+ * @param[in] value 原一文字です
+ * @return 許可する外枠空白の場合trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool space( const wchar_t value)
@@ -88,9 +89,9 @@ struct HtmlTag {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 解析名のASCII一文字を照合用に小文字へ写します。
- * @param[in] value 原一文字です。
- * @return 名前の照合値です。原本文は変更しません。
+ * @brief 解析名のASCII一文字を照合用に小文字へ写します
+ * @param[in] value 原一文字です
+ * @return 名前の照合値です。原本文は変更しません
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] wchar_t lower( const wchar_t value)
@@ -100,9 +101,9 @@ struct HtmlTag {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公開tag/属性名の閉じた文字集合です。
- * @param[in] value 原一文字です。
- * @return ASCII名に使用できる場合trueです。
+ * @brief 公開tag/属性名の閉じた文字集合です
+ * @param[in] value 原一文字です
+ * @return ASCII名に使用できる場合trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool nameCharacter( const wchar_t value)
@@ -113,19 +114,19 @@ struct HtmlTag {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 文書外枠の空白だけを取り除いた借用範囲です。
- * @param[in] value 原外枠です。本文内部には使用しません。
- * @return 前後空白を除いた借用範囲です。
+ * @brief 文書外枠の空白だけを取り除いた借用範囲です
+ * @param[in] value 原外枠です。本文内部には使用しません
+ * @return 前後空白を除いた借用範囲です
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::wstring_view frame( std::wstring_view value)
 {
-	// 有限外枠の先頭空白だけを除きます。
+	// 有限外枠の先頭空白だけを除きます
 	while( !value.empty() && space( value.front())) {
 		value.remove_prefix( 1U) ;
 	}
 
-	// 有限外枠の末尾空白だけを除きます。
+	// 有限外枠の末尾空白だけを除きます
 	while( !value.empty() && space( value.back())) {
 		value.remove_suffix( 1U) ;
 	}
@@ -135,108 +136,108 @@ struct HtmlTag {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 引用符と重複属性を確認して一tagだけを読みます。
- * @param[in] page 呼出し中だけ借用する原文字列です。
- * @param[in] begin less-thanの原位置です。
- * @param[out] tag 全成功時だけ有効なtagです。失敗出力は使用しません。
- * @param[in] staticSection 独立profileだけHTML属性名のdotを認識します。
- * @return 最大4096文字以内で全属性を読めた場合trueです。
+ * @brief 引用符と重複属性を確認して一tagだけを読みます
+ * @param[in] page 呼出し中だけ借用する原文字列です
+ * @param[in] begin less-thanの原位置です
+ * @param[out] tag 全成功時だけ有効なtagです。失敗出力は使用しません
+ * @param[in] staticSection 独立profileだけHTML属性名のdotを認識します
+ * @return 最大4096文字以内で全属性を読めた場合trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool readTag( const std::wstring_view page, const std::size_t begin, HtmlTag &tag,
 						   const bool staticSection = false)
 {
 	tag = {} ;
-	// 不正境界を部分要素へ変換しません。
+	// 不正境界を部分要素へ変換しません
 	if( begin >= page.size() || page[begin] != L'<') {
 		return false ;
 	}
 
-	std::size_t cursor = begin + 1U ;	// 元tagの有限走査位置です。
-	// 閉じtagは名前の前だけで認識します。
+	std::size_t cursor = begin + 1U ;	// 元tagの有限走査位置です
+	// 閉じtagは名前の前だけで認識します
 	if( cursor < page.size() && page[cursor] == L'/') {
 		tag.closing = true ;
 		++cursor ;
 	}
 
-	// ASCII tag名を一度だけ照合値へ写します。
+	// ASCII tag名を一度だけ照合値へ写します
 	while( cursor < page.size() && nameCharacter( page[cursor])) {
 		tag.name.push_back( lower( page[cursor++])) ;
 	}
 
-	// 空名と過大名をselectorへ採用しません。
+	// 空名と過大名をselectorへ採用しません
 	if( tag.name.empty() || tag.name.size() > 64U) {
 		return false ;
 	}
 
-	// 元tagが閉じるまで、最大64属性を欠損なく読みます。
+	// 元tagが閉じるまで、最大64属性を欠損なく読みます
 	while( cursor < page.size() && cursor - begin < MAX_TAG_CHARACTERS) {
-		// 属性間の外枠空白だけを消費します。
+		// 属性間の外枠空白だけを消費します
 		while( cursor < page.size() && space( page[cursor])) {
 			++cursor ;
 		}
 
-		// 終端欠損は部分属性を採用しません。
+		// 終端欠損は部分属性を採用しません
 		if( cursor >= page.size()) {
 			return false ;
 		}
 
-		// Self-closingのslashを属性として扱いません。
+		// Self-closingのslashを属性として扱いません
 		if( page[cursor] == L'/') {
 			tag.selfClosing = true ;
 			++cursor ;
 		}
 
-		// Tag全体の成功位置だけを公開します。
+		// Tag全体の成功位置だけを公開します
 		if( cursor < page.size() && page[cursor] == L'>') {
 			tag.end = cursor ;
 			return !tag.closing || (!tag.selfClosing && tag.attributes.empty()) ;
 		}
 
-		// 閉じtagの余分な属性と過大集合を拒否します。
+		// 閉じtagの余分な属性と過大集合を拒否します
 		if( tag.closing || tag.selfClosing || tag.attributes.size() == MAX_DEPTH) {
 			return false ;
 		}
 
-		std::wstring name ;	// この実属性だけの照合名です。
-		// 一つの属性名を元tagから完全に読みます。
+		std::wstring name ;	// この実属性だけの照合名です
+		// 一つの属性名を元tagから完全に読みます
 		while( cursor < page.size() &&
 			  (nameCharacter( page[cursor]) || (staticSection && page[cursor] == L'.'))) {
 			name.push_back( lower( page[cursor++])) ;
 		}
 
-		// 重複属性をブラウザー依存の選択へ委ねません。
+		// 重複属性をブラウザー依存の選択へ委ねません
 		if( name.empty() || std::ranges::any_of( tag.attributes, [&name]( const auto &value) {
 			   return value.first == name ;
 		   })) {
 			return false ;
 		}
 
-		// 属性のequals前にある外枠空白だけを消費します。
+		// 属性のequals前にある外枠空白だけを消費します
 		while( cursor < page.size() && space( page[cursor])) {
 			++cursor ;
 		}
 
-		std::wstring_view value ;	// Boolean属性では空、他は原値を借用します。
-		// 値を持つ属性だけを引用符または有限tokenとして読みます。
+		std::wstring_view value ;	// Boolean属性では空、他は原値を借用します
+		// 値を持つ属性だけを引用符または有限tokenとして読みます
 		if( cursor < page.size() && page[cursor] == L'=') {
 			++cursor ;
-			// Equals後の外枠空白だけを消費します。
+			// Equals後の外枠空白だけを消費します
 			while( cursor < page.size() && space( page[cursor])) {
 				++cursor ;
 			}
 
-			// 値のない属性をBoolean属性へ変換しません。
+			// 値のない属性をBoolean属性へ変換しません
 			if( cursor >= page.size()) {
 				return false ;
 			}
 
-			const wchar_t quote = page[cursor] ;	// 引用符の元種別です。
-			// 引用付き値は引用符内の偽属性を別属性へ数えません。
+			const wchar_t quote = page[cursor] ;	// 引用符の元種別です
+			// 引用付き値は引用符内の偽属性を別属性へ数えません
 			if( quote == L'"' || quote == L'\'') {
-				const std::size_t start = ++cursor ;					// 原属性値の開始です。
-				const std::size_t end	= page.find( quote, start) ;	// 同じ引用符の終端です。
-				// 閉じない引用符と過大tagを拒否します。
+				const std::size_t start = ++cursor ;					// 原属性値の開始です
+				const std::size_t end	= page.find( quote, start) ;	// 同じ引用符の終端です
+				// 閉じない引用符と過大tagを拒否します
 				if( end == page.npos || end - begin >= MAX_TAG_CHARACTERS) {
 					return false ;
 				}
@@ -244,10 +245,10 @@ struct HtmlTag {
 				value  = page.substr( start, end - start) ;
 				cursor = end + 1U ;
 			} else {
-				const std::size_t start = cursor ;	// 元unquoted tokenの開始です。
-				// 未引用の値はHTMLの区切りまでに限定します。
+				const std::size_t start = cursor ;	// 元unquoted tokenの開始です
+				// 未引用の値はHTMLの区切りまでに限定します
 				while( cursor < page.size() && !space( page[cursor]) && page[cursor] != L'>') {
-					// 特殊文字を別属性や文書へ読み替えません。
+					// 特殊文字を別属性や文書へ読み替えません
 					if( page[cursor] == L'<' || page[cursor] == L'"' || page[cursor] == L'\'' ||
 					   page[cursor] == L'=' || page[cursor] == L'`') {
 						return false ;
@@ -268,26 +269,26 @@ struct HtmlTag {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一意に解析済みの実属性だけを返します。
- * @param[in] tag 原tagです。
- * @param[in] name ASCII小文字の照合名です。
- * @return 実属性値。欠損は空です。
+ * @brief 一意に解析済みの実属性だけを返します
+ * @param[in] tag 原tagです
+ * @param[in] name ASCII小文字の照合名です
+ * @return 実属性値。欠損は空です
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::wstring_view attribute( const HtmlTag &tag, const std::wstring_view name)
 {
 	const auto found = std::ranges::find_if( tag.attributes, [&name]( const auto &value) {
 		return value.first == name ;
-	}) ; // 元実属性の位置です。
+	}) ; // 元実属性の位置です
 	return found == tag.attributes.end() ? std::wstring_view{} : found->second ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公開selectorを実tag属性へ完全一致させます。
- * @param[in] tag 原要素です。
- * @param[in] selector 認証済みまたはproducerの有限ASCII selectorです。
- * @return 元tag/属性/値が全て一致する場合trueです。
+ * @brief 公開selectorを実tag属性へ完全一致させます
+ * @param[in] tag 原要素です
+ * @param[in] selector 認証済みまたはproducerの有限ASCII selectorです
+ * @return 元tag/属性/値が全て一致する場合trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool matches( const HtmlTag &tag, const IndexHtmlTermsSelector &selector)
@@ -299,14 +300,14 @@ struct HtmlTag {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 外pageの実tagだけを順に訪問します。
- * @tparam Visitor 呼出し中だけpageを借用する同期visitorです。
- * @param[in] page 原pageです。
- * @param[in] visitor 各実tagと原開始位置を確認する同期関数です。
- * @param[out] rejectedOffset 非null時だけ直近の原tag位置です。省略可です。
- * @param[in] staticSection 独立profileの外page属性を認識する場合だけtrueです。
- * @return 文法とvisitorが全て成立する場合trueです。
- * @note Script/style/textareaの原内側は外page要素へ数えません。
+ * @brief 外pageの実tagだけを順に訪問します
+ * @tparam Visitor 呼出し中だけpageを借用する同期visitorです
+ * @param[in] page 原pageです
+ * @param[in] visitor 各実tagと原開始位置を確認する同期関数です
+ * @param[out] rejectedOffset 非null時だけ直近の原tag位置です。省略可です
+ * @param[in] staticSection 独立profileの外page属性を認識する場合だけtrueです
+ * @return 文法とvisitorが全て成立する場合trueです
+ * @note Script/style/textareaの原内側は外page要素へ数えません
  */
 //------------------------------------------------------------------------------
 template <class Visitor>
@@ -314,21 +315,21 @@ template <class Visitor>
 								  std::size_t *rejectedOffset = nullptr,
 								  const bool   staticSection  = false)
 {
-	std::size_t cursor{} ;	// 全反復で前進する元page位置です。
-	// 最大page長以内で全外要素を訪問し、失敗時は部分成功を返しません。
+	std::size_t cursor{} ;	// 全反復で前進する元page位置です
+	// 最大page長以内で全外要素を訪問し、失敗時は部分成功を返しません
 	while( cursor < page.size()) {
-		const std::size_t begin = page.find( L'<', cursor) ;	// 次の実tag候補です。
-		// 要素の残りがない場合だけ走査を完了します。
+		const std::size_t begin = page.find( L'<', cursor) ;	// 次の実tag候補です
+		// 要素の残りがない場合だけ走査を完了します
 		if( begin == page.npos) {
 			return true ;
 		}
 
-		// 任意数値診断だけを更新し、原内容は公開しません。
+		// 任意数値診断だけを更新し、原内容は公開しません
 		if( rejectedOffset != nullptr) {
 			*rejectedOffset = begin ;
 		}
 
-		// 外pageの可視less-thanはHTML要素ではなく、次の実tagまで本文として保持します。
+		// 外pageの可視less-thanはHTML要素ではなく、次の実tagまで本文として保持します
 		if( begin + 1U >= page.size() ||
 		   (!(lower( page[begin + 1U]) >= L'a' && lower( page[begin + 1U]) <= L'z') &&
 			page[begin + 1U] != L'/' && page[begin + 1U] != L'!')) {
@@ -336,10 +337,10 @@ template <class Visitor>
 			continue ;
 		}
 
-		// コメント中のselectorらしい文字列を実要素へ数えません。
+		// コメント中のselectorらしい文字列を実要素へ数えません
 		if( page.substr( begin).starts_with( L"<!--")) {
-			const std::size_t end = page.find( L"-->", begin + 4U) ;	// コメント終端です。
-			// 不完全なコメントを黙って削除しません。
+			const std::size_t end = page.find( L"-->", begin + 4U) ;	// コメント終端です
+			// 不完全なコメントを黙って削除しません
 			if( end == page.npos) {
 				return false ;
 			}
@@ -348,11 +349,11 @@ template <class Visitor>
 			continue ;
 		}
 
-		// 外pageのDOCTYPEは要素や許諾本文ではありません。
+		// 外pageのDOCTYPEは要素や許諾本文ではありません
 		if( page.substr( begin).starts_with( L"<!DOCTYPE ") ||
 		   page.substr( begin).starts_with( L"<!doctype ")) {
-			const std::size_t end = page.find( L'>', begin) ;	// 有限宣言の終端です。
-			// 過大/未終端の宣言を成功へ変換しません。
+			const std::size_t end = page.find( L'>', begin) ;	// 有限宣言の終端です
+			// 過大/未終端の宣言を成功へ変換しません
 			if( end == page.npos || end - begin > MAX_TAG_CHARACTERS) {
 				return false ;
 			}
@@ -361,20 +362,20 @@ template <class Visitor>
 			continue ;
 		}
 
-		HtmlTag tag ;	// 原pageを呼出し中だけ借用する実要素です。
-		// 未終端tagや偽属性を選択結果へ混入させません。
+		HtmlTag tag ;	// 原pageを呼出し中だけ借用する実要素です
+		// 未終端tagや偽属性を選択結果へ混入させません
 		if( !readTag( page, begin, tag, staticSection)) {
 			return false ;
 		}
 
-		std::size_t contentEnd = tag.end + 1U ;	// 通常tagでは空の内側です。
-		std::size_t next	   = contentEnd ;	// 次に走査する原位置です。
-		// Raw-text要素内部を外pageの実要素として再解釈しません。
+		std::size_t contentEnd = tag.end + 1U ;	// 通常tagでは空の内側です
+		std::size_t next	   = contentEnd ;	// 次に走査する原位置です
+		// Raw-text要素内部を外pageの実要素として再解釈しません
 		if( !tag.closing &&
 		   (tag.name == L"script" || tag.name == L"style" || tag.name == L"textarea")) {
-			const std::wstring close = L"</" + tag.name + L">" ;	// Profileの明示終端です。
+			const std::wstring close = L"</" + tag.name + L">" ;	// Profileの明示終端です
 			contentEnd				 = page.find( close, next) ;
-			// 未終端raw要素を選択可能にしません。
+			// 未終端raw要素を選択可能にしません
 			if( contentEnd == page.npos) {
 				return false ;
 			}
@@ -382,7 +383,7 @@ template <class Visitor>
 			next = contentEnd + close.size() ;
 		}
 
-		// Visitorの拒否を部分正常へ変換しません。
+		// Visitorの拒否を部分正常へ変換しません
 		if( !visitor( tag, begin, contentEnd)) {
 			return false ;
 		}
@@ -395,10 +396,10 @@ template <class Visitor>
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一つの既知文字参照をUnicode scalarへ復元します。
- * @param[in] entity Ampersandとsemicolonの内側です。
- * @param[in,out] text 成功した文字だけを追加する一時全文です。
- * @return Unicodeと閉じたentity集合が成立する場合trueです。
+ * @brief 一つの既知文字参照をUnicode scalarへ復元します
+ * @param[in] entity Ampersandとsemicolonの内側です
+ * @param[in,out] text 成功した文字だけを追加する一時全文です
+ * @return Unicodeと閉じたentity集合が成立する場合trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool appendEntity( const std::wstring_view entity, std::wstring &text)
@@ -409,38 +410,38 @@ template <class Visitor>
 		 {L"lt", L'<'},
 		 {L"gt", L'>'},
 		 {L"apos", L'\''},
-		 {L"nbsp", 0xA0U}}} ;	// 既存許諾rendererと同じ文字参照です。
+		 {L"nbsp", 0xA0U}}} ;	// 既存許諾rendererと同じ文字参照です
 	const auto	  found = std::ranges::find_if( ENTITIES, [&entity]( const auto &value) {
 		   return value.first == entity ;
-	   }) ;				  // 完全一致の位置です。
-	std::uint32_t code{} ;	// 検査するUnicode scalarです。
-	// 既知名だけを一文字へ戻します。
+	   }) ;				  // 完全一致の位置です
+	std::uint32_t code{} ;	// 検査するUnicode scalarです
+	// 既知名だけを一文字へ戻します
 	if( found != ENTITIES.end()) {
 		code = found->second ;
 	} else {
-		// 未知名を削除した本文を返しません。
+		// 未知名を削除した本文を返しません
 		if( !entity.starts_with( L"#")) {
 			return false ;
 		}
 
 		const bool hex =
-			// 基数です。
+			// 基数です
 			entity.size() > 1U && (entity[1] == L'x' || entity[1] == L'X') ;
-		const std::uint32_t base  = hex ? 16U : 10U ;	// 元数値参照の基数です。
-		const std::size_t	first = hex ? 2U : 1U ;		// 原数字列開始です。
-		// 数字のない参照を空文字へ置換しません。
+		const std::uint32_t base  = hex ? 16U : 10U ;	// 元数値参照の基数です
+		const std::size_t	first = hex ? 2U : 1U ;		// 原数字列開始です
+		// 数字のない参照を空文字へ置換しません
 		if( first == entity.size()) {
 			return false ;
 		}
 
-		// 全数字をUnicode上限の加算前検査で読みます。
+		// 全数字をUnicode上限の加算前検査で読みます
 		for( std::size_t index = first; index < entity.size(); ++index) {
-			const wchar_t		value = lower( entity[index]) ;	// 原一桁の照合値です。
+			const wchar_t		value = lower( entity[index]) ;	// 原一桁の照合値です
 			const std::uint32_t digit =
 				value >= L'0' && value <= L'9'	 ? static_cast<std::uint32_t>( value - L'0')
 				: value >= L'a' && value <= L'f' ? static_cast<std::uint32_t>( value - L'a' + 10)
-												 : base ;	// 不正桁です。
-			// 桁あふれと基数外の文字を拒否します。
+												 : base ;	// 不正桁です
+			// 桁あふれと基数外の文字を拒否します
 			if( digit >= base || code > (0x10ffffU - digit) / base) {
 				return false ;
 			}
@@ -449,12 +450,12 @@ template <class Visitor>
 		}
 	}
 
-	// NULと単独surrogateを全文へ残しません。
+	// NULと単独surrogateを全文へ残しません
 	if( code == 0U || (code >= 0xd800U && code <= 0xdfffU)) {
 		return false ;
 	}
 
-	// 補助文字もUTF-16 pairへ欠損なく写します。
+	// 補助文字もUTF-16 pairへ欠損なく写します
 	if( code > 0xffffU) {
 		code -= 0x10000U ;
 		text.push_back( static_cast<wchar_t>( 0xd800U + (code >> 10U))) ;
@@ -468,34 +469,34 @@ template <class Visitor>
 
 //------------------------------------------------------------------------------
 /**
- * @brief 許可本文の全tagと文字を既存の表示規則へ写します。
- * @param[in] body 原body内部です。
- * @param[in,out] text Title付きの一時全文です。失敗時は呼出し側が破棄します。
- * @param[in] section 独立sectionの表示要素と非実行連絡先だけを追加で認識します。
- * @return 本文を切り詰めず全て写せた場合trueです。
+ * @brief 許可本文の全tagと文字を既存の表示規則へ写します
+ * @param[in] body 原body内部です
+ * @param[in,out] text Title付きの一時全文です。失敗時は呼出し側が破棄します
+ * @param[in] section 独立sectionの表示要素と非実行連絡先だけを追加で認識します
+ * @return 本文を切り詰めず全て写せた場合trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool renderBody( const std::wstring_view body, std::wstring &text,
 							  const bool section = false)
 {
-	std::vector<std::wstring> stack ;		// 64段以内の対応tag名です。
-	bool					  tail{} ;		// 空外部script参照以降は表示本文を許可しません。
-	bool					  hasText{} ;	// Title以外に非空本文を確認した場合trueです。
-	// 各反復で原位置を前進させ、本文を途中で切り詰めません。
+	std::vector<std::wstring> stack ;		// 64段以内の対応tag名です
+	bool					  tail{} ;		// 空外部script参照以降は表示本文を許可しません
+	bool					  hasText{} ;	// Title以外に非空本文を確認した場合trueです
+	// 各反復で原位置を前進させ、本文を途中で切り詰めません
 	for( std::size_t cursor{}; cursor < body.size();) {
-		// 実tagを本文文字から分けます。
+		// 実tagを本文文字から分けます
 		if( body[cursor] == L'<') {
-			HtmlTag tag ;	// この本文要素だけを借用します。
-			// 不完全な要素を黙って削除しません。
+			HtmlTag tag ;	// この本文要素だけを借用します
+			// 不完全な要素を黙って削除しません
 			if( !readTag( body, cursor, tag, section)) {
 				return false ;
 			}
 
-			// 末尾の空外部scriptだけを非実行で認識します。
+			// 末尾の空外部scriptだけを非実行で認識します
 			if( tag.name == L"script" && !tag.closing) {
-				const auto src	= attribute( tag, L"src") ;		// 実行しない原参照です。
-				const auto type = attribute( tag, L"type") ;	// 明示されれば既知MIMEだけです。
-				// Inline script/任意属性/本文中scriptを成功へ変換しません。
+				const auto src	= attribute( tag, L"src") ;		// 実行しない原参照です
+				const auto type = attribute( tag, L"type") ;	// 明示されれば既知MIMEだけです
+				// Inline script/任意属性/本文中scriptを成功へ変換しません
 				if( section || !stack.empty() || !src.starts_with( L"/") || src.starts_with( L"//") ||
 				   src.size() > 2048U || src.find_first_of( L" \t\r\n<>?&#\"") != src.npos ||
 				   src.find( L"..") != src.npos || (type != L"" && type != L"text/javascript") ||
@@ -509,35 +510,35 @@ template <class Visitor>
 				continue ;
 			}
 
-			// Tail後の表示要素や未知tagを全文から除外しません。
+			// Tail後の表示要素や未知tagを全文から除外しません
 			constexpr std::array<std::wstring_view, 10U> SECTION_TAGS{
 				L"h1", L"h2",	  L"h3", L"h4",	  L"h5",
-				L"h6", L"strong", L"em", L"span", L"ol"} ;	// 独立法的文書の追加表示要素です。
-			// 旧表示集合と独立sectionで明示した追加要素以外は拒否します。
+				L"h6", L"strong", L"em", L"span", L"ol"} ;	// 独立法的文書の追加表示要素です
+			// 旧表示集合と独立sectionで明示した追加要素以外は拒否します
 			if( tail ||
 			   (std::ranges::find( BODY_TAGS, tag.name) == BODY_TAGS.end() &&
 				(!section || std::ranges::find( SECTION_TAGS, tag.name) == SECTION_TAGS.end()))) {
 				return false ;
 			}
 
-			// 閉じtagは対応stackを一段だけ戻します。
+			// 閉じtagは対応stackを一段だけ戻します
 			if( tag.closing) {
-				// 間違った入れ子や余剰終端を許諾全文として採用しません。
+				// 間違った入れ子や余剰終端を許諾全文として採用しません
 				if( stack.empty() || stack.back() != tag.name) {
 					return false ;
 				}
 
 				stack.pop_back() ;
 			} else {
-				// 明示リンクもURLを表示へ残し、外部参照は実行しません。
+				// 明示リンクもURLを表示へ残し、外部参照は実行しません
 				if( tag.name == L"a") {
-					const auto href	  = attribute( tag, L"href") ;		// 元許諾の公開参照です。
-					const auto target = attribute( tag, L"target") ;	// 既知の非実行補足です。
+					const auto href	  = attribute( tag, L"href") ;		// 元許諾の公開参照です
+					const auto target = attribute( tag, L"target") ;	// 既知の非実行補足です
 					const bool contact =
 						section && href.starts_with( L"mailto:") && href.size() > 7U &&
 						href.find_first_of( L"?#%") ==
-							href.npos ;	// 独立法的文書の連絡先を文字列表示だけで保持します。
-					// Script URLや曖昧な追加属性を本文へ混入させません。
+							href.npos ;	// 独立法的文書の連絡先を文字列表示だけで保持します
+					// Script URLや曖昧な追加属性を本文へ混入させません
 					if( (!href.starts_with( L"http://") && !href.starts_with( L"https://") &&
 						!contact) ||
 					   href.size() > 2048U || href.find_first_of( L" \t\r\n<>&\"") != href.npos ||
@@ -548,7 +549,7 @@ template <class Visitor>
 
 					text += L" [" + std::wstring( href) + L"] " ;
 				} else {
-					// CSSを評価せず全textを保持し、style以外の本文属性は未対応です。
+					// CSSを評価せず全textを保持し、style以外の本文属性は未対応です
 					if( !section &&
 					   (tag.attributes.size() > 1U ||
 						(!tag.attributes.empty() && tag.attributes.front().first != L"style") ||
@@ -556,11 +557,11 @@ template <class Visitor>
 						return false ;
 					}
 
-					// 独立sectionでも非実行の表示属性だけを認識し、イベントを評価・削除しません。
+					// 独立sectionでも非実行の表示属性だけを認識し、イベントを評価・削除しません
 					if( section) {
-						// 全原属性を確認し、未知属性がある表示文書を部分採用しません。
+						// 全原属性を確認し、未知属性がある表示文書を部分採用しません
 						for( const auto &item : tag.attributes) {
-							// class/id/style以外を明示対応へ混ぜません。
+							// class/id/style以外を明示対応へ混ぜません
 							if( item.first != L"class" && item.first != L"id" &&
 							   item.first != L"style") {
 								return false ;
@@ -569,9 +570,9 @@ template <class Visitor>
 					}
 				}
 
-				// 改行以外の要素を有限stackへ結合します。
+				// 改行以外の要素を有限stackへ結合します
 				if( tag.name != L"br") {
-					// 未対応self-closeと64段超過を拒否します。
+					// 未対応self-closeと64段超過を拒否します
 					if( tag.selfClosing || stack.size() == MAX_DEPTH) {
 						return false ;
 					}
@@ -580,7 +581,7 @@ template <class Visitor>
 				}
 			}
 
-			// 既存rendererと同じ段落/表境界を保持します。
+			// 既存rendererと同じ段落/表境界を保持します
 			if( tag.name != L"b" &&
 			   (!section || (tag.name != L"strong" && tag.name != L"em" && tag.name != L"span"))) {
 				text += L"\r\n" ;
@@ -588,32 +589,32 @@ template <class Visitor>
 
 			cursor = tag.end + 1U ;
 		} else {
-			// 外部script以降の表示textを捨てて成功にしません。
+			// 外部script以降の表示textを捨てて成功にしません
 			if( tail && !space( body[cursor])) {
 				return false ;
 			}
 
-			// 末尾の外枠空白はscriptの一部として表示しません。
+			// 末尾の外枠空白はscriptの一部として表示しません
 			if( tail) {
 				++cursor ;
 				continue ;
 			}
 
-			// Entityだけを復元し、通常ampersandは保持します。
+			// Entityだけを復元し、通常ampersandは保持します
 			if( body[cursor] == L'&') {
-				const std::size_t end = body.find( L';', cursor + 1U) ;	// 原entityの有限終端です。
-				// Entityらしい未終端を通常文字へ読み替えません。
+				const std::size_t end = body.find( L';', cursor + 1U) ;	// 原entityの有限終端です
+				// Entityらしい未終端を通常文字へ読み替えません
 				if( end == body.npos || end - cursor > 12U) {
 					const wchar_t next =
-						cursor + 1U < body.size() ? lower( body[cursor + 1U]) : L' ' ;	// 開始です。
-					// 未知entityの文字を削除しません。
+						cursor + 1U < body.size() ? lower( body[cursor + 1U]) : L' ' ;	// 開始です
+					// 未知entityの文字を削除しません
 					if( (next >= L'a' && next <= L'z') || next == L'#') {
 						return false ;
 					}
 
 					text.push_back( body[cursor++]) ;
 				} else {
-					// 既知の完全文字参照だけを全文へ追加します。
+					// 既知の完全文字参照だけを全文へ追加します
 					if( !appendEntity( body.substr( cursor + 1U, end - cursor - 1U), text)) {
 						return false ;
 					}
@@ -623,13 +624,13 @@ template <class Visitor>
 
 				hasText = true ;
 			} else {
-				const wchar_t value = body[cursor++] ;	// 全文へ保持する原一文字です。
+				const wchar_t value = body[cursor++] ;	// 全文へ保持する原一文字です
 				text.push_back( value) ;
 				hasText = hasText || !space( value) ;
 			}
 		}
 
-		// 表示上限を越えた全文を部分成功として返しません。
+		// 表示上限を越えた全文を部分成功として返しません
 		if( text.size() > MAXIMUM_PREPARATION_EULA_CHARACTERS) {
 			return false ;
 		}
@@ -640,19 +641,19 @@ template <class Visitor>
 
 //------------------------------------------------------------------------------
 /**
- * @brief Raw文書のhead/bodyを一意に確認してtitle付き全文へ写します。
- * @param[in] document 選択した完全原文書です。
- * @param[in] revision 公開titleです。空は比較しません。
- * @param[out] text 全成功時だけtitle付き全文です。
- * @return 文書全体を欠損なく認識した場合trueです。
+ * @brief Raw文書のhead/bodyを一意に確認してtitle付き全文へ写します
+ * @param[in] document 選択した完全原文書です
+ * @param[in] revision 公開titleです。空は比較しません
+ * @param[out] text 全成功時だけtitle付き全文です
+ * @return 文書全体を欠損なく認識した場合trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool renderDocument( const std::wstring_view document,
 								  const std::wstring_view revision, std::wstring &text)
 {
-	const auto raw = frame( document) ;	// 外枠だけを借用照合します。
-	HtmlTag	   root ;					// 一意なhtml外枠です。
-	// 不完全な外枠を部分bodyへ補完しません。
+	const auto raw = frame( document) ;	// 外枠だけを借用照合します
+	HtmlTag	   root ;					// 一意なhtml外枠です
+	// 不完全な外枠を部分bodyへ補完しません
 	if( !readTag( raw, 0U, root) || root.name != L"html" || root.closing || root.selfClosing ||
 	   root.attributes.size() > 1U ||
 	   (!root.attributes.empty() && root.attributes.front().first != L"lang") ||
@@ -660,50 +661,50 @@ template <class Visitor>
 		return false ;
 	}
 
-	std::size_t cursor = root.end + 1U ;	// 外枠内の有限読み取り位置です。
-	// Head前の外枠空白だけを消費します。
+	std::size_t cursor = root.end + 1U ;	// 外枠内の有限読み取り位置です
+	// Head前の外枠空白だけを消費します
 	while( cursor < raw.size() && space( raw[cursor])) {
 		++cursor ;
 	}
 
-	// 原head境界の欠損や複数文書を拒否します。
+	// 原head境界の欠損や複数文書を拒否します
 	if( !raw.substr( cursor).starts_with( L"<head>")) {
 		return false ;
 	}
 
 	cursor += 6U ;
-	std::wstring title ;		// 一意に取得した元公開titleです。
-	bool		 headEnded{} ;	// 一つのhead終端を確認した場合trueです。
-	// Headの既知要素だけを最大128回で確認します。
+	std::wstring title ;		// 一意に取得した元公開titleです
+	bool		 headEnded{} ;	// 一つのhead終端を確認した場合trueです
+	// Headの既知要素だけを最大128回で確認します
 	for( std::size_t count{}; count < 128U && cursor < raw.size(); ++count) {
-		// Head要素間の外枠空白だけを消費します。
+		// Head要素間の外枠空白だけを消費します
 		while( cursor < raw.size() && space( raw[cursor])) {
 			++cursor ;
 		}
 
-		// 一意なhead終端でbodyへ進みます。
+		// 一意なhead終端でbodyへ進みます
 		if( raw.substr( cursor).starts_with( L"</head>")) {
 			cursor += 7U ;
 			headEnded = true ;
 			break ;
 		}
 
-		HtmlTag tag ;	// このhead要素だけです。
-		// 未知構造や実行要素をheadから黙って除きません。
+		HtmlTag tag ;	// このhead要素だけです
+		// 未知構造や実行要素をheadから黙って除きません
 		if( !readTag( raw, cursor, tag) || tag.closing) {
 			return false ;
 		}
 
-		// 公開titleは一つだけを採用します。
+		// 公開titleは一つだけを採用します
 		if( tag.name == L"title" && title.empty() && tag.attributes.empty()) {
-			const std::size_t end = raw.find( L"</title>", tag.end + 1U) ;	// 元title終端です。
-			// 空/HTML付き/過大titleを元revisionにしません。
+			const std::size_t end = raw.find( L"</title>", tag.end + 1U) ;	// 元title終端です
+			// 空/HTML付き/過大titleを元revisionにしません
 			if( end == raw.npos || end - tag.end > 513U) {
 				return false ;
 			}
 
-			const auto value = frame( raw.substr( tag.end + 1U, end - tag.end - 1U)) ;	// 原titleです。
-			// Revisionは表示文字を推測せず原literalへ照合します。
+			const auto value = frame( raw.substr( tag.end + 1U, end - tag.end - 1U)) ;	// 原titleです
+			// Revisionは表示文字を推測せず原literalへ照合します
 			if( value.empty() || value.find_first_of( L"<>&\r\n") != value.npos) {
 				return false ;
 			}
@@ -711,20 +712,20 @@ template <class Visitor>
 			title.assign( value) ;
 			cursor = end + 8U ;
 		}
-		// Inert styleは評価せず、raw文書hashへ含めます。
+		// Inert styleは評価せず、raw文書hashへ含めます
 		else if( tag.name == L"style" && tag.attributes.empty()) {
-			const std::size_t end = raw.find( L"</style>", tag.end + 1U) ;	// 非実行style終端です。
-			// 不完全なstyleをbodyへ読み替えません。
+			const std::size_t end = raw.find( L"</style>", tag.end + 1U) ;	// 非実行style終端です
+			// 不完全なstyleをbodyへ読み替えません
 			if( end == raw.npos) {
 				return false ;
 			}
 
 			cursor = end + 8U ;
 		}
-		// Root-relative stylesheet参照だけを非実行で認識します。
+		// Root-relative stylesheet参照だけを非実行で認識します
 		else if( tag.name == L"link") {
-			const auto href = attribute( tag, L"href") ;	// 取得しない原stylesheet参照です。
-			// Headの別用途/任意属性/動的参照を許容しません。
+			const auto href = attribute( tag, L"href") ;	// 取得しない原stylesheet参照です
+			// Headの別用途/任意属性/動的参照を許容しません
 			if( attribute( tag, L"rel") != L"stylesheet" || attribute( tag, L"type") != L"text/css" ||
 			   tag.attributes.size() != 3U || !href.starts_with( L"/") || href.starts_with( L"//") ||
 			   href.find_first_of( L" \t\r\n<>?&#\"") != href.npos || href.size() > 2048U) {
@@ -737,26 +738,26 @@ template <class Visitor>
 		}
 	}
 
-	// 一意titleとheadの完了を要求します。
+	// 一意titleとheadの完了を要求します
 	if( !headEnded || title.empty() || (!revision.empty() && revision != title)) {
 		return false ;
 	}
 
-	// Head/body間の外枠空白だけを消費します。
+	// Head/body間の外枠空白だけを消費します
 	while( cursor < raw.size() && space( raw[cursor])) {
 		++cursor ;
 	}
 
-	HtmlTag body ;	// 原bodyの開始境界です。
-	// Body外の表示本文を黙って捨てません。
+	HtmlTag body ;	// 原bodyの開始境界です
+	// Body外の表示本文を黙って捨てません
 	if( !readTag( raw, cursor, body) || body.name != L"body" || body.closing || body.selfClosing ||
 	   body.attributes.size() > 1U ||
 	   (!body.attributes.empty() && body.attributes.front().first != L"style")) {
 		return false ;
 	}
 
-	const std::size_t end = raw.find( L"</body>", body.end + 1U) ;	// 原bodyの一意な終端です。
-	// Body後の別文書や表示本文を許容しません。
+	const std::size_t end = raw.find( L"</body>", body.end + 1U) ;	// 原bodyの一意な終端です
+	// Body後の別文書や表示本文を許容しません
 	if( end == raw.npos || frame( raw.substr( end + 7U)) != L"</html>") {
 		return false ;
 	}
@@ -767,23 +768,23 @@ template <class Visitor>
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一つのUTF-16原値を厳密UTF-8へ写します。
- * @param[in] value 元Unicode値です。
- * @param[out] bytes 成功時だけ完全UTF-8です。
- * @return 全文字を表現できた場合trueです。
+ * @brief 一つのUTF-16原値を厳密UTF-8へ写します
+ * @param[in] value 元Unicode値です
+ * @param[out] bytes 成功時だけ完全UTF-8です
+ * @return 全文字を表現できた場合trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool utf8( const std::wstring_view value, std::string &bytes)
 {
-	// API整数境界はpage上限から確認します。
+	// API整数境界はpage上限から確認します
 	if( value.empty() || value.size() > STATIC_PAGE_CHARACTERS) {
 		return false ;
 	}
 
 	const int count = WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, value.data(),
 										  static_cast<int>( value.size()), nullptr, 0, nullptr,
-										  nullptr) ;	// 必要なUTF-8 byte数です。
-	// 不正Unicodeを代替文字へ置換しません。
+										  nullptr) ;	// 必要なUTF-8 byte数です
+	// 不正Unicodeを代替文字へ置換しません
 	if( count <= 0) {
 		return false ;
 	}
@@ -796,24 +797,24 @@ template <class Visitor>
 
 //------------------------------------------------------------------------------
 /**
- * @brief 共通SHA-256の結果を元固定digestへ完全一致させます。
- * @param[in] bytes 同じ原文書または全文の完全UTF-8です。
- * @param[in] expected 署名recordの元digestです。
- * @return 共通SHA-256が成功し全byteが一致した場合trueです。
+ * @brief 共通SHA-256の結果を元固定digestへ完全一致させます
+ * @param[in] bytes 同じ原文書または全文の完全UTF-8です
+ * @param[in] expected 署名recordの元digestです
+ * @return 共通SHA-256が成功し全byteが一致した場合trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool hashMatches( const std::string_view bytes, const IndexManifestSha256 &expected)
 {
-	constexpr std::wstring_view HEX = L"0123456789abcdef" ;	// 共通digest表示の字句です。
-	std::wstring				actual ;					// 同原byteからの共通SHA-256結果です。
-	// Hash API失敗を一致へ変換しません。
+	constexpr std::wstring_view HEX = L"0123456789abcdef" ;	// 共通digest表示の字句です
+	std::wstring				actual ;					// 同原byteからの共通SHA-256結果です
+	// Hash API失敗を一致へ変換しません
 	if( computeBytesSha256( bytes, actual) != 0U || actual.size() != 64U) {
 		return false ;
 	}
 
-	// 全32byteを小文字digestと完全比較します。
+	// 全32byteを小文字digestと完全比較します
 	for( std::size_t index{}; index < expected.size(); ++index) {
-		// 不一致時は部分正常を返しません。
+		// 不一致時は部分正常を返しません
 		if( actual[index * 2U] != HEX[expected[index] >> 4U] ||
 		   actual[index * 2U + 1U] != HEX[expected[index] & 0x0fU]) {
 			return false ;
@@ -825,12 +826,12 @@ template <class Visitor>
 
 //------------------------------------------------------------------------------
 /**
- * @brief 独立文書の一意なsection全体を非実行で抽出します。
- * @param[in] page 原HTMLです。
- * @param[in] extraction 元一意selectorです。
- * @param[in] revision 同意対象の原公開revisionです。
- * @param[out] observation 全成功時だけ原sectionと可読全文です。
- * @return 成功0、構造不一致は元HRESULTです。
+ * @brief 独立文書の一意なsection全体を非実行で抽出します
+ * @param[in] page 原HTMLです
+ * @param[in] extraction 元一意selectorです
+ * @param[in] revision 同意対象の原公開revisionです
+ * @param[out] observation 全成功時だけ原sectionと可読全文です
+ * @return 成功0、構造不一致は元HRESULTです
  */
 //------------------------------------------------------------------------------
 NativeError extractSection( const std::wstring_view page, const IndexHtmlTermsExtraction &extraction,
@@ -838,23 +839,23 @@ NativeError extractSection( const std::wstring_view page, const IndexHtmlTermsEx
 {
 	observation			   = {} ;
 	observation.checkStage = 5U ;
-	// 独立profileだけ2MiBを認め、空revisionやNULの不確定文書を拒否します。
+	// 独立profileだけ2MiBを認め、空revisionやNULの不確定文書を拒否します
 	if( page.empty() || page.size() > STATIC_PAGE_CHARACTERS || page.find( L'\0') != page.npos ||
 	   revision.empty()) {
 		return E_INVALIDARG ;
 	}
 
-	std::size_t				 count{} ;		// 同selectorの実一致数です。
-	std::size_t				 depth{} ;		// 選択tagと同名の入れ子だけを数えます。
-	std::size_t				 begin{} ;		// 原sectionの開始位置です。
-	std::size_t				 content{} ;	// root tag直後の原本文位置です。
-	HtmlTermsTextObservation result ;		// 全構造確認前には公開しません。
+	std::size_t				 count{} ;		// 同selectorの実一致数です
+	std::size_t				 depth{} ;		// 選択tagと同名の入れ子だけを数えます
+	std::size_t				 begin{} ;		// 原sectionの開始位置です
+	std::size_t				 content{} ;	// root tag直後の原本文位置です
+	HtmlTermsTextObservation result ;		// 全構造確認前には公開しません
 	const auto				 valid = visitOuterTags(
 		  page,
 		  [&]( const HtmlTag &tag, const std::size_t offset, std::size_t) {
-			  // 同selectorが重複すれば外側・内側を問わず曖昧として拒否します。
+			  // 同selectorが重複すれば外側・内側を問わず曖昧として拒否します
 			  if( matches( tag, extraction.selector)) {
-				  // 自己終了sectionや重複sectionを全文へ変換しません。
+				  // 自己終了sectionや重複sectionを全文へ変換しません
 				  if( tag.selfClosing || ++count != 1U) {
 					  return false ;
 				  }
@@ -865,20 +866,20 @@ NativeError extractSection( const std::wstring_view page, const IndexHtmlTermsEx
 				  return true ;
 			  }
 
-			  // 同じroot tagの対応だけを数え、別sectionを借用しません。
+			  // 同じroot tagの対応だけを数え、別sectionを借用しません
 			  if( depth && tag.name == std::wstring( extraction.selector.tag.begin(),
 															   extraction.selector.tag.end())) {
-				  // 対応終端に到達した場合だけ原文書全体を確定します。
+				  // 対応終端に到達した場合だけ原文書全体を確定します
 				  if( tag.closing) {
 					  --depth ;
-					  // 選択sectionの外を可読全文へ取り込みません。
+					  // 選択sectionの外を可読全文へ取り込みません
 					  if( depth == 0U) {
 						  result.document = page.substr( begin, tag.end + 1U - begin) ;
 						  return renderBody( page.substr( content, offset - content), result.text,
 														true) ;
 					  }
 				  }
-				  // 同じroot tagの開始だけを対応終端まで数えます。
+				  // 同じroot tagの開始だけを対応終端まで数えます
 				  else if( !tag.selfClosing) {
 					  ++depth ;
 				  }
@@ -886,8 +887,8 @@ NativeError extractSection( const std::wstring_view page, const IndexHtmlTermsEx
 
 			  return true ;
 		  },
-		  &observation.checkOffset, true) ;	// 独立profileだけHTMLのdata属性名のdotを認識します。
-	// 原section/公開revisionを確認できない本文を同意可能へ変えません。
+		  &observation.checkOffset, true) ;	// 独立profileだけHTMLのdata属性名のdotを認識します
+	// 原section/公開revisionを確認できない本文を同意可能へ変えません
 	if( !valid || count != 1U || depth || result.document.empty() ||
 	   result.text.find( revision) == result.text.npos) {
 		return HRESULT_FROM_WIN32( ERROR_INVALID_DATA) ;
@@ -901,14 +902,14 @@ NativeError extractSection( const std::wstring_view page, const IndexHtmlTermsEx
 
 //------------------------------------------------------------------------------
 /**
- * @brief 明示したtextareaまたは独立sectionの原文書と全文を共通抽出します。
- * @param[in] page 厳密UTF-8復号pageです。旧profileは256KiB、新sectionだけ2MiB相当以内です。
- * @param[in] extraction 認証前producerまたは認証後adapterが持つ元selectorです。
- * @param[in] payloadUrl 元descriptorの完全ASCII HTTPS URLです。
- * @param[in] revision 原公開titleです。空の場合だけ原titleを保持し比較しません。
- * @param[out] observation 全成功時だけ原文書と全文です。失敗時は本文空と数値診断だけです。
- * @return 全構造成功0、未対応/不一致は元HRESULTです。
- * @note 所有権を借用し、メーカー別parser、ネットワーク、許可状態は使用しません。
+ * @brief 明示したtextareaまたは独立sectionの原文書と全文を共通抽出します
+ * @param[in] page 厳密UTF-8復号pageです。旧profileは256KiB、新sectionだけ2MiB相当以内です
+ * @param[in] extraction 認証前producerまたは認証後adapterが持つ元selectorです
+ * @param[in] payloadUrl 元descriptorの完全ASCII HTTPS URLです
+ * @param[in] revision 原公開titleです。空の場合だけ原titleを保持し比較しません
+ * @param[out] observation 全成功時だけ原文書と全文です。失敗時は本文空と数値診断だけです
+ * @return 全構造成功0、未対応/不一致は元HRESULTです
+ * @note 所有権を借用し、メーカー別parser、ネットワーク、許可状態は使用しません
  */
 //------------------------------------------------------------------------------
 NativeError extractStaticHtmlTerms( const std::wstring_view		   page,
@@ -919,12 +920,12 @@ NativeError extractStaticHtmlTerms( const std::wstring_view		   page,
 {
 	observation			   = {} ;
 	observation.checkStage = 1U ;
-	// 独立文書だけ明示した新profileを使い、旧textareaの構造条件を変更しません。
+	// 独立文書だけ明示した新profileを使い、旧textareaの構造条件を変更しません
 	if( extraction.profile == "STATIC_HTML_SECTION_V1") {
 		return extractSection( page, extraction, revision, observation) ;
 	}
 
-	// Profileや未検証の過大入力を曖昧な抽出へ進めません。
+	// Profileや未検証の過大入力を曖昧な抽出へ進めません
 	if( extraction.profile != "TEXTAREA_HTML_DOCUMENT_V1" || extraction.selector.tag != "textarea" ||
 	   page.empty() || page.size() > MAX_PAGE_CHARACTERS || page.find( L'\0') != page.npos ||
 	   payloadUrl.empty()) {
@@ -932,42 +933,42 @@ NativeError extractStaticHtmlTerms( const std::wstring_view		   page,
 	}
 
 	try {
-		std::size_t				 containers{} ;	// 一意containerの実一致数です。
-		std::size_t				 links{} ;		// 一意payload操作の実一致数です。
-		std::size_t				 selectors{} ;	// 一意textareaの実一致数です。
-		std::size_t				 depth{} ;		// 対象containerと同じtagの有限入れ子数です。
-		bool					 closed{} ;		// 対象containerの終端を確認した場合trueです。
-		bool					 contained{} ;	// 選択textareaが対象container内にあった場合trueです。
-		HtmlTermsTextObservation value ;		// 全成功前には公開しない所有値です。
+		std::size_t				 containers{} ;	// 一意containerの実一致数です
+		std::size_t				 links{} ;		// 一意payload操作の実一致数です
+		std::size_t				 selectors{} ;	// 一意textareaの実一致数です
+		std::size_t				 depth{} ;		// 対象containerと同じtagの有限入れ子数です
+		bool					 closed{} ;		// 対象containerの終端を確認した場合trueです
+		bool					 contained{} ;	// 選択textareaが対象container内にあった場合trueです
+		HtmlTermsTextObservation value ;		// 全成功前には公開しない所有値です
 		const std::wstring		 containerTag( extraction.containerSelector.tag.begin(),
-											  // 元container tagです。
+											  // 元container tagです
 											  extraction.containerSelector.tag.end()) ;
-		const std::wstring		 payload( payloadUrl.begin(), payloadUrl.end()) ;	// 原ASCII URLです。
+		const std::wstring		 payload( payloadUrl.begin(), payloadUrl.end()) ;	// 原ASCII URLです
 		const std::wstring		 payloadAttribute( extraction.payloadAttribute.begin(),
-												  // 元payload属性名です。
+												  // 元payload属性名です
 												  extraction.payloadAttribute.end()) ;
 		const bool				 parsed = visitOuterTags(
 			  page,
 			  [&]( const HtmlTag &tag, const std::size_t, const std::size_t contentEnd) {
-				  // Container selector自体の重複を拒否します。
+				  // Container selector自体の重複を拒否します
 				  if( matches( tag, extraction.containerSelector)) {
 					  ++containers ;
-					  // 複数containerの最初だけを採用しません。
+					  // 複数containerの最初だけを採用しません
 					  if( containers != 1U || depth != 0U || tag.selfClosing) {
 						  return false ;
 					  }
 
 					  depth = 1U ;
 				  } else {
-					  // 一意containerの同tag入れ子だけを終了境界へ結合します。
+					  // 一意containerの同tag入れ子だけを終了境界へ結合します
 					  if( depth > 0U && tag.name == containerTag) {
-						  // 閉じtagでは原container終端まで一段戻します。
+						  // 閉じtagでは原container終端まで一段戻します
 						  if( tag.closing) {
 							  --depth ;
 							  closed = depth == 0U ;
 						  } else {
 							  ++depth ;
-							  // 過大入れ子を無制限走査へ変えません。
+							  // 過大入れ子を無制限走査へ変えません
 							  if( depth > MAX_DEPTH) {
 								  return false ;
 							  }
@@ -975,19 +976,19 @@ NativeError extractStaticHtmlTerms( const std::wstring_view		   page,
 					  }
 				  }
 
-				  // 元link selectorと実payload属性を一緒に照合します。
+				  // 元link selectorと実payload属性を一緒に照合します
 				  if( matches( tag, extraction.linkSelector)) {
 					  ++links ;
-					  // 別recordのpayloadや重複操作を同じ許諾へ結合しません。
+					  // 別recordのpayloadや重複操作を同じ許諾へ結合しません
 					  if( links != 1U || attribute( tag, payloadAttribute) != payload) {
 						  return false ;
 					  }
 				  }
 
-				  // 実textareaの全原文書だけを保持します。
+				  // 実textareaの全原文書だけを保持します
 				  if( matches( tag, extraction.selector)) {
 					  ++selectors ;
-					  // Container外や複数textareaの最初だけを採用しません。
+					  // Container外や複数textareaの最初だけを採用しません
 					  if( selectors != 1U || depth == 0U || tag.selfClosing ||
 						 contentEnd <= tag.end + 1U) {
 						  return false ;
@@ -999,21 +1000,21 @@ NativeError extractStaticHtmlTerms( const std::wstring_view		   page,
 
 				  return true ;
 			  },
-			  &observation.checkOffset) ;	// 同期中だけpage/所有valueと数値診断を借用します。
-		// 全pageの一意性・包含・完全終端が成立した場合だけ全文を抽出します。
+			  &observation.checkOffset) ;	// 同期中だけpage/所有valueと数値診断を借用します
+		// 全pageの一意性・包含・完全終端が成立した場合だけ全文を抽出します
 		if( !parsed) {
 			observation.checkStage = 2U ;
 			return HRESULT_FROM_WIN32( ERROR_INVALID_DATA) ;
 		}
 
-		// 一意性や包含失敗を全文解析の成功へ補完しません。
+		// 一意性や包含失敗を全文解析の成功へ補完しません
 		if( containers != 1U || links != 1U || selectors != 1U || !contained || !closed ||
 		   depth != 0U) {
 			observation.checkStage = 3U ;
 			return HRESULT_FROM_WIN32( ERROR_INVALID_DATA) ;
 		}
 
-		// 原文書の未知構造を部分全文へ変換しません。
+		// 原文書の未知構造を部分全文へ変換しません
 		if( !renderDocument( value.document, revision, value.text)) {
 			observation.checkStage = 4U ;
 			return HRESULT_FROM_WIN32( ERROR_INVALID_DATA) ;
@@ -1028,14 +1029,14 @@ NativeError extractStaticHtmlTerms( const std::wstring_view		   page,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 共通抽出した原文書と全文の二つのexact size/hashを検査します。
- * @param[in] page 同じ使用時HTTPから復号した原pageです。
- * @param[in] extraction 署名recordの原文書/全文hashとselectorです。
- * @param[in] payloadUrl 同じ署名recordの原payload URLです。
- * @param[in] revision 同じ署名recordの原公開revisionです。
- * @param[out] text 全検査成立時だけ全文です。失敗時は空です。
- * @return 成功0、構造/全文/原文書不一致は元HRESULTです。
- * @note 観測pageのprovenance hashを新観測へ更新せず、HTMLの明示契約だけを検査します。
+ * @brief 共通抽出した原文書と全文の二つのexact size/hashを検査します
+ * @param[in] page 同じ使用時HTTPから復号した原pageです
+ * @param[in] extraction 署名recordの原文書/全文hashとselectorです
+ * @param[in] payloadUrl 同じ署名recordの原payload URLです
+ * @param[in] revision 同じ署名recordの原公開revisionです
+ * @param[out] text 全検査成立時だけ全文です。失敗時は空です
+ * @return 成功0、構造/全文/原文書不一致は元HRESULTです
+ * @note 観測pageのprovenance hashを新観測へ更新せず、HTMLの明示契約だけを検査します
  */
 //------------------------------------------------------------------------------
 NativeError verifyStaticHtmlTerms( const std::wstring_view		  page,
@@ -1044,18 +1045,18 @@ NativeError verifyStaticHtmlTerms( const std::wstring_view		  page,
 								  const std::wstring_view revision, std::wstring &text)
 {
 	text.clear() ;
-	HtmlTermsTextObservation observation ;	// 同一抽出からの原文書と全文です。
+	HtmlTermsTextObservation observation ;	// 同一抽出からの原文書と全文です
 	const auto				 error = extractStaticHtmlTerms( page, extraction, payloadUrl, revision,
-															observation) ;	// 同期の共通構造検査です。
-	// 構造失敗の部分文書をhash成功へ変換しません。
+															observation) ;	// 同期の共通構造検査です
+	// 構造失敗の部分文書をhash成功へ変換しません
 	if( error != 0U) {
 		return error ;
 	}
 
 	try {
-		std::string document ;	// 原選択文書の完全UTF-8です。
-		std::string fullText ;	// 同抽出全文の完全UTF-8です。
-		// 原文書/全文を個別のexact size/hashへ一致させます。
+		std::string document ;	// 原選択文書の完全UTF-8です
+		std::string fullText ;	// 同抽出全文の完全UTF-8です
+		// 原文書/全文を個別のexact size/hashへ一致させます
 		if( !utf8( observation.document, document) || !utf8( observation.text, fullText) ||
 		   document.size() != extraction.documentSizeBytes ||
 		   fullText.size() != extraction.textSizeBytes ||
@@ -1073,19 +1074,19 @@ NativeError verifyStaticHtmlTerms( const std::wstring_view		  page,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 外pageに一つだけ存在する非実行script参照を確認します。
- * @param[in] page 保存された元pageです。Textarea/script/style内部を外要素へ数えません。
- * @param[in] absoluteUrl 公式originへ照合済みの元script URLです。
- * @param[in] relativePath 同じURLの原root-relative pathです。
- * @return 原srcへ一意に一致する場合true。実通信やJSの意味確認は行いません。
+ * @brief 外pageに一つだけ存在する非実行script参照を確認します
+ * @param[in] page 保存された元pageです。Textarea/script/style内部を外要素へ数えません
+ * @param[in] absoluteUrl 公式originへ照合済みの元script URLです
+ * @param[in] relativePath 同じURLの原root-relative pathです
+ * @return 原srcへ一意に一致する場合true。実通信やJSの意味確認は行いません
  */
 //------------------------------------------------------------------------------
 bool hasSingleStaticHtmlScriptReference( const std::wstring_view page,
 										const std::wstring_view absoluteUrl,
 										const std::wstring_view relativePath)
 {
-	std::size_t matchesCount{} ;	// 外pageの実参照数です。
-	// 元pageの上限と一意な参照だけを必要とします。
+	std::size_t matchesCount{} ;	// 外pageの実参照数です
+	// 元pageの上限と一意な参照だけを必要とします
 	if( page.empty() || page.size() > MAX_PAGE_CHARACTERS || absoluteUrl.empty() ||
 	   relativePath.empty()) {
 		return false ;
@@ -1093,52 +1094,52 @@ bool hasSingleStaticHtmlScriptReference( const std::wstring_view page,
 
 	const bool parsed =
 		visitOuterTags( page, [&]( const HtmlTag &tag, const std::size_t, const std::size_t) {
-			// Script内部の文字列をscript参照へ数えません。
+			// Script内部の文字列をscript参照へ数えません
 			if( tag.name == L"script" && !tag.closing) {
-				const auto src = attribute( tag, L"src") ;	// 外pageの実参照です。
-				// Root-relativeとabsoluteの原同URLだけを一つとして数えます。
+				const auto src = attribute( tag, L"src") ;	// 外pageの実参照です
+				// Root-relativeとabsoluteの原同URLだけを一つとして数えます
 				if( src == absoluteUrl || src == relativePath) {
 					++matchesCount ;
 				}
 			}
 
 			return matchesCount <= 1U ;
-		}) ; // 呼出し中だけ元pageと参照値を借用します。
+		}) ; // 呼出し中だけ元pageと参照値を借用します
 	return parsed && matchesCount == 1U ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式根拠HTMLの実anchorが明示された規約URLを参照するか確認します。
- * @param[in] page 最大2MiB相当の厳密UTF-8復号HTMLです。
- * @param[in] documentUrl queryなしの明示HTTPS原URLです。
- * @param[out] rejectedOffset 任意の構造停止文字位置です。本文は返しません。
- * @return script/comment外に同URLへの実anchorが一つ以上あればtrueです。
+ * @brief 公式根拠HTMLの実anchorが明示された規約URLを参照するか確認します
+ * @param[in] page 最大2MiB相当の厳密UTF-8復号HTMLです
+ * @param[in] documentUrl queryなしの明示HTTPS原URLです
+ * @param[out] rejectedOffset 任意の構造停止文字位置です。本文は返しません
+ * @return script/comment外に同URLへの実anchorが一つ以上あればtrueです
  */
 //------------------------------------------------------------------------------
 bool hasStaticHtmlDocumentLink( const std::wstring_view page, const std::string_view documentUrl,
 							   std::size_t *rejectedOffset)
 {
-	// 有界の明示HTTPS URL以外を別origin許可の根拠にしません。
+	// 有界の明示HTTPS URL以外を別origin許可の根拠にしません
 	if( page.empty() || page.size() > STATIC_PAGE_CHARACTERS ||
 	   !documentUrl.starts_with( "https://") ||
 	   documentUrl.find_first_of( "?#") != documentUrl.npos) {
 		return false ;
 	}
 
-	std::size_t		   count{} ;										// 同じ明示URLの実anchor数です。重複記載は曖昧性ではありません。
-	const std::wstring url( documentUrl.begin(), documentUrl.end()) ;	// 検証済みASCII URLだけです。
+	std::size_t		   count{} ;										// 同じ明示URLの実anchor数です。重複記載は曖昧性ではありません
+	const std::wstring url( documentUrl.begin(), documentUrl.end()) ;	// 検証済みASCII URLだけです
 	const auto		   valid = visitOuterTags(
 		page,
 		[&]( const HtmlTag &tag, std::size_t, std::size_t) {
-			// script内の文字列や別hrefを公式リンクへ数えません。
+			// script内の文字列や別hrefを公式リンクへ数えません
 			if( !tag.closing && tag.name == L"a" && attribute( tag, L"href") == url) {
 				++count ;
 			}
 
 			return true ;
 		},
-		rejectedOffset, true) ;	// 独立profileだけのHTML属性を認識します。
+		rejectedOffset, true) ;	// 独立profileだけのHTML属性を認識します
 	return valid && count > 0U ;
 }
 

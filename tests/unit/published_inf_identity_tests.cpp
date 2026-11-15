@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file published_inf_identity_tests.cpp
- * @brief 架空INFの原Models節/ID種別/ClassGUIDの非許可receiptを確認します。
- * @version 01.01.01
+ * @brief 架空INFの原Models節/ID種別/ClassGUIDの非許可receiptを確認します
+ * @version 01.01.02
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,12 +19,13 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/14  原節/種別と欠測/元package不一致の限定試験を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
- * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/14  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 架空INFだけを保護workspaceへ書きます。実device/署名成功/HTTP/導入を使用しません。
+ * @note 架空INFだけを保護workspaceへ書きます。実device/署名成功/HTTP/導入を使用しません
  * @see docs/adr/0338-local-acquisition-index-signing-and-import.md
  */
 //------------------------------------------------------------------------------
@@ -40,21 +41,21 @@
 
 namespace {
 
-// 架空INFの有限集計です。
+// 架空INFの有限集計です
 unsigned assertions{} ;
-// 原不成立を除外しない集計です。
+// 原不成立を除外しない集計です
 unsigned failures{} ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一つの固定期待を集計します。
- * @param[in] value 全条件成立時だけtrueです。
+ * @brief 一つの固定期待を集計します
+ * @param[in] value 全条件成立時だけtrueです
  */
 //------------------------------------------------------------------------------
 void	 expect( const bool value)
 {
 	++assertions ;
-	// 失敗を後続成功で隠しません。
+	// 失敗を後続成功で隠しません
 	if( !value) {
 		++failures ;
 		std::printf( "FAIL assertion=%u\n", assertions) ;
@@ -63,35 +64,35 @@ void	 expect( const bool value)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 小さな架空fileを同保護workspaceへ作ります。
- * @param[in,out] workspace 新規fileだけを追跡するownerです。
- * @param[in] name 架空の安全な相対basenameです。
- * @param[in] bytes 同期中だけ借用する有限原byteです。
- * @return 元createFileが追跡するfileの全write/flush/close成立時trueです。
+ * @brief 小さな架空fileを同保護workspaceへ作ります
+ * @param[in,out] workspace 新規fileだけを追跡するownerです
+ * @param[in] name 架空の安全な相対basenameです
+ * @param[in] bytes 同期中だけ借用する有限原byteです
+ * @return 元createFileが追跡するfileの全write/flush/close成立時trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool writeFile( drivercrate::OfficialDownloadWorkspace &workspace,
 							 const std::wstring_view name, const std::string_view bytes)
 {
-	HANDLE handle{} ;	// Workspaceが作る新規fileです。
-	// 元作成codeの失敗から通常file直書きへ迂回しません。
+	HANDLE handle{} ;	// Workspaceが作る新規fileです
+	// 元作成codeの失敗から通常file直書きへ迂回しません
 	if( workspace.createFile( name, handle) != 0) {
 		return false ;
 	}
 
-	DWORD	   written{} ;	// 小さな架空byteの実write数です。
+	DWORD	   written{} ;	// 小さな架空byteの実write数です
 	const bool saved = WriteFile( handle, bytes.data(), static_cast<DWORD>( bytes.size()), &written,
 								 nullptr) != FALSE &&
 					   written == bytes.size() &&
-					   // 完全保存だけです。
+					   // 完全保存だけです
 					   FlushFileBuffers( handle) != FALSE ;
-	const bool closed = CloseHandle( handle) != FALSE ;	// Short write時もhandleを閉じます。
+	const bool closed = CloseHandle( handle) != FALSE ;	// Short write時もhandleを閉じます
 	return saved && closed ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 現x64節/ID区分と元INF不一致/欠測の有限分母を確認します。
+ * @brief 現x64節/ID区分と元INF不一致/欠測の有限分母を確認します
  */
 //------------------------------------------------------------------------------
 void run()
@@ -106,27 +107,27 @@ void run()
 		"[Models.NTamd64]\r\nFictional=Install,PCI\\VEN_1234&DEV_5678,PCI\\VEN_1234\r\n"
 		"[SourceDisksNames.amd64]\r\n1=Fictional Disk,,,\r\n"
 		"[SourceDisksFiles.amd64]\r\nsample.sys=1\r\n"
-		"[Install.NT]\r\nCopyFiles=DriverCopy\r\n[DriverCopy]\r\nsample.sys\r\n" ;	// 全IDは架空です。
-	OfficialDownloadWorkspace workspace ;											// 試験だけの新規保護領域です。
+		"[Install.NT]\r\nCopyFiles=DriverCopy\r\n[DriverCopy]\r\nsample.sys\r\n" ;	// 全IDは架空です
+	OfficialDownloadWorkspace workspace ;											// 試験だけの新規保護領域です
 	expect( workspace.initialize( L"published-identity-test", 20401U) == 0) ;
 	expect( writeFile( workspace, L"sample.inf", INF)) ;
 	expect( writeFile( workspace, L"sample.cat", "unsigned artificial catalog")) ;
 	expect( writeFile( workspace, L"sample.sys", "unsigned artificial driver")) ;
 	const std::array	 entries{OfficialZipEntry{L"sample.inf", INF.size()},
 							 OfficialZipEntry{L"sample.cat", 27U},
-							 OfficialZipEntry{L"sample.sys", 26U}} ;	// 一INFの架空一覧です。
-	constexpr std::array classes{std::wstring_view{L"Net"}} ;			// 元classだけです。
+							 OfficialZipEntry{L"sample.sys", 26U}} ;	// 一INFの架空一覧です
+	constexpr std::array classes{std::wstring_view{L"Net"}} ;			// 元classだけです
 	constexpr std::array providers{
-		std::wstring_view{L"Fictional Identity Publisher"}} ;				// 架空Providerだけです。
-	constexpr std::array signatures{std::wstring_view{L"$Windows NT$"}} ;	// 標準INF文法だけです。
+		std::wstring_view{L"Fictional Identity Publisher"}} ;				// 架空Providerだけです
+	constexpr std::array signatures{std::wstring_view{L"$Windows NT$"}} ;	// 標準INF文法だけです
 	const OfficialInfInspectionPolicy policy{16U, 16U, classes, providers,
-											 signatures} ;	// 既存構造policyです。
-	OfficialInfPackage				  package ;				// 構造成功は署名成功ではありません。
+											 signatures} ;	// 既存構造policyです
+	OfficialInfPackage				  package ;				// 構造成功は署名成功ではありません
 	expect( inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy, package) == 0) ;
-	OfficialInfPublishedIdentity identity ;	// 非許可の原metadataです。
+	OfficialInfPublishedIdentity identity ;	// 非許可の原metadataです
 	expect( readOfficialInfPublishedIdentity( workspace, package, identity) == 0) ;
 	expect( identity.models.size() == 1U) ;
-	// 前段不成立では空vectorを参照しません。
+	// 前段不成立では空vectorを参照しません
 	if( identity.models.size() == 1U) {
 		expect( identity.models[0].modelSection == L"Models.NTamd64") ;
 		expect( identity.models[0].hardwareIds ==
@@ -135,41 +136,41 @@ void run()
 	}
 
 	expect( identity.classGuid == L"{4d36e972-e325-11ce-bfc1-08002be10318}") ;
-	std::wstring expectedHash ;	// 元INFの共通hashです。
+	std::wstring expectedHash ;	// 元INFの共通hashです
 	expect( computeBytesSha256( INF, expectedHash) == 0 && identity.infSha256 == expectedHash) ;
-	std::string manyModels ;	// 通常readerが以前から扱う128超の架空公開IDです。
-	// 一つの元Models節へ140件を追加し、公開用途だけの旧128件拒否を再現します。
+	std::string manyModels ;	// 通常readerが以前から扱う128超の架空公開IDです
+	// 一つの元Models節へ140件を追加し、公開用途だけの旧128件拒否を再現します
 	for( unsigned ordinal = 0U; ordinal < 140U; ++ordinal) {
 		manyModels += "Fictional=Install,TESTBUS\\PUBLIC_" + std::to_string( ordinal) + "\r\n" ;
 	}
 
-	std::string manyInf{INF} ;	// 原署名/APIのfixtureは既存と同じです。
+	std::string manyInf{INF} ;	// 原署名/APIのfixtureは既存と同じです
 	const auto	modelStart =
-		// x64行だけを置き換えます。
+		// x64行だけを置き換えます
 		manyInf.find( "Fictional=Install,PCI\\VEN_1234&DEV_5678") ;
 	const auto modelEnd =
-		// 後続sourceを保持します。
+		// 後続sourceを保持します
 		manyInf.find( "[SourceDisksNames.amd64]", modelStart) ;
 	manyInf.replace( modelStart, modelEnd - modelStart, manyModels) ;
 	expect( writeFile( workspace, L"many.inf", manyInf)) ;
 	const std::array manyEntries{OfficialZipEntry{L"many.inf", manyInf.size()}, entries[1],
-								 entries[2]} ;	// 同じCAT/SYS参照です。
-	auto			 manyPolicy	  = policy ;	// 通常共通層と同じ有限上限です。
+								 entries[2]} ;	// 同じCAT/SYS参照です
+	auto			 manyPolicy	  = policy ;	// 通常共通層と同じ有限上限です
 	manyPolicy.maximumHardwareIds = 4096U ;
-	OfficialInfPackage manyPackage ;	// 導入を許可しない構造結果です。
+	OfficialInfPackage manyPackage ;	// 導入を許可しない構造結果です
 	expect( inspectOfficialInfPackage( workspace, manyEntries, L"many.inf", manyPolicy,
 									 manyPackage) == 0) ;
-	OfficialInfPublishedIdentity manyIdentity ;	// 同INFの原集合だけです。
+	OfficialInfPublishedIdentity manyIdentity ;	// 同INFの原集合だけです
 	expect( readOfficialInfPublishedIdentity( workspace, manyPackage, manyIdentity) == 0 &&
 		   manyIdentity.models.size() == 1U &&
 		   manyIdentity.models.front().hardwareIds.size() == 140U) ;
 	expect( verifyWindowsInfPackageIntegrity( workspace, package) !=
-		   0) ;	// Metadata成功をCAT署名へ換算しません。
-	// 別元packageという明示条件変更です。
+		   0) ;	// Metadata成功をCAT署名へ換算しません
+	// 別元packageという明示条件変更です
 	package.hardwareIds.push_back( L"PCI\\VEN_1234&DEV_0000") ;
 	expect( readOfficialInfPublishedIdentity( workspace, package, identity) != 0) ;
 	expect( identity.models.empty() && identity.infSha256.empty() && identity.classGuid.empty()) ;
-	// 元ID欠測を明示します。
+	// 元ID欠測を明示します
 	package.hardwareIds.clear() ;
 	expect( readOfficialInfPublishedIdentity( workspace, package, identity) != 0) ;
 }
@@ -178,8 +179,8 @@ void run()
 
 //------------------------------------------------------------------------------
 /**
- * @brief 架空INFのread-only試験だけを実行します。
- * @return 全固定期待成立0、失敗1です。
+ * @brief 架空INFのread-only試験だけを実行します
+ * @return 全固定期待成立0、失敗1です
  */
 //------------------------------------------------------------------------------
 int main()

@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file test_main.cpp
- * @brief DriverCrate単体試験エントリーポイント。
- * @version 01.44.01
+ * @brief DriverCrate単体試験エントリーポイント
+ * @version 01.44.04
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,75 +19,78 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  公式MSI stream試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  WinOF-2 driver閉包試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  WinOF-2内容・適用性監査試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  公式release端末内観測試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  公式release観測永続化試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  Local probe試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  Live検索ASCII診断試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  段階別計測の非通信試験を追加。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  公式MSI stream試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  WinOF-2 driver閉包試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  WinOF-2内容・適用性監査試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  公式release端末内観測試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  公式release観測永続化試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Local probe試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  Live検索ASCII診断試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  段階別計測の非通信試験を追加
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索専用の型と拒否境界を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/09/14  非導入Local AIの有限境界試験を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/09/15  公式探索の固定評価集合fixtureを追加。
- * Ver.01.03.00 Shunji Ogawa  2026/09/15  Record限定download grant試験を追加。
- * Ver.01.04.00 Shunji Ogawa  2026/09/15  委譲取得と共通package検査の接続試験を追加。
- * Ver.01.05.00 Shunji Ogawa  2026/09/15  公式record payload三方式のrouting試験を追加。
- * Ver.01.06.00 Shunji Ogawa  2026/09/15  公式自動探索Core境界試験を追加。
- * Ver.01.07.00 Shunji Ogawa  2026/09/15  公式自動探索固定root adapter試験を追加。
- * Ver.01.08.00 Shunji Ogawa  2026/09/15  組み込み自動探索registration接続試験を追加。
- * Ver.01.09.00 Shunji Ogawa  2026/09/15  自動探索EULA完全一致group試験を追加。
- * Ver.01.10.00 Shunji Ogawa  2026/09/20  保存graph評価core試験を追加。
- * Ver.01.11.00 Shunji Ogawa  2026/09/20  保存graph入力・GPU接続と非導入検証を追加。
- * Ver.01.12.00 Shunji Ogawa  2026/09/20  AI選択と公式検査用取得の接続試験を追加。
- * Ver.01.13.00 Shunji Ogawa  2026/09/21  目的照合offline再生codec試験を追加。
- * Ver.01.14.00 Shunji Ogawa  2026/09/22  静的HTML正規化試験を追加。
- * Ver.01.15.00 Shunji Ogawa  2026/09/22  Live HTML公式GETの非通信試験を追加。
- * Ver.01.16.00 Shunji Ogawa  2026/09/23  Intel EXE取得専用parser試験を追加。
- * Ver.01.17.00 Shunji Ogawa  2026/09/28  Intel製品identityの有限解析試験を追加。
- * Ver.01.17.01 Shunji Ogawa  2026/10/02  AI依存を撤去し非AI共通処理と試験を維持。
- * Ver.01.18.00 Shunji Ogawa  2026/10/05  保守専用PE内表の回帰を追加。
- * Ver.01.19.00 Shunji Ogawa  2026/10/05  索引hintと通常検査の非導入結合回帰を追加。
- * Ver.01.20.00 Shunji Ogawa  2026/10/11  原byte署名manifestの実CNG回帰を追加。
- * Ver.01.21.00 Shunji Ogawa  2026/10/11  固定GZip asset byteの別native回帰groupを追加。
- * Ver.01.22.00 Shunji Ogawa  2026/10/11  署名済み配布record schemaの独立回帰groupを追加。
- * Ver.01.23.00 Shunji Ogawa  2026/10/11  隔離diskの署名索引保護保存groupを追加。
- * Ver.01.24.00 Shunji Ogawa  2026/10/11  保存snapshot公開ID照合groupと限定実行を追加。
- * Ver.01.25.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
- * Ver.01.26.00 Shunji Ogawa  2026/10/12  変更module独立targetと通常全groupの分母を分離。
- * Ver.01.27.00 Shunji Ogawa  2026/10/15  公式policy groupの限定再現引数を追加。
- * Ver.01.27.01 Shunji Ogawa  2026/10/15  全体INF件数の正負再現groupを追加。
- * Ver.01.27.02 Shunji Ogawa  2026/10/16  RAM manifest認証groupの限定実行入口を追加。
- * Ver.01.28.00 Shunji Ogawa  2026/10/16  固定GitHub refreshの完全fake回帰入口を追加。
- * Ver.01.29.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
- * Ver.01.30.00 Shunji Ogawa  2026/10/17  署名索引のHTTP・実容量三group限定入口を追加。
- * Ver.01.31.00 Shunji Ogawa  2026/10/19  保護storeと認証移動の限定回帰入口を追加。
- * Ver.01.32.00 Shunji Ogawa  2026/10/23  共通record値codecの限定回帰入口を追加。
- * Ver.01.33.00 Shunji Ogawa  2026/10/23  実producer原manifest/GZipから候補までの有限入口を追加。
- * Ver.01.33.01 Shunji Ogawa  2026/10/24 現行仕様へ限定し旧版専用の入口・移動を整理。
- * Ver.01.34.00 Shunji Ogawa  2026/10/24  同集合の未照合native一recordを保持するfixture入口。
- * Ver.01.35.00 Shunji Ogawa  2026/10/24  元Intel archiveの明示historical一件試験入口を追加。
- * Ver.01.36.00 Shunji Ogawa  2026/10/26  Ethernet公開hashの非通信関連回帰入口を追加。
- * Ver.01.37.00 Shunji Ogawa  2026/10/26 新metadata生成索引の原byteを通常reader/候補adapterへ接続。
- * Ver.01.38.00 Shunji Ogawa  2026/11/03  共通package内容の限定回帰入口を追加。
- * Ver.01.39.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
- * Ver.01.40.00 Shunji Ogawa  2026/11/06  driver DATA通常経路の非対話局所入口を追加。
- * Ver.01.41.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
- * Ver.01.42.00 Shunji Ogawa  2026/11/09  導入後native対応の限定selectorを追加。
- * Ver.01.43.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
- * Ver.01.44.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
- * Ver.01.44.01 Shunji Ogawa  2026/11/11  aggregate専用の二試験selectorを既分岐内に移動。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索専用の型と拒否境界を追加
+ * Ver.01.01.00 Shunji Ogawa  2026/09/14  非導入Local AIの有限境界試験を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/09/15  公式探索の固定評価集合fixtureを追加
+ * Ver.01.03.00 Shunji Ogawa  2026/09/15  Record限定download grant試験を追加
+ * Ver.01.04.00 Shunji Ogawa  2026/09/15  委譲取得と共通package検査の接続試験を追加
+ * Ver.01.05.00 Shunji Ogawa  2026/09/15  公式record payload三方式のrouting試験を追加
+ * Ver.01.06.00 Shunji Ogawa  2026/09/15  公式自動探索Core境界試験を追加
+ * Ver.01.07.00 Shunji Ogawa  2026/09/15  公式自動探索固定root adapter試験を追加
+ * Ver.01.08.00 Shunji Ogawa  2026/09/15  組み込み自動探索registration接続試験を追加
+ * Ver.01.09.00 Shunji Ogawa  2026/09/15  自動探索EULA完全一致group試験を追加
+ * Ver.01.10.00 Shunji Ogawa  2026/09/20  保存graph評価core試験を追加
+ * Ver.01.11.00 Shunji Ogawa  2026/09/20  保存graph入力・GPU接続と非導入検証を追加
+ * Ver.01.12.00 Shunji Ogawa  2026/09/20  AI選択と公式検査用取得の接続試験を追加
+ * Ver.01.13.00 Shunji Ogawa  2026/09/21  目的照合offline再生codec試験を追加
+ * Ver.01.14.00 Shunji Ogawa  2026/09/22  静的HTML正規化試験を追加
+ * Ver.01.15.00 Shunji Ogawa  2026/09/22  Live HTML公式GETの非通信試験を追加
+ * Ver.01.16.00 Shunji Ogawa  2026/09/23  Intel EXE取得専用parser試験を追加
+ * Ver.01.17.00 Shunji Ogawa  2026/09/28  Intel製品identityの有限解析試験を追加
+ * Ver.01.17.01 Shunji Ogawa  2026/10/02  AI依存を撤去し非AI共通処理と試験を維持
+ * Ver.01.18.00 Shunji Ogawa  2026/10/05  保守専用PE内表の回帰を追加
+ * Ver.01.19.00 Shunji Ogawa  2026/10/05  索引hintと通常検査の非導入結合回帰を追加
+ * Ver.01.20.00 Shunji Ogawa  2026/10/11  原byte署名manifestの実CNG回帰を追加
+ * Ver.01.21.00 Shunji Ogawa  2026/10/11  固定GZip asset byteの別native回帰groupを追加
+ * Ver.01.22.00 Shunji Ogawa  2026/10/11  署名済み配布record schemaの独立回帰groupを追加
+ * Ver.01.23.00 Shunji Ogawa  2026/10/11  隔離diskの署名索引保護保存groupを追加
+ * Ver.01.24.00 Shunji Ogawa  2026/10/11  保存snapshot公開ID照合groupと限定実行を追加
+ * Ver.01.25.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続
+ * Ver.01.26.00 Shunji Ogawa  2026/10/12  変更module独立targetと通常全groupの分母を分離
+ * Ver.01.27.00 Shunji Ogawa  2026/10/15  公式policy groupの限定再現引数を追加
+ * Ver.01.27.01 Shunji Ogawa  2026/10/15  全体INF件数の正負再現groupを追加
+ * Ver.01.27.02 Shunji Ogawa  2026/10/16  RAM manifest認証groupの限定実行入口を追加
+ * Ver.01.28.00 Shunji Ogawa  2026/10/16  固定GitHub refreshの完全fake回帰入口を追加
+ * Ver.01.29.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続
+ * Ver.01.30.00 Shunji Ogawa  2026/10/17  署名索引のHTTP・実容量三group限定入口を追加
+ * Ver.01.31.00 Shunji Ogawa  2026/10/19  保護storeと認証移動の限定回帰入口を追加
+ * Ver.01.32.00 Shunji Ogawa  2026/10/23  共通record値codecの限定回帰入口を追加
+ * Ver.01.33.00 Shunji Ogawa  2026/10/23  実producer原manifest/GZipから候補までの有限入口を追加
+ * Ver.01.33.01 Shunji Ogawa  2026/10/24 現行仕様へ限定し旧版専用の入口・移動を整理
+ * Ver.01.34.00 Shunji Ogawa  2026/10/24  同集合の未照合native一recordを保持するfixture入口
+ * Ver.01.35.00 Shunji Ogawa  2026/10/24  元Intel archiveの明示historical一件試験入口を追加
+ * Ver.01.36.00 Shunji Ogawa  2026/10/26  Ethernet公開hashの非通信関連回帰入口を追加
+ * Ver.01.37.00 Shunji Ogawa  2026/10/26 新metadata生成索引の原byteを通常reader/候補adapterへ接続
+ * Ver.01.38.00 Shunji Ogawa  2026/11/03  共通package内容の限定回帰入口を追加
+ * Ver.01.39.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続
+ * Ver.01.40.00 Shunji Ogawa  2026/11/06  driver DATA通常経路の非対話局所入口を追加
+ * Ver.01.41.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合
+ * Ver.01.42.00 Shunji Ogawa  2026/11/09  導入後native対応の限定selectorを追加
+ * Ver.01.43.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
+ * Ver.01.44.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続
+ * Ver.01.44.01 Shunji Ogawa  2026/11/11  aggregate専用の二試験selectorを既分岐内に移動
+ * Ver.01.44.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.44.03 Shunji Ogawa  2026/11/12  外側tupleの取得予約と開始拒否の原理由を接続
+ * Ver.01.44.04 Shunji Ogawa  2026/11/13  bounded opaque PnP IDのrank照合と限定回帰を接続
  * </pre>
  *
- * @note 全unit test groupを順に実行し、process終了codeを返します。
+ * @note 全unit test groupを順に実行し、process終了codeを返します
  */
 //------------------------------------------------------------------------------
 
@@ -182,10 +185,10 @@
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全 unit test group を実行して process result を返す。
- * @param[in] argc 引数数。限定group指定は2です。
- * @param[in] argv Process寿命の引数。限定指定以外は全groupを実行します。
- * @return 全 assertion 成功時は 0、それ以外は 1。
+ * @brief 全 unit test group を実行して process result を返す
+ * @param[in] argc 引数数。限定group指定は2です
+ * @param[in] argv Process寿命の引数。限定指定以外は全groupを実行します
+ * @return 全 assertion 成功時は 0、それ以外は 1
  */
 //------------------------------------------------------------------------------
 int main( const int argc, const char *const argv[])
@@ -199,16 +202,16 @@ int main( const int argc, const char *const argv[])
 	_CrtSetReportMode( _CRT_ASSERT, _CRTDBG_MODE_FILE) ;
 	_CrtSetReportFile( _CRT_ASSERT, _CRTDBG_FILE_STDERR) ;
 #endif
-	drivercrate::test::TestContext	context ;							// 全test groupのassertion集計先。
-	const drivercrate::ComApartment apartment( COINIT_MULTITHREADED) ;	// Test process全体のCOM MTA。
-	// COMが初期化できないthreadでは検証対象を呼び出さず、初期化失敗として試験を終了する。
+	drivercrate::test::TestContext	context ;							// 全test groupのassertion集計先
+	const drivercrate::ComApartment apartment( COINIT_MULTITHREADED) ;	// Test process全体のCOM MTA
+	// COMが初期化できないthreadでは検証対象を呼び出さず、初期化失敗として試験を終了する
 	if( FAILED( apartment.result())) {
 		std::cerr << "COM initialization failed: " << apartment.result() << '\n' ;
 		return 1 ;
 	}
 
 	try {
-		// record数の独立境界だけを値codecへ渡し、実inventoryを起動しません。
+		// record数の独立境界だけを値codecへ渡し、実inventoryを起動しません
 		if( argc == 2 && std::string_view{argv[1]} == "--index-capacity-records") {
 			drivercrate::test::runIndexCapacityRecordCountTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
@@ -216,7 +219,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0U ? 0 : 1 ;
 		}
 
-		// 私有producer保存先だけをRAM認証と通常consumerへ接続します。
+		// 私有producer保存先だけをRAM認証と通常consumerへ接続します
 		if( argc == 3 && std::string_view{argv[1]} == "--index-capacity-produced") {
 			drivercrate::test::runIndexCapacityProducedConsumerTests(
 				context, std::filesystem::path{argv[2]}) ;
@@ -225,7 +228,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0U ? 0 : 1 ;
 		}
 
-		// 保持枠の独立fixtureだけを実行し、大規模生成を反復しません。
+		// 保持枠の独立fixtureだけを実行し、大規模生成を反復しません
 		if( argc == 2 && std::string_view{argv[1]} == "--index-capacity-retained") {
 			drivercrate::test::runIndexCapacityRetainedTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
@@ -233,19 +236,19 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0U ? 0 : 1 ;
 		}
 
-		// 容量fixtureの引数だけを閉検査し、誤指定から他suiteを起動しません。
+		// 容量fixtureの引数だけを閉検査し、誤指定から他suiteを起動しません
 		if( argc > 1 && std::string_view{argv[1]} == "--index-capacity") {
-			// 有限の明示入力/mode以外はnative処理を開始しません。
+			// 有限の明示入力/mode以外はnative処理を開始しません
 			if( argc != 5) {
 				return 2 ;
 			}
 
-			std::size_t			   count{} ;			// 元argvの有限公開ID件数です。
-			const std::string_view rawCount{argv[3]} ;	// 数字だけを許可する元引数です。
+			std::size_t			   count{} ;			// 元argvの有限公開ID件数です
+			const std::string_view rawCount{argv[3]} ;	// 数字だけを許可する元引数です
 			const auto parsed = std::from_chars( rawCount.data(), rawCount.data() + rawCount.size(),
-												count) ;	// localeに依存しません。
-			const std::string_view mode{argv[4]} ;			// 機能時計と実時間を明示区分します。
-			// 正常/上限+1より大きい入力や未知modeを拒否します。
+												count) ;	// localeに依存しません
+			const std::string_view mode{argv[4]} ;			// 機能時計と実時間を明示区分します
+			// 正常/上限+1より大きい入力や未知modeを拒否します
 			if( parsed.ec != std::errc{} || parsed.ptr != rawCount.data() + rawCount.size() ||
 			   count > 1048577U ||
 			   (mode != "functional" && mode != "real-small" && mode != "real-large" &&
@@ -261,7 +264,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0U ? 0 : 1 ;
 		}
 
-		// 本変更の有限通常経路だけを既存全suiteから分離します。
+		// 本変更の有限通常経路だけを既存全suiteから分離します
 		if( argc == 2 && std::string_view( argv[1]) == "--windows-managed-driver-package") {
 			drivercrate::test::runWindowsManagedDriverPackageFixtureTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
@@ -269,7 +272,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0U ? 0 : 1 ;
 		}
 
-		// 取得だけの既存GET/form/grantを確認し、無関係なmetadata全体を再実行しない。
+		// 取得だけの既存GET/form/grantを確認し、無関係なmetadata全体を再実行しない
 		if( argc == 2 && std::string_view{argv[1]} == "--official-acquisition") {
 			drivercrate::test::runOfficialDownloadGrantTests( context) ;
 			drivercrate::test::runOfficialAcquisitionTests( context) ;
@@ -278,7 +281,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// 通常workerと同じCOM-only MTAで匿名CDNの純粋codecだけを実行する。
+		// 通常workerと同じCOM-only MTAで匿名CDNの純粋codecだけを実行する
 		if( argc == 2 && std::string_view{argv[1]} == "--asus-cdn-token") {
 			drivercrate::test::runAsusCdnTokenTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
@@ -286,7 +289,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// 元Intel一件だけを明示historical/実署名adapterへ通し、実inventory/導入を呼びません。
+		// 元Intel一件だけを明示historical/実署名adapterへ通し、実inventory/導入を呼びません
 		if( argc == 7 && argv != nullptr &&
 		   std::string_view{argv[1]} == "--distribution-application-native-archive-fixture" &&
 		   (std::string_view{argv[6]} == "0" || std::string_view{argv[6]} == "1" ||
@@ -299,7 +302,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0U ? 0 : 1 ;
 		}
 
-		// 同producerの原byteを指定する専用fixtureだけを全旧groupと分離して実行します。
+		// 同producerの原byteを指定する専用fixtureだけを全旧groupと分離して実行します
 		if( argc == 5 && argv != nullptr &&
 		   (std::string_view{argv[1]} == "--distribution-application-fixture" ||
 			std::string_view{argv[1]} == "--distribution-application-native-merge-fixture" ||
@@ -313,9 +316,28 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0U ? 0 : 1 ;
 		}
 
-		// 独立targetは変更moduleだけを固定順に実行し、通常aggregateと分離します。
+		// 独立targetは変更moduleだけを固定順に実行し、通常aggregateと分離します
 #if defined( DRIVERCRATE_INDEX_BINDING_STANDALONE)
-		// 独立processの分母を未知optionで変更しません。
+		// 同じproduction評価器のopaque IDと既rank拒否だけを有限確認します
+		if( argc == 2 && std::string_view{argv[1]} == "--opaque-rank") {
+			drivercrate::test::runOfficialDriverRankTests( context) ;
+			std::cout << "OPAQUE_RANK checks=" << context.assertionCount()
+					  << " failures=" << context.failureCount() << " realOS=0\n" ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 今回のouter予約と既controller/予算guardだけを有限実行します
+		if( argc == 2 && std::string_view{argv[1]} == "--known-size-approval") {
+			drivercrate::test::runSignedIndexKnownSizeApprovalTests( context) ;
+			drivercrate::test::runOperationControllerTests( context) ;
+			drivercrate::test::runOfficialPreparationTests( context) ;
+			std::cout << "KNOWN_SIZE_APPROVAL checks=" << context.assertionCount()
+					  << " failures=" << context.failureCount()
+					  << " realHttp=0 driver=0 restore=0\n" ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 独立processの分母を未知optionで変更しません
 		if( argc != 1 || argv == nullptr) {
 			return 2 ;
 		}
@@ -326,9 +348,9 @@ int main( const int argc, const char *const argv[])
 		drivercrate::test::runOfficialPreparedAcquisitionTests( context) ;
 		drivercrate::test::runOfficialDriverRankTests( context) ;
 		drivercrate::test::runCandidateAuditTests( context) ;
-		// 通常aggregateは既存の全groupと限定optionをそのまま維持します。
+		// 通常aggregateは既存の全groupと限定optionをそのまま維持します
 #else
-		// 今回変更したcontroller/一回taskだけを既fixtureで有限確認します。
+		// 今回変更したcontroller/一回taskだけを既fixtureで有限確認します
 
 		if( argc == 2 && std::string_view{argv[1]} == "--daily-restore") {
 			drivercrate::test::runProtectedInstallTests( context) ;
@@ -337,7 +359,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// 今回のcontrollerと同scan準備だけを既selectorで確認します。
+		// 今回のcontrollerと同scan準備だけを既selectorで確認します
 		if( argc == 2 && std::string_view{argv[1]} == "--target-only-guards") {
 			drivercrate::test::runOperationControllerTests( context) ;
 			drivercrate::test::runOfficialPreparationTests( context) ;
@@ -346,7 +368,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// 実DPAPIの自作rootだけで現在のstoreとtrust domain境界を固定実行します。
+		// 実DPAPIの自作rootだけで現在のstoreとtrust domain境界を固定実行します
 		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-store") {
 			drivercrate::test::runSignedIndexStoreTests( context) ;
 			drivercrate::test::runSignedIndexStoreDomainTests( context) ;
@@ -355,22 +377,22 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// RAM暗号・実容量・完全fake HTTPの三groupだけを固定順で実行します。
+		// RAM暗号・実容量・完全fake HTTPの三groupだけを固定順で実行します
 		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-boundaries") {
-			const int manifestAssertions = context.assertionCount() ;	// Manifest群前の原件数です。
-			const int manifestFailures	 = context.failureCount() ;		// Manifest群前の原失敗数です。
+			const int manifestAssertions = context.assertionCount() ;	// Manifest群前の原件数です
+			const int manifestFailures	 = context.failureCount() ;		// Manifest群前の原失敗数です
 			drivercrate::test::runSignedIndexManifestTests( context) ;
 			std::cout << "Signed index boundary group manifest: assertions: "
 					  << context.assertionCount() - manifestAssertions
 					  << ", failures: " << context.failureCount() - manifestFailures << '\n' ;
-			const int assetAssertions = context.assertionCount() ;	// Asset群前の原件数です。
-			const int assetFailures	  = context.failureCount() ;	// Asset群前の原失敗数です。
+			const int assetAssertions = context.assertionCount() ;	// Asset群前の原件数です
+			const int assetFailures	  = context.failureCount() ;	// Asset群前の原失敗数です
 			drivercrate::test::runSignedIndexAssetBytesTests( context) ;
 			std::cout << "Signed index boundary group asset bytes: assertions: "
 					  << context.assertionCount() - assetAssertions
 					  << ", failures: " << context.failureCount() - assetFailures << '\n' ;
-			const int refreshAssertions = context.assertionCount() ;	// Refresh群前の原件数です。
-			const int refreshFailures	= context.failureCount() ;		// Refresh群前の原失敗数です。
+			const int refreshAssertions = context.assertionCount() ;	// Refresh群前の原件数です
+			const int refreshFailures	= context.failureCount() ;		// Refresh群前の原失敗数です
 			drivercrate::test::runSignedIndexRefreshTests( context) ;
 			std::cout << "Signed index boundary group refresh: assertions: "
 					  << context.assertionCount() - refreshAssertions
@@ -380,8 +402,8 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// 固定索引refreshの完全fake groupだけを実行します。
-		// 通常worker queueの非通信回帰を明示groupとして実到達へ結びます。
+		// 固定索引refreshの完全fake groupだけを実行します
+		// 通常worker queueの非通信回帰を明示groupとして実到達へ結びます
 		if( argc == 2 && std::string_view{argv[1]} == "--provider-preparation-worker") {
 			drivercrate::test::runProviderPreparationWorkerTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
@@ -389,7 +411,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// P4の元固定HTTP/codec/store glue回帰だけを実行します。
+		// P4の元固定HTTP/codec/store glue回帰だけを実行します
 		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-refresh") {
 			drivercrate::test::runSignedIndexRefreshTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
@@ -397,7 +419,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// 索引取得のURL用途/hint/取消しだけを確認し、他のpackage群を反復しません。
+		// 索引取得のURL用途/hint/取消しだけを確認し、他のpackage群を反復しません
 		if( argc == 2 && std::string_view{argv[1]} == "--indexed-package-inspection") {
 			drivercrate::test::runIndexedDriverPackageInspectionTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
@@ -405,7 +427,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// INF/SFX/閉包だけを実行し、署名索引のRAM署名fixtureを起動しません。
+		// INF/SFX/閉包だけを実行し、署名索引のRAM署名fixtureを起動しません
 		if( argc == 2 && std::string_view{argv[1]} == "--official-package-content") {
 			drivercrate::test::runOfficialDriverPackageTests( context) ;
 			drivercrate::test::runOfficialDriverClosureTests( context) ;
@@ -417,7 +439,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// 共通record/descriptorの既存全条件だけを実行し、保存/実機groupへ進みません。
+		// 共通record/descriptorの既存全条件だけを実行し、保存/実機groupへ進みません
 		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-records") {
 			drivercrate::test::runSignedIndexRecordsTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
@@ -425,7 +447,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// RAM内のmanifest認証groupだけを実行し、保存や機器を扱うgroupへ進みません。
+		// RAM内のmanifest認証groupだけを実行し、保存や機器を扱うgroupへ進みません
 		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-manifest") {
 			drivercrate::test::runSignedIndexManifestTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
@@ -433,7 +455,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// 全体INF件数の修正前後を同じ表示・delegated groupで再現します。
+		// 全体INF件数の修正前後を同じ表示・delegated groupで再現します
 		if( argc == 2 && std::string_view{argv[1]} == "--preparation-content-count") {
 			drivercrate::test::runPreparedAuditDisplayTests( context) ;
 			drivercrate::test::runOfficialDelegatedPackageInspectionTests( context) ;
@@ -442,7 +464,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// 取得前のMIME回帰確認では既存公式policy groupだけを選択します。
+		// 取得前のMIME回帰確認では既存公式policy groupだけを選択します
 		if( argc == 2 && std::string_view{argv[1]} == "--official-source-policy") {
 			drivercrate::test::runOfficialSourcePolicyTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
@@ -450,7 +472,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// 新しいseamの選択試験だけを実行し、旧成功済み全groupの反復を避ける。
+		// 新しいseamの選択試験だけを実行し、旧成功済み全groupの反復を避ける
 		if( argc == 2 && (std::string_view{argv[1]} == "--signed-index-record-lookup" ||
 						 std::string_view{argv[1]} == "--index-candidate-binding")) {
 			drivercrate::test::runSignedIndexRecordLookupTests( context) ;
@@ -459,7 +481,7 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
-		// 公開hash形式修正に必要なparser/record/grant/取得fakeだけを有限実行します。
+		// 公開hash形式修正に必要なparser/record/grant/取得fakeだけを有限実行します
 		if( argc == 2 && std::string_view{argv[1]} == "--intel-ethernet-metadata") {
 			drivercrate::test::runIntelEthernetServerPageParserTests( context) ;
 			drivercrate::test::runOfficialReleaseMetadataTests( context) ;
@@ -558,7 +580,7 @@ int main( const int argc, const char *const argv[])
 		std::cerr << "Unhandled test exception: " << error.what() << '\n' ;
 		return 1 ;
 	} catch( ...) {
-		// test process boundary で型不明例外を成功として扱わない。
+		// test process boundary で型不明例外を成功として扱わない
 		std::cerr << "Unhandled non-standard test exception.\n" ;
 		return 1 ;
 	}

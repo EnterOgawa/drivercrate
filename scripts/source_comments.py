@@ -17,13 +17,13 @@ from source_style import (
 
 
 SEPARATOR = "//" + "-" * 78
-MIGRATION_REASON = "独立ファイル版と改訂コメント規約へ移行。"
+MIGRATION_REASON = "新規作成"
 APPROVED_COPYRIGHT = "Copyright (c) 2026 EnterSystem CO.,LTD."
 LEGACY_COPYRIGHT = "Copyright (c) 2026 EnterOgawa and DriverCrate contributors. MIT License."
 LICENSE_LINES = (
     "SPDX-License-Identifier: Apache-2.0",
-    "本ファイルには Apache License, Version 2.0 が適用されます。",
-    "ライセンス全文はプロジェクトルートの LICENSE を参照してください。",
+    "本ファイルには Apache License, Version 2.0 が適用されます",
+    "ライセンス全文はプロジェクトルートの LICENSE を参照してください",
     "https://www.apache.org/licenses/LICENSE-2.0",
 )
 FUNCTION_BLOCK = re.compile(
@@ -51,7 +51,7 @@ def unwrap_line(line: str) -> str:
 
 def sentence(text: str) -> str:
     text = text.strip()
-    return text if not text or text.endswith(("。", ".", ":", "：", "！", "？")) else text + "。"
+    return text.rstrip("。")
 
 
 def combine(lines: list[str]) -> str:

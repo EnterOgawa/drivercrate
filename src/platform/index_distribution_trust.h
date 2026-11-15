@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file index_distribution_trust.h
- * @brief 通常製品の固定配布公開鍵と独立revision1取得認可を定義します。
- * @version 01.00.00
+ * @brief 通常製品の固定配布公開鍵と独立revision1取得認可を定義します
+ * @version 01.00.01
  * @date 2026/10/16
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,10 +19,11 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/16  製品配布trustと独立取得policyの正本を追加。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/16  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 非秘密byteだけです。署名認証を実公式性/CAT再検査/取得grantへ昇格しません。
+ * @note 非秘密byteだけです。署名認証を実公式性/CAT再検査/取得grantへ昇格しません
  * @see docs/adr/0348-product-index-trust-and-acquisition-policy.md
  */
 //------------------------------------------------------------------------------
@@ -34,14 +35,14 @@
 
 namespace drivercrate::index_distribution_trust {
 
-// 承認済み配布公開blobの完全SHA-256をsource正本として固定します。
+// 承認済み配布公開blobの完全SHA-256をsource正本として固定します
 inline constexpr std::string_view PUBLIC_FINGERPRINT =
 	"0ac4d0ce9873c82b3c7bb7bd3fb3f5d2a57044bf968c5c6e2af02176cee39d3f" ;
-// 完全fingerprintへ結合された配布専用IDです。
+// 完全fingerprintへ結合された配布専用IDです
 inline constexpr std::string_view KEY_ID = "distribution-index-0ac4d0ce9873c82b3c7bb7bd3fb3f5d2" ;
-// Manifest信頼と独立に採用する取得policy版です。
+// Manifest信頼と独立に採用する取得policy版です
 inline constexpr std::uint32_t	  ACQUISITION_POLICY_REVISION = 1U ;
-// 一回read/hashしたRSA3072/PSS用公開blob原411byteです。秘密materialを含みません。
+// 一回read/hashしたRSA3072/PSS用公開blob原411byteです。秘密materialを含みません
 inline constexpr std::array<std::uint8_t, 411U> PUBLIC_BLOB{
 	0x52U, 0x53U, 0x41U, 0x31U, 0x00U, 0x0cU, 0x00U, 0x00U, 0x03U, 0x00U, 0x00U, 0x00U, 0x80U,
 	0x01U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U, 0x00U,
@@ -76,9 +77,9 @@ inline constexpr std::array<std::uint8_t, 411U> PUBLIC_BLOB{
 	0x5aU, 0x44U, 0x7fU, 0x46U, 0x07U, 0x7cU, 0x5aU, 0x46U, 0x64U, 0x5dU, 0xb5U, 0x1aU, 0x14U,
 	0x41U, 0x5eU, 0xa1U, 0xabU, 0xe8U, 0x65U, 0x13U, 0x41U,
 } ;
-// Manifest認証だけの固定集合です。取得許可を自動生成しません。
+// Manifest認証だけの固定集合です。取得許可を自動生成しません
 inline constexpr std::array<signed_index_detail::TrustKey, 1U> TRUST_KEYS{{{KEY_ID, PUBLIC_BLOB}}} ;
-// 別判断で登録したrevision1取得認可です。context/期限/同意/内容検査は別に必要です。
+// 別判断で登録したrevision1取得認可です。context/期限/同意/内容検査は別に必要です
 inline constexpr std::array<std::string_view, 1U>			   ACQUISITION_KEYS{KEY_ID} ;
 
 } // namespace drivercrate::index_distribution_trust

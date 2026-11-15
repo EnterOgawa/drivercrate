@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file asus_network_record_adapter.cpp
- * @brief ASUS公式ネットワーク配布のrecord変換と固定起点取得を実装します。
- * @version 01.08.01
+ * @brief ASUS公式ネットワーク配布のrecord変換と固定起点取得を実装します
+ * @version 01.08.02
  * @date 2026/09/20
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,19 +19,20 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/20  ASUSネットワーク配布のAI取得接続を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/09/20  製品固定なしcatalog queryと取得予算を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/09/20  取得前目的照合用の公式driver分類をrecordへ保持。
- * Ver.01.03.00 Shunji Ogawa  2026/09/24  公開model明示と現PC識別の公式page入口を分離。
- * Ver.01.04.00 Shunji Ogawa  2026/09/24  公開modelを旧用途hintと分けたquery v2を解析。
- * Ver.01.05.00 Shunji Ogawa  2026/09/28  収集専用候補と共通配布field組立てを追加。
- * Ver.01.06.00 Shunji Ogawa  2026/09/28  収集候補と解析済み公開modelの再照合を追加。
- * Ver.01.07.00 Shunji Ogawa  2026/09/28  同一controlの対象／候補照合と型付き終了を追加。
- * Ver.01.08.00 Shunji Ogawa  2026/09/28  公開modelと公式比較keyを同一正規化で照合。
- * Ver.01.08.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/20  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/20  製品固定なしcatalog queryと取得予算を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/09/20  取得前目的照合用の公式driver分類をrecordへ保持
+ * Ver.01.03.00 Shunji Ogawa  2026/09/24  公開model明示と現PC識別の公式page入口を分離
+ * Ver.01.04.00 Shunji Ogawa  2026/09/24  公開modelを旧用途hintと分けたquery v2を解析
+ * Ver.01.05.00 Shunji Ogawa  2026/09/28  収集専用候補と共通配布field組立てを追加
+ * Ver.01.06.00 Shunji Ogawa  2026/09/28  収集候補と解析済み公開modelの再照合を追加
+ * Ver.01.07.00 Shunji Ogawa  2026/09/28  同一controlの対象／候補照合と型付き終了を追加
+ * Ver.01.08.00 Shunji Ogawa  2026/09/28  公開modelと公式比較keyを同一正規化で照合
+ * Ver.01.08.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.08.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 呼出しthreadで同期実行します。取得用recordは適用性または導入許可ではありません。
+ * @note 呼出しthreadで同期実行します。取得用recordは適用性または導入許可ではありません
  * @see docs/adr/0179-asus-network-ai-acquisition.md
  */
 //------------------------------------------------------------------------------
@@ -49,28 +50,28 @@
 
 namespace drivercrate {
 namespace {
-constexpr std::uint64_t MAXIMUM_BYTES = 128ULL * 1024ULL * 1024ULL ;	// 一ZIPの受信上限。
+constexpr std::uint64_t MAXIMUM_BYTES = 128ULL * 1024ULL * 1024ULL ;	// 一ZIPの受信上限
 //------------------------------------------------------------------------------
 /**
- * @brief 既知scopeと公式分類・公開titleの対応を確認します。
- * @param[in] entry 公式parserが返した一配布。
- * @param[in] target 明示評価scope。
- * @return 対象ブランド・分類が明示されている場合true。
+ * @brief 既知scopeと公式分類・公開titleの対応を確認します
+ * @param[in] entry 公式parserが返した一配布
+ * @param[in] target 明示評価scope
+ * @return 対象ブランド・分類が明示されている場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool matches( const AsusDriverPageEntry &entry, const AsusNetworkRecordTarget target)
 {
-	// Scopeごとに公開driver分類を分け、他社・firmware・utilityへ広げない。
+	// Scopeごとに公開driver分類を分け、他社・firmware・utilityへ広げない
 	switch( target) {
-		// LANのMarvell driver行だけを評価する。
+		// LANのMarvell driver行だけを評価する
 		case AsusNetworkRecordTarget::MARVELL_LAN:
 			return entry.category == L"LAN" && entry.title.starts_with( L"Marvell LAN Driver ") ;
-		// WirelessのQCA／Qualcomm driver行だけを評価する。
+		// WirelessのQCA／Qualcomm driver行だけを評価する
 		case AsusNetworkRecordTarget::QUALCOMM_WIFI:
 			return entry.category == L"Wireless" &&
 				   (entry.title.starts_with( L"QCA WiFi Driver ") ||
 					entry.title.starts_with( L"Qualcomm WiFi Driver ")) ;
-		// 製品名を固定せず、公式driver分類と後続AI選択で対象を絞る。
+		// 製品名を固定せず、公式driver分類と後続AI選択で対象を絞る
 		case AsusNetworkRecordTarget::CATALOG:
 			return isAsusDriverCatalogCategory( entry.category) ;
 	}
@@ -79,18 +80,18 @@ constexpr std::uint64_t MAXIMUM_BYTES = 128ULL * 1024ULL * 1024ULL ;	// 一ZIP�
 }
 //------------------------------------------------------------------------------
 /**
- * @brief Scope、分類、取得予算の組合せを通信前に検証します。
- * @param[in] target 検査するenum。
- * @param[in] category 汎用scopeで要求するdriver分類。
- * @param[in] maximumBytes 明示した取得予算。
- * @return 定義済みの組合せの場合true。
+ * @brief Scope、分類、取得予算の組合せを通信前に検証します
+ * @param[in] target 検査するenum
+ * @param[in] category 汎用scopeで要求するdriver分類
+ * @param[in] maximumBytes 明示した取得予算
+ * @return 定義済みの組合せの場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool knownTarget( const AsusNetworkRecordTarget target,
 							   const std::wstring_view		 category,
 							   const std::uint64_t			 maximumBytes) noexcept
 {
-	// 汎用分類だけは拡張された明示取得予算を認める。
+	// 汎用分類だけは拡張された明示取得予算を認める
 	if( target == AsusNetworkRecordTarget::CATALOG) {
 		return isAsusDriverCatalogCategory( category) &&
 			   (maximumBytes == MAXIMUM_BYTES || maximumBytes == 4U * MAXIMUM_BYTES) ;
@@ -102,15 +103,15 @@ constexpr std::uint64_t MAXIMUM_BYTES = 128ULL * 1024ULL * 1024ULL ;	// 一ZIP�
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 通常recordと収集候補に同じ公式配布fieldを組み立てます。
- * @tparam Record 通常または収集専用のworker内record型。
- * @param[in] entry URLと公開hashを確認済みのASUS行。
- * @param[in] request 同じ公式pageのmodel・OS要求。
- * @param[in] target parser IDとrouteを決める既知scope。
- * @param[in] evidenceId 同じ応答内で一意な1起点ID。
- * @param[in] resolvedUtcSeconds 同じ本文を検証した後の解決時刻。
- * @param[out] record 起点証拠以外の全配布fieldを所有します。
- * @note 本関数は公式URL・取得証拠・source policyを証明しません。
+ * @brief 通常recordと収集候補に同じ公式配布fieldを組み立てます
+ * @tparam Record 通常または収集専用のworker内record型
+ * @param[in] entry URLと公開hashを確認済みのASUS行
+ * @param[in] request 同じ公式pageのmodel・OS要求
+ * @param[in] target parser IDとrouteを決める既知scope
+ * @param[in] evidenceId 同じ応答内で一意な1起点ID
+ * @param[in] resolvedUtcSeconds 同じ本文を検証した後の解決時刻
+ * @param[out] record 起点証拠以外の全配布fieldを所有します
+ * @note 本関数は公式URL・取得証拠・source policyを証明しません
  */
 //------------------------------------------------------------------------------
 template <class Record>
@@ -132,7 +133,7 @@ void fillAsusRecordFields( const AsusDriverPageEntry &entry, const AsusSupportPa
 	record.publishedDate	  = entry.releaseDate ;
 	record.terms			  = OfficialDistributionTerms::CONFIRMED_NO_CONSENT ;
 	record.resolvedUtcSeconds = resolvedUtcSeconds ;
-	OfficialDistributionPayloadRecord payload ;	// 元のASUS配布行に一対一のZIP。
+	OfficialDistributionPayloadRecord payload ;	// 元のASUS配布行に一対一のZIP
 	payload.resourceId		= OFFICIAL_PAYLOAD_RESOURCE_ID ;
 	payload.kind			= OfficialDistributionPayloadKind::STANDARD_INF_PACKAGE ;
 	payload.fileDisplayName = entry.downloadUrl.substr( entry.downloadUrl.find_last_of( L'/') + 1U) ;
@@ -144,10 +145,10 @@ void fillAsusRecordFields( const AsusDriverPageEntry &entry, const AsusSupportPa
 }
 //------------------------------------------------------------------------------
 /**
- * @brief ASCII公開表示名の文字集合と容量を検証します。
- * @param[in] value メーカーまたは製品の表示名。
- * @param[in] maximum 許可byte数。
- * @return URL、path、ID区切り、制御文字を含まない場合true。
+ * @brief ASCII公開表示名の文字集合と容量を検証します
+ * @param[in] value メーカーまたは製品の表示名
+ * @param[in] maximum 許可byte数
+ * @return URL、path、ID区切り、制御文字を含まない場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool validPublicHint( const std::string_view value, const std::size_t maximum)
@@ -167,26 +168,26 @@ void fillAsusRecordFields( const AsusDriverPageEntry &entry, const AsusSupportPa
 
 //------------------------------------------------------------------------------
 /**
- * @brief 有限のcanonical query fileを通信なしで検証します。
- * @param[in] bytes DCASUSQUERY1の5行、または公開model／OSを追加したDCASUSQUERY2の7行。
- * @return 正常時の公開条件。不正文字、未知分類、過大予算では空。
- * @note URL、path、制御文字、ID形式を公開hintとして受け入れません。
+ * @brief 有限のcanonical query fileを通信なしで検証します
+ * @param[in] bytes DCASUSQUERY1の5行、または公開model／OSを追加したDCASUSQUERY2の7行
+ * @return 正常時の公開条件。不正文字、未知分類、過大予算では空
+ * @note URL、path、制御文字、ID形式を公開hintとして受け入れません
  */
 //------------------------------------------------------------------------------
 std::optional<AsusDriverCatalogQuery> parseAsusDriverCatalogQuery( const std::string_view bytes)
 {
-	// 過大入力を行走査する前に拒否する。
+	// 過大入力を行走査する前に拒否する
 	if( bytes.empty() || bytes.size() > 512U) {
 		return std::nullopt ;
 	}
 
-	const bool extended = bytes.starts_with( "DCASUSQUERY2\n") ;	// v2だけ公開modelを指定する。
-	std::array<std::string_view, 7U> fields{} ;						// 最大7行を借用するview。
-	std::size_t						 cursor{} ;						// 次の行の開始位置。
-	// 選んだ版の全行にLF終端を要求し、余剰行を認めない。
+	const bool extended = bytes.starts_with( "DCASUSQUERY2\n") ;	// v2だけ公開modelを指定する
+	std::array<std::string_view, 7U> fields{} ;						// 最大7行を借用するview
+	std::size_t						 cursor{} ;						// 次の行の開始位置
+	// 選んだ版の全行にLF終端を要求し、余剰行を認めない
 	for( std::size_t index = 0U; index < (extended ? 7U : 5U); ++index) {
-		const auto end = bytes.find( '\n', cursor) ;	// 次の行境界。
-		// 切断fileから条件を補わない。
+		const auto end = bytes.find( '\n', cursor) ;	// 次の行境界
+		// 切断fileから条件を補わない
 		if( end == std::string_view::npos) {
 			return std::nullopt ;
 		}
@@ -195,16 +196,16 @@ std::optional<AsusDriverCatalogQuery> parseAsusDriverCatalogQuery( const std::st
 		cursor		  = end + 1U ;
 	}
 
-	// 条件は正規形だけを受け入れ、URLやIDをqueryへ持ち込ませない。
+	// 条件は正規形だけを受け入れ、URLやIDをqueryへ持ち込ませない
 	if( cursor != bytes.size() || fields[0] != (extended ? "DCASUSQUERY2" : "DCASUSQUERY1") ||
 	   !validPublicHint( fields[1], 32U) || !validPublicHint( fields[2], 64U) ||
 	   !validPublicHint( fields[3], 128U) || (fields[4] != "128" && fields[4] != "512")) {
 		return std::nullopt ;
 	}
 
-	AsusDriverCatalogQuery query ;	// 検証済み公開条件の所有値。
+	AsusDriverCatalogQuery query ;	// 検証済み公開条件の所有値
 	query.category.assign( fields[1].begin(), fields[1].end()) ;
-	// Firmwareやutilityをdriver分類へ読み替えない。
+	// Firmwareやutilityをdriver分類へ読み替えない
 	if( !isAsusDriverCatalogCategory( query.category)) {
 		return std::nullopt ;
 	}
@@ -212,10 +213,10 @@ std::optional<AsusDriverCatalogQuery> parseAsusDriverCatalogQuery( const std::st
 	query.manufacturer = fields[2] ;
 	query.product	   = fields[3] ;
 	query.maximumBytes = fields[4] == "128" ? MAXIMUM_BYTES : 4U * MAXIMUM_BYTES ;
-	// v2の機種はdriver用途hintとは独立にcanonical公式pageへ変換する。
+	// v2の機種はdriver用途hintとは独立にcanonical公式pageへ変換する
 	if( extended) {
-		AsusSupportPageRequest request ;	// 公開modelとOSの検証結果。
-		// ASCII外・不正model・未知OSを受理せず旧v1へfallbackしない。
+		AsusSupportPageRequest request ;	// 公開modelとOSの検証結果
+		// ASCII外・不正model・未知OSを受理せず旧v1へfallbackしない
 		if( !makeAsusPublicModelSupportPageRequest( std::wstring( fields[5].begin(), fields[5].end()),
 												  std::wstring( fields[6].begin(), fields[6].end()),
 												  request)) {
@@ -230,18 +231,18 @@ std::optional<AsusDriverCatalogQuery> parseAsusDriverCatalogQuery( const std::st
 
 //------------------------------------------------------------------------------
 /**
- * @brief 検証済みASUS解析結果を同一rootの有限record集合へ変換します。
- * @param[in] entries 既存parserが同じ応答から返した配布metadata。
- * @param[in] request 同じ応答で照合したmodel・OS・固定公式起点。
- * @param[in] target 明示されたネットワーク配布scope。
- * @param[in] rootEvidence Cacheなし本文取得のASUS公式根拠。
- * @param[in] resolvedUtcSeconds 本文解析後のUTC秒。
- * @param[out] records 成功時の1～16 record。失敗時は空。
- * @param[in] category CATALOGでだけ指定する公式分類。
- * @param[in] maximumBytes 128 MiB、CATALOGでは512 MiBも指定可能。
- * @param[out] overBudget 非null時に予算超過の件数を返します。
- * @return 公式根拠、公開hash、ZIP、有限集合を検証できた場合true。
- * @note URLをログやAIへ渡しません。端末の生ID照合は行いません。
+ * @brief 検証済みASUS解析結果を同一rootの有限record集合へ変換します
+ * @param[in] entries 既存parserが同じ応答から返した配布metadata
+ * @param[in] request 同じ応答で照合したmodel・OS・固定公式起点
+ * @param[in] target 明示されたネットワーク配布scope
+ * @param[in] rootEvidence Cacheなし本文取得のASUS公式根拠
+ * @param[in] resolvedUtcSeconds 本文解析後のUTC秒
+ * @param[out] records 成功時の1～16 record。失敗時は空
+ * @param[in] category CATALOGでだけ指定する公式分類
+ * @param[in] maximumBytes 128 MiB、CATALOGでは512 MiBも指定可能
+ * @param[out] overBudget 非null時に予算超過の件数を返します
+ * @return 公式根拠、公開hash、ZIP、有限集合を検証できた場合true
+ * @note URLをログやAIへ渡しません。端末の生ID照合は行いません
  */
 //------------------------------------------------------------------------------
 bool adaptAsusNetworkDistributionRecords(
@@ -251,12 +252,12 @@ bool adaptAsusNetworkDistributionRecords(
 	const std::wstring_view category, const std::uint64_t maximumBytes, std::size_t *overBudget)
 {
 	records.clear() ;
-	// 再利用された観測へ前回の件数を残さない。
+	// 再利用された観測へ前回の件数を残さない
 	if( overBudget != nullptr) {
 		*overBudget = 0U ;
 	}
 
-	// 別Provider・cache・過大入力をASUS公式recordへ昇格させない。
+	// 別Provider・cache・過大入力をASUS公式recordへ昇格させない
 	if( !knownTarget( target, category, maximumBytes) || entries.empty() || entries.size() > 512U ||
 	   rootEvidence.providerId != ASUS_PROVIDER_ID ||
 	   rootEvidence.policyId != ASUS_OFFICIAL_SOURCE_POLICY_ID ||
@@ -267,9 +268,9 @@ bool adaptAsusNetworkDistributionRecords(
 		return false ;
 	}
 
-	AsusSupportPageRequest canonical ;		// 同じ公開modelだけから再構成する正規起点。
-	bool				   applicable{} ;	// 純粋な要求構築の成立結果。
-	// OS名を既知x64契約へ限定し、任意URLをcallerから受け入れない。
+	AsusSupportPageRequest canonical ;		// 同じ公開modelだけから再構成する正規起点
+	bool				   applicable{} ;	// 純粋な要求構築の成立結果
+	// OS名を既知x64契約へ限定し、任意URLをcallerから受け入れない
 	if( (request.osName != L"Windows 11 64-bit" && request.osName != L"Windows 10 64-bit") ||
 	   !makeAsusSupportPageRequest( L"ASUSTeK COMPUTER INC.", request.model, L"", L"",
 								   request.osName == L"Windows 11 64-bit" ? 22000U : 19045U, false,
@@ -279,18 +280,18 @@ bool adaptAsusNetworkDistributionRecords(
 		return false ;
 	}
 
-	std::vector<OfficialDistributionRecord> pending ;	// 全検証成功まで公開しない集合。
-	// 元page順を保持し、対象scopeの小容量ZIPを一配布一recordへ変換する。
+	std::vector<OfficialDistributionRecord> pending ;	// 全検証成功まで公開しない集合
+	// 元page順を保持し、対象scopeの小容量ZIPを一配布一recordへ変換する
 	for( const auto &entry : entries) {
-		// 別scopeと今回の小容量評価外を候補なしとして分ける。
+		// 別scopeと今回の小容量評価外を候補なしとして分ける
 		if( !matches( entry, target) ||
 		   (target == AsusNetworkRecordTarget::CATALOG && entry.category != category)) {
 			continue ;
 		}
 
-		// 正常metadataでも今回の明示取得予算を超える配布は取得しない。
+		// 正常metadataでも今回の明示取得予算を超える配布は取得しない
 		if( entry.maximumDownloadBytes > maximumBytes) {
-			// 観測callerだけへ容量による除外を区別して返す。
+			// 観測callerだけへ容量による除外を区別して返す
 			if( overBudget != nullptr) {
 				++*overBudget ;
 			}
@@ -298,7 +299,7 @@ bool adaptAsusNetworkDistributionRecords(
 			continue ;
 		}
 
-		// 既存parser境界を再確認し、URLからhash・版を推測しない。
+		// 既存parser境界を再確認し、URLからhash・版を推測しない
 		if( !entry.downloadUrl.starts_with( L"https://dlcdnets.asus.com/pub/ASUS/") ||
 		   entry.downloadUrl.find_first_of( L"?#\\") != std::wstring::npos ||
 		   entry.maximumDownloadBytes == 0U || entry.opaqueId.empty() ||
@@ -308,12 +309,12 @@ bool adaptAsusNetworkDistributionRecords(
 			return false ;
 		}
 
-		// CAB等は今回のZIP持出し契約へ読み替えない。
+		// CAB等は今回のZIP持出し契約へ読み替えない
 		if( !entry.downloadUrl.ends_with( L".zip")) {
 			continue ;
 		}
 
-		// 上限超過や重複を黙って切り捨てず全体拒否する。
+		// 上限超過や重複を黙って切り捨てず全体拒否する
 		if( pending.size() >= 16U || std::ranges::any_of( pending, [&]( const auto &prior) {
 			   return prior.recordKey == request.model + L"|" + entry.opaqueId ||
 					  prior.payloads.front().targetUrl.view() == entry.downloadUrl ;
@@ -321,12 +322,12 @@ bool adaptAsusNetworkDistributionRecords(
 			return false ;
 		}
 
-		OfficialDistributionRecord record ;	// 一つの公式行とscopeを保持するrecord。
+		OfficialDistributionRecord record ;	// 一つの公式行とscopeを保持するrecord
 		record.rootEvidence = rootEvidence ;
 		fillAsusRecordFields( entry, request, target, pending.size() + 1U, resolvedUtcSeconds,
 							 record) ;
-		OfficialDistributionRecordEvidence evidence ;	// 共通検証の非機密結果。
-		// 構造・root・文字列契約を一件でも満たさなければ部分集合を返さない。
+		OfficialDistributionRecordEvidence evidence ;	// 共通検証の非機密結果
+		// 構造・root・文字列契約を一件でも満たさなければ部分集合を返さない
 		if( validateOfficialDistributionRecord( record, evidence) != 0) {
 			return false ;
 		}
@@ -334,7 +335,7 @@ bool adaptAsusNetworkDistributionRecords(
 		pending.push_back( std::move( record)) ;
 	}
 
-	// 配布なしを正常取得可能と誤表示しない。
+	// 配布なしを正常取得可能と誤表示しない
 	if( pending.empty()) {
 		return false ;
 	}
@@ -345,13 +346,13 @@ bool adaptAsusNetworkDistributionRecords(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 旧入口と制御付き入口の共通coreです。
- * @param[in,out] control 新経路の制御。旧入口だけnull。
- * @param[in] page 同一本文のpage。
- * @param[in] request 同じ公式要求。
- * @param[in] resolvedUtcSeconds 本文時刻。
- * @param[out] candidates 全成立後だけ公開する値。
- * @return 集合契約が成立すればtrue。
+ * @brief 旧入口と制御付き入口の共通coreです
+ * @param[in,out] control 新経路の制御。旧入口だけnull
+ * @param[in] page 同一本文のpage
+ * @param[in] request 同じ公式要求
+ * @param[in] resolvedUtcSeconds 本文時刻
+ * @param[out] candidates 全成立後だけ公開する値
+ * @return 集合契約が成立すればtrue
  */
 //------------------------------------------------------------------------------
 static bool adaptAsusCollectorNetworkRecordCandidatesCore(
@@ -361,13 +362,13 @@ static bool adaptAsusCollectorNetworkRecordCandidatesCore(
 {
 	collectorParserCheckpoint( control) ;
 	candidates.clear() ;
-	// Parserの部分結果でも対象model・OSが揃った有効行だけを候補化する。
-	// 明示されたrecord上限だけを独立に判定します。
+	// Parserの部分結果でも対象model・OSが揃った有効行だけを候補化する
+	// 明示されたrecord上限だけを独立に判定します
 	if( page.entries.size() > 16U) {
 		collectorParserLimit( control) ;
 	}
 
-	// 有効な同一製品の採用済み行だけを候補化します。
+	// 有効な同一製品の採用済み行だけを候補化します
 	if( !page.structurallyValid || !page.targetModelMatches ||
 	   (page.sliceStatus != AsusCollectorSliceStatus::ACCEPTED &&
 		page.sliceStatus != AsusCollectorSliceStatus::PARTIAL_REJECTED) ||
@@ -376,8 +377,8 @@ static bool adaptAsusCollectorNetworkRecordCandidatesCore(
 		return false ;
 	}
 
-	AsusSupportPageRequest canonical ;	// 公開modelとOSから再構築した公式page要求。
-	// 任意URLや異なるmodelを既知ASUS公式起点へ変換しない。
+	AsusSupportPageRequest canonical ;	// 公開modelとOSから再構築した公式page要求
+	// 任意URLや異なるmodelを既知ASUS公式起点へ変換しない
 	if( !makeAsusPublicModelSupportPageRequest( request.model, request.osName, canonical) ||
 	   canonical.model != request.model ||
 	   page.modelComparisonKey != asusCollectorModelComparisonKey( request.model) ||
@@ -385,11 +386,11 @@ static bool adaptAsusCollectorNetworkRecordCandidatesCore(
 		return false ;
 	}
 
-	std::vector<OfficialCollectorRecordCandidate> pending ;	// 全行確認まで非公開の候補集合。
-	// Parserの元順序を維持し、URLと公開hashをworker内で再確認する。
+	std::vector<OfficialCollectorRecordCandidate> pending ;	// 全行確認まで非公開の候補集合
+	// Parserの元順序を維持し、URLと公開hashをworker内で再確認する
 	for( const auto &entry : page.entries) {
 		collectorParserCheckpoint( control) ;
-		// 別分類・未検査URL・不正hash・過大sizeは候補にしない。
+		// 別分類・未検査URL・不正hash・過大sizeは候補にしない
 		if( entry.category != L"LAN" ||
 		   !entry.downloadUrl.starts_with( L"https://dlcdnets.asus.com/pub/ASUS/") ||
 		   entry.downloadUrl.find_first_of( L"?#\\") != std::wstring::npos ||
@@ -401,7 +402,7 @@ static bool adaptAsusCollectorNetworkRecordCandidatesCore(
 			return false ;
 		}
 
-		// Keyと完全URLを一意に保ち、途中の部分集合を返さない。
+		// Keyと完全URLを一意に保ち、途中の部分集合を返さない
 		if( std::ranges::any_of( pending, [&]( const auto &prior) {
 			   collectorParserStep( control) ;
 			   return prior.recordKey == request.model + L"|" + entry.opaqueId ||
@@ -410,7 +411,7 @@ static bool adaptAsusCollectorNetworkRecordCandidatesCore(
 			return false ;
 		}
 
-		OfficialCollectorRecordCandidate candidate ;	// 通常evidenceを含まない一時候補。
+		OfficialCollectorRecordCandidate candidate ;	// 通常evidenceを含まない一時候補
 		fillAsusRecordFields( entry, request, AsusNetworkRecordTarget::CATALOG, pending.size() + 1U,
 							 resolvedUtcSeconds, candidate) ;
 		pending.push_back( std::move( candidate)) ;
@@ -423,17 +424,17 @@ static bool adaptAsusCollectorNetworkRecordCandidatesCore(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 現在のASUS公開model起点を一回取得し、既存parserからrecordを作ります。
- * @param[in] session 現在操作の0でないsession。
- * @param[in] target 明示されたscope。
- * @param[in,out] client Cache無効の公式HTTP owner。
- * @param[out] records 成功時の同一応答record集合。失敗時は空。
- * @param[out] observation 最後に開始した段階と非機密件数。
- * @param[in] category CATALOGでだけ指定する公式分類。
- * @param[in] maximumBytes 128 MiB、CATALOGでは512 MiBも指定可能。
- * @param[in] publicRequest 非null時だけ公開model明示要求。必ずcanonicalに再構築して検証します。
- * @return 成功0、対象外・通信・schema拒否はHRESULT。
- * @note COM apartment内で同期実行します。Payload取得や実行は行いません。
+ * @brief 現在のASUS公開model起点を一回取得し、既存parserからrecordを作ります
+ * @param[in] session 現在操作の0でないsession
+ * @param[in] target 明示されたscope
+ * @param[in,out] client Cache無効の公式HTTP owner
+ * @param[out] records 成功時の同一応答record集合。失敗時は空
+ * @param[out] observation 最後に開始した段階と非機密件数
+ * @param[in] category CATALOGでだけ指定する公式分類
+ * @param[in] maximumBytes 128 MiB、CATALOGでは512 MiBも指定可能
+ * @param[in] publicRequest 非null時だけ公開model明示要求。必ずcanonicalに再構築して検証します
+ * @return 成功0、対象外・通信・schema拒否はHRESULT
+ * @note COM apartment内で同期実行します。Payload取得や実行は行いません
  */
 //------------------------------------------------------------------------------
 NativeError resolveAsusNetworkDistributionRecords(
@@ -444,15 +445,15 @@ NativeError resolveAsusNetworkDistributionRecords(
 {
 	records.clear() ;
 	observation = {} ;
-	// 任意cacheや未定義scopeをnetwork開始前に拒否する。
+	// 任意cacheや未定義scopeをnetwork開始前に拒否する
 	if( session == 0U || !knownTarget( target, category, maximumBytes) || client.usesCatalogCache()) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
 	}
 
-	AsusSupportPageRequest request ;		// Serialを含めない現在端末の公式起点。
-	bool				   applicable{} ;	// 対応ASUS clientの場合だけtrue。
-	NativeError			   error{} ;		// 明示modelまたは現PC識別の先行結果。
-	// 明示modelではregistryを読まず、URLも組み込み規則で再構築する。
+	AsusSupportPageRequest request ;		// Serialを含めない現在端末の公式起点
+	bool				   applicable{} ;	// 対応ASUS clientの場合だけtrue
+	NativeError			   error{} ;		// 明示modelまたは現PC識別の先行結果
+	// 明示modelではregistryを読まず、URLも組み込み規則で再構築する
 	if( publicRequest != nullptr) {
 		applicable = makeAsusPublicModelSupportPageRequest( publicRequest->model,
 														   publicRequest->osName, request) &&
@@ -463,7 +464,7 @@ NativeError resolveAsusNetworkDistributionRecords(
 	}
 
 	observation.stage = 1U ;
-	// 非ASUSや識別失敗時に架空modelへfallbackしない。
+	// 非ASUSや識別失敗時に架空modelへfallbackしない
 	if( error != 0 || !applicable) {
 		return error != 0 ? error
 						  : static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) ;
@@ -471,24 +472,24 @@ NativeError resolveAsusNetworkDistributionRecords(
 
 	error			  = client.beginSourceSession( session, ASUS_PROVIDER_ID) ;
 	observation.stage = 2U ;
-	// 根拠session初期化失敗時は取得しない。
+	// 根拠session初期化失敗時は取得しない
 	if( error != 0) {
 		return error ;
 	}
 
-	std::wstring html ;	// Session内だけに保持する公式応答。
+	std::wstring html ;	// Session内だけに保持する公式応答
 	error = client.getUtf8TextForSource( request.pageUrl, OFFICIAL_PRIMARY_METADATA_RESOURCE_ID,
 										8ULL * 1024ULL * 1024ULL, html) ;
 	observation.stage = 3U ;
-	// HTTP失敗をparserの候補なしへ縮退しない。
+	// HTTP失敗をparserの候補なしへ縮退しない
 	if( error != 0) {
 		return error ;
 	}
 
-	std::vector<AsusDriverPageEntry> entries ;		// 同じmodel・OSの検証済み配布行。
-	const auto evidence = client.sourceEvidence() ;	// 今回のcacheなし応答取得根拠。
+	std::vector<AsusDriverPageEntry> entries ;		// 同じmodel・OSの検証済み配布行
+	const auto evidence = client.sourceEvidence() ;	// 今回のcacheなし応答取得根拠
 	observation.stage	= 4U ;
-	// Schema・model・OSの不一致や複数応答の混合を拒否する。
+	// Schema・model・OSの不一致や複数応答の混合を拒否する
 	if( !parseAsusDriverPageHtml(
 		   html, request.model, request.osName, entries,
 		   target == AsusNetworkRecordTarget::CATALOG
@@ -503,8 +504,8 @@ NativeError resolveAsusNetworkDistributionRecords(
 	observation.stage	= 5U ;
 	const auto now		= std::chrono::duration_cast<std::chrono::seconds>(
 						  std::chrono::system_clock::now().time_since_epoch())
-						 .count() ;	// UTC固定時刻。
-	// 時刻と共通record検証が揃う場合だけ秘密URLを後続へ渡す。
+						 .count() ;	// UTC固定時刻
+	// 時刻と共通record検証が揃う場合だけ秘密URLを後続へ渡す
 	if( now <= 0 || !adaptAsusNetworkDistributionRecords(
 					   entries, request, target, evidence.front(), static_cast<std::uint64_t>( now),
 					   records, category, maximumBytes, &observation.overBudget)) {
@@ -518,18 +519,18 @@ NativeError resolveAsusNetworkDistributionRecords(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 明示した公開ASUS modelの公式pageを一回取得し型付きrecordを作ります。
- * @param[in] session 現在操作の0でないsession。
- * @param[in] target 明示されたscope。
- * @param[in,out] client Cache無効の公式HTTP owner。
- * @param[in] publicModel 公式pageへ使う公開製品model。端末から列挙したIDではありません。
- * @param[in] osName 明示したWindows 10／11 64-bit表記。
- * @param[out] records 成功時の同一応答record集合。
- * @param[out] observation 段階と件数。失敗時の原因区別に使用します。
- * @param[in] category CATALOGの公式driver分類。
- * @param[in] maximumBytes 一件の有限取得上限。
- * @return 成功0、model／OS・通信・schema拒否はHRESULT。
- * @note 現PCのregistryは読まず、成功だけで端末PnP適合としません。
+ * @brief 明示した公開ASUS modelの公式pageを一回取得し型付きrecordを作ります
+ * @param[in] session 現在操作の0でないsession
+ * @param[in] target 明示されたscope
+ * @param[in,out] client Cache無効の公式HTTP owner
+ * @param[in] publicModel 公式pageへ使う公開製品model。端末から列挙したIDではありません
+ * @param[in] osName 明示したWindows 10／11 64-bit表記
+ * @param[out] records 成功時の同一応答record集合
+ * @param[out] observation 段階と件数。失敗時の原因区別に使用します
+ * @param[in] category CATALOGの公式driver分類
+ * @param[in] maximumBytes 一件の有限取得上限
+ * @return 成功0、model／OS・通信・schema拒否はHRESULT
+ * @note 現PCのregistryは読まず、成功だけで端末PnP適合としません
  */
 //------------------------------------------------------------------------------
 NativeError resolveAsusNetworkDistributionRecordsForPublicModel(
@@ -538,8 +539,8 @@ NativeError resolveAsusNetworkDistributionRecordsForPublicModel(
 	std::vector<OfficialDistributionRecord> &records, AsusNetworkRecordObservation &observation,
 	const std::wstring_view category, const std::uint64_t maximumBytes)
 {
-	AsusSupportPageRequest request ;	// URLではなく公開modelから作る正規化済み要求。
-	// 明示値が無効な場合はclientを呼ぶ前に拒否する。
+	AsusSupportPageRequest request ;	// URLではなく公開modelから作る正規化済み要求
+	// 明示値が無効な場合はclientを呼ぶ前に拒否する
 	if( !makeAsusPublicModelSupportPageRequest( publicModel, osName, request)) {
 		records.clear() ;
 		observation = {} ;
@@ -552,13 +553,13 @@ NativeError resolveAsusNetworkDistributionRecordsForPublicModel(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 収集専用の同一store解析結果から、証拠未発行の一時record候補を作ります。
- * @param[in] page 同じ本文・同じrequestで解析したASUS公開identityと採用行。
- * @param[in] request 解析時に使用した公式model・OSのcanonical要求。
- * @param[in] resolvedUtcSeconds 同一本文の検証時刻以降のUTC秒。
- * @param[out] candidates 成功時だけ秘密URLを含むworker内候補を返します。
- * @return 同一scope、公式URL、公開hash、一意性と16件上限を満たした場合true。
- * @note 呼出元はpageとrequestの同一本文結合を保証します。取得証拠・grantは発行しません。
+ * @brief 収集専用の同一store解析結果から、証拠未発行の一時record候補を作ります
+ * @param[in] page 同じ本文・同じrequestで解析したASUS公開identityと採用行
+ * @param[in] request 解析時に使用した公式model・OSのcanonical要求
+ * @param[in] resolvedUtcSeconds 同一本文の検証時刻以降のUTC秒
+ * @param[out] candidates 成功時だけ秘密URLを含むworker内候補を返します
+ * @return 同一scope、公式URL、公開hash、一意性と16件上限を満たした場合true
+ * @note 呼出元はpageとrequestの同一本文結合を保証します。取得証拠・grantは発行しません
  */
 //------------------------------------------------------------------------------
 bool adaptAsusCollectorNetworkRecordCandidates(
@@ -571,13 +572,13 @@ bool adaptAsusCollectorNetworkRecordCandidates(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じcoreで停止・失敗と候補／対象の照合結果を分けます。
- * @param[in] page 同じ本文のpage。
- * @param[in] request 同じ公式要求。
- * @param[in] resolvedUtcSeconds 本文時刻。
- * @param[in,out] control 元GETの必須制御。
- * @param[out] candidates 完了時のみ公開する所有値。
- * @return 解析／照合の型付き終了。
+ * @brief 同じcoreで停止・失敗と候補／対象の照合結果を分けます
+ * @param[in] page 同じ本文のpage
+ * @param[in] request 同じ公式要求
+ * @param[in] resolvedUtcSeconds 本文時刻
+ * @param[in,out] control 元GETの必須制御
+ * @param[out] candidates 完了時のみ公開する所有値
+ * @return 解析／照合の型付き終了
  */
 //------------------------------------------------------------------------------
 CollectorParserResult adaptAsusCollectorNetworkRecordCandidatesControlled(
@@ -586,15 +587,15 @@ CollectorParserResult adaptAsusCollectorNetworkRecordCandidatesControlled(
 	std::vector<OfficialCollectorRecordCandidate> &candidates)
 {
 	candidates.clear() ;
-	std::vector<OfficialCollectorRecordCandidate> parsed ;	// 途中結果の持出しを防ぐ所有値。
+	std::vector<OfficialCollectorRecordCandidate> parsed ;	// 途中結果の持出しを防ぐ所有値
 	const auto									  outcome = runCollectorParser(
 		   control,
 		   [&]( CollectorParserContext &context) {
 			   return adaptAsusCollectorNetworkRecordCandidatesCore( &context, page, request,
 																									resolvedUtcSeconds, parsed) ;
 		   },
-		   CollectorIoStage::PROJECT) ;	// 元GETの制御で射影段階を確認します。
-	// 終端確認後だけ一括移動します。
+		   CollectorIoStage::PROJECT) ;	// 元GETの制御で射影段階を確認します
+	// 終端確認後だけ一括移動します
 	if( outcome.status == CollectorParserStatus::COMPLETED) {
 		candidates = std::move( parsed) ;
 	}

@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file candidate_audit.cpp
- * @brief Driver候補監査状態の生成と整合性検証。
- * @version 01.05.01
+ * @brief Driver候補監査状態の生成と整合性検証
+ * @version 01.05.02
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,28 +19,29 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  表示専用公式探索状態追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  拒否状態の経路別順序検証追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  操作分類と選択可否の矛盾拒否追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  公式全監査合格状態追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  Release観測差分の定義外値拒否追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  表示専用公式探索状態追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  拒否状態の経路別順序検証追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  操作分類と選択可否の矛盾拒否追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  公式全監査合格状態追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Release観測差分の定義外値拒否追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.01.00 Shunji Ogawa  2026/09/15  詳細assessmentと代表行の整合性検証を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/09/15  共通local内容・適合合格と未接続方式の分離を追加。
- * Ver.01.03.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
- * Ver.01.04.00 Shunji Ogawa  2026/10/12  私有native bindingの署名索引初回だけREADYへ受理。
- * Ver.01.05.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
- * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/15  詳細assessmentと代表行の整合性検証を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/09/15  共通local内容・適合合格と未接続方式の分離を追加
+ * Ver.01.03.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続
+ * Ver.01.04.00 Shunji Ogawa  2026/10/12  私有native bindingの署名索引初回だけREADYへ受理
+ * Ver.01.05.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.05.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 監査状態からURL、端末識別子、local pathを推測せず、Providerが明示した取得経路とinstall可否の関係だけを決定的に検証します。
+ * @note 監査状態からURL、端末識別子、local pathを推測せず、Providerが明示した取得経路とinstall可否の関係だけを決定的に検証します
  */
 //------------------------------------------------------------------------------
 
@@ -55,31 +56,31 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @brief Cast等で混入した定義外値をscan session登録前に拒否する。
+ * @brief Cast等で混入した定義外値をscan session登録前に拒否する
  *
- * @param[in] state Providerが設定した監査gate状態。
- * @return 定義済みenum値の場合は`true`。
+ * @param[in] state Providerが設定した監査gate状態
+ * @return 定義済みenum値の場合は`true`
  */
 //------------------------------------------------------------------------------
 bool isKnownGateState( const CandidateAuditGateState state) noexcept
 {
-	// 定義済みの監査状態だけを列挙し、未知の値を正規状態として扱わない。
+	// 定義済みの監査状態だけを列挙し、未知の値を正規状態として扱わない
 	switch( state) {
-		// 対象外 gate は定義済み状態として共通受理へ進む。
+		// 対象外 gate は定義済み状態として共通受理へ進む
 		case CandidateAuditGateState::NOT_APPLICABLE:
-		// 未判定 gate は定義済み状態として共通受理へ進む。
+		// 未判定 gate は定義済み状態として共通受理へ進む
 		case CandidateAuditGateState::PENDING:
-		// 合格 gate は定義済み状態として共通受理へ進む。
+		// 合格 gate は定義済み状態として共通受理へ進む
 		case CandidateAuditGateState::PASSED:
-		// Windows 管理 gate は定義済み状態として共通受理へ進む。
+		// Windows 管理 gate は定義済み状態として共通受理へ進む
 		case CandidateAuditGateState::MANAGED_BY_WINDOWS:
-		// Provider 検証 gate は定義済み状態として共通受理へ進む。
+		// Provider 検証 gate は定義済み状態として共通受理へ進む
 		case CandidateAuditGateState::PROVIDER_VALIDATED:
-		// 利用者提供の未検証 gate は定義済み状態として共通受理へ進む。
+		// 利用者提供の未検証 gate は定義済み状態として共通受理へ進む
 		case CandidateAuditGateState::USER_PROVIDED_UNVERIFIED:
-		// 拒否 gate は定義済み状態として共通受理へ進む。
+		// 拒否 gate は定義済み状態として共通受理へ進む
 		case CandidateAuditGateState::REJECTED:
-		// 実行失敗を含む既知 gate の値を形式上有効と認める。
+		// 実行失敗を含む既知 gate の値を形式上有効と認める
 		case CandidateAuditGateState::FAILURE:
 			return true ;
 	}
@@ -89,23 +90,23 @@ bool isKnownGateState( const CandidateAuditGateState state) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 定義外状態を選択可能候補へ昇格させずfail-closedで扱う。
+ * @brief 定義外状態を選択可能候補へ昇格させずfail-closedで扱う
  *
- * @param[in] readiness Providerが設定したinstall準備状態。
- * @return 定義済みenum値の場合は`true`。
+ * @param[in] readiness Providerが設定したinstall準備状態
+ * @return 定義済みenum値の場合は`true`
  */
 //------------------------------------------------------------------------------
 bool isKnownInstallReadiness( const CandidateInstallReadiness readiness) noexcept
 {
-	// 表示専用から導入可能までの既知状態だけを受理し、暗黙の昇格を防ぐ。
+	// 表示専用から導入可能までの既知状態だけを受理し、暗黙の昇格を防ぐ
 	switch( readiness) {
-		// 表示専用は既知の準備状態として共通受理へ進む。
+		// 表示専用は既知の準備状態として共通受理へ進む
 		case CandidateInstallReadiness::DISPLAY_ONLY:
-		// 監査待ちは既知の準備状態として共通受理へ進む。
+		// 監査待ちは既知の準備状態として共通受理へ進む
 		case CandidateInstallReadiness::AUDIT_PENDING:
-		// 準備完了は既知の準備状態として共通受理へ進む。
+		// 準備完了は既知の準備状態として共通受理へ進む
 		case CandidateInstallReadiness::READY:
-		// 導入不可を含む既知の準備状態を形式上有効と認める。
+		// 導入不可を含む既知の準備状態を形式上有効と認める
 		case CandidateInstallReadiness::BLOCKED:
 			return true ;
 	}
@@ -115,27 +116,27 @@ bool isKnownInstallReadiness( const CandidateInstallReadiness readiness) noexcep
 
 //------------------------------------------------------------------------------
 /**
- * @brief Driver操作分類が定義済みか確認する。
+ * @brief Driver操作分類が定義済みか確認する
  *
- * Cast等で混入した未知操作をinstall routingへ渡さない。
+ * Cast等で混入した未知操作をinstall routingへ渡さない
  *
- * @param[in] action Candidateが提示した操作分類。
- * @return 定義済みの操作分類の場合は`true`。
+ * @param[in] action Candidateが提示した操作分類
+ * @return 定義済みの操作分類の場合は`true`
  */
 //------------------------------------------------------------------------------
 bool isKnownDriverAction( const DriverAction action) noexcept
 {
-	// 操作の意味が確定する列挙値だけを受理し、未知操作を導入へ渡さない。
+	// 操作の意味が確定する列挙値だけを受理し、未知操作を導入へ渡さない
 	switch( action) {
-		// 操作なしは既知の分類として共通受理へ進む。
+		// 操作なしは既知の分類として共通受理へ進む
 		case DriverAction::NONE:
-		// 通常更新は既知の分類として共通受理へ進む。
+		// 通常更新は既知の分類として共通受理へ進む
 		case DriverAction::UPDATE:
-		// 再導入は既知の分類として共通受理へ進む。
+		// 再導入は既知の分類として共通受理へ進む
 		case DriverAction::REINSTALL:
-		// 旧版への切替を含む既知の操作分類を形式上有効と認める。
+		// 旧版への切替を含む既知の操作分類を形式上有効と認める
 		case DriverAction::DOWNGRADE:
-		// 初回導入は既知の表示分類であり、実行許可は別検証する。
+		// 初回導入は既知の表示分類であり、実行許可は別検証する
 		case DriverAction::INITIAL_INSTALL:
 			return true ;
 	}
@@ -145,48 +146,48 @@ bool isKnownDriverAction( const DriverAction action) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 比較失敗を示すInvalidと未知enumをUI表示前に拒否する。
+ * @brief 比較失敗を示すInvalidと未知enumをUI表示前に拒否する
  *
- * @param[in] difference Candidateが持つ任意の前回観測差分。
- * @return 値なし、または有効な差分enum値の場合true。
+ * @param[in] difference Candidateが持つ任意の前回観測差分
+ * @return 値なし、または有効な差分enum値の場合true
  */
 //------------------------------------------------------------------------------
 bool isKnownReleaseObservationDifference(
 	const std::optional<ReleaseObservationDifference> &difference) noexcept
 {
-	// 比較を実施していない候補には、比較結果の妥当性検査を要求しない。
+	// 比較を実施していない候補には、比較結果の妥当性検査を要求しない
 	if( !difference.has_value()) {
 		return true ;
 	}
 
-	// 比較不能の値と未知の値を除外し、説明可能な観測差分だけを公開する。
+	// 比較不能の値と未知の値を除外し、説明可能な観測差分だけを公開する
 	switch( *difference) {
-		// 比較失敗を表す無効値は UI の観測差分として受理しない。
+		// 比較失敗を表す無効値は UI の観測差分として受理しない
 		case ReleaseObservationDifference::INVALID:
 			return false ;
-		// 初回観測は既知の差分として共通受理へ進む。
+		// 初回観測は既知の差分として共通受理へ進む
 		case ReleaseObservationDifference::FIRST_OBSERVATION:
-		// 取得元変更は既知の差分として共通受理へ進む。
+		// 取得元変更は既知の差分として共通受理へ進む
 		case ReleaseObservationDifference::SOURCE_BINDING_CHANGED:
-		// Device binding 変更は既知の差分として共通受理へ進む。
+		// Device binding 変更は既知の差分として共通受理へ進む
 		case ReleaseObservationDifference::DEVICE_BINDING_CHANGED:
-		// OS 変更は既知の差分として共通受理へ進む。
+		// OS 変更は既知の差分として共通受理へ進む
 		case ReleaseObservationDifference::OPERATING_SYSTEM_CHANGED:
-		// Device 構成変更は既知の差分として共通受理へ進む。
+		// Device 構成変更は既知の差分として共通受理へ進む
 		case ReleaseObservationDifference::DEVICE_CONFIGURATION_CHANGED:
-		// Policy 変更は既知の差分として共通受理へ進む。
+		// Policy 変更は既知の差分として共通受理へ進む
 		case ReleaseObservationDifference::POLICY_CHANGED:
-		// Parser 変更は既知の差分として共通受理へ進む。
+		// Parser 変更は既知の差分として共通受理へ進む
 		case ReleaseObservationDifference::PARSER_CHANGED:
-		// 配布変更は既知の差分として共通受理へ進む。
+		// 配布変更は既知の差分として共通受理へ進む
 		case ReleaseObservationDifference::RELEASE_CHANGED:
-		// 内容識別値変更は既知の差分として共通受理へ進む。
+		// 内容識別値変更は既知の差分として共通受理へ進む
 		case ReleaseObservationDifference::CONTENT_IDENTITY_CHANGED:
-		// 保留理由変更は既知の差分として共通受理へ進む。
+		// 保留理由変更は既知の差分として共通受理へ進む
 		case ReleaseObservationDifference::PENDING_REASON_CHANGED:
-		// Metadata 同一は既知の比較結果として共通受理へ進む。
+		// Metadata 同一は既知の比較結果として共通受理へ進む
 		case ReleaseObservationDifference::METADATA_UNCHANGED:
-		// 内容識別値同一を含む既知の比較結果を表示可能と認める。
+		// 内容識別値同一を含む既知の比較結果を表示可能と認める
 		case ReleaseObservationDifference::STRONG_IDENTITY_UNCHANGED:
 			return true ;
 	}
@@ -196,10 +197,10 @@ bool isKnownReleaseObservationDifference(
 
 //------------------------------------------------------------------------------
 /**
- * @brief Installを許可できない監査結果を共通判定する。
+ * @brief Installを許可できない監査結果を共通判定する
  *
- * @param[in] state 拒否または失敗か確認する監査gate状態。
- * @return `REJECTED`または`FAILURE`の場合は`true`。
+ * @param[in] state 拒否または失敗か確認する監査gate状態
+ * @return `REJECTED`または`FAILURE`の場合は`true`
  */
 //------------------------------------------------------------------------------
 bool isRejectedOrFailed( const CandidateAuditGateState state) noexcept
@@ -209,57 +210,57 @@ bool isRejectedOrFailed( const CandidateAuditGateState state) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief Providerの自己申告ではなくregistryのbit集合を確認する。
+ * @brief Providerの自己申告ではなくregistryのbit集合を確認する
  *
- * @param[in] descriptor 組み込みProvider定義。
- * @param[in] capability 確認する単一capability。
- * @return 指定capabilityが登録されている場合は`true`。
+ * @param[in] descriptor 組み込みProvider定義
+ * @param[in] capability 確認する単一capability
+ * @return 指定capabilityが登録されている場合は`true`
  */
 //------------------------------------------------------------------------------
 bool hasProviderCapability( const ProviderDescriptor &descriptor,
 						   const ProviderCapability	 capability) noexcept
 {
 	const ProviderCapabilityMask mask =
-		// 確認対象bit。
+		// 確認対象bit
 		static_cast<ProviderCapabilityMask>( capability) ;
 	return (descriptor.capabilities & mask) != 0U ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 拒否済み表示候補もregistryとの経路不一致を許容しない。
+ * @brief 拒否済み表示候補もregistryとの経路不一致を許容しない
  *
- * @param[in] basis Candidateが明示した探索経路。
- * @param[in] descriptor 組み込みProvider定義。
- * @return 探索経路に必要なcapabilityをProviderが持つ場合は`true`。
+ * @param[in] basis Candidateが明示した探索経路
+ * @param[in] descriptor 組み込みProvider定義
+ * @return 探索経路に必要なcapabilityをProviderが持つ場合は`true`
  */
 //------------------------------------------------------------------------------
 bool isDiscoverySupported( const CandidateDiscoveryBasis basis,
 						  const ProviderDescriptor	   &descriptor) noexcept
 {
-	// 候補が主張する探索経路を、その経路を実行できるProvider能力へ照合する。
+	// 候補が主張する探索経路を、その経路を実行できるProvider能力へ照合する
 	switch( basis) {
-		// Windows 管理の探索根拠には対応する管理 service 能力を要求する。
+		// Windows 管理の探索根拠には対応する管理 service 能力を要求する
 		case CandidateDiscoveryBasis::MANAGED_SERVICE:
 			return hasProviderCapability( descriptor, ProviderCapability::MANAGED_SERVICE) ;
-		// Local 探索根拠には inventory 能力を要求する。
+		// Local 探索根拠には inventory 能力を要求する
 		case CandidateDiscoveryBasis::LOCAL_INVENTORY:
 			return hasProviderCapability( descriptor, ProviderCapability::LOCAL_INVENTORY) ;
-		// 構造化公式 catalog は公式 network の共通検証へ進む。
+		// 構造化公式 catalog は公式 network の共通検証へ進む
 		case CandidateDiscoveryBasis::OFFICIAL_STRUCTURED_CATALOG:
-		// 公式 Web 探索には network 能力と明示的な取得元 policy を要求する。
+		// 公式 Web 探索には network 能力と明示的な取得元 policy を要求する
 		case CandidateDiscoveryBasis::OFFICIAL_WEB_PAGE:
 			return hasProviderCapability( descriptor, ProviderCapability::OFFICIAL_NETWORK) &&
 				   !descriptor.officialSourcePolicyId.empty() ;
-		// 利用者指定 package の探索根拠には file 指定能力を要求する。
+		// 利用者指定 package の探索根拠には file 指定能力を要求する
 		case CandidateDiscoveryBasis::USER_IMPORTED_PACKAGE:
 			return hasProviderCapability( descriptor, ProviderCapability::USER_SELECTED_FILE) ;
-		// 収集者確認は公式live探索と異なる索引専用能力へ結合します。
+		// 収集者確認は公式live探索と異なる索引専用能力へ結合します
 		case CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION:
 			return hasProviderCapability( descriptor,
 										 ProviderCapability::SIGNED_INDEX_ACQUISITION) &&
 				   !hasProviderCapability( descriptor, ProviderCapability::OFFICIAL_NETWORK) ;
-		// 未指定の探索根拠は registry 整合性を成立させない。
+		// 未指定の探索根拠は registry 整合性を成立させない
 		case CandidateDiscoveryBasis::UNSPECIFIED:
 			return false ;
 	}
@@ -269,15 +270,15 @@ bool isDiscoverySupported( const CandidateDiscoveryBasis basis,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 前段失敗後に後段成功を設定する矛盾を拒否する。Metadataだけの確認を監査合格へ昇格せず、`READY`は全gateが`PASSED`の場合だけ許可する。
+ * @brief 前段失敗後に後段成功を設定する矛盾を拒否する。Metadataだけの確認を監査合格へ昇格せず、`READY`は全gateが`PASSED`の場合だけ許可する
  *
- * @param[in] audit 公式network候補の監査状態。
- * @return 公式取得経路で許可された監査遷移なら`true`。
+ * @param[in] audit 公式network候補の監査状態
+ * @return 公式取得経路で許可された監査遷移なら`true`
  */
 //------------------------------------------------------------------------------
 bool isOfficialCandidateAuditValid( const CandidateAuditStatus &audit) noexcept
 {
-	// 取得元で拒否された候補は後続監査を未実施に保ち、導入不可の場合だけ保持する。
+	// 取得元で拒否された候補は後続監査を未実施に保ち、導入不可の場合だけ保持する
 	if( audit.sourceOrigin != CandidateAuditGateState::PASSED) {
 		return isRejectedOrFailed( audit.sourceOrigin) &&
 			   audit.inspectionDownload == CandidateAuditGateState::PENDING &&
@@ -289,38 +290,38 @@ bool isOfficialCandidateAuditValid( const CandidateAuditStatus &audit) noexcept
 	const bool systemPrevalidated =
 		audit.systemApplicability == CandidateAuditGateState::PENDING ||
 		audit.systemApplicability ==
-			CandidateAuditGateState::PROVIDER_VALIDATED ;	// 後段監査前に許可する状態。
-	// 取得が未完了または拒否済みなら、内容未検査と導入不可の状態を保つ場合だけ受理する。
+			CandidateAuditGateState::PROVIDER_VALIDATED ;	// 後段監査前に許可する状態
+	// 取得が未完了または拒否済みなら、内容未検査と導入不可の状態を保つ場合だけ受理する
 	if( audit.inspectionDownload == CandidateAuditGateState::PENDING ||
 	   isRejectedOrFailed( audit.inspectionDownload)) {
 		return audit.contentIntegrity == CandidateAuditGateState::PENDING && systemPrevalidated &&
 			   audit.installReadiness == CandidateInstallReadiness::BLOCKED ;
 	}
 
-	// 検査用取得の成功が確定していない状態から内容監査の合格を主張させない。
+	// 検査用取得の成功が確定していない状態から内容監査の合格を主張させない
 	if( audit.inspectionDownload != CandidateAuditGateState::PASSED) {
 		return false ;
 	}
 
-	// 内容が未確認または拒否済みの候補は、導入不可の事前照合状態に限定する。
+	// 内容が未確認または拒否済みの候補は、導入不可の事前照合状態に限定する
 	if( audit.contentIntegrity == CandidateAuditGateState::PENDING ||
 	   isRejectedOrFailed( audit.contentIntegrity)) {
 		return systemPrevalidated && audit.installReadiness == CandidateInstallReadiness::BLOCKED ;
 	}
 
-	// 内容監査に使えない状態を合格と解釈せず、矛盾した監査列を拒否する。
+	// 内容監査に使えない状態を合格と解釈せず、矛盾した監査列を拒否する
 	if( audit.contentIntegrity != CandidateAuditGateState::PASSED) {
 		return false ;
 	}
 
-	// 実機適用性が未確定または拒否済みなら、内容合格だけで導入可能にしない。
+	// 実機適用性が未確定または拒否済みなら、内容合格だけで導入可能にしない
 	if( audit.systemApplicability == CandidateAuditGateState::PENDING ||
 	   audit.systemApplicability == CandidateAuditGateState::PROVIDER_VALIDATED ||
 	   isRejectedOrFailed( audit.systemApplicability)) {
 		return audit.installReadiness == CandidateInstallReadiness::BLOCKED ;
 	}
 
-	// 実機適用性の合格が確定した候補だけを、最終的な導入可否の判定へ進める。
+	// 実機適用性の合格が確定した候補だけを、最終的な導入可否の判定へ進める
 	if( audit.systemApplicability != CandidateAuditGateState::PASSED) {
 		return false ;
 	}
@@ -331,40 +332,40 @@ bool isOfficialCandidateAuditValid( const CandidateAuditStatus &audit) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 取得元未証明とdownload非該当を固定し、内容またはsystem拒否後のinstall開始を許可しない。
+ * @brief 取得元未証明とdownload非該当を固定し、内容またはsystem拒否後のinstall開始を許可しない
  *
- * @param[in] audit 利用者指定package候補の監査状態。
- * @return 利用者指定経路で許可された監査遷移なら`true`。
+ * @param[in] audit 利用者指定package候補の監査状態
+ * @return 利用者指定経路で許可された監査遷移なら`true`
  */
 //------------------------------------------------------------------------------
 bool isUserSelectedCandidateAuditValid( const CandidateAuditStatus &audit) noexcept
 {
-	// 利用者指定fileの取得元を公式取得やネットワーク取得済みとして扱わせない。
+	// 利用者指定fileの取得元を公式取得やネットワーク取得済みとして扱わせない
 	if( audit.sourceOrigin != CandidateAuditGateState::USER_PROVIDED_UNVERIFIED ||
 	   audit.inspectionDownload != CandidateAuditGateState::NOT_APPLICABLE) {
 		return false ;
 	}
 
-	// 内容で拒否されたfileは適用性を昇格させず、導入不可の結果だけを残す。
+	// 内容で拒否されたfileは適用性を昇格させず、導入不可の結果だけを残す
 	if( isRejectedOrFailed( audit.contentIntegrity)) {
-		// 内容拒否後にsystem適用性を合格へ昇格させていないことを示す。
+		// 内容拒否後にsystem適用性を合格へ昇格させていないことを示す
 		const bool systemNotPromoted =
 			audit.systemApplicability == CandidateAuditGateState::PENDING ||
 			audit.systemApplicability == CandidateAuditGateState::PROVIDER_VALIDATED ;
 		return systemNotPromoted && audit.installReadiness == CandidateInstallReadiness::BLOCKED ;
 	}
 
-	// 内容を確認できていない利用者指定fileを、後続の導入判定へ通さない。
+	// 内容を確認できていない利用者指定fileを、後続の導入判定へ通さない
 	if( audit.contentIntegrity != CandidateAuditGateState::PASSED) {
 		return false ;
 	}
 
-	// 適用性で拒否されたfileは、内容が合格でも導入不可の結果に限定する。
+	// 適用性で拒否されたfileは、内容が合格でも導入不可の結果に限定する
 	if( isRejectedOrFailed( audit.systemApplicability)) {
 		return audit.installReadiness == CandidateInstallReadiness::BLOCKED ;
 	}
 
-	// 共通経路の基礎適合合格は、方式未接続の表示専用状態として保持する。
+	// 共通経路の基礎適合合格は、方式未接続の表示専用状態として保持する
 	if( audit.systemApplicability == CandidateAuditGateState::PASSED) {
 		return audit.installReadiness == CandidateInstallReadiness::BLOCKED ;
 	}
@@ -378,14 +379,14 @@ bool isUserSelectedCandidateAuditValid( const CandidateAuditStatus &audit) noexc
 //------------------------------------------------------------------------------
 /**
  * @brief WUAまたはWindows標準APIへ監査を委譲する候補状態を生成する。WUAまたはWindows標準APIへの委譲をDriverCrate独自の監査合格と表現せず、表示専用行だけ
- *        installを禁止する。
- * @param[in] displayOnly 現在版等の表示専用候補の場合は`true`。 現在版等の表示専用候補なら`true`。
- * @return Windows管理経路とinstall準備状態を明示した監査状態。
+ *        installを禁止する
+ * @param[in] displayOnly 現在版等の表示専用候補の場合は`true`。 現在版等の表示専用候補なら`true`
+ * @return Windows管理経路とinstall準備状態を明示した監査状態
  */
 //------------------------------------------------------------------------------
 CandidateAuditStatus makeWindowsManagedCandidateAudit( const bool displayOnly) noexcept
 {
-	CandidateAuditStatus audit ;	// Windows管理経路として返す監査状態。
+	CandidateAuditStatus audit ;	// Windows管理経路として返す監査状態
 	audit.sourceOrigin		  = CandidateAuditGateState::MANAGED_BY_WINDOWS ;
 	audit.inspectionDownload  = CandidateAuditGateState::MANAGED_BY_WINDOWS ;
 	audit.contentIntegrity	  = CandidateAuditGateState::MANAGED_BY_WINDOWS ;
@@ -398,13 +399,13 @@ CandidateAuditStatus makeWindowsManagedCandidateAudit( const bool displayOnly) n
 //------------------------------------------------------------------------------
 /**
  * @brief 公式metadata確認済みでpayload監査前の候補状態を生成する。Catalogとlocal deviceのProvider固有照合は保持するが、G11-C／D未接続の候補を
- *        選択可能にしない。
- * @return 由来確認済み、download／内容監査待ち、Provider照合済み、install禁止の状態。 由来確認済み、取得／内容監査待ち、Provider照合済みの状態。
+ *        選択可能にしない
+ * @return 由来確認済み、download／内容監査待ち、Provider照合済み、install禁止の状態。 由来確認済み、取得／内容監査待ち、Provider照合済みの状態
  */
 //------------------------------------------------------------------------------
 CandidateAuditStatus makeOfficialMetadataCandidateAudit() noexcept
 {
-	CandidateAuditStatus audit ;	// 公式metadata確認後の候補監査状態。
+	CandidateAuditStatus audit ;	// 公式metadata確認後の候補監査状態
 	audit.sourceOrigin		  = CandidateAuditGateState::PASSED ;
 	audit.inspectionDownload  = CandidateAuditGateState::PENDING ;
 	audit.contentIntegrity	  = CandidateAuditGateState::PENDING ;
@@ -416,13 +417,13 @@ CandidateAuditStatus makeOfficialMetadataCandidateAudit() noexcept
 //------------------------------------------------------------------------------
 /**
  * @brief 公式取得物が由来、download、内容およびsystem監査を全て通過した状態を生成する。登録済み公式originから取得し、G11-B～Dを通過した候補だけへ設定する。個別
- *        gateを呼出し側で推測して組み立てない。
- * @return 全監査gate合格済みでinstall可能な状態。
+ *        gateを呼出し側で推測して組み立てない
+ * @return 全監査gate合格済みでinstall可能な状態
  */
 //------------------------------------------------------------------------------
 CandidateAuditStatus makeOfficialReadyCandidateAudit() noexcept
 {
-	CandidateAuditStatus audit ;	// 全公式監査を完了した候補状態。
+	CandidateAuditStatus audit ;	// 全公式監査を完了した候補状態
 	audit.sourceOrigin		  = CandidateAuditGateState::PASSED ;
 	audit.inspectionDownload  = CandidateAuditGateState::PASSED ;
 	audit.contentIntegrity	  = CandidateAuditGateState::PASSED ;
@@ -433,13 +434,13 @@ CandidateAuditStatus makeOfficialReadyCandidateAudit() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式page由来だけを確認した表示専用候補状態を生成する。公式pageとlocal表示名の照合をPnP適用性合格へ昇格せず、配布情報だけを表示できる状態を生成する。
- * @return 由来確認済み、download／内容／system監査待ち、install禁止の状態。 由来確認済み、download／内容／system監査待ちの禁止状態。
+ * @brief 公式page由来だけを確認した表示専用候補状態を生成する。公式pageとlocal表示名の照合をPnP適用性合格へ昇格せず、配布情報だけを表示できる状態を生成する
+ * @return 由来確認済み、download／内容／system監査待ち、install禁止の状態。 由来確認済み、download／内容／system監査待ちの禁止状態
  */
 //------------------------------------------------------------------------------
 CandidateAuditStatus makeOfficialDiscoveryCandidateAudit() noexcept
 {
-	CandidateAuditStatus audit ;	// 公式page由来だけを確認した候補監査状態。
+	CandidateAuditStatus audit ;	// 公式page由来だけを確認した候補監査状態
 	audit.sourceOrigin		  = CandidateAuditGateState::PASSED ;
 	audit.inspectionDownload  = CandidateAuditGateState::PENDING ;
 	audit.contentIntegrity	  = CandidateAuditGateState::PENDING ;
@@ -450,13 +451,13 @@ CandidateAuditStatus makeOfficialDiscoveryCandidateAudit() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 利用者が指定し静的package監査を通過した候補状態を生成する。利用者指定fileを公式由来へ昇格せず、既存package検証とProvider固有照合が完了した範囲だけを記録する。
- * @return 取得元未証明、内容監査済み、Provider照合済みの状態。 取得元未証明、静的内容監査済みの候補状態。
+ * @brief 利用者が指定し静的package監査を通過した候補状態を生成する。利用者指定fileを公式由来へ昇格せず、既存package検証とProvider固有照合が完了した範囲だけを記録する
+ * @return 取得元未証明、内容監査済み、Provider照合済みの状態。 取得元未証明、静的内容監査済みの候補状態
  */
 //------------------------------------------------------------------------------
 CandidateAuditStatus makeUserSelectedCandidateAudit() noexcept
 {
-	CandidateAuditStatus audit ;	// 利用者指定packageの候補監査状態。
+	CandidateAuditStatus audit ;	// 利用者指定packageの候補監査状態
 	audit.sourceOrigin		  = CandidateAuditGateState::USER_PROVIDED_UNVERIFIED ;
 	audit.inspectionDownload  = CandidateAuditGateState::NOT_APPLICABLE ;
 	audit.contentIntegrity	  = CandidateAuditGateState::PASSED ;
@@ -467,22 +468,22 @@ CandidateAuditStatus makeUserSelectedCandidateAudit() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 候補監査状態とProvider経路、表示／install可否の整合性を検証する。定義外enumと過大な成功表現を拒否し、URLや表示名から不足状態を推測しない。
- * @param[in] candidate Scan sessionへ登録する候補。
- * @param[in] descriptor 候補を生成した登録済みProvider定義。 候補を生成したProviderのregistry定義。
- * @return 全enumと取得経路別の状態が矛盾しない場合は`true`。 経路、監査状態、表示／install可否が整合する場合は`true`。
+ * @brief 候補監査状態とProvider経路、表示／install可否の整合性を検証する。定義外enumと過大な成功表現を拒否し、URLや表示名から不足状態を推測しない
+ * @param[in] candidate Scan sessionへ登録する候補
+ * @param[in] descriptor 候補を生成した登録済みProvider定義。 候補を生成したProviderのregistry定義
+ * @return 全enumと取得経路別の状態が矛盾しない場合は`true`。 経路、監査状態、表示／install可否が整合する場合は`true`
  */
 //------------------------------------------------------------------------------
 bool isCandidateAuditValid( const UpdateCandidate	&candidate,
 						   const ProviderDescriptor &descriptor) noexcept
 {
-	const CandidateAuditStatus &audit = candidate.audit ;	// 検証対象の監査状態。
-	// 新しい詳細の矛盾を既存の集約監査で隠さない。
+	const CandidateAuditStatus &audit = candidate.audit ;	// 検証対象の監査状態
+	// 新しい詳細の矛盾を既存の集約監査で隠さない
 	if( !isCandidateDetailsValid( candidate)) {
 		return false ;
 	}
 
-	// 未知の監査値や探索経路との矛盾を拒否し、表示する保証の範囲を登録定義へ固定する。
+	// 未知の監査値や探索経路との矛盾を拒否し、表示する保証の範囲を登録定義へ固定する
 	if( !isKnownGateState( audit.sourceOrigin) || !isKnownGateState( audit.inspectionDownload) ||
 	   !isKnownGateState( audit.contentIntegrity) || !isKnownGateState( audit.systemApplicability) ||
 	   !isKnownInstallReadiness( audit.installReadiness) || !isKnownDriverAction( candidate.action) ||
@@ -495,9 +496,9 @@ bool isCandidateAuditValid( const UpdateCandidate	&candidate,
 		return false ;
 	}
 
-	// 現在構成の代表行はdriver存在を保証せず、操作候補とは別の表示制約を確認する。
+	// 現在構成の代表行はdriver存在を保証せず、操作候補とは別の表示制約を確認する
 	if( candidate.current) {
-		// 現在構成行を更新推奨や再導入可能とする矛盾、および非localの探索根拠を拒否する。
+		// 現在構成行を更新推奨や再導入可能とする矛盾、および非localの探索根拠を拒否する
 		if( candidate.installable || candidate.recommended ||
 		   candidate.action != DriverAction::NONE ||
 		   audit.installReadiness != CandidateInstallReadiness::DISPLAY_ONLY ||
@@ -506,27 +507,27 @@ bool isCandidateAuditValid( const UpdateCandidate	&candidate,
 		}
 	}
 
-	// 推奨表示を導入可能な通常更新に限定し、旧版や表示専用候補の暗黙選択を防ぐ。
+	// 推奨表示を導入可能な通常更新に限定し、旧版や表示専用候補の暗黙選択を防ぐ
 	if( !candidate.current && candidate.recommended &&
 	   (!candidate.installable || candidate.action != DriverAction::UPDATE)) {
 		return false ;
 	}
 
-	// 実行内容を持たない候補を導入可能として登録しない。
+	// 実行内容を持たない候補を導入可能として登録しない
 	if( !candidate.current && candidate.installable && candidate.action == DriverAction::NONE) {
 		return false ;
 	}
 
-	// 導入可否flagと監査段階を一致させ、表示と実行許可が食い違う候補を拒否する。
+	// 導入可否flagと監査段階を一致させ、表示と実行許可が食い違う候補を拒否する
 	if( candidate.installable !=
 	   (audit.installReadiness == CandidateInstallReadiness::AUDIT_PENDING ||
 		audit.installReadiness == CandidateInstallReadiness::READY)) {
 		return false ;
 	}
 
-	// 探索経路ごとの信頼境界へ監査結果を照合し、異なるProviderの保証を混在させない。
+	// 探索経路ごとの信頼境界へ監査結果を照合し、異なるProviderの保証を混在させない
 	switch( candidate.discoveryBasis) {
-		// Windows 管理候補は全監査 gate の委譲状態と導入準備状態を照合する。
+		// Windows 管理候補は全監査 gate の委譲状態と導入準備状態を照合する
 		case CandidateDiscoveryBasis::MANAGED_SERVICE:
 			return hasProviderCapability( descriptor, ProviderCapability::MANAGED_SERVICE) &&
 				   audit.sourceOrigin == CandidateAuditGateState::MANAGED_BY_WINDOWS &&
@@ -534,7 +535,7 @@ bool isCandidateAuditValid( const UpdateCandidate	&candidate,
 				   audit.contentIntegrity == CandidateAuditGateState::MANAGED_BY_WINDOWS &&
 				   audit.systemApplicability == CandidateAuditGateState::MANAGED_BY_WINDOWS &&
 				   audit.installReadiness == CandidateInstallReadiness::READY ;
-		// Local 候補は Windows 管理 gate と現在版に応じた準備状態を照合する。
+		// Local 候補は Windows 管理 gate と現在版に応じた準備状態を照合する
 		case CandidateDiscoveryBasis::LOCAL_INVENTORY:
 			return hasProviderCapability( descriptor, ProviderCapability::LOCAL_INVENTORY) &&
 				   audit.sourceOrigin == CandidateAuditGateState::MANAGED_BY_WINDOWS &&
@@ -544,21 +545,21 @@ bool isCandidateAuditValid( const UpdateCandidate	&candidate,
 				   audit.installReadiness == (candidate.current
 												  ? CandidateInstallReadiness::DISPLAY_ONLY
 												  : CandidateInstallReadiness::READY) ;
-		// 構造化 catalog 候補は公式 network の共通監査へ進む。
+		// 構造化 catalog 候補は公式 network の共通監査へ進む
 		case CandidateDiscoveryBasis::OFFICIAL_STRUCTURED_CATALOG:
-		// 公式 Web 候補は登録能力・取得元 policy・監査組合せの成立を要求する。
+		// 公式 Web 候補は登録能力・取得元 policy・監査組合せの成立を要求する
 		case CandidateDiscoveryBasis::OFFICIAL_WEB_PAGE:
 			return hasProviderCapability( descriptor, ProviderCapability::OFFICIAL_NETWORK) &&
 				   !descriptor.officialSourcePolicyId.empty() &&
 				   isOfficialCandidateAuditValid( audit) ;
-		// 利用者指定候補は file 指定能力と専用の監査組合せを照合する。
+		// 利用者指定候補は file 指定能力と専用の監査組合せを照合する
 		case CandidateDiscoveryBasis::USER_IMPORTED_PACKAGE:
 			return hasProviderCapability( descriptor, ProviderCapability::USER_SELECTED_FILE) &&
 				   (audit.systemApplicability != CandidateAuditGateState::PASSED ||
 					(candidate.assessment && candidate.assessment->applicability.state ==
 												 CandidateAssessmentState::PASSED)) &&
 				   isUserSelectedCandidateAuditValid( audit) ;
-		// 収集者確認は独立境界です。内容・Windows適合と本体routeが別途必要です。
+		// 収集者確認は独立境界です。内容・Windows適合と本体routeが別途必要です
 		case CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION:
 			return hasProviderCapability( descriptor,
 										 ProviderCapability::SIGNED_INDEX_ACQUISITION) &&
@@ -574,7 +575,7 @@ bool isCandidateAuditValid( const UpdateCandidate	&candidate,
 					 audit.contentIntegrity == CandidateAuditGateState::PASSED &&
 					 audit.systemApplicability == CandidateAuditGateState::PASSED &&
 					 audit.installReadiness == CandidateInstallReadiness::READY)) ;
-		// 探索根拠が未指定の候補を監査済みとして受理しない。
+		// 探索根拠が未指定の候補を監査済みとして受理しない
 		case CandidateDiscoveryBasis::UNSPECIFIED:
 			return false ;
 	}
@@ -584,17 +585,17 @@ bool isCandidateAuditValid( const UpdateCandidate	&candidate,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 観測・詳細assessment・初回actionを既存候補へ照合する。
- * @param[in] candidate 同じscanの候補。
- * @param[in] scanSessionId 現在session。0は候補自身との内部結合だけを検証する。
- * @return 新詳細の結合・集約auditとの整合性・表示専用条件を満たせばtrue。
- * @note 値なしの旧Providerを詳細合格へ補完しない。既存audit自体の検証は別途必須。
+ * @brief 観測・詳細assessment・初回actionを既存候補へ照合する
+ * @param[in] candidate 同じscanの候補
+ * @param[in] scanSessionId 現在session。0は候補自身との内部結合だけを検証する
+ * @return 新詳細の結合・集約auditとの整合性・表示専用条件を満たせばtrue
+ * @note 値なしの旧Providerを詳細合格へ補完しない。既存audit自体の検証は別途必須
  */
 //------------------------------------------------------------------------------
 bool isCandidateDetailsValid( const UpdateCandidate &candidate,
 							 const ScanSessionId	scanSessionId) noexcept
 {
-	// 観測はlocal代表行だけに所有させ、他候補・他sessionからの複製を拒否する。
+	// 観測はlocal代表行だけに所有させ、他候補・他sessionからの複製を拒否する
 	if( candidate.deviceObservation &&
 	   (!candidate.current ||
 		candidate.discoveryBasis != CandidateDiscoveryBasis::LOCAL_INVENTORY ||
@@ -620,8 +621,8 @@ bool isCandidateDetailsValid( const UpdateCandidate &candidate,
 		  candidate.assessment->windowsSelection.reason ==
 			  CandidateAssessmentReason::INSTALLER_HANDOFF_SELECTION)) &&
 		candidate.assessment->windowsSelection.evidenceId !=
-			0U ;	// 実行権限は別途私有tokenで検証します。
-	// 未対応Providerの初回は表示に限定し、READY表示だけで旧routingへ渡しません。
+			0U ;	// 実行権限は別途私有tokenで検証します
+	// 未対応Providerの初回は表示に限定し、READY表示だけで旧routingへ渡しません
 	if( candidate.action == DriverAction::INITIAL_INSTALL && !boundInitial &&
 	   (candidate.current || candidate.installable || candidate.recommended ||
 		candidate.defaultPreference != CandidateDefaultPreference::NONE ||
@@ -631,13 +632,13 @@ bool isCandidateDetailsValid( const UpdateCandidate &candidate,
 		return false ;
 	}
 
-	// 旧Providerは詳細未収集として扱い、既存auditの保証を変更しない。
+	// 旧Providerは詳細未収集として扱い、既存auditの保証を変更しない
 	if( !candidate.assessment) {
 		return true ;
 	}
 
-	const auto &detail = *candidate.assessment ;	// 当該候補だけの検査snapshot。
-	// 現在構成を候補検査と混同せず、全identityと選択可能性を再確認する。
+	const auto &detail = *candidate.assessment ;	// 当該候補だけの検査snapshot
+	// 現在構成を候補検査と混同せず、全identityと選択可能性を再確認する
 	if( candidate.current ||
 	   !isCandidateAssessmentBound(
 		   detail, scanSessionId == 0U ? detail.scanSessionId : scanSessionId, candidate.identity,
@@ -646,7 +647,7 @@ bool isCandidateDetailsValid( const UpdateCandidate &candidate,
 		return false ;
 	}
 
-	// 由来確認は集約監査と同じ事実を指すため、保証をすり替えさせない。
+	// 由来確認は集約監査と同じ事実を指すため、保証をすり替えさせない
 	if( (detail.origin.state == CandidateAssessmentState::PASSED &&
 		candidate.audit.sourceOrigin != CandidateAuditGateState::PASSED) ||
 	   (detail.origin.reason == CandidateAssessmentReason::USER_PROVIDED &&
@@ -656,14 +657,14 @@ bool isCandidateDetailsValid( const UpdateCandidate &candidate,
 		return false ;
 	}
 
-	// 同版・非推奨の実選択結果を推奨通常更新へ読み替えない。
+	// 同版・非推奨の実選択結果を推奨通常更新へ読み替えない
 	if( candidate.recommended &&
 	   (detail.windowsSelection.reason == CandidateAssessmentReason::NO_CHANGE ||
 		detail.windowsSelection.reason == CandidateAssessmentReason::NOT_RECOMMENDED)) {
 		return false ;
 	}
 
-	// 詳細の拒否・失敗を同じ集約の合格で覆い隠さない。
+	// 詳細の拒否・失敗を同じ集約の合格で覆い隠さない
 	const auto conflicts = []( const CandidateAssessmentFinding &finding,
 							  const CandidateAuditGateState		gate) {
 		return (finding.state == CandidateAssessmentState::REJECTED ||
@@ -671,7 +672,7 @@ bool isCandidateDetailsValid( const UpdateCandidate &candidate,
 			   (gate == CandidateAuditGateState::PASSED ||
 				gate == CandidateAuditGateState::PROVIDER_VALIDATED ||
 				gate == CandidateAuditGateState::MANAGED_BY_WINDOWS) ;
-	} ; // Captureなし。合格を捏造する組だけを検出する。
+	} ; // Captureなし。合格を捏造する組だけを検出する
 	return !conflicts( detail.origin, candidate.audit.sourceOrigin) &&
 		   !conflicts( detail.signature, candidate.audit.contentIntegrity) &&
 		   !conflicts( detail.driverOnly, candidate.audit.contentIntegrity) &&
@@ -686,27 +687,26 @@ bool isCandidateDetailsValid( const UpdateCandidate &candidate,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全代表行の一意性と観測・詳細のsessionを検証する。
- * @param[in] candidates 同じ結果の全候補。
- * @param[in] scanSessionId 0ではない結果のsession。
- * @return 全代表行が一device一行で新詳細が正しく結合する場合true。
- * @note 一時索引の確保失敗もfalseで返す。既存の候補ID・Provider監査を置き換えない。
+ * @brief 全代表行の一意性と観測・詳細のsessionを検証する
+ * @param[in] candidates 同じ結果の全候補
+ * @param[in] scanSessionId 0ではない結果のsession
+ * @return 全代表行が一device一行で新詳細が正しく結合する場合true
+ * @note 一時索引の確保失敗もfalseで返す。既存の候補ID・Provider監査を置き換えない
  */
 //------------------------------------------------------------------------------
 bool isCandidateDetailsSetValid( const std::span<const UpdateCandidate> candidates,
 								const ScanSessionId					   scanSessionId) noexcept
 {
-	// Sessionのないsnapshotや既存上限を超える結果を照合しない。
+	// Sessionのないsnapshotや既存上限を超える結果を照合しない
 	if( scanSessionId == 0U || candidates.size() > 32768U) {
 		return false ;
 	}
 
 	try {
-		std::unordered_set<std::wstring_view>
-			representatives ;	// 候補が生存する間だけ借用する代表ID。
-		// 全候補を一回走査し、deviceの代表行重複を拒否する。
+		std::unordered_set<std::wstring_view> representatives ;	// 候補が生存する間だけ借用する代表ID
+		// 全候補を一回走査し、deviceの代表行重複を拒否する
 		for( const auto &candidate : candidates) {
-			// 詳細不整合や重複を一部成功として残さない。
+			// 詳細不整合や重複を一部成功として残さない
 			if( !isCandidateDetailsValid( candidate, scanSessionId) ||
 			   (candidate.current && !representatives.insert( candidate.deviceIdentity).second)) {
 				return false ;
@@ -715,7 +715,7 @@ bool isCandidateDetailsSetValid( const std::span<const UpdateCandidate> candidat
 
 		return true ;
 	} catch( ...) {
-		// 索引の確保失敗は登録拒否として呼出し元へ返す。
+		// 索引の確保失敗は登録拒否として呼出し元へ返す
 		return false ;
 	}
 }

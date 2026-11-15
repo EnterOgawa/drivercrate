@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file provider_preparation_worker_tests.cpp
- * @brief 取得準備workerの内部試験。
- * @version 01.06.01
+ * @brief 取得準備workerの内部試験
+ * @version 01.06.02
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,34 +19,35 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  計測有無による副作用回数の不変性を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  Scan計測のWorker公開境界を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/09  ASIX候補発行と指定導入の共通接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  Install確認契約を明示。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  候補発行状態と件数fixtureを追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  一系列のWorker・Controller結合試験を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得後監査の表示境界を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  EULA本文と取得再確認の境界を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得計画とworker実行を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  計測有無による副作用回数の不変性を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  Scan計測のWorker公開境界を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/09  ASIX候補発行と指定導入の共通接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  Install確認契約を明示
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  候補発行状態と件数fixtureを追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  一系列のWorker・Controller結合試験を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得後監査の表示境界を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  EULA本文と取得再確認の境界を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得計画とworker実行を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.01.00 Shunji Ogawa  2026/09/15  通常scanの操作結合と協調取消しを追加。
- * Ver.01.02.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
- * Ver.01.02.01 Shunji Ogawa  2026/10/24  通常計測の版期待を既存製品version正本へ結合。
- * Ver.01.03.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
- * Ver.01.03.01 Shunji Ogawa  2026/11/09  不正なfake返却先を原valid失敗のままguard。
- * Ver.01.04.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補継続と元意図の正負回帰を追加。
- * Ver.01.05.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
- * Ver.01.06.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
- * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/15  通常scanの操作結合と協調取消しを追加
+ * Ver.01.02.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続
+ * Ver.01.02.01 Shunji Ogawa  2026/10/24  通常計測の版期待を既存製品version正本へ結合
+ * Ver.01.03.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加
+ * Ver.01.03.01 Shunji Ogawa  2026/11/09  不正なfake返却先を原valid失敗のままguard
+ * Ver.01.04.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補継続と元意図の正負回帰を追加
+ * Ver.01.05.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
+ * Ver.01.06.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続
+ * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.06.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note COM workerを使用しますが、通信・実driver導入・実復元ポイントは使用しません。
+ * @note COM workerを使用しますが、通信・実driver導入・実復元ポイントは使用しません
  */
 //------------------------------------------------------------------------------
 
@@ -88,69 +89,69 @@
 
 namespace drivercrate::test {
 namespace {
-/** @brief UI役とworkerの間で共有する合成状態。 */
+/** @brief UI役とworkerの間で共有する合成状態 */
 struct FakePreparationState {
-	/// Fake scanの開始回数。
+	/// Fake scanの開始回数
 	std::atomic_uint32_t		scanCalls{} ;
-	/// Fake取得の開始回数。
+	/// Fake取得の開始回数
 	std::atomic_uint32_t		acquireCalls{} ;
-	/// Fake導入の呼出回数。実installは行わない。
+	/// Fake導入の呼出回数。実installは行わない
 	std::atomic_uint32_t		installCalls{} ;
-	/// Fake復旧処理の呼出回数。実APIは呼ばない。
+	/// Fake復旧処理の呼出回数。実APIは呼ばない
 	std::atomic_uint32_t		restoreCalls{} ;
-	/// 保持情報失効の要求回数。
+	/// 保持情報失効の要求回数
 	std::atomic_uint32_t		invalidations{} ;
-	/// trueなら合成監査表示と対応する検索候補を返す。
+	/// trueなら合成監査表示と対応する検索候補を返す
 	std::atomic_bool			emitAudit{} ;
-	/// trueなら表示集約の例外を合成する。
+	/// trueなら表示集約の例外を合成する
 	std::atomic_bool			throwAudit{} ;
-	/// 本試験内のfake復旧処理だけを成功させる。
+	/// 本試験内のfake復旧処理だけを成功させる
 	std::atomic_bool			allowFakeRestore{} ;
-	/// trueなら再検出後のfake scanから例外を返します。
+	/// trueなら再検出後のfake scanから例外を返します
 	std::atomic_bool			throwScan{} ;
-	/// trueならfake導入境界から例外を返す。
+	/// trueならfake導入境界から例外を返す
 	std::atomic_bool			throwInstall{} ;
-	/// trueなら同じ結合fixtureをASIX取得元で実行する。
+	/// trueなら同じ結合fixtureをASIX取得元で実行する
 	std::atomic_bool			asixPipeline{} ;
-	/// trueなら一系列の全段階を成功候補として合成する。
+	/// trueなら一系列の全段階を成功候補として合成する
 	std::atomic_bool			emitPipeline{} ;
-	/// Fake導入中に同じscan保持物が残っていた場合true。
+	/// Fake導入中に同じscan保持物が残っていた場合true
 	std::atomic_bool			retainedAtInstall{} ;
-	/// 次のscan一回だけを試験信号まで待機させる。
+	/// 次のscan一回だけを試験信号まで待機させる
 	std::atomic_bool			holdScan{} ;
-	/// 次の取得一回だけを取消しまたは試験信号まで待機させる。
+	/// 次の取得一回だけを取消しまたは試験信号まで待機させる
 	std::atomic_bool			holdAcquire{} ;
-	/// Fake取得が協調取消しを観測した場合true。
+	/// Fake取得が協調取消しを観測した場合true
 	std::atomic_bool			cancellationSeen{} ;
-	/// Fake通常scanが自分の操作に結合した取消しを観測した場合true。
+	/// Fake通常scanが自分の操作に結合した取消しを観測した場合true
 	std::atomic_bool			scanCancellationSeen{} ;
-	/// 対象1が誤って取得された場合true。
+	/// 対象1が誤って取得された場合true
 	std::atomic_bool			acquiredUnselected{} ;
-	/// trueならworkerが拒否すべき計画を返す。
+	/// trueならworkerが拒否すべき計画を返す
 	std::atomic_bool			invalidPlan{} ;
-	/// trueなら空の正常scan計測snapshotを返す。
+	/// trueなら空の正常scan計測snapshotを返す
 	std::atomic_bool			emitMeasurement{} ;
-	/// trueなら別operationの計測を合成する。
+	/// trueなら別operationの計測を合成する
 	std::atomic_bool			invalidMeasurement{} ;
-	/// 待機scanの開始通知。
+	/// 待機scanの開始通知
 	std::counting_semaphore<32> scanEntered{0} ;
-	/// 待機scanを解放する試験信号。
+	/// 待機scanを解放する試験信号
 	std::counting_semaphore<32> scanRelease{0} ;
-	/// 待機取得の開始通知。
+	/// 待機取得の開始通知
 	std::counting_semaphore<32> acquireEntered{0} ;
-	/// 待機取得を解放する試験信号。
+	/// 待機取得を解放する試験信号
 	std::counting_semaphore<32> acquireRelease{0} ;
 } ;
 
-/** @brief 復元APIを初期化せず、呼出し順序を記録するfake。 */
+/** @brief 復元APIを初期化せず、呼出し順序を記録するfake */
 class FakePreparationRestoreService final : public IRestorePointService {
 public:
-	/// 同fakeの実行済みcallbackからだけ作る明示観測です。
+	/// 同fakeの実行済みcallbackからだけ作る明示観測です
 	RestorePointProtectionResult			   fakeProtection_{.disposition =
 													   RestorePointDisposition::UNAVAILABLE} ;
 	/**
-	 * @brief 完全fakeの原開始/終了に対応した観測を返します。
-	 * @return 本番APIを呼ばない観測です。
+	 * @brief 完全fakeの原開始/終了に対応した観測を返します
+	 * @return 本番APIを呼ばない観測です
 	 */
 	[[nodiscard]] RestorePointProtectionResult protection() const noexcept override
 	{
@@ -158,144 +159,144 @@ public:
 	}
 
 	/**
-	 * @brief Fixture状態を共有する。
-	 * Windows復元APIを初期化せず、試験状態だけを保持する。
-	 * @param[in] state 誤呼出しを記録する共有状態。 Fixtureの共有状態。
+	 * @brief Fixture状態を共有する
+	 * Windows復元APIを初期化せず、試験状態だけを保持する
+	 * @param[in] state 誤呼出しを記録する共有状態。 Fixtureの共有状態
 	 */
 	explicit FakePreparationRestoreService( std::shared_ptr<FakePreparationState> state) ;
 	/**
-	 * @brief 実復元ポイントを作らず呼出回数を記録する。
-	 * 実復元APIを呼ばず、許可したfixtureだけで保護後のworker順序を検証する。
-	 * @param[in] description 使用しない復旧説明。 使用しない合成説明。
-	 * @return Fixture指定時は合成成功、それ以外は既定の未成功結果。 指定時だけ合成成功と番号77。それ以外は既定の未成功結果。
+	 * @brief 実復元ポイントを作らず呼出回数を記録する
+	 * 実復元APIを呼ばず、許可したfixtureだけで保護後のworker順序を検証する
+	 * @param[in] description 使用しない復旧説明。 使用しない合成説明
+	 * @return Fixture指定時は合成成功、それ以外は既定の未成功結果。 指定時だけ合成成功と番号77。それ以外は既定の未成功結果
 	 */
 	RestorePointOperationResult begin( std::wstring_view description) noexcept override ;
 	/**
-	 * @brief 実APIを呼ばず誤呼出しを記録する。
-	 * 実APIを呼ばず、fake復旧処理の終了回数を記録する。
-	 * @param[in] sequenceNumber 使用しない合成番号。 使用しない合成復元番号。
-	 * @return Fixture指定時は合成成功、それ以外は既定の未成功結果。 指定時だけ合成成功と番号77。それ以外は既定の未成功結果。
+	 * @brief 実APIを呼ばず誤呼出しを記録する
+	 * 実APIを呼ばず、fake復旧処理の終了回数を記録する
+	 * @param[in] sequenceNumber 使用しない合成番号。 使用しない合成復元番号
+	 * @return Fixture指定時は合成成功、それ以外は既定の未成功結果。 指定時だけ合成成功と番号77。それ以外は既定の未成功結果
 	 */
 	RestorePointOperationResult complete( std::int64_t sequenceNumber) noexcept override ;
 
 private:
-	/// 試験側へ誤呼出しを返す共有状態。
+	/// 試験側へ誤呼出しを返す共有状態
 	std::shared_ptr<FakePreparationState> state_ ;
 } ;
 
-/** @brief 実systemを使わず取得準備と一系列の導入結果を合成するProvider。 */
+/** @brief 実systemを使わず取得準備と一系列の導入結果を合成するProvider */
 class FakePreparationProvider final : public IUpdateProvider {
 public:
 	/**
-	 * @brief 合成状態の所有権を共有する。
-	 * 実ProviderやHTTPを生成せず、試験状態だけを共有する。
-	 * @param[in] state 試験中に有効な共有状態。 Fixtureが所有する合成状態。
+	 * @brief 合成状態の所有権を共有する
+	 * 実ProviderやHTTPを生成せず、試験状態だけを共有する
+	 * @param[in] state 試験中に有効な共有状態。 Fixtureが所有する合成状態
 	 */
 	explicit FakePreparationProvider( std::shared_ptr<FakePreparationState> state) ;
 	/**
-	 * @brief 有界な偽scan結果を返す。
-	 * 待機は一回かつ最大3秒に限定する。一系列試験でも実deviceは列挙しない。
-	 * @param[in] session workerが発行した検索ID。 workerの検索ID。
-	 * @param[in] options 使用しない合成検索設定。 未使用の設定。
-	 * @param[in] progress 使用しない通知先。 未使用の通知先。
-	 * @return 通常は実deviceを含まない結果。一系列試験時は非機密の架空候補を含む。 通常は空、一系列試験では架空の表示専用候補を持つ成功結果。
+	 * @brief 有界な偽scan結果を返す
+	 * 待機は一回かつ最大3秒に限定する。一系列試験でも実deviceは列挙しない
+	 * @param[in] session workerが発行した検索ID。 workerの検索ID
+	 * @param[in] options 使用しない合成検索設定。 未使用の設定
+	 * @param[in] progress 使用しない通知先。 未使用の通知先
+	 * @return 通常は実deviceを含まない結果。一系列試験時は非機密の架空候補を含む。 通常は空、一系列試験では架空の表示専用候補を持つ成功結果
 	 */
 	ScanResult scan( ScanSessionId session, const ScanOptions &options,
 					const ProviderProgressCallback &progress) override ;
 	/**
-	 * @brief Workerが所有する通常scan取消しを有限待機中に観測する。
-	 * @param[in] session Workerが発行した検索session ID。
-	 * @param[in] options 実networkを含まない合成検索設定。
-	 * @param[in] cancellation 同じoperationの非blocking取消し照会。
-	 * @param[in] progress 使用しない合成通知先。
-	 * @return 取消し時はABORTED、それ以外は通常の合成scan結果。
+	 * @brief Workerが所有する通常scan取消しを有限待機中に観測する
+	 * @param[in] session Workerが発行した検索session ID
+	 * @param[in] options 実networkを含まない合成検索設定
+	 * @param[in] cancellation 同じoperationの非blocking取消し照会
+	 * @param[in] progress 使用しない合成通知先
+	 * @return 取消し時はABORTED、それ以外は通常の合成scan結果
 	 */
 	ScanResult scanWithCancellation( ScanSessionId session, const ScanOptions &options,
 									const ProviderScanCancellation &cancellation,
 									const ProviderProgressCallback &progress) override ;
 	/**
-	 * @brief 保持sessionの有限な架空対象を計画へ返す。
-	 * 実metadataやURLを使わず、workerでの照合だけを確認する。
-	 * @param[in] session 計画を要求する検索ID。
-	 * @param[in] planId workerが発行した計画ID。 workerが発行する計画ID。
-	 * @return 一系列試験は一対象、既存試験は三対象の計画。旧sessionはnullopt。
+	 * @brief 保持sessionの有限な架空対象を計画へ返す
+	 * 実metadataやURLを使わず、workerでの照合だけを確認する
+	 * @param[in] session 計画を要求する検索ID
+	 * @param[in] planId workerが発行した計画ID。 workerが発行する計画ID
+	 * @return 一系列試験は一対象、既存試験は三対象の計画。旧sessionはnullopt
 	 */
 	std::optional<OfficialPreparationPlan> preparationPlan( ScanSessionId session,
 														   std::uint64_t planId) override ;
 	/**
-	 * @brief 転送せず取得済み、または協調取消しを返す。
-	 * 実fileを取得せず、有限待機中も取消しを観測する。
-	 * @param[in] task 選択されたtask。 workerがclaimした対象。
-	 * @param[in] cancellation workerの取消し照会。 協調取消し照会。
-	 * @return 合成した取得結果。 合成した取得成功または取消し。
+	 * @brief 転送せず取得済み、または協調取消しを返す
+	 * 実fileを取得せず、有限待機中も取消しを観測する
+	 * @param[in] task 選択されたtask。 workerがclaimした対象
+	 * @param[in] cancellation workerの取消し照会。 協調取消し照会
+	 * @return 合成した取得結果。 合成した取得成功または取消し
 	 */
 	OfficialPreparationTransferResult	   acquireForInspection(
 			 const OfficialPreparationTask &task, const PreparationCancellation &cancellation) override ;
 	/**
-	 * @brief 実監査を行わず、非機密reportまたは集約例外を合成する。
-	 * 実監査を行わず、worker通知と表示集約失敗の扱いを確認する。
-	 * @param[in] result 同一workerの合成取得結果。 Fake取得の確定結果。
-	 * @return 合成対象の表示report。通常試験では空。 合成監査report。例外指定時は合成例外。
+	 * @brief 実監査を行わず、非機密reportまたは集約例外を合成する
+	 * 実監査を行わず、worker通知と表示集約失敗の扱いを確認する
+	 * @param[in] result 同一workerの合成取得結果。 Fake取得の確定結果
+	 * @return 合成対象の表示report。通常試験では空。 合成監査report。例外指定時は合成例外
 	 */
 	std::vector<OfficialPreparationAuditReport> preparationAuditReports(
 		const OfficialPreparationOperationResult &result) override ;
 	/**
-	 * @brief workerの失効順序を数え、実driverの状態は変更しない。
+	 * @brief workerの失効順序を数え、実driverの状態は変更しない
 	 */
 	void		  invalidatePreparation() noexcept override ;
 	/**
-	 * @brief 実installを行わず呼出回数だけを記録する。
-	 * 実installを行わず、呼出し時に保持物が生存しているか記録する。
-	 * @param[in] session 保持している検索IDとの照合値。 Fakeが保持している検索sessionとの照合値。
-	 * @param[in] identities 未使用の選択一覧。 実driverでない合成選択。一系列試験ではIDを照合する。
-	 * @param[in] parent 未使用の親Window値。 使用しない親Window値。
-	 * @param[in] progress 未使用の通知先。 使用しない通知先。
-	 * @return 通常は未開始結果。一系列試験時は全選択候補の合成成功結果。 通常は未実行結果。一系列試験時は入力順の合成成功結果。指定時は合成例外。
+	 * @brief 実installを行わず呼出回数だけを記録する
+	 * 実installを行わず、呼出し時に保持物が生存しているか記録する
+	 * @param[in] session 保持している検索IDとの照合値。 Fakeが保持している検索sessionとの照合値
+	 * @param[in] identities 未使用の選択一覧。 実driverでない合成選択。一系列試験ではIDを照合する
+	 * @param[in] parent 未使用の親Window値。 使用しない親Window値
+	 * @param[in] progress 未使用の通知先。 使用しない通知先
+	 * @return 通常は未開始結果。一系列試験時は全選択候補の合成成功結果。 通常は未実行結果。一系列試験時は入力順の合成成功結果。指定時は合成例外
 	 */
 	InstallResult install( ScanSessionId session, std::span<const std::wstring> identities,
 						  std::uintptr_t parent, const ProviderProgressCallback &progress) override ;
 
 private:
-	/// UI役と共有する試験状態。
+	/// UI役と共有する試験状態
 	std::shared_ptr<FakePreparationState> state_ ;
-	/// worker thread内だけで使用する保持session。
+	/// worker thread内だけで使用する保持session
 	ScanSessionId						  session_{} ;
 } ;
 
-/** @brief 有限待機と終了時解放を保証するworker試験fixture。 */
+/** @brief 有限待機と終了時解放を保証するworker試験fixture */
 class WorkerFixture final {
 public:
 	/**
-	 * @brief Fake Providerだけのworkerを生成する。
-	 * Windowを生成せず、event queueから結果を回収する。
+	 * @brief Fake Providerだけのworkerを生成する
+	 * Windowを生成せず、event queueから結果を回収する
 	 */
 	WorkerFixture() ;
 	/**
-	 * @brief 失敗時の早期returnでもfake待機を解放し、workerを残さない。
+	 * @brief 失敗時の早期returnでもfake待機を解放し、workerを残さない
 	 */
 	~WorkerFixture() ;
 	/**
-	 * @brief 指定eventを最大3秒待つ。未消費eventは次の要求へ保持する。
-	 * 異なるeventを捨てず、後続の検証へ保持する。
-	 * @param[in] kind 必要なeventの種類。 待つevent種類。
-	 * @param[in] operation 必要な操作ID。 待つ操作ID。
-	 * @return 該当eventまたはtimeoutのnullopt。 該当eventまたは3秒経過後のnullopt。
+	 * @brief 指定eventを最大3秒待つ。未消費eventは次の要求へ保持する
+	 * 異なるeventを捨てず、後続の検証へ保持する
+	 * @param[in] kind 必要なeventの種類。 待つevent種類
+	 * @param[in] operation 必要な操作ID。 待つ操作ID
+	 * @return 該当eventまたはtimeoutのnullopt。 該当eventまたは3秒経過後のnullopt
 	 */
 	std::optional<WorkerEvent>			  waitEvent( WorkerEventKind kind, OperationId operation) ;
-	/// 試験とworkerの共有状態。
+	/// 試験とworkerの共有状態
 	std::shared_ptr<FakePreparationState> state ;
-	/// Fixtureが所有して必ず停止するworker。
+	/// Fixtureが所有して必ず停止するworker
 	std::unique_ptr<ProviderWorker>		  worker ;
 
 private:
-	/// 取り出したが未消費の有界event。
+	/// 取り出したが未消費の有界event
 	std::vector<WorkerEvent> pending_ ;
 } ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 合成状態の所有権を共有する。実ProviderやHTTPを生成せず、試験状態だけを共有する。
- * @param[in] state 試験中に有効な共有状態。 Fixtureが所有する合成状態。
+ * @brief 合成状態の所有権を共有する。実ProviderやHTTPを生成せず、試験状態だけを共有する
+ * @param[in] state 試験中に有効な共有状態。 Fixtureが所有する合成状態
  */
 //------------------------------------------------------------------------------
 FakePreparationProvider::FakePreparationProvider( std::shared_ptr<FakePreparationState> state)
@@ -305,11 +306,11 @@ FakePreparationProvider::FakePreparationProvider( std::shared_ptr<FakePreparatio
 
 //------------------------------------------------------------------------------
 /**
- * @brief 有界な偽scan結果を返す。待機は一回かつ最大3秒に限定する。一系列試験でも実deviceは列挙しない。
- * @param[in] session workerが発行した検索ID。 workerの検索ID。
- * @param[in] options 使用しない合成検索設定。 未使用の設定。
- * @param[in] progress 使用しない通知先。 未使用の通知先。
- * @return 通常は実deviceを含まない結果。一系列試験時は非機密の架空候補を含む。 通常は空、一系列試験では架空の表示専用候補を持つ成功結果。
+ * @brief 有界な偽scan結果を返す。待機は一回かつ最大3秒に限定する。一系列試験でも実deviceは列挙しない
+ * @param[in] session workerが発行した検索ID。 workerの検索ID
+ * @param[in] options 使用しない合成検索設定。 未使用の設定
+ * @param[in] progress 使用しない通知先。 未使用の通知先
+ * @return 通常は実deviceを含まない結果。一系列試験時は非機密の架空候補を含む。 通常は空、一系列試験では架空の表示専用候補を持つ成功結果
  */
 //------------------------------------------------------------------------------
 ScanResult FakePreparationProvider::scan( const ScanSessionId session, const ScanOptions &options,
@@ -318,12 +319,12 @@ ScanResult FakePreparationProvider::scan( const ScanSessionId session, const Sca
 	static_cast<void>( options) ;
 	static_cast<void>( progress) ;
 	++state_->scanCalls ;
-	// 後続Provider例外でも先行する再検出事実を終端へ保持します。
+	// 後続Provider例外でも先行する再検出事実を終端へ保持します
 	if( state_->throwScan) {
 		throw std::runtime_error( "fixture post-refresh scan failure") ;
 	}
 
-	// 指定された一回のscanだけを有限時間保留し、競合操作を試験できる状態を作る。
+	// 指定された一回のscanだけを有限時間保留し、競合操作を試験できる状態を作る
 	if( state_->holdScan.exchange( false)) {
 		state_->scanEntered.release() ;
 		static_cast<void>( state_->scanRelease.try_acquire_for( std::chrono::seconds( 3))) ;
@@ -333,10 +334,10 @@ ScanResult FakePreparationProvider::scan( const ScanSessionId session, const Sca
 	ScanResult result{.succeeded	 = true,
 					  .scanSessionId = session,
 					  .outcome		 = OutcomeCode::SUCCESS,
-					  .state = ProviderScanState::NO_CANDIDATES} ;	// 実deviceを使わない合成結果。
-	// 一系列の取得後監査を試験する場合は対応する架空の表示行を用意する。
+					  .state = ProviderScanState::NO_CANDIDATES} ;	// 実deviceを使わない合成結果
+	// 一系列の取得後監査を試験する場合は対応する架空の表示行を用意する
 	if( state_->emitPipeline) {
-		UpdateCandidate row ;	// 一系列の取得後監査を反映する架空の表示専用行。
+		UpdateCandidate row ;	// 一系列の取得後監査を反映する架空の表示専用行
 		row.identity	   = L"row:target:0" ;
 		row.deviceIdentity = L"device:0" ;
 		row.providerId =
@@ -354,11 +355,11 @@ ScanResult FakePreparationProvider::scan( const ScanSessionId session, const Sca
 		result.candidates.push_back( std::move( row)) ;
 		result.state = ProviderScanState::CANDIDATES_AVAILABLE ;
 	}
-	// 監査表示を試験する場合は三対象に対応する表示専用行を用意する。
+	// 監査表示を試験する場合は三対象に対応する表示専用行を用意する
 	else if( state_->emitAudit) {
-		// 合成計画の三対象と同じID対応を持つ、表示専用候補を用意する。
+		// 合成計画の三対象と同じID対応を持つ、表示専用候補を用意する
 		for( std::uint32_t index = 0U; index < 3U; ++index) {
-			UpdateCandidate row ;	// 監査反映先となる架空の表示行。
+			UpdateCandidate row ;	// 監査反映先となる架空の表示行
 			row.identity	   = L"row:target:" + std::to_wstring( index) ;
 			row.deviceIdentity = L"device:" + std::to_wstring( index) ;
 			row.providerId	   = PROLIFIC_OFFICIAL_PROVIDER_ID ;
@@ -370,14 +371,14 @@ ScanResult FakePreparationProvider::scan( const ScanSessionId session, const Sca
 		result.state = ProviderScanState::CANDIDATES_AVAILABLE ;
 	}
 
-	// Worker公開境界の拘束を試験する場合だけ、実deviceを含まない空計測を付加する。
+	// Worker公開境界の拘束を試験する場合だけ、実deviceを含まない空計測を付加する
 	if( state_->emitMeasurement) {
-		ScanMeasurement measurement ;	// Workerがoperationとapplication版を設定する合成snapshot。
+		ScanMeasurement measurement ;	// Workerがoperationとapplication版を設定する合成snapshot
 		measurement.context.operationId =
-			state_->invalidMeasurement ? 99U : 0U ;	// 不正fixtureは別operationを固定する。
+			state_->invalidMeasurement ? 99U : 0U ;	// 不正fixtureは別operationを固定する
 		measurement.context.scanSessionId = session ;
 		const CountMeasurement exactZero{
-			0U, MeasurementExtent::EXACT} ;	// 空の現在版集合と整合する確定0件。
+			0U, MeasurementExtent::EXACT} ;	// 空の現在版集合と整合する確定0件
 		measurement.inventory.enumeratedDeviceCount		  = exactZero ;
 		measurement.inventory.representedDeviceCount	  = exactZero ;
 		measurement.inventory.unrepresentedDeviceCount	  = exactZero ;
@@ -393,19 +394,19 @@ ScanResult FakePreparationProvider::scan( const ScanSessionId session, const Sca
 
 //------------------------------------------------------------------------------
 /**
- * @brief Workerが所有する通常scan取消しを有限待機中に観測する。
- * @param[in] session Workerが発行した検索session ID。
- * @param[in] options 実networkを含まない合成検索設定。
- * @param[in] cancellation 同じoperationの非blocking取消し照会。
- * @param[in] progress 使用しない合成通知先。
- * @return 取消し時はABORTED、それ以外は通常の合成scan結果。
+ * @brief Workerが所有する通常scan取消しを有限待機中に観測する
+ * @param[in] session Workerが発行した検索session ID
+ * @param[in] options 実networkを含まない合成検索設定
+ * @param[in] cancellation 同じoperationの非blocking取消し照会
+ * @param[in] progress 使用しない合成通知先
+ * @return 取消し時はABORTED、それ以外は通常の合成scan結果
  */
 //------------------------------------------------------------------------------
 ScanResult FakePreparationProvider::scanWithCancellation(
 	const ScanSessionId session, const ScanOptions &options,
 	const ProviderScanCancellation &cancellation, const ProviderProgressCallback &progress)
 {
-	// Queue内で取り消されたscanはProvider処理を開始しない。
+	// Queue内で取り消されたscanはProvider処理を開始しない
 	if( cancellation && cancellation()) {
 		++state_->scanCalls ;
 		state_->scanCancellationSeen = true ;
@@ -415,12 +416,12 @@ ScanResult FakePreparationProvider::scanWithCancellation(
 				.error		   = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))} ;
 	}
 
-	// 指定された一回のscanだけを最大3秒待機し、途中取消しを観測する。
+	// 指定された一回のscanだけを最大3秒待機し、途中取消しを観測する
 	if( state_->holdScan.exchange( false)) {
 		state_->scanEntered.release() ;
-		// 10 ms単位で同じ操作の信号と試験解放を最大300回確認する。
+		// 10 ms単位で同じ操作の信号と試験解放を最大300回確認する
 		for( std::uint32_t attempt = 0U; attempt < 300U; ++attempt) {
-			// 取消し成立後は正常scan結果や準備計画を作らない。
+			// 取消し成立後は正常scan結果や準備計画を作らない
 			if( cancellation && cancellation()) {
 				++state_->scanCalls ;
 				state_->scanCancellationSeen = true ;
@@ -430,7 +431,7 @@ ScanResult FakePreparationProvider::scanWithCancellation(
 						.error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))} ;
 			}
 
-			// 試験側が明示解放した場合だけ通常scanへ進む。
+			// 試験側が明示解放した場合だけ通常scanへ進む
 			if( state_->scanRelease.try_acquire_for( std::chrono::milliseconds( 10))) {
 				break ;
 			}
@@ -442,31 +443,31 @@ ScanResult FakePreparationProvider::scanWithCancellation(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 保持sessionの有限な架空対象を計画へ返す。実metadataやURLを使わず、workerでの照合だけを確認する。
- * @param[in] session 計画を要求する検索ID。
- * @param[in] planId workerが発行した計画ID。 workerが発行する計画ID。
- * @return 一系列試験は一対象、既存試験は三対象の計画。旧sessionはnullopt。
+ * @brief 保持sessionの有限な架空対象を計画へ返す。実metadataやURLを使わず、workerでの照合だけを確認する
+ * @param[in] session 計画を要求する検索ID
+ * @param[in] planId workerが発行した計画ID。 workerが発行する計画ID
+ * @return 一系列試験は一対象、既存試験は三対象の計画。旧sessionはnullopt
  */
 //------------------------------------------------------------------------------
 std::optional<OfficialPreparationPlan> FakePreparationProvider::preparationPlan(
 	const ScanSessionId session, const std::uint64_t planId)
 {
-	// 未発行または古いsessionには準備計画を返さない。
+	// 未発行または古いsessionには準備計画を返さない
 	if( session == 0U || session != session_) {
 		return std::nullopt ;
 	}
 
-	// workerへ返す非機密の合成取得計画。
+	// workerへ返す非機密の合成取得計画
 	OfficialPreparationPlan plan{session, planId, DEFAULT_OFFICIAL_PREPARATION_LIMITS, {}} ;
 	const std::uint32_t		targetCount =
-		state_->emitPipeline ? 1U : 3U ;	// 一系列試験または既存部分取得試験の対象数。
+		state_->emitPipeline ? 1U : 3U ;	// 一系列試験または既存部分取得試験の対象数
 	const std::wstring_view providerId =
 		state_->emitPipeline
 			? (state_->asixPipeline ? ASIX_AX88179A_PROVIDER_ID : BROADCOM_NET_XTREME_PROVIDER_ID)
-			: PROLIFIC_OFFICIAL_PROVIDER_ID ;	// 対象に固定する登録済みProvider。
-	// 一系列では一配布物、既存試験では中央を未選択にできる三配布物を作る。
+			: PROLIFIC_OFFICIAL_PROVIDER_ID ;	// 対象に固定する登録済みProvider
+	// 一系列では一配布物、既存試験では中央を未選択にできる三配布物を作る
 	for( std::uint32_t index = 0U; index < targetCount; ++index) {
-		OfficialPreparationTarget target ;	// 合成した一配布物。
+		OfficialPreparationTarget target ;	// 合成した一配布物
 		target.identity		   = L"target:" + std::to_wstring( index) ;
 		target.providerId	   = providerId ;
 		target.resourceId	   = L"payload" ;
@@ -478,9 +479,9 @@ std::optional<OfficialPreparationPlan> FakePreparationProvider::preparationPlan(
 		plan.targets.push_back( std::move( target)) ;
 	}
 
-	// 計画IDの不一致を注入してworker側の結果検証を確認する。
+	// 計画IDの不一致を注入してworker側の結果検証を確認する
 	if( state_->invalidPlan) {
-		// workerが発行した値と一致しないProvider結果を合成する。
+		// workerが発行した値と一致しないProvider結果を合成する
 		++plan.planId ;
 	}
 
@@ -489,34 +490,34 @@ std::optional<OfficialPreparationPlan> FakePreparationProvider::preparationPlan(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 転送せず取得済み、または協調取消しを返す。実fileを取得せず、有限待機中も取消しを観測する。
- * @param[in] task 選択されたtask。 workerがclaimした対象。
- * @param[in] cancellation workerの取消し照会。 協調取消し照会。
- * @return 合成した取得結果。 合成した取得成功または取消し。
+ * @brief 転送せず取得済み、または協調取消しを返す。実fileを取得せず、有限待機中も取消しを観測する
+ * @param[in] task 選択されたtask。 workerがclaimした対象
+ * @param[in] cancellation workerの取消し照会。 協調取消し照会
+ * @return 合成した取得結果。 合成した取得成功または取消し
  */
 //------------------------------------------------------------------------------
 OfficialPreparationTransferResult FakePreparationProvider::acquireForInspection(
 	const OfficialPreparationTask &task, const PreparationCancellation &cancellation)
 {
 	++state_->acquireCalls ;
-	// 未選択対象への取得呼出しがあれば観測flagへ記録する。
+	// 未選択対象への取得呼出しがあれば観測flagへ記録する
 	if( task.target.identity == L"target:1") {
 		state_->acquiredUnselected = true ;
 	}
 
-	// 指定された一回の取得だけを有限時間保留し、待機中の取消しを検証する。
+	// 指定された一回の取得だけを有限時間保留し、待機中の取消しを検証する
 	if( state_->holdAcquire.exchange( false)) {
 		state_->acquireEntered.release() ;
-		// 最大約3秒だけ待機し、signal通知がなくても協調取消しを繰り返し確認する。
+		// 最大約3秒だけ待機し、signal通知がなくても協調取消しを繰り返し確認する
 		for( std::uint32_t attempt = 0U; attempt < 300U; ++attempt) {
-			// 待機中に取消しを観測したら取得成功に進まず取消し結果を返す。
+			// 待機中に取消しを観測したら取得成功に進まず取消し結果を返す
 			if( cancellation && cancellation()) {
 				state_->cancellationSeen = true ;
 				return {OfficialPreparationItemState::CANCELLED,
 						static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED)), 0U} ;
 			}
 
-			// 試験側から再開通知を受けた場合は待機loopを抜ける。
+			// 試験側から再開通知を受けた場合は待機loopを抜ける
 			if( state_->acquireRelease.try_acquire_for( std::chrono::milliseconds( 10))) {
 				break ;
 			}
@@ -528,7 +529,7 @@ OfficialPreparationTransferResult FakePreparationProvider::acquireForInspection(
 
 //------------------------------------------------------------------------------
 /**
- * @brief workerの失効順序を数え、実driverの状態は変更しない。
+ * @brief workerの失効順序を数え、実driverの状態は変更しない
  */
 //------------------------------------------------------------------------------
 void FakePreparationProvider::invalidatePreparation() noexcept
@@ -539,12 +540,12 @@ void FakePreparationProvider::invalidatePreparation() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実installを行わず呼出回数だけを記録する。実installを行わず、呼出し時に保持物が生存しているか記録する。
- * @param[in] session 保持している検索IDとの照合値。 Fakeが保持している検索sessionとの照合値。
- * @param[in] identities 未使用の選択一覧。 実driverでない合成選択。一系列試験ではIDを照合する。
- * @param[in] parent 未使用の親Window値。 使用しない親Window値。
- * @param[in] progress 未使用の通知先。 使用しない通知先。
- * @return 通常は未開始結果。一系列試験時は全選択候補の合成成功結果。 通常は未実行結果。一系列試験時は入力順の合成成功結果。指定時は合成例外。
+ * @brief 実installを行わず呼出回数だけを記録する。実installを行わず、呼出し時に保持物が生存しているか記録する
+ * @param[in] session 保持している検索IDとの照合値。 Fakeが保持している検索sessionとの照合値
+ * @param[in] identities 未使用の選択一覧。 実driverでない合成選択。一系列試験ではIDを照合する
+ * @param[in] parent 未使用の親Window値。 使用しない親Window値
+ * @param[in] progress 未使用の通知先。 使用しない通知先
+ * @return 通常は未開始結果。一系列試験時は全選択候補の合成成功結果。 通常は未実行結果。一系列試験時は入力順の合成成功結果。指定時は合成例外
  */
 //------------------------------------------------------------------------------
 InstallResult FakePreparationProvider::install( const ScanSessionId				   session,
@@ -556,15 +557,15 @@ InstallResult FakePreparationProvider::install( const ScanSessionId				   sessio
 	static_cast<void>( progress) ;
 	++state_->installCalls ;
 	state_->retainedAtInstall = session != 0U && session == session_ ;
-	// 実installは一切行わない。
+	// 実installは一切行わない
 	if( state_->throwInstall) {
 		throw std::runtime_error( "fictional install failure") ;
 	}
 
-	// 一系列試験では同じsessionの公開済み一候補だけを模擬成功へ変換する。
+	// 一系列試験では同じsessionの公開済み一候補だけを模擬成功へ変換する
 	if( state_->emitPipeline) {
-		InstallResult result ;	// WorkerのOS別保護結果が後から付加されるProvider成功結果。
-		// 同じscanで発行した一候補だけを合成成功へ変換する入力照合値。
+		InstallResult result ;	// WorkerのOS別保護結果が後から付加されるProvider成功結果
+		// 同じscanで発行した一候補だけを合成成功へ変換する入力照合値
 		const bool	  valid = session != 0U && session == session_ && identities.size() == 1U &&
 						   identities.front() == L"prepared:target:0" ;
 		result.succeeded	   = valid ;
@@ -572,7 +573,7 @@ InstallResult FakePreparationProvider::install( const ScanSessionId				   sessio
 		result.installOutcome  = valid ? OutcomeCode::SUCCESS : OutcomeCode::FAILURE ;
 		result.downloadError   = valid ? 0 : static_cast<NativeError>( E_INVALIDARG) ;
 		result.installError	   = valid ? 0 : static_cast<NativeError>( E_INVALIDARG) ;
-		// 選択identityを欠落させず、成功と拒否のどちらもControllerが照合できる形で返す。
+		// 選択identityを欠落させず、成功と拒否のどちらもControllerが照合できる形で返す
 		for( const std::wstring &identity : identities) {
 			result.updates.push_back(
 				{.identity		  = identity,
@@ -592,7 +593,7 @@ InstallResult FakePreparationProvider::install( const ScanSessionId				   sessio
 
 //------------------------------------------------------------------------------
 /**
- * @brief Fake Providerだけのworkerを生成する。Windowを生成せず、event queueから結果を回収する。
+ * @brief Fake Providerだけのworkerを生成する。Windowを生成せず、event queueから結果を回収する
  */
 //------------------------------------------------------------------------------
 WorkerFixture::WorkerFixture()
@@ -606,7 +607,7 @@ WorkerFixture::WorkerFixture()
 
 //------------------------------------------------------------------------------
 /**
- * @brief 失敗時の早期returnでもfake待機を解放し、workerを残さない。
+ * @brief 失敗時の早期returnでもfake待機を解放し、workerを残さない
  */
 //------------------------------------------------------------------------------
 WorkerFixture::~WorkerFixture()
@@ -618,20 +619,20 @@ WorkerFixture::~WorkerFixture()
 
 //------------------------------------------------------------------------------
 /**
- * @brief 指定eventを最大3秒待つ。未消費eventは次の要求へ保持する。異なるeventを捨てず、後続の検証へ保持する。
- * @param[in] kind 必要なeventの種類。 待つevent種類。
- * @param[in] operation 必要な操作ID。 待つ操作ID。
- * @return 該当eventまたはtimeoutのnullopt。 該当eventまたは3秒経過後のnullopt。
+ * @brief 指定eventを最大3秒待つ。未消費eventは次の要求へ保持する。異なるeventを捨てず、後続の検証へ保持する
+ * @param[in] kind 必要なeventの種類。 待つevent種類
+ * @param[in] operation 必要な操作ID。 待つ操作ID
+ * @return 該当eventまたはtimeoutのnullopt。 該当eventまたは3秒経過後のnullopt
  */
 //------------------------------------------------------------------------------
 std::optional<WorkerEvent> WorkerFixture::waitEvent( const WorkerEventKind kind,
 													const OperationId	  operation)
 {
-	const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds( 3) ;	// 待機期限。
-	// 期限内だけqueueを回収し、busy spinを避けるため試験threadを短時間yieldする。
+	const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds( 3) ;	// 待機期限
+	// 期限内だけqueueを回収し、busy spinを避けるため試験threadを短時間yieldする
 	while( std::chrono::steady_clock::now() < deadline) {
-		auto arrived = worker->takeEvents() ;	// workerから所有権を移す有限event。
-		// 到着したeventを保持し、先の操作の結果も確認できるようにする。
+		auto arrived = worker->takeEvents() ;	// workerから所有権を移す有限event
+		// 到着したeventを保持し、先の操作の結果も確認できるようにする
 		for( WorkerEvent &event : arrived) {
 			pending_.push_back( std::move( event)) ;
 		}
@@ -639,10 +640,10 @@ std::optional<WorkerEvent> WorkerFixture::waitEvent( const WorkerEventKind kind,
 		const auto found = std::find_if(
 			pending_.begin(), pending_.end(), [kind, operation]( const WorkerEvent &event) {
 				return event.kind == kind && event.operationId == operation ;
-			}) ; // 今回要求するeventだけの位置。
-		// 目的のeventが保留中にあれば所有値を取り出し、他のeventは残す。
+			}) ; // 今回要求するeventだけの位置
+		// 目的のeventが保留中にあれば所有値を取り出し、他のeventは残す
 		if( found != pending_.end()) {
-			WorkerEvent result = std::move( *found) ;	// 呼出し側へ渡す所有値。
+			WorkerEvent result = std::move( *found) ;	// 呼出し側へ渡す所有値
 			pending_.erase( found) ;
 			return result ;
 		}
@@ -655,19 +656,19 @@ std::optional<WorkerEvent> WorkerFixture::waitEvent( const WorkerEventKind kind,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 表示した全対象のsnapshotを返し、暗黙の同意を使わない。
+ * @brief 表示した全対象のsnapshotを返し、暗黙の同意を使わない
  *
- * @param[in] plan workerがeventへ添付した固定計画。
- * @param[in] operation 新しい操作ID。
- * @return 中央対象を未選択とした合成判断。
+ * @param[in] plan workerがeventへ添付した固定計画
+ * @param[in] operation 新しい操作ID
+ * @return 中央対象を未選択とした合成判断
  */
 //------------------------------------------------------------------------------
 OfficialPreparationApproval workerApproval( const OfficialPreparationPlan &plan,
 										   const OperationId			  operation)
 {
 	OfficialPreparationApproval approval{
-		operation, plan.scanSessionId, plan.planId, plan.limits, {}} ;	// 合成判断。
-	// 全対象の可否を記録し、未選択行も省略しない。
+		operation, plan.scanSessionId, plan.planId, plan.limits, {}} ;	// 合成判断
+	// 全対象の可否を記録し、未選択行も省略しない
 	for( const OfficialPreparationTarget &target : plan.targets) {
 		approval.decisions.push_back( {target, target.identity != L"target:1", false, false}) ;
 	}
@@ -677,34 +678,34 @@ OfficialPreparationApproval workerApproval( const OfficialPreparationPlan &plan,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 検索eventの計画とprepareの部分取得をworker境界で確認する。
+ * @brief 検索eventの計画とprepareの部分取得をworker境界で確認する
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testWorkerPlanAndPreparation( TestContext &context)
 {
-	WorkerFixture fixture ;	// Fakeだけを生成するworker。
+	WorkerFixture fixture ;	// Fakeだけを生成するworker
 	DRIVERCRATE_EXPECT( context, !fixture.worker->requestScan( 0U)) ;
 	DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 1U)) ;
-	const auto scanned = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;	// 検索結果。
+	const auto scanned = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;	// 検索結果
 	DRIVERCRATE_EXPECT( context, scanned && scanned->preparationPlan) ;
-	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ。
+	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ
 	if( !scanned || !scanned->preparationPlan) {
 		return ;
 	}
 
 	DRIVERCRATE_EXPECT( context, scanned->preparationError == 0) ;
-	const auto approval = workerApproval( *scanned->preparationPlan, 2U) ;	// 表示済み計画の判断。
+	const auto approval = workerApproval( *scanned->preparationPlan, 2U) ;	// 表示済み計画の判断
 	DRIVERCRATE_EXPECT( context, fixture.worker->requestPreparation( approval)) ;
-	// 要求した取得操作の完了event。Timeoutの場合はnullopt。
+	// 要求した取得操作の完了event。Timeoutの場合はnullopt
 	const auto completed = fixture.waitEvent( WorkerEventKind::PREPARATION_COMPLETED, 2U) ;
 	DRIVERCRATE_EXPECT( context, completed.has_value()) ;
 	DRIVERCRATE_EXPECT( context, fixture.state->acquireCalls == 2U) ;
 	DRIVERCRATE_EXPECT( context, !fixture.state->acquiredUnselected) ;
 	DRIVERCRATE_EXPECT( context, fixture.state->installCalls == 0U) ;
 	DRIVERCRATE_EXPECT( context, fixture.state->restoreCalls == 0U) ;
-	// 完了eventを取得できた場合にだけ承認結果と三対象の結果を参照する。
+	// 完了eventを取得できた場合にだけ承認結果と三対象の結果を参照する
 	if( completed) {
 		DRIVERCRATE_EXPECT( context, completed->preparationResult.approvalError ==
 										OfficialPreparationError::NONE) ;
@@ -717,27 +718,27 @@ void testWorkerPlanAndPreparation( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 新scan・導入保護拒否のどちらでも旧取得計画を失効させる。
+ * @brief 新scan・導入保護拒否のどちらでも旧取得計画を失効させる
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testWorkerStaleAndInstallInvalidation( TestContext &context)
 {
-	// 実installを呼ばない無効modeと、新scanによる失効を独立に検証する。
+	// 実installを呼ばない無効modeと、新scanによる失効を独立に検証する
 	for( const bool installRequest : {false, true}) {
-		WorkerFixture fixture ;	// 今回の失効経路を分離するworker。
+		WorkerFixture fixture ;	// 今回の失効経路を分離するworker
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 1U)) ;
-		const auto scanned = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;	// 旧計画。
+		const auto scanned = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;	// 旧計画
 		DRIVERCRATE_EXPECT( context, scanned && scanned->preparationPlan) ;
-		// scan結果と準備計画が揃わなければ旧計画失効のscenarioを続けない。
+		// scan結果と準備計画が揃わなければ旧計画失効のscenarioを続けない
 		if( !scanned || !scanned->preparationPlan) {
 			continue ;
 		}
 
-		// 導入による失効scenarioでは不正保護modeの架空要求を送り、実導入は行わない。
+		// 導入による失効scenarioでは不正保護modeの架空要求を送り、実導入は行わない
 		if( installRequest) {
-			const std::vector<std::wstring> identities{L"synthetic-target"} ;	// 実driverでないID。
+			const std::vector<std::wstring> identities{L"synthetic-target"} ;	// 実driverでないID
 			DRIVERCRATE_EXPECT( context, fixture.worker->requestInstall(
 											2U, scanned->scanResult.scanSessionId, identities,
 											nullptr, static_cast<InstallProtectionMode>( 255))) ;
@@ -751,10 +752,10 @@ void testWorkerStaleAndInstallInvalidation( TestContext &context)
 
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestPreparation(
 										workerApproval( *scanned->preparationPlan, 3U))) ;
-		// 要求した取得操作の完了event。Timeoutの場合はnullopt。
+		// 要求した取得操作の完了event。Timeoutの場合はnullopt
 		const auto completed = fixture.waitEvent( WorkerEventKind::PREPARATION_COMPLETED, 3U) ;
 		DRIVERCRATE_EXPECT( context, completed.has_value()) ;
-		// 完了eventがある場合にだけ旧計画の承認拒否を確認する。
+		// 完了eventがある場合にだけ旧計画の承認拒否を確認する
 		if( completed) {
 			DRIVERCRATE_EXPECT( context, completed->preparationResult.approvalError !=
 											OfficialPreparationError::NONE) ;
@@ -769,21 +770,21 @@ void testWorkerStaleAndInstallInvalidation( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実行中の取得だけへ協調取消しを伝え、stopも完了を待つ。
+ * @brief 実行中の取得だけへ協調取消しを伝え、stopも完了を待つ
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testWorkerActiveCancellationAndStop( TestContext &context)
 {
-	// 明示取消しとworker終了の二つの経路を検証する。
+	// 明示取消しとworker終了の二つの経路を検証する
 	for( const bool stopping : {false, true}) {
-		WorkerFixture fixture ;	// 取消しを待つfake worker。
+		WorkerFixture fixture ;	// 取消しを待つfake worker
 		fixture.state->holdAcquire = true ;
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 1U)) ;
-		const auto scanned = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;	// 承認元計画。
+		const auto scanned = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;	// 承認元計画
 		DRIVERCRATE_EXPECT( context, scanned && scanned->preparationPlan) ;
-		// 準備計画を取得できなければ取消しと停止のscenarioを始めない。
+		// 準備計画を取得できなければ取消しと停止のscenarioを始めない
 		if( !scanned || !scanned->preparationPlan) {
 			continue ;
 		}
@@ -793,21 +794,21 @@ void testWorkerActiveCancellationAndStop( TestContext &context)
 		DRIVERCRATE_EXPECT( context,
 						   fixture.state->acquireEntered.try_acquire_for( std::chrono::seconds( 3))) ;
 		DRIVERCRATE_EXPECT( context, !fixture.worker->requestPreparationCancel( 99U)) ;
-		// 停止scenarioでは協調取消しに続くworker終了待ちを検証する。
+		// 停止scenarioでは協調取消しに続くworker終了待ちを検証する
 		if( stopping) {
 			fixture.worker->stop() ;
 		} else {
 			DRIVERCRATE_EXPECT( context, fixture.worker->requestPreparationCancel( 2U)) ;
 		}
 
-		// 要求した取得操作の完了event。Timeoutの場合はnullopt。
+		// 要求した取得操作の完了event。Timeoutの場合はnullopt
 		const auto completed = fixture.waitEvent( WorkerEventKind::PREPARATION_COMPLETED, 2U) ;
 		DRIVERCRATE_EXPECT( context, completed.has_value()) ;
 		DRIVERCRATE_EXPECT( context, fixture.state->cancellationSeen) ;
 		DRIVERCRATE_EXPECT( context, fixture.state->acquireCalls == 1U) ;
 		DRIVERCRATE_EXPECT( context, fixture.state->installCalls == 0U) ;
 		DRIVERCRATE_EXPECT( context, fixture.state->restoreCalls == 0U) ;
-		// 停止済みworkerが新たなscanを受理しないことを確認する。
+		// 停止済みworkerが新たなscanを受理しないことを確認する
 		if( stopping) {
 			DRIVERCRATE_EXPECT( context, !fixture.worker->requestScan( 3U)) ;
 		}
@@ -816,18 +817,18 @@ void testWorkerActiveCancellationAndStop( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 通常scan承認を操作IDへ結合し、active／queued／stop取消しを分離する。
- * @param[in,out] context Assertion結果の集計先。
+ * @brief 通常scan承認を操作IDへ結合し、active／queued／stop取消しを分離する
+ * @param[in,out] context Assertion結果の集計先
  */
 //------------------------------------------------------------------------------
 void testWorkerScanCancellationAndApprovalBinding( TestContext &context)
 {
 	{
-		WorkerFixture fixture ;	// 承認内のID改ざんをqueue前に拒否するfake worker。
-		ScanOptions	  options ;	// 自動探索Provider一件だけの合成条件。
+		WorkerFixture fixture ;	// 承認内のID改ざんをqueue前に拒否するfake worker
+		ScanOptions	  options ;	// 自動探索Provider一件だけの合成条件
 		options.useDefaultProviders = false ;
 		options.enabledProviderIds.emplace_back( INTEL_ETHERNET_WINDOWS11_OFFICIAL_PROVIDER_ID) ;
-		OfficialDiscoveryScanApproval approval ;	// 固定予算の一scan承認。
+		OfficialDiscoveryScanApproval approval ;	// 固定予算の一scan承認
 		approval.operationId			  = 2U ;
 		options.officialDiscoveryApproval = approval ;
 		DRIVERCRATE_EXPECT( context, !fixture.worker->requestScan( 1U, options)) ;
@@ -838,15 +839,15 @@ void testWorkerScanCancellationAndApprovalBinding( TestContext &context)
 		DRIVERCRATE_EXPECT( context, !fixture.worker->requestScanCancel( 1U)) ;
 	}
 
-	// 明示取消しとworker停止の両方が実行中scanのみに届くことを確認する。
+	// 明示取消しとworker停止の両方が実行中scanのみに届くことを確認する
 	for( const bool stopping : {false, true}) {
-		WorkerFixture fixture ;	// 実行中取消しの独立状態。
+		WorkerFixture fixture ;	// 実行中取消しの独立状態
 		fixture.state->holdScan = true ;
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 1U)) ;
 		DRIVERCRATE_EXPECT( context,
 						   fixture.state->scanEntered.try_acquire_for( std::chrono::seconds( 3))) ;
 		DRIVERCRATE_EXPECT( context, !fixture.worker->requestScanCancel( 99U)) ;
-		// 停止と明示取消しを同じfake受理境界へ別々に通す。
+		// 停止と明示取消しを同じfake受理境界へ別々に通す
 		if( stopping) {
 			fixture.worker->stop() ;
 		} else {
@@ -854,7 +855,7 @@ void testWorkerScanCancellationAndApprovalBinding( TestContext &context)
 		}
 
 		const auto completed =
-			// 取消し終端結果。
+			// 取消し終端結果
 			fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;
 		DRIVERCRATE_EXPECT( context,
 						   completed && completed->scanResult.outcome == OutcomeCode::ABORTED) ;
@@ -864,7 +865,7 @@ void testWorkerScanCancellationAndApprovalBinding( TestContext &context)
 	}
 
 	{
-		WorkerFixture fixture ;	// 未開始queueの信号が別scanへ漏れないことを確認する状態。
+		WorkerFixture fixture ;	// 未開始queueの信号が別scanへ漏れないことを確認する状態
 		fixture.state->holdScan = true ;
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 1U)) ;
 		DRIVERCRATE_EXPECT( context,
@@ -875,16 +876,16 @@ void testWorkerScanCancellationAndApprovalBinding( TestContext &context)
 		DRIVERCRATE_EXPECT( context,
 						   fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U).has_value()) ;
 		const auto cancelled =
-			// Queue内で取り消された結果。
+			// Queue内で取り消された結果
 			fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 2U) ;
 		DRIVERCRATE_EXPECT( context,
 						   cancelled && cancelled->scanResult.outcome == OutcomeCode::ABORTED) ;
 		DRIVERCRATE_EXPECT( context, !fixture.state->scanCancellationSeen) ;
 		DRIVERCRATE_EXPECT( context, fixture.state->scanCalls == 1U) ;
-		// 通常検索の開始前取消しはProviderを呼ばず、次の新scanへ信号を漏らしません。
+		// 通常検索の開始前取消しはProviderを呼ばず、次の新scanへ信号を漏らしません
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 3U)) ;
 		const auto renewed =
-			// 次の通常検索です。
+			// 次の通常検索です
 			fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 3U) ;
 		DRIVERCRATE_EXPECT( context, renewed && renewed->scanResult.succeeded &&
 										fixture.state->scanCalls == 2U) ;
@@ -893,23 +894,22 @@ void testWorkerScanCancellationAndApprovalBinding( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 未開始queueとpacketを有限にし、queued取消しを次の操作へ漏らさない。
+ * @brief 未開始queueとpacketを有限にし、queued取消しを次の操作へ漏らさない
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testWorkerQueueBoundsAndQueuedCancel( TestContext &context)
 {
-	WorkerFixture fixture ;	// 最初のscanでqueue受付を固定するworker。
+	WorkerFixture fixture ;	// 最初のscanでqueue受付を固定するworker
 	fixture.state->holdScan = true ;
 	DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 1U)) ;
 	DRIVERCRATE_EXPECT( context,
 					   fixture.state->scanEntered.try_acquire_for( std::chrono::seconds( 3))) ;
-	OfficialPreparationPlan plan{
-		1U, 1U, DEFAULT_OFFICIAL_PREPARATION_LIMITS, {}} ;	// 合成承認の元値。
-	// まだ待機中のfake scanが返す三対象と同一のsnapshotを合成する。
+	OfficialPreparationPlan plan{1U, 1U, DEFAULT_OFFICIAL_PREPARATION_LIMITS, {}} ;	// 合成承認の元値
+	// まだ待機中のfake scanが返す三対象と同一のsnapshotを合成する
 	for( std::uint32_t index = 0U; index < 3U; ++index) {
-		OfficialPreparationTarget target ;	// Queue取消しを確認する合成対象。
+		OfficialPreparationTarget target ;	// Queue取消しを確認する合成対象
 		target.identity		   = L"target:" + std::to_wstring( index) ;
 		target.providerId	   = PROLIFIC_OFFICIAL_PROVIDER_ID ;
 		target.resourceId	   = L"payload" ;
@@ -921,8 +921,8 @@ void testWorkerQueueBoundsAndQueuedCancel( TestContext &context)
 		plan.targets.push_back( std::move( target)) ;
 	}
 
-	auto approval  = workerApproval( plan, 2U) ;	// Fake検索後の計画へ完全一致する合成判断。
-	auto oversized = approval ;						// コピー前のpacket上限検証用。
+	auto approval  = workerApproval( plan, 2U) ;	// Fake検索後の計画へ完全一致する合成判断
+	auto oversized = approval ;						// コピー前のpacket上限検証用
 	oversized.decisions.resize( 257U) ;
 	DRIVERCRATE_EXPECT( context, !fixture.worker->requestPreparation( oversized)) ;
 	oversized = approval ;
@@ -933,7 +933,7 @@ void testWorkerQueueBoundsAndQueuedCancel( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !fixture.worker->requestPreparation( oversized)) ;
 	oversized = approval ;
 	oversized.decisions.resize( 5U, approval.decisions[0]) ;
-	// 個別上限内でも、五対象の本文がpacket全体の保持上限を超えればcopy前に拒否する。
+	// 個別上限内でも、五対象の本文がpacket全体の保持上限を超えればcopy前に拒否する
 	for( OfficialPreparationDecision &decision : oversized.decisions) {
 		decision.target.eulaText.assign( MAXIMUM_PREPARATION_EULA_CHARACTERS, L'A') ;
 	}
@@ -948,12 +948,12 @@ void testWorkerQueueBoundsAndQueuedCancel( TestContext &context)
 	fixture.state->scanRelease.release() ;
 	DRIVERCRATE_EXPECT( context,
 					   fixture.waitEvent( WorkerEventKind::PREPARATION_COMPLETED, 2U).has_value()) ;
-	const auto laterScan = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 5U) ;	// 後続の新計画。
+	const auto laterScan = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 5U) ;	// 後続の新計画
 	DRIVERCRATE_EXPECT( context, laterScan && laterScan->preparationPlan) ;
 	DRIVERCRATE_EXPECT( context, fixture.state->acquireCalls == 0U) ;
 	DRIVERCRATE_EXPECT( context, fixture.state->scanCalls == 4U) ;
 	DRIVERCRATE_EXPECT( context, !fixture.worker->requestPreparationCancel( 2U)) ;
-	// 後続scanの計画がある場合にだけ以前の取消しが漏れないことを検証する。
+	// 後続scanの計画がある場合にだけ以前の取消しが漏れないことを検証する
 	if( laterScan && laterScan->preparationPlan) {
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestPreparation(
 										workerApproval( *laterScan->preparationPlan, 6U))) ;
@@ -965,29 +965,29 @@ void testWorkerQueueBoundsAndQueuedCancel( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 不正な計画を拒否し、driver scan自体の成功結果は保持する。
+ * @brief 不正な計画を拒否し、driver scan自体の成功結果は保持する
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testWorkerInvalidPlanIsSeparate( TestContext &context)
 {
-	auto defaults = std::make_shared<FakePreparationState>() ;	// 既定APIの副作用検出用状態。
-	FakePreparationProvider provider( defaults) ;				// 通信しないProviderを直接構成する。
+	auto defaults = std::make_shared<FakePreparationState>() ;	// 既定APIの副作用検出用状態
+	FakePreparationProvider provider( defaults) ;				// 通信しないProviderを直接構成する
 	DRIVERCRATE_EXPECT( context, !provider.IUpdateProvider::preparationPlan( 1U, 1U)) ;
-	// 未対応の基底APIが返す拒否結果。
+	// 未対応の基底APIが返す拒否結果
 	const auto unsupported = provider.IUpdateProvider::acquireForInspection( {}, {}) ;
-	// 未対応APIは計画や取得成功を暗黙追加しない。
+	// 未対応APIは計画や取得成功を暗黙追加しない
 	DRIVERCRATE_EXPECT( context, unsupported.state == OfficialPreparationItemState::REJECTED) ;
 	DRIVERCRATE_EXPECT( context, unsupported.error == static_cast<NativeError>( E_NOTIMPL)) ;
 	DRIVERCRATE_EXPECT( context, defaults->acquireCalls == 0U) ;
 
-	WorkerFixture fixture ;	// 間違った計画IDを返すfake。
+	WorkerFixture fixture ;	// 間違った計画IDを返すfake
 	fixture.state->invalidPlan = true ;
 	DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 1U)) ;
-	const auto scanned = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;	// 分離結果。
+	const auto scanned = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;	// 分離結果
 	DRIVERCRATE_EXPECT( context, scanned.has_value()) ;
-	// scan eventがある場合にだけscan成功と準備計画拒否の分離を確認する。
+	// scan eventがある場合にだけscan成功と準備計画拒否の分離を確認する
 	if( scanned) {
 		DRIVERCRATE_EXPECT( context, scanned->scanResult.succeeded) ;
 		DRIVERCRATE_EXPECT( context, !scanned->preparationPlan) ;
@@ -999,19 +999,19 @@ void testWorkerInvalidPlanIsSeparate( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Workerが正常計測へoperationと実版を拘束し、別operationの計測だけを破棄する。
+ * @brief Workerが正常計測へoperationと実版を拘束し、別operationの計測だけを破棄する
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testWorkerMeasurementPublicationBoundary( TestContext &context)
 {
 	{
-		WorkerFixture		  fixture ;				// 計測未接続時の副作用回数を固定する基準fake。
-		constexpr OperationId operationId = 16U ;	// 基準scanへ割り当てる合成operation ID。
+		WorkerFixture		  fixture ;				// 計測未接続時の副作用回数を固定する基準fake
+		constexpr OperationId operationId = 16U ;	// 基準scanへ割り当てる合成operation ID
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( operationId)) ;
 		const auto scanned = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED,
-											   operationId) ;	// 計測なしで完了した基準event。
+											   operationId) ;	// 計測なしで完了した基準event
 		DRIVERCRATE_EXPECT( context, scanned.has_value() && !scanned->scanResult.measurement) ;
 		DRIVERCRATE_EXPECT( context, fixture.state->scanCalls == 1U) ;
 		DRIVERCRATE_EXPECT( context, fixture.state->acquireCalls == 0U) ;
@@ -1019,17 +1019,17 @@ void testWorkerMeasurementPublicationBoundary( TestContext &context)
 		DRIVERCRATE_EXPECT( context, fixture.state->restoreCalls == 0U) ;
 	}
 
-	// 正常snapshotと別operationの不正snapshotを独立workerで比較する。
+	// 正常snapshotと別operationの不正snapshotを独立workerで比較する
 	for( const bool invalid : {false, true}) {
-		WorkerFixture fixture ;	// 通信・実device列挙を行わない計測fake。
+		WorkerFixture fixture ;	// 通信・実device列挙を行わない計測fake
 		fixture.state->emitMeasurement	  = true ;
 		fixture.state->invalidMeasurement = invalid ;
-		constexpr OperationId operationId = 17U ;	// Workerが公開snapshotへ拘束する合成ID。
+		constexpr OperationId operationId = 17U ;	// Workerが公開snapshotへ拘束する合成ID
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( operationId)) ;
 		const auto scanned = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED,
-											   operationId) ;	// Worker境界通過後の所有結果。
+											   operationId) ;	// Worker境界通過後の所有結果
 		DRIVERCRATE_EXPECT( context, scanned.has_value()) ;
-		// Event欠落時はoptionalを参照せず、次のscenarioへ進む。
+		// Event欠落時はoptionalを参照せず、次のscenarioへ進む
 		if( !scanned) {
 			continue ;
 		}
@@ -1040,10 +1040,10 @@ void testWorkerMeasurementPublicationBoundary( TestContext &context)
 		DRIVERCRATE_EXPECT( context, fixture.state->acquireCalls == 0U) ;
 		DRIVERCRATE_EXPECT( context, fixture.state->installCalls == 0U) ;
 		DRIVERCRATE_EXPECT( context, fixture.state->restoreCalls == 0U) ;
-		// 正常計測だけは一致するoperation、session、application版を確認する。
+		// 正常計測だけは一致するoperation、session、application版を確認する
 		if( scanned->scanResult.measurement) {
 			const ScanMeasurementContext &measurementContext =
-				scanned->scanResult.measurement->context ;	// 公開後の不変条件。
+				scanned->scanResult.measurement->context ;	// 公開後の不変条件
 			DRIVERCRATE_EXPECT( context, measurementContext.operationId == operationId) ;
 			DRIVERCRATE_EXPECT( context, measurementContext.scanSessionId ==
 											scanned->scanResult.scanSessionId) ;
@@ -1057,8 +1057,8 @@ void testWorkerMeasurementPublicationBoundary( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Fixture状態を共有する。Windows復元APIを初期化せず、試験状態だけを保持する。
- * @param[in] state 誤呼出しを記録する共有状態。 Fixtureの共有状態。
+ * @brief Fixture状態を共有する。Windows復元APIを初期化せず、試験状態だけを保持する
+ * @param[in] state 誤呼出しを記録する共有状態。 Fixtureの共有状態
  */
 //------------------------------------------------------------------------------
 FakePreparationRestoreService::FakePreparationRestoreService(
@@ -1069,9 +1069,9 @@ FakePreparationRestoreService::FakePreparationRestoreService(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実復元ポイントを作らず呼出回数を記録する。実復元APIを呼ばず、許可したfixtureだけで保護後のworker順序を検証する。
- * @param[in] description 使用しない復旧説明。 使用しない合成説明。
- * @return Fixture指定時は合成成功、それ以外は既定の未成功結果。 指定時だけ合成成功と番号77。それ以外は既定の未成功結果。
+ * @brief 実復元ポイントを作らず呼出回数を記録する。実復元APIを呼ばず、許可したfixtureだけで保護後のworker順序を検証する
+ * @param[in] description 使用しない復旧説明。 使用しない合成説明
+ * @return Fixture指定時は合成成功、それ以外は既定の未成功結果。 指定時だけ合成成功と番号77。それ以外は既定の未成功結果
  */
 //------------------------------------------------------------------------------
 RestorePointOperationResult FakePreparationRestoreService::begin(
@@ -1082,7 +1082,7 @@ RestorePointOperationResult FakePreparationRestoreService::begin(
 		++state_->restoreCalls ;
 		return state_->allowFakeRestore ? RestorePointOperationResult{OutcomeCode::SUCCESS, 0, 77}
 										: RestorePointOperationResult{} ;
-	}() ; // 元fake API結果とcounterはそのままです。
+	}() ; // 元fake API結果とcounterはそのままです
 	fakeProtection_ = {.disposition	   = RestorePointDisposition::WINDOWS_SELECTED_POINT,
 					   .verification   = result.outcome == OutcomeCode::SUCCESS &&
 												 result.error == 0 && result.sequenceNumber > 0
@@ -1100,9 +1100,9 @@ RestorePointOperationResult FakePreparationRestoreService::begin(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実APIを呼ばず誤呼出しを記録する。実APIを呼ばず、fake復旧処理の終了回数を記録する。
- * @param[in] sequenceNumber 使用しない合成番号。 使用しない合成復元番号。
- * @return Fixture指定時は合成成功、それ以外は既定の未成功結果。 指定時だけ合成成功と番号77。それ以外は既定の未成功結果。
+ * @brief 実APIを呼ばず誤呼出しを記録する。実APIを呼ばず、fake復旧処理の終了回数を記録する
+ * @param[in] sequenceNumber 使用しない合成番号。 使用しない合成復元番号
+ * @return Fixture指定時は合成成功、それ以外は既定の未成功結果。 指定時だけ合成成功と番号77。それ以外は既定の未成功結果
  */
 //------------------------------------------------------------------------------
 RestorePointOperationResult FakePreparationRestoreService::complete(
@@ -1113,14 +1113,14 @@ RestorePointOperationResult FakePreparationRestoreService::complete(
 		++state_->restoreCalls ;
 		return state_->allowFakeRestore ? RestorePointOperationResult{OutcomeCode::SUCCESS, 0, 77}
 										: RestorePointOperationResult{} ;
-	}() ; // 元fake API結果とcounterはそのままです。
+	}() ; // 元fake API結果とcounterはそのままです
 	fakeProtection_.nativeEndCalled = true ;
 	fakeProtection_.verifiedAfter	= result.outcome == OutcomeCode::SUCCESS && result.error == 0 &&
 									result.sequenceNumber == fakeProtection_.sequenceNumber ;
 	fakeProtection_.verification = fakeProtection_.verifiedBefore && fakeProtection_.verifiedAfter
 									   ? OutcomeCode::SUCCESS
 									   : OutcomeCode::FAILURE ;
-	// fakeの元終了診断を実在結果へ保持します。
+	// fakeの元終了診断を実在結果へ保持します
 	if( result.error != 0) {
 		fakeProtection_.error = result.error ;
 	}
@@ -1130,46 +1130,46 @@ RestorePointOperationResult FakePreparationRestoreService::complete(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実監査を行わず、非機密reportまたは集約例外を合成する。実監査を行わず、worker通知と表示集約失敗の扱いを確認する。
- * @param[in] result 同一workerの合成取得結果。 Fake取得の確定結果。
- * @return 合成対象の表示report。通常試験では空。 合成監査report。例外指定時は合成例外。
+ * @brief 実監査を行わず、非機密reportまたは集約例外を合成する。実監査を行わず、worker通知と表示集約失敗の扱いを確認する
+ * @param[in] result 同一workerの合成取得結果。 Fake取得の確定結果
+ * @return 合成対象の表示report。通常試験では空。 合成監査report。例外指定時は合成例外
  */
 //------------------------------------------------------------------------------
 
 std::vector<OfficialPreparationAuditReport> FakePreparationProvider::preparationAuditReports(
 	const OfficialPreparationOperationResult &result)
 {
-	// 監査集約の例外を注入し、転送成功の結果が保持されることを確認する。
+	// 監査集約の例外を注入し、転送成功の結果が保持されることを確認する
 	if( state_->throwAudit) {
 		throw std::runtime_error( "fictional audit report failure") ;
 	}
 
-	std::vector<OfficialPreparationAuditReport> reports ;	// 取得した架空対象だけの表示。
-	// 監査を発行しないfixtureでは空reportを返す。
+	std::vector<OfficialPreparationAuditReport> reports ;	// 取得した架空対象だけの表示
+	// 監査を発行しないfixtureでは空reportを返す
 	if( !state_->emitAudit) {
 		return reports ;
 	}
 
-	// 取得成功対象だけに非機密の合成reportを付加する。
+	// 取得成功対象だけに非機密の合成reportを付加する
 	for( const OfficialPreparationItem &item : result.items) {
-		// 取得済みでない対象へ架空の監査reportを発行しない。
+		// 取得済みでない対象へ架空の監査reportを発行しない
 		if( item.result.state != OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION) {
 			continue ;
 		}
 
-		OfficialPreparationAuditReport report ;	// 取得済み対象へ対応する架空監査表示。
+		OfficialPreparationAuditReport report ;	// 取得済み対象へ対応する架空監査表示
 		report.targetIdentity = item.identity ;
 		report.providerId	  = state_->emitPipeline
 									? (state_->asixPipeline ? ASIX_AX88179A_PROVIDER_ID
 															: BROADCOM_NET_XTREME_PROVIDER_ID)
 									: PROLIFIC_OFFICIAL_PROVIDER_ID ;
-		OfficialPreparationCandidateAudit row ;	// 同じfake scanに提示した表示専用行。
+		OfficialPreparationCandidateAudit row ;	// 同じfake scanに提示した表示専用行
 		row.identity				 = L"row:" + item.identity ;
 		row.audit					 = makeOfficialDiscoveryCandidateAudit() ;
 		row.audit.inspectionDownload = CandidateAuditGateState::PASSED ;
-		// 一系列試験では表示行の合格監査と別identityの導入候補を合成する。
+		// 一系列試験では表示行の合格監査と別identityの導入候補を合成する
 		if( state_->emitPipeline) {
-			// 一系列試験では内容・PnP監査済みの表示行と別の選択可能候補を発行する。
+			// 一系列試験では内容・PnP監査済みの表示行と別の選択可能候補を発行する
 			report.content				  = CandidateAuditGateState::PASSED ;
 			report.applicability		  = CandidateAuditGateState::PASSED ;
 			report.infCount				  = 1U ;
@@ -1183,7 +1183,7 @@ std::vector<OfficialPreparationAuditReport> FakePreparationProvider::preparation
 			report.publication.examinedPairCount = 1U ;
 			report.publication.publishedCount	 = 1U ;
 			report.candidatePublicationAttempted = true ;
-			UpdateCandidate candidate ;	// 実fileやPnP IDを含まない全監査合格の架空候補。
+			UpdateCandidate candidate ;	// 実fileやPnP IDを含まない全監査合格の架空候補
 			candidate.identity		  = L"prepared:target:0" ;
 			candidate.deviceIdentity  = L"device:0" ;
 			candidate.providerId	  = (state_->asixPipeline ? ASIX_AX88179A_PROVIDER_ID
@@ -1219,39 +1219,39 @@ std::vector<OfficialPreparationAuditReport> FakePreparationProvider::preparation
 
 //------------------------------------------------------------------------------
 /**
- * @brief 監査DTOの通知と集約例外を分け、転送成功は失敗へ書き換えない。
+ * @brief 監査DTOの通知と集約例外を分け、転送成功は失敗へ書き換えない
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 
 void testWorkerAuditNotification( TestContext &context)
 {
-	// 正常集約と例外を別workerで検証し、共有状態を持ち越さない。
+	// 正常集約と例外を別workerで検証し、共有状態を持ち越さない
 	for( const bool throwReport : {false, true}) {
-		WorkerFixture fixture ;	// 実通信・実監査を行わないworker。
+		WorkerFixture fixture ;	// 実通信・実監査を行わないworker
 		fixture.state->emitAudit  = true ;
 		fixture.state->throwAudit = throwReport ;
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 1U)) ;
-		const auto scanned = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;	// 合成候補。
+		const auto scanned = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;	// 合成候補
 		DRIVERCRATE_EXPECT( context, scanned && scanned->preparationPlan) ;
-		// 計画を取得できなければ監査DTOの通知試験を進めない。
+		// 計画を取得できなければ監査DTOの通知試験を進めない
 		if( !scanned || !scanned->preparationPlan) {
 			continue ;
 		}
 
-		const auto approval = workerApproval( *scanned->preparationPlan, 2U) ;	// 明示的な二対象取得。
+		const auto approval = workerApproval( *scanned->preparationPlan, 2U) ;	// 明示的な二対象取得
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestPreparation( approval)) ;
 		const auto completed =
-			// 取得通知。
+			// 取得通知
 			fixture.waitEvent( WorkerEventKind::PREPARATION_COMPLETED, 2U) ;
 		DRIVERCRATE_EXPECT( context, completed.has_value()) ;
-		// 完了eventがない場合は結果DTOを参照しない。
+		// 完了eventがない場合は結果DTOを参照しない
 		if( !completed) {
 			continue ;
 		}
 
-		const auto &result = completed->preparationResult ;	// 非機密結果の非所有参照。
+		const auto &result = completed->preparationResult ;	// 非機密結果の非所有参照
 		DRIVERCRATE_EXPECT( context, result.items.size() == 3U) ;
 		DRIVERCRATE_EXPECT( context, result.controlError ==
 										(throwReport ? static_cast<NativeError>( E_UNEXPECTED) : 0)) ;
@@ -1266,40 +1266,39 @@ void testWorkerAuditNotification( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Fake導入の呼出し中は同じsessionを保持し、戻り・例外後は取得承認を失効させる。
+ * @brief Fake導入の呼出し中は同じsessionを保持し、戻り・例外後は取得承認を失効させる
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 
 void testWorkerPreparedLifetimeDuringInstall( TestContext &context)
 {
-	// 正常returnとProvider例外を分ける。OS変更処理は全てfakeへ注入する。
+	// 正常returnとProvider例外を分ける。OS変更処理は全てfakeへ注入する
 	for( const bool throwInstall : {false, true}) {
-		WorkerFixture fixture ;	// Fake Providerとfake復旧serviceだけを所有するworker。
+		WorkerFixture fixture ;	// Fake Providerとfake復旧serviceだけを所有するworker
 		fixture.state->allowFakeRestore = true ;
 		fixture.state->throwInstall		= throwInstall ;
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 1U)) ;
 		const auto scanned =
-			// 合成保持状態。
+			// 合成保持状態
 			fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;
 		DRIVERCRATE_EXPECT( context, scanned && scanned->preparationPlan) ;
-		// 計画を取得できなければ導入中のsession保持試験を進めない。
+		// 計画を取得できなければ導入中のsession保持試験を進めない
 		if( !scanned || !scanned->preparationPlan) {
 			continue ;
 		}
 
-		const std::vector<std::wstring> identities{
-			L"fictional-selection"} ;	// 実driverでない選択ID。
-		const InstallProtectionMode mode =
+		const std::vector<std::wstring> identities{L"fictional-selection"} ;	// 実driverでない選択ID
+		const InstallProtectionMode		mode =
 			isWindowsServer()
-				? InstallProtectionMode::SERVER_WITHOUT_RESTORE_POINT
-				: InstallProtectionMode::WINDOWS_RESTORE_POINT ;	// OS種別の読取だけを実施する。
+					? InstallProtectionMode::SERVER_WITHOUT_RESTORE_POINT
+					: InstallProtectionMode::WINDOWS_RESTORE_POINT ;	// OS種別の読取だけを実施する
 		DRIVERCRATE_EXPECT( context,
 						   fixture.worker->requestInstall( 2U, scanned->scanResult.scanSessionId,
 														  identities, nullptr, mode)) ;
 		const auto installed =
-			// Fake結果。
+			// Fake結果
 			fixture.waitEvent( WorkerEventKind::INSTALL_COMPLETED, 2U) ;
 		DRIVERCRATE_EXPECT( context, installed.has_value()) ;
 		DRIVERCRATE_EXPECT( context, fixture.state->installCalls == 1U) ;
@@ -1308,7 +1307,7 @@ void testWorkerPreparedLifetimeDuringInstall( TestContext &context)
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestPreparation(
 										workerApproval( *scanned->preparationPlan, 3U))) ;
 		const auto stale =
-			// 旧承認要求。
+			// 旧承認要求
 			fixture.waitEvent( WorkerEventKind::PREPARATION_COMPLETED, 3U) ;
 		DRIVERCRATE_EXPECT( context, stale && stale->preparationResult.approvalError !=
 												 OfficialPreparationError::NONE) ;
@@ -1318,49 +1317,49 @@ void testWorkerPreparedLifetimeDuringInstall( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じ監査済み候補契約を一系列のWorker eventとしてControllerへ渡し、検索から導入結果と旧session拒否までを確認する。実systemは変更しない。
+ * @brief 同じ監査済み候補契約を一系列のWorker eventとしてControllerへ渡し、検索から導入結果と旧session拒否までを確認する。実systemは変更しない
  *
- * @param[in,out] context Assertionの集計先。
- * @param[in] asix trueならASIX、falseならBroadcom取得元の結合を確認する。
+ * @param[in,out] context Assertionの集計先
+ * @param[in] asix trueならASIX、falseならBroadcom取得元の結合を確認する
  */
 //------------------------------------------------------------------------------
 void testWorkerControllerPreparedPipeline( TestContext &context, const bool asix)
 {
-	WorkerFixture fixture ;	// 実通信・実監査・実導入を行わない一系列worker。
+	WorkerFixture fixture ;	// 実通信・実監査・実導入を行わない一系列worker
 	fixture.state->asixPipeline		= asix ;
 	fixture.state->emitAudit		= true ;
 	fixture.state->emitPipeline		= true ;
 	fixture.state->allowFakeRestore = true ;
-	OperationController controller ;					// Worker eventを受けるUI状態機械。
-	const BeginResult	scan = controller.beginScan() ;	// 最初の検索operation。
+	OperationController controller ;					// Worker eventを受けるUI状態機械
+	const BeginResult	scan = controller.beginScan() ;	// 最初の検索operation
 	DRIVERCRATE_EXPECT( context, scan.accepted) ;
 	DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( scan.operationId)) ;
 	const auto scanned =
-		// 検索event。
+		// 検索event
 		fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, scan.operationId) ;
 	DRIVERCRATE_EXPECT( context, scanned && scanned->preparationPlan) ;
-	// 不完全なeventから非所有planを参照しない。
+	// 不完全なeventから非所有planを参照しない
 	if( !scanned || !scanned->preparationPlan) {
 		return ;
 	}
 
 	const ScanSessionId originalSession =
-		scanned->scanResult.scanSessionId ;	// 導入後に拒否する旧scan session。
+		scanned->scanResult.scanSessionId ;	// 導入後に拒否する旧scan session
 	DRIVERCRATE_EXPECT( context, controller.completeScan( scan.operationId, scanned->scanResult)) ;
 	DRIVERCRATE_EXPECT( context,
 					   controller.setPreparationPlan( scan.operationId, *scanned->preparationPlan)) ;
 
 	OfficialPreparationApproval approval =
-		// Controller採番前の全対象判断。
+		// Controller採番前の全対象判断
 		workerApproval( *scanned->preparationPlan, 0U) ;
-	const BeginResult preparation = controller.beginPreparation( approval) ;	// 取得開始結果。
+	const BeginResult preparation = controller.beginPreparation( approval) ;	// 取得開始結果
 	DRIVERCRATE_EXPECT( context, preparation.accepted) ;
 	DRIVERCRATE_EXPECT( context, approval.operationId == preparation.operationId) ;
 	DRIVERCRATE_EXPECT( context, fixture.worker->requestPreparation( approval)) ;
 	const auto prepared = fixture.waitEvent( WorkerEventKind::PREPARATION_COMPLETED,
-											preparation.operationId) ;	// 取得・監査event。
+											preparation.operationId) ;	// 取得・監査event
 	DRIVERCRATE_EXPECT( context, prepared.has_value()) ;
-	// 候補発行が不完全な場合は選択へ進めない。
+	// 候補発行が不完全な場合は選択へ進めない
 	if( !prepared || prepared->preparationResult.auditReports.size() != 1U ||
 	   prepared->preparationResult.auditReports.front().publishedCandidates.size() != 1U) {
 		return ;
@@ -1368,31 +1367,31 @@ void testWorkerControllerPreparedPipeline( TestContext &context, const bool asix
 
 	const std::wstring identity = prepared->preparationResult.auditReports.front()
 									  .publishedCandidates.front()
-									  .identity ;	// Controllerへ発行するopaque候補ID。
+									  .identity ;	// Controllerへ発行するopaque候補ID
 	DRIVERCRATE_EXPECT( context, controller.completePreparation( prepared->preparationResult,
 															   scanned->scanResult.candidates)) ;
 	DRIVERCRATE_EXPECT( context, controller.state() == ApplicationState::SCAN_READY) ;
-	const std::array<std::wstring, 1> selection{identity} ;	// 利用者の一device一候補選択。
+	const std::array<std::wstring, 1> selection{identity} ;	// 利用者の一device一候補選択
 	const InstallProtectionMode		  mode =
 		  isWindowsServer()
 				  ? InstallProtectionMode::SERVER_WITHOUT_RESTORE_POINT
-				  : InstallProtectionMode::WINDOWS_RESTORE_POINT ;	// 実OSと一致するfake保護経路。
+				  : InstallProtectionMode::WINDOWS_RESTORE_POINT ;	// 実OSと一致するfake保護経路
 	const BeginResult denied =
 		controller.beginInstall( originalSession, selection, InstallConfirmation::NOT_CONFIRMED,
-								mode) ;	// 最終dialogの取消し。
+								mode) ;	// 最終dialogの取消し
 	DRIVERCRATE_EXPECT( context, !denied.accepted) ;
 	DRIVERCRATE_EXPECT( context, fixture.state->installCalls == 0U) ;
 	const BeginResult install =
 		controller.beginInstall( originalSession, selection, InstallConfirmation::CONFIRMED,
-								mode) ;	// 明示導入開始結果。
+								mode) ;	// 明示導入開始結果
 	DRIVERCRATE_EXPECT( context, install.accepted) ;
 	DRIVERCRATE_EXPECT( context, fixture.worker->requestInstall( install.operationId, originalSession,
 															   selection, nullptr, mode)) ;
 	const auto installed =
-		// 導入event。
+		// 導入event
 		fixture.waitEvent( WorkerEventKind::INSTALL_COMPLETED, install.operationId) ;
 	DRIVERCRATE_EXPECT( context, installed.has_value()) ;
-	// 欠落結果を成功としてControllerへ渡さない。
+	// 欠落結果を成功としてControllerへ渡さない
 	if( !installed) {
 		return ;
 	}
@@ -1410,14 +1409,14 @@ void testWorkerControllerPreparedPipeline( TestContext &context, const bool asix
 
 	DRIVERCRATE_EXPECT( context, fixture.state->scanCalls == 1U) ;
 	DRIVERCRATE_EXPECT( context, fixture.state->invalidations >= 2U) ;
-	const BeginResult nextScan = controller.beginScan() ;	// 旧session拒否用の次検索。
+	const BeginResult nextScan = controller.beginScan() ;	// 旧session拒否用の次検索
 	DRIVERCRATE_EXPECT( context, nextScan.accepted) ;
 	DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( nextScan.operationId)) ;
 	const auto rescanned =
-		// 新検索event。
+		// 新検索event
 		fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, nextScan.operationId) ;
 	DRIVERCRATE_EXPECT( context, rescanned.has_value()) ;
-	// 新scan欠落時に古いsessionとの比較を続けない。
+	// 新scan欠落時に古いsessionとの比較を続けない
 	if( !rescanned) {
 		return ;
 	}
@@ -1426,35 +1425,35 @@ void testWorkerControllerPreparedPipeline( TestContext &context, const bool asix
 					   controller.completeScan( nextScan.operationId, rescanned->scanResult)) ;
 	const BeginResult stale =
 		controller.beginInstall( originalSession, selection, InstallConfirmation::CONFIRMED,
-								mode) ;	// 旧一覧からの再導入要求。
+								mode) ;	// 旧一覧からの再導入要求
 	DRIVERCRATE_EXPECT( context, !stale.accepted) ;
 	DRIVERCRATE_EXPECT( context, stale.error == BeginError::STALE_SCAN_SESSION) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASIXの合成選択に対する復元開始失敗、正常終了、導入例外時の終了通知を検証する。
+ * @brief ASIXの合成選択に対する復元開始失敗、正常終了、導入例外時の終了通知を検証する
  *
- * @param[in,out] context Assertion結果の集計先。
+ * @param[in,out] context Assertion結果の集計先
  */
 //------------------------------------------------------------------------------
 void testAsixClientRestoreBoundary( TestContext &context)
 {
-	// 復元APIは呼ばず、保護層の開始・導入・終了順だけを三つの独立状態で確認する。
-	for( int scenario = 0; scenario < 3; ++scenario)	// 0は正常、1は開始拒否、2は導入例外。
+	// 復元APIは呼ばず、保護層の開始・導入・終了順だけを三つの独立状態で確認する
+	for( int scenario = 0; scenario < 3; ++scenario)	// 0は正常、1は開始拒否、2は導入例外
 	{
-		auto state				= std::make_shared<FakePreparationState>() ;	// 一回分のfake状態。
+		auto state				= std::make_shared<FakePreparationState>() ;	// 一回分のfake状態
 		state->asixPipeline		= true ;
 		state->emitPipeline		= true ;
 		state->allowFakeRestore = scenario != 1 ;
 		state->throwInstall		= scenario == 2 ;
-		FakePreparationProvider		   provider( state) ;								// 実ドライバーを変更しないProvider。
-		FakePreparationRestoreService  restore( state) ;								// 実復元ポイントを作らないservice。
-		const ProviderProgressCallback progress = []( const ProviderProgress &) {} ;	// 待機なし通知。
-		const ScanResult scanned = provider.scan( 101U, {}, progress) ;					// 同一scanを保持する。
+		FakePreparationProvider		   provider( state) ;								// 実ドライバーを変更しないProvider
+		FakePreparationRestoreService  restore( state) ;								// 実復元ポイントを作らないservice
+		const ProviderProgressCallback progress = []( const ProviderProgress &) {} ;	// 待機なし通知
+		const ScanResult scanned = provider.scan( 101U, {}, progress) ;					// 同一scanを保持する
 		DRIVERCRATE_EXPECT( context, scanned.succeeded) ;
-		const std::array<std::wstring, 1> identities{L"prepared:target:0"} ;	// 合成明示選択。
-		// Fake復元ポイントとProviderで検証するASIX選択導入の結果。
+		const std::array<std::wstring, 1> identities{L"prepared:target:0"} ;	// 合成明示選択
+		// Fake復元ポイントとProviderで検証するASIX選択導入の結果
 		const InstallResult result = installWithRestorePoint( provider, restore, 101U, identities,
 															 0U, progress, L"Fictional ASIX test") ;
 		DRIVERCRATE_EXPECT( context, result.succeeded == (scenario == 0)) ;
@@ -1462,7 +1461,7 @@ void testAsixClientRestoreBoundary( TestContext &context)
 		DRIVERCRATE_EXPECT( context, state->restoreCalls == (scenario == 1 ? 1U : 2U)) ;
 		DRIVERCRATE_EXPECT( context,
 						   result.protectionMode == InstallProtectionMode::WINDOWS_RESTORE_POINT) ;
-		// 導入例外scenarioでは例外が共通診断値へ変換されることを確認する。
+		// 導入例外scenarioでは例外が共通診断値へ変換されることを確認する
 		if( scenario == 2) {
 			DRIVERCRATE_EXPECT( context,
 							   result.installError == static_cast<NativeError>( E_UNEXPECTED)) ;
@@ -1470,23 +1469,23 @@ void testAsixClientRestoreBoundary( TestContext &context)
 	}
 }
 
-/** @brief 空のload結果だけを使うworker refresh接続の非通信Providerです。 */
+/** @brief 空のload結果だけを使うworker refresh接続の非通信Providerです */
 class RefreshProbeProvider final : public IUpdateProvider, public IIndexScanInventory {
 public:
 	/**
-	 * @brief 既存非通信scanの状態だけを共有します。
-	 * @param[in] state 同workerを停止するまで所有するfake状態です。
+	 * @brief 既存非通信scanの状態だけを共有します
+	 * @param[in] state 同workerを停止するまで所有するfake状態です
 	 */
 	explicit RefreshProbeProvider( std::shared_ptr<FakePreparationState> state)
 		: inner_( std::move( state))
 	{
 	}
 	/**
-	 * @brief 既存fakeだけへ通常scanを委譲します。
-	 * @param[in] session 元worker sessionです。
-	 * @param[in] options 元の有限Provider選択です。
-	 * @param[in] progress 元同期通知です。
-	 * @return 実inventoryを含まない元scanです。
+	 * @brief 既存fakeだけへ通常scanを委譲します
+	 * @param[in] session 元worker sessionです
+	 * @param[in] options 元の有限Provider選択です
+	 * @param[in] progress 元同期通知です
+	 * @return 実inventoryを含まない元scanです
 	 */
 	ScanResult scan( ScanSessionId session, const ScanOptions &options,
 					const ProviderProgressCallback &progress) override
@@ -1494,12 +1493,12 @@ public:
 		return inner_.scan( session, options, progress) ;
 	}
 	/**
-	 * @brief 導入を実行せず元fake結果だけを返します。
-	 * @param[in] session 元fake sessionです。
-	 * @param[in] ids 元fake対象です。
-	 * @param[in] parent 未使用の親window値です。
-	 * @param[in] progress 元fake通知です。
-	 * @return 元fake結果です。実APIを呼びません。
+	 * @brief 導入を実行せず元fake結果だけを返します
+	 * @param[in] session 元fake sessionです
+	 * @param[in] ids 元fake対象です
+	 * @param[in] parent 未使用の親window値です
+	 * @param[in] progress 元fake通知です
+	 * @return 元fake結果です。実APIを呼びません
 	 */
 	InstallResult install( ScanSessionId session, std::span<const std::wstring> ids,
 						  std::uintptr_t parent, const ProviderProgressCallback &progress) override
@@ -1507,11 +1506,11 @@ public:
 		return inner_.install( session, ids, parent, progress) ;
 	}
 	/**
-	 * @brief 空store負例の後段でresolverを捏造しません。
-	 * @param[in] operation 未使用の元operationです。
-	 * @param[out] context 空へ初期化します。
-	 * @param[out] present 空へ初期化します。
-	 * @return 常にnullptrです。空storeでは到達しません。
+	 * @brief 空store負例の後段でresolverを捏造しません
+	 * @param[in] operation 未使用の元operationです
+	 * @param[out] context 空へ初期化します
+	 * @param[out] present 空へ初期化します
+	 * @return 常にnullptrです。空storeでは到達しません
 	 */
 	std::unique_ptr<IndexPublicIdResolver> indexScanInventory(
 		OperationId operation, IndexLookupContext &context,
@@ -1524,27 +1523,27 @@ public:
 	}
 
 private:
-	/// 通信・在庫・導入を使わない元fakeの所有です。
+	/// 通信・在庫・導入を使わない元fakeの所有です
 	FakePreparationProvider inner_ ;
 } ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 固定W01–W07を実worker queueの元終端で照合します。
- * @param[in,out] context 旧assertionを保持する集計先です。
+ * @brief 固定W01–W07を実worker queueの元終端で照合します
+ * @param[in,out] context 旧assertionを保持する集計先です
  */
 //------------------------------------------------------------------------------
 void testWorkerRefreshConnection( TestContext &context)
 {
-	// 七条件は分母から除外せず一workerずつ停止してから次へ進みます。
+	// 七条件は分母から除外せず一workerずつ停止してから次へ進みます
 	for( unsigned mode = 0U; mode < 7U; ++mode) {
-		const auto	  before = context.failureCount() ;	// この固定条件の開始失敗数です。
-		WorkerFixture fixture ;							// 早期returnでもstopする所有者です。
+		const auto	  before = context.failureCount() ;	// この固定条件の開始失敗数です
+		WorkerFixture fixture ;							// 早期returnでもstopする所有者です
 		fixture.worker->stop() ;
-		unsigned			 refreshes{} ;	// Worker terminal後だけ観測する呼出し数です。
-		unsigned			 loads{} ;		// Worker terminal後だけ観測するlocal read数です。
-		bool				 currentUtc{} ;	// Refresh後の現在UTCをloadへ渡した事実です。
-		std::chrono::seconds elapsed{} ;	// 実待機のない90秒refresh時計です。
+		unsigned			 refreshes{} ;	// Worker terminal後だけ観測する呼出し数です
+		unsigned			 loads{} ;		// Worker terminal後だけ観測するlocal read数です
+		bool				 currentUtc{} ;	// Refresh後の現在UTCをloadへ渡した事実です
+		std::chrono::seconds elapsed{} ;	// 実待機のない90秒refresh時計です
 		provider_worker_index_detail::Services services{
 			.load =
 				[&]( auto now) {
@@ -1559,14 +1558,14 @@ void testWorkerRefreshConnection( TestContext &context)
 					++refreshes ;
 					elapsed += std::chrono::seconds{90} ;
 					IndexRefreshSummary result{
-						.status = IndexRefreshStatus::REFRESHED} ;	// Fake境界だけの観測です。
-					// 暗号拒否をlocal cacheの再読取りへ流しません。
+						.status = IndexRefreshStatus::REFRESHED} ;	// Fake境界だけの観測です
+					// 暗号拒否をlocal cacheの再読取りへ流しません
 					if( mode == 2U) {
 						result.status = IndexRefreshStatus::MANIFEST_REJECTED ;
 						result.error  = static_cast<NativeError>( E_ACCESSDENIED) ;
 					}
 
-					// 明示cacheでも元HTTP失敗を保持します。
+					// 明示cacheでも元HTTP失敗を保持します
 					if( mode == 3U) {
 						result.status				  = IndexRefreshStatus::AUTHENTICATED_CACHE ;
 						result.error				  = static_cast<NativeError>( E_FAIL) ;
@@ -1574,7 +1573,7 @@ void testWorkerRefreshConnection( TestContext &context)
 						result.usedAuthenticatedCache = true ;
 					}
 
-					// 同workerからの取消しもmutex外で有限に受理しcommit事実を残します。
+					// 同workerからの取消しもmutex外で有限に受理しcommit事実を残します
 					if( mode == 4U) {
 						result.store.commit = IndexStoreCommitDisposition::COMMITTED ;
 						static_cast<void>( fixture.worker->requestScanCancel( 1U)) ;
@@ -1582,7 +1581,7 @@ void testWorkerRefreshConnection( TestContext &context)
 
 					return result ;
 				}} ;
-		// 欠損fixtureは製品loadやrefreshへ補完しません。
+		// 欠損fixtureは製品loadやrefreshへ補完しません
 		if( mode == 5U) {
 			services.load = {} ;
 		}
@@ -1597,11 +1596,11 @@ void testWorkerRefreshConnection( TestContext &context)
 			.useDefaultProviders = false,
 			.enabledProviderIds	 = {std::wstring{
 				 mode == 1U ? DRIVER_STORE_PROVIDER_ID
-							: SIGNED_INDEX_PROVIDER_ID}}} ;	// 無効caseも正規registry集合です。
+							: SIGNED_INDEX_PROVIDER_ID}}} ;	// 無効caseも正規registry集合です
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 1U, options)) ;
-		auto terminal = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;	// 実queue終端です。
+		auto terminal = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;	// 実queue終端です
 		DRIVERCRATE_EXPECT( context, terminal.has_value()) ;
-		// 未到達を後段成功として数えません。
+		// 未到達を後段成功として数えません
 		if( terminal) {
 			DRIVERCRATE_EXPECT( context, refreshes == (mode == 1U || mode == 5U ? 0U : 1U)) ;
 			DRIVERCRATE_EXPECT(
@@ -1613,23 +1612,23 @@ void testWorkerRefreshConnection( TestContext &context)
 											 : mode == 4U ? IndexScanStatus::CANCELLED
 											 : mode == 5U ? IndexScanStatus::INTERNAL_FAILURE
 														  : IndexScanStatus::EMPTY_STORE)) ;
-			// 部分失敗でも独立したProvider成功と元refresh errorを同時に保持します。
+			// 部分失敗でも独立したProvider成功と元refresh errorを同時に保持します
 			if( mode == 2U || mode == 3U) {
 				DRIVERCRATE_EXPECT( context, terminal->scanResult.succeeded &&
 												terminal->indexSummary.refresh &&
 												terminal->indexSummary.refresh->error != 0) ;
 			}
 
-			// 取消しでcommit済みの事実自体を消しません。
+			// 取消しでcommit済みの事実自体を消しません
 			if( mode == 4U) {
 				DRIVERCRATE_EXPECT( context, terminal->indexSummary.refresh &&
 												terminal->indexSummary.refresh->store.commit ==
 													IndexStoreCommitDisposition::COMMITTED) ;
 			}
 
-			// 二回目は旧sessionを再利用せず一回だけrefreshします。
+			// 二回目は旧sessionを再利用せず一回だけrefreshします
 			if( mode == 6U) {
-				const auto firstSession = terminal->scanResult.scanSessionId ;	// 旧確定sessionです。
+				const auto firstSession = terminal->scanResult.scanSessionId ;	// 旧確定sessionです
 				DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 2U, options)) ;
 				terminal = fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 2U) ;
 				DRIVERCRATE_EXPECT( context,
@@ -1645,38 +1644,38 @@ void testWorkerRefreshConnection( TestContext &context)
 	}
 }
 
-/** @brief 実token/CMへ触れない低位再検出fixtureの状態です。 */
+/** @brief 実token/CMへ触れない低位再検出fixtureの状態です */
 struct HardwareApiState {
-	/// 固定失敗条件。0正常、1既有効、2token拒否、3LUID拒否、4権限なし、5調整拒否です。
+	/// 固定失敗条件。0正常、1既有効、2token拒否、3LUID拒否、4権限なし、5調整拒否です
 	unsigned			  mode{} ;
-	/// FakeだけのGetLastError値です。
+	/// FakeだけのGetLastError値です
 	DWORD				  error{} ;
-	/// 低位呼出し順。1open、2lookup、3enable、4root、5再検出、6復帰、7closeです。
+	/// 低位呼出し順。1open、2lookup、3enable、4root、5再検出、6復帰、7closeです
 	std::vector<unsigned> trace ;
-	/// API引数が限定契約に一致する場合trueです。
+	/// API引数が限定契約に一致する場合trueです
 	bool				  valid{true} ;
 } ;
-// 同じ試験threadの完全fake表だけが参照します。
+// 同じ試験threadの完全fake表だけが参照します
 thread_local HardwareApiState	  *activeHardwareApi{} ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全APIを置換した同ABI表を生成します。
- * @return 実token/CM関数を一つも持たない完全表です。
+ * @brief 全APIを置換した同ABI表を生成します
+ * @return 実token/CM関数を一つも持たない完全表です
  */
 //------------------------------------------------------------------------------
 hardware_refresh_detail::Transport hardwareApiTransport()
 {
-	hardware_refresh_detail::Transport calls ;	// 欠損をnativeで補いません。
-	// Fake HANDLEは同fixtureへの借用で、実kernel HANDLEではありません。
+	hardware_refresh_detail::Transport calls ;	// 欠損をnativeで補いません
+	// Fake HANDLEは同fixtureへの借用で、実kernel HANDLEではありません
 	calls.process = []() -> HANDLE { return activeHardwareApi ; } ;
-	// 必要accessだけを確認し所有token相当を合成します。
+	// 必要accessだけを確認し所有token相当を合成します
 	calls.openToken = []( HANDLE process, DWORD access, PHANDLE token) -> BOOL {
-		auto &state = *activeHardwareApi ;	// 同threadの試験状態です。
+		auto &state = *activeHardwareApi ;	// 同threadの試験状態です
 		state.trace.push_back( 1U) ;
 		state.valid = state.valid && process == activeHardwareApi &&
 					  access == (TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES) ;
-		// 拒否時はHANDLEを発行しません。
+		// 拒否時はHANDLEを発行しません
 		if( state.mode == 2U) {
 			state.error = ERROR_ACCESS_DENIED ;
 			return FALSE ;
@@ -1685,9 +1684,9 @@ hardware_refresh_detail::Transport hardwareApiTransport()
 		*token = activeHardwareApi ;
 		return TRUE ;
 	} ;
-	// 既存の一権限名だけを受理します。
+	// 既存の一権限名だけを受理します
 	calls.lookupPrivilege = []( LPCWSTR system, LPCWSTR name, PLUID luid) -> BOOL {
-		auto &state = *activeHardwareApi ;	// 元errorを保持する状態です。
+		auto &state = *activeHardwareApi ;	// 元errorを保持する状態です
 		state.trace.push_back( 2U) ;
 		state.valid =
 			state.valid && system == nullptr && std::wstring_view{name} == SE_LOAD_DRIVER_NAME ;
@@ -1696,19 +1695,19 @@ hardware_refresh_detail::Transport hardwareApiTransport()
 		state.error	   = state.mode == 3U ? ERROR_NO_SUCH_PRIVILEGE : ERROR_SUCCESS ;
 		return state.mode == 3U ? FALSE : TRUE ;
 	} ;
-	// 一権限の元属性を保存し、復帰時の完全一致を確認します。
+	// 一権限の元属性を保存し、復帰時の完全一致を確認します
 	calls.adjustPrivilege = []( HANDLE token, BOOL all, PTOKEN_PRIVILEGES requested, DWORD bytes,
 							   PTOKEN_PRIVILEGES previous, PDWORD returned) -> BOOL {
-		auto &state = *activeHardwareApi ;	// 実tokenの変更は行いません。
+		auto &state = *activeHardwareApi ;	// 実tokenの変更は行いません
 		state.valid = state.valid && token == activeHardwareApi && all == FALSE &&
 					  requested->PrivilegeCount == 1U &&
 					  requested->Privileges[0].Luid.LowPart == 31U ;
-		// 元属性の返却を求める最初の呼出しを記録します。
+		// 元属性の返却を求める最初の呼出しを記録します
 		if( previous != nullptr) {
 			state.trace.push_back( 3U) ;
 			state.valid = state.valid && bytes == sizeof( TOKEN_PRIVILEGES) && returned != nullptr &&
 						  requested->Privileges[0].Attributes == SE_PRIVILEGE_ENABLED ;
-			// 不正な出力要求はvalidの失敗を保持し、NULL先へ書き込みません。
+			// 不正な出力要求はvalidの失敗を保持し、NULL先へ書き込みません
 			if( returned == nullptr) {
 				state.error = ERROR_INVALID_PARAMETER ;
 				return FALSE ;
@@ -1730,26 +1729,26 @@ hardware_refresh_detail::Transport hardwareApiTransport()
 		state.error = state.mode >= 8U ? ERROR_PRIVILEGE_NOT_HELD : ERROR_SUCCESS ;
 		return state.mode >= 8U ? FALSE : TRUE ;
 	} ;
-	// Error照会・初期化も完全fakeです。
+	// Error照会・初期化も完全fakeです
 	calls.lastError = []() -> DWORD { return activeHardwareApi->error ; } ;
 	calls.setError	= []( DWORD error) { activeHardwareApi->error = error ; } ;
-	// 元fake HANDLEだけを閉じます。
+	// 元fake HANDLEだけを閉じます
 	calls.closeToken = []( HANDLE token) -> BOOL {
 		activeHardwareApi->valid = activeHardwareApi->valid && token == activeHardwareApi ;
 		activeHardwareApi->trace.push_back( 7U) ;
 		return TRUE ;
 	} ;
-	// Device IDを受け取らずlocal rootだけを合成します。
+	// Device IDを受け取らずlocal rootだけを合成します
 	calls.locateRoot = []( PDEVINST root, DEVINSTID_W id, ULONG flags) -> CONFIGRET {
-		auto &state = *activeHardwareApi ;	// 指定rootの合成状態です。
+		auto &state = *activeHardwareApi ;	// 指定rootの合成状態です
 		state.trace.push_back( 4U) ;
 		state.valid = state.valid && id == nullptr && flags == CM_LOCATE_DEVNODE_NORMAL ;
 		*root		= 42U ;
 		return state.mode == 6U ? CR_NO_SUCH_DEVNODE : CR_SUCCESS ;
 	} ;
-	// 同期一回だけを確認しRETRY_INSTALLATIONを拒否します。
+	// 同期一回だけを確認しRETRY_INSTALLATIONを拒否します
 	calls.reenumerate = []( DEVINST root, ULONG flags) -> CONFIGRET {
-		auto &state = *activeHardwareApi ;	// 同期操作の合成状態です。
+		auto &state = *activeHardwareApi ;	// 同期操作の合成状態です
 		state.trace.push_back( 5U) ;
 		state.valid = state.valid && root == 42U && flags == CM_REENUMERATE_SYNCHRONOUS ;
 		return state.mode == 7U || state.mode == 9U ? CR_ACCESS_DENIED : CR_SUCCESS ;
@@ -1759,30 +1758,30 @@ hardware_refresh_detail::Transport hardwareApiTransport()
 
 //------------------------------------------------------------------------------
 /**
- * @brief 必要権限・CONFIGRET・復帰・HANDLE寿命を完全fakeで確認します。
- * @param[in,out] context Assertion集計先です。
+ * @brief 必要権限・CONFIGRET・復帰・HANDLE寿命を完全fakeで確認します
+ * @param[in,out] context Assertion集計先です
  */
 //------------------------------------------------------------------------------
 void testHardwareRefreshNativeBoundary( TestContext &context)
 {
-	const int first = context.assertionCount() ;	// 新有限条件だけの分母です。
-	// 成功・既有効・各主失敗・復帰失敗・二重失敗の固定10条件を実行します。
+	const int first = context.assertionCount() ;	// 新有限条件だけの分母です
+	// 成功・既有効・各主失敗・復帰失敗・二重失敗の固定10条件を実行します
 	for( unsigned mode = 0U; mode < 10U; ++mode) {
-		HardwareApiState state{.mode = mode} ;	// 各条件で所有状態を独立させます。
+		HardwareApiState state{.mode = mode} ;	// 各条件で所有状態を独立させます
 		activeHardwareApi = &state ;
 		const auto result =
-			// 製品と同処理です。
+			// 製品と同処理です
 			hardware_refresh_detail::Access::refresh( hardwareApiTransport()) ;
 		DRIVERCRATE_EXPECT( context, state.valid && result.succeeded == (mode < 2U)) ;
 		const std::ptrdiff_t expectedRescans =
-			mode < 2U || mode >= 7U ? 1U : 0U ;	// root以前失敗は0です。
+			mode < 2U || mode >= 7U ? 1U : 0U ;	// root以前失敗は0です
 		DRIVERCRATE_EXPECT( context, std::count( state.trace.begin(), state.trace.end(), 5U) ==
 										expectedRescans) ;
 		DRIVERCRATE_EXPECT( context, std::count( state.trace.begin(), state.trace.end(), 7U) ==
 										(mode == 2U ? 0 : 1)) ;
 		DRIVERCRATE_EXPECT( context, std::count( state.trace.begin(), state.trace.end(), 6U) ==
 										(mode == 0U || mode >= 6U ? 1 : 0)) ;
-		// 成功時の順序と、既有効権限を変更しない終了を独立確認します。
+		// 成功時の順序と、既有効権限を変更しない終了を独立確認します
 		if( mode < 2U) {
 			DRIVERCRATE_EXPECT( context,
 							   state.trace ==
@@ -1790,14 +1789,14 @@ void testHardwareRefreshNativeBoundary( TestContext &context)
 											   : std::vector<unsigned>{1U, 2U, 3U, 4U, 5U, 7U})) ;
 		}
 
-		// 権限の不存在をBOOL成功で隠しません。
+		// 権限の不存在をBOOL成功で隠しません
 		if( mode == 4U) {
 			DRIVERCRATE_EXPECT( context,
 							   result.domain == HardwareRefreshErrorDomain::WINDOWS_ERROR &&
 								   result.error == ERROR_NOT_ALL_ASSIGNED) ;
 		}
 
-		// CONFIGRETをWin32へ取り違えず、二重失敗でも元値を保持します。
+		// CONFIGRETをWin32へ取り違えず、二重失敗でも元値を保持します
 		if( mode == 6U || mode == 7U || mode == 9U) {
 			DRIVERCRATE_EXPECT(
 				context, result.domain == HardwareRefreshErrorDomain::CONFIGURATION_MANAGER &&
@@ -1809,9 +1808,9 @@ void testHardwareRefreshNativeBoundary( TestContext &context)
 						 static_cast<NativeError>( mode >= 8U ? ERROR_PRIVILEGE_NOT_HELD : 0U)) ;
 	}
 
-	HardwareApiState state ;	// 欠損表・混在表から呼ばれない状態です。
+	HardwareApiState state ;	// 欠損表・混在表から呼ばれない状態です
 	activeHardwareApi = &state ;
-	auto calls		  = hardwareApiTransport() ;	// 完全fakeの一項目だけを欠損させます。
+	auto calls		  = hardwareApiTransport() ;	// 完全fakeの一項目だけを欠損させます
 	calls.reenumerate = nullptr ;
 	DRIVERCRATE_EXPECT( context, !hardware_refresh_detail::Access::refresh( calls).succeeded &&
 									state.trace.empty()) ;
@@ -1826,34 +1825,34 @@ void testHardwareRefreshNativeBoundary( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 再検出失敗/例外/取消しではqueryを開始せず、旧sessionを失効させます。
- * @param[in,out] context Assertion集計先です。
+ * @brief 再検出失敗/例外/取消しではqueryを開始せず、旧sessionを失効させます
+ * @param[in,out] context Assertion集計先です
  */
 //------------------------------------------------------------------------------
 void testWorkerHardwareRefreshBoundary( TestContext &context)
 {
-	// 失敗値・例外・取消し・停止・未実行seamを独立したworkerで確認します。
+	// 失敗値・例外・取消し・停止・未実行seamを独立したworkerで確認します
 	for( unsigned mode = 0U; mode < 8U; ++mode) {
-		WorkerFixture fixture ;	// 実復元/導入を呼ばない既存fixtureです。
+		WorkerFixture fixture ;	// 実復元/導入を呼ばない既存fixtureです
 		fixture.worker->stop() ;
 		fixture.state->throwScan = mode == 6U ;
-		std::atomic_uint					   refreshes{} ;	// workerだけが増やす再検出回数です。
-		provider_worker_index_detail::Services services ;		// 空の索引依存をnativeへ補完しません。
-		// 明示未実行条件以外にはfake再検出を注入します。
+		std::atomic_uint					   refreshes{} ;	// workerだけが増やす再検出回数です
+		provider_worker_index_detail::Services services ;		// 空の索引依存をnativeへ補完しません
+		// 明示未実行条件以外にはfake再検出を注入します
 		if( mode != 5U) {
 			services.hardwareRefresh = [&]() -> HardwareRefreshResult {
 				++refreshes ;
-				// 例外を成功や空候補へ変換しません。
+				// 例外を成功や空候補へ変換しません
 				if( mode == 2U) {
 					throw std::runtime_error( "fixture hardware failure") ;
 				}
 
-				// 同期API復帰時の取消しは後続Providerを始めません。
+				// 同期API復帰時の取消しは後続Providerを始めません
 				if( mode == 3U) {
 					static_cast<void>( fixture.worker->requestScanCancel( 1U)) ;
 				}
 
-				// Stop試験は外側へ開始を通知し、有限signalを待ちます。
+				// Stop試験は外側へ開始を通知し、有限signalを待ちます
 				if( mode == 4U || (mode == 7U && refreshes == 1U)) {
 					fixture.state->scanEntered.release() ;
 					static_cast<void>(
@@ -1867,7 +1866,7 @@ void testWorkerHardwareRefreshBoundary( TestContext &context)
 						static_cast<NativeError>( mode == 0U	  ? ERROR_PRIVILEGE_NOT_HELD
 												 : mode == 1U ? CR_ACCESS_DENIED
 															  : 0U)} ;
-			} ; // 非通信/非OS callbackです。
+			} ; // 非通信/非OS callbackです
 		}
 
 		fixture.worker = provider_worker_index_detail::Access::create(
@@ -1877,13 +1876,13 @@ void testWorkerHardwareRefreshBoundary( TestContext &context)
 			},
 			std::move( services)) ;
 		ScanOptions invalid{.useDefaultProviders = false,
-							.enabledProviderIds	 = {L"unknown-provider"}} ;	// 不正設定です。
+							.enabledProviderIds	 = {L"unknown-provider"}} ;	// 不正設定です
 		DRIVERCRATE_EXPECT( context, !fixture.worker->requestScan( 0U) &&
 										!fixture.worker->requestScan( 1U, invalid) &&
 										refreshes == 0U) ;
 		DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 1U)) ;
 		DRIVERCRATE_EXPECT( context, !fixture.worker->requestScan( 1U)) ;
-		// 先行同期処理中にqueueで取り消した二回目は、再検出もProviderも呼びません。
+		// 先行同期処理中にqueueで取り消した二回目は、再検出もProviderも呼びません
 		if( mode == 7U) {
 			DRIVERCRATE_EXPECT( context,
 							   fixture.state->scanEntered.try_acquire_for( std::chrono::seconds{3})) ;
@@ -1891,10 +1890,10 @@ void testWorkerHardwareRefreshBoundary( TestContext &context)
 											fixture.worker->requestScanCancel( 2U)) ;
 			fixture.state->scanRelease.release() ;
 			const auto first =
-				// 先行実行です。
+				// 先行実行です
 				fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;
 			const auto skipped =
-				// 未開始取消しです。
+				// 未開始取消しです
 				fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 2U) ;
 			DRIVERCRATE_EXPECT( context, first && first->scanResult.succeeded && skipped &&
 											skipped->scanResult.outcome == OutcomeCode::ABORTED &&
@@ -1902,7 +1901,7 @@ void testWorkerHardwareRefreshBoundary( TestContext &context)
 											fixture.state->scanCalls == 1U) ;
 			DRIVERCRATE_EXPECT( context, fixture.worker->requestScan( 3U)) ;
 			const auto renewed =
-				// 新しい要求です。
+				// 新しい要求です
 				fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 3U) ;
 			DRIVERCRATE_EXPECT( context, renewed && renewed->scanResult.succeeded &&
 											renewed->hardwareRefresh &&
@@ -1911,7 +1910,7 @@ void testWorkerHardwareRefreshBoundary( TestContext &context)
 			continue ;
 		}
 
-		// 同期処理は強制中断せず、stop要求後の復帰を待ちます。
+		// 同期処理は強制中断せず、stop要求後の復帰を待ちます
 		if( mode == 4U) {
 			DRIVERCRATE_EXPECT( context,
 							   fixture.state->scanEntered.try_acquire_for( std::chrono::seconds{3})) ;
@@ -1924,12 +1923,12 @@ void testWorkerHardwareRefreshBoundary( TestContext &context)
 		}
 
 		const auto terminal =
-			// 元終端です。
+			// 元終端です
 			fixture.waitEvent( WorkerEventKind::SCAN_COMPLETED, 1U) ;
 		DRIVERCRATE_EXPECT( context, terminal && terminal->scanResult.succeeded == (mode == 5U) &&
 										fixture.state->scanCalls == (mode >= 5U ? 1U : 0U) &&
 										refreshes == (mode == 5U ? 0U : 1U)) ;
-		// 失敗DTOに元領域と元値を残します。
+		// 失敗DTOに元領域と元値を残します
 		if( terminal && mode < 3U) {
 			DRIVERCRATE_EXPECT( context,
 							   terminal->hardwareRefresh && !terminal->hardwareRefresh->succeeded &&
@@ -1938,7 +1937,7 @@ void testWorkerHardwareRefreshBoundary( TestContext &context)
 										: mode == 1U ? CR_ACCESS_DENIED
 													 : static_cast<NativeError>( E_UNEXPECTED))) ;
 			const std::array identities{
-				std::wstring{L"old-session-candidate"}} ;	// 旧許可ではありません。
+				std::wstring{L"old-session-candidate"}} ;	// 旧許可ではありません
 			DRIVERCRATE_EXPECT( context, fixture.worker->requestInstall(
 											2U, terminal->scanResult.scanSessionId, identities,
 											nullptr, InstallProtectionMode::WINDOWS_RESTORE_POINT)) ;
@@ -1948,14 +1947,14 @@ void testWorkerHardwareRefreshBoundary( TestContext &context)
 							 fixture.state->restoreCalls == 0U && refreshes == 1U) ;
 		}
 
-		// 後続Provider例外でも再検出の成功を失敗・未実行へ改作しません。
+		// 後続Provider例外でも再検出の成功を失敗・未実行へ改作しません
 		if( terminal && mode == 6U) {
 			DRIVERCRATE_EXPECT(
 				context, terminal->hardwareRefresh && terminal->hardwareRefresh->succeeded &&
 							 terminal->scanResult.error == static_cast<NativeError>( E_UNEXPECTED)) ;
 		}
 
-		// 未実行を完了事実へ補いません。
+		// 未実行を完了事実へ補いません
 		if( terminal && mode == 5U) {
 			DRIVERCRATE_EXPECT( context, !terminal->hardwareRefresh) ;
 		}
@@ -1968,8 +1967,8 @@ void testWorkerHardwareRefreshBoundary( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 取得計画、queue、取消し、停止、一系列のWorker・Controller結合試験を実行する。有限待機のfakeだけでworkerの取得準備境界を確認する。
- * @param[in,out] context Assertionの集計先。
+ * @brief 取得計画、queue、取消し、停止、一系列のWorker・Controller結合試験を実行する。有限待機のfakeだけでworkerの取得準備境界を確認する
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void runProviderPreparationWorkerTests( TestContext &context)

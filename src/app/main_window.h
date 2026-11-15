@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file main_window.h
- * @brief DriverCrateメインウィンドウ定義。
- * @version 01.21.01
+ * @brief DriverCrateメインウィンドウ定義
+ * @version 01.21.05
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,72 +19,76 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  Release観測差分表示契約を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  EULA本文と取得再確認の境界を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得確認と独立した操作状態を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  TreeTable表示追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  TreeTable font拡大。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  Device class icon表示追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  TreeTable column sort追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  推奨更新表示filter追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  Filter checkbox独自描画。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  最下段message font拡大。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  更新候補一括選択追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  決定型進捗と自動再scan追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  下部全幅progress帯追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  Install結果保持と候補失効表示追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  Provider取得元設定と状態表示追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  同一版取得元選択表示追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  Windows Server install確認追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  Local候補到達dialog追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  公式探索経路表示追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  利用者指定Intel ZIP選択追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  利用者指定Prolific ZIP選択追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  利用者指定WCH ZIP選択追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  WCH CH342／CH343系ZIP選択追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  Silicon Labs CP210x ZIP選択追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  汎用署名済みINF ZIP選択追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  候補監査状態列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  Scan時点の段階別計測表示を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Release観測差分表示契約を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  EULA本文と取得再確認の境界を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得確認と独立した操作状態を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  TreeTable表示追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  TreeTable font拡大
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  Device class icon表示追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  TreeTable column sort追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  推奨更新表示filter追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  Filter checkbox独自描画
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  最下段message font拡大
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  更新候補一括選択追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  決定型進捗と自動再scan追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  下部全幅progress帯追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  Install結果保持と候補失効表示追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Provider取得元設定と状態表示追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  同一版取得元選択表示追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Windows Server install確認追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Local候補到達dialog追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  公式探索経路表示追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  利用者指定Intel ZIP選択追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  利用者指定Prolific ZIP選択追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  利用者指定WCH ZIP選択追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  WCH CH342／CH343系ZIP選択追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Silicon Labs CP210x ZIP選択追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  汎用署名済みINF ZIP選択追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  候補監査状態列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  Scan時点の段階別計測表示を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の条件・取消し・表示専用結果を接続。
- * Ver.01.01.00 Shunji Ogawa  2026/09/14  種類別三階層と表示件数の契約を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/09/15  登録状態・候補検証理由と詳細画面を追加。
- * Ver.01.03.00 Shunji Ogawa  2026/09/15  通常scanの協調取消しUIを追加。
- * Ver.01.04.00 Shunji Ogawa  2026/10/12  索引の取得・内容の独立結果表示を追加。
- * Ver.01.05.00 Shunji Ogawa  2026/10/12  私有event dispatchと内部索引画面fixtureを接続。
- * Ver.01.05.01 Shunji Ogawa  2026/10/14  別live限定の通常scan read-only観測を追加。
- * Ver.01.06.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
- * Ver.01.07.00 Shunji Ogawa  2026/10/16  索引通信結果の可視導線と同版publicationの画面受入を追加。
- * Ver.01.08.00 Shunji Ogawa  2026/10/16  索引通信詳細の全文と数値末尾の実control観測を追加。
- * Ver.01.09.00 Shunji Ogawa  2026/10/27  二階層のdevice一覧と詳細内の一候補選択を追加。
- * Ver.01.09.01 Shunji Ogawa  2026/10/27  検証本文と所有候補の実行履歴を別に表示する契約を明記。
- * Ver.01.10.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
- * Ver.01.11.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
- * Ver.01.12.00 Shunji Ogawa  2026/10/28  通常検索から同意付き取得確認への一回継続を追加。
- * Ver.01.13.00 Shunji Ogawa  2026/10/28  三列一覧と通常操作へ集約したcontrol契約を反映。
- * Ver.01.14.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
- * Ver.01.15.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続。
- * Ver.01.15.01 Shunji Ogawa  2026/11/02  同scanの未導入観測に結合した取得前表示分類を追加。
- * Ver.01.16.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
- * Ver.01.17.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
- * Ver.01.17.01 Shunji Ogawa  2026/11/09  導入中と終端で既存ツリー行の表示位置を保持。
- * Ver.01.18.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
- * Ver.01.19.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
- * Ver.01.20.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
- * Ver.01.21.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
- * Ver.01.21.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の条件・取消し・表示専用結果を接続
+ * Ver.01.01.00 Shunji Ogawa  2026/09/14  種類別三階層と表示件数の契約を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/09/15  登録状態・候補検証理由と詳細画面を追加
+ * Ver.01.03.00 Shunji Ogawa  2026/09/15  通常scanの協調取消しUIを追加
+ * Ver.01.04.00 Shunji Ogawa  2026/10/12  索引の取得・内容の独立結果表示を追加
+ * Ver.01.05.00 Shunji Ogawa  2026/10/12  私有event dispatchと内部索引画面fixtureを接続
+ * Ver.01.05.01 Shunji Ogawa  2026/10/14  別live限定の通常scan read-only観測を追加
+ * Ver.01.06.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続
+ * Ver.01.07.00 Shunji Ogawa  2026/10/16  索引通信結果の可視導線と同版publicationの画面受入を追加
+ * Ver.01.08.00 Shunji Ogawa  2026/10/16  索引通信詳細の全文と数値末尾の実control観測を追加
+ * Ver.01.09.00 Shunji Ogawa  2026/10/27  二階層のdevice一覧と詳細内の一候補選択を追加
+ * Ver.01.09.01 Shunji Ogawa  2026/10/27  検証本文と所有候補の実行履歴を別に表示する契約を明記
+ * Ver.01.10.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加
+ * Ver.01.11.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続
+ * Ver.01.12.00 Shunji Ogawa  2026/10/28  通常検索から同意付き取得確認への一回継続を追加
+ * Ver.01.13.00 Shunji Ogawa  2026/10/28  三列一覧と通常操作へ集約したcontrol契約を反映
+ * Ver.01.14.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続
+ * Ver.01.15.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続
+ * Ver.01.15.01 Shunji Ogawa  2026/11/02  同scanの未導入観測に結合した取得前表示分類を追加
+ * Ver.01.16.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加
+ * Ver.01.17.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続
+ * Ver.01.17.01 Shunji Ogawa  2026/11/09  導入中と終端で既存ツリー行の表示位置を保持
+ * Ver.01.18.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続
+ * Ver.01.19.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
+ * Ver.01.20.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続
+ * Ver.01.21.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続
+ * Ver.01.21.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.21.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.21.03 Shunji Ogawa  2026/11/13  有効表示対象の初期意図と明示DPIのcheck画像を接続
+ * Ver.01.21.04 Shunji Ogawa  2026/11/14  導入後の推奨表示から処理済み対象だけを除外
+ * Ver.01.21.05 Shunji Ogawa  2026/11/14  所有した導入終端結果のfilter閲覧判定を宣言
  * </pre>
  *
  * @note Top-level Win32 Window、TreeTable、およびUI stateを定義します。全member functionは、worker notificationを除き
- *       UI threadで実行します。
+ *       UI threadで実行します
  */
 //------------------------------------------------------------------------------
 
@@ -97,7 +101,7 @@
 #include "platform/hardware_refresh.h"
 #include "platform/app_update_service.h"
 
-// Windows.hはCommon ControlsとSetupAPIの基本型より先に必要である。
+// Windows.hはCommon ControlsとSetupAPIの基本型より先に必要である
 // clang-format off
 #include <Windows.h>
 #include <CommCtrl.h>
@@ -120,1120 +124,1159 @@ namespace drivercrate {
 enum class PreparationContinuationReason ;
 
 //------------------------------------------------------------------------------
-// Window class定義。
+// Window class定義
 //------------------------------------------------------------------------------
 
 /**
- * @brief scan、selection、install result を表示する application Window である。
+ * @brief scan、selection、install result を表示する application Window である
  */
 class MainWindow final {
 #if defined( DRIVERCRATE_INTERNAL_UI_TESTS)
-	// 内部targetだけで非通信factoryと状態の検査を許し、製品APIへ公開しない。
+	// 内部targetだけで非通信factoryと状態の検査を許し、製品APIへ公開しない
 	friend struct MainWindowMetadataTestAccess ;
 	friend struct MainWindowAppUpdateTestAccess ;
 #endif
 #if defined( DRIVERCRATE_INTERNAL_LIVE_INDEX_TESTS)
-	// 明示live測定だけに通常workerの匿名件数とTree選択の観測を許します。
+	// 明示live測定だけに通常workerの匿名件数とTree選択の観測を許します
 	friend struct MainWindowLiveIndexTestAccess ;
 #endif
 public:
 	/**
-	 * @brief 本classが所有するmessage font、TreeTable font、class image listを解放する。
-	 * 本classが所有するUI resourceを解放する。
-	 * DPI変更時に作成した上下message用font、TreeTable用font、SetupAPIから取得したclass image listを一度だけ解放する。
+	 * @brief 本classが所有するmessage font、TreeTable font、class image listを解放する
+	 * 本classが所有するUI resourceを解放する
+	 * DPI変更時に作成した上下message用font、TreeTable用font、SetupAPIから取得したclass image listを一度だけ解放する
 	 */
 	~MainWindow() ;
 
 	/**
-	 * @brief Window class と top-level Window を作成する。
-	 * 専用iconを設定したWindow classとtop-level Windowを作成する。Resource取得失敗時はWindows標準iconへfallbackする。
-	 * @param[in] instance application module instance。
-	 * @return Window 作成に成功した場合は `true`。
+	 * @brief Window class と top-level Window を作成する
+	 * 専用iconを設定したWindow classとtop-level Windowを作成する。Resource取得失敗時はWindows標準iconへfallbackする
+	 * @param[in] instance application module instance
+	 * @return Window 作成に成功した場合は `true`
 	 */
 	[[nodiscard]] bool create( HINSTANCE instance) ;
 
 	/**
-	 * @brief Window を表示して UI message loop を実行する。
-	 * Window を表示して UI message loop を実行する。 事前条件: `create` が成功していること。
-	 * @param[in] showCommand `wWinMain` が受け取った初期表示 command。
-	 * @return process exit code。
-	 * @pre `create` が成功していること。
+	 * @brief Window を表示して UI message loop を実行する
+	 * Window を表示して UI message loop を実行する。 事前条件: `create` が成功していること
+	 * @param[in] showCommand `wWinMain` が受け取った初期表示 command
+	 * @return process exit code
+	 * @pre `create` が成功していること
 	 */
 	[[nodiscard]] int  run( int showCommand) ;
 
 private:
 	/**
-	 * @brief App専用menu/worker/timerを初期化します。
-	 * @return menu構築成功はtrue。通信失敗とは独立です。
+	 * @brief App専用menu/worker/timerを初期化します
+	 * @return menu構築成功はtrue。通信失敗とは独立です
 	 */
 	[[nodiscard]] bool				  initializeAppUpdates() ;
 	/**
-	 * @brief 起動/周期/確定結果をUI threadで確認します。
+	 * @brief 起動/周期/確定結果をUI threadで確認します
 	 */
 	void							  pollAppUpdates() ;
 	/**
-	 * @brief 確定したApp更新結果を安全なidle時だけ表示します。
+	 * @brief 確定したApp更新結果を安全なidle時だけ表示します
 	 */
 	void							  processAppUpdateEvents() ;
 	/**
-	 * @brief App専用menu commandを処理します。
-	 * @param[in] command 固定menu IDです。
-	 * @return App更新commandならtrueです。
+	 * @brief App専用menu commandを処理します
+	 * @param[in] command 固定menu IDです
+	 * @return App更新commandならtrueです
 	 */
 	[[nodiscard]] bool				  handleAppUpdateCommand( UINT command) ;
 	/**
-	 * @brief 既Providerのbusy/modalがないか確認します。
-	 * @return 通知/引継ぎを許せる場合だけtrueです。
+	 * @brief 既Providerのbusy/modalがないか確認します
+	 * @return 通知/引継ぎを許せる場合だけtrueです
 	 */
 	[[nodiscard]] bool				  canPresentAppUpdate() const noexcept ;
 	/**
-	 * @brief 新規driver操作と同時にしない取得/引継ぎ中か返します。
-	 * @return 取得/ready/引継ぎ中はtrueです。
+	 * @brief 新規driver操作と同時にしない取得/引継ぎ中か返します
+	 * @return 取得/ready/引継ぎ中はtrueです
 	 */
 	[[nodiscard]] bool				  appUpdateActive() const noexcept ;
 	/**
-	 * @brief 元数値と固定の操作説明だけを表示します。
-	 * @param[in] failure App更新だけの確定結果です。
+	 * @brief 元数値と固定の操作説明だけを表示します
+	 * @param[in] failure App更新だけの確定結果です
 	 */
 	void							  showAppUpdateFailure( const AppUpdateFailure &failure) ;
-	/// App専用の数値通知です。Provider通知とは別です。
+	/// App専用の数値通知です。Provider通知とは別です
 	static constexpr UINT			  APP_UPDATE_MESSAGE = WM_APP + 44U ;
-	/// 1秒pollから24hの単調期限を照会します。
+	/// 1秒pollから24hの単調期限を照会します
 	static constexpr UINT_PTR		  APP_UPDATE_TIMER = 0x44430001U ;
-	/// App更新だけのworkerを所有します。
+	/// App更新だけのworkerを所有します
 	std::unique_ptr<AppUpdateService> appUpdates_ ;
-	/// 自動確認の選択です。Provider設定ではありません。
+	/// 自動確認の選択です。Provider設定ではありません
 	bool							  appUpdateAutomatic_{true} ;
-	/// 通知dialogの再入を防ぎます。
+	/// 通知dialogの再入を防ぎます
 	bool							  appUpdateReviewOpen_{} ;
-	/// 取消し終端後に通常closeを継続します。
+	/// 取消し終端後に通常closeを継続します
 	bool							  closeAfterAppUpdate_{} ;
-	/// 起動一回と24hの非通信policyです。
+	/// 起動一回と24hの非通信policyです
 	AppUpdateSchedule				  appUpdateSchedule_ ;
-	/// busy/modal終了まで保持する一結果です。
+	/// busy/modal終了まで保持する一結果です
 	std::optional<AppUpdateEvent>	  pendingAppUpdate_ ;
-	/// 取得前のdriver結果帯を失敗時に戻します。
+	/// 取得前のdriver結果帯を失敗時に戻します
 	std::wstring					  appUpdatePreviousStatus_ ;
 #if defined( DRIVERCRATE_INTERNAL_UI_TESTS)
-	/// 指定がない既UI fixtureでは更新通信を行いません。
+	/// 指定がない既UI fixtureでは更新通信を行いません
 	std::unique_ptr<AppUpdateBackend> testAppUpdateBackend_ ;
-	/// 内部fixtureだけでdialogを決定的に見送る/同意します。
+	/// 内部fixtureだけでdialogを決定的に見送る/同意します
 	std::optional<bool>				  testAppUpdateDecision_ ;
-	/// 内部fixtureが隠しWindowでidle境界を確認する場合だけtrueです。
+	/// 内部fixtureが隠しWindowでidle境界を確認する場合だけtrueです
 	bool							  testAppUpdateAllowHidden_{} ;
-	/// 決定的なApp更新通知の回数です。
+	/// 決定的なApp更新通知の回数です
 	unsigned						  testAppUpdatePrompts_{} ;
-	/// 決定的な失敗通知の回数です。
+	/// 決定的な失敗通知の回数です
 	unsigned						  testAppUpdateFailures_{} ;
 #endif
 #if defined( DRIVERCRATE_INTERNAL_UI_TESTS)
-	/// Test所有の非通信Provider生成関数。空なら初期化を拒否する。
+	/// Test所有の非通信Provider生成関数。空なら初期化を拒否する
 	ProviderFactory		 testProviderFactory_ ;
-	/// Test所有の復旧fake生成関数。Windows APIへfallbackしない。
+	/// Test所有の復旧fake生成関数。Windows APIへfallbackしない
 	RestorePointFactory	 testRestorePointFactory_ ;
-	/// 隠した内部結果fixtureだけでmodal表示を抑制し、確定本文とcontrolを観測します。
+	/// 隠した内部結果fixtureだけでmodal表示を抑制し、確定本文とcontrolを観測します
 	bool				 testSuppressPreparationResultDialog_{} ;
-	/// 内部UI観測だけが、実dialogへ渡した所有本文の埋込NULとcopy境界を確認します。
+	/// 内部UI観測だけが、実dialogへ渡した所有本文の埋込NULとcopy境界を確認します
 	mutable std::wstring testIndexRefreshDetailBody_ ;
 #endif
 	/**
-	 * @brief TreeTableの分類とdeviceの二階層を表す。
+	 * @brief TreeTableの分類とdeviceの二階層を表す
      */
 	enum class TreeRowKind {
-		/// Windows setup class別の表示専用group。
+		/// Windows setup class別の表示専用group
 		DEVICE_CLASS,
-		/// 同deviceの候補と観測を一行へまとめるdevice行。
+		/// 同deviceの候補と観測を一行へまとめるdevice行
 		DEVICE,
 	} ;
 
 	/**
-     * @brief TreeView item と複数のtable columnへ描画する一行分の表示値である。
+     * @brief TreeView item と複数のtable columnへ描画する一行分の表示値である
      */
 	struct TreeRow {
-		/// 行の階層と選択可否を決定する分類。
+		/// 行の階層と選択可否を決定する分類
 		TreeRowKind				 kind{TreeRowKind::DEVICE} ;
-		/// Tree階層を描く第一columnの表示文字列。
+		/// Tree階層を描く第一columnの表示文字列
 		std::wstring			 primaryText ;
-		/// 分類件数を含まないsort用の種類名。分類行だけで使用する。
+		/// 分類件数を含まないsort用の種類名。分類行だけで使用する
 		std::wstring			 className ;
-		/// 件数付き表示名とは独立した正規分類keyです。その他は空です。
+		/// 件数付き表示名とは独立した正規分類keyです。その他は空です
 		std::wstring			 classKey ;
-		/// trueの場合は分類未解決として末尾へ配置する。
+		/// trueの場合は分類未解決として末尾へ配置する
 		bool					 unknownClass{} ;
-		/// Deviceで現在使用中のdriver version。
+		/// Deviceで現在使用中のdriver version
 		std::wstring			 currentVersion ;
-		/// Candidateが提示するdriver version。
+		/// Candidateが提示するdriver version
 		std::wstring			 candidateVersion ;
-		/// 操作分類またはdownload/install結果。
+		/// 操作分類またはdownload/install結果
 		std::wstring			 status ;
-		/// 同じopaque deviceに属する全候補のscan結果内index。現在観測も保持する。
+		/// 同じopaque deviceに属する全候補のscan結果内index。現在観測も保持する
 		std::vector<std::size_t> candidateIndexes ;
-		/// 現在のOS属性を優先するdevice表示元のscan結果内index。
+		/// 現在のOS属性を優先するdevice表示元のscan結果内index
 		std::size_t				 deviceIndex{} ;
-		/// Checkboxへ結合する一候補のscan結果内index。hasCandidateChoiceがfalseなら未指定。
+		/// Checkboxへ結合する一候補のscan結果内index。hasCandidateChoiceがfalseなら未指定
 		std::size_t				 candidateIndex{} ;
-		/// 一候補だけの場合、推奨選択時、または詳細で明示指定した場合にtrue。
+		/// 一候補だけの場合、推奨選択時、または詳細で明示指定した場合にtrue
 		bool					 hasCandidateChoice{} ;
-		/// 詳細で明示指定した場合だけfilter再構築へ保持する。
+		/// 詳細で明示指定した場合だけfilter再構築へ保持する
 		bool					 explicitCandidateChoice{} ;
-		/// 同scanの元checkboxをreadonlyで描く派生表示です。
+		/// 同scanの元checkboxをreadonlyで描く派生表示です
 		bool					 readonlyCheckbox{} ;
 	} ;
 
-	/** @brief 準備前の元選択を表示だけに保持する同scanの結合です。 */
+	/** @brief 準備前の元選択を表示だけに保持する同scanの結合です */
 	struct PreparationDisplayBinding {
-		/// 元候補のopaque identityです。外部出力しません。
+		/// 元候補のopaque identityです。外部出力しません
 		std::wstring candidateIdentity ;
-		/// 元deviceのopaque identityです。別deviceへ移しません。
+		/// 元deviceのopaque identityです。別deviceへ移しません
 		std::wstring deviceIdentity ;
-		/// 準備開始時点の申告版です。診断logには出しません。
+		/// 準備開始時点の申告版です。診断logには出しません
 		std::wstring version ;
-		/// 元の取得元表示です。診断logには出しません。
+		/// 元の取得元表示です。診断logには出しません
 		std::wstring sourceName ;
-		/// 元値が未検査の参照であった場合trueです。
+		/// 元値が未検査の参照であった場合trueです
 		bool		 reference{} ;
-		/// 元行にuncheckedを含むcheckbox枠がありました。
+		/// 元行にuncheckedを含むcheckbox枠がありました
 		bool		 frame{} ;
-		/// 前回の表示上の選択意図です。実行selectionへ合流しません。
+		/// 前回の表示上の選択意図です。実行selectionへ合流しません
 		bool		 checked{} ;
-		/// 元choiceが明示された事実です。実行choiceを復元しません。
+		/// 元choiceが明示された事実です。実行choiceを復元しません
 		bool		 explicitChoice{} ;
 	} ;
 
 	/**
-     * @brief TreeView sort callbackで使用する一回のsort条件である。
+     * @brief TreeView sort callbackで使用する一回のsort条件である
      */
 	struct TreeSortContext {
-		/// Row parameterを解決する非所有MainWindow pointer。
+		/// Row parameterを解決する非所有MainWindow pointer
 		const MainWindow *window{} ;
-		/// 0始まりのsort対象column index。
+		/// 0始まりのsort対象column index
 		std::size_t		  columnIndex{} ;
-		/// trueの場合は昇順、falseの場合は降順。
+		/// trueの場合は昇順、falseの場合は降順
 		bool			  ascending{} ;
 	} ;
 
-	/// Provider workerのresult queue到着を通知するprivate Window message。
+	/// Provider workerのresult queue到着を通知するprivate Window message
 	static constexpr UINT		 WORKER_NOTIFICATION_MESSAGE = WM_APP + 1 ;
-	/// TreeTableに表示する固定column数。
+	/// TreeTableに表示する固定column数
 	static constexpr std::size_t TREE_COLUMN_COUNT = 3 ;
 
 	/**
-	 * @brief Win32 callback を instance method へ転送する。
-	 * @param[in] window 対象 Window。
-	 * @param[in] message Win32 message ID。
-	 * @param[in] wordParameter message 固有の WPARAM。
-	 * @param[in] longParameter message 固有の LPARAM。
-	 * @return message 処理結果。
+	 * @brief Win32 callback を instance method へ転送する
+	 * @param[in] window 対象 Window
+	 * @param[in] message Win32 message ID
+	 * @param[in] wordParameter message 固有の WPARAM
+	 * @param[in] longParameter message 固有の LPARAM
+	 * @return message 処理結果
 	 */
 	static LRESULT CALLBACK		 windowProc( HWND window, UINT message, WPARAM wordParameter,
 											LPARAM longParameter) noexcept ;
 
 	/**
-	 * @brief 標準checkboxの動作を維持したまま背景をWindowと一体化して描画する。
-	 * 推奨更新filter checkboxの描画messageを処理する。
-	 * Checkboxの標準入力処理をDefSubclassProcへ委譲し、paintだけを親Windowと同じ背景へ置き換える。WM_NCDESTROYでsubclassを必ず解除する。
-	 * @param[in] window 対象checkbox Window。
-	 * @param[in] message Win32 message ID。
-	 * @param[in] wordParameter message固有のWPARAM。
-	 * @param[in] longParameter message固有のLPARAM。
-	 * @param[in] subclassId 登録時に指定したsubclass ID。
-	 * @param[in] referenceData 非所有MainWindow pointerの整数表現。
-	 * @return message処理結果。
+	 * @brief 標準checkboxの動作を維持したまま背景をWindowと一体化して描画する
+	 * 推奨更新filter checkboxの描画messageを処理する
+	 * Checkboxの標準入力処理をDefSubclassProcへ委譲し、paintだけを親Windowと同じ背景へ置き換える。WM_NCDESTROYでsubclassを必ず解除する
+	 * @param[in] window 対象checkbox Window
+	 * @param[in] message Win32 message ID
+	 * @param[in] wordParameter message固有のWPARAM
+	 * @param[in] longParameter message固有のLPARAM
+	 * @param[in] subclassId 登録時に指定したsubclass ID
+	 * @param[in] referenceData 非所有MainWindow pointerの整数表現
+	 * @return message処理結果
 	 */
 	static LRESULT CALLBACK recommendedFilterProc( HWND window, UINT message, WPARAM wordParameter,
 												  LPARAM longParameter, UINT_PTR subclassId,
 												  DWORD_PTR referenceData) noexcept ;
 
 	/**
-	 * @brief TreeView itemの表示値を指定columnと方向で比較する。
-	 * 分類行は種類名の昇順とし、不明分類は末尾へ置く。Device行は三列の表示値でsortする。
-	 * 同値は第一columnの昇順で安定化し、候補identityを変更しない。
-	 * @param[in] leftParameter 左側itemの1始まりrow index。
-	 * @param[in] rightParameter 右側itemの1始まりrow index。
-	 * @param[in] contextParameter 本呼出し中だけ有効なTreeSortContext pointer。
-	 * @return 左側が先なら負、等しければ0、右側が先なら正の値。
+	 * @brief TreeView itemの表示値を指定columnと方向で比較する
+	 * 分類行は種類名の昇順とし、不明分類は末尾へ置く。Device行は三列の表示値でsortする
+	 * 同値は第一columnの昇順で安定化し、候補identityを変更しない
+	 * @param[in] leftParameter 左側itemの1始まりrow index
+	 * @param[in] rightParameter 右側itemの1始まりrow index
+	 * @param[in] contextParameter 本呼出し中だけ有効なTreeSortContext pointer
+	 * @return 左側が先なら負、等しければ0、右側が先なら正の値
 	 */
 	static int CALLBACK		compareTreeItems( LPARAM leftParameter, LPARAM rightParameter,
 											 LPARAM contextParameter) noexcept ;
 
 	/**
-	 * @brief instance に関連付けられた Win32 message を処理する。
-	 * @param[in] message Win32 message ID。
-	 * @param[in] wordParameter message 固有の WPARAM。
-	 * @param[in] longParameter message 固有の LPARAM。
-	 * @return message 処理結果。
+	 * @brief instance に関連付けられた Win32 message を処理する
+	 * @param[in] message Win32 message ID
+	 * @param[in] wordParameter message 固有の WPARAM
+	 * @param[in] longParameter message 固有の LPARAM
+	 * @return message 処理結果
 	 */
 	LRESULT					handleMessage( UINT message, WPARAM wordParameter, LPARAM longParameter) ;
 
 	/**
-	 * @brief 推奨更新filter checkboxのcheck記号、label、およびfocusを描画する。
-	 * 推奨更新filter checkboxを背景枠なしで描画する。
+	 * @brief 推奨更新filter checkboxのcheck記号、label、およびfocusを描画する
+	 * 推奨更新filter checkboxを背景枠なしで描画する
 	 * 親Windowと同じ背景上へ標準check記号、label、および必要時のfocus枠だけを描画する。Button control全体を囲む背景矩形は描画せず、有効状態変更後も白背景へ再
-	 * 描画する。
-	 * @param[in] deviceContext 本描画中だけ有効な描画先device context。
+	 * 描画する
+	 * @param[in] deviceContext 本描画中だけ有効な描画先device context
 	 */
 	void					drawRecommendedFilter( HDC deviceContext) const noexcept ;
 
 	/**
-	 * @brief 下部status帯へ通常messageまたは全幅progressとmessageを描画する。
-	 * 処理中は帯全体へ確定済み完了率を塗り、塗り部分と未塗り部分でsystem text色を切り替えて同一messageを描画する。
-	 * @param[in] drawItem `WM_DRAWITEM`中だけ有効な描画情報。 WM_DRAWITEM中だけ有効な描画情報。
+	 * @brief 下部status帯へ通常messageまたは全幅progressとmessageを描画する
+	 * 処理中は帯全体へ確定済み完了率を塗り、塗り部分と未塗り部分でsystem text色を切り替えて同一messageを描画する
+	 * @param[in] drawItem `WM_DRAWITEM`中だけ有効な描画情報。 WM_DRAWITEM中だけ有効な描画情報
 	 */
 	void					drawStatusBand( const DRAWITEMSTRUCT &drawItem) const noexcept ;
 
 	/**
-	 * @brief child control と Provider worker を初期化する。
-	 * @return 全必須 resource を初期化できた場合は `true`。
+	 * @brief child control と Provider worker を初期化する
+	 * @return 全必須 resource を初期化できた場合は `true`
 	 */
 	[[nodiscard]] bool		onCreate() ;
 
 	/**
-	 * @brief client size と DPI に合わせて child control を配置する。
+	 * @brief client size と DPI に合わせて child control を配置する
 	 */
 	void					layoutControls() noexcept ;
 
 	/**
-	 * @brief 現在DPIに合わせて最下段message用fontを更新する。
+	 * @brief 現在DPIに合わせて最下段message用fontを更新する
 	 * Windowsのmessage fontを基準に10 point以上のfontを作成し、最下段のstatusへ適用する。System設定が既に大きい場合は縮小せず、新font
-	 * 適用後に旧fontを解放する。
-	 * @param[in] dpi fontを作成する対象DPI。
-	 * @return fontを作成してcontrolへ適用できた場合は`true`。
+	 * 適用後に旧fontを解放する
+	 * @param[in] dpi fontを作成する対象DPI
+	 * @return fontを作成してcontrolへ適用できた場合は`true`
 	 */
 	[[nodiscard]] bool		updateMessageFont( UINT dpi) noexcept ;
 
 	/**
-	 * @brief 現在DPIに合わせてTreeTable用fontと行高を更新する。
+	 * @brief 現在DPIに合わせてTreeTable用fontと行高を更新する
 	 * Windowsのmessage fontを基準に11 point以上のfontを作成し、Header、TreeView、custom draw、行高へ一括適用する。新fontの適用後に旧
-	 * fontを解放し、controlの参照を残さない。
-	 * @param[in] dpi fontを作成する対象DPI。
-	 * @return fontを作成してcontrolへ適用できた場合は`true`。
+	 * fontを解放し、controlの参照を残さない
+	 * @param[in] dpi fontを作成する対象DPI
+	 * @return fontを作成してcontrolへ適用できた場合は`true`
 	 */
 	[[nodiscard]] bool		updateTreeFont( UINT dpi) noexcept ;
 
 	/**
-	 * @brief Windows標準のsetup class image listをTreeTableへ設定する。
+	 * @brief Windows標準のsetup class image listをTreeTableへ設定する
 	 * Device Manager形式に近いSetupAPI class image listを使用し、GUIDを取得できない候補用のUnknown iconも解決する。image listの
-	 * ownershipはMainWindowが保持する。
-	 * @return image listを取得しTreeViewへ設定できた場合は`true`。
+	 * ownershipはMainWindowが保持する
+	 * @return image listを取得しTreeViewへ設定できた場合は`true`
 	 */
 	[[nodiscard]] bool		initializeDeviceClassImages() noexcept ;
 
 	/**
-	 * @brief Candidateのsetup class GUIDに対応するimage indexを取得する。
-	 * DTOのcanonical GUIDだけをSetupAPIへ渡し、hardware IDやdevice instance IDをUI threadへ持ち込まない。
-	 * @param[in] candidate 表示対象のcandidate。
+	 * @brief Candidateのsetup class GUIDに対応するimage indexを取得する
+	 * DTOのcanonical GUIDだけをSetupAPIへ渡し、hardware IDやdevice instance IDをUI threadへ持ち込まない
+	 * @param[in] candidate 表示対象のcandidate
 	 * @return SetupAPI class image index。取得できない場合は汎用image index。 SetupAPI class image index。取得できない場
-	 *         合は汎用index。
+	 *         合は汎用index
 	 */
 	[[nodiscard]] int		deviceClassImageIndex( const UpdateCandidate &candidate) noexcept ;
 
 	/**
-	 * @brief 表示GUIDを正規化し、種類groupのkeyへ変換する。
-	 * @param[in] value 現在行を優先して選んだ表示用GUID。
-	 * @return Brace付きGUID。不正・欠損は空文字列。
-	 * @note Device照合や導入権限の根拠には使用しない。
+	 * @brief 表示GUIDを正規化し、種類groupのkeyへ変換する
+	 * @param[in] value 現在行を優先して選んだ表示用GUID
+	 * @return Brace付きGUID。不正・欠損は空文字列
+	 * @note Device照合や導入権限の根拠には使用しない
 	 */
 	[[nodiscard]] std::wstring deviceClassKey( std::wstring_view value) const ;
 
 	/**
-	 * @brief Local Windowsの分類説明を有限bufferで読み取る。
-	 * @param[in] key 正規GUID。空または取得失敗はその他の分類とする。
-	 * @return Windowsの分類説明。取得不能は空文字列。
-	 * @note UI threadで種類ごとに一回だけ使用し、network・device列挙を行わない。
+	 * @brief Local Windowsの分類説明を有限bufferで読み取る
+	 * @param[in] key 正規GUID。空または取得失敗はその他の分類とする
+	 * @return Windowsの分類説明。取得不能は空文字列
+	 * @note UI threadで種類ごとに一回だけ使用し、network・device列挙を行わない
 	 */
 	[[nodiscard]] std::wstring deviceClassName( std::wstring_view key) const ;
 
 	/**
-	 * @brief 表示中の二階層からdevice数と情報／通常更新device数を集計する。
-	 * @param[in] expired trueならinstall後の失効表示とし、導入可能件数を提示しない。
-	 * @note Candidateを変更せず、分類行の表示値とaccessibility本文だけを更新する。
+	 * @brief 表示中の二階層からdevice数と情報／通常更新device数を集計する
+	 * @param[in] expired trueならinstall後の失効表示とし、導入可能件数を提示しない
+	 * @note Candidateを変更せず、分類行の表示値とaccessibility本文だけを更新する
 	 */
 	void					   updateDeviceClassSummaries( bool expired = false) ;
 
 	/**
-	 * @brief TreeTable の固定columnをresource文字列から作成する。
-	 * @return 全columnを作成できた場合は `true`。
+	 * @brief TreeTable の固定columnをresource文字列から作成する
+	 * @return 全columnを作成できた場合は `true`
 	 */
 	[[nodiscard]] bool		   initializeTreeColumns() ;
 
 	/**
-	 * @brief Window幅の変化に合わせて利用者が調整したcolumn比率を維持する。
-	 * @param[in] tableWidth TreeTable controlへ割り当てた幅（physical pixel）。
+	 * @brief Window幅の変化に合わせて利用者が調整したcolumn比率を維持する
+	 * @param[in] tableWidth TreeTable controlへ割り当てた幅（physical pixel）
 	 */
 	void					   resizeTreeColumns( int tableWidth) noexcept ;
 
 	/**
-	 * @brief Header clickに応じてsort columnと昇順・降順を更新する。
-	 * 新しいcolumnは昇順、同じcolumnの再clickは方向を反転し、Header矢印とTreeView順序を同じ状態へ更新する。
-	 * @param[in] columnIndex clickされた0始まりcolumn index。
+	 * @brief Header clickに応じてsort columnと昇順・降順を更新する
+	 * 新しいcolumnは昇順、同じcolumnの再clickは方向を反転し、Header矢印とTreeView順序を同じ状態へ更新する
+	 * @param[in] columnIndex clickされた0始まりcolumn index
 	 */
 	void					   handleHeaderClick( int columnIndex) noexcept ;
 
 	/**
-	 * @brief 現在のsort条件をHeaderの方向矢印へ反映する。
-	 * HDF_SORTUPとHDF_SORTDOWNを選択columnだけに設定し、以前のcolumnに残った方向表示を除去する。
+	 * @brief 現在のsort条件をHeaderの方向矢印へ反映する
+	 * HDF_SORTUPとHDF_SORTDOWNを選択columnだけに設定し、以前のcolumnに残った方向表示を除去する
 	 */
 	void					   updateTreeSortIndicator() const noexcept ;
 
 	/**
-	 * @brief 種類・deviceの二階層を表示値で並べ替える。
-	 * TreeViewのitem自体をsortし、item handle、checkbox、展開状態、candidate indexとidentityの対応を変更しない。
+	 * @brief 種類・deviceの二階層を表示値で並べ替える
+	 * TreeViewのitem自体をsortし、item handle、checkbox、展開状態、candidate indexとidentityの対応を変更しない
 	 */
 	void					   sortTreeItems() noexcept ;
 
 	/**
-	 * @brief TreeViewの標準階層描画後に各table columnの値とgridを描画する。
-	 * @param[in] customDraw `NM_CUSTOMDRAW`中だけ有効なTreeView描画情報。
+	 * @brief TreeViewの標準階層描画後に各table columnの値とgridを描画する
+	 * @param[in] customDraw `NM_CUSTOMDRAW`中だけ有効なTreeView描画情報
 	 */
 	void					   drawTreeRow( const NMTVCUSTOMDRAW &customDraw) const noexcept ;
 
 	/**
-	 * @brief 利用者操作または operation state に応じて button を更新する。
-	 * 利用者操作またはoperation stateに応じてscan、install、一括選択、filter controlの有効状態を更新する。
+	 * @brief 利用者操作または operation state に応じて button を更新する
+	 * 利用者操作またはoperation stateに応じてscan、install、一括選択、filter controlの有効状態を更新する
 	 */
 	void					   updateCommandState() noexcept ;
 
 	/**
-	 * @brief 現在のscan結果とfilter状態に対応する件数statusを表示する。
-	 * Scan結果とfilter状態に対応する件数statusを表示する。
-	 * Filter中は表示中の推奨更新件数を示す。Filter解除時は全install可能候補件数とProvider warningを復元する。
+	 * @brief 現在のscan結果とfilter状態に対応する件数statusを表示する
+	 * Scan結果とfilter状態に対応する件数statusを表示する
+	 * Filter中は表示中の推奨更新件数を示す。Filter解除時は全install可能候補件数とProvider warningを復元する
 	 */
 	void					   updateScanSummaryStatus() ;
 
 	/**
-	 * @brief Checkboxの状態を推奨更新表示filterへ反映してTreeTableを再構築する。
-	 * Checkboxの状態を推奨更新表示filterへ反映する。
-	 * ScanReadyの間だけfilterを変更し、保持済みselectionから表示対象のcheck状態を復元する。非表示候補はinstall対象へ含めない。
+	 * @brief 元scan候補又は所有結果の終端をfilterで閲覧できるか判定します
+	 * @return SCAN_READY又は元表示/非空結果所有のCOMPLETED/FAILUREで終了中でなければtrueです
+	 * @note 初期IDLE/操作中/所有なしを拒否し、導入やleaseの許可は発行しません
+	 */
+	[[nodiscard]] bool		   canChangeRecommendedFilter() const noexcept ;
+	/**
+	 * @brief 元scan又は所有導入終端のfilterを切り替えます
+	 * @note 初期IDLE/操作中/所有なしは拒否し、終端の結果閲覧から導入権限を再発行しません
 	 */
 	void					   handleRecommendedFilterChange() ;
 
 	/**
-	 * @brief 推奨かつinstall可能な候補を一device一件ずつ一括選択する。
-	 * 推奨かつinstall可能な候補を一括選択する。
-	 * ScanReadyの間だけ、Providerが推奨するinstall可能候補を一device一件ずつ選択する。現在版と過去版は選択せず、利用者が選んでいた旧版も推奨更新へ置き換える。
+	 * @brief 有効な推奨/初回の表示選択意図を一device一件で一括構成します
+	 * @note SCAN_READYだけで既defaultと同scan/planの一意な表示eligibleを選びます。未確定複数routeと閲覧専用は選びません
+	 * @note 明示一括は手動解除した意図も選び直します。取得/導入許可や同意は発行しません
 	 */
 	void					   selectAllRecommendedUpdates() ;
 
 	/**
-	 * @brief 現在のscan sessionにある全候補の選択を解除する。
-	 * 全candidateの選択を解除する。
-	 * ScanReadyの間だけ、表示状態にかかわらず現在scan sessionの全candidate selectionを解除してTreeTableへ反映する。
+	 * @brief 現在のscan sessionにある全候補の選択を解除する
+	 * 全candidateの選択を解除する
+	 * ScanReadyの間だけ、表示状態にかかわらず現在scan sessionの全candidate selectionを解除してTreeTableへ反映する
 	 */
 	void					   clearCandidateSelection() ;
 
 	/**
-	 * @brief 組み込みProvider状態とlocal候補到達dialog入口をpopupへ表示する。
-	 * Provider状態とlocal候補到達dialog入口を表示する。
-	 * Button直下のcheck付きpopupでProvider設定を切り替え、前回scanのlocal候補到達dialogを開く。
+	 * @brief 組み込みProvider状態とlocal候補到達dialog入口をpopupへ表示する
+	 * Provider状態とlocal候補到達dialog入口を表示する
+	 * Button直下のcheck付きpopupでProvider設定を切り替え、前回scanのlocal候補到達dialogを開く
 	 */
 	void					   showProviderSourcesMenu() ;
 
 	/**
-	 * @brief 区分C Providerへ渡すZIPを利用者に一件選択させる。
-	 * 区分C ProviderのZIPを一件選択する。
+	 * @brief 区分C Providerへ渡すZIPを利用者に一件選択させる
+	 * 区分C ProviderのZIPを一件選択する
 	 * 選択pathはprocess memoryだけに保持する。取消とdialog失敗を区別し、失敗時だけ診断値を利用者へ表示する。最大path領域はstackを圧迫しないよう動的領域へ確保す
-	 * る。
-	 * @param[in] noticeResourceId 由来と利用許諾の確認文字列resource ID。 選択前確認文字列resource ID。
-	 * @param[in] titleResourceId File dialog titleのresource ID。 Dialog titleのresource ID。
-	 * @param[in] filterResourceId ZIP filter表示名のresource ID。
-	 * @param[out] selectedPath 成功時に上書きする選択local path。 成功時だけ更新するlocal path。
-	 * @return Fileを選択した場合は`true`、取消またはdialog失敗時は`false`。 Fileを選択した場合は`true`、取消または失敗時は`false`。
-	 * @note 選択pathはprocess memoryだけに保持し、表示、永続log、networkへ渡さない。
+	 * る
+	 * @param[in] noticeResourceId 由来と利用許諾の確認文字列resource ID。 選択前確認文字列resource ID
+	 * @param[in] titleResourceId File dialog titleのresource ID。 Dialog titleのresource ID
+	 * @param[in] filterResourceId ZIP filter表示名のresource ID
+	 * @param[out] selectedPath 成功時に上書きする選択local path。 成功時だけ更新するlocal path
+	 * @return Fileを選択した場合は`true`、取消またはdialog失敗時は`false`。 Fileを選択した場合は`true`、取消または失敗時は`false`
+	 * @note 選択pathはprocess memoryだけに保持し、表示、永続log、networkへ渡さない
 	 */
 	[[nodiscard]] bool		   selectUserPackage( UINT noticeResourceId, UINT titleResourceId,
 												 UINT filterResourceId, std::wstring &selectedPath) ;
 
 	/**
-	 * @brief 未計測、確定値、下限値、取得不能を色に依存しない文字列へ変換する。
-	 * @param[in] measurement 表示する件数と確定度。
-	 * @return Resource文字列だけを使った日本語表示値。
+	 * @brief 未計測、確定値、下限値、取得不能を色に依存しない文字列へ変換する
+	 * @param[in] measurement 表示する件数と確定度
+	 * @return Resource文字列だけを使った日本語表示値
 	 */
 	[[nodiscard]] std::wstring formatMeasurementCount( const CountMeasurement &measurement) const ;
 
 	/**
-	 * @brief T／Q／R／A／Iの五段階を固定順の表示文字列へ変換する。
-	 * @param[in] measurement 同じ母数に対する段階別device件数。
-	 * @return 各件数の確定度を保持したresource format文字列。
+	 * @brief T／Q／R／A／Iの五段階を固定順の表示文字列へ変換する
+	 * @param[in] measurement 同じ母数に対する段階別device件数
+	 * @return 各件数の確定度を保持したresource format文字列
 	 */
 	[[nodiscard]] std::wstring formatStageMeasurement( const StageDeviceCounts &measurement) const ;
 
 	/**
-	 * @brief 公式HTTP resourceの実取得経路を種類別件数へ要約する。
-	 * @param[in] resources URLを含まない固定source取得根拠。
-	 * @return Network本文、fresh cache、304再検証、不明のresource件数。
+	 * @brief 公式HTTP resourceの実取得経路を種類別件数へ要約する
+	 * @param[in] resources URLを含まない固定source取得根拠
+	 * @return Network本文、fresh cache、304再検証、不明のresource件数
 	 */
 	[[nodiscard]] std::wstring formatMeasurementAcquisitions(
 		std::span<const MeasurementResource> resources) const ;
 
 	/**
-	 * @brief 前回scanのmanufacturer／setup class別候補到達件数を表示する。
-	 * 前回scanのmanufacturer／class別候補到達件数を表示する。
-	 * S63+未列挙groupを先に並べ、端末内だけに保持した集計値を標準Task Dialogへ表示する。Review状態や候補0件を最新、対応済み、または適用可能とは表示しない。
+	 * @brief 前回scanのmanufacturer／setup class別候補到達件数を表示する
+	 * 前回scanのmanufacturer／class別候補到達件数を表示する
+	 * S63+未列挙groupを先に並べ、端末内だけに保持した集計値を標準Task Dialogへ表示する。Review状態や候補0件を最新、対応済み、または適用可能とは表示しない
 	 */
 	void					   showLocalCoverageDialog() const ;
 
 	/**
-	 * @brief 確定した索引通信結果を操作中以外に閲覧できるか判定します。
-	 * @return 受理済みrefreshがあり、現在の操作が終端ならtrueです。
+	 * @brief 確定した索引通信結果を操作中以外に閲覧できるか判定します
+	 * @return 受理済みrefreshがあり、現在の操作が終端ならtrueです
 	 */
 	[[nodiscard]] bool		   canShowIndexRefreshDetails() const noexcept ;
 	/**
-	 * @brief 取得元menuへ非機密な通信結果の独立入口を追加します。
-	 * @param[in] menu 呼出し中に借用する有効なpopup menuです。所有権を取得しません。
+	 * @brief 取得元menuへ非機密な通信結果の独立入口を追加します
+	 * @param[in] menu 呼出し中に借用する有効なpopup menuです。所有権を取得しません
 	 */
 	void					   appendIndexRefreshMenu( HMENU menu) const ;
 	/**
-	 * @brief 受理済みsummaryを既存のread-only詳細dialogへ表示します。
-	 * @note UI thread限定です。取得計画・進捗・導入権限を変更しません。
+	 * @brief 受理済みsummaryを既存のread-only詳細dialogへ表示します
+	 * @note UI thread限定です。取得計画・進捗・導入権限を変更しません
 	 */
 	void					   showIndexRefreshDetails() const ;
 
 	/**
-	 * @brief UIで有効にしたProvider IDと利用者指定fileから次回scan設定を作る。
-	 * 次回scanへ渡すProviderと利用者指定file設定を作る。
-	 * 全無効を既定値と誤解せず、利用者選択pathは対応Providerだけへ渡す明示設定を作る。
-	 * @return 未知IDを含まず、区分C Providerと一件のfileを対応付けた明示設定。 UIで有効にしたstable Provider IDと区分C fileの対応。
+	 * @brief UIで有効にしたProvider IDと利用者指定fileから次回scan設定を作る
+	 * 次回scanへ渡すProviderと利用者指定file設定を作る
+	 * 全無効を既定値と誤解せず、利用者選択pathは対応Providerだけへ渡す明示設定を作る
+	 * @return 未知IDを含まず、区分C Providerと一件のfileを対応付けた明示設定。 UIで有効にしたstable Provider IDと区分C fileの対応
 	 */
 	[[nodiscard]] ScanOptions  currentScanOptions() const ;
 
 	/**
-	 * @brief Provider取得元buttonへ有効数を表示する。
-	 * Provider取得元buttonへ現在の有効数を表示する。
-	 * Popupを開かなくても有効Provider数を確認できるようにする。
+	 * @brief Provider取得元buttonへ有効数を表示する
+	 * Provider取得元buttonへ現在の有効数を表示する
+	 * Popupを開かなくても有効Provider数を確認できるようにする
 	 */
 	void					   updateProviderSourcesCaption() const ;
 
 	/**
-	 * @brief Providerの前回scan状態をresource文字列へ変換する。
-	 * Provider scan状態を短い表示文字列へ変換する。
-	 * 候補有無、対象外、一般失敗、監査段階別拒否を区別する。
-	 * @param[in] state 表示対象のProvider状態。 表示する取得元別scan状態。
-	 * @return Popup menuへ付加する短い日本語状態。 Popup menuへ付加するresource文字列。
+	 * @brief Providerの前回scan状態をresource文字列へ変換する
+	 * Provider scan状態を短い表示文字列へ変換する
+	 * 候補有無、対象外、一般失敗、監査段階別拒否を区別する
+	 * @param[in] state 表示対象のProvider状態。 表示する取得元別scan状態
+	 * @return Popup menuへ付加する短い日本語状態。 Popup menuへ付加するresource文字列
 	 */
 	[[nodiscard]] std::wstring providerStateText( ProviderScanState state) const ;
 
 	/**
-	 * @brief 新しい WUA scan を開始する。
-	 * 選択した取得元による新しいscanを開始する。
-	 * UIのProvider選択を固定した新しいscan sessionを開始する。
+	 * @brief 新しい WUA scan を開始する
+	 * 選択した取得元による新しいscanを開始する
+	 * UIのProvider選択を固定した新しいscan sessionを開始する
 	 */
 	void					   beginScan() ;
 
 	/**
-	 * @brief 通常scanの開始または同operationの協調取消しを要求する。
+	 * @brief 通常scanの開始または同operationの協調取消しを要求する
 	 */
 	void					   handleScanCommand() ;
 	/**
-	 * @brief 通常scanを取消し待ちへ移し、確定進捗とWindowを維持する。
+	 * @brief 通常scanを取消し待ちへ移し、確定進捗とWindowを維持する
 	 */
 	void					   cancelScan() ;
 
 	/**
-	 * @brief Registryから初期選択空の情報検索条件dialogを作る。
-	 * @param[out] request 開始を明示承認した場合だけ更新する今回の要求。
-	 * @return 専用能力と非空集合を再検証して承認した場合true。
+	 * @brief Registryから初期選択空の情報検索条件dialogを作る
+	 * @param[out] request 開始を明示承認した場合だけ更新する今回の要求
+	 * @return 専用能力と非空集合を再検証して承認した場合true
 	 */
 	[[nodiscard]] bool		   showMetadataSearchDialog( MetadataSearchRequest &request) ;
 
 	/**
-	 * @brief 情報検索の条件確認または同operationの協調取消しを要求する。
+	 * @brief 情報検索の条件確認または同operationの協調取消しを要求する
 	 */
 	void					   handleMetadataSearchCommand() ;
 	/**
-	 * @brief 同operationの取消し待ちへ移し、確定進捗を維持する。
+	 * @brief 同operationの取消し待ちへ移し、確定進捗を維持する
 	 */
 	void					   cancelMetadataSearch() ;
 	/**
-	 * @brief 表示専用の終端packetを検証して保持する。
-	 * @param[in] event Workerの所有結果。
+	 * @brief 表示専用の終端packetを検証して保持する
+	 * @param[in] event Workerの所有結果
 	 */
 	void					   processMetadataSearchCompleted( const WorkerEvent &event) ;
 	/**
-	 * @brief 検索用途に応じて配布版と現在INF版を区別した見出しへ更新する。
+	 * @brief 検索用途に応じて配布版と現在INF版を区別した見出しへ更新する
 	 */
 	void					   updateMetadataSearchColumns() ;
 	/**
-	 * @brief 情報検索の停止理由と未測定を表示する。
+	 * @brief 情報検索の停止理由と未測定を表示する
 	 */
 	void					   updateMetadataSearchStatus() ;
 	/**
-	 * @brief 情報検索の条件と全Providerの停止理由を標準controlで表示する。
+	 * @brief 情報検索の条件と全Providerの停止理由を標準controlで表示する
 	 */
 	void					   showMetadataSearchDetails() const ;
 	/**
-	 * @brief 固定理由をresourceへ変換する。
-	 * @param[in] reason 検証済み停止理由。
-	 * @return 日本語の理由。
+	 * @brief 固定理由をresourceへ変換する
+	 * @param[in] reason 検証済み停止理由
+	 * @return 日本語の理由
 	 */
 	[[nodiscard]] std::wstring metadataSearchReasonText( MetadataSearchReason reason) const ;
 
 	/**
-	 * @brief 情報検索の標準listviewと今回限りの通信判断を処理する。
-	 * @param[in] dialog 同期dialogの非所有handle。
-	 * @param[in] message Windows message ID。
-	 * @param[in] wordParameter Control ID等のmessage値。
-	 * @param[in] longParameter 初期化時の借用snapshotまたは通知buffer。
-	 * @return 処理済みならTRUE。例外・表示不整合は取消しで終端する。
+	 * @brief 情報検索の標準listviewと今回限りの通信判断を処理する
+	 * @param[in] dialog 同期dialogの非所有handle
+	 * @param[in] message Windows message ID
+	 * @param[in] wordParameter Control ID等のmessage値
+	 * @param[in] longParameter 初期化時の借用snapshotまたは通知buffer
+	 * @return 処理済みならTRUE。例外・表示不整合は取消しで終端する
 	 */
 	static INT_PTR CALLBACK	   metadataSearchDialogProc( HWND dialog, UINT message,
 														WPARAM wordParameter,
 														LPARAM longParameter) noexcept ;
 
 	/**
-	 * @brief checked candidate を確認して download/install を開始する。
+	 * @brief checked candidate を確認して download/install を開始する
 	 * Provider registryから注意種別を検証し、device、現在版から候補版への操作、取得元、およびOS別の復旧条件を表示する。不明なProvider、操作、Server条件で
-	 * はworkerを呼ばない。
+	 * はworkerを呼ばない
 	 */
 	void					   beginInstall() ;
 	/**
-	 * @brief 同scanの未取得参照を含めて明示選択できるかを判定します。
-	 * @param[in] candidate 現在表示中の元候補です。
-	 * @return 実導入可能または有効な元取得targetへ結合した選択意図ならtrueです。
-	 * @note 未取得参照のinstallableは変更しません。
+	 * @brief 同scanの未取得参照を含めて明示選択できるかを判定します
+	 * @param[in] candidate 現在表示中の元候補です
+	 * @return 実導入可能または有効な元取得targetへ結合した選択意図ならtrueです
+	 * @note 未取得参照のinstallableは変更しません
 	 */
 	[[nodiscard]] bool isSelectableCandidate( const UpdateCandidate &candidate) const noexcept ;
 	/**
-	 * @brief 未導入の実観測へ結合した取得前参照かを判定します。
-	 * @param[in] candidate 同scanの元取得targetへ結合した選択意図です。
-	 * @return 妥当な同session/device観測が未導入を示す場合だけtrueです。
-	 * @note 現在版欠損から未導入を推測せず、取得・適用性は未検査のままです。
+	 * @brief 未導入の実観測へ結合した取得前参照かを判定します
+	 * @param[in] candidate 同scanの元取得targetへ結合した選択意図です
+	 * @return 妥当な同session/device観測が未導入を示す場合だけtrueです
+	 * @note 現在版欠損から未導入を推測せず、取得・適用性は未検査のままです
 	 */
 	[[nodiscard]] bool isInitialPreparationReference(
 		const UpdateCandidate &candidate) const noexcept ;
 	/**
-	 * @brief 更新・検証済み初回と、未導入機器の初回確認だけを通常filterへ残します。
-	 * @param[in] candidate 表示・件数・代表選択へ同じ分類を適用する元候補です。
-	 * @return 現在の通常filterに表示する候補の場合trueです。
-	 * @note 取得targetへの結合だけを更新推奨へ読み替えません。
+	 * @brief 更新・検証済み初回と、未導入機器の初回確認だけを通常filterへ残します
+	 * @param[in] candidate 表示・件数・代表選択へ同じ分類を適用する元候補です
+	 * @return 現在の通常filterに表示する候補の場合trueです
+	 * @note 取得targetへの結合だけを更新推奨へ読み替えません
 	 */
 	[[nodiscard]] bool visibleInRecommendedFilter( const UpdateCandidate &candidate) const noexcept ;
 	/**
-	 * @brief 同scanの元選択から、未承認の取得snapshotを組み立てます。
-	 * @param[in] indexes 現在表示中に明示選択された候補位置です。
-	 * @return 完全な元snapshot。不明条件・共有規約不整合・旧scanはnulloptです。
+	 * @brief 同scanの元選択から、未承認の取得snapshotを組み立てます
+	 * @param[in] indexes 現在表示中に明示選択された候補位置です
+	 * @return 完全な元snapshot。不明条件・共有規約不整合・旧scanはnulloptです
 	 */
 	[[nodiscard]] std::optional<OfficialPreparationApproval> makeInstallPreparationApproval(
 		std::span<const std::size_t> indexes) const ;
 	/**
-	 * @brief 主画面で案内した選択集合と全文snapshotが現在も一致するか照合します。
-	 * @param[in] approval 現在の元planと選択から再構築した未承認値です。
-	 * @return 案内済みの全対象・選択・上限・session/planが一致する場合trueです。
+	 * @brief 主画面で案内した選択集合と全文snapshotが現在も一致するか照合します
+	 * @param[in] approval 現在の元planと選択から再構築した未承認値です
+	 * @return 案内済みの全対象・選択・上限・session/planが一致する場合trueです
 	 */
 	[[nodiscard]] bool matchesPresentedInstallTerms(
 		const OfficialPreparationApproval &approval) const noexcept ;
 	/**
-	 * @brief 現選択の規約案内と任意閲覧入口を更新します。同意は発行しません。
-	 * @return 必要な案内を表示できた場合trueです。失敗時はsnapshotを破棄します。
-	 * @note UI thread専用です。例外を外へ漏らさずInstallを無効にします。
+	 * @brief 現選択の規約案内と任意閲覧入口を更新します。同意は発行しません
+	 * @return 必要な案内を表示できた場合trueです。失敗時はsnapshotを破棄します
+	 * @note UI thread専用です。例外を外へ漏らさずInstallを無効にします
 	 */
 	[[nodiscard]] bool		updateInstallTermsPresentation() noexcept ;
 	/**
-	 * @brief 案内済みの原規約全文を任意閲覧します。取得・同意・導入は行いません。
+	 * @brief 案内済みの原規約全文を任意閲覧します。取得・同意・導入は行いません
 	 */
 	void					showInstallTerms() ;
 	/**
-	 * @brief 原本文だけをread-only表示し、閉じる操作だけを受理します。
-	 * @param[in] dialog 同期閲覧dialogです。
-	 * @param[in] message Windowsが通知するmessageです。
-	 * @param[in] wordParameter command等の標準parameterです。
-	 * @param[in] longParameter 初期化中だけ借用する全文文字列pointerです。
-	 * @return 処理したmessageはTRUE、既定処理へ渡す場合FALSEです。
+	 * @brief 原本文だけをread-only表示し、閉じる操作だけを受理します
+	 * @param[in] dialog 同期閲覧dialogです
+	 * @param[in] message Windowsが通知するmessageです
+	 * @param[in] wordParameter command等の標準parameterです
+	 * @param[in] longParameter 初期化中だけ借用する全文文字列pointerです
+	 * @return 処理したmessageはTRUE、既定処理へ渡す場合FALSEです
 	 */
 	static INT_PTR CALLBACK installTermsDialogProc( HWND dialog, UINT message, WPARAM wordParameter,
 												   LPARAM longParameter) noexcept ;
 	/**
-	 * @brief Install操作を案内済みの同一規約・元選択へ結合し、既存取得へ接続します。
-	 * @param[in] indexes 現在表示中で明示checkした有限index集合です。
+	 * @brief Install操作を案内済みの同一規約・元選択へ結合し、既存取得へ接続します
+	 * @param[in] indexes 現在表示中で明示checkした有限index集合です
 	 */
 	void					beginInstallPreparation( std::span<const std::size_t> indexes) ;
 	/**
-	 * @brief 全snapshot照合を経て既存workerへ取得を一回だけ登録します。
-	 * @param[in] approval 対象別判断と任意の元Install選択を持つ所有値です。
-	 * @param[in] continueInstall 元選択を検査後の唯一候補へ解決して継続する場合trueです。
+	 * @brief 全snapshot照合を経て既存workerへ取得を一回だけ登録します
+	 * @param[in] approval 対象別判断と任意の元Install選択を持つ所有値です
+	 * @param[in] continueInstall 元選択を検査後の唯一候補へ解決して継続する場合trueです
 	 */
 	void startPreparation( OfficialPreparationApproval approval, bool continueInstall) ;
 	/**
-	 * @brief 同operationのworker解決結果を元選択へ再照合して導入を継続します。
-	 * @param[in] result 受理済みの元取得終端です。
-	 * @note 新たな曖昧候補・旧版や失敗を無断で選択しません。
+	 * @brief 同operationのworker解決結果を元選択へ再照合して導入を継続します
+	 * @param[in] result 受理済みの元取得終端です
+	 * @note 新たな曖昧候補・旧版や失敗を無断で選択しません
 	 */
 	void continuePreparedInstall( const OfficialPreparationOperationResult &result) ;
 	/**
-	 * @brief 同scanの元選択を失効前に表示専用値へ退避します。
-	 * @return 一意に結合できた元候補だけの所有snapshotです。
+	 * @brief 同scanの元選択を失効前に表示専用値へ退避します
+	 * @return 一意に結合できた元候補だけの所有snapshotです
 	 */
 	[[nodiscard]] std::vector<PreparationDisplayBinding> capturePreparationDisplayBindings() const ;
 	/**
-	 * @brief 同scanの元device表示を一意に照合します。
-	 * @param[in] row 現在のdevice表示行です。
-	 * @return 旧実行権限を含まない元表示です。欠測/別scan/重複はnullptrです。
+	 * @brief 同scanの元device表示を一意に照合します
+	 * @param[in] row 現在のdevice表示行です
+	 * @return 旧実行権限を含まない元表示です。欠測/別scan/重複はnullptrです
 	 */
 	[[nodiscard]] const PreparationDisplayBinding		*retainedDisplayBinding(
 			  const TreeRow &row) const noexcept ;
 	/**
-	 * @brief 通常とreadonlyのcheckboxをWindows標準描画で構成します。
-	 * @return 全画像を所有してcontrolへ接続できた場合trueです。
+	 * @brief 通常とreadonlyのcheckboxを指定DPIのWindows標準描画で構成します
+	 * @param[in] dpi 画像/操作域へ明示適用する正のDPIです。旧monitor値へ補正しません
+	 * @return 全画像を所有してcontrolへ接続できた場合trueです
 	 */
-	[[nodiscard]] bool						 initializeCheckboxImages() ;
+	[[nodiscard]] bool						 initializeCheckboxImages( UINT dpi) ;
+	/**
+	 * @brief filterの実fontと記号余白を含む必要幅を取得します
+	 * @param[in] dpi 余白と最小幅へ明示適用するDPIです
+	 * @return labelと記号を収めるphysical pixel幅です。読取失敗時は従来最小幅です
+	 * @note 同UI threadから読み、DC/fontの借用を終了して返します
+	 */
+	[[nodiscard]] int						 recommendedFilterWidth( UINT dpi) const noexcept ;
 
 	/**
-	 * @brief 有効な実行choiceが無い行の元表示候補を解決します。
-	 * @param[in] row 同じ候補集合のdevice行です。
-	 * @return 元scan/candidate/deviceへ一意に結合した閲覧位置です。実行権限は含みません。
+	 * @brief 有効な実行choiceが無い行の元表示候補を解決します
+	 * @param[in] row 同じ候補集合のdevice行です
+	 * @return 元scan/candidate/deviceへ一意に結合した閲覧位置です。実行権限は含みません
 	 */
 	[[nodiscard]] std::optional<std::size_t> preparationDisplayCandidate(
 		const TreeRow &row) const noexcept ;
 	/**
-	 * @brief 準備から導入へ進めない理由と全deviceを表示します。
-	 * @param[in] result 受理済みの元準備終端です。
-	 * @param[in] reason native codeを創作しない固定理由です。
+	 * @brief 準備から導入へ進めない理由と全deviceを表示します
+	 * @param[in] result 受理済みの元準備終端です
+	 * @param[in] reason native codeを創作しない固定理由です
 	 */
 	void					failPreparedInstall( const OfficialPreparationOperationResult &result,
 												PreparationContinuationReason			  reason) ;
 
 	/**
-	 * @brief EULA全文の標準dialog messageを処理する。例外を境界外へ漏らさない。
-	 * 初期化時に全文とrevisionをcopyし、HTMLや外部linkを実行しない。本文の切詰めを許さない。取得前提の確認が必要な対象では未確認の同意を拒否する。
-	 * @param[in] dialog 本callback中の非所有dialog handle。 Windowsが所有する同期dialog handle。
-	 * @param[in] message Windows message ID。
-	 * @param[in] wordParameter Button ID等のmessage値。
-	 * @param[in] longParameter 初期化時だけ有効な非所有対象pointer。 初期化時だけの非所有対象pointer。
-	 * @return Messageを処理した場合TRUE。初期focus指定時はFALSE。 処理済みの場合TRUE。初期focusを指定した場合FALSE。
+	 * @brief EULA全文の標準dialog messageを処理する。例外を境界外へ漏らさない
+	 * 初期化時に全文とrevisionをcopyし、HTMLや外部linkを実行しない。本文の切詰めを許さない。取得前提の確認が必要な対象では未確認の同意を拒否する
+	 * @param[in] dialog 本callback中の非所有dialog handle。 Windowsが所有する同期dialog handle
+	 * @param[in] message Windows message ID
+	 * @param[in] wordParameter Button ID等のmessage値
+	 * @param[in] longParameter 初期化時だけ有効な非所有対象pointer。 初期化時だけの非所有対象pointer
+	 * @return Messageを処理した場合TRUE。初期focus指定時はFALSE。 処理済みの場合TRUE。初期focusを指定した場合FALSE
 	 */
 	static INT_PTR CALLBACK preparationEulaDialogProc( HWND dialog, UINT message,
 													  WPARAM wordParameter,
 													  LPARAM longParameter) noexcept ;
 
 	/**
-	 * @brief 対象のEULA全文とrevisionを表示して今回だけの同意を確認する。
-	 * 同期dialogの寿命中だけsnapshotを参照する。拒否は他対象への拒否へ拡大しない。
-	 * @param[in] target 本文とrevisionを固定した当該対象。 今回同意を求める対象の固定本文とrevision。
-	 * @return 明示同意した場合true。拒否・取消し・表示失敗はfalse。 全文表示後に同意を明示した場合true。
+	 * @brief 対象のEULA全文とrevisionを表示して今回だけの同意を確認する
+	 * 同期dialogの寿命中だけsnapshotを参照する。拒否は他対象への拒否へ拡大しない
+	 * @param[in] target 本文とrevisionを固定した当該対象。 今回同意を求める対象の固定本文とrevision
+	 * @return 明示同意した場合true。拒否・取消し・表示失敗はfalse。 全文表示後に同意を明示した場合true
 	 */
 	[[nodiscard]] bool		confirmPreparationEula( const OfficialPreparationTarget &target) const ;
 
 	/**
-	 * @brief 取得中は協調取消しだけを送り、未使用計画があれば確認し、消費後は結果だけを表示する。
+	 * @brief 取得中は協調取消しだけを送り、未使用計画があれば確認し、消費後は結果だけを表示する
 	 */
 	void					handlePreparationCommand() ;
 
 	/**
-	 * @brief 個別取得条件を確認し、承認された対象だけをworkerへ送る。
-	 * 確認の最後まで通信しない。EULA本文未提示対象を選択不可とし、全承認をworkerへ渡す。
+	 * @brief 個別取得条件を確認し、承認された対象だけをworkerへ送る
+	 * 確認の最後まで通信しない。EULA本文未提示対象を選択不可とし、全承認をworkerへ渡す
 	 */
 	void					beginPreparationReview() ;
 
 	/**
-	 * @brief URLを含まない取得対象の表示を構築する。
-	 * Provider名称は既存registryを正本とし、device数を適用性合格数として表示しない。
-	 * @param[in] target 表示する固定対象snapshot。
-	 * @param[in] index 0始まりの対象番号。 計画内の0始まり対象番号。
-	 * @return Provider、配布参照、上限、条件を含む表示。 URLを含まない対象明細。
+	 * @brief URLを含まない取得対象の表示を構築する
+	 * Provider名称は既存registryを正本とし、device数を適用性合格数として表示しない
+	 * @param[in] target 表示する固定対象snapshot
+	 * @param[in] index 0始まりの対象番号。 計画内の0始まり対象番号
+	 * @return Provider、配布参照、上限、条件を含む表示。 URLを含まない対象明細
 	 */
 	[[nodiscard]] std::wstring formatPreparationTarget( const OfficialPreparationTarget &target,
 													   std::size_t index) const ;
 
 	/**
-	 * @brief 取得確認用の標準dialogを表示する。
-	 * 既定は取得拒否で、network checkboxは未選択。Dialog失敗時の自動承認は行わない。
-	 * @param[in] content Dialogの要約。
-	 * @param[in] details 対象明細。 固定対象の明細。
-	 * @param[in] select trueは一対象の取得可否確認、falseは閲覧のみ。
-	 * @param[out] network 今回だけの課金／不明network承認。閲覧時と拒否時はfalse。 当該対象への明示network承認。拒否と閲覧はfalse。
-	 * @return Button ID。表示失敗はIDCANCELとして通信を開始しない。 選択button ID。表示失敗はIDCANCEL。
+	 * @brief 取得確認用の標準dialogを表示する
+	 * 既定は取得拒否で、network checkboxは未選択。Dialog失敗時の自動承認は行わない
+	 * @param[in] content Dialogの要約
+	 * @param[in] details 対象明細。 固定対象の明細
+	 * @param[in] select trueは一対象の取得可否確認、falseは閲覧のみ
+	 * @param[out] network 今回だけの課金／不明network承認。閲覧時と拒否時はfalse。 当該対象への明示network承認。拒否と閲覧はfalse
+	 * @return Button ID。表示失敗はIDCANCELとして通信を開始しない。 選択button ID。表示失敗はIDCANCEL
 	 */
 	[[nodiscard]] int		   showPreparationDialog( const std::wstring &content,
 													 const std::wstring &details, bool select,
 													 bool &network) const ;
 
 	/**
-	 * @brief 取得対象の確定件数を下部progressへ反映する。
-	 * 件数に整合する単調な進捗だけを表示し、時間経過による推定率を使わない。
-	 * @param[in] event 現在操作の取得進捗。 workerが確定した取得件数。
+	 * @brief 取得対象の確定件数を下部progressへ反映する
+	 * 件数に整合する単調な進捗だけを表示し、時間経過による推定率を使わない
+	 * @param[in] event 現在操作の取得進捗。 workerが確定した取得件数
 	 */
 	void					   processPreparationProgress( const WorkerEvent &event) ;
 
 	/**
-	 * @brief 取得結果を検証し、対象別に表示して元の一覧を保持する。既存行の監査を更新し、全監査合格候補を未選択で追加する。現在版と既存選択を保ち、自動scanしない。
-	 * @param[in] result workerの取得完了内容。 非機密の取得結果と独立した監査report。
-	 * @param[in] indexSummary 同operation／scan／planの有限な索引内容結果。空では索引未実施です。
-	 * @param[in] remainingPlan 同終端で発行した未選択の原plan subsetです。
-	 * @note 元承認・確定transfer・通常内容上限と矛盾する索引summaryは全拒否し、未確認理由を表示します。
+	 * @brief 取得結果を検証し、対象別に表示して元の一覧を保持する。既存行の監査を更新し、全監査合格候補を未選択で追加する。現在版と既存選択を保ち、自動scanしない
+	 * @param[in] result workerの取得完了内容。 非機密の取得結果と独立した監査report
+	 * @param[in] indexSummary 同operation／scan／planの有限な索引内容結果。空では索引未実施です
+	 * @param[in] remainingPlan 同終端で発行した未選択の原plan subsetです
+	 * @note 元承認・確定transfer・通常内容上限と矛盾する索引summaryは全拒否し、未確認理由を表示します
 	 */
 	void			   processPreparationCompleted( const OfficialPreparationOperationResult &result,
 												   const IndexPreparationSummary			&indexSummary = {},
 												   const OfficialPreparationPlan *remainingPlan = nullptr) ;
 
 	/**
-	 * @brief worker result queue を到着順に処理する。
+	 * @brief worker result queue を到着順に処理する
 	 */
 	void			   processWorkerEvents() ;
 
 	/**
-	 * @brief 現在operationの一通知を種別ごとの検証へ渡します。
-	 * @param[in] event 同期呼出し中だけ借用するworker通知。
-	 * @note 製品queueと内部friendが同じ私有dispatchを使用します。古い通知は表示を変更しません。
+	 * @brief 現在operationの一通知を種別ごとの検証へ渡します
+	 * @param[in] event 同期呼出し中だけ借用するworker通知
+	 * @note 製品queueと内部friendが同じ私有dispatchを使用します。古い通知は表示を変更しません
 	 */
 	void			   processWorkerEvent( const WorkerEvent &event) ;
 
 	/**
-	 * @brief Provider進捗eventを状態機械と決定型progress表示へ反映する。
-	 * 現在operationの段階遷移を検証し、件数と全体完了率を表示する。
-	 * @param[in] event Provider workerから受け取った進捗event。
+	 * @brief Provider進捗eventを状態機械と決定型progress表示へ反映する
+	 * 現在operationの段階遷移を検証し、件数と全体完了率を表示する
+	 * @param[in] event Provider workerから受け取った進捗event
 	 */
 	void			   processOperationProgress( const WorkerEvent &event) ;
 
 	/**
-	 * @brief scan 完了 event を UI と状態機械へ反映する。
-	 * @param[in] event Provider worker から受け取った event。
+	 * @brief scan 完了 event を UI と状態機械へ反映する
+	 * @param[in] event Provider worker から受け取った event
 	 */
 	void			   processScanCompleted( const WorkerEvent &event) ;
 
 	/**
-	 * @brief install 完了 event を UI と状態機械へ反映する。
-	 * @param[in] event Provider worker から受け取った event。
+	 * @brief install 完了 event を UI と状態機械へ反映する
+	 * @param[in] event Provider worker から受け取った event
 	 */
 	void			   processInstallCompleted( const WorkerEvent &event) ;
 
 	/**
-	 * @brief Providerの推奨順から一device一候補の初期selectionを作成する。
-	 * Providerが明示した検証根拠から推奨通常更新を一device一件選択する。矛盾した候補はfail-closedで全て未選択にする。
+	 * @brief 既defaultへ有効な表示対象を補い、一device一候補の初期selectionを作成する
+	 * 既defaultと元plan/scanへ結ぶ表示eligibleの一意な更新/初回選択意図を一device一件作成する。矛盾した入力は全て未選択とし、未確定の複数routeを任意選択しない
 	 */
 	void			   initializeCandidateSelection() ;
 
 	/**
-	 * @brief 保持しているcandidate selectionを表示中TreeTableへ反映する。
-	 * 保持selectionを表示中TreeTableへ反映する。
-	 * Deviceごとに選択済みの一候補をcheckboxへ結合し、候補版と短い状態を更新する。
-	 * 複数候補の未指定状態は詳細へ案内し、表示専用deviceからstate imageを除く。
+	 * @brief 保持しているcandidate selectionを表示中TreeTableへ反映する
+	 * 保持selectionを表示中TreeTableへ反映する
+	 * Deviceごとに選択済みの一候補をcheckboxへ結合し、候補版と短い状態を更新する
+	 * 複数候補の未指定状態は詳細へ案内し、表示専用deviceからstate imageを除く
 	 */
 	void			   applyCandidateSelectionToTree() ;
 
 	/**
-	 * @brief 同deviceのinstall可能な一候補を明示選択し、device行とcheckboxへ反映する。
-	 * @param[in] candidateIndex 現scanの候補index。異なるsession・表示外・非導入候補は拒否する。
-	 * @param[in] preserveDisplayIntent 内部READY解決中だけ元表示を未commitのまま保持します。
-	 * @return 現在のdevice行に結合した一候補だけを選択できた場合true。
-	 * @note UI thread限定。取得・導入・EULA同意は開始しない。
+	 * @brief 同deviceのinstall可能な一候補を明示選択し、device行とcheckboxへ反映する
+	 * @param[in] candidateIndex 現scanの候補index。異なるsession・表示外・非導入候補は拒否する
+	 * @param[in] preserveDisplayIntent 内部READY解決中だけ元表示を未commitのまま保持します
+	 * @return 現在のdevice行に結合した一候補だけを選択できた場合true
+	 * @note UI thread限定。取得・導入・EULA同意は開始しない
 	 */
 	[[nodiscard]] bool selectDeviceCandidate( std::size_t candidateIndex,
 											 bool		 preserveDisplayIntent = false) ;
 
 	/**
-	 * @brief scan candidateを種類・deviceの二階層TreeTableへまとめて表示する。
-	 * Filter有効時はinstall可能なrecommendedまたは初回導入候補を持つdeviceを表示する。
-	 * 同deviceの現在観測・全候補を詳細へ保持し、現在行優先の名前・分類を一行だけに示す。
-	 * @param[in] candidates 表示する immutable candidate 群。
+	 * @brief scan candidateを種類・deviceの二階層TreeTableへまとめて表示する
+	 * Filter有効時はinstall可能なrecommendedまたは初回導入候補を持つdeviceを表示する
+	 * 同deviceの現在観測・全候補を詳細へ保持し、現在行優先の名前・分類を一行だけに示す
+	 * @param[in] candidates 表示する immutable candidate 群
 	 */
 	void			   populateCandidates( std::span<const UpdateCandidate> candidates) ;
 
 	/**
-	 * @brief 同deviceの候補と現在版だけを既存行へ結合し、行集合とnative itemを保持します。
+	 * @brief 同deviceの候補と現在版だけを既存行へ結合し、行集合とnative itemを保持します
 	 * @note UI thread専用です。同scanへの候補/事後観測のappend後だけ使用します。分類・表示名・順序・開閉・caret・scrollを変更せず、非表示deviceの行を
-	 *       追加しません。実行choice/選択許可は作らず、呼出し側が既存の選択・結果描画を適用します。
+	 *       追加しません。実行choice/選択許可は作らず、呼出し側が既存の選択・結果描画を適用します
 	 */
 	void			   refreshCandidateRows() ;
 
 	/**
-	 * @brief install resultをTreeTableへ表示し、失効した候補を表示専用へ変更する。
-	 * 候補identityに結合した個別結果を保持し、device行の状態と詳細へ表示する。
-	 * @param[in] result Provider が返した update ごとの結果。
-	 * @param[in] scanSessionId 失効直前の元scan。事後DTOの結合だけに使用します。
+	 * @brief install resultをTreeTableへ表示し、失効した候補を表示専用へ変更する
+	 * 候補identityに結合した個別結果を保持し、device行の状態と詳細へ表示する
+	 * @param[in] result Provider が返した update ごとの結果
+	 * @param[in] scanSessionId 失効直前の元scan。事後DTOと同scanの処理済み表示記録へ結びます
+	  * @note 推奨ONでは処理済み行だけを除外し、全候補表示の結果閲覧と残るnative itemを保持します
 	 */
 	void displayInstallResult( const InstallResult &result, ScanSessionId scanSessionId) ;
 
 	/**
-	 * @brief 元選択deviceの事後観測だけを現在表示へ適用します。
-	 * @param[in] result 個別導入結果とread-only観測です。
-	 * @param[in] scanSessionId 失効直前の元scanです。0は観測を受理しません。
+	 * @brief 元選択deviceの事後観測だけを現在表示へ適用します
+	 * @param[in] result 個別導入結果とread-only観測です
+	 * @param[in] scanSessionId 失効直前の元scanです。0は観測を受理しません
 	 */
 	void applyPostInstallObservations( const InstallResult &result, ScanSessionId scanSessionId) ;
 	/**
-	 * @brief 実対象一致と個別成功で既知更新の解消だけを記録します。
-	 * @param[in] result 受理済み元Installの結果です。
-	 * @param[in] session 同じ元scanです。
+	 * @brief 実対象一致と個別成功で既知更新の解消だけを記録します
+	 * @param[in] result 受理済み元Installの結果です
+	 * @param[in] session 同じ元scanです
 	 */
 	void recordResolvedInstallDevices( const InstallResult &result, ScanSessionId session) ;
-	/// 同scanだけの表示事実。実行許可を持たず新scanで破棄します。
-	std::unordered_set<std::wstring> resolvedInstallDevices_ ;
-	/// 明示Install前の既推奨predicateで認識した未選択候補だけです。許可ではありません。
-	std::unordered_set<std::wstring> knownRecommendedBeforeInstall_ ;
-
 	/**
-	 * @brief Device行のcheckboxを、明示指定または唯一の一候補へ反映する。
-	 * 複数候補が未指定なら詳細を開く。分類・閲覧専用・失効候補のcheckは除く。
-	 * @param[in] item 状態が変化したdeviceまたは分類item。
-	 * @param[in] checked 新しい check state。
+	 * @brief 元候補へ一意に結合した同scanのAPI処理済み表示だけを記録します
+	 * @param[in] result 受理済みの元個別結果です
+	 * @param[in] session 同じ元scanです。現在と不一致なら記録しません
+	 * @note 最新解消・実行権限は変更せず、失敗や未完了の対象だけ前の表示除外を取り消します
 	 */
-	void							 handleTreeCheckChange( HTREEITEM item, bool checked) ;
-
+	void recordCompletedInstallCandidates( const InstallResult &result, ScanSessionId session) ;
 	/**
-	 * @brief TreeView item parameterから検証済みの表示行を取得する。
-	 * @param[in] parameter itemへ格納した1始まりのrow index。
-	 * @return 有効な場合はTreeRowへの非所有pointer、それ以外は`nullptr`。
+	 * @brief 同scanの処理済みまたは元の厳格解消を推奨表示から除くか判定します
+	 * @param[in] device 同じ候補集合のopaque device identityです
+	 * @return 新しい有効な選択がなく、表示除外の事実が成立する場合trueです
+	 * @note API処理済みを事後一致や全配布元最新へ変換しません
 	 */
-	[[nodiscard]] const TreeRow		*treeRowFromParameter( LPARAM parameter) const noexcept ;
-
+	[[nodiscard]] bool hideCompletedInstallDevice( const std::wstring &device) const noexcept ;
 	/**
-	 * @brief accessibility用にcandidateの全metadataを一行のitem textへ整形する。
-	 * @param[in] candidate 表示対象。
-	 * @return 制御文字を除いた表示文字列。
+	 * @brief 推奨ONの処理済みitemと空分類だけを削除し、残るnative行を保持します
+	 * @note 元候補・結果・route/leaseは破棄しません。残るcaret/先頭行を保持し、消失時だけ近傍へ移します
 	 */
-	[[nodiscard]] std::wstring		 formatCandidateText( const UpdateCandidate &candidate) const ;
+	void			   removeCompletedInstallRows() ;
+	/// 同scanのdeviceと元candidateの表示記録です。空candidateは後続の失敗/新選択で除外しない印です
+	std::unordered_map<std::wstring, std::wstring> completedInstallCandidates_ ;
+	/// 上記表示記録だけのscanです。新scanで0へ戻し、許可や期限には使いません
+	ScanSessionId								   completedInstallSession_{} ;
+	/// 同scanだけの表示事実。実行許可を持たず新scanで破棄します
+	std::unordered_set<std::wstring>			   resolvedInstallDevices_ ;
+	/// 明示Install前の既推奨predicateで認識した未選択候補だけです。許可ではありません
+	std::unordered_set<std::wstring>			   knownRecommendedBeforeInstall_ ;
 
 	/**
-	 * @brief Candidateの公式探索経路区分を表示文字列へ変換する。
-	 * 探索方法だけを示し、安全性または適用性の格付けにはしない。
-	 * @param[in] candidate 表示対象。
-	 * @return 公式区分A～Cのresource文字列。WUA／localの場合は空文字列。
+	 * @brief Device行のcheckboxを、明示指定または唯一の一候補へ反映する
+	 * 複数候補が未指定なら詳細を開く。分類・閲覧専用・失効候補のcheckは除く
+	 * @param[in] item 状態が変化したdeviceまたは分類item
+	 * @param[in] checked 新しい check state
 	 */
-	[[nodiscard]] std::wstring		 formatCandidateDiscoveryBasis(
-			  const UpdateCandidate &candidate) const ;
+	void						 handleTreeCheckChange( HTREEITEM item, bool checked) ;
 
 	/**
-	 * @brief 一つの監査gate状態を段階別のresource文字列へ変換する。
-	 * 一つの候補監査gateを表示文字列へ変換する。
-	 * Windows委譲、Provider照合、利用者指定を独立状態として保ち、DriverCrateによる合格へ読み替えない。
-	 * @param[in] state 表示対象の監査gate状態。
-	 * @param[in] passedResourceId 当該gateの合格表示resource ID。
-	 * @param[in] pendingResourceId 当該gateの未完了表示resource ID。
-	 * @return 監査結果を過大評価しない短い日本語文字列。 監査結果を過大評価しないresource文字列。
+	 * @brief TreeView item parameterから検証済みの表示行を取得する
+	 * @param[in] parameter itemへ格納した1始まりのrow index
+	 * @return 有効な場合はTreeRowへの非所有pointer、それ以外は`nullptr`
+	 */
+	[[nodiscard]] const TreeRow *treeRowFromParameter( LPARAM parameter) const noexcept ;
+
+	/**
+	 * @brief accessibility用にcandidateの全metadataを一行のitem textへ整形する
+	 * @param[in] candidate 表示対象
+	 * @return 制御文字を除いた表示文字列
+	 */
+	[[nodiscard]] std::wstring	 formatCandidateText( const UpdateCandidate &candidate) const ;
+
+	/**
+	 * @brief Candidateの公式探索経路区分を表示文字列へ変換する
+	 * 探索方法だけを示し、安全性または適用性の格付けにはしない
+	 * @param[in] candidate 表示対象
+	 * @return 公式区分A～Cのresource文字列。WUA／localの場合は空文字列
+	 */
+	[[nodiscard]] std::wstring	 formatCandidateDiscoveryBasis(
+		  const UpdateCandidate &candidate) const ;
+
+	/**
+	 * @brief 一つの監査gate状態を段階別のresource文字列へ変換する
+	 * 一つの候補監査gateを表示文字列へ変換する
+	 * Windows委譲、Provider照合、利用者指定を独立状態として保ち、DriverCrateによる合格へ読み替えない
+	 * @param[in] state 表示対象の監査gate状態
+	 * @param[in] passedResourceId 当該gateの合格表示resource ID
+	 * @param[in] pendingResourceId 当該gateの未完了表示resource ID
+	 * @return 監査結果を過大評価しない短い日本語文字列。 監査結果を過大評価しないresource文字列
 	 */
 	[[nodiscard]] std::wstring formatCandidateAuditGate( CandidateAuditGateState state,
 														UINT					passedResourceId,
 														UINT pendingResourceId) const ;
 
 	/**
-	 * @brief Candidateの監査gateとinstall準備状態を一列の表示値へ変換する。
-	 * Candidate監査状態とinstall準備状態を整形する。
-	 * Scan時点のimmutableな監査事実を一列へ段階名付きで表示し、operation結果列とは混在させない。
-	 * @param[in] candidate 表示対象。
-	 * @return 由来、download、内容、system、installの独立状態。 由来、取得、内容、system、installの独立状態。
+	 * @brief Candidateの監査gateとinstall準備状態を一列の表示値へ変換する
+	 * Candidate監査状態とinstall準備状態を整形する
+	 * Scan時点のimmutableな監査事実を一列へ段階名付きで表示し、operation結果列とは混在させない
+	 * @param[in] candidate 表示対象
+	 * @return 由来、download、内容、system、installの独立状態。 由来、取得、内容、system、installの独立状態
 	 */
 	[[nodiscard]] std::wstring formatCandidateAudit( const UpdateCandidate &candidate) const ;
 
 	/**
-	 * @brief candidateの操作、公式release観測差分、同一版取得元を表示文字列へ変換する。導入不可の公式配布情報は現在版と誤表示せず未監査と明示する。
-	 * @param[in] candidate 表示対象。
-	 * @return resourceから取得した操作分類と非機密観測差分の文字列。
+	 * @brief candidateの操作、公式release観測差分、同一版取得元を表示文字列へ変換する。導入不可の公式配布情報は現在版と誤表示せず未監査と明示する
+	 * @param[in] candidate 表示対象
+	 * @return resourceから取得した操作分類と非機密観測差分の文字列
 	 */
 	[[nodiscard]] std::wstring formatCandidateState( const UpdateCandidate &candidate) const ;
 	/**
-	 * @brief 索引refreshの元診断とcommit事実だけを表示本文へ変換します。
-	 * @param[in] summary 同operationから受理した非機密summaryです。
-	 * @return 未実行なら空、それ以外はURL/ID/pathを含まない独立本文です。
+	 * @brief 索引refreshの元診断とcommit事実だけを表示本文へ変換します
+	 * @param[in] summary 同operationから受理した非機密summaryです
+	 * @return 未実行なら空、それ以外はURL/ID/pathを含まない独立本文です
 	 */
 	[[nodiscard]] std::wstring formatIndexRefreshSummary( const IndexScanSummary &summary) const ;
 
 	/**
-	 * @brief 検索時点のdriver登録・問題・読取り失敗を短く表示する。
-	 * @param[in] candidate 現在構成行。観測未収集を許す。
-	 * @return 状態を過大評価しないresource文字列。
+	 * @brief 検索時点のdriver登録・問題・読取り失敗を短く表示する
+	 * @param[in] candidate 現在構成行。観測未収集を許す
+	 * @return 状態を過大評価しないresource文字列
 	 */
 	[[nodiscard]] std::wstring formatDeviceObservation( const UpdateCandidate &candidate) const ;
 
 	/**
-	 * @brief 有限な観測と候補検証の全詳細をread-only表示用に整形する。
-	 * @param[in] candidate 同じscanの候補。
-	 * @return 固定属性・軸・理由と次の操作。生の証拠や識別子を含めない。
-	 * @note 検証不整合は拒否表示を維持する。所有候補要素の過去実行結果だけは履歴として併記する。
+	 * @brief 有限な観測と候補検証の全詳細をread-only表示用に整形する
+	 * @param[in] candidate 同じscanの候補
+	 * @return 固定属性・軸・理由と次の操作。生の証拠や識別子を含めない
+	 * @note 検証不整合は拒否表示を維持する。所有候補要素の過去実行結果だけは履歴として併記する
 	 */
 	[[nodiscard]] std::wstring formatCandidateDetails( const UpdateCandidate &candidate) const ;
 
 	/**
-	 * @brief 候補の方式と最初の未確認・拒否理由を一覧用に整形する。
-	 * @param[in] candidate 表示する候補。
-	 * @return 詳細未収集または方式と主理由。全軸は詳細画面に保持する。
+	 * @brief 候補の方式と最初の未確認・拒否理由を一覧用に整形する
+	 * @param[in] candidate 表示する候補
+	 * @return 詳細未収集または方式と主理由。全軸は詳細画面に保持する
 	 */
 	[[nodiscard]] std::wstring formatCandidateAssessment( const UpdateCandidate &candidate) const ;
 
 	/**
-	 * @brief 選択したdeviceの全観測・候補詳細と一候補の選択欄を標準dialogで表示する。
-	 * @return Device行を処理した場合true。分類行や処理中はfalse。
-	 * @note 閲覧は選択を変えない。明示buttonだけが同deviceの一候補を選ぶ。
+	 * @brief 選択したdeviceの全観測・候補詳細と一候補の選択欄を標準dialogで表示する
+	 * @return Device行を処理した場合true。分類行や処理中はfalse
+	 * @note 閲覧は選択を変えない。明示buttonだけが同deviceの一候補を選ぶ
 	 */
 	[[nodiscard]] bool		   showSelectedCandidateDetails() ;
 
 	/**
-	 * @brief candidateのdownload sizeまたはlocal取得状態を表示文字列へ変換する。
-	 * 正確なbyte数を優先し、次に公式pageの概算表示を使用する。どちらもないlocal候補は取得済み状態を表示する。
-	 * @param[in] candidate 表示対象。
-	 * @param[in] unknown 欠損値へ使用する代替表示。
-	 * @return TreeTableのsize columnへ表示する文字列。
+	 * @brief candidateのdownload sizeまたはlocal取得状態を表示文字列へ変換する
+	 * 正確なbyte数を優先し、次に公式pageの概算表示を使用する。どちらもないlocal候補は取得済み状態を表示する
+	 * @param[in] candidate 表示対象
+	 * @param[in] unknown 欠損値へ使用する代替表示
+	 * @return TreeTableのsize columnへ表示する文字列
 	 */
 	[[nodiscard]] std::wstring formatCandidateSize( const UpdateCandidate &candidate,
 												   std::wstring_view	  unknown) const ;
 
 	/**
-	 * @brief TreeTableでcheckedのcandidate indexを取得する。
-	 * @return candidate vector の有効 index 群。
+	 * @brief TreeTableでcheckedのcandidate indexを取得する
+	 * @return candidate vector の有効 index 群
 	 */
 	[[nodiscard]] std::vector<std::size_t> checkedCandidateIndexes() const ;
 
 	/**
-	 * @brief static resource 文字列を読み取る。
-	 * @param[in] resourceId STRINGTABLE ID。
-	 * @return 未定義時は空文字列。
+	 * @brief static resource 文字列を読み取る
+	 * @param[in] resourceId STRINGTABLE ID
+	 * @return 未定義時は空文字列
 	 */
 	[[nodiscard]] std::wstring			   loadString( UINT resourceId) const ;
 
 	/**
-	 * @brief `%1` placeholder 一つを指定値で置換する。
-	 * @param[in] resourceId format string の resource ID。
-	 * @param[in] value `%1` と置換する文字列。
-	 * @return format 済み文字列。
+	 * @brief `%1` placeholder 一つを指定値で置換する
+	 * @param[in] resourceId format string の resource ID
+	 * @param[in] value `%1` と置換する文字列
+	 * @return format 済み文字列
 	 */
 	[[nodiscard]] std::wstring formatResource( UINT resourceId, std::wstring_view value) const ;
 
 	/**
-	 * @brief status text と決定型progressの表示状態を更新する。
-	 * @param[in] text 新しい status text。
-	 * @param[in] busy 長時間 operation 実行中の場合は `true`。
+	 * @brief status text と決定型progressの表示状態を更新する
+	 * @param[in] text 新しい status text
+	 * @param[in] busy 長時間 operation 実行中の場合は `true`
 	 */
 	void					   setStatus( std::wstring_view text, bool busy) ;
 
 	/**
-	 * @brief Providerの段階、件数、および全体完了率を下部status帯へ表示する。
-	 * 現在段階、完了件数、総件数、および全体百分率を表示する。
-	 * @param[in] progress Providerが確定したoperation進捗値。
+	 * @brief Providerの段階、件数、および全体完了率を下部status帯へ表示する
+	 * 現在段階、完了件数、総件数、および全体百分率を表示する
+	 * @param[in] progress Providerが確定したoperation進捗値
 	 */
 	void					   setOperationProgress( const ProviderProgress &progress) ;
 	/**
-	 * @brief 同operationで実行した再検出の完了または元領域付き失敗を整形します。
-	 * @return 未実行は空文字。生IDや権限HANDLEを含みません。
+	 * @brief 同operationで実行した再検出の完了または元領域付き失敗を整形します
+	 * @return 未実行は空文字。生IDや権限HANDLEを含みません
 	 */
 	[[nodiscard]] std::wstring formatHardwareRefreshSummary() const ;
 
 	/**
-	 * @brief 実行中 operation を確認して Window を安全に閉じる。
+	 * @brief 実行中 operation を確認して Window を安全に閉じる
 	 */
 	void					   requestClose() ;
 
-	/// Executable moduleの非所有instance handle。
+	/// Executable moduleの非所有instance handle
 	HINSTANCE				   instance_{} ;
-	/// 本classが所有するtop-level Window handle。
+	/// 本classが所有するtop-level Window handle
 	HWND					   window_{} ;
-	/// TreeView columnを表示するHeader control handle。
+	/// TreeView columnを表示するHeader control handle
 	HWND					   treeHeader_{} ;
-	/// Deviceとdriver候補を表示するTreeView handle。
+	/// Deviceとdriver候補を表示するTreeView handle
 	HWND					   updateTree_{} ;
-	/// Scan開始buttonのcontrol handle。
+	/// Scan開始buttonのcontrol handle
 	HWND					   scanButton_{} ;
-	/// 選択候補のinstall開始button handle。
+	/// 選択候補のinstall開始button handle
 	HWND					   installButton_{} ;
-	/// 選択した取得対象の規約とInstall操作の意味を案内する標準controlです。
+	/// 選択した取得対象の規約とInstall操作の意味を案内する標準controlです
 	HWND					   installTermsNote_{} ;
-	/// 選択対象の原規約を任意閲覧するbuttonです。同意操作を持ちません。
+	/// 選択対象の原規約を任意閲覧するbuttonです。同意操作を持ちません
 	HWND					   installTermsButton_{} ;
-	/// 推奨更新を一括選択するbutton handle。
+	/// 推奨更新を一括選択するbutton handle
 	HWND					   selectAllButton_{} ;
-	/// 全候補の選択を解除するbutton handle。
+	/// 全候補の選択を解除するbutton handle
 	HWND					   clearSelectionButton_{} ;
-	/// 取得元Provider設定popupを開くbutton handle。
+	/// 取得元Provider設定popupを開くbutton handle
 	HWND					   providerSourcesButton_{} ;
-	/// 推奨更新表示filterのcheckbox handle。
+	/// 推奨更新表示filterのcheckbox handle
 	HWND					   recommendedOnlyCheckbox_{} ;
-	/// 件数、進捗、結果を表示するstatus control handle。
+	/// 件数、進捗、結果を表示するstatus control handle
 	HWND					   status_{} ;
-	/// OSが所有し、本classは解放しない標準UI font handle。
+	/// OSが所有し、本classは解放しない標準UI font handle
 	HFONT					   uiFont_{} ;
-	/// DPIに合わせて生成し、本classが解放する最下段message font。
+	/// DPIに合わせて生成し、本classが解放する最下段message font
 	HFONT					   messageFont_{} ;
-	/// DPIに合わせて生成し、本classが解放するTreeTable font。
+	/// DPIに合わせて生成し、本classが解放するTreeTable font
 	HFONT					   treeFont_{} ;
-	/// SetupDiDestroyClassImageListで解放するWindows標準class image list。
+	/// 明示DPIで完成したcheckbox画像/配置のDPIです。0はcreate前です
+	UINT					   controlDpi_{} ;
+	/// SetupDiDestroyClassImageListで解放するWindows標準class image list
 	SP_CLASSIMAGELIST_DATA	   deviceClassImages_{} ;
-	/// GUID未取得時の汎用device icon index。
+	/// GUID未取得時の汎用device icon index
 	int						   fallbackDeviceImageIndex_{I_IMAGENONE} ;
-	/// trueの場合は新規operationを拒否して終了処理中である。
+	/// trueの場合は新規operationを拒否して終了処理中である
 	bool					   closing_{} ;
-	/// trueの場合はprogrammatic check変更の再入を抑止する。
+	/// trueの場合はprogrammatic check変更の再入を抑止する
 	bool					   updatingTreeChecks_{} ;
-	/// 前回column layoutを行ったTreeTable幅（physical pixel）。
+	/// 前回column layoutを行ったTreeTable幅（physical pixel）
 	int						   treeTableWidth_{} ;
-	/// 現在の0始まりsort column index。
+	/// 現在の0始まりsort column index
 	std::size_t				   sortedColumn_{} ;
-	/// trueの場合は現在のsort方向が昇順。
+	/// trueの場合は現在のsort方向が昇順
 	bool					   sortAscending_{true} ;
-	/// trueの場合はsortが有効。初期値は名前昇順とし、Header clickで条件を変更する。
+	/// trueの場合はsortが有効。初期値は名前昇順とし、Header clickで条件を変更する
 	bool					   sortActive_{true} ;
-	/// trueの場合はinstall可能な推奨更新と明示選択用の初回導入候補を表示する。
+	/// trueの場合はinstall可能な推奨更新と明示選択用の初回導入候補を表示する
 	bool					   showRecommendedOnly_{} ;
-	/// trueの場合はstatus帯を全幅progressとして描画する。
+	/// trueの場合はstatus帯を全幅progressとして描画する
 	bool					   statusBusy_{} ;
-	/// Status帯へ描画する0～100の全体完了率。
+	/// Status帯へ描画する0～100の全体完了率
 	std::uint32_t			   statusPercentage_{} ;
-	/// 受理した最新通常scanだけの再検出結果。旧operationから引き継ぎません。
+	/// 受理した最新通常scanだけの再検出結果。旧operationから引き継ぎません
 	std::optional<HardwareRefreshResult>	   hardwareRefresh_ ;
-	/// 確認dialog中のcommand再入を拒否する。
+	/// 確認dialog中のcommand再入を拒否する
 	bool									   preparationReviewOpen_{} ;
-	/// 情報検索の条件dialog中のcommand再入と親Window破棄を拒否する。
+	/// 情報検索の条件dialog中のcommand再入と親Window破棄を拒否する
 	bool									   metadataReviewOpen_{} ;
-	/// 情報検索の終端eventまでWindowを維持してから閉じる。
+	/// 情報検索の終端eventまでWindowを維持してから閉じる
 	bool									   closeAfterMetadataSearch_{} ;
-	/// 通常scanの取消し終端eventまでWindowを維持してから閉じる。
+	/// 通常scanの取消し終端eventまでWindowを維持してから閉じる
 	bool									   closeAfterScan_{} ;
-	/// 協調取消しの完了通知後にWindowを閉じる。
+	/// 協調取消しの完了通知後にWindowを閉じる
 	bool									   closeAfterPreparation_{} ;
-	/// 同Install操作に結合した取得だけを終端で一回継続します。取消し・新検索・closeで破棄します。
+	/// 同Install操作に結合した取得だけを終端で一回継続します。取消し・新検索・closeで破棄します
 	bool									   continueInstallAfterPreparation_{} ;
-	/// 主画面で案内した未承認snapshotです。選択更新と処理開始で置換・破棄します。
+	/// 主画面で案内した未承認snapshotです。選択更新と処理開始で置換・破棄します
 	std::optional<OfficialPreparationApproval> presentedInstallTerms_ ;
-	/// 結果表示用の対象snapshot。
+	/// 結果表示用の対象snapshot
 	OfficialPreparationApproval				   preparationApproval_ ;
-	/// 表示snapshotだけの元scanです。新検索で破棄します。
+	/// 表示snapshotだけの元scanです。新検索で破棄します
 	ScanSessionId							   preparationDisplaySession_{} ;
-	/// 使用済みplanを再承認しない元版・取得元の閲覧snapshotです。
+	/// 使用済みplanを再承認しない元版・取得元の閲覧snapshotです
 	std::vector<PreparationDisplayBinding>	   preparationDisplayBindings_ ;
-	/// 次のscanまで端末内だけに保持する取得結果。
+	/// 次のscanまで端末内だけに保持する取得結果
 	std::wstring							   preparationResultText_ ;
-	/// 同scanの索引読取り件数。実device適合や候補数ではありません。
+	/// 同scanの索引読取り件数。実device適合や候補数ではありません
 	IndexScanSummary						   indexScanSummary_ ;
-	/// 同operationで照合した非機密の取得・内容結果。新scan時に破棄します。
+	/// 同operationで照合した非機密の取得・内容結果。新scan時に破棄します
 	IndexPreparationSummary					   indexPreparationSummary_ ;
-	/// 今回取得を選択した対象数。
+	/// 今回取得を選択した対象数
 	std::uint32_t							   preparationTotal_{} ;
-	/// 最後に受理した確定件数。
+	/// 最後に受理した確定件数
 	std::uint32_t							   preparationCompleted_{} ;
-	/// UI operationの状態とidentityを検証する状態機械。
+	/// UI operationの状態とidentityを検証する状態機械
 	OperationController						   controller_ ;
-	/// Blocking処理を所有するworker。
+	/// Blocking処理を所有するworker
 	std::unique_ptr<ProviderWorker>			   worker_ ;
-	/// 最後に成功したscanの結果分類。
+	/// 最後に成功したscanの結果分類
 	OutcomeCode								   scanOutcome_{OutcomeCode::NOT_STARTED} ;
-	/// 現在のscan sessionで表示中の候補。
+	/// 現在のscan sessionで表示中の候補
 	std::vector<UpdateCandidate>			   candidates_ ;
-	/// 次回scanで有効にするProvider ID集合。
+	/// 次回scanで有効にするProvider ID集合
 	std::vector<std::wstring>				   enabledProviderIds_ ;
-	/// 利用者が明示選択したIntel Wireless ZIP path。Process終了時またはProvider無効化時に破棄する。
+	/// 利用者が明示選択したIntel Wireless ZIP path。Process終了時またはProvider無効化時に破棄する
 	std::wstring							   selectedIntelWirelessPackagePath_ ;
-	/// 利用者が明示選択したProlific DCHU ZIP path。Provider無効化時に破棄する。
+	/// 利用者が明示選択したProlific DCHU ZIP path。Provider無効化時に破棄する
 	std::wstring							   selectedProlificSerialPackagePath_ ;
-	/// 利用者が明示選択したSilicon Labs CP210x ZIP path。Provider無効化時に破棄する。
+	/// 利用者が明示選択したSilicon Labs CP210x ZIP path。Provider無効化時に破棄する
 	std::wstring							   selectedSiliconLabsSerialPackagePath_ ;
-	/// 利用者が明示選択したWCH CH341SER ZIP path。Provider無効化時に破棄する。
+	/// 利用者が明示選択したWCH CH341SER ZIP path。Provider無効化時に破棄する
 	std::wstring							   selectedWchSerialPackagePath_ ;
-	/// 利用者が明示選択したWCH CH343SER ZIP path。Provider無効化時に破棄する。
+	/// 利用者が明示選択したWCH CH343SER ZIP path。Provider無効化時に破棄する
 	std::wstring							   selectedWchMultiSerialPackagePath_ ;
-	/// 利用者が明示選択した取得元未証明driver-only ZIP path。Provider無効化時に破棄する。
+	/// 利用者が明示選択した取得元未証明driver-only ZIP path。Provider無効化時に破棄する
 	std::wstring							   selectedGenericInfPackagePath_ ;
-	/// 前回scanの取得元別状態。
+	/// 前回scanの取得元別状態
 	std::vector<ProviderScanReport>			   providerReports_ ;
-	/// 前回scanから端末内だけで保持するmanufacturer／setup class別候補到達件数。
+	/// 前回scanから端末内だけで保持するmanufacturer／setup class別候補到達件数
 	std::vector<LocalCoverageEntry>			   localCoverage_ ;
-	/// Candidate index別に保持する利用者の選択状態。
+	/// Candidate index別に保持する利用者の選択状態
 	std::vector<bool>						   candidateSelected_ ;
-	/// Candidate indexに対応する非所有device item。同deviceの全候補は同じhandleを参照する。
+	/// Candidate indexに対応する非所有device item。同deviceの全候補は同じhandleを参照する
 	std::vector<HTREEITEM>					   candidateItems_ ;
-	/// Candidate indexに対応するdevice row index。同deviceの全候補は同じ行を参照する。
+	/// Candidate indexに対応するdevice row index。同deviceの全候補は同じ行を参照する
 	std::vector<std::size_t>				   candidateRowIndexes_ ;
-	/// TreeView item parameterから参照する安定した表示行集合。
+	/// TreeView item parameterから参照する安定した表示行集合
 	std::vector<TreeRow>					   treeRows_ ;
-	/// このWindowだけが所有する通常/readonlyの五state画像です。
+	/// このWindowだけが所有する通常/readonlyの五state画像です
 	HIMAGELIST								   checkboxImages_{} ;
-	/// 同scanで一時的に非表示となった分類も含めた正規keyの開閉です。
+	/// 同scanで一時的に非表示となった分類も含めた正規keyの開閉です
 	std::unordered_map<std::wstring, bool>	   treeClassExpansion_ ;
-	/// 所有candidateの元indexへidentity照合で保持する個別実行履歴。新scanで破棄する。
+	/// 所有candidateの元indexへidentity照合で保持する個別実行履歴。新scanで破棄する
 	std::vector<std::wstring>				   candidateResultTexts_ ;
 } ;
 

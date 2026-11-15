@@ -64,6 +64,40 @@ def tokenize(source: str) -> list[Token]:
     return tokens
 
 
+def terminal_comment_period_positions(source: str) -> list[int]:
+    """コメント各行末とblock終端直前の句点位置だけを返す"""
+    positions = []
+    pattern = re.compile(r"。(?=。*[ \t]*(?:\\?\r?\n|$))")
+    for token in tokenize(source):
+        if token.kind not in {"line_comment", "block_comment"}:
+            continue
+        body = token.text[:-2] if token.kind == "block_comment" else token.text
+        positions.extend(token.start + match.start() for match in pattern.finditer(body))
+    return positions
+
+
+def empty_comment_trailing_whitespace_ranges(source: str) -> list[tuple[int, int]]:
+    """空のコメント記載行だけの末尾空白を列挙し、literalと非空説明を保護する"""
+    ranges = []
+    patterns = {
+        "block_comment": re.compile(r"(?m)^(?:[ \t]*\*|/\*(?:\*|!)?)?(?P<tail>[ \t]+)(?=\r?$)"),
+        "line_comment": re.compile(r"(?m)^(?://(?:/|!)?)?(?P<tail>[ \t]+)(?=\r?$)"),
+    }
+    for token in tokenize(source):
+        if token.kind in patterns:
+            ranges.extend((token.start + match.start("tail"), token.start + match.end("tail"))
+                          for match in patterns[token.kind].finditer(token.text))
+    return ranges
+
+
+def strip_terminal_comment_periods(source: str) -> str:
+    """Literalと文中の句点を保持し、コメント行末の句点と空行の残存空白だけを除く"""
+    converted = apply_edits(source, [(position, position + 1, "")
+                                    for position in terminal_comment_period_positions(source)])
+    return apply_edits(converted, [(start, end, "")
+                                  for start, end in empty_comment_trailing_whitespace_ranges(converted)])
+
+
 def significant_tokens(source: str) -> list[Token]:
     """空白・comment・継続改行を除く字句を返す。Literal内部の空白は保持する。"""
     return [token for token in tokenize(source) if token.kind not in IGNORED_KINDS]
@@ -362,6 +396,7 @@ def format_pass(source: str, path: Path, clang_format: Path, root: Path) -> str:
         from source_structure import add_vertical_spacing
         formatted = add_vertical_spacing(align_trailing_comments(
             hoist_processing_comments(add_standard_spacing(formatted))))
+    formatted = strip_terminal_comment_periods(formatted)
     ensure_same_tokens(source, formatted)
     return formatted
 

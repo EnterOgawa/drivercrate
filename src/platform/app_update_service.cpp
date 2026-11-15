@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file app_update_service.cpp
- * @brief 公式Release解析と一要求のApp更新workerを実装します。
- * @version 01.00.01
+ * @brief 公式Release解析と一要求のApp更新workerを実装します
+ * @version 01.00.02
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,10 +19,11 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新を追加。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/11/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
- * @note COM/JSONはworker内で使い、UIへURLやfile handleを渡しません。
+ * @note COM/JSONはworker内で使い、UIへURLやfile handleを渡しません
  * @see docs/adr/0481-app-inno-setup-and-update-checks.md
  */
 //------------------------------------------------------------------------------
@@ -40,30 +41,30 @@ namespace drivercrate {
 namespace {
 //------------------------------------------------------------------------------
 /**
- * @brief 原UTF-8をWindows JSONへ渡すUTF-16へ変換します。
- * @param[in] raw 上限内の原byteです。
- * @return 変換結果。不正は例外です。
- * @throws std::invalid_argument 空/過大入力・不正UTF-8または変換長不一致の場合です。
- * @throws std::bad_alloc UTF-16所有文字列の確保に失敗した場合です。
+ * @brief 原UTF-8をWindows JSONへ渡すUTF-16へ変換します
+ * @param[in] raw 上限内の原byteです
+ * @return 変換結果。不正は例外です
+ * @throws std::invalid_argument 空/過大入力・不正UTF-8または変換長不一致の場合です
+ * @throws std::bad_alloc UTF-16所有文字列の確保に失敗した場合です
  */
 //------------------------------------------------------------------------------
 std::wstring jsonText( const std::string_view raw)
 {
-	// 空/過大入力をWin32のint長へ変換しません。
+	// 空/過大入力をWin32のint長へ変換しません
 	if( raw.empty() || raw.size() > 256U * 1024U) {
 		throw std::invalid_argument( "metadata") ;
 	}
 
 	const int length =
 		MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, raw.data(), static_cast<int>( raw.size()),
-							nullptr, 0) ;	// 必要UTF-16文字数です。
-	// 不正UTF-8を置換文字で受理しません。
+							nullptr, 0) ;	// 必要UTF-16文字数です
+	// 不正UTF-8を置換文字で受理しません
 	if( length <= 0) {
 		throw std::invalid_argument( "utf8") ;
 	}
 
-	std::wstring text( static_cast<std::size_t>( length), L'\0') ;	// 所有する変換領域です。
-	// 変換長の不一致も成功にしません。
+	std::wstring text( static_cast<std::size_t>( length), L'\0') ;	// 所有する変換領域です
+	// 変換長の不一致も成功にしません
 	if( MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, raw.data(), static_cast<int>( raw.size()),
 						   text.data(), length) != length) {
 		throw std::invalid_argument( "utf8") ;
@@ -73,27 +74,27 @@ std::wstring jsonText( const std::string_view raw)
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 必須JSON文字列を型/長さ付きで読みます。
- * @param[in] object 検査済みobjectです。
- * @param[in] key 固定field名の非null・NUL終端UTF-16です。呼出し中だけ借用し、保持しません。
- * @param[in] maximum 許容文字数です。
- * @return 所有文字列。不正は例外です。
- * @throws std::invalid_argument 型・空値・長さ・埋込NULを拒否した場合です。
- * @throws winrt::hresult_error 必須fieldの取得などWinRTの呼出しが失敗した場合です。
- * @throws std::bad_alloc 戻す所有文字列の確保に失敗した場合です。
+ * @brief 必須JSON文字列を型/長さ付きで読みます
+ * @param[in] object 検査済みobjectです
+ * @param[in] key 固定field名の非null・NUL終端UTF-16です。呼出し中だけ借用し、保持しません
+ * @param[in] maximum 許容文字数です
+ * @return 所有文字列。不正は例外です
+ * @throws std::invalid_argument 型・空値・長さ・埋込NULを拒否した場合です
+ * @throws winrt::hresult_error 必須fieldの取得などWinRTの呼出しが失敗した場合です
+ * @throws std::bad_alloc 戻す所有文字列の確保に失敗した場合です
  */
 //------------------------------------------------------------------------------
 std::wstring stringValue( const winrt::Windows::Data::Json::JsonObject &object, const wchar_t *key,
 						 const std::size_t maximum)
 {
-	const auto value = object.GetNamedValue( key) ;	// 必須fieldです。
-	// 型の暗黙変換を認めません。
+	const auto value = object.GetNamedValue( key) ;	// 必須fieldです
+	// 型の暗黙変換を認めません
 	if( value.ValueType() != winrt::Windows::Data::Json::JsonValueType::String) {
 		throw std::invalid_argument( "string") ;
 	}
 
-	const auto text = value.GetString() ;	// WinRTが所有する文字列です。
-	// NULや長い値をURL/版へ渡しません。
+	const auto text = value.GetString() ;	// WinRTが所有する文字列です
+	// NULや長い値をURL/版へ渡しません
 	if( text.empty() || text.size() > maximum ||
 	   std::wstring_view( text).find( L'\0') != std::wstring_view::npos) {
 		throw std::invalid_argument( "length") ;
@@ -104,11 +105,11 @@ std::wstring stringValue( const winrt::Windows::Data::Json::JsonObject &object, 
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 公式JSONから必要な宣言だけを検査します。
- * @param[in] raw 256KiB以内の原UTF-8です。
- * @param[in] current 実行中Appの数値版です。
- * @param[out] release 新版の正しい宣言だけを返します。失敗/同版以下では空です。
- * @return 失敗分類と元数値。正しい同版以下も成功です。
+ * @brief 公式JSONから必要な宣言だけを検査します
+ * @param[in] raw 256KiB以内の原UTF-8です
+ * @param[in] current 実行中Appの数値版です
+ * @param[out] release 新版の正しい宣言だけを返します。失敗/同版以下では空です
+ * @return 失敗分類と元数値。正しい同版以下も成功です
  */
 //------------------------------------------------------------------------------
 AppUpdateFailure parseAppUpdateReleaseJson( const std::string_view raw, const AppVersion &current,
@@ -117,100 +118,100 @@ AppUpdateFailure parseAppUpdateReleaseJson( const std::string_view raw, const Ap
 	release.reset() ;
 	try {
 		const ComApartment apartment(
-			COINIT_MULTITHREADED) ;	// このscopeで成功した初期化だけ解放します。
+			COINIT_MULTITHREADED) ;	// このscopeで成功した初期化だけ解放します
 		using winrt::Windows::Data::Json::JsonValueType ;
-		winrt::hresult_error factoryFailure ;	// 元activation失敗を保持します。
+		winrt::hresult_error factoryFailure ;	// 元activation失敗を保持します
 		const auto			 factory =
 			winrt::try_get_activation_factory<winrt::Windows::Data::Json::JsonObject,
 											  winrt::Windows::Data::Json::IJsonObjectStatics>(
-				factoryFailure) ;	// 静的cacheを使わずこのapartment内だけで所有します。
-		// 失敗したfactoryを参照しません。
+				factoryFailure) ;	// 静的cacheを使わずこのapartment内だけで所有します
+		// 失敗したfactoryを参照しません
 		if( !factory) {
 			return {AppUpdateFailureKind::METADATA, factoryFailure.code(), 0U, 0U} ;
 		}
 
 		const auto root =
-			// COM解放後の静的factory cacheを再利用しません。
+			// COM解放後の静的factory cacheを再利用しません
 			factory.Parse( jsonText( raw)) ;
-		// 明示的な正式公開だけを候補にします。
+		// 明示的な正式公開だけを候補にします
 		if( root.GetNamedValue( L"draft").ValueType() != JsonValueType::Boolean ||
 		   root.GetNamedValue( L"prerelease").ValueType() != JsonValueType::Boolean ||
 		   root.GetNamedBoolean( L"draft") || root.GetNamedBoolean( L"prerelease")) {
 			throw std::invalid_argument( "release") ;
 		}
 
-		const auto tag = stringValue( root, L"tag_name", 24U) ;	// canonical tagです。
-		// ASCIIのv付き三要素だけを許可します。
+		const auto tag = stringValue( root, L"tag_name", 24U) ;	// canonical tagです
+		// ASCIIのv付き三要素だけを許可します
 		if( tag.size() < 2U || tag.front() != L'v' ||
 		   std::any_of( tag.begin(), tag.end(), []( wchar_t c) { return c > 127 ; })) {
 			throw std::invalid_argument( "tag") ;
 		}
 
-		std::string versionText ;	// 検査済みASCIIを明示してnarrowingします。
-		// v以降の各ASCII文字だけをcopyします。
+		std::string versionText ;	// 検査済みASCIIを明示してnarrowingします
+		// v以降の各ASCII文字だけをcopyします
 		for( std::size_t index = 1U; index < tag.size(); ++index) {
 			versionText.push_back( static_cast<char>( tag[index])) ;
 		}
 
-		const auto version = parseAppVersion( versionText) ;	// 数値比較用の値です。
-		// 不正tagを新しい版へ見立てません。
+		const auto version = parseAppVersion( versionText) ;	// 数値比較用の値です
+		// 不正tagを新しい版へ見立てません
 		if( !version) {
 			throw std::invalid_argument( "version") ;
 		}
 
-		// 旧正式版にSetupがなくても現在のApp更新を失敗にしません。
+		// 旧正式版にSetupがなくても現在のApp更新を失敗にしません
 		if( *version <= current) {
 			return {} ;
 		}
 
-		const auto assets = root.GetNamedValue( L"assets") ;	// 新版のasset集合です。
-		// 小さい有限配列だけを調べます。
+		const auto assets = root.GetNamedValue( L"assets") ;	// 新版のasset集合です
+		// 小さい有限配列だけを調べます
 		if( assets.ValueType() != JsonValueType::Array || assets.GetArray().Size() > 32U) {
 			throw std::invalid_argument( "assets") ;
 		}
 
-		const auto array = assets.GetArray() ;	// 同期scope中だけのWinRT所有参照です。
-		// 正確な一件を探し、重複を拒否します。
+		const auto array = assets.GetArray() ;	// 同期scope中だけのWinRT所有参照です
+		// 正確な一件を探し、重複を拒否します
 		for( std::uint32_t index{}; index < array.Size(); ++index) {
-			const auto item = array.GetAt( index) ;	// 現assetです。
-			// 配列の異種要素は正常なRelease宣言ではありません。
+			const auto item = array.GetAt( index) ;	// 現assetです
+			// 配列の異種要素は正常なRelease宣言ではありません
 			if( item.ValueType() != JsonValueType::Object) {
 				throw std::invalid_argument( "asset") ;
 			}
 
-			const auto asset = item.GetObject() ;					// 現objectです。
-			const auto name	 = stringValue( asset, L"name", 256U) ;	// 正確なasset名です。
-			// ZIPやCollector等の別assetを取得しません。
+			const auto asset = item.GetObject() ;					// 現objectです
+			const auto name	 = stringValue( asset, L"name", 256U) ;	// 正確なasset名です
+			// ZIPやCollector等の別assetを取得しません
 			if( name != L"DriverCrateSetup-windows-x64.exe") {
 				continue ;
 			}
 
-			// 重複や未完了uploadの一方を勝手に選びません。
+			// 重複や未完了uploadの一方を勝手に選びません
 			if( release || stringValue( asset, L"state", 16U) != L"uploaded" ||
 			   asset.GetNamedValue( L"size").ValueType() != JsonValueType::Number) {
 				throw std::invalid_argument( "state") ;
 			}
 
 			const double bytes =
-				// 整数範囲を確認してから変換します。
+				// 整数範囲を確認してから変換します
 				asset.GetNamedNumber( L"size") ;
-			// 非整数/非有限/上限超過は取得前に拒否します。
+			// 非整数/非有限/上限超過は取得前に拒否します
 			if( !std::isfinite( bytes) || bytes < 1.0 ||
 			   bytes > static_cast<double>( APP_UPDATE_MAX_BYTES) || std::floor( bytes) != bytes) {
 				throw std::invalid_argument( "size") ;
 			}
 
-			const auto digest = stringValue( asset, L"digest", 71U) ;	// sha256:と64桁です。
-			// 別算法や欠けたdigestを補いません。
+			const auto digest = stringValue( asset, L"digest", 71U) ;	// sha256:と64桁です
+			// 別算法や欠けたdigestを補いません
 			if( digest.size() != 71U || digest.substr( 0U, 7U) != L"sha256:") {
 				throw std::invalid_argument( "digest") ;
 			}
 
 			AppUpdateRelease candidate{
-				*version, static_cast<std::uint64_t>( bytes), {}} ;	// 未確定の宣言です。
-			// 公開digestのASCII hexだけを小文字へ正規化します。
+				*version, static_cast<std::uint64_t>( bytes), {}} ;	// 未確定の宣言です
+			// 公開digestのASCII hexだけを小文字へ正規化します
 			for( const wchar_t digit : digest.substr( 7U)) {
-				// 正常hex以外をnarrowingしません。
+				// 正常hex以外をnarrowingしません
 				if( !((digit >= L'0' && digit <= L'9') || (digit >= L'a' && digit <= L'f') ||
 					 (digit >= L'A' && digit <= L'F'))) {
 					throw std::invalid_argument( "hex") ;
@@ -220,7 +221,7 @@ AppUpdateFailure parseAppUpdateReleaseJson( const std::string_view raw, const Ap
 					digit >= L'A' && digit <= L'F' ? digit - L'A' + L'a' : digit)) ;
 			}
 
-			// 宣言URLと固定tupleが一致する場合だけ提示します。
+			// 宣言URLと固定tupleが一致する場合だけ提示します
 			if( !validAppUpdateRelease( candidate) ||
 			   stringValue( asset, L"browser_download_url", 512U) != appUpdateAssetUrl( candidate)) {
 				throw std::invalid_argument( "url") ;
@@ -229,7 +230,7 @@ AppUpdateFailure parseAppUpdateReleaseJson( const std::string_view raw, const Ap
 			release = std::move( candidate) ;
 		}
 
-		// 新版の必要assetがない場合は代替経路へ行きません。
+		// 新版の必要assetがない場合は代替経路へ行きません
 		if( !release) {
 			throw std::invalid_argument( "missing") ;
 		}
@@ -245,30 +246,30 @@ AppUpdateFailure parseAppUpdateReleaseJson( const std::string_view raw, const Ap
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 完全backendとWindow通知先を所有します。
- * @param[in] window 非所有通知先です。停止前に破棄しません。
- * @param[in] message WM_APP範囲の通知です。
- * @param[in] backend worker専用backendです。nullは拒否します。
- * @throws std::invalid_argument backendがnullの場合です。
- * @throws std::system_error 専用threadの開始に失敗した場合です。
- * @throws std::bad_alloc thread開始に必要な資源確保が失敗した場合です。
+ * @brief 完全backendとWindow通知先を所有します
+ * @param[in] window 非所有通知先です。停止前に破棄しません
+ * @param[in] message WM_APP範囲の通知です
+ * @param[in] backend worker専用backendです。nullは拒否します
+ * @throws std::invalid_argument backendがnullの場合です
+ * @throws std::system_error 専用threadの開始に失敗した場合です
+ * @throws std::bad_alloc thread開始に必要な資源確保が失敗した場合です
  */
 //------------------------------------------------------------------------------
 AppUpdateService::AppUpdateService( const HWND window, const UINT message,
 								   std::unique_ptr<AppUpdateBackend> backend)
 	: window_( window), message_( message), backend_( std::move( backend))
 {
-	// 欠損backendを実通信で補完しません。
+	// 欠損backendを実通信で補完しません
 	if( !backend_) {
 		throw std::invalid_argument( "backend") ;
 	}
 
-	// このobjectの停止までだけ借用します。
+	// このobjectの停止までだけ借用します
 	thread_ = std::thread( [this]() { run() ; }) ;
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 取消しを通知し、worker終了を待って解放します。
+ * @brief 取消しを通知し、worker終了を待って解放します
  */
 //------------------------------------------------------------------------------
 AppUpdateService::~AppUpdateService()
@@ -277,30 +278,30 @@ AppUpdateService::~AppUpdateService()
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 固定の段階を一件だけ予約します。
- * @param[in] operation 受理する操作です。
- * @param[in] manual 明示操作かどうかです。
- * @return 同時要求/停止/未受領結果を拒否した場合はfalseです。
+ * @brief 固定の段階を一件だけ予約します
+ * @param[in] operation 受理する操作です
+ * @param[in] manual 明示操作かどうかです
+ * @return 同時要求/停止/未受領結果を拒否した場合はfalseです
  */
 //------------------------------------------------------------------------------
 bool AppUpdateService::enqueue( const AppUpdateStage operation, const bool manual)
 {
-	std::scoped_lock lock( mutex_) ;	// 一要求/一結果の排他です。
-	// 停止/未受領結果/二重要求は状態を変えません。
+	std::scoped_lock lock( mutex_) ;	// 一要求/一結果の排他です
+	// 停止/未受領結果/二重要求は状態を変えません
 	if( stopping_ || request_ || event_) {
 		return false ;
 	}
 
 	const bool check =
 		operation == AppUpdateStage::CHECKING &&
-		(stage_ == AppUpdateStage::IDLE || stage_ == AppUpdateStage::OFFERED) ;	// 再確認だけです。
+		(stage_ == AppUpdateStage::IDLE || stage_ == AppUpdateStage::OFFERED) ;	// 再確認だけです
 	const bool download = operation == AppUpdateStage::DOWNLOADING &&
-						  // 元提示への同意です。
+						  // 元提示への同意です
 						  stage_ == AppUpdateStage::OFFERED && offered_ ;
 	const bool launch = operation == AppUpdateStage::HANDING_OFF &&
-						// 元取得からだけの引継ぎです。
+						// 元取得からだけの引継ぎです
 						stage_ == AppUpdateStage::READY && offered_ ;
-	// 任意の段階遷移を許可しません。
+	// 任意の段階遷移を許可しません
 	if( !check && !download && !launch) {
 		return false ;
 	}
@@ -314,9 +315,9 @@ bool AppUpdateService::enqueue( const AppUpdateStage operation, const bool manua
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 実行物を取らない一回の確認を受理します。
- * @param[in] manual 手動確認ならtrueです。
- * @return idle/offeredかつ未受領結果がない場合だけtrueです。
+ * @brief 実行物を取らない一回の確認を受理します
+ * @param[in] manual 手動確認ならtrueです
+ * @return idle/offeredかつ未受領結果がない場合だけtrueです
  */
 //------------------------------------------------------------------------------
 bool AppUpdateService::requestCheck( const bool manual)
@@ -325,8 +326,8 @@ bool AppUpdateService::requestCheck( const bool manual)
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 元の提示に対する明示同意を受理します。
- * @return offeredかつ元の提示がある場合だけtrueです。
+ * @brief 元の提示に対する明示同意を受理します
+ * @return offeredかつ元の提示がある場合だけtrueです
  */
 //------------------------------------------------------------------------------
 bool AppUpdateService::requestDownload()
@@ -335,8 +336,8 @@ bool AppUpdateService::requestDownload()
 }
 //------------------------------------------------------------------------------
 /**
- * @brief UIがidleを再確認した引継ぎ要求を受理します。
- * @return 元取得のreadyである場合だけtrueです。
+ * @brief UIがidleを再確認した引継ぎ要求を受理します
+ * @return 元取得のreadyである場合だけtrueです
  */
 //------------------------------------------------------------------------------
 bool AppUpdateService::requestLaunch()
@@ -345,13 +346,13 @@ bool AppUpdateService::requestLaunch()
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 現在提示の再通知を見送ります。取得は行いません。
+ * @brief 現在提示の再通知を見送ります。取得は行いません
  */
 //------------------------------------------------------------------------------
 void AppUpdateService::dismiss() noexcept
 {
-	std::scoped_lock lock( mutex_) ;	// 提示中だけを見送ります。
-	// 実取得や実引継ぎを同意なしへ巻き戻しません。
+	std::scoped_lock lock( mutex_) ;	// 提示中だけを見送ります
+	// 実取得や実引継ぎを同意なしへ巻き戻しません
 	if( stage_ == AppUpdateStage::OFFERED && offered_) {
 		dismissed_ = offered_->version ;
 		offered_.reset() ;
@@ -360,7 +361,7 @@ void AppUpdateService::dismiss() noexcept
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 実行中のApp更新だけを協調取消しします。
+ * @brief 実行中のApp更新だけを協調取消しします
  */
 //------------------------------------------------------------------------------
 void AppUpdateService::cancel() noexcept
@@ -369,7 +370,7 @@ void AppUpdateService::cancel() noexcept
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 新規要求を閉じ、所有threadをjoinします。
+ * @brief 新規要求を閉じ、所有threadをjoinします
  */
 //------------------------------------------------------------------------------
 void AppUpdateService::stop() noexcept
@@ -377,53 +378,53 @@ void AppUpdateService::stop() noexcept
 	stopping_  = true ;
 	cancelled_ = true ;
 	ready_.notify_one() ;
-	// 所有threadだけを停止し、他のProviderへ作用しません。
+	// 所有threadだけを停止し、他のProviderへ作用しません
 	if( thread_.joinable()) {
 		thread_.join() ;
 	}
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 所有された確定結果一件を取り出します。
- * @return 結果なしはnulloptです。
+ * @brief 所有された確定結果一件を取り出します
+ * @return 結果なしはnulloptです
  */
 //------------------------------------------------------------------------------
 std::optional<AppUpdateEvent> AppUpdateService::takeEvent()
 {
-	std::scoped_lock lock( mutex_) ;				// 結果を一回だけ所有移転します。
-	auto			 result = std::move( event_) ;	// 空の場合も元slotを空へ戻します。
+	std::scoped_lock lock( mutex_) ;				// 結果を一回だけ所有移転します
+	auto			 result = std::move( event_) ;	// 空の場合も元slotを空へ戻します
 	event_.reset() ;
 	return result ;
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 現段階のsnapshotを返します。
- * @return mutexで保護した現在段階です。
+ * @brief 現段階のsnapshotを返します
+ * @return mutexで保護した現在段階です
  */
 //------------------------------------------------------------------------------
 AppUpdateStage AppUpdateService::stage() const noexcept
 {
-	std::scoped_lock lock( mutex_) ;	// 同期I/Oのlockではありません。
+	std::scoped_lock lock( mutex_) ;	// 同期I/Oのlockではありません
 	return stage_ ;
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 例外をthread境界から漏らさず直列処理します。
+ * @brief 例外をthread境界から漏らさず直列処理します
  */
 //------------------------------------------------------------------------------
 void AppUpdateService::run() noexcept
 {
 	try {
-		const ComApartment apartment( COINIT_MULTITHREADED) ;	// backendのCOMをこのthreadへ閉じます。
-		// 停止まで有限な一要求ずつ処理します。
+		const ComApartment apartment( COINIT_MULTITHREADED) ;	// backendのCOMをこのthreadへ閉じます
+		// 停止まで有限な一要求ずつ処理します
 		while( !stopping_) {
-			AppUpdateStage					operation{} ;	// 今回だけの操作です。
-			std::optional<AppUpdateRelease> release ;		// 元提示の所有copyです。
-			bool							manual{} ;		// 今回の表示方針です。
+			AppUpdateStage					operation{} ;	// 今回だけの操作です
+			std::optional<AppUpdateRelease> release ;		// 元提示の所有copyです
+			bool							manual{} ;		// 今回の表示方針です
 			{
-				std::unique_lock lock( mutex_) ;	// I/O前に必ず解放します。
+				std::unique_lock lock( mutex_) ;	// I/O前に必ず解放します
 				ready_.wait( lock, [this]() { return stopping_ || request_.has_value() ; }) ;
-				// 終了後の残要求を送信しません。
+				// 終了後の残要求を送信しません
 				if( stopping_) {
 					return ;
 				}
@@ -433,19 +434,19 @@ void AppUpdateService::run() noexcept
 				release = offered_ ;
 				manual	= manual_ ;
 			}
-			AppUpdateEvent result ;	// 確定した一結果だけをpublishします。
+			AppUpdateEvent result ;	// 確定した一結果だけをpublishします
 			result.operation						 = operation ;
 			result.manual							 = manual ;
 			const AppUpdateCancellation cancellation = [this]() {
 				return stopping_.load() || cancelled_.load() ;
-			} ; // threadの終了までobjectが生存します。
-			// Checkは実行物を取らず、明示同意は元提示からだけ通ります。
+			} ; // threadの終了までobjectが生存します
+			// Checkは実行物を取らず、明示同意は元提示からだけ通ります
 			if( operation == AppUpdateStage::CHECKING) {
 				result			 = backend_->check( cancellation) ;
 				result.operation = operation ;
 				result.manual	 = manual ;
 			}
-			// 元の提示を保持した取得/引継ぎだけを許可します。
+			// 元の提示を保持した取得/引継ぎだけを許可します
 			else if( release) {
 				result.failure = operation == AppUpdateStage::DOWNLOADING
 									 ? backend_->download( *release, cancellation)
@@ -456,7 +457,7 @@ void AppUpdateService::run() noexcept
 								  static_cast<NativeError>( E_UNEXPECTED), 0U, 0U} ;
 			}
 
-			// 遅い成功結果も取消し後の実行権限へ戻しません。
+			// 遅い成功結果も取消し後の実行権限へ戻しません
 			if( cancelled_ && operation != AppUpdateStage::HANDING_OFF) {
 				result.failure = {AppUpdateFailureKind::CANCELLED,
 								  HRESULT_FROM_WIN32( ERROR_CANCELLED), 0U, 0U} ;
@@ -464,31 +465,31 @@ void AppUpdateService::run() noexcept
 			}
 
 			{
-				std::scoped_lock lock( mutex_) ;	// publishだけを短く排他します。
-				// Window停止後の通知は破棄します。
+				std::scoped_lock lock( mutex_) ;	// publishだけを短く排他します
+				// Window停止後の通知は破棄します
 				if( stopping_) {
 					return ;
 				}
 
-				// 同じ新版の周期通知を同process内では繰り返しません。
+				// 同じ新版の周期通知を同process内では繰り返しません
 				if( operation == AppUpdateStage::CHECKING && !manual && result.release &&
 				   dismissed_ && result.release->version == *dismissed_) {
 					result.release.reset() ;
 				}
 
-				// backendの不正宣言を取得へ進めません。
+				// backendの不正宣言を取得へ進めません
 				if( result.release && !validAppUpdateRelease( *result.release)) {
 					result.failure = {AppUpdateFailureKind::METADATA,
 									  static_cast<NativeError>( E_INVALIDARG), 0U, 0U} ;
 					result.release.reset() ;
 				}
 
-				// 失敗では次の明示確認からやり直します。
+				// 失敗では次の明示確認からやり直します
 				if( result.failure.kind != AppUpdateFailureKind::NONE) {
 					stage_ = AppUpdateStage::IDLE ;
 					offered_.reset() ;
 				}
-				// 確認成功は提示で止め、取得同意を発行しません。
+				// 確認成功は提示で止め、取得同意を発行しません
 				else if( operation == AppUpdateStage::CHECKING) {
 					offered_ = result.release ;
 					stage_	 = offered_ ? AppUpdateStage::OFFERED : AppUpdateStage::IDLE ;
@@ -499,14 +500,14 @@ void AppUpdateService::run() noexcept
 
 				event_ = std::move( result) ;
 			}
-			// HWNDの所有状態を参照せず、数値通知だけを送ります。
+			// HWNDの所有状態を参照せず、数値通知だけを送ります
 			if( window_) {
 				static_cast<void>( PostMessageW( window_, message_, 0U, 0)) ;
 			}
 		}
 	} catch( ...) {
 		{
-			std::scoped_lock lock( mutex_) ;	// 例外後にも待機中と偽りません。
+			std::scoped_lock lock( mutex_) ;	// 例外後にも待機中と偽りません
 			stage_ = AppUpdateStage::IDLE ;
 			request_.reset() ;
 			offered_.reset() ;
@@ -515,7 +516,7 @@ void AppUpdateService::run() noexcept
 			event_->failure = {AppUpdateFailureKind::STORAGE, E_UNEXPECTED, 0U, 0U} ;
 			stopping_		= true ;
 		}
-		// 例外をthread外へ漏らさず、固定の失敗だけを通知します。
+		// 例外をthread外へ漏らさず、固定の失敗だけを通知します
 		if( window_) {
 			static_cast<void>( PostMessageW( window_, message_, 0U, 0)) ;
 		}

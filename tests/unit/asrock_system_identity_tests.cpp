@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file asrock_system_identity_tests.cpp
- * @brief ASRock local system識別単体試験実装。
- * @version 01.00.01
+ * @brief ASRock local system識別単体試験実装
+ * @version 01.00.02
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,18 +19,19 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 実registryやnetworkへ接続せず、架空の非機密表示値だけを使用します。
+ * @note 実registryやnetworkへ接続せず、架空の非機密表示値だけを使用します
  */
 //------------------------------------------------------------------------------
 
@@ -45,22 +46,22 @@ namespace drivercrate::test {
 namespace {
 
 //------------------------------------------------------------------------------
-// 内部試験関数定義。
+// 内部試験関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASRock baseboard要求を検証する。
+ * @brief ASRock baseboard要求を検証する
  *
- * Custom PC相当ではboard modelを選び固定URLだけを使用する。
+ * Custom PC相当ではboard modelを選び固定URLだけを使用する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testAsrockBaseboard( TestContext &context)
 {
-	AsrockCatalogRequest request ;		// 構築した固定一覧要求。
-	bool				 applicable{} ;	// ASRock clientの判定結果。
+	AsrockCatalogRequest request ;		// 構築した固定一覧要求
+	bool				 applicable{} ;	// ASRock clientの判定結果
 	DRIVERCRATE_EXPECT( context, makeAsrockCatalogRequest(
 									L"System manufacturer", L"System Product Name", L"ASRock",
 									L"B650M Pro RS WiFi", 26'100U, false, request, applicable)) ;
@@ -74,17 +75,17 @@ void testAsrockBaseboard( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASRock system productのfallbackを検証する。
+ * @brief ASRock system productのfallbackを検証する
  *
- * Baseboard値欠損時だけASRock system productを使用する。
+ * Baseboard値欠損時だけASRock system productを使用する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testAsrockSystemProduct( TestContext &context)
 {
-	AsrockCatalogRequest request ;		// 構築した固定一覧要求。
-	bool				 applicable{} ;	// ASRock clientの判定結果。
+	AsrockCatalogRequest request ;		// 構築した固定一覧要求
+	bool				 applicable{} ;	// ASRock clientの判定結果
 	DRIVERCRATE_EXPECT( context, makeAsrockCatalogRequest( L"ASRock Inc.", L"Fictional Mini PC", L"",
 														 L"", 19'045U, false, request, applicable)) ;
 	DRIVERCRATE_EXPECT( context, applicable) ;
@@ -94,17 +95,17 @@ void testAsrockSystemProduct( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 対象外systemを検証する。
+ * @brief 対象外systemを検証する
  *
- * 他社端末とWindows Serverでは固定一覧を取得しない。
+ * 他社端末とWindows Serverでは固定一覧を取得しない
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testNotApplicableSystems( TestContext &context)
 {
-	AsrockCatalogRequest request ;			// 各対象外判定後の空要求。
-	bool				 applicable{true} ;	// 呼出しでfalseへ更新される対象。
+	AsrockCatalogRequest request ;			// 各対象外判定後の空要求
+	bool				 applicable{true} ;	// 呼出しでfalseへ更新される対象
 	DRIVERCRATE_EXPECT( context, makeAsrockCatalogRequest( L"Fictional Systems", L"Model 1",
 														 L"Fictional Boards", L"Board 1", 26'100U,
 														 false, request, applicable)) ;
@@ -120,17 +121,17 @@ void testNotApplicableSystems( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 不正ASRock識別値を検証する。
+ * @brief 不正ASRock識別値を検証する
  *
- * Generic／Unicode modelと未対応buildをfail-closedにする。
+ * Generic／Unicode modelと未対応buildをfail-closedにする
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testInvalidAsrockValues( TestContext &context)
 {
-	AsrockCatalogRequest request ;			// 拒否後に空であるべき要求。
-	bool				 applicable{true} ;	// 拒否時にfalseであるべき状態。
+	AsrockCatalogRequest request ;			// 拒否後に空であるべき要求
+	bool				 applicable{true} ;	// 拒否時にfalseであるべき状態
 	DRIVERCRATE_EXPECT( context, !makeAsrockCatalogRequest( L"ASRock", L"System Product Name",
 														  L"ASRock", L"Default string", 26'100U,
 														  false, request, applicable)) ;
@@ -154,8 +155,8 @@ void testInvalidAsrockValues( TestContext &context)
 //------------------------------------------------------------------------------
 /**
  * @brief ASRock local system識別の正常系と拒否系を実行する。ASRock local system識別単体試験を実行する。Baseboard、system、対象外、拒否経
- *        路を順番に検証する。
- * @param[in,out] context Assertion集計先。
+ *        路を順番に検証する
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void runAsrockSystemIdentityTests( TestContext &context)

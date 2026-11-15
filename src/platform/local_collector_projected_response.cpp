@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file local_collector_projected_response.cpp
- * @brief 応答v4の有限codec・元I/O結合・一回縮退を実装します。
- * @version 01.01.03
+ * @brief 応答v4の有限codec・元I/O結合・一回縮退を実装します
+ * @version 01.01.04
  * @date 2026/09/29
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,14 +19,15 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/29  非保存応答・元I/O・二段hashの実装を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/09/29  元成功参照の全再検証と減少最終化を追加。
- * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける。
- * Ver.01.01.02   Shunji Ogawa  2026/10/16 元結果の伝播・例外変換とcache操作引数の契約を補足。
- * Ver.01.01.03 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/29  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/29  元成功参照の全再検証と減少最終化を追加
+ * Ver.01.01.01   Shunji Ogawa  2026/10/16 型と関数の契約コメントを宣言と実装へ対応付ける
+ * Ver.01.01.02   Shunji Ogawa  2026/10/16 元結果の伝播・例外変換とcache操作引数の契約を補足
+ * Ver.01.01.03 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.01.04 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 旧codecと保存storeを変更せず、予約受入・成功CACHE更新を実行しません。
+ * @note 旧codecと保存storeを変更せず、予約受入・成功CACHE更新を実行しません
  * @see docs/adr/0220-collector-metadata-projection-and-cache.md
  */
 //------------------------------------------------------------------------------
@@ -45,45 +46,45 @@ namespace {
 using namespace collector_projected_json ;
 using namespace std::literals ;
 /**
- * @brief 収集metadataの終端区分を保持し、本文取得成功と候補適合を混同しない。
+ * @brief 収集metadataの終端区分を保持し、本文取得成功と候補適合を混同しない
  */
 using Outcome = CollectorMetadataOutcome ;
 /**
- * @brief 収集metadataの不成立理由をschemaの列挙値で保持し、成功結果と区別する。
+ * @brief 収集metadataの不成立理由をschemaの列挙値で保持し、成功結果と区別する
  */
 using Reason = CollectorMetadataReason ;
 /**
- * @brief 有限予算の到達段階を保持し、正常完了と区別する。
+ * @brief 有限予算の到達段階を保持し、正常完了と区別する
  */
 using Limit = CollectorMetadataLimitStage ;
 /**
- * @brief 投影応答が要求するcache操作を保持する。
+ * @brief 投影応答が要求するcache操作を保持する
  */
 using Action = CollectorProjectedCacheAction ;
 /**
- * @brief 応答へ保存するcache判定理由を保持する。
+ * @brief 応答へ保存するcache判定理由を保持する
  */
 using CacheReason = CollectorProjectedCacheReason ;
 /**
- * @brief I/O診断値の由来となるerror domainを保持する。
+ * @brief I/O診断値の由来となるerror domainを保持する
  */
 using Domain = CollectorIoErrorDomain ;
 /**
- * @brief Hash処理が到達した段階を保持し、不完全な検証と完了を区別する。
+ * @brief Hash処理が到達した段階を保持し、不完全な検証と完了を区別する
  */
 using HashStage = CollectorProjectedHashStage ;
 /**
- * @brief 一回の投影応答の状態と観測値を所有し、codecへ渡す。
+ * @brief 一回の投影応答の状態と観測値を所有し、codecへ渡す
  */
 using Response = CollectorProjectedResponse ;
 
 constexpr std::array OUTCOMES{std::pair{Outcome::FETCHED, L"FETCHED"sv},
 							  std::pair{Outcome::HELD, L"HELD"sv},
 							  std::pair{Outcome::FAILED, L"FAILED"sv},
-							  std::pair{Outcome::REVALIDATED, L"REVALIDATED"sv}} ;	// 固定状態名。
+							  std::pair{Outcome::REVALIDATED, L"REVALIDATED"sv}} ;	// 固定状態名
 constexpr std::array ACTIONS{std::pair{Action::REPLACE, L"REPLACE"sv},
 							 std::pair{Action::REVALIDATE, L"REVALIDATE"sv},
-							 std::pair{Action::INVALIDATE, L"INVALIDATE"sv}} ;	// 固定cache操作名。
+							 std::pair{Action::INVALIDATE, L"INVALIDATE"sv}} ;	// 固定cache操作名
 constexpr std::array REASONS{
 	std::pair{CacheReason::ACCEPTED, L"ACCEPTED"sv},
 	std::pair{CacheReason::NO_VALIDATOR, L"NO_VALIDATOR"sv},
@@ -94,54 +95,54 @@ constexpr std::array REASONS{
 	std::pair{CacheReason::PROJECTION_LIMIT, L"PROJECTION_LIMIT"sv},
 	std::pair{CacheReason::WORKER_FAILURE, L"WORKER_FAILURE"sv},
 	std::pair{CacheReason::CACHE_BASIS_INVALID, L"CACHE_BASIS_INVALID"sv},
-	std::pair{CacheReason::METADATA_HASH, L"METADATA_HASH"sv}} ;	// 固定理由名。
+	std::pair{CacheReason::METADATA_HASH, L"METADATA_HASH"sv}} ;	// 固定理由名
 constexpr std::array DOMAINS{
 	std::pair{Domain::NONE, L"NONE"sv},
 	std::pair{Domain::WIN32_ERROR, L"WIN32"sv},
 	std::pair{Domain::WINSOCK_ERROR, L"WINSOCK"sv},
 	std::pair{Domain::HRESULT_ERROR, L"HRESULT"sv},
 	std::pair{Domain::HTTP, L"HTTP"sv},
-	std::pair{Domain::PARSER, L"PARSER"sv}} ;	// 外側は旧応答と同じdomain表記。
+	std::pair{Domain::PARSER, L"PARSER"sv}} ;	// 外側は旧応答と同じdomain表記
 
-/** @brief 元数値と失敗層を失わない内部例外です。 */
+/** @brief 元数値と失敗層を失わない内部例外です */
 struct Stop {
-	/// 数値と段階だけの失敗。
+	/// 数値と段階だけの失敗
 	CollectorProjectedResponseResult value ;
 } ;
 //------------------------------------------------------------------------------
 /**
- * @brief 構造・関係違反を固定拒否します。
- * @param[in] condition 成立を必須とする構造・関係条件。
- * @throws Failure 条件不成立時。Status::INVALIDを保持する。
+ * @brief 構造・関係違反を固定拒否します
+ * @param[in] condition 成立を必須とする構造・関係条件
+ * @throws Failure 条件不成立時。Status::INVALIDを保持する
  */
 //------------------------------------------------------------------------------
 void require( bool condition)
 {
-	// 修復して成功へ進めません。
+	// 修復して成功へ進めません
 	if( !condition) {
 		throw Failure{Status::INVALID} ;
 	}
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 下位結果を元層付きで伝播します。
- * @param[in] result 検査する下位結果のcopy。OK以外は元の分類と数値を維持します。
- * @param[in] stage 失敗へ結合する元層。成功時は結果へ追加しません。
- * @throws Stop resultがOK以外の場合。元結果とstageを保持します。
+ * @brief 下位結果を元層付きで伝播します
+ * @param[in] result 検査する下位結果のcopy。OK以外は元の分類と数値を維持します
+ * @param[in] stage 失敗へ結合する元層。成功時は結果へ追加しません
+ * @throws Stop resultがOK以外の場合。元結果とstageを保持します
  */
 //------------------------------------------------------------------------------
 void checked( Result result, Limit stage = Limit::NONE)
 {
-	// OOMを上限へ、原hashを構造拒否へ変換しません。
+	// OOMを上限へ、原hashを構造拒否へ変換しません
 	if( result.status != Status::OK) {
 		throw Stop{{result, stage}} ;
 	}
 }
 //------------------------------------------------------------------------------
 /**
- * @brief Catch内だけで元例外を有限結果へ変換します。
- * @return 元の停止結果と層、確保失敗、または構造拒否の分類です。例外を外へ渡しません。
- * @pre 現在の例外を処理するcatch節内から呼び出すこと。
+ * @brief Catch内だけで元例外を有限結果へ変換します
+ * @return 元の停止結果と層、確保失敗、または構造拒否の分類です。例外を外へ渡しません
+ * @pre 現在の例外を処理するcatch節内から呼び出すこと
  */
 //------------------------------------------------------------------------------
 CollectorProjectedResponseResult failure() noexcept
@@ -155,7 +156,7 @@ CollectorProjectedResponseResult failure() noexcept
 	} catch( const std::bad_alloc &) {
 		return {{Status::OUT_OF_MEMORY, E_OUTOFMEMORY}, Limit::NONE} ;
 	} catch( const winrt::hresult_error &error) {
-		// Library側の確保失敗も独立に返します。
+		// Library側の確保失敗も独立に返します
 		if( error.code() == E_OUTOFMEMORY) {
 			return {{Status::OUT_OF_MEMORY, E_OUTOFMEMORY}, Limit::NONE} ;
 		}
@@ -167,22 +168,22 @@ CollectorProjectedResponseResult failure() noexcept
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 成功digestの注入なしに実byte hashを計算します。
- * @param[in] bytes 実CNGへ渡す元byteの借用view。
- * @param[in] probe 失敗HRESULTだけを返す同期診断。空または0では実hashを計算する。
- * @param[in] stage 診断callbackへ通知するhash段階。
- * @param[in] layer Hash失敗を分類する外側の有限層。
- * @return 実byteから計算したSHA-256文字列。失敗時は値を返さず検査例外を送出する。
+ * @brief 成功digestの注入なしに実byte hashを計算します
+ * @param[in] bytes 実CNGへ渡す元byteの借用view
+ * @param[in] probe 失敗HRESULTだけを返す同期診断。空または0では実hashを計算する
+ * @param[in] stage 診断callbackへ通知するhash段階
+ * @param[in] layer Hash失敗を分類する外側の有限層
+ * @return 実byteから計算したSHA-256文字列。失敗時は値を返さず検査例外を送出する
  */
 //------------------------------------------------------------------------------
 std::wstring hashBytes( std::string_view bytes, const CollectorProjectedHashProbe &probe,
 					   HashStage stage, Limit layer)
 {
-	const NativeError injected = probe ? probe( stage) : 0 ;	// 原HRESULTだけの任意診断。
+	const NativeError injected = probe ? probe( stage) : 0 ;	// 原HRESULTだけの任意診断
 	require( injected <= 0) ;
-	std::wstring	  digest ;	// 実CNGの出力。
+	std::wstring	  digest ;	// 実CNGの出力
 	const NativeError error =
-		injected != 0 ? injected : computeBytesSha256( bytes, digest) ;	// 0では必ず実計算。
+		injected != 0 ? injected : computeBytesSha256( bytes, digest) ;	// 0では必ず実計算
 	checked( {error == 0				  ? Status::OK
 			 : error == E_OUTOFMEMORY ? Status::OUT_OF_MEMORY
 									  : Status::HASH_FAILURE,
@@ -192,10 +193,10 @@ std::wstring hashBytes( std::string_view bytes, const CollectorProjectedHashProb
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 旧保存と同じG／jobの操作keyを実CNGで作ります。
- * @param[in] generation 元Gの64桁小文字SHA-256。同期中だけ借用する。
- * @param[in] job 元job keyの64桁小文字SHA-256。同期中だけ借用する。
- * @return 固定profileとG/jobを結合した実CNGの操作key。入力・hash失敗は検査例外。
+ * @brief 旧保存と同じG／jobの操作keyを実CNGで作ります
+ * @param[in] generation 元Gの64桁小文字SHA-256。同期中だけ借用する
+ * @param[in] job 元job keyの64桁小文字SHA-256。同期中だけ借用する
+ * @return 固定profileとG/jobを結合した実CNGの操作key。入力・hash失敗は検査例外
  */
 //------------------------------------------------------------------------------
 std::wstring operation( std::wstring_view generation, std::wstring_view job)
@@ -207,9 +208,9 @@ std::wstring operation( std::wstring_view generation, std::wstring_view job)
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 元予約UTCだけから固定JST日を導きます。
- * @param[in] millis 1000～4102444799999の元予約UTC、Unix epochからのmillisecond。
- * @return 固定JSTへ9時間加算したYYYYMMDD。範囲違反は検査例外。
+ * @brief 元予約UTCだけから固定JST日を導きます
+ * @param[in] millis 1000～4102444799999の元予約UTC、Unix epochからのmillisecond
+ * @return 固定JSTへ9時間加算したYYYYMMDD。範囲違反は検査例外
  */
 //------------------------------------------------------------------------------
 std::wstring reservationDay( std::uint64_t millis)
@@ -217,36 +218,36 @@ std::wstring reservationDay( std::uint64_t millis)
 	require( millis >= 1000U && millis <= 4102444799999ULL) ;
 	const auto date = std::chrono::year_month_day( std::chrono::floor<std::chrono::days>(
 		std::chrono::sys_time<std::chrono::milliseconds>( std::chrono::milliseconds( millis)) +
-		// 固定JST。
+		// 固定JST
 		std::chrono::hours( 9))) ;
-	wchar_t	   result[9]{} ;	// YYYYMMDD。
+	wchar_t	   result[9]{} ;	// YYYYMMDD
 	swprintf_s( result, L"%04d%02u%02u", int( date.year()), unsigned( date.month()),
 			   unsigned( date.day())) ;
 	return result ;
 }
 
 /**
- * @brief 全fieldを同じ順序で移送する応答専用reader／writerです。
- * @note 検査・確保の例外時はsink、読取り位置、移送値の途中状態を保持する。外側codecが完成値だけを公開する。
+ * @brief 全fieldを同じ順序で移送する応答専用reader／writerです
+ * @note 検査・確保の例外時はsink、読取り位置、移送値の途中状態を保持する。外側codecが完成値だけを公開する
  */
 class Fields final {
 public:
 	/**
-	 * @brief 同じ有限sinkと任意の読込み位置を借用します。
-	 * @param[in,out] writer このFieldsより長生きする有限sink。
-	 * @param[in,out] reader 読込み位置の借用pointer。nullは書込み専用を表す。
+	 * @brief 同じ有限sinkと任意の読込み位置を借用します
+	 * @param[in,out] writer このFieldsより長生きする有限sink
+	 * @param[in,out] reader 読込み位置の借用pointer。nullは書込み専用を表す
 	 */
 	Fields( Writer &writer, Reader *reader = nullptr) : writer_( writer), reader_( reader)
 	{
 		literal( "{") ;
 	}
 	/**
-	 * @brief 固定構文を読込みと出力の両方へ適用します。
-	 * @param[in] value 一致させて読み書きする固定ASCII構文。同期中だけ借用する。
+	 * @brief 固定構文を読込みと出力の両方へ適用します
+	 * @param[in] value 一致させて読み書きする固定ASCII構文。同期中だけ借用する
 	 */
 	void literal( std::string_view value)
 	{
-		// 読込み時は固定字句を正確に消費します。
+		// 読込み時は固定字句を正確に消費します
 		if( reader_) {
 			reader_->literal( value) ;
 		}
@@ -254,12 +255,12 @@ public:
 		writer_.append( value) ;
 	}
 	/**
-	 * @brief 固定keyの順序・欠損・重複を検査します。
-	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する。
+	 * @brief 固定keyの順序・欠損・重複を検査します
+	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する
 	 */
 	void key( std::string_view name)
 	{
-		// 元順序のcommaだけを扱います。
+		// 元順序のcommaだけを扱います
 		if( !first_) {
 			literal( ",") ;
 		}
@@ -268,15 +269,15 @@ public:
 		literal( "\"" + std::string( name) + "\":") ;
 	}
 	/**
-	 * @brief 所有公開文字列を有限移送します。
-	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する。
-	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する。
-	 * @param[in] maximum ReaderのUTF-8 byte上限と所有文字列のUTF-16 code unit上限。
+	 * @brief 所有公開文字列を有限移送します
+	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する
+	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する
+	 * @param[in] maximum ReaderのUTF-8 byte上限と所有文字列のUTF-16 code unit上限
 	 */
 	void text( std::string_view name, std::wstring &value, std::size_t maximum = 256U)
 	{
 		key( name) ;
-		// Byte上限を変換前に確認します。
+		// Byte上限を変換前に確認します
 		if( reader_) {
 			value = winrt::to_hstring( reader_->text( maximum)) ;
 		}
@@ -285,28 +286,28 @@ public:
 		writer_.wideText( value) ;
 	}
 	/**
-	 * @brief 固定schemaを正規化せず検査します。
-	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する。
-	 * @param[in] expected 完全一致させる固定文字列。同期中だけ借用する。
+	 * @brief 固定schemaを正規化せず検査します
+	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する
+	 * @param[in] expected 完全一致させる固定文字列。同期中だけ借用する
 	 */
 	void constant( std::string_view name, std::wstring_view expected)
 	{
-		std::wstring actual( expected) ;	// 定数の比較値。
+		std::wstring actual( expected) ;	// 定数の比較値
 		text( name, actual) ;
 		require( actual == expected) ;
 	}
 	/**
-	 * @brief 非負整数を対象格納型へ制限します。
-	 * @tparam T 非負整数の格納型。読込み時は型の最大値まで許可する。
-	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する。
-	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する。
+	 * @brief 非負整数を対象格納型へ制限します
+	 * @tparam T 非負整数の格納型。読込み時は型の最大値まで許可する
+	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する
+	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する
 	 */
 	template <class T> void number( std::string_view name, T &value)
 	{
 		key( name) ;
-		// 対象格納型より広い保存数値を切り捨てません。
+		// 対象格納型より広い保存数値を切り捨てません
 		if( reader_) {
-			const auto raw = reader_->number() ;	// MAX_INTEGER以下の正確な元値。
+			const auto raw = reader_->number() ;	// MAX_INTEGER以下の正確な元値
 			require( raw <= (std::numeric_limits<T>::max)()) ;
 			value = static_cast<T>( raw) ;
 		}
@@ -314,26 +315,26 @@ public:
 		writer_.number( value) ;
 	}
 	/**
-	 * @brief 実測0と未知nullを保持します。
-	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する。
-	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する。
+	 * @brief 実測0と未知nullを保持します
+	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する
+	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する
 	 */
 	void optionalNumber( std::string_view name, std::optional<std::uint64_t> &value)
 	{
 		key( name) ;
-		// 元値を有限の単一valueとして消費します。
+		// 元値を有限の単一valueとして消費します
 		if( reader_) {
-			const auto raw = reader_->value() ;	// 未変更の元byte。
+			const auto raw = reader_->value() ;	// 未変更の元byte
 			value.reset() ;
-			// null以外には数値型だけを認めます。
+			// null以外には数値型だけを認めます
 			if( raw != "null") {
-				Reader scalar( raw, 32U) ;	// Nullと区別した数値の有限reader。
+				Reader scalar( raw, 32U) ;	// Nullと区別した数値の有限reader
 				value = scalar.number() ;
 				scalar.finish() ;
 			}
 		}
 
-		// 欠測を0で補いません。
+		// 欠測を0で補いません
 		if( value) {
 			writer_.number( *value) ;
 		} else {
@@ -341,26 +342,26 @@ public:
 		}
 	}
 	/**
-	 * @brief 元validatorのnullを空文字列と区別します。
-	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する。
-	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する。
+	 * @brief 元validatorのnullを空文字列と区別します
+	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する
+	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する
 	 */
 	void optionalText( std::string_view name, std::optional<std::wstring> &value)
 	{
 		key( name) ;
-		// 存在するときだけ元引用符付き文字列を取得します。
+		// 存在するときだけ元引用符付き文字列を取得します
 		if( reader_) {
-			const auto raw = reader_->value() ;	// Nullまたは有限文字列。
+			const auto raw = reader_->value() ;	// Nullまたは有限文字列
 			value.reset() ;
-			// 一つのvalidatorのescape後上限も有限です。
+			// 一つのvalidatorのescape後上限も有限です
 			if( raw != "null") {
-				Reader scalar( raw, 1024U) ;	// Escape後も有限なvalidator reader。
+				Reader scalar( raw, 1024U) ;	// Escape後も有限なvalidator reader
 				value = winrt::to_hstring( scalar.text( 256U)) ;
 				scalar.finish() ;
 			}
 		}
 
-		// 大きな文字列を先にsinkへ渡しません。
+		// 大きな文字列を先にsinkへ渡しません
 		if( value) {
 			require( value->size() <= 256U) ;
 			writer_.wideText( *value) ;
@@ -369,16 +370,16 @@ public:
 		}
 	}
 	/**
-	 * @brief Boolの字句だけを受け付けます。
-	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する。
-	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する。
+	 * @brief Boolの字句だけを受け付けます
+	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する
+	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する
 	 */
 	void boolean( std::string_view name, bool &value)
 	{
 		key( name) ;
-		// 0／1や文字列へ暗黙変換しません。
+		// 0／1や文字列へ暗黙変換しません
 		if( reader_) {
-			const auto raw = reader_->value() ; /* 元bool字句。 */
+			const auto raw = reader_->value() ; /* 元bool字句 */
 			require( raw == "true" || raw == "false") ;
 			value = raw == "true" ;
 		}
@@ -386,12 +387,12 @@ public:
 		writer_.append( value ? "true" : "false") ;
 	}
 	/**
-	 * @brief 固定対応表でのみenumを移送します。
-	 * @tparam E 保存名へ明示対応する列挙型。
-	 * @tparam N 対応表の要素数。全要素を順に照合する。
-	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する。
-	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する。
-	 * @param[in] names 列挙値と固定保存名の対応表。同期中だけ借用する。
+	 * @brief 固定対応表でのみenumを移送します
+	 * @tparam E 保存名へ明示対応する列挙型
+	 * @tparam N 対応表の要素数。全要素を順に照合する
+	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する
+	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する
+	 * @param[in] names 列挙値と固定保存名の対応表。同期中だけ借用する
 	 */
 	template <class E, std::size_t N>
 	void enumeration( std::string_view name, E &value,
@@ -399,10 +400,10 @@ public:
 	{
 		key( name) ;
 		const std::wstring saved =
-			reader_ ? std::wstring( winrt::to_hstring( reader_->text( 64U))) : L"" ;	// 元保存名。
-		// 未知値のdefaultや数値castを使用しません。
+			reader_ ? std::wstring( winrt::to_hstring( reader_->text( 64U))) : L"" ;	// 元保存名
+		// 未知値のdefaultや数値castを使用しません
 		for( const auto &entry : names) {
-			// 同じ表を符号化・復号に使います。
+			// 同じ表を符号化・復号に使います
 			if( reader_ ? saved == entry.second : value == entry.first) {
 				value = entry.first ;
 				writer_.wideText( entry.second) ;
@@ -413,17 +414,17 @@ public:
 		throw Failure{Status::INVALID} ;
 	}
 	/**
-	 * @brief 下位codecの検査対象byteを元objectのまま保持します。
-	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する。
-	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する。
-	 * @param[in] maximum Fragmentの元byte上限。下位codecの検証は別途行う。
+	 * @brief 下位codecの検査対象byteを元objectのまま保持します
+	 * @param[in] name 固定schemaのASCII field名。同期呼出し中だけ借用する
+	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する
+	 * @param[in] maximum Fragmentの元byte上限。下位codecの検証は別途行う
 	 */
 	void fragment( std::string_view name, std::string &value, std::size_t maximum)
 	{
 		key( name) ;
-		// 型付き下位codecへ渡す前にbyte上限を確認します。
+		// 型付き下位codecへ渡す前にbyte上限を確認します
 		if( reader_) {
-			const auto raw = reader_->value() ; /* 元object byte。 */
+			const auto raw = reader_->value() ; /* 元object byte */
 			require( raw.size() <= maximum) ;
 			value.assign( raw) ;
 		}
@@ -432,36 +433,36 @@ public:
 		writer_.append( value) ;
 	}
 	/**
-	 * @brief 元200参照の全fieldを固定順で移送します。
-	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する。
+	 * @brief 元200参照の全fieldを固定順で移送します
+	 * @param[in,out] value 書込み時の元値。読込み時は保存値へ更新する。例外時は途中の値を保持する
 	 */
 	void original( std::optional<CollectorProjectedOriginal200> &value)
 	{
 		key( "original200") ;
-		std::string_view raw ;	// Readerが借用する一つの値。
-		// Nullかobjectかを型のまま保持します。
+		std::string_view raw ;	// Readerが借用する一つの値
+		// Nullかobjectかを型のまま保持します
 		if( reader_) {
 			raw = reader_->value() ;
 			value.reset() ;
-			// 元200が実在する表現のときだけ所有fieldを作ります。
+			// 元200が実在する表現のときだけ所有fieldを作ります
 			if( raw != "null") {
 				value.emplace() ;
 			}
 		}
 
-		// 元200なしの200応答へ架空参照を追加しません。
+		// 元200なしの200応答へ架空参照を追加しません
 		if( !value) {
 			writer_.append( "null") ;
 			return ;
 		}
 
-		std::optional<Reader> reader ;	// 参照object内だけの有限reader。
-		// 元fragmentを別readerで最後まで照合します。
+		std::optional<Reader> reader ;	// 参照object内だけの有限reader
+		// 元fragmentを別readerで最後まで照合します
 		if( reader_) {
 			reader.emplace( raw, 2048U) ;
 		}
 
-		Fields child( writer_, reader ? &*reader : nullptr) ;	// 同じsinkの子object。
+		Fields child( writer_, reader ? &*reader : nullptr) ;	// 同じsinkの子object
 		child.text( "generation", value->generation, 64U) ;
 		child.text( "operation", value->operation, 64U) ;
 		child.text( "response", value->response, 64U) ;
@@ -469,40 +470,40 @@ public:
 		child.text( "body", value->body, 64U) ;
 		child.number( "headerUtc", value->headerUtc) ;
 		child.literal( "}") ;
-		// 余剰fieldや値を許しません。
+		// 余剰fieldや値を許しません
 		if( reader) {
 			reader->finish() ;
 		}
 	}
 	/**
-	 * @brief Cache操作の二fieldを固定順で移送します。
-	 * @param[in,out] value 書込み時の元操作と理由。読込み時は保存値へ更新し、例外時は途中の値を保持します。
+	 * @brief Cache操作の二fieldを固定順で移送します
+	 * @param[in,out] value 書込み時の元操作と理由。読込み時は保存値へ更新し、例外時は途中の値を保持します
 	 */
 	void decision( CollectorProjectedCacheDecision &value)
 	{
 		key( "cacheDecision") ;
-		Fields child( writer_, reader_) ;	// 同じ位置とsink。
+		Fields child( writer_, reader_) ;	// 同じ位置とsink
 		child.enumeration( "action", value.action, ACTIONS) ;
 		child.enumeration( "reason", value.reason, REASONS) ;
 		child.literal( "}") ;
 	}
 
 private:
-	/// 全階層共通の有限sink。
+	/// 全階層共通の有限sink
 	Writer &writer_ ;
-	/// 読込み時だけの借用位置。
+	/// 読込み時だけの借用位置
 	Reader *reader_ ;
-	/// 元field順序の先頭。
+	/// 元field順序の先頭
 	bool	first_{true} ;
 } ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 応答の全fieldを固定順で移送します。
- * @param[in,out] fields 同じ有限reader/writer context。
- * @param[in,out] response 書込み元または全外側fieldの読込み先。例外時は途中状態を保持する。
- * @param[in,out] io 下位I/O objectの元byte。書込み元または読込み先。
- * @param[in,out] metadata 下位metadata objectの元byte。書込み元または読込み先。
+ * @brief 応答の全fieldを固定順で移送します
+ * @param[in,out] fields 同じ有限reader/writer context
+ * @param[in,out] response 書込み元または全外側fieldの読込み先。例外時は途中状態を保持する
+ * @param[in,out] io 下位I/O objectの元byte。書込み元または読込み先
+ * @param[in,out] metadata 下位metadata objectの元byte。書込み元または読込み先
  */
 //------------------------------------------------------------------------------
 void responseFields( Fields &fields, Response &response, std::string &io, std::string &metadata)
@@ -539,15 +540,15 @@ void responseFields( Fields &fields, Response &response, std::string &io, std::s
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 元I/Oと外側field・metadataの関係を検査します。
- * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する。
- * @param[in] response 外側field、元I/O、metadataの関係を検査する所有値。
+ * @brief 元I/Oと外側field・metadataの関係を検査します
+ * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する
+ * @param[in] response 外側field、元I/O、metadataの関係を検査する所有値
  */
 //------------------------------------------------------------------------------
 void validate( const CollectorProjectedJobInput &job, const Response &response)
 {
-	const auto &io		 = response.io ;		// 元sealed観測。
-	const auto &metadata = response.metadata ;	// 同じ元結果のmetadata。
+	const auto &io		 = response.io ;		// 元sealed観測
+	const auto &metadata = response.metadata ;	// 同じ元結果のmetadata
 	require( isHash( response.generation) && response.job == job.jobKey &&
 			response.source == job.source.sourceId && response.request == job.requestKey &&
 			response.cache == job.cacheBinding &&
@@ -578,7 +579,7 @@ void validate( const CollectorProjectedJobInput &job, const Response &response)
 			 *metadata.binding.validatedUtc <= response.finished)) ;
 	require( !response.requestValidator || isCollectorEntityTag( *response.requestValidator)) ;
 	require( !response.responseValidator || isCollectorEntityTag( *response.responseValidator)) ;
-	// 原正常終了と親hash失敗によるFAILEDは別軸です。
+	// 原正常終了と親hash失敗によるFAILEDは別軸です
 	if( io.cause == CollectorIoCause::COMPLETE) {
 		require( !io.native && io.bytesKnown && io.error.domain == Domain::NONE &&
 				io.stage == CollectorIoStage::COMPLETE && io.sends == 1U &&
@@ -594,16 +595,16 @@ void validate( const CollectorProjectedJobInput &job, const Response &response)
 				response.state != Outcome::REVALIDATED) ;
 	}
 
-	// 取消しの受理観測を失っていないことを確認します。
+	// 取消しの受理観測を失っていないことを確認します
 	if( io.cause == CollectorIoCause::CANCELLED || io.cause == CollectorIoCause::SHARED_STOP) {
 		require( io.stopElapsedMillis.has_value()) ;
 	}
 
-	const auto &diagnostics = metadata.diagnostics ;	// 元parserの固定結果。
-	// Worker分類の意味を元I/Oへ再結合します。
+	const auto &diagnostics = metadata.diagnostics ;	// 元parserの固定結果
+	// Worker分類の意味を元I/Oへ再結合します
 	if( diagnostics.workerReason == CollectorProjectedWorkerReason::NONE) {
 		require( io.cause == CollectorIoCause::COMPLETE) ;
-		// 親hash障害やbyte縮退でも元200の解析成功を失いません。
+		// 親hash障害やbyte縮退でも元200の解析成功を失いません
 		if( response.status == 200U) {
 			require( diagnostics.parser &&
 					diagnostics.parser->status == CollectorParserStatus::COMPLETED) ;
@@ -612,7 +613,7 @@ void validate( const CollectorProjectedJobInput &job, const Response &response)
 					!diagnostics.counts) ;
 		}
 	}
-	// 明示LIMITだけがPARSERの元数値一致を要求します。
+	// 明示LIMITだけがPARSERの元数値一致を要求します
 	else if( diagnostics.workerReason == CollectorProjectedWorkerReason::PROJECTION_LIMIT) {
 		require( io.cause == CollectorIoCause::PARSER && diagnostics.parser &&
 				diagnostics.parser->status == CollectorParserStatus::LIMIT_EXCEEDED &&
@@ -624,22 +625,22 @@ void validate( const CollectorProjectedJobInput &job, const Response &response)
 				io.cause != CollectorIoCause::COMPLETE) ;
 	}
 
-	// 第一worker errorをmetadataの別数値へ変更しません。
+	// 第一worker errorをmetadataの別数値へ変更しません
 	if( metadata.reason == Reason::WORKER_FAILURE) {
 		require( metadata.error && metadata.error->domain == io.error.domain &&
 				metadata.error->code == io.error.code) ;
 	}
 
-	// 特殊hash故障以外の成功hash欠測はencode後の検査で拒否します。
+	// 特殊hash故障以外の成功hash欠測はencode後の検査で拒否します
 	if( metadata.reason == Reason::METADATA_HASH) {
 		require( response.projection.empty() &&
 				(io.cause == CollectorIoCause::COMPLETE ||
 				 diagnostics.workerReason == CollectorProjectedWorkerReason::PROJECTION_LIMIT)) ;
 	}
 
-	// 元200参照は今回200へ紛れ込ませません。
+	// 元200参照は今回200へ紛れ込ませません
 	if( response.original200) {
-		const auto &original = *response.original200 ;	// 参照先そのものの真正性は親contextが検査。
+		const auto &original = *response.original200 ;	// 参照先そのものの真正性は親contextが検査
 		require( response.status == 304U && isHash( original.generation) &&
 				isHash( original.operation) && isHash( original.response) &&
 				isHash( original.projection) && isHash( original.body) &&
@@ -647,31 +648,31 @@ void validate( const CollectorProjectedJobInput &job, const Response &response)
 				original.headerUtc <= *io.headerUtcMillis && response.requestValidator) ;
 	}
 
-	// 成功304形の必須参照を確認します。Liveでの許可ではありません。
+	// 成功304形の必須参照を確認します。Liveでの許可ではありません
 	if( response.state == Outcome::REVALIDATED) {
 		require( response.status == 304U && response.original200 && response.requestValidator &&
 				(!response.responseValidator ||
 				 response.responseValidator == response.requestValidator)) ;
 	}
 
-	// 未pin304の元HTTP拒否以外は、元200根拠を持たない正常304にしません。
+	// 未pin304の元HTTP拒否以外は、元200根拠を持たない正常304にしません
 	if( response.status == 304U && io.cause == CollectorIoCause::COMPLETE) {
 		require( response.original200 && (response.state == Outcome::REVALIDATED ||
 										 metadata.reason == Reason::CACHE_BASIS_INVALID ||
 										 metadata.reason == Reason::METADATA_HASH)) ;
 	}
 
-	const auto expected = collectorProjectedCacheDecision( response) ;	// 任意保存値を独立に再導出。
+	const auto expected = collectorProjectedCacheDecision( response) ;	// 任意保存値を独立に再導出
 	require( response.cacheDecision.action == expected.action &&
 			response.cacheDecision.reason == expected.reason) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief Workerが消去したdraftへ残余が混入していないことを確認します。
- * @param[in] draft Workerが終端で消去したはずの公開draft。
- * @param[in] limited 上限到達用の消去形を検査する場合true。
- * @return 指定終端形の全消去条件が成立する場合true。残余・矛盾がある場合false。
+ * @brief Workerが消去したdraftへ残余が混入していないことを確認します
+ * @param[in] draft Workerが終端で消去したはずの公開draft
+ * @param[in] limited 上限到達用の消去形を検査する場合true
+ * @return 指定終端形の全消去条件が成立する場合true。残余・矛盾がある場合false
  */
 //------------------------------------------------------------------------------
 bool clearedDraft( const CollectorMetadataProjectionDraft &draft, bool limited)
@@ -689,14 +690,14 @@ bool clearedDraft( const CollectorMetadataProjectionDraft &draft, bool limited)
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 下位I/O codecに渡す元byteを作ります。旧byte規則は変更しません。
- * @param[in] response 下位I/Oへ再結合する元応答。同期中だけ借用する。
- * @return 元観測を旧I/O codecで符号化した所有byte。Codec拒否時は検査例外。
+ * @brief 下位I/O codecに渡す元byteを作ります。旧byte規則は変更しません
+ * @param[in] response 下位I/Oへ再結合する元応答。同期中だけ借用する
+ * @return 元観測を旧I/O codecで符号化した所有byte。Codec拒否時は検査例外
  */
 //------------------------------------------------------------------------------
 std::string ioBytes( const Response &response)
 {
-	std::string bytes ;	// 旧v1のcanonical object。
+	std::string bytes ;	// 旧v1のcanonical object
 	require( encodeCollectorHttpObservation( response.io,
 										   operation( response.generation, response.job), bytes)) ;
 	require( bytes.size() <= IO_LIMIT) ;
@@ -704,11 +705,11 @@ std::string ioBytes( const Response &response)
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 単一応答の全byteとhashを一度だけ生成します。
- * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する。
- * @param[in] response 全関係を検査して符号化する元応答。
- * @param[in] probe 失敗HRESULTだけを注入する同期hash診断。空では実CNGだけを使う。
- * @return 全検査と実hash生成を終えた所有byte群。失敗時は途中出力を返さず例外。
+ * @brief 単一応答の全byteとhashを一度だけ生成します
+ * @param[in] job 今回の固定scopeとsource条件。同期呼出し中だけ借用する
+ * @param[in] response 全関係を検査して符号化する元応答
+ * @param[in] probe 失敗HRESULTだけを注入する同期hash診断。空では実CNGだけを使う
+ * @return 全検査と実hash生成を終えた所有byte群。失敗時は途中出力を返さず例外
  */
 //------------------------------------------------------------------------------
 CollectorProjectedResponseBytes encode( const CollectorProjectedJobInput	 &job,
@@ -716,32 +717,32 @@ CollectorProjectedResponseBytes encode( const CollectorProjectedJobInput	 &job,
 									   const CollectorProjectedHashProbe &probe)
 {
 	validate( job, response) ;
-	CollectorProjectedResponseBytes encoded ;	// 全成功まで外部へ公開しません。
+	CollectorProjectedResponseBytes encoded ;	// 全成功まで外部へ公開しません
 	checked( encodeCollectorMetadata( job, response.metadata, encoded.metadata),
 			Limit::METADATA_BYTES) ;
 	encoded.value = response ;
-	// Metadata hash失敗の最小形だけは元失敗を再hashしません。
+	// Metadata hash失敗の最小形だけは元失敗を再hashしません
 	if( response.metadata.reason != Reason::METADATA_HASH) {
 		const auto digest = hashBytes( encoded.metadata, probe, HashStage::METADATA,
-									  Limit::METADATA_BYTES) ;	// 実metadata hash。
+									  Limit::METADATA_BYTES) ;	// 実metadata hash
 		require( response.projection.empty() || response.projection == digest) ;
 		encoded.value.projection = digest ;
 	}
 
-	std::string io = ioBytes( encoded.value) ;	// 既存codecの固定object。
+	std::string io = ioBytes( encoded.value) ;	// 既存codecの固定object
 	try {
-		Writer writer( RESPONSE_LIMIT) ;	// 独立した応答上限。
-		Fields fields( writer) ;			// 固定field順の出力。
+		Writer writer( RESPONSE_LIMIT) ;	// 独立した応答上限
+		Fields fields( writer) ;			// 固定field順の出力
 		responseFields( fields, encoded.value, io, encoded.metadata) ;
 		encoded.response = writer.take() ;
 	} catch( const Failure &error) {
 		throw Stop{{{error.status, 0}, Limit::RESPONSE_BYTES}} ;
 	}
 
-	EnvelopeBytes body ;	// 実応答hashの生成結果。
+	EnvelopeBytes body ;	// 実応答hashの生成結果
 	const auto	  result = encodeEnvelope( encoded.response, encoded.envelope, body, [&]() {
 		   return probe ? probe( HashStage::RESPONSE) : 0 ;
-	   }) ; // 外側も有限sinkで生成。
+	   }) ; // 外側も有限sinkで生成
 	checked( result,
 			result.status == Status::SIZE_LIMIT ? Limit::ENVELOPE_BYTES : Limit::RESPONSE_BYTES) ;
 	encoded.responseSha256 = std::move( body.responseSha256) ;
@@ -751,50 +752,50 @@ CollectorProjectedResponseBytes encode( const CollectorProjectedJobInput	 &job,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 現metadataだけからcache更新候補を再導出します。
- * @param[in] response 検査対象の値。減少・元200真正性は別途親contextが検査します。
- * @return 固定操作と理由。保存や再送許可ではありません。
+ * @brief 現metadataだけからcache更新候補を再導出します
+ * @param[in] response 検査対象の値。減少・元200真正性は別途親contextが検査します
+ * @return 固定操作と理由。保存や再送許可ではありません
  */
 //------------------------------------------------------------------------------
 CollectorProjectedCacheDecision collectorProjectedCacheDecision( const Response &response) noexcept
 {
-	const auto reason = response.metadata.reason ;	// Metadata側の理由を優先します。
-	// 失敗・保留の固定理由をそのまま無効化候補へ写します。
+	const auto reason = response.metadata.reason ;	// Metadata側の理由を優先します
+	// 失敗・保留の固定理由をそのまま無効化候補へ写します
 	if( reason == Reason::WORKER_FAILURE) {
 		return {Action::INVALIDATE, CacheReason::WORKER_FAILURE} ;
 	}
 
-	// Hash故障はI/O成功と区別します。
+	// Hash故障はI/O成功と区別します
 	if( reason == Reason::METADATA_HASH) {
 		return {Action::INVALIDATE, CacheReason::METADATA_HASH} ;
 	}
 
-	// 元200の検査拒否です。
+	// 元200の検査拒否です
 	if( reason == Reason::CACHE_BASIS_INVALID) {
 		return {Action::INVALIDATE, CacheReason::CACHE_BASIS_INVALID} ;
 	}
 
-	// 件数・byte上限です。
+	// 件数・byte上限です
 	if( reason == Reason::PROJECTION_LIMIT) {
 		return {Action::INVALIDATE, CacheReason::PROJECTION_LIMIT} ;
 	}
 
-	// 旧成功を今回へ混ぜません。
+	// 旧成功を今回へ混ぜません
 	if( reason == Reason::DECREASED) {
 		return {Action::INVALIDATE, CacheReason::DECREASED} ;
 	}
 
-	// 304の真正性は親contextで別途確認します。
+	// 304の真正性は親contextで別途確認します
 	if( response.state == Outcome::REVALIDATED) {
 		return {Action::REVALIDATE, CacheReason::REVALIDATED} ;
 	}
 
-	// 未採用を部分成功へ分類しません。
+	// 未採用を部分成功へ分類しません
 	if( response.state != Outcome::FETCHED) {
 		return {Action::INVALIDATE, CacheReason::NO_CURRENT_MATCH} ;
 	}
 
-	// 一部edgeが不一致なら全成功basisに使用しません。
+	// 一部edgeが不一致なら全成功basisに使用しません
 	if( !response.metadata.complete || response.metadata.edges.empty() ||
 	   std::any_of(
 		   response.metadata.edges.begin(), response.metadata.edges.end(),
@@ -808,13 +809,13 @@ CollectorProjectedCacheDecision collectorProjectedCacheDecision( const Response 
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同一GETの所有観測を履歴判定前の応答候補へ変換します。
- * @param[in] job 元prepared jobの公開値。
- * @param[in] worker 全join後に読み取った元結果。ここではjoin自体を証明しません。
- * @param[in] acceptedUtc 親が観測した受領UTC。
- * @param[out] response 成功時だけ非保存候補。失敗時は空。
- * @return 型・元I/O・draft結合の検査結果。履歴なしとは判定しません。
- * @note 通常200／元失敗だけです。304成功を生成しません。最終親入口は別工程です。
+ * @brief 同一GETの所有観測を履歴判定前の応答候補へ変換します
+ * @param[in] job 元prepared jobの公開値
+ * @param[in] worker 全join後に読み取った元結果。ここではjoin自体を証明しません
+ * @param[in] acceptedUtc 親が観測した受領UTC
+ * @param[out] response 成功時だけ非保存候補。失敗時は空
+ * @return 型・元I/O・draft結合の検査結果。履歴なしとは判定しません
+ * @note 通常200／元失敗だけです。304成功を生成しません。最終親入口は別工程です
  */
 //------------------------------------------------------------------------------
 Result makeCollectorProjectedResponseCandidate( const CollectorProjectedJobInput		&job,
@@ -824,7 +825,7 @@ Result makeCollectorProjectedResponseCandidate( const CollectorProjectedJobInput
 {
 	response = {} ;
 	try {
-		const auto &binding = worker.binding ;	// 元workerのbinding。稼働予約との同値は親の責任です。
+		const auto &binding = worker.binding ;	// 元workerのbinding。稼働予約との同値は親の責任です
 		require( binding.mode == CollectorRecoveryDispatch::Mode::PROJECTED &&
 				binding.jobIndex == job.jobIndex && isHash( binding.generationKey) &&
 				binding.startedUtcMillis >= 1000U &&
@@ -833,7 +834,7 @@ Result makeCollectorProjectedResponseCandidate( const CollectorProjectedJobInput
 				binding.deadlineSteadyMillis > binding.anchorSteadyMillis &&
 				binding.deadlineUtcMillis - binding.anchorUtcMillis ==
 					binding.deadlineSteadyMillis - binding.anchorSteadyMillis) ;
-		CollectorRecoveryDispatch expected = binding ;	// 元公開jobから再結合する同一数値予約。
+		CollectorRecoveryDispatch expected = binding ;	// 元公開jobから再結合する同一数値予約
 		expected.jobKey					   = job.jobKey ;
 		expected.requestKey				   = job.requestKey ;
 		expected.cacheBinding			   = job.cacheBinding ;
@@ -848,7 +849,7 @@ Result makeCollectorProjectedResponseCandidate( const CollectorProjectedJobInput
 		require( worker.io.cause != CollectorIoCause::COMPLETE ||
 				*worker.io.elapsedMillis <
 					binding.deadlineSteadyMillis - binding.anchorSteadyMillis) ;
-		Response candidate ;	// 予約受入ではない公開候補。
+		Response candidate ;	// 予約受入ではない公開候補
 		candidate.generation  = binding.generationKey ;
 		candidate.job		  = binding.jobKey ;
 		candidate.source	  = binding.source.sourceId ;
@@ -867,17 +868,17 @@ Result makeCollectorProjectedResponseCandidate( const CollectorProjectedJobInput
 		candidate.retryAfter  = worker.http.retryAfterUtcMillis.value_or( 0U) ;
 		candidate.review	  = worker.http.retryAfterNeedsReview ;
 		candidate.body		  = worker.http.bodySha256 ;
-		// 未観測量を0として保存しません。
+		// 未観測量を0として保存しません
 		if( worker.io.bytesKnown) {
 			candidate.bytes = worker.io.lowerBytes ;
 		}
 
-		// 欠測validatorは明示nullです。
+		// 欠測validatorは明示nullです
 		if( !worker.http.entityTag.empty()) {
 			candidate.responseValidator = worker.http.entityTag ;
 		}
 
-		// 正常draftは同じ公開metadata validatorを通します。
+		// 正常draftは同じ公開metadata validatorを通します
 		if( worker.reason == CollectorProjectedWorkerReason::NONE) {
 			require( worker.parser && worker.io.cause == CollectorIoCause::COMPLETE &&
 					worker.http.status == 200U) ;
@@ -886,10 +887,10 @@ Result makeCollectorProjectedResponseCandidate( const CollectorProjectedJobInput
 		} else {
 			const bool limited =
 				worker.reason ==
-				CollectorProjectedWorkerReason::PROJECTION_LIMIT ;	// 原上限だけを区別。
+				CollectorProjectedWorkerReason::PROJECTION_LIMIT ;	// 原上限だけを区別
 			require( (limited || worker.reason == CollectorProjectedWorkerReason::IO_FAILURE) &&
 					clearedDraft( worker.projection, limited)) ;
-			auto &metadata	 = candidate.metadata ;	// 消去済み診断をnullで残す最小所有値。
+			auto &metadata	 = candidate.metadata ;	// 消去済み診断をnullで残す最小所有値
 			metadata.binding = {job.source.sourceId,   job.providerId,	job.policyId,
 								job.source.resourceId, job.scopeSha256, job.cacheBinding,
 								candidate.body,		   std::nullopt} ;
@@ -900,7 +901,7 @@ Result makeCollectorProjectedResponseCandidate( const CollectorProjectedJobInput
 			metadata.form =
 				limited ? CollectorMetadataForm::FULL : CollectorMetadataForm::MINIMAL_FAILURE ;
 			metadata.diagnostics.limitStage = limited ? Limit::WORKER : Limit::NONE ;
-			// 第一worker errorだけをそのままmetadataへ保持します。
+			// 第一worker errorだけをそのままmetadataへ保持します
 			if( !limited) {
 				metadata.error =
 					CollectorMetadataError{CollectorMetadataErrorPhase::WORKER,
@@ -920,15 +921,15 @@ Result makeCollectorProjectedResponseCandidate( const CollectorProjectedJobInput
 
 //------------------------------------------------------------------------------
 /**
- * @brief 元input・intent・応答byteと成功sliceを照合して減少を判定します。
- * @param[in] prepared 今回の変更不能なprepared prepared。
- * @param[in] worker 全join後の元結果。ここでは所有監督を証明しません。
- * @param[in] acceptedUtc 今回の親受領UTC。
- * @param[in] history 最大16件の元参照。重複slice・壊れた別bindingも拒否します。
- * @param[out] output 成功時だけ最終候補。失敗時は空。入力とのaliasは禁止です。
- * @param[in] probe 元応答を読む際のhash故障専用診断。
- * @return 元codecのhash失敗または関係違反。縮退や再試行はしません。
- * @note Root登録・直近成功・保存完了を証明しません。現200のoriginal200はnullのままです。
+ * @brief 元input・intent・応答byteと成功sliceを照合して減少を判定します
+ * @param[in] prepared 今回の変更不能なprepared prepared
+ * @param[in] worker 全join後の元結果。ここでは所有監督を証明しません
+ * @param[in] acceptedUtc 今回の親受領UTC
+ * @param[in] history 最大16件の元参照。重複slice・壊れた別bindingも拒否します
+ * @param[out] output 成功時だけ最終候補。失敗時は空。入力とのaliasは禁止です
+ * @param[in] probe 元応答を読む際のhash故障専用診断
+ * @return 元codecのhash失敗または関係違反。縮退や再試行はしません
+ * @note Root登録・直近成功・保存完了を証明しません。現200のoriginal200はnullのままです
  */
 //------------------------------------------------------------------------------
 Result finalizeCollectorProjectedHistory( const CollectorPreparedProjectedJob  &prepared,
@@ -941,12 +942,12 @@ Result finalizeCollectorProjectedHistory( const CollectorPreparedProjectedJob  &
 	output = {} ;
 	try {
 		require( history.size() <= 16U) ;
-		const auto							 &job = prepared.value() ;	// 今回の固定scope。
-		CollectorProjectedHistoryFinalization candidate ;				// 全参照照合まで外部へ公開しません。
+		const auto							 &job = prepared.value() ;	// 今回の固定scope
+		CollectorProjectedHistoryFinalization candidate ;				// 全参照照合まで外部へ公開しません
 		checked(
 			makeCollectorProjectedResponseCandidate( job, worker, acceptedUtc, candidate.response)) ;
-		std::set<std::wstring> seen ;	// 同sliceの多重履歴を直近成功と誤認しません。
-		// 最大16参照を全て検証し、別bindingの破損もcache missへ変換しません。
+		std::set<std::wstring> seen ;	// 同sliceの多重履歴を直近成功と誤認しません
+		// 最大16参照を全て検証し、別bindingの破損もcache missへ変換しません
 		for( const auto &entry : history) {
 			require( entry.campaign && entry.campaign->job( entry.jobIndex) && !entry.input.empty() &&
 					entry.input.size() <= 768U * 1024U && !entry.startIntent.empty() &&
@@ -954,27 +955,27 @@ Result finalizeCollectorProjectedHistory( const CollectorPreparedProjectedJob  &
 					entry.envelope.size() <= ENVELOPE_LIMIT && isHash( entry.generation) &&
 					isHash( entry.operation) && isHash( entry.response) && isHash( entry.projection) &&
 					isHash( entry.slice) && seen.insert( entry.slice).second) ;
-			CollectorProjectedCampaignDefinition definition ;	// 元manifestを再構築します。
-			CollectorProjectedCampaignIdentity identity ;		// 元Gをcallerの参照だけから信用しません。
+			CollectorProjectedCampaignDefinition definition ;	// 元manifestを再構築します
+			CollectorProjectedCampaignIdentity	 identity ;		// 元Gをcallerの参照だけから信用しません
 			require( parseCollectorProjectedCampaignIdentity( entry.input, definition, identity) &&
 					identity.inputSha256 == entry.campaign->inputSha256() &&
 					identity.generationKey == entry.campaign->generationKey() &&
 					identity.generationKey == entry.generation) ;
-			const auto &oldJob = entry.campaign->job( entry.jobIndex)->value() ;	// 元の不変scope。
-			CollectorRecoveryDispatch start ;										// Intentと元preparedの結合を検査します。
+			const auto &oldJob = entry.campaign->job( entry.jobIndex)->value() ;	// 元の不変scope
+			CollectorRecoveryDispatch start ;										// Intentと元preparedの結合を検査します
 			require( parseCollectorProjectedStart( identity, entry.startIntent, start) &&
 					start.jobIndex == entry.jobIndex && start.jobKey == oldJob.jobKey &&
 					start.requestKey == oldJob.requestKey &&
 					start.cacheBinding == oldJob.cacheBinding &&
 					start.scopeSha256 == oldJob.scopeSha256) ;
-			auto boundStart	  = start ;	// 全source条件も既存の同値判定へ渡します。
+			auto boundStart	  = start ;	// 全source条件も既存の同値判定へ渡します
 			boundStart.source = oldJob.source ;
 			require( sameCollectorRecoveryDispatch( start, boundStart)) ;
-			CollectorProjectedResponseBytes decoded ;	// 実CNGの二段独立read-back。
+			CollectorProjectedResponseBytes decoded ;	// 実CNGの二段独立read-back
 			const auto read = decodeCollectorProjectedResponse( oldJob, entry.envelope, decoded,
-															   probe) ;	// 元hash故障は保持。
+															   probe) ;	// 元hash故障は保持
 			checked( read.result, read.stage) ;
-			const auto &old = decoded.value ;	// 元byteと一致した値のみ比較します。
+			const auto &old = decoded.value ;	// 元byteと一致した値のみ比較します
 			require(
 				old.generation == entry.generation &&
 				entry.operation == operation( old.generation, old.job) &&
@@ -990,13 +991,13 @@ Result finalizeCollectorProjectedHistory( const CollectorPreparedProjectedJob  &
 				old.metadata.slices.size() == 1U &&
 				old.metadata.slices.front().scope.key == entry.slice &&
 				old.metadata.slices.front().disposition == CollectorMetadataDisposition::ACCEPTED) ;
-			// 正当な旧artifact／scopeは、全参照検証後にだけ今回との比較から外します。
+			// 正当な旧artifact／scopeは、全参照検証後にだけ今回との比較から外します
 			if( old.cache != job.cacheBinding || oldJob.scopeSha256 != job.scopeSha256) {
 				continue ;
 			}
 
 			require( job.slices.size() == 1U && job.slices.front().key == entry.slice) ;
-			// 完全成功でも送信許可にはせず、元200の固定参照だけを返します。
+			// 完全成功でも送信許可にはせず、元200の固定参照だけを返します
 			if( old.cacheDecision.action == Action::REPLACE) {
 				require( !candidate.previousFull200) ;
 				candidate.previousFull200 = CollectorProjectedOriginal200{
@@ -1005,12 +1006,12 @@ Result finalizeCollectorProjectedHistory( const CollectorPreparedProjectedJob  &
 				candidate.previousValidator = old.responseValidator ;
 			}
 
-			// 消去済み失敗配列を「正常200の0件」として比較しません。
+			// 消去済み失敗配列を「正常200の0件」として比較しません
 			if( worker.reason != CollectorProjectedWorkerReason::NONE) {
 				continue ;
 			}
 
-			auto &metadata = candidate.response.metadata ;	// hash前の今回配列を保持します。
+			auto &metadata = candidate.response.metadata ;	// hash前の今回配列を保持します
 			require( metadata.slices.size() == 1U &&
 					metadata.slices.front().scope.key == entry.slice) ;
 			++candidate.comparedSlices ;
@@ -1018,8 +1019,8 @@ Result finalizeCollectorProjectedHistory( const CollectorPreparedProjectedJob  &
 				return std::count_if( records.begin(), records.end(), [&]( const auto &record) {
 					return record.sliceKey == entry.slice ;
 				}) ;
-			} ; // Codecが重複排除と所属を照合済みの配列のみ数えます。
-			// 減少だけを保留へ最終化し、旧recordを追加して見かけの件数を保ちません。
+			} ; // Codecが重複排除と所属を照合済みの配列のみ数えます
+			// 減少だけを保留へ最終化し、旧recordを追加して見かけの件数を保ちません
 			if( count( metadata.records) < count( old.metadata.records)) {
 				++candidate.decreasedSlices ;
 				metadata.outcome					= Outcome::HELD ;
@@ -1044,12 +1045,12 @@ Result finalizeCollectorProjectedHistory( const CollectorPreparedProjectedJob  &
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全field・元I/Oを検査し、metadata／応答の実hashと外側を生成します。
- * @param[in] job 元固定scope。
- * @param[in] response 履歴判定を終えた値。値型だけでは親受入済みではありません。
- * @param[out] encoded 成功時だけ実byte。失敗時は空。入力responseとのaliasは禁止です。
- * @param[in] probe 数値だけの任意診断。
- * @return 元hash errorと失敗層。入力projectionが非空なら実計算値との一致も必須です。
+ * @brief 全field・元I/Oを検査し、metadata／応答の実hashと外側を生成します
+ * @param[in] job 元固定scope
+ * @param[in] response 履歴判定を終えた値。値型だけでは親受入済みではありません
+ * @param[out] encoded 成功時だけ実byte。失敗時は空。入力responseとのaliasは禁止です
+ * @param[in] probe 数値だけの任意診断
+ * @return 元hash errorと失敗層。入力projectionが非空なら実計算値との一致も必須です
  */
 //------------------------------------------------------------------------------
 CollectorProjectedResponseResult encodeCollectorProjectedResponse(
@@ -1067,12 +1068,12 @@ CollectorProjectedResponseResult encodeCollectorProjectedResponse(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 保存byteを独立CNGと全field関係へ照合します。縮退・修復しません。
- * @param[in] job 元固定scope。
- * @param[in] envelope 最大2 MiBの保存byte。
- * @param[out] decoded 成功時だけ元byteと所有値。入力envelopeとのaliasは禁止です。
- * @param[in] probe 読込み時のhash失敗専用診断。
- * @return 結果。元世代・intent・登録／履歴への再結合は保存監督の責任です。
+ * @brief 保存byteを独立CNGと全field関係へ照合します。縮退・修復しません
+ * @param[in] job 元固定scope
+ * @param[in] envelope 最大2 MiBの保存byte
+ * @param[out] decoded 成功時だけ元byteと所有値。入力envelopeとのaliasは禁止です
+ * @param[in] probe 読込み時のhash失敗専用診断
+ * @return 結果。元世代・intent・登録／履歴への再結合は保存監督の責任です
  */
 //------------------------------------------------------------------------------
 CollectorProjectedResponseResult decodeCollectorProjectedResponse(
@@ -1081,15 +1082,15 @@ CollectorProjectedResponseResult decodeCollectorProjectedResponse(
 {
 	decoded = {} ;
 	try {
-		EnvelopeBytes outer ;	// 独立に実CNG検査する元応答byte。
+		EnvelopeBytes outer ;	// 独立に実CNG検査する元応答byte
 		checked( decodeEnvelope( envelope, outer,
 							   [&]() { return probe ? probe( HashStage::READ_RESPONSE) : 0 ; }),
 				Limit::RESPONSE_BYTES) ;
-		Reader reader( outer.response, RESPONSE_LIMIT) ;	// 元応答の有限位置。
-		Writer canonical( RESPONSE_LIMIT) ;					// 固定順・表記の再出力。
-		Fields fields( canonical, &reader) ;				// 同じschemaを読む専用移送。
-		CollectorProjectedResponseBytes candidate ;			// 全照合後だけ所有値を公開。
-		std::string						io ;				// 旧objectの元byte。
+		Reader							reader( outer.response, RESPONSE_LIMIT) ;	// 元応答の有限位置
+		Writer							canonical( RESPONSE_LIMIT) ;				// 固定順・表記の再出力
+		Fields							fields( canonical, &reader) ;				// 同じschemaを読む専用移送
+		CollectorProjectedResponseBytes candidate ;									// 全照合後だけ所有値を公開
+		std::string						io ;										// 旧objectの元byte
 		responseFields( fields, candidate.value, io, candidate.metadata) ;
 		reader.finish() ;
 		require( canonical.view() == outer.response) ;
@@ -1097,17 +1098,17 @@ CollectorProjectedResponseResult decodeCollectorProjectedResponse(
 				Limit::METADATA_BYTES) ;
 		require( decodeCollectorHttpObservation(
 			io, operation( candidate.value.generation, candidate.value.job), candidate.value.io)) ;
-		auto &observed			   = candidate.value.io ;	// 旧v1 objectに外側fieldを再結合します。
+		auto &observed			   = candidate.value.io ;	// 旧v1 objectに外側fieldを再結合します
 		observed.sends			   = candidate.value.sends ;
 		observed.bytesKnown		   = candidate.value.bytes.has_value() ;
 		observed.finishedUtcMillis = candidate.value.finished ;
 		observed.error = {candidate.value.errorDomain, candidate.value.error, observed.stage} ;
 		validate( job, candidate.value) ;
-		// 特殊hash故障の最小形だけは空projectionを維持します。
+		// 特殊hash故障の最小形だけは空projectionを維持します
 		if( candidate.value.metadata.reason != Reason::METADATA_HASH) {
 			require( isHash( candidate.value.projection)) ;
 			const auto digest = hashBytes( candidate.metadata, probe, HashStage::READ_METADATA,
-										  Limit::METADATA_BYTES) ;	// 独立実計算。
+										  Limit::METADATA_BYTES) ;	// 独立実計算
 			require( digest == candidate.value.projection) ;
 		}
 
@@ -1124,12 +1125,12 @@ CollectorProjectedResponseResult decodeCollectorProjectedResponse(
 
 //------------------------------------------------------------------------------
 /**
- * @brief Live候補だけの一回有限縮退とhash故障分類を行います。
- * @param[in] job 元scope。
- * @param[in] response 親が最終化する候補。元I/Oは変更しません。
- * @param[out] encoded 成功時だけ保存前byte。入力responseとのaliasは禁止です。親の予約受入を実行しません。
- * @param[in] probe 元段階の負HRESULTのみ。
- * @return 失敗時は出力空。第一worker error／OOM／応答hash故障を置換しません。
+ * @brief Live候補だけの一回有限縮退とhash故障分類を行います
+ * @param[in] job 元scope
+ * @param[in] response 親が最終化する候補。元I/Oは変更しません
+ * @param[out] encoded 成功時だけ保存前byte。入力responseとのaliasは禁止です。親の予約受入を実行しません
+ * @param[in] probe 元段階の負HRESULTのみ
+ * @return 失敗時は出力空。第一worker error／OOM／応答hash故障を置換しません
  */
 //------------------------------------------------------------------------------
 CollectorProjectedResponseResult encodeCollectorProjectedResponseWithFallback(
@@ -1138,9 +1139,9 @@ CollectorProjectedResponseResult encodeCollectorProjectedResponseWithFallback(
 {
 	encoded = {} ;
 	const auto initial =
-		// 通常候補の一回符号化。
+		// 通常候補の一回符号化
 		encodeCollectorProjectedResponse( job, response, encoded, probe) ;
-	// 成功と、縮退してはならない第一失敗をそのまま返します。
+	// 成功と、縮退してはならない第一失敗をそのまま返します
 	if( initial.result.status == Status::OK || response.metadata.reason == Reason::WORKER_FAILURE ||
 	   response.metadata.reason == Reason::METADATA_HASH ||
 	   (initial.result.status != Status::SIZE_LIMIT &&
@@ -1153,14 +1154,14 @@ CollectorProjectedResponseResult encodeCollectorProjectedResponseWithFallback(
 		require( response.io.cause == CollectorIoCause::COMPLETE ||
 				response.metadata.diagnostics.workerReason ==
 					CollectorProjectedWorkerReason::PROJECTION_LIMIT) ;
-		Response fallback = response ;			// 元I/Oや元所有値を変更しない一回の縮退候補。
-		auto	&metadata = fallback.metadata ;	// 成功配列を持ち出さない最小形。
+		Response fallback = response ;			// 元I/Oや元所有値を変更しない一回の縮退候補
+		auto	&metadata = fallback.metadata ;	// 成功配列を持ち出さない最小形
 		metadata.records.clear() ;
 		metadata.slices.clear() ;
 		metadata.edges.clear() ;
 		metadata.complete = false ;
 		fallback.projection.clear() ;
-		// Hash故障は元HRESULTを保持し、そのmetadataを再hashしません。
+		// Hash故障は元HRESULTを保持し、そのmetadataを再hashしません
 		if( initial.result.status == Status::HASH_FAILURE) {
 			metadata.form					= CollectorMetadataForm::MINIMAL_FAILURE ;
 			metadata.outcome				= Outcome::FAILED ;

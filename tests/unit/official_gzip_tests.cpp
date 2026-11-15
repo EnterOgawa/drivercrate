@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_gzip_tests.cpp
- * @brief 公式GZip展開単体試験実装。
- * @version 01.00.01
+ * @brief 公式GZip展開単体試験実装
+ * @version 01.00.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,18 +19,19 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 架空の小さいGZip fixtureを使用し、実catalogやnetworkへ依存しません。
+ * @note 架空の小さいGZip fixtureを使用し、実catalogやnetworkへ依存しません
  */
 //------------------------------------------------------------------------------
 
@@ -57,24 +58,24 @@ constexpr std::array GZIP_FIXTURE{
 	std::byte{0x2c}, std::byte{0x50}, std::byte{0x48}, std::byte{0xcb}, std::byte{0xac},
 	std::byte{0x28}, std::byte{0x29}, std::byte{0x2d}, std::byte{0x4a}, std::byte{0x05},
 	std::byte{0x00}, std::byte{0x6d}, std::byte{0xd5}, std::byte{0xa0}, std::byte{0x1f},
-	std::byte{0x18}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}} ;	// Valid GZip fixture。
-constexpr std::string_view EXPECTED_TEXT = "DriverCrate GZip fixture" ;		// 展開期待値。
+	std::byte{0x18}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00}} ;	// Valid GZip fixture
+constexpr std::string_view EXPECTED_TEXT = "DriverCrate GZip fixture" ;		// 展開期待値
 
 //------------------------------------------------------------------------------
 /**
- * @brief Valid GZipを展開できることを検証する。
+ * @brief Valid GZipを展開できることを検証する
  *
- * Header、Deflate、CRC32、ISIZEが正しいfixtureを比較する。
+ * Header、Deflate、CRC32、ISIZEが正しいfixtureを比較する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void					   testValidGzip( TestContext &context)
 {
-	std::vector<std::byte> expanded ;	// 展開APIが設定するbyte列。
+	std::vector<std::byte> expanded ;	// 展開APIが設定するbyte列
 	DRIVERCRATE_EXPECT( context, decompressOfficialGzip( GZIP_FIXTURE, 1024, expanded) == 0) ;
 	const std::span expectedBytes =
-		// Text期待byte列。
+		// Text期待byte列
 		std::as_bytes( std::span( EXPECTED_TEXT.data(), EXPECTED_TEXT.size())) ;
 	DRIVERCRATE_EXPECT( context, std::equal( expanded.begin(), expanded.end(), expectedBytes.begin(),
 										   expectedBytes.end())) ;
@@ -82,23 +83,23 @@ void					   testValidGzip( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief GZip CRCと展開上限違反を拒否することを検証する。
+ * @brief GZip CRCと展開上限違反を拒否することを検証する
  *
- * 改ざんtrailer、ISIZE超過、concatenated memberを拒否する。
+ * 改ざんtrailer、ISIZE超過、concatenated memberを拒否する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testInvalidGzip( TestContext &context)
 {
-	std::vector<std::byte> corrupted( GZIP_FIXTURE.begin(), GZIP_FIXTURE.end()) ;	// 改ざんfixture。
+	std::vector<std::byte> corrupted( GZIP_FIXTURE.begin(), GZIP_FIXTURE.end()) ;	// 改ざんfixture
 	corrupted[corrupted.size() - 8] ^= std::byte{1} ;
-	std::vector<std::byte> expanded ;	// 失敗時に空であることを確認する出力。
+	std::vector<std::byte> expanded ;	// 失敗時に空であることを確認する出力
 	DRIVERCRATE_EXPECT( context, decompressOfficialGzip( corrupted, 1024, expanded) != 0) ;
 	DRIVERCRATE_EXPECT( context, expanded.empty()) ;
 	DRIVERCRATE_EXPECT( context, decompressOfficialGzip( GZIP_FIXTURE, 8, expanded) != 0) ;
 
-	std::vector<std::byte> concatenated( GZIP_FIXTURE.begin(), GZIP_FIXTURE.end()) ;	// 二member入力。
+	std::vector<std::byte> concatenated( GZIP_FIXTURE.begin(), GZIP_FIXTURE.end()) ;	// 二member入力
 	concatenated.insert( concatenated.end(), GZIP_FIXTURE.begin(), GZIP_FIXTURE.end()) ;
 	DRIVERCRATE_EXPECT( context, decompressOfficialGzip( concatenated, 1024, expanded) != 0) ;
 }
@@ -107,8 +108,8 @@ void testInvalidGzip( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式GZip展開の正常系とfail-closed境界を検証する。公式GZip展開の全単体試験を実行する。正常展開、integrity、上限、単一member試験を順に実行する。
- * @param[in,out] context Assertion件数と失敗内容の集計先。 Assertion集計先。
+ * @brief 公式GZip展開の正常系とfail-closed境界を検証する。公式GZip展開の全単体試験を実行する。正常展開、integrity、上限、単一member試験を順に実行する
+ * @param[in,out] context Assertion件数と失敗内容の集計先。 Assertion集計先
  */
 //------------------------------------------------------------------------------
 void runOfficialGzipTests( TestContext &context)

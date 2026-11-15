@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file asus_system_identity_tests.cpp
- * @brief ASUS local system識別単体試験実装。
- * @version 01.02.01
+ * @brief ASUS local system識別単体試験実装
+ * @version 01.02.02
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,20 +19,21 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.01.00 Shunji Ogawa  2026/09/20  Registry確保容量と実size差の回帰を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/09/24  公開model明示の正規pageと拒否条件を検証。
- * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/20  Registry確保容量と実size差の回帰を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/09/24  公開model明示の正規pageと拒否条件を検証
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 実registryやnetworkへ接続せず、架空の非機密表示値だけを使用します。
+ * @note 実registryやnetworkへ接続せず、架空の非機密表示値だけを使用します
  */
 //------------------------------------------------------------------------------
 
@@ -49,14 +50,14 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @brief API返却sizeと確保容量の差、および不正文字列の拒否を再現する。
- * @param[in,out] context Assertion集計先。
+ * @brief API返却sizeと確保容量の差、および不正文字列の拒否を再現する
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testRegistryReturnedSize( TestContext &context)
 {
-	const std::array<wchar_t, 6> buffer{L'A', L'S', L'U', L'S', L'\0', L'\0'} ;	// 架空取得値と余白。
-	std::wstring				 value = L"stale" ;								// 成否ごとの出力確認先。
+	const std::array<wchar_t, 6> buffer{L'A', L'S', L'U', L'S', L'\0', L'\0'} ;	// 架空取得値と余白
+	std::wstring				 value = L"stale" ;								// 成否ごとの出力確認先
 	DRIVERCRATE_EXPECT( context, decodeAsusRegistryString( buffer, 10U, value)) ;
 	DRIVERCRATE_EXPECT( context, value == L"ASUS") ;
 	DRIVERCRATE_EXPECT( context, !decodeAsusRegistryString( buffer, 12U, value)) ;
@@ -66,36 +67,36 @@ void testRegistryReturnedSize( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !decodeAsusRegistryString( buffer, 14U, value)) ;
 	DRIVERCRATE_EXPECT( context, !decodeAsusRegistryString( buffer, 8U, value)) ;
 	DRIVERCRATE_EXPECT( context, !decodeAsusRegistryString( buffer, 32'770U, value)) ;
-	const std::array<wchar_t, 1> empty{L'\0'} ;	// 空REG_SZは任意値として許可する。
+	const std::array<wchar_t, 1> empty{L'\0'} ;	// 空REG_SZは任意値として許可する
 	DRIVERCRATE_EXPECT( context, decodeAsusRegistryString( empty, 2U, value)) ;
 	DRIVERCRATE_EXPECT( context, value.empty()) ;
-	const std::array<wchar_t, 4> embedded{L'A', L'\0', L'B', L'\0'} ;	// 途中NUL後の文字を隠さない。
+	const std::array<wchar_t, 4> embedded{L'A', L'\0', L'B', L'\0'} ;	// 途中NUL後の文字を隠さない
 	DRIVERCRATE_EXPECT( context, !decodeAsusRegistryString( embedded, 8U, value)) ;
 	const std::array<wchar_t, 7> dirtyTail{L'A',  L'S', L'U', L'S',
-										   L'\0', L'X', L'Y'} ;	// 範囲外は本文でない。
+										   L'\0', L'X', L'Y'} ;	// 範囲外は本文でない
 	DRIVERCRATE_EXPECT( context, decodeAsusRegistryString( dirtyTail, 10U, value)) ;
 	DRIVERCRATE_EXPECT( context, value == L"ASUS") ;
-	const std::wstring maximum( 16'384U, L'\0') ;	// 最大容量でも途中NULは拒否する。
+	const std::wstring maximum( 16'384U, L'\0') ;	// 最大容量でも途中NULは拒否する
 	DRIVERCRATE_EXPECT( context, !decodeAsusRegistryString( maximum, 32'768U, value)) ;
 }
 
 //------------------------------------------------------------------------------
-// 内部試験関数定義。
+// 内部試験関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASUS system model要求を検証する。
+ * @brief ASUS system model要求を検証する
  *
- * ASUS notebook相当ではsystem modelとWindows 11を選ぶ。
+ * ASUS notebook相当ではsystem modelとWindows 11を選ぶ
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testAsusSystemModel( TestContext &context)
 {
-	AsusSupportPageRequest request ;		// 構築した公式page要求。
-	bool				   applicable{} ;	// ASUS clientの判定結果。
+	AsusSupportPageRequest request ;		// 構築した公式page要求
+	bool				   applicable{} ;	// ASUS clientの判定結果
 	DRIVERCRATE_EXPECT( context, makeAsusSupportPageRequest(
 									L"ASUSTeK COMPUTER INC.", L"H7600ZW", L"ASUSTeK COMPUTER INC.",
 									L"Fictional Board", 26'100U, false, request, applicable)) ;
@@ -108,17 +109,17 @@ void testAsusSystemModel( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASUS baseboard model要求を検証する。
+ * @brief ASUS baseboard model要求を検証する
  *
- * 自作PC相当ではboard modelを選び予約文字をdata化する。
+ * 自作PC相当ではboard modelを選び予約文字をdata化する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testAsusBaseboardModel( TestContext &context)
 {
-	AsusSupportPageRequest request ;		// 構築した公式page要求。
-	bool				   applicable{} ;	// ASUS clientの判定結果。
+	AsusSupportPageRequest request ;		// 構築した公式page要求
+	bool				   applicable{} ;	// ASUS clientの判定結果
 	DRIVERCRATE_EXPECT( context, makeAsusSupportPageRequest(
 									L"System manufacturer", L"System Product Name", L"ASUS",
 									L"PRIME B760-PLUS D4", 19'045U, false, request, applicable)) ;
@@ -132,17 +133,17 @@ void testAsusBaseboardModel( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 対象外systemを検証する。
+ * @brief 対象外systemを検証する
  *
- * 他社端末とWindows Serverではrequestを構築しない。
+ * 他社端末とWindows Serverではrequestを構築しない
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testNotApplicableSystems( TestContext &context)
 {
-	AsusSupportPageRequest request ;			// 各対象外判定後の空要求。
-	bool				   applicable{true} ;	// 呼出しでfalseへ更新される対象。
+	AsusSupportPageRequest request ;			// 各対象外判定後の空要求
+	bool				   applicable{true} ;	// 呼出しでfalseへ更新される対象
 	DRIVERCRATE_EXPECT( context, makeAsusSupportPageRequest( L"Fictional Systems", L"Model 1",
 														   L"Fictional Boards", L"Board 1", 26'100U,
 														   false, request, applicable)) ;
@@ -158,17 +159,17 @@ void testNotApplicableSystems( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 不正ASUS識別値を検証する。
+ * @brief 不正ASUS識別値を検証する
  *
- * Generic／Unicode modelと未対応buildをfail-closedにする。
+ * Generic／Unicode modelと未対応buildをfail-closedにする
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testInvalidAsusValues( TestContext &context)
 {
-	AsusSupportPageRequest request ;			// 拒否後に空であるべき要求。
-	bool				   applicable{true} ;	// 拒否時にfalseであるべき状態。
+	AsusSupportPageRequest request ;			// 拒否後に空であるべき要求
+	bool				   applicable{true} ;	// 拒否時にfalseであるべき状態
 	DRIVERCRATE_EXPECT( context, !makeAsusSupportPageRequest( L"ASUS", L"System Product Name",
 															L"ASUS", L"Default string", 26'100U,
 															false, request, applicable)) ;
@@ -194,13 +195,13 @@ void testInvalidAsusValues( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 端末registryに依存しない公開model要求と拒否を確認します。
- * @param[in,out] context Assertion集計先。
+ * @brief 端末registryに依存しない公開model要求と拒否を確認します
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testPublicModelPageRequest( TestContext &context)
 {
-	AsusSupportPageRequest request ;	// 公開modelからだけ構築する公式page。
+	AsusSupportPageRequest request ;	// 公開modelからだけ構築する公式page
 	DRIVERCRATE_EXPECT( context, makeAsusPublicModelSupportPageRequest(
 									L"FICTIONAL TEST", L"Windows 11 64-bit", request)) ;
 	DRIVERCRATE_EXPECT( context, request.model == L"FICTIONAL TEST") ;
@@ -233,8 +234,8 @@ void testPublicModelPageRequest( TestContext &context)
 //------------------------------------------------------------------------------
 /**
  * @brief ASUS local system識別の単体試験を実行する。ASUS local system識別単体試験を実行する。System、baseboard、対象外、拒否経路を順番に検証
- *        する。
- * @param[in,out] context assertion件数と失敗内容の集計先。 Assertion集計先。
+ *        する
+ * @param[in,out] context assertion件数と失敗内容の集計先。 Assertion集計先
  */
 //------------------------------------------------------------------------------
 void runAsusSystemIdentityTests( TestContext &context)

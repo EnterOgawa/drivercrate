@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file operation_controller.h
- * @brief 操作状態管理定義。
- * @version 01.02.01
+ * @brief 操作状態管理定義
+ * @version 01.02.04
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,28 +19,31 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  Install最終確認の明示契約を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得後監査の表示境界を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得確認と独立した操作状態を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  復元ポイント状態追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  反復進捗通知受理追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  Server用install保護mode追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  Scan計測snapshotの照合と寿命管理を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  Install最終確認の明示契約を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得後監査の表示境界を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得確認と独立した操作状態を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  復元ポイント状態追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  反復進捗通知受理追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Server用install保護mode追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  Scan計測snapshotの照合と寿命管理を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/09/15  通常scanの協調取消し待ち状態を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
- * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加
+ * Ver.01.01.00 Shunji Ogawa  2026/09/15  通常scanの協調取消し待ち状態を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.03 Shunji Ogawa  2026/11/12  外側tupleの取得予約と開始拒否の原理由を接続
+ * Ver.01.02.04 Shunji Ogawa  2026/11/12  導入前保護失敗に結合した一回の明示復元なし続行を接続
  * </pre>
  *
- * @note UI操作とProvider resultの順序を検証する状態機械を定義します。本classはUI thread専用であり、内部lockingを行いません。
+ * @note UI操作とProvider resultの順序を検証する状態機械を定義します。本classはUI thread専用であり、内部lockingを行いません
  */
 //------------------------------------------------------------------------------
 
@@ -48,6 +51,7 @@
 
 #include "core/official_preparation_operation.h"
 #include "core/update_types.h"
+#include "core/protected_install.h"
 
 #include <optional>
 
@@ -62,346 +66,385 @@ namespace drivercrate {
 struct InstallRetentionSummary ;
 
 //------------------------------------------------------------------------------
-// 操作状態型定義。
+// 操作状態型定義
 //------------------------------------------------------------------------------
 
 /**
- * @brief DriverCrate の利用者向け operation state を表す。
+ * @brief DriverCrate の利用者向け operation state を表す
  */
 enum class ApplicationState {
-	/// Operation未開始または次のscanを開始できる状態。
+	/// Operation未開始または次のscanを開始できる状態
 	IDLE,
-	/// Providerがdriver候補を検索中の状態。
+	/// Providerがdriver候補を検索中の状態
 	SCANNING,
-	/// 通常scanの協調取消しを要求し、確定結果を待つ状態。
+	/// 通常scanの協調取消しを要求し、確定結果を待つ状態
 	CANCELLING_SCAN,
-	/// Scan候補を表示しselectionを受理できる状態。
+	/// Scan候補を表示しselectionを受理できる状態
 	SCAN_READY,
-	/// 選択した公式配布物を検査用に取得中の状態。
+	/// 選択した公式配布物を検査用に取得中の状態
 	PREPARING,
-	/// 協調取消しを要求し、取得の確定結果を待つ状態。
+	/// 協調取消しを要求し、取得の確定結果を待つ状態
 	CANCELLING_PREPARATION,
-	/// 情報検索の協調取消しを要求し、表示専用の確定結果を待つ状態。
+	/// 情報検索の協調取消しを要求し、表示専用の確定結果を待つ状態
 	CANCELLING_METADATA_SEARCH,
-	/// Driver変更前のWindows復元ポイント作成中の状態。
+	/// Driver変更前のWindows復元ポイント作成中の状態
 	CREATING_RESTORE_POINT,
-	/// 選択候補のpayload取得またはcache検証中の状態。
+	/// 選択候補のpayload取得またはcache検証中の状態
 	DOWNLOADING,
-	/// 選択候補をsystemへ適用中の状態。
+	/// 選択候補をsystemへ適用中の状態
 	INSTALLING,
-	/// 導入成功または情報検索の表示専用終端。Purposeと終了理由を併せて判定する。
+	/// 導入成功または情報検索の表示専用終端。Purposeと終了理由を併せて判定する
 	COMPLETED,
-	/// Scan、復元ポイント、installのいずれかが失敗した状態。
+	/// Scan、復元ポイント、installのいずれかが失敗した状態
 	FAILURE,
-	/// 新規operationを拒否してworker停止を待つ状態。
+	/// 新規operationを拒否してworker停止を待つ状態
 	STOPPING,
 } ;
 
 /**
- * @brief Install対象と注意事項に対する今回限りの利用者確認状態を表す。
+ * @brief Install対象と注意事項に対する今回限りの利用者確認状態を表す
  */
 enum class InstallConfirmation {
-	/// 利用者が承認していない、または確認dialogを取り消した。
+	/// 利用者が承認していない、または確認dialogを取り消した
 	NOT_CONFIRMED,
-	/// 表示中の選択集合と注意事項を利用者が明示承認した。
+	/// 表示中の選択集合と注意事項を利用者が明示承認した
 	CONFIRMED,
 } ;
 
 /**
- * @brief operation 開始を拒否した理由を表す。
+ * @brief operation 開始を拒否した理由を表す
  */
 enum class BeginError {
-	/// Operation開始を受理した。
+	/// Operation開始を受理した
 	NONE,
-	/// 別operationを実行中である。
+	/// 別operationを実行中である
 	BUSY,
-	/// 有効なscan候補が存在しない。
+	/// 有効なscan候補が存在しない
 	NO_SCAN_RESULT,
-	/// UIが古いscan sessionを指定した。
+	/// UIが古いscan sessionを指定した
 	STALE_SCAN_SESSION,
-	/// Install対象が一件も選択されていない。
+	/// Install対象が一件も選択されていない
 	EMPTY_SELECTION,
-	/// 同一candidate identityが複数指定された。
+	/// 同一candidate identityが複数指定された
 	DUPLICATE_IDENTITY,
-	/// 同じdeviceから複数候補が指定された。
+	/// 同じdeviceから複数候補が指定された
 	DUPLICATE_DEVICE_SELECTION,
-	/// 現在表示していないidentityが指定された。
+	/// 現在表示していないidentityが指定された
 	UNKNOWN_IDENTITY,
-	/// Install最終確認が明示承認されていない。
+	/// Install最終確認が明示承認されていない
 	CONFIRMATION_REQUIRED,
-	/// 定義外のinstall保護方針が指定された。
+	/// 定義外のinstall保護方針が指定された
 	INVALID_PROTECTION_MODE,
-	/// 取得計画または対象別承認の照合に失敗した。
+	/// 取得計画または対象別承認の照合に失敗した
 	INVALID_PREPARATION,
-	/// 情報検索の明示集合または固定policyが不正である。
+	/// 情報検索の明示集合または固定policyが不正である
 	INVALID_METADATA_SEARCH,
-	/// 単調増加operation IDを安全に割り当てられない。
+	/// 単調増加operation IDを安全に割り当てられない
 	ID_EXHAUSTED,
-	/// Application停止開始後にoperationが要求された。
+	/// Application停止開始後にoperationが要求された
 	STOPPING,
 } ;
 
-/**
- * @brief operation 開始の受付結果を表す。
- */
-struct BeginResult {
-	/// trueの場合はoperationを開始済みである。
-	bool		accepted{} ;
-	/// 受理したoperationのID。拒否時は0。
-	OperationId operationId{} ;
-	/// 拒否理由。受理時はNone。
-	BeginError	error{BeginError::NONE} ;
+/** @brief 取得開始拒否を発行した固定境界です */
+enum class PreparationBeginStage {
+	/// 取得開始の拒否ではありません
+	NONE,
+	/// Controllerの状態/session/選択条件です
+	CONTROLLER,
+	/// operation ID付き承認の再送です
+	REPLAY,
+	/// 元計画の共通approve検査です
+	APPROVAL
 } ;
 
 /**
- * @brief 検索・検査用取得・導入の排他状態と、各操作identityの有効範囲を検証する。
+ * @brief operation 開始の受付結果を表す
+ */
+struct BeginResult {
+	/// trueの場合はoperationを開始済みである
+	bool					 accepted{} ;
+	/// 受理したoperationのID。拒否時は0
+	OperationId				 operationId{} ;
+	/// 拒否理由。受理時はNone
+	BeginError				 error{BeginError::NONE} ;
+	/// 当該取得開始だけの元approve拒否です。未実行ならNONEです
+	OfficialPreparationError preparationError{OfficialPreparationError::NONE} ;
+	/// 当該取得開始拒否の固定地点です。他操作ではNONEです
+	PreparationBeginStage	 preparationStage{PreparationBeginStage::NONE} ;
+} ;
+
+/**
+ * @brief 検索・検査用取得・導入の排他状態と、各操作identityの有効範囲を検証する
  */
 class OperationController final {
 public:
 	/**
-	 * @brief 新しい scan operation を開始する。
-	 * @return 受付時は新しい operation ID、拒否時は理由を含む結果。
+	 * @brief 新しい scan operation を開始する
+	 * @return 受付時は新しい operation ID、拒否時は理由を含む結果
 	 */
 	[[nodiscard]] BeginResult beginScan() ;
 
 	/**
-	 * @brief 同じ通常scanだけを協調取消し結果待ちへ移す。
-	 * @param[in] operationId Workerへ取消しを要求した操作ID。
-	 * @return 現在の通常scanへ適用した場合true。
+	 * @brief 同じ通常scanだけを協調取消し結果待ちへ移す
+	 * @param[in] operationId Workerへ取消しを要求した操作ID
+	 * @return 現在の通常scanへ適用した場合true
 	 */
 	[[nodiscard]] bool		  markScanCancelling( OperationId operationId) noexcept ;
 
 	/**
-	 * @brief 新しい表示専用検索を受理し、旧候補・取得計画・同意を失効する。
-	 * @param[in] request 今回だけの明示集合と通信判断。
-	 * @return 開始した操作IDまたは拒否理由。拒否時は旧状態を変更しない。
+	 * @brief 新しい表示専用検索を受理し、旧候補・取得計画・同意を失効する
+	 * @param[in] request 今回だけの明示集合と通信判断
+	 * @return 開始した操作IDまたは拒否理由。拒否時は旧状態を変更しない
 	 */
 	[[nodiscard]] BeginResult beginMetadataSearch( const MetadataSearchRequest &request) ;
 
 	/**
-	 * @brief 同じ情報検索だけを取消し結果待ちへ移す。
-	 * @param[in] operationId Workerへ取消しを要求した操作ID。
-	 * @return 現在の情報検索へ適用した場合true。
+	 * @brief 同じ情報検索だけを取消し結果待ちへ移す
+	 * @param[in] operationId Workerへ取消しを要求した操作ID
+	 * @return 現在の情報検索へ適用した場合true
 	 */
 	[[nodiscard]] bool		  markMetadataSearchCancelling( OperationId operationId) noexcept ;
 
 	/**
-	 * @brief 情報検索の全snapshotを検証し、導入権限なしの終端へ移す。
-	 * @param[in] operationId 完了対象の操作ID。
-	 * @param[in] result Workerから受け取った情報検索結果。
-	 * @return 現在操作を処理した場合true。不正結果はFAILUREとしsummaryを保持しない。
+	 * @brief 情報検索の全snapshotを検証し、導入権限なしの終端へ移す
+	 * @param[in] operationId 完了対象の操作ID
+	 * @param[in] result Workerから受け取った情報検索結果
+	 * @return 現在操作を処理した場合true。不正結果はFAILUREとしsummaryを保持しない
 	 */
 	[[nodiscard]] bool completeMetadataSearch( OperationId operationId, const ScanResult &result) ;
 
 	/**
-	 * @brief Provider から返された scan 完了を現在の operation へ反映する。
+	 * @brief Provider から返された scan 完了を現在の operation へ反映する
 	 * Provider から返された scan 完了を現在の operationへ反映する。 注記: 遅延した古い resultは状態を変更せず拒否する。現在 operation の不正な成功
-	 * 結果は`FAILURE` として適用する。
-	 * @param[in] operationId 完了対象の operation ID。
-	 * @param[in] result Provider が返した scan 結果。
-	 * @return 現在の operation に適用した場合は `true`。
-	 * @note 遅延した古い result は状態を変更せず拒否する。現在 operation の不正な成功結果は`FAILURE` として適用する。
+	 * 結果は`FAILURE` として適用する
+	 * @param[in] operationId 完了対象の operation ID
+	 * @param[in] result Provider が返した scan 結果
+	 * @return 現在の operation に適用した場合は `true`
+	 * @note 遅延した古い result は状態を変更せず拒否する。現在 operation の不正な成功結果は`FAILURE` として適用する
 	 */
 	[[nodiscard]] bool completeScan( OperationId operationId, const ScanResult &result) ;
 
 	/**
-	 * @brief 現在の scan 候補から install operation を開始する。
-	 * @param[in] scanSessionId 選択元として UI が保持する scan session ID。
-	 * @param[in] identities 利用者が選択した opaque update identity 群。 利用者が選択した opaque update identity群。
-	 * @param[in] confirmation 表示中の選択集合に対する今回限りの最終確認状態。 選択集合への今回限りの最終確認状態。
-	 * @param[in] protectionMode OSと利用者確認に対応するinstall保護方針。 OS別のinstall保護方針。
-	 * @return 受付時は新しい operation ID、拒否時は理由を含む結果。
+	 * @brief 現在の scan 候補から install operation を開始する
+	 * @param[in] scanSessionId 選択元として UI が保持する scan session ID
+	 * @param[in] identities 利用者が選択した opaque update identity 群。 利用者が選択した opaque update identity群
+	 * @param[in] confirmation 表示中の選択集合に対する今回限りの最終確認状態。 選択集合への今回限りの最終確認状態
+	 * @param[in] protectionMode OSと利用者確認に対応するinstall保護方針
+	 * @param[in] failedRestoreOperationId 明示復元なしの場合だけ原失敗操作です。通常は0です
+	 * @return 受付時は新しい operation ID、拒否時は理由を含む結果
 	 */
 	[[nodiscard]] BeginResult beginInstall(
 		ScanSessionId scanSessionId, std::span<const std::wstring> identities,
 		InstallConfirmation	  confirmation,
-		InstallProtectionMode protectionMode = InstallProtectionMode::WINDOWS_RESTORE_POINT) ;
+		InstallProtectionMode protectionMode = InstallProtectionMode::WINDOWS_RESTORE_POINT,
+		OperationId			  failedRestoreOperationId = 0U) ;
 
 	/**
-	 * @brief 復元ポイント開始後に現在のoperationをdownload段階へ進める。
-	 * @param[in] operationId 対象operation ID。
-	 * @return 現在の復元ポイント作成operationに適用した場合は`true`。
+	 * @brief 復元ポイント開始後に現在のoperationをdownload段階へ進める
+	 * @param[in] operationId 対象operation ID
+	 * @return 現在の復元ポイント作成operationに適用した場合は`true`
 	 */
 	[[nodiscard]] bool markDownloading( OperationId operationId) ;
 
 	/**
-	 * @brief 復元ポイント開始またはdownload完了後にinstall段階へ進める。
-	 * @param[in] operationId 対象 operation ID。
-	 * @return 現在の保護付きoperationに適用した場合は`true`。
+	 * @brief 復元ポイント開始またはdownload完了後にinstall段階へ進める
+	 * @param[in] operationId 対象 operation ID
+	 * @return 現在の保護付きoperationに適用した場合は`true`
 	 */
 	[[nodiscard]] bool markInstalling( OperationId operationId) ;
 
 	/**
 	 * @brief install operation の最終結果を状態へ反映する。install operation の最終結果を状態へ反映する。 注記:成功結果は開始時 selection
-	 *        と identityが完全一致する場合だけ受理する。
-	 * @param[in] operationId 対象 operation ID。
-	 * @param[in] result workerが返した復元ポイントとupdateごとの最終結果。
-	 * @param[in] retention 当該操作の実ownerが保持する元subsetです。空では従来の全失効です。
-	 * @return 現在の operation に適用した場合は `true`。
-	 * @note 成功結果は開始時 selection と identity が完全一致する場合だけ受理する。
+	 *        と identityが完全一致する場合だけ受理する
+	 * @param[in] operationId 対象 operation ID
+	 * @param[in] result workerが返した復元ポイントとupdateごとの最終結果
+	 * @param[in] retention 当該操作の実ownerが保持する元subsetです。空では従来の全失効です
+	 * @param[in] workerRestoreOffer workerが原停止/全選択の未消費所有を検証した提示事実です
+	 * @return 現在の operation に適用した場合は `true`
+	 * @note 成功結果は開始時 selection と identity が完全一致する場合だけ受理する
 	 */
 	[[nodiscard]] bool completeInstall( OperationId operationId, const InstallResult &result,
-									   const InstallRetentionSummary *retention = nullptr) ;
+									   const InstallRetentionSummary *retention			 = nullptr,
+									   bool							  workerRestoreOffer = false) ;
 	/**
-	 * @brief 最後に受理したInstall結果の成功を次操作stateと分けます。
-	 * @return 原結果の全検証に成功した場合trueです。
+	 * @brief 最後に受理したInstall結果の成功を次操作stateと分けます
+	 * @return 原結果の全検証に成功した場合trueです
 	 */
 	[[nodiscard]] bool lastInstallSucceeded() const noexcept ;
 	/**
-	 * @brief 同scanで未消費の導入可能候補だけを照合します。
-	 * @param[in] identity 元candidate identityです。
-	 * @return 残存集合へ結合している場合trueです。
+	 * @brief 同scanで未消費の導入可能候補だけを照合します
+	 * @param[in] identity 元candidate identityです
+	 * @return 残存集合へ結合している場合trueです
 	 */
 	[[nodiscard]] bool isInstallCandidateAllowed( std::wstring_view identity) const ;
 	/**
-	 * @brief 原参照の残存scopeだけを照合します。
-	 * @param[in] identity 元発行の参照です。
-	 * @return 未処理planへ結合している場合trueです。
+	 * @brief 原参照の残存scopeだけを照合します
+	 * @param[in] identity 元発行の参照です
+	 * @return 未処理planへ結合している場合trueです
 	 */
 	[[nodiscard]] bool isPreparationReferenceAllowed( std::wstring_view identity) const ;
 	/**
-	 * @brief 当該終端に限り新IDの残planを原subsetへ照合します。
-	 * @param[in] operationId 受理した直前Install操作です。
-	 * @param[in] session 未失効の元scanです。
-	 * @param[in] plan 原metadata/予算のsubsetです。
-	 * @return 一回の全検証と初期化が成立した場合trueです。
+	 * @brief 当該終端に限り新IDの残planを原subsetへ照合します
+	 * @param[in] operationId 受理した直前Install操作です
+	 * @param[in] session 未失効の元scanです
+	 * @param[in] plan 原metadata/予算のsubsetです
+	 * @return 一回の全検証と初期化が成立した場合trueです
 	 */
 	[[nodiscard]] bool setRemainingPreparationPlan( OperationId operationId, ScanSessionId session,
 												   const OfficialPreparationPlan &plan) ;
 
 	/**
-	 * @brief 成功した検索に付随する取得計画を固定する。
-	 * 同じ検索への計画差替えを許可せず、既存承認coreで形式と予算を検証する。
-	 * @param[in] operationId 計画を受け取ったscan操作ID。 計画を受領した検索操作ID。
-	 * @param[in] plan workerが検証した有限計画。 workerが発行した計画。
-	 * @return 現在のscanへ初めて有効計画を保持した場合true。 有効計画を現在の検索へ固定した場合true。
+	 * @brief 成功した検索に付随する取得計画を固定する
+	 * 同じ検索への計画差替えを許可せず、既存承認coreで形式と予算を検証する
+	 * @param[in] operationId 計画を受け取ったscan操作ID。 計画を受領した検索操作ID
+	 * @param[in] plan workerが検証した有限計画。 workerが発行した計画
+	 * @return 現在のscanへ初めて有効計画を保持した場合true。 有効計画を現在の検索へ固定した場合true
 	 */
 	[[nodiscard]] bool setPreparationPlan( OperationId					 operationId,
 										  const OfficialPreparationPlan &plan) ;
 
 	/**
-	 * @brief 未使用の取得計画をUI確認用に参照する。
-	 * 状態変更をまたいで返却pointerを保存しない。
-	 * @return 計画なしはnullptr。次の状態変更まで有効な非所有pointer。 未使用計画、またはnullptr。所有権はcontrollerが保持する。
+	 * @brief 未使用の取得計画をUI確認用に参照する
+	 * 状態変更をまたいで返却pointerを保存しない
+	 * @return 計画なしはnullptr。次の状態変更まで有効な非所有pointer。 未使用計画、またはnullptr。所有権はcontrollerが保持する
 	 */
 	[[nodiscard]] const OfficialPreparationPlan *preparationPlan() const noexcept ;
 
 	/**
-	 * @brief 全対象の判断を照合して取得操作を開始する。
-	 * 取得選択はinstall選択から独立させ、workerとは別にsnapshotを照合する。
-	 * @param[in,out] approval 操作IDが0の承認。受理時だけ新操作IDを反映する。 全対象判断。操作IDは0を要求し、受理時に採番する。
-	 * @return 開始結果。不正承認ではworkerへ送信しない。 受理した操作ID、または拒否理由。
+	 * @brief 全対象の判断を照合して取得操作を開始する
+	 * 取得選択はinstall選択から独立させ、workerとは別にsnapshotを照合する
+	 * @param[in,out] approval 操作IDが0の承認。受理時だけ新操作IDを反映する。 全対象判断。操作IDは0を要求し、受理時に採番する
+	 * @return 開始結果。不正承認ではworkerへ送信しない。 受理した操作ID、または拒否理由
 	 */
 	[[nodiscard]] BeginResult beginPreparation( OfficialPreparationApproval &approval) ;
 
 	/**
-	 * @brief 取得取消し要求後の待機状態へ移行する。
-	 * workerの確定結果まで排他を維持する。
-	 * @param[in] operationId 取消し対象の取得操作ID。 取消し要求を送信した取得操作ID。
-	 * @return 現在の取得操作を取消し待ちへ変更した場合true。 現在の取得を取消し待ちへ変更した場合true。
+	 * @brief 取得取消し要求後の待機状態へ移行する
+	 * workerの確定結果まで排他を維持する
+	 * @param[in] operationId 取消し対象の取得操作ID。 取消し要求を送信した取得操作ID
+	 * @return 現在の取得操作を取消し待ちへ変更した場合true。 現在の取得を取消し待ちへ変更した場合true
 	 */
 	[[nodiscard]] bool		  markPreparationCancelling( OperationId operationId) noexcept ;
 
 	/**
-	 * @brief 取得完了を検証し、導入状態を変更せず元の一覧へ戻す。監査reportを全件照合し、全監査合格として発行された候補だけを現在scanの導入許可集合へ追加する。
-	 * @param[in] result operation／scan／planと対象別の確定結果。 同じoperation／scan／planの取得完了と監査report。
-	 * @param[in] candidates 表示済み候補。監査reportがある場合は必須。変更しない。 同じscanの表示候補。監査reportがある場合は必須。
-	 * @param[in] remainingPlan 当該承認の未選択原subsetです。新ID/原scope/予算を全検証します。
-	 * @return 現在操作の結果を処理した場合true。不正内容はFailedとして適用する。 現在操作ならtrue。不正内容はFailedへ遷移し、旧操作はfalse。
+	 * @brief 取得完了を検証し、導入状態を変更せず元の一覧へ戻す。監査reportを全件照合し、全監査合格として発行された候補だけを現在scanの導入許可集合へ追加する
+	 * @param[in] result operation／scan／planと対象別の確定結果。 同じoperation／scan／planの取得完了と監査report
+	 * @param[in] candidates 表示済み候補。監査reportがある場合は必須。変更しない。 同じscanの表示候補。監査reportがある場合は必須
+	 * @param[in] remainingPlan 当該承認の未選択原subsetです。新ID/原scope/予算を全検証します
+	 * @return 現在操作の結果を処理した場合true。不正内容はFailedとして適用する。 現在操作ならtrue。不正内容はFailedへ遷移し、旧操作はfalse
 	 */
 	[[nodiscard]] bool		  completePreparation( const OfficialPreparationOperationResult &result,
 												  std::span<const UpdateCandidate> candidates = {},
 												  const OfficialPreparationPlan *remainingPlan = nullptr) ;
 
 	/**
-	 * @brief 新しい operation を拒否する停止状態へ移行する。
+	 * @brief 新しい operation を拒否する停止状態へ移行する
 	 */
 	void					  stop() noexcept ;
 
 	/**
-	 * @brief 現在の application state を返す。
-	 * @return 現在 state。
+	 * @brief 現在の application state を返す
+	 * @return 現在 state
 	 */
 	[[nodiscard]] ApplicationState			   state() const noexcept ;
 
 	/**
-	 * @brief 現在有効な scan session ID を返す。
-	 * @return scan result がない場合は 0。
+	 * @brief 現在有効な scan session ID を返す
+	 * @return scan result がない場合は 0
 	 */
 	[[nodiscard]] ScanSessionId				   scanSessionId() const noexcept ;
 
 	/**
-	 * @brief 最後に受理したscan完了時点の段階別計測を参照する。
-	 * @return 有効な公開計測への非所有pointer。未接続・不正・新scan中はnullptr。
-	 * @note 準備操作で再計数せず、install後は選択作用subsetの履歴と未処理scanを保持する。
+	 * @brief 最後に受理したscan完了時点の段階別計測を参照する
+	 * @return 有効な公開計測への非所有pointer。未接続・不正・新scan中はnullptr
+	 * @note 準備操作で再計数せず、install後は選択作用subsetの履歴と未処理scanを保持する
 	 */
 	[[nodiscard]] const ScanMeasurement		  *scanMeasurement() const noexcept ;
 
 	/**
-	 * @brief 現在または最後の検索の権限種別を返す。
-	 * @return 結果行のフラグと独立した用途。
-	 * @return 現在保持するscan用途です。
+	 * @brief 現在または最後の検索の権限種別を返す
+	 * @return 結果行のフラグと独立した用途
+	 * @return 現在保持するscan用途です
 	 */
 	[[nodiscard]] ScanPurpose				   scanPurpose() const noexcept ;
 
 	/**
-	 * @brief 検証済みの情報検索終端を参照する。
-	 * @return 次の状態変更まで借用できる値。未保持はnullptr。
-	 * @return 保持済みsummaryがあればその借用pointer、未設定ならnullです。次の状態更新またはcontroller破棄より前にだけ使用します。
+	 * @brief 検証済みの情報検索終端を参照する
+	 * @return 次の状態変更まで借用できる値。未保持はnullptr
+	 * @return 保持済みsummaryがあればその借用pointer、未設定ならnullです。次の状態更新またはcontroller破棄より前にだけ使用します
 	 */
 	[[nodiscard]] const MetadataSearchSummary *metadataSearchSummary() const noexcept ;
 
 	/**
-	 * @brief 現在実行中または最後に完了した operation ID を返す。
-	 * @return operation 未開始の場合は 0。
+	 * @brief 現在実行中または最後に完了した operation ID を返す
+	 * @return operation 未開始の場合は 0
 	 */
 	[[nodiscard]] OperationId				   activeOperationId() const noexcept ;
 
+	/**
+	 * @brief 同失敗/scan/完全現選択への未使用提示を参照します
+	 * @param[in] failedOperationId 原失敗操作です
+	 * @param[in] identities 現選択全件です
+	 * @return 現保持提示と一致する場合だけtrueです
+	 */
+	[[nodiscard]] bool						   canContinueWithoutRestore(
+								OperationId failedOperationId, std::span<const std::wstring> identities) const noexcept ;
+	/**
+	 * @brief 中止/画面終了で未使用の復元なし提示を破棄します
+	 */
+	void discardRestoreContinuation() noexcept ;
+
 private:
 	/**
-	 * @brief 0 と重複しない次の operation ID を割り当てる。
-	 * @param[out] operationId 割り当てた ID。
-	 * @return ID を割り当てられた場合は `true`。
+	 * @brief 0 と重複しない次の operation ID を割り当てる
+	 * @param[out] operationId 割り当てた ID
+	 * @return ID を割り当てられた場合は `true`
 	 */
 	[[nodiscard]] bool					   allocateOperationId( OperationId &operationId) noexcept ;
 
-	/// UI threadでのみ使用する承認検証。worker側でも独立して再照合する。
+	/// UI threadでのみ使用する承認検証。worker側でも独立して再照合する
 	OfficialPreparationSession			   preparationSession_ ;
-	/// 未使用計画の表示snapshot。
+	/// 未使用計画の表示snapshot
 	std::optional<OfficialPreparationPlan> preparationPlan_ ;
-	/// 取得完了を検証する開始時の全対象判断。
+	/// 取得完了を検証する開始時の全対象判断
 	OfficialPreparationApproval			   activePreparation_ ;
-	/// 現在の利用者向けoperation state。
+	/// 現在の利用者向けoperation state
 	ApplicationState					   state_{ApplicationState::IDLE} ;
-	/// 実行中または最後に完了したoperation ID。
+	/// 実行中または最後に完了したoperation ID
 	OperationId							   activeOperationId_{} ;
-	/// 次回割り当てる0以外のoperation ID。
+	/// 次回割り当てる0以外のoperation ID
 	OperationId							   nextOperationId_{1} ;
-	/// 現在有効なscan session ID。未scan時は0。
+	/// 現在有効なscan session ID。未scan時は0
 	ScanSessionId						   scanSessionId_{} ;
-	/// 最後に受理したscan完了時点の計測。
+	/// 最後に受理したscan完了時点の計測
 	std::optional<ScanMeasurement>		   scanMeasurement_ ;
-	/// 候補フラグや成功値から推測しない、現在検索の権限。
+	/// 候補フラグや成功値から推測しない、現在検索の権限
 	ScanPurpose							   scanPurpose_{ScanPurpose::STANDARD} ;
-	/// 開始時の要求copy。完了packetの自己申告とは独立。
+	/// 開始時の要求copy。完了packetの自己申告とは独立
 	std::optional<MetadataSearchRequest>   metadataSearchRequest_ ;
-	/// 公開境界で検証済みの表示専用終端。次検索で消去する。
+	/// 公開境界で検証済みの表示専用終端。次検索で消去する
 	std::optional<MetadataSearchSummary>   metadataSearchSummary_ ;
-	/// 表示を許可した候補identity集合。
+	/// 表示を許可した候補identity集合
 	std::unordered_set<std::wstring>	   candidateIdentities_ ;
-	/// 候補からdeviceへの対応。
+	/// 候補からdeviceへの対応
 	std::unordered_map<std::wstring, std::wstring> candidateDevices_ ;
-	/// Install対象identity集合。
+	/// Install対象identity集合
 	std::unordered_set<std::wstring>			   activeInstallIdentities_ ;
-	/// 次操作可能stateと分離した原結果の成功です。
+	/// 次操作可能stateと分離した原結果の成功です
 	bool										   lastInstallSucceeded_{} ;
-	/// 初回planの不変scope/予算です。承認ではありません。
+	/// 初回planの不変scope/予算です。承認ではありません
 	std::optional<OfficialPreparationPlan>		   originalPreparationPlan_ ;
-	/// 元参照identityからdevice/targetへの表示結合です。
+	/// 元参照identityからdevice/targetへの表示結合です
 	std::unordered_map<std::wstring, std::pair<std::wstring, std::wstring>> scanReferenceScopes_ ;
-	/// 現planに残る元参照だけです。
+	/// 現planに残る元参照だけです
 	std::unordered_set<std::wstring> retainedReferenceIdentities_ ;
-	/// 現在のinstall開始時に固定し、worker結果との一致を検証する回復保護方針。
+	/// UI threadだけが所有する一回の元保護失敗です
+	RestoreContinuation				 restoreContinuation_ ;
+	/// 当該続行が一回消費した元失敗操作です。通常は0です
+	OperationId						 activeRestoreFailureOperationId_{} ;
+	/// 当該続行の原保護errorです
+	NativeError						 activeRestoreFailureError_{} ;
+	/// 現在のinstall開始時に固定し、worker結果との一致を検証する回復保護方針
 	InstallProtectionMode			 activeInstallProtectionMode_{
 		   InstallProtectionMode::WINDOWS_RESTORE_POINT} ;
 } ;

@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file collector_inspection_acquisition.cpp
- * @brief 台帳起点の実HTML確認と一回payload取得の共通接続。
- * @version 01.07.01
+ * @brief 台帳起点の実HTML確認と一回payload取得の共通接続
+ * @version 01.07.02
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,19 +19,20 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/06  外部定義の静的導線と共通生存取得を接続。
- * Ver.01.01.00 Shunji Ogawa  2026/10/23  同原page観測と明示予算・公開hash・確認本文固定を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/10/23  実完全PAGEの同run有限共有とjob別再確認を追加。
- * Ver.01.02.01 Shunji Ogawa  2026/10/23  重複照会中の停止を未取得へ読み替えない保持条件へ修正。
- * Ver.01.03.00 Shunji Ogawa  2026/10/25  原byteと原SHAを維持した限定末尾診断コメント比較を追加。
- * Ver.01.04.00 Shunji Ogawa  2026/11/04  定義候補を同native metadataへ結ぶ取得を追加。
- * Ver.01.05.00 Shunji Ogawa  2026/11/04  通常resolver・Catalog row/OS・現在EULAの同native照合を追加。
- * Ver.01.06.00 Shunji Ogawa  2026/11/05  NVIDIA同APIの原release再照合と規約未対応拒否を追加。
- * Ver.01.07.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
- * Ver.01.07.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/06  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/10/23  同原page観測と明示予算・公開hash・確認本文固定を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/10/23  実完全PAGEの同run有限共有とjob別再確認を追加
+ * Ver.01.02.01 Shunji Ogawa  2026/10/23  重複照会中の停止を未取得へ読み替えない保持条件へ修正
+ * Ver.01.03.00 Shunji Ogawa  2026/10/25  原byteと原SHAを維持した限定末尾診断コメント比較を追加
+ * Ver.01.04.00 Shunji Ogawa  2026/11/04  定義候補を同native metadataへ結ぶ取得を追加
+ * Ver.01.05.00 Shunji Ogawa  2026/11/04  通常resolver・Catalog row/OS・現在EULAの同native照合を追加
+ * Ver.01.06.00 Shunji Ogawa  2026/11/05  NVIDIA同APIの原release再照合と規約未対応拒否を追加
+ * Ver.01.07.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続
+ * Ver.01.07.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.07.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 同期収集worker専用。公開bool・研究hashで公式取得根拠を復元しない。
+ * @note 同期収集worker専用。公開bool・研究hashで公式取得根拠を復元しない
  * @see docs/adr/0280-collector-scoped-inspection-acquisition.md
  */
 //------------------------------------------------------------------------------
@@ -53,39 +54,39 @@
 
 namespace drivercrate {
 
-/** @brief 私有scopeだけが作る全bindingと一方向の失効状態です。 */
+/** @brief 私有scopeだけが作る全bindingと一方向の失効状態です */
 struct CollectorRunPageLifetime {
-	/// 元parentの固定run識別子です。
+	/// 元parentの固定run識別子です
 	std::wstring										   runId ;
-	/// 将来callerが検証して固定する元native leaseです。
+	/// 将来callerが検証して固定する元native leaseです
 	std::uint64_t										   parentLease{} ;
-	/// 将来callerが監督する元child identityです。
+	/// 将来callerが監督する元child identityです
 	std::uint64_t										   childProcess{} ;
-	/// 元runの全固定入力hashを順序付きで保持します。
+	/// 元runの全固定入力hashを順序付きで保持します
 	std::vector<std::wstring>							   inputHashes ;
-	/// 元runの固定plan hashです。
+	/// 元runの固定plan hashです
 	std::wstring										   planHash ;
-	/// 延長しない単調期限です。
+	/// 延長しない単調期限です
 	std::chrono::steady_clock::time_point				   deadline ;
-	/// 停止したchild等の親照会です。
+	/// 停止したchild等の親照会です
 	HttpCancellationCallback							   cancellation ;
-	/// 空は実時計、非空は専用fixture時計です。
+	/// 空は実時計、非空は専用fixture時計です
 	std::function<std::chrono::steady_clock::time_point()> now ;
-	/// 最後の確認単調時刻です。時計後退を拒否します。
+	/// 最後の確認単調時刻です。時計後退を拒否します
 	std::chrono::steady_clock::time_point				   lastNow{} ;
-	/// 一度falseになれば再開しない元scopeの生存です。
+	/// 一度falseになれば再開しない元scopeの生存です
 	bool												   active{} ;
 } ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実HTTPの完全本文だけを不変所有へ移します。
- * @param[in] lifetime 元runの生存と全bindingです。
- * @param[in] source 元exact起点です。payload/grantは保存しません。
- * @param[in] raw 同HTTPの原byteです。
- * @param[in] html 同原byteから厳密復号した本文です。
- * @param[in] observation 同原byte/hash/最終URL/UTCです。
- * @param[in] transfer 同低位I/Oが発行したCOMPLETEです。
+ * @brief 実HTTPの完全本文だけを不変所有へ移します
+ * @param[in] lifetime 元runの生存と全bindingです
+ * @param[in] source 元exact起点です。payload/grantは保存しません
+ * @param[in] raw 同HTTPの原byteです
+ * @param[in] html 同原byteから厳密復号した本文です
+ * @param[in] observation 同原byte/hash/最終URL/UTCです
+ * @param[in] transfer 同低位I/Oが発行したCOMPLETEです
  */
 //------------------------------------------------------------------------------
 CollectorRunPageProof::CollectorRunPageProof(
@@ -100,15 +101,15 @@ CollectorRunPageProof::CollectorRunPageProof(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 将来parentが実検証して固定する全bindingから有限scopeを作ります。
- * @param[in] runId 親が所有する空でないrun識別子です。
- * @param[in] parentLease 元writer leaseの0でないidentityです。
- * @param[in] childProcess 元監督childの0でないprocess identityです。
- * @param[in] inputHashes 全固定入力の順序付きSHA-256です。1～32個です。
- * @param[in] planHash 固定planの小文字SHA-256です。
- * @param[in] deadline 延長しない単調期限です。
- * @param[in] cancellation 子停止等を確認する非blocking関数です。
- * @param[in] now 空は実steady clock、試験だけ完全fake時計です。
+ * @brief 将来parentが実検証して固定する全bindingから有限scopeを作ります
+ * @param[in] runId 親が所有する空でないrun識別子です
+ * @param[in] parentLease 元writer leaseの0でないidentityです
+ * @param[in] childProcess 元監督childの0でないprocess identityです
+ * @param[in] inputHashes 全固定入力の順序付きSHA-256です。1～32個です
+ * @param[in] planHash 固定planの小文字SHA-256です
+ * @param[in] deadline 延長しない単調期限です
+ * @param[in] cancellation 子停止等を確認する非blocking関数です
+ * @param[in] now 空は実steady clock、試験だけ完全fake時計です
  */
 //------------------------------------------------------------------------------
 CollectorRunPageScope::CollectorRunPageScope(
@@ -118,7 +119,7 @@ CollectorRunPageScope::CollectorRunPageScope(
 	std::function<std::chrono::steady_clock::time_point()> now)
 	: lifetime_( std::make_shared<CollectorRunPageLifetime>())
 {
-	// 全結合値を同じ私有lifetimeへ一度だけ所有させます。
+	// 全結合値を同じ私有lifetimeへ一度だけ所有させます
 	lifetime_->runId		= std::move( runId) ;
 	lifetime_->parentLease	= parentLease ;
 	lifetime_->childProcess = childProcess ;
@@ -127,7 +128,7 @@ CollectorRunPageScope::CollectorRunPageScope(
 	lifetime_->deadline		= deadline ;
 	lifetime_->cancellation = std::move( cancellation) ;
 	lifetime_->now			= std::move( now) ;
-	// Hash群の要素は順序付きで固定し、欠損した入力を暗黙補完しません。
+	// Hash群の要素は順序付きで固定し、欠損した入力を暗黙補完しません
 	const auto hashValid = []( std::wstring_view hash) {
 		return hash.size() == 64U &&
 			   hash.find_first_not_of( L"0123456789abcdef") == std::wstring_view::npos ;
@@ -141,7 +142,7 @@ CollectorRunPageScope::CollectorRunPageScope(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 残る借用を失効し、所有本文を解放します。
+ * @brief 残る借用を失効し、所有本文を解放します
  */
 //------------------------------------------------------------------------------
 CollectorRunPageScope::~CollectorRunPageScope()
@@ -151,7 +152,7 @@ CollectorRunPageScope::~CollectorRunPageScope()
 
 //------------------------------------------------------------------------------
 /**
- * @brief 終了後の借用を永久拒否し、cacheを破棄します。
+ * @brief 終了後の借用を永久拒否し、cacheを破棄します
  */
 //------------------------------------------------------------------------------
 void CollectorRunPageScope::finish() noexcept
@@ -163,16 +164,16 @@ void CollectorRunPageScope::finish() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 生存・単調時計・取消しを同じrunへ確認します。
- * @return 継続時true、停止時は全proofを失効してfalseです。
+ * @brief 生存・単調時計・取消しを同じrunへ確認します
+ * @return 継続時true、停止時は全proofを失効してfalseです
  */
 //------------------------------------------------------------------------------
 bool CollectorRunPageScope::checkpoint() noexcept
 {
 	try {
-		const auto now = lifetime_->now ? lifetime_->now()
-										: std::chrono::steady_clock::now() ;	// 元単調時計です。
-		// 終了・期限・子停止・時計後退はいずれも同runの全借用を失効します。
+		const auto now =
+			lifetime_->now ? lifetime_->now() : std::chrono::steady_clock::now() ;	// 元単調時計です
+		// 終了・期限・子停止・時計後退はいずれも同runの全借用を失効します
 		if( !lifetime_->active || now < lifetime_->lastNow || now >= lifetime_->deadline ||
 		   (lifetime_->cancellation && lifetime_->cancellation())) {
 			finish() ;
@@ -182,7 +183,7 @@ bool CollectorRunPageScope::checkpoint() noexcept
 		lifetime_->lastNow = now ;
 		return true ;
 	} catch( ...) {
-		// 取消し/時計の障害を生存証明へ変えません。
+		// 取消し/時計の障害を生存証明へ変えません
 		finish() ;
 		return false ;
 	}
@@ -190,22 +191,22 @@ bool CollectorRunPageScope::checkpoint() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 先行予約前に同runの完全PAGEだけを検索します。
- * @param[in] source 今回のexact起点です。
- * @return 同scope/期限内の共有不変証拠、未取得または停止時はnullです。
+ * @brief 先行予約前に同runの完全PAGEだけを検索します
+ * @param[in] source 今回のexact起点です
+ * @return 同scope/期限内の共有不変証拠、未取得または停止時はnullです
  */
 //------------------------------------------------------------------------------
 std::shared_ptr<const CollectorRunPageProof> CollectorRunPageScope::find(
 	const CollectorInspectionSource &source) noexcept
 {
-	// 停止後に保存済み本文から新しい権限を作りません。
+	// 停止後に保存済み本文から新しい権限を作りません
 	if( !checkpoint()) {
 		return {} ;
 	}
 
-	// 同じrunの有限集合からexact起点だけを検索します。
+	// 同じrunの有限集合からexact起点だけを検索します
 	for( const auto &page : pages_) {
-		// Payloadの一致や別jobの成功はcache keyへ使いません。
+		// Payloadの一致や別jobの成功はcache keyへ使いません
 		if( page->rootUrl_ == source.rootUrl && page->rootHost_ == source.rootHost) {
 			return page ;
 		}
@@ -216,10 +217,10 @@ std::shared_ptr<const CollectorRunPageProof> CollectorRunPageScope::find(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 借用証拠の全bindingと当該起点を再確認します。
- * @param[in] proof 借用する私有証拠です。
- * @param[in] source 今回のexact起点です。
- * @return 同じ生存scopeと完全PAGEの場合だけtrueです。
+ * @brief 借用証拠の全bindingと当該起点を再確認します
+ * @param[in] proof 借用する私有証拠です
+ * @param[in] source 今回のexact起点です
+ * @return 同じ生存scopeと完全PAGEの場合だけtrueです
  */
 //------------------------------------------------------------------------------
 bool CollectorRunPageScope::accepts( const CollectorRunPageProof		&proof,
@@ -233,21 +234,21 @@ bool CollectorRunPageScope::accepts( const CollectorRunPageProof		&proof,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同HTTPの完全本文を有限cacheへ保存します。
- * @param[in] source 原起点です。
- * @param[in] raw 実原本文です。
- * @param[in] html 同じ復号本文です。
- * @param[in] observation 同原byteのhash/URL/UTCです。
- * @param[in] transfer 同低位HTTPが発行した完全観測です。
- * @return 所有済み不変証拠。停止/上限/重複/未完時nullです。
+ * @brief 同HTTPの完全本文を有限cacheへ保存します
+ * @param[in] source 原起点です
+ * @param[in] raw 実原本文です
+ * @param[in] html 同じ復号本文です
+ * @param[in] observation 同原byteのhash/URL/UTCです
+ * @param[in] transfer 同低位HTTPが発行した完全観測です
+ * @return 所有済み不変証拠。停止/上限/重複/未完時nullです
  */
 //------------------------------------------------------------------------------
 std::shared_ptr<const CollectorRunPageProof> CollectorRunPageScope::retain(
 	const CollectorInspectionSource &source, std::vector<std::byte> raw, std::wstring html,
 	CollectorInspectionPageObservation observation, CollectorHttpTransferObservation transfer)
 {
-	constexpr std::uint64_t MAX_RAW_BYTES = 32ULL * 1024ULL * 1024ULL ;	// 同runの保有限度です。
-	// 同実HTTP完全終端と有限容量だけを保持し、過大集合を一部だけ保存しません。
+	constexpr std::uint64_t MAX_RAW_BYTES = 32ULL * 1024ULL * 1024ULL ;	// 同runの保有限度です
+	// 同実HTTP完全終端と有限容量だけを保持し、過大集合を一部だけ保存しません
 	if( !checkpoint() || pages_.size() >= 32U || raw.empty() || raw.size() > 2U * 1024U * 1024U ||
 	   raw.size() > MAX_RAW_BYTES - rawBytes_ || html.empty() || observation.httpStatus != 200U ||
 	   observation.bodyBytes != raw.size() || observation.bodySha256.size() != 64U ||
@@ -262,7 +263,7 @@ std::shared_ptr<const CollectorRunPageProof> CollectorRunPageScope::retain(
 
 	const auto proof = std::make_shared<const CollectorRunPageProof>(
 		CollectorRunPageProof( lifetime_, source, std::move( raw), std::move( html),
-							  // 同run不変所有です。
+							  // 同run不変所有です
 							  std::move( observation), std::move( transfer))) ;
 	pages_.push_back( proof) ;
 	rawBytes_ += proof->raw_.size() ;
@@ -272,10 +273,10 @@ std::shared_ptr<const CollectorRunPageProof> CollectorRunPageScope::retain(
 namespace {
 //------------------------------------------------------------------------------
 /**
- * @brief URLとhrefの有限な未解釈文字を確認する。
- * @param[in] value 台帳のURLまたはhref。
- * @param[in] maximum 文字数上限。
- * @return 空・制御・認証query・entity・fragment等がない場合true。
+ * @brief URLとhrefの有限な未解釈文字を確認する
+ * @param[in] value 台帳のURLまたはhref
+ * @param[in] maximum 文字数上限
+ * @return 空・制御・認証query・entity・fragment等がない場合true
  */
 //------------------------------------------------------------------------------
 bool plainInspectionValue( std::wstring_view value, std::size_t maximum)
@@ -289,9 +290,9 @@ bool plainInspectionValue( std::wstring_view value, std::size_t maximum)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Exact hostだけの小文字ASCII集合を確認する。
- * @param[in] host 台帳host。
- * @return Suffix・大文字・制御・IP literalを含まないDNS形の場合true。
+ * @brief Exact hostだけの小文字ASCII集合を確認する
+ * @param[in] host 台帳host
+ * @return Suffix・大文字・制御・IP literalを含まないDNS形の場合true
  */
 //------------------------------------------------------------------------------
 bool exactInspectionHost( std::wstring_view host)
@@ -307,20 +308,20 @@ bool exactInspectionHost( std::wstring_view host)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 定義hrefを起点URLから有限な文字列規則で解決する。
- * @param[in] source 事前文字検査済みの定義。
- * @return 絶対href、root相対、page相対だけの解決値。
- * @note Dot segment・query・entity・scheme相対の補完は行わない。
+ * @brief 定義hrefを起点URLから有限な文字列規則で解決する
+ * @param[in] source 事前文字検査済みの定義
+ * @return 絶対href、root相対、page相対だけの解決値
+ * @note Dot segment・query・entity・scheme相対の補完は行わない
  */
 //------------------------------------------------------------------------------
 std::wstring resolvedInspectionHref( const CollectorInspectionSource &source)
 {
-	// 明示絶対HTTPSを別schemeへ補完しない。
+	// 明示絶対HTTPSを別schemeへ補完しない
 	if( source.href.starts_with( L"https://")) {
 		return source.href ;
 	}
 
-	// Root相対は同じ起点originだけへ解決する。
+	// Root相対は同じ起点originだけへ解決する
 	if( source.href.starts_with( L"/")) {
 		return L"https://" + source.rootHost + source.href ;
 	}
@@ -329,28 +330,28 @@ std::wstring resolvedInspectionHref( const CollectorInspectionSource &source)
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 対象href markerが別属性の引用符内でないことを確認する。
- * @param[in] tag 引用符終端を確認した原anchor開始tag。
- * @param[in] marker 空白とhrefの正確な属性token。
- * @return 引用符外の一意属性だけならtrue。
+ * @brief 対象href markerが別属性の引用符内でないことを確認する
+ * @param[in] tag 引用符終端を確認した原anchor開始tag
+ * @param[in] marker 空白とhrefの正確な属性token
+ * @return 引用符外の一意属性だけならtrue
  */
 //------------------------------------------------------------------------------
 bool inspectionMarkerIsAttribute( std::wstring_view tag, std::wstring_view marker)
 {
-	wchar_t		quote{} ;	// 0は属性値外。
-	std::size_t matches{} ;	// 属性値内の偽markerを数えない。
-	// 有限tag全体を走査し、属性tokenの文脈を確認する。
+	wchar_t		quote{} ;	// 0は属性値外
+	std::size_t matches{} ;	// 属性値内の偽markerを数えない
+	// 有限tag全体を走査し、属性tokenの文脈を確認する
 	for( std::size_t index = 0U; index < tag.size(); ++index) {
-		// Markerが属性値の外にある時だけ有効とする。
+		// Markerが属性値の外にある時だけ有効とする
 		if( quote == 0U && tag.substr( index).starts_with( marker)) {
 			++matches ;
 		}
 
-		// 同じ引用符だけが属性値を閉じる。
+		// 同じ引用符だけが属性値を閉じる
 		if( quote != 0U && tag[index] == quote) {
 			quote = 0U ;
 		}
-		// 別引用符の開始は属性値外だけで認める。
+		// 別引用符の開始は属性値外だけで認める
 		else if( quote == 0U && (tag[index] == L'"' || tag[index] == L'\'')) {
 			quote = tag[index] ;
 		}
@@ -362,15 +363,15 @@ bool inspectionMarkerIsAttribute( std::wstring_view tag, std::wstring_view marke
 
 //------------------------------------------------------------------------------
 /**
- * @brief 定義のexact URLとhref解決を非通信で照合する。
- * @param[in] source 保守担当の一record定義。
- * @return 有限・exact host・href解決が一致する場合true。公式性の認定ではない。
+ * @brief 定義のexact URLとhref解決を非通信で照合する
+ * @param[in] source 保守担当の一record定義
+ * @return 有限・exact host・href解決が一致する場合true。公式性の認定ではない
  */
 //------------------------------------------------------------------------------
 bool validateCollectorInspectionSource( const CollectorInspectionSource &source)
 {
-	const std::array<std::wstring_view, 1U> rootHosts{source.rootHost} ;		// Exact起点host。
-	const std::array<std::wstring_view, 1U> payloadHosts{source.payloadHost} ;	// Record限定委譲先。
+	const std::array<std::wstring_view, 1U> rootHosts{source.rootHost} ;		// Exact起点host
+	const std::array<std::wstring_view, 1U> payloadHosts{source.payloadHost} ;	// Record限定委譲先
 	return exactInspectionHost( source.rootHost) && exactInspectionHost( source.payloadHost) &&
 		   plainInspectionValue( source.rootUrl, 8192U) &&
 		   plainInspectionValue( source.payloadUrl, 8192U) &&
@@ -385,46 +386,46 @@ bool validateCollectorInspectionSource( const CollectorInspectionSource &source)
 namespace {
 //------------------------------------------------------------------------------
 /**
- * @brief 同じ有限HTML走査で一意anchorまたは実末尾終了tagを確認します。
- * @param[in] html 原文字順を維持した本文です。
- * @param[in] href 空でない場合は対象anchor、空の場合は末尾終了tagを検査します。
- * @return 完全な有限走査と当該条件が成立する場合trueです。
- * @note Comment・属性文字列・非表示要素内の偽tagを根拠にしません。
+ * @brief 同じ有限HTML走査で一意anchorまたは実末尾終了tagを確認します
+ * @param[in] html 原文字順を維持した本文です
+ * @param[in] href 空でない場合は対象anchor、空の場合は末尾終了tagを検査します
+ * @return 完全な有限走査と当該条件が成立する場合trueです
+ * @note Comment・属性文字列・非表示要素内の偽tagを根拠にしません
  */
 //------------------------------------------------------------------------------
 bool inspectCollectorHtml( std::wstring_view html, std::wstring_view href)
 {
-	// 台帳の不正形・過大／NUL本文を走査前に拒否する。
+	// 台帳の不正形・過大／NUL本文を走査前に拒否する
 	if( html.empty() || html.size() > 2U * 1024U * 1024U ||
 	   html.find( L'\0') != std::wstring_view::npos) {
 		return false ;
 	}
 
-	std::wstring lower( html) ;	// TagのASCII caseだけを走査用に統一する。
-	// 原属性値はhtmlから読み、大小文字を勝手に変換しない。
+	std::wstring lower( html) ;	// TagのASCII caseだけを走査用に統一する
+	// 原属性値はhtmlから読み、大小文字を勝手に変換しない
 	for( auto &character : lower) {
-		// Tag比較用のASCII大文字だけを小文字へ揃える。
+		// Tag比較用のASCII大文字だけを小文字へ揃える
 		if( character >= L'A' && character <= L'Z') {
 			character = static_cast<wchar_t>( character - L'A' + L'a') ;
 		}
 	}
 
-	const std::wstring marker = L" href=\"" + std::wstring( href) + L"\"" ;	// 対象の原属性。
-	std::size_t		   offset{} ;											// 最後に処理したtag末尾。最大8192tagで終了する。
-	std::size_t		   tagCount{} ;											// Commentを含む有限走査数。
-	std::size_t		   matches{} ;											// 二件以上なら曖昧として拒否する。
-	bool			   terminal{} ;											// 実tagとして確認した固定末尾だけでtrueです。
-	// 全開始tagを走査し、対象anchorまたは末尾位置を確認します。
+	const std::wstring marker = L" href=\"" + std::wstring( href) + L"\"" ;	// 対象の原属性
+	std::size_t		   offset{} ;											// 最後に処理したtag末尾。最大8192tagで終了する
+	std::size_t		   tagCount{} ;											// Commentを含む有限走査数
+	std::size_t		   matches{} ;											// 二件以上なら曖昧として拒否する
+	bool			   terminal{} ;											// 実tagとして確認した固定末尾だけでtrueです
+	// 全開始tagを走査し、対象anchorまたは末尾位置を確認します
 	while( (offset = lower.find( L'<', offset)) != std::wstring::npos) {
-		// 過大tag集合を一部分だけ検査して成功にしない。
+		// 過大tag集合を一部分だけ検査して成功にしない
 		if( ++tagCount > 8192U) {
 			return false ;
 		}
 
-		// Comment内markupを配布根拠にしない。
+		// Comment内markupを配布根拠にしない
 		if( lower.compare( offset, 4U, L"<!--") == 0) {
-			const auto end = lower.find( L"-->", offset + 4U) ;	// Commentの有限終端。
-			// 未終端comment以降を有効HTMLとみなさない。
+			const auto end = lower.find( L"-->", offset + 4U) ;	// Commentの有限終端
+			// 未終端comment以降を有効HTMLとみなさない
 			if( end == std::wstring::npos) {
 				return false ;
 			}
@@ -433,38 +434,38 @@ bool inspectCollectorHtml( std::wstring_view html, std::wstring_view href)
 			continue ;
 		}
 
-		std::size_t end = offset + 1U ;	// 引用符内の偽tagを読み飛ばす有限走査。
-		wchar_t		quote{} ;			// 0は属性値外、単／二重引用符を独立に扱う。
-		// 最大4096文字で引用符外のtag終端まで進める。
+		std::size_t end = offset + 1U ;	// 引用符内の偽tagを読み飛ばす有限走査
+		wchar_t		quote{} ;			// 0は属性値外、単／二重引用符を独立に扱う
+		// 最大4096文字で引用符外のtag終端まで進める
 		for( ; end < lower.size() && end - offset <= 4096U; ++end) {
-			const wchar_t character = lower[end] ;	// 現在tagの文字。
-			// 同じ引用符だけが属性値を閉じる。
+			const wchar_t character = lower[end] ;	// 現在tagの文字
+			// 同じ引用符だけが属性値を閉じる
 			if( quote != 0U && character == quote) {
 				quote = 0U ;
 			}
-			// 別引用符の開始を属性値外だけで認める。
+			// 別引用符の開始を属性値外だけで認める
 			else if( quote == 0U && (character == L'\"' || character == L'\'')) {
 				quote = character ;
 			}
-			// 引用符外の終端だけをtag末尾とする。
+			// 引用符外の終端だけをtag末尾とする
 			else if( quote == 0U && character == L'>') {
 				break ;
 			}
 		}
 
-		// 未終端・過大tagは別parserへfallbackしない。
+		// 未終端・過大tagは別parserへfallbackしない
 		if( end >= lower.size() || end - offset > 4096U) {
 			return false ;
 		}
 
-		const auto	 tag = std::wstring_view( lower).substr( offset, end - offset + 1U) ;	// Tagだけ。
-		std::wstring suppressed ;															// 非実行・非表示要素の開始だけで設定する。
-		// Script等の開始tagは大小文字以外を推測補正しない。
+		const auto	 tag = std::wstring_view( lower).substr( offset, end - offset + 1U) ;	// Tagだけ
+		std::wstring suppressed ;															// 非実行・非表示要素の開始だけで設定する
+		// Script等の開始tagは大小文字以外を推測補正しない
 		for( const auto name :
 			{L"script", L"style", L"template", L"noscript", L"textarea", L"iframe", L"xmp",
 			 L"title", L"plaintext", L"noembed", L"noframes", L"svg", L"math"}) {
-			const std::wstring prefix = L"<" + std::wstring( name) ;	// 要素境界を確認するprefix。
-			// 別名要素を同じ非表示要素と誤認しない。
+			const std::wstring prefix = L"<" + std::wstring( name) ;	// 要素境界を確認するprefix
+			// 別名要素を同じ非表示要素と誤認しない
 			if( tag.starts_with( prefix) && tag.size() > prefix.size() &&
 			   std::wstring_view( L">/ \t\n\r\f").find( tag[prefix.size()]) !=
 				   std::wstring_view::npos) {
@@ -473,10 +474,10 @@ bool inspectCollectorHtml( std::wstring_view html, std::wstring_view href)
 			}
 		}
 
-		// 非表示内容内の偽anchorや引用符をtag走査へ戻さない。
+		// 非表示内容内の偽anchorや引用符をtag走査へ戻さない
 		if( !suppressed.empty()) {
-			const auto close = lower.find( L"</" + suppressed + L">", end + 1U) ;	// 有限close。
-			// 未終端またはnested templateを独自に推測しない。
+			const auto close = lower.find( L"</" + suppressed + L">", end + 1U) ;	// 有限close
+			// 未終端またはnested templateを独自に推測しない
 			if( close == std::wstring::npos || (href.empty() && suppressed == L"plaintext") ||
 			   ((suppressed == L"template" || suppressed == L"svg" || suppressed == L"math") &&
 				lower.find( L"<" + suppressed, end + 1U) < close)) {
@@ -487,23 +488,23 @@ bool inspectCollectorHtml( std::wstring_view html, std::wstring_view href)
 			continue ;
 		}
 
-		// 元HTML終端と同じ位置の実body終了tagだけを比較境界にします。
+		// 元HTML終端と同じ位置の実body終了tagだけを比較境界にします
 		if( href.empty() && html.ends_with( L"</body>\n</html>") && offset + 15U == html.size() &&
 		   tag == L"</body>") {
 			terminal = true ;
 		}
 
-		// 直前bodyと連続する実html終了tagを必要とします。
+		// 直前bodyと連続する実html終了tagを必要とします
 		if( href.empty() && offset + 7U == html.size() && tag == L"</html>") {
 			return terminal ;
 		}
 
-		// 有効anchorだけを属性parserへ渡す。終了tag・他要素は根拠にしない。
+		// 有効anchorだけを属性parserへ渡す。終了tag・他要素は根拠にしない
 		if( !href.empty() && suppressed.empty() &&
 		   (tag.starts_with( L"<a ") || tag.starts_with( L"<a\n"))) {
-			std::wstring actualHref ;											// 同じtagの原属性値です。
-			const auto	 original = html.substr( offset, end - offset + 1U) ;	// Case未変更の原tag。
-			// 同じ原hrefの一意属性だけを配布根拠にする。
+			std::wstring actualHref ;											// 同じtagの原属性値です
+			const auto	 original = html.substr( offset, end - offset + 1U) ;	// Case未変更の原tag
+			// 同じ原hrefの一意属性だけを配布根拠にする
 			if( tag.find( L"href") != std::wstring_view::npos &&
 			   tag.find( L"href", tag.find( L"href") + 4U) == std::wstring_view::npos &&
 			   inspectionMarkerIsAttribute( original, marker) &&
@@ -522,11 +523,11 @@ bool inspectCollectorHtml( std::wstring_view html, std::wstring_view href)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 静的HTMLの有効な一意anchorを確認する。
- * @param[in] html 実本文またはfixture。最大2 Mi UTF-16 code unit。
- * @param[in] source 非通信検査を通る対象定義。
- * @return 対象hrefが一意な有効anchorである場合true。権限は発行しない。
- * @note Comment・script・style・template・noscript内を根拠にしない。
+ * @brief 静的HTMLの有効な一意anchorを確認する
+ * @param[in] html 実本文またはfixture。最大2 Mi UTF-16 code unit
+ * @param[in] source 非通信検査を通る対象定義
+ * @return 対象hrefが一意な有効anchorである場合true。権限は発行しない
+ * @note Comment・script・style・template・noscript内を根拠にしない
  */
 //------------------------------------------------------------------------------
 bool verifyCollectorInspectionLink( std::wstring_view html, const CollectorInspectionSource &source)
@@ -536,60 +537,60 @@ bool verifyCollectorInspectionLink( std::wstring_view html, const CollectorInspe
 
 //------------------------------------------------------------------------------
 /**
- * @brief 原PAGEの厳密末尾診断コメントだけを区別する比較SHA-256を計算します。
- * @param[in] raw 1 byte以上2 MiB以下の原本文です。呼出し中に不変とします。
- * @param[out] sha256 成功時は小文字64桁、失敗時は空です。原本文hashとは別の値です。
- * @return 成功0、入力不正またはCNG失敗のHRESULTです。
- * @note ADR0399の完全末尾書式と実HTML終端だけを除外し、その他は全rawをhashします。本文・原観測を変更せず、公式性や権限を発行しません。
+ * @brief 原PAGEの厳密末尾診断コメントだけを区別する比較SHA-256を計算します
+ * @param[in] raw 1 byte以上2 MiB以下の原本文です。呼出し中に不変とします
+ * @param[out] sha256 成功時は小文字64桁、失敗時は空です。原本文hashとは別の値です
+ * @return 成功0、入力不正またはCNG失敗のHRESULTです
+ * @note ADR0399の完全末尾書式と実HTML終端だけを除外し、その他は全rawをhashします。本文・原観測を変更せず、公式性や権限を発行しません
  */
 //------------------------------------------------------------------------------
 NativeError computeCollectorPageContentSha256( const std::string_view raw, std::wstring &sha256)
 {
 	sha256.clear() ;
-	// 原PAGEの有限容量を越える入力から比較値を発行しません。
+	// 原PAGEの有限容量を越える入力から比較値を発行しません
 	if( raw.empty() || raw.size() > 2U * 1024U * 1024U) {
 		return E_INVALIDARG ;
 	}
 
 	constexpr std::string_view MARKER =
-		"<!-- WP Fastest Cache file was created in " ;	// 唯一の除外候補です。
-	const auto start   = raw.find( MARKER) ;			// 一件以外は全rawを比較します。
-	auto	   content = raw ;							// 不明な形式では元byte全体を保持します。
-	// EOF直結・一件・固定桁の既知診断だけを詳しく確認します。
+		"<!-- WP Fastest Cache file was created in " ;	// 唯一の除外候補です
+	const auto start   = raw.find( MARKER) ;			// 一件以外は全rawを比較します
+	auto	   content = raw ;							// 不明な形式では元byte全体を保持します
+	// EOF直結・一件・固定桁の既知診断だけを詳しく確認します
 	if( start != std::string_view::npos && raw.find( MARKER, start + 1U) == std::string_view::npos &&
 	   raw.size() - start == MARKER.size() + 50U) {
-		const auto value  = raw.substr( start + MARKER.size()) ;	// 固定50byteの診断値です。
-		bool	   digits = true ;									// 秒数の可変部はASCII数字14桁だけです。
-		// 全14桁を確認し、指数表記や任意文字列を除去しません。
+		const auto value  = raw.substr( start + MARKER.size()) ;	// 固定50byteの診断値です
+		bool	   digits = true ;									// 秒数の可変部はASCII数字14桁だけです
+		// 全14桁を確認し、指数表記や任意文字列を除去しません
 		for( std::size_t index = 2U; index < 16U; ++index) {
 			digits = digits && value[index] >= '0' && value[index] <= '9' ;
 		}
 
-		const auto stamp = value.substr( 29U, 17U) ;	// 実観測とは独立した診断日時です。
-		// 日時の数字を全て確認し、書式不明は全rawへ戻します。
+		const auto stamp = value.substr( 29U, 17U) ;	// 実観測とは独立した診断日時です
+		// 日時の数字を全て確認し、書式不明は全rawへ戻します
 		for( const auto index : {0U, 1U, 3U, 4U, 6U, 7U, 9U, 10U, 12U, 13U, 15U, 16U}) {
 			digits = digits && stamp[index] >= '0' && stamp[index] <= '9' ;
 		}
 
-		// 生成日時は書式だけを検査し、実観測時刻や期限へ使用しません。
+		// 生成日時は書式だけを検査し、実観測時刻や期限へ使用しません
 		if( digits && value.starts_with( "0.") && value.substr( 16U, 13U) == " seconds, on " &&
 		   value.ends_with( " -->") && stamp[2U] == '-' && stamp[5U] == '-' && stamp[8U] == ' ' &&
 		   stamp[11U] == ':' && stamp[14U] == ':') {
 			const auto number = [stamp]( const std::size_t at) {
 				return static_cast<unsigned>( (stamp[at] - '0') * 10 + stamp[at + 1U] - '0') ;
-			} ; // 検証済み二桁だけを読む短期借用です。
+			} ; // 検証済み二桁だけを読む短期借用です
 			const std::chrono::year_month_day date{
 				std::chrono::year{2000 + static_cast<int>( number( 6U))},
 				std::chrono::month{number( 3U)},
-				std::chrono::day{number( 0U)}} ;	// 診断書式だけの検査です。
-			std::wstring prefix ;					// ASCII tag走査用だけのbyte対応文字列です。
+				std::chrono::day{number( 0U)}} ;	// 診断書式だけの検査です
+			std::wstring prefix ;					// ASCII tag走査用だけのbyte対応文字列です
 			prefix.reserve( start) ;
-			// 再encodeせず、ASCII tagの位置を原byteへ対応させます。
+			// 再encodeせず、ASCII tagの位置を原byteへ対応させます
 			for( const unsigned char character : raw.substr( 0U, start)) {
 				prefix.push_back( static_cast<wchar_t>( character)) ;
 			}
 
-			// 実HTML終端の外側にある既知書式だけを比較digestから除外します。
+			// 実HTML終端の外側にある既知書式だけを比較digestから除外します
 			if( date.ok() && number( 9U) < 24U && number( 12U) < 60U && number( 15U) < 60U &&
 			   inspectCollectorHtml( prefix, {})) {
 				content = raw.substr( 0U, start) ;
@@ -602,7 +603,7 @@ NativeError computeCollectorPageContentSha256( const std::string_view raw, std::
 
 //------------------------------------------------------------------------------
 /**
- * @brief Cacheなしの実HTTPを作る。構築だけでは通信しない。
+ * @brief Cacheなしの実HTTPを作る。構築だけでは通信しない
  */
 //------------------------------------------------------------------------------
 CollectorInspectionAcquisition::CollectorInspectionAcquisition() : http_( false)
@@ -610,9 +611,9 @@ CollectorInspectionAcquisition::CollectorInspectionAcquisition() : http_( false)
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 非通信fixtureの低位HTTP表を所有する。
- * @param[in] transport Native関数を使用しない完全な試験I/O表。
- * @note 通常collector設定から指定しない。
+ * @brief 非通信fixtureの低位HTTP表を所有する
+ * @param[in] transport Native関数を使用しない完全な試験I/O表
+ * @note 通常collector設定から指定しない
  */
 //------------------------------------------------------------------------------
 CollectorInspectionAcquisition::CollectorInspectionAcquisition( OfficialHttpTransport transport)
@@ -622,16 +623,16 @@ CollectorInspectionAcquisition::CollectorInspectionAcquisition( OfficialHttpTran
 
 //------------------------------------------------------------------------------
 /**
- * @brief 定義resolver向けの未認証公開本文を同じ通常HTTPで取得します。
- * @param[in] url 登録済み公開起点またはCatalogの有限endpointです。
- * @param[in] host 同じ定義のexact公開hostです。
- * @param[in] modelJson 閉model APIのJSON用途だけtrueです。
- * @param[out] raw 成功時だけ原byteです。取得権限ではありません。
- * @param[out] text 成功時だけ厳密UTF-8復号結果です。
- * @param[out] observation 同じ原HTTPの時刻/hashです。
- * @param[out] transfer 失敗時も実要求/byteを保持します。
- * @param[in] cancellation 所有callerの期限/取消しです。
- * @return 元HTTPのHRESULTです。Cacheや封印proofを復元しません。
+ * @brief 定義resolver向けの未認証公開本文を同じ通常HTTPで取得します
+ * @param[in] url 登録済み公開起点またはCatalogの有限endpointです
+ * @param[in] host 同じ定義のexact公開hostです
+ * @param[in] modelJson 閉model APIのJSON用途だけtrueです
+ * @param[out] raw 成功時だけ原byteです。取得権限ではありません
+ * @param[out] text 成功時だけ厳密UTF-8復号結果です
+ * @param[out] observation 同じ原HTTPの時刻/hashです
+ * @param[out] transfer 失敗時も実要求/byteを保持します
+ * @param[in] cancellation 所有callerの期限/取消しです
+ * @return 元HTTPのHRESULTです。Cacheや封印proofを復元しません
  */
 //------------------------------------------------------------------------------
 NativeError CollectorInspectionAcquisition::readDefinitionMetadata(
@@ -640,26 +641,26 @@ NativeError CollectorInspectionAcquisition::readDefinitionMetadata(
 	CollectorInspectionPageObservation &observation, CollectorHttpTransferObservation &transfer,
 	const HttpCancellationCallback &cancellation)
 {
-	std::wstring finalUrl ;	// 同じHTTPが確定した公開URLです。
+	std::wstring finalUrl ;	// 同じHTTPが確定した公開URLです
 	return http_.getCollectorInspectionPage( url, host, cancellation, text, finalUrl, &observation,
 											&transfer, &raw, modelJson) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実起点本文の確認後、一payloadを共通保護sessionへ取得する。
- * @param[in] scanSessionId 同じsessionに固定した0でないID。
- * @param[in] source 手動調査済みの対象定義。成功boolは含めない。
- * @param[in,out] session 初期化済みの有限元取得session。
- * @param[in,out] workspace 同じID・収集scopeの空保護領域。
- * @param[in,out] costReader 実OSまたは試験回線照会。
- * @param[in] cancellation 空または非blocking取消し関数。
- * @param[out] result 共通取得結果。失敗時に旧成功を残さない。
- * @param[in] maximumBytes 今回だけの1～32MiB上限です。既定は従来上限です。
- * @param[in] publishedSha256 空または実byteへ比較する小文字SHA-256です。
- * @param[in] expectedPageContentSha256 空または手動確認の比較digestです。不一致時はpayloadを開始しません。
- * @return 全固定成功0、起点・回線・共通検証拒否のHRESULT。
- * @note 同期COM内で直列に使用し、制限付き／不明回線を自動承認しない。
+ * @brief 実起点本文の確認後、一payloadを共通保護sessionへ取得する
+ * @param[in] scanSessionId 同じsessionに固定した0でないID
+ * @param[in] source 手動調査済みの対象定義。成功boolは含めない
+ * @param[in,out] session 初期化済みの有限元取得session
+ * @param[in,out] workspace 同じID・収集scopeの空保護領域
+ * @param[in,out] costReader 実OSまたは試験回線照会
+ * @param[in] cancellation 空または非blocking取消し関数
+ * @param[out] result 共通取得結果。失敗時に旧成功を残さない
+ * @param[in] maximumBytes 今回だけの1～32MiB上限です。既定は従来上限です
+ * @param[in] publishedSha256 空または実byteへ比較する小文字SHA-256です
+ * @param[in] expectedPageContentSha256 空または手動確認の比較digestです。不一致時はpayloadを開始しません
+ * @return 全固定成功0、起点・回線・共通検証拒否のHRESULT
+ * @note 同期COM内で直列に使用し、制限付き／不明回線を自動承認しない
  */
 //------------------------------------------------------------------------------
 NativeError CollectorInspectionAcquisition::acquire(
@@ -675,21 +676,21 @@ NativeError CollectorInspectionAcquisition::acquire(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 私有runの実PAGEを確定し、同じ元取得境界で一jobだけ取得します。
- * @param[in] scanSessionId 同じsessionに固定した0でないID。
- * @param[in] source 手動調査済みの対象定義。成功boolは含めない。
- * @param[in,out] session 初期化済みの有限元取得session。
- * @param[in,out] workspace 同じID・収集scopeの空保護領域。
- * @param[in,out] costReader 実OSまたは試験回線照会。
- * @param[in] cancellation 空または非blocking取消し関数。
- * @param[out] result 共通取得結果。失敗時に旧成功を残さない。
- * @param[in] maximumBytes 今回だけの1～32MiB上限です。既定は従来上限です。
- * @param[in] publishedSha256 空または実byteへ比較する小文字SHA-256です。
- * @param[in] expectedPageContentSha256 空または手動確認の比較digestです。不一致時はpayloadを開始しません。
- * @param[in,out] scope 元parentの生存runです。呼出し中だけ借用し、runのcheckpointを検証します。
- * @param[in] proof nullなら元PAGEを取得し、非nullならscope内の完全本文を検証して借用します。
- * @return 全固定成功0、起点・回線・共通検証拒否のHRESULT。
- * @note 同期COM内で直列に使用し、制限付き／不明回線を自動承認しない。
+ * @brief 私有runの実PAGEを確定し、同じ元取得境界で一jobだけ取得します
+ * @param[in] scanSessionId 同じsessionに固定した0でないID
+ * @param[in] source 手動調査済みの対象定義。成功boolは含めない
+ * @param[in,out] session 初期化済みの有限元取得session
+ * @param[in,out] workspace 同じID・収集scopeの空保護領域
+ * @param[in,out] costReader 実OSまたは試験回線照会
+ * @param[in] cancellation 空または非blocking取消し関数
+ * @param[out] result 共通取得結果。失敗時に旧成功を残さない
+ * @param[in] maximumBytes 今回だけの1～32MiB上限です。既定は従来上限です
+ * @param[in] publishedSha256 空または実byteへ比較する小文字SHA-256です
+ * @param[in] expectedPageContentSha256 空または手動確認の比較digestです。不一致時はpayloadを開始しません
+ * @param[in,out] scope 元parentの生存runです。呼出し中だけ借用し、runのcheckpointを検証します
+ * @param[in] proof nullなら元PAGEを取得し、非nullならscope内の完全本文を検証して借用します
+ * @return 全固定成功0、起点・回線・共通検証拒否のHRESULT
+ * @note 同期COM内で直列に使用し、制限付き／不明回線を自動承認しない
  */
 //------------------------------------------------------------------------------
 NativeError CollectorInspectionAcquisition::acquireWithRunPage(
@@ -700,7 +701,7 @@ NativeError CollectorInspectionAcquisition::acquireWithRunPage(
 	std::wstring_view publishedSha256, std::wstring_view expectedPageContentSha256,
 	CollectorRunPageScope &scope, const CollectorRunPageProof *proof)
 {
-	// 元parentの生存照会を全HTTP hopと本文の取消しへ接続します。
+	// 元parentの生存照会を全HTTP hopと本文の取消しへ接続します
 	const auto stop = [&scope, &cancellation]() {
 		return !scope.checkpoint() || (cancellation && cancellation()) ;
 	} ;
@@ -710,21 +711,21 @@ NativeError CollectorInspectionAcquisition::acquireWithRunPage(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 通常一回取得と私有run取得の共通検証・一回消費を実行します。
- * @param[in] scanSessionId 同じsessionに固定した0でないID。
- * @param[in] source 手動調査済みの対象定義。成功boolは含めない。
- * @param[in,out] session 初期化済みの有限元取得session。
- * @param[in,out] workspace 同じID・収集scopeの空保護領域。
- * @param[in,out] costReader 実OSまたは試験回線照会。
- * @param[in] cancellation 空または非blocking取消し関数。
- * @param[out] result 共通取得結果。失敗時に旧成功を残さない。
- * @param[in] maximumBytes 今回だけの1～32MiB上限です。既定は従来上限です。
- * @param[in] publishedSha256 空または実byteへ比較する小文字SHA-256です。
- * @param[in] expectedPageContentSha256 空または手動確認の比較digestです。不一致時はpayloadを開始しません。
- * @param[in,out] scope nullは通常一回入口でproofもnullです。非nullは呼出し中だけ借用する同runです。
- * @param[in] proof nullなら元PAGEを取得し、非nullならscope内の完全本文を検証して借用します。
- * @return 全固定成功0、起点・回線・共通検証拒否のHRESULT。
- * @note 同期COM内で直列に使用し、制限付き／不明回線を自動承認しない。
+ * @brief 通常一回取得と私有run取得の共通検証・一回消費を実行します
+ * @param[in] scanSessionId 同じsessionに固定した0でないID
+ * @param[in] source 手動調査済みの対象定義。成功boolは含めない
+ * @param[in,out] session 初期化済みの有限元取得session
+ * @param[in,out] workspace 同じID・収集scopeの空保護領域
+ * @param[in,out] costReader 実OSまたは試験回線照会
+ * @param[in] cancellation 空または非blocking取消し関数
+ * @param[out] result 共通取得結果。失敗時に旧成功を残さない
+ * @param[in] maximumBytes 今回だけの1～32MiB上限です。既定は従来上限です
+ * @param[in] publishedSha256 空または実byteへ比較する小文字SHA-256です
+ * @param[in] expectedPageContentSha256 空または手動確認の比較digestです。不一致時はpayloadを開始しません
+ * @param[in,out] scope nullは通常一回入口でproofもnullです。非nullは呼出し中だけ借用する同runです
+ * @param[in] proof nullなら元PAGEを取得し、非nullならscope内の完全本文を検証して借用します
+ * @return 全固定成功0、起点・回線・共通検証拒否のHRESULT
+ * @note 同期COM内で直列に使用し、制限付き／不明回線を自動承認しない
  */
 //------------------------------------------------------------------------------
 NativeError CollectorInspectionAcquisition::acquireCore(
@@ -736,8 +737,8 @@ NativeError CollectorInspectionAcquisition::acquireCore(
 	CollectorRunPageScope *scope, const CollectorRunPageProof *proof)
 {
 	result			  = {} ;
-	const bool reused = std::exchange( used_, true) ;	// 初回拒否も一回scopeを消費する。
-	// 再試行・別session・任意URL形は実起点GET前に止める。
+	const bool reused = std::exchange( used_, true) ;	// 初回拒否も一回scopeを消費する
+	// 再試行・別session・任意URL形は実起点GET前に止める
 	if( reused || scanSessionId == 0U || scanSessionId != session.scanSessionId_ ||
 	   !validateCollectorInspectionSource( source) || maximumBytes == 0U ||
 	   maximumBytes > COLLECTOR_INSPECTION_MAXIMUM_BYTES ||
@@ -758,7 +759,7 @@ NativeError CollectorInspectionAcquisition::acquireCore(
 	source_			 = source ;
 	maximumBytes_	 = maximumBytes ;
 	publishedSha256_ = publishedSha256 ;
-	// 親が既存proofを渡さなかった場合も同PAGEを二度取得しません。
+	// 親が既存proofを渡さなかった場合も同PAGEを二度取得しません
 	if( scope != nullptr && proof == nullptr && scope->find( source_)) {
 		result.state = OfficialAcquisitionState::REJECTED ;
 		result.error = E_ACCESSDENIED ;
@@ -766,7 +767,7 @@ NativeError CollectorInspectionAcquisition::acquireCore(
 	}
 
 	result.networkCostError = costReader.read( result.networkCost) ;
-	// 起点本文にも制限付き・不明回線の自動同意を適用しない。
+	// 起点本文にも制限付き・不明回線の自動同意を適用しない
 	if( result.networkCostError != 0 ||
 	   result.networkCost != OfficialNetworkCostKind::UNRESTRICTED) {
 		result.state = OfficialAcquisitionState::AWAITING_NETWORK_CONSENT ;
@@ -774,13 +775,13 @@ NativeError CollectorInspectionAcquisition::acquireCore(
 		return result.error ;
 	}
 
-	std::wstring html ;				// 同scopeの実起点本文。結果JSONへ出さない。
-	std::wstring finalUrl ;			// 実最終responseの相対href base。永続化しない。
-	std::wstring contentSha256 ;	// 同HTTPの原SHAとは別の比較値です。
-	NativeError	 error{} ;			// 元HTTPと借用拒否を後段parserから分離します。
-	// 借用証拠の期限・元run・全bindingを再確認し、無効時は新GETへfallbackしません。
+	std::wstring html ;				// 同scopeの実起点本文。結果JSONへ出さない
+	std::wstring finalUrl ;			// 実最終responseの相対href base。永続化しない
+	std::wstring contentSha256 ;	// 同HTTPの原SHAとは別の比較値です
+	NativeError	 error{} ;			// 元HTTPと借用拒否を後段parserから分離します
+	// 借用証拠の期限・元run・全bindingを再確認し、無効時は新GETへfallbackしません
 	if( proof != nullptr) {
-		// 別scope/終了済み証拠ではpayloadも起点も送信しません。
+		// 別scope/終了済み証拠ではpayloadも起点も送信しません
 		if( !scope->accepts( *proof, source_)) {
 			result.state = OfficialAcquisitionState::REJECTED ;
 			result.error = E_ACCESSDENIED ;
@@ -792,49 +793,49 @@ NativeError CollectorInspectionAcquisition::acquireCore(
 		pageTransfer_	 = proof->transfer_ ;
 		finalUrl		 = proof->observation_.finalUrl ;
 		pageReusedInRun_ = true ;
-		// 同じ生存proofの原byteから毎jobの比較値を再確認します。
+		// 同じ生存proofの原byteから毎jobの比較値を再確認します
 		error = computeCollectorPageContentSha256(
 			{reinterpret_cast<const char *>( proof->raw_.data()), proof->raw_.size()},
 			contentSha256) ;
 	} else {
-		std::vector<std::byte> raw ;	// 同HTTP比較と私有runが原本文を所有します。
+		std::vector<std::byte> raw ;	// 同HTTP比較と私有runが原本文を所有します
 		error =
 			http_.getCollectorInspectionPage( source_.rootUrl, source_.rootHost, cancellation, html,
 											 finalUrl, &pageObservation_, &pageTransfer_, &raw) ;
 		std::shared_ptr<const CollectorRunPageProof>
-			retained ;	// 比較失敗でも元完全PAGEをscopeへ残します。
-		// PAGE自体が完全なら、後続anchor/hash/CAT失敗と独立して他jobへ保持します。
+			retained ;	// 比較失敗でも元完全PAGEをscopeへ残します
+		// PAGE自体が完全なら、後続anchor/hash/CAT失敗と独立して他jobへ保持します
 		if( error == 0 && scope != nullptr) {
 			retained =
 				scope->retain( source_, std::move( raw), html, pageObservation_, pageTransfer_) ;
-			// 保持拒否を比較成功として扱いません。
+			// 保持拒否を比較成功として扱いません
 			if( !retained) {
 				error = E_ACCESSDENIED ;
 			}
 		}
 
-		// 同HTTPのbyteを文字aliasで借用し、再encodeせず比較します。
+		// 同HTTPのbyteを文字aliasで借用し、再encodeせず比較します
 		if( error == 0) {
-			const auto &actual = retained ? retained->raw_ : raw ;	// 同じ完全PAGEの所有領域です。
+			const auto &actual = retained ? retained->raw_ : raw ;	// 同じ完全PAGEの所有領域です
 			error			   = computeCollectorPageContentSha256(
 				 {reinterpret_cast<const char *>( actual.data()), actual.size()}, contentSha256) ;
 		}
 	}
 
-	auto resolvedSource	   = source_ ;	// 台帳を変更せず、実最終URLでだけhrefを再解決する。
+	auto resolvedSource	   = source_ ;	// 台帳を変更せず、実最終URLでだけhrefを再解決する
 	resolvedSource.rootUrl = finalUrl ;
-	// 旧本文への手動確認を変更後pageへ移し替えません。
+	// 旧本文への手動確認を変更後pageへ移し替えません
 	if( error == 0 && !expectedPageContentSha256.empty() &&
 	   contentSha256 != expectedPageContentSha256) {
 		error = HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH) ;
 	}
 
-	// 起点取得に成功しても、対象linkが有効anchorでなければ取得しない。
+	// 起点取得に成功しても、対象linkが有効anchorでなければ取得しない
 	if( error == 0 && !verifyCollectorInspectionLink( html, resolvedSource)) {
 		error = HRESULT_FROM_WIN32( ERROR_NOT_FOUND) ;
 	}
 
-	// 元HTTP／parser失敗をpackage不適合に変換しない。
+	// 元HTTP／parser失敗をpackage不適合に変換しない
 	if( error != 0) {
 		result.state = OfficialAcquisitionState::REJECTED ;
 		result.error = error ;
@@ -848,7 +849,7 @@ NativeError CollectorInspectionAcquisition::acquireCore(
 		.resourceId		   = OFFICIAL_PAYLOAD_RESOURCE_ID,
 		.workspaceFileName = L"inspection.zip",
 		.maximumFileBytes  = maximumBytes_,
-		.publishedSha256   = publishedSha256_} ;	// 公開hashは共通実byte検証でだけ使用する。
+		.publishedSha256   = publishedSha256_} ;	// 公開hashは共通実byte検証でだけ使用する
 	return session.acquireCore(
 		request, workspace, *this, costReader, []( std::uint64_t, std::uint64_t) {}, cancellation,
 		result, this) ;
@@ -856,10 +857,10 @@ NativeError CollectorInspectionAcquisition::acquireCore(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じprivate scopeへ共通sessionの要求を完全一致させる。
- * @param[in] scanSessionId 元取得sessionのID。
- * @param[in] request adapter自身が生成した要求。
- * @return 起点確認後・payload未取得の同じ要求の場合true。
+ * @brief 同じprivate scopeへ共通sessionの要求を完全一致させる
+ * @param[in] scanSessionId 元取得sessionのID
+ * @param[in] request adapter自身が生成した要求
+ * @return 起点確認後・payload未取得の同じ要求の場合true
  */
 //------------------------------------------------------------------------------
 bool CollectorInspectionAcquisition::matches(
@@ -879,15 +880,15 @@ bool CollectorInspectionAcquisition::matches(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式source policyを使用して一fileを保存する。
- * @param[in] url 登録済み公式payloadの絶対HTTPS URL。
- * @param[in] resourceId Payload用途の組み込みresource ID。
- * @param[in] maximumBytes 受信を許可する有限byte数。
- * @param[in] outputFile 書込み可能な所有外file handle。
- * @param[in] progressCallback 確定済み受信進捗の通知先。
- * @param[in] cancellationCallback 取消し状態を返す非blocking関数。
- * @return 保存と公式取得根拠記録の成功時は0、失敗時はHRESULT bit pattern。
- * @note 起点確認後の同じ一payload要求だけを受理します。元HTTP/保存境界の成功と内容検査成功は区別します。
+ * @brief 公式source policyを使用して一fileを保存する
+ * @param[in] url 登録済み公式payloadの絶対HTTPS URL
+ * @param[in] resourceId Payload用途の組み込みresource ID
+ * @param[in] maximumBytes 受信を許可する有限byte数
+ * @param[in] outputFile 書込み可能な所有外file handle
+ * @param[in] progressCallback 確定済み受信進捗の通知先
+ * @param[in] cancellationCallback 取消し状態を返す非blocking関数
+ * @return 保存と公式取得根拠記録の成功時は0、失敗時はHRESULT bit pattern
+ * @note 起点確認後の同じ一payload要求だけを受理します。元HTTP/保存境界の成功と内容検査成功は区別します
  */
 //------------------------------------------------------------------------------
 NativeError CollectorInspectionAcquisition::download(
@@ -895,7 +896,7 @@ NativeError CollectorInspectionAcquisition::download(
 	HANDLE outputFile, const HttpDownloadProgressCallback &progressCallback,
 	const HttpCancellationCallback &cancellationCallback)
 {
-	// 同じ実起点からの唯一payload以外は送信しない。
+	// 同じ実起点からの唯一payload以外は送信しない
 	if( !rootVerified_ || payloadAttempted_ || url != source_.payloadUrl ||
 	   resourceId != OFFICIAL_PAYLOAD_RESOURCE_ID || maximumBytes == 0U ||
 	   maximumBytes > maximumBytes_) {
@@ -903,29 +904,29 @@ NativeError CollectorInspectionAcquisition::download(
 	}
 
 	payloadAttempted_ = true ;
-	const std::array<std::wstring_view, 1U> hosts{source_.payloadHost} ;	// 当該recordだけの委譲先。
-	std::vector<std::uint32_t>				origins ;						// 同一origin内二redirectまで。
-	const bool resolved = !definitionCdn_.empty() ;							// 同一scopeだけが解決した秘密値です。
+	const std::array<std::wstring_view, 1U> hosts{source_.payloadHost} ;	// 当該recordだけの委譲先
+	std::vector<std::uint32_t>				origins ;						// 同一origin内二redirectまで
+	const bool resolved = !definitionCdn_.empty() ;							// 同一scopeだけが解決した秘密値です
 	const std::function<NativeError()> checkpoint = [&]() {
 		return definitionCheckpoint( cancellationCallback) ;
-	} ; // 同時計/取消しです。
+	} ; // 同時計/取消しです
 	const auto error = http_.downloadToFile(
 		resolved ? definitionCdn_.view() : url, hosts, resolved ? 0U : 2U, maximumBytes, outputFile,
 		progressCallback, cancellationCallback, origins, true, &payloadTransfer_,
-		resolved ? &checkpoint : nullptr) ;	// 同じ実保存観測です。
+		resolved ? &checkpoint : nullptr) ;	// 同じ実保存観測です
 	payloadVerified_ = error == 0 && !origins.empty() ;
 	return error ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief この収集adapterでは委譲grantによる取得を固定拒否します。
- * @param[out] destinationEvidence 常に空へ初期化します。
- * @return 常にE_ACCESSDENIEDです。
- * @note HTTP・file書込み・grant消費を行いません。基底interfaceの実取得能力はこのoverrideでは提供しません。
+ * @brief この収集adapterでは委譲grantによる取得を固定拒否します
+ * @param[out] destinationEvidence 常に空へ初期化します
+ * @return 常にE_ACCESSDENIEDです
+ * @note HTTP・file書込み・grant消費を行いません。基底interfaceの実取得能力はこのoverrideでは提供しません
  * @note 第1引数（OfficialDelegatedGetRequest&、in）、第2引数（HANDLE、in）、第3引数（const
  *       HttpDownloadProgressCallback&、in）、第4引数（const HttpCancellationCallback&、in）は定義では無名です。要求・handle・関数を
- *       使用せず、呼出しも変更も行いません。
+ *       使用せず、呼出しも変更も行いません
  */
 //------------------------------------------------------------------------------
 NativeError CollectorInspectionAcquisition::downloadDelegated(
@@ -938,12 +939,12 @@ NativeError CollectorInspectionAcquisition::downloadDelegated(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 指定sessionとresourceに有効な公式取得根拠があるか確認する。
- * @param[in] scanSessionId 照合するscan session ID。
- * @param[in] providerId 照合する組み込みProvider ID。
- * @param[in] resourceId 照合するpayload resource ID。
- * @return 取得根拠ledger全体と指定resourceが有効な場合は`true`。
- * @note 保存済みのused/root/payload状態と元session/provider/resourceの完全一致を読むだけで、追加取得や状態更新を行いません。
+ * @brief 指定sessionとresourceに有効な公式取得根拠があるか確認する
+ * @param[in] scanSessionId 照合するscan session ID
+ * @param[in] providerId 照合する組み込みProvider ID
+ * @param[in] resourceId 照合するpayload resource ID
+ * @return 取得根拠ledger全体と指定resourceが有効な場合は`true`
+ * @note 保存済みのused/root/payload状態と元session/provider/resourceの完全一致を読むだけで、追加取得や状態更新を行いません
  */
 //------------------------------------------------------------------------------
 bool CollectorInspectionAcquisition::hasSourceEvidence( ScanSessionId	 scanSessionId,
@@ -957,9 +958,9 @@ bool CollectorInspectionAcquisition::hasSourceEvidence( ScanSessionId	 scanSessi
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じ実HTTP二段のprivate完了を観測する。
- * @return Private起点確認とpayload保存が両方成功した場合true。
- * @note このboolで封印証拠の再照合を代替しない。
+ * @brief 同じ実HTTP二段のprivate完了を観測する
+ * @return Private起点確認とpayload保存が両方成功した場合true
+ * @note このboolで封印証拠の再照合を代替しない
  */
 //------------------------------------------------------------------------------
 bool CollectorInspectionAcquisition::sourceVerified() const noexcept
@@ -969,8 +970,8 @@ bool CollectorInspectionAcquisition::sourceVerified() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じ実起点GETの成功観測を同期借用します。
- * @return 次の破棄まで有効な原byte観測です。入力JSONから復元しません。
+ * @brief 同じ実起点GETの成功観測を同期借用します
+ * @return 次の破棄まで有効な原byte観測です。入力JSONから復元しません
  */
 //------------------------------------------------------------------------------
 const CollectorInspectionPageObservation &CollectorInspectionAcquisition::pageObservation()
@@ -981,8 +982,8 @@ const CollectorInspectionPageObservation &CollectorInspectionAcquisition::pageOb
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じ実PAGE転送を借用します。
- * @return 共有時も元PAGEの原観測です。
+ * @brief 同じ実PAGE転送を借用します
+ * @return 共有時も元PAGEの原観測です
  */
 //------------------------------------------------------------------------------
 const CollectorHttpTransferObservation &CollectorInspectionAcquisition::pageTransfer()
@@ -992,8 +993,8 @@ const CollectorHttpTransferObservation &CollectorInspectionAcquisition::pageTran
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 今回の実payload転送を借用します。
- * @return 未送信・失敗でも実数とUNKNOWNを保持します。
+ * @brief 今回の実payload転送を借用します
+ * @return 未送信・失敗でも実数とUNKNOWNを保持します
  */
 //------------------------------------------------------------------------------
 const CollectorHttpTransferObservation &CollectorInspectionAcquisition::payloadTransfer()
@@ -1003,8 +1004,8 @@ const CollectorHttpTransferObservation &CollectorInspectionAcquisition::payloadT
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 同runのPAGEを借用した事実を返します。
- * @return trueなら今回のPAGE増分は0要求/0byteです。
+ * @brief 同runのPAGEを借用した事実を返します
+ * @return trueなら今回のPAGE増分は0要求/0byteです
  */
 //------------------------------------------------------------------------------
 bool CollectorInspectionAcquisition::pageReusedInRun() const noexcept
@@ -1014,36 +1015,36 @@ bool CollectorInspectionAcquisition::pageReusedInRun() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同CDN取得scopeのUTC秒を返します。
- * @return 有効なUTC Unix秒。不正時計は0です。
+ * @brief 同CDN取得scopeのUTC秒を返します
+ * @return 有効なUTC Unix秒。不正時計は0です
  */
 //------------------------------------------------------------------------------
 std::uint64_t CollectorInspectionAcquisition::definitionUtcNow() const
 {
-	// 試験用I/O表だけに偽時計を許し、欠損を実時計で補いません。
+	// 試験用I/O表だけに偽時計を許し、欠損を実時計で補いません
 	if( http_.testTransport_) {
 		return http_.testTransport_->utcNow ? http_.testTransport_->utcNow() : 0U ;
 	}
 
 	const auto now = std::chrono::duration_cast<std::chrono::seconds>(
 						 std::chrono::system_clock::now().time_since_epoch())
-						 .count() ;	// 現実UTC秒です。
+						 .count() ;	// 現実UTC秒です
 	return now > 0 ? static_cast<std::uint64_t>( now) : 0U ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 元scopeの時計と取消しを実send直前に再検査します。
- * @param[in] cancellation 同じworkerの協調停止です。
- * @return 開始可能0、時計後退・期限・取消しの元HRESULTです。
+ * @brief 元scopeの時計と取消しを実send直前に再検査します
+ * @param[in] cancellation 同じworkerの協調停止です
+ * @return 開始可能0、時計後退・期限・取消しの元HRESULTです
  */
 //------------------------------------------------------------------------------
 NativeError CollectorInspectionAcquisition::definitionCheckpoint(
 	const HttpCancellationCallback &cancellation) const
 {
-	// 取消し関数の例外をネットワーク成功へ変換しません。
+	// 取消し関数の例外をネットワーク成功へ変換しません
 	try {
-		// 実送信直前にも同じworkerの協調停止を確認します。
+		// 実送信直前にも同じworkerの協調停止を確認します
 		if( cancellation && cancellation()) {
 			return HRESULT_FROM_WIN32( ERROR_CANCELLED) ;
 		}
@@ -1051,13 +1052,13 @@ NativeError CollectorInspectionAcquisition::definitionCheckpoint(
 		return E_UNEXPECTED ;
 	}
 
-	const auto now = definitionUtcNow() ;	// Metadata開始と同じ時計です。
-	// 無効時計と後退を期限余裕だけで救済しません。
+	const auto now = definitionUtcNow() ;	// Metadata開始と同じ時計です
+	// 無効時計と後退を期限余裕だけで救済しません
 	if( now == 0U || now < definitionIssuedUtc_) {
 		return E_INVALIDARG ;
 	}
 
-	// 元token失効と30秒未満の余裕は送信前に止めます。
+	// 元token失効と30秒未満の余裕は送信前に止めます
 	if( now >= definitionDeadlineUtc_ || definitionDeadlineUtc_ - now < 30U) {
 		return HRESULT_FROM_WIN32( ERROR_TIMEOUT) ;
 	}
@@ -1068,21 +1069,21 @@ NativeError CollectorInspectionAcquisition::definitionCheckpoint(
 namespace {
 //------------------------------------------------------------------------------
 /**
- * @brief 公開cache versionだけを旧相対href解決へ正確に結びます。
- * @param[in] source 同一page/候補URLの未認証値です。
- * @return 同じhrefを解決したURL。不正文法は空です。
+ * @brief 公開cache versionだけを旧相対href解決へ正確に結びます
+ * @param[in] source 同一page/候補URLの未認証値です
+ * @return 同じhrefを解決したURL。不正文法は空です
  */
 //------------------------------------------------------------------------------
 std::wstring definitionPublicHref( CollectorInspectionSource source)
 {
-	const auto query = source.href.find( L'?') ;	// 原hrefのquery開始位置です。
-	// Query無しの旧検査をそのまま再利用します。
+	const auto query = source.href.find( L'?') ;	// 原hrefのquery開始位置です
+	// Query無しの旧検査をそのまま再利用します
 	if( query == std::wstring::npos) {
 		return resolvedInspectionHref( source) ;
 	}
 
-	const auto suffix = source.href.substr( query) ;	// 公開cache keyだけを有限保存します。
-	// 任意queryやfragmentを取得能力へ広げません。
+	const auto suffix = source.href.substr( query) ;	// 公開cache keyだけを有限保存します
+	// 任意queryやfragmentを取得能力へ広げません
 	if( !suffix.starts_with( L"?v=") || suffix.size() <= 3U || suffix.size() > 131U ||
 	   suffix.find_first_not_of( L"0123456789abcdefABCDEF", 3U) != std::wstring::npos ||
 	   !source.payloadUrl.ends_with( suffix)) {
@@ -1091,67 +1092,67 @@ std::wstring definitionPublicHref( CollectorInspectionSource source)
 
 	source.href.resize( query) ;
 	source.payloadUrl.resize( source.payloadUrl.size() - suffix.size()) ;
-	const auto base = resolvedInspectionHref( source) ;	// 旧path検査結果です。
+	const auto base = resolvedInspectionHref( source) ;	// 旧path検査結果です
 	return base.empty() ? std::wstring{} : base + suffix ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公開model APIの同一model/path/hash一件を再確認します。
- * @param[in] text 同じnative HTTPで全受信したJSONです。
- * @param[in] plan 同じ公開model/pathです。
- * @param[in] digest 原metadataへ比較する小文字SHA-256です。
- * @return 同じfileの一意な公開行だけならtrueです。
+ * @brief 公開model APIの同一model/path/hash一件を再確認します
+ * @param[in] text 同じnative HTTPで全受信したJSONです
+ * @param[in] plan 同じ公開model/pathです
+ * @param[in] digest 原metadataへ比較する小文字SHA-256です
+ * @return 同じfileの一意な公開行だけならtrueです
  */
 //------------------------------------------------------------------------------
 bool definitionModelMatches( std::wstring_view text, const OfficialAnonymousCdnPlan &plan,
 							std::wstring_view digest)
 {
 	using namespace winrt::Windows::Data::Json ;
-	JsonObject root ;	// 生JSONから同期解析した一文書だけです。
-	// Parser例外・欠損は外側acquireのHRESULTへ戻します。
+	JsonObject root ;	// 生JSONから同期解析した一文書だけです
+	// Parser例外・欠損は外側acquireのHRESULTへ戻します
 	if( !JsonObject::TryParse( text, root) || root.GetNamedString( L"Status", L"") != L"SUCCESS") {
 		return false ;
 	}
 
-	const auto result = root.GetNamedObject( L"Result") ;	// 公開modelの結果です。
-	// 別modelの同pathだけを借用しません。
+	const auto result = root.GetNamedObject( L"Result") ;	// 公開modelの結果です
+	// 別modelの同pathだけを借用しません
 	if( result.GetNamedString( L"Model", L"") != plan.model) {
 		return false ;
 	}
 
-	const auto groups = result.GetNamedArray( L"Obj") ;	// 有限の分類一覧です。
-	// 公式JSONであっても任意に大きい集合は受理しません。
+	const auto groups = result.GetNamedArray( L"Obj") ;	// 有限の分類一覧です
+	// 公式JSONであっても任意に大きい集合は受理しません
 	if( groups.Size() > 256U) {
 		return false ;
 	}
 
-	std::size_t total{} ;	// 全分類共同のfile数です。
-	std::size_t matches{} ;	// 同pathの一意性をhashと別に確認します。
-	// 公開file以外のExeModule/command等は参照しません。
+	std::size_t total{} ;	// 全分類共同のfile数です
+	std::size_t matches{} ;	// 同pathの一意性をhashと別に確認します
+	// 公開file以外のExeModule/command等は参照しません
 	for( const auto &group : groups) {
-		const auto files = group.GetObject().GetNamedArray( L"Files") ;	// 原の配布行です。
-		// 各分類と全分類に共同上限を課します。
+		const auto files = group.GetObject().GetNamedArray( L"Files") ;	// 原の配布行です
+		// 各分類と全分類に共同上限を課します
 		if( files.Size() > 512U || total > 2048U - files.Size()) {
 			return false ;
 		}
 
 		total += files.Size() ;
-		// 同じpathの異なるhashや重複も成功にしません。
+		// 同じpathの異なるhashや重複も成功にしません
 		for( const auto &value : files) {
-			const auto file = value.GetObject() ;	// 同じ配布objectです。
+			const auto file = value.GetObject() ;	// 同じ配布objectです
 			const auto path = file.GetNamedObject( L"DownloadUrl")
-								  .GetNamedString( L"Global", L"") ;	// 原公開pathです。
-			// 対象外の配布行をdriver本体へ選びません。
+								  .GetNamedString( L"Global", L"") ;	// 原公開pathです
+			// 対象外の配布行をdriver本体へ選びません
 			if( path != plan.path) {
 				continue ;
 			}
 
-			std::wstring published( file.GetNamedString( L"sha256", L"")) ;	// 原同fileのhashです。
+			std::wstring published( file.GetNamedString( L"sha256", L"")) ;	// 原同fileのhashです
 			std::ranges::transform( published, published.begin(), []( wchar_t c) {
 				return c >= L'A' && c <= L'F' ? static_cast<wchar_t>( c + (L'a' - L'A')) : c ;
-			}) ; // Hash文字だけをcase変換します。
-			// 原hashが欠損または相違する場合は取得しません。
+			}) ; // Hash文字だけをcase変換します
+			// 原hashが欠損または相違する場合は取得しません
 			if( published != digest || ++matches != 1U) {
 				return false ;
 			}
@@ -1163,24 +1164,24 @@ bool definitionModelMatches( std::wstring_view text, const OfficialAnonymousCdnP
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同一GUID一件だけの正規Catalog download queryをnativeで生成します。
- * @param[in] id 小文字の公開update GUID。
- * @return 正常時の固定endpoint URL。不正GUIDは空です。
+ * @brief 同一GUID一件だけの正規Catalog download queryをnativeで生成します
+ * @param[in] id 小文字の公開update GUID
+ * @return 正常時の固定endpoint URL。不正GUIDは空です
  */
 //------------------------------------------------------------------------------
 std::wstring definitionCatalogDownloadUrl( std::wstring_view id)
 {
-	// GUIDの区切り位置も検査し、任意JSONや追加updateを受け取りません。
+	// GUIDの区切り位置も検査し、任意JSONや追加updateを受け取りません
 	if( id.size() != 36U) {
 		return {} ;
 	}
 
-	// 公開GUIDの36文字を一度だけ検証します。
+	// 公開GUIDの36文字を一度だけ検証します
 	for( std::size_t index = 0U; index < id.size(); ++index) {
 		const bool separator =
-			// 固定位置です。
+			// 固定位置です
 			index == 8U || index == 13U || index == 18U || index == 23U ;
-		// 区切り以外のhyphenや非hexを拒否します。
+		// 区切り以外のhyphenや非hexを拒否します
 		if( (separator && id[index] != L'-') ||
 		   (!separator &&
 			std::wstring_view{L"0123456789abcdef"}.find( id[index]) == std::wstring_view::npos)) {
@@ -1190,14 +1191,14 @@ std::wstring definitionCatalogDownloadUrl( std::wstring_view id)
 
 	const std::wstring body = L"[{\"size\":0,\"languages\":\"\",\"uidInfo\":\"" + std::wstring( id) +
 							  L"\",\"updateID\":\"" + std::wstring( id) +
-							  L"\"}]" ;	// 同じGUID一件だけです。
+							  L"\"}]" ;	// 同じGUID一件だけです
 	std::wstring url =
-		L"https://www.catalog.update.microsoft.com/DownloadDialog.aspx?updateIDs=" ;	// 固定起点です。
-	// ASCII JSONのpercent encodingです。
+		L"https://www.catalog.update.microsoft.com/DownloadDialog.aspx?updateIDs=" ;	// 固定起点です
+	// ASCII JSONのpercent encodingです
 	constexpr std::wstring_view digits = L"0123456789ABCDEF" ;
-	// 固定ASCII JSONだけをurllibのquote_plusと同じ一意表現へ変換します。
+	// 固定ASCII JSONだけをurllibのquote_plusと同じ一意表現へ変換します
 	for( const wchar_t character : body) {
-		// Unreservedだけをそのまま保持します。
+		// Unreservedだけをそのまま保持します
 		if( (character >= L'a' && character <= L'z') || (character >= L'A' && character <= L'Z') ||
 		   (character >= L'0' && character <= L'9') || character == L'-' || character == L'_' ||
 		   character == L'.' || character == L'~') {
@@ -1215,18 +1216,18 @@ std::wstring definitionCatalogDownloadUrl( std::wstring_view id)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 未認証定義候補を同processの実metadataへ再結合して一回取得します。
- * @param[in] scanSessionId 初期化済み元sessionと一致する非零ID。
- * @param[in] definition ローカル定義と未認証選択。成功boolや外部proofを持ちません。
- * @param[in,out] session 元取得と封印issuerを所有するsession。
- * @param[in,out] workspace 同じIDの空保護領域。
- * @param[in,out] costReader 元回線照会。
- * @param[in] cancellation 元runの固定期限/取消し照会。
- * @param[out] result 実取得の元結果。metadata拒否時は取得しません。
- * @param[out] metadata 同じI/Oの実要求数/byte/status。
- * @param[out] confirmed 任意の同取得で確認済み公開metadata。秘密URLと取得能力を含みません。
- * @return 全固定成功0、入力/HTTP/metadata/取得の元HRESULT。
- * @note 管理workspaceの所有/待機/予算/同意は外側callerが要求前に検査します。
+ * @brief 未認証定義候補を同processの実metadataへ再結合して一回取得します
+ * @param[in] scanSessionId 初期化済み元sessionと一致する非零ID
+ * @param[in] definition ローカル定義と未認証選択。成功boolや外部proofを持ちません
+ * @param[in,out] session 元取得と封印issuerを所有するsession
+ * @param[in,out] workspace 同じIDの空保護領域
+ * @param[in,out] costReader 元回線照会
+ * @param[in] cancellation 元runの固定期限/取消し照会
+ * @param[out] result 実取得の元結果。metadata拒否時は取得しません
+ * @param[out] metadata 同じI/Oの実要求数/byte/status
+ * @param[out] confirmed 任意の同取得で確認済み公開metadata。秘密URLと取得能力を含みません
+ * @return 全固定成功0、入力/HTTP/metadata/取得の元HRESULT
+ * @note 管理workspaceの所有/待機/予算/同意は外側callerが要求前に検査します
  */
 //------------------------------------------------------------------------------
 NativeError CollectorInspectionAcquisition::acquireDefinition(
@@ -1238,17 +1239,16 @@ NativeError CollectorInspectionAcquisition::acquireDefinition(
 try {
 	result	 = {} ;
 	metadata = {} ;
-	// 未認証hintを成功metadataとして返しません。
+	// 未認証hintを成功metadataとして返しません
 	if( confirmed != nullptr) {
 		*confirmed = {} ;
 	}
 
-	const auto			   &source	= definition.source ;					// 外側callerの未認証候補です。
-	constexpr std::uint64_t maximum = 2ULL * 1024ULL * 1024ULL * 1024ULL ;	// 定義取得の有限枠です。
-	const std::array<std::wstring_view, 1U> roots{source.rootHost} ;		// 今回のexact起点hostです。
-	const std::array<std::wstring_view, 1U> payloads{
-		source.payloadHost} ;	// 今回の明示配布hostです。
-	// 不正/再使用/session不一致はmetadata要求前に拒否します。
+	const auto			   &source	= definition.source ;					// 外側callerの未認証候補です
+	constexpr std::uint64_t maximum = 2ULL * 1024ULL * 1024ULL * 1024ULL ;	// 定義取得の有限枠です
+	const std::array<std::wstring_view, 1U> roots{source.rootHost} ;		// 今回のexact起点hostです
+	const std::array<std::wstring_view, 1U> payloads{source.payloadHost} ;	// 今回の明示配布hostです
+	// 不正/再使用/session不一致はmetadata要求前に拒否します
 	if( std::exchange( used_, true) || scanSessionId == 0U ||
 	   scanSessionId != session.scanSessionId_ || definition.maximumBytes == 0U ||
 	   definition.maximumBytes > maximum || !exactInspectionHost( source.rootHost) ||
@@ -1263,14 +1263,14 @@ try {
 	maximumBytes_	 = definition.maximumBytes ;
 	publishedSha256_ = definition.publishedSha256 ;
 	publishedSha512_ = definition.publishedSha512 ;
-	// 公表hash hintの文法自体をHTTP前に固定します。
+	// 公表hash hintの文法自体をHTTP前に固定します
 	if( !publishedSha256_.empty() &&
 	   (publishedSha256_.size() != 64U ||
 		publishedSha256_.find_first_not_of( L"0123456789abcdef") != std::wstring::npos)) {
 		return E_INVALIDARG ;
 	}
 
-	// 公表SHA-512にも算法固有の有限文法を課します。
+	// 公表SHA-512にも算法固有の有限文法を課します
 	if( !publishedSha512_.empty() &&
 	   (publishedSha512_.size() != 128U ||
 		publishedSha512_.find_first_not_of( L"0123456789abcdef") != std::wstring::npos)) {
@@ -1278,7 +1278,7 @@ try {
 	}
 
 	result.networkCostError = costReader.read( result.networkCost) ;
-	// 未知/従量制回線へ定義のcopyだけで同意を発行しません。
+	// 未知/従量制回線へ定義のcopyだけで同意を発行しません
 	if( result.networkCostError != 0 ||
 	   result.networkCost != OfficialNetworkCostKind::UNRESTRICTED) {
 		result.state = OfficialAcquisitionState::AWAITING_NETWORK_CONSENT ;
@@ -1286,16 +1286,16 @@ try {
 		return result.error ;
 	}
 
-	std::wstring html ;				// 同native I/Oが所有する現在本文です。
-	std::wstring eulaRevision ;		// 同取得parserだけが確認する現在の必須revisionです。
-	std::wstring eulaTextSha256 ;	// 同parser全文からだけ計算します。
-	std::wstring finalUrl ;			// 相対anchorの同一origin baseです。
+	std::wstring html ;				// 同native I/Oが所有する現在本文です
+	std::wstring eulaRevision ;		// 同取得parserだけが確認する現在の必須revisionです
+	std::wstring eulaTextSha256 ;	// 同parser全文からだけ計算します
+	std::wstring finalUrl ;			// 相対anchorの同一origin baseです
 	std::optional<CollectorDefinitionStaticTermsObservation>
-									   staticTerms ;	// 成功時だけcommitする独立観測です。
-	CollectorInspectionPageObservation apiPage ;		// NVIDIAの原API観測をdetailsで上書きしません。
-	// 個々のmetadata失敗も実数を保持し、成功JSONから観測を復元しません。
+									   staticTerms ;	// 成功時だけcommitする独立観測です
+	CollectorInspectionPageObservation apiPage ;		// NVIDIAの原API観測をdetailsで上書きしません
+	// 個々のmetadata失敗も実数を保持し、成功JSONから観測を復元しません
 	const auto						   fetch = [&]( std::wstring_view url) {
-		// 同じ元I/OのHRESULTを他のmetadata分類で上書きしません。
+		// 同じ元I/OのHRESULTを他のmetadata分類で上書きしません
 		const NativeError error = http_.getCollectorInspectionPage(
 			url, source.rootHost, cancellation, html, finalUrl, &pageObservation_, &pageTransfer_) ;
 		metadata.requests += pageTransfer_.attemptedRequests() ;
@@ -1303,33 +1303,33 @@ try {
 		metadata.httpStatus = pageTransfer_.terminalStatus() ;
 		return error ;
 	} ;
-	NativeError error{} ;	// 元HTTPと内容拒否を混同しない結果です。
-	// 公開page形式は同じ実anchorを再確認してからpayloadへ進みます。
+	NativeError error{} ;	// 元HTTPと内容拒否を混同しない結果です
+	// 公開page形式は同じ実anchorを再確認してからpayloadへ進みます
 	if( definition.protocol == CollectorDefinitionProtocol::PUBLIC_LINK) {
-		// 汎用anchorには公表hash parserがないため、hintを公表根拠へ昇格させません。
+		// 汎用anchorには公表hash parserがないため、hintを公表根拠へ昇格させません
 		if( !publishedSha256_.empty() || !publishedSha512_.empty()) {
 			return E_INVALIDARG ;
 		}
 
 		error			 = fetch( source.rootUrl) ;
-		auto resolved	 = source ;	// 実最終URLにだけ相対hrefを結びます。
+		auto resolved	 = source ;	// 実最終URLにだけ相対hrefを結びます
 		resolved.rootUrl = finalUrl ;
-		// URLの一致と実HTML anchorを別々に検査します。
+		// URLの一致と実HTML anchorを別々に検査します
 		if( error == 0 && (source.href.empty() || source.href.size() > 480U ||
 						  definitionPublicHref( resolved) != source.payloadUrl ||
 						  !inspectCollectorHtml( html, source.href))) {
 			error = HRESULT_FROM_WIN32( ERROR_NOT_FOUND) ;
 		}
 	}
-	// Catalog形式は同じ検索/update GUID/公表URL/hashを実原本文へ再結合します。
+	// Catalog形式は同じ検索/update GUID/公表URL/hashを実原本文へ再結合します
 	else if( definition.protocol == CollectorDefinitionProtocol::CATALOG_SEARCH) {
 		constexpr std::wstring_view origin =
-			L"https://www.catalog.update.microsoft.com/" ;	// 閉protocol起点です。
-		const auto &id = definition.catalogUpdateId ;		// 同検索が選んだ公開GUIDです。
+			L"https://www.catalog.update.microsoft.com/" ;	// 閉protocol起点です
+		const auto &id = definition.catalogUpdateId ;		// 同検索が選んだ公開GUIDです
 		const auto	downloadUrl =
-			// nativeが同一GUID一件だけへ固定します。
+			// nativeが同一GUID一件だけへ固定します
 			definitionCatalogDownloadUrl( id) ;
-		// 別起点・別update・自由endpointをmetadataへ渡しません。
+		// 別起点・別update・自由endpointをmetadataへ渡しません
 		if( source.rootHost != L"www.catalog.update.microsoft.com" || id.size() != 36U ||
 		   id.find_first_not_of( L"0123456789abcdef-") != std::wstring::npos ||
 		   !definition.catalogSearchUrl.starts_with( std::wstring( origin) + L"Search.aspx?q=") ||
@@ -1341,31 +1341,31 @@ try {
 		}
 
 		error = fetch( definition.catalogSearchUrl) ;
-		// 同じ検索に存在しないGUIDを後段の公式domainだけで救済しません。
+		// 同じ検索に存在しないGUIDを後段の公式domainだけで救済しません
 		if( error == 0 && html.find( L"id=\"" + id + L"_R") == std::wstring::npos) {
 			error = HRESULT_FROM_WIN32( ERROR_NOT_FOUND) ;
 		}
 
-		// 通常callerのfamily条件を同検索行へ再照合し、Python選択をauthorityにしません。
+		// 通常callerのfamily条件を同検索行へ再照合し、Python選択をauthorityにしません
 		if( error == 0 && !definition.catalogRequiredTitleTerms.empty()) {
-			const auto start = html.find( L"id=\"" + id + L"_R") ;	// 同GUIDの原row開始です。
-			const auto end	 = html.find( L"</tr>", start) ;		// 別rowのtitleを借用しません。
-			// 不完全または過大rowは推測で受理しません。
+			const auto start = html.find( L"id=\"" + id + L"_R") ;	// 同GUIDの原row開始です
+			const auto end	 = html.find( L"</tr>", start) ;		// 別rowのtitleを借用しません
+			// 不完全または過大rowは推測で受理しません
 			if( end == std::wstring::npos || end - start > 65536U ||
 			   definition.catalogRequiredTitleTerms.size() > 16U) {
 				error = E_INVALIDARG ;
 			} else {
-				std::wstring row = html.substr( start, end - start) ;	// 同じrowだけです。
+				std::wstring row = html.substr( start, end - start) ;	// 同じrowだけです
 				std::ranges::transform( row, row.begin(), []( wchar_t c) {
 					return c >= L'A' && c <= L'Z' ? static_cast<wchar_t>( c + L'a' - L'A') : c ;
 				}) ;
-				// 元登録の全公開termが同じrowに存在する場合だけ継続します。
+				// 元登録の全公開termが同じrowに存在する場合だけ継続します
 				for( const auto &term : definition.catalogRequiredTitleTerms) {
-					std::wstring lower = term ;	// 原termは書き換えません。
+					std::wstring lower = term ;	// 原termは書き換えません
 					std::ranges::transform( lower, lower.begin(), []( wchar_t c) {
 						return c >= L'A' && c <= L'Z' ? static_cast<wchar_t>( c + L'a' - L'A') : c ;
 					}) ;
-					// 別familyや空termで全体を許可しません。
+					// 別familyや空termで全体を許可しません
 					if( lower.empty() || lower.size() > 128U ||
 					   row.find( lower) == std::wstring::npos) {
 						error = E_INVALIDARG ;
@@ -1374,61 +1374,61 @@ try {
 			}
 		}
 
-		// 検索成功だけではArchitecture/OSや内容の成功へ昇格しません。
+		// 検索成功だけではArchitecture/OSや内容の成功へ昇格しません
 		if( error == 0) {
 			error = fetch( definition.catalogDetailsUrl) ;
 		}
 
-		// 原detailsの明示x64だけをmetadata条件とし、OS装飾は通常INF検査へ残します。
+		// 原detailsの明示x64だけをmetadata条件とし、OS装飾は通常INF検査へ残します
 		if( error == 0 && html.find( L"AMD64") == std::wstring::npos &&
 		   html.find( L"x64") == std::wstring::npos) {
 			error = HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
 		}
 
-		// 宣言OSは同detailsの明示値だけを使い、現在PC適用性と区別します。
+		// 宣言OSは同detailsの明示値だけを使い、現在PC適用性と区別します
 		if( error == 0 && !definition.catalogTargetOs.empty()) {
-			const bool windows10 = html.find( L"Windows 10") != std::wstring::npos ;	// 原宣言です。
-			const bool windows11 = html.find( L"Windows 11") != std::wstring::npos ;	// 原宣言です。
+			const bool windows10 = html.find( L"Windows 10") != std::wstring::npos ;	// 原宣言です
+			const bool windows11 = html.find( L"Windows 11") != std::wstring::npos ;	// 原宣言です
 			const bool later =
-				windows10 && html.find( L"and later") != std::wstring::npos ;	// 継承宣言だけです。
-			bool matches{} ;													// 未知を対応成功にしません。
-			// 元OS集合との共通部分だけをmetadata条件とします。
+				windows10 && html.find( L"and later") != std::wstring::npos ;	// 継承宣言だけです
+			bool matches{} ;													// 未知を対応成功にしません
+			// 元OS集合との共通部分だけをmetadata条件とします
 			for( const auto &os : definition.catalogTargetOs) {
 				matches = matches || (os == L"WINDOWS_10" && windows10) ||
 						  (os == L"WINDOWS_11" && (windows11 || later)) ;
 			}
 
-			// OS装飾の最終判定はこの後の通常INF/Modelsへ残します。
+			// OS装飾の最終判定はこの後の通常INF/Modelsへ残します
 			if( !matches) {
 				error = HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
 			}
 		}
 
-		// 同じupdateの原download bodyを次に確認します。
+		// 同じupdateの原download bodyを次に確認します
 		if( error == 0) {
 			error = fetch( downloadUrl) ;
 		}
 
-		std::array<BYTE, 32U> hash{} ;	// 比較hintを原base64文法へ一意に戻します。
-		// 同じ二桁のhexだけをbyteへ変換します。
+		std::array<BYTE, 32U> hash{} ;	// 比較hintを原base64文法へ一意に戻します
+		// 同じ二桁のhexだけをbyteへ変換します
 		for( std::size_t index = 0U; index < hash.size(); ++index) {
 			const auto digit = []( wchar_t value) {
 				return value <= L'9' ? value - L'0' : value - L'a' + 10 ;
-			} ; // 検証済みhexです。
+			} ; // 検証済みhexです
 			hash[index] = static_cast<BYTE>( digit( publishedSha256_[index * 2U]) * 16 +
 											digit( publishedSha256_[index * 2U + 1U])) ;
 		}
 
-		std::array<wchar_t, 45U> encoded{} ;						// SHA-256のbase64とNULです。
-		DWORD encodedSize = static_cast<DWORD>( encoded.size()) ;	// Windows APIへの有限容量です。
-		// 失敗時のGetLastErrorを別の比較errorで上書きしません。
+		std::array<wchar_t, 45U> encoded{} ;						// SHA-256のbase64とNULです
+		DWORD encodedSize = static_cast<DWORD>( encoded.size()) ;	// Windows APIへの有限容量です
+		// 失敗時のGetLastErrorを別の比較errorで上書きしません
 		if( error == 0 && !CryptBinaryToStringW( hash.data(), static_cast<DWORD>( hash.size()),
 											   CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF,
 											   encoded.data(), &encodedSize)) {
 			error = HRESULT_FROM_WIN32( GetLastError()) ;
 		}
 
-		// 一つの原fileへURL/hashを同時に結び、複数fileの曖昧選択は保留します。
+		// 一つの原fileへURL/hashを同時に結び、複数fileの曖昧選択は保留します
 		if( error == 0 && (html.find( L"downloadInformation[0].files[0].url = '" + source.payloadUrl +
 									L"';") == std::wstring::npos ||
 						  html.find( L"downloadInformation[0].files[0].sha256 = '" +
@@ -1437,32 +1437,32 @@ try {
 			error = HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH) ;
 		}
 	}
-	// Intel形式は既存の同Ethernet parserを同run本文へ適用します。
+	// Intel形式は既存の同Ethernet parserを同run本文へ適用します
 	else if( definition.protocol == CollectorDefinitionProtocol::INTEL_RELEASE) {
-		// 別vendor/product parserへの代用や任意配布hostを許しません。
+		// 別vendor/product parserへの代用や任意配布hostを許しません
 		if( source.rootHost != L"www.intel.com" ||
 		   source.payloadHost != L"downloadmirror.intel.com") {
 			return E_INVALIDARG ;
 		}
 
 		error = fetch( source.rootUrl) ;
-		OfficialReleaseRecord release ;	// 原同pageが明示した配布行だけです。
-		// Page解析失敗と候補URL/hash変更は未知/HOLDへ戻します。
+		OfficialReleaseRecord release ;	// 原同pageが明示した配布行だけです
+		// Page解析失敗と候補URL/hash変更は未知/HOLDへ戻します
 		if( error == 0 && !parseOfficialReleaseRecord(
 							 OfficialReleaseFamily::INTEL_ETHERNET_WINDOWS11, html, release)) {
 			error = HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH) ;
 		}
 
-		// 原digestの算法と値を維持し、hexのcaseだけを共通形へ合わせます。
+		// 原digestの算法と値を維持し、hexのcaseだけを共通形へ合わせます
 		if( error == 0) {
 			const auto lowerHash = []( std::wstring &value) {
 				std::ranges::transform( value, value.begin(), []( wchar_t c) {
 					return c >= L'A' && c <= L'F' ? static_cast<wchar_t>( c + (L'a' - L'A')) : c ;
-				}) ; // 有限のhex case変換です。
-			} ; // 元公開値以外は作りません。
+				}) ; // 有限のhex case変換です
+			} ; // 元公開値以外は作りません
 			lowerHash( release.publishedSha256) ;
 			lowerHash( release.publishedSha512) ;
-			// 未認証hintが存在する場合も同じ実pageへ完全照合します。
+			// 未認証hintが存在する場合も同じ実pageへ完全照合します
 			if( release.downloadUrl != source.payloadUrl ||
 			   (!publishedSha256_.empty() && publishedSha256_ != release.publishedSha256) ||
 			   (!publishedSha512_.empty() && publishedSha512_ != release.publishedSha512)) {
@@ -1470,21 +1470,21 @@ try {
 			}
 		}
 
-		// 未公表の算法は空のまま保持し、実測hashを代入しません。
+		// 未公表の算法は空のまま保持し、実測hashを代入しません
 		if( error == 0) {
 			publishedSha256_ = std::move( release.publishedSha256) ;
 			publishedSha512_ = std::move( release.publishedSha512) ;
-			// 明示した必須EULAは、現在parserの原revision/全文をpayload前に再確認します。
+			// 明示した必須EULAは、現在parserの原revision/全文をpayload前に再確認します
 			if( !definition.expectedEulaRevision.empty()) {
 				eulaRevision = release.eulaRevision ;
-				// 本文不在を旧同意で救済しません。
+				// 本文不在を旧同意で救済しません
 				if( eulaRevision.empty() || release.eulaText.empty() ||
 				   definition.expectedEulaTextSha256.size() != 64U) {
 					error = E_ACCESSDENIED ;
 				} else {
 					error = computeDriverContainerSha256( winrt::to_string( release.eulaText),
 														 eulaTextSha256) ;
-					// 同じrevision名でも全文の変更を自動承認しません。
+					// 同じrevision名でも全文の変更を自動承認しません
 					if( error == 0 && (eulaRevision != definition.expectedEulaRevision ||
 									  eulaTextSha256 != definition.expectedEulaTextSha256)) {
 						error = E_ACCESSDENIED ;
@@ -1493,10 +1493,10 @@ try {
 			}
 		}
 	}
-	// NVIDIAの同API・原releaseを再確認し、未対応規約ではpayloadを開始しません。
+	// NVIDIAの同API・原releaseを再確認し、未対応規約ではpayloadを開始しません
 	else if( definition.protocol == CollectorDefinitionProtocol::NVIDIA_DRIVER_JSON) {
-		NvidiaCollectorLookup lookup ;	// 端末情報を含まない登録公開queryだけです。
-		// 公表のないhashや別起点をNVIDIAの公式metadataへ混ぜません。
+		NvidiaCollectorLookup lookup ;	// 端末情報を含まない登録公開queryだけです
+		// 公表のないhashや別起点をNVIDIAの公式metadataへ混ぜません
 		if( source.rootHost != L"gfwsl.geforce.com" ||
 		   !parseNvidiaCollectorLookupUrl( source.rootUrl, lookup) || !publishedSha256_.empty() ||
 		   !publishedSha512_.empty() || definition.nvidiaDownloadId.empty() ||
@@ -1505,8 +1505,8 @@ try {
 		}
 
 		error = fetch( source.rootUrl) ;
-		NvidiaDriverEntry release ;	// 同run原APIの現在releaseです。
-		// 変更後metadataから旧payloadへのfallbackを行いません。
+		NvidiaDriverEntry release ;	// 同run原APIの現在releaseです
+		// 変更後metadataから旧payloadへのfallbackを行いません
 		if( error == 0 && (selectNvidiaCollectorRelease( html, source.rootUrl, release) !=
 							  NvidiaCollectorMetadataStatus::SELECTED ||
 						  release.id != definition.nvidiaDownloadId ||
@@ -1515,9 +1515,9 @@ try {
 			error = HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH) ;
 		}
 
-		// 規約宣言なしの旧入力は従来どおり未対応HOLDへ残します。
+		// 規約宣言なしの旧入力は従来どおり未対応HOLDへ残します
 		if( error == 0) {
-			// 必須規約のない入力から配布page/文書取得へ進みません。
+			// 必須規約のない入力から配布page/文書取得へ進みません
 			if( definition.staticTermsJson.empty()) {
 				error = E_NOTIMPL ;
 			} else {
@@ -1528,12 +1528,12 @@ try {
 				metadata.requests += pageTransfer_.attemptedRequests() ;
 				metadata.bodyBytes += pageTransfer_.bodyBytesRead() ;
 				metadata.httpStatus = pageTransfer_.terminalStatus() ;
-				// 同APIが発行した完全details URLだけを公開sourceへ再結合します。
+				// 同APIが発行した完全details URLだけを公開sourceへ再結合します
 				if( error == 0 && finalUrl != release.detailsUrl) {
 					error = HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH) ;
 				}
 
-				// APIで確認したpayloadを保持し、公開配布pageとAPI観測を分離します。
+				// APIで確認したpayloadを保持し、公開配布pageとAPI観測を分離します
 				if( error == 0) {
 					source_.rootUrl	 = release.detailsUrl ;
 					source_.rootHost = L"www.nvidia.com" ;
@@ -1541,10 +1541,10 @@ try {
 			}
 		}
 	}
-	// Model形式は公開行を再確認してからsession内だけで匿名CDNを解決します。
+	// Model形式は公開行を再確認してからsession内だけで匿名CDNを解決します
 	else if( definition.protocol == CollectorDefinitionProtocol::MODEL_CDN) {
-		const auto &plan = definition.anonymousCdn ;	// 任意HTTP workflowではない公開文脈です。
-		// Canonical URL/host/hashを固定し、秘密query付き入力や別modelを拒否します。
+		const auto &plan = definition.anonymousCdn ;	// 任意HTTP workflowではない公開文脈です
+		// Canonical URL/host/hashを固定し、秘密query付き入力や別modelを拒否します
 		if( !validAsusAnonymousCdnPlan( plan) || source.rootHost != L"www.asus.com" ||
 		   source.payloadHost != L"dlcdnta.asus.com" ||
 		   source.payloadUrl != asusAnonymousCdnCanonicalUrl( plan) || publishedSha256_.empty() ||
@@ -1552,18 +1552,18 @@ try {
 			return E_INVALIDARG ;
 		}
 
-		std::wstring model = plan.model ;	// URLの公開modelだけをASCII lowercaseへ変換します。
+		std::wstring model = plan.model ;	// URLの公開modelだけをASCII lowercaseへ変換します
 		std::ranges::transform( model, model.begin(), []( wchar_t c) {
 			return c >= L'A' && c <= L'Z' ? static_cast<wchar_t>( c + (L'a' - L'A')) : c ;
-		}) ; // 原modelの意味は変更しません。
-		// 公開pageの同modelをAPI queryへ結びます。
+		}) ; // 原modelの意味は変更しません
+		// 公開pageの同modelをAPI queryへ結びます
 		if( source.rootUrl !=
 		   L"https://www.asus.com/supportonly/" + model + L"/helpdesk_download/") {
 			return E_INVALIDARG ;
 		}
 
 		definitionIssuedUtc_ = definitionUtcNow() ;
-		// 不正時計や期限加算overflowを接続前に拒否します。
+		// 不正時計や期限加算overflowを接続前に拒否します
 		if( definitionIssuedUtc_ == 0U || definitionIssuedUtc_ > UINT64_MAX - 900U) {
 			return E_INVALIDARG ;
 		}
@@ -1571,30 +1571,30 @@ try {
 		definitionDeadlineUtc_ = definitionIssuedUtc_ + 900U ;
 		const std::wstring api =
 			L"https://www.asus.com/support/webapi/ProductV2/GetPDBIOS?website=global&model=" +
-			model + L"&pdhashedid=&pdid=99999&cpu=&siteID=www&sitelang=" ;	// 固定query builderです。
+			model + L"&pdhashedid=&pdid=99999&cpu=&siteID=www&sitelang=" ;	// 固定query builderです
 		error = http_.getCollectorInspectionPage( api, source.rootHost, cancellation, html, finalUrl,
 												 &pageObservation_, &pageTransfer_, nullptr, true) ;
 		metadata.requests += pageTransfer_.attemptedRequests() ;
 		metadata.bodyBytes += pageTransfer_.bodyBytesRead() ;
 		metadata.httpStatus = pageTransfer_.terminalStatus() ;
-		// 同一modelの原path/hashがなければTokenHQへ進みません。
+		// 同一modelの原path/hashがなければTokenHQへ進みません
 		if( error == 0 && !definitionModelMatches( html, plan, publishedSha256_)) {
 			error = HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH) ;
 		}
 
-		OfficialEmptyJsonQueryPost		   post ;			// 固定Origin/Referer/二段encodingだけです。
-		OfficialAnonymousCdnResolution	   resolved ;		// 秘密queryはこのscope以外へ保存しません。
-		OfficialAuxiliaryHttpObservation   auxiliary ;		// 同じPOSTだけの非秘密実数です。
-		std::uint32_t					   addresses{} ;	// 同じ補助宛先の全公開DNS結果です。
+		OfficialEmptyJsonQueryPost		   post ;			// 固定Origin/Referer/二段encodingだけです
+		OfficialAnonymousCdnResolution	   resolved ;		// 秘密queryはこのscope以外へ保存しません
+		OfficialAuxiliaryHttpObservation   auxiliary ;		// 同じPOSTだけの非秘密実数です
+		std::uint32_t					   addresses{} ;	// 同じ補助宛先の全公開DNS結果です
 		const std::function<NativeError()> checkpoint = [&]() {
 			return definitionCheckpoint( cancellation) ;
-		} ; // 同時計/停止です。
-		// 公開metadata成功時だけbuilderと一回POSTへ進みます。
+		} ; // 同時計/停止です
+		// 公開metadata成功時だけbuilderと一回POSTへ進みます
 		if( error == 0) {
 			error = makeAsusAnonymousCdnPost( plan, post) ;
 		}
 
-		// Form/単独canonical GETへのfallbackを追加しません。
+		// Form/単独canonical GETへのfallbackを追加しません
 		if( error == 0) {
 			error = http_.postEmptyJsonQuery(
 				post, checkpoint, cancellation,
@@ -1607,33 +1607,33 @@ try {
 			metadata.httpStatus = auxiliary.httpStatus ;
 		}
 
-		// Parser結果も同canonical URL/epochへ再結合します。
+		// Parser結果も同canonical URL/epochへ再結合します
 		if( error == 0 && !matchesAsusAnonymousCdnTarget( plan, resolved.target.view(),
 														resolved.expiresUtcSeconds)) {
 			error = E_ACCESSDENIED ;
 		}
 
-		// Token期限を延長せず15分枠との小さい方でGETを制限します。
+		// Token期限を延長せず15分枠との小さい方でGETを制限します
 		if( error == 0) {
 			definitionDeadlineUtc_ = std::min( definitionDeadlineUtc_, resolved.expiresUtcSeconds) ;
 			error				   = checkpoint() ;
 		}
 
-		// 秘密URL所有権を同一取得adapterだけへ移します。
+		// 秘密URL所有権を同一取得adapterだけへ移します
 		if( error == 0) {
 			definitionCdn_ = std::move( resolved.target) ;
 		}
 	}
-	// 未知protocolは旧static取得へfallbackしません。
+	// 未知protocolは旧static取得へfallbackしません
 	else {
 		error = E_NOTIMPL ;
 	}
 
-	// 独立規約はprotocol非依存の実公式anchorと元全文snapshotへ結び、旧Intel埋込み契約を変更しません。
+	// 独立規約はprotocol非依存の実公式anchorと元全文snapshotへ結び、旧Intel埋込み契約を変更しません
 	if( error == 0 && !definition.staticTermsJson.empty()) {
 		const auto terms = signed_index_acquisition::readTermsValue(
-			definition.staticTermsJson) ;	// 共通の閉schemaです。
-		// 不明規約や別profileを独立文書として扱いません。
+			definition.staticTermsJson) ;	// 共通の閉schemaです
+		// 不明規約や別profileを独立文書として扱いません
 		if( terms.state != IndexTermsState::ACCEPTANCE_REQUIRED ||
 		   terms.revisionKind != IndexTermsRevisionKind::VENDOR_LITERAL || !terms.textDocument ||
 		   !terms.textDocument->htmlExtraction ||
@@ -1642,28 +1642,28 @@ try {
 			error = E_ACCESSDENIED ;
 		}
 
-		// NVIDIA driver APIからApp用や任意規約への転用を許可しません。
+		// NVIDIA driver APIからApp用や任意規約への転用を許可しません
 		if( error == 0 && definition.protocol == CollectorDefinitionProtocol::NVIDIA_DRIVER_JSON &&
 		   terms.textDocument->url != "https://www.nvidia.com/en-us/drivers/nvidia-license/") {
 			error = E_ACCESSDENIED ;
 		}
 
-		// 実配布pageの実anchorだけが規約文書の取得先originを委譲できます。
+		// 実配布pageの実anchorだけが規約文書の取得先originを委譲できます
 		if( error == 0 && !hasStaticHtmlDocumentLink( html, terms.textDocument->url)) {
 			error = E_ACCESSDENIED ;
 		}
 
-		CollectorInspectionPageObservation documentPage ;	// 原規約だけの同I/O観測です。
-		CollectorHttpTransferObservation documentTransfer ;	// 元配布pageの転送観測を上書きしません。
-		std::wstring					 documentHtml ;		// 通常logへ渡さない完全原文書です。
-		std::wstring					 documentFinal ;	// 別origin redirectの成功へ読み替えません。
-		std::wstring					 fullText ;			// 元snapshotへ完全一致した場合だけ使用します。
-		// 元API/公式リンクの成立後だけ、同取消し・応答上限の規約GETへ進みます。
+		CollectorInspectionPageObservation documentPage ;		// 原規約だけの同I/O観測です
+		CollectorHttpTransferObservation   documentTransfer ;	// 元配布pageの転送観測を上書きしません
+		std::wstring					   documentHtml ;		// 通常logへ渡さない完全原文書です
+		std::wstring					   documentFinal ;		// 別origin redirectの成功へ読み替えません
+		std::wstring					   fullText ;			// 元snapshotへ完全一致した場合だけ使用します
+		// 元API/公式リンクの成立後だけ、同取消し・応答上限の規約GETへ進みます
 		if( error == 0) {
-			const auto		  &url	 = terms.textDocument->url ;	// codec確認済みのASCII HTTPSです。
-			const auto		   slash = url.find( '/', 8U) ;			// exact hostだけを取得制約へ渡します。
+			const auto		  &url	 = terms.textDocument->url ;	// codec確認済みのASCII HTTPSです
+			const auto		   slash = url.find( '/', 8U) ;			// exact hostだけを取得制約へ渡します
 			const std::wstring host( url.begin() + 8, url.begin() +
-														 // query/認証なしです。
+														 // query/認証なしです
 														 static_cast<std::ptrdiff_t>( slash)) ;
 			error = http_.getCollectorInspectionPage( winrt::to_hstring( url), host, cancellation,
 													 documentHtml, documentFinal, &documentPage,
@@ -1671,35 +1671,35 @@ try {
 			metadata.requests += documentTransfer.attemptedRequests() ;
 			metadata.bodyBytes += documentTransfer.bodyBytesRead() ;
 			metadata.httpStatus = documentTransfer.terminalStatus() ;
-			// 最終URLも同じ文書へ一致させ、別文書を同意へ流用しません。
+			// 最終URLも同じ文書へ一致させ、別文書を同意へ流用しません
 			if( error == 0 && documentFinal != winrt::to_hstring( url)) {
 				error = E_ACCESSDENIED ;
 			}
 		}
 
-		// 旧原section/全文hashと公開revisionに一致しない改変を自動同意しません。
+		// 旧原section/全文hashと公開revisionに一致しない改変を自動同意しません
 		if( error == 0) {
 			error = verifyStaticHtmlTerms( documentHtml, *terms.textDocument->htmlExtraction,
 										  winrt::to_string( source_.payloadUrl),
 										  winrt::to_hstring( terms.revision), fullText) ;
 		}
 
-		// 完全照合後だけ現在のprovenanceを別JSONへ写し、元templateは不変に保ちます。
+		// 完全照合後だけ現在のprovenanceを別JSONへ写し、元templateは不変に保ちます
 		if( error == 0) {
-			using Value	 = winrt::Windows::Data::Json::JsonValue ;	// 同期私有宣言の文字列だけです。
+			using Value	 = winrt::Windows::Data::Json::JsonValue ;	// 同期私有宣言の文字列だけです
 			auto current = winrt::Windows::Data::Json::JsonObject::Parse(
-				// 元宣言の独立値です。
+				// 元宣言の独立値です
 				winrt::to_hstring( definition.staticTermsJson)) ;
 			current.Insert( L"evidenceUrl", Value::CreateStringValue( documentFinal)) ;
 			current.Insert( L"evidenceSha256", Value::CreateStringValue( documentPage.bodySha256)) ;
 			auto document =
-				// 現在の規約原byteの観測だけです。
+				// 現在の規約原byteの観測だけです
 				current.GetNamedObject( L"textDocument") ;
 			document.Insert( L"sha256", Value::CreateStringValue( documentPage.bodySha256)) ;
 			document.Insert( L"sizeBytes",
 							Value::CreateNumberValue( static_cast<double>( documentPage.bodyBytes))) ;
 			auto extraction =
-				// 同じ元section/全文hashを維持します。
+				// 同じ元section/全文hashを維持します
 				document.GetNamedObject( L"htmlExtraction") ;
 			extraction.Insert( L"bindingEvidenceUrl", Value::CreateStringValue( source_.rootUrl)) ;
 			extraction.Insert( L"bindingEvidenceSha256",
@@ -1714,7 +1714,7 @@ try {
 		}
 	}
 
-	// 実metadataが不成立ならpayload取得の権限状態を作りません。
+	// 実metadataが不成立ならpayload取得の権限状態を作りません
 	if( error != 0) {
 		result.state = OfficialAcquisitionState::REJECTED ;
 		result.error = error ;
@@ -1729,14 +1729,14 @@ try {
 		.workspaceFileName = L"inspection.zip",
 		.maximumFileBytes  = maximumBytes_,
 		.publishedSha256   = publishedSha256_,
-		.publishedSha512   = publishedSha512_} ;	// 同実metadataにだけ結んだ共通要求です。
-	// 同じ封印issuerが実byte/hashを検証した結果だけです。
+		.publishedSha512   = publishedSha512_} ;	// 同実metadataにだけ結んだ共通要求です
+	// 同じ封印issuerが実byte/hashを検証した結果だけです
 	const auto acquired = session.acquireCore(
 		request, workspace, *this, costReader, []( std::uint64_t, std::uint64_t) {}, cancellation,
 		result, this) ;
-	// 秘密値は失敗でも同一取得の終了とともに消去します。
+	// 秘密値は失敗でも同一取得の終了とともに消去します
 	definitionCdn_.clear() ;
-	// 非秘密metadataも同取得成功後だけcommitします。取得証拠は別途sessionへ結びます。
+	// 非秘密metadataも同取得成功後だけcommitします。取得証拠は別途sessionへ結びます
 	if( acquired == 0 && confirmed != nullptr) {
 		*confirmed = {source_,		publishedSha256_, publishedSha512_,
 					  eulaRevision, eulaTextSha256,	  std::move( staticTerms)} ;

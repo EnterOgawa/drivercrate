@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file metadata_search.cpp
- * @brief 情報検索の許可集合と表示専用性の検証実装。
- * @version 01.02.02
+ * @brief 情報検索の許可集合と表示専用性の検証実装
+ * @version 01.02.03
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,11 +19,12 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/12  Metadata専用検索の契約を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/09/15  観測と候補詳細の非取得用途・session結合を検証。
- * Ver.01.02.00 Shunji Ogawa  2026/09/15  十Provider用の結果予算を検証。
- * Ver.01.02.01 Shunji Ogawa  2026/09/15  自動探索capabilityを既知bitとして受理。
- * Ver.01.02.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/12  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/15  観測と候補詳細の非取得用途・session結合を検証
+ * Ver.01.02.00 Shunji Ogawa  2026/09/15  十Provider用の結果予算を検証
+ * Ver.01.02.01 Shunji Ogawa  2026/09/15  自動探索capabilityを既知bitとして受理
+ * Ver.01.02.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.02.03 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
  * @see docs/adr/0153-intel-ethernet-windows11-provider-integration.md
@@ -46,41 +47,41 @@ namespace drivercrate {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 専用検索能力と公式source policyの整合性を検証する。
- * @param[in] descriptor 検証する一つの登録定義。
- * @return 既知能力だけを持ち、専用検索と固定公式sourceが整合する場合true。
+ * @brief 専用検索能力と公式source policyの整合性を検証する
+ * @param[in] descriptor 検証する一つの登録定義
+ * @return 既知能力だけを持ち、専用検索と固定公式sourceが整合する場合true
  */
 //------------------------------------------------------------------------------
 bool isMetadataSearchProvider( const ProviderDescriptor &descriptor) noexcept
 {
-	// 未知bitや混合trust boundaryを専用検索能力として受理しない。
+	// 未知bitや混合trust boundaryを専用検索能力として受理しない
 	const auto required = capabilityMask( ProviderCapability::SCAN) |
 						  capabilityMask( ProviderCapability::OFFICIAL_NETWORK) |
 						  capabilityMask( ProviderCapability::METADATA_ONLY_SCAN) ;
-	// 単一の公式境界と専用能力がそろわない登録は検索入口にしない。
+	// 単一の公式境界と専用能力がそろわない登録は検索入口にしない
 	if( (descriptor.capabilities & ~0x3FFU) != 0U ||
 	   (descriptor.capabilities & required) != required ||
 	   (descriptor.capabilities & 0xF0U) != capabilityMask( ProviderCapability::OFFICIAL_NETWORK)) {
 		return false ;
 	}
 
-	const auto *policy = officialSourcePolicyForProvider( descriptor.id) ;	// 固定公式起点の正本。
+	const auto *policy = officialSourcePolicyForProvider( descriptor.id) ;	// 固定公式起点の正本
 	return policy != nullptr && descriptor.officialSourcePolicyId == policy->id ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 明示した有限集合を検証し、未知・重複・未対応・未知policyを拒否する。
- * @param[in] request 所有値として受け渡される今回の要求。
- * @param[in] descriptors Registryの正本。Testでは能力追加前の合成snapshotを渡せる。
- * @return 全入力が整合し、一つ以上の専用Providerを明示した場合true。
- * @note I/Oもsession失効も行わない。
+ * @brief 明示した有限集合を検証し、未知・重複・未対応・未知policyを拒否する
+ * @param[in] request 所有値として受け渡される今回の要求
+ * @param[in] descriptors Registryの正本。Testでは能力追加前の合成snapshotを渡せる
+ * @return 全入力が整合し、一つ以上の専用Providerを明示した場合true
+ * @note I/Oもsession失効も行わない
  */
 //------------------------------------------------------------------------------
 bool validateMetadataSearchRequest( const MetadataSearchRequest				&request,
 								   const std::span<const ProviderDescriptor> descriptors) noexcept
 {
-	// 任意policyや空集合、過大な入力は列挙・通信より前に拒否する。
+	// 任意policyや空集合、過大な入力は列挙・通信より前に拒否する
 	if( request.policyId != METADATA_SEARCH_POLICY_ID ||
 	   request.policyRevision != METADATA_SEARCH_POLICY_REVISION ||
 	   request.enabledProviderIds.empty() ||
@@ -89,10 +90,10 @@ bool validateMetadataSearchRequest( const MetadataSearchRequest				&request,
 		return false ;
 	}
 
-	// Registryの重複を検索順依存の権限判定へ変えない。
+	// Registryの重複を検索順依存の権限判定へ変えない
 	for( std::size_t index = 0; index < descriptors.size(); ++index) {
-		const auto &descriptor = descriptors[index] ;	// 現在検証する登録定義。
-		// 空IDや重複IDを走査順だけで一つへ解決しない。
+		const auto &descriptor = descriptors[index] ;	// 現在検証する登録定義
+		// 空IDや重複IDを走査順だけで一つへ解決しない
 		if( descriptor.id.empty() ||
 		   std::count_if( descriptors.begin(), descriptors.end(), [&descriptor]( const auto &item) {
 			   return item.id == descriptor.id ;
@@ -101,13 +102,12 @@ bool validateMetadataSearchRequest( const MetadataSearchRequest				&request,
 		}
 	}
 
-	// 明示IDごとに一意な専用callback能力を要求する。
+	// 明示IDごとに一意な専用callback能力を要求する
 	for( const auto &id : request.enabledProviderIds) {
 		const auto found =
-			std::find_if( descriptors.begin(), descriptors.end(), [&id]( const auto &item) {
-				return item.id == id ;
-			}) ; // ID完全一致の登録位置。
-		// 未登録・未対応・重複選択では通常scanへ代替しない。
+			std::find_if( descriptors.begin(), descriptors.end(),
+						 [&id]( const auto &item) { return item.id == id ; }) ;	// ID完全一致の登録位置
+		// 未登録・未対応・重複選択では通常scanへ代替しない
 		if( found == descriptors.end() || !isMetadataSearchProvider( *found) ||
 		   std::count( request.enabledProviderIds.begin(), request.enabledProviderIds.end(), id) !=
 			   1) {
@@ -120,23 +120,23 @@ bool validateMetadataSearchRequest( const MetadataSearchRequest				&request,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 新modeの候補に取得・導入権限が混入していないか検証する。
- * @param[in] result 同一sessionの情報検索結果。
- * @return METADATA_ONLYかつ全候補が非推奨・非導入・NONEの場合true。
- * @note Operationとsummaryの照合は公開境界で別途実行する。
+ * @brief 新modeの候補に取得・導入権限が混入していないか検証する
+ * @param[in] result 同一sessionの情報検索結果
+ * @return METADATA_ONLYかつ全候補が非推奨・非導入・NONEの場合true
+ * @note Operationとsummaryの照合は公開境界で別途実行する
  */
 //------------------------------------------------------------------------------
 bool hasOnlyMetadataDisplayCandidates( const ScanResult &result) noexcept
 {
-	// Purposeを既定値から推測せず専用結果だけを受理する。
+	// Purposeを既定値から推測せず専用結果だけを受理する
 	if( result.purpose != ScanPurpose::METADATA_ONLY || result.scanSessionId == 0U ||
 	   !isCandidateDetailsSetValid( result.candidates, result.scanSessionId)) {
 		return false ;
 	}
 
-	// UIの一括選択でも権限が復活しない候補だけを受理する。
+	// UIの一括選択でも権限が復活しない候補だけを受理する
 	for( const auto &candidate : result.candidates) {
-		// 行に混入した取得・導入・既定選択の権限を一つでも拒否する。
+		// 行に混入した取得・導入・既定選択の権限を一つでも拒否する
 		if( candidate.installable || candidate.recommended ||
 		   candidate.action != DriverAction::NONE || !candidate.packageIdentity.empty() ||
 		   candidate.defaultPreference != CandidateDefaultPreference::NONE ||
@@ -145,7 +145,7 @@ bool hasOnlyMetadataDisplayCandidates( const ScanResult &result) noexcept
 			return false ;
 		}
 
-		// 配布版を現在INF版へ混入せず、未知の許諾enumを同意不要として表示しない。
+		// 配布版を現在INF版へ混入せず、未知の許諾enumを同意不要として表示しない
 		if( (!candidate.current && !candidate.version.empty()) ||
 		   (candidate.metadataDistribution &&
 			(candidate.current || candidate.metadataDistribution->version.size() > 256U ||
@@ -163,11 +163,11 @@ bool hasOnlyMetadataDisplayCandidates( const ScanResult &result) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公開する情報検索のrequest、全登録、件数、消費、非導入性を再照合する。
- * @param[in] operationId WorkerとUIで一致させる非ゼロ操作ID。
- * @param[in] request 開始時に固定した要求。結果側の自己申告から補完しない。
- * @param[in] result Worker公開直前またはUI受領時の所有結果。
- * @return 全snapshotが一致した場合true。矛盾した部分結果は一括で拒否する。
+ * @brief 公開する情報検索のrequest、全登録、件数、消費、非導入性を再照合する
+ * @param[in] operationId WorkerとUIで一致させる非ゼロ操作ID
+ * @param[in] request 開始時に固定した要求。結果側の自己申告から補完しない
+ * @param[in] result Worker公開直前またはUI受領時の所有結果
+ * @return 全snapshotが一致した場合true。矛盾した部分結果は一括で拒否する
  */
 //------------------------------------------------------------------------------
 bool isMetadataSearchResultValid( const OperationId			  operationId,
@@ -175,8 +175,8 @@ bool isMetadataSearchResultValid( const OperationId			  operationId,
 								 const ScanResult			 &result) noexcept
 {
 	try {
-		const auto descriptors = builtInProviderDescriptors() ;	// 公開時点の登録正本。
-		// 欠けたsummaryや通常結果を部分的な情報検索成功として公開しない。
+		const auto descriptors = builtInProviderDescriptors() ;	// 公開時点の登録正本
+		// 欠けたsummaryや通常結果を部分的な情報検索成功として公開しない
 		if( operationId == 0U || !validateMetadataSearchRequest( request, descriptors) ||
 		   !hasOnlyMetadataDisplayCandidates( result) || !result.metadataSearch ||
 		   !result.measurement || result.providerReports.size() != descriptors.size() ||
@@ -185,9 +185,9 @@ bool isMetadataSearchResultValid( const OperationId			  operationId,
 			return false ;
 		}
 
-		const auto &summary	 = *result.metadataSearch ;	// Workerへ渡した条件と照合する所有値。
-		const auto &measured = *result.measurement ;	// 同一snapshotの段階別計測。
-		// 通常既定集合や別操作の同意を今回のrequestへ読み替えない。
+		const auto &summary	 = *result.metadataSearch ;	// Workerへ渡した条件と照合する所有値
+		const auto &measured = *result.measurement ;	// 同一snapshotの段階別計測
+		// 通常既定集合や別操作の同意を今回のrequestへ読み替えない
 		if( summary.operationId != operationId || summary.scanSessionId != result.scanSessionId ||
 		   summary.request != request || summary.providers.size() != descriptors.size() ||
 		   summary.inventoryComplete != measured.inventory.detailedEnumerationComplete ||
@@ -207,25 +207,25 @@ bool isMetadataSearchResultValid( const OperationId			  operationId,
 			return false ;
 		}
 
-		// A/Iは0件ではなく未測定であることを検査する。
+		// A/Iは0件ではなく未測定であることを検査する
 		const auto unmeasured = []( const StageDeviceCounts &counts) {
 			return counts.applicableUpdateDeviceCount.extent == MeasurementExtent::NOT_MEASURED &&
 				   !counts.applicableUpdateDeviceCount.value &&
 				   counts.installReadyUpdateDeviceCount.extent == MeasurementExtent::NOT_MEASURED &&
 				   !counts.installReadyUpdateDeviceCount.value ;
-		} ; // 所有状態を捕捉しない純粋検査。
-		// 情報検索で適用性または導入準備の実績を生成させない。
+		} ; // 所有状態を捕捉しない純粋検査
+		// 情報検索で適用性または導入準備の実績を生成させない
 		if( !unmeasured( measured.network.combined) || !unmeasured( measured.network.official)) {
 			return false ;
 		}
 
-		MetadataSearchUsage			total ;					// 有界な個別消費だけを合計する。
-		std::size_t					successfulProviders{} ;	// Inventoryを含まない正常な公式終端数。
-		std::set<std::wstring_view> identities ;			// 全Provider間でも候補IDを一意にする。
-		std::set<std::wstring_view> devices ;				// Current行から再構築する結合先。
-		// 現在行のProvider偽装と重複を拒否する。
+		MetadataSearchUsage			total ;					// 有界な個別消費だけを合計する
+		std::size_t					successfulProviders{} ;	// Inventoryを含まない正常な公式終端数
+		std::set<std::wstring_view> identities ;			// 全Provider間でも候補IDを一意にする
+		std::set<std::wstring_view> devices ;				// Current行から再構築する結合先
+		// 現在行のProvider偽装と重複を拒否する
 		for( const auto &candidate : result.candidates) {
-			// Display identityの欠落・過大入力から参照先を推測しない。
+			// Display identityの欠落・過大入力から参照先を推測しない
 			if( candidate.identity.empty() || candidate.identity.size() > 256U ||
 			   candidate.deviceIdentity.empty() || candidate.deviceIdentity.size() > 256U ||
 			   !identities.insert( candidate.identity).second ||
@@ -235,17 +235,17 @@ bool isMetadataSearchResultValid( const OperationId			  operationId,
 			}
 		}
 
-		// Registry順にIDで索引し、結果順の違いを許しつつ欠落・重複を拒否する。
+		// Registry順にIDで索引し、結果順の違いを許しつつ欠落・重複を拒否する
 		for( const auto &descriptor : descriptors) {
-			// 正本IDへ対応するProvider元結果の借用索引。
+			// 正本IDへ対応するProvider元結果の借用索引
 			const auto report = std::find_if(
 				result.providerReports.begin(), result.providerReports.end(),
 				[&descriptor]( const auto &value) { return value.descriptor.id == descriptor.id ; }) ;
-			// 同じ発行元の消費・停止理由だけを照合する借用索引。
+			// 同じ発行元の消費・停止理由だけを照合する借用索引
 			const auto detail = std::find_if(
 				summary.providers.begin(), summary.providers.end(),
 				[&descriptor]( const auto &value) { return value.providerId == descriptor.id ; }) ;
-			// 全29登録に一対一で拘束されたsnapshotだけを公開する。
+			// 全29登録に一対一で拘束されたsnapshotだけを公開する
 			if( report == result.providerReports.end() || detail == summary.providers.end() ||
 			   std::count_if( summary.providers.begin(), summary.providers.end(),
 							 [&descriptor]( const auto &value) {
@@ -254,13 +254,13 @@ bool isMetadataSearchResultValid( const OperationId			  operationId,
 				return false ;
 			}
 
-			const auto &actual	  = report->descriptor ;						// 固定policyを含む元の発行元。
-			const bool	inventory = descriptor.id == DRIVER_STORE_PROVIDER_ID ;	// 必須依存。
-			// 開始時の明示集合に所属する登録だけが公式callbackを実行できる。
+			const auto &actual	  = report->descriptor ;						// 固定policyを含む元の発行元
+			const bool	inventory = descriptor.id == DRIVER_STORE_PROVIDER_ID ;	// 必須依存
+			// 開始時の明示集合に所属する登録だけが公式callbackを実行できる
 			const bool	selected =
 				std::find( request.enabledProviderIds.begin(), request.enabledProviderIds.end(),
 						  descriptor.id) != request.enabledProviderIds.end() ;
-			// 表示名・能力・tier・policyも正本と一致させ、未知bitを許さない。
+			// 表示名・能力・tier・policyも正本と一致させ、未知bitを許さない
 			if( actual.id != descriptor.id || actual.displayName != descriptor.displayName ||
 			   actual.capabilities != descriptor.capabilities ||
 			   actual.selectionTier != descriptor.selectionTier ||
@@ -275,8 +275,8 @@ bool isMetadataSearchResultValid( const OperationId			  operationId,
 				return false ;
 			}
 
-			const auto &usage = detail->usage ;	// 個別固定上限以下の実消費。
-			// Probeは本文と別に数え、開始resource数より多くできない。
+			const auto &usage = detail->usage ;	// 個別固定上限以下の実消費
+			// Probeは本文と別に数え、開始resource数より多くできない
 			if( usage.bodyBytes > 4ULL * 1024ULL * 1024ULL || usage.logicalResources > 2U ||
 			   usage.httpAttempts > 12U || usage.probeBytes > usage.logicalResources ||
 			   (usage.logicalResources == 0U &&
@@ -293,12 +293,12 @@ bool isMetadataSearchResultValid( const OperationId			  operationId,
 			total.logicalResources += usage.logicalResources ;
 			total.httpAttempts += usage.httpAttempts ;
 			const bool normal = detail->reason == MetadataSearchReason::COMPLETED ||
-								// 正常な検索終端。
+								// 正常な検索終端
 								detail->reason == MetadataSearchReason::NOT_APPLICABLE ;
 			const bool successful = report->outcome == OutcomeCode::SUCCESS ||
-									// Provider元の終端。
+									// Provider元の終端
 									report->outcome == OutcomeCode::SUCCEEDED_WITH_ERRORS ;
-			// 未選択、未実施、失敗を候補0の正常終了へ変換しない。
+			// 未選択、未実施、失敗を候補0の正常終了へ変換しない
 			if( (!selected && !inventory &&
 				(detail->reason != MetadataSearchReason::NOT_SELECTED ||
 				 report->outcome != OutcomeCode::NOT_STARTED || report->error != 0)) ||
@@ -313,17 +313,17 @@ bool isMetadataSearchResultValid( const OperationId			  operationId,
 			}
 
 			successfulProviders += static_cast<std::size_t>( selected && normal) ;
-			std::set<std::wstring_view> bound ;				// 同一Providerの一device一情報行。
-			std::size_t					candidateCount{} ;	// 申告件数を全行から再検証する。
-			// 当該Providerの行だけを監査・結合先へ照合する。
+			std::set<std::wstring_view> bound ;				// 同一Providerの一device一情報行
+			std::size_t					candidateCount{} ;	// 申告件数を全行から再検証する
+			// 当該Providerの行だけを監査・結合先へ照合する
 			for( const auto &candidate : result.candidates) {
-				// 他Providerの行はその登録を処理するときに検証する。
+				// 他Providerの行はその登録を処理するときに検証する
 				if( candidate.providerId != descriptor.id) {
 					continue ;
 				}
 
 				++candidateCount ;
-				// 未選択source、現在行偽装、未結合node、監査矛盾を公開しない。
+				// 未選択source、現在行偽装、未結合node、監査矛盾を公開しない
 				if( (!selected && !inventory) || candidate.current != inventory ||
 				   !devices.contains( candidate.deviceIdentity) ||
 				   !bound.insert( candidate.deviceIdentity).second ||
@@ -333,13 +333,13 @@ bool isMetadataSearchResultValid( const OperationId			  operationId,
 				}
 			}
 
-			// Report件数を非機密な実行件数の正本として偽装させない。
+			// Report件数を非機密な実行件数の正本として偽装させない
 			if( candidateCount != report->candidateCount) {
 				return false ;
 			}
 		}
 
-		// 未登録発行元の行を全report走査の外へ残さない。
+		// 未登録発行元の行を全report走査の外へ残さない
 		if( std::any_of( result.candidates.begin(), result.candidates.end(),
 					   [&descriptors]( const auto &candidate) {
 						   return std::none_of( descriptors.begin(), descriptors.end(),
@@ -358,7 +358,7 @@ bool isMetadataSearchResultValid( const OperationId			  operationId,
 
 		return true ;
 	} catch( ...) {
-		// 一時索引の確保失敗でも部分的な権限・reportを公開しない。
+		// 一時索引の確保失敗でも部分的な権限・reportを公開しない
 		return false ;
 	}
 }

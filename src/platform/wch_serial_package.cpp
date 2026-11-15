@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file wch_serial_package.cpp
- * @brief WCH USB serial署名済みINF ZIP検証実装。
- * @version 01.00.01
+ * @brief WCH USB serial署名済みINF ZIP検証実装
+ * @version 01.00.02
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,21 +19,22 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  固定公式ZIP SHA-256検証追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  CH342／CH343系package検証追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  固定公式ZIP SHA-256検証追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  CH342／CH343系package検証追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
  * @note 公式ZIP全体を未信頼入力として事前検査し、製品familyごとの固定directory内にある現行x64 INF packageだけを選択します。Setup executableは
- *       展開・実行せず、不一致時は候補を一件も返しません。
+ *       展開・実行せず、不一致時は候補を一件も返しません
  */
 //------------------------------------------------------------------------------
 
@@ -52,45 +53,45 @@ namespace drivercrate {
 namespace {
 
 //------------------------------------------------------------------------------
-// 定数定義。
+// 定数定義
 //------------------------------------------------------------------------------
 
 constexpr std::uint64_t MAXIMUM_ARCHIVE_BYTES =
-	4ULL * 1024ULL * 1024ULL ;	// CH341SER入力ZIPの最大byte数。
+	4ULL * 1024ULL * 1024ULL ;	// CH341SER入力ZIPの最大byte数
 constexpr std::uint64_t MAXIMUM_SINGLE_FILE_BYTES =
-	1024ULL * 1024ULL ;	// CH341SER内の一通常fileの最大byte数。
+	1024ULL * 1024ULL ;	// CH341SER内の一通常fileの最大byte数
 constexpr std::uint64_t MAXIMUM_EXPANDED_BYTES =
-	8ULL * 1024ULL * 1024ULL ;										// CH341SER全entryの最大展開後byte数。
-constexpr std::uint32_t		MAXIMUM_ENTRY_COUNT			 = 64U ;	// 公式ZIP全体のentry数上限。
-constexpr std::size_t		MAXIMUM_INF_COUNT			 = 1U ;		// 選択directoryのINF数上限。
-constexpr std::size_t		MAXIMUM_HARDWARE_IDS_PER_INF = 16U ;	// WCH INFのPnP ID数上限。
-constexpr std::size_t		MAXIMUM_SOURCE_FILES_PER_INF = 32U ;	// WCH INFの参照file数上限。
+	8ULL * 1024ULL * 1024ULL ;										// CH341SER全entryの最大展開後byte数
+constexpr std::uint32_t		MAXIMUM_ENTRY_COUNT			 = 64U ;	// 公式ZIP全体のentry数上限
+constexpr std::size_t		MAXIMUM_INF_COUNT			 = 1U ;		// 選択directoryのINF数上限
+constexpr std::size_t		MAXIMUM_HARDWARE_IDS_PER_INF = 16U ;	// WCH INFのPnP ID数上限
+constexpr std::size_t		MAXIMUM_SOURCE_FILES_PER_INF = 32U ;	// WCH INFの参照file数上限
 constexpr std::wstring_view SELECTED_SUBDIRECTORY =
-	L"CH341SER\\WIN 1X" ;	// 公式ZIP内で現行Windows packageを保持する固定directory。
+	L"CH341SER\\WIN 1X" ;	// 公式ZIP内で現行Windows packageを保持する固定directory
 
 constexpr OfficialZipExtractionPolicy ZIP_POLICY{
 	.maximumArchiveBytes	   = MAXIMUM_ARCHIVE_BYTES,
 	.maximumSingleFileBytes	   = MAXIMUM_SINGLE_FILE_BYTES,
 	.maximumTotalExpandedBytes = MAXIMUM_EXPANDED_BYTES,
 	.maximumEntryCount		   = MAXIMUM_ENTRY_COUNT,
-} ; // WCH公式ZIP全体へ適用する有限展開上限。
+} ; // WCH公式ZIP全体へ適用する有限展開上限
 
-constexpr std::array ACCEPTED_CLASSES{std::wstring_view( L"Ports")} ;		// 許可setup class。
-constexpr std::array ACCEPTED_PROVIDERS{std::wstring_view( L"wch.cn")} ;	// 許可INF Provider。
-constexpr std::array ACCEPTED_INF_SIGNATURES{								// WCH公式INFが使用するSignature。
+constexpr std::array ACCEPTED_CLASSES{std::wstring_view( L"Ports")} ;		// 許可setup class
+constexpr std::array ACCEPTED_PROVIDERS{std::wstring_view( L"wch.cn")} ;	// 許可INF Provider
+constexpr std::array ACCEPTED_INF_SIGNATURES{								// WCH公式INFが使用するSignature
 											 std::wstring_view( L"$CHICAGO$")} ;
 constexpr std::array ACCEPTED_SIGNERS{
-	// CAT signer。
+	// CAT signer
 	std::wstring_view( L"Microsoft Windows Hardware Compatibility Publisher")} ;
 constexpr std::array ACCEPTED_ARCHIVE_SHA256{
 	std::wstring_view( L"59967d9ce371d0bf3df02dec0b66c8dfbf9ca576da0572ff4404148a7c381807"),
-} ; // 公式CH341SER 4.0 ZIPを審査時の全byteへ固定するSHA-256 allowlist。
+} ; // 公式CH341SER 4.0 ZIPを審査時の全byteへ固定するSHA-256 allowlist
 constexpr std::array EMBEDDED_SIGNATURE_FILES{
 	std::wstring_view( L"CH341SER\\WIN 1X\\CH341S64.sys"),
 	std::wstring_view( L"CH341SER\\WIN 1X\\CH341PTA64.DLL"),
 	std::wstring_view( L"CH341SER\\WIN 1X\\CH341PORTSA64.DLL"),
 	std::wstring_view( L"CH341SER\\WIN 1X\\CH341PT.DLL"),
-} ; // NTamd64 install sectionが参照し、WHCP埋込み署名を必須にする固定file群。
+} ; // NTamd64 install sectionが参照し、WHCP埋込み署名を必須にする固定file群
 
 constexpr OfficialInfInspectionPolicy INF_POLICY{
 	.maximumHardwareIds = MAXIMUM_HARDWARE_IDS_PER_INF,
@@ -98,7 +99,7 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 	.acceptedClasses	= ACCEPTED_CLASSES,
 	.acceptedProviders	= ACCEPTED_PROVIDERS,
 	.acceptedSignatures = ACCEPTED_INF_SIGNATURES,
-} ; // WCH CH341SER INFへ適用する構造policy。
+} ; // WCH CH341SER INFへ適用する構造policy
 
 constexpr std::array ACCEPTED_HARDWARE_IDS{
 	std::wstring_view( L"USB\\VID_1A86&PID_7523"),
@@ -107,47 +108,47 @@ constexpr std::array ACCEPTED_HARDWARE_IDS{
 	std::wstring_view( L"USB\\VID_1A86&PID_E523"),
 	std::wstring_view( L"USB\\VID_4348&PID_5523"),
 	std::wstring_view( L"USB\\VID_4348&PID_5523&REV_0250"),
-} ; // WCH署名済みCH341SER INF 4.0が明示するPnP ID allowlist。
+} ; // WCH署名済みCH341SER INF 4.0が明示するPnP ID allowlist
 
 constexpr std::array REQUIRED_X64_FILES{
 	std::wstring_view( L"ch341s64.sys"),
 	std::wstring_view( L"ch341pta64.dll"),
 	std::wstring_view( L"ch341portsa64.dll"),
 	std::wstring_view( L"ch341pt.dll"),
-} ; // NTamd64 install sectionが参照する必須binary名。
-constexpr std::wstring_view ACCEPTED_DRIVER_DATE = L"02/11/2026" ;	// 固定ZIP内のDriverVer日付。
+} ; // NTamd64 install sectionが参照する必須binary名
+constexpr std::wstring_view ACCEPTED_DRIVER_DATE = L"02/11/2026" ;	// 固定ZIP内のDriverVer日付
 constexpr std::wstring_view ACCEPTED_DRIVER_VERSION =
-	L"4.0.2026.02" ;	// 固定ZIP内のDriverVer version。
+	L"4.0.2026.02" ;	// 固定ZIP内のDriverVer version
 
 constexpr std::uint64_t MULTI_MAXIMUM_ARCHIVE_BYTES =
-	4ULL * 1024ULL * 1024ULL ;	// CH343SER入力ZIPの最大byte数。
+	4ULL * 1024ULL * 1024ULL ;	// CH343SER入力ZIPの最大byte数
 constexpr std::uint64_t MULTI_MAXIMUM_SINGLE_FILE_BYTES =
-	1024ULL * 1024ULL ;	// CH343SER内の一通常fileの最大byte数。
+	1024ULL * 1024ULL ;	// CH343SER内の一通常fileの最大byte数
 constexpr std::uint64_t MULTI_MAXIMUM_EXPANDED_BYTES =
-	8ULL * 1024ULL * 1024ULL ;											// CH343SER全entryの最大展開後byte数。
-constexpr std::uint32_t		MULTI_MAXIMUM_ENTRY_COUNT = 64U ;			// CH343SER公式ZIP全体のentry数上限。
-constexpr std::size_t		MULTI_MAXIMUM_INF_COUNT	  = 1U ;			// 固定directoryのINF数上限。
-constexpr std::size_t		MULTI_MAXIMUM_HARDWARE_IDS_PER_INF = 64U ;	// 固定INFのPnP ID数上限。
-constexpr std::size_t		MULTI_MAXIMUM_SOURCE_FILES_PER_INF = 32U ;	// 固定INFの参照file数上限。
+	8ULL * 1024ULL * 1024ULL ;											// CH343SER全entryの最大展開後byte数
+constexpr std::uint32_t		MULTI_MAXIMUM_ENTRY_COUNT = 64U ;			// CH343SER公式ZIP全体のentry数上限
+constexpr std::size_t		MULTI_MAXIMUM_INF_COUNT	  = 1U ;			// 固定directoryのINF数上限
+constexpr std::size_t		MULTI_MAXIMUM_HARDWARE_IDS_PER_INF = 64U ;	// 固定INFのPnP ID数上限
+constexpr std::size_t		MULTI_MAXIMUM_SOURCE_FILES_PER_INF = 32U ;	// 固定INFの参照file数上限
 constexpr std::wstring_view MULTI_SELECTED_SUBDIRECTORY =
-	L"CH343SER\\Driver\\WIN 1X" ;	// CH343SER 2.2の現行Windows固定directory。
+	L"CH343SER\\Driver\\WIN 1X" ;	// CH343SER 2.2の現行Windows固定directory
 
 constexpr OfficialZipExtractionPolicy MULTI_ZIP_POLICY{
 	.maximumArchiveBytes	   = MULTI_MAXIMUM_ARCHIVE_BYTES,
 	.maximumSingleFileBytes	   = MULTI_MAXIMUM_SINGLE_FILE_BYTES,
 	.maximumTotalExpandedBytes = MULTI_MAXIMUM_EXPANDED_BYTES,
 	.maximumEntryCount		   = MULTI_MAXIMUM_ENTRY_COUNT,
-} ; // CH343SER公式ZIP全体へ適用する有限展開上限。
+} ; // CH343SER公式ZIP全体へ適用する有限展開上限
 
 constexpr std::array MULTI_ACCEPTED_ARCHIVE_SHA256{
 	std::wstring_view( L"6084fd47cc2a6bf27eb3df3a6f57430ec8a3fa69d8f32dc9c6f6807816a15e57"),
-} ; // 公式CH343SER 2.2 ZIPを審査時の全byteへ固定するSHA-256 allowlist。
+} ; // 公式CH343SER 2.2 ZIPを審査時の全byteへ固定するSHA-256 allowlist
 constexpr std::array MULTI_EMBEDDED_SIGNATURE_FILES{
 	std::wstring_view( L"CH343SER\\Driver\\WIN 1X\\CH343S64.sys"),
 	std::wstring_view( L"CH343SER\\Driver\\WIN 1X\\CH343PTA64.DLL"),
 	std::wstring_view( L"CH343SER\\Driver\\WIN 1X\\CH343PORTSA64.DLL"),
 	std::wstring_view( L"CH343SER\\Driver\\WIN 1X\\CH343PT.DLL"),
-} ; // NTamd64 install sectionが参照し、WHCP埋込み署名を必須にする固定file群。
+} ; // NTamd64 install sectionが参照し、WHCP埋込み署名を必須にする固定file群
 
 constexpr OfficialInfInspectionPolicy MULTI_INF_POLICY{
 	.maximumHardwareIds = MULTI_MAXIMUM_HARDWARE_IDS_PER_INF,
@@ -155,7 +156,7 @@ constexpr OfficialInfInspectionPolicy MULTI_INF_POLICY{
 	.acceptedClasses	= ACCEPTED_CLASSES,
 	.acceptedProviders	= ACCEPTED_PROVIDERS,
 	.acceptedSignatures = ACCEPTED_INF_SIGNATURES,
-} ; // WCH CH343SER INFへ適用する構造policy。
+} ; // WCH CH343SER INFへ適用する構造policy
 
 constexpr std::array MULTI_ACCEPTED_HARDWARE_IDS{
 	std::wstring_view( L"USB\\VID_1A86&PID_55D2&MI_00"),
@@ -198,31 +199,30 @@ constexpr std::array MULTI_ACCEPTED_HARDWARE_IDS{
 	std::wstring_view( L"USB\\VID_1A86&PID_55EF&MI_06"),
 	std::wstring_view( L"USB\\VID_1A86&PID_5610&MI_01"),
 	std::wstring_view( L"USB\\VID_1A86&PID_7523&REV_8234"),
-} ; // CH343SER 2.2のNTamd64 model sectionが明示するPnP ID allowlist。
+} ; // CH343SER 2.2のNTamd64 model sectionが明示するPnP ID allowlist
 
 constexpr std::array MULTI_REQUIRED_X64_FILES{
 	std::wstring_view( L"ch343s64.sys"),
 	std::wstring_view( L"ch343pta64.dll"),
 	std::wstring_view( L"ch343portsa64.dll"),
 	std::wstring_view( L"ch343pt.dll"),
-} ; // CH343SER 2.2のNTamd64 install sectionが参照する必須binary名。
-constexpr std::wstring_view MULTI_ACCEPTED_DRIVER_DATE =
-	L"05/19/2026" ;	// 固定ZIP内のDriverVer日付。
+} ; // CH343SER 2.2のNTamd64 install sectionが参照する必須binary名
+constexpr std::wstring_view MULTI_ACCEPTED_DRIVER_DATE = L"05/19/2026" ;	// 固定ZIP内のDriverVer日付
 constexpr std::wstring_view MULTI_ACCEPTED_DRIVER_VERSION =
-	L"2.2.2026.05" ;	// 固定ZIP内のDriverVer version。
+	L"2.2.2026.05" ;	// 固定ZIP内のDriverVer version
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASCII文字を小文字へ変換する。
+ * @brief ASCII文字を小文字へ変換する
  *
- * Locale依存変換を避け、PnP IDとfile名の比較へ使用する。
+ * Locale依存変換を避け、PnP IDとfile名の比較へ使用する
  *
- * @param[in] character 比較対象の一文字。
- * @return ASCII英大文字は小文字、それ以外は入力値。
+ * @param[in] character 比較対象の一文字
+ * @return ASCII英大文字は小文字、それ以外は入力値
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] constexpr wchar_t asciiLower( const wchar_t character) noexcept
@@ -233,13 +233,13 @@ constexpr std::wstring_view MULTI_ACCEPTED_DRIVER_VERSION =
 
 //------------------------------------------------------------------------------
 /**
- * @brief 二つのASCII文字列をcase非依存で比較する。
+ * @brief 二つのASCII文字列をcase非依存で比較する
  *
- * Allocationを行わず、固定allowlistとの完全一致だけを許可する。
+ * Allocationを行わず、固定allowlistとの完全一致だけを許可する
  *
- * @param[in] left 左側のASCII文字列。
- * @param[in] right 右側のASCII文字列。
- * @return 長さと全ASCII文字がcase非依存で一致する場合は`true`。
+ * @param[in] left 左側のASCII文字列
+ * @param[in] right 右側のASCII文字列
+ * @return 長さと全ASCII文字がcase非依存で一致する場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool asciiEqual( const std::wstring_view left, const std::wstring_view right) noexcept
@@ -252,55 +252,55 @@ constexpr std::wstring_view MULTI_ACCEPTED_DRIVER_VERSION =
 
 //------------------------------------------------------------------------------
 /**
- * @brief Pathの最後のfile名を取得する。
+ * @brief Pathの最後のfile名を取得する
  *
- * INFと必須binaryの固定family判定だけに使用する。
+ * INFと必須binaryの固定family判定だけに使用する
  *
- * @param[in] path ZIP検証済み相対path。
- * @return 最後のseparatorより後ろのfile名。
+ * @param[in] path ZIP検証済み相対path
+ * @return 最後のseparatorより後ろのfile名
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::wstring_view fileName( const std::wstring_view path) noexcept
 {
-	const std::size_t separator = path.find_last_of( L"\\/") ;	// 最後のpath separator。
+	const std::size_t separator = path.find_last_of( L"\\/") ;	// 最後のpath separator
 	return separator == std::wstring_view::npos ? path : path.substr( separator + 1U) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief WCH CH341SER固有の署名済みINFか判定する。
+ * @brief WCH CH341SER固有の署名済みINFか判定する
  *
- * 同じpublisher署名を持つ別WCH製品や別機能を受理しない。
+ * 同じpublisher署名を持つ別WCH製品や別機能を受理しない
  *
- * @param[in] package 構造検証済みPorts class INF。
- * @return 固定INF、PnP ID集合、x64必須binaryを満たす場合は`true`。
+ * @param[in] package 構造検証済みPorts class INF
+ * @return 固定INF、PnP ID集合、x64必須binaryを満たす場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isWchSerialPackage( const OfficialInfPackage &package)
 {
-	// CH341 の固定 INF 名・日付・版と非空 PnP ID 集合を必須とする。
+	// CH341 の固定 INF 名・日付・版と非空 PnP ID 集合を必須とする
 	if( !asciiEqual( fileName( package.infRelativePath), L"CH341SER.INF") ||
 	   package.driverDate != ACCEPTED_DRIVER_DATE ||
 	   package.driverVersion != ACCEPTED_DRIVER_VERSION || package.hardwareIds.empty()) {
 		return false ;
 	}
 
-	// 全PnP IDを固定allowlistへ限定し、追加された別製品を黙って受理しない。
+	// 全PnP IDを固定allowlistへ限定し、追加された別製品を黙って受理しない
 	for( const std::wstring &hardwareId : package.hardwareIds) {
-		// CH341 の許可 PnP ID 以外を含む package は受理しない。
+		// CH341 の許可 PnP ID 以外を含む package は受理しない
 		if( !isWchSerialCandidateHardwareId( hardwareId)) {
 			return false ;
 		}
 	}
 
-	// NTamd64 install sectionで必要な全binaryがINF参照集合にあることを確認する。
+	// NTamd64 install sectionで必要な全binaryがINF参照集合にあることを確認する
 	for( const std::wstring_view requiredName : REQUIRED_X64_FILES) {
-		// 必須file名がINFの参照閉包に存在するかを示す。名前viewは同期探索中だけ借用する。
+		// 必須file名がINFの参照閉包に存在するかを示す。名前viewは同期探索中だけ借用する
 		const bool found = std::ranges::any_of(
 			package.sourceFiles, [requiredName]( const std::wstring &sourceFile) noexcept {
 				return asciiEqual( fileName( sourceFile), requiredName) ;
 			}) ;
-		// 必須の対応項目が package 内に見つからなければ拒否する。
+		// 必須の対応項目が package 内に見つからなければ拒否する
 		if( !found) {
 			return false ;
 		}
@@ -311,39 +311,39 @@ constexpr std::wstring_view MULTI_ACCEPTED_DRIVER_VERSION =
 
 //------------------------------------------------------------------------------
 /**
- * @brief WCH CH342／CH343系の固定署名済みINFか判定する。
+ * @brief WCH CH342／CH343系の固定署名済みINFか判定する
  *
- * CH343SER 2.2に未掲載のcustom IDや別WCH packageを拒否する。
+ * CH343SER 2.2に未掲載のcustom IDや別WCH packageを拒否する
  *
- * @param[in] package 構造検証済みPorts class INF。
- * @return 固定INF、PnP ID集合、x64必須binaryを満たす場合は`true`。
+ * @param[in] package 構造検証済みPorts class INF
+ * @return 固定INF、PnP ID集合、x64必須binaryを満たす場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isWchMultiSerialPackage( const OfficialInfPackage &package)
 {
-	// CH343 系の固定 INF 名・日付・版と非空 PnP ID 集合を必須とする。
+	// CH343 系の固定 INF 名・日付・版と非空 PnP ID 集合を必須とする
 	if( !asciiEqual( fileName( package.infRelativePath), L"CH343SER.INF") ||
 	   package.driverDate != MULTI_ACCEPTED_DRIVER_DATE ||
 	   package.driverVersion != MULTI_ACCEPTED_DRIVER_VERSION || package.hardwareIds.empty()) {
 		return false ;
 	}
 
-	// 固定NTamd64 model section外のIDを黙って候補化しない。
+	// 固定NTamd64 model section外のIDを黙って候補化しない
 	for( const std::wstring &hardwareId : package.hardwareIds) {
-		// CH342／CH343 系の許可 PnP ID 以外を含む package を拒否する。
+		// CH342／CH343 系の許可 PnP ID 以外を含む package を拒否する
 		if( !isWchMultiSerialCandidateHardwareId( hardwareId)) {
 			return false ;
 		}
 	}
 
-	// x64 installに必要な全binaryがINF参照集合へ含まれることを確認する。
+	// x64 installに必要な全binaryがINF参照集合へ含まれることを確認する
 	for( const std::wstring_view requiredName : MULTI_REQUIRED_X64_FILES) {
-		// Multi-serial側の必須fileがINF参照閉包に存在するかを示す。探索中だけ名前viewを借用する。
+		// Multi-serial側の必須fileがINF参照閉包に存在するかを示す。探索中だけ名前viewを借用する
 		const bool found = std::ranges::any_of(
 			package.sourceFiles, [requiredName]( const std::wstring &sourceFile) noexcept {
 				return asciiEqual( fileName( sourceFile), requiredName) ;
 			}) ;
-		// CH343 系 package に必須の対応項目がない場合は拒否する。
+		// CH343 系 package に必須の対応項目がない場合は拒否する
 		if( !found) {
 			return false ;
 		}
@@ -354,10 +354,10 @@ constexpr std::wstring_view MULTI_ACCEPTED_DRIVER_VERSION =
 
 //------------------------------------------------------------------------------
 /**
- * @brief WCH固有の利用者選択ZIP policyを返す。
+ * @brief WCH固有の利用者選択ZIP policyを返す
  *
- * ZIP全体の事前検査後に現行Windows subtreeだけを選択する。
- * @return Process lifetime中有効なWCH固有policy。
+ * ZIP全体の事前検査後に現行Windows subtreeだけを選択する
+ * @return Process lifetime中有効なWCH固有policy
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] const UserSelectedInfPackagePolicy &wchPackagePolicy() noexcept
@@ -376,16 +376,16 @@ constexpr std::wstring_view MULTI_ACCEPTED_DRIVER_VERSION =
 		.infPolicy				= INF_POLICY,
 		.signers				= ACCEPTED_SIGNERS,
 		.packagePredicate		= isWchSerialPackage,
-	} ; // WCH CH341SER固有の変更不可policy。
+	} ; // WCH CH341SER固有の変更不可policy
 	return POLICY ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief WCH CH342／CH343系の利用者選択ZIP policyを返す。
+ * @brief WCH CH342／CH343系の利用者選択ZIP policyを返す
  *
- * ZIP全体の固定hash確認後に現行Windows subtreeだけを選ぶ。
- * @return Process lifetime中有効なCH343SER 2.2固定policy。
+ * ZIP全体の固定hash確認後に現行Windows subtreeだけを選ぶ
+ * @return Process lifetime中有効なCH343SER 2.2固定policy
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] const UserSelectedInfPackagePolicy &wchMultiPackagePolicy() noexcept
@@ -404,7 +404,7 @@ constexpr std::wstring_view MULTI_ACCEPTED_DRIVER_VERSION =
 		.infPolicy				= MULTI_INF_POLICY,
 		.signers				= ACCEPTED_SIGNERS,
 		.packagePredicate		= isWchMultiSerialPackage,
-	} ; // WCH CH343SER 2.2固有の変更不可policy。
+	} ; // WCH CH343SER 2.2固有の変更不可policy
 	return POLICY ;
 }
 
@@ -413,9 +413,9 @@ constexpr std::wstring_view MULTI_ACCEPTED_DRIVER_VERSION =
 //------------------------------------------------------------------------------
 /**
  * @brief INF内のPnP IDがWCH公式CH341SER packageの固定USB IDか判定する。PnP IDがWCH CH341SER固定USB IDか判定する。Prefixや
- *        PIDの部分一致を許さず、custom VID／PIDを除外する。
- * @param[in] hardwareId 署名済みINFから取得したPnP ID。 署名済みINFから得たPnP ID。
- * @return 固定VID／PIDまたは公式INFの固定revision IDと完全一致する場合は`true`。 固定allowlistへ完全一致する場合は`true`。
+ *        PIDの部分一致を許さず、custom VID／PIDを除外する
+ * @param[in] hardwareId 署名済みINFから取得したPnP ID。 署名済みINFから得たPnP ID
+ * @return 固定VID／PIDまたは公式INFの固定revision IDと完全一致する場合は`true`。 固定allowlistへ完全一致する場合は`true`
  */
 //------------------------------------------------------------------------------
 bool isWchSerialCandidateHardwareId( const std::wstring_view hardwareId) noexcept
@@ -428,10 +428,10 @@ bool isWchSerialCandidateHardwareId( const std::wstring_view hardwareId) noexcep
 
 //------------------------------------------------------------------------------
 /**
- * @brief INF内のPnP IDがWCH公式CH343SER 2.2の固定USB IDか判定する。PnP IDがWCH CH343SER 2.2の固定USB IDか判定する。
- *        Interfaceとrevisionを含むIDを短縮せず、custom IDを除外する。
- * @param[in] hardwareId 署名済みINFから取得したPnP ID。 署名済みINFから得たPnP ID。
- * @return 固定VID／PID／interface／revision IDと完全一致する場合は`true`。 固定allowlistへ完全一致する場合は`true`。
+ * @brief INF内のPnP IDがWCH公式CH343SER 2.2の固定USB IDか判定する。PnP IDがWCH CH343SER 2.2の固定USB IDか判定する
+ *        Interfaceとrevisionを含むIDを短縮せず、custom IDを除外する
+ * @param[in] hardwareId 署名済みINFから取得したPnP ID。 署名済みINFから得たPnP ID
+ * @return 固定VID／PID／interface／revision IDと完全一致する場合は`true`。 固定allowlistへ完全一致する場合は`true`
  */
 //------------------------------------------------------------------------------
 bool isWchMultiSerialCandidateHardwareId( const std::wstring_view hardwareId) noexcept
@@ -445,13 +445,13 @@ bool isWchMultiSerialCandidateHardwareId( const std::wstring_view hardwareId) no
 //------------------------------------------------------------------------------
 /**
  * @brief 利用者選択WCH CH341SER ZIPを保護領域へ複製して検証する。利用者選択WCH CH341SER ZIPを検証する。ZIP全体を検査し、現行subtreeだけを展開して署
- *        名検証する。
- * @param[in] selectedPath 利用者が公式siteから取得して選択した一つのZIP path。 利用者選択ZIP path。
- * @param[in] scanSessionId 0ではないscan session ID。
- * @param[in,out] workspace 未初期化の保護workspace。選択fileだけを単独所有する。 複製と選択fileの保護領域。
- * @param[out] contents 成功時のarchive identity、選択entry、検証済みINF。 全検証成功時のWCH package情報。
- * @return 全検証成功時は0、入力、ZIP、INF、CATまたは署名違反時はHRESULT。 共通検証とWCH固有検証の成功時は0。
- * @note 入手元を証明せず、固定`CH341SER\\WIN 1X` directory以外を展開しない。
+ *        名検証する
+ * @param[in] selectedPath 利用者が公式siteから取得して選択した一つのZIP path。 利用者選択ZIP path
+ * @param[in] scanSessionId 0ではないscan session ID
+ * @param[in,out] workspace 未初期化の保護workspace。選択fileだけを単独所有する。 複製と選択fileの保護領域
+ * @param[out] contents 成功時のarchive identity、選択entry、検証済みINF。 全検証成功時のWCH package情報
+ * @return 全検証成功時は0、入力、ZIP、INF、CATまたは署名違反時はHRESULT。 共通検証とWCH固有検証の成功時は0
+ * @note 入手元を証明せず、固定`CH341SER\\WIN 1X` directory以外を展開しない
  */
 //------------------------------------------------------------------------------
 NativeError inspectWchSerialPackageFile( const std::wstring_view	   selectedPath,
@@ -465,11 +465,11 @@ NativeError inspectWchSerialPackageFile( const std::wstring_view	   selectedPath
 
 //------------------------------------------------------------------------------
 /**
- * @brief WCH INFをinstall直前に再検証する。Scan時と同じWCH policyでSetupAPI呼出し前に再検証する。
- * @param[in] workspace Scan時の選択fileを所有する保護workspace。 Scan時の保護領域。
- * @param[in] entries Scan時に確定した選択ZIP entry群。 Scan時に選択した展開file群。
- * @param[in] expected Scan時に候補へ対応付けたINF metadata。 Scan時のINF metadata。
- * @return 構造、WCH family、署名、CAT member、全metadataが一致する場合は0。 全metadata、family、CAT member、署名の一致時は0。
+ * @brief WCH INFをinstall直前に再検証する。Scan時と同じWCH policyでSetupAPI呼出し前に再検証する
+ * @param[in] workspace Scan時の選択fileを所有する保護workspace。 Scan時の保護領域
+ * @param[in] entries Scan時に確定した選択ZIP entry群。 Scan時に選択した展開file群
+ * @param[in] expected Scan時に候補へ対応付けたINF metadata。 Scan時のINF metadata
+ * @return 構造、WCH family、署名、CAT member、全metadataが一致する場合は0。 全metadata、family、CAT member、署名の一致時は0
  */
 //------------------------------------------------------------------------------
 NativeError reverifyWchSerialInfPackage( const OfficialDownloadWorkspace		   &workspace,
@@ -482,13 +482,13 @@ NativeError reverifyWchSerialInfPackage( const OfficialDownloadWorkspace		   &wo
 //------------------------------------------------------------------------------
 /**
  * @brief 利用者選択WCH CH343SER ZIPを保護領域へ複製して検証する。利用者選択WCH CH343SER 2.2 ZIPを検証する。ZIP全体を検査し、固定現行subtreeだけ
- *        を展開・検証する。
- * @param[in] selectedPath 利用者が公式siteから取得して選択した一つのZIP path。 利用者選択ZIP path。
- * @param[in] scanSessionId 0ではないscan session ID。
- * @param[in,out] workspace 未初期化の保護workspace。選択fileだけを単独所有する。 複製と選択fileの保護領域。
- * @param[out] contents 成功時のarchive identity、選択entry、検証済みINF。 全検証成功時のWCH package情報。
- * @return 全検証成功時は0、入力、ZIP、INF、CATまたは署名違反時はHRESULT。 固定archiveとWCH固有検証の成功時は0。
- * @note 入手元を証明せず、固定`CH343SER\\Driver\\WIN 1X`以外を展開しない。
+ *        を展開・検証する
+ * @param[in] selectedPath 利用者が公式siteから取得して選択した一つのZIP path。 利用者選択ZIP path
+ * @param[in] scanSessionId 0ではないscan session ID
+ * @param[in,out] workspace 未初期化の保護workspace。選択fileだけを単独所有する。 複製と選択fileの保護領域
+ * @param[out] contents 成功時のarchive identity、選択entry、検証済みINF。 全検証成功時のWCH package情報
+ * @return 全検証成功時は0、入力、ZIP、INF、CATまたは署名違反時はHRESULT。 固定archiveとWCH固有検証の成功時は0
+ * @note 入手元を証明せず、固定`CH343SER\\Driver\\WIN 1X`以外を展開しない
  */
 //------------------------------------------------------------------------------
 NativeError inspectWchMultiSerialPackageFile( const std::wstring_view	selectedPath,
@@ -502,11 +502,11 @@ NativeError inspectWchMultiSerialPackageFile( const std::wstring_view	selectedPa
 
 //------------------------------------------------------------------------------
 /**
- * @brief WCH CH342／CH343系INFをinstall直前に再検証する。Scan時と同じCH343SER 2.2 policyでSetupAPI前に再検証する。
- * @param[in] workspace Scan時の選択fileを所有する保護workspace。 Scan時の保護領域。
- * @param[in] entries Scan時に確定した選択ZIP entry群。 Scan時に選択した展開file群。
- * @param[in] expected Scan時に候補へ対応付けたINF metadata。 Scan時のINF metadata。
- * @return 固定archive、全file hash、構造、WCH family、署名が一致する場合は0。 固定archive、全file hash、metadata、署名一致時は0。
+ * @brief WCH CH342／CH343系INFをinstall直前に再検証する。Scan時と同じCH343SER 2.2 policyでSetupAPI前に再検証する
+ * @param[in] workspace Scan時の選択fileを所有する保護workspace。 Scan時の保護領域
+ * @param[in] entries Scan時に確定した選択ZIP entry群。 Scan時に選択した展開file群
+ * @param[in] expected Scan時に候補へ対応付けたINF metadata。 Scan時のINF metadata
+ * @return 固定archive、全file hash、構造、WCH family、署名が一致する場合は0。 固定archive、全file hash、metadata、署名一致時は0
  */
 //------------------------------------------------------------------------------
 NativeError reverifyWchMultiSerialInfPackage( const OfficialDownloadWorkspace		&workspace,

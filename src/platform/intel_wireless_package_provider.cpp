@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file intel_wireless_package_provider.cpp
- * @brief 利用者選択INF package Provider共通実装。
- * @version 01.02.01
+ * @brief 利用者選択INF package Provider共通実装
+ * @version 01.02.02
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,27 +19,28 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  区分C候補の自動選択拒否。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  Provider固有policyの共通化。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  同一deviceの複数公式版表示追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  Package由来class照合mode追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  Provider固有class照合関数追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  利用者指定候補監査状態追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  区分C候補の自動選択拒否
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Provider固有policyの共通化
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  同一deviceの複数公式版表示追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Package由来class照合mode追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Provider固有class照合関数追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  利用者指定候補監査状態追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.01.00 Shunji Ogawa  2026/09/15  共通個別INF検査とWindows適合観測の接続を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
- * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/15  共通個別INF検査とWindows適合観測の接続を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
  * @note 利用者選択INF ZIPを探索区分Cとして扱い、署名済みINFのPnP IDが現在deviceへ完全一致した場合だけ候補化します。Package pathとPnP IDはworker
- *       内に閉じ、install直前に全検証を反復します。
+ *       内に閉じ、install直前に全検証を反復します
  */
 //------------------------------------------------------------------------------
 
@@ -73,51 +74,51 @@ namespace drivercrate {
 namespace {
 
 //------------------------------------------------------------------------------
-// 内部型定義。
+// 内部型定義
 //------------------------------------------------------------------------------
 
 /**
- * @brief 一つのdeviceへ対応した検証済みINF index群を保持する。
+ * @brief 一つのdeviceへ対応した検証済みINF index群を保持する
  */
 struct MatchedPackages {
-	/// Package contents内の重複なしindex群。
+	/// Package contents内の重複なしindex群
 	std::vector<std::size_t> packageIndexes ;
 } ;
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASCII文字列を大文字小文字を除いて比較する。
+ * @brief ASCII文字列を大文字小文字を除いて比較する
  *
- * Setup class名の比較だけに使用し、部分一致を許可しない。
+ * Setup class名の比較だけに使用し、部分一致を許可しない
  *
- * @param[in] left 左辺文字列。
- * @param[in] right 右辺文字列。
- * @return ASCII英字のcaseだけを無視して完全一致する場合は`true`。
+ * @param[in] left 左辺文字列
+ * @param[in] right 右辺文字列
+ * @return ASCII英字のcaseだけを無視して完全一致する場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool asciiStringsEqual( const std::wstring_view left,
 									 const std::wstring_view right) noexcept
 {
-	// 長さの異なるASCII文字列を同一識別子とみなさない。
+	// 長さの異なるASCII文字列を同一識別子とみなさない
 	if( left.size() != right.size()) {
 		return false ;
 	}
 
-	// 同じ長さの文字列をASCIIの大小文字差だけ除いて比較する。
+	// 同じ長さの文字列をASCIIの大小文字差だけ除いて比較する
 	for( std::size_t index = 0; index < left.size(); ++index) {
-		const wchar_t leftCharacter	  = left[index] ;	// 現在位置の左辺文字。
-		const wchar_t rightCharacter  = right[index] ;	// 現在位置の右辺文字。
+		const wchar_t leftCharacter	  = left[index] ;	// 現在位置の左辺文字
+		const wchar_t rightCharacter  = right[index] ;	// 現在位置の右辺文字
 		const wchar_t normalizedLeft  = leftCharacter >= L'A' && leftCharacter <= L'Z'
 											? static_cast<wchar_t>( leftCharacter - L'A' + L'a')
-											: leftCharacter ;	// ASCII小文字化した左辺文字。
+											: leftCharacter ;	// ASCII小文字化した左辺文字
 		const wchar_t normalizedRight = rightCharacter >= L'A' && rightCharacter <= L'Z'
 											? static_cast<wchar_t>( rightCharacter - L'A' + L'a')
-											: rightCharacter ;	// ASCII小文字化した右辺文字。
-		// 正規化後にも異なる文字があれば不一致とする。
+											: rightCharacter ;	// ASCII小文字化した右辺文字
+		// 正規化後にも異なる文字があれば不一致とする
 		if( normalizedLeft != normalizedRight) {
 			return false ;
 		}
@@ -128,28 +129,28 @@ struct MatchedPackages {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 4要素numeric driver versionを解析する。
+ * @brief 4要素numeric driver versionを解析する
  *
- * 日付や表示名を適用性に使わず、検証済み候補のaction分類だけにversionを使用する。
+ * 日付や表示名を適用性に使わず、検証済み候補のaction分類だけにversionを使用する
  *
- * @param[in] version `a.b.c.d`形式のdriver version。
- * @return 4要素の数値。形式不正またはoverflow時は`std::nullopt`。
+ * @param[in] version `a.b.c.d`形式のdriver version
+ * @return 4要素の数値。形式不正またはoverflow時は`std::nullopt`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::array<std::uint32_t, 4>> parseVersion(
 	const std::wstring_view version) noexcept
 {
-	std::array<std::uint32_t, 4> parts{} ;		// 解析済みversion要素。
-	std::size_t					 partIndex{} ;	// 現在解析する0始まり要素index。
-	std::uint64_t				 value{} ;		// Overflow検査用の現在要素値。
-	bool						 hasDigit{} ;	// 現在要素に一桁以上あればtrue。
-	// 終端を仮想separatorとして処理し、4要素以外を拒否する。
+	std::array<std::uint32_t, 4> parts{} ;		// 解析済みversion要素
+	std::size_t					 partIndex{} ;	// 現在解析する0始まり要素index
+	std::uint64_t				 value{} ;		// Overflow検査用の現在要素値
+	bool						 hasDigit{} ;	// 現在要素に一桁以上あればtrue
+	// 終端を仮想separatorとして処理し、4要素以外を拒否する
 	for( std::size_t index = 0; index <= version.size(); ++index) {
-		const wchar_t character = index == version.size() ? L'.' : version[index] ;	// 現在文字。
-		// 版の数字を現在の数値要素へ取り込む。
+		const wchar_t character = index == version.size() ? L'.' : version[index] ;	// 現在文字
+		// 版の数字を現在の数値要素へ取り込む
 		if( character >= L'0' && character <= L'9') {
-			const std::uint64_t digit = static_cast<std::uint64_t>( character - L'0') ;	// 桁値。
-			// 版要素の32-bit overflowを桁追加前に検出する。
+			const std::uint64_t digit = static_cast<std::uint64_t>( character - L'0') ;	// 桁値
+			// 版要素の32-bit overflowを桁追加前に検出する
 			if( value > (std::numeric_limits<std::uint32_t>::max() - digit) / 10U) {
 				return std::nullopt ;
 			}
@@ -159,7 +160,7 @@ struct MatchedPackages {
 			continue ;
 		}
 
-		// 不正な区切り、空要素、過剰要素を含む版を拒否する。
+		// 不正な区切り、空要素、過剰要素を含む版を拒否する
 		if( character != L'.' || !hasDigit || partIndex >= parts.size()) {
 			return std::nullopt ;
 		}
@@ -175,31 +176,31 @@ struct MatchedPackages {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 検証済みdriver versionを現在版に対するactionへ分類する。
+ * @brief 検証済みdriver versionを現在版に対するactionへ分類する
  *
- * 比較不能時は新しい版と推測せず明示再導入へ分類する。
+ * 比較不能時は新しい版と推測せず明示再導入へ分類する
  *
- * @param[in] candidateVersion INFが宣言した4要素version。
- * @param[in] currentVersion SetupAPIが返した現在driver version。
- * @return 数値比較結果に対応するUpdate、ReinstallまたはDowngrade。
+ * @param[in] candidateVersion INFが宣言した4要素version
+ * @param[in] currentVersion SetupAPIが返した現在driver version
+ * @return 数値比較結果に対応するUpdate、ReinstallまたはDowngrade
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] DriverAction classifyAction( const std::wstring_view candidateVersion,
 										  const std::wstring_view currentVersion) noexcept
 {
-	const auto candidate = parseVersion( candidateVersion) ;	// INF version解析結果。
-	const auto current	 = parseVersion( currentVersion) ;		// 現在version解析結果。
-	// 版を数値比較できない場合は通常更新ではなく再導入に分類する。
+	const auto candidate = parseVersion( candidateVersion) ;	// INF version解析結果
+	const auto current	 = parseVersion( currentVersion) ;		// 現在version解析結果
+	// 版を数値比較できない場合は通常更新ではなく再導入に分類する
 	if( !candidate.has_value() || !current.has_value()) {
 		return DriverAction::REINSTALL ;
 	}
 
-	// 候補版が現在版を上回る場合だけ通常更新に分類する。
+	// 候補版が現在版を上回る場合だけ通常更新に分類する
 	if( candidate.value() > current.value()) {
 		return DriverAction::UPDATE ;
 	}
 
-	// 候補版が現在版を下回る場合は旧版への切替として区別する。
+	// 候補版が現在版を下回る場合は旧版への切替として区別する
 	if( candidate.value() < current.value()) {
 		return DriverAction::DOWNGRADE ;
 	}
@@ -209,29 +210,29 @@ struct MatchedPackages {
 
 //------------------------------------------------------------------------------
 /**
- * @brief INF日付をUIの年月日順へ変換する。
+ * @brief INF日付をUIの年月日順へ変換する
  *
- * 日付は表示専用とし、候補適用性または新旧判定に使用しない。
+ * 日付は表示専用とし、候補適用性または新旧判定に使用しない
  *
- * @param[in] value INF DriverVerの`MM/DD/YYYY`日付。
- * @return `YYYY/MM/DD`形式。形式不正時は空文字列。
+ * @param[in] value INF DriverVerの`MM/DD/YYYY`日付
+ * @return `YYYY/MM/DD`形式。形式不正時は空文字列
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::wstring formatDriverDate( const std::wstring_view value)
 {
-	// INF日付の固定形式が不正な場合は表示日付を推測しない。
+	// INF日付の固定形式が不正な場合は表示日付を推測しない
 	if( value.size() != 10U || value[2] != L'/' || value[5] != L'/') {
 		return {} ;
 	}
 
-	// Separator以外がASCII数字であることを確認する。
+	// Separator以外がASCII数字であることを確認する
 	for( std::size_t index = 0; index < value.size(); ++index) {
-		// 検証済みの区切り位置を数字検査から除く。
+		// 検証済みの区切り位置を数字検査から除く
 		if( index == 2U || index == 5U) {
 			continue ;
 		}
 
-		// 年月日の位置に数字以外があれば変換しない。
+		// 年月日の位置に数字以外があれば変換しない
 		if( value[index] < L'0' || value[index] > L'9') {
 			return {} ;
 		}
@@ -243,35 +244,35 @@ struct MatchedPackages {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 入力fileへの到達失敗か判定する。
+ * @brief 入力fileへの到達失敗か判定する
  *
- * 入力I/O失敗とpackage metadata拒否をProvider reportで区別する。
+ * 入力I/O失敗とpackage metadata拒否をProvider reportで区別する
  *
- * @param[in] error Package検証が返したHRESULT bit pattern。
- * @return File欠落、path欠落、共有違反の場合は`true`。
+ * @param[in] error Package検証が返したHRESULT bit pattern
+ * @return File欠落、path欠落、共有違反の場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isInputAccessError( const NativeError error) noexcept
 {
 	const NativeError fileNotFound =
-		// File欠落HRESULT。
+		// File欠落HRESULT
 		static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)) ;
 	const NativeError pathNotFound =
-		// Path欠落HRESULT。
+		// Path欠落HRESULT
 		static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_PATH_NOT_FOUND)) ;
 	const NativeError sharingViolation =
-		// 共有違反HRESULT。
+		// 共有違反HRESULT
 		static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_SHARING_VIOLATION)) ;
 	return error == fileNotFound || error == pathNotFound || error == sharingViolation ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief Intel検証済みPnP IDの候補化を許可する。
+ * @brief Intel検証済みPnP IDの候補化を許可する
  *
- * Intel package検証が全IDを`PCI\\VEN_8086`へ限定済みのため追加の部分filterを行わない。
- * @param[in] hardwareId Package監査で検証済みのcatalog側PnP ID。呼出し中だけ借用する。
- * @return 空でない検証済みIDの場合は`true`。
+ * Intel package検証が全IDを`PCI\\VEN_8086`へ限定済みのため追加の部分filterを行わない
+ * @param[in] hardwareId Package監査で検証済みのcatalog側PnP ID。呼出し中だけ借用する
+ * @return 空でない検証済みIDの場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool allowIntelHardwareId( const std::wstring_view hardwareId) noexcept
@@ -281,10 +282,10 @@ struct MatchedPackages {
 
 //------------------------------------------------------------------------------
 /**
- * @brief Intel Wireless用のProvider policyを作成する。
+ * @brief Intel Wireless用のProvider policyを作成する
  *
- * Netwtw packageは一device一INFに限定し、曖昧時は候補化しない。
- * @return Intel固有のstable ID、表示文字列、検証関数を所有する値。
+ * Netwtw packageは一device一INFに限定し、曖昧時は候補化しない
+ * @return Intel固有のstable ID、表示文字列、検証関数を所有する値
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] UserSelectedInfProviderPolicy makeIntelProviderPolicy()
@@ -304,21 +305,21 @@ struct MatchedPackages {
 
 //------------------------------------------------------------------------------
 /**
- * @brief Provider policyに従ってdevice classを照合する。
+ * @brief Provider policyに従ってdevice classを照合する
  *
- * 固有関数がないProviderはASCII大文字小文字を無視した完全一致を維持する。本処理はnetwork I/Oを行わない。
+ * 固有関数がないProviderはASCII大文字小文字を無視した完全一致を維持する。本処理はnetwork I/Oを行わない
  *
- * @param[in] policy Providerが単独所有するclass照合条件。
- * @param[in] packageClass 検証済みINFのsetup class。
- * @param[in] deviceClass 現在deviceのsetup class。
- * @return Providerが許可するclass対応の場合は`true`。
+ * @param[in] policy Providerが単独所有するclass照合条件
+ * @param[in] packageClass 検証済みINFのsetup class
+ * @param[in] deviceClass 現在deviceのsetup class
+ * @return Providerが許可するclass対応の場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool providerDeviceClassMatches( const UserSelectedInfProviderPolicy &policy,
 											  const std::wstring_view			   packageClass,
 											  const std::wstring_view deviceClass) noexcept
 {
-	// Provider固有class matcherがある場合はその照合規則を使用する。
+	// Provider固有class matcherがある場合はその照合規則を使用する
 	if( policy.deviceClassMatches != nullptr) {
 		return policy.deviceClassMatches( packageClass, deviceClass) ;
 	}
@@ -328,19 +329,19 @@ struct MatchedPackages {
 
 //------------------------------------------------------------------------------
 /**
- * @brief Provider固有policyの必須項目を検証する。
+ * @brief Provider固有policyの必須項目を検証する
  *
- * 不完全policyでfileを読み込む前にfail-closedで拒否する。
+ * 不完全policyでfileを読み込む前にfail-closedで拒否する
  *
- * @param[in] policy Providerが単独所有する検証・表示条件。
- * @return Stable ID、class、identity、表示、全関数がある場合は`true`。
+ * @param[in] policy Providerが単独所有する検証・表示条件
+ * @return Stable ID、class、identity、表示、全関数がある場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isValidPolicy( const UserSelectedInfProviderPolicy &policy) noexcept
 {
-	const bool validClassMode =	// 固定classとpackage由来classを排他的に指定した状態。
+	const bool validClassMode =	// 固定classとpackage由来classを排他的に指定した状態
 		policy.usePackageDeviceClass ? policy.deviceClass.empty() : !policy.deviceClass.empty() ;
-	const bool validClassMatcher =	// 追加照合はpackage由来class modeだけに限定する。
+	const bool validClassMatcher =	// 追加照合はpackage由来class modeだけに限定する
 		policy.usePackageDeviceClass || policy.deviceClassMatches == nullptr ;
 	return !policy.providerId.empty() && validClassMode && validClassMatcher &&
 		   !policy.identityPrefix.empty() && !policy.packagePrefix.empty() &&
@@ -354,7 +355,7 @@ struct MatchedPackages {
 //------------------------------------------------------------------------------
 /**
  * @brief Intel Wireless用policyを持つProviderを作成する。Intel Wireless用の利用者選択Providerを作成する。Intel固有policyを所有す
- *        る共通実装へ委譲する。
+ *        る共通実装へ委譲する
  */
 //------------------------------------------------------------------------------
 UserSelectedInfPackageProvider::UserSelectedInfPackageProvider()
@@ -365,8 +366,8 @@ UserSelectedInfPackageProvider::UserSelectedInfPackageProvider()
 //------------------------------------------------------------------------------
 /**
  * @brief 明示されたProvider固有policyを単独所有するProviderを作成する。明示Provider policyを所有する共通実装を作成する。文字列と関数pointerを所有
- *        し、scan時に必須値を再検証する。
- * @param[in] policy Stable ID、表示文字列、検証関数およびPnP ID条件。 本instanceが単独所有するProvider固有条件。
+ *        し、scan時に必須値を再検証する
+ * @param[in] policy Stable ID、表示文字列、検証関数およびPnP ID条件。 本instanceが単独所有するProvider固有条件
  */
 //------------------------------------------------------------------------------
 UserSelectedInfPackageProvider::UserSelectedInfPackageProvider( UserSelectedInfProviderPolicy policy)
@@ -376,9 +377,9 @@ UserSelectedInfPackageProvider::UserSelectedInfPackageProvider( UserSelectedInfP
 
 //------------------------------------------------------------------------------
 /**
- * @brief Scan sessionと保護workspaceを解放する。
+ * @brief Scan sessionと保護workspaceを解放する
  *
- * 既知の展開fileだけをworkspace destructorへ解放させる。
+ * 既知の展開fileだけをworkspace destructorへ解放させる
  */
 //------------------------------------------------------------------------------
 UserSelectedInfPackageProvider::~UserSelectedInfPackageProvider() = default ;
@@ -386,14 +387,14 @@ UserSelectedInfPackageProvider::~UserSelectedInfPackageProvider() = default ;
 //------------------------------------------------------------------------------
 /**
  * @brief 利用者選択ZIPを検証し現在deviceに完全一致する候補を作成する。利用者選択ZIPを現在device候補へ変換する。全INFの検証完了後だけ候補を公開し、複数INFが同じ
- *        deviceへ一致した場合はそのdeviceを候補化しない。
- * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。 0ではないscan session ID。
- * @param[in] options Provider IDと一件のlocal fileを持つ検証対象scan設定。 Provider IDとlocal fileを持つscan設定。
- * @param[in] devices Driver Store列挙から得た非機密device snapshot群。 非機密current device snapshot群。
- * @param[in] hardwareIdMatcher INF由来PnP IDをlocal deviceへ解決する照合関数。 INF PnP IDのlocal照合関数。
- * @param[in] progressCallback 検証段階、件数、完了率の通知先。 検証進捗の通知先。
- * @param[in] rankObserver 共通検査経路で必須の非実行Windows適合観測。従来経路では空を許す。
- * @return 検証済み候補、候補なし、入力失敗またはmetadata拒否を含むscan結果。 一意にPnP一致した候補または検証結果を含むscan結果。
+ *        deviceへ一致した場合はそのdeviceを候補化しない
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。 0ではないscan session ID
+ * @param[in] options Provider IDと一件のlocal fileを持つ検証対象scan設定。 Provider IDとlocal fileを持つscan設定
+ * @param[in] devices Driver Store列挙から得た非機密device snapshot群。 非機密current device snapshot群
+ * @param[in] hardwareIdMatcher INF由来PnP IDをlocal deviceへ解決する照合関数。 INF PnP IDのlocal照合関数
+ * @param[in] progressCallback 検証段階、件数、完了率の通知先。 検証進捗の通知先
+ * @param[in] rankObserver 共通検査経路で必須の非実行Windows適合観測。従来経路では空を許す
+ * @return 検証済み候補、候補なし、入力失敗またはmetadata拒否を含むscan結果。 一意にPnP一致した候補または検証結果を含むscan結果
  */
 //------------------------------------------------------------------------------
 ScanResult UserSelectedInfPackageProvider::scan(
@@ -403,11 +404,11 @@ ScanResult UserSelectedInfPackageProvider::scan(
 	const ProviderProgressCallback &progressCallback, const CommonInfRankObserver &rankObserver)
 {
 	invalidateScanSession() ;
-	ScanResult result{} ;	// 利用者選択packageの候補と到達状態。
+	ScanResult result{} ;	// 利用者選択packageの候補と到達状態
 	result.scanSessionId = scanSessionId ;
 	result.outcome		 = OutcomeCode::FAILURE ;
 	result.state		 = ProviderScanState::FAILURE ;
-	// session、matcher、通知先、scan設定、policyを候補作成前に検証する。
+	// session、matcher、通知先、scan設定、policyを候補作成前に検証する
 	if( scanSessionId == 0 || !hardwareIdMatcher || !progressCallback ||
 	   !validateScanOptions( options) || !isValidPolicy( policy_) ||
 	   (policy_.useCommonInspection && !rankObserver)) {
@@ -416,9 +417,9 @@ ScanResult UserSelectedInfPackageProvider::scan(
 	}
 
 	const std::wstring_view selectedPath =
-		// 選択ZIP。
+		// 選択ZIP
 		userSelectedFileForProvider( options, policy_.providerId) ;
-	// 利用者が指定していないpathからpackageを取得しない。
+	// 利用者が指定していないpathからpackageを取得しない
 	if( selectedPath.empty()) {
 		result.error = static_cast<NativeError>( E_INVALIDARG) ;
 		return result ;
@@ -431,20 +432,20 @@ ScanResult UserSelectedInfPackageProvider::scan(
 			: static_cast<std::uint64_t>( std::count_if(
 				  devices.begin(), devices.end(), [this]( const OfficialCatalogDevice &device) {
 					  return asciiStringsEqual( device.driverClass, policy_.deviceClass) ;
-				  })) ; // 検証前に判明する最大対象device数。
+				  })) ; // 検証前に判明する最大対象device数
 	progressCallback( {.stage		   = ProviderStage::SEARCHING_OFFICIAL_CATALOGS,
 					  .percentComplete = 0,
 					  .completedItems  = 0,
 					  .totalItems	   = result.coverage.eligibleDeviceCount}) ;
 
 	try {
-		// Scan session保護領域。
+		// Scan session保護領域
 		workspace_ = std::make_unique<OfficialDownloadWorkspace>() ;
-		UserSelectedInfPackageContents contents ;	// 全署名検証済みZIP内容。
+		UserSelectedInfPackageContents contents ;	// 全署名検証済みZIP内容
 		const NativeError			   inspectionError =
-			// 検証結果。
+			// 検証結果
 			policy_.inspect( selectedPath, scanSessionId, *workspace_, contents) ;
-		// 入力アクセス失敗と内容拒否を区別し、失敗したscanを失効させる。
+		// 入力アクセス失敗と内容拒否を区別し、失敗したscanを失効させる
 		if( inspectionError != 0) {
 			result.error = inspectionError ;
 			result.state = isInputAccessError( inspectionError)
@@ -454,18 +455,18 @@ ScanResult UserSelectedInfPackageProvider::scan(
 			return result ;
 		}
 
-		// 共通検査要求と実際の検査結果を一致させ、従来検査へ暗黙fallbackしない。
+		// 共通検査要求と実際の検査結果を一致させ、従来検査へ暗黙fallbackしない
 		if( policy_.useCommonInspection != static_cast<bool>( contents.commonInspection)) {
 			result.error = static_cast<NativeError>( E_UNEXPECTED) ;
 			invalidateScanSession() ;
 			return result ;
 		}
 
-		// 個別閉包を所有したまま、現在名・版・classに依存しないWindows照合へ接続する。
+		// 個別閉包を所有したまま、現在名・版・classに依存しないWindows照合へ接続する
 		if( policy_.useCommonInspection) {
 			result = buildCommonCandidates( scanSessionId, devices, rankObserver, progressCallback,
 										   *contents.commonInspection) ;
-			// 全体失敗では部分候補とworkspaceを再利用しない。
+			// 全体失敗では部分候補とworkspaceを再利用しない
 			if( !result.succeeded) {
 				invalidateScanSession() ;
 				return result ;
@@ -477,7 +478,7 @@ ScanResult UserSelectedInfPackageProvider::scan(
 		}
 
 		const auto deviceClassIsEligible = [this, &contents]( const std::wstring_view deviceClass) {
-			// package classを使わないpolicyでは固定device classへ照合する。
+			// package classを使わないpolicyでは固定device classへ照合する
 			if( !policy_.usePackageDeviceClass) {
 				return asciiStringsEqual( deviceClass, policy_.deviceClass) ;
 			}
@@ -486,7 +487,7 @@ ScanResult UserSelectedInfPackageProvider::scan(
 				contents.packages, [this, deviceClass]( const OfficialInfPackage &package) {
 					return providerDeviceClassMatches( policy_, package.className, deviceClass) ;
 				}) ;
-		} ; // 固定classまたは全検証済みINFのclassから現在device対象範囲を決める処理。
+		} ; // 固定classまたは全検証済みINFのclassから現在device対象範囲を決める処理
 		result.coverage.eligibleDeviceCount = static_cast<std::uint64_t>(
 			std::count_if( devices.begin(), devices.end(),
 						  [&deviceClassIsEligible]( const OfficialCatalogDevice &device) {
@@ -497,38 +498,38 @@ ScanResult UserSelectedInfPackageProvider::scan(
 						  .completedItems  = 0,
 						  .totalItems	   = result.coverage.eligibleDeviceCount}) ;
 
-		// Opaque device identityから、呼出し中に借用するlocal表示metadataへの対応。
+		// Opaque device identityから、呼出し中に借用するlocal表示metadataへの対応
 		std::unordered_map<std::wstring, const OfficialCatalogDevice *> deviceMetadata ;
-		// Opaque identity別の表示metadata。
+		// Opaque identity別の表示metadata
 		deviceMetadata.reserve( devices.size()) ;
-		// Provider対象classだけをcandidate metadata検索表へ一意に登録する。
+		// Provider対象classだけをcandidate metadata検索表へ一意に登録する
 		for( const OfficialCatalogDevice &device : devices) {
-			// 対象classのdeviceだけをpackage照合用snapshotへ保持する。
+			// 対象classのdeviceだけをpackage照合用snapshotへ保持する
 			if( deviceClassIsEligible( device.driverClass)) {
 				deviceMetadata.emplace( device.deviceIdentity, &device) ;
 			}
 		}
 
-		// Local deviceごとに検証済みpackageとの一致結果を集約するmap。
+		// Local deviceごとに検証済みpackageとの一致結果を集約するmap
 		std::unordered_map<std::wstring, MatchedPackages> matchedPackages ;
-		// 全検証済みINFのPnP IDをlocal mapへ完全一致させる。
+		// 全検証済みINFのPnP IDをlocal mapへ完全一致させる
 		for( std::size_t packageIndex = 0; packageIndex < contents.packages.size(); ++packageIndex) {
-			const OfficialInfPackage		&package = contents.packages[packageIndex] ;	// 現在INF。
-			std::unordered_set<std::wstring> packageDevices ;								// 同一INF内のdevice重複排除集合。
-			// package側のIDをpolicy検査後に端末内matcherへ照合する。
+			const OfficialInfPackage		&package = contents.packages[packageIndex] ;	// 現在INF
+			std::unordered_set<std::wstring> packageDevices ;								// 同一INF内のdevice重複排除集合
+			// package側のIDをpolicy検査後に端末内matcherへ照合する
 			for( const std::wstring &hardwareId : package.hardwareIds) {
-				// Providerの許可外IDを端末照合へ渡さない。
+				// Providerの許可外IDを端末照合へ渡さない
 				if( !policy_.hardwareIdAllowed( hardwareId)) {
 					continue ;
 				}
 
 				const std::optional<std::wstring> matched =
-					// Local完全一致結果。
+					// Local完全一致結果
 					hardwareIdMatcher( hardwareId) ;
-				// opaque deviceへ解決できたIDだけにclass照合を行う。
+				// opaque deviceへ解決できたIDだけにclass照合を行う
 				if( matched.has_value()) {
-					const auto metadata = deviceMetadata.find( matched.value()) ;	// Device metadata。
-					// snapshotとclassの両方が一致するdeviceだけを対応先へ追加する。
+					const auto metadata = deviceMetadata.find( matched.value()) ;	// Device metadata
+					// snapshotとclassの両方が一致するdeviceだけを対応先へ追加する
 					if( metadata != deviceMetadata.end() &&
 					   providerDeviceClassMatches( policy_, package.className,
 												  metadata->second->driverClass)) {
@@ -537,11 +538,11 @@ ScanResult UserSelectedInfPackageProvider::scan(
 				}
 			}
 
-			// 照合済みdeviceごとに対応する検証済みINF indexを集約する。
+			// 照合済みdeviceごとに対応する検証済みINF indexを集約する
 			for( const std::wstring &deviceIdentity : packageDevices) {
 				MatchedPackages &matches =
-					matchedPackages[deviceIdentity] ;	// Device別の検証済みINF集合。
-				// 同じpackage indexを一deviceへ重複登録しない。
+					matchedPackages[deviceIdentity] ;	// Device別の検証済みINF集合
+				// 同じpackage indexを一deviceへ重複登録しない
 				if( std::ranges::find( matches.packageIndexes, packageIndex) ==
 				   matches.packageIndexes.end()) {
 					matches.packageIndexes.push_back( packageIndex) ;
@@ -549,20 +550,20 @@ ScanResult UserSelectedInfPackageProvider::scan(
 			}
 		}
 
-		std::size_t candidateIndex{} ;	// Opaque candidate identity用の連番。
-		// Device inventory順とpackage順を維持し、policyが許す一致だけを候補化する。
+		std::size_t candidateIndex{} ;	// Opaque candidate identity用の連番
+		// Device inventory順とpackage順を維持し、policyが許す一致だけを候補化する
 		for( const OfficialCatalogDevice &device : devices) {
-			const auto matched = matchedPackages.find( device.deviceIdentity) ;	// INF一致結果。
-			// 対応INFがないdeviceやpolicyで許可しない複数対応を候補から除外する。
+			const auto matched = matchedPackages.find( device.deviceIdentity) ;	// INF一致結果
+			// 対応INFがないdeviceやpolicyで許可しない複数対応を候補から除外する
 			if( matched == matchedPackages.end() || matched->second.packageIndexes.empty() ||
 			   (!policy_.allowMultiplePackagesPerDevice &&
 				matched->second.packageIndexes.size() != 1U)) {
 				continue ;
 			}
 
-			// 利用者が新版と過去版を個別に選べるよう、許可時は全一致INFを保持する。
+			// 利用者が新版と過去版を個別に選べるよう、許可時は全一致INFを保持する
 			for( const std::size_t packageIndex : matched->second.packageIndexes) {
-				// 保持package範囲外のindexを検出した場合はscanを失効させる。
+				// 保持package範囲外のindexを検出した場合はscanを失効させる
 				if( packageIndex >= contents.packages.size()) {
 					result.error = static_cast<NativeError>( E_UNEXPECTED) ;
 					invalidateScanSession() ;
@@ -570,8 +571,8 @@ ScanResult UserSelectedInfPackageProvider::scan(
 				}
 
 				const OfficialInfPackage &package =
-					contents.packages[packageIndex] ;	// 候補の検証済みINF。
-				// 候補構築時にclass対応が崩れていれば不整合としてscanを中止する。
+					contents.packages[packageIndex] ;	// 候補の検証済みINF
+				// 候補構築時にclass対応が崩れていれば不整合としてscanを中止する
 				if( !providerDeviceClassMatches( policy_, package.className, device.driverClass)) {
 					result.error = static_cast<NativeError>( E_UNEXPECTED) ;
 					invalidateScanSession() ;
@@ -580,9 +581,9 @@ ScanResult UserSelectedInfPackageProvider::scan(
 
 				const std::wstring identity = policy_.identityPrefix +
 											  std::to_wstring( scanSessionId) + L":" +
-											  // Opaque候補ID。
+											  // Opaque候補ID
 											  std::to_wstring( candidateIndex) ;
-				UpdateCandidate candidate ;	// UIへ渡すpath／PnP IDを含まない候補。
+				UpdateCandidate candidate ;	// UIへ渡すpath／PnP IDを含まない候補
 				candidate.identity		  = identity ;
 				candidate.deviceIdentity  = device.deviceIdentity ;
 				candidate.providerId	  = policy_.providerId ;
@@ -632,7 +633,7 @@ ScanResult UserSelectedInfPackageProvider::scan(
 		invalidateScanSession() ;
 		return result ;
 	} catch( ...) {
-		// 観測callback等の例外で部分候補や所有workspaceを次の操作へ残さない。
+		// 観測callback等の例外で部分候補や所有workspaceを次の操作へ残さない
 		result.error = static_cast<NativeError>( E_UNEXPECTED) ;
 		result.candidates.clear() ;
 		invalidateScanSession() ;
@@ -643,13 +644,13 @@ ScanResult UserSelectedInfPackageProvider::scan(
 //------------------------------------------------------------------------------
 /**
  * @brief 選択候補のINF／CATを再検証して対応deviceへ導入する。選択INFをProvider固有policyで再検証して導入する。Stale／重複selectionを変更前に拒否し
- *        、各INFの署名、CAT member、metadataを再検証してから一deviceずつ導入する。
- * @param[in] scanSessionId 選択元のscan session ID。 選択元scan session ID。
- * @param[in] identities UIへ提示済みのopaque candidate identity群。 UI提示済みopaque candidate ID群。
- * @param[in] parentWindowNative Device installerの親HWNDを整数表現で渡す値。 Installer親HWNDの整数表現。
- * @param[in] installer 現在inventoryのopaque deviceへINFを導入する関数。 Opaque deviceへINFを適用するworker関数。
- * @param[in] progressCallback 検証とinstallの進捗通知先。 検証・install進捗通知先。
- * @return 選択候補ごとの検証・install結果。 選択順の個別検証・install結果。
+ *        、各INFの署名、CAT member、metadataを再検証してから一deviceずつ導入する
+ * @param[in] scanSessionId 選択元のscan session ID。 選択元scan session ID
+ * @param[in] identities UIへ提示済みのopaque candidate identity群。 UI提示済みopaque candidate ID群
+ * @param[in] parentWindowNative Device installerの親HWNDを整数表現で渡す値。 Installer親HWNDの整数表現
+ * @param[in] installer 現在inventoryのopaque deviceへINFを導入する関数。 Opaque deviceへINFを適用するworker関数
+ * @param[in] progressCallback 検証とinstallの進捗通知先。 検証・install進捗通知先
+ * @return 選択候補ごとの検証・install結果。 選択順の個別検証・install結果
  */
 //------------------------------------------------------------------------------
 InstallResult UserSelectedInfPackageProvider::install(
@@ -657,22 +658,22 @@ InstallResult UserSelectedInfPackageProvider::install(
 	const std::uintptr_t parentWindowNative, const VerifiedExternalInfInstaller &installer,
 	const ProviderProgressCallback &progressCallback)
 {
-	InstallResult result{} ;	// 選択順で返すcollection結果。
+	InstallResult result{} ;	// 選択順で返すcollection結果
 	result.updates.reserve( identities.size()) ;
-	// 要求した全identityの結果行を先に用意し、拒否結果も個別に残せるようにする。
+	// 要求した全identityの結果行を先に用意し、拒否結果も個別に残せるようにする
 	for( const std::wstring &identity : identities) {
 		result.updates.push_back( {.identity = identity}) ;
 	}
 
-	std::unordered_set<std::wstring> uniqueIdentities ;	// Candidate ID重複検出集合。
-	std::unordered_set<std::wstring> uniqueDevices ;	// 一device一候補検証集合。
+	std::unordered_set<std::wstring> uniqueIdentities ;	// Candidate ID重複検出集合
+	std::unordered_set<std::wstring> uniqueDevices ;	// 一device一候補検証集合
 	bool valid = scanSessionId != 0 && scanSessionId == scanSessionId_ &&
 				 GetCurrentThreadId() == ownerThreadId_ && !identities.empty() &&
-				 workspace_ != nullptr && installer && progressCallback ;	// Session基本検証結果。
-	// 全identityの存在、一意性、一device一候補をsystem変更前に確認する。
+				 workspace_ != nullptr && installer && progressCallback ;	// Session基本検証結果
+	// 全identityの存在、一意性、一device一候補をsystem変更前に確認する
 	for( const std::wstring &identity : identities) {
-		const auto target = installTargets_.find( identity) ;	// Scan時target検索結果。
-		// 要求不正、未知候補、重複候補、一deviceへの複数指定を検出する。
+		const auto target = installTargets_.find( identity) ;	// Scan時target検索結果
+		// 要求不正、未知候補、重複候補、一deviceへの複数指定を検出する
 		if( !valid || !uniqueIdentities.insert( identity).second || target == installTargets_.end() ||
 		   !uniqueDevices.insert( target->second.deviceIdentity).second) {
 			valid = false ;
@@ -680,13 +681,13 @@ InstallResult UserSelectedInfPackageProvider::install(
 		}
 	}
 
-	// 選択検証に失敗した場合は部分導入せず全体を拒否する。
+	// 選択検証に失敗した場合は部分導入せず全体を拒否する
 	if( !valid) {
 		result.downloadOutcome = OutcomeCode::FAILURE ;
 		result.downloadError   = static_cast<NativeError>( E_INVALIDARG) ;
 		result.installOutcome  = OutcomeCode::FAILURE ;
 		result.installError	   = static_cast<NativeError>( E_INVALIDARG) ;
-		// 拒否した選択の全候補へ同じ引数診断値を残す。
+		// 拒否した選択の全候補へ同じ引数診断値を残す
 		for( UpdateExecutionResult &update : result.updates) {
 			update.downloadOutcome = OutcomeCode::FAILURE ;
 			update.downloadError   = static_cast<NativeError>( E_INVALIDARG) ;
@@ -699,7 +700,7 @@ InstallResult UserSelectedInfPackageProvider::install(
 	}
 
 	result.downloadOutcome = OutcomeCode::SUCCESS ;
-	// Local packageは追加downloadを行わず、scan時の保護copyを使用する。
+	// Local packageは追加downloadを行わず、scan時の保護copyを使用する
 	for( UpdateExecutionResult &update : result.updates) {
 		update.downloadOutcome = OutcomeCode::SUCCESS ;
 	}
@@ -709,27 +710,27 @@ InstallResult UserSelectedInfPackageProvider::install(
 					  .completedItems  = identities.size(),
 					  .totalItems	   = identities.size()}) ;
 
-	std::size_t installed{} ;	// INF適用に成功した候補数。
-	NativeError lastError{} ;	// Collectionへ返す最後の失敗code。
-	// 選択順に再検証し、一件失敗しても未処理候補の個別結果を残す。
+	std::size_t installed{} ;	// INF適用に成功した候補数
+	NativeError lastError{} ;	// Collectionへ返す最後の失敗code
+	// 選択順に再検証し、一件失敗しても未処理候補の個別結果を残す
 	for( std::size_t index = 0; index < identities.size(); ++index) {
-		const InstallTarget &target = installTargets_.at( identities[index]) ;	// 現在対象。
+		const InstallTarget &target = installTargets_.at( identities[index]) ;	// 現在対象
 		lastError					= policy_.reverify( *workspace_, entries_, target.package) ;
-		bool rebootRequired{} ;	// 現在INFが要求した再起動flag。
-		// 再検証が成功したINFだけを指定deviceのinstallerへ渡す。
+		bool rebootRequired{} ;	// 現在INFが要求した再起動flag
+		// 再検証が成功したINFだけを指定deviceのinstallerへ渡す
 		if( lastError == 0) {
 			const std::wstring infPath =
-				// 再検証済みINF絶対path。
+				// 再検証済みINF絶対path
 				workspace_->path( target.package.infRelativePath) ;
 			lastError = installer( scanSessionId, target.deviceIdentity, infPath,
 								  target.package.providerName, target.package.driverVersion,
 								  parentWindowNative, rebootRequired) ;
 		}
 
-		UpdateExecutionResult &update = result.updates[index] ;	// 現在候補の個別結果。
+		UpdateExecutionResult &update = result.updates[index] ;	// 現在候補の個別結果
 		update.rebootRequired		  = rebootRequired ;
 		result.rebootRequired		  = result.rebootRequired || rebootRequired ;
-		// 実導入が成功した候補だけを完了件数へ含める。
+		// 実導入が成功した候補だけを完了件数へ含める
 		if( lastError == 0) {
 			update.installOutcome = OutcomeCode::SUCCESS ;
 			++installed ;
@@ -738,7 +739,7 @@ InstallResult UserSelectedInfPackageProvider::install(
 			update.installError	  = lastError ;
 		}
 
-		const std::uint64_t completed = index + 1U ;	// 検証・導入を終えた候補数。
+		const std::uint64_t completed = index + 1U ;	// 検証・導入を終えた候補数
 		progressCallback( {.stage = ProviderStage::INSTALLING,
 						  .percentComplete =
 							  static_cast<std::uint32_t>( 20U + completed * 80U / identities.size()),
@@ -752,7 +753,7 @@ InstallResult UserSelectedInfPackageProvider::install(
 			? OutcomeCode::SUCCESS
 			: (installed == 0 ? OutcomeCode::FAILURE : OutcomeCode::SUCCEEDED_WITH_ERRORS) ;
 	result.installError = result.succeeded ? 0 : lastError ;
-	// 元owned閉包/期限を保持し、選択したdeviceの全代替routeだけを消費します。
+	// 元owned閉包/期限を保持し、選択したdeviceの全代替routeだけを消費します
 	std::erase_if( installTargets_, [&]( const auto &entry) {
 		return uniqueDevices.contains( entry.second.deviceIdentity) ;
 	}) ;
@@ -762,7 +763,7 @@ InstallResult UserSelectedInfPackageProvider::install(
 //------------------------------------------------------------------------------
 /**
  * @brief Scan session、秘密metadata、展開fileを失効させる。次回scanまたはinstall完了後にstale identityとlocal pathを再利用できない
- *        状態へ戻す。
+ *        状態へ戻す
  */
 //------------------------------------------------------------------------------
 void UserSelectedInfPackageProvider::invalidateScanSession() noexcept
@@ -777,13 +778,13 @@ void UserSelectedInfPackageProvider::invalidateScanSession() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 共通内容検査をWindows適合観測へ渡し、表示専用の候補を生成する。
- * @param[in] scanSessionId 現在scan session。
- * @param[in] devices 現在構成の非機密snapshot。
- * @param[in] rankObserver 単一INFとdeviceの非実行Windows観測。
- * @param[in] progressCallback 確定した件数の通知先。
- * @param[in] inspection 全体検査を完了し、本Providerが所有する個別INF群。
- * @return 部分拒否と観測失敗を含む候補結果。導入許可を発行しない。
+ * @brief 共通内容検査をWindows適合観測へ渡し、表示専用の候補を生成する
+ * @param[in] scanSessionId 現在scan session
+ * @param[in] devices 現在構成の非機密snapshot
+ * @param[in] rankObserver 単一INFとdeviceの非実行Windows観測
+ * @param[in] progressCallback 確定した件数の通知先
+ * @param[in] inspection 全体検査を完了し、本Providerが所有する個別INF群
+ * @return 部分拒否と観測失敗を含む候補結果。導入許可を発行しない
  */
 //------------------------------------------------------------------------------
 ScanResult UserSelectedInfPackageProvider::buildCommonCandidates(
@@ -791,11 +792,11 @@ ScanResult UserSelectedInfPackageProvider::buildCommonCandidates(
 	const CommonInfRankObserver &rankObserver, const ProviderProgressCallback &progressCallback,
 	const CommonDriverPackageInspection &inspection) const
 {
-	ScanResult result ;	// 個別結果を確認してから成功へ遷移する表示結果。
+	ScanResult result ;	// 個別結果を確認してから成功へ遷移する表示結果
 	result.scanSessionId = scanSessionId ;
 	result.state		 = ProviderScanState::FAILURE ;
 	result.outcome		 = OutcomeCode::FAILURE ;
-	// 検査所有session・有限件数・観測境界を要求する。
+	// 検査所有session・有限件数・観測境界を要求する
 	if( inspection.scanSessionId != scanSessionId || inspection.error != 0 ||
 	   inspection.infs.size() > 128U || devices.size() > 4096U || !rankObserver ||
 	   !progressCallback) {
@@ -803,10 +804,10 @@ ScanResult UserSelectedInfPackageProvider::buildCommonCandidates(
 		return result ;
 	}
 
-	std::unordered_set<std::wstring> deviceIdentities ;	// 重複snapshotの拒否集合。
-	// 欠損表示名は許すが、opaque identityと観測sessionの不整合は拒否する。
+	std::unordered_set<std::wstring> deviceIdentities ;	// 重複snapshotの拒否集合
+	// 欠損表示名は許すが、opaque identityと観測sessionの不整合は拒否する
 	for( const OfficialCatalogDevice &device : devices) {
-		// 同じdeviceの二重表示、stale観測、長大IDを後段照合へ渡さない。
+		// 同じdeviceの二重表示、stale観測、長大IDを後段照合へ渡さない
 		if( device.deviceIdentity.empty() || device.deviceIdentity.size() > 256U ||
 		   !deviceIdentities.insert( device.deviceIdentity).second ||
 		   (device.deviceObservation &&
@@ -818,30 +819,30 @@ ScanResult UserSelectedInfPackageProvider::buildCommonCandidates(
 	}
 
 	result.coverage.eligibleDeviceCount = devices.size() ;
-	std::vector<bool> deviceAssessed( devices.size(), true) ;	// 全INFを判定できたdeviceだけを数える。
-	std::uint64_t	  pairs{} ;									// 同期Windows照合の総数。32,768を上限にする。
+	std::vector<bool>	deviceAssessed( devices.size(), true) ;	// 全INFを判定できたdeviceだけを数える
+	std::uint64_t		pairs{} ;								// 同期Windows照合の総数。32,768を上限にする
 	const std::uint64_t total = static_cast<std::uint64_t>( std::ranges::count_if(
 									inspection.infs,
 									[]( const CommonInfInspection &inf) {
 										return inf.state == CommonInfInspectionState::VERIFIED ;
 									})) *
-								// 内容合格後に実際に照合する組合せ。
+								// 内容合格後に実際に照合する組合せ
 								devices.size() ;
-	bool rejectedContent{} ;	// 未検査内容のあるdeviceを完全coverageとしない。
-	// 各INFを一度だけ内容参照し、全present deviceへ独立に照合する。
+	bool rejectedContent{} ;	// 未検査内容のあるdeviceを完全coverageとしない
+	// 各INFを一度だけ内容参照し、全present deviceへ独立に照合する
 	for( std::size_t infIndex = 0; infIndex < inspection.infs.size(); ++infIndex) {
-		const CommonInfInspection &inspected = inspection.infs[infIndex] ;	// 所有期間内の一閉包。
-		// 他sessionの検査を同じpackageとして扱わない。
+		const CommonInfInspection &inspected = inspection.infs[infIndex] ;	// 所有期間内の一閉包
+		// 他sessionの検査を同じpackageとして扱わない
 		if( inspected.scanSessionId != scanSessionId) {
 			result.error = static_cast<NativeError>( E_INVALIDARG) ;
 			result.candidates.clear() ;
 			return result ;
 		}
 
-		// 個別の内容拒否は他INFの適合検査を止めず、warningとして保持する。
+		// 個別の内容拒否は他INFの適合検査を止めず、warningとして保持する
 		if( inspected.state != CommonInfInspectionState::VERIFIED) {
 			rejectedContent = true ;
-			// 最初の具体的な検査codeを後の成功で消さない。
+			// 最初の具体的な検査codeを後の成功で消さない
 			if( result.error == 0) {
 				result.error =
 					inspected.error != 0 ? inspected.error : static_cast<NativeError>( E_UNEXPECTED) ;
@@ -850,7 +851,7 @@ ScanResult UserSelectedInfPackageProvider::buildCommonCandidates(
 			continue ;
 		}
 
-		// 不完全な合格構造をSetupAPIや候補へ渡さない。
+		// 不完全な合格構造をSetupAPIや候補へ渡さない
 		if( !inspected.workspace || inspected.closure.packages.size() != 1U ||
 		   inspected.error != 0) {
 			result.error = static_cast<NativeError>( E_INVALIDARG) ;
@@ -859,32 +860,32 @@ ScanResult UserSelectedInfPackageProvider::buildCommonCandidates(
 		}
 
 		const OfficialInfPackage &package =
-			// 検査済みINF metadata。
+			// 検査済みINF metadata
 			inspected.closure.packages.front() ;
-		// IDが同じ複数portでも一件へ潰さず、device identityごとにWindowsへ問い合わせる。
+		// IDが同じ複数portでも一件へ潰さず、device identityごとにWindowsへ問い合わせる
 		for( std::size_t deviceIndex = 0; deviceIndex < devices.size(); ++deviceIndex) {
-			// 同期API呼出し上限で未確認部分を残して全体合格としない。
+			// 同期API呼出し上限で未確認部分を残して全体合格としない
 			if( pairs >= 32768U) {
 				result.error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
 				result.candidates.clear() ;
 				return result ;
 			}
 
-			const OfficialCatalogDevice &device = devices[deviceIndex] ;	// 現在の非機密snapshot。
-			std::optional<std::uint32_t> rank ;								// Windowsが実際に一致させた候補rank。
+			const OfficialCatalogDevice &device = devices[deviceIndex] ;	// 現在の非機密snapshot
+			std::optional<std::uint32_t> rank ;								// Windowsが実際に一致させた候補rank
 			const NativeError			 error =
 				rankObserver( scanSessionId, device.deviceIdentity, *inspected.workspace, package,
-							 rank) ;	// 現在版を要求しない観測。
+							 rank) ;	// 現在版を要求しない観測
 			++pairs ;
 			progressCallback(
 				{.stage			  = ProviderStage::SEARCHING_OFFICIAL_CATALOGS,
 				 .percentComplete = static_cast<std::uint32_t>( 65U + pairs * 35U / total),
 				 .completedItems  = pairs,
 				 .totalItems	  = total}) ;
-			// API失敗は「該当なし」にせず、当該deviceの判定未完了を残す。
+			// API失敗は「該当なし」にせず、当該deviceの判定未完了を残す
 			if( error != 0) {
 				deviceAssessed[deviceIndex] = false ;
-				// 最初の観測失敗を後続結果で上書きしない。
+				// 最初の観測失敗を後続結果で上書きしない
 				if( result.error == 0) {
 					result.error = error ;
 				}
@@ -892,12 +893,12 @@ ScanResult UserSelectedInfPackageProvider::buildCommonCandidates(
 				continue ;
 			}
 
-			// Windowsが一致nodeを返さなかった組合せを候補化しない。
+			// Windowsが一致nodeを返さなかった組合せを候補化しない
 			if( !rank) {
 				continue ;
 			}
 
-			UpdateCandidate candidate ;	// Pathと実IDを持たない表示専用候補。
+			UpdateCandidate candidate ;	// Pathと実IDを持たない表示専用候補
 			candidate.identity = policy_.identityPrefix + std::to_wstring( scanSessionId) + L":" +
 								 std::to_wstring( infIndex) + L":" + std::to_wstring( deviceIndex) ;
 			candidate.deviceIdentity = device.deviceIdentity ;
@@ -929,9 +930,9 @@ ScanResult UserSelectedInfPackageProvider::buildCommonCandidates(
 			const CandidateAssessmentFinding origin{
 				CandidateAssessmentState::NOT_APPLICABLE, CandidateAssessmentReason::USER_PROVIDED,
 				CandidateEvidenceKind::USER_INPUT,
-				infIndex + 1U} ;			// Local取得を公式由来へ昇格しない。
-			CandidateAssessment detail ;	// 現在順位とexecutorを未確認に保つ八軸。
-			// 内容・適合・candidate identityの結合不整合を結果公開前に拒否する。
+				infIndex + 1U} ;			// Local取得を公式由来へ昇格しない
+			CandidateAssessment detail ;	// 現在順位とexecutorを未確認に保つ八軸
+			// 内容・適合・candidate identityの結合不整合を結果公開前に拒否する
 			if( !makeCommonInfCandidateAssessment( scanSessionId, candidate, inspected, infIndex + 1U,
 												 origin, 0, rank, detail)) {
 				result.error = static_cast<NativeError>( E_UNEXPECTED) ;

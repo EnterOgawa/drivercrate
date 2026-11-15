@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file asus_package_acquisition.cpp
- * @brief ASUS公式driver package検査用取得実装。
- * @version 01.00.01
+ * @brief ASUS公式driver package検査用取得実装
+ * @version 01.00.02
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,18 +19,19 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note ASUS公式CDN、公開SHA-256、有限sizeを再検証して共通取得境界へ渡します。本処理ではarchive内容、PnP適用性、rankまたは署名合格を決定しません。
+ * @note ASUS公式CDN、公開SHA-256、有限sizeを再検証して共通取得境界へ渡します。本処理ではarchive内容、PnP適用性、rankまたは署名合格を決定しません
  */
 //------------------------------------------------------------------------------
 
@@ -55,39 +56,39 @@ namespace drivercrate {
 namespace {
 
 //------------------------------------------------------------------------------
-// 定数定義。
+// 定数定義
 //------------------------------------------------------------------------------
 
-constexpr std::size_t		MAXIMUM_PLAN_ENTRIES = 64U ;			// 一scanで計画できるASUS archive数上限。
-constexpr std::size_t		MAXIMUM_OPAQUE_ID_CHARACTERS = 512U ;	// 内部record ID文字数上限。
-constexpr std::size_t		MAXIMUM_URL_CHARACTERS		 = 2'048U ;	// Payload URL文字数上限。
-// 一つのASUS payloadを保護workspaceへ取得する際のbyte上限。
+constexpr std::size_t		MAXIMUM_PLAN_ENTRIES = 64U ;			// 一scanで計画できるASUS archive数上限
+constexpr std::size_t		MAXIMUM_OPAQUE_ID_CHARACTERS = 512U ;	// 内部record ID文字数上限
+constexpr std::size_t		MAXIMUM_URL_CHARACTERS		 = 2'048U ;	// Payload URL文字数上限
+// 一つのASUS payloadを保護workspaceへ取得する際のbyte上限
 constexpr std::uint64_t		MAXIMUM_PAYLOAD_BYTES = 4ULL * 1024ULL * 1024ULL * 1024ULL ;
 constexpr std::wstring_view PAYLOAD_URL_PREFIX =
-	L"https://dlcdnets.asus.com/pub/ASUS/" ;	// 許可するASUS Global CDN path prefix。
+	L"https://dlcdnets.asus.com/pub/ASUS/" ;	// 許可するASUS Global CDN path prefix
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASCII小文字hexのSHA-256か判定する。
+ * @brief ASCII小文字hexのSHA-256か判定する
  *
- * Parser契約の破損をnetwork処理前にfail-closedで拒否する。
+ * Parser契約の破損をnetwork処理前にfail-closedで拒否する
  *
- * @param[in] value ASUS pageから正規化済みの公開hash。
- * @return 64桁のASCII小文字hexだけで構成される場合は`true`。
+ * @param[in] value ASUS pageから正規化済みの公開hash
+ * @return 64桁のASCII小文字hexだけで構成される場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isLowerSha256( const std::wstring_view value) noexcept
 {
-	// SHA-256の固定64桁を満たさない文字列を取得identityに使用しない。
+	// SHA-256の固定64桁を満たさない文字列を取得identityに使用しない
 	if( value.size() != 64U) {
 		return false ;
 	}
 
-	// Hash全文字を確認し、Unicode類似文字と大文字を受理しない。
+	// Hash全文字を確認し、Unicode類似文字と大文字を受理しない
 	return std::all_of( value.begin(), value.end(), []( const wchar_t character) {
 		return (character >= L'0' && character <= L'9') || (character >= L'a' && character <= L'f') ;
 	}) ;
@@ -95,20 +96,20 @@ constexpr std::wstring_view PAYLOAD_URL_PREFIX =
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASUS payload URLとarchive形式を再検証する。
+ * @brief ASUS payload URLとarchive形式を再検証する
  *
- * Query、fragment、userinfo、path traversal、非ASCIIをworkspace名生成前に拒否する。
+ * Query、fragment、userinfo、path traversal、非ASCIIをworkspace名生成前に拒否する
  *
- * @param[in] url Parserが生成したASUS CDN絶対URL。
- * @param[out] extension 成功時の「.zip」または「.cab」。
- * @return 固定origin／pathと許可archive形式を満たす場合は`true`。
+ * @param[in] url Parserが生成したASUS CDN絶対URL
+ * @param[out] extension 成功時の「.zip」または「.cab」
+ * @return 固定origin／pathと許可archive形式を満たす場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isValidPayloadUrl( const std::wstring_view url,
 									 std::wstring_view		&extension) noexcept
 {
 	extension = {} ;
-	// 固定URL起点からの逸脱、traversal、別解釈を生む区切りを拒否する。
+	// 固定URL起点からの逸脱、traversal、別解釈を生む区切りを拒否する
 	if( !url.starts_with( PAYLOAD_URL_PREFIX) || url.size() > MAXIMUM_URL_CHARACTERS ||
 	   url.find_first_of( L"?#\\\0") != std::wstring_view::npos ||
 	   url.find( L"//", PAYLOAD_URL_PREFIX.size()) != std::wstring_view::npos ||
@@ -118,36 +119,36 @@ constexpr std::wstring_view PAYLOAD_URL_PREFIX =
 		return false ;
 	}
 
-	// URL全体をASCIIに限定し、別表現によるauthorityまたはpath解釈差を受理しない。
+	// URL全体をASCIIに限定し、別表現によるauthorityまたはpath解釈差を受理しない
 	for( const wchar_t character : url) {
-		// 非ASCII文字、空白、userinfo、percent encodeをpayload URLに許可しない。
+		// 非ASCII文字、空白、userinfo、percent encodeをpayload URLに許可しない
 		if( character < 0x21 || character > 0x7e || character == L'@' || character == L'%') {
 			return false ;
 		}
 	}
 
-	const std::size_t slash = url.find_last_of( L'/') ;	// Payload file名の開始境界。
-	const std::size_t dot	= url.find_last_of( L'.') ;	// Archive拡張子の開始境界。
-	// basenameと三文字拡張子を分離できないURLを受理しない。
+	const std::size_t slash = url.find_last_of( L'/') ;	// Payload file名の開始境界
+	const std::size_t dot	= url.find_last_of( L'.') ;	// Archive拡張子の開始境界
+	// basenameと三文字拡張子を分離できないURLを受理しない
 	if( slash == std::wstring_view::npos || dot == std::wstring_view::npos || dot <= slash ||
 	   dot + 4U != url.size()) {
 		return false ;
 	}
 
-	const std::wstring_view candidate = url.substr( dot) ;	// 大小文字を確認する拡張子。
-	const wchar_t			first	  = candidate[1U] ;		// 拡張子先頭のASCII英字。
-	const wchar_t			second	  = candidate[2U] ;		// 拡張子二文字目のASCII英字。
-	const wchar_t			third	  = candidate[3U] ;		// 拡張子三文字目のASCII英字。
+	const std::wstring_view candidate = url.substr( dot) ;	// 大小文字を確認する拡張子
+	const wchar_t			first	  = candidate[1U] ;		// 拡張子先頭のASCII英字
+	const wchar_t			second	  = candidate[2U] ;		// 拡張子二文字目のASCII英字
+	const wchar_t			third	  = candidate[3U] ;		// 拡張子三文字目のASCII英字
 	const auto isAsciiLetter		  = []( const wchar_t value, const wchar_t lowercase) noexcept {
 		 return value == lowercase || value == lowercase - (L'a' - L'A') ;
-	} ; // 大小文字一致判定。
-	// 拡張子がZIPに一致した場合だけZIPの固定形式として扱う。
+	} ; // 大小文字一致判定
+	// 拡張子がZIPに一致した場合だけZIPの固定形式として扱う
 	if( isAsciiLetter( first, L'z') && isAsciiLetter( second, L'i') && isAsciiLetter( third, L'p')) {
 		extension = L".zip" ;
 		return true ;
 	}
 
-	// 拡張子がCABに一致した場合だけCABの固定形式として扱う。
+	// 拡張子がCABに一致した場合だけCABの固定形式として扱う
 	if( isAsciiLetter( first, L'c') && isAsciiLetter( second, L'a') && isAsciiLetter( third, L'b')) {
 		extension = L".cab" ;
 		return true ;
@@ -158,25 +159,25 @@ constexpr std::wstring_view PAYLOAD_URL_PREFIX =
 
 //------------------------------------------------------------------------------
 /**
- * @brief 保護workspace用のopaque file名を生成する。
+ * @brief 保護workspace用のopaque file名を生成する
  *
- * 外部file名を保護領域pathへ複写せず、有限連番だけを使う。
+ * 外部file名を保護領域pathへ複写せず、有限連番だけを使う
  *
- * @param[in] index 計画内の0始まりindex。
- * @param[in] extension 検証済みの「.zip」または「.cab」。
- * @return `payload-001`形式の安全なASCII相対file名。
+ * @param[in] index 計画内の0始まりindex
+ * @param[in] extension 検証済みの「.zip」または「.cab」
+ * @return `payload-001`形式の安全なASCII相対file名
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::wstring workspaceFileName( const std::size_t		 index,
 											 const std::wstring_view extension)
 {
-	const std::size_t number = index + 1U ;		// 利用者表示に使わない1始まり連番。
-	std::wstring	  name	 = L"payload-" ;	// Workspace内で固定するfile名prefix。
-	// 一桁のordinalを三桁に揃え、安定したopaque file名を生成する。
+	const std::size_t number = index + 1U ;		// 利用者表示に使わない1始まり連番
+	std::wstring	  name	 = L"payload-" ;	// Workspace内で固定するfile名prefix
+	// 一桁のordinalを三桁に揃え、安定したopaque file名を生成する
 	if( number < 10U) {
 		name += L"00" ;
 	}
-	// 二桁のordinalも三桁に揃え、安定したopaque file名を生成する。
+	// 二桁のordinalも三桁に揃え、安定したopaque file名を生成する
 	else if( number < 100U) {
 		name += L'0' ;
 	}
@@ -191,33 +192,33 @@ constexpr std::wstring_view PAYLOAD_URL_PREFIX =
 //------------------------------------------------------------------------------
 /**
  * @brief ASUS parser結果から有限で重複のない検査用取得計画を構築する。ASUS parser結果から有限取得計画を構築する。Origin、hash、size、opaque IDを
- *        再検証し、外部file名を使用しない有限計画へ固定する。
- * @param[in] entries 同一model／OSの検証済みASUS page entry群。 同一model／OSの検証済みpage entry群。
- * @param[out] plan 成功時の取得順を維持した内部計画。失敗時は空にする。 成功時の内部取得計画。
- * @return 構築成功時は0、不正値、重複または件数超過時はHRESULT bit pattern。
- * @note 本関数はdownloadを開始せず、候補またはinstall可能状態を生成しない。
+ *        再検証し、外部file名を使用しない有限計画へ固定する
+ * @param[in] entries 同一model／OSの検証済みASUS page entry群。 同一model／OSの検証済みpage entry群
+ * @param[out] plan 成功時の取得順を維持した内部計画。失敗時は空にする。 成功時の内部取得計画
+ * @return 構築成功時は0、不正値、重複または件数超過時はHRESULT bit pattern
+ * @note 本関数はdownloadを開始せず、候補またはinstall可能状態を生成しない
  */
 //------------------------------------------------------------------------------
 NativeError makeAsusPackageAcquisitionPlan( const std::span<const AsusDriverPageEntry>	 entries,
 										   std::vector<AsusPackageAcquisitionPlanEntry> &plan)
 {
 	plan.clear() ;
-	// 空または固定件数上限を超える取得計画を作らない。
+	// 空または固定件数上限を超える取得計画を作らない
 	if( entries.empty() || entries.size() > MAXIMUM_PLAN_ENTRIES) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
 	}
 
 	try {
-		std::unordered_set<std::wstring> opaqueIds ;	// Record ID重複検出集合。
-		std::unordered_set<std::wstring> urls ;			// Payload URL重複検出集合。
+		std::unordered_set<std::wstring> opaqueIds ;	// Record ID重複検出集合
+		std::unordered_set<std::wstring> urls ;			// Payload URL重複検出集合
 		opaqueIds.reserve( entries.size()) ;
 		urls.reserve( entries.size()) ;
 		plan.reserve( entries.size()) ;
-		// Parser順を保ったまま全entryを検証し、一件の不整合でも全計画を拒否する。
+		// Parser順を保ったまま全entryを検証し、一件の不整合でも全計画を拒否する
 		for( std::size_t index = 0U; index < entries.size(); ++index) {
-			const AsusDriverPageEntry &entry = entries[index] ;	// 現在検証するmetadata。
-			std::wstring_view		   extension ;				// 検証済みarchive拡張子。
-			// ID・URL・hash・容量の不正と重複を検出したら部分計画を全て破棄する。
+			const AsusDriverPageEntry &entry = entries[index] ;	// 現在検証するmetadata
+			std::wstring_view		   extension ;				// 検証済みarchive拡張子
+			// ID・URL・hash・容量の不正と重複を検出したら部分計画を全て破棄する
 			if( entry.opaqueId.empty() || entry.opaqueId.size() > MAXIMUM_OPAQUE_ID_CHARACTERS ||
 			   !isValidPayloadUrl( entry.downloadUrl, extension) || !isLowerSha256( entry.sha256) ||
 			   entry.maximumDownloadBytes == 0U ||
@@ -247,18 +248,18 @@ NativeError makeAsusPackageAcquisitionPlan( const std::span<const AsusDriverPage
 //------------------------------------------------------------------------------
 /**
  * @brief 一つのASUS計画entryをG11-Bの保護workspaceへ検査用取得する。ASUS package一件をG11-Bへ検査用取得する。Provider／resource ID
- *        を呼出し側に選ばせず、ASUS公式payload policyと公開SHA-256へ固定して共通取得を実行する。
- * @param[in] entry 検証済みASUS取得計画entry。
- * @param[in] restrictedNetworkApproved 今回だけRestricted／Unknown networkを許可する状態。 今回だけのcost同意。
- * @param[in,out] session 初期化済みのscan session共通取得ledger。 初期化済みscan session取得ledger。
- * @param[in,out] workspace 初期化済みで成功fileを所有する保護領域。
- * @param[in,out] transport ASUS source session開始済みの公式取得境界。 ASUS source session開始済み取得境界。
- * @param[in,out] costReader Machine-wide network cost照会境界。
- * @param[in] progressCallback 確定済み受信byte数の通知先。 確定済み受信進捗通知先。
- * @param[in] cancellationCallback 空または取消し状態を返す非blocking関数。 取消し状態確認先。
- * @param[out] result 成功または失敗の監査前取得状態。URLを含まない。 URLを含まない監査前取得状態。
- * @return `ACQUIRED_FOR_INSPECTION`到達時は0、それ以外はHRESULT bit pattern。 検査対象固定成功時は0、それ以外はHRESULT。
- * @note 取得成功は候補、PnP適用可能またはinstall可能を意味しない。
+ *        を呼出し側に選ばせず、ASUS公式payload policyと公開SHA-256へ固定して共通取得を実行する
+ * @param[in] entry 検証済みASUS取得計画entry
+ * @param[in] restrictedNetworkApproved 今回だけRestricted／Unknown networkを許可する状態。 今回だけのcost同意
+ * @param[in,out] session 初期化済みのscan session共通取得ledger。 初期化済みscan session取得ledger
+ * @param[in,out] workspace 初期化済みで成功fileを所有する保護領域
+ * @param[in,out] transport ASUS source session開始済みの公式取得境界。 ASUS source session開始済み取得境界
+ * @param[in,out] costReader Machine-wide network cost照会境界
+ * @param[in] progressCallback 確定済み受信byte数の通知先。 確定済み受信進捗通知先
+ * @param[in] cancellationCallback 空または取消し状態を返す非blocking関数。 取消し状態確認先
+ * @param[out] result 成功または失敗の監査前取得状態。URLを含まない。 URLを含まない監査前取得状態
+ * @return `ACQUIRED_FOR_INSPECTION`到達時は0、それ以外はHRESULT bit pattern。 検査対象固定成功時は0、それ以外はHRESULT
+ * @note 取得成功は候補、PnP適用可能またはinstall可能を意味しない
  */
 //------------------------------------------------------------------------------
 NativeError acquireAsusPackageForInspection(
@@ -276,7 +277,7 @@ NativeError acquireAsusPackageForInspection(
 											 .publishedSize		= std::nullopt,
 											 .publishedSha256	= entry.publishedSha256,
 											 .restrictedNetworkApproved =
-												 restrictedNetworkApproved} ;	// 固定ASUS取得要求。
+												 restrictedNetworkApproved} ;	// 固定ASUS取得要求
 	return session.acquire( request, workspace, transport, costReader, progressCallback,
 						   cancellationCallback, result) ;
 }

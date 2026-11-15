@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_collector_public_text.cpp
- * @brief 収集専用の公開文字列形状とUTF-8上限を検証します。
- * @version 01.01.01
+ * @brief 収集専用の公開文字列形状とUTF-8上限を検証します
+ * @version 01.01.02
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,9 +19,10 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/28  metadata専用公開値境界を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/09/28  公開値の内側走査へ明示制御を伝播。
- * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/28  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/28  公開値の内側走査へ明示制御を伝播
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  */
 //------------------------------------------------------------------------------
@@ -34,37 +35,37 @@ namespace drivercrate {
 namespace {
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 /**
- * @brief ASCII大小文字に依存せず端末識別子形状を見つけます。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
- * @param[in] value 有限の公開field。
- * @return PnP識別子のmarkerを含む場合true。
+ * @brief ASCII大小文字に依存せず端末識別子形状を見つけます
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull
+ * @param[in] value 有限の公開field
+ * @return PnP識別子のmarkerを含む場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool hasDeviceMarker( CollectorParserContext *control, const std::wstring_view value)
 {
 	collectorParserCheckpoint( control) ;
 	constexpr std::array<std::wstring_view, 5U> MARKERS{L"VEN_", L"DEV_", L"VID_", L"PID_",
-														L"SUBSYS_"} ;	// 固定形状。
-	// 最大1,024文字の各位置で有限markerだけを比較します。
+														L"SUBSYS_"} ;	// 固定形状
+	// 最大1,024文字の各位置で有限markerだけを比較します
 	for( std::size_t offset = 0U; offset < value.size(); ++offset) {
 		collectorParserStep( control) ;
-		// 一致した一形状だけで公開候補を拒否します。
+		// 一致した一形状だけで公開候補を拒否します
 		for( const auto marker : MARKERS) {
 			collectorParserStep( control) ;
-			// 残りが短い場合は後続のmarkerを試します。
+			// 残りが短い場合は後続のmarkerを試します
 			if( marker.size() > value.size() - offset) {
 				continue ;
 			}
 
-			bool equal = true ;	// 現在の形状比較。
-			// ASCIIだけを大文字化し、Unicode正規化を追加しません。
+			bool equal = true ;	// 現在の形状比較
+			// ASCIIだけを大文字化し、Unicode正規化を追加しません
 			for( std::size_t index = 0U; index < marker.size(); ++index) {
 				collectorParserStep( control) ;
-				wchar_t ch = value[offset + index] ;	// 元の一文字。
-				// 英小文字だけを有限に変換します。
+				wchar_t ch = value[offset + index] ;	// 元の一文字
+				// 英小文字だけを有限に変換します
 				if( ch >= L'a' && ch <= L'z') {
 					ch = static_cast<wchar_t>( ch - L'a' + L'A') ;
 				}
@@ -72,7 +73,7 @@ namespace {
 				equal = equal && ch == marker[index] ;
 			}
 
-			// 端末ID形状はsource由来でも公開表示へ保存しません。
+			// 端末ID形状はsource由来でも公開表示へ保存しません
 			if( equal) {
 				return true ;
 			}
@@ -84,34 +85,34 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @brief Slashを含むfieldの文法を限定します。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
- * @param[in] value 有限field。
- * @param[in] kind Field別文法。
- * @return Slashなし、または指定文法で許される場合true。
+ * @brief Slashを含むfieldの文法を限定します
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull
+ * @param[in] value 有限field
+ * @param[in] kind Field別文法
+ * @return Slashなし、または指定文法で許される場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool validSlash( CollectorParserContext *control, const std::wstring_view value,
 							  const OfficialCollectorPublicTextKind kind)
 {
 	collectorParserCheckpoint( control) ;
-	const auto slash = collectorParserFind( control, value, L'/') ;	// 最初の区切り。
-	// Slashなしは一般文字検査へ委譲します。
+	const auto slash = collectorParserFind( control, value, L'/') ;	// 最初の区切り
+	// Slashなしは一般文字検査へ委譲します
 	if( slash == value.npos) {
 		return true ;
 	}
 
-	// 日付に限り二つの固定区切りとASCII数字を許します。
+	// 日付に限り二つの固定区切りとASCII数字を許します
 	if( kind == OfficialCollectorPublicTextKind::DATE) {
-		// 実在日付の意味検査は元parserが行います。
+		// 実在日付の意味検査は元parserが行います
 		if( value.size() != 10U || value[4] != L'/' || value[7] != L'/') {
 			return false ;
 		}
 
-		// 区切り以外にpath文字を認めません。
+		// 区切り以外にpath文字を認めません
 		for( std::size_t index = 0U; index < value.size(); ++index) {
 			collectorParserStep( control) ;
-			// ASCII数字だけを受理します。
+			// ASCII数字だけを受理します
 			if( index != 4U && index != 7U && (value[index] < L'0' || value[index] > L'9')) {
 				return false ;
 			}
@@ -120,24 +121,24 @@ namespace {
 		return true ;
 	}
 
-	// MIMEは空でない二tokenの間の一つだけを許します。
+	// MIMEは空でない二tokenの間の一つだけを許します
 	if( kind != OfficialCollectorPublicTextKind::CONTENT_TYPE || slash == 0U ||
 	   slash + 1U == value.size() ||
 	   collectorParserFind( control, value, L'/', slash + 1U) != value.npos) {
 		return false ;
 	}
 
-	// Dot segmentや相対pathをMIMEの例外文法へ潜り込ませません。
+	// Dot segmentや相対pathをMIMEの例外文法へ潜り込ませません
 	if( value.front() < L'a' || value.front() > L'z' ||
 	   !((value[slash + 1U] >= L'a' && value[slash + 1U] <= L'z') ||
 		 (value[slash + 1U] >= L'0' && value[slash + 1U] <= L'9'))) {
 		return false ;
 	}
 
-	// MIME tokenの有限ASCII集合以外をpathとして通しません。
+	// MIME tokenの有限ASCII集合以外をpathとして通しません
 	for( const wchar_t ch : value) {
 		collectorParserStep( control) ;
-		// 通常recordのMIME構文検証と同じ文字集合です。
+		// 通常recordのMIME構文検証と同じ文字集合です
 		if( !((ch >= L'a' && ch <= L'z') || (ch >= L'0' && ch <= L'9') || ch == L'/' || ch == L'.' ||
 			 ch == L'+' || ch == L'-')) {
 			return false ;
@@ -150,15 +151,15 @@ namespace {
 } // namespace
 
 //------------------------------------------------------------------------------
-// 公開関数定義。
+// 公開関数定義
 //------------------------------------------------------------------------------
 /**
- * @brief 公開fieldの同じ形状・文字数検証を共有します。
- * @param[in,out] control 新経路の制御。旧経路だけnull。
- * @param[in] value 公開値。
- * @param[in] maximumBytes UTF-8上限。
- * @param[in] kind Slash文法。
- * @return 公開契約の成立。
+ * @brief 公開fieldの同じ形状・文字数検証を共有します
+ * @param[in,out] control 新経路の制御。旧経路だけnull
+ * @param[in] value 公開値
+ * @param[in] maximumBytes UTF-8上限
+ * @param[in] kind Slash文法
+ * @return 公開契約の成立
  */
 //------------------------------------------------------------------------------
 static bool isOfficialCollectorPublicTextCore( CollectorParserContext			   *control,
@@ -167,27 +168,27 @@ static bool isOfficialCollectorPublicTextCore( CollectorParserContext			   *cont
 											  const OfficialCollectorPublicTextKind kind)
 {
 	collectorParserCheckpoint( control) ;
-	// 不正な契約や最小byte数で既に上限外の値は走査しません。
+	// 不正な契約や最小byte数で既に上限外の値は走査しません
 	if( maximumBytes == 0U || maximumBytes > 1'024U || value.size() > maximumBytes ||
 	   !validSlash( control, value, kind) || hasDeviceMarker( control, value)) {
 		return false ;
 	}
 
-	std::size_t bytes = 0U ;	// 正規UTF-8に必要なbyte数。
-	// UTF-16を一方向に検証し、allocationなしでbyte数を算出します。
+	std::size_t bytes = 0U ;	// 正規UTF-8に必要なbyte数
+	// UTF-16を一方向に検証し、allocationなしでbyte数を算出します
 	for( std::size_t index = 0U; index < value.size(); ++index) {
 		collectorParserStep( control) ;
-		const wchar_t ch = value[index] ;	// 現在のcode unit。
-		// 不可視制御・markup・path／query形状を拒否します。
+		const wchar_t ch = value[index] ;	// 現在のcode unit
+		// 不可視制御・markup・path／query形状を拒否します
 		if( ch < L' ' || (ch >= 0x7f && ch <= 0x9f) || ch == L'\\' || ch == L':' || ch == L'?' ||
 		   ch == L'#' || ch == L'=' || ch == L'<' || ch == L'>' || (ch >= 0xdc00 && ch <= 0xdfff)) {
 			return false ;
 		}
 
-		// 高位surrogateは必ず低位surrogateと対にします。
+		// 高位surrogateは必ず低位surrogateと対にします
 		if( ch >= 0xd800 && ch <= 0xdbff) {
 			++index ;
-			// 不完全なUnicodeは公開しません。
+			// 不完全なUnicodeは公開しません
 			if( index == value.size() || value[index] < 0xdc00 || value[index] > 0xdfff) {
 				return false ;
 			}
@@ -203,12 +204,12 @@ static bool isOfficialCollectorPublicTextCore( CollectorParserContext			   *cont
 
 //------------------------------------------------------------------------------
 /**
- * @brief 収集metadataの公開形状、Unicode、実UTF-8 byte数を検証します。
- * @param[in] value Sourceが選んだ公開field。空値の必須性はcallerが検証します。
- * @param[in] maximumBytes UTF-8変換後の有限上限。最大1,024 byte。
- * @param[in] kind Slashのfield別文法。
- * @return 不可視制御、path／query／端末ID形状がなく上限内ならtrue。
- * @note 通常record契約には適用せず、公式性や任意値の非秘密性を証明しません。
+ * @brief 収集metadataの公開形状、Unicode、実UTF-8 byte数を検証します
+ * @param[in] value Sourceが選んだ公開field。空値の必須性はcallerが検証します
+ * @param[in] maximumBytes UTF-8変換後の有限上限。最大1,024 byte
+ * @param[in] kind Slashのfield別文法
+ * @return 不可視制御、path／query／端末ID形状がなく上限内ならtrue
+ * @note 通常record契約には適用せず、公式性や任意値の非秘密性を証明しません
  */
 //------------------------------------------------------------------------------
 bool isOfficialCollectorPublicText( std::wstring_view value, std::size_t maximumBytes,
@@ -219,12 +220,12 @@ bool isOfficialCollectorPublicText( std::wstring_view value, std::size_t maximum
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公開値の形状・Unicode走査を元control付きで検証します。
- * @param[in] value 有限公開値。
- * @param[in] maximumBytes 最大UTF-8 byte数。
- * @param[in] kind Slash文法。
- * @param[in,out] context 必須の元制御。
- * @return 文字検証の成立。停止・例外は上位境界へ伝播します。
+ * @brief 公開値の形状・Unicode走査を元control付きで検証します
+ * @param[in] value 有限公開値
+ * @param[in] maximumBytes 最大UTF-8 byte数
+ * @param[in] kind Slash文法
+ * @param[in,out] context 必須の元制御
+ * @return 文字検証の成立。停止・例外は上位境界へ伝播します
  */
 //------------------------------------------------------------------------------
 bool isOfficialCollectorPublicTextForCollector( std::wstring_view value, std::size_t maximumBytes,

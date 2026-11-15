@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_acquisition.cpp
- * @brief 公式fileの検査用取得境界実装。
- * @version 01.06.01
+ * @brief 公式fileの検査用取得境界実装
+ * @version 01.06.02
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,25 +19,26 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.01.00 Shunji Ogawa  2026/09/15  Record限定grantの保護取得variantを追加。
- * Ver.01.02.00 Shunji Ogawa  2026/09/23  公開SHA-512の事前検証・必須照合・独立結果を追加。
- * Ver.01.03.00 Shunji Ogawa  2026/10/06  私有成功記録・issuerと原byte再確認の封印証拠を追加。
- * Ver.01.04.00 Shunji Ogawa  2026/10/06  収集adapterの一回scopeを通常取得と分離。
- * Ver.01.05.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加。
- * Ver.01.05.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足。
- * Ver.01.06.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
- * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/15  Record限定grantの保護取得variantを追加
+ * Ver.01.02.00 Shunji Ogawa  2026/09/23  公開SHA-512の事前検証・必須照合・独立結果を追加
+ * Ver.01.03.00 Shunji Ogawa  2026/10/06  私有成功記録・issuerと原byte再確認の封印証拠を追加
+ * Ver.01.04.00 Shunji Ogawa  2026/10/06  収集adapterの一回scopeを通常取得と分離
+ * Ver.01.05.00 Shunji Ogawa  2026/10/12  署名索引の共通取得境界と既存経路の区別を追加
+ * Ver.01.05.01 Shunji Ogawa  2026/10/12  default/delete宣言の所有権と非実行契約を補足
+ * Ver.01.06.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続
+ * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.06.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note Provider worker threadで公式fileを直列取得し、成功fileだけをsession容量へ計上します。取得物を実行、候補化またはUIへ公開しません。
+ * @note Provider worker threadで公式fileを直列取得し、成功fileだけをsession容量へ計上します。取得物を実行、候補化またはUIへ公開しません
  */
 //------------------------------------------------------------------------------
 
@@ -65,37 +66,37 @@
 namespace drivercrate {
 namespace {
 
-// 成功記録のallocation完了後のcommitを例外なしに保つ型の前提。
+// 成功記録のallocation完了後のcommitを例外なしに保つ型の前提
 static_assert( std::is_nothrow_move_assignable_v<OfficialAcquisitionResult>) ;
-// Optional成功記録のcommitが旧記録を破壊して例外を出さない前提。
+// Optional成功記録のcommitが旧記録を破壊して例外を出さない前提
 static_assert( std::is_nothrow_move_assignable_v<std::optional<OfficialAcquisitionResult>>) ;
 
 //------------------------------------------------------------------------------
-// 定数定義。
+// 定数定義
 //------------------------------------------------------------------------------
 
-constexpr DWORD NETWORK_COST_LEVEL_MASK	 = 0x0000ffffU ;	// NLM cost levelを抽出するmask。
-constexpr DWORD RESTRICTED_NETWORK_FLAGS =					// 利用者確認を要求するNLM cost flag集合。
+constexpr DWORD NETWORK_COST_LEVEL_MASK	 = 0x0000ffffU ;	// NLM cost levelを抽出するmask
+constexpr DWORD RESTRICTED_NETWORK_FLAGS =					// 利用者確認を要求するNLM cost flag集合
 	static_cast<DWORD>( NLM_CONNECTION_COST_OVERDATALIMIT) |
 	static_cast<DWORD>( NLM_CONNECTION_COST_ROAMING) |
 	static_cast<DWORD>( NLM_CONNECTION_COST_APPROACHINGDATALIMIT) ;
 
 //------------------------------------------------------------------------------
-// 内部型定義。
+// 内部型定義
 //------------------------------------------------------------------------------
 
 /**
- * @brief HANDLEを一度だけCloseHandleする所有wrapperである。
+ * @brief HANDLEを一度だけCloseHandleする所有wrapperである
  */
 class FileHandle final {
 public:
 	//------------------------------------------------------------------------------
 	/**
-     * @brief File handleのownershipを取得する。
+     * @brief File handleのownershipを取得する
      *
-     * 呼出し側からhandleのCloseHandle責務を移す。
+     * 呼出し側からhandleのCloseHandle責務を移す
      *
-     * @param[in] value 所有する有効またはINVALID_HANDLE_VALUE。
+     * @param[in] value 所有する有効またはINVALID_HANDLE_VALUE
      */
 	//------------------------------------------------------------------------------
 	explicit FileHandle( const HANDLE value) noexcept : value_( value)
@@ -104,46 +105,46 @@ public:
 
 	//------------------------------------------------------------------------------
 	/**
-     * @brief 所有中のfile handleを閉じる。
+     * @brief 所有中のfile handleを閉じる
      *
-     * 明示closeされていない有効handleだけをbest-effortで閉じる。
+     * 明示closeされていない有効handleだけをbest-effortで閉じる
      */
 	//------------------------------------------------------------------------------
 	~FileHandle()
 	{
-		// 有効な所有handleだけを解放する。
+		// 有効な所有handleだけを解放する
 		if( value_ != nullptr && value_ != INVALID_HANDLE_VALUE) {
 			static_cast<void>( CloseHandle( value_)) ;
 		}
 	}
 
 	/**
-	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
+	 * @brief 所有状態の複製をコンパイル時に禁止します
+	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません
 	 */
 	FileHandle( const FileHandle &) = delete ;
 	/**
-	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
+	 * @brief 所有状態の複製をコンパイル時に禁止します
+	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません
 	 */
 	FileHandle &operator=( const FileHandle &) = delete ;
 	/**
-	 * @brief 所有状態の移動をコンパイル時に禁止します。
-	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
+	 * @brief 所有状態の移動をコンパイル時に禁止します
+	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません
 	 */
 	FileHandle( FileHandle &&) = delete ;
 	/**
-	 * @brief 所有状態の移動をコンパイル時に禁止します。
-	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
+	 * @brief 所有状態の移動をコンパイル時に禁止します
+	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません
 	 */
 	FileHandle			&operator=( FileHandle &&) = delete ;
 
 	//------------------------------------------------------------------------------
 	/**
-     * @brief 所有中のfile handleを参照する。
+     * @brief 所有中のfile handleを参照する
      *
-     * Ownershipを移さずWin32 API呼出し中だけ値を貸し出す。
-     * @return 所有中のHANDLE。
+     * Ownershipを移さずWin32 API呼出し中だけ値を貸し出す
+     * @return 所有中のHANDLE
      */
 	//------------------------------------------------------------------------------
 	[[nodiscard]] HANDLE get() const noexcept
@@ -153,20 +154,20 @@ public:
 
 	//------------------------------------------------------------------------------
 	/**
-     * @brief 所有中のfile handleを閉じる。
+     * @brief 所有中のfile handleを閉じる
      *
-     * CloseHandle前に所有値を無効化し、失敗時も重複closeを防ぐ。
-     * @return Close成功または既に空なら0、失敗時はHRESULT。
+     * CloseHandle前に所有値を無効化し、失敗時も重複closeを防ぐ
+     * @return Close成功または既に空なら0、失敗時はHRESULT
      */
 	//------------------------------------------------------------------------------
 	[[nodiscard]] NativeError close() noexcept
 	{
-		// 所有する有効handleがなければcloseを重ねて呼ばない。
+		// 所有する有効handleがなければcloseを重ねて呼ばない
 		if( value_ == nullptr || value_ == INVALID_HANDLE_VALUE) {
 			return 0 ;
 		}
 
-		const HANDLE closing = value_ ;	// 今回だけCloseHandleへ渡す所有handle。
+		const HANDLE closing = value_ ;	// 今回だけCloseHandleへ渡す所有handle
 		value_				 = INVALID_HANDLE_VALUE ;
 		return CloseHandle( closing) != FALSE
 				   ? static_cast<NativeError>( 0)
@@ -174,22 +175,22 @@ public:
 	}
 
 private:
-	/// Close前だけ所有するfile handle。
+	/// Close前だけ所有するfile handle
 	HANDLE value_{INVALID_HANDLE_VALUE} ;
 } ;
 
 /**
- * @brief Scope終了時に取得中flagを必ず解除する。
+ * @brief Scope終了時に取得中flagを必ず解除する
  */
 class AcquiringGuard final {
 public:
 	//------------------------------------------------------------------------------
 	/**
-     * @brief 解除対象flagへの参照を保持する。
+     * @brief 解除対象flagへの参照を保持する
      *
-     * 呼出し側がtrueに設定済みの再入防止flagを借用する。
+     * 呼出し側がtrueに設定済みの再入防止flagを借用する
      *
-     * @param[in,out] acquiring Scope終了時にfalseへ戻すflag。
+     * @param[in,out] acquiring Scope終了時にfalseへ戻すflag
      */
 	//------------------------------------------------------------------------------
 	explicit AcquiringGuard( bool &acquiring) noexcept : acquiring_( acquiring)
@@ -198,9 +199,9 @@ public:
 
 	//------------------------------------------------------------------------------
 	/**
-     * @brief 取得中flagを解除する。
+     * @brief 取得中flagを解除する
      *
-     * 全return経路と例外経路で再入防止状態を解除する。
+     * 全return経路と例外経路で再入防止状態を解除する
      */
 	//------------------------------------------------------------------------------
 	~AcquiringGuard()
@@ -209,33 +210,33 @@ public:
 	}
 
 	/**
-	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
+	 * @brief 所有状態の複製をコンパイル時に禁止します
+	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません
 	 */
 	AcquiringGuard( const AcquiringGuard &) = delete ;
 	/**
-	 * @brief 所有状態の複製をコンパイル時に禁止します。
-	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません。
+	 * @brief 所有状態の複製をコンパイル時に禁止します
+	 * @note 引数の参照先を借用・変更せず、実行可能な関数本体はありません
 	 */
 	AcquiringGuard &operator=( const AcquiringGuard &) = delete ;
 
 private:
-	/// 呼出し元sessionが所有する再入防止flag。
+	/// 呼出し元sessionが所有する再入防止flag
 	bool &acquiring_ ;
 } ;
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief NativeErrorへWin32 errorを変換する。
+ * @brief NativeErrorへWin32 errorを変換する
  *
- * OS診断値をProvider共通の32-bit errorとして保持する。
+ * OS診断値をProvider共通の32-bit errorとして保持する
  *
- * @param[in] error Win32 APIが返したerror code。
- * @return HRESULT_FROM_WIN32で変換したbit pattern。
+ * @param[in] error Win32 APIが返したerror code
+ * @return HRESULT_FROM_WIN32で変換したbit pattern
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError nativeErrorFromWin32( const DWORD error) noexcept
@@ -245,19 +246,19 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公開hashが指定桁ASCII hexか確認する。
+ * @brief 公開hashが指定桁ASCII hexか確認する
  *
- * Separator、prefix、空白またはUnicodeを許可しない。
+ * Separator、prefix、空白またはUnicodeを許可しない
  *
- * @param[in] value 公開metadataから得たhash表示値。
- * @param[in] characters Algorithmで固定する64または128桁。
- * @return 指定桁ASCII hexだけなら`true`。
+ * @param[in] value 公開metadataから得たhash表示値
+ * @param[in] characters Algorithmで固定する64または128桁
+ * @return 指定桁ASCII hexだけなら`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isValidPublishedHash( const std::wstring_view value,
 										const std::size_t		characters) noexcept
 {
-	// Algorithmの固定桁数に合わない期待値を拒否する。
+	// Algorithmの固定桁数に合わない期待値を拒否する
 	if( value.size() != characters) {
 		return false ;
 	}
@@ -270,19 +271,19 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @brief 二つの公開hash ASCII hexを大小文字を除いて比較する。
+ * @brief 二つの公開hash ASCII hexを大小文字を除いて比較する
  *
- * Hex表記差だけを許可し、記号除去や部分一致は行わない。
+ * Hex表記差だけを許可し、記号除去や部分一致は行わない
  *
- * @param[in] left 検証済み64または128桁の公開hash。
- * @param[in] right 検証済み64または128桁の公開hash。
- * @return 大小文字を除く全桁一致時は`true`。
+ * @param[in] left 検証済み64または128桁の公開hash
+ * @param[in] right 検証済み64または128桁の公開hash
+ * @return 大小文字を除く全桁一致時は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool publishedHashEqual( const std::wstring_view left,
 									  const std::wstring_view right) noexcept
 {
-	// 長さの異なるhash文字列を一致とみなさない。
+	// 長さの異なるhash文字列を一致とみなさない
 	if( left.size() != right.size()) {
 		return false ;
 	}
@@ -299,14 +300,14 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @brief 使用済み量へ予約量を加えても上限内か確認する。
+ * @brief 使用済み量へ予約量を加えても上限内か確認する
  *
- * 加算前の減算比較によりunsigned overflowを防止する。
+ * 加算前の減算比較によりunsigned overflowを防止する
  *
- * @param[in] used 既に成功取得へ計上したbyte数。
- * @param[in] planned 今回取得前に予約するbyte数。
- * @param[in] limit 累計へ許可する有限上限byte数。
- * @return Overflowせず上限内へ収まる場合は`true`。
+ * @param[in] used 既に成功取得へ計上したbyte数
+ * @param[in] planned 今回取得前に予約するbyte数
+ * @param[in] limit 累計へ許可する有限上限byte数
+ * @return Overflowせず上限内へ収まる場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool fitsByteLimit( const std::uint64_t used, const std::uint64_t planned,
@@ -317,20 +318,20 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @brief 取消しcallbackを例外境界付きで確認する。
+ * @brief 取消しcallbackを例外境界付きで確認する
  *
- * 取得処理から任意のcallback例外を漏らさない。
+ * 取得処理から任意のcallback例外を漏らさない
  *
- * @param[in] callback 空または取消し状態を返す非blocking関数。
- * @param[out] cancelled Callbackがtrueを返した場合true。
- * @return 確認成功時は0、callback例外時はE_UNEXPECTED。
+ * @param[in] callback 空または取消し状態を返す非blocking関数
+ * @param[out] cancelled Callbackがtrueを返した場合true
+ * @return 確認成功時は0、callback例外時はE_UNEXPECTED
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError queryCancellation( const HttpCancellationCallback &callback,
 											bool						   &cancelled) noexcept
 {
 	cancelled = false ;
-	// 任意の取消しcallbackが未指定なら取消し照会を省略する。
+	// 任意の取消しcallbackが未指定なら取消し照会を省略する
 	if( !callback) {
 		return 0 ;
 	}
@@ -345,14 +346,14 @@ private:
 
 //------------------------------------------------------------------------------
 /**
- * @brief 失敗したworkspace fileを直ちに破棄する。
+ * @brief 失敗したworkspace fileを直ちに破棄する
  *
- * Partial fileを残すcleanup失敗を元の処理失敗より優先する。
+ * Partial fileを残すcleanup失敗を元の処理失敗より優先する
  *
- * @param[in,out] workspace 対象fileを所有する保護workspace。
- * @param[in] name `createFile`へ渡した相対path。
- * @param[in] primaryError 破棄前に確定した失敗理由。
- * @return 破棄失敗時はそのHRESULT、それ以外はprimaryError。
+ * @param[in,out] workspace 対象fileを所有する保護workspace
+ * @param[in] name `createFile`へ渡した相対path
+ * @param[in] primaryError 破棄前に確定した失敗理由
+ * @return 破棄失敗時はそのHRESULT、それ以外はprimaryError
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError discardFailedFile( OfficialDownloadWorkspace &workspace,
@@ -360,24 +361,24 @@ private:
 											const NativeError		   primaryError)
 {
 	try {
-		const NativeError discardError = workspace.discardFile( name) ;	// Partial file削除結果。
+		const NativeError discardError = workspace.discardFile( name) ;	// Partial file削除結果
 		return discardError != 0 ? discardError : primaryError ;
 	} catch( const std::bad_alloc &) {
 		return static_cast<NativeError>( E_OUTOFMEMORY) ;
 	} catch( ...) {
-		// Cleanup境界から型不明例外を漏らさず、destructorの再試行対象を維持する。
+		// Cleanup境界から型不明例外を漏らさず、destructorの再試行対象を維持する
 		return static_cast<NativeError>( E_UNEXPECTED) ;
 	}
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief Network cost分類値が定義内か確認する。
+ * @brief Network cost分類値が定義内か確認する
  *
- * Fakeを含む境界から未定義値が入った場合は取得を拒否する。
+ * Fakeを含む境界から未定義値が入った場合は取得を拒否する
  *
- * @param[in] cost Cost readerが返した分類。
- * @return 定義済み列挙値の場合は`true`。
+ * @param[in] cost Cost readerが返した分類
+ * @return 定義済み列挙値の場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isValidNetworkCost( const OfficialNetworkCostKind cost) noexcept
@@ -392,8 +393,8 @@ private:
 //------------------------------------------------------------------------------
 /**
  * @brief 呼出し側が所有するHTTP clientへの非所有参照を保持する。HTTP client adapterを初期化する。Source sessionを所有せず、呼出し側clientへ
- *        全処理を委譲する。
- * @param[in,out] client Adapterより長く有効なsource session開始済みclient。 Adapterより長く有効なHTTP client。
+ *        全処理を委譲する
+ * @param[in,out] client Adapterより長く有効なsource session開始済みclient。 Adapterより長く有効なHTTP client
  */
 //------------------------------------------------------------------------------
 OfficialHttpAcquisitionTransport::OfficialHttpAcquisitionTransport(
@@ -404,14 +405,14 @@ OfficialHttpAcquisitionTransport::OfficialHttpAcquisitionTransport(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式HTTP sourceから検査対象fileを取得する。任意hostを受け取らずHTTP clientの組み込みsource policyを使用する。
- * @param[in] url 登録済み公式payloadの絶対HTTPS URL。
- * @param[in] resourceId Payload用途resource ID。
- * @param[in] maximumBytes 受信上限byte数。
- * @param[in] outputFile 書込み可能な所有外file handle。
- * @param[in] progressCallback 確定済み受信進捗の通知先。
- * @param[in] cancellationCallback 取消し状態の確認先。
- * @return 保存と取得根拠記録の成功時は0、失敗時はHRESULT。
+ * @brief 公式HTTP sourceから検査対象fileを取得する。任意hostを受け取らずHTTP clientの組み込みsource policyを使用する
+ * @param[in] url 登録済み公式payloadの絶対HTTPS URL
+ * @param[in] resourceId Payload用途resource ID
+ * @param[in] maximumBytes 受信上限byte数
+ * @param[in] outputFile 書込み可能な所有外file handle
+ * @param[in] progressCallback 確定済み受信進捗の通知先
+ * @param[in] cancellationCallback 取消し状態の確認先
+ * @return 保存と取得根拠記録の成功時は0、失敗時はHRESULT
  * @see drivercrate::IOfficialAcquisitionTransport::download
  */
 //------------------------------------------------------------------------------
@@ -427,13 +428,13 @@ NativeError OfficialHttpAcquisitionTransport::download(
 
 //------------------------------------------------------------------------------
 /**
- * @brief Record限定GETを共通HTTP clientへ委譲します。
- * @param[in,out] request Claim済みgrantと秘密URLを所有する一回request。
- * @param[in] outputFile 書込み可能な所有外file handle。
- * @param[in] progressCallback 確定済み受信進捗の通知先。
- * @param[in] cancellationCallback 取消し状態の確認先。
- * @param[out] destinationEvidence 成功時のURL非保持public宛先根拠。
- * @return 保存とgrant終端成功時は0、失敗時はHRESULT bit pattern。
+ * @brief Record限定GETを共通HTTP clientへ委譲します
+ * @param[in,out] request Claim済みgrantと秘密URLを所有する一回request
+ * @param[in] outputFile 書込み可能な所有外file handle
+ * @param[in] progressCallback 確定済み受信進捗の通知先
+ * @param[in] cancellationCallback 取消し状態の確認先
+ * @param[out] destinationEvidence 成功時のURL非保持public宛先根拠
+ * @return 保存とgrant終端成功時は0、失敗時はHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
 NativeError OfficialHttpAcquisitionTransport::downloadDelegated(
@@ -448,11 +449,11 @@ NativeError OfficialHttpAcquisitionTransport::downloadDelegated(
 
 //------------------------------------------------------------------------------
 /**
- * @brief HTTP clientの公式取得根拠を照合する。Adapter独自の根拠を生成せずHTTP clientのledgerを正本にする。
- * @param[in] scanSessionId 照合するscan session ID。
- * @param[in] providerId 照合する組み込みProvider ID。
- * @param[in] resourceId 照合するpayload resource ID。
- * @return Ledger全体と指定resourceが有効な場合は`true`。
+ * @brief HTTP clientの公式取得根拠を照合する。Adapter独自の根拠を生成せずHTTP clientのledgerを正本にする
+ * @param[in] scanSessionId 照合するscan session ID
+ * @param[in] providerId 照合する組み込みProvider ID
+ * @param[in] resourceId 照合するpayload resource ID
+ * @return Ledger全体と指定resourceが有効な場合は`true`
  * @see drivercrate::IOfficialAcquisitionTransport::hasSourceEvidence
  */
 //------------------------------------------------------------------------------
@@ -465,48 +466,48 @@ bool OfficialHttpAcquisitionTransport::hasSourceEvidence(
 
 //------------------------------------------------------------------------------
 /**
- * @brief Machine-wide network costを取得する。呼出し済みCOM apartment内でNetwork List Managerを使用し、network設定を変更しない。
- * @param[out] cost 成功時のcost分類。失敗時はUnknown。
- * @return 照会成功時は0、COMまたはNLM失敗時はHRESULT。
+ * @brief Machine-wide network costを取得する。呼出し済みCOM apartment内でNetwork List Managerを使用し、network設定を変更しない
+ * @param[out] cost 成功時のcost分類。失敗時はUnknown
+ * @return 照会成功時は0、COMまたはNLM失敗時はHRESULT
  * @see drivercrate::IOfficialNetworkCostReader::read
  */
 //------------------------------------------------------------------------------
 NativeError WindowsOfficialNetworkCostReader::read( OfficialNetworkCostKind &cost) noexcept
 {
 	cost = OfficialNetworkCostKind::UNKNOWN ;
-	Microsoft::WRL::ComPtr<INetworkListManager> manager ;	// NLM COM entry point。
+	Microsoft::WRL::ComPtr<INetworkListManager> manager ;	// NLM COM entry point
 	HRESULT result = CoCreateInstance( __uuidof( NetworkListManager), nullptr, CLSCTX_ALL,
-									  // NLM生成結果。
+									  // NLM生成結果
 									  IID_PPV_ARGS( &manager)) ;
-	// 失敗の診断値を共通の表現へ保ったまま返し、未完了の結果で後続処理を進めない。
+	// 失敗の診断値を共通の表現へ保ったまま返し、未完了の結果で後続処理を進めない
 	if( FAILED( result)) {
 		return static_cast<NativeError>( result) ;
 	}
 
-	Microsoft::WRL::ComPtr<INetworkCostManager> costManager ;	// Cost照会interface。
+	Microsoft::WRL::ComPtr<INetworkCostManager> costManager ;	// Cost照会interface
 	result = manager.As( &costManager) ;
-	// 失敗の診断値を共通の表現へ保ったまま返し、未完了の結果で後続処理を進めない。
+	// 失敗の診断値を共通の表現へ保ったまま返し、未完了の結果で後続処理を進めない
 	if( FAILED( result)) {
 		return static_cast<NativeError>( result) ;
 	}
 
-	DWORD rawCost{} ;	// NLM_CONNECTION_COSTのlevelとflag集合。
+	DWORD rawCost{} ;	// NLM_CONNECTION_COSTのlevelとflag集合
 	result = costManager->GetCost( &rawCost, nullptr) ;
-	// 失敗の診断値を共通の表現へ保ったまま返し、未完了の結果で後続処理を進めない。
+	// 失敗の診断値を共通の表現へ保ったまま返し、未完了の結果で後続処理を進めない
 	if( FAILED( result)) {
 		return static_cast<NativeError>( result) ;
 	}
 
-	const DWORD costLevel  = rawCost & NETWORK_COST_LEVEL_MASK ;	// 下位16-bitのcost level。
-	const bool	restricted =										// 課金、data上限またはroamingを伴う場合true。
+	const DWORD costLevel  = rawCost & NETWORK_COST_LEVEL_MASK ;	// 下位16-bitのcost level
+	const bool	restricted =										// 課金、data上限またはroamingを伴う場合true
 		costLevel == static_cast<DWORD>( NLM_CONNECTION_COST_FIXED) ||
 		costLevel == static_cast<DWORD>( NLM_CONNECTION_COST_VARIABLE) ||
 		(rawCost & RESTRICTED_NETWORK_FLAGS) != 0U ;
-	// 制限付きの接続費用を明示同意が必要な区分にする。
+	// 制限付きの接続費用を明示同意が必要な区分にする
 	if( restricted) {
 		cost = OfficialNetworkCostKind::RESTRICTED ;
 	}
-	// 無制限が明示された接続だけを無制限区分にする。
+	// 無制限が明示された接続だけを無制限区分にする
 	else if( costLevel == static_cast<DWORD>( NLM_CONNECTION_COST_UNRESTRICTED)) {
 		cost = OfficialNetworkCostKind::UNRESTRICTED ;
 	}
@@ -517,16 +518,16 @@ NativeError WindowsOfficialNetworkCostReader::read( OfficialNetworkCostKind &cos
 //------------------------------------------------------------------------------
 /**
  * @brief 空のscan session取得ledgerを有限予算付きで開始する。検査用取得sessionを有限予算付きで開始する。File上限、Provider上限、session上限の包含
- *        関係も検証する。
- * @param[in] scanSessionId 0ではないscan session ID。
- * @param[in] limits ApplicationとProvider群へ適用する有限上限。 Session全体へ固定する有限予算。
- * @return 開始成功時は0、再初期化または不正上限時はHRESULT bit pattern。
+ *        関係も検証する
+ * @param[in] scanSessionId 0ではないscan session ID
+ * @param[in] limits ApplicationとProvider群へ適用する有限上限。 Session全体へ固定する有限予算
+ * @return 開始成功時は0、再初期化または不正上限時はHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
 NativeError OfficialAcquisitionSession::initialize( const ScanSessionId				scanSessionId,
 												   const OfficialAcquisitionLimits &limits) noexcept
 {
-	// 多重sessionや不正な件数・byte予算の関係を開始前に拒否する。
+	// 多重sessionや不正な件数・byte予算の関係を開始前に拒否する
 	if( scanSessionId_ != 0U || acquiring_ || scanSessionId == 0U || limits.maximumFileBytes == 0U ||
 	   limits.maximumProviderBytes == 0U || limits.maximumSessionBytes == 0U ||
 	   limits.maximumProviderFiles == 0U || limits.maximumSessionFiles == 0U ||
@@ -541,7 +542,7 @@ NativeError OfficialAcquisitionSession::initialize( const ScanSessionId				scanS
 	} catch( const std::bad_alloc &) {
 		return E_OUTOFMEMORY ;
 	} catch( ...) {
-		// issuerを作れないsessionを開始済みにしない。
+		// issuerを作れないsessionを開始済みにしない
 		return E_UNEXPECTED ;
 	}
 
@@ -553,15 +554,15 @@ NativeError OfficialAcquisitionSession::initialize( const ScanSessionId				scanS
 //------------------------------------------------------------------------------
 /**
  * @brief 公式payloadを保護workspaceへ取得して検査対象として固定する。公式payloadを取得して検査対象として固定する。予算予約、cost、disk、取消し、source根
- *        拠、size、SHA-256を順に検証し、成功fileだけをledgerへ計上する。
- * @param[in] request 公式取得元、公開metadata、今回のnetwork同意。 取得元、上限、公開metadata、network同意。
- * @param[in,out] workspace 成功fileを所有し、失敗fileを削除する保護領域。 成功fileを所有する保護workspace。
- * @param[in,out] transport 公式source取得と根拠照合を行う境界。 公式source取得と根拠照合境界。
- * @param[in,out] costReader Machine-wide network cost照会境界。
- * @param[in] progressCallback 確定済み受信進捗の通知先。
- * @param[in] cancellationCallback 空または取消し状態を返す非blocking関数。 空または取消し状態の確認先。
- * @param[out] result 成功または失敗の監査前状態。URLを含まない。 URLを含まない監査前取得状態。
- * @return `ACQUIRED_FOR_INSPECTION`到達時は0、それ以外はHRESULT bit pattern。 検査対象固定成功時は0、それ以外はHRESULT。
+ *        拠、size、SHA-256を順に検証し、成功fileだけをledgerへ計上する
+ * @param[in] request 公式取得元、公開metadata、今回のnetwork同意。 取得元、上限、公開metadata、network同意
+ * @param[in,out] workspace 成功fileを所有し、失敗fileを削除する保護領域。 成功fileを所有する保護workspace
+ * @param[in,out] transport 公式source取得と根拠照合を行う境界。 公式source取得と根拠照合境界
+ * @param[in,out] costReader Machine-wide network cost照会境界
+ * @param[in] progressCallback 確定済み受信進捗の通知先
+ * @param[in] cancellationCallback 空または取消し状態を返す非blocking関数。 空または取消し状態の確認先
+ * @param[out] result 成功または失敗の監査前状態。URLを含まない。 URLを含まない監査前取得状態
+ * @return `ACQUIRED_FOR_INSPECTION`到達時は0、それ以外はHRESULT bit pattern。 検査対象固定成功時は0、それ以外はHRESULT
  */
 //------------------------------------------------------------------------------
 NativeError OfficialAcquisitionSession::acquire(
@@ -576,17 +577,17 @@ NativeError OfficialAcquisitionSession::acquire(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 通常policyと収集private scopeを分けて共通取得する。
- * @param[in] request 通常またはadapter自身の有限要求。
- * @param[in,out] workspace 元fileを所有する保護領域。
- * @param[in,out] transport 同じ公式取得または非通信試験の境界。
- * @param[in,out] costReader 回線照会。
- * @param[in] progressCallback 確定byte進捗。
- * @param[in] cancellationCallback 取消し。
- * @param[out] result 共通結果。
- * @param[in] collector Nullは従来policy、非nullは同じ具体adapter。
- * @return 全固定成功0、拒否HRESULT。
- * @note 公開boolからscopeを作らず、adapterの私有状態を再照合する。
+ * @brief 通常policyと収集private scopeを分けて共通取得する
+ * @param[in] request 通常またはadapter自身の有限要求
+ * @param[in,out] workspace 元fileを所有する保護領域
+ * @param[in,out] transport 同じ公式取得または非通信試験の境界
+ * @param[in,out] costReader 回線照会
+ * @param[in] progressCallback 確定byte進捗
+ * @param[in] cancellationCallback 取消し
+ * @param[out] result 共通結果
+ * @param[in] collector Nullは従来policy、非nullは同じ具体adapter
+ * @return 全固定成功0、拒否HRESULT
+ * @note 公開boolからscopeを作らず、adapterの私有状態を再照合する
  */
 //------------------------------------------------------------------------------
 NativeError OfficialAcquisitionSession::acquireCore(
@@ -597,7 +598,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 	const CollectorInspectionAcquisition *collector)
 {
 	result = {} ;
-	// sessionなし、または別取得の実行中に新しい取得を開始しない。
+	// sessionなし、または別取得の実行中に新しい取得を開始しない
 	if( scanSessionId_ == 0U || acquiring_) {
 		result.state = OfficialAcquisitionState::REJECTED ;
 		result.error = static_cast<NativeError>( E_UNEXPECTED) ;
@@ -605,20 +606,20 @@ NativeError OfficialAcquisitionSession::acquireCore(
 	}
 
 	acquiring_ = true ;
-	AcquiringGuard acquiringGuard( acquiring_) ;	// 全終了経路で再入防止flagを解除するguard。
+	AcquiringGuard acquiringGuard( acquiring_) ;	// 全終了経路で再入防止flagを解除するguard
 
 	const bool	   delegatedSource =
-		request.delegatedGrant != nullptr ;	// Record限定grantを唯一の取得権限にする場合true。
-	const bool fixedSource =				// 従来の固定payload要求だけを持つ場合true。
+		request.delegatedGrant != nullptr ;	// Record限定grantを唯一の取得権限にする場合true
+	const bool fixedSource =				// 従来の固定payload要求だけを持つ場合true
 		!delegatedSource && !request.url.empty() && request.delegatedGrantId == 0U &&
 		!request.delegatedUtcNow ;
-	const bool delegatedShape =	// Record限定要求に固定URL経路の権限値が混在しない場合true。
+	const bool delegatedShape =	// Record限定要求に固定URL経路の権限値が混在しない場合true
 		delegatedSource && request.url.empty() && request.providerId.empty() &&
 		request.resourceId.empty() && request.maximumFileBytes == 0U &&
 		!request.publishedSize.has_value() && request.publishedSha256.empty() &&
 		request.publishedSha512.empty() && request.delegatedGrantId != 0U &&
 		request.delegatedUtcNow ;
-	// 固定URLまたはRecord限定のどちらか一方だけを受理し、保存名と通知先を共通検証する。
+	// 固定URLまたはRecord限定のどちらか一方だけを受理し、保存名と通知先を共通検証する
 	if( (!fixedSource && !delegatedShape) || request.workspaceFileName.empty() ||
 	   !progressCallback) {
 		result.state = OfficialAcquisitionState::REJECTED ;
@@ -626,23 +627,23 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	std::wstring_view providerId = request.providerId ;	// Grantまたは固定要求が拘束するProvider ID。
-	std::wstring_view resourceId = request.resourceId ;	// Grantまたは固定要求が拘束するpayload ID。
-	std::uint64_t	  maximumFileBytes =				// 今回のpayload受信上限。
+	std::wstring_view providerId = request.providerId ;	// Grantまたは固定要求が拘束するProvider ID
+	std::wstring_view resourceId = request.resourceId ;	// Grantまたは固定要求が拘束するpayload ID
+	std::uint64_t	  maximumFileBytes =				// 今回のpayload受信上限
 		request.maximumFileBytes ;
-	std::optional<std::uint64_t> publishedSize =	// 公式recordのexact size。
+	std::optional<std::uint64_t> publishedSize =	// 公式recordのexact size
 		request.publishedSize ;
-	std::wstring_view publishedSha256 =	// 公式recordの公開SHA-256。
+	std::wstring_view publishedSha256 =	// 公式recordの公開SHA-256
 		request.publishedSha256 ;
-	std::wstring_view publishedSha512 = request.publishedSha512 ;		// 公式公開SHA-512。
-	const RecordScopedDownloadGrantMetadata *grantMetadata = nullptr ;	// Record限定取得のbinding。
-	// Record限定取得では公開要求値を信用せず、未使用grantから権限と検証値を導出する。
+	std::wstring_view publishedSha512 = request.publishedSha512 ;		// 公式公開SHA-512
+	const RecordScopedDownloadGrantMetadata *grantMetadata = nullptr ;	// Record限定取得のbinding
+	// Record限定取得では公開要求値を信用せず、未使用grantから権限と検証値を導出する
 	if( delegatedSource) {
 		grantMetadata = &request.delegatedGrant->metadata() ;
 		const RecordScopedDownloadGrantPayloadView payload =
-			// Grantが固定したURL非保持payload view。
+			// Grantが固定したURL非保持payload view
 			request.delegatedGrant->payloadView() ;
-		// 現在sessionの未使用GET grantだけをfile予算とsource policyへ接続する。
+		// 現在sessionの未使用GET grantだけをfile予算とsource policyへ接続する
 		if( grantMetadata->state != OfficialDownloadGrantState::GRANT_ISSUED ||
 		   grantMetadata->scanSessionId != scanSessionId_ ||
 		   grantMetadata->grantId != request.delegatedGrantId ||
@@ -661,28 +662,28 @@ NativeError OfficialAcquisitionSession::acquireCore(
 	}
 
 	const OfficialSourcePolicy *const policy =
-		// Providerの組み込みpolicy。
+		// Providerの組み込みpolicy
 		officialSourcePolicyForProvider( providerId) ;
 	const OfficialSourceResourcePolicy *const resource =
 		policy == nullptr
 			? nullptr
-			: findOfficialSourceResource( *policy, resourceId) ;	// 取得対象resource policy。
-	const bool validHash =											// 公開hashが空または各algorithmの厳密なhexならtrue。
+			: findOfficialSourceResource( *policy, resourceId) ;	// 取得対象resource policy
+	const bool validHash =											// 公開hashが空または各algorithmの厳密なhexならtrue
 		(publishedSha256.empty() || isValidPublishedHash( publishedSha256, 64U)) &&
 		(publishedSha512.empty() || isValidPublishedHash( publishedSha512, 128U)) ;
 	const bool collectorScope =
 		collector != nullptr &&
 		static_cast<const IOfficialAcquisitionTransport *>( collector) == &transport &&
-		// 同じ具体adapterの私有scopeだけ。
+		// 同じ具体adapterの私有scopeだけ
 		collector->matches( scanSessionId_, request) ;
 	const bool signedIndexOrigin =
 		delegatedSource &&
 		grantMetadata->origin ==
-			OfficialDownloadGrantOrigin::SIGNED_INDEX_COLLECTOR_ATTESTATION ;	// 索引由来の明示分類。
+			OfficialDownloadGrantOrigin::SIGNED_INDEX_COLLECTOR_ATTESTATION ;	// 索引由来の明示分類
 	const bool signedIndexScope =
 		signedIndexOrigin && request.delegatedGrant->validateSignedIndexAuthority( scanSessionId_) ==
-								 0 ;	// 私有封印の再照合。
-	// 取得先、固定resource、保存名、上限、期待size・hash、通知先を事前検証する。
+								 0 ;	// 私有封印の再照合
+	// 取得先、固定resource、保存名、上限、期待size・hash、通知先を事前検証する
 	if( providerId.empty() || resourceId.empty() || maximumFileBytes == 0U ||
 	   maximumFileBytes > limits_.maximumFileBytes || !validHash ||
 	   (publishedSize.has_value() && (*publishedSize == 0U || *publishedSize > maximumFileBytes)) ||
@@ -695,11 +696,11 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	bool		cancelled{} ;	// 現在確認時点で利用者が取消しを要求した場合true。
+	bool		cancelled{} ;	// 現在確認時点で利用者が取消しを要求した場合true
 	NativeError cancellationError =
-		// Preflight取消し確認結果。
+		// Preflight取消し確認結果
 		queryCancellation( cancellationCallback, cancelled) ;
-	// 取消しと取消し照会失敗を区別し、取得開始前に返す。
+	// 取消しと取消し照会失敗を区別し、取得開始前に返す
 	if( cancellationError != 0 || cancelled) {
 		result.state =
 			cancelled ? OfficialAcquisitionState::CANCELLED : OfficialAcquisitionState::FAILURE ;
@@ -707,9 +708,9 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	OfficialNetworkCostKind networkCost = OfficialNetworkCostKind::UNKNOWN ;	// 現在cost分類。
-	NativeError networkCostError = costReader.read( networkCost) ;				// Machine-wide cost照会結果。
-	// 定義外の通信費用区分を無制限とみなさず不明へ落とす。
+	OfficialNetworkCostKind networkCost = OfficialNetworkCostKind::UNKNOWN ;	// 現在cost分類
+	NativeError networkCostError		= costReader.read( networkCost) ;		// Machine-wide cost照会結果
+	// 定義外の通信費用区分を無制限とみなさず不明へ落とす
 	if( !isValidNetworkCost( networkCost)) {
 		networkCost		 = OfficialNetworkCostKind::UNKNOWN ;
 		networkCostError = static_cast<NativeError>( E_UNEXPECTED) ;
@@ -717,7 +718,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 
 	result.networkCost		= networkCost ;
 	result.networkCostError = networkCostError ;
-	// 通信費用が無制限と確認できない場合は明示同意を要求する。
+	// 通信費用が無制限と確認できない場合は明示同意を要求する
 	if( (networkCostError != 0 || networkCost != OfficialNetworkCostKind::UNRESTRICTED) &&
 	   !request.restrictedNetworkApproved) {
 		result.state = OfficialAcquisitionState::AWAITING_NETWORK_CONSENT ;
@@ -725,17 +726,17 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	ProviderUsage *providerUsage = nullptr ;	// 今回Providerの成功取得累計entry。
-	// usageは既存Provider entryからstable ID完全一致で検索する。
+	ProviderUsage *providerUsage = nullptr ;	// 今回Providerの成功取得累計entry
+	// usageは既存Provider entryからstable ID完全一致で検索する
 	for( ProviderUsage &usage : providerUsage_) {
-		// 要求Providerの既存利用量を探して予算検査へ使う。
+		// 要求Providerの既存利用量を探して予算検査へ使う
 		if( usage.providerId == providerId) {
 			providerUsage = &usage ;
 			break ;
 		}
 	}
 
-	// 初めて取得するProviderには独立した利用量記録を作る。
+	// 初めて取得するProviderには独立した利用量記録を作る
 	if( providerUsage == nullptr) {
 		try {
 			providerUsage_.push_back( ProviderUsage{.providerId = std::wstring( providerId)}) ;
@@ -747,23 +748,23 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		}
 	}
 
-	const std::uint64_t plannedBytes =	// 公開sizeまたはProvider上限による予約byte数。
+	const std::uint64_t plannedBytes =	// 公開sizeまたはProvider上限による予約byte数
 		publishedSize.value_or( maximumFileBytes) ;
 	const bool anonymousResolution = delegatedSource &&
-									 // このlogical取得だけ二要求。
+									 // このlogical取得だけ二要求
 									 request.delegatedGrant->requiresAnonymousCdnResolution() ;
 	const std::uint64_t auxiliaryMaximum =
-		anonymousResolution ? 16384U : 0U ;	// 固定metadata応答上限。
-	// metadata予約の加算overflowを事前拒否する。
+		anonymousResolution ? 16384U : 0U ;	// 固定metadata応答上限
+	// metadata予約の加算overflowを事前拒否する
 	if( plannedBytes > std::numeric_limits<std::uint64_t>::max() - auxiliaryMaximum) {
 		result.state = OfficialAcquisitionState::REJECTED ;
 		result.error = E_INVALIDARG ;
 		return result.error ;
 	}
 
-	const auto reservedBytes = plannedBytes + auxiliaryMaximum ;	// 旧枠へ含める全logical予定量。
-	bool	   anonymousCharged{} ;									// 実開始前に予約を消費した状態。
-	// Provider別とsession全体のfile数・byte予算を取得前に守る。
+	const auto reservedBytes = plannedBytes + auxiliaryMaximum ;	// 旧枠へ含める全logical予定量
+	bool	   anonymousCharged{} ;									// 実開始前に予約を消費した状態
+	// Provider別とsession全体のfile数・byte予算を取得前に守る
 	if( providerUsage->files >= limits_.maximumProviderFiles ||
 	   sessionFiles_ >= limits_.maximumSessionFiles ||
 	   !fitsByteLimit( providerUsage->bytes, reservedBytes, limits_.maximumProviderBytes) ||
@@ -773,16 +774,16 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	std::uint64_t	  availableBytes{} ;											// Workspace volumeで利用可能な現在byte数。
-	const NativeError diskError = workspace.queryAvailableBytes( availableBytes) ;	// 照会結果。
-	// 空き容量の取得失敗時は容量を推測してdownloadしない。
+	std::uint64_t	  availableBytes{} ;											// Workspace volumeで利用可能な現在byte数
+	const NativeError diskError = workspace.queryAvailableBytes( availableBytes) ;	// 照会結果
+	// 空き容量の取得失敗時は容量を推測してdownloadしない
 	if( diskError != 0) {
 		result.state = OfficialAcquisitionState::FAILURE ;
 		result.error = diskError ;
 		return result.error ;
 	}
 
-	// 取得予定量を保存しても最低空き容量が残ることを要求する。
+	// 取得予定量を保存しても最低空き容量が残ることを要求する
 	if( limits_.minimumFreeBytes > availableBytes ||
 	   plannedBytes > availableBytes - limits_.minimumFreeBytes) {
 		result.state = OfficialAcquisitionState::REJECTED ;
@@ -791,9 +792,9 @@ NativeError OfficialAcquisitionSession::acquireCore(
 	}
 
 	cancellationError =
-		// File作成前の取消し確認結果。
+		// File作成前の取消し確認結果
 		queryCancellation( cancellationCallback, cancelled) ;
-	// 容量確認後も取消しを再照会し、取消し済みのfileを作成しない。
+	// 容量確認後も取消しを再照会し、取消し済みのfileを作成しない
 	if( cancellationError != 0 || cancelled) {
 		result.state =
 			cancelled ? OfficialAcquisitionState::CANCELLED : OfficialAcquisitionState::FAILURE ;
@@ -801,40 +802,40 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	HANDLE		createdFile = INVALID_HANDLE_VALUE ;	// Workspaceからownershipを受け取るfile handle。
-	NativeError createError{} ;							// CREATE_NEWとworkspace追跡の処理結果。
+	HANDLE		createdFile = INVALID_HANDLE_VALUE ;	// Workspaceからownershipを受け取るfile handle
+	NativeError createError{} ;							// CREATE_NEWとworkspace追跡の処理結果
 	try {
 		createError = workspace.createFile( request.workspaceFileName, createdFile) ;
 	} catch( const std::bad_alloc &) {
 		createError = static_cast<NativeError>( E_OUTOFMEMORY) ;
 	} catch( ...) {
-		// Workspace境界の型不明例外をworkerへ漏らさず、scope cleanupへ委ねる。
+		// Workspace境界の型不明例外をworkerへ漏らさず、scope cleanupへ委ねる
 		createError = static_cast<NativeError>( E_UNEXPECTED) ;
 	}
 
-	// 保護workspaceの出力fileを作れなければ取得を中止する。
+	// 保護workspaceの出力fileを作れなければ取得を中止する
 	if( createError != 0) {
 		result.state = OfficialAcquisitionState::FAILURE ;
 		result.error = createError ;
 		return result.error ;
 	}
 
-	FileHandle					file( createdFile) ;		// 全return経路でhandleを閉じる所有wrapper。
-	OfficialDelegatedGetRequest delegatedRequest ;			// Record限定grantと秘密URLの一回取得所有者。
-	OfficialPublicDestinationEvidence destinationEvidence ;	// URL非保持のpublic宛先根拠。
-	NativeError						  operationError{} ;	// 公式source取得と根拠記録結果。
+	FileHandle						  file( createdFile) ;	// 全return経路でhandleを閉じる所有wrapper
+	OfficialDelegatedGetRequest		  delegatedRequest ;	// Record限定grantと秘密URLの一回取得所有者
+	OfficialPublicDestinationEvidence destinationEvidence ;	// URL非保持のpublic宛先根拠
+	NativeError						  operationError{} ;	// 公式source取得と根拠記録結果
 	try {
-		// Record限定経路はfile作成後の時刻でclaimし、秘密URLを共通HTTP境界だけへ渡す。
+		// Record限定経路はfile作成後の時刻でclaimし、秘密URLを共通HTTP境界だけへ渡す
 		if( delegatedSource) {
 			const std::uint64_t nowUtcSeconds =
-				// Claim直前のworker UTC秒。
+				// Claim直前のworker UTC秒
 				request.delegatedUtcNow() ;
 			operationError =
 				delegatedRequest.prepare( *request.delegatedGrant, scanSessionId_,
 										 request.delegatedGrantId, nowUtcSeconds, plannedBytes) ;
-			// Claimが成功したrequestだけをRecord限定downloadへ渡す。
+			// Claimが成功したrequestだけをRecord限定downloadへ渡す
 			if( operationError == 0) {
-				// 匿名二要求だけは失敗も予約消費へ残し、同scanで無計上retryを作らない。
+				// 匿名二要求だけは失敗も予約消費へ残し、同scanで無計上retryを作らない
 				if( anonymousResolution) {
 					providerUsage->bytes += reservedBytes ;
 					sessionBytes_ += reservedBytes ;
@@ -848,7 +849,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 												cancellationCallback, destinationEvidence) ;
 			}
 		}
-		// 固定URL経路は従来どおり組み込みpayload resourceへ限定する。
+		// 固定URL経路は従来どおり組み込みpayload resourceへ限定する
 		else {
 			operationError = transport.download( request.url, resourceId, plannedBytes, file.get(),
 												progressCallback, cancellationCallback) ;
@@ -856,30 +857,30 @@ NativeError OfficialAcquisitionSession::acquireCore(
 	} catch( const std::bad_alloc &) {
 		operationError = static_cast<NativeError>( E_OUTOFMEMORY) ;
 	} catch( ...) {
-		// 差替えtransportの例外をworker境界へ漏らさず、partial fileを必ず破棄する。
+		// 差替えtransportの例外をworker境界へ漏らさず、partial fileを必ず破棄する
 		operationError = static_cast<NativeError>( E_UNEXPECTED) ;
 	}
 
 	result.auxiliaryHttp = delegatedRequest.auxiliaryObservation() ;
-	// 仮差替えtransportからも補助枠超過の成功を作らない。
+	// 仮差替えtransportからも補助枠超過の成功を作らない
 	if( result.auxiliaryHttp.requests > (anonymousResolution ? 1U : 0U) ||
 	   result.auxiliaryHttp.bodyBytes > auxiliaryMaximum) {
 		operationError = E_ACCESSDENIED ;
 	}
 
-	LARGE_INTEGER fileSize{} ;	// Download完了後の実file byte数。
-	// 取得が成功した場合に実file sizeを確認し、照会失敗を保持する。
+	LARGE_INTEGER fileSize{} ;	// Download完了後の実file byte数
+	// 取得が成功した場合に実file sizeを確認し、照会失敗を保持する
 	if( operationError == 0 && GetFileSizeEx( file.get(), &fileSize) == FALSE) {
 		operationError = nativeErrorFromWin32( GetLastError()) ;
 	}
 
-	const NativeError closeError = file.close() ;	// Hash計算前のfile close結果。
-	// 先行取得失敗がない場合だけclose失敗を最終診断へ反映する。
+	const NativeError closeError = file.close() ;	// Hash計算前のfile close結果
+	// 先行取得失敗がない場合だけclose失敗を最終診断へ反映する
 	if( operationError == 0 && closeError != 0) {
 		operationError = closeError ;
 	}
 
-	// 取得失敗または取消し時は部分fileを破棄して状態を区別する。
+	// 取得失敗または取消し時は部分fileを破棄して状態を区別する
 	if( operationError != 0) {
 		result.state = operationError == nativeErrorFromWin32( ERROR_CANCELLED)
 						   ? OfficialAcquisitionState::CANCELLED
@@ -888,7 +889,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	// 空または計画量超過の取得fileを破棄する。
+	// 空または計画量超過の取得fileを破棄する
 	if( fileSize.QuadPart <= 0 || static_cast<std::uint64_t>( fileSize.QuadPart) > plannedBytes) {
 		result.state = OfficialAcquisitionState::REJECTED ;
 		result.error = discardFailedFile( workspace, request.workspaceFileName,
@@ -896,9 +897,9 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	const std::uint64_t actualBytes =	// 正で上限内と確認した取得file byte数。
+	const std::uint64_t actualBytes =	// 正で上限内と確認した取得file byte数
 		static_cast<std::uint64_t>( fileSize.QuadPart) ;
-	// 公開sizeがある場合は実byte数の完全一致を要求する。
+	// 公開sizeがある場合は実byte数の完全一致を要求する
 	if( publishedSize.has_value() && actualBytes != *publishedSize) {
 		result.state = OfficialAcquisitionState::REJECTED ;
 		result.error = discardFailedFile( workspace, request.workspaceFileName,
@@ -906,7 +907,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	const bool sourceEvidenceValid =	// 取得variantごとに要求する公式source根拠が揃う場合true。
+	const bool sourceEvidenceValid =	// 取得variantごとに要求する公式source根拠が揃う場合true
 		delegatedSource
 			? grantMetadata != nullptr &&
 				  grantMetadata->state == OfficialDownloadGrantState::CONSUMED &&
@@ -915,7 +916,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 				  (!signedIndexOrigin ||
 				   request.delegatedGrant->validateSignedIndexAuthority( scanSessionId_) == 0)
 			: transport.hasSourceEvidence( scanSessionId_, providerId, resourceId) ;
-	// session・Provider・resourceに結び付く取得証拠がないfileを破棄する。
+	// session・Provider・resourceに結び付く取得証拠がないfileを破棄する
 	if( !sourceEvidenceValid) {
 		result.state = OfficialAcquisitionState::REJECTED ;
 		result.error = discardFailedFile( workspace, request.workspaceFileName,
@@ -923,7 +924,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	std::wstring inspectionPath ;	// 後続system監査だけに渡す保護workspace path。
+	std::wstring inspectionPath ;	// 後続system監査だけに渡す保護workspace path
 	try {
 		inspectionPath = workspace.path( request.workspaceFileName) ;
 	} catch( const std::bad_alloc &) {
@@ -933,7 +934,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	// 検査対象pathを解決できない内部不整合では取得fileを破棄する。
+	// 検査対象pathを解決できない内部不整合では取得fileを破棄する
 	if( inspectionPath.empty()) {
 		result.state = OfficialAcquisitionState::REJECTED ;
 		result.error = discardFailedFile( workspace, request.workspaceFileName,
@@ -941,18 +942,18 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	std::wstring	  actualSha256 ;	// 取得直後に固定する64桁小文字SHA-256。
+	std::wstring	  actualSha256 ;	// 取得直後に固定する64桁小文字SHA-256
 	const NativeError hashError =
-		// Local hash計算結果。
+		// Local hash計算結果
 		computeFileSha256( inspectionPath, actualSha256) ;
-	// 実fileのhashを取得できなければ検査対象として保持しない。
+	// 実fileのhashを取得できなければ検査対象として保持しない
 	if( hashError != 0) {
 		result.state = OfficialAcquisitionState::FAILURE ;
 		result.error = discardFailedFile( workspace, request.workspaceFileName, hashError) ;
 		return result.error ;
 	}
 
-	// 公開SHA-256と実fileの不一致を検出したら取得fileを破棄する。
+	// 公開SHA-256と実fileの不一致を検出したら取得fileを破棄する
 	if( !publishedSha256.empty() && !publishedHashEqual( publishedSha256, actualSha256)) {
 		result.state = OfficialAcquisitionState::REJECTED ;
 		result.error = discardFailedFile( workspace, request.workspaceFileName,
@@ -960,13 +961,13 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		return result.error ;
 	}
 
-	// 公開SHA-512はSHA-256と独立に必須照合し、片方の成功で不一致を隠さない。
+	// 公開SHA-512はSHA-256と独立に必須照合し、片方の成功で不一致を隠さない
 	if( !publishedSha512.empty()) {
-		std::wstring	  actualSha512 ;	// 取得fileの一時SHA-512。
+		std::wstring	  actualSha512 ;	// 取得fileの一時SHA-512
 		const NativeError sha512Error =
-			// 共通stream計算。
+			// 共通stream計算
 			computeFileSha512( inspectionPath, actualSha512) ;
-		// 計算失敗と公開値不一致のどちらもfileを破棄する。
+		// 計算失敗と公開値不一致のどちらもfileを破棄する
 		if( sha512Error != 0 || !publishedHashEqual( publishedSha512, actualSha512)) {
 			result.state = sha512Error != 0 ? OfficialAcquisitionState::FAILURE
 											: OfficialAcquisitionState::REJECTED ;
@@ -978,7 +979,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 	}
 
 	try {
-		OfficialAcquisitionResult completed ;	// Allocation成功後だけ公開する完成結果。
+		OfficialAcquisitionResult completed ;	// Allocation成功後だけ公開する完成結果
 		completed.state					  = OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION ;
 		completed.networkCostError		  = networkCostError ;
 		completed.networkCost			  = networkCost ;
@@ -993,7 +994,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		completed.publishedSizeVerified	  = publishedSize.has_value() ;
 		completed.publishedSha256Verified = !publishedSha256.empty() ;
 		completed.publishedSha512Verified = !publishedSha512.empty() ;
-		// Record限定取得ではURLなしの結合証拠だけを後続監査へ渡す。
+		// Record限定取得ではURLなしの結合証拠だけを後続監査へ渡す
 		if( delegatedSource) {
 			completed.delegatedRecord				   = true ;
 			completed.recordOrigin					   = grantMetadata->origin ;
@@ -1004,10 +1005,10 @@ NativeError OfficialAcquisitionSession::acquireCore(
 			completed.destinationLocallyResolved	   = destinationEvidence.locallyResolved ;
 		}
 
-		OfficialAcquisitionResult retained = completed ;	// 公開結果の変更から独立した私有成功記録。
-		std::wstring fileName( request.workspaceFileName) ;	// Allocationをcommit前に完了する。
-		OfficialStableRecordFingerprint fingerprint ;		// 固定resourceは全zeroを維持する。
-		// 取得前に固定したrecordと成功grantの同じfingerprintを保存する。
+		OfficialAcquisitionResult retained = completed ;	// 公開結果の変更から独立した私有成功記録
+		std::wstring fileName( request.workspaceFileName) ;	// Allocationをcommit前に完了する
+		OfficialStableRecordFingerprint fingerprint ;		// 固定resourceは全zeroを維持する
+		// 取得前に固定したrecordと成功grantの同じfingerprintを保存する
 		if( delegatedSource) {
 			fingerprint = grantMetadata->recordFingerprint ;
 		}
@@ -1018,11 +1019,11 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		lastRecordFingerprint_ = fingerprint ;
 		lastSignedIndexIssuer_ = signedIndexOrigin ? request.delegatedGrant->signedIndexIssuer_
 												   : std::weak_ptr<const std::byte>{} ;
-		// 結果構築が完了したfileだけを成功予算と単調増加IDへ反映する。
-		// 新二要求だけは保守予約から実payload/metadata本文へ精算する。
+		// 結果構築が完了したfileだけを成功予算と単調増加IDへ反映する
+		// 新二要求だけは保守予約から実payload/metadata本文へ精算する
 		if( anonymousCharged) {
 			const auto used =
-				actualBytes + result.auxiliaryHttp.bodyBytes ;	// 上限確認済みの実本文量。
+				actualBytes + result.auxiliaryHttp.bodyBytes ;	// 上限確認済みの実本文量
 			providerUsage->bytes -= reservedBytes - used ;
 			sessionBytes_ -= reservedBytes - used ;
 		} else {
@@ -1034,7 +1035,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 
 		++nextAcquisitionId_ ;
 	} catch( const std::bad_alloc &) {
-		const auto auxiliary = result.auxiliaryHttp ;	// 数値観測は結果文字列の確保失敗でも失わない。
+		const auto auxiliary = result.auxiliaryHttp ;	// 数値観測は結果文字列の確保失敗でも失わない
 		result				 = {} ;
 		result.auxiliaryHttp = auxiliary ;
 		result.state		 = OfficialAcquisitionState::FAILURE ;
@@ -1048,9 +1049,9 @@ NativeError OfficialAcquisitionSession::acquireCore(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 発行時の取得metadataを同期借用する。認証の再確認ではない。
- * @return 次のmove／代入／破棄まで有効なread-only値。既定時は空。
- * @note 実pathはworker内だけで利用し、UI／log／永続JSONへ渡さない。
+ * @brief 発行時の取得metadataを同期借用する。認証の再確認ではない
+ * @return 次のmove／代入／破棄まで有効なread-only値。既定時は空
+ * @note 実pathはworker内だけで利用し、UI／log／永続JSONへ渡さない
  */
 //------------------------------------------------------------------------------
 const OfficialAcquisitionResult &OfficialAcquiredFileEvidence::observation() const noexcept
@@ -1060,9 +1061,9 @@ const OfficialAcquisitionResult &OfficialAcquiredFileEvidence::observation() con
 
 //------------------------------------------------------------------------------
 /**
- * @brief 発行時のstable record fingerprintを同期借用する。
- * @return 固定resource経路では全zero。Record経路では発行時に固定した値。
- * @note この値だけで公式性を認定せず、sessionの再照合を必須とする。
+ * @brief 発行時のstable record fingerprintを同期借用する
+ * @return 固定resource経路では全zero。Record経路では発行時に固定した値
+ * @note この値だけで公式性を認定せず、sessionの再照合を必須とする
  */
 //------------------------------------------------------------------------------
 const OfficialStableRecordFingerprint &OfficialAcquiredFileEvidence::recordFingerprint()
@@ -1073,9 +1074,9 @@ const OfficialStableRecordFingerprint &OfficialAcquiredFileEvidence::recordFinge
 
 //------------------------------------------------------------------------------
 /**
- * @brief 所有issuerの生存だけを観測する。公式性や元byteの再確認ではない。
- * @return 同じissuerが生存中ならtrue、既定・move元・session終了後はfalse。
- * @note 本値で検証を代替せず、verifyAcquiredFileを必須とする。
+ * @brief 所有issuerの生存だけを観測する。公式性や元byteの再確認ではない
+ * @return 同じissuerが生存中ならtrue、既定・move元・session終了後はfalse
+ * @note 本値で検証を代替せず、verifyAcquiredFileを必須とする
  */
 //------------------------------------------------------------------------------
 bool OfficialAcquiredFileEvidence::issuerAlive() const noexcept
@@ -1085,12 +1086,12 @@ bool OfficialAcquiredFileEvidence::issuerAlive() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 最後の成功取得から、元byteを再確認して封印証拠を発行する。
- * @param[in] workspace 当該取得を今も所有する元workspace。
- * @param[in] acquisitionId このsessionの最後の成功取得ID。
- * @param[out] evidence 成功時だけ有効な証拠。失敗時は空。
- * @return 発行成功0、失効・再入・入力不一致・実byte不一致・例外のHRESULT。
- * @note 同期worker専用。公開取得結果・bool・JSONを認証入力にしない。
+ * @brief 最後の成功取得から、元byteを再確認して封印証拠を発行する
+ * @param[in] workspace 当該取得を今も所有する元workspace
+ * @param[in] acquisitionId このsessionの最後の成功取得ID
+ * @param[out] evidence 成功時だけ有効な証拠。失敗時は空
+ * @return 発行成功0、失効・再入・入力不一致・実byte不一致・例外のHRESULT
+ * @note 同期worker専用。公開取得結果・bool・JSONを認証入力にしない
  */
 //------------------------------------------------------------------------------
 NativeError OfficialAcquisitionSession::bindAcquiredFile(
@@ -1098,21 +1099,21 @@ NativeError OfficialAcquisitionSession::bindAcquiredFile(
 	OfficialAcquiredFileEvidence &evidence) const
 {
 	evidence = {} ;
-	// 再入中や私有記録にない公開IDからは証拠を作らない。
+	// 再入中や私有記録にない公開IDからは証拠を作らない
 	if( acquiring_ || !evidenceIssuer_ || !lastAcquiredResult_.has_value() || acquisitionId == 0U ||
 	   lastAcquiredResult_->acquisitionId != acquisitionId) {
 		return E_ACCESSDENIED ;
 	}
 
 	try {
-		OfficialAcquiredFileEvidence bound ;	// 発行成功まで局所所有する非複写証拠。
+		OfficialAcquiredFileEvidence bound ;	// 発行成功まで局所所有する非複写証拠
 		bound.issuer_			 = evidenceIssuer_ ;
 		bound.observation_		 = *lastAcquiredResult_ ;
 		bound.workspaceFileName_ = lastAcquiredFileName_ ;
 		bound.recordFingerprint_ = lastRecordFingerprint_ ;
 		bound.signedIndexIssuer_ = lastSignedIndexIssuer_ ;
-		const auto error = verifyAcquiredFile( bound, workspace) ;	// 元位置と実byteを再照合する。
-		// 不完全な証拠は出力へ移さない。
+		const auto error = verifyAcquiredFile( bound, workspace) ;	// 元位置と実byteを再照合する
+		// 不完全な証拠は出力へ移さない
 		if( error != 0) {
 			return error ;
 		}
@@ -1122,24 +1123,24 @@ NativeError OfficialAcquisitionSession::bindAcquiredFile(
 	} catch( const std::bad_alloc &) {
 		return E_OUTOFMEMORY ;
 	} catch( ...) {
-		// issuerや元pathの不明な例外を証拠発行成功へ弱めない。
+		// issuerや元pathの不明な例外を証拠発行成功へ弱めない
 		return E_UNEXPECTED ;
 	}
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 封印証拠のissuerと元workspace／原byteを再照合する。
- * @param[in] evidence 本sessionが発行した改変不能な取得証拠。
- * @param[in] workspace 元取得を所有し続ける保護領域。
- * @return 再照合成功0、失効・再入・位置／byte差・例外のHRESULT。
- * @note 取得・削除・修復・署名認定を行わない。次の成功取得後も発行済みの元証拠だけを照合できる。
+ * @brief 封印証拠のissuerと元workspace／原byteを再照合する
+ * @param[in] evidence 本sessionが発行した改変不能な取得証拠
+ * @param[in] workspace 元取得を所有し続ける保護領域
+ * @return 再照合成功0、失効・再入・位置／byte差・例外のHRESULT
+ * @note 取得・削除・修復・署名認定を行わない。次の成功取得後も発行済みの元証拠だけを照合できる
  */
 //------------------------------------------------------------------------------
 NativeError OfficialAcquisitionSession::verifyAcquiredFile(
 	const OfficialAcquiredFileEvidence &evidence, const OfficialDownloadWorkspace &workspace) const
 {
-	// 生存issuerの同一性は、数値session IDの一致とは別に必須とする。
+	// 生存issuerの同一性は、数値session IDの一致とは別に必須とする
 	if( acquiring_ || !evidenceIssuer_ || evidence.issuer_.lock() != evidenceIssuer_ ||
 	   evidence.observation_.scanSessionId != scanSessionId_ ||
 	   evidence.observation_.state != OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION ||
@@ -1148,7 +1149,7 @@ NativeError OfficialAcquisitionSession::verifyAcquiredFile(
 	}
 
 	try {
-		// 別workspaceや元相対名の付替えは同hashであっても許可しない。
+		// 別workspaceや元相対名の付替えは同hashであっても許可しない
 		if( workspace.path( evidence.workspaceFileName_) != evidence.observation_.inspectionPath) {
 			return E_ACCESSDENIED ;
 		}
@@ -1156,20 +1157,20 @@ NativeError OfficialAcquisitionSession::verifyAcquiredFile(
 		const HANDLE opened =
 			CreateFileW( evidence.observation_.inspectionPath.c_str(), GENERIC_READ, FILE_SHARE_READ,
 						nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT,
-						nullptr) ;	// 原byte照合中の既存writerと差替えを拒否する。
-		// 有効handleを取得できない元診断を保持する。
+						nullptr) ;	// 原byte照合中の既存writerと差替えを拒否する
+		// 有効handleを取得できない元診断を保持する
 		if( opened == INVALID_HANDLE_VALUE) {
 			return nativeErrorFromWin32( GetLastError()) ;
 		}
 
-		FileHandle				   file( opened) ;	// 原byte照合が終わるまでleafを固定する同期所有者。
-		BY_HANDLE_FILE_INFORMATION information{} ;	// 通常disk fileとleaf種別の実観測。
-		// 属性照会不能を旧hashで補完しない。
+		FileHandle				   file( opened) ;	// 原byte照合が終わるまでleafを固定する同期所有者
+		BY_HANDLE_FILE_INFORMATION information{} ;	// 通常disk fileとleaf種別の実観測
+		// 属性照会不能を旧hashで補完しない
 		if( !GetFileInformationByHandle( file.get(), &information)) {
 			return nativeErrorFromWin32( GetLastError()) ;
 		}
 
-		// 親directoryの認証は後続archive adapterで行い、ここでもleaf再解釈を許可しない。
+		// 親directoryの認証は後続archive adapterで行い、ここでもleaf再解釈を許可しない
 		if( GetFileType( file.get()) != FILE_TYPE_DISK ||
 		   (information.dwFileAttributes &
 			(FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) != 0U) {
@@ -1179,13 +1180,13 @@ NativeError OfficialAcquisitionSession::verifyAcquiredFile(
 		const auto error =
 			verifyOfficialFileMetadata( evidence.observation_.inspectionPath,
 									   {evidence.observation_.byteCount,
-										evidence.observation_.sha256}) ;	// 共通CNG照合を共有する。
-		const auto closeError = file.close() ;								// 先行診断がない場合だけclose失敗を返す。
+										evidence.observation_.sha256}) ;	// 共通CNG照合を共有する
+		const auto closeError = file.close() ;								// 先行診断がない場合だけclose失敗を返す
 		return error != 0 ? error : closeError ;
 	} catch( const std::bad_alloc &) {
 		return E_OUTOFMEMORY ;
 	} catch( ...) {
-		// 元fileの照合不能を旧成功記録で補完しない。
+		// 元fileの照合不能を旧成功記録で補完しない
 		return E_UNEXPECTED ;
 	}
 }

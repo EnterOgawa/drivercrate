@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file prolific_serial_package_tests.cpp
- * @brief Prolific Serial利用者指定ZIP検証単体試験実装。
- * @version 01.00.01
+ * @brief Prolific Serial利用者指定ZIP検証単体試験実装
+ * @version 01.00.02
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,18 +19,19 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note Networkや実driverを使用せず、標準USB IDの完全一致とfail-closed入力を検証します。
+ * @note Networkや実driverを使用せず、標準USB IDの完全一致とfail-closed入力を検証します
  */
 //------------------------------------------------------------------------------
 
@@ -47,27 +48,27 @@ namespace drivercrate::test {
 namespace {
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式page掲載の標準USB IDを受理することを検証する。
+ * @brief 公式page掲載の標準USB IDを受理することを検証する
  *
- * 全掲載PIDと正規のREV／MI componentを大小文字非依存で受理することを確認する。
+ * 全掲載PIDと正規のREV／MI componentを大小文字非依存で受理することを確認する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testSupportedHardwareIds( TestContext &context)
 {
-	// Prolific serial packageで明示対応するPIDの境界試験用集合。
+	// Prolific serial packageで明示対応するPIDの境界試験用集合
 	constexpr std::array SUPPORTED_PIDS{L"2303", L"2304", L"2323", L"23A3", L"23B3",
 										L"23C3", L"23D3", L"23E3", L"23F3"} ;
-	// 公式pageに列挙された全PIDを固定VIDとの完全一致で確認する。
+	// 公式pageに列挙された全PIDを固定VIDとの完全一致で確認する
 	for( const wchar_t *const pid : SUPPORTED_PIDS) {
 		const std::wstring hardwareId =
-			// 現在検証する標準USB ID。
+			// 現在検証する標準USB ID
 			std::wstring( L"USB\\VID_067B&PID_") + pid ;
 		DRIVERCRATE_EXPECT( context, isProlificSerialCandidateHardwareId( hardwareId)) ;
 	}
@@ -82,11 +83,11 @@ void testSupportedHardwareIds( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 未掲載または不正なUSB IDを拒否することを検証する。
+ * @brief 未掲載または不正なUSB IDを拒否することを検証する
  *
- * VID／PIDの部分一致、未掲載PID、不正桁、任意suffixを候補化しないことを確認する。
+ * VID／PIDの部分一致、未掲載PID、不正桁、任意suffixを候補化しないことを確認する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testUnsupportedHardwareIds( TestContext &context)
@@ -103,8 +104,8 @@ void testUnsupportedHardwareIds( TestContext &context)
 		L"USB\\VID_067B&PID_2303&MI_00&REV_0400",
 		L"USB\\VID_067B&PID_2303&REV_0400&MI_00&EXTRA_01",
 		L"XUSB\\VID_067B&PID_2303",
-	} ; // 公式scope外または構文不正なID一覧。
-	// 全拒否例を走査し、一件でも部分一致で受理されないことを確認する。
+	} ; // 公式scope外または構文不正なID一覧
+	// 全拒否例を走査し、一件でも部分一致で受理されないことを確認する
 	for( const wchar_t *const hardwareId : REJECTED_IDS) {
 		DRIVERCRATE_EXPECT( context, !isProlificSerialCandidateHardwareId( hardwareId)) ;
 	}
@@ -112,21 +113,21 @@ void testUnsupportedHardwareIds( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 不正なpackage入力を副作用なしで拒否することを検証する。
+ * @brief 不正なpackage入力を副作用なしで拒否することを検証する
  *
- * 空pathと0 sessionを拒否し、呼出前の架空結果を残さない。
+ * 空pathと0 sessionを拒否し、呼出前の架空結果を残さない
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testInvalidPackageInput( TestContext &context)
 {
-	OfficialDownloadWorkspace	  workspace ;	// 初期化されてはならない出力領域。
-	ProlificSerialPackageContents contents ;	// 失敗時に空へ戻す検証結果。
+	OfficialDownloadWorkspace	  workspace ;	// 初期化されてはならない出力領域
+	ProlificSerialPackageContents contents ;	// 失敗時に空へ戻す検証結果
 	contents.archiveSize	= 1U ;
 	contents.archiveSha256	= L"fictional" ;
 	const NativeError error = inspectProlificSerialPackageFile( L"", 0, workspace,
-															   contents) ;	// 入力拒否結果。
+															   contents) ;	// 入力拒否結果
 	DRIVERCRATE_EXPECT( context, error != 0) ;
 	DRIVERCRATE_EXPECT( context, contents.archiveSize == 0U) ;
 	DRIVERCRATE_EXPECT( context, contents.archiveSha256.empty()) ;
@@ -141,8 +142,8 @@ void testInvalidPackageInput( TestContext &context)
 //------------------------------------------------------------------------------
 /**
  * @brief Prolific Serial packageのPnP ID照合と入力拒否境界を検証する。Prolific Serial packageの全単体試験を実行する。USB ID境界と入
- *        力拒否を順番に検証する。
- * @param[in,out] context Assertion件数と失敗内容の集計先。 Assertion集計先。
+ *        力拒否を順番に検証する
+ * @param[in,out] context Assertion件数と失敗内容の集計先。 Assertion集計先
  */
 //------------------------------------------------------------------------------
 void runProlificSerialPackageTests( TestContext &context)

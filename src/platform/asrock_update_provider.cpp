@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file asrock_update_provider.cpp
- * @brief ASRock公式Web表示専用Provider実装。
- * @version 01.00.01
+ * @brief ASRock公式Web表示専用Provider実装
+ * @version 01.00.02
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,18 +19,19 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 固定ASRock公式pageだけを取得し、local board model、PnP class、maker表示へ端末内で照合します。個別製品pageとpayloadは取得しません。
+ * @note 固定ASRock公式pageだけを取得し、local board model、PnP class、maker表示へ端末内で照合します。個別製品pageとpayloadは取得しません
  */
 //------------------------------------------------------------------------------
 
@@ -56,24 +57,24 @@ namespace drivercrate {
 namespace {
 
 //------------------------------------------------------------------------------
-// 定数定義。
+// 定数定義
 //------------------------------------------------------------------------------
 
-constexpr std::uint64_t	  MAXIMUM_CATALOG_BYTES = 512ULL * 1024ULL ;	// 固定公式一覧HTML上限。
-constexpr std::size_t	  MAXIMUM_LOCAL_DEVICES = 4'096U ;				// 一scanのlocal device上限。
+constexpr std::uint64_t	  MAXIMUM_CATALOG_BYTES = 512ULL * 1024ULL ;	// 固定公式一覧HTML上限
+constexpr std::size_t	  MAXIMUM_LOCAL_DEVICES = 4'096U ;				// 一scanのlocal device上限
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief Win32 errorをNativeErrorへ変換する。
+ * @brief Win32 errorをNativeErrorへ変換する
  *
- * 元の診断値をProvider共通型へ保持する。
+ * 元の診断値をProvider共通型へ保持する
  *
- * @param[in] error Win32 APIが返したerror code。
- * @return HRESULT_FROM_WIN32で変換したbit pattern。
+ * @param[in] error Win32 APIが返したerror code
+ * @return HRESULT_FROM_WIN32で変換したbit pattern
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError nativeErrorFromWin32( const DWORD error) noexcept
@@ -83,47 +84,47 @@ constexpr std::size_t	  MAXIMUM_LOCAL_DEVICES = 4'096U ;				// 一scanのlocal d
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASRock表示情報のpublisher名を返す。
+ * @brief ASRock表示情報のpublisher名を返す
  *
- * 表示だけを整え、publisher署名の確認結果として扱わない。
+ * 表示だけを整え、publisher署名の確認結果として扱わない
  *
- * @param[in] vendorKey Parserが審査済みmaker key。
- * @return UIへ表示するmaker名。未知keyの場合は入力を維持する。
+ * @param[in] vendorKey Parserが審査済みmaker key
+ * @return UIへ表示するmaker名。未知keyの場合は入力を維持する
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::wstring publisherName( const std::wstring_view vendorKey)
 {
-	// 既知のRealtek keyを統一したメーカー表示名へ対応付ける。
+	// 既知のRealtek keyを統一したメーカー表示名へ対応付ける
 	if( vendorKey == L"REALTEK") {
 		return L"Realtek" ;
 	}
 
-	// 既知のMediaTek keyを統一したメーカー表示名へ対応付ける。
+	// 既知のMediaTek keyを統一したメーカー表示名へ対応付ける
 	if( vendorKey == L"MEDIATEK") {
 		return L"MediaTek" ;
 	}
 
-	// 既知のNVIDIA keyを正式な大文字表記で表示する。
+	// 既知のNVIDIA keyを正式な大文字表記で表示する
 	if( vendorKey == L"NVIDIA") {
 		return L"NVIDIA" ;
 	}
 
-	// 既知のQualcomm keyを統一したメーカー表示名へ対応付ける。
+	// 既知のQualcomm keyを統一したメーカー表示名へ対応付ける
 	if( vendorKey == L"QUALCOMM") {
 		return L"Qualcomm" ;
 	}
 
-	// 既知のBroadcom keyを統一したメーカー表示名へ対応付ける。
+	// 既知のBroadcom keyを統一したメーカー表示名へ対応付ける
 	if( vendorKey == L"BROADCOM") {
 		return L"Broadcom" ;
 	}
 
-	// 既知のMarvell keyを統一したメーカー表示名へ対応付ける。
+	// 既知のMarvell keyを統一したメーカー表示名へ対応付ける
 	if( vendorKey == L"MARVELL") {
 		return L"Marvell" ;
 	}
 
-	// 既知のAquantia keyを統一したメーカー表示名へ対応付ける。
+	// 既知のAquantia keyを統一したメーカー表示名へ対応付ける
 	if( vendorKey == L"AQUANTIA") {
 		return L"Aquantia" ;
 	}
@@ -136,12 +137,12 @@ constexpr std::size_t	  MAXIMUM_LOCAL_DEVICES = 4'096U ;				// 一scanのlocal d
 //------------------------------------------------------------------------------
 /**
  * @brief Local ASRock boardに対応する公式配布表示情報を検索する。Local ASRock boardに対応する公式配布情報を検索する。固定一覧をlocal board、
- *        class、makerへ照合し、payloadを取得せず監査待ち候補として表示する。
- * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。 0ではないscan session ID。
- * @param[in] devices Driver Store列挙から得た非機密device snapshot群。 非機密local device snapshot群。
- * @param[in] hardwareIdMatcher 本Providerでは使用しないlocal照合関数。
- * @param[in] progressCallback 公式page取得とlocal照合の進捗通知先。 Page取得と照合の進捗通知先。
- * @return ASRock表示専用候補または取得・検証失敗を含むscan結果。
+ *        class、makerへ照合し、payloadを取得せず監査待ち候補として表示する
+ * @param[in] scanSessionId 呼出し側が割り当てた0ではないsession ID。 0ではないscan session ID
+ * @param[in] devices Driver Store列挙から得た非機密device snapshot群。 非機密local device snapshot群
+ * @param[in] hardwareIdMatcher 本Providerでは使用しないlocal照合関数
+ * @param[in] progressCallback 公式page取得とlocal照合の進捗通知先。 Page取得と照合の進捗通知先
+ * @return ASRock表示専用候補または取得・検証失敗を含むscan結果
  */
 //------------------------------------------------------------------------------
 ScanResult AsrockUpdateProvider::scan( const ScanSessionId						   scanSessionId,
@@ -151,11 +152,11 @@ ScanResult AsrockUpdateProvider::scan( const ScanSessionId						   scanSessionId
 {
 	static_cast<void>( hardwareIdMatcher) ;
 	invalidateScanSession() ;
-	ScanResult result ;	// ASRock Provider単独のscan結果。
+	ScanResult result ;	// ASRock Provider単独のscan結果
 	result.scanSessionId = scanSessionId ;
 	result.outcome		 = OutcomeCode::FAILURE ;
 	result.state		 = ProviderScanState::FAILURE ;
-	// 未発行session、通知先欠落、過大なdevice集合を通信前に拒否する。
+	// 未発行session、通知先欠落、過大なdevice集合を通信前に拒否する
 	if( scanSessionId == 0U || !progressCallback || devices.size() > MAXIMUM_LOCAL_DEVICES) {
 		result.error = devices.size() > MAXIMUM_LOCAL_DEVICES
 						   ? nativeErrorFromWin32( ERROR_BUFFER_OVERFLOW)
@@ -167,16 +168,16 @@ ScanResult AsrockUpdateProvider::scan( const ScanSessionId						   scanSessionId
 					  .percentComplete = 0,
 					  .completedItems  = 0,
 					  .totalItems	   = devices.size()}) ;
-	AsrockCatalogRequest request ;														// Local ASRock boardと固定一覧の取得条件。
-	bool				 applicable{} ;													// ASRock Windows clientの場合true。
-	NativeError			 error = readLocalAsrockCatalogRequest( request, applicable) ;	// 識別結果。
-	// 原因の診断値を結果へ引き継いで中断し、不完全な処理を正常完了として扱わない。
+	AsrockCatalogRequest request ;														// Local ASRock boardと固定一覧の取得条件
+	bool				 applicable{} ;													// ASRock Windows clientの場合true
+	NativeError			 error = readLocalAsrockCatalogRequest( request, applicable) ;	// 識別結果
+	// 原因の診断値を結果へ引き継いで中断し、不完全な処理を正常完了として扱わない
 	if( error != 0) {
 		result.error = error ;
 		return result ;
 	}
 
-	// local systemが対象外なら通信せず対象外状態と完了進捗を返す。
+	// local systemが対象外なら通信せず対象外状態と完了進捗を返す
 	if( !applicable) {
 		result.succeeded = true ;
 		result.outcome	 = OutcomeCode::SUCCESS ;
@@ -189,18 +190,18 @@ ScanResult AsrockUpdateProvider::scan( const ScanSessionId						   scanSessionId
 		return result ;
 	}
 
-	// 根拠session。
+	// 根拠session
 	error = httpClient_.beginSourceSession( scanSessionId, ASROCK_PROVIDER_ID) ;
-	// 原因の診断値を結果へ引き継いで中断し、不完全な処理を正常完了として扱わない。
+	// 原因の診断値を結果へ引き継いで中断し、不完全な処理を正常完了として扱わない
 	if( error != 0) {
 		result.error = error ;
 		return result ;
 	}
 
-	std::wstring catalogHtml ;	// UTF-16変換済みLatest Drivers Update page。
+	std::wstring catalogHtml ;	// UTF-16変換済みLatest Drivers Update page
 	error = httpClient_.getUtf8TextForSource( request.pageUrl, OFFICIAL_PRIMARY_METADATA_RESOURCE_ID,
 											 MAXIMUM_CATALOG_BYTES, catalogHtml) ;
-	// 原因の診断値を結果へ引き継いで中断し、不完全な処理を正常完了として扱わない。
+	// 原因の診断値を結果へ引き継いで中断し、不完全な処理を正常完了として扱わない
 	if( error != 0) {
 		result.error = error ;
 		return result ;
@@ -211,28 +212,28 @@ ScanResult AsrockUpdateProvider::scan( const ScanSessionId						   scanSessionId
 					  .completedItems  = 0,
 					  .totalItems	   = devices.size()}) ;
 
-	std::vector<AsrockDriverPageEntry> entries ;	// Model／OS一致済み公式表示情報。
-	// 公式一覧のschema検証失敗を候補なし成功と区別する。
+	std::vector<AsrockDriverPageEntry> entries ;	// Model／OS一致済み公式表示情報
+	// 公式一覧のschema検証失敗を候補なし成功と区別する
 	if( !parseAsrockLatestDriverHtml( catalogHtml, request.boardModel, request.osName, entries)) {
 		result.state = ProviderScanState::METADATA_REJECTED ;
 		result.error = nativeErrorFromWin32( ERROR_INVALID_DATA) ;
 		return result ;
 	}
 
-	std::size_t candidateOrdinal{} ;	// Session内candidate／package連番。
-	// 各local deviceへclassとmakerの両方が一致する表示情報だけを関連付ける。
+	std::size_t candidateOrdinal{} ;	// Session内candidate／package連番
+	// 各local deviceへclassとmakerの両方が一致する表示情報だけを関連付ける
 	for( std::size_t deviceIndex = 0U; deviceIndex < devices.size(); ++deviceIndex) {
-		const OfficialCatalogDevice &device = devices[deviceIndex] ;	// 現在のlocal device。
-		bool deviceMatched{} ;											// 一件以上の公式表示情報を関連付けた場合true。
-		// 公式掲載順を維持して該当deviceの表示専用候補を追加する。
+		const OfficialCatalogDevice &device = devices[deviceIndex] ;	// 現在のlocal device
+		bool						 deviceMatched{} ;					// 一件以上の公式表示情報を関連付けた場合true
+		// 公式掲載順を維持して該当deviceの表示専用候補を追加する
 		for( const AsrockDriverPageEntry &entry : entries) {
-			// 掲載driverのメーカーとclassが一致しないdeviceを関連付けない。
+			// 掲載driverのメーカーとclassが一致しないdeviceを関連付けない
 			if( !asrockEntryMatchesDevice( entry, device)) {
 				continue ;
 			}
 
 			deviceMatched = true ;
-			UpdateCandidate candidate ;	// UIへ返すASRock公式配布表示情報。
+			UpdateCandidate candidate ;	// UIへ返すASRock公式配布表示情報
 			candidate.identity = L"asrock-page:" + std::to_wstring( scanSessionId) + L":" +
 								 std::to_wstring( candidateOrdinal) ;
 			candidate.deviceIdentity  = device.deviceIdentity ;
@@ -265,13 +266,13 @@ ScanResult AsrockUpdateProvider::scan( const ScanSessionId						   scanSessionId
 			result.candidates.push_back( std::move( candidate)) ;
 		}
 
-		// 表示関連付けできたdeviceだけを対象・判定済み件数へ含める。
+		// 表示関連付けできたdeviceだけを対象・判定済み件数へ含める
 		if( deviceMatched) {
 			++result.coverage.eligibleDeviceCount ;
 			++result.coverage.assessedDeviceCount ;
 		}
 
-		// device照合済み件数から算出する確定進捗率。対象なしは当該段階の終端。
+		// device照合済み件数から算出する確定進捗率。対象なしは当該段階の終端
 		const std::uint32_t percent =
 			devices.empty()
 				? 95U
@@ -283,8 +284,8 @@ ScanResult AsrockUpdateProvider::scan( const ScanSessionId						   scanSessionId
 	}
 
 	const bool evidence = httpClient_.hasSourceEvidence(
-		scanSessionId, ASROCK_PROVIDER_ID, OFFICIAL_PRIMARY_METADATA_RESOURCE_ID) ;	// 取得根拠。
-	// 公式取得根拠がない場合はsessionを失効させて部分候補を破棄する。
+		scanSessionId, ASROCK_PROVIDER_ID, OFFICIAL_PRIMARY_METADATA_RESOURCE_ID) ;	// 取得根拠
+	// 公式取得根拠がない場合はsessionを失効させて部分候補を破棄する
 	if( !evidence) {
 		invalidateScanSession() ;
 		result.candidates.clear() ;
@@ -308,12 +309,12 @@ ScanResult AsrockUpdateProvider::scan( const ScanSessionId						   scanSessionId
 //------------------------------------------------------------------------------
 /**
  * @brief ASRock表示専用候補へのinstall要求をfail-closedで拒否する。ASRock表示専用候補へのinstall要求を拒否する。Capabilityを持たない
- *        Providerへの直接呼出しも拒否し、payload取得または実行へ進まない。
- * @param[in] scanSessionId 要求元のscan session ID。 要求元session ID。
- * @param[in] identities 要求されたopaque候補identity群。 要求された候補identity群。
- * @param[in] parentWindowNative 呼出し側の親Window値。
- * @param[in] progressCallback 呼出し側の進捗通知先。
- * @return Downloadとinstallを`FAILURE`とした拒否結果。 Downloadとinstallを失敗に固定した結果。
+ *        Providerへの直接呼出しも拒否し、payload取得または実行へ進まない
+ * @param[in] scanSessionId 要求元のscan session ID。 要求元session ID
+ * @param[in] identities 要求されたopaque候補identity群。 要求された候補identity群
+ * @param[in] parentWindowNative 呼出し側の親Window値
+ * @param[in] progressCallback 呼出し側の進捗通知先
+ * @return Downloadとinstallを`FAILURE`とした拒否結果。 Downloadとinstallを失敗に固定した結果
  */
 //------------------------------------------------------------------------------
 InstallResult AsrockUpdateProvider::install( const ScanSessionId					scanSessionId,
@@ -325,7 +326,7 @@ InstallResult AsrockUpdateProvider::install( const ScanSessionId					scanSession
 	static_cast<void>( identities) ;
 	static_cast<void>( parentWindowNative) ;
 	static_cast<void>( progressCallback) ;
-	InstallResult result ;	// 表示専用Providerの固定拒否結果。
+	InstallResult result ;	// 表示専用Providerの固定拒否結果
 	result.downloadOutcome = OutcomeCode::FAILURE ;
 	result.downloadError   = static_cast<NativeError>( E_NOTIMPL) ;
 	result.installOutcome  = OutcomeCode::FAILURE ;
@@ -336,7 +337,7 @@ InstallResult AsrockUpdateProvider::install( const ScanSessionId					scanSession
 
 //------------------------------------------------------------------------------
 /**
- * @brief 保持中のscan sessionと取得根拠を失効させる。次scanまたは拒否された直接install要求で旧根拠を破棄する。
+ * @brief 保持中のscan sessionと取得根拠を失効させる。次scanまたは拒否された直接install要求で旧根拠を破棄する
  */
 //------------------------------------------------------------------------------
 void AsrockUpdateProvider::invalidateScanSession() noexcept

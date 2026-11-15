@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_preparation_tests.cpp
- * @brief 取得承認と一度限りのtaskの内部試験。
- * @version 01.02.01
+ * @brief 取得承認と一度限りのtaskの内部試験
+ * @version 01.02.03
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,22 +19,24 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  Intel Ethernetの取得前提確認と選択取得を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  EULA本文と取得再確認の境界を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/05  配布物単位の取得承認を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Intel Ethernetの取得前提確認と選択取得を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  EULA本文と取得再確認の境界を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  配布物単位の取得承認を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.01.00 Shunji Ogawa  2026/09/15  EULA group tokenのsnapshot検証を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/11/06  既定2GiBと明示小予算/累計/overflowの境界を追加。
- * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/15  EULA group tokenのsnapshot検証を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/11/06  既定2GiBと明示小予算/累計/overflowの境界を追加
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.03 Shunji Ogawa  2026/11/13  847pの通常件数枠と原予算境界を整合
  * </pre>
  *
- * @note 合成対象の状態だけを検証し、network・復元ポイント・導入を使用しません。
+ * @note 合成対象の状態だけを検証し、network・復元ポイント・導入を使用しません
  */
 //------------------------------------------------------------------------------
 
@@ -55,25 +57,25 @@
 namespace drivercrate::test {
 namespace {
 constexpr NativeError FAILURE =
-	std::bit_cast<NativeError>( std::uint32_t{0x80004005U}) ;	// 合成したE_FAIL結果。
+	std::bit_cast<NativeError>( std::uint32_t{0x80004005U}) ;	// 合成したE_FAIL結果
 constexpr NativeError CANCELLED =
-	std::bit_cast<NativeError>( std::uint32_t{0x800704C7U}) ;	// 合成した取消しHRESULT。
+	std::bit_cast<NativeError>( std::uint32_t{0x800704C7U}) ;	// 合成した取消しHRESULT
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実deviceやURLを持たず、容量境界と対象別判断を検証する。
- * @return 二Provider・三配布物の合成計画。
+ * @brief 実deviceやURLを持たず、容量境界と対象別判断を検証する
+ * @return 二Provider・三配布物の合成計画
  */
 //------------------------------------------------------------------------------
 OfficialPreparationPlan makePlan()
 {
-	OfficialPreparationPlan plan ;	// 各試験で変更する所有計画。
+	OfficialPreparationPlan plan ;	// 各試験で変更する所有計画
 	plan.scanSessionId = 10U ;
 	plan.planId		   = 1U ;
 	plan.limits		   = {100U, 200U, 300U, 2U, 3U} ;
-	// 三配布物のうち二つは同一Providerに属し、一つは未解決EULAを持つ。
+	// 三配布物のうち二つは同一Providerに属し、一つは未解決EULAを持つ
 	for( std::uint32_t index = 0U; index < 3U; ++index) {
-		OfficialPreparationTarget target ;	// 架空の配布物snapshot。
+		OfficialPreparationTarget target ;	// 架空の配布物snapshot
 		target.identity = L"target:" + std::to_wstring( index) ;
 		target.providerId =
 			index == 2U ? SILICON_LABS_OFFICIAL_PROVIDER_ID : PROLIFIC_OFFICIAL_PROVIDER_ID ;
@@ -84,11 +86,11 @@ OfficialPreparationPlan makePlan()
 		target.deviceCount	   = index + 1U ;
 		target.terms		   = index == 1U ? OfficialPreparationTerms::UNRESOLVED
 											 : OfficialPreparationTerms::ACCEPTANCE_REQUIRED ;
-		// 同意必須の架空対象には実契約でない本文とrevisionを対応付ける。
+		// 同意必須の架空対象には実契約でない本文とrevisionを対応付ける
 		if( target.terms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED) {
 			target.eulaRevision = L"terms:1" ;
 			target.eulaText =
-				L"Synthetic test terms. No real license." ;	// 実契約を転載しない合成本文。
+				L"Synthetic test terms. No real license." ;	// 実契約を転載しない合成本文
 		}
 
 		plan.targets.push_back( std::move( target)) ;
@@ -99,24 +101,24 @@ OfficialPreparationPlan makePlan()
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実UIの同意を代行せず、testだけで明示判断を構成する。
+ * @brief 実UIの同意を代行せず、testだけで明示判断を構成する
  *
- * @param[in] plan 承認snapshotの元にする合成計画。
- * @param[in] operationId 各試験の単調操作ID。
- * @return 未解決条件以外の対象を選択した合成承認。
+ * @param[in] plan 承認snapshotの元にする合成計画
+ * @param[in] operationId 各試験の単調操作ID
+ * @return 未解決条件以外の対象を選択した合成承認
  */
 //------------------------------------------------------------------------------
 OfficialPreparationApproval makeApproval( const OfficialPreparationPlan &plan,
 										 const OperationId				operationId)
 {
-	OfficialPreparationApproval approval ;	// 状態管理へ渡す合成判断。
+	OfficialPreparationApproval approval ;	// 状態管理へ渡す合成判断
 	approval.operationId   = operationId ;
 	approval.scanSessionId = plan.scanSessionId ;
 	approval.planId		   = plan.planId ;
 	approval.limits		   = plan.limits ;
-	// 全表示対象の判断を作り、未解決EULAを未選択として保持する。
+	// 全表示対象の判断を作り、未解決EULAを未選択として保持する
 	for( const OfficialPreparationTarget &target : plan.targets) {
-		const bool selected = target.terms != OfficialPreparationTerms::UNRESOLVED ;	// 合成選択。
+		const bool selected = target.terms != OfficialPreparationTerms::UNRESOLVED ;	// 合成選択
 		approval.decisions.push_back(
 			{target, selected,
 			 selected && target.terms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED, false}) ;
@@ -127,18 +129,18 @@ OfficialPreparationApproval makeApproval( const OfficialPreparationPlan &plan,
 
 //------------------------------------------------------------------------------
 /**
- * @brief Networkを使わず、最大256taskへ取得失敗を返して予約を維持する。
+ * @brief Networkを使わず、最大256taskへ取得失敗を返して予約を維持する
  *
- * @param[in,out] session 有限対象を承認済みの合成session。
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] session 有限対象を承認済みの合成session
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void finishAll( OfficialPreparationSession &session, TestContext &context)
 {
-	// 不具合時にもtestが無限loopにならないよう、計画上限回までで打ち切る。
+	// 不具合時にもtestが無限loopにならないよう、計画上限回までで打ち切る
 	for( std::size_t count = 0U; count < 256U; ++count) {
-		const auto task = session.claimNext() ;	// 今回だけ許可された合成task。
-		// 取得可能taskが尽きた時点で予約消費の模擬を終了する。
+		const auto task = session.claimNext() ;	// 今回だけ許可された合成task
+		// 取得可能taskが尽きた時点で予約消費の模擬を終了する
 		if( !task.has_value()) {
 			break ;
 		}
@@ -152,16 +154,16 @@ void finishAll( OfficialPreparationSession &session, TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 未選択取得0、一度限りのtask、確定件数、部分失敗を確認する。
+ * @brief 未選択取得0、一度限りのtask、確定件数、部分失敗を確認する
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testPartialApproval( TestContext &context)
 {
-	OfficialPreparationSession	  session ;								// 一scanの取得計画管理。
-	const OfficialPreparationPlan plan	   = makePlan() ;				// 三配布物の合成表示。
-	auto						  approval = makeApproval( plan, 20U) ;	// 二対象だけを取得する判断。
+	OfficialPreparationSession	  session ;								// 一scanの取得計画管理
+	const OfficialPreparationPlan plan	   = makePlan() ;				// 三配布物の合成表示
+	auto						  approval = makeApproval( plan, 20U) ;	// 二対象だけを取得する判断
 	std::reverse( approval.decisions.begin(), approval.decisions.end()) ;
 	DRIVERCRATE_EXPECT( context, !session.claimNext().has_value()) ;
 	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
@@ -169,9 +171,9 @@ void testPartialApproval( TestContext &context)
 	DRIVERCRATE_EXPECT( context, session.approve( approval) == OfficialPreparationError::NONE) ;
 	DRIVERCRATE_EXPECT( context, session.progress().total == 2U) ;
 	DRIVERCRATE_EXPECT( context, session.progress().completed == 0U) ;
-	const auto first = session.claimNext() ;	// 計画順の先頭対象。
+	const auto first = session.claimNext() ;	// 計画順の先頭対象
 	DRIVERCRATE_EXPECT( context, first.has_value()) ;
-	// 前提不成立時にもoptionalを参照しない。
+	// 前提不成立時にもoptionalを参照しない
 	if( !first) {
 		return ;
 	}
@@ -188,9 +190,9 @@ void testPartialApproval( TestContext &context)
 		context,
 		!session.complete( *first, {OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION, 0, 60U})) ;
 	DRIVERCRATE_EXPECT( context, session.progress().completed == 1U) ;
-	const auto second = session.claimNext() ;	// 未選択を飛ばした別Providerの対象。
+	const auto second = session.claimNext() ;	// 未選択を飛ばした別Providerの対象
 	DRIVERCRATE_EXPECT( context, second.has_value()) ;
-	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ。
+	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ
 	if( !second) {
 		return ;
 	}
@@ -209,17 +211,17 @@ void testPartialApproval( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全拒否を取得成功と混同せず、taskと進捗を0件にする。
+ * @brief 全拒否を取得成功と混同せず、taskと進捗を0件にする
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testAllDeclined( TestContext &context)
 {
-	OfficialPreparationSession	  session ;				// 全拒否時の管理状態。
-	const OfficialPreparationPlan plan = makePlan() ;	// 未解決条件も含む計画。
-	auto approval = makeApproval( plan, 20U) ;			// この試験で全拒否へ変更する判断。
-	// 表示対象を省略せず、三件すべて取得しないと明示する。
+	OfficialPreparationSession	  session ;							// 全拒否時の管理状態
+	const OfficialPreparationPlan plan = makePlan() ;				// 未解決条件も含む計画
+	auto approval					   = makeApproval( plan, 20U) ;	// この試験で全拒否へ変更する判断
+	// 表示対象を省略せず、三件すべて取得しないと明示する
 	for( OfficialPreparationDecision &decision : approval.decisions) {
 		decision.acquire	  = false ;
 		decision.eulaAccepted = false ;
@@ -237,117 +239,117 @@ void testAllDeclined( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 承認snapshotの各差替え、省略、未知対象、重複を開始前に拒否する。
+ * @brief 承認snapshotの各差替え、省略、未知対象、重複を開始前に拒否する
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testApprovalBinding( TestContext &context)
 {
-	// 一つの差替えごとに新しい管理objectを使い、拒否後も正規承認できることを確認する。
+	// 一つの差替えごとに新しい管理objectを使い、拒否後も正規承認できることを確認する
 	for( std::uint32_t mutation = 0U; mutation < 19U; ++mutation) {
-		OfficialPreparationSession	  session ;								// 差替えの影響を隔離する管理状態。
-		const OfficialPreparationPlan plan	  = makePlan() ;				// 正規snapshot。
-		const auto					  valid	  = makeApproval( plan, 20U) ;	// 比較用の正しい判断。
-		auto						  invalid = valid ;						// 一fieldだけ壊す判断。
-		// 承認snapshotのfieldを一つずつ変形し、差替えと省略の拒否を切り分ける。
+		OfficialPreparationSession	  session ;								// 差替えの影響を隔離する管理状態
+		const OfficialPreparationPlan plan	  = makePlan() ;				// 正規snapshot
+		const auto					  valid	  = makeApproval( plan, 20U) ;	// 比較用の正しい判断
+		auto						  invalid = valid ;						// 一fieldだけ壊す判断
+		// 承認snapshotのfieldを一つずつ変形し、差替えと省略の拒否を切り分ける
 		switch( mutation) {
-			// 別scan sessionへの承認流用を検出する入力を作る。
+			// 別scan sessionへの承認流用を検出する入力を作る
 			case 0U:
 				++invalid.scanSessionId ;
 				break ;
 
-			// 別計画への承認流用を検出する入力を作る。
+			// 別計画への承認流用を検出する入力を作る
 			case 1U:
 				++invalid.planId ;
 				break ;
 
-			// 承認後の単一file容量上限の変更を検出する。
+			// 承認後の単一file容量上限の変更を検出する
 			case 2U:
 				++invalid.limits.maximumFileBytes ;
 				break ;
 
-			// 承認後のProvider別容量上限の変更を検出する。
+			// 承認後のProvider別容量上限の変更を検出する
 			case 3U:
 				++invalid.limits.maximumProviderBytes ;
 				break ;
 
-			// 承認後のsession全体容量上限の変更を検出する。
+			// 承認後のsession全体容量上限の変更を検出する
 			case 4U:
 				++invalid.limits.maximumSessionBytes ;
 				break ;
 
-			// 承認後のProvider別file件数上限の変更を検出する。
+			// 承認後のProvider別file件数上限の変更を検出する
 			case 5U:
 				++invalid.limits.maximumProviderFiles ;
 				break ;
 
-			// 承認後のsession全体file件数上限の変更を検出する。
+			// 承認後のsession全体file件数上限の変更を検出する
 			case 6U:
 				++invalid.limits.maximumSessionFiles ;
 				break ;
 
-			// 未表示の対象identityへ承認を差し替えた場合を検証する。
+			// 未表示の対象identityへ承認を差し替えた場合を検証する
 			case 7U:
 				invalid.decisions[0].target.identity = L"unknown" ;
 				break ;
 
-			// 対象のProviderだけを差し替えた場合の拒否を検証する。
+			// 対象のProviderだけを差し替えた場合の拒否を検証する
 			case 8U:
 				invalid.decisions[0].target.providerId = SILICON_LABS_OFFICIAL_PROVIDER_ID ;
 				break ;
 
-			// 承認済みの配布resourceとの結合が失われた場合を検証する。
+			// 承認済みの配布resourceとの結合が失われた場合を検証する
 			case 9U:
 				invalid.decisions[0].target.resourceId = L"other-resource" ;
 				break ;
 
-			// 承認対象のrelease identityの変更を検出する。
+			// 承認対象のrelease identityの変更を検出する
 			case 10U:
 				invalid.decisions[0].target.releaseIdentity = L"other-release" ;
 				break ;
 
-			// 承認後のparser revisionの変更を検出する。
+			// 承認後のparser revisionの変更を検出する
 			case 11U:
 				++invalid.decisions[0].target.parserRevision ;
 				break ;
 
-			// 承認対象に固有の容量上限の変更を検出する。
+			// 承認対象に固有の容量上限の変更を検出する
 			case 12U:
 				++invalid.decisions[0].target.maximumBytes ;
 				break ;
 
-			// 承認した影響device件数の変更を検出する。
+			// 承認した影響device件数の変更を検出する
 			case 13U:
 				++invalid.decisions[0].target.deviceCount ;
 				break ;
 
-			// 別EULA revisionへの同意流用を拒否する入力を作る。
+			// 別EULA revisionへの同意流用を拒否する入力を作る
 			case 14U:
 				invalid.decisions[0].target.eulaRevision = L"terms:2" ;
 				break ;
 
-			// 承認後に利用条件の区分を変更した場合を検証する。
+			// 承認後に利用条件の区分を変更した場合を検証する
 			case 15U:
 				invalid.decisions[0].target.terms = OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
 				break ;
 
-			// 必要な対象判断が省略された承認を検証する。
+			// 必要な対象判断が省略された承認を検証する
 			case 16U:
 				invalid.decisions.pop_back() ;
 				break ;
 
-			// 承認内の対象判断の重複を検出する。
+			// 承認内の対象判断の重複を検出する
 			case 17U:
 				invalid.decisions[1] = invalid.decisions[0] ;
 				break ;
 
-			// 余分な対象判断を追加した承認を検出する。
+			// 余分な対象判断を追加した承認を検出する
 			case 18U:
 				invalid.decisions.push_back( invalid.decisions[0]) ;
 				break ;
 
-			// 定義した改変case以外ではfixtureを追加変更しない。
+			// 定義した改変case以外ではfixtureを追加変更しない
 			default:
 				break ;
 		}
@@ -364,41 +366,41 @@ void testApprovalBinding( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 不明EULA、必要同意不足、未選択への同意付与とtaskの変更を拒否する。
+ * @brief 不明EULA、必要同意不足、未選択への同意付与とtaskの変更を拒否する
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testTermsAndNetworkBinding( TestContext &context)
 {
-	// 条件を満たさない判断をそれぞれ独立に作り、取得前拒否を検証する。
+	// 条件を満たさない判断をそれぞれ独立に作り、取得前拒否を検証する
 	for( std::uint32_t mutation = 0U; mutation < 4U; ++mutation) {
-		OfficialPreparationSession	  session ;								// 条件検証を行う管理状態。
-		const OfficialPreparationPlan plan	   = makePlan() ;				// 未解決条件を含む計画。
-		auto						  approval = makeApproval( plan, 20U) ;	// 変更対象の判断。
-		// 必要同意の欠落と未選択対象への同意を個別に注入する。
+		OfficialPreparationSession	  session ;								// 条件検証を行う管理状態
+		const OfficialPreparationPlan plan	   = makePlan() ;				// 未解決条件を含む計画
+		auto						  approval = makeApproval( plan, 20U) ;	// 変更対象の判断
+		// 必要同意の欠落と未選択対象への同意を個別に注入する
 		switch( mutation) {
-			// 必須EULA同意を欠く取得指示の拒否を検証する。
+			// 必須EULA同意を欠く取得指示の拒否を検証する
 			case 0U:
 				approval.decisions[0].eulaAccepted = false ;
 				break ;
 
-			// 利用条件が解決していない対象の取得選択を検証する。
+			// 利用条件が解決していない対象の取得選択を検証する
 			case 1U:
 				approval.decisions[1].acquire = true ;
 				break ;
 
-			// 未選択対象へのEULA同意の付与を拒否する入力を作る。
+			// 未選択対象へのEULA同意の付与を拒否する入力を作る
 			case 2U:
 				approval.decisions[1].eulaAccepted = true ;
 				break ;
 
-			// 未選択対象への制限付き通信承認の付与を検証する。
+			// 未選択対象への制限付き通信承認の付与を検証する
 			case 3U:
 				approval.decisions[1].restrictedNetworkApproved = true ;
 				break ;
 
-			// 定義した同意改変以外ではfixtureを変更しない。
+			// 定義した同意改変以外ではfixtureを変更しない
 			default:
 				break ;
 		}
@@ -409,33 +411,33 @@ void testTermsAndNetworkBinding( TestContext &context)
 		DRIVERCRATE_EXPECT( context, !session.claimNext()) ;
 	}
 
-	OfficialPreparationSession session ;			// 確認済み同意不要とnetwork同意の照合。
-	auto					   plan = makePlan() ;	// この試験で条件を明確化する合成計画。
+	OfficialPreparationSession session ;			// 確認済み同意不要とnetwork同意の照合
+	auto					   plan = makePlan() ;	// この試験で条件を明確化する合成計画
 	plan.targets[0].terms			= OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
 	plan.targets[0].eulaRevision.clear() ;
 	plan.targets[0].eulaText.clear() ;
-	auto approval = makeApproval( plan, 20U) ;	// 対象0だけnetwork制限を承認する。
+	auto approval = makeApproval( plan, 20U) ;	// 対象0だけnetwork制限を承認する
 	approval.decisions[0].restrictedNetworkApproved = true ;
 	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
 	DRIVERCRATE_EXPECT( context, session.approve( approval) == OfficialPreparationError::NONE) ;
-	const auto task = session.claimNext() ;	// 対象別network同意を含むtoken。
+	const auto task = session.claimNext() ;	// 対象別network同意を含むtoken
 	DRIVERCRATE_EXPECT( context, task.has_value()) ;
-	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ。
+	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ
 	if( !task) {
 		return ;
 	}
 
 	DRIVERCRATE_EXPECT( context, task->restrictedNetworkApproved) ;
-	auto modified					   = *task ;	// 同意状態を書き換えた偽token。
+	auto modified					   = *task ;	// 同意状態を書き換えた偽token
 	modified.restrictedNetworkApproved = false ;
 	DRIVERCRATE_EXPECT(
 		context, !session.complete( modified, {OfficialPreparationItemState::FAILURE, FAILURE, 0U})) ;
 	DRIVERCRATE_EXPECT(
 		context, session.complete(
 					 *task, {OfficialPreparationItemState::AWAITING_NETWORK_CONSENT, FAILURE, 0U})) ;
-	const auto next = session.claimNext() ;	// 別Providerのnetwork未承認対象。
+	const auto next = session.claimNext() ;	// 別Providerのnetwork未承認対象
 	DRIVERCRATE_EXPECT( context, next.has_value()) ;
-	// 次taskを取得できた場合にだけnetwork同意と失敗完了を検証する。
+	// 次taskを取得できた場合にだけnetwork同意と失敗完了を検証する
 	if( next) {
 		DRIVERCRATE_EXPECT( context, !next->restrictedNetworkApproved) ;
 		DRIVERCRATE_EXPECT(
@@ -445,122 +447,122 @@ void testTermsAndNetworkBinding( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 不完全計画、未知Provider、重複配布物、定義外条件を拒否する。
+ * @brief 不完全計画、未知Provider、重複配布物、定義外条件を拒否する
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testInvalidPlans( TestContext &context)
 {
-	// 有限な不正入力表を一件ずつ検証し、旧未使用計画の失効も確認する。
+	// 有限な不正入力表を一件ずつ検証し、旧未使用計画の失効も確認する
 	for( std::uint32_t mutation = 0U; mutation < 20U; ++mutation) {
-		OfficialPreparationSession session ;				// 入力検証用の管理状態。
-		const auto				   original = makePlan() ;	// 失効させる有効計画。
-		auto					   plan		= original ;	// 一点だけ不正にする新計画。
+		OfficialPreparationSession session ;				// 入力検証用の管理状態
+		const auto				   original = makePlan() ;	// 失効させる有効計画
+		auto					   plan		= original ;	// 一点だけ不正にする新計画
 		plan.planId							= 2U ;
-		// 計画の識別子・対象・上限を個別に不正化し、公開前の拒否を確認する。
+		// 計画の識別子・対象・上限を個別に不正化し、公開前の拒否を確認する
 		switch( mutation) {
-			// scan session identityが欠けた計画を検証する。
+			// scan session identityが欠けた計画を検証する
 			case 0U:
 				plan.scanSessionId = 0U ;
 				break ;
 
-			// 計画identityが欠けた入力を検証する。
+			// 計画identityが欠けた入力を検証する
 			case 1U:
 				plan.planId = 0U ;
 				break ;
 
-			// 取得対象が存在しない計画の拒否を検証する。
+			// 取得対象が存在しない計画の拒否を検証する
 			case 2U:
 				plan.targets.clear() ;
 				break ;
 
-			// 対象件数の上限を超える計画を検証する。
+			// 対象件数の上限を超える計画を検証する
 			case 3U:
 				plan.targets.resize( 257U) ;
 				break ;
 
-			// 単一fileの許可容量がない計画を検証する。
+			// 単一fileの許可容量がない計画を検証する
 			case 4U:
 				plan.limits.maximumFileBytes = 0U ;
 				break ;
 
-			// 単一fileを収容できないProvider容量上限を検証する。
+			// 単一fileを収容できないProvider容量上限を検証する
 			case 5U:
 				plan.limits.maximumProviderBytes = 99U ;
 				break ;
 
-			// Provider容量と整合しないsession容量上限を検証する。
+			// Provider容量と整合しないsession容量上限を検証する
 			case 6U:
 				plan.limits.maximumSessionBytes = 199U ;
 				break ;
 
-			// Providerが一fileも扱えない件数上限を検証する。
+			// Providerが一fileも扱えない件数上限を検証する
 			case 7U:
 				plan.limits.maximumProviderFiles = 0U ;
 				break ;
 
-			// sessionのfile件数上限が許容範囲を超える場合を検証する。
+			// sessionのfile件数上限が許容範囲を超える場合を検証する
 			case 8U:
 				plan.limits.maximumSessionFiles = 257U ;
 				break ;
 
-			// 許可されない文字を含む対象identityの拒否を検証する。
+			// 許可されない文字を含む対象identityの拒否を検証する
 			case 9U:
 				plan.targets[0].identity = L"bad/identity" ;
 				break ;
 
-			// 未知Providerを持つ計画の拒否を検証する。
+			// 未知Providerを持つ計画の拒否を検証する
 			case 10U:
 				plan.targets[0].providerId = L"unknown-provider" ;
 				break ;
 
-			// 公式取得対象をDriver Storeへ誤routingする入力を検証する。
+			// 公式取得対象をDriver Storeへ誤routingする入力を検証する
 			case 11U:
 				plan.targets[0].providerId = DRIVER_STORE_PROVIDER_ID ;
 				break ;
 
-			// 配布resourceのidentityが欠けた対象を検証する。
+			// 配布resourceのidentityが欠けた対象を検証する
 			case 12U:
 				plan.targets[0].resourceId.clear() ;
 				break ;
 
-			// release identityが欠けた対象から取得taskを作らないことを検証する。
+			// release identityが欠けた対象から取得taskを作らないことを検証する
 			case 13U:
 				plan.targets[0].releaseIdentity.clear() ;
 				break ;
 
-			// parser revisionが確定していない対象の拒否を検証する。
+			// parser revisionが確定していない対象の拒否を検証する
 			case 14U:
 				plan.targets[0].parserRevision = 0U ;
 				break ;
 
-			// 計画の単一file容量を超える対象の拒否を検証する。
+			// 計画の単一file容量を超える対象の拒否を検証する
 			case 15U:
 				plan.targets[0].maximumBytes = 101U ;
 				break ;
 
-			// 影響device件数の上限を超える対象を検証する。
+			// 影響device件数の上限を超える対象を検証する
 			case 16U:
 				plan.targets[0].deviceCount = 4097U ;
 				break ;
 
-			// 必要なEULA revisionが欠けた対象を検証する。
+			// 必要なEULA revisionが欠けた対象を検証する
 			case 17U:
 				plan.targets[0].eulaRevision.clear() ;
 				break ;
 
-			// 同一releaseを重複して計画に含めた場合を検証する。
+			// 同一releaseを重複して計画に含めた場合を検証する
 			case 18U:
 				plan.targets[1].releaseIdentity = plan.targets[0].releaseIdentity ;
 				break ;
 
-			// 未定義の利用条件を既知の同意区分として扱わないことを検証する。
+			// 未定義の利用条件を既知の同意区分として扱わないことを検証する
 			case 19U:
 				plan.targets[0].terms = static_cast<OfficialPreparationTerms>( 255) ;
 				break ;
 
-			// 定義した不正計画case以外ではfixtureを変更しない。
+			// 定義した不正計画case以外ではfixtureを変更しない
 			default:
 				break ;
 		}
@@ -577,21 +579,21 @@ void testInvalidPlans( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 取消しが未選択・既存結果を保持し、開始済み転送の結果を待つことを確認する。
+ * @brief 取消しが未選択・既存結果を保持し、開始済み転送の結果を待つことを確認する
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testCancellationAndLateCompletion( TestContext &context)
 {
-	OfficialPreparationSession session ;			// 取消し競合の管理状態。
-	const auto				   plan = makePlan() ;	// 二対象だけを取得する計画。
+	OfficialPreparationSession session ;			// 取消し競合の管理状態
+	const auto				   plan = makePlan() ;	// 二対象だけを取得する計画
 	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
 	DRIVERCRATE_EXPECT( context,
 					   session.approve( makeApproval( plan, 20U)) == OfficialPreparationError::NONE) ;
-	const auto task = session.claimNext() ;	// 取消しより先に開始した対象。
+	const auto task = session.claimNext() ;	// 取消しより先に開始した対象
 	DRIVERCRATE_EXPECT( context, task.has_value()) ;
-	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ。
+	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ
 	if( !task) {
 		return ;
 	}
@@ -622,88 +624,88 @@ void testCancellationAndLateCompletion( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 別task・再送・非終端通知・上限超過を拒否し、正しい完了だけを反映する。
+ * @brief 別task・再送・非終端通知・上限超過を拒否し、正しい完了だけを反映する
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testResultBinding( TestContext &context)
 {
-	// 各差替えを隔離し、拒否後も現在taskが保持されていることを確認する。
+	// 各差替えを隔離し、拒否後も現在taskが保持されていることを確認する
 	for( std::uint32_t mutation = 0U; mutation < 11U; ++mutation) {
-		OfficialPreparationSession session ;			// 結果照合用の管理状態。
-		const auto				   plan = makePlan() ;	// 結果tokenの元となる計画。
+		OfficialPreparationSession session ;			// 結果照合用の管理状態
+		const auto				   plan = makePlan() ;	// 結果tokenの元となる計画
 		DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
 		DRIVERCRATE_EXPECT( context, session.approve( makeApproval( plan, 20U)) ==
 										OfficialPreparationError::NONE) ;
-		const auto task = session.claimNext() ;	// 一度だけ受け取る正しいtoken。
+		const auto task = session.claimNext() ;	// 一度だけ受け取る正しいtoken
 		DRIVERCRATE_EXPECT( context, task.has_value()) ;
-		// 前提が崩れても未初期化tokenを使わない。
+		// 前提が崩れても未初期化tokenを使わない
 		if( !task) {
 			continue ;
 		}
 
-		auto							  invalid = *task ;	// 書き換える完了token。
+		auto							  invalid = *task ;	// 書き換える完了token
 		OfficialPreparationTransferResult result{
-			OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION, 0, 40U} ;	// 正常結果の元値。
-		// task identityと完了結果を個別に変形し、正しい終端通知だけの受理を検証する。
+			OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION, 0, 40U} ;	// 正常結果の元値
+		// task identityと完了結果を個別に変形し、正しい終端通知だけの受理を検証する
 		switch( mutation) {
-			// 別operationの完了通知を現在のtaskへ反映しないことを検証する。
+			// 別operationの完了通知を現在のtaskへ反映しないことを検証する
 			case 0U:
 				++invalid.operationId ;
 				break ;
 
-			// 別scan sessionの完了通知の拒否を検証する。
+			// 別scan sessionの完了通知の拒否を検証する
 			case 1U:
 				++invalid.scanSessionId ;
 				break ;
 
-			// 別計画の完了通知の拒否を検証する。
+			// 別計画の完了通知の拒否を検証する
 			case 2U:
 				++invalid.planId ;
 				break ;
 
-			// 実行中でない対象への完了通知を検証する。
+			// 実行中でない対象への完了通知を検証する
 			case 3U:
 				invalid.target = plan.targets[2] ;
 				break ;
 
-			// 予約容量を超えた取得結果を成功として受理しないことを検証する。
+			// 予約容量を超えた取得結果を成功として受理しないことを検証する
 			case 4U:
 				result.byteCount = 101U ;
 				break ;
 
-			// 空の取得結果を有効な完了として受理しないことを検証する。
+			// 空の取得結果を有効な完了として受理しないことを検証する
 			case 5U:
 				result.byteCount = 0U ;
 				break ;
 
-			// 成功状態に失敗診断が混在する結果を検証する。
+			// 成功状態に失敗診断が混在する結果を検証する
 			case 6U:
 				result.error = FAILURE ;
 				break ;
 
-			// 未実行状態を終端通知として受理しないことを検証する。
+			// 未実行状態を終端通知として受理しないことを検証する
 			case 7U:
 				result = {OfficialPreparationItemState::PENDING, 0, 0U} ;
 				break ;
 
-			// 失敗状態なのに診断値がない矛盾を検証する。
+			// 失敗状態なのに診断値がない矛盾を検証する
 			case 8U:
 				result = {OfficialPreparationItemState::FAILURE, 0, 0U} ;
 				break ;
 
-			// 失敗状態へ取得済みbyteを混在させた結果を検証する。
+			// 失敗状態へ取得済みbyteを混在させた結果を検証する
 			case 9U:
 				result = {OfficialPreparationItemState::FAILURE, FAILURE, 1U} ;
 				break ;
 
-			// 未定義の項目状態を成功として受理しないことを検証する。
+			// 未定義の項目状態を成功として受理しないことを検証する
 			case 10U:
 				result.state = static_cast<OfficialPreparationItemState>( 255) ;
 				break ;
 
-			// 定義した不正完了case以外ではfixtureを変更しない。
+			// 定義した不正完了case以外ではfixtureを変更しない
 			default:
 				break ;
 		}
@@ -719,46 +721,46 @@ void testResultBinding( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief byteとfileのProvider別／全体予算を開始前に確認し、予約を原子的に行う。
+ * @brief byteとfileのProvider別／全体予算を開始前に確認し、予約を原子的に行う
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testBudgetBoundaries( TestContext &context)
 {
-	// 三つの対象を選択し、一箇所の予算を超過する四条件を検証する。
+	// 三つの対象を選択し、一箇所の予算を超過する四条件を検証する
 	for( std::uint32_t boundary = 0U; boundary < 4U; ++boundary) {
-		OfficialPreparationSession session ;			// 予算境界用の管理状態。
-		auto					   plan = makePlan() ;	// 未解決条件を確認済みへ変える計画。
+		OfficialPreparationSession session ;			// 予算境界用の管理状態
+		auto					   plan = makePlan() ;	// 未解決条件を確認済みへ変える計画
 		plan.targets[1].terms			= OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
-		// Provider別とsession全体のbyte・file上限を別々に試験する。
+		// Provider別とsession全体のbyte・file上限を別々に試験する
 		switch( boundary) {
-			// Provider別の容量予算不足を、取得開始前に検出する。
+			// Provider別の容量予算不足を、取得開始前に検出する
 			case 0U:
 				plan.limits.maximumProviderBytes = 199U ;
 				break ;
 
-			// session全体の容量予算不足を、取得開始前に検出する。
+			// session全体の容量予算不足を、取得開始前に検出する
 			case 1U:
 				plan.limits.maximumSessionBytes = 299U ;
 				break ;
 
-			// Provider別のfile件数不足を、予約時に検出する。
+			// Provider別のfile件数不足を、予約時に検出する
 			case 2U:
 				plan.limits.maximumProviderFiles = 1U ;
 				break ;
 
-			// session全体のfile件数不足を、予約時に検出する。
+			// session全体のfile件数不足を、予約時に検出する
 			case 3U:
 				plan.limits.maximumSessionFiles = 2U ;
 				break ;
 
-			// 定義した予算境界case以外ではfixtureを変更しない。
+			// 定義した予算境界case以外ではfixtureを変更しない
 			default:
 				break ;
 		}
 
-		auto approval = makeApproval( plan, 20U) ;	// 最初は三件を選択する判断。
+		auto approval = makeApproval( plan, 20U) ;	// 最初は三件を選択する判断
 		DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
 		DRIVERCRATE_EXPECT( context,
 						   session.approve( approval) == OfficialPreparationError::BUDGET_EXCEEDED) ;
@@ -768,8 +770,8 @@ void testBudgetBoundaries( TestContext &context)
 		finishAll( session, context) ;
 	}
 
-	OfficialPreparationSession exact ;				// 全予算へちょうど達する管理状態。
-	auto					   plan = makePlan() ;	// 三件すべての条件を明示した計画。
+	OfficialPreparationSession exact ;				// 全予算へちょうど達する管理状態
+	auto					   plan = makePlan() ;	// 三件すべての条件を明示した計画
 	plan.targets[1].terms			= OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
 	DRIVERCRATE_EXPECT( context, exact.initialize( plan) == OfficialPreparationError::NONE) ;
 	DRIVERCRATE_EXPECT( context,
@@ -779,30 +781,99 @@ void testBudgetBoundaries( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 通常workerと同じ五fieldを取得計画の値型へ写します。
- * @return 明示した共通payload既定の完全snapshotです。
+ * @brief 通常workerと同じ五fieldを取得計画の値型へ写します
+ * @return 明示した共通payload既定の完全snapshotです
  */
 //------------------------------------------------------------------------------
 OfficialPreparationLimits defaultPayloadLimits()
 {
-	const OfficialDiscoveryPayloadLimits limits ;	// 通常workerと同じ五field写像の元既定です。
+	const OfficialDiscoveryPayloadLimits limits ;	// 通常workerと同じ五field写像の元既定です
 	return {limits.maximumFileBytes, limits.maximumProviderBytes, limits.maximumSessionBytes,
 			limits.maximumProviderFiles, limits.maximumSessionFiles} ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 既定2GiBの単一/累計境界と、明示小予算/同scan予算差替えを検証する。
- * @param[in,out] context Assertionの集計先。
+ * @brief 本番既定256の受理/257拒否と同scan消費・明示小枠を確認します
+ * @param[in,out] context 元assertionの集計先です
+ */
+//------------------------------------------------------------------------------
+void testDefaultPayloadFileCount( TestContext &context)
+{
+	const auto limits = defaultPayloadLimits() ;	// workerと同じ本番既定の五fieldです
+	DRIVERCRATE_EXPECT( context,
+					   limits.maximumProviderFiles == 256U && limits.maximumSessionFiles == 256U) ;
+	// 既hard上限256の受理と257計画の拒否を独立した管理状態で確認します
+	for( const std::size_t count : {256U, 257U}) {
+		OfficialPreparationSession session ;			// 実共通ledgerの独立した予約です
+		auto					   plan = makePlan() ;	// 架空の最小targetを再利用します
+		plan.limits						= limits ;
+		auto target						= plan.targets.front() ;	// 同Provider/同条件です
+		target.maximumBytes				= 1U ;
+		target.terms					= OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
+		target.eulaRevision.clear() ;
+		target.eulaText.clear() ;
+		plan.targets.clear() ;
+		// 各payloadは別identityであり、同一tupleの共有と混同しません
+		for( std::size_t index = 0U; index < count; ++index) {
+			target.identity		   = L"fixture-count-" + std::to_wstring( index) ;
+			target.releaseIdentity = L"fixture-release-" + std::to_wstring( index) ;
+			plan.targets.push_back( target) ;
+		}
+
+		const auto initialized = session.initialize( plan) ;	// hard上限も本番処理です
+		DRIVERCRATE_EXPECT( context,
+						   initialized == (count == 256U ? OfficialPreparationError::NONE
+														 : OfficialPreparationError::INVALID_PLAN)) ;
+		// 不正257計画をtaskへ渡しません
+		if( count == 257U) {
+			DRIVERCRATE_EXPECT( context, !session.claimNext()) ;
+			continue ;
+		}
+
+		DRIVERCRATE_EXPECT( context, session.approve( makeApproval( plan, 20U)) ==
+										OfficialPreparationError::NONE) ;
+		finishAll( session, context) ;
+		++plan.planId ;
+		plan.targets.resize( 1U) ;
+		DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE &&
+										session.approve( makeApproval( plan, 21U)) ==
+											OfficialPreparationError::BUDGET_EXCEEDED &&
+										!session.claimNext()) ;
+	}
+
+	OfficialPreparationSession small ;				// 明示した旧小枠を拡張しません
+	auto					   plan	 = makePlan() ;	// 同Provider三件を選択します
+	plan.limits						 = limits ;
+	plan.limits.maximumProviderFiles = 2U ;
+	plan.limits.maximumSessionFiles	 = 4U ;
+	// 条件とProviderだけを同じ元snapshotへ揃えます
+	for( auto &target : plan.targets) {
+		target.providerId = plan.targets.front().providerId ;
+		target.terms	  = OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
+		target.eulaRevision.clear() ;
+		target.eulaText.clear() ;
+	}
+
+	DRIVERCRATE_EXPECT( context, small.initialize( plan) == OfficialPreparationError::NONE &&
+									small.approve( makeApproval( plan, 20U)) ==
+										OfficialPreparationError::BUDGET_EXCEEDED &&
+									!small.claimNext()) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 既定2GiBと明示小予算の単一/累計byte境界を検証します
+ * @param[in,out] context 元assertionの集計先です
  */
 //------------------------------------------------------------------------------
 void testDefaultPayloadBudget( TestContext &context)
 {
-	constexpr std::uint64_t GIB = 1024ULL * 1024ULL * 1024ULL ;	// 配列確保しない合成予約量。
-	// 旧128MiBを超える配布物と2GiBちょうどを、通常の既定計画から承認する。
+	constexpr std::uint64_t GIB = 1024ULL * 1024ULL * 1024ULL ;	// 配列確保しない合成予約量
+	// 旧128MiBを超える配布物と2GiBちょうどを、通常の既定計画から承認する
 	for( const std::uint64_t bytes : {GIB + 1U, 2U * GIB}) {
-		OfficialPreparationSession session ;			// 一件の予約だけを管理する。
-		auto					   plan = makePlan() ;	// 架空targetを持つ所有計画。
+		OfficialPreparationSession session ;			// 一件の予約だけを管理する
+		auto					   plan = makePlan() ;	// 架空targetを持つ所有計画
 		plan.limits						= defaultPayloadLimits() ;
 		plan.targets.resize( 1U) ;
 		plan.targets[0].maximumBytes = bytes ;
@@ -812,13 +883,13 @@ void testDefaultPayloadBudget( TestContext &context)
 		finishAll( session, context) ;
 	}
 
-	// 既定の一byte超過と明示小予算の一byte超過を、取得開始前に拒否する。
+	// 既定の一byte超過と明示小予算の一byte超過を、取得開始前に拒否する
 	for( const bool small : {false, true}) {
-		OfficialPreparationSession session ;			// 超過targetを受理しない状態。
-		auto					   plan = makePlan() ;	// 一fileだけで容量を越える合成計画。
+		OfficialPreparationSession session ;			// 超過targetを受理しない状態
+		auto					   plan = makePlan() ;	// 一fileだけで容量を越える合成計画
 		plan.limits						= defaultPayloadLimits() ;
 		plan.targets.resize( 1U) ;
-		// 明示された旧小予算を共通既定で拡大しません。
+		// 明示された旧小予算を共通既定で拡大しません
 		if( small) {
 			plan.limits = {128ULL * 1024ULL * 1024ULL, 256ULL * 1024ULL * 1024ULL,
 						   512ULL * 1024ULL * 1024ULL, 2U, 4U} ;
@@ -830,28 +901,28 @@ void testDefaultPayloadBudget( TestContext &context)
 		DRIVERCRATE_EXPECT( context, !session.claimNext()) ;
 	}
 
-	// 同じProviderと別Providerを分け、2GiB累計のちょうどと一byte超過を確認する。
+	// 同じProviderと別Providerを分け、2GiB累計のちょうどと一byte超過を確認する
 	for( const bool sameProvider : {true, false}) {
-		// 累計ちょうどと一byte超過を独立した管理状態で試験します。
+		// 累計ちょうどと一byte超過を独立した管理状態で試験します
 		for( const bool exceed : {false, true}) {
-			OfficialPreparationSession session ;			// 共有するscan累計を管理する。
-			auto					   plan = makePlan() ;	// 二targetの予約を原子的に判断する計画。
+			OfficialPreparationSession session ;			// 共有するscan累計を管理する
+			auto					   plan = makePlan() ;	// 二targetの予約を原子的に判断する計画
 			plan.limits						= defaultPayloadLimits() ;
 			plan.targets.resize( 2U) ;
 			plan.targets[0].maximumBytes = GIB ;
 			plan.targets[1].maximumBytes = GIB + (exceed ? 1U : 0U) ;
 			plan.targets[1].terms		 = OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
-			// 別Providerでもsession累計は共通であることを確認します。
+			// 別Providerでもsession累計は共通であることを確認します
 			if( !sameProvider) {
 				plan.targets[1].providerId = SILICON_LABS_OFFICIAL_PROVIDER_ID ;
 			}
 
-			auto approval = makeApproval( plan, 20U) ;	// 同scan/同予算の明示選択。
+			auto approval = makeApproval( plan, 20U) ;	// 同scan/同予算の明示選択
 			DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
 			DRIVERCRATE_EXPECT( context, session.approve( approval) ==
 											(exceed ? OfficialPreparationError::BUDGET_EXCEEDED
 													: OfficialPreparationError::NONE)) ;
-			// 拒否後の予約が部分確定されず、一件だけなら再承認できることを確認します。
+			// 拒否後の予約が部分確定されず、一件だけなら再承認できることを確認します
 			if( exceed) {
 				DRIVERCRATE_EXPECT( context, !session.claimNext()) ;
 				approval.decisions[1].acquire = false ;
@@ -863,18 +934,18 @@ void testDefaultPayloadBudget( TestContext &context)
 		}
 	}
 
-	// 2GiB計画も、表示後に一項目だけ縮めた承認snapshotを受理しない。
+	// 2GiB計画も、表示後に一項目だけ縮めた承認snapshotを受理しない
 	for( std::uint32_t field = 0U; field < 3U; ++field) {
-		OfficialPreparationSession session ;			// 差替え拒否後も正規承認できる状態。
-		auto					   plan = makePlan() ;	// 通常既定と小さい一targetの合成計画。
+		OfficialPreparationSession session ;			// 差替え拒否後も正規承認できる状態
+		auto					   plan = makePlan() ;	// 通常既定と小さい一targetの合成計画
 		plan.limits						= defaultPayloadLimits() ;
 		plan.targets.resize( 1U) ;
-		auto approval = makeApproval( plan, 20U) ;	// 容量field一つだけ変形するsnapshot。
-		// 表示後のfile上限差替えだけを拒否条件へ与えます。
+		auto approval = makeApproval( plan, 20U) ;	// 容量field一つだけ変形するsnapshot
+		// 表示後のfile上限差替えだけを拒否条件へ与えます
 		if( field == 0U) {
 			--approval.limits.maximumFileBytes ;
 		}
-		// Provider累計だけの差替えも同scan承認へ流用しません。
+		// Provider累計だけの差替えも同scan承認へ流用しません
 		else if( field == 1U) {
 			--approval.limits.maximumProviderBytes ;
 		} else {
@@ -892,28 +963,28 @@ void testDefaultPayloadBudget( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief UINT64境界と、同一scanの再計画による予算リセットを拒否する。
+ * @brief UINT64境界と、同一scanの再計画による予算リセットを拒否する
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testOverflowAndPersistentBudget( TestContext &context)
 {
-	// Provider累計とsession累計のoverflowを、実allocationなしで別々に拒否する。
+	// Provider累計とsession累計のoverflowを、実allocationなしで別々に拒否する
 	for( const bool sameProvider : {true, false}) {
-		OfficialPreparationSession huge ;				// 最大uint64値付近での加算前検証。
-		auto					   plan	 = makePlan() ;	// 二配布物へ巨大上限を指定する合成計画。
+		OfficialPreparationSession huge ;				// 最大uint64値付近での加算前検証
+		auto					   plan	 = makePlan() ;	// 二配布物へ巨大上限を指定する合成計画
 		plan.limits.maximumFileBytes	 = std::numeric_limits<std::uint64_t>::max() ;
 		plan.limits.maximumProviderBytes = plan.limits.maximumFileBytes ;
 		plan.limits.maximumSessionBytes	 = plan.limits.maximumFileBytes ;
 		plan.targets[0].maximumBytes	 = plan.limits.maximumFileBytes ;
-		// 同ProviderならProvider累計自身のoverflowを先に検出させます。
+		// 同ProviderならProvider累計自身のoverflowを先に検出させます
 		if( sameProvider) {
 			plan.targets[2].providerId = PROLIFIC_OFFICIAL_PROVIDER_ID ;
 		}
 
 		DRIVERCRATE_EXPECT( context, huge.initialize( plan) == OfficialPreparationError::NONE) ;
-		auto approval = makeApproval( plan, 20U) ;	// 合計が表現上限を超える判断。
+		auto approval = makeApproval( plan, 20U) ;	// 合計が表現上限を超える判断
 		DRIVERCRATE_EXPECT( context,
 						   huge.approve( approval) == OfficialPreparationError::BUDGET_EXCEEDED) ;
 		approval.decisions[2].acquire	   = false ;
@@ -922,8 +993,8 @@ void testOverflowAndPersistentBudget( TestContext &context)
 		huge.cancel() ;
 	}
 
-	OfficialPreparationSession session ;			// 再計画でも予算を残す管理状態。
-	auto					   plan = makePlan() ;	// 同scanの計画を跨ぐ元累計の合成入力。
+	OfficialPreparationSession session ;			// 再計画でも予算を残す管理状態
+	auto					   plan = makePlan() ;	// 同scanの計画を跨ぐ元累計の合成入力
 	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
 	DRIVERCRATE_EXPECT( context,
 					   session.approve( makeApproval( plan, 20U)) == OfficialPreparationError::NONE) ;
@@ -946,15 +1017,15 @@ void testOverflowAndPersistentBudget( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 失効後も古い計画・操作IDを拒否し、同意前取消しで取得を開始しない。
+ * @brief 失効後も古い計画・操作IDを拒否し、同意前取消しで取得を開始しない
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testIdHighWaterAndPreapprovalCancel( TestContext &context)
 {
-	OfficialPreparationSession session ;			// ID高水位を保持する管理object。
-	auto					   plan = makePlan() ;	// 最初に表示する計画。
+	OfficialPreparationSession session ;			// ID高水位を保持する管理object
+	auto					   plan = makePlan() ;	// 最初に表示する計画
 	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
 	session.cancel() ;
 	DRIVERCRATE_EXPECT( context, session.state() == OfficialPreparationState::EMPTY) ;
@@ -984,19 +1055,19 @@ void testIdHighWaterAndPreapprovalCancel( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 失敗で予約を返さず、同じscanのProvider別容量・件数も計画をまたいで守る。
+ * @brief 失敗で予約を返さず、同じscanのProvider別容量・件数も計画をまたいで守る
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testProviderBudgetAcrossPlans( TestContext &context)
 {
-	// Provider容量とfile件数を別々に制限し、scan全体の残枠だけでは取得できないと確認する。
+	// Provider容量とfile件数を別々に制限し、scan全体の残枠だけでは取得できないと確認する
 	for( std::uint32_t boundary = 0U; boundary < 2U; ++boundary) {
-		OfficialPreparationSession session ;			// 一Providerの累計を保持する管理状態。
-		auto					   plan = makePlan() ;	// 一件だけ残す再試行用の合成計画。
+		OfficialPreparationSession session ;			// 一Providerの累計を保持する管理状態
+		auto					   plan = makePlan() ;	// 一件だけ残す再試行用の合成計画
 		plan.targets.resize( 1U) ;
-		// 容量境界のscenarioではProviderのbyte予算を一件分へ制限する。
+		// 容量境界のscenarioではProviderのbyte予算を一件分へ制限する
 		if( boundary == 0U) {
 			plan.limits.maximumProviderBytes = 100U ;
 		} else {
@@ -1022,9 +1093,9 @@ void testProviderBudgetAcrossPlans( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実契約を転載せず、UTF-16・制御文字・本文上限だけを合成dataで検証する。
+ * @brief 実契約を転載せず、UTF-16・制御文字・本文上限だけを合成dataで検証する
  *
- * @param[in,out] context 本文表示条件のassertion集計先。
+ * @param[in,out] context 本文表示条件のassertion集計先
  */
 //------------------------------------------------------------------------------
 void testEulaTextValidation( TestContext &context)
@@ -1042,7 +1113,7 @@ void testEulaTextValidation( TestContext &context)
 	DRIVERCRATE_EXPECT( context,
 					   !validPreparationEulaText( std::wstring( 1, static_cast<wchar_t>( 0xDC00)))) ;
 	const std::wstring paired{static_cast<wchar_t>( 0xD83D),
-							  // 正当なpair。
+							  // 正当なpair
 							  static_cast<wchar_t>( 0xDE00)} ;
 	DRIVERCRATE_EXPECT( context, validPreparationEulaText( paired)) ;
 	DRIVERCRATE_EXPECT(
@@ -1053,17 +1124,17 @@ void testEulaTextValidation( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じrevisionの本文差替えも拒否し、EULAなし取得へ分類し直して通過させない。
+ * @brief 同じrevisionの本文差替えも拒否し、EULAなし取得へ分類し直して通過させない
  *
- * @param[in,out] context 本文変更と同意のassertion集計先。
+ * @param[in,out] context 本文変更と同意のassertion集計先
  */
 //------------------------------------------------------------------------------
 void testEulaBodyBoundApproval( TestContext &context)
 {
-	OfficialPreparationSession	  session ;				// 固定本文を持つ対象別承認。
-	const OfficialPreparationPlan plan = makePlan() ;	// 合成本文を含む既存fixture。
+	OfficialPreparationSession	  session ;				// 固定本文を持つ対象別承認
+	const OfficialPreparationPlan plan = makePlan() ;	// 合成本文を含む既存fixture
 	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
-	OfficialPreparationApproval approval = makeApproval( plan, 30) ;	// 表示本文に対応した同意。
+	OfficialPreparationApproval approval = makeApproval( plan, 30) ;	// 表示本文に対応した同意
 	approval.decisions[0].target.eulaText += L" Changed." ;
 	DRIVERCRATE_EXPECT( context,
 					   session.approve( approval) == OfficialPreparationError::INVALID_APPROVAL) ;
@@ -1077,49 +1148,49 @@ void testEulaBodyBoundApproval( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同一EULAの短命group tokenを同意必須対象だけへ結合する。
- * @param[in,out] context Group tokenの計画・承認binding assertion集計先。
+ * @brief 同一EULAの短命group tokenを同意必須対象だけへ結合する
+ * @param[in,out] context Group tokenの計画・承認binding assertion集計先
  */
 //------------------------------------------------------------------------------
 void testSharedEulaTokenBinding( TestContext &context)
 {
-	OfficialPreparationPlan plan	= makePlan() ;	// Group tokenを設定する合成計画。
-	plan.targets[0].sharedEulaToken = 7U ;			// 同意必須対象の現在scan限定token。
-	OfficialPreparationSession session ;			// Token込みsnapshotを固定する管理状態。
+	OfficialPreparationPlan plan	= makePlan() ;	// Group tokenを設定する合成計画
+	plan.targets[0].sharedEulaToken = 7U ;			// 同意必須対象の現在scan限定token
+	OfficialPreparationSession session ;			// Token込みsnapshotを固定する管理状態
 	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
-	OfficialPreparationApproval approval = makeApproval( plan, 30U) ;	// Token込みの正規判断。
+	OfficialPreparationApproval approval = makeApproval( plan, 30U) ;	// Token込みの正規判断
 	approval.decisions[0].target.sharedEulaToken++ ;
 	DRIVERCRATE_EXPECT( context,
 					   session.approve( approval) == OfficialPreparationError::INVALID_APPROVAL) ;
 	approval = makeApproval( plan, 31U) ;
 	DRIVERCRATE_EXPECT( context, session.approve( approval) == OfficialPreparationError::NONE) ;
 
-	OfficialPreparationPlan invalid	   = makePlan() ;	// 同意不要分類へtokenを混入する不正計画。
+	OfficialPreparationPlan invalid	   = makePlan() ;	// 同意不要分類へtokenを混入する不正計画
 	invalid.targets[1].terms		   = OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
 	invalid.targets[1].sharedEulaToken = 1U ;
-	OfficialPreparationSession rejected ;	// 不正計画の拒否を隔離する管理状態。
+	OfficialPreparationSession rejected ;	// 不正計画の拒否を隔離する管理状態
 	DRIVERCRATE_EXPECT( context,
 					   rejected.initialize( invalid) == OfficialPreparationError::INVALID_PLAN) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 本文欠落・矛盾分類・最大量超過を計画の公開前に拒否する。
+ * @brief 本文欠落・矛盾分類・最大量超過を計画の公開前に拒否する
  *
- * @param[in,out] context 個別／全体本文上限のassertion集計先。
+ * @param[in,out] context 個別／全体本文上限のassertion集計先
  */
 //------------------------------------------------------------------------------
 void testEulaPlanLimits( TestContext &context)
 {
-	// 本文の欠落、同意不要との矛盾、個別上限超過を別objectで試験する。
+	// 本文の欠落、同意不要との矛盾、個別上限超過を別objectで試験する
 	for( int scenario = 0; scenario < 3; ++scenario) {
-		OfficialPreparationSession session ;			// 一つの不正条件だけを試験する状態。
-		OfficialPreparationPlan	   plan = makePlan() ;	// 当該caseで変更する計画。
-		// 同意本文の欠落を注入し、不完全な計画の公開拒否を確認する。
+		OfficialPreparationSession session ;			// 一つの不正条件だけを試験する状態
+		OfficialPreparationPlan	   plan = makePlan() ;	// 当該caseで変更する計画
+		// 同意本文の欠落を注入し、不完全な計画の公開拒否を確認する
 		if( scenario == 0) {
 			plan.targets[0].eulaText.clear() ;
 		}
-		// 同意不要区分と残存本文を矛盾させ、計画の整合性拒否を確認する。
+		// 同意不要区分と残存本文を矛盾させ、計画の整合性拒否を確認する
 		else if( scenario == 1) {
 			plan.targets[0].terms = OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
 			plan.targets[0].eulaRevision.clear() ;
@@ -1131,45 +1202,45 @@ void testEulaPlanLimits( TestContext &context)
 						   session.initialize( plan) == OfficialPreparationError::INVALID_PLAN) ;
 	}
 
-	OfficialPreparationPlan plan = makePlan() ;	// 全体保持上限の境界を作る計画。
+	OfficialPreparationPlan plan = makePlan() ;	// 全体保持上限の境界を作る計画
 	plan.targets.clear() ;
 	plan.limits = {100, 1000, 1000, 10, 10} ;
-	// 一対象の上限を守りつつ、四対象で全体上限にちょうど一致させる。
+	// 一対象の上限を守りつつ、四対象で全体上限にちょうど一致させる
 	for( std::size_t index = 0; index < 4; ++index) {
-		OfficialPreparationTarget target = makePlan().targets[0] ;	// 独立した配布物にするcopy。
+		OfficialPreparationTarget target = makePlan().targets[0] ;	// 独立した配布物にするcopy
 		target.identity					 = L"body-target:" + std::to_wstring( index) ;
 		target.releaseIdentity			 = L"body-release:" + std::to_wstring( index) ;
 		target.eulaText.assign( MAXIMUM_PREPARATION_EULA_CHARACTERS, L'A') ;
 		plan.targets.push_back( std::move( target)) ;
 	}
 
-	OfficialPreparationSession accepted ;	// 上限ちょうどの計画を受け取る状態。
+	OfficialPreparationSession accepted ;	// 上限ちょうどの計画を受け取る状態
 	DRIVERCRATE_EXPECT( context, accepted.initialize( plan) == OfficialPreparationError::NONE) ;
-	OfficialPreparationTarget extra = makePlan().targets[0] ;	// 一文字でも超えると拒否する対象。
+	OfficialPreparationTarget extra = makePlan().targets[0] ;	// 一文字でも超えると拒否する対象
 	extra.identity					= L"body-extra" ;
 	extra.releaseIdentity			= L"body-release-extra" ;
 	extra.eulaText					= L"A" ;
 	plan.targets.push_back( std::move( extra)) ;
-	OfficialPreparationSession rejected ;	// 別objectで全体上限超過を試験する。
+	OfficialPreparationSession rejected ;	// 別objectで全体上限超過を試験する
 	DRIVERCRATE_EXPECT( context,
 					   rejected.initialize( plan) == OfficialPreparationError::INVALID_PLAN) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 許諾同意だけでは取得前提確認を代用できず、不整合な確認値も拒否する。
+ * @brief 許諾同意だけでは取得前提確認を代用できず、不整合な確認値も拒否する
  *
- * @param[in,out] context Assertionの集計先。
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void testPrerequisiteConfirmation( TestContext &context)
 {
-	OfficialPreparationPlan plan = makePlan() ;	// 前提確認が必要な一対象の計画。
+	OfficialPreparationPlan plan = makePlan() ;	// 前提確認が必要な一対象の計画
 	plan.targets.resize( 1U) ;
 	plan.targets[0].requiresPrerequisiteConfirmation = true ;
-	OfficialPreparationSession session ;	// 本番と同じ承認境界。実通信を行わない。
+	OfficialPreparationSession session ;	// 本番と同じ承認境界。実通信を行わない
 	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
-	OfficialPreparationApproval approval = makeApproval( plan, 1U) ;	// 全文同意だけの不十分な判断。
+	OfficialPreparationApproval approval = makeApproval( plan, 1U) ;	// 全文同意だけの不十分な判断
 	DRIVERCRATE_EXPECT( context,
 					   session.approve( approval) == OfficialPreparationError::INVALID_APPROVAL) ;
 	DRIVERCRATE_EXPECT( context, !session.claimNext()) ;
@@ -1183,19 +1254,19 @@ void testPrerequisiteConfirmation( TestContext &context)
 					   session.approve( approval) == OfficialPreparationError::INVALID_APPROVAL) ;
 	approval.decisions[0].target = plan.targets[0] ;
 	DRIVERCRATE_EXPECT( context, session.approve( approval) == OfficialPreparationError::NONE) ;
-	const auto task = session.claimNext() ;	// 二種類の判断を照合した後だけ発行するtoken。
+	const auto task = session.claimNext() ;	// 二種類の判断を照合した後だけ発行するtoken
 	DRIVERCRATE_EXPECT( context, task.has_value()) ;
-	// 取得できたtaskに前提条件の確認要求が保持されることを検証する。
+	// 取得できたtaskに前提条件の確認要求が保持されることを検証する
 	if( task) {
 		DRIVERCRATE_EXPECT( context, task->target.requiresPrerequisiteConfirmation) ;
 	}
 
-	// 同じ取得を再claimしない。
+	// 同じ取得を再claimしない
 	DRIVERCRATE_EXPECT( context, !session.claimNext()) ;
 
-	// 未選択なのに確認済み、または確認不要なのに確認済みの二つの矛盾を拒否する。
+	// 未選択なのに確認済み、または確認不要なのに確認済みの二つの矛盾を拒否する
 	for( unsigned scenario = 0U; scenario < 2U; ++scenario) {
-		OfficialPreparationSession rejected ;	// 各矛盾を独立した状態で確認する。
+		OfficialPreparationSession rejected ;	// 各矛盾を独立した状態で確認する
 		plan.targets[0].requiresPrerequisiteConfirmation = scenario == 0U ;
 		DRIVERCRATE_EXPECT( context, rejected.initialize( plan) == OfficialPreparationError::NONE) ;
 		approval									 = makeApproval( plan, 1U) ;
@@ -1207,9 +1278,9 @@ void testPrerequisiteConfirmation( TestContext &context)
 		DRIVERCRATE_EXPECT( context, !rejected.claimNext()) ;
 	}
 
-	// 本文への同意を持たない分類へ取得前提確認だけを追加する不正計画を拒否する。
+	// 本文への同意を持たない分類へ取得前提確認だけを追加する不正計画を拒否する
 	for( unsigned scenario = 0U; scenario < 2U; ++scenario) {
-		OfficialPreparationSession rejected ;	// 初期化段階での拒否境界。
+		OfficialPreparationSession rejected ;	// 初期化段階での拒否境界
 		plan.targets[0].requiresPrerequisiteConfirmation = true ;
 		plan.targets[0].terms = scenario == 0U ? OfficialPreparationTerms::UNRESOLVED
 											   : OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
@@ -1226,20 +1297,20 @@ void testPrerequisiteConfirmation( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief LOCALという状態/flagだけで新対象の実検査成功を偽装できないことを確認します。
- * @param[in,out] context 原assertionです。
+ * @brief LOCALという状態/flagだけで新対象の実検査成功を偽装できないことを確認します
+ * @param[in,out] context 原assertionです
  */
 //------------------------------------------------------------------------------
 void testUnclaimedLocalInspection( TestContext &context)
 {
-	OfficialPreparationSession session ;			// 既state machineだけです。
-	const auto				   plan = makePlan() ;	// 原対象/予算です。
+	OfficialPreparationSession session ;			// 既state machineだけです
+	const auto				   plan = makePlan() ;	// 原対象/予算です
 	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
 	DRIVERCRATE_EXPECT( context,
 					   session.approve( makeApproval( plan, 1U)) == OfficialPreparationError::NONE) ;
-	const auto task = session.claimNext() ;	// 正規active taskです。
+	const auto task = session.claimNext() ;	// 正規active taskです
 	DRIVERCRATE_EXPECT( context, task.has_value()) ;
-	// 実active task不在を成功にしません。
+	// 実active task不在を成功にしません
 	if( task) {
 		DRIVERCRATE_EXPECT(
 			context,
@@ -1257,8 +1328,8 @@ void testUnclaimedLocalInspection( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 配布物単位の承認・有限予算・取消しの内部試験を実行する。合成計画の試験だけを実行し、実取得と実導入を行わない。
- * @param[in,out] context Assertionの集計先。
+ * @brief 配布物単位の承認・有限予算・取消しの内部試験を実行する。合成計画の試験だけを実行し、実取得と実導入を行わない
+ * @param[in,out] context Assertionの集計先
  */
 //------------------------------------------------------------------------------
 void runOfficialPreparationTests( TestContext &context)
@@ -1277,6 +1348,7 @@ void runOfficialPreparationTests( TestContext &context)
 	testCancellationAndLateCompletion( context) ;
 	testResultBinding( context) ;
 	testBudgetBoundaries( context) ;
+	testDefaultPayloadFileCount( context) ;
 	testDefaultPayloadBudget( context) ;
 	testOverflowAndPersistentBudget( context) ;
 	testIdHighWaterAndPreapprovalCancel( context) ;

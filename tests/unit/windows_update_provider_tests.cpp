@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file windows_update_provider_tests.cpp
- * @brief Windows Update Provider単体試験実装。
- * @version 01.01.01
+ * @brief Windows Update Provider単体試験実装
+ * @version 01.01.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,19 +19,20 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.01.00 Shunji Ogawa  2026/09/15  WUA／WSUS既定service選択の回帰試験を追加。
- * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/15  WUA／WSUS既定service選択の回帰試験を追加
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 実Windows Updateへ接続せず、表示前のfirmware除外条件を検証します。
+ * @note 実Windows Updateへ接続せず、表示前のfirmware除外条件を検証します
  */
 //------------------------------------------------------------------------------
 
@@ -47,8 +48,8 @@ namespace drivercrate::test {
 //------------------------------------------------------------------------------
 /**
  * @brief WUA候補からfirmware／UEFI／BIOSを除外するpolicyを検証する。WUA候補のdriver-only分類policyを検証する。通常driverを許可し、
- *        classまたはtitleでfirmware、UEFI、BIOSを示す候補と必須metadata不足を拒否する。
- * @param[in,out] context assertion集計先。
+ *        classまたはtitleでfirmware、UEFI、BIOSを示す候補と必須metadata不足を拒否する
+ * @param[in,out] context assertion集計先
  */
 //------------------------------------------------------------------------------
 void runWindowsUpdateProviderTests( TestContext &context)
@@ -63,7 +64,7 @@ void runWindowsUpdateProviderTests( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !isWuaDriverCandidateAllowed( L"System", L"Test - UEFI - Update")) ;
 	DRIVERCRATE_EXPECT( context, !isWuaDriverCandidateAllowed( L"System", L"Test BIOS Update")) ;
 	DRIVERCRATE_EXPECT( context, !isWuaDriverCandidateAllowed( L"System", L"Test FiRmWaRe Update")) ;
-	const std::wstring oversizedClass( 4097U, L'A') ;	// WUA metadata上限を超えるclass。
+	const std::wstring oversizedClass( 4097U, L'A') ;	// WUA metadata上限を超えるclass
 	DRIVERCRATE_EXPECT( context, !isWuaDriverCandidateAllowed( oversizedClass, L"Test Driver")) ;
 }
 

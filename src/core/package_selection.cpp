@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file package_selection.cpp
- * @brief Provider package選択group実装。
- * @version 01.00.01
+ * @brief Provider package選択group実装
+ * @version 01.00.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,18 +19,19 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note Candidate選択を初出package順へ決定的にgroup化します。
+ * @note Candidate選択を初出package順へ決定的にgroup化します
  */
 //------------------------------------------------------------------------------
 
@@ -43,36 +44,36 @@ namespace drivercrate {
 
 //------------------------------------------------------------------------------
 /**
- * @brief Candidate選択を初出package順へまとめる。Package初出順と各group内のcandidate選択順を維持する。
- * @param[in] entries Providerがscan時metadataから構築したcandidateとpackageの対応。 Candidateとpackageの検証済み対応。
+ * @brief Candidate選択を初出package順へまとめる。Package初出順と各group内のcandidate選択順を維持する
+ * @param[in] entries Providerがscan時metadataから構築したcandidateとpackageの対応。 Candidateとpackageの検証済み対応
  * @return 正常時は重複packageをまとめたgroup。空値またはcandidate重複時は`std::nullopt`。 正常時はgroup集合。不正identityまたは
- *         package時は空。
+ *         package時は空
  */
 //------------------------------------------------------------------------------
 std::optional<std::vector<PackageSelectionGroup>> groupPackageSelection(
 	const std::span<const PackageSelectionEntry> entries)
 {
-	// 空選択から実行用package集合を作らず、対象なしを明示して返す。
+	// 空選択から実行用package集合を作らず、対象なしを明示して返す
 	if( entries.empty()) {
 		return std::nullopt ;
 	}
 
-	std::vector<PackageSelectionGroup> groups ;	// 初出package順の戻り値。
+	std::vector<PackageSelectionGroup> groups ;	// 初出package順の戻り値
 	groups.reserve( entries.size()) ;
-	std::unordered_map<std::wstring, std::size_t> packageIndexes ;		// Package別group index。
-	std::unordered_set<std::wstring>			  candidateIdentities ;	// Candidate重複検出集合。
-	// 選択順に全候補を一度ずつ検証し、同じpackageを初出の一つの実行枠へまとめる。
+	std::unordered_map<std::wstring, std::size_t> packageIndexes ;		// Package別group index
+	std::unordered_set<std::wstring>			  candidateIdentities ;	// Candidate重複検出集合
+	// 選択順に全候補を一度ずつ検証し、同じpackageを初出の一つの実行枠へまとめる
 	for( const PackageSelectionEntry &entry : entries) {
-		// 候補やpackageのID欠落と重複選択を拒否し、取得・実行単位の照合を保つ。
+		// 候補やpackageのID欠落と重複選択を拒否し、取得・実行単位の照合を保つ
 		if( entry.candidateIdentity.empty() || entry.packageIdentity.empty() ||
 		   !candidateIdentities.insert( entry.candidateIdentity).second) {
 			return std::nullopt ;
 		}
 
-		// packageは共有payload groupの位置、insertedは初出としてgroup作成が必要な場合true。
+		// packageは共有payload groupの位置、insertedは初出としてgroup作成が必要な場合true
 		const auto [package, inserted] =
 			packageIndexes.try_emplace( entry.packageIdentity, groups.size()) ;
-		// 初めて選ばれたpackageだけに実行枠を作り、複数deviceへの同じ本体を一回へまとめる。
+		// 初めて選ばれたpackageだけに実行枠を作り、複数deviceへの同じ本体を一回へまとめる
 		if( inserted) {
 			groups.push_back( {.packageIdentity = entry.packageIdentity}) ;
 		}

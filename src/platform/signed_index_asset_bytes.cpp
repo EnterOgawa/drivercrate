@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file signed_index_asset_bytes.cpp
- * @brief 共通hashとGZip検査を使って署名済みassetの実byteを結合します。
- * @version 01.01.01
+ * @brief 共通hashとGZip検査を使って署名済みassetの実byteを結合します
+ * @version 01.01.02
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,13 +19,14 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/11  原byte hash・期限再検査と上限付きGZipの認証receiptを追加。
- * Ver.01.01.00 Shunji Ogawa  2026/10/23  同じGZip/hash検査を未認証の値codecへ共通化。
- * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/11  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/10/23  同じGZip/hash検査を未認証の値codecへ共通化
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 認証済みmanifestだけを受理し、JSON意味・保存・highwater更新は行いません。
- *       API失敗時の診断値を保持し、部分展開byteを成功receiptへ残しません。
+ * @note 認証済みmanifestだけを受理し、JSON意味・保存・highwater更新は行いません
+ *       API失敗時の診断値を保持し、部分展開byteを成功receiptへ残しません
  * @see docs/adr/0329-minimal-index-and-install-binding-contract.md
  */
 //------------------------------------------------------------------------------
@@ -48,37 +49,37 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 共通APIの原byte hashを固定32byteへ変換します。
- * @param[in] bytes 用途別上限を事前検査した空でない原byte。正規化しません。
- * @param[out] hash 成功時だけ原byte digest、失敗時は全0です。
- * @return 共通CNG APIの元HRESULT。共通戻り値の形式不成立はE_UNEXPECTEDです。
+ * @brief 共通APIの原byte hashを固定32byteへ変換します
+ * @param[in] bytes 用途別上限を事前検査した空でない原byte。正規化しません
+ * @param[out] hash 成功時だけ原byte digest、失敗時は全0です
+ * @return 共通CNG APIの元HRESULT。共通戻り値の形式不成立はE_UNEXPECTEDです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError hashOriginalBytes( const std::span<const std::byte> bytes,
 											IndexManifestSha256				&hash)
 {
 	hash = {} ;
-	std::wstring		   hex ;	// 既存APIが所有して返す小文字64桁digest。
-	// Char viewはbyteのobject representationを読取り専用で借用する共通hash API境界です。
+	std::wstring		   hex ;	// 既存APIが所有して返す小文字64桁digest
+	// Char viewはbyteのobject representationを読取り専用で借用する共通hash API境界です
 	const std::string_view original{reinterpret_cast<const char *>( bytes.data()), bytes.size()} ;
-	const NativeError error = computeDriverContainerSha256( original, hex) ;	// 128MiB枠の元診断値。
-	// CNGまたは確保の失敗を後続変換で上書きしない。
+	const NativeError error = computeDriverContainerSha256( original, hex) ;	// 128MiB枠の元診断値
+	// CNGまたは確保の失敗を後続変換で上書きしない
 	if( error != 0) {
 		return error ;
 	}
 
-	// 共通APIの契約不成立を部分digestへ変換しない。
+	// 共通APIの契約不成立を部分digestへ変換しない
 	if( hex.size() != hash.size() * 2U) {
 		return static_cast<NativeError>( E_UNEXPECTED) ;
 	}
 
-	constexpr std::wstring_view HEX = L"0123456789abcdef" ;	// 固定小文字表。
-	IndexManifestSha256			completed{} ;				// 全桁成功後だけ公開するdigest。
-	// 固定32byteの各二桁を照合し、形式不正時は全0出力を維持する。
+	constexpr std::wstring_view HEX = L"0123456789abcdef" ;	// 固定小文字表
+	IndexManifestSha256			completed{} ;				// 全桁成功後だけ公開するdigest
+	// 固定32byteの各二桁を照合し、形式不正時は全0出力を維持する
 	for( std::size_t index = 0U; index < completed.size(); ++index) {
-		const std::size_t high = HEX.find( hex[index * 2U]) ;		// 上位四bit。
-		const std::size_t low  = HEX.find( hex[index * 2U + 1U]) ;	// 下位四bit。
-		// 未知文字を暗黙に丸めてdigestへ加えない。
+		const std::size_t high = HEX.find( hex[index * 2U]) ;		// 上位四bit
+		const std::size_t low  = HEX.find( hex[index * 2U + 1U]) ;	// 下位四bit
+		// 未知文字を暗黙に丸めてdigestへ加えない
 		if( high == std::wstring_view::npos || low == std::wstring_view::npos) {
 			return static_cast<NativeError>( E_UNEXPECTED) ;
 		}
@@ -92,10 +93,10 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @brief API障害を理由付き拒否へ変換し、成功receiptを持たせません。
- * @param[in] error 元API HRESULT。
- * @param[in] status 確保失敗以外の拒否区分。
- * @return 元診断値を保持した拒否。E_OUTOFMEMORYは独立区分です。
+ * @brief API障害を理由付き拒否へ変換し、成功receiptを持たせません
+ * @param[in] error 元API HRESULT
+ * @param[in] status 確保失敗以外の拒否区分
+ * @return 元診断値を保持した拒否。E_OUTOFMEMORYは独立区分です
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] signed_index_detail::DecodedIndexAsset apiFailure(
@@ -110,11 +111,11 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全検査後の所有値だけを受け取ります。
- * @param[in] manifest 認証済みmanifestの所有copy。
- * @param[in] expanded 検査済み展開原byteの所有値。
- * @param[in] expandedSha256 展開原byteに対する実digest。
- * @param[in] maximumExpandedBytes Decompressorへ適用した展開byte上限。
+ * @brief 全検査後の所有値だけを受け取ります
+ * @param[in] manifest 認証済みmanifestの所有copy
+ * @param[in] expanded 検査済み展開原byteの所有値
+ * @param[in] expandedSha256 展開原byteに対する実digest
+ * @param[in] maximumExpandedBytes Decompressorへ適用した展開byte上限
  */
 //------------------------------------------------------------------------------
 AuthenticatedIndexAssetBytes::AuthenticatedIndexAssetBytes(
@@ -127,8 +128,8 @@ AuthenticatedIndexAssetBytes::AuthenticatedIndexAssetBytes(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 原byte署名を認証したmanifestを変更できない参照で借用します。
- * @return Receiptの寿命まで有効な認証済みmanifest。
+ * @brief 原byte署名を認証したmanifestを変更できない参照で借用します
+ * @return Receiptの寿命まで有効な認証済みmanifest
  */
 //------------------------------------------------------------------------------
 const AuthenticatedIndexManifest &AuthenticatedIndexAssetBytes::manifest() const noexcept
@@ -138,8 +139,8 @@ const AuthenticatedIndexManifest &AuthenticatedIndexAssetBytes::manifest() const
 
 //------------------------------------------------------------------------------
 /**
- * @brief GZip検査に成功した展開原byteを借用します。
- * @return Receiptの寿命まで有効な不変byte列。JSONとしての合格は意味しません。
+ * @brief GZip検査に成功した展開原byteを借用します
+ * @return Receiptの寿命まで有効な不変byte列。JSONとしての合格は意味しません
  */
 //------------------------------------------------------------------------------
 std::span<const std::byte> AuthenticatedIndexAssetBytes::expandedBytes() const noexcept
@@ -149,8 +150,8 @@ std::span<const std::byte> AuthenticatedIndexAssetBytes::expandedBytes() const n
 
 //------------------------------------------------------------------------------
 /**
- * @brief 展開原byteだけの実SHA-256を借用します。
- * @return 圧縮asset hashやmanifest hashとは別の原byte digest。
+ * @brief 展開原byteだけの実SHA-256を借用します
+ * @return 圧縮asset hashやmanifest hashとは別の原byte digest
  */
 //------------------------------------------------------------------------------
 const IndexManifestSha256 &AuthenticatedIndexAssetBytes::expandedSha256() const noexcept
@@ -160,8 +161,8 @@ const IndexManifestSha256 &AuthenticatedIndexAssetBytes::expandedSha256() const 
 
 //------------------------------------------------------------------------------
 /**
- * @brief この検査に適用したbyte policy版を返します。
- * @return 有限準備policy v1。
+ * @brief この検査に適用したbyte policy版を返します
+ * @return 有限準備policy v1
  */
 //------------------------------------------------------------------------------
 std::uint32_t AuthenticatedIndexAssetBytes::bytePolicyVersion() const noexcept
@@ -171,8 +172,8 @@ std::uint32_t AuthenticatedIndexAssetBytes::bytePolicyVersion() const noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 展開前に適用した絶対量と圧縮倍率の小さい方を返します。
- * @return Decompressorへ渡した最大展開byte数。
+ * @brief 展開前に適用した絶対量と圧縮倍率の小さい方を返します
+ * @return Decompressorへ渡した最大展開byte数
  */
 //------------------------------------------------------------------------------
 std::uint64_t AuthenticatedIndexAssetBytes::maximumExpandedBytes() const noexcept
@@ -182,35 +183,35 @@ std::uint64_t AuthenticatedIndexAssetBytes::maximumExpandedBytes() const noexcep
 
 //------------------------------------------------------------------------------
 /**
- * @brief 認証済みmanifestへ実圧縮byteを結合し、上限付き単一GZipとして検査します。
- * @param[in] manifest 前段認証成功から構築された不変receipt。呼出し中だけ借用します。
- * @param[in] compressed 原転送byte。呼出し中に全要素を読取り可能かつ不変に保ちます。
- * @param[in] nowUtc 信頼UTCの再確認値。Nullopt、発行前、期限以上では拒否します。
- * @return 全検査成功時だけbyte receipt、拒否時は理由と元API HRESULTです。
+ * @brief 認証済みmanifestへ実圧縮byteを結合し、上限付き単一GZipとして検査します
+ * @param[in] manifest 前段認証成功から構築された不変receipt。呼出し中だけ借用します
+ * @param[in] compressed 原転送byte。呼出し中に全要素を読取り可能かつ不変に保ちます
+ * @param[in] nowUtc 信頼UTCの再確認値。Nullopt、発行前、期限以上では拒否します
+ * @return 全検査成功時だけbyte receipt、拒否時は理由と元API HRESULTです
  * @note 圧縮size／hash検査後にmin(128MiB, 実圧縮size×128)をdecompressorへ渡します。JSON／record・最新highwater・公式性・端末適合は
- *       検査しません。通信・保存・世代更新・scanを行いません。独立入力では同時呼出し可能です。時刻やhighwaterの保護store transactionは後段が再確認します。
+ *       検査しません。通信・保存・世代更新・scanを行いません。独立入力では同時呼出し可能です。時刻やhighwaterの保護store transactionは後段が再確認します
  */
 //------------------------------------------------------------------------------
 IndexAssetBytesResult authenticateIndexAssetBytes(
 	const AuthenticatedIndexManifest &manifest, const std::span<const std::byte> compressed,
 	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
 {
-	// 前段認証後の時刻欠損は従来と同じ区分で拒否し、byte処理を始めません。
+	// 前段認証後の時刻欠損は従来と同じ区分で拒否し、byte処理を始めません
 	if( !nowUtc) {
 		return {IndexAssetBytesStatus::TIME_UNAVAILABLE, 0, std::nullopt} ;
 	}
 
-	const auto &data = manifest.data() ;	// 外部DTOではない認証済み所有値。
-	// Move元など必須の根拠を失った認証objectを、残ったscalar／hashだけで受理しない。
+	const auto &data = manifest.data() ;	// 外部DTOではない認証済み所有値
+	// Move元など必須の根拠を失った認証objectを、残ったscalar／hashだけで受理しない
 	if( data.manifestBytes.empty() || data.repository.empty() || data.channel.empty() ||
 	   data.keyId.empty() || data.asset.tag.empty() || data.asset.name.empty()) {
 		return {IndexAssetBytesStatus::INCOMPLETE_MANIFEST_RECEIPT, 0, std::nullopt} ;
 	}
 
 	auto decoded =
-		// 同じ値codecです。
+		// 同じ値codecです
 		signed_index_detail::decodeIndexAssetData( data, compressed, nowUtc) ;
-	// このwrapperだけが前段の認証済みmanifestを要求して認証byte型を構築します。
+	// このwrapperだけが前段の認証済みmanifestを要求して認証byte型を構築します
 	if( !decoded.data) {
 		return {decoded.status, decoded.error, std::nullopt} ;
 	}
@@ -223,59 +224,59 @@ IndexAssetBytesResult authenticateIndexAssetBytes(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実GZip byteを同じhash/容量/圧縮率/CRC規則で検査します。
- * @param[in] data 呼出側が意味検査済みの値です。認証の有無を表しません。
- * @param[in] compressed 最大32MiBの実byteです。
- * @param[in] nowUtc 確認済みUTCです。
- * @return 未認証の展開値だけを所有する結果です。
+ * @brief 実GZip byteを同じhash/容量/圧縮率/CRC規則で検査します
+ * @param[in] data 呼出側が意味検査済みの値です。認証の有無を表しません
+ * @param[in] compressed 最大32MiBの実byteです
+ * @param[in] nowUtc 確認済みUTCです
+ * @return 未認証の展開値だけを所有する結果です
  */
 //------------------------------------------------------------------------------
 signed_index_detail::DecodedIndexAsset signed_index_detail::decodeIndexAssetData(
 	const IndexManifestData &data, const std::span<const std::byte> compressed,
 	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
 {
-	// 時刻確認不能ではhashや展開を開始しません。
+	// 時刻確認不能ではhashや展開を開始しません
 	if( !nowUtc) {
 		return {IndexAssetBytesStatus::TIME_UNAVAILABLE, 0, std::nullopt} ;
 	}
 
-	// 署名された発行前の時計では、認証時の期限結果を流用しない。
+	// 署名された発行前の時計では、認証時の期限結果を流用しない
 	if( nowUtc.value() < data.publishedAtUtc) {
 		return {IndexAssetBytesStatus::NOT_YET_VALID, 0, std::nullopt} ;
 	}
 
-	// 期限ちょうどからはassetも使わず、highwaterを進めない。
+	// 期限ちょうどからはassetも使わず、highwaterを進めない
 	if( nowUtc.value() >= data.expiresAtUtc) {
 		return {IndexAssetBytesStatus::EXPIRED, 0, std::nullopt} ;
 	}
 
-	// 展開前に実圧縮量を制限し、巨大入力のhash確保を開始しない。
+	// 展開前に実圧縮量を制限し、巨大入力のhash確保を開始しない
 	if( compressed.empty() || compressed.size() > INDEX_ASSET_MAX_BYTES) {
 		return {IndexAssetBytesStatus::COMPRESSED_SIZE_LIMIT, 0, std::nullopt} ;
 	}
 
 	const std::uint64_t compressedSize =
-		// x64実byte数。
+		// x64実byte数
 		static_cast<std::uint64_t>( compressed.size()) ;
-	// Size不一致はhashやGZip検査へ進めず、署名された完全長を要求する。
+	// Size不一致はhashやGZip検査へ進めず、署名された完全長を要求する
 	if( compressedSize != data.asset.sizeBytes) {
 		return {IndexAssetBytesStatus::SIZE_MISMATCH, 0, std::nullopt} ;
 	}
 
 	try {
-		IndexManifestSha256 compressedHash{} ;									// 圧縮原byteの実digest。
-		NativeError error = hashOriginalBytes( compressed, compressedHash) ;	// 共通CNG検査結果。
-		// Hash APIの元失敗を保持し、gzipへ不確定byteを渡さない。
+		IndexManifestSha256 compressedHash{} ;									// 圧縮原byteの実digest
+		NativeError error = hashOriginalBytes( compressed, compressedHash) ;	// 共通CNG検査結果
+		// Hash APIの元失敗を保持し、gzipへ不確定byteを渡さない
 		if( error != 0) {
 			return apiFailure( error, IndexAssetBytesStatus::CRYPTO_FAILURE) ;
 		}
 
-		// 署名に結合したhashと実圧縮byteを一致させてから展開する。
+		// 署名に結合したhashと実圧縮byteを一致させてから展開する
 		if( compressedHash != data.asset.sha256) {
 			return {IndexAssetBytesStatus::HASH_MISMATCH, 0, std::nullopt} ;
 		}
 
-		// Policy変更後も乗算前にoverflowを拒否し、事後比較だけにしない。
+		// Policy変更後も乗算前にoverflowを拒否し、事後比較だけにしない
 		if( compressedSize >
 		   std::numeric_limits<std::uint64_t>::max() / INDEX_ASSET_MAX_COMPRESSION_RATIO) {
 			return {IndexAssetBytesStatus::EXPANSION_LIMIT, 0, std::nullopt} ;
@@ -283,10 +284,10 @@ signed_index_detail::DecodedIndexAsset signed_index_detail::decodeIndexAssetData
 
 		const std::uint64_t maximumExpandedBytes =
 			std::min( INDEX_ASSET_EXPANDED_MAX_BYTES,
-					 compressedSize * INDEX_ASSET_MAX_COMPRESSION_RATIO) ;	// 実効展開枠。
-		std::vector<std::byte> expanded ;									// 全検査成功まで公開しない原展開byte。
+					 compressedSize * INDEX_ASSET_MAX_COMPRESSION_RATIO) ;	// 実効展開枠
+		std::vector<std::byte> expanded ;									// 全検査成功まで公開しない原展開byte
 		error = decompressOfficialGzip( compressed, maximumExpandedBytes, expanded) ;
-		// 共通gzip APIの元診断値を保ち、部分出力からreceiptを作らない。
+		// 共通gzip APIの元診断値を保ち、部分出力からreceiptを作らない
 		if( error != 0) {
 			return apiFailure(
 				error, error == static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_FILE_TOO_LARGE))
@@ -294,9 +295,9 @@ signed_index_detail::DecodedIndexAsset signed_index_detail::decodeIndexAssetData
 						   : IndexAssetBytesStatus::GZIP_REJECTED) ;
 		}
 
-		IndexManifestSha256 expandedHash{} ;	// 圧縮hashとは別の展開原byte digest。
+		IndexManifestSha256 expandedHash{} ;	// 圧縮hashとは別の展開原byte digest
 		error = hashOriginalBytes( expanded, expandedHash) ;
-		// 展開後hashの障害でも展開byteだけを成功として返さない。
+		// 展開後hashの障害でも展開byteだけを成功として返さない
 		if( error != 0) {
 			return apiFailure( error, IndexAssetBytesStatus::CRYPTO_FAILURE) ;
 		}

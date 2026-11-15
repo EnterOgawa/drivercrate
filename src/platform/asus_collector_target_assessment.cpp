@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file asus_collector_target_assessment.cpp
- * @brief 同一ASUS本文の一時候補と公開対象を三状態で照合します。
- * @version 01.02.01
+ * @brief 同一ASUS本文の一時候補と公開対象を三状態で照合します
+ * @version 01.02.02
  * @date 2026/09/28
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,13 +19,14 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/28  公開target三状態と複数候補番号の純粋照合を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/09/28  同一controlの対象／候補照合と型付き終了を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/09/28  元表記record keyと正規化model keyの帰属を修正。
- * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/28  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/28  同一controlの対象／候補照合と型付き終了を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/09/28  元表記record keyと正規化model keyの帰属を修正
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 本文所有worker内でだけ候補を参照します。GET出典・配布許可は発行しません。
+ * @note 本文所有worker内でだけ候補を参照します。GET出典・配布許可は発行しません
  * @see docs/adr/0221-collector-official-product-identity.md
  */
 //------------------------------------------------------------------------------
@@ -42,15 +43,15 @@ namespace drivercrate {
 namespace {
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 /**
- * @brief 一つの公開target fieldの上限と秘密形状を確認します。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
- * @param[in] value 公開対象のfield。
- * @param[in] maximumCharacters UTF-16単位の上限。
- * @param[in] allowEmpty chipだけ空を許す場合true。
- * @return 対象条件として有効ならtrue。
+ * @brief 一つの公開target fieldの上限と秘密形状を確認します
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull
+ * @param[in] value 公開対象のfield
+ * @param[in] maximumCharacters UTF-16単位の上限
+ * @param[in] allowEmpty chipだけ空を許す場合true
+ * @return 対象条件として有効ならtrue
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool validQueryText( CollectorParserContext *control, const std::wstring_view value,
@@ -66,11 +67,11 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公開対象の全fieldを個別に確認します。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
- * @param[in] query 一つの借用対象。
- * @param[out] modelKey 成立時の製品比較key。
- * @return 有限公開値だけならtrue。
+ * @brief 公開対象の全fieldを個別に確認します
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull
+ * @param[in] query 一つの借用対象
+ * @param[out] modelKey 成立時の製品比較key
+ * @return 有限公開値だけならtrue
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool validQuery( CollectorParserContext		 *control,
@@ -89,33 +90,33 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公開pageの製品identityだけを独立に確認します。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
- * @param[in] page 解析済みの一本文。
- * @return 比較可能なLAN製品identityがある場合true。
+ * @brief 公開pageの製品identityだけを独立に確認します
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull
+ * @param[in] page 解析済みの一本文
+ * @return 比較可能なLAN製品identityがある場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool validPageIdentity( CollectorParserContext		   *control,
 									 const AsusCollectorPageResult &page)
 {
 	collectorParserCheckpoint( control) ;
-	// 元parserが拒否した構造や製品fieldを再解釈しません。
+	// 元parserが拒否した構造や製品fieldを再解釈しません
 	if( !page.structurallyValid || page.category != L"LAN" || page.pageModel.empty() ||
 	   page.productId.empty() || page.productId.size() > 16U || page.modelComparisonKey.empty() ||
 	   page.modelComparisonKey != asusCollectorModelComparisonKey( page.pageModel)) {
 		return false ;
 	}
 
-	// 架空のIDを公開製品識別として使用しません。
+	// 架空のIDを公開製品識別として使用しません
 	for( const wchar_t ch : page.productId) {
 		collectorParserStep( control) ;
-		// Parserと同じ十進文字集合だけを要求します。
+		// Parserと同じ十進文字集合だけを要求します
 		if( ch < L'0' || ch > L'9') {
 			return false ;
 		}
 	}
 
-	const std::wstring_view maximumId = L"9007199254740991" ;	// JSON Numberの整数精度上限。
+	const std::wstring_view maximumId = L"9007199254740991" ;	// JSON Numberの整数精度上限
 	return page.productId != L"0" &&
 		   (page.productId.size() == 1U || page.productId.front() != L'0') &&
 		   (page.productId.size() < maximumId.size() ||
@@ -124,11 +125,11 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 候補集合と採用行の順序・所有値が同じであることを確認します。
- * @param[in,out] control 新経路の制御。旧wrapperだけnull。
- * @param[in] page 同一storeで採用した行。
- * @param[in] candidates その行から構築した一時record。
- * @return 候補が空、または全行一対一で結合した場合true。
+ * @brief 候補集合と採用行の順序・所有値が同じであることを確認します
+ * @param[in,out] control 新経路の制御。旧wrapperだけnull
+ * @param[in] page 同一storeで採用した行
+ * @param[in] candidates その行から構築した一時record
+ * @return 候補が空、または全行一対一で結合した場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool boundCandidates(
@@ -136,12 +137,12 @@ namespace {
 	const std::span<const OfficialCollectorRecordCandidate> candidates)
 {
 	collectorParserCheckpoint( control) ;
-	// 解析のみの段階は候補欠測として扱います。
+	// 解析のみの段階は候補欠測として扱います
 	if( candidates.empty()) {
 		return true ;
 	}
 
-	// 候補の部分集合を黙って受理しません。
+	// 候補の部分集合を黙って受理しません
 	if( !validPageIdentity( control, page) || !page.targetModelMatches || page.osId.empty() ||
 	   (page.sliceStatus != AsusCollectorSliceStatus::ACCEPTED &&
 		page.sliceStatus != AsusCollectorSliceStatus::PARTIAL_REJECTED) ||
@@ -149,13 +150,13 @@ namespace {
 		return false ;
 	}
 
-	// 各ordinalが元pageの同じ行へ戻ることを確かめます。
+	// 各ordinalが元pageの同じ行へ戻ることを確かめます
 	for( std::size_t index = 0U; index < candidates.size(); ++index) {
 		collectorParserStep( control) ;
-		const auto		  &candidate = candidates[index] ;		// 今回の一時record。
-		const auto		  &entry	 = page.entries[index] ;	// 元parserの採用行。
-		const std::wstring suffix	 = L"|" + entry.opaqueId ;	// 元record keyの固定末尾。
-		// Keyの元model表記は保持し、比較時だけpageと同じ規則へ揃えます。
+		const auto		  &candidate = candidates[index] ;		// 今回の一時record
+		const auto		  &entry	 = page.entries[index] ;	// 元parserの採用行
+		const std::wstring suffix	 = L"|" + entry.opaqueId ;	// 元record keyの固定末尾
+		// Keyの元model表記は保持し、比較時だけpageと同じ規則へ揃えます
 		if( !candidate.recordKey.ends_with( suffix) || candidate.recordKey.size() <= suffix.size() ||
 		   asusCollectorModelComparisonKey(
 			   std::wstring_view( candidate.recordKey)
@@ -165,7 +166,7 @@ namespace {
 		}
 
 		collectorParserCheckpoint( control) ;
-		// 秘密URLを出力へ複写せず、worker内でだけ一意の帰属を照合します。
+		// 秘密URLを出力へ複写せず、worker内でだけ一意の帰属を照合します
 		if( candidate.recordEvidenceId != index + 1U ||
 		   candidate.parserId != L"asus-catalog-record-v1" ||
 		   candidate.recordRoute != L"asus-support-catalog-zip" ||
@@ -183,14 +184,14 @@ namespace {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 最初に判明した同状態の理由を上書きしません。
- * @param[in,out] first 先着の理由。初期MATCHEDは未設定を表します。
- * @param[in] next 現在の軸の理由。
+ * @brief 最初に判明した同状態の理由を上書きしません
+ * @param[in,out] first 先着の理由。初期MATCHEDは未設定を表します
+ * @param[in] next 現在の軸の理由
  */
 //------------------------------------------------------------------------------
 void rememberFirst( AsusCollectorTargetReason &first, const AsusCollectorTargetReason next) noexcept
 {
-	// 診断を後の軸で上書きしません。
+	// 診断を後の軸で上書きしません
 	if( first == AsusCollectorTargetReason::MATCHED) {
 		first = next ;
 	}
@@ -198,29 +199,29 @@ void rememberFirst( AsusCollectorTargetReason &first, const AsusCollectorTargetR
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一対象の軸をすべて評価し、明示矛盾を未知より優先します。
- * @param[in] query 公開対象。
- * @param[in] modelKey ASUS比較規則の製品名。
- * @param[in] page 同一storeの公開identity。
- * @param[in] hasCandidates 一件以上の結合済み候補がある場合true。
- * @param[in,out] result 出力状態と第一理由。
+ * @brief 一対象の軸をすべて評価し、明示矛盾を未知より優先します
+ * @param[in] query 公開対象
+ * @param[in] modelKey ASUS比較規則の製品名
+ * @param[in] page 同一storeの公開identity
+ * @param[in] hasCandidates 一件以上の結合済み候補がある場合true
+ * @param[in,out] result 出力状態と第一理由
  */
 //------------------------------------------------------------------------------
 void assessTarget( const AsusCollectorTargetQuery &query, const std::wstring_view modelKey,
 				  const AsusCollectorPageResult &page, const bool hasCandidates,
 				  AsusCollectorTargetAssessment &result) noexcept
 {
-	AsusCollectorTargetReason conflict = AsusCollectorTargetReason::MATCHED ;	// 第一明示矛盾。
-	AsusCollectorTargetReason unknown  = AsusCollectorTargetReason::MATCHED ;	// 第一未知軸。
-	// 公開boardと対象maker／種別／modelを同じ製品軸で比較します。
+	AsusCollectorTargetReason conflict = AsusCollectorTargetReason::MATCHED ;	// 第一明示矛盾
+	AsusCollectorTargetReason unknown  = AsusCollectorTargetReason::MATCHED ;	// 第一未知軸
+	// 公開boardと対象maker／種別／modelを同じ製品軸で比較します
 	if( query.maker != L"ASUS" || query.kind != L"MAINBOARD" ||
 	   modelKey != page.modelComparisonKey) {
 		rememberFirst( conflict, AsusCollectorTargetReason::PRODUCT_CONFLICT) ;
 	}
 
-	// 配布title中のcomponentメーカー名は製品makerの照合へ使用しません。
+	// 配布title中のcomponentメーカー名は製品makerの照合へ使用しません
 	if( query.purpose != L"LAN") {
-		// 明示別driver分類だけを矛盾にします。
+		// 明示別driver分類だけを矛盾にします
 		if( query.purpose == L"Wi-Fi" || query.purpose == L"Bluetooth" ||
 		   query.purpose == L"Audio") {
 			rememberFirst( conflict, AsusCollectorTargetReason::PURPOSE_CONFLICT) ;
@@ -229,13 +230,13 @@ void assessTarget( const AsusCollectorTargetQuery &query, const std::wstring_vie
 		}
 	}
 
-	// OS IDが未解決なら元要求文字列だけで矛盾を発行しません。
+	// OS IDが未解決なら元要求文字列だけで矛盾を発行しません
 	if( page.osId.empty()) {
 		rememberFirst( unknown, AsusCollectorTargetReason::OS_UNKNOWN) ;
 	}
-	// 解決済みのOS IDだけで対象の別名を比較します。
+	// 解決済みのOS IDだけで対象の別名を比較します
 	else if( query.operatingSystem != page.osName) {
-		// 公開された別Windows名だけを明示矛盾にします。
+		// 公開された別Windows名だけを明示矛盾にします
 		if( query.operatingSystem == L"Windows 10 64-bit" ||
 		   query.operatingSystem == L"Windows Server 2025") {
 			rememberFirst( conflict, AsusCollectorTargetReason::OS_CONFLICT) ;
@@ -244,9 +245,9 @@ void assessTarget( const AsusCollectorTargetQuery &query, const std::wstring_vie
 		}
 	}
 
-	// x64以外の既知architectureを同一LAN配布へ結びません。
+	// x64以外の既知architectureを同一LAN配布へ結びません
 	if( query.architecture != L"x64") {
-		// 未知architectureから不適合を推測しません。
+		// 未知architectureから不適合を推測しません
 		if( query.architecture == L"x86" || query.architecture == L"arm64") {
 			rememberFirst( conflict, AsusCollectorTargetReason::ARCHITECTURE_CONFLICT) ;
 		} else {
@@ -254,22 +255,22 @@ void assessTarget( const AsusCollectorTargetQuery &query, const std::wstring_vie
 		}
 	}
 
-	// 明示chipに対応する構造化根拠は本pageにありません。
+	// 明示chipに対応する構造化根拠は本pageにありません
 	if( !query.chip.empty()) {
 		rememberFirst( unknown, AsusCollectorTargetReason::CHIP_UNKNOWN) ;
 	}
 
-	// Sourceの明示矛盾を未知または候補欠測より優先します。
+	// Sourceの明示矛盾を未知または候補欠測より優先します
 	if( conflict != AsusCollectorTargetReason::MATCHED) {
 		result.state  = AsusCollectorTargetState::NO_MATCH ;
 		result.reason = conflict ;
 	}
-	// 矛盾がない場合だけ最初の未知を残します。
+	// 矛盾がない場合だけ最初の未知を残します
 	else if( unknown != AsusCollectorTargetReason::MATCHED) {
 		result.state  = AsusCollectorTargetState::UNKNOWN ;
 		result.reason = unknown ;
 	}
-	// 対象一致だけで配布候補の存在を補いません。
+	// 対象一致だけで配布候補の存在を補いません
 	else if( !hasCandidates) {
 		result.state  = AsusCollectorTargetState::UNKNOWN ;
 		result.reason = AsusCollectorTargetReason::RECORD_UNKNOWN ;
@@ -282,16 +283,16 @@ void assessTarget( const AsusCollectorTargetQuery &query, const std::wstring_vie
 } // namespace
 
 //------------------------------------------------------------------------------
-// 公開関数定義。
+// 公開関数定義
 //------------------------------------------------------------------------------
 /**
- * @brief 旧入口と制御付き入口の共通coreです。
- * @param[in,out] control 新経路の制御。旧入口だけnull。
- * @param[in] page 同一本文のpage。
- * @param[in] candidates 同じpageの全候補。
- * @param[in] targets 全対象。
- * @param[out] assessments 全成立後だけ公開する値。
- * @return 集合契約が成立すればtrue。
+ * @brief 旧入口と制御付き入口の共通coreです
+ * @param[in,out] control 新経路の制御。旧入口だけnull
+ * @param[in] page 同一本文のpage
+ * @param[in] candidates 同じpageの全候補
+ * @param[in] targets 全対象
+ * @param[out] assessments 全成立後だけ公開する値
+ * @return 集合契約が成立すればtrue
  */
 //------------------------------------------------------------------------------
 static bool inspectAsusCollectorTargetsCore(
@@ -302,29 +303,29 @@ static bool inspectAsusCollectorTargetsCore(
 {
 	collectorParserCheckpoint( control) ;
 	assessments.clear() ;
-	// 予算外や重複keyを部分結果へ変換しません。
-	// 入力分母の上限を構造拒否と区別します。
+	// 予算外や重複keyを部分結果へ変換しません
+	// 入力分母の上限を構造拒否と区別します
 	if( targets.size() > 300U || candidates.size() > 16U) {
 		collectorParserLimit( control) ;
 	}
 
-	// 空集合や旧経路の過大集合も部分結果へ変換しません。
+	// 空集合や旧経路の過大集合も部分結果へ変換しません
 	if( targets.empty() || targets.size() > 300U || candidates.size() > 16U) {
 		return false ;
 	}
 
-	// 全体入力である公開keyだけは一対象のUNKNOWNとして保持しません。
+	// 全体入力である公開keyだけは一対象のUNKNOWNとして保持しません
 	for( std::size_t index = 0U; index < targets.size(); ++index) {
 		collectorParserStep( control) ;
-		// Keyは一意かつ有限である必要があります。
+		// Keyは一意かつ有限である必要があります
 		if( !validQueryText( control, targets[index].targetKey, 128U)) {
 			return false ;
 		}
 
-		// 最大300件を元順序で有限照合します。
+		// 最大300件を元順序で有限照合します
 		for( std::size_t prior = 0U; prior < index; ++prior) {
 			collectorParserStep( control) ;
-			// 同じ公開keyのedgeを二重生成しません。
+			// 同じ公開keyのedgeを二重生成しません
 			if( targets[index].targetKey == targets[prior].targetKey) {
 				return false ;
 			}
@@ -332,32 +333,32 @@ static bool inspectAsusCollectorTargetsCore(
 	}
 
 	try {
-		const bool sourceValid = validPageIdentity( control, page) ;	// 検証済みの製品軸。
-		// 候補があるのに元行へ帰属しない場合は全体拒否します。
+		const bool sourceValid = validPageIdentity( control, page) ;	// 検証済みの製品軸
+		// 候補があるのに元行へ帰属しない場合は全体拒否します
 		if( !boundCandidates( control, page, candidates)) {
 			return false ;
 		}
 
-		std::vector<AsusCollectorTargetAssessment> pending ;	// 全件後の一括出力。
+		std::vector<AsusCollectorTargetAssessment> pending ;	// 全件後の一括出力
 		pending.reserve( targets.size()) ;
-		// 一本文内の対象分母と元順序をそのまま保持します。
+		// 一本文内の対象分母と元順序をそのまま保持します
 		for( const auto &query : targets) {
 			collectorParserCheckpoint( control) ;
-			AsusCollectorTargetAssessment target ;	// 一対象の所有結果。
+			AsusCollectorTargetAssessment target ;	// 一対象の所有結果
 			target.targetKey = query.targetKey ;
-			std::wstring modelKey ;	// Target公開名の比較key。
-			// 破損query／sourceから不適合を発行しません。
+			std::wstring modelKey ;	// Target公開名の比較key
+			// 破損query／sourceから不適合を発行しません
 			if( !validQuery( control, query, modelKey)) {
 				target.reason = AsusCollectorTargetReason::INVALID_QUERY ;
 			}
-			// 破損pageから明示矛盾を作りません。
+			// 破損pageから明示矛盾を作りません
 			else if( !sourceValid) {
 				target.reason = AsusCollectorTargetReason::SOURCE_UNKNOWN ;
 			} else {
 				target.productId	   = page.productId ;
 				target.displayModel	   = page.pageModel ;
 				target.comparisonModel = page.modelComparisonKey ;
-				// 複数候補を一件へ縮退させず、各indexを保持します。
+				// 複数候補を一件へ縮退させず、各indexを保持します
 				for( std::size_t index = 0U; index < candidates.size(); ++index) {
 					collectorParserStep( control) ;
 					target.candidateOrdinals.push_back( static_cast<std::uint32_t>( index)) ;
@@ -373,7 +374,7 @@ static bool inspectAsusCollectorTargetsCore(
 		assessments = std::move( pending) ;
 		return true ;
 	} catch( const std::bad_alloc &) {
-		// 新経路ではOOMを入力拒否へ変換しません。
+		// 新経路ではOOMを入力拒否へ変換しません
 		if( control != nullptr) {
 			throw ;
 		}
@@ -385,13 +386,13 @@ static bool inspectAsusCollectorTargetsCore(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じ解析済みpageと一時候補を最大300公開対象に照合します。
- * @param[in] page 同一storeから得た所有解析結果。公式GET証拠は含みません。
- * @param[in] candidates 同じpageから作った最大16候補。空なら全対象に候補なしを記録します。
- * @param[in] targets 重複しない公開keyを持つ最大300件の対象。
- * @param[out] assessments 入力順の一時判定。集合拒否時は空です。
- * @return 集合境界と候補の同一page結合が成立した場合true。
- * @note 本関数はURL、EULA本文、fingerprint、GET出典、取得許可を結果に含めません。
+ * @brief 同じ解析済みpageと一時候補を最大300公開対象に照合します
+ * @param[in] page 同一storeから得た所有解析結果。公式GET証拠は含みません
+ * @param[in] candidates 同じpageから作った最大16候補。空なら全対象に候補なしを記録します
+ * @param[in] targets 重複しない公開keyを持つ最大300件の対象
+ * @param[out] assessments 入力順の一時判定。集合拒否時は空です
+ * @return 集合境界と候補の同一page結合が成立した場合true
+ * @note 本関数はURL、EULA本文、fingerprint、GET出典、取得許可を結果に含めません
  */
 //------------------------------------------------------------------------------
 bool inspectAsusCollectorTargets( const AsusCollectorPageResult					  &page,
@@ -404,13 +405,13 @@ bool inspectAsusCollectorTargets( const AsusCollectorPageResult					  &page,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同じcoreで停止・失敗と候補／対象の照合結果を分けます。
- * @param[in] page 同じ本文のpage。
- * @param[in] candidates 同じpageの候補。
- * @param[in] targets 全公開対象。
- * @param[in,out] control 元GETの必須制御。
- * @param[out] assessments 完了時のみ公開する所有値。
- * @return 解析／照合の型付き終了。
+ * @brief 同じcoreで停止・失敗と候補／対象の照合結果を分けます
+ * @param[in] page 同じ本文のpage
+ * @param[in] candidates 同じpageの候補
+ * @param[in] targets 全公開対象
+ * @param[in,out] control 元GETの必須制御
+ * @param[out] assessments 完了時のみ公開する所有値
+ * @return 解析／照合の型付き終了
  */
 //------------------------------------------------------------------------------
 CollectorParserResult inspectAsusCollectorTargetsControlled(
@@ -420,14 +421,14 @@ CollectorParserResult inspectAsusCollectorTargetsControlled(
 	std::vector<AsusCollectorTargetAssessment> &assessments)
 {
 	assessments.clear() ;
-	std::vector<AsusCollectorTargetAssessment> parsed ;	// 途中結果の持出しを防ぐ所有値。
+	std::vector<AsusCollectorTargetAssessment> parsed ;	// 途中結果の持出しを防ぐ所有値
 	const auto								   outcome = runCollectorParser(
 		control,
 		[&]( CollectorParserContext &context) {
 			return inspectAsusCollectorTargetsCore( &context, page, candidates, targets, parsed) ;
 		},
-		CollectorIoStage::PROJECT) ;	// 元GETの制御で射影段階を確認します。
-	// 終端確認後だけ一括移動します。
+		CollectorIoStage::PROJECT) ;	// 元GETの制御で射影段階を確認します
+	// 終端確認後だけ一括移動します
 	if( outcome.status == CollectorParserStatus::COMPLETED) {
 		assessments = std::move( parsed) ;
 	}

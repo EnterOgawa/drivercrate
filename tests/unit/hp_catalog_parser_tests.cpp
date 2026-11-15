@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file hp_catalog_parser_tests.cpp
- * @brief HP公式catalog parser単体試験実装。
- * @version 01.00.01
+ * @brief HP公式catalog parser単体試験実装
+ * @version 01.00.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,18 +19,19 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 架空dataだけでPlatform／OS照合、driver分離、SoftPaq検証、DTD拒否を確認します。実端末inventoryとnetworkへ接続しません。
+ * @note 架空dataだけでPlatform／OS照合、driver分離、SoftPaq検証、DTD拒否を確認します。実端末inventoryとnetworkへ接続しません
  */
 //------------------------------------------------------------------------------
 
@@ -50,34 +51,34 @@ namespace drivercrate::test {
 namespace {
 
 //------------------------------------------------------------------------------
-// 試験data定義。
+// 試験data定義
 //------------------------------------------------------------------------------
 
 constexpr std::wstring_view HASH =
-	L"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" ;	// 架空hash。
+	L"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" ;	// 架空hash
 
 //------------------------------------------------------------------------------
-// 内部試験関数定義。
+// 内部試験関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief Platform ID、x64、buildに一致する参照抽出を検証する。
+ * @brief Platform ID、x64、buildに一致する参照抽出を検証する
  *
- * 一致entryだけをURL構築可能な有限値へ変換する。
+ * 一致entryだけをURL構築可能な有限値へ変換する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testPlatformCatalog( TestContext &context)
 {
-	// PlatformとOS buildの一致を検証する架空ImagePal XML。
+	// PlatformとOS buildの一致を検証する架空ImagePal XML
 	constexpr std::wstring_view XML =
 		LR"(<?xml version="1.0"?><ImagePal><Platform><ProductName>Test PC</ProductName>)"
 		LR"(<OS><OSVersion>11.0</OSVersion><OSArchitecture>64</OSArchitecture>)"
 		LR"(<OSReleaseIdFilename>24H2</OSReleaseIdFilename><OSBuildId>26100</OSBuildId>)"
 		LR"(</OS><SystemID>8A05</SystemID></Platform></ImagePal>)" ;
-	HpPlatformReference reference ;	// Parserが設定するplatform reference。
+	HpPlatformReference reference ;	// Parserが設定するplatform reference
 	DRIVERCRATE_EXPECT( context, parseHpPlatformCatalog( XML, L"8a05", 26100, reference) == 0) ;
 	DRIVERCRATE_EXPECT( context, reference.systemId == L"8A05") ;
 	DRIVERCRATE_EXPECT( context, reference.osVersion == L"11.0") ;
@@ -88,16 +89,16 @@ void testPlatformCatalog( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Driver SoftPaqとDeviceId対応の抽出を検証する。
+ * @brief Driver SoftPaqとDeviceId対応の抽出を検証する
  *
- * Firmwareを除外し、driverのhash、URL、推奨度、IDを保持する。
+ * Firmwareを除外し、driverのhash、URL、推奨度、IDを保持する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testReferenceCatalog( TestContext &context)
 {
-	// SystemInfoと配布metadataの結合を検証する架空ImagePal XML。
+	// SystemInfoと配布metadataの結合を検証する架空ImagePal XML
 	const std::wstring xml =
 		LR"(<?xml version="1.0"?><ImagePal><HPReference>Yes</HPReference><SystemInfo><System>)"
 		LR"(<SystemID>8A05</SystemID><OSArchitecture>64-bit</OSArchitecture>)"
@@ -123,13 +124,13 @@ void testReferenceCatalog( TestContext &context)
 	const HpPlatformReference	 reference{.systemId  = L"8A05",
 										   .osVersion = L"11.0",
 										   .releaseId = L"24h2",
-										   .osBuild	  = 26100} ;	// 期待platform値。
-	std::vector<HpDriverRelease> releases ;							// Parserが設定するdriver SoftPaq群。
+										   .osBuild	  = 26100} ;	// 期待platform値
+	std::vector<HpDriverRelease> releases ;							// Parserが設定するdriver SoftPaq群
 	DRIVERCRATE_EXPECT( context, parseHpReferenceCatalog( xml, reference, releases) == 0) ;
 	DRIVERCRATE_EXPECT( context, releases.size() == 1) ;
-	// 結果の存在と参照範囲が確認できた場合にだけ内容を検証し、前提失敗を不正な参照へ波及させない。
+	// 結果の存在と参照範囲が確認できた場合にだけ内容を検証し、前提失敗を不正な参照へ波及させない
 	if( releases.size() == 1) {
-		const HpDriverRelease &release = releases.front() ;	// 検証対象driver metadata。
+		const HpDriverRelease &release = releases.front() ;	// 検証対象driver metadata
 		DRIVERCRATE_EXPECT( context, release.softpaqId == L"sp123456") ;
 		DRIVERCRATE_EXPECT( context, release.version == L"9.8.7.6") ;
 		DRIVERCRATE_EXPECT( context, release.recommended) ;
@@ -142,25 +143,25 @@ void testReferenceCatalog( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief DTDとallowlist外payloadを拒否することを検証する。
+ * @brief DTDとallowlist外payloadを拒否することを検証する
  *
- * External entityと第三者URLをdriver metadataへ入れない。
+ * External entityと第三者URLをdriver metadataへ入れない
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testRejections( TestContext &context)
 {
-	// DTDを含む入力を拒否するための架空catalog。
+	// DTDを含む入力を拒否するための架空catalog
 	constexpr std::wstring_view DTD =
 		LR"(<?xml version="1.0"?><!DOCTYPE ImagePal [<!ENTITY value "8A05">]>)"
 		LR"(<ImagePal><Platform><OS><OSVersion>11.0</OSVersion>)"
 		LR"(<OSArchitecture>64</OSArchitecture><OSReleaseIdFilename>24H2</OSReleaseIdFilename>)"
 		LR"(<OSBuildId>26100</OSBuildId></OS><SystemID>&value;</SystemID></Platform></ImagePal>)" ;
-	HpPlatformReference platform ;	// DTD拒否時に有効化されない出力値。
+	HpPlatformReference platform ;	// DTD拒否時に有効化されない出力値
 	DRIVERCRATE_EXPECT( context, parseHpPlatformCatalog( DTD, L"8A05", 26100, platform) != 0) ;
 
-	// 安全条件を満たさない配布情報を含む拒否用catalog。
+	// 安全条件を満たさない配布情報を含む拒否用catalog
 	const std::wstring unsafe =
 		LR"(<ImagePal><HPReference>Yes</HPReference><SystemInfo><System>)"
 		LR"(<SystemID>8A05</SystemID><OSArchitecture>64-bit</OSArchitecture>)"
@@ -177,8 +178,8 @@ void testRejections( TestContext &context)
 	const HpPlatformReference	 reference{.systemId  = L"8A05",
 										   .osVersion = L"11.0",
 										   .releaseId = L"24h2",
-										   .osBuild	  = 26100} ;	// 期待platform値。
-	std::vector<HpDriverRelease> releases ;							// 不正URLで空のままにする出力群。
+										   .osBuild	  = 26100} ;	// 期待platform値
+	std::vector<HpDriverRelease> releases ;							// 不正URLで空のままにする出力群
 	DRIVERCRATE_EXPECT( context, parseHpReferenceCatalog( unsafe, reference, releases) != 0) ;
 }
 
@@ -187,15 +188,15 @@ void testRejections( TestContext &context)
 //------------------------------------------------------------------------------
 /**
  * @brief HP catalog parserの正常系とsecurity拒否系を実行する。HP catalog parserの正常系とsecurity境界を検証する。COM MTAを初期化し、
- *        networkなしのHP parser試験を実行する。
- * @param[in,out] context assertion件数と失敗内容の集計先。 Assertion集計先。
+ *        networkなしのHP parser試験を実行する
+ * @param[in,out] context assertion件数と失敗内容の集計先。 Assertion集計先
  */
 //------------------------------------------------------------------------------
 void runHpCatalogParserTests( TestContext &context)
 {
-	const ComApartment apartment( COINIT_MULTITHREADED) ;	// MSXML 6.0用COM lifetime。
+	const ComApartment apartment( COINIT_MULTITHREADED) ;	// MSXML 6.0用COM lifetime
 	DRIVERCRATE_EXPECT( context, SUCCEEDED( apartment.result())) ;
-	// COMが初期化できないthreadでは検証対象を呼び出さず、初期化失敗として試験を終了する。
+	// COMが初期化できないthreadでは検証対象を呼び出さず、初期化失敗として試験を終了する
 	if( FAILED( apartment.result())) {
 		return ;
 	}

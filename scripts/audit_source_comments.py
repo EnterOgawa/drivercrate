@@ -177,8 +177,8 @@ def main() -> int:
                 node = by_index[index]
                 if node["commented"]:
                     raise ValueError(f"control already has an explanation: {relative}:{index}")
-                if not comment.strip() or "\n" in comment or not comment.endswith("。"):
-                    raise ValueError("each reviewed explanation must be one Japanese sentence")
+                if not comment.strip() or "\n" in comment or "\r" in comment or comment.rstrip().endswith("。"):
+                    raise ValueError("each reviewed explanation must be one nonempty line without a terminal Japanese period")
                 start = node["start"]
                 line_start = source.rfind("\n", 0, start) + 1
                 prefix = source[line_start:start]

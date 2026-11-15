@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file app.rc
- * @brief DriverCrate Windows resource定義。
- * @version 01.32.00
+ * @brief DriverCrate Windows resource定義
+ * @version 01.32.05
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,99 +19,104 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  Intel staging失敗時の注意を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  段階別scan計測の日本語表示を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/08  Intel Server最終確認文字列を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  候補発行状態と件数表示を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  Intel Ethernetの取得前提確認と選択取得を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  Release観測差分表示を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  監査後の候補有無表示を正確化。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  監査合格候補の表示を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得後監査の件数・状態表示を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  Broadcom選択取得の状態説明を更新。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  EULA本文と取得再確認の境界を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得確認と独立した操作状態を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/05  共通配布情報とIntel公式検索を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/05  NetXtreme-E表示専用検索を接続。
- * Ver.0.1.0    Shunji Ogawa  2026/09/05  WCH公式2経路とfamily別予算を追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/05  CP210x公式取得とserial共通化。
- * Ver.0.1.0    Shunji Ogawa  2026/09/05  公式serial取得と新版受入境界を更新。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  TreeTable文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  復元ポイント文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  Application icon追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  推奨更新filter文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  一括選択文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  Operation進捗文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  Install後の結果保持表示追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/01  公式vendor catalog文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  Provider取得元設定と状態文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  同一版取得元表示文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  Provider coverage文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  Local候補到達dialog文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  Version情報の制作者表記統一。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  Windows Server install文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  OEM未検証候補警告文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  公式探索経路表示文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  Intel ZIP選択文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  Manufacturer intake表示文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  Silicon Labs ZIP選択文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  利用者選択coverage文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  Prolific ZIP選択文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  WCH ZIP選択文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  WCH CH342／CH343系文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/03  汎用署名済みINF ZIP文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  候補監査状態文字列追加。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  Intel staging失敗時の注意を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  段階別scan計測の日本語表示を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/08  Intel Server最終確認文字列を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  候補発行状態と件数表示を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Intel Ethernetの取得前提確認と選択取得を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  Release観測差分表示を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  監査後の候補有無表示を正確化
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  監査合格候補の表示を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得後監査の件数・状態表示を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  Broadcom選択取得の状態説明を更新
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  EULA本文と取得再確認の境界を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  取得確認と独立した操作状態を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  共通配布情報とIntel公式検索を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  NetXtreme-E表示専用検索を接続
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  WCH公式2経路とfamily別予算を追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  CP210x公式取得とserial共通化
+ * Ver.0.1.0    Shunji Ogawa  2026/09/05  公式serial取得と新版受入境界を更新
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  TreeTable文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  復元ポイント文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  Application icon追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  推奨更新filter文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  一括選択文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  Operation進捗文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  Install後の結果保持表示追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/01  公式vendor catalog文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Provider取得元設定と状態文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  同一版取得元表示文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Provider coverage文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Local候補到達dialog文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Version情報の制作者表記統一
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  Windows Server install文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  OEM未検証候補警告文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  公式探索経路表示文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Intel ZIP選択文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  Manufacturer intake表示文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Silicon Labs ZIP選択文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  利用者選択coverage文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  Prolific ZIP選択文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  WCH ZIP選択文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  WCH CH342／CH343系文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/03  汎用署名済みINF ZIP文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  候補監査状態文字列追加
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の条件・取消し・表示専用結果を接続。
- * Ver.01.01.00 Shunji Ogawa  2026/09/14  種類別一覧の分類件数と失効表示を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/09/15  観測・検証理由・導入方式の固定表示を追加。
- * Ver.01.03.00 Shunji Ogawa  2026/09/15  共通package入力と内容検査の説明を更新。
- * Ver.01.03.01 Shunji Ogawa  2026/09/15  内容署名と明示依存の未確認を分離して説明。
- * Ver.01.04.00 Shunji Ogawa  2026/09/15  公式探索の一scan統一確認表示を追加。
- * Ver.01.05.00 Shunji Ogawa  2026/09/15  通常scanの協調取消し表示を追加。
- * Ver.01.06.00 Shunji Ogawa  2026/10/12  索引の取得・内容・未接続結果表示を追加。
- * Ver.01.07.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
- * Ver.01.08.00 Shunji Ogawa  2026/10/12  根拠付き初回導入の既存確認文へ操作名称を接続。
- * Ver.01.09.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
- * Ver.01.10.00 Shunji Ogawa  2026/10/13  必要構成の件数と適用未確認を明示する文言を追加。
- * Ver.01.10.01 Shunji Ogawa  2026/10/15  未観測の個別queue完了表現を反映未確認へ整合。
- * Ver.01.11.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続。
- * Ver.01.12.00 Shunji Ogawa  2026/10/16  索引通信結果の可視導線と同版publicationの画面受入を追加。
- * Ver.01.13.00 Shunji Ogawa  2026/10/16  索引通信詳細の全文と数値末尾の実control観測を追加。
- * Ver.01.13.01 Shunji Ogawa  2026/10/19  内容部分結果と候補別導入可否・未導入を区別する。
- * Ver.01.13.02 Shunji Ogawa  2026/10/24  索引の期限・発行時刻拒否を既存通信結果へ説明。
- * Ver.01.13.03 Shunji Ogawa  2026/10/24  実行ファイルの権利表示を採用表記へ統一。
- * Ver.01.14.00 Shunji Ogawa  2026/10/27  一device一行の四列要約と候補選択詳細を追加。
- * Ver.01.14.01 Shunji Ogawa  2026/10/27  過去実行履歴を現在の検証・導入許可と区別する表示を追加。
- * Ver.01.15.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加。
- * Ver.01.16.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続。
- * Ver.01.17.00 Shunji Ogawa  2026/10/28  検索後の確認取消しと初回候補filterを明示。
- * Ver.01.18.00 Shunji Ogawa  2026/10/28  三列一覧と通常検索・詳細閲覧に合わせた案内へ更新。
- * Ver.01.19.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続。
- * Ver.01.20.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続。
- * Ver.01.20.01 Shunji Ogawa  2026/11/02  検査済み候補数と未検査の初回確認数を区別。
- * Ver.01.21.00 Shunji Ogawa  2026/11/03  新版の取得前確認と版比較の表示を追加。
- * Ver.01.22.00 Shunji Ogawa  2026/11/07  候補比較をresize可能な標準五列表へ変更。
- * Ver.01.23.00 Shunji Ogawa  2026/11/08  バージョン表記を統一し表とbutton・状態tooltipへ簡素化。
- * Ver.01.24.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持。
- * Ver.01.25.00 Shunji Ogawa  2026/11/08  匿名導入診断と保存状態・元数値の有限確認を追加。
- * Ver.01.26.00 Shunji Ogawa  2026/11/08  署名更新情報と保存本体の一致時の取得省略を表示。
- * Ver.01.27.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
- * Ver.01.28.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
- * Ver.01.29.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続。
- * Ver.01.30.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
- * Ver.01.31.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
- * Ver.01.32.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の条件・取消し・表示専用結果を接続
+ * Ver.01.01.00 Shunji Ogawa  2026/09/14  種類別一覧の分類件数と失効表示を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/09/15  観測・検証理由・導入方式の固定表示を追加
+ * Ver.01.03.00 Shunji Ogawa  2026/09/15  共通package入力と内容検査の説明を更新
+ * Ver.01.03.01 Shunji Ogawa  2026/09/15  内容署名と明示依存の未確認を分離して説明
+ * Ver.01.04.00 Shunji Ogawa  2026/09/15  公式探索の一scan統一確認表示を追加
+ * Ver.01.05.00 Shunji Ogawa  2026/09/15  通常scanの協調取消し表示を追加
+ * Ver.01.06.00 Shunji Ogawa  2026/10/12  索引の取得・内容・未接続結果表示を追加
+ * Ver.01.07.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続
+ * Ver.01.08.00 Shunji Ogawa  2026/10/12  根拠付き初回導入の既存確認文へ操作名称を接続
+ * Ver.01.09.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続
+ * Ver.01.10.00 Shunji Ogawa  2026/10/13  必要構成の件数と適用未確認を明示する文言を追加
+ * Ver.01.10.01 Shunji Ogawa  2026/10/15  未観測の個別queue完了表現を反映未確認へ整合
+ * Ver.01.11.00 Shunji Ogawa  2026/10/16  通常索引refreshと非通信worker/UI境界を接続
+ * Ver.01.12.00 Shunji Ogawa  2026/10/16  索引通信結果の可視導線と同版publicationの画面受入を追加
+ * Ver.01.13.00 Shunji Ogawa  2026/10/16  索引通信詳細の全文と数値末尾の実control観測を追加
+ * Ver.01.13.01 Shunji Ogawa  2026/10/19  内容部分結果と候補別導入可否・未導入を区別する
+ * Ver.01.13.02 Shunji Ogawa  2026/10/24  索引の期限・発行時刻拒否を既存通信結果へ説明
+ * Ver.01.13.03 Shunji Ogawa  2026/10/24  実行ファイルの権利表示を採用表記へ統一
+ * Ver.01.14.00 Shunji Ogawa  2026/10/27  一device一行の四列要約と候補選択詳細を追加
+ * Ver.01.14.01 Shunji Ogawa  2026/10/27  過去実行履歴を現在の検証・導入許可と区別する表示を追加
+ * Ver.01.15.00 Shunji Ogawa  2026/10/28  通常検索前の再検出と取得前案内の境界を追加
+ * Ver.01.16.00 Shunji Ogawa  2026/10/28  選択対象の導入後実観測と現在行の自動更新を接続
+ * Ver.01.17.00 Shunji Ogawa  2026/10/28  検索後の確認取消しと初回候補filterを明示
+ * Ver.01.18.00 Shunji Ogawa  2026/10/28  三列一覧と通常検索・詳細閲覧に合わせた案内へ更新
+ * Ver.01.19.00 Shunji Ogawa  2026/10/28  元選択に結合した取得・検査と導入の二段階操作へ接続
+ * Ver.01.20.00 Shunji Ogawa  2026/11/02  公式規約の画面内案内と明示Install・任意全文閲覧を接続
+ * Ver.01.20.01 Shunji Ogawa  2026/11/02  検査済み候補数と未検査の初回確認数を区別
+ * Ver.01.21.00 Shunji Ogawa  2026/11/03  新版の取得前確認と版比較の表示を追加
+ * Ver.01.22.00 Shunji Ogawa  2026/11/07  候補比較をresize可能な標準五列表へ変更
+ * Ver.01.23.00 Shunji Ogawa  2026/11/08  バージョン表記を統一し表とbutton・状態tooltipへ簡素化
+ * Ver.01.24.00 Shunji Ogawa  2026/11/08  同内容候補の表示集約と元一件選択を保持
+ * Ver.01.25.00 Shunji Ogawa  2026/11/08  匿名導入診断と保存状態・元数値の有限確認を追加
+ * Ver.01.26.00 Shunji Ogawa  2026/11/08  署名更新情報と保存本体の一致時の取得省略を表示
+ * Ver.01.27.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加
+ * Ver.01.28.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続
+ * Ver.01.29.00 Shunji Ogawa  2026/11/09  導入後の一回fresh候補再評価と元表示保持を接続
+ * Ver.01.30.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
+ * Ver.01.31.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続
+ * Ver.01.32.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続
+ * Ver.01.32.01 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.32.02 Shunji Ogawa  2026/11/12  外側tupleの取得予約と開始拒否の原理由を接続
+ * Ver.01.32.03 Shunji Ogawa  2026/11/12  導入前保護失敗に結合した一回の明示復元なし続行を接続
+ * Ver.01.32.04 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
+ * Ver.01.32.05 Shunji Ogawa  2026/11/14  下部の正常検索案内を短縮し失敗表示を保持
  * </pre>
  *
- * @note Application icon、executable version、manifest、および日本語UI文字列を定義します。
+ * @note Application icon、executable version、manifest、および日本語UI文字列を定義します
  */
 //------------------------------------------------------------------------------
 
@@ -124,11 +129,11 @@
 #include "drivercrate_version.h"
 
 //------------------------------------------------------------------------------
-// Icon resource定義。
+// Icon resource定義
 //------------------------------------------------------------------------------
 IDI_DRIVERCRATE ICON "assets\\drivercrate.ico"
 
-// 主画面で案内した規約を任意閲覧するだけで、同意・取得commandを持ちません。
+// 主画面で案内した規約を任意閲覧するだけで、同意・取得commandを持ちません
 IDD_INSTALL_TERMS DIALOGEX 0, 0, 560, 380
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "選択したドライバーの使用許諾（閲覧のみ）"
@@ -144,13 +149,13 @@ STRINGTABLE
 BEGIN
 	IDS_INSTALL_TERMS_BUTTON "同意してインストール(&I)"
 	IDS_INSTALL_TERMS_OPEN "規約全文を読む(&L)"
-	IDS_INSTALL_TERMS_NOTICE "選択中 %1 件。「同意してインストール」でメーカー規約に同意し、取得・検査・導入を続けます。\r\n同意しない場合は選択を解除してください。全文は任意に確認できます。"
-	IDS_INSTALL_SELECTION_NOTICE "選択中 %1 件。インストール操作から、選択した配布物だけを取得・検査し、適合する候補の導入へ進みます。"
+	IDS_INSTALL_TERMS_NOTICE "選択中 %1 件。「同意してインストール」でメーカー規約に同意し、取得・検査・導入を続けます。\r\n同意しない場合は選択を解除してください。全文は任意に確認できます。\r\nWindows標準構成の登録が必要な場合、再起動後に管理者ユーザーでログオンしてください。"
+	IDS_INSTALL_SELECTION_NOTICE "選択中 %1 件。インストール操作から、選択した配布物だけを取得・検査し、適合する候補の導入へ進みます。\r\nWindows標準構成の登録が必要な場合、再起動後に管理者ユーザーでログオンしてください。"
 	IDS_INSTALL_TERMS_UNAVAILABLE "選択対象の使用許諾を確認できないか、案内後に対象・規約が変わりました。選択を確認し、必要ならもう一度検索してください。"
 	IDS_INSTALL_TERMS_VIEW_ONLY "この画面は閲覧専用です。開く・閉じる操作では規約への同意、ドライバーの取得・導入を行いません。"
 END
 
-// EULA本文は実行時のplain textだけを表示し、公式の全文をresourceへ同梱しない。
+// EULA本文は実行時のplain textだけを表示し、公式の全文をresourceへ同梱しない
 IDD_PREPARATION_EULA DIALOGEX 0, 0, 560, 404
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "使用許諾の確認（今回の取得対象のみ）"
@@ -171,7 +176,7 @@ BEGIN
 	DEFPUSHBUTTON "同意しない", IDCANCEL, 450, 376, 100, 20
 END
 
-// 毎回未選択の条件確認だけを行う。PayloadやEULAの承認dialogではない。
+// 毎回未選択の条件確認だけを行う。PayloadやEULAの承認dialogではない
 IDD_METADATA_DETAILS DIALOGEX 0, 0, 520, 340
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "情報検索の結果・条件"
@@ -183,7 +188,7 @@ BEGIN
 	DEFPUSHBUTTON "閉じる(&C)", IDOK, 430, 314, 80, 18
 END
 
-// 候補の閲覧と一件の明示選択を分け、default buttonは閲覧終了だけにする。
+// 候補の閲覧と一件の明示選択を分け、default buttonは閲覧終了だけにする
 IDD_DEVICE_DETAILS DIALOGEX 0, 0, 620, 300
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
 CAPTION "デバイスの詳細と候補"
@@ -217,7 +222,7 @@ VS_VERSION_INFO VERSIONINFO
  FILEVERSION DRIVERCRATE_VERSION_COMMA
  PRODUCTVERSION DRIVERCRATE_VERSION_COMMA
  FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
-/* Debug build の version resource にだけ debug 属性を付与する。 */
+/* Debug build の version resource にだけ debug 属性を付与する */
 #ifdef _DEBUG
  FILEFLAGS VS_FF_DEBUG
 #else
@@ -438,9 +443,9 @@ BEGIN
 	IDS_STATUS_SCANNING           "デバイス、Driver Store、Windows Update、公式メーカーの候補を確認しています…"
 	IDS_STATUS_DOWNLOADING        "選択したドライバー更新をダウンロードしています…"
 	IDS_STATUS_INSTALLING         "選択したドライバー更新をインストールしています。電源を切らないでください…"
-	IDS_STATUS_NO_UPDATES         "デバイスを列挙しました。現在選択できる別のドライバー候補はありません。"
-	IDS_STATUS_SCAN_COUNT         "%1 件の候補があります。対象を選択してください。詳しくは行をダブルクリック。"
-	IDS_STATUS_SCAN_WARNING       "%1 件の候補を表示しましたが、一部の取得元を確認できませんでした。"
+	IDS_STATUS_NO_UPDATES         "検索完了：導入候補はありません。"
+	IDS_STATUS_SCAN_COUNT         "導入候補 %1 件。"
+	IDS_STATUS_SCAN_WARNING       "一部の取得元を確認できませんでした。"
 	IDS_STATUS_COMPLETED          "選択したドライバー更新の処理が完了しました。結果を表示しています。"
 	IDS_STATUS_FAILED             "ドライバー更新を完了できませんでした。結果欄を確認してください。"
 	IDS_ERROR_TITLE               "DriverCrate エラー"
@@ -496,9 +501,9 @@ BEGIN
 	IDS_RESTORE_POINT_NOT_CREATED "未インストール（復元ポイントの準備未成立）"
 	IDS_RESTORE_POINT_CREATED     "Windowsの復元ポイントを作成しました（番号: %1）。"
 	IDS_RECOMMENDED_ONLY_FILTER   "推奨・初回候補を表示(&R)"
-	IDS_STATUS_RECOMMENDED_COUNT  "更新・初回の導入候補 %1 件。"
-	IDS_STATUS_INITIAL_PREPARATION_COUNT "初回の確認候補 %1 件（取得・適用性未検査）。"
-	IDS_STATUS_UPDATE_CONFIRMATION_COUNT "更新の確認候補 %1 件（取得前・適用性未検査）。"
+	IDS_STATUS_RECOMMENDED_COUNT  "導入候補 %1 件。"
+	IDS_STATUS_INITIAL_PREPARATION_COUNT "初回の確認候補 %1 件。"
+	IDS_STATUS_UPDATE_CONFIRMATION_COUNT "更新の確認候補 %1 件。"
 	IDS_REFERENCE_VERSION "取得前のバージョン（収集者情報）"
 	IDS_REFERENCE_NEWER "新しいバージョンの確認候補（取得前）"
 	IDS_REFERENCE_SAME "同じバージョンの取得前情報"
@@ -603,6 +608,9 @@ BEGIN
 	IDS_OFFICIAL_RELEASE_DISCOVERY_STATE "公式配布情報・取得条件は検索後の確認へ。内容／OS／PnP未監査"
 	IDS_PREPARATION_BUTTON "取得準備(&P)"
 	IDS_PREPARATION_BEGIN_ERROR "取得承認の開始条件を満たしません。再検索して対象を確認してください。開始拒否番号: %1"
+	IDS_PREPARATION_BEGIN_BUDGET "選択した配布物の取得予約が、この検索の容量または件数の上限を超えています。選択した対象を確認してください。開始拒否番号 / 取得承認理由: %1"
+	IDS_PREPARATION_BEGIN_SNAPSHOT "取得対象または利用条件の一致を確認できませんでした。再検索して対象を確認してください。開始拒否番号 / 取得承認理由: %1"
+	IDS_PREPARATION_BEGIN_STALE "取得計画または承認が古いか、すでに使用されています。再検索して対象を確認してください。開始拒否番号 / 取得承認理由: %1"
 	IDS_PREPARATION_CANCEL "取得を取消し(&P)"
 	IDS_PREPARATION_CANCELLING "取得の取消し待ち"
 	IDS_PREPARATION_RESULT_BUTTON "取得結果(&P)"
@@ -728,7 +736,7 @@ BEGIN
 	IDS_INDEX_PLAN_RESULTS "必要構成の個別結果"
 	END
 
-// 同期候補snapshotの短いセル説明。元本文や秘密値を転記しません。
+// 同期候補snapshotの短いセル説明。元本文や秘密値を転記しません
 STRINGTABLE
 BEGIN
 	IDS_DETAIL_TIP_CURRENT "Windowsで読み取った現在のドライバーです。この行は導入候補ではありません。"
@@ -787,4 +795,23 @@ BEGIN
 	IDS_APP_UPDATE_FAILED "アプリの更新を完了できませんでした。現在のアプリとドライバーの結果は保持しています。時間を置いて確認するか、公式Releaseからインストーラーを取得してください。診断:"
 	IDS_APP_UPDATE_CANCEL "アプリ更新の取得を取り消す"
 	IDS_APP_ALREADY_RUNNING "DriverCrateは既に起動中です。既存の画面を使ってください。"
+END
+
+STRINGTABLE
+BEGIN
+	IDS_RESTORE_DISABLED_GUIDANCE "Windowsのシステム保護が無効、または関連サービスを開始できない可能性があります。\r\nスタートで「復元ポイントの作成」を検索し、「システムの保護」タブで対象ドライブの「構成」を確認してください。"
+	IDS_RESTORE_CONTINUE_WARNING "この操作では復元ポイントによる保護がありません。同じ選択対象のドライバーを導入します。\r\n設定を確認する場合は「中止」を選んでください。"
+	IDS_RESTORE_CONTINUE_TITLE "復元ポイントなしで続行しますか？"
+	IDS_RESTORE_CONTINUATION_REJECTED "復元ポイントなしでの処理は、開始条件を再確認した結果、実行しませんでした。診断: "
+	IDS_RESTORE_CONTINUE_BUTTON "復元ポイントなしで続行"
+	IDS_RESTORE_ABORT_BUTTON "中止"
+	IDS_RESTORE_WITHOUT_POINT_RESULT "復元ポイントを作成せずに実行しました。復元ポイントのエラー: "
+	IDS_WINDOWS_COMPONENT_REGISTRATION_PENDING "Windows標準構成の遅延登録が必要な場合、その完了はこの結果では確認していません。"
+	IDS_STATUS_INSTALL_WITHOUT_RESTORE "本人の選択により復元ポイントなしで処理しています…"
+END
+
+STRINGTABLE
+BEGIN
+	IDS_DIAGNOSTIC_STORAGE_COMPACT_FAILED "診断ログを保存できません。"
+	IDS_DIAGNOSTIC_STORAGE_COMPACT_DROPPED "診断ログに欠落があります。"
 END

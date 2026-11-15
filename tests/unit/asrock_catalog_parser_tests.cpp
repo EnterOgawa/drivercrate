@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file asrock_catalog_parser_tests.cpp
- * @brief ASRock公式Web parser単体試験実装。
- * @version 01.00.01
+ * @brief ASRock公式Web parser単体試験実装
+ * @version 01.00.02
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,18 +19,19 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 架空HTMLとdevice snapshotだけでmodel／OS／class／maker境界を検証します。Payloadを取得または実行しません。
+ * @note 架空HTMLとdevice snapshotだけでmodel／OS／class／maker境界を検証します。Payloadを取得または実行しません
  */
 //------------------------------------------------------------------------------
 
@@ -50,7 +51,7 @@ namespace drivercrate::test {
 namespace {
 
 //------------------------------------------------------------------------------
-// 試験data定義。
+// 試験data定義
 //------------------------------------------------------------------------------
 
 constexpr std::wstring_view CATALOG_FIXTURE = LR"(
@@ -66,28 +67,28 @@ constexpr std::wstring_view CATALOG_FIXTURE = LR"(
 <td>Windows 11 64bit</td><td>8/31/2026</td><td>75MB</td><td>Download</td></tr>
 <tr><td>Another Board</td><td>Realtek Lan driver ver:1.0</td>
 <td>Windows 11 64bit</td><td>8/31/2026</td><td>1MB</td><td>Download</td></tr>
-</tbody></table></html>)" ;	// 現行六列構造を模した架空公式一覧。
+</tbody></table></html>)" ;	// 現行六列構造を模した架空公式一覧
 
 //------------------------------------------------------------------------------
-// 内部試験関数定義。
+// 内部試験関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief ModelとOSに一致する表示情報抽出を検証する。
+ * @brief ModelとOSに一致する表示情報抽出を検証する
  *
- * BluetoothとLANだけを採用し、chipsetと他modelを除外する。
+ * BluetoothとLANだけを採用し、chipsetと他modelを除外する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void						testMatchingEntries( TestContext &context)
 {
-	std::vector<AsrockDriverPageEntry> entries ;	// Parserが返す架空表示情報群。
+	std::vector<AsrockDriverPageEntry> entries ;	// Parserが返す架空表示情報群
 	DRIVERCRATE_EXPECT( context, parseAsrockLatestDriverHtml( CATALOG_FIXTURE, L"Fictional Board",
 															L"Windows 11 64bit", entries)) ;
 	DRIVERCRATE_EXPECT( context, entries.size() == 2U) ;
-	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ。
+	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ
 	if( entries.size() != 2U) {
 		return ;
 	}
@@ -103,19 +104,19 @@ void						testMatchingEntries( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief Local deviceへの表示関連付け境界を検証する。
+ * @brief Local deviceへの表示関連付け境界を検証する
  *
- * Driver classとmakerが両方一致しないdeviceを拒否する。
+ * Driver classとmakerが両方一致しないdeviceを拒否する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testDeviceMatching( TestContext &context)
 {
-	std::vector<AsrockDriverPageEntry> entries ;	// 照合に使用する表示情報群。
+	std::vector<AsrockDriverPageEntry> entries ;	// 照合に使用する表示情報群
 	DRIVERCRATE_EXPECT( context, parseAsrockLatestDriverHtml( CATALOG_FIXTURE, L"Fictional Board",
 															L"Windows 11 64bit", entries)) ;
-	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ。
+	// 前提となる結果が揃わない場合は詳細検証を打ち切り、不正な要素参照による二次障害を防ぐ
 	if( entries.size() != 2U) {
 		return ;
 	}
@@ -128,7 +129,7 @@ void testDeviceMatching( TestContext &context)
 		.deviceClassGuid = L"{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}",
 		.currentProvider = L"MediaTek",
 		.currentVersion	 = L"1.0",
-		.currentDate	 = L"2025/01/01"} ;	// Classとmakerが一致する架空device。
+		.currentDate	 = L"2025/01/01"} ;	// Classとmakerが一致する架空device
 	const OfficialCatalogDevice wrongClass{
 		.deviceIdentity	 = L"device-2",
 		.model			 = L"MediaTek Fictional Network Adapter",
@@ -137,7 +138,7 @@ void testDeviceMatching( TestContext &context)
 		.deviceClassGuid = L"{4d36e972-e325-11ce-bfc1-08002be10318}",
 		.currentProvider = L"MediaTek",
 		.currentVersion	 = L"1.0",
-		.currentDate	 = L"2025/01/01"} ;	// Makerだけ一致する架空device。
+		.currentDate	 = L"2025/01/01"} ;	// Makerだけ一致する架空device
 	const OfficialCatalogDevice wrongVendor{
 		.deviceIdentity	 = L"device-3",
 		.model			 = L"Fictional Bluetooth Adapter",
@@ -146,7 +147,7 @@ void testDeviceMatching( TestContext &context)
 		.deviceClassGuid = L"{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}",
 		.currentProvider = L"Fictional Vendor",
 		.currentVersion	 = L"1.0",
-		.currentDate	 = L"2025/01/01"} ;	// Classだけ一致する架空device。
+		.currentDate	 = L"2025/01/01"} ;	// Classだけ一致する架空device
 	DRIVERCRATE_EXPECT( context, asrockEntryMatchesDevice( entries[0], mediatekBluetooth)) ;
 	DRIVERCRATE_EXPECT( context, !asrockEntryMatchesDevice( entries[0], wrongClass)) ;
 	DRIVERCRATE_EXPECT( context, !asrockEntryMatchesDevice( entries[0], wrongVendor)) ;
@@ -154,23 +155,23 @@ void testDeviceMatching( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 不正schemaと表示値を拒否することを検証する。
+ * @brief 不正schemaと表示値を拒否することを検証する
  *
- * Challenge page、列欠損、未知OS、破損entity／日付／sizeを拒否する。
+ * Challenge page、列欠損、未知OS、破損entity／日付／sizeを拒否する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testRejections( TestContext &context)
 {
-	std::vector<AsrockDriverPageEntry> entries ;	// 拒否時に空となる受信先。
+	std::vector<AsrockDriverPageEntry> entries ;	// 拒否時に空となる受信先
 	entries.push_back( {.title = L"stale"}) ;
 	DRIVERCRATE_EXPECT( context, !parseAsrockLatestDriverHtml( L"<html>Request unsuccessful.</html>",
 															 L"Fictional Board",
 															 L"Windows 11 64bit", entries)) ;
 	DRIVERCRATE_EXPECT( context, entries.empty()) ;
 
-	// 必要なDownload cellが欠けたdriver行の拒否用HTML。
+	// 必要なDownload cellが欠けたdriver行の拒否用HTML
 	constexpr std::wstring_view MISSING_CELL =
 		LR"(<table class="Download"><tr><td>Fictional Board</td>)"
 		LR"(<td>Realtek Lan driver ver:1.0</td><td>Windows 11 64bit</td>)"
@@ -180,7 +181,7 @@ void testRejections( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !parseAsrockLatestDriverHtml( CATALOG_FIXTURE, L"Fictional Board",
 															 L"Windows 12 64bit", entries)) ;
 
-	// 許可していないHTML entityを含む製品名の拒否用入力。
+	// 許可していないHTML entityを含む製品名の拒否用入力
 	constexpr std::wstring_view UNKNOWN_ENTITY =
 		LR"(<table class="Download"><tr><td>Fictional&copy; Board</td>)"
 		LR"(<td>Realtek Lan driver ver:1.0</td><td>Windows 11 64bit</td>)"
@@ -188,7 +189,7 @@ void testRejections( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !parseAsrockLatestDriverHtml( UNKNOWN_ENTITY, L"Fictional Board",
 															 L"Windows 11 64bit", entries)) ;
 
-	// 暦上存在しない日付を含むdriver行の拒否用HTML。
+	// 暦上存在しない日付を含むdriver行の拒否用HTML
 	constexpr std::wstring_view INVALID_DATE =
 		LR"(<table class="Download"><tr><td>Fictional Board</td>)"
 		LR"(<td>Realtek Lan driver ver:1.0</td><td>Windows 11 64bit</td>)"
@@ -196,7 +197,7 @@ void testRejections( TestContext &context)
 	DRIVERCRATE_EXPECT( context, !parseAsrockLatestDriverHtml( INVALID_DATE, L"Fictional Board",
 															 L"Windows 11 64bit", entries)) ;
 
-	// 容量を確定できないdriver行の拒否用HTML。
+	// 容量を確定できないdriver行の拒否用HTML
 	constexpr std::wstring_view INVALID_SIZE =
 		LR"(<table class="Download"><tr><td>Fictional Board</td>)"
 		LR"(<td>Realtek Lan driver ver:1.0</td><td>Windows 11 64bit</td>)"
@@ -207,19 +208,19 @@ void testRejections( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 表示専用Providerがinstallを拒否することを検証する。
+ * @brief 表示専用Providerがinstallを拒否することを検証する
  *
- * Provider直接呼出しでもpayload取得へ進まないことを確認する。
+ * Provider直接呼出しでもpayload取得へ進まないことを確認する
  *
- * @param[in,out] context Assertion集計先。
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void testInstallRejection( TestContext &context)
 {
-	AsrockUpdateProvider			provider ;							// 表示専用install拒否の試験対象。
-	const std::vector<std::wstring> identities{L"fictional-identity"} ;	// 架空選択ID。
+	AsrockUpdateProvider			provider ;							// 表示専用install拒否の試験対象
+	const std::vector<std::wstring> identities{L"fictional-identity"} ;	// 架空選択ID
 	const InstallResult				result = provider.install(
-		1U, identities, 0U, []( const ProviderProgress &) {}) ;	// 直接install要求結果。
+		1U, identities, 0U, []( const ProviderProgress &) {}) ;	// 直接install要求結果
 	DRIVERCRATE_EXPECT( context, !result.succeeded) ;
 	DRIVERCRATE_EXPECT( context, result.downloadOutcome == OutcomeCode::FAILURE) ;
 	DRIVERCRATE_EXPECT( context, result.downloadError == static_cast<NativeError>( E_NOTIMPL)) ;
@@ -233,8 +234,8 @@ void testInstallRejection( TestContext &context)
 //------------------------------------------------------------------------------
 /**
  * @brief ASRock公式Web parserと表示専用Provider拒否経路を実行する。ASRock公式Web parserの全単体試験を実行する。一覧抽出、device関連付け、拒否、
- *        install拒否を検証する。
- * @param[in,out] context Assertion集計先。
+ *        install拒否を検証する
+ * @param[in,out] context Assertion集計先
  */
 //------------------------------------------------------------------------------
 void runAsrockCatalogParserTests( TestContext &context)

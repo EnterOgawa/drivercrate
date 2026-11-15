@@ -22,6 +22,7 @@
     "docs/adr/0141-revised-source-standard-contract.md",
     "docs/adr/0481-app-inno-setup-and-update-checks.md",
     "docs/adr/0482-independent-function-contracts.md",
+    "docs/adr/0493-version-compatible-diagnostic-log.md",
     "docs/architecture.md",
     "docs/c_cpp_coding_standard.md",
     "docs/examples/c_cpp_coding_standard_sample.cpp",
@@ -30,6 +31,7 @@
     "docs/release-checklist.md",
     "docs/release-notes-1.0.1.md",
     "docs/release-notes-1.0.6.md",
+    "docs/release-notes-1.0.7.md",
     "docs/security.md",
     "docs/testing.md",
     "docs/user-guide.md",
@@ -426,6 +428,8 @@
     "src/platform/silicon_labs_catalog_parser.h",
     "src/platform/silicon_labs_serial_package.cpp",
     "src/platform/silicon_labs_serial_package.h",
+    "src/platform/system_inf_effects_internal.cpp",
+    "src/platform/system_inf_effects_internal.h",
     "src/platform/unsigned_index_candidate.cpp",
     "src/platform/unsigned_index_candidate.h",
     "src/platform/unsigned_index_probe_internal.h",
@@ -446,6 +450,7 @@
     "src/platform/windows_product_type.h",
     "src/platform/windows_restore_point_service.cpp",
     "src/platform/windows_restore_point_service.h",
+    "src/platform/windows_update_identity_internal.h",
     "src/platform/windows_update_provider.cpp",
     "src/platform/windows_update_provider.h",
     "tests/fixtures/pe-resource/01-valid-named-tuple.pe.bin",
@@ -509,6 +514,7 @@
     "tests/unit/inf_dependency_native_tests.cpp",
     "tests/unit/inf_dependency_plan_tests.cpp",
     "tests/unit/inf_dependency_review_boundary_tests.cpp",
+    "tests/unit/install_diagnostic_tests.cpp",
     "tests/unit/intel_collector_identity_parser_tests.cpp",
     "tests/unit/intel_collector_identity_parser_tests.h",
     "tests/unit/intel_download_only_page_tests.cpp",
@@ -650,7 +656,8 @@
     "tests/unit/wch_serial_package_tests.cpp",
     "tests/unit/wch_serial_package_tests.h",
     "tests/unit/windows_update_provider_tests.cpp",
-    "tests/unit/windows_update_provider_tests.h"
+    "tests/unit/windows_update_provider_tests.h",
+    "tests/unit/windows_update_scan_tests.cpp"
   ],
   "excluded": [
     {
@@ -684,6 +691,10 @@
     {
       "path": ".github/workflows/",
       "reason": "The exact snapshot is verified locally; Actions are not used."
+    },
+    {
+      "path": "data/collector-pending-references/",
+      "reason": "Private pending-reference ledger/imported evidence mirrors."
     }
   ],
   "generatedHeaders": {
@@ -11934,6 +11945,7 @@
     "Explicit consumer source projection; private collection products are excluded.",
     "finalAllowlist=false; this static manifest is not release approval or a fresh build result.",
     "Native Debug/Release, required tests, quality and static analysis of the frozen snapshot remain separate.",
-    "Previous results and signatures do not establish acceptance of new source or executable bytes."
+    "Previous results and signatures do not establish acceptance of new source or executable bytes.",
+    "CMakeLists.txt is the existing Public consumer projection with explicit 1.0.7 and adopted consumer-source/test additions; Private whole CMake is not the public projection. Producer options are OFF. Static closure is not snapshot fresh build acceptance."
   ]
 }

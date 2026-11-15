@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
+import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from source_style import (
     add_standard_spacing, align_trailing_comments, apply_edits, ensure_same_tokens,
     find_clang_format, format_non_cpp, format_source, literal_signature, token_signature, tokenize,
-    hoist_processing_comments,
+    hoist_processing_comments, strip_terminal_comment_periods, terminal_comment_period_positions,
+    empty_comment_trailing_whitespace_ranges,
 )
 from source_comments import (
     MemberCommentTarget,
@@ -20,7 +26,10 @@ from source_comments import (
     normalize_doxygen_markup,
     rename_parameter_comments,
     synchronize_parameter_contracts,
+    sentence,
 )
+import audit_source_comments
+import audit_source_declarations
 from audit_source_comments import case_nodes, control_nodes
 from prepare_control_comment_patterns import describe_control
 from source_structure import add_simple_braces, add_vertical_spacing, brace_insertions
@@ -45,15 +54,15 @@ def metadata_fixture(filename="fixture.h", version="01.00.01", history_rows=None
     返すlicense・日付・版数の記述は検査入力であり、このPython fileのmetadataではない。
     """
     rows = history_rows or [
-        " * Ver.01.00.00  Shunji Ogawa  2026/09/01  新規作成。",
-        " * Ver.01.00.01  Shunji Ogawa  2026/09/11  説明を明確化。",
+        " * Ver.01.00.00  Shunji Ogawa  2026/09/01  新規作成",
+        " * Ver.01.00.01  Shunji Ogawa  2026/09/11  説明を明確化",
     ]
     migrated = (migrated_history + "\n") if migrated_history else ""
     return "\n".join([
         "//------------------------------------------------------------------------------",
         "/**",
         f" * @file {filename}",
-        " * @brief 検査用のfile headerです。",
+        " * @brief 検査用のfile headerです",
         f" * @version {version}",
         " * @date 2026/09/01",
         " * @author Shunji Ogawa",
@@ -61,8 +70,8 @@ def metadata_fixture(filename="fixture.h", version="01.00.01", history_rows=None
         " *",
         " * @par ライセンス",
         " * SPDX-License-Identifier: Apache-2.0",
-        " * 本ファイルには Apache License, Version 2.0 が適用されます。",
-        " * ライセンス全文はプロジェクトルートの LICENSE を参照してください。",
+        " * 本ファイルには Apache License, Version 2.0 が適用されます",
+        " * ライセンス全文はプロジェクトルートの LICENSE を参照してください",
         " * https://www.apache.org/licenses/LICENSE-2.0",
         " *",
         " * @par 会社名",
@@ -86,6 +95,29 @@ class MetadataTests(unittest.TestCase):
     def test_metadata_check_accepts_approved_header_and_independent_version(self):
         source = metadata_fixture()
         self.assertEqual(file_metadata_errors(source, Path("fixture.h"), "0.1.0"), [])
+
+    def test_first_current_history_requires_exact_new_creation_comment(self):
+        for reason in ("独立ファイル版へ移行", "新規作成。", "新規作成して機能を追加"):
+            with self.subTest(reason=reason):
+                source = metadata_fixture().replace("2026/09/01  新規作成", "2026/09/01  " + reason)
+                self.assertIn('first current history comment must be 新規作成',
+                              file_metadata_errors(source, Path('fixture.h')))
+
+    def test_migrated_first_reason_is_preserved_separately_from_current_history(self):
+        migrated = '\n'.join([
+            ' * @par 移行前更新履歴（製品版）', ' * <pre>',
+            ' * VerNo. author update comment',
+            ' * Ver.0.1.0 Shunji Ogawa 2026/08/30 最初の原契約。互換性を維持。',
+            ' * Ver.0.1.0 Shunji Ogawa 2026/09/01 原期限を保持。', ' * </pre>',
+        ])
+        source = metadata_fixture(migrated_history=migrated)
+        result = strip_terminal_comment_periods(source)
+        self.assertEqual(file_metadata_errors(result, Path('fixture.h')), [])
+        self.assertIn('2026/08/30 最初の原契約。互換性を維持\n', result)
+        self.assertIn('2026/09/01 原期限を保持\n', result)
+        self.assertIn('Ver.01.00.00  Shunji Ogawa  2026/09/01  新規作成\n', result)
+        self.assertIn('@version 01.00.01\n', result)
+        self.assertIn('@date 2026/09/01\n', result)
 
     def test_metadata_check_rejects_renamed_file_tag(self):
         source = metadata_fixture(filename="wrong_name.h")
@@ -600,7 +632,7 @@ class CommentTests(unittest.TestCase):
             "@copyright Copyright (c) 2026 EnterSystem CO.,LTD.",
             "@par ライセンス", "SPDX-License-Identifier: Apache-2.0",
             "@par 移行前更新履歴（製品版）", "@par 更新履歴", "Ver.01.00.00",
-            "新規作成。", "借用中は入力を書き換えない。", "Shunji Ogawa",
+            "新規作成", "借用中は入力を書き換えない。", "Shunji Ogawa",
             "EnterSystem",
         ):
             self.assertIn(text, result)
@@ -611,7 +643,7 @@ class CommentTests(unittest.TestCase):
         result = convert_file_header(
             self.old_header(metadata), Path("fixture.cpp"), "01.00.00", "2026/09/11"
         )
-        self.assertIn("@brief 境界検査。", result)
+        self.assertIn("@brief 境界検査\n", result)
         self.assertIn("@date 2026/09/05", result)
 
     def test_doxygen_header_migration_preserves_legacy_history_order(self):
@@ -623,8 +655,8 @@ class CommentTests(unittest.TestCase):
             " *\n"
             " * @par ライセンス\n"
             " * SPDX-License-Identifier: Apache-2.0\n"
-            " * 本ファイルには Apache License, Version 2.0 が適用されます。\n"
-            " * ライセンス全文はプロジェクトルートの LICENSE を参照してください。\n"
+            " * 本ファイルには Apache License, Version 2.0 が適用されます\n"
+            " * ライセンス全文はプロジェクトルートの LICENSE を参照してください\n"
             " * https://www.apache.org/licenses/LICENSE-2.0",
             " * @copyright Copyright (c) 2026 EnterOgawa and DriverCrate contributors. MIT License.",
         ).replace("Ver.01.00.00", "Ver.0.1.0   ").replace(
@@ -660,7 +692,7 @@ class CommentTests(unittest.TestCase):
         ])
         result, count = convert_function_blocks(source)
         self.assertEqual(count, 1)
-        for text in ("@tparam Getter", "@param[in] getter", "@param[in,out] output", "@return 全項目", "部分的な結果は公開しない。"):
+        for text in ("@tparam Getter", "@param[in] getter", "@param[in,out] output", "@return 全項目", "部分的な結果は公開しない\n"):
             self.assertIn(text, result)
         self.assertNotIn("呼出形式", result)
         ensure_same_tokens(source, result)
@@ -707,6 +739,135 @@ class CommentTests(unittest.TestCase):
         self.assertIn("<tt>std::nullopt</tt>。", result)
         self.assertEqual(result, normalize_doxygen_markup(result))
         ensure_same_tokens(source, result)
+
+
+class CommentPeriodTests(unittest.TestCase):
+    def assert_normalized(self, source, expected):
+        result = strip_terminal_comment_periods(source)
+        self.assertEqual(result, expected)
+        self.assertEqual(terminal_comment_period_positions(result), [])
+        self.assertEqual(strip_terminal_comment_periods(result), result)
+        ensure_same_tokens(source, result)
+
+    def test_line_comments_remove_only_terminal_periods_and_keep_internal_boundaries(self):
+        self.assert_normalized('// 入力を検証。成功時だけ保存。 \nint value; // 借用値。。\n',
+                               '// 入力を検証。成功時だけ保存 \nint value; // 借用値\n')
+
+    def test_block_lines_and_inline_close_are_normalized(self):
+        self.assert_normalized('/* 一行。 */ int a;\n/**\n * 第一文。次の文。。\n * 別の行。 \n */\n',
+                               '/* 一行 */ int a;\n/**\n * 第一文。次の文\n * 別の行 \n */\n')
+
+    def test_inline_block_before_code_keeps_following_tokens(self):
+        self.assert_normalized('int a /* 借用値。*/ = 1; /* 後続の説明。。 */ int b = 2;\n',
+                               'int a /* 借用値*/ = 1; /* 後続の説明 */ int b = 2;\n')
+
+    def test_comment_line_continuation_remains_a_comment(self):
+        source = '// 最初の行。 \\\n続き。。\nint value;\n'
+        expected = '// 最初の行 \\\n続き\nint value;\n'
+        self.assert_normalized(source, expected)
+        self.assertEqual([token.text for token in tokenize(expected) if token.kind == 'identifier'],
+                         ['int', 'value'])
+
+    def test_english_period_copyright_and_license_spelling_are_preserved(self):
+        source = '// Copyright (c) 2026 EnterSystem CO.,LTD.\n/* Apache License, Version 2.0. */\n'
+        self.assert_normalized(source, source)
+
+    def test_string_character_raw_literal_and_url_are_protected(self):
+        source = ('auto text = "終端。 // URL https://example.invalid/a。";\n'
+                  "auto symbol = L'。';\n"
+                  'auto raw = u8R"tag(/* 説明。 */\n// 原byte。。\n)tag"; // コメント。\n')
+        self.assert_normalized(source, source.replace('// コメント。\n', '// コメント\n'))
+
+    def test_directive_tokens_stringification_and_continuation_are_protected(self):
+        source = '#define TEXT "終端。" // 説明。\n#define KEEP(x) \\\n ((x) + 1) // 内容。\n#define NAME(x) #x /* 名前。 */\n'
+        expected = '#define TEXT "終端。" // 説明\n#define KEEP(x) \\\n ((x) + 1) // 内容\n#define NAME(x) #x /* 名前 */\n'
+        self.assert_normalized(source, expected)
+
+    def test_period_detection_ignores_literal_and_reports_each_terminal_character(self):
+        source = 'auto text = "。"; // 文中。末尾。。\n/* 別行。 */\n'
+        positions = terminal_comment_period_positions(source)
+        self.assertEqual(len(positions), 3)
+        self.assertEqual([source[position] for position in positions], ['。'] * 3)
+        self.assertTrue(all(position > source.index('//') for position in positions))
+
+    def test_comment_sentence_generation_does_not_append_a_period(self):
+        for source, expected in [('説明', '説明'), (' 前文。後文。。 ', '前文。後文'),
+                                 ('English.', 'English.'), ('', '')]:
+            with self.subTest(source=source):
+                self.assertEqual(sentence(source), expected)
+
+    def test_period_only_doxygen_lines_leave_no_trailing_whitespace(self):
+        self.assert_normalized('/**\n * @brief 内容。\n *        。\n\t * \t。。 \n */\n',
+                               '/**\n * @brief 内容\n *\n\t *\n */\n')
+
+    def test_empty_comment_markers_and_blank_comment_lines_are_normalized(self):
+        source = '// \t\n///   \n//! \t\n/** \t\n *  \n \t\n */\nint value; // \t'
+        expected = '//\n///\n//!\n/**\n *\n\n */\nint value; //'
+        self.assert_normalized(source, expected)
+        self.assertEqual(empty_comment_trailing_whitespace_ranges(expected), [])
+
+    def test_nonempty_comments_keep_their_existing_trailing_space_contract(self):
+        source = '// 内容 \t\n/**\n * @param[in] value 借用値 \t\n */\n/* 内容。 */\n'
+        result = strip_terminal_comment_periods(source)
+        self.assertEqual(result, source.replace('/* 内容。 */', '/* 内容 */'))
+        self.assertEqual(empty_comment_trailing_whitespace_ranges(source), [])
+
+    def test_empty_comment_lookalikes_in_literals_remain_byte_identical(self):
+        source = ('auto raw = R"tag(\n *        \n// \t\n///   \n)tag";\n'
+                  'auto text = "//   "; auto symbol = L\'。\';\n// \t\n')
+        result = strip_terminal_comment_periods(source)
+        self.assertEqual(result, source.removesuffix('// \t\n') + '//\n')
+        self.assertEqual(literal_signature(source), literal_signature(result))
+        self.assertEqual(empty_comment_trailing_whitespace_ranges(result), [])
+
+    def test_empty_comment_normalization_keeps_crlf_and_line_continuation(self):
+        source = '// \\\r\n \t\r\n/**\r\n * \t\r\n */\r\nint value;\r\n'
+        expected = '// \\\r\n\r\n/**\r\n *\r\n */\r\nint value;\r\n'
+        self.assert_normalized(source, expected)
+
+
+class ReviewedCommentPlanTests(unittest.TestCase):
+    def apply_plan(self, module, comment, accepted):
+        with tempfile.TemporaryDirectory(prefix='drivercrate-comment-plan-') as directory:
+            root = Path(directory)
+            target = root / 'src/fixture.cpp'
+            target.parent.mkdir()
+            declaration = module is audit_source_declarations
+            source = 'void run() {\n int value = 0;\n}\n' if declaration else 'if(ready) { return; }\n'
+            target.write_text(source, encoding='utf-8')
+            nodes = local_declaration_nodes(source) if declaration else control_nodes(source)
+            self.assertEqual(len(nodes), 1)
+            plan = root / 'plan.json'
+            plan.write_text(json.dumps({'src/fixture.cpp': {str(nodes[0]['token_index']): comment}},
+                                       ensure_ascii=False), encoding='utf-8')
+            arguments = ['audit', '--apply', str(plan), '--report', str(root / 'report.json'), '--limit', '0']
+            if declaration:
+                arguments.append('--locals')
+            with mock.patch.object(module, '__file__', str(root / 'scripts/audit.py')), \
+                    mock.patch('sys.argv', arguments), contextlib.redirect_stdout(io.StringIO()):
+                if accepted:
+                    self.assertEqual(module.main(), 0)
+                else:
+                    with self.assertRaises(ValueError):
+                        module.main()
+            result = target.read_text(encoding='utf-8')
+            if accepted:
+                self.assertIn('// ' + comment + '\n', result)
+                ensure_same_tokens(source, result)
+            else:
+                self.assertEqual(result, source)
+
+    def test_reviewed_control_and_declaration_plans_accept_internal_and_english_periods(self):
+        for module in (audit_source_comments, audit_source_declarations):
+            for comment in ('前文。次の処理を保持', 'Keep borrowed input.'):
+                with self.subTest(module=module.__name__, comment=comment):
+                    self.apply_plan(module, comment, True)
+
+    def test_reviewed_plans_reject_old_terminal_period_and_invalid_lines_without_source_write(self):
+        for module in (audit_source_comments, audit_source_declarations):
+            for comment in ('説明。', '説明。。  ', ' ', '説明\n続き', '説明\r続き'):
+                with self.subTest(module=module.__name__, comment=comment):
+                    self.apply_plan(module, comment, False)
 
 
 class TokenTests(unittest.TestCase):
@@ -869,6 +1030,31 @@ class FormatterTests(unittest.TestCase):
         ensure_same_tokens(source, first)
         self.assertIn("if( input > 0) {", first)
         self.assertIn("\t", first)
+
+    def test_formatter_normalizes_comments_without_changing_literal_or_directive_meaning(self):
+        source = '#define TEXT "原byte。" // 句点。\nint value=1; /* 前文。終端。。 */\n'
+        first = format_source(source, self.path, self.formatter, self.root)
+        self.assertEqual(terminal_comment_period_positions(first), [])
+        self.assertIn('前文。終端', first)
+        self.assertEqual(format_source(first, self.path, self.formatter, self.root), first)
+        ensure_same_tokens(source, first)
+
+    def test_formatter_does_not_reintroduce_empty_doxygen_line_spaces(self):
+        source = '/**\n * @brief 検査。\n *        。\n */\nint value=1;\n'
+        first = format_source(source, self.path, self.formatter, self.root)
+        self.assertEqual(empty_comment_trailing_whitespace_ranges(first), [])
+        self.assertEqual(first, format_source(first, self.path, self.formatter, self.root))
+        ensure_same_tokens(source, first)
+
+    def test_resource_and_template_formatting_normalizes_comments_and_preserves_literals(self):
+        for name, source in [('fixture.rc', '// 説明。\nVALUE "Name", "原byte。"\n'),
+                             ('fixture.h.in', '#define VERSION @PROJECT_VERSION_MAJOR@ // 版。\n')]:
+            with self.subTest(name=name):
+                path = self.root / 'cmake' / name
+                first = format_source(source, path, self.formatter, self.root)
+                self.assertEqual(terminal_comment_period_positions(first), [])
+                self.assertEqual(format_source(first, path, self.formatter, self.root), first)
+                ensure_same_tokens(source, first)
 
     def test_raw_fixture_is_not_reindented_inside_literal(self):
         source = 'const auto data=R"fixture(\n    { "mode": "x; // unchanged" }\n)fixture";\n'

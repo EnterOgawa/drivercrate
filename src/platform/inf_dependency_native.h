@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file inf_dependency_native.h
- * @brief 実INFの非実行依存観測と個別署名診断の定義。
- * @version 01.05.01
+ * @brief 実INFの非実行依存観測と個別署名診断の定義
+ * @version 01.05.05
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,16 +19,20 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/06  安全path・署名・OS固定の読取専用adapterを追加。
- * Ver.01.01.00 Shunji Ogawa  2026/10/06  封印所有者限定のnative由来入口を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/10/07  到達file用途と固定file累積量の独立観測を追加。
- * Ver.01.03.00 Shunji Ogawa  2026/10/13  元共通内容の選択依存検査を私有factory入口へ限定。
- * Ver.01.04.00 Shunji Ogawa  2026/10/15  同元選択の依存と効果へ非機密拒否診断を追加。
- * Ver.01.05.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続。
- * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/06  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/10/06  封印所有者限定のnative由来入口を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/10/07  到達file用途と固定file累積量の独立観測を追加
+ * Ver.01.03.00 Shunji Ogawa  2026/10/13  元共通内容の選択依存検査を私有factory入口へ限定
+ * Ver.01.04.00 Shunji Ogawa  2026/10/15  同元選択の依存と効果へ非機密拒否診断を追加
+ * Ver.01.05.00 Shunji Ogawa  2026/11/08  正規選択Include文脈と同名Needs転送を有限接続
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.05.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.05.03 Shunji Ogawa  2026/11/13  Needs AddRegの元拒否leafを既匿名診断へ接続
+ * Ver.01.05.04 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
+ * Ver.01.05.05 Shunji Ogawa  2026/11/13  847p9の型付きSYSTEM全作用と全選択資格を接続
  * </pre>
  *
- * @note Workerで同期借用し、実device、実行command、導入許可を扱わない。
+ * @note Workerで同期借用し、実device、実行command、導入許可を扱わない
  * @see docs/adr/0270-read-only-inf-dependency-native-adapter.md
  */
 //------------------------------------------------------------------------------
@@ -36,6 +40,8 @@
 #pragma once
 
 #include "platform/inf_dependency_plan.h"
+#include "platform/official_file_verifier.h"
+#include "platform/system_inf_effects_internal.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -54,75 +60,155 @@ struct OfficialInfPackage ;
 class RequiredDriverComponentPlan ;
 struct RequiredInfBindingDiagnostic ;
 
-/** @brief 抽出済みpackage INFの固定member。公式取得由来の証明ではない。 */
+/** @brief Needs/AddRegの最初の拒否地点です。既binding stageへだけ投影します */
+enum class NeedsAddRegDiagnosticStage : std::uint32_t {
+	/// 未到達又は未対応の設置文脈です。observedは元context bitです
+	CONTEXT = 12100U,
+	/// 参照数が0又は64超です。observedは65で飽和した件数です
+	REFERENCE_COUNT = 12101U,
+	/// 呼出し前の累積行数が過大です。observedは4097で飽和します
+	INITIAL_ROW_BUDGET = 12102U,
+	/// 参照節名の読取失敗です。observedは1始まりの参照位置です
+	SECTION_NAME_READ = 12103U,
+	/// 読めた参照節名が不正です。observedは1始まりの参照位置です
+	SECTION_NAME = 12104U,
+	/// 未採用security節があります。observedは4097で飽和した行数です
+	SECURITY_DECLARATION = 12105U,
+	/// security節の不在照会が元API errorで失敗しました。observedは0です
+	SECURITY_READ = 12106U,
+	/// 参照節行数が読めず、元方針でSECTION_NOT_FOUNDを返します。observedは0です
+	SECTION_ROWS = 12107U,
+	/// 全参照節の累積行数が過大です。observedは4097で飽和した予定行数です
+	ROW_BUDGET = 12108U,
+	/// 一つの設定行の読取失敗です。observedは1始まりの行位置です
+	ROW_READ = 12109U,
+	/// 設定field数がHKRの3～5又は検証済みSYSTEMの3～20を外れました。observedは元契約の6で飽和します
+	FIELD_COUNT = 12110U,
+	/// 設定fieldの読取失敗です。observedは元位置で最大20です
+	FIELD_READ = 12111U,
+	/// 検証済みSYSTEM例外を持たないHKR以外のrootです。root文字列は保持せずobservedは0です
+	ROOT = 12112U,
+	/// 相対subkeyのcomponentが不正です。文字列は保持せずobservedは0です
+	SUBKEY_COMPONENT = 12113U,
+	/// subkey末尾separatorを拒否しました。observedは0です
+	SUBKEY_TRAILING_SEPARATOR = 12114U,
+	/// 別作用の組込み特殊値です。observedは元固定配列の1～9です
+	SPECIAL_VALUE = 12115U,
+	/// 元flags数値parserが失敗しました。元E_INVALIDARGとobserved0を保持します
+	FLAGS_PARSE = 12116U,
+	/// 未採用flagsです。observedは元SDK flag bitmaskです
+	FLAGS = 12117U,
+	/// DWORDのfield不足又は元数値parser失敗です。データを出さずobservedはfield数です
+	DWORD_VALUE = 12118U,
+	/// 未照合program参照です。observedはexe1/dll2/sys3/com4の固定区分です
+	PROGRAM_REFERENCE = 12119U,
+	/// SYSTEM媒体登録のroot下scopeが未採用です。observedは0です
+	SYSTEM_SCOPE = 12120U,
+	/// SYSTEM媒体データの値種類/型/byte数が不正です。observedはfield数です
+	SYSTEM_TYPE = 12121U,
+	/// 固定Windows登録の完全な文法/引数が不正です。observedは0です
+	SYSTEM_REGISTRATION = 12122U,
+	/// 同原SYSTEM documentのinterface作用が未充足です。observedは0です
+	SYSTEM_INTERFACE = 12123U,
+	/// 固定Windows helperの元trust/権限/不変tupleが不成立です。observedは0です
+	SYSTEM_HELPER = 12124U,
+} ;
+
+/** @brief 抽出済みpackage INFの固定member。公式取得由来の証明ではない */
 struct InfDependencyPackageMember {
-	/// 保護workspace内の有限ASCII相対INF位置。
+	/// 保護workspace内の有限ASCII相対INF位置
 	std::wstring  relativePath ;
-	/// 抽出器で固定した小文字SHA-256。
+	/// 抽出器で固定した小文字SHA-256
 	std::wstring  sha256 ;
-	/// 1～4 MiBの実INF size。
+	/// 1～4 MiBの実INF size
 	std::uint64_t byteCount{} ;
 } ;
 
-/** @brief 一documentの署名／由来に付いた元診断。包括的不適合ではない。 */
+/** @brief 一documentの署名／由来に付いた元診断。包括的不適合ではない */
 struct InfDependencyNativeFinding {
-	/// 共通graph内の一意document identity。
+	/// 共通graph内の一意document identity
 	std::uint64_t identity{} ;
-	/// 署名不足の元HRESULT。検査合格の場合0。
+	/// 署名不足の元HRESULT。検査合格の場合0
 	NativeError	  signatureError{} ;
-	/// system由来照合の元HRESULT。未検査または合格では0の場合がある。
+	/// system由来照合の元HRESULT。未検査または合格では0の場合がある
 	NativeError	  provenanceError{} ;
 } ;
 
-/** @brief 到達INFの具体的file用途。payload位置・byte・署名は未検査。 */
+/** @brief 到達INFの具体的file用途。payload位置・byte・署名は未検査 */
 struct InfDependencyNativeFileUse {
-	/// 同runの原document identity。
+	/// 同runの原document identity
 	std::uint64_t identity{} ;
-	/// 原明示節名。worker内だけに保持する。
+	/// 原明示節名。worker内だけに保持する
 	std::wstring  section ;
-	/// 元file用途または未解釈宣言名。
+	/// 元file用途または未解釈宣言名
 	std::wstring  directive ;
-	/// 展開後の原参照値。位置を推測せず、UI／logへ渡さない。
+	/// 展開後の原参照値。位置を推測せず、UI／logへ渡さない
 	std::wstring  target ;
 } ;
 
-/** @brief 実byteへ結合した非実行観測。型は導入用計画と互換でない。 */
+/** @brief 依存検査で保持した原fileの私有不変tupleです */
+struct InfDependencyFixedFile {
+	/// 同同期で固定した完全位置です。一般logへ出しません
+	std::wstring	   path ;
+	/// 保持した原fileの完全SHA-256です
+	std::wstring	   sha256 ;
+	/// 原fileの有限byte数です
+	std::uint64_t	   bytes{} ;
+	/**
+	 * @brief 元計画と再検証の原file tupleを全fieldで比較します
+	 * @param[in] other 同選択から再構築した独立tupleです
+	 * @return 完全一致ならtrueです
+	 */
+	[[nodiscard]] bool operator==( const InfDependencyFixedFile &other) const = default ;
+} ;
+
+/** @brief 実byteへ結合した非実行観測。型は導入用計画と互換でない */
 struct InfDependencyNativeResult {
-	/// 同OS・同runへ結合した共通依存graph。
+	/// 同OS・同runへ結合した共通依存graph
 	InfDependencyResult						dependency ;
-	/// 全発見documentの署名／由来診断。
+	/// 全発見documentの署名／由来診断
 	std::vector<InfDependencyNativeFinding> findings ;
-	/// 到達節・Version／sourceの最大4,096用途。空でも全payload検査の証明ではない。
+	/// 到達節・Version／sourceの最大4,096用途。空でも全payload検査の証明ではない
 	std::vector<InfDependencyNativeFileUse> fileUses ;
-	/// 一runで固定したINF／CAT／Store file数。最大256、全体失敗時0。
+	/// 一runで固定したINF／CAT／Store file数。最大256、全体失敗時0
 	std::size_t								fixedFileCount{} ;
-	/// 同じ固定fileの累積byte。最大128 MiB、全体失敗時0。
+	/// 同じ固定fileの累積byte。最大128 MiB、全体失敗時0
 	std::uint64_t							fixedByteCount{} ;
+	/// 元INF/Store/CAT/追加固定fileの全tupleです。権限の代用にはしません
+	std::vector<InfDependencyFixedFile>		fixedFiles ;
+	/// 標準Windows登録を要する場合だけの原helper/CAT/権限tupleです
+	std::vector<WindowsSystemFileTrust>		systemFiles ;
+	/// 同原文の型/文脈/所有者/全fieldを導入直前まで完全比較します
+	std::vector<SystemInfEffect>			systemEffects ;
+	/// 必要だった既存serviceの安定config/元SDです
+	std::vector<SystemServiceEvidence>		systemServices ;
+	/// 固定SWENUM登録が実際に成立した場合だけtrueです
+	bool									delayedRegistration{} ;
 } ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 相対member位置と絶対local DOS位置の構文を検査する。
- * @param[in] path 原位置。正規化やfilesystem探索を行わない。
- * @param[in] absolute trueの場合は通常のdrive絶対path、falseの場合はASCII相対path。
- * @return 構文合格の場合true。実path認証ではない。
+ * @brief 相対member位置と絶対local DOS位置の構文を検査する
+ * @param[in] path 原位置。正規化やfilesystem探索を行わない
+ * @param[in] absolute trueの場合は通常のdrive絶対path、falseの場合はASCII相対path
+ * @return 構文合格の場合true。実path認証ではない
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool		  validInfDependencyPath( std::wstring_view path, bool absolute) noexcept ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 保護packageと現在WindowsのINFを共通核へ非実行接続する。
- * @param[in] workspace 全package memberを呼出し終了まで所有する保護領域。
- * @param[in] members 全抽出INFの閉じた固定一覧。1～64件、重複を禁止する。
- * @param[in] rootIndex members内の開始INF位置。
- * @param[in] seeds 同じroot内の明示節群。作用完全性を認定しない。
- * @param[in] observationId 非零のworker内観測世代。
- * @param[out] result 全再確認成功時だけ保持し、全体失敗では空。
- * @return 観測完了0、不正入力・path・改変・OS差・容量・例外のHRESULT。
- * @pre 入力と出力の所有storageはaliasしない。同期workerで呼び、再入しない。
+ * @brief 保護packageと現在WindowsのINFを共通核へ非実行接続する
+ * @param[in] workspace 全package memberを呼出し終了まで所有する保護領域
+ * @param[in] members 全抽出INFの閉じた固定一覧。1～64件、重複を禁止する
+ * @param[in] rootIndex members内の開始INF位置
+ * @param[in] seeds 同じroot内の明示節群。作用完全性を認定しない
+ * @param[in] observationId 非零のworker内観測世代
+ * @param[out] result 全再確認成功時だけ保持し、全体失敗では空
+ * @return 観測完了0、不正入力・path・改変・OS差・容量・例外のHRESULT
+ * @pre 入力と出力の所有storageはaliasしない。同期workerで呼び、再入しない
  * @note Packageの公式由来は未検査に固定する。署名成功を由来・導入許可へ流用しない。OS trustがrevocation照会する場合がある。scan・staging・device導入
- *       は行わない。
+ *       は行わない
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectNativeInfDependencies(
@@ -130,21 +216,21 @@ struct InfDependencyNativeResult {
 	std::size_t rootIndex, std::span<const std::wstring> seeds, std::uint64_t observationId,
 	InfDependencyNativeResult &result) ;
 
-/** @brief 封印所有者だけが呼べるnative接続。公開boolや任意callbackを認証にしない。 */
+/** @brief 封印所有者だけが呼べるnative接続。公開boolや任意callbackを認証にしない */
 class AcquiredInfNativeAccess final {
 private:
 	friend class OfficialInfArchiveBinding ;
 	/**
-	 * @brief 使用中固定した封印集合を同じnative loaderへ渡す。
-	 * @param[in] binding 同期使用中固定を所有する封印結果。
-	 * @param[in] session 元証拠の生存issuer。
-	 * @param[in] archiveWorkspace 元取得領域。
-	 * @param[in] rootIndex 全INF内の開始位置。
-	 * @param[in] seeds 明示節群。
-	 * @param[in] observationId 非零の観測世代。
-	 * @param[out] result 全成功時だけの非実行結果。
-	 * @return 完了0、最初の検証／API／例外のHRESULT。
-	 * @pre 呼出し元が元／派生全fileを呼出し終了まで固定する。
+	 * @brief 使用中固定した封印集合を同じnative loaderへ渡す
+	 * @param[in] binding 同期使用中固定を所有する封印結果
+	 * @param[in] session 元証拠の生存issuer
+	 * @param[in] archiveWorkspace 元取得領域
+	 * @param[in] rootIndex 全INF内の開始位置
+	 * @param[in] seeds 明示節群
+	 * @param[in] observationId 非零の観測世代
+	 * @param[out] result 全成功時だけの非実行結果
+	 * @return 完了0、最初の検証／API／例外のHRESULT
+	 * @pre 呼出し元が元／派生全fileを呼出し終了まで固定する
 	 */
 	[[nodiscard]] static NativeError inspect( const OfficialInfArchiveBinding  &binding,
 											 const OfficialAcquisitionSession &session,
@@ -159,14 +245,14 @@ namespace test {
 struct InfDependencyNativeTestApi ;
 //------------------------------------------------------------------------------
 /**
- * @brief 専用compileの架空APIで実Common私有入口を一同期検査します。
- * @param[in] api 既存の必須五callbackです。
- * @param[in] inspected このfixtureだけの原内容です。
- * @param[in] selected 実readerが再解析する元選択です。
- * @param[out] result 成功時だけの元graphです。
- * @param[out] diagnostic 元数値の任意出力です。
- * @return Common入口の未変更HRESULTです。
- * @note 通常製品にはこの宣言/入口を含めません。
+ * @brief 専用compileの架空APIで実Common私有入口を一同期検査します
+ * @param[in] api 既存の必須五callbackです
+ * @param[in] inspected このfixtureだけの原内容です
+ * @param[in] selected 実readerが再解析する元選択です
+ * @param[out] result 成功時だけの元graphです
+ * @param[out] diagnostic 元数値の任意出力です
+ * @return Common入口の未変更HRESULTです
+ * @note 通常製品にはこの宣言/入口を含めません
  */
 //------------------------------------------------------------------------------
 NativeError inspectCommonInfDependenciesWithTestApi( const InfDependencyNativeTestApi &api,
@@ -177,45 +263,45 @@ NativeError inspectCommonInfDependenciesWithTestApi( const InfDependencyNativeTe
 }
 #endif
 
-/** @brief 実内容factoryだけが呼べる選択節依存と効果の検査です。 */
+/** @brief 実内容factoryだけが呼べる選択節依存と効果の検査です */
 class CommonInfNativeAccess final {
 private:
 #ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
 	/**
-	 * @brief 専用compileの架空APIで実Common私有入口を一同期検査します。
-	 * @note 第1引数（const test :: InfDependencyNativeTestApi &、in）はこの宣言では無名です。既存の必須五callbackです。
-	 * @note 第2引数（const CommonInfInspection &、in）はこの宣言では無名です。このfixtureだけの原内容です。
-	 * @note 第3引数（const OfficialInfPackage &、in）はこの宣言では無名です。実readerが再解析する元選択です。
-	 * @note 第4引数（InfDependencyNativeResult &、out）はこの宣言では無名です。成功時だけの元graphです。
-	 * @note 第5引数（RequiredInfBindingDiagnostic *、out）はこの宣言では無名です。元数値の任意出力です。
-	 * @return Common入口の未変更HRESULTです。
-	 * @note 通常製品にはこの宣言/入口を含めません。
+	 * @brief 専用compileの架空APIで実Common私有入口を一同期検査します
+	 * @note 第1引数（const test :: InfDependencyNativeTestApi &、in）はこの宣言では無名です。既存の必須五callbackです
+	 * @note 第2引数（const CommonInfInspection &、in）はこの宣言では無名です。このfixtureだけの原内容です
+	 * @note 第3引数（const OfficialInfPackage &、in）はこの宣言では無名です。実readerが再解析する元選択です
+	 * @note 第4引数（InfDependencyNativeResult &、out）はこの宣言では無名です。成功時だけの元graphです
+	 * @note 第5引数（RequiredInfBindingDiagnostic *、out）はこの宣言では無名です。元数値の任意出力です
+	 * @return Common入口の未変更HRESULTです
+	 * @note 通常製品にはこの宣言/入口を含めません
 	 */
 	friend NativeError test::inspectCommonInfDependenciesWithTestApi(
 		const test::InfDependencyNativeTestApi &, const CommonInfInspection &,
 		const OfficialInfPackage &, InfDependencyNativeResult &, RequiredInfBindingDiagnostic *) ;
 #endif
 	/**
-	 * @brief 実検査した元基本INF閉包から必要役割の関係を構築します。
-	 * @note 第1引数（const CommonInfInspection &、in）はこの宣言では無名です。元保護byteと全署名を保持する同workerの内容検査です。
+	 * @brief 実検査した元基本INF閉包から必要役割の関係を構築します
+	 * @note 第1引数（const CommonInfInspection &、in）はこの宣言では無名です。元保護byteと全署名を保持する同workerの内容検査です
 	 * @note 第2引数（std :: span < const OfficialInfPackage >、in）はこの宣言では無名です。baseと全importの元順copyです。選択機能
-	 *       関係は私有native nodeから解析します。
+	 *       関係は私有native nodeから解析します
 	 * @note 第3引数（std :: shared_ptr < const RequiredDriverComponentPlan > &、out）はこの宣言では無名です。成功時だけ元閉包
-	 *       へ結合した不変計画です。失敗時は空です。
-	 * @note 第4引数（RequiredInfBindingDiagnostic *、out）はこの宣言では無名です。任意の数値診断です。nullなら採取せず合否へ使用しません。
-	 * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです。
-	 * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません。
+	 *       へ結合した不変計画です。失敗時は空です
+	 * @note 第4引数（RequiredInfBindingDiagnostic *、out）はこの宣言では無名です。任意の数値診断です。nullなら採取せず合否へ使用しません
+	 * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです
+	 * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません
 	 */
 	friend NativeError makeRequiredDriverComponentPlan(
 		const CommonInfInspection &, std::span<const OfficialInfPackage>,
 		std::shared_ptr<const RequiredDriverComponentPlan> &, RequiredInfBindingDiagnostic *) ;
 	/**
-	 * @brief 元内容を前後確認し、選択節の全Needs効果を検査します。
-	 * @param[in] inspected 元保護byteと全署名を所有する内容です。
-	 * @param[in] selected 同元packageの私有node選択copyです。
-	 * @param[out] result 非実行graphです。効果は独立に検査します。
-	 * @param[out] diagnostic 任意の非機密数値です。合否を変更する入力ではありません。
-	 * @return 全依存と有限効果の充足0、未観測・未知・不合格のHRESULTです。
+	 * @brief 元内容を前後確認し、選択節の全Needs効果を検査します
+	 * @param[in] inspected 元保護byteと全署名を所有する内容です
+	 * @param[in] selected 同元packageの私有node選択copyです
+	 * @param[out] result 非実行graphです。効果は独立に検査します
+	 * @param[out] diagnostic 任意の非機密数値です。合否を変更する入力ではありません
+	 * @return 全依存と有限効果の充足0、未観測・未知・不合格のHRESULTです
 	 */
 	[[nodiscard]] static NativeError inspect( const CommonInfInspection	  &inspected,
 											 const OfficialInfPackage	  &selected,

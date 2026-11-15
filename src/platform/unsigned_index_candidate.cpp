@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file unsigned_index_candidate.cpp
- * @brief 実GZipと全recordを未署名候補の共通検査へ接続します。
- * @version 01.00.01
+ * @brief 実GZipと全recordを未署名候補の共通検査へ接続します
+ * @version 01.00.02
  * @date 2026/10/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,10 +19,11 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/23  共通値codecと原期限の最小値検査を追加。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/23  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
- * @note 認証型のconstructorを呼びません。副作用はCNG hashと有限な確保だけです。
+ * @note 認証型のconstructorを呼びません。副作用はCNG hashと有限な確保だけです
  * @see docs/adr/0396-collector-distribution-pipeline-connection.md
  */
 //------------------------------------------------------------------------------
@@ -35,58 +36,58 @@
 namespace drivercrate {
 //------------------------------------------------------------------------------
 /**
- * @brief 配布用の実manifest/GZipを署名型を生成せず共通codecで検査します。
- * @param[in] manifest 原UTF-8 manifestです。最大64KiBです。
- * @param[in] gzip 原GZipです。最大32MiBです。
- * @param[in] nowUtc 確認済みUTCです。欠損時は拒否します。
- * @return 元codec診断と、全成功時だけ未署名receiptを返します。
- * @note 配布channelの固定公開key IDだけを照合します。鍵storeは開きません。
+ * @brief 配布用の実manifest/GZipを署名型を生成せず共通codecで検査します
+ * @param[in] manifest 原UTF-8 manifestです。最大64KiBです
+ * @param[in] gzip 原GZipです。最大32MiBです
+ * @param[in] nowUtc 確認済みUTCです。欠損時は拒否します
+ * @return 元codec診断と、全成功時だけ未署名receiptを返します
+ * @note 配布channelの固定公開key IDだけを照合します。鍵storeは開きません
  */
 //------------------------------------------------------------------------------
 UnsignedIndexCandidateResult validateUnsignedIndexCandidate(
 	const std::string_view manifest, const std::span<const std::byte> gzip,
 	const std::optional<std::chrono::sys_seconds> nowUtc) noexcept
 {
-	UnsignedIndexCandidateResult result ;	// 失敗時に認証型を残しません。
+	UnsignedIndexCandidateResult result ;	// 失敗時に認証型を残しません
 	auto						 decodedManifest = signed_index_detail::decodeIndexManifestData(
-		manifest, index_distribution_trust::KEY_ID, nowUtc) ;	// 同じ意味codecです。
+		manifest, index_distribution_trust::KEY_ID, nowUtc) ;	// 同じ意味codecです
 	result.manifestFailure = decodedManifest.failure ;
 	result.error		   = decodedManifest.error ;
-	// Manifest全値検査の失敗時は展開を開始しません。
+	// Manifest全値検査の失敗時は展開を開始しません
 	if( !decodedManifest.data) {
 		return result ;
 	}
 
 	result.status	   = UnsignedIndexCandidateStatus::ASSET_REJECTED ;
 	auto asset		   = signed_index_detail::decodeIndexAssetData( *decodedManifest.data, gzip,
-																   nowUtc) ;	// 同じ実byte規則です。
+																   nowUtc) ;	// 同じ実byte規則です
 	result.assetStatus = asset.status ;
 	result.error	   = asset.error ;
-	// 実hash/CRC/容量不一致からrecordを救済しません。
+	// 実hash/CRC/容量不一致からrecordを救済しません
 	if( !asset.data) {
 		return result ;
 	}
 
 	result.status = UnsignedIndexCandidateStatus::RECORDS_REJECTED ;
 	auto records  = signed_index_detail::decodeIndexRecordsData(
-		 *decodedManifest.data, asset.data->expanded, nowUtc) ;	// 全原recordの共通codecです。
+		 *decodedManifest.data, asset.data->expanded, nowUtc) ;	// 全原recordの共通codecです
 	result.recordsStatus = records.status ;
 	result.error		 = records.error ;
-	// Qualityや一件のschema不成立も部分成功へ変換しません。
+	// Qualityや一件のschema不成立も部分成功へ変換しません
 	if( !records.data) {
 		return result ;
 	}
 
 	result.status = UnsignedIndexCandidateStatus::ACQUISITION_PURPOSE_REJECTED ;
-	// 空の成功候補はhead更新にも署名準備にも使いません。
+	// 空の成功候補はhead更新にも署名準備にも使いません
 	if( records.data->records.empty()) {
 		return result ;
 	}
 
-	auto expiry = std::chrono::sys_seconds::max() ;	// 全原期限を延長せず最小値へ収束させます。
-	// 全収録recordが現在有効な内容検査済み取得用途であることを確認します。
+	auto expiry = std::chrono::sys_seconds::max() ;	// 全原期限を延長せず最小値へ収束させます
+	// 全収録recordが現在有効な内容検査済み取得用途であることを確認します
 	for( const auto &record : records.data->records) {
-		// UNKNOWNや他用途は新producerの取得候補へ混入させません。
+		// UNKNOWNや他用途は新producerの取得候補へ混入させません
 		if( record.recordSchemaVersion != 2U || !record.acquisitionDescriptor ||
 		   record.acquisitionDescriptor->state != IndexDescriptorState::KNOWN ||
 		   record.inspectionStage != IndexInspectionStage::CONTENT_INSPECTED ||
@@ -98,8 +99,8 @@ UnsignedIndexCandidateResult validateUnsignedIndexCandidate(
 			return result ;
 		}
 
-		const auto &descriptor = *record.acquisitionDescriptor ;	// 同じ原申告です。
-		// 個別期限をmanifest期限から推測せず実UTCへ照合します。
+		const auto &descriptor = *record.acquisitionDescriptor ;	// 同じ原申告です
+		// 個別期限をmanifest期限から推測せず実UTCへ照合します
 		if( !descriptor.attestation || descriptor.attestation->policyRevision != 1U ||
 		   descriptor.attestation->checkedAtUtc > *nowUtc ||
 		   *nowUtc >= descriptor.attestation->validUntilUtc || !descriptor.publisher.value ||
@@ -111,7 +112,7 @@ UnsignedIndexCandidateResult validateUnsignedIndexCandidate(
 		expiry = std::min( expiry, descriptor.attestation->validUntilUtc) ;
 	}
 
-	// 候補は最小期限へ厳密一致させ、古いrecordの期限をbuildで延長しません。
+	// 候補は最小期限へ厳密一致させ、古いrecordの期限をbuildで延長しません
 	if( expiry != decodedManifest.data->expiresAtUtc) {
 		result.status = UnsignedIndexCandidateStatus::MINIMUM_EXPIRY_MISMATCH ;
 		return result ;

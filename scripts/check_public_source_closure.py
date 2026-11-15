@@ -54,6 +54,7 @@ def relative_name(value: str) -> str:
         raise ClosureError("EXCLUDED_ROOT:" + parts[0])
     # 管理用実定義/原reviewはsource snapshotにも混入させない。既存公開履歴は変更しない。
     if (value.casefold().startswith("data/collector-definitions/") or
+            value.casefold().startswith("data/collector-pending-references/") or
             re.fullmatch(r"data/collector-registry/manual-index-(?:records|review[^/]*)\.json", value, re.I)):
         raise ClosureError("PRIVATE_COLLECTOR_DEFINITION")
     if PurePosixPath(value).is_absolute():
@@ -154,6 +155,83 @@ def verify_integrity_test_scratch(text: str) -> None:
             raise ClosureError("UNIT_SCRATCH_ROOT_NOT_ISOLATED:" + macro)
 
 
+PRODUCER_FLAGS = {"DRIVERCRATE_BUILD_COLLECTOR", "DRIVERCRATE_BUILD_LIVE_TESTS", "DRIVERCRATE_BUILD_LOCAL_INDEX_SIGNER"}
+DISABLED_PRODUCER_GUARDS = {
+    "DRIVERCRATE_BUILD_COLLECTORORDRIVERCRATE_BUILD_LOCAL_INDEX_SIGNERORDRIVERCRATE_BUILD_LIVE_TESTS",
+    "DRIVERCRATE_BUILD_LOCAL_INDEX_SIGNER",
+    "DRIVERCRATE_BUILD_LIVE_TESTS",
+    "DRIVERCRATE_BUILD_COLLECTORORDRIVERCRATE_BUILD_LIVE_TESTS",
+    "DRIVERCRATE_BUILD_LOCAL_INDEX_SIGNERORDRIVERCRATE_BUILD_COLLECTOROR(BUILD_TESTINGANDDRIVERCRATE_BUILD_LIVE_TESTS)",
+    "DRIVERCRATE_BUILD_COLLECTOROR(BUILD_TESTINGANDDRIVERCRATE_BUILD_LIVE_TESTS)",
+}
+
+
+def consumer_cmake_text(text: str) -> str:
+    """既consumerの固定OFF producer条件だけを除く。未知条件や不正nestを推測しない。"""
+    lines = text.splitlines(keepends=True)
+    result, stack = [], []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        match = re.match(r"^\s*(if|elseif|else|endif)\s*\(", line, re.I)
+        if not match:
+            if not any(frame["skip"] for frame in stack):
+                result.append(line)
+            index += 1
+            continue
+        command = line.split("#", 1)[0].strip()
+        while command.count("(") > command.count(")"):
+            index += 1
+            if index >= len(lines):
+                raise ClosureError("CMAKE_CONDITION_UNBALANCED")
+            command += " " + lines[index].split("#", 1)[0].strip()
+            line += lines[index]
+        if command.count("(") != command.count(")") or not command.endswith(")"):
+            raise ClosureError("CMAKE_CONDITION_UNBALANCED")
+        kind = match[1].lower()
+        expression = re.sub(r"\s+", "", command[command.index("(") + 1:-1])
+        if kind == "if":
+            known = expression in DISABLED_PRODUCER_GUARDS
+            if any(flag in expression for flag in PRODUCER_FLAGS) and not known:
+                raise ClosureError("UNKNOWN_PRODUCER_GUARD")
+            if not known and not any(frame["skip"] for frame in stack):
+                result.append(line)
+            stack.append({"known": known, "skip": known, "else": False})
+        elif kind in {"else", "elseif"}:
+            if not stack or stack[-1]["else"]:
+                raise ClosureError("CMAKE_CONDITION_UNBALANCED")
+            if stack[-1]["known"]:
+                if kind == "elseif" or expression:
+                    raise ClosureError("CONSUMER_CMAKE_BRANCH_UNKNOWN")
+                stack[-1]["skip"] = False
+            elif not any(frame["skip"] for frame in stack):
+                result.append(line)
+            if kind == "else":
+                stack[-1]["else"] = True
+        else:
+            if not stack:
+                raise ClosureError("CMAKE_CONDITION_UNBALANCED")
+            frame = stack.pop()
+            if not frame["known"] and not any(item["skip"] for item in stack):
+                result.append(line)
+        index += 1
+    if stack:
+        raise ClosureError("CMAKE_CONDITION_UNBALANCED")
+    return "".join(result)
+
+
+def validate_consumer_defaults(texts: dict[str, str]) -> None:
+    """producerを含むCMake候補は三optionの既定OFFと非上書きを要求する。"""
+    top = texts.get("CMakeLists.txt", "")
+    if not any(flag in top for flag in PRODUCER_FLAGS):
+        return
+    combined = "\n".join(texts.values())
+    for flag in PRODUCER_FLAGS:
+        defaults = re.findall(r"option\s*\(\s*" + flag + r'\s+"[^"\n]*"\s+(ON|OFF)\s*\)', combined, re.I)
+        if defaults != ["OFF"] or re.search(r"set\s*\(\s*" + flag + r"\b", combined, re.I):
+            raise ClosureError("PRODUCER_OPTION_NOT_EXPLICIT_OFF:" + flag)
+
+
 def references(owner: str, text: str, files: set[str], generated: dict) -> list[tuple[str, str]]:
     """native include、CMake literal、Python import、PSローカルimportの静的edgeを返す。
 
@@ -212,6 +290,8 @@ def references(owner: str, text: str, files: set[str], generated: dict) -> list[
         for match in re.finditer(r"Join-Path\s+\$PSScriptRoot\s+'([^']+\.(?:ps1|psm1|py))'", text):
             edges.append((normalize_reference(owner, match[1], parent), "powershell-local-path"))
     if owner == "CMakeLists.txt" or suffix == ".cmake":
+        if owner == "CMakeLists.txt":
+            text = consumer_cmake_text(text)
         if owner == "CMakeLists.txt" and "drivercrate_maintenance_inf_integrity_tests" in text:
             verify_integrity_test_scratch(text)
         for match in re.finditer(r'(?<![\w/])((?:src|tests|cmake|scripts|packaging|data)/[\w./-]+\.(?:cpp|h|c|rc|in|cmake|ps1|py|ico|png|manifest|json))\b', text):
@@ -243,10 +323,13 @@ def check(root: Path, manifest_name="scripts/public_source_export_manifest.json"
     manifest = load_manifest(root, manifest_name, accounting)
     files = set(manifest["files"])
     pins = []
+    cmake_policy_texts = {}
     edges = set()
     generated = manifest["generatedHeaders"]
     for name in manifest["files"]:
         raw = read_limited(root, name, accounting)
+        if name == "CMakeLists.txt" or PurePosixPath(name).suffix == ".cmake":
+            cmake_policy_texts[name] = raw.decode("utf-8")
         pins.append({"path": name, "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()})
         if PurePosixPath(name).suffix not in TEXT_SUFFIXES and name != "CMakeLists.txt":
             continue
@@ -263,6 +346,7 @@ def check(root: Path, manifest_name="scripts/public_source_export_manifest.json"
     for owner, target, kind in sorted(edges):
         if owner not in files or target not in files:
             raise ClosureError("INPUT_OUTSIDE_MANIFEST:" + owner + ":" + target)
+    validate_consumer_defaults(cmake_policy_texts)
     canonical = json.dumps(pins, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return {"schema": "dc-public-source-closure-result-v1", "status": "STATIC_REFERENCES_CLOSED_NOT_FRESH_BUILD",
             "finalAllowlist": False, "files": pins,

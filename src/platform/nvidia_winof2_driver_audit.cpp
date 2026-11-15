@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file nvidia_winof2_driver_audit.cpp
- * @brief WinOF-2閉包の内容・PnP監査と候補発行実装。
- * @version 01.00.01
+ * @brief WinOF-2閉包の内容・PnP監査と候補発行実装
+ * @version 01.00.02
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,19 +19,20 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/07  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/07  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
  * @note 公式取得identityとdriver閉包を同一scanへ拘束し、CAT監査後だけlocal PnP／rankを確認します。Hardware IDまたはlocal pathを候補へ渡
- *       しません。
+ *       しません
  */
 //------------------------------------------------------------------------------
 
@@ -63,37 +64,37 @@ namespace drivercrate {
 namespace {
 
 //------------------------------------------------------------------------------
-// 定数定義。
+// 定数定義
 //------------------------------------------------------------------------------
 
-constexpr std::size_t	MAXIMUM_DEVICES		  = 4096U ;	// 一回のWinOF-2適用性監査対象上限。
-constexpr std::size_t	MAXIMUM_CLOSURE_FILES = 8194U ;	// INF、CAT、参照fileの保持上限。
+constexpr std::size_t	MAXIMUM_DEVICES		  = 4096U ;	// 一回のWinOF-2適用性監査対象上限
+constexpr std::size_t	MAXIMUM_CLOSURE_FILES = 8194U ;	// INF、CAT、参照fileの保持上限
 constexpr std::uint64_t MAXIMUM_CLOSURE_BYTES =
-	64ULL * 1024ULL * 1024ULL ;	// 一INF閉包の展開後合計上限。
+	64ULL * 1024ULL * 1024ULL ;	// 一INF閉包の展開後合計上限
 constexpr std::array ACCEPTED_CLASSES{std::wstring_view( L"Net"), std::wstring_view( L"NetTrans"),
 									  std::wstring_view( L"System"),
-									  // 固定6系列のclass。
+									  // 固定6系列のclass
 									  std::wstring_view( L"Ports")} ;
 constexpr std::array ACCEPTED_PROVIDERS{std::wstring_view( L"Mellanox"),
-										// 固定6系列のINF Provider。
+										// 固定6系列のINF Provider
 										std::wstring_view( L"Mellanox Technologies Ltd.")} ;
 constexpr std::array ACCEPTED_INF_NAMES{
 	std::wstring_view( L"mlx5.inf"), std::wstring_view( L"mlx5mux.inf"),
 	std::wstring_view( L"mlx5muxp.inf"), std::wstring_view( L"MlxRshimBus.inf"),
 	std::wstring_view( L"MlxRshimCom.inf"),
-	// 前段閉包が許可する固定INF名。
+	// 前段閉包が許可する固定INF名
 	std::wstring_view( L"MlxRshimEth.inf")} ;
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式英語classとmakerのlocale非依存比較だけに使用する。
+ * @brief 公式英語classとmakerのlocale非依存比較だけに使用する
  *
- * @param[in] value 比較する一文字。
- * @return ASCII英大文字は小文字、それ以外は入力値。
+ * @param[in] value 比較する一文字
+ * @return ASCII英大文字は小文字、それ以外は入力値
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] wchar_t asciiFold( const wchar_t value) noexcept
@@ -103,23 +104,23 @@ constexpr std::array ACCEPTED_INF_NAMES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 非ASCII文字を変換せず、英語policy値だけを比較する。
+ * @brief 非ASCII文字を変換せず、英語policy値だけを比較する
  *
- * @param[in] left 比較する一方の英語値。
- * @param[in] right 比較する他方の英語値。
- * @return ASCII英字の大小を無視して完全一致する場合true。
+ * @param[in] left 比較する一方の英語値
+ * @param[in] right 比較する他方の英語値
+ * @return ASCII英字の大小を無視して完全一致する場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool asciiEqual( const std::wstring_view left, const std::wstring_view right) noexcept
 {
-	// 長さの異なるpolicy値を同一とみなさない。
+	// 長さの異なるpolicy値を同一とみなさない
 	if( left.size() != right.size()) {
 		return false ;
 	}
 
-	// 同じ位置の全文字を比較し、一文字でも異なる値を拒否する。
+	// 同じ位置の全文字を比較し、一文字でも異なる値を拒否する
 	for( std::size_t index = 0U; index < left.size(); ++index) {
-		// ASCII大小文字差を除いても異なる値は不一致にする。
+		// ASCII大小文字差を除いても異なる値は不一致にする
 		if( asciiFold( left[index]) != asciiFold( right[index])) {
 			return false ;
 		}
@@ -130,24 +131,24 @@ constexpr std::array ACCEPTED_INF_NAMES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 通信要否とlocal監査対象を絞るためだけに使用する。
+ * @brief 通信要否とlocal監査対象を絞るためだけに使用する
  *
- * @param[in] value 検索対象の非機密表示値。
- * @param[in] token 検索する固定英語maker名。
- * @return ASCII英字の大小を無視してtokenを含む場合true。
+ * @param[in] value 検索対象の非機密表示値
+ * @param[in] token 検索する固定英語maker名
+ * @return ASCII英字の大小を無視してtokenを含む場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool asciiContains( const std::wstring_view value,
 								 const std::wstring_view token) noexcept
 {
-	// 空tokenや入力より長いtokenを表示名probeの一致に使わない。
+	// 空tokenや入力より長いtokenを表示名probeの一致に使わない
 	if( token.empty() || token.size() > value.size()) {
 		return false ;
 	}
 
-	// Tokenを収められる各開始位置を有限走査し、完全一致する窓を探す。
+	// Tokenを収められる各開始位置を有限走査し、完全一致する窓を探す
 	for( std::size_t offset = 0U; offset <= value.size() - token.size(); ++offset) {
-		// ASCII比較で一致する表示名部分を見つけたらprobe成功とする。
+		// ASCII比較で一致する表示名部分を見つけたらprobe成功とする
 		if( asciiEqual( value.substr( offset, token.size()), token)) {
 			return true ;
 		}
@@ -158,22 +159,22 @@ constexpr std::array ACCEPTED_INF_NAMES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 表示値や短縮hashを内部identityへ転用しない。
+ * @brief 表示値や短縮hashを内部identityへ転用しない
  *
- * @param[in] value 検証するSHA-256文字列。
- * @return 64桁の小文字16進数の場合true。
+ * @param[in] value 検証するSHA-256文字列
+ * @return 64桁の小文字16進数の場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isSha256( const std::wstring_view value) noexcept
 {
-	// SHA-256の固定64桁に合わない内部identityを拒否する。
+	// SHA-256の固定64桁に合わない内部identityを拒否する
 	if( value.size() != 64U) {
 		return false ;
 	}
 
-	// 全桁を確認し、大文字または16進数以外を拒否する。
+	// 全桁を確認し、大文字または16進数以外を拒否する
 	for( const wchar_t character : value) {
-		// 小文字hex以外のhash表現を内部identityとして受理しない。
+		// 小文字hex以外のhash表現を内部identityとして受理しない
 		if( !((character >= L'0' && character <= L'9') ||
 			 (character >= L'a' && character <= L'f'))) {
 			return false ;
@@ -185,10 +186,10 @@ constexpr std::array ACCEPTED_INF_NAMES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式metadataの表示だけを取得済みidentityとして扱わない。
+ * @brief 公式metadataの表示だけを取得済みidentityとして扱わない
  *
- * @param[in] acquisition 外側WinOF-2 EXEの取得結果。
- * @return 固定Provider、payload用途、公開hash照合が成立する場合true。
+ * @param[in] acquisition 外側WinOF-2 EXEの取得結果
+ * @return 固定Provider、payload用途、公開hash照合が成立する場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isValidAcquisition( const OfficialAcquisitionResult &acquisition) noexcept
@@ -203,17 +204,17 @@ constexpr std::array ACCEPTED_INF_NAMES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief Display、firmware、software componentを候補へ混入させない。
+ * @brief Display、firmware、software componentを候補へ混入させない
  *
- * @param[in] value INFまたはdeviceのsetup class。
- * @return WinOF-2固定6系列の許可classである場合true。
+ * @param[in] value INFまたはdeviceのsetup class
+ * @return WinOF-2固定6系列の許可classである場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isAllowedClass( const std::wstring_view value) noexcept
 {
-	// 固定class群だけを比較し、未知classを既定許可へ変換しない。
+	// 固定class群だけを比較し、未知classを既定許可へ変換しない
 	for( const std::wstring_view accepted : ACCEPTED_CLASSES) {
-		// 明示allowlistに一致するdriver classだけを認める。
+		// 明示allowlistに一致するdriver classだけを認める
 		if( asciiEqual( value, accepted)) {
 			return true ;
 		}
@@ -224,17 +225,17 @@ constexpr std::array ACCEPTED_INF_NAMES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief CATで保護するProvider値を候補発行前にも固定する。
+ * @brief CATで保護するProvider値を候補発行前にも固定する
  *
- * @param[in] value INFが明示したProvider表示名。
- * @return WinOF-2固定6系列の許可Providerである場合true。
+ * @param[in] value INFが明示したProvider表示名
+ * @return WinOF-2固定6系列の許可Providerである場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isAllowedProvider( const std::wstring_view value) noexcept
 {
-	// 固定Provider群だけを比較し、未知publisherを表示名から許可しない。
+	// 固定Provider群だけを比較し、未知publisherを表示名から許可しない
 	for( const std::wstring_view accepted : ACCEPTED_PROVIDERS) {
-		// 明示allowlistに一致するINF Provider値だけを認める。
+		// 明示allowlistに一致するINF Provider値だけを認める
 		if( asciiEqual( value, accepted)) {
 			return true ;
 		}
@@ -245,17 +246,17 @@ constexpr std::array ACCEPTED_INF_NAMES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 後段で任意のMSI fileをdriver閉包へ昇格しない。
+ * @brief 後段で任意のMSI fileをdriver閉包へ昇格しない
  *
- * @param[in] value MSI mappingから解決した論理INF名。
- * @return ADR 0117の固定6系列に含まれる場合true。
+ * @param[in] value MSI mappingから解決した論理INF名
+ * @return ADR 0117の固定6系列に含まれる場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isAllowedInfName( const std::wstring_view value) noexcept
 {
-	// 固定INF群だけを比較し、pathや別名を推測して補完しない。
+	// 固定INF群だけを比較し、pathや別名を推測して補完しない
 	for( const std::wstring_view accepted : ACCEPTED_INF_NAMES) {
-		// 明示allowlistに一致するINF名だけを閉包監査へ渡す。
+		// 明示allowlistに一致するINF名だけを閉包監査へ渡す
 		if( asciiEqual( value, accepted)) {
 			return true ;
 		}
@@ -266,34 +267,34 @@ constexpr std::array ACCEPTED_INF_NAMES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 再検証callbackの前にoverflowや空hashを拒否する。
+ * @brief 再検証callbackの前にoverflowや空hashを拒否する
  *
- * @param[in] closure 前段で作成した一INF閉包metadata。
- * @return Entry identityと合計sizeが有限で自己整合する場合true。
+ * @param[in] closure 前段で作成した一INF閉包metadata
+ * @return Entry identityと合計sizeが有限で自己整合する場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isValidClosureMetadata( const OfficialDriverClosure &closure) noexcept
 {
-	// 閉包のentry数、単一package、展開byte数が上限内で整合することを要求する。
+	// 閉包のentry数、単一package、展開byte数が上限内で整合することを要求する
 	if( closure.entries.empty() || closure.entries.size() > MAXIMUM_CLOSURE_FILES ||
 	   closure.packages.size() != 1U || closure.expandedBytes == 0U ||
 	   closure.expandedBytes > MAXIMUM_CLOSURE_BYTES) {
 		return false ;
 	}
 
-	std::uint64_t totalBytes{} ;	// 全entryを一度ずつ加算する検証済み合計。
-	// 全entryの非空path、hash、size合計を確認し、overflow時点で拒否する。
+	std::uint64_t totalBytes{} ;	// 全entryを一度ずつ加算する検証済み合計
+	// 全entryの非空path、hash、size合計を確認し、overflow時点で拒否する
 	for( std::size_t index = 0U; index < closure.entries.size(); ++index) {
-		const OfficialZipEntry &entry = closure.entries[index] ;	// 現在検証する閉包entry。
-		// entry path、hash、合計byte上限を満たさない閉包を拒否する。
+		const OfficialZipEntry &entry = closure.entries[index] ;	// 現在検証する閉包entry
+		// entry path、hash、合計byte上限を満たさない閉包を拒否する
 		if( entry.relativePath.empty() || !isSha256( entry.sha256) ||
 		   entry.uncompressedSize > MAXIMUM_CLOSURE_BYTES - totalBytes) {
 			return false ;
 		}
 
-		// 現在位置より前のpathだけと比較し、大文字小文字違いの重複も拒否する。
+		// 現在位置より前のpathだけと比較し、大文字小文字違いの重複も拒否する
 		for( std::size_t previous = 0U; previous < index; ++previous) {
-			// Windows上で同一とみなすpathの重複を閉包へ含めない。
+			// Windows上で同一とみなすpathの重複を閉包へ含めない
 			if( asciiEqual( entry.relativePath, closure.entries[previous].relativePath)) {
 				return false ;
 			}
@@ -307,27 +308,27 @@ constexpr std::array ACCEPTED_INF_NAMES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 要素を補完せず、比較不能な版を最新版と推測しない。
+ * @brief 要素を補完せず、比較不能な版を最新版と推測しない
  *
- * @param[in] value INFまたは現在driverの明示version。
- * @return 四要素をlosslessに解析できた場合は数値配列、それ以外は空。
+ * @param[in] value INFまたは現在driverの明示version
+ * @return 四要素をlosslessに解析できた場合は数値配列、それ以外は空
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::array<std::uint32_t, 4>> parseDriverVersion(
 	const std::wstring_view value) noexcept
 {
-	std::array<std::uint32_t, 4> parts{} ;		// 解析済みの四要素。
-	std::size_t					 partIndex{} ;	// 現在確定する要素index。
-	std::uint64_t				 partValue{} ;	// Overflow検出用の現在要素値。
-	bool						 hasDigit{} ;	// 現在要素に数字がある場合true。
-	// 全文字を一度走査し、四要素以外、空要素、ASCII数字以外を拒否する。
+	std::array<std::uint32_t, 4> parts{} ;		// 解析済みの四要素
+	std::size_t					 partIndex{} ;	// 現在確定する要素index
+	std::uint64_t				 partValue{} ;	// Overflow検出用の現在要素値
+	bool						 hasDigit{} ;	// 現在要素に数字がある場合true
+	// 全文字を一度走査し、四要素以外、空要素、ASCII数字以外を拒否する
 	for( const wchar_t character : value) {
-		// 数値版の数字を現在の要素へ取り込む。
+		// 数値版の数字を現在の要素へ取り込む
 		if( character >= L'0' && character <= L'9') {
 			const std::uint32_t digit =
-				// 現在の十進一桁。
+				// 現在の十進一桁
 				static_cast<std::uint32_t>( character - L'0') ;
-			// 版要素の32-bit overflowを桁追加前に検出する。
+			// 版要素の32-bit overflowを桁追加前に検出する
 			if( partValue > (std::numeric_limits<std::uint32_t>::max() - digit) / 10U) {
 				return std::nullopt ;
 			}
@@ -337,7 +338,7 @@ constexpr std::array ACCEPTED_INF_NAMES{
 			continue ;
 		}
 
-		// 不正な区切り、空要素、過剰な版構成を拒否する。
+		// 不正な区切り、空要素、過剰な版構成を拒否する
 		if( character != L'.' || !hasDigit || partIndex >= parts.size() - 1U) {
 			return std::nullopt ;
 		}
@@ -348,7 +349,7 @@ constexpr std::array ACCEPTED_INF_NAMES{
 		hasDigit  = false ;
 	}
 
-	// 末尾の空要素や必要要素数の不一致を補完せず拒否する。
+	// 末尾の空要素や必要要素数の不一致を補完せず拒否する
 	if( !hasDigit || partIndex != parts.size() - 1U) {
 		return std::nullopt ;
 	}
@@ -359,29 +360,29 @@ constexpr std::array ACCEPTED_INF_NAMES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 比較不能時は安全性や最新性を推測せず再導入へ分類する。
+ * @brief 比較不能時は安全性や最新性を推測せず再導入へ分類する
  *
- * @param[in] candidateVersion INFが明示した候補version。
- * @param[in] currentVersion 同じdeviceの現在driver version。
- * @return 厳密比較結果に対応する更新、再導入または旧版切替。
+ * @param[in] candidateVersion INFが明示した候補version
+ * @param[in] currentVersion 同じdeviceの現在driver version
+ * @return 厳密比較結果に対応する更新、再導入または旧版切替
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] DriverAction classifyAction( const std::wstring_view candidateVersion,
 										  const std::wstring_view currentVersion) noexcept
 {
-	const auto candidate = parseDriverVersion( candidateVersion) ;	// INFの明示version。
-	const auto current	 = parseDriverVersion( currentVersion) ;	// 現在driverの明示version。
-	// 比較不能な版は通常更新ではなく再導入に分類する。
+	const auto candidate = parseDriverVersion( candidateVersion) ;	// INFの明示version
+	const auto current	 = parseDriverVersion( currentVersion) ;	// 現在driverの明示version
+	// 比較不能な版は通常更新ではなく再導入に分類する
 	if( !candidate || !current) {
 		return DriverAction::REINSTALL ;
 	}
 
-	// 候補版が現在版を上回る場合だけ通常更新に分類する。
+	// 候補版が現在版を上回る場合だけ通常更新に分類する
 	if( *candidate > *current) {
 		return DriverAction::UPDATE ;
 	}
 
-	// 候補版が現在版を下回る場合は旧版への切替として区別する。
+	// 候補版が現在版を下回る場合は旧版への切替として区別する
 	if( *candidate < *current) {
 		return DriverAction::DOWNGRADE ;
 	}
@@ -391,22 +392,22 @@ constexpr std::array ACCEPTED_INF_NAMES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 日付は表示だけに使用し、適用性または版比較に使用しない。
+ * @brief 日付は表示だけに使用し、適用性または版比較に使用しない
  *
- * @param[in] value INF DriverVerのMM/DD/YYYY日付。
- * @return YYYY/MM/DD形式。不正形式は空文字列。
+ * @param[in] value INF DriverVerのMM/DD/YYYY日付
+ * @return YYYY/MM/DD形式。不正形式は空文字列
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::wstring formatDriverDate( const std::wstring_view value)
 {
-	// 固定形式に合わないINF日付から表示日付を推測しない。
+	// 固定形式に合わないINF日付から表示日付を推測しない
 	if( value.size() != 10U || value[2U] != L'/' || value[5U] != L'/') {
 		return {} ;
 	}
 
-	// 区切り以外の全位置をASCII数字に限定する。
+	// 区切り以外の全位置をASCII数字に限定する
 	for( std::size_t index = 0U; index < value.size(); ++index) {
-		// 年月日の数値位置に数字以外を許容しない。
+		// 年月日の数値位置に数字以外を許容しない
 		if( index != 2U && index != 5U && (value[index] < L'0' || value[index] > L'9')) {
 			return {} ;
 		}
@@ -420,17 +421,17 @@ constexpr std::array ACCEPTED_INF_NAMES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 非機密deviceがWinOF-2内容監査の対象classとmakerに属するか確認する。Local対象を限定する予備判定であり、PnP適合性は確定しない。
- * @param[in] device 同一scanで列挙した外部送信しないdevice snapshot。 同一scanの非機密device snapshot。
+ * @brief 非機密deviceがWinOF-2内容監査の対象classとmakerに属するか確認する。Local対象を限定する予備判定であり、PnP適合性は確定しない
+ * @param[in] device 同一scanで列挙した外部送信しないdevice snapshot。 同一scanの非機密device snapshot
  * @return Mellanox／NVIDIA maker、許可class、opaque identityが揃う場合true。 Maker、class、identity、modelが監査対象条件
- *         を満たす場合true。
- * @note 表示名による対象絞込みであり、PnP適合性はrank auditorだけが確定する。
+ *         を満たす場合true
+ * @note 表示名による対象絞込みであり、PnP適合性はrank auditorだけが確定する
  */
 //------------------------------------------------------------------------------
 bool isNvidiaWinof2AuditDevice( const OfficialCatalogDevice &device) noexcept
 {
 	const bool acceptedMaker = asciiContains( device.manufacturer, L"Mellanox") ||
-							   // 公式系列に対応するlocal maker表示。
+							   // 公式系列に対応するlocal maker表示
 							   asciiContains( device.manufacturer, L"NVIDIA") ;
 	return !device.deviceIdentity.empty() && !device.model.empty() && acceptedMaker &&
 		   isAllowedClass( device.driverClass) ;
@@ -438,16 +439,16 @@ bool isNvidiaWinof2AuditDevice( const OfficialCatalogDevice &device) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief WinOF-2監査の内容再検証だけを差し替えて決定的単体testを実行する。CAT合格前にPnP監査を呼ばず、失敗時は閉包所有権を破棄する。
- * @param[in] acquisition 外側WinOF-2 EXEの架空または固定済み取得結果。 公開hash照合済み外側EXE取得結果。
- * @param[in] workspace 選択driver閉包を単独所有する保護workspace。 選択driver閉包の単独所有領域。
- * @param[in] driverClosure MSI identityへ拘束した閉包結果。 MSIと取得元に拘束した閉包。
- * @param[in] devices 同じscanでWinOF-2対象に絞ったdevice snapshot群。 WinOF-2対象に絞ったlocal device群。
- * @param[in] reverifier CAT、publisher、Windows x64結果を返す試験境界。 共通内容・CAT再検証関数。
- * @param[in] rankAuditor PnP／rank結果を返す試験境界。 Windows標準PnP／rank監査関数。
- * @param[out] audit 取得identity、内容・適用性結果と、成功時に所有権を移す閉包。 合格閉包、適用対象、件数、診断値。
- * @return 全gate監査完了時は0、identity、内容または処理失敗時はHRESULT。 全監査完了時0、identity、内容または処理失敗時はHRESULT。
- * @note Product codeは本関数を呼ばず、固定再検証を使う通常関数を使用する。
+ * @brief WinOF-2監査の内容再検証だけを差し替えて決定的単体testを実行する。CAT合格前にPnP監査を呼ばず、失敗時は閉包所有権を破棄する
+ * @param[in] acquisition 外側WinOF-2 EXEの架空または固定済み取得結果。 公開hash照合済み外側EXE取得結果
+ * @param[in] workspace 選択driver閉包を単独所有する保護workspace。 選択driver閉包の単独所有領域
+ * @param[in] driverClosure MSI identityへ拘束した閉包結果。 MSIと取得元に拘束した閉包
+ * @param[in] devices 同じscanでWinOF-2対象に絞ったdevice snapshot群。 WinOF-2対象に絞ったlocal device群
+ * @param[in] reverifier CAT、publisher、Windows x64結果を返す試験境界。 共通内容・CAT再検証関数
+ * @param[in] rankAuditor PnP／rank結果を返す試験境界。 Windows標準PnP／rank監査関数
+ * @param[out] audit 取得identity、内容・適用性結果と、成功時に所有権を移す閉包。 合格閉包、適用対象、件数、診断値
+ * @return 全gate監査完了時は0、identity、内容または処理失敗時はHRESULT。 全監査完了時0、identity、内容または処理失敗時はHRESULT
+ * @note Product codeは本関数を呼ばず、固定再検証を使う通常関数を使用する
  */
 //------------------------------------------------------------------------------
 NativeError auditNvidiaWinof2DriverClosureForTesting(
@@ -458,7 +459,7 @@ NativeError auditNvidiaWinof2DriverClosureForTesting(
 	NvidiaWinof2DriverAudit &audit)
 {
 	audit									 = {} ;
-	OfficialDriverPackageAudit &packageAudit = audit.package ;	// 共通CAT、PnP、rank監査の出力部分。
+	OfficialDriverPackageAudit &packageAudit = audit.package ;	// 共通CAT、PnP、rank監査の出力部分
 	const bool					identityValid =
 		isValidAcquisition( acquisition) && workspace != nullptr && reverifier && rankAuditor &&
 		driverClosure.scanSessionId == acquisition.scanSessionId &&
@@ -466,9 +467,9 @@ NativeError auditNvidiaWinof2DriverClosureForTesting(
 		driverClosure.databaseSize != 0U && isSha256( driverClosure.databaseSha256) &&
 		isAllowedInfName( driverClosure.selectedInfPath) && driverClosure.cabinetFileCount != 0U &&
 		isValidClosureMetadata( driverClosure.closure) && !devices.empty() &&
-		// 外側取得からlocal対象までの有限identity条件。
+		// 外側取得からlocal対象までの有限identity条件
 		devices.size() <= MAXIMUM_DEVICES ;
-	// 取得identityが監査前提に合わなければ閉包監査を拒否する。
+	// 取得identityが監査前提に合わなければ閉包監査を拒否する
 	if( !identityValid) {
 		packageAudit.summary.state = OfficialDriverPackageAuditState::REJECTED ;
 		packageAudit.summary.error = static_cast<NativeError>( E_INVALIDARG) ;
@@ -476,11 +477,11 @@ NativeError auditNvidiaWinof2DriverClosureForTesting(
 	}
 
 	try {
-		std::unordered_set<std::wstring> deviceIdentities ;	// Local opaque IDの重複検査集合。
+		std::unordered_set<std::wstring> deviceIdentities ;	// Local opaque IDの重複検査集合
 		deviceIdentities.reserve( devices.size()) ;
-		// 全対象をWinOF-2のmaker／classへ限定し、別系列deviceをPnP監査へ渡さない。
+		// 全対象をWinOF-2のmaker／classへ限定し、別系列deviceをPnP監査へ渡さない
 		for( const OfficialCatalogDevice &device : devices) {
-			// 対象外deviceやopaque identity重複を監査要求へ含めない。
+			// 対象外deviceやopaque identity重複を監査要求へ含めない
 			if( !isNvidiaWinof2AuditDevice( device) ||
 			   !deviceIdentities.insert( device.deviceIdentity).second) {
 				packageAudit.summary.state = OfficialDriverPackageAuditState::REJECTED ;
@@ -490,9 +491,9 @@ NativeError auditNvidiaWinof2DriverClosureForTesting(
 		}
 
 		const OfficialInfPackage &package =
-			// 前段で構造監査したINF metadata。
+			// 前段で構造監査したINF metadata
 			driverClosure.closure.packages.front() ;
-		// 選択INF、CAT、参照file、Hardware ID、class、Providerの前提を確認する。
+		// 選択INF、CAT、参照file、Hardware ID、class、Providerの前提を確認する
 		if( !asciiEqual( driverClosure.selectedInfPath, package.infRelativePath) ||
 		   package.catalogRelativePath.empty() || package.hardwareIds.empty() ||
 		   package.sourceFiles.empty() || !isAllowedClass( package.className) ||
@@ -509,20 +510,20 @@ NativeError auditNvidiaWinof2DriverClosureForTesting(
 		OfficialAuditedInfPackage auditedPackage{
 			.workspace = std::move( workspace),
 			.closure   = std::move( driverClosure.closure),
-			.profile   = OfficialDriverAuditProfile::NVIDIA_WINOF2} ;	// 再検証対象の所有値。
-		const NativeError contentError = reverifier( auditedPackage) ;	// x64、CAT、publisher結果。
+			.profile   = OfficialDriverAuditProfile::NVIDIA_WINOF2} ;	// 再検証対象の所有値
+		const NativeError contentError = reverifier( auditedPackage) ;	// x64、CAT、publisher結果
 		packageAudit.scanSessionId	   = acquisition.scanSessionId ;
 		packageAudit.summary.inventoryFileCount	  = auditedPackage.closure.entries.size() ;
 		packageAudit.summary.infCount			  = 1U ;
 		packageAudit.summary.archiveDepth		  = auditedPackage.closure.archiveDepth ;
 		packageAudit.summary.retainedClosureBytes = auditedPackage.closure.expandedBytes ;
-		// 内容検証に失敗した閉包は診断を保持し、PnP監査へ進めない。
+		// 内容検証に失敗した閉包は診断を保持し、PnP監査へ進めない
 		if( contentError != 0) {
 			packageAudit.summary.state				 = OfficialDriverPackageAuditState::REJECTED ;
 			packageAudit.summary.error				 = contentError ;
 			packageAudit.summary.firstRejectionError = contentError ;
 			packageAudit.summary.rejectedInfCount	 = 1U ;
-			// CATまたはx64拒否をPnP監査へ進めない。
+			// CATまたはx64拒否をPnP監査へ進めない
 			return contentError ;
 		}
 
@@ -537,7 +538,7 @@ NativeError auditNvidiaWinof2DriverClosureForTesting(
 		audit.package.summary.error = static_cast<NativeError>( E_OUTOFMEMORY) ;
 		return audit.package.summary.error ;
 	} catch( ...) {
-		// Callback例外時に部分合格閉包または適用対象を残さない。
+		// Callback例外時に部分合格閉包または適用対象を残さない
 		audit						= {} ;
 		audit.package.summary.state = OfficialDriverPackageAuditState::FAILURE ;
 		audit.package.summary.error = static_cast<NativeError>( E_UNEXPECTED) ;
@@ -548,15 +549,15 @@ NativeError auditNvidiaWinof2DriverClosureForTesting(
 //------------------------------------------------------------------------------
 /**
  * @brief WinOF-2閉包を公式取得identity、CAT、Windows x64、local PnP、rankで監査する。内容再検証を共通実装へ固定し、Provider固有の緩和を許さ
- *        ない。
- * @param[in] acquisition 外側WinOF-2 EXEの公開hash照合済み公式取得結果。 公開hash照合済み外側EXE取得結果。
- * @param[in] workspace 選択INF、CAT、参照fileを単独所有する保護workspace。 選択driver閉包の単独所有領域。
- * @param[in] driverClosure MSI identityへ拘束したG12-X5-02e3の閉包結果。 MSIと取得元に拘束した閉包。
- * @param[in] devices 同じscanでWinOF-2対象に絞った最大4096件のdevice snapshot。 WinOF-2対象に絞ったlocal device群。
- * @param[in] rankAuditor 同じworkerのWindows標準PnP／rank監査関数。
- * @param[out] audit 取得identity、内容・適用性結果と、成功時に所有権を移す閉包。 合格閉包、適用対象、件数、診断値。
- * @return 全gate監査完了時は0、identity、内容または処理失敗時はHRESULT。 全監査完了時0、identity、内容または処理失敗時はHRESULT。
- * @note 内容再検証は共通`reverifyOfficialAuditedInfPackage`へ固定する。
+ *        ない
+ * @param[in] acquisition 外側WinOF-2 EXEの公開hash照合済み公式取得結果。 公開hash照合済み外側EXE取得結果
+ * @param[in] workspace 選択INF、CAT、参照fileを単独所有する保護workspace。 選択driver閉包の単独所有領域
+ * @param[in] driverClosure MSI identityへ拘束したG12-X5-02e3の閉包結果。 MSIと取得元に拘束した閉包
+ * @param[in] devices 同じscanでWinOF-2対象に絞った最大4096件のdevice snapshot。 WinOF-2対象に絞ったlocal device群
+ * @param[in] rankAuditor 同じworkerのWindows標準PnP／rank監査関数
+ * @param[out] audit 取得identity、内容・適用性結果と、成功時に所有権を移す閉包。 合格閉包、適用対象、件数、診断値
+ * @return 全gate監査完了時は0、identity、内容または処理失敗時はHRESULT。 全監査完了時0、identity、内容または処理失敗時はHRESULT
+ * @note 内容再検証は共通`reverifyOfficialAuditedInfPackage`へ固定する
  */
 //------------------------------------------------------------------------------
 NativeError auditNvidiaWinof2DriverClosure( const OfficialAcquisitionResult			 &acquisition,
@@ -568,7 +569,7 @@ NativeError auditNvidiaWinof2DriverClosure( const OfficialAcquisitionResult			 &
 {
 	const NvidiaWinof2ClosureReverifier reverifier = []( const OfficialAuditedInfPackage &package) {
 		return reverifyOfficialAuditedInfPackage( package) ;
-	} ; // 固定共通再検証境界。
+	} ; // 固定共通再検証境界
 	return auditNvidiaWinof2DriverClosureForTesting( acquisition, std::move( workspace),
 													std::move( driverClosure), devices, reverifier,
 													rankAuditor, audit) ;
@@ -576,13 +577,13 @@ NativeError auditNvidiaWinof2DriverClosure( const OfficialAcquisitionResult			 &
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全内容・PnP／rank監査合格組合せをsession拘束済みの選択不能候補へ変換する。INF明示値だけを表示し、EULA・導入routing未接続をBlockedで保持する。
- * @param[in] acquisition 監査時と同じ外側公式取得identity。
- * @param[in] devices 監査時と同じWinOF-2対象device snapshot群。 監査時と同じlocal device snapshot群。
- * @param[in] audit 全gate合格組合せと単独所有閉包。 内容、PnP、rank合格組合せと保持閉包。
- * @return 同device／同版を重複排除した監査済み候補。 同device／同版を重複排除した選択不能候補。
- * @throws std::logic_error 入力identity、監査状態または保持関係が不整合な場合。
- * @note EULAと導入routing未接続のため全候補をBlocked、非推奨、非installableにする。
+ * @brief 全内容・PnP／rank監査合格組合せをsession拘束済みの選択不能候補へ変換する。INF明示値だけを表示し、EULA・導入routing未接続をBlockedで保持する
+ * @param[in] acquisition 監査時と同じ外側公式取得identity
+ * @param[in] devices 監査時と同じWinOF-2対象device snapshot群。 監査時と同じlocal device snapshot群
+ * @param[in] audit 全gate合格組合せと単独所有閉包。 内容、PnP、rank合格組合せと保持閉包
+ * @return 同device／同版を重複排除した監査済み候補。 同device／同版を重複排除した選択不能候補
+ * @throws std::logic_error 入力identity、監査状態または保持関係が不整合な場合
+ * @note EULAと導入routing未接続のため全候補をBlocked、非推奨、非installableにする
  */
 //------------------------------------------------------------------------------
 std::vector<UpdateCandidate> makeNvidiaWinof2AuditedCandidates(
@@ -590,8 +591,8 @@ std::vector<UpdateCandidate> makeNvidiaWinof2AuditedCandidates(
 	const std::span<const OfficialCatalogDevice> devices, const NvidiaWinof2DriverAudit &audit)
 {
 	const OfficialDriverPackageAudit &packageAudit =
-		audit.package ;	// 候補へ変換する共通内容・適用性監査結果。
-	// 取得・監査session、閉包、rank承認件数の全証拠が整合する場合だけ候補を公開する。
+		audit.package ;	// 候補へ変換する共通内容・適用性監査結果
+	// 取得・監査session、閉包、rank承認件数の全証拠が整合する場合だけ候補を公開する
 	if( !isValidAcquisition( acquisition) || devices.empty() || devices.size() > MAXIMUM_DEVICES ||
 	   audit.scanSessionId != acquisition.scanSessionId ||
 	   audit.sourceAcquisitionId != acquisition.acquisitionId || !isSha256( audit.databaseSha256) ||
@@ -609,26 +610,26 @@ std::vector<UpdateCandidate> makeNvidiaWinof2AuditedCandidates(
 	}
 
 	std::unordered_map<std::wstring_view, const OfficialCatalogDevice *>
-		deviceIndex ;	// Opaque local device索引。
+		deviceIndex ;	// Opaque local device索引
 	deviceIndex.reserve( devices.size()) ;
-	// 監査時deviceを一意に索引化し、別scanまたは別makerの表示値を混入させない。
+	// 監査時deviceを一意に索引化し、別scanまたは別makerの表示値を混入させない
 	for( const OfficialCatalogDevice &device : devices) {
-		// 対象外またはidentity重複のdevice集合から候補を作らない。
+		// 対象外またはidentity重複のdevice集合から候補を作らない
 		if( !isNvidiaWinof2AuditDevice( device) ||
 		   !deviceIndex.emplace( device.deviceIdentity, &device).second) {
 			throw std::logic_error( "invalid WinOF-2 candidate device") ;
 		}
 	}
 
-	std::set<std::pair<std::wstring, std::wstring>> publishedVersions ;	// Device／版集合。
-	std::vector<UpdateCandidate> candidates ;							// UIへ渡せる非機密の監査済み候補群。
+	std::set<std::pair<std::wstring, std::wstring>> publishedVersions ;	// Device／版集合
+	std::vector<UpdateCandidate>					candidates ;		// UIへ渡せる非機密の監査済み候補群
 	candidates.reserve( packageAudit.rankApprovedTargets.size()) ;
-	// G11-D合格順で候補を作り、同じdevice／versionの複数INFを一件へまとめる。
+	// G11-D合格順で候補を作り、同じdevice／versionの複数INFを一件へまとめる
 	for( std::size_t index = 0U; index < packageAudit.rankApprovedTargets.size(); ++index) {
 		const OfficialRankApprovedInfTarget &approved =
-			packageAudit.rankApprovedTargets[index] ;						// 現在発行するINF／device合格組合せ。
-		const auto device = deviceIndex.find( approved.deviceIdentity) ;	// 同一scanのdevice位置。
-		// rank未承認、未知device、範囲外package indexを候補へ変換しない。
+			packageAudit.rankApprovedTargets[index] ;						// 現在発行するINF／device合格組合せ
+		const auto device = deviceIndex.find( approved.deviceIdentity) ;	// 同一scanのdevice位置
+		// rank未承認、未知device、範囲外package indexを候補へ変換しない
 		if( approved.rankAudit.decision != OfficialDriverRankDecision::APPLICABLE ||
 		   device == deviceIndex.end() ||
 		   approved.auditedPackageIndex >= packageAudit.auditedPackages.size()) {
@@ -636,15 +637,15 @@ std::vector<UpdateCandidate> makeNvidiaWinof2AuditedCandidates(
 		}
 
 		const OfficialAuditedInfPackage &audited =
-			packageAudit.auditedPackages[approved.auditedPackageIndex] ;	// 対応する保持閉包。
-		// 所有workspace、監査profile、単一packageの前提を公開前に確認する。
+			packageAudit.auditedPackages[approved.auditedPackageIndex] ;	// 対応する保持閉包
+		// 所有workspace、監査profile、単一packageの前提を公開前に確認する
 		if( !audited.workspace || audited.profile != OfficialDriverAuditProfile::NVIDIA_WINOF2 ||
 		   audited.closure.packages.size() != 1U) {
 			throw std::logic_error( "invalid WinOF-2 audited package") ;
 		}
 
-		const OfficialInfPackage &package = audited.closure.packages.front() ;	// INF明示metadata。
-		// INF明示metadataと選択INF・device classの対応を再確認する。
+		const OfficialInfPackage &package = audited.closure.packages.front() ;	// INF明示metadata
+		// INF明示metadataと選択INF・device classの対応を再確認する
 		if( package.driverVersion.empty() || package.catalogRelativePath.empty() ||
 		   package.hardwareIds.empty() || package.sourceFiles.empty() ||
 		   !isAllowedProvider( package.providerName) || !isAllowedClass( package.className) ||
@@ -653,12 +654,12 @@ std::vector<UpdateCandidate> makeNvidiaWinof2AuditedCandidates(
 			throw std::logic_error( "invalid WinOF-2 INF metadata") ;
 		}
 
-		// 同じdevice／同版の重複を表示候補へ発行しない。
+		// 同じdevice／同版の重複を表示候補へ発行しない
 		if( !publishedVersions.emplace( approved.deviceIdentity, package.driverVersion).second) {
 			continue ;
 		}
 
-		UpdateCandidate candidate ;	// PathとPnP IDを含まない監査済み表示候補。
+		UpdateCandidate candidate ;	// PathとPnP IDを含まない監査済み表示候補
 		candidate.identity = L"nvidia-winof2-driver:" + std::to_wstring( acquisition.scanSessionId) +
 							 L":" + std::to_wstring( index) ;
 		candidate.deviceIdentity  = approved.deviceIdentity ;
@@ -692,7 +693,7 @@ std::vector<UpdateCandidate> makeNvidiaWinof2AuditedCandidates(
 		candidates.push_back( std::move( candidate)) ;
 	}
 
-	// 承認済みの公開要求から候補が一件も生成されない不整合を拒否する。
+	// 承認済みの公開要求から候補が一件も生成されない不整合を拒否する
 	if( candidates.empty()) {
 		throw std::logic_error( "empty WinOF-2 candidate publication") ;
 	}

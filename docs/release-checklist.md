@@ -1,14 +1,20 @@
-# Release checklist — DriverCrate 1.0.6 App
+# Release checklist — DriverCrate 1.0.7 App
 
 対象は利用者向けAppとApp用Setupだけです。私有Collector/収集用Setup/定義/registry、driver本体や実端末情報は公開しません。
 この一覧は工程条件であり、未完了項目を過去版の成功で埋めません。最新のrelease指示は必要なsource push/tag/Release登録を含み、
 既存Publicへの反映のための汎用再承認flowは追加しません。新たなvisibility変更は別判断です。
 
-変更点は[1.0.6のリリースノート](release-notes-1.0.6.md)に記載します。
+変更点は[1.0.7のリリースノート](release-notes-1.0.7.md)に記載します。
+
+## 今回の順序
+
+公開するソース集合を固定し、そのsnapshot自身からbuildと試験を行います。受入した最終Appのコード署名を確認してから、同じsnapshotの手順でZIPとSetupを作成します。Setupの内部engine・解除用EXE・外側EXEも署名し、配布物の受入後にsource/tag/Releaseを公開します。利用者が手動署名する場合も各段階で原byteと署名を検証し、完了連絡だけで合格にしません。旧1.0.6の公開assetと索引は保持します。
 
 ## Sourceと検証
 
-- [ ] CMake正本、VERSIONINFO、package、Release title、tag v1.0.6を一致させる。
+既存Public mainのconsumer構成を正本とし、1.0.7の共通処理と必要なconsumer試験を明示して含めます。私有の収集製品や研究用ソースを依存解決のために一括追加しません。静的閉包、開発中の試験、公開snapshot自身のfresh buildと試験を区別します。
+
+- [ ] CMake正本、VERSIONINFO、package、Release title、tag v1.0.7を一致させる。
 - [ ] consumerの明示集合についてpath/mode/checkout byte/SHA-256、include/fixture/文書link、license/noticeを固定する。
 - [ ] 私有source/registry/定義、work、鍵、credential、inventory、driver、build/PDB、個人絶対pathを除外する。
 - [ ] 公開mainの既履歴を親として保持する。Private履歴の混入・force・root作り直しをしない。
@@ -19,7 +25,7 @@
 ## 署名と配布
 
 - [ ] snapshot/source/cacheの結合を保ち、最終Appの原byte/profileを受入する。
-- [ ] 指定SDK hash・証明書・chainを検査し、既helperのApp roleで署名する。秘密鍵をexportせずPINを保存しない。
+- [ ] 指定SDK hash・証明書・chainを検査し、既helperのApp roleと同じ検証境界で署名する。手動署名では受入済み最終PEだけを渡し、秘密鍵をexportせずPINを保存しない。
 - [ ] 署名以外の原byte保持、指定signer、時刻証明、WinVerifyTrustを確認する。
 - [ ] 公開snapshot自身のpackage-app-setup.ps1から署名App/profile・公開README/NOTICE・App用issを包装する。Private側scriptとの混成を避ける。
 - [ ] Inno SignTool/SignedUninstallerで内部engine/解除EXEとouterを署名し、通常user用Setupの版・発行元・署名・5file展開を確認する。内部PEへAppのAMD64 gateを流用しない。

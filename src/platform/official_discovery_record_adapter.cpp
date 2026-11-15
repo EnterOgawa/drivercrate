@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_discovery_record_adapter.cpp
- * @brief 公式自動探索の固定root解決、失敗保持、秘密record sessionを実装する。
- * @version 01.02.01
+ * @brief 公式自動探索の固定root解決、失敗保持、秘密record sessionを実装する
+ * @version 01.02.02
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,13 +19,14 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/15  固定root adapterと秘密record sessionを実装。
- * Ver.01.01.00 Shunji Ogawa  2026/09/15  検査用取得対象とEULA snapshot生成を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/09/15  通常scanの表示専用payload descriptor生成を追加。
- * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/15  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/09/15  検査用取得対象とEULA snapshot生成を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/09/15  通常scanの表示専用payload descriptor生成を追加
+ * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
- * @note 固定endpointは組み込みsource policyから実行直前に取得し、route、UI、log、cacheへ複製しない。
+ * @note 固定endpointは組み込みsource policyから実行直前に取得し、route、UI、log、cacheへ複製しない
  * @see docs/adr/0157-automatic-official-discovery-consent-and-cache.md
  */
 //------------------------------------------------------------------------------
@@ -49,22 +50,22 @@
 namespace drivercrate {
 namespace {
 
-// 一scanで保持する秘密recordの固定上限。
+// 一scanで保持する秘密recordの固定上限
 constexpr std::size_t	  MAXIMUM_RETAINED_RECORDS = OFFICIAL_DISCOVERY_ROUTE_LIMIT ;
-// 既存取得準備契約が許可するopaque identityの最大文字数。
+// 既存取得準備契約が許可するopaque identityの最大文字数
 constexpr std::size_t	  MAXIMUM_PREPARATION_ID_CHARACTERS = 128U ;
-// 入力契約またはcallback結果の不整合を表す診断値。
+// 入力契約またはcallback結果の不整合を表す診断値
 constexpr NativeError	  INVALID_ARGUMENT = static_cast<NativeError>( E_INVALIDARG) ;
-// Allocation失敗を表す診断値。
+// Allocation失敗を表す診断値
 constexpr NativeError	  OUT_OF_MEMORY = static_cast<NativeError>( E_OUTOFMEMORY) ;
-// 型不明例外を情報漏洩なしで表す診断値。
+// 型不明例外を情報漏洩なしで表す診断値
 constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_FAIL) ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief Win32 errorをHRESULT bit patternへ変換する。
- * @param[in] error 変換するWin32 error code。
- * @return NativeErrorで保持するHRESULT bit pattern。
+ * @brief Win32 errorをHRESULT bit patternへ変換する
+ * @param[in] error 変換するWin32 error code
+ * @return NativeErrorで保持するHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError nativeErrorFromWin32( const DWORD error) noexcept
@@ -74,18 +75,18 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_FAIL) ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 固定root resolver結果の状態と診断値が矛盾しないか確認する。
- * @param[in] result Provider adapterが返した有限結果。
- * @return 解決・空・取消しは診断0、三失敗は非0の場合true。
+ * @brief 固定root resolver結果の状態と診断値が矛盾しないか確認する
+ * @param[in] result Provider adapterが返した有限結果
+ * @return 解決・空・取消しは診断0、三失敗は非0の場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isFixedRootResultValid( const OfficialDiscoveryFixedRootResult &result) noexcept
 {
-	// 診断を要求する三つの失敗状態ならtrue。
+	// 診断を要求する三つの失敗状態ならtrue
 	const bool diagnosticState = result.state == OfficialDiscoveryFixedRootState::FAILED ||
 								 result.state == OfficialDiscoveryFixedRootState::SOURCE_REJECTED ||
 								 result.state == OfficialDiscoveryFixedRootState::METADATA_REJECTED ;
-	// 未開始や未知enumを正常終了へ補完せず拒否する。
+	// 未開始や未知enumを正常終了へ補完せず拒否する
 	if( result.state < OfficialDiscoveryFixedRootState::RESOLVED ||
 	   result.state > OfficialDiscoveryFixedRootState::METADATA_REJECTED) {
 		return false ;
@@ -96,16 +97,16 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_FAIL) ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief Adapterの固定Provider、policy、root、endpointを検証する。
- * @param[in] adapter 検証する一adapter。
- * @param[in] route 同じ実行単位のroute。
- * @return 組み込みsource policyと完全一致する場合true。
+ * @brief Adapterの固定Provider、policy、root、endpointを検証する
+ * @param[in] adapter 検証する一adapter
+ * @param[in] route 同じ実行単位のroute
+ * @return 組み込みsource policyと完全一致する場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool hasBoundFixedRoot( const OfficialDiscoveryFixedRootAdapter &adapter,
 									 const OfficialDiscoveryRoute			 &route) noexcept
 {
-	// Routeとは異なるProvider、root、種別をadapterから補完しない。
+	// Routeとは異なるProvider、root、種別をadapterから補完しない
 	if( adapter.providerId != route.providerId || adapter.rootResourceId != route.rootResourceId ||
 	   adapter.kind != route.kind || adapter.maximumRecordBytes == 0U ||
 	   adapter.maximumRecordBytes > OFFICIAL_DISCOVERY_RECORD_BYTES_LIMIT || !adapter.resolver) {
@@ -113,13 +114,13 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_FAIL) ;
 	}
 
 	const OfficialSourcePolicy *const policy =
-		// Providerへ結合した組み込みsource policy。
+		// Providerへ結合した組み込みsource policy
 		officialSourcePolicyForProvider( adapter.providerId) ;
 	const OfficialSourceResourcePolicy *const resource =
 		policy == nullptr
 			? nullptr
-			: findOfficialSourceResource( *policy, adapter.rootResourceId) ;	// 固定root用途。
-	// Landing／metadata用途と固定endpointを持たないadapterを実行しない。
+			: findOfficialSourceResource( *policy, adapter.rootResourceId) ;	// 固定root用途
+	// Landing／metadata用途と固定endpointを持たないadapterを実行しない
 	return policy != nullptr && resource != nullptr &&
 		   (resource->kind == OfficialSourceResourceKind::LANDING_PAGE ||
 			resource->kind == OfficialSourceResourceKind::METADATA) &&
@@ -128,12 +129,12 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_FAIL) ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief Resolverが返したroot evidenceをrouteと今回の証拠IDへ完全一致させる。
- * @param[in] record 秘密URLを所有するresolver結果。
- * @param[in] route 実行した固定root route。
- * @param[in] scanSessionId 現在のscan session ID。
- * @param[in] recordEvidenceId 今回割り当てた証拠ID。
- * @return 組み込みsource evidenceと全identityが一致する場合true。
+ * @brief Resolverが返したroot evidenceをrouteと今回の証拠IDへ完全一致させる
+ * @param[in] record 秘密URLを所有するresolver結果
+ * @param[in] route 実行した固定root route
+ * @param[in] scanSessionId 現在のscan session ID
+ * @param[in] recordEvidenceId 今回割り当てた証拠ID
+ * @return 組み込みsource evidenceと全identityが一致する場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool hasBoundSourceEvidence( const OfficialDistributionRecord &record,
@@ -142,9 +143,9 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_FAIL) ;
 										  const std::uint64_t recordEvidenceId) noexcept
 {
 	const OfficialSourcePolicy *const policy =
-		// Route Providerの組み込みpolicy。
+		// Route Providerの組み込みpolicy
 		officialSourcePolicyForProvider( route.providerId) ;
-	// Source evidence自体とrouteへの全結合が成立する場合だけ後続metadata検証へ進める。
+	// Source evidence自体とrouteへの全結合が成立する場合だけ後続metadata検証へ進める
 	return policy != nullptr && isValidOfficialSourceEvidence( record.rootEvidence) &&
 		   record.recordEvidenceId == recordEvidenceId &&
 		   record.rootEvidence.scanSessionId == scanSessionId &&
@@ -155,38 +156,38 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_FAIL) ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief Callbackの有限状態を公開route状態へ一対一で変換する。
- * @param[in] state 検証済みの固定root状態。
- * @return 同じ理由を保持する公開route状態。
+ * @brief Callbackの有限状態を公開route状態へ一対一で変換する
+ * @param[in] state 検証済みの固定root状態
+ * @return 同じ理由を保持する公開route状態
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryRouteState routeStateFromFixedRoot(
 	const OfficialDiscoveryFixedRootState state) noexcept
 {
-	// Resolverが明示した非成功理由を縮退させず変換する。
+	// Resolverが明示した非成功理由を縮退させず変換する
 	switch( state) {
-		// 正常なrecordなしを保持する。
+		// 正常なrecordなしを保持する
 		case OfficialDiscoveryFixedRootState::NO_RECORD:
 			return OfficialDiscoveryRouteState::NO_RECORD ;
-		// 協調取消しを保持する。
+		// 協調取消しを保持する
 		case OfficialDiscoveryFixedRootState::CANCELLED:
 			return OfficialDiscoveryRouteState::CANCELLED ;
-		// 通常失敗を保持する。
+		// 通常失敗を保持する
 		case OfficialDiscoveryFixedRootState::FAILED:
 			return OfficialDiscoveryRouteState::FAILED ;
-		// Source拒否を保持する。
+		// Source拒否を保持する
 		case OfficialDiscoveryFixedRootState::SOURCE_REJECTED:
 			return OfficialDiscoveryRouteState::SOURCE_REJECTED ;
-		// Metadata拒否を保持する。
+		// Metadata拒否を保持する
 		case OfficialDiscoveryFixedRootState::METADATA_REJECTED:
 			return OfficialDiscoveryRouteState::METADATA_REJECTED ;
-		// 解決済み状態はroute種別を必要とするため呼出側で処理する。
+		// 解決済み状態はroute種別を必要とするため呼出側で処理する
 		case OfficialDiscoveryFixedRootState::RESOLVED:
 			return OfficialDiscoveryRouteState::METADATA_REJECTED ;
-		// 未開始状態はresolverの終端結果として許可しない。
+		// 未開始状態はresolverの終端結果として許可しない
 		case OfficialDiscoveryFixedRootState::NOT_STARTED:
 			return OfficialDiscoveryRouteState::METADATA_REJECTED ;
-		// 定義外enumもmetadata拒否へ閉じる。
+		// 定義外enumもmetadata拒否へ閉じる
 		default:
 			return OfficialDiscoveryRouteState::METADATA_REJECTED ;
 	}
@@ -194,19 +195,19 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_FAIL) ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief Route identityを保持した初期summaryを作る。
- * @param[in] route 元route。
- * @return Device件数を安全に保持した未開始summary。
+ * @brief Route identityを保持した初期summaryを作る
+ * @param[in] route 元route
+ * @return Device件数を安全に保持した未開始summary
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] OfficialDiscoveryRouteSummary makeInitialSummary(
 	const OfficialDiscoveryRoute &route) noexcept
 {
-	OfficialDiscoveryRouteSummary summary ;	// 全終端状態で共通のroute identity。
+	OfficialDiscoveryRouteSummary summary ;	// 全終端状態で共通のroute identity
 	summary.routeId	   = route.routeId ;
 	summary.providerId = route.providerId ;
 	summary.kind	   = route.kind ;
-	// Core上限内のrouteだけが呼ばれるが、変換前にも型上限を守る。
+	// Core上限内のrouteだけが呼ばれるが、変換前にも型上限を守る
 	if( route.deviceIdentities.size() <= std::numeric_limits<std::uint32_t>::max()) {
 		summary.deviceCount = static_cast<std::uint32_t>( route.deviceIdentities.size()) ;
 	}
@@ -216,10 +217,10 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_FAIL) ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一payload descriptorがpackage groupの不変fieldへ完全一致するか確認する。
- * @param[in] descriptor 保持recordから再生成したURL非保持payload descriptor。
- * @param[in] group 既存の重複排除済みpackage group。
- * @return Session、Provider、policy、root、fingerprint、payload順が一致する場合true。
+ * @brief 一payload descriptorがpackage groupの不変fieldへ完全一致するか確認する
+ * @param[in] descriptor 保持recordから再生成したURL非保持payload descriptor
+ * @param[in] group 既存の重複排除済みpackage group
+ * @return Session、Provider、policy、root、fingerprint、payload順が一致する場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isDescriptorBoundToGroup( const OfficialRecordPayloadDescriptor &descriptor,
@@ -234,22 +235,22 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_FAIL) ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief Recordの利用条件を既存取得準備の有限区分へ変換する。
- * @param[in] terms 検証済み公式recordの利用条件。
- * @param[out] result 対応する既存取得準備の利用条件。
- * @return 既知の二分類を変換できた場合true。
+ * @brief Recordの利用条件を既存取得準備の有限区分へ変換する
+ * @param[in] terms 検証済み公式recordの利用条件
+ * @param[out] result 対応する既存取得準備の利用条件
+ * @return 既知の二分類を変換できた場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool convertPreparationTerms( const OfficialDistributionTerms terms,
 										   OfficialPreparationTerms		  &result) noexcept
 {
-	// Download前同意不要は同じ意味の準備区分へ変換する。
+	// Download前同意不要は同じ意味の準備区分へ変換する
 	if( terms == OfficialDistributionTerms::CONFIRMED_NO_CONSENT) {
 		result = OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
 		return true ;
 	}
 
-	// 固定revisionと全文への同意必須は同じ意味の準備区分へ変換する。
+	// 固定revisionと全文への同意必須は同じ意味の準備区分へ変換する
 	if( terms == OfficialDistributionTerms::ACCEPTANCE_REQUIRED) {
 		result = OfficialPreparationTerms::ACCEPTANCE_REQUIRED ;
 		return true ;
@@ -262,12 +263,12 @@ constexpr NativeError	  UNEXPECTED_FAILURE = static_cast<NativeError>( E_FAIL) ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一adapterをroute、Provider registry、source policyへ完全一致で検証する。
- * @param[in] adapter 検証する固定root adapter。
- * @param[in] route Plannerが作成した一route。
- * @param[in] devices 同じinventory snapshotのraw ID非保持hint集合。
- * @param[in] descriptors Provider registryの正本または同じ合成copy。
- * @return Provider、root、種別、上限、callbackが全て一致する場合true。
+ * @brief 一adapterをroute、Provider registry、source policyへ完全一致で検証する
+ * @param[in] adapter 検証する固定root adapter
+ * @param[in] route Plannerが作成した一route
+ * @param[in] devices 同じinventory snapshotのraw ID非保持hint集合
+ * @param[in] descriptors Provider registryの正本または同じ合成copy
+ * @return Provider、root、種別、上限、callbackが全て一致する場合true
  */
 //------------------------------------------------------------------------------
 bool validateOfficialDiscoveryFixedRootAdapter(
@@ -281,19 +282,19 @@ bool validateOfficialDiscoveryFixedRootAdapter(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 旧recordを失効させ、新しい探索bindingとrequestを開始する。
- * @param[in] binding Operation、scan session、inventory generationの開始時binding。
- * @param[in] request Provider範囲と権限を固定した開始時request。
- * @param[in] descriptors Provider registryの正本または同じ合成copy。
- * @return 新しい単調bindingと要求を受理した場合0、それ以外はHRESULT bit pattern。
- * @post 成功時は保持record、package参照、実行済みrouteが全て0件です。
+ * @brief 旧recordを失効させ、新しい探索bindingとrequestを開始する
+ * @param[in] binding Operation、scan session、inventory generationの開始時binding
+ * @param[in] request Provider範囲と権限を固定した開始時request
+ * @param[in] descriptors Provider registryの正本または同じ合成copy
+ * @return 新しい単調bindingと要求を受理した場合0、それ以外はHRESULT bit pattern
+ * @post 成功時は保持record、package参照、実行済みrouteが全て0件です
  */
 //------------------------------------------------------------------------------
 NativeError OfficialDiscoveryRecordAdapterSession::beginSession(
 	const OfficialDiscoveryBinding &binding, const OfficialDiscoveryRequest &request,
 	const std::span<const ProviderDescriptor> descriptors) noexcept
 {
-	// 不正要求、0、再使用、逆行IDで現在sessionを置き換えない。
+	// 不正要求、0、再使用、逆行IDで現在sessionを置き換えない
 	if( !isOfficialDiscoveryBindingValid( binding) ||
 	   !validateOfficialDiscoveryRequest( request, descriptors) ||
 	   binding.operationId <= latestOperationId_ || binding.scanSessionId <= latestSessionId_) {
@@ -302,7 +303,7 @@ NativeError OfficialDiscoveryRecordAdapterSession::beginSession(
 
 	try {
 		std::vector<ProviderDescriptor> providerDescriptors(
-			// 開始時registryの所有copy。
+			// 開始時registryの所有copy
 			descriptors.begin(), descriptors.end()) ;
 		providerDescriptors_ = std::move( providerDescriptors) ;
 		request_			 = request ;
@@ -318,11 +319,11 @@ NativeError OfficialDiscoveryRecordAdapterSession::beginSession(
 		nextRecordEvidenceId_ = 1U ;
 		return 0 ;
 	} catch( const std::bad_alloc &) {
-		// 新sessionの領域不足時は旧秘密recordも公開せず全体を失効させる。
+		// 新sessionの領域不足時は旧秘密recordも公開せず全体を失効させる
 		invalidate() ;
 		return OUT_OF_MEMORY ;
 	} catch( ...) {
-		// Registry copyの未知例外をworker thread外へ漏らさない。
+		// Registry copyの未知例外をworker thread外へ漏らさない
 		invalidate() ;
 		return UNEXPECTED_FAILURE ;
 	}
@@ -330,15 +331,15 @@ NativeError OfficialDiscoveryRecordAdapterSession::beginSession(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一routeを固定root adapterで一回だけ解決し、秘密recordとpackage参照を保持する。
- * @param[in] request 開始時と完全一致する探索request。
- * @param[in] route Plannerが作成した一route。
- * @param[in] devices 同じinventory snapshotのraw ID非保持hint集合。
- * @param[in] adapter Routeと完全一致する固定root adapter。
- * @param[in] cancellation Workerが所有する同一operationの非blocking取消しcallback。
- * @return URL、root endpoint、record本文を含まないroute summary。
- * @post `RESOLVED`時だけ一recordと全payloadのpackage参照を追加します。
- * @note Resolverへdevice hintを渡さず、適合判定は後続の端末内matcherだけで行います。
+ * @brief 一routeを固定root adapterで一回だけ解決し、秘密recordとpackage参照を保持する
+ * @param[in] request 開始時と完全一致する探索request
+ * @param[in] route Plannerが作成した一route
+ * @param[in] devices 同じinventory snapshotのraw ID非保持hint集合
+ * @param[in] adapter Routeと完全一致する固定root adapter
+ * @param[in] cancellation Workerが所有する同一operationの非blocking取消しcallback
+ * @return URL、root endpoint、record本文を含まないroute summary
+ * @post `RESOLVED`時だけ一recordと全payloadのpackage参照を追加します
+ * @note Resolverへdevice hintを渡さず、適合判定は後続の端末内matcherだけで行います
  */
 //------------------------------------------------------------------------------
 OfficialDiscoveryRouteSummary OfficialDiscoveryRecordAdapterSession::resolveRoute(
@@ -347,8 +348,8 @@ OfficialDiscoveryRouteSummary OfficialDiscoveryRecordAdapterSession::resolveRout
 	const OfficialDiscoveryFixedRootAdapter			  &adapter,
 	const OfficialRecordResolutionCancellation		  &cancellation) noexcept
 {
-	OfficialDiscoveryRouteSummary summary = makeInitialSummary( route) ;	// URL非保持の終端結果。
-	// Session、request、route、adapter、取消し境界をresolver呼出し前に全て照合する。
+	OfficialDiscoveryRouteSummary summary = makeInitialSummary( route) ;	// URL非保持の終端結果
+	// Session、request、route、adapter、取消し境界をresolver呼出し前に全て照合する
 	if( !isOfficialDiscoveryBindingValid( binding_) || request != request_ ||
 	   !validateOfficialDiscoveryFixedRootAdapter( adapter, route, devices, providerDescriptors_) ||
 	   !cancellation || records_.size() >= MAXIMUM_RETAINED_RECORDS ||
@@ -359,61 +360,61 @@ OfficialDiscoveryRouteSummary OfficialDiscoveryRecordAdapterSession::resolveRout
 	}
 
 	try {
-		// 同じroute IDは成功・空・失敗を問わず一sessionで一度だけ実行する。
+		// 同じroute IDは成功・空・失敗を問わず一sessionで一度だけ実行する
 		if( !resolvedRouteIds_.insert( route.routeId).second) {
 			summary.state = OfficialDiscoveryRouteState::METADATA_REJECTED ;
 			summary.error = nativeErrorFromWin32( ERROR_ALREADY_EXISTS) ;
 			return summary ;
 		}
 
-		// Resolver開始前の取消しでは固定rootを一度も渡さない。
+		// Resolver開始前の取消しでは固定rootを一度も渡さない
 		if( cancellation()) {
 			summary.state = OfficialDiscoveryRouteState::CANCELLED ;
 			return summary ;
 		}
 
-		const std::uint64_t		recordEvidenceId = nextRecordEvidenceId_++ ;	// 今回だけの証拠ID。
+		const std::uint64_t		recordEvidenceId = nextRecordEvidenceId_++ ;	// 今回だけの証拠ID
 		const std::wstring_view builtInRootUrl =
-			// 組み込み正本から実行時に借用する固定endpoint。
+			// 組み込み正本から実行時に借用する固定endpoint
 			officialMetadataEndpoint( adapter.providerId, adapter.rootResourceId) ;
-		OfficialDistributionRecord			   record ;	// Resolverが設定する秘密URL所有record。
-		// 固定rootだけをProvider固有parserへ渡した終端結果。
+		OfficialDistributionRecord			   record ;	// Resolverが設定する秘密URL所有record
+		// 固定rootだけをProvider固有parserへ渡した終端結果
 		const OfficialDiscoveryFixedRootResult result =
 			adapter.resolver( binding_.scanSessionId, recordEvidenceId, adapter.providerId,
 							 adapter.rootResourceId, builtInRootUrl, adapter.maximumRecordBytes,
 							 OfficialRecordFetchMode::BYPASS_CACHE, record) ;
-		// 未知状態または診断値の矛盾をProvider成功として扱わない。
+		// 未知状態または診断値の矛盾をProvider成功として扱わない
 		if( !isFixedRootResultValid( result)) {
 			summary.state = OfficialDiscoveryRouteState::METADATA_REJECTED ;
 			summary.error = INVALID_ARGUMENT ;
 			return summary ;
 		}
 
-		// Resolver後の取消しでは受け取った秘密recordを保持しない。
+		// Resolver後の取消しでは受け取った秘密recordを保持しない
 		if( cancellation()) {
 			summary.state = OfficialDiscoveryRouteState::CANCELLED ;
 			return summary ;
 		}
 
-		// 空または失敗結果は理由と診断だけを保持し、record本文を公開しない。
+		// 空または失敗結果は理由と診断だけを保持し、record本文を公開しない
 		if( result.state != OfficialDiscoveryFixedRootState::RESOLVED) {
 			summary.state = routeStateFromFixedRoot( result.state) ;
 			summary.error = result.error ;
 			return summary ;
 		}
 
-		// Root取得証拠の差替えはmetadata拒否と混ぜずsource拒否にする。
+		// Root取得証拠の差替えはmetadata拒否と混ぜずsource拒否にする
 		if( !hasBoundSourceEvidence( record, route, binding_.scanSessionId, recordEvidenceId)) {
 			summary.state = OfficialDiscoveryRouteState::SOURCE_REJECTED ;
 			summary.error = nativeErrorFromWin32( ERROR_ACCESS_DENIED) ;
 			return summary ;
 		}
 
-		OfficialDistributionRecordEvidence evidence ;	// URL非保持の共通record証拠。
+		OfficialDistributionRecordEvidence evidence ;	// URL非保持の共通record証拠
 		const NativeError				   validationError =
-			// Stable fingerprintを含むrecord全体検証。
+			// Stable fingerprintを含むrecord全体検証
 			validateOfficialDistributionRecord( record, evidence) ;
-		// Schema、payload、EULA等の不正recordをsessionへ保持しない。
+		// Schema、payload、EULA等の不正recordをsessionへ保持しない
 		if( validationError != 0 || evidence.recordEvidenceId != recordEvidenceId ||
 		   evidence.rootEvidence.providerId != route.providerId ||
 		   evidence.rootEvidence.resourceId != route.rootResourceId) {
@@ -422,25 +423,24 @@ OfficialDiscoveryRouteSummary OfficialDiscoveryRecordAdapterSession::resolveRout
 			return summary ;
 		}
 
-		std::vector<OfficialRecordPayloadDescriptor> payloads ;	// URL非保持の全payload説明。
+		std::vector<OfficialRecordPayloadDescriptor> payloads ;	// URL非保持の全payload説明
 		const NativeError							 descriptionError =
-			// Record順序を維持する方式分類結果。
+			// Record順序を維持する方式分類結果
 			describeOfficialDistributionRecordPayloads( record, evidence, payloads) ;
-		// Descriptor変換失敗または空結果を解決済みとして保持しない。
+		// Descriptor変換失敗または空結果を解決済みとして保持しない
 		if( descriptionError != 0 || payloads.empty()) {
 			summary.state = OfficialDiscoveryRouteState::METADATA_REJECTED ;
 			summary.error = descriptionError != 0 ? descriptionError : INVALID_ARGUMENT ;
 			return summary ;
 		}
 
-		std::vector<OfficialDiscoveryResolvedPackage>
-			resolvedPackages ;	// 今回route分のcommit前参照。
+		std::vector<OfficialDiscoveryResolvedPackage> resolvedPackages ;	// 今回route分のcommit前参照
 		resolvedPackages.reserve( payloads.size()) ;
-		// 全payloadを同じrouteとinventoryへ結合し、一件でも不正なら全体を拒否する。
+		// 全payloadを同じrouteとinventoryへ結合し、一件でも不正なら全体を拒否する
 		for( const OfficialRecordPayloadDescriptor &payload : payloads) {
 			const auto resolved = makeOfficialDiscoveryResolvedPackage(
-				route, payload, devices, providerDescriptors_) ;	// 一payloadの安全な参照。
-			// Package identityを作れないrecordを部分成功として保持しない。
+				route, payload, devices, providerDescriptors_) ;	// 一payloadの安全な参照
+			// Package identityを作れないrecordを部分成功として保持しない
 			if( !resolved) {
 				summary.state = OfficialDiscoveryRouteState::METADATA_REJECTED ;
 				summary.error = INVALID_ARGUMENT ;
@@ -450,12 +450,12 @@ OfficialDiscoveryRouteSummary OfficialDiscoveryRecordAdapterSession::resolveRout
 			resolvedPackages.push_back( *resolved) ;
 		}
 
-		const std::size_t packageStart = packages_.size() ;	// Rollback用の開始位置。
-		// 証拠IDへ秘密recordの所有権を移す一意な挿入結果。
+		const std::size_t packageStart = packages_.size() ;	// Rollback用の開始位置
+		// 証拠IDへ秘密recordの所有権を移す一意な挿入結果
 		const auto		  inserted = records_.emplace(
 			   recordEvidenceId,
 			   ResolvedOfficialDistributionRecord{std::move( evidence), std::move( record)}) ;
-		// 単調ID衝突を成功として公開しない。
+		// 単調ID衝突を成功として公開しない
 		if( !inserted.second) {
 			summary.state = OfficialDiscoveryRouteState::METADATA_REJECTED ;
 			summary.error = nativeErrorFromWin32( ERROR_ALREADY_EXISTS) ;
@@ -465,7 +465,7 @@ OfficialDiscoveryRouteSummary OfficialDiscoveryRecordAdapterSession::resolveRout
 		try {
 			packages_.insert( packages_.end(), resolvedPackages.begin(), resolvedPackages.end()) ;
 		} catch( ...) {
-			// Package commit失敗時は同じ証拠IDの秘密recordと部分参照を同時に戻す。
+			// Package commit失敗時は同じ証拠IDの秘密recordと部分参照を同時に戻す
 			packages_.resize( packageStart) ;
 			records_.erase( recordEvidenceId) ;
 			throw ;
@@ -476,7 +476,7 @@ OfficialDiscoveryRouteSummary OfficialDiscoveryRecordAdapterSession::resolveRout
 								   : OfficialDiscoveryRouteState::GENERIC_RESOLVED ;
 		summary.recordCount	 = 1U ;
 		summary.packageCount = static_cast<std::uint32_t>( resolvedPackages.size()) ;
-		// 公開summaryの件数・route結合を内部生成後も再検証する。
+		// 公開summaryの件数・route結合を内部生成後も再検証する
 		if( !isOfficialDiscoveryRouteSummaryValid( route, summary)) {
 			packages_.resize( packageStart) ;
 			records_.erase( recordEvidenceId) ;
@@ -494,7 +494,7 @@ OfficialDiscoveryRouteSummary OfficialDiscoveryRecordAdapterSession::resolveRout
 		summary.error		 = OUT_OF_MEMORY ;
 		return summary ;
 	} catch( ...) {
-		// Provider callbackやcontainerの未知例外をworker thread外へ漏らさない。
+		// Provider callbackやcontainerの未知例外をworker thread外へ漏らさない
 		summary.recordCount	 = 0U ;
 		summary.packageCount = 0U ;
 		summary.state		 = OfficialDiscoveryRouteState::FAILED ;
@@ -505,8 +505,8 @@ OfficialDiscoveryRouteSummary OfficialDiscoveryRecordAdapterSession::resolveRout
 
 //------------------------------------------------------------------------------
 /**
- * @brief 保持中のURL非保持package参照を初出順で借用する。
- * @return 次session、失効またはobject破棄まで有効な非所有span。
+ * @brief 保持中のURL非保持package参照を初出順で借用する
+ * @return 次session、失効またはobject破棄まで有効な非所有span
  */
 //------------------------------------------------------------------------------
 std::span<const OfficialDiscoveryResolvedPackage> OfficialDiscoveryRecordAdapterSession::
@@ -517,13 +517,13 @@ std::span<const OfficialDiscoveryResolvedPackage> OfficialDiscoveryRecordAdapter
 
 //------------------------------------------------------------------------------
 /**
- * @brief 解決済みpackage groupを取得権限なしの表示用descriptorへ変換する。
- * @param[in] binding 現在のoperation、scan session、inventory generation。
- * @param[in] groups 重複排除済みpackage group集合。
- * @param[out] payloadDescriptors 成功時だけ各groupと同順のURL非保持descriptor集合。
- * @return 全record、payload、groupを再照合できた場合0。それ以外はHRESULT bit pattern。
- * @post 失敗時は出力を空にし、秘密recordをclaimしません。
- * @note Unsupported payloadも方式表示のため保持し、download grantやEULA判断を発行しません。
+ * @brief 解決済みpackage groupを取得権限なしの表示用descriptorへ変換する
+ * @param[in] binding 現在のoperation、scan session、inventory generation
+ * @param[in] groups 重複排除済みpackage group集合
+ * @param[out] payloadDescriptors 成功時だけ各groupと同順のURL非保持descriptor集合
+ * @return 全record、payload、groupを再照合できた場合0。それ以外はHRESULT bit pattern
+ * @post 失敗時は出力を空にし、秘密recordをclaimしません
+ * @note Unsupported payloadも方式表示のため保持し、download grantやEULA判断を発行しません
  */
 //------------------------------------------------------------------------------
 NativeError OfficialDiscoveryRecordAdapterSession::describeDisplayPayloads(
@@ -532,7 +532,7 @@ NativeError OfficialDiscoveryRecordAdapterSession::describeDisplayPayloads(
 	std::vector<OfficialRecordPayloadDescriptor>		&payloadDescriptors) const noexcept
 {
 	payloadDescriptors.clear() ;
-	// Stale、空、過大groupまたは無効sessionから表示metadataを公開しない。
+	// Stale、空、過大groupまたは無効sessionから表示metadataを公開しない
 	if( !isOfficialDiscoveryBindingValid( binding_) || binding != binding_ || groups.empty() ||
 	   groups.size() > OFFICIAL_DISCOVERY_PACKAGE_REFERENCE_LIMIT) {
 		return INVALID_ARGUMENT ;
@@ -540,28 +540,28 @@ NativeError OfficialDiscoveryRecordAdapterSession::describeDisplayPayloads(
 
 	try {
 		std::vector<OfficialRecordPayloadDescriptor>
-			pending ;	// 全record証拠を再照合した後だけ公開するdescriptor集合。
+			pending ;	// 全record証拠を再照合した後だけ公開するdescriptor集合
 		pending.reserve( groups.size()) ;
-		// 各groupの全record証拠を同じpayloadへ戻し、初出descriptorだけを表示用に保持する。
+		// 各groupの全record証拠を同じpayloadへ戻し、初出descriptorだけを表示用に保持する
 		for( const OfficialDiscoveryPackageGroup &group : groups) {
-			// 不正groupを部分表示へ縮退させない。
+			// 不正groupを部分表示へ縮退させない
 			if( !isOfficialDiscoveryPackageGroupValid( group)) {
 				return INVALID_ARGUMENT ;
 			}
 
-			OfficialRecordPayloadDescriptor canonical ;		// 初出証拠から再生成する表示descriptor。
-			bool							initialized{} ;	// 一件以上の証拠を再照合した場合true。
-			// 同じstable recordへ到達した全証拠IDを確認し、差替えやclaim済みを拒否する。
+			OfficialRecordPayloadDescriptor canonical ;		// 初出証拠から再生成する表示descriptor
+			bool							initialized{} ;	// 一件以上の証拠を再照合した場合true
+			// 同じstable recordへ到達した全証拠IDを確認し、差替えやclaim済みを拒否する
 			for( const std::uint64_t evidenceId : group.recordEvidenceIds) {
-				const auto found = records_.find( evidenceId) ;	// 秘密recordの証拠ID完全一致位置。
-				// 未知または既にclaimしたrecordを別証拠から補完しない。
+				const auto found = records_.find( evidenceId) ;	// 秘密recordの証拠ID完全一致位置
+				// 未知または既にclaimしたrecordを別証拠から補完しない
 				if( found == records_.end()) {
 					return nativeErrorFromWin32( ERROR_NOT_FOUND) ;
 				}
 
 				const ResolvedOfficialDistributionRecord &resolved =
-					found->second ;	// 保持record借用。
-				// Groupのstable fingerprintと件数を保存済み証拠へ再結合する。
+					found->second ;	// 保持record借用
+				// Groupのstable fingerprintと件数を保存済み証拠へ再結合する
 				if( resolved.evidence.recordEvidenceId != evidenceId ||
 				   resolved.evidence.stableFingerprint.bytes != group.recordFingerprint.bytes ||
 				   resolved.evidence.payloadCount != group.payloadCount) {
@@ -569,30 +569,30 @@ NativeError OfficialDiscoveryRecordAdapterSession::describeDisplayPayloads(
 				}
 
 				std::vector<OfficialRecordPayloadDescriptor>
-								  descriptors ;	// Recordから再生成するURL非保持payload一覧。
+								  descriptors ;	// Recordから再生成するURL非保持payload一覧
 				const NativeError descriptionError = describeOfficialDistributionRecordPayloads(
-					resolved.record, resolved.evidence, descriptors) ;	// 表示直前の再検証境界。
-				// Payload順やdescriptor生成失敗を別payloadへのfallbackにしない。
+					resolved.record, resolved.evidence, descriptors) ;	// 表示直前の再検証境界
+				// Payload順やdescriptor生成失敗を別payloadへのfallbackにしない
 				if( descriptionError != 0 || group.payloadOrdinal >= descriptors.size()) {
 					return descriptionError != 0 ? descriptionError : INVALID_ARGUMENT ;
 				}
 
 				const OfficialRecordPayloadDescriptor &descriptor =
-					descriptors[group.payloadOrdinal] ;	// Groupが指定したexact payload行。
-				// Recordから再生成した全不変fieldをgroupへ戻せない場合は拒否する。
+					descriptors[group.payloadOrdinal] ;	// Groupが指定したexact payload行
+				// Recordから再生成した全不変fieldをgroupへ戻せない場合は拒否する
 				if( descriptor.recordEvidenceId != evidenceId ||
 				   !isDescriptorBoundToGroup( descriptor, group)) {
 					return nativeErrorFromWin32( ERROR_REVISION_MISMATCH) ;
 				}
 
-				// Stable fingerprintが一致する同一payloadでは初出の公開metadataだけを保持する。
+				// Stable fingerprintが一致する同一payloadでは初出の公開metadataだけを保持する
 				if( !initialized) {
 					canonical	= descriptor ;
 					initialized = true ;
 				}
 			}
 
-			// Group validatorが保証する証拠集合を一件も再生成できない場合は拒否する。
+			// Group validatorが保証する証拠集合を一件も再生成できない場合は拒否する
 			if( !initialized) {
 				return static_cast<NativeError>( E_UNEXPECTED) ;
 			}
@@ -603,11 +603,11 @@ NativeError OfficialDiscoveryRecordAdapterSession::describeDisplayPayloads(
 		payloadDescriptors = std::move( pending) ;
 		return 0 ;
 	} catch( const std::bad_alloc &) {
-		// 途中生成値を公開せず、呼出側が領域不足を区別できる診断を返す。
+		// 途中生成値を公開せず、呼出側が領域不足を区別できる診断を返す
 		payloadDescriptors.clear() ;
 		return OUT_OF_MEMORY ;
 	} catch( ...) {
-		// 文字列・vectorの未知例外をworker thread外へ漏らさない。
+		// 文字列・vectorの未知例外をworker thread外へ漏らさない
 		payloadDescriptors.clear() ;
 		return UNEXPECTED_FAILURE ;
 	}
@@ -615,15 +615,15 @@ NativeError OfficialDiscoveryRecordAdapterSession::describeDisplayPayloads(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 解決済みpackage groupを既存の取得準備対象とEULA snapshotへ変換する。
- * @param[in] binding 現在のoperation、scan session、inventory generation。
- * @param[in] groups 同じpayloadを一取得へまとめた4件以下のgroup集合。
- * @param[out] targets 成功時だけ既存取得準備UIへ渡すURL非保持対象集合。
- * @param[out] eulaPackages 成功時だけ同意必須対象の全文snapshot集合。
- * @param[out] payloadDescriptors 成功時だけ各対象と同順の表示用payload descriptor集合。
- * @return 全record、payload、groupを再照合できた場合0。それ以外はHRESULT bit pattern。
- * @post 失敗時は全出力を空にし、秘密recordをclaimしません。
- * @note Unsupported payloadは対象へ含めず、公式installerは後続専用監査前の取得対象に留めます。
+ * @brief 解決済みpackage groupを既存の取得準備対象とEULA snapshotへ変換する
+ * @param[in] binding 現在のoperation、scan session、inventory generation
+ * @param[in] groups 同じpayloadを一取得へまとめた4件以下のgroup集合
+ * @param[out] targets 成功時だけ既存取得準備UIへ渡すURL非保持対象集合
+ * @param[out] eulaPackages 成功時だけ同意必須対象の全文snapshot集合
+ * @param[out] payloadDescriptors 成功時だけ各対象と同順の表示用payload descriptor集合
+ * @return 全record、payload、groupを再照合できた場合0。それ以外はHRESULT bit pattern
+ * @post 失敗時は全出力を空にし、秘密recordをclaimしません
+ * @note Unsupported payloadは対象へ含めず、公式installerは後続専用監査前の取得対象に留めます
  */
 //------------------------------------------------------------------------------
 NativeError OfficialDiscoveryRecordAdapterSession::describePreparationTargets(
@@ -636,7 +636,7 @@ NativeError OfficialDiscoveryRecordAdapterSession::describePreparationTargets(
 	targets.clear() ;
 	eulaPackages.clear() ;
 	payloadDescriptors.clear() ;
-	// Stale、空、過大groupまたは無効sessionから取得対象を公開しない。
+	// Stale、空、過大groupまたは無効sessionから取得対象を公開しない
 	if( !isOfficialDiscoveryBindingValid( binding_) || binding != binding_ ||
 	   request_.inspectionPermission !=
 		   OfficialDiscoveryInspectionPermission::ALLOW_VERIFIED_DRIVER_PACKAGE ||
@@ -645,37 +645,37 @@ NativeError OfficialDiscoveryRecordAdapterSession::describePreparationTargets(
 	}
 
 	try {
-		std::vector<OfficialPreparationTarget> pendingTargets ;	// 全照合後だけ公開する対象集合。
+		std::vector<OfficialPreparationTarget> pendingTargets ;	// 全照合後だけ公開する対象集合
 		std::vector<OfficialDiscoveryEulaPackage>
-			pendingEulaPackages ;	// 全照合後だけEULA sessionへ渡すsnapshot集合。
+			pendingEulaPackages ;	// 全照合後だけEULA sessionへ渡すsnapshot集合
 		std::vector<OfficialRecordPayloadDescriptor>
-			pendingPayloadDescriptors ;	// 各対象と同順で公開するURL非保持descriptor集合。
+			pendingPayloadDescriptors ;	// 各対象と同順で公開するURL非保持descriptor集合
 		pendingTargets.reserve( groups.size()) ;
 		pendingEulaPackages.reserve( groups.size()) ;
 		pendingPayloadDescriptors.reserve( groups.size()) ;
-		// 各groupの全record証拠を再生成descriptorへ照合し、一payloadを一対象へ変換する。
+		// 各groupの全record証拠を再生成descriptorへ照合し、一payloadを一対象へ変換する
 		for( const OfficialDiscoveryPackageGroup &group : groups) {
-			// 不正groupまたは既存準備契約のID上限超過を部分対象へ縮退させない。
+			// 不正groupまたは既存準備契約のID上限超過を部分対象へ縮退させない
 			if( !isOfficialDiscoveryPackageGroupValid( group) ||
 			   group.packageIdentity.size() > MAXIMUM_PREPARATION_ID_CHARACTERS) {
 				return INVALID_ARGUMENT ;
 			}
 
-			OfficialPreparationTarget canonicalTarget ;	// 最初の証拠から作るgroup共通対象。
+			OfficialPreparationTarget canonicalTarget ;	// 最初の証拠から作るgroup共通対象
 			OfficialRecordPayloadDescriptor
-				 canonicalDescriptor ;	// 最初の証拠から作るURL非保持表示descriptor。
-			bool targetInitialized{} ;	// 一件以上の取得可能descriptorを照合した場合true。
-			// 同じstable recordへ到達した全証拠IDを確認し、差替えやclaim済みを拒否する。
+				 canonicalDescriptor ;	// 最初の証拠から作るURL非保持表示descriptor
+			bool targetInitialized{} ;	// 一件以上の取得可能descriptorを照合した場合true
+			// 同じstable recordへ到達した全証拠IDを確認し、差替えやclaim済みを拒否する
 			for( const std::uint64_t evidenceId : group.recordEvidenceIds) {
-				const auto found = records_.find( evidenceId) ;	// 秘密recordの証拠ID完全一致位置。
-				// 未知または既にclaimしたrecordを別証拠から補完しない。
+				const auto found = records_.find( evidenceId) ;	// 秘密recordの証拠ID完全一致位置
+				// 未知または既にclaimしたrecordを別証拠から補完しない
 				if( found == records_.end()) {
 					return nativeErrorFromWin32( ERROR_NOT_FOUND) ;
 				}
 
 				const ResolvedOfficialDistributionRecord &resolved =
-					found->second ;	// 保持record借用。
-				// Groupのstable fingerprintと件数を保存済み証拠へ再結合する。
+					found->second ;	// 保持record借用
+				// Groupのstable fingerprintと件数を保存済み証拠へ再結合する
 				if( resolved.evidence.recordEvidenceId != evidenceId ||
 				   resolved.evidence.stableFingerprint.bytes != group.recordFingerprint.bytes ||
 				   resolved.evidence.payloadCount != group.payloadCount) {
@@ -683,34 +683,34 @@ NativeError OfficialDiscoveryRecordAdapterSession::describePreparationTargets(
 				}
 
 				std::vector<OfficialRecordPayloadDescriptor>
-								  descriptors ;	// Recordから再生成するURL非保持payload一覧。
+								  descriptors ;	// Recordから再生成するURL非保持payload一覧
 				const NativeError descriptionError = describeOfficialDistributionRecordPayloads(
-					resolved.record, resolved.evidence, descriptors) ;	// 取得直前と同じ再検証境界。
-				// Payload順やdescriptor生成失敗を別payloadへのfallbackにしない。
+					resolved.record, resolved.evidence, descriptors) ;	// 取得直前と同じ再検証境界
+				// Payload順やdescriptor生成失敗を別payloadへのfallbackにしない
 				if( descriptionError != 0 || group.payloadOrdinal >= descriptors.size()) {
 					return descriptionError != 0 ? descriptionError : INVALID_ARGUMENT ;
 				}
 
 				const OfficialRecordPayloadDescriptor &descriptor =
-					descriptors[group.payloadOrdinal] ;	// Groupが指定したexact payload行。
-				// Recordから再生成した全不変fieldをgroupへ戻せない場合は拒否する。
+					descriptors[group.payloadOrdinal] ;	// Groupが指定したexact payload行
+				// Recordから再生成した全不変fieldをgroupへ戻せない場合は拒否する
 				if( descriptor.recordEvidenceId != evidenceId ||
 				   !isDescriptorBoundToGroup( descriptor, group)) {
 					return nativeErrorFromWin32( ERROR_REVISION_MISMATCH) ;
 				}
 
-				// Unsupported payloadは取得権限を持たない表示専用なので準備対象へ含めない。
+				// Unsupported payloadは取得権限を持たない表示専用なので準備対象へ含めない
 				if( !descriptor.downloadGrantSupported) {
 					continue ;
 				}
 
-				OfficialPreparationTerms preparationTerms ;	// 既存準備契約へ渡す有限条件。
-				// 未知の利用条件を同意不要へ変換しない。
+				OfficialPreparationTerms preparationTerms ;	// 既存準備契約へ渡す有限条件
+				// 未知の利用条件を同意不要へ変換しない
 				if( !convertPreparationTerms( descriptor.terms, preparationTerms)) {
 					return INVALID_ARGUMENT ;
 				}
 
-				OfficialPreparationTarget currentTarget ;	// 今回証拠から再構築する非機密対象。
+				OfficialPreparationTarget currentTarget ;	// 今回証拠から再構築する非機密対象
 				currentTarget.identity		  = group.packageIdentity ;
 				currentTarget.providerId	  = group.providerId ;
 				currentTarget.resourceId	  = descriptor.payloadResourceId ;
@@ -721,18 +721,18 @@ NativeError OfficialDiscoveryRecordAdapterSession::describePreparationTargets(
 				currentTarget.deviceCount =
 					static_cast<std::uint32_t>( group.deviceIdentities.size()) ;
 				currentTarget.terms = preparationTerms ;
-				// 同意必須の場合だけrevisionと全文を既存UI snapshotへ複製する。
+				// 同意必須の場合だけrevisionと全文を既存UI snapshotへ複製する
 				if( preparationTerms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED) {
 					currentTarget.eulaRevision = resolved.record.eulaRevision ;
 					currentTarget.eulaText	   = resolved.record.eulaText ;
 				}
 
-				// 同じgroupの別証拠は全対象fieldまで完全一致する場合だけ受理する。
+				// 同じgroupの別証拠は全対象fieldまで完全一致する場合だけ受理する
 				if( targetInitialized && currentTarget != canonicalTarget) {
 					return nativeErrorFromWin32( ERROR_REVISION_MISMATCH) ;
 				}
 
-				// 初出の取得可能証拠をgroup共通対象として固定する。
+				// 初出の取得可能証拠をgroup共通対象として固定する
 				if( !targetInitialized) {
 					canonicalTarget		= std::move( currentTarget) ;
 					canonicalDescriptor = descriptor ;
@@ -740,12 +740,12 @@ NativeError OfficialDiscoveryRecordAdapterSession::describePreparationTargets(
 				}
 			}
 
-			// Unsupportedだけのgroupは表示専用のまま取得計画へ公開しない。
+			// Unsupportedだけのgroupは表示専用のまま取得計画へ公開しない
 			if( !targetInitialized) {
 				continue ;
 			}
 
-			// EULA同意必須対象は完全一致group化用snapshotも同時に作る。
+			// EULA同意必須対象は完全一致group化用snapshotも同時に作る
 			if( canonicalTarget.terms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED) {
 				pendingEulaPackages.push_back( {.packageIdentity = canonicalTarget.identity,
 											   .providerId		= canonicalTarget.providerId,
@@ -763,13 +763,13 @@ NativeError OfficialDiscoveryRecordAdapterSession::describePreparationTargets(
 		payloadDescriptors = std::move( pendingPayloadDescriptors) ;
 		return 0 ;
 	} catch( const std::bad_alloc &) {
-		// 途中生成値を公開せず、呼出側が領域不足を区別できる診断を返す。
+		// 途中生成値を公開せず、呼出側が領域不足を区別できる診断を返す
 		targets.clear() ;
 		eulaPackages.clear() ;
 		payloadDescriptors.clear() ;
 		return OUT_OF_MEMORY ;
 	} catch( ...) {
-		// 文字列・vectorの未知例外をworker thread外へ漏らさない。
+		// 文字列・vectorの未知例外をworker thread外へ漏らさない
 		targets.clear() ;
 		eulaPackages.clear() ;
 		payloadDescriptors.clear() ;
@@ -779,11 +779,11 @@ NativeError OfficialDiscoveryRecordAdapterSession::describePreparationTargets(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 保持recordをsession・証拠IDで一回だけclaimする。
- * @param[in] scanSessionId 現在のworker scan session ID。
- * @param[in] recordEvidenceId Package groupが保持する0ではない証拠ID。
- * @param[out] record 成功時だけ秘密recordと証拠の所有権を受け取る出力。
- * @return Claim成功時0、stale、未知、再使用IDはHRESULT bit pattern。
+ * @brief 保持recordをsession・証拠IDで一回だけclaimする
+ * @param[in] scanSessionId 現在のworker scan session ID
+ * @param[in] recordEvidenceId Package groupが保持する0ではない証拠ID
+ * @param[out] record 成功時だけ秘密recordと証拠の所有権を受け取る出力
+ * @return Claim成功時0、stale、未知、再使用IDはHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
 NativeError OfficialDiscoveryRecordAdapterSession::claimResolvedRecord(
@@ -791,14 +791,14 @@ NativeError OfficialDiscoveryRecordAdapterSession::claimResolvedRecord(
 	ResolvedOfficialDistributionRecord &record) noexcept
 {
 	record = {} ;
-	// Stale sessionまたは0 IDから現在recordを検索しない。
+	// Stale sessionまたは0 IDから現在recordを検索しない
 	if( binding_.scanSessionId == 0U || scanSessionId != binding_.scanSessionId ||
 	   recordEvidenceId == 0U) {
 		return nativeErrorFromWin32( ERROR_REVISION_MISMATCH) ;
 	}
 
-	const auto found = records_.find( recordEvidenceId) ;	// Opaque証拠IDの完全一致位置。
-	// 未知またはclaim済みIDを別recordへfallbackしない。
+	const auto found = records_.find( recordEvidenceId) ;	// Opaque証拠IDの完全一致位置
+	// 未知またはclaim済みIDを別recordへfallbackしない
 	if( found == records_.end()) {
 		return nativeErrorFromWin32( ERROR_NOT_FOUND) ;
 	}
@@ -810,7 +810,7 @@ NativeError OfficialDiscoveryRecordAdapterSession::claimResolvedRecord(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 現在sessionと全秘密record、package参照、route claimを失効させる。
+ * @brief 現在sessionと全秘密record、package参照、route claimを失効させる
  */
 //------------------------------------------------------------------------------
 void OfficialDiscoveryRecordAdapterSession::invalidate() noexcept
@@ -826,8 +826,8 @@ void OfficialDiscoveryRecordAdapterSession::invalidate() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 現在保持する未claim秘密record件数を返す。
- * @return 0件以上64件以下のrecord数。
+ * @brief 現在保持する未claim秘密record件数を返す
+ * @return 0件以上64件以下のrecord数
  */
 //------------------------------------------------------------------------------
 std::size_t OfficialDiscoveryRecordAdapterSession::retainedRecordCount() const noexcept
@@ -837,8 +837,8 @@ std::size_t OfficialDiscoveryRecordAdapterSession::retainedRecordCount() const n
 
 //------------------------------------------------------------------------------
 /**
- * @brief 現在有効な開始時bindingを返す。
- * @return 有効sessionのbinding。未開始・失効後は全0です。
+ * @brief 現在有効な開始時bindingを返す
+ * @return 有効sessionのbinding。未開始・失効後は全0です
  */
 //------------------------------------------------------------------------------
 OfficialDiscoveryBinding OfficialDiscoveryRecordAdapterSession::activeBinding() const noexcept

@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file local_scan_diagnostics.cpp
- * @brief 索引通信/照合/候補分類の匿名終端診断を組み立てます。
- * @version 01.05.01
+ * @brief 索引通信/照合/候補分類の匿名終端診断を組み立てます
+ * @version 01.05.07
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,15 +19,21 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/11/03  元summaryだけから固定列を投影。
- * Ver.01.01.00 Shunji Ogawa  2026/11/03  元現在観測との取得前版比較件数を投影。
- * Ver.01.02.00 Shunji Ogawa  2026/11/08  匿名導入診断と保存状態・元数値の有限確認を追加。
- * Ver.01.03.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加。
- * Ver.01.04.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続。
- * Ver.01.05.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続。
- * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/11/03  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  元現在観測との取得前版比較件数を投影
+ * Ver.01.02.00 Shunji Ogawa  2026/11/08  匿名導入診断と保存状態・元数値の有限確認を追加
+ * Ver.01.03.00 Shunji Ogawa  2026/11/08  準備不成立後の元表示保持と段階別匿名診断を追加
+ * Ver.01.04.00 Shunji Ogawa  2026/11/08  元checkbox意図の表示保持とbinding拒否の固定診断を接続
+ * Ver.01.05.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続
+ * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.05.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.05.03 Shunji Ogawa  2026/11/12  取得APIと復元最終判定の匿名診断を補完
+ * Ver.01.05.04 Shunji Ogawa  2026/11/12  WUA検索終端の状態契約と診断改訂値を整合
+ * Ver.01.05.05 Shunji Ogawa  2026/11/12  外側tupleの取得予約と開始拒否の原理由を接続
+ * Ver.01.05.06 Shunji Ogawa  2026/11/12  導入前保護失敗に結合した一回の明示復元なし続行を接続
+ * Ver.01.05.07 Shunji Ogawa  2026/11/13  元適用性errorへ固定失敗leafとcode由来だけを接続
  * </pre>
- * @note 文字列本文・端末identity・版文字列は記録しません。未判定を不適合へ換算しません。
+ * @note 文字列本文・端末identity・版文字列は記録しません。未判定を不適合へ換算しません
  * @see docs/adr/0427-local-anonymous-scan-diagnostics.md
  */
 //------------------------------------------------------------------------------
@@ -36,6 +42,9 @@
 #include "core/provider_registry.h"
 #include "core/pending_reference_version.h"
 #include "core/device_observation.h"
+#include "core/protected_install.h"
+#include "core/operation_controller.h"
+#include <limits>
 #include <array>
 #include <algorithm>
 
@@ -43,14 +52,14 @@ namespace drivercrate {
 namespace {
 //------------------------------------------------------------------------------
 /**
- * @brief 固定recordだけを既sinkへ非待機投入します。
- * @param[in] record 匿名数値だけの所有値。
- * @param[in,out] sink 内部試験の保存先。
+ * @brief 固定recordだけを既sinkへ非待機投入します
+ * @param[in] record 匿名数値だけの所有値
+ * @param[in,out] sink 内部試験の保存先
  */
 //------------------------------------------------------------------------------
 void emitDiagnostic( const DiagnosticRecord &record, LocalDiagnosticLog *sink) noexcept
 {
-	// Test sinkも同じwriterを使います。
+	// Test sinkも同じwriterを使います
 	if( sink) {
 		sink->append( record) ;
 	} else {
@@ -61,12 +70,12 @@ void emitDiagnostic( const DiagnosticRecord &record, LocalDiagnosticLog *sink) n
 
 //------------------------------------------------------------------------------
 /**
- * @brief Install要求または受理開始の固定件数を記録します。
- * @param[in] operation 元操作連番。要求は現scan、受理開始は新installです。
- * @param[in] candidates 元所有候補。文字列はserializeしません。
- * @param[in] indexes 実行要求に使う元indexです。
- * @param[in] accepted controllerが開始を受理した事実です。
- * @param[in,out] sink 内部試験だけの保存先。nullptrはprocess logger。
+ * @brief Install要求または受理開始の固定件数を記録します
+ * @param[in] operation 元操作連番。要求は現scan、受理開始は新installです
+ * @param[in] candidates 元所有候補。文字列はserializeしません
+ * @param[in] indexes 実行要求に使う元indexです
+ * @param[in] accepted controllerが開始を受理した事実です
+ * @param[in,out] sink 内部試験だけの保存先。nullptrはprocess logger
  */
 //------------------------------------------------------------------------------
 void recordInstallSelectionDiagnostics( const OperationId					  operation,
@@ -74,18 +83,18 @@ void recordInstallSelectionDiagnostics( const OperationId					  operation,
 									   const std::span<const std::size_t>	  indexes,
 									   const bool accepted, LocalDiagnosticLog *const sink) noexcept
 {
-	DiagnosticRecord record ;	// 候補のidentityや版を持ちません。
+	DiagnosticRecord record ;	// 候補のidentityや版を持ちません
 	record.event = accepted ? DiagnosticEvent::INSTALL_STARTED : DiagnosticEvent::INSTALL_REQUESTED ;
 	record.operation = operation ;
-	std::uint64_t updates{}, reinstalls{}, downgrades{}, initial{} ;	// 元actionの件数だけです。
-	// 元indexから分類件数だけを読みます。
+	std::uint64_t updates{}, reinstalls{}, downgrades{}, initial{} ;	// 元actionの件数だけです
+	// 元indexから分類件数だけを読みます
 	for( const auto index : indexes) {
-		// 範囲外を先頭候補へ補完しません。
+		// 範囲外を先頭候補へ補完しません
 		if( index >= candidates.size()) {
 			continue ;
 		}
 
-		const auto action = candidates[index].action ;	// 閉enumです。
+		const auto action = candidates[index].action ;	// 閉enumです
 		updates += action == DriverAction::UPDATE ? 1U : 0U ;
 		reinstalls += action == DriverAction::REINSTALL ? 1U : 0U ;
 		downgrades += action == DriverAction::DOWNGRADE ? 1U : 0U ;
@@ -102,11 +111,11 @@ void recordInstallSelectionDiagnostics( const OperationId					  operation,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 準備開始/受理終端の件数と元codeだけを記録します。
- * @param[in] approval 元承認。identity等は出力しません。
- * @param[in] result nullptrは開始、非nullは受理された終端です。
- * @param[in] applicationState 元controller区分です。
- * @param[in,out] sink 内部試験の保存先。
+ * @brief 準備開始/受理終端の件数と元codeだけを記録します
+ * @param[in] approval 元承認。identity等は出力しません
+ * @param[in] result nullptrは開始、非nullは受理された終端です
+ * @param[in] applicationState 元controller区分です
+ * @param[in,out] sink 内部試験の保存先
  */
 //------------------------------------------------------------------------------
 void recordPreparationDiagnostics( const OfficialPreparationApproval				 &approval,
@@ -114,14 +123,14 @@ void recordPreparationDiagnostics( const OfficialPreparationApproval				 &approv
 								  const std::int32_t							  applicationState,
 								  LocalDiagnosticLog *const						  sink) noexcept
 {
-	DiagnosticRecord record ;	// 元承認の本文は出しません。
+	DiagnosticRecord record ;	// 元承認の本文は出しません
 	record.event	 = DiagnosticEvent::PREPARATION_OPERATION ;
 	record.operation = approval.operationId ;
 	record.status	 = applicationState ;
 	record.add( DiagnosticField::STAGE, result ? 1U : 0U)
 		.add( DiagnosticField::TOTAL, approval.decisions.size())
 		.add( DiagnosticField::INTENT_COUNT, approval.installIntentIdentities.size()) ;
-	// 元終端がある場合だけ結果を加えます。
+	// 元終端がある場合だけ結果を加えます
 	if( result) {
 		record.error = result->controlError ;
 		record.add( DiagnosticField::OUTCOME, static_cast<std::uint64_t>( result->approvalError))
@@ -137,11 +146,11 @@ void recordPreparationDiagnostics( const OfficialPreparationApproval				 &approv
 
 //------------------------------------------------------------------------------
 /**
- * @brief 受理済み選択targetと解決意図を各先頭16件まで原数値へ投影します。
- * @param[in] approval 元計画と選択です。本文を出力しません。
- * @param[in] result controllerが受理した同操作終端です。
- * @param[in] verifiedIndex 元操作と全件照合済みのsummaryだけです。不成立はnullptr。
- * @param[in,out] sink 内部試験の保存先です。
+ * @brief 受理済み選択targetと解決意図を各先頭16件まで原数値へ投影します
+ * @param[in] approval 元計画と選択です。本文を出力しません
+ * @param[in] result controllerが受理した同操作終端です
+ * @param[in] verifiedIndex 元操作と全件照合済みのsummaryだけです。不成立はnullptr
+ * @param[in,out] sink 内部試験の保存先です
  */
 //------------------------------------------------------------------------------
 void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &approval,
@@ -149,16 +158,16 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 										const IndexPreparationSummary			 *verifiedIndex,
 										LocalDiagnosticLog *const				  sink) noexcept
 {
-	constexpr std::size_t limit	   = 16U ;	// 実処理を制限せず、匿名投影だけを有限化します。
+	constexpr std::size_t limit	   = 16U ;	// 実処理を制限せず、匿名投影だけを有限化します
 	const auto			  selected = static_cast<std::size_t>( std::ranges::count(
-		   approval.decisions, true, &OfficialPreparationDecision::acquire)) ;	// 元の取得判断数です。
+		   approval.decisions, true, &OfficialPreparationDecision::acquire)) ;	// 元の取得判断数です
 	const auto			  make = [&]( const std::size_t ordinal, const std::wstring_view provider,
 							 const PreparationDiagnosticStage stage, const std::int32_t status,
 							 const NativeError error, const bool bound = true) {
-		   DiagnosticRecord record ;	// 元の文字列はcanonical Provider照合以外へ渡しません。
+		   DiagnosticRecord record ;	// 元の文字列はcanonical Provider照合以外へ渡しません
 		   record.event		= DiagnosticEvent::PREPARATION_TARGET ;
 		   record.operation = approval.operationId ;
-		   // Applicationは既定tokenのまま保持し、他はcanonical registryだけを照合します。
+		   // Applicationは既定tokenのまま保持し、他はcanonical registryだけを照合します
 		   if( provider != L"application") {
 			   record.provider = DiagnosticProvider::fromId( provider) ;
 		   }
@@ -170,8 +179,8 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 			   .add( DiagnosticField::BOUND, bound)
 			   .add( DiagnosticField::CODE_KNOWN, error != 0) ;
 		   return record ;
-	} ; // 各固定段階の元codeを別recordへ保持します。
-	// 元総数と投影省略数を一行へ保持します。
+	} ; // 各固定段階の元codeを別recordへ保持します
+	// 元総数と投影省略数を一行へ保持します
 	auto summary = make( 0U, L"application", PreparationDiagnosticStage::SUMMARY, 0, 0) ;
 	summary.add( DiagnosticField::TOTAL, approval.decisions.size())
 		.add( DiagnosticField::SELECTED_COUNT, selected)
@@ -179,11 +188,11 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 		.add( DiagnosticField::OMITTED, selected - std::min( selected, limit))
 		.add( DiagnosticField::KNOWN, verifiedIndex != nullptr) ;
 	emitDiagnostic( summary, sink) ;
-	std::size_t emitted{} ;	// 元plan順の選択targetだけを数えます。
-	// 非選択targetを取得失敗として記録せず、先頭16対象だけを投影します。
+	std::size_t emitted{} ;	// 元plan順の選択targetだけを数えます
+	// 非選択targetを取得失敗として記録せず、先頭16対象だけを投影します
 	for( std::size_t index{}; index < approval.decisions.size() && emitted < limit; ++index) {
-		const auto &decision = approval.decisions[index] ;	// 元承認の同targetです。
-		// 未選択の結果は操作summaryの全件数だけへ残します。
+		const auto &decision = approval.decisions[index] ;	// 元承認の同targetです
+		// 未選択の結果は操作summaryの全件数だけへ残します
 		if( !decision.acquire) {
 			continue ;
 		}
@@ -191,12 +200,12 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 		++emitted ;
 		const auto transfer =
 			std::ranges::find( result.items, decision.target.identity,
-							  &OfficialPreparationItem::identity) ;	// 文字列は内部結合だけです。
+							  &OfficialPreparationItem::identity) ;	// 文字列は内部結合だけです
 		const bool transferBound = transfer != result.items.end() &&
 								   std::ranges::count( result.items, decision.target.identity,
 													  &OfficialPreparationItem::identity) ==
-									   1 ;	// 欠落や重複から原結果を補いません。
-		// 取得の元状態と元codeを独立して記録します。
+									   1 ;	// 欠落や重複から原結果を補いません
+		// 取得の元状態と元codeを独立して記録します
 		auto acquired =
 			make( index + 1U, decision.target.providerId, PreparationDiagnosticStage::TRANSFER,
 				 transferBound ? static_cast<std::int32_t>( transfer->result.state) : -1,
@@ -206,10 +215,10 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 		emitDiagnostic( acquired, sink) ;
 		const auto report = std::ranges::find(
 			result.auditReports, decision.target.identity,
-			&OfficialPreparationAuditReport::targetIdentity) ;	// 受理済みreportの同targetだけです。
-		// 内容・適用性・候補発行を取得codeと独立した段階へ投影します。
+			&OfficialPreparationAuditReport::targetIdentity) ;	// 受理済みreportの同targetだけです
+		// 内容・適用性・候補発行を取得codeと独立した段階へ投影します
 		if( report != result.auditReports.end()) {
-			// 内容段階の元状態と件数だけです。
+			// 内容段階の元状態と件数だけです
 			auto content =
 				make( index + 1U, decision.target.providerId, PreparationDiagnosticStage::CONTENT,
 					 static_cast<std::int32_t>( report->content), report->contentError) ;
@@ -221,7 +230,7 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 								static_cast<std::int32_t>( report->content),
 								report->firstContentRejection),
 						   sink) ;
-			// 元の全組合せ数と適用/未確認数です。
+			// 元の全組合せ数と適用/未確認数です
 			auto applicability = make(
 				index + 1U, decision.target.providerId, PreparationDiagnosticStage::APPLICABILITY,
 				static_cast<std::int32_t>( report->applicability), report->applicabilityError) ;
@@ -229,12 +238,27 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 				.add( DiagnosticField::PROCESSED, report->applicablePairCount)
 				.add( DiagnosticField::UNAVAILABLE, report->failedPairCount) ;
 			emitDiagnostic( applicability, sink) ;
-			emitDiagnostic( make( index + 1U, decision.target.providerId,
-								PreparationDiagnosticStage::PAIR_REJECTION,
-								static_cast<std::int32_t>( report->applicability),
-								report->firstPairError),
-						   sink) ;
-			// 候補発行と除外の元件数を保持します。
+			auto		pairFailure = make( index + 1U, decision.target.providerId,
+										   PreparationDiagnosticStage::PAIR_REJECTION,
+										   static_cast<std::int32_t>( report->applicability),
+										   report->firstPairError) ;	// 同じ元errorだけを投影します
+			const auto &failure		= report->firstPairDiagnostic ;		// 本文を持たない固定診断です
+			const bool	failureBound =
+				report->firstPairError != 0U && failure.error == report->firstPairError &&
+				failure.path != InfDiagnosticPath::NONE ;	// 成功や別errorのleafを使用しません
+			pairFailure
+				.add( DiagnosticField::EVALUATION_PATH,
+					 failureBound ? static_cast<std::uint64_t>( failure.path) : 0U)
+				.add( DiagnosticField::EVALUATION_PHASE,
+					 failureBound ? static_cast<std::uint64_t>( failure.phase) : 0U)
+				.add( DiagnosticField::EVALUATION_STAGE,
+					 failureBound ? static_cast<std::uint64_t>( failure.stage) : 0U)
+				.add( DiagnosticField::ERROR_ORIGIN,
+					 failureBound ? static_cast<std::uint64_t>( failure.origin) : 0U)
+				.add( DiagnosticField::NATIVE_ERROR_CODE, failureBound ? failure.nativeCode : 0U)
+				.add( DiagnosticField::NATIVE_ERROR_KNOWN, failureBound && failure.nativeCodeKnown) ;
+			emitDiagnostic( pairFailure, sink) ;
+			// 候補発行と除外の元件数を保持します
 			auto publication = make( index + 1U, decision.target.providerId,
 									PreparationDiagnosticStage::PUBLICATION,
 									static_cast<std::int32_t>( report->publication.state),
@@ -257,7 +281,7 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 			emitDiagnostic( publication, sink) ;
 		}
 
-		// 未検証summaryの内容はUI結合拒否の固定理由以外に出力しません。
+		// 未検証summaryの内容はUI結合拒否の固定理由以外に出力しません
 		if( verifiedIndex == nullptr || verifiedIndex->operationId != approval.operationId ||
 		   verifiedIndex->scanSessionId != approval.scanSessionId ||
 		   verifiedIndex->planId != approval.planId) {
@@ -266,13 +290,13 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 
 		const auto item = std::ranges::find(
 			verifiedIndex->items, decision.target.identity,
-			&IndexPreparationItemSummary::targetIdentity) ;	// 全件照合済みsummaryだけです。
-		// 当該targetの内容結果が無い場合も取得成功へ補いません。
+			&IndexPreparationItemSummary::targetIdentity) ;	// 全件照合済みsummaryだけです
+		// 当該targetの内容結果が無い場合も取得成功へ補いません
 		if( item == verifiedIndex->items.end()) {
 			continue ;
 		}
 
-		// 内容段階の元状態と件数だけです。
+		// 内容段階の元状態と件数だけです
 		auto content =
 			make( index + 1U, decision.target.providerId, PreparationDiagnosticStage::INDEX_CONTENT,
 				 static_cast<std::int32_t>( item->content), item->contentError) ;
@@ -290,7 +314,7 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 							PreparationDiagnosticStage::INDEX_ACQUISITION,
 							static_cast<std::int32_t>( item->acquisition), item->acquisitionError),
 					   sink) ;
-		// 補助要求の実観測だけでURLや本文を持ちません。
+		// 補助要求の実観測だけでURLや本文を持ちません
 		auto http = make( index + 1U, decision.target.providerId,
 						 PreparationDiagnosticStage::INDEX_HTTP, 0, 0) ;
 		http.add( DiagnosticField::SENDS, item->auxiliaryHttp.requests)
@@ -299,11 +323,11 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 		emitDiagnostic( http, sink) ;
 	}
 
-	// 元意図のordinalと元区分だけを投影し、候補identityをserializeしません。
+	// 元意図のordinalと元区分だけを投影し、候補identityをserializeしません
 	for( std::size_t index{}; index < approval.installIntentIdentities.size() && index < limit;
 		++index) {
-		const bool present = index < result.installResolutions.size() ;	// 欠落をREADYにしません。
-		DiagnosticRecord record ;										// UI拒否に存在しないHRESULTは作りません。
+		const bool present = index < result.installResolutions.size() ;	// 欠落をREADYにしません
+		DiagnosticRecord record ;										// UI拒否に存在しないHRESULTは作りません
 		record.event	 = DiagnosticEvent::PREPARATION_RESOLUTION ;
 		record.operation = approval.operationId ;
 		record.status =
@@ -323,12 +347,12 @@ void recordPreparationResultDiagnostics( const OfficialPreparationApproval		 &ap
 
 //------------------------------------------------------------------------------
 /**
- * @brief 元codeを創作せずUI継続の固定理由と件数だけを記録します。
- * @param[in] operation 元準備操作です。
- * @param[in] reason 固定の継続区分です。
- * @param[in] intentCount 元選択数です。
- * @param[in] readyCount 元READY数です。取得成功数ではありません。
- * @param[in,out] sink 内部試験の保存先です。
+ * @brief 元codeを創作せずUI継続の固定理由と件数だけを記録します
+ * @param[in] operation 元準備操作です
+ * @param[in] reason 固定の継続区分です
+ * @param[in] intentCount 元選択数です
+ * @param[in] readyCount 元READY数です。取得成功数ではありません
+ * @param[in,out] sink 内部試験の保存先です
  */
 //------------------------------------------------------------------------------
 void recordPreparationContinuationDiagnostics( const OperationId					  operation,
@@ -337,7 +361,7 @@ void recordPreparationContinuationDiagnostics( const OperationId					  operation
 											  const std::size_t					  readyCount,
 											  LocalDiagnosticLog *const			  sink) noexcept
 {
-	DiagnosticRecord record ;	// UIの固定拒否理由であってWindowsのHRESULTではありません。
+	DiagnosticRecord record ;	// UIの固定拒否理由であってWindowsのHRESULTではありません
 	record.event	 = DiagnosticEvent::PREPARATION_CONTINUATION ;
 	record.operation = operation ;
 	record.status	 = static_cast<std::int32_t>( reason) ;
@@ -349,12 +373,12 @@ void recordPreparationContinuationDiagnostics( const OperationId					  operation
 
 //------------------------------------------------------------------------------
 /**
- * @brief 元個別/role/保護/事後観測を匿名数値へ投影します。
- * @param[in] event controllerが受理した同operationの終端です。
- * @param[in] scanSession 元の失効前scan。表示照合だけに使います。
- * @param[in] candidates 失効flag変更前の元候補です。生文字列は記録しません。
- * @param[in] applicationState 元controller区分です。
- * @param[in,out] sink 内部試験の保存先。
+ * @brief 元個別/role/保護/事後観測を匿名数値へ投影します
+ * @param[in] event controllerが受理した同operationの終端です
+ * @param[in] scanSession 元の失効前scan。表示照合だけに使います
+ * @param[in] candidates 失効flag変更前の元候補です。生文字列は記録しません
+ * @param[in] applicationState 元controller区分です
+ * @param[in,out] sink 内部試験の保存先
  */
 //------------------------------------------------------------------------------
 void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId scanSession,
@@ -362,14 +386,14 @@ void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId sca
 							  const std::int32_t					 applicationState,
 							  LocalDiagnosticLog *const				 sink) noexcept
 {
-	const auto &result = event.installResult ;	// 受理済み原結果を変更しません。
+	const auto &result = event.installResult ;	// 受理済み原結果を変更しません
 	const auto	make   = [&event]( const DiagnosticEvent kind) {
-		   DiagnosticRecord record ;	// operationだけを共有する固定recordです。
+		   DiagnosticRecord record ;	// operationだけを共有する固定recordです
 		   record.event		= kind ;
 		   record.operation = event.operationId ;
 		   return record ;
 	} ;
-	auto completed	 = make( DiagnosticEvent::OPERATION_COMPLETED) ;	// 元全体終端です。
+	auto completed	 = make( DiagnosticEvent::OPERATION_COMPLETED) ;	// 元全体終端です
 	completed.status = applicationState ;
 	completed.error	 = result.installError ;
 	completed.add( DiagnosticField::SUCCEEDED, result.succeeded)
@@ -378,10 +402,10 @@ void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId sca
 		.add( DiagnosticField::REBOOT_REQUIRED, result.rebootRequired) ;
 	emitDiagnostic( completed, sink) ;
 	const std::array protection{result.restorePointCreation,
-								result.restorePointCompletion} ;	// 原保護事実です。
-	// 開始と終了を導入結果とは別に記録します。
+								result.restorePointCompletion} ;	// 原保護事実です
+	// 開始と終了を導入結果とは別に記録します
 	for( std::size_t index{}; index < protection.size(); ++index) {
-		auto record	  = make( DiagnosticEvent::INSTALL_PROTECTION) ;	// 元保護段階です。
+		auto record	  = make( DiagnosticEvent::INSTALL_PROTECTION) ;	// 元保護段階です
 		record.status = static_cast<std::int32_t>( protection[index].outcome) ;
 		record.error  = protection[index].error ;
 		record.add( DiagnosticField::STAGE, index)
@@ -390,12 +414,12 @@ void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId sca
 	}
 
 	const auto &restoreObservation =
-		result.restorePointProtection ;	// 原日付/番号を一般logへ出しません。
-	// 実在保護の区分を固定enumと数値だけで記録します。
+		result.restorePointProtection ;	// 原日付/番号を一般logへ出しません
+	// 実在保護の区分を固定enumと数値だけで記録します
 	if( restoreObservation.disposition != RestorePointDisposition::NATIVE_TRANSACTION) {
 		auto record =
 			make( DiagnosticEvent::
-					 INSTALL_PROTECTION) ;	// 固定stageで作成/既存/日内reuse/未成立を区別します。
+					 INSTALL_PROTECTION) ;	// 固定stageで作成/既存/日内reuse/未成立を区別します
 		record.status = static_cast<std::int32_t>( restoreObservation.verification) ;
 		record.error  = restoreObservation.error ;
 		record
@@ -405,10 +429,33 @@ void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId sca
 		emitDiagnostic( record, sink) ;
 	}
 
-	// メモ診断をnative実行結果と別stageへ記録します。
+	auto finalProtection   = make( DiagnosticEvent::RESTORE_FINAL) ;	// 同bool guardと元観測を分けます
+	finalProtection.status = static_cast<std::int32_t>( restoreObservation.verification) ;
+	finalProtection.error  = restoreObservation.error ;
+	finalProtection
+		.add( DiagnosticField::STAGE, static_cast<std::uint64_t>( restoreObservation.disposition))
+		.add( DiagnosticField::ACTION, static_cast<std::uint64_t>( result.protectionMode))
+		.add( DiagnosticField::KNOWN, isRestorePointProtectionValid( result))
+		.add( DiagnosticField::STATE,
+			 static_cast<std::uint64_t>( restorePointProtectionIssue( result)))
+		.add( DiagnosticField::VERIFIED_BEFORE, restoreObservation.verifiedBefore)
+		.add( DiagnosticField::VERIFIED_AFTER, restoreObservation.verifiedAfter)
+		.add( DiagnosticField::NATIVE_BEGIN_CALLED, restoreObservation.nativeBeginCalled)
+		.add( DiagnosticField::NATIVE_END_CALLED, restoreObservation.nativeEndCalled)
+		.add( DiagnosticField::SEQUENCE_MATCHED,
+			 restoreObservation.sequenceNumber > 0 &&
+				 result.restorePointCreation.sequenceNumber == restoreObservation.sequenceNumber &&
+				 result.restorePointCompletion.sequenceNumber == restoreObservation.sequenceNumber)
+		.add( DiagnosticField::CREATION_TIME_KNOWN, restoreObservation.createdUtc > 0)
+		.add( DiagnosticField::LOCAL_DAY_KNOWN, restoreObservation.localDay != 0)
+		.add( DiagnosticField::RUN, localDiagnosticRunId())
+		.add( DiagnosticField::DIAGNOSTIC_REVISION, LOCAL_DIAGNOSTIC_REVISION) ;
+	emitDiagnostic( finalProtection, sink) ;
+
+	// メモ診断をnative実行結果と別stageへ記録します
 	if( restoreObservation.memoError != 0) {
 		auto warning =
-			// 非致命的memo I/Oを別codeへ残します。
+			// 非致命的memo I/Oを別codeへ残します
 			make( DiagnosticEvent::INSTALL_PROTECTION) ;
 		warning.status = static_cast<std::int32_t>( OutcomeCode::FAILURE) ;
 		warning.error  = restoreObservation.memoError ;
@@ -417,17 +464,18 @@ void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId sca
 		emitDiagnostic( warning, sink) ;
 	}
 
-	// 個別ordinalは当該操作だけの連番です。
+	std::size_t wuaDiagnostics{} ;	// 追加投影は最大16選択だけです
+	// 個別ordinalは当該操作だけの連番です
 	for( std::size_t ordinal{}; ordinal < result.updates.size(); ++ordinal) {
-		const auto &update	  = result.updates[ordinal] ;	// 元identityは結合にだけ使います。
+		const auto &update	  = result.updates[ordinal] ;	// 元identityは結合にだけ使います
 		const auto	candidate = std::ranges::find( candidates, update.identity,
-												  &UpdateCandidate::identity) ;	// 元候補です。
+												  &UpdateCandidate::identity) ;	// 元候補です
 		const bool	bound =
 			candidate != candidates.end() &&
 			std::ranges::count( candidates, update.identity, &UpdateCandidate::identity) == 1 &&
 			std::ranges::count( result.updates, update.identity, &UpdateExecutionResult::identity) ==
-				1 ;											// 重複は未知です。
-		auto item = make( DiagnosticEvent::INSTALL_ITEM) ;	// 数値だけの個別結果です。
+				1 ;											// 重複は未知です
+		auto item = make( DiagnosticEvent::INSTALL_ITEM) ;	// 数値だけの個別結果です
 		item.add( DiagnosticField::ORDINAL, ordinal + 1U)
 			.add( DiagnosticField::BOUND, bound)
 			.add( DiagnosticField::DOWNLOAD_OUTCOME,
@@ -441,16 +489,36 @@ void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId sca
 				 static_cast<std::uint64_t>( update.handoffOutcome))
 			.add( DiagnosticField::HANDOFF_ERROR, static_cast<std::uint32_t>( update.handoffError))
 			.add( DiagnosticField::REBOOT_REQUIRED, update.rebootRequired) ;
-		// 元候補が一意な場合だけcanonical Provider/actionを使います。
+		// 元候補が一意な場合だけcanonical Provider/actionを使います
 		if( bound) {
 			item.provider = DiagnosticProvider::fromId( candidate->providerId) ;
 			item.add( DiagnosticField::ACTION, static_cast<std::uint64_t>( candidate->action)) ;
 		}
 
 		emitDiagnostic( item, sink) ;
-		// 役割結果をbase成功や未開始から補完しません。
+		// 元WUA診断のない他Providerや未開始をWUA API失敗へ変換しません
+		if( update.wuaDownloadDiagnostic.stage != WuaDownloadStage::NONE) {
+			++wuaDiagnostics ;
+			// queue/件数予算を広げず先頭16件だけを投影します
+			if( wuaDiagnostics <= 16U) {
+				const auto &value  = update.wuaDownloadDiagnostic ;			// 生identityを持たない元DTOです
+				auto		record = make( DiagnosticEvent::WUA_DOWNLOAD) ;	// 元errorと固定stageです
+				record.provider	   = item.provider ;
+				record.status	   = static_cast<std::int32_t>( update.downloadOutcome) ;
+				record.error	   = value.error ;
+				record.add( DiagnosticField::STAGE, static_cast<std::uint64_t>( value.stage))
+					.add( DiagnosticField::ORDINAL, value.ordinal)
+					.add( DiagnosticField::TOTAL, value.total)
+					.add( DiagnosticField::PROCESSED, ordinal + 1U)
+					.add( DiagnosticField::RUN, localDiagnosticRunId())
+					.add( DiagnosticField::DIAGNOSTIC_REVISION, LOCAL_DIAGNOSTIC_REVISION) ;
+				emitDiagnostic( record, sink) ;
+			}
+		}
+
+		// 役割結果をbase成功や未開始から補完しません
 		for( const auto &role : update.requiredRoles) {
-			auto record		= make( DiagnosticEvent::INSTALL_ROLE) ;	// 元roleの閉じた値です。
+			auto record		= make( DiagnosticEvent::INSTALL_ROLE) ;	// 元roleの閉じた値です
 			record.provider = item.provider ;
 			record.add( DiagnosticField::ORDINAL, ordinal + 1U)
 				.add( DiagnosticField::PROCESSED, role.ordinal)
@@ -466,26 +534,26 @@ void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId sca
 			emitDiagnostic( record, sink) ;
 		}
 
-		auto post	  = make( DiagnosticEvent::POST_INSTALL) ;	// 観測不能も明示する一記録です。
+		auto post	  = make( DiagnosticEvent::POST_INSTALL) ;	// 観測不能も明示する一記録です
 		post.provider = item.provider ;
 		post.add( DiagnosticField::ORDINAL, ordinal + 1U) ;
-		const PostInstallDeviceObservation *observed{} ;	// 同device一件だけを採用します。
-		const UpdateCandidate			   *before{} ;		// 版比較用の一意な元現在行です。
-		std::size_t observationCount{}, beforeCount{} ;		// 欠測と重複を分けます。
-		// 未結合の結果から任意deviceを照会しません。
+		const PostInstallDeviceObservation *observed{} ;	// 同device一件だけを採用します
+		const UpdateCandidate			   *before{} ;		// 版比較用の一意な元現在行です
+		std::size_t observationCount{}, beforeCount{} ;		// 欠測と重複を分けます
+		// 未結合の結果から任意deviceを照会しません
 		if( bound) {
-			// 返却DTOだけを読み、native再照会を追加しません。
+			// 返却DTOだけを読み、native再照会を追加しません
 			for( const auto &value : result.currentDevices) {
-				// 生device値は一致照合だけです。
+				// 生device値は一致照合だけです
 				if( value.observation.deviceIdentity == candidate->deviceIdentity) {
 					observed = &value ;
 					++observationCount ;
 				}
 			}
 
-			// 元現在行の一意性も確認します。
+			// 元現在行の一意性も確認します
 			for( const auto &value : candidates) {
-				// 異なるdeviceの版を使いません。
+				// 異なるdeviceの版を使いません
 				if( value.current && value.deviceIdentity == candidate->deviceIdentity) {
 					before = &value ;
 					++beforeCount ;
@@ -496,17 +564,17 @@ void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId sca
 		const bool validPost =
 			observationCount == 1U && observed && observed->error == 0 &&
 			isDeviceObservationBound( observed->observation, scanSession,
-									 candidate->deviceIdentity) ;	// 元scan結合です。
+									 candidate->deviceIdentity) ;	// 元scan結合です
 		post.add( DiagnosticField::TOTAL, observationCount).add( DiagnosticField::BOUND, validPost) ;
-		// 一意な元観測のerrorだけを保持します。
+		// 一意な元観測のerrorだけを保持します
 		if( observationCount == 1U && observed) {
 			post.error = observed->error ;
 		}
 
-		std::uint64_t requestedRelation{}, beforeRelation{} ;	// 0は未確認です。
-		// 属性読取の実状態だけを出力します。
+		std::uint64_t requestedRelation{}, beforeRelation{} ;	// 0は未確認です
+		// 属性読取の実状態だけを出力します
 		if( validPost) {
-			const auto &value = observed->observation ;	// 原文字列を出さない読取enumです。
+			const auto &value = observed->observation ;	// 原文字列を出さない読取enumです
 			post.add( DiagnosticField::PRESENCE, static_cast<std::uint64_t>( value.driverPresence))
 				.add( DiagnosticField::NODE_READ, static_cast<std::uint64_t>( value.node.read.state))
 				.add( DiagnosticField::DRIVER_KEY_READ,
@@ -517,25 +585,25 @@ void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId sca
 			const auto afterVersion = value.driverPresence == DeviceDriverPresence::REGISTERED &&
 											  value.version.state == DevicePropertyReadState::VALUE
 										  ? parseFourPartDriverVersion( observed->version)
-										  : std::nullopt ;	// 比較可能な元Windows版だけです。
-			const auto requestedVersion =
-				candidate->installable ? parseFourPartDriverVersion( candidate->version)
-									   : std::nullopt ;	// 取得前申告やreadonlyを補完しません。
-			// 版のpacked値そのものは記録しません。
+										  : std::nullopt ;	// 比較可能な元Windows版だけです
+			const auto requestedVersion = candidate->installable
+											  ? parseFourPartDriverVersion( candidate->version)
+											  : std::nullopt ;	// 取得前申告やreadonlyを補完しません
+			// 版のpacked値そのものは記録しません
 			if( afterVersion && requestedVersion) {
 				requestedRelation = *afterVersion == *requestedVersion ? 1U : 2U ;
 			}
 
-			// 同scanの有効現在観測が一つの場合だけ前後比較します。
+			// 同scanの有効現在観測が一つの場合だけ前後比較します
 			if( afterVersion && beforeCount == 1U && before && before->deviceObservation &&
 			   isDeviceObservationBound( *before->deviceObservation, scanSession,
 										candidate->deviceIdentity) &&
 			   before->deviceObservation->driverPresence == DeviceDriverPresence::REGISTERED &&
 			   before->deviceObservation->version.state == DevicePropertyReadState::VALUE) {
 				const auto beforeVersion =
-					// 診断だけの局所比較です。
+					// 診断だけの局所比較です
 					parseFourPartDriverVersion( before->version) ;
-				// 不明版を変化なしへ換算しません。
+				// 不明版を変化なしへ換算しません
 				if( beforeVersion) {
 					beforeRelation = *afterVersion == *beforeVersion ? 1U : 2U ;
 				}
@@ -546,35 +614,44 @@ void recordInstallDiagnostics( const WorkerEvent &event, const ScanSessionId sca
 			.add( DiagnosticField::BEFORE_VERSION_RELATION, beforeRelation) ;
 		emitDiagnostic( post, sink) ;
 	}
+
+	// 追加投影の省略を元実行失敗や全成功へ数えません
+	if( wuaDiagnostics > 16U) {
+		auto omitted = make( DiagnosticEvent::WUA_DOWNLOAD) ;	// 件数だけの終端です
+		omitted.add( DiagnosticField::OMITTED, wuaDiagnostics - 16U)
+			.add( DiagnosticField::RUN, localDiagnosticRunId())
+			.add( DiagnosticField::DIAGNOSTIC_REVISION, LOCAL_DIAGNOSTIC_REVISION) ;
+		emitDiagnostic( omitted, sink) ;
+	}
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 受理済み終端eventのenum/数値だけを記録します。
- * @param[in] event 同operationへ受理された元event。文字列は参照しません。
- * @param[in] applicationState 元状態機械の固定区分。
- * @param[in] measurementAccepted Controllerのsnapshot受理事実。
- * @param[in,out] sink 内部試験だけの保存先。nullptrは製品process logger。
+ * @brief 受理済み終端eventのenum/数値だけを記録します
+ * @param[in] event 同operationへ受理された元event。文字列は参照しません
+ * @param[in] applicationState 元状態機械の固定区分
+ * @param[in] measurementAccepted Controllerのsnapshot受理事実
+ * @param[in,out] sink 内部試験だけの保存先。nullptrは製品process logger
  */
 //------------------------------------------------------------------------------
 void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applicationState,
 						   const bool measurementAccepted, LocalDiagnosticLog *const sink) noexcept
 {
 	const auto emit = [sink]( const DiagnosticRecord &record) noexcept {
-		// 内部file試験のsinkも製品と同じ保存処理を使います。
+		// 内部file試験のsinkも製品と同じ保存処理を使います
 		if( sink) {
 			sink->append( record) ;
 		} else {
 			recordLocalDiagnostic( record) ;
 		}
-	} ; // 数値recordだけの同期投影です。
+	} ; // 数値recordだけの同期投影です
 	const auto make = [&event]( const DiagnosticEvent kind) {
-		DiagnosticRecord record ;	// 型付き固定容量だけです。
+		DiagnosticRecord record ;	// 型付き固定容量だけです
 		record.event	 = kind ;
 		record.operation = event.operationId ;
 		return record ;
-	} ; // 元operationの連番を全行へ結合します。
-	DiagnosticRecord completed = make( DiagnosticEvent::SCAN_COMPLETED) ;	// Scanの元終端です。
+	} ; // 元operationの連番を全行へ結合します
+	DiagnosticRecord completed = make( DiagnosticEvent::SCAN_COMPLETED) ;	// Scanの元終端です
 	completed.status		   = applicationState ;
 	completed.error			   = event.scanResult.error ;
 	completed.add( DiagnosticField::SUCCEEDED, event.scanResult.succeeded)
@@ -582,9 +659,9 @@ void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applica
 		.add( DiagnosticField::TOTAL, event.scanResult.candidates.size())
 		.add( DiagnosticField::MEASUREMENT_ACCEPTED, measurementAccepted) ;
 	emit( completed) ;
-	// Provider報告の表示名・本文を使わずcanonical stable IDへ限定します。
+	// Provider報告の表示名・本文を使わずcanonical stable IDへ限定します
 	for( const auto &report : event.scanResult.providerReports) {
-		auto record		= make( DiagnosticEvent::PROVIDER_SCAN) ;	// 元Providerの確定数だけです。
+		auto record		= make( DiagnosticEvent::PROVIDER_SCAN) ;	// 元Providerの確定数だけです
 		record.provider = DiagnosticProvider::fromId( report.descriptor.id) ;
 		record.status	= static_cast<std::int32_t>( report.state) ;
 		record.error	= report.error ;
@@ -596,15 +673,15 @@ void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applica
 	}
 
 	const auto provider =
-		// 固定の共通索引Providerです。
+		// 固定の共通索引Providerです
 		DiagnosticProvider::fromId( SIGNED_INDEX_PROVIDER_ID) ;
-	const auto &summary = event.indexSummary ;						// 文字列を持たない元summaryです。
-	auto		refresh = make( DiagnosticEvent::INDEX_REFRESH) ;	// 未実行とHTTP拒否を分けます。
+	const auto &summary = event.indexSummary ;						// 文字列を持たない元summaryです
+	auto		refresh = make( DiagnosticEvent::INDEX_REFRESH) ;	// 未実行とHTTP拒否を分けます
 	refresh.provider	= provider ;
 	refresh.add( DiagnosticField::KNOWN, summary.refresh.has_value()) ;
-	// 未実行をHTTP成功や世代0へ補いません。
+	// 未実行をHTTP成功や世代0へ補いません
 	if( summary.refresh) {
-		const auto &source = *summary.refresh ;	// 元codec/HTTP数値だけです。
+		const auto &source = *summary.refresh ;	// 元codec/HTTP数値だけです
 		refresh.status	   = static_cast<std::int32_t>( source.status) ;
 		refresh.error	   = source.error ;
 		refresh.add( DiagnosticField::HTTP_STATUS, source.httpStatus)
@@ -613,30 +690,30 @@ void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applica
 			.add( DiagnosticField::RECEIVED_BYTES, source.receivedBytes)
 			.add( DiagnosticField::GENERATION_KNOWN, source.attemptedGeneration.has_value())
 			.add( DiagnosticField::USED_CACHE, source.usedAuthenticatedCache) ;
-		// Optional診断の不在をcodec成功値へ補いません。
+		// Optional診断の不在をcodec成功値へ補いません
 		if( source.attemptedGeneration) {
 			refresh.add( DiagnosticField::ATTEMPTED_GENERATION, *source.attemptedGeneration) ;
 		}
 
-		// 元manifest診断を観測したときだけ記録します。
+		// 元manifest診断を観測したときだけ記録します
 		if( source.manifestStatus) {
 			refresh.add( DiagnosticField::MANIFEST_STATUS,
 						static_cast<std::uint64_t>( *source.manifestStatus)) ;
 		}
 
-		// 元gzip診断を観測したときだけ記録します。
+		// 元gzip診断を観測したときだけ記録します
 		if( source.assetStatus) {
 			refresh.add( DiagnosticField::ASSET_STATUS,
 						static_cast<std::uint64_t>( *source.assetStatus)) ;
 		}
 
-		// 元record診断を観測したときだけ記録します。
+		// 元record診断を観測したときだけ記録します
 		if( source.recordsStatus) {
 			refresh.add( DiagnosticField::RECORDS_STATUS,
 						static_cast<std::uint64_t>( *source.recordsStatus)) ;
 		}
 
-		auto stored		= make( DiagnosticEvent::INDEX_STORE) ;	// 認証取得と保存を分けます。
+		auto stored		= make( DiagnosticEvent::INDEX_STORE) ;	// 認証取得と保存を分けます
 		stored.provider = provider ;
 		stored.status	= static_cast<std::int32_t>( source.store.status) ;
 		stored.error	= source.store.error ;
@@ -644,16 +721,16 @@ void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applica
 			.add( DiagnosticField::COMMIT, static_cast<std::uint64_t>( source.store.commit))
 			.add( DiagnosticField::USABLE_SNAPSHOT, source.store.usableSnapshot)
 			.add( DiagnosticField::USED_CACHE, source.usedAuthenticatedCache) ;
-		// 元高水位を観測したときだけ値を添えます。
+		// 元高水位を観測したときだけ値を添えます
 		if( source.store.persistedGeneration) {
 			stored.add( DiagnosticField::PERSISTED_GENERATION, *source.store.persistedGeneration) ;
 		}
 
-		// 再認証cache観測は元refreshの成否と分けます。
+		// 再認証cache観測は元refreshの成否と分けます
 		if( source.cache) {
 			stored.add( DiagnosticField::CACHE_GENERATION_KNOWN,
 					   source.cache->persistedGeneration.has_value()) ;
-			// Cacheの世代不明を0へ補いません。
+			// Cacheの世代不明を0へ補いません
 			if( source.cache->persistedGeneration) {
 				stored.add( DiagnosticField::CACHE_GENERATION, *source.cache->persistedGeneration) ;
 			}
@@ -663,7 +740,7 @@ void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applica
 	}
 
 	emit( refresh) ;
-	auto scan	  = make( DiagnosticEvent::INDEX_SCAN) ;	// ID関係は適用候補数ではありません。
+	auto scan	  = make( DiagnosticEvent::INDEX_SCAN) ;	// ID関係は適用候補数ではありません
 	scan.provider = provider ;
 	scan.status	  = static_cast<std::int32_t>( summary.status) ;
 	scan.error	  = summary.error ;
@@ -677,18 +754,18 @@ void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applica
 		.add( DiagnosticField::UNDETERMINED, summary.undeterminedRelations)
 		.add( DiagnosticField::PARTIAL_POSITIVE, summary.verifiedPartialRelations)
 		.add( DiagnosticField::RESOLVER_CALLS, summary.resolverCalls) ;
-	// 未観測のoptional区分を既定成功へ変換しません。
+	// 未観測のoptional区分を既定成功へ変換しません
 	if( summary.storeStatus) {
 		scan.add( DiagnosticField::STORE_STATUS, static_cast<std::uint64_t>( *summary.storeStatus)) ;
 	}
 
-	// 未着手lookupを成功区分へ補いません。
+	// 未着手lookupを成功区分へ補いません
 	if( summary.lookupStatus) {
 		scan.add( DiagnosticField::LOOKUP_STATUS, static_cast<std::uint64_t>( *summary.lookupStatus)) ;
 	}
 
 	emit( scan) ;
-	auto plan  = make( DiagnosticEvent::PREPARATION_PLAN) ;	// Object有無と実targetは独立です。
+	auto plan  = make( DiagnosticEvent::PREPARATION_PLAN) ;	// Object有無と実targetは独立です
 	plan.error = event.preparationError ;
 	plan.add( DiagnosticField::PLAN_PRESENT, event.preparationPlan.has_value())
 		.add( DiagnosticField::TARGETS,
@@ -697,26 +774,26 @@ void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applica
 		.add( DiagnosticField::UNAVAILABLE, event.indexPreparation.unavailableRelations)
 		.add( DiagnosticField::CAPACITY_REJECTED, event.indexPreparation.capacityRejectedRelations) ;
 	emit( plan) ;
-	auto authority	   = make( DiagnosticEvent::INDEX_LOOKUP) ;	// OS不明等の元取得準備拒否です。
+	auto authority	   = make( DiagnosticEvent::INDEX_LOOKUP) ;	// OS不明等の元取得準備拒否です
 	authority.provider = provider ;
 	authority.error	   = event.indexPreparation.authorityError ;
 	authority.add( DiagnosticField::INDEX_TARGETS, event.indexPreparation.plannedTargets) ;
 	emit( authority) ;
 
-	std::uint64_t current{} ;					// 現在観測行の件数です。
-	std::uint64_t installable{} ;				// 元flagだけの件数です。
-	std::uint64_t references{} ;				// 非installableの実target付き参照数です。
-	std::uint64_t updates{} ;					// 元分類だけの件数です。
-	std::uint64_t reinstalls{} ;				// 同版または再導入分類です。
-	std::uint64_t downgrades{} ;				// 旧版分類です。
-	std::uint64_t initials{} ;					// 検証済み初回分類です。
-	std::uint64_t pending{} ;					// 適用性未確認です。
-	std::uint64_t rejected{} ;					// 適用性拒否です。
-	std::uint64_t osRejected{} ;				// 明示OS不一致理由だけです。
-	std::uint64_t registeredReferences{} ;		// 登録driver観測と結合する取得前参照です。
-	std::uint64_t unknownReferences{} ;			// 現在の登録状態を確認できない取得前参照です。
-	std::array<std::uint64_t, 4U> versions{} ;	// 閉じたUNKNOWN/NEWER/SAME/OLDER件数だけです。
-	// 文字列の版比較やID出力をせず、既存enumだけを数えます。
+	std::uint64_t				  current{} ;				// 現在観測行の件数です
+	std::uint64_t				  installable{} ;			// 元flagだけの件数です
+	std::uint64_t				  references{} ;			// 非installableの実target付き参照数です
+	std::uint64_t				  updates{} ;				// 元分類だけの件数です
+	std::uint64_t				  reinstalls{} ;			// 同版または再導入分類です
+	std::uint64_t				  downgrades{} ;			// 旧版分類です
+	std::uint64_t				  initials{} ;				// 検証済み初回分類です
+	std::uint64_t				  pending{} ;				// 適用性未確認です
+	std::uint64_t				  rejected{} ;				// 適用性拒否です
+	std::uint64_t				  osRejected{} ;			// 明示OS不一致理由だけです
+	std::uint64_t				  registeredReferences{} ;	// 登録driver観測と結合する取得前参照です
+	std::uint64_t				  unknownReferences{} ;		// 現在の登録状態を確認できない取得前参照です
+	std::array<std::uint64_t, 4U> versions{} ;				// 閉じたUNKNOWN/NEWER/SAME/OLDER件数だけです
+	// 文字列の版比較やID出力をせず、既存enumだけを数えます
 	for( const auto &candidate : event.scanResult.candidates) {
 		current += candidate.current ;
 		installable += candidate.installable ;
@@ -732,21 +809,21 @@ void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applica
 					candidate.audit.systemApplicability == CandidateAuditGateState::REJECTED ;
 		osRejected += candidate.assessment && candidate.assessment->applicability.reason ==
 												  CandidateAssessmentReason::OS_MISMATCH ;
-		// 取得前参照についてだけ現在観測を匿名集計し、版や名前から未導入を推定しません。
+		// 取得前参照についてだけ現在観測を匿名集計し、版や名前から未導入を推定しません
 		if( !candidate.current && !candidate.installable &&
 		   !candidate.preparationTargetIdentity.empty()) {
 			++versions[static_cast<std::size_t>( classifyPendingReferenceVersion(
 				candidate, event.scanResult.candidates, event.scanResult.scanSessionId))] ;
-			const UpdateCandidate *observed{} ;		// 一意な現在観測だけを借用します。
-			bool				   ambiguous{} ;	// 矛盾する複数現在行から選びません。
-			// 元opaque deviceの現在行を同期中だけ比較します。外部へ保存しません。
+			const UpdateCandidate *observed{} ;		// 一意な現在観測だけを借用します
+			bool				   ambiguous{} ;	// 矛盾する複数現在行から選びません
+			// 元opaque deviceの現在行を同期中だけ比較します。外部へ保存しません
 			for( const auto &currentCandidate : event.scanResult.candidates) {
-				// 他deviceや非現在行を登録状態の根拠にしません。
+				// 他deviceや非現在行を登録状態の根拠にしません
 				if( currentCandidate.current &&
 				   currentCandidate.deviceIdentity == candidate.deviceIdentity) {
 					ambiguous = observed != nullptr ;
 					observed  = &currentCandidate ;
-					// 複数現在行の一つだけを都合よく選びません。
+					// 複数現在行の一つだけを都合よく選びません
 					if( ambiguous) {
 						break ;
 					}
@@ -756,7 +833,7 @@ void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applica
 			const bool known = !ambiguous && observed && observed->deviceObservation &&
 							   isDeviceObservationBound(
 								   *observed->deviceObservation, event.scanResult.scanSessionId,
-								   candidate.deviceIdentity) ;	// 元観測の結合だけです。
+								   candidate.deviceIdentity) ;	// 元観測の結合だけです
 			registeredReferences += known && observed->deviceObservation->driverPresence ==
 												 DeviceDriverPresence::REGISTERED ;
 			unknownReferences += !known || observed->deviceObservation->driverPresence ==
@@ -764,7 +841,7 @@ void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applica
 		}
 	}
 
-	auto reasons = make( DiagnosticEvent::CANDIDATE_REASONS) ;	// 固定分類の重なりは独立件数です。
+	auto reasons = make( DiagnosticEvent::CANDIDATE_REASONS) ;	// 固定分類の重なりは独立件数です
 	reasons.add( DiagnosticField::CURRENT, current)
 		.add( DiagnosticField::INSTALLABLE, installable)
 		.add( DiagnosticField::PENDING_REFERENCES, references)
@@ -788,4 +865,125 @@ void recordScanDiagnostics( const WorkerEvent &event, const std::int32_t applica
 			 versions[static_cast<std::size_t>( PendingReferenceVersion::UNKNOWN)]) ;
 	emit( reasons) ;
 }
+//------------------------------------------------------------------------------
+/**
+ * @brief 表示直前の実resourceと元errorを同operationへ匿名記録します
+ * @param[in] operation 受理した元Install操作です
+ * @param[in] resourceId 実本文に使用した固定resource IDです
+ * @param[in] error 同本文で表示する元errorです。一般結果だけは0です
+ * @param[in] succeeded Controllerの実最終成功値です
+ * @param[in,out] sink 内部fixtureだけの既匿名sinkです
+ * @note 保存失敗をUI/導入結果へ返しません
+ */
+//------------------------------------------------------------------------------
+void recordInstallFeedbackDiagnostics( const OperationId operation, const std::uint32_t resourceId,
+									  const NativeError error, const bool succeeded,
+									  LocalDiagnosticLog *sink) noexcept
+{
+	DiagnosticRecord record ;	// 任意本文やpathを受けません
+	record.event	 = DiagnosticEvent::INSTALL_FEEDBACK ;
+	record.operation = operation ;
+	record.status	 = static_cast<std::int32_t>( resourceId) ;
+	record.error	 = error ;
+	record.add( DiagnosticField::SUCCEEDED, succeeded)
+		.add( DiagnosticField::RUN, localDiagnosticRunId())
+		.add( DiagnosticField::DIAGNOSTIC_REVISION, LOCAL_DIAGNOSTIC_REVISION) ;
+	emitDiagnostic( record, sink) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief workerへ送らなかった取得承認の元理由と予算を匿名記録します
+ * @param[in] operation 現scanの操作連番です。拒否した取得の新操作IDではありません
+ * @param[in] approval 当該未承認snapshotです。文字列をserializeしません
+ * @param[in] begin 同じcontroller呼出しのfreshな拒否結果です
+ * @param[in,out] sink 内部fixtureだけの保存先です。nullptrは既process sinkです
+ * @note accepted結果は記録しません。保存不能は操作へ伝播しません
+ */
+//------------------------------------------------------------------------------
+void recordPreparationBeginRejectedDiagnostics( const OperationId				  operation,
+											   const OfficialPreparationApproval &approval,
+											   const BeginResult				 &begin,
+											   LocalDiagnosticLog *const		  sink) noexcept
+{
+	// 成功した承認を拒否記録へ変換しません
+	if( begin.accepted) {
+		return ;
+	}
+
+	std::uint64_t required{} ;		// 実転送量ではなく、選択targetの転送予約です
+	std::uint64_t selected{} ;		// 配布物単位の取得選択数です
+	bool		  known = true ;	// 不正な加算を推測の予約量へ変えません
+	// 最大256の元判断だけを数え、identityや本文を記録しません
+	for( const auto &decision : approval.decisions) {
+		// 未選択targetの容量を今回要求へ合算しません
+		if( !decision.acquire) {
+			continue ;
+		}
+
+		++selected ;
+		// 加算不能は値なしとして保持し、動作の予算検査へ影響させません
+		if( decision.target.maximumBytes > std::numeric_limits<std::uint64_t>::max() - required) {
+			known = false ;
+		} else {
+			required += decision.target.maximumBytes ;
+		}
+	}
+
+	DiagnosticRecord record ;	// 原native HRESULTがない拒否なのでerror=0のままです
+	record.event	 = DiagnosticEvent::PREPARATION_BEGIN_REJECTED ;
+	record.operation = operation ;
+	record.status	 = static_cast<std::int32_t>( begin.error) ;
+	record.add( DiagnosticField::STAGE, static_cast<std::uint64_t>( begin.preparationStage))
+		.add( DiagnosticField::OUTCOME, static_cast<std::uint64_t>( begin.preparationError))
+		.add( DiagnosticField::CODE_KNOWN, begin.preparationError != OfficialPreparationError::NONE)
+		.add( DiagnosticField::TOTAL, approval.decisions.size())
+		.add( DiagnosticField::SELECTED_COUNT, selected)
+		.add( DiagnosticField::INTENT_COUNT, approval.installIntentIdentities.size())
+		.add( DiagnosticField::KNOWN, known)
+		.add( DiagnosticField::REQUIRED_BYTES, known ? required : 0U)
+		.add( DiagnosticField::PROVIDER_LIMIT_BYTES, approval.limits.maximumProviderBytes)
+		.add( DiagnosticField::SESSION_LIMIT_BYTES, approval.limits.maximumSessionBytes)
+		.add( DiagnosticField::RUN, localDiagnosticRunId())
+		.add( DiagnosticField::DIAGNOSTIC_REVISION, LOCAL_DIAGNOSTIC_REVISION) ;
+	emitDiagnostic( record, sink) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元保護失敗と本人判断/今回の続行段階を匿名記録します
+ * @param[in] operation 今回の操作です。提示時は元失敗操作です
+ * @param[in] stage 実制御点だけの固定段階です
+ * @param[in] failedOperation 元の失敗操作です
+ * @param[in] failureError 元保護errorです。未照合は0です
+ * @param[in] selectedCount 完全選択の件数です
+ * @param[in] rejectionError 今回の拒否原errorです。未拒否/未記録は0です
+ * @param[in,out] sink 内部試験の匿名保存先です。nullはprocess loggerです
+ * @note 文字列/復元point番号を受けず、保存失敗は実行や判断を変更しません
+ */
+//------------------------------------------------------------------------------
+void recordRestoreContinuationDiagnostics( const OperationId				 operation,
+										  const RestoreContinuationStage stage,
+										  const OperationId				 failedOperation,
+										  const NativeError				 failureError,
+										  const std::size_t				 selectedCount,
+										  const NativeError				 rejectionError,
+										  LocalDiagnosticLog *const		 sink) noexcept
+{
+	DiagnosticRecord record ;	// 閉じた整数列だけを既sinkへ渡します
+	record.event	 = DiagnosticEvent::RESTORE_CONTINUATION ;
+	record.operation = operation ;
+	record.status	 = static_cast<std::int32_t>( stage) ;
+	record.error	 = failureError ;
+	record.add( DiagnosticField::FAILED_OPERATION, failedOperation)
+		.add( DiagnosticField::TOTAL, selectedCount)
+		.add( DiagnosticField::ACTION,
+			 static_cast<std::uint64_t>(
+				 InstallProtectionMode::CLIENT_EXPLICIT_WITHOUT_RESTORE_POINT))
+		.add( DiagnosticField::INSTALL_ERROR, rejectionError)
+		.add( DiagnosticField::RUN, localDiagnosticRunId())
+		.add( DiagnosticField::DIAGNOSTIC_REVISION, LOCAL_DIAGNOSTIC_REVISION) ;
+	emitDiagnostic( record, sink) ;
+}
+
 }

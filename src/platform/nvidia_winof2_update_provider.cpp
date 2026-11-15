@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file nvidia_winof2_update_provider.cpp
- * @brief NVIDIA Networking WinOF-2公式表示専用Provider実装。
- * @version 01.00.01
+ * @brief NVIDIA Networking WinOF-2公式表示専用Provider実装
+ * @version 01.00.02
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,19 +19,20 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/06  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/06  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
  * @note NVIDIA公式pageの固定委譲と段階的metadata応答を同一scan内で検証します。Local device情報、payload URL、SHA-256またはform
- *       bodyをUI／logへ渡しません。
+ *       bodyをUI／logへ渡しません
  */
 //------------------------------------------------------------------------------
 
@@ -60,21 +61,21 @@ namespace drivercrate {
 namespace {
 
 //------------------------------------------------------------------------------
-// 定数定義。
+// 定数定義
 //------------------------------------------------------------------------------
 
-constexpr std::size_t	MAXIMUM_DEVICES			   = 4096U ;			// 一回のscanで扱うdevice数上限。
-constexpr std::size_t	MAXIMUM_DISPLAY_CHARACTERS = 512U ;				// Local表示値の文字数上限。
-constexpr std::uint64_t MAXIMUM_LANDING_BYTES	   = 512ULL * 1024ULL ;	// 公式page受信上限。
-constexpr std::uint64_t MAXIMUM_METADATA_BYTES	   = 256ULL * 1024ULL ;	// 一POST応答上限。
-constexpr std::size_t	EXPECTED_EVIDENCE_COUNT	   = 6U ;				// Landing一件とmetadata POST五件の根拠数。
-// WinOF-2の公式委譲経路を確認する固定landing起点。
+constexpr std::size_t		MAXIMUM_DEVICES			   = 4096U ;			// 一回のscanで扱うdevice数上限
+constexpr std::size_t		MAXIMUM_DISPLAY_CHARACTERS = 512U ;				// Local表示値の文字数上限
+constexpr std::uint64_t		MAXIMUM_LANDING_BYTES	   = 512ULL * 1024ULL ;	// 公式page受信上限
+constexpr std::uint64_t		MAXIMUM_METADATA_BYTES	   = 256ULL * 1024ULL ;	// 一POST応答上限
+constexpr std::size_t		EXPECTED_EVIDENCE_COUNT = 6U ;					// Landing一件とmetadata POST五件の根拠数
+// WinOF-2の公式委譲経路を確認する固定landing起点
 constexpr std::wstring_view LANDING_PAGE_URL =
 	L"https://network.nvidia.com/products/adapter-software/ethernet/windows/winof-2/" ;
-// 委譲確認後のrelease照会に使用する固定metadata endpoint。
+// 委譲確認後のrelease照会に使用する固定metadata endpoint
 constexpr std::wstring_view METADATA_ENDPOINT_URL =
 	L"https://downloaders.azurewebsites.net/downloaders/winof2_downloader/helper.php" ;
-// Local製品名を照合する、明示対応adapter系列の集合。
+// Local製品名を照合する、明示対応adapter系列の集合
 constexpr std::array SUPPORTED_FAMILIES{
 	std::wstring_view( L"ConnectX-4 Lx"), std::wstring_view( L"ConnectX-5"),
 	std::wstring_view( L"ConnectX-6"),	 std::wstring_view( L"ConnectX-7"),
@@ -82,16 +83,16 @@ constexpr std::array SUPPORTED_FAMILIES{
 	std::wstring_view( L"BlueField-2"),	 std::wstring_view( L"BlueField-3")} ;
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief Class名やGUIDの部分一致を対象deviceとして受理しない。
+ * @brief Class名やGUIDの部分一致を対象deviceとして受理しない
  *
- * @param[in] value 最大512文字のlocal表示値。
- * @param[in] expected 完全一致を要求するsetup class値。
- * @return 大文字小文字以外が完全一致する場合true。
+ * @param[in] value 最大512文字のlocal表示値
+ * @param[in] expected 完全一致を要求するsetup class値
+ * @return 大文字小文字以外が完全一致する場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool sameText( const std::wstring_view value,
@@ -105,25 +106,25 @@ constexpr std::array SUPPORTED_FAMILIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief Hardware IDを構築せず、有限なlocal表示名のprobeだけに使用する。
+ * @brief Hardware IDを構築せず、有限なlocal表示名のprobeだけに使用する
  *
- * @param[in] text 最大512文字のlocal表示値。
- * @param[in] token 大文字小文字を無視して探す製品系列語。
- * @return Tokenが含まれる場合true。
+ * @param[in] text 最大512文字のlocal表示値
+ * @param[in] token 大文字小文字を無視して探す製品系列語
+ * @return Tokenが含まれる場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool containsText( const std::wstring_view text,
 								const std::wstring_view token) noexcept
 {
-	// 空、上限外または長さ不整合を拒否する。
+	// 空、上限外または長さ不整合を拒否する
 	if( text.empty() || text.size() > MAXIMUM_DISPLAY_CHARACTERS || token.empty() ||
 	   token.size() > text.size()) {
 		return false ;
 	}
 
-	// Tokenを配置可能な全開始位置で有限回比較する。
+	// Tokenを配置可能な全開始位置で有限回比較する
 	for( std::size_t offset = 0U; offset <= text.size() - token.size(); ++offset) {
-		// 大小文字を除く表示名token一致をlocal probeの根拠にする。
+		// 大小文字を除く表示名token一致をlocal probeの根拠にする
 		if( CompareStringOrdinal( text.data() + offset, static_cast<int>( token.size()), token.data(),
 								static_cast<int>( token.size()), TRUE) == CSTR_EQUAL) {
 			return true ;
@@ -135,10 +136,10 @@ constexpr std::array SUPPORTED_FAMILIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief ConnectX-4一般をConnectX-4 Lxへ拡張せず、明示された系列だけを受理する。
+ * @brief ConnectX-4一般をConnectX-4 Lxへ拡張せず、明示された系列だけを受理する
  *
- * @param[in] model Local device model表示。
- * @return 現行WinOF-2資料の対応系列語を一つ含む場合true。
+ * @param[in] model Local device model表示
+ * @return 現行WinOF-2資料の対応系列語を一つ含む場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool hasSupportedFamily( const std::wstring_view model) noexcept
@@ -150,35 +151,35 @@ constexpr std::array SUPPORTED_FAMILIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief Local device由来値を受けず、制御文字と非ASCIIをfail-closedで拒否する。
+ * @brief Local device由来値を受けず、制御文字と非ASCIIをfail-closedで拒否する
  *
- * @param[in] value ParserまたはOS対応表が検証したASCII公開値。
- * @param[in,out] body Percent encodeした値を末尾へ追加するform body。
- * @return 有限ASCII値を追加できた場合true。
+ * @param[in] value ParserまたはOS対応表が検証したASCII公開値
+ * @param[in,out] body Percent encodeした値を末尾へ追加するform body
+ * @return 有限ASCII値を追加できた場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool appendFormValue( const std::wstring_view value, std::string &body)
 {
-	constexpr char HEX_DIGITS[] = "0123456789ABCDEF" ;	// Percent escapeの大文字hex表。
-	// 空または過大な公開値をformへ追加しない。
+	constexpr char HEX_DIGITS[] = "0123456789ABCDEF" ;	// Percent escapeの大文字hex表
+	// 空または過大な公開値をformへ追加しない
 	if( value.empty() || value.size() > 256U) {
 		return false ;
 	}
 
-	// 全文字をASCIIとして有限回encodeする。
+	// 全文字をASCIIとして有限回encodeする
 	for( const wchar_t character : value) {
-		// 制御文字または非ASCIIを送信値へ変換しない。
+		// 制御文字または非ASCIIを送信値へ変換しない
 		if( character < 0x20 || character > 0x7e) {
 			return false ;
 		}
 
-		const unsigned char byte = static_cast<unsigned char>( character) ;	// ASCII byte値。
+		const unsigned char byte = static_cast<unsigned char>( character) ;	// ASCII byte値
 		const bool unreserved	 = (byte >= 'A' && byte <= 'Z') || (byte >= 'a' && byte <= 'z') ||
 								(byte >= '0' && byte <= '9') || byte == '-' || byte == '.' ||
 								byte == '_' ||
-								// RFC 3986のunreserved文字だけをそのまま送る。
+								// RFC 3986のunreserved文字だけをそのまま送る
 								byte == '~' ;
-		// URL非予約ASCII文字だけをform値へ直接保持する。
+		// URL非予約ASCII文字だけをform値へ直接保持する
 		if( unreserved) {
 			body.push_back( static_cast<char>( byte)) ;
 		} else {
@@ -193,25 +194,25 @@ constexpr std::array SUPPORTED_FAMILIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief Field名をruntime入力から作らず、値だけをpercent encodeする。
+ * @brief Field名をruntime入力から作らず、値だけをpercent encodeする
  *
- * @param[in] name Source固定のASCII field名。
- * @param[in] value 検証済み公開値。
- * @param[in,out] body Fieldを末尾へ追加するform body。
- * @return Field名と値を有限bodyへ追加できた場合true。
+ * @param[in] name Source固定のASCII field名
+ * @param[in] value 検証済み公開値
+ * @param[in,out] body Fieldを末尾へ追加するform body
+ * @return Field名と値を有限bodyへ追加できた場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool appendFormField( const std::string_view name, const std::wstring_view value,
 								   std::string &body)
 {
-	// 固定field名の変更または上限超過を拒否する。
+	// 固定field名の変更または上限超過を拒否する
 	if( name.empty() || name.size() > 32U || !std::ranges::all_of( name, []( const char character) {
 		   return character >= 'a' && character <= 'z' ;
 	   })) {
 		return false ;
 	}
 
-	// 二つ目以降のform fieldだけに区切りを追加する。
+	// 二つ目以降のform fieldだけに区切りを追加する
 	if( !body.empty()) {
 		body.push_back( '&') ;
 	}
@@ -223,14 +224,14 @@ constexpr std::array SUPPORTED_FAMILIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief Actionごとのfield順を固定し、端末識別情報を引数に持たない。
+ * @brief Actionごとのfield順を固定し、端末識別情報を引数に持たない
  *
- * @param[in] action 固定metadata action。
- * @param[in] version 検証済みcurrent版。空の場合は省略する。
- * @param[in] distribution 検証済み公開distribution名。空の場合は省略する。
- * @param[in] osLabel 検証済み公開OS名。空の場合は省略する。
- * @param[in] architecture 固定architecture。空の場合は省略する。
- * @return 成功時の有限form body。不正入力時は空。
+ * @param[in] action 固定metadata action
+ * @param[in] version 検証済みcurrent版。空の場合は省略する
+ * @param[in] distribution 検証済み公開distribution名。空の場合は省略する
+ * @param[in] osLabel 検証済み公開OS名。空の場合は省略する
+ * @param[in] architecture 固定architecture。空の場合は省略する
+ * @return 成功時の有限form body。不正入力時は空
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::string makeFormBody( const std::wstring_view action,
@@ -239,8 +240,8 @@ constexpr std::array SUPPORTED_FAMILIES{
 									   const std::wstring_view osLabel,
 									   const std::wstring_view architecture)
 {
-	std::string body ;	// 2 KiB共通上限より十分小さい所有form body。
-	// action値を安全なform fieldへ変換できなければ要求を作らない。
+	std::string body ;	// 2 KiB共通上限より十分小さい所有form body
+	// action値を安全なform fieldへ変換できなければ要求を作らない
 	if( !appendFormField( "action", action, body)) {
 		return {} ;
 	}
@@ -249,10 +250,10 @@ constexpr std::array SUPPORTED_FAMILIES{
 		std::pair{std::string_view( "version"), version},
 		std::pair{std::string_view( "distro"), distribution},
 		std::pair{std::string_view( "os"), osLabel},
-		std::pair{std::string_view( "arch"), architecture}} ;	// Action後の固定field順。
-	// 空の未到達段階を省略し、検証済み値だけをformへ加える。
+		std::pair{std::string_view( "arch"), architecture}} ;	// Action後の固定field順
+	// 空の未到達段階を省略し、検証済み値だけをformへ加える
 	for( const auto &[name, value] : fields) {
-		// 値がある追加fieldの変換失敗時は部分requestを返さない。
+		// 値がある追加fieldの変換失敗時は部分requestを返さない
 		if( !value.empty() && !appendFormField( name, value, body)) {
 			return {} ;
 		}
@@ -263,11 +264,11 @@ constexpr std::array SUPPORTED_FAMILIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 類似OS名、大小文字差または部分一致へfallbackしない。
+ * @brief 類似OS名、大小文字差または部分一致へfallbackしない
  *
- * @param[in] values Parserが重複を拒否した公開選択肢。
- * @param[in] expected Local OS対応表から得た完全一致値。
- * @return 期待値が一度存在する場合true。
+ * @param[in] values Parserが重複を拒否した公開選択肢
+ * @param[in] expected Local OS対応表から得た完全一致値
+ * @return 期待値が一度存在する場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool listContains( const std::vector<std::wstring> &values,
@@ -278,17 +279,17 @@ constexpr std::array SUPPORTED_FAMILIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 空bodyを通信せず拒否し、Readerへlocal device値を渡さない。
+ * @brief 空bodyを通信せず拒否し、Readerへlocal device値を渡さない
  *
- * @param[in] session 現在のscan session。
- * @param[in] reader 固定metadata取得境界。
- * @param[in] action 固定action。
- * @param[in] version 検証済みcurrent版または空。
- * @param[in] distribution 検証済みdistributionまたは空。
- * @param[in] osLabel 検証済みOS labelまたは空。
- * @param[in] architecture 固定x64または空。
- * @param[out] json 成功時のmetadata応答。
- * @return Form生成とreader成功時は0、失敗時はnative error。
+ * @param[in] session 現在のscan session
+ * @param[in] reader 固定metadata取得境界
+ * @param[in] action 固定action
+ * @param[in] version 検証済みcurrent版または空
+ * @param[in] distribution 検証済みdistributionまたは空
+ * @param[in] osLabel 検証済みOS labelまたは空
+ * @param[in] architecture 固定x64または空
+ * @param[out] json 成功時のmetadata応答
+ * @return Form生成とreader成功時は0、失敗時はnative error
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError readMetadata( const ScanSessionId				 session,
@@ -300,9 +301,9 @@ constexpr std::array SUPPORTED_FAMILIES{
 									   const std::wstring_view architecture, std::wstring &json)
 {
 	const std::string body =
-		// POST body。
+		// POST body
 		makeFormBody( action, version, distribution, osLabel, architecture) ;
-	// 空bodyを送信せず、既存応答も破棄して要求を拒否する。
+	// 空bodyを送信せず、既存応答も破棄して要求を拒否する
 	if( body.empty()) {
 		json.clear() ;
 		return static_cast<NativeError>( E_INVALIDARG) ;
@@ -313,11 +314,11 @@ constexpr std::array SUPPORTED_FAMILIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同期通信中は直前の確定値を保持し、完了した段階だけで率を進める。
+ * @brief 同期通信中は直前の確定値を保持し、完了した段階だけで率を進める
  *
- * @param[in] callback 確定済み進捗の通知先。
- * @param[in] completedSteps 完了した通信段階数。0から6。
- * @param[in] totalDevices 後段で候補化する対象device数。
+ * @param[in] callback 確定済み進捗の通知先
+ * @param[in] completedSteps 完了した通信段階数。0から6
+ * @param[in] totalDevices 後段で候補化する対象device数
  */
 //------------------------------------------------------------------------------
 void notifyMetadataProgress( const ProviderProgressCallback &callback,
@@ -331,34 +332,34 @@ void notifyMetadataProgress( const ProviderProgressCallback &callback,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 表示名をProvider内へ複製せず、stable IDで一度だけ解決する。
- * @return Registryに登録されたWinOF-2 Provider表示名。
+ * @brief 表示名をProvider内へ複製せず、stable IDで一度だけ解決する
+ * @return Registryに登録されたWinOF-2 Provider表示名
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::wstring providerDisplayName()
 {
-	// Registryの表示名だけを取得元名称の正本として使用する。
+	// Registryの表示名だけを取得元名称の正本として使用する
 	for( const ProviderDescriptor &descriptor : builtInProviderDescriptors()) {
-		// stable IDが一致するregistry項目からだけ表示名を取得する。
+		// stable IDが一致するregistry項目からだけ表示名を取得する
 		if( descriptor.id == NVIDIA_WINOF2_PROVIDER_ID) {
 			return descriptor.displayName ;
 		}
 	}
 
-	// Registry不整合は後段validationで候補拒否となる。
+	// Registry不整合は後段validationで候補拒否となる
 	return {} ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief Package版をtitleだけへ表示し、INF版または更新必要性として扱わない。
+ * @brief Package版をtitleだけへ表示し、INF版または更新必要性として扱わない
  *
- * @param[in] session 当該検索session。
- * @param[in] ordinal Session内の0始まり表示行連番。
- * @param[in] device Local probeが一致したdevice snapshot。
- * @param[in] release 検証済み公式配布情報。
- * @param[in] sourceName Registryから解決した取得元表示名。
- * @return URLとhashを含まない非選択・非推奨の所有DTO。
+ * @param[in] session 当該検索session
+ * @param[in] ordinal Session内の0始まり表示行連番
+ * @param[in] device Local probeが一致したdevice snapshot
+ * @param[in] release 検証済み公式配布情報
+ * @param[in] sourceName Registryから解決した取得元表示名
+ * @return URLとhashを含まない非選択・非推奨の所有DTO
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] UpdateCandidate makeNvidiaWinof2Candidate( const ScanSessionId			 session,
@@ -367,8 +368,8 @@ void notifyMetadataProgress( const ProviderProgressCallback &callback,
 														const NvidiaWinof2Release	&release,
 														const std::wstring_view		 sourceName)
 {
-	UpdateCandidate	   candidate ;								// UIへ返す表示専用の所有DTO。
-	const std::wstring sourceId( NVIDIA_WINOF2_PROVIDER_ID) ;	// Registryと一致する取得元ID。
+	UpdateCandidate	   candidate ;								// UIへ返す表示専用の所有DTO
+	const std::wstring sourceId( NVIDIA_WINOF2_PROVIDER_ID) ;	// Registryと一致する取得元ID
 	candidate.identity =
 		sourceId + L":info:" + std::to_wstring( session) + L":" + std::to_wstring( ordinal) ;
 	candidate.packageIdentity = sourceId + L":sha256:" + release.sha256 ;
@@ -397,34 +398,34 @@ void notifyMetadataProgress( const ProviderProgressCallback &callback,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一部取得だけで候補を発行せず、URLを参照せずregistryへ照合する。
+ * @brief 一部取得だけで候補を発行せず、URLを参照せずregistryへ照合する
  *
- * @param[in] evidence 現在HTTP clientが保持するopaque取得根拠。
- * @param[in] session 期待するscan session。
- * @return Landing一件とmetadata五件が順序どおり全て有効な場合true。
+ * @param[in] evidence 現在HTTP clientが保持するopaque取得根拠
+ * @param[in] session 期待するscan session
+ * @return Landing一件とmetadata五件が順序どおり全て有効な場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool sourceEvidenceIsComplete( const std::span<const OfficialSourceEvidence> evidence,
 											const ScanSessionId session) noexcept
 {
-	// 必要な取得証拠の件数が揃わなければ完了とみなさない。
+	// 必要な取得証拠の件数が揃わなければ完了とみなさない
 	if( evidence.size() != EXPECTED_EVIDENCE_COUNT) {
 		return false ;
 	}
 
-	// 登録順を確認し、全取得が同じsessionとProviderへ拘束されていることを検証する。
+	// 登録順を確認し、全取得が同じsessionとProviderへ拘束されていることを検証する
 	for( std::size_t index = 0U; index < evidence.size(); ++index) {
-		const OfficialSourceEvidence &item = evidence[index] ;	// 現在の取得根拠。
-		// 先頭はlanding、後続はmetadataとして照合する期待resource ID。
+		const OfficialSourceEvidence &item = evidence[index] ;	// 現在の取得根拠
+		// 先頭はlanding、後続はmetadataとして照合する期待resource ID
 		const std::wstring_view		  expectedResource =
 			  index == 0U ? OFFICIAL_LANDING_RESOURCE_ID : OFFICIAL_PRIMARY_METADATA_RESOURCE_ID ;
-		// 各証拠の妥当性、session、Provider、resource対応を確認する。
+		// 各証拠の妥当性、session、Provider、resource対応を確認する
 		if( !isValidOfficialSourceEvidence( item) || item.scanSessionId != session ||
 		   item.providerId != NVIDIA_WINOF2_PROVIDER_ID || item.resourceId != expectedResource) {
 			return false ;
 		}
 
-		// 欠落または並べ替えられた取得段階を完全な根拠として受理しない。
+		// 欠落または並べ替えられた取得段階を完全な根拠として受理しない
 		if( item.acquisitionId != static_cast<std::uint64_t>( index) + 1U) {
 			return false ;
 		}
@@ -437,15 +438,15 @@ void notifyMetadataProgress( const ProviderProgressCallback &callback,
 
 //------------------------------------------------------------------------------
 /**
- * @brief Local deviceがWinOF-2の表示検索対象となるNVIDIA Networking製品か確認する。通信要否だけを判定し、PnP適用性または最新版を保証しない。
- * @param[in] device 端末内だけで参照する非機密device snapshot。 端末内だけで参照する非機密snapshot。
- * @return Net class、NVIDIA／Mellanox表示、対応系列が全て一致する場合true。 Net class、vendor表示、対応系列が一致する場合true。
- * @note 通信要否を決めるprobeであり、Hardware IDまたはpackage適用性の確認ではない。
+ * @brief Local deviceがWinOF-2の表示検索対象となるNVIDIA Networking製品か確認する。通信要否だけを判定し、PnP適用性または最新版を保証しない
+ * @param[in] device 端末内だけで参照する非機密device snapshot。 端末内だけで参照する非機密snapshot
+ * @return Net class、NVIDIA／Mellanox表示、対応系列が全て一致する場合true。 Net class、vendor表示、対応系列が一致する場合true
+ * @note 通信要否を決めるprobeであり、Hardware IDまたはpackage適用性の確認ではない
  */
 //------------------------------------------------------------------------------
 bool isNvidiaWinof2Device( const OfficialCatalogDevice &device) noexcept
 {
-	// 不正identityまたは過大表示値をnetwork対象にしない。
+	// 不正identityまたは過大表示値をnetwork対象にしない
 	if( device.deviceIdentity.empty() || device.deviceIdentity.size() > 256U ||
 	   device.model.size() > MAXIMUM_DISPLAY_CHARACTERS ||
 	   device.manufacturer.size() > MAXIMUM_DISPLAY_CHARACTERS ||
@@ -456,28 +457,28 @@ bool isNvidiaWinof2Device( const OfficialCatalogDevice &device) noexcept
 	const bool netClass =
 		sameText( device.driverClass, L"Net") &&
 		sameText( device.deviceClassGuid,
-				 L"{4d36e972-e325-11ce-bfc1-08002be10318}") ;	// Net class完全一致境界。
+				 L"{4d36e972-e325-11ce-bfc1-08002be10318}") ;	// Net class完全一致境界
 	const bool vendorName = containsText( device.manufacturer, L"NVIDIA") ||
 							containsText( device.manufacturer, L"Mellanox") ||
 							containsText( device.currentProvider, L"NVIDIA") ||
 							containsText( device.currentProvider, L"Mellanox") ||
 							containsText( device.model, L"NVIDIA") ||
-							// Local vendor表示境界。
+							// Local vendor表示境界
 							containsText( device.model, L"Mellanox") ;
 	return netClass && vendorName && hasSupportedFamily( device.model) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief Local probeと固定readerでWinOF-2の表示専用候補を作る。対象deviceまたは既知OSがない場合は通信せず、途中応答を補完しない。
- * @param[in] scanSessionId 0ではないscan session。 0ではない検索session。
- * @param[in] devices 最大4096件の外部送信しないdevice snapshot。 最大4096件の外部送信しないsnapshot。
- * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true。
- * @param[in] windowsBuild 実OSのmajor build番号。0は判定不能。
- * @param[in] landingReader NVIDIA公式製品pageの差替え取得境界。 固定公式製品pageの取得境界。
- * @param[in] metadataReader 固定form POSTの差替え取得境界。 固定metadata POSTの取得境界。
- * @param[in] progressCallback 確定した処理件数と進捗の通知先。 確定した進捗通知先。
- * @return 表示候補または対象外・通信失敗・metadata拒否。
+ * @brief Local probeと固定readerでWinOF-2の表示専用候補を作る。対象deviceまたは既知OSがない場合は通信せず、途中応答を補完しない
+ * @param[in] scanSessionId 0ではないscan session。 0ではない検索session
+ * @param[in] devices 最大4096件の外部送信しないdevice snapshot。 最大4096件の外部送信しないsnapshot
+ * @param[in] windowsServer 実OSがWindows Serverの場合true。 実OSがServerの場合true
+ * @param[in] windowsBuild 実OSのmajor build番号。0は判定不能
+ * @param[in] landingReader NVIDIA公式製品pageの差替え取得境界。 固定公式製品pageの取得境界
+ * @param[in] metadataReader 固定form POSTの差替え取得境界。 固定metadata POSTの取得境界
+ * @param[in] progressCallback 確定した処理件数と進捗の通知先。 確定した進捗通知先
+ * @return 表示候補または対象外・通信失敗・metadata拒否
  */
 //------------------------------------------------------------------------------
 ScanResult scanNvidiaWinof2Catalog( const ScanSessionId							scanSessionId,
@@ -489,36 +490,36 @@ ScanResult scanNvidiaWinof2Catalog( const ScanSessionId							scanSessionId,
 {
 	ScanResult result{.scanSessionId = scanSessionId,
 					  .outcome		 = OutcomeCode::FAILURE,
-					  .state		 = ProviderScanState::FAILURE} ;	// 全条件成立までは失敗。
-	// session、device数、reader、通知先の前提不備では通信を開始しない。
+					  .state		 = ProviderScanState::FAILURE} ;	// 全条件成立までは失敗
+	// session、device数、reader、通知先の前提不備では通信を開始しない
 	if( scanSessionId == 0U || devices.size() > MAXIMUM_DEVICES || !landingReader ||
 	   !metadataReader || !progressCallback) {
 		result.error = static_cast<NativeError>( E_INVALIDARG) ;
-		// 不正session、上限またはcallback欠落では通信しない。
+		// 不正session、上限またはcallback欠落では通信しない
 		return result ;
 	}
 
-	std::vector<const OfficialCatalogDevice *> matched ;	// 呼出し中だけ有効な対象device参照。
-	std::unordered_set<std::wstring>		   identities ;	// Opaque identityの重複検出集合。
-	// 全deviceを有限回確認し、WinOF-2対象系列だけを検索対象へ残す。
+	std::vector<const OfficialCatalogDevice *> matched ;	// 呼出し中だけ有効な対象device参照
+	std::unordered_set<std::wstring>		   identities ;	// Opaque identityの重複検出集合
+	// 全deviceを有限回確認し、WinOF-2対象系列だけを検索対象へ残す
 	for( const OfficialCatalogDevice &device : devices) {
-		// 空、過大、重複のdevice identityから候補を作らない。
+		// 空、過大、重複のdevice identityから候補を作らない
 		if( device.deviceIdentity.empty() || device.deviceIdentity.size() > 256U ||
 		   !identities.insert( device.deviceIdentity).second) {
 			result.error = static_cast<NativeError>( E_INVALIDARG) ;
-			// 空または重複identityから曖昧な候補を生成しない。
+			// 空または重複identityから曖昧な候補を生成しない
 			return result ;
 		}
 
-		// WinOF-2対象のlocal deviceだけを照会対象へ集める。
+		// WinOF-2対象のlocal deviceだけを照会対象へ集める
 		if( isNvidiaWinof2Device( device)) {
 			matched.push_back( &device) ;
 		}
 	}
 
 	result.coverage.eligibleDeviceCount = matched.size() ;
-	NvidiaWinof2OsSelection osSelection ;	// 実OSに対応する公開Download Center選択値。
-	// 対象deviceまたは既知OS選択がなければ通信せず対象外にする。
+	NvidiaWinof2OsSelection osSelection ;	// 実OSに対応する公開Download Center選択値
+	// 対象deviceまたは既知OS選択がなければ通信せず対象外にする
 	if( matched.empty() || !selectNvidiaWinof2Os( windowsServer, windowsBuild, osSelection)) {
 		result.succeeded = true ;
 		result.outcome	 = OutcomeCode::SUCCESS ;
@@ -532,32 +533,32 @@ ScanResult scanNvidiaWinof2Catalog( const ScanSessionId							scanSessionId,
 
 	notifyMetadataProgress( progressCallback, 0U, matched.size()) ;
 
-	std::wstring response ;	// 各通信段階で上書きする有限UTF-16応答。
+	std::wstring response ;	// 各通信段階で上書きする有限UTF-16応答
 	result.error = landingReader( scanSessionId, response) ;
-	// 製品page取得失敗を候補なしとして扱わない。
+	// 製品page取得失敗を候補なしとして扱わない
 	if( result.error != 0) {
 		return result ;
 	}
 
-	// 公式起点ページの委譲構造が変わった場合はmetadataを拒否する。
+	// 公式起点ページの委譲構造が変わった場合はmetadataを拒否する
 	if( !parseNvidiaWinof2LandingPage( response)) {
 		result.state = ProviderScanState::METADATA_REJECTED ;
 		result.error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
-		// NVIDIA公式pageからの委譲変更を推測で補完しない。
+		// NVIDIA公式pageからの委譲変更を推測で補完しない
 		return result ;
 	}
 
 	notifyMetadataProgress( progressCallback, 1U, matched.size()) ;
 
-	std::wstring version ;	// Current一覧と一致したWinOF-2 package版。
+	std::wstring version ;	// Current一覧と一致したWinOF-2 package版
 	result.error =
 		readMetadata( scanSessionId, metadataReader, L"get_versions", L"", L"", L"", L"", response) ;
-	// 版照会の失敗を保持し、後続条件を推測で補わない。
+	// 版照会の失敗を保持し、後続条件を推測で補わない
 	if( result.error != 0) {
 		return result ;
 	}
 
-	// current版を一意に解析できなければmetadata拒否として返す。
+	// current版を一意に解析できなければmetadata拒否として返す
 	if( !parseNvidiaWinof2Versions( response, version)) {
 		result.state = ProviderScanState::METADATA_REJECTED ;
 		result.error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
@@ -566,20 +567,20 @@ ScanResult scanNvidiaWinof2Catalog( const ScanSessionId							scanSessionId,
 
 	notifyMetadataProgress( progressCallback, 2U, matched.size()) ;
 
-	std::vector<std::wstring> values ;	// 各段階で上書きする公開選択肢。
+	std::vector<std::wstring> values ;	// 各段階で上書きする公開選択肢
 	result.error = readMetadata( scanSessionId, metadataReader, L"get_distros", version, L"", L"",
 								L"", response) ;
-	// distribution照会の失敗時は後続照会へ進まない。
+	// distribution照会の失敗時は後続照会へ進まない
 	if( result.error != 0) {
 		return result ;
 	}
 
-	// 期待distributionを応答から確認できなければ代替名を使わない。
+	// 期待distributionを応答から確認できなければ代替名を使わない
 	if( !parseNvidiaWinof2StringList( response, values) ||
 	   !listContains( values, osSelection.distribution)) {
 		result.state = ProviderScanState::METADATA_REJECTED ;
 		result.error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
-		// 期待distribution欠落を別名へfallbackしない。
+		// 期待distribution欠落を別名へfallbackしない
 		return result ;
 	}
 
@@ -587,17 +588,17 @@ ScanResult scanNvidiaWinof2Catalog( const ScanSessionId							scanSessionId,
 
 	result.error = readMetadata( scanSessionId, metadataReader, L"get_oses", version,
 								osSelection.distribution, L"", L"", response) ;
-	// OS照会の失敗時は後続照会へ進まない。
+	// OS照会の失敗時は後続照会へ進まない
 	if( result.error != 0) {
 		return result ;
 	}
 
-	// 期待OS labelがなければ類似buildへ代替しない。
+	// 期待OS labelがなければ類似buildへ代替しない
 	if( !parseNvidiaWinof2StringList( response, values) ||
 	   !listContains( values, osSelection.osLabel)) {
 		result.state = ProviderScanState::METADATA_REJECTED ;
 		result.error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
-		// 期待OS欠落を近似buildへfallbackしない。
+		// 期待OS欠落を近似buildへfallbackしない
 		return result ;
 	}
 
@@ -605,16 +606,16 @@ ScanResult scanNvidiaWinof2Catalog( const ScanSessionId							scanSessionId,
 
 	result.error = readMetadata( scanSessionId, metadataReader, L"get_arches", version,
 								osSelection.distribution, osSelection.osLabel, L"", response) ;
-	// architecture照会の失敗時は取得先照会へ進まない。
+	// architecture照会の失敗時は取得先照会へ進まない
 	if( result.error != 0) {
 		return result ;
 	}
 
-	// 応答にx64が明示されない場合は別architectureへ代替しない。
+	// 応答にx64が明示されない場合は別architectureへ代替しない
 	if( !parseNvidiaWinof2StringList( response, values) || !listContains( values, L"x64")) {
 		result.state = ProviderScanState::METADATA_REJECTED ;
 		result.error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
-		// x64欠落を別architectureへfallbackしない。
+		// x64欠落を別architectureへfallbackしない
 		return result ;
 	}
 
@@ -622,32 +623,32 @@ ScanResult scanNvidiaWinof2Catalog( const ScanSessionId							scanSessionId,
 
 	result.error = readMetadata( scanSessionId, metadataReader, L"get_download_info", version,
 								osSelection.distribution, osSelection.osLabel, L"x64", response) ;
-	// download情報照会の失敗時は候補を構築しない。
+	// download情報照会の失敗時は候補を構築しない
 	if( result.error != 0) {
 		return result ;
 	}
 
-	NvidiaWinof2Release release ;	// SHA-256まで整合した表示用配布情報。
-	// 版と公式fileを結合して検証できなければmetadataを拒否する。
+	NvidiaWinof2Release release ;	// SHA-256まで整合した表示用配布情報
+	// 版と公式fileを結合して検証できなければmetadataを拒否する
 	if( !parseNvidiaWinof2DownloadInfo( response, version, release)) {
 		result.state = ProviderScanState::METADATA_REJECTED ;
 		result.error = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
-		// 複数file、別hostまたは別版を候補へ渡さない。
+		// 複数file、別hostまたは別版を候補へ渡さない
 		return result ;
 	}
 
 	notifyMetadataProgress( progressCallback, 6U, matched.size()) ;
 
-	const std::wstring sourceName = providerDisplayName() ;	// Registry由来の取得元表示名。
-	// registry表示名を解決できない場合は独自名で候補を発行しない。
+	const std::wstring sourceName = providerDisplayName() ;	// Registry由来の取得元表示名
+	// registry表示名を解決できない場合は独自名で候補を発行しない
 	if( sourceName.empty()) {
 		result.state = ProviderScanState::SOURCE_REJECTED ;
 		result.error = static_cast<NativeError>( E_UNEXPECTED) ;
-		// Registry不整合時に独自表示名で候補を発行しない。
+		// Registry不整合時に独自表示名で候補を発行しない
 		return result ;
 	}
 
-	// 同じ検証済みpackageを対象deviceごとの表示行へ変換する。
+	// 同じ検証済みpackageを対象deviceごとの表示行へ変換する
 	for( std::size_t index = 0U; index < matched.size(); ++index) {
 		result.candidates.push_back(
 			makeNvidiaWinof2Candidate( scanSessionId, index, *matched[index], release, sourceName)) ;
@@ -667,12 +668,12 @@ ScanResult scanNvidiaWinof2Catalog( const ScanSessionId							scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 対象deviceと実OSが一致する場合だけ公式WinOF-2 metadataを検索する。NVIDIA起点と五つのPOST取得根拠が揃わない候補をfail-closedで破棄する。
- * @param[in] scanSessionId 0ではないscan session。 0ではない検索session。
- * @param[in] devices 外部送信しない現在device snapshot。 外部送信しないdevice snapshot。
- * @param[in] hardwareIdMatcher 使用しない。現段階では表示検索に限定する。 使用しないlocal照合関数。
- * @param[in] progressCallback 確定済み段階の通知先。 確定した進捗通知先。
- * @return 非選択・非推奨の公式配布情報。Payloadを取得しない。 表示候補またはProvider別失敗状態。
+ * @brief 対象deviceと実OSが一致する場合だけ公式WinOF-2 metadataを検索する。NVIDIA起点と五つのPOST取得根拠が揃わない候補をfail-closedで破棄する
+ * @param[in] scanSessionId 0ではないscan session。 0ではない検索session
+ * @param[in] devices 外部送信しない現在device snapshot。 外部送信しないdevice snapshot
+ * @param[in] hardwareIdMatcher 使用しない。現段階では表示検索に限定する。 使用しないlocal照合関数
+ * @param[in] progressCallback 確定済み段階の通知先。 確定した進捗通知先
+ * @return 非選択・非推奨の公式配布情報。Payloadを取得しない。 表示候補またはProvider別失敗状態
  */
 //------------------------------------------------------------------------------
 ScanResult NvidiaWinof2UpdateProvider::scan( const ScanSessionId scanSessionId,
@@ -685,42 +686,42 @@ ScanResult NvidiaWinof2UpdateProvider::scan( const ScanSessionId scanSessionId,
 	const NvidiaWinof2LandingPageReader landingReader = [this]( const ScanSessionId session,
 															   std::wstring		  &html) {
 		NativeError error =
-			// 開始結果。
+			// 開始結果
 			httpClient_.beginSourceSession( session, NVIDIA_WINOF2_PROVIDER_ID) ;
-		// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す。
+		// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 		if( error != 0) {
 			return error ;
 		}
 
 		return httpClient_.getUtf8TextForSource( LANDING_PAGE_URL, OFFICIAL_LANDING_RESOURCE_ID,
 												MAXIMUM_LANDING_BYTES, html) ;
-	} ; // 端末情報を付加しない固定製品page取得境界。
+	} ; // 端末情報を付加しない固定製品page取得境界
 	const NvidiaWinof2MetadataReader metadataReader =
 		[this, scanSessionId]( const ScanSessionId session, const std::string_view formBody,
 							  std::wstring &json) {
-			// 別sessionのPOST要求を拒否して応答を破棄する。
+			// 別sessionのPOST要求を拒否して応答を破棄する
 			if( session != scanSessionId) {
 				json.clear() ;
-				// 別sessionのPOSTを拒否する。
+				// 別sessionのPOSTを拒否する
 				return static_cast<NativeError>( E_INVALIDARG) ;
 			}
 
 			return httpClient_.postFormUtf8TextForSource( METADATA_ENDPOINT_URL,
 														 OFFICIAL_PRIMARY_METADATA_RESOURCE_ID,
 														 formBody, MAXIMUM_METADATA_BYTES, json) ;
-		} ; // 検証済み公開値だけを送る固定POST境界。
+		} ; // 検証済み公開値だけを送る固定POST境界
 
 	ScanResult result = scanNvidiaWinof2Catalog(
 		scanSessionId, devices, isWindowsServer(), currentWindowsBuildNumber(), landingReader,
-		metadataReader, progressCallback) ;	// 実OSとlocal probeを先に確認する。
-	// 候補取得が完了しない場合は部分的な取得証拠を次操作へ残さない。
+		metadataReader, progressCallback) ;	// 実OSとlocal probeを先に確認する
+	// 候補取得が完了しない場合は部分的な取得証拠を次操作へ残さない
 	if( !result.succeeded || result.state != ProviderScanState::CANDIDATES_AVAILABLE) {
 		invalidateScanSession() ;
-		// 一部取得根拠を次操作へ残さない。
+		// 一部取得根拠を次操作へ残さない
 		return result ;
 	}
 
-	// 全公式取得証拠が揃わない候補を破棄して取得元拒否として返す。
+	// 全公式取得証拠が揃わない候補を破棄して取得元拒否として返す
 	if( !sourceEvidenceIsComplete( httpClient_.sourceEvidence(), scanSessionId)) {
 		invalidateScanSession() ;
 		result.succeeded = false ;
@@ -728,7 +729,7 @@ ScanResult NvidiaWinof2UpdateProvider::scan( const ScanSessionId scanSessionId,
 		result.state	 = ProviderScanState::SOURCE_REJECTED ;
 		result.error	 = static_cast<NativeError>( E_UNEXPECTED) ;
 		result.candidates.clear() ;
-		// 公式origin根拠が完全でない候補をUIへ渡さない。
+		// 公式origin根拠が完全でない候補をUIへ渡さない
 		return result ;
 	}
 
@@ -737,12 +738,12 @@ ScanResult NvidiaWinof2UpdateProvider::scan( const ScanSessionId scanSessionId,
 
 //------------------------------------------------------------------------------
 /**
- * @brief Capability外のdownload／install要求を拒否する。Registry capability外の直接呼出しでも混在EXEへ到達せず、根拠を失効する。
- * @param[in] scanSessionId 拒否する要求のsession。 拒否する要求session。
- * @param[in] identities 拒否する候補identity群。
- * @param[in] parentWindowNative 使用しない親Window値。
- * @param[in] progressCallback 呼び出さない通知先。
- * @return Downloadとinstallの双方がE_NOTIMPLの結果。 DownloadとinstallをE_NOTIMPLに固定した結果。
+ * @brief Capability外のdownload／install要求を拒否する。Registry capability外の直接呼出しでも混在EXEへ到達せず、根拠を失効する
+ * @param[in] scanSessionId 拒否する要求のsession。 拒否する要求session
+ * @param[in] identities 拒否する候補identity群
+ * @param[in] parentWindowNative 使用しない親Window値
+ * @param[in] progressCallback 呼び出さない通知先
+ * @return Downloadとinstallの双方がE_NOTIMPLの結果。 DownloadとinstallをE_NOTIMPLに固定した結果
  */
 //------------------------------------------------------------------------------
 InstallResult NvidiaWinof2UpdateProvider::install( const ScanSessionId				  scanSessionId,
@@ -754,7 +755,7 @@ InstallResult NvidiaWinof2UpdateProvider::install( const ScanSessionId				  scan
 	static_cast<void>( identities) ;
 	static_cast<void>( parentWindowNative) ;
 	static_cast<void>( progressCallback) ;
-	InstallResult result ;	// 表示専用Providerの固定拒否結果。
+	InstallResult result ;	// 表示専用Providerの固定拒否結果
 	result.downloadOutcome = OutcomeCode::FAILURE ;
 	result.downloadError   = static_cast<NativeError>( E_NOTIMPL) ;
 	result.installOutcome  = OutcomeCode::FAILURE ;
@@ -765,7 +766,7 @@ InstallResult NvidiaWinof2UpdateProvider::install( const ScanSessionId				  scan
 
 //------------------------------------------------------------------------------
 /**
- * @brief 次scanまたは拒否されたinstall要求で旧sessionの取得根拠を破棄する。
+ * @brief 次scanまたは拒否されたinstall要求で旧sessionの取得根拠を破棄する
  */
 //------------------------------------------------------------------------------
 void NvidiaWinof2UpdateProvider::invalidateScanSession() noexcept

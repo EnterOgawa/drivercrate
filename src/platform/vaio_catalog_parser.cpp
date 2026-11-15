@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file vaio_catalog_parser.cpp
- * @brief VAIO Global公式catalog parser実装。
- * @version 01.00.01
+ * @brief VAIO Global公式catalog parser実装
+ * @version 01.00.02
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,20 +19,21 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  公式取得元policy registryへ統合。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  公式取得元policy registryへ統合
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
  * @note Windows.Data.Jsonで公式JSONの型と上限を検証します。非driver分類とpayload欠損項目は候補へ変換せず、必須schema不正はfail-closedにしま
- *       す。
+ *       す
  */
 //------------------------------------------------------------------------------
 
@@ -44,8 +45,8 @@
 
 #include <Windows.h>
 
-// Windows SDK 10.0.26100のWindowsNumerics.inlは宣言と定義のSAL差を/analyzeが報告する。
-// DriverCrate sourceの警告は維持し、該当SDK headerを展開する区間だけ既知のSDK診断を抑止する。
+// Windows SDK 10.0.26100のWindowsNumerics.inlは宣言と定義のSAL差を/analyzeが報告する
+// DriverCrate sourceの警告は維持し、該当SDK headerを展開する区間だけ既知のSDK診断を抑止する
 #pragma warning( push)
 #pragma warning( disable : 28252 28253 6101)
 #include <winrt/Windows.Data.Json.h>
@@ -71,37 +72,37 @@ namespace drivercrate {
 namespace {
 
 //------------------------------------------------------------------------------
-// 定数定義。
+// 定数定義
 //------------------------------------------------------------------------------
 
-constexpr std::size_t	MAXIMUM_JSON_CHARACTERS		 = 2U * 1024U * 1024U ;	// 各JSON文字数上限。
-constexpr std::size_t	MAXIMUM_MODELS				 = 256 ;				// Model record数上限。
-constexpr std::size_t	MAXIMUM_PREINSTALLED_DRIVERS = 1024 ;				// Driver表項目数上限。
-constexpr std::size_t	MAXIMUM_UPDATES				 = 512 ;				// Update record数上限。
-constexpr std::size_t	MAXIMUM_LIST_ITEMS			 = 128 ;				// 一field内のtoken数上限。
-constexpr std::size_t	MAXIMUM_DISPLAY_CHARACTERS	 = 1024 ;				// 表示field文字数上限。
-constexpr std::size_t	MAXIMUM_URL_CHARACTERS		 = 2048 ;				// URL文字数上限。
+constexpr std::size_t	MAXIMUM_JSON_CHARACTERS		 = 2U * 1024U * 1024U ;	// 各JSON文字数上限
+constexpr std::size_t	MAXIMUM_MODELS				 = 256 ;				// Model record数上限
+constexpr std::size_t	MAXIMUM_PREINSTALLED_DRIVERS = 1024 ;				// Driver表項目数上限
+constexpr std::size_t	MAXIMUM_UPDATES				 = 512 ;				// Update record数上限
+constexpr std::size_t	MAXIMUM_LIST_ITEMS			 = 128 ;				// 一field内のtoken数上限
+constexpr std::size_t	MAXIMUM_DISPLAY_CHARACTERS	 = 1024 ;				// 表示field文字数上限
+constexpr std::size_t	MAXIMUM_URL_CHARACTERS		 = 2048 ;				// URL文字数上限
 constexpr std::uint64_t MAXIMUM_INSTALLER_BYTES =
-	4ULL * 1024ULL * 1024ULL * 1024ULL ;	// 一payloadの許可上限。
-// Application等を除外し、driver候補として解析するcategoryの許可集合。
+	4ULL * 1024ULL * 1024ULL * 1024ULL ;	// 一payloadの許可上限
+// Application等を除外し、driver候補として解析するcategoryの許可集合
 constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 	L"audio", L"audio_old", L"bt",	 L"camera",	   L"dt",	   L"ethernet",
 	L"fp",	  L"graphics",	L"ipf",	 L"me_driver", L"noican",  L"npu",
 	L"sst",	  L"vfep",		L"wlan", L"chipset",   L"touchpad"} ;
-// Applicationとfirmwareを含まない審査済みcategory。
+// Applicationとfirmwareを含まない審査済みcategory
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief Win32 errorをNativeErrorへ変換する。
+ * @brief Win32 errorをNativeErrorへ変換する
  *
- * Parserの診断値をProvider共通表現へ統一する。
+ * Parserの診断値をProvider共通表現へ統一する
  *
- * @param[in] error Win32 error code。
- * @return HRESULT_FROM_WIN32で変換したbit pattern。
+ * @param[in] error Win32 error code
+ * @return HRESULT_FROM_WIN32で変換したbit pattern
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError nativeErrorFromWin32( const DWORD error) noexcept
@@ -111,29 +112,29 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief JSON objectから上限付きstring propertyを取得する。
+ * @brief JSON objectから上限付きstring propertyを取得する
  *
- * Null文字を拒否し、fieldごとの上限を一か所で適用する。
+ * Null文字を拒否し、fieldごとの上限を一か所で適用する
  *
- * @param[in] object 読取り対象object。
- * @param[in] name 必須property名。
- * @param[in] maximum UTF-16 code unit数上限。
- * @return 検証済みstring。欠損、型違い、上限超過時は`std::nullopt`。
+ * @param[in] object 読取り対象object
+ * @param[in] name 必須property名
+ * @param[in] maximum UTF-16 code unit数上限
+ * @return 検証済みstring。欠損、型違い、上限超過時は`std::nullopt`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::wstring> readString(
 	const winrt::Windows::Data::Json::JsonObject &object, const std::wstring_view name,
 	const std::size_t maximum)
 {
-	const winrt::hstring key( name) ;	// Windows.Data.Jsonへ渡すproperty名。
-	// 指定 property がない場合は値を補完せず未取得として返す。
+	const winrt::hstring key( name) ;	// Windows.Data.Jsonへ渡すproperty名
+	// 指定 property がない場合は値を補完せず未取得として返す
 	if( !object.HasKey( key)) {
 		return std::nullopt ;
 	}
 
-	const winrt::hstring raw = object.GetNamedString( key) ;	// JSON string property値。
-	std::wstring		 value( raw.c_str(), raw.size()) ;		// 所有するUTF-16値。
-	// 長さ上限超過または埋込み NUL を持つ property を拒否する。
+	const winrt::hstring raw = object.GetNamedString( key) ;	// JSON string property値
+	std::wstring		 value( raw.c_str(), raw.size()) ;		// 所有するUTF-16値
+	// 長さ上限超過または埋込み NUL を持つ property を拒否する
 	if( value.size() > maximum || value.find( L'\0') != std::wstring::npos) {
 		return std::nullopt ;
 	}
@@ -143,52 +144,52 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief ASCII空白を文字列の両端から除去する。
+ * @brief ASCII空白を文字列の両端から除去する
  *
- * Version等の意味を変更せず、公式dataの余分な端空白だけ除く。
+ * Version等の意味を変更せず、公式dataの余分な端空白だけ除く
  *
- * @param[in] value Catalogが返した文字列。
- * @return Space、tab、CR、LFを両端から除いた所有文字列。
+ * @param[in] value Catalogが返した文字列
+ * @return Space、tab、CR、LFを両端から除いた所有文字列
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::wstring trimAscii( const std::wstring_view value)
 {
-	constexpr std::wstring_view WHITESPACE = L" \t\r\n" ;						// 除去を許可するASCII空白。
-	const std::size_t			first = value.find_first_not_of( WHITESPACE) ;	// 最初の非空白位置。
-	// 全て空白の値は空文字列として返す。
+	constexpr std::wstring_view WHITESPACE = L" \t\r\n" ;						// 除去を許可するASCII空白
+	const std::size_t			first = value.find_first_not_of( WHITESPACE) ;	// 最初の非空白位置
+	// 全て空白の値は空文字列として返す
 	if( first == std::wstring_view::npos) {
 		return {} ;
 	}
 
-	const std::size_t last = value.find_last_not_of( WHITESPACE) ;	// 最後の非空白位置。
+	const std::size_t last = value.find_last_not_of( WHITESPACE) ;	// 最後の非空白位置
 	return std::wstring( value.substr( first, last - first + 1)) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式表示名から許可済みHTML表記だけを除去する。
+ * @brief 公式表示名から許可済みHTML表記だけを除去する
  *
- * 公式JSONで使用されるregistered trademark tagだけを許可し、UIへの任意markup混入を拒否する。
+ * 公式JSONで使用されるregistered trademark tagだけを許可し、UIへの任意markup混入を拒否する
  *
- * @param[in] value ProgramName field。
- * @return 表示用plain text。未知markupまたは空なら`std::nullopt`。
+ * @param[in] value ProgramName field
+ * @return 表示用plain text。未知markupまたは空なら`std::nullopt`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::wstring> sanitizeTitle( const std::wstring_view value)
 {
-	std::wstring							   title( value) ;	// 許可tagを除去するmutable表示名。
-	// 製品名の照合前に除去を許可する登録商標の固定HTML表現。
+	std::wstring							   title( value) ;	// 許可tagを除去するmutable表示名
+	// 製品名の照合前に除去を許可する登録商標の固定HTML表現
 	constexpr std::array<std::wstring_view, 2> TAGS{L"<sup>&reg;</sup>", L"<SUP>&REG;</SUP>"} ;
-	// 大小文字が既知の二形式だけを繰り返し除去する。
+	// 大小文字が既知の二形式だけを繰り返し除去する
 	for( const std::wstring_view tag : TAGS) {
-		std::size_t position{} ;	// 次の許可tagを探す位置。
-		// 有限長 title から許可した tag 表記だけを順に除去する。
+		std::size_t position{} ;	// 次の許可tagを探す位置
+		// 有限長 title から許可した tag 表記だけを順に除去する
 		while( (position = title.find( tag, position)) != std::wstring::npos) {
 			title.replace( position, tag.size(), L"") ;
 		}
 	}
 
-	// 許可 tag の除去後も markup または entity が残る title を拒否する。
+	// 許可 tag の除去後も markup または entity が残る title を拒否する
 	if( title.find( L'<') != std::wstring::npos || title.find( L'>') != std::wstring::npos ||
 	   title.find( L'&') != std::wstring::npos) {
 		return std::nullopt ;
@@ -200,12 +201,12 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 大文字ASCII model codeか検証する。
+ * @brief 大文字ASCII model codeか検証する
  *
- * SMBIOS照合に使う値をpathやqueryへ解釈できない文字へ限定する。
+ * SMBIOS照合に使う値をpathやqueryへ解釈できない文字へ限定する
  *
- * @param[in] value Models.jsonのModelName token。
- * @return 5～8文字の英大文字・数字で先頭がVの場合は`true`。
+ * @param[in] value Models.jsonのModelName token
+ * @return 5～8文字の英大文字・数字で先頭がVの場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isModelCode( const std::wstring_view value) noexcept
@@ -219,12 +220,12 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 小文字ASCII category IDか検証する。
+ * @brief 小文字ASCII category IDか検証する
  *
- * 分類allowlistを曖昧な大小文字比較にしない。
+ * 分類allowlistを曖昧な大小文字比較にしない
  *
- * @param[in] value CategoryID field。
- * @return 1～32文字の小文字、数字、underscoreなら`true`。
+ * @param[in] value CategoryID field
+ * @return 1～32文字の小文字、数字、underscoreなら`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isCategoryId( const std::wstring_view value) noexcept
@@ -238,29 +239,29 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 区切り文字付きASCII token集合を検証して分割する。
+ * @brief 区切り文字付きASCII token集合を検証して分割する
  *
- * VAIO JSONに存在する二種類のOS区切りを許可し、空tokenとduplicateを拒否する。
+ * VAIO JSONに存在する二種類のOS区切りを許可し、空tokenとduplicateを拒否する
  *
- * @param[in] value Commaまたはperiod区切りfield。
- * @param[in] models trueの場合はmodel code規則も検証する。
- * @param[out] tokens 成功時の重複しないtrim済みtoken群。
- * @return 一件以上の有限なtoken集合なら`true`。
+ * @param[in] value Commaまたはperiod区切りfield
+ * @param[in] models trueの場合はmodel code規則も検証する
+ * @param[out] tokens 成功時の重複しないtrim済みtoken群
+ * @return 一件以上の有限なtoken集合なら`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool splitTokens( const std::wstring_view value, const bool models,
 							   std::vector<std::wstring> &tokens)
 {
 	tokens.clear() ;
-	std::unordered_set<std::wstring> unique ;	// 重複token検出集合。
-	std::size_t						 start{} ;	// 現在token開始位置。
-	// 区切りごとに token を検証し、最終要素まで有限に分割する。
+	std::unordered_set<std::wstring> unique ;	// 重複token検出集合
+	std::size_t						 start{} ;	// 現在token開始位置
+	// 区切りごとに token を検証し、最終要素まで有限に分割する
 	while( start <= value.size()) {
-		const std::size_t  end = value.find_first_of( L",.", start) ;	// 次の区切り位置。
-		// 区切り間の値からASCII空白を除いた一つの検索token。
+		const std::size_t  end = value.find_first_of( L",.", start) ;	// 次の区切り位置
+		// 区切り間の値からASCII空白を除いた一つの検索token
 		const std::wstring token = trimAscii( value.substr(
 			start, end == std::wstring_view::npos ? value.size() - start : end - start)) ;
-		// 空・長さ超過・model 形式不正・重複・件数超過の token 集合を破棄する。
+		// 空・長さ超過・model 形式不正・重複・件数超過の token 集合を破棄する
 		if( token.empty() || token.size() > 64 || (models && !isModelCode( token)) ||
 		   !unique.insert( token).second || tokens.size() >= MAXIMUM_LIST_ITEMS) {
 			tokens.clear() ;
@@ -268,7 +269,7 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 		}
 
 		tokens.push_back( token) ;
-		// 最後の token を追加したら区切り探索を終了する。
+		// 最後の token を追加したら区切り探索を終了する
 		if( end == std::wstring_view::npos) {
 			break ;
 		}
@@ -281,31 +282,31 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 十進byte数を上限付きで変換する。
+ * @brief 十進byte数を上限付きで変換する
  *
- * Overflowを各桁で検出し、0 byte payloadを許可しない。
+ * Overflowを各桁で検出し、0 byte payloadを許可しない
  *
- * @param[in] value FileSize field。
- * @return 1～4GiBのbyte数。不正時は`std::nullopt`。
+ * @param[in] value FileSize field
+ * @return 1～4GiBのbyte数。不正時は`std::nullopt`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::uint64_t> parseSize( const std::wstring_view value) noexcept
 {
-	// 空または 64-bit 十進表記の最大桁数を超える size を拒否する。
+	// 空または 64-bit 十進表記の最大桁数を超える size を拒否する
 	if( value.empty() || value.size() > 20) {
 		return std::nullopt ;
 	}
 
-	std::uint64_t size{} ;	// 変換中のbyte数。
-	// Size の全桁を検証し、overflow しない範囲で十進値へ変換する。
+	std::uint64_t size{} ;	// 変換中のbyte数
+	// Size の全桁を検証し、overflow しない範囲で十進値へ変換する
 	for( const wchar_t character : value) {
-		// Size 表記に十進数字以外があれば拒否する。
+		// Size 表記に十進数字以外があれば拒否する
 		if( character < L'0' || character > L'9') {
 			return std::nullopt ;
 		}
 
-		const std::uint64_t digit = static_cast<std::uint64_t>( character - L'0') ;	// 現在桁。
-		// 次の桁を加える前に 64-bit overflow を検出する。
+		const std::uint64_t digit = static_cast<std::uint64_t>( character - L'0') ;	// 現在桁
+		// 次の桁を加える前に 64-bit overflow を検出する
 		if( size > (std::numeric_limits<std::uint64_t>::max() - digit) / 10) {
 			return std::nullopt ;
 		}
@@ -319,17 +320,17 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief VAIO Software IDを検証する。
+ * @brief VAIO Software IDを検証する
  *
- * Package identityへ使用するopaque IDの文字集合を限定する。
+ * Package identityへ使用するopaque IDの文字集合を限定する
  *
- * @param[in] value SoftwareID field。
- * @return `SP`または`VP`と10桁以内の数字なら`true`。
+ * @param[in] value SoftwareID field
+ * @return `SP`または`VP`と10桁以内の数字なら`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isSoftwareId( const std::wstring_view value) noexcept
 {
-	// Software ID の長さと固定 prefix に一致しない値を拒否する。
+	// Software ID の長さと固定 prefix に一致しない値を拒否する
 	if( value.size() < 3 || value.size() > 12 ||
 	   (value.substr( 0, 2) != L"SP" && value.substr( 0, 2) != L"VP")) {
 		return false ;
@@ -342,12 +343,12 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief SHA-256文字列表現を検証する。
+ * @brief SHA-256文字列表現を検証する
  *
- * Payload検証に使用できない長さまたは文字を拒否する。
+ * Payload検証に使用できない長さまたは文字を拒否する
  *
- * @param[in] value SHA256 field。
- * @return 64桁ASCII hexadecimalなら`true`。
+ * @param[in] value SHA256 field
+ * @return 64桁ASCII hexadecimalなら`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isSha256( const std::wstring_view value) noexcept
@@ -362,55 +363,55 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief VAIO payload URLとSoftware IDの対応を検証する。
+ * @brief VAIO payload URLとSoftware IDの対応を検証する
  *
- * URLのbasenameとopaque IDを一致させ、別payload参照を拒否する。
+ * URLのbasenameとopaque IDを一致させ、別payload参照を拒否する
  *
- * @param[in] url DownloadReferenceUrl field。
- * @param[in] softwareId 検証済みSoftware ID。
- * @return 公式host内の`/{SoftwareID}.exe`なら`true`。
+ * @param[in] url DownloadReferenceUrl field
+ * @param[in] softwareId 検証済みSoftware ID
+ * @return 公式host内の`/{SoftwareID}.exe`なら`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isPayloadUrl( const std::wstring_view url,
 								const std::wstring_view softwareId) noexcept
 {
 	const std::span<const std::wstring_view> hosts =
-		// 公式payload host群。
+		// 公式payload host群
 		officialSourceHosts( VAIO_PROVIDER_ID, OFFICIAL_PAYLOAD_RESOURCE_ID) ;
-	// 共通の公式 HTTPS 検証が成立しない payload URL を拒否する。
+	// 共通の公式 HTTPS 検証が成立しない payload URL を拒否する
 	if( validateOfficialHttpsUrl( url, hosts) != 0) {
 		return false ;
 	}
 
-	const std::wstring suffix = L"/" + std::wstring( softwareId) + L".exe" ;	// 期待basename。
+	const std::wstring suffix = L"/" + std::wstring( softwareId) + L".exe" ;	// 期待basename
 	return url.size() > suffix.size() && url.ends_with( suffix) ;
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief YYYY/MM/DD形式の日付を検証する。
+ * @brief YYYY/MM/DD形式の日付を検証する
  *
- * Calendar補正を推測せず、表示と並替えに必要な形式だけ確認する。
+ * Calendar補正を推測せず、表示と並替えに必要な形式だけ確認する
  *
- * @param[in] value Date field。
- * @return 固定長ASCII日付形式なら`true`。
+ * @param[in] value Date field
+ * @return 固定長ASCII日付形式なら`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isReleaseDate( const std::wstring_view value) noexcept
 {
-	// 日付の固定桁数と YYYY/MM/DD の区切り位置を確認する。
+	// 日付の固定桁数と YYYY/MM/DD の区切り位置を確認する
 	if( value.size() != 10 || value[4] != L'/' || value[7] != L'/') {
 		return false ;
 	}
 
-	// Separator以外がすべてASCII数字であることを確認する。
+	// Separator以外がすべてASCII数字であることを確認する
 	for( std::size_t index = 0; index < value.size(); ++index) {
-		// 検証済みの slash 位置は数値文字の確認から除く。
+		// 検証済みの slash 位置は数値文字の確認から除く
 		if( (index == 4 || index == 7)) {
 			continue ;
 		}
 
-		// 日付の数値部分に十進数字以外を許可しない。
+		// 日付の数値部分に十進数字以外を許可しない
 		if( value[index] < L'0' || value[index] > L'9') {
 			return false ;
 		}
@@ -421,25 +422,25 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 表示文字列を大文字英数字だけの比較keyへ変換する。
+ * @brief 表示文字列を大文字英数字だけの比較keyへ変換する
  *
- * 区切り差だけを吸収し、versionや日付の比較には使用しない。
+ * 区切り差だけを吸収し、versionや日付の比較には使用しない
  *
- * @param[in] value 公式titleまたはlocal表示値。
- * @return ASCII英数字を大文字化し、他の文字を除いた比較key。
+ * @param[in] value 公式titleまたはlocal表示値
+ * @return ASCII英数字を大文字化し、他の文字を除いた比較key
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::wstring normalizeMatchText( const std::wstring_view value)
 {
-	std::wstring normalized ;	// 比較に使用するASCII英数字列。
+	std::wstring normalized ;	// 比較に使用するASCII英数字列
 	normalized.reserve( value.size()) ;
-	// ASCII英数字だけを順序どおり保持する。
+	// ASCII英数字だけを順序どおり保持する
 	for( const wchar_t character : value) {
-		// ASCII 小文字は比較 key 内で大文字へ正規化する。
+		// ASCII 小文字は比較 key 内で大文字へ正規化する
 		if( character >= L'a' && character <= L'z') {
 			normalized.push_back( static_cast<wchar_t>( character - L'a' + L'A')) ;
 		}
-		// 既に大文字の英字と数字だけを比較 key に残す。
+		// 既に大文字の英字と数字だけを比較 key に残す
 		else if( (character >= L'A' && character <= L'Z') ||
 				(character >= L'0' && character <= L'9')) {
 			normalized.push_back( character) ;
@@ -451,26 +452,26 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式titleのmaker tokenがlocal deviceと一致するか判定する。
+ * @brief 公式titleのmaker tokenがlocal deviceと一致するか判定する
  *
- * Intel、AMD、NVIDIA、Realtek、ELANのOEM component取り違えを防ぎ、未知makerを推測しない。
+ * Intel、AMD、NVIDIA、Realtek、ELANのOEM component取り違えを防ぎ、未知makerを推測しない
  *
- * @param[in] title 正規化済み公式title。
- * @param[in] device 判定対象local device。
- * @return 既知makerが一致するか、titleにmaker指定がなければ`true`。
+ * @param[in] title 正規化済み公式title
+ * @param[in] device 判定対象local device
+ * @return 既知makerが一致するか、titleにmaker指定がなければ`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool matchesMaker( const std::wstring_view title, const OfficialCatalogDevice &device)
 {
-	// Device表示名のmaker整合を確認するcomponent maker名の固定集合。
+	// Device表示名のmaker整合を確認するcomponent maker名の固定集合
 	constexpr std::array<std::wstring_view, 5> MAKERS{L"INTEL", L"AMD", L"NVIDIA", L"REALTEK",
 													  L"ELAN"} ;
-	// 外部へ送信せず、端末内だけで製品名照合に使う正規化表示文字列。
+	// 外部へ送信せず、端末内だけで製品名照合に使う正規化表示文字列
 	const std::wstring local = normalizeMatchText( device.manufacturer + L" " +
 												  device.currentProvider + L" " + device.model) ;
-	// Titleが明示する既知makerはlocal表示値にも存在することを必須にする。
+	// Titleが明示する既知makerはlocal表示値にも存在することを必須にする
 	for( const std::wstring_view maker : MAKERS) {
-		// Title が明示した maker token は local device にも存在することを要求する。
+		// Title が明示した maker token は local device にも存在することを要求する
 		if( title.find( maker) != std::wstring_view::npos) {
 			return local.find( maker) != std::wstring::npos ;
 		}
@@ -481,127 +482,127 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 
 //------------------------------------------------------------------------------
 /**
- * @brief VAIO categoryに対応するSetup classとmodel tokenを判定する。
+ * @brief VAIO categoryに対応するSetup classとmodel tokenを判定する
  *
- * Localized class名ではなくclass GUIDを使い、曖昧なcategoryはmodel tokenも必須にする。
+ * Localized class名ではなくclass GUIDを使い、曖昧なcategoryはmodel tokenも必須にする
  *
- * @param[in] categoryId 検証済みcategory ID。
- * @param[in] device 判定対象local device。
- * @return Category固有のclassとmodel条件を全て満たす場合は`true`。
+ * @param[in] categoryId 検証済みcategory ID
+ * @param[in] device 判定対象local device
+ * @return Category固有のclassとmodel条件を全て満たす場合は`true`
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool matchesCategory( const std::wstring_view		categoryId,
 								   const OfficialCatalogDevice &device)
 {
-	const std::wstring guid	 = normalizeMatchText( device.deviceClassGuid) ;	// Class GUID key。
-	const std::wstring model = normalizeMatchText( device.model) ;				// Device model key。
-	// 表示class照合用に区切りを除いたDisplay class GUID。
+	const std::wstring			guid = normalizeMatchText( device.deviceClassGuid) ;	// Class GUID key
+	const std::wstring			model = normalizeMatchText( device.model) ;				// Device model key
+	// 表示class照合用に区切りを除いたDisplay class GUID
 	constexpr std::wstring_view DISPLAY = L"4D36E968E32511CEBFC108002BE10318" ;
-	// Network adapter class照合用に区切りを除いたGUID。
+	// Network adapter class照合用に区切りを除いたGUID
 	constexpr std::wstring_view NET = L"4D36E972E32511CEBFC108002BE10318" ;
-	// Bluetooth class照合用に区切りを除いたGUID。
+	// Bluetooth class照合用に区切りを除いたGUID
 	constexpr std::wstring_view BLUETOOTH = L"E0CBF06CCD8B4647BB8A263B43F0F974" ;
-	// 生体認証class照合用に区切りを除いたGUID。
+	// 生体認証class照合用に区切りを除いたGUID
 	constexpr std::wstring_view BIOMETRIC = L"53D29EF7377C4D14864BEB3A85769359" ;
-	// Camera class照合用に区切りを除いたGUID。
+	// Camera class照合用に区切りを除いたGUID
 	constexpr std::wstring_view CAMERA = L"CA3E7AB9B4C34AE68251579EF933890F" ;
-	// Image class照合用に区切りを除いたGUID。
+	// Image class照合用に区切りを除いたGUID
 	constexpr std::wstring_view IMAGE = L"6BDD1FC6810F11D0BEC708002BE2092F" ;
-	// Media class照合用に区切りを除いたGUID。
+	// Media class照合用に区切りを除いたGUID
 	constexpr std::wstring_view MEDIA = L"4D36E96CE32511CEBFC108002BE10318" ;
-	// System class照合用に区切りを除いたGUID。
+	// System class照合用に区切りを除いたGUID
 	constexpr std::wstring_view SYSTEM = L"4D36E97DE32511CEBFC108002BE10318" ;
-	// Software component class照合用に区切りを除いたGUID。
+	// Software component class照合用に区切りを除いたGUID
 	constexpr std::wstring_view SOFTWARE = L"5C4C3332344D483C8739259E934C9CC8" ;
-	// Compute class照合用に区切りを除いたGUID。
+	// Compute class照合用に区切りを除いたGUID
 	constexpr std::wstring_view COMPUTE = L"F01A9D533FF648D29F97C8A7004BE10C" ;
-	// Mouse class照合用に区切りを除いたGUID。
+	// Mouse class照合用に区切りを除いたGUID
 	constexpr std::wstring_view MOUSE = L"4D36E96FE32511CEBFC108002BE10318" ;
-	// HID class照合用に区切りを除いたGUID。
+	// HID class照合用に区切りを除いたGUID
 	constexpr std::wstring_view HID = L"745A17A074D311D0B6FE00A0C90F57DA" ;
-	// Modelに許可tokenが含まれるかの同期判定関数。Model参照を呼出し中だけ借用する。
+	// Modelに許可tokenが含まれるかの同期判定関数。Model参照を呼出し中だけ借用する
 	const auto containsAny = [&model]( const std::initializer_list<std::wstring_view> tokens) {
 		return std::any_of( tokens.begin(), tokens.end(), [&model]( const std::wstring_view token) {
 			return model.find( token) != std::wstring::npos ;
 		}) ;
 	} ;
 
-	// Graphics 分類は Display class と照合する。
+	// Graphics 分類は Display class と照合する
 	if( categoryId == L"graphics") {
 		return guid == DISPLAY ;
 	}
 
-	// 無線 LAN 分類は Net class と無線製品 token の両方を要求する。
+	// 無線 LAN 分類は Net class と無線製品 token の両方を要求する
 	if( categoryId == L"wlan") {
 		return guid == NET && containsAny( {L"WIRELESS", L"WIFI", L"WLAN"}) ;
 	}
 
-	// Ethernet 分類は Net class と有線 LAN 製品 token を照合する。
+	// Ethernet 分類は Net class と有線 LAN 製品 token を照合する
 	if( categoryId == L"ethernet") {
 		return guid == NET && containsAny( {L"ETHERNET", L"GIGABIT", L"I225", L"I226"}) ;
 	}
 
-	// Bluetooth 分類は class と製品 token の一致を要求する。
+	// Bluetooth 分類は class と製品 token の一致を要求する
 	if( categoryId == L"bt") {
 		return guid == BLUETOOTH && model.find( L"BLUETOOTH") != std::wstring::npos ;
 	}
 
-	// 指紋認証分類は Biometric class と照合する。
+	// 指紋認証分類は Biometric class と照合する
 	if( categoryId == L"fp") {
 		return guid == BIOMETRIC ;
 	}
 
-	// Camera 分類は許可 class と Camera 製品 token を照合する。
+	// Camera 分類は許可 class と Camera 製品 token を照合する
 	if( categoryId == L"camera") {
 		return (guid == CAMERA || guid == IMAGE) && model.find( L"CAMERA") != std::wstring::npos ;
 	}
 
-	// Management Engine 分類は System class と専用製品 token を確認する。
+	// Management Engine 分類は System class と専用製品 token を確認する
 	if( categoryId == L"me_driver") {
 		return guid == SYSTEM && containsAny( {L"MANAGEMENTENGINE", L"MEINTERFACE"}) ;
 	}
 
-	// NPU 分類は許可する三 class と NPU 系の製品 token を照合する。
+	// NPU 分類は許可する三 class と NPU 系の製品 token を照合する
 	if( categoryId == L"npu") {
 		return (guid == COMPUTE || guid == SYSTEM || guid == SOFTWARE) &&
 			   containsAny( {L"NPU", L"NEURAL", L"AIBOOST"}) ;
 	}
 
-	// VFEP 分類は System／Software class と専用製品 token を確認する。
+	// VFEP 分類は System／Software class と専用製品 token を確認する
 	if( categoryId == L"vfep") {
 		return (guid == SYSTEM || guid == SOFTWARE) &&
 			   containsAny( {L"VAIO", L"FIRMWAREEXTENSIONPARSER"}) ;
 	}
 
-	// Audio 系分類は許可 class と Smart Sound 系の製品 token を照合する。
+	// Audio 系分類は許可 class と Smart Sound 系の製品 token を照合する
 	if( categoryId == L"audio" || categoryId == L"audio_old" || categoryId == L"sst") {
 		return (guid == MEDIA || guid == SYSTEM || guid == SOFTWARE) &&
 			   containsAny( {L"SMARTSOUND", L"ISST"}) ;
 	}
 
-	// Noise Cancellation 分類は Media／Software class と製品 token を確認する。
+	// Noise Cancellation 分類は Media／Software class と製品 token を確認する
 	if( categoryId == L"noican") {
 		return (guid == MEDIA || guid == SOFTWARE) && containsAny( {L"NOISE", L"CANCEL"}) ;
 	}
 
-	// Dynamic Tuning 分類は System／Software class と専用 token を要求する。
+	// Dynamic Tuning 分類は System／Software class と専用 token を要求する
 	if( categoryId == L"dt") {
 		return (guid == SYSTEM || guid == SOFTWARE) &&
 			   model.find( L"DYNAMICTUNING") != std::wstring::npos ;
 	}
 
-	// Innovation Platform 分類は許可 class と専用製品 token を照合する。
+	// Innovation Platform 分類は許可 class と専用製品 token を照合する
 	if( categoryId == L"ipf") {
 		return (guid == SYSTEM || guid == SOFTWARE) &&
 			   model.find( L"INNOVATIONPLATFORM") != std::wstring::npos ;
 	}
 
-	// Touchpad 分類は Mouse／HID class と製品 token を要求する。
+	// Touchpad 分類は Mouse／HID class と製品 token を要求する
 	if( categoryId == L"touchpad") {
 		return (guid == MOUSE || guid == HID) && model.find( L"TOUCHPAD") != std::wstring::npos ;
 	}
 
-	// Chipsetは複数system deviceへ適用されるため、Hardware IDなしでは一意に解決しない。
+	// Chipsetは複数system deviceへ適用されるため、Hardware IDなしでは一意に解決しない
 	return false ;
 }
 
@@ -610,9 +611,9 @@ constexpr std::array<std::wstring_view, 17> DRIVER_CATEGORIES{
 //------------------------------------------------------------------------------
 /**
  * @brief Category IDが初期版で許可するPnP driver分類か判定する。Category IDが許可するPnP driver分類か判定する。BIOS、firmware、
- *        application、utility、serviceを除外する。
- * @param[in] categoryId VAIO公式category ID。
- * @return Driver分類allowlistに完全一致する場合は`true`。
+ *        application、utility、serviceを除外する
+ * @param[in] categoryId VAIO公式category ID
+ * @return Driver分類allowlistに完全一致する場合は`true`
  */
 //------------------------------------------------------------------------------
 bool isVaioDriverCategory( const std::wstring_view categoryId) noexcept
@@ -624,34 +625,34 @@ bool isVaioDriverCategory( const std::wstring_view categoryId) noexcept
 //------------------------------------------------------------------------------
 /**
  * @brief VAIO categoryと公式titleを一意なlocal deviceへ解決する。VAIO driver metadataを一意なlocal deviceへ解決する。Setup
- *        class、maker、model tokenだけで一意に解決し、versionと日付を適用性判定へ使用しない。
- * @param[in] categoryId 検証済みVAIO category ID。 検証済みcategory ID。
- * @param[in] officialTitle Updateとpre-installed項目を連結した公式title。 Updateとpre-installedの公式title。
- * @param[in] devices 端末内だけで保持する非機密device snapshot群。 Local device snapshot群。
+ *        class、maker、model tokenだけで一意に解決し、versionと日付を適用性判定へ使用しない
+ * @param[in] categoryId 検証済みVAIO category ID。 検証済みcategory ID
+ * @param[in] officialTitle Updateとpre-installed項目を連結した公式title。 Updateとpre-installedの公式title
+ * @param[in] devices 端末内だけで保持する非機密device snapshot群。 Local device snapshot群
  * @return 一意に適用可能なopaque device identity。0件または複数件なら`std::nullopt`。 一意なopaque identity。0件または複数件なら
- *         `std::nullopt`。
- * @note Versionと日付は照合に使用せず、Setup class、maker、device modelだけを使用する。
+ *         `std::nullopt`
+ * @note Versionと日付は照合に使用せず、Setup class、maker、device modelだけを使用する
  */
 //------------------------------------------------------------------------------
 std::optional<std::wstring> matchVaioDriverDevice(
 	const std::wstring_view categoryId, const std::wstring_view officialTitle,
 	const std::span<const OfficialCatalogDevice> devices)
 {
-	// Driver として許可しない category は local device へ対応付けない。
+	// Driver として許可しない category は local device へ対応付けない
 	if( !isVaioDriverCategory( categoryId)) {
 		return std::nullopt ;
 	}
 
-	const std::wstring title = normalizeMatchText( officialTitle) ;	// Maker照合用title key。
-	const OfficialCatalogDevice *matched{} ;						// 現在までに一致した唯一のdevice。
-	// 全present deviceからcategoryとmakerが一致する対象を探す。
+	const std::wstring			 title = normalizeMatchText( officialTitle) ;	// Maker照合用title key
+	const OfficialCatalogDevice *matched{} ;									// 現在までに一致した唯一のdevice
+	// 全present deviceからcategoryとmakerが一致する対象を探す
 	for( const OfficialCatalogDevice &device : devices) {
-		// Category と maker の条件に一致しない local device は候補から除く。
+		// Category と maker の条件に一致しない local device は候補から除く
 		if( !matchesCategory( categoryId, device) || !matchesMaker( title, device)) {
 			continue ;
 		}
 
-		// 複数 device が一致した場合は一台を推測で選ばず対応付けを拒否する。
+		// 複数 device が一致した場合は一台を推測で選ばず対応付けを拒否する
 		if( matched != nullptr) {
 			return std::nullopt ;
 		}
@@ -665,36 +666,36 @@ std::optional<std::wstring> matchVaioDriverDevice(
 //------------------------------------------------------------------------------
 /**
  * @brief Models.jsonからGlobal support対象model codeを取得する。VAIO Global model JSONを対応model集合へ変換する。全record
- *        の必須field型を検証し、Global=Yだけを重複なく返す。
- * @param[in] jsonUtf16 HTTPS上限確認済みのUTF-16 JSON。 Models.json UTF-16 text。
- * @param[out] models 成功時の重複しないmodel集合。失敗時は空にする。 Global support対象model集合。
- * @return 成功時は0、schema、型、上限、model code不正時はHRESULT bit pattern。 成功時は0、schemaまたは上限不正時はHRESULT。
+ *        の必須field型を検証し、Global=Yだけを重複なく返す
+ * @param[in] jsonUtf16 HTTPS上限確認済みのUTF-16 JSON。 Models.json UTF-16 text
+ * @param[out] models 成功時の重複しないmodel集合。失敗時は空にする。 Global support対象model集合
+ * @return 成功時は0、schema、型、上限、model code不正時はHRESULT bit pattern。 成功時は0、schemaまたは上限不正時はHRESULT
  */
 //------------------------------------------------------------------------------
 NativeError parseVaioModelCatalog( const std::wstring_view jsonUtf16, std::vector<VaioModel> &models)
 {
 	models.clear() ;
-	// 空または取得上限を超える model JSON は解析しない。
+	// 空または取得上限を超える model JSON は解析しない
 	if( jsonUtf16.empty() || jsonUtf16.size() > MAXIMUM_JSON_CHARACTERS) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
 	}
 
 	try {
 		const auto array = winrt::Windows::Data::Json::JsonArray::Parse(
-			// Model record root array。
+			// Model record root array
 			winrt::hstring( jsonUtf16)) ;
-		// Model 件数が保持上限を超える catalog を拒否する。
+		// Model 件数が保持上限を超える catalog を拒否する
 		if( array.Size() > MAXIMUM_MODELS) {
 			return nativeErrorFromWin32( ERROR_BUFFER_OVERFLOW) ;
 		}
 
-		std::unordered_set<std::wstring> unique ;	// Global model code重複検出集合。
-		// 全model recordの既知fieldを検証し、Global対象だけを保持する。
+		std::unordered_set<std::wstring> unique ;	// Global model code重複検出集合
+		// 全model recordの既知fieldを検証し、Global対象だけを保持する
 		for( const winrt::Windows::Data::Json::IJsonValue &value : array) {
-			const auto					object = value.GetObject() ;						// 現在のmodel record。
-			std::optional<std::wstring> code   = readString( object, L"ModelName", 64) ;	// Code。
-			std::optional<std::wstring> global = readString( object, L"Global", 8) ;		// Flag。
-			// 必須 model property が欠ける場合は部分一覧を破棄する。
+			const auto					object = value.GetObject() ;						// 現在のmodel record
+			std::optional<std::wstring> code   = readString( object, L"ModelName", 64) ;	// Code
+			std::optional<std::wstring> global = readString( object, L"Global", 8) ;		// Flag
+			// 必須 model property が欠ける場合は部分一覧を破棄する
 			if( !code.has_value() || !global.has_value()) {
 				models.clear() ;
 				return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
@@ -702,12 +703,12 @@ NativeError parseVaioModelCatalog( const std::wstring_view jsonUtf16, std::vecto
 
 			code   = trimAscii( *code) ;
 			global = trimAscii( *global) ;
-			// Global 対象でない明示値の model は一覧に含めない。
+			// Global 対象でない明示値の model は一覧に含めない
 			if( global->empty() || *global == L"N") {
 				continue ;
 			}
 
-			// Global flag・model code の不正と重複を含む一覧は拒否する。
+			// Global flag・model code の不正と重複を含む一覧は拒否する
 			if( *global != L"Y" || !isModelCode( *code) || !unique.insert( *code).second) {
 				models.clear() ;
 				return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
@@ -729,36 +730,36 @@ NativeError parseVaioModelCatalog( const std::wstring_view jsonUtf16, std::vecto
 //------------------------------------------------------------------------------
 /**
  * @brief 公式model集合をlocal SMBIOS表示値へ一意に照合する。VAIO公式modelをlocal SMBIOS表示値へ一意に照合する。Model code直前を英数字境界にし
- *        、code後のSKU suffixは許可する。Serial値は呼出し側から受け取らない。
- * @param[in] models 検証済みGlobal model集合。
- * @param[in] localValues SystemProductName等の端末内表示値。 SystemProductName等のlocal表示値。
- * @return 一意なmodel code。0件または曖昧な場合は`std::nullopt`。
+ *        、code後のSKU suffixは許可する。Serial値は呼出し側から受け取らない
+ * @param[in] models 検証済みGlobal model集合
+ * @param[in] localValues SystemProductName等の端末内表示値。 SystemProductName等のlocal表示値
+ * @return 一意なmodel code。0件または曖昧な場合は`std::nullopt`
  */
 //------------------------------------------------------------------------------
 std::optional<std::wstring> matchVaioModelCode( const std::span<const VaioModel>	   models,
 											   const std::span<const std::wstring> localValues)
 {
-	std::optional<std::wstring> matched ;	// 現在までに一致した一意なmodel code。
-	// 各公式codeがいずれかのlocal値で英数字境界から始まるか確認する。
+	std::optional<std::wstring> matched ;	// 現在までに一致した一意なmodel code
+	// 各公式codeがいずれかのlocal値で英数字境界から始まるか確認する
 	for( const VaioModel &model : models) {
-		bool found{} ;	// 現在model codeがlocal表示値へ一致した場合true。
-		// 各 local SMBIOS 表示値で同じ公式 model code の一致を調べる。
+		bool found{} ;	// 現在model codeがlocal表示値へ一致した場合true
+		// 各 local SMBIOS 表示値で同じ公式 model code の一致を調べる
 		for( const std::wstring &localValue : localValues) {
-			std::wstring upper = localValue ;	// ASCII大文字化するSMBIOS表示値。
+			std::wstring upper = localValue ;	// ASCII大文字化するSMBIOS表示値
 			std::transform( upper.begin(), upper.end(), upper.begin(), []( const wchar_t character) {
 				return character >= L'a' && character <= L'z'
 						   ? static_cast<wchar_t>( character - L'a' + L'A')
 						   : character ;
 			}) ;
-			std::size_t position{} ;	// Model codeの検索開始位置。
-			// 有限の表示値内で model code を探し、前方の文字境界を確認する。
+			std::size_t position{} ;	// Model codeの検索開始位置
+			// 有限の表示値内で model code を探し、前方の文字境界を確認する
 			while( (position = upper.find( model.code, position)) != std::wstring::npos) {
-				// Maker名の部分一致を別の英数字語へ誤適用しないための先頭境界。
+				// Maker名の部分一致を別の英数字語へ誤適用しないための先頭境界
 				const bool boundary =
 					position == 0 ||
 					!((upper[position - 1] >= L'A' && upper[position - 1] <= L'Z') ||
 					  (upper[position - 1] >= L'0' && upper[position - 1] <= L'9')) ;
-				// 英数字の途中でない位置に model code が見つかった場合だけ一致とする。
+				// 英数字の途中でない位置に model code が見つかった場合だけ一致とする
 				if( boundary) {
 					found = true ;
 					break ;
@@ -767,18 +768,18 @@ std::optional<std::wstring> matchVaioModelCode( const std::span<const VaioModel>
 				position += model.code.size() ;
 			}
 
-			// 一つの local 表示値で一致した model は残り表示値の探索を省く。
+			// 一つの local 表示値で一致した model は残り表示値の探索を省く
 			if( found) {
 				break ;
 			}
 		}
 
-		// Local 表示値に一致しなかった公式 model は選択しない。
+		// Local 表示値に一致しなかった公式 model は選択しない
 		if( !found) {
 			continue ;
 		}
 
-		// 異なる公式 model が複数一致した場合は一意に解決できないため拒否する。
+		// 異なる公式 model が複数一致した場合は一意に解決できないため拒否する
 		if( matched.has_value() && *matched != model.code) {
 			return std::nullopt ;
 		}
@@ -792,54 +793,54 @@ std::optional<std::wstring> matchVaioModelCode( const std::span<const VaioModel>
 //------------------------------------------------------------------------------
 /**
  * @brief preinstDriversGlobal.jsonからmodelとcategoryの対応を取得する。VAIO pre-installed JSONをmodel／category対応
- *        へ変換する。NAの有無にかかわらずTable 1のmodel／category正本を保持する。
- * @param[in] jsonUtf16 HTTPS上限確認済みのUTF-16 JSON。 preinstDriversGlobal.json UTF-16 text。
- * @param[out] drivers 成功時のpre-installed項目群。失敗時は空にする。 検証済みpre-installed項目群。
- * @return 成功時は0、schema、型、上限、識別子不正時はHRESULT bit pattern。 成功時は0、schemaまたは上限不正時はHRESULT。
+ *        へ変換する。NAの有無にかかわらずTable 1のmodel／category正本を保持する
+ * @param[in] jsonUtf16 HTTPS上限確認済みのUTF-16 JSON。 preinstDriversGlobal.json UTF-16 text
+ * @param[out] drivers 成功時のpre-installed項目群。失敗時は空にする。 検証済みpre-installed項目群
+ * @return 成功時は0、schema、型、上限、識別子不正時はHRESULT bit pattern。 成功時は0、schemaまたは上限不正時はHRESULT
  */
 //------------------------------------------------------------------------------
 NativeError parseVaioPreinstalledCatalog( const std::wstring_view			  jsonUtf16,
 										 std::vector<VaioPreinstalledDriver> &drivers)
 {
 	drivers.clear() ;
-	// 空または取得上限を超える pre-installed JSON を拒否する。
+	// 空または取得上限を超える pre-installed JSON を拒否する
 	if( jsonUtf16.empty() || jsonUtf16.size() > MAXIMUM_JSON_CHARACTERS) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
 	}
 
 	try {
 		const auto array = winrt::Windows::Data::Json::JsonArray::Parse(
-			// Pre-installed record root array。
+			// Pre-installed record root array
 			winrt::hstring( jsonUtf16)) ;
-		// Pre-installed driver 件数が保持上限を超える場合は解析を中止する。
+		// Pre-installed driver 件数が保持上限を超える場合は解析を中止する
 		if( array.Size() > MAXIMUM_PREINSTALLED_DRIVERS) {
 			return nativeErrorFromWin32( ERROR_BUFFER_OVERFLOW) ;
 		}
 
-		// 全recordのschemaを検証し、modelとcategoryの対応を保持する。
+		// 全recordのschemaを検証し、modelとcategoryの対応を保持する
 		for( const winrt::Windows::Data::Json::IJsonValue &value : array) {
-			const auto object = value.GetObject() ;	// 現在のpre-installed record。
+			const auto object = value.GetObject() ;	// 現在のpre-installed record
 			const std::optional<std::wstring> modelText =
-				// Model集合。
+				// Model集合
 				readString( object, L"ModelName", MAXIMUM_DISPLAY_CHARACTERS) ;
-			std::optional<std::wstring> table = readString( object, L"Table-No", 8) ;	// Table。
+			std::optional<std::wstring> table = readString( object, L"Table-No", 8) ;	// Table
 			std::optional<std::wstring> category =
-				// Category ID。
+				// Category ID
 				readString( object, L"CategoryID", 32) ;
 			const std::optional<std::wstring> titleRaw =
-				// 名称。
+				// 名称
 				readString( object, L"ProgramName", MAXIMUM_DISPLAY_CHARACTERS) ;
-			// Model・table・category・title の必須値がない場合は一覧を破棄する。
+			// Model・table・category・title の必須値がない場合は一覧を破棄する
 			if( !modelText.has_value() || !table.has_value() || !category.has_value() ||
 			   !titleRaw.has_value()) {
 				drivers.clear() ;
 				return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
 			}
 
-			std::vector<std::wstring> models ;	// 検証済みmodel code集合。
+			std::vector<std::wstring> models ;	// 検証済みmodel code集合
 			table	 = trimAscii( *table) ;
 			category = trimAscii( *category) ;
-			// Model 集合、category 形式、許可 table 番号の条件を全て確認する。
+			// Model 集合、category 形式、許可 table 番号の条件を全て確認する
 			if( !splitTokens( *modelText, true, models) ||
 			   (!category->empty() && !isCategoryId( *category)) ||
 			   (*table != L"1" && *table != L"2")) {
@@ -847,13 +848,13 @@ NativeError parseVaioPreinstalledCatalog( const std::wstring_view			  jsonUtf16,
 				return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
 			}
 
-			// Table 2、空category、非driver categoryはUI用項目であり候補照合から除外する。
+			// Table 2、空category、非driver categoryはUI用項目であり候補照合から除外する
 			if( *table != L"1" || category->empty() || !isVaioDriverCategory( *category)) {
 				continue ;
 			}
 
-			const std::optional<std::wstring> title = sanitizeTitle( *titleRaw) ;	// Plain名称。
-			// Title の許可表記への変換に失敗した場合は部分一覧を残さない。
+			const std::optional<std::wstring> title = sanitizeTitle( *titleRaw) ;	// Plain名称
+			// Title の許可表記への変換に失敗した場合は部分一覧を残さない
 			if( !title.has_value()) {
 				drivers.clear() ;
 				return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
@@ -878,60 +879,60 @@ NativeError parseVaioPreinstalledCatalog( const std::wstring_view			  jsonUtf16,
 //------------------------------------------------------------------------------
 /**
  * @brief UpdateListGlobal.jsonからinstall可能なdriver updateだけを取得する。VAIO update JSONをdriver release群へ変換す
- *        る。無効または非driver recordを除外し、driver metadataの欠損はcatalog全体を拒否する。
- * @param[in] jsonUtf16 HTTPS上限確認済みのUTF-16 JSON。 UpdateListGlobal.json UTF-16 text。
- * @param[out] releases 成功時のdriver release群。失敗時は空にする。 Install可能なdriver release群。
+ *        る。無効または非driver recordを除外し、driver metadataの欠損はcatalog全体を拒否する
+ * @param[in] jsonUtf16 HTTPS上限確認済みのUTF-16 JSON。 UpdateListGlobal.json UTF-16 text
+ * @param[out] releases 成功時のdriver release群。失敗時は空にする。 Install可能なdriver release群
  * @return 成功時は0、schema、型、URL、size、hash不正時はHRESULT bit pattern。 成功時は0、schema、URL、size、hash不正時は
- *         HRESULT。
- * @note 既知の非driver category、無効項目、payload欠損項目は正常に除外する。
+ *         HRESULT
+ * @note 既知の非driver category、無効項目、payload欠損項目は正常に除外する
  */
 //------------------------------------------------------------------------------
 NativeError parseVaioUpdateCatalog( const std::wstring_view		   jsonUtf16,
 								   std::vector<VaioDriverRelease> &releases)
 {
 	releases.clear() ;
-	// 空または取得上限を超える update JSON を拒否する。
+	// 空または取得上限を超える update JSON を拒否する
 	if( jsonUtf16.empty() || jsonUtf16.size() > MAXIMUM_JSON_CHARACTERS) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
 	}
 
 	try {
 		const auto array = winrt::Windows::Data::Json::JsonArray::Parse(
-			// Update record root array。
+			// Update record root array
 			winrt::hstring( jsonUtf16)) ;
-		// Update 件数が保持上限を超える catalog を拒否する。
+		// Update 件数が保持上限を超える catalog を拒否する
 		if( array.Size() > MAXIMUM_UPDATES) {
 			return nativeErrorFromWin32( ERROR_BUFFER_OVERFLOW) ;
 		}
 
-		std::unordered_set<std::wstring> identities ;	// Software ID/hash矛盾検出集合。
-		// 全recordのschemaを検証し、有効なdriver categoryだけを保持する。
+		std::unordered_set<std::wstring> identities ;	// Software ID/hash矛盾検出集合
+		// 全recordのschemaを検証し、有効なdriver categoryだけを保持する
 		for( const winrt::Windows::Data::Json::IJsonValue &value : array) {
-			const auto					object = value.GetObject() ;	// 現在のupdate record。
+			const auto					object = value.GetObject() ;	// 現在のupdate record
 			std::optional<std::wstring> category =
-				// Category ID。
+				// Category ID
 				readString( object, L"CategoryID", 32) ;
 			const std::optional<std::wstring> titleRaw =
-				// 名称。
+				// 名称
 				readString( object, L"ProgramName", MAXIMUM_DISPLAY_CHARACTERS) ;
-			std::optional<std::wstring> version = readString( object, L"Version", 128) ;	// 版。
-			std::optional<std::wstring> date	= readString( object, L"Date", 16) ;		// 公開日。
+			std::optional<std::wstring> version = readString( object, L"Version", 128) ;	// 版
+			std::optional<std::wstring> date	= readString( object, L"Date", 16) ;		// 公開日
 			std::optional<std::wstring> softwareId =
-				// Software ID。
+				// Software ID
 				readString( object, L"SoftwareID", 32) ;
-			std::optional<std::wstring> sizeText = readString( object, L"FileSize", 32) ;	// Size。
-			std::optional<std::wstring> sha256	 = readString( object, L"SHA256", 128) ;	// Hash。
+			std::optional<std::wstring> sizeText = readString( object, L"FileSize", 32) ;	// Size
+			std::optional<std::wstring> sha256	 = readString( object, L"SHA256", 128) ;	// Hash
 			const std::optional<std::wstring> modelText =
-				// Models。
+				// Models
 				readString( object, L"ApplicableModel", MAXIMUM_DISPLAY_CHARACTERS) ;
 			const std::optional<std::wstring> osText =
-				// OS集合。
+				// OS集合
 				readString( object, L"ApplicableOS", 128) ;
-			std::optional<std::wstring> na = readString( object, L"NA", 8) ;	// 無効flag。
+			std::optional<std::wstring> na = readString( object, L"NA", 8) ;	// 無効flag
 			std::optional<std::wstring> url =
-				// URL。
+				// URL
 				readString( object, L"DownloadReferenceUrl", MAXIMUM_URL_CHARACTERS) ;
-			// 配布情報の必須 property が一つでも欠ける場合は release 集合を破棄する。
+			// 配布情報の必須 property が一つでも欠ける場合は release 集合を破棄する
 			if( !category.has_value() || !titleRaw.has_value() || !version.has_value() ||
 			   !date.has_value() || !softwareId.has_value() || !sizeText.has_value() ||
 			   !sha256.has_value() || !modelText.has_value() || !osText.has_value() ||
@@ -948,22 +949,22 @@ NativeError parseVaioUpdateCatalog( const std::wstring_view		   jsonUtf16,
 			sha256									= trimAscii( *sha256) ;
 			na										= trimAscii( *na) ;
 			url										= trimAscii( *url) ;
-			const std::optional<std::wstring> title = sanitizeTitle( *titleRaw) ;	// Plain名称。
-			// Category または title 表記が不正な配布情報を拒否する。
+			const std::optional<std::wstring> title = sanitizeTitle( *titleRaw) ;	// Plain名称
+			// Category または title 表記が不正な配布情報を拒否する
 			if( !isCategoryId( *category) || !title.has_value()) {
 				releases.clear() ;
 				return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
 			}
 
-			// 対象外の明示値がある項目と driver 以外の category は候補にしない。
+			// 対象外の明示値がある項目と driver 以外の category は候補にしない
 			if( !na->empty() || !isVaioDriverCategory( *category)) {
 				continue ;
 			}
 
-			std::vector<std::wstring>		   models ;							// 適用model code集合。
-			std::vector<std::wstring>		   osNames ;						// 適用OS token集合。
-			const std::optional<std::uint64_t> size = parseSize( *sizeText) ;	// Payload size。
-			// 版・日付・ID・hash・size・model・OS・URL の必須形式を全て確認する。
+			std::vector<std::wstring>		   models ;							// 適用model code集合
+			std::vector<std::wstring>		   osNames ;						// 適用OS token集合
+			const std::optional<std::uint64_t> size = parseSize( *sizeText) ;	// Payload size
+			// 版・日付・ID・hash・size・model・OS・URL の必須形式を全て確認する
 			if( version->empty() || !isReleaseDate( *date) || !isSoftwareId( *softwareId) ||
 			   !isSha256( *sha256) || !size.has_value() || !splitTokens( *modelText, true, models) ||
 			   !splitTokens( *osText, false, osNames) || !isPayloadUrl( *url, *softwareId)) {
@@ -977,8 +978,8 @@ NativeError parseVaioUpdateCatalog( const std::wstring_view		   jsonUtf16,
 										  ? static_cast<wchar_t>( character - L'A' + L'a')
 										  : character ;
 						   }) ;
-			const std::wstring identity = *softwareId + L":" + *sha256 ;	// Metadata一意key。
-			// 同じ release identity の重複を検出した場合は曖昧な一覧を破棄する。
+			const std::wstring identity = *softwareId + L":" + *sha256 ;	// Metadata一意key
+			// 同じ release identity の重複を検出した場合は曖昧な一覧を破棄する
 			if( !identities.insert( identity).second) {
 				releases.clear() ;
 				return nativeErrorFromWin32( ERROR_DUPLICATE_TAG) ;

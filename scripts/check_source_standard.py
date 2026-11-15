@@ -9,7 +9,7 @@ from pathlib import Path
 from audit_source_comments import case_nodes, control_nodes
 from audit_source_declarations import local_declaration_nodes
 from source_structure import brace_insertions
-from source_style import read_source, source_paths
+from source_style import read_source, source_paths, terminal_comment_period_positions
 from source_method_contracts import method_contract_nodes
 
 
@@ -17,8 +17,8 @@ COPYRIGHT_LINE = '@copyright Copyright (c) 2026 EnterSystem CO.,LTD.'
 LICENSE_SECTION_LINES = (
     '@par ライセンス',
     'SPDX-License-Identifier: Apache-2.0',
-    '本ファイルには Apache License, Version 2.0 が適用されます。',
-    'ライセンス全文はプロジェクトルートの LICENSE を参照してください。',
+    '本ファイルには Apache License, Version 2.0 が適用されます',
+    'ライセンス全文はプロジェクトルートの LICENSE を参照してください',
     'https://www.apache.org/licenses/LICENSE-2.0',
 )
 FILE_VERSION_PATTERN = re.compile(r'^\d{2}\.\d{2}\.\d{2}$')
@@ -110,6 +110,8 @@ def file_metadata_errors(source: str, path: Path, _product_version: str | None =
             errors.append('current history must contain at least one Ver.XX.YY.ZZ row')
         else:
             versions = [row['version'] for row in rows]
+            if rows[0]['reason'] != '新規作成':
+                errors.append('first current history comment must be 新規作成')
             if any(row['author'] != 'Shunji Ogawa' for row in rows):
                 errors.append('current history author must be Shunji Ogawa')
             if len(set(versions)) != len(versions):
@@ -143,6 +145,9 @@ def main() -> int:
         if raw.startswith(b'\xef\xbb\xbf') or b'\r' in raw:
             errors.append(relative + ': UTF-8 without BOM and LF are required')
         errors.extend(relative + ': ' + error for error in file_metadata_errors(source, path))
+        errors.extend(f'{relative}:{source.count(chr(10), 0, position) + 1}: '
+                      'terminal Japanese comment period is not allowed'
+                      for position in terminal_comment_period_positions(source))
         counts['files'] += 1
         if path.suffix in {'.rc', '.in'}:
             continue

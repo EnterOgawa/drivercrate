@@ -103,6 +103,39 @@ class SourceClosureTests(unittest.TestCase):
             directory.rmdir()
         self.assertFalse(self.root.exists())
 
+    def test_known_off_producer_and_consumer_else(self):
+        """ネストしたOFF producerだけを除き、elseのconsumer入力を保つ。"""
+        source = "if(DRIVERCRATE_BUILD_LIVE_TESTS)\nif(INNER)\nadd_library(p src/private.cpp)\nendif()\nelse()\nadd_library(c src/a.cpp)\nendif()\n"
+        edges = closure.references("CMakeLists.txt", source, set(self.manifest["files"]), {})
+        self.assertEqual(edges, [("src/a.cpp", "cmake-input")])
+        original_public_guard = "if(DRIVERCRATE_BUILD_COLLECTOR OR DRIVERCRATE_BUILD_LOCAL_INDEX_SIGNER OR DRIVERCRATE_BUILD_LIVE_TESTS)\nmessage(FATAL_ERROR \"consumer only\")\nendif()\n"
+        self.assertEqual(closure.consumer_cmake_text(original_public_guard), "")
+
+    def test_consumer_guard_rejects_unknown_branches_and_unbalanced(self):
+        """未知guard/elseif/崩れたnestをOFFと仮定しない。"""
+        for source in ["if(DRIVERCRATE_BUILD_LIVE_TESTS AND UNKNOWN)\nendif()\n",
+                       "if(DRIVERCRATE_BUILD_LIVE_TESTS)\nelseif(UNKNOWN)\nendif()\n",
+                       "if(DRIVERCRATE_BUILD_LIVE_TESTS)\n", "endif()\n"]:
+            with self.subTest(source=source):
+                with self.assertRaises(closure.ClosureError):
+                    closure.consumer_cmake_text(source)
+
+    def test_producer_defaults_must_be_off(self):
+        """明示ONやoption欠落でproducer依存を消せない。"""
+        flags = sorted(closure.PRODUCER_FLAGS)
+        source = "\n".join('option(' + flag + ' "fixture" OFF)' for flag in flags)
+        closure.validate_consumer_defaults({"CMakeLists.txt": source})
+        for changed in [source.replace("OFF", "ON", 1), source + "\nset(" + flags[0] + " OFF)",
+                        "if(DRIVERCRATE_BUILD_LIVE_TESTS)\nendif()"]:
+            with self.subTest(source=changed):
+                with self.assertRaisesRegex(closure.ClosureError, "PRODUCER_OPTION_NOT_EXPLICIT_OFF"):
+                    closure.validate_consumer_defaults({"CMakeLists.txt": changed})
+
+    def test_consumer_header_missing_still_rejected(self):
+        """producer条件除外で本来のconsumer include欠落を隠せない。"""
+        self.put("src/a.cpp", '#include "missing.h"\n')
+        self.reject("MISSING_LOCAL_INCLUDE")
+
     def test_positive_without_work(self):
         """workのない所有fixtureを読み、importとresourceを含む静的閉包の成功区分を確認する。"""
         self.assertFalse((self.root / "work").exists())
@@ -223,6 +256,15 @@ class SourceClosureTests(unittest.TestCase):
         """reの対象文字列に置かれた実私有pathをpattern除外へ巻き込まない。"""
         self.put("scripts/entry.py", 'import re\nre.fullmatch(".*", "data/collector-registry/manual-index-records.json")\n')
         self.reject("EXCLUDED_DEPENDENCY")
+
+    def test_pending_reference_mirror_remains_private(self):
+        """台帳/evidence mirrorを大小文字や読み込み形態で公開候補へ混入させない。"""
+        for name in ["data/collector-pending-references/ledger.json",
+                     "data/collector-pending-references/evidence/baseline-registry.json",
+                     "DATA/Collector-Pending-References/expected-trust.json"]:
+            with self.subTest(path=name):
+                with self.assertRaisesRegex(closure.ClosureError, "PRIVATE_COLLECTOR_DEFINITION"):
+                    closure.relative_name(name)
 
     def test_private_file_input_and_manifest_remain_rejected(self):
         """通常file入力と直接manifest登録を独立に拒否し、式判定でguardを緩めない。"""

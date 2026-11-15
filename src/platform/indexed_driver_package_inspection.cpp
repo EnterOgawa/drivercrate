@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file indexed_driver_package_inspection.cpp
- * @brief 索引hintから通常共通検査への非導入結合を実装する。
- * @version 01.03.01
+ * @brief 索引hintから通常共通検査への非導入結合を実装する
+ * @version 01.03.02
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,15 +19,16 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/05  実identityと通常policyの再検査を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
- * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
- * Ver.01.03.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
- * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/05  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続
+ * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続
+ * Ver.01.03.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続
+ * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.03.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
  *
  * @note File検査は既存共通層へ委譲する。全体失敗時は部分閉包を保持せず、外部取得・
- *       installer実行・staging・Windows設定変更は行わない。
+ *       installer実行・staging・Windows設定変更は行わない
  */
 //------------------------------------------------------------------------------
 
@@ -48,25 +49,25 @@ namespace drivercrate {
 namespace {
 
 constexpr std::uint64_t MAXIMUM_ARCHIVE_BYTES =
-	2ULL * 1024ULL * 1024ULL * 1024ULL ;	// 通常共通層と同じ入力上限。
+	2ULL * 1024ULL * 1024ULL * 1024ULL ;	// 通常共通層と同じ入力上限
 
 //------------------------------------------------------------------------------
 /**
- * @brief 小文字64桁の非秘密hash参照だけを受理する。
- * @param[in] value 索引・record・archiveの識別hash。
- * @return 全桁がASCII小文字hexならtrue。
+ * @brief 小文字64桁の非秘密hash参照だけを受理する
+ * @param[in] value 索引・record・archiveの識別hash
+ * @return 全桁がASCII小文字hexならtrue
  */
 //------------------------------------------------------------------------------
 bool isLowerHash( const std::wstring_view value) noexcept
 {
-	// 短縮・欠損hashを完全なidentityとして使わない。
+	// 短縮・欠損hashを完全なidentityとして使わない
 	if( value.size() != 64U) {
 		return false ;
 	}
 
-	// 文字列を正規化して別の索引参照を作らない。
+	// 文字列を正規化して別の索引参照を作らない
 	for( const wchar_t character : value) {
-		// ASCII hex以外をschemaへ混入させない。
+		// ASCII hex以外をschemaへ混入させない
 		if( !((character >= L'0' && character <= L'9') ||
 			 (character >= L'a' && character <= L'f'))) {
 			return false ;
@@ -78,10 +79,10 @@ bool isLowerHash( const std::wstring_view value) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 内部入力へnetwork・device path・ADSを混入させない。
- * @param[in] path 既存workspaceが所有するlocal drive上の絶対path。
- * @return Drive絶対構文と有限長を満たす場合true。
- * @note 保護store所有権の検証は呼出し側の既存取得／copy層が担当する。
+ * @brief 内部入力へnetwork・device path・ADSを混入させない
+ * @param[in] path 既存workspaceが所有するlocal drive上の絶対path
+ * @return Drive絶対構文と有限長を満たす場合true
+ * @note 保護store所有権の検証は呼出し側の既存取得／copy層が担当する
  */
 //------------------------------------------------------------------------------
 bool isLocalInputPath( const std::wstring_view path) noexcept
@@ -94,11 +95,11 @@ bool isLocalInputPath( const std::wstring_view path) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全体失敗時の部分閉包を破棄し、入力結合の到達事実だけを残す。
- * @param[in,out] result 所有する通常検査結果を失う出力。
- * @param[in] state 失敗・取消しの終端段階。
- * @param[in] error 0ではない元HRESULT。
- * @return 入力の元HRESULT。
+ * @brief 全体失敗時の部分閉包を破棄し、入力結合の到達事実だけを残す
+ * @param[in,out] result 所有する通常検査結果を失う出力
+ * @param[in] state 失敗・取消しの終端段階
+ * @param[in] error 0ではない元HRESULT
+ * @return 入力の元HRESULT
  */
 //------------------------------------------------------------------------------
 NativeError fail( IndexedDriverPackageInspection &result, const IndexedDriverInspectionState state,
@@ -114,13 +115,13 @@ NativeError fail( IndexedDriverPackageInspection &result, const IndexedDriverIns
 
 //------------------------------------------------------------------------------
 /**
- * @brief 索引hintと固定済み入力の有限identityだけを非I/Oで照合する。
- * @param[in] activeScanSessionId 現在の0ではないworker scan session。
- * @param[in] hint 呼出し側が選択した期待値。全hashは小文字64桁。
- * @param[in] input 既存保護copyまたは共通取得層が固定したarchive。
- * @param[in] format ZIP、CABINETまたは非実行SEVEN_ZIP_SFX。実行形式の推測は行わない。
- * @return Session・hash・size・local path構文・形式が一致する場合true。
- * @note 実byte、索引本文・署名、公式取得根拠や許可の検査を代替しない。
+ * @brief 索引hintと固定済み入力の有限identityだけを非I/Oで照合する
+ * @param[in] activeScanSessionId 現在の0ではないworker scan session
+ * @param[in] hint 呼出し側が選択した期待値。全hashは小文字64桁
+ * @param[in] input 既存保護copyまたは共通取得層が固定したarchive
+ * @param[in] format ZIP、CABINETまたは非実行SEVEN_ZIP_SFX。実行形式の推測は行わない
+ * @return Session・hash・size・local path構文・形式が一致する場合true
+ * @note 実byte、索引本文・署名、公式取得根拠や許可の検査を代替しない
  */
 //------------------------------------------------------------------------------
 bool matchesIndexedDriverArchiveHint( const ScanSessionId			   activeScanSessionId,
@@ -129,7 +130,7 @@ bool matchesIndexedDriverArchiveHint( const ScanSessionId			   activeScanSession
 									 const OfficialDriverArchiveFormat format) noexcept
 {
 	const bool resource =
-		// 元形式の閉じた選択。
+		// 元形式の閉じた選択
 		format == OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER ;
 	const bool planBound =
 		resource
@@ -140,7 +141,7 @@ bool matchesIndexedDriverArchiveHint( const ScanSessionId			   activeScanSession
 				  hint.resourceContent->rootSha256 == hint.archiveSha256 &&
 				  hint.selectedInfs.size() == 1U && hint.selectedInfs[0].nestedArchive.empty() &&
 				  hint.selectedInfs[0].infIdentity == hint.resourceContent->selectedInf
-			: !hint.resourceContent && !input.resourceContent ;	// 別形式への計画流用を拒否。
+			: !hint.resourceContent && !input.resourceContent ;	// 別形式への計画流用を拒否
 	return planBound && activeScanSessionId != 0 && input.scanSessionId == activeScanSessionId &&
 		   hint.selectedInfs.size() <= 128U &&
 		   std::ranges::all_of(
@@ -162,16 +163,16 @@ bool matchesIndexedDriverArchiveHint( const ScanSessionId			   activeScanSession
 
 //------------------------------------------------------------------------------
 /**
- * @brief 索引の期待値と実fileを再照合し、通常の共通内容・署名検査へ接続する。
- * @param[in] activeScanSessionId 現在のworker scan session。
- * @param[in] hint 呼出し側が選択した元取得archiveの期待identity。
- * @param[in] input 呼出し中に変更しない、既存の保護archive入力。
- * @param[in] format ZIP、CABINETまたは非実行SEVEN_ZIP_SFX。未対応形式は拒否する。
- * @param[out] result 全体完了時だけ通常検査結果を保持する。失敗時は段階・診断だけ。
- * @param[in] cancellation 空またはworker内の非blocking取消し照会。
- * @return 通常検査完了時0。それ以外は元HRESULT。0件内容合格も完了に含む。
- * @pre Inputの保護workspaceは全呼出し中有効であり、入力はresultとaliasしない。
- * @note Blockingする。通常policyを維持し、保守根拠・grant・Windows適合・導入へ昇格しない。
+ * @brief 索引の期待値と実fileを再照合し、通常の共通内容・署名検査へ接続する
+ * @param[in] activeScanSessionId 現在のworker scan session
+ * @param[in] hint 呼出し側が選択した元取得archiveの期待identity
+ * @param[in] input 呼出し中に変更しない、既存の保護archive入力
+ * @param[in] format ZIP、CABINETまたは非実行SEVEN_ZIP_SFX。未対応形式は拒否する
+ * @param[out] result 全体完了時だけ通常検査結果を保持する。失敗時は段階・診断だけ
+ * @param[in] cancellation 空またはworker内の非blocking取消し照会
+ * @return 通常検査完了時0。それ以外は元HRESULT。0件内容合格も完了に含む
+ * @pre Inputの保護workspaceは全呼出し中有効であり、入力はresultとaliasしない
+ * @note Blockingする。通常policyを維持し、保守根拠・grant・Windows適合・導入へ昇格しない
  */
 //------------------------------------------------------------------------------
 NativeError inspectIndexedDriverPackage( const ScanSessionId				  activeScanSessionId,
@@ -182,37 +183,37 @@ NativeError inspectIndexedDriverPackage( const ScanSessionId				  activeScanSess
 										const std::function<bool()>		 &cancellation)
 {
 	result = {} ;
-	// 不一致hintではfile I/Oや取消しcallbackを開始しない。
+	// 不一致hintではfile I/Oや取消しcallbackを開始しない
 	if( !matchesIndexedDriverArchiveHint( activeScanSessionId, hint, input, format)) {
 		return fail( result, IndexedDriverInspectionState::INPUT_REJECTED,
 					static_cast<NativeError>( E_INVALIDARG)) ;
 	}
 
 	try {
-		// 事前取消しでは署名検査やfile I/Oを開始しない。
+		// 事前取消しでは署名検査やfile I/Oを開始しない
 		if( cancellation && cancellation()) {
 			return fail( result, IndexedDriverInspectionState::CANCELLED,
 						static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))) ;
 		}
 
 		const NativeError identityError = verifyOfficialFileMetadata(
-			input.inspectionPath, {hint.archiveBytes, hint.archiveSha256}) ;	// 実byteの共通再照合。
-		// 呼出し側の文字列一致だけを実入力検査の成功としない。
+			input.inspectionPath, {hint.archiveBytes, hint.archiveSha256}) ;	// 実byteの共通再照合
+		// 呼出し側の文字列一致だけを実入力検査の成功としない
 		if( identityError != 0) {
 			return fail( result, IndexedDriverInspectionState::INPUT_REJECTED, identityError) ;
 		}
 
 		result.inputBound = true ;
-		CommonDriverPackageInspection inspection ;			// 通常の全体・個別結果を一時所有する。
-		NativeError					  inspectionError{} ;	// 選択集合の最初の全体拒否を保持します。
-		// 元selectorのない従来hintだけは全INFを検査します。
+		CommonDriverPackageInspection inspection ;			// 通常の全体・個別結果を一時所有する
+		NativeError					  inspectionError{} ;	// 選択集合の最初の全体拒否を保持します
+		// 元selectorのない従来hintだけは全INFを検査します
 		if( hint.selectedInfs.empty()) {
 			inspectionError = inspectCommonDriverPackage( input, format, inspection, cancellation) ;
 		} else {
 			std::vector<std::pair<std::wstring_view, std::wstring_view>>
-				selected ;	// 元署名recordの集合だけです。
+				selected ;	// 元署名recordの集合だけです
 			selected.reserve( hint.selectedInfs.size()) ;
-			// arbitrary UI/pathではなく同じhintへ結ばれた元選択だけを渡します。
+			// arbitrary UI/pathではなく同じhintへ結ばれた元選択だけを渡します
 			for( const auto &selector : hint.selectedInfs) {
 				selected.emplace_back( selector.nestedArchive, selector.infIdentity) ;
 			}
@@ -221,7 +222,7 @@ NativeError inspectIndexedDriverPackage( const ScanSessionId				  activeScanSess
 																  inspection, cancellation) ;
 		}
 
-		// 全体失敗では一部の内容合格を外へ持ち出さない。
+		// 全体失敗では一部の内容合格を外へ持ち出さない
 		if( inspectionError != 0) {
 			return fail( result,
 						inspectionError ==
@@ -231,36 +232,35 @@ NativeError inspectIndexedDriverPackage( const ScanSessionId				  activeScanSess
 						inspectionError) ;
 		}
 
-		// 合格閉包は同一通常policyで直前再検査する。個別拒否は保持する。
+		// 合格閉包は同一通常policyで直前再検査する。個別拒否は保持する
 		for( const CommonInfInspection &inf : inspection.infs) {
-			// 拒否済みINFを成功扱いで再検査へ渡さない。
+			// 拒否済みINFを成功扱いで再検査へ渡さない
 			if( inf.state != CommonInfInspectionState::VERIFIED) {
 				continue ;
 			}
 
-			// 各署名API前の取消しも全体結果へ反映する。
+			// 各署名API前の取消しも全体結果へ反映する
 			if( cancellation && cancellation()) {
 				return fail( result, IndexedDriverInspectionState::CANCELLED,
 							static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))) ;
 			}
 
-			const NativeError error = reverifyCommonDriverInf( inf) ;	// 旧内容合格を再利用しない。
-			// 参照や署名の変更は検査結果全体を失効させる。
+			const NativeError error = reverifyCommonDriverInf( inf) ;	// 旧内容合格を再利用しない
+			// 参照や署名の変更は検査結果全体を失効させる
 			if( error != 0) {
 				return fail( result, IndexedDriverInspectionState::INSPECTION_FAILED, error) ;
 			}
 		}
 
-		// 最後の同期検査中に届いた取消しを取りこぼさない。
+		// 最後の同期検査中に届いた取消しを取りこぼさない
 		if( cancellation && cancellation()) {
 			return fail( result, IndexedDriverInspectionState::CANCELLED,
 						static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))) ;
 		}
 
 		const NativeError finalError = verifyOfficialFileMetadata(
-			input.inspectionPath,
-			{hint.archiveBytes, hint.archiveSha256}) ;	// 公開直前の原入力照合。
-		// 再検査の間に原入力が変わった場合は部分結果を破棄する。
+			input.inspectionPath, {hint.archiveBytes, hint.archiveSha256}) ;	// 公開直前の原入力照合
+		// 再検査の間に原入力が変わった場合は部分結果を破棄する
 		if( finalError != 0) {
 			return fail( result, IndexedDriverInspectionState::INSPECTION_FAILED, finalError) ;
 		}
@@ -275,7 +275,7 @@ NativeError inspectIndexedDriverPackage( const ScanSessionId				  activeScanSess
 		return fail( result, IndexedDriverInspectionState::INSPECTION_FAILED,
 					static_cast<NativeError>( E_INVALIDARG)) ;
 	} catch( ...) {
-		// 外部callback例外をworker外へ漏らさず、部分結果も残さない。
+		// 外部callback例外をworker外へ漏らさず、部分結果も残さない
 		return fail( result, IndexedDriverInspectionState::INSPECTION_FAILED,
 					static_cast<NativeError>( E_UNEXPECTED)) ;
 	}

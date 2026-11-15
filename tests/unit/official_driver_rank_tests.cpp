@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_driver_rank_tests.cpp
- * @brief 公式driver rank監査単体試験実装。
- * @version 01.01.01
+ * @brief 公式driver rank監査単体試験実装
+ * @version 01.01.03
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,19 +19,21 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
- * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成。
- * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一。
+ * Ver.0.1.0    Shunji Ogawa  2026/09/04  新規作成
+ * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/09/11  独立ファイル版と改訂コメント規約へ移行。
- * Ver.01.01.00 Shunji Ogawa  2026/10/13  Class未確定初回と独立INF/native GUIDの固定受入を追加。
- * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/10/13  Class未確定初回と独立INF/native GUIDの固定受入を追加
+ * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.03 Shunji Ogawa  2026/11/13  bounded opaque PnP IDのrank照合と限定回帰を接続
  * </pre>
  *
- * @note 架空PnP IDとrankを使用し、実deviceまたはSetupAPIへ依存しません。
+ * @note 架空PnP IDとrankを使用し、実deviceまたはSetupAPIへ依存しません
  */
 //------------------------------------------------------------------------------
 
@@ -52,43 +54,43 @@ namespace drivercrate::test {
 namespace {
 
 //------------------------------------------------------------------------------
-// 試験data定義。
+// 試験data定義
 //------------------------------------------------------------------------------
 
 /**
- * @brief 一つのrank判定条件を変更可能な架空evidenceとして保持する。
+ * @brief 一つのrank判定条件を変更可能な架空evidenceとして保持する
  */
 struct RankFixture {
-	/// 現在deviceのsetup class。
+	/// 現在deviceのsetup class
 	std::wstring				 deviceClass{L"Net"} ;
-	/// Candidate INFのsetup class。
+	/// Candidate INFのsetup class
 	std::wstring				 candidateClass{L"Net"} ;
-	/// Device Hardware ID群。
+	/// Device Hardware ID群
 	std::vector<std::wstring>	 hardwareIds{L"PCI\\VEN_1234&DEV_5678"} ;
-	/// Device Compatible ID群。
+	/// Device Compatible ID群
 	std::vector<std::wstring>	 compatibleIds{L"PCI\\VEN_1234"} ;
-	/// INFのPnP ID群。
+	/// INFのPnP ID群
 	std::vector<std::wstring>	 candidateIds{L"PCI\\VEN_1234&DEV_5678"} ;
-	/// 現在driverの一致ID。
+	/// 現在driverの一致ID
 	std::wstring				 currentMatchingId{L"PCI\\VEN_1234&DEV_5678"} ;
-	/// 現在driverのrank。
+	/// 現在driverのrank
 	std::optional<std::uint32_t> currentRank{0x00ff1000U} ;
-	/// 候補rank。
+	/// 候補rank
 	std::optional<std::uint32_t> candidateRank{0x00ff1000U} ;
 } ;
 
 //------------------------------------------------------------------------------
-// 内部関数定義。
+// 内部関数定義
 //------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------
 /**
- * @brief 試験fixtureをlifetime付きrank evidenceへ変換する。
+ * @brief 試験fixtureをlifetime付きrank evidenceへ変換する
  *
- * Pure evaluatorへ同じ既定値を渡し、各拒否条件だけを変更する。
+ * Pure evaluatorへ同じ既定値を渡し、各拒否条件だけを変更する
  *
- * @param[in] fixture 本試験scope中有効なPnP IDとrank。
- * @return Fixtureの記憶領域を非所有参照するrank evidence。
+ * @param[in] fixture 本試験scope中有効なPnP IDとrank
+ * @return Fixtureの記憶領域を非所有参照するrank evidence
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] OfficialDriverRankEvidence makeEvidence( const RankFixture &fixture) noexcept
@@ -109,132 +111,192 @@ struct RankFixture {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式driver rank監査の単体試験を実行する。同等／改善と、class、ID、rank evidence各拒否条件を検証する。
- * @param[in,out] context Assertion件数と失敗件数の集計先。
+ * @brief 公式driver rank監査の単体試験を実行する。同等／改善と、class、ID、rank evidence各拒否条件を検証する
+ * @param[in,out] context Assertion件数と失敗件数の集計先
  */
 //------------------------------------------------------------------------------
 void runOfficialDriverRankTests( TestContext &context)
 {
 	{
-		RankFixture				fixture ;	// 同じID位置とrankを持つ受理fixture。
-		OfficialDriverRankAudit audit ;		// 同等rankの監査結果。
+		RankFixture				fixture ;	// 同じID位置とrankを持つ受理fixture
+		OfficialDriverRankAudit audit ;		// 同等rankの監査結果
 		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
 		DRIVERCRATE_EXPECT( context, audit.decision == OfficialDriverRankDecision::APPLICABLE) ;
 		DRIVERCRATE_EXPECT( context, audit.currentRank == fixture.currentRank.value()) ;
 		DRIVERCRATE_EXPECT( context, audit.candidateRank == fixture.candidateRank.value()) ;
 	}
 	{
-		RankFixture fixture ;	// Compatible IDからHardware IDへ改善するfixture。
+		RankFixture fixture ;	// Compatible IDからHardware IDへ改善するfixture
 		fixture.currentMatchingId = fixture.compatibleIds.front() ;
 		fixture.candidateRank	  = 0x00ff0000U ;
-		OfficialDriverRankAudit audit ;	// 具体性とrank改善の監査結果。
+		OfficialDriverRankAudit audit ;	// 具体性とrank改善の監査結果
 		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
 		DRIVERCRATE_EXPECT( context, audit.decision == OfficialDriverRankDecision::APPLICABLE) ;
 		DRIVERCRATE_EXPECT( context, audit.currentPosition.kind == PnpIdentifierKind::COMPATIBLE_ID) ;
 		DRIVERCRATE_EXPECT( context, audit.candidatePosition.kind == PnpIdentifierKind::HARDWARE_ID) ;
 	}
 	{
-		RankFixture fixture ;	// Candidate classだけが異なる拒否fixture。
+		RankFixture fixture ;	// Candidate classだけが異なる拒否fixture
 		fixture.candidateClass = L"Display" ;
-		OfficialDriverRankAudit audit ;	// Class不一致の監査結果。
+		OfficialDriverRankAudit audit ;	// Class不一致の監査結果
 		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
 		DRIVERCRATE_EXPECT( context, audit.decision == OfficialDriverRankDecision::CLASS_MISMATCH) ;
 	}
 	{
-		RankFixture fixture ;	// Deviceへ一致しないcandidate IDの拒否fixture。
+		RankFixture fixture ;	// Deviceへ一致しないcandidate IDの拒否fixture
 		fixture.candidateIds = {L"PCI\\VEN_ABCD&DEV_EF01"} ;
-		OfficialDriverRankAudit audit ;	// Candidate不一致の監査結果。
+		OfficialDriverRankAudit audit ;	// Candidate不一致の監査結果
 		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
 		DRIVERCRATE_EXPECT( context,
 						   audit.decision == OfficialDriverRankDecision::CANDIDATE_NOT_MATCHED) ;
 	}
 	{
-		RankFixture fixture ;	// Device一覧にない現在MatchingDeviceIdの拒否fixture。
+		RankFixture fixture ;	// Device一覧にない現在MatchingDeviceIdの拒否fixture
 		fixture.currentMatchingId = L"PCI\\VEN_ABCD&DEV_EF01" ;
-		OfficialDriverRankAudit audit ;	// 現在一致根拠欠落の監査結果。
+		OfficialDriverRankAudit audit ;	// 現在一致根拠欠落の監査結果
 		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
 		DRIVERCRATE_EXPECT( context,
 						   audit.decision == OfficialDriverRankDecision::CURRENT_MATCH_UNAVAILABLE) ;
 	}
 	{
-		RankFixture fixture ;	// 現在rankが欠落した拒否fixture。
+		RankFixture fixture ;	// 現在rankが欠落した拒否fixture
 		fixture.currentRank.reset() ;
-		OfficialDriverRankAudit audit ;	// 現在rank欠落の監査結果。
+		OfficialDriverRankAudit audit ;	// 現在rank欠落の監査結果
 		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
 		DRIVERCRATE_EXPECT( context,
 						   audit.decision == OfficialDriverRankDecision::CURRENT_RANK_UNAVAILABLE) ;
 	}
 	{
-		RankFixture fixture ;	// Candidate rankが欠落した拒否fixture。
+		RankFixture fixture ;	// Candidate rankが欠落した拒否fixture
 		fixture.candidateRank.reset() ;
-		OfficialDriverRankAudit audit ;	// Candidate rank欠落の監査結果。
+		OfficialDriverRankAudit audit ;	// Candidate rank欠落の監査結果
 		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
 		DRIVERCRATE_EXPECT( context, audit.decision ==
 										OfficialDriverRankDecision::CANDIDATE_RANK_UNAVAILABLE) ;
 	}
 	{
-		RankFixture fixture ;	// Hardware IDからCompatible IDへ弱くなる拒否fixture。
+		RankFixture fixture ;	// Hardware IDからCompatible IDへ弱くなる拒否fixture
 		fixture.candidateIds  = {fixture.compatibleIds.front()} ;
 		fixture.candidateRank = 0x00ff0000U ;
-		OfficialDriverRankAudit audit ;	// ID位置退行の監査結果。
+		OfficialDriverRankAudit audit ;	// ID位置退行の監査結果
 		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
 		DRIVERCRATE_EXPECT( context, audit.decision ==
 										OfficialDriverRankDecision::IDENTIFIER_POSITION_REGRESSION) ;
 	}
 	{
-		RankFixture fixture ;	// 同じID位置でidentifier scoreだけが悪化する拒否fixture。
+		RankFixture fixture ;	// 同じID位置でidentifier scoreだけが悪化する拒否fixture
 		fixture.currentRank	  = 0x00ff0100U ;
 		fixture.candidateRank = 0x00ff0200U ;
-		OfficialDriverRankAudit audit ;	// Identifier score退行の監査結果。
+		OfficialDriverRankAudit audit ;	// Identifier score退行の監査結果
 		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
 		DRIVERCRATE_EXPECT( context, audit.decision ==
 										OfficialDriverRankDecision::IDENTIFIER_SCORE_REGRESSION) ;
 	}
 	{
-		RankFixture fixture ;	// ID具体性は改善するがfull rankが悪化する拒否fixture。
+		RankFixture fixture ;	// ID具体性は改善するがfull rankが悪化する拒否fixture
 		fixture.currentMatchingId = fixture.compatibleIds.front() ;
 		fixture.currentRank		  = 0x00ff1000U ;
 		fixture.candidateRank	  = 0x01ff0000U ;
-		OfficialDriverRankAudit audit ;	// Full rank退行の監査結果。
+		OfficialDriverRankAudit audit ;	// Full rank退行の監査結果
 		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
 		DRIVERCRATE_EXPECT( context,
 						   audit.decision == OfficialDriverRankDecision::OVERALL_RANK_REGRESSION) ;
 	}
 	{
-		RankFixture fixture ;	// Hardware IDをcase違いで重複させた不正evidence fixture。
+		RankFixture fixture ;	// Hardware IDをcase違いで重複させた不正evidence fixture
 		fixture.hardwareIds.push_back( L"pci\\ven_1234&dev_5678") ;
-		OfficialDriverRankAudit audit ;	// 入力構造拒否の監査結果。
+		OfficialDriverRankAudit audit ;	// 入力構造拒否の監査結果
 		DRIVERCRATE_EXPECT( context, !evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
 		DRIVERCRATE_EXPECT( context, audit.decision == OfficialDriverRankDecision::INVALID_EVIDENCE) ;
 	}
 	{
-		/** @brief Class観測と候補GUIDの有限入力と期待だけを保持します。 */
+		const std::array ids{L"*PNP0C02", L"OpaqueFixtureId",
+							 L"Literal*Fixture"} ;	// Windowsのopaque IDはbus区切りを必須にしません
+		// 同じ文字列の大文字小文字差だけを除き、asteriskをliteralとして照合します
+		for( const auto *id : ids) {
+			RankFixture fixture ;	// 元Windows rankとClassを保つ正例です
+			fixture.hardwareIds		  = {id} ;
+			fixture.candidateIds	  = {id} ;
+			fixture.currentMatchingId = id ;
+			OfficialDriverRankAudit audit ;	// 同一opaque IDの元評価です
+			DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
+			DRIVERCRATE_EXPECT( context, audit.decision == OfficialDriverRankDecision::APPLICABLE) ;
+		}
+	}
+	{
+		RankFixture fixture ;	// ACPI形式とgenericを元の具体性順で同じ一覧へ保ちます
+		fixture.hardwareIds		  = {L"ACPI\\FIXTURE_0001", L"*PNP0C02"} ;
+		fixture.candidateIds	  = {L"*pnp0c02"} ;
+		fixture.currentMatchingId = L"*PNP0C02" ;
+		OfficialDriverRankAudit audit ;	// case非依存の完全一致だけを許します
+		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
+		DRIVERCRATE_EXPECT( context, audit.decision == OfficialDriverRankDecision::APPLICABLE) ;
+		DRIVERCRATE_EXPECT( context, audit.candidatePosition.index == 1U) ;
+	}
+	{
+		const std::array ids{L"*PNP0C0*", L"*PNP0C03",
+							 L"*PNP0C0?"} ;	// 末尾記号も一文字のliteralです
+		// opaque形式の受理をwildcard/prefix一致へ拡張しません
+		for( const auto *id : ids) {
+			RankFixture fixture ;	// Windows rankが同等でも別IDを拒否します
+			fixture.hardwareIds		  = {L"*PNP0C02"} ;
+			fixture.currentMatchingId = L"*PNP0C02" ;
+			fixture.candidateIds	  = {id} ;
+			OfficialDriverRankAudit audit ;	// 非一致を入力不正とは区別します
+			DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
+			DRIVERCRATE_EXPECT( context,
+							   audit.decision == OfficialDriverRankDecision::CANDIDATE_NOT_MATCHED) ;
+		}
+	}
+	{
+		const std::array<std::wstring, 5U> invalid{L"", std::wstring{L"A\0B", 3U}, L"A\nB", L"A B",
+												   // 区切り欠損ではなく実NUL/control/容量違反です
+												   std::wstring( 257U, L'X')} ;
+		// 公式のseparatorなし形式を不正例に流用せず、元の構造拒否を維持します
+		for( const auto &id : invalid) {
+			RankFixture fixture ;	// 候補一覧の一つだけを実不正値へ変更します
+			fixture.candidateIds = {id} ;
+			OfficialDriverRankAudit audit ;	// 元のINVALID_EVIDENCEです
+			DRIVERCRATE_EXPECT( context, !evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
+			DRIVERCRATE_EXPECT( context,
+							   audit.decision == OfficialDriverRankDecision::INVALID_EVIDENCE) ;
+		}
+	}
+	{
+		RankFixture fixture ;	// Hardware/Compatibleをまたぐ同一IDの曖昧性は保持します
+		fixture.compatibleIds = fixture.hardwareIds ;
+		OfficialDriverRankAudit audit ;	// 分類を自動補正しません
+		DRIVERCRATE_EXPECT( context, !evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
+		DRIVERCRATE_EXPECT( context, audit.decision == OfficialDriverRankDecision::INVALID_EVIDENCE) ;
+	}
+	{
+		/** @brief Class観測と候補GUIDの有限入力と期待だけを保持します */
 		struct ClassCase {
-			/// 元Class観測の方式です。
+			/// 元Class観測の方式です
 			OfficialDriverRankDeviceClassState state ;
-			/// 元Class名でありINFのClassで補完しません。
+			/// 元Class名でありINFのClassで補完しません
 			std::wstring_view				   observed ;
-			/// 検査したINFが返す候補GUIDです。
+			/// 検査したINFが返す候補GUIDです
 			std::wstring_view				   infGuid ;
-			/// Windows互換一覧が返す候補GUIDです。
+			/// Windows互換一覧が返す候補GUIDです
 			std::wstring_view				   nativeGuid ;
-			/// 完全なNO_DRIVER入力を持つ場合trueです。
+			/// 完全なNO_DRIVER入力を持つ場合trueです
 			bool							   initial ;
-			/// 候補PnP IDを一致させる場合trueです。
+			/// 候補PnP IDを一致させる場合trueです
 			bool							   matched ;
-			/// Windows candidate rankを持つ場合trueです。
+			/// Windows candidate rankを持つ場合trueです
 			bool							   ranked ;
-			/// 入力構造の妥当性についての期待です。
+			/// 入力構造の妥当性についての期待です
 			bool							   valid ;
-			/// 純粋判定の期待区分です。
+			/// 純粋判定の期待区分です
 			OfficialDriverRankDecision		   decision ;
 		} ;
-		using State	   = OfficialDriverRankDeviceClassState ;	// 観測方式の簡潔な名前です。
-		using Decision = OfficialDriverRankDecision ;			// 期待判断の簡潔な名前です。
+		using State	   = OfficialDriverRankDeviceClassState ;	// 観測方式の簡潔な名前です
+		using Decision = OfficialDriverRankDecision ;			// 期待判断の簡潔な名前です
 		constexpr std::wstring_view NET =
-			L"{4D36E972-E325-11CE-BFC1-08002BE10318}" ;	// 架空観測の通常Classです。
+			L"{4D36E972-E325-11CE-BFC1-08002BE10318}" ;	// 架空観測の通常Classです
 		constexpr std::wstring_view PORTS =
-			L"{4D36E978-E325-11CE-BFC1-08002BE10318}" ;	// 不一致用の通常Classです。
+			L"{4D36E978-E325-11CE-BFC1-08002BE10318}" ;	// 不一致用の通常Classです
 		const std::array cases{
 			ClassCase{State::NOT_PRESENT, L"", NET, NET, true, true, true, true,
 					  Decision::APPLICABLE},
@@ -260,35 +322,35 @@ void runOfficialDriverRankTests( TestContext &context)
 					  Decision::CANDIDATE_NOT_MATCHED},
 			ClassCase{State::KNOWN_CLASS, L"Ports", NET, NET, true, true, true, true,
 					  Decision::CLASS_MISMATCH},
-		} ; // Code前の固定九分類を不正/zero/Unknownの三GUIDへ分離した11入力です。
-		// 正常二件と拒否九件を全て実行し、不正状態を分母から除きません。
+		} ; // Code前の固定九分類を不正/zero/Unknownの三GUIDへ分離した11入力です
+		// 正常二件と拒否九件を全て実行し、不正状態を分母から除きません
 		for( const auto &testCase : cases) {
-			RankFixture fixture ;	// 元のIDとcandidate rankを独立に所有します。
-			// 具体的なPnP不一致だけを元ID集合へ与えます。
+			RankFixture fixture ;	// 元のIDとcandidate rankを独立に所有します
+			// 具体的なPnP不一致だけを元ID集合へ与えます
 			if( !testCase.matched) {
 				fixture.candidateIds = {L"PCI\\VEN_ABCD&DEV_EF01"} ;
 			}
 
 			auto evidence =
-				// 同scopeの純粋入力で実Windowsの成功を生成しません。
+				// 同scopeの純粋入力で実Windowsの成功を生成しません
 				makeEvidence( fixture) ;
 			evidence.deviceClass			  = testCase.observed ;
 			evidence.deviceClassState		  = testCase.state ;
 			evidence.candidateInfClassGuid	  = testCase.infGuid ;
 			evidence.candidateNativeClassGuid = testCase.nativeGuid ;
-			// NO_DRIVERは架空current rank/Matching IDを持たない独立した入力です。
+			// NO_DRIVERは架空current rank/Matching IDを持たない独立した入力です
 			if( testCase.initial) {
 				evidence.currentState			 = OfficialDriverRankCurrentState::NO_DRIVER ;
 				evidence.currentMatchingDeviceId = {} ;
 				evidence.currentRank.reset() ;
 			}
 
-			// 候補rank欠損をClassの正常性から補完しません。
+			// 候補rank欠損をClassの正常性から補完しません
 			if( !testCase.ranked) {
 				evidence.candidateRank.reset() ;
 			}
 
-			OfficialDriverRankAudit audit ;	// 原判定の非機密値だけです。
+			OfficialDriverRankAudit audit ;	// 原判定の非機密値だけです
 			DRIVERCRATE_EXPECT( context,
 							   evaluateOfficialDriverRank( evidence, audit) == testCase.valid) ;
 			DRIVERCRATE_EXPECT( context, audit.decision == testCase.decision) ;

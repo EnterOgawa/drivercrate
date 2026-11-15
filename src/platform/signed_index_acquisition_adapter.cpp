@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file signed_index_acquisition_adapter.cpp
- * @brief 同snapshotの取得能力とtaskを封印し、既存grantと検査入力へ接続します。
- * @version 01.16.01
+ * @brief 同snapshotの取得能力とtaskを封印し、既存grantと検査入力へ接続します
+ * @version 01.16.03
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,28 +19,30 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/12  署名snapshotと同grant・共通取得の有限接続を追加。
- * Ver.01.01.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続。
- * Ver.01.02.00 Shunji Ogawa  2026/10/12  完全hash/sizeと取得policy一致だけを有限な共有taskへ結合。
- * Ver.01.03.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続。
- * Ver.01.04.00 Shunji Ogawa  2026/10/13  Local公開pinの独立revision1能力を接続。
- * Ver.01.05.00 Shunji Ogawa  2026/10/14  共通HTML許諾の原文書・全文・revision照合をRAM取得へ接続。
- * Ver.01.06.00 Shunji Ogawa  2026/10/14  元不足を保持したnative証拠付き一deviceの準備を接続。
- * Ver.01.06.01 Shunji Ogawa  2026/10/16  製品revision1取得認可をmanifest trustと独立に接続。
- * Ver.01.07.00 Shunji Ogawa  2026/10/24  同payloadの全原関係とunique device数を分離しclaimで再照合。
- * Ver.01.08.00 Shunji Ogawa  2026/10/27  元tuple/cohortと個別証拠を標準INF準備で再検証。
- * Ver.01.09.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続。
- * Ver.01.10.00 Shunji Ogawa  2026/11/03  原payloadの同一policy比較を開発用集合観測と共用。
- * Ver.01.11.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続。
- * Ver.01.12.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続。
- * Ver.01.13.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続。
- * Ver.01.14.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続。
- * Ver.01.15.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合。
- * Ver.01.16.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続。
- * Ver.01.16.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/12  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続
+ * Ver.01.02.00 Shunji Ogawa  2026/10/12  完全hash/sizeと取得policy一致だけを有限な共有taskへ結合
+ * Ver.01.03.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続
+ * Ver.01.04.00 Shunji Ogawa  2026/10/13  Local公開pinの独立revision1能力を接続
+ * Ver.01.05.00 Shunji Ogawa  2026/10/14  共通HTML許諾の原文書・全文・revision照合をRAM取得へ接続
+ * Ver.01.06.00 Shunji Ogawa  2026/10/14  元不足を保持したnative証拠付き一deviceの準備を接続
+ * Ver.01.06.01 Shunji Ogawa  2026/10/16  製品revision1取得認可をmanifest trustと独立に接続
+ * Ver.01.07.00 Shunji Ogawa  2026/10/24  同payloadの全原関係とunique device数を分離しclaimで再照合
+ * Ver.01.08.00 Shunji Ogawa  2026/10/27  元tuple/cohortと個別証拠を標準INF準備で再検証
+ * Ver.01.09.00 Shunji Ogawa  2026/11/03  共通公式packageの手動索引と選択内容検査を接続
+ * Ver.01.10.00 Shunji Ogawa  2026/11/03  原payloadの同一policy比較を開発用集合観測と共用
+ * Ver.01.11.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続
+ * Ver.01.12.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続
+ * Ver.01.13.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続
+ * Ver.01.14.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続
+ * Ver.01.15.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合
+ * Ver.01.16.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
+ * Ver.01.16.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.16.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.16.03 Shunji Ogawa  2026/11/12  外側tupleの取得予約と開始拒否の原理由を接続
  * </pre>
  *
- * @note 同workerの直列処理です。監視PCの申告と端末実byteを分け、live根拠を合成しません。
+ * @note 同workerの直列処理です。監視PCの申告と端末実byteを分け、live根拠を合成しません
  * @see docs/adr/0331-signed-index-acquisition-descriptor.md
  */
 //------------------------------------------------------------------------------
@@ -66,9 +68,37 @@
 
 namespace drivercrate {
 namespace {
-// 全メーカー共通の取得resource。URLや製品名から組み立てません。
+//------------------------------------------------------------------------------
+/**
+ * @brief 元認証recordの外側tupleを有限転送上限へ結びます
+ * @param[in] record 再検証済みの元署名recordです。内包memberのsizeを使いません
+ * @param[in] limits 元scanから変更しない予約上限です
+ * @return 原cap内の既知外側hash/sizeがそろえばexact size、不明なら原cap、不正/超過は0です
+ * @note 転送だけの値であり、展開/内容検査の上限を変更しません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] std::uint64_t effectiveIndexPayloadMaximum(
+	const IndexDistributionRecord &record, const OfficialPreparationLimits &limits) noexcept
+{
+	const auto &descriptor = *record.acquisitionDescriptor ;	// 呼出元で元recordを再検証済みです
+	const auto	maximum =
+		std::min( {descriptor.maximumBytes, limits.maximumFileBytes, limits.maximumProviderBytes,
+				  limits.maximumSessionBytes}) ;			// 原capの最小値です
+	const auto size = record.packageEvidence.size.value ;	// 外側package tupleだけです
+	// 既知sizeの0/超過を、未知の保守上限へ置換しません
+	if( size && (*size == 0U || *size > maximum)) {
+		return 0U ;
+	}
+
+	const bool hashKnown = record.packageEvidence.calculatedHash.sha256.has_value() ||
+						   // 同じ外側byteの元hashです
+						   record.packageEvidence.publishedHash.sha256.has_value() ;
+	return size && hashKnown ? *size : maximum ;
+}
+
+// 全メーカー共通の取得resource。URLや製品名から組み立てません
 constexpr std::wstring_view					INDEX_PAYLOAD_RESOURCE = L"index-static-zip" ;
-// 署名認証から推論せず、normal/localの独立取得集合を排他的に選択します。
+// 署名認証から推論せず、normal/localの独立取得集合を排他的に選択します
 constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 	local_index_profile::ENABLED
 		? std::span<const std::string_view>{local_index_profile::ACQUISITION_KEYS}
@@ -76,29 +106,29 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 
 //------------------------------------------------------------------------------
 /**
- * @brief Strict codecが検査した原UTF-8公開textを欠損なくWindows表示へ変換します。
- * @param[in] text 元recordの変更していない有限UTF-8 textです。
- * @return 正確なUTF-16 textです。不正byteは例外でfail-closedにします。
+ * @brief Strict codecが検査した原UTF-8公開textを欠損なくWindows表示へ変換します
+ * @param[in] text 元recordの変更していない有限UTF-8 textです
+ * @return 正確なUTF-16 textです。不正byteは例外でfail-closedにします
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::wstring indexUtf8Text( const std::string_view text)
 {
-	// 未指定の任意属性だけは空のまま保持します。
+	// 未指定の任意属性だけは空のまま保持します
 	if( text.empty()) {
 		return {} ;
 	}
 
-	const auto length = static_cast<int>( text.size()) ;	// Strict codecの有限上限内です。
-	// 終端または元集合の有限必要数です。成功数を推測しません。
+	const auto length = static_cast<int>( text.size()) ;	// Strict codecの有限上限内です
+	// 終端または元集合の有限必要数です。成功数を推測しません
 	const auto count =
 		MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), length, nullptr, 0) ;
-	// 不正UTF-8を代替文字へ補完しません。
+	// 不正UTF-8を代替文字へ補完しません
 	if( count <= 0) {
 		throw std::runtime_error( "invalid index UTF-8 text") ;
 	}
 
-	std::wstring result( static_cast<std::size_t>( count), L'\0') ;	// 正確なUTF-16長です。
-	// 同原byteを正確な受信長で変換します。
+	std::wstring result( static_cast<std::size_t>( count), L'\0') ;	// 正確なUTF-16長です
+	// 同原byteを正確な受信長で変換します
 	if( MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, text.data(), length, result.data(),
 						   count) != count) {
 		throw std::runtime_error( "index UTF-8 conversion failed") ;
@@ -109,20 +139,20 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 
 //------------------------------------------------------------------------------
 /**
- * @brief Schema検査済みASCII HTTPS URLからexact小文字hostを取り出します。
- * @param[in] value 元sourceまたはtextDocumentの未変更URLです。
- * @param[out] host 成功時だけ443/HTTPSのexact DNS hostです。失敗時は空です。
- * @return 共通Windows URL parserの成功時trueです。通信や公式性認定は行いません。
+ * @brief Schema検査済みASCII HTTPS URLからexact小文字hostを取り出します
+ * @param[in] value 元sourceまたはtextDocumentの未変更URLです
+ * @param[out] host 成功時だけ443/HTTPSのexact DNS hostです。失敗時は空です
+ * @return 共通Windows URL parserの成功時trueです。通信や公式性認定は行いません
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool exactHttpsHost( const std::string_view value, std::wstring &host)
 {
 	host.clear() ;
-	const std::wstring url{value.begin(), value.end()} ;	// strict codec済み原ASCIIを借用変換します。
-	URL_COMPONENTS	   parts{} ;							// 同期parserが返す借用componentです。
+	const std::wstring url{value.begin(), value.end()} ;	// strict codec済み原ASCIIを借用変換します
+	URL_COMPONENTS	   parts{} ;							// 同期parserが返す借用componentです
 	parts.dwStructSize	   = sizeof( parts) ;
 	parts.dwHostNameLength = static_cast<DWORD>( -1) ;
-	// 別scheme/portを同originへ正規化しません。
+	// 別scheme/portを同originへ正規化しません
 	if( !WinHttpCrackUrl( url.c_str(), static_cast<DWORD>( url.size()), 0U, &parts) ||
 	   parts.nScheme != INTERNET_SCHEME_HTTPS || parts.nPort != INTERNET_DEFAULT_HTTPS_PORT ||
 	   !parts.lpszHostName || parts.dwHostNameLength == 0U) {
@@ -130,9 +160,9 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 	}
 
 	host.assign( parts.lpszHostName, parts.dwHostNameLength) ;
-	// DNS名のASCII caseだけを共通origin比較へ揃え、元URL自体は変更しません。
+	// DNS名のASCII caseだけを共通origin比較へ揃え、元URL自体は変更しません
 	for( auto &character : host) {
-		// 大文字ASCIIのDNS文字だけを小文字へ変換します。
+		// 大文字ASCIIのDNS文字だけを小文字へ変換します
 		if( character >= L'A' && character <= L'Z') {
 			character = static_cast<wchar_t>( character + (L'a' - L'A')) ;
 		}
@@ -143,17 +173,17 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 
 //------------------------------------------------------------------------------
 /**
- * @brief 原SHA-256を小文字hexへ表現します。暗号検証は複製しません。
- * @param[in] digest 認証済み原digest。
- * @return 小文字64桁。
+ * @brief 原SHA-256を小文字hexへ表現します。暗号検証は複製しません
+ * @param[in] digest 認証済み原digest
+ * @return 小文字64桁
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::wstring hexDigest( const IndexManifestSha256 &digest)
 {
-	constexpr std::wstring_view HEX = L"0123456789abcdef" ;	// 固定hex表。
-	std::wstring				value ;						// 認証済みdigestの表示ではない内部照合値。
+	constexpr std::wstring_view HEX = L"0123456789abcdef" ;	// 固定hex表
+	std::wstring				value ;						// 認証済みdigestの表示ではない内部照合値
 	value.reserve( 64U) ;
-	// 原32byteを二桁へ表現し、全byteで終了します。
+	// 原32byteを二桁へ表現し、全byteで終了します
 	for( const auto byte : digest) {
 		value.push_back( HEX[byte >> 4U]) ;
 		value.push_back( HEX[byte & 15U]) ;
@@ -164,15 +194,15 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 
 //------------------------------------------------------------------------------
 /**
- * @brief 固定信頼UTC秒を既存時刻型へ変換します。
- * @param[in] seconds 正のUTC秒。
- * @return 範囲内だけ時刻。0またはsigned秒範囲外はnullopt。
+ * @brief 固定信頼UTC秒を既存時刻型へ変換します
+ * @param[in] seconds 正のUTC秒
+ * @return 範囲内だけ時刻。0またはsigned秒範囲外はnullopt
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::chrono::sys_seconds> utcFromSeconds(
 	const std::uint64_t seconds) noexcept
 {
-	// 時計なしや符号範囲超過を丸めて有効時刻にしません。
+	// 時計なしや符号範囲超過を丸めて有効時刻にしません
 	if( seconds == 0U ||
 	   seconds > static_cast<std::uint64_t>( std::numeric_limits<std::int64_t>::max())) {
 		return std::nullopt ;
@@ -183,20 +213,20 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 
 //------------------------------------------------------------------------------
 /**
- * @brief 完全内容根拠と取得policyが一致したrecordだけを共有対象とします。
- * @param[in] left 個別validateRecord済みの元record。
- * @param[in] right 個別validateRecord済みの元record。
- * @param[in] sameTimeWindow 共有taskはtrue、独立期限検証後の同owned byte比較だけfalseです。
- * @return 完全hash/正のsize/全取得条件一致時だけtrueです。名称や版を使用しません。
+ * @brief 完全内容根拠と取得policyが一致したrecordだけを共有対象とします
+ * @param[in] left 個別validateRecord済みの元record
+ * @param[in] right 個別validateRecord済みの元record
+ * @param[in] sameTimeWindow 共有taskはtrue、独立期限検証後の同owned byte比較だけfalseです
+ * @return 完全hash/正のsize/全取得条件一致時だけtrueです。名称や版を使用しません
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool sameSharedPayloadEvidence( const IndexDistributionRecord &left,
 											 const IndexDistributionRecord &right,
 											 const bool sameTimeWindow = true) noexcept
 {
-	const auto &firstEvidence  = left.packageEvidence ;		// 発行側の認証された完全内容根拠。
-	const auto &secondEvidence = right.packageEvidence ;	// 別原recordの独立根拠。
-	// 不足hash/sizeや異なる方式・対象条件から共有identityを推測しません。
+	const auto &firstEvidence  = left.packageEvidence ;		// 発行側の認証された完全内容根拠
+	const auto &secondEvidence = right.packageEvidence ;	// 別原recordの独立根拠
+	// 不足hash/sizeや異なる方式・対象条件から共有identityを推測しません
 	if( !firstEvidence.size.value || !secondEvidence.size.value || *firstEvidence.size.value == 0U ||
 	   firstEvidence.size.value != secondEvidence.size.value ||
 	   (!firstEvidence.publishedHash.sha256 && !firstEvidence.calculatedHash.sha256) ||
@@ -212,10 +242,10 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 									 const IndexHashEvidence &second) {
 		return first.sha256 == second.sha256 && first.evidenceUrl == second.evidenceUrl &&
 			   first.evidenceSha256 == second.evidenceSha256 && first.reason == second.reason ;
-	} ; // 出典と未知理由も同じ元申告へ結合し、hashの由来を変更しません。
-	const auto &first  = *left.acquisitionDescriptor ;	// 個別検証済みZIP/同意不要/条件なし。
-	const auto &second = *right.acquisitionDescriptor ;	// Policyの和集合を作りません。
-	// 全policy値を比較し、後続sliceの未確認条件を共有成功に補完しません。
+	} ; // 出典と未知理由も同じ元申告へ結合し、hashの由来を変更しません
+	const auto &first  = *left.acquisitionDescriptor ;	// 個別検証済みZIP/同意不要/条件なし
+	const auto &second = *right.acquisitionDescriptor ;	// Policyの和集合を作りません
+	// 全policy値を比較し、後続sliceの未確認条件を共有成功に補完しません
 	if( !sameHashEvidence( firstEvidence.publishedHash, secondEvidence.publishedHash) ||
 	   !sameHashEvidence( firstEvidence.calculatedHash, secondEvidence.calculatedHash) ||
 	   firstEvidence.size.reason != secondEvidence.size.reason || first.state != second.state ||
@@ -240,7 +270,7 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 		return false ;
 	}
 
-	// 全文の固定取得先と全原byte根拠を省略して共有しません。
+	// 全文の固定取得先と全原byte根拠を省略して共有しません
 	if( first.terms.textDocument &&
 	   (first.terms.textDocument->url != second.terms.textDocument->url ||
 		first.terms.textDocument->sha256 != second.terms.textDocument->sha256 ||
@@ -249,22 +279,22 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 		return false ;
 	}
 
-	// 同じ原pageでも別の抽出範囲・全文・リンク根拠を一つの同意へ共有しません。
+	// 同じ原pageでも別の抽出範囲・全文・リンク根拠を一つの同意へ共有しません
 	if( first.terms.textDocument) {
-		const auto &a = first.terms.textDocument->htmlExtraction ;	// 一つ目の原抽出宣言です。
-		const auto &b = second.terms.textDocument->htmlExtraction ;	// 二つ目の原抽出宣言です。
-		// plain/HTMLの違いも取得policyの違いです。
+		const auto &a = first.terms.textDocument->htmlExtraction ;	// 一つ目の原抽出宣言です
+		const auto &b = second.terms.textDocument->htmlExtraction ;	// 二つ目の原抽出宣言です
+		// plain/HTMLの違いも取得policyの違いです
 		if( a.has_value() != b.has_value()) {
 			return false ;
 		}
 
-		// HTMLの全fieldを原値で比較し、新profileの根拠byte数も省略しません。
+		// HTMLの全fieldを原値で比較し、新profileの根拠byte数も省略しません
 		if( a) {
 			const auto sameSelector = []( const IndexHtmlTermsSelector &x,
 										 const IndexHtmlTermsSelector &y) {
 				return x.tag == y.tag && x.attribute == y.attribute && x.value == y.value ;
-			} ; // 同期借用した原selectorだけの値比較です。
-			// 同じ全文・同じ元リンクだけを共有可能とします。
+			} ; // 同期借用した原selectorだけの値比較です
+			// 同じ全文・同じ元リンクだけを共有可能とします
 			if( a->profile != b->profile || !sameSelector( a->selector, b->selector) ||
 			   !sameSelector( a->containerSelector, b->containerSelector) ||
 			   !sameSelector( a->linkSelector, b->linkSelector) ||
@@ -280,7 +310,7 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 		}
 	}
 
-	// 元条件は全field完全一致へ結び、別recordの確認権限を和集合へ広げません。
+	// 元条件は全field完全一致へ結び、別recordの確認権限を和集合へ広げません
 	if( !std::ranges::equal( first.prerequisites.items, second.prerequisites.items,
 						   []( const auto &leftItem, const auto &rightItem) {
 							   return leftItem.kind == rightItem.kind &&
@@ -291,8 +321,8 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 		return false ;
 	}
 
-	const auto &firstAuthority	= *first.attestation ;	// 元公式確認主体と個別期限。
-	const auto &secondAuthority = *second.attestation ;	// 観測時刻を共有で更新しません。
+	const auto &firstAuthority	= *first.attestation ;	// 元公式確認主体と個別期限
+	const auto &secondAuthority = *second.attestation ;	// 観測時刻を共有で更新しません
 	return firstAuthority.policyRevision == secondAuthority.policyRevision &&
 		   (!sameTimeWindow || (firstAuthority.checkedAtUtc == secondAuthority.checkedAtUtc &&
 								firstAuthority.validUntilUtc == secondAuthority.validUntilUtc)) &&
@@ -310,11 +340,11 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 
 //------------------------------------------------------------------------------
 /**
- * @brief 通常adapterと同じ完全payload/取得policyの値比較を行います。
- * @param[in] left 個別codec検査済みの原recordです。
- * @param[in] right 別の個別codec検査済み原recordです。
- * @return 全内容根拠と取得条件が一致する場合だけtrueです。
- * @note 認証型、共有claim、通信許可、端末適用性や導入能力を発行しません。
+ * @brief 通常adapterと同じ完全payload/取得policyの値比較を行います
+ * @param[in] left 個別codec検査済みの原recordです
+ * @param[in] right 別の個別codec検査済み原recordです
+ * @return 全内容根拠と取得条件が一致する場合だけtrueです
+ * @note 認証型、共有claim、通信許可、端末適用性や導入能力を発行しません
  */
 //------------------------------------------------------------------------------
 bool matchesSharedIndexPayloadEvidence( const IndexDistributionRecord &left,
@@ -325,12 +355,12 @@ bool matchesSharedIndexPayloadEvidence( const IndexDistributionRecord &left,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 保存snapshotを含む同worker lookupへ固定policyで結合します。
- * @param[in] lookup 非公開構築の不変lookup。Null・不足を拒否します。
- * @param[in] current 同workerのoperation・scan・inventory。
- * @param[in] targetOs 現workerが確認したOS分類。端末適合の合格ではありません。
- * @param[in] nowUtc 信頼UTC。確認不能を拒否します。
- * @return 開始0。未配備の製品policy・stale・期限・不足は拒否HRESULT。
+ * @brief 保存snapshotを含む同worker lookupへ固定policyで結合します
+ * @param[in] lookup 非公開構築の不変lookup。Null・不足を拒否します
+ * @param[in] current 同workerのoperation・scan・inventory
+ * @param[in] targetOs 現workerが確認したOS分類。端末適合の合格ではありません
+ * @param[in] nowUtc 信頼UTC。確認不能を拒否します
+ * @return 開始0。未配備の製品policy・stale・期限・不足は拒否HRESULT
  */
 //------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::begin(
@@ -342,13 +372,13 @@ NativeError SignedIndexAcquisitionAdapter::begin(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 内部固定profileを使って同じ開始検査を行います。
- * @param[in] lookup 保存済み元lookup。
- * @param[in] current 現context。
- * @param[in] targetOs 既知OS分類。
- * @param[in] nowUtc 信頼UTC。
- * @param[in] profile 外部設定ではない内部固定policy区分。
- * @return 全開始検査成功0、それ以外は拒否HRESULT。
+ * @brief 内部固定profileを使って同じ開始検査を行います
+ * @param[in] lookup 保存済み元lookup
+ * @param[in] current 現context
+ * @param[in] targetOs 既知OS分類
+ * @param[in] nowUtc 信頼UTC
+ * @param[in] profile 外部設定ではない内部固定policy区分
+ * @return 全開始検査成功0、それ以外は拒否HRESULT
  */
 //------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::beginImpl(
@@ -357,7 +387,7 @@ NativeError SignedIndexAcquisitionAdapter::beginImpl(
 	const AuthorityProfile profile) noexcept
 {
 	invalidate() ;
-	// 不足・stale・未知OSを新しいissuerへ補完しません。
+	// 不足・stale・未知OSを新しいissuerへ補完しません
 	if( !lookup || current.operationId == 0U || current.scanSessionId == 0U ||
 	   current.inventoryGeneration == 0U || !nowUtc ||
 	   (targetOs != IndexTargetOs::WINDOWS_10 && targetOs != IndexTargetOs::WINDOWS_11 &&
@@ -365,23 +395,23 @@ NativeError SignedIndexAcquisitionAdapter::beginImpl(
 		return E_INVALIDARG ;
 	}
 
-	const auto &snapshot   = lookup->snapshot() ;						// 非公開構築の原保存snapshot。
-	const auto &receipt	   = snapshot.schemaReceipt() ;					// 現readerで再認証したreceipt。
-	const auto &manifest   = receipt.assetBytes().manifest().data() ;	// 認証された鍵と世代・時刻。
+	const auto &snapshot   = lookup->snapshot() ;						// 非公開構築の原保存snapshot
+	const auto &receipt	   = snapshot.schemaReceipt() ;					// 現readerで再認証したreceipt
+	const auto &manifest   = receipt.assetBytes().manifest().data() ;	// 認証された鍵と世代・時刻
 	const bool	authorized = profile == AuthorityProfile::INTERNAL_RAM_FIXTURE
 								 ? manifest.keyId == "fixture-main"
 								 : std::find( PRODUCT_ACQUISITION_KEYS.begin(),
 											 PRODUCT_ACQUISITION_KEYS.end(), manifest.keyId) !=
-									   // Manifest認証と独立した固定取得能力。
+									   // Manifest認証と独立した固定取得能力
 									   PRODUCT_ACQUISITION_KEYS.end() ;
-	// 取得能力のないmanifest鍵や不完全原byteを権限へ昇格しません。
+	// 取得能力のないmanifest鍵や不完全原byteを権限へ昇格しません
 	if( !authorized || snapshot.originalEnvelope().empty() || snapshot.originalGzip().empty() ||
 	   receipt.schemaPolicyVersion() != INDEX_RECORD_READER_POLICY_VERSION ||
 	   snapshot.storePolicyVersion() != INDEX_STORE_POLICY_VERSION) {
 		return E_ACCESSDENIED ;
 	}
 
-	// 現在の期限検査を保存時の成功へ置換しません。
+	// 現在の期限検査を保存時の成功へ置換しません
 	if( *nowUtc < manifest.publishedAtUtc || *nowUtc >= manifest.expiresAtUtc) {
 		return HRESULT_FROM_WIN32( ERROR_TIMEOUT) ;
 	}
@@ -396,14 +426,14 @@ NativeError SignedIndexAcquisitionAdapter::beginImpl(
 	} catch( const std::bad_alloc &) {
 		return E_OUTOFMEMORY ;
 	} catch( ...) {
-		// issuer発行の不明障害を成功へ変更しません。
+		// issuer発行の不明障害を成功へ変更しません
 		return E_UNEXPECTED ;
 	}
 }
 
 //------------------------------------------------------------------------------
 /**
- * @brief 私有issuerと未開始計画を失効します。原snapshotを修復・削除しません。
+ * @brief 私有issuerと未開始計画を失効します。原snapshotを修復・削除しません
  */
 //------------------------------------------------------------------------------
 void SignedIndexAcquisitionAdapter::invalidate() noexcept
@@ -419,12 +449,12 @@ void SignedIndexAcquisitionAdapter::invalidate() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 新しい取得だけを閉鎖し、消費済み成功grantの同期限内再検証を保持します。
+ * @brief 新しい取得だけを閉鎖し、消費済み成功grantの同期限内再検証を保持します
  */
 //------------------------------------------------------------------------------
 void SignedIndexAcquisitionAdapter::closeAcquisitionForInstall() noexcept
 {
-	// 同じissuerの消費済み成功根拠を保持し、新しい取得だけを不可逆に閉鎖します。
+	// 同じissuerの消費済み成功根拠を保持し、新しい取得だけを不可逆に閉鎖します
 	if( acquisitionOpen_) {
 		*acquisitionOpen_ = false ;
 	}
@@ -432,12 +462,12 @@ void SignedIndexAcquisitionAdapter::closeAcquisitionForInstall() noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 元tuple・descriptor・期限・通常driver条件を再照合します。
- * @param[in] relationIndex 元関係位置。
- * @param[in] current 現context。
- * @param[in] nowUtc 信頼UTC。
- * @param[out] reason 失敗時の具体的理由。成功時は空。
- * @return 全条件成立0、それ以外は拒否または保留HRESULT。
+ * @brief 元tuple・descriptor・期限・通常driver条件を再照合します
+ * @param[in] relationIndex 元関係位置
+ * @param[in] current 現context
+ * @param[in] nowUtc 信頼UTC
+ * @param[out] reason 失敗時の具体的理由。成功時は空
+ * @return 全条件成立0、それ以外は拒否または保留HRESULT
  */
 //------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::validateRecord(
@@ -445,29 +475,29 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 	const std::optional<std::chrono::sys_seconds> nowUtc, std::string &reason) const
 {
 	reason.clear() ;
-	// 失効・context不一致・時計なしは元snapshot共有寿命にかかわらず拒否します。
+	// 失効・context不一致・時計なしは元snapshot共有寿命にかかわらず拒否します
 	if( !issuer_ || !lookup_ || current != context_ || !nowUtc ||
 	   relationIndex >= lookup_->relations().size()) {
 		reason = "expired lease, stale context, unavailable time or relation" ;
 		return E_ACCESSDENIED ;
 	}
 
-	const auto &relation = lookup_->relations()[relationIndex] ;	// 私有構築lookupの原関係。
-	const auto &receipt	 = lookup_->snapshot().schemaReceipt() ;	// 原indexとrecordの完全不変結合。
-	const auto &manifest = receipt.assetBytes().manifest().data() ;	// 元manifest期限。
+	const auto &relation = lookup_->relations()[relationIndex] ;	// 私有構築lookupの原関係
+	const auto &receipt	 = lookup_->snapshot().schemaReceipt() ;	// 原indexとrecordの完全不変結合
+	const auto &manifest = receipt.assetBytes().manifest().data() ;	// 元manifest期限
 	const bool	completeSingle = relation.state == IndexRecordMatchState::MATCHED &&
 								relation.reason == IndexRecordMatchReason::UNIQUE_RELATION &&
-								// 元完全関係です。
+								// 元完全関係です
 								relation.error == 0U ;
 	const bool verifiedPartial =
 		relation.state == IndexRecordMatchState::VERIFIED_PARTIAL &&
 		relation.reason == IndexRecordMatchReason::VERIFIED_POSITIVE_PARTIAL &&
-		relation.positiveProof ;	// 後段で元record tupleとleaseを再確認します。
+		relation.positiveProof ;	// 後段で元record tupleとleaseを再確認します
 	const bool verifiedDevice =
 		relation.state == IndexRecordMatchState::VERIFIED_DEVICE &&
 		relation.reason == IndexRecordMatchReason::VERIFIED_DEVICE_PROJECTION &&
-		relation.deviceProof ;	// 元cohortと対象一件を後段で完全再確認します。
-	// 全体不足だけで権限を作らず、完全関係か私有証拠付き一deviceを要求します。
+		relation.deviceProof ;	// 元cohortと対象一件を後段で完全再確認します
+	// 全体不足だけで権限を作らず、完全関係か私有証拠付き一deviceを要求します
 	if( relation.context != current || (!completeSingle && !verifiedPartial && !verifiedDevice) ||
 	   !relation.deviceIdentity ||
 	   (!verifiedDevice && (relation.relatedDevices.size() != 1U ||
@@ -479,8 +509,8 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 		return E_ACCESSDENIED ;
 	}
 
-	const auto &record = receipt.records()[relation.recordIndex] ;	// 元record原byteとhash。
-	// Record位置だけの一致で別source／record／公開IDへ結びません。
+	const auto &record = receipt.records()[relation.recordIndex] ;	// 元record原byteとhash
+	// Record位置だけの一致で別source／record／公開IDへ結びません
 	if( record.recordSha256 != relation.recordSha256 || record.sourceId != relation.sourceId ||
 	   record.recordId != relation.recordId || !relation.publicIdIndex ||
 	   *relation.publicIdIndex >= record.publishedIdentityEvidence.pnpIds.size()) {
@@ -488,7 +518,7 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 		return E_ACCESSDENIED ;
 	}
 
-	// 部分positiveの元公開tuple・同owner・lease・全opaqueが変われば取得権限を失効します。
+	// 部分positiveの元公開tuple・同owner・lease・全opaqueが変われば取得権限を失効します
 	if( verifiedPartial &&
 	   !relation.positiveProof->matches(
 		   current, record.publishedIdentityEvidence.pnpIds[*relation.publicIdIndex].kind,
@@ -499,7 +529,7 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 		return E_ACCESSDENIED ;
 	}
 
-	// 個別投影も原公開tuple/元completed/error/全cohortと対象一件から切り離しません。
+	// 個別投影も原公開tuple/元completed/error/全cohortと対象一件から切り離しません
 	if( verifiedDevice &&
 	   !relation.deviceProof->matches(
 		   current, record.publishedIdentityEvidence.pnpIds[*relation.publicIdIndex].kind,
@@ -511,13 +541,13 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 		return E_ACCESSDENIED ;
 	}
 
-	// Manifest個別期限を超える原recordは再確認待ちへ保持します。
+	// Manifest個別期限を超える原recordは再確認待ちへ保持します
 	if( *nowUtc < manifest.publishedAtUtc || *nowUtc >= manifest.expiresAtUtc) {
 		reason = "manifest time window unavailable" ;
 		return HRESULT_FROM_WIN32( ERROR_TIMEOUT) ;
 	}
 
-	// 部分positiveの確認device集合だけでinstallerの全作用範囲を承認しません。
+	// 部分positiveの確認device集合だけでinstallerの全作用範囲を承認しません
 	if( (verifiedPartial || verifiedDevice) &&
 	   (!record.acquisition.value ||
 		*record.acquisition.value != IndexAcquisitionKind::STANDARD_INF_ARCHIVE)) {
@@ -525,7 +555,7 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 		return E_NOTIMPL ;
 	}
 
-	// 元申告の未知条件をdescriptor形式から補完しません。
+	// 元申告の未知条件をdescriptor形式から補完しません
 	if( !record.targetOs.value || !record.architecture.value || !record.driverKind.value ||
 	   !record.acquisition.value) {
 		reason = "unknown target OS: " + record.targetOs.reason +
@@ -535,7 +565,7 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 		return E_NOTIMPL ;
 	}
 
-	// 既知の別OS・対象外種別・別方式を静的ZIP方式へ変更しません。
+	// 既知の別OS・対象外種別・別方式を静的ZIP方式へ変更しません
 	if( *record.targetOs.value != targetOs_ ||
 	   *record.architecture.value != IndexArchitecture::X64 ||
 	   *record.driverKind.value != IndexDriverKind::NORMAL_DRIVER ||
@@ -545,7 +575,7 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 		return E_NOTIMPL ;
 	}
 
-	// v1やUNKNOWN取得情報は原理由とともに保留します。
+	// v1やUNKNOWN取得情報は原理由とともに保留します
 	if( !record.acquisitionDescriptor ||
 	   record.acquisitionDescriptor->state != IndexDescriptorState::KNOWN) {
 		reason = record.acquisitionDescriptor ? record.acquisitionDescriptor->reason
@@ -553,11 +583,11 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 		return E_NOTIMPL ;
 	}
 
-	const auto &descriptor = *record.acquisitionDescriptor ;	// Schema認証済み元取得申告。
-	// このsliceで未接続の規約・具体的条件・形式は成功へ補完しません。
+	const auto &descriptor = *record.acquisitionDescriptor ;	// Schema認証済み元取得申告
+	// このsliceで未接続の規約・具体的条件・形式は成功へ補完しません
 	const bool	standard =
-		*record.acquisition.value == IndexAcquisitionKind::STANDARD_INF_ARCHIVE ;	// 元方式です。
-	// 形式と方式の接続不足や未知規約を同意不要へ補完しません。
+		*record.acquisition.value == IndexAcquisitionKind::STANDARD_INF_ARCHIVE ;	// 元方式です
+	// 形式と方式の接続不足や未知規約を同意不要へ補完しません
 	if( (standard && descriptor.format != IndexPayloadFormat::ZIP &&
 		descriptor.format != IndexPayloadFormat::CABINET &&
 		descriptor.format != IndexPayloadFormat::SEVEN_ZIP_SFX &&
@@ -570,20 +600,20 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 		return E_NOTIMPL ;
 	}
 
-	bool installerScope{} ;	// 公式の選択driver限定手順を認証recordが明示した場合だけtrueです。
+	bool installerScope{} ;	// 公式の選択driver限定手順を認証recordが明示した場合だけtrueです
 	const std::string expectedOs = targetOs_ == IndexTargetOs::WINDOWS_10 ? "WINDOWS_10"
 								   : targetOs_ == IndexTargetOs::WINDOWS_11
 									   ? "WINDOWS_11"
-									   : "WINDOWS_SERVER" ;	// workerの元観測です。
-	// 最大16の具体的条件だけを検査し、同pageの別NVM記載から条件を追加しません。
+									   : "WINDOWS_SERVER" ;	// workerの元観測です
+	// 最大16の具体的条件だけを検査し、同pageの別NVM記載から条件を追加しません
 	for( const auto &condition : descriptor.prerequisites.items) {
-		// 分離不能firmwareを普通driverの導入へ含めません。
+		// 分離不能firmwareを普通driverの導入へ含めません
 		if( condition.kind == IndexPrerequisiteKind::INSEPARABLE_FIRMWARE) {
 			reason = "inseparable firmware is excluded: " + condition.description ;
 			return E_NOTIMPL ;
 		}
 
-		// 既知の元worker OS観測以外を文字列同意で確認済みにしません。
+		// 既知の元worker OS観測以外を文字列同意で確認済みにしません
 		if( condition.kind == IndexPrerequisiteKind::LOCAL_CHECK &&
 		   condition.description != "DriverCrate:target-os=" + expectedOs) {
 			reason = "local prerequisite unconfirmed: " + condition.description ;
@@ -595,7 +625,7 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 			condition.description == "DriverCrate:installer-scope=selected-driver-only" ;
 	}
 
-	// 任意installerの作用範囲や期待publisherを推測して起動候補へ変更しません。
+	// 任意installerの作用範囲や期待publisherを推測して起動候補へ変更しません
 	if( !standard && (!installerScope || !descriptor.publisher.value ||
 					 (!record.packageEvidence.publishedHash.sha256 &&
 					  !record.packageEvidence.calculatedHash.sha256))) {
@@ -603,8 +633,8 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 		return E_NOTIMPL ;
 	}
 
-	const auto &attestation = *descriptor.attestation ;	// 固定issuerが責任を持つ原確認申告。
-	// Policy版と観測個別期限は署名manifestの生存とは独立に検査します。
+	const auto &attestation = *descriptor.attestation ;	// 固定issuerが責任を持つ原確認申告
+	// Policy版と観測個別期限は署名manifestの生存とは独立に検査します
 	if( attestation.policyRevision != 1U || *nowUtc < attestation.checkedAtUtc ||
 	   *nowUtc >= attestation.validUntilUtc) {
 		reason = "acquisition attestation policy or time window unavailable" ;
@@ -616,14 +646,14 @@ NativeError SignedIndexAcquisitionAdapter::validateRecord(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 元認証規約を有限共通GETで取得し、全文と出典をRAMの記述へ固定します。
- * @param[in] relationIndex 私有lookupの原関係位置です。
- * @param[in] current 元scanの全contextです。
- * @param[in] nowUtc 信頼UTCです。前後の期限を再照合します。
- * @param[in,out] client 同workerの完全共通HTTP依存です。公開URLは受理しません。
- * @param[in] cancellation 同scanの協調停止です。
- * @return 全原byte/全文成立0、未対応/変更/失効は元HRESULTです。
- * @note 同意を発行せず、未取得本文を空の同意不要へ変更しません。
+ * @brief 元認証規約を有限共通GETで取得し、全文と出典をRAMの記述へ固定します
+ * @param[in] relationIndex 私有lookupの原関係位置です
+ * @param[in] current 元scanの全contextです
+ * @param[in] nowUtc 信頼UTCです。前後の期限を再照合します
+ * @param[in,out] client 同workerの完全共通HTTP依存です。公開URLは受理しません
+ * @param[in] cancellation 同scanの協調停止です
+ * @return 全原byte/全文成立0、未対応/変更/失効は元HRESULTです
+ * @note 同意を発行せず、未取得本文を空の同意不要へ変更しません
  */
 //------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::readTermsText(
@@ -631,32 +661,32 @@ NativeError SignedIndexAcquisitionAdapter::readTermsText(
 	const std::optional<std::chrono::sys_seconds> nowUtc, OfficialHttpClient &client,
 	const HttpCancellationCallback &cancellation)
 {
-	std::string reason ;	// 元recordの不成立理由です。全文をlogへ出しません。
+	std::string reason ;	// 元recordの不成立理由です。全文をlogへ出しません
 	const auto	validation =
-		// 全原条件です。
+		// 全原条件です
 		validateRecord( relationIndex, current, nowUtc, reason) ;
-	// 失効やUNKNOWNから本文取得権限を生成しません。
+	// 失効やUNKNOWNから本文取得権限を生成しません
 	if( validation != 0U || !acquisitionOpen_ || !*acquisitionOpen_) {
 		return validation != 0U ? validation : static_cast<NativeError>( E_ACCESSDENIED) ;
 	}
 
-	const auto &receipt = lookup_->snapshot().schemaReceipt() ;	// 元署名wireの正本です。
+	const auto &receipt = lookup_->snapshot().schemaReceipt() ;	// 元署名wireの正本です
 	const auto &record =
-		// 元関係です。
+		// 元関係です
 		receipt.records()[lookup_->relations()[relationIndex].recordIndex] ;
-	const auto &terms			  = record.acquisitionDescriptor->terms ;	// 原固定documentです。
+	const auto &terms			  = record.acquisitionDescriptor->terms ;	// 原固定documentです
 	const auto	sameRecordBinding = std::ranges::find_if( bindings_, [&]( const auto &binding) {
 		 return lookup_->relations()[binding.relationIndex].recordIndex ==
 					lookup_->relations()[relationIndex].recordIndex &&
 				std::ranges::find( binding.relationIndices, relationIndex) !=
 					binding.relationIndices.end() ;
-	 }) ; // 同原recordの取得済み全文を持つ同じ共有bindingだけです。
-	// 同recordの個別投影で規約を二重取得せず、元全member/lease/期限を使用時に再確認します。
+	 }) ; // 同原recordの取得済み全文を持つ同じ共有bindingだけです
+	// 同recordの個別投影で規約を二重取得せず、元全member/lease/期限を使用時に再確認します
 	if( sameRecordBinding != bindings_.end()) {
 		return validateBinding( *sameRecordBinding, current, nowUtc, reason) ;
 	}
 
-	// 同意不要では本文を取得せず、既取得の同原関係は再送しません。
+	// 同意不要では本文を取得せず、既取得の同原関係は再送しません
 	if( terms.state == IndexTermsState::CONFIRMED_NO_CONSENT ||
 	   std::ranges::any_of( terms_, [relationIndex]( const auto &value) {
 		   return value.relationIndex == relationIndex ;
@@ -664,20 +694,20 @@ NativeError SignedIndexAcquisitionAdapter::readTermsText(
 		return 0U ;
 	}
 
-	// 本文未確定を空の同意へ補完せず、RAM集合上限を保持します。
+	// 本文未確定を空の同意へ補完せず、RAM集合上限を保持します
 	if( !terms.textDocument || terms_.size() >= 256U) {
 		return E_NOTIMPL ;
 	}
 
 	const auto	 source = std::ranges::find_if( receipt.sources(), [&record]( const auto &value) {
 		  return value.sourceId == record.sourceId ;
-	  }) ;					 // 原sourceです。
-	std::wstring sourceHost ;	// 公式起点の元hostです。
-	std::wstring textHost ;		// 本文の同origin hostです。
+	  }) ;					 // 原sourceです
+	std::wstring sourceHost ;	// 公式起点の元hostです
+	std::wstring textHost ;		// 本文の同origin hostです
 	const bool	 staticSection = terms.textDocument->htmlExtraction &&
 							   terms.textDocument->htmlExtraction->profile ==
-								   "STATIC_HTML_SECTION_V1" ;	// 明示した独立規約だけです。
-	// 旧契約の同origin条件を維持し、独立profileだけ実公式リンクを後段で確認します。
+								   "STATIC_HTML_SECTION_V1" ;	// 明示した独立規約だけです
+	// 旧契約の同origin条件を維持し、独立profileだけ実公式リンクを後段で確認します
 	if( source == receipt.sources().end() || !exactHttpsHost( source->officialOrigin, sourceHost) ||
 	   !exactHttpsHost( terms.textDocument->url, textHost) ||
 	   (!staticSection && sourceHost != textHost) ||
@@ -685,11 +715,11 @@ NativeError SignedIndexAcquisitionAdapter::readTermsText(
 		return E_NOTIMPL ;
 	}
 
-	// 独立規約は署名sourceの公式配布pageと実anchorにだけ由来させ、任意originへfallbackしません。
+	// 独立規約は署名sourceの公式配布pageと実anchorにだけ由来させ、任意originへfallbackしません
 	if( staticSection) {
-		const auto	&binding = *terms.textDocument->htmlExtraction ;	// 認証済みの原リンク根拠です。
-		std::wstring bindingHost ;										// 同source originからだけ取得します。
-		// 元source/原hashへの結合を使用時にも要求します。
+		const auto	&binding = *terms.textDocument->htmlExtraction ;	// 認証済みの原リンク根拠です
+		std::wstring bindingHost ;										// 同source originからだけ取得します
+		// 元source/原hashへの結合を使用時にも要求します
 		if( binding.bindingEvidenceUrl != source->distributionPage ||
 		   !source->officialEvidence.evidenceSha256 ||
 		   binding.bindingEvidenceSha256 != *source->officialEvidence.evidenceSha256 ||
@@ -697,69 +727,69 @@ NativeError SignedIndexAcquisitionAdapter::readTermsText(
 			return E_ACCESSDENIED ;
 		}
 
-		std::string	 linkRaw ;	// URLや本文を通常logへ渡しません。
-		std::wstring linkHtml ;	// 周辺HTMLのnonceは同意対象ではありません。
-		// 使用時の公式配布pageを同originで有限取得します。
+		std::string	 linkRaw ;	// URLや本文を通常logへ渡しません
+		std::wstring linkHtml ;	// 周辺HTMLのnonceは同意対象ではありません
+		// 使用時の公式配布pageを同originで有限取得します
 		const auto	 linkError = client.getSignedIndexTermsDocument(
 			  indexUtf8Text( binding.bindingEvidenceUrl), bindingHost,
 			  binding.bindingEvidenceSizeBytes, true, cancellation, linkRaw, linkHtml, true) ;
-		// 周辺byteの同一性ではなく、同じ規約URLへの実anchorを要求します。
+		// 周辺byteの同一性ではなく、同じ規約URLへの実anchorを要求します
 		if( linkError != 0U || !hasStaticHtmlDocumentLink( linkHtml, terms.textDocument->url)) {
 			return linkError != 0U ? linkError : static_cast<NativeError>( E_ACCESSDENIED) ;
 		}
 	}
 
-	std::string	 raw ;	// 全原byteをhash確認までRAMへだけ所有します。
-	std::wstring text ;	// 変形しない元全文です。
+	std::string	 raw ;	// 全原byteをhash確認までRAMへだけ所有します
+	std::wstring text ;	// 変形しない元全文です
 	const bool	 html =
-		// Plainと明示HTMLを区別します。
+		// Plainと明示HTMLを区別します
 		terms.textDocument->htmlExtraction.has_value() ;
 	auto error = client.getSignedIndexTermsDocument(
 		std::wstring{terms.textDocument->url.begin(), terms.textDocument->url.end()}, textHost,
 		terms.textDocument->sizeBytes, html, cancellation, raw, text,
-		staticSection) ;	// 共通の有限GETです。
-	std::wstring digest ;	// 実全文の完全SHA-256です。
-	// 本文未取得の状態でhash成功値を作りません。
+		staticSection) ;	// 共通の有限GETです
+	std::wstring digest ;	// 実全文の完全SHA-256です
+	// 本文未取得の状態でhash成功値を作りません
 	if( error == 0U && !html) {
 		error = computeBytesSha256( raw, digest) ;
 	}
 
-	// HTMLの原page provenanceと使用時の原選択文書/全文を明示別契約で照合します。
+	// HTMLの原page provenanceと使用時の原選択文書/全文を明示別契約で照合します
 	if( error == 0U && html) {
-		std::wstring extracted ;	// 全原文書/全文照合が終わるまで公開しない値です。
+		std::wstring extracted ;	// 全原文書/全文照合が終わるまで公開しない値です
 		error = verifyStaticHtmlTerms( text, *terms.textDocument->htmlExtraction,
 									  record.acquisitionDescriptor->payloadUrl,
 									  indexUtf8Text( terms.revision), extracted) ;
-		// 部分抽出を正常snapshotへ残しません。
+		// 部分抽出を正常snapshotへ残しません
 		if( error == 0U) {
 			text = std::move( extracted) ;
 		}
 	}
 
-	// 原全文/長さ/hash/表示上限が成立しない対象を同意可能へ変えません。
+	// 原全文/長さ/hash/表示上限が成立しない対象を同意可能へ変えません
 	if( error != 0U || (!html && digest != hexDigest( terms.textDocument->sha256)) ||
 	   !validPreparationEulaText( text)) {
 		return error != 0U ? error : static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CRC)) ;
 	}
 
-	std::size_t retained{} ;	// 同scanの全文code unit累計です。
-	// 全既取得本文だけを合計し、plan全文上限を超えません。
+	std::size_t retained{} ;	// 同scanの全文code unit累計です
+	// 全既取得本文だけを合計し、plan全文上限を超えません
 	for( const auto &value : terms_) {
 		retained += value.text.size() ;
 	}
 
-	// 大量の別規約をplan上限を越えてRAMへ保持しません。
+	// 大量の別規約をplan上限を越えてRAMへ保持しません
 	if( text.size() > MAXIMUM_PREPARATION_PLAN_EULA_CHARACTERS - retained) {
 		return HRESULT_FROM_WIN32( ERROR_FILE_TOO_LARGE) ;
 	}
 
-	std::wstring revision = indexUtf8Text( terms.revision) ;	// 原公開revisionを文字化けさせません。
-	// 算出方式だけは既存の全文revision共通処理を使用します。
+	std::wstring revision = indexUtf8Text( terms.revision) ;	// 原公開revisionを文字化けさせません
+	// 算出方式だけは既存の全文revision共通処理を使用します
 	if( terms.revisionKind == IndexTermsRevisionKind::COMPUTED_UTF8_SHA256) {
 		error = makeComputedEulaRevision( text, revision) ;
 	}
 
-	// 再検証不成立やrevision失敗をRAM正常snapshotへ追加しません。
+	// 再検証不成立やrevision失敗をRAM正常snapshotへ追加しません
 	if( error != 0U || validateRecord( relationIndex, current, nowUtc, reason) != 0U) {
 		return error != 0U ? error : static_cast<NativeError>( E_ACCESSDENIED) ;
 	}
@@ -770,13 +800,13 @@ NativeError SignedIndexAcquisitionAdapter::readTermsText(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 元lookupの関係位置から取得対象を再記述します。
- * @param[in] relationIndex 元lookup内の0起点位置。公開tupleは受理しません。
- * @param[in] current 現worker context。
- * @param[in] nowUtc 信頼UTC。
- * @param[in] limits 共通preparationの有限予算。
- * @param[out] description 全条件成功時だけtarget。失敗時は不足理由を保持します。
- * @return 記述成功0、未知・未対応E_NOTIMPL、stale・権限・期限等の拒否HRESULT。
+ * @brief 元lookupの関係位置から取得対象を再記述します
+ * @param[in] relationIndex 元lookup内の0起点位置。公開tupleは受理しません
+ * @param[in] current 現worker context
+ * @param[in] nowUtc 信頼UTC
+ * @param[in] limits 共通preparationの有限予算
+ * @param[out] description 全条件成功時だけtarget。失敗時は不足理由を保持します
+ * @return 記述成功0、未知・未対応E_NOTIMPL、stale・権限・期限等の拒否HRESULT
  */
 //------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::describe(
@@ -785,15 +815,15 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 	SignedIndexPreparationDescription &description)
 {
 	description = {} ;
-	// 導入開始後に取得計画や未使用権限を増やさず、元成功根拠だけを残します。
+	// 導入開始後に取得計画や未使用権限を増やさず、元成功根拠だけを残します
 	if( !acquisitionOpen_ || !*acquisitionOpen_) {
 		return E_ACCESSDENIED ;
 	}
 
 	const NativeError error =
-		// 全元binding再確認。
+		// 全元binding再確認
 		validateRecord( relationIndex, current, nowUtc, description.reason) ;
-	// 不足理由のあるrecordから取得対象を生成しません。
+	// 不足理由のあるrecordから取得対象を生成しません
 	if( error != 0) {
 		return error ;
 	}
@@ -802,13 +832,13 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 		std::find_if( bindings_.begin(), bindings_.end(), [&]( const auto &binding) {
 			return std::ranges::find( binding.relationIndices, relationIndex) !=
 				   binding.relationIndices.end() ;
-		}) ; // 同原関係が既に含まれる共有取得bindingだけ。
-	// 別予算や失効したmemberから旧承認targetを再使用しません。
+		}) ; // 同原関係が既に含まれる共有取得bindingだけ
+	// 別予算や失効したmemberから旧承認targetを再使用しません
 	if( existing != bindings_.end()) {
 		const auto groupError =
-			// 全member再確認。
+			// 全member再確認
 			validateBinding( *existing, current, nowUtc, description.reason) ;
-		// 記述済み共有targetの全条件が不変な場合だけ同じ対象を返します。
+		// 記述済み共有targetの全条件が不変な場合だけ同じ対象を返します
 		if( groupError != 0U || existing->limits != limits) {
 			return groupError != 0U ? groupError : static_cast<NativeError>( E_ACCESSDENIED) ;
 		}
@@ -820,12 +850,12 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 	const auto &record =
 		lookup_->snapshot()
 			.schemaReceipt()
-			.records()[lookup_->relations()[relationIndex].recordIndex] ;	// 一意元record。
-	const auto		   &descriptor = *record.acquisitionDescriptor ;		// 元静的ZIP条件。
+			.records()[lookup_->relations()[relationIndex].recordIndex] ;	// 一意元record
+	const auto		   &descriptor = *record.acquisitionDescriptor ;		// 元静的ZIP条件
 	const std::uint64_t maximum =
-		std::min( {descriptor.maximumBytes, limits.maximumFileBytes, limits.maximumProviderBytes,
-				  limits.maximumSessionBytes}) ;	// 同じ有限予算の最小枠。
-	// 容量不明は有限取得できるが、既知容量超過を架空sizeで補完しません。
+		// 同じ外側tupleだけを予約します
+		effectiveIndexPayloadMaximum( record, limits) ;
+	// 容量不明は有限取得できるが、既知容量超過を架空sizeで補完しません
 	if( maximum == 0U ||
 	   (record.packageEvidence.size.value && *record.packageEvidence.size.value > maximum) ||
 	   limits.maximumProviderFiles == 0U || limits.maximumSessionFiles == 0U) {
@@ -833,7 +863,7 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 		return HRESULT_FROM_WIN32( ERROR_FILE_TOO_LARGE) ;
 	}
 
-	OfficialPreparationTarget target ;	// URL非保持の計画snapshot。
+	OfficialPreparationTarget target ;	// URL非保持の計画snapshot
 	target.identity		   = L"index-acquisition-" + std::to_wstring( relationIndex) ;
 	target.providerId	   = SIGNED_INDEX_PROVIDER_ID ;
 	target.resourceId	   = INDEX_PAYLOAD_RESOURCE ;
@@ -842,11 +872,11 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 	target.maximumBytes	   = maximum ;
 	target.deviceCount	   = 1U ;
 	target.terms		   = OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
-	const auto &receipt	   = lookup_->snapshot().schemaReceipt() ;	// 同sourceの正本です。
+	const auto &receipt	   = lookup_->snapshot().schemaReceipt() ;	// 同sourceの正本です
 	const auto	source	   = std::ranges::find_if( receipt.sources(), [&record]( const auto &value) {
 		 return value.sourceId == record.sourceId ;
-	 }) ; // 元公式主体です。
-	// 規約出典のないrecordから共通Providerだけの同意を作りません。
+	 }) ; // 元公式主体です
+	// 規約出典のないrecordから共通Providerだけの同意を作りません
 	if( source == receipt.sources().end()) {
 		return E_ACCESSDENIED ;
 	}
@@ -854,12 +884,12 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 	target.eulaSourceSubject =
 		std::wstring{source->sourceId.begin(), source->sourceId.end()} + L" (" +
 		std::wstring{source->officialOrigin.begin(), source->officialOrigin.end()} + L")" ;
-	// 原規約全文の実取得が完了した対象だけを同意可能な計画へ渡します。
+	// 原規約全文の実取得が完了した対象だけを同意可能な計画へ渡します
 	if( descriptor.terms.state == IndexTermsState::ACCEPTANCE_REQUIRED) {
 		const auto text = std::ranges::find_if( terms_, [relationIndex]( const auto &value) {
 			return value.relationIndex == relationIndex ;
-		}) ; // RAMの同原全文です。
-		// 未取得全文を空の同意不要へ変更しません。
+		}) ; // RAMの同原全文です
+		// 未取得全文を空の同意不要へ変更しません
 		if( text == terms_.end()) {
 			description.reason = "exact terms text has not been acquired" ;
 			return E_NOTIMPL ;
@@ -869,9 +899,9 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 		target.eulaText		   = text->text ;
 		target.eulaRevision	   = text->revision ;
 		target.sharedEulaToken = bindings_.size() + 1U ;
-		// 同subject/revision/全文だけへ短命tokenを共有し、他出典の同意を流用しません。
+		// 同subject/revision/全文だけへ短命tokenを共有し、他出典の同意を流用しません
 		for( const auto &binding : bindings_) {
-			// 出典と全文が完全一致する先行groupだけを再利用します。
+			// 出典と全文が完全一致する先行groupだけを再利用します
 			if( binding.target.terms == target.terms &&
 			   binding.target.eulaSourceSubject == target.eulaSourceSubject &&
 			   binding.target.eulaRevision == target.eulaRevision &&
@@ -882,25 +912,25 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 		}
 	}
 
-	// 全具体的user条件をEULAとは独立した完全targetへ結びます。
+	// 全具体的user条件をEULAとは独立した完全targetへ結びます
 	for( const auto &condition : descriptor.prerequisites.items) {
-		// 機械確認済みOS条件を利用者への包括確認へ変換しません。
+		// 機械確認済みOS条件を利用者への包括確認へ変換しません
 		if( condition.kind == IndexPrerequisiteKind::USER_CONFIRMATION) {
 			target.requiresPrerequisiteConfirmation = true ;
 			target.prerequisiteText += indexUtf8Text( condition.description) + L"\r\n" ;
 		}
 	}
 
-	std::vector<std::size_t> members{relationIndex} ;	// 原lookupの既存有限枠内で全関係を保持します。
+	std::vector<std::size_t>  members{relationIndex} ;	// 原lookupの既存有限枠内で全関係を保持します
 	std::vector<std::wstring> devices{
-		*lookup_->relations()[relationIndex].deviceIdentity} ;	// 最大32のunique deviceです。
-	// 同deviceの別recordも元位置で保持し、完全内容と全policyを個別に照合します。
+		*lookup_->relations()[relationIndex].deviceIdentity} ;	// 最大32のunique deviceです
+	// 同deviceの別recordも元位置で保持し、完全内容と全policyを個別に照合します
 	for( std::size_t index = 0U;
 		index < lookup_->relations().size() && members.size() < index_capacity::RETAINED_RELATIONS;
 		++index) {
-		const auto &relation = lookup_->relations()[index] ;	// 外部DTOではない元私有relation。
-		std::string rejectedReason ;							// 保留理由を共有合格へ変換しません。
-		// 既記述関係と未検証関係を共有targetへ加えません。
+		const auto &relation = lookup_->relations()[index] ;	// 外部DTOではない元私有relation
+		std::string rejectedReason ;							// 保留理由を共有合格へ変換しません
+		// 既記述関係と未検証関係を共有targetへ加えません
 		if( index == relationIndex || validateRecord( index, current, nowUtc, rejectedReason) != 0U ||
 		   std::ranges::any_of( bindings_, [&]( const auto &binding) {
 			   return std::ranges::find( binding.relationIndices, index) !=
@@ -910,20 +940,20 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 		}
 
 		const bool newDevice = std::ranges::find( devices, *relation.deviceIdentity) ==
-							   // 重複数ではありません。
+							   // 重複数ではありません
 							   devices.end() ;
-		// 32device上限へ達しても、既存deviceの別原recordは保持できます。
+		// 32device上限へ達しても、既存deviceの別原recordは保持できます
 		if( newDevice && devices.size() >= 32U) {
 			continue ;
 		}
 
 		const auto &other = lookup_->snapshot()
 								.schemaReceipt()
-								.records()[relation.recordIndex] ;	// 同snapshotの原record。
-		// 同URLや版だけで共有せず、UNKNOWN outerを別recordの実byteで補完しません。
+								.records()[relation.recordIndex] ;	// 同snapshotの原record
+		// 同URLや版だけで共有せず、UNKNOWN outerを別recordの実byteで補完しません
 		if( matchesSharedIndexPayloadEvidence( record, other)) {
 			members.push_back( index) ;
-			// unique deviceだけをUIの作用対象件数へ計上します。
+			// unique deviceだけをUIの作用対象件数へ計上します
 			if( newDevice) {
 				devices.push_back( *relation.deviceIdentity) ;
 			}
@@ -931,7 +961,7 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 	}
 
 	target.deviceCount = static_cast<std::uint32_t>( devices.size()) ;
-	// 一issuerの有限記述枠をscan対象全体の上限へ拡大しません。
+	// 一issuerの有限記述枠をscan対象全体の上限へ拡大しません
 	if( bindings_.size() >= 256U) {
 		description.reason = "finite preparation binding capacity exceeded" ;
 		return HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
@@ -945,19 +975,19 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 私有共有bindingの全原recordと期限を再確認します。
- * @param[in] binding 同issuerが記述した未変更の取得binding。
- * @param[in] current 元scan context。
- * @param[in] nowUtc 信頼UTC。
- * @param[out] reason 最初の拒否理由。
- * @return 全原関係成立0、それ以外は元HRESULTです。
+ * @brief 私有共有bindingの全原recordと期限を再確認します
+ * @param[in] binding 同issuerが記述した未変更の取得binding
+ * @param[in] current 元scan context
+ * @param[in] nowUtc 信頼UTC
+ * @param[out] reason 最初の拒否理由
+ * @return 全原関係成立0、それ以外は元HRESULTです
  */
 //------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::validateBinding(
 	const PreparedBinding &binding, const IndexLookupContext current,
 	const std::optional<std::chrono::sys_seconds> nowUtc, std::string &reason) const
 {
-	// 関係数とdevice数を混同せず、既存lookup枠と32device枠を独立に検査します。
+	// 関係数とdevice数を混同せず、既存lookup枠と32device枠を独立に検査します
 	if( !lookup_ || binding.relationIndices.empty() ||
 	   lookup_->relations().size() > index_capacity::RETAINED_RELATIONS ||
 	   binding.relationIndices.size() > index_capacity::RETAINED_RELATIONS ||
@@ -967,52 +997,60 @@ NativeError SignedIndexAcquisitionAdapter::validateBinding(
 	}
 
 	const auto firstError = validateRecord( binding.relationIndex, current, nowUtc,
-										   reason) ;	// 位置を使用する前の独立検証。
-	// 代表の位置や原tupleが不正なら、他関係で補完しません。
+										   reason) ;	// 位置を使用する前の独立検証
+	// 代表の位置や原tupleが不正なら、他関係で補完しません
 	if( firstError != 0U) {
 		return firstError ;
 	}
 
-	const auto &records = lookup_->snapshot().schemaReceipt().records() ;	// 同原snapshotです。
+	const auto &records = lookup_->snapshot().schemaReceipt().records() ;	// 同原snapshotです
 	const auto &representative =
-		records[lookup_->relations()[binding.relationIndex].recordIndex] ;	// 検証済み代表原record。
-	std::vector<bool> seen( lookup_->relations().size(), false) ;			// 原lookup枠を超えない重複検査。
-	std::vector<std::wstring> devices ;										// Unique deviceを別に再計数します。
-	// 各原関係を元context/hash/期限へ再照合し、代表recordだけで権限を省略しません。
+		records[lookup_->relations()[binding.relationIndex].recordIndex] ;	// 検証済み代表原record
+	// 旧上限targetや別tupleを小さいexact予約の承認へ読み替えません
+	if( binding.target.maximumBytes == 0U ||
+	   binding.target.maximumBytes !=
+		   effectiveIndexPayloadMaximum( representative, binding.limits)) {
+		reason = "signed outer payload transfer limit mismatch" ;
+		return static_cast<NativeError>( E_ACCESSDENIED) ;
+	}
+
+	std::vector<bool> seen( lookup_->relations().size(), false) ;	// 原lookup枠を超えない重複検査
+	std::vector<std::wstring> devices ;								// Unique deviceを別に再計数します
+	// 各原関係を元context/hash/期限へ再照合し、代表recordだけで権限を省略しません
 	for( const auto index : binding.relationIndices) {
-		// 同じ元位置の二重権限や範囲外位置を拒否します。
+		// 同じ元位置の二重権限や範囲外位置を拒否します
 		if( index >= seen.size() || seen[index]) {
 			reason = "duplicate or unavailable original relation" ;
 			return static_cast<NativeError>( E_ACCESSDENIED) ;
 		}
 
 		seen[index]		 = true ;
-		const auto error = validateRecord( index, current, nowUtc, reason) ;	// 元recordの独立検証。
-		// 最初の個別拒否は共有成功へ上書きしません。
+		const auto error = validateRecord( index, current, nowUtc, reason) ;	// 元recordの独立検証
+		// 最初の個別拒否は共有成功へ上書きしません
 		if( error != 0U) {
 			return error ;
 		}
 
-		const auto &relation = lookup_->relations()[index] ;	// 元record/source/hash再照合済みです。
-		// 一部のpolicy一致から全groupの取得権限を生成しません。
+		const auto &relation = lookup_->relations()[index] ;	// 元record/source/hash再照合済みです
+		// 一部のpolicy一致から全groupの取得権限を生成しません
 		if( index != binding.relationIndex &&
 		   !matchesSharedIndexPayloadEvidence( representative, records[relation.recordIndex])) {
 			reason = "shared payload evidence or policy mismatch" ;
 			return static_cast<NativeError>( E_ACCESSDENIED) ;
 		}
 
-		// 同deviceの複数INF/版を複数deviceへ数えません。
+		// 同deviceの複数INF/版を複数deviceへ数えません
 		if( std::ranges::find( devices, *relation.deviceIdentity) == devices.end()) {
 			devices.push_back( *relation.deviceIdentity) ;
 		}
 
-		// Claim時にも作用device数を増やす改変を拒否します。
+		// Claim時にも作用device数を増やす改変を拒否します
 		if( devices.size() > 32U) {
 			return static_cast<NativeError>( E_ACCESSDENIED) ;
 		}
 	}
 
-	// Targetの公開件数も全原関係から再計数した値へ完全一致させます。
+	// Targetの公開件数も全原関係から再計数した値へ完全一致させます
 	if( devices.size() != binding.target.deviceCount) {
 		return static_cast<NativeError>( E_ACCESSDENIED) ;
 	}
@@ -1022,13 +1060,13 @@ NativeError SignedIndexAcquisitionAdapter::validateBinding(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実claim済みtaskから同じRecordScopedDownloadGrantを一回発行します。
- * @param[in] preparation 実active taskを所有する同worker session。
- * @param[in] task 利用者承認後の未変更task。
- * @param[in] current 現worker context。
- * @param[in] nowUtcSeconds 発行直前の信頼UTC秒。
- * @param[out] grant 未発行object。成功時だけ同じgrant状態機械へ進めます。
- * @return 全再照合成功0、改変・再使用・失効・期限は拒否HRESULT。
+ * @brief 実claim済みtaskから同じRecordScopedDownloadGrantを一回発行します
+ * @param[in] preparation 実active taskを所有する同worker session
+ * @param[in] task 利用者承認後の未変更task
+ * @param[in] current 現worker context
+ * @param[in] nowUtcSeconds 発行直前の信頼UTC秒
+ * @param[out] grant 未発行object。成功時だけ同じgrant状態機械へ進めます
+ * @return 全再照合成功0、改変・再使用・失効・期限は拒否HRESULT
  */
 //------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::claimApprovedRecord(
@@ -1041,13 +1079,13 @@ NativeError SignedIndexAcquisitionAdapter::claimApprovedRecord(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 非公開adapterが実taskとsnapshotを再確認して同じgrantを発行します。
- * @param[in,out] adapter 失効可能な元issuer。
- * @param[in] preparation 実claimを保持するsession。
- * @param[in] task 同じ未完了task。
- * @param[in] current 現worker context。
- * @param[in] nowUtcSeconds 発行UTC秒。
- * @return 全sealed bindingの成立時0。未発行の入力だけを受理します。
+ * @brief 非公開adapterが実taskとsnapshotを再確認して同じgrantを発行します
+ * @param[in,out] adapter 失効可能な元issuer
+ * @param[in] preparation 実claimを保持するsession
+ * @param[in] task 同じ未完了task
+ * @param[in] current 現worker context
+ * @param[in] nowUtcSeconds 発行UTC秒
+ * @return 全sealed bindingの成立時0。未発行の入力だけを受理します
  */
 //------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::issueSignedIndex( SignedIndexAcquisitionAdapter &adapter,
@@ -1060,8 +1098,8 @@ NativeError RecordScopedDownloadGrant::issueSignedIndex( SignedIndexAcquisitionA
 		std::find_if( adapter.bindings_.begin(), adapter.bindings_.end(),
 					 [&task]( const SignedIndexAcquisitionAdapter::PreparedBinding &entry) {
 						 return entry.target == task.target ;
-					 }) ; // 私有記述へ完全一致。
-	// Tokenだけの自己申告、再発行、stale、別sessionやgrant再使用を拒否します。
+					 }) ; // 私有記述へ完全一致
+	// Tokenだけの自己申告、再発行、stale、別sessionやgrant再使用を拒否します
 	if( !adapter.acquisitionOpen_ || !*adapter.acquisitionOpen_ ||
 	   metadata_.state != OfficialDownloadGrantState::NOT_REQUESTED ||
 	   !preparation.ownsActiveTask( task) || binding == adapter.bindings_.end() ||
@@ -1070,40 +1108,41 @@ NativeError RecordScopedDownloadGrant::issueSignedIndex( SignedIndexAcquisitionA
 		return E_ACCESSDENIED ;
 	}
 
-	std::string		  reason ;	// 再確認不能の理由をworker内だけに保持します。
+	std::string		  reason ;	// 再確認不能の理由をworker内だけに保持します
 	const NativeError error =
 		adapter.validateBinding( *binding, current, utcFromSeconds( nowUtcSeconds),
-								reason) ;	// 共有する全原recordの最終再照合。
-	// 不足・個別失効からgrantを発行しません。
+								reason) ;	// 共有する全原recordの最終再照合
+	// 不足・個別失効からgrantを発行しません
 	if( error != 0) {
 		return error ;
 	}
 
-	const auto &lookup = *adapter.lookup_ ;	// 不変の元関係と保存snapshot。
+	const auto &lookup = *adapter.lookup_ ;	// 不変の元関係と保存snapshot
 	const auto &record =
 		lookup.snapshot()
 			.schemaReceipt()
-			.records()[lookup.relations()[binding->relationIndex].recordIndex] ;	// 元record。
-	const auto &descriptor = *record.acquisitionDescriptor ;						// 型認証済みexact route。
+			.records()[lookup.relations()[binding->relationIndex].recordIndex] ;	// 元record
+	const auto &descriptor = *record.acquisitionDescriptor ;						// 型認証済みexact route
 	const auto &manifest =
-		// 元manifest。
+		// 元manifest
 		lookup.snapshot().schemaReceipt().assetBytes().manifest().data() ;
-	// 15分を加算できないUTCを丸めません。
+	// 15分を加算できないUTCを丸めません
 	if( nowUtcSeconds > std::numeric_limits<std::uint64_t>::max() - 900U) {
 		return E_INVALIDARG ;
 	}
 
-	const auto expires = std::min(
-		{nowUtcSeconds + 900U,
-		 static_cast<std::uint64_t>( manifest.expiresAtUtc.time_since_epoch().count()),
-		 static_cast<std::uint64_t>( descriptor.attestation->validUntilUtc.time_since_epoch()
-										.count())}) ;	// 三期限の最小値。
-	// 開始余裕30秒を持たない取得は発行前に拒否します。
+	const auto expires =
+		std::min( {nowUtcSeconds + 900U,
+				  static_cast<std::uint64_t>( manifest.expiresAtUtc.time_since_epoch().count()),
+				  static_cast<std::uint64_t>(
+					  // 三期限の最小値
+					  descriptor.attestation->validUntilUtc.time_since_epoch().count())}) ;
+	// 開始余裕30秒を持たない取得は発行前に拒否します
 	if( expires <= nowUtcSeconds || expires - nowUtcSeconds < 30U) {
 		return HRESULT_FROM_WIN32( ERROR_TIMEOUT) ;
 	}
 
-	RecordScopedDownloadGrant pending ;	// 全copy成功後だけ公開する同じgrant型。
+	RecordScopedDownloadGrant pending ;	// 全copy成功後だけ公開する同じgrant型
 	pending.metadata_.origin = OfficialDownloadGrantOrigin::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
 	pending.signedIndexResolverPending_ = descriptor.anonymousCdn.has_value() ;
 	pending.metadata_.scanSessionId		= task.scanSessionId ;
@@ -1112,7 +1151,7 @@ NativeError RecordScopedDownloadGrant::issueSignedIndex( SignedIndexAcquisitionA
 	pending.metadata_.providerId		= SIGNED_INDEX_PROVIDER_ID ;
 	pending.metadata_.policyId			= L"signed-index-attestation-v1" ;
 	pending.metadata_.rootResourceId	= L"authenticated-index-record" ;
-	// 原32byteを既存record fingerprint容器へ表現し、live fingerprintの由来を合成しません。
+	// 原32byteを既存record fingerprint容器へ表現し、live fingerprintの由来を合成しません
 	std::transform( record.recordSha256.begin(), record.recordSha256.end(),
 				   pending.metadata_.recordFingerprint.bytes.begin(),
 				   []( const std::uint8_t byte) { return static_cast<std::byte>( byte) ; }) ;
@@ -1127,19 +1166,19 @@ NativeError RecordScopedDownloadGrant::issueSignedIndex( SignedIndexAcquisitionA
 	pending.fileDisplayName_ = indexUtf8Text( descriptor.fileName) ;
 	pending.expectedContentType_ =
 		std::wstring{descriptor.expectedContentType.begin(), descriptor.expectedContentType.end()} ;
-	// メーカー公表hashだけを公開hashへ渡し、監視PC計算hashは後段の独立照合へ残します。
+	// メーカー公表hashだけを公開hashへ渡し、監視PC計算hashは後段の独立照合へ残します
 	if( record.packageEvidence.publishedHash.sha256) {
 		pending.publishedSha256_ = hexDigest( *record.packageEvidence.publishedHash.sha256) ;
 	}
 
-	// 期待publisherは元申告だけを保持し、索引発行者を代入しません。
+	// 期待publisherは元申告だけを保持し、索引発行者を代入しません
 	if( descriptor.publisher.value) {
 		pending.publisher_ = indexUtf8Text( *descriptor.publisher.value) ;
 	}
 
 	pending.targetUrl_ =
 		SecretOfficialUrl{std::wstring{descriptor.payloadUrl.begin(), descriptor.payloadUrl.end()}} ;
-	// Codecで公式導線・一方向CDN・有限回数を検査済みのexact順を全hop封印します。
+	// Codecで公式導線・一方向CDN・有限回数を検査済みのexact順を全hop封印します
 	for( const auto &hop : descriptor.route) {
 		pending.signedIndexRoute_.emplace_back( std::wstring{hop.url.begin(), hop.url.end()}) ;
 	}
@@ -1149,7 +1188,7 @@ NativeError RecordScopedDownloadGrant::issueSignedIndex( SignedIndexAcquisitionA
 	pending.signedIndexLookup_			= adapter.lookup_ ;
 	pending.signedIndexRelationIndex_	= binding->relationIndex ;
 	binding->claimedTask				= task ;
-	// 全所有値の準備後に実preparation自身で一回発行を確定します。
+	// 全所有値の準備後に実preparation自身で一回発行を確定します
 	if( !preparation.claimIndexAcquisition( task)) {
 		binding->claimedTask.reset() ;
 		return E_ACCESSDENIED ;
@@ -1163,23 +1202,23 @@ NativeError RecordScopedDownloadGrant::issueSignedIndex( SignedIndexAcquisitionA
 
 //------------------------------------------------------------------------------
 /**
- * @brief 署名索引grantの失効leaseと同scanの非公開元lookupを照合します。
- * @param[in] scanSessionId 現取得session。
- * @return 元封印とissuerが生存し同scanの場合0。それ以外は拒否HRESULT。
+ * @brief 署名索引grantの失効leaseと同scanの非公開元lookupを照合します
+ * @param[in] scanSessionId 現取得session
+ * @return 元封印とissuerが生存し同scanの場合0。それ以外は拒否HRESULT
  */
 //------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::validateSignedIndexAuthority(
 	const ScanSessionId scanSessionId) const noexcept
 {
-	// 弱issuerと非公開lookupの同一関係が残る場合だけ索引分岐を許可します。
+	// 弱issuerと非公開lookupの同一関係が残る場合だけ索引分岐を許可します
 	if( metadata_.origin != OfficialDownloadGrantOrigin::SIGNED_INDEX_COLLECTOR_ATTESTATION ||
 	   signedIndexIssuer_.expired() || !signedIndexLookup_ ||
 	   signedIndexRelationIndex_ >= signedIndexLookup_->relations().size()) {
 		return E_ACCESSDENIED ;
 	}
 
-	const auto acquisitionOpen = signedIndexAcquisitionOpen_.lock() ;	// 元workerの閉鎖状態。
-	// 閉鎖後の新claim・各HTTP hopを拒否し、既消費成功根拠の読取りだけを許します。
+	const auto acquisitionOpen = signedIndexAcquisitionOpen_.lock() ;	// 元workerの閉鎖状態
+	// 閉鎖後の新claim・各HTTP hopを拒否し、既消費成功根拠の読取りだけを許します
 	if( !acquisitionOpen ||
 	   (!*acquisitionOpen &&
 		(metadata_.state != OfficialDownloadGrantState::CONSUMED ||
@@ -1188,7 +1227,7 @@ NativeError RecordScopedDownloadGrant::validateSignedIndexAuthority(
 	}
 
 	const auto &relation =
-		// 不変の封印関係。
+		// 不変の封印関係
 		signedIndexLookup_->relations()[signedIndexRelationIndex_] ;
 	return metadata_.scanSessionId == scanSessionId &&
 				   relation.context.scanSessionId == scanSessionId
@@ -1198,11 +1237,11 @@ NativeError RecordScopedDownloadGrant::validateSignedIndexAuthority(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 封印した署名索引routeのexact URL順を再照合します。
- * @param[in] exactTarget 現HTTP hopのURL。本呼出し中だけ借用します。
- * @param[in] hop 0起点のhop位置。
- * @param[in] finalResponse HTTP 200に達した場合だけtrue。
- * @return 生存権限・URL完全一致・終端位置が成立した場合0。
+ * @brief 封印した署名索引routeのexact URL順を再照合します
+ * @param[in] exactTarget 現HTTP hopのURL。本呼出し中だけ借用します
+ * @param[in] hop 0起点のhop位置
+ * @param[in] finalResponse HTTP 200に達した場合だけtrue
+ * @return 生存権限・URL完全一致・終端位置が成立した場合0
  */
 //------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::validateSignedIndexHop(
@@ -1220,13 +1259,13 @@ NativeError RecordScopedDownloadGrant::validateSignedIndexHop(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 元lookupの公開resolver文脈だけを同期借用する。
- * @return 生存する同recordの未解決plan。それ以外はnull。
+ * @brief 元lookupの公開resolver文脈だけを同期借用する
+ * @return 生存する同recordの未解決plan。それ以外はnull
  */
 //------------------------------------------------------------------------------
 const OfficialAnonymousCdnPlan *RecordScopedDownloadGrant::anonymousCdnPlan() const noexcept
 {
-	// 元lookup/issuer/同用途がなければresolverを起動しない。
+	// 元lookup/issuer/同用途がなければresolverを起動しない
 	if( !signedIndexResolverPending_ || validateSignedIndexAuthority( metadata_.scanSessionId) != 0 ||
 	   (metadata_.state != OfficialDownloadGrantState::GRANT_ISSUED &&
 		metadata_.state != OfficialDownloadGrantState::ACQUIRING) ||
@@ -1237,15 +1276,15 @@ const OfficialAnonymousCdnPlan *RecordScopedDownloadGrant::anonymousCdnPlan() co
 	const auto &record = signedIndexLookup_->snapshot()
 							 .schemaReceipt()
 							 .records()[signedIndexLookup_->relations()[signedIndexRelationIndex_]
-											.recordIndex] ;	// 私有元record。
+											.recordIndex] ;	// 私有元record
 	return record.acquisitionDescriptor && record.acquisitionDescriptor->anonymousCdn
 			   ? &*record.acquisitionDescriptor->anonymousCdn
 			   : nullptr ;
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 同recordで未解決の匿名CDN protocolがあるか返す。
- * @return 元issuerが生存し未解決の同用途ならtrue。
+ * @brief 同recordで未解決の匿名CDN protocolがあるか返す
+ * @return 元issuerが生存し未解決の同用途ならtrue
  */
 //------------------------------------------------------------------------------
 bool RecordScopedDownloadGrant::requiresAnonymousCdnResolution() const noexcept
@@ -1254,12 +1293,12 @@ bool RecordScopedDownloadGrant::requiresAnonymousCdnResolution() const noexcept
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 同recordの公開起点とresponseだけからexact解決routeを封印する。
- * @param[in] canonical 元requestが単独所有する公開起点。
- * @param[in] resolved 新responseの秘密完全URL。
- * @param[in] expires 実responseのUTC Unix秒。
- * @param[in] now 送信直前の同worker UTC秒。
- * @return 全結合成功0、元HRESULT。失敗時は旧routeを維持する。
+ * @brief 同recordの公開起点とresponseだけからexact解決routeを封印する
+ * @param[in] canonical 元requestが単独所有する公開起点
+ * @param[in] resolved 新responseの秘密完全URL
+ * @param[in] expires 実responseのUTC Unix秒
+ * @param[in] now 送信直前の同worker UTC秒
+ * @return 全結合成功0、元HRESULT。失敗時は旧routeを維持する
  */
 //------------------------------------------------------------------------------
 NativeError RecordScopedDownloadGrant::sealAnonymousCdnResolution( const std::wstring_view canonical,
@@ -1267,29 +1306,29 @@ NativeError RecordScopedDownloadGrant::sealAnonymousCdnResolution( const std::ws
 																  const std::uint64_t	   expires,
 																  const std::uint64_t	   now)
 {
-	const auto *plan = anonymousCdnPlan() ;	// 元署名recordだけの公開文脈。
-	// 同じclaim中の元canonical/path/modelと新response以外を封印しない。
+	const auto *plan = anonymousCdnPlan() ;	// 元署名recordだけの公開文脈
+	// 同じclaim中の元canonical/path/modelと新response以外を封印しない
 	if( !plan || metadata_.state != OfficialDownloadGrantState::ACQUIRING ||
 	   canonical != asusAnonymousCdnCanonicalUrl( *plan) ||
 	   !matchesAsusAnonymousCdnTarget( *plan, resolved.view(), expires)) {
 		return E_ACCESSDENIED ;
 	}
 
-	const auto deadline = validateRequestStartDeadline( now) ;	// 元grantの時計/期限。
-	// 期限切れを新responseの未来値で救済しない。
+	const auto deadline = validateRequestStartDeadline( now) ;	// 元grantの時計/期限
+	// 期限切れを新responseの未来値で救済しない
 	if( deadline != 0) {
 		return deadline ;
 	}
 
 	const auto effective =
-		// 元権限と実外部期限の最小値。
+		// 元権限と実外部期限の最小値
 		std::min( expires, metadata_.expiresUtcSeconds) ;
-	// 30秒の開始余裕は元期限にも外部期限にも要求する。
+	// 30秒の開始余裕は元期限にも外部期限にも要求する
 	if( effective <= now || effective - now < 30U) {
 		return HRESULT_FROM_WIN32( ERROR_TIMEOUT) ;
 	}
 
-	std::vector<SecretOfficialUrl> route ;	// 全準備後だけ旧public routeから切り替える。
+	std::vector<SecretOfficialUrl> route ;	// 全準備後だけ旧public routeから切り替える
 	route.emplace_back( std::wstring( resolved.view())) ;
 	signedIndexRoute_				= std::move( route) ;
 	metadata_.expiresUtcSeconds		= effective ;
@@ -1300,17 +1339,17 @@ NativeError RecordScopedDownloadGrant::sealAnonymousCdnResolution( const std::ws
 
 //------------------------------------------------------------------------------
 /**
- * @brief 共通取得sealを元recordと独立照合し、共通内容検査入力を生成します。
- * @param[in] task 発行済みgrantと同じ実task。
- * @param[in] current 現worker context。
- * @param[in] nowUtcSeconds 封印入力確認直前の信頼UTC秒。
- * @param[in] session 元取得sealのissuer。
- * @param[in] workspace 元保護fileを所有する領域。
- * @param[in] evidence 公開結果から構築できない元取得seal。
- * @param[out] hint 全成功時だけ元index／record／実archiveの期待値。
- * @param[out] input 全成功時だけ既存DriverArchiveInput。失敗時は空。
- * @return 全実byteとrecord結合成功0、元HRESULTまたは拒否HRESULT。
- * @note 内容署名・Windows適合・導入は別の共通検査で行います。
+ * @brief 共通取得sealを元recordと独立照合し、共通内容検査入力を生成します
+ * @param[in] task 発行済みgrantと同じ実task
+ * @param[in] current 現worker context
+ * @param[in] nowUtcSeconds 封印入力確認直前の信頼UTC秒
+ * @param[in] session 元取得sealのissuer
+ * @param[in] workspace 元保護fileを所有する領域
+ * @param[in] evidence 公開結果から構築できない元取得seal
+ * @param[out] hint 全成功時だけ元index／record／実archiveの期待値
+ * @param[out] input 全成功時だけ既存DriverArchiveInput。失敗時は空
+ * @return 全実byteとrecord結合成功0、元HRESULTまたは拒否HRESULT
+ * @note 内容署名・Windows適合・導入は別の共通検査で行います
  */
 //------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::bindInspectionInput(
@@ -1324,35 +1363,35 @@ NativeError SignedIndexAcquisitionAdapter::bindInspectionInput(
 	const auto binding =
 		std::find_if( bindings_.begin(), bindings_.end(), [&task]( const PreparedBinding &entry) {
 			return entry.claimedTask && *entry.claimedTask == task ;
-		}) ; // 実claim元token。
-	// 別taskから元取得sealを再bindしません。
+		}) ; // 実claim元token
+	// 別taskから元取得sealを再bindしません
 	if( binding == bindings_.end()) {
 		return E_ACCESSDENIED ;
 	}
 
-	std::string		  reason ;	// 同recordの期限・元binding不足理由。
+	std::string		  reason ;	// 同recordの期限・元binding不足理由
 	const NativeError recordError =
 		validateBinding( *binding, current, utcFromSeconds( nowUtcSeconds),
-						reason) ;	// seal後も全原recordと個別期限を再確認。
-	// 失効原recordや元file再検証失敗を公開成功結果で補完しません。
+						reason) ;	// seal後も全原recordと個別期限を再確認
+	// 失効原recordや元file再検証失敗を公開成功結果で補完しません
 	if( recordError != 0) {
 		return recordError ;
 	}
 
 	const NativeError sealError =
-		// 同issuer・保護fileと原byteの共通検証。
+		// 同issuer・保護fileと原byteの共通検証
 		session.verifyAcquiredFile( evidence, workspace) ;
-	// 公開DTOや実byte改変から内容入力を生成しません。
+	// 公開DTOや実byte改変から内容入力を生成しません
 	if( sealError != 0) {
 		return sealError ;
 	}
 
-	const auto &receipt = lookup_->snapshot().schemaReceipt() ;	// 元index／recordの不変hash。
+	const auto &receipt = lookup_->snapshot().schemaReceipt() ;	// 元index／recordの不変hash
 	const auto &record =
-		// 元record。
+		// 元record
 		receipt.records()[lookup_->relations()[binding->relationIndex].recordIndex] ;
-	const auto &observed = evidence.observation() ;	// 私有issuerが発行した実取得結果。
-	// Grantの由来・opaque record・実hashとsizeを別々に照合します。
+	const auto &observed = evidence.observation() ;	// 私有issuerが発行した実取得結果
+	// Grantの由来・opaque record・実hashとsizeを別々に照合します
 	if( evidence.signedIndexIssuer_.lock() != issuer_ ||
 	   observed.downloadGrantId != binding->grantId ||
 	   observed.recordOrigin != OfficialDownloadGrantOrigin::SIGNED_INDEX_COLLECTOR_ATTESTATION ||
@@ -1361,7 +1400,7 @@ NativeError SignedIndexAcquisitionAdapter::bindInspectionInput(
 	   observed.resourceId != INDEX_PAYLOAD_RESOURCE || !observed.delegatedRecord ||
 	   observed.recordEvidenceId != binding->relationIndex + 1U ||
 	   hexDigest( record.recordSha256) != hexDigest( [&evidence]() {
-		   IndexManifestSha256 value{} ;	// 既存fingerprint容器の原byte表現。
+		   IndexManifestSha256 value{} ;	// 既存fingerprint容器の原byte表現
 		   std::transform( evidence.recordFingerprint().bytes.begin(),
 						  evidence.recordFingerprint().bytes.end(), value.begin(),
 						  []( const std::byte byte) { return std::to_integer<std::uint8_t>( byte) ; }) ;
@@ -1376,29 +1415,28 @@ NativeError SignedIndexAcquisitionAdapter::bindInspectionInput(
 
 	hint = {hexDigest( receipt.indexSha256()), hexDigest( record.recordSha256), observed.sha256,
 			observed.byteCount} ;
-	// 認証済み元recordの閉じたcontent計画だけを渡します。
+	// 認証済み元recordの閉じたcontent計画だけを渡します
 	if( record.acquisitionDescriptor->resourceContent) {
 		hint.resourceContent = std::make_shared<const OfficialResourceContentPlan>(
 			*record.acquisitionDescriptor->resourceContent) ;
 	}
 
-	// 元の共有選択集合だけから一意INFを固定し、別の内包INFへ対象を広げません。
+	// 元の共有選択集合だけから一意INFを固定し、別の内包INFへ対象を広げません
 	for( const auto relationIndex : binding->relationIndices) {
 		const auto &selectedRecord =
-			receipt
-				.records()[lookup_->relations()[relationIndex].recordIndex] ;	// 元認証recordです。
-		const auto &identity =
-			selectedRecord.publishedIdentityEvidence ;	// 同recordの元selectorです。
-		// 標準INFで公開selectorを持つrecordだけを通常内容検査へ結合します。
+			// 元認証recordです
+			receipt.records()[lookup_->relations()[relationIndex].recordIndex] ;
+		const auto &identity = selectedRecord.publishedIdentityEvidence ;	// 同recordの元selectorです
+		// 標準INFで公開selectorを持つrecordだけを通常内容検査へ結合します
 		if( selectedRecord.acquisition.value == IndexAcquisitionKind::STANDARD_INF_ARCHIVE &&
 		   identity.state == IndexEvidenceState::PUBLISHED &&
 		   identity.kind == IndexIdentityEvidenceKind::INF) {
 			IndexedDriverInfSelector selector{indexUtf8Text( identity.nestedArchiveIdentity),
-											  // 原Unicode値です。
+											  // 原Unicode値です
 											  indexUtf8Text( identity.infIdentity)} ;
 			std::ranges::replace( selector.nestedArchive, L'/', L'\\') ;
 			std::ranges::replace( selector.infIdentity, L'/', L'\\') ;
-			// 元同一memberをdevice数やModels節数で重複検査しません。
+			// 元同一memberをdevice数やModels節数で重複検査しません
 			if( std::ranges::find( hint.selectedInfs, selector) == hint.selectedInfs.end()) {
 				hint.selectedInfs.push_back( std::move( selector)) ;
 			}
@@ -1412,38 +1450,38 @@ NativeError SignedIndexAcquisitionAdapter::bindInspectionInput(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同lookupの配布tupleを比較します。原期限検証は呼出側でも省きません。
- * @param[in] task 新しい明示対象です。
- * @param[in] sourceTask 元TRANSFER対象です。
- * @return 原配布tupleが完全一致した場合だけtrueです。
+ * @brief 同lookupの配布tupleを比較します。原期限検証は呼出側でも省きません
+ * @param[in] task 新しい明示対象です
+ * @param[in] sourceTask 元TRANSFER対象です
+ * @return 原配布tupleが完全一致した場合だけtrueです
  */
 //------------------------------------------------------------------------------
 bool SignedIndexAcquisitionAdapter::matchesRetainedBody(
 	const OfficialPreparationTask &task, const OfficialPreparationTask &sourceTask) const
 {
-	// 元owner以外やlocalからの連鎖参照を作りません。
+	// 元owner以外やlocalからの連鎖参照を作りません
 	if( !lookup_ || !issuer_ || task.scanSessionId != context_.scanSessionId ||
 	   sourceTask.scanSessionId != context_.scanSessionId) {
 		return false ;
 	}
 
 	const auto target =
-		// 新原targetです。
+		// 新原targetです
 		std::ranges::find( bindings_, task.target, &PreparedBinding::target) ;
 	const auto source = std::ranges::find( bindings_, sourceTask.target,
-										  &PreparedBinding::target) ;	// 原所有targetです。
-	// 原TRANSFERの実claimが存在し、新しいtargetは別recordです。
+										  &PreparedBinding::target) ;	// 原所有targetです
+	// 原TRANSFERの実claimが存在し、新しいtargetは別recordです
 	if( target == bindings_.end() || source == bindings_.end() || target == source ||
 	   !source->claimedTask || *source->claimedTask != sourceTask ||
 	   source->localInspectionClaimed || source->grantId == 0U) {
 		return false ;
 	}
 
-	const auto &records = lookup_->snapshot().schemaReceipt().records() ;	// 原署名recordです。
+	const auto &records = lookup_->snapshot().schemaReceipt().records() ;	// 原署名recordです
 	const auto &left =
-		records[lookup_->relations()[target->relationIndex].recordIndex] ;	// 新対象です。
+		records[lookup_->relations()[target->relationIndex].recordIndex] ;	// 新対象です
 	const auto &right =
-		records[lookup_->relations()[source->relationIndex].recordIndex] ;	// 原ownerです。
+		records[lookup_->relations()[source->relationIndex].recordIndex] ;	// 原ownerです
 	return left.acquisition.value == IndexAcquisitionKind::STANDARD_INF_ARCHIVE &&
 		   right.acquisition.value == IndexAcquisitionKind::STANDARD_INF_ARCHIVE &&
 		   sameSharedPayloadEvidence( left, right, false) ;
@@ -1451,18 +1489,18 @@ bool SignedIndexAcquisitionAdapter::matchesRetainedBody(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 新LOCAL taskのscopeへ同owned fileを結合します。
- * @param[in] task 新しい明示承認taskです。
- * @param[in] sourceTask 元所有を説明する過去TRANSFER taskです。
- * @param[in] current 元scan contextです。
- * @param[in] nowUtcSeconds 信頼UTC秒です。
- * @param[in] session 元file sealのissuerです。
- * @param[in] workspace 元保護領域です。
- * @param[in] evidence 元fileの不変sealです。現在の読取許可ではありません。
- * @param[in] localInspection 当該LOCAL claimの照合票です。
- * @param[out] hint 新recordの原selectorです。
- * @param[out] input 元ownerからの非所有byte入力です。
- * @return 原A/B期限・所有・全tuple成立0です。通信/旧grant再消費は行いません。
+ * @brief 新LOCAL taskのscopeへ同owned fileを結合します
+ * @param[in] task 新しい明示承認taskです
+ * @param[in] sourceTask 元所有を説明する過去TRANSFER taskです
+ * @param[in] current 元scan contextです
+ * @param[in] nowUtcSeconds 信頼UTC秒です
+ * @param[in] session 元file sealのissuerです
+ * @param[in] workspace 元保護領域です
+ * @param[in] evidence 元fileの不変sealです。現在の読取許可ではありません
+ * @param[in] localInspection 当該LOCAL claimの照合票です
+ * @param[out] hint 新recordの原selectorです
+ * @param[out] input 元ownerからの非所有byte入力です
+ * @return 原A/B期限・所有・全tuple成立0です。通信/旧grant再消費は行いません
  */
 //------------------------------------------------------------------------------
 NativeError SignedIndexAcquisitionAdapter::bindRetainedInspectionInput(
@@ -1476,61 +1514,61 @@ NativeError SignedIndexAcquisitionAdapter::bindRetainedInspectionInput(
 	hint  = {} ;
 	input = {} ;
 	const auto target =
-		// 原Bです。
+		// 原Bです
 		std::ranges::find( bindings_, task.target, &PreparedBinding::target) ;
 	const auto source =
-		// 原Aです。
+		// 原Aです
 		std::ranges::find( bindings_, sourceTask.target, &PreparedBinding::target) ;
-	// 過去TRANSFER証拠は現在の読取許可にせず、新LOCALの実claimを必須にします。
+	// 過去TRANSFER証拠は現在の読取許可にせず、新LOCALの実claimを必須にします
 	if( !localInspection.matches( task) || !matchesRetainedBody( task, sourceTask) ||
 	   target == bindings_.end() || source == bindings_.end() || !target->claimedTask ||
 	   *target->claimedTask != task || !target->localInspectionClaimed || target->grantId != 0U) {
 		return static_cast<NativeError>( E_ACCESSDENIED) ;
 	}
 
-	std::string reason ;	// 原metadataの独立再検証結果です。
+	std::string reason ;	// 原metadataの独立再検証結果です
 	auto		error =
-		// 原A期限です。
+		// 原A期限です
 		validateBinding( *source, current, utcFromSeconds( nowUtcSeconds), reason) ;
-	// 時刻窓が異なっても原Bの実時刻・全relationを独立検証します。
+	// 時刻窓が異なっても原Bの実時刻・全relationを独立検証します
 	if( error == 0U) {
 		error = validateBinding( *target, current, utcFromSeconds( nowUtcSeconds), reason) ;
 	}
 
-	// 元issuer/ledger/seal/workspace/全file byteを新LOCAL scopeの下で再検証します。
+	// 元issuer/ledger/seal/workspace/全file byteを新LOCAL scopeの下で再検証します
 	if( error == 0U) {
 		error = bindInspectionInput( sourceTask, current, nowUtcSeconds, session, workspace,
 									evidence, hint, input) ;
 	}
 
-	// 不一致を同hash/pathだけで補完しません。
+	// 不一致を同hash/pathだけで補完しません
 	if( error != 0U) {
 		hint  = {} ;
 		input = {} ;
 		return error ;
 	}
 
-	const auto &receipt = lookup_->snapshot().schemaReceipt() ;	// 原署名snapshotです。
+	const auto &receipt = lookup_->snapshot().schemaReceipt() ;	// 原署名snapshotです
 	const auto &record =
-		// 原Bです。
+		// 原Bです
 		receipt.records()[lookup_->relations()[target->relationIndex].recordIndex] ;
 	hint.recordSha256 = hexDigest( record.recordSha256) ;
 	hint.selectedInfs.clear() ;
-	// 新Bの元relationだけを実INF検査へ渡します。Aの検査結果は複写しません。
+	// 新Bの元relationだけを実INF検査へ渡します。Aの検査結果は複写しません
 	for( const auto relationIndex : target->relationIndices) {
 		const auto &selected =
-			receipt
-				.records()[lookup_->relations()[relationIndex].recordIndex] ;	// Bの原selectorです。
-		const auto &identity = selected.publishedIdentityEvidence ;				// 認証済みINF名です。
-		// 元INFの公開selector以外を再利用対象へ広げません。
+			// Bの原selectorです
+			receipt.records()[lookup_->relations()[relationIndex].recordIndex] ;
+		const auto &identity = selected.publishedIdentityEvidence ;	// 認証済みINF名です
+		// 元INFの公開selector以外を再利用対象へ広げません
 		if( identity.state == IndexEvidenceState::PUBLISHED &&
 		   identity.kind == IndexIdentityEvidenceKind::INF) {
 			IndexedDriverInfSelector selector{indexUtf8Text( identity.nestedArchiveIdentity),
-											  // 元Unicode値です。
+											  // 元Unicode値です
 											  indexUtf8Text( identity.infIdentity)} ;
 			std::ranges::replace( selector.nestedArchive, L'/', L'\\') ;
 			std::ranges::replace( selector.infIdentity, L'/', L'\\') ;
-			// 同一memberを重複検査しません。
+			// 同一memberを重複検査しません
 			if( std::ranges::find( hint.selectedInfs, selector) == hint.selectedInfs.end()) {
 				hint.selectedInfs.push_back( std::move( selector)) ;
 			}
@@ -1543,13 +1581,13 @@ NativeError SignedIndexAcquisitionAdapter::bindRetainedInspectionInput(
 namespace signed_index_acquisition_detail {
 //------------------------------------------------------------------------------
 /**
- * @brief 同じ実開始検査へ固定fixture-main／revision1だけを渡します。
- * @param[in,out] adapter 未開始adapter。
- * @param[in] lookup 真署名・隔離commit／reload済みlookup。
- * @param[in] current 同worker context。
- * @param[in] targetOs 既知OS分類。
- * @param[in] nowUtc 信頼UTC。
- * @return 全開始検査成功0、それ以外は元拒否HRESULT。
+ * @brief 同じ実開始検査へ固定fixture-main／revision1だけを渡します
+ * @param[in,out] adapter 未開始adapter
+ * @param[in] lookup 真署名・隔離commit／reload済みlookup
+ * @param[in] current 同worker context
+ * @param[in] targetOs 既知OS分類
+ * @param[in] nowUtc 信頼UTC
+ * @return 全開始検査成功0、それ以外は元拒否HRESULT
  */
 //------------------------------------------------------------------------------
 NativeError Access::beginFixture( SignedIndexAcquisitionAdapter				   &adapter,

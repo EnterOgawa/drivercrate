@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(
     DriverCrate
-    VERSION 1.0.6
+    VERSION 1.0.7
     DESCRIPTION "Torrent-free Windows driver update manager"
     LANGUAGES C CXX RC
 )
@@ -299,6 +299,7 @@ add_library(drivercrate_platform STATIC
     src/platform/official_driver_package.cpp
     src/platform/inf_dependency_plan.cpp
     src/platform/inf_dependency_native.cpp
+    src/platform/system_inf_effects_internal.cpp
     src/platform/official_download_workspace.cpp
     src/platform/official_acquisition.cpp
     src/platform/nvidia_collector_metadata.cpp
@@ -385,6 +386,7 @@ target_link_libraries(drivercrate_platform
         oleaut32
         wbemuuid
         setupapi
+        strmiids
         newdev
         normaliz
         wuguid
@@ -446,6 +448,23 @@ if(DRIVERCRATE_BUILD_COLLECTOR OR DRIVERCRATE_BUILD_LOCAL_INDEX_SIGNER OR DRIVER
 endif()
 
 if(BUILD_TESTING)
+    add_executable(drivercrate_windows_update_scan_tests tests/unit/windows_update_scan_tests.cpp
+        tests/unit/windows_update_provider_tests.cpp)
+    target_include_directories(drivercrate_windows_update_scan_tests PRIVATE src tests/unit)
+    target_compile_definitions(drivercrate_windows_update_scan_tests PRIVATE DRIVERCRATE_INTERNAL_INDEX_TESTS)
+    target_link_libraries(drivercrate_windows_update_scan_tests PRIVATE drivercrate_platform)
+    drivercrate_apply_compiler_options(drivercrate_windows_update_scan_tests)
+    drivercrate_apply_linker_options(drivercrate_windows_update_scan_tests)
+    add_test(NAME drivercrate_windows_update_scan_tests COMMAND drivercrate_windows_update_scan_tests)
+    set_tests_properties(drivercrate_windows_update_scan_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
+    add_executable(drivercrate_install_diagnostic_tests tests/unit/install_diagnostic_tests.cpp
+        tests/unit/protected_install_tests.cpp)
+    target_include_directories(drivercrate_install_diagnostic_tests PRIVATE src tests/unit)
+    target_link_libraries(drivercrate_install_diagnostic_tests PRIVATE drivercrate_platform)
+    drivercrate_apply_compiler_options(drivercrate_install_diagnostic_tests)
+    drivercrate_apply_linker_options(drivercrate_install_diagnostic_tests)
+    add_test(NAME drivercrate_install_diagnostic_tests COMMAND drivercrate_install_diagnostic_tests)
+    set_tests_properties(drivercrate_install_diagnostic_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" TIMEOUT 60)
     add_executable(drivercrate_app_update_tests tests/unit/app_update_tests.cpp)
     target_link_libraries(drivercrate_app_update_tests PRIVATE drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_app_update_tests)
@@ -625,6 +644,7 @@ if(BUILD_TESTING)
         tests/unit/official_driver_rank_tests.cpp
         tests/unit/candidate_audit_tests.cpp
     )
+    target_sources(drivercrate_index_binding_tests PRIVATE tests/unit/operation_controller_tests.cpp)
     target_include_directories(drivercrate_index_binding_tests PRIVATE src tests tests/unit "${CMAKE_CURRENT_BINARY_DIR}/generated")
     target_sources(drivercrate_index_binding_tests PRIVATE tests/unit/official_download_grant_tests.cpp)
     target_compile_definitions(drivercrate_index_binding_tests PRIVATE
@@ -748,7 +768,7 @@ if(BUILD_TESTING)
         tests/unit/official_driver_package_service_contract_tests.cpp
         src/platform/inf_dependency_native.cpp
     )
-    target_compile_definitions(drivercrate_inf_dependency_native_api_tests PRIVATE DRIVERCRATE_INF_DEPENDENCY_TESTING)
+    target_compile_definitions(drivercrate_inf_dependency_native_api_tests PRIVATE DRIVERCRATE_INF_DEPENDENCY_TESTING DRIVERCRATE_INTERNAL_INDEX_TESTS)
     target_include_directories(drivercrate_inf_dependency_native_api_tests PRIVATE src tests tests/unit)
     target_link_libraries(drivercrate_inf_dependency_native_api_tests PRIVATE drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_inf_dependency_native_api_tests)

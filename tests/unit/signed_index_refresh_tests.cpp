@@ -1,16 +1,16 @@
 //------------------------------------------------------------------------------
 /**
  * @file signed_index_refresh_tests.cpp
- * @brief 実HTTP検証/codecと完全fake保存のrefresh回帰です。
- * @version 01.06.01
+ * @brief 実HTTP検証/codecと完全fake保存のrefresh回帰です
+ * @version 01.06.02
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
  *
  * @par ライセンス
  * SPDX-License-Identifier: Apache-2.0
- * 本ファイルには Apache License, Version 2.0 が適用されます。
- * ライセンス全文はプロジェクトルートの LICENSE を参照してください。
+ * 本ファイルには Apache License, Version 2.0 が適用されます
+ * ライセンス全文はプロジェクトルートの LICENSE を参照してください
  * https://www.apache.org/licenses/LICENSE-2.0
  *
  * @par 会社名
@@ -19,17 +19,18 @@
  * @par 更新履歴
  * <pre>
  * VerNo.       author        update      comment
- * Ver.01.00.00 Shunji Ogawa  2026/10/16  原18caseと16variantの実行到達logを追加。
- * Ver.01.01.00 Shunji Ogawa  2026/10/17  HTTP経路七境界とDNS・handle解放の実到達を追加。
- * Ver.01.02.00 Shunji Ogawa  2026/10/20  監視専用三resourceの固定N01～N28を追加。
- * Ver.01.03.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合。
- * Ver.01.04.00 Shunji Ogawa  2026/10/27  匿名readbackの正規daily/candidate名pairを検査。
- * Ver.01.05.00 Shunji Ogawa  2026/11/08  実隔離storeの同一索引GET省略と元拒否を有限確認。
- * Ver.01.06.00 Shunji Ogawa  2026/11/11  人工破損署名のRSA範囲とcache拒否の元数値を固定。
- * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合。
+ * Ver.01.00.00 Shunji Ogawa  2026/10/16  新規作成
+ * Ver.01.01.00 Shunji Ogawa  2026/10/17  HTTP経路七境界とDNS・handle解放の実到達を追加
+ * Ver.01.02.00 Shunji Ogawa  2026/10/20  監視専用三resourceの固定N01～N28を追加
+ * Ver.01.03.00 Shunji Ogawa  2026/10/24  現行nested member identityと原record完全tupleへ整合
+ * Ver.01.04.00 Shunji Ogawa  2026/10/27  匿名readbackの正規daily/candidate名pairを検査
+ * Ver.01.05.00 Shunji Ogawa  2026/11/08  実隔離storeの同一索引GET省略と元拒否を有限確認
+ * Ver.01.06.00 Shunji Ogawa  2026/11/11  人工破損署名のRSA範囲とcache拒否の元数値を固定
+ * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
+ * Ver.01.06.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * </pre>
- * @note 暗号/HTTP policy/codecは製品実装、低位I/Oとstore観測はRAM fakeです。
- * 同一索引の追加群だけ実隔離storeを使います。製品鍵/実HTTP/実deviceは使いません。
+ * @note 暗号/HTTP policy/codecは製品実装、低位I/Oとstore観測はRAM fakeです
+ * 同一索引の追加群だけ実隔離storeを使います。製品鍵/実HTTP/実deviceは使いません
  */
 //------------------------------------------------------------------------------
 #include "signed_index_refresh_tests.h"
@@ -57,40 +58,40 @@
 
 namespace drivercrate::test {
 namespace {
-// OS時計と無関係な架空wireの現在UTCです。
+// OS時計と無関係な架空wireの現在UTCです
 const auto NOW = std::chrono::sys_days{std::chrono::year{2026} / 10 / 13} + std::chrono::hours{18} ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief RAM fixture生成失敗を製品拒否の合格にしません。
- * @param[in] value 必須前提の成立値です。
+ * @brief RAM fixture生成失敗を製品拒否の合格にしません
+ * @param[in] value 必須前提の成立値です
  */
 //------------------------------------------------------------------------------
 void	   require( const bool value)
 {
-	// Fixture生成の不成立を検証対象の拒否成功へ変換しません。
+	// Fixture生成の不成立を検証対象の拒否成功へ変換しません
 	if( !value) {
 		throw std::runtime_error( "P4 RAM fixture failed") ;
 	}
 }
 
-/** @brief BCryptの非永続RSA/SHA資源を所有します。 */
+/** @brief BCryptの非永続RSA/SHA資源を所有します */
 struct RamKey {
-	/// RAM algorithmです。
+	/// RAM algorithmです
 	BCRYPT_ALG_HANDLE		  rsa{} ;
-	/// RAM SHA256です。
+	/// RAM SHA256です
 	BCRYPT_ALG_HANDLE		  sha{} ;
-	/// 名前を持たない秘密handleです。
+	/// 名前を持たない秘密handleです
 	BCRYPT_KEY_HANDLE		  key{} ;
-	/// Public blobだけです。
+	/// Public blobだけです
 	std::vector<std::uint8_t> publicBlob ;
 	/**
-	 * @brief 未生成の資源所有者を初期化します。
+	 * @brief 未生成の資源所有者を初期化します
 	 */
 	RamKey() = default ;
 	/**
-	 * @brief 部分生成の失敗も所有者で回収する一時鍵を作ります。
-	 * @throws std::runtime_error RAM暗号資源の生成に失敗した場合です。
+	 * @brief 部分生成の失敗も所有者で回収する一時鍵を作ります
+	 * @throws std::runtime_error RAM暗号資源の生成に失敗した場合です
 	 */
 	void generate()
 	{
@@ -98,66 +99,66 @@ struct RamKey {
 		require( BCryptGenerateKeyPair( rsa, &key, 3072, 0) >= 0 &&
 				BCryptFinalizeKeyPair( key, 0) >= 0) ;
 		require( BCryptOpenAlgorithmProvider( &sha, BCRYPT_SHA256_ALGORITHM, nullptr, 0) >= 0) ;
-		ULONG size{} ;	// 公開blobの有限容量です。
+		ULONG size{} ;	// 公開blobの有限容量です
 		require( BCryptExportKey( key, nullptr, BCRYPT_RSAPUBLIC_BLOB, nullptr, 0, &size, 0) >= 0) ;
 		publicBlob.resize( size) ;
 		require( BCryptExportKey( key, nullptr, BCRYPT_RSAPUBLIC_BLOB, publicBlob.data(), size, &size,
 								0) >= 0) ;
 	}
 	/**
-	 * @brief 非永続資源を逆順で回収します。
+	 * @brief 非永続資源を逆順で回収します
 	 */
 	~RamKey()
 	{
-		// 各部分生成のhandleだけを解放します。
+		// 各部分生成のhandleだけを解放します
 		if( key) {
 			static_cast<void>( BCryptDestroyKey( key)) ;
 		}
 
-		// 生成されたSHA providerだけを解放します。
+		// 生成されたSHA providerだけを解放します
 		if( sha) {
 			static_cast<void>( BCryptCloseAlgorithmProvider( sha, 0)) ;
 		}
 
-		// 永続storeへ触れずRSA providerを閉じます。
+		// 永続storeへ触れずRSA providerを閉じます
 		if( rsa) {
 			static_cast<void>( BCryptCloseAlgorithmProvider( rsa, 0)) ;
 		}
 	}
 	/**
-	 * @brief 所有handleのcopyを禁止します。
+	 * @brief 所有handleのcopyを禁止します
 	 */
 	RamKey( const RamKey &) = delete ;
 	/**
-	 * @brief 所有handleのcopy代入を禁止します。
+	 * @brief 所有handleのcopy代入を禁止します
 	 */
 	RamKey							 &operator=( const RamKey &) = delete ;
 	/**
-	 * @brief 原byteをRAM内CNG SHA256へ結合します。
-	 * @param[in] raw 借用する架空byteです。
-	 * @return 固定32byteの独立digestです。
+	 * @brief 原byteをRAM内CNG SHA256へ結合します
+	 * @param[in] raw 借用する架空byteです
+	 * @return 固定32byteの独立digestです
 	 */
 	[[nodiscard]] IndexManifestSha256 digest( const std::string_view raw) const
 	{
-		IndexManifestSha256 hash{} ;							// 独立出力です。
-		std::vector<UCHAR>	bytes( raw.begin(), raw.end()) ;	// CNG ABIへ渡す所有copyです。
+		IndexManifestSha256 hash{} ;							// 独立出力です
+		std::vector<UCHAR>	bytes( raw.begin(), raw.end()) ;	// CNG ABIへ渡す所有copyです
 		require( BCryptHash( sha, nullptr, 0, bytes.data(), static_cast<ULONG>( bytes.size()),
 						   hash.data(), static_cast<ULONG>( hash.size())) >= 0) ;
 		return hash ;
 	}
 	/**
-	 * @brief 秘密keyをexportせず原byteへPSS salt32署名します。
-	 * @param[in] raw 原manifestです。
-	 * @return RAMだけの実署名byteです。
+	 * @brief 秘密keyをexportせず原byteへPSS salt32署名します
+	 * @param[in] raw 原manifestです
+	 * @return RAMだけの実署名byteです
 	 */
 	[[nodiscard]] std::vector<std::uint8_t> sign( const std::string_view raw) const
 	{
-		auto					hash = digest( raw) ;					// 原manifestの独立digestです。
-		BCRYPT_PSS_PADDING_INFO padding{BCRYPT_SHA256_ALGORITHM, 32} ;	// 固定salt32です。
-		ULONG					size{} ;								// RSA3072の実署名容量です。
+		auto					hash = digest( raw) ;					// 原manifestの独立digestです
+		BCRYPT_PSS_PADDING_INFO padding{BCRYPT_SHA256_ALGORITHM, 32} ;	// 固定salt32です
+		ULONG					size{} ;								// RSA3072の実署名容量です
 		require( BCryptSignHash( key, &padding, hash.data(), static_cast<ULONG>( hash.size()), nullptr,
 							   0, &size, BCRYPT_PAD_PSS) >= 0) ;
-		std::vector<std::uint8_t> value( size) ;	// 秘密鍵と異なる署名byteです。
+		std::vector<std::uint8_t> value( size) ;	// 秘密鍵と異なる署名byteです
 		require( BCryptSignHash( key, &padding, hash.data(), static_cast<ULONG>( hash.size()),
 							   value.data(), size, &size, BCRYPT_PAD_PSS) >= 0) ;
 		return value ;
@@ -165,16 +166,16 @@ struct RamKey {
 } ;
 //------------------------------------------------------------------------------
 /**
- * @brief 独立digestを小文字hexへ表します。
- * @param[in] bytes 固定32byteのdigestです。
- * @return 全64桁のASCIIです。
+ * @brief 独立digestを小文字hexへ表します
+ * @param[in] bytes 固定32byteのdigestです
+ * @return 全64桁のASCIIです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::string hex( const IndexManifestSha256 &bytes)
 {
-	std::string				   out ;							// 全byteの所有表現です。
-	constexpr std::string_view DIGITS = "0123456789abcdef" ;	// 小文字alphabetです。
-	// 全32byteを欠損なく変換します。
+	std::string				   out ;							// 全byteの所有表現です
+	constexpr std::string_view DIGITS = "0123456789abcdef" ;	// 小文字alphabetです
+	// 全32byteを欠損なく変換します
 	for( const auto byte : bytes) {
 		out += DIGITS[byte >> 4U] ;
 		out += DIGITS[byte & 15U] ;
@@ -184,23 +185,23 @@ struct RamKey {
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 人工byteを正規base64へ表します。
- * @param[in] raw 原byteです。
- * @return Paddingを保持するASCIIです。
+ * @brief 人工byteを正規base64へ表します
+ * @param[in] raw 原byteです
+ * @return Paddingを保持するASCIIです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::string base64( const std::string_view raw)
 {
-	std::string				   out ;	// 人工wireの所有出力です。
+	std::string				   out ;	// 人工wireの所有出力です
 	constexpr std::string_view ALPHABET =
-		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" ;	// 標準表です。
-	// 原byteを三byteずつ完全に変換します。
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" ;	// 標準表です
+	// 原byteを三byteずつ完全に変換します
 	for( std::size_t i = 0; i < raw.size(); i += 3U) {
-		const auto a = static_cast<unsigned char>( raw[i]) ;	// 第一byteです。
+		const auto a = static_cast<unsigned char>( raw[i]) ;	// 第一byteです
 		const auto b =
-			i + 1U < raw.size() ? static_cast<unsigned char>( raw[i + 1U]) : 0U ;	// 第二byteです。
+			i + 1U < raw.size() ? static_cast<unsigned char>( raw[i + 1U]) : 0U ;	// 第二byteです
 		const auto c =
-			i + 2U < raw.size() ? static_cast<unsigned char>( raw[i + 2U]) : 0U ;	// 第三byteです。
+			i + 2U < raw.size() ? static_cast<unsigned char>( raw[i + 2U]) : 0U ;	// 第三byteです
 		out += ALPHABET[a >> 2U] ;
 		out += ALPHABET[((a & 3U) << 4U) | (b >> 4U)] ;
 		out += i + 1U < raw.size() ? ALPHABET[((b & 15U) << 2U) | (c >> 6U)] : '=' ;
@@ -211,29 +212,29 @@ struct RamKey {
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 原JSONを一つのGZipへ実圧縮します。
- * @param[in] raw 架空indexの原byteです。
- * @return 実CRC/ISIZEを持つ一memberです。
+ * @brief 原JSONを一つのGZipへ実圧縮します
+ * @param[in] raw 架空indexの原byteです
+ * @return 実CRC/ISIZEを持つ一memberです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::string gzip( const std::string_view raw)
 {
-	std::vector<unsigned char> packed( raw.size() + 128U) ;						// 有限zlib容量です。
-	mz_ulong				   size = static_cast<mz_ulong>( packed.size()) ;	// 実圧縮長です。
+	std::vector<unsigned char> packed( raw.size() + 128U) ;						// 有限zlib容量です
+	mz_ulong				   size = static_cast<mz_ulong>( packed.size()) ;	// 実圧縮長です
 	const auto				  *input =
-		reinterpret_cast<const unsigned char *>( raw.data()) ;	// minizへの読取りbyte借用です。
+		reinterpret_cast<const unsigned char *>( raw.data()) ;	// minizへの読取りbyte借用です
 	require( mz_compress2( packed.data(), &size, input, static_cast<mz_ulong>( raw.size()),
 						 MZ_BEST_COMPRESSION) == MZ_OK &&
 			size >= 6U) ;
-	std::string out{"\x1f\x8b\x08\0\0\0\0\0\0\xff", 10U} ;	// GZip固定headerです。
+	std::string out{"\x1f\x8b\x08\0\0\0\0\0\0\xff", 10U} ;	// GZip固定headerです
 	out.append( reinterpret_cast<const char *>( packed.data() + 2U),
-			   size - 6U) ;	// zlib framing以外の原Deflateだけです。
+			   size - 6U) ;	// zlib framing以外の原Deflateだけです
 	const auto crc =
-		// 独立CRCです。
+		// 独立CRCです
 		static_cast<std::uint32_t>( mz_crc32( MZ_CRC32_INIT, input, raw.size())) ;
-	// CRCと元長をlittle endianで完全に付加します。
+	// CRCと元長をlittle endianで完全に付加します
 	for( const auto value : {crc, static_cast<std::uint32_t>( raw.size())}) {
-		// 一値の四byteだけを表現します。
+		// 一値の四byteだけを表現します
 		for( unsigned shift = 0; shift < 32U; shift += 8U) {
 			out += static_cast<char>( (value >> shift) & 255U) ;
 		}
@@ -243,15 +244,15 @@ struct RamKey {
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 既知取得申告を持つ一件の完全人工v2 recordを返します。
- * @param[in] expired 元attestationだけが期限切れの負例です。
- * @return 実driver検査を証明しない人工wireです。
+ * @brief 既知取得申告を持つ一件の完全人工v2 recordを返します
+ * @param[in] expired 元attestationだけが期限切れの負例です
+ * @return 実driver検査を証明しない人工wireです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::string record( const bool expired)
 {
-	const std::string a( 64U, 'a') ;	// 架空公式出典digestです。
-	const std::string b( 64U, 'b') ;	// 架空packageの申告digestです。
+	const std::string a( 64U, 'a') ;	// 架空公式出典digestです
+	const std::string b( 64U, 'b') ;	// 架空packageの申告digestです
 	return R"({"schema":"driver-index-record-v2","sourceId":"artificial-source","recordId":"artificial-acquisition","product":"Artificial acquisition purpose","targetOs":{"state":"KNOWN","value":"WINDOWS_11","reason":""},"architecture":{"state":"KNOWN","value":"X64","reason":""},"driverKind":{"state":"KNOWN","value":"NORMAL_DRIVER","reason":""},"version":{"state":"KNOWN","value":"1.2.3.4","reason":""},"publishedDate":{"state":"UNKNOWN","value":"","reason":"artificial date absent"},"acquisition":{"state":"KNOWN","value":"STANDARD_INF_ARCHIVE","reason":""},"packageEvidence":{"publishedHash":{"state":"UNKNOWN","sha256":"","evidenceUrl":"","evidenceSha256":"","reason":"artificial published hash absent"},"calculatedHash":{"state":"KNOWN","sha256":")" +
 		   b + R"(","evidenceUrl":"https://vendor.example/package.zip","evidenceSha256":")" + b +
 		   R"(","reason":""},"size":{"state":"KNOWN","valueBytes":22,"reason":""}},"lastSuccessfulObservationUtc":{"state":"KNOWN","value":"2026-10-13T12:00:00Z","reason":""},"inspectionStage":"CONTENT_INSPECTED","publishedIdentityEvidence":{"state":"PUBLISHED","kind":"INF","pnpIds":[{"kind":"HARDWARE","value":"PCI\\VEN_1234&DEV_5678"}],"classGuid":"{4D36E972-E325-11CE-BFC1-08002BE10318}","nestedArchiveIdentity":"","infIdentity":"driver/sample.inf","modelSection":"Models.NTamd64","evidenceUrl":"https://vendor.example/package.zip","evidenceSha256":")" +
@@ -267,125 +268,125 @@ struct RamKey {
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 人工recordを原hashへ結ぶv2 indexを構成します。
- * @param[in] key RAM hash helperです。
- * @param[in] generation Asset世代です。
- * @param[in] expired 元attestationの負例です。
- * @return 一source/一recordの原indexです。
+ * @brief 人工recordを原hashへ結ぶv2 indexを構成します
+ * @param[in] key RAM hash helperです
+ * @param[in] generation Asset世代です
+ * @param[in] expired 元attestationの負例です
+ * @return 一source/一recordの原indexです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::string index( const RamKey &key, const unsigned generation, const bool expired)
 {
-	const auto		  raw = record( expired) ;	// 原recordを再整形しません。
-	const std::string a( 64U, 'a') ;			// 架空source出典digestです。
+	const auto		  raw = record( expired) ;	// 原recordを再整形しません
+	const std::string a( 64U, 'a') ;			// 架空source出典digestです
 	return "{\"schema\":\"driver-index-records-v2\",\"assetGeneration\":" +
 		   std::to_string( generation) +
 		   R"(,"sources":[{"sourceId":"artificial-source","officialOrigin":"https://vendor.example/","distributionPage":"https://vendor.example/support","officialEvidence":{"state":"PUBLISHED","kind":"OFFICIAL_PAGE","evidenceUrl":"https://vendor.example/support","evidenceSha256":")" +
 		   a + R"(","reason":""}}],"records":[{"recordBytesBase64":")" + base64( raw) +
 		   R"(","recordSha256":")" + hex( key.digest( raw)) + R"("}]})" ;
 }
-/** @brief 一つの完全fake HTTP応答を所有します。 */
+/** @brief 一つの完全fake HTTP応答を所有します */
 struct Hop {
-	/// 原byteです。
+	/// 原byteです
 	std::string	  body ;
-	/// 実fixture応答statusです。
+	/// 実fixture応答statusです
 	DWORD		  status{200U} ;
-	/// 同名headerの完全値です。
+	/// 同名headerの完全値です
 	std::wstring  mime{L"application/json; charset=utf-8"} ;
-	/// Redirect専用の未検証値です。
+	/// Redirect専用の未検証値です
 	std::wstring  location ;
-	/// 未知encodingの負例です。
+	/// 未知encodingの負例です
 	std::wstring  encoding ;
-	/// Chunked相当の長さ欠損です。
+	/// Chunked相当の長さ欠損です
 	bool		  noLength{} ;
-	/// 宣言長の誤記だけです。
+	/// 宣言長の誤記だけです
 	std::uint64_t extraLength{} ;
 } ;
-/** @brief 製品I/Oへfallbackしない一caseのRAM状態です。 */
+/** @brief 製品I/Oへfallbackしない一caseのRAM状態です */
 struct Fixture {
-	/// 事前固定した応答列です。
+	/// 事前固定した応答列です
 	std::vector<Hop>					  hops ;
-	/// 現応答indexです。
+	/// 現応答indexです
 	std::size_t							  hop{} ;
-	/// 現本文の読取り位置です。
+	/// 現本文の読取り位置です
 	std::size_t							  offset{} ;
-	/// Request生成回数です。
+	/// Request生成回数です
 	unsigned							  opens{} ;
-	/// 実fake send回数です。
+	/// 実fake send回数です
 	unsigned							  sends{} ;
-	/// URL検査後に到達したfake DNS照会回数です。
+	/// URL検査後に到達したfake DNS照会回数です
 	unsigned							  resolves{} ;
-	/// Session・connection・requestのfake解放回数です。
+	/// Session・connection・requestのfake解放回数です
 	unsigned							  closes{} ;
-	/// Fake store呼出し回数です。
+	/// Fake store呼出し回数です
 	unsigned							  commits{} ;
-	/// Fake cache呼出し回数です。
+	/// Fake cache呼出し回数です
 	unsigned							  reloads{} ;
-	/// 事前固定barrierの時計呼出し数です。
+	/// 事前固定barrierの時計呼出し数です
 	unsigned							  utcCalls{} ;
-	/// Fake headの現世代です。
+	/// Fake headの現世代です
 	unsigned							  highWater{} ;
-	/// Fake headの原digestです。
+	/// Fake headの原digestです
 	IndexManifestSha256					  headHash{} ;
-	/// Fakeの旧世代保持観測です。
+	/// Fakeの旧世代保持観測です
 	std::vector<unsigned>				  retained ;
-	/// 同一取消しflagです。
+	/// 同一取消しflagです
 	bool								  cancelled{} ;
-	/// 受信中の停止barrierです。
+	/// 受信中の停止barrierです
 	bool								  cancelRead{} ;
-	/// 全codec後UTC照会の停止barrierです。
+	/// 全codec後UTC照会の停止barrierです
 	bool								  cancelBeforeCommit{} ;
-	/// 既commit後の停止barrierです。
+	/// 既commit後の停止barrierです
 	bool								  cancelAfterCommit{} ;
-	/// 応答待機を90秒へ進める負例です。
+	/// 応答待機を90秒へ進める負例です
 	bool								  timeout{} ;
-	/// CDN DNSをprivateへ変える負例です。
+	/// CDN DNSをprivateへ変える負例です
 	bool								  privateCdn{} ;
-	/// Public/privateを混在させるresolver負例です。
+	/// Public/privateを混在させるresolver負例です
 	bool								  mixedDns{} ;
-	/// Resolver復帰時点で同取消しを立てます。
+	/// Resolver復帰時点で同取消しを立てます
 	bool								  cancelResolve{} ;
-	/// 実TLS診断をfake応答待機から返します。
+	/// 実TLS診断をfake応答待機から返します
 	bool								  tlsFailure{} ;
-	/// 指定hopだけで共有deadlineへ進めます。999は無効です。
+	/// 指定hopだけで共有deadlineへ進めます。999は無効です
 	unsigned							  timeoutHop{999U} ;
-	/// 共通setOptionの実値を記録します。
+	/// 共通setOptionの実値を記録します
 	std::vector<std::pair<DWORD, DWORD>>  options ;
-	/// 追加headerの実引数です。
+	/// 追加headerの実引数です
 	std::vector<std::wstring>			  headers ;
-	/// Sendへheaderまたはbodyが渡った場合trueです。
+	/// Sendへheaderまたはbodyが渡った場合trueです
 	bool								  sendCredentials{} ;
-	/// WinHTTP sessionのproxy modeです。
+	/// WinHTTP sessionのproxy modeです
 	DWORD								  proxyMode{} ;
-	/// 能力を含まないfake cache観測です。
+	/// 能力を含まないfake cache観測です
 	bool								  cacheValid{} ;
-	/// Expired cache観測です。
+	/// Expired cache観測です
 	bool								  cacheExpired{} ;
-	/// UTC不明の負例です。
+	/// UTC不明の負例です
 	bool								  unavailableUtc{} ;
-	/// Commit直前の別更新です。
+	/// Commit直前の別更新です
 	bool								  concurrentAdvance{} ;
-	/// 2は不確定、3は既commit/no snapshotです。
+	/// 2は不確定、3は既commit/no snapshotです
 	unsigned							  commitFault{} ;
-	/// Fake単調時計です。
+	/// Fake単調時計です
 	std::chrono::steady_clock::time_point monotonic{} ;
-	/// Fake内だけの要求pathです。
+	/// Fake内だけの要求pathです
 	std::vector<std::wstring>			  paths ;
-	/// 有限正数の実設定値です。
+	/// 有限正数の実設定値です
 	std::vector<int>					  timeouts ;
 } ;
-// 同期単独unitだけの借用先です。native handleを作りません。
+// 同期単独unitだけの借用先です。native handleを作りません
 thread_local Fixture			   *ACTIVE{} ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全WinHTTP ABIとresolverを完全fakeへ束ねます。
- * @return 欠損時にnativeへ補完されない全I/O表です。
+ * @brief 全WinHTTP ABIとresolverを完全fakeへ束ねます
+ * @return 欠損時にnativeへ補完されない全I/O表です
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] OfficialHttpTransport transport()
 {
-	OfficialHttpTransport api ;	// 全fieldを直後に完全置換します。
+	OfficialHttpTransport api ;	// 全fieldを直後に完全置換します
 	api.open = []( LPCWSTR, DWORD mode, LPCWSTR, LPCWSTR, DWORD) -> HINTERNET {
 		ACTIVE->proxyMode = mode ;
 		return ACTIVE ;
@@ -403,8 +404,8 @@ thread_local Fixture			   *ACTIVE{} ;
 		return TRUE ;
 	} ;
 	api.setOption = []( HINTERNET, DWORD option, LPVOID data, DWORD size) -> BOOL {
-		DWORD value{} ;	// DWORD policyの実値だけを観測します。
-		// 他ABIのoptionをDWORDへ誤解釈しません。
+		DWORD value{} ;	// DWORD policyの実値だけを観測します
+		// 他ABIのoptionをDWORDへ誤解釈しません
 		if( data != nullptr && size == sizeof( DWORD)) {
 			std::memcpy( &value, data, sizeof( value)) ;
 		}
@@ -424,13 +425,13 @@ thread_local Fixture			   *ACTIVE{} ;
 		return TRUE ;
 	} ;
 	api.receiveResponse = []( HINTERNET, LPVOID) -> BOOL {
-		// 証明書拒否を例外許可や別接続で補完しません。
+		// 証明書拒否を例外許可や別接続で補完しません
 		if( ACTIVE->tlsFailure) {
 			SetLastError( ERROR_WINHTTP_SECURE_FAILURE) ;
 			return FALSE ;
 		}
 
-		// 一度の応答待機だけで期限境界へ進め、retryは要求しません。
+		// 一度の応答待機だけで期限境界へ進め、retryは要求しません
 		if( ACTIVE->timeout || ACTIVE->hop == ACTIVE->timeoutHop) {
 			ACTIVE->monotonic += std::chrono::seconds{90} ;
 			SetLastError( ERROR_WINHTTP_TIMEOUT) ;
@@ -441,55 +442,55 @@ thread_local Fixture			   *ACTIVE{} ;
 	} ;
 	api.queryHeaders = []( HINTERNET, DWORD query, LPCWSTR, LPVOID buffer, LPDWORD bytes,
 						  LPDWORD headerIndex) -> BOOL {
-		// WinHTTPの同名header位置は本照会成功時だけ前進し、二件目は欠損です。
+		// WinHTTPの同名header位置は本照会成功時だけ前進し、二件目は欠損です
 		if( headerIndex != nullptr && *headerIndex != 0U) {
 			SetLastError( ERROR_WINHTTP_HEADER_NOT_FOUND) ;
 			return FALSE ;
 		}
 
-		// 予定外のrequestを成功応答で補完しません。
+		// 予定外のrequestを成功応答で補完しません
 		if( ACTIVE->hop >= ACTIVE->hops.size()) {
 			SetLastError( ERROR_WINHTTP_INVALID_SERVER_RESPONSE) ;
 			return FALSE ;
 		}
 
-		const auto &h = ACTIVE->hops[ACTIVE->hop] ;	// 同一応答の固定headerです。
-		// Status照会だけはWinHTTPの数値ABIを使用します。
+		const auto &h = ACTIVE->hops[ACTIVE->hop] ;	// 同一応答の固定headerです
+		// Status照会だけはWinHTTPの数値ABIを使用します
 		if( (query & WINHTTP_QUERY_FLAG_NUMBER) != 0U) {
 			*static_cast<DWORD *>( buffer) = h.status ;
 			*bytes						  = sizeof( DWORD) ;
 			return TRUE ;
 		}
 
-		const DWORD	 kind = query & 0xffffU ;	// Header名の共通indexです。
-		std::wstring value ;					// 一headerだけの有限値です。
-		// MIMEをそのまま返します。
+		const DWORD	 kind = query & 0xffffU ;	// Header名の共通indexです
+		std::wstring value ;					// 一headerだけの有限値です
+		// MIMEをそのまま返します
 		if( kind == WINHTTP_QUERY_CONTENT_TYPE) {
 			value = h.mime ;
 		}
-		// Locationは3xx fixtureだけにあります。
+		// Locationは3xx fixtureだけにあります
 		else if( kind == WINHTTP_QUERY_LOCATION) {
 			value = h.location ;
 		}
-		// 未知encodingの負例以外は欠損です。
+		// 未知encodingの負例以外は欠損です
 		else if( kind == WINHTTP_QUERY_CONTENT_ENCODING) {
 			value = h.encoding ;
 		}
-		// 宣言長を実byteと独立に生成します。
+		// 宣言長を実byteと独立に生成します
 		else if( kind == WINHTTP_QUERY_CONTENT_LENGTH && !h.noLength) {
 			value = std::to_wstring( h.body.size() + h.extraLength) ;
 		}
 
-		// 欠損headerを空の成功値へ変換しません。
+		// 欠損headerを空の成功値へ変換しません
 		if( value.empty()) {
 			SetLastError( ERROR_WINHTTP_HEADER_NOT_FOUND) ;
 			return FALSE ;
 		}
 
 		const auto required = static_cast<DWORD>( (value.size() + 1U) *
-												 // 終端込みのWinHTTP容量です。
+												 // 終端込みのWinHTTP容量です
 												 sizeof( wchar_t)) ;
-		// 第一照会と不足bufferは必要容量だけを返します。
+		// 第一照会と不足bufferは必要容量だけを返します
 		if( buffer == nullptr || *bytes < required) {
 			*bytes = required ;
 			SetLastError( ERROR_INSUFFICIENT_BUFFER) ;
@@ -497,7 +498,7 @@ thread_local Fixture			   *ACTIVE{} ;
 		}
 
 		std::memcpy( buffer, value.c_str(), required) ;
-		// Probeではなく本照会だけが次の同名headerへ進みます。
+		// Probeではなく本照会だけが次の同名headerへ進みます
 		if( headerIndex != nullptr) {
 			++*headerIndex ;
 		}
@@ -510,12 +511,12 @@ thread_local Fixture			   *ACTIVE{} ;
 		return TRUE ;
 	} ;
 	api.readData = []( HINTERNET, LPVOID output, DWORD requested, LPDWORD received) -> BOOL {
-		const auto &body = ACTIVE->hops.at( ACTIVE->hop).body ;	// 同じ原本文です。
+		const auto &body = ACTIVE->hops.at( ACTIVE->hop).body ;	// 同じ原本文です
 		*received =
 			static_cast<DWORD>( std::min<std::size_t>( requested, body.size() - ACTIVE->offset)) ;
 		std::memcpy( output, body.data() + ACTIVE->offset, *received) ;
 		ACTIVE->offset += *received ;
-		// 同期待機中の取消しをAPI復帰直後に観測させます。
+		// 同期待機中の取消しをAPI復帰直後に観測させます
 		if( ACTIVE->cancelRead) {
 			ACTIVE->cancelled = true ;
 		}
@@ -529,24 +530,24 @@ thread_local Fixture			   *ACTIVE{} ;
 	api.resolveDestination = []( const std::wstring_view						 host,
 								std::vector<OfficialResolvedNetworkAddress> &out) {
 		++ACTIVE->resolves ;
-		OfficialResolvedNetworkAddress address ;	// 実DNSを使わない全一addressです。
+		OfficialResolvedNetworkAddress address ;	// 実DNSを使わない全一addressです
 		address.bytes[0] = std::byte{8} ;
 		address.bytes[1] = std::byte{8} ;
 		address.bytes[2] = std::byte{8} ;
 		address.bytes[3] = std::byte{8} ;
-		// 許可CDNでもprivate addressは共通validatorへ渡して拒否させます。
+		// 許可CDNでもprivate addressは共通validatorへ渡して拒否させます
 		if( ACTIVE->privateCdn && host == L"release-assets.githubusercontent.com") {
 			address.bytes[0] = std::byte{127} ;
 		}
 
 		out = {address} ;
-		// 一つのprivate addressでも混在全体を共通validatorに拒否させます。
+		// 一つのprivate addressでも混在全体を共通validatorに拒否させます
 		if( ACTIVE->mixedDns) {
 			address.bytes[0] = std::byte{127} ;
 			out.push_back( address) ;
 		}
 
-		// 名前解決後の同制御checkpointで取消しを観測します。
+		// 名前解決後の同制御checkpointで取消しを観測します
 		if( ACTIVE->cancelResolve) {
 			ACTIVE->cancelled = true ;
 		}
@@ -559,13 +560,13 @@ thread_local Fixture			   *ACTIVE{} ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 一caseの原manifestを実RAM署名へ結合します。
- * @param[in] key 非永続署名ownerです。
- * @param[in] packed 原gzipです。
- * @param[in] generation Manifest世代です。
- * @param[in] assetGeneration 参照asset世代です。
- * @param[in] mode 固定caseの番号です。
- * @return 再serializationしない署名envelopeです。
+ * @brief 一caseの原manifestを実RAM署名へ結合します
+ * @param[in] key 非永続署名ownerです
+ * @param[in] packed 原gzipです
+ * @param[in] generation Manifest世代です
+ * @param[in] assetGeneration 参照asset世代です
+ * @param[in] mode 固定caseの番号です
+ * @return 再serializationしない署名envelopeです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::string envelope( const RamKey &key, const std::string &packed,
@@ -573,14 +574,14 @@ thread_local Fixture			   *ACTIVE{} ;
 								   const unsigned mode)
 {
 	const std::string keyId =
-		// 実製品鍵と分離します。
+		// 実製品鍵と分離します
 		mode == 6U ? "local-index-acceptance-fixture" : "fixture-refresh" ;
-	const auto		  digest = hex( key.digest( packed)) ;	// 原圧縮hashです。
+	const auto		  digest = hex( key.digest( packed)) ;	// 原圧縮hashです
 	const std::string published =
-		// 未来負例です。
+		// 未来負例です
 		mode == 10U ? "2026-10-13T19:00:00Z" : "2026-10-13T12:00:00Z" ;
 	const std::string expires =
-		// 期限切れ負例です。
+		// 期限切れ負例です
 		mode == 9U ? "2026-10-13T17:00:00Z" : "2026-10-14T12:00:00Z" ;
 	const std::string raw =
 		"{\"schema\":\"driver-index-manifest-v1\",\"repository\":\"EnterOgawa/drivercrate\",\"channel\":\"driver-index\",\"keyId\":\"" +
@@ -590,18 +591,18 @@ thread_local Fixture			   *ACTIVE{} ;
 		"\",\"asset\":{\"tag\":\"index-v1-20261013-" + digest +
 		"\",\"name\":\"index.json.gz\",\"compression\":\"gzip\",\"sizeBytes\":" +
 		std::to_string( packed.size()) + ",\"sha256\":\"" + digest +
-		// 既知一件の人工申告です。
+		// 既知一件の人工申告です
 		"\"},\"quality\":{\"sourceCount\":1,\"recordCount\":1,\"metadataOnlyCount\":0,\"contentInspectedCount\":1,\"unconfirmedCount\":0}}" ;
-	// PSS salt32の実原署名です。
+	// PSS salt32の実原署名です
 	auto signature = key.sign( raw) ;
-	// 人工RSA値をmodulus未満に保ち、元と異なる署名を暗号拒否まで到達させます。
+	// 人工RSA値をmodulus未満に保ち、元と異なる署名を暗号拒否まで到達させます
 	if( mode == 5U) {
 		signature.front() = 0U ;
 		signature.back() ^= 1U ;
 	}
 
 	const std::string_view signedBytes{reinterpret_cast<const char *>( signature.data()),
-									   // 公開署名byteの非所有viewです。
+									   // 公開署名byteの非所有viewです
 									   signature.size()} ;
 	return "{\"schema\":\"driver-index-envelope-v1\",\"keyId\":\"" + keyId +
 		   "\",\"manifestBytesBase64\":\"" + base64( raw) + "\",\"signatureBase64\":\"" +
@@ -610,38 +611,38 @@ thread_local Fixture			   *ACTIVE{} ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 固定N01～N28を既存の完全fake transportと実codecへ到達させます。
- * @param[in,out] context 実assertionと原失敗を保持する既存test集計です。
- * @param[in] key 同runの非永続RAM fixture鍵です。
- * @param[in] trust 同鍵の公開byteだけの借用集合です。
- * @note 実HTTP/DNS/credential、保護store、Task、公開署名を実行しません。
+ * @brief 固定N01～N28を既存の完全fake transportと実codecへ到達させます
+ * @param[in,out] context 実assertionと原失敗を保持する既存test集計です
+ * @param[in] key 同runの非永続RAM fixture鍵です
+ * @param[in] trust 同鍵の公開byteだけの借用集合です
+ * @note 実HTTP/DNS/credential、保護store、Task、公開署名を実行しません
  */
 //------------------------------------------------------------------------------
 void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 							   const std::span<const signed_index_detail::TrustKey> trust)
 {
-	const int firstAssertion = context.assertionCount() ;	// 新28IDの独立開始位置です。
-	const int firstFailure	 = context.failureCount() ;		// 旧41IDの原失敗を分離します。
-	// 固定28IDを分母から削らず、全て一度ずつ実行します。
+	const int firstAssertion = context.assertionCount() ;	// 新28IDの独立開始位置です
+	const int firstFailure	 = context.failureCount() ;		// 旧41IDの原失敗を分離します
+	// 固定28IDを分母から削らず、全て一度ずつ実行します
 	for( unsigned mode = 1U; mode <= 28U; ++mode) {
-		const int before = context.failureCount() ;	// 当IDの原失敗差です。
-		Fixture	  fixture ;							// 完全fakeの一回だけの状態です。
+		const int before = context.failureCount() ;	// 当IDの原失敗差です
+		Fixture	  fixture ;							// 完全fakeの一回だけの状態です
 		ACTIVE					   = &fixture ;
 		const std::string expanded = mode == 27U
 										 ? R"({"schema":"research-v3"})"
-										 : index( key, 1U, false) ;	// records拒否の固定負例です。
-		const std::string packed   = gzip( expanded) ;				// 元二fileの実圧縮byteです。
+										 : index( key, 1U, false) ;	// records拒否の固定負例です
+		const std::string packed   = gzip( expanded) ;				// 元二fileの実圧縮byteです
 		const std::string wire	   = envelope( key, packed, 1U, 1U,
 										  mode == 19U	? 10U
 											  : mode == 25U ? 5U
-															: 1U) ;	// 同codecを使います。
+															: 1U) ;	// 同codecを使います
 		fixture.hops			   = {{wire}, {wire}, {packed, 200U, L"application/gzip"}} ;
-		// 二つのimmutable resourceで各三redirectを通り、合計九sendを実測します。
+		// 二つのimmutable resourceで各三redirectを通り、合計九sendを実測します
 		if( mode == 2U || mode == 4U) {
 			fixture.hops = {{wire}} ;
-			// Manifestとgzipの固定二用途だけを順番に生成します。
+			// Manifestとgzipの固定二用途だけを順番に生成します
 			for( unsigned resource = 0U; resource < 2U; ++resource) {
-				// 各三redirectだけを許可CDNの別URLへ結びます。
+				// 各三redirectだけを許可CDNの別URLへ結びます
 				for( unsigned hop = 1U; hop <= 3U; ++hop) {
 					fixture.hops.push_back(
 						{{},
@@ -659,7 +660,7 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 			}
 		}
 
-		// Currentは有効Locationでもredirectを追跡しません。
+		// Currentは有効Locationでもredirectを追跡しません
 		if( mode == 3U) {
 			fixture.hops[0] = {{},
 							   302U,
@@ -667,7 +668,7 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 							   L"https://release-assets.githubusercontent.com/current"} ;
 		}
 
-		// 許可外の各route形を同じmanifest起点から拒否させます。
+		// 許可外の各route形を同じmanifest起点から拒否させます
 		if( mode == 5U || mode == 6U || mode == 7U || mode == 9U || mode == 10U) {
 			const std::wstring location =
 				mode == 5U	 ? L"/relative"
@@ -675,41 +676,41 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 				: mode == 7U ? L"http://release-assets.githubusercontent.com/asset"
 				: mode == 9U
 					? L"https://user:secret@release-assets.githubusercontent.com/asset"
-					: L"https://release-assets.githubusercontent.com/asset#fragment" ;	// 架空値だけです。
+					: L"https://release-assets.githubusercontent.com/asset#fragment" ;	// 架空値だけです
 			fixture.hops[1] = {{}, 302U, L"application/json", location} ;
 		}
 
 		fixture.mixedDns	  = mode == 8U ;
 		fixture.cancelResolve = mode == 23U ;
 		fixture.tlsFailure	  = mode == 14U ;
-		// 認証要求に応答するheaderやhelperは存在しません。
+		// 認証要求に応答するheaderやhelperは存在しません
 		if( mode == 12U || mode == 13U) {
 			fixture.hops[0].status = mode == 12U ? 401U : 407U ;
 		}
 
-		// Chunked相当の本文で上限+1 probeそのものへ到達します。
+		// Chunked相当の本文で上限+1 probeそのものへ到達します
 		if( mode == 15U) {
 			fixture.hops[0].body	 = std::string( INDEX_ENVELOPE_MAX_BYTES + 1U, 'x') ;
 			fixture.hops[0].noLength = true ;
 		}
 
-		// Manifestへgzip専用MIMEを転用させません。
+		// Manifestへgzip専用MIMEを転用させません
 		if( mode == 16U) {
 			fixture.hops[1].mime = L"application/gzip" ;
 		}
 
-		// 宣言長より短い実本文を完全resourceにしません。
+		// 宣言長より短い実本文を完全resourceにしません
 		if( mode == 17U) {
 			fixture.hops[1].extraLength = 1U ;
 		}
 
-		// 無条件GETの304をcache成功へ昇格しません。
+		// 無条件GETの304をcache成功へ昇格しません
 		if( mode == 18U) {
 			fixture.hops[2].status = 304U ;
 		}
 
 		fixture.timeoutHop = mode == 22U ? 2U : 999U ;
-		// 許可CDN内の同URL循環も次の送信前に止めます。
+		// 許可CDN内の同URL循環も次の送信前に止めます
 		if( mode == 28U) {
 			fixture.hops = {
 				{wire},
@@ -723,11 +724,11 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 				 L"https://release-assets.githubusercontent.com/cycle?token=fixture-only"}} ;
 		}
 
-		public_index_readback_detail::Services services ;	// 全依存を明示したRAM fixtureです。
+		public_index_readback_detail::Services services ;	// 全依存を明示したRAM fixtureです
 		services.transport	  = transport() ;
 		services.trust		  = trust ;
 		services.monotonicNow = [&fixture]() { return fixture.monotonic ; } ;
-		// 読取前の開始から一秒を消費した同deadlineを第三resourceまで保持します。
+		// 読取前の開始から一秒を消費した同deadlineを第三resourceまで保持します
 		if( mode == 22U) {
 			services.operationStarted	   = fixture.monotonic ;
 			services.operationStartedAtUtc = NOW - std::chrono::seconds{1} ;
@@ -735,36 +736,36 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 		}
 
 		services.utcNow = [&fixture, mode]() -> std::optional<std::chrono::sys_seconds> {
-			// 現在UTC不明を公開時刻へ置換しません。
+			// 現在UTC不明を公開時刻へ置換しません
 			if( mode == 20U) {
 				return std::nullopt ;
 			}
 
-			// 期限と完全一致する境界を検査します。
+			// 期限と完全一致する境界を検査します
 			if( mode == 21U) {
 				return NOW + std::chrono::hours{18} ;
 			}
 
-			// 二resource後にUTCだけを後退させます。
+			// 二resource後にUTCだけを後退させます
 			if( mode == 24U && fixture.sends >= 2U) {
 				return NOW - std::chrono::seconds{1} ;
 			}
 
 			return NOW ;
 		} ;
-		PublicIndexReadbackReport result ;	// 引数拒否では依存すら呼びません。
-		// URL余剰を含む六argvを読取より先に拒否する入口です。
+		PublicIndexReadbackReport result ;	// 引数拒否では依存すら呼びません
+		// URL余剰を含む六argvを読取より先に拒否する入口です
 		if( mode == 11U) {
 			std::array<std::wstring, 6U> text{
 				L"collector", L"--public-index-readback", L"envelope", L"gzip",
-				L"90000",	  L"https://example.invalid/"} ;	// 架空argvです。
-			std::array<wchar_t *, 6U> args{} ;					// 同scopeの借用文字列です。
-			// 六個の原値をargv ABIへ渡します。
+				L"90000",	  L"https://example.invalid/"} ;	// 架空argvです
+			std::array<wchar_t *, 6U> args{} ;					// 同scopeの借用文字列です
+			// 六個の原値をargv ABIへ渡します
 			for( std::size_t index = 0U; index < args.size(); ++index) {
 				args[index] = text[index].data() ;
 			}
 
-			std::uint32_t milliseconds{} ;	// 拒否時に変更されない出力です。
+			std::uint32_t milliseconds{} ;	// 拒否時に変更されない出力です
 			DRIVERCRATE_EXPECT( context,
 							   !publicIndexReadbackArguments( 6, args.data(), milliseconds) &&
 								   milliseconds == 0U) ;
@@ -774,14 +775,14 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 				[&fixture]() { return fixture.cancelled ; }) ;
 		}
 
-		const bool expected = mode == 1U || mode == 2U || mode == 26U ;	// 三つの正常境界です。
+		const bool expected = mode == 1U || mode == 2U || mode == 26U ;	// 三つの正常境界です
 		DRIVERCRATE_EXPECT( context, result.verified == expected) ;
 		DRIVERCRATE_EXPECT( context, (result.nativeError == 0U) == expected) ;
 		DRIVERCRATE_EXPECT( context, result.sends == fixture.sends && fixture.sends <= 9U) ;
 		DRIVERCRATE_EXPECT( context, result.receivedBytes <= 16973825U) ;
 		DRIVERCRATE_EXPECT( context, fixture.commits == 0U && fixture.reloads == 0U &&
 										!fixture.sendCredentials) ;
-		const auto raw = publicIndexReadbackJson( result) ;	// 製品専用writerの実原stdoutです。
+		const auto raw = publicIndexReadbackJson( result) ;	// 製品専用writerの実原stdoutです
 		DRIVERCRATE_EXPECT(
 			context,
 			raw.starts_with( "{\"schema\":\"dc-public-index-readback-result-v1\",\"outcome\":") &&
@@ -791,21 +792,21 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 		DRIVERCRATE_EXPECT(
 			context, raw.find( "\"nativeError\":" + std::to_string( static_cast<std::uint32_t>(
 													   result.nativeError))) != std::string::npos) ;
-		// 九send上界と固定三resourceの完成を実際のfake callへ照合します。
+		// 九send上界と固定三resourceの完成を実際のfake callへ照合します
 		if( mode == 2U) {
 			DRIVERCRATE_EXPECT( context, fixture.sends == 9U && result.resources[0].sends == 1U &&
 											result.resources[1].sends == 4U &&
 											result.resources[2].sends == 4U) ;
 		}
 
-		// Current redirectの後続未着手と四回目redirectの未送信を確認します。
+		// Current redirectの後続未着手と四回目redirectの未送信を確認します
 		if( mode == 3U || mode == 4U) {
 			DRIVERCRATE_EXPECT( context, fixture.sends == (mode == 3U ? 1U : 5U) &&
 											result.resources[2].state ==
 												PublicIndexResourceState::NOT_STARTED) ;
 		}
 
-		// 認証要求とTLS拒否でもHIGH/cookie禁止と既存proxy policyを維持します。
+		// 認証要求とTLS拒否でもHIGH/cookie禁止と既存proxy policyを維持します
 		if( mode == 12U || mode == 13U || mode == 14U) {
 			DRIVERCRATE_EXPECT( context, std::find( fixture.options.begin(), fixture.options.end(),
 												  std::pair<DWORD, DWORD>{
@@ -835,27 +836,27 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 											fixture.sends == 1U) ;
 		}
 
-		// 元証明書診断を無視設定や汎用errorへ丸めません。
+		// 元証明書診断を無視設定や汎用errorへ丸めません
 		if( mode == 14U) {
 			DRIVERCRATE_EXPECT( context, result.nativeError ==
 											static_cast<NativeError>(
 												HRESULT_FROM_WIN32( ERROR_WINHTTP_SECURE_FAILURE))) ;
 		}
 
-		// 拒否probeの実受信量も報告へ残します。
+		// 拒否probeの実受信量も報告へ残します
 		if( mode == 15U) {
 			DRIVERCRATE_EXPECT( context, result.receivedBytes == 98305U &&
 											result.resources[0].receivedBytes == 98305U) ;
 		}
 
-		// 短い本文ではmanifestをFAILED、gzipを未着手のまま保持します。
+		// 短い本文ではmanifestをFAILED、gzipを未着手のまま保持します
 		if( mode == 17U) {
 			DRIVERCRATE_EXPECT(
 				context, result.resources[1].state == PublicIndexResourceState::FAILED &&
 							 result.resources[2].state == PublicIndexResourceState::NOT_STARTED) ;
 		}
 
-		// 短い親残時間も同じ単調時計を使い、超過をclampしません。
+		// 短い親残時間も同じ単調時計を使い、超過をclampしません
 		if( mode == 22U) {
 			DRIVERCRATE_EXPECT(
 				context,
@@ -865,22 +866,22 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 								[]( const int value) { return value > 0 && value <= 4000 ; })) ;
 		}
 
-		// Resolver後の取消しと混在DNSは接続・送信より前に停止します。
+		// Resolver後の取消しと混在DNSは接続・送信より前に停止します
 		if( mode == 8U || mode == 23U) {
 			DRIVERCRATE_EXPECT( context, fixture.sends == 0U && fixture.opens == 0U &&
 											fixture.resolves == 1U) ;
 		}
 
-		// 通常既定五sendを保持し、完全fake欠損ではnativeへfallbackしません。
+		// 通常既定五sendを保持し、完全fake欠損ではnativeへfallbackしません
 		if( mode == 26U) {
-			SignedIndexHttpControl normal ;	// 監視friendを通らない通常制御です。
+			SignedIndexHttpControl normal ;	// 監視friendを通らない通常制御です
 			DRIVERCRATE_EXPECT( context, normal.sendLimit() == 5U) ;
 			services.transport->receiveResponse = []( HINTERNET, LPVOID) -> BOOL {
 				throw std::runtime_error( "fixture transport failure") ;
-			} ; // 実send後例外もwireのrole差分へ残します。
+			} ; // 実send後例外もwireのrole差分へ残します
 			fixture.sends		   = 0U ;
 			const auto exceptional = public_index_readback_detail::Access::forTest(
-				services, wire, packed, 90000U) ;	// 同じ完全fakeの例外です。
+				services, wire, packed, 90000U) ;	// 同じ完全fakeの例外です
 			DRIVERCRATE_EXPECT(
 				context,
 				!exceptional.verified && exceptional.sends == 1U && fixture.sends == 1U &&
@@ -894,14 +895,14 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 			services.transport->resolveDestination = nullptr ;
 			fixture.sends						   = 0U ;
 			const auto rejected					   = public_index_readback_detail::Access::forTest(
-				   services, wire, packed, 90000U) ;	// 欠損表だけです。
+				   services, wire, packed, 90000U) ;	// 欠損表だけです
 			DRIVERCRATE_EXPECT( context,
 							   !rejected.verified &&
 								   rejected.nativeError == static_cast<NativeError>( E_INVALIDARG) &&
 								   fixture.sends == 0U) ;
 		}
 
-		// 全原byteが一致してもrecords schema拒否を成功へしません。
+		// 全原byteが一致してもrecords schema拒否を成功へしません
 		if( mode == 27U) {
 			DRIVERCRATE_EXPECT( context,
 							   result.failureStage == PublicIndexFailureStage::CONTENT &&
@@ -912,7 +913,7 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 											   })) ;
 		}
 
-		// 同じCDN URLへ四度目を送信しません。
+		// 同じCDN URLへ四度目を送信しません
 		if( mode == 28U) {
 			DRIVERCRATE_EXPECT( context, result.sends == 3U) ;
 		}
@@ -935,11 +936,11 @@ void runPublicReadbackFixtures( TestContext &context, const RamKey &key,
 namespace {
 //------------------------------------------------------------------------------
 /**
- * @brief 実隔離headと完全fake HTTPで同一索引の取得省略と拒否を確認します。
- * @param[in,out] context 既存群とは別に追加する原assertionです。
- * @param[in] key このrunだけの非永続署名鍵です。
- * @param[in] trust 同じ鍵の人工公開trustです。
- * @note 製品root・実HTTP・実inventory・driverへ接続しません。
+ * @brief 実隔離headと完全fake HTTPで同一索引の取得省略と拒否を確認します
+ * @param[in,out] context 既存群とは別に追加する原assertionです
+ * @param[in] key このrunだけの非永続署名鍵です
+ * @param[in] trust 同じ鍵の人工公開trustです
+ * @note 製品root・実HTTP・実inventory・driverへ接続しません
  */
 //------------------------------------------------------------------------------
 void runCacheReuseFixtures( TestContext &context, const RamKey &key,
@@ -948,35 +949,35 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 	using StoreAccess = signed_index_store_detail::Access ;
 	static_assert( static_cast<int>( IndexRefreshStatus::INTERNAL_FAILURE) == 10) ;
 	static_assert( static_cast<int>( IndexRefreshStatus::UNCHANGED) == 11) ;
-	const auto firstAssertion = context.assertionCount() ;		// 新14件だけの開始分母です。
-	const auto firstFailure	  = context.failureCount() ;		// 元失敗はこの集計へ混ぜません。
-	const auto packed1		  = gzip( index( key, 1U, false)) ;	// 実codecに通す原gzipです。
-	const auto packed2		  = gzip( index( key, 2U, false)) ;	// 新世代の人工indexです。
-	const auto packed3		  = gzip( index( key, 3U, false)) ;	// 失効headを更新する人工indexです。
-	const auto wire1 = envelope( key, packed1, 1U, 1U, 0U) ;	// 保存後もこの原byteを使います。
-	const auto wire2 = envelope( key, packed2, 2U, 2U, 0U) ;	// 同じ世代の正本です。
-	auto	   chain = StoreAccess::createIsolated( trust) ;	// 自作の保護rootとgenesisだけです。
+	const auto firstAssertion = context.assertionCount() ;				// 新14件だけの開始分母です
+	const auto firstFailure	  = context.failureCount() ;				// 元失敗はこの集計へ混ぜません
+	const auto packed1		  = gzip( index( key, 1U, false)) ;			// 実codecに通す原gzipです
+	const auto packed2		  = gzip( index( key, 2U, false)) ;			// 新世代の人工indexです
+	const auto packed3		  = gzip( index( key, 3U, false)) ;			// 失効headを更新する人工indexです
+	const auto wire1		  = envelope( key, packed1, 1U, 1U, 0U) ;	// 保存後もこの原byteを使います
+	const auto wire2		  = envelope( key, packed2, 2U, 2U, 0U) ;	// 同じ世代の正本です
+	auto	   chain = StoreAccess::createIsolated( trust) ;			// 自作の保護rootとgenesisだけです
 	require( chain.store != nullptr) ;
-	std::unique_ptr<SignedIndexStore> reopened ;	// 同じ永続headを別ownerで再openします。
-	std::unique_ptr<SignedIndexStore> alternate ;	// 失効・破損・停止だけの別隔離rootです。
-	auto	  *store = chain.store.get() ;			// 同期fixtureだけが所有者の寿命内で借用します。
-	// 実署名・codec・原子commitで別隔離headを作り、成功boolを注入しません。
+	std::unique_ptr<SignedIndexStore> reopened ;	// 同じ永続headを別ownerで再openします
+	std::unique_ptr<SignedIndexStore> alternate ;	// 失効・破損・停止だけの別隔離rootです
+	auto	  *store = chain.store.get() ;			// 同期fixtureだけが所有者の寿命内で借用します
+	// 実署名・codec・原子commitで別隔離headを作り、成功boolを注入しません
 	const auto seed = [&]( const std::string &wire, const std::string &packed,
 						  const std::chrono::sys_seconds now) {
-		auto opened = StoreAccess::createIsolated( trust) ;	// 自作rootの実保護を使います。
+		auto opened = StoreAccess::createIsolated( trust) ;	// 自作rootの実保護を使います
 		require( opened.store != nullptr) ;
 		auto manifest = signed_index_detail::authenticateWithTrustKeys(
-			wire, now, std::nullopt, trust) ;	// 元envelopeを実認証します。
+			wire, now, std::nullopt, trust) ;	// 元envelopeを実認証します
 		require( manifest.manifest.has_value()) ;
 		auto asset = authenticateIndexAssetBytes(
 			*manifest.manifest, std::as_bytes( std::span{packed.data(), packed.size()}),
-			now) ;	// 原gzipを全検査します。
+			now) ;	// 原gzipを全検査します
 		require( asset.receipt.has_value()) ;
-		auto records = readSignedIndexRecords( *asset.receipt, now) ;	// 現行schemaを省きません。
+		auto records = readSignedIndexRecords( *asset.receipt, now) ;	// 現行schemaを省きません
 		require( records.receipt.has_value()) ;
 		auto committed = opened.store->commit(
 			*records.receipt, wire, std::as_bytes( std::span{packed.data(), packed.size()}),
-			now) ;	// 本物の保護headです。
+			now) ;	// 本物の保護headです
 		require( committed.status == IndexStoreStatus::SNAPSHOT_READY && committed.snapshot) ;
 		return std::move( opened.store) ;
 	} ;
@@ -994,44 +995,43 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 		IndexRefreshStatus::RECORDS_REJECTED,
 		IndexRefreshStatus::CANCELLED,
 		IndexRefreshStatus::TIMED_OUT,
-		IndexRefreshStatus::MANIFEST_REJECTED} ;	// 元入力へ固定します。
+		IndexRefreshStatus::MANIFEST_REJECTED} ;	// 元入力へ固定します
 	constexpr std::array<unsigned, 14U> ASSET_GETS{
-		1U, 0U, 0U, 1U, 0U, 0U, 0U, 1U, 1U, 1U, 1U, 0U, 0U, 0U} ;	// Currentの一GETとは別に数えます。
-	// 固定14入力を順番に実行し、失敗した条件も分母から除きません。
+		1U, 0U, 0U, 1U, 0U, 0U, 0U, 1U, 1U, 1U, 1U, 0U, 0U, 0U} ;	// Currentの一GETとは別に数えます
+	// 固定14入力を順番に実行し、失敗した条件も分母から除きません
 	for( unsigned mode{}; mode < EXPECTED.size(); ++mode) {
-		const auto before = context.failureCount() ;	// 当caseの原失敗差です。
-		Fixture	   fixture ;							// 新clientごとにHTTP側の所有状態を初期化します。
+		const auto before = context.failureCount() ;	// 当caseの原失敗差です
+		Fixture	   fixture ;							// 新clientごとにHTTP側の所有状態を初期化します
 		ACTIVE				= &fixture ;
-		std::string current = mode <= 2U || mode == 5U ? wire1 : wire2 ;	// 通常の原currentです。
-		std::string packed =
-			mode <= 2U || mode == 5U ? packed1 : packed2 ;	// 署名へ結合した本体です。
-		std::vector<std::byte> corruptBefore ;				// 不正headを勝手に上書きしない確認用です。
-		// 別ownerと別HTTP clientで、process内の記憶だけによる省略を除きます。
+		std::string current = mode <= 2U || mode == 5U ? wire1 : wire2 ;	// 通常の原currentです
+		std::string packed = mode <= 2U || mode == 5U ? packed1 : packed2 ;	// 署名へ結合した本体です
+		std::vector<std::byte> corruptBefore ;								// 不正headを勝手に上書きしない確認用です
+		// 別ownerと別HTTP clientで、process内の記憶だけによる省略を除きます
 		if( mode == 2U) {
-			auto opened = StoreAccess::reopenIsolated( *chain.store) ;	// 同じ原headを実再認証します。
+			auto opened = StoreAccess::reopenIsolated( *chain.store) ;	// 同じ原headを実再認証します
 			require( opened.store != nullptr) ;
 			reopened = std::move( opened.store) ;
 			store	 = reopened.get() ;
 		}
 
-		// 既世代2に対する、正当な署名を持つ異manifestです。
+		// 既世代2に対する、正当な署名を持つ異manifestです
 		if( mode == 4U) {
 			current = envelope( key, packed1, 2U, 1U, 0U) ;
 			packed	= packed1 ;
 		}
 
-		// Remote署名拒否を有効cacheや同じ世代で隠しません。
+		// Remote署名拒否を有効cacheや同じ世代で隠しません
 		if( mode == 6U) {
 			current = envelope( key, packed2, 2U, 2U, 5U) ;
 		}
 
-		// 同じ署名対象を再署名した外側byteの差だけでは省略しません。
+		// 同じ署名対象を再署名した外側byteの差だけでは省略しません
 		if( mode == 7U) {
 			current = envelope( key, packed2, 2U, 2U, 0U) ;
 			require( current != wire2) ;
 		}
 
-		// 失効した原headも履歴下限を保持し、通常の新版取得へ進めます。
+		// 失効した原headも履歴下限を保持し、通常の新版取得へ進めます
 		if( mode == 8U) {
 			alternate =
 				seed( envelope( key, packed2, 2U, 2U, 9U), packed2, NOW - std::chrono::hours{2}) ;
@@ -1040,7 +1040,7 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 			packed	= packed3 ;
 		}
 
-		// 実DPAPI内の原wireを破損させても、新genesisや空成功へ戻しません。
+		// 実DPAPI内の原wireを破損させても、新genesisや空成功へ戻しません
 		if( mode == 9U) {
 			alternate = seed( wire2, packed2, NOW) ;
 			store	  = alternate.get() ;
@@ -1049,7 +1049,7 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 			require( StoreAccess::replacePlain( *store, corruptBefore) == 0) ;
 		}
 
-		// Manifest期限内でも既知attestationの使用時失効から再利用しません。
+		// Manifest期限内でも既知attestationの使用時失効から再利用しません
 		if( mode == 10U) {
 			packed	  = gzip( index( key, 1U, true)) ;
 			current	  = envelope( key, packed, 1U, 1U, 0U) ;
@@ -1057,22 +1057,22 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 			store	  = alternate.get() ;
 		}
 
-		// 最後の三条件は有効な同一headから停止または時刻不明へ進めます。
+		// 最後の三条件は有効な同一headから停止または時刻不明へ進めます
 		if( mode == 11U) {
 			alternate = seed( wire1, packed1, NOW) ;
 			store	  = alternate.get() ;
 		}
 
-		// 停止条件の元byteを署名対象が違う入力へ置き換えません。
+		// 停止条件の元byteを署名対象が違う入力へ置き換えません
 		if( mode >= 11U) {
 			current = wire1 ;
 			packed	= packed1 ;
 		}
 
 		fixture.hops = {{current, 200U, L"application/json"}, {packed, 200U, L"application/gzip"}} ;
-		bool								  utcKnown = true ;	// Reload後にだけ時刻を失う条件です。
-		unsigned							  loads{} ;			// 同一判定用の実reload回数です。
-		signed_index_refresh_detail::Services services ;		// 製品依存へ補完しない完全表です。
+		bool								  utcKnown = true ;	// Reload後にだけ時刻を失う条件です
+		unsigned							  loads{} ;			// 同一判定用の実reload回数です
+		signed_index_refresh_detail::Services services ;		// 製品依存へ補完しない完全表です
 		services.transport	  = transport() ;
 		services.fixtureTrust = trust ;
 		services.utcNow		  = [&]() -> std::optional<std::chrono::sys_seconds> {
@@ -1081,25 +1081,25 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 		services.monotonicNow = [&]() { return fixture.monotonic ; } ;
 		services.loadExisting = [&]( const std::optional<std::chrono::sys_seconds> now) {
 			++loads ;
-			auto loaded = store->reload( now) ;	// Snapshotは実diskと実署名からだけ得ます。
-			// Local I/O中の取消しを成功判定より先に反映します。
+			auto loaded = store->reload( now) ;	// Snapshotは実diskと実署名からだけ得ます
+			// Local I/O中の取消しを成功判定より先に反映します
 			if( mode == 11U) {
 				fixture.cancelled = true ;
 			}
 
-			// 同じ90秒期限を越え、再利用のために期限を作り直さない条件です。
+			// 同じ90秒期限を越え、再利用のために期限を作り直さない条件です
 			if( mode == 12U) {
 				fixture.monotonic += std::chrono::seconds{91} ;
 			}
 
-			// 原snapshotの発行時刻だけを現在時刻の代用にしません。
+			// 原snapshotの発行時刻だけを現在時刻の代用にしません
 			if( mode == 13U) {
 				utcKnown = false ;
 			}
 
 			return loaded ;
 		} ;
-		// 既storeの非機密結果だけを通常のsummaryへ変換します。
+		// 既storeの非機密結果だけを通常のsummaryへ変換します
 		const auto observation = []( const IndexStoreResult &loaded) {
 			return IndexRefreshStoreObservation{loaded.status,
 												loaded.commit,
@@ -1121,11 +1121,11 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 		} ;
 		const auto result = signed_index_refresh_detail::Access::forTest( services, [&]() {
 			return fixture.cancelled ;
-		}) ; // 呼出しごとに新clientを作る製品glueです。
+		}) ; // 呼出しごとに新clientを作る製品glueです
 		const auto assetGets =
 			std::count_if( fixture.paths.begin(), fixture.paths.end(), []( const auto &path) {
 				return path.ends_with( L"/index.json.gz") ;
-			}) ; // 実GET pathを数えます。
+			}) ; // 実GET pathを数えます
 		DRIVERCRATE_EXPECT( context, result.status == EXPECTED[mode]) ;
 		DRIVERCRATE_EXPECT( context,
 						   assetGets == ASSET_GETS[mode] && result.sends == 1U + ASSET_GETS[mode]) ;
@@ -1134,7 +1134,7 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 			context,
 			fixture.commits ==
 				(mode == 0U || mode == 3U || mode == 7U || mode == 8U || mode == 9U ? 1U : 0U)) ;
-		// 同一成功の元HTTP・受信数・保存事実を独立に確認します。
+		// 同一成功の元HTTP・受信数・保存事実を独立に確認します
 		if( mode == 1U || mode == 2U) {
 			DRIVERCRATE_EXPECT(
 				context,
@@ -1145,7 +1145,7 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 					result.store.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
 		}
 
-		// 元の世代拒否・署名拒否を通信省略の成功へ補完しません。
+		// 元の世代拒否・署名拒否を通信省略の成功へ補完しません
 		if( mode >= 4U && mode <= 6U) {
 			DRIVERCRATE_EXPECT(
 				context, !result.usedAuthenticatedCache &&
@@ -1155,7 +1155,7 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 											   : SignedIndexManifestStatus::INVALID_SIGNATURE)) ;
 		}
 
-		// 同じ署名対象で外側だけが違う場合は、既storeが保存を省略します。
+		// 同じ署名対象で外側だけが違う場合は、既storeが保存を省略します
 		if( mode == 7U) {
 			DRIVERCRATE_EXPECT( context,
 							   !result.usedAuthenticatedCache &&
@@ -1163,7 +1163,7 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 								   result.store.persistedGeneration == 2U) ;
 		}
 
-		// 失効した過去headから新しい原世代へ進めたことを確認します。
+		// 失効した過去headから新しい原世代へ進めたことを確認します
 		if( mode == 8U) {
 			DRIVERCRATE_EXPECT( context,
 							   result.cache && result.cache->status == IndexStoreStatus::EXPIRED &&
@@ -1171,16 +1171,16 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 								   result.store.commit == IndexStoreCommitDisposition::COMMITTED) ;
 		}
 
-		// 破損headは原byteを保持し、同世代再取得で修復/adoptしません。
+		// 破損headは原byteを保持し、同世代再取得で修復/adoptしません
 		if( mode == 9U) {
-			std::vector<std::byte> after ;	// 同じ実headの原wireです。
+			std::vector<std::byte> after ;	// 同じ実headの原wireです
 			DRIVERCRATE_EXPECT(
 				context, StoreAccess::readPlain( *store, after) == 0 && after == corruptBefore &&
 							 result.cache && !result.cache->usableSnapshot &&
 							 result.store.commit == IndexStoreCommitDisposition::NO_CHANGE) ;
 		}
 
-		// 元attestationの失効とUTC欠損を別の拒否として保持します。
+		// 元attestationの失効とUTC欠損を別の拒否として保持します
 		if( mode == 10U || mode == 13U) {
 			DRIVERCRATE_EXPECT(
 				context,
@@ -1206,26 +1206,26 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 完全fake HTTP/clock/storeとRAM暗号で固定全caseを実行します。
- * @param[in,out] context 呼出し側が所有するassertion/failure集計先です。
- * @note 製品store、永続鍵、通信、実機、導入を呼びません。
+ * @brief 完全fake HTTP/clock/storeとRAM暗号で固定全caseを実行します
+ * @param[in,out] context 呼出し側が所有するassertion/failure集計先です
+ * @note 製品store、永続鍵、通信、実機、導入を呼びません
  */
 //------------------------------------------------------------------------------
 void runSignedIndexRefreshTests( TestContext &context)
 {
-	const int groupFirstAssertion = context.assertionCount() ;	// 旧34件の開始時点です。
-	const int groupFirstFailure	  = context.failureCount() ;	// 旧34件以前の失敗を区別します。
-	int		  boundaryAssertion	  = 0 ;							// 七境界へ進む直前の実件数を後で確定します。
-	int		  boundaryFailure	  = 0 ;							// 七境界へ進む直前の実失敗数を後で確定します。
-	RamKey	  key ;												// 全caseだけの非永続RSA3072です。
+	const int groupFirstAssertion = context.assertionCount() ;	// 旧34件の開始時点です
+	const int groupFirstFailure	  = context.failureCount() ;	// 旧34件以前の失敗を区別します
+	int		  boundaryAssertion	  = 0 ;							// 七境界へ進む直前の実件数を後で確定します
+	int		  boundaryFailure	  = 0 ;							// 七境界へ進む直前の実失敗数を後で確定します
+	RamKey	  key ;												// 全caseだけの非永続RSA3072です
 	key.generate() ;
 	const std::array<signed_index_detail::TrustKey, 1U> trust{
-		{{"fixture-refresh", key.publicBlob}}} ;	// RAM正例だけの内部集合です。
+		{{"fixture-refresh", key.publicBlob}}} ;	// RAM正例だけの内部集合です
 	constexpr std::array<std::string_view, 41U> IDS{
 		"T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10", "T11",
 		"T12", "T13", "T14", "T15", "T16", "T17", "T18", "V01", "V02", "V03", "V04",
 		"V05", "V06", "V07", "V08", "V09", "V10", "V11", "V12", "V13", "V14", "V15",
-		"V16", "B01", "B02", "B03", "B04", "B05", "B06", "B07"} ;	// 旧34件と新七件の固定分母です。
+		"V16", "B01", "B02", "B03", "B04", "B05", "B06", "B07"} ;	// 旧34件と新七件の固定分母です
 	constexpr std::array<IndexRefreshStatus, 41U> EXPECTED{
 		IndexRefreshStatus::REFRESHED,			 IndexRefreshStatus::REFRESHED,
 		IndexRefreshStatus::REFRESHED,			 IndexRefreshStatus::STORE_FAILED,
@@ -1247,39 +1247,39 @@ void runSignedIndexRefreshTests( TestContext &context)
 		IndexRefreshStatus::HTTP_FAILED,		 IndexRefreshStatus::HTTP_FAILED,
 		IndexRefreshStatus::HTTP_FAILED,		 IndexRefreshStatus::REFRESHED,
 		IndexRefreshStatus::HTTP_FAILED,		 IndexRefreshStatus::HTTP_FAILED,
-		IndexRefreshStatus::HTTP_FAILED} ;	// 元34件の期待を保持して七境界だけを追加します。
-	// 失敗を分母から除かず全固定caseを一度ずつ実行します。
+		IndexRefreshStatus::HTTP_FAILED} ;	// 元34件の期待を保持して七境界だけを追加します
+	// 失敗を分母から除かず全固定caseを一度ずつ実行します
 	for( unsigned mode = 1U; mode <= IDS.size(); ++mode) {
-		const auto firstFailure = context.failureCount() ;	// 当caseだけの原失敗差です。
-		Fixture	   fixture ;								// native I/Oを持たない一caseの所有状態です。
+		const auto firstFailure = context.failureCount() ;	// 当caseだけの原失敗差です
+		Fixture	   fixture ;								// native I/Oを持たない一caseの所有状態です
 		ACTIVE					  = &fixture ;
 		const unsigned generation = mode == 3U
 										? 3U
 										: (mode == 2U || mode == 19U || mode == 27U || mode == 34U
 											   ? 2U
-											   : 1U) ;	// 原manifest世代です。
+											   : 1U) ;	// 原manifest世代です
 		const unsigned assetGeneration =
-			// 旧immutable参照を保持します。
+			// 旧immutable参照を保持します
 			mode == 3U ? 1U : generation ;
 		std::string expanded =
 			mode == 8U
 				? R"({"schema":"research-v3"})"
 				: (mode == 32U ? std::string( 1024U * 1024U, 'a')
-							   : index( key, assetGeneration, mode == 33U)) ;	// 各実codec負例です。
-		const std::string packed = gzip( expanded) ;							// 実Deflate/CRC/ISIZEです。
+							   : index( key, assetGeneration, mode == 33U)) ;	// 各実codec負例です
+		const std::string packed = gzip( expanded) ;							// 実Deflate/CRC/ISIZEです
 		const std::string current =
-			// 原署名入力です。
+			// 原署名入力です
 			envelope( key, packed, generation, assetGeneration, mode) ;
 		fixture.hops	  = {{current, 200U, L"application/json; charset=utf-8"},
 							 {packed, 200U, L"application/gzip"}} ;
 		fixture.highWater = mode == 2U ? 1U : (mode == 3U || mode == 4U || mode == 19U ? 2U : 0U) ;
-		// 旧headの原digestを固定し、同世代原byte競合を作ります。
+		// 旧headの原digestを固定し、同世代原byte競合を作ります
 		if( fixture.highWater != 0U) {
 			fixture.headHash.fill( 7U) ;
 			fixture.retained.push_back( fixture.highWater) ;
 		}
 
-		// 原gzip改変だけをbyte validatorへ渡します。
+		// 原gzip改変だけをbyte validatorへ渡します
 		if( mode == 7U) {
 			fixture.hops[1].body[12] ^= 1 ;
 		}
@@ -1294,35 +1294,35 @@ void runSignedIndexRefreshTests( TestContext &context)
 		fixture.cancelAfterCommit  = mode == 27U ;
 		fixture.concurrentAdvance  = mode == 34U ;
 		fixture.commitFault		   = mode == 20U ? 2U : (mode == 21U ? 3U : 0U) ;
-		// Source不在と一時応答を元statusで保持します。
+		// Source不在と一時応答を元statusで保持します
 		if( mode == 12U || mode == 17U || mode == 18U) {
 			fixture.hops[0].status = mode == 12U ? 404U : 503U ;
 		}
 
-		// Current上限を宣言長だけで超える負例です。
+		// Current上限を宣言長だけで超える負例です
 		if( mode == 15U) {
 			fixture.hops[0].extraLength = INDEX_ENVELOPE_MAX_BYTES + 1U ;
 		}
 
-		// Currentの実bodyだけを上限+1へし、chunked probeも検査します。
+		// Currentの実bodyだけを上限+1へし、chunked probeも検査します
 		if( mode == 23U) {
 			fixture.hops[0].body.assign( INDEX_ENVELOPE_MAX_BYTES + 1U, ' ') ;
 			fixture.hops[0].noLength = true ;
 		}
 
-		// Assetの署名size+1をchunked原byteで検査します。
+		// Assetの署名size+1をchunked原byteで検査します
 		if( mode == 24U) {
 			fixture.hops[1].body += 'x' ;
 			fixture.hops[1].noLength = true ;
 		}
 
-		// Current redirectは一切追跡しません。
+		// Current redirectは一切追跡しません
 		if( mode == 28U) {
 			fixture.hops[0].status	 = 302U ;
 			fixture.hops[0].location = L"https://outside.example/current.json" ;
 		}
 
-		// 許可CDNへの導線だけを、public/unsafe DNSの正負へ分けます。
+		// 許可CDNへの導線だけを、public/unsafe DNSの正負へ分けます
 		if( mode == 14U || mode == 29U) {
 			fixture.hops[1].status = 302U ;
 			fixture.hops[1].location =
@@ -1331,34 +1331,34 @@ void runSignedIndexRefreshTests( TestContext &context)
 			fixture.privateCdn = mode == 14U ;
 		}
 
-		// 宣言長と原byteの不一致を成功へしません。
+		// 宣言長と原byteの不一致を成功へしません
 		if( mode == 30U) {
 			fixture.hops[0].extraLength = 1U ;
 		}
 
-		// HTTP自動圧縮を原署名byteとして解釈しません。
+		// HTTP自動圧縮を原署名byteとして解釈しません
 		if( mode == 31U) {
 			fixture.hops[0].encoding = L"gzip" ;
 		}
 
-		// 新七境界はcurrent成功後のasset redirectだけを変更します。
+		// 新七境界はcurrent成功後のasset redirectだけを変更します
 		if( mode >= 35U) {
 			fixture.hops[1].status = 302U ;
 			fixture.cacheValid	   = true ;
 		}
 
-		// 任意hostを許可CDNとしてDNS照会する前に拒否させます。
+		// 任意hostを許可CDNとしてDNS照会する前に拒否させます
 		if( mode == 35U) {
 			fixture.hops[1].location = L"https://outside.example/boundary/1" ;
 		}
 
-		// 許可hostでもuserinfoを含む導線は送信前に拒否させます。
+		// 許可hostでもuserinfoを含む導線は送信前に拒否させます
 		if( mode == 36U) {
 			fixture.hops[1].location =
 				L"https://fixture-user@release-assets.githubusercontent.com/boundary/1" ;
 		}
 
-		// 一度CDNへ進んだ後のGitHubへの逆戻りを次のDNSより前に拒否させます。
+		// 一度CDNへ進んだ後のGitHubへの逆戻りを次のDNSより前に拒否させます
 		if( mode == 37U) {
 			fixture.hops[1].location = L"https://release-assets.githubusercontent.com/boundary/1" ;
 			fixture.hops.push_back(
@@ -1366,7 +1366,7 @@ void runSignedIndexRefreshTests( TestContext &context)
 				 L"https://github.com/EnterOgawa/drivercrate/releases/download/return/index.json.gz"}) ;
 		}
 
-		// 三redirectの最終成功と四redirectの追加送信拒否を同じ長さの前半導線で分けます。
+		// 三redirectの最終成功と四redirectの追加送信拒否を同じ長さの前半導線で分けます
 		if( mode == 38U || mode == 39U) {
 			fixture.hops[1].location = L"https://release-assets.githubusercontent.com/boundary/1" ;
 			fixture.hops.push_back( {"", 302U, L"application/gzip",
@@ -1374,7 +1374,7 @@ void runSignedIndexRefreshTests( TestContext &context)
 			fixture.hops.push_back( {"", 302U, L"application/gzip",
 									L"https://release-assets.githubusercontent.com/boundary/3"}) ;
 			fixture.hops.push_back( {packed, 200U, L"application/gzip"}) ;
-			// 四redirect目の応答では第五asset用の予定bodyを用意しても送信させません。
+			// 四redirect目の応答では第五asset用の予定bodyを用意しても送信させません
 			if( mode == 39U) {
 				fixture.hops[4].status = 302U ;
 				fixture.hops[4].location =
@@ -1383,22 +1383,22 @@ void runSignedIndexRefreshTests( TestContext &context)
 			}
 		}
 
-		// 同じCDN URLの循環を次のDNS・送信より先に検出させます。
+		// 同じCDN URLの循環を次のDNS・送信より先に検出させます
 		if( mode == 40U) {
 			fixture.hops[1].location = L"https://release-assets.githubusercontent.com/boundary/1" ;
 			fixture.hops.push_back( {"", 302U, L"application/gzip",
 									L"https://release-assets.githubusercontent.com/boundary/1"}) ;
 		}
 
-		// HTTPSでも標準443以外のportを送信前に拒否させます。
+		// HTTPSでも標準443以外のportを送信前に拒否させます
 		if( mode == 41U) {
 			fixture.hops[1].location =
 				L"https://release-assets.githubusercontent.com:444/boundary/1" ;
 		}
 
-		signed_index_refresh_detail::Services services ;	// 完全fakeの全依存です。
+		signed_index_refresh_detail::Services services ;	// 完全fakeの全依存です
 		services.transport = transport() ;
-		// 欠損transportはnativeへfallbackしません。
+		// 欠損transportはnativeへfallbackしません
 		if( mode == 22U) {
 			services.transport->readData = nullptr ;
 		}
@@ -1407,7 +1407,7 @@ void runSignedIndexRefreshTests( TestContext &context)
 										   : std::span<const signed_index_detail::TrustKey>{trust} ;
 		services.utcNow		  = [&fixture]() -> std::optional<std::chrono::sys_seconds> {
 			  ++fixture.utcCalls ;
-			  // 全codecと個別期限照合後、commit直前の固定barrierです。
+			  // 全codecと個別期限照合後、commit直前の固定barrierです
 			  if( fixture.cancelBeforeCommit && fixture.utcCalls == 7U) {
 				  fixture.cancelled = true ;
 			  }
@@ -1421,7 +1421,7 @@ void runSignedIndexRefreshTests( TestContext &context)
 		} ;
 		services.reload = [&fixture]( std::optional<std::chrono::sys_seconds>) {
 			++fixture.reloads ;
-			IndexRefreshStoreObservation result ;	// 能力なしのfake観測だけです。
+			IndexRefreshStoreObservation result ;	// 能力なしのfake観測だけです
 			result.status		  = fixture.cacheValid
 										? IndexStoreStatus::SNAPSHOT_READY
 										: (fixture.cacheExpired ? IndexStoreStatus::EXPIRED
@@ -1433,11 +1433,11 @@ void runSignedIndexRefreshTests( TestContext &context)
 							  std::span<const std::byte>,
 							  const std::optional<std::chrono::sys_seconds> now) {
 			++fixture.commits ;
-			IndexRefreshStoreObservation result ;	// Atomic diskを持たないfake観測です。
+			IndexRefreshStoreObservation result ;	// Atomic diskを持たないfake観測です
 			DRIVERCRATE_EXPECT( context, receipt.records().size() == 1U &&
 											receipt.records()[0].inspectionStage ==
 												IndexInspectionStage::CONTENT_INSPECTED) ;
-			// 通信後の別更新をfake排他境界で初めて反映します。
+			// 通信後の別更新をfake排他境界で初めて反映します
 			if( fixture.concurrentAdvance) {
 				fixture.highWater = 3U ;
 				fixture.headHash.fill( 8U) ;
@@ -1447,11 +1447,11 @@ void runSignedIndexRefreshTests( TestContext &context)
 				fixture.highWater == 0U
 					? std::optional<IndexManifestHighWater>{}
 					: std::optional<IndexManifestHighWater>{
-						  {fixture.highWater, fixture.headHash}} ;	// 最新fake headだけです。
+						  {fixture.highWater, fixture.headHash}} ;	// 最新fake headだけです
 			const auto checked = signed_index_detail::authenticateWithTrustKeys(
-				raw, now, water, trust) ;	// 高水位判定自体は実暗号/世代validatorです。
+				raw, now, water, trust) ;	// 高水位判定自体は実暗号/世代validatorです
 			result.persistedGeneration = fixture.highWater ;
-			// Rollback/conflictを成功statusだけで上書きしません。
+			// Rollback/conflictを成功statusだけで上書きしません
 			if( !checked.manifest) {
 				result.status		  = IndexStoreStatus::MANIFEST_REJECTED ;
 				result.manifestStatus = checked.status ;
@@ -1459,7 +1459,7 @@ void runSignedIndexRefreshTests( TestContext &context)
 				return result ;
 			}
 
-			// Commit不確定は保存成功を推測しません。
+			// Commit不確定は保存成功を推測しません
 			if( fixture.commitFault == 2U) {
 				result.status = IndexStoreStatus::COMMIT_UNCERTAIN ;
 				result.commit = IndexStoreCommitDisposition::UNKNOWN ;
@@ -1475,7 +1475,7 @@ void runSignedIndexRefreshTests( TestContext &context)
 			result.status = fixture.commitFault == 3U ? IndexStoreStatus::COMMITTED_NO_SNAPSHOT
 													  : IndexStoreStatus::SNAPSHOT_READY ;
 			result.usableSnapshot = fixture.commitFault != 3U ;
-			// 既commit後の取消しをNO_CHANGEへ戻しません。
+			// 既commit後の取消しをNO_CHANGEへ戻しません
 			if( fixture.cancelAfterCommit) {
 				fixture.cancelled = true ;
 			}
@@ -1484,13 +1484,13 @@ void runSignedIndexRefreshTests( TestContext &context)
 		} ;
 		const auto result = signed_index_refresh_detail::Access::forTest( services, [&fixture]() {
 			return fixture.cancelled ;
-		}) ; // 製品HTTP/codec/glueの実入口です。
+		}) ; // 製品HTTP/codec/glueの実入口です
 		DRIVERCRATE_EXPECT( context, result.status == EXPECTED[mode - 1U]) ;
 		DRIVERCRATE_EXPECT( context, result.sends == fixture.sends && fixture.sends <= 5U) ;
 		DRIVERCRATE_EXPECT(
 			context, std::all_of( fixture.timeouts.begin(), fixture.timeouts.end(),
 								 []( const int value) { return value > 0 && value <= 90000 ; })) ;
-		// Cache利用時も元refresh失敗を必須にします。
+		// Cache利用時も元refresh失敗を必須にします
 		if( mode == 17U) {
 			DRIVERCRATE_EXPECT( context, result.usedAuthenticatedCache &&
 											result.httpStatus == 503U && result.httpError != 0U &&
@@ -1498,20 +1498,20 @@ void runSignedIndexRefreshTests( TestContext &context)
 											fixture.reloads == 1U) ;
 		}
 
-		// 期限切れcacheを候補能力へ昇格しません。
+		// 期限切れcacheを候補能力へ昇格しません
 		if( mode == 18U) {
 			DRIVERCRATE_EXPECT( context, !result.usedAuthenticatedCache && result.cache &&
 											result.cache->status == IndexStoreStatus::EXPIRED) ;
 		}
 
-		// 過去asset参照でもmanifest高水位は上げたままです。
+		// 過去asset参照でもmanifest高水位は上げたままです
 		if( mode == 3U) {
 			DRIVERCRATE_EXPECT( context, result.attemptedGeneration == 3U &&
 											result.store.persistedGeneration == 3U &&
 											fixture.retained == std::vector<unsigned>( {2U, 3U})) ;
 		}
 
-		// 世代拒否と競合はcache呼出し0のまま保持します。
+		// 世代拒否と競合はcache呼出し0のまま保持します
 		if( mode == 4U || mode == 19U || mode == 34U) {
 			DRIVERCRATE_EXPECT(
 				context, result.manifestStatus ==
@@ -1520,23 +1520,23 @@ void runSignedIndexRefreshTests( TestContext &context)
 							 fixture.reloads == 0U) ;
 		}
 
-		// Crypto/key拒否はasset GET/保存/cacheへ進みません。
+		// Crypto/key拒否はasset GET/保存/cacheへ進みません
 		if( mode == 5U || mode == 6U) {
 			DRIVERCRATE_EXPECT( context, fixture.sends == 1U && fixture.commits == 0U &&
 											fixture.reloads == 0U) ;
 		}
 
-		// Private DNSのhopは未送信のまま拒否します。
+		// Private DNSのhopは未送信のまま拒否します
 		if( mode == 14U) {
 			DRIVERCRATE_EXPECT( context, fixture.sends == 2U && fixture.commits == 0U) ;
 		}
 
-		// 完全fixture欠損、UTC不明、送信前取消しはsend0です。
+		// 完全fixture欠損、UTC不明、送信前取消しはsend0です
 		if( mode == 11U || mode == 22U || mode == 25U) {
 			DRIVERCRATE_EXPECT( context, fixture.sends == 0U && fixture.commits == 0U) ;
 		}
 
-		// 取消し前後で保存事実を区別します。
+		// 取消し前後で保存事実を区別します
 		if( mode == 16U || mode == 26U) {
 			DRIVERCRATE_EXPECT( context,
 							   fixture.commits == 0U &&
@@ -1544,7 +1544,7 @@ void runSignedIndexRefreshTests( TestContext &context)
 								   fixture.reloads == 0U) ;
 		}
 
-		// 不確定/既commit/no snapshotと取消し後の事実を別に保持します。
+		// 不確定/既commit/no snapshotと取消し後の事実を別に保持します
 		if( mode == 20U || mode == 21U || mode == 27U) {
 			DRIVERCRATE_EXPECT( context,
 							   result.store.commit ==
@@ -1553,31 +1553,31 @@ void runSignedIndexRefreshTests( TestContext &context)
 								   !result.usedAuthenticatedCache) ;
 		}
 
-		// 許可されたCDN queryは三sendの範囲だけで取得します。
+		// 許可されたCDN queryは三sendの範囲だけで取得します
 		if( mode == 29U) {
 			DRIVERCRATE_EXPECT( context,
 							   fixture.sends == 3U &&
 								   fixture.paths.back() == L"/fixed/asset?token=fixture-only") ;
 		}
 
-		// Current capのprobeは最大+1を超えて受信しません。
+		// Current capのprobeは最大+1を超えて受信しません
 		if( mode == 23U) {
 			DRIVERCRATE_EXPECT( context, result.receivedBytes == INDEX_ENVELOPE_MAX_BYTES + 1U) ;
 		}
 
-		// 七境界の送信・DNS・解放・保存と元診断を個別の固定期待へ結びます。
+		// 七境界の送信・DNS・解放・保存と元診断を個別の固定期待へ結びます
 		if( mode >= 35U) {
 			constexpr std::array<unsigned, 7U> SENDS{2U, 2U, 3U, 5U,
-													 5U, 3U, 2U} ;	// Currentを含みます。
-			const unsigned	  expectedSends = SENDS[mode - 35U] ;	// 新七件だけの固定分母です。
-			const bool		  accepted		= mode == 38U ;			// 三redirect後の実本文だけが正例です。
+													 5U, 3U, 2U} ;	// Currentを含みます
+			const unsigned	  expectedSends = SENDS[mode - 35U] ;	// 新七件だけの固定分母です
+			const bool		  accepted		= mode == 38U ;			// 三redirect後の実本文だけが正例です
 			const NativeError expectedError =
 				accepted
 					? 0U
 					: (mode == 39U || mode == 40U
 						   ? static_cast<NativeError>(
 								 HRESULT_FROM_WIN32( ERROR_WINHTTP_REDIRECT_FAILED))
-						   : static_cast<NativeError>( E_ACCESSDENIED)) ;	// 任意errorへ広げません。
+						   : static_cast<NativeError>( E_ACCESSDENIED)) ;	// 任意errorへ広げません
 			DRIVERCRATE_EXPECT( context, fixture.sends == expectedSends &&
 											fixture.opens == expectedSends &&
 											fixture.paths.size() == expectedSends) ;
@@ -1595,7 +1595,7 @@ void runSignedIndexRefreshTests( TestContext &context)
 			DRIVERCRATE_EXPECT( context, result.store.commit ==
 											(accepted ? IndexStoreCommitDisposition::COMMITTED
 													  : IndexStoreCommitDisposition::NO_CHANGE)) ;
-			// 上限正負は第四asset hopまでとし、禁止した第五hopのpathを残しません。
+			// 上限正負は第四asset hopまでとし、禁止した第五hopのpathを残しません
 			if( mode == 38U || mode == 39U) {
 				DRIVERCRATE_EXPECT( context, fixture.paths.back() == L"/boundary/3") ;
 			}
@@ -1616,7 +1616,7 @@ void runSignedIndexRefreshTests( TestContext &context)
 				  << " closes=" << fixture.closes << " requests=" << fixture.opens
 				  << " fakeStore=1 failures=" << context.failureCount() - firstFailure << '\n' ;
 		ACTIVE = nullptr ;
-		// 元34件の実分母を新七件と混ぜず、実行済み差だけを原summaryへ残します。
+		// 元34件の実分母を新七件と混ぜず、実行済み差だけを原summaryへ残します
 		if( mode == 34U) {
 			boundaryAssertion = context.assertionCount() ;
 			boundaryFailure	  = context.failureCount() ;
@@ -1632,13 +1632,13 @@ void runSignedIndexRefreshTests( TestContext &context)
 	std::cout << "P4 reached cases: " << IDS.size() << ", assertions: " << context.assertionCount()
 			  << ", failures: " << context.failureCount() << '\n' ;
 	runPublicReadbackFixtures( context, key, trust) ;
-	/** @brief I/Oなしで正規二familyと拒否名を対応付ける一caseです。 */
+	/** @brief I/Oなしで正規二familyと拒否名を対応付ける一caseです */
 	struct ArtifactPairCase {
-		/// 原manifestの人工leaf名です。
+		/// 原manifestの人工leaf名です
 		std::wstring_view envelope ;
-		/// 同じ親にある人工gzip leaf名です。
+		/// 同じ親にある人工gzip leaf名です
 		std::wstring_view gzip ;
-		/// 厳密pairを受理する場合だけtrueです。
+		/// 厳密pairを受理する場合だけtrueです
 		bool			  accepted ;
 	} ;
 	const ArtifactPairCase pairs[]{
@@ -1685,11 +1685,11 @@ void runSignedIndexRefreshTests( TestContext &context)
 		{L"Candidate-publication-0000000000000009.manifest.json",
 		 L"Candidate-publication-0000000000000009.index.json.gz", false},
 		{L"arbitrary.manifest.json", L"arbitrary.index.json.gz",
-		 false}} ;														// 元失敗の正規candidateを含む有限25caseだけです。
-	const auto pairFirst	= context.assertionCount() ;				// 旧HTTP分母と分けた名前検査件数です。
-	const auto pairFailures = context.failureCount() ;					// このgroupの開始失敗数です。
-	const std::filesystem::path pairRoot{L"synthetic-protected-job"} ;	// Fileを作らない人工親です。
-	// 固定25caseを同じ非I/O製品関数へ順番に渡します。
+		 false}} ;														// 元失敗の正規candidateを含む有限25caseだけです
+	const auto pairFirst	= context.assertionCount() ;				// 旧HTTP分母と分けた名前検査件数です
+	const auto pairFailures = context.failureCount() ;					// このgroupの開始失敗数です
+	const std::filesystem::path pairRoot{L"synthetic-protected-job"} ;	// Fileを作らない人工親です
+	// 固定25caseを同じ非I/O製品関数へ順番に渡します
 	for( const auto &pair : pairs) {
 		DRIVERCRATE_EXPECT( context,
 						   publicIndexReadbackArtifactPair( pairRoot / pair.envelope,
