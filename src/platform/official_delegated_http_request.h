@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_http_request.h
  * @brief Record限定grantから一回のGETだけを作る秘密requestを定義します
- * @version 01.05.02
+ * @version 01.07.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,8 @@
  * Ver.01.05.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続
  * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.05.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.06.00 Shunji Ogawa  2026/11/23  元要求のWiX指定転送先を共通HTTPへ渡す
+ * Ver.01.07.00 Shunji Ogawa  2026/11/23  取得要求に元HTTP待機の数値を保持
  * </pre>
  *
  * @note Provider worker threadで直列使用します。完全URLはHTTP送信境界だけへ貸し出し、
@@ -42,6 +44,7 @@
 #include "platform/secret_official_url.h"
 
 #include <cstdint>
+#include <optional>
 #include <string_view>
 
 namespace drivercrate {
@@ -58,6 +61,16 @@ enum class OfficialDelegatedGetState {
 	STARTED,
 	/// URLを消去し、再使用できない状態です
 	CONSUMED,
+} ;
+
+/** @brief 公式payloadの元応答が示した非機密の待機情報です */
+struct OfficialPayloadRetryObservation {
+	/// 応答指定に結んだUTC Unix秒の下限です。指定なし又は無効時は0です
+	std::uint64_t notBeforeUtcSeconds{} ;
+	/// 実応答のHTTP番号です。未観測時は0です
+	std::uint32_t httpStatus{} ;
+	/// 重複、無効、時刻不明又は過大指定により確認が必要な場合trueです
+	bool		  needsReview{} ;
 } ;
 
 /**
@@ -199,23 +212,41 @@ public:
 		return auxiliary_ ;
 	}
 
+	/**
+	 * @brief 同じ取得要求で観測した元応答の待機情報を返します
+	 * @return 応答番号、UTC下限と要確認です。未観測時は空の値です
+	 * @note 要求の終端後も数値を保持します。URLやヘッダー原文を含みません
+	 */
+	[[nodiscard]] OfficialPayloadRetryObservation payloadRetryObservation() const noexcept
+	{
+		return payloadRetry_ ;
+	}
+
 private:
 	friend class OfficialHttpClient ;
+	/**
+	 * @brief 同じ取得要求のWiX証拠に結んだ一回の301転送先を借用します
+	 * @return WiX対象外はnullopt、対象の封印不成立は空のview、成立時は指定先です
+	 * @note 元取得許可の終端まで同期中にだけ借用します
+	 */
+	[[nodiscard]] std::optional<std::wstring_view> signedWixRedirectDestination() const noexcept ;
 	/**
 	 * @brief 同recordの未解決公開文脈だけを借用する
 	 * @return 同STARTED requestで元planが有効ならその値。なければnull
 	 */
-	[[nodiscard]] const OfficialAnonymousCdnPlan *anonymousCdnPlan() const noexcept ;
+	[[nodiscard]] const OfficialAnonymousCdnPlan  *anonymousCdnPlan() const noexcept ;
 	/**
 	 * @brief 新responseを元request/grantへ一度だけ結合する
 	 * @param[in,out] resolution 成功時に秘密URL所有権を引き取る同response
 	 * @param[in] now 現workerのUTC秒
 	 * @return 元record/route/expiry結合成功0、元HRESULT
 	 */
-	[[nodiscard]] NativeError					  acceptAnonymousCdnResolution(
-							OfficialAnonymousCdnResolution &resolution, std::uint64_t now) ;
+	[[nodiscard]] NativeError					   acceptAnonymousCdnResolution(
+							 OfficialAnonymousCdnResolution &resolution, std::uint64_t now) ;
 	/// HTTP clientだけが実送受信で更新する閉実数
 	OfficialAuxiliaryHttpObservation auxiliary_ ;
+	/// 共通HTTPが同じWiX配布の301、429又は503から得た数値観測です
+	OfficialPayloadRetryObservation	 payloadRetry_ ;
 
 	/**
 	 * @brief 未終端grantを失敗へ進め、request所有値を消去します

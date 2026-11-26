@@ -2,7 +2,7 @@
 /**
  * @file signed_index_record_lookup.h
  * @brief 保存済み署名索引と同worker公開ID照合の読取り境界を定義します
- * @version 01.04.02
+ * @version 01.10.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,12 @@
  * Ver.01.04.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合
  * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.04.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.05.00 Shunji Ogawa  2026/11/19  取得済み根拠を元native列挙の寿命へ照合
+ * Ver.01.06.00 Shunji Ogawa  2026/11/20  端末Hardware ID限定の照合入口と元観測を追加
+ * Ver.01.07.00 Shunji Ogawa  2026/11/20  端末用レコード位置と領域の期限切れ理由を追加
+ * Ver.01.08.00 Shunji Ogawa  2026/11/20  同スキャンの機種確認と対象Hardware IDの判定を追加
+ * Ver.01.09.00 Shunji Ogawa  2026/11/20  完全なHardwareIds観測を同一端末の必須群判定へ接続
+ * Ver.01.10.00 Shunji Ogawa  2026/11/23  WiX配布のWindows観測不足と対象外を照合理由に追加
  * </pre>
  *
  * @note Worker内だけの読取りです。索引一致はWindows適合・導入許可ではありません
@@ -87,7 +93,7 @@ struct IndexLookupProgress {
 	std::size_t			  completedRecords{} ;
 	/// 次に処理する原record位置です
 	std::size_t			  nextRecordOffset{} ;
-	/// 完全recordに含まれる公開ID数です
+	/// 完全recordに含まれる公開ID数です。領域の失効で照合しなかったIDも含みます
 	std::size_t			  processedPublicIds{} ;
 	/// 完了・error0・device/proofなしの確定不一致ID数です
 	std::size_t			  definitiveNoRelationIds{} ;
@@ -97,22 +103,6 @@ struct IndexLookupProgress {
 	std::size_t			  resolverCalls{} ;
 	/// 完全prefixの後に残件がある停止原因です
 	IndexLookupStopReason stopReason{IndexLookupStopReason::NONE} ;
-} ;
-
-/** @brief 同workerのoperation・scan・inventoryの結合contextです */
-struct IndexLookupContext {
-	/// 正のoperation identity
-	std::uint64_t	   operationId{} ;
-	/// 正のscan session identity
-	std::uint64_t	   scanSessionId{} ;
-	/// 正のinventory世代
-	std::uint64_t	   inventoryGeneration{} ;
-	/**
-	 * @brief 全context fieldの完全一致を比較します
-	 * @param[in] other 比較対象
-	 * @return 全field一致の場合だけtrue
-	 */
-	[[nodiscard]] bool operator==( const IndexLookupContext &other) const noexcept = default ;
 } ;
 
 /** @brief DriverStoreだけが元read-open inventoryへ結ぶ私有lease証拠です */
@@ -157,6 +147,15 @@ public:
 							   std::uint32_t	  ownerThread) const noexcept ;
 
 private:
+	/**
+	 * @brief 取得済み根拠用に元contextと所有threadで列挙の生存を検査します
+	 * @param[in] context 元operation、scan、inventoryの全条件です
+	 * @param[in] ownerThread 現在処理を行うthreadです
+	 * @return 同じ元列挙が生存する場合trueです。lookup作成用read-openは参照しません
+	 */
+	[[nodiscard]] bool matchesOwner( IndexLookupContext context,
+									std::uint32_t	   ownerThread) const noexcept ;
+	friend class SignedIndexRecordLookup ;
 	/// 元発行の完全contextです
 	IndexLookupContext		  context_ ;
 	/// 元Windows owner threadです
@@ -299,12 +298,15 @@ public:
 	 * @param[in] error 他node不足も保持する元診断です
 	 * @param[in] completed 元callbackの全体完了区分です
 	 * @param[in] deviceIdentity 完全個別観測が成立したopaque一件をcopyします
+	 * @param[in] hardwareOnly 端末HardwareIdsの完全一致で照合した場合true
+	 * @param[in] hardwareIds 同じ端末で完全読取りしたHardwareIdsの弱参照です
 	 */
 	NativeIndexDeviceProof( MintKey key, IndexLookupContext context, IndexPnpIdKind kind,
 						   std::string_view publishedId, std::string_view classGuid,
 						   std::uint32_t ownerThread, std::weak_ptr<const void> lease,
 						   std::vector<std::wstring> devices, NativeError error, bool completed,
-						   std::wstring deviceIdentity) ;
+						   std::wstring deviceIdentity, bool hardwareOnly,
+						   std::weak_ptr<const std::vector<std::wstring>> hardwareIds) ;
 	/**
 	 * @brief 元tuple/診断/全cohortと対象一件、同ownerの生存を完全照合します
 	 * @param[in] context 使用時の全contextです
@@ -316,35 +318,52 @@ public:
 	 * @param[in] error 消去しない元診断です
 	 * @param[in] completed 元callbackの完了区分です
 	 * @param[in] deviceIdentity 使用対象のopaque一件です。同cohortの他deviceも拒否します
+	 * @param[in] hardwareOnly 使用時に要求する端末HardwareIds限定の照合区分
 	 * @return 全一致と元leaseの生存が成立した場合だけtrueです
 	 */
 	[[nodiscard]] bool matches( IndexLookupContext context, IndexPnpIdKind kind,
 							   std::string_view publishedId, std::string_view classGuid,
 							   std::uint32_t ownerThread, std::span<const std::wstring> devices,
-							   NativeError error, bool completed,
-							   std::wstring_view deviceIdentity) const noexcept ;
+							   NativeError error, bool completed, std::wstring_view deviceIdentity,
+							   bool hardwareOnly = false) const noexcept ;
+	/**
+	 * @brief 同じ端末で完全読取りしたHardwareIdsから公式の必須群を判定します
+	 * @param[in] record 元の照合関係と一致する署名済みレコードです
+	 * @param[in] context 使用時のスキャン・インベントリです
+	 * @param[in] ownerThread 使用時のWindowsスレッドです
+	 * @param[in] deviceIdentity 使用対象の同じopaque端末IDです
+	 * @return 同一端末で確認した公式群の判定です。観測や署名条件が欠ける場合は判定不能です
+	 * @pre 元のレコードと照合関係に対するmatchesが成立しています
+	 */
+	[[nodiscard]] IndexPlatformFirmwareMatch platformFirmwareMatch(
+		const IndexDistributionRecord &record, IndexLookupContext context,
+		std::uint32_t ownerThread, std::wstring_view deviceIdentity) const noexcept ;
 
 private:
 	/// 発行元の全contextです
-	IndexLookupContext		  context_ ;
+	IndexLookupContext							   context_ ;
 	/// 元公開ID役割です
-	IndexPnpIdKind			  kind_ ;
+	IndexPnpIdKind								   kind_ ;
 	/// 元公開IDを所有します
-	std::string				  publishedId_ ;
+	std::string									   publishedId_ ;
 	/// 元公開Classを所有します
-	std::string				  classGuid_ ;
+	std::string									   classGuid_ ;
 	/// 同scanのWindows owner threadです
-	std::uint32_t			  ownerThread_{} ;
+	std::uint32_t								   ownerThread_{} ;
 	/// 元scanの強所有を増やさない生存根拠です
-	std::weak_ptr<const void> lease_ ;
+	std::weak_ptr<const void>					   lease_ ;
 	/// 元callbackの全opaque cohortです
-	std::vector<std::wstring> devices_ ;
+	std::vector<std::wstring>					   devices_ ;
 	/// 元不足診断です
-	NativeError				  error_{} ;
+	NativeError									   error_{} ;
 	/// 元callbackの全体完了区分です
-	bool					  completed_{} ;
+	bool										   completed_{} ;
 	/// 完全個別観測が成立した一件です
-	std::wstring			  deviceIdentity_ ;
+	std::wstring								   deviceIdentity_ ;
+	/// 端末HardwareIds限定の完全一致を発行したか
+	bool										   hardwareOnly_{} ;
+	/// 同一端末の全HardwareIdsを同じ所有stateから参照します
+	std::weak_ptr<const std::vector<std::wstring>> hardwareIds_ ;
 } ;
 
 /** @brief 公開ID一つの同期照合結果です。適合結果ではありません */
@@ -396,6 +415,18 @@ public:
 	[[nodiscard]] virtual IndexPublicIdResolution resolve(
 		IndexPnpIdKind kind, std::string_view publishedId, std::string_view classGuid,
 		IndexLookupContext context, std::span<const std::wstring> present) const = 0 ;
+	/**
+	 * @brief 公表Hardware IDを同scanの端末HardwareIdsだけに完全照合する
+	 * @param[in] publishedId 認証済みレコードの元Hardware ID
+	 * @param[in] classGuid 同じレコードの元ClassGUID
+	 * @param[in] context 元scan・inventoryを指定する照合context
+	 * @param[in] present 照合同期中だけ借用する全present opaque
+	 * @return 候補と元照合状態。未対応callbackは照合未完了
+	 * @note 適合や導入権限は発行せず、証拠は同scan内だけで有効
+	 */
+	[[nodiscard]] virtual IndexPublicIdResolution resolveHardwareId(
+		std::string_view publishedId, std::string_view classGuid, IndexLookupContext context,
+		std::span<const std::wstring> present) const ;
 } ;
 
 /** @brief 元公開IDとopaque集合とのread-only関係を区別します */
@@ -439,14 +470,24 @@ enum class IndexRecordMatchReason {
 	/// 全体不足と元診断を保持した私有証拠付き既知positiveです
 	VERIFIED_POSITIVE_PARTIAL,
 	/// 元tuple/診断/cohortと対象一件がprivate個別証拠へ結ばれています
-	VERIFIED_DEVICE_PROJECTION
+	VERIFIED_DEVICE_PROJECTION,
+	/// 元レコードの領域が期限に達し、端末への関係を使用できません
+	RECORD_REGION_EXPIRED,
+	/// 同じ配布表の機種と端末型番の照合に必要な観測が不足しています
+	PLATFORM_MACHINE_UNAVAILABLE,
+	/// 端末は別の製造元又は型番です
+	PLATFORM_MACHINE_MISMATCH,
+	/// 同じスキャンのWindows観測又は元のOS条件が確認できません
+	WIX_HOST_UNAVAILABLE,
+	/// 観測したWindows製品又はアーキテクチャが元配布の対象外です
+	WIX_HOST_MISMATCH
 } ;
 
 /** @brief 公開文字列を持たないrecordとopaque deviceの結果tupleです */
 struct IndexRecordRelation {
-	/// 所有snapshot内の0起点record位置
+	/// 所有snapshotの端末用ビュー内の0起点record位置
 	std::size_t					recordIndex{} ;
-	/// 同record内の公開ID位置。公開identity不明ではnulloptです
+	/// 同record内の公開ID位置。公開identity不明又は期限切れのrecord集約ではnulloptです
 	std::optional<std::size_t>	publicIdIndex ;
 	/// 同operation・scan・inventoryの観測context
 	IndexLookupContext			context ;
@@ -468,13 +509,35 @@ struct IndexRecordRelation {
 	NativeError					error{} ;
 	/// VERIFIED_PARTIALだけの元native私有証拠です。同scan失効後は使用できません
 	std::shared_ptr<const NativeIndexPositiveProof> positiveProof ;
-	/// VERIFIED_DEVICEだけの個別証拠です。同cohortの他deviceへ転用できません
+	/// 個別投影とHardwareIds限定の一意照合が保持する元個別証拠
 	std::shared_ptr<const NativeIndexDeviceProof>	deviceProof ;
 	/// 個別投影の元callback完了区分です。全体不足を成功へ変更しません
 	bool											resolutionCompleted{} ;
 } ;
 
 struct IndexRecordLookupResult ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Windowsが保持する製造元と製品名からメーカー型番を確認します
+ * @param[in] manufacturer SMBIOS由来のSystemManufacturerです
+ * @param[in] productName SMBIOS由来のSystemProductNameです
+ * @return 製造元の区分と確認済みの型番です。未確認型番は空です
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] IndexPlatformMachineIdentity parseIndexPlatformMachine( std::wstring_view manufacturer,
+																	 std::wstring_view productName) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元ModelsのID位置が索引レコードの配布条件に含まれるか確かめる
+ * @param[in] record 元Modelsを保持する型付き索引レコード
+ * @param[in] publicIdIndex 元ModelsでのID位置
+ * @return 位置が存在し、対象条件を満たす場合trueです。WiXでは完全Hardware IDに限ります
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool			  isIndexLookupIdEligible( const IndexDistributionRecord &record,
+													  std::size_t					 publicIdIndex) noexcept ;
 
 /** @brief 保存snapshotと有限関係を所有するworker専用の不変読取り結果です
  * @note 各借用参照は本objectの寿命まで有効で、move・破棄後は使えません。通常UIへ渡しません
@@ -499,6 +562,14 @@ public:
 
 private:
 	/**
+	 * @brief 取得権限をnative由来の元列挙の生存と同threadへ照合します
+	 * @param[in] context 取得が参照する元操作と列挙の完全contextです
+	 * @return nativeでは同じ元列挙が生存する場合trueです。非nativeは従来の関係検査へ進めます
+	 */
+	[[nodiscard]] bool hasLiveNativeOwner( IndexLookupContext context) const noexcept ;
+	friend class SignedIndexAcquisitionAdapter ;
+	friend class RecordScopedDownloadGrant ;
+	/**
 	 * @brief 保存済みconst snapshotの所有を共有し、関係を所有します
 	 * @param[in] snapshot 完全な原保存snapshot
 	 * @param[in] relations 同contextの有限関係
@@ -515,7 +586,7 @@ private:
 	 * @param[in] snapshot 同scanの原保存snapshotの共有所有
 	 * @param[in] context 元scanの完全context
 	 * @param[in] batches 私有構築済みbatch。公開relationから再構築しません
-	 * @param[in] nowUtc 現信頼UTC。期限は凍結時も再照合します
+	 * @param[in] nowUtc 現信頼UTC。元本文の期限を確認し、失効領域の正の関係を無効にします
 	 * @return 同snapshot・全context・原record結合成立時だけ集約lookup
 	 */
 	[[nodiscard]] static IndexRecordLookupResult freezeOwnedBatches(
@@ -532,7 +603,7 @@ private:
 	 * @param[in] current 現workerが確認した正のcontext
 	 * @param[in] present 同contextのopaque present集合。本呼出し中不変です
 	 * @param[in] budget 有限batchとcallback枠
-	 * @param[in] nowUtc 現在信頼UTC。発行前・期限以上・確認不能は拒否します
+	 * @param[in] nowUtc 現信頼UTC。元本文の有効期間外・確認不能は拒否し、期限切れ領域は未判定です
 	 * @param[in] resolver 同workerの借用callback。nullptrは未実行として保持します
 	 * @return 入力拒否、または元snapshotと各関係を所有する読取り結果
 	 * @note 参照を外へ保持せず、例外を境界で診断へ変換します。独立入力は独立workerで呼出し可能です
@@ -597,7 +668,7 @@ struct IndexRecordLookupResult {
  * @param[in] current 現workerが確認した正のcontext
  * @param[in] present 同contextのopaque present集合。本呼出し中不変です
  * @param[in] budget 有限batchとcallback枠
- * @param[in] nowUtc 現在信頼UTC。発行前・期限以上・確認不能は拒否します
+ * @param[in] nowUtc 現信頼UTC。元本文の有効期間外・確認不能は拒否し、期限切れ領域は未判定です
  * @param[in] resolver 同workerの借用callback。nullptrは未実行として保持します
  * @return 入力拒否、または元snapshotと各関係を所有する読取り結果
  * @note 参照を外へ保持せず、例外を境界で診断へ変換します。独立入力は独立workerで呼出し可能です

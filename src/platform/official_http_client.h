@@ -2,7 +2,7 @@
 /**
  * @file official_http_client.h
  * @brief 公式配布元限定HTTP client定義
- * @version 01.23.02
+ * @version 01.33.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -67,6 +67,16 @@
  * Ver.01.23.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続
  * Ver.01.23.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.23.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.24.00 Shunji Ogawa  2026/11/19  収集頁のredirect禁止指定を追加
+ * Ver.01.25.00 Shunji Ogawa  2026/11/21  保存完了した収集応答のバイナリ媒体型を保持
+ * Ver.01.26.00 Shunji Ogawa  2026/11/22  最終応答で観測した媒体型を型付きで保持
+ * Ver.01.27.00 Shunji Ogawa  2026/11/22  最終保存応答のZIP媒体型を確認値として保持
+ * Ver.01.28.00 Shunji Ogawa  2026/11/23  収集配布の同一パスへの限定転送を宣言
+ * Ver.01.29.00 Shunji Ogawa  2026/11/23  収集転送の待機観測を共通化
+ * Ver.01.30.00 Shunji Ogawa  2026/11/23  Retry-Afterの元UTC下限を観測
+ * Ver.01.31.00 Shunji Ogawa  2026/11/23  固定GooGet索引を収集用JSON取得へ追加
+ * Ver.01.32.00 Shunji Ogawa  2026/11/24  WCH固定APIの収集用JSON取得と転送禁止を明示
+ * Ver.01.33.00 Shunji Ogawa  2026/11/24  公開ファイル識別子で結ぶ収集用ZIP転送契約を追加
  * </pre>
  *
  * @note HTTPS、host allowlist、応答上限を強制して公式metadataとpayloadを取得します。Catalogだけを期限とETag付きでcacheし、payloadは保
@@ -122,6 +132,24 @@ enum class CollectorHttpTransferCompletion {
 	COMPLETE
 } ;
 
+/** @brief 保存済み最終応答から確認する汎用バイナリ媒体型です */
+enum class CollectorPayloadOctetStream {
+	/// 二つの明示値のどちらにも一致しません
+	NONE,
+	/// 単一の application/octet-stream 応答です
+	APPLICATION,
+	/// 単一の binary/octet-stream 応答です
+	BINARY
+} ;
+
+/** @brief 同じ元配布に固定した一段の収集転送の形です */
+enum class CollectorPayloadRedirectShape {
+	/// 同一EXEパスを別の公式originに保持します
+	SAME_EXE_PATH,
+	/// 元queryと最終ZIPディレクトリで同じ公開ファイル識別子を保持します
+	FILE_ID_ZIP,
+} ;
+
 /** @brief 収集専用HTTPが私有生成する不変の読取り観測です
  * @note byteはapplicationがreadしたHTTP本文だけです。Header/TLSの回線全量ではありません
  *       完了を設定する公開constructor/decoderはなく、公式性・導入許可も発行しません
@@ -172,6 +200,22 @@ public:
 	{
 		return completion_ ;
 	}
+	/**
+	 * @brief 保存完了した最終応答で確認した汎用バイナリ媒体型を返す
+	 * @return 二つの固定媒体型のどちらか、または未確認のNONE
+	 */
+	[[nodiscard]] CollectorPayloadOctetStream payloadOctetStream() const noexcept
+	{
+		return payloadOctetStream_ ;
+	}
+	/**
+	 * @brief 同じ保存完了応答が明示したZIP媒体型を確認します
+	 * @return 単一のapplication/zipを確認した場合だけtrueです。内容検査の結果ではありません
+	 */
+	[[nodiscard]] bool payloadZipContentType() const noexcept
+	{
+		return payloadZipContentType_ ;
+	}
 
 private:
 	friend class CollectorHttpTransferRecorder ;
@@ -185,6 +229,10 @@ private:
 	std::uint32_t					terminalStatus_{} ;
 	/// 私有recorderだけが全終端後に変更します
 	CollectorHttpTransferCompletion completion_{CollectorHttpTransferCompletion::UNKNOWN} ;
+	/// 保存完了したPAYLOAD応答だけの有限媒体型観測
+	CollectorPayloadOctetStream		payloadOctetStream_{CollectorPayloadOctetStream::NONE} ;
+	/// 同じ保存応答が単一のapplication/zipを明示した場合だけtrueです
+	bool							payloadZipContentType_{} ;
 } ;
 
 /** @brief 同じ収集HTMLの実受信観測です。公式性や通信権限は発行しません */
@@ -316,6 +364,28 @@ struct CollectorControlledHttpObservation : CollectorHttpObservation {
 	/// Header観測UTCへ一回結合した待機期限。欠損・要確認はnull、明示0秒も観測時刻を保持します
 	std::optional<std::uint64_t> retryAfterUtcMillis ;
 } ;
+
+/** @brief 元301が指定した待機から転送可否と下限を得る */
+struct CollectorRedirectWait {
+	/// 受信後に残る待機秒数です。欠損または経過済みは0です
+	std::uint64_t seconds{} ;
+	/// 元headerが読取り不能、不明形式、重複または所定上限を超える場合trueです
+	bool		  needsReview{} ;
+	/// 同じ応答から確定したUTC Unix秒の下限です。指定なし又は確定不能時は0です
+	std::uint64_t notBeforeUtcSeconds{} ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式配布の301、429又は503の元Retry-Afterだけを非通信で読む
+ * @param[in] response 同じ元応答を保持した借用requestです
+ * @param[in] transport 応答のheaderと任意のUTC時計に使う完全I/O表です
+ * @return 元UTC下限、残り待機の秒数と確認の要否です
+ * @note Header本文やLocationを結果に保持しません。新しい送信は行いません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] CollectorRedirectWait readCollectorRedirectWait(
+	HINTERNET response, const OfficialHttpTransport &transport) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -747,7 +817,7 @@ private:
 		const HttpCancellationCallback &cancellation, std::string &raw, std::wstring &text,
 		bool staticSection = false) ;
 	/**
-	 * @brief 収集adapterの実HTMLをpublic宛先・同一originで有限取得する
+	 * @brief 収集adapterの実HTMLまたは指定公開JSONを同一originで有限取得する
 	 * @param[in] url 検査済み起点URL
 	 * @param[in] host 小文字exact host
 	 * @param[in] cancellation 同じ取消し
@@ -756,7 +826,8 @@ private:
 	 * @param[out] observation 任意の同原byte観測です。Nullなら追加hashを計算せず、失敗時は空です
 	 * @param[out] transfer 任意の私有転送観測です。失敗時も実数とUNKNOWNを保持します
 	 * @param[out] raw 任意の同原本文です。成功時だけ所有権を渡し、失敗時空です
-	 * @param[in] modelJson 閉model APIのJSONを読む場合だけtrue。旧HTMLのMIME条件は変更しません
+	 * @param[in] collectorJson 閉model API、固定GooGet索引またはWCH固定APIをJSONで読む場合true
+	 * @param[in] allowRedirects 許可された旧形式だけ同一origin二回まで追随します。WCHとGooGetは常に転送なしです
 	 * @return 全受信成功0、拒否HRESULT。組み込みledgerを発行しない
 	 */
 	[[nodiscard]] NativeError getCollectorInspectionPage(
@@ -764,7 +835,7 @@ private:
 		std::wstring &text, std::wstring &finalUrl,
 		CollectorInspectionPageObservation *observation = nullptr,
 		CollectorHttpTransferObservation *transfer = nullptr, std::vector<std::byte> *raw = nullptr,
-		bool modelJson = false) ;
+		bool collectorJson = false, bool allowRedirects = true) ;
 	/**
 	 * @brief 永続permitを照合した開発用adapterだけが使う有限GETです
 	 * @param[in] url 共通builderから再構築した公式URL
@@ -863,6 +934,8 @@ private:
 	 * @param[in] collectorInspection 収集検査だけでpublic同一origin・cookie／credential無効を追加する
 	 * @param[out] transfer 収集専用だけの実転送観測です。他用途では拒否します
 	 * @param[in] checkpoint 非null時は収集専用の同session期限を実send直前にも検査します
+	 * @param[in] collectorRedirectUrl 空または収集専用の審査済み転送先です。非空時は二つのexact hostと最大一回を要求します
+	 * @param[in] redirectShape 明示転送の元パスと最終配布の対応です。ZIPでは転送先が必須です
 	 * @return 保存とflush成功時は0、失敗時はHRESULT bit pattern
 	 */
 	[[nodiscard]] NativeError downloadToFile(
@@ -871,8 +944,11 @@ private:
 		const HttpDownloadProgressCallback &progressCallback,
 		const HttpCancellationCallback	   &cancellationCallback,
 		std::vector<std::uint32_t> &originPolicyIndices, bool collectorInspection = false,
-		CollectorHttpTransferObservation   *transfer   = nullptr,
-		const std::function<NativeError()> *checkpoint = nullptr) const ;
+		CollectorHttpTransferObservation   *transfer			 = nullptr,
+		const std::function<NativeError()> *checkpoint			 = nullptr,
+		std::wstring_view					collectorRedirectUrl = {},
+		CollectorPayloadRedirectShape		redirectShape =
+			CollectorPayloadRedirectShape::SAME_EXE_PATH) const ;
 
 #ifdef DRIVERCRATE_REGISTRY_JOB_TESTING
 	friend class CollectorRegistryJobTestAccess ;

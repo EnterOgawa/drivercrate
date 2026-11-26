@@ -2,7 +2,7 @@
 /**
  * @file official_driver_closure_tests.h
  * @brief 公式driver package監査単体試験定義
- * @version 01.00.02
+ * @version 01.02.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,8 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/18  限定registry-onlyの実reader/閉包と導入拒否を有限回帰
+ * Ver.01.02.00 Shunji Ogawa  2026/11/19  収集元の登録とPE exportの限定回帰を公開
  * </pre>
  *
  * @note 架空ZIPとINFで固定profile、mixed archive、禁止参照および一段nested抽出をnetworkとdriver installに依存せず検証します
@@ -52,5 +54,22 @@ class TestContext ;
  */
 //------------------------------------------------------------------------------
 void runOfficialDriverClosureTests( TestContext &context) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 限定registry-onlyの実閉包と拒否だけを通常unit selectorへ返します
+ * @param[in,out] context 元C/D期待と到達phaseを保持する集計先です
+ * @note 全旧suiteを呼ばず、実driver/HTTP/registry書込を行いません
+ */
+//------------------------------------------------------------------------------
+void runRequiredRegistrySystemContentTests( TestContext &context) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief デバイス別の収集登録、原CAT、非実行DLLの正常・拒否境界を確認します
+ * @param[in,out] context 全条件の到達phaseと拒否理由を集計します
+ */
+//------------------------------------------------------------------------------
+void runCollectorPropertyPageTests( TestContext &context) ;
 
 } // namespace drivercrate::test

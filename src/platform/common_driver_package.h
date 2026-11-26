@@ -2,7 +2,7 @@
 /**
  * @file common_driver_package.h
  * @brief 由来と独立したdriver packageの共通検査定義
- * @version 01.10.04
+ * @version 01.23.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,20 @@
  * Ver.01.10.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.10.03 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
  * Ver.01.10.04 Shunji Ogawa  2026/11/13  847p9の型付きSYSTEM全作用と全選択資格を接続
+ * Ver.01.11.00 Shunji Ogawa  2026/11/15  非実行collector内容を通常binding非互換型へ分離
+ * Ver.01.12.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.12.01 Shunji Ogawa  2026/11/17  標準TapeDriveとcollector追加Classの用途を明記
+ * Ver.01.13.00 Shunji Ogawa  2026/11/19  端末の独自クラス内容を読み取り専用で再検証
+ * Ver.01.14.00 Shunji Ogawa  2026/11/22  一件の公式配布対象を収集内容検査へ接続
+ * Ver.01.15.00 Shunji Ogawa  2026/11/22  仮想Wi-Fiバスを必要とする選択の端末照合を分離
+ * Ver.01.16.00 Shunji Ogawa  2026/11/22  公式Netの同梱再検査用に元アーカイブ一覧を保持
+ * Ver.01.17.00 Shunji Ogawa  2026/11/23  自動起動ストレージの現用機器読取りを接続
+ * Ver.01.18.00 Shunji Ogawa  2026/11/23  WiXの保護済み単一ストレージINFを端末用に再検査
+ * Ver.01.19.00 Shunji Ogawa  2026/11/23  署名済みEXEと内側ZIPを収集内容検査へ接続
+ * Ver.01.20.00 Shunji Ogawa  2026/11/23  私有収集の元memberを非実行内容検査へ接続
+ * Ver.01.21.00 Shunji Ogawa  2026/11/23  審査済みの必須System補助INFを私有収集へ接続
+ * Ver.01.22.00 Shunji Ogawa  2026/11/24  混在シリアルの審査済みZIPを私有収集内容へ接続
+ * Ver.01.23.00 Shunji Ogawa  2026/11/24  署名付きPEで確認する必須補助INFの種類を定義
  * </pre>
  *
  * @note Path、hash、INF内IDはworker専用です。署名と静的内容の合格を実device適合と混同しません
@@ -64,6 +78,7 @@
 #include <utility>
 
 namespace drivercrate {
+struct OfficialReviewedNsisZip ;
 
 /** @brief 導入用workspace・path・PnP IDを持たない一INFの保守結果 */
 struct MaintenanceInfInspection {
@@ -261,6 +276,7 @@ struct RequiredInfBindingDiagnostic {
  * @param[in] selectedPackages baseと全importの元順copyです。選択機能関係は私有native nodeから解析します
  * @param[out] plan 成功時だけ元閉包へ結合した不変計画です。失敗時は空です
  * @param[out] diagnostic 任意の数値診断です。nullなら採取せず合否へ使用しません
+ * @param[in] registeredDeviceRead 自動起動ストレージの同じ選択機器を同期読取する操作。指定しない場合はnull
  * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです
  * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません
  */
@@ -268,7 +284,8 @@ struct RequiredInfBindingDiagnostic {
 [[nodiscard]] NativeError makeRequiredDriverComponentPlan(
 	const CommonInfInspection &inspected, std::span<const OfficialInfPackage> selectedPackages,
 	std::shared_ptr<const RequiredDriverComponentPlan> &plan,
-	RequiredInfBindingDiagnostic					   *diagnostic = nullptr) ;
+	RequiredInfBindingDiagnostic					   *diagnostic			 = nullptr,
+	const StorageRegisteredDeviceRead				   *registeredDeviceRead = nullptr) ;
 
 /** @brief 公開index/DTOから必要memberを追加できない不変内容計画です。導入能力を持ちません */
 class RequiredDriverComponentPlan final {
@@ -293,12 +310,14 @@ private:
 	 * @param[in] selectedPackages baseと全importの元順copyです。選択機能関係は私有native nodeから解析します
 	 * @param[out] plan 成功時だけ元閉包へ結合した不変計画です。失敗時は空です
 	 * @note 第4引数（RequiredInfBindingDiagnostic *、out）はこの宣言では無名です。任意の数値診断です。nullなら採取せず合否へ使用しません
+	 * @note 第5引数（const StorageRegisteredDeviceRead *、in）はこの宣言では無名です。nullまたは同じ選択機器の同期読取りです
 	 * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです
 	 * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません
 	 */
 	friend NativeError makeRequiredDriverComponentPlan(
 		const CommonInfInspection &inspected, std::span<const OfficialInfPackage> selectedPackages,
-		std::shared_ptr<const RequiredDriverComponentPlan> &plan, RequiredInfBindingDiagnostic *) ;
+		std::shared_ptr<const RequiredDriverComponentPlan> &plan, RequiredInfBindingDiagnostic *,
+		const StorageRegisteredDeviceRead *) ;
 	/** @brief 元CopyINFとAddComponentに一意に結合した役割memberです */
 	struct Member {
 		/// 同CommonInfInspection.requiredInfPackagesの0起点位置です
@@ -328,6 +347,12 @@ private:
 	std::vector<SystemInfEffect>		systemEffects_ ;
 	/// 必要な既存serviceの安定configと元SDです
 	std::vector<SystemServiceEvidence>	systemServices_ ;
+	/// 元基本ドライバーが上位フィルターを仮想Wi-Fiバスへ置換する場合trueです
+	bool								replacesWifiBusUpperFilters_{} ;
+	/// storage PACKAGEの元全作用と必要な現serviceです。単独では導入許可ではありません
+	std::optional<StorageInfEffects>	storageEffects_ ;
+	/// 元内容で限定nullと確定した、機能roleを持たない0起点importです
+	std::vector<std::size_t>			stageOnlyImportOrdinals_ ;
 	/// 固定RunOnceの成立からだけ発行する遅延factです
 	bool								delayedRegistration_{} ;
 } ;
@@ -353,6 +378,165 @@ struct CommonDriverPackageInspection {
 	/// 成功と失敗を含む最大128 INF。PathとIDをUIへ渡さない
 	std::vector<CommonInfInspection> infs ;
 } ;
+
+/** @brief collector専用の非実行内容です。通常binding/導入計画の入力型とは互換でありません */
+struct CollectorInfContentInspection {
+	/// 元archiveを固定したscan sessionです
+	ScanSessionId							   scanSessionId{} ;
+	/// 同所有workspaceだけの元INF相対位置です
+	std::wstring							   infRelativePath ;
+	/// 空または元一段archiveの相対位置です
+	std::wstring							   nestedArchivePath ;
+	/// 構造・全CAT/memberの到達段階で、導入資格を表しません
+	CommonInfInspectionState				   state{CommonInfInspectionState::CLOSURE_REJECTED} ;
+	/// 個別元HRESULTです。内容合格だけが0です
+	NativeError								   error{} ;
+	/// 全署名成功時だけ元byteの所有領域を保持します
+	std::shared_ptr<OfficialDownloadWorkspace> workspace ;
+	/// root一件と全memberの非実行内容です
+	OfficialDriverClosure					   closure ;
+	/// CopyINFから到達したimportです。独立候補へ変換しません
+	std::vector<OfficialInfPackage>			   requiredInfPackages ;
+	/// rootと全importの作用/不足棚卸しです。未対応も元findingへ保持します
+	std::vector<MaintenanceInfStructure>	   effects ;
+	/// 同梱依存を検査した公式Netだけが保持する、部分展開前の元容器の全通常ファイル
+	std::vector<OfficialZipEntry>			   scopedDependencyArchiveEntries ;
+	/// 棚卸し全体の元失敗です。0でも導入作用の全解釈を表しません
+	NativeError								   effectInventoryError{} ;
+} ;
+
+/** @brief 非実行collector内容の集合です。公開codec・署名・端末適合・導入許可を持ちません */
+struct CollectorDriverPackageContent {
+	/// 元archiveのscan sessionです。全体失敗では0です
+	ScanSessionId							   scanSessionId{} ;
+	/// 元外側byteの小文字SHA-256です
+	std::wstring							   archiveSha256 ;
+	/// 元外側byte数です
+	std::uint64_t							   archiveBytes{} ;
+	/// 全体失敗の元HRESULTです
+	NativeError								   error{} ;
+	/// 全外側inventoryの通常file数です
+	std::size_t								   inventoryFileCount{} ;
+	/// 成功閉包の実保持byteです
+	std::uint64_t							   retainedBytes{} ;
+	/// 同操作の私有solid fileの実mapped peakです
+	std::uint64_t							   mappedSolidPeakBytes{} ;
+	/// 同操作でdecodeした一意solid block数です
+	std::size_t								   decodedSolidBlockCount{} ;
+	/// 明示rootだけの個別結果です。必須importをrootへ数えません
+	std::vector<CollectorInfContentInspection> infs ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示したcollector rootを全CAT/参照付きの非実行内容だけへ検査します
+ * @param[in] input 同操作中固定する原archive identityです
+ * @param[in] format 実行しないZIP/CAB/SFX/resource形式です
+ * @param[in] selectors 一段nestedと元INF相対位置の有限集合です。最大128件です
+ * @param[out] content 個別拒否も保持する導入非互換型です。全体失敗時は診断だけです
+ * @param[in] cancellation 同workerの非blocking取消し照会です
+ * @param[in] scopedModels 同じ公式明細から得た一件の選択INFだけの対象です。通常はnullです
+ * @return 全体検査完了0、原byte/容量/取消し等の全体失敗はHRESULTです
+ * @note TapeDriveは通常共通Classに従います。追加のSCSIAdapter/MTDと必須System null importは導入資格を発行しません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectCollectorDriverPackageContent(
+	const DriverArchiveInput &input, OfficialDriverArchiveFormat format,
+	std::span<const std::pair<std::wstring_view, std::wstring_view>> selectors,
+	CollectorDriverPackageContent &content, const std::function<bool()> &cancellation = {},
+	const OfficialInfScopedModelsRequest *scopedModels = nullptr) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定元readerで検査した通常fileから、選択INFとCAT・全参照・作用を確認する
+ * @param[in] members 同じ私有収集操作で固定した元通常file群と元identity
+ * @param[in] selectedInf 元範囲内の完全なINF相対名。大小文字を保持する
+ * @param[in] platform 元定義が固定したWindows Server x64の明示観測点
+ * @param[out] content 元閉包の非実行結果。個別失敗時は空
+ * @param[out] identity 同じ署名済みINFと観測点の公開Models。失敗時は空
+ * @return 全閉包と署名検査の完了時0、入力・取消し・I/O・内容検査の失敗はHRESULT
+ * @note 内容用途の結果だけを作り、公開索引や導入許可を生成しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectCollectorArchiveMembers( const CollectorArchiveMembers &members,
+														 std::wstring_view				selectedInf,
+														 const OfficialInfModelsPlatform &platform,
+														 CollectorDriverPackageContent	 &content,
+														 OfficialInfPublishedIdentity	 &identity) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 審査済みの元ZIPから混在シリアルの元閉包と対象クライアントのModelsを検査する
+ * @param[in] input 元ZIPのパス、実長、SHA-256と同じ私有収集操作の識別子
+ * @param[in] reviewed 同じ外側ZIP、内側EXEと四つの元ファイルの審査条件
+ * @param[in] selectedInf 元書庫内の完全なINF名。大小文字を保持する
+ * @param[in] platform 公式配布対象のWindowsクライアントx64の明示観測点
+ * @param[out] content 全内容と同梱依存を確認した元ZIPの私有結果。失敗時は空
+ * @param[out] identity 同じ元INFと明示観測点の公開Models。失敗時は空
+ * @param[in] cancellation 同じ収集操作の非blockingな停止照会。空は省略
+ * @return 全取得・内容・同梱依存・対象Modelsが成立すれば0、それ以外は元HRESULT
+ * @note 元EXEの実行、端末導入、公開用の許可発行は行わない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectCollectorReviewedSerialNsisContent(
+	const DriverArchiveInput &input, const OfficialReviewedNsisZip &reviewed,
+	std::wstring_view selectedInf, const OfficialInfModelsPlatform &platform,
+	CollectorDriverPackageContent &content, OfficialInfPublishedIdentity &identity,
+	const std::function<bool()> &cancellation = {}) ;
+
+/** @brief 署名付きEXEと内側ZIP、対象Serverの元INFを結ぶ私有収集結果 */
+struct CollectorSignedPeZipContent {
+	/// 署名と取得証拠を照合した元EXEのbyte数
+	std::uint64_t				  executableBytes{} ;
+	/// 取得証拠から同じ元EXEと照合したSHA-256
+	std::wstring				  executableSha256 ;
+	/// 元EXE内で完全相対名が一致したZIP
+	std::wstring				  zipMember ;
+	/// 元EXEと区別した内側ZIPのhash・長さと選択INF検査結果
+	CollectorDriverPackageContent inner ;
+	/// 公式資料から呼出側が指定したServerのModels観測点
+	OfficialInfModelsPlatform	  platform ;
+	/// 署名を照合した選択INFから、指定したServerで読んだModels
+	OfficialInfPublishedIdentity  identity ;
+} ;
+
+/** @brief 署名付きPEの版別条件で要求するSystem補助INFの種類 */
+enum class CollectorPeZipImportRole {
+	/// レジストリ登録だけを含む補助INF
+	REGISTRY_ONLY,
+	/// 空名の関連サービスだけを持つ補助INF
+	NULL_SERVICE
+} ;
+
+/** @brief 同じ内側ZIPに含まれる必須補助INFの元名と審査した種類 */
+struct CollectorPeZipRequiredImport {
+	/// Windows区切りで大小文字を保持する完全相対名。検査が終わるまで呼出側が保持する
+	std::wstring_view		 relativePath ;
+	/// 共通の内容検査が確認する種類。省略した場合は従来のレジストリ専用
+	CollectorPeZipImportRole role{CollectorPeZipImportRole::REGISTRY_ONLY} ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 署名付きEXEの指定ZIPから主INFと指定した必須補助を検査し、ServerのModelsを読む
+ * @param[in] input 同じ収集操作の現在user保護領域へ取得した元EXEの同一性
+ * @param[in] acceptedPublishers 公式配布元定義にある外側の許可主署名者
+ * @param[in] zipMember 元EXE内の完全なZIP相対名。Windows区切りで大小文字を保持する
+ * @param[in] infMember 内側ZIPの主INFの完全相対名。Windows区切りで大小文字を保持する
+ * @param[in] platform 公式配布対象として指定するWindows Server x64の観測点
+ * @param[out] content 全検査成功時の元取得・内側内容・対象Models。失敗時は既定値
+ * @param[in] cancellation 同workerの非blocking取消し照会。空なら取消し確認を省略する
+ * @param[in] requiredImport 審査済みの必須補助INFの名前と種類。空なら主INF単独を要求する
+ * @return 成功時0、取得、署名、選択INF、必須依存、Modelsまたは取消しの失敗時はHRESULT
+ * @note 外側署名の証明書取得はcache内に限定する。EXE実行、公開、導入権限の発行は行わない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectCollectorSignedPeZipContent(
+	const DriverArchiveInput &input, std::span<const std::wstring_view> acceptedPublishers,
+	std::wstring_view zipMember, std::wstring_view infMember,
+	const OfficialInfModelsPlatform &platform, CollectorSignedPeZipContent &content,
+	const std::function<bool()>				   &cancellation   = {},
+	std::optional<CollectorPeZipRequiredImport> requiredImport = std::nullopt) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -424,6 +608,22 @@ struct CommonDriverPackageInspection {
 
 //------------------------------------------------------------------------------
 /**
+ * @brief WiXの保護済み単一ストレージINFを同じファイルから端末用に再検査する
+ * @param[in] session 元の取得と展開に使った非零スキャン識別子
+ * @param[in] workspace 元INF・CAT・全参照を保持する同じ管理者保護領域の共有所有者
+ * @param[in] original 署名済みWiX配布を認証して得た元閉包。元の全相対名、長さとSHA-256を持つ
+ * @param[out] inspected 成功時は端末用に再解析した閉包と同じ領域の共有所有者。失敗時は診断だけ
+ * @return 同じ単一SCSI基本INFの全内容とWindows署名が一致した場合0、それ以外はHRESULT
+ * @pre 同じworkerで元配布を認証し、入力と別の結果を使って呼出し期間中は元閉包と領域を変更しない
+ * @note 元領域を移動せず、端末適用性、同意、ストレージ作用の導入許可は別に確認する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectRetainedStorageInf(
+	ScanSessionId session, const std::shared_ptr<OfficialDownloadWorkspace> &workspace,
+	const OfficialDriverClosure &original, CommonInfInspection &inspected) ;
+
+//------------------------------------------------------------------------------
+/**
  * @brief 成功閉包の全file、metadata、署名を同一policyで再検証する
  * @param[in] inspected 保護領域を保持するVERIFIED結果
  * @return 全fileのsize／hash、INF metadata、Windows署名一致時0、それ以外はHRESULT
@@ -431,6 +631,33 @@ struct CommonDriverPackageInspection {
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 端末が検査した閉包の元用途・全ファイル・署名を再確認する
+ * @param[in] inspected 通常の成功閉包または管理領域で確認した独自クラスの成功閉包
+ * @return 検査内容が現在の元ファイルと一致した場合0、それ以外はHRESULT
+ * @note 独自クラスの内容結果から導入資格を発行しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError reverifyCommonDriverInfContent( const CommonInfInspection &inspected) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief appの元選択archiveを独立に内容検査し、storage専用の非権限用途を記録します
+ * @param[in] input 同scanのADMIN保護原archiveです
+ * @param[in] format 元取得計画の非実行container形式です
+ * @param[in] selectors 元署名recordのnested/INF位置の閉集合です
+ * @param[out] inspection 全体失敗時空、個別失敗は元診断を保持します
+ * @param[in] cancellation 同workerの協調取消しです。空は取消しなしです
+ * @return 全体検査完了0、それ以外は原HRESULTです
+ * @note collector DTOの変換を受けず、端末適用性やstorage導入資格を発行しません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectSelectedDeviceDriverPackages(
+	const DriverArchiveInput &input, OfficialDriverArchiveFormat format,
+	std::span<const std::pair<std::wstring_view, std::wstring_view>> selectors,
+	CommonDriverPackageInspection &inspection, const std::function<bool()> &cancellation = {}) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -447,10 +674,10 @@ struct CommonDriverPackageInspection {
  * @note 現在driverとの順位比較とexecutor接続は行わず、導入可能へ昇格させない
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] bool		  makeCommonInfCandidateAssessment(
-		   ScanSessionId scanSessionId, const UpdateCandidate &candidate,
-		   const CommonInfInspection &inspected, std::uint64_t evidenceId,
-		   const CandidateAssessmentFinding &origin, NativeError applicabilityError,
-		   std::optional<std::uint32_t> candidateRank, CandidateAssessment &assessment) ;
+[[nodiscard]] bool makeCommonInfCandidateAssessment(
+	ScanSessionId scanSessionId, const UpdateCandidate &candidate,
+	const CommonInfInspection &inspected, std::uint64_t evidenceId,
+	const CandidateAssessmentFinding &origin, NativeError applicabilityError,
+	std::optional<std::uint32_t> candidateRank, CandidateAssessment &assessment) ;
 
 } // namespace drivercrate

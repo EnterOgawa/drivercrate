@@ -2,7 +2,7 @@
 /**
  * @file official_preparation.cpp
  * @brief 配布物単位の承認と取得taskの状態管理
- * @version 01.05.02
+ * @version 01.07.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -38,9 +38,12 @@
  * Ver.01.05.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
  * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.05.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.06.00 Shunji Ogawa  2026/11/20  同一元配布の端末別ファームウェア承認を検査
+ * Ver.01.07.00 Shunji Ogawa  2026/11/23  埋込み規約の検査専用承認と導入意思の混用を拒否
  * </pre>
  *
  * @note URL解決と転送は行わず、ADR 0098の一度限りの承認境界を管理します
+ * @see docs/adr/0572-signed-wix-burn-driver-content.md
  */
 //------------------------------------------------------------------------------
 
@@ -181,6 +184,16 @@ bool validTarget( const OfficialPreparationTarget &target, const OfficialPrepara
 		return false ;
 	}
 
+	// ファームウェア条件は署名索引の一台と具体的な本人確認だけへ結びます
+	if( target.firmwareCondition &&
+	   (target.providerId != SIGNED_INDEX_PROVIDER_ID || target.deviceCount != 1U ||
+		!target.requiresPrerequisiteConfirmation ||
+		!validIdentity( target.firmwareCondition->deviceIdentity) ||
+		target.firmwareCondition->versionLabel.empty() ||
+		target.firmwareCondition->versionLabel.size() > MAXIMUM_IDENTITY_LENGTH)) {
+		return false ;
+	}
+
 	// 利用条件の分類とEULAのsnapshotを照合し、未確定条件への包括同意を防ぐ
 	switch( target.terms) {
 		// 未解決の利用条件は同意不要と共通の制約照合へ進む
@@ -204,6 +217,18 @@ bool validTarget( const OfficialPreparationTarget &target, const OfficialPrepara
 			// 特定できない利用条件への包括同意を禁止する
 			if( !validEulaRevision( target.eulaRevision) ||
 			   !validPreparationEulaText( target.eulaText)) {
+				return false ;
+			}
+
+			break ;
+
+		// 署名索引から取得する一台の配布物だけを埋込み規約の検査へ渡す
+		case OfficialPreparationTerms::INSPECTION_ONLY:
+			// 規約と前提を確認する前の検査に、確認済み条件や別端末を含めない
+			if( target.providerId != SIGNED_INDEX_PROVIDER_ID || target.deviceCount != 1U ||
+			   !target.eulaRevision.empty() || !target.eulaText.empty() ||
+			   target.sharedEulaToken != 0U || target.requiresPrerequisiteConfirmation ||
+			   !target.prerequisiteText.empty() || target.firmwareCondition) {
 				return false ;
 			}
 
@@ -282,10 +307,14 @@ bool validPlan( const OfficialPreparationPlan &plan)
 		// 上限内の既出対象だけを照合し、異なるIDによる同一配布物の重複も拒否する
 		for( std::size_t previous = 0U; previous < index; ++previous) {
 			const OfficialPreparationTarget &known = plan.targets[previous] ;	// 既出snapshot
-			// 対象IDまたは同一Providerのreleaseが重複する計画を拒否し、二重取得を防ぐ
+			// 同じ配布行を使っても端末が異なれば確認対象は独立します
+			const bool						 separateFirmwareDevice =
+				known.firmwareCondition && target.firmwareCondition &&
+				known.firmwareCondition->deviceIdentity != target.firmwareCondition->deviceIdentity ;
+			// 同じ元配布でも本人確認を端末別に求める場合だけ別targetを許可します
 			if( known.identity == target.identity ||
 			   (known.providerId == target.providerId &&
-				known.releaseIdentity == target.releaseIdentity)) {
+				known.releaseIdentity == target.releaseIdentity && !separateFirmwareDevice)) {
 				return false ;
 			}
 		}
@@ -479,7 +508,9 @@ OfficialPreparationError OfficialPreparationSession::initialize( OfficialPrepara
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全対象の判断を照合し、選択分の最大容量を一度だけ予約する。失敗時に一部だけ同意・予約しない。受理後の同じ計画は再使用できない
+ * @brief 全対象の判断を照合し、選択分の最大容量を一度だけ予約する
+ * 検査専用対象を取得する操作では、規約同意・導入意思・通常対象の取得を拒否する
+ * 失敗時に一部だけ同意・予約しない。受理後の同じ計画は再使用できない
  * @param[in] approval 利用者が明示した計画全体への判断。 全対象の取得可否と提示時のsnapshot
  * @return 受理時None。それ以外はtaskを生成せず予算も変更しない。 全件照合と予約に成功した場合None
  */
@@ -513,6 +544,7 @@ OfficialPreparationError OfficialPreparationSession::approve(
 	std::uint32_t						 files		  = reservedFiles_ ;	// 仮のscan累計予約file数
 	std::vector<OfficialPreparationItem> items ;							// 成功時だけ公開する対象別状態
 	std::vector<bool>					 networkApprovals ;					// 計画順へ正規化したnetwork同意
+	std::optional<bool>					 inspectionOnlyAcquisition ;		// 初回選択で決まる取得用途
 	items.reserve( plan_.targets.size()) ;
 	networkApprovals.reserve( plan_.targets.size()) ;
 	// UI側の並べ替えを許し、計画の各対象に対応する判断を一件だけ求める
@@ -545,6 +577,16 @@ OfficialPreparationError OfficialPreparationSession::approve(
 
 		// 利用者が取得を選んだ対象だけを予算へ予約し、未選択の転送を開始させない
 		if( decision->acquire) {
+			// 今回の対象の取得用途
+			const bool inspectionOnly = target.terms == OfficialPreparationTerms::INSPECTION_ONLY ;
+			// 検査操作に導入意思を持ち込まず、選択された異なる用途の取得も拒否する
+			if( (inspectionOnly && !approval.installIntentIdentities.empty()) ||
+			   (inspectionOnlyAcquisition.has_value() &&
+				*inspectionOnlyAcquisition != inspectionOnly)) {
+				return OfficialPreparationError::INVALID_APPROVAL ;
+			}
+
+			inspectionOnlyAcquisition = inspectionOnly ;
 			// 同じscanで作り直した計画でも、消費済みのProvider予算を引き継ぐ
 			auto reservation = std::find_if( reservations.begin(), reservations.end(),
 											[&target]( const ProviderReservation &entry) {

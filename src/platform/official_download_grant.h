@@ -2,7 +2,7 @@
 /**
  * @file official_download_grant.h
  * @brief 型付き公式配布recordの検証と短命download grantを定義します
- * @version 01.11.02
+ * @version 01.12.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,8 @@
  * Ver.01.11.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続
  * Ver.01.11.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.11.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.11.03 Shunji Ogawa  2026/11/19  署名索引grantの元native列挙照合を明記
+ * Ver.01.12.00 Shunji Ogawa  2026/11/23  WiX配布の元アンカーと指定転送先を取得許可へ結合
  * </pre>
  *
  * @note Provider worker threadだけで直列使用します。Recordは検査用取得の入口であり、内容、適用性、
@@ -539,9 +541,9 @@ public:
 	[[nodiscard]] NativeError compareConsumedTarget( std::wstring_view candidate,
 													bool			 &sameTarget) const noexcept ;
 	/**
-	 * @brief 署名索引grantの失効leaseと同scanの非公開元lookupを照合します
-	 * @param[in] scanSessionId 現取得session
-	 * @return 元封印とissuerが生存し同scanの場合0。それ以外は拒否HRESULT
+	 * @brief 署名索引grantを元lookup、issuer、元native列挙へ結びます
+	 * @param[in] scanSessionId 現取得sessionです
+	 * @return 同scanの元権限とnative列挙が生存する場合0、失効または不一致は拒否HRESULTです
 	 */
 	[[nodiscard]] NativeError validateSignedIndexAuthority(
 		ScanSessionId scanSessionId) const noexcept ;
@@ -565,10 +567,16 @@ public:
 private:
 	friend class OfficialDelegatedGetRequest ;
 	/**
+	 * @brief 署名されたWiX配布の一回限りの301転送先を借用します
+	 * @return WiX以外はnullopt、封印が不成立なら空のview、成立時は同じ許可が所有する指定先です
+	 * @note 借用は取得許可の終端又は破棄までです。通信を発行しません
+	 */
+	[[nodiscard]] std::optional<std::wstring_view> signedWixRedirectDestination() const noexcept ;
+	/**
 	 * @brief 元lookupの公開resolver文脈だけを同期借用する
 	 * @return 生存する同recordの未解決plan。それ以外はnull
 	 */
-	[[nodiscard]] const OfficialAnonymousCdnPlan *anonymousCdnPlan() const noexcept ;
+	[[nodiscard]] const OfficialAnonymousCdnPlan  *anonymousCdnPlan() const noexcept ;
 	/**
 	 * @brief 同recordの公開起点とresponseだけからexact解決routeを封印する
 	 * @param[in] canonical 元requestが単独所有する公開起点

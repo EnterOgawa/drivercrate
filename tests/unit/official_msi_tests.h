@@ -1,8 +1,8 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_msi_tests.h
- * @brief 公式MSI stream選択取得単体試験定義
- * @version 01.00.02
+ * @brief 公式MSIのTemplate照合とstream選択取得の単体試験定義
+ * @version 01.01.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,9 +29,10 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/23  架空MSIのTemplate照合試験を追加
  * </pre>
  *
- * @note Windows Installer database APIで架空MSIを生成し、install sequenceを実行せずstream選択とfail-closed境界を検証します
+ * @note Windows Installer database APIで架空MSIを生成し、stream選択、Template照合と拒否境界を検証します
  */
 //------------------------------------------------------------------------------
 
@@ -43,7 +44,7 @@ class TestContext ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式MSI streamのread-only取得と拒否境界を検証する。正常取得と全fail-closed MSI fixtureを順に実行する
+ * @brief 公式MSI streamのread-only取得、Template照合と拒否境界を検証する
  * @param[in,out] context Assertion件数と失敗内容の集計先
  */
 //------------------------------------------------------------------------------

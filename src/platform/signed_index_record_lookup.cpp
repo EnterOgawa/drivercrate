@@ -2,7 +2,7 @@
 /**
  * @file signed_index_record_lookup.cpp
  * @brief 保存snapshotの期限とcontextを確認して公開ID照合関係を保持します
- * @version 01.04.02
+ * @version 01.11.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,14 @@
  * Ver.01.04.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合
  * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.04.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.05.00 Shunji Ogawa  2026/11/19  取得済み根拠を元native列挙の寿命へ照合
+ * Ver.01.06.00 Shunji Ogawa  2026/11/20  Catalog対象を端末HardwareIdsと不変証拠へ結ぶ
+ * Ver.01.07.00 Shunji Ogawa  2026/11/20  端末用レコード位置と元領域の期限を照合・集約へ適用
+ * Ver.01.08.00 Shunji Ogawa  2026/11/20  同じ元行と端末型番に限りHardwareIdsを照合
+ * Ver.01.09.00 Shunji Ogawa  2026/11/20  同一端末の全HardwareIdsによる必須群の判定を追加
+ * Ver.01.10.00 Shunji Ogawa  2026/11/22  ベンダー配布の完全Hardware IDを端末照合と証拠凍結に接続
+ * Ver.01.11.00 Shunji Ogawa  2026/11/23  WiX配布のWindows対象条件と完全Hardware IDを同じ端末へ照合
+ * Ver.01.11.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * </pre>
  *
  * @note 原公開metadataを保持し、Windows適合・rank・導入許可へ昇格しません
@@ -35,6 +43,7 @@
 //------------------------------------------------------------------------------
 #include "platform/signed_index_record_lookup.h"
 
+#include "platform/client_min_build_scope.h"
 #include <algorithm>
 #include <new>
 #include <set>
@@ -80,6 +89,20 @@ bool NativeIndexLookupLease::matches( IndexLookupContext context,
 
 	const auto owner = owner_.lock() ;	// fieldを参照する期間だけ元stateの寿命を確保します
 	return owner && *readOpen_ ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元のcontextとthreadで列挙が生存することを取得済み根拠用に検査します
+ * @param[in] context 元の操作と列挙の完全contextです
+ * @param[in] ownerThread 現在実行中のthreadです
+ * @return 完全context、同thread、元列挙の生存が成立する場合trueです
+ */
+//------------------------------------------------------------------------------
+bool NativeIndexLookupLease::matchesOwner( const IndexLookupContext context,
+										  const std::uint32_t	   ownerThread) const noexcept
+{
+	return context == context_ && ownerThread == ownerThread_ && !owner_.expired() ;
 }
 
 //------------------------------------------------------------------------------
@@ -149,18 +172,20 @@ bool NativeIndexPositiveProof::matches( const IndexLookupContext context, const 
  * @param[in] error 他node不足も保持する元診断です
  * @param[in] completed 元callbackの全体完了区分です
  * @param[in] deviceIdentity 完全個別観測が成立したopaque一件をcopyします
+ * @param[in] hardwareOnly 端末HardwareIdsだけを照合した観測の場合true
+ * @param[in] hardwareIds 同じPnPインスタンスで読んだ全HardwareIdsへの弱参照です
  */
 //------------------------------------------------------------------------------
-NativeIndexDeviceProof::NativeIndexDeviceProof( MintKey key, IndexLookupContext context,
-											   IndexPnpIdKind kind, std::string_view publishedId,
-											   std::string_view			 classGuid,
-											   std::uint32_t			 ownerThread,
-											   std::weak_ptr<const void> lease,
-											   std::vector<std::wstring> devices, NativeError error,
-											   bool completed, std::wstring deviceIdentity)
+NativeIndexDeviceProof::NativeIndexDeviceProof(
+	MintKey key, IndexLookupContext context, IndexPnpIdKind kind, std::string_view publishedId,
+	std::string_view classGuid, std::uint32_t ownerThread, std::weak_ptr<const void> lease,
+	std::vector<std::wstring> devices, NativeError error, bool completed,
+	std::wstring deviceIdentity, bool hardwareOnly,
+	std::weak_ptr<const std::vector<std::wstring>> hardwareIds)
 	: context_( context), kind_( kind), publishedId_( publishedId), classGuid_( classGuid),
 	  ownerThread_( ownerThread), lease_( std::move( lease)), devices_( std::move( devices)),
-	  error_( error), completed_( completed), deviceIdentity_( std::move( deviceIdentity))
+	  error_( error), completed_( completed), deviceIdentity_( std::move( deviceIdentity)),
+	  hardwareOnly_( hardwareOnly), hardwareIds_( std::move( hardwareIds))
 {
 	static_cast<void>( key) ;
 }
@@ -177,27 +202,230 @@ NativeIndexDeviceProof::NativeIndexDeviceProof( MintKey key, IndexLookupContext 
  * @param[in] error 消去しない元診断です
  * @param[in] completed 元callbackの完了区分です
  * @param[in] deviceIdentity 使用対象のopaque一件です。同cohortの他deviceも拒否します
+ * @param[in] hardwareOnly 使用時に要求する端末HardwareIds限定の照合区分
  * @return 全一致と元leaseの生存が成立した場合だけtrueです
  */
 //------------------------------------------------------------------------------
-bool NativeIndexDeviceProof::matches( const IndexLookupContext context, const IndexPnpIdKind kind,
-									 const std::string_view				 publishedId,
-									 const std::string_view				 classGuid,
-									 const std::uint32_t				 ownerThread,
-									 const std::span<const std::wstring> devices,
-									 const NativeError error, const bool completed,
-									 const std::wstring_view deviceIdentity) const noexcept
+bool NativeIndexDeviceProof::matches(
+	const IndexLookupContext context, const IndexPnpIdKind kind, const std::string_view publishedId,
+	const std::string_view classGuid, const std::uint32_t ownerThread,
+	const std::span<const std::wstring> devices, const NativeError error, const bool completed,
+	const std::wstring_view deviceIdentity, const bool hardwareOnly) const noexcept
 {
-	return context == context_ && kind == kind_ && publishedId == publishedId_ &&
-		   classGuid == classGuid_ && ownerThread == ownerThread_ && !lease_.expired() &&
-		   error == error_ && completed == completed_ && deviceIdentity == deviceIdentity_ &&
-		   !deviceIdentity_.empty() && !devices_.empty() && devices_.size() <= 32U &&
-		   devices.size() == devices_.size() &&
+	return hardwareOnly == hardwareOnly_ && context == context_ && kind == kind_ &&
+		   publishedId == publishedId_ && classGuid == classGuid_ && ownerThread == ownerThread_ &&
+		   !lease_.expired() && error == error_ && completed == completed_ &&
+		   deviceIdentity == deviceIdentity_ && !deviceIdentity_.empty() && !devices_.empty() &&
+		   devices_.size() <= 32U && devices.size() == devices_.size() &&
 		   std::equal( devices.begin(), devices.end(), devices_.begin()) &&
 		   std::ranges::find( devices_, deviceIdentity_) != devices_.end() ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一端末の生存中のHardwareIdsから署名済みの必須群を判定します
+ * @param[in] record 元の照合関係に結び付けた署名済み配布レコードです
+ * @param[in] context 使用する直前のスキャン・インベントリです
+ * @param[in] ownerThread 使用中のWindowsスレッドです
+ * @param[in] deviceIdentity 使用対象の同一PnPインスタンスを示すopaque値です
+ * @return 元端末が持つ完全な対象IDによる群の判定です。元観測を借用できない場合は判定不能です
+ * @pre 元のレコードと照合関係に対するmatchesが成立しています
+ */
+//------------------------------------------------------------------------------
+IndexPlatformFirmwareMatch NativeIndexDeviceProof::platformFirmwareMatch(
+	const IndexDistributionRecord &record, const IndexLookupContext context,
+	const std::uint32_t ownerThread, const std::wstring_view deviceIdentity) const noexcept
+{
+	// 同じスキャン・所有スレッド・PnPインスタンスの観測だけを使います
+	if( !hardwareOnly_ || kind_ != IndexPnpIdKind::HARDWARE || context != context_ ||
+	   ownerThread != ownerThread_ || GetCurrentThreadId() != ownerThread_ ||
+	   deviceIdentity.empty() || deviceIdentity != deviceIdentity_ ||
+	   record.publishedIdentityEvidence.classGuid != classGuid_) {
+		return {} ;
+	}
+
+	const auto observed =
+		// 元インベントリが生存中だけ同じ端末の全IDを借用します
+		hardwareIds_.lock() ;
+	return observed ? classifyIndexPlatformFirmwareGroup( record, *observed)
+					: IndexPlatformFirmwareMatch{} ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Hardware限定を実装していないcallbackは未完了を返す
+ * @param[in] publishedId 認証済みレコードの元Hardware ID
+ * @param[in] classGuid 同じレコードの元ClassGUID
+ * @param[in] context 元scan・inventoryを指定する照合context
+ * @param[in] present 照合同期中だけ借用する全present opaque
+ * @return 元contextの未完了結果
+ * @note 旧callbackへ委譲せず同じ条件を実装するnativeにだけ照合を任せる
+ */
+//------------------------------------------------------------------------------
+IndexPublicIdResolution IndexPublicIdResolver::resolveHardwareId(
+	std::string_view publishedId, std::string_view classGuid, IndexLookupContext context,
+	std::span<const std::wstring> present) const
+{
+	static_cast<void>( publishedId) ;
+	static_cast<void>( classGuid) ;
+	static_cast<void>( present) ;
+	return {.context = context} ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Windowsが保持する製造元と製品名からメーカー型番を確認します
+ * @param[in] manufacturer SMBIOS由来のSystemManufacturerです
+ * @param[in] productName SMBIOS由来のSystemProductNameです
+ * @return 端末内で確認した製造元と型番です。型番と解釈できない製品名は保持しません
+ */
+//------------------------------------------------------------------------------
+IndexPlatformMachineIdentity parseIndexPlatformMachine( std::wstring_view manufacturer,
+													   std::wstring_view productName)
+{
+	// 外側の空白とASCII英字の大小文字だけを比較用にそろえます
+	const auto normalized = []( std::wstring_view value) {
+		const auto	 start = value.find_first_not_of( L" \t") ;	// 外側の余白を除いた先頭です
+		std::wstring text ;										// 元の表示名と無関係な比較値です
+		// 空値を有効な製造元や型番へ変換しません
+		if( start != std::wstring_view::npos) {
+			text.assign( value.substr( start, value.find_last_not_of( L" \t") - start + 1U)) ;
+			// 借用範囲を所有値へ写した後に比較用のcaseへそろえます
+			std::ranges::transform( text, text.begin(), []( const wchar_t c) {
+				return c >= L'a' && c <= L'z' ? static_cast<wchar_t>( c - L'a' + L'A') : c ;
+			}) ;
+		}
+
+		return text ;
+	} ;
+	const auto vendor = normalized( manufacturer) ;	// 製造元の比較値です
+	// 製造元不明と、確認できた別の製造元を区別します
+	if( vendor.empty()) {
+		return {} ;
+	}
+
+	// 別メーカーの製品名からLenovo型番を抽出しません
+	if( vendor != L"LENOVO") {
+		return {.vendor = IndexPlatformMachineVendor::OTHER} ;
+	}
+
+	const auto product = normalized( productName) ;	// 型番又はMachine Type/Modelの比較値です
+	IndexPlatformMachineIdentity result{
+		.vendor = IndexPlatformMachineVendor::LENOVO} ;	// 同じ端末の観測です
+	// 製品名の全体が4文字の型番又は10文字のMachine Type/Modelである場合だけ使います
+	if( (product.size() == 4U || product.size() == 10U) &&
+	   product.find_first_not_of( L"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ") == product.npos) {
+		result.machineType.resize( 4U) ;
+		// 上の字句検査でASCIIと確定した型番部分だけを保持します
+		std::ranges::transform( std::wstring_view{product}.substr( 0U, 4U),
+							   result.machineType.begin(),
+							   []( const wchar_t c) { return static_cast<char>( c) ; }) ;
+	}
+
+	return result ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元ModelsのID位置を型付き配布対象条件に照合します
+ * @param[in] record 元Modelsと対象位置を持つ認証済みレコード
+ * @param[in] publicIdIndex 元ModelsでのID位置
+ * @return 位置が存在し、対象条件を満たす場合trueです。WiXでは完全Hardware IDに限ります
+ */
+//------------------------------------------------------------------------------
+bool isIndexLookupIdEligible( const IndexDistributionRecord &record,
+							 const std::size_t				publicIdIndex) noexcept
+{
+	const auto &ids = record.publishedIdentityEvidence.pnpIds ;	// 同じ公開Modelsの元ID群です
+	return publicIdIndex < ids.size() &&
+		   (!record.wixContentEvidence || isExactWixHardwareId( ids[publicIdIndex])) &&
+		   (!record.catalogHardwareScope ||
+			std::ranges::binary_search( record.catalogHardwareScope->hardwareIdIndices,
+									   publicIdIndex)) &&
+		   (!record.platformDeviceScope ||
+			std::ranges::binary_search( record.platformDeviceScope->hardwareIdIndices,
+									   publicIdIndex)) &&
+		   (!record.archiveHardwareScope ||
+			std::ranges::binary_search( record.archiveHardwareScope->hardwareIdIndices,
+									   publicIdIndex)) ;
+}
+
 namespace {
+//------------------------------------------------------------------------------
+/**
+ * @brief WiXの元配布が同じスキャンで観測したWindowsに合わない理由を返します
+ * @param[in] record 同じ署名索引で確認した元レコードです
+ * @param[in] host 同じ操作で取得したWindowsの元観測です。未実施ならnullです
+ * @return 対象条件が合うかWiX以外なら空、観測不足又は対象外ならその理由です
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] std::optional<IndexRecordMatchReason> wixHostRejection(
+	const IndexDistributionRecord &record, const WindowsHostPlatformObservation *host) noexcept
+{
+	// 従来の配布レコードにはWiX専用の対象条件を適用しません
+	if( !record.wixContentEvidence) {
+		return std::nullopt ;
+	}
+
+	const auto result = matchWixIndexHost(
+		record, host ? *host : WindowsHostPlatformObservation{}) ;	// 同じスキャンの元観測に限ります
+	// Windowsの対象条件が合う場合だけ端末のHardware IDとの照合を許可します
+	if( result.state == IndexHostGateState::ALLOW_UNVERIFIED) {
+		return std::nullopt ;
+	}
+
+	return result.state == IndexHostGateState::UNKNOWN
+			   ? IndexRecordMatchReason::WIX_HOST_UNAVAILABLE
+			   : IndexRecordMatchReason::WIX_HOST_MISMATCH ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 機種条件付きレコードを同スキャンの端末観測に照合します
+ * @param[in] record 取得元と元型番を結合した署名済みレコードです
+ * @param[in] machine 同じ端末スキャンの製造元と型番です。同じスキャンの観測がなければnullです
+ * @return 機種条件なし又は成立なら空、未確認又は不一致ならその理由です
+ */
+//------------------------------------------------------------------------------
+std::optional<IndexRecordMatchReason> platformMachineRejection(
+	const IndexDistributionRecord &record, const IndexPlatformMachineIdentity *machine) noexcept
+{
+	// 通常行とCatalog行には機種観測の状態を適用しません
+	if( !record.platformDeviceScope) {
+		return std::nullopt ;
+	}
+
+	const auto &scope = *record.platformDeviceScope ;	// 同じ取得元に結んだ機種別条件です
+	// 同じ製造元の型番として確認できない組合せを照合済みへ変換しません
+	if( !machine || scope.machineVendor == IndexPlatformMachineVendor::UNKNOWN ||
+	   machine->vendor == IndexPlatformMachineVendor::UNKNOWN ||
+	   (machine->vendor == scope.machineVendor && machine->machineType.empty())) {
+		return IndexRecordMatchReason::PLATFORM_MACHINE_UNAVAILABLE ;
+	}
+
+	// 確認できた型番と元表の完全値を比較します
+	if( machine->vendor != scope.machineVendor ||
+	   std::ranges::find( scope.machineTypes, machine->machineType) == scope.machineTypes.end()) {
+		return IndexRecordMatchReason::PLATFORM_MACHINE_MISMATCH ;
+	}
+
+	return std::nullopt ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元レコードが照合結果の分母に持つ公開IDの件数を数えます
+ * @param[in] record 領域が所有する不変の元レコードです
+ * @return Class付きの公開申告に含まれるID数です。申告不明の場合は0です
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] std::size_t publishedIdCount( const IndexDistributionRecord &record) noexcept
+{
+	const auto &evidence = record.publishedIdentityEvidence ;	// 原公開申告です
+	return evidence.state == IndexEvidenceState::PUBLISHED && !evidence.classGuid.empty()
+			   ? evidence.pnpIds.size()
+			   : 0U ;
+}
 
 //------------------------------------------------------------------------------
 /**
@@ -206,12 +434,13 @@ namespace {
  * @param[in] kind 原recordの公開役割です
  * @param[in] publishedId 原recordの公開IDです
  * @param[in] classGuid 原recordの公開Classです
+ * @param[in] hardwareOnly 元の照合が端末HardwareIdsに限定される場合true
  * @return 一件以上の認証済みslotがあり、存在する証拠が全て完全一致した場合trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool verifiedDeviceProofs( const IndexPublicIdResolution &resolution,
 										IndexPnpIdKind kind, std::string_view publishedId,
-										std::string_view classGuid)
+										std::string_view classGuid, bool hardwareOnly)
 {
 	// 欠損や大量cohortを一部の成功証拠で補完しません
 	if( resolution.devices.empty() || resolution.devices.size() > 32U ||
@@ -231,7 +460,7 @@ namespace {
 		// 同cohortの他deviceや別公開tupleへの転用を認めません
 		if( !proof->matches( resolution.context, kind, publishedId, classGuid, GetCurrentThreadId(),
 						   resolution.devices, resolution.error, resolution.completed,
-						   resolution.devices[index])) {
+						   resolution.devices[index], hardwareOnly)) {
 			return false ;
 		}
 
@@ -252,12 +481,13 @@ namespace {
  * @param[in] kind 元recordの公開identifier役割です
  * @param[in] publishedId 元recordの公開identifierです。保持しません
  * @param[in] classGuid 元recordの公開Classです。保持しません
+ * @param[in] hardwareOnly 元の照合が端末HardwareIdsに限定される場合true
  */
 //------------------------------------------------------------------------------
 void applyResolution( IndexRecordRelation &relation, const IndexPublicIdResolution &resolution,
 					 const std::set<std::wstring_view> &present, std::size_t &retainedIdentities,
 					 std::size_t maximumRelatedIdentities, IndexPnpIdKind kind,
-					 std::string_view publishedId, std::string_view classGuid)
+					 std::string_view publishedId, std::string_view classGuid, bool hardwareOnly)
 {
 	relation.error = resolution.error ;
 	// 古いcallbackを現在のrelationへ適用しない
@@ -267,20 +497,21 @@ void applyResolution( IndexRecordRelation &relation, const IndexPublicIdResoluti
 	}
 
 	const bool verifiedPartial =
-		!resolution.completed && resolution.positiveProof &&
+		!hardwareOnly && !resolution.completed && resolution.positiveProof &&
 		resolution.positiveProof->matches(
 			relation.context, kind, publishedId, classGuid, GetCurrentThreadId(),
 			resolution.devices, resolution.error) ;	// 公開DTOだけでは成立しない同native根拠です
-	const bool verifiedDevices = verifiedDeviceProofs( resolution, kind, publishedId,
-													  classGuid) ;	// 個別観測だけの別証拠です
+	const bool verifiedDevices = verifiedDeviceProofs( resolution, kind, publishedId, classGuid,
+													  hardwareOnly) ;	// 同用途の個別証拠
 	// 存在する個別証拠が不正な結果を完全DTOへ読み替えません
-	if( !resolution.deviceProofs.empty() && !verifiedDevices) {
+	if( (!resolution.deviceProofs.empty() || (hardwareOnly && !resolution.devices.empty())) &&
+	   !verifiedDevices) {
 		relation.reason = IndexRecordMatchReason::INVALID_OPAQUE_RESULT ;
 		return ;
 	}
 
 	// 発行済みpartial証拠のcompletedを変更して完全成功へ読み替えません
-	if( resolution.positiveProof && resolution.completed) {
+	if( resolution.positiveProof && (resolution.completed || hardwareOnly)) {
 		relation.reason = IndexRecordMatchReason::INVALID_OPAQUE_RESULT ;
 		return ;
 	}
@@ -350,6 +581,11 @@ void applyResolution( IndexRecordRelation &relation, const IndexPublicIdResoluti
 		relation.deviceIdentity = resolution.devices.front() ;
 		relation.state			= IndexRecordMatchState::MATCHED ;
 		relation.reason			= IndexRecordMatchReason::UNIQUE_RELATION ;
+		// 端末HardwareIds限定の一意照合も発行元の証拠を保持する
+		if( hardwareOnly) {
+			relation.deviceProof		 = resolution.deviceProofs.front() ;
+			relation.resolutionCompleted = resolution.completed ;
+		}
 	}
 }
 
@@ -372,6 +608,18 @@ SignedIndexRecordLookup::SignedIndexRecordLookup(
 	: snapshot_( std::move( snapshot)), relations_( std::move( relations)), context_( context),
 	  progress_( progress), nativeLease_( std::move( nativeLease))
 {
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief native由来の署名索引について元列挙の寿命と所有threadだけを検査します
+ * @param[in] context 今回の取得が参照する元完全contextです
+ * @return native元列挙が有効ならtrueです。非nativeは元の検査を適用します
+ */
+//------------------------------------------------------------------------------
+bool SignedIndexRecordLookup::hasLiveNativeOwner( const IndexLookupContext context) const noexcept
+{
+	return !nativeLease_ || nativeLease_->matchesOwner( context, GetCurrentThreadId()) ;
 }
 
 //------------------------------------------------------------------------------
@@ -416,7 +664,7 @@ const IndexLookupProgress &SignedIndexRecordLookup::progress() const noexcept
  * @param[in] current 現workerが確認した正のcontext
  * @param[in] present 同contextのopaque present集合。本呼出し中不変です
  * @param[in] budget 有限batchとcallback枠
- * @param[in] nowUtc 現在信頼UTC。発行前・期限以上・確認不能は拒否します
+ * @param[in] nowUtc 現信頼UTC。元本文の有効期間外・確認不能は拒否し、期限切れ領域は未判定です
  * @param[in] resolver 同workerの借用callback。nullptrは未実行として保持します
  * @return 入力拒否、または元snapshotと各関係を所有する読取り結果
  * @note 参照を外へ保持せず、例外を境界で診断へ変換します。独立入力は独立workerで呼出し可能です
@@ -471,10 +719,10 @@ IndexRecordLookupResult lookupSignedIndexRecords(
 			return result ;
 		}
 
+		const auto records = snapshot->consumerRecords() ;	// 同snapshotが所有する端末用の原順序です
 		// Batch位置と件数・callback枠を有限にし、加算前に残量へ制限する
-		if( present.size() > INDEX_LOOKUP_PRESENT_MAX ||
-		   budget.recordOffset > schema.records().size() || budget.recordCount == 0U ||
-		   budget.recordCount > INDEX_LOOKUP_RECORD_BATCH_MAX ||
+		if( present.size() > INDEX_LOOKUP_PRESENT_MAX || budget.recordOffset > records.size() ||
+		   budget.recordCount == 0U || budget.recordCount > INDEX_LOOKUP_RECORD_BATCH_MAX ||
 		   budget.resolverCalls > INDEX_LOOKUP_RESOLVER_CALL_MAX ||
 		   budget.maximumRelations > index_capacity::RETAINED_RELATIONS ||
 		   budget.maximumRelatedIdentities > index_capacity::RETAINED_OPAQUE_IDENTITIES) {
@@ -500,8 +748,9 @@ IndexRecordLookupResult lookupSignedIndexRecords(
 			return result ;
 		}
 
-		const auto			count = std::min( budget.recordCount, schema.records().size() -
-																	 budget.recordOffset) ;	// 要求prefixです
+		const auto count =
+			// 要求prefixです
+			std::min( budget.recordCount, records.size() - budget.recordOffset) ;
 		// 本呼出しだけが確定する原record coverageです
 		IndexLookupProgress progress ;
 		progress.recordOffset	  = budget.recordOffset ;
@@ -511,13 +760,34 @@ IndexRecordLookupResult lookupSignedIndexRecords(
 		// 全IDが入るrecordを原順序で処理し、未commit recordは元位置に残します
 		for( std::size_t offset = 0U; offset < count; ++offset) {
 			const auto	index	  = budget.recordOffset + offset ;		// 原recordの位置です
-			const auto &record	  = schema.records()[index] ;			// 不変の認証済み原recordです
+			const auto &record	  = records[index] ;					// 不変の認証済み原recordです
 			const auto &evidence  = record.publishedIdentityEvidence ;	// 原公開申告です
-			const bool	published = evidence.state == IndexEvidenceState::PUBLISHED &&
-								   !evidence.pnpIds.empty() &&
-								   !evidence.classGuid.empty() ;	// 全IDを処理する条件です
-			const auto publicIds =
-				published ? evidence.pnpIds.size() : 0U ;	// 不明証拠をIDへ推測しません
+			const auto	publicIds = publishedIdCount( record) ;			// 原公開IDの分母です
+			const bool	regionExpired =
+				*nowUtc >= snapshot->consumerRecordRegion( index).expiresAtUtc ;	// 期限同値も失効です
+			const auto machineRejection =
+				platformMachineRejection( record,
+										 // 同じスキャンの機種と型番です
+										 snapshot->platformMachine( request)) ;
+			// 端末条件の拒否を優先し、通過したレコードだけWiXのWindows条件を適用します
+			const auto recordRejection =
+				machineRejection ? machineRejection
+								 : wixHostRejection( record, snapshot->windowsHost( request)) ;
+			const bool hardwareOnly =
+				// 照合する端末IDの範囲です
+				requiresExactIndexHardwareMatch( record) ;
+			const auto requiredCalls =
+				// 全Modelsの処理件数と端末照合の呼出し数を分ける
+				record.wixContentEvidence && publicIds != 0U
+					? static_cast<std::size_t>(
+						  std::ranges::count_if( evidence.pnpIds, isExactWixHardwareId))
+				: hardwareOnly && publicIds != 0U
+					? (record.archiveHardwareScope
+						   ? record.archiveHardwareScope->hardwareIdIndices.size()
+					   : record.catalogHardwareScope
+						   ? record.catalogHardwareScope->hardwareIdIndices.size()
+						   : record.platformDeviceScope->hardwareIdIndices.size())
+					: publicIds ;
 			// 取消し・期限後に次recordを開始しません
 			if( budget.stopRequested && budget.stopRequested()) {
 				progress.stopReason = IndexLookupStopReason::STOP_REQUESTED ;
@@ -525,7 +795,8 @@ IndexRecordLookupResult lookupSignedIndexRecords(
 			}
 
 			// 次record全体が残callback枠へ収まるprefixだけを選びます
-			if( resolver != nullptr && publicIds > budget.resolverCalls - progress.resolverCalls) {
+			if( !regionExpired && !recordRejection && resolver != nullptr &&
+			   requiredCalls > budget.resolverCalls - progress.resolverCalls) {
 				progress.stopReason = IndexLookupStopReason::CALL_BUDGET ;
 				break ;
 			}
@@ -547,8 +818,23 @@ IndexRecordLookupResult lookupSignedIndexRecords(
 						!relation.deviceProof ;
 			} ; // 唯一の不一致集約条件です
 			bool stopped{} ;	// 一件でも途中停止ならrecord全体を未commitにします
+			// 失効行は全IDの元位置を保持したまま、レコード単位の未判定一件だけを発行します
+			if( regionExpired) {
+				base.reason = IndexRecordMatchReason::RECORD_REGION_EXPIRED ;
+				staged.push_back( std::move( base)) ;
+			}
+			// 機種又はWindowsの対象条件が成立しない行は個別デバイスを照合しません
+			else if( recordRejection) {
+				base.reason = *recordRejection ;
+				base.state =
+					(*recordRejection == IndexRecordMatchReason::PLATFORM_MACHINE_MISMATCH ||
+					 *recordRejection == IndexRecordMatchReason::WIX_HOST_MISMATCH)
+						? IndexRecordMatchState::UNMATCHED
+						: IndexRecordMatchState::UNDETERMINED ;
+				staged.push_back( std::move( base)) ;
+			}
 			// 公開証拠不足を不存在成功へ変えず、一件の未判定として保持します
-			if( !published) {
+			else if( publicIds == 0U) {
 				staged.push_back( std::move( base)) ;
 			} else {
 				// 全公開IDを原順序で照合し、途中停止で次recordへ飛びません
@@ -563,8 +849,13 @@ IndexRecordLookupResult lookupSignedIndexRecords(
 					auto relation		   = base ;	// 元recordへ結ぶ独立したID結果です
 					relation.publicIdIndex = idIndex ;
 					const auto &id		   = evidence.pnpIds[idIndex] ;	// 原公開IDの借用です
-					// Callbackなしは未判定の元理由を保持します
-					if( resolver == nullptr) {
+					// 公式表の対象外は端末への照合を試みず、確定不一致として元位置を保持する
+					if( !isIndexLookupIdEligible( record, idIndex)) {
+						relation.state	= IndexRecordMatchState::UNMATCHED ;
+						relation.reason = IndexRecordMatchReason::NO_RELATION ;
+					}
+					// 対象IDの端末照合が利用できない場合は未判定を保持する
+					else if( resolver == nullptr) {
 						relation.reason = IndexRecordMatchReason::RESOLVER_UNAVAILABLE ;
 					} else {
 						++progress.resolverCalls ;
@@ -574,8 +865,12 @@ IndexRecordLookupResult lookupSignedIndexRecords(
 						const auto identitiesBefore = stagedIdentities ;	// このID前のopaque累計です
 						try {
 							const auto resolution =
-								resolver->resolve( id.kind, id.value, evidence.classGuid, request,
-												  present) ;	// 同workerの同期結果です
+								// 公式配布対象だけをHardwareIds限定で照合します
+								hardwareOnly
+									? resolver->resolveHardwareId( id.value, evidence.classGuid,
+																  request, present)
+									: resolver->resolve( id.kind, id.value, evidence.classGuid,
+														request, present) ;
 							// 同期処理中の停止は部分recordの発行を禁止します
 							if( budget.stopRequested && budget.stopRequested()) {
 								result.error = result.error != 0U ? result.error : resolution.error ;
@@ -586,7 +881,7 @@ IndexRecordLookupResult lookupSignedIndexRecords(
 
 							applyResolution( relation, resolution, identities, stagedIdentities,
 											budget.maximumRelatedIdentities, id.kind, id.value,
-											evidence.classGuid) ;
+											evidence.classGuid, hardwareOnly) ;
 							// 最初の元診断は保持容量拒否時にも失いません
 							if( result.error == 0U) {
 								result.error = relation.error ;
@@ -602,7 +897,7 @@ IndexRecordLookupResult lookupSignedIndexRecords(
 							// 認証済み個別投影は原aggregateと全slotを原子的に保留します
 							if( !relation.deviceIdentity && !relation.relatedDevices.empty() &&
 							   verifiedDeviceProofs( resolution, id.kind, id.value,
-													evidence.classGuid)) {
+													evidence.classGuid, hardwareOnly)) {
 								const auto proofCount =
 									static_cast<std::size_t>( std::ranges::count_if(
 										resolution.deviceProofs, []( const auto &proof) {
@@ -745,7 +1040,7 @@ IndexRecordLookupResult lookupSignedIndexRecords(
  * @param[in] snapshot 同scanの原保存snapshotの共有所有
  * @param[in] context 元scanの完全context
  * @param[in] batches 私有構築済みbatch。公開relationから再構築しません
- * @param[in] nowUtc 現信頼UTC。期限は凍結時も再照合します
+ * @param[in] nowUtc 現信頼UTC。元本文の期限を確認し、失効領域の正の関係を無効にします
  * @return 同snapshot・全context・原record結合成立時だけ集約lookup
  */
 //------------------------------------------------------------------------------
@@ -754,8 +1049,7 @@ IndexRecordLookupResult SignedIndexRecordLookup::freezeOwnedBatches(
 	const std::span<const SignedIndexRecordLookup> batches,
 	const std::optional<std::chrono::sys_seconds>  nowUtc) noexcept
 {
-	const auto recordEnd =
-		snapshot ? snapshot->schemaReceipt().records().size() : 0U ;	// 空終端batch位置
+	const auto recordEnd = snapshot ? snapshot->consumerRecords().size() : 0U ;	// 空終端batch位置
 	auto result = lookupSignedIndexRecords( snapshot, context, context, {}, {recordEnd, 1U, 0U},
 										   nowUtc, nullptr) ;	// 原byte・期限・contextの共通再検査
 	// 入力拒否では集約用の空lookupも発行しません
@@ -772,7 +1066,7 @@ IndexRecordLookupResult SignedIndexRecordLookup::freezeOwnedBatches(
 		std::shared_ptr<const NativeIndexLookupLease> nativeLease ;		// 全batchで同一の元証拠です
 		bool				firstBatch{true} ;							// generic空証拠とnative証拠の混在も拒否します
 		IndexLookupProgress progress ;									// 連続した完全record prefixだけを集約します
-		const auto records = snapshot->schemaReceipt().records() ;		// 同一原snapshotの借用です
+		const auto			records = snapshot->consumerRecords() ;		// 同一原snapshotの借用です
 		// 私有batchの所有・進行範囲・原tupleを全件再検査します
 		for( const auto &batch : batches) {
 			// 同scanの元private leaseだけを共有し、新しい証拠へ結び直しません
@@ -810,13 +1104,7 @@ IndexRecordLookupResult SignedIndexRecordLookup::freezeOwnedBatches(
 			std::size_t expectedIds{} ;	// 同認証範囲に実在する公開ID総数です
 			// 完全record範囲の全IDを間引かず数えます
 			for( auto index = coverage.recordOffset; index < coverage.nextRecordOffset; ++index) {
-				const auto &evidence =
-					records[index].publishedIdentityEvidence ;	// lookupと同じ公開入力分母です
-				// UNKNOWNを公開IDへ補完しません
-				if( evidence.state == IndexEvidenceState::PUBLISHED && !evidence.pnpIds.empty() &&
-				   !evidence.classGuid.empty()) {
-					expectedIds += evidence.pnpIds.size() ;
-				}
+				expectedIds += publishedIdCount( records[index]) ;
 			}
 
 			std::size_t aggregateIds{} ;	// 投影を重複加算しない元公開IDtuple数です
@@ -844,6 +1132,20 @@ IndexRecordLookupResult SignedIndexRecordLookup::freezeOwnedBatches(
 					return result ;
 				}
 
+				const bool hardwareOnly =
+					// 元配布の完全ID条件です
+					requiresExactIndexHardwareMatch( record) ;
+				// 端末へ結び付く対象付き関係は元位置とHardwareIds限定の証拠を必要とする
+				if( hardwareOnly && relation.deviceIdentity &&
+				   (!relation.publicIdIndex ||
+					!isIndexLookupIdEligible( record, *relation.publicIdIndex) ||
+					!relation.deviceProof || relation.positiveProof ||
+					platformMachineRejection( record, snapshot->platformMachine( context)) ||
+					wixHostRejection( record, snapshot->windowsHost( context)))) {
+					result.status = IndexRecordLookupStatus::STALE_CONTEXT ;
+					return result ;
+				}
+
 				// 発行済みpartial/device証拠は凍結時にも元leaseと全tupleへ完全一致させます
 				if( relation.positiveProof || relation.deviceProof) {
 					// 公開ID又は対象opaqueがない証拠を補完しません
@@ -863,21 +1165,49 @@ IndexRecordLookupResult SignedIndexRecordLookup::freezeOwnedBatches(
 						!relation.deviceProof->matches(
 							context, id.kind, id.value, evidence.classGuid, GetCurrentThreadId(),
 							relation.relatedDevices, relation.error, relation.resolutionCompleted,
-							*relation.deviceIdentity))) {
+							*relation.deviceIdentity, hardwareOnly))) {
 						result.status = IndexRecordLookupStatus::STALE_CONTEXT ;
 						return result ;
 					}
+				}
+
+				// 領域の失効や端末機種の不成立で照合していない行は全IDを一件で表します
+				if( !relation.publicIdIndex &&
+				   (relation.reason == IndexRecordMatchReason::RECORD_REGION_EXPIRED ||
+					relation.reason == IndexRecordMatchReason::PLATFORM_MACHINE_UNAVAILABLE ||
+					relation.reason == IndexRecordMatchReason::PLATFORM_MACHINE_MISMATCH)) {
+					aggregateIds += publishedIdCount( record) ;
 				}
 
 				aggregateIds += relation.publicIdIndex &&
 										relation.state != IndexRecordMatchState::VERIFIED_DEVICE
 									? 1U
 									: 0U ;
+				// Batch完了後に失効した元関係から取得に使える端末証拠を発行しません
+				if( !relation.relatedDevices.empty() &&
+				   *nowUtc >= snapshot->consumerRecordRegion( relation.recordIndex).expiresAtUtc) {
+					// 元IDの未判定はaggregateに一件だけ保持します
+					if( relation.state == IndexRecordMatchState::VERIFIED_DEVICE) {
+						continue ;
+					}
+
+					// 元record、ID位置、元診断だけを未判定の関係へ保持します
+					relations.push_back( {.recordIndex	= relation.recordIndex,
+										 .publicIdIndex = relation.publicIdIndex,
+										 .context		= relation.context,
+										 .recordSha256	= relation.recordSha256,
+										 .sourceId		= relation.sourceId,
+										 .recordId		= relation.recordId,
+										 .reason = IndexRecordMatchReason::RECORD_REGION_EXPIRED,
+										 .error	 = relation.error}) ;
+					continue ;
+				}
+
 				relatedCount += relation.relatedDevices.size() ;
 				relations.push_back( relation) ;
 			}
 
-			// 省略できるのは元私有lookupが確定した不一致だけです
+			// 元公開IDを全件報告し、確定不一致と期限切れ領域の集約を区別します
 			if( expectedIds != coverage.processedPublicIds ||
 			   coverage.compactedNoRelationIds > expectedIds ||
 			   aggregateIds != expectedIds - coverage.compactedNoRelationIds ||

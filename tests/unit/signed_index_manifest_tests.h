@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest_tests.h
  * @brief RAM内RSA署名によるmanifest認証試験を宣言します
- * @version 01.11.03
+ * @version 01.20.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,15 @@
  * Ver.01.11.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.11.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.11.03 Shunji Ogawa  2026/11/12  外側tupleの取得予約と開始拒否の原理由を接続
+ * Ver.01.12.00 Shunji Ogawa  2026/11/16  storage通常選択と完全native表の正負・原結果を検証
+ * Ver.01.13.00 Shunji Ogawa  2026/11/17  所有workspace限定のMTD file I/Oを個別に選択
+ * Ver.01.14.00 Shunji Ogawa  2026/11/17  MTD通常操作と旧通常controlの限定入口を宣言
+ * Ver.01.15.00 Shunji Ogawa  2026/11/19  正規Client26200条件の限定consumer入口を宣言
+ * Ver.01.16.00 Shunji Ogawa  2026/11/19  24H2最低26100の独立回帰と旧条件を接続
+ * Ver.01.17.00 Shunji Ogawa  2026/11/19  保存原取得を使う追加索引の独立検証を宣言
+ * Ver.01.18.00 Shunji Ogawa  2026/11/19  保存AWS原索引の通常取得計画試験を宣言
+ * Ver.01.19.00 Shunji Ogawa  2026/11/19  独自クラスの元署名recordを使う通常worker試験を宣言
+ * Ver.01.20.00 Shunji Ogawa  2026/11/22  私有ZIP規約の保存原本を使う通常取得試験を宣言
  * </pre>
  *
  * @note Test target専用です。秘密鍵をexport・保存・log出力せず、実deviceや通信を使いません
@@ -82,6 +91,53 @@ void runSignedIndexAssetBytesTests( TestContext &context) ;
  */
 //------------------------------------------------------------------------------
 void runSignedIndexRecordsTests( TestContext &context) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存済み取得から作った対照assetをRAM署名し、旧本文と追加欄の保持を確認します
+ * @param[in,out] context 共通試験集計です
+ * @param[in] legacyGzipPath 追加欄を持たない既存GZip対照です
+ * @param[in] manifestPath 追加欄付きassetの未署名manifestです
+ * @param[in] gzipPath 元レコードを持つ追加欄付きGZipです
+ * @note 製品trust、永続鍵、通信、実導入を扱いません
+ */
+//------------------------------------------------------------------------------
+void runSignedIndexSupplementFixtureTests( TestContext				  &context,
+										  const std::filesystem::path &legacyGzipPath,
+										  const std::filesystem::path &manifestPath,
+										  const std::filesystem::path &gzipPath) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存AWS原索引の通常取得計画とNitro確認を隔離して検査します
+ * @param[in,out] context 共通試験集計です
+ * @param[in] manifestPath 保存済みの原manifestです
+ * @param[in] gzipPath 原レコードを含む保存済み圧縮索引です
+ * @param[in] archivePath 検査済みの保存ZIPです
+ * @note RAM試験鍵と低位fakeだけを使用します
+ */
+//------------------------------------------------------------------------------
+void runSavedAwsConsumerPlanTests( TestContext &context, const std::filesystem::path &manifestPath,
+								  const std::filesystem::path &gzipPath,
+								  const std::filesystem::path &archivePath) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存した私有候補をRAM署名し、通常の規約同意と保護ZIPの検査へ渡します
+ * @param[in,out] context 共通試験集計です
+ * @param[in] manifestPath 私有索引の未署名manifestです
+ * @param[in] gzipPath 原候補の追加欄を持つ圧縮索引です
+ * @param[in] archivePath 検査済みの元ZIPです
+ * @param[in] pagePath 保存した公式配布ページです
+ * @param[in] termsPath 保存した原規約文書です
+ */
+//------------------------------------------------------------------------------
+void runSavedArchiveTermsConsumerTests( TestContext				   &context,
+									   const std::filesystem::path &manifestPath,
+									   const std::filesystem::path &gzipPath,
+									   const std::filesystem::path &archivePath,
+									   const std::filesystem::path &pagePath,
+									   const std::filesystem::path &termsPath) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -190,4 +246,42 @@ void runIndexCapacityRetainedTests( TestContext &context) ;
  */
 //------------------------------------------------------------------------------
 void runSignedIndexKnownSizeApprovalTests( TestContext &context) ;
+//------------------------------------------------------------------------------
+/**
+ * @brief 真署名storage索引を通常選択と完全native fakeの候補資格へ接続します
+ * @param[in,out] context 隔離した有限assertionの集計先です
+ * @param[in] mtdFileOnly 新規所有workspaceのMTD file I/Oだけを選ぶ場合trueです
+ * @param[in] mtdOperationOnly MTDの通常操作一件だけを選ぶ場合trueです
+ * @note BOOT0/SYSTEM1/DEMAND3の元INFを使い、実通信・実導入・復元作成を行いません
+ */
+//------------------------------------------------------------------------------
+void runSignedIndexStorageQualificationTests( TestContext &context, bool mtdFileOnly = false,
+											 bool mtdOperationOnly = false) ;
+//------------------------------------------------------------------------------
+/**
+ * @brief 従来のPorts通常署名candidateを同じfake指定導入経路で確認します
+ * @param[in,out] context 隔離した有限assertionの集計先です
+ * @note 実HTTP、実device導入、実復元の作成を行いません
+ */
+//------------------------------------------------------------------------------
+void runSignedIndexNormalBindingControl( TestContext &context) ;
+//------------------------------------------------------------------------------
+/**
+ * @brief 元署名recordと人工配布物から独自クラスの通常導入を検査します
+ * @param[in,out] context 候補発行と明示選択後の元Windows API回数を検証する集計先です
+ * @note 非永続鍵、隔離storeとFake HTTP・SetupAPI・NewDev・復元を使用します
+ */
+//------------------------------------------------------------------------------
+void runSignedIndexDeclarativeClassBindingTests( TestContext &context) ;
+//------------------------------------------------------------------------------
+/**
+ * @brief 正規Client最低build条件の通常scan・計画・取得とhost拒否を限定実行します
+ * @param[in,out] context 独立literal条件と実owner経路のassertion集計先です
+ * @param[in] minimumBuild 既26200又は追加26100の固定分母です
+ * @param[in] prechange 旧sourceの26100項目拒否だけを別に確認する場合trueです
+ * @note RAM署名・人工archive・完全native/HTTP fakeだけを使い、実導入を行いません
+ */
+//------------------------------------------------------------------------------
+void runClientMinimumBuildConsumerTests( TestContext &context, unsigned minimumBuild = 26200U,
+										bool prechange = false) ;
 } // namespace drivercrate::test

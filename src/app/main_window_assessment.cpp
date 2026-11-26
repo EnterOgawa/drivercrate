@@ -2,7 +2,7 @@
 /**
  * @file main_window_assessment.cpp
  * @brief Device観測と全候補の詳細表示・一候補の明示選択
- * @version 01.11.03
+ * @version 01.22.01
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,18 @@
  * Ver.01.11.01 Shunji Ogawa  2026/11/09  所有型と初期値を保って詳細dialog四memberを個別に文書化
  * Ver.01.11.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.11.03 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.12.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.13.00 Shunji Ogawa  2026/11/17  MTD共有DLLと元HW属性を詳細へ表示
+ * Ver.01.14.00 Shunji Ogawa  2026/11/19  初回セットアップクラス登録を表示し候補の同意範囲を区別
+ * Ver.01.15.00 Shunji Ogawa  2026/11/21  共有起動ログ作用を候補詳細に表示
+ * Ver.01.16.00 Shunji Ogawa  2026/11/22  共有補助サービスの変更と置換時期を候補詳細に表示
+ * Ver.01.17.00 Shunji Ogawa  2026/11/23  自動起動型の共有作用を候補詳細に表示
+ * Ver.01.18.00 Shunji Ogawa  2026/11/23  自動起動候補が使うイベント用DLLの配置先を候補詳細に表示
+ * Ver.01.19.00 Shunji Ogawa  2026/11/23  単一ブートの変更予定を候補詳細と最終確認に表示
+ * Ver.01.20.00 Shunji Ogawa  2026/11/23  候補表から同一行の検査専用取得を開始
+ * Ver.01.21.00 Shunji Ogawa  2026/11/23  同じ候補の有効な確認済み規約を表示
+ * Ver.01.22.00 Shunji Ogawa  2026/11/23  WiXの候補が発行された後も同じ元規約を表示
+ * Ver.01.22.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * </pre>
  *
  * @note UI thread限定。固定理由と診断だけを表示し、取得・導入・同意を実行しない
@@ -50,10 +62,14 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <commctrl.h>
+#include <functional>
 #include <limits>
 #include <map>
+#include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -114,6 +130,9 @@ constexpr std::array<UINT, 5>  ROLE_RESOURCES{
 	 IDS_ASSESSMENT_ROLE_UTILITY, IDS_ASSESSMENT_ROLE_FIRMWARE} ;
 static_assert( REASON_RESOURCES.size() ==
 			  static_cast<std::size_t>( CandidateAssessmentReason::INSTALLER_SCOPE_ATTESTED) + 1U) ;
+// 変更区分に対応するresource。詳細と最終確認で同じ文言を使用する
+constexpr std::array<UINT, 3> STORAGE_PLANNED_CHANGE_RESOURCES{
+	IDS_STORAGE_PLANNED_CREATE, IDS_STORAGE_PLANNED_KEEP, IDS_STORAGE_PLANNED_UPDATE} ;
 
 //------------------------------------------------------------------------------
 /**
@@ -135,13 +154,21 @@ UINT resourceFor( const Enum value, const std::array<UINT, Size> &resources) noe
 /** @brief 同deviceの一候補または現在構成を所有する詳細entry */
 struct DeviceDetailEntry {
 	/// 候補・版・日付・取得元・区分の表示値。文字列をidentityに使用しない
-	std::array<std::wstring, 5> columns ;
+	std::array<std::wstring, 5>					columns ;
 	/// 表示済みの値と状態だけから作った短いセル説明
-	std::array<std::wstring, 5> tips ;
+	std::array<std::wstring, 5>					tips ;
 	/// 次の明示button操作が選ぶ元scan候補のindex
-	std::size_t					candidateIndex{} ;
+	std::size_t									candidateIndex{} ;
 	/// 現在scanでinstall可能な候補だけに明示選択buttonを許す
-	bool						selectable{} ;
+	bool										selectable{} ;
+	/// 検査専用取得を許す候補だけに写す元候補IDです
+	std::wstring								inspectionCandidateIdentity ;
+	/// 同じ候補の元計画に結んだ検査専用IDです
+	std::wstring								inspectionTargetIdentity ;
+	/// 同じ候補の内容検査で確認した閲覧用の全言語です
+	std::shared_ptr<const WixTermsPresentation> wixTerms ;
+	/// 規約の通知に結びついた元候補IDです
+	std::wstring								termsCandidateIdentity ;
 } ;
 
 /** @brief 同期dialogだけが借用する所有値と明示選択の結果 */
@@ -154,24 +181,32 @@ struct DeviceDetailDialog {
 	std::array<std::wstring, 5>	   columnLabels ;
 	/// 初期表示するentryの0始まりindex。最大値は初期highlightなしです
 	std::size_t					   initialEntry{std::numeric_limits<std::size_t>::max()} ;
-	/// 明示buttonで指定した元候補index。choiceRequestedがfalseなら使用しない
-	std::size_t					   chosenCandidateIndex{} ;
+	/// 明示buttonで指定した詳細表のentry位置。choiceRequestedがfalseなら使用しない
+	std::size_t					   chosenEntry{} ;
 	/// 閲覧や閉じるだけではfalseを維持する
 	bool						   choiceRequested{} ;
+	/// 通常の導入候補を選択するボタンの表示です
+	std::wstring				   selectLabel ;
+	/// 同じ場所で検査を選ぶ場合のボタン表示です
+	std::wstring				   inspectLabel ;
+	/// 読み取り専用の標準editを初期化する同期callbackです
+	DLGPROC						   termsDialogProc{} ;
+	/// 閲覧直前に主画面の同じスキャンと元行を照合する同期callbackです
+	std::function<bool( const DeviceDetailEntry &)> validateTerms ;
 	/// 同期dialogが所有し、閉じる前に破棄する標準tooltip
-	HWND						   tooltip{} ;
+	HWND										   tooltip{} ;
 	/// 同一threadの借用table。所有snapshotより長生きしません
-	HWND						   table{} ;
+	HWND										   table{} ;
 	/// 同一threadの借用dialog。所有snapshotより長生きしません
-	HWND						   dialog{} ;
+	HWND										   dialog{} ;
 	/// Tooltipが借用中は再割当しない短い表示文字列
-	std::wstring				   activeTip ;
+	std::wstring								   activeTip ;
 	/// Hover対象の元順ordinal。選択中の行とは独立します
-	int							   hoverRow{-1} ;
+	int											   hoverRow{-1} ;
 	/// Hover対象の列。選択中の行とは独立します
-	int							   hoverColumn{-1} ;
+	int											   hoverColumn{-1} ;
 	/// 現在の可視文字runだけのtable client座標
-	RECT						   hoverText{} ;
+	RECT										   hoverText{} ;
 } ;
 
 // 候補IDとは独立した、dialog内のtooltip/subclass/timer識別子
@@ -469,6 +504,29 @@ const DeviceDetailEntry *selectedDeviceDetailEntry( const HWND				 dialog,
 void clearDeviceDetailPage( const HWND dialog) noexcept
 {
 	EnableWindow( GetDlgItem( dialog, IDYES), FALSE) ;
+	EnableWindow( GetDlgItem( dialog, IDC_DEVICE_DETAIL_TERMS), FALSE) ;
+	ShowWindow( GetDlgItem( dialog, IDC_DEVICE_DETAIL_TERMS), SW_HIDE) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ元取得の規約が閲覧可能な時間内にあるか確認します
+ * @param[in] entry 現在選択した同期snapshotの一行です。未選択はnullptrです
+ * @return 元照合以降かつ元期限前に全言語の表示値がある場合trueです
+ * @note 同意や導入の許可には使わず、読み取り専用ボタンだけに適用します
+ */
+//------------------------------------------------------------------------------
+bool canViewWixTerms( const DeviceDetailEntry *entry) noexcept
+{
+	// 同じ取得が持たない規約を他候補から補完しません
+	if( !entry || !entry->wixTerms) {
+		return false ;
+	}
+
+	const auto now = std::chrono::floor<std::chrono::seconds>(
+		// 読み取り表示を開く時点の現在UTCです
+		std::chrono::system_clock::now()) ;
+	return now >= entry->wixTerms->confirmedAtUtc && now < entry->wixTerms->expiresAtUtc ;
 }
 
 //------------------------------------------------------------------------------
@@ -481,8 +539,16 @@ void clearDeviceDetailPage( const HWND dialog) noexcept
 //------------------------------------------------------------------------------
 bool updateDeviceDetailPage( const HWND dialog, const DeviceDetailDialog &state) noexcept
 {
-	const auto *entry = selectedDeviceDetailEntry( dialog, state) ;	// 元順とparamを照合済みです
-	EnableWindow( GetDlgItem( dialog, IDYES), entry != nullptr && entry->selectable ? TRUE : FALSE) ;
+	const auto *entry  = selectedDeviceDetailEntry( dialog, state) ;	// 元順とparamを照合済みです
+	const auto	button = GetDlgItem( dialog, IDYES) ;					// 同じ通常選択ボタンで検査専用操作を案内します
+	const bool	inspect =
+		entry && !entry->inspectionTargetIdentity.empty() ;	// 元計画へ結んだ取得だけです
+	SetWindowTextW( button, inspect ? state.inspectLabel.c_str() : state.selectLabel.c_str()) ;
+	EnableWindow( button, entry && (entry->selectable || inspect) ? TRUE : FALSE) ;
+	const auto termsButton = GetDlgItem( dialog, IDC_DEVICE_DETAIL_TERMS) ;	// 当該行の閲覧操作です
+	const bool viewTerms   = canViewWixTerms( entry) ;						// 元規約がある行でだけボタンを表示します
+	EnableWindow( termsButton, viewTerms ? TRUE : FALSE) ;
+	ShowWindow( termsButton, viewTerms ? SW_SHOW : SW_HIDE) ;
 	return entry != nullptr ;
 }
 
@@ -508,6 +574,8 @@ void layoutDeviceDetails( const HWND dialog) noexcept
 	const int buttonsY	 = client.bottom - units.top - units.bottom ;		// 最下段
 	MoveWindow( GetDlgItem( dialog, IDC_DEVICE_DETAIL_CANDIDATES), units.left, units.top, width,
 			   std::max( 1L, buttonsY - units.top * 2), TRUE) ;
+	MoveWindow( GetDlgItem( dialog, IDC_DEVICE_DETAIL_TERMS), units.left, buttonsY, units.right,
+			   units.bottom, TRUE) ;
 	MoveWindow( GetDlgItem( dialog, IDYES),
 			   client.right - units.left - closeWidth - units.left - units.right, buttonsY,
 			   units.right, units.bottom, TRUE) ;
@@ -517,7 +585,7 @@ void layoutDeviceDetails( const HWND dialog) noexcept
 
 //------------------------------------------------------------------------------
 /**
- * @brief 標準controlへ同deviceの候補を表示し、明示buttonだけから一候補を返す
+ * @brief 標準controlへ同deviceの候補を表示し、明示buttonだけから選択又は検査用取得の一行を返す
  * @param[in] dialog 同期dialogの借用handle
  * @param[in] message Windows通知
  * @param[in] wordParameter Button IDまたはcontrol ID
@@ -570,6 +638,7 @@ INT_PTR CALLBACK detailDialogProc( const HWND dialog, const UINT message, const 
 
 			SetWindowLongPtrW( dialog, DWLP_USER, reinterpret_cast<LONG_PTR>( state)) ;
 			const HWND table = GetDlgItem( dialog, IDC_DEVICE_DETAIL_CANDIDATES) ;	// 実control
+			SetWindowTextW( GetDlgItem( dialog, IDYES), state->selectLabel.c_str()) ;
 			ListView_SetExtendedListViewStyle( table, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER) ;
 			state->table  = table ;
 			state->dialog = dialog ;
@@ -746,17 +815,49 @@ INT_PTR CALLBACK detailDialogProc( const HWND dialog, const UINT message, const 
 			}
 		}
 
+		// 閲覧は元の表を保ち、同じ選択行の元期限を再確認して標準editを開きます
+		if( message == WM_COMMAND && LOWORD( wordParameter) == IDC_DEVICE_DETAIL_TERMS &&
+		   state != nullptr && HIWORD( wordParameter) == BN_CLICKED) {
+			const auto control =
+				// 自身のボタンだけを受けます
+				GetDlgItem( dialog, IDC_DEVICE_DETAIL_TERMS) ;
+			const auto *entry =
+				// 実選択から元の一行を取得します
+				selectedDeviceDetailEntry( dialog, *state) ;
+			// 失効した表示、別control又は本文のない候補では画面を開きません
+			if( reinterpret_cast<HWND>( longParameter) == control && IsWindowEnabled( control) &&
+			   canViewWixTerms( entry) && state->termsDialogProc && state->validateTerms &&
+			   state->validateTerms( *entry)) {
+				std::wstring text ;	// 同期閲覧の間だけ所有する元言語順の全文です
+				// 元順の各言語を明示し、原文を編集できない標準controlへ渡します
+				for( const auto &document : entry->wixTerms->documents) {
+					text += document.locale + L"\r\n\r\n" + document.body + L"\r\n\r\n" ;
+				}
+
+				// 構築中に元期限に達した場合は部分的な規約を表示しません
+				if( canViewWixTerms( entry)) {
+					DialogBoxParamW( GetModuleHandleW( nullptr), MAKEINTRESOURCEW( IDD_WIX_TERMS),
+									dialog, state->termsDialogProc,
+									reinterpret_cast<LPARAM>( &text)) ;
+				}
+			}
+
+			static_cast<void>( updateDeviceDetailPage( dialog, *state)) ;
+			return TRUE ;
+		}
+
 		// 明示buttonでも実controlの一選択と所有ordinalを最後に再読する
 		if( message == WM_COMMAND && LOWORD( wordParameter) == IDYES && state != nullptr) {
 			const auto *entry = selectedDeviceDetailEntry( dialog, *state) ;	// 通知状態を使わない
 			// Readonly/失効/不正param/無効buttonをcommand偽装でも許可しない
-			if( entry != nullptr && entry->selectable &&
+			if( entry && (entry->selectable || !entry->inspectionTargetIdentity.empty()) &&
 			   IsWindowEnabled( GetDlgItem( dialog, IDYES))) {
-				state->chosenCandidateIndex = entry->candidateIndex ;
-				state->choiceRequested		= true ;
+				state->chosenEntry	   = static_cast<std::size_t>( entry - state->entries.data()) ;
+				state->choiceRequested = true ;
 				EndDialog( dialog, IDYES) ;
 			} else {
-				clearDeviceDetailPage( dialog) ;
+				// 選択できない行でも検査済み規約の閲覧は維持します
+				static_cast<void>( updateDeviceDetailPage( dialog, *state)) ;
 			}
 
 			return TRUE ;
@@ -823,6 +924,62 @@ std::wstring MainWindow::formatDeviceObservation( const UpdateCandidate &candida
 	}
 
 	return text ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 候補詳細と最終同意に共通する初回セットアップクラス登録の説明を整形します
+ * @param[in] registration 候補と結合し、表示検証を通過した登録情報です。呼出し中だけ借用します
+ * @return クラス名、GUID、表示名、宣言された場合だけ内蔵アイコン番号を含む説明です
+ */
+//------------------------------------------------------------------------------
+std::wstring MainWindow::formatSetupClassRegistration(
+	const SetupClassRegistrationSummary &registration) const
+{
+	std::wstring text = loadString( IDS_SETUP_CLASS_REGISTRATION) + L"\r\n" +
+						formatResource( IDS_SETUP_CLASS_DISPLAY_NAME, registration.displayName) +
+						L"\r\n" + formatResource( IDS_SETUP_CLASS_NAME, registration.className) +
+						L"\r\n" +
+						// 元値を引用した説明です
+						formatResource( IDS_SETUP_CLASS_GUID, registration.classGuid) ;
+	// 元INFが内蔵アイコン番号を指定した場合だけ表示します
+	if( registration.builtInIcon) {
+		text += L"\r\n" + formatResource( IDS_SETUP_CLASS_BUILT_IN_ICON,
+										 std::to_wstring( *registration.builtInIcon)) ;
+	}
+
+	return text ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 候補詳細と最終確認に共通する単一ブートの変更予定を整形する
+ * @param[in] change 同じ選択の導入計画に結び付いた表示情報。呼出し中だけ借用する
+ * @return 起動サービスとSYS、イベントの変更区分、三種類の追加・変更件数。変更区分が未定義なら空
+ */
+//------------------------------------------------------------------------------
+std::optional<std::wstring> MainWindow::formatSingleBootStorageChange(
+	const SingleBootStorageChangeSummary &change) const
+{
+	// 起動サービスと配置SYSに共通する変更区分の表示ID
+	const UINT boot = resourceFor( change.boot, STORAGE_PLANNED_CHANGE_RESOURCES) ;
+	// イベント登録の変更区分の表示ID
+	const UINT event = resourceFor( change.event, STORAGE_PLANNED_CHANGE_RESOURCES) ;
+	// 未定義の変更区分を予定の文言で示さない
+	if( boot == IDS_ASSESSMENT_INCONSISTENT || event == IDS_ASSESSMENT_INCONSISTENT) {
+		return std::nullopt ;
+	}
+
+	return formatResource( IDS_STORAGE_SINGLE_BOOT_SERVICE, loadString( boot)) + L"\r\n" +
+		   formatResource( IDS_STORAGE_SINGLE_BOOT_EVENT, loadString( event)) + L"\r\n" +
+		   formatResource( IDS_STORAGE_SINGLE_BOOT_POWER,
+						  std::to_wstring( change.powerSettingCount)) +
+		   L"\r\n" +
+		   formatResource( IDS_STORAGE_SINGLE_BOOT_DEVICE_VALUES,
+						  std::to_wstring( change.deviceValueCount)) +
+		   L"\r\n" +
+		   formatResource( IDS_STORAGE_SINGLE_BOOT_SERVICE_VALUES,
+						  std::to_wstring( change.serviceValueCount)) ;
 }
 
 //------------------------------------------------------------------------------
@@ -982,6 +1139,77 @@ std::wstring MainWindow::formatCandidateDetails( const UpdateCandidate &candidat
 		}
 	}
 
+	// 既詳細の同候補snapshotに元開始方式と共有作用を示します
+	if( candidate.storageChange) {
+		// 既詳細へ表示する元storage変更範囲です
+		const auto &scope = *candidate.storageChange ;
+		text += L"\r\n\r\n" + loadString( IDS_STORAGE_CHANGE_SCOPE) + L"\r\n" +
+				loadString( scope.startType == 0U   ? IDS_STORAGE_START_BOOT
+						   : scope.startType == 1U ? IDS_STORAGE_START_SYSTEM
+												   : IDS_STORAGE_START_DEMAND) ;
+		// 同じ単一ブートの計画があれば、変更区分と追加・変更件数を詳しく示す
+		if( scope.singleBoot) {
+			// 予定の表示用文字列。未定義の区分は候補情報の不整合へ送る
+			const auto change = formatSingleBootStorageChange( *scope.singleBoot) ;
+			text += L"\r\n" + (change ? *change : loadString( IDS_ASSESSMENT_INCONSISTENT)) ;
+		}
+
+		// 原文にあるBootFlagsだけを読み込み条件として表示します
+		if( scope.bootFlags) {
+			text +=
+				L"\r\n" + loadString( IDS_STORAGE_BOOT_FLAGS) + std::to_wstring( *scope.bootFlags) ;
+		}
+
+		// 確認済みのディスク共通値だけを原数値で表示します
+		if( scope.sharedDiskTimeout) {
+			text += L"\r\n" + loadString( IDS_STORAGE_SHARED_TIMEOUT) +
+					std::to_wstring( *scope.sharedDiskTimeout) ;
+		}
+
+		// 元INFが共有起動ログに設定を追加する場合だけ作用を表示する
+		if( scope.configuresAutoLogger) {
+			text += L"\r\n" + loadString( IDS_STORAGE_AUTOLOGGER_NOTICE) ;
+		}
+
+		// 自動起動を指定した元選択には同じ検査で確認した共有作用をまとめて表示する
+		if( scope.configuresAutomaticStorageSettings) {
+			text += L"\r\n" + loadString( IDS_STORAGE_AUTOMATIC_SETTINGS_NOTICE) ;
+			// 同じ元候補がイベント用DLLを指定した場合だけ、コピー先を示す
+			if( scope.sharedDllCount != 0U) {
+				text += L"\r\n" + loadString( IDS_STORAGE_EVENT_RESOURCE_NOTICE) ;
+			}
+		}
+		// 要求時起動型は使用中の実行ファイルの置換時期を案内する
+		else if( scope.configuresAuxiliaryService) {
+			text += L"\r\n" + loadString( IDS_STORAGE_AUXILIARY_SERVICE_NOTICE) ;
+		}
+
+		// 検査済みの共有DLL数だけを同意前の作用詳細へ表示します
+		if( scope.sharedDllCount && !scope.configuresAutomaticStorageSettings) {
+			text +=
+				L"\r\n" + loadString( IDS_MTD_SHARED_DLLS) + std::to_wstring( scope.sharedDllCount) ;
+		}
+
+		// 明示されたMTD hardware属性は元値ごとに表示します
+		if( scope.mtdDeviceType || scope.mtdDeviceCharacteristics) {
+			text +=
+				L"\r\n" + loadString( IDS_MTD_HARDWARE_PROPERTIES) +
+				(scope.mtdDeviceType ? std::to_wstring( *scope.mtdDeviceType) : L"-") + L" / " +
+				(scope.mtdDeviceCharacteristics ? std::to_wstring( *scope.mtdDeviceCharacteristics)
+												: L"-") ;
+		}
+
+		text += L"\r\n" + loadString( IDS_STORAGE_REQUIRED_IMPORTS) +
+				std::to_wstring( scope.requiredImportCount) + L"\r\n" +
+				loadString( IDS_STORAGE_SHARED_EFFECT_NOTE) + L"\r\n" +
+				loadString( IDS_STORAGE_BOOT_NOTE) ;
+	}
+
+	// 導入前に確認した初回登録だけを、同じ候補の詳細に表示します
+	if( candidate.setupClassRegistration) {
+		text += L"\r\n\r\n" + formatSetupClassRegistration( *candidate.setupClassRegistration) ;
+	}
+
 	text += L"\r\n\r\n" + loadString( IDS_ASSESSMENT_NEXT) ;
 	return appendHistory( std::move( text)) ;
 }
@@ -1057,18 +1285,34 @@ bool MainWindow::showSelectedCandidateDetails()
 		return false ;
 	}
 
-	const auto session = controller_.scanSessionId() ;	// Modal終了後にも元scanとの結合を確認する
+	const auto	session = controller_.scanSessionId() ;	// Modal終了後にも元scanとの結合を確認する
+	const auto *plan =
+		// 中で処理が変わっても元計画の番号だけ残します
+		controller_.preparationPlan() ;
+	const auto inspectionPlanId = plan ? plan->planId : 0U ;	// 検査用ボタンを作った元計画です
 	const auto deviceIdentity =
 		candidates_[row->deviceIndex].deviceIdentity ;	// 同deviceの不透明な結合値
 	DeviceDetailDialog state{} ;						// Modal中は元候補vectorを借用せず所有snapshotだけを参照する
-	state.title		   = row->primaryText + L" — " + loadString( IDS_ASSESSMENT_TITLE) ;
+	state.title			  = row->primaryText + L" — " + loadString( IDS_ASSESSMENT_TITLE) ;
+	state.selectLabel	  = loadString( IDS_DETAIL_SELECT_CANDIDATE) ;
+	state.inspectLabel	  = loadString( IDS_DETAIL_ACQUIRE_INSPECTION) ;
+	state.termsDialogProc = installTermsDialogProc ;
+	// Modalで借用するMainWindowと機器IDは同期閲覧が閉じるまで生存します
+	state.validateTerms = [this, session, &deviceIdentity]( const DeviceDetailEntry &entry) {
+		// 行の再発行、別機器又はスキャンの変更後に以前の本文を開かない
+		return !closing_ && controller_.state() == ApplicationState::SCAN_READY &&
+			   controller_.scanSessionId() == session &&
+			   entry.candidateIndex < candidates_.size() &&
+			   candidates_[entry.candidateIndex].identity == entry.termsCandidateIdentity &&
+			   candidates_[entry.candidateIndex].deviceIdentity == deviceIdentity ;
+	} ;
 	state.columnLabels = {loadString( IDS_DEVICE_DETAIL_COLUMN_CANDIDATE),
 						  loadString( IDS_VERSION_LABEL), loadString( IDS_COLUMN_DATE),
 						  loadString( IDS_DEVICE_DETAIL_COLUMN_SOURCE),
 						  loadString( IDS_DEVICE_DETAIL_COLUMN_STATE)} ;
 	std::map<std::wstring, std::vector<std::size_t>> displayGroups ;	// 同tokenだけを有限比較します
 	std::optional<std::size_t> resultEntry, explicitEntry, currentEntry, reportEntry,
-		preparationEntry ;	// 初期閲覧だけの局所対応です
+		preparationEntry, inspectionEntry ;	// 初期閲覧だけの局所対応です
 	const auto preparationIndex =
 		// 実行choiceとは別の元参照表示です
 		preparationDisplayCandidate( *row) ;
@@ -1082,10 +1326,34 @@ bool MainWindow::showSelectedCandidateDetails()
 		const auto		 &candidate = candidates_[index] ;	// 本entryを作る間だけの同scan候補の借用
 		DeviceDetailEntry entry{} ;							// 候補選択欄と本文の同じsnapshot
 		entry.candidateIndex = index ;
-		entry.selectable	 = controller_.state() == ApplicationState::SCAN_READY &&
+		// 同じscanと機器に対応する検査完了の規約だけを閲覧できるようにします
+		if( controller_.state() == ApplicationState::SCAN_READY && session != 0U &&
+		   controller_.scanPurpose() == ScanPurpose::STANDARD && !candidate.current &&
+		   isCandidateDetailsValid( candidate, session)) {
+			const auto &source =
+				candidate.wixInspectionSourceIdentity.empty()
+					? candidate.identity
+					: candidate.wixInspectionSourceIdentity ;		// 同じ候補の監査が確定した元検査行です
+			const auto terms = wixTermsByCandidate_.find( source) ;	// 同じ取得で読み取った規約です
+			// 別機器や同じ表示名の別候補から本文を補完しません
+			if( terms != wixTermsByCandidate_.end() &&
+			   terms->second.deviceIdentity == deviceIdentity) {
+				entry.wixTerms				 = terms->second.terms ;
+				entry.termsCandidateIdentity = candidate.identity ;
+			}
+		}
+
+		entry.selectable = controller_.state() == ApplicationState::SCAN_READY &&
 						   controller_.scanPurpose() == ScanPurpose::STANDARD && session != 0U &&
 						   isSelectableCandidate( candidate) &&
 						   (!showRecommendedOnly_ || visibleInRecommendedFilter( candidate)) ;
+		const auto *inspection = inspectionTargetFor( candidate) ;	// 導入選択とは別の現計画です
+		// 検査専用の取得を許す行だけに、他候補への差替えを拒む元識別子を写します
+		if( inspection) {
+			entry.inspectionCandidateIdentity = candidate.identity ;
+			entry.inspectionTargetIdentity	  = inspection->identity ;
+		}
+
 		const auto unknown = loadString( IDS_VALUE_UNKNOWN) ;	// 欠損値を版や日付へ補完しない
 		const auto version = candidate.version.empty() && candidate.metadataDistribution
 								 ? candidate.metadataDistribution->version
@@ -1095,7 +1363,8 @@ bool MainWindow::showSelectedCandidateDetails()
 						  version.empty() ? unknown : version,
 						 candidate.driverDate.empty() ? unknown : candidate.driverDate,
 						 candidate.sourceName.empty() ? unknown : candidate.sourceName,
-						 formatCandidateState( candidate)} ;
+						 inspection ? loadString( IDS_DETAIL_INSPECTION_AVAILABLE)
+									: formatCandidateState( candidate)} ;
 		UINT stateResource = IDS_DETAIL_TIP_UNKNOWN ;	// 表示文字列ではなく元状態から説明を作ります
 		const bool pending =
 			!candidate.installable && candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
@@ -1111,6 +1380,10 @@ bool MainWindow::showSelectedCandidateDetails()
 		// 元検索が既に失効したsnapshotを説明します
 		else if( controller_.state() != ApplicationState::SCAN_READY || session == 0U) {
 			stateResource = IDS_DETAIL_TIP_STALE ;
+		}
+		// 導入が選べない同じ行でも検査用の明示ボタンを案内します
+		else if( inspection) {
+			stateResource = IDS_DETAIL_INSPECTION_TIP ;
 		}
 		// 明示的な不適合を未知と区別します
 		else if( candidate.audit.systemApplicability == CandidateAuditGateState::REJECTED) {
@@ -1188,15 +1461,21 @@ bool MainWindow::showSelectedCandidateDetails()
 					  candidate.providerId == original.providerId &&
 					  candidate.deviceIdentity == original.deviceIdentity &&
 					  candidate.preparationTargetIdentity == original.preparationTargetIdentity &&
+					  candidate.inspectionTargetIdentity == original.inspectionTargetIdentity &&
 					  candidate.packageIdentity == original.packageIdentity &&
+					  candidate.sourceName == original.sourceName &&
+					  candidate.sourceLocation == original.sourceLocation &&
+					  candidate.eulaAccepted == original.eulaAccepted &&
 					  candidate.action == original.action &&
 					  candidate.installable == original.installable &&
 					  candidate.allContentCached == original.allContentCached &&
 					  candidate.requiredExtensionCount == original.requiredExtensionCount &&
 					  candidate.requiredDriverComponentCount ==
 						  original.requiredDriverComponentCount &&
-					  entry.selectable == existing.selectable && entry.columns == existing.columns &&
-					  entry.tips == existing.tips ;
+					  candidate.storageChange == original.storageChange &&
+					  candidate.setupClassRegistration == original.setupClassRegistration &&
+					  entry.wixTerms == existing.wixTerms && entry.selectable == existing.selectable &&
+					  entry.columns == existing.columns && entry.tips == existing.tips ;
 		   }) ; // 表示だけの同一性で、元plan/record/routingは変更しません
 		const auto displayPosition = twin == possibleTwins.end()
 										 ? state.entries.size()
@@ -1209,6 +1488,11 @@ bool MainWindow::showSelectedCandidateDetails()
 		// 元参照の閲覧位置だけを保持し、同内容groupの元indexや選択可否を変更しません
 		if( preparationIndex && *preparationIndex == index) {
 			preparationEntry = displayPosition ;
+		}
+
+		// 通常の選択や更新候補がない場合にも、使える検査操作を初期表示します
+		if( inspection && !inspectionEntry) {
+			inspectionEntry = displayPosition ;
 		}
 
 		// 単一候補や推奨からの暗黙指定は、利用者の明示指定と区別します
@@ -1444,10 +1728,16 @@ bool MainWindow::showSelectedCandidateDetails()
 		}
 	}
 
-	state.initialEntry = resultEntry.value_or( explicitEntry.value_or(
-		preparationEntry.value_or( latestEntry.value_or( currentEntry.value_or( reportEntry.value_or(
-			std::numeric_limits<
-				std::size_t>::max())))))) ;	// 元結果と現在の明示指定を優先する閲覧順です
+	const std::array initialEntries{
+		resultEntry,	 explicitEntry, preparationEntry, latestEntry,
+		inspectionEntry, currentEntry,	reportEntry} ;	// 元結果と明示指定を優先します
+	const auto initialChoice = std::ranges::find_if( initialEntries, []( const auto &entry) {
+		return entry.has_value() ;
+	}) ; // 候補番号を推測せず、有効な最初の表示位置を使います
+	// どの表示位置も決まらない場合だけ無選択で開きます
+	if( initialChoice != initialEntries.end()) {
+		state.initialEntry = **initialChoice ;
+	}
 
 	// 同期dialog呼出しの間だけ所有snapshotが生存するWin32境界
 	const INT_PTR result = DialogBoxParamW( instance_, MAKEINTRESOURCEW( IDD_DEVICE_DETAILS), window_,
@@ -1460,9 +1750,30 @@ bool MainWindow::showSelectedCandidateDetails()
 
 	// 閲覧だけでは選択を変えず、元scanと同deviceの一候補を再検証してから結合する
 	if( result == IDYES && state.choiceRequested && controller_.scanSessionId() == session &&
-	   state.chosenCandidateIndex < candidates_.size() &&
-	   candidates_[state.chosenCandidateIndex].deviceIdentity == deviceIdentity) {
-		static_cast<void>( selectDeviceCandidate( state.chosenCandidateIndex)) ;
+	   state.chosenEntry < state.entries.size()) {
+		const auto &choice = state.entries[state.chosenEntry] ;	// ダイアログで選んだ元の一行です
+		// 同じ機器が残る場合だけ元候補の操作を再照合します
+		if( choice.candidateIndex < candidates_.size() &&
+		   candidates_[choice.candidateIndex].deviceIdentity == deviceIdentity) {
+			const auto &candidate = candidates_[choice.candidateIndex] ;	// 現在の同scanの一行です
+			// 選択とは独立させ、検査ボタンのスナップショットと新しい計画を混ぜません
+			if( !choice.inspectionTargetIdentity.empty()) {
+				const auto *currentPlan =
+					// Modalを閉じた後の元計画です
+					controller_.preparationPlan() ;
+				// 同一の表示候補、検査対象、計画の場合だけ明示取得へ進みます
+				if( currentPlan && currentPlan->planId == inspectionPlanId &&
+				   candidate.identity == choice.inspectionCandidateIdentity &&
+				   candidate.inspectionTargetIdentity == choice.inspectionTargetIdentity) {
+					beginInspectionPreparation( candidate) ;
+				}
+				// 検査ボタンから通常の導入候補を選択する動作へ縮退しません
+			}
+			// 通常の候補選択で、選択可能と判定した行を対象デバイスの選択へ反映します
+			else if( choice.selectable) {
+				static_cast<void>( selectDeviceCandidate( choice.candidateIndex)) ;
+			}
+		}
 	}
 
 	return true ;

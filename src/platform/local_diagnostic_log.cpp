@@ -2,7 +2,7 @@
 /**
  * @file local_diagnostic_log.cpp
  * @brief 匿名診断を非reparseのEXE隣へ有界保存します
- * @version 01.04.10
+ * @version 01.04.11
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.04.08 Shunji Ogawa  2026/11/12  導入前保護失敗に結合した一回の明示復元なし続行を接続
  * Ver.01.04.09 Shunji Ogawa  2026/11/13  元適用性errorへ固定失敗leafとcode由来だけを接続
  * Ver.01.04.10 Shunji Ogawa  2026/11/14  対応済み同wire版の原ログへ追記し実行版を数値記録
+ * Ver.01.04.11 Shunji Ogawa  2026/11/21  ログヘッダーの対応上限を現在の製品バージョンとして明記
  * </pre>
  * @note I/Oは専用workerだけです。未知file・linkを置換せず保存不能は診断だけを停止します
  * @see docs/adr/0427-local-anonymous-scan-diagnostics.md
@@ -315,7 +316,7 @@ bool validNumber( const std::string_view value, const bool signedValue)
 /**
  * @brief 対応済みwireと製品版の厳格なheader長を返します
  * @param[in] bytes 有限slotの原byteです。内容を変更しません
- * @return 1.0.1から現在1.0.7までならLFを含む長さ、不正/未来/非対応は0です
+ * @return 1.0.1から現在の1.0.xまでならLFを含む長さ、不正・未来・非対応は0です
  * @note headerのappは作成時版です。実行中版はstartupの数値列に記録します
  */
 //------------------------------------------------------------------------------

@@ -2,7 +2,7 @@
 /**
  * @file driver_package_signature_internal.h
  * @brief 実byteへ固定した内部署名API fixtureと製品native dispatchを定義します
- * @version 01.08.04
+ * @version 01.09.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.08.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.08.03 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
  * Ver.01.08.04 Shunji Ogawa  2026/11/13  847p9の型付きSYSTEM全作用と全選択資格を接続
+ * Ver.01.09.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません
@@ -125,11 +126,13 @@ private:
 /** @brief 低位署名APIへ結合する実fileの固定期待hashです */
 struct FixtureFile {
 	/// 同じ保護rootの安全な完全相対名です。INF/CATは直下、参照memberだけsubdirを許します
-	std::wstring name ;
+	std::wstring			  name ;
 	/// 元fixture byteの小文字SHA-256。実fileを毎回照合します
-	std::wstring sha256 ;
+	std::wstring			  sha256 ;
 	/// この完全閉包の基本INF名です。旧単一集合だけは空を許します
-	std::wstring infOwner ;
+	std::wstring			  infOwner ;
+	/// 人工shared CATだけの追加INF ownerです。各実INFの宣言へ明示結合します
+	std::vector<std::wstring> additionalInfOwners ;
 } ;
 /** @brief 私有原archiveのINF/CAT位置だけを束縛するmetadata bootstrapです */
 struct OriginalInfMetadata {

@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_descriptor_internal.cpp
  * @brief 全メーカー共通の取得descriptor元申告を有限な文法とbindingで検査します
- * @version 01.06.02
+ * @version 01.10.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,10 @@
  * Ver.01.06.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続
  * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.06.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.07.00 Shunji Ogawa  2026/11/22  専用欄の出典だけに正規のCatalog配布票を許可
+ * Ver.01.08.00 Shunji Ogawa  2026/11/22  私有規約を元ZIPと公式規約文書へ結合
+ * Ver.01.09.00 Shunji Ogawa  2026/11/22  私有収集に必須のZIP規約だけを読み取る入口を追加
+ * Ver.01.10.00 Shunji Ogawa  2026/11/23  私有WiXの非実行取得形式と埋込み規約の元申告を検査
  * </pre>
  *
  * @note 索引発行者の申告を読むだけで、公式性・vendor署名・実byte・端末適合を実証しません
@@ -307,10 +311,11 @@ template <class Value, std::size_t Count>
 /**
  * @brief Route hopの四必須fieldを読みます
  * @param[in,out] reader 有限record reader
+ * @param[in] scopedModels 専用欄の配布票を証拠として許す場合trueです
  * @return 型付き原URLと出典の元申告
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] IndexAcquisitionRouteHop readHop( DescriptorReader &reader)
+[[nodiscard]] IndexAcquisitionRouteHop readHop( DescriptorReader &reader, const bool scopedModels)
 {
 	constexpr std::array<std::string_view, 4U> FIELDS{"url", "kind", "evidenceUrl",
 													  "evidenceSha256"} ;	// 全必須field
@@ -340,7 +345,11 @@ template <class Value, std::size_t Count>
 		requirePayloadUrl( fields[0]) ;
 	}
 
-	requireEvidenceUrl( fields[2]) ;
+	// 専用欄でも配布票の例外は導線の出典にだけ適用します
+	if( !scopedModels || catalogDownloadDialogUpdateId( fields[2]).empty()) {
+		requireEvidenceUrl( fields[2]) ;
+	}
+
 	return {std::move( fields[0]), choice( fields[1], KINDS), std::move( fields[2]),
 			decodeHash( fields[3], IndexRecordsStatus::INVALID_EVIDENCE)} ;
 }
@@ -543,43 +552,148 @@ template <class Value, std::size_t Count>
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 審査済みの規約メンバーを元ZIPへ結ぶ閉じた申告を読みます
+ * @param[in,out] reader 同じ元記述子の有限readerです
+ * @return 原サイズ、ハッシュ、相対名と規約指定文です。取得を発行しません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] IndexArchiveTermsNotice readArchiveNotice( DescriptorReader &reader)
+{
+	constexpr std::array<std::string_view, 8U> NAMES{
+		"memberPath",		   "memberSha256",	  "statement",
+		"originalDocumentUrl", "archiveSha256",	  "memberSizeBytes",
+		"statementOffset",	   "archiveSizeBytes"} ;	// 全必須の原項目です
+	constexpr std::array<std::size_t, 5U> TEXT_LIMITS{160U, 64U, TEXT_LIMIT, URL_LIMIT,
+													  64U} ;	// 原文字列ごとの読み取り上限です
+	std::array<std::string, 5U>			  texts ;				// 元の文字列を変更せず所有します
+	std::array<std::uint64_t, 3U>		  numbers{} ;			// メンバーサイズ、指定位置、ZIPサイズです
+	// 元申告の順番から独立して閉じた型に読み込みます
+	reader.object( NAMES, [&]( const std::size_t field) {
+		// サイズと位置を文字列へ補完しません
+		if( field < texts.size()) {
+			texts[field] = reader.text( TEXT_LIMITS[field]) ;
+		} else {
+			numbers[field - texts.size()] = reader.number() ;
+		}
+	}) ;
+	// 正規相対名の全成分を、先頭から末尾まで一度ずつ確認します
+	for( auto remaining = std::string_view{texts[0]};;) {
+		const auto separator = remaining.find( '\\') ;				// 正規Windows相対名の成分境界です
+		const auto component = remaining.substr( 0U, separator) ;	// 同じ原名の一成分です
+		require( component.size() <= 96U && validBasename( component),
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+		// 最後の成分まで、空や親展開を含まない同じ名を確認します
+		if( separator == remaining.npos) {
+			break ;
+		}
+
+		remaining.remove_prefix( separator + 1U) ;
+	}
+
+	// 指定位置の範囲と、印字可能な原ASCII文を整数演算の上限内で照合します
+	require( numbers[0] > 0U && numbers[0] <= 64U * 1024U && numbers[1] <= numbers[0] &&
+				numbers[2] > 0U && numbers[2] <= PAYLOAD_LIMIT && !texts[2].empty() &&
+				texts[2].size() <= numbers[0] - numbers[1] &&
+				std::ranges::all_of( texts[2],
+									[]( const unsigned char character) {
+										// メンバー全体は原byteで検査し、指定文だけをASCIIへ限定します
+										return character >= 0x20U && character <= 0x7eU ;
+									}),
+			IndexRecordsStatus::INVALID_EVIDENCE) ;
+	return {numbers[2],
+			decodeHash( texts[4], IndexRecordsStatus::INVALID_EVIDENCE),
+			std::move( texts[0]),
+			numbers[0],
+			decodeHash( texts[1], IndexRecordsStatus::INVALID_EVIDENCE),
+			numbers[1],
+			std::move( texts[2]),
+			std::move( texts[3])} ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 規約状態を本文取得や同意へ昇格せず読みます
  * @param[in,out] reader 有限reader
+ * @param[in] allowWix 取得descriptorでWiX固有の埋込み規約を構造検査する場合trueです
  * @return 元規約申告と不足理由
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] IndexAcquisitionTerms readTerms( DescriptorReader &reader)
+[[nodiscard]] IndexAcquisitionTerms readTerms( DescriptorReader &reader, const bool allowWix = false)
 {
-	constexpr std::array<std::string_view, 7U> FIELDS{
-		"state",		"reason",	"evidenceUrl", "evidenceSha256",
-		"revisionKind", "revision", "textDocument"} ;	// 全必須field
-	std::array<std::string, 6U> fields ;				// Document以外の元text
-	IndexAcquisitionTerms		value ;					// 全成功前には公開しない値
+	constexpr std::array<std::string_view, 8U> FIELDS{
+		"state",		"reason",	"evidenceUrl",	"evidenceSha256",
+		"revisionKind", "revision", "textDocument", "archiveNotice"} ;	// 必須七項目と私有の証拠です
+	std::array<std::string, 6U> fields ;								// Document以外の元text
+	IndexAcquisitionTerms		value ;									// 全成功前には公開しない値
 	// 原field集合を順序非依存で同期消費する
-	reader.object( FIELDS, [&]( const std::size_t field) {
+	const auto present = reader.objectWithPresence( FIELDS, [&]( const std::size_t field) {
 		// 明示nullと固定documentだけを区別する
 		if( field == 6U) {
 			// 本文情報の欠損を空objectで補わない
 			if( !reader.nullValue()) {
 				value.textDocument = readDocument( reader) ;
 			}
+		}
+		// 私有の規約証拠は省略とnullを区別します
+		else if( field == 7U) {
+			value.archiveNotice = readArchiveNotice( reader) ;
 		} else {
 			fields[field] = reader.text( field == 2U ? URL_LIMIT : TEXT_LIMIT) ;
 		}
 	}) ;
+	require( (present & 0x7fU) == 0x7fU, IndexRecordsStatus::INVALID_RECORD) ;
 	constexpr std::array<std::pair<std::string_view, IndexTermsState>, 3U> STATES{
 		{{"UNKNOWN", IndexTermsState::UNKNOWN},
 		 {"CONFIRMED_NO_CONSENT", IndexTermsState::CONFIRMED_NO_CONSENT},
 		 {"ACCEPTANCE_REQUIRED", IndexTermsState::ACCEPTANCE_REQUIRED}}} ;	// 同意結果ではない元state
-	constexpr std::array<std::pair<std::string_view, IndexTermsRevisionKind>, 3U> REVISIONS{
+	constexpr std::array<std::pair<std::string_view, IndexTermsRevisionKind>, 4U> REVISIONS{
 		{{"NONE", IndexTermsRevisionKind::NONE},
 		 {"VENDOR_LITERAL", IndexTermsRevisionKind::VENDOR_LITERAL},
-		 {"COMPUTED_UTF8_SHA256", IndexTermsRevisionKind::COMPUTED_UTF8_SHA256}}} ;	// Revisionの由来
+		 {"COMPUTED_UTF8_SHA256", IndexTermsRevisionKind::COMPUTED_UTF8_SHA256},
+		 {"WIX_RTF_SHA256", IndexTermsRevisionKind::WIX_RTF_SHA256}}} ;	// Revisionの由来
 	value.state		   = choice( fields[0], STATES) ;
 	value.reason	   = std::move( fields[1]) ;
 	value.evidenceUrl  = std::move( fields[2]) ;
 	value.revisionKind = choice( fields[4], REVISIONS) ;
 	value.revision	   = std::move( fields[5]) ;
+	// WiXの規約は同じEXEから検査するため、別取得の本文や旧ZIP規約を認めません
+	if( value.revisionKind == IndexTermsRevisionKind::WIX_RTF_SHA256) {
+		require( allowWix && value.state == IndexTermsState::ACCEPTANCE_REQUIRED &&
+					value.reason.empty() && value.revision.empty() && !value.textDocument &&
+					!value.archiveNotice,
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+		requireUrl( value.evidenceUrl, true) ;
+		value.evidenceSha256 = decodeHash( fields[3], IndexRecordsStatus::INVALID_EVIDENCE) ;
+		return value ;
+	}
+
+	// 規約メンバーがあるときは、独立文書と同意必須の原改訂に結びます
+	if( value.archiveNotice) {
+		require( value.state == IndexTermsState::ACCEPTANCE_REQUIRED &&
+					value.revisionKind == IndexTermsRevisionKind::VENDOR_LITERAL &&
+					value.textDocument && value.textDocument->htmlExtraction &&
+					value.textDocument->htmlExtraction->profile == "STATIC_HTML_SECTION_V1",
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+		const auto &notice = *value.archiveNotice ;	// 審査済みの原文と原URLです
+		const auto	https =
+			std::string_view{value.textDocument->url} ;							// 別に検査したHTTPS文書URLです
+		const auto original = std::string_view{notice.originalDocumentUrl} ;	// ZIP内の原表記です
+		const auto position = notice.statement.find( original) ;				// 原指定文でのURL開始位置です
+		const auto scheme =
+			// ほかのURLを含まない指定文か照合する位置です
+			notice.statement.find( "://") ;
+		require( (original == https ||
+				 (original.starts_with( "http://") && original.substr( 7U) == https.substr( 8U))) &&
+					position != std::string::npos && position > 0U &&
+					notice.statement[position - 1U] == ' ' &&
+					scheme == position + (original.starts_with( "http://") ? 4U : 5U) &&
+					notice.statement.find( "://", scheme + 3U) == std::string::npos,
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+		const auto suffix = std::string_view{notice.statement}.substr(
+			position + original.size()) ;	// 完全な原URLに続く末尾句読点です
+		require( suffix.empty() || suffix == ".", IndexRecordsStatus::INVALID_EVIDENCE) ;
+	}
+
 	// 未確認の根拠とrevisionを架空補完せず非空理由だけを保持する
 	if( value.state == IndexTermsState::UNKNOWN) {
 		require( validText( value.reason) && value.evidenceUrl.empty() && fields[3].empty() &&
@@ -671,10 +785,12 @@ template <class Value, std::size_t Count>
 /**
  * @brief 監視PCによる導線確認の元申告を読みます
  * @param[in,out] reader 有限reader
+ * @param[in] scopedModels 専用欄の配布票を証拠として許す場合trueです
  * @return 固定kind・revisionと元UTC・証拠。製品trustやvendor検証実績ではありません
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] IndexAcquisitionAttestation readAttestation( DescriptorReader &reader)
+[[nodiscard]] IndexAcquisitionAttestation readAttestation( DescriptorReader &reader,
+														  const bool		scopedModels)
 {
 	constexpr std::array<std::string_view, 7U> FIELDS{"kind",
 													  "policyRevision",
@@ -705,7 +821,11 @@ template <class Value, std::size_t Count>
 	value.checkedAtUtc	  = signed_index_json::utc( fields[2], IndexRecordsStatus::INVALID_EVIDENCE) ;
 	value.validUntilUtc	  = signed_index_json::utc( fields[3], IndexRecordsStatus::INVALID_EVIDENCE) ;
 	value.authorityMethod = choice( fields[4], METHODS) ;
-	requireUrl( fields[5], true) ;
+	// 専用欄であっても正規配布票以外のquery規則は維持します
+	if( !scopedModels || catalogDownloadDialogUpdateId( fields[5]).empty()) {
+		requireUrl( fields[5], true) ;
+	}
+
 	value.authorityEvidenceUrl	  = std::move( fields[5]) ;
 	value.authorityEvidenceSha256 = decodeHash( fields[6], IndexRecordsStatus::INVALID_EVIDENCE) ;
 	return value ;
@@ -862,6 +982,55 @@ void requireEvidenceUrl( const std::string_view value)
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 公式Catalogの単一更新用の固定配布票URLで繰り返される元GUIDを検査します
+ * @param[in] value 同じ更新の原配布票URLの候補です
+ * @return 借用する同一GUIDです。別起点、別query、別表記と不一致は空です
+ * @note 公開出典の比較専用です。通信や取得許可を発行しません
+ */
+//------------------------------------------------------------------------------
+std::string_view catalogDownloadDialogUpdateId( const std::string_view value) noexcept
+{
+	// 公式Catalogの固定起点と、一件の元GUIDより前の正規表記です
+	constexpr std::string_view prefix =
+		"https://www.catalog.update.microsoft.com/DownloadDialog.aspx"
+		"?updateIDs=%5B%7B%22size%22%3A0%2C%22languages%22%3A%22%22%2C%22uidInfo%22%3A%22" ;
+	// 最初のGUIDと同じ値を指定する第二項目の正規表記です
+	constexpr std::string_view separator = "%22%2C%22updateID%22%3A%22" ;
+	// 固定した一件の配布票の終端です
+	constexpr std::string_view suffix = "%22%7D%5D" ;
+	// 元GUIDのハイフンを含む固定長です
+	constexpr std::size_t	   guidBytes = 36U ;
+	// 追加パラメーターや別順のエンコードは同じ配布票へ読み替えません
+	if( value.size() != prefix.size() + guidBytes * 2U + separator.size() + suffix.size() ||
+	   !value.starts_with( prefix) || !value.ends_with( suffix) ||
+	   value.substr( prefix.size() + guidBytes, separator.size()) != separator) {
+		return {} ;
+	}
+
+	const auto id = value.substr( prefix.size(), guidBytes) ;	// 元の単一更新です
+	// 同じ更新ID二箇所の原バイトを照合します
+	if( id != value.substr( prefix.size() + guidBytes + separator.size(), guidBytes)) {
+		return {} ;
+	}
+
+	// 固定位置のハイフンと小文字hexだけを許します
+	for( std::size_t index = 0U; index < id.size(); ++index) {
+		const auto character = id[index] ;	// 公開GUIDの一桁です
+		// GUIDの固定区切り位置を判定します
+		const bool hyphen = index == 8U || index == 13U || index == 18U || index == 23U ;
+		// 空白・エスケープや別の識別子への補正は行いません
+		if( hyphen ? character != '-'
+				  : !((character >= '0' && character <= '9') ||
+					  (character >= 'a' && character <= 'f'))) {
+			return {} ;
+		}
+	}
+
+	return id ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 既存strict readerで一つの規約宣言を閉検証します
  * @param[in] raw 最大512KiBの原JSONです。本文ではなく固定文書情報だけです
  * @return 観測や同意を発行しない型付き規約です
@@ -873,6 +1042,26 @@ IndexAcquisitionTerms readTermsValue( const std::string_view raw)
 							8U) ;					// 既存最大8段と重複key検査を維持します
 	const auto		 terms = readTerms( reader) ;	// 従来と新profileの同じ閉schemaです
 	reader.finish() ;
+	require( !terms.archiveNotice, IndexRecordsStatus::INVALID_EVIDENCE) ;
+	return terms ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 私有収集の保存済み規約を厳密な共通文法で読み取り、ZIP規約の証拠を要求します
+ * @param[in] raw 元取得の規約JSONです。呼出し中だけ借用します
+ * @return ZIP、メンバー、固定の規約文書への照合条件です
+ * @throws signed_index_json::Failure<IndexRecordsStatus> 構造または証拠が不正です
+ * @note 公式配布と実バイトは収集処理で別に検査します
+ */
+//------------------------------------------------------------------------------
+IndexAcquisitionTerms readCollectorArchiveTermsValue( const std::string_view raw)
+{
+	DescriptorReader reader( raw, IndexRecordsStatus::INVALID_RECORD, 512U * 1024U,
+							8U) ;					// 従来と同じ入力制限と重複キーの検査です
+	const auto		 terms = readTerms( reader) ;	// 取得記述子と同じ全条件です
+	reader.finish() ;
+	require( terms.archiveNotice.has_value(), IndexRecordsStatus::INVALID_EVIDENCE) ;
 	return terms ;
 }
 
@@ -881,11 +1070,13 @@ IndexAcquisitionTerms readTermsValue( const std::string_view raw)
  * @brief Descriptorのv1全13fieldまたはv2全14fieldと全入れ子をstrict readerで読みます
  * @param[in,out] reader 原recordの有限reader。呼出し中だけ借用します
  * @param[in] readText 既存Known textの同期parser。Null不可、参照を保持しません
+ * @param[in] scopedModels 専用欄の配布票を証拠として読む場合trueです
  * @return 全構造検査を成功した元申告。取得能力はありません
  * @note Source・manifest・record方式への結合はvalidateBindingで別に検査します
  */
 //------------------------------------------------------------------------------
-IndexAcquisitionDescriptor readDescriptor( DescriptorReader &reader, const TextValueReader readText)
+IndexAcquisitionDescriptor readDescriptor( DescriptorReader &reader, const TextValueReader readText,
+										  const bool scopedModels)
 {
 	constexpr std::array<std::string_view, 14U> FIELDS{
 		"schema",
@@ -921,13 +1112,13 @@ IndexAcquisitionDescriptor readDescriptor( DescriptorReader &reader, const TextV
 				// 最大6hop、redirectは後のbindingで結合する
 				case 8U:
 					reader.array(
-						6U, [&] { value.route.push_back( readHop( reader)) ; },
+						6U, [&] { value.route.push_back( readHop( reader, scopedModels)) ; },
 						IndexRecordsStatus::COUNT_LIMIT) ;
 					break ;
 
 				// 規約の申告であり本文や同意ではない
 				case 9U:
-					value.terms = readTerms( reader) ;
+					value.terms = readTerms( reader, !scopedModels) ;
 					break ;
 
 				// 明示空集合とUNKNOWN理由を分ける
@@ -944,7 +1135,7 @@ IndexAcquisitionDescriptor readDescriptor( DescriptorReader &reader, const TextV
 				case 12U:
 					// 元attestationが存在する場合だけ全fieldを読む
 					if( !reader.nullValue()) {
-						value.attestation = readAttestation( reader) ;
+						value.attestation = readAttestation( reader, scopedModels) ;
 					}
 
 					break ;
@@ -960,15 +1151,15 @@ IndexAcquisitionDescriptor readDescriptor( DescriptorReader &reader, const TextV
 			}
 		}
 	}) ;
-	constexpr std::array<std::pair<std::string_view, IndexPayloadFormat>, 7U> FORMATS{
+	constexpr std::array<std::pair<std::string_view, IndexPayloadFormat>, 8U> FORMATS{
 		{{"UNKNOWN", IndexPayloadFormat::UNKNOWN},
 		 {"ZIP", IndexPayloadFormat::ZIP},
 		 {"CABINET", IndexPayloadFormat::CABINET},
 		 {"WINDOWS_EXE", IndexPayloadFormat::WINDOWS_EXE},
 		 {"WINDOWS_MSI", IndexPayloadFormat::WINDOWS_MSI},
 		 {"SEVEN_ZIP_SFX", IndexPayloadFormat::SEVEN_ZIP_SFX},
-		 {"PE_RESOURCE_CONTAINER",
-		  IndexPayloadFormat::PE_RESOURCE_CONTAINER}}} ;	// 未知は自動補完しない形式
+		 {"PE_RESOURCE_CONTAINER", IndexPayloadFormat::PE_RESOURCE_CONTAINER},
+		 {"WIX_BURN_V3", IndexPayloadFormat::WIX_BURN_V3}}} ;	// 未知は自動補完しない形式
 	// 旧必須field欠損は旧object readerと同じ構造拒否へ保つ
 	require( (present & 0x1fffU) == 0x1fffU, IndexRecordsStatus::INVALID_RECORD) ;
 	require( fields[0] == "driver-index-acquisition-v1" ||
@@ -984,6 +1175,17 @@ IndexAcquisitionDescriptor readDescriptor( DescriptorReader &reader, const TextV
 	value.fileName			  = std::move( fields[4]) ;
 	value.format			  = choice( fields[5], FORMATS) ;
 	value.expectedContentType = std::move( fields[6]) ;
+	const bool wix = value.format == IndexPayloadFormat::WIX_BURN_V3 ;	// 元EXE内規約の形式です
+	require( wix == (value.terms.revisionKind == IndexTermsRevisionKind::WIX_RTF_SHA256) &&
+				(!wix || (value.schemaVersion == 1U && value.state == IndexDescriptorState::KNOWN &&
+						  value.expectedContentType == "application/octet-stream" &&
+						  value.route.size() == 1U && !scopedModels)),
+			IndexRecordsStatus::INVALID_EVIDENCE) ;
+	// 私有規約証拠を、使用できない方式や未確認の配布へ添付できません
+	require( !value.terms.archiveNotice || (value.state == IndexDescriptorState::KNOWN &&
+										   value.format == IndexPayloadFormat::ZIP &&
+										   value.schemaVersion == 1U && !scopedModels),
+			IndexRecordsStatus::INVALID_EVIDENCE) ;
 	// v1に新fieldや新形式を黙って混ぜず、v2の原計画を必須にする
 	require( (value.schemaVersion == 1U && !value.resourceContent && !value.anonymousCdn &&
 			 value.format != IndexPayloadFormat::PE_RESOURCE_CONTAINER) ||
@@ -1099,7 +1301,8 @@ void validateBinding( const IndexDistributionRecord &record, const IndexRecordSo
 							 // 元形式の分類
 							 value.format == IndexPayloadFormat::CABINET ||
 							 value.format == IndexPayloadFormat::SEVEN_ZIP_SFX ||
-							 value.format == IndexPayloadFormat::PE_RESOURCE_CONTAINER ;
+							 value.format == IndexPayloadFormat::PE_RESOURCE_CONTAINER ||
+							 value.format == IndexPayloadFormat::WIX_BURN_V3 ;
 		require( (*record.acquisition.value == IndexAcquisitionKind::STANDARD_INF_ARCHIVE) ==
 					archive,
 				IndexRecordsStatus::INVALID_EVIDENCE) ;
@@ -1138,6 +1341,27 @@ void validateBinding( const IndexDistributionRecord &record, const IndexRecordSo
 	require( sameOrigin( value.payloadUrl, source.officialOrigin) ||
 				value.route.front().kind == IndexRouteKind::OFFICIAL_CDN_LINK,
 			IndexRecordsStatus::INVALID_EVIDENCE) ;
+	// 規約メンバーの根拠は内容検査済みの同じ原ZIPと公式配布ページだけに結びます
+	if( value.terms.archiveNotice) {
+		const auto &notice	   = *value.terms.archiveNotice ;					// 私有欄に置ける同じ規約証拠です
+		const auto &calculated = record.packageEvidence.calculatedHash ;		// 元ZIPの実測根拠です
+		const auto &html	   = *value.terms.textDocument->htmlExtraction ;	// 同じ原配布ページです
+		require( record.inspectionStage == IndexInspectionStage::CONTENT_INSPECTED &&
+					record.acquisition.value == IndexAcquisitionKind::STANDARD_INF_ARCHIVE &&
+					source.officialEvidence.kind == IndexOfficialEvidenceKind::OFFICIAL_PAGE &&
+					source.officialEvidence.evidenceUrl == source.distributionPage &&
+					record.packageEvidence.size.value == notice.archiveSizeBytes &&
+					notice.archiveSizeBytes <= value.maximumBytes &&
+					calculated.sha256 == notice.archiveSha256 &&
+					calculated.evidenceSha256 == notice.archiveSha256 &&
+					calculated.evidenceUrl == value.payloadUrl &&
+					attestation.authorityMethod ==
+						IndexAuthorityMethod::OFFICIAL_SITE_CONTROL_AND_LINK &&
+					attestation.authorityEvidenceUrl == html.bindingEvidenceUrl &&
+					attestation.authorityEvidenceSha256 == html.bindingEvidenceSha256,
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+	}
+
 	std::set<std::string> urls ;				// 完全原URLの重複・循環拒否集合
 	bool				  cdnEntered{} ;		// 公式originへ戻る逆向きrouteを許可しない
 	std::size_t			  originRedirects{} ;	// CDN移行前の同origin redirectは最大2回

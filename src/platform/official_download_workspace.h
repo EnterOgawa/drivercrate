@@ -2,7 +2,7 @@
 /**
  * @file official_download_workspace.h
  * @brief 公式配布file用保護一時領域定義
- * @version 01.02.01
+ * @version 01.03.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,8 @@
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.02.00 Shunji Ogawa  2026/11/12  本人検査領域とsetup限定の公開親metadata権限へ整合
  * Ver.01.02.01 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.02 Shunji Ogawa  2026/11/20  本人CAB展開の新規作成と完了照合を追加
+ * Ver.01.03.00 Shunji Ogawa  2026/11/23  本人検査領域の原スナップショット照合を追加
  * </pre>
  *
  * @note 通常consumerはAdministrators/SYSTEM、collector明示inspectionは本人/SYSTEMの保護一時領域を使い、既知fileだけを回収します
@@ -148,6 +150,38 @@ public:
 	[[nodiscard]] NativeError			createFile( std::wstring_view name, HANDLE &handle) ;
 
 	/**
+	 * @brief 本人検査領域にCABの空の出力ファイルを新規作成します
+	 * @param[in] name 検証済み相対path
+	 * @param[out] handle 削除共有を外して作成時から保持する読取りhandle
+	 * @return 成功時は0、既存ファイルや作成失敗はHRESULT
+	 * @note 展開完了の照合後、呼出し側がhandleを閉じます
+	 */
+	[[nodiscard]] NativeError			createCabinetOutput( std::wstring_view name, HANDLE &handle) ;
+
+	/**
+	 * @brief 展開したCAB出力を元の本人所有ファイルへ照合します
+	 * @param[in] name 元の検証済み相対path
+	 * @param[in] handle 作成時から保持する読取りhandle
+	 * @param[in] expectedBytes 元CAB entryの展開後サイズ
+	 * @return 元本人保護、同一ファイルと正確なサイズが成立すれば0、それ以外はHRESULT
+	 */
+	[[nodiscard]] NativeError			verifyCabinetOutput( std::wstring_view name, HANDLE handle,
+															std::uint64_t expectedBytes) const ;
+
+	/**
+	 * @brief 本人検査領域で追跡済みの元ファイルが読取りスナップショットと一致するか照合します
+	 * 現在の有効user、既知rootと子directoryの保護、対象の非再解析・一リンク・完全ID・長さ・保護DACLを確認します
+	 * @param[in] name 元ファイルを登録した安全な相対pathです
+	 * @param[in] handle 最終pathを照合済みで、FILE_SHARE_READだけを許す読取りhandleです。呼出し側から借用します
+	 * @param[in] expectedBytes 元スナップショットの正確な非零byte数です
+	 * @return 一致時は0、別用途・不正入力・照合失敗時は対応するHRESULTです。Win32 APIの失敗は元の診断値を保持します
+	 * @pre 呼出し側が対象と全親の通常種別・最終pathを確認し、各handleを検査完了まで保持します
+	 * @note 所有worker内で直列に呼びます。handleの読取り位置、所有追跡、ファイルとACLは変更しません
+	 */
+	[[nodiscard]] NativeError verifyInspectionSnapshot( std::wstring_view name, HANDLE handle,
+													   std::uint64_t expectedBytes) const ;
+
+	/**
 	 * @brief SetupAPIが新規fileを作成できる追跡付き非存在pathを準備する
 	 * 外部writer用の追跡付き非存在file pathを準備する
 	 * CREATE_NEWで衝突を検出した後に空fileを削除し、同期展開を待つ
@@ -198,11 +232,34 @@ public:
 
 private:
 	/**
+	 * @brief 保護された親の下へ用途に合う共有条件で新規ファイルを作ります
+	 * @param[in] name 検証済み相対path
+	 * @param[out] handle 新規ファイルの所有handle
+	 * @param[in] access 新規handleに要求するアクセス
+	 * @param[in] sharing 新規handleが許す共有
+	 * @param[in] attributes 新規ファイルの属性と作成フラグ
+	 * @return 成功時は0、入力・既存ファイル・OS失敗はHRESULT
+	 */
+	[[nodiscard]] NativeError createFile( std::wstring_view name, HANDLE &handle, DWORD access,
+										 DWORD sharing, DWORD attributes) ;
+
+	/**
 	 * @brief 本人検査modeの既知rootと子directoryの所有・保護・非reparseを照合します
 	 * @return 既定modeまたは全照合成功は0、不正・元token変更・OS失敗はHRESULTです
 	 * @note 未知pathの採用やDACL修復を行いません
 	 */
 	[[nodiscard]] NativeError verifyDirectories() const ;
+
+	/**
+	 * @brief 本人検査領域の追跡済みfileを借用handleの完全IDと保護に照合します
+	 * @param[in] name 追跡済みfileの安全な相対pathです
+	 * @param[in] handle 削除共有を外して保持している照合元handleです
+	 * @param[in] expectedBytes 期待する正確なbyte数です。CAB出力の空ファイルを含みます
+	 * @return 元の有効user、既知親、対象の一リンク・ID・長さ・所有と保護が一致すれば0、それ以外はHRESULTです
+	 * @note 借用handleの状態や追跡・保護を変更せず、同一worker内で呼びます
+	 */
+	[[nodiscard]] NativeError verifyTrackedInspectionFile( std::wstring_view name, HANDLE handle,
+														  std::uint64_t expectedBytes) const ;
 
 	/// 初期化時に固定した用途です。通常consumerの既定を維持します
 	OfficialWorkspaceMode	  mode_{OfficialWorkspaceMode::ADMINISTRATOR} ;

@@ -2,7 +2,7 @@
 /**
  * @file resource_content_tests.cpp
  * @brief resource原範囲と実公式packageの非実行接続を有限検証する
- * @version 01.00.03
+ * @version 01.01.01
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,8 @@
  * Ver.01.00.01 Shunji Ogawa  2026/11/09  取消/CRC code期待のNativeError型だけを明示
  * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.03 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/23  イベントメッセージDLLの原本と構造変形を検証
+ * Ver.01.01.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * </pre>
  * @note network・製品UI・driver/FW実行・Windows stagingを行わない
  */
@@ -38,8 +40,13 @@
 #include <Windows.h>
 #include <algorithm>
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
+#include <span>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace {
 using namespace drivercrate ;
@@ -165,6 +172,91 @@ std::string emitPlan( const OfficialResourceContentPlan &plan)
 }
 //------------------------------------------------------------------------------
 /**
+ * @brief 既存の人工PEに数値メッセージ資源を作り、元構造の正負例を検査する
+ * @param[in,out] test 有限assertion集計
+ * @param[in] original 名前付き資源を持つ2048バイトの既存人工PE
+ */
+//------------------------------------------------------------------------------
+void eventMessageVectors( test::TestContext &test, const std::span<const std::byte> original)
+{
+	DRIVERCRATE_EXPECT( test, original.size() == 2048U) ;
+	// 既存fixtureの配置が変わった場合は固定offsetへの書込みを行わない
+	if( original.size() != 2048U) {
+		return ;
+	}
+
+	// 試験入力の固定位置へ4バイトを書く。captureせず呼出し中だけ対象byteを借りる
+	const auto write32 = []( std::vector<std::byte> &bytes, const std::size_t offset,
+							const std::uint32_t value) {
+		// 非整列の入力でも4バイトのリトルエンディアンを作る
+		for( std::size_t index = 0U; index < 4U; ++index) {
+			bytes[offset + index] = static_cast<std::byte>( (value >> (index * 8U)) & 0xffU) ;
+		}
+	} ;
+	constexpr std::size_t  OPTIONAL_AT		= 0x98U ;					// 元人工PE32+のヘッダー位置
+	constexpr std::size_t  DIRECTORY_AT		= OPTIONAL_AT + 112U ;		// 元データディレクトリ位置
+	constexpr std::size_t  SECTION_FLAGS_AT = 0x1acU ;					// 唯一の原資源セクションの属性
+	constexpr std::size_t  TABLE_AT			= 0x400U ;					// 資源データの元オフセット
+	std::vector<std::byte> valid( original.begin(), original.end()) ;	// DLLとして変形する人工入力
+	// PE32+ magicを維持してDLL属性を設定
+	write32( valid, 0x96U, 0x020b2022U) ;
+	// 名前付き1件を数値1件へ変更
+	write32( valid, 0x20cU, 0x00010000U) ;
+	// RT_MESSAGETABLE
+	write32( valid, 0x210U, 11U) ;
+	// 資源データ全体のバイト数
+	write32( valid, 0x294U, 24U) ;
+	// 1ブロック
+	write32( valid, TABLE_AT, 1U) ;
+	// 最初のID
+	write32( valid, TABLE_AT + 4U, 1U) ;
+	// 最後のID
+	write32( valid, TABLE_AT + 8U, 1U) ;
+	// ブロックに続くエントリーの位置
+	write32( valid, TABLE_AT + 12U, 16U) ;
+	// Unicodeエントリー8バイト
+	write32( valid, TABLE_AT + 16U, 0x00010008U) ;
+	// 一文字と終端
+	write32( valid, TABLE_AT + 20U, 0x41U) ;
+	DRIVERCRATE_EXPECT( test, verifyOfficialEventMessageResourceDll( valid) == 0) ;
+	DRIVERCRATE_EXPECT( test, verifyOfficialEventMessageResourceDll( original) != 0) ;
+	DRIVERCRATE_EXPECT( test, verifyOfficialEventMessageResourceDll(
+								 std::span<const std::byte>{valid}.first( TABLE_AT + 23U)) != 0) ;
+
+	using Mutation = std::pair<std::size_t, std::uint32_t> ;
+	constexpr std::array rejected{
+		Mutation{0x84U, 0x0001aa64U},				// セクション件数を維持したARM64
+		Mutation{0x96U, 0x020b0022U},				// DLL属性なし
+		Mutation{OPTIONAL_AT + 4U, 1U},				// コードサイズあり
+		Mutation{OPTIONAL_AT + 16U, 0x1200U},		// エントリーポイントあり
+		Mutation{OPTIONAL_AT + 108U, 17U},			// ディレクトリ件数過大
+		Mutation{SECTION_FLAGS_AT, 0x60000040U},	// 実行可能セクション
+		Mutation{SECTION_FLAGS_AT, 0x40000060U},	// コードセクション
+		Mutation{DIRECTORY_AT + 8U, 1U},			// ImportのRVAあり
+		Mutation{DIRECTORY_AT + 13U * 8U + 4U, 1U},	// Delay Importのサイズあり
+		Mutation{0x210U, 16U},						// メッセージ資源なし
+		Mutation{TABLE_AT, 0U},						// 空テーブル
+		Mutation{TABLE_AT, 0xffffffffU},			// ブロック件数過大
+		Mutation{TABLE_AT + 4U, 2U},				// 最初のIDが最後より大きい
+		Mutation{TABLE_AT + 12U, 4U},				// エントリーの位置がブロック宣言内
+		Mutation{TABLE_AT + 16U, 0x00010000U},		// エントリー長が0
+		Mutation{TABLE_AT + 16U, 0x00010007U},		// Unicode本文が奇数バイト
+		Mutation{TABLE_AT + 16U, 0x0001000aU},		// エントリーが資源末尾を越える
+		Mutation{TABLE_AT + 16U, 0x00020008U}} ;	// 未定義のエントリー属性
+	// 一度に一条件だけ変更し、その構造で単独拒否になることを確認する
+	for( const auto &[offset, value] : rejected) {
+		auto invalid = valid ;	// 一つの元条件だけを壊す独立入力
+		write32( invalid, offset, value) ;
+		DRIVERCRATE_EXPECT( test, verifyOfficialEventMessageResourceDll( invalid) != 0) ;
+	}
+
+	auto hiddenTls = valid ;	// ディレクトリ件数の外へTLS欄を隠す入力
+	write32( hiddenTls, OPTIONAL_AT + 108U, 3U) ;
+	write32( hiddenTls, DIRECTORY_AT + 9U * 8U, 1U) ;
+	DRIVERCRATE_EXPECT( test, verifyOfficialEventMessageResourceDll( hiddenTls) != 0) ;
+}
+//------------------------------------------------------------------------------
+/**
  * @brief 独立645の六small PEと静的role境界を確認する
  * @param[in,out] test 有限assertion集計
  * @param[in] directory 受入済みvector directory
@@ -196,6 +288,7 @@ void vectors( test::TestContext &test, std::wstring directory)
 										 leaves[0].resource.type.text == L"ZIP" &&
 										 leaves[0].resource.name.id == 103U &&
 										 leaves[0].resource.language == 1033U) ;
+			eventMessageVectors( test, file.bytes()) ;
 		}
 		// 明示別言語の合法例を独立に確認する
 		else if( index == 5U && error == 0) {
@@ -439,6 +532,14 @@ int wmain( const int argc, wchar_t **argv)
 		// 明示real modeだけで原公式byteを通常検査する
 		else if( std::wstring_view( argv[1]) == L"real") {
 			real( test, argv[2]) ;
+		}
+		// 指定された実DLLは読取りだけで形式検査する
+		else if( std::wstring_view( argv[1]) == L"event-message-dll") {
+			OfficialMappedFile eventDll ;	// 実DLLの読取り専用マッピング
+			// 引数の試験DLLを読み取り専用かつ上限付きで開いた診断値
+			const auto		   opened = eventDll.open( argv[2], 64U * 1024U * 1024U) ;
+			DRIVERCRATE_EXPECT(
+				test, opened == 0 && verifyOfficialEventMessageResourceDll( eventDll.bytes()) == 0) ;
 		} else {
 			return 2 ;
 		}

@@ -2,7 +2,7 @@
 /**
  * @file official_gzip.cpp
  * @brief 公式GZip catalog展開実装
- * @version 01.00.03
+ * @version 01.01.01
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,8 @@
  * Ver.01.00.01  Shunji Ogawa  2026/10/16  特殊メンバーの所有権・既定動作の契約を明記
  * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.03 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/19  GZip検査成功時に追加欄の任意借用を許可
+ * Ver.01.01.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * </pre>
  *
  * @note Network由来GZipを一つのmemberとして厳密に検証します。入力fileと出力handleの所有権は呼出し側にあり、失敗時に候補metadataを返しません
@@ -373,15 +375,22 @@ private:
  * @param[in] compressed GZip container全体。有効期間は本呼出し中に限る
  * @param[in] maximumExpandedBytes 展開を許可する最大byte数
  * @param[out] expanded 成功時の展開済みbyte列。失敗時は空にする。 成功時の展開結果。失敗時は空
+ * @param[out] extra 任意の追加欄。成功時は同じ圧縮入力から借用し、失敗時は空にする
  * @return 成功時は0、形式不正、上限超過、展開失敗時はHRESULT bit pattern
  * @note Concatenated member、予約flag、壊れたCRC32またはISIZEを拒否する
  */
 //------------------------------------------------------------------------------
-NativeError decompressOfficialGzip( const std::span<const std::byte> compressed,
-								   const std::uint64_t				maximumExpandedBytes,
-								   std::vector<std::byte>		   &expanded)
+NativeError decompressOfficialGzip( const std::span<const std::byte>	 compressed,
+								   const std::uint64_t				 maximumExpandedBytes,
+								   std::vector<std::byte>			&expanded,
+								   std::span<const std::byte> *const extra)
 {
 	expanded.clear() ;
+	// 追加欄の取得を求めた呼出し側へ、失敗時は空の参照を残します
+	if( extra != nullptr) {
+		*extra = {} ;
+	}
+
 	// 最小構造未満の入力と表現できない展開上限は受理しない
 	if( compressed.size() < MINIMUM_GZIP_BYTES || maximumExpandedBytes == 0 ||
 	   maximumExpandedBytes > static_cast<std::uint64_t>( std::numeric_limits<std::size_t>::max())) {
@@ -400,8 +409,9 @@ NativeError decompressOfficialGzip( const std::span<const std::byte> compressed,
 		return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
 	}
 
-	const std::size_t trailerOffset = compressed.size() - 8 ;	// CRC32/ISIZE開始位置
-	std::size_t		  offset		= 10 ;						// Optional field開始位置
+	const std::size_t		   trailerOffset = compressed.size() - 8 ;	// CRC32/ISIZE開始位置
+	std::size_t				   offset		 = 10 ;						// Optional field開始位置
+	std::span<const std::byte> extraBytes ;								// この成功時だけ返す同入力内の追加欄です
 	// Extra field が宣言された場合だけ、長さを検証して読み飛ばす
 	if( (flags & FLAG_EXTRA) != 0) {
 		// Extra field 長の読取りが trailer へ侵入しないことを確認する
@@ -416,6 +426,7 @@ NativeError decompressOfficialGzip( const std::span<const std::byte> compressed,
 			return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
 		}
 
+		extraBytes = compressed.subspan( offset, extraLength) ;
 		offset += extraLength ;
 	}
 
@@ -496,6 +507,11 @@ NativeError decompressOfficialGzip( const std::span<const std::byte> compressed,
 	}
 
 	expanded = std::move( output) ;
+	// 追加欄の取得を求めている場合だけ検証済みの借用範囲を返します
+	if( extra != nullptr) {
+		*extra = extraBytes ;
+	}
+
 	return 0 ;
 }
 

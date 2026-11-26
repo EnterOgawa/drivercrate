@@ -1,8 +1,8 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_msi.cpp
- * @brief 公式MSI stream取得・cabinet mapping実装
- * @version 01.00.02
+ * @brief 公式MSIのTemplate照合・stream取得・cabinet mapping実装
+ * @version 01.01.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,10 +30,11 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/23  公式MSIのTemplate照合を追加
  * </pre>
  *
- * @note 入力MSIのsizeとSHA-256を処理前後に確認し、parameter queryで選択したstream保存とMedia／File mapping照会だけを行います。失敗時は部分
- *       出力を破棄し、MSIやcustom actionを実行しません
+ * @note 入力MSIのsizeとSHA-256を処理前後に確認し、Template照合、固定stream保存、Media／File mapping照会を行います
+ *       失敗時は部分出力を破棄します
  */
 //------------------------------------------------------------------------------
 
@@ -43,8 +44,10 @@
 #include "platform/official_file_verifier.h"
 
 #include <Msi.h>
+#include <MsiDefs.h>
 #include <MsiQuery.h>
 #include <Windows.h>
+#include <wtypes.h>
 
 #include <algorithm>
 #include <array>
@@ -81,6 +84,11 @@ constexpr wchar_t MEDIA_QUERY[] =
 // 一つのMedia sequence範囲だけを取得する固定parameter SELECT文
 constexpr wchar_t FILE_QUERY[] = L"SELECT `File`, `FileName`, `FileSize`, `Sequence` FROM `File` "
 								 L"WHERE `Sequence` > ? AND `Sequence` <= ? ORDER BY `Sequence`" ;
+
+/**
+ * @brief 変更と置換を拒否して開いた入力MSIのfile handleを所有する
+ */
+using MsiDatabaseGuard = std::unique_ptr<void, decltype( &CloseHandle)> ;
 
 //------------------------------------------------------------------------------
 // 内部関数定義
@@ -228,6 +236,95 @@ constexpr wchar_t FILE_QUERY[] = L"SELECT `File`, `FileName`, `FileSize`, `Seque
 
 	return verifyOfficialFileMetadata(
 		path, {.expectedSize = expectedSize, .expectedSha256 = expectedSha256}) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 読取り中のMSI変更・置換を拒否し、handleが指すfile属性を確認する
+ *
+ * @param[in] databasePath 検証済みのnull終端local絶対MSI path
+ * @param[out] guard 開いたfile handleの所有先。呼出し元は照会とidentity確認が終わるまで保持する
+ * @return 通常fileを保護して開いた場合は0、拒否またはAPI失敗時はHRESULT
+ * @pre guardは空で、nullでないCloseHandle deleterを持つ
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError lockDatabaseFile( const std::wstring &databasePath,
+										   MsiDatabaseGuard	  &guard) noexcept
+{
+	const HANDLE rawDatabaseGuard =
+		CreateFileW( databasePath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+					FILE_FLAG_OPEN_REPARSE_POINT, nullptr) ;	// 読取り中の変更と置換を拒否するhandle
+	// 保護handleを取得できなければWindows Installerへpathを渡さない
+	if( rawDatabaseGuard == INVALID_HANDLE_VALUE) {
+		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	guard.reset( rawDatabaseGuard) ;
+	FILE_ATTRIBUTE_TAG_INFO databaseTag{} ;	// 開いたhandleの属性とreparse tag
+	// Handleの属性を確認できなければ照会を開始しない
+	if( GetFileInformationByHandleEx( guard.get(), FileAttributeTagInfo, &databaseTag,
+									sizeof( databaseTag)) == FALSE) {
+		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	constexpr DWORD REJECTED_ATTRIBUTES =
+		FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT ;	// 入力MSIで拒否する属性
+	return (databaseTag.FileAttributes & REJECTED_ATTRIBUTES) == 0U
+			   ? 0
+			   : nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 読取り専用MSIからTemplate一件を取得して期待値と照合する
+ *
+ * @param[in] databasePath 保護中のMSIを指すnull終端local絶対path
+ * @param[in] expectedTemplate 明示platformと正規10進言語IDを一件ずつ持つ期待値
+ * @return 文字列型のTemplateが完全一致した場合は0、拒否またはAPI失敗時はHRESULT
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError matchDatabaseTemplate( const std::wstring	   &databasePath,
+												const std::wstring_view expectedTemplate) noexcept
+{
+	PMSIHANDLE database ;	// Read-onlyで開き、関数終了時に閉じるMSI database
+	const UINT openResult =
+		// Database取得結果
+		MsiOpenDatabaseW( databasePath.c_str(), MSIDBOPEN_READONLY, &database) ;
+	// MSI databaseとして開けないfileにはSummaryを照会しない
+	if( openResult != ERROR_SUCCESS) {
+		return nativeErrorFromWin32( openResult) ;
+	}
+
+	PMSIHANDLE summary ;	// 更新可能件数0で取得するSummary stream
+	const UINT summaryResult =
+		// Summary取得結果
+		MsiGetSummaryInformationW( database, nullptr, 0U, &summary) ;
+	// Summaryを開けなければplatformと言語を確定しない
+	if( summaryResult != ERROR_SUCCESS) {
+		return nativeErrorFromWin32( summaryResult) ;
+	}
+
+	// 最長の「Intel;」と5桁の言語IDおよび終端を収める受信域
+	std::array<wchar_t, 12> value{} ;
+	DWORD valueCharacters = static_cast<DWORD>( value.size()) ;	// 入力容量と取得後の終端を除く文字数
+	UINT  dataType{} ;											// Summaryが返すTemplateの格納型
+	int	  integerValue{} ;										// APIが要求する整数型propertyの受信域
+	FILETIME   timeValue{} ;									// APIへ渡す日時型propertyの受信域
+	const UINT propertyResult = MsiSummaryInfoGetPropertyW(
+		summary, PID_TEMPLATE, &dataType, &integerValue, &timeValue, value.data(),
+		&valueCharacters) ;	// Template値と格納型の取得結果
+	// 容量超過を含むAPI失敗から部分文字列を採用しない
+	if( propertyResult != ERROR_SUCCESS) {
+		return nativeErrorFromWin32( propertyResult) ;
+	}
+
+	// Wide APIでもTemplateの格納型はVT_LPSTRとし、明示一件と一致する場合だけ受理する
+	if( dataType != VT_LPSTR || valueCharacters != expectedTemplate.size() ||
+	   std::wstring_view( value.data(), valueCharacters) != expectedTemplate) {
+		return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+	}
+
+	return 0 ;
 }
 
 //------------------------------------------------------------------------------
@@ -722,6 +819,70 @@ constexpr wchar_t FILE_QUERY[] = L"SELECT `File`, `FileName`, `FileSize`, `Seque
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 取得済みMSIのTemplateに指定platformと言語一件が明示されていることを確認する
+ * @param[in] databasePath 保護workspace内のlocal絶対MSI path
+ * @param[in] expectedDatabaseSize 取得元で固定したMSI byte数
+ * @param[in] expectedDatabaseSha256 取得元で固定したMSI SHA-256
+ * @param[in] maximumDatabaseBytes 入力MSI全体の最大byte数
+ * @param[in] platform Templateへ完全一致させる明示platform
+ * @param[in] language Templateへ10進表記で完全一致させる0以外の言語ID
+ * @return 前後の入力identityとTemplateが一致する場合は0、拒否またはAPI失敗時はHRESULT
+ * @note Windows Installer databaseをread-onlyで開き、install sequenceやcustom actionを実行しない
+ */
+//------------------------------------------------------------------------------
+NativeError verifyOfficialMsiTemplate( const std::wstring_view	databasePath,
+									  const std::uint64_t		expectedDatabaseSize,
+									  const std::wstring_view	expectedDatabaseSha256,
+									  const std::uint64_t		maximumDatabaseBytes,
+									  const OfficialMsiPlatform platform,
+									  const std::uint16_t		language)
+{
+	// 入力identityや明示するplatformと言語の根拠が欠けた要求を拒否する
+	if( !isLocalAbsoluteMsiPath( databasePath) || expectedDatabaseSize == 0U ||
+	   expectedDatabaseSize > maximumDatabaseBytes || expectedDatabaseSha256.empty() ||
+	   (platform != OfficialMsiPlatform::AMD64 && platform != OfficialMsiPlatform::X86) ||
+	   language == 0U) {
+		return static_cast<NativeError>( E_INVALIDARG) ;
+	}
+
+	try {
+		const std::wstring terminatedPath( databasePath) ;	// Win32とMSI APIへ渡すnull終端path
+		MsiDatabaseGuard   databaseGuard( nullptr,
+										 &CloseHandle) ;								// 照会前後のidentity確認中に保持するhandle
+		NativeError		   error = lockDatabaseFile( terminatedPath, databaseGuard) ;	// 入力保護結果
+		// 保護できないMSIへ照会を行わない
+		if( error != 0) {
+			return error ;
+		}
+
+		error = validateDatabaseFile( databasePath, expectedDatabaseSize, expectedDatabaseSha256,
+									 maximumDatabaseBytes) ;
+		// 固定したsizeとSHA-256が一致するMSIだけを開く
+		if( error != 0) {
+			return error ;
+		}
+
+		const std::wstring expectedTemplate =
+			(platform == OfficialMsiPlatform::AMD64 ? L"x64;" : L"Intel;") +
+			// 許可する明示platformと10進言語IDの組
+			std::to_wstring( language) ;
+		error = matchDatabaseTemplate( terminatedPath, expectedTemplate) ;
+		// 不一致や取得失敗を後続のidentity結果で上書きしない
+		if( error != 0) {
+			return error ;
+		}
+
+		return validateDatabaseFile( databasePath, expectedDatabaseSize, expectedDatabaseSha256,
+									maximumDatabaseBytes) ;
+	} catch( const std::bad_alloc &) {
+		return static_cast<NativeError>( E_OUTOFMEMORY) ;
+	} catch( const std::length_error &) {
+		return static_cast<NativeError>( E_INVALIDARG) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 取得済み公式MSIから固定名stream一件だけをread-onlyで取得する。Read-only parameter queryだけを実行し、失敗時は出力を戻す
  * @param[in] request 入力identity、固定stream名、出力相対path。 入力identity、固定stream、出力path
  * @param[in] policy MSI、stream、読取りbufferへ適用する有限上限。 MSI、stream、bufferの有限上限
@@ -749,41 +910,17 @@ NativeError extractOfficialMsiStream( const OfficialMsiStreamExtractionRequest &
 			return static_cast<NativeError>( E_INVALIDARG) ;
 		}
 
-		const std::wstring lockedDatabasePath( request.databasePath) ;	// Lock用null終端MSI path
-		const HANDLE	   rawDatabaseGuard =
-			CreateFileW( lockedDatabasePath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
-						OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT,
-						nullptr) ;	// 処理中の置換と変更を拒否する所有handle
-		// Database 保護用 handle を開けなければ query を開始しない
-		if( rawDatabaseGuard == INVALID_HANDLE_VALUE) {
-			return nativeErrorFromWin32( GetLastError()) ;
+		const std::wstring lockedDatabasePath( request.databasePath) ;				// Lock用null終端MSI path
+		MsiDatabaseGuard   databaseGuard( nullptr, &CloseHandle) ;					// MSI処理中のidentity固定handle
+		NativeError error = lockDatabaseFile( lockedDatabasePath, databaseGuard) ;	// 入力保護結果
+		// Database を保護できなければ stream を照会しない
+		if( error != 0) {
+			return error ;
 		}
 
-		const auto closeDatabaseGuard = []( void *const handle) noexcept {
-			// 無効な値を解放APIへ渡さず、保持している有効なresourceの後始末を行う
-			if( handle != nullptr && handle != INVALID_HANDLE_VALUE) {
-				CloseHandle( handle) ;
-			}
-		} ; // 全終了経路でidentity固定handleを閉じるdeleter
-		const std::unique_ptr<void, decltype( closeDatabaseGuard)> databaseGuard(
-			rawDatabaseGuard, closeDatabaseGuard) ;	// MSI処理中のidentity固定handle所有者
-		FILE_ATTRIBUTE_TAG_INFO databaseTag{} ;		// Handleが指すfile属性とreparse tag
-		// 開いた database の属性を確認できなければ解析を中止する
-		if( GetFileInformationByHandleEx( databaseGuard.get(), FileAttributeTagInfo, &databaseTag,
-										sizeof( databaseTag)) == FALSE) {
-			return nativeErrorFromWin32( GetLastError()) ;
-		}
-
-		constexpr DWORD REJECTED_DATABASE_ATTRIBUTES =
-			FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT ;	// Lock後も拒否する属性
-		// 禁止属性の database は読取り専用 query にも渡さない
-		if( (databaseTag.FileAttributes & REJECTED_DATABASE_ATTRIBUTES) != 0U) {
-			return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
-		}
-
-		NativeError error = validateDatabaseFile(
-			request.databasePath, request.expectedDatabaseSize, request.expectedDatabaseSha256,
-			policy.maximumDatabaseBytes) ;	// Open前のMSI identity結果
+		error = validateDatabaseFile( request.databasePath, request.expectedDatabaseSize,
+									 request.expectedDatabaseSha256,
+									 policy.maximumDatabaseBytes) ;	// Open前のMSI identity結果
 		// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 		if( error != 0) {
 			return error ;
@@ -1005,41 +1142,16 @@ NativeError inspectOfficialMsiCabinetInventory( const OfficialMsiCabinetInventor
 	}
 
 	try {
-		const std::wstring databasePath( request.databasePath) ;	// LockとMSI API用の絶対path
-		const HANDLE	   rawDatabaseGuard =
-			CreateFileW( databasePath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
-						FILE_FLAG_OPEN_REPARSE_POINT,
-						nullptr) ;	// 照会中の変更と置換を拒否する所有handle
-		// Database を保護する handle が取得できなければ対応表を作成しない
-		if( rawDatabaseGuard == INVALID_HANDLE_VALUE) {
-			return nativeErrorFromWin32( GetLastError()) ;
+		const std::wstring databasePath( request.databasePath) ;					// LockとMSI API用の絶対path
+		MsiDatabaseGuard   databaseGuard( nullptr, &CloseHandle) ;					// MSI処理中のidentity固定handle
+		NativeError		   error = lockDatabaseFile( databasePath, databaseGuard) ;	// 入力保護結果
+		// Database を保護できなければ対応表を作成しない
+		if( error != 0) {
+			return error ;
 		}
 
-		const auto closeDatabaseGuard = []( void *const handle) noexcept {
-			// 無効な値を解放APIへ渡さず、保持している有効なresourceの後始末を行う
-			if( handle != nullptr && handle != INVALID_HANDLE_VALUE) {
-				CloseHandle( handle) ;
-			}
-		} ; // 全終了経路でidentity固定handleを閉じるdeleter
-		const std::unique_ptr<void, decltype( closeDatabaseGuard)> databaseGuard(
-			rawDatabaseGuard, closeDatabaseGuard) ;	// Identity固定handle所有者
-		FILE_ATTRIBUTE_TAG_INFO databaseTag{} ;		// Handleが指す属性とreparse tag
-		// 開いた database の属性を確認できなければ File table を照会しない
-		if( GetFileInformationByHandleEx( databaseGuard.get(), FileAttributeTagInfo, &databaseTag,
-										sizeof( databaseTag)) == FALSE) {
-			return nativeErrorFromWin32( GetLastError()) ;
-		}
-
-		constexpr DWORD REJECTED_DATABASE_ATTRIBUTES =
-			FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT ;	// 拒否する入力属性
-		// 禁止属性の database は File table の読取り対象にも許可しない
-		if( (databaseTag.FileAttributes & REJECTED_DATABASE_ATTRIBUTES) != 0U) {
-			return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
-		}
-
-		NativeError error = validateDatabaseFile( request.databasePath, request.expectedDatabaseSize,
-												 request.expectedDatabaseSha256,
-												 policy.maximumDatabaseBytes) ;	// 照会前identity結果
+		error = validateDatabaseFile( request.databasePath, request.expectedDatabaseSize,
+									 request.expectedDatabaseSha256, policy.maximumDatabaseBytes) ;
 		// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 		if( error != 0) {
 			return error ;

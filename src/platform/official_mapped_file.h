@@ -2,7 +2,7 @@
 /**
  * @file official_mapped_file.h
  * @brief 通常入力fileの固定読取りと所有一時fileの有界mappingを定義する
- * @version 01.00.02
+ * @version 01.01.00
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/11/03  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/23  同一の読取り専用handleで配布署名を照合できるようにする
  * </pre>
  *
  * @note 全mappingの寿命は所有handle内に限定し、入力は変更せず、出力は自身の新規fileだけを削除する
@@ -30,6 +31,8 @@
 #pragma once
 
 #include "core/update_types.h"
+
+#include <Windows.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -89,6 +92,12 @@ public:
 	 * @return owner終了またはcloseまで有効な借用byte列
 	 */
 	[[nodiscard]] std::span<const std::byte> bytes() const noexcept ;
+	/**
+	 * @brief 読取り専用mappingと同じ元ファイルを固定しているhandleを借用する
+	 * @return open成功後からcloseまで有効な非所有handle。空または出力mappingならINVALID_HANDLE_VALUE
+	 * @note 呼出し側はhandleを閉じず、ownerと同期して使う
+	 */
+	[[nodiscard]] HANDLE					 readOnlyHandle() const noexcept ;
 	/**
 	 * @brief 出力mappingだけの書込みviewを返す
 	 * @return create成功時だけ非空。入力ownerでは空

@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from audit_doxygen_members import (
-    audit_members, find_doxygen, neutralize_raw_literal_contents, report_error_count,
+    audit_members, collect_members, find_doxygen, neutralize_raw_literal_contents, report_error_count,
 )
 from source_comments import MemberCommentTarget, convert_member_comments
 from source_style import hidden_process
@@ -141,6 +141,29 @@ class DoxygenRawLiteralFilterTests(unittest.TestCase):
             with self.subTest(source=source):
                 with self.assertRaises(ValueError):
                     neutralize_raw_literal_contents(source)
+
+
+class DoxygenFieldLocationTests(unittest.TestCase):
+    def test_only_same_owned_file_exact_body_declaration_recovers_invalid_xml_line(self):
+        source = ("struct First {\n    bool operator==(const First &) const = default;\n};\n"
+                  "struct Second {\n    /// 保護付きの現在構成です\n    int service;\n"
+                  "    int other;\n};\nstruct Third {\n    int service;\n};\n")
+        xml = ('<doxygen><compounddef kind="struct"><compoundname>Second</compoundname>'
+               '<sectiondef><memberdef kind="variable"><name>service</name>'
+               '<location file="fixture.h" line="{line}" bodyfile="{body_file}" '
+               'bodystart="{body_line}"/></memberdef></sectiondef></compounddef></doxygen>')
+        cases = ((2, "fixture.h", 6, 6), (2, "foreign.h", 6, 2),
+                 (2, "fixture.h", 7, 2), (6, "fixture.h", 10, 6))
+        with tempfile.TemporaryDirectory(prefix="drivercrate-field-location-") as directory:
+            root = Path(directory)
+            for line, body_file, body_line, expected in cases:
+                with self.subTest(line=line, body_file=body_file, body_line=body_line):
+                    (root / "field.xml").write_text(
+                        xml.format(line=line, body_file=body_file, body_line=body_line),
+                        encoding="utf-8", newline="\n")
+                    records, unresolved = collect_members(root, {"fixture.h": source}, root)
+                    self.assertEqual(unresolved, [])
+                    self.assertEqual([record.line for record in records.values()], [expected])
 
 
 class DoxygenMemberIntegrationTests(unittest.TestCase):

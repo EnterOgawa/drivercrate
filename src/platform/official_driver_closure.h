@@ -2,7 +2,7 @@
 /**
  * @file official_driver_closure.h
  * @brief 公式archiveの選択的driver閉包抽出定義
- * @version 01.08.01
+ * @version 01.11.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -37,6 +37,9 @@
  * Ver.01.07.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.08.00 Shunji Ogawa  2026/11/12  本人検査領域とsetup限定の公開親metadata権限へ整合
  * Ver.01.08.01 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.09.00 Shunji Ogawa  2026/11/22  選択した収集rootの公式Models範囲を原INFとCATへ結合
+ * Ver.01.10.00 Shunji Ogawa  2026/11/23  私有収集の検査済み元memberから選択閉包へ接続
+ * Ver.01.11.00 Shunji Ogawa  2026/11/24  元ZIPに結んだ混在シリアル媒体を私有閉包へ接続
  * </pre>
  *
  * @note G11-Bで固定した公式ZIP／CABから、選択INF、CATおよびINFが参照するfileだけを保護workspaceへ分離し、任意codeは実行しません
@@ -127,6 +130,69 @@ struct DriverArchiveInput {
 	OfficialWorkspaceMode workspaceMode{OfficialWorkspaceMode::ADMINISTRATOR} ;
 } ;
 
+/** @brief 検査済みの元archiveに含まれる通常fileの借用範囲 */
+struct CollectorArchiveMemberView {
+	/// 大小文字を保持する元Windows相対path
+	std::wstring_view		   relativePath ;
+	/// 同期検査中に固定した元展開byte
+	std::span<const std::byte> bytes ;
+} ;
+
+/**
+ * @brief 元archiveと検査済みmemberを一回の私有収集だけへ結ぶ
+ * @note 作成元のreaderは原本への結合を確認し、展開された元byteを同期検査完了まで保持する
+ */
+class CollectorArchiveMembers final {
+public:
+	/**
+	 * @brief 同じ元packageの固定identityを借用する
+	 * @return Readerが同期中に保持する元検査入力
+	 */
+	[[nodiscard]] const DriverArchiveInput &input() const noexcept
+	{
+		return input_ ;
+	}
+	/**
+	 * @brief 同じ元packageの選択範囲に属する通常fileを借用する
+	 * @return 元pathと内容を保持する同期中だけ有効な一覧
+	 */
+	[[nodiscard]] std::span<const CollectorArchiveMemberView> files() const noexcept
+	{
+		return files_ ;
+	}
+	/**
+	 * @brief 同じ私有収集操作の取消し照会を借用する
+	 * @return 同期中だけ有効な非blocking照会。未指定時は空
+	 */
+	[[nodiscard]] const std::function<bool()> &cancellation() const noexcept
+	{
+		return cancellation_ ;
+	}
+
+private:
+	friend class CollectorGooGetArchiveReader ;
+	friend class CollectorReviewedSerialArchiveReader ;
+	/**
+	 * @brief 検査元が保持する原本と展開済み範囲を同期中だけ借用する
+	 * @param[in] input 元ファイルとハッシュを照合済みの検査入力
+	 * @param[in] files 名前空間と構造を検証済みの元通常file群
+	 * @param[in] cancellation 同操作の取消し照会。未指定時は空
+	 */
+	CollectorArchiveMembers( const DriverArchiveInput				   &input,
+							std::span<const CollectorArchiveMemberView> files,
+							const std::function<bool()>				   &cancellation) noexcept
+		: input_( input), files_( files), cancellation_( cancellation)
+	{
+	}
+
+	/// 元fileの固定検査入力
+	const DriverArchiveInput				   &input_ ;
+	/// 元範囲を検証済みのfile群
+	std::span<const CollectorArchiveMemberView> files_ ;
+	/// 外側readerと同じ同期取消し照会
+	const std::function<bool()>				   &cancellation_ ;
+} ;
+
 /**
  * @brief 選択的driver閉包が受理するarchive形式を表す
  */
@@ -176,17 +242,19 @@ struct DriverArchiveInventoryRequest {
 /** @brief 由来を変更せず選択INFの内容閉包を作る要求である */
 struct DriverClosureRequest {
 	/// 呼出し中有効な内容検査入力。Nullを拒否する
-	const DriverArchiveInput		  *input{} ;
+	const DriverArchiveInput			 *input{} ;
 	/// 実行せず解析する外側形式
-	OfficialDriverArchiveFormat		   archiveFormat{OfficialDriverArchiveFormat::ZIP} ;
+	OfficialDriverArchiveFormat			  archiveFormat{OfficialDriverArchiveFormat::ZIP} ;
 	/// 空またはinventoryで確認した一段nested archive相対path
-	std::wstring_view				   nestedArchivePath ;
+	std::wstring_view					  nestedArchivePath ;
 	/// 有限inventoryから選択したINF相対path群
-	std::span<const std::wstring_view> selectedInfPaths ;
+	std::span<const std::wstring_view>	  selectedInfPaths ;
 	/// 出力保護workspaceのASCII識別子
-	std::wstring_view				   workspaceTag ;
+	std::wstring_view					  workspaceTag ;
 	/// 空は従来単独。非空は同じflat原入力/同workspaceだけを共有する同期owner
-	DriverArchiveExtractionCache	  *cache{} ;
+	DriverArchiveExtractionCache		 *cache{} ;
+	/// 一件の収集rootだけに結ぶ公式Models範囲。同期呼出し中だけ借用する
+	const OfficialInfScopedModelsRequest *scopedModels{} ;
 } ;
 
 /**
@@ -310,13 +378,32 @@ struct MaintenanceDriverClosure {
  * @param[in,out] workspace 未初期化の出力領域。生成fileをscope終了まで所有する
  * @param[out] closure 全成功時だけ閉包を保持し、失敗時は空
  * @return 静的検査と解析前後のsize／hash一致時0、それ以外はHRESULT
- * @note Worker内でblockingする。署名、由来、PnP、導入許可は別の検証を必要とする
+ * @note Worker内でblockingする。公式範囲は収集用の一選択INFだけに結び、同元CATを先行抽出する
+ *       全参照fileの署名、由来、PnP、導入許可は別の検証を必要とする
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError extractDriverClosure( const DriverClosureRequest		 &request,
 											   const OfficialDriverClosurePolicy &policy,
 											   OfficialDownloadWorkspace		 &workspace,
 											   OfficialDriverClosure			 &closure) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 私有収集readerが固定した元通常fileから単一INFの内容閉包を抽出する
+ * @param[in] members 原archiveと同じ操作で検査した元範囲
+ * @param[in] request 同じ元入力、完全な選択INF相対名一件とworkspace tag
+ * @param[in] policy 収集専用のINF・閉包上限
+ * @param[in,out] workspace 未作成の現在user検査領域。生成物を同期呼出し後も所有する
+ * @param[out] closure 全参照の抽出成功時だけ保持する閉包
+ * @return 抽出成功時0、元選択、内容、取消し、作成失敗はHRESULT
+ * @note 読取りはメモリーの固定元範囲に限定する。端末導入や通常の形式選択には接続しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError extractCollectorArchiveClosure( const CollectorArchiveMembers	   &members,
+														 const DriverClosureRequest		   &request,
+														 const OfficialDriverClosurePolicy &policy,
+														 OfficialDownloadWorkspace &workspace,
+														 OfficialDriverClosure	   &closure) ;
 
 //------------------------------------------------------------------------------
 /**

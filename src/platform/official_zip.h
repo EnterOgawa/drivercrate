@@ -2,7 +2,7 @@
 /**
  * @file official_zip.h
  * @brief 公式ZIP package安全展開定義
- * @version 01.01.02
+ * @version 01.02.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/11/05  非管理者の定義取込用に有限memory出力を追加
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.00 Shunji Ogawa  2026/11/22  規約メンバーの原バイトと指定文を共通ZIPで照合
  * </pre>
  *
  * @note 未信頼ZIPのpath traversal、重複名、reparse表現、暗号化、展開量超過を拒否して保護workspaceへ展開します。内容の真正性は呼出側が検証します
@@ -88,6 +89,20 @@ struct OfficialZipFile {
 	std::vector<std::byte> bytes ;
 } ;
 
+/** @brief 審査済み規約メンバーの原バイト条件です。各viewは照合中だけ呼出側から借用します */
+struct OfficialZipNoticeExpectation {
+	/// 大文字小文字を含めた正規Windows相対file名です
+	std::wstring_view relativePath ;
+	/// 審査済みの展開後byte数です
+	std::uint64_t	  byteCount ;
+	/// メンバー全体に対する64桁小文字SHA-256です
+	std::wstring_view sha256 ;
+	/// 規約指定文の元ファイル内byte位置です
+	std::uint64_t	  statementOffset ;
+	/// 指定位置に求める印字可能ASCIIの原指定文です
+	std::string_view  statement ;
+} ;
+
 //------------------------------------------------------------------------------
 /**
  * @brief 全entryを共通検査し、CRC検証後の全通常fileをmemoryへ展開します
@@ -101,6 +116,20 @@ struct OfficialZipFile {
 [[nodiscard]] NativeError readOfficialZip( std::span<const std::byte>		 archive,
 										  const OfficialZipExtractionPolicy &policy,
 										  std::vector<OfficialZipFile>		&files) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通ZIPの事前検査と一件の有限展開から、審査済み規約メンバーとその指定文を照合します
+ * @param[in] archive 呼出し中だけ借用する取得済みZIPの原byteです
+ * @param[in] policy 選択外を含むZIP全体の固定展開上限です
+ * @param[in] expected 正規相対名と原size、hash、指定文の位置と内容です
+ * @return 全照合が成立すれば0、不正入力・形式・不一致はHRESULTです
+ * @note メンバーを作成・返却しません。外側ZIPの出典と原hash、配布と同意は呼出側が別に照合します
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyOfficialZipNotice( std::span<const std::byte>		  archive,
+												  const OfficialZipExtractionPolicy	 &policy,
+												  const OfficialZipNoticeExpectation &expected) ;
 
 //------------------------------------------------------------------------------
 /**

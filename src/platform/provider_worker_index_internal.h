@@ -2,7 +2,7 @@
 /**
  * @file provider_worker_index_internal.h
  * @brief 通常workerの固定索引serviceと隔離fixture能力を定義します
- * @version 01.07.02
+ * @version 01.09.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,8 @@
  * Ver.01.07.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合
  * Ver.01.07.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.07.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.08.00 Shunji Ogawa  2026/11/18  P3同scan fullhost観測と取得直前拒否を接続
+ * Ver.01.09.00 Shunji Ogawa  2026/11/20  機種条件付き行の端末型番観測を追加
  * </pre>
  *
  * @note 製品constructorはこの能力を外部入力から作りません
@@ -53,10 +55,24 @@
 #include <optional>
 
 namespace drivercrate::provider_worker_index_detail {
+//------------------------------------------------------------------------------
+/**
+ * @brief 端末内のSMBIOS由来の製造元と製品名だけを読み取ります
+ * @return 確認済みの製造元と型番です。読取り不能では不明を返します
+ * @note 通信や永続設定の変更は行いません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] IndexPlatformMachineIdentity observeIndexPlatformMachine() ;
+
 /** @brief 元lookupと完全scan contextだけをadapter開始へ渡す内部関数型です */
 using IndexAcquisitionBegin = std::function<NativeError(
 	SignedIndexAcquisitionAdapter &, std::shared_ptr<const SignedIndexRecordLookup>,
 	IndexLookupContext, IndexTargetOs, std::optional<std::chrono::sys_seconds>)> ;
+/** @brief 同scan fullhostと明示readerだけを既adapterへ渡す内部関数型です */
+using IndexHostAcquisitionBegin = std::function<NativeError(
+	SignedIndexAcquisitionAdapter &, std::shared_ptr<const SignedIndexRecordLookup>,
+	IndexLookupContext, IndexScanHostSnapshot, WindowsHostPlatformObserver,
+	std::optional<std::chrono::sys_seconds>)> ;
 /** @brief 実member hashを照合する内部署名fixtureの単独所有factory型です */
 using PackageSignatureFixtureFactory =
 	std::function<std::unique_ptr<driver_package_signature_detail::ScopedFixture>()> ;
@@ -80,6 +96,10 @@ struct Services {
 	std::function<std::optional<IndexTargetOs>()>							 targetOs ;
 	/// 内部createAcquisitionFixtureだけが固定fixture-mainの開始関数を保持します
 	IndexAcquisitionBegin													 beginAcquisition ;
+	/// 同scanの初回/取得直前に使う明示observerです。空をnativeへ補完しません
+	WindowsHostPlatformObserver												 hostPlatform ;
+	/// 内部fixtureだけの固定fullhost開始です。既product/fake profileを変更しません
+	IndexHostAcquisitionBegin												 beginHostAcquisition ;
 	/// 内部fixtureの完全な低位HTTP呼出し表。製品入口は空です
 	std::function<OfficialHttpTransport()>									 httpTransport ;
 	/// 内部fixtureの回線分類境界。製品入口はWindows標準境界を使用します
@@ -100,6 +120,8 @@ struct Services {
 	std::function<IndexRefreshSummary( const ProviderScanCancellation &)>		  refresh ;
 	/// 通常検索前の再検出です。製品二引数入口だけnative、空のfixtureは補完しません
 	std::function<HardwareRefreshResult()>										  hardwareRefresh ;
+	/// 機種条件付き索引用の端末内型番観測です。空は不明として扱います
+	std::function<IndexPlatformMachineIdentity()>								  platformMachine ;
 } ;
 /** @brief Unit専用serviceをprivate worker constructorへ結ぶ内部能力です */
 struct Access {

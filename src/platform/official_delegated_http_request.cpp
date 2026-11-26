@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_http_request.cpp
  * @brief Record限定grantから一回のGETだけを作る秘密requestを実装します
- * @version 01.05.02
+ * @version 01.07.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,8 @@
  * Ver.01.05.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続
  * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.05.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.06.00 Shunji Ogawa  2026/11/23  元要求のWiX指定転送先を共通HTTPへ渡す
+ * Ver.01.07.00 Shunji Ogawa  2026/11/23  要求移動時に元応答の待機観測を引き継ぐ
  * </pre>
  *
  * @note 例外をworker境界へ漏らさず、放棄時もgrantを失敗終端してURLを消去します
@@ -326,6 +328,19 @@ NativeError OfficialDelegatedGetRequest::validateSignedIndexHop(
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 同じ取得要求のWiX証拠に結んだ一回の301転送先を借用します
+ * @return WiX対象外はnullopt、対象の封印不成立は空のview、成立時は指定先です
+ * @note 呼出しは共通HTTPの同期処理に限り、応答や他の許可から指定先を作りません
+ */
+//------------------------------------------------------------------------------
+std::optional<std::wstring_view> OfficialDelegatedGetRequest::signedWixRedirectDestination()
+	const noexcept
+{
+	return grant_ == nullptr ? std::nullopt : grant_->signedWixRedirectDestination() ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief Grantが固定した期待content typeを借用します
  * @return 結合grantの期待形式。空requestは空です
  */
@@ -367,6 +382,7 @@ void OfficialDelegatedGetRequest::abandon() noexcept
 void OfficialDelegatedGetRequest::moveFrom( OfficialDelegatedGetRequest &other) noexcept
 {
 	auxiliary_	  = std::exchange( other.auxiliary_, {}) ;
+	payloadRetry_ = std::exchange( other.payloadRetry_, {}) ;
 	grant_		  = std::exchange( other.grant_, nullptr) ;
 	targetUrl_	  = std::move( other.targetUrl_) ;
 	state_		  = std::exchange( other.state_, OfficialDelegatedGetState::EMPTY) ;

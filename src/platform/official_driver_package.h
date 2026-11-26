@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package.h
  * @brief 公式標準INF driver package検証定義
- * @version 01.23.03
+ * @version 01.65.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -65,6 +65,50 @@
  * Ver.01.23.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.23.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.23.03 Shunji Ogawa  2026/11/13  元適用性errorへ固定失敗leafとcode由来だけを接続
+ * Ver.01.24.00 Shunji Ogawa  2026/11/15  非実行storage内容と必須null importを通常導入資格から分離
+ * Ver.01.25.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.26.00 Shunji Ogawa  2026/11/16  選択storageの原Class対を同一factsに保持
+ * Ver.01.27.00 Shunji Ogawa  2026/11/17  選択MTDの原COPY行とmember型を追加
+ * Ver.01.27.01 Shunji Ogawa  2026/11/17  標準TapeDriveのClass名とGUIDの一意対を明記
+ * Ver.01.28.00 Shunji Ogawa  2026/11/17  宣言Server scopeとpolicy・Models・identityを分離接続
+ * Ver.01.29.00 Shunji Ogawa  2026/11/18  CopyINF由来の限定registry-only内容と通常導入拒否を分離
+ * Ver.01.30.00 Shunji Ogawa  2026/11/19  収集元のプロパティページDLLと原callbackの照合要求を保持
+ * Ver.01.31.00 Shunji Ogawa  2026/11/19  表示用の独自クラスを内容検査専用の結果に分離
+ * Ver.01.32.00 Shunji Ogawa  2026/11/19  AMD64媒体表に共通の有効行を含める読取を追加
+ * Ver.01.33.00 Shunji Ogawa  2026/11/19  端末の選択Models行を元署名INFへ読み取り照合
+ * Ver.01.34.00 Shunji Ogawa  2026/11/19  現在OSが選ぶ元クラス登録の表示情報を保持
+ * Ver.01.35.00 Shunji Ogawa  2026/11/20  収集の非実行作用調査の追加枠を明記
+ * Ver.01.36.00 Shunji Ogawa  2026/11/20  収集でWindows標準INFへ委譲する元選択節を保持
+ * Ver.01.37.00 Shunji Ogawa  2026/11/20  Windows標準Portsへ委譲する収集元プロパティページ節を保持
+ * Ver.01.38.00 Shunji Ogawa  2026/11/20  標準NVMeを参照する収集元の空ファイル一覧を保持
+ * Ver.01.39.00 Shunji Ogawa  2026/11/20  収集用メディアチェンジャーの署名と保護資源の確認を明記
+ * Ver.01.40.00 Shunji Ogawa  2026/11/21  元SYSを持つHDCの収集検査対象を保持
+ * Ver.01.41.00 Shunji Ogawa  2026/11/21  元SYSを持つHDCの導入節を収集と端末で共有
+ * Ver.01.42.00 Shunji Ogawa  2026/11/21  自己媒体Portsの元選択と標準ページの登録を保持
+ * Ver.01.43.00 Shunji Ogawa  2026/11/22  公式配布対象に結ぶModels全行の読取り証拠を追加
+ * Ver.01.44.00 Shunji Ogawa  2026/11/22  元CAT所属を確認した収集INFだけにModelsの別計数を接続
+ * Ver.01.45.00 Shunji Ogawa  2026/11/22  公式対象に結ぶ導入セクションの棚卸しを追加
+ * Ver.01.46.00 Shunji Ogawa  2026/11/22  公式Net対象のイベントファイルの確認件数を追加
+ * Ver.01.47.00 Shunji Ogawa  2026/11/22  元Modelsの有限枠を収集専用の原証拠と共用
+ * Ver.01.48.00 Shunji Ogawa  2026/11/22  Windows選択nodeと一意な公式Models行の読取契約を追加
+ * Ver.01.49.00 Shunji Ogawa  2026/11/22  公式Modelsの同じ行と実導入節の必要関係を結合
+ * Ver.01.50.00 Shunji Ogawa  2026/11/22  公式Netの実選択作用とWindows標準DLLの証拠を保持
+ * Ver.01.51.00 Shunji Ogawa  2026/11/22  公式収集の同梱Needsの元証拠を棚卸しに接続
+ * Ver.01.52.00 Shunji Ogawa  2026/11/22  同梱Needsの検査結果を一つの元選択に保持
+ * Ver.01.53.00 Shunji Ogawa  2026/11/22  実選択で確認した元SYSと付随媒体の全バイトを保持
+ * Ver.01.54.00 Shunji Ogawa  2026/11/22  元直接CABの閉包確認を公式範囲の読取りへ結合
+ * Ver.01.55.00 Shunji Ogawa  2026/11/22  選択SCSIAdapterの要求時起動補助サービス原行を保持
+ * Ver.01.56.00 Shunji Ogawa  2026/11/23  ストレージ補助サービスの直接コピーとSystemイベント表記を定義
+ * Ver.01.57.00 Shunji Ogawa  2026/11/23  ストレージの同梱INFへの空ドライバー委譲を元選択へ限定
+ * Ver.01.58.00 Shunji Ogawa  2026/11/23  空ドライバー委譲を現在Modelsとノードの完全ID列に照合
+ * Ver.01.59.00 Shunji Ogawa  2026/11/23  同じ選択が置く名前付きイベント資源の元コピーを保持
+ * Ver.01.60.00 Shunji Ogawa  2026/11/23  ストレージの実選択を固定した元INFの現在Modelsに照合
+ * Ver.01.60.01 Shunji Ogawa  2026/11/24  公式USB Bluetoothの同梱Needs入力の契約を明記
+ * Ver.01.61.00 Shunji Ogawa  2026/11/24  混在シリアル媒体の元参照を私有収集へ分離
+ * Ver.01.62.00 Shunji Ogawa  2026/11/24  収集専用クラス登録の元INFハッシュを保持
+ * Ver.01.63.00 Shunji Ogawa  2026/11/24  同梱WinUSBの選択に属する元機器登録節を保持
+ * Ver.01.64.00 Shunji Ogawa  2026/11/24  収集専用の共有Ports標準ページと元媒体を保持
+ * Ver.01.65.00 Shunji Ogawa  2026/11/24  独自クラスの単一KMDF元媒体の収集用照合を追加
  * </pre>
  *
  * @note 保護workspaceへ展開済みの標準INF packageを、現在のWindows x64に対する構造、適用ID、参照fileおよびcatalog署名の境界で検証します
@@ -76,10 +120,12 @@
 #include "core/update_types.h"
 #include "core/official_driver_rank.h"
 #include "platform/inf_dependency_plan.h"
+#include "platform/official_file_verifier.h"
 #include "platform/official_zip.h"
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <span>
 #include <string>
@@ -101,7 +147,7 @@ struct OfficialInfModelsPlatform {
 	std::uint32_t buildNumber{} ;
 	/// AMD64だけを採用します
 	std::uint16_t processorArchitecture{9U} ;
-	/// VER_NT_WORKSTATIONだけを採用します
+	/// 明示観測はclient=1/DC=2/Server=3です。現host分類や導入許可ではありません
 	std::uint8_t  productType{1U} ;
 	/// 今回はsuite0です
 	std::uint16_t suiteMask{} ;
@@ -131,6 +177,91 @@ struct OfficialInfPublishedIdentity {
 	std::wstring								  classGuid ;
 	/// 最大128節の指定OS（未指定時は現OS）選択結果です。空/部分失敗を公開しません
 	std::vector<OfficialInfPublishedModelSection> models ;
+} ;
+
+/** @brief 元ModelsのHardware欄にある公式配布対象の一つです */
+struct OfficialInfScopedModelMatch {
+	/// 元Models内の1から始まる行位置です
+	std::uint32_t modelRow{} ;
+	/// Windowsが展開した元Hardware IDです
+	std::wstring  hardwareId ;
+	/// 同じ元行の基本導入節名です
+	std::wstring  installBase ;
+} ;
+
+/** @brief Windowsが選択した一Models節の全行の証拠と公式配布対象です */
+struct OfficialInfScopedModelsSection {
+	/// Manufacturerが宣言した実在の節名です
+	std::wstring							 modelSection ;
+	/// 型付きフィールドの読み取りを完了した元行数です
+	std::uint32_t							 modelRows{} ;
+	/// HardwareとCompatibleの種別を合わせた延べ元IDフィールド数です
+	std::uint32_t							 idFields{} ;
+	/// 基本導入節と型付きIDの全行を順序付きで固定した小文字SHA-256です
+	std::wstring							 orderedRowsSha256 ;
+	/// この節に一意に見つかった公式Hardware IDです。元行順を保持します
+	std::vector<OfficialInfScopedModelMatch> matches ;
+} ;
+
+/** @brief 全読取りに成功した一つのINFの配布対象証拠です。署名や導入許可を表しません */
+struct OfficialInfScopedModelsEvidence {
+	/// 読取り前後に確認した元INFの小文字SHA-256です
+	std::wstring								infSha256 ;
+	/// Models選択に明示したOSです。空は現在OSです
+	std::optional<OfficialInfModelsPlatform>	platform ;
+	/// 公式対象を持たない節も含む、同じOSのWindows選択節です
+	std::vector<OfficialInfScopedModelsSection> sections ;
+} ;
+
+/// 元INFと収集専用原証拠で共通に使うWindows選択節の上限
+inline constexpr std::size_t   OFFICIAL_SCOPED_MODELS_MAX_SECTIONS = 128U ;
+/// 選択節の合計行数の上限
+inline constexpr std::uint32_t OFFICIAL_SCOPED_MODELS_MAX_ROWS = 16'384U ;
+/// 全行のHardware／Compatible IDフィールド合計の上限
+inline constexpr std::uint32_t OFFICIAL_SCOPED_MODELS_MAX_ID_FIELDS = 65'536U ;
+/// 同じ公式応答の全対象ID数の上限
+inline constexpr std::size_t   OFFICIAL_SCOPED_MODELS_MAX_TARGETS = 512U ;
+
+/** @brief 同じ公式配布の選択INFだけに使う収集時の読取り要求です */
+struct OfficialInfScopedModelsRequest {
+	/// 明示OSです。nullは現在OSだけを示します
+	const OfficialInfModelsPlatform *platform{} ;
+	/// 同じ公式明細で確認した完全Hardware IDの全件です
+	std::span<const std::wstring>	 hardwareIds ;
+	/// 収集閉包では実元INFを展開した時点のハッシュへ固定する値です
+	std::wstring_view				 infSha256 ;
+	/// 同じarchiveの同期workerからの取消し照会です
+	const std::function<bool()>		*cancellation{} ;
+	/// 選択INFが指定した同配布内の元CATのハッシュです
+	std::wstring_view				 catalogSha256 ;
+	/// 閉包抽出中に元入力が直接CABだと確認した場合だけtrueです
+	bool							 sameDirectCabinet{} ;
+} ;
+
+/** @brief Windows互換nodeが選ぶ元Models行の作用区分 */
+enum class OfficialInfSelectedModelRole {
+	/// 検査を完了していない
+	UNASSESSED,
+	/// 実ファイルを使用しない明示的な空サービス
+	NULL_DRIVER,
+	/// 同じ元コピーに結合したカーネルサービスを含む行
+	KERNEL_DRIVER,
+} ;
+
+/** @brief INF構造検査の用途です。内容用途は導入資格へ変換しません */
+enum class OfficialInfInspectionPurpose {
+	/// 従来の通常driver構造検査です。既存Class policyを維持します
+	STANDARD_DRIVER,
+	/// collectorが明示選択した非実行内容だけです
+	COLLECTOR_CONTENT,
+	/// 同内容閉包のCopyINFから到達した必須importだけです
+	REQUIRED_COLLECTOR_IMPORT,
+	/// appが明示選択した元archiveをADMIN領域で独立再検査する用途です。導入権限ではありません
+	DEVICE_STORAGE_CANDIDATE,
+	/// 同storage原CopyINFから到達した必須importです。独立候補にはなりません
+	REQUIRED_STORAGE_IMPORT,
+	/// 端末で表示用の独自クラス登録を確認した内容結果です。導入計画に使用しません
+	DECLARATIVE_CLASS_CONTENT,
 } ;
 
 /**
@@ -163,6 +294,10 @@ struct OfficialInfInspectionPolicy {
 	bool							   allowRequiredDriverComponents{} ;
 	/// trueは既知script/program参照も内容DATAとして検査します。実行とdriver scopeの合格を意味しません
 	bool							   allowWindowsManagedDriverDataForContent{} ;
+	/// 非実行内容と必須importだけの追加形式を通常導入policyから分離します
+	OfficialInfInspectionPurpose	   purpose{OfficialInfInspectionPurpose::STANDARD_DRIVER} ;
+	/// 審査済みシリアル媒体を受け取る私有収集の基本INFだけでtrue
+	bool							   collectorSerialMedia{} ;
 } ;
 
 //------------------------------------------------------------------------------
@@ -172,6 +307,7 @@ struct OfficialInfInspectionPolicy {
  * @param[in] infRelativePath 同領域内の元INF相対位置です
  * @param[in] maximumFiles 元sourceの有限件数上限です
  * @param[out] paths 全成功時だけ同INF/同媒体に結合する安全相対pathです。失敗時は空です
+ * @param[in] includeCommonFallback AMD64専用表から解決できない共通媒体行も列挙する場合true
  * @return 全取得成功0、欠損・過長・不正位置・容量超過のHRESULTです
  * @note 原圧縮sourceの探索準備だけです。実byte/CAT/導入可能性の証明ではありません
  */
@@ -179,7 +315,8 @@ struct OfficialInfInspectionPolicy {
 [[nodiscard]] NativeError readOfficialInfSourcePaths( const OfficialDownloadWorkspace &workspace,
 													 std::wstring_view			infRelativePath,
 													 std::size_t				maximumFiles,
-													 std::vector<std::wstring> &paths) ;
+													 std::vector<std::wstring> &paths,
+													 bool includeCommonFallback = false) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -209,6 +346,59 @@ struct OfficialInfComponentReference {
 	bool operator==( const OfficialInfComponentReference &other) const = default ;
 } ;
 
+/** @brief 収集元INFの全該当所有先から同じ原コピーへ結んだ必須export検査です */
+struct OfficialInfPropertyPage {
+	/// 当該INFの宣言sourceに含まれるworkspace相対位置です
+	std::wstring sourceRelativePath ;
+	/// 同じDLLが公開する必要がある元の大文字小文字を保った名前です
+	std::wstring callback ;
+} ;
+
+/** @brief 正式Portsの自己媒体とWindows標準ページを結ぶ元選択の読み取り結果 */
+struct OfficialInfNativePortsPage {
+	/// 全元Modelsが指定する同じ未修飾DDInstall名
+	std::wstring	   basicSection ;
+	/// AMD64 Modelsから一意に解決した元DDInstall
+	std::wstring	   installSection ;
+	/// 元DDInstallが直接所有する標準ページの登録節
+	std::wstring	   registrySection ;
+	/// 元選択の関連カーネルサービスへ結ぶ元SYSの媒体相対位置
+	std::wstring	   driverSource ;
+	/**
+	 * @brief 元Models、登録節、媒体位置が再検査でも同じか確認する
+	 * @param[in] other 比較対象の独立した読取り結果
+	 * @return すべての元値が一致する場合true
+	 */
+	[[nodiscard]] bool operator==( const OfficialInfNativePortsPage &other) const = default ;
+} ;
+
+/** @brief 複数のPorts導入節が共有する標準ページと元媒体の収集専用証拠 */
+struct OfficialInfCollectorSharedPortsPage {
+	/// 全元選択が直接所有する同じ標準ページ登録節
+	std::wstring registrySection ;
+	/// 全元サービスが使用するAMD64 SYSの媒体相対位置
+	std::wstring driverSource ;
+} ;
+
+/**
+ * @brief 混在シリアル媒体の自前SYSとWindowsへの依存を元選択節から保持する
+ * @note 構造を確認した参照であり、同梱側の署名・実ファイル・作用の成立は別に確認する
+ */
+struct OfficialInfCollectorSerialMedia {
+	/// 元サービスと二つの選択が参照した同じAMD64 SYSの媒体相対位置
+	std::wstring						   driverSource ;
+	/// 各選択の実DDInstall、HW、Servicesをこの順に保持する
+	std::vector<std::vector<std::wstring>> groups ;
+} ;
+
+/** @brief 同じNVMe元基本節で参照された空のファイル一覧です */
+struct OfficialInfInboxNvmeLists {
+	/// 元CopyFilesが直接指定する実在の空節です
+	std::wstring copy ;
+	/// 元DelFilesが直接指定する実在の空節です
+	std::wstring remove ;
+} ;
+
 /**
  * @brief 現在のWindows x64に適用可能な一つの標準INFの検証済み構造を表す
  */
@@ -217,7 +407,7 @@ struct OfficialInfPackage {
 	std::wstring							   infRelativePath ;
 	/// INFと同じdirectoryにあるCAT相対path
 	std::wstring							   catalogRelativePath ;
-	/// Allowlistと一致したINF Class
+	/// 元INFから確認したClass名
 	std::wstring							   className ;
 	/// Allowlistと一致したINF Provider
 	std::wstring							   providerName ;
@@ -255,7 +445,267 @@ struct OfficialInfPackage {
 	bool									   unresolvedIncludeNeeds{} ;
 	/// 内容だけで受理した元program/archive参照が同INFの正式copy/serviceへ未結合の場合true。実行や不適合を意味しない
 	bool									   hasUnassessedProgramReferences{} ;
+	/// 実構造検査が設定した用途です。非実行内容を通常bindingへ渡せません
+	OfficialInfInspectionPurpose inspectionPurpose{OfficialInfInspectionPurpose::STANDARD_DRIVER} ;
+	/// 全潜在節を検査した正式Systemのfileなし必須null importだけがtrueです
+	bool						 requiredNullCompanion{} ;
+	/// CopyINF由来collector内容だけの限定HKR DWORD形式です。nullや導入資格ではありません
+	bool						 requiredRegistryOnlyCompanion{} ;
+	/// 明示選択collector rootだけの署名後照合要求です。実行や導入の資格を持ちません
+	std::optional<OfficialInfPropertyPage>			   collectorPropertyPage ;
+	/// 自己媒体Portsの元構造です。元CATとWindows標準DLLの独立照合を後段で行います
+	std::optional<OfficialInfNativePortsPage>		   nativePortsPage ;
+	/// 元書庫とWindows標準ページを別に検査する共有Portsの収集専用証拠
+	std::optional<OfficialInfCollectorSharedPortsPage> collectorSharedPortsPage ;
+	/// 自前媒体と同梱SerialEnumeratorが両方必要な私有収集の元参照
+	std::optional<OfficialInfCollectorSerialMedia>	   collectorSerialMedia ;
+	/// 元DDInstall実名を先頭に同じ選択の付随節を並べた収集専用の依存検査要求です
+	std::vector<std::vector<std::wstring>>			   collectorInboxInstallGroups ;
+	/// 元SYSを持つHDCの基本・HW・Servicesを全AMD64選択について保持
+	std::vector<std::vector<std::wstring>>			   nativeHdcInstallGroups ;
+	/// 元基本節が直接参照する標準Portsプロパティページ登録節です。適用外では空です
+	std::wstring									   collectorInboxPropertyPageSection ;
+	/// 公式対象の元HW節が所有する同梱WinUSB用のGUID登録節。適用外では空
+	std::wstring									   collectorInboxWinUsbRegistrySection ;
+	/// 収集専用NVMe元構造の照合を通過した空リストです。署名検査の後で再確認します
+	std::optional<OfficialInfInboxNvmeLists>		   collectorInboxNvmeLists ;
+	/// 署名済み元Modelsの証拠と公式Hardware欄の一致です。通常の導入用は空です
+	std::optional<OfficialInfScopedModelsEvidence>	   scopedModels ;
+	/// 追加のクラス登録を認めた収集INFのSHA-256。展開記録とCAT検査で照合する。従来形式では空
+	std::wstring									   collectorClassInfSha256 ;
 } ;
+
+/** @brief 選択INFが対象クラスの初回登録時に指定する表示情報 */
+struct OfficialInfDeclarativeClassRegistration {
+	/// 読み取り前後で確認した選択元INFのハッシュ
+	std::wstring	   infSha256 ;
+	/// 元INFとWindowsの両方で確認した対象クラスGUID
+	std::wstring	   classGuid ;
+	/// Windowsが現在OS用に解決した元ClassInstall32節
+	std::wstring	   section ;
+	/// 同節から登録するクラスの表示名
+	std::wstring	   displayName ;
+	/// 元INFが使用する場合だけ存在する負の内蔵アイコン番号
+	std::optional<int> builtInIcon ;
+	/**
+	 * @brief 同じ元INFクラス登録の再観測と比較する
+	 * @param[in] other 別時点または別選択で得たクラス登録
+	 * @return 元ハッシュ、GUID、節、表示名、アイコンが同じ場合true
+	 */
+	bool operator==( const OfficialInfDeclarativeClassRegistration &other) const = default ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択済みWindows nodeの元Models行と必要時の初回クラス登録を同じ保護INFから確認する
+ * @param[in] workspace 元の内容検査済みファイルを所有する領域
+ * @param[in] package 端末で確認した独自クラスの内容検査結果
+ * @param[in] expectedSha256 元Models全体を確認したINFのハッシュ
+ * @param[in] modelsSection 選択時に照合済みの現在OS用Models節
+ * @param[in] basicSection Windows互換nodeが返したDDInstall基本名
+ * @param[in] nodeIds 同nodeのHardware IDと順序付きCompatible ID。順番は元Modelsのフィールド順
+ * @param[out] role 成功時の選択行の作用。失敗時はUNASSESSED
+ * @param[out] classRegistration 任意の出力先。実ドライバーの元クラス登録を確認した場合だけ値を設定する
+ * @return 同じ元行と作用を確認した場合0、曖昧・欠損・改変等はHRESULT
+ * @note 読み取り照合だけを行う。導入資格や公開データを発行しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectOfficialInfSelectedModelRole(
+	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
+	std::wstring_view expectedSha256, const std::wstring &modelsSection,
+	const std::wstring &basicSection, std::span<const std::wstring> nodeIds,
+	OfficialInfSelectedModelRole						   &role,
+	std::optional<OfficialInfDeclarativeClassRegistration> *classRegistration = nullptr) ;
+
+/** @brief 選択service原文の一行です。省略fieldを追加せず、原順と大小文字を保持します */
+struct StorageServiceDirective {
+	/// 元service-install内の0起点行です
+	std::uint32_t			  ordinal{} ;
+	/// 元Windows readerのdirective名です
+	std::wstring			  key ;
+	/// 全fieldです。明示空と不在を区別します
+	std::vector<std::wstring> fields ;
+	/**
+	 * @brief 同原値の全fieldをfresh再構築値へ比較します
+	 * @param[in] other 同用途の独立した比較元です。同期中だけ借用します
+	 * @return 省略状態/全値/順序が一致する場合trueです
+	 */
+	bool					  operator==( const StorageServiceDirective &other) const = default ;
+} ;
+
+/** @brief 選択INFの一コピー行と同CAT memberを結ぶ非権限原値です */
+struct SelectedStorageCopyFact {
+	/// 元選択が参照するコピー節です。直接コピーの場合は元DDInstall節です
+	std::wstring			  section ;
+	/// コピー節または直接コピーの元DDInstall節の0起点行番号です
+	std::uint32_t			  ordinal{} ;
+	/// 原行の省略を補わない全fieldです
+	std::vector<std::wstring> fields ;
+	/// 同CAT内のsource相対pathです
+	std::wstring			  source ;
+	/// Windowsが原DestinationDirsから解決した完全targetです
+	std::wstring			  target ;
+	/// 原DestinationDirsのDIRIDです
+	int						  dirid{} ;
+	/// 同CAT memberのSHA-256です
+	std::wstring			  sha256 ;
+	/// 同CAT memberの完全byte数です
+	std::uint64_t			  bytes{} ;
+	/**
+	 * @brief 元コピーの全fieldを再構築した値と比較します
+	 * @param[in] other 同原入力から再構築した比較値です
+	 * @return 原行と全memberが一致する場合trueです
+	 */
+	bool					  operator==( const SelectedStorageCopyFact &other) const = default ;
+} ;
+
+/**
+ * @brief 同じSCSIAdapter選択の補助サービスと一意な署名付きEXEコピーを保持します
+ * @note 元イベント参照と原Securityは保持します。作用の妥当性や端末への導入資格を表しません
+ */
+struct SelectedStorageAuxiliaryServiceFacts {
+	/// 元Services節内でのAddServiceの0起点行です
+	std::uint32_t						   addServiceOrdinal{} ;
+	/// 元AddService全fieldです。第4欄はイベント節、六欄形式の第5・6欄はログとイベント源です
+	std::vector<std::wstring>			   addServiceFields ;
+	/// 関連カーネルサービスとは別の元サービス名です
+	std::wstring						   name ;
+	/// 元サービス構成の節名です
+	std::wstring						   installSection ;
+	/// 元ServiceTypeです。WIN32_OWN_PROCESSを保持します
+	std::uint32_t						   type{} ;
+	/// 元StartTypeです。System32ではDEMAND_START、Driver StoreではAUTO_STARTです
+	std::uint32_t						   start{} ;
+	/// 元ErrorControlです
+	std::uint32_t						   errorControl{} ;
+	/// Windows readerが展開した元ServiceBinaryの完全値です
+	std::wstring						   binary ;
+	/// 選択DDInstallの一意なEXEコピー原行と同CAT memberです
+	SelectedStorageCopyFact				   copy ;
+	/// 名前付きSystemイベントが使う同CATのデータ専用DLLコピーです。元宣言がなければ空です
+	std::optional<SelectedStorageCopyFact> eventMessageCopy ;
+	/// 元サービス節の順序と全fieldを保持します
+	std::vector<StorageServiceDirective>   directives ;
+	/// 元SecurityのSDDLです。Securityを省略したDriver Storeの自動起動では空です
+	std::wstring						   security ;
+	/**
+	 * @brief 同じ原選択から構築した補助サービスの全事実を比較します
+	 * @param[in] other 元順序と完全なコピーを含む比較元です
+	 * @return 原行、節名、Security、コピーと署名結合の値が一致する場合trueです
+	 */
+	bool operator==( const SelectedStorageAuxiliaryServiceFacts &other) const = default ;
+} ;
+
+/** @brief 元選択と一意コピーへ結合した非権限storage service factsです */
+struct SelectedStorageServiceFacts {
+	/// 元選択の正式Class名を原値で保持します
+	std::wstring										className ;
+	/// 同じ元INFの正式Class GUIDを原値で保持します
+	std::wstring										classGuid ;
+	/// MTD選択の全コピー原行と同CAT memberです
+	std::vector<SelectedStorageCopyFact>				mtdCopies ;
+	/// 同元INFの完全な相対位置です
+	std::wstring										infRelativePath ;
+	/// 元native選択に結合した実DDInstall節です
+	std::wstring										selectedInstallSection ;
+	/// 元AddService宣言の所有節です
+	std::wstring										servicesSection ;
+	/// 元AddServiceの0起点行です
+	std::uint32_t										addServiceOrdinal{} ;
+	/// 元AddServiceの省略を含む全fieldです
+	std::vector<std::wstring>							addServiceFields ;
+	/// 元associated serviceの正確な名前です
+	std::wstring										name ;
+	/// 元service-install節です
+	std::wstring										installSection ;
+	/// 重複/欠損を拒否して読んだ元AddService flagsです
+	std::uint32_t										flags{} ;
+	/// 元ServiceTypeです
+	std::uint32_t										type{} ;
+	/// BOOT0/SYSTEM1/DEMAND3を保持する元StartTypeです
+	std::uint32_t										start{} ;
+	/// 元ErrorControlです
+	std::uint32_t										errorControl{} ;
+	/// Windows readerが返した全binary pathです。引数を切り捨てません
+	std::wstring										binary ;
+	/// 同選択CopyFilesの一意source相対位置です
+	std::wstring										binarySource ;
+	/// Windowsが解決した元copy先の完全位置です
+	std::wstring										binaryTarget ;
+	/// 元CAT memberの完全SHA-256です
+	std::wstring										binarySha256 ;
+	/// 元CAT memberの完全byte数です
+	std::uint64_t										binaryBytes{} ;
+	/// 元service節の後続行も含む全行です。未知directiveも保持します
+	std::vector<StorageServiceDirective>				directives ;
+	/// 不在と明示空を区別する原groupです
+	std::optional<std::wstring>							group ;
+	/// 不在と明示空、原順を保持する全依存です
+	std::optional<std::vector<std::wstring>>			dependencies ;
+	/// modern BootFlags directiveの明示値です。旧registry形式とは別です
+	std::optional<std::uint32_t>						bootFlags ;
+	/// SCSIAdapterの元選択に結合した非関連補助サービスです。従来の単一サービスでは空です
+	std::optional<SelectedStorageAuxiliaryServiceFacts> auxiliary ;
+	/**
+	 * @brief 同原値の全fieldをfresh再構築値へ比較します
+	 * @param[in] other 同用途の独立した比較元です。同期中だけ借用します
+	 * @return 省略状態/全値/順序が一致する場合trueです
+	 */
+	bool operator==( const SelectedStorageServiceFacts &other) const = default ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同原選択storageの関連サービスと、該当する場合はSCSIAdapterの補助サービスを読み取ります
+ * @param[in] workspace 端末検査またはHDC収集検査が所有する保護領域
+ * @param[in] entries 同原CAT検査済み閉包の全hash/sizeです
+ * @param[in] selected 元native nodeまたはHDCのAMD64 Modelsから解決した選択関係
+ * @param[out] facts SYSと該当する補助EXE・イベント用DLLの元コピーと型が成立した場合だけ保持します。失敗時は空です
+ * @return 元全fieldと該当する補助EXEの署名確認に成功した場合0、その他はHRESULTです
+ * @note 署名確認はキャッシュ内で行います。サービスの作用と端末上の導入資格は後段で検査します
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readSelectedStorageServiceFacts(
+	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
+	const OfficialInfPackage &selected, SelectedStorageServiceFacts &facts) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief ストレージの実選択節を、Windows同梱INFへの空ドライバー委譲の原宣言に照合する
+ * @param[in] workspace CAT検査済み元INFを保護する領域。同期中だけ借用する
+ * @param[in] entries 元閉包のSHA-256とサイズを持つ一覧。同期中だけ借用する
+ * @param[in] selected 元のWindows互換ノードに結ぶストレージの選択関係
+ * @param[in] modelsSection 同じ元署名レコードの現在OS用Models節
+ * @param[in] nodeIds 同じWindows互換ノードの順序付きHardware IDとCompatible ID
+ * @param[out] matched 選択節とサービス節の委譲だけが完全に一致した場合true。失敗と通常の選択はfalse
+ * @return 照合完了0、委譲を宣言する節の不正や読取り失敗はHRESULT
+ * @pre 呼出し側は同じ原閉包のCAT署名と端末の選択関係を確認する
+ * @note Windows側の参照先、実端末への適用、導入資格は呼出し側で別に判定する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectSelectedStorageNullDriverDelegation(
+	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
+	const OfficialInfPackage &selected, const std::wstring &modelsSection,
+	std::span<const std::wstring> nodeIds, bool &matched) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief ストレージのWindows実選択を固定した元INFの現在OS用Modelsの一行へ照合する
+ * @param[in] workspace 原閉包の管理者保護領域
+ * @param[in] entries 元閉包のファイルと原サイズ・SHA-256
+ * @param[in] package 内容検査済みの元ストレージ基本INF
+ * @param[in] modelsSection 元署名レコードの現在OS用Models節
+ * @param[in] basicSection Windowsの実選択ノードが返した未修飾DDInstall
+ * @param[in] nodeIds 同ノードの主Hardware IDと元順の全Compatible ID
+ * @return 同じ原バイトと一意な元行が成立すれば0、失敗時はHRESULT
+ * @pre 呼出し側で同じ元閉包のCAT署名と元レコードの端末範囲を確認する
+ * @note 読取りだけを行う。端末の順位、作用、変更の資格は別に確認する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyOfficialStorageInfModelSelection(
+	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
+	const OfficialInfPackage &package, std::wstring_view modelsSection,
+	std::wstring_view basicSection, std::span<const std::wstring> nodeIds) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -674,9 +1124,14 @@ struct MaintenanceInfInstallStructure {
 	std::vector<MaintenanceInfFileUse>			fileUses ;
 	/// この選択の構造種別。依存のinbox由来を推測しない
 	MaintenanceInfContentKind					contentKind{MaintenanceInfContentKind::UNKNOWN} ;
+	/// 同じ元選択の全外部Needsを署名済みWindows同梱の作用に照合した場合だけtrue
+	bool										wifiBusNeedsVerified{} ;
 	/// 構造の解析到達だけの結果。必要byteと署名検査は別
 	MaintenanceInspectionFinding				parser ;
 } ;
+
+/** @brief 署名済み収集閉包が同じ元選択の外部Needsを再検査する同期関数型です */
+using ScopedInboxNeedsVerifier = std::function<NativeError( const OfficialInfInstallInventory &)> ;
 
 /** @brief 保守worker専用の一INF構造。導入package・閉包へ変換しない */
 struct MaintenanceInfStructure {
@@ -694,9 +1149,13 @@ struct MaintenanceInfStructure {
 	std::wstring								driverDate ;
 	/// DriverVerのversion field
 	std::wstring								driverVersion ;
-	/// 現OS／x64用ModelsのPnP ID。workerのlocal照合だけへ渡す
+	/// 検査したModelsのPnP ID。公式対象に限定した場合はそのHardware IDだけを保持する
 	std::vector<std::wstring>					hardwareIds ;
-	/// 現OS／x64用Modelsにある全一意DDInstall名の構造。失敗行も保持する
+	/// 公式Hardware IDに対応する導入セクションだけを起点にした場合true
+	bool										officialHardwareScope{} ;
+	/// 元SYSと収集側Windows標準DLLの両方を検証した公式Netの導入起点数
+	std::size_t									networkEventFileInstallCount{} ;
+	/// 検査範囲の全一意DDInstall名の構造。失敗行も保持する
 	std::vector<MaintenanceInfInstallStructure> installs ;
 	/// Version LayoutFile等の具体的な未追跡file用途
 	std::vector<MaintenanceInfFileUse>			fileUses ;
@@ -718,24 +1177,30 @@ struct MaintenanceInfStructure {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 現OSの全DDInstallと付随節を有限に保守構造へ解析する
+ * @brief 現OSの全DDInstallまたは元Modelsで検証した公式範囲を有限に解析する
  * @param[in] workspace 同期借用する保護領域。呼出し中の変更は禁止する
  * @param[in] entries 固定済みの最大32,768 entry。INFは一意で最大4 MiB
  * @param[in] infRelativePath 安全な一INF相対path。worker外へ保存しない
  * @param[in] policy 有限ID／source上限と内容Class・Provider・構文識別子のpolicy
  * @param[out] structure 全体読取・元byte再照合に成功した場合だけ観測を保持する
+ * @param[in] scopedModels 署名済み収集閉包の同一INFのModels証拠。通常の全起点はnull
+ * @param[in] cancellation 同収集workerの同期取消し照会。通常の読取りはnull
+ * @param[in] inboxNeeds 公式NetまたはUSB Bluetoothの元選択を同じ署名済み閉包へ結ぶ検査。それ以外はnull
  * @return 全観測完了0。全体入力・読取・容量・改変・例外失敗ではHRESULTと空結果
- * @note 個別未対応はUNSUPPORTED／ERROR_NOT_SUPPORTED、不正flagsはFAILED／ERROR_INVALID_DATA等を各選択へ残す。最大1,024節・
- *       4,096行・4,096各項目・一行64 fieldをINF全体で消費する。SetupAPIが展開したflagsだけを厳密解析し、元Strings値の非切捨てまで認定しない。依存閉包・全file
- *       coverage・署名・端末適合・導入許可は発行せず、workerでblockingする
+ * @note 不正宣言と未評価の作用は元診断を保持する。全起点で1,024節訪問・4,096行・各4,096項目を共有し、一行を64値に制限する
+ *       収集内容の用途では一意な節名と用途を1,024に保ち、延べ節訪問を2,048、HKRバイナリ行の全値を128まで許容する
+ *       SetupAPIが展開した値を読み、依存閉包の充足・署名・端末適合・導入許可は発行しない
+ * @see docs/adr/0534-bounded-collection-inf-registry-inventory.md
  * @see docs/adr/0311-maintenance-inf-structure-and-install-policy-separation.md
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] NativeError inspectMaintenanceInfStructure( const OfficialDownloadWorkspace &workspace,
-														 std::span<const OfficialZipEntry> entries,
-														 std::wstring_view infRelativePath,
-														 const OfficialInfInspectionPolicy &policy,
-														 MaintenanceInfStructure &structure) ;
+[[nodiscard]] NativeError inspectMaintenanceInfStructure(
+	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
+	std::wstring_view infRelativePath, const OfficialInfInspectionPolicy &policy,
+	MaintenanceInfStructure				  &structure,
+	const OfficialInfScopedModelsEvidence *scopedModels = nullptr,
+	const std::function<bool()>			  *cancellation = nullptr,
+	const ScopedInboxNeedsVerifier		  *inboxNeeds	= nullptr) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -787,15 +1252,29 @@ struct MaintenanceInfStructure {
  * @param[in] infRelativePath 検証対象INFのworkspace基準相対path。 検証するINF相対path
  * @param[in] policy 件数上限、許可class、ProviderおよびINF signature。 件数上限、許可class／Provider／signature
  * @param[out] package 成功時の検証済み構造。失敗時は空にする。 成功時だけ更新する検証済み構造
+ * @param[in] scopedModels 同じ公式配布からの展開INFとCATを固定した収集用入力です。通常はnullです
  * @return 成功時は0、INF構文、適用section、参照fileまたはpolicy違反時はHRESULT。 全構造検証成功時は0、最初の違反はHRESULT
- * @note 本関数はfileを変更せず、catalog署名とmember hashは別の署名検証で確認する
+ * @note 本関数はfileを変更せず、catalog署名とmember hashは別の署名検証で確認する。TapeDrive名又は正式GUIDには一意な正式対を要求する
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] NativeError inspectOfficialInfPackage( const OfficialDownloadWorkspace	 &workspace,
-													std::span<const OfficialZipEntry> entries,
-													std::wstring_view infRelativePath,
-													const OfficialInfInspectionPolicy &policy,
-													OfficialInfPackage				  &package) ;
+[[nodiscard]] NativeError inspectOfficialInfPackage(
+	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
+	std::wstring_view infRelativePath, const OfficialInfInspectionPolicy &policy,
+	OfficialInfPackage &package, const OfficialInfScopedModelsRequest *scopedModels = nullptr) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 展開した元INFのVersionから同階層のCAT相対パスを取得します
+ * @param[in] workspace 同じ元INFの所有領域です
+ * @param[in] infRelativePath 所有済みINFの相対パスです
+ * @param[out] catalogRelativePath Versionが指定した同階層の元CATです
+ * @return 全読取り成功時0、欠損や不正パスはHRESULTです
+ * @note このパスは展開対象の選択だけに使用し、署名やINFの所属を証明しません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readOfficialInfCatalogPath( const OfficialDownloadWorkspace &workspace,
+													 std::wstring_view infRelativePath,
+													 std::wstring	  &catalogRelativePath) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -814,10 +1293,10 @@ struct MaintenanceInfStructure {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 同所有INFのhashを固定し、collectorの明示client観測点でModelsを読みます
+ * @brief 同所有INFのhashを固定し、collectorの明示client/Server観測点でModelsを読みます
  * @param[in] workspace 元保護workspaceです
  * @param[in] package 元構造検査済みpackageです
- * @param[in] platform Win10/19045またはWin11/26100のAMD64 workstation/suite0です
+ * @param[in] platform 10.0/AMD64/suite0で、clientはproduct1/build19045または26100、Serverはproduct2/3/build14393/17763/20348/26100です
  * @param[in] expectedInfSha256 同じ現OS構造検査から得た元INF hashです
  * @param[out] identity 成功した同targetの元Modelsです。失敗時は空です
  * @return 実Windows読取り成功0、不明target/改変/未観測は元HRESULTです
@@ -828,6 +1307,67 @@ struct MaintenanceInfStructure {
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 	const OfficialInfModelsPlatform &platform, std::wstring_view expectedInfSha256,
 	OfficialInfPublishedIdentity &identity) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元INFの全Models行と完全一致した公式Hardware IDの位置を有限に読みます
+ * @param[in] workspace 元INFを保持する保護領域です
+ * @param[in] infRelativePath 同領域内に展開した元INFの相対パスです
+ * @param[in] expectedInfSha256 同じ原本に結び付いた小文字SHA-256です
+ * @param[in] platform collectorの明示OSです。nullは現在OSです
+ * @param[in] hardwareScope 公式配布元で確認した全Hardware IDです
+ * @param[out] evidence 全行と全公式対象を検査した証拠です。失敗時は空です
+ * @param[in] cancellation 同期処理中の取消し照会です。空は取消しなしです
+ * @return 全対象が一意に成立した場合は0、読取や上限の失敗はHRESULTです
+ * @note 読取りだけを行います。署名・参照閉包・適用性・導入の既存検査は別に必要です
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readOfficialInfScopedModels(
+	const OfficialDownloadWorkspace &workspace, std::wstring_view infRelativePath,
+	std::wstring_view expectedInfSha256, const OfficialInfModelsPlatform *platform,
+	std::span<const std::wstring> hardwareScope, OfficialInfScopedModelsEvidence &evidence,
+	const std::function<bool()> &cancellation = {}) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現OSが選ぶ元Modelsの全行から、Windows nodeの厳密な一行を署名済みの元位置に結びます
+ * @param[in] workspace 同じ元INFを保持する保護領域です
+ * @param[in] package 上流で署名済み原証拠と結合した同INFの基本driverです
+ * @param[in] modelsSection 同証拠の選択対象が指定する元Models節です
+ * @param[in] basicSection Windows nodeが返した未修飾DDInstall基本名です
+ * @param[in] nodeIds 同nodeの先頭Hardware IDとそれに続く全Compatible IDです。順序を維持します
+ * @param[out] selected 元証拠の一意な行です。失敗時は空です
+ * @return 同じ元INFの前後hashと現OSの全証拠・対象行が一致した場合は0、失敗はHRESULTです
+ * @pre selectedは入力の領域を参照しません
+ * @note 読取り専用です。端末の現在Hardware ID、Windowsの順位や実行権限は呼出し側で検証します
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyOfficialInfScopedModelSelection(
+	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
+	std::wstring_view modelsSection, std::wstring_view basicSection,
+	std::span<const std::wstring> nodeIds, OfficialInfScopedModelMatch &selected) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式配布の元Models行を再確認し、同じWindows選択の必要関係を読み取ります
+ * @param[in] workspace 元署名を検査した閉包の管理者保護領域です
+ * @param[in] entries 元署名の全ファイルと全潜在importを保持する一覧です
+ * @param[in] original 元Modelsの証拠を保持する基本INFです
+ * @param[in] modelsSection 署名レコードが指定する元Models節です
+ * @param[in] basicSection Windowsの同nodeが返した未修飾DDInstall基本節です
+ * @param[in] nodeIds 同nodeが返したHardware IDと元順の全Compatible IDです
+ * @param[out] matchedRow 実選択と一致する公式対象の元行です
+ * @param[out] selected 成功時だけ元用途、実導入節と必要関係を保持します
+ * @return 元行と同じ元INFの選択関係が一致した場合0、拒否または読取失敗はHRESULTです
+ * @pre originalとselectedは異なるobjectです。呼出し側が同じ元署名と閉包を確認します
+ * @note 現在の端末と順位、必要ファイルの作用、導入権限は別に確認します
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectSelectedScopedInfRelations(
+	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
+	const OfficialInfPackage &original, std::wstring_view modelsSection,
+	std::wstring_view basicSection, std::span<const std::wstring> nodeIds,
+	OfficialInfScopedModelMatch &matchedRow, OfficialInfPackage &selected) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -867,11 +1407,101 @@ struct MaintenanceInfStructure {
  * @param[in] package 構造と全参照fileを検査したINF
  * @return SetupVerifyInfFile成功、非空signer、同一CAT、全member合格時0、それ以外はHRESULT
  * @note Maker表示名をsignerと比較しない。Windows署名失敗やtrust未確立を成功へ変換しない。静的参照検査でsourceが0件と確定した場合も、INF自身を必ずCATへ照合
- *       する。Blockingするためworkerから呼ぶ。成功は導入policy・実device適合・公式由来を保証しない
+ *       する。収集用の標準メディアチェンジャーでは同CATのAMD64 SYSとWindowsの保護イベント資源を確認する
+ * @note 混在シリアルの私有収集では、元SYSを同じ保護領域で固定し、CAT照合後にAMD64形式を確認する
+ * @note Blockingするためworkerから呼ぶ。成功は導入policy・実device適合・公式由来を保証しない
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError verifyWindowsInfPackageIntegrity(
 	const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式CABの表示クラスと単一KMDFドライバーの参照を確認する
+ * @param[in] workspace 同じ元INFと署名済みCATメンバーの保護領域
+ * @param[in] entries 展開時ハッシュを固定した元CABの全ファイル
+ * @param[in] package 同じ公式Modelsと全CATメンバーを検査済みの基本INF
+ * @return 明示OSの全公式対象が同じSYSと表示クラスへ結合した場合true
+ * @pre 同じ閉包の署名と全CAT所属の検査に成功していること
+ * @note Windows側のファイルやレジストリを更新せず、収集用の内容確認だけを行う
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool verifyScopedDeclarativeKernelReferences(
+	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
+	const OfficialInfPackage &package) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式Net対象のイベント参照を署名済みSYSと収集側Windows標準DLLへ結ぶ
+ * @param[in] workspace 同一元INFとCATメンバーの保護領域
+ * @param[in] entries 全元ファイルのハッシュを固定した抽出一覧
+ * @param[in] package 同じ公式Modelsと全CATメンバーを検査した基本INF
+ * @param[in,out] effects 同一INFの公式対象の作用棚卸し。成功した起点数を保持する
+ * @return 対象外または全対象の参照検査完了は0、元の読取・形式・信頼失敗はHRESULT
+ * @pre 同じ閉包のverifyWindowsInfPackageIntegrityに成功していること
+ * @note 収集側Windowsの証拠を得る。端末固有のDLLや他の作用・参照は別に検査する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyScopedNetworkEventFiles( const OfficialDownloadWorkspace	 &workspace,
+														std::span<const OfficialZipEntry> entries,
+														const OfficialInfPackage		 &package,
+														MaintenanceInfStructure			 &effects) ;
+
+/** @brief 元の一コピーの媒体と全バイトを保持する比較用証拠です */
+struct OfficialScopedNetworkSourceFile {
+	/// 元CATに属する署名閉包内のファイル位置
+	std::wstring	   relativePath ;
+	/// 元媒体の完全SHA-256
+	std::wstring	   sha256 ;
+	/// 照合した元媒体の全byte数
+	std::uint64_t	   bytes{} ;
+	/**
+	 * @brief 同じ用途の元ファイルを再検証後の元位置と全バイトへ照合する
+	 * @param[in] other 再取得した同じ用途の証拠
+	 * @return 位置、SHA-256、サイズの全値一致時true
+	 */
+	[[nodiscard]] bool operator==( const OfficialScopedNetworkSourceFile &other) const = default ;
+} ;
+
+/** @brief 同じ署名済みNetの一実選択と、現在のWindowsで確認したファイル作用です */
+struct OfficialScopedNetworkEffects {
+	/// 選択関係と全作用を読み取った同一INFのSHA-256です
+	std::wstring								 infSha256 ;
+	/// 公式Modelsで確定済みのWindows nodeの基本導入節です
+	std::wstring								 basicSection ;
+	/// 現在OSで実在する装飾済み導入節です
+	std::wstring								 installSection ;
+	/// 実選択の唯一の関連カーネルサービスです
+	std::wstring								 serviceName ;
+	/// 元SYSと、該当時の補助データ・無線拡張DLLを用途順に保持します
+	std::vector<OfficialScopedNetworkSourceFile> sourceFiles ;
+	/// 同じイベント登録が使う現在OSの標準DLLとその署名・保護情報です
+	WindowsSystemFileTrust						 eventResource ;
+	/**
+	 * @brief 同一選択の再読取り結果を全項目で比較します
+	 * @param[in] other 再検査した同じ選択の効果です
+	 * @return 元INF・実節・媒体と標準DLLが完全一致する場合trueです
+	 */
+	[[nodiscard]] bool operator==( const OfficialScopedNetworkEffects &other) const = default ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ公式Netの実選択が参照する媒体、サービスとWindowsイベント資源を照合します
+ * @param[in] workspace 元の署名閉包を保持する管理者保護領域です
+ * @param[in] entries 同じ閉包の元サイズと元ハッシュの一覧です
+ * @param[in] selected 元行と同じWindows選択節を確認したINFです
+ * @param[out] effects 全作用と現在の標準DLLを確認した場合だけの比較用結果です
+ * @param[in] inboxNeeds 同一元CABと現在のWindowsへ外部Needsを照合する同期検査です。同梱依存のない経路はnullです
+ * @return 実選択の媒体・サービス・イベント参照が一致した場合0、元拒否はHRESULTです
+ * @pre 呼出し側で元署名レコード・元閉包の全CATと端末の選択行を確認します
+ * @note 読取り専用です。未検証の必要役割、Windows依存や導入権限を発行しません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifySelectedScopedNetworkInfEffects(
+	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
+	const OfficialInfPackage &selected, OfficialScopedNetworkEffects &effects,
+	const ScopedInboxNeedsVerifier *inboxNeeds = nullptr) ;
 
 //------------------------------------------------------------------------------
 /**

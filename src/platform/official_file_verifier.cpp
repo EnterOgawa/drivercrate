@@ -2,7 +2,7 @@
 /**
  * @file official_file_verifier.cpp
  * @brief 公式配布file共通検証実装
- * @version 01.14.04
+ * @version 01.26.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -50,6 +50,18 @@
  * Ver.01.14.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.14.03 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
  * Ver.01.14.04 Shunji Ogawa  2026/11/13  847p9の型付きSYSTEM全作用と全選択資格を接続
+ * Ver.01.15.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.16.00 Shunji Ogawa  2026/11/22  System32直下の補助EXEの現在状態を読み取る
+ * Ver.01.17.00 Shunji Ogawa  2026/11/22  登録済み配布のCATと全メンバーを通信なしで照合
+ * Ver.01.18.00 Shunji Ogawa  2026/11/23  System32とDriver Storeの保護付き実行ファイル読取りを共用
+ * Ver.01.19.00 Shunji Ogawa  2026/11/23  正規drivers直下のSYSを保護付きで観測する
+ * Ver.01.20.00 Shunji Ogawa  2026/11/23  System32直下のストレージ用イベント資源DLLを保護付きで観測する
+ * Ver.01.21.00 Shunji Ogawa  2026/11/23  Windows同梱machine.infの空導入委譲を保護付きで検証する
+ * Ver.01.22.00 Shunji Ogawa  2026/11/23  固定した元ファイルと信頼結果の署名者を一つの検査で照合
+ * Ver.01.23.00 Shunji Ogawa  2026/11/23  信頼済みマニフェストの原SHA-1照合用に全ファイルを読取る
+ * Ver.01.24.00 Shunji Ogawa  2026/11/23  公開INFとStoreの同梱署名の共通読取りを追加
+ * Ver.01.25.00 Shunji Ogawa  2026/11/23  署名INFの同一バイトを保持する一時解析を共用
+ * Ver.01.26.00 Shunji Ogawa  2026/11/23  選択済み登録配布のINF・CAT・SYSを保護付きで読取る
  * </pre>
  *
  * @note Windows CNGとWinTrustを使用し、Provider固有値をpolicyとして受け取ります
@@ -57,11 +69,14 @@
 //------------------------------------------------------------------------------
 
 #include "platform/official_file_verifier.h"
+#include "platform/official_mapped_file.h"
+#include "platform/official_download_workspace.h"
 #include "platform/driver_package_signature_internal.h"
 
 // Windows.hはWinCryptおよびWinTrustの基本型より先に必要である
 // clang-format off
 #include <Windows.h>
+#include <SetupAPI.h>
 #include <Softpub.h>
 #include <bcrypt.h>
 #include <cryptxml.h>
@@ -79,6 +94,7 @@
 #include <cstring>
 #include <cwchar>
 #include <filesystem>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <new>
@@ -1362,7 +1378,7 @@ struct FileHashHandles {
 //------------------------------------------------------------------------------
 /**
  * @brief 固定SHA algorithmを使ってfile全体をstream計算します
- * @tparam DigestBytes SHA-256の32またはSHA-512の64
+ * @tparam DigestBytes 元マニフェスト照合用SHA-1の20、SHA-256の32、またはSHA-512の64
  * @param[in] path 読取り専用file path
  * @param[in] algorithmId 呼出元が固定したCNG algorithm
  * @param[out] output 成功時だけ公開する小文字hex
@@ -1373,7 +1389,7 @@ template <std::size_t DigestBytes>
 [[nodiscard]] NativeError computeFileSha( const std::wstring_view path, const wchar_t *algorithmId,
 										 std::wstring &output)
 {
-	static_assert( DigestBytes == 32U || DigestBytes == 64U) ;
+	static_assert( DigestBytes == 20U || DigestBytes == 32U || DigestBytes == 64U) ;
 	output.clear() ;
 	// 空または埋込みNULを異なるpathへ読み替えない
 	if( path.empty() || path.find( L'\0') != path.npos) {
@@ -1477,6 +1493,20 @@ template <std::size_t DigestBytes>
 NativeError computeFileSha256( const std::wstring_view path, std::wstring &sha256)
 {
 	return computeFileSha<32U>( path, BCRYPT_SHA256_ALGORITHM, sha256) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 信頼済み元マニフェストに宣言されたSHA-1との比較用にファイル全体を読取る
+ * @param[in] path 呼出し側が読取り中固定した通常ファイルの絶対path
+ * @param[out] sha1 成功時の40桁小文字hex。失敗時は空
+ * @return 成功0、fileまたはCNG失敗時はHRESULT
+ * @note SHA-256による元取得の照合、配布元の署名検証、ドライバーCAT検査の代替には使わない
+ */
+//------------------------------------------------------------------------------
+NativeError computeFileSha1ForSignedManifest( const std::wstring_view path, std::wstring &sha1)
+{
+	return computeFileSha<20U>( path, BCRYPT_SHA1_ALGORITHM, sha1) ;
 }
 
 //------------------------------------------------------------------------------
@@ -1646,19 +1676,84 @@ NativeError verifyOfficialFileMetadata( const std::wstring_view			 path,
 namespace {
 //------------------------------------------------------------------------------
 /**
+ * @brief 成功したWinTrustの主署名状態を元PKCS#7と照合し、leaf証明書の表示名を取り出す
+ * @param[in] state WinVerifyTrustが返した呼出し中だけ有効な非所有状態
+ * @param[in] certificate 固定した元ファイル内のPKCS#7と任意の零整列領域
+ * @param[out] signerName 成功時に返す検証済み署名者名。失敗時は空
+ * @return 成功0、未知の検証状態や証明書はHRESULT
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readVerifiedPrimarySigner( const HANDLE					 state,
+													const std::span<const std::byte> certificate,
+													std::wstring					&signerName)
+{
+	signerName.clear() ;
+	auto *const provider = WTHelperProvDataFromStateData( state) ;	// WinTrustが所有する検証状態
+	// 単一の検証済み主署名を特定できる場合だけ表示名を照合する
+	if( provider == nullptr || provider->csSigners != 1U || provider->hMsg == nullptr) {
+		return static_cast<NativeError>( TRUST_E_SUBJECT_NOT_TRUSTED) ;
+	}
+
+	DWORD messageSize{} ;	// この信頼状態が実際に検証したPKCS#7のbyte数
+	// WinTrustが使ったPKCS#7を取得できなければ、埋込み位置の正しさを推測しない
+	if( !CryptMsgGetParam( provider->hMsg, CMSG_ENCODED_MESSAGE, 0, nullptr, &messageSize)) {
+		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	// 同じ元領域に収まるメッセージと最大7 byteの零整列だけを照合対象とする
+	if( messageSize == 0U || messageSize > certificate.size() ||
+	   certificate.size() - messageSize >= 8U ||
+	   !std::ranges::all_of( certificate.subspan( messageSize),
+							[]( const std::byte byte) { return byte == std::byte{} ; })) {
+		return static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+	}
+
+	std::vector<std::byte> message( messageSize) ;	// 原領域で上限を固定した検証済みPKCS#7
+	// 読み取り失敗と先に得た長さからの変化は元領域との比較に進めない
+	if( !CryptMsgGetParam( provider->hMsg, CMSG_ENCODED_MESSAGE, 0, message.data(), &messageSize)) {
+		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	// 起動部や別の埋込み署名をWinTrustが使った場合は元の外側署名と一致しない
+	if( messageSize != message.size() ||
+	   !std::ranges::equal( message, certificate.first( messageSize))) {
+		return static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+	}
+
+	auto *const signer = WTHelperGetProvSignerFromChain( provider, 0U, FALSE, 0U) ;	// 主署名の鎖
+	// 主署名の検証エラーを見落とさず、時刻署名者を発行元に使用しない
+	if( signer == nullptr || signer->dwError != ERROR_SUCCESS) {
+		return static_cast<NativeError>( TRUST_E_SUBJECT_NOT_TRUSTED) ;
+	}
+
+	const auto *const leaf = WTHelperGetProvCertFromChain( signer, 0U) ;	// 検証された署名者のleaf
+	// 検証状態が提示した証明書だけを使い、ファイルから別途再選択しない
+	if( leaf == nullptr || leaf->pCert == nullptr) {
+		return static_cast<NativeError>( TRUST_E_SUBJECT_NOT_TRUSTED) ;
+	}
+
+	return readCertificateName( *leaf->pCert, signerName) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 通常入口とcached-only入口の署名処理を同じ検証順で実行します
  * @param[in] path 対象絶対path
  * @param[in] acceptedPublishers 完全一致を要求する許可publisher群
  * @param[in] cachedOnly trueなら全URL取得をcache内へ制限します
+ * @param[in] pinnedFile nullでなければ元fileを固定する非所有handle。主署名の検証状態を使う
+ * @param[in] certificate 固定入口で照合するPKCS#7元領域。従来入口では空
  * @return 成功0、最初の入力／署名／publisher拒否の元error
  */
 //------------------------------------------------------------------------------
 NativeError verifyAuthenticodePublisherImpl(
 	const std::wstring_view path, const std::span<const std::wstring_view> acceptedPublishers,
-	const bool cachedOnly)
+	const bool cachedOnly, const HANDLE pinnedFile = nullptr,
+	const std::span<const std::byte> certificate = {})
 {
 	// 署名検証の対象が空の場合は入力不正として拒否する
-	if( path.empty()) {
+	if( path.empty() || pinnedFile == INVALID_HANDLE_VALUE ||
+	   (pinnedFile != nullptr && certificate.empty())) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
 	}
 
@@ -1672,6 +1767,7 @@ NativeError verifyAuthenticodePublisherImpl(
 	WINTRUST_FILE_INFO file{} ;				// 検証対象file metadata
 	file.cbStruct	   = sizeof( file) ;
 	file.pcwszFilePath = pathString.c_str() ;
+	file.hFile		   = pinnedFile ;
 	WINTRUST_DATA trust{} ;	// Generic Authenticode検証設定
 	trust.cbStruct			  = sizeof( trust) ;
 	trust.dwUIChoice		  = WTD_UI_NONE ;
@@ -1681,11 +1777,34 @@ NativeError verifyAuthenticodePublisherImpl(
 	trust.dwStateAction		  = WTD_STATEACTION_VERIFY ;
 	trust.dwProvFlags =
 		WTD_REVOCATION_CHECK_CHAIN_EXCLUDE_ROOT | (cachedOnly ? WTD_CACHE_ONLY_URL_RETRIEVAL : 0U) ;
+	WINTRUST_SIGNATURE_SETTINGS signature{} ;	// 固定元ファイルの主署名を指定する設定
+	// 固定入力では付加署名へ切り替えず、主署名のindexを明示する
+	if( pinnedFile != nullptr) {
+		signature.cbStruct		 = sizeof( signature) ;
+		signature.dwIndex		 = 0U ;
+		signature.dwFlags		 = WSS_VERIFY_SPECIFIC ;
+		trust.pSignatureSettings = &signature ;
+	}
+
 	GUID		action = WINTRUST_ACTION_GENERIC_VERIFY_V2 ;	// Authenticode policy GUID
 	const auto &api =
 		// 同threadの完全backendです
 		driver_package_signature_detail::authenticodeApi() ;
-	const LONG status	= api.verify( nullptr, &action, &trust) ;	// Chain検証結果
+	const LONG	 status = api.verify( nullptr, &action, &trust) ;	// Chain検証結果
+	std::wstring signerName ;										// 信頼結果で照合する署名者表示名
+	NativeError	 signerError{} ;									// 署名者取得が失敗した場合の診断
+	// 有効な固定入力は信頼状態が生きている間に署名者を照合できる形で取り出す
+	if( status == ERROR_SUCCESS && pinnedFile != nullptr) {
+		try {
+			signerError =
+				trust.hWVTStateData != nullptr
+					? readVerifiedPrimarySigner( trust.hWVTStateData, certificate, signerName)
+					: static_cast<NativeError>( TRUST_E_SUBJECT_NOT_TRUSTED) ;
+		} catch( const std::bad_alloc &) {
+			signerError = static_cast<NativeError>( E_OUTOFMEMORY) ;
+		}
+	}
+
 	trust.dwStateAction = WTD_STATEACTION_CLOSE ;
 	static_cast<void>( api.verify( nullptr, &action, &trust)) ;
 	// 失敗の診断値を共通の表現へ保ったまま返し、未完了の結果で後続処理を進めない
@@ -1693,8 +1812,11 @@ NativeError verifyAuthenticodePublisherImpl(
 		return static_cast<NativeError>( status) ;
 	}
 
-	std::wstring	  signerName ;										// Embedded signer表示名
-	const NativeError signerError = readSignerName( path, signerName) ;	// 取得結果
+	// 従来入口は既存の元embedded署名者の読取りを維持する
+	if( pinnedFile == nullptr) {
+		signerError = readSignerName( path, signerName) ;
+	}
+
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 	if( signerError != 0) {
 		return signerError ;
@@ -1741,6 +1863,27 @@ NativeError verifyAuthenticodePublisherCachedOnly(
 	const std::wstring_view path, const std::span<const std::wstring_view> acceptedPublishers)
 {
 	return verifyAuthenticodePublisherImpl( path, acceptedPublishers, true) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定した元ファイルの主Authenticode署名を、元PKCS#7と検証済み署名者の両方で照合する
+ * @param[in] path mappedFileを開いた同じ元ファイルの絶対path
+ * @param[in] mappedFile 呼出し中ずっと開いている読取り専用mapping所有者
+ * @param[in] certificate PKCS#7の元領域。末尾の8-byte境界用の零詰めを含められる
+ * @param[in] acceptedPublishers 許可する証明書の表示名
+ * @param[in] cachedOnly trueなら証明書取得・失効確認をcache内に制限する
+ * @return 成功0、入力、信頼、署名者照合の失敗はHRESULT
+ * @note 署名者を別fileや別の埋込み署名から求めず、この検証結果そのものを使う
+ */
+//------------------------------------------------------------------------------
+NativeError verifyPrimaryAuthenticodePublisher(
+	const std::wstring_view path, const OfficialMappedFile &mappedFile,
+	const std::span<const std::byte>		 certificate,
+	const std::span<const std::wstring_view> acceptedPublishers, const bool cachedOnly)
+{
+	return verifyAuthenticodePublisherImpl( path, acceptedPublishers, cachedOnly,
+										   mappedFile.readOnlyHandle(), certificate) ;
 }
 
 //------------------------------------------------------------------------------
@@ -1861,6 +2004,21 @@ NativeError verifyOfficialCatalogMembers( const std::wstring_view			 catalogPath
 	return verifyCatalogMembersWithPolicy( catalogPath, memberPaths, false) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じCAT署名方針で全メンバーをキャッシュ内の信頼情報に照合する
+ * @param[in] catalogPath 照合中に保持する元CATの完全な絶対位置
+ * @param[in] memberPaths 同CATへ照合する全ファイルの絶対位置
+ * @return CAT署名と全員の一致は0、キャッシュ不足、アルゴリズム又は照合不成立はHRESULT
+ * @note 署名の強度を変えない。通信時の成功でキャッシュ不足を補わない
+ */
+//------------------------------------------------------------------------------
+NativeError verifyOfficialCatalogMembersCachedOnly( std::wstring_view			 catalogPath,
+												   std::span<const std::wstring> memberPaths)
+{
+	return verifyCatalogMembersWithPolicy( catalogPath, memberPaths, true) ;
+}
+
 namespace {
 //------------------------------------------------------------------------------
 /**
@@ -1895,12 +2053,13 @@ void systemVerificationStage( std::uint32_t *output, WindowsSystemFileStage stag
  * @param[in] file READ_CONTROLを持ち置換を防いで保持した通常fileです
  * @param[out] snapshot 成功時の元owner/group/control/DACL byteです。開始時は空にします
  * @param[out] stage null可の固定検証地点です。合否には使用しません
+ * @param[in] directory 親ディレクトリの場合に子の削除権限も評価する
  * @return 既知owner/妥当DACL/非特権write拒否0、元API又は権限拒否のHRESULTです
  * @note DACLやtokenの永続設定を変更せず、未知の書込許可を信頼しません
  */
 //------------------------------------------------------------------------------
 NativeError verifySystemFilePermissions( HANDLE file, std::vector<std::byte> &snapshot,
-										std::uint32_t *stage)
+										std::uint32_t *stage, bool directory = false)
 {
 	snapshot.clear() ;
 	systemVerificationStage( stage, WindowsSystemFileStage::SECURITY_DESCRIPTOR) ;
@@ -1948,9 +2107,9 @@ NativeError verifySystemFilePermissions( HANDLE file, std::vector<std::byte> &sn
 
 	GENERIC_MAPPING mapping{FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_GENERIC_EXECUTE,
 							FILE_ALL_ACCESS} ;	// file権限の元写像です
-	constexpr DWORD WRITES = FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_EA |
-							 FILE_WRITE_ATTRIBUTES | DELETE | WRITE_DAC |
-							 WRITE_OWNER ;	// 内容/削除/権限の変更能力です
+	const DWORD		writes = FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_EA |
+						 FILE_WRITE_ATTRIBUTES | DELETE | WRITE_DAC | WRITE_OWNER |
+						 (directory ? FILE_DELETE_CHILD : 0U) ;	// 内容と親からの置換を許す権限
 	// 全allow ACEを確認し、未知主体への書込を一つも許可しません
 	for( DWORD index = 0U; index < dacl->AceCount; ++index) {
 		void *entry{} ;	// この元DACLの一ACEだけを借用します
@@ -1980,7 +2139,7 @@ NativeError verifySystemFilePermissions( HANDLE file, std::vector<std::byte> &sn
 		// DACL内のSID終端を確認し、未知writeを拒否します
 		if( !IsValidSid( sid) ||
 		   GetLengthSid( sid) > header->AceSize - offsetof( ACCESS_ALLOWED_ACE, SidStart) ||
-		   ((mask & WRITES) != 0U && !trusted( sid))) {
+		   ((mask & writes) != 0U && !trusted( sid))) {
 			return systemVerificationError( ERROR_ACCESS_DENIED) ;
 		}
 	}
@@ -2034,10 +2193,12 @@ NativeError verifySystemFilePermissions( HANDLE file, std::vector<std::byte> &sn
 
 	const ReadOnlyVerificationFile check( checkRaw) ;	// 同同期の終了で閉じます
 	systemVerificationStage( stage, WindowsSystemFileStage::ACCESS_CHECK) ;
+	constexpr std::array<DWORD, 8U> rights{
+		FILE_WRITE_DATA, FILE_APPEND_DATA, FILE_WRITE_EA, FILE_WRITE_ATTRIBUTES,
+		DELETE,			 WRITE_DAC,		   WRITE_OWNER,	  FILE_DELETE_CHILD} ;	// 照会する変更権限
 	// 一つのdenyで別のwrite許可を隠さないよう各権限を独立に照会します
 	for( const DWORD requested :
-		std::array<DWORD, 7U>{FILE_WRITE_DATA, FILE_APPEND_DATA, FILE_WRITE_EA,
-							  FILE_WRITE_ATTRIBUTES, DELETE, WRITE_DAC, WRITE_OWNER}) {
+		std::span{rights}.first( directory ? rights.size() : rights.size() - 1U)) {
 		// 元APIの有限出力です
 		alignas( PRIVILEGE_SET) std::array<std::byte, 1024U> privileges{} ;
 		DWORD bytes = static_cast<DWORD>( privileges.size()) ;	// 全buffer容量です
@@ -2142,11 +2303,13 @@ NativeError systemPeSignatureForm( HANDLE file, bool &embedded)
  * @brief 原SYSTEM file又はlocal CATの全祖先を非reparse/rename不可で保持します
  * @param[in] path OS local storeが返した通常drive絶対位置です
  * @param[out] parents 成功した祖先handleを同期終了まで所有します
+ * @param[in] protectedParentCount 葉に近い方からREAD_CONTROLを追加で要求する親の数
  * @return 全祖先成立0、元open/属性又は不正path errorです
  */
 //------------------------------------------------------------------------------
 NativeError pinSystemCatalogParents( const std::wstring									   &path,
-									std::vector<std::unique_ptr<ReadOnlyVerificationFile>> &parents)
+									std::vector<std::unique_ptr<ReadOnlyVerificationFile>> &parents,
+									std::size_t protectedParentCount = 0U)
 {
 	// 不正なdriveやpath切替をOS rootの前方一致だけで採用しません
 	if( path.size() < 4U || path[1] != L':' || path[2] != L'\\' ||
@@ -2154,7 +2317,12 @@ NativeError pinSystemCatalogParents( const std::wstring									   &path,
 		return systemVerificationError( ERROR_INVALID_NAME) ;
 	}
 
-	std::size_t begin = 3U ;	// drive以降の元component起点です
+	const auto	last		   = path.rfind( L'\\') ;	// ファイルの直接親の終端
+	const auto	firstProtected = protectedParentCount == 0U ? path.size()
+								 : protectedParentCount == 1U
+									 ? last
+									 : path.rfind( L'\\', last - 1U) ;	// 保護を読む既知祖先の開始位置
+	std::size_t begin		   = 3U ;									// drive以降の元component起点です
 	// 全componentと祖先を順に確認し、途中のreparseを追跡しません
 	for( std::size_t end = 3U; end <= path.size(); ++end) {
 		// 元pathのcomponent境界だけを扱います
@@ -2181,11 +2349,13 @@ NativeError pinSystemCatalogParents( const std::wstring									   &path,
 			break ;
 		}
 
-		const auto parent = path.substr( 0U, end) ;	// 元祖先の完全位置です
-		auto	   owner  = std::make_unique<ReadOnlyVerificationFile>( CreateFileW(
-			   parent.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-			   OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
-			   nullptr)) ;	// renameを拒否します
+		const auto	parent = path.substr( 0U, end) ;	// 元祖先の完全位置です
+		const DWORD access = FILE_READ_ATTRIBUTES |
+							 (end >= firstProtected ? READ_CONTROL : 0U) ;	// 選択した親のDACL読取り
+		auto owner = std::make_unique<ReadOnlyVerificationFile>(
+			CreateFileW( parent.c_str(), access, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+						OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+						nullptr)) ;	// renameを拒否します
 		// 元open失敗を後続pathで隠しません
 		if( owner->get() == INVALID_HANDLE_VALUE) {
 			return systemVerificationError( GetLastError()) ;
@@ -2209,17 +2379,500 @@ NativeError pinSystemCatalogParents( const std::wstring									   &path,
 
 	return 0U ;
 }
+//------------------------------------------------------------------------------
+/**
+ * @brief 開いたWindows実ファイルまたは親の正規DOS位置を元位置に照合する
+ * @param[in] handle 読取中に保持する実ファイルか親
+ * @param[in] path 元の完全位置
+ * @return 実位置が同じDOS形式で一致すれば0、不一致と元読取りの失敗はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError checkProtectedExecutableLocation( HANDLE handle, std::wstring_view path)
+{
+	std::array<wchar_t, MAX_PATH + 4U> resolved{} ;	// 同handleに対応する完全DOS位置
+	// Windowsが返した完全パスの文字数
+	const auto						   length =
+		GetFinalPathNameByHandleW( handle, resolved.data(), static_cast<DWORD>( resolved.size()),
+								  FILE_NAME_NORMALIZED | VOLUME_NAME_DOS) ;
+	// Windowsの照会自体が失敗した場合は元診断を保持する
+	if( length == 0U) {
+		return systemVerificationError( GetLastError()) ;
+	}
+
+	return length > 4U && length < resolved.size() &&
+				   std::wstring_view{resolved.data(), length}.starts_with( L"\\\\?\\") &&
+				   publisherNamesEqual( path, {resolved.data() + 4U, length - 4U})
+			   ? 0U
+			   : systemVerificationError( ERROR_ACCESS_DENIED) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 呼出側が限定した正規配置のバイナリを保護付きで読み取る
+ * @param[in] path 同じWindowsから解決した完全位置
+ * @param[in] driverStore FileRepositoryの保護と元ファイルの実在を要求する場合true
+ * @param[out] snapshot 全条件が成立した元ファイルと親の観測
+ * @param[in] maximumBytes ハッシュ読取りより前に確認するファイル全体の上限
+ * @param[in] requireAmd64 Storeの実ファイルにAMD64形式を要求する場合true
+ * @return 成立時0、Windowsの元エラー又は保護・位置・種別の不成立はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError readProtectedExecutableAtPath( std::wstring_view path, bool driverStore,
+										  ProtectedExecutableSnapshot &snapshot,
+										  std::uint64_t maximumBytes = 2ULL * 1024U * 1024U * 1024U,
+										  bool			requireAmd64 = true)
+{
+	const std::wstring name{path} ;	// 同期のWindows照会に渡す終端付き位置
+	std::vector<std::unique_ptr<ReadOnlyVerificationFile>>
+		 parents ;	// 再解析点でない同じ全祖先を保持
+	auto error =
+		// 直近親の保護も取得する
+		pinSystemCatalogParents( name, parents, driverStore ? 2U : 1U) ;
+	// 別名・再解析点・読取り拒否を正式な不在としない
+	if( error != 0U || parents.empty()) {
+		return error != 0U ? error : E_UNEXPECTED ;
+	}
+
+	ProtectedExecutableSnapshot made ;	// 完全な状態が揃うまで出力を確定しない
+	error =
+		verifySystemFilePermissions( parents.back()->get(), made.directorySecurity, nullptr, true) ;
+	// 他の利用者がファイルを追加・置換できる親では観測を採用しない
+	if( error != 0U) {
+		return error ;
+	}
+
+	// Driver StoreではパッケージとFileRepositoryの両方に別名がなく、元保護が成立する必要があります
+	if( driverStore) {
+		const auto package	  = path.substr( 0U, path.rfind( L'\\')) ;			// 一つの直接パッケージ
+		const auto repository = package.substr( 0U, package.rfind( L'\\')) ;	// その正式FileRepository
+		// 正式FileRepositoryとその直接子を両方保持している必要がある
+		if( parents.size() < 2U) {
+			return systemVerificationError( ERROR_ACCESS_DENIED) ;
+		}
+
+		const auto &repositoryHandle =
+			parents[parents.size() - 2U] ;	// FileRepository自身の保持ハンドル
+		error = checkProtectedExecutableLocation( parents.back()->get(), package) ;
+		// 実パッケージの別名をFileRepository読み取りで補わない
+		if( error == 0U) {
+			error = checkProtectedExecutableLocation( repositoryHandle->get(), repository) ;
+		}
+
+		// 最終位置の不一致と元エラーを保護付き親として扱わない
+		if( error != 0U) {
+			return error ;
+		}
+
+		error = verifySystemFilePermissions( repositoryHandle->get(), made.repositorySecurity,
+											nullptr, true) ;
+		// 保護のないFileRepository配下を署名元候補へ渡しません
+		if( error != 0U) {
+			return error ;
+		}
+	}
+
+	// 原ファイルの読み取りと保護確認のため終端まで保持するハンドル
+	const ReadOnlyVerificationFile file( CreateFileW( name.c_str(), GENERIC_READ | READ_CONTROL,
+													FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+													FILE_FLAG_OPEN_REPARSE_POINT, nullptr)) ;
+	// 保持した正規親の直下で、Windowsが葉の不存在を明示した場合だけ不在とする
+	if( file.get() == INVALID_HANDLE_VALUE) {
+		const auto opened = GetLastError() ;	// 別種類の読取り失敗を区別する元診断
+		// 共有違反や権限不足を存在しないファイルに読み替えない
+		if( driverStore || opened != ERROR_FILE_NOT_FOUND) {
+			return systemVerificationError( opened) ;
+		}
+
+		snapshot = std::move( made) ;
+		return 0U ;
+	}
+
+	BY_HANDLE_FILE_INFORMATION info{} ;	// 同じfile handleから取得した元属性と長さ
+	FILE_ID_INFO			   id{} ;	// 現在volumeと128 bitファイル識別子
+	// 開いた葉が同じ通常ファイルであることを確認するため、属性と識別子を取得する
+	if( !GetFileInformationByHandle( file.get(), &info) ||
+	   !GetFileInformationByHandleEx( file.get(), FileIdInfo, &id, sizeof( id))) {
+		return systemVerificationError( GetLastError()) ;
+	}
+
+	// 保持中のファイルの全バイト数
+	const auto bytes = (static_cast<std::uint64_t>( info.nFileSizeHigh) << 32U) | info.nFileSizeLow ;
+	// ドライバー配布上限以内で内容があり、保持元を確認できる通常ファイルだけを許す
+	if( bytes == 0U || bytes > maximumBytes ||
+	   (info.dwFileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY)) != 0U ||
+	   info.nNumberOfLinks == 0U) {
+		return systemVerificationError( ERROR_ACCESS_DENIED) ;
+	}
+
+	// 保持したバイナリの正規位置
+	error = checkProtectedExecutableLocation( file.get(), path) ;
+	// Windowsが返す最終位置が元位置と一致する場合だけ先へ進む
+	if( error != 0U) {
+		return error ;
+	}
+
+	// Driver Storeの実バイナリには候補と同じAMD64 PE32+の非実行検査を適用する
+	if( driverStore && requireAmd64) {
+		bool embedded{} ;	// 署名テーブルを含む元形式。現登録の所有照合は別工程
+		error = systemPeSignatureForm( file.get(), embedded) ;
+		// 読めないバイナリを正常な元実体として扱わない
+		if( error != 0U) {
+			return error ;
+		}
+	}
+
+	auto &existing	= made.existing.emplace() ;	// 同じhandleの属性と完全ハッシュ
+	existing.volume = id.VolumeSerialNumber ;
+	std::ranges::copy( id.FileId.Identifier, existing.fileId.begin()) ;
+	existing.bytes		= bytes ;
+	existing.attributes = info.dwFileAttributes ;
+	existing.links		= info.nNumberOfLinks ;
+	existing.lastWrite	= (static_cast<std::uint64_t>( info.ftLastWriteTime.dwHighDateTime) << 32U) |
+						 info.ftLastWriteTime.dwLowDateTime ;
+	error = verifySystemFilePermissions( file.get(), existing.security, nullptr) ;
+	// ハッシュ読取りの前に、保護が成立した同じ通常ファイルであることを確認する
+	if( error == 0U) {
+		error = computeFileSha256( path, existing.sha256) ;
+	}
+
+	// 完全な読み取りだけを呼出側の再確認へ送る
+	if( error == 0U) {
+		snapshot = std::move( made) ;
+	}
+
+	return error ;
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 選択した補助EXEの同じSystem32直下位置を読み取る
+ * @param[in] path 元INFが指定した正確なSystem32直下のEXE絶対位置
+ * @param[out] snapshot 運用中の親とファイルの保護およびハッシュ。失敗時は空
+ * @return 読取り成功0、配置先、権限、ファイル種別、読取りの不成立はHRESULT
+ * @note 名前解決中は祖先を保持し、実ファイルを開いてから全byteを読む
+ */
+//------------------------------------------------------------------------------
+NativeError readSystem32ExecutableSnapshot( std::wstring_view		   path,
+										   System32ExecutableSnapshot &snapshot)
+{
+	snapshot = {} ;
+	std::array<wchar_t, MAX_PATH> directory{} ;	// 現在OSのネイティブSystem32の完全位置
+	const auto					  length =
+		// 実長
+		GetSystemDirectoryW( directory.data(), static_cast<UINT>( directory.size())) ;
+	const auto slash = path.rfind( L'\\') ;	// 元INFが解決したコピー先の親と葉の境界
+	// 完全な標準親は一つだけで、補助EXEの正確な絶対位置を要求する
+	if( length == 0U || length >= directory.size() || slash != length ||
+	   !publisherNamesEqual( path.substr( 0U, slash), {directory.data(), length}) ||
+	   path.size() <= slash + 5U || !publisherNamesEqual( path.substr( path.size() - 4U), L".exe")) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	return readProtectedExecutableAtPath( path, false, snapshot) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 正規driversの直接の子であるSYSの現在値と保護を読む
+ * @param[in] path 元INFの解決結果である絶対コピー先
+ * @param[out] snapshot 同じ親と実ファイルの全観測。失敗時は空
+ * @return 読取り成功0、位置・保護・ファイルの読取り不成立はHRESULT
+ * @note 候補から指された通常SYSだけを読む。書込みやバイナリ実行を行わない
+ */
+//------------------------------------------------------------------------------
+NativeError readSystem32StorageDriverSnapshot( std::wstring_view			   path,
+											  ProtectedExecutableSnapshot &snapshot)
+{
+	snapshot = {} ;
+	std::array<wchar_t, MAX_PATH> directory{} ;	// Windowsが返すネイティブSystem32の絶対位置
+	const auto					  length = GetSystemDirectoryW( directory.data(),
+															   // 終端を除く完全長
+															   static_cast<UINT>( directory.size())) ;
+	// 元のWindowsのディレクトリを取得できなければ別の位置を調べない
+	if( length == 0U || length >= directory.size()) {
+		return systemVerificationError( length == 0U ? GetLastError() : ERROR_INSUFFICIENT_BUFFER) ;
+	}
+
+	constexpr std::wstring_view drivers{L"\\drivers\\"} ;					// 固定された直接の親
+	const auto					parentLength = length + drivers.size() ;	// 元SYSの葉が始まる位置
+	// 同じWindowsの標準親を参照していることを確認する
+	if( path.size() <= parentLength + 4U ||
+	   !publisherNamesEqual( path.substr( 0U, length), {directory.data(), length}) ||
+	   !publisherNamesEqual( path.substr( length, drivers.size()), drivers)) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	const auto leaf = path.substr( parentLength) ;	// 元SYS一つの名前
+	// 子ディレクトリ、代替データストリーム、別拡張子を許容しない
+	if( leaf.find( L'\\') != leaf.npos || !isSafeOfficialArchiveMember( leaf, L'\\') ||
+	   !publisherNamesEqual( leaf.substr( leaf.size() - 4U), L".sys")) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	return readProtectedExecutableAtPath( path, false, snapshot) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保護されたDriver Storeの一パッケージに属する元SYSと親の現在値を読む
+ * @param[in] path 照合済みStore INFと同じ一パッケージ直下の元SYSの絶対パス
+ * @param[out] snapshot 元の親、元SYSの保護、同一性と全ハッシュ。失敗時は空
+ * @return 正規位置、AMD64形式と保護付き読取りが成立すれば0、失敗はHRESULT
+ * @note 署名と現用機器への結合は別に確認する。SYSを実行せず変更しない
+ */
+//------------------------------------------------------------------------------
+NativeError readDriverStoreStorageDriverSnapshot( std::wstring_view			  path,
+												 ProtectedExecutableSnapshot &snapshot)
+{
+	snapshot = {} ;
+	std::array<wchar_t, MAX_PATH> system{} ;	// 現OSの正規System32の位置
+	// 現Windowsが返す絶対位置の完全長
+	const auto length = GetSystemDirectoryW( system.data(), static_cast<UINT>( system.size())) ;
+	// 同じWindowsのルートを読み取れない場合は別の基点へ進まない
+	if( length == 0U || length >= system.size()) {
+		return systemVerificationError( length == 0U ? GetLastError() : ERROR_INSUFFICIENT_BUFFER) ;
+	}
+
+	// 展開や探索に使わない同じWindowsの固定親
+	const auto repository =
+		std::wstring{system.data(), length} + L"\\DriverStore\\FileRepository\\" ;
+	// 元WindowsのFileRepositoryだけを通常のパッケージとして扱う
+	if( path.size() <= repository.size() ||
+	   !publisherNamesEqual( path.substr( 0U, repository.size()), repository)) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	const auto relative = path.substr( repository.size()) ;	// パッケージ親と元SYSの正規相対名
+	const auto slash	= relative.find( L'\\') ;			// 一パッケージから葉への境界
+	// パッケージの直下にある一つの安全な通常SYSだけを開く
+	if( slash == relative.npos || slash != relative.rfind( L'\\') || relative.size() <= slash + 5U ||
+	   !isSafeOfficialArchiveMember( relative, L'\\') ||
+	   !publisherNamesEqual( relative.substr( relative.size() - 4U), L".sys")) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	return readProtectedExecutableAtPath( path, true, snapshot) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 正規の登録配布にある元ファイルと親の保護、同一性、完全ハッシュを読む
+ * @param[in] path 呼出側でWindowsの公開INF又は同じFileRepository配布直下と確認した絶対位置
+ * @param[in] store trueはStore側。falseは公開INFだけ
+ * @param[out] snapshot 元ファイルと親の保護付き観測。失敗時は空
+ * @return 通常の元ファイルの内容と保護を確認して0、位置、形式や読取りの失敗はHRESULT
+ * @note 拡張子ごとの上限を適用する。元位置の登録対応と元CATの署名は呼出側で独立に確認する
+ */
+//------------------------------------------------------------------------------
+NativeError readProtectedRegisteredPackageSnapshot( std::wstring_view path, bool store,
+												   ProtectedExecutableSnapshot &snapshot)
+{
+	snapshot		 = {} ;
+	const auto slash = path.rfind( L'\\') ;	// 呼出側が限定した元パッケージ内の最後の区切り
+	// 相対指定や非正規の葉は保持中の登録パスとして扱わない
+	if( path.size() >= MAX_PATH || slash == path.npos || slash < 3U || path[1U] != L':' ||
+	   path[2U] != L'\\' || path.size() - slash <= 5U || path.find_first_of( L"/%") != path.npos ||
+	   !isSafeOfficialArchiveMember( path.substr( slash + 1U), L'\\')) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	const auto suffix = path.substr( path.size() - 4U) ;					// 元ファイルの型を判定する末尾
+	const bool inf	  = publisherNamesEqual( suffix, L".inf") ;				// 両位置で許される元INF
+	const bool cat	  = store && publisherNamesEqual( suffix, L".cat") ;	// 同じStoreにある元CAT
+	const bool sys	  = store && publisherNamesEqual( suffix, L".sys") ;	// 同じStoreにある元SYS
+	// 同じパッケージが宣言する元ファイルの三種類だけを扱う
+	if( !inf && !cat && !sys) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	const std::uint64_t maximum = inf	? 4ULL * 1024U * 1024U
+								  : cat ? 64ULL * 1024U * 1024U
+										: 2ULL * 1024U * 1024U * 1024U ;	// 型別の読取り上限
+	// ファイルと親の保護を、元の型別上限で読む
+	const auto			error = readProtectedExecutableAtPath( path, store, snapshot, maximum, sys) ;
+	// 公開INFでも明示的不在を成功の元証拠にしない
+	if( error == 0U && !snapshot.existing) {
+		snapshot = {} ;
+		return systemVerificationError( ERROR_FILE_NOT_FOUND) ;
+	}
+
+	return error ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 正規System32の直接の子であるストレージ用イベント資源DLLの現在値を読む
+ * @param[in] path 元INFが指定したSystem32直下のDLL絶対位置
+ * @param[out] snapshot 親の保護と実ファイルの同一性・保護・全ハッシュ、または葉の正式な不在。失敗時は空
+ * @return 読取り成功0、位置・保護・ファイル照会の不成立はHRESULT
+ * @note DLLの存在と署名済み元媒体との同一性は呼出側で照合する。DLLをロードせず変更しない
+ */
+//------------------------------------------------------------------------------
+NativeError readSystem32StorageEventResourceSnapshot( std::wstring_view			  path,
+													 ProtectedExecutableSnapshot &snapshot)
+{
+	snapshot = {} ;
+	std::array<wchar_t, MAX_PATH> directory{} ;	// Windowsが返すネイティブSystem32の絶対位置
+	const auto					  length = GetSystemDirectoryW( directory.data(),
+															   // 終端を除く完全長
+															   static_cast<UINT>( directory.size())) ;
+	// 正規のWindowsディレクトリを確定できた場合だけ位置を照合する
+	if( length == 0U || length >= directory.size()) {
+		return systemVerificationError( length == 0U ? GetLastError() : ERROR_INSUFFICIENT_BUFFER) ;
+	}
+
+	const auto separator = path.rfind( L'\\') ;	// コピー先の直接親と資源名の境界
+	// 同じWindowsのSystem32を直接親とする絶対位置だけを受理する
+	if( separator != length ||
+	   !publisherNamesEqual( path.substr( 0U, separator), {directory.data(), length})) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	const auto leaf = path.substr( separator + 1U) ;	// 元イベント資源DLL一つの通常名
+	// 予約名、代替データストリームや別拡張子を含む曖昧な資源名を拒否する
+	if( leaf.size() <= 4U || !isSafeOfficialArchiveMember( leaf, L'\\') ||
+	   !publisherNamesEqual( leaf.substr( leaf.size() - 4U), L".dll")) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	return readProtectedExecutableAtPath( path, false, snapshot) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief SCMの元コマンドを固定Driver Store内の実ファイルへ解決して保護付きで読み取る
+ * @param[in] command SCMの原文字列。全体を囲む引用符だけを許容する
+ * @param[in] sourceFile 署名済みの選択が宣言した一つのEXEファイル名
+ * @param[out] resolved 同じWindowsのFileRepository内の絶対位置。失敗時は空
+ * @param[out] snapshot ファイルと二つの親の同一性・保護とハッシュ。失敗時は空
+ * @return 保護された実ファイルの読取り成功0、構文・位置・種別・読取の不成立はHRESULT
+ * @note 現在ファイルの署名元や登録済みパッケージの所有は別に確認する。実行しない
+ */
+//------------------------------------------------------------------------------
+NativeError readDriverStoreExecutableSnapshot( std::wstring_view command,
+											  std::wstring_view sourceFile, std::wstring &resolved,
+											  ProtectedExecutableSnapshot &snapshot)
+{
+	resolved.clear() ;
+	snapshot = {} ;
+	// 元のコピーと同じ一つのEXE名だけを許す
+	if( command.empty() || command.size() > 4096U || sourceFile.size() <= 4U ||
+	   sourceFile.find( L'\\') != sourceFile.npos ||
+	   !isSafeOfficialArchiveMember( sourceFile, L'\\') ||
+	   !publisherNamesEqual( sourceFile.substr( sourceFile.size() - 4U), L".exe")) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	// 元の位置指定が全体を一組の引用符で囲む場合true
+	const bool quoted = command.size() >= 2U && command.front() == L'"' && command.back() == L'"' ;
+	// 元全体を囲む単一組だけが実行ファイル名の引用符となる
+	if( quoted) {
+		command.remove_prefix( 1U) ;
+		command.remove_suffix( 1U) ;
+	}
+
+	// 引数の切捨て、NULまでの読み替え、非正規のパス区切りを行わない
+	if( command.find_first_of( L"\"/<>|?*") != command.npos ||
+	   std::ranges::any_of( command, []( wchar_t c) { return c < L' ' || c == 0x7f ; })) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	std::array<wchar_t, MAX_PATH> system{} ;	// ネイティブSystem32の正規位置
+	// 同じWindowsの固定ルートを返した文字数
+	const auto length = GetSystemDirectoryW( system.data(), static_cast<UINT>( system.size())) ;
+	// 元Windowsから解決できないときは任意の環境変数へ遡らない
+	if( length == 0U || length >= system.size()) {
+		return systemVerificationError( length == 0U ? GetLastError() : ERROR_INSUFFICIENT_BUFFER) ;
+	}
+
+	const std::wstring_view		system32{system.data(), length} ;		// 同Windowsから得た完全親
+	const auto					systemLeaf = system32.rfind( L'\\') ;	// 正規Windowsルートとの境界
+	constexpr std::wstring_view root{L"%SystemRoot%\\"} ;				// 許容する元変数名一つ
+	std::wstring				path{command} ;							// 既知パスとして照合する作業値
+	// 変数展開はSCMの一つのWindows起点を完全一致させた場合だけ行う
+	if( systemLeaf != system32.npos && command.size() > root.size() &&
+	   publisherNamesEqual( command.substr( 0U, root.size()), root)) {
+		path = std::wstring{system32.substr( 0U, systemLeaf + 1U)} +
+			   std::wstring{command.substr( root.size())} ;
+	}
+
+	const auto repository =
+		std::wstring{system32} + L"\\DriverStore\\FileRepository\\" ;	// 正式親と末尾区切り
+	// 別のWindows、別の配布ルート、未展開変数や引用なしの曖昧な実行先は使わない
+	if( path.size() <= repository.size() || path.find( L'%') != path.npos ||
+	   (!quoted && path.find( L' ') != path.npos) ||
+	   !publisherNamesEqual( std::wstring_view{path}.substr( 0U, repository.size()), repository)) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	const auto relative =
+		std::wstring_view{path}.substr( repository.size()) ;	// パッケージと元EXEの相対位置
+	const auto separator = relative.find( L'\\') ;				// 直下の一つのパッケージの終端
+	// パッケージ名は固定せず、一つの親と元EXE名への完全一致を確認する
+	if( separator == relative.npos || separator != relative.rfind( L'\\') ||
+	   !isSafeOfficialArchiveMember( relative, L'\\') ||
+	   !publisherNamesEqual( relative.substr( separator + 1U), sourceFile)) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	// 変更非共有で保持した実行ファイルと保護の読取り診断
+	const auto error = readProtectedExecutableAtPath( path, true, snapshot) ;
+	// 読取が成立した実ファイル位置だけを再観測へ渡す
+	if( error == 0U) {
+		resolved = std::move( path) ;
+	}
+
+	return error ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同元packageのAMD64 PE32+ headerを既有界readerで非実行確認します
+ * @param[in] path 元保護領域内の通常file絶対位置です
+ * @return 完全headerと有限security table範囲成立0、元I/O又は形式不正のHRESULTです
+ * @note 署名/コピー元/実行意味は検証しません。CATと全byteは呼出し側が別に確認します
+ */
+//------------------------------------------------------------------------------
+NativeError verifyAmd64PeFile( const std::wstring_view path)
+{
+	const std::wstring			   name{path} ;	// 同同期だけでNUL終端を所有します
+	// 元byteを同期中だけ保持する読取専用fileです
+	const ReadOnlyVerificationFile file( CreateFileW( name.c_str(), GENERIC_READ, FILE_SHARE_READ,
+													nullptr, OPEN_EXISTING,
+													FILE_FLAG_OPEN_REPARSE_POINT, nullptr)) ;
+	// 元file以外へ再試行せずI/Oの元errorを保持します
+	if( file.get() == INVALID_HANDLE_VALUE) {
+		return systemVerificationError( GetLastError()) ;
+	}
+
+	FILE_ATTRIBUTE_TAG_INFO attributes{} ;	// 同handleの実種別だけです
+	// reparseとdirectoryをPE形式の確認へ渡しません
+	if( !GetFileInformationByHandleEx( file.get(), FileAttributeTagInfo, &attributes,
+									 sizeof( attributes))) {
+		return systemVerificationError( GetLastError()) ;
+	}
+
+	// 外部参照へsource fileを置換しません
+	if( (attributes.FileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY)) !=
+	   0U) {
+		return systemVerificationError( ERROR_ACCESS_DENIED) ;
+	}
+
+	bool embedded{} ;	// 署名方式の存在だけでtrustへ昇格しません
+	return systemPeSignatureForm( file.get(), embedded) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 防改変権限を持つWindows fileを実署名形式に従いcache-onlyで検証します
- * @param[in] path 呼出し元が同OSの固定System32名から決め、非reparse祖先と実fileを保持する絶対位置です
- * @param[out] evidence 成功時だけ原file/権限/CAT tupleです。失敗時は空です
- * @param[out] diagnosticStage null可の固定検証地点です。合否には使用しません
- * @param[in] peFormat trueは固定PEの署名形式を読み、falseは非実行参考INFのCATだけを要求します
- * @return Windows publisher/chain/原member/hash/権限の全成立0、最初の元HRESULTです
- * @note Trust失敗後の方式/CAT変更、online fallback、実行/ACL変更を行いません
+ * @param[in] path 同OSの固定System32名から決めた絶対位置です
+ * @param[out] evidence 成功時だけ原file/権限/CAT tupleです
+ * @param[out] diagnosticStage null可の固定検証地点です
+ * @param[in] peFormat trueはPE形式、falseは非実行参考INFです
+ * @return 全trust成立0、最初の元HRESULTです
+ * @note 許可のないfallbackや実行/ACL変更を行いません
  */
 //------------------------------------------------------------------------------
 NativeError verifyWindowsSystemFileImpl( const std::wstring_view path,
@@ -2454,6 +3107,456 @@ NativeError verifyWindowsSystemFileImpl( const std::wstring_view path,
 	}
 
 	return TRUST_E_NOSIGNATURE ;
+}
+
+namespace {
+//------------------------------------------------------------------------------
+/**
+ * @brief 同梱INFの全祖先の再解析点と置換を拒否し、直接親とFileRepositoryの保護を確認する
+ * @param[in] path 同じWindowsに限定した公開INF又はFileRepositoryのINFの完全位置
+ * @param[in] protectedCount 公開INFの親は1、パッケージとFileRepositoryは2
+ * @param[out] parents 先に開いた各祖先の所有ハンドル。呼出側が検証終了まで保持する
+ * @return 祖先の固定と必要な保護の確認は0、元エラー又は不一致はHRESULT
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError pinInboxInfParents(
+	const std::wstring &path, std::size_t protectedCount,
+	std::vector<std::unique_ptr<ReadOnlyVerificationFile>> &parents)
+{
+	const auto error =
+		// 全祖先の固定結果
+		pinSystemCatalogParents( path, parents, protectedCount) ;
+	// 祖先の固定が一部でも成立しなければ葉の検査へ進まない
+	if( error != 0 || parents.size() < protectedCount) {
+		return error != 0 ? error : E_UNEXPECTED ;
+	}
+
+	std::vector<std::byte> security ;	// 各ディレクトリの保護を独立に確認するための一時領域
+	// 正規の葉を別名から解決させないため、置換を許さない直近の親を確かめる
+	for( const auto &parent : std::span{parents}.last( protectedCount)) {
+		const auto protection = verifySystemFilePermissions( parent->get(), security, nullptr,
+															true) ;	// 子の置換を含む非特権の変更権限
+		// 一つでも非特権による置換が可能なら正規配置と認定しない
+		if( protection != 0) {
+			return protection ;
+		}
+	}
+
+	return 0 ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 書込削除非共有で開いた葉の正規位置・通常属性と保護を確認する
+ * @param[in] file 直前に開いた所有者から借用したファイルハンドル
+ * @param[in] path 再解析点でない各祖先を保持して開いた元の完全位置
+ * @param[out] security 成功時の元ownerとDACL等。失敗時は使用しない
+ * @return 通常ファイルの正規位置と保護の一致は0、元エラー又は不一致はHRESULT
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyPinnedInboxFile( HANDLE file, std::wstring_view path,
+												std::vector<std::byte> &security)
+{
+	// 直前のCreateFileW失敗の診断を保持する
+	if( file == INVALID_HANDLE_VALUE) {
+		return systemVerificationError( GetLastError()) ;
+	}
+
+	FILE_ATTRIBUTE_TAG_INFO attributes{} ;	// 同じ保持ハンドルから読む種別
+	// 種別を確認できないファイルを読み取らない
+	if( !GetFileInformationByHandleEx( file, FileAttributeTagInfo, &attributes, sizeof( attributes))) {
+		return systemVerificationError( GetLastError()) ;
+	}
+
+	// 葉も再解析点やディレクトリを許容しない
+	if( (attributes.FileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY)) !=
+	   0) {
+		return systemVerificationError( ERROR_INVALID_DATA) ;
+	}
+
+	const auto location = checkProtectedExecutableLocation( file, path) ;	// 元の完全DOS位置との照合
+	return location == 0 ? verifySystemFilePermissions( file, security, nullptr) : location ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同梱machine.infから現OSが選ぶ空のNO_DRVと空名の関連サービスだけを確認する
+ * @param[in] copy 書込削除非共有で保持した公開machine.infの全バイトと一致する一時コピー
+ * @return 完全な空導入契約の場合0、元SetupAPIエラー又は作用不一致はHRESULT
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyInboxNullDriverSections( const std::wstring &copy)
+{
+	const auto raw =
+		SetupOpenInfFileW( copy.c_str(), nullptr, INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE,
+						  nullptr) ;	// Windowsの登録済みINFキャッシュを開かず一時コピーを解析する
+	// 原バイトを解析できない場合は空節と推定しない
+	if( raw == INVALID_HANDLE_VALUE) {
+		return systemVerificationError( GetLastError()) ;
+	}
+
+	const std::unique_ptr<void, decltype( &SetupCloseInfFile)> inf(
+		raw,
+		&SetupCloseInfFile) ;			// 検査終了までSetupAPIの解析結果を保持する
+	std::array<wchar_t, 32U> actual{} ;	// NO_DRVそのものを確認する有限の節名
+	// 現Windowsによる選択が成立しない場合は未修飾節へ独自に切り替えない
+	if( !SetupDiGetActualSectionToInstallW( inf.get(), L"NO_DRV", actual.data(),
+										  static_cast<DWORD>( actual.size()), nullptr, nullptr)) {
+		return systemVerificationError( GetLastError()) ;
+	}
+
+	constexpr std::wstring_view BASIC_SECTION{L"NO_DRV"} ;	// 空導入の固定節名
+	// 修飾節を選択する配布は、基本節が空であっても受理しない
+	if( actual[BASIC_SECTION.size()] != L'\0' ||
+	   !publisherNamesEqual( {actual.data(), BASIC_SECTION.size()}, BASIC_SECTION)) {
+		return systemVerificationError( ERROR_INVALID_DATA) ;
+	}
+
+	// 必須二節を確認し、Windowsの構文解析エラーと行数違いを区別する
+	for( const auto section : {L"NO_DRV", L"NO_DRV.Services"}) {
+		const auto count = SetupGetLineCountW( inf.get(), section) ;	// Windowsが解析した実際の行数
+		// 必須節の不存在又は読取り失敗は元の値を返す
+		if( count < 0) {
+			return systemVerificationError( GetLastError()) ;
+		}
+
+		const auto expected = std::wstring_view( section) == L"NO_DRV" ? 0L : 1L ;	// 許容する作用数
+		// 余分な指示のある基本節やサービス節を空導入と認定しない
+		if( count != expected) {
+			return systemVerificationError( ERROR_INVALID_DATA) ;
+		}
+	}
+
+	// 基本節とServices節に関連するSecurity節はいずれも明示的な不存在だけを受理する
+	for( const auto section : {L"NO_DRV.Security", L"NO_DRV.Services.Security"}) {
+		SetLastError( ERROR_SUCCESS) ;
+		const auto count = SetupGetLineCountW( inf.get(), section) ;	// 空の節も存在として扱う
+		const auto error = GetLastError() ;								// 不存在と他の照会失敗を区別する診断
+		// 対象のセキュリティ作用を追加する節は許可しない
+		if( count >= 0 || error != ERROR_SECTION_NOT_FOUND) {
+			return systemVerificationError( count >= 0 ? ERROR_INVALID_DATA : error) ;
+		}
+	}
+
+	INFCONTEXT row{} ;	// 空の関連サービス指定一行の解析位置
+	// 既に数えた行の読取り失敗は元診断を維持する
+	if( !SetupGetLineByIndexW( inf.get(), L"NO_DRV.Services", 0, &row)) {
+		return systemVerificationError( GetLastError()) ;
+	}
+
+	// 実サービスの構成や追加引数を持つ行は受理しない
+	if( SetupGetFieldCount( &row) != 2U) {
+		return systemVerificationError( ERROR_INVALID_DATA) ;
+	}
+
+	std::array<wchar_t, 32U> key{} ;	// 空名の関連サービス指定に使うキー
+	std::array<wchar_t, 2U>	 name{} ;	// 非空のサービス名を受理しないための有限バッファ
+	INT						 flags{} ;	// 文字列置換後にWindowsが解決した数値
+	// 行のキーと二項目はSetupAPIの元の構文と数値解釈を使う
+	if( !SetupGetStringFieldW( &row, 0, key.data(), static_cast<DWORD>( key.size()), nullptr) ||
+	   !SetupGetStringFieldW( &row, 1, name.data(), static_cast<DWORD>( name.size()), nullptr) ||
+	   !SetupGetIntField( &row, 2, &flags)) {
+		return systemVerificationError( GetLastError()) ;
+	}
+
+	constexpr std::wstring_view ADD_SERVICE{L"AddService"} ;	// 二項目を解釈する元directive
+	return key[ADD_SERVICE.size()] == L'\0' &&
+				   publisherNamesEqual( {key.data(), ADD_SERVICE.size()}, ADD_SERVICE) &&
+				   name.front() == L'\0' && flags == SPSVCINST_ASSOCSERVICE
+			   ? 0
+			   : systemVerificationError( ERROR_INVALID_DATA) ;
+}
+
+} // namespace
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 検査済みINFと完全一致する保護付き一時コピーを保持して内容検査を呼ぶ
+ * @param[in] leaf 同じ元INFの安全な葉名
+ * @param[in] bytes 同じ元ファイルから取得した有限な原バイト
+ * @param[in] sha256 署名検査時の同じ元ファイルの完全SHA-256
+ * @param[in] inspect コピーのパスを同期で借用する解析。元の配置は呼出し側で保持する
+ * @return 元バイトとの完全一致と内容検査が成功すれば0、失敗はHRESULT
+ * @note 元ファイルの署名は呼出し側で確認する。元のWindows INFを解析用に開かない
+ */
+//------------------------------------------------------------------------------
+NativeError inspectProtectedInfCopy( std::wstring_view leaf, std::span<const std::uint8_t> bytes,
+									std::wstring_view										sha256,
+									const std::function<NativeError( const std::wstring &)> &inspect)
+{
+	// 同期検査と4 MiB以内の元INFがそろってから隔離領域を確保する
+	if( !inspect || leaf.size() <= 4U || leaf.find_first_of( L"\\/") != leaf.npos ||
+	   !isSafeOfficialArchiveMember( leaf, L'\\') ||
+	   !publisherNamesEqual( leaf.substr( leaf.size() - 4U), L".inf") || bytes.empty() ||
+	   bytes.size() > 4U * 1024U * 1024U || sha256.size() != 64U) {
+		return E_INVALIDARG ;
+	}
+
+	OfficialDownloadWorkspace workspace ;					// 管理者保護の新規領域と、既知ファイルの回収だけを所有する
+	auto error = workspace.initialize( L"inbox-inf", 1U) ;	// 収集等と分離した独立の一時領域
+	// 一時領域を確保できなければWindowsの公開INFを解析用に開かない
+	if( error != 0) {
+		return error ;
+	}
+
+	// 書込みハンドルの寿命を限定し、読取専用で再固定してからSetupAPIへ渡す
+	{
+		HANDLE raw = INVALID_HANDLE_VALUE ;	// この領域が新規作成したファイルの所有ハンドル
+		error	   = workspace.createFile( leaf, raw) ;
+		// 既存ファイル又は未追跡ファイルへの上書きを行わない
+		if( error != 0) {
+			return error ;
+		}
+
+		const ReadOnlyVerificationFile output( raw) ;	// 全return経路で新規ファイルを閉じる
+		DWORD						   written{} ;		// Windowsが成功として受理したバイト数
+		// 有限な全バイトを保持中の原INFからそのままコピーする
+		if( !WriteFile( output.get(), bytes.data(), static_cast<DWORD>( bytes.size()), &written,
+					  nullptr)) {
+			return systemVerificationError( GetLastError()) ;
+		}
+
+		// 一部書込みは解析せず、領域所有者が回収する
+		if( written != bytes.size()) {
+			return systemVerificationError( ERROR_WRITE_FAULT) ;
+		}
+	}
+
+	const auto					   path = workspace.path( leaf) ;	// 同領域の新規INFの絶対位置
+	const ReadOnlyVerificationFile copy( CreateFileW(
+		path.c_str(), GENERIC_READ | READ_CONTROL, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+		FILE_FLAG_OPEN_REPARSE_POINT, nullptr)) ;	// 原バイトとの一致から解析終了まで固定する
+	std::vector<std::byte>		   security ;		// コピーの現在の保護を独立に確認する
+	error = verifyPinnedInboxFile( copy.get(), path, security) ;
+	// 正規位置と保護の成立を確かめてから内容を読み直す
+	if( error != 0) {
+		return error ;
+	}
+
+	std::vector<BYTE> copied ;	// 再度開いて保持した一時INFから読む全内容
+	error = readFileBytes( path, bytes.size(), copied) ;
+	// 解析対象が署名照合した元のWindows INFとバイト単位で一致することを確認する
+	if( error != 0 || !std::ranges::equal( bytes, copied)) {
+		return error != 0 ? error : TRUST_E_BAD_DIGEST ;
+	}
+
+	std::wstring copySha256 ;	// 原CAT照合時の元ハッシュと照合する
+	error = computeFileSha256( path, copySha256) ;
+	// 原INFと同じハッシュで固定できた一時コピーだけを解析する
+	if( error != 0 || copySha256 != sha256) {
+		return error != 0 ? error : TRUST_E_BAD_DIGEST ;
+	}
+
+	return inspect( path) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保護されたWindows同梱INFの公開ファイル、Store原本と登録CATを照合してから内容検査を呼ぶ
+ * @param[in] publishedInfName 同じWindowsのINF直下にある公開INFの葉名
+ * @param[in] inspect 成功したStore位置、公開INFとCATの信頼、全原バイトを同期で借用する検査
+ * @return 署名元と内容の検査がともに成功して0、最初の失敗はHRESULT
+ * @note 借用は呼出し中だけ有効。元INFとCATを保持する。解析用入力が必要なら原バイトを一時コピーする
+ * @note 正確な元選択、SYSの所属、端末との対応は呼出し側で検証する
+ */
+//------------------------------------------------------------------------------
+NativeError inspectVerifiedWindowsInboxInf( std::wstring_view					   publishedInfName,
+										   const VerifiedWindowsInboxInfInspector &inspect)
+{
+	// Windowsが示す通常のINF葉だけを公開ディレクトリから開く
+	if( !inspect || publishedInfName.size() <= 4U || publishedInfName.size() >= MAX_PATH ||
+	   publishedInfName.find_first_of( L"\\/") != publishedInfName.npos ||
+	   !isSafeOfficialArchiveMember( publishedInfName, L'\\') ||
+	   !publisherNamesEqual( publishedInfName.substr( publishedInfName.size() - 4U), L".inf")) {
+		return E_INVALIDARG ;
+	}
+
+	try {
+		std::array<wchar_t, MAX_PATH> root{} ;	// 現OSが返すシステムWindowsの絶対位置
+		// OS APIが返した末尾の終端を除く文字数
+		const auto length = GetSystemWindowsDirectoryW( root.data(), static_cast<UINT>( root.size())) ;
+		// Windowsの固定配置を確認できなければ他の起点を使わない
+		if( length == 0 || length >= root.size()) {
+			return systemVerificationError( length == 0 ? GetLastError()
+													   : ERROR_INSUFFICIENT_BUFFER) ;
+		}
+
+		const std::wstring windows( root.data(), length) ;	// 同じOSのWindowsルート
+		// 同じWindowsが公開している元INF
+		const auto		   published = windows + L"\\INF\\" + std::wstring( publishedInfName) ;
+		std::vector<std::unique_ptr<ReadOnlyVerificationFile>> publishedParents ;	// 元INFの全祖先
+		auto error = pinInboxInfParents( published, 1U, publishedParents) ;			// 固定した公開位置と保護
+		// 公開位置を保護付きで固定できなければStore解決へ進まない
+		if( error != 0) {
+			return error ;
+		}
+
+		const ReadOnlyVerificationFile publishedFile( CreateFileW(
+			published.c_str(), GENERIC_READ | READ_CONTROL, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+			FILE_FLAG_OPEN_REPARSE_POINT, nullptr)) ;		// 公開INFの実ファイルを保持する
+		std::vector<std::byte>		   publishedSecurity ;	// 署名確認時と結ぶ公開INFの保護
+		error = verifyPinnedInboxFile( publishedFile.get(), published, publishedSecurity) ;
+		// Windowsの正規公開位置の実ファイルだけをSetupAPIへ渡す
+		if( error != 0) {
+			return error ;
+		}
+
+		std::array<wchar_t, MAX_PATH> location{} ;	// 現在登録された同梱INFのStore完全位置
+		// 容量を増やしたり別名で再試行したりせず元の対応だけを解決する
+		if( !SetupGetInfDriverStoreLocationW( published.c_str(), nullptr, nullptr, location.data(),
+											static_cast<DWORD>( location.size()), nullptr)) {
+			return systemVerificationError( GetLastError()) ;
+		}
+
+		const auto end = std::ranges::find( location, L'\0') ;	// 有限位置内の終端
+		const auto repository =
+			windows + L"\\System32\\DriverStore\\FileRepository\\" ;	// 正規のStore境界
+		const std::wstring store( location.begin(), end) ;				// Windowsが返した原位置
+		// WindowsのFileRepository外や未終端の応答を対象にしない
+		if( end == location.end() || store.size() <= repository.size() ||
+		   !publisherNamesEqual( std::wstring_view( store).substr( 0U, repository.size()),
+								repository)) {
+			return systemVerificationError( ERROR_INVALID_NAME) ;
+		}
+
+		const auto relative =
+			// 一つの配布親と葉
+			std::wstring_view( store).substr( repository.size()) ;
+		const auto separator = relative.find( L'\\') ;	// 親と葉の境界
+		// FileRepositoryの直下1階層の正規配布にある同梱INFだけを開く
+		if( separator == relative.npos || separator != relative.rfind( L'\\') ||
+		   !isSafeOfficialArchiveMember( relative, L'\\') ||
+		   !publisherNamesEqual( relative.substr( separator + 1U), publishedInfName)) {
+			return systemVerificationError( ERROR_INVALID_NAME) ;
+		}
+
+		std::vector<std::unique_ptr<ReadOnlyVerificationFile>> storeParents ;	// Store内の全祖先
+		error = pinInboxInfParents( store, 2U, storeParents) ;
+		// FileRepositoryと配布親の両方が保護される場合だけ葉を開く
+		if( error != 0) {
+			return error ;
+		}
+
+		const ReadOnlyVerificationFile storeFile( CreateFileW(
+			store.c_str(), GENERIC_READ | READ_CONTROL, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+			FILE_FLAG_OPEN_REPARSE_POINT, nullptr)) ;	// Storeの実INFを保持する
+		std::vector<std::byte>		   storeSecurity ;	// 別ファイルである場合も独立に保護を確認する
+		error = verifyPinnedInboxFile( storeFile.get(), store, storeSecurity) ;
+		// 保持できない物理ファイルを元配布のコピーと見なさない
+		if( error != 0) {
+			return error ;
+		}
+
+		std::array<wchar_t, MAX_PATH> reverse{} ;	// Storeの実INFに対応する公開名
+		// 正方向だけの一致と区別し、保持中に登録の逆引きを確認する
+		if( !SetupGetInfPublishedNameW( store.c_str(), reverse.data(),
+									  static_cast<DWORD>( reverse.size()), nullptr)) {
+			return systemVerificationError( GetLastError()) ;
+		}
+
+		const auto				reverseEnd = std::ranges::find( reverse, L'\0') ;	// 有限位置内の終端
+		const std::wstring_view reverseName( reverse.begin(), reverseEnd) ;			// Windowsが返した公開名
+		// Windowsが返す葉名又は同じ公開ファイルの完全位置だけを受理する
+		if( reverseEnd == reverse.end() || (!publisherNamesEqual( reverseName, publishedInfName) &&
+										   !publisherNamesEqual( reverseName, published))) {
+			return systemVerificationError( ERROR_INVALID_NAME) ;
+		}
+
+		constexpr std::uint64_t MAXIMUM_INBOX_INF_BYTES = 4U * 1024U * 1024U ;	// INF全バイトの各上限
+		std::vector<BYTE>		publishedBytes ;								// 共有ロック中に読む公開INFの全バイト
+		std::vector<BYTE>		storeBytes ;									// 同じロック条件で読むStoreのINFの全バイト
+		error = readFileBytes( published, MAXIMUM_INBOX_INF_BYTES, publishedBytes) ;
+		// 公開INFを完全に読めた場合だけStore内容を比較する
+		if( error == 0) {
+			error = readFileBytes( store, MAXIMUM_INBOX_INF_BYTES, storeBytes) ;
+		}
+
+		// Hardlinkであっても完全な原バイト一致を確認する
+		if( error != 0 || publishedBytes != storeBytes) {
+			return error != 0 ? error : TRUST_E_BAD_DIGEST ;
+		}
+
+		WindowsSystemFileTrust evidence ;	// Windows現在の原INFと登録済みCATの完全な証明
+		error = verifyWindowsSystemFileImpl( published, evidence, nullptr, false) ;
+		// 元の非実行INFを証明したCAT以外に切り替えない
+		if( error != 0 || evidence.catalogPath.empty() ||
+		   publishedBytes.size() != evidence.fileBytes ||
+		   evidence.fileSecurity != publishedSecurity) {
+			return error != 0 ? error : TRUST_E_SUBJECT_NOT_TRUSTED ;
+		}
+
+		std::vector<std::unique_ptr<ReadOnlyVerificationFile>> catalogParents ;	// 元CatRootの全祖先
+		error = pinSystemCatalogParents( evidence.catalogPath, catalogParents) ;
+		// 署名確認した同じCATを正規配置に固定する
+		if( error != 0) {
+			return error ;
+		}
+
+		const ReadOnlyVerificationFile catalog(
+			CreateFileW( evidence.catalogPath.c_str(), GENERIC_READ | READ_CONTROL, FILE_SHARE_READ,
+						nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT,
+						nullptr)) ;					// 共通署名CATを解析終了まで保持する
+		std::vector<std::byte> catalogSecurity ;	// 再固定したCATの保護を証明時と照合する
+		error = verifyPinnedInboxFile( catalog.get(), evidence.catalogPath, catalogSecurity) ;
+		// 途中で置き換わった元CAT又は保護不一致は受理しない
+		if( error != 0 || catalogSecurity != evidence.catalogSecurity) {
+			return error != 0 ? error : TRUST_E_SUBJECT_NOT_TRUSTED ;
+		}
+
+		LARGE_INTEGER catalogBytes{} ;	// 再固定したCATの実バイト数
+		// 署名元と同じ有限長だけを再度ハッシュへ渡す
+		if( !GetFileSizeEx( catalog.get(), &catalogBytes)) {
+			return systemVerificationError( GetLastError()) ;
+		}
+
+		// サイズ違いのCATは元証拠を継承できない
+		if( catalogBytes.QuadPart <= 0 ||
+		   static_cast<std::uint64_t>( catalogBytes.QuadPart) != evidence.catalogBytes) {
+			return TRUST_E_BAD_DIGEST ;
+		}
+
+		std::wstring catalogSha256 ;	// 元証明時の完全ハッシュと比較する
+		error = computeFileSha256( evidence.catalogPath, catalogSha256) ;
+		// 固定し直した位置の原ハッシュが一致する場合だけ使用する
+		if( error != 0 || catalogSha256 != evidence.catalogSha256) {
+			return error != 0 ? error : TRUST_E_BAD_DIGEST ;
+		}
+
+		const std::array<std::wstring, 2U> members{published, store} ;	// 両実ファイルを共通CATへ結ぶ
+		error = verifyCatalogMembersWithPolicy( evidence.catalogPath, members, true) ;
+		// 原CATの両メンバーが成立した場合だけ同じCATの署名者を読み取る
+		if( error == 0) {
+			std::wstring publisher ;	// 再固定した同じCATの署名者
+			error = readSignerName( evidence.catalogPath, publisher, true) ;
+			// 完全なWindows署名者のみ同梱の作用確認へ進める
+			if( error == 0 && !publisherNamesEqual( publisher, L"Microsoft Windows")) {
+				error = TRUST_E_SUBJECT_NOT_TRUSTED ;
+			}
+		}
+
+		// 元INFとCATの所有を保持している間だけ検査へ借用値を渡す
+		return error == 0 ? inspect( store, evidence, publishedBytes) : error ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じWindowsの公開INFとDriver Storeから同梱machine.infの空導入委譲を検証する
+ * @return 正規配置・原バイト・保護・Microsoft Windows署名とNO_DRVの作用が一致すれば0、失敗はHRESULT
+ * @note 固定したINFとCATを保持中にローカルの信頼情報とハッシュ一致した一時コピーを読み取る
+ */
+//------------------------------------------------------------------------------
+NativeError verifyWindowsInboxNullDriver()
+{
+	// 元バイトとハッシュを同期で借用し、保護した一時コピーで既存のNO_DRV契約を検査する
+	return inspectVerifiedWindowsInboxInf( L"machine.inf", []( std::wstring_view,
+															 const WindowsSystemFileTrust &evidence,
+															 std::span<const std::uint8_t> bytes) {
+		return inspectProtectedInfCopy( L"machine.inf", bytes, evidence.fileSha256,
+									   &verifyInboxNullDriverSections) ;
+	}) ;
 }
 
 //------------------------------------------------------------------------------
@@ -2850,12 +3953,29 @@ thread_local ScopedFixture *activeFixture = nullptr ;
 }
 
 //------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
 /**
- * @brief 実fileが同rootの完全相対memberと元hashへ一致するか確認します
- * @param[in] files 完全な固定期待集合
- * @param[in] path 保護workspace内の実絶対path
- * @param[in] root 元INFで確認する保護rootです。末尾区切りを含みます
- * @return 実byteと元hash一致の場合true
+ * @brief 元人工memberが明示したINF ownerだけを比較します
+ * @param[in] file 元raw hashを保持する人工memberです
+ * @param[in] owner 同scopeの実INF名です
+ * @return 単独owner又はshared CATの明示aliasに完全一致する場合trueです
+ * @note aliasを実製品の署名/用途/権限へ変換しません
+ */
+//------------------------------------------------------------------------------
+static bool fixtureOwner( const FixtureFile &file, std::wstring_view owner)
+{
+	return file.infOwner == owner ||
+		   std::ranges::find( file.additionalInfOwners, owner) != file.additionalInfOwners.end() ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 実fileが同rootの完全member名と原raw SHAへ一致するか確認します
+ * @param[in] files 完全な元期待集合です
+ * @param[in] path 同保護領域の実絶対pathです
+ * @param[in] root 元INFで固定した区切り込みrootです
+ * @return 同memberの全raw byte一致時trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool matchesFixtureFile( const std::vector<FixtureFile> &files,
@@ -2874,16 +3994,57 @@ thread_local ScopedFixture *activeFixture = nullptr ;
 	return found != files.end() && computeFileSha256( path, hash) == 0 && hash == found->sha256 ;
 }
 
-#if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
+//------------------------------------------------------------------------------
+
+//------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 /**
- * @brief 既存の明示人工scopeだけで、確認済み同root/ownerの元member hashを取得します
- * @param[in] path 元固定CATの完全pathです
- * @param[out] hashes 全成功時だけ人工memberの元SHA256集合です。失敗時は空です
- * @return 元CAT/全file/root-ownerが同scopeで確認済みの場合だけtrueです
- * @note 実CATやnative adapterへは適用せず、署名や実適合の根拠を作りません
+ * @brief 原raw hash確認後の人工fileだけからWindowsのcatalog digestを独立計算します
+ * @param[in] path 固定人工scopeが原byteを照合済みのmemberです
+ * @param[out] hash SHA256 catalog digestの全小文字hexです。失敗時空です
+ * @return 元Windows digest APIの全成功時trueです
+ * @note PEのcatalog digestとfile全体SHAを混同せず、署名/由来/導入成功を生成しません
  */
 //------------------------------------------------------------------------------
+static bool syntheticCatalogDigest( std::wstring_view path, std::wstring &hash)
+{
+	hash.clear() ;
+	// 同同期で使用する所有catalog digest contextです
+	CatalogHashContext			   context ;
+	// 元byteを同期中だけ保持する読取専用fileです
+	const ReadOnlyVerificationFile file( CreateFileW( std::wstring{path}.c_str(), GENERIC_READ,
+													FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+													FILE_FLAG_OPEN_REPARSE_POINT, nullptr)) ;
+	// Windowsが返した原catalog digestの全byteです
+	std::vector<BYTE>			   digest ;
+	// 不正PEや元API失敗をraw digestへfallbackしません
+	if( file.get() == INVALID_HANDLE_VALUE ||
+	   context.initialize( BCRYPT_SHA256_ALGORITHM, 32U) != 0U ||
+	   context.calculateHash( file.get(), digest) != 0U || digest.size() != 32U) {
+		return false ;
+	}
+
+	// 原digestをlosslessに表す小文字hex字句です
+	constexpr std::wstring_view HEX = L"0123456789abcdef" ;
+	// Windowsが返した全digestをlosslessに保持します
+	for( const auto byte : digest) {
+		hash.push_back( HEX[byte >> 4U]) ;
+		hash.push_back( HEX[byte & 15U]) ;
+	}
+
+	return true ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元人工scopeの全raw byteを再照合してcatalog digest集合を作ります
+ * @param[in] path 同元CATの完全位置です
+ * @param[out] hashes 全raw byte確認後のWindows catalog SHA256だけです
+ * @return 同固定scope/元owner/全byteが成立した場合trueです
+ * @note native adapter又は製品CATへ適用しません
+ */
+//------------------------------------------------------------------------------
+#if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
 bool readSyntheticCatalogDigests( const std::wstring_view	path,
 								 std::vector<std::wstring> &hashes) noexcept
 {
@@ -2917,7 +4078,8 @@ bool readSyntheticCatalogDigests( const std::wstring_view	path,
 		std::size_t index{} ;	// 元SetupVerifyInfが確認したroot-owner組を検索します
 		// 同rootの別INF-ownerの署名を今回へ流用しません
 		while( index < fixture.roots_.size() &&
-			  (fixture.roots_[index] != root || fixture.rootOwners_[index] != catalog->infOwner)) {
+			  (fixture.roots_[index] != root ||
+			   !fixtureOwner( *catalog, fixture.rootOwners_[index]))) {
 			++index ;
 		}
 
@@ -2929,7 +4091,7 @@ bool readSyntheticCatalogDigests( const std::wstring_view	path,
 		// 同ownerの全実byteを再確認し、元固定hashだけを人工宣言へ渡します
 		for( const auto &file : fixture.files_) {
 			// 別ownerの内容を今回のCATへ含めません
-			if( file.infOwner != catalog->infOwner) {
+			if( !fixtureOwner( *catalog, file.infOwner)) {
 				continue ;
 			}
 
@@ -2941,7 +4103,15 @@ bool readSyntheticCatalogDigests( const std::wstring_view	path,
 
 			// CAT自体はmemberではなく、固定された原署名fixtureの所有者です
 			if( !file.name.ends_with( L".cat")) {
-				hashes.push_back( file.sha256) ;
+				// Windowsが返した原catalog digestの全byteです
+				std::wstring digest ;
+				// 正当なPEでもraw hashをcatalog tagへ置換しません
+				if( !syntheticCatalogDigest( std::wstring{root} + file.name, digest)) {
+					hashes.clear() ;
+					return false ;
+				}
+
+				hashes.push_back( std::move( digest)) ;
 			}
 		}
 
@@ -3099,7 +4269,7 @@ BOOL setupVerifyInf( const PCWSTR path, const PSP_ALTPLATFORM_INFO platform,
 		const auto owner   = infEntry->infOwner ;	// 旧単一集合は空、複数集合はexact INF名です
 		const auto catalog = std::find_if(
 			fixture.files_.begin(), fixture.files_.end(), [&owner]( const FixtureFile &file) {
-				return file.infOwner == owner && file.name.ends_with( L".cat") ;
+				return fixtureOwner( file, owner) && file.name.ends_with( L".cat") ;
 			}) ;					 // 一意固定CAT
 		std::size_t rootIndex{} ;	// 同rootと元INF ownerの完全な組を検索します
 		// 同directoryの別CATを既存ownerの署名へ転用しません
@@ -3115,7 +4285,7 @@ BOOL setupVerifyInf( const PCWSTR path, const PSP_ALTPLATFORM_INFO platform,
 		   (!knownRoot && fixture.roots_.size() >= fixture.maximumRoots_) ||
 		   !std::ranges::all_of( fixture.files_,
 								[&]( const FixtureFile &file) {
-									return file.infOwner != owner ||
+									return !fixtureOwner( file, owner) ||
 										   matchesFixtureFile( fixture.files_, root + file.name,
 															  root) ;
 								}) ||
@@ -3252,8 +4422,18 @@ LONG verifyTrust( const HWND window, GUID *const action, LPVOID const data) noex
 			return TRUST_E_SUBJECT_NOT_TRUSTED ;
 		}
 
-		const auto &owner = catalogEntry->infOwner ;	// 同元CATだけの元INFです
-		std::size_t rootIndex{} ;						// setupVerifyInfが確認したroot-owner組です
+		// 当該CAT検査の元完全member期待値です
+		const auto memberEntry = std::ranges::find_if(
+			fixture.files_, [&]( const auto &file) { return file.name == memberName ; }) ;
+		// shared CATでも実memberの元INF ownerを消しません
+		if( memberEntry == fixture.files_.end() ||
+		   !fixtureOwner( *catalogEntry, memberEntry->infOwner)) {
+			++fixture.receipt_.rejectedCalls ;
+			return TRUST_E_SUBJECT_NOT_TRUSTED ;
+		}
+
+		const auto &owner = memberEntry->infOwner ;	// 同元memberだけの元INFです
+		std::size_t rootIndex{} ;					// setupVerifyInfが確認したroot-owner組です
 		// 同directoryの別ownerの確認を今回のCATへ流用しません
 		while( rootIndex < fixture.roots_.size() && (fixture.roots_[rootIndex] != catalogRoot ||
 													fixture.rootOwners_[rootIndex] != owner)) {
@@ -3269,10 +4449,10 @@ LONG verifyTrust( const HWND window, GUID *const action, LPVOID const data) noex
 		// 別INF集合のfileを同rootの署名へ紐付けません
 		if( !std::ranges::any_of( fixture.files_,
 								[&]( const FixtureFile &file) {
-									return file.infOwner == owner && file.name == memberName ;
+									return fixtureOwner( file, owner) && file.name == memberName ;
 								}) ||
 		   !std::ranges::any_of( fixture.files_, [&]( const FixtureFile &file) {
-			   return file.infOwner == owner && file.name == catalogName &&
+			   return fixtureOwner( file, owner) && file.name == catalogName &&
 					  file.name.ends_with( L".cat") ;
 		   })) {
 			++fixture.receipt_.rejectedCalls ;
@@ -3287,13 +4467,20 @@ LONG verifyTrust( const HWND window, GUID *const action, LPVOID const data) noex
 			actualHash.push_back( HEX[catalog.pbCalculatedFileHash[index] & 15U]) ;
 		}
 
-		std::wstring uppercase = hash ;	// WinTrust tagはuppercase exact hexです
+		std::wstring expectedCatalogHash ;	// 原rawbyteは上で固定し、CAT digestを別に比較します
+		// 原raw byteとは別のcatalog digestが成立しなければ低位trustを拒否します
+		if( !syntheticCatalogDigest( memberPath, expectedCatalogHash)) {
+			++fixture.receipt_.rejectedCalls ;
+			return TRUST_E_BAD_DIGEST ;
+		}
+
+		std::wstring uppercase = expectedCatalogHash ;	// WinTrust tagはuppercase exact hexです
 		std::transform( uppercase.begin(), uppercase.end(), uppercase.begin(), []( wchar_t value) {
 			return static_cast<wchar_t>( value >= L'a' && value <= L'f' ? value - L'a' + L'A'
 																	   : value) ;
 		}) ;
 		// 元file hash、API計算hashとtagの三値を一致させます
-		if( hash != actualHash || uppercase != catalog.pcwszMemberTag) {
+		if( expectedCatalogHash != actualHash || uppercase != catalog.pcwszMemberTag) {
 			++fixture.receipt_.rejectedCalls ;
 			return TRUST_E_SUBJECT_NOT_TRUSTED ;
 		}
@@ -3425,7 +4612,7 @@ std::unique_ptr<ScopedFixture> Access::create( std::vector<FixtureFile> files,
 	}
 
 	// 内部試験だけで128正常と129全体拒否の全閉包を固定し、各基本INFへ一CATを要求します
-	if( infs == 0U || infs > 129U || catalogs != infs) {
+	if( infs == 0U || infs > 129U || catalogs == 0U || catalogs > infs) {
 		return nullptr ;
 	}
 
@@ -3440,9 +4627,34 @@ std::unique_ptr<ScopedFixture> Access::create( std::vector<FixtureFile> files,
 		if( ownerInf == files.end() || (owner.empty() && infs != 1U) ||
 		   (file.name.ends_with( L".inf") && !owner.empty() && file.name != owner) ||
 		   std::ranges::count_if( files, [&owner]( const FixtureFile &entry) {
-			   return entry.infOwner == owner && entry.name.ends_with( L".cat") ;
+			   return fixtureOwner( entry, owner) && entry.name.ends_with( L".cat") ;
 		   }) != 1) {
 			return nullptr ;
+		}
+
+		// 追加ownerはshared CATの元実INFへだけ明示できます。未知/重複を補完しません
+		if( !file.additionalInfOwners.empty() &&
+		   (!file.name.ends_with( L".cat") || file.additionalInfOwners.size() > 7U)) {
+			return nullptr ;
+		}
+
+		// shared CATが明示する全INF ownerを個別に検査します
+		for( std::size_t ordinal = 0U; ordinal < file.additionalInfOwners.size(); ++ordinal) {
+			// shared CATが明示する一つの追加INF ownerです
+			const auto &alias = file.additionalInfOwners[ordinal] ;
+			// 未知/重複/自己aliasをCAT所有証拠へ取り込みません
+			if( alias.empty() || alias == owner ||
+			   std::ranges::find( file.additionalInfOwners.begin(),
+								 file.additionalInfOwners.begin() +
+									 static_cast<std::ptrdiff_t>( ordinal),
+								 alias) !=
+				   file.additionalInfOwners.begin() + static_cast<std::ptrdiff_t>( ordinal) ||
+			   std::ranges::none_of( files, [&]( const auto &entry) {
+				   return entry.name == alias && entry.name.ends_with( L".inf") &&
+						  entry.infOwner == alias ;
+			   })) {
+				return nullptr ;
+			}
 		}
 	}
 

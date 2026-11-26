@@ -2,7 +2,7 @@
 /**
  * @file signed_index_json_internal.h
  * @brief 署名索引各層で共用する厳格JSON・base64・hash・UTC文法を定義します
- * @version 01.03.02
+ * @version 01.04.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,8 @@
  * Ver.01.03.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続
  * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.03.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.04.00 Shunji Ogawa  2026/11/19  検査した値の原UTF-8範囲を取得
+ * Ver.01.04.01 Shunji Ogawa  2026/11/26  原JSON範囲取得の処理型の説明を補完
  * </pre>
  *
  * @note 原byteを正規化せず、暗号認証・公式性・保存・端末照合を行いません
@@ -279,6 +281,20 @@ public:
 		}
 
 		throw Failure<Status>{failure_} ;
+	}
+
+	/**
+	 * @brief 型付き読取りが消費した値を同じ入力の範囲で返します
+	 * @tparam Handler 同じ読取り器で値を一つ消費する、引数なしの同期処理型です
+	 * @param[in] handler 一つの値だけを通常の規則で読み取る同期処理です
+	 * @return 値の前後の余白を含まない借用byteです
+	 */
+	template <class Handler> [[nodiscard]] std::string_view originalValue( Handler handler)
+	{
+		whitespace() ;
+		const auto start = position_ ;	// 区切り後の最初の値です
+		handler() ;
+		return bytes_.substr( start, position_ - start) ;
 	}
 
 	/**

@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native_test_api.h
  * @brief 専用compileだけに存在する同期INF native API注入契約
- * @version 01.03.05
+ * @version 01.11.00
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,14 @@
  * Ver.01.03.03 Shunji Ogawa  2026/11/13  Needs AddRegの元拒否leafを既匿名診断へ接続
  * Ver.01.03.04 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
  * Ver.01.03.05 Shunji Ogawa  2026/11/13  847p9の型付きSYSTEM全作用と全選択資格を接続
+ * Ver.01.04.00 Shunji Ogawa  2026/11/16  storage通常選択と完全native表の正負・原結果を検証
+ * Ver.01.05.00 Shunji Ogawa  2026/11/20  共通原内容の再検証fixtureを同じAPI表に追加
+ * Ver.01.06.00 Shunji Ogawa  2026/11/21  起動グループ順序を架空の完全APIへ追加
+ * Ver.01.07.00 Shunji Ogawa  2026/11/24  無線バスの旧名転送の双方向照合を回帰
+ * Ver.01.08.00 Shunji Ogawa  2026/11/24  USB Bluetoothの元参照照合を架空データから試験
+ * Ver.01.09.00 Shunji Ogawa  2026/11/24  USB Bluetoothの保護コピー宣言の試験入口を追加
+ * Ver.01.10.00 Shunji Ogawa  2026/11/24  USB BluetoothとPCIの機器設定宣言の試験入口を追加
+ * Ver.01.11.00 Shunji Ogawa  2026/11/24  USB Bluetoothの共有作用照合の試験入口を追加
  * </pre>
  *
  * @note 製品にcompileしない。架空署名を導入許可や実署名の測定値へ変換しない
@@ -43,12 +51,75 @@
 #include "platform/inf_dependency_native.h"
 #include <Windows.h>
 #include <SetupAPI.h>
+#include <cstdint>
 #include <functional>
 #include <span>
 #include <string>
 
 namespace drivercrate::test {
 class TestContext ;
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空の元選択と解決済み依存辺で旧名転送の双方向照合を検証する
+ * @param[in] selected 架空の元基本INFの選択と参照
+ * @param[in] rootIdentity 架空の元基本INFの識別子
+ * @param[in] edges 事前に解決済みの状態を試験入力とした架空graph
+ * @return 元参照と旧名転送を一意に照合できた場合true
+ * @note 署名とWindows由来はこの架空graph検査では認定しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool matchScopedWifiBusReferencesForTest( const OfficialInfInstallInventory &selected,
+													   std::uint64_t rootIdentity,
+													   std::span<const InfDependencyEdge> edges) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief USB Bluetoothの同梱INF間の参照を試験用の依存グラフで照合する
+ * @param[in] edges 解決状態を与えた架空の全参照辺
+ * @param[in] seeds 架空の元基本節、HW節、Services節をこの順に保持する一覧
+ * @param[in] rootIdentity 架空の元INF識別子
+ * @return 両同梱INFと用途ごとの八参照が一意に一致した場合true
+ * @note 署名、Windows由来、参照先の作用はこの試験の対象外
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool matchScopedBluetoothUsbReferencesForTest(
+	std::span<const InfDependencyEdge> edges, std::span<const std::wstring> seeds,
+	std::uint64_t rootIdentity) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空のUSB Bluetooth INFから保護コピーとSetupAPIの配備先を読み取る
+ * @param[in] path 試験用領域内に作成済みの元INF
+ * @param[in] driversDirectory SetupAPIの読み取り結果に要求する絶対ディレクトリ
+ * @return コピー行と配備先が期待に一致して0、読取または構造不一致はHRESULT
+ * @note INFを書き換えず、読み取ったコピーも実行しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyBluetoothUsbCopyDeclarationForTest(
+	const std::wstring &path, std::wstring_view driversDirectory) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空のBluetoothとPCI INFから機器設定の元宣言を読み取る
+ * @param[in] bluetoothPath 試験用領域内のBluetooth INF
+ * @param[in] pciPath 試験用領域内のPCI INF
+ * @return 両文書の機器相対作用が一致して0、読取・構造・型の不一致はHRESULT
+ * @note 架空宣言だけを読む。署名、端末の現在値と導入時の処理順は検査しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyBluetoothUsbHardwareDeclarationsForTest(
+	const std::wstring &bluetoothPath, const std::wstring &pciPath) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 指定した試験用INFを同梱Bluetoothの共有作用比較に通す
+ * @param[in] path 呼出し元が選んだ読取り専用の試験用INF
+ * @return 元宣言の全件が一致して0、読取りや既知作用との不一致はHRESULT
+ * @note これだけでは署名を確認しない。INFの内容やWindowsの設定を書き換えない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyBluetoothUsbSharedDeclarationsForTest( const std::wstring &path) ;
+
 //------------------------------------------------------------------------------
 /**
  * @brief 専用compileだけで実AddReg parserの全行と文脈拒否を検査します
@@ -103,8 +174,14 @@ struct InfDependencyNativeTestApi {
 	std::function<NativeError( HANDLE, FILE_ATTRIBUTE_TAG_INFO &)>			   attributes ;
 	/// 標準SYSTEM登録だけの完全な元helper/CAT期待です。空の場合は作用拒否です
 	std::function<NativeError( const std::wstring &, WindowsSystemFileTrust &)> systemFileTrust ;
+	/// storageだけの現kernel証拠です。空なら実SCMへfallbackしません
+	std::function<NativeError( std::wstring_view, SystemServiceEvidence &)>	   storageService ;
+	/// 正式メディアチェンジャーに必要な架空の起動グループ順序
+	std::function<NativeError( StorageLoadOrder &)>							   storageLoadOrder ;
 	/// 必要な正確なinbox serviceの安定証拠です。空なら実SCMへfallbackしません
 	std::function<NativeError( std::wstring_view, SystemServiceEvidence &)>	   systemService ;
+	/// 専用fixtureの共通原内容再検証です。空なら既存の製品関数を使います
+	std::function<NativeError( const CommonInfInspection &)>					   reverifyCommonInf ;
 } ;
 
 //------------------------------------------------------------------------------

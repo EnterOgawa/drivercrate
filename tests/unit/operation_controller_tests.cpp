@@ -2,7 +2,7 @@
 /**
  * @file operation_controller_tests.cpp
  * @brief OperationController単体試験実装
- * @version 01.04.03
+ * @version 01.05.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -43,6 +43,7 @@
  * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.04.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.04.03 Shunji Ogawa  2026/11/13  847pの通常件数枠と原予算境界を整合
+ * Ver.01.05.00 Shunji Ogawa  2026/11/23  検査専用の残対象と通常導入参照の分離を検証
  * </pre>
  *
  * @note 正常遷移、stale result、およびidentityのfail-closed検証を試験します
@@ -1285,22 +1286,35 @@ void testTargetOnlyRetention( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 準備取消しと残planの原subset/期限なし予算・旧ID拒否を確認します
+ * @brief 準備取消し、残計画の原範囲、検査専用の未選択対象と曖昧な対応の拒否を確認します
  * @param[in,out] context 原assertionです
  */
 //------------------------------------------------------------------------------
 void testTargetOnlyRemainingPreparation( TestContext &context)
 {
-	// 正常取消し/規約変化/予算拡大/消費対象/旧IDを分けます
-	for( unsigned mode{}; mode < 5U; ++mode) {
-		OperationController controller ;									// 原scanだけです
-		const auto			begin = controller.beginScan() ;				// 初回検索です
-		auto				scan  = makeSuccessfulScan( 1U, {L"a", L"b"}) ;	// 原二参照です
-		auto				plan  = makeControllerPreparationPlan() ;		// 元全tuple/予算です
+	// 通常と検査専用の正常取消し、条件変化、消費対象、重複と旧IDを分けます
+	for( unsigned mode{}; mode < 8U; ++mode) {
+		OperationController controller ;											// 原scanだけです
+		const auto			begin	   = controller.beginScan() ;					// 初回検索です
+		auto				scan	   = makeSuccessfulScan( 1U, {L"a", L"b"}) ;	// 原二参照です
+		auto				plan	   = makeControllerPreparationPlan() ;			// 元全tuple/予算です
+		const bool			inspection = mode >= 5U ;								// 元対象を導入とは別に保持する対照です
 		// 現在行や実行permitへ参照を昇格しません
 		for( std::size_t index{}; index < scan.candidates.size(); ++index) {
-			scan.candidates[index].installable				 = false ;
-			scan.candidates[index].preparationTargetIdentity = plan.targets[index].identity ;
+			auto &candidate		  = scan.candidates[index] ;	// 同じ機器の元候補を指定します
+			auto &target		  = plan.targets[index] ;		// 同一の元計画だけに使用します
+			candidate.installable = false ;
+			// 検査専用の選択は取得可能な正式候補へ変換しません
+			if( inspection) {
+				target.providerId	 = SIGNED_INDEX_PROVIDER_ID ;
+				target.terms		 = OfficialPreparationTerms::INSPECTION_ONLY ;
+				candidate.providerId = SIGNED_INDEX_PROVIDER_ID ;
+				candidate.action	 = DriverAction::NONE ;
+				candidate.inspectionTargetIdentity =
+					mode == 7U ? plan.targets.back().identity : target.identity ;
+			} else {
+				candidate.preparationTargetIdentity = target.identity ;
+			}
 		}
 
 		DRIVERCRATE_EXPECT( context, controller.completeScan( begin.operationId, scan)) ;
@@ -1324,7 +1338,7 @@ void testTargetOnlyRemainingPreparation( TestContext &context)
 		}
 
 		// 元対象のscopeを満たした場合だけ次の処理へ進みます
-		if( mode == 3U) {
+		if( mode == 3U || mode == 6U) {
 			remaining.targets[0] = plan.targets[0] ;
 		}
 
@@ -1337,6 +1351,10 @@ void testTargetOnlyRemainingPreparation( TestContext &context)
 						   controller.completePreparation( result, scan.candidates, &remaining)) ;
 		DRIVERCRATE_EXPECT( context, !controller.isPreparationReferenceAllowed( L"a")) ;
 		DRIVERCRATE_EXPECT( context, controller.isPreparationReferenceAllowed( L"b") == (mode == 0U)) ;
+		const auto *confirmed = controller.preparationPlan() ;	// 同じ未選択の原対象だけです
+		DRIVERCRATE_EXPECT( context, (confirmed != nullptr) == (mode == 0U || mode == 5U)) ;
+		DRIVERCRATE_EXPECT( context, !controller.isInstallCandidateAllowed( L"a") &&
+										!controller.isInstallCandidateAllowed( L"b")) ;
 		DRIVERCRATE_EXPECT( context, !controller.setPreparationPlan( approval.operationId, plan)) ;
 		DRIVERCRATE_EXPECT( context,
 						   !controller.completePreparation( result, scan.candidates, &remaining)) ;

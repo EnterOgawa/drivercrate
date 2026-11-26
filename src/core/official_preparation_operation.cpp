@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_operation.cpp
  * @brief 承認済み取得の直列実行
- * @version 01.00.03
+ * @version 01.01.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.00.03 Shunji Ogawa  2026/11/12  外側tupleの取得予約と開始拒否の原理由を接続
+ * Ver.01.01.00 Shunji Ogawa  2026/11/20  ファームウェア確認の対象を同じ選択端末へ限定
  * </pre>
  *
  * @note 未選択対象を呼ばず、取消しとCallback例外を対象結果へ反映します
@@ -233,6 +234,8 @@ bool isInstallPreparationCandidateSelectable( const UpdateCandidate		   &candida
 		   std::ranges::any_of( plan->targets, [&]( const auto &target) {
 			   return target.identity == candidate.preparationTargetIdentity &&
 					  target.providerId == candidate.providerId &&
+					  (!target.firmwareCondition ||
+					   target.firmwareCondition->deviceIdentity == candidate.deviceIdentity) &&
 					  (target.terms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED ||
 					   target.terms == OfficialPreparationTerms::CONFIRMED_NO_CONSENT) ;
 		   }) ;

@@ -2,7 +2,7 @@
 /**
  * @file official_driver_closure_tests.cpp
  * @brief 公式driver package監査単体試験実装
- * @version 01.10.03
+ * @version 01.17.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -63,6 +63,15 @@
  * Ver.01.10.01 Shunji Ogawa  2026/11/07  現非実行policyと旧fixture期待を照合
  * Ver.01.10.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.10.03 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.11.00 Shunji Ogawa  2026/11/15  storage/nullの全CAT閉包と用途cache・通常binding拒否を回帰
+ * Ver.01.12.00 Shunji Ogawa  2026/11/18  限定registry-onlyの実reader/閉包と導入拒否を有限回帰
+ * Ver.01.13.00 Shunji Ogawa  2026/11/19  デバイス別登録の所有先・署名順とPE exportの正負を回帰
+ * Ver.01.14.00 Shunji Ogawa  2026/11/22  公式対象を限定したINFとCATの展開・署名・関係上限を検証
+ * Ver.01.15.00 Shunji Ogawa  2026/11/22  公式範囲外からのModels兼用と通常データを対照検証
+ * Ver.01.15.01 Shunji Ogawa  2026/11/24  空サービス補助INFの旧媒体名を正負対照で検査
+ * Ver.01.16.00 Shunji Ogawa  2026/11/24  収集専用DDInstallの登録所有とコピー・署名・用途境界を回帰
+ * Ver.01.17.00 Shunji Ogawa  2026/11/24  複数Ports選択の標準ページ共有と元作用・CAT境界を回帰
+ * Ver.01.17.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * </pre>
  *
  * @note Minizで生成した架空ZIPを使用し、INF、CAT、参照fileだけが保護workspaceへ抽出されることを検証します
@@ -74,8 +83,10 @@
 #include "core/official_source_policy.h"
 #include "core/candidate_assessment.h"
 #include "platform/common_driver_package.h"
+#include "platform/collector_property_page_export_internal.h"
 #include "platform/generic_inf_package.h"
 #include "platform/driver_store_provider.h"
+#include "platform/driver_package_signature_internal.h"
 #include "core/provider_registry.h"
 #include "platform/asix_preparation.h"
 #include "platform/asus_driver_package_audit.h"
@@ -98,6 +109,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstring>
 #include <cstdint>
 #include <iostream>
 #include <memory>
@@ -6111,7 +6123,1428 @@ void testMaintenanceReferencedExecutableBoundary( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief storageの全二INF/CAT閉包を内容専用型へ結び、通常資格・cache・元参照を回帰します
+ * @param[in,out] context 全人工条件の結果を集計します
+ * @note 人工署名表は全原hashとownerへ固定します。実Windows署名成功や実device適用性ではありません
+ */
+//------------------------------------------------------------------------------
+void testCollectorStorageContentBoundary( TestContext &context)
+{
+	std::string root{VALID_INF} ;	// 同じ元copy/sourceを持つ架空storageです
+	root.replace( root.find( "Class=Net"), 9U, "Class=SCSIAdapter") ;
+	root.replace( root.find( "4d36e972"), 8U, "4d36e97b") ;
+	root += "[Install.NT]\r\nCopyINF=companion.inf\r\n"
+			"[Install.NT.Services]\r\nAddService=FictionalStorage,2,Service\r\n"
+			"[Service]\r\nServiceType=1\r\nStartType=0\r\nErrorControl=1\r\n"
+			"ServiceBinary=%12%\\sample.sys\r\nLoadOrderGroup=SCSI Miniport\r\n" ;
+	constexpr std::string_view CHILD =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=System\r\n"
+		"ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}\r\n"
+		"Provider=Fixture Companion\r\nDriverVer=11/15/2026,1.2.3.4\r\nCatalogFile=companion.cat\r\n"
+		"[SourceDisksFiles.x86]\r\n[SourceDisksFiles.ia64]\r\n"
+		"[Manufacturer]\r\nFixture=Models,NTamd64,NTx86,NTia64\r\n"
+		"[Models.NTamd64]\r\nDevice=Null,FictionalEnclosure\r\n"
+		"[Models.NTx86]\r\nDevice=Null,FictionalEnclosure\r\n"
+		"[Models.NTia64]\r\nDevice=Null,FictionalEnclosure\r\n"
+		"[Null.NTamd64]\r\n[Null.NTamd64.Services]\r\nAddService=,2\r\n" ;	// 独立rootではありません
+	const std::array entries{
+		ZipFixtureEntry{"sample.inf", root.data(), root.size()},
+		ZipFixtureEntry{"companion.inf", CHILD.data(), CHILD.size()},
+		ZipFixtureEntry{"sample.cat", CATALOG.data(), CATALOG.size()},
+		ZipFixtureEntry{"companion.cat", CATALOG.data(), CATALOG.size()},
+		ZipFixtureEntry{"sample.sys", DRIVER.data(), DRIVER.size()}} ;	// 全required memberです
+	std::vector<std::byte> archive ;									// 実行しない小ZIPです
+	DRIVERCRATE_EXPECT( context, createZipFixture( entries, archive)) ;
+	OfficialDownloadWorkspace source ;	// 元archiveの保護ownerです
+	DRIVERCRATE_EXPECT( context, source.initialize( L"collector-storage-source", 3651U) == 0) ;
+	std::wstring hash ;	// 同保存archiveの実hashです
+	DRIVERCRATE_EXPECT( context, storeArchive( source, L"payload.zip", archive, hash) == 0) ;
+	DriverArchiveInput input{3651U, source.path( L"payload.zip"), archive.size(),
+							 hash} ;	// 元byteを固定します
+	const std::array   selectors{
+		  std::pair{std::wstring_view{}, std::wstring_view{L"sample.inf"}}} ;	// 一rootです
+	std::vector<driver_package_signature_detail::FixtureFile> files ;			// 全元hashの人工署名期待です
+	// 各INFが所有するCAT/memberを完全に固定し、二役割の署名を省略しません
+	for( const auto owner : {L"sample.inf", L"companion.inf"}) {
+		// 人工署名表が要求する役割別CATを使用し、別INFのmemberを推測しません
+		for( const auto &entry : entries) {
+			const bool base = std::wstring_view{owner} == L"sample.inf" ;	// 元rootとimportの区別です
+			// rootはINF/CAT/SYS、null importは自身INF/CATだけを署名対象にします
+			if( (base && (std::string_view{entry.path} == "companion.inf" ||
+						 std::string_view{entry.path} == "companion.cat")) ||
+			   (!base && std::string_view{entry.path} != "companion.inf" &&
+				std::string_view{entry.path} != "companion.cat")) {
+				continue ;
+			}
+
+			std::wstring digest ;	// 人工fixtureも原全byteへ照合します
+			DRIVERCRATE_EXPECT(
+				context, computeBytesSha256( {static_cast<const char *>( entry.data), entry.size},
+											digest) == 0) ;
+			const std::string_view name{entry.path} ;	// ASCIIの架空相対名だけです
+			files.push_back( {std::wstring{name.begin(), name.end()}, digest, owner}) ;
+		}
+	}
+
+	const auto signature =
+		// API表は内部scopeだけです
+		driver_package_signature_detail::Access::create( files, 8U) ;
+	DRIVERCRATE_EXPECT( context, signature != nullptr) ;
+	// 正確な人工署名表が成立しなければ実署名へfallbackしません
+	if( !signature) {
+		return ;
+	}
+
+	CollectorDriverPackageContent content ;	// 通常binding非互換の内容出力です
+	DRIVERCRATE_EXPECT( context,
+					   inspectCollectorDriverPackageContent( input, OfficialDriverArchiveFormat::ZIP,
+															selectors, content) == 0) ;
+	DRIVERCRATE_EXPECT( context, content.infs.size() == 1U) ;
+	// 内容成功と全import/CATを独立の元役割のまま確認します
+	if( content.infs.size() == 1U) {
+		const auto &inf = content.infs.front() ;	// 同一rootだけです
+		DRIVERCRATE_EXPECT(
+			context, inf.state == CommonInfInspectionState::VERIFIED && inf.error == 0 &&
+						 inf.workspace && inf.closure.packages.size() == 1U &&
+						 inf.requiredInfPackages.size() == 1U && inf.closure.entries.size() == 5U) ;
+		// 成立した内容型を通常型へ手動複写しても用途で拒否します
+		if( inf.workspace && inf.closure.packages.size() == 1U &&
+		   inf.requiredInfPackages.size() == 1U) {
+			const auto &base = inf.closure.packages.front() ;	// boot serviceを需要開始へ変えません
+			DRIVERCRATE_EXPECT( context, base.inspectionPurpose ==
+												OfficialInfInspectionPurpose::COLLECTOR_CONTENT &&
+											!base.requiredNullCompanion &&
+											base.requiredInfPaths ==
+												std::vector<std::wstring>{L"companion.inf"}) ;
+			DRIVERCRATE_EXPECT( context,
+							   inf.requiredInfPackages.front().requiredNullCompanion &&
+								   inf.requiredInfPackages.front().inspectionPurpose ==
+									   OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT) ;
+			DRIVERCRATE_EXPECT( context, inf.effects.size() == 2U && inf.effectInventoryError == 0) ;
+			CommonInfInspection copied ;	// 非公開のbinding能力を持たない手動DTOです
+			copied.scanSessionId	   = inf.scanSessionId ;
+			copied.state			   = inf.state ;
+			copied.workspace		   = inf.workspace ;
+			copied.closure			   = inf.closure ;
+			copied.requiredInfPackages = inf.requiredInfPackages ;
+			DRIVERCRATE_EXPECT(
+				context, reverifyCommonDriverInf( copied) ==
+							 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))) ;
+			OfficialInfPackage selected ;	// 私有node選択の標準入口も内容を拒否します
+			DRIVERCRATE_EXPECT(
+				context, inspectSelectedOfficialInfRelations( *inf.workspace, inf.closure.entries,
+															 base, L"Install", selected) != 0) ;
+			DriverStoreProvider		  provider ;	// scan/native APIを呼ばない未初期化issuerです
+			OfficialInfInstallBinding binding ;		// 未発行token0です
+			OfficialDriverRankAudit	  rank ;		// 内容からWindows rankを生成しません
+			DRIVERCRATE_EXPECT(
+				context, provider.createOfficialInfInstallBinding(
+							 input.scanSessionId, L"opaque-fixture", *inf.workspace, base, L"", L"",
+							 L"", rank, binding) ==
+							 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))) ;
+			DRIVERCRATE_EXPECT( context, binding.token == 0U) ;
+			auto relabeled = base ;	// DTO用途の書換えだけでもstorageを通常資格へ変えません
+			relabeled.inspectionPurpose = OfficialInfInspectionPurpose::STANDARD_DRIVER ;
+			DRIVERCRATE_EXPECT( context, provider.createOfficialInfInstallBinding(
+											input.scanSessionId, L"opaque-fixture", *inf.workspace,
+											relabeled, L"", L"", L"", rank, binding) ==
+												static_cast<NativeError>(
+													HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) &&
+											binding.token == 0U) ;
+			DRIVERCRATE_EXPECT( context,
+							   verifyWindowsInfPackageIntegrity( *inf.workspace, base) == 0 &&
+								   verifyWindowsInfPackageIntegrity(
+									   *inf.workspace, inf.requiredInfPackages.front()) == 0) ;
+			std::wstring rewrittenHash ;	// 人工fixtureの再保存byteだけのhashです
+			// 元SYSだけの差替えで先行内容成功を再利用できないことを確認します
+			DRIVERCRATE_EXPECT( context, inf.workspace->discardFile( L"sample.sys") == 0) ;
+			DRIVERCRATE_EXPECT( context,
+							   storeArchive( *inf.workspace, L"sample.sys",
+											std::as_bytes( std::span<const char>{"changed", 7U}),
+											rewrittenHash) == 0) ;
+			DRIVERCRATE_EXPECT( context,
+							   verifyWindowsInfPackageIntegrity( *inf.workspace, base) != 0) ;
+			// SYSを元byteへ戻し、別importのCATだけの差を独立に確認します
+			DRIVERCRATE_EXPECT( context, inf.workspace->discardFile( L"sample.sys") == 0) ;
+			DRIVERCRATE_EXPECT( context,
+							   storeArchive( *inf.workspace, L"sample.sys",
+											std::as_bytes( std::span{DRIVER.data(), DRIVER.size()}),
+											rewrittenHash) == 0) ;
+			DRIVERCRATE_EXPECT( context, inf.workspace->discardFile( L"companion.cat") == 0) ;
+			DRIVERCRATE_EXPECT( context,
+							   storeArchive( *inf.workspace, L"companion.cat",
+											std::as_bytes( std::span<const char>{"changed", 7U}),
+											rewrittenHash) == 0) ;
+			DRIVERCRATE_EXPECT( context,
+							   verifyWindowsInfPackageIntegrity( *inf.workspace, base) == 0 &&
+								   verifyWindowsInfPackageIntegrity(
+									   *inf.workspace, inf.requiredInfPackages.front()) != 0) ;
+		}
+	}
+
+	CommonDriverPackageInspection normal ;	// 元通常policyはClass検査で拒否します
+	DRIVERCRATE_EXPECT( context,
+					   inspectSelectedCommonDriverPackages( input, OfficialDriverArchiveFormat::ZIP,
+														   selectors, normal) == 0 &&
+						   normal.infs.size() == 1U) ;
+	// 内容の成功を通常Class検査の成功へ継承しません
+	if( normal.infs.size() == 1U) {
+		DRIVERCRATE_EXPECT( context, normal.infs.front().state ==
+											CommonInfInspectionState::CLOSURE_REJECTED &&
+										normal.infs.front().error != 0) ;
+	}
+
+	const std::array			  childSelector{std::pair{
+		 std::wstring_view{}, std::wstring_view{L"companion.inf"}}} ;	// 必要roleを独立rootへしません
+	CollectorDriverPackageContent childRoot ;							// 元childの独立候補化を拒否します
+	DRIVERCRATE_EXPECT( context,
+					   inspectCollectorDriverPackageContent( input, OfficialDriverArchiveFormat::ZIP,
+															childSelector, childRoot) == 0 &&
+						   childRoot.infs.size() == 1U) ;
+	// 同じbyteでもroot用途ではnull例外を借用できません
+	if( childRoot.infs.size() == 1U) {
+		DRIVERCRATE_EXPECT( context, childRoot.infs.front().state ==
+											CommonInfInspectionState::CLOSURE_REJECTED &&
+										childRoot.infs.front().error != 0) ;
+	}
+
+	const std::array classes{std::wstring_view{L"SCSIAdapter"},
+							 std::wstring_view{L"System"}} ;	// 低位cache検査だけの元Classです
+	auto			 policy						   = POLICY ;	// 同上限/元sourceを維持します
+	policy.infPolicy.acceptedClasses			   = classes ;
+	policy.infPolicy.acceptedProviders			   = {} ;
+	policy.infPolicy.acceptAnyProvider			   = true ;
+	policy.infPolicy.requireDriverBinary		   = false ;
+	policy.infPolicy.allowRequiredDriverComponents = true ;
+	policy.infPolicy.allowWindowsManagedDriverDataForContent = true ;
+	const std::array selectedRoot{std::wstring_view{L"sample.inf"}} ;	// 元一rootです
+	// 同一cacheの呼出し順を両向きにし、用途/例外が前回結果から漏れないことを確認します
+	for( const bool contentFirst : {true, false}) {
+		DriverArchiveExtractionCache cache ;	// 同元入力だけの共有cacheです
+		OfficialDownloadWorkspace	 output ;	// 同操作の共有ownerです
+		// 失敗した標準検査から内容成功への回復も元byteで再解析します
+		for( const bool first : {true, false}) {
+			const bool contentPurpose = first == contentFirst ;	// 二順の独立期待です
+			policy.infPolicy.purpose  = contentPurpose
+											? OfficialInfInspectionPurpose::COLLECTOR_CONTENT
+											: OfficialInfInspectionPurpose::STANDARD_DRIVER ;
+			OfficialDriverClosure closure ;	// 前回結果を再使用しない出力です
+			const auto			  error = extractDriverClosure( {&input,
+																OfficialDriverArchiveFormat::ZIP,
+																{},
+																selectedRoot,
+																L"storage-cache",
+																&cache},
+															   policy, output, closure) ;	// 元cacheと用途です
+			DRIVERCRATE_EXPECT( context, (error == 0) == contentPurpose) ;
+			// 内容成功時もroot/importの用途は各再解析が決めます
+			if( error == 0) {
+				DRIVERCRATE_EXPECT(
+					context, closure.packages.size() == 2U &&
+								 closure.packages.front().inspectionPurpose ==
+									 OfficialInfInspectionPurpose::COLLECTOR_CONTENT &&
+								 closure.packages.back().inspectionPurpose ==
+									 OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT &&
+								 closure.packages.back().requiredNullCompanion) ;
+			}
+		}
+	}
+
+	// 必須CopyINF/SYSの欠損を、残ったroot/CATだけの成功へ縮約しません
+	for( const std::string_view missing : {"companion.inf", "sample.sys"}) {
+		std::vector<ZipFixtureEntry> incomplete ;	// 一つの原memberだけを除く入力です
+		// 元packageの残る全memberを同じbyteのまま保持します
+		for( const auto &entry : entries) {
+			// 欠損対象だけを除き、他の条件を同時変更しません
+			if( entry.path != missing) {
+				incomplete.push_back( entry) ;
+			}
+		}
+
+		std::vector<std::byte> incompleteArchive ;	// 欠損packageの原byteです
+		DRIVERCRATE_EXPECT( context, createZipFixture( incomplete, incompleteArchive)) ;
+		OfficialDownloadWorkspace missingSource ;	// 正例workspaceから元byteを借用しません
+		DRIVERCRATE_EXPECT( context, missingSource.initialize( L"storage-missing", 3652U) == 0) ;
+		std::wstring missingHash ;	// 同欠損archiveだけのhashです
+		DRIVERCRATE_EXPECT( context, storeArchive( missingSource, L"payload.zip", incompleteArchive,
+												 missingHash) == 0) ;
+		DriverArchiveInput			  missingInput{3652U, missingSource.path( L"payload.zip"),
+										   // 正例と混ぜません
+										   incompleteArchive.size(), missingHash} ;
+		CollectorDriverPackageContent refused ;	// 元拒否行も分母へ保持します
+		DRIVERCRATE_EXPECT(
+			context, inspectCollectorDriverPackageContent(
+						 missingInput, OfficialDriverArchiveFormat::ZIP, selectors, refused) == 0 &&
+						 refused.infs.size() == 1U) ;
+		// 内容不足はCAT/identityの成功へ進まず、元拒否段階を維持します
+		if( refused.infs.size() == 1U) {
+			DRIVERCRATE_EXPECT( context, refused.infs.front().state ==
+												CommonInfInspectionState::CLOSURE_REJECTED &&
+											refused.infs.front().error != 0) ;
+		}
+	}
+
+	// 元archive hash差替えを内容専用用途でも拒否します
+	input.sha256.assign( 64U, L'0') ;
+	CollectorDriverPackageContent tampered ;	// 部分成功を返さない全体拒否です
+	DRIVERCRATE_EXPECT( context,
+					   inspectCollectorDriverPackageContent( input, OfficialDriverArchiveFormat::ZIP,
+															selectors, tampered) != 0 &&
+						   tampered.infs.empty()) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief registry-onlyの実CopyINF閉包・全member署名・作用とconsumer拒否を確認します
+ * @param[in,out] context 固定C/D入力と実到達phaseを集計します
+ * @note D02は既storage限定gate、D04は既構造component回帰へ対応し、本関数で未実行をpassへ換算しません
+ */
+//------------------------------------------------------------------------------
+void testRequiredRegistryOnlyClosure( TestContext &context)
+{
+	constexpr std::string_view CHILD =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=System\r\n"
+		"ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}\r\nProvider=%Maker%\r\n"
+		"DriverVer=11/18/2026,1.2.3.4\r\nCatalogFile=sample.cat\r\n"
+		"[Manufacturer]\r\n%Maker%=Models,NTx86,NTamd64\r\n"
+		"[Models.NTx86]\r\nDevice32=Install,FictionalEnclosure32\r\n"
+		"[Models.NTamd64]\r\nDevice64=Install,FictionalEnclosure,*FictionalCompanion\r\n"
+		"[Install.NT]\r\nAddReg=Reg\r\n[Install.NT.Services]\r\nAddService=,%AssocFlags%\r\n"
+		"[Reg]\r\nHKR,Parameters\\Fixture,Level,%DwordFlags%,1\r\n"
+		"[Strings]\r\nMaker=Fictional Companion\r\nDwordFlags=65537\r\nAssocFlags=2\r\n" ;	// 元形を模した架空INFです
+	const std::array ids{std::string_view{"C01"}, std::string_view{"C02"}, std::string_view{"C03"},
+						 std::string_view{"C04"}, std::string_view{"C05"}, std::string_view{"C06"},
+						 std::string_view{"C07"}, std::string_view{"C08"}, std::string_view{"D01"},
+						 std::string_view{"D03"}, std::string_view{"D05"}, std::string_view{"D06"},
+						 std::string_view{"D07"}, std::string_view{"D08"}, std::string_view{"D09"},
+						 std::string_view{"D10"}} ;	// 旧空媒体の拒否例を含む元pipelineです
+	std::uint64_t	 ordinal{} ;					// caseごとに異なる原scanへ結びます
+	// 先行成功を次caseの所有能力へ流用せず、各原archiveを独立に構築します
+	for( const auto id : ids) {
+		const int	failures = context.failureCount() ;	// 実caseのassertion差分です
+		std::string root{VALID_INF} ;					// 既正常Net/SYS閉包を元にします
+		root.replace( root.find( "Class=Net"), 9U, "Class=SCSIAdapter") ;
+		root.replace( root.find( "4d36e972"), 8U, "4d36e97b") ;
+		root += id == "C07" ? "[Install.NT]\r\nCopyINF=companion.inf,bad.inf\r\n"
+							: "[Install.NT]\r\nCopyINF=companion.inf\r\n" ;
+		std::string child{CHILD} ;	// 既正常tableから一つの狙った条件だけを変えます
+		// child CAT参照だけを未実在にし、root CATを残します
+		if( id == "C03") {
+			child.replace( child.find( "CatalogFile=sample.cat"), 22U, "CatalogFile=missing.cat") ;
+		}
+
+		// 既pure-nullのcollector経路を新registry分類へ変えません
+		if( id == "D01" || id == "D09" || id == "D10") {
+			child.replace( child.find( "AddReg=Reg\r\n"), 12U, "") ;
+			const auto begin = child.find( "[Reg]\r\n") ;	// 元registry節の全範囲です
+			child.erase( begin, child.find( "[Strings]", begin) - begin) ;
+		}
+
+		// 既知の旧媒体名でも実ファイル宣言があれば空サービスの例外を使いません
+		if( id == "D09") {
+			child += "[SourceDisksFiles.ia64]\r\nchild.sys=1\r\n" ;
+		}
+
+		// 似た形の未知媒体名を既知の旧媒体へ読み替えません
+		if( id == "D10") {
+			child += "[SourceDisksFiles.fixture]\r\n" ;
+		}
+
+		// 継承Systemの既依存flagを純nullやregistry-onlyへ縮約しません
+		if( id == "D03") {
+			const auto begin =
+				// 元作用集合を独立な継承形へ置換します
+				child.find( "[Install.NT]\r\n") ;
+			child.replace( begin, child.find( "[Strings]", begin) - begin,
+						  "[Install.NT]\r\nInclude=machine.inf\r\nNeeds=FixtureNeeds\r\n") ;
+		}
+
+		// 既file付きSystemは新source不要例外に依存させません
+		if( id == "D08") {
+			child += "[SourceDisksNames]\r\n1=Fixture\r\n[SourceDisksFiles]\r\nchild.sys=1\r\n" ;
+		}
+
+		std::string bad{CHILD} ;	// C07だけで必要な別の原childです
+		bad.replace( bad.find( "HKR,"), 4U, "HKLM,") ;
+		std::vector<ZipFixtureEntry> entries{
+			{"sample.inf", root.data(), root.size()},
+			{"sample.cat", CATALOG.data(), CATALOG.size()},
+			{"sample.sys", DRIVER.data(), DRIVER.size()}} ;	// rootの全必須memberです
+		// 欠損対象以外の全memberを元byteのまま残します
+		if( id != "C06") {
+			entries.push_back( {"companion.inf", child.data(), child.size()}) ;
+		}
+
+		// 後続importの不正を先頭childの成功で隠しません
+		if( id == "C07") {
+			entries.push_back( {"bad.inf", bad.data(), bad.size()}) ;
+		}
+
+		// child専用の必須sourceを元ownerへ結び、SYSにCAT専用aliasを使用しません
+		if( id == "D08") {
+			entries.push_back( {"child.sys", DRIVER.data(), DRIVER.size()}) ;
+		}
+
+		std::vector<std::byte> archive ;	// 全caseは非実行の人工ZIPです
+		DRIVERCRATE_EXPECT( context, createZipFixture( entries, archive)) ;
+		OfficialDownloadWorkspace source ;						// 正しい元byteの新所有者です
+		const auto				  session = 4500U + ordinal++ ;	// 異なる原scanの能力を借りません
+		DRIVERCRATE_EXPECT( context, source.initialize( L"registry-closure-source", session) == 0) ;
+		std::wstring hash ;	// 元archiveの実hashです
+		DRIVERCRATE_EXPECT( context, storeArchive( source, L"payload.zip", archive, hash) == 0) ;
+		// 固定した試験ZIPを同一セッションの検査に渡すサイズ・ハッシュ付き入力
+		DriverArchiveInput input{session, source.path( L"payload.zip"), archive.size(), hash} ;
+		std::vector<driver_package_signature_detail::FixtureFile>
+			files ;	// parser出力由来ではない元全hashです
+		// 同一CATの二ownerと、各INF/sourceの元hashを独立に固定します
+		for( const auto &entry : entries) {
+			// 物理child/CATは残し、root署名後の未登録child署名だけを拒否させます
+			if( id == "C04" && entry.path == "companion.inf") {
+				continue ;
+			}
+
+			std::wstring digest ;	// この元memberの独立hashです
+			DRIVERCRATE_EXPECT(
+				context, computeBytesSha256( {static_cast<const char *>( entry.data), entry.size},
+											digest) == 0) ;
+			const std::string_view name{entry.path} ;				// 架空ASCII名だけです
+			const std::wstring	   path{name.begin(), name.end()} ;	// 元相対pathです
+			std::wstring		   owner =
+				  name == "companion.inf" || name == "child.sys"
+							  ? L"companion.inf"
+							  : (name == "bad.inf" ? L"bad.inf" : L"sample.inf") ;	// 各所有INFを明示します
+
+			driver_package_signature_detail::FixtureFile file{path, digest,
+															  owner} ;	// 完全な一memberです
+			// shared CATを別ownerへ明示し、名前だけで同一署名と推測しません
+			if( name == "sample.cat") {
+				// 欠落又は署名根拠未登録のchild ownerを人工CATへ生成しません
+				if( id != "C06" && id != "C04") {
+					file.additionalInfOwners.push_back( L"companion.inf") ;
+				}
+
+				// C07の全必要ownerも閉集合へ含めます
+				if( id == "C07") {
+					file.additionalInfOwners.push_back( L"bad.inf") ;
+				}
+			}
+
+			files.push_back( std::move( file)) ;
+		}
+
+		// 同梱メンバーの元署名を抽象化した試験用の署名検査結果
+		const auto signature = driver_package_signature_detail::Access::create( files, 16U) ;
+		DRIVERCRATE_EXPECT( context, signature != nullptr) ;
+		// fixture不成立から本署名へfallbackして拒否を合成しません
+		if( !signature) {
+			throw std::runtime_error( "registry closure signature prerequisite") ;
+		}
+
+		// 同じ閉包で別の役割を指定したときの、採用対象INFの相対位置
+		const std::array selectors{
+			std::pair{std::wstring_view{}, id == "C02" ? std::wstring_view{L"companion.inf"}
+													   : std::wstring_view{L"sample.inf"}}} ;
+		CollectorDriverPackageContent content ;	// 内容専用の実出力です
+		// 試験ZIPの閉包で指定INFの検査を実行した診断値
+		const auto					  apiError = inspectCollectorDriverPackageContent(
+			   input, OfficialDriverArchiveFormat::ZIP, selectors, content) ;
+		DRIVERCRATE_EXPECT( context, apiError == 0 && content.infs.size() == 1U) ;
+		// 元rootの出力欠落を後段のnegative合格へ変えません
+		if( content.infs.size() != 1U) {
+			throw std::runtime_error( "registry closure root prerequisite") ;
+		}
+
+		const auto &inf		= content.infs[0] ;			// 元一rootの正しい所有結果です
+		const auto	receipt = signature->receipt() ;	// 実際に到達した署名/member境界です
+		const bool	structureRefusal =
+			// 独立拒否期待です
+			id == "C02" || id == "C03" || id == "C06" || id == "C07" || id == "D09" || id == "D10" ;
+		// 正常取得/構造と署名拒否を区別して判定します
+		if( structureRefusal) {
+			const auto expected =
+				id == "C03" || id == "C06"
+					? static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND))
+					: static_cast<NativeError>(
+						  0xE0000102U) ;	// 元SourceDisksFiles両欠落のliteralです
+			DRIVERCRATE_EXPECT( context, inf.state == CommonInfInspectionState::CLOSURE_REJECTED &&
+											inf.error == expected &&
+											inf.requiredInfPackages.empty() &&
+											inf.effects.empty() && receipt.setupCalls == 0U) ;
+		}
+		// rootの全署名後に必須childの署名根拠がないことを独立拒否します
+		else if( id == "C04") {
+			// shared CATの全owner先読みがあるため、exact child hash拒否とは区別します
+			DRIVERCRATE_EXPECT( context,
+							   inf.state == CommonInfInspectionState::SIGNATURE_REJECTED &&
+								   inf.error == static_cast<NativeError>(
+													HRESULT_FROM_WIN32( ERROR_ACCESS_DENIED)) &&
+								   receipt.setupCalls == 2U && receipt.inspectionRoots == 1U &&
+								   receipt.verifyCalls == 2U && receipt.closeCalls == 2U &&
+								   receipt.rejectedCalls == 1U && inf.effects.empty()) ;
+			std::cout << "RRS_SIGNATURE id=C04 phase=UNREGISTERED_CHILD_SIGNATURE"
+					  << " exactChildMemberHash=UNOBSERVED\n" ;
+		} else {
+			// これ以降のnegativeには正常な全閉包/署名の前提を要求します
+			DRIVERCRATE_EXPECT( context,
+							   inf.state == CommonInfInspectionState::VERIFIED && inf.error == 0 &&
+								   inf.workspace && inf.closure.packages.size() == 1U &&
+								   inf.requiredInfPackages.size() == 1U &&
+								   inf.closure.entries.size() == (id == "D08" ? 5U : 4U) &&
+								   inf.effects.size() == 2U && inf.effectInventoryError == 0 &&
+								   receipt.setupCalls == 2U && receipt.inspectionRoots == 2U &&
+								   receipt.rejectedCalls == 0U && receipt.verifyCalls != 0U &&
+								   receipt.verifyCalls == receipt.closeCalls) ;
+			// 未成立fixtureからcandidate/tokenの拒否を合成しません
+			if( inf.state != CommonInfInspectionState::VERIFIED || !inf.workspace ||
+			   inf.closure.packages.size() != 1U || inf.requiredInfPackages.size() != 1U) {
+				std::cout << "RRS_PREREQUISITE id=" << id
+						  << " errorBits=" << static_cast<std::uint32_t>( inf.error) << '\n' ;
+				throw std::runtime_error( "registry closure content prerequisite") ;
+			}
+
+			const auto &childPackage =
+				inf.requiredInfPackages[0] ;	// 同実CopyINFからの元metadataです
+			const bool registryExpected =
+				id != "D01" && id != "D03" && id != "D08" ;	// 元用途から独立した期待です
+			DRIVERCRATE_EXPECT( context,
+							   childPackage.requiredRegistryOnlyCompanion == registryExpected &&
+								   childPackage.requiredNullCompanion == (id == "D01") &&
+								   childPackage.inspectionPurpose ==
+									   OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT) ;
+			// 継承先未解決をfalseの依存へ書換えません
+			if( id == "D03") {
+				DRIVERCRATE_EXPECT( context, childPackage.hasExternalDependencies &&
+												childPackage.unresolvedIncludeNeeds) ;
+			}
+
+			// 既fileful Systemは実在SYSを元memberへ保持し、新source不要例外を使いません
+			if( id == "D08") {
+				DRIVERCRATE_EXPECT( context, childPackage.sourceFiles ==
+												std::vector<std::wstring>{L"child.sys"}) ;
+			}
+
+			bool registryGap{} ;	// 実effectsに残る未評価作用です
+			// 全実importのeffectを確認し、rootだけで棚卸しを終えません
+			for( const auto &effect : inf.effects) {
+				// 対象child以外のgapを代用品にしません
+				if( effect.infRelativePath != L"companion.inf") {
+					continue ;
+				}
+
+				// 全選択installの元gapを保持します
+				for( const auto &install : effect.installs) {
+					registryGap =
+						registryGap ||
+						std::ranges::any_of( install.inventory.coverageGaps, []( const auto &gap) {
+							return gap.kind ==
+								   OfficialInfInstallCoverageKind::REGISTRY_SCOPE_NOT_ASSESSED ;
+						}) ;
+				}
+			}
+
+			// 新形式の成功をregistry作用の合格へ変えません
+			if( registryExpected) {
+				DRIVERCRATE_EXPECT( context, registryGap && childPackage.sourceFiles.empty() &&
+												!childPackage.requiredNullCompanion) ;
+			}
+
+			// original childの変更は既hash検査へ、同じ元sizeで接続します
+			if( id == "C05") {
+				// 検査済み閉包から取り出した試験用のレジストリ限定INF
+				const auto original =
+					std::ranges::find( inf.closure.entries, std::wstring{L"companion.inf"},
+									  &OfficialZipEntry::relativePath) ;
+				DRIVERCRATE_EXPECT( context, original != inf.closure.entries.end()) ;
+				child.replace( child.find( "Fictional Companion"), 19U, "Fictional Dompanion") ;
+				std::wstring changedHash ;	// hashが変わる新byteです
+				DRIVERCRATE_EXPECT( context, inf.workspace->discardFile( L"companion.inf") == 0 &&
+												storeArchive( *inf.workspace, L"companion.inf",
+															 std::as_bytes( std::span<const char>{
+																 child.data(), child.size()}),
+															 changedHash) == 0) ;
+				// digest不一致のliteral結果で、元分類の再利用を拒否します
+				if( original != inf.closure.entries.end()) {
+					DRIVERCRATE_EXPECT( context,
+									   verifyOfficialFileMetadata(
+										   inf.workspace->path( L"companion.inf"),
+										   {original->uncompressedSize, original->sha256}) ==
+										   static_cast<NativeError>( TRUST_E_BAD_DIGEST)) ;
+				}
+			}
+
+			// 別の保守参照readerの不足を、collector直接失敗と混同しません
+			if( id == "C08") {
+				auto			 policy = POLICY.infPolicy ;			// 新roleを保守用途へ注入しません
+				const std::array seeds{std::wstring{L"Install.NT"}} ;	// 元の実installだけです
+				MaintenanceInfReferences references ;					// 参照棚卸しだけで能力を持ちません
+				// 補助INFの元効果で要求するファイル参照を観測した診断値
+				const auto				 error =
+					inspectMaintenanceInfReferences( *inf.workspace, inf.closure.entries,
+													L"companion.inf", seeds, policy, references) ;
+				// レジストリ経由でファイルを参照する未検査部分が残る位置
+				const auto missing = std::ranges::find( references.files,
+													   std::wstring{L"RegistryFileUsesNotAssessed"},
+													   &MaintenanceInfFileReference::directive) ;
+				DRIVERCRATE_EXPECT( context, error == 0 && missing != references.files.end()) ;
+				// 正しい参照phaseに達してから原UNSUPPORTED codeを検査します
+				if( missing != references.files.end()) {
+					DRIVERCRATE_EXPECT(
+						context, missing->location == MaintenanceInfFileLocation::UNSUPPORTED &&
+									 missing->error == static_cast<NativeError>( HRESULT_FROM_WIN32(
+														   ERROR_NOT_SUPPORTED))) ;
+				}
+			}
+
+			// 内容DTOの手動copy/relabelは拒否専用で、成功資格を注入しません
+			if( id == "D05" || id == "D06" || id == "D07") {
+				CommonInfInspection copied ;	// 元所有内容をすべて保持した不正な型変換です
+				copied.scanSessionId	   = inf.scanSessionId ;
+				copied.state			   = inf.state ;
+				copied.error			   = inf.error ;
+				copied.workspace		   = inf.workspace ;
+				copied.closure			   = inf.closure ;
+				copied.requiredInfPackages = inf.requiredInfPackages ;
+				// Storageへの付替えでも新markerはprivate資格になりません
+				if( id == "D07") {
+					DRIVERCRATE_EXPECT( context, inf.workspace->protectionMode() ==
+													OfficialWorkspaceMode::ADMINISTRATOR) ;
+					copied.closure.packages[0].inspectionPurpose =
+						OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE ;
+					copied.requiredInfPackages[0].inspectionPurpose =
+						OfficialInfInspectionPurpose::REQUIRED_STORAGE_IMPORT ;
+				}
+
+				DRIVERCRATE_EXPECT(
+					context, reverifyCommonDriverInf( copied) ==
+								 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))) ;
+				std::shared_ptr<const RequiredDriverComponentPlan> plan ;	// 発行前の能力は空です
+				const std::array selected{copied.closure.packages[0],
+										  copied.requiredInfPackages[0]} ;	// 元全二役割です
+				DRIVERCRATE_EXPECT(
+					context,
+					makeRequiredDriverComponentPlan( copied, selected, plan) ==
+							static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) &&
+						!plan) ;
+				DriverStoreProvider
+					provider ;									// 先頭purpose/marker拒否後にnativeへ入らないcontrolです
+				OfficialInfPackage relabeled = childPackage ;	// 意図した一不正入力です
+				relabeled.inspectionPurpose	 = OfficialInfInspectionPurpose::STANDARD_DRIVER ;
+				OfficialInfInstallBinding binding ;	// 候補tokenは未発行です
+				OfficialDriverRankAudit	  rank ;	// 内容から成功rankを作りません
+				DRIVERCRATE_EXPECT(
+					context,
+					provider.createOfficialInfInstallBinding(
+						input.scanSessionId, L"opaque-fictional", *inf.workspace, relabeled, L"",
+						L"", L"", rank, binding) ==
+							static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) &&
+						binding.token == 0U) ;
+				OfficialInfPackage relation ;	// selected関係も未発行です
+				DRIVERCRATE_EXPECT( context, inspectSelectedOfficialInfRelations(
+												*inf.workspace, inf.closure.entries, relabeled,
+												L"Install", relation) == E_INVALIDARG &&
+												relation.infRelativePath.empty()) ;
+				std::cout << "RRS_REFUSAL id=" << id << " token=" << binding.token
+						  << " plan=" << static_cast<bool>( plan)
+						  << " phase=MARKER_OR_PURPOSE_GUARD_BEFORE_OWNER_NATIVE realInstall=0\n" ;
+			}
+		}
+
+		std::cout << "RRS_CLOSURE id=" << id << " state=" << static_cast<unsigned>( inf.state)
+				  << " errorBits=" << static_cast<std::uint32_t>( inf.error)
+				  << " setup=" << receipt.setupCalls << " roots=" << receipt.inspectionRoots
+				  << " memberVerify=" << receipt.verifyCalls
+				  << " rejected=" << receipt.rejectedCalls << " effects=" << inf.effects.size()
+				  << " caseFailures=" << context.failureCount() - failures << " realInstall=0\n" ;
+	}
+
+	std::cout
+		<< "RRS_ALLOCATION D02=storage-qualification D04=existing-component-structure not-passed-here=2\n" ;
+}
+
 } // namespace
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 限定registry-onlyの実閉包と拒否だけを通常unit selectorへ返します
+ * @param[in,out] context 元C/D期待と到達phaseを保持する集計先です
+ * @note 全旧suiteを呼ばず、実driver/HTTP/registry書込を行いません
+ */
+//------------------------------------------------------------------------------
+void runRequiredRegistrySystemContentTests( TestContext &context)
+{
+	testRequiredRegistryOnlyClosure( context) ;
+}
+
+namespace {
+//------------------------------------------------------------------------------
+/**
+ * @brief 二つの名前付きexportを持つ架空AMD64 DLLを実行せずに組み立てます
+ * @return 一つは実行可能節の元byte、一つはrawを持たない正規のデータexportです
+ */
+//------------------------------------------------------------------------------
+std::vector<std::byte> propertyPageDll()
+{
+	std::vector<std::byte> bytes( 0x800U) ;	// DLLの全原byteだけを所有します
+	const auto			   put = [&]( std::size_t offset, const auto &value) {
+		std::memcpy( bytes.data() + offset, &value, sizeof( value)) ;
+	} ; // 固定fixtureの宣言位置にSDK型を複写します
+	IMAGE_DOS_HEADER dos{} ;	// 元DOS署名とPE位置です
+	dos.e_magic	 = IMAGE_DOS_SIGNATURE ;
+	dos.e_lfanew = 0x80 ;
+	put( 0U, dos) ;
+	put( 0x80U, static_cast<DWORD>( IMAGE_NT_SIGNATURE)) ;
+	IMAGE_FILE_HEADER file{} ;	// DLL・AMD64・三つの実section表です
+	file.Machine			  = IMAGE_FILE_MACHINE_AMD64 ;
+	file.NumberOfSections	  = 3U ;
+	file.SizeOfOptionalHeader = sizeof( IMAGE_OPTIONAL_HEADER64) ;
+	file.Characteristics	  = IMAGE_FILE_EXECUTABLE_IMAGE | IMAGE_FILE_DLL ;
+	put( 0x84U, file) ;
+	IMAGE_OPTIONAL_HEADER64 optional{} ;	// 元export directoryは表/名前全体を含まない正例です
+	optional.Magic										 = IMAGE_NT_OPTIONAL_HDR64_MAGIC ;
+	optional.ImageBase									 = 0x180000000ULL ;
+	optional.FileAlignment								 = 0x200U ;
+	optional.SectionAlignment							 = 0x1000U ;
+	optional.SizeOfHeaders								 = 0x200U ;
+	optional.SizeOfImage								 = 0x4000U ;
+	optional.NumberOfRvaAndSizes						 = IMAGE_NUMBEROF_DIRECTORY_ENTRIES ;
+	optional.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT] = {0x2000U, 0x80U} ;
+	put( 0x98U, optional) ;
+	const auto			 table = 0x98U + sizeof( optional) ;	// 原section表の開始です
+	IMAGE_SECTION_HEADER code{} ;								// raw paddingは実opcodeに含めません
+	code.VirtualAddress	  = 0x1000U ;
+	code.Misc.VirtualSize = 0x100U ;
+	code.PointerToRawData = 0x200U ;
+	code.SizeOfRawData	  = 0x200U ;
+	code.Characteristics  = IMAGE_SCN_CNT_CODE | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_EXECUTE ;
+	put( table, code) ;
+	IMAGE_SECTION_HEADER data{} ;	// 原export表を保持する読取節です
+	data.VirtualAddress	  = 0x2000U ;
+	data.Misc.VirtualSize = 0x400U ;
+	data.PointerToRawData = 0x400U ;
+	data.SizeOfRawData	  = 0x400U ;
+	data.Characteristics  = IMAGE_SCN_CNT_INITIALIZED_DATA | IMAGE_SCN_MEM_READ ;
+	put( table + sizeof( data), data) ;
+	IMAGE_SECTION_HEADER bss{} ;	// 別の公開データはfile上の初期値を持ちません
+	bss.VirtualAddress	 = 0x3000U ;
+	bss.Misc.VirtualSize = 0x100U ;
+	bss.Characteristics =
+		IMAGE_SCN_CNT_UNINITIALIZED_DATA | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE ;
+	put( table + 2U * sizeof( bss), bss) ;
+	IMAGE_EXPORT_DIRECTORY exports{} ;	// 分離された各原配列とDLL内部名です
+	exports.Name				  = 0x2040U ;
+	exports.Base				  = 1U ;
+	exports.NumberOfFunctions	  = 2U ;
+	exports.NumberOfNames		  = 2U ;
+	exports.AddressOfFunctions	  = 0x2080U ;
+	exports.AddressOfNames		  = 0x2088U ;
+	exports.AddressOfNameOrdinals = 0x2090U ;
+	put( 0x400U, exports) ;
+	put( 0x440U, "InternalModule.dll") ;
+	put( 0x460U, "Other.Target") ;
+	put( 0x480U, std::array<DWORD, 2U>{0x1010U, 0x3000U}) ;
+	put( 0x488U, std::array<DWORD, 2U>{0x20a0U, 0x20b0U}) ;
+	put( 0x490U, std::array<WORD, 2U>{0U, 1U}) ;
+	put( 0x4a0U, "FixturePage") ;
+	put( 0x4b0U, "ZeroData") ;
+	return bytes ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 原registerを持つ架空ZIPを通常の選択収集と全member署名fixtureへ通します
+ * @param[in,out] context 一度の有限回帰の結果です
+ * @param[in] before 一箇所だけ変更する原INFの完全な値です。空は無変更です
+ * @param[in] after 同じ一箇所の変異です
+ * @param[in] expected 個別INFが到達すべき実phaseです
+ * @param[in] identity 条件ごとの独立した所有workspace番号です
+ * @param[in] badMember 原CATと一致しないmember名、又は空です
+ * @param[in] missingDll trueなら原ZIPからDLLだけを除きます
+ * @param[in] directInstall trueなら全機器が参照する未修飾DDInstallが登録とコピーを所有します
+ */
+//------------------------------------------------------------------------------
+void propertyPageCase( TestContext &context, std::string_view before, std::string_view after,
+					  CommonInfInspectionState expected, std::uint64_t identity,
+					  std::string_view badMember = {}, bool missingDll = false,
+					  bool directInstall = false)
+{
+	std::string root =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=SCSIAdapter\r\n"
+		"ClassGUID={4d36e97b-e325-11ce-bfc1-08002be10318}\r\nProvider=Fixture Vendor\r\n"
+		"DriverVer=11/19/2026,1.0.0.1\r\nCatalogFile=sample.cat\r\n"
+		"[Manufacturer]\r\nVendor=Models,NTamd64\r\n[Models.NTamd64]\r\n" ;	// 共通の架空元INFです
+	// 直接形式では二行とも同じ基本導入節を参照し、従来形式では二つのCoInstallers節が登録を共有します
+	root +=
+		directInstall
+			? "Primary=Install,PCI\\SYNTH_PRIMARY\r\nSecondary=Install,PCI\\SYNTH_SECOND\r\n"
+			  "[Install]\r\nCopyFiles=DriverFiles,PageFiles\r\nAddReg=PageReg\r\n"
+			  "[PageReg]\r\nHKR,,EnumPropPages32,0,\"fixture.dll,FixturePage\"\r\n"
+			  "[PageFiles]\r\nfixture.dll,,,0x4002\r\n"
+			: "Primary=Install,PCI\\SYNTH_PRIMARY\r\nSecondary=Second,PCI\\SYNTH_SECOND\r\n"
+			  "[Install.NTamd64]\r\nCopyFiles=DriverFiles\r\n[Second.NTamd64]\r\nCopyFiles=DriverFiles\r\n"
+			  "[Install.NTamd64.CoInstallers]\r\nAddReg=PageReg\r\nCopyFiles=PageFiles\r\n"
+			  "[Second.NTamd64.CoInstallers]\r\nCopyFiles=PageFiles\r\nAddReg=PageReg\r\n"
+			  "[PageReg]\r\nHKR,,EnumPropPages32,,\"fixture.dll,FixturePage\"\r\n"
+			  "[PageFiles]\r\nfixture.dll\r\n" ;
+	root += "[DriverFiles]\r\nsample.sys\r\n"
+			"[DestinationDirs]\r\nPageFiles=11\r\nDriverFiles=12\r\n"
+			"[SourceDisksNames.amd64]\r\n1=Fixture,,,\r\n"
+			"[SourceDisksFiles.amd64]\r\nsample.sys=1\r\nfixture.dll=1\r\n" ;
+	// 条件の変異は必ず元文字列へ一度だけ適用します
+	if( !before.empty()) {
+		const auto pos = root.find( before) ;	// 原INFの変異位置です
+		DRIVERCRATE_EXPECT( context, pos != root.npos) ;
+		// 前提がなければ別の行から正負を合成しません
+		if( pos == root.npos) {
+			return ;
+		}
+
+		root.replace( pos, before.size(), after) ;
+	}
+
+	const auto					 dll = propertyPageDll() ;	// DLLの原byteです。ロードしません
+	std::vector<ZipFixtureEntry> entries{
+		{"sample.inf", root.data(), root.size()},
+		{"sample.cat", CATALOG.data(), CATALOG.size()},
+		{"sample.sys", DRIVER.data(), DRIVER.size()}} ;	// 元closure全件です
+	// 欠落ケースだけは原DLLをZIPに入れません
+	if( !missingDll) {
+		entries.push_back( {"fixture.dll", dll.data(), dll.size()}) ;
+	}
+
+	std::vector<std::byte> archive ;	// 実行しない元ZIPです
+	DRIVERCRATE_EXPECT( context, createZipFixture( entries, archive)) ;
+	OfficialDownloadWorkspace source ;	// 原ZIPを所有するscopeです
+	DRIVERCRATE_EXPECT( context, source.initialize( L"property-page-source", identity) == 0) ;
+	std::wstring hash ;	// 原ZIPの全実byteのidentityです
+	DRIVERCRATE_EXPECT( context, storeArchive( source, L"payload.zip", archive, hash) == 0) ;
+	std::vector<driver_package_signature_detail::FixtureFile> files ;	// 原owner付きのCAT fixtureです
+	// INFと全参照byteの実hashを人工の同CATに結びます
+	for( const auto &entry : entries) {
+		std::wstring digest ;	// 架空member一件の元digestです
+		DRIVERCRATE_EXPECT(
+			context,
+			computeBytesSha256( {static_cast<const char *>( entry.data), entry.size}, digest) == 0) ;
+		// 元DLL又は別memberが改変されるケースでは、そのmemberだけの期待を変えます
+		if( entry.path == badMember) {
+			digest[0] = digest[0] == L'0' ? L'1' : L'0' ;
+		}
+
+		files.push_back(
+			{std::wstring( entry.path.begin(), entry.path.end()), digest, L"sample.inf"}) ;
+	}
+
+	const auto signature =
+		// 実Windows信頼とは独立します
+		driver_package_signature_detail::Access::create( files, 8U) ;
+	DRIVERCRATE_EXPECT( context, signature != nullptr) ;
+	// 人工表の不成立を実署名へfallbackしません
+	if( !signature) {
+		return ;
+	}
+
+	const DriverArchiveInput input{identity, source.path( L"payload.zip"), archive.size(),
+								   hash} ;	// 同一原ZIPです
+	const std::array		 selectors{
+		std::pair{std::wstring_view{}, std::wstring_view{L"sample.inf"}}} ;	// 明示rootです
+	CollectorDriverPackageContent content ;									// 個別結果と閉包だけを保持します
+	DRIVERCRATE_EXPECT( context,
+					   inspectCollectorDriverPackageContent( input, OfficialDriverArchiveFormat::ZIP,
+															selectors, content) == 0) ;
+	DRIVERCRATE_EXPECT( context, content.infs.size() == 1U) ;
+	// 個別結果のない外側成功を内容成功へ数えません
+	if( content.infs.size() != 1U) {
+		return ;
+	}
+
+	const auto &inf = content.infs.front() ;	// 同じ元rootの診断結果です
+	context.expect( inf.state == expected &&
+					   (inf.error == 0) == (expected == CommonInfInspectionState::VERIFIED),
+				   "property page " + std::to_string( identity) +
+					   " state=" + std::to_string( static_cast<unsigned>( inf.state)) +
+					   " error=" + std::to_string( inf.error),
+				   __FILE__, __LINE__) ;
+	const auto receipt = signature->receipt() ;	// 元API到達だけの観測です
+	// callbackだけの不一致でも、先に全署名と同じCATの全memberを要求します
+	if( identity == 7351U || identity == 7374U || expected == CommonInfInspectionState::VERIFIED) {
+		DRIVERCRATE_EXPECT( context, receipt.setupCalls > 0U && receipt.verifyCalls > 0U &&
+										receipt.rejectedCalls == 0U) ;
+	}
+
+	// 収集の合格時は保護領域と単一原INFの閉包を確認します
+	if( expected == CommonInfInspectionState::VERIFIED) {
+		DRIVERCRATE_EXPECT( context, inf.workspace && inf.closure.packages.size() == 1U) ;
+		// 保護領域か原INFが欠けている場合は後続の照合を実行できません
+		if( !inf.workspace || inf.closure.packages.size() != 1U) {
+			return ;
+		}
+
+		const auto &package = inf.closure.packages.front() ;	// 保護領域に結ぶ元closureです
+		DRIVERCRATE_EXPECT( context, inf.closure.entries.size() == 4U) ;
+		// 元のCoInstallers32は複数文字列のままで新形式のexport検査へ変換しません
+		if( identity == 7355U) {
+			DRIVERCRATE_EXPECT( context, !package.collectorPropertyPage) ;
+			return ;
+		}
+
+		DRIVERCRATE_EXPECT( context, package.collectorPropertyPage &&
+										package.collectorPropertyPage->sourceRelativePath ==
+											L"fixture.dll" &&
+										package.collectorPropertyPage->callback == L"FixturePage") ;
+		// 従来形式の収集結果から導入資格を発行しないことを確認します
+		if( !directInstall) {
+			OfficialInfPackage selected ;	// 従来形式に対する独立した端末選択結果です
+			DRIVERCRATE_EXPECT(
+				context, inspectSelectedOfficialInfRelations( *inf.workspace, inf.closure.entries,
+															 package, L"Install", selected) != 0) ;
+		}
+
+		// 同一の原INFを非collector用途へ渡しても新しい例外を継承しません
+		if( identity == 7320U || directInstall) {
+			constexpr std::array classes{std::wstring_view{L"SCSIAdapter"}} ;		// 名称許可は同一です
+			constexpr std::array signatures{std::wstring_view{L"$Windows NT$"}} ;	// 元構文条件です
+			OfficialInfInspectionPolicy policy{
+				32U, 32U, classes, {}, signatures} ;	// 同じ実原本を読みます
+			policy.acceptAnyProvider					= true ;
+			policy.rejectInstallActions					= true ;
+			policy.allowRequiredDriverComponents		= true ;
+			policy.allowReferencedExecutablesForContent = true ;
+			// 端末を先に確認し、従来形式では通常と二種類の必須importも検査します
+			for( const auto purpose : {OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE,
+									  OfficialInfInspectionPurpose::STANDARD_DRIVER,
+									  OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT,
+									  OfficialInfInspectionPurpose::REQUIRED_STORAGE_IMPORT}) {
+				policy.purpose = purpose ;
+				OfficialInfPackage other ;	// 各用途での独立した構造結果です
+				const auto		   result =
+					inspectOfficialInfPackage( *inf.workspace, inf.closure.entries, L"sample.inf",
+											  policy, other) ;	// 用途別の構造診断です
+				DRIVERCRATE_EXPECT( context, !other.collectorPropertyPage) ;
+				// 直接形式は端末へ収集専用の証拠を発行しないことを確認します
+				if( directInstall) {
+					break ;
+				}
+
+				DRIVERCRATE_EXPECT( context, result != 0) ;
+			}
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 複数Ports選択が共有する標準ページの元構造とCATを非実行で検査します
+ * @param[in,out] context 元作用の正負と用途境界の集計先です
+ * @note 架空のINF・SYSを使用し、Windows標準DLLの実環境や実機導入を試験条件にしません
+ */
+//------------------------------------------------------------------------------
+void testSharedNativePortsPropertyPage( TestContext &context)
+{
+	// 二つのAMD64選択が同じコピー、サービス、デバイスのソフトウェアキー登録を参照します
+	constexpr std::string_view INF =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=Ports\r\n"
+		"ClassGUID={4d36e978-e325-11ce-bfc1-08002be10318}\r\n"
+		"Provider=Fixture Vendor\r\nDriverVer=11/24/2026,1.0.0.1\r\nCatalogFile=ports.cat\r\n"
+		"[Manufacturer]\r\nVendor=Models,NTamd64\r\n"
+		"[Models.NTamd64]\r\nPrimary=PrimaryPort,USB\\SYNTH_PRIMARY\r\n"
+		"Secondary=SecondPort,USB\\SYNTH_SECOND\r\n"
+		"[PrimaryPort.NT]\r\nCopyFiles=DriverFiles\r\nAddReg=PortSettings\r\n"
+		"[SecondPort.NT]\r\nCopyFiles=DriverFiles\r\nAddReg=PortSettings\r\n"
+		"[PrimaryPort.NT.Services]\r\nAddService=FixtureSvc,2,ServiceConfig\r\n"
+		"[SecondPort.NT.Services]\r\nAddService=FixtureSvc,2,ServiceConfig\r\n"
+		"[ServiceConfig]\r\nServiceType=1\r\nStartType=3\r\nErrorControl=1\r\n"
+		"ServiceBinary=%12%\\system.sys\r\nAddReg=ServiceSettings\r\n"
+		"[PortSettings]\r\nHKR,,PortSubClass,0x00000001,01\r\n"
+		"HKR,,EnumPropPages32,,\"MsPorts.dll,SerialPortPropPageProvider\"\r\n"
+		"[ServiceSettings]\r\nHKR,Parameters,FixtureServiceValue,0x00010003,1\r\n"
+		"[PrimaryPort.NT.HW]\r\nAddReg=PrimaryHardware\r\n"
+		"[SecondPort.NT.HW]\r\nAddReg=SecondHardware\r\n"
+		"[PrimaryHardware]\r\nHKR,,FixtureDeviceValue,0x00010001,1\r\n"
+		"[SecondHardware]\r\nHKR,,FixtureDeviceValue,0x00010001,2\r\n"
+		"[DriverFiles]\r\nsystem.sys,,,0x20\r\n[DestinationDirs]\r\nDefaultDestDir=12\r\n"
+		"[SourceDisksNames]\r\n1=Fixture,,,\r\n[SourceDisksFiles]\r\nsystem.sys=1\r\n" ;
+	// 元AMD64のネイティブSYSとして既存の人工PEを使います
+	auto	   driver = propertyPageDll() ;
+	const WORD characteristics =
+		IMAGE_FILE_EXECUTABLE_IMAGE | IMAGE_FILE_SYSTEM ;	// DLLフラグなしです
+	const WORD subsystem = IMAGE_SUBSYSTEM_NATIVE ;			// Windows kernel形式です
+	std::memcpy( driver.data() + 0x84U + offsetof( IMAGE_FILE_HEADER, Characteristics),
+				&characteristics, sizeof( characteristics)) ;
+	std::memcpy( driver.data() + 0x98U + offsetof( IMAGE_OPTIONAL_HEADER64, Subsystem), &subsystem,
+				sizeof( subsystem)) ;
+
+	const auto inspect = [&]( std::uint64_t identity, std::string_view before,
+							 std::string_view after, bool accepted,
+							 std::wstring_view badMember = {}) {
+		std::string body{INF} ;	// 各対照の独立したINF原本です
+		// 指定した対照だけを変更します
+		if( !before.empty()) {
+			const auto pos = body.find( before) ;	// 元行の完全な変異位置です
+			DRIVERCRATE_EXPECT( context, pos != body.npos) ;
+			// 元行がなければ別の行を使って試験を続けません
+			if( pos == body.npos) {
+				return ;
+			}
+
+			body.replace( pos, before.size(), after) ;
+		}
+
+		OfficialDownloadWorkspace workspace ;	// 永続設定と分離した現在userの試験領域です
+		// この対照に限定した原本を所有する領域の初期化結果です
+		const auto				  opened = workspace.initialize( L"shared-ports-page", identity,
+																OfficialWorkspaceMode::CURRENT_USER_INSPECTION) ;
+		DRIVERCRATE_EXPECT( context, opened == 0U) ;
+		// 保護領域がなければ試験用原本を作成しません
+		if( opened != 0U) {
+			return ;
+		}
+
+		const std::array originals{
+			std::pair{L"ports.inf", std::as_bytes( std::span{body.data(), body.size()})},
+			std::pair{L"ports.cat", std::as_bytes( std::span{CATALOG.data(), CATALOG.size()})},
+			std::pair{L"system.sys", std::span<const std::byte>{driver}}} ;	// 元媒体の三件です
+		std::vector<OfficialZipEntry> entries ;								// 元byteと一致する閉包候補の一覧です
+		std::vector<driver_package_signature_detail::FixtureFile> files ;	// 人工の元CAT所属表です
+		// 元INFとSYSを同じCATのownerに結び、署名失敗を指定した元memberだけに注入します
+		for( const auto &[name, bytes] : originals) {
+			std::wstring digest ;												// この元fileの全byte SHA-256です
+			const auto stored = storeArchive( workspace, name, bytes, digest) ;	// 元file保存結果です
+			DRIVERCRATE_EXPECT( context, stored == 0U && digest.size() == 64U) ;
+			// 元fileが欠けると構造拒否との区別がつかないためここで終了します
+			if( stored != 0U || digest.size() != 64U) {
+				return ;
+			}
+
+			entries.push_back( {name, bytes.size(), digest}) ;
+			// 人工CAT内の期待だけを変え、元媒体と構造はそのまま使います
+			if( badMember == name) {
+				digest.front() = digest.front() == L'0' ? L'1' : L'0' ;
+			}
+
+			files.push_back( {name, std::move( digest), L"ports.inf"}) ;
+		}
+
+		constexpr std::array classes{std::wstring_view{L"Ports"}} ;				// 端末用途でも同じクラスです
+		constexpr std::array signatures{std::wstring_view{L"$Windows NT$"}} ;	// 同じ構文条件です
+		OfficialInfInspectionPolicy policy{
+			16U, 16U, classes, {}, signatures} ;	// 元構造だけを読みます
+		policy.acceptAnyProvider					   = true ;
+		policy.rejectInstallActions					   = true ;
+		policy.allowRequiredDriverComponents		   = true ;
+		policy.allowReferencedExecutablesForContent	   = true ;
+		policy.allowWindowsManagedDriverDataForContent = true ;
+		policy.purpose = OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+		OfficialInfPackage package ;	// 元用途に限定される構造結果です
+		const auto result = inspectOfficialInfPackage( workspace, entries, L"ports.inf", policy,
+													  package) ;	// 元構造診断です
+		context.expect( (result == 0U) == accepted,
+					   "shared native ports " + std::to_string( identity) +
+						   " error=" + std::to_string( result),
+					   __FILE__, __LINE__) ;
+		// 失敗時の部分結果も別用途へ渡せません
+		if( !accepted || result != 0U) {
+			DRIVERCRATE_EXPECT( context, !package.collectorSharedPortsPage) ;
+			return ;
+		}
+
+		DRIVERCRATE_EXPECT(
+			context, package.collectorSharedPortsPage &&
+						 package.collectorSharedPortsPage->registrySection == L"PortSettings" &&
+						 package.collectorSharedPortsPage->driverSource == L"system.sys") ;
+		DRIVERCRATE_EXPECT(
+			context,
+			package.sourceFiles == std::vector<std::wstring>{L"system.sys"} &&
+				package.inspectionPurpose == OfficialInfInspectionPurpose::COLLECTOR_CONTENT &&
+				package.hardwareIds.size() == 2U &&
+				std::ranges::find( package.hardwareIds, std::wstring_view{L"USB\\SYNTH_PRIMARY"}) !=
+					package.hardwareIds.end() &&
+				std::ranges::find( package.hardwareIds, std::wstring_view{L"USB\\SYNTH_SECOND"}) !=
+					package.hardwareIds.end()) ;
+		const auto signature =
+			// 試験スレッドに限定する人工CATの所有者です
+			driver_package_signature_detail::Access::create( files, 4U) ;
+		DRIVERCRATE_EXPECT( context, signature != nullptr) ;
+		// 人工表が不成立なら実Windowsの署名確認を呼び出しません
+		if( !signature) {
+			return ;
+		}
+
+		const auto integrity =
+			// 元CAT診断です
+			verifyWindowsInfPackageIntegrity( workspace, package) ;
+		const auto receipt = signature->receipt() ;	// 原CAT照合の到達件数です
+		DRIVERCRATE_EXPECT( context,
+						   (integrity == 0U) == badMember.empty() && receipt.setupCalls > 0U) ;
+		// 署名成功はINFとSYSが実際に元CATへ照合された場合だけ数えます
+		if( badMember.empty()) {
+			DRIVERCRATE_EXPECT( context, receipt.verifyCalls == 2U && receipt.rejectedCalls == 0U) ;
+		}
+
+		// 同じ元INFを標準構造と端末用内容検査へ渡しても共有ページの収集証拠は発行しません
+		for( const auto purpose : {OfficialInfInspectionPurpose::STANDARD_DRIVER,
+								  OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE}) {
+			policy.purpose = purpose ;
+			OfficialInfPackage other ;	// 同じ元byteの独立した用途別結果です
+			static_cast<void>(
+				inspectOfficialInfPackage( workspace, entries, L"ports.inf", policy, other)) ;
+			DRIVERCRATE_EXPECT( context, !other.collectorSharedPortsPage) ;
+		}
+	} ; // 署名や試験領域の寿命を各条件に限定し、元PEと集計先を借ります
+
+	inspect( 7380U, {}, {}, true) ;
+	inspect( 7381U, "system.sys,,,0x20", "system.sys,,,0x10", false) ;
+	inspect( 7382U, "DefaultDestDir=12", "DefaultDestDir=12,drivers", false) ;
+	inspect( 7383U, "system.sys,,,0x20", "renamed.sys,system.sys,,0x20", false) ;
+	inspect( 7384U, "[SecondPort.NT.Services]\r\nAddService=FixtureSvc,2,ServiceConfig",
+			"[SecondPort.NT.Services]\r\nAddService=OtherSvc,2,ServiceConfig", false) ;
+	inspect( 7385U, "HKR,Parameters,FixtureServiceValue,0x00010003,1",
+			"HKR,Parameters,FixtureServiceValue,0x00010001,1", false) ;
+	inspect( 7386U, "PortSubClass,0x00000001,01", "PortSubClass,0x00000001,01,02", false) ;
+	inspect( 7387U, "FixtureDeviceValue,0x00010001,2", "FixtureDeviceValue,0x00010001,2,3", false) ;
+	inspect( 7388U, "[SecondPort.NT.HW]\r\nAddReg=SecondHardware",
+			"[SecondPort.NT.HW]\r\nAddReg=SecondHardware,PortSettings", false) ;
+	inspect( 7389U, "[DriverFiles]", "[ClassInstall32]\r\nAddReg=PortSettings\r\n[DriverFiles]",
+			false) ;
+	inspect( 7390U, "ServiceBinary=%12%\\system.sys", "ServiceBinary=%13%\\system.sys", false) ;
+	inspect( 7391U, "SerialPortPropPageProvider", "OtherPageProvider", false) ;
+	inspect( 7392U, "[DriverFiles]", "[Unused.NT.HW]\r\nNeeds=PrimaryPort.NT\r\n[DriverFiles]",
+			false) ;
+	inspect( 7393U, "4d36e978", "4d36e977", false) ;
+	inspect( 7394U, {}, {}, true, L"system.sys") ;
+	inspect( 7395U, {}, {}, true, L"ports.cat") ;
+	inspect( 7396U, "HKR,Parameters,FixtureServiceValue,0x00010003,1",
+			"HKR,Parameters,FixtureServiceValue,0x00010002,1", false) ;
+	inspect( 7397U, "[SecondPort.NT]\r\nCopyFiles=DriverFiles",
+			"[SecondPort.NT]\r\nDelReg=PortSettings\r\nCopyFiles=DriverFiles", false) ;
+	inspect( 7398U, "system.sys=1", "system.sys=1,subdir", false) ;
+	inspect( 7399U, "[DriverFiles]",
+			"[Unused.NT]\r\nCopyFiles=DriverFiles\r\nAddReg=PortSettings\r\n"
+			"[Unused.NT.Services]\r\nAddService=FixtureSvc,2,ServiceConfig\r\n"
+			"[Unused.NT.HW]\r\nAddReg=PrimaryHardware\r\n[DriverFiles]",
+			true) ;
+	inspect( 7400U, "[SourceDisksNames]\r\n1=Fixture,,,\r\n[SourceDisksFiles]",
+			"[SourceDisksNames.amd64]\r\n1=Fixture,,,\r\n[SourceDisksFiles.amd64]", true) ;
+}
+} // namespace
+
+//------------------------------------------------------------------------------
+/**
+ * @brief デバイス別の収集登録、原CAT、非実行DLLの正常・拒否境界を確認します
+ * @param[in,out] context 全条件の到達phaseと拒否理由を集計します
+ */
+//------------------------------------------------------------------------------
+void runCollectorPropertyPageTests( TestContext &context)
+{
+	testSharedNativePortsPropertyPage( context) ;
+	using State			  = CommonInfInspectionState ;
+	constexpr auto PASS	  = State::VERIFIED ;			// 原署名とexportの両方の成功です
+	constexpr auto REJECT = State::CLOSURE_REJECTED ;	// 署名前又は署名後の構造拒否です
+	propertyPageCase( context, {}, {}, PASS, 7320U) ;
+	propertyPageCase( context, "Pages32,,\"fixture.dll,FixturePage",
+					 "Pages32,0,\"fixture.dll, FixturePage", PASS, 7321U) ;
+	propertyPageCase( context, "Pages32,,", "Pages32,0x00000000,", PASS, 7322U) ;
+	propertyPageCase( context, "Pages32,,", "Pages32,0x10000,", REJECT, 7323U) ;
+	propertyPageCase( context, "Pages32,,", "Pages32,0oops,", REJECT, 7324U) ;
+	propertyPageCase( context, "HKR,,Enum", "HKLM,,Enum", REJECT, 7325U) ;
+	propertyPageCase( context, "HKR,,Enum", "HKR,Settings,Enum", REJECT, 7326U) ;
+	propertyPageCase( context, "EnumPropPages32", "CoInstallers32", REJECT, 7327U) ;
+	propertyPageCase( context, "EnumPropPages32", "OpaqueValue", REJECT, 7328U) ;
+	propertyPageCase( context, "fixture.dll,FixturePage", "fixture.dll", REJECT, 7329U) ;
+	propertyPageCase( context, "fixture.dll,FixturePage", "fixture.dll,FixturePage,Bad", REJECT,
+					 7330U) ;
+	propertyPageCase( context, "fixture.dll,FixturePage", "sub\\fixture.dll,FixturePage", REJECT,
+					 7331U) ;
+	propertyPageCase( context, "FixturePage\"", "FixturePage\",\"extra\"", REJECT, 7332U) ;
+	propertyPageCase( context, "SCSIAdapter", "Net", REJECT, 7333U) ;
+	propertyPageCase( context, "4d36e97b", "4d36e972", REJECT, 7334U) ;
+	propertyPageCase( context, "Class=SCSIAdapter", "Class=SCSIAdapter\r\nClass=SCSIAdapter", REJECT,
+					 7335U) ;
+	propertyPageCase( context, "[Second.NTamd64.CoInstallers]\r\nCopyFiles=PageFiles",
+					 "[Second.NTamd64.CoInstallers]\r\nCopyFiles=DriverFiles", REJECT, 7336U) ;
+	propertyPageCase( context, "Secondary=Second,", "Secondary=Install,", REJECT, 7337U) ;
+	propertyPageCase( context, "[PageFiles]\r\nfixture.dll", "[PageFiles]\r\nfixture.dll,other.dll",
+					 REJECT, 7338U) ;
+	propertyPageCase( context, "[PageFiles]\r\nfixture.dll", "[PageFiles]\r\nfixture.dll,,,0x10",
+					 REJECT, 7339U) ;
+	propertyPageCase( context, "[PageFiles]\r\nfixture.dll",
+					 "[PageFiles]\r\nfixture.dll\r\nfixture.dll", REJECT, 7340U) ;
+	propertyPageCase( context, "PageFiles=11", "PageFiles=10,System32", REJECT, 7341U) ;
+	propertyPageCase( context, "PageFiles=11", "PageFiles=11,sub", REJECT, 7342U) ;
+	propertyPageCase( context, "[PageReg]", "[ClassInstall32]\r\nAddReg=PageReg\r\n[PageReg]",
+					 REJECT, 7343U) ;
+	propertyPageCase( context, "[PageReg]", "[Install.NTamd64.HW]\r\nAddReg=PageReg\r\n[PageReg]",
+					 REJECT, 7344U) ;
+	propertyPageCase( context, "[PageReg]",
+					 "[Install.NTamd64.HW]\r\nNeeds=Second.NTamd64.CoInstallers\r\n[PageReg]",
+					 REJECT, 7345U) ;
+	propertyPageCase( context, "fixture.dll=1", "another.dll=1", REJECT, 7346U) ;
+	propertyPageCase( context, {}, {}, REJECT, 7347U, {}, true) ;
+	propertyPageCase( context, {}, {}, State::SIGNATURE_REJECTED, 7348U, "fixture.dll") ;
+	propertyPageCase( context, {}, {}, State::SIGNATURE_REJECTED, 7349U, "sample.sys") ;
+	propertyPageCase( context, {}, {}, State::SIGNATURE_REJECTED, 7350U, "sample.cat") ;
+	propertyPageCase( context, "fixture.dll,FixturePage", "fixture.dll,fixturePage", REJECT, 7351U) ;
+	propertyPageCase( context, "[PageFiles]\r\nfixture.dll",
+					 "[PageFiles]\r\nfixture.dll\r\nsample.sys", PASS, 7352U) ;
+	propertyPageCase( context, "[PageFiles]\r\nfixture.dll",
+					 "[PageFiles]\r\nfixture.dll\r\nother.dll,fixture.dll", REJECT, 7353U) ;
+	propertyPageCase( context, "[PageFiles]\r\nfixture.dll", "[PageFiles]\r\nfixture.dll,,stage.tmp",
+					 REJECT, 7354U) ;
+	propertyPageCase( context, "EnumPropPages32,,", "CoInstallers32,0x10000,", PASS, 7355U) ;
+	propertyPageCase( context, "PageFiles=11", "DefaultDestDir=11", PASS, 7356U) ;
+	propertyPageCase(
+		context, "ClassGUID={4d36e97b-e325-11ce-bfc1-08002be10318}",
+		"ClassGUID={4d36e97b-e325-11ce-bfc1-08002be10318}\r\nClassGUID={4d36e97b-e325-11ce-bfc1-08002be10318}",
+		REJECT, 7357U) ;
+	propertyPageCase( context, "Vendor=Models,NTamd64", "Vendor=Models,NTx86", REJECT, 7358U) ;
+	propertyPageCase( context, "[PageFiles]\r\nfixture.dll", "[PageFiles]\r\nfixture.dll,,,0", PASS,
+					 7359U) ;
+	propertyPageCase( context, "1=Fixture,,,", "1=PageReg,,,", PASS, 7360U) ;
+	propertyPageCase(
+		context, "[DriverFiles]",
+		"[Unowned]\r\nHKR,,EnumPropPages32,,\"fixture.dll,FixturePage\"\r\n[DriverFiles]", REJECT,
+		7361U) ;
+
+	const auto directCase = [&]( std::string_view before, std::string_view after, State expected,
+								std::uint64_t identity, std::string_view badMember = {}) {
+		propertyPageCase( context, before, after, expected, identity, badMember, false, true) ;
+	} ; // 同じ原ZIP検査を直接形式に適用し、この呼出し中だけ結果の参照を借ります
+	directCase( {}, {}, PASS, 7362U) ;
+	directCase( "[PageReg]", "[Install.HW]\r\nAddReg=PageReg\r\n[PageReg]", REJECT, 7363U) ;
+	directCase( "[PageReg]",
+			   "[Install.Services]\r\nAddService=FixtureSvc,2,ServiceConfig\r\n"
+			   "[ServiceConfig]\r\nServiceType=1\r\nStartType=3\r\nErrorControl=1\r\n"
+			   "ServiceBinary=%12%\\sample.sys\r\nAddReg=PageReg\r\n[PageReg]",
+			   REJECT, 7364U) ;
+	directCase( "[PageReg]", "[Install.HW]\r\nNeeds=Install\r\n[PageReg]", REJECT, 7365U) ;
+	directCase( "[PageReg]", "[Install.CoInstallers]\r\nAddReg=PageReg\r\n[PageReg]", REJECT, 7366U) ;
+	directCase( "fixture.dll,,,0x4002", "fixture.dll,,,0x4003", REJECT, 7367U) ;
+	directCase( "fixture.dll,,,0x4002", "fixture.dll", REJECT, 7368U) ;
+	directCase( "fixture.dll,,,0x4002", "fixture.dll,,stage.tmp,0x4002", REJECT, 7369U) ;
+	directCase( "PageFiles=11", "PageFiles=11,sub", REJECT, 7370U) ;
+	directCase( "PageFiles=11", "PageFiles=10,System32", REJECT, 7371U) ;
+	directCase( "fixture.dll,,,0x4002", "other.dll,fixture.dll,,0x4002", REJECT, 7372U) ;
+	directCase( {}, {}, State::SIGNATURE_REJECTED, 7373U, "fixture.dll") ;
+	directCase( "fixture.dll,FixturePage", "fixture.dll,fixturePage", REJECT, 7374U) ;
+	directCase( "Secondary=Install,PCI\\SYNTH_SECOND\r\n",
+			   "Secondary=Second,PCI\\SYNTH_SECOND\r\n"
+			   "[Second]\r\nCopyFiles=DriverFiles\r\n",
+			   REJECT, 7375U) ;
+	directCase( "[PageFiles]", "HKR,Settings,AnotherValue,0,\"Fixture\"\r\n[PageFiles]", REJECT,
+			   7376U) ;
+
+	const auto dll = propertyPageDll() ;	// 内部名や別のゼロ初期化データは原callback名と独立です
+	DRIVERCRATE_EXPECT( context, inspectCollectorPropertyPageExport( dll, L"FixturePage") == 0) ;
+	DRIVERCRATE_EXPECT( context, inspectCollectorPropertyPageExport( dll, L"fixturePage") != 0) ;
+	const auto reject = [&]( std::size_t offset, const auto &value) {
+		auto changed = dll ;	// 各破損は原byteから独立です
+		std::memcpy( changed.data() + offset, &value, sizeof( value)) ;
+		DRIVERCRATE_EXPECT( context,
+						   inspectCollectorPropertyPageExport( changed, L"FixturePage") != 0) ;
+	} ; // 診断用の原file構造だけを操作します
+	reject( 0x84U, static_cast<WORD>( IMAGE_FILE_MACHINE_I386)) ;
+	reject( 0x96U, static_cast<WORD>( IMAGE_FILE_EXECUTABLE_IMAGE)) ;
+	reject( 0x98U, static_cast<WORD>( IMAGE_NT_OPTIONAL_HDR32_MAGIC)) ;
+	// 実在するforwarderです
+	reject( 0x480U, DWORD{0x2060U}) ;
+	// rawのある非実行データです
+	reject( 0x480U, DWORD{0x20c0U}) ;
+	// 原fileにないzero-fillです
+	reject( 0x480U, DWORD{0x3000U}) ;
+	// executable節の実仮想範囲外のraw paddingです
+	reject( 0x480U, DWORD{0x1110U}) ;
+	// 不正な対象RVAです
+	reject( 0x480U, DWORD{0xfffffff0U}) ;
+	// 関数表の外のordinalです
+	reject( 0x490U, WORD{2U}) ;
+	// 二重の同名exportです
+	reject( 0x48cU, DWORD{0x20a0U}) ;
+	reject( 0x400U + offsetof( IMAGE_EXPORT_DIRECTORY, AddressOfNames), DWORD{0x3fffU}) ;
+	reject( 0x400U + offsetof( IMAGE_EXPORT_DIRECTORY, NumberOfNames), DWORD{0xffffffffU}) ;
+	reject( 0x98U + offsetof( IMAGE_OPTIONAL_HEADER64, FileAlignment), DWORD{0U}) ;
+	reject( 0x400U + offsetof( IMAGE_EXPORT_DIRECTORY, AddressOfNameOrdinals), DWORD{0x2080U}) ;
+	reject( 0x3cU, DWORD{0xfffffff0U}) ;
+	DRIVERCRATE_EXPECT( context, inspectCollectorPropertyPageExport( std::span( dll).first( 0x410U),
+																   L"FixturePage") != 0) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 限定Modelsを選択INFと元CATへ結び、通常節と署名の拒否を確認します
+ * @param[in,out] context 架空ZIPの内容検査と拒否を集計します
+ */
+//------------------------------------------------------------------------------
+void testScopedCollectorClosure( TestContext &context)
+{
+	enum class Case {
+		UNSIGNED_MEMBER,
+		OTHER_SECTION,
+		OUTSIDE_REGISTRY,
+		OUTSIDE_EVENT,
+		OTHER_MODELS_INSTALL,
+		BENIGN_STRING,
+		INVALID_CAT,
+		MISSING_CAT,
+		WRONG_INF,
+		WRONG_CAT
+	} ;
+	// 元署名、元節、CAT導線の一致を個別に崩す対照ケースと正常例
+	const std::array cases{
+		Case::UNSIGNED_MEMBER, Case::OTHER_SECTION,		   Case::OUTSIDE_REGISTRY,
+		Case::OUTSIDE_EVENT,   Case::OTHER_MODELS_INSTALL, Case::BENIGN_STRING,
+		Case::INVALID_CAT,	   Case::MISSING_CAT,		   Case::WRONG_INF,
+		Case::WRONG_CAT} ;
+	// 架空INFのModelsを明示して選ぶためのクライアント観測点
+	const OfficialInfModelsPlatform platform{.buildNumber = 26100U} ;
+	// 同じ公式欄とWindowsの元Models行で照合する架空の完全Hardware ID
+	const std::array				ids{std::wstring{L"pci\\ven_1234&dev_5678"}} ;
+	// 閉包内で検査対象を一つに指定するINFの相対位置
+	const std::array selectors{std::pair{std::wstring_view{}, std::wstring_view{L"sample.inf"}}} ;
+	ScanSessionId	 ordinal = 5200U ;	// それぞれ独立した元ZIPに結びます
+	// 各ケースで同じ元INFから始め、署名と元参照の一条件ずつを変えます
+	for( const auto mode : cases) {
+		std::string body{VALID_INF} ;	// 正常の定義と元CAT指定を保持します
+		std::string rows ;				// 公式対象一件と同じ節に4,096行を加えます
+		// 多数の非対象行を追加し、明示した範囲に関係しない行が扱えるかを確認します
+		for( unsigned index = 0U; index < 4096U; ++index) {
+			rows += "Extra=Install,TESTBUS\\OTHER_" + std::to_string( index) + "\r\n" ;
+		}
+
+		body.insert( body.find( "[SourceDisksNames.amd64]"), rows) ;
+		// 通常の別種節に同じ行があってもModelsの照合と混同しないことを確認します
+		if( mode == Case::OTHER_SECTION) {
+			body += "\r\n[Other]\r\n" + rows + "Last=Other\r\n" ;
+		}
+
+		// 別のデバイス登録節がModelsを参照した場合の拒否を確認します
+		if( mode == Case::OUTSIDE_REGISTRY) {
+			body += "\r\n[Outside.NT.HW]\r\nAddReg=moDELS.ntAMD64\r\n" ;
+		}
+
+		// 別のイベント処理節によるModelsの流用を拒否させます
+		if( mode == Case::OUTSIDE_EVENT) {
+			body +=
+				"\r\n[Outside.NT.Services]\r\nAddService=Another,2,Elsewhere,Models.NTamd64\r\n" ;
+		}
+
+		// 追加のModels行が同じ節を導入処理名として指定する対照を作ります
+		if( mode == Case::OTHER_MODELS_INSTALL) {
+			// 元のManufacturerの節装飾へ変更を加える位置
+			const auto decoration = body.find( ",NTamd64\r\n") ;
+			body.insert( decoration + std::string_view{",NTamd64"}.size(), ",NTx86") ;
+			body += "\r\n[Models.NTx86]\r\nOther=Models,TESTBUS\\OTHER_X86\r\n" ;
+		}
+
+		// 表示用の文字列に節名が現れるだけの正常な対照を作ります
+		if( mode == Case::BENIGN_STRING) {
+			body += "AddReg=Models.NTamd64\r\n" ;
+		}
+
+		// CAT不在ケースだけ別ディレクトリへ置き、INFと同じ階層の照合を崩します
+		const std::string_view catPath =
+			mode == Case::MISSING_CAT ? "other/sample.cat" : "sample.cat" ;
+		// 一つの配布ZIPに含める架空INF、CAT、SYSの全内容
+		const std::array	   entries{ZipFixtureEntry{"sample.inf", body.data(), body.size()},
+								   ZipFixtureEntry{catPath, "fixture-cat", 11U},
+								   ZipFixtureEntry{"sample.sys", "driver", 6U}} ;
+		std::vector<std::byte> archive ;	// 展開だけを実行する架空ZIPです
+		DRIVERCRATE_EXPECT( context, createZipFixture( entries, archive)) ;
+		OfficialDownloadWorkspace workspace ;	// 過去caseの元byteを借りません
+		DRIVERCRATE_EXPECT( context, workspace.initialize( L"scoped-models-closure", ++ordinal) == 0) ;
+		std::wstring digest ;	// このZIPの元SHA-256です
+		DRIVERCRATE_EXPECT( context, storeArchive( workspace, L"scope.zip", archive, digest) == 0) ;
+
+		std::vector<driver_package_signature_detail::FixtureFile> members ;	// 署名の人工低位表です
+		// 各メンバーの元内容を試験用の署名表に対応させ、指定した一件だけ検査条件を変えます
+		for( const auto &entry : entries) {
+			// 先行段階で展開済みのINFとCATを人工表に載せ、SYSは最終検査で拒否させます
+			if( entry.path == "sample.sys") {
+				continue ;
+			}
+
+			std::wstring hash ;	// 該当memberの全byteだけを固定します
+			DRIVERCRATE_EXPECT(
+				context,
+				computeBytesSha256( {static_cast<const char *>( entry.data), entry.size}, hash) == 0) ;
+			// 元CATの元署名証拠と実ハッシュに差を作り、同じ元ファイルの検査を確認します
+			if( mode == Case::INVALID_CAT && entry.path == "sample.cat") {
+				hash.front() = hash.front() == L'0' ? L'1' : L'0' ;
+			}
+
+			members.push_back(
+				{std::wstring( entry.path.begin(), entry.path.end()), hash, L"sample.inf"}) ;
+		}
+
+		// CAT欠損以外では既定の試験メンバーに結ぶ署名検査結果
+		const auto signature =
+			mode == Case::MISSING_CAT
+				? nullptr
+				: driver_package_signature_detail::Access::create( std::move( members), 1U) ;
+		DRIVERCRATE_EXPECT( context, signature || mode == Case::MISSING_CAT) ;
+		// 欠損を意図したケース以外で署名の試験準備に失敗した場合は詳細確認を中断します
+		if( !signature && mode != Case::MISSING_CAT) {
+			return ;
+		}
+
+		// 現在の対照ZIPを同じ試験セッションと原ハッシュへ結ぶ入力
+		const DriverArchiveInput input{ordinal, workspace.path( L"scope.zip"), archive.size(),
+									   digest} ;
+		const std::wstring		 wrongHash( 64U, L'0') ;	// 元に存在しない固定ハッシュです
+		// 公式対象、明示OSと元INFのハッシュを指定する試験の照合条件
+		const OfficialInfScopedModelsRequest scope{
+			.platform	 = &platform,
+			.hardwareIds = ids,
+			.infSha256 =
+				mode == Case::WRONG_INF ? std::wstring_view{wrongHash} : std::wstring_view{},
+			.catalogSha256 =
+				mode == Case::WRONG_CAT ? std::wstring_view{wrongHash} : std::wstring_view{},
+		} ;
+		CollectorDriverPackageContent content ;	// 個別結果と最終閉包だけです
+		DRIVERCRATE_EXPECT(
+			context, inspectCollectorDriverPackageContent( input, OfficialDriverArchiveFormat::ZIP,
+														  selectors, content, {}, &scope) == 0) ;
+		DRIVERCRATE_EXPECT( context, content.infs.size() == 1U) ;
+		// 唯一の検査結果が得られない場合は、添字で詳細を参照しません
+		if( content.infs.size() != 1U) {
+			return ;
+		}
+
+		const auto &observed = content.infs.front() ;	// 同じ収集入口の個別診断です
+		std::cout << "SCOPED_CLOSURE case=" << static_cast<int>( mode)
+				  << " state=" << static_cast<int>( observed.state) << " error=" << observed.error
+				  << " members=" << observed.closure.entries.size() << '\n' ;
+		// 元署名未検査と無害な文字列を個別に予期した診断へ照合します
+		if( mode == Case::UNSIGNED_MEMBER || mode == Case::BENIGN_STRING) {
+			DRIVERCRATE_EXPECT( context,
+							   observed.state == CommonInfInspectionState::SIGNATURE_REJECTED &&
+								   observed.error != 0 && observed.closure.entries.empty() &&
+								   observed.closure.packages.empty() &&
+								   signature->receipt().setupCalls == 2U) ;
+		} else {
+			DRIVERCRATE_EXPECT( context, observed.state != CommonInfInspectionState::VERIFIED &&
+											observed.error != 0 &&
+											observed.closure.packages.empty()) ;
+			// 関係のない節に置かれた多数行は公式Modelsの照合と分けて判定します
+			if( mode == Case::OTHER_SECTION) {
+				DRIVERCRATE_EXPECT( context,
+								   observed.error == HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
+			}
+
+			// 元Modelsが別用途に流用された対照では実導入作用の証拠を作らないことを確認します
+			if( mode == Case::OUTSIDE_REGISTRY || mode == Case::OUTSIDE_EVENT ||
+			   mode == Case::OTHER_MODELS_INSTALL) {
+				DRIVERCRATE_EXPECT( context,
+								   observed.error == HRESULT_FROM_WIN32( ERROR_INVALID_DATA) &&
+									   signature->receipt().setupCalls == 1U) ;
+			}
+
+			// 元INFまたは元CATのハッシュが異なる場合の固有診断を確認します
+			if( mode == Case::WRONG_INF || mode == Case::WRONG_CAT) {
+				DRIVERCRATE_EXPECT( context, observed.error == HRESULT_FROM_WIN32( ERROR_CRC)) ;
+			}
+		}
+	}
+}
 
 //------------------------------------------------------------------------------
 /**
@@ -6122,6 +7555,10 @@ void testMaintenanceReferencedExecutableBoundary( TestContext &context)
 //------------------------------------------------------------------------------
 void runOfficialDriverClosureTests( TestContext &context)
 {
+	testScopedCollectorClosure( context) ;
+	runCollectorPropertyPageTests( context) ;
+	testRequiredRegistryOnlyClosure( context) ;
+	testCollectorStorageContentBoundary( context) ;
 	testSharedArchiveMemberRetention( context) ;
 	testMaintenanceReferencedExecutableBoundary( context) ;
 	testMaintenanceVerdictSeparation( context) ;

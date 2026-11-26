@@ -20,11 +20,14 @@ DriverCrateは、Windows Updateやメーカーの公式配布元、PC内から�
 
 - Windows Update・メーカーの公式配布元・PC内のドライバーから候補を検索
 - 現在のバージョンと見比べて、更新したいデバイスだけ選択
+- 対応する候補の配布物を取得し、インストール前に内容と利用規約を確認
 - インストールの結果や、再起動が必要かを確認
 
 ## 📊 収録しているドライバー情報
 
 2026年11月21日（日本時間）に確認した、公開アプリが参照する索引の収録数です。[公開索引（第65世代）](https://github.com/EnterOgawa/drivercrate/releases/tag/index-v1-20261120-dcc3bf7614c1f24f94cbbdd67d6b9f90448bebe1e994a97167411d5104d3f11b)
+
+2026年11月25日（日本時間）の第76世代では、内容を検査した488レコード・234取得元を確認しました。以下の種類別内訳は第65世代の集計です。 [現在の公開索引](https://github.com/EnterOgawa/drivercrate/blob/driver-index/index/current.json)
 
 Windowsのドライバークラスと配布情報をもとに、デバイスの種類ごとに集計しています。 [Windowsのデバイスクラス](https://learn.microsoft.com/ja-jp/windows-hardware/drivers/install/system-defined-device-setup-classes-available-to-vendors)
 
@@ -98,6 +101,8 @@ Windowsのドライバークラスと配布情報をもとに、デバイスの�
 
 使いたい行を選び、「この候補を選択」を押すと主画面に戻ります。そこで対象にチェックを入れて、インストールへ進みましょう。
 
+詳細に「検査用に取得」が表示された候補は、ここで配布物の内容を確認できます。インストールする場合は、検査後に対象を選び、画面に表示される変更内容と利用規約を確認して進めてください。
+
 古いバージョンも見たいときは、主画面の「推奨・初回候補を表示」のチェックを外してから詳細を開いてください。
 
 ## 🔄 アプリの更新
@@ -106,6 +111,7 @@ Windowsのドライバークラスと配布情報をもとに、デバイスの�
 
 ## 📚 もっと詳しく
 
+- [1.0.12の変更点](docs/release-notes-1.0.12.md)
 - [詳しい使い方](docs/user-guide.md)
 - [ビルドと試験](docs/testing.md)
 

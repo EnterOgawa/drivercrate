@@ -2,7 +2,7 @@
 /**
  * @file signed_index_asset_bytes.h
  * @brief 認証済みmanifestに結合した実GZip byteの検査結果を定義します
- * @version 01.01.02
+ * @version 01.04.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,10 @@
  * Ver.01.01.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.00 Shunji Ogawa  2026/11/19  署名へ結合した追加欄の運搬を検査
+ * Ver.01.03.00 Shunji Ogawa  2026/11/20  追加欄の展開原byteのSHA-256を保持
+ * Ver.01.04.00 Shunji Ogawa  2026/11/22  公式Modelsの専用欄を認証済み索引へ結合
+ * Ver.01.04.01 Shunji Ogawa  2026/11/26  追加欄の検査結果と各保持値を前置契約で説明
  * </pre>
  *
  * @note JSON・record・公式性・端末適合・導入許可は検査しません。通信・保存も行いません
@@ -47,11 +51,51 @@ namespace drivercrate {
 inline constexpr std::uint32_t INDEX_ASSET_BYTE_POLICY_VERSION = 1U ;
 // 原展開byteの絶対上限。既存hash APIの128MiB枠内にも収めます
 inline constexpr std::uint64_t INDEX_ASSET_EXPANDED_MAX_BYTES = index_capacity::EXPANDED_BYTES ;
-// Headerとtrailerを含む実圧縮container全体に対する最大展開倍率
+// それぞれのGZip領域に対する最大展開倍率
 inline constexpr std::uint64_t INDEX_ASSET_MAX_COMPRESSION_RATIO =
 	index_capacity::COMPRESSION_RATIO ;
 
 struct IndexAssetBytesResult ;
+
+/** @brief 追加欄の運搬検査結果を区別します */
+enum class IndexAssetSupplementStatus {
+	/// 対応する識別子の欄がありません
+	ABSENT,
+	/// 署名と世代に結合した展開byteです
+	BYTE_VALIDATED,
+	/// 欄の長さ、版又は期限の形式が不正です
+	INVALID_FRAME,
+	/// 旧展開内容又はasset世代と一致しません
+	BINDING_MISMATCH,
+	/// 確認済みの現在UTCがありません
+	TIME_UNAVAILABLE,
+	/// Manifestの発行時刻より前です
+	NOT_YET_VALID,
+	/// Manifest又は追加欄の期限に達しています
+	EXPIRED,
+	/// 展開枠を超えています
+	EXPANSION_LIMIT,
+	/// 内側GZipの検査に失敗しました
+	GZIP_REJECTED,
+	/// 所有byteを確保できませんでした
+	OUT_OF_MEMORY,
+	/// 原展開byteのSHA-256を確認できませんでした
+	HASH_FAILURE
+} ;
+
+/** @brief 追加欄の取得権限を含まない検査値です */
+struct IndexAssetSupplementResult {
+	/// 元の運搬結果です
+	IndexAssetSupplementStatus status{IndexAssetSupplementStatus::ABSENT} ;
+	/// 展開APIの元診断です
+	NativeError				   error{} ;
+	/// 追加欄に記録された期限です
+	std::chrono::sys_seconds   expiresAtUtc{} ;
+	/// 時刻と運搬が成立した場合だけ保つ原展開byteです
+	std::vector<std::byte>	   expanded ;
+	/// 追加欄の原展開byteのSHA-256です
+	IndexManifestSha256		   expandedSha256{} ;
+} ;
 
 /**
  * @brief Manifest認証と実GZip byte検査からだけ構築する不変receiptです
@@ -85,6 +129,31 @@ public:
 	 * @return Decompressorへ渡した最大展開byte数
 	 */
 	[[nodiscard]] std::uint64_t						maximumExpandedBytes() const noexcept ;
+	/**
+	 * @brief 署名済み圧縮byteに従来のDC欄が含まれるか調べます
+	 * @return 予約した識別子の先頭欄が存在する場合trueです。内容検査は未評価です
+	 */
+	[[nodiscard]] bool								hasSupplementFrame() const noexcept ;
+	/**
+	 * @brief 従来のDC欄の世代・既存展開hash・期限と圧縮内容を照合します
+	 * @param[in] nowUtc 確認済みの現在UTCです
+	 * @return 時刻と運搬検査の結果です。レコードの意味・適用性・取得許可は未評価です
+	 */
+	[[nodiscard]] IndexAssetSupplementResult		readSupplement(
+			   std::optional<std::chrono::sys_seconds> nowUtc) const noexcept ;
+	/**
+	 * @brief 署名済み圧縮byteに公式ModelsのDM欄が含まれるか調べます
+	 * @return 先頭識別子がDMの場合trueです。欄の構造と期限は未評価です
+	 */
+	[[nodiscard]] bool						 hasScopedModelsFrame() const noexcept ;
+	/**
+	 * @brief 公式ModelsのDM欄を同じassetの世代・従来本文・元期限へ結合して展開します
+	 * @param[in] nowUtc 確認済みの現在UTCです
+	 * @return 運搬検査と時刻確認が成立した場合だけ専用欄の原展開byteと実SHA-256を含みます
+	 * @note レコードの意味、端末適用、取得許可は別の検査で確認します
+	 */
+	[[nodiscard]] IndexAssetSupplementResult readScopedModels(
+		std::optional<std::chrono::sys_seconds> nowUtc) const noexcept ;
 
 private:
 	/**
@@ -93,11 +162,15 @@ private:
 	 * @param[in] expanded 検査済み展開原byteの所有値
 	 * @param[in] expandedSha256 展開原byteに対する実digest
 	 * @param[in] maximumExpandedBytes Decompressorへ適用した展開byte上限
+	 * @param[in] supplementFrame 元圧縮byteから取得したDC欄の所有値です
+	 * @param[in] scopedModelsFrame 元圧縮byteから取得したDM欄の所有値です
 	 */
 	AuthenticatedIndexAssetBytes( AuthenticatedIndexManifest manifest,
 								 std::vector<std::byte>		expanded,
 								 IndexManifestSha256		expandedSha256,
-								 std::uint64_t				maximumExpandedBytes) noexcept ;
+								 std::uint64_t				maximumExpandedBytes,
+								 std::vector<std::byte>		supplementFrame,
+								 std::vector<std::byte>		scopedModelsFrame) noexcept ;
 
 	/**
 	 * @brief 認証済み第1引数へ実圧縮byteを結合し、上限付き単一GZipとして検査します
@@ -107,7 +180,7 @@ private:
 	 * @note 第3引数（std :: optional < std :: chrono :: sys_seconds >、in）はこの宣言では無名です。信頼UTCの再確認値。Nullopt
 	 *       、発行前、期限以上では拒否します
 	 * @return 全検査成功時だけbyte receipt、拒否時は理由と元API HRESULTです
-	 * @note 圧縮size／hash検査後にmin(128MiB, 実圧縮size×128)をdecompressorへ渡します。JSON／record・最新highwater・公式性・端
+	 * @note 圧縮size／hash検査後、DM欄とXLENを除いた実圧縮sizeに展開枠を適用します。JSON／record・最新highwater・公式性・端
 	 *       末適合は検査しません。通信・保存・世代更新・scanを行いません。独立入力では同時呼出し可能です。時刻やhighwaterの保護store transactionは後段が再確認します
 	 */
 	friend IndexAssetBytesResult authenticateIndexAssetBytes(
@@ -122,6 +195,10 @@ private:
 	IndexManifestSha256		   expandedSha256_{} ;
 	/// 展開前にdecompressorへ渡した有限上限（byte）
 	std::uint64_t			   maximumExpandedBytes_{} ;
+	/// 元manifestで認証した圧縮byteからだけ保持するDC欄です
+	std::vector<std::byte>	   supplementFrame_ ;
+	/// 元manifestで認証した圧縮byteからだけ保持する公式ModelsのDM欄です
+	std::vector<std::byte>	   scopedModelsFrame_ ;
 } ;
 
 /** @brief Byte検査の成功と期限・改変・形式・API障害を区別します */
@@ -169,7 +246,7 @@ struct IndexAssetBytesResult {
  * @param[in] compressed 原転送byte。呼出し中に全要素を読取り可能かつ不変に保ちます
  * @param[in] nowUtc 信頼UTCの再確認値。Nullopt、発行前、期限以上では拒否します
  * @return 全検査成功時だけbyte receipt、拒否時は理由と元API HRESULTです
- * @note 圧縮size／hash検査後にmin(128MiB, 実圧縮size×128)をdecompressorへ渡します。JSON／record・最新highwater・公式性・端末適合は
+ * @note 圧縮size／hash検査後、DM欄とXLENを除いた実圧縮sizeに展開枠を適用します。JSON／record・最新highwater・公式性・端末適合は
  *       検査しません。通信・保存・世代更新・scanを行いません。独立入力では同時呼出し可能です。時刻やhighwaterの保護store transactionは後段が再確認します
  */
 //------------------------------------------------------------------------------

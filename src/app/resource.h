@@ -2,7 +2,7 @@
 /**
  * @file resource.h
  * @brief DriverCrateリソースID定義
- * @version 01.32.05
+ * @version 01.46.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -108,6 +108,21 @@
  * Ver.01.32.03 Shunji Ogawa  2026/11/12  導入前保護失敗に結合した一回の明示復元なし続行を接続
  * Ver.01.32.04 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
  * Ver.01.32.05 Shunji Ogawa  2026/11/14  下部の正常検索案内を短縮し失敗表示を保持
+ * Ver.01.33.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.34.00 Shunji Ogawa  2026/11/17  MTD共有作用と部分結果の文字列IDを追加
+ * Ver.01.35.00 Shunji Ogawa  2026/11/19  初回セットアップクラス登録を示す文字列IDを追加
+ * Ver.01.36.00 Shunji Ogawa  2026/11/21  共有起動ログ設定案内の識別子を定義
+ * Ver.01.37.00 Shunji Ogawa  2026/11/22  共有補助サービス変更の案内を示す識別子を定義
+ * Ver.01.38.00 Shunji Ogawa  2026/11/22  共有補助サービスの反映確認三状態を定義
+ * Ver.01.39.00 Shunji Ogawa  2026/11/23  自動起動型の共有作用を表示する識別子を定義
+ * Ver.01.40.00 Shunji Ogawa  2026/11/23  同梱INFへの委譲確認を示す表示識別子を追加
+ * Ver.01.41.00 Shunji Ogawa  2026/11/23  名前付きイベント資源の配置を示す表示識別子を追加
+ * Ver.01.42.00 Shunji Ogawa  2026/11/23  単一ブートの変更区分と件数の表示識別子を追加
+ * Ver.01.43.00 Shunji Ogawa  2026/11/23  単一起動の反映結果を示す表示識別子を追加
+ * Ver.01.44.00 Shunji Ogawa  2026/11/23  候補の検査専用取得と結果の表示識別子を追加
+ * Ver.01.44.01 Shunji Ogawa  2026/11/23  検査専用候補の内容結果を短文で表示
+ * Ver.01.45.00 Shunji Ogawa  2026/11/23  候補詳細からの検査済み規約閲覧を追加
+ * Ver.01.46.00 Shunji Ogawa  2026/11/23  選択したストレージの元規約への確認案内を追加
  * </pre>
  *
  * @note Win32 control、icon、および日本語文字列のresource IDを定義します
@@ -121,6 +136,7 @@
 #define IDC_INSTALL_TERMS_NOTE 2301
 // 原規約の閲覧だけを行い、同意操作を持たないdialogです
 #define IDD_INSTALL_TERMS 2302
+#define IDD_WIX_TERMS 2303	// 元の検査済み規約を閲覧するだけの画面
 // 規約が必要な元選択への明示実行文言です
 #define IDS_INSTALL_TERMS_BUTTON 1492
 // 同意・導入を行わない全文閲覧buttonです
@@ -165,6 +181,7 @@
 #define IDC_DEVICE_DETAIL_CANDIDATES 2211
 #define IDC_DEVICE_DETAIL_LABEL 2212			// Tableのaccess key付きlabel
 #define IDC_DEVICE_DETAIL_NOTICE 2213			// 閲覧と明示適用を区別する注意
+#define IDC_DEVICE_DETAIL_TERMS 2214			// 選択中の検査済み候補の規約を読む
 #define IDS_DEVICE_DETAIL_COLUMN_CANDIDATE 1516	// 元順の候補名列
 #define IDS_DEVICE_DETAIL_COLUMN_SOURCE 1517	// 取得元列
 #define IDS_DEVICE_DETAIL_COLUMN_STATE 1518		// 現在/推奨/旧版等の区分列
@@ -509,6 +526,7 @@
 #define IDS_WCH_OFFICIAL_INSPECTION 1156				// 今回限りのCH341SER検査取得確認
 #define IDS_WCH_MULTI_OFFICIAL_INSPECTION 1157			// 今回限りのCH343SER検査取得確認
 #define IDS_OFFICIAL_RELEASE_DISCOVERY_STATE 1158		// 未監査の公式配布情報と現在版を区別する
+#define IDS_AUDIT_INBOX_NULL_DRIVER 1159				// 同梱INFへの空ドライバー委譲確認
 
 //------------------------------------------------------------------------------
 // Child control resource定義
@@ -897,3 +915,106 @@
  * @brief 下部帯で通常の保存待ちと実際の欠落を区別します
  */
 #define IDS_DIAGNOSTIC_STORAGE_COMPACT_DROPPED 9040	// 欠落の短い案内です
+
+/// 元storageの変更範囲を既詳細へ示します
+#define IDS_STORAGE_CHANGE_SCOPE 9041
+/// 元BOOT開始方式を示します
+#define IDS_STORAGE_START_BOOT 9042
+/// 元SYSTEM開始方式を示します
+#define IDS_STORAGE_START_SYSTEM 9043
+/// 元DEMAND開始方式を示します
+#define IDS_STORAGE_START_DEMAND 9044
+/// 原共有disk timeout値と他diskへの影響です
+#define IDS_STORAGE_SHARED_TIMEOUT 9045
+/// 元INFの必要登録数です
+#define IDS_STORAGE_REQUIRED_IMPORTS 9046
+/// 共有serviceとWindows CopyINF作用の限界です
+#define IDS_STORAGE_SHARED_EFFECT_NOTE 9047
+/// 起動/再起動の確認限界です
+#define IDS_STORAGE_BOOT_NOTE 9048
+/// 必要INF登録だけの結果です
+#define IDS_STORAGE_IMPORT_RESULT 9049
+/// 元modern BootFlagsの非権限表示です
+#define IDS_STORAGE_BOOT_FLAGS 9050
+/// MTD原共有DLL数と既存byteを保護する作用です
+#define IDS_MTD_SHARED_DLLS 9051
+/// 選択deviceの原hardware property値です
+#define IDS_MTD_HARDWARE_PROPERTIES 9052
+/// 共有DLLの実配置と再利用結果です
+#define IDS_MTD_COPY_RESULT 9053
+/// 元renameは成功したが正規先確認が未成立の場合の区分です
+#define IDS_MTD_RENAME_PARTIAL 9054
+/// 一時fileの後片付けが確認できない結果です
+#define IDS_MTD_CLEANUP_UNCERTAIN 9055
+/// WindowsによりSYS更新が再起動へ遅延された結果です
+#define IDS_MTD_SYS_DELAYED 9056
+/// 一時device parameterの解除に失敗した結果です
+#define IDS_MTD_PARAMS_CLEANUP 9057
+/// 指定DIF後の保持再照合に失敗した結果です
+#define IDS_MTD_POST_VERIFY 9058
+/// Windowsへの初回セットアップクラス登録の説明です
+#define IDS_SETUP_CLASS_REGISTRATION 9059
+/// 元INFのセットアップクラスの表示名です
+#define IDS_SETUP_CLASS_DISPLAY_NAME 9060
+/// 元INFのセットアップクラス名です
+#define IDS_SETUP_CLASS_NAME 9061
+/// 元INFのセットアップクラスGUIDです
+#define IDS_SETUP_CLASS_GUID 9062
+/// 元INFが指定したWindows内蔵アイコン番号です
+#define IDS_SETUP_CLASS_BUILT_IN_ICON 9063
+/// Windowsに追加または更新する共有起動ログ設定の案内
+#define IDS_STORAGE_AUTOLOGGER_NOTICE 9064
+// 共有補助サービスの変更と使用中の実行ファイルの置換時期の案内
+#define IDS_STORAGE_AUXILIARY_SERVICE_NOTICE 9065
+// 共有補助サービスの反映確認が成立した結果です
+#define IDS_STORAGE_AUXILIARY_CONFIRMED 9066
+// 再起動後に共有補助サービスを確認する結果です
+#define IDS_STORAGE_AUXILIARY_RESTART_CHECK 9067
+// 共有補助サービスの反映が確認できなかった結果です
+#define IDS_STORAGE_AUXILIARY_UNCONFIRMED 9068
+// 自動起動補助とシステムイベント、共有ACPI・電源設定の変更案内
+#define IDS_STORAGE_AUTOMATIC_SETTINGS_NOTICE 9069
+// System32にコピーするイベントメッセージ用DLLの変更案内
+#define IDS_STORAGE_EVENT_RESOURCE_NOTICE 9070
+// 正式に不在だった対象を作成する変更区分
+#define IDS_STORAGE_PLANNED_CREATE 9071
+// 現在の内容を維持する変更区分
+#define IDS_STORAGE_PLANNED_KEEP 9072
+// 既存対象を更新する変更区分
+#define IDS_STORAGE_PLANNED_UPDATE 9073
+// 単一ブートの起動サービスと配置SYSの予定。%1は変更区分
+#define IDS_STORAGE_SINGLE_BOOT_SERVICE 9074
+// 単一ブートのシステムログのイベント登録予定。%1は変更区分
+#define IDS_STORAGE_SINGLE_BOOT_EVENT 9075
+// 電源設定の追加・変更件数。%1は件数
+#define IDS_STORAGE_SINGLE_BOOT_POWER 9076
+// 選択機器の設定値の追加・変更件数。%1は件数
+#define IDS_STORAGE_SINGLE_BOOT_DEVICE_VALUES 9077
+// 関連サービスの設定値の追加・変更件数。%1は件数
+#define IDS_STORAGE_SINGLE_BOOT_SERVICE_VALUES 9078
+/** @def IDS_STORAGE_SINGLE_BOOT_CONFIRMED 起動と必要な設定の反映を確認した結果 */
+#define IDS_STORAGE_SINGLE_BOOT_CONFIRMED 9079
+/** @def IDS_STORAGE_SINGLE_BOOT_RESTART_CHECK Windowsの再起動後に確認する結果 */
+#define IDS_STORAGE_SINGLE_BOOT_RESTART_CHECK 9080
+/** @def IDS_STORAGE_SINGLE_BOOT_UNCONFIRMED 起動や設定の反映を確認できなかった結果 */
+#define IDS_STORAGE_SINGLE_BOOT_UNCONFIRMED 9081
+/** @def IDS_DETAIL_SELECT_CANDIDATE 通常候補を選択する詳細のボタンです */
+#define IDS_DETAIL_SELECT_CANDIDATE 9082
+/** @def IDS_DETAIL_ACQUIRE_INSPECTION 検査用の本体を取得する詳細のボタンです */
+#define IDS_DETAIL_ACQUIRE_INSPECTION 9083
+/** @def IDS_DETAIL_INSPECTION_AVAILABLE 取得だけを案内する候補の区分です */
+#define IDS_DETAIL_INSPECTION_AVAILABLE 9084
+/** @def IDS_DETAIL_INSPECTION_TIP 検査用取得を案内する候補セルの説明です */
+#define IDS_DETAIL_INSPECTION_TIP 9085
+/** @def IDS_DETAIL_INSPECTION_PENDING 元配布の受信後に内容検査を待つ状態です */
+#define IDS_DETAIL_INSPECTION_PENDING 9086
+/** @def IDS_DETAIL_INSPECTION_VERIFIED 元規約とドライバー内容を照合した行の状態です */
+#define IDS_DETAIL_INSPECTION_VERIFIED 9087
+/** @def IDS_DETAIL_INSPECTION_FAILED 同じ配布物の内容が成立しなかった行の状態です */
+#define IDS_DETAIL_INSPECTION_FAILED 9088
+// 選択済みWiX候補の規約を詳細で確認する案内です
+#define IDS_WIX_INSTALL_TERMS_NOTICE 9089
+// 単一起動の変更内容と元規約への最終同意を結びます
+#define IDS_WIX_INSTALL_TERMS_CONSENT 9090
+// 元の表示規約が失われた場合の操作案内です
+#define IDS_WIX_INSTALL_TERMS_EXPIRED 9091

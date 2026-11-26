@@ -2,7 +2,7 @@
 /**
  * @file provider_worker.h
  * @brief Provider worker定義
- * @version 01.06.03
+ * @version 01.07.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -44,6 +44,7 @@
  * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.06.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.06.03 Shunji Ogawa  2026/11/12  導入前保護失敗に結合した一回の明示復元なし続行を接続
+ * Ver.01.07.00 Shunji Ogawa  2026/11/23  WiXの元規約同意を導入と一回の復元なし続行へ引き継ぐ
  * </pre>
  *
  * @note Blocking provider operationをCOM MTA worker threadへ隔離します。UI通知は有限result queueとPostMessageを使用し
@@ -55,6 +56,7 @@
 
 #include "core/restore_point_service.h"
 #include "core/update_provider.h"
+#include "platform/signed_index_candidate_binding.h"
 #include "platform/signed_index_scan.h"
 #include "platform/hardware_refresh.h"
 
@@ -246,19 +248,21 @@ public:
 
 	/**
 	 * @brief 選択 update の download/install を command queue へ登録する
-	 * 選択 update の download/install を command queueへ登録する
 	 * @param[in] operationId UI state machine が割り当てた operation ID
 	 * @param[in] scanSessionId 選択元 scan session ID
 	 * @param[in] identities UI に提示済みの opaque identity 群
 	 * @param[in] parentWindow WUA dialog の親 Window
 	 * @param[in] protectionMode OSと利用者確認に対応するinstall保護方針
 	 * @param[in] failedRestoreOperationId 明示続行だけが指定する原失敗操作です。通常は0です
-	 * @return 登録できた場合は `true`
+	 * @param[in] wixConsents 今回の元選択で明示同意した候補とWiX規約の不変参照です。受付中だけ借用します
+	 * @return 有界な新操作を登録した場合はtrueです
+	 * @note 元規約同意をコピーし、実行可否は同じworkerが元候補と照合します
 	 */
 	[[nodiscard]] bool requestInstall( OperationId operationId, ScanSessionId scanSessionId,
 									  std::span<const std::wstring> identities, HWND parentWindow,
 									  InstallProtectionMode protectionMode,
-									  OperationId			failedRestoreOperationId = 0U) ;
+									  OperationId			failedRestoreOperationId = 0U,
+									  std::span<const WixInstallConsent> wixConsents = {}) ;
 
 	/**
 	 * @brief 本人の中止を待機なしでworkerの原提示へ反映します
@@ -330,17 +334,19 @@ private:
      */
 	struct InstallCommand {
 		/// UI state machineが割り当てたinstall operation ID
-		OperationId				  operationId{} ;
+		OperationId					   operationId{} ;
 		/// 候補を取得したscan session ID
-		ScanSessionId			  scanSessionId{} ;
+		ScanSessionId				   scanSessionId{} ;
 		/// 利用者が選択したopaque identity群
-		std::vector<std::wstring> identities ;
+		std::vector<std::wstring>	   identities ;
+		/// 当該操作で明示同意したWiX候補と同じ元規約への不変参照です
+		std::vector<WixInstallConsent> wixConsents ;
 		/// Installer UIが参照する非所有parent Window handle
-		HWND					  parentWindow{} ;
+		HWND						   parentWindow{} ;
 		/// UI確認時に固定し、workerが実OSと再照合するinstall保護方針
-		InstallProtectionMode	  protectionMode{InstallProtectionMode::WINDOWS_RESTORE_POINT} ;
+		InstallProtectionMode		   protectionMode{InstallProtectionMode::WINDOWS_RESTORE_POINT} ;
 		/// 同scan/完全元選択へ拘束する原失敗操作です。通常は0です
-		OperationId				  failedRestoreOperationId{} ;
+		OperationId					   failedRestoreOperationId{} ;
 	} ;
 
 	/** @brief 対象別承認と一操作限定の取消し信号を所有する要求 */

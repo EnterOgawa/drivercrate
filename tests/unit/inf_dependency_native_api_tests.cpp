@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native_api_tests.cpp
  * @brief 架空OS・署名・Storeと実fileでnative障害を再現する専用試験
- * @version 01.05.05
+ * @version 01.25.00
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,27 @@
  * Ver.01.05.03 Shunji Ogawa  2026/11/13  Needs AddRegの元拒否leafを既匿名診断へ接続
  * Ver.01.05.04 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
  * Ver.01.05.05 Shunji Ogawa  2026/11/13  847p9の型付きSYSTEM全作用と全選択資格を接続
+ * Ver.01.05.06 Shunji Ogawa  2026/11/20  同名stubを同期fixtureの再検証callbackへ移動
+ * Ver.01.06.00 Shunji Ogawa  2026/11/20  収集が選択したSDバスの作用・元文書・余分な行の拒否を回帰
+ * Ver.01.07.00 Shunji Ogawa  2026/11/20  標準Portsの選択・サービス・フィルター・イベント資源と各拒否を回帰
+ * Ver.01.08.00 Shunji Ogawa  2026/11/20  標準NVMeとPCIの選択、起動サービス、電源値域と原全行を回帰
+ * Ver.01.09.00 Shunji Ogawa  2026/11/21  標準AHCIの元除外・電源と共有登録作用を検証
+ * Ver.01.10.00 Shunji Ogawa  2026/11/22  仮想Wi-Fiバスの元サービス宣言と現在の実体差を検証
+ * Ver.01.11.00 Shunji Ogawa  2026/11/22  仮想Wi-Fiバスの現行と旧形式の全到達節とフィルター置換を回帰
+ * Ver.01.12.00 Shunji Ogawa  2026/11/22  仮想Wi-Fiバスの表示名と説明の展開前後の一致条件を回帰
+ * Ver.01.13.00 Shunji Ogawa  2026/11/23  署名文書の範囲型電源設定とAC/DC既定値の読取りを回帰
+ * Ver.01.14.00 Shunji Ogawa  2026/11/23  現用署名元と候補の電源定義の分類を回帰
+ * Ver.01.15.00 Shunji Ogawa  2026/11/23  省略されたイベント資源を現用の参照根拠に照合
+ * Ver.01.16.00 Shunji Ogawa  2026/11/23  起動サービスと現在SYSの署名元の照合を回帰
+ * Ver.01.17.00 Shunji Ogawa  2026/11/23  名前付きイベントDLLの所有と共有変更を回帰
+ * Ver.01.18.00 Shunji Ogawa  2026/11/23  電源設定GUIDの直下・別グループの競合を回帰
+ * Ver.01.19.00 Shunji Ogawa  2026/11/23  現用同梱NVMeのPCI依存節と電源宣言を回帰
+ * Ver.01.20.00 Shunji Ogawa  2026/11/24  無線バスの同一文書内転送と元選択の拒否対照を追加
+ * Ver.01.21.00 Shunji Ogawa  2026/11/24  USB Bluetooth三節の参照不足と異なる文書への解決を回帰
+ * Ver.01.22.00 Shunji Ogawa  2026/11/24  USB Bluetoothの保護コピーと配備先の異常を回帰
+ * Ver.01.23.00 Shunji Ogawa  2026/11/24  USB BluetoothとPCIの機器設定宣言の型と所有節を回帰
+ * Ver.01.24.00 Shunji Ogawa  2026/11/24  USB Bluetoothの共有作用を元INFの写しで回帰
+ * Ver.01.25.00 Shunji Ogawa  2026/11/24  同梱WinUSBの元作用とサービス実体の正負対照を追加
  * </pre>
  *
  * @note この専用targetではtrust／OS APIを全て架空化する。実署名・実device・導入の測定ではない
@@ -44,6 +65,7 @@
 #include "platform/official_file_verifier.h"
 #include "platform/common_driver_package.h"
 #include "platform/system_inf_effects_internal.h"
+#include "platform/storage_inf_effects_internal.h"
 #include "platform/inf_dependency_native_internal.h"
 #include <Sddl.h>
 #include "platform/official_driver_package.h"
@@ -53,11 +75,14 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <crtdbg.h>
 #include <cstdlib>
+#include <filesystem>
 #include <future>
 #include <iostream>
+#include <map>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -68,16 +93,15 @@ namespace drivercrate {
 namespace {
 thread_local const CommonInfInspection *commonContentUnderTest{} ;	// 専用EXEの現在fixtureだけです
 thread_local std::size_t				commonContentRechecks{} ;	// 所有byteの実再確認回数です
-}
 //------------------------------------------------------------------------------
 /**
  * @brief 専用EXEだけで元内容の署名境界をfake化し、全原byteは実hashへ再照合します
  * @param[in] inspected この同期fixtureが登録した元内容だけです
  * @return 同一fixtureと原byte一致0、それ以外は元拒否HRESULTです
- * @note 通常製品の再検証関数を変更せず、このtargetにだけ定義します
+ * @note 同期fixtureのAPI表に結合して使います
  */
 //------------------------------------------------------------------------------
-NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected)
+NativeError reverifyFixtureCommonInf( const CommonInfInspection &inspected)
 {
 	// 任意の成功boolや別所有者を内容証拠として受理しません
 	if( &inspected != commonContentUnderTest || !inspected.workspace ||
@@ -101,6 +125,7 @@ NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected)
 
 	return 0 ;
 }
+} // namespace
 }
 
 namespace drivercrate::test {
@@ -381,9 +406,10 @@ struct Fixture {
 			members[0].sha256[0] = members[0].sha256[0] == L'a' ? L'b' : L'a' ;
 		}
 
-		api.version = [this]( auto &version, auto &native) {
-			// Fixtureの同期生存期間だけを借用し、実OSを変更しない
-			return versionInfo( version, native) ;
+		api.reverifyCommonInf = &reverifyFixtureCommonInf ;
+		api.version			  = [this]( auto &version, auto &native) {
+			  // Fixtureの同期生存期間だけを借用し、実OSを変更しない
+			  return versionInfo( version, native) ;
 		} ;
 		api.windowsDirectory = [this]( auto &path) -> NativeError {
 			// 起点APIの元失敗を注入する
@@ -1235,6 +1261,262 @@ void referenceOpenAbsence( TestContext &context)
 			})) ; // 元Include欠落を保持し、版や署名成功で補完しない
 	}
 }
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択した無線INFと同梱文書内の旧名転送を架空graphで照合する
+ * @param[in,out] context 同じprocessの試験集計
+ */
+//------------------------------------------------------------------------------
+void legacyWifiBusEdges( TestContext &context)
+{
+	const std::wstring			legacy	 = L"VWiFiBus.PnPFilterRegistration" ;	// 旧名の元節
+	const auto					hardware = legacy + L".HW" ;					// 旧名が指す元の同梱節
+	OfficialInfInstallInventory inventory ;										// 元基本からの外部参照だけの架空台帳
+	inventory.selectedInstallSection = L"Install" ;
+	inventory.references			 = {
+		{L"Install.HW", L"Include", L"netvwifibus.inf",
+					 OfficialInfInstallReferenceKind::INCLUDE_INF, false},
+		{L"Install.HW", L"Needs", legacy, OfficialInfInstallReferenceKind::LOCAL_SECTION, false}} ;
+	const std::vector<InfDependencyEdge> resolved{
+		{1U, L"Install.HW", L"netvwifibus.inf", InfDependencyDirective::INCLUDE,
+		 InfDependencyState::RESOLVED_SYSTEM, InfDependencyReason::NONE, 2U, 1U},
+		{1U, L"Install.HW", legacy, InfDependencyDirective::NEEDS,
+		 InfDependencyState::RESOLVED_SYSTEM, InfDependencyReason::NONE, 2U, 1U},
+		{2U, legacy, hardware, InfDependencyDirective::NEEDS, InfDependencyState::RESOLVED_SYSTEM,
+		 InfDependencyReason::NONE, 2U, 1U},
+	} ; // 元INFの2辺と同じ同梱文書内の一辺
+	DRIVERCRATE_EXPECT( context, matchScopedWifiBusReferencesForTest( inventory, 1U, resolved)) ;
+	DRIVERCRATE_EXPECT( context, !matchScopedWifiBusReferencesForTest(
+									inventory, 1U, std::span{resolved}.first( 2U))) ;
+	auto changed				  = resolved ;	// 元選択に存在しない転送の対照を順に作る
+	changed.back().targetIdentity = 3U ;
+	DRIVERCRATE_EXPECT( context, !matchScopedWifiBusReferencesForTest( inventory, 1U, changed)) ;
+	changed						  = resolved ;
+	changed.back().sourceIdentity = 3U ;
+	changed.back().targetIdentity = 3U ;
+	DRIVERCRATE_EXPECT( context, !matchScopedWifiBusReferencesForTest( inventory, 1U, changed)) ;
+	changed				 = resolved ;
+	changed.back().state = InfDependencyState::RESOLVED_PACKAGE ;
+	DRIVERCRATE_EXPECT( context, !matchScopedWifiBusReferencesForTest( inventory, 1U, changed)) ;
+	changed				  = resolved ;
+	changed.back().target = L"Elsewhere.HW" ;
+	DRIVERCRATE_EXPECT( context, !matchScopedWifiBusReferencesForTest( inventory, 1U, changed)) ;
+	changed = resolved ;
+	changed.push_back( resolved.back()) ;
+	DRIVERCRATE_EXPECT( context, !matchScopedWifiBusReferencesForTest( inventory, 1U, changed)) ;
+	changed							 = resolved ;
+	changed[1U].sourceSection		 = L"Install.Services" ;
+	inventory.references[1U].section = L"Install.Services" ;
+	DRIVERCRATE_EXPECT( context, !matchScopedWifiBusReferencesForTest( inventory, 1U, changed)) ;
+	changed.pop_back() ;
+	changed[1U].sourceSection		 = L"Install.HW" ;
+	changed[1U].target				 = hardware ;
+	inventory.references[1U].section = L"Install.HW" ;
+	inventory.references[1U].target	 = hardware ;
+	DRIVERCRATE_EXPECT( context, matchScopedWifiBusReferencesForTest( inventory, 1U, changed)) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief USB Bluetoothの元三節と二つのWindows同梱文書への参照を正負の対照で確認する
+ * @param[in,out] context 同じプロセスの試験集計
+ * @note 節名と文書識別子は架空。装置への操作やWindows同梱署名の検査は行わない
+ */
+//------------------------------------------------------------------------------
+void scopedBluetoothUsbEdges( TestContext &context)
+{
+	const std::array<std::wstring, 3U> seeds{L"Install.NTamd64", L"Install.NTamd64.HW",
+											 L"Install.NTamd64.Services"} ;	// 架空INFの選択三節
+	using Directive = InfDependencyDirective ;								// 架空の参照種別
+	using State		= InfDependencyState ;									// 架空の解決状態
+	using Reason	= InfDependencyReason ;									// 架空の解決理由
+	const std::array<InfDependencyEdge, 8U> edges{{
+		{1U, seeds[0], L"bth.inf", Directive::INCLUDE, State::RESOLVED_SYSTEM, Reason::NONE, 2U,
+		 1U},
+		{1U, seeds[0], L"BthUsb.NT", Directive::NEEDS, State::RESOLVED_SYSTEM, Reason::NONE, 2U,
+		 1U},
+		{1U, seeds[1], L"bth.inf", Directive::INCLUDE, State::RESOLVED_SYSTEM, Reason::NONE, 2U,
+		 1U},
+		{1U, seeds[1], L"BthUsb.NT.HW", Directive::NEEDS, State::RESOLVED_SYSTEM, Reason::NONE, 2U,
+		 1U},
+		{1U, seeds[2], L"bth.inf", Directive::INCLUDE, State::RESOLVED_SYSTEM, Reason::NONE, 2U,
+		 1U},
+		{1U, seeds[2], L"BthUsb.NT.Services", Directive::NEEDS, State::RESOLVED_SYSTEM,
+		 Reason::NONE, 2U, 1U},
+		{2U, L"BthUsb.NT.HW", L"pci.inf", Directive::INCLUDE, State::RESOLVED_SYSTEM, Reason::NONE,
+		 3U, 1U},
+		{2U, L"BthUsb.NT.HW", L"PciD3ColdSupported.HW", Directive::NEEDS, State::RESOLVED_SYSTEM,
+		 Reason::NONE, 3U, 1U},
+	}} ; // 元三対と同梱内一対を持つ正例
+	DRIVERCRATE_EXPECT( context, matchScopedBluetoothUsbReferencesForTest( edges, seeds, 1U)) ;
+	DRIVERCRATE_EXPECT( context, !matchScopedBluetoothUsbReferencesForTest( edges, seeds, 8U)) ;
+	DRIVERCRATE_EXPECT(
+		context, !matchScopedBluetoothUsbReferencesForTest( std::span{edges}.first( 7U), seeds, 1U)) ;
+
+	// 一辺ずつ同名のパッケージINFに置き換え、同梱由来の混入拒否を確認する
+	for( std::size_t index = 0U; index < edges.size(); ++index) {
+		auto changed		 = edges ;	// 一つの由来だけを変えた架空グラフ
+		changed[index].state = State::RESOLVED_PACKAGE ;
+		DRIVERCRATE_EXPECT( context, !matchScopedBluetoothUsbReferencesForTest( changed, seeds, 1U)) ;
+	}
+
+	auto changed			   = edges ;	// この後に独立した異常を作るための作業値
+	changed[2U].targetIdentity = 4U ;
+	DRIVERCRATE_EXPECT( context, !matchScopedBluetoothUsbReferencesForTest( changed, seeds, 1U)) ;
+	changed		   = edges ;
+	changed.back() = edges.front() ;
+	DRIVERCRATE_EXPECT( context, !matchScopedBluetoothUsbReferencesForTest( changed, seeds, 1U)) ;
+	changed						  = edges ;
+	changed.back().sourceIdentity = 1U ;
+	DRIVERCRATE_EXPECT( context, !matchScopedBluetoothUsbReferencesForTest( changed, seeds, 1U)) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief USB Bluetoothの保護コピーと明示配備先を架空元INFで検査する
+ * @param[in,out] context 同じプロセスの試験集計
+ * @note 元INFは試験用領域内に作成する。Windowsからディレクトリ名を読み取り、コピーは実行しない
+ */
+//------------------------------------------------------------------------------
+void scopedBluetoothUsbCopyCases( TestContext &context)
+{
+	constexpr std::string_view INF =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\n"
+		"[BthUsb.NT]\r\nCopyFiles=BthUsb.NT.Copy,BthPort.NT.CopyFiles\r\n"
+		"AddReg=Fsquirt.NT.AddReg\r\n[DestinationDirs]\r\n"
+		"BthUsb.NT.Copy=12\r\nBthPort.NT.CopyFiles=12\r\n"
+		"[BthUsb.NT.Copy]\r\nbthusb.sys,,,0x100\r\n"
+		"[BthPort.NT.CopyFiles]\r\nbthport.sys,,,0x100\r\n" ;	// 保護コピー二つの架空元INF
+	constexpr std::array<std::pair<std::string_view, std::string_view>, 9U> CHANGES{{
+		{"CopyFiles=BthUsb.NT.Copy,BthPort.NT.CopyFiles", "CopyFiles=BthUsb.NT.Copy"},
+		{"CopyFiles=BthUsb.NT.Copy,BthPort.NT.CopyFiles",
+		 "CopyFiles=BthPort.NT.CopyFiles,BthUsb.NT.Copy"},
+		{"BthPort.NT.CopyFiles=12", "BthPort.NT.CopyFiles=11"},
+		{"BthPort.NT.CopyFiles=12", "BthPort.NT.CopyFiles=12,Fixture"},
+		{"BthPort.NT.CopyFiles=12", "BthPort.NT.CopyFiles=12\r\nBthPort.NT.CopyFiles=12"},
+		{"bthusb.sys,,,0x100", "bthusb.sys,alternate.sys,,0x100"},
+		{"bthusb.sys,,,0x100", "bthusb.sys,,,0x104"},
+		{"bthport.sys,,,0x100", "bthport.sys,,,0x100\r\nbthport.sys,,,0x100"},
+		{"bthport.sys,,,0x100", "bthport.sys,,,0x100\r\n[BthPort.NT.CopyFiles.Security]\r\n"
+								"\"D:P(A;;GA;;;SY)\""},
+	}} ; // 参照順、元パス、宛先、フラグ、権限の独立した差
+
+	std::array<wchar_t, MAX_PATH>
+			   directory{} ;	// 実SetupAPIが展開する値との比較に使う現Windowsの位置
+	// 正例の参照先を組み立てるために現在のWindowsディレクトリの長さを取得する
+	const auto length = GetWindowsDirectoryW( directory.data(), static_cast<UINT>( directory.size())) ;
+	// OS情報の読み取り不成立を試験成功にしない
+	if( length == 0U || length >= directory.size()) {
+		throw std::runtime_error( "fixture cannot read Windows directory") ;
+	}
+
+	const auto drivers =
+		std::wstring{directory.data(), length} + L"\\System32\\drivers" ;	// 正例の配備先
+	Fixture	   fixture( Fault::NONE) ;										// 現試験中だけ所有する架空INF領域
+	const auto baseline =
+		// 元対照を追跡する相対位置とバイト
+		fixture.file( L"bluetooth-copy.inf", INF) ;
+	const auto path = fixture.workspace.path( baseline.relativePath) ;	// 試験用INFの読み取り位置
+	DRIVERCRATE_EXPECT( context, verifyBluetoothUsbCopyDeclarationForTest( path, drivers) == 0U) ;
+	DRIVERCRATE_EXPECT(
+		context, verifyBluetoothUsbCopyDeclarationForTest( path, drivers + L"\\Fixture") != 0U) ;
+
+	std::size_t index{} ;	// 各負例を別のファイルへ保存する番号
+	// 一条件だけ変えた元INFを順に読み取り、余分なコピーと別宛先を個別に拒否する
+	for( const auto &change : CHANGES) {
+		std::string modified{INF} ;								// この負例だけの元内容
+		const auto	position = modified.find( change.first) ;	// 基準入力の置換位置
+		modified.replace( position, change.first.size(), change.second) ;
+		const auto member = fixture.file( L"bluetooth-copy-" + std::to_wstring( ++index) + L".inf",
+										 modified) ;	// 他の負例と共有しない元INF
+		DRIVERCRATE_EXPECT( context,
+						   verifyBluetoothUsbCopyDeclarationForTest(
+							   fixture.workspace.path( member.relativePath), drivers) != 0U) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief BluetoothとPCIの機器相対作用を架空の二文書の正負対照で確認する
+ * @param[in,out] context 同じプロセスの試験集計
+ * @note SetupAPIでテスト領域内の宣言を読み取る。機器のキーは開かず設定を適用しない
+ */
+//------------------------------------------------------------------------------
+void scopedBluetoothUsbHardwareCases( TestContext &context)
+{
+	constexpr std::string_view BLUETOOTH =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\n"
+		"[BthUsb.NT.HW]\r\nAddReg=BthPort.NT.HW.AddReg\r\nDelReg=BthPort.NT.HW.DelReg\r\n"
+		"Include=pci.inf\r\nNeeds=PciD3ColdSupported.HW\r\n"
+		"[BthPort.NT.HW.AddReg]\r\nHKR,,Scans Before Out of Range,0x10003,8\r\n"
+		"HKR,,SCO Max Channels,0x10001,2\r\n"
+		"HKR,,Store Link Key COD Masks,1,00,00,1f,43,00,00,05,40,00,00,1f,83,00,00,05,80\r\n"
+		"[BthPort.NT.HW.DelReg]\r\nHKR,,Scans Before Out of Range,0\r\n"
+		"HKR,,SCO Max Channels,0\r\nHKR,,Store Link Key COD Masks,0\r\nHKR,,SCO Support Level,0\r\n" ;	// 架空Bluetooth
+	constexpr std::string_view PCI =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\n"
+		"[PciD3ColdSupported.HW]\r\nAddReg=PciD3ColdSupported.RegHW\r\n"
+		"[PciD3ColdSupported.RegHW]\r\n"
+		"HKR,e5b3b5ac-9725-4f78-963f-03dfb1d828c7,D3ColdSupported,0x10001,1\r\n" ;	// 架空PCI
+	constexpr std::array<std::pair<std::string_view, std::string_view>, 13U> BLUETOOTH_CHANGES{{
+		{"AddReg=BthPort.NT.HW.AddReg\r\nDelReg=BthPort.NT.HW.DelReg",
+		 "DelReg=BthPort.NT.HW.DelReg\r\nAddReg=BthPort.NT.HW.AddReg"},
+		{"Needs=PciD3ColdSupported.HW", "Needs=PciD3ColdSupported.HW,Unexpected.HW"},
+		{"DelReg=BthPort.NT.HW.DelReg", "AddReg=BthPort.NT.HW.DelReg"},
+		{"HKR,,SCO Support Level,0", "HKLM,,SCO Support Level,0"},
+		{"HKR,,SCO Support Level,0", "HKR,Other,SCO Support Level,0"},
+		{"HKR,,SCO Support Level,0", "HKR,,,0"},
+		{"HKR,,SCO Support Level,0", "HKR,,SCO Support Level"},
+		{"HKR,,SCO Support Level,0", "HKR,,SCO Support Level,"},
+		{"HKR,,SCO Support Level,0", "HKR,,SCO Support Level,0x4000"},
+		{"Scans Before Out of Range,0x10003,8", "Scans Before Out of Range,0x10001,8"},
+		{"00,00,1f,43", "00,00,1f,44"},
+		{"00,00,1f,43", ",00,1f,43"},
+		{"HKR,,SCO Support Level,0", "HKR,,SCO Support Level,0\r\n[BthPort.NT.HW.DelReg.Security]"},
+	}} ; // Bluetoothの元参照、値操作、場所、型、ACLの違い
+	constexpr std::array<std::pair<std::string_view, std::string_view>, 4U>	 PCI_CHANGES{{
+		 {"e5b3b5ac-9725-4f78-963f-03dfb1d828c7", ""},
+		 {"e5b3b5ac-9725-4f78-963f-03dfb1d828c7", "e5b3b5ac-9725-4f78-963f-03dfb1d828c8"},
+		 {"D3ColdSupported,0x10001,1", "D3ColdSupported,0x10001,0"},
+		 {"AddReg=PciD3ColdSupported.RegHW", "AddReg=PciD3ColdSupported.RegHW\r\nDelReg=Other"},
+	 }} ; // 同梱PCIの設定と所有節の違い
+	Fixture	   fixture( Fault::NONE) ;	// この試験専用の元INF領域
+	const auto bluetooth =
+		// 正例Bluetoothの位置
+		fixture.file( L"bluetooth-hardware.inf", BLUETOOTH) ;
+	const auto pci = fixture.file( L"pci-hardware.inf", PCI) ;	// 正例PCIの位置
+	const auto bluetoothPath =
+		// 読み取り用元Bluetooth
+		fixture.workspace.path( bluetooth.relativePath) ;
+	const auto pciPath = fixture.workspace.path( pci.relativePath) ;	// 読み取り用元PCI
+	DRIVERCRATE_EXPECT( context,
+					   verifyBluetoothUsbHardwareDeclarationsForTest( bluetoothPath, pciPath) == 0U) ;
+	DRIVERCRATE_EXPECT( context,
+					   verifyBluetoothUsbHardwareDeclarationsForTest( pciPath, bluetoothPath) != 0U) ;
+
+	std::size_t index{} ;	// 各負例の一意な試験ファイル番号
+	const auto	modifiedPath = [&fixture, &index]( std::string_view text, const auto &change) {
+		 std::string modified{text} ;	// 一つの条件だけを変更する元入力
+		 modified.replace( modified.find( change.first), change.first.size(), change.second) ;
+		 const auto member =
+			 fixture.file( L"bluetooth-settings-" + std::to_wstring( ++index) + L".inf",
+						  modified) ;	// 書換え前後を別の位置にする
+		 return fixture.workspace.path( member.relativePath) ;
+	} ; // 同期中だけ試験領域と番号を借用する
+
+	// Bluetooth側だけを変え、別文書の正しい設定で不足が補われないことを確認する
+	for( const auto &change : BLUETOOTH_CHANGES) {
+		DRIVERCRATE_EXPECT( context, verifyBluetoothUsbHardwareDeclarationsForTest(
+										modifiedPath( BLUETOOTH, change), pciPath) != 0U) ;
+	}
+
+	// PCI側だけを変え、同じ名前でも元の位置・型・値に結び付かない設定を拒否する
+	for( const auto &change : PCI_CHANGES) {
+		DRIVERCRATE_EXPECT( context, verifyBluetoothUsbHardwareDeclarationsForTest(
+										bluetoothPath, modifiedPath( PCI, change)) != 0U) ;
+	}
+}
+
 //------------------------------------------------------------------------------
 /**
  * @brief NeedsのHKR設定を正負の実INFと有限予算で検査します
@@ -2319,6 +2601,1541 @@ void typedRegistryNameCases( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 署名済みSDバス文書のIDと選択三節に結んだ全行の保存、限定作用、拒否を確認します
+ * @param[in,out] context 現在の専用テストの結果集計です
+ * @note 原行の同期readerと実体判定を架空化し、サービス・registry・fileを変更しません
+ */
+//------------------------------------------------------------------------------
+void typedSdBusCases( TestContext &context)
+{
+	using Sections					 = std::map<std::wstring, std::vector<SystemInfRow>> ;
+	using Context					 = SystemInfContext ;
+	constexpr std::uint64_t DOCUMENT = 7U ;	// 収集原文であることを仮定する唯一のfixture IDです
+	const std::array		seeds{
+		   SystemInfSection{DOCUMENT, L"SDHostIntelCherryTrail", Context::DEVICE, Context::DEVICE, {}},
+		   SystemInfSection{
+			   DOCUMENT, L"SDHostIntelCherryTrail.HW", Context::HARDWARE, Context::HARDWARE, {}},
+		   SystemInfSection{DOCUMENT,
+							L"SDHostIntelCherryTrail.Services",
+							Context::SERVICES,
+							Context::SERVICES,
+								{}}} ;	// 同一元選択の三つの入口です
+	// SetupAPIの全fieldを独立したreaderで再現し、数値の表記とローカライズ時の表示文も残します
+	const Sections original{
+		{L"SDHostIntelCherryTrail",
+		 {{0U, L"CopyFiles", {L"CSCopyFiles"}}, {1U, L"AddReg", {L"SDBUSReg"}}}},
+		{L"SDHostIntelCherryTrail.HW",
+		 {{0U, L"AddReg", {L"SDBUSLocationReg"}},
+		  {1U, L"AddReg", {L"SDHostIntelCherryTrail.HW.addreg"}}}},
+		{L"SDHostIntelCherryTrail.Services",
+		 {{0U, L"AddService", {L"sdbus", L"2", L"sdbus_Service_Inst"}}}},
+		{L"sdbus_Service_Inst",
+		 {{0U, L"ServiceType", {L"1"}},
+		  {1U, L"StartType", {L"3"}},
+		  {2U, L"ErrorControl", {L"1"}},
+		  {3U, L"ServiceBinary", {L"%12%\\sdbus.sys"}},
+		  {4U, L"LoadOrderGroup", {L"System Bus Extender"}},
+		  {5U, L"AddReg", {L"SDBUSServiceReg"}}}},
+		{L"SDBUSReg", {{0U, {}, {L"HKR", L"", L"Driver", L"", L"sdbus.sys"}}}},
+		{L"SDBUSLocationReg",
+		 {{0U, {}, {L"HKR", L"", L"UINumberDescFormat", L"", L"スロット %1!u!"}}}},
+		{L"SDHostIntelCherryTrail.HW.addreg",
+		 {{0U, {}, {L"HKR", L"", L"CompatType", L"0x00010001", L"0xB"}},
+		  {1U, {}, {L"HKR", L"", L"HostRevision", L"0x00010001", L"0x1"}},
+		  {2U, {}, {L"HKR", L"", L"FunctionBlockIndex", L"0x00010001", L"0"}},
+		  {3U, {}, {L"HKR", L"", L"OverrideFlags", L"0x00010001", L"0x60200000"}}}},
+		{L"SDBUSServiceReg",
+		 {{0U, {}, {L"HKR", L"", L"BootFlags", L"0x00010003", L"0x00000008"}},
+		  {1U, {}, {L"HKR", L"Parameters", L"SdCmdFlags", L"1", L"05", L"01", L"3f", L"fF"}},
+		  {2U,
+		   {},
+		   {L"HKR", L"Parameters", L"SdAppCmdFlags", L"1", L"33", L"01", L"06", L"01", L"33",
+			L"01"}}}}} ;
+	std::size_t trial{} ;	// 差異があったfixtureを特定する固定順の通番です
+	// 原入力・選択・文書ID・実ファイルの証拠を検査ごとに独立させます
+	const auto	check = [&]( const Sections &source, std::span<const SystemInfSection> selection,
+							std::uint64_t bound, bool moduleAvailable, bool accepted) {
+		 ++trial ;
+		 std::size_t		rows{} ;		// 既存検査との共同registry予算です
+		 std::size_t		modules{} ;		// 元サービスbinaryの実体確認回数です
+		 std::size_t		services{} ;	// Windows稼働サービスの照会が増えていないことを検査します
+		 SystemInfEffectApi api ;			// この同期fixtureの限定操作だけを使います
+		 api.sdBusInboxDocument = bound ;
+		 api.registryRows		= &rows ;
+		 api.read				= [&source]( const SystemInfSection	  &section,
+								std::vector<SystemInfRow> &out) -> NativeError {
+			   const auto item = source.find( section.name) ;	// 元文書の同名節からだけ全行を得ます
+			   // 未指定の文書・節から期待行を補いません
+			   if( section.document != DOCUMENT || item == source.end()) {
+				   return HRESULT_FROM_WIN32( ERROR_SECTION_NOT_FOUND) ;
+			   }
+
+			   out = item->second ;
+			   return 0U ;
+		 } ;
+		 api.module = [&]( std::uint64_t document, std::wstring_view path) -> NativeError {
+			 ++modules ;
+			 return document == DOCUMENT && moduleAvailable &&
+							(path == L"%12%\\sdbus.sys" ||
+							 path == L"X:\\TestOS\\System32\\drivers\\sdbus.sys")
+						? 0U
+						: E_ACCESSDENIED ;
+		 } ;
+		 api.service = [&]( std::wstring_view, SystemServiceEvidence &) -> NativeError {
+			 ++services ;
+			 return E_ACCESSDENIED ;
+		 } ;
+		 api.legacyRegistry = []( const SystemInfEffect &, bool) -> NativeError {
+			 return E_ACCESSDENIED ;
+		 } ;
+		 SystemInfEffects result ;		// 成功時だけ全作用が返ります
+		 std::uint32_t	  stage{} ;		// 固定された拒否段階です
+		 std::uint32_t	  observed{} ;	// 型・件数だけの補助診断です
+		 const auto		  error = inspectSystemInfEffects( selection, api, result, stage,
+														  observed) ;	// 通常の型付き入口を通します
+		 // 想定外の成否だけを公開可能な件数と元数値で示します
+		 if( (error == 0U) != accepted) {
+			 std::cerr << "SDBUS_TYPED_CASE trial=" << trial << " stage=" << stage
+					   << " error=" << error << '\n' ;
+		 }
+
+		 DRIVERCRATE_EXPECT( context, (error == 0U) == accepted && services == 0U) ;
+		 // 正式な限定作用と同元コピーだけを返し、全原fieldの内容も一致させます
+		 if( accepted) {
+			 DRIVERCRATE_EXPECT( context,
+								modules == 1U && rows == 9U && result.effects.size() == 20U &&
+									result.services.empty() && result.copySections.size() == 1U &&
+									result.copySections.front() == seeds.front()) ;
+			 // 読み出した行の順序・名前・空欄・全byteを元表へ照合します
+			 for( const auto &effect : result.effects) {
+				 DRIVERCRATE_EXPECT( context,
+									effect.source.document == DOCUMENT &&
+										source.at( effect.source.name).at( effect.row.ordinal) ==
+											effect.row) ;
+			 }
+		 } else {
+			 DRIVERCRATE_EXPECT( context, result.effects.empty() && result.copySections.empty() &&
+											 result.services.empty()) ;
+		 }
+
+		 // 同原実ファイルの所有確認に失敗した元HRESULTを保ちます
+		 if( !moduleAvailable) {
+			 DRIVERCRATE_EXPECT( context,
+								modules == 1U && error == static_cast<NativeError>( E_ACCESSDENIED)) ;
+		 }
+	} ;
+	check( original, seeds, DOCUMENT, true, true) ;
+	check( original, seeds, 0U, true, false) ;
+	check( original, seeds, DOCUMENT + 1U, true, false) ;
+	check( original, seeds, DOCUMENT, false, false) ;
+	auto expanded = original ;	// SetupAPIの同じDIRID展開と同値な数値表記を独立に確認します
+	expanded.at( L"sdbus_Service_Inst")[3].values[0] = L"X:\\TestOS\\System32\\drivers\\sdbus.sys" ;
+	expanded.at( L"SDBUSServiceReg")[0].values[4]	= L"8" ;
+	expanded.at( L"SDBUSServiceReg")[1].values[5]	= L"e0" ;
+	expanded.at( L"SDHostIntelCherryTrail.HW.addreg")[0].values[4] = L"4294967295" ;
+	check( expanded, seeds, DOCUMENT, true, true) ;
+	/** @brief 元の一行の指定fieldだけを変更する負例です */
+	struct Mutation {
+		/// 変更対象の原節名です
+		const wchar_t *section ;
+		/// 元の0基点行です
+		std::size_t	   row ;
+		/// 元の0基点fieldです
+		std::size_t	   field ;
+		/// 単独で拒否される原fieldへの置換値です
+		const wchar_t *value ;
+	} ;
+	constexpr Mutation CHANGES[] = {
+		{L"SDHostIntelCherryTrail", 0U, 0U, L"OtherCopy"},
+		{L"SDHostIntelCherryTrail.Services", 0U, 0U, L"other"},
+		{L"SDHostIntelCherryTrail.Services", 0U, 1U, L"0"},
+		{L"sdbus_Service_Inst", 1U, 0U, L"0"},
+		{L"sdbus_Service_Inst", 4U, 0U, L"Base"},
+		{L"sdbus_Service_Inst", 3U, 0U, L"%11%\\sdbus.sys"},
+		{L"sdbus_Service_Inst", 3U, 0U, L"%12%\\other.sys"},
+		{L"sdbus_Service_Inst", 3U, 0U, L"sdbus.sys"},
+		{L"sdbus_Service_Inst", 3U, 0U, L"X:\\OtherOS\\System32\\drivers\\sdbus.sys"},
+		{L"SDBUSReg", 0U, 4U, L"%12%\\sdbus.sys"},
+		{L"SDBUSLocationReg", 0U, 4U, L"Slot %1!u! %2!s!"},
+		{L"SDHostIntelCherryTrail.HW.addreg", 3U, 0U, L"HKLM"},
+		{L"SDHostIntelCherryTrail.HW.addreg", 3U, 3U, L"0x10003"},
+		{L"SDHostIntelCherryTrail.HW.addreg", 3U, 4U, L"0x100000000"},
+		{L"SDBUSServiceReg", 0U, 1U, L"Parameters"},
+		{L"SDBUSServiceReg", 0U, 3U, L"0x10001"},
+		{L"SDBUSServiceReg", 0U, 4U, L"9"},
+		{L"SDBUSServiceReg", 1U, 3U, L"0x00000003"},
+		{L"SDBUSServiceReg", 1U, 5U, L"0G"},
+		{L"SDBUSServiceReg", 1U, 6U, L"40"},
+		{L"SDBUSServiceReg", 2U, 9U, L"02"},
+		{L"SDBUSServiceReg", 2U, 4U, L"006"}} ;	// 役割・設定・実体を一要素ずつ変えます
+	// 正例の残りを維持し、一要素だけの改変でも全作用を拒否させます
+	for( const auto &change : CHANGES) {
+		auto changed = original ;	// 別の負例の影響を持ち越しません
+		changed.at( change.section).at( change.row).values.at( change.field) = change.value ;
+		check( changed, seeds, DOCUMENT, true, false) ;
+	}
+
+	auto extra = original ;	// 通常のSERVICEで扱える追加directiveもこの集合では拒否します
+	extra.at( L"sdbus_Service_Inst").push_back( {6U, L"DisplayName", {L"Another display"}}) ;
+	check( extra, seeds, DOCUMENT, true, false) ;
+	extra = original ;
+	extra.at( L"SDHostIntelCherryTrail.Services")[0].values.push_back( L"") ;
+	check( extra, seeds, DOCUMENT, true, false) ;
+	extra = original ;
+	extra.at( L"SDBUSServiceReg")[2].values.push_back( L"00") ;
+	check( extra, seeds, DOCUMENT, true, false) ;
+	extra.at( L"SDBUSServiceReg")[2].values.resize( 66U, L"00") ;
+	check( extra, seeds, DOCUMENT, true, false) ;
+	extra.at( L"SDBUSServiceReg")[2].values.resize( 4U) ;
+	check( extra, seeds, DOCUMENT, true, false) ;
+	extra							= original ;
+	extra.at( L"SDBUSServiceReg")[2] = extra.at( L"SDBUSServiceReg")[1] ;
+	check( extra, seeds, DOCUMENT, true, false) ;
+	extra = original ;
+	extra.at( L"SDBUSServiceReg").pop_back() ;
+	check( extra, seeds, DOCUMENT, true, false) ;
+	auto wrongScope		  = seeds ;	// 同名・同byteのHWをdevice作用として選んだ負例です
+	wrongScope[1].context = Context::DEVICE ;
+	wrongScope[1].scope	  = Context::DEVICE ;
+	check( original, wrongScope, DOCUMENT, true, false) ;
+	check( original, std::span{seeds}.first( 2U), DOCUMENT, true, false) ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 同梱Portsの選択と全作用、所有者、メッセージ資源の両方を共通入口で確認します
+ * @param[in,out] context 専用テストの有限な結果集計です
+ * @note 同文書と実体の成否を架空化し、WindowsファイルやSCM・registryを操作しません
+ */
+//------------------------------------------------------------------------------
+void typedMsPortsCases( TestContext &context)
+{
+	using Context					 = SystemInfContext ;
+	using Sections					 = std::map<std::wstring, std::vector<SystemInfRow>> ;
+	constexpr std::uint64_t DOCUMENT = 19U ;	// 署名・Store・元Ports選択が成立したと仮定する文書です
+	const std::array		seeds{
+		   SystemInfSection{DOCUMENT, L"Serial.NT", Context::DEVICE, Context::DEVICE, {}},
+		   SystemInfSection{DOCUMENT, L"ComPort.NT.HW", Context::HARDWARE, Context::HARDWARE, {}},
+		   SystemInfSection{DOCUMENT,
+							L"ComPort.NT.Services",
+							Context::SERVICES,
+							Context::SERVICES,
+								{}}} ;	// 元パッケージから実際に選ぶ三節です
+	// 元Windows参照に対応する全fieldを架空の表示文字列で再現します。非選択節には不正な行を置きます
+	const Sections original{
+		{L"Serial.NT", {{0U, L"CopyFiles", {L"Serial.NT.Copy"}}}},
+		{L"ComPort.NT.HW", {{0U, L"AddReg", {L"ComPort.NT.HW.AddReg"}}}},
+		{L"ComPort.NT.Services",
+		 {{0U,
+		   L"AddService",
+		   {L"Serial", L"0x00000002", L"Serial_Service_Inst", L"Serial_EventLog_Inst"}},
+		  {1U, L"AddService", {L"Serenum", L"", L"Serenum_Service_Inst"}}}},
+		{L"Serial_Service_Inst",
+		 {{0U, L"DisplayName", {L"架空のシリアルサービス"}},
+		  {1U, L"ServiceType", {L"1"}},
+		  {2U, L"StartType", {L"3"}},
+		  {3U, L"ErrorControl", {L"0"}},
+		  {4U, L"ServiceBinary", {L"%12%\\serial.sys"}},
+		  {5U, L"LoadOrderGroup", {L"Extended base"}}}},
+		{L"Serenum_Service_Inst",
+		 {{0U, L"DisplayName", {L"Synthetic filter"}},
+		  {1U, L"ServiceType", {L"1"}},
+		  {2U, L"StartType", {L"3"}},
+		  {3U, L"ErrorControl", {L"1"}},
+		  {4U, L"ServiceBinary", {L"%12%\\serenum.sys"}},
+		  {5U, L"LoadOrderGroup", {L"PNP Filter"}}}},
+		{L"ComPort.NT.HW.AddReg",
+		 {{0U, {}, {L"HKR", L"", L"UpperFilters", L"0x10000", L"serenum"}}}},
+		{L"Serial_EventLog_Inst", {{0U, L"AddReg", {L"Serial_EventLog_AddReg"}}}},
+		{L"Serial_EventLog_AddReg",
+		 {{0U,
+		   {},
+		   {L"HKR", L"", L"EventMessageFile", L"0x00020000",
+			L"%SystemRoot%\\System32\\IoLogMsg.dll;%SystemRoot%\\System32\\drivers\\serial.sys"}},
+		  {1U, {}, {L"HKR", L"", L"TypesSupported", L"0x00010001", L"7"}}}},
+		{L"ComPort.NT.AddReg", {{0U, {}, {L"Unselected"}}}},
+		{L"ComPort.NT.Copy", {{0U, L"Unselected", {L"other.sys"}}}}} ;
+	std::size_t trial{} ;	// 想定と異なる成否の入力を特定するための通番です
+	// 各試験が所有するcallbackと元fieldを同期検査の間だけ借用します
+	const auto	check = [&]( const Sections &source, std::span<const SystemInfSection> selection,
+							std::uint64_t bound, std::size_t deniedCall, bool accepted,
+							std::size_t incomingEdges = 0U) {
+		 ++trial ;
+		 std::size_t rows{} ;					// HWおよびeventのregistry行が共有する予算です
+		 std::size_t serviceReads{} ;			// 既存サービスの照会を要求していないことを確認します
+		 std::vector<std::wstring> modules ;	// 参照順に受け取った完全なモジュール位置です
+		 SystemInfEffectApi		   api ;		// INBOX文書の資格と実体判定をこの一回だけ再現します
+		 api.msPortsInboxDocument = bound ;
+		 api.registryRows		  = &rows ;
+		 api.graphReferences	  = incomingEdges ;
+		 api.read				  = [&]( const SystemInfSection	  &section,
+						std::vector<SystemInfRow> &out) -> NativeError {
+			 const auto part = source.find( section.name) ;	// 同じ元文書の完全な一節です
+			 // 元選択外の別文書・不存在節を作用なしの成功にしません
+			 if( section.document != DOCUMENT || part == source.end()) {
+				 return HRESULT_FROM_WIN32( ERROR_SECTION_NOT_FOUND) ;
+			 }
+
+			 out = part->second ;
+			 return 0U ;
+		 } ;
+		 api.module = [&]( std::uint64_t document, std::wstring_view path) -> NativeError {
+			 modules.emplace_back( path) ;
+			 // 正規のWindows位置を仮定した二つのSYSと一つのDLLだけに成功を返します
+			 constexpr std::wstring_view ALLOWED[] = {
+				 L"%12%\\serial.sys",
+				 L"%12%\\serenum.sys",
+				 L"%SystemRoot%\\System32\\IoLogMsg.dll",
+				 L"%SystemRoot%\\System32\\drivers\\serial.sys",
+				 L"X:\\FixtureOS\\System32\\drivers\\serial.sys",
+				 L"X:\\FixtureOS\\System32\\drivers\\serenum.sys",
+				 L"X:\\FixtureOS\\System32\\IoLogMsg.dll"} ;
+			 return document == DOCUMENT && modules.size() != deniedCall &&
+							std::ranges::find( ALLOWED, path) != std::end( ALLOWED)
+						? 0U
+						: E_ACCESSDENIED ;
+		 } ;
+		 api.service = [&]( std::wstring_view, SystemServiceEvidence &) -> NativeError {
+			 ++serviceReads ;
+			 return E_ACCESSDENIED ;
+		 } ;
+		 api.legacyRegistry = []( const SystemInfEffect &, bool) -> NativeError {
+			 return E_ACCESSDENIED ;
+		 } ;
+		 SystemInfEffects result ;		// 全作用と元コピーが成立した場合だけ返ります
+		 std::uint32_t	  stage{} ;		// 最初の閉じた失敗区分です
+		 std::uint32_t	  observed{} ;	// 失敗したファイルの役割または件数です
+		 const auto		  error =
+			 // 同じ製品の検査です
+			 inspectSystemInfEffects( selection, api, result, stage, observed) ;
+		 // 想定外の成否だけを数値診断へ残します
+		 if( (error == 0U) != accepted) {
+			 std::cerr << "PORTS_TYPED_CASE trial=" << trial << " stage=" << stage
+					   << " error=" << error << '\n' ;
+		 }
+
+		 DRIVERCRATE_EXPECT( context, (error == 0U) == accepted && serviceReads == 0U) ;
+		 // 四つの役割ごとに元API失敗を保存し、それ以後の実体を検証済みへ含めません
+		 if( deniedCall != 0U) {
+			 const auto role = deniedCall <= 2U
+								   ? SystemInfModuleRole::SERVICE_SYS
+								   : SystemInfModuleRole::EVENT_RESOURCE ;	// 失敗入力の役割です
+			 DRIVERCRATE_EXPECT(
+				 context,
+				 modules.size() == deniedCall && error == static_cast<NativeError>( E_ACCESSDENIED) &&
+					 stage == static_cast<std::uint32_t>( SystemInfDiagnosticStage::MODULE) &&
+					 observed == static_cast<std::uint32_t>( role)) ;
+		 }
+
+		 // 拒否された元行や作用を部分成功として返しません
+		 if( !accepted) {
+			 DRIVERCRATE_EXPECT( context, result.effects.empty() && result.copySections.empty() &&
+											 result.services.empty()) ;
+			 return ;
+		 }
+
+		 DRIVERCRATE_EXPECT( context, result.effects.size() == 20U && rows == 3U &&
+										 result.references == incomingEdges + 10U &&
+										 result.services.empty() &&
+										 result.copySections.size() == 1U &&
+										 result.copySections.front() == seeds.front()) ;
+		 DRIVERCRATE_EXPECT( context,
+							modules.size() == 4U &&
+								modules[0] == source.at( L"Serial_Service_Inst")[4].values[0] &&
+								modules[1] == source.at( L"Serenum_Service_Inst")[4].values[0] &&
+								(modules[2] == L"%SystemRoot%\\System32\\IoLogMsg.dll" ||
+								 modules[2] == L"X:\\FixtureOS\\System32\\IoLogMsg.dll") &&
+								(modules[3] == L"%SystemRoot%\\System32\\drivers\\serial.sys" ||
+								 modules[3] == L"X:\\FixtureOS\\System32\\drivers\\serial.sys")) ;
+		 // 元の空flag、イベントの区切り、表示名と数値表記を含む原行全体を照合します
+		 for( const auto &effect : result.effects) {
+			 DRIVERCRATE_EXPECT( context, effect.source.document == DOCUMENT &&
+											 source.at( effect.source.name).at( effect.row.ordinal) ==
+												 effect.row) ;
+		 }
+	} ;
+	check( original, seeds, DOCUMENT, 0U, true) ;
+	check( original, seeds, 0U, 0U, false) ;
+	check( original, seeds, DOCUMENT + 1U, 0U, false) ;
+	check( original, seeds, DOCUMENT, 0U, true, 4086U) ;
+	check( original, seeds, DOCUMENT, 0U, false, 4087U) ;
+	// 一方のサービスやイベント資源だけの成立で残りの失敗を隠さないことを確認します
+	for( std::size_t denied = 1U; denied <= 4U; ++denied) {
+		check( original, seeds, DOCUMENT, denied, false) ;
+	}
+
+	auto expanded = original ;	// SetupAPIによるDIRID解決とローカライズを独立に再現します
+	expanded.at( L"Serial_Service_Inst")[4].values[0] =
+		L"X:\\FixtureOS\\System32\\drivers\\serial.sys" ;
+	expanded.at( L"Serenum_Service_Inst")[4].values[0] =
+		L"X:\\FixtureOS\\System32\\drivers\\serenum.sys" ;
+	expanded.at( L"Serial_Service_Inst")[0].values[0]	= L"Synthetic port" ;
+	expanded.at( L"ComPort.NT.Services")[0].values[1]	= L"2" ;
+	expanded.at( L"Serial_EventLog_AddReg")[1].values[4] = L"0x3" ;
+	check( expanded, seeds, DOCUMENT, 0U, true) ;
+	expanded.at( L"Serial_EventLog_AddReg")[0].values[4] =
+		L"X:\\FixtureOS\\System32\\IoLogMsg.dll;X:\\FixtureOS\\System32\\drivers\\serial.sys" ;
+	check( expanded, seeds, DOCUMENT, 0U, true) ;
+
+	/** @brief 元の一つのfieldを置換して所有先・型または位置の不一致を作ります */
+	struct Change {
+		/// 対象の元文書内の節名です
+		const wchar_t *section ;
+		/// 節の0基点の元行番号です
+		std::size_t	   row ;
+		/// 行の0基点のfield番号です
+		std::size_t	   field ;
+		/// 一条件だけの拒否を作る置換値です
+		const wchar_t *value ;
+	} ;
+	constexpr Change CHANGES[] = {
+		{L"Serial.NT", 0U, 0U, L"ComPort.NT.Copy"},
+		{L"ComPort.NT.HW", 0U, 0U, L"ComPort.NT.AddReg"},
+		{L"ComPort.NT.Services", 0U, 0U, L"Other"},
+		{L"ComPort.NT.Services", 0U, 1U, L"0"},
+		{L"ComPort.NT.Services", 0U, 1U, L""},
+		{L"ComPort.NT.Services", 0U, 1U, L"0x80000002"},
+		{L"ComPort.NT.Services", 1U, 1U, L"0"},
+		{L"ComPort.NT.Services", 1U, 1U, L"2"},
+		{L"ComPort.NT.Services", 1U, 2U, L"Serial_Service_Inst"},
+		{L"Serial_Service_Inst", 0U, 0U, L"Invalid\nname"},
+		{L"Serial_Service_Inst", 1U, 0U, L"2"},
+		{L"Serenum_Service_Inst", 2U, 0U, L"0"},
+		{L"Serial_Service_Inst", 3U, 0U, L"1"},
+		{L"Serenum_Service_Inst", 3U, 0U, L"0"},
+		{L"Serial_Service_Inst", 4U, 0U, L"%12%\\serenum.sys"},
+		{L"Serenum_Service_Inst", 4U, 0U, L"%11%\\serenum.sys"},
+		{L"Serenum_Service_Inst", 4U, 0U, L"serenum.sys"},
+		{L"Serenum_Service_Inst", 4U, 0U, L"X:\\OtherOS\\System32\\drivers\\serenum.sys"},
+		{L"Serial_Service_Inst", 5U, 0U, L"PNP Filter"},
+		{L"Serenum_Service_Inst", 5U, 0U, L"Extended base"},
+		{L"ComPort.NT.HW.AddReg", 0U, 0U, L"HKLM"},
+		{L"ComPort.NT.HW.AddReg", 0U, 1U, L"Parameters"},
+		{L"ComPort.NT.HW.AddReg", 0U, 2U, L"LowerFilters"},
+		{L"ComPort.NT.HW.AddReg", 0U, 3U, L"0x10008"},
+		{L"ComPort.NT.HW.AddReg", 0U, 4U, L"Serial"},
+		{L"Serial_EventLog_AddReg", 0U, 0U, L"HKLM"},
+		{L"Serial_EventLog_AddReg", 0U, 1U, L"Parameters"},
+		{L"Serial_EventLog_AddReg", 0U, 3U, L"0x10000"},
+		{L"Serial_EventLog_AddReg", 1U, 3U, L"1"},
+		{L"Serial_EventLog_AddReg", 1U, 4U, L"0"},
+		{L"Serial_EventLog_AddReg", 1U, 4U,
+		 L"8"}} ;	// 選択外のコピー、所有サービス、型と実行の許否を決めるflagを個別に変えます
+	// 他の正常な元行が不足を補完しないことを各fieldごとに確認します
+	for( const auto &change : CHANGES) {
+		auto changed = original ;	// 別の負例の元行を持ち越しません
+		changed.at( change.section).at( change.row).values.at( change.field) = change.value ;
+		check( changed, seeds, DOCUMENT, 0U, false) ;
+	}
+
+	constexpr std::wstring_view BAD_LISTS[] = {
+		L"", L"IoLogMsg.dll;serial.sys", L"%SystemRoot%\\System32\\IoLogMsg.dll",
+		L";%SystemRoot%\\System32\\drivers\\serial.sys", L"%SystemRoot%\\System32\\IoLogMsg.dll;",
+		L"%SystemRoot%\\System32\\IoLogMsg.dll;%SystemRoot%\\System32\\drivers\\serial.sys;extra",
+		L"%SystemRoot%\\System32\\drivers\\serial.sys;%SystemRoot%\\System32\\IoLogMsg.dll",
+		L"%SystemRoot%\\System32\\IoLogMsg.dll;%SystemRoot%\\System32\\drivers\\serenum.sys",
+		L"%SystemRoot%\\System32\\IoLogMsg.dll;%SystemRoot%\\System32\\IoLogMsg.dll",
+		L"%Other%\\System32\\IoLogMsg.dll;%SystemRoot%\\System32\\drivers\\serial.sys",
+		L"X:\\OtherOS\\System32\\IoLogMsg.dll;%SystemRoot%\\System32\\drivers\\serial.sys",
+		L"%SystemRoot%\\System32\\IoLogMsg.dll;%SystemRoot%\\System32\\drivers\\serial.sys -arg",
+		L"%SystemRoot%\\System32\\..\\System32\\IoLogMsg.dll;%SystemRoot%\\System32\\drivers\\serial.sys",
+		// 二つの完全なWindows資源の位置と順番を外す例です
+		L"%%SystemRoot%\\System32\\IoLogMsg.dll;%SystemRoot%\\System32\\drivers\\serial.sys",
+		L"%%SystemRoot%%\\System32\\IoLogMsg.dll;%%SystemRoot%%\\System32\\drivers\\serial.sys"} ;
+	// 一つのREG_EXPAND_SZの中にある参照を最後まで検査します
+	for( const auto list : BAD_LISTS) {
+		auto changed = original ;	// 同じ正常な元サービスへ各不正な資源列を接続します
+		changed.at( L"Serial_EventLog_AddReg")[0].values[4] = list ;
+		check( changed, seeds, DOCUMENT, 0U, false) ;
+	}
+
+	auto changed = original ;	// 足りない行・余分なfield・重複を個別に検査します
+	changed.at( L"Serial_EventLog_AddReg")[0].values[4].append( 1U, L'\0') ;
+	check( changed, seeds, DOCUMENT, 0U, false) ;
+	changed.at( L"Serial_EventLog_AddReg")[0].values[4].assign( 510U, L'x') ;
+	check( changed, seeds, DOCUMENT, 0U, false) ;
+	changed										 = original ;
+	changed.at( L"Serial_EventLog_AddReg")[0].key = L"Unexpected" ;
+	check( changed, seeds, DOCUMENT, 0U, false) ;
+	changed = original ;
+	changed.at( L"ComPort.NT.HW.AddReg")[0].values.push_back( L"Other") ;
+	check( changed, seeds, DOCUMENT, 0U, false) ;
+	changed = original ;
+	changed.at( L"ComPort.NT.Services")[1].values.push_back( L"Serial_EventLog_Inst") ;
+	check( changed, seeds, DOCUMENT, 0U, false) ;
+	changed									 = original ;
+	changed.at( L"Serial_EventLog_AddReg")[1] = changed.at( L"Serial_EventLog_AddReg")[0] ;
+	check( changed, seeds, DOCUMENT, 0U, false) ;
+	changed = original ;
+	changed.at( L"Serial_Service_Inst").pop_back() ;
+	check( changed, seeds, DOCUMENT, 0U, false) ;
+	changed = original ;
+	changed.at( L"Serial.NT").push_back( {1U, L"CopyFiles", {L"ComPort.NT.Copy"}}) ;
+	check( changed, seeds, DOCUMENT, 0U, false) ;
+	auto wrong	   = seeds ;	// 同じ節名から先の読取でも、元選択の所有者・型を必要とします
+	wrong[1].owner = L"Serial" ;
+	check( original, wrong, DOCUMENT, 0U, false) ;
+	wrong			 = seeds ;
+	wrong[1].context = Context::DEVICE ;
+	wrong[1].scope	 = Context::DEVICE ;
+	check( original, wrong, DOCUMENT, 0U, false) ;
+	check( original, std::span{seeds}.subspan( 1U), DOCUMENT, 0U, false) ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 標準AHCIの選択節、元除外と作用を署名済み文書を仮定した読取りで検証する
+ * @param[in,out] context 元作用の正常例と独立した不一致の集計先
+ * @note 架空の文書とAPIで閉じた作用を確かめ、実際のSCMやレジストリへ変更を行わない
+ */
+//------------------------------------------------------------------------------
+void typedAhciInboxCases( TestContext &context)
+{
+	using Context							= SystemInfContext ;
+	using Sections							= std::map<std::wstring, std::vector<SystemInfRow>> ;
+	static constexpr std::uint64_t DOCUMENT = 41U ;						// 同梱元署名とStoreの照合済み文書を表す架空ID
+	constexpr auto				   BINARY	= L"%12%\\storahci.sys" ;	// 元選択サービスの宣言
+	constexpr auto	 EVENT = L"%SystemRoot%\\System32\\IoLogMsg.dll" ;	// 元イベント資源の宣言
+	const std::array seeds{
+		SystemInfSection{DOCUMENT, L"msahci_Inst", Context::DEVICE, Context::DEVICE, {}},
+		SystemInfSection{DOCUMENT, L"msahci_Inst.HW", Context::HARDWARE, Context::HARDWARE, {}},
+		SystemInfSection{
+			DOCUMENT, L"msahci_Inst.Services", Context::SERVICES, Context::SERVICES, {}},
+	} ; // Windows側の三参照が選択された状態
+	const Sections original{
+		{L"msahci_Inst",
+		 {{0U, L"CopyFiles", {L"storahci_copyfiles"}},
+		  {1U, L"AddPowerSetting", {L"AhciPowerSetting1", L"AhciPowerSetting2"}},
+		  {2U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2653&SUBSYS_0F001179"}},
+		  {3U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2653&SUBSYS_0F101179"}},
+		  {4U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_27C5&SUBSYS_0F001179"}},
+		  {5U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_27C5&SUBSYS_0F101179"}},
+		  {6U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_27C5&SUBSYS_0F031179"}},
+		  {7U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_27C5&SUBSYS_0F131179"}},
+		  {8U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_27C5&SUBSYS_FF011179"}},
+		  {9U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_0F031179"}},
+		  {10U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_0F131179"}},
+		  {11U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_FF011179"}},
+		  {12U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_FF021179"}},
+		  {13U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_FF031179"}},
+		  {14U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_FF041179"}},
+		  {15U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_FF111179"}},
+		  {16U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_FF121179"}},
+		  {17U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_FF131179"}},
+		  {18U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_FF141179"}},
+		  {19U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_FF311179"}},
+		  {20U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_FF321179"}},
+		  {21U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_FF331179"}},
+		  {22U, L"ExcludeId", {L"PCI\\VEN_8086&DEV_2829&SUBSYS_FF341179"}}}},
+		{L"msahci_Inst.HW", {{0U, L"AddReg", {L"msahci_Inst_HW_AddReg"}}}},
+		{L"msahci_Inst.Services",
+		 {{0U,
+		   L"AddService",
+		   {L"storahci", L"2", L"msahci_Service_Inst_Client", L"storahci_EventLog_Inst"}}}},
+		{L"msahci_Service_Inst_Client",
+		 {{0U, L"DisplayName", {L"Fixture AHCI service"}},
+		  {1U, L"ServiceType", {L"1"}},
+		  {2U, L"StartType", {L"0"}},
+		  {3U, L"ErrorControl", {L"3"}},
+		  {4U, L"ServiceBinary", {L"%12%\\storahci.sys"}},
+		  {5U, L"LoadOrderGroup", {L"SCSI Miniport"}},
+		  {6U, L"AddReg", {L"storahci_general_values"}},
+		  {7U, L"AddReg", {L"device_specific_values"}},
+		  {8U, L"AddReg", {L"client_sku_values"}}}},
+		{L"storahci_EventLog_Inst", {{0U, L"AddReg", {L"storahci_EventLog_AddReg"}}}},
+		{L"storahci_EventLog_AddReg",
+		 {{0U,
+		   {},
+		   {L"HKR", L"", L"EventMessageFile", L"0x20000", L"%SystemRoot%\\System32\\IoLogMsg.dll"}},
+		  {1U, {}, {L"HKR", L"", L"TypesSupported", L"0x10001", L"7"}}}},
+		{L"msahci_Inst_HW_AddReg",
+		 {{0U, {}, {L"HKR", L"Interrupt Management", L"0x00000010"}},
+		  {1U,
+		   {},
+		   {L"HKR", L"Interrupt Management\\MessageSignaledInterruptProperties", L"0x00000010"}},
+		  {2U, {}, {L"HKR", L"Interrupt Management\\Affinity Policy", L"0x00000010"}},
+		  {3U,
+		   {},
+		   {L"HKR", L"Interrupt Management\\MessageSignaledInterruptProperties", L"MSISupported",
+			L"0x10001", L"1"}},
+		  {4U,
+		   {},
+		   {L"HKR", L"Interrupt Management\\MessageSignaledInterruptProperties",
+			L"MessageNumberLimit", L"0x10001", L"8"}},
+		  {5U,
+		   {},
+		   {L"HKR", L"Interrupt Management\\Affinity Policy", L"DevicePolicy", L"0x10001", L"5"}},
+		  {6U,
+		   {},
+		   {L"HKR", L"Interrupt Management\\Affinity Policy", L"DevicePriority", L"0x10001", L"3"}},
+		  {7U,
+		   {},
+		   {L"HKR", L"Interrupt Management\\Affinity Policy", L"GroupPolicy", L"0x10001", L"1"}},
+		  {8U, {}, {L"HKR", L"StorPort", L"EnableIdlePowerManagement", L"0x10001", L"0x01"}},
+		  {9U, {}, {L"HKR", L"DMA Management", L"RemappingSupported", L"0x10001", L"1"}},
+		  {10U, {}, {L"HKR", L"DMA Management", L"RemappingFlags", L"0x10001", L"0x1"}}}},
+		{L"storahci_general_values",
+		 {{0U,
+		   {},
+		   {L"HKLM", L"SYSTEM\\CurrentControlSet\\Control\\Compatibility\\Driver\\storahci.sys",
+			L"Shims", L"0x10008", L"Srbshim"}},
+		  {1U, {}, {L"HKR", L"Parameters\\PnpInterface", L"5", L"0x10001", L"0x00000001"}},
+		  {2U, {}, {L"HKR", L"Parameters", L"BusType", L"0x10001", L"0x0000000B"}},
+		  {3U, {}, {L"HKR", L"Parameters", L"IoTimeoutValue", L"0x10001", L"0x0000001E"}},
+		  {4U, {}, {L"HKR", L"Parameters", L"BusyRetryCount", L"0x10001", L"0x000000F0"}},
+		  {5U, {}, {L"HKR", L"Parameters", L"BusyPauseTimeInMs", L"0x10001", L"0x000001F4"}}}},
+		{L"device_specific_values",
+		 {{0U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"ResetInInit", L"0x10008", L"VEN_1106&DEV_6287&REV_*"}},
+		  {1U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"SingleIO", L"0x10008", L"VEN_1106&DEV_6287&REV_00"}},
+		  {2U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"SingleIO", L"0x10008", L"VEN_1106&DEV_6287&REV_10"}},
+		  {3U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"SingleIO", L"0x10008", L"VEN_1106&DEV_6287&REV_20"}},
+		  {4U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"IgnoreHotPlug", L"0x10008",
+			L"VEN_1002&DEV_4380&REV_*"}},
+		  {5U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"NeverNonQueuedErrorRecovery", L"0x10008",
+			L"VEN_1002&DEV_4380&REV_*"}},
+		  {6U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"EnableCLOReset", L"0x10008",
+			L"VEN_1002&DEV_4391&REV_*"}},
+		  {7U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"ExpectedMsiMessageCount", L"0x10008",
+			L"VEN_1022&DEV_7801&REV_00 8"}},
+		  {8U, {}, {L"HKR", L"Parameters\\Device", L"NoFUACommand", L"0x10008", L"HTE*"}},
+		  {9U, {}, {L"HKR", L"Parameters\\Device", L"NoFUACommand", L"0x10008", L"Hitachi*"}},
+		  {10U, {}, {L"HKR", L"Parameters\\Device", L"NoFUACommand", L"0x10008", L"HTS*"}},
+		  {11U, {}, {L"HKR", L"Parameters\\Device", L"NoFUACommand", L"0x10008", L"HDS*"}},
+		  {12U, {}, {L"HKR", L"Parameters\\Device", L"NoFUACommand", L"0x10008", L"HDT*"}},
+		  {13U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"NeedSetTransferModeCommand", L"0x10008",
+			L"MCBQE64GBMPP*"}},
+		  {14U, {}, {L"HKR", L"Parameters\\Device", L"NoLPM", L"0x10008", L"WD740ADFD?00NLR1*"}},
+		  {15U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"NoLPM", L"0x10008", L"WDC WD740ADFD?00NLR1*"}},
+		  {16U, {}, {L"HKR", L"Parameters\\Device", L"NoLPM", L"0x10008", L"Maxtor 6V???E0*"}},
+		  {17U, {}, {L"HKR", L"Parameters\\Device", L"NoLPM", L"0x10008", L"Maxtor 6V???F0*"}},
+		  {18U, {}, {L"HKR", L"Parameters\\Device", L"NoLPM", L"0x10008", L"Maxtor 7V???E0*"}},
+		  {19U, {}, {L"HKR", L"Parameters\\Device", L"NoLPM", L"0x10008", L"Maxtor 7V???F0*"}},
+		  {20U, {}, {L"HKR", L"Parameters\\Device", L"NoLPM", L"0x10008", L"SanDisk SSD P4*"}},
+		  {21U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"NoIdleD3", L"0x10008", L"INTEL SSD?C??????A4"}},
+		  {22U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"NoIdleD3", L"0x10008", L"INTEL SSD?C??????A4?"}},
+		  {23U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"NoIdleD3", L"0x10008", L"INTEL SSD?C??????A4??"}},
+		  {24U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"NoIdleD3", L"0x10008", L"INTEL SSD?C??????A5"}},
+		  {25U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"NoIdleD3", L"0x10008", L"INTEL SSD?C??????A5?"}},
+		  {26U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"NoIdleD3", L"0x10008", L"INTEL SSD?C??????A5??"}},
+		  {27U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"PRDTSplit", L"0x10008", L"VEN_1022&DEV_43B5&REV_*"}},
+		  {28U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"PRDTSplit", L"0x10008", L"VEN_1022&DEV_43B6&REV_*"}},
+		  {29U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"PRDTSplit", L"0x10008", L"VEN_1022&DEV_43B7&REV_*"}},
+		  {30U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"PRDTSplit", L"0x10008", L"VEN_1022&DEV_43B8&REV_*"}},
+		  {31U,
+		   {},
+		   {L"HKR", L"Parameters\\Device", L"PRDTSplit", L"0x10008", L"VEN_1022&DEV_43C8&REV_*"}}}},
+		{L"client_sku_values",
+		 {{0U, {}, {L"HKR", L"Parameters", L"IoLatencyCap", L"0x10001", L"0x000001F4"}}}},
+		{L"AhciPowerSetting1",
+		 {{0U, L"Subgroup", {L"{0012ee47-9041-4b5d-9b77-535fba8b1442}"}},
+		  {1U,
+		   L"Setting",
+		   {L"{0b2d69d7-a2a1-449c-9680-f91c70521c60}", L"Fixture name", L"Fixture description", L"",
+			L"0x00000001"}},
+		  {2U, L"Value", {L"0", L"Fixture name", L"Fixture description", L"0x00010001", L"0"}},
+		  {3U, L"Value", {L"1", L"Fixture name", L"Fixture description", L"0x00010001", L"1"}},
+		  {4U, L"Value", {L"2", L"Fixture name", L"Fixture description", L"0x00010001", L"3"}},
+		  {5U, L"Value", {L"3", L"Fixture name", L"Fixture description", L"0x00010001", L"2"}},
+		  {6U, L"Default", {L"{8C5E7FDA-E8BF-4A96-9A85-A6E23A8C635C}", L"0", L"0"}},
+		  {7U, L"Default", {L"{8C5E7FDA-E8BF-4A96-9A85-A6E23A8C635C}", L"1", L"1"}},
+		  {8U, L"Default", {L"{381B4222-F694-41F0-9685-FF5BB260DF2E}", L"0", L"1"}},
+		  {9U, L"Default", {L"{381B4222-F694-41F0-9685-FF5BB260DF2E}", L"1", L"1"}},
+		  {10U, L"Default", {L"{A1841308-3541-4FAB-BC81-F71556F20B4A}", L"0", L"2"}},
+		  {11U, L"Default", {L"{A1841308-3541-4FAB-BC81-F71556F20B4A}", L"1", L"2"}}}},
+		{L"AhciPowerSetting2",
+		 {{0U, L"Subgroup", {L"{0012ee47-9041-4b5d-9b77-535fba8b1442}"}},
+		  {1U,
+		   L"Setting",
+		   {L"{DAB60367-53FE-4fbc-825E-521D069D2456}", L"Fixture name", L"Fixture description", L"",
+			L"0x00000001"}},
+		  {2U, L"ValueRange", {L"0", L"300000", L"1", L"millisecond"}},
+		  {3U, L"Default", {L"{8C5E7FDA-E8BF-4A96-9A85-A6E23A8C635C}", L"0", L"0"}},
+		  {4U, L"Default", {L"{8C5E7FDA-E8BF-4A96-9A85-A6E23A8C635C}", L"1", L"0"}},
+		  {5U, L"Default", {L"{381B4222-F694-41F0-9685-FF5BB260DF2E}", L"0", L"100"}},
+		  {6U, L"Default", {L"{381B4222-F694-41F0-9685-FF5BB260DF2E}", L"1", L"100"}},
+		  {7U, L"Default", {L"{A1841308-3541-4FAB-BC81-F71556F20B4A}", L"0", L"100"}},
+		  {8U,
+		   L"Default",
+		   {L"{A1841308-3541-4FAB-BC81-F71556F20B4A}", L"1",
+			L"100"}}}}} ;	// 同梱AHCIの元作用と架空の表示文言
+	const std::array<std::wstring, 1U> allowed{
+		L"PCI\\VEN_1234&DEV_5678&SUBSYS_01001234&REV_01"} ;	// 元配布の架空対象
+	const auto check = [&]( const Sections &fixture, std::span<const std::wstring> ids,
+						   bool accepted, bool moduleAllowed = true,
+						   std::uint64_t document = DOCUMENT) {
+		std::size_t				  registryRows{} ;	// 同一の選択に属する登録作用の件数
+		std::vector<std::wstring> modules ;			// 元のサービス実体とイベント資源だけを記録する
+		SystemInfEffectApi		  api ;				// 同期中だけ使う架空の読取API
+		api.storAhciInboxDocument = document ;
+		api.ahciHardwareIds		  = ids ;
+		api.registryRows		  = &registryRows ;
+		api.read				  = [&]( const SystemInfSection	  &section,
+						std::vector<SystemInfRow> &out) -> NativeError {
+			 const auto found = fixture.find( section.name) ;	// 同じ元文書から選んだ節
+			 // 不在や別文書の節を空作用として渡さない
+			 if( section.document != DOCUMENT || found == fixture.end()) {
+				 return HRESULT_FROM_WIN32( ERROR_SECTION_NOT_FOUND) ;
+			 }
+
+			 out = found->second ;
+			 return 0U ;
+		} ;
+		api.module = [&]( std::uint64_t identity, std::wstring_view path) -> NativeError {
+			modules.emplace_back( path) ;
+			return moduleAllowed && identity == DOCUMENT && (path == BINARY || path == EVENT)
+					   ? 0U
+					   : static_cast<NativeError>( E_ACCESSDENIED) ;
+		} ;
+		api.service = []( std::wstring_view, SystemServiceEvidence &) -> NativeError {
+			return E_ACCESSDENIED ;
+		} ;
+		api.legacyRegistry = []( const SystemInfEffect &, bool) -> NativeError {
+			return E_ACCESSDENIED ;
+		} ;
+		SystemInfEffects result ;				// 全ての作用が一致した場合だけ返る原観測
+		std::uint32_t	 stage{}, observed{} ;	// 元本文を持たない失敗位置
+		const auto		 error =
+			// 製品と同じ作用検査
+			inspectSystemInfEffects( seeds, api, result, stage, observed) ;
+		DRIVERCRATE_EXPECT( context, (error == 0U) == accepted) ;
+		// 失敗した作用の部分保持や、別用途から借りた実体を許可しない
+		if( accepted) {
+			const std::vector<std::wstring> expected{BINARY,
+													 EVENT} ;	// 実体と正規Windows資源の検査順
+			DRIVERCRATE_EXPECT( context, modules == expected && result.copySections.size() == 1U &&
+											registryRows == 52U && stage == 0U && observed == 0U) ;
+		} else {
+			DRIVERCRATE_EXPECT( context, result.effects.empty() && result.copySections.empty()) ;
+		}
+	} ;
+	check( original, allowed, true) ;
+	check( original, allowed, false, false) ;
+	check( original, {}, false) ;
+	check( original, allowed, false, true, 0U) ;
+	const std::array<std::wstring, 1U> revised{
+		L"pci\\ven_8086&dev_2653&subsys_0f001179&rev_03"} ;					// 元除外と同一SUBSYSでREVだけが具体的なID
+	const std::array<std::wstring, 1U> broad{L"PCI\\VEN_8086&DEV_2829"} ;	// 元除外を含む広いID
+	check( original, revised, false) ;
+	check( original, broad, false) ;
+	auto altered = original ;	// 架空元作用の一箇所を変更する対照
+	altered.at( L"AhciPowerSetting1")[2].values.back() = L"9" ;
+	check( altered, allowed, false) ;
+	altered												  = original ;
+	altered.at( L"AhciPowerSetting2").back().values.back() = L"1000001" ;
+	check( altered, allowed, false) ;
+	altered														 = original ;
+	altered.at( L"storahci_general_values").front().values.back() = L"OtherShim" ;
+	check( altered, allowed, false) ;
+	altered														= original ;
+	altered.at( L"msahci_Service_Inst_Client")[2].values.front() = L"3" ;
+	check( altered, allowed, false) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一署名文書の範囲型電源設定を、元参照・値域・AC/DC既定値で正負照合します
+ * @param[in,out] context 架空の元文書を読む専用結果の集計先です
+ * @note 端末のレジストリ、電源設定、SCMの読み取りは行いません
+ */
+//------------------------------------------------------------------------------
+void rangedStoragePowerCases( TestContext &context)
+{
+	const SystemInfSection	  selected{1U,
+									   L"Install.NTamd64",
+									   SystemInfContext::DEVICE,
+									   SystemInfContext::DEVICE,
+									   {}} ;	// 一つの元DDInstallだけを指す
+	std::vector<SystemInfRow> root{
+		{0U, L"AddPowerSetting", {L"FixturePower", L"fixturepower"}}} ;	// 同一節への再参照を含む元行
+	// 現用のGUIDを使わない架空の設定と、Windowsが定義する三プランのAC/DC組
+	const std::vector<SystemInfRow> original{
+		{0U, L"Subgroup", {L"{12345678-1234-1234-1234-123456789abc}"}},
+		{1U,
+		 L"Setting",
+		 {L"{11111111-1111-1111-1111-111111111111}", L"Test delay", L"", L"", L"1"}},
+		{2U, L"ValueRange", {L"10", L"102", L"3", L"Milliseconds"}},
+		{3U, L"Default", {L"{8C5E7FDA-E8BF-4A96-9A85-A6E23A8C635C}", L"0", L"10"}},
+		{4U, L"Default", {L"{8C5E7FDA-E8BF-4A96-9A85-A6E23A8C635C}", L"1", L"13"}},
+		{5U, L"Default", {L"{381B4222-F694-41F0-9685-FF5BB260DF2E}", L"0", L"16"}},
+		{6U, L"Default", {L"{381B4222-F694-41F0-9685-FF5BB260DF2E}", L"1", L"19"}},
+		{7U, L"Default", {L"{A1841308-3541-4FAB-BC81-F71556F20B4A}", L"0", L"22"}},
+		{8U, L"Default", {L"{A1841308-3541-4FAB-BC81-F71556F20B4A}", L"1", L"100"}}} ;
+	auto			   rows = original ;	// 条件ごとに元値の一部だけを変える
+	std::size_t		   reads{} ;			// 元選択と参照先を読む回数
+	SystemInfEffectApi api ;				// 元署名文書の読取りだけを模擬する
+	api.read = [&]( const SystemInfSection	 &section,
+				   std::vector<SystemInfRow> &result) -> NativeError {
+		++reads ;
+		// 元文書、文脈と選択に一致する節だけを返します
+		if( section == selected) {
+			result = root ;
+			return 0U ;
+		}
+
+		// 別文書からの補完や任意の参照先を成功にしません
+		if( section.document != selected.document ||
+		   section.context != SystemInfContext::POWER_SETTING || section.scope != selected.scope ||
+		   section.owner != selected.name ||
+		   (section.name != L"FixturePower" && section.name != L"SecondPower")) {
+			return E_INVALIDARG ;
+		}
+
+		result = rows ;
+		return 0U ;
+	} ;
+	std::vector<RangedStoragePowerSetting> result ;									// 全参照が成立した場合の値だけを保持する
+	const std::array<std::uint32_t, 6U> defaults{10U, 13U, 16U, 19U, 22U, 100U} ;	// 各プランのAC/DC
+	DRIVERCRATE_EXPECT( context,
+					   readSelectedRangedStoragePowerSettings( selected, api, result) == 0U) ;
+	DRIVERCRATE_EXPECT( context, reads == 2U && result.size() == 1U &&
+									result[0].defaults == defaults && result[0].minimum == 10U &&
+									result[0].maximum == 102U && result[0].increment == 3U &&
+									result[0].attributes == 1U && result[0].description.empty() &&
+									result[0].unitLabel == L"Milliseconds") ;
+
+	/** @brief 一欄だけ置き換える元行の条件です */
+	struct Change {
+		/// 元節の行番号です
+		std::size_t	   row ;
+		/// 元行で変える位置です
+		std::size_t	   field ;
+		/// 対照として設定する元欄です
+		const wchar_t *value ;
+	} ;
+	// 非表示以外の属性、不正値域、オーバーフロー、既定値の重複・範囲外・刻み違いを対照にする
+	constexpr Change CHANGES[]{
+		{1U, 4U, L"2"}, {2U, 0U, L"103"}, {2U, 1U, L"4294967296"}, {2U, 2U, L"0"},
+		{4U, 1U, L"0"}, {5U, 1U, L"2"},	  {6U, 2U, L"20"},		   {8U, 2U, L"103"},
+	} ;
+	// 各対照は別の元入力として再構築し、前の結果を失敗時に保持しないことを確認します
+	for( const auto &change : CHANGES) {
+		rows								  = original ;
+		rows[change.row].values[change.field] = change.value ;
+		result.resize( 1U) ;
+		DRIVERCRATE_EXPECT( context,
+						   readSelectedRangedStoragePowerSettings( selected, api, result) != 0U &&
+							   result.empty()) ;
+	}
+
+	rows				  = original ;
+	root[0].values.back() = L"SecondPower" ;
+	DRIVERCRATE_EXPECT( context,
+					   readSelectedRangedStoragePowerSettings( selected, api, result) != 0U &&
+						   result.empty()) ;
+	root[0].values.back() = L"fixturepower" ;
+	api.graphReferences	  = 4095U ;
+	DRIVERCRATE_EXPECT( context, readSelectedRangedStoragePowerSettings( selected, api, result) ==
+										HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) &&
+									result.empty()) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用電源定義の新規、維持、変更と共有先の不明を架空観測で確認する
+ * @param[in,out] context 独立した分類試験の結果集計
+ * @note Windowsの実際の機器、電源プラン、レジストリを使用しない
+ */
+//------------------------------------------------------------------------------
+void storagePowerChangeCases( TestContext &context)
+{
+	std::array<RangedStoragePowerSetting, 1U> candidate ;	// 候補が宣言する架空の電源定義
+	auto &target	 = candidate.front() ;					// 同じ定義の元GUIDと値域だけを変更する
+	target.subgroup	 = L"{12345678-1234-1234-1234-123456789abc}" ;
+	target.setting	 = L"{11111111-1111-1111-1111-111111111111}" ;
+	target.maximum	 = 100U ;
+	target.increment = 1U ;
+	target.defaults	 = {0U, 10U, 20U, 30U, 40U, 50U} ;
+	StoragePowerSettingsSnapshot absent ;	// 保護付きの親だけが実在する現在観測
+	absent.controlSet = L"ControlSet001" ;
+	auto &leaf		  = absent.settings.emplace_back() ;	// 候補と同じ位置の正式な不在
+	leaf.subgroup	  = target.subgroup ;
+	leaf.setting	  = target.setting ;
+	leaf.keys[0U]	  = {{std::byte{1}}, 1U} ;
+	StorageAutomaticDeviceSnapshot	device ;	// 初回の選択と空の共有機器一覧
+	std::vector<StoragePowerChange> changes ;	// 各回の出力が差し替わる分類
+	// 一つの現在観測を借用して、その時点の候補と現用元から分類を確認する
+	const auto						verify = [&]( const StoragePowerSettingsSnapshot &observed,
+							 StoragePowerChange					 expected) {
+		 DRIVERCRATE_EXPECT(
+			 context, classifyStoragePowerChanges( candidate, observed, device, changes) == 0U &&
+						  changes.size() == 1U && changes[0] == expected) ;
+	} ;
+	verify( absent, StoragePowerChange::CREATE) ;
+	// 全域を観測した空の一覧と、元位置だけが不在の場合を区別する
+	auto &absentLocations = leaf.locations.emplace() ;	// 同じ架空設定の全登録場所
+	verify( absent, StoragePowerChange::CREATE) ;
+	absentLocations.rootMatch = true ;
+	verify( absent, StoragePowerChange::UNVERIFIED) ;
+	absentLocations.rootMatch = false ;
+	const std::wstring foreignGroup{L"{22222222-2222-2222-2222-222222222222}"} ;	// 別登録の場所
+	absentLocations.matchingSubgroups = {foreignGroup} ;
+	verify( absent, StoragePowerChange::UNVERIFIED) ;
+	absentLocations.matchingSubgroups.clear() ;
+
+	auto  present = absent ;					// 同じ位置に既存定義がある別の観測
+	auto &values  = present.settings.front() ;	// 既存の設定値と保護の作業値
+	values.keys.fill( leaf.keys[0U]) ;
+	values.minimum	 = target.minimum ;
+	values.maximum	 = target.maximum ;
+	values.increment = target.increment ;
+	std::ranges::copy( target.defaults, values.defaults.begin()) ;
+	verify( present, StoragePowerChange::UNVERIFIED) ;
+
+	auto &registered = device.selected.package.emplace() ;	// 選択機器の署名付き現用定義
+	registered.powerSettings.push_back( target) ;
+	// 現用の元署名と値がそろっても、観測された所在が競合していれば維持と判定しない
+	verify( present, StoragePowerChange::UNVERIFIED) ;
+	values.locations->matchingSubgroups = {L"{12345678-1234-1234-1234-123456789ABC}"} ;
+	verify( present, StoragePowerChange::KEEP) ;
+	values.locations->rootMatch = true ;
+	verify( present, StoragePowerChange::UNVERIFIED) ;
+	values.locations->rootMatch = false ;
+	values.locations->matchingSubgroups.push_back( foreignGroup) ;
+	verify( present, StoragePowerChange::UNVERIFIED) ;
+	values.locations->matchingSubgroups.pop_back() ;
+	verify( absent, StoragePowerChange::UNVERIFIED) ;
+	target.defaults[0] = 2U ;
+	verify( present, StoragePowerChange::UPDATE_SELECTED) ;
+	auto &peer				= device.owners.emplace_back() ;	// 選択しない機器が同じ定義を利用する
+	peer.registered.package = registered ;
+	verify( present, StoragePowerChange::UPDATE_SHARED) ;
+	values.defaults[0].reset() ;
+	verify( present, StoragePowerChange::UNVERIFIED) ;
+	peer.registered.package.reset() ;
+	DRIVERCRATE_EXPECT( context, classifyStoragePowerChanges( candidate, present, device, changes) ==
+										HRESULT_FROM_WIN32( ERROR_RETRY) &&
+									changes.empty()) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 名前付きイベントの資源省略と現在の署名根拠を独立して検証する
+ * @param[in,out] context 架空の現用登録と現在観測の試験集計
+ * @note 実サービスやWindowsイベントの変更を行わない
+ */
+//------------------------------------------------------------------------------
+void storageAutomaticEventChangeCases( TestContext &context)
+{
+	SelectedStorageServiceFacts candidate ;	// 作用検査済み候補を表す架空の元選択
+	candidate.name						  = L"FixtureKernel" ;
+	candidate.binaryTarget				  = L"X:\\FixtureOS\\System32\\drivers\\fixture.sys" ;
+	candidate.auxiliary.emplace().name	  = L"FixtureHelper" ;
+	candidate.auxiliary->addServiceFields = {L"FixtureHelper", L"0",	  L"Helper",
+											 L"Events",		   L"System", L"Fixture Shared Event"} ;
+	const std::wstring			 hash( 64U, L'a') ;	// 架空の選択に結ぶ比較用ハッシュ
+	StorageAutomaticHostSnapshot host ;				// 端末の現在値と選択外機器の模擬観測
+	host.device.emplace() ;
+	host.events.events[0U].name = candidate.name ;
+	auto &event					= host.events.events[1U] ;	// 現在の同名イベント
+	event.name					= candidate.auxiliary->addServiceFields[5U] ;
+	event.present				= true ;
+	event.typesSupported		= 31U ;
+	event.categoryCount			= 1U ;
+	event.security				= {std::byte{1}} ;
+	auto &owner =
+		// 共有機器の元登録
+		host.device->owners.emplace_back().registered.package.emplace() ;
+	auto &source		  = owner.eventReferences[1U].emplace() ;	// 署名付き現用登録の明示イベント
+	source.name			  = event.name ;
+	source.typesSupported = 31U ;
+	source.categoryCount  = 1U ;
+	// 当該ソースの現在値の意味を、分類処理全体を通して確かめる
+	const auto verify = [&]( StorageServiceChange expected) {
+		DRIVERCRATE_EXPECT(
+			context, classifyStorageAutomaticServiceChanges( candidate, hash, hash, host) == 0U &&
+						 host.serviceChanges && (*host.serviceChanges)[2U] == expected) ;
+	} ;
+	verify( StorageServiceChange::KEEP) ;
+	event.messageFile	  = L"%SystemRoot%\\System32\\fixture.dll" ;
+	event.messageFileType = REG_EXPAND_SZ ;
+	DRIVERCRATE_EXPECT( context, matchesRegisteredStorageEvent( source, event, true) &&
+									!matchesRegisteredStorageEvent( source, event)) ;
+	verify( StorageServiceChange::UNVERIFIED) ;
+	source.messageFile	  = *event.messageFile ;
+	source.resourceLeaf	  = L"fixture.dll" ;
+	source.resourceSha256 = hash ;
+	source.resourceBytes  = 256U ;
+	auto &existing =
+		// 現用署名と照合した実ファイル
+		source.deployedResource.emplace().existing.emplace() ;
+	existing.sha256 = hash ;
+	existing.bytes	= source.resourceBytes ;
+	verify( StorageServiceChange::KEEP) ;
+	event.messageFileType = REG_SZ ;
+	verify( StorageServiceChange::UNVERIFIED) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief イベント登録とSystem32のDLLを現用署名へ独立に照合し、所有と共有変更を検証する
+ * @param[in,out] context 架空の候補、現用機器と配置を用いた試験の集計先
+ * @note 実際のDLL、レジストリ、サービスや機器を変更しない
+ */
+//------------------------------------------------------------------------------
+void storageAutomaticEventResourceCases( TestContext &context)
+{
+	SelectedStorageServiceFacts candidate ;	// 架空の元選択と名前付きイベント
+	candidate.name			= L"FixtureKernel" ;
+	candidate.binaryTarget	= L"X:\\FixtureOS\\System32\\drivers\\fixture.sys" ;
+	auto &helper			= candidate.auxiliary.emplace() ;	// 同じ元選択の補助サービスと資源
+	helper.name				= L"FixtureHelper" ;
+	helper.addServiceFields = {helper.name, L"0",	   L"Helper",
+							   L"Events",	L"System", L"Fixture Shared Event"} ;
+	auto &copy				= helper.eventMessageCopy.emplace() ;	// コピー元とSystem32の元定義
+	copy.fields				= {L"fixture.dll"} ;
+	copy.sha256.assign( 64U, L'a') ;
+	copy.target							 = L"X:\\FixtureOS\\System32\\fixture.dll" ;
+	copy.bytes							 = 256U ;
+	copy.dirid							 = 11 ;
+	const auto					 oldHash = copy.sha256 ;			// 元ファイルを維持する場合の完全ハッシュ
+	StorageAutomaticHostSnapshot host ;								// 実機変更なしで差を与える現在観測
+	auto						&device = host.device.emplace() ;	// 選択機器と選択外の利用機器
+	host.events.events[0U].name			= candidate.name ;
+	auto &named							= host.events.events[1U] ;	// 同名イベントの現在状態
+	named.name							= helper.addServiceFields[5U] ;
+	auto &placement = host.eventResource.emplace().destination ;	// 候補が指定する正規DLLの現在配置
+	placement.directorySecurity = {std::byte{1}} ;
+	// 同じ候補の元選択を借用し、登録とDLLの分類をそれぞれ確認する
+	const auto verify = [&]( StorageServiceChange event, StorageServiceChange file) {
+		DRIVERCRATE_EXPECT( context, classifyStorageAutomaticServiceChanges( candidate, oldHash,
+																		   oldHash, host) == 0U &&
+										host.serviceChanges &&
+										(*host.serviceChanges)[2U] == event &&
+										host.eventResource->change == file) ;
+	} ;
+	using Change = StorageServiceChange ;
+	verify( Change::CREATE, Change::CREATE) ;
+	auto &existing	  = placement.existing.emplace() ;	// 同じ名前で残っている実ファイル
+	existing.sha256	  = oldHash ;
+	existing.bytes	  = copy.bytes ;
+	existing.security = {std::byte{1}} ;
+	verify( Change::CREATE, Change::UNVERIFIED) ;
+	named.present	  = true ;
+	named.messageFile = L"%SystemRoot%\\System32\\IoLogMsg.dll;%SystemRoot%\\System32\\fixture.dll" ;
+	named.messageFileType = REG_EXPAND_SZ ;
+	named.typesSupported  = 31U ;
+	named.categoryCount	  = 1U ;
+	named.security		  = {std::byte{1}} ;
+	auto &peer =
+		// 同じイベント値を使い、資源を省略する元登録
+		device.owners.emplace_back().registered ;
+	auto &omitted		   = peer.package.emplace().eventReferences[1U].emplace() ;	// 資源省略の参照
+	omitted.name		   = named.name ;
+	omitted.typesSupported = 31U ;
+	omitted.categoryCount  = 1U ;
+	peer.events.events[1U] = named ;
+	verify( Change::UNVERIFIED, Change::UNVERIFIED) ;
+	// 明示した資源の所有を確認する選択機器の元参照
+	auto &owner			   = device.selected.package.emplace().eventReferences[1U].emplace( omitted) ;
+	owner.messageFile	   = *named.messageFile ;
+	owner.resourceLeaf	   = copy.fields.front() ;
+	owner.resourceSha256   = oldHash ;
+	owner.resourceBytes	   = copy.bytes ;
+	owner.deployedResource = placement ;
+	device.selected.events.events[1U] = named ;
+	verify( Change::KEEP, Change::KEEP) ;
+	copy.sha256.assign( 64U, L'b') ;
+	verify( Change::KEEP, Change::UPDATE_SHARED) ;
+	device.owners.clear() ;
+	verify( Change::KEEP, Change::UPDATE_SELECTED) ;
+	existing.fileId[0U] = 2U ;
+	verify( Change::KEEP, Change::UNVERIFIED) ;
+	existing.fileId[0U] = 0U ;
+	existing.security.clear() ;
+	verify( Change::KEEP, Change::UNVERIFIED) ;
+	existing.security = {std::byte{1}} ;
+	auto &other = device.owners.emplace_back().registered ;	// 別イベントで同じDLLを使う現用機器
+	// 同じ資源に結び付いた別名イベントの元参照
+	auto &differentEvent		 = other.package.emplace().eventReferences[1U].emplace( owner) ;
+	differentEvent.name			 = L"Other Fixture Event" ;
+	other.events.events[1U]		 = named ;
+	other.events.events[1U].name = differentEvent.name ;
+	verify( Change::KEEP, Change::UPDATE_SHARED) ;
+	device.selected.package.reset() ;
+	verify( Change::UNVERIFIED, Change::UPDATE_SHARED) ;
+	placement.existing.reset() ;
+	verify( Change::UNVERIFIED, Change::UNVERIFIED) ;
+	placement.directorySecurity.clear() ;
+	DRIVERCRATE_EXPECT(
+		context, classifyStorageAutomaticServiceChanges( candidate, oldHash, oldHash, host) != 0U &&
+					 !host.serviceChanges && host.eventResource->change == Change::UNVERIFIED) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空の起動サービスとSYSの所有を現用の署名元に照合する
+ * @param[in,out] context 所有の有無といずれの変更を確認したかを集計する
+ * @note 実機器とWindowsの設定、ファイルを操作しない
+ */
+//------------------------------------------------------------------------------
+void storageAutomaticBootChangeCases( TestContext &context)
+{
+	SelectedStorageServiceFacts candidate ;	// 架空の元選択とSYSの全バイトを表すハッシュ
+	candidate.name		   = L"FixtureBoot" ;
+	candidate.type		   = SERVICE_KERNEL_DRIVER ;
+	candidate.start		   = SERVICE_BOOT_START ;
+	candidate.errorControl = SERVICE_ERROR_NORMAL ;
+	candidate.group		   = L"SCSI Miniport" ;
+	candidate.binaryTarget = L"X:\\FixtureOS\\System32\\drivers\\fixture.sys" ;
+	candidate.binarySha256.assign( 64U, L'a') ;
+	StorageAutomaticBootSnapshot boot ;	// 保護付き親の下に候補のSYSとSCMを読む作業観測
+	boot.related.name				   = candidate.name ;
+	boot.destination.directorySecurity = {std::byte{1}} ;
+	StorageAutomaticDeviceSnapshot device ;	// 選択機器と他機器の現在元署名を差し替える
+	// 同じ選択の各状態を関数全体で判定する
+	const auto					   verify = [&]( StorageServiceChange expected) {
+		DRIVERCRATE_EXPECT( context,
+											   classifyStorageAutomaticBoot( candidate, device, boot) == expected) ;
+	} ;
+
+	verify( StorageServiceChange::CREATE) ;
+	auto &file	  = boot.destination.existing.emplace() ;	// 配置先に残るSYSの保護と元ハッシュ
+	file.sha256	  = candidate.binarySha256 ;
+	file.security = {std::byte{1}} ;
+	verify( StorageServiceChange::UNVERIFIED) ;
+
+	auto &config		= boot.related.evidence.emplace() ;	// Windowsが返した架空の現在構成
+	config.name			= candidate.name ;
+	config.type			= candidate.type ;
+	config.start		= candidate.start ;
+	config.errorControl = candidate.errorControl ;
+	config.group		= *candidate.group ;
+	config.binary		= L"\\SystemRoot\\System32\\drivers\\fixture.sys" ;
+	config.security		= {std::byte{1}} ;
+	verify( StorageServiceChange::UNVERIFIED) ;
+
+	auto &owner					= device.selected.package.emplace() ;	// 署名付き元INFとCATの実選択
+	owner.installedService		= candidate.name ;
+	owner.driverSha256			= file.sha256 ;
+	owner.bootService.emplace() = {candidate.binaryTarget, *candidate.group, candidate.type,
+								   candidate.start, candidate.errorControl} ;
+	verify( StorageServiceChange::KEEP) ;
+	candidate.binarySha256.assign( 64U, L'b') ;
+	verify( StorageServiceChange::UPDATE_SELECTED) ;
+	auto &peer =
+		// 同名サービスを使う別機器
+		device.owners.emplace_back().registered.package.emplace() ;
+	peer = owner ;
+	verify( StorageServiceChange::UPDATE_SHARED) ;
+	peer.driverSha256.assign( 64U, L'c') ;
+	verify( StorageServiceChange::UNVERIFIED) ;
+	peer.driverSha256 = file.sha256 ;
+	config.binary	  = L"X:\\OtherOS\\System32\\drivers\\fixture.sys" ;
+	verify( StorageServiceChange::UNVERIFIED) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ標準NVMeとPCIが所有する全作用を構造、原順、実体検査の受渡しまで確認します
+ * @param[in,out] context 専用テストの有限な結果集計です
+ * @note 架空の文書IDと読取専用callbackを使い、実電源・registry・SCMを操作しません
+ */
+//------------------------------------------------------------------------------
+void typedNvmeInboxCases( TestContext &context)
+{
+	using Context						= SystemInfContext ;
+	using Sections						= std::map<std::wstring, std::vector<SystemInfRow>> ;
+	using Documents						= std::map<std::uint64_t, Sections> ;
+	static constexpr std::uint64_t NVME = 23U ;				// 標準NVMeの原署名と対応Storeを仮定する文書です
+	static constexpr std::uint64_t PCI	= 29U ;				// 選択されたPCI HWを保有する独立した文書です
+	constexpr auto SERVICE_BINARY = L"%12%\\stornvme.sys" ;	// 未展開DIRID付きのサービス実体です
+	constexpr auto ABSOLUTE_BINARY =
+		L"X:\\FixtureOS\\System32\\drivers\\stornvme.sys" ;	// SetupAPI展開済みの実体位置です
+	constexpr auto MESSAGE =
+		L"%SystemRoot%\\System32\\IoLogMsg.dll" ;	// 展開式を保持するイベント資源です
+	constexpr auto MSI =
+		L"Interrupt Management\\MessageSignaledInterruptProperties" ;	// 元HWの割り込み設定です
+	constexpr auto AFFINITY =
+		L"Interrupt Management\\Affinity Policy" ;	// 元HWのアフィニティ設定です
+	constexpr auto OVERRIDES =
+		L"nvme_registry_device_specific_values" ;		// 同じサービスの架空PCI追記です
+	constexpr auto	 POWER1 = L"NVMePowerSetting1" ;	// 一番目の電源設定の元参照です
+	constexpr auto	 POWER2 = L"NVMePowerSetting2" ;	// 二番目の電源設定の元参照です
+	const std::array seeds{
+		SystemInfSection{NVME, L"Stornvme_Inst", Context::DEVICE, Context::DEVICE, {}},
+		SystemInfSection{NVME, L"Stornvme_Inst.HW", Context::HARDWARE, Context::HARDWARE, {}},
+		SystemInfSection{NVME, L"Stornvme_Inst.Services", Context::SERVICES, Context::SERVICES, {}},
+		SystemInfSection{PCI, L"PciForceSBR.HW", Context::HARDWARE, Context::HARDWARE, {}},
+	} ; // 選択graphが元所有者と結んだ四つの開始節です
+	// 全参照と全fieldを同期fixtureへ与え、同じ文書に選択外の作用も置きます
+	Documents original{
+		{NVME,
+		 {{L"Stornvme_Inst",
+		   {{0U, L"CopyFiles", {L"Stornvme_copyfiles"}},
+			{1U,
+			 L"AddPowerSetting",
+			 {POWER1, POWER2, L"NVMePowerSetting3", L"NVMePowerSetting4"}}}},
+		  {L"Stornvme_Inst.HW",
+		   {{0U, L"AddReg", {L"Stornvme_Inst_HW_AddReg"}},
+			{1U, L"Include", {L"pci.inf"}},
+			{2U, L"Needs", {L"PciForceSBR.HW"}}}},
+		  {L"Stornvme_Inst.Services",
+		   {{0U,
+			 L"AddService",
+			 {L"stornvme", L"0x00000002", L"Stornvme_Service_Inst", L"Stornvme_EventLog_Inst"}}}},
+		  {L"Stornvme_Service_Inst",
+		   {{0U, L"DisplayName", {L"架空の NVMe サービス"}},
+			{1U, L"ServiceType", {L"1"}},
+			{2U, L"StartType", {L"0"}},
+			{3U, L"ErrorControl", {L"3"}},
+			{4U, L"ServiceBinary", {SERVICE_BINARY}},
+			{5U, L"LoadOrderGroup", {L"SCSI Miniport"}},
+			{6U, L"AddReg", {L"nvme_registry_values"}},
+			{7U, L"AddReg", {OVERRIDES}}}},
+		  {L"Stornvme_EventLog_Inst", {{0U, L"AddReg", {L"Stornvme_EventLog_AddReg"}}}},
+		  {L"Stornvme_EventLog_AddReg",
+		   {{0U, {}, {L"HKR", L"", L"EventMessageFile", L"0x00020000", MESSAGE}},
+			{1U, {}, {L"HKR", L"", L"TypesSupported", L"0x00010001", L"7"}}}},
+		  {L"Stornvme_Inst_HW_AddReg",
+		   {{0U, {}, {L"HKR", L"Interrupt Management", L"0x00000010"}},
+			{1U, {}, {L"HKR", MSI, L"0x00000010"}},
+			{2U, {}, {L"HKR", AFFINITY, L"0x00000010"}},
+			{3U, {}, {L"HKR", MSI, L"MSISupported", L"0x10001", L"1"}},
+			{4U, {}, {L"HKR", MSI, L"MessageNumberLimit", L"0x10001", L"2048"}},
+			{5U, {}, {L"HKR", AFFINITY, L"DevicePolicy", L"0x10001", L"5"}},
+			{6U, {}, {L"HKR", AFFINITY, L"DevicePriority", L"0x10001", L"3"}},
+			{7U, {}, {L"HKR", AFFINITY, L"GroupPolicy", L"0x10001", L"1"}},
+			{8U, {}, {L"HKR", L"DMA Management", L"RemappingSupported", L"0x10001", L"1"}},
+			{9U, {}, {L"HKR", L"DMA Management", L"RemappingFlags", L"0x10001", L"0x1"}}}},
+		  {L"nvme_registry_values",
+		   {{0U, {}, {L"HKR", L"Parameters\\PnpInterface", L"5", L"0x10001", L"1"}},
+			{1U, {}, {L"HKR", L"Parameters", L"BusType", L"0x10001", L"0x11"}},
+			{2U, {}, {L"HKR", L"Parameters", L"IoTimeoutValue", L"0x10001", L"0xA"}},
+			{3U, {}, {L"HKR", L"Parameters", L"StorageSupportedFeatures", L"0x10001", L"3"}}}},
+		  {L"IntelNVMeDeviceInstallSection", {{0U, L"Unknown", {L"Unexpected"}}}}}},
+		{PCI,
+		 {{L"PciForceSBR.HW", {{0U, L"AddReg", {L"PciForceSBR.RegHW"}}}},
+		  {L"PciForceSBR.RegHW",
+		   {{0U,
+			 {},
+			 {L"HKR", L"e5b3b5ac-9725-4f78-963f-03dfb1d828c7", L"ForceSBR", L"0x10001", L"1"}}}},
+		  {L"PCI_BRIDGE.Services", {{0U, L"CopyFiles", {L"Unselected"}}}}}}} ;
+	// 五つの架空PCI IDは同じマルチ文字列へ別々の追記を作ります
+	for( std::uint32_t index = 0U; index < 5U; ++index) {
+		original.at( NVME)[OVERRIDES].push_back(
+			{index,
+			 {},
+			 {L"HKR", L"Parameters\\Device", L"IoStripeAlignment", L"0x10008",
+			  L"VEN_FFFE&DEV_BA0" + std::to_wstring( index) + L"&REV_?? 128"}}) ;
+	}
+
+	original.at( NVME)[OVERRIDES].push_back(
+		{5U,
+		 {},
+		 {L"HKR", L"Parameters\\Device", L"DisableF0TimestampSync", L"0x10008",
+		  L"VEN_FFFF&DEV_BA00&REV_?? 1"}}) ;
+	// 四つの元設定GUIDを参照の位置に結びます
+	constexpr std::array GUIDS{
+		L"{FC95AF4D-40E7-4B6D-835A-56D131DBC80E}", L"{D639518A-E56D-4345-8AF2-B9F32FB26109}",
+		L"{DBC9E238-6DE9-49E3-92CD-8C2B4946B472}", L"{D3D55EFD-C1FF-424E-9DC3-441BE7833010}"} ;
+	// 三つのプランは各設定に同じ順で現れます
+	constexpr std::array PLANS{L"{8C5E7FDA-E8BF-4A96-9A85-A6E23A8C635C}",
+							   L"{381B4222-F694-41F0-9685-FF5BB260DF2E}",
+							   L"{A1841308-3541-4FAB-BC81-F71556F20B4A}"} ;
+	// 四つの設定は各自のGUIDとローカライズ済み表示、すべてのプラン・状態を所有します
+	for( std::size_t index = 0U; index < GUIDS.size(); ++index) {
+		const auto sectionName =
+			L"NVMePowerSetting" + std::to_wstring( index + 1U) ;	// 元AddPowerSettingの参照名です
+		auto &rows = original.at( NVME)[sectionName] ;				// 一設定分の九行を所有します
+		rows	   = {{0U, L"Subgroup", {L"{0012ee47-9041-4b5d-9b77-535fba8b1442}"}},
+					  {1U,
+					   L"Setting",
+					   {GUIDS[index], L"架空の電源名", L"架空の電源設定です", L"", L"0x00000001"}},
+					  {2U, L"ValueRange", {L"0", L"60000", L"1", L"ミリ秒"}}} ;
+		// 同じ設定内で三プランそれぞれのACとDCを一度ずつ定義します
+		for( const auto plan : PLANS) {
+			rows.push_back(
+				{static_cast<std::uint32_t>( rows.size()), L"Default", {plan, L"0", L"0"}}) ;
+			rows.push_back(
+				{static_cast<std::uint32_t>( rows.size()), L"Default", {plan, L"1", L"60000"}}) ;
+		}
+	}
+
+	// 所有fixtureだけを借用して原文全行と実ファイルの個別失敗を共通入口に与えます
+	const auto check = [&]( const Documents &source, std::span<const SystemInfSection> selection,
+						   bool accepted, std::uint64_t nvmeId = NVME, std::uint64_t pciId = PCI,
+						   std::size_t deniedModule = 0U, std::size_t incomingEdges = 0U) {
+		std::size_t				  registryRows{} ;		// 元全registry作用の有限件数です
+		std::size_t				  forbiddenReads{} ;	// 選択外の作用、SCM、旧registry検査の呼出しです
+		std::vector<std::wstring> modules ;				// NVMeの元サービスとイベント資源を参照順で保持します
+		SystemInfEffectApi		  api ;					// 一回の同期検査にだけ渡す架空APIです
+		api.storNvmeInboxDocument = nvmeId ;
+		api.pciNvmeInboxDocument  = pciId ;
+		api.registryRows		  = &registryRows ;
+		api.graphReferences		  = incomingEdges ;
+		api.read				  = [&]( const SystemInfSection	  &section,
+						std::vector<SystemInfRow> &out) -> NativeError {
+			 const auto document = source.find( section.document) ;	// 同じ文書IDの原節だけを参照します
+			 // 選択外の節が正常入力から読まれる場合を検出します
+			 if( section.name == L"IntelNVMeDeviceInstallSection" ||
+				section.name == L"PCI_BRIDGE.Services") {
+				 ++forbiddenReads ;
+			 }
+
+			 // 不明な文書や欠けた節を既定の空節で補いません
+			 if( document == source.end()) {
+				 return E_INVALIDARG ;
+			 }
+
+			 const auto part = document->second.find( section.name) ;	// 同文書内の一致する元節です
+			 // 他の節の行を読み取って検査を続けません
+			 if( part == document->second.end()) {
+				 return HRESULT_FROM_WIN32( ERROR_SECTION_NOT_FOUND) ;
+			 }
+
+			 out = part->second ;
+			 return 0U ;
+		} ;
+		api.module = [&]( std::uint64_t document, std::wstring_view path) -> NativeError {
+			modules.emplace_back( path) ;
+			return document == NVME && modules.size() != deniedModule &&
+						   (path == SERVICE_BINARY || path == ABSOLUTE_BINARY || path == MESSAGE)
+					   ? 0U
+					   : E_ACCESSDENIED ;
+		} ;
+		api.service = [&]( std::wstring_view, SystemServiceEvidence &) -> NativeError {
+			++forbiddenReads ;
+			return E_ACCESSDENIED ;
+		} ;
+		api.legacyRegistry = [&]( const SystemInfEffect &, bool) -> NativeError {
+			++forbiddenReads ;
+			return E_ACCESSDENIED ;
+		} ;
+		SystemInfEffects result ;		// 全作用が成立した場合の原行とコピー参照です
+		std::uint32_t	 stage{} ;		// 失敗時は有限な型だけを出力します
+		std::uint32_t	 observed{} ;	// 実体検査に失敗した場合の役割です
+		const auto		 error = inspectSystemInfEffects( selection, api, result, stage,
+														 observed) ;	// 全作用の製品入口です
+		DRIVERCRATE_EXPECT( context, (error == 0U) == accepted) ;
+		// 不明な実体の元失敗を維持して以後の検査を止めます
+		if( deniedModule != 0U) {
+			const auto role = deniedModule == 1U
+								  ? SystemInfModuleRole::SERVICE_SYS
+								  : SystemInfModuleRole::EVENT_RESOURCE ;	// 失敗を返した実体用途です
+			DRIVERCRATE_EXPECT( context, modules.size() == deniedModule &&
+											error == static_cast<NativeError>( E_ACCESSDENIED) &&
+											stage == static_cast<std::uint32_t>(
+														 SystemInfDiagnosticStage::MODULE) &&
+											observed == static_cast<std::uint32_t>( role)) ;
+		}
+
+		// 不一致を一部の作用の成功として返しません
+		if( !accepted) {
+			DRIVERCRATE_EXPECT( context, result.effects.empty() && result.copySections.empty() &&
+											result.services.empty()) ;
+			return stage ;
+		}
+
+		DRIVERCRATE_EXPECT(
+			context, stage == 0U && forbiddenReads == 0U && registryRows == 23U &&
+						 result.effects.size() == 75U && result.references == incomingEdges + 14U &&
+						 result.services.empty() && result.copySections.size() == 1U &&
+						 result.copySections.front() == seeds.front()) ;
+		DRIVERCRATE_EXPECT(
+			context, modules.size() == 2U &&
+						 modules[0] == source.at( NVME).at( L"Stornvme_Service_Inst")[4].values[0] &&
+						 modules[1] == MESSAGE) ;
+		// 所有文書、行順、全fieldを返し、架空の実体や共通経路に書換えません
+		for( const auto &effect : result.effects) {
+			DRIVERCRATE_EXPECT(
+				context,
+				source.at( effect.source.document).at( effect.source.name).at( effect.row.ordinal) ==
+					effect.row) ;
+			// 電源設定の所有者は一つのNVMe基本節です
+			if( effect.source.context == Context::POWER_SETTING) {
+				DRIVERCRATE_EXPECT( context, effect.source.document == NVME &&
+												effect.source.owner == L"Stornvme_Inst") ;
+			}
+
+			// PCIは元HWに属する規定の二節だけを返します
+			if( effect.source.document == PCI) {
+				DRIVERCRATE_EXPECT( context, effect.source.scope == Context::HARDWARE &&
+												effect.source.owner.empty() &&
+												(effect.source.name == L"PciForceSBR.HW" ||
+												 effect.source.name == L"PciForceSBR.RegHW")) ;
+			}
+		}
+
+		return stage ;
+	} ;
+	check( original, seeds, true) ;
+	check( original, seeds, false, 0U, 0U) ;
+	check( original, seeds, false, NVME, 0U) ;
+	check( original, seeds, false, 0U, PCI) ;
+	check( original, seeds, false, NVME, NVME) ;
+	check( original, seeds, false, PCI, NVME) ;
+	check( original, seeds, true, NVME, PCI, 0U, 4082U) ;
+	check( original, seeds, false, NVME, PCI, 0U, 4083U) ;
+	check( original, seeds, false, NVME, PCI, 1U) ;
+	check( original, seeds, false, NVME, PCI, 2U) ;
+	check( original, std::span{seeds}.first( 3U), false) ;
+
+	auto changed = original ;	// 各負例の変更を持ち越さない独立入力です
+	changed.at( NVME).at( L"Stornvme_Service_Inst")[4].values[0] = ABSOLUTE_BINARY ;
+	changed.at( NVME).at( POWER1)[3].values[2]				   = L"0x0000000A" ;
+	check( changed, seeds, true) ;
+
+	/** @brief 原field一つだけを変えて専用検査の最初の拒否区分を確認します */
+	struct Change {
+		/// 作用を所有する文書IDです
+		std::uint64_t			 document ;
+		/// 原文書内の節名です
+		const wchar_t			*section ;
+		/// 元節内の0起点行です
+		std::size_t				 row ;
+		/// 元行内の0起点fieldです
+		std::size_t				 field ;
+		/// 一条件だけを変える入力です
+		const wchar_t			*value ;
+		/// 他の成功源で補わず保持する元拒否です
+		SystemInfDiagnosticStage stage ;
+	} ;
+	constexpr auto POWER = SystemInfDiagnosticStage::POWER_SETTING ;	// 電源参照と設定の有限診断です
+	constexpr auto DIRECTIVE =
+		SystemInfDiagnosticStage::DIRECTIVE ;	// 元選択や起動サービスの有限診断です
+	constexpr auto REGISTRY =
+		SystemInfDiagnosticStage::REGISTRY ;	// 元registry行と所有scopeの有限診断です
+	// 各負例は検査対象のfieldを一つだけ置き換えます
+	constexpr Change CHANGES[]{
+		{NVME, L"Stornvme_Inst", 1U, 0U, POWER2, POWER},
+		{NVME, L"Stornvme_Inst.HW", 1U, 0U, L"other.inf", DIRECTIVE},
+		{NVME, L"Stornvme_Service_Inst", 2U, 0U, L"3", DIRECTIVE},
+		{NVME, L"Stornvme_Service_Inst", 3U, 0U, L"1", DIRECTIVE},
+		{NVME, L"Stornvme_Service_Inst", 4U, 0U, L"%12%\\other.sys", DIRECTIVE},
+		{NVME, L"Stornvme_Service_Inst", 5U, 0U, L"Boot Bus Extender", DIRECTIVE},
+		{NVME, L"Stornvme_Inst_HW_AddReg", 0U, 2U, L"0x00000004", REGISTRY},
+		{NVME, L"nvme_registry_values", 0U, 2U, L"0x5", REGISTRY},
+		{NVME, OVERRIDES, 0U, 3U, L"0x10000", REGISTRY},
+		{NVME, OVERRIDES, 0U, 4U, L"VEN_FFFE&DEV_BA01&REV_?? 128", REGISTRY},
+		{NVME, L"Stornvme_EventLog_AddReg", 0U, 4U,
+		 L"%SystemRoot%\\System32\\IoLogMsg.dll;other.dll", REGISTRY},
+		{PCI, L"PciForceSBR.RegHW", 0U, 0U, L"HKLM", REGISTRY},
+		{PCI, L"PciForceSBR.RegHW", 0U, 4U, L"2", REGISTRY},
+		{NVME, POWER1, 0U, 0U, L"{00000000-0000-0000-0000-000000000000}", POWER},
+		{NVME, POWER1, 1U, 0U, GUIDS[1], POWER},
+		{NVME, POWER1, 1U, 1U, L"@missing.dll,-123", POWER},
+		{NVME, POWER1, 1U, 2U, L"%Unresolved%", POWER},
+		{NVME, POWER1, 1U, 3U, L"1", POWER},
+		{NVME, POWER1, 1U, 4U, L"3", POWER},
+		{NVME, POWER1, 2U, 2U, L"2", POWER},
+		{NVME, POWER1, 2U, 3U, L"秒", POWER},
+		{NVME, POWER1, 3U, 0U, L"{00000000-0000-0000-0000-000000000000}", POWER},
+		{NVME, POWER1, 3U, 1U, L"1", POWER},
+		{NVME, POWER1, 3U, 1U, L"2", POWER},
+		{NVME, POWER1, 3U, 2U, L"60001", POWER},
+	} ;
+	// 別作用の成立や先行値の読み出しで元不一致を補わないことを個別に確かめます
+	for( const auto &change : CHANGES) {
+		changed = original ;
+		changed.at( change.document).at( change.section).at( change.row).values.at( change.field) =
+			change.value ;
+		DRIVERCRATE_EXPECT( context, check( changed, seeds, false) ==
+										static_cast<std::uint32_t>( change.stage)) ;
+	}
+
+	changed = original ;
+	changed.at( NVME).at( POWER1).pop_back() ;
+	check( changed, seeds, false) ;
+	changed								   = original ;
+	changed.at( NVME).at( POWER1)[4].ordinal = 3U ;
+	check( changed, seeds, false) ;
+	changed = original ;
+	changed.at( NVME).at( POWER1).push_back( {9U, L"AddReg", {OVERRIDES}}) ;
+	check( changed, seeds, false) ;
+	changed = original ;
+	changed.at( NVME).at( L"Stornvme_Inst").push_back( {2U, L"DelFiles", {L"Stornvme_copyfiles"}}) ;
+	check( changed, seeds, false) ;
+	changed											= original ;
+	changed.at( PCI).at( L"PciForceSBR.RegHW")[0].key = L"NamedRow" ;
+	check( changed, seeds, false) ;
+	auto wrongOwner		= seeds ;	// 同じ節の見かけで別HW所有者に移す負例です
+	wrongOwner[3].owner = L"stornvme" ;
+	check( original, wrongOwner, false) ;
+	auto extra = std::vector<SystemInfSection>{	// 同じ署名済みPCIの選択外サービスを加えます
+											   seeds.begin(), seeds.end()} ;
+	extra.push_back( {PCI, L"PCI_BRIDGE.Services", Context::SERVICES, Context::SERVICES, {}}) ;
+	check( original, extra, false) ;
+
+	// 同じ原行を現在登録の読取り入口へ渡し、選択外の節を監視する
+	const auto inspectRegistered = [&]( const Documents &source, bool accepted) {
+		std::size_t		   outside{} ;	// 選択と元参照の範囲外を読んだ件数
+		SystemInfEffectApi api ;		// INFの行以外の操作を持たない現在登録用の架空API
+		api.storNvmeInboxDocument = NVME ;
+		api.pciNvmeInboxDocument  = PCI ;
+		// 同じ文書の指定節だけを返し、電源宣言は署名済み原行から読む
+		api.read = [&]( const SystemInfSection	 &request,
+					   std::vector<SystemInfRow> &rows) -> NativeError {
+			// 選択外のPCI節の参照を成功として扱わない
+			if( request.name == L"FixtureUnused.HW") {
+				++outside ;
+			}
+
+			const auto &sections = source.at( request.document) ;	// 同じ文書の元節
+			const auto	found	 = sections.find( request.name) ;	// 元選択が指定した元節
+			// 不在は空節に置き換えず元診断を返す
+			if( found == sections.end()) {
+				return HRESULT_FROM_WIN32( ERROR_SECTION_NOT_FOUND) ;
+			}
+
+			rows = found->second ;
+			return 0U ;
+		} ;
+
+		std::vector<RangedStoragePowerSetting> settings ;						// 元選択の電源宣言の結果
+		const auto error = readVerifiedNvmeInboxPowerSettings( api, settings) ;	// 現在登録の元照合
+		DRIVERCRATE_EXPECT( context,
+						   outside == 0U && (accepted ? error == 0U && settings.size() == 4U
+													  : error != 0U && settings.empty())) ;
+	} ;
+	changed								 = original ;
+	changed.at( PCI)[L"FixtureUnused.HW"] = {{0U, L"AddPowerSetting", {POWER1}}} ;
+	inspectRegistered( changed, true) ;
+	changed.at( PCI).at( L"PciForceSBR.HW").push_back( {1U, L"AddPowerSetting", {POWER1}}) ;
+	inspectRegistered( changed, false) ;
+	changed													= original ;
+	changed.at( NVME).at( L"Stornvme_Inst.HW")[1U].values[0U] = L"fixture.inf" ;
+	inspectRegistered( changed, false) ;
+}
+//------------------------------------------------------------------------------
+/**
  * @brief Store投影表の読取欠落を構築時拒否し旧表の構築契約を維持します
  * @param[in,out] context 同processの有限assertion集計です
  * @note Scopeを構築/破棄するだけで、file/native操作を呼びません
@@ -2373,6 +4190,384 @@ void projectionScopeCases( TestContext &context)
 	complete.reset() ;
 	DRIVERCRATE_EXPECT( context,
 					   calls == 0U && inf_dependency_native_detail::activeApi() == nullptr) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同梱WinUSBの三選択節、相対値およびサービス実体を同じ文書で要求することを確認します
+ * @param[in,out] context 同じ試験processの集計です
+ * @note 文書と実体の証拠を架空化し、端末のサービス設定を読み取らずに検査します
+ */
+//------------------------------------------------------------------------------
+void typedWinUsbInboxCases( TestContext &context)
+{
+	using Context				   = SystemInfContext ;
+	using Stage					   = SystemInfDiagnosticStage ;
+	using Sections				   = std::map<std::wstring, std::vector<SystemInfRow>> ;
+	constexpr std::uint64_t INBOX  = 2U ;					// 正規の架空WinUSB文書です
+	constexpr auto			BINARY = L"%12%\\WinUSB.SYS" ;	// サービスが指定する元DIRIDとファイルです
+	const std::array		selected{
+		   SystemInfSection{INBOX, L"WINUSB.NT", Context::DEVICE, Context::DEVICE, {}},
+		   SystemInfSection{INBOX, L"WINUSB.NT.HW", Context::HARDWARE, Context::HARDWARE, {}},
+		   SystemInfSection{INBOX, L"WINUSB.NT.Services", Context::SERVICES, Context::SERVICES, {}},
+	   } ; // 同じ文書に到達した三つの元入口です
+	const Sections original{
+		{L"WINUSB.NT",
+		 {{0U, L"CopyFiles", {L"WINUSB.CopyFiles"}}, {1U, L"AddReg", {L"WINUSB.AddReg"}}}},
+		{L"WINUSB.NT.HW", {}},
+		{L"WINUSB.NT.Services", {{0U, L"AddService", {L"WINUSB", L"0x2", L"WINUSB.AddService"}}}},
+		{L"WINUSB.AddService",
+		 {{0U, L"DisplayName", {L"架空USBドライバー"}},
+		  {1U, L"Description", {L"架空USB機器用のドライバー"}},
+		  {2U, L"ServiceType", {L"1"}},
+		  {3U, L"StartType", {L"3"}},
+		  {4U, L"ErrorControl", {L"1"}},
+		  {5U, L"ServiceBinary", {BINARY}}}},
+		{L"WINUSB.AddReg",
+		 {{0U, {}, {L"HKR", L"", L"DevLoader", L"", L"*ntkern"}},
+		  {1U, {}, {L"HKR", L"", L"NTMPDriver", L"", L"winusb.sys"}}}},
+	} ; // 同じ文書だけが返す展開済みの到達全行です
+
+	// 各試行で文書、元の選択と実体拒否の引数を借用し、部分結果が出ないことを確認します
+	const auto check = [&]( const Sections &source, std::span<const SystemInfSection> selection,
+						   std::uint64_t bound, Stage expected = {},
+						   std::wstring_view rejectModule = {}) {
+		std::size_t				  registryRows{} ;	// 同期検査と共有するレジストリ行予算です
+		std::vector<std::wstring> modules ;			// コピーとは独立した実体検査の引数です
+		SystemInfEffectApi		  api ;				// 同じ試行内の同期操作です
+		api.registryRows		= &registryRows ;
+		api.winUsbInboxDocument = bound ;
+		api.read				= [&source]( const SystemInfSection	  &section,
+								std::vector<SystemInfRow> &rows) -> NativeError {
+			   const auto item = source.find( section.name) ;	// 元文書の選択節です
+			   // 別文書の同じ節や欠けた空節を補いません
+			   if( section.document != INBOX || item == source.end()) {
+				   return HRESULT_FROM_WIN32( ERROR_SECTION_NOT_FOUND) ;
+			   }
+
+			   rows = item->second ;
+			   return 0U ;
+		} ;
+		api.module = [&]( std::uint64_t identity, std::wstring_view value) -> NativeError {
+			modules.emplace_back( value) ;
+			return identity == INBOX && value != rejectModule &&
+						   (value == BINARY || value == L"winusb.sys")
+					   ? 0U
+					   : static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+		} ;
+		api.legacyRegistry = [&]( const SystemInfEffect &, bool) -> NativeError {
+			DRIVERCRATE_EXPECT( context, false) ;
+			return E_NOTIMPL ;
+		} ;
+		api.service = [&]( std::wstring_view, SystemServiceEvidence &) -> NativeError {
+			DRIVERCRATE_EXPECT( context, false) ;
+			return E_NOTIMPL ;
+		} ;
+
+		SystemInfEffects result ;		// 全作用が成立した場合だけ返る証拠です
+		std::uint32_t	 stage{} ;		// 最初の固定拒否分類です
+		std::uint32_t	 observed{} ;	// 原作用に対応する固定補足です
+		const auto		 error =
+			// 試行結果です
+			inspectSystemInfEffects( selection, api, result, stage, observed) ;
+		DRIVERCRATE_EXPECT( context, stage == static_cast<std::uint32_t>( expected)) ;
+		// 完全一致した場合は二つの役割を同じSYSへ結び、元コピー節を後続へ返します
+		if( expected == Stage{}) {
+			const std::vector<std::wstring> expectedModules{
+				BINARY, L"winusb.sys"} ;	// 原サービスと互換値の順です
+			DRIVERCRATE_EXPECT( context, error == 0U && modules == expectedModules) ;
+			DRIVERCRATE_EXPECT( context, registryRows == 2U && result.effects.size() == 11U &&
+											result.references == 5U && result.services.empty()) ;
+			DRIVERCRATE_EXPECT( context, result.copySections.size() == 1U &&
+											result.copySections.front() == selection.front()) ;
+		} else {
+			DRIVERCRATE_EXPECT( context, error != 0U && result.effects.empty() &&
+											result.copySections.empty()) ;
+		}
+
+		// 実体照合が拒否した場合は元の証明エラーと役割を維持します
+		if( !rejectModule.empty()) {
+			const auto role = rejectModule == BINARY
+								  ? SystemInfModuleRole::SERVICE_SYS
+								  : SystemInfModuleRole::STREAM_SYS ;	// 指定した照合の役割です
+			DRIVERCRATE_EXPECT( context, error == static_cast<NativeError>( TRUST_E_BAD_DIGEST) &&
+											observed == static_cast<std::uint32_t>( role)) ;
+		}
+	} ;
+
+	check( original, selected, INBOX) ;
+	check( original, std::span{selected}.first( 2U), INBOX, Stage::REFERENCE) ;
+	check( original, selected, INBOX + 1U, Stage::REFERENCE) ;
+	check( original, selected, 0U, Stage::DIRECTIVE) ;
+	check( original, selected, INBOX, Stage::MODULE, BINARY) ;
+	check( original, selected, INBOX, Stage::MODULE, L"winusb.sys") ;
+
+	auto altered = original ;	// 個別に変更する元文書の対照です
+	altered.erase( L"WINUSB.NT.HW") ;
+	check( altered, selected, INBOX, Stage::READ) ;
+	altered												= original ;
+	altered.at( L"WINUSB.NT.Services").front().values[1] = L"0" ;
+	check( altered, selected, INBOX, Stage::DIRECTIVE) ;
+	altered												   = original ;
+	altered.at( L"WINUSB.AddService").at( 1U).values.front() = L"@fixture.cpl,-1" ;
+	check( altered, selected, INBOX, Stage::DIRECTIVE) ;
+	altered										  = original ;
+	altered.at( L"WINUSB.AddReg").at( 1U).values[0] = L"HKLM" ;
+	check( altered, selected, INBOX, Stage::REGISTRY) ;
+	altered = original ;
+	altered.at( L"WINUSB.NT.HW").push_back( {0U, L"AddReg", {L"WINUSB.AddReg"}}) ;
+	check( altered, selected, INBOX, Stage::REFERENCE) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元文書の全到達節とコピー・上位フィルター・既存サービスの限定作用を確認します
+ * @param[in,out] context 同processの有限集計です
+ * @param[in] good 既存サービスの架空の構成と保護済みSDです
+ * @note 読取と原実体の照合を架空化し、実コピーや端末のフィルター設定は行いません
+ */
+//------------------------------------------------------------------------------
+void typedWifiBusInboxCases( TestContext &context, const SystemServiceEvidence &good)
+{
+	using Context					  = SystemInfContext ;
+	using Stage						  = SystemInfDiagnosticStage ;
+	using Sections					  = std::map<std::wstring, std::vector<SystemInfRow>> ;
+	constexpr std::uint64_t		INBOX = 2U ;	// 元INBOX署名とStoreの確認を仮定する文書IDです
+	constexpr std::wstring_view MODULE =
+		L"C:\\Fixture\\Store\\vwifibus.sys" ;								// 同じ架空Store内の登録済み実体です
+	constexpr auto FILTER		   = L"PnPFilterRegistration" ;				// 上位フィルターの元登録節です
+	constexpr auto LEGACY_HARDWARE = L"VWiFiBus.PnPFilterRegistration.HW" ;	// 旧HW節です
+	constexpr auto DISPLAY = L"架空のワイヤレス バス" ;								// 現在の言語で展開した架空の表示名です
+	constexpr auto DESCRIPTION =
+		L"架空のバス機能を実装します" ;	// 現在の言語で展開した架空の説明です
+	const std::array modern{
+		SystemInfSection{INBOX, L"VWiFiBus", Context::DEVICE, Context::DEVICE, {}},
+		SystemInfSection{INBOX, L"VWiFiBus.HW", Context::HARDWARE, Context::HARDWARE, {}},
+		SystemInfSection{INBOX, L"VWiFiBus.Services", Context::SERVICES, Context::SERVICES, {}},
+		SystemInfSection{
+			INBOX, L"VWiFiBus.Interfaces", Context::INTERFACES, Context::INTERFACES, {}},
+	} ; // 原グラフが選択した現行文書の入口です
+	const SystemInfSection filter{
+		INBOX, FILTER, Context::REGISTRY, Context::HARDWARE, {}} ;	// AddRegが所有する元作用です
+	const Sections original{
+		{L"VWiFiBus", {{0U, L"CopyFiles", {L"VWiFiBus.CopyFilesInternal", L"CopyKMDriver"}}}},
+		{L"VWiFiBus.HW", {{0U, L"AddReg", {FILTER}}}},
+		{L"VWiFiBus.Interfaces", {}},
+		{L"VWiFiBus.Services", {{0U, L"AddService", {L"vwifibus", L"", L"vwifibus_Service_Inst"}}}},
+		{L"vwifibus_Service_Inst",
+		 {{0U, L"DisplayName", {DISPLAY}},
+		  {1U, L"ServiceType", {L"1"}},
+		  {2U, L"StartType", {L"3"}},
+		  {3U, L"ErrorControl", {L"1"}},
+		  {4U, L"ServiceBinary", {L"%13%\\vwifibus.sys"}},
+		  {5U, L"Description", {DESCRIPTION}}}},
+		{FILTER, {{0U, {}, {L"HKR", L"", L"UpperFilters", L"0x00010000", L"vwifibus"}}}},
+	} ; // 同原文書の展開済み全行です
+
+	auto direct			  = good ;	// SCM値と登録文字列が同じ現サービスの証拠です
+	direct.name			  = L"vwifibus" ;
+	direct.binary		  = MODULE ;
+	direct.display		  = DISPLAY ;
+	direct.description	  = DESCRIPTION ;
+	direct.rawDisplay	  = DISPLAY ;
+	direct.rawDescription = DESCRIPTION ;
+	auto indirect		  = direct ;	// 同じ展開値を返す正規の間接参照です
+	indirect.rawDisplay =
+		L"@netvwifibus.inf,%vwifibus_ServiceDisplayName%;Virtual Wireless Bus Driver" ;
+	indirect.rawDescription =
+		L"@netvwifibus.inf,%vwifibus_ServiceDesc%;Implements bus functionality for Virtual Wireless" ;
+
+	/** @brief 原文の変更と独立して、文書資格又は現在のサービスを変える対照です */
+	enum class Fault {
+		/// 原文書の資格とサービスを保ちます
+		NONE,
+		/// 到達文書にINBOX資格を結びません
+		UNBOUND_DOCUMENT,
+		/// 同一文書を別の標準作用の資格と重複させます
+		CONFLICTING_DOCUMENT,
+		/// 現在の構成だけに異なるロード順序グループを入れます
+		SERVICE_GROUP,
+		/// 現在の実行位置だけを同名の別ファイルにします
+		SERVICE_BINARY,
+	} ;
+	// 一回の読取から結果と診断を得ます。元行の表と期待する構成は呼出し中だけ借用します
+	const auto check = [&]( std::string_view trial, const Sections &source,
+						   std::span<const SystemInfSection> selection, Stage expectedStage = {},
+						   Fault						fault	   = Fault::NONE,
+						   const SystemServiceEvidence *configured = nullptr) {
+		const auto failures = context.failureCount() ;	// 固定のケース名で失敗箇所を補足します
+		const bool accepted =
+			// 期待する全体結果です
+			expectedStage == Stage{} && fault == Fault::NONE ;
+		const auto &current = configured ? *configured : direct ;	// 試行に対応する現在の証拠です
+		std::size_t registryRows{} ;								// 元行の共同予算です
+		std::size_t moduleCalls{} ;									// 元宣言と現在の実体についての照合回数です
+		std::size_t serviceCalls{} ;								// 正しい名前のSCM照会回数です
+		SystemInfEffectApi api ;									// 一試行にだけ有効な同期read表です
+		api.registryRows		 = &registryRows ;
+		api.wifiBusInboxDocument = fault == Fault::UNBOUND_DOCUMENT ? 0U : INBOX ;
+		api.msPortsInboxDocument = fault == Fault::CONFLICTING_DOCUMENT ? INBOX : 0U ;
+		api.legacyRegistry = []( const SystemInfEffect &, bool) -> NativeError { return E_NOTIMPL ; } ;
+		api.read		   = [&source]( const SystemInfSection	 &section,
+							   std::vector<SystemInfRow> &rows) -> NativeError {
+			  const auto item = source.find( section.name) ;	// 同文書内の元節を借用します
+			  // 元の文書にない節や異なる文書の節を補いません
+			  if( section.document != INBOX || item == source.end()) {
+				  return HRESULT_FROM_WIN32( ERROR_SECTION_NOT_FOUND) ;
+			  }
+
+			  rows = item->second ;
+			  return 0U ;
+		} ;
+		api.service = [&]( std::wstring_view name, SystemServiceEvidence &output) -> NativeError {
+			// 同名の既存サービスだけに現在の構成を返します
+			if( name != L"vwifibus") {
+				return E_INVALIDARG ;
+			}
+
+			++serviceCalls ;
+			output = current ;
+			// モジュール照合まで進む別の現サービスパスだけを設定します
+			if( fault == Fault::SERVICE_BINARY) {
+				output.binary = L"C:\\Fixture\\Other\\vwifibus.sys" ;
+			}
+
+			// 既存の構成差による拒否も確認します
+			if( fault == Fault::SERVICE_GROUP) {
+				output.group = L"OtherGroup" ;
+			}
+
+			return 0U ;
+		} ;
+		api.module = [&]( std::uint64_t document, std::wstring_view path) -> NativeError {
+			++moduleCalls ;
+			return document == INBOX && (path == L"%13%\\vwifibus.sys" || path == MODULE)
+					   ? 0U
+					   : static_cast<NativeError>( E_ACCESSDENIED) ;
+		} ;
+
+		SystemInfEffects result ;		// 全作用が成立した場合だけ元作用を保持します
+		std::uint32_t	 stage{} ;		// 最初の固定拒否区分です
+		std::uint32_t	 observed{} ;	// 拒否の固定補足です
+		const auto		 error = inspectSystemInfEffects( selection, api, result, stage,
+														 observed) ;	// 型付き検査の結果です
+		DRIVERCRATE_EXPECT( context, (error == 0U) == accepted) ;
+		DRIVERCRATE_EXPECT( context, stage == static_cast<std::uint32_t>( expectedStage)) ;
+		DRIVERCRATE_EXPECT( context, result.wifiBusFilterDocument == (accepted ? INBOX : 0U)) ;
+		DRIVERCRATE_EXPECT( context,
+						   serviceCalls == (accepted || expectedStage == Stage::SERVICE_SNAPSHOT ||
+													expectedStage == Stage::MODULE
+												? 1U
+												: 0U)) ;
+		DRIVERCRATE_EXPECT( context,
+						   moduleCalls == (accepted || expectedStage == Stage::MODULE ? 2U
+										   : expectedStage == Stage::SERVICE_SNAPSHOT ? 1U
+																					  : 0U)) ;
+		// 原コピー節と元行は端末側の再照合へ渡す完全な値として保持します
+		if( accepted) {
+			DRIVERCRATE_EXPECT( context, registryRows == 1U &&
+											std::ranges::count( result.effects, filter,
+															   &SystemInfEffect::source) == 1) ;
+			DRIVERCRATE_EXPECT( context, result.copySections.size() == 1U &&
+											result.copySections.front() == selection.front()) ;
+			DRIVERCRATE_EXPECT( context,
+							   result.services.size() == 1U && result.services.front() == current) ;
+			// 検査で保持された位置、keyと全fieldを元文書に照合します
+			for( const auto &effect : result.effects) {
+				DRIVERCRATE_EXPECT( context,
+								   effect.source.document == INBOX &&
+									   source.at( effect.source.name).at( effect.row.ordinal) ==
+										   effect.row) ;
+			}
+		} else {
+			DRIVERCRATE_EXPECT( context, result.effects.empty() && result.copySections.empty() &&
+											result.services.empty()) ;
+		}
+
+		// 失敗時は試験ケース名と有限な元診断だけを表示します
+		if( context.failureCount() != failures) {
+			std::cerr << "WIFI_BUS_TYPED_CASE trial=" << trial << " stage=" << stage
+					  << " observed=" << observed << " error=" << error << '\n' ;
+		}
+	} ;
+	check( "modern", original, modern) ;
+	check( "modern_without_interfaces", original, std::span{modern}.first( 3U)) ;
+	check( "original_indirect", original, modern, {}, Fault::NONE, &indirect) ;
+	DRIVERCRATE_EXPECT( context, direct != indirect) ;
+
+	/** @brief 一つのサービス文字列だけを変更する対照です */
+	struct TextChange {
+		/// 失敗時に表示する架空ケース名です
+		const char	*name ;
+		/// 一試行で置換する証拠の項目です
+		std::wstring SystemServiceEvidence::*field ;
+		/// 元証拠と異なる文字列です
+		const wchar_t						*value ;
+	} ;
+	const TextChange textChanges[]{
+		{"different_display", &SystemServiceEvidence::display, L"別の表示名"},
+		{"different_description", &SystemServiceEvidence::description, L"別の説明"},
+		{"unexpanded_description", &SystemServiceEvidence::description,
+		 indirect.rawDescription.c_str()},
+		{"other_resource_file", &SystemServiceEvidence::rawDisplay,
+		 L"@other.inf,%vwifibus_ServiceDisplayName%;Virtual Wireless Bus Driver"},
+		{"other_resource_token", &SystemServiceEvidence::rawDescription,
+		 L"@netvwifibus.inf,%Other%;Implements bus functionality for Virtual Wireless"},
+		{"other_fallback", &SystemServiceEvidence::rawDescription,
+		 L"@netvwifibus.inf,%vwifibus_ServiceDesc%;Changed fallback"},
+		{"missing_registered_description", &SystemServiceEvidence::rawDescription, L""},
+	} ; // 元の適用条件を保ったまま登録値と展開値の両方を個別に確認します
+	// 各変更が元設定と異なる証拠になり、再観測の比較と構造検査の両方で見つかることを確認します
+	for( const auto &trial : textChanges) {
+		auto modified			= indirect ;	// 一項目だけを変える現在の証拠です
+		modified.*(trial.field) = trial.value ;
+		DRIVERCRATE_EXPECT( context, modified != indirect) ;
+		check( trial.name, original, modern, Stage::SERVICE_SNAPSHOT, Fault::NONE, &modified) ;
+	}
+
+	auto legacy =
+		std::vector<SystemInfSection>{modern.begin(), modern.end() - 1} ;	// 旧形式の元入口です
+	legacy[0].name = L"VWiFiBus.CopyFiles" ;
+	legacy[1].name = LEGACY_HARDWARE ;
+	legacy.push_back(
+		{INBOX, L"VWiFiBus.PnPFilterRegistration", Context::HARDWARE, Context::HARDWARE, {}}) ;
+	auto legacyRows = original ;	// 旧基本節、HW節と委譲元に元行を置きます
+	legacyRows.emplace( legacy[0].name, original.at( modern[0].name)) ;
+	legacyRows.emplace( legacy[1].name, original.at( modern[1].name)) ;
+	legacyRows.emplace( legacy.back().name,
+					   std::vector<SystemInfRow>{{0U, L"Needs", {LEGACY_HARDWARE}}}) ;
+	check( "legacy_wrapper", legacyRows, legacy) ;
+	check( "unbound_document", original, modern, Stage::SERVICE, Fault::UNBOUND_DOCUMENT) ;
+	check( "conflicting_document", original, modern, {}, Fault::CONFLICTING_DOCUMENT) ;
+	check( "service_group", original, modern, Stage::SERVICE_SNAPSHOT, Fault::SERVICE_GROUP) ;
+	check( "service_binary", original, modern, Stage::MODULE, Fault::SERVICE_BINARY) ;
+
+	auto changed = original ;	// 各対照では一つの元行又は到達節だけを変更します
+	changed.at( modern[2].name)[0].values[1] = L"2" ;
+	check( "associated_service", changed, modern, Stage::DIRECTIVE) ;
+	changed							= original ;
+	changed.at( FILTER)[0].values[3] = L"0x00010008" ;
+	check( "append_filter_flag", changed, modern, Stage::REGISTRY) ;
+	changed = original ;
+	changed.at( FILTER)[0].values.push_back( L"otherfilter") ;
+	check( "extra_filter", changed, modern, Stage::REGISTRY) ;
+	changed									= original ;
+	changed.at( modern[0].name)[0].values[1] = L"OtherCopy" ;
+	check( "wrong_copy", changed, modern, Stage::DIRECTIVE) ;
+	changed = original ;
+	changed.at( modern[3].name).push_back( {0U, L"Needs", {L"OtherInterface"}}) ;
+	check( "nonempty_interfaces", changed, modern, Stage::DIRECTIVE) ;
+	legacyRows.at( legacy.back().name)[0].values[0] = modern[1].name ;
+	check( "wrong_legacy_wrapper", legacyRows, legacy, Stage::DIRECTIVE) ;
+
+	auto wrongScope		= modern ;	// 別scopeの同名HW節へ登録を結び替えます
+	wrongScope[1].scope = Context::DEVICE ;
+	check( "wrong_hardware_scope", original, wrongScope, Stage::REFERENCE) ;
+	auto extra = std::vector<SystemInfSection>{modern.begin(), modern.end()} ;	// 追加の空節です
+	extra.push_back( {INBOX, L"Other.HW", Context::HARDWARE, Context::HARDWARE, {}}) ;
+	changed					   = original ;
+	changed[extra.back().name] = {} ;
+	check( "extra_empty_section", changed, extra, Stage::REFERENCE) ;
 }
 
 //------------------------------------------------------------------------------
@@ -2470,6 +4665,8 @@ void systemServiceSecurityCases( TestContext &context)
 
 		DRIVERCRATE_EXPECT( context, validateSystemServiceEvidence( changed) != 0U) ;
 	}
+
+	typedWifiBusInboxCases( context, good) ;
 }
 
 //------------------------------------------------------------------------------
@@ -2622,6 +4819,20 @@ int main( int argc, char **argv)
 	_CrtSetReportMode( _CRT_ASSERT, _CRTDBG_MODE_FILE) ;
 	_CrtSetReportFile( _CRT_ASSERT, _CRTDBG_FILE_STDERR) ;
 #endif
+	// 明示した試験用元INFで共有作用の読取りだけを行う
+	if( argc == 3 && std::string_view( argv[1]) == "--bluetooth-shared-readonly") {
+		try {
+			const auto path	 = std::filesystem::path{argv[2]}.wstring() ;	// 試験用INFの元位置
+			const auto error = drivercrate::test::verifyBluetoothUsbSharedDeclarationsForTest(
+				path) ;	// 原宣言の照合結果
+			std::cout << "BLUETOOTH_SHARED_DECLARATIONS error=" << error << '\n' ;
+			return error == 0U ? 0 : 1 ;
+		} catch( ...) {
+			std::cerr << "BLUETOOTH_SHARED_DECLARATIONS fixture exception\n" ;
+			return 1 ;
+		}
+	}
+
 	// 参考原文の全作用を同実parserで非実行検査する明示入口です
 	if( argc == 2 && (std::string_view( argv[1]) == "--system-reference-readonly" ||
 					 std::string_view( argv[1]) == "--system-reference-camera-readonly")) {
@@ -2685,10 +4896,24 @@ int main( int argc, char **argv)
 		drivercrate::test::payloadObservation( context) ;
 		drivercrate::test::referenceOpenAbsence( context) ;
 		drivercrate::test::needsRegistry( context) ;
+		drivercrate::test::legacyWifiBusEdges( context) ;
+		drivercrate::test::scopedBluetoothUsbEdges( context) ;
+		drivercrate::test::scopedBluetoothUsbCopyCases( context) ;
+		drivercrate::test::scopedBluetoothUsbHardwareCases( context) ;
 		drivercrate::test::needsRegistryDiagnostics( context) ;
 		drivercrate::test::selectedCommonContext( context) ;
 		drivercrate::test::systemMediaCases( context) ;
 		drivercrate::test::typedSystemCases( context) ;
+		drivercrate::test::typedSdBusCases( context) ;
+		drivercrate::test::typedMsPortsCases( context) ;
+		drivercrate::test::typedNvmeInboxCases( context) ;
+		drivercrate::test::typedWinUsbInboxCases( context) ;
+		drivercrate::test::rangedStoragePowerCases( context) ;
+		drivercrate::test::storagePowerChangeCases( context) ;
+		drivercrate::test::storageAutomaticEventChangeCases( context) ;
+		drivercrate::test::storageAutomaticEventResourceCases( context) ;
+		drivercrate::test::storageAutomaticBootChangeCases( context) ;
+		drivercrate::test::typedAhciInboxCases( context) ;
 		drivercrate::test::typedRegistryNameCases( context) ;
 		drivercrate::test::typedRelationCases( context) ;
 		drivercrate::test::systemServiceSecurityCases( context) ;

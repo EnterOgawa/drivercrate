@@ -231,6 +231,13 @@ def collect_members(xml_directory: Path, sources: dict[str, str], root: Path
                             "path": relative or "", "line": line,
                         })
                         continue
+                    body_file = relative_location(location.get("bodyfile", ""), root)
+                    body_line = int(location.get("bodystart", "0"))
+                    # Doxygenが他宣言の行を報告する場合は同じ所有fileの実宣言行を再照合する。
+                    if (body_file == relative and body_line > 0 and body_line != line
+                            and field_declaration_line(sources[relative], line, name) is None
+                            and field_declaration_line(sources[relative], body_line, name) is not None):
+                        line = body_line
                     identity = MemberIdentity("field", owner, name, relative)
                     records[identity] = MemberRecord(identity, line, description_text(member))
 

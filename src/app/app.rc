@@ -2,7 +2,7 @@
 /**
  * @file app.rc
  * @brief DriverCrate Windows resource定義
- * @version 01.32.05
+ * @version 01.46.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -114,6 +114,21 @@
  * Ver.01.32.03 Shunji Ogawa  2026/11/12  導入前保護失敗に結合した一回の明示復元なし続行を接続
  * Ver.01.32.04 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
  * Ver.01.32.05 Shunji Ogawa  2026/11/14  下部の正常検索案内を短縮し失敗表示を保持
+ * Ver.01.33.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.34.00 Shunji Ogawa  2026/11/17  MTD共有作用と部分結果の表示文を追加
+ * Ver.01.35.00 Shunji Ogawa  2026/11/19  初回セットアップクラス登録の確認文を追加
+ * Ver.01.36.00 Shunji Ogawa  2026/11/21  共有起動ログ設定の案内を追加
+ * Ver.01.37.00 Shunji Ogawa  2026/11/22  共有補助サービスの変更と置換時期の案内を追加
+ * Ver.01.38.00 Shunji Ogawa  2026/11/22  共有補助サービスの反映確認結果を追加
+ * Ver.01.39.00 Shunji Ogawa  2026/11/23  自動起動補助と電源などの共有作用の案内を追加
+ * Ver.01.40.00 Shunji Ogawa  2026/11/23  同梱INFへの委譲確認を示す文言を追加
+ * Ver.01.41.00 Shunji Ogawa  2026/11/23  イベント記録用DLLのコピー先の案内を追加
+ * Ver.01.42.00 Shunji Ogawa  2026/11/23  単一ブートの変更区分と件数の表示文を追加
+ * Ver.01.43.00 Shunji Ogawa  2026/11/23  単一起動の反映と再起動後の確認を示す文を追加
+ * Ver.01.44.00 Shunji Ogawa  2026/11/23  候補の検査専用取得と結果の文言を追加
+ * Ver.01.44.01 Shunji Ogawa  2026/11/23  検査専用候補の内容結果を短文で表示
+ * Ver.01.45.00 Shunji Ogawa  2026/11/23  候補詳細に検査済み規約の閲覧画面を追加
+ * Ver.01.46.00 Shunji Ogawa  2026/11/23  ストレージの利用規約案内と同意文を追加
  * </pre>
  *
  * @note Application icon、executable version、manifest、および日本語UI文字列を定義します
@@ -145,6 +160,17 @@ BEGIN
 	DEFPUSHBUTTON "閉じる(&C)", IDOK, 470, 352, 80, 18
 END
 
+// 同じ配布物から検査した言語別の原規約を通常のテキスト欄で閲覧する
+IDD_WIX_TERMS DIALOGEX 0, 0, 560, 360
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "ドライバーの利用規約（閲覧のみ）"
+FONT 10, "Segoe UI"
+BEGIN
+	EDITTEXT IDC_METADATA_DETAIL_TEXT, 10, 8, 540, 314,
+		ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY | WS_VSCROLL | WS_TABSTOP
+	DEFPUSHBUTTON "閉じる(&C)", IDOK, 470, 332, 80, 18
+END
+
 STRINGTABLE
 BEGIN
 	IDS_INSTALL_TERMS_BUTTON "同意してインストール(&I)"
@@ -153,6 +179,9 @@ BEGIN
 	IDS_INSTALL_SELECTION_NOTICE "選択中 %1 件。インストール操作から、選択した配布物だけを取得・検査し、適合する候補の導入へ進みます。\r\nWindows標準構成の登録が必要な場合、再起動後に管理者ユーザーでログオンしてください。"
 	IDS_INSTALL_TERMS_UNAVAILABLE "選択対象の使用許諾を確認できないか、案内後に対象・規約が変わりました。選択を確認し、必要ならもう一度検索してください。"
 	IDS_INSTALL_TERMS_VIEW_ONLY "この画面は閲覧専用です。開く・閉じる操作では規約への同意、ドライバーの取得・導入を行いません。"
+	IDS_WIX_INSTALL_TERMS_NOTICE "ストレージドライバーの利用規約は、候補の詳細から読めます。インストール前に規約への同意と変更内容を確認します。"
+	IDS_WIX_INSTALL_TERMS_CONSENT "「はい」を選ぶと、選んだストレージドライバーのメーカー利用規約と、上記の変更内容に同意します。規約全文は候補の詳細から読めます。"
+	IDS_WIX_INSTALL_TERMS_EXPIRED "選んだストレージドライバーの利用規約を確認できません。更新を検索し、候補の詳細から配布物を取得・検査してください。"
 END
 
 // EULA本文は実行時のplain textだけを表示し、公式の全文をresourceへ同梱しない
@@ -196,7 +225,8 @@ FONT 9, "Segoe UI"
 BEGIN
 	CONTROL "ドライバーの候補とバージョン", IDC_DEVICE_DETAIL_CANDIDATES, "SysListView32",
 		WS_BORDER | WS_TABSTOP | WS_VSCROLL | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER, 10, 8, 600, 256
-	PUSHBUTTON "この候補を選択(&S)", IDYES, 390, 274, 130, 18
+	CONTROL "規約全文を読む(&L)", IDC_DEVICE_DETAIL_TERMS, "Button", WS_TABSTOP | NOT WS_VISIBLE | WS_DISABLED | BS_PUSHBUTTON, 10, 274, 130, 18
+	PUSHBUTTON "", IDYES, 390, 274, 130, 18
 	DEFPUSHBUTTON "閉じる(&C)", IDOK, 530, 274, 80, 18
 END
 
@@ -593,6 +623,7 @@ BEGIN
 	IDS_AUDIT_USER_UNVERIFIED       "利用者指定・取得元未証明"
 	IDS_AUDIT_REJECTED              "監査拒否"
 	IDS_AUDIT_FAILED                "監査失敗"
+	IDS_AUDIT_INBOX_NULL_DRIVER     "Windows同梱INFに委譲（導入対象外）"
 	IDS_INSTALL_READINESS_DISPLAY_ONLY "表示のみ"
 	IDS_INSTALL_READINESS_AUDIT_PENDING "導入前監査待ち"
 	IDS_INSTALL_READINESS_READY     "install可能"
@@ -752,6 +783,13 @@ BEGIN
 	IDS_DETAIL_TIP_SAME "同じバージョンの再インストール候補です。再インストールには明示選択が必要です。"
 	IDS_DETAIL_TIP_OLDER "古いバージョンへの切替候補です。切替には選択後、インストール時の確認が必要です。"
 	IDS_DETAIL_TIP_NO_PLAN "現時点ではインストールできません。更新を再検索してください。"
+	IDS_DETAIL_SELECT_CANDIDATE "この候補を選択(&S)"
+	IDS_DETAIL_ACQUIRE_INSPECTION "検査用に取得(&S)"
+	IDS_DETAIL_INSPECTION_AVAILABLE "検査用に取得できます"
+	IDS_DETAIL_INSPECTION_TIP "この配布物を検査用に取得できます。結果はこの候補の詳細で確認できます。"
+	IDS_DETAIL_INSPECTION_PENDING "取得済み・内容は未確認"
+	IDS_DETAIL_INSPECTION_VERIFIED "取得・内容検査済み"
+	IDS_DETAIL_INSPECTION_FAILED "内容を確認できませんでした"
 	IDS_DETAIL_TIP_FILTERED "推奨表示の対象外です。表示フィルター解除後に手動で指定できます。"
 	IDS_DETAIL_TIP_NAME "ドライバー候補です。行の選択だけでは取得・インストールは始まりません。"
 	IDS_DETAIL_TIP_VERSION "この候補のバージョンです。インストール可能かどうかは別途確認が必要です。"
@@ -814,4 +852,45 @@ STRINGTABLE
 BEGIN
 	IDS_DIAGNOSTIC_STORAGE_COMPACT_FAILED "診断ログを保存できません。"
 	IDS_DIAGNOSTIC_STORAGE_COMPACT_DROPPED "診断ログに欠落があります。"
+	IDS_STORAGE_CHANGE_SCOPE "ストレージドライバーの変更範囲"
+	IDS_STORAGE_START_BOOT "OSの起動時に読み込むドライバー"
+	IDS_STORAGE_START_SYSTEM "OSの初期化時に読み込むドライバー"
+	IDS_STORAGE_START_DEMAND "デバイスの要求時に読み込むドライバー"
+	IDS_STORAGE_SHARED_TIMEOUT "ディスク共通の応答待ち時間（秒）: "
+	IDS_STORAGE_REQUIRED_IMPORTS "必要なINFの登録数: "
+	IDS_STORAGE_SHARED_EFFECT_NOTE "共有サービスや必要なINFの登録は、他の適合するデバイスにも影響する場合があります。"
+	IDS_STORAGE_AUTOLOGGER_NOTICE "Windowsの共有起動ログ（AutoLogger）の設定を追加または更新します。"
+	IDS_STORAGE_AUXILIARY_SERVICE_NOTICE "共有補助サービスを追加または更新します。実行ファイルが使用中の場合、置き換えが再起動まで保留されることがあります。"
+	IDS_STORAGE_AUTOMATIC_SETTINGS_NOTICE "補助サービスを自動起動に設定し、Windowsのシステムログにイベントの記録元を登録します。ストレージ用のACPIと電源の共有設定も追加または更新します。"
+	IDS_STORAGE_EVENT_RESOURCE_NOTICE "システムログのメッセージを表示するため、イベント用DLLをWindowsのSystem32にコピーします。"
+	IDS_STORAGE_PLANNED_CREATE "新規作成"
+	IDS_STORAGE_PLANNED_KEEP "現状維持"
+	IDS_STORAGE_PLANNED_UPDATE "更新"
+	IDS_STORAGE_SINGLE_BOOT_SERVICE "起動サービスとドライバーファイル（SYS）を%1"
+	IDS_STORAGE_SINGLE_BOOT_EVENT "システムログのイベント記録元を%1"
+	IDS_STORAGE_SINGLE_BOOT_POWER "電源設定の追加・変更は %1 件"
+	IDS_STORAGE_SINGLE_BOOT_DEVICE_VALUES "このデバイスの設定値の追加・変更は %1 件"
+	IDS_STORAGE_SINGLE_BOOT_SERVICE_VALUES "起動サービスの設定値の追加・変更は %1 件"
+	IDS_STORAGE_SINGLE_BOOT_CONFIRMED "起動サービスと設定の反映を確認済み"
+	IDS_STORAGE_SINGLE_BOOT_RESTART_CHECK "再起動後に起動サービスと設定を確認してください"
+	IDS_STORAGE_SINGLE_BOOT_UNCONFIRMED "起動サービスと設定の反映を確認できませんでした"
+	IDS_STORAGE_AUXILIARY_CONFIRMED "補助サービスの反映を確認済み"
+	IDS_STORAGE_AUXILIARY_RESTART_CHECK "補助サービスは再起動後に確認"
+	IDS_STORAGE_AUXILIARY_UNCONFIRMED "補助サービスの反映を確認できませんでした"
+	IDS_STORAGE_BOOT_NOTE "読み込みと再起動の判断はWindowsが行います。処理の完了だけで起動や機器の動作を確認したことにはなりません。"
+	IDS_STORAGE_IMPORT_RESULT "必要INFの登録（適用は未確認）"
+	IDS_STORAGE_BOOT_FLAGS "起動時の読み込み条件（BootFlags）: "
+	IDS_MTD_SHARED_DLLS "共有ライブラリの対象数（既存の異なる内容は変更しません）: "
+	IDS_MTD_HARDWARE_PROPERTIES "このデバイスに設定する属性（DeviceType / Characteristics）: "
+	IDS_MTD_COPY_RESULT "共有ライブラリ（新規配置 / 同内容を再利用）: "
+	IDS_MTD_RENAME_PARTIAL "配置操作は応答しましたが、正規先の確認が完了していません。"
+	IDS_MTD_CLEANUP_UNCERTAIN "一時ファイルの後片付けを確認できません。"
+	IDS_MTD_SYS_DELAYED "ドライバー本体の更新は再起動待ちとして通知されました。"
+	IDS_MTD_PARAMS_CLEANUP "一時的な導入パラメーターの解除を確認できません。"
+	IDS_MTD_POST_VERIFY "導入後の共有ファイル確認に失敗しました。"
+	IDS_SETUP_CLASS_REGISTRATION "このドライバーの導入時に、Windowsにセットアップクラスを新規登録します。"
+	IDS_SETUP_CLASS_DISPLAY_NAME "クラスの表示名: %1"
+	IDS_SETUP_CLASS_NAME "クラス名: %1"
+	IDS_SETUP_CLASS_GUID "クラスGUID: %1"
+	IDS_SETUP_CLASS_BUILT_IN_ICON "Windows内蔵アイコン番号: %1"
 END

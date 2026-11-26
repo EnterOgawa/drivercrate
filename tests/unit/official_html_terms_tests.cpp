@@ -1,8 +1,8 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_html_terms_tests.cpp
- * @brief 架空HTML許諾の一意性・全文・改変とstrict schemaを決定的に検査します
- * @version 01.00.02
+ * @brief 公式規約の全文変換、改変と書式の拒否を架空入力で検査します
+ * @version 01.02.00
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,8 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/14  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/22  独立規約の限定CSPと表示属性の境界を回帰
+ * Ver.01.02.00 Shunji Ogawa  2026/11/23  RTFのUnicodeと非実行の拒否境界を検査
  * </pre>
  *
  * @note 架空原byteだけをRAMで確認します。実device/HTTP/署名鍵/store/導入は使用しません
@@ -29,6 +31,7 @@
  */
 //------------------------------------------------------------------------------
 #include "platform/official_html_terms.h"
+#include "platform/official_rtf_terms.h"
 #include "platform/signed_index_acquisition_descriptor_internal.h"
 #include "platform/common_driver_package.h"
 #include "platform/official_driver_package.h"
@@ -36,7 +39,9 @@
 #include "platform/official_file_verifier.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdio>
+#include <span>
 #include <string>
 #include <string_view>
 #include <windows.h>
@@ -265,6 +270,114 @@ void runHtml()
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 静的独立規約だけの外側CSP・表示属性と原文書の完全照合を確認します
+ */
+//------------------------------------------------------------------------------
+void runStaticSectionLayout()
+{
+	drivercrate::IndexHtmlTermsExtraction binding ;	// 架空の独立規約だけを選ぶ宣言です
+	binding.profile	 = "STATIC_HTML_SECTION_V1" ;
+	binding.selector = {"div", "id", "fixture-license"} ;
+	// 元の属性と改訂を持つ架空の独立規約です
+	const std::wstring section =
+		L"<div id=\"fixture-license\"><h2 data-rg-n=\"TitleText\">Example License [v2026.10.14]</h2>"
+		L"<div data-rg-n=\"BodyText\" data-eb-item-id=\"layout#c1\"><p>Full terms.</p></div></div>" ;
+	// 同じ長さの試験を組み立てるための開始属性です
+	const std::wstring cspStart =
+		L"<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; " ;
+	const std::wstring cspEnd =
+		L"\" data-report-uri=\"https://example.com/report\">" ;	// 非実行の報告先属性です
+	const auto csp = [&cspStart, &cspEnd]( const std::size_t length) {
+		return cspStart + std::wstring( length - cspStart.size() - cspEnd.size(), L'x') + cspEnd ;
+	} ; // 試験中だけ固定外枠を借用し、指定どおりの長さの架空要素を作ります
+	const auto document = [&section]( const std::wstring &head) {
+		return L"<html><head>" + head + L"</head><body>" + section + L"</body></html>" ;
+	} ; // 試験中だけ同じ原セクションを借用します
+	const auto extended = document( csp( 9762U)) ;		// 元HTMLと同じ長さの架空のCSPです
+	drivercrate::HtmlTermsTextObservation observation ;	// 同じ原文書と抽出全文です
+	expect( drivercrate::extractStaticHtmlTerms( extended, binding, PAYLOAD, REVISION, observation) ==
+			   0U &&
+		   observation.document == section &&
+		   observation.text.find( L"Full terms.") != observation.text.npos) ;
+	const auto originalText	  = observation.text ;		// 表示属性を含まない同じ全文です
+	const auto sectionUtf8	  = bytes( section) ;		// 表示属性を含む同じ原セクションです
+	const auto textUtf8		  = bytes( originalText) ;	// 原セクションとは別に照合する全文です
+	binding.documentSha256	  = digest( sectionUtf8) ;
+	binding.documentSizeBytes = sectionUtf8.size() ;
+	binding.textSha256		  = digest( textUtf8) ;
+	binding.textSizeBytes	  = textUtf8.size() ;
+	std::wstring verified ;	// 原文書と全文の照合が成功した表示用全文です
+	expect( drivercrate::verifyStaticHtmlTerms( extended, binding, PAYLOAD, REVISION, verified) ==
+			   0U &&
+		   verified == originalText) ;
+
+	// 既定のタグ上限と、明示CSPだけに適用する拡張の終端を確認します
+	for( const auto length : {4096U, 4097U, 16384U}) {
+		expect( drivercrate::extractStaticHtmlTerms( document( csp( length)), binding, PAYLOAD,
+												   REVISION, observation) == 0U) ;
+	}
+
+	const auto altered =
+		replace( extended, std::wstring{L"layout#c1"},
+				std::wstring{L"layout#c2"}) ;	// 可読全文が変わらない原属性の変更です
+	expect( drivercrate::extractStaticHtmlTerms( altered, binding, PAYLOAD, REVISION, observation) ==
+			   0U &&
+		   observation.text == originalText) ;
+	expect( drivercrate::verifyStaticHtmlTerms( altered, binding, PAYLOAD, REVISION, verified) !=
+			   0U &&
+		   verified.empty()) ;
+
+	const auto longCsp = csp( 9762U) ;	// 拒否対照に共通する外枠の長い宣言です
+	// title中の非要素を独立規約の二つ目の選択先として扱いません
+	expect(
+		drivercrate::extractStaticHtmlTerms( document( L"<title>" + section + L"</title>" + longCsp),
+											binding, PAYLOAD, REVISION, observation) == 0U) ;
+	const auto otherTag = L"<div" + std::wstring( 4092U, L' ') +
+						  L">" ;	// 末尾の空白を含めて通常上限を1文字超える要素です
+	const std::array<std::wstring, 16U> REJECTED{
+		document( csp( 16385U)),
+		document( otherTag),
+		document(
+			replace( longCsp, std::wstring{L"Content-Security-Policy"}, std::wstring{L"refresh"})),
+		document( replace( longCsp, std::wstring{L"data-report-uri"}, std::wstring{L"data-other"})),
+		document( replace( longCsp, std::wstring{L"https://"}, std::wstring{L"http://"})),
+		document( replace( longCsp, std::wstring{L"\" data-report-uri"},
+						 std::wstring{L"\"data-report-uri"})),
+		document( replace( longCsp, std::wstring{L"content=\""},
+						 std::wstring{L"content=\"x\" content=\""})),
+		document( replace( longCsp, std::wstring{L"/report\">"},
+						 std::wstring{L"/report\" data-other=\"x\">"})),
+		document( longCsp.substr( 0U, longCsp.size() - 2U)),
+		L"<html><head></head><body>" + longCsp + section + L"</body></html>",
+		L"<html><head></head><body><div id=\"fixture-license\">" + longCsp +
+			L"<p>Example License [v2026.10.14]</p></div></body></html>",
+		document( longCsp) + section,
+		replace( extended, std::wstring{L"data-rg-n=\"TitleText\""},
+				std::wstring{L"data-other=\"x\""}),
+		replace( extended, std::wstring{L"data-rg-n=\"TitleText\""},
+				std::wstring{L"onclick=\"invalid\""}),
+		replace( extended, std::wstring{L"layout#c1"}, std::wstring{L"layout c1"}),
+		replace( extended, std::wstring{L"layout#c1"},
+				// 構造の固定拒否集合です
+				std::wstring( 65U, L'x'))} ;
+	// 独立規約が部分抽出を返さないことまで確認します
+	for( const auto &invalid : REJECTED) {
+		expect( drivercrate::extractStaticHtmlTerms( invalid, binding, PAYLOAD, REVISION,
+												   observation) != 0U &&
+			   observation.document.empty() && observation.text.empty()) ;
+	}
+
+	const auto withLink =
+		extended +
+		L"<a href=\"https://example.com/license\">License</a>" ;	// 既存リンク検査の対照です
+	expect( !drivercrate::hasStaticHtmlDocumentLink( withLink, "https://example.com/license")) ;
+	expect( !drivercrate::visitPublicHtmlTags( withLink, []( const auto &) { return true ; })) ;
+	expect( drivercrate::extractStaticHtmlTerms( longCsp + page( section), extraction(), PAYLOAD,
+											   REVISION, observation) != 0U) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief Descriptor testだけで使う元Known textを要求型で読みます
  * @param[in,out] reader 同原descriptorのreaderです
  * @return 元Unknown理由または明示値です。能力へ昇格させません
@@ -402,17 +515,59 @@ void runSelectedInfRejection()
 		   publisher.empty()) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じUTF-16文字列へ表示するRTFの正例と、本文を返さない形式を確認します
+ * @note 元配布の本文は保存せず、英日とマルチバイト代替は架空文を使います
+ */
+//------------------------------------------------------------------------------
+void runRtf()
+{
+	const auto decode = []( const std::string_view raw, std::wstring &body) {
+		return drivercrate::decodeOfficialRtfTerms( std::as_bytes( std::span{raw}), body) ;
+	} ; // 原バイトを複製せず、変換中だけ生存する入力位置を渡します
+	std::wstring			   body = L"old" ;	// 前回結果を成功・拒否の両経路で置き換える出力です
+	constexpr std::string_view MIXED =
+		// 元段落、書式のscope、引用符とサロゲートを混ぜた正例です
+		R"rtf({\rtf1\ansi\ansicpg1252 1. \{\u21069?{\uc2\u24460\'ab\'a9}\u26085?\}\line\tab\'93\rquote\'94\par\par\uc0\u-10179\u-8704})rtf" ;
+	expect( decode( MIXED, body) && body == L"1. {前後日}\r\n\t\u201c\u2019\u201d\r\n\r\n\U0001f600") ;
+	constexpr std::array<std::string_view, 16> INVALID{
+		R"({\rtf1\ansi terms{\object data}})",
+		R"({\rtf1\ansi terms{\pict data}})",
+		R"({\rtf1\ansi terms{\field{\*\fldinst data}}})",
+		R"({\rtf1\ansi{\info\object data}terms})",
+		R"({\rtf1\ansi terms{\*\unknown extra}})",
+		R"({\rtf1\ansi terms\v hidden})",
+		R"({\rtf1\ansi terms\pn number})",
+		R"({\rtf1\ansi terms\itap1 table})",
+		R"({\rtf1\ansi terms\rtlch alternate})",
+		R"({\rtf1\ansi terms\bin10})",
+		R"({\rtf1\ansi terms\uc2\u65?})",
+		R"({\rtf1\ansi terms\uc0\u0})",
+		R"({\rtf1\ansi terms\uc0\u-10179})",
+		R"({\rtf1\ansi terms\uc0\u8238})",
+		R"({\rtf1\ansi\ansicpg1252 terms\'81})",
+		R"({\rtf1\ansi terms)"} ;	// 埋込み作用、本文消失、書式・文字集合の不明と閉じの欠落です
+	// 各拒否で前回の結果も部分本文も残らないことを確認します
+	for( const auto raw : INVALID) {
+		body = L"old" ;
+		expect( !decode( raw, body) && body.empty()) ;
+	}
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
 /**
- * @brief 固定した共通HTML/plain/schema/一INF拒否条件を一度ずつ検査します
+ * @brief 固定した公式規約のHTML、RTF、schemaと一INFの拒否条件を検査します
  * @return 全期待成功0、原失敗が一件以上あれば1です
  */
 //------------------------------------------------------------------------------
 int main()
 {
 	runHtml() ;
+	runRtf() ;
+	runStaticSectionLayout() ;
 	runSchema() ;
 	runSelectedInfRejection() ;
 	std::printf( "HTML_TERMS assertions=%u failures=%u realHttp=0 realDevice=0 realInstall=0\n",

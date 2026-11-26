@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_audit.cpp
  * @brief 取得後監査と表示候補の照合
- * @version 01.05.02
+ * @version 01.07.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -37,6 +37,9 @@
  * Ver.01.05.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
  * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.05.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.06.00 Shunji Ogawa  2026/11/23  元署名索引の同梱INF委譲表示を監査報告で検証
+ * Ver.01.07.00 Shunji Ogawa  2026/11/23  元検査行と同じ機器の未同意WiX候補だけを監査報告で受理
+ * Ver.01.07.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * </pre>
  *
  * @note 取得成功と独立した監査結果を扱い、全監査合格時だけ新規候補を検証します
@@ -210,6 +213,32 @@ bool validatePreparationCandidatePublication( const OfficialPreparationAuditRepo
 						candidate.assessment->windowsSelection.evidenceId
 				? candidate.assessment->windowsSelection.evidenceId
 				: 0U ;	// Private routeで実権限を別照合します
+		const bool wix =
+			!candidate.wixInspectionSourceIdentity.empty() ;	// 原規約を要する追加発行です
+		// 未同意で発行できるのは、同じ元取得と元検査行の単一起動候補だけです
+		if( wix) {
+			const auto source =
+				// 既表示の元検査行です
+				known.find( candidate.wixInspectionSourceIdentity) ;
+			// 同じ機器にある別の配布物や検査対象の合格を流用しません
+			if( bindingToken == 0U || candidate.eulaAccepted || report.installerHandoff ||
+			   report.publishedCandidates.size() != 1U || report.candidates.size() != 1U ||
+			   report.candidates.front().identity != candidate.wixInspectionSourceIdentity ||
+			   report.candidates.front().audit.systemApplicability !=
+				   CandidateAuditGateState::PASSED ||
+			   source == known.end() || source->second->current || source->second->installable ||
+			   source->second->deviceIdentity != candidate.deviceIdentity ||
+			   source->second->inspectionTargetIdentity != report.targetIdentity ||
+			   !source->second->wixInspectionSourceIdentity.empty() ||
+			   !source->second->preparationTargetIdentity.empty() ||
+			   !candidate.inspectionTargetIdentity.empty() ||
+			   !candidate.preparationTargetIdentity.empty() ||
+			   candidate.assessment->installMethod != CandidateInstallMethod::STANDARD_INF ||
+			   !candidate.storageChange || !candidate.storageChange->singleBoot) {
+				return false ;
+			}
+		}
+
 		// 全監査と同意、device対応、候補の一意性がそろわない発行結果をまとめて拒否する
 		if( candidate.identity.empty() || known.contains( candidate.identity) ||
 		   !identities.insert( candidate.identity).second ||
@@ -218,7 +247,7 @@ bool validatePreparationCandidatePublication( const OfficialPreparationAuditRepo
 		   candidate.packageIdentity.empty() || candidate.version.empty() || candidate.current ||
 		   candidate.recommended || !candidate.installable ||
 		   candidate.defaultPreference != CandidateDefaultPreference::NONE ||
-		   candidate.action == DriverAction::NONE || !candidate.eulaAccepted ||
+		   candidate.action == DriverAction::NONE || (!wix && !candidate.eulaAccepted) ||
 		   !candidate.allContentCached ||
 		   candidate.audit.sourceOrigin != CandidateAuditGateState::PASSED ||
 		   candidate.audit.inspectionDownload != CandidateAuditGateState::PASSED ||
@@ -368,6 +397,9 @@ bool validatePreparationAuditReports( const OfficialPreparationOperationResult &
 			}
 
 			UpdateCandidate candidate = *found->second ;	// 共通監査検証用の一時snapshot
+			// Windowsの標準構成へ委譲する候補に必要な監査状態を別に確認します
+			const bool		inboxDelegation =
+				row.audit.systemApplicability == CandidateAuditGateState::INBOX_NULL_DRIVER ;
 			// 現在版・選択候補の変更と、部分失敗からの非適用断定を禁止する
 			if( candidate.providerId != report.providerId || candidate.deviceIdentity.empty() ||
 			   candidate.current || candidate.installable || candidate.recommended ||
@@ -377,7 +409,11 @@ bool validatePreparationAuditReports( const OfficialPreparationOperationResult &
 			   row.audit.sourceOrigin != CandidateAuditGateState::PASSED ||
 			   row.audit.inspectionDownload != CandidateAuditGateState::PASSED ||
 			   row.audit.contentIntegrity != report.content ||
-			   !displayGate( row.audit.systemApplicability) ||
+			   (!displayGate( row.audit.systemApplicability) && !inboxDelegation) ||
+			   (inboxDelegation &&
+				(report.providerId != SIGNED_INDEX_PROVIDER_ID || report.installerHandoff ||
+				 report.content != CandidateAuditGateState::PASSED ||
+				 report.applicabilityError != 0U || report.examinedPairCount == 0U)) ||
 			   row.audit.installReadiness != CandidateInstallReadiness::BLOCKED ||
 			   (row.audit.systemApplicability == CandidateAuditGateState::PASSED &&
 				report.applicability != CandidateAuditGateState::PASSED) ||
@@ -407,8 +443,15 @@ bool validatePreparationAuditReports( const OfficialPreparationOperationResult &
 
 		// 発行済みの有限集合を、自己申告sessionでなく当該承認のsessionへ再照合する
 		for( const auto &candidate : report.publishedCandidates) {
+			const bool inspectionOnly =
+				decision->target.terms ==
+				OfficialPreparationTerms::INSPECTION_ONLY ;	// 規約未同意の元区分です
 			// 旧scanから流用した詳細を新規install authorityへ登録しない
-			if( !isCandidateDetailsValid( candidate, result.scanSessionId)) {
+			if( !isCandidateDetailsValid( candidate, result.scanSessionId) ||
+			   (!candidate.wixInspectionSourceIdentity.empty() != inspectionOnly) ||
+			   (inspectionOnly &&
+				(decision->eulaAccepted || decision->target.deviceCount != 1U ||
+				 item->result.state != OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION))) {
 				return false ;
 			}
 		}

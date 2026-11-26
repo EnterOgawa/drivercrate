@@ -307,6 +307,48 @@ def declaration_signatures(source):
     pairs = bracket_pairs(tokens)
     result = []
 
+    def initializer_body(index, end):
+        """各mem-initializerの閉delimiterを越え、constructor本体の開始だけを返す"""
+        while index < end:
+            first = index
+            angle = 0
+            while index < end:
+                value = tokens[index].text
+                if angle:
+                    if value in {'(', '[', '{'}:
+                        index = pairs[index]
+                    elif value == '<':
+                        angle += 1
+                    elif value in {'>', '>>'}:
+                        angle -= len(value)
+                        if angle < 0:
+                            raise ValueError('unbalanced initializer template')
+                elif value in {'(', '{'}:
+                    if index == first:
+                        raise ValueError('initializer id is missing')
+                    if value == '(' and tokens[index - 1].text == 'decltype':
+                        index = pairs[index] + 1
+                        continue
+                    break
+                elif value == '<':
+                    angle = 1
+                elif value != '::' and tokens[index].kind != 'identifier':
+                    raise ValueError('unsupported initializer id')
+                index += 1
+            if index == end or angle:
+                raise ValueError('initializer delimiter is missing')
+            # 内部のlambda/入れ子/呼出しは一組のinitializerに所有させる
+            index = pairs[index] + 1
+            if index < end and tokens[index].text == '...':
+                index += 1
+            if index < end and tokens[index].text == ',':
+                index += 1
+                continue
+            if index < end and tokens[index].text == '{':
+                return index
+            raise ValueError('initializer requires comma or constructor body')
+        raise ValueError('constructor body is missing')
+
     def walk(begin, end):
         index = begin
         while index < end:
@@ -318,13 +360,18 @@ def declaration_signatures(source):
                 index += 2
                 continue
             start = index
+            parsed = signature(source, tokens[start].start)
+            parsed.setdefault('begin', tokens[start].start)
             cursor = index
             while cursor < end and tokens[cursor].text not in {';', '{'}:
+                if (tokens[cursor].text == ':' and parsed['kind'] == 'method'
+                        and not parsed['return']
+                        and tokens[cursor].start >= parsed['argsEnd']):
+                    cursor = initializer_body(cursor + 1, end)
+                    break
                 if tokens[cursor].text in {'(', '['}:
                     cursor = pairs[cursor]
                 cursor += 1
-            parsed = signature(source, tokens[start].start)
-            parsed.setdefault('begin', tokens[start].start)
             if (parsed['kind'] in {'method', 'unknown'}
                     and parsed.get('name') not in {'static_assert', 'alignas', 'catch'}):
                 result.append(parsed)
@@ -332,7 +379,8 @@ def declaration_signatures(source):
                 break
             if tokens[cursor].text == '{':
                 closing = pairs[cursor]
-                if _scope_kind(tokens[start:cursor]) in {'namespace', 'class'}:
+                if (parsed['kind'] != 'method'
+                        and _scope_kind(tokens[start:cursor]) in {'namespace', 'class'}):
                     walk(cursor + 1, closing)
                 index = closing + 1
                 # 即時lambdaの呼出しpostfixは同じinitializerであり、新しい宣言ではない。
@@ -424,6 +472,8 @@ def method_contract_nodes(source):
                 nodes.append({'line': source.count('\n', 0, token.start) + 1,
                               'signature': parsed, 'errors': ['unparsed callable contract']})
             continue
+        # unknownも原宣言の開始へ結び、同じraw契約の有無を別nodeへ重複計上しない
+        parsed.setdefault('begin', code[bisect_left(code_starts, token.end)].start)
         errors = (['unsupported method signature: ' + parsed.get('reason', '')]
                   if parsed['kind'] == 'unknown' else contract_errors(source, token, parsed))
         covered.add(parsed.get('begin'))

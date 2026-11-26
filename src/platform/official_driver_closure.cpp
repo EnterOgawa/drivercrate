@@ -2,7 +2,7 @@
 /**
  * @file official_driver_closure.cpp
  * @brief 公式archiveの選択的driver閉包抽出実装
- * @version 01.11.01
+ * @version 01.19.01
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -42,9 +42,18 @@
  * Ver.01.10.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.11.00 Shunji Ogawa  2026/11/12  本人検査領域とsetup限定の公開親metadata権限へ整合
  * Ver.01.11.01 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.12.00 Shunji Ogawa  2026/11/15  非実行collectorのCopyINF import用途とrootを分離
+ * Ver.01.13.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.14.00 Shunji Ogawa  2026/11/18  CopyINF由来の限定registry-only内容と通常導入拒否を分離
+ * Ver.01.15.00 Shunji Ogawa  2026/11/19  対象媒体表の有効な共通行から標準圧縮ソースも実体化
+ * Ver.01.16.00 Shunji Ogawa  2026/11/22  選択収集INFとVersion指定CATを同じ元archiveに固定
+ * Ver.01.17.00 Shunji Ogawa  2026/11/22  署名と作用の検査へ同一の直接CABを明示
+ * Ver.01.18.00 Shunji Ogawa  2026/11/23  私有収集の固定元memberを選択抽出へ接続
+ * Ver.01.19.00 Shunji Ogawa  2026/11/24  収集専用クラス検査を元展開INFのハッシュに結合
+ * Ver.01.19.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * </pre>
  *
- * @note ZIP／CABの全entryを有限に事前検証し、INFを先に展開して参照閉包を確定後、CATと参照fileだけを追加展開します
+ * @note 全entryを有限に事前検証し、INFから参照閉包を確定します。公式Models範囲付き収集は選択INFとCATを先に展開します
  */
 //------------------------------------------------------------------------------
 
@@ -167,6 +176,8 @@ namespace {
 
 constexpr std::wstring_view NESTED_WORKSPACE_TAG =
 	L"driver-closure-nested" ;	// 一段archive専用workspace識別子
+constexpr std::uint64_t MAXIMUM_SCOPED_ROOT_INF_BYTES =
+	4ULL * 1024ULL * 1024ULL ;	// Version節先行読取りにも適用する既存の一INF上限
 
 //------------------------------------------------------------------------------
 // 内部型定義
@@ -186,6 +197,8 @@ struct ArchiveSource {
 	std::shared_ptr<const OfficialResourceContentPlan> resourcePlan ;
 	/// 同じarchive操作だけで共有する固定親/inner owner
 	std::shared_ptr<OfficialResourceContentReader>	   resourceReader ;
+	/// 私有収集の固定済み通常file。同じ同期操作以外では空
+	const CollectorArchiveMembers					  *collectorMembers{} ;
 } ;
 
 //------------------------------------------------------------------------------
@@ -488,6 +501,18 @@ NativeError prepareResourceReader( const ArchiveSource &source)
 											const OfficialDriverClosurePolicy &policy,
 											std::vector<OfficialZipEntry>	  &entries)
 {
+	// 形式parserで検証済みの私有元memberを同じ閉包inventoryへ投影する
+	if( source.collectorMembers) {
+		const auto files = source.collectorMembers->files() ;	// 元reader内だけで有効な一覧
+		entries.reserve( files.size()) ;
+		// 元名と長さだけを渡し、選択して書出すまでfileを作らない
+		for( const auto &file : files) {
+			entries.push_back( {std::wstring( file.relativePath), file.bytes.size()}) ;
+		}
+
+		return 0 ;
+	}
+
 	// 署名された原sliceからのflat roleを通常inventoryへ渡す
 	if( source.format == OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER) {
 		const auto error = prepareResourceReader( source) ;	// 元親/CRC/hashの診断
@@ -566,6 +591,91 @@ NativeError inspectArchive( const ArchiveSource &source, const OfficialDriverClo
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 私有収集用の選択memberを保護領域へ書き、元byteのhashを照合する
+ * @param[in] member 元readerから一意に解決した通常fileと元内容
+ * @param[in,out] workspace 今回だけの現在user保護領域
+ * @param[in] cancellation 同じ操作の同期取消し照会。空なら無効
+ * @param[out] entry 全書込みと元hash照合が成立したfile証拠。失敗時は更新しない
+ * @return 完了時0、元hash、取消し、作成、書込み、読戻し失敗はHRESULT
+ * @throws std::bad_alloc 元名やhashを確保できない場合
+ * @note 失敗した書出しを含め、この操作の作成済みfileはworkspace所有者が回収する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError writeCollectorArchiveMember( const CollectorArchiveMemberView &member,
+													  OfficialDownloadWorkspace		   &workspace,
+													  const std::function<bool()> &cancellation,
+													  OfficialZipEntry			  &entry)
+{
+	std::wstring digest ;	// 保存されるべき元内容の小文字hash
+	// 空fileにも元SHA-256を割り当て、非空fileはCNGで元バイト列を測る
+	if( member.bytes.empty()) {
+		digest = L"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" ;
+	} else {
+		// CNGの共通hash入口へbyteの別名参照を渡す。内容の文字変換は行わない
+		const auto *original =
+			static_cast<const char *>( static_cast<const void *>( member.bytes.data())) ;
+		// 書込み前に元メンバーのバイト列を閉包検証の照合値へ結合した結果
+		const auto hashed = computeDriverContainerSha256( {original, member.bytes.size()}, digest) ;
+		// 元hashを取得できない範囲は保存しない
+		if( hashed != 0) {
+			return hashed ;
+		}
+	}
+
+	// hash中に停止した場合は新規fileを作成しない
+	if( cancellation && cancellation()) {
+		return nativeErrorFromWin32( ERROR_CANCELLED) ;
+	}
+
+	HANDLE	   raw{INVALID_HANDLE_VALUE} ;									// CREATE_NEW成功後に移譲する所有handle
+	const auto created = workspace.createFile( member.relativePath, raw) ;	// 保護作成の元診断
+	// 既存fileや不正な親を上書きしない
+	if( created != 0) {
+		return created ;
+	}
+
+	{
+		const std::unique_ptr<void, decltype( &CloseHandle)> owner(
+			raw, CloseHandle) ;	// 書込みhandleの所有者
+		std::size_t offset{} ;	// 元範囲に対して確定した保存byte数
+		// 1 MiBずつ書き込み、取消しまたは長さ不一致で停止する
+		while( offset < member.bytes.size()) {
+			// 全体期限が来た場合は次の書込みを行わない
+			if( cancellation && cancellation()) {
+				return nativeErrorFromWin32( ERROR_CANCELLED) ;
+			}
+
+			const auto requested = static_cast<DWORD>(
+				std::min<std::size_t>( member.bytes.size() - offset, 1024U * 1024U)) ;	// 一回の要求長
+			DWORD written{} ;															// Win32が返した実書込み量
+			// I/O失敗と、成功扱いの短い保存を分ける
+			if( !WriteFile( owner.get(), member.bytes.data() + offset, requested, &written,
+						  nullptr)) {
+				return nativeErrorFromWin32( GetLastError()) ;
+			}
+
+			// 部分保存を完全な元memberへ補完しない
+			if( written != requested) {
+				return nativeErrorFromWin32( ERROR_WRITE_FAULT) ;
+			}
+
+			offset += written ;
+		}
+	}
+
+	const auto stored =
+		verifyOfficialFileMetadata( workspace.path( member.relativePath),
+								   {member.bytes.size(), digest}) ;	// 書込み完了後の実byte照合
+	// 書出した内容が元と一致した場合だけ後続のCAT検査へ送る
+	if( stored == 0) {
+		entry = {std::wstring( member.relativePath), member.bytes.size(), std::move( digest)} ;
+	}
+
+	return stored ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief Archive形式ごとに固定file群だけを展開する
  *
  * 選択外のutilityやapplicationをworkspaceへ書き出さない
@@ -583,6 +693,34 @@ NativeError inspectArchive( const ArchiveSource &source, const OfficialDriverClo
 	const std::span<const std::wstring_view> selectedFiles, OfficialDownloadWorkspace &workspace,
 	std::vector<OfficialZipEntry> &entries)
 {
+	// 私有元memberは共通閉包が決めた相対名だけを非実行で保存する
+	if( source.collectorMembers) {
+		const auto files = source.collectorMembers->files() ;	// 選択された元directory内の名前空間
+		// 元参照名を一意なentryへ解決し、全選択の保存が終わるまで閉包を公開しない
+		for( const auto name : selectedFiles) {
+			const auto original = std::ranges::find_if( files, [&]( const auto &file) {
+				return stringsEqual( name, file.relativePath) ;
+			}) ; // 検査済みWindows名前空間の全名照合
+			// 他directoryや外部の別fileから不足を補わない
+			if( original == files.end()) {
+				return nativeErrorFromWin32( ERROR_FILE_NOT_FOUND) ;
+			}
+
+			OfficialZipEntry entry ;	// 原hashと読戻し成功時に更新する出力metadata
+			// 選択メンバーを保護領域へ確定した診断値。元取消しを同じ操作へ適用する
+			const auto		 error = writeCollectorArchiveMember(
+				  *original, workspace, source.collectorMembers->cancellation(), entry) ;
+			// 保存または取消しの元診断を維持する
+			if( error != 0) {
+				return error ;
+			}
+
+			entries.push_back( std::move( entry)) ;
+		}
+
+		return 0 ;
+	}
+
 	// 端末はresource treeを走査せず元role名だけを保存する
 	if( source.format == OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER) {
 		const auto error = prepareResourceReader( source) ;	// 同じ原ownerの検査結果
@@ -805,6 +943,7 @@ NativeError extractArchiveFiles( const ArchiveSource				  &source,
  * @param[in,out] extracted 生存するINF/CAT/展開済み全参照fileの実hash付き一覧です
  * @param[in,out] transforms 同閉包が使用した原/展開tupleです
  * @return 全必要source実体化0、未知・曖昧・過大・解凍/実byte不一致はHRESULTです
+ * @param[in] includeCommonFallback AMD64専用表に加えて有効な共通媒体行も確認する場合true
  * @note Windowsの同期解凍だけを使います。payloadを実行せず、CATは後段で必須です
  */
 //------------------------------------------------------------------------------
@@ -813,11 +952,12 @@ NativeError materializeCompressedDriverSources(
 	OfficialDownloadWorkspace &workspace, std::wstring_view infPath,
 	const std::uint32_t archiveDepth, std::vector<OfficialZipEntry> &inventory,
 	std::vector<OfficialZipEntry>				&extracted,
-	std::vector<OfficialCompressedDriverSource> &transforms)
+	std::vector<OfficialCompressedDriverSource> &transforms, bool includeCommonFallback)
 {
 	std::vector<std::wstring> expectedSources ;	// 同元INF/媒体に結合した全source位置です
-	auto error = readOfficialInfSourcePaths( workspace, infPath, policy.infPolicy.maximumSourceFiles,
-											expectedSources) ;	// 原宣言診断です
+	auto					  error =
+		readOfficialInfSourcePaths( workspace, infPath, policy.infPolicy.maximumSourceFiles,
+								   expectedSources, includeCommonFallback) ;	// 原宣言診断です
 	// source位置の不成立を圧縮名の推測で救済しません
 	if( error != 0) {
 		return error ;
@@ -1422,15 +1562,15 @@ namespace {
  * @param[out] closure 全成功時だけ内容を保持する
  * @param[in] maintenanceOnly trueは非実行の内容検査専用で、導入許可を発行しない
  * @param[out] maintenance 保守専用結果。通常modeではnullptr、保守modeでは非null
+ * @param[in] collectorMembers 私有収集readerの固定元範囲。通常および保守ではnull
  * @return 参照と元identityが有効なら0、それ以外はHRESULT
  */
 //------------------------------------------------------------------------------
-static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &request,
-											const OfficialDriverClosurePolicy &policy,
-											OfficialDownloadWorkspace		  &workspace,
-											OfficialDriverClosure			  &closure,
-											const bool						   maintenanceOnly,
-											MaintenanceDriverClosure *maintenance = nullptr)
+static NativeError extractDriverClosureImpl(
+	const DriverClosureRequest &request, const OfficialDriverClosurePolicy &policy,
+	OfficialDownloadWorkspace &workspace, OfficialDriverClosure &closure,
+	const bool maintenanceOnly, MaintenanceDriverClosure *maintenance = nullptr,
+	const CollectorArchiveMembers *collectorMembers = nullptr)
 {
 	closure = {} ;
 	// 内容入力、workspace tag、INF数、閉包容量、深度上限を抽出前に検証する
@@ -1438,6 +1578,13 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 	   policy.maximumClosureFiles == 0 || policy.maximumClosureBytes == 0 ||
 	   policy.maximumExpansionRatio == 0 || policy.maximumNestedArchiveDepth > 1U ||
 	   (!request.nestedArchivePath.empty() && policy.maximumNestedArchiveDepth == 0U)) {
+		return static_cast<NativeError>( E_INVALIDARG) ;
+	}
+
+	// 公式配布範囲を収集専用の一選択rootへ結び、保守や導入要求に流用しない
+	if( request.scopedModels &&
+	   (maintenanceOnly || request.selectedInfPaths.size() != 1U ||
+		policy.infPolicy.purpose != OfficialInfInspectionPurpose::COLLECTOR_CONTENT)) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
 	}
 
@@ -1455,18 +1602,24 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 	}
 
 	NativeError error =
-		validateArchiveIdentity( acquisition.inspectionPath, acquisition.byteCount,
-								acquisition.sha256) ;	// 内容identityの解析前再検証結果
+		request.scopedModels || collectorMembers
+			? 0
+			: validateArchiveIdentity( acquisition.inspectionPath, acquisition.byteCount,
+									  acquisition.sha256) ;	// 通常の解析前再検証結果
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 	if( error != 0) {
 		return error ;
 	}
 
 	try {
-		ArchiveSource source{
-			acquisition.inspectionPath, request.archiveFormat, nullptr, acquisition.resourceContent,
-			acquisition.resourceContent ? std::make_shared<OfficialResourceContentReader>()
-										: nullptr} ;	// 実際にINFを検査するarchive
+		ArchiveSource source{acquisition.inspectionPath,
+							 request.archiveFormat,
+							 nullptr,
+							 acquisition.resourceContent,
+							 acquisition.resourceContent
+								 ? std::make_shared<OfficialResourceContentReader>()
+								 : nullptr,
+							 collectorMembers} ;	// 実際にINFを検査するarchive
 		// flat入力だけを同一操作・同一workspaceのcacheへ結びます
 		if( request.cache && request.nestedArchivePath.empty() && !maintenanceOnly) {
 			// 初回だけ元identityを固定し、別入力でのcache再利用を拒否します
@@ -1510,8 +1663,46 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 			}
 		}
 
+		OfficialMappedFile	  scopedOuter ;			// 共有cacheがない範囲付き操作の固定原入力
+		std::function<bool()> scopedCancellation ;	// 範囲付き操作の同期取消し照会
+		// 選択INFとCATが同じ元byteに由来するよう、共有または単独の固定中に全hashを照合する
+		if( request.scopedModels) {
+			// どちらかの同期取消しが成立すれば同じ選択の後続処理を中止する
+			scopedCancellation = [&source, models = request.scopedModels]() {
+				const auto *operation =
+					source.cache ? &source.cache->cancellation : nullptr ;	// 原共有操作の照会です
+				return (operation && *operation && (*operation)()) ||
+					   (models->cancellation && *models->cancellation && (*models->cancellation)()) ;
+			} ;
+
+			// 終了した操作では元archiveの解析を始めない
+			if( scopedCancellation()) {
+				return nativeErrorFromWin32( ERROR_CANCELLED) ;
+			}
+
+			// 単独callerも選択memberの全抽出が終わるまで原入力の書換えと置換を防ぐ
+			if( !source.cache) {
+				error = scopedOuter.open( source.path,
+										 source.format == OfficialDriverArchiveFormat::CABINET
+											 ? policy.cabPolicy.maximumArchiveBytes
+											 : policy.zipPolicy.maximumArchiveBytes) ;
+				// 固定できない元archiveは後段へ渡さない
+				if( error != 0) {
+					return error ;
+				}
+			}
+
+			error = validateArchiveIdentity( acquisition.inspectionPath, acquisition.byteCount,
+											acquisition.sha256) ;
+			// 固定した内容を取得時のidentityへ結べない場合は抽出しない
+			if( error != 0) {
+				return error ;
+			}
+		}
+
 		std::vector<OfficialZipEntry> sourceEntries ;	// 検査対象archiveの全通常file
 		OfficialDownloadWorkspace	  nestedWorkspace ;	// 外側から一段archiveだけを分離する保護領域
+		OfficialMappedFile			  scopedInner ;		// 領域回収より先に解放する内側固定入力
 		std::wstring				  nestedSha256 ;	// 一段archiveの展開直後identity
 		std::uint64_t				  nestedBytes{} ;	// 一段archiveの展開後byte数
 		std::uint32_t				  archiveDepth{} ;	// 現在の検査対象archive深度
@@ -1564,7 +1755,19 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 			nestedBytes	  = extractedNested.front().uncompressedSize ;
 			source.path	  = nestedWorkspace.path( extractedNested.front().relativePath) ;
 			source.format = nestedFormat ;
-			error		  = validateArchiveIdentity( source.path, nestedBytes, nestedSha256) ;
+			// 範囲付きの内側選択も、同じ内側原byteだけからINFとCATを取り出す
+			if( request.scopedModels) {
+				error = scopedInner.open( source.path,
+										 nestedFormat == OfficialDriverArchiveFormat::CABINET
+											 ? policy.cabPolicy.maximumArchiveBytes
+											 : policy.zipPolicy.maximumArchiveBytes) ;
+				// 内側の固定に失敗したときは外側identityだけで進めない
+				if( error != 0) {
+					return error ;
+				}
+			}
+
+			error = validateArchiveIdentity( source.path, nestedBytes, nestedSha256) ;
 			// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 			if( error != 0) {
 				return error ;
@@ -1605,6 +1808,26 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 			return error ;
 		}
 
+		std::vector<std::wstring> closurePaths ;	// INF、CAT、参照fileの一意閉包path群
+		// 先行読取りするrootにも展開前から既存の一INFと閉包の上限を適用する
+		if( request.scopedModels) {
+			const auto *root =
+				// 原一覧の選択INF
+				findEntry( sourceEntries, selectedInfPaths.front()) ;
+			// 選択metadataを再取得できない場合や大きすぎるINFをVersion読取りへ渡さない
+			if( !root || root->uncompressedSize > MAXIMUM_SCOPED_ROOT_INF_BYTES) {
+				return nativeErrorFromWin32( root ? ERROR_FILE_TOO_LARGE : ERROR_FILE_NOT_FOUND) ;
+			}
+
+			closurePaths.emplace_back( root->relativePath) ;
+			std::uint64_t initialBytes{} ;	// root単独の先行抽出量
+			error = validateClosureBudget( sourceEntries, closurePaths, policy, initialBytes) ;
+			// 先行抽出も閉包の累積上限内に限る
+			if( error != 0) {
+				return error ;
+			}
+		}
+
 		// 共有workspaceは同じ操作で一度だけ初期化します
 		error = source.cache && source.cache->initialized
 					? 0
@@ -1620,9 +1843,8 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 			return error ;
 		}
 
-		std::vector<OfficialZipEntry> extractedInfEntries ;	// 先行展開したINFとSHA-256
-		error =
-			extractArchiveFiles( source, policy, selectedInfPaths, workspace, extractedInfEntries) ;
+		std::vector<OfficialZipEntry> extractedEntries ;	// 先行展開したmemberとSHA-256
+		error = extractArchiveFiles( source, policy, selectedInfPaths, workspace, extractedEntries) ;
 		// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 		if( error != 0) {
 			return error ;
@@ -1638,7 +1860,7 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 
 			MaintenanceDriverClosure observed ;	// 全元archive再確認後だけ公開する結果
 			error = collectMaintenanceClosure( source, sourceEntries, selectedInfPaths, policy,
-											  workspace, extractedInfEntries, observed) ;
+											  workspace, extractedEntries, observed) ;
 			// 重大な全体失敗の部分閉包を返さない
 			if( error != 0) {
 				return error ;
@@ -1665,6 +1887,75 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 			return 0 ;
 		}
 
+		OfficialInfScopedModelsRequest scopedModels ;		// 選択rootだけに渡す派生入力
+		std::wstring				   scopedInfSha256 ;	// 参照file追加後も有効な抽出INFの原SHA-256
+		std::wstring scopedCatalogSha256 ;					// 参照file追加後も有効な抽出CATの原SHA-256
+		std::wstring scopedCatalogPath ;					// 選択INFが指定する同位置CAT
+		// 大きなModelsを評価する前に、同一archiveから選択INFの宣言するCATだけを先行抽出する
+		if( request.scopedModels) {
+			// 停止した処理をVersion読取りやCAT展開へ渡さない
+			if( scopedCancellation()) {
+				return nativeErrorFromWin32( ERROR_CANCELLED) ;
+			}
+
+			const auto *root =
+				// 原INF実byteの情報
+				findEntry( extractedEntries, selectedInfPaths.front()) ;
+			// 正式相対位置と有効な抽出hashのある選択一件だけを受理する
+			if( extractedEntries.size() != 1U || !root || !isSha256( root->sha256)) {
+				return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+			}
+
+			// 呼出元が固定した原INFを別の原byteへ結び直さない
+			if( !request.scopedModels->infSha256.empty() &&
+			   !stringsEqual( request.scopedModels->infSha256, root->sha256)) {
+				return nativeErrorFromWin32( ERROR_CRC) ;
+			}
+
+			scopedInfSha256 = root->sha256 ;
+			error = readOfficialInfCatalogPath( workspace, root->relativePath, scopedCatalogPath) ;
+			// 別位置の同名CATを検索せず、宣言取得失敗を保持する
+			if( error != 0) {
+				return error ;
+			}
+
+			appendUniquePath( closurePaths, scopedCatalogPath) ;
+			std::uint64_t initialBytes{} ;	// 同じ閉包予算に計上する先行INFとCATの合計
+			error = validateClosureBudget( sourceEntries, closurePaths, policy, initialBytes) ;
+			// CAT欠落と先行二件の閉包上限違反を抽出前に拒否する
+			if( error != 0) {
+				return error ;
+			}
+
+			const std::array			  selectedCatalog{	// 正式な同位置CAT一件
+											  std::wstring_view( scopedCatalogPath)} ;
+			std::vector<OfficialZipEntry> extractedCatalog ;	// 原CAT実byteのhash付き結果
+			error =
+				extractArchiveFiles( source, policy, selectedCatalog, workspace, extractedCatalog) ;
+			// CATの抽出と完全一致が成立しないままModelsを評価しない
+			if( error != 0 || extractedCatalog.size() != 1U ||
+			   !stringsEqual( extractedCatalog.front().relativePath, scopedCatalogPath) ||
+			   !isSha256( extractedCatalog.front().sha256)) {
+				return error != 0 ? error : nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+			}
+
+			// 呼出元が固定したCATと別の実byteを原署名検査へ渡さない
+			if( !request.scopedModels->catalogSha256.empty() &&
+			   !stringsEqual( request.scopedModels->catalogSha256,
+							 extractedCatalog.front().sha256)) {
+				return nativeErrorFromWin32( ERROR_CRC) ;
+			}
+
+			scopedCatalogSha256 = extractedCatalog.front().sha256 ;
+			extractedEntries.push_back( std::move( extractedCatalog.front())) ;
+			scopedModels			   = *request.scopedModels ;
+			scopedModels.infSha256	   = scopedInfSha256 ;
+			scopedModels.catalogSha256 = scopedCatalogSha256 ;
+			scopedModels.cancellation  = &scopedCancellation ;
+			scopedModels.sameDirectCabinet =
+				source.format == OfficialDriverArchiveFormat::CABINET && archiveDepth == 0U ;
+		}
+
 		infPolicy.rejectUnreferencedPrograms = false ;
 		infPolicy.rejectInstallActions		 = !maintenanceOnly ;
 		infPolicy.allowReferencedExecutablesForContent =
@@ -1674,8 +1965,7 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 			infPolicy.rejectExternalDependencies = false ;
 		}
 
-		std::vector<OfficialInfPackage> packages ;						// 全選択INFの静的構造
-		std::vector<std::wstring>		closurePaths ;					// INF、CAT、参照fileの一意閉包path群
+		std::vector<OfficialInfPackage>				packages ;			// 全選択INFの静的構造
 		std::vector<OfficialCompressedDriverSource> compressedSources ;	// 同位置の原/展開byteです
 		packages.reserve( selectedInfPaths.size()) ;
 		closurePaths.reserve( policy.maximumClosureFiles) ;
@@ -1684,6 +1974,11 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 			selectedInfPaths.size() ;
 		// 元選択と検証したCopyINF到達先だけを最大八件まで同じ保護閉包へ取り込みます
 		for( std::size_t infOrdinal = 0U; infOrdinal < selectedInfPaths.size(); ++infOrdinal) {
+			// 取消しを次の選択INFやCopyINFの読取りへ持ち越さない
+			if( scopedCancellation && scopedCancellation()) {
+				return nativeErrorFromWin32( ERROR_CANCELLED) ;
+			}
+
 			const std::wstring_view infPath =
 				selectedInfPaths[infOrdinal] ;	// 再確保するview配列とは独立の借用です
 			// 新しいCopyINF参照先だけを先行抽出し、別workspaceへの検索を行いません
@@ -1697,18 +1992,7 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 					return error != 0 ? error : nativeErrorFromWin32( ERROR_INVALID_DATA) ;
 				}
 
-				extractedInfEntries.push_back( std::move( extractedChild.front())) ;
-			}
-
-			// 原INFの全sourceを同位置の標準圧縮名からだけ実体化します
-			if( infPolicy.allowWindowsManagedDriverDataForContent) {
-				error = materializeCompressedDriverSources( source, policy, workspace, infPath,
-														   archiveDepth, sourceEntries,
-														   extractedInfEntries, compressedSources) ;
-				// 圧縮sourceの不成立を元名の欠損として隠しません
-				if( error != 0) {
-					return error ;
-				}
+				extractedEntries.push_back( std::move( extractedChild.front())) ;
 			}
 
 			OfficialInfPackage package ;		// 現在INFの全静的構造検証成功結果
@@ -1727,13 +2011,83 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 
 				importedClasses.front()			 = importedClass ;
 				currentInfPolicy.acceptedClasses = importedClasses ;
+				// 同原CopyINFから到達した内容だけに限定null companionを許可します
+				if( infPolicy.purpose == OfficialInfInspectionPurpose::COLLECTOR_CONTENT) {
+					currentInfPolicy.purpose =
+						OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT ;
+				}
+
+				// appの同storage原閉包だけに別の非権限import用途を記録します
+				if( infPolicy.purpose == OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE) {
+					currentInfPolicy.purpose =
+						!packages.empty() &&
+								packages.front().inspectionPurpose ==
+									OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE
+							? OfficialInfInspectionPurpose::REQUIRED_STORAGE_IMPORT
+							: OfficialInfInspectionPurpose::STANDARD_DRIVER ;
+				}
 			}
 
+			// 原INFの全sourceを同位置の標準圧縮名からだけ実体化する
+			if( currentInfPolicy.allowWindowsManagedDriverDataForContent) {
+				std::wstring deviceClass ;	// 端末の独自クラス判定が参照する元クラス名
+				const bool	 includeCommonFallback =
+					currentInfPolicy.purpose == OfficialInfInspectionPurpose::COLLECTOR_CONTENT ||
+					(currentInfPolicy.purpose ==
+						 OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE &&
+					 readOfficialInfImportClass( workspace, infPath, deviceClass) == 0 &&
+					 std::ranges::none_of( currentInfPolicy.acceptedClasses, [&]( auto accepted) {
+						 return stringsEqual( accepted, deviceClass) ;
+					 })) ; // 共通の有効媒体行も確認する内容root
+				error = materializeCompressedDriverSources(
+					source, policy, workspace, infPath, archiveDepth, sourceEntries,
+					extractedEntries, compressedSources, includeCommonFallback) ;
+				// 圧縮ソースの失敗を元名の欠落として扱わない
+				if( error != 0) {
+					return error ;
+				}
+			}
+
+			const auto *models = request.scopedModels && infOrdinal == 0U
+									 ? &scopedModels
+									 : nullptr ;	// 元の一選択だけに結ぶ公式範囲です
 			error = inspectOfficialInfPackage( workspace, sourceEntries, infPath, currentInfPolicy,
-											  package) ;
+											  package, models) ;
 			// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 			if( error != 0) {
 				return error ;
+			}
+
+			// 収集の追加クラスを原アーカイブの同じ展開INFに結び付けてから閉包へ入れる
+			if( !package.collectorClassInfSha256.empty()) {
+				const auto *original =
+					// 元書庫から得た展開記録
+					findEntry( extractedEntries, infPath) ;
+				// 差替えや原ハッシュの欠損を署名検査の成功へ渡さない
+				if( !original || original->sha256 != package.collectorClassInfSha256) {
+					return static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+				}
+			}
+
+			// 選択rootの構造が先行抽出した位置と一致しない場合は閉包を返さない
+			if( models && (!stringsEqual( package.infRelativePath, infPath) ||
+						  !stringsEqual( package.catalogRelativePath, scopedCatalogPath))) {
+				return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+			}
+
+			// registry-only分類は元CopyINFから追加したcollector子にだけ結合します
+			if( package.requiredRegistryOnlyCompanion &&
+			   (infOrdinal < initialInfCount || package.requiredNullCompanion ||
+				currentInfPolicy.purpose !=
+					OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT ||
+				!std::ranges::any_of(
+					packages,
+					[&]( const auto &parent) {
+						return std::ranges::any_of( parent.requiredInfPaths, [&]( const auto &path) {
+							return stringsEqual( path, infPath) ;
+						}) ;
+					}))) {
+				return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
 			}
 
 			// 全節CopyINFのimport内容を検査します。独立baseの機能導入許可は発行しません
@@ -1776,15 +2130,12 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 			return error ;
 		}
 
-		std::vector<std::wstring_view> remainingPaths ;	// INF以外のCATと参照file path群
+		std::vector<std::wstring_view> remainingPaths ;	// 実体をまだ保持していない閉包path群
 		remainingPaths.reserve( closurePaths.size()) ;
-		// 先行展開済みINFを除き、閉包の残りfileを後段展開対象にする
+		// 先行展開済みINF、共有CAT、展開済み参照fileだけを再利用する
 		for( const std::wstring &path : closurePaths) {
-			// 先に抽出した選択INFを除き、残り参照fileだけを追加抽出へ回す
-			if( std::ranges::none_of( extractedInfEntries,
-									[&path]( const OfficialZipEntry &entry) noexcept {
-										return stringsEqual( path, entry.relativePath) ;
-									})) {
+			// 未抽出の同位置memberだけを追加展開する
+			if( !findEntry( extractedEntries, path)) {
 				remainingPaths.push_back( path) ;
 			}
 		}
@@ -1800,9 +2151,9 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 			}
 		}
 
-		extractedInfEntries.insert( extractedInfEntries.end(),
-								   std::make_move_iterator( extractedRemaining.begin()),
-								   std::make_move_iterator( extractedRemaining.end())) ;
+		extractedEntries.insert( extractedEntries.end(),
+								std::make_move_iterator( extractedRemaining.begin()),
+								std::make_move_iterator( extractedRemaining.end())) ;
 
 		std::vector<OfficialZipEntry> closureEntries ;	// 閉包path順に並べ直すHash付きentry群
 		closureEntries.reserve( closurePaths.size()) ;
@@ -1810,7 +2161,7 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 		for( const std::wstring &path : closurePaths) {
 			const OfficialZipEntry *extracted =
 				// 対応する展開済みentry
-				findEntry( extractedInfEntries, path) ;
+				findEntry( extractedEntries, path) ;
 			// 抽出entryや有効hashが欠ける不完全な閉包を公開しない
 			if( extracted == nullptr || !isSha256( extracted->sha256)) {
 				return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
@@ -1828,11 +2179,19 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
 			}
 		}
 
-		error = validateArchiveIdentity( acquisition.inspectionPath, acquisition.byteCount,
-										acquisition.sha256) ;
-		// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
-		if( error != 0) {
-			return error ;
+		// 固定reader以外ではpathの原identityを展開完了後にも照合する
+		if( !collectorMembers) {
+			error = validateArchiveIdentity( acquisition.inspectionPath, acquisition.byteCount,
+											acquisition.sha256) ;
+			// 元identityを失った展開結果を公開しない
+			if( error != 0) {
+				return error ;
+			}
+		}
+
+		// 元byteの検査が完了しても取消し済みの閉包証拠を渡さない
+		if( scopedCancellation && scopedCancellation()) {
+			return nativeErrorFromWin32( ERROR_CANCELLED) ;
 		}
 
 		closure.entries			  = std::move( closureEntries) ;
@@ -1860,7 +2219,8 @@ static NativeError extractDriverClosureImpl( const DriverClosureRequest		  &requ
  * @param[in,out] workspace 未初期化の出力領域。生成fileをscope終了まで所有する
  * @param[out] closure 全成功時だけ閉包を保持し、失敗時は空
  * @return 静的検査と解析前後のsize／hash一致時0、それ以外はHRESULT
- * @note Worker内でblockingする。署名、由来、PnP、導入許可は別の検証を必要とする
+ * @note Worker内でblockingする。公式範囲は収集用の一選択INFだけに結び、同元CATを先行抽出する
+ *       全参照fileの署名、由来、PnP、導入許可は別の検証を必要とする
  */
 //------------------------------------------------------------------------------
 NativeError extractDriverClosure( const DriverClosureRequest		   &request,
@@ -1869,6 +2229,38 @@ NativeError extractDriverClosure( const DriverClosureRequest		   &request,
 								 OfficialDriverClosure			   &closure)
 {
 	return extractDriverClosureImpl( request, policy, workspace, closure, false) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 私有収集readerが固定した元通常fileから単一INFの内容閉包を抽出する
+ * @param[in] members 原archiveと同じ操作で検査した元範囲
+ * @param[in] request 同じ元入力、完全な選択INF相対名一件とworkspace tag
+ * @param[in] policy 収集専用のINF・閉包上限
+ * @param[in,out] workspace 未作成の現在user検査領域。生成物を同期呼出し後も所有する
+ * @param[out] closure 全参照の抽出成功時だけ保持する閉包
+ * @return 抽出成功時0、元選択、内容、取消し、作成失敗はHRESULT
+ * @note 読取りはメモリーの固定元範囲に限定する。端末導入や通常の形式選択には接続しない
+ */
+//------------------------------------------------------------------------------
+NativeError extractCollectorArchiveClosure( const CollectorArchiveMembers	 &members,
+										   const DriverClosureRequest		 &request,
+										   const OfficialDriverClosurePolicy &policy,
+										   OfficialDownloadWorkspace		 &workspace,
+										   OfficialDriverClosure			 &closure)
+{
+	closure = {} ;
+	// 元readerの本人検査と異なる保護・選択・共有cacheへ接続しない
+	if( request.input != &members.input() ||
+	   members.input().workspaceMode != OfficialWorkspaceMode::CURRENT_USER_INSPECTION ||
+	   members.input().resourceContent || request.selectedInfPaths.size() != 1U ||
+	   !request.nestedArchivePath.empty() || request.cache || request.scopedModels ||
+	   policy.infPolicy.purpose != OfficialInfInspectionPurpose::COLLECTOR_CONTENT ||
+	   members.files().empty() || members.files().size() > policy.zipPolicy.maximumEntryCount) {
+		return E_INVALIDARG ;
+	}
+
+	return extractDriverClosureImpl( request, policy, workspace, closure, false, nullptr, &members) ;
 }
 
 //------------------------------------------------------------------------------

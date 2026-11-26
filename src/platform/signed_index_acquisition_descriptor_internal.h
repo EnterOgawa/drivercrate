@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_descriptor_internal.h
  * @brief 署名索引の取得descriptorに限定した共通型読取りと整合検査を宣言します
- * @version 01.04.02
+ * @version 01.06.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -27,6 +27,8 @@
  * Ver.01.04.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続
  * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.04.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.05.00 Shunji Ogawa  2026/11/22  専用欄の正規配布票と用途を共有
+ * Ver.01.06.00 Shunji Ogawa  2026/11/22  私有収集が使用するZIP規約宣言の読み取りを追加
  * </pre>
  *
  * @note Network、DNS、grant、同意、候補や導入許可は発行しません
@@ -59,7 +61,7 @@ using TextValueReader = IndexObservedValue<std::string> (*)( DescriptorReader &)
  * @note DNS・実宛先・公式性・到達性を確認しません。不成立はcodecの固定拒否へ中断します
  */
 //------------------------------------------------------------------------------
-void									  requireUrl( std::string_view value, bool pageQuery) ;
+void						   requireUrl( std::string_view value, bool pageQuery) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -68,7 +70,7 @@ void									  requireUrl( std::string_view value, bool pageQuery) ;
  * @note PAGEの数値selectorをpayload用途へ追加しません
  */
 //------------------------------------------------------------------------------
-void									  requirePayloadUrl( std::string_view value) ;
+void						   requirePayloadUrl( std::string_view value) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -77,7 +79,17 @@ void									  requirePayloadUrl( std::string_view value) ;
  * @note sourceのdistributionPageと公式性attestationはrequireUrlでPAGEとして別検査します
  */
 //------------------------------------------------------------------------------
-void									  requireEvidenceUrl( std::string_view value) ;
+void						   requireEvidenceUrl( std::string_view value) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元Catalog配布票の正規URLから一件の公開更新IDを参照します
+ * @param[in] value 領域固有の公式配布票URL候補です
+ * @return 固定HTTPS起点、正規queryと同一GUID二箇所が揃う場合の借用IDです。不一致は空です
+ * @note 一般の取得URL、通信許可または他のquery用途を検証しません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] std::string_view catalogDownloadDialogUpdateId( std::string_view value) noexcept ;
 
 //------------------------------------------------------------------------------
 /**
@@ -95,12 +107,14 @@ void									  requireEvidenceUrl( std::string_view value) ;
  * @brief Descriptorのv1全13fieldまたはv2全14fieldと全入れ子をstrict readerで読みます
  * @param[in,out] reader 原recordの有限reader。呼出し中だけ借用します
  * @param[in] readText 既存Known textの同期parser。Null不可、参照を保持しません
+ * @param[in] scopedModels 専用欄の配布票を証拠として読む場合trueです
  * @return 全構造検査を成功した元申告。取得能力はありません
  * @note Source・manifest・record方式への結合はvalidateBindingで別に検査します
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] IndexAcquisitionDescriptor readDescriptor( DescriptorReader &reader,
-														TextValueReader	  readText) ;
+														TextValueReader	  readText,
+														bool			  scopedModels = false) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -110,6 +124,16 @@ void									  requireEvidenceUrl( std::string_view value) ;
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] IndexAcquisitionTerms		 readTermsValue( std::string_view raw) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 私有収集でZIP規約の必須証拠がある宣言を型付きで読み取ります
+ * @param[in] raw 閉じた取得記述子の規約JSONです。呼出し中だけ借用します
+ * @return 元ZIPと規約文書の照合条件です。通信や同意の根拠を発行しません
+ * @throws signed_index_json::Failure<IndexRecordsStatus> 不正な形式またはZIP規約証拠の欠落です
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] IndexAcquisitionTerms		 readCollectorArchiveTermsValue( std::string_view raw) ;
 
 //------------------------------------------------------------------------------
 /**

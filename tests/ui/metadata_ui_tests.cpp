@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_tests.cpp
  * @brief 製品と同じWin32画面の情報検索専用内部試験
- * @version 01.54.13
+ * @version 01.68.01
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -112,6 +112,22 @@
  * Ver.01.54.11 Shunji Ogawa  2026/11/14  導入後の推奨表示から処理済み対象だけを除外
  * Ver.01.54.12 Shunji Ogawa  2026/11/14  下部の短い候補件数と部分失敗・保存問題の分離を確認
  * Ver.01.54.13 Shunji Ogawa  2026/11/14  明示DPIの外周契約と全候補での処理結果閲覧を確認
+ * Ver.01.55.00 Shunji Ogawa  2026/11/16  storage開始方式/共有値/必要登録の既詳細表示を検証
+ * Ver.01.56.00 Shunji Ogawa  2026/11/17  元scan保持と必要子の限定正負を画面操作へ接続
+ * Ver.01.57.00 Shunji Ogawa  2026/11/19  初回クラス登録の詳細と最終確認での取消しを確認
+ * Ver.01.58.00 Shunji Ogawa  2026/11/20  通常のインストール操作で機器別ファームウェア確認を検証
+ * Ver.01.59.00 Shunji Ogawa  2026/11/21  共有起動ログ設定を該当候補の詳細に表示することを確認
+ * Ver.01.60.00 Shunji Ogawa  2026/11/22  共有補助サービスの候補詳細と最終確認の取消しを検証
+ * Ver.01.61.00 Shunji Ogawa  2026/11/22  共有補助サービスの確認結果と診断を実詳細で検証
+ * Ver.01.62.00 Shunji Ogawa  2026/11/23  自動起動型の候補詳細と共有作用の最終確認を検証
+ * Ver.01.63.00 Shunji Ogawa  2026/11/23  イベント用DLLのコピー先を詳細と取消し確認で検証
+ * Ver.01.64.00 Shunji Ogawa  2026/11/23  単一起動の変更範囲と明示確認の取消しを検証
+ * Ver.01.65.00 Shunji Ogawa  2026/11/23  単一起動の三状態と診断を役割結果の表示で検証
+ * Ver.01.66.00 Shunji Ogawa  2026/11/23  WiX検査専用の詳細操作と通常選択の保持を検証
+ * Ver.01.66.01 Shunji Ogawa  2026/11/23  内容検査済みの結果表示を独立して検証
+ * Ver.01.67.00 Shunji Ogawa  2026/11/23  同じ候補にだけ表示する英日規約の閲覧を確認
+ * Ver.01.68.00 Shunji Ogawa  2026/11/23  WiX規約の最終確認取消しと失効時の不実行を検証
+ * Ver.01.68.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * </pre>
  *
  * @note 明示optionでのみ起動し、実device・network・取得・復旧・導入へ接続しない
@@ -868,6 +884,57 @@ struct MainWindowMetadataTestAccess {
 						   window.controller_.state() == ApplicationState::CREATING_RESTORE_POINT) ;
 		return window.controller_.state() == ApplicationState::CREATING_RESTORE_POINT ;
 	}
+
+	/**
+	 * @brief 残る架空候補の表示に指定の共有作用を付与または解除する
+	 * @param[in,out] window 残る一選択を保持する試験用Window
+	 * @param[in] change 付与する表示専用の作用。空の場合は解除する
+	 * @return 対象が一つに確定し表示値を変更できた場合true
+	 */
+	static bool setRemainingStorageChange( MainWindow						 &window,
+										  std::optional<StorageChangeSummary> change)
+	{
+		// 残る元候補の選択位置
+		const auto checked = window.checkedCandidateIndexes() ;
+		// 一件に確定した候補がある場合だけ試験用表示を変更する
+		if( checked.size() != 1U || checked.front() >= window.candidates_.size()) {
+			return false ;
+		}
+
+		window.candidates_[checked.front()].storageChange = std::move( change) ;
+		return true ;
+	}
+	/**
+	 * @brief 残る一選択に検査済みWiXの表示を付けて主画面案内を更新します
+	 * @param[in,out] window 残る一選択を保持する試験用Windowです
+	 * @param[in] terms 同じ元機器の人工規約です。空なら表示を解除します
+	 * @return 一件の候補が特定できた場合trueです
+	 * @note テスト用表示だけを変更し、導入経路は作りません
+	 */
+	static bool setRemainingWixTerms( MainWindow									&window,
+									 std::shared_ptr<const WixTermsPresentation> terms)
+	{
+		const auto checked = window.checkedCandidateIndexes() ;	// 残る元候補の選択位置です
+		// 一件に確定した元候補だけに試験用表示を結びます
+		if( checked.size() != 1U || checked.front() >= window.candidates_.size()) {
+			return false ;
+		}
+
+		auto &candidate = window.candidates_[checked.front()] ;	// 同じ元機器の表示です
+		// 元規約と候補への参照は一緒に作成・解除します
+		if( terms) {
+			candidate.wixInspectionSourceIdentity = L"wix-terms-original-fixture" ;
+			window.wixTermsByCandidate_.insert_or_assign(
+				candidate.wixInspectionSourceIdentity,
+				MainWindow::WixTermsDisplay{candidate.deviceIdentity, std::move( terms)}) ;
+		} else {
+			window.wixTermsByCandidate_.erase( candidate.wixInspectionSourceIdentity) ;
+			candidate.wixInspectionSourceIdentity.clear() ;
+		}
+
+		window.updateCommandState() ;
+		return true ;
+	}
 	/** @brief 実queueから取り出した最大64eventの非機密な順序観測です */
 	struct IndexTerminalTrace {
 		/// 受信順の実event種類です。count未満の要素だけが有効です
@@ -1291,6 +1358,215 @@ struct MainWindowMetadataTestAccess {
 										window.checkedCandidateIndexes().size() == result.size() &&
 										IsWindowEnabled( window.installButton_)) ;
 		return result ;
+	}
+	/**
+	 * @brief 同じ配布と必須版を持つ別端末二台を同一スキャンに表示します
+	 * @param[in,out] window 完全fake workerを持つ所有Windowです
+	 * @param[in,out] context 原assertion集計先です
+	 * @param[in] deviceNames 対象端末、相手端末の順の表示名です
+	 * @param[in] firmwareVersion 公式表を模した両端末共通の必須版です
+	 */
+	static void showFirmwareConfirmationFixture(
+		MainWindow &window, test::TestContext &context,
+		const std::array<std::wstring_view, 2U> &deviceNames,
+		const std::wstring_view					 firmwareVersion)
+	{
+		const auto begin =
+			// 通常の状態機械で新しいスキャンを開始します
+			window.controller_.beginScan() ;
+		DRIVERCRATE_EXPECT( context, begin.accepted) ;
+		// 元操作のない完了通知は渡しません
+		if( !begin.accepted) {
+			return ;
+		}
+
+		const ScanSessionId session = 5302U ;	// 二台の現在行と取得計画を結ぶ人工セッションです
+		// 架空スキャンの終端を同操作と取得計画に結ぶ通知
+		WorkerEvent			event{.kind			   = WorkerEventKind::SCAN_COMPLETED,
+								  .operationId	   = begin.operationId,
+								  .scanResult	   = {.succeeded	 = true,
+													  .scanSessionId = session,
+													  .outcome		 = OutcomeCode::SUCCESS},
+								  .preparationPlan = OfficialPreparationPlan{
+							  session, 1U, {4096U, 8192U, 8192U, 2U, 2U}, {}}} ;
+		// 同じ配布ID・資源ID・版の二台を個別の取得対象へ結びます
+		for( std::size_t index{}; index < deviceNames.size(); ++index) {
+			const auto		suffix = std::to_wstring( index) ;	// fixture内で端末を区別します
+			UpdateCandidate current ;							// 同じ端末の現在行です
+			current.identity	   = L"firmware-current-" + suffix ;
+			current.deviceIdentity = L"firmware-device-" + suffix ;
+			current.model		   = deviceNames[index] ;
+			current.version		   = L"1.0.0.0" ;
+			current.providerId	   = DRIVER_STORE_PROVIDER_ID ;
+			current.current		   = true ;
+			current.discoveryBasis = CandidateDiscoveryBasis::LOCAL_INVENTORY ;
+			current.audit		   = makeWindowsManagedCandidateAudit( true) ;
+			event.scanResult.candidates.push_back( current) ;
+
+			OfficialPreparationTarget target ;	// 対象端末だけを承認できる元snapshotです
+			target.identity			= L"firmware-target-" + suffix ;
+			target.providerId		= SIGNED_INDEX_PROVIDER_ID ;
+			target.resourceId		= L"firmware-shared-resource" ;
+			target.releaseIdentity	= L"firmware-shared-release" ;
+			target.parserRevision	= 1U ;
+			target.maximumBytes		= 4096U ;
+			target.deviceCount		= 1U ;
+			target.terms			= OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
+			target.prerequisiteText = L"対象デバイス " + current.model +
+									  L"\r\n必要なファームウェアバージョン " +
+									  std::wstring{firmwareVersion} + L"\r\n" ;
+			target.requiresPrerequisiteConfirmation = true ;
+			target.firmwareCondition				= OfficialPlatformFirmwareCondition{
+				   current.deviceIdentity, index, std::wstring{firmwareVersion}} ;
+
+			UpdateCandidate pending ;	// 同じ端末の未検査参照です
+			pending.identity	   = L"firmware-reference-" + suffix ;
+			pending.deviceIdentity = current.deviceIdentity ;
+			pending.model		   = current.model ;
+			pending.version		   = L"2.0.0.0" ;
+			pending.providerId	   = SIGNED_INDEX_PROVIDER_ID ;
+			pending.discoveryBasis = CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
+			pending.audit		   = makeOfficialDiscoveryCandidateAudit() ;
+			pending.preparationTargetIdentity = target.identity ;
+			event.scanResult.candidates.push_back( std::move( pending)) ;
+			event.preparationPlan->targets.push_back( std::move( target)) ;
+		}
+
+		// 元候補の先頭を選んでも、計画の先頭にある相手端末は選ばれません
+		std::ranges::reverse( event.preparationPlan->targets) ;
+		window.showRecommendedOnly_ = false ;
+		SendMessageW( window.recommendedOnlyCheckbox_, BM_SETCHECK, BST_UNCHECKED, 0) ;
+		window.processWorkerEvent( event) ;
+	}
+	/**
+	 * @brief 元WiX検査二件と通常導入の参照一件を通常スキャン終端へ渡します
+	 * @param[in,out] window 通信と導入を行わないworkerの所有Window
+	 * @param[in,out] context 元assertionの集計先
+	 * @note 署名索引workerが返すDTOだけをここで模し、署名や転送の成功を生成しません
+	 */
+	static void showWixInspectionFixture( MainWindow &window, test::TestContext &context)
+	{
+		const auto begin = window.controller_.beginScan() ;	// 正規状態機械の新しいスキャンです
+		DRIVERCRATE_EXPECT( context, begin.accepted) ;
+		// 元操作なしでは完了通知を適用しません
+		if( !begin.accepted) {
+			return ;
+		}
+
+		constexpr ScanSessionId SESSION = 5303U ;	// 模擬候補と元取得計画の共通識別子です
+		constexpr std::array<std::wstring_view, 3> TITLES{
+			L"Fixture WiX package", L"Fixture standard driver",
+			L"Fixture peer WiX package"} ;	// 各元候補を表示で区別する架空名です
+		WorkerEvent event{.kind			   = WorkerEventKind::SCAN_COMPLETED,
+						  .operationId	   = begin.operationId,
+						  .scanResult	   = {.succeeded	 = true,
+											  .scanSessionId = SESSION,
+											  .outcome		 = OutcomeCode::SUCCESS},
+						  .preparationPlan = OfficialPreparationPlan{
+							  SESSION, 1U, {4096U, 12288U, 12288U, 3U, 3U}, {}}} ;	// UI用の元終端
+		// 現在行と一参照ずつを架空の三機器へ結び、同じ表示名の機器で誤選択を検出します
+		for( std::size_t index{}; index < TITLES.size(); ++index) {
+			const auto		suffix = std::to_wstring( index) ;	// fixture内で一機器を区別します
+			UpdateCandidate current ;							// 同deviceの現在版だけを表示します
+			current.identity	   = L"wix-fixture-current-" + suffix ;
+			current.deviceIdentity = L"wix-fixture-device-" + suffix ;
+			current.model		   = L"Fixture Adapter" ;
+			current.version		   = L"1.0.0.0" ;
+			current.providerId	   = DRIVER_STORE_PROVIDER_ID ;
+			current.current		   = true ;
+			current.discoveryBasis = CandidateDiscoveryBasis::LOCAL_INVENTORY ;
+			current.audit		   = makeWindowsManagedCandidateAudit( true) ;
+			event.scanResult.candidates.push_back( current) ;
+
+			const bool inspect = index != 1U ;	// 両端の対象だけに検査専用の操作を与えます
+			OfficialPreparationTarget target ;	// 製品と同じ照合を受ける元計画の一件です
+			target.identity		   = L"wix-fixture-target-" + suffix ;
+			target.providerId	   = SIGNED_INDEX_PROVIDER_ID ;
+			target.resourceId	   = L"wix-fixture-resource-" + suffix ;
+			target.releaseIdentity = L"wix-fixture-release-" + suffix ;
+			target.parserRevision  = 1U ;
+			target.maximumBytes	   = 4096U ;
+			target.deviceCount	   = 1U ;
+			target.terms		   = inspect ? OfficialPreparationTerms::INSPECTION_ONLY
+											 : OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
+
+			UpdateCandidate reference ;	// いずれも取得前で、実導入資格を持ちません
+			reference.identity		 = L"wix-fixture-reference-" + suffix ;
+			reference.deviceIdentity = current.deviceIdentity ;
+			reference.model			 = current.model ;
+			reference.title			 = TITLES[index] ;
+			reference.version		 = current.version ;
+			reference.providerId	 = SIGNED_INDEX_PROVIDER_ID ;
+			reference.discoveryBasis = CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
+			reference.audit			 = makeOfficialDiscoveryCandidateAudit() ;
+			(inspect ? reference.inspectionTargetIdentity : reference.preparationTargetIdentity) =
+				target.identity ;
+			event.scanResult.candidates.push_back( std::move( reference)) ;
+			event.preparationPlan->targets.push_back( std::move( target)) ;
+		}
+
+		// 計画の先頭と表示の先頭を別にして、順番だけで取得先を決める回帰を検出します
+		std::ranges::reverse( event.preparationPlan->targets) ;
+		event.indexPreparation.plannedTargets = TITLES.size() ;
+		window.showRecommendedOnly_			  = false ;
+		SendMessageW( window.recommendedOnlyCheckbox_, BM_SETCHECK, BST_UNCHECKED, 0) ;
+		window.processWorkerEvent( event) ;
+	}
+	/**
+	 * @brief 検査対象を変えずに元表示候補の識別子を差し替えます
+	 * @param[in,out] window 架空スキャンを保持する同UI threadのWindow
+	 * @param[in,out] identity 現候補と交換する所有ID。再交換で元へ戻します
+	 * @note 詳細を開いている間にスナップショットだけを古くする負例です
+	 */
+	static void swapWixInspectionFixtureIdentity( MainWindow &window, std::wstring &identity)
+	{
+		window.candidates_.at( 1U).identity.swap( identity) ;
+	}
+	/**
+	 * @brief 検査行の導入不可と元の明示選択が実Treeに保持されることを確認します
+	 * @param[in] window 取得前または終端後に実Treeを表示したWindow
+	 * @param[in,out] context 元assertionの集計先
+	 * @param[in] hasSelection 通常導入の参照一件を本人が選択済みならtrue
+	 */
+	static void verifyWixInspectionSelection( const MainWindow &window, test::TestContext &context,
+											 const bool hasSelection)
+	{
+		const auto checked = window.checkedCandidateIndexes() ;	// 同Treeの実checkboxを読みます
+		DRIVERCRATE_EXPECT( context,
+						   window.candidates_.size() == 6U && window.candidateItems_.size() == 6U &&
+							   (IsWindowEnabled( window.installButton_) != FALSE) == hasSelection) ;
+		DRIVERCRATE_EXPECT( context, hasSelection ? checked == std::vector<std::size_t>{3U}
+												 : checked.empty()) ;
+		// 二つの検査行を独立に読み、元選択なしの時だけ確認できる状態へ限定しません
+		for( const auto index : {1U, 5U}) {
+			const auto &candidate = window.candidates_.at( index) ;		// 元の検査専用候補です
+			const auto	item	  = window.candidateItems_.at( index) ;	// 機器の実Tree行です
+			DRIVERCRATE_EXPECT(
+				context, item && !candidate.installable &&
+							 !window.isSelectableCandidate( candidate) &&
+							 !window.controller_.isInstallCandidateAllowed( candidate.identity) &&
+							 (TreeView_GetItemState( window.updateTree_, item, TVIS_STATEIMAGEMASK) &
+							  TVIS_STATEIMAGEMASK) == 0U) ;
+		}
+	}
+	/**
+	 * @brief 終端の内容通知が同じ検査候補へ受理されたことを確認します
+	 * @param[in] window 人工の取得終端を通常dispatchへ渡したWindow
+	 * @param[in,out] context 元assertionの集計先
+	 * @param[in] operation 実詳細が開始した元取得操作番号
+	 */
+	static void verifyWixInspectionTerminal( const MainWindow &window, test::TestContext &context,
+											const OperationId operation)
+	{
+		const auto &summary = window.indexPreparationSummary_ ;	// UIが受理した結果そのものです
+		DRIVERCRATE_EXPECT( context,
+						   summary.operationId == operation && summary.items.size() == 1U &&
+							   summary.items.front().targetIdentity == L"wix-fixture-target-0" &&
+							   summary.items.front().inputBound &&
+							   summary.items.front().content ==
+								   IndexedDriverInspectionState::INSPECTION_COMPLETED &&
+							   summary.items.front().acceptedInfCount == 1U &&
+							   summary.items.front().contentError == 0U) ;
 	}
 	/**
 	 * @brief 固定した事前案内が実control幅で折り返され、下段まで収まることを確認します
@@ -1813,11 +2089,13 @@ struct MainWindowMetadataTestAccess {
 	 * @param[out] unexpectedScans 非nullは待つ種類以外のscan終端数を加算します。同期中だけ借用します
 	 * @param[out] trace 非nullは受信した種類とoperationを最大64件保存します。同期中だけ借用します
 	 * @param[in] timeout 同期待機の有限上限です。原archive条件だけ明示指定します
-	 * @return 五秒以内の実終端、または未到達nulloptです
+	 * @param[in] observer 非nullの場合だけ実eventをdispatch前に同期観測します
+	 * @return 指定時間内の実終端、または未到達nulloptです
 	 */
 	static std::optional<WorkerEvent> takeIndexTerminal(
 		MainWindow &window, WorkerEventKind kind, std::size_t *unexpectedScans = nullptr,
-		IndexTerminalTrace *trace = nullptr, std::chrono::seconds timeout = std::chrono::seconds{5})
+		IndexTerminalTrace *trace = nullptr, std::chrono::seconds timeout = std::chrono::seconds{5},
+		const std::function<void( const WorkerEvent &)> *observer = nullptr)
 	{
 		const auto deadline =
 			// 同workerの有限待機です
@@ -1826,6 +2104,11 @@ struct MainWindowMetadataTestAccess {
 		while( std::chrono::steady_clock::now() < deadline) {
 			// 実queueから受信した通知だけを通常dispatchへ渡します
 			for( auto &event : window.worker_->takeEvents()) {
+				// 診断を明示した場合だけ元eventをdispatch前に観測します
+				if( observer && *observer) {
+					(*observer)( event) ;
+				}
+
 				// 有限な受信順だけを保持し、本文・URL・端末IDを観測へ含めません
 				if( trace != nullptr) {
 					// 容量不足を黙って正常観測にしません
@@ -1988,6 +2271,28 @@ struct MainWindowMetadataTestAccess {
 	static std::span<const UpdateCandidate> indexCandidates( const MainWindow &window)
 	{
 		return window.candidates_ ;
+	}
+	/**
+	 * @brief 同じ選択候補のUI用クラス登録情報だけを試験値へ差し替えます
+	 * @param[in,out] window 実際に選択した元候補を所有するWindowです
+	 * @param[in] identity 元候補のopaque identityです。呼出し中だけ借用します
+	 * @param[in] registration 表示の架空値です。空で通常の元表示に戻します
+	 * @return 製品の詳細表示本文です。元候補が見つからない場合は空です
+	 */
+	static std::wstring setSetupClassRegistrationForUi(
+		MainWindow &window, const std::wstring &identity,
+		std::optional<SetupClassRegistrationSummary> registration)
+	{
+		const auto candidate =
+			std::ranges::find( window.candidates_, identity,
+							  &UpdateCandidate::identity) ;	// 選択した元候補だけを書き換えます
+		// 元候補が存在しない場合は別候補へ架空情報を付けません
+		if( candidate == window.candidates_.end()) {
+			return {} ;
+		}
+
+		candidate->setupClassRegistration = std::move( registration) ;
+		return window.formatCandidateDetails( *candidate) ;
 	}
 	/**
 	 * @brief 通常rowの未選択と元candidateへのcheckbox対応を確認します
@@ -2163,11 +2468,12 @@ struct MainWindowMetadataTestAccess {
 	 * @param[in] identity このWindowが保持する元選択candidateの非秘密identityです。同期中だけ借用します
 	 * @param[in] baseStatus 固定caseが要求する基本役割のresource IDです
 	 * @param[in] extensionStatus 固定caseが要求する必要Extensionのresource IDです
+	 * @param[in] session 元scanのsessionです。表示保持と導入権限を分けて確認します
 	 * @note 一候補の人工行だけを同期取得し、Windows個別反映の成功を生成しません
 	 */
 	static void verifyExtensionRoleRows( const MainWindow &window, test::TestContext &context,
 										const std::wstring_view identity, const UINT baseStatus,
-										const UINT extensionStatus)
+										const UINT extensionStatus, const ScanSessionId session)
 	{
 		const auto view =
 			// 本物controlと結果columnの元snapshotです
@@ -2183,7 +2489,8 @@ struct MainWindowMetadataTestAccess {
 			&UpdateCandidate::identity) ;	// 未選択DriverStore行と元選択計画を区別します
 		DRIVERCRATE_EXPECT( context, found != window.candidates_.end() &&
 										view.size() == window.candidates_.size() * 2U &&
-										window.controller_.scanSessionId() == 0U &&
+										session != 0U &&
+										window.controller_.scanSessionId() == session &&
 										!IsWindowEnabled( window.installButton_)) ;
 		// 元選択行を失った結果を別候補の本文へ付け替えません
 		if( found == window.candidates_.end()) {
@@ -2327,9 +2634,11 @@ struct MainWindowMetadataTestAccess {
 	 * @param[in,out] context Assertion集計先です
 	 * @param[in] result 実workerの個別結果です
 	 * @param[in] retainedRetry 復元開始前の失敗で元選択の再試行を確認する場合trueです
+	 * @param[in] componentResult 固定base/component両API完了の表示を検査する場合trueです
 	 */
 	static void verifyIndexResultRows( MainWindow &window, test::TestContext &context,
-									  const InstallResult &result, const bool retainedRetry = false)
+									  const InstallResult &result, const bool retainedRetry = false,
+									  const bool componentResult = false)
 	{
 		// 復元前に止まった対象は元sessionと選択を保ち、同じ条件で再確認できます
 		if( retainedRetry) {
@@ -2390,13 +2699,29 @@ struct MainWindowMetadataTestAccess {
 			const auto &status =
 				window.candidateResultTexts_[index] ;	// 詳細へ表示する同candidateの個別結果です
 			const UINT expectedStatus =
-				result.restorePointCreation.outcome == OutcomeCode::FAILURE
+				componentResult ? IDS_INDEX_PLAN_RESULTS
+				: result.restorePointCreation.outcome == OutcomeCode::FAILURE
 					? IDS_RESTORE_POINT_NOT_CREATED
 				: item.installOutcome == OutcomeCode::SUCCESS
 					? IDS_INSTALL_SUCCEEDED
 					: IDS_INSTALL_FAILED ;	// 復旧拒否と実導入失敗を区別する元契約です
 			DRIVERCRATE_EXPECT( context, status.find( window.loadString( expectedStatus)) !=
 											std::wstring::npos) ;
+			// 固定C02ではbaseとcomponentが各API完了の順に表示されます
+			if( componentResult) {
+				// 元baseの役割見出しと完了表示です
+				const auto base = status.find( window.loadString( IDS_INDEX_ROLE_BASE)) ;
+				// 元componentの役割見出しです
+				const auto component = status.find( window.loadString( IDS_INDEX_ROLE_COMPONENT)) ;
+				// 二役割に共通する実API完了の文言です
+				const auto completed = window.loadString( IDS_INDEX_ROLE_API_COMPLETED) ;
+				// 固定された二役割と各完了の順序を要求します
+				DRIVERCRATE_EXPECT(
+					context, base != std::wstring::npos && component != std::wstring::npos &&
+								 base < component && status.find( completed, base) < component &&
+								 status.find( completed, component) != std::wstring::npos) ;
+			}
+
 			// 元失敗HRESULTも同じ結果rowへ残します
 			if( item.installError != 0) {
 				std::wostringstream diagnostic ;	// 同元HRESULTの全32bitを比較します
@@ -2420,9 +2745,13 @@ struct MainWindowMetadataTestAccess {
 	 * @brief 元二候補の固定役割結果だけを表示専用入力として与えます
 	 * @param[in,out] window 実worker終端により既に失効したWindowです
 	 * @param[in] result 二候補の元部分結果です。変更しません
+	 * @param[in] reflection 一件目の基本役割に付けるストレージ作用の反映確認結果
+	 * @param[in] singleBoot 単一起動の結果として表示する場合true。falseでは補助サービス
 	 * @note 役割fixtureは元native結果ではありません。Providerやcontrollerを再実行しません
 	 */
-	static void displayRoleHistoryFixture( MainWindow &window, const InstallResult &result)
+	static void displayRoleHistoryFixture( MainWindow &window, const InstallResult &result,
+										  const DriverStorageReflectionResult &reflection,
+										  bool								   singleBoot = false)
 	{
 		auto fixture = result ;	// 実worker結果と分ける表示専用copyです
 		// 不完全な元部分結果から別候補の役割を補完しません
@@ -2430,13 +2759,15 @@ struct MainWindowMetadataTestAccess {
 			return ;
 		}
 
-		// 一件目は基本と必要componentの指定API完了だけを表します
+		// 一件目は指定API完了と、基本役割の異なる経路の反映結果をいずれか一つ保持する
 		fixture.updates[0].requiredRoles = {
-			{.role			 = DriverPlanRole::BASE_DRIVER,
-			 .ordinal		 = 1U,
-			 .stageOutcome	 = OutcomeCode::SUCCESS,
-			 .installOutcome = OutcomeCode::SUCCESS,
-			 .reflection	 = DriverPlanReflectionState::INSTALL_API_COMPLETED},
+			{.role				= DriverPlanRole::BASE_DRIVER,
+			 .ordinal			= 1U,
+			 .stageOutcome		= OutcomeCode::SUCCESS,
+			 .installOutcome	= OutcomeCode::SUCCESS,
+			 .reflection		= DriverPlanReflectionState::INSTALL_API_COMPLETED,
+			 .auxiliaryService	= singleBoot ? std::nullopt : std::optional{reflection},
+			 .singleBootStorage = singleBoot ? std::optional{reflection} : std::nullopt},
 			{.role			 = DriverPlanRole::DRIVER_COMPONENT,
 			 .ordinal		 = 2U,
 			 .stageOutcome	 = OutcomeCode::SUCCESS,
@@ -3107,6 +3438,65 @@ struct MainWindowMetadataTestAccess {
 		DRIVERCRATE_EXPECT( context, detailedText.find( window.loadString(
 										IDS_ASSESSMENT_STATE_UNSUPPORTED)) != std::wstring::npos) ;
 		DRIVERCRATE_EXPECT( context, detailedText.find( candidate.identity) == std::wstring::npos) ;
+		// 同じ既詳細formatterへ元storage範囲を渡し、表示から導入許可が増えないことを確認します
+		for( const auto start : {0U, 1U, 3U}) {
+			auto storage = candidate ;	// 非実行の表示用copyです。元workerの資格には使いません
+			storage.assessment->installMethod = CandidateInstallMethod::STANDARD_INF ;
+			storage.storageChange			  = StorageChangeSummary{start, 7U, 90U, 1U, true} ;
+			storage.storageChange->configuresAutoLogger				  = start == 0U ;
+			storage.storageChange->configuresAuxiliaryService		  = start != 1U ;
+			storage.storageChange->configuresAutomaticStorageSettings = start == 0U ;
+			const auto text =
+				// 既詳細と同じ実formatterの本文です
+				window.formatCandidateDetails( storage) ;
+			DRIVERCRATE_EXPECT(
+				context,
+				text.find( window.loadString( start == 0U	  ? IDS_STORAGE_START_BOOT
+											: start == 1U ? IDS_STORAGE_START_SYSTEM
+														  : IDS_STORAGE_START_DEMAND)) !=
+						text.npos &&
+					text.find( L"起動時の読み込み条件（BootFlags）: 7") != text.npos &&
+					text.find( L"ディスク共通の応答待ち時間（秒）: 90") != text.npos &&
+					text.find( L"必要なINFの登録数: 1") != text.npos &&
+					text.find( window.loadString( IDS_STORAGE_SHARED_EFFECT_NOTE)) != text.npos &&
+					(text.find( window.loadString( IDS_STORAGE_AUTOLOGGER_NOTICE)) != text.npos) ==
+						(start == 0U) &&
+					(text.find( window.loadString( IDS_STORAGE_AUXILIARY_SERVICE_NOTICE)) !=
+					 text.npos) == (start == 3U) &&
+					(text.find( window.loadString( IDS_STORAGE_AUTOMATIC_SETTINGS_NOTICE)) !=
+					 text.npos) == (start == 0U) &&
+					text.find( window.loadString( IDS_STORAGE_EVENT_RESOURCE_NOTICE)) == text.npos &&
+					!storage.installable) ;
+			// イベント用DLLを指定した候補だけ既存詳細で配置先を表示する
+			if( start == 0U) {
+				storage.storageChange->sharedDllCount = 1U ;
+				const auto withResource =
+					// 同じ詳細のDLL付き本文
+					window.formatCandidateDetails( storage) ;
+				DRIVERCRATE_EXPECT( context,
+								   withResource.find( window.loadString(
+									   IDS_STORAGE_EVENT_RESOURCE_NOTICE)) != withResource.npos &&
+									   withResource.find( window.loadString( IDS_MTD_SHARED_DLLS)) ==
+										   withResource.npos &&
+									   !storage.installable) ;
+			}
+		}
+
+		auto singleBoot = candidate ;	// 導入資格を持たない詳細表示だけの検証値
+		singleBoot.storageChange.emplace().singleBoot = SingleBootStorageChangeSummary{
+			StoragePlannedChange::CREATE, StoragePlannedChange::KEEP, 2U, 8U, 2U} ;
+		const auto singleBootDetails =
+			// 候補詳細の表示結果
+			window.formatCandidateDetails( singleBoot) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			singleBootDetails.find( L"起動サービスとドライバーファイル（SYS）を新規作成") !=
+					singleBootDetails.npos &&
+				singleBootDetails.find( L"システムログのイベント記録元を現状維持") !=
+					singleBootDetails.npos &&
+				singleBootDetails.find( L"電源設定の追加・変更は 2 件") != singleBootDetails.npos &&
+				!singleBoot.installable) ;
+
 		changed		   = candidate ;
 		changed.action = DriverAction::NONE ;
 		changed.assessment.reset() ;
@@ -7732,6 +8122,8 @@ enum class DialogMode {
 	INDEX_INSTALL_ACCEPT,
 	/// 同じ確認本文を読む実確認へ明示NOを送ります
 	INDEX_INSTALL_CANCEL,
+	/// 元の機器別ファームウェア確認だけを操作します
+	FIRMWARE_CONFIRMATION,
 	/// 本体が確定した個別導入結果を案内する標準dialogを読みます
 	INDEX_INSTALL_RESULT,
 	/// 旧候補の導入commandが出した対象再選択案内を読みます
@@ -7795,6 +8187,14 @@ struct DialogState {
 	HWND				  owner{} ;
 	/// 今回操作するdialog種別
 	DialogMode			  mode{DialogMode::ACCEPT} ;
+	/// 同じ確認本文に表示する対象端末の名前です。同期dialog中だけ借用します
+	std::wstring_view	  firmwareDeviceName{} ;
+	/// 確認本文に表示しない相手端末の名前です。同期dialog中だけ借用します
+	std::wstring_view	  firmwarePeerName{} ;
+	/// 対象端末の公式必須版です。同期dialog中だけ借用します
+	std::wstring_view	  firmwareVersion{} ;
+	/// 機器別のYES/NO、0はEnterで既定NOを選びます
+	int					  firmwareResponse{} ;
 	/// 初期選択空を検査済みの場合true
 	bool				  handled{} ;
 	/// Queue拒否に伴う固定error dialogを期待する場合true
@@ -7853,6 +8253,12 @@ struct DialogState {
 	bool				  detailSelectable{true} ;
 	/// 非0なら同deviceの全観測・候補entry数を照合する
 	unsigned			  detailEntryCount{} ;
+	/// 空でなければ実ボタンの表示文言を照合する同期中の借用値
+	std::wstring_view	  detailActionText{} ;
+	/// 空でなければ選択行の区分列を照合する同期中の借用値
+	std::wstring_view	  detailStateText{} ;
+	/// 実ボタンを押す直前にのみ渡すスナップショット差替えの試験処理
+	std::function<void()> detailBeforeChoice ;
 } ;
 
 //------------------------------------------------------------------------------
@@ -8304,8 +8710,10 @@ void CALLBACK dialogTimer( HWND window, UINT message, UINT_PTR timer, DWORD tick
 		return ;
 	}
 
-	auto	  &state = *activeDialog ;						// 単一UI threadの現在scope
-	const HWND popup = GetLastActivePopup( state.owner) ;	// この試験の所有dialogだけを探す
+	auto	  &state = *activeDialog ;	// 単一UI threadの現在scope
+	const HWND popup = state.inlineTermsView
+						   ? GetWindow( state.owner, GW_ENABLEDPOPUP)
+						   : GetLastActivePopup( state.owner) ;	// 規約を開く詳細自体も所有popupである
 	// 原取得dialogの識別失敗を有限なcontrol IDだけで診断し、本文は出力しません
 	if( isPreparationDialogMode( state.mode) && popup != nullptr && popup != state.owner &&
 	   IsWindowVisible( popup) && state.popupObservations++ == 0U) {
@@ -8330,7 +8738,46 @@ void CALLBACK dialogTimer( HWND window, UINT message, UINT_PTR timer, DWORD tick
 		// 五秒を超える未処理dialogを残さず、試験失敗として閉じる
 		if( ++state.ticks > 250U) {
 			state.failed = true ;
-			SendMessageW( popup, WM_COMMAND, IDCANCEL, 0) ;
+			SendMessageW( popup, WM_COMMAND,
+						 state.mode == DialogMode::FIRMWARE_CONFIRMATION && GetDlgItem( popup, IDNO)
+							 ? IDNO
+							 : IDCANCEL,
+						 0) ;
+			return ;
+		}
+
+		// 指定端末の元本文と既定NOを確認した標準dialogだけに本人判断を送ります
+		if( state.mode == DialogMode::FIRMWARE_CONFIRMATION && GetDlgItem( popup, IDYES) &&
+		   GetDlgItem( popup, IDNO)) {
+			bool matches{} ;	// 対象端末と必須版だけを示す同一本文があればtrueです
+			// 同じ所有dialogの子だけを調べ、他端末の確認を承認しません
+			for( HWND child = GetWindow( popup, GW_CHILD); child != nullptr;
+				child	   = GetWindow( child, GW_HWNDNEXT)) {
+				const auto body = windowText( child) ;	// 子controlの元表示値です
+				matches |= body.find( state.firmwareDeviceName) != std::wstring::npos &&
+						   body.find( state.firmwareVersion) != std::wstring::npos &&
+						   body.find( state.firmwarePeerName) == std::wstring::npos ;
+			}
+
+			const auto defaultButton = SendMessageW( popup, DM_GETDEFID, 0, 0) ;	// 実既定buttonです
+			state.failed |= state.handled || !matches || !IsWindowEnabled( popup) ||
+							IsWindowEnabled( state.owner) || HIWORD( defaultButton) != DC_HASDEFID ||
+							LOWORD( defaultButton) != IDNO ;
+			state.handled = true ;
+			// Enterは既定buttonを介すため、本人判断のWM_COMMANDを直接作りません
+			if( !state.failed && state.firmwareResponse == 0) {
+				MSG key{.hwnd	 = popup,
+						.message = WM_KEYDOWN,
+						.wParam	 = VK_RETURN} ;	// 当該dialogだけへ届けるEnterです
+				state.failed = IsDialogMessageW( popup, &key) == FALSE ;
+				// 標準処理で扱えた場合はその結果に任せます
+				if( !state.failed) {
+					return ;
+				}
+			}
+
+			SendDlgItemMessageW( popup, state.failed ? IDNO : state.firmwareResponse, BM_CLICK, 0,
+								0) ;
 			return ;
 		}
 
@@ -8528,9 +8975,11 @@ void CALLBACK dialogTimer( HWND window, UINT message, UINT_PTR timer, DWORD tick
 		if( (details != nullptr || candidates != nullptr) && state.mode == DialogMode::DETAILS) {
 			// 原規約の任意閲覧には同意buttonを置かず、偽装commandでも終了・承認しません
 			if( state.inlineTermsView) {
-				DRIVERCRATE_EXPECT( *state.context, GetDlgItem( popup, IDYES) == nullptr &&
-													   GetDlgItem( popup, IDNO) == nullptr &&
-													   GetDlgItem( popup, IDOK) != nullptr) ;
+				DRIVERCRATE_EXPECT( *state.context,
+								   GetDlgItem( popup, IDYES) == nullptr &&
+									   GetDlgItem( popup, IDNO) == nullptr &&
+									   GetDlgItem( popup, IDOK) != nullptr &&
+									   (GetWindowLongPtrW( details, GWL_STYLE) & ES_READONLY) != 0) ;
 				SendMessageW( popup, WM_COMMAND, IDYES, 0) ;
 				DRIVERCRATE_EXPECT( *state.context, IsWindow( popup) != FALSE) ;
 			}
@@ -8843,6 +9292,19 @@ void CALLBACK dialogTimer( HWND window, UINT message, UINT_PTR timer, DWORD tick
 
 				DRIVERCRATE_EXPECT( *state.context, (IsWindowEnabled( GetDlgItem( popup, IDYES)) !=
 													FALSE) == state.detailSelectable) ;
+				// C++側のresource選択ではなく実controlの文言を確認します
+				if( !state.detailActionText.empty()) {
+					DRIVERCRATE_EXPECT( *state.context, windowText( GetDlgItem( popup, IDYES)) ==
+														   state.detailActionText) ;
+				}
+
+				// Hoverの要約と区別して、対象行の区分列に確定表示された文を読みます
+				if( !state.detailStateText.empty()) {
+					wchar_t classification[256]{} ;	// 当該セルの短い表示文だけです
+					ListView_GetItemText( candidates, state.detailEntry, 4, classification, 256) ;
+					DRIVERCRATE_EXPECT( *state.context,
+									   std::wstring_view{classification} == state.detailStateText) ;
+				}
 			}
 
 			// 初回paintがmessage loopを一巡するまで画像/適用を保留し、同じ所有snapshotを維持します
@@ -8987,6 +9449,11 @@ void CALLBACK dialogTimer( HWND window, UINT message, UINT_PTR timer, DWORD tick
 				}
 
 				return ;
+			}
+
+			// 元詳細を表示した後の差替えだけを、実button直前に試験します
+			if( state.detailBeforeChoice) {
+				state.detailBeforeChoice() ;
 			}
 
 			// 明示選択fixtureだけが実buttonを押し、他は閉じるだけでselectionを維持する
@@ -10012,6 +10479,120 @@ void runTargetOnlyLocalUiScenario( TestContext &context, const bool latestView =
 			DRIVERCRATE_EXPECT( context, input.observeHttp().sends == 0U &&
 											bound.observe().installs == 1U &&
 											!Access::takeSearchContinuation( window)) ;
+			// 同じ通常更新に各方式の共有作用を付与し、最終確認の取消しを独立に検証する
+			if( latestView) {
+				// 各方式の共有作用と、その最終確認で表示する本文
+				const std::array<std::pair<StorageChangeSummary, std::wstring_view>, 5> notices{
+					{{StorageChangeSummary{.configuresAutoLogger = true},
+					  L"共有起動ログ（AutoLogger）"},
+					 {StorageChangeSummary{.configuresAuxiliaryService = true},
+					  L"共有補助サービスを追加または更新します。実行ファイルが使用中の場合、"
+					  L"置き換えが再起動まで保留されることがあります。"},
+					 {StorageChangeSummary{.configuresAutoLogger			   = true,
+										   .configuresAuxiliaryService		   = true,
+										   .configuresAutomaticStorageSettings = true},
+					  L"ストレージ用のACPIと電源の共有設定"},
+					 {StorageChangeSummary{.sharedDllCount					   = 1U,
+										   .configuresAutoLogger			   = true,
+										   .configuresAuxiliaryService		   = true,
+										   .configuresAutomaticStorageSettings = true},
+					  L"イベント用DLLをWindowsのSystem32にコピーします"},
+					 {StorageChangeSummary{
+						  .singleBoot = SingleBootStorageChangeSummary{StoragePlannedChange::CREATE,
+																	   StoragePlannedChange::KEEP,
+																	   2U, 8U, 2U}},
+					  L"起動サービスとドライバーファイル（SYS）を新規作成"}}} ;
+				// 各作用の最終確認を取り消し、復元と導入の呼出回数が増えないことを確認する
+				for( const auto &[change, notice] : notices) {
+					const bool configured =
+						// 元の一選択だけに架空の作用を設定できた場合true
+						Access::setRemainingStorageChange( window, change) ;
+					DRIVERCRATE_EXPECT( context, configured) ;
+					// 最終確認の対象が一つに決まらなければ操作を発行しない
+					if( !configured) {
+						break ;
+					}
+
+					// この共有作用の最終確認で取消しを選ぶ架空操作
+					DialogState cancel{.context = &context,
+									   .owner	= handle,
+									   .mode	= DialogMode::INDEX_INSTALL_CANCEL} ;
+					{
+						// 現在のWindowに属する最終確認だけを操作する監督
+						DialogDriver driver( cancel) ;
+						Access::beginIndexInstallCommand( window) ;
+					}
+
+					DRIVERCRATE_EXPECT(
+						context,
+						cancel.handled && !cancel.failed &&
+							cancel.details.find( notice) != cancel.details.npos &&
+							(cancel.details.find( L"イベント用DLLをWindowsのSystem32") !=
+							 cancel.details.npos) == (change.sharedDllCount != 0U) &&
+							(!change.configuresAutomaticStorageSettings ||
+							 cancel.details.find( L"実行ファイルが使用中") == cancel.details.npos) &&
+							(!change.singleBoot ||
+							 (cancel.details.find( L"システムログのイベント記録元を現状維持") !=
+								  cancel.details.npos &&
+							  cancel.details.find( L"電源設定の追加・変更は 2 件") !=
+								  cancel.details.npos &&
+							  cancel.details.find( L"このデバイスの設定値の追加・変更は 8 件") !=
+								  cancel.details.npos &&
+							  cancel.details.find( L"起動サービスの設定値の追加・変更は 2 件") !=
+								  cancel.details.npos)) &&
+							bound.observe().restoreBegins == 1U && bound.observe().installs == 1U) ;
+				}
+
+				const auto now = std::chrono::floor<std::chrono::seconds>(
+					// 実画面と同じ時計の人工規約時刻です
+					std::chrono::system_clock::now()) ;
+				const auto terms =
+					std::make_shared<const WixTermsPresentation>( WixTermsPresentation{
+						now - std::chrono::minutes{1},
+						now + std::chrono::minutes{1},
+						{{L"ja-JP", L"試験用の利用規約"}}}) ;	// 元候補に結ぶ一言語の本文です
+				const bool wixReady =
+					Access::setRemainingStorageChange( window, notices.back().first) &&
+					Access::setRemainingWixTerms( window, terms) &&
+					IsWindowEnabled(
+						// 実ボタンが同じ元規約を認識します
+						GetDlgItem( handle, IDC_INSTALL)) ;
+				DRIVERCRATE_EXPECT( context, wixReady) ;
+				// 実ボタンが有効な場合だけ、元規約と変更内容を表示した同じ確認を取り消します
+				if( wixReady) {
+					DialogState cancel{
+						.context = &context,
+						.owner	 = handle,
+						.mode	 = DialogMode::INDEX_INSTALL_CANCEL} ;	// 取消しを選ぶ人工判断です
+					{
+						DialogDriver driver( cancel) ;	// 同じWindowの最終確認だけを操作します
+						Access::beginIndexInstallCommand( window) ;
+					}
+					DRIVERCRATE_EXPECT(
+						context,
+						cancel.handled && !cancel.failed &&
+							cancel.details.find( L"メーカー利用規約") != cancel.details.npos &&
+							cancel.details.find( notices.back().second) != cancel.details.npos &&
+							bound.observe().restoreBegins == 1U && bound.observe().installs == 1U) ;
+				}
+
+				const auto expired =
+					std::make_shared<const WixTermsPresentation>( WixTermsPresentation{
+						now - std::chrono::minutes{2}, now - std::chrono::minutes{1},
+						terms->documents}) ;	// 本文が同じでも失効した元表示です
+				DRIVERCRATE_EXPECT( context, Access::setRemainingWixTerms( window, expired) &&
+												!IsWindowEnabled( GetDlgItem( handle, IDC_INSTALL))) ;
+				Access::beginIndexInstall( window) ;
+				DRIVERCRATE_EXPECT(
+					context, Access::indexStatusText( window).find( L"利用規約を確認できません") !=
+									 std::wstring::npos &&
+								 bound.observe().restoreBegins == 1U &&
+								 bound.observe().installs == 1U) ;
+				DRIVERCRATE_EXPECT( context,
+								   Access::setRemainingWixTerms( window, {}) &&
+									   Access::setRemainingStorageChange( window, std::nullopt)) ;
+			}
+
 			// 元有効選択の操作を開始できた場合だけtrueです
 			const bool started =
 				Access::startTargetOnlyRemaining( window, context, session, consumed) ;
@@ -13568,6 +14149,46 @@ void runSignedIndexBindingUiScenarios( TestContext &context)
 				DRIVERCRATE_EXPECT( context, Access::count( window) == rowsBefore + original.size()) ;
 				Access::verifyIndexSelectionBoundary( window, context, identities) ;
 				Access::selectIndexCandidates( window, context, identities) ;
+				// 通常確認を必要としない一候補に初回登録の表示だけを置き、確認と取消しを検証します
+				if( mode == 0U) {
+					const SetupClassRegistrationSummary registration{
+						L"FixtureClass", L"{E870815A-9F25-4CE6-B790-23AE6522F46C}", L"試験クラス",
+						-10} ;	// 元WindowsやINFを更新しない架空表示です
+					const auto detail = Access::setSetupClassRegistrationForUi(
+						window, identities.front(), registration) ;	// 同候補の製品詳細本文です
+					DRIVERCRATE_EXPECT( context,
+									   detail.find( registration.displayName) != detail.npos &&
+										   detail.find( registration.className) != detail.npos &&
+										   detail.find( registration.classGuid) != detail.npos) ;
+					DialogState cancel{
+						.context = &context,
+						.owner	 = handle,
+						.mode	 = DialogMode::
+							INDEX_INSTALL_CANCEL} ;	// 実確認の既定Noを読み、Noを操作します
+					{
+						DialogDriver driver( cancel) ;	// 対象Windowのmodalだけを監督します
+						Access::beginIndexInstallCommand( window) ;
+					}
+
+					DRIVERCRATE_EXPECT(
+						context,
+						cancel.handled && !cancel.failed &&
+							cancel.details.find( registration.displayName) != cancel.details.npos &&
+							cancel.details.find( registration.className) != cancel.details.npos &&
+							cancel.details.find( registration.classGuid) != cancel.details.npos &&
+							cancel.details.find( L"-10") != cancel.details.npos &&
+							Access::controller( window).state() == ApplicationState::SCAN_READY) ;
+					const auto declined = bound.observe() ;	// 完全fakeの復旧と指定導入の呼出し数です
+					DRIVERCRATE_EXPECT( context, declined.restoreBegins == 0U &&
+													declined.stages == 0U &&
+													declined.installs == 0U) ;
+					const auto ordinary = Access::setSetupClassRegistrationForUi(
+						window, identities.front(), std::nullopt) ;	// 元の通常候補へ戻します
+					DRIVERCRATE_EXPECT( context,
+									   !ordinary.empty() &&
+										   ordinary.find( registration.classGuid) == ordinary.npos) ;
+				}
+
 				DialogState execute{
 					.context = &context,
 					.owner	 = handle,
@@ -13637,22 +14258,36 @@ void runSignedIndexBindingUiScenarios( TestContext &context)
 				DialogState display{
 					.context = &context,
 					.owner	 = handle,
-					.mode	 = DialogMode::INDEX_INSTALL_RESULT} ;	// 実結果dialogの読取りです
+					.mode	 = mode == 4U
+								   ? DialogMode::RESTORE_CANCEL
+								   : DialogMode::INDEX_INSTALL_RESULT} ;	// 固定caseの実dialogです
 				{
 					DialogDriver driver( display) ;	// 確定結果の本物案内だけを閉じます
 					Access::dispatchIndex( window, *installed) ;
 				}
-				DRIVERCRATE_EXPECT( context,
-								   display.handled && !display.failed && !display.details.empty()) ;
-				Access::verifyIndexResultRows( window, context, result) ;
+				DRIVERCRATE_EXPECT( context, display.handled && !display.failed &&
+												(mode == 4U || !display.details.empty())) ;
+				// 復旧開始拒否ではProvider未実行の元選択を保ち、本人は中止します
+				if( mode == 4U) {
+					DRIVERCRATE_EXPECT( context,
+									   installed->restoreContinuationAvailable &&
+										   installed->installRetention &&
+										   !installed->installRetention->providerEntered &&
+										   !Access::controller( window).canContinueWithoutRestore(
+											   installed->operationId, identities)) ;
+				}
+
+				Access::verifyIndexResultRows( window, context, result, mode == 4U) ;
 				const auto kept =
 					// 旧通知で上書きされない表示基準です
 					Access::displayText( window) ;
 				Access::dispatchIndex( window, *prepared) ;
-				DRIVERCRATE_EXPECT( context, Access::displayText( window) == kept &&
-												Access::controller( window).state() ==
-													(mode == 0U ? ApplicationState::COMPLETED
-																: ApplicationState::FAILURE)) ;
+				DRIVERCRATE_EXPECT(
+					context,
+					Access::displayText( window) == kept &&
+						Access::controller( window).state() == ApplicationState::SCAN_READY &&
+						Access::controller( window).scanSessionId() == plan.scanSessionId &&
+						Access::controller( window).lastInstallSucceeded() == (mode == 0U)) ;
 				DRIVERCRATE_EXPECT( context, observed.signature.setupCalls > 0U &&
 												observed.signature.verifyCalls > 0U &&
 												observed.signature.verifyCalls ==
@@ -13692,6 +14327,437 @@ void runSignedIndexBindingUiScenarios( TestContext &context)
 	std::cout << "Binding UI assertions: " << context.assertionCount() - before
 			  << ", failures: " << context.failureCount() - beforeFailures
 			  << ", native CAT positive UNCONFIRMED, driver coverage increase0\n" ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常ボタンからの機器別ファームウェア確認と同じスキャン内の承認の範囲を検証します
+ * @param[in,out] context 元assertionの集計先です
+ * @note 完全fake workerを使い、受信した取得要求を元スキャン所有権の検査で拒否します
+ */
+//------------------------------------------------------------------------------
+void runFirmwareConfirmationUiScenario( TestContext &context)
+{
+	const std::array<std::wstring_view, 2U> deviceNames{
+		L"Fixture Platform Adapter A",
+		L"Fixture Platform Adapter B"} ;							// 同じ配布の別端末に表示する架空の名称です
+	const std::wstring_view firmwareVersion = L"Fixture FW R1.23" ;	// ドライバー版と異なる必須版です
+	auto	   state = std::make_shared<MetadataUiState>() ;		// 実機アクセスを禁止する既fixtureです
+	MainWindow window ;												// 同じprivate desktop上の所有Windowです
+	Access::configure( window, state) ;
+	const bool created = window.create( GetModuleHandleW( nullptr)) ;	// 製品と同じcontrolです
+	DRIVERCRATE_EXPECT( context, created) ;
+	// 操作できる実Windowがなければ開始しません
+	if( !created) {
+		return ;
+	}
+
+	const HWND handle  = Access::handle( window) ;			// この試験が所有するWindowです
+	const HWND install = GetDlgItem( handle, IDC_INSTALL) ;	// 通常のインストールbuttonです
+	ShowWindow( handle, SW_SHOWNOACTIVATE) ;
+	// 元スキャンの適用中に想定外の警告が出た場合だけ観測します
+	DialogState setup{
+		.context = &context, .owner = handle, .mode = DialogMode::FIRMWARE_CONFIRMATION} ;
+	{
+		DialogDriver driver( setup) ;	// 不正な元計画に警告が出たら閉じて失敗を保存します
+		// Timer作成に失敗した場合はmodalを開きません
+		if( !setup.failed) {
+			Access::showFirmwareConfirmationFixture( window, context, deviceNames, firmwareVersion) ;
+		}
+	}
+
+	const auto &controller = Access::controller( window) ;	// 全判断で同じ状態機械を使います
+	const auto *plan	   = controller.preparationPlan() ;	// 二台分の元snapshotです
+	DRIVERCRATE_EXPECT( context, !setup.failed && install && plan && plan->targets.size() == 2U) ;
+	// 読み込めた元計画だけを試験し、失敗時には既作成Windowを解放します
+	if( !setup.failed && install && plan && plan->targets.size() == 2U) {
+		// 通常のTree checkboxから対象端末一台だけを選びます
+		const auto selected =
+			Access::selectInstallIntents( window, context, true, false, L"2.0.0.0") ;
+		DRIVERCRATE_EXPECT( context, selected == std::vector<std::wstring>{L"firmware-reference-0"}) ;
+		const auto scanSession	 = plan->scanSessionId ;			// 元の選択へ結ぶスキャンです
+		const auto planId		 = plan->planId ;					// 同じスキャンの計画です
+		const auto targets		 = plan->targets ;					// 承認後も比較できる元snapshotの所有copyです
+		const auto scanOperation = controller.activeOperationId() ;	// 拒否後に保持する操作IDです
+		// 明示NO、既定NO、明示YESを元の選択を変更せず確認します
+		for( const int response : {IDNO, 0, IDYES}) {
+			// 同じ確認本文に一つの本人判断を対応させます
+			DialogState dialog{.context			   = &context,
+							   .owner			   = handle,
+							   .mode			   = DialogMode::FIRMWARE_CONFIRMATION,
+							   .firmwareDeviceName = deviceNames[0],
+							   .firmwarePeerName   = deviceNames[1],
+							   .firmwareVersion	   = firmwareVersion,
+							   .firmwareResponse   = response} ;
+			{
+				DialogDriver driver( dialog) ;	// 所有する本体確認だけに応答します
+				// Timer作成と選択状態が有効な場合だけ実buttonを押します
+				if( !dialog.failed && IsWindowEnabled( install)) {
+					SendMessageW( install, BM_CLICK, 0, 0) ;
+				}
+			}
+
+			DRIVERCRATE_EXPECT( context, dialog.handled && !dialog.failed) ;
+			const auto &approval =
+				// 元buttonがworkerへ送った承認です
+				Access::indexApproval( window) ;
+			// 拒否ではスキャンと選択を保持し、取得要求を発行しません
+			if( response != IDYES) {
+				DRIVERCRATE_EXPECT( context, controller.state() == ApplicationState::SCAN_READY &&
+												controller.scanSessionId() == scanSession &&
+												controller.activeOperationId() == scanOperation &&
+												approval.operationId == 0U &&
+												approval.decisions.empty() &&
+												IsWindowEnabled( install) &&
+												Access::takeReadyIndexEvents( window).empty()) ;
+				continue ;
+			}
+
+			DRIVERCRATE_EXPECT( context, controller.state() == ApplicationState::PREPARING &&
+											approval.operationId > scanOperation &&
+											approval.scanSessionId == scanSession &&
+											approval.planId == planId &&
+											approval.installIntentIdentities == selected &&
+											approval.decisions.size() == targets.size()) ;
+			// 版と配布が同一でも、相手端末に前提確認・取得・通信許可を転用しません
+			if( approval.decisions.size() == targets.size()) {
+				const auto &selectedTarget = approval.decisions[1] ;	// 元計画の対象端末です
+				const auto &peerTarget	   = approval.decisions[0] ;	// 同版の相手端末です
+				DRIVERCRATE_EXPECT( context, selectedTarget.target == targets[1] &&
+												selectedTarget.acquire &&
+												selectedTarget.prerequisitesConfirmed &&
+												!selectedTarget.eulaAccepted &&
+												!selectedTarget.restrictedNetworkApproved) ;
+				DRIVERCRATE_EXPECT(
+					context, peerTarget.target == targets[0] && !peerTarget.acquire &&
+								 !peerTarget.prerequisitesConfirmed && !peerTarget.eulaAccepted &&
+								 !peerTarget.restrictedNetworkApproved) ;
+			}
+
+			// UIの保存値だけで送信成功にせず、fake workerの実受信を照合します
+			const auto terminal =
+				Access::takeIndexTerminal( window, WorkerEventKind::PREPARATION_COMPLETED) ;
+			DRIVERCRATE_EXPECT( context,
+							   terminal && terminal->operationId == approval.operationId &&
+								   terminal->preparationResult.scanSessionId == scanSession &&
+								   terminal->preparationResult.planId == planId &&
+								   terminal->preparationResult.approvalError ==
+									   OfficialPreparationError::INVALID_APPROVAL &&
+								   terminal->preparationResult.items.empty()) ;
+		}
+	}
+
+	Access::stopWorker( window) ;
+	DRIVERCRATE_EXPECT( context, Access::takeReadyIndexEvents( window).empty() &&
+									state->normalCalls == 0U && state->metadataCalls == 0U &&
+									state->officialCalls == 0U && state->forbiddenCalls == 0U &&
+									state->restoreCalls == 0U) ;
+	DestroyWindow( handle) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief WiX検査専用の詳細で取得を一件開始し、通常選択と未選択対象を保持します
+ * @param[in,out] context 元assertionの集計先
+ * @note 取得要求は実workerへ送り、スキャンと取得済み表示の終端は人工入力を使います
+ */
+//------------------------------------------------------------------------------
+void runWixInspectionDetailsUiScenario( TestContext &context)
+{
+	constexpr std::wstring_view ACQUIRE	  = L"検査用に取得(&S)" ;		// 実ボタンの取得用文言です
+	constexpr std::wstring_view SELECT	  = L"この候補を選択(&S)" ;	// 同ボタンの通常文言です
+	constexpr std::wstring_view AVAILABLE = L"検査用に取得できます" ;		// 元行の取得可表示です
+	constexpr std::wstring_view VERIFIED  = L"取得・内容検査済み" ;		// 元行に戻す内容検査結果です
+	auto  state		  = std::make_shared<MetadataUiState>() ;	// 実I/Oのない既存Providerです
+	auto  ownedWindow = std::make_unique<MainWindow>() ;		// 同private desktopの所有Windowです
+	auto &window	  = *ownedWindow ;							// 製品と同じcontrolを使います
+	Access::configure( window, state) ;
+	const bool created = window.create( GetModuleHandleW( nullptr)) ;	// 実Win32生成の完了です
+	DRIVERCRATE_EXPECT( context, created) ;
+	// Windowの生成に失敗した場合は取得操作を試みません
+	if( !created) {
+		return ;
+	}
+
+	const HWND handle = Access::handle( window) ;	// この試験が所有する主画面です
+	ShowWindow( handle, SW_SHOWNOACTIVATE) ;
+	{
+		// 利用者が詳細から離脱する場合のダイアログ状態。試験の間だけ親と文脈を借用する
+		DialogState	 setup{.context = &context, .owner = handle, .mode = DialogMode::CANCEL} ;
+		DialogDriver driver( setup) ;	// 計画拒否で出る予期しない警告も有限に扱います
+		// Timerの無い状態で計画エラーのmodalを開きません
+		if( !setup.failed) {
+			Access::showWixInspectionFixture( window, context) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, !setup.handled && !setup.failed) ;
+	}
+
+	const auto &controller = Access::controller( window) ;	// 全例の実controllerです
+	const auto *original   = controller.preparationPlan() ;	// 操作前の元計画です
+	DRIVERCRATE_EXPECT( context, original && original->targets.size() == 3U) ;
+	// 元計画や実worker通知の欠損で中断しても、同じ終端でWindowを解放します
+	do {
+		// 元計画がなければ新しい承認を作りません
+		if( !original || original->targets.size() != 3U) {
+			break ;
+		}
+
+		const auto initialPlan	 = *original ;						// 承認と終端を比較する所有copyです
+		const auto scanOperation = controller.activeOperationId() ;	// 元検索の操作番号です
+		// 同じ実Tableとボタンを操作し、各例では独立した表示値と操作を指定します
+		const auto inspectDialog =
+			[&]( const std::size_t index, const int entry, const std::wstring_view button,
+				const std::wstring_view classification, const bool enabled, const bool choose,
+				const int initial = -1, std::function<void()> before = {}) {
+				DialogState detail{.context				  = &context,
+								   .owner				  = handle,
+								   .mode				  = DialogMode::DETAILS,
+								   .captureDetails		  = false,
+								   .detailInitialEntry	  = initial,
+								   .detailEntry			  = entry,
+								   .chooseDetailCandidate = choose,
+								   .detailSelectable	  = enabled,
+								   .detailEntryCount	  = 3U,
+								   .detailActionText	  = button,
+								   .detailStateText		  = classification,
+								   .detailBeforeChoice	  = std::move( before)} ;	// 同modal一つの判断
+				{
+					DialogDriver driver( detail) ;	// 実コントロールを同期modal内だけで操作します
+					// 監督が起動した時だけ元詳細を開きます
+					if( !detail.failed) {
+						Access::openCandidateDetails( window, index, NM_DBLCLK) ;
+					}
+				}
+
+				DRIVERCRATE_EXPECT( context, detail.handled && !detail.failed) ;
+			} ;
+		// 取得ボタンが見える状態で閉じ、続いて現在行の偽装IDYESも拒否させます
+		inspectDialog( 1U, 1, ACQUIRE, AVAILABLE, true, false, 1) ;
+		inspectDialog( 1U, 0, SELECT, {}, false, true, 1) ;
+		std::wstring replacement = L"wix-fixture-stale-candidate" ;	// 同じ対象を持つ別候補IDです
+		// 元取得ボタンが有効なまま候補IDを交換し、modal終了後の再照合で拒否させます
+		inspectDialog( 1U, 1, ACQUIRE, AVAILABLE, true, true, 1,
+					  [&] { Access::swapWixInspectionFixtureIdentity( window, replacement) ; }) ;
+		// 差替えが実行された場合だけ元の候補IDを戻します
+		if( replacement == L"wix-fixture-reference-0") {
+			Access::swapWixInspectionFixtureIdentity( window, replacement) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, controller.state() == ApplicationState::SCAN_READY &&
+										controller.activeOperationId() == scanOperation &&
+										Access::indexApproval( window).decisions.empty() &&
+										Access::takeReadyIndexEvents( window).empty()) ;
+		Access::verifyWixInspectionSelection( window, context, false) ;
+		// 通常の詳細ボタンで別機器を選び、続いて元WiXの検査用ボタンを押します
+		inspectDialog( 3U, 1, SELECT, {}, true, true) ;
+		Access::verifyWixInspectionSelection( window, context, true) ;
+		inspectDialog( 1U, 1, ACQUIRE, AVAILABLE, true, true, 1) ;
+
+		const auto approval = Access::originalPreparationApproval( window) ;	// 実ボタンの承認です
+		const bool started	= controller.state() == ApplicationState::PREPARING &&
+							 approval.operationId > scanOperation &&
+							 approval.scanSessionId == initialPlan.scanSessionId &&
+							 approval.planId == initialPlan.planId &&
+							 approval.limits == initialPlan.limits &&
+							 approval.decisions.size() == initialPlan.targets.size() &&
+							 // 導入意思を持たない取得です
+							 approval.installIntentIdentities.empty() ;
+		DRIVERCRATE_EXPECT( context, started) ;
+		// 元操作が始まらなければ人工終端で成功にしません
+		if( !started) {
+			break ;
+		}
+
+		// 全対象の元snapshotと、表示した一件だけの取得意思を独立に照合します
+		for( std::size_t index{}; index < approval.decisions.size(); ++index) {
+			const auto &decision = approval.decisions[index] ;	// 実ボタンの元計画順です
+			DRIVERCRATE_EXPECT( context, decision.target == initialPlan.targets[index] &&
+											decision.acquire == (index == 2U) &&
+											!decision.eulaAccepted &&
+											!decision.restrictedNetworkApproved &&
+											!decision.prerequisitesConfirmed) ;
+		}
+
+		const auto received = Access::takeIndexTerminal(
+			window, WorkerEventKind::PREPARATION_COMPLETED) ;	// 実queueの受領です
+		DRIVERCRATE_EXPECT( context, received && received->operationId == approval.operationId &&
+										received->preparationResult.scanSessionId ==
+											approval.scanSessionId &&
+										received->preparationResult.planId == approval.planId &&
+										received->preparationResult.controlError ==
+											static_cast<NativeError>( E_ACCESSDENIED) &&
+										received->preparationResult.items.empty()) ;
+		// Workerが取得要求を受け取った場合だけ、独立した人工終端で表示を検査します
+		if( !received || received->operationId != approval.operationId) {
+			break ;
+		}
+
+		auto remaining = initialPlan ;	// 未選択二件の次計画を模します
+		++remaining.planId ;
+		remaining.targets.pop_back() ;
+		WorkerEvent terminal{.kind			  = WorkerEventKind::PREPARATION_COMPLETED,
+							 .operationId	  = approval.operationId,
+							 .preparationPlan = remaining} ;	// 元承認の人工結果です
+		terminal.preparationResult = {
+			.operationId   = approval.operationId,
+			.scanSessionId = approval.scanSessionId,
+			.planId		   = approval.planId,
+			.approvalError = OfficialPreparationError::NONE,
+			.items		   = {{L"wix-fixture-target-0",
+							   {OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION, 0, 157U}},
+							  {L"wix-fixture-target-1", {OfficialPreparationItemState::NOT_SELECTED}},
+							  {L"wix-fixture-target-2", {OfficialPreparationItemState::NOT_SELECTED}}}} ;
+		const auto termsTime = std::chrono::floor<std::chrono::seconds>(
+			// 現在閲覧できる人工の検査時刻です
+			std::chrono::system_clock::now()) ;
+		const auto displayTerms = std::make_shared<const WixTermsPresentation>( WixTermsPresentation{
+			termsTime - std::chrono::minutes{5},
+			termsTime + std::chrono::minutes{5},
+			{{L"en-US", L"Fixture English terms."},
+			 {L"ja-JP", L"試験用の日本語規約。"}}}) ;	// 閲覧用の元順を固定します
+		terminal.indexPreparation = {
+			.operationId	= approval.operationId,
+			.scanSessionId	= approval.scanSessionId,
+			.planId			= approval.planId,
+			.plannedTargets = initialPlan.targets.size(),
+			.items			= {{.targetIdentity		= L"wix-fixture-target-0",
+								.acquisition		= OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION,
+								.content			= IndexedDriverInspectionState::INSPECTION_COMPLETED,
+								.inputBound			= true,
+								.inventoryFileCount = 3U,
+								.infCount			= 1U,
+								.parsedInfCount		= 1U,
+								.acceptedInfCount	= 1U,
+								.wixTerms			= displayTerms}}} ;
+		Access::dispatchIndex( window, terminal) ;
+		Access::verifyWixInspectionTerminal( window, context, approval.operationId) ;
+
+		const auto *retained = controller.preparationPlan() ;	// 元承認で選んでいない二件です
+		DRIVERCRATE_EXPECT( context, controller.state() == ApplicationState::SCAN_READY &&
+										controller.scanSessionId() == approval.scanSessionId &&
+										retained && retained->planId == remaining.planId &&
+										retained->targets == remaining.targets) ;
+		Access::verifyWixInspectionSelection( window, context, true) ;
+		// 元候補だけに結果を表示し、別WiX行と通常選択のボタンは維持します
+		inspectDialog( 1U, 1, SELECT, VERIFIED, false, true, 1, [&] {
+			const HWND detail = GetLastActivePopup( handle) ;	// 同じ候補を表示する元詳細です
+			const HWND termsButton =
+				// 同候補の閲覧だけを行います
+				GetDlgItem( detail, IDC_DEVICE_DETAIL_TERMS) ;
+			DRIVERCRATE_EXPECT( context,
+							   IsWindowVisible( termsButton) && IsWindowEnabled( termsButton)) ;
+			DialogState view{.context = &context,
+							 .owner	  = detail,
+							 .mode	  = DialogMode::DETAILS,
+							 .inlineTermsView =
+								 true} ;			// 取得と通常候補選択のいずれにも進まない同期閲覧です
+			auto	   *previous = activeDialog ;	// 詳細監視を入れ子の閲覧終了後に復帰します
+			{
+				DialogDriver viewer( view) ;	// 閲覧中の実read-only controlを読みます
+				// Timerが成立した場合にだけ同期閲覧で開いた画面を検査します
+				if( !view.failed) {
+					SendMessageW( termsButton, BM_CLICK, 0, 0) ;
+				}
+			}
+
+			activeDialog = previous ;
+			DRIVERCRATE_EXPECT(
+				context,
+				view.handled && !view.failed && IsWindow( detail) &&
+					view.details ==
+						L"en-US\r\n\r\nFixture English terms.\r\n\r\nja-JP\r\n\r\n試験用の日本語規約。\r\n\r\n" &&
+					controller.activeOperationId() == approval.operationId) ;
+		}) ;
+		inspectDialog( 5U, 1, ACQUIRE, AVAILABLE, true, false, 1, [&] {
+			const HWND detail = GetLastActivePopup( handle) ;	// 別機器の未検査の候補です
+			const HWND termsButton =
+				// 流用できない閲覧欄です
+				GetDlgItem( detail, IDC_DEVICE_DETAIL_TERMS) ;
+			DRIVERCRATE_EXPECT( context, termsButton && !IsWindowVisible( termsButton) &&
+											!IsWindowEnabled( termsButton)) ;
+		}) ;
+		inspectDialog( 3U, 1, SELECT, {}, true, false, 1) ;
+		DRIVERCRATE_EXPECT( context, controller.activeOperationId() == approval.operationId) ;
+		Access::verifyWixInspectionSelection( window, context, true) ;
+
+		// 未選択で残った別機器の取得を開始し、主画面の通常取消しボタンを使います
+		inspectDialog( 5U, 1, ACQUIRE, AVAILABLE, true, true, 1) ;
+		const auto peer =
+			// 残計画から採番した別操作です
+			Access::originalPreparationApproval( window) ;
+		// 先の取得承認後も未処理対象が残り、次の操作で二つの判断が得られたことを記録します
+		const bool peerStarted = controller.state() == ApplicationState::PREPARING &&
+								 peer.operationId > approval.operationId &&
+								 peer.planId == remaining.planId && peer.decisions.size() == 2U &&
+								 peer.decisions[0].acquire &&
+								 peer.decisions[0].target.identity == L"wix-fixture-target-2" &&
+								 !peer.decisions[1].acquire && peer.installIntentIdentities.empty() ;
+		DRIVERCRATE_EXPECT( context, peerStarted) ;
+		// 元取得を開始できなかった場合は人工取消しを表示しません
+		if( !peerStarted) {
+			break ;
+		}
+
+		SendMessageW( handle, WM_COMMAND, MAKEWPARAM( IDC_SCAN, BN_CLICKED), 0) ;
+		DRIVERCRATE_EXPECT( context,
+						   controller.state() == ApplicationState::CANCELLING_PREPARATION &&
+							   !IsWindowEnabled( GetDlgItem( handle, IDC_INSTALL))) ;
+		const auto peerReceived = Access::takeIndexTerminal(
+			window, WorkerEventKind::PREPARATION_COMPLETED) ;	// 別の実queueの受領です
+		DRIVERCRATE_EXPECT( context, peerReceived && peerReceived->operationId == peer.operationId) ;
+		// 送信していない操作を人工終端で完了にしません
+		if( !peerReceived || peerReceived->operationId != peer.operationId) {
+			break ;
+		}
+
+		const auto cancelledError =
+			// 共通の取消し理由です
+			static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED)) ;
+		WorkerEvent cancelled{.kind			   = WorkerEventKind::PREPARATION_COMPLETED,
+							  .operationId	   = peer.operationId,
+							  .preparationPlan = OfficialPreparationPlan{
+								  peer.scanSessionId,
+								  peer.planId + 1U,
+								  peer.limits,
+								  {peer.decisions[1].target}}} ;	// 通常候補の取得対象だけを残します
+		cancelled.preparationResult = {
+			.operationId   = peer.operationId,
+			.scanSessionId = peer.scanSessionId,
+			.planId		   = peer.planId,
+			.approvalError = OfficialPreparationError::NONE,
+			.items		   = {{L"wix-fixture-target-2",
+							   {OfficialPreparationItemState::CANCELLED, cancelledError, 0U}},
+							  {L"wix-fixture-target-1", {OfficialPreparationItemState::NOT_SELECTED}}}} ;
+		cancelled.indexPreparation = {.operationId	  = peer.operationId,
+									  .scanSessionId  = peer.scanSessionId,
+									  .planId		  = peer.planId,
+									  .plannedTargets = peer.decisions.size(),
+									  .items		  = {{.targetIdentity = L"wix-fixture-target-2",
+														  .acquisition = OfficialAcquisitionState::CANCELLED,
+														  .acquisitionError = cancelledError}}} ;
+		Access::dispatchIndex( window, cancelled) ;
+		DRIVERCRATE_EXPECT( context, controller.state() == ApplicationState::SCAN_READY &&
+										controller.preparationPlan() &&
+										controller.preparationPlan()->targets.size() == 1U) ;
+		inspectDialog( 5U, 1, SELECT, L"取消し", false, true, 1) ;
+		inspectDialog( 1U, 1, SELECT, VERIFIED, false, false, 1, [&] {
+			const HWND detail = GetLastActivePopup( handle) ;	// 最初の取得済み候補へ戻ります
+			const HWND termsButton =
+				// 他の取得取消し後も残ります
+				GetDlgItem( detail, IDC_DEVICE_DETAIL_TERMS) ;
+			DRIVERCRATE_EXPECT( context,
+							   IsWindowVisible( termsButton) && IsWindowEnabled( termsButton)) ;
+		}) ;
+		Access::verifyWixInspectionSelection( window, context, true) ;
+	} while( false) ;
+
+	Access::stopWorker( window) ;
+	DRIVERCRATE_EXPECT( context, Access::takeReadyIndexEvents( window).empty() &&
+									state->normalCalls == 0U && state->metadataCalls == 0U &&
+									state->officialCalls == 0U && state->forbiddenCalls == 0U &&
+									state->restoreCalls == 0U) ;
+	DestroyWindow( handle) ;
 }
 
 //------------------------------------------------------------------------------
@@ -15317,15 +16383,32 @@ void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 				}
 
 				// 本物結果dialogの個別結果を読み取る短命状態です
-				DialogState display{
-					.context = &context, .owner = handle, .mode = DialogMode::INDEX_INSTALL_RESULT} ;
+				DialogState display{.context = &context,
+									.owner	 = handle,
+									.mode	 = testCase.restoreFailure
+												   ? DialogMode::RESTORE_CANCEL
+												   : DialogMode::INDEX_INSTALL_RESULT} ;
 				{
 					// 同scopeの実dialog timerを終端まで所有します
 					DialogDriver driver( display) ;
 					Access::dispatchIndex( window, *installed) ;
 				}
-				DRIVERCRATE_EXPECT( context, display.handled && !display.failed &&
-												Access::controller( window).scanSessionId() == 0U) ;
+				DRIVERCRATE_EXPECT(
+					context,
+					display.handled && !display.failed && plan.scanSessionId != 0U &&
+						Access::controller( window).scanSessionId() == plan.scanSessionId &&
+						Access::controller( window).state() == ApplicationState::SCAN_READY) ;
+				// 固定R01の復旧前停止では元選択を保持し、続行を明示的に中止します
+				if( testCase.restoreFailure) {
+					DRIVERCRATE_EXPECT( context,
+									   installed->restoreContinuationAvailable &&
+										   installed->installRetention &&
+										   !installed->installRetention->providerEntered &&
+										   !Access::controller( window).canContinueWithoutRestore(
+											   installed->operationId, selection)) ;
+					Access::verifyIndexResultRows( window, context, result, true) ;
+				}
+
 				// 混合R03の元順序・元HRESULT・個別再起動を実worker結果と実rowへ結びます
 				if( std::string_view{testCase.id} == "R03") {
 					DRIVERCRATE_EXPECT( context,
@@ -15389,7 +16472,9 @@ void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 							native.allPresentInventoryOpens == beforeInstallInventory &&
 							unexpectedScans == 0U && !originalCurrentFacts.empty() &&
 							Access::currentIndexScanFacts( window) == originalCurrentFacts &&
-							Access::controller( window).state() == ApplicationState::COMPLETED) ;
+							Access::controller( window).state() == ApplicationState::SCAN_READY &&
+							Access::controller( window).scanSessionId() == plan.scanSessionId &&
+							Access::controller( window).lastInstallSucceeded()) ;
 					const auto firstHttp =
 						// 元正常取得までの実fake呼出しです
 						input.observeHttp() ;
@@ -15445,12 +16530,12 @@ void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 						context,
 						rejected->operationId == staleOperation && !denied.succeeded &&
 							denied.downloadOutcome == OutcomeCode::FAILURE &&
-							denied.downloadError == static_cast<NativeError>( E_UNEXPECTED) &&
+							denied.downloadError == static_cast<NativeError>( E_INVALIDARG) &&
 							denied.installOutcome == OutcomeCode::NOT_STARTED &&
 							denied.updates.size() == 1U &&
 							denied.updates.front().identity == selection.front() &&
 							denied.updates.front().downloadError ==
-								static_cast<NativeError>( E_UNEXPECTED) &&
+								static_cast<NativeError>( E_INVALIDARG) &&
 							denied.updates.front().installOutcome == OutcomeCode::NOT_STARTED &&
 							denied.restorePointCreation.outcome == OutcomeCode::NOT_STARTED &&
 							denied.restorePointCompletion.outcome == OutcomeCode::NOT_STARTED) ;
@@ -15478,8 +16563,8 @@ void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 					DRIVERCRATE_EXPECT(
 						context,
 						retained && Access::currentIndexScanFacts( window) == originalCurrentFacts &&
-							Access::controller( window).state() == ApplicationState::COMPLETED &&
-							Access::controller( window).scanSessionId() == 0U &&
+							Access::controller( window).state() == ApplicationState::SCAN_READY &&
+							Access::controller( window).scanSessionId() == plan.scanSessionId &&
 							Access::controller( window).activeOperationId() == firstOperation &&
 							IsWindowEnabled( GetDlgItem( handle, IDC_SCAN))) ;
 					std::cout
@@ -15494,7 +16579,7 @@ void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
 						<< " additionalFullInventory="
 						<< after.allPresentInventoryOpens - native.allPresentInventoryOpens
 						<< " unexpectedScanTerminals=" << unexpectedScans
-						<< " freshScanRequired=1 freshObservationSynthesized=0 realChanges=0\n" ;
+						<< " consumedTargetNeedsFreshScan=1 freshObservationSynthesized=0 realChanges=0\n" ;
 				}
 
 				std::cout << "FORMAT_RESULT case=" << testCase.id
@@ -15553,13 +16638,14 @@ void runSignedIndexConsentFormatUiScenarios( TestContext			  &context,
  * @param[in,out] window 元workerの部分結果を保持するWindowです
  * @param[in,out] context 元assertionの集計先です
  * @param[in] result 同じ二候補の元成功・失敗と原診断です
- * @param[in] roles 表示専用の必要構成fixtureを確認する場合trueです
+ * @param[in] expectedReflection 一件目の必要構成にあるストレージの反映結果。元結果を確認する場合は空
  * @param[in] expectedScanSessionId 元planが結合した非0のscanです。観測した実値から補完しません
  */
 //------------------------------------------------------------------------------
 void verifyExpiredInitialDetails( MainWindow &window, TestContext &context,
-								 const InstallResult &result, const bool roles,
-								 const ScanSessionId expectedScanSessionId)
+								 const InstallResult	&result,
+								 const std::wstring_view expectedReflection,
+								 const ScanSessionId	 expectedScanSessionId)
 {
 	const auto candidates = Access::indexCandidates( window) ;	// Modal中も変更しない元所有集合です
 	DRIVERCRATE_EXPECT(
@@ -15622,13 +16708,21 @@ void verifyExpiredInitialDetails( MainWindow &window, TestContext &context,
 		// 拒否された検証八軸を履歴表示で合格に戻しません
 		DRIVERCRATE_EXPECT( context, detail.details.find( L"失効しています") != std::wstring::npos &&
 										detail.details.size() <= 320U) ;
+		DRIVERCRATE_EXPECT( context,
+						   (detail.details.find( L"補助サービス") != std::wstring::npos) ==
+							   (ordinal == 0U && expectedReflection.starts_with( L"補助サービス"))) ;
+		DRIVERCRATE_EXPECT( context,
+						   (detail.details.find( L"起動サービスと設定") != std::wstring::npos) ==
+							   (ordinal == 0U && expectedReflection.find( L"起動サービスと設定") !=
+													 expectedReflection.npos)) ;
 		// 役割fixtureと原単一方式の成否を別の期待へ固定します
-		if( roles) {
+		if( !expectedReflection.empty()) {
 			const auto base = std::wstring(
 				L"基本driver: 指定device API完了・実状態観測とは別") ;	// 元役割の期待です
 			DRIVERCRATE_EXPECT(
 				context,
-				detail.details.find( base) != std::wstring::npos &&
+				detail.details.find( ordinal == 0U ? base + L" / " + std::wstring( expectedReflection)
+												  : base) != std::wstring::npos &&
 					detail.details.find(
 						ordinal == 0U
 							? L"必要driver component: 指定device API完了・実状態観測とは別"
@@ -15647,11 +16741,13 @@ void verifyExpiredInitialDetails( MainWindow &window, TestContext &context,
  * @param[in,out] context 原assertion集計先です
  * @param[in] unknownClassOnly 新しい固定24条件と既知三回帰だけを実行する場合trueです
  * @param[in] historyResultsOnly 元U21の二候補の失効詳細だけを確認する場合trueです
+ * @param[in] archiveWaitOnly 元M07だけの同worker終端到着時間を追加観測する場合trueです
  * @note 成功candidate DTOは作らず、全入力を真RSA索引・原ZIP・完全低位fakeから生成します
  */
 //------------------------------------------------------------------------------
 void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownClassOnly = false,
-									const bool historyResultsOnly = false)
+									const bool historyResultsOnly = false,
+									const bool archiveWaitOnly	  = false)
 {
 	/** @brief 実行前に保存した条件へ対応する有限入力と期待です */
 	struct Case {
@@ -15738,6 +16834,11 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 	// 原条件と登録済み境界を一つの実Window/workerずつ直列実行します
 	for( const auto &testCase : cases) {
 		const std::string_view caseName{testCase.name} ;	// 原case IDだけの非機密分岐です
+		// M07の有限診断だけは同じ元表の一行を選びます
+		if( archiveWaitOnly && caseName != "M07") {
+			continue ;
+		}
+
 		// 詳細の成否/原診断だけを補完する入口では元二条件に限定します
 		if( historyResultsOnly && caseName != "U21") {
 			continue ;
@@ -15746,9 +16847,10 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 		// 原case IDだけの非機密分岐です
 		const bool newCase = caseName.starts_with( "U") ;	// 登録した有限追加集合です
 		// 同じ原multi分母を削減せず追加modeだけに三回帰を含めます
-		if( !historyResultsOnly && (unknownClassOnly ? !(newCase || caseName == "M01" ||
-														caseName == "I01" || caseName == "S02")
-													: newCase)) {
+		if( !archiveWaitOnly && !historyResultsOnly &&
+		   (unknownClassOnly
+				? !(newCase || caseName == "M01" || caseName == "I01" || caseName == "S02")
+				: newCase)) {
 			continue ;
 		}
 
@@ -15841,12 +16943,115 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 				}
 
 				DRIVERCRATE_EXPECT( context, Access::acquireIndexPlan( window, plan)) ;
-				auto preparedOwner = std::make_unique<
-					std::optional<WorkerEvent>>( Access::takeIndexTerminal(
-					window,
-					WorkerEventKind::PREPARATION_COMPLETED)) ;	// 同scopeの元eventをheap所有します
-				auto &prepared = *preparedOwner ;				// 元取得・検査終端の所有です
+				// M07の追加観測だけが持つ単調時計の起点です
+				const auto								 archiveStarted = archiveWaitOnly
+																			  ? std::chrono::steady_clock::now()
+																			  : std::chrono::steady_clock::time_point{} ;
+				// 実eventを受信した時点だけで非機密の種類と元errorを記録します
+				std::function<void( const WorkerEvent &)> archiveObserver ;
+				// 通常27条件には診断callbackを渡しません
+				if( archiveWaitOnly) {
+					archiveObserver = [&]( const WorkerEvent &event) {
+						// 最初の同request待機から実eventまでの経過です
+						const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+							std::chrono::steady_clock::now() - archiveStarted) ;
+						std::cout << "M07_EVENT elapsedMs=" << elapsed.count()
+								  << " kind=" << static_cast<unsigned>( event.kind)
+								  << " operation=" << event.operationId ;
+						// 実eventの型ごとに意味のある元診断だけを出します
+						switch( event.kind) {
+							// scan系終端は元scanとplanのerrorを分けます
+							case WorkerEventKind::SCAN_COMPLETED:
+							// 情報検索の終端も同じscan結果とplan診断を持ちます
+							case WorkerEventKind::METADATA_SEARCH_COMPLETED:
+								std::cout
+									<< " terminal=1 scanSucceeded=" << event.scanResult.succeeded
+									<< " scanError=" << event.scanResult.error
+									<< " preparationError=" << event.preparationError ;
+								break ;
+
+							// 導入終端が予期せず届いた場合も元分類を隠しません
+							case WorkerEventKind::INSTALL_COMPLETED:
+								std::cout << " terminal=1 installSucceeded="
+										  << event.installResult.succeeded
+										  << " downloadError=" << event.installResult.downloadError
+										  << " installError=" << event.installResult.installError ;
+								break ;
+
+							// 取得終端は承認と制御・対象の元状態を分けます
+							case WorkerEventKind::PREPARATION_COMPLETED:
+								std::cout
+									<< " terminal=1 approval="
+									<< static_cast<unsigned>( event.preparationResult.approvalError)
+									<< " controlError=" << event.preparationResult.controlError
+									<< " targets=" << event.preparationResult.items.size() ;
+								// 対象が存在する場合だけその原結果を出します
+								if( !event.preparationResult.items.empty()) {
+									// 非公開identityを含まない最初の転送結果です
+									const auto &item = event.preparationResult.items.front().result ;
+									std::cout << " firstState=" << static_cast<unsigned>( item.state)
+											  << " firstError=" << item.error ;
+								}
+
+								break ;
+
+							// 二種類の途中通知を終端と混同しません
+							case WorkerEventKind::PROGRESS:
+							// 取得進捗も終端ではありません
+							case WorkerEventKind::PREPARATION_PROGRESS:
+								std::cout << " terminal=0" ;
+								break ;
+
+							// 未知kindの終端性を推測しません
+							default:
+								std::cout << " terminal=unknown" ;
+								break ;
+						}
+
+						std::cout << std::endl ;
+					} ;
+				}
+
+				// 通常M07の128 INFだけ既archive試験と同じ有限受信窓にします
+				const auto preparationWait = caseName == "M07" && !archiveWaitOnly
+												 ? std::chrono::seconds{90}
+												 : std::chrono::seconds{5} ;
+				// 実取得終端の所有値を同scopeへ保持します
+				auto	   preparedOwner =
+					std::make_unique<std::optional<WorkerEvent>>( Access::takeIndexTerminal(
+						window, WorkerEventKind::PREPARATION_COMPLETED, nullptr, nullptr,
+						preparationWait, archiveWaitOnly ? &archiveObserver : nullptr)) ;
+				auto &prepared = *preparedOwner ;	// 元取得・検査終端の所有です
+				// 元五秒の受信有無を追加観測より前に保持します
+				if( archiveWaitOnly) {
+					// 最初の待機が戻った時点の実経過です
+					const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+						std::chrono::steady_clock::now() - archiveStarted) ;
+					std::cout << "M07_FIRST_WAIT arrived=" << prepared.has_value()
+							  << " elapsedMs=" << elapsed.count() << std::endl ;
+				}
+
 				DRIVERCRATE_EXPECT( context, prepared.has_value()) ;
+				// 元五秒が未着なら同じworkerと同queueを残り時間だけ観測します
+				if( archiveWaitOnly && !prepared) {
+					// 診断全体の90秒上限までに残る整数秒です
+					const auto remaining = std::chrono::duration_cast<std::chrono::seconds>(
+						archiveStarted + std::chrono::seconds{90} -
+						std::chrono::steady_clock::now()) ;
+					// 有界時間が残る場合だけ追加観測します
+					if( remaining > std::chrono::seconds::zero()) {
+						prepared = Access::takeIndexTerminal(
+							window, WorkerEventKind::PREPARATION_COMPLETED, nullptr, nullptr,
+							remaining, &archiveObserver) ;
+					}
+
+					// 追加終端の有無と全経過を元五秒と別に記録します
+					const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+						std::chrono::steady_clock::now() - archiveStarted) ;
+					std::cout << "M07_FINAL_WAIT arrived=" << prepared.has_value()
+							  << " elapsedMs=" << elapsed.count() << std::endl ;
+				}
+
 				// 元終端なしでは表示用成功DTOを作りません
 				if( !prepared) {
 					break ;
@@ -16151,19 +17356,76 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 				DialogState display{
 					.context = &context,
 					.owner	 = handle,
-					.mode	 = DialogMode::INDEX_INSTALL_RESULT} ;	// 元結果を読む実dialogです
+					.mode	 = caseName == "U19"
+								   ? DialogMode::RESTORE_CANCEL
+								   : DialogMode::INDEX_INSTALL_RESULT} ;	// 固定条件の実dialogです
 				{
 					DialogDriver driver( display) ;	// 実個別結果dialogの内容を保持して閉じます
 					Access::dispatchIndex( window, *installed) ;
 				}
 				DRIVERCRATE_EXPECT( context, display.handled && !display.failed) ;
-				Access::verifyIndexResultRows( window, context, result) ;
+				// U19はProvider未実行の元選択を保ち、復元なし続行を中止します
+				if( caseName == "U19") {
+					DRIVERCRATE_EXPECT( context,
+									   installed->restoreContinuationAvailable &&
+										   installed->installRetention &&
+										   !installed->installRetention->providerEntered &&
+										   !Access::controller( window).canContinueWithoutRestore(
+											   installed->operationId, selected)) ;
+				}
+
+				Access::verifyIndexResultRows( window, context, result, caseName == "U19") ;
+				// S03は未選択の別deviceを同元scanの実行可能routeとして保持します
+				if( caseName == "S03" && original.size() == 2U && selected.size() == 1U) {
+					DRIVERCRATE_EXPECT(
+						context,
+						!Access::controller( window).isInstallCandidateAllowed( selected.front()) &&
+							Access::controller( window).isInstallCandidateAllowed(
+								original[1].identity)) ;
+				}
+
 				// 利用者が遭遇した二初回partial終端を実詳細本文まで通します
 				if( caseName == "U21") {
-					verifyExpiredInitialDetails( window, context, result, false, plan.scanSessionId) ;
+					verifyExpiredInitialDetails( window, context, result, {}, plan.scanSessionId) ;
 					Access::verifyExpiredHistoryBoundary( window, context, result) ;
-					Access::displayRoleHistoryFixture( window, result) ;
-					verifyExpiredInitialDetails( window, context, result, true, plan.scanSessionId) ;
+					// 元API結果を保ったまま変化させる補助サービスの人工観測と固定本文です
+					constexpr std::array auxiliaryCases{
+						std::pair{DriverAuxiliaryExecutionResult{
+									  DriverAuxiliaryReflectionState::CONFIRMED},
+								  L"補助サービスの反映を確認済み | "},
+						std::pair{DriverAuxiliaryExecutionResult{
+									  DriverAuxiliaryReflectionState::RESTART_CHECK},
+								  L"補助サービスは再起動後に確認 | "},
+						std::pair{DriverAuxiliaryExecutionResult{
+									  DriverAuxiliaryReflectionState::UNCONFIRMED,
+									  static_cast<NativeError>( E_INVALIDARG)},
+								  L"補助サービスの反映を確認できませんでした (0x80070057"}} ;
+					// 三状態の独立表示と元診断を実詳細で読み、二件目への混入を拒否します
+					for( const auto &[auxiliary, expected] : auxiliaryCases) {
+						Access::displayRoleHistoryFixture( window, result, auxiliary) ;
+						verifyExpiredInitialDetails( window, context, result, expected,
+													plan.scanSessionId) ;
+					}
+
+					// 単一起動の各結果は同じAPI成功を保持し、元診断を単一起動の表示へ付ける
+					constexpr std::array singleBootCases{
+						std::pair{
+							DriverStorageReflectionResult{DriverStorageReflectionState::CONFIRMED},
+							L"起動サービスと設定の反映を確認済み | "},
+						std::pair{DriverStorageReflectionResult{
+									  DriverStorageReflectionState::RESTART_CHECK},
+								  L"再起動後に起動サービスと設定を確認してください | "},
+						std::pair{
+							DriverStorageReflectionResult{DriverStorageReflectionState::UNCONFIRMED,
+														  static_cast<NativeError>( E_INVALIDARG)},
+							L"起動サービスと設定の反映を確認できませんでした (0x80070057"}} ;
+					// 条件ごとの元結果を同じ詳細表示へ送り、別候補の行との混入も確認する
+					for( const auto &[reflection, expected] : singleBootCases) {
+						Access::displayRoleHistoryFixture( window, result, reflection, true) ;
+						verifyExpiredInitialDetails( window, context, result, expected,
+													plan.scanSessionId) ;
+					}
+
 					DialogState rejected{
 						.context = &context,
 						.owner	 = handle,
@@ -16191,13 +17453,10 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 					// 古い通知で消してはいけない実結果です
 					Access::displayText( window) ;
 				Access::dispatchIndex( window, *prepared) ;
-				// U21は元ownerを保ち、他caseの従来の全失効条件は変更しません
-				const ScanSessionId expectedLateSession =
-					caseName == "U21" ? plan.scanSessionId : 0U ;
-				DRIVERCRATE_EXPECT( context, Access::displayText( window) == retained &&
-												(caseName != "U21" || plan.scanSessionId != 0U) &&
-												Access::controller( window).scanSessionId() ==
-													expectedLateSession) ;
+				// 元scanと表示を保ち、消費deviceのrouteだけを失効させます
+				DRIVERCRATE_EXPECT(
+					context, Access::displayText( window) == retained && plan.scanSessionId != 0U &&
+								 Access::controller( window).scanSessionId() == plan.scanSessionId) ;
 				// 代表三条件はUI拒否だけでなく失効した元worker権限へ実要求を送り直します
 				if( caseName == "M01" || caseName == "S01" || caseName == "I01" ||
 				   caseName == "U01" || caseName == "U02") {
@@ -16214,7 +17473,7 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 							!stale->installResult.succeeded &&
 								stale->installResult.downloadOutcome == OutcomeCode::FAILURE &&
 								stale->installResult.downloadError ==
-									static_cast<NativeError>( E_UNEXPECTED) &&
+									static_cast<NativeError>( E_INVALIDARG) &&
 								stale->installResult.installOutcome == OutcomeCode::NOT_STARTED &&
 								stale->installResult.installError == 0 &&
 								stale->installResult.updates.size() == selected.size()) ;
@@ -16227,7 +17486,7 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 								context,
 								index < selected.size() && item.identity == selected[index] &&
 									item.downloadOutcome == OutcomeCode::FAILURE &&
-									item.downloadError == static_cast<NativeError>( E_UNEXPECTED) &&
+									item.downloadError == static_cast<NativeError>( E_INVALIDARG) &&
 									item.installOutcome == OutcomeCode::NOT_STARTED &&
 									item.installError == 0) ;
 						}
@@ -16305,11 +17564,12 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
 	std::cout << "Multi UI assertions: " << context.assertionCount() - before
 			  << ", failures: " << context.failureCount() - failures << ", cases=" << executed
 			  << ", mode="
-			  << (historyResultsOnly ? "history-results"
-				  : unknownClassOnly ? "unknown"
-									 : "multi")
+			  << (archiveWaitOnly	   ? "archive-wait"
+				  : historyResultsOnly ? "history-results"
+				  : unknownClassOnly   ? "unknown"
+									   : "multi")
 			  << ", acquisition approval private fixture only, native CAT positive UNCONFIRMED\n" ;
-	DRIVERCRATE_EXPECT( context, executed == (historyResultsOnly ? 1U : 27U)) ;
+	DRIVERCRATE_EXPECT( context, executed == ((historyResultsOnly || archiveWaitOnly) ? 1U : 27U)) ;
 }
 
 //------------------------------------------------------------------------------
@@ -16318,11 +17578,13 @@ void runSignedIndexMultiUiScenarios( TestContext &context, const bool unknownCla
  * @param[in,out] context 元未到達と失敗も保持する集計先です
  * @param[in] needsOnly trueの場合は同固定表の追加19依存条件だけを実行します。既存分母を変更しません
  * @param[in] extensionOnly trueの場合は登録Extension保持の固定八条件だけを実行します
+ * @param[in] childProofOnly trueの場合は固定表の同親・別親・曖昧子だけを確認します
  * @note CAT/native低位は隔離完全fakeです。実CAT/実device/実導入成功を意味しません
  */
 //------------------------------------------------------------------------------
 void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const bool needsOnly = false,
-												const bool extensionOnly = false)
+												const bool extensionOnly  = false,
+												const bool childProofOnly = false)
 {
 	// 大きな終端値を短命なfactory内で受信し、元の検証scopeだけで所有する
 	const auto ownTerminal = []( auto make) { return std::make_unique<decltype( make())>( make()) ; } ;
@@ -16343,7 +17605,7 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 		/// pending/部分失敗/復旧失敗を含めない全完了期待です
 		bool		succeeded ;
 	} ;
-	const std::array cases{
+	std::vector<Case> cases{
 		Case{1U, Native::NORMAL, 1U, 2U, 1U, false},
 		Case{2U, Native::NORMAL, 1U, 2U, 2U, true},
 		Case{3U, Native::NORMAL, 1U, 3U, 2U, false},
@@ -16513,15 +17775,29 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 		Case{175U, Native::REQUIRED_STAGE_PARTIAL, 1U, 2U, 0U, false},
 		Case{176U, Native::STAGE_CHANGED, 1U, 1U, 0U, false},
 		Case{177U, Native::STAGE_WRONG_NODE, 1U, 2U, 0U,
-			 false}} ;											// 元161と追加八を分離して保持します
+			 false}} ;								// 元161と追加八を分離して保持します
+	const auto originalCaseCount = cases.size() ;	// 元固定表の分母です
+	// 選択診断では元C02と同じ署名済み内容を保った低位変化だけを追加します
+	if( childProofOnly) {
+		cases.insert( cases.end(),
+					 {Case{181U, Native::REQUIRED_CHILD_CLASS_CHANGED, 1U, 2U, 1U, false},
+					  Case{182U, Native::REQUIRED_CHILD_ID_CHANGED, 1U, 2U, 1U, false},
+					  Case{183U, Native::REQUIRED_CHILD_NODE_CHANGED, 1U, 2U, 1U, false},
+					  Case{184U, Native::REQUIRED_CHILD_RANK_CHANGED, 1U, 2U, 1U, false},
+					  Case{185U, Native::REQUIRED_CHILD_IDENTITY_COLLISION, 1U, 2U, 1U, false}}) ;
+	}
+
 	const auto	startAssertions = context.assertionCount() ;	// 本群だけの開始値です
 	const auto	startFailures	= context.failureCount() ;		// 元失敗を削除しません
 	std::size_t executed{} ;									// この入口で実行した固定条件数です。全条件数とは別に保持します
 	// 各条件を一Window/一workerの独立寿命へ限定します
 	for( const auto &testCase : cases) {
 		// 有限diagnostic入口も同じ固定表と元期待を使い、元157条件を変更しません
-		if( (needsOnly && testCase.id < 151U) || (extensionOnly && testCase.id < 170U) ||
-		   (!extensionOnly && testCase.id >= 170U)) {
+		if( childProofOnly
+			   ? (testCase.id != 2U && testCase.id != 24U && testCase.id != 69U &&
+				  testCase.id < 181U)
+			   : ((needsOnly && testCase.id < 151U) || (extensionOnly && testCase.id < 170U) ||
+				  (!extensionOnly && testCase.id >= 170U))) {
 			continue ;
 		}
 
@@ -16539,9 +17815,10 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 			testCase.id == 4U || testCase.id == 48U || testCase.id == 80U ;
 		auto input = makeSignedIndexUiInput(
 			shared, shared, false, false, false, false,
-			{.requiredComponentCase =
-				 testCase.id >= 170U ? 1U : testCase.id}) ;	// 元ZIPを変更しません
-		std::wstring inputHashBefore ;						// 同原ZIP全byteのfixture構築前hashです
+			{.requiredComponentCase = testCase.id >= 181U	? 2U
+									  : testCase.id >= 170U ? 1U
+															: testCase.id}) ;	// 元ZIPを変更しません
+		std::wstring inputHashBefore ;											// 同原ZIP全byteのfixture構築前hashです
 		DRIVERCRATE_EXPECT( context, computeBytesSha256( input.zip, inputHashBefore) == 0) ;
 		auto	   expired = std::make_shared<bool>( false) ;	// Idle間だけ変更するUTC条件です
 		const auto clock   = input.services.utc ;				// 元信頼UTCです
@@ -16734,7 +18011,7 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 					item.requiredRoles, DriverPlanReflectionState::WINDOWS_PENDING,
 					&DriverPlanRoleExecutionResult::reflection) ;	// 未確認数です
 				// Extensionの個別反映は全追加条件でも独立未確認を維持します
-				if( testCase.id >= 170U) {
+				if( testCase.id >= 170U && testCase.id <= 177U) {
 					DRIVERCRATE_EXPECT( context, item.requiredRoles.size() == 2U &&
 													item.requiredRoles.back().role ==
 														DriverPlanRole::EXTENSION &&
@@ -16853,6 +18130,24 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 							result.installOutcome == OutcomeCode::SUCCEEDED_WITH_ERRORS) ;
 				}
 
+				// 同子の低位変化や既存identity衝突では先行base完了を保ち、子を拒否します
+				if( testCase.id >= 181U && testCase.id <= 185U) {
+					// 元固定入力ごとに要求する拒否errorです
+					const auto expected =
+						testCase.id == 181U
+							? static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA))
+						: testCase.id == 185U
+							? static_cast<NativeError>( E_INVALIDARG)
+							: static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_RETRY)) ;
+					DRIVERCRATE_EXPECT(
+						context,
+						completed == 1 && item.requiredRoles.size() == 2U &&
+							item.requiredRoles.back().role == DriverPlanRole::DRIVER_COMPONENT &&
+							item.requiredRoles.back().installOutcome == OutcomeCode::FAILURE &&
+							item.requiredRoles.back().installError == expected &&
+							!result.succeeded) ;
+				}
+
 				// absent/wrong-parentではbase APIだけを認定し子の適用を推測しません
 				if( testCase.id == 23U || testCase.id == 24U || testCase.id == 67U ||
 				   testCase.id == 68U || testCase.id == 70U || testCase.id == 123U) {
@@ -16884,17 +18179,41 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 			}
 
 			// 本物結果dialogと保持Treeの観測先です
-			DialogState display{
-				.context = &context, .owner = handle, .mode = DialogMode::INDEX_INSTALL_RESULT} ;
+			DialogState display{.context = &context,
+								.owner	 = handle,
+								.mode	 = testCase.id == 18U || testCase.id == 74U
+											   ? DialogMode::RESTORE_CANCEL
+											   : DialogMode::INDEX_INSTALL_RESULT} ;
 			{
 				DialogDriver driver( display) ;	// 本物結果dialogを閉じます
 				Access::dispatchIndex( window, *installed) ;
 			}
-			DRIVERCRATE_EXPECT( context, display.handled && !display.failed &&
-											Access::controller( window).scanSessionId() == 0U) ;
+			DRIVERCRATE_EXPECT(
+				context, display.handled && !display.failed && plan.scanSessionId != 0U &&
+							 Access::controller( window).scanSessionId() == plan.scanSessionId &&
+							 Access::controller( window).state() == ApplicationState::SCAN_READY) ;
+			// 成功した同親子は元選択を消費し、表示は保持します
+			if( testCase.id == 2U) {
+				DRIVERCRATE_EXPECT( context, installed->installRetention &&
+												installed->installRetention->providerEntered &&
+												Access::controller( window).lastInstallSucceeded()) ;
+				Access::verifyIndexResultRows( window, context, result, false, true) ;
+			}
+
+			// 復旧開始前の拒否では元選択を消費せず、本人は明示的に中止します
+			if( testCase.id == 18U || testCase.id == 74U) {
+				DRIVERCRATE_EXPECT( context,
+								   installed->restoreContinuationAvailable &&
+									   installed->installRetention &&
+									   !installed->installRetention->providerEntered &&
+									   !Access::controller( window).canContinueWithoutRestore(
+										   installed->operationId, selected)) ;
+				Access::verifyIndexResultRows( window, context, result, true) ;
+			}
+
 			const auto retained = Access::displayText( window) ;	// 元結果表示です
 			// 新八条件はDTOだけでなく本物TreeViewの役割別結果を検証します
-			if( testCase.id >= 170U) {
+			if( testCase.id >= 170U && testCase.id <= 177U) {
 				const UINT baseStatus	   = testCase.id <= 173U ? IDS_INDEX_ROLE_API_COMPLETED
 											 : testCase.id == 176U
 												 ? IDS_NOT_INSTALLED
@@ -16904,13 +18223,15 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 												 ? IDS_INSTALL_FAILED
 												 : IDS_INDEX_ROLE_STAGED ;	// 元登録/失敗を区別します
 				Access::verifyExtensionRoleRows( window, context, selected.front(), baseStatus,
-												extensionStatus) ;
+												extensionStatus, plan.scanSessionId) ;
 			}
 
 			Access::dispatchIndex( window, *prepared) ;
 			DRIVERCRATE_EXPECT( context, retained == Access::displayText( window)) ;
 			// 終端失効は元worker権限へ実要求を送って確認します
 			if( testCase.id == 25U) {
+				const auto beforeStale = bound.observe() ;		// 元操作までの低位作用です
+				const auto beforeHttp  = input.observeHttp() ;	// 元取得までのHTTP fakeです
 				DRIVERCRATE_EXPECT(
 					context, Access::requestExpiredIndexInstall( window, installed->operationId + 1U,
 																plan.scanSessionId, selected)) ;
@@ -16919,10 +18240,56 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 					 return Access::takeIndexTerminal( window, WorkerEventKind::INSTALL_COMPLETED) ;
 				 }) ;								  // 同workerの元終端だけを所有する
 				const auto &stale	   = *staleOwner ;	// 元caseの期間だけ終端値を借用する
-				DRIVERCRATE_EXPECT( context, stale && !stale->installResult.succeeded) ;
+				DRIVERCRATE_EXPECT( context, stale && !stale->installResult.succeeded &&
+												stale->installResult.downloadError ==
+													static_cast<NativeError>( E_INVALIDARG) &&
+												stale->installResult.installOutcome ==
+													OutcomeCode::NOT_STARTED) ;
+				const auto afterStale = bound.observe() ;	// 拒否後の実低位です
+				DRIVERCRATE_EXPECT( context,
+								   afterStale.stages == beforeStale.stages &&
+									   afterStale.installs == beforeStale.installs &&
+									   afterStale.restoreBegins == beforeStale.restoreBegins &&
+									   input.observeHttp().sends == beforeHttp.sends &&
+									   Access::displayText( window) == retained) ;
 			}
 		} while( false) ;
 		const auto observed = bound.observe() ;	// 元終端後・署名scope生存中の確定低位です
+		// 実列挙した同親子は各指定API一回と全独立proof拒否を必要とします
+		if( testCase.id == 2U) {
+			DRIVERCRATE_EXPECT( context, observed.requiredChildProofRuns == 1U &&
+											observed.requiredChildProofChecks == 0x0FFFU &&
+											observed.deviceInstalls[0] == 1U &&
+											observed.requiredChildInstalls[0] == 1U) ;
+			std::cout << "REQUIRED_CHILD_PROOF checks=" << observed.requiredChildProofChecks
+					  << " scopes=" << observed.requiredChildProofRuns
+					  << " parent=" << observed.deviceInstalls[0]
+					  << " child=" << observed.requiredChildInstalls[0] << '\n' ;
+		}
+
+		// 別親と曖昧子から同期proofや子指定APIを発行しません
+		if( testCase.id == 24U || testCase.id == 69U) {
+			DRIVERCRATE_EXPECT( context, observed.requiredChildProofRuns == 0U &&
+											observed.requiredChildInstalls[0] == 0U &&
+											observed.requiredChildInstalls[1] == 0U) ;
+		}
+
+		// 低位変化は元proof確認後にだけ与え、子指定APIへ進めません
+		if( testCase.id >= 181U && testCase.id <= 184U) {
+			DRIVERCRATE_EXPECT( context, observed.requiredChildProofRuns == 1U &&
+											observed.requiredChildProofChecks == 0x0FFFU &&
+											observed.deviceInstalls[0] == 1U &&
+											observed.requiredChildInstalls[0] == 0U) ;
+		}
+
+		// 既存entryとの衝突で子proofを発行せず、そのentryを保持します
+		if( testCase.id == 185U) {
+			DRIVERCRATE_EXPECT( context, observed.requiredChildProofRuns == 0U &&
+											observed.requiredChildInstalls[0] == 0U &&
+											observed.requiredChildCollisionChecks > 0U &&
+											observed.requiredChildCollisionPreserved) ;
+		}
+
 		// 同版baseの計画でもstageだけで終了せず、明示された指定API一回を確認します
 		if( testCase.id == 173U) {
 			DRIVERCRATE_EXPECT( context,
@@ -16975,10 +18342,15 @@ void runSignedIndexRequiredComponentUiScenarios( TestContext &context, const boo
 				  << " failures=" << context.failureCount() - caseFailures << '\n' ;
 	}
 
+	// 選択診断で不足caseを通常全分母の成功へ換算しません
+	if( childProofOnly) {
+		DRIVERCRATE_EXPECT( context, executed == 8U && originalCaseCount == 169U) ;
+	}
+
 	std::cout
 		<< "Component UI assertions: " << context.assertionCount() - startAssertions
 		<< ", failures: " << context.failureCount() - startFailures << ", cases=" << executed
-		<< ", totalFixedCases=" << cases.size()
+		<< ", totalFixedCases=" << originalCaseCount
 		<< ", originalCases=28, originalSupplement=3, selectedSectionCases=19, serviceCases=41, requiredFormCases=26, newMediaCases=24, rootOnlyCases=1, needsCases=19, real CAT/device/install UNCONFIRMED\n" ;
 }
 
@@ -17409,12 +18781,13 @@ int main( const int argc, char **argv)
 	   (argc == 3 && std::string_view( argv[2]) != "close" && std::string_view( argv[2]) != "queue" &&
 		std::string_view( argv[2]) != "app-update" && std::string_view( argv[2]) != "index" &&
 		std::string_view( argv[2]) != "binding" && std::string_view( argv[2]) != "multi" &&
-		std::string_view( argv[2]) != "formats" && std::string_view( argv[2]) != "format-order" &&
-		std::string_view( argv[2]) != "unknown" && std::string_view( argv[2]) != "components" &&
-		std::string_view( argv[2]) != "needs" && std::string_view( argv[2]) != "extension" &&
-		std::string_view( argv[2]) != "preparation" && std::string_view( argv[2]) != "hardware" &&
-		std::string_view( argv[2]) != "status" && std::string_view( argv[2]) != "refresh" &&
-		std::string_view( argv[2]) != "refresh-probe" &&
+		std::string_view( argv[2]) != "archive-wait" && std::string_view( argv[2]) != "formats" &&
+		std::string_view( argv[2]) != "format-order" && std::string_view( argv[2]) != "unknown" &&
+		std::string_view( argv[2]) != "components" &&
+		std::string_view( argv[2]) != "component-scope" && std::string_view( argv[2]) != "needs" &&
+		std::string_view( argv[2]) != "extension" && std::string_view( argv[2]) != "preparation" &&
+		std::string_view( argv[2]) != "hardware" && std::string_view( argv[2]) != "status" &&
+		std::string_view( argv[2]) != "refresh" && std::string_view( argv[2]) != "refresh-probe" &&
 		std::string_view( argv[2]) != "refresh-render-evidence" &&
 		std::string_view( argv[2]) != "history" && std::string_view( argv[2]) != "history-keys" &&
 		std::string_view( argv[2]) != "history-initial" &&
@@ -17430,6 +18803,7 @@ int main( const int argc, char **argv)
 		std::string_view( argv[2]) != "system-media" &&
 		std::string_view( argv[2]) != "original-selection" &&
 		std::string_view( argv[2]) != "opaque-identifiers" &&
+		std::string_view( argv[2]) != "wix-inspection" &&
 		std::string_view( argv[2]) != "selection846" &&
 		std::string_view( argv[2]) != "diagnostics-failure" && !nativeControl)) {
 		std::cout
@@ -17525,6 +18899,10 @@ int main( const int argc, char **argv)
 			else if( mode == "opaque-identifiers") {
 				drivercrate::test::runOpaqueIdentifierUiScenarios( context) ;
 			}
+			// WiXの検査専用ボタンと同じ候補への取得結果を独立したWin32試験で確認します
+			else if( mode == "wix-inspection") {
+				drivercrate::test::runWixInspectionDetailsUiScenario( context) ;
+			}
 			// 本人判断/元失敗投影/一回の新operationだけをprivate HWNDで確認します
 			else if( mode == "optional-restore") {
 				drivercrate::test::runOptionalRestoreUiScenarios( context) ;
@@ -17613,6 +18991,10 @@ int main( const int argc, char **argv)
 			else if( std::string_view( argv[2]) == "multi") {
 				drivercrate::test::runSignedIndexMultiUiScenarios( context) ;
 			}
+			// 元M07だけの同worker event待機を有限診断します
+			else if( std::string_view( argv[2]) == "archive-wait") {
+				drivercrate::test::runSignedIndexMultiUiScenarios( context, false, false, true) ;
+			}
 			// Class未確定初回の追加固定27条件だけを内部targetで実行します
 			else if( std::string_view( argv[2]) == "unknown") {
 				drivercrate::test::runSignedIndexMultiUiScenarios( context, true) ;
@@ -17620,6 +19002,11 @@ int main( const int argc, char **argv)
 			// 元141とC150と追加19を合わせた必要役割の固定161条件を通常UIへ通します
 			else if( std::string_view( argv[2]) == "components") {
 				drivercrate::test::runSignedIndexRequiredComponentUiScenarios( context) ;
+			}
+			// 元固定表から同親・別親・曖昧子だけを独立して観測します
+			else if( std::string_view( argv[2]) == "component-scope") {
+				drivercrate::test::runSignedIndexRequiredComponentUiScenarios( context, false, false,
+																			  true) ;
 			}
 			// 局所化用の固定19依存条件も同じ通常worker/UI経路へ通します
 			else if( std::string_view( argv[2]) == "extension") {
@@ -17640,8 +19027,9 @@ int main( const int argc, char **argv)
 					drivercrate::test::runSignedIndexConsentFormatUiScenarios( context, order) ;
 				}
 			}
-			// 原HTML全文と通常取得commandの固定11条件は同内部targetの明示optionだけです
+			// 原HTMLと通常取得の条件、機器別ファームウェア確認を同じ明示optionで検証します
 			else if( std::string_view( argv[2]) == "preparation") {
+				drivercrate::test::runFirmwareConfirmationUiScenario( context) ;
 				drivercrate::test::runPreparationCommandUiScenarios( context) ;
 			} else {
 				drivercrate::test::runCloseAndQueue( context, std::string_view( argv[2]) == "queue") ;

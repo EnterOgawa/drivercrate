@@ -1,20 +1,20 @@
-# Release checklist — DriverCrate 1.0.7 App
+# Release checklist — DriverCrate 1.0.12 App
 
 対象は利用者向けAppとApp用Setupだけです。私有Collector/収集用Setup/定義/registry、driver本体や実端末情報は公開しません。
 この一覧は工程条件であり、未完了項目を過去版の成功で埋めません。最新のrelease指示は必要なsource push/tag/Release登録を含み、
 既存Publicへの反映のための汎用再承認flowは追加しません。新たなvisibility変更は別判断です。
 
-変更点は[1.0.7のリリースノート](release-notes-1.0.7.md)に記載します。
+変更点は[1.0.12のリリースノート](release-notes-1.0.12.md)に記載します。
 
 ## 今回の順序
 
-公開するソース集合を固定し、そのsnapshot自身からbuildと試験を行います。受入した最終Appのコード署名を確認してから、同じsnapshotの手順でZIPとSetupを作成します。Setupの内部engine・解除用EXE・外側EXEも署名し、配布物の受入後にsource/tag/Releaseを公開します。利用者が手動署名する場合も各段階で原byteと署名を検証し、完了連絡だけで合格にしません。旧1.0.6の公開assetと索引は保持します。
+公開するソース集合を固定し、そのsnapshot自身からbuildと試験を行います。受入した最終Appのコード署名を確認してから、同じsnapshotの手順でZIPとSetupを作成します。Setupの内部engine・解除用EXE・外側EXEも署名し、配布物の受入後にsource/tag/Releaseを公開します。利用者が手動署名する場合も各段階で原byteと署名を検証し、完了連絡だけで合格にしません。旧版の公開assetと索引は保持します。
 
 ## Sourceと検証
 
-既存Public mainのconsumer構成を正本とし、1.0.7の共通処理と必要なconsumer試験を明示して含めます。私有の収集製品や研究用ソースを依存解決のために一括追加しません。静的閉包、開発中の試験、公開snapshot自身のfresh buildと試験を区別します。
+既存Public mainのconsumer構成を正本とし、1.0.12の共通処理と必要なconsumer試験を明示して含めます。私有の収集製品や研究用ソースを依存解決のために一括追加しません。静的閉包、開発中の試験、公開snapshot自身のfresh buildと試験を区別します。
 
-- [ ] CMake正本、VERSIONINFO、package、Release title、tag v1.0.7を一致させる。
+- [ ] CMake正本、VERSIONINFO、package、Release title、tag v1.0.12を一致させる。
 - [ ] consumerの明示集合についてpath/mode/checkout byte/SHA-256、include/fixture/文書link、license/noticeを固定する。
 - [ ] 私有source/registry/定義、work、鍵、credential、inventory、driver、build/PDB、個人絶対pathを除外する。
 - [ ] 公開mainの既履歴を親として保持する。Private履歴の混入・force・root作り直しをしない。
@@ -38,7 +38,7 @@
 
 - [ ] source/配布物/必要検証と未確認を主担当が受入する。署名前の実績を署名後の実導入成功へ換算しない。
 - [ ] 通常commit/pushと明示tagを行い、--verify-tag付きdraft Releaseへ検証済みSetup/checksum・ZIP/checksumの四assetの明示pathを添付する。
-- [ ] draftの四assetのsize/SHA-256を照合してから正式latestへ公開する。未完成のlatestや既v1.0.4/v1.0.5の変更を行わない。
+- [ ] draftの四assetのsize/SHA-256を照合してから正式latestへ公開する。既公開リリースを保持し、受入後に新しい版をlatestへ切り替える。
 - [ ] commit/tag/Release/version/asset byteとSHA-256をremoteから確認する。output/*、--clobber、不確定操作の盲目的retryは使わない。
 
 全台帳の同時fresh成功、七日自然運用、全機器への実導入、別PC移設は今回App Releaseの一律前提にしません。

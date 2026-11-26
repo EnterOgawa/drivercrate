@@ -2,7 +2,7 @@
 /**
  * @file common_inf_plan_tests.cpp
  * @brief 共通単一INF準備計画の封印所有・拒否・rollbackを非導入で検証する
- * @version 01.02.02
+ * @version 01.02.03
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続
  * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.03 Shunji Ogawa  2026/11/21  共通計画から呼ぶ試験用の内容検査名を製品と分離
  * </pre>
  *
  * @note 通常内容関数のfakeはこのEXEだけに定義する。製品policy・署名を変更しない
@@ -161,10 +162,10 @@ public:
  * @note 内容・CAT署名の実検査ではない。実file操作は架空workspaceだけへ行う
  */
 //------------------------------------------------------------------------------
-NativeError inspectCommonDriverPackage( const DriverArchiveInput		 &input,
-									   OfficialDriverArchiveFormat	  format,
-									   CommonDriverPackageInspection &inspection,
-									   const std::function<bool()>	 &cancellation)
+NativeError inspectFixtureCommonDriverPackage( const DriverArchiveInput		&input,
+											  OfficialDriverArchiveFormat	 format,
+											  CommonDriverPackageInspection &inspection,
+											  const std::function<bool()>	&cancellation)
 {
 	static_cast<void>( format) ;
 	inspection = {} ;
@@ -243,7 +244,7 @@ NativeError inspectCommonDriverPackage( const DriverArchiveInput		 &input,
  * @note 実Windows署名の検証成功を意味しない
  */
 //------------------------------------------------------------------------------
-NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected)
+NativeError reverifyFixtureCommonDriverInf( const CommonInfInspection &inspected)
 {
 	// 設定した失敗を適合やbindingで補わない
 	if( rejectReverify) {

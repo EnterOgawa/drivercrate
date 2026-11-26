@@ -1,5 +1,9 @@
 # アーキテクチャ
 
+## 候補詳細からの配布物検査
+
+候補詳細からの取得は検査用の操作です。選んだ端末と元の索引レコードに対して配布物の署名と内容を確認し、その結果を候補へ返します。WiX形式の対応配布物では、元の利用規約を取り出して候補詳細に表示します。導入の選択、規約への同意、適用性の再確認、復旧準備は後続の導入操作で行います。
+
 ## 同選択SYSTEM依存の私有計画（ADR0491）
 
 既NativeLoaderは、検証済みSYSTEM/INBOX・元Store/CATと正確なNeeds文脈へ、全作用の列挙後に型/所有関係/実提供copyを照合します。共有readerを使い、元原文の全field・元file/CAT/hash/権限・必要なservice安定config/SDを既RequiredDriverComponentPlanへ保持し、native直前の再構築値へ完全比較します。固定Windows遅延登録の有無を一般SYSTEM file proofと分け、候補発行やcallback成功を登録完了へ読み替えません。現在の内部資格/配布/実機確認の範囲はADR0491と847p9の記録を正本とします。
@@ -28,7 +32,7 @@ ADR0476の常駐収集は既owner.nextDueUtcだけを使い、正常保存した
 三列へ要約し、状態・検査・個別結果はダブルクリック詳細へ集約する。同deviceの全候補と現在観測はUIの所有snapshotへ保持し、詳細dialogで比較する。
 詳細の閲覧だけでは選択を変えず、明示button後に元scan session・device・candidate indexを再照合して
 一device一候補をcheckboxへ結合する。共有packageや同名の別deviceは統合しない。導入後の個別結果は
-candidate identityへ結合して詳細へ残し、全候補を失効させる。[ADR 0421](adr/0421-simple-list-and-device-details.md)を参照する。
+candidate identityへ結合して詳細へ残し、全候補を失効させる。ADR 0421を参照する。
 workerは選択対象だけをread-onlyで再openし、元scan/opaque deviceへ結合した現在名・版・class・問題観測を
 InstallResultへ添付する。UIは個別結果を保持して対象行を再構築し、API成功から現在状態を補完しない。
 
@@ -57,7 +61,7 @@ Idle、Scanning、ScanReady、CreatingRestorePoint、Downloading、Installing、
 区別します。同時操作を拒否し、進捗は確定済み段階・項目から算出します。取消しは協調停止です。
 通常UIの検索開始はworkerでWindowsハードウェア再検出一回→現在PnP再列挙→更新検索の順に実行します。
 再検出の失敗ではProvider走査へ進まず、内部再監査・取得時照合・導入後のread-only確認には再検出を加えません。
-同期再検出の完了は全deviceの開始・driver導入完了を保証しません。詳細は[ADR0419](adr/0419-hardware-refresh-before-update-search.md)を参照してください。
+同期再検出の完了は全deviceの開始・driver導入完了を保証しません。詳細はADR0419を参照してください。
 
 ## Providerと候補
 
@@ -77,7 +81,7 @@ UIは種類→device→現在版／候補のtreeを表示し、基本driverに�
 アプリには共通取得、署名・hash・schema・期限・世代検証と端末内照合を接続しています。
 公開catalog／検査済みINFのIDと端末inventoryを分け、生端末IDを取得要求へ送りません。
 
-通常検索は毎回小さな署名更新情報を認証し、保護storeの全再認証で現在有効な原envelopeと完全一致した場合は索引本体の再取得を省きます。初回・新版・有効cache不在は従来の全体取得と検査へ進みます。同一成功はUNCHANGEDとして一時HTTP失敗時のcache利用と区別し、後続の通常load・端末内照合・候補表示は毎回行います。[ADR0467](adr/0467-authenticated-unchanged-index-cache-reuse.md)を参照してください。
+通常検索は毎回小さな署名更新情報を認証し、保護storeの全再認証で現在有効な原envelopeと完全一致した場合は索引本体の再取得を省きます。初回・新版・有効cache不在は従来の全体取得と検査へ進みます。同一成功はUNCHANGEDとして一時HTTP失敗時のcache利用と区別し、後続の通常load・端末内照合・候補表示は毎回行います。ADR0467を参照してください。
 
 索引recordは発見の根拠であり、serialized planから導入権限を復元しません。
 現在scanのrecord、公式取得grant、同意、実byteを結合して検査し、device／OS／x64／Windows rank／
@@ -87,7 +91,7 @@ handleを保持し、直前に再検証します。別sessionや同hashの別wor
 通常配布と検証用storeは用途別domainへ分離し、domainごとの世代下限を保持します。
 旧共用store/未知rootが存在する場合はfail-closedで停止し、移動・削除・resetしません。
 旧移動専用tool/API/trustは廃止し、現在のdomain分離・世代下限・原byte/hashを維持します。
-[ADR 0397](adr/0397-release-completion-and-index-expiry-compatibility.md)を現行契約とします。
+ADR 0397を現行契約とします。
 
 既存headを開くときは、保護root/DPAPI/wire・原manifest署名・gzip/展開hashから履歴の世代下限を
 認証します。この下限だけの内部値はrecord・snapshot・導入許可を持ちません。現在のrecord codecで
@@ -95,18 +99,18 @@ handleを保持し、直前に再検証します。別sessionや同hashの別wor
 同じrootで次世代へ保存できます。現在cache・同世代再利用・commit後readbackは全schemaを必須とし、
 旧fieldの補完や旧readerを追加しません。Open成功は現在cacheの利用可能性を保証しません。
 attestationの元発行への結合と、実現在の失効・取得・適用性の既存adapter検証を維持します。
-[ADR 0411](adr/0411-authenticated-history-floor-without-record-hydration.md)に能力の分離を定めます。
+ADR 0411に能力の分離を定めます。
 
 監視PCの匿名索引readbackは、既存daily名pairと16桁世代のcandidate-publication名pairだけを
 同parent・同stemで許可します。固定保護root・同handle・ACL・reparse拒否と匿名三resourceの
 hash/署名/期限検証は別途必須です。任意filenameやURL、通信権限を追加しません。
-[ADR 0412](adr/0412-public-readback-canonical-artifact-pairs.md)を正本とします。
+ADR 0412を正本とします。
 
 標準INFは既存指定導入境界へ接続し、初回と必要Extension／componentを明示します。
 公式installerは専用の署名・publisher・作用範囲と対話引継ぎへ分岐し、INF rankや内容合格を合成しません。
 scan中のEXE／MSI実行や無関係なapp・firmware追加は行いません。
 
-[ADR0450](adr/0450-windows-managed-driver-package-scope.md)の開発sourceは、全SDF/CAT内容検査と
+ADR0450の開発sourceは、全SDF/CAT内容検査と
 同deviceの私有native選択scopeを分けます。copied driver DATAの内容合格からprogram実行stepを作らず、
 元未評価作用を保持したまま実DDInstallのcopy/source/Windows宛先・関連service/softwareを再読します。
 そのfactoryと元rank/bindingを通った通常計画だけを既存NewDev/SetupAPIへ渡します。CopyINFの独立基本INFは
@@ -121,7 +125,7 @@ Compositeは元私有Referenceから取得集合を再照合し、未選択targe
 既検証WUA/Driver Store候補との混在でも元選択集合を維持します。新downgrade・真の複数候補・未成立では停止します。
 必要Extension/componentは既存の検証済み基本計画へ含め、復旧前検査を維持します。
 取消し、新検索、close、旧eventで継続意図を破棄し、実導入APIは未取得参照を引き続き拒否します。
-[ADR 0422](adr/0422-search-select-install-intent.md)を正本とし、新byteの通常実UI受入と実導入は別工程で記録します。
+ADR 0422を正本とし、新byteの通常実UI受入と実導入は別工程で記録します。
 
 ## 導入と結果
 
@@ -151,7 +155,7 @@ Collector setupは通常アプリと別成果物です。native EXEが閉じたp
 現行v7の固定77payloadにCPython runtime/license・seedとdistribution dataを同梱します。
 receipt-v3だけを扱い、旧packageの受理/自動移行と固定local-index入口を廃止しました。
 非通信停止移設、native metadata Taskと別同意のdistribution Taskは異なる現行責務です。
-[Collectorセットアップ](collector-setup-guide.md)と[台帳説明](../data/collector-registry/README.md)を参照してください。
+Collectorセットアップと台帳説明を参照してください。
 
 ## 検証状態
 
@@ -178,7 +182,7 @@ script/属性文字列内の偽終端、本文/リンク/規約/前提・任意c
 manifestは全原期限minを保持し、実HTTP待機・課金、署名/内容/適用性・世代下限を変更しません。
 
 実取得/INF検査、人工試験、historical replay、実PC適合と実導入の資格は
-[リリースノート](release-notes-0.1.1.md)と[テスト方針](testing.md)へ分けます。
+リリースノートと[テスト方針](testing.md)へ分けます。
 公開sourceは私有履歴から独立した具体的な集合を固定し、そのsnapshotからfresh buildします。
 manifestの`finalAllowlist=false`は候補schemaの契約であり、固定集合のreview receiptとは別です。
 GitHub Actionsは通常運用に使用せず、公開開始後の履歴を保持します。
@@ -189,14 +193,14 @@ GitHub Actionsは通常運用に使用せず、公開開始後の履歴を保持
 
 署名索引の同一公開IDに複数present機能が一致する場合は元aggregate関係を保持し、DriverStoreの完全個別観測からprivateな一device関係を追加する。原record/public tuple・同owner/lease・全cohort/元診断へ結合し、同record/deviceの複数公開IDは一つの基本参照へ集約する。
 
-詳細は[ADR 0413](adr/0413-authenticated-per-device-index-projection.md)を参照する。
+詳細はADR 0413を参照する。
 
 ## 単一INFの唯一最良Windows node（ADR 0414）
 
 元INF完全path、Provider、packed版、日付に一致する全Windows nodeを有限正常終端まで読み、
 実full rankの最小値が一件のときだけ固定する。同最良の同点、途中障害、列挙上限は拒否する。
 導入前の元INF再検証と登録先node再選択でも同じ唯一winnerを要求し、元section/rank/全snapshotの
-変化を拒否する。詳細は[ADR 0414](adr/0414-unique-minimum-windows-rank-binding.md)を参照する。
+変化を拒否する。詳細はADR 0414を参照する。
 
 ## 選択batch内のnative proof寿命（ADR 0418）
 
@@ -204,7 +208,7 @@ GitHub Actionsは通常運用に使用せず、公開開始後の履歴を保持
 元proofの解放を同batch終端まで延期する。resolverと新callback生成は開始時に閉じる。
 scopeはsnapshotを強所有せず、新scan・明示失効・終端・例外では元proofを失効させる。
 各deviceの直前現在状態、rank、固有binding、原byteと期限は引き続き再検証する。
-詳細は[ADR 0418](adr/0418-signed-index-batch-proof-lifetime.md)を参照する。
+詳細はADR 0418を参照する。
 
 
 ADR0485のsource実装は、Provider前停止の元operation/選択にworker-localな一回の続行pendingを結びます。

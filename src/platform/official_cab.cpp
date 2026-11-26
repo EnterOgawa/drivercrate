@@ -2,7 +2,7 @@
 /**
  * @file official_cab.cpp
  * @brief 公式CAB安全解析および選択展開実装
- * @version 01.00.02
+ * @version 01.00.03
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,9 +32,10 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.00.03 Shunji Ogawa  2026/11/20  本人CAB検査で作成時の出力handleを保持
  * </pre>
  *
- * @note SetupIterateCabinetWで全entryを事前列挙し、選択fileだけを非存在確認済みの保護workspace pathへ展開します。分割CABは拒否します
+ * @note SetupIterateCabinetWで全entryを事前列挙し、選択fileだけを保護workspaceへ展開します。本人検査は元出力の同一性を保持し、分割CABは拒否します
  */
 //------------------------------------------------------------------------------
 
@@ -52,6 +53,7 @@
 #include <cwchar>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <new>
 #include <span>
 #include <string>
@@ -78,31 +80,33 @@ constexpr std::size_t MAXIMUM_PATH_COMPONENT_CHARACTERS = 120U ;	// 一path要�
  */
 struct CabinetIterationContext {
 	/// 列挙全体に適用する非所有policy
-	const OfficialCabExtractionPolicy *policy{} ;
+	const OfficialCabExtractionPolicy			 *policy{} ;
 	/// 選択展開する固定path群
-	std::span<const std::wstring_view> selectedFiles ;
+	std::span<const std::wstring_view>			  selectedFiles ;
 	/// 展開modeの出力を所有する領域
-	OfficialDownloadWorkspace		  *workspace{} ;
+	OfficialDownloadWorkspace					 *workspace{} ;
 	/// 検証済み通常fileの列挙先
-	std::vector<OfficialZipEntry>	  *entries{} ;
+	std::vector<OfficialZipEntry>				 *entries{} ;
 	/// 大文字小文字無視の重複検出key群
-	std::vector<std::wstring>		   comparisonKeys ;
+	std::vector<std::wstring>					  comparisonKeys ;
 	/// 今回workspaceに作成した追跡対象path群
-	std::vector<std::wstring>		   createdFiles ;
+	std::vector<std::wstring>					  createdFiles ;
 	/// SetupAPIが完了通知した選択path群
-	std::vector<std::wstring>		   extractedFiles ;
+	std::vector<std::wstring>					  extractedFiles ;
 	/// 次のFILEEXTRACTED通知を待つ相対path
-	std::wstring					   pendingRelativePath ;
+	std::wstring								  pendingRelativePath ;
 	/// 次のFILEEXTRACTEDで照合する絶対path
-	std::wstring					   pendingTargetPath ;
+	std::wstring								  pendingTargetPath ;
+	/// 本人検査で作成時から展開完了まで保持する出力handle
+	std::unique_ptr<void, decltype( &CloseHandle)> pendingOutput{nullptr, CloseHandle} ;
 	/// 次の展開完了時に照合するentry byte数
-	std::uint64_t					   pendingFileBytes{} ;
+	std::uint64_t								  pendingFileBytes{} ;
 	/// 現在までの展開後公称byte数合計
-	std::uint64_t					   expandedBytes{} ;
+	std::uint64_t								  expandedBytes{} ;
 	/// Callback内で最初に確定した失敗理由
-	NativeError						   error{} ;
+	NativeError									  error{} ;
 	/// trueの場合は選択fileを作成する
-	bool							   extractSelected{} ;
+	bool										  extractSelected{} ;
 } ;
 
 //------------------------------------------------------------------------------
@@ -383,6 +387,7 @@ struct CabinetIterationContext {
 [[nodiscard]] NativeError discardPendingExternalFile( CabinetIterationContext &context) noexcept
 {
 	NativeError result{} ;	// Callback ABIから外へ例外を漏らさなcleanup結果
+	context.pendingOutput.reset() ;
 	// workspaceと予約先が揃う場合だけ未完了の外部出力をcleanupする
 	if( context.workspace != nullptr && !context.pendingRelativePath.empty() &&
 	   !context.pendingTargetPath.empty()) {
@@ -414,6 +419,7 @@ struct CabinetIterationContext {
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError discardCreatedExternalFiles( CabinetIterationContext &context) noexcept
 {
+	context.pendingOutput.reset() ;
 	const OfficialCabFileDiscardOperation operation{
 		.context  = context.workspace,
 		.callback = discardWorkspaceCabFile,
@@ -527,8 +533,22 @@ UINT CALLBACK cabinetCallback( const PVOID context, const UINT notification,
 
 			state->pendingRelativePath = relativePath ;
 			state->pendingFileBytes	   = information->FileSize ;
-			state->error =
-				state->workspace->prepareExternalFile( relativePath, state->pendingTargetPath) ;
+			// 本人検査では保護DACLと削除を共有しないhandleを作成時に固定します
+			if( state->workspace->protectionMode() ==
+			   OfficialWorkspaceMode::CURRENT_USER_INSPECTION) {
+				std::wstring outputPath = state->workspace->path( relativePath) ;	// 新規出力先です
+				HANDLE		 output{INVALID_HANDLE_VALUE} ;							// 作成成功後にcallbackが所有します
+				state->error = state->workspace->createCabinetOutput( relativePath, output) ;
+				// 作成に成功した出力だけを片付けの対象にします
+				if( state->error == 0) {
+					state->pendingOutput.reset( output) ;
+					state->pendingTargetPath = std::move( outputPath) ;
+				}
+			} else {
+				state->error =
+					state->workspace->prepareExternalFile( relativePath, state->pendingTargetPath) ;
+			}
+
 			// 出力予約が失敗した場合はCAB抽出を中止する
 			if( state->error != 0) {
 				return FILEOP_ABORT ;
@@ -557,13 +577,19 @@ UINT CALLBACK cabinetCallback( const PVOID context, const UINT notification,
 				return ERROR_INVALID_DATA ;
 			}
 
-			state->error =
-				state->workspace->adoptFile( state->pendingRelativePath, state->pendingFileBytes) ;
+			// 本人検査では展開先が作成時と同じファイルかを保持handleで照合します
+			state->error = state->pendingOutput
+							   ? state->workspace->verifyCabinetOutput( state->pendingRelativePath,
+																	   state->pendingOutput.get(),
+																	   state->pendingFileBytes)
+							   : state->workspace->adoptFile( state->pendingRelativePath,
+															 state->pendingFileBytes) ;
 			// workspaceへの取り込みが失敗したfileを完了扱いしない
 			if( state->error != 0) {
 				return ERROR_INVALID_DATA ;
 			}
 
+			state->pendingOutput.reset() ;
 			state->extractedFiles.push_back( std::move( state->pendingRelativePath)) ;
 			state->pendingTargetPath.clear() ;
 			state->pendingFileBytes = 0 ;

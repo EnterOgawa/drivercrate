@@ -2,7 +2,7 @@
 /**
  * @file wch_official_provider_tests.cpp
  * @brief WCH公式取得とserial共通境界の試験実装
- * @version 01.00.03
+ * @version 01.02.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,8 @@
  * Ver.01.00.01 Shunji Ogawa  2026/09/12  情報検索の専用契約と通常経路の互換性を追加
  * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.03 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/24  公開主レコードのnull表記と旧規則の回帰を検証
+ * Ver.01.02.00 Shunji Ogawa  2026/11/24  固定公開照会先の構成と不正URLの拒否を検証
  * </pre>
  *
  * @note 実deviceを列挙せず、公開schemaの合成例とfake監査で境界を検証する
@@ -45,6 +47,12 @@
 #include "platform/wch_catalog_parser.h"
 #include "platform/wch_serial_package.h"
 #include "test_framework.h"
+
+#pragma warning( push)
+// SDKのSAL差だけを試験側でも隔離する
+#pragma warning( disable : 28252 28253 6101)
+#include <winrt/Windows.Data.Json.h>
+#pragma warning( pop)
 
 #include <array>
 #include <cstddef>
@@ -91,6 +99,54 @@ std::wstring replaced( const std::wstring_view input, const std::wstring_view fr
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 公開照会URLの往復と別の意味を持つ入力の拒否を検証する
+ * @param[in,out] context Assertion集計先
+ */
+//------------------------------------------------------------------------------
+void testMetadataUrl( TestContext &context)
+{
+	constexpr std::wstring_view PREFIX =
+		L"https://api1.wch.cn/api/official/website/common/relationFiles?fileName=" ;	// 対照用の固定URL
+	constexpr std::array pageNames{L"LAB_SENSOR_ZIP.html",
+								   L"LAB-SENSOR.EXE.html"} ;	// 公開ページ名の二形式
+	// URLとページ名を同じ固定形式として照合する
+	for( const auto name : pageNames) {
+		const auto url = makeWchPublicMetadataUrl( name) ;	// 構成した照会先
+		DRIVERCRATE_EXPECT( context, url == std::wstring( PREFIX).append( name)) ;
+		DRIVERCRATE_EXPECT( context, isWchPublicMetadataUrl( url)) ;
+	}
+
+	// 空欄、別の区切り、複数の意味を持つ名前、長さ超過の対照
+	const std::array badNames{std::wstring{},
+							  std::wstring( L".html"),
+							  std::wstring( L"LAB.EXE.HTML"),
+							  std::wstring( L"other/LAB.html"),
+							  std::wstring( L"other\\LAB.html"),
+							  std::wstring( L"LAB..html"),
+							  std::wstring( L"LAB%2eEXE.html"),
+							  std::wstring( L"LAB+TEST.html"),
+							  std::wstring( L"LAB.html#ref"),
+							  std::wstring( L"LAB.html&fileName=OTHER.html"),
+							  std::wstring( 96U, L'A') + L".html"} ;
+	// 曖昧な名前を生成側、受信側の両方で拒否する
+	for( const auto &name : badNames) {
+		DRIVERCRATE_EXPECT( context, makeWchPublicMetadataUrl( name).empty()) ;
+		DRIVERCRATE_EXPECT( context, !isWchPublicMetadataUrl( std::wstring( PREFIX).append( name))) ;
+	}
+
+	const auto url = makeWchPublicMetadataUrl( L"LAB.html") ;	// 変換対照用の正常URL
+	DRIVERCRATE_EXPECT( context, !isWchPublicMetadataUrl( replaced( url, L"https://", L"http://"))) ;
+	DRIVERCRATE_EXPECT(
+		context, !isWchPublicMetadataUrl( replaced( url, L"api1.wch.cn", L"api1.wch.cn.invalid"))) ;
+	DRIVERCRATE_EXPECT( context,
+					   !isWchPublicMetadataUrl( replaced( url, L"api1.wch.cn", L"api1.wch.cn:443"))) ;
+	DRIVERCRATE_EXPECT( context,
+					   !isWchPublicMetadataUrl( replaced( url, L"relationFiles", L"downloadFile"))) ;
+	DRIVERCRATE_EXPECT( context, !isWchPublicMetadataUrl( replaced( url, L"fileName", L"FileName"))) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 2配布種別の正常metadataと不正型／URL／認証／IDを検証する
  *
  * @param[in,out] context Assertion集計先
@@ -114,6 +170,27 @@ void testParser( TestContext &context)
 									detailed.publishedSha256.empty() &&
 									!detailed.publishedSizeBytes &&
 									detailed.license == OfficialReleaseLicense::UNRESOLVED) ;
+	const std::wstring nullable =
+		replaced( JSON, L"\"githubDownloadUrl\":\"\"",
+				 L"\"githubDownloadUrl\":null") ;	// 現行公式応答と同じ代替なしの表記
+	const auto parsedNullable =
+		// 構文検査済み入力
+		winrt::Windows::Data::Json::JsonObject::Parse( nullable) ;
+	WchPublicDownload publicDownload ;	// 収集側が選ぶ主レコードと固定URL
+	DRIVERCRATE_EXPECT( context,
+					   readWchPublicDownload( L"CH341SER.ZIP", parsedNullable, publicDownload)) ;
+	DRIVERCRATE_EXPECT( context, publicDownload.releaseKey == L"1001" &&
+									publicDownload.packageVersion == L"5.1" &&
+									publicDownload.downloadUrl == url) ;
+	DRIVERCRATE_EXPECT( context,
+					   !readWchPublicDownload( L"other.exe", parsedNullable, publicDownload)) ;
+	DRIVERCRATE_EXPECT( context, publicDownload.releaseKey.empty() &&
+									publicDownload.packageVersion.empty() &&
+									publicDownload.downloadUrl.empty()) ;
+	DRIVERCRATE_EXPECT(
+		context, !parseWchOfficialRelease( WchOfficialPackageKind::CH341, HTML, nullable, detailed)) ;
+	DRIVERCRATE_EXPECT( context,
+					   !readWchPublicDownload( L"..\\CH341SER.ZIP", parsedNullable, publicDownload)) ;
 	DRIVERCRATE_EXPECT(
 		context, parseWchOfficialRelease( WchOfficialPackageKind::CH343, HTML, multi, detailed)) ;
 	DRIVERCRATE_EXPECT( context, detailed.family == OfficialReleaseFamily::WCH_CH343 &&
@@ -161,8 +238,22 @@ void testParser( TestContext &context)
 		  L"\"githubDownloadUrl\":\"https://example.invalid/\""}}} ;	// 単一不正fieldの拒否例
 	// 全拒否例でURLの持ち越しがないことも検証する
 	for( const auto &[from, to] : mutations) {
+		const auto changed = replaced( JSON, from, to) ;	// 両用途で同じ不正応答を使用する
+		// 表現範囲を超える数値はJSON読取が拒否するため、旧入口でだけ確認する
+		if( to != L"1e309") {
+			const auto root =
+				// 構文検査済み入力
+				winrt::Windows::Data::Json::JsonObject::Parse( changed) ;
+			publicDownload.releaseKey = L"previous" ;
+			DRIVERCRATE_EXPECT( context,
+							   !readWchPublicDownload( L"CH341SER.ZIP", root, publicDownload)) ;
+			DRIVERCRATE_EXPECT( context, publicDownload.releaseKey.empty() &&
+											publicDownload.packageVersion.empty() &&
+											publicDownload.downloadUrl.empty()) ;
+		}
+
 		DRIVERCRATE_EXPECT( context, !parseWchOfficialRelease( WchOfficialPackageKind::CH341, HTML,
-															 replaced( JSON, from, to), detailed)) ;
+															 changed, detailed)) ;
 		DRIVERCRATE_EXPECT( context, detailed == OfficialReleaseRecord{}) ;
 		url = L"previous" ;
 		DRIVERCRATE_EXPECT( context, !parseWchOfficialZipUrl( WchOfficialPackageKind::CH341, HTML,
@@ -389,6 +480,7 @@ void testFamilyAudit( TestContext &context)
 //------------------------------------------------------------------------------
 void runWchOfficialProviderTests( TestContext &context)
 {
+	testMetadataUrl( context) ;
 	testParser( context) ;
 	testConsentAndLimits( context) ;
 	testFamilyAudit( context) ;

@@ -2,7 +2,7 @@
 /**
  * @file local_diagnostic_log_tests.cpp
  * @brief 匿名診断の保存先/秘密非出力/有界保存/非阻害を実fileで確認します
- * @version 01.04.06
+ * @version 01.04.07
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * Ver.01.04.04 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.04.05 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.04.06 Shunji Ogawa  2026/11/14  両slotの版更新追記と旧版・不正header拒否を確認
+ * Ver.01.04.07 Shunji Ogawa  2026/11/21  現在の製品バージョンへの追記と未来バージョンの拒否を確認
  * </pre>
  * @note 実device/通信/導入/製品UIを使いません。Fixtureを削除せず検査結果として保持します
  * @see docs/adr/0427-local-anonymous-scan-diagnostics.md
@@ -40,6 +41,7 @@
 #include "platform/provider_worker.h"
 #include "core/provider_registry.h"
 #include "core/device_observation.h"
+#include "drivercrate_version.h"
 #include <Windows.h>
 #include <winioctl.h>
 #include <wrl/wrappers/corewrappers.h>
@@ -216,13 +218,17 @@ drivercrate::WorkerEvent sample()
 void versionUpgrade( const std::filesystem::path &root)
 {
 	using namespace drivercrate ;
-	const std::array
-		versions{
-			"1.0.1",  "1.0.6",		"1.0.7",		 "1.0.0",		"1.0.8",
-			"1.1.0",  "2.0.0",		"01.0.6",		 "1.00.6",		"1.0.06",
-			"1.0.-1", "1.0.65536",	"1.0.6.0",		 "1.0.6 extra", "1.0.6\r",
-			"wire2",  "missing-lf", "1.0.6\nuntyped"} ;	// 既知三版と範囲/数値/余剰/改行の拒否です
-	std::size_t ordinal{} ;								// 固定matrixのfixture番号です
+	const std::array versions{"1.0.1",		   "1.0.6",
+							  "1.0.7",		   DRIVERCRATE_VERSION_STRING,
+							  "1.0.0",		   "1.0.65535",
+							  "1.1.0",		   "2.0.0",
+							  "01.0.6",		   "1.00.6",
+							  "1.0.06",		   "1.0.-1",
+							  "1.0.65536",	   "1.0.6.0",
+							  "1.0.6 extra",   "1.0.6\r",
+							  "wire2",		   "missing-lf",
+							  "1.0.6\nuntyped"} ;	// 履歴と現在のバージョン、範囲・数値・余剰・改行を確認します
+	std::size_t		 ordinal{} ;					// 固定matrixのfixture番号です
 	// 全条件で両slotを用意し、新slot作成へのfallbackを成功へ数えません
 	for( const auto version : versions) {
 		const auto folder = directory(
@@ -251,7 +257,7 @@ void versionUpgrade( const std::filesystem::path &root)
 		const auto status = log.status() ;						// 保存の実終端だけを比較します
 		const auto first  = read( logsFolder / L"scan-0.log") ;	// 変更前原prefixと照合するbyteです
 		const auto second = read( logsFolder / L"scan-1.log") ;	// 非使用側も元byte保持を確認します
-		const bool compatible = ordinal < 3U ;					// 明示した対応済み版だけです
+		const bool compatible = ordinal < 4U ;					// 最初の4条件は追記できます
 		expect( first.starts_with( original) && second.starts_with( original)) ;
 		expect( compatible ? status.saved == 1U && status.startupFlushed &&
 								(first.size() + second.size() > 2U * original.size())

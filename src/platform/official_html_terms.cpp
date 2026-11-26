@@ -2,7 +2,7 @@
 /**
  * @file official_html_terms.cpp
  * @brief 静的HTML許諾の原要素・原文書・全文をメーカー非依存で検査します
- * @version 01.01.02
+ * @version 01.03.00
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,8 @@
  * Ver.01.01.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.00 Shunji Ogawa  2026/11/19  公開配布表用に既HTML字句検査を共通利用
+ * Ver.01.03.00 Shunji Ogawa  2026/11/22  独立規約のCSP宣言と表示属性を有限に解析
  * </pre>
  *
  * @note Script/CSSを取得・評価せず、同意や取得能力を生成しません
@@ -55,6 +57,10 @@ constexpr std::size_t STATIC_PAGE_CHARACTERS =
 	2U * 1024U * 1024U ;	// 独立sectionとリンク根拠だけの上限です
 // 属性を含む一tagの走査上限です
 constexpr std::size_t						 MAX_TAG_CHARACTERS = 4096U ;
+// 独立規約の外側で確認したCSP宣言のみの文字上限です
+constexpr std::size_t						 MAX_STATIC_CSP_TAG_CHARACTERS = 16U * 1024U ;
+// 表示コンポーネントの識別子には短いASCII値だけを認めます
+constexpr std::size_t						 MAX_LAYOUT_ATTRIBUTE_CHARACTERS = 64U ;
 // 入れ子と一tagの属性数の上限です
 constexpr std::size_t						 MAX_DEPTH = 64U ;
 // 認識した本文tagだけを全文へ写します
@@ -141,17 +147,22 @@ struct HtmlTag {
  * @param[in] begin less-thanの原位置です
  * @param[out] tag 全成功時だけ有効なtagです。失敗出力は使用しません
  * @param[in] staticSection 独立profileだけHTML属性名のdotを認識します
- * @return 最大4096文字以内で全属性を読めた場合trueです
+ * @param[in] maximumTagCharacters 当該呼出しで許可した一要素の文字数です
+ * @return 指定上限以内で全属性を読めた場合trueです
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] bool readTag( const std::wstring_view page, const std::size_t begin, HtmlTag &tag,
-						   const bool staticSection = false)
+[[nodiscard]] bool readTag( std::wstring_view page, const std::size_t begin, HtmlTag &tag,
+						   const bool		 staticSection		  = false,
+						   const std::size_t maximumTagCharacters = MAX_TAG_CHARACTERS)
 {
 	tag = {} ;
 	// 不正境界を部分要素へ変換しません
 	if( begin >= page.size() || page[begin] != L'<') {
 		return false ;
 	}
+
+	// 属性間の空白や引用符の探索も、一要素に許可した原範囲の内側で行います
+	page = page.substr( 0U, begin + (std::min)( maximumTagCharacters, page.size() - begin)) ;
 
 	std::size_t cursor = begin + 1U ;	// 元tagの有限走査位置です
 	// 閉じtagは名前の前だけで認識します
@@ -171,13 +182,14 @@ struct HtmlTag {
 	}
 
 	// 元tagが閉じるまで、最大64属性を欠損なく読みます
-	while( cursor < page.size() && cursor - begin < MAX_TAG_CHARACTERS) {
+	while( cursor < page.size()) {
+		const auto attributeGapStart = cursor ;	// 長いCSP用metaの属性区切りを確認する原位置です
 		// 属性間の外枠空白だけを消費します
 		while( cursor < page.size() && space( page[cursor])) {
 			++cursor ;
 		}
 
-		// 終端欠損は部分属性を採用しません
+		// 終端欠損と空白で上限を超えた要素は部分採用しません
 		if( cursor >= page.size()) {
 			return false ;
 		}
@@ -194,8 +206,9 @@ struct HtmlTag {
 			return !tag.closing || (!tag.selfClosing && tag.attributes.empty()) ;
 		}
 
-		// 閉じtagの余分な属性と過大集合を拒否します
-		if( tag.closing || tag.selfClosing || tag.attributes.size() == MAX_DEPTH) {
+		// 閉じtagの余分な属性、過大集合と、長いCSP用metaの属性区切り欠損を拒否します
+		if( tag.closing || tag.selfClosing || tag.attributes.size() == MAX_DEPTH ||
+		   (maximumTagCharacters > MAX_TAG_CHARACTERS && cursor == attributeGapStart)) {
 			return false ;
 		}
 
@@ -238,7 +251,7 @@ struct HtmlTag {
 				const std::size_t start = ++cursor ;					// 原属性値の開始です
 				const std::size_t end	= page.find( quote, start) ;	// 同じ引用符の終端です
 				// 閉じない引用符と過大tagを拒否します
-				if( end == page.npos || end - begin >= MAX_TAG_CHARACTERS) {
+				if( end == page.npos) {
 					return false ;
 				}
 
@@ -285,6 +298,45 @@ struct HtmlTag {
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 独立規約の外側にある長いCSP用metaを有限に読みます
+ * @param[in] page 呼出し中だけ借用する規約の原HTMLです
+ * @param[in] begin 対象要素の開始位置です
+ * @param[out] tag 成立時にだけ使用できる元要素です
+ * @return CSPと内容、および任意の報告先だけの開始metaを16 Ki文字以内で確認した場合trueです
+ * @note 宣言は評価せず、別ページへの遷移や取得を行いません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool readExtendedStaticCsp( const std::wstring_view page, const std::size_t begin,
+										 HtmlTag &tag)
+{
+	// 元字句とCSP宣言に限った属性集合が揃うまで一般の長い要素を受け入れません
+	if( !readTag( page, begin, tag, true, MAX_STATIC_CSP_TAG_CHARACTERS) || tag.name != L"meta" ||
+	   tag.closing || tag.attributes.size() < 2U || tag.attributes.size() > 3U) {
+		return false ;
+	}
+
+	const auto directive = attribute( tag, L"http-equiv") ;			// 原宣言名です
+	const auto content	 = frame( attribute( tag, L"content")) ;	// 原宣言の外枠を除いた値です
+	const auto report	 = attribute( tag, L"data-report-uri") ;	// 通信には使わない元表記です
+	const bool reportValid =
+		// 第三属性は表示にも通信にも使わない有限のHTTPS表記だけを認識します
+		tag.attributes.size() == 2U ||
+		(report.starts_with( L"https://") && report.size() > 8U && report.size() <= 2048U &&
+		 std::ranges::all_of( report, []( const wchar_t value) {
+			 // URLに解決せず、固定した印字可能な原字句の範囲だけを照合します
+			 return (nameCharacter( value) && value != L'_') || value == L'.' || value == L'/' ;
+		 })) ;
+	return std::ranges::equal( directive, std::wstring_view{L"content-security-policy"}, {},
+							  lower) &&
+		   reportValid && !content.empty() && std::ranges::all_of( content, []( const wchar_t value) {
+			   // 長い外側宣言では他の要素を混ぜられない字句だけを受理します
+			   return value >= L' ' && value <= L'~' && value != L'<' && value != L'>' &&
+					  value != L'&' ;
+		   }) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 公開selectorを実tag属性へ完全一致させます
  * @param[in] tag 原要素です
  * @param[in] selector 認証済みまたはproducerの有限ASCII selectorです
@@ -306,6 +358,8 @@ struct HtmlTag {
  * @param[in] visitor 各実tagと原開始位置を確認する同期関数です
  * @param[out] rejectedOffset 非null時だけ直近の原tag位置です。省略可です
  * @param[in] staticSection 独立profileの外page属性を認識する場合だけtrueです
+ * @param[in] releasePage 配布表の外要素ではtitleの内側もrawとして消費します
+ * @param[in] allowExtendedCsp 独立規約文書の明示headで長いCSP用metaを認識する場合だけtrueです
  * @return 文法とvisitorが全て成立する場合trueです
  * @note Script/style/textareaの原内側は外page要素へ数えません
  */
@@ -313,9 +367,12 @@ struct HtmlTag {
 template <class Visitor>
 [[nodiscard]] bool visitOuterTags( const std::wstring_view page, Visitor visitor,
 								  std::size_t *rejectedOffset = nullptr,
-								  const bool   staticSection  = false)
+								  const bool staticSection = false, const bool releasePage = false,
+								  const bool allowExtendedCsp = false)
 {
-	std::size_t cursor{} ;	// 全反復で前進する元page位置です
+	std::size_t cursor{} ;							// 全反復で前進する元page位置です
+	bool		mayOpenCspHead = allowExtendedCsp ;	// 対応する最初の明示headだけを待ちます
+	bool		inCspHead{} ;						// bodyまたはheadの終端で閉じる範囲です
 	// 最大page長以内で全外要素を訪問し、失敗時は部分成功を返しません
 	while( cursor < page.size()) {
 		const std::size_t begin = page.find( L'<', cursor) ;	// 次の実tag候補です
@@ -363,16 +420,24 @@ template <class Visitor>
 		}
 
 		HtmlTag tag ;	// 原pageを呼出し中だけ借用する実要素です
-		// 未終端tagや偽属性を選択結果へ混入させません
-		if( !readTag( page, begin, tag, staticSection)) {
+		// 通常の字句制限を使い、独立規約のCSP宣言だけを固定属性の確認へ渡します
+		if( !readTag( page, begin, tag, staticSection) &&
+		   (!inCspHead || !readExtendedStaticCsp( page, begin, tag))) {
 			return false ;
+		}
+
+		// 明示headの開始だけで許可し、終端や二度目のheadからは再開しません
+		if( allowExtendedCsp && (tag.name == L"head" || tag.name == L"body")) {
+			inCspHead = mayOpenCspHead && tag.name == L"head" && !tag.closing && !tag.selfClosing ;
+			mayOpenCspHead = false ;
 		}
 
 		std::size_t contentEnd = tag.end + 1U ;	// 通常tagでは空の内側です
 		std::size_t next	   = contentEnd ;	// 次に走査する原位置です
 		// Raw-text要素内部を外pageの実要素として再解釈しません
 		if( !tag.closing &&
-		   (tag.name == L"script" || tag.name == L"style" || tag.name == L"textarea")) {
+		   (tag.name == L"script" || tag.name == L"style" || tag.name == L"textarea" ||
+			((releasePage || inCspHead) && tag.name == L"title"))) {
 			const std::wstring close = L"</" + tag.name + L">" ;	// Profileの明示終端です
 			contentEnd				 = page.find( close, next) ;
 			// 未終端raw要素を選択可能にしません
@@ -561,9 +626,20 @@ template <class Visitor>
 					if( section) {
 						// 全原属性を確認し、未知属性がある表示文書を部分採用しません
 						for( const auto &item : tag.attributes) {
-							// class/id/style以外を明示対応へ混ぜません
+							const bool layout =
+								// 表示識別子の二属性は、表示に使わない有限の識別値だけを認めます
+								(item.first == L"data-rg-n" || item.first == L"data-eb-item-id") &&
+								!item.second.empty() &&
+								item.second.size() <= MAX_LAYOUT_ATTRIBUTE_CHARACTERS &&
+								std::ranges::all_of( item.second, []( const wchar_t value) {
+									// 選択文書の原値は保持し、構文やURLとしては解釈しません
+									return (lower( value) >= L'a' && lower( value) <= L'z') ||
+										   (value >= L'0' && value <= L'9') || value == L'-' ||
+										   value == L'_' || value == L'#' ;
+								}) ;
+							// 許可した表示属性以外は本文を部分採用せず拒否します
 							if( item.first != L"class" && item.first != L"id" &&
-							   item.first != L"style") {
+							   item.first != L"style" && !layout) {
 								return false ;
 							}
 						}
@@ -887,7 +963,7 @@ NativeError extractSection( const std::wstring_view page, const IndexHtmlTermsEx
 
 			  return true ;
 		  },
-		  &observation.checkOffset, true) ;	// 独立profileだけHTMLのdata属性名のdotを認識します
+		  &observation.checkOffset, true, false, true) ;	// 独立規約の外側だけCSPを認識します
 	// 原section/公開revisionを確認できない本文を同意可能へ変えません
 	if( !valid || count != 1U || depth || result.document.empty() ||
 	   result.text.find( revision) == result.text.npos) {
@@ -899,6 +975,74 @@ NativeError extractSection( const std::wstring_view page, const IndexHtmlTermsEx
 }
 
 } // namespace
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開配布表の閉形式について実要素を順に渡します
+ * @param[in] page 最大2MiB相当の原HTMLです
+ * @param[in] visitor 実要素を借用する同期関数です。falseで全体を拒否します
+ * @return 原字句と全visitorが成立した場合trueです
+ * @note CSSやscriptを実行せず、非対応の可視性指定やbaseを拒否します
+ */
+//------------------------------------------------------------------------------
+bool visitPublicHtmlTags( const std::wstring_view						   page,
+						 const std::function<bool( const PublicHtmlTag &)> &visitor)
+{
+	// 未終端や過大本文から部分選択を作りません
+	if( !visitor || page.empty() || page.size() > STATIC_PAGE_CHARACTERS ||
+	   page.find( L'\0') != page.npos) {
+		return false ;
+	}
+
+	std::size_t count{} ;	// 当該応答全体の実要素数です
+	// 同期visitorとcounterを借用し、既字句検査を通った外要素だけを処理します
+	return visitOuterTags(
+		page,
+		[&]( const HtmlTag &tag, const std::size_t begin, const std::size_t contentEnd) {
+			// 非表示コンテナ・base・実行後の画面を独自解釈しません
+			if( ++count > 8192U || tag.name == L"base" || tag.name == L"template" ||
+			   tag.name == L"noscript" || tag.name == L"iframe" || tag.name == L"svg" ||
+			   tag.name == L"math" || tag.name == L"plaintext" || tag.name == L"xmp" ||
+			   tag.name == L"noframes" || tag.name == L"noembed" || tag.name == L"object" ||
+			   tag.name == L"select" || tag.name == L"textarea") {
+				return false ;
+			}
+
+			// Boolean属性も値の空文字で消去せず、明示非表示を拒否します
+			if( std::ranges::any_of( tag.attributes, []( const auto &item) {
+				   return item.first == L"hidden" || item.first == L"inert" ;
+			   })) {
+				return false ;
+			}
+
+			std::wstring style ;	// 属性の有限文字だけを照合用にコピーします
+			// 既知の空白とASCII case差を外し、原属性は変更しません
+			for( const auto ch : attribute( tag, L"style")) {
+				// 宣言間の空白を非表示指定の回避に使わせません
+				if( !space( ch) && ch != L'\f') {
+					style.push_back( lower( ch)) ;
+				}
+			}
+
+			std::wstring ariaHidden( attribute( tag, L"aria-hidden")) ;	// 原可視性の照合値です
+			std::ranges::transform( ariaHidden, ariaHidden.begin(), lower) ;
+			// 非表示とCSS escapeやcommentを伴う未対応指定はHOLDにします
+			if( frame( ariaHidden) == L"true" || style.find( L'\\') != style.npos ||
+			   style.find( L"/*") != style.npos || style.find( L"display:none") != style.npos ||
+			   style.find( L"visibility:hidden") != style.npos ||
+			   style.find( L"visibility:collapse") != style.npos ||
+			   style.find( L"opacity:0") != style.npos) {
+				return false ;
+			}
+
+			const auto next = contentEnd > tag.end + 1U
+								  ? contentEnd + tag.name.size() + 3U
+								  : tag.end + 1U ;	// 元raw要素の終端も消費します
+			return visitor(
+				{tag.name, attribute( tag, L"href"), begin, next, tag.closing, tag.selfClosing}) ;
+		},
+		nullptr, true, true) ;
+}
 
 //------------------------------------------------------------------------------
 /**

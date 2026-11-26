@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition_tests.cpp
  * @brief 公式file検査用取得境界単体試験実装
- * @version 01.28.04
+ * @version 01.32.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -66,6 +66,10 @@
  * Ver.01.28.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.28.03 Shunji Ogawa  2026/11/12  外側tupleの取得予約と開始拒否の原理由を接続
  * Ver.01.28.04 Shunji Ogawa  2026/11/13  847pの通常件数枠と原予算境界を整合
+ * Ver.01.29.00 Shunji Ogawa  2026/11/16  storage通常選択と完全native表の正負・原結果を検証
+ * Ver.01.30.00 Shunji Ogawa  2026/11/19  独自クラスの人工索引を通常取得し元送信件数を確認
+ * Ver.01.31.00 Shunji Ogawa  2026/11/20  規約を受信した時点で期限に達した索引を拒否する試験を追加
+ * Ver.01.32.00 Shunji Ogawa  2026/11/22  ZIP規約の初回表示・承認後・本体の五応答を固定する試験表を追加
  * </pre>
  *
  * @note Fake transportとcost readerを使用し、実network、実driver、実installへ依存せず検査用取得状態を検証します
@@ -4098,23 +4102,68 @@ void runNormalIndexWorkerAcquisitionTests( TestContext					   &context,
 #if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
 //------------------------------------------------------------------------------
 /**
- * @brief 既存完全fake HTTPを新正常候補fixtureへ結合します
- * @param[in,out] context Assertion正本です
- * @param[in] store 実commit/reload済み隔離索引storeです
- * @param[in] nowUtc 固定信頼UTCです
- * @param[in] zip 実原containerです
- * @param[in] network Net classの固定fixtureならtrueです
+ * @brief 同原storage archiveを完全fake HTTPと通常workerへ接続します
+ * @param[in,out] context 元assertion集計です
+ * @param[in] store RAM署名/隔離保存済み元索引です
+ * @param[in] nowUtc 元索引と同じ信頼時刻です
+ * @param[in] zip 元期待hashと同じ人工原archiveです
+ * @param[in] expected 低位注入と独立した期待値です
+ * @note 製品authority、実通信、実導入を使いません
+ */
+//------------------------------------------------------------------------------
+void runNormalStorageDriverBindingCase( TestContext						&context,
+									   std::shared_ptr<SignedIndexStore> store,
+									   const std::chrono::sys_seconds	 nowUtc,
+									   const std::string				&zip,
+									   const StorageBindingTestInput	&expected)
+{
+	auto fixture = std::make_shared<DelegatedHttpFixture>() ;	// 同原bodyを一送信だけへ固定します
+	fixture->utcSeconds.assign( 4096U,
+							   static_cast<std::uint64_t>( nowUtc.time_since_epoch().count())) ;
+	fixture->responses.assign( 1U, DelegatedHttpResponse{}) ;
+	fixture->responses.front().body		= zip ;
+	fixture->responses.front().declared = std::to_wstring( zip.size()) ;
+	provider_worker_index_detail::Services services{
+		.load	   = [store]( auto time) { return store->reload( time) ; },
+		.utc	   = [nowUtc]() { return std::optional{nowUtc} ; },
+		.monotonic = []() { return std::chrono::steady_clock::now() ; },
+		.targetOs  = []() { return std::optional{IndexTargetOs::WINDOWS_11} ; },
+		.httpTransport =
+			[fixture]() {
+				activeDelegatedHttpFixture = fixture.get() ;
+				return makeDelegatedHttpTransport() ;
+			},
+		.costReader = []() { return std::make_unique<FakeNetworkCostReader>() ; }} ;
+	runStorageDriverBindingCase( context, std::move( services), zip, expected) ;
+	DRIVERCRATE_EXPECT( context, fixture->safeRequest && fixture->opened == fixture->closed &&
+									fixture->sends == 1U) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存完全fake HTTPを通常署名索引fixtureへ結合します
+ * @param[in,out] context 元assertion集計です
+ * @param[in] store 同元RAM署名/隔離保存storeです
+ * @param[in] nowUtc 元信頼UTCです
+ * @param[in] zip 同実原archiveです
+ * @param[in] network 通常Net classの場合trueです
+ * @param[in] declarative 独自クラスの一連の操作を既存の完全HTTP fakeに接続します
+ * @note 実HTTP/driver/復旧へfallbackしません
  */
 //------------------------------------------------------------------------------
 void runNormalSignedIndexCandidateBindingTests( TestContext						&context,
 											   std::shared_ptr<SignedIndexStore> store,
 											   const std::chrono::sys_seconds	 nowUtc,
-											   const std::string &zip, const bool network)
+											   const std::string &zip, const bool network,
+											   const bool declarative)
 {
 	auto fixture = std::make_shared<DelegatedHttpFixture>() ;	// 完全fake HTTPの同worker状態です
 	fixture->utcSeconds.assign( 4096U,
 							   static_cast<std::uint64_t>( nowUtc.time_since_epoch().count())) ;
-	fixture->responses.assign( network ? 16U : 6U + 17U + 12U, DelegatedHttpResponse{}) ;
+	fixture->responses.assign( declarative ? DECLARATIVE_BINDING_CASE_COUNT
+							  : network	  ? 16U
+										  : 6U + 17U + 12U,
+							  DelegatedHttpResponse{}) ;
 	// 実原ZIP byteと期待sizeを毎回同じ取得policyへ返します
 	for( auto &response : fixture->responses) {
 		response.body	  = zip ;
@@ -4139,14 +4188,20 @@ void runNormalSignedIndexCandidateBindingTests( TestContext						&context,
 		// この限定fixtureだけの分岐です
 		zip.find( "windows-managed-scope-fixture") != zip.npos ;
 	// 実全suiteを繰り返さず、本変更の通常取得/導入条件だけへ接続します
-	if( managed) {
+	if( declarative) {
+		runDeclarativeClassBindingCases( context, std::move( services), zip) ;
+	}
+	// 既存のWindows管理構成はその元試験で取得回数と導入結果を照合します
+	else if( managed) {
 		runWindowsManagedDriverBindingTests( context, std::move( services), zip) ;
 	} else {
 		runSignedIndexCandidateBindingTests( context, std::move( services), zip, network) ;
 	}
 
-	const auto expectedSends = managed ? (zip.find( "scope-fixture-reject") != zip.npos ? 1U : 5U)
-									   : (network ? 1U : 6U + 17U + 12U) ;	// 元実dispatch数だけです
+	const auto expectedSends = declarative ? DECLARATIVE_BINDING_CASE_COUNT
+							   : managed
+								   ? (zip.find( "scope-fixture-reject") != zip.npos ? 1U : 5U)
+								   : (network ? 1U : 6U + 17U + 12U) ;	// 元実dispatch数だけです
 	DRIVERCRATE_EXPECT( context, fixture->safeRequest && fixture->opened == fixture->closed &&
 									fixture->sends == expectedSends) ;
 }
@@ -4190,8 +4245,8 @@ void runMetadataBoundAdapterFixtureTests( TestContext								   &context,
 			  ->bindingEvidenceSizeBytes ;
 		DRIVERCRATE_EXPECT( context, matchesSharedIndexPayloadEvidence( record, record) &&
 										!matchesSharedIndexPayloadEvidence( record, changedPolicy)) ;
-		// 正常、誤リンク、規約改変、失効、scan違いだけを有限確認します
-		for( unsigned mode = 0U; mode < 5U; ++mode) {
+		// 正常、誤リンク、規約改変、開始前・受信後の失効、scan違いを有限確認します
+		for( unsigned mode = 0U; mode < 6U; ++mode) {
 			const IndexLookupContext	  current{301U, 302U, 303U} ;	// 元認証fixtureのcontextです
 			SignedIndexAcquisitionAdapter adapter ;						// 保存recordから通常product policyを使います
 			const auto					  at = mode == 3U ? nowUtc + std::chrono::hours{24 * 9}
@@ -4238,11 +4293,27 @@ void runMetadataBoundAdapterFixtureTests( TestContext								   &context,
 			}
 
 			const auto error = adapter.readTermsText(
-				0U, query, at, client, [] { return false ; }) ;	// 通常consumerそのものです
+				0U, query,
+				// 両本文を受信してから追加の信頼UTCを読む時点だけを進めます
+				[&] {
+					return mode == 5U && fixture.sends == 2U ? lookup->snapshot()
+																   .schemaReceipt()
+																   .assetBytes()
+																   .manifest()
+																   .data()
+																   .expiresAtUtc
+															 : at ;
+				},
+				client, [] { return false ; }) ;	// 通常consumerそのものです
 			DRIVERCRATE_EXPECT( context,
 							   (error == 0) == (mode == 0U) &&
 								   fixture.sends == (mode == 4U ? 0U : (mode == 1U ? 1U : 2U)) &&
 								   fixture.safeRequest && fixture.opened == fixture.closed) ;
+			// 元全文の検査に成功しても受信後に期限へ達した時点では保持しません
+			if( mode == 5U) {
+				DRIVERCRATE_EXPECT( context, error == HRESULT_FROM_WIN32( ERROR_TIMEOUT)) ;
+			}
+
 			// 同一全文/revisionだけを既存の明示Install同意targetへ記述します
 			if( mode == 0U) {
 				const OfficialPreparationLimits	  limits{134217728U, 134217728U, 134217728U, 1U,
@@ -4285,8 +4356,9 @@ void runMetadataBoundAdapterFixtureTests( TestContext								   &context,
 	activeDelegatedHttpFixture		 = &fixture ;
 	{
 		OfficialHttpClient client( makeDelegatedHttpTransport()) ;	// 実networkへ到達しません
-		DRIVERCRATE_EXPECT(
-			context, adapter.readTermsText( 0U, current, nowUtc, client, [] { return false ; }) == 0) ;
+		DRIVERCRATE_EXPECT( context, adapter.readTermsText(
+										0U, current, [nowUtc] { return nowUtc ; }, client,
+										[] { return false ; }) == 0) ;
 		DRIVERCRATE_EXPECT( context,
 						   adapter.describe( 0U, current, nowUtc, limits, description) == 0 &&
 							   description.target && !description.target->eulaText.empty() &&
@@ -4482,8 +4554,14 @@ void runNormalIndexIdentityBindingCase(
 				if( resolution) {
 					std::cout << "MODEL_CHOICE_AUDIT content=" << report.contentError
 							  << " applicability=" << report.applicabilityError
+							  << " contentAccepted=" << report.acceptedInfCount
+							  << " firstContent=" << report.firstContentRejection
 							  << " firstPair=" << report.firstPairError
 							  << " published=" << report.publishedCandidates.size() << '\n' ;
+					std::cout << "BINDING_QUALIFICATION error=" << report.publication.firstError
+							  << " path=" << report.publication.bindingPath
+							  << " rejection=" << report.publication.bindingRejection
+							  << " stage=" << report.publication.bindingStage << '\n' ;
 				}
 			}
 
@@ -4551,6 +4629,48 @@ void runNormalIndexIdentityBindingCase(
 			  << " nativeRankDelta=" << observed.rankCalls - ranksBefore
 			  << " network=0 install=0\n" ;
 }
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存した配布ページ、規約とZIPを取得順に固定した全低位HTTPを構築します
+ * @param[in] bodies 配布ページ、規約文書、本体の順です。応答表が所有copyします
+ * @param[in] now 期限検査の信頼UTCです
+ * @param[in] changed 承認後の文書だけを変える対照です
+ * @param[in] retained 二件目は元ZIPを再利用し、ZIPの要求を追加しません
+ * @param[out] sends 同期試験中に使用する元送信数の読取り関数です
+ * @return 元GET以外を実行しない全低位表の供給関数です
+ */
+//------------------------------------------------------------------------------
+std::function<OfficialHttpTransport()> archiveTermsConsumerTransport(
+	const std::array<std::string_view, 3> &bodies, const std::chrono::sys_seconds now,
+	const bool changed, const bool retained, std::function<std::size_t()> &sends)
+{
+	auto fixture = std::make_shared<DelegatedHttpFixture>() ;	// 送信表と元応答を所有します
+	fixture->signedTermsDocument = true ;
+	fixture->utcSeconds.assign( 64U, static_cast<std::uint64_t>( now.time_since_epoch().count())) ;
+	const auto order = retained ? std::vector{0U, 1U, 0U, 1U, 0U, 1U, 2U, 0U, 1U}
+								: std::vector{0U, 1U, 0U, 1U, 2U} ;	// 原配布・規約・ZIPの許可順です
+	fixture->responses.resize( order.size()) ;
+	// 二件目の再利用は配布ページと規約文書だけを取り直します
+	for( std::size_t index = 0U; index < order.size(); ++index) {
+		auto &response = fixture->responses[index] ;	// この要求の元HTTP応答です
+		response.body  = bodies[order[index]] ;
+		// 最後の承認後の文書だけを改変し、再利用前にも停止することを確認します
+		if( changed && index == (retained ? 8U : 3U)) {
+			response.body += "<!-- changed raw document -->" ;
+		}
+
+		response.declared = std::to_wstring( response.body.size()) ;
+		response.contentType =
+			order[index] == 2U ? L"binary/octet-stream" : L"text/html; charset=utf-8" ;
+	}
+
+	sends = [fixture] { return fixture->sends ; } ;
+	return [fixture] {
+		activeDelegatedHttpFixture = fixture.get() ;
+		return makeDelegatedHttpTransport() ;
+	} ;
+}
+
 //------------------------------------------------------------------------------
 /**
  * @brief 原archive/規約byteを既存完全fake HTTPへ固定します

@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_tests.cpp
  * @brief 真署名索引から通常候補とfake指定導入へ接続する有限fixtureを検証します
- * @version 01.31.08
+ * @version 01.64.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -64,6 +64,52 @@
  * Ver.01.31.06 Shunji Ogawa  2026/11/13  Needs AddRegの元拒否leafを既匿名診断へ接続
  * Ver.01.31.07 Shunji Ogawa  2026/11/13  SYSTEM標準媒体登録の実parser正負経路を接続
  * Ver.01.31.08 Shunji Ogawa  2026/11/13  847p9の型付きSYSTEM全作用と全選択資格を接続
+ * Ver.01.32.00 Shunji Ogawa  2026/11/16  storage通常選択と完全native表の正負・原結果を検証
+ * Ver.01.33.00 Shunji Ogawa  2026/11/16  MTD原Classの低位deviceとINF読取を追加
+ * Ver.01.34.00 Shunji Ogawa  2026/11/17  MTD同原copyと指定DIFの完全fake正負を検証
+ * Ver.01.35.00 Shunji Ogawa  2026/11/17  必要子proofと役割別ACLの正負を通常操作で検査
+ * Ver.01.36.00 Shunji Ogawa  2026/11/18  P3同scan fullhost観測と取得直前拒否を接続
+ * Ver.01.36.01 Shunji Ogawa  2026/11/18  retained拒否の実到達境界を独立契約へ明示
+ * Ver.01.37.00 Shunji Ogawa  2026/11/18  P4純粋比較と非空所有pipeline/最終Models・host拒否を接続
+ * Ver.01.37.01 Shunji Ogawa  2026/11/18  SDK macro衝突を避け既Access定義の直接依存を補完
+ * Ver.01.37.02 Shunji Ogawa  2026/11/18  P4の単一scanから元cached summaryと実counterを観測
+ * Ver.01.37.03 Shunji Ogawa  2026/11/18  借用issuer生存中のsession失効へfixture破棄順を訂正
+ * Ver.01.37.04 Shunji Ogawa  2026/11/18  P4不一致の元summaryと監査結果を数値だけで観測
+ * Ver.01.37.05 Shunji Ogawa  2026/11/18  原署名fakeとseal診断・二root所有と公開拒否集計を整合
+ * Ver.01.38.00 Shunji Ogawa  2026/11/19  正規Client26200条件の限定通常scan/取得とhost拒否を検証
+ * Ver.01.39.00 Shunji Ogawa  2026/11/19  24H2最低26100の独立回帰と旧条件を接続
+ * Ver.01.39.01 Shunji Ogawa  2026/11/19  Server新scan回復試験で単調増加する計画IDを使用
+ * Ver.01.39.02 Shunji Ogawa  2026/11/19  Server新scanの二つの取得rootを同じ人工署名fixtureで検証
+ * Ver.01.39.03 Shunji Ogawa  2026/11/19  失効した元列挙からの監査と取得再開始を検証
+ * Ver.01.40.00 Shunji Ogawa  2026/11/19  AWS原レコードの通常取得計画とNitro確認を検証
+ * Ver.01.40.01 Shunji Ogawa  2026/11/19  単体試験専用のfixture依存をUI試験のリンクから除外
+ * Ver.01.41.00 Shunji Ogawa  2026/11/19  独自クラスの二つの登録状態と元配布物の指定導入を通しで検証
+ * Ver.01.42.00 Shunji Ogawa  2026/11/20  本文とCatalog追加欄を同じ端末で照合し元期限前後の取得を検証
+ * Ver.01.43.00 Shunji Ogawa  2026/11/20  Catalog候補の端末ID変化と登録・適用前の期限を保護付き導入で検証
+ * Ver.01.44.00 Shunji Ogawa  2026/11/20  機種別追加欄の同スキャン照合と取得保留を検証
+ * Ver.01.45.00 Shunji Ogawa  2026/11/20  型番再観測による取得許可・送信拒否と本文継続を検証
+ * Ver.01.46.00 Shunji Ogawa  2026/11/20  機種別候補の発行と登録・指定適用直前の再照合を検証
+ * Ver.01.47.00 Shunji Ogawa  2026/11/20  ファームウェア確認の接続前に取得を保留する試験を追加
+ * Ver.01.48.00 Shunji Ogawa  2026/11/20  同一端末の全HardwareIdsから必須群の一意性と競合を検証
+ * Ver.01.49.00 Shunji Ogawa  2026/11/20  同じ元行の端末別確認対象と確認後の取得保留を検証
+ * Ver.01.50.00 Shunji Ogawa  2026/11/20  現在の端末属性で元のファームウェア群を再観測
+ * Ver.01.51.00 Shunji Ogawa  2026/11/20  ファームウェア群の競合による保留と個別承認後の取得・再検査を検証
+ * Ver.01.52.00 Shunji Ogawa  2026/11/20  承認した端末への候補発行と登録・指定適用直前のファームウェア群を検証
+ * Ver.01.53.00 Shunji Ogawa  2026/11/20  機器の最終再観測中に取得許可が失効する登録・適用を検証
+ * Ver.01.54.00 Shunji Ogawa  2026/11/21  メディアチェンジャーの端末と起動グループを架空Windows応答に追加
+ * Ver.01.55.00 Shunji Ogawa  2026/11/21  HDCの正式クラスと適用直前の起動順変化を架空Windows応答に追加
+ * Ver.01.56.00 Shunji Ogawa  2026/11/22  仮想Wi-Fiバスの端末フィルターの型・競合・読取り失敗を検査
+ * Ver.01.57.00 Shunji Ogawa  2026/11/22  保存したZIP規約の通常同意と取得前照合を検査
+ * Ver.01.58.00 Shunji Ogawa  2026/11/22  現在の元端末と完全Hardware IDの独立再照合を検証
+ * Ver.01.59.00 Shunji Ogawa  2026/11/23  通常スキャンで署名済みWiX行の端末条件と元期限を検証
+ * Ver.01.60.00 Shunji Ogawa  2026/11/23  同端末のWiX表示専用参照と空の取得計画を検証
+ * Ver.01.61.00 Shunji Ogawa  2026/11/23  WiX検査専用計画を元本文と通常導入へ分離して検証
+ * Ver.01.62.00 Shunji Ogawa  2026/11/23  通常ワーカーでWiXの元アンカーと転送・待機・期限を検証
+ * Ver.01.63.00 Shunji Ogawa  2026/11/23  同じ候補行と元計画のWiX検査専用結合を検証
+ * Ver.01.63.01 Shunji Ogawa  2026/11/23  受信を終えた同一ハッシュでも不正なWiX内容を拒否することを検証
+ * Ver.01.63.02 Shunji Ogawa  2026/11/23  元対象が一致するWiX表示行だけの私有機器参照を検証
+ * Ver.01.64.00 Shunji Ogawa  2026/11/23  元規約の差し替え、欠損、重複とスキャンの違いを検証
+ * Ver.01.64.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません
@@ -72,37 +118,267 @@
 //------------------------------------------------------------------------------
 #include "signed_index_candidate_binding_tests.h"
 #include "platform/composite_update_provider.h"
+#include "platform/common_driver_package.h"
+#include "platform/driver_store_provider.h"
 #include "platform/official_file_verifier.h"
+#include "platform/official_download_grant.h"
 #include "platform/official_download_workspace.h"
+#include "platform/official_http_transport.h"
 #include "platform/inf_dependency_native_internal.h"
+#include "platform/official_inf_models_native_internal.h"
+#include "platform/signed_index_acquisition_adapter.h"
+#include "platform/signed_index_acquisition_adapter_internal.h"
+#include "platform/signed_index_record_lookup.h"
+#include "platform/signed_index_records.h"
+#include "platform/storage_inf_effects_internal.h"
+#include "platform/windows_product_type.h"
 #include "core/restore_point_service.h"
 #include "core/operation_controller.h"
 #include "core/candidate_selection.h"
 #include "core/candidate_audit.h"
 #include "core/device_observation.h"
+#include "core/official_download_delegation.h"
 #include "core/provider_registry.h"
 #include "core/pending_reference_version.h"
+#include "platform/mtd_shared_file_internal.h"
+#include "platform/mtd_queue_internal.h"
+#include "platform/mtd_handler_internal.h"
 #include <Windows.h>
 #include <Softpub.h>
 #include <devpkey.h>
 #include <devguid.h>
 #include <cfg.h>
 #include <miniz.h>
+#include <sddl.h>
+#include <winhttp.h>
 #include <array>
+#include <chrono>
+#include <cstdlib>
 #include <algorithm>
 #include <cstring>
 #include <cwchar>
+#include <initializer_list>
 #include <iostream>
 #include <atomic>
 #include <fstream>
 #include <filesystem>
+#include <optional>
+#include <span>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <tuple>
+#include <type_traits>
+#include <unordered_map>
 #include <set>
+#include <utility>
 #include <vector>
 
+namespace drivercrate {
+/** @brief 完全fakeの同期中だけ元必要子proofの拒否を観測します */
+class RequiredChildBindingProbe final {
+public:
+	/**
+	 * @brief 元選択親の導出子名へ、別所有entryの衝突を一回だけ作ります
+	 * @param[in,out] store 完全fakeが同workerで所有する元Providerです
+	 * @return 既存entryを変更せず一意な試験entryを追加した場合trueです
+	 */
+	[[nodiscard]] static bool insertCollision( DriverStoreProvider &store) noexcept
+	{
+		try {
+			// 元親が一件で子scope開始前の場合だけ衝突を作ります
+			if( store.activeInstallDevices_.size() != 1U || store.activeRequiredChild_) {
+				return false ;
+			}
+
+			// 元親から製品が導出する最初の必要子identityです
+			const auto identity = store.activeInstallDevices_.front() + L"/required-component-1" ;
+			return store.deviceInstances_.emplace( identity, L"other-owned-instance").second ;
+		} catch( ...) {
+			return false ;
+		}
+	}
+	/**
+	 * @brief 同衝突entryが元の値のままであるかを同worker内で確認します
+	 * @param[in] store 完全fakeが同workerで借用する元Providerです
+	 * @return 元entryが残り、子proofを発行していなければtrueです
+	 */
+	[[nodiscard]] static bool collisionIntact( const DriverStoreProvider &store) noexcept
+	{
+		try {
+			// 同じ元親とscope終了を確認できなければ保持を認定しません
+			if( store.activeInstallDevices_.size() != 1U || store.activeRequiredChild_) {
+				return false ;
+			}
+
+			// 子の発行前に別所有として挿入したidentityです
+			const auto identity = store.activeInstallDevices_.front() + L"/required-component-1" ;
+			// 原衝突entryの現在位置です
+			const auto entry = store.deviceInstances_.find( identity) ;
+			return entry != store.deviceInstances_.end() &&
+				   entry->second == L"other-owned-instance" ;
+		} catch( ...) {
+			return false ;
+		}
+	}
+	/**
+	 * @brief 実操作中の元proofを保持し、別親・役割・issuer等の拒否を個別に照合します
+	 * @param[in,out] store 同workerに属する本物の元Providerです
+	 * @return 未到達は0、元proofと十一の独立拒否を下位12 bitへ記録します
+	 * @note 所有状態は終了前に復元し、fake以外のAPIや導入結果を変更しません
+	 */
+	[[nodiscard]] static std::uint32_t inspect( DriverStoreProvider &store) noexcept
+	{
+		// 実操作が同期所有する元proofだけを借用します
+		const auto *original = store.activeRequiredChild_ ;
+		// 元子scopeの成立前は到達値を生成しません
+		if( !original || !original->inspection || !original->inspection->workspace ||
+		   !original->package) {
+			return 0U ;
+		}
+
+		// 各負例の後も元proofへ戻すscope終了処理です
+		const auto restore = [&]( void *) noexcept { store.activeRequiredChild_ = original ; } ;
+		// 例外を含め元proofを同期scopeへ復元します
+		const std::unique_ptr<void, decltype( restore)> guard{&store, restore} ;
+		try {
+			// 元検査に結合した同じ保護workspaceです
+			const auto	 &workspace = *original->inspection->workspace ;
+			// 元planが指定した同一packageです
+			const auto	 &package = *original->package ;
+			// 実列挙された同一子identityです
+			const auto	  child = original->childIdentity ;
+			// 独立した正負の成立を記録するbit集合です
+			std::uint32_t checks{} ;
+			// 本物の同期scopeが成立していることを各負例の前に確認します
+			if( store.ownsBindingDevice( child, workspace, package)) {
+				checks |= 1U << 0U ;
+			}
+
+			// 一項目だけ変えたproofが拒否されたことを記録します
+			const auto rejected = [&]( auto change, const unsigned bit) {
+				// 元proofは変更せず局所copyへ一条件だけ注入します
+				auto altered = *original ;
+				change( altered) ;
+				store.activeRequiredChild_ = &altered ;
+				// 元子bindingの所有を偽造できない場合だけbitを立てます
+				if( !store.ownsBindingDevice( child, workspace, package)) {
+					checks |= 1U << bit ;
+				}
+
+				store.activeRequiredChild_ = original ;
+			} ;
+			rejected( []( auto &proof) { proof.parentIdentity = L"other-parent" ; }, 1U) ;
+			rejected( []( auto &proof) { proof.roleIndex = static_cast<std::size_t>( -1) ; }, 2U) ;
+			rejected( []( auto &proof) { ++proof.operation ; }, 4U) ;
+			rejected( []( auto &proof) { ++proof.session ; }, 5U) ;
+			rejected( []( auto &proof) { proof.parentBindingToken = 0U ; }, 8U) ;
+			rejected( []( auto &proof) { proof.parentInstance = L"other-instance" ; }, 9U) ;
+			rejected( []( auto &proof) { proof.childIdentity = L"other-child" ; }, 10U) ;
+			rejected( []( auto &proof) { proof.plan = nullptr ; }, 11U) ;
+
+			// 別issuerには同scan状況を与えても元親bindingは存在しません
+			DriverStoreProvider outsider ;
+			outsider.scanSessionId_			 = store.scanSessionId_ ;
+			outsider.ownerThreadId_			 = store.ownerThreadId_ ;
+			outsider.activeInstallOperation_ = store.activeInstallOperation_ ;
+			outsider.activeInstallDevices_	 = store.activeInstallDevices_ ;
+			outsider.activeIndexDevices_	 = store.activeIndexDevices_ ;
+			outsider.pendingIndexDevices_	 = store.pendingIndexDevices_ ;
+			outsider.indexInventory_		 = store.indexInventory_ ;
+			outsider.installProofInventory_	 = store.installProofInventory_ ;
+			outsider.deviceInstances_		 = store.deviceInstances_ ;
+			outsider.activeRequiredChild_	 = original ;
+			// 元issuer以外では同じ子を所有できません
+			if( !outsider.ownsBindingDevice( child, workspace, package)) {
+				checks |= 1U << 3U ;
+			}
+
+			// 異なる元packageまたは別workspaceを元proofへ代入しません
+			if( !original->inspection->closure.packages.empty() &&
+			   !store.ownsBindingDevice( child, workspace,
+										original->inspection->closure.packages.front())) {
+				checks |= 1U << 6U ;
+			}
+
+			// 元検査とは別の空workspaceを不一致入力にします
+			OfficialDownloadWorkspace otherWorkspace ;
+			// 別workspaceは元proofの所有対象ではありません
+			if( !store.ownsBindingDevice( child, otherWorkspace, package)) {
+				checks |= 1U << 7U ;
+			}
+
+			return checks ;
+		} catch( ...) {
+			return 0U ;
+		}
+	}
+} ;
+} // namespace drivercrate
+
 namespace drivercrate::test {
+/** @brief 所有workspaceの独立I/O試験だけが共有file内部段階を呼びます */
+struct MtdSharedFileFixtureAccess {
+	/**
+	 * @brief 同owned sourceを単独file試験へ結びます
+	 * @param[in,out] operation 同試験の共有file操作です
+	 * @param[in] registeredInf 同fixtureの架空登録pathです
+	 * @param[in] sources 所有workspace内sourceの完全pathです
+	 * @return 元source検査のHRESULTです
+	 */
+	static NativeError bind( MtdSharedFileOperation &operation, std::wstring_view registeredInf,
+							std::span<const std::wstring> sources)
+	{
+		return operation.bindQueueSources( registeredInf, sources) ;
+	}
+	/**
+	 * @brief 同owned sourceのfile配置だけを独立試験します
+	 * @param[in,out] operation 同試験の共有file操作です
+	 * @param[in] cancelled 同期中の取消しfakeです
+	 * @param[out] result 原file部分作用です
+	 * @return 元file操作のHRESULTです
+	 */
+	static NativeError satisfy( MtdSharedFileOperation	   &operation,
+							   const std::function<bool()> &cancelled, MtdSharedFileResult &result)
+	{
+		return operation.satisfy( cancelled, []() -> NativeError { return 0U ; }, result) ;
+	}
+} ;
+
+/** @brief 所有workspaceでqueue通知時の取消しを独立試験します */
+struct MtdQueueFixtureAccess {
+	/**
+	 * @brief 同所有fixtureの原queueから実照合を経て制御queueを作ります
+	 * @param[in] original 同fixtureの元queueです
+	 * @param[in] registeredInf 同fixtureの架空登録INFです
+	 * @param[in,out] workspace 同所有元領域です
+	 * @param[in] facts 同原copy集合です
+	 * @param[in,out] files 同共有file操作です
+	 * @param[out] result 照合成立時のqueueです
+	 * @return 元queue照合のHRESULTです
+	 */
+	static NativeError prepare( HSPFILEQ original, std::wstring_view registeredInf,
+							   OfficialDownloadWorkspace		  &workspace,
+							   const SelectedStorageServiceFacts  &facts,
+							   MtdSharedFileOperation			  &files,
+							   std::unique_ptr<MtdQualifiedQueue> &result)
+	{
+		return MtdQualifiedQueue::prepare( original, registeredInf, workspace, facts, files, result) ;
+	}
+	/**
+	 * @brief 同fixtureのqueue callbackを取消し条件付きで実行します
+	 * @param[in,out] queue 同所有の照合済みqueueです
+	 * @param[in] cancelled callback時の取消しfakeです
+	 * @param[out] result 元copyと部分作用です
+	 * @return 元queue操作のHRESULTです
+	 */
+	static NativeError commit( MtdQualifiedQueue &queue, const std::function<bool()> &cancelled,
+							  MtdQueueResult &result)
+	{
+		return queue.commit( nullptr, cancelled, []() -> NativeError { return 0U ; }, result) ;
+	}
+} ;
 namespace {
 // 通常Ports内容とWindows nodeが完全一致する固定class
 constexpr GUID PORTS_CLASS{
@@ -110,6 +386,24 @@ constexpr GUID PORTS_CLASS{
 // Net一種へ処理を限定していないことを確認する別の通常class
 constexpr GUID NET_CLASS{
 	0x4d36e972, 0xe325, 0x11ce, {0xbf, 0xc1, 0x08, 0x00, 0x2b, 0xe1, 0x03, 0x18}} ;
+// 実在端末や元メーカーの登録と独立した人工クラスです
+constexpr GUID DECLARATIVE_CLASS{
+	0xc054bd69, 0xa76e, 0x4caa, {0xa9, 0x15, 0xe3, 0xce, 0x9a, 0x28, 0x5b, 0x62}} ;
+constexpr wchar_t DECLARATIVE_NAME[] = L"DCFixtureBridge" ;	// 合成INFが宣言するクラスです
+constexpr wchar_t DECLARATIVE_STORE[] =
+	L"System32\\DriverStore\\FileRepository\\fixture.inf_amd64_fixture\\" ;	// 所有する人工Storeです
+// 元storage INFとnative現在nodeを同じ正式Classへ結びます
+constexpr GUID STORAGE_CLASS{
+	0x4d36e97b, 0xe325, 0x11ce, {0xbf, 0xc1, 0x08, 0x00, 0x2b, 0xe1, 0x03, 0x18}} ;
+// fakeが受け入れる正式MTD class GUIDです
+constexpr GUID MTD_CLASS{
+	0x4d36e970, 0xe325, 0x11ce, {0xbf, 0xc1, 0x08, 0x00, 0x2b, 0xe1, 0x03, 0x18}} ;
+// 架空のメディアチェンジャーの正式クラスGUID
+constexpr GUID MEDIUM_CHANGER_CLASS{
+	0xce5939ae, 0xebde, 0x11d0, {0xb1, 0x81, 0x00, 0x00, 0xf8, 0x75, 0x3e, 0xc4}} ;
+// 架空IDEコントローラーのINFと端末ClassGUIDを結ぶ正式クラス
+constexpr GUID HDC_CLASS{
+	0x4d36e96a, 0xe325, 0x11ce, {0xbf, 0xc1, 0x08, 0x00, 0x2b, 0xe1, 0x03, 0x18}} ;
 // 必要SoftwareComponentの元Class/GUIDです
 constexpr GUID COMPONENT_CLASS{
 	0x5c4c3332, 0x344d, 0x483c, {0x87, 0x39, 0x25, 0x9e, 0x93, 0x4c, 0x9c, 0xc8}} ;
@@ -130,20 +424,1052 @@ constexpr GUID EXTENSION_CLASS{
  */
 //------------------------------------------------------------------------------
 BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWORD required) ;
+//------------------------------------------------------------------------------
+/**
+ * @brief MTD専用tableの部分指定を確認する未実行fake slotです
+ * @param[in] set 呼出しに使用しない架空setです
+ * @param[in] device 呼出しに使用しない架空deviceです
+ * @param[in] driver 呼出しに使用しない架空nodeです
+ * @return 呼出しを許さないため常にFALSEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI incompleteMtdSelected( [[maybe_unused]] HDEVINFO			  set,
+								  [[maybe_unused]] PSP_DEVINFO_DATA	  device,
+								  [[maybe_unused]] PSP_DRVINFO_DATA_W driver)
+{
+	return FALSE ;
+}
+/** @brief 未呼出し前提のAPI表構造だけをABI別に固定します */
+template <typename Function> struct UncalledMtdSlot ;
+/** @brief 構造検査中に誤って低位slotを呼んだ場合は試験を停止します */
+template <typename Result, typename... Arguments>
+struct UncalledMtdSlot<Result( WINAPI *)( Arguments...)> {
+	//------------------------------------------------------------------------------
+	/**
+	 * @brief 実device/fileを呼ばず誤呼出しを停止します
+	 * @param[in] args 実行できない架空ABI引数です
+	 * @return 正常には返りません
+	 */
+	//------------------------------------------------------------------------------
+	[[noreturn]] static Result WINAPI invoke( [[maybe_unused]] Arguments... args)
+	{
+		std::abort() ;
+	}
+} ;
+/** @brief 一handler propertyの低位API応答です */
+struct MtdFixtureProperty {
+	/// 元getterが返すWindows errorです
+	DWORD				   error{ERROR_NOT_FOUND} ;
+	/// 元getterが返すproperty型です
+	DEVPROPTYPE			   type{} ;
+	/// 元getterが返す値のbyteです
+	std::vector<std::byte> bytes ;
+	/// 容量照会後に消える条件です
+	bool				   vanishAfterSizing{} ;
+} ;
+/** @brief fake queueの一原copyです */
+struct MtdFixtureCopy {
+	/// 元copy sourceです
+	std::wstring source ;
+	/// 元copy targetです
+	std::wstring target ;
+	/// 元API copy flagsです
+	DWORD		 flags{} ;
+} ;
+/** @brief 所有する一fake queueとその原copyです */
+struct MtdFixtureQueue {
+	/// このfake queueが割当済みならtrueです
+	bool						used{} ;
+	/// 元queueならtrueです
+	bool						original{} ;
+	/// 同queueに登録されたcopy行です
+	std::vector<MtdFixtureCopy> copies ;
+} ;
+/** @brief 一意な所有workspace内だけへ実file操作を投影する内部fakeです */
+struct MtdFileFixture {
+	/**
+	 * @brief 同fixtureが所有する競合writerだけを閉じます
+	 */
+	~MtdFileFixture()
+	{
+		// fixtureが所有する競合writerだけを閉じます
+		if( existingWriter != INVALID_HANDLE_VALUE) {
+			::CloseHandle( existingWriter) ;
+		}
+	}
+	/// 同fixtureで注入する有限条件です
+	MtdFixtureScenario							scenario{MtdFixtureScenario::BOTH_ABSENT} ;
+	/// 写像するWindows rootです
+	std::wstring								windowsRoot ;
+	/// 所有する元package rootです
+	std::wstring								sourceRoot ;
+	/// 非空時だけ元Windowsの文字列を一意所有volumeへ写像します
+	std::wstring								logicalVolume ;
+	/// 一意所有volumeの実pathです
+	std::wstring								physicalVolume ;
+	/// 人工の登録INF source directoryです
+	std::wstring								storeDirectory ;
+	/// 所有するfake queueです
+	std::array<MtdFixtureQueue, 4U>				queues ;
+	/// 人工deviceごとの選択nodeです
+	std::array<SP_DRVINFO_DATA_W, 32U>			selected{} ;
+	/// 選択nodeの有無です
+	std::array<bool, 32U>						hasSelected{} ;
+	/// 既存targetの元file IDです
+	std::array<std::optional<FILE_ID_INFO>, 2U> initialTargetIds ;
+	/// file DIFの呼出し数です
+	std::uint32_t								filesDifs{} ;
+	/// 選択DIFの呼出し数です
+	std::uint32_t								installDifs{} ;
+	/// 制御queueのcommit数です
+	std::uint32_t								commits{} ;
+	/// Windows root照会の回数です
+	std::uint32_t								windowsRootChecks{} ;
+	/// node選択の回数です
+	std::uint32_t								selectedSets{} ;
+	/// queue照合の回数です
+	std::uint32_t								queueScans{} ;
+	/// temp flushの回数です
+	std::uint32_t								flushes{} ;
+	/// 非置換renameの成功数です
+	std::uint32_t								successfulRenames{} ;
+	/// 実際に観測したsource rootです
+	std::wstring								observedSourceRoot ;
+	/// 所有範囲外のqueue操作を拒否した場合trueです
+	bool										queueOutsideOwned{} ;
+	/// 復旧成立前に共有先へ到達した場合trueです
+	bool										beforeRestoreAccess{} ;
+	/// 競合条件でfixtureが所有するwriterです
+	HANDLE										existingWriter{INVALID_HANDLE_VALUE} ;
+	/// 非置換後のpath観測差を注入した場合trueです
+	bool										pathFaultInjected{} ;
+	/// 所有handleと開いたpathの対応です
+	std::unordered_map<HANDLE, std::wstring>	handles ;
+	/// rename後のhandleとpathの対応です
+	std::unordered_map<HANDLE, std::wstring>	renamed ;
+	/// 人工security不一致のtargetです
+	std::wstring								badSecurityTarget ;
+	/// 競合挿入先のtargetです
+	std::wstring								raceTarget ;
+	/// 競合側が作るbyteです
+	std::string									raceBytes ;
+	/// 競合を注入済みならtrueです
+	bool										raceInjected{} ;
+	/// tempへのwrite回数です
+	std::uint32_t								writes{} ;
+	/// write失敗を注入する回数です
+	std::optional<std::uint32_t>				failWriteOrdinal ;
+	/// 人工class installer propertyです
+	MtdFixtureProperty							classInstaller ;
+	/// 人工class co-installer propertyです
+	MtdFixtureProperty							classCoInstallers ;
+	/// 人工device co-installer propertyです
+	MtdFixtureProperty							deviceCoInstallers ;
+} ;
+// 同worker中だけ有効な所有file fixtureです
+thread_local MtdFileFixture *activeMtdFiles = nullptr ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 一人工propertyの容量照会と本読取をWindows ABIで返します
+ * @param[in] value 同fixtureの原状態です
+ * @param[out] type 元property型です
+ * @param[out] buffer 呼出し側の任意領域です
+ * @param[in] capacity 出力容量です
+ * @param[out] required 元byte数です
+ * @return 原状態と容量に応じた低位応答です
+ */
+//------------------------------------------------------------------------------
+BOOL mtdFixtureProperty( const MtdFixtureProperty &value, DEVPROPTYPE *type, PBYTE buffer,
+						DWORD capacity, PDWORD required)
+{
+	// property型を返せない不正引数を拒否します
+	if( !type) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	// 人工propertyの元errorを返します
+	if( value.error != ERROR_SUCCESS) {
+		SetLastError( value.error) ;
+		return FALSE ;
+	}
+
+	*type = value.type ;
+	// 容量出力がある場合だけ原byte数を返します
+	if( required) {
+		*required = static_cast<DWORD>( value.bytes.size()) ;
+	}
+
+	// 本読取bufferの容量不足をWindows ABIで返します
+	if( !buffer || capacity < value.bytes.size()) {
+		SetLastError( ERROR_INSUFFICIENT_BUFFER) ;
+		return FALSE ;
+	}
+
+	// 容量照会後に消えたpropertyを不在応答として注入します
+	if( value.vanishAfterSizing) {
+		SetLastError( ERROR_NOT_FOUND) ;
+		return FALSE ;
+	}
+
+	std::memcpy( buffer, value.bytes.data(), value.bytes.size()) ;
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同MTD classのinstaller又はco-installer propertyを返します
+ * @param[in] classGuid 同fixtureの正式classです
+ * @param[in] key 要求propertyです
+ * @param[out] type 元property型です
+ * @param[out] buffer 呼出し側の任意領域です
+ * @param[in] capacity 出力容量です
+ * @param[out] required 元byte数です
+ * @param[in] flags setup class指定だけです
+ * @return 原状態と容量に応じた低位応答です
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureClassProperty( const GUID *classGuid, const DEVPROPKEY *key, DEVPROPTYPE *type,
+									PBYTE buffer, DWORD capacity, PDWORD required, DWORD flags)
+{
+	// 別class、未知key、flags差を完全fakeの外へ出しません
+	if( !activeMtdFiles || !classGuid || !IsEqualGUID( *classGuid, MTD_CLASS) || !key ||
+	   flags != DICLASSPROP_INSTALLER) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	// 正式class property keyを型とIDで比較します
+	const auto same = [&]( const DEVPROPKEY &expected) {
+		return key->pid == expected.pid && IsEqualGUID( key->fmtid, expected.fmtid) ;
+	} ;
+	// class installerの人工propertyを返します
+	if( same( DEVPKEY_DeviceClass_ClassInstaller)) {
+		return mtdFixtureProperty( activeMtdFiles->classInstaller, type, buffer, capacity, required) ;
+	}
+
+	// class co-installerの人工propertyを返します
+	if( same( DEVPKEY_DeviceClass_ClassCoInstallers)) {
+		return mtdFixtureProperty( activeMtdFiles->classCoInstallers, type, buffer, capacity,
+								  required) ;
+	}
+
+	SetLastError( ERROR_INVALID_REG_PROPERTY) ;
+	return FALSE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 二つの所有rootとその読取専用祖先だけへfile openを制限します
+ * @param[in] path 元完全pathです
+ * @param[in] write 新規temp作成の場合trueです
+ * @return 予定した所有範囲に限定される場合trueです
+ */
+//------------------------------------------------------------------------------
+bool mtdFixturePath( std::wstring_view path, bool write)
+{
+	// 所有workspace外や親参照を含むpathを拒否します
+	if( !activeMtdFiles || path.empty() || path.find( L"..") != path.npos) {
+		return false ;
+	}
+
+	// 所有root内のpathかを判定します
+	const auto within = [&]( std::wstring_view root) {
+		return path.size() >= root.size() &&
+			   CompareStringOrdinal( path.data(), static_cast<int>( root.size()), root.data(),
+									static_cast<int>( root.size()), TRUE) == CSTR_EQUAL &&
+			   (path.size() == root.size() || path[root.size()] == L'\\') ;
+	} ;
+	// 書込先を所有する人工System32配下へ限定します
+	if( write) {
+		return within( activeMtdFiles->windowsRoot + L"\\System32") ;
+	}
+
+	// 所有rootまでの親pathかを判定します
+	const auto ancestor = [&]( std::wstring_view root) {
+		return path.size() <= root.size() &&
+			   CompareStringOrdinal( path.data(), static_cast<int>( path.size()), root.data(),
+									static_cast<int>( path.size()), TRUE) == CSTR_EQUAL ;
+	} ;
+	return within( activeMtdFiles->windowsRoot) || within( activeMtdFiles->sourceRoot) ||
+		   ancestor( activeMtdFiles->windowsRoot) || ancestor( activeMtdFiles->sourceRoot) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元Windows pathだけを所有workspace上の別位置へ写像します
+ * @param[in] path fake ABIで観測した元完全pathです
+ * @return 所有workspaceへの実path又は元source pathです
+ */
+//------------------------------------------------------------------------------
+std::wstring mtdFixturePhysical( std::wstring_view path)
+{
+	// 同workerの所有file fixture状態です
+	const auto &state = *activeMtdFiles ;
+	// 元package sourceを論理volume写像から除外する判定です
+	const bool	originalSource =
+		!state.sourceRoot.empty() && path.size() >= state.sourceRoot.size() &&
+		CompareStringOrdinal( path.data(), static_cast<int>( state.sourceRoot.size()),
+							 state.sourceRoot.c_str(), static_cast<int>( state.sourceRoot.size()),
+							 TRUE) == CSTR_EQUAL &&
+		(path.size() == state.sourceRoot.size() || path[state.sourceRoot.size()] == L'\\') ;
+	// Windows表示pathだけを所有volumeへ写像し元sourceは維持します
+	if( !originalSource && !state.logicalVolume.empty() &&
+	   path.size() >= state.logicalVolume.size() &&
+	   CompareStringOrdinal( path.data(), static_cast<int>( state.logicalVolume.size()),
+							state.logicalVolume.c_str(),
+							static_cast<int>( state.logicalVolume.size()), TRUE) == CSTR_EQUAL) {
+		return state.physicalVolume +
+			   (path.size() == state.logicalVolume.size()
+					? L""
+					: L"\\" + std::wstring{path.substr( state.logicalVolume.size())}) ;
+	}
+
+	return std::wstring{path} ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有workspace内のfileだけを低位ABIで開きます
+ * @param[in] path 検査対象の完全pathです
+ * @param[in] access 元要求アクセスです
+ * @param[in] share 元共有flagsです
+ * @param[in] security 元security属性です
+ * @param[in] creation 元作成modeです
+ * @param[in] flags 元属性とopen flagsです
+ * @param[in] templateFile 元templateです
+ * @return 所有scopeのhandle又は拒否時INVALID_HANDLE_VALUEです
+ */
+//------------------------------------------------------------------------------
+HANDLE WINAPI mtdFixtureCreate( LPCWSTR path, DWORD access, DWORD share,
+							   LPSECURITY_ATTRIBUTES security, DWORD creation, DWORD flags,
+							   HANDLE templateFile)
+{
+	// 要求アクセスがwriteまたはdeleteを含むかです
+	const bool write = (access & (GENERIC_WRITE | DELETE)) != 0U ;
+	// 所有外path、不正creation、未対応アクセスを拒否します
+	if( !path || !mtdFixturePath( path, write) || (write && creation != CREATE_NEW) ||
+	   (!write && creation != OPEN_EXISTING)) {
+		SetLastError( ERROR_ACCESS_DENIED) ;
+		return INVALID_HANDLE_VALUE ;
+	}
+
+	// 所有tempの作成失敗を指定したfixtureだけで注入します
+	if( write && activeMtdFiles->scenario == MtdFixtureScenario::TEMP_CREATE_FAILURE) {
+		SetLastError( ERROR_DISK_FULL) ;
+		return INVALID_HANDLE_VALUE ;
+	}
+
+	// 所有volumeに写像した実pathです
+	const auto physical = mtdFixturePhysical( path) ;
+	// 所有workspaceで開いた実file handleです
+	const auto handle =
+		::CreateFileW( physical.c_str(), access, share, security, creation, flags, templateFile) ;
+	// 開けた所有handleと元pathの対応を記録します
+	if( handle != INVALID_HANDLE_VALUE) {
+		activeMtdFiles->handles.emplace( handle, path) ;
+	}
+
+	return handle ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief fakeが所有するhandleか確認します
+ * @param[in] handle 同scopeに渡ったhandleです
+ * @return 所有中だけtrueです
+ */
+//------------------------------------------------------------------------------
+bool mtdFixtureHandle( HANDLE handle)
+{
+	// このfixtureが開いたhandleだけを認めます
+	if( activeMtdFiles && activeMtdFiles->handles.contains( handle)) {
+		return true ;
+	}
+
+	SetLastError( ERROR_INVALID_HANDLE) ;
+	return false ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有handleの通常属性を返します
+ * @param[in] handle 同scopeのfileです
+ * @param[out] info 元Windows情報です
+ * @return 所有handleの読取結果です
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureInfo( HANDLE handle, LPBY_HANDLE_FILE_INFORMATION info)
+{
+	// 所有handle以外やWindows属性取得の失敗を通しません
+	if( !mtdFixtureHandle( handle) || !::GetFileInformationByHandle( handle, info)) {
+		return FALSE ;
+	}
+
+	// reparse負例を注入する人工targetです
+	const auto	reparseTarget = activeMtdFiles->windowsRoot + L"\\System32\\fixture-a.dll" ;
+	// 同handleを開いた元Windows pathです
+	const auto &path = activeMtdFiles->handles.at( handle) ;
+	// 対象handleが負例targetかの判定です
+	const bool	isTarget =
+		CompareStringOrdinal( path.c_str(), -1, reparseTarget.c_str(), -1, TRUE) == CSTR_EQUAL ;
+	// reparse負例に使う人工System32親です
+	const auto parent = activeMtdFiles->windowsRoot + L"\\System32" ;
+	// 選択条件のtargetまたは親だけをreparse属性にします
+	if( (activeMtdFiles->scenario == MtdFixtureScenario::REPARSE_TARGET && isTarget) ||
+	   (activeMtdFiles->scenario == MtdFixtureScenario::REPARSE_PARENT &&
+		CompareStringOrdinal( path.c_str(), -1, parent.c_str(), -1, TRUE) == CSTR_EQUAL)) {
+		info->dwFileAttributes |= FILE_ATTRIBUTE_REPARSE_POINT ;
+	}
+
+	// 選択したtargetだけ複数hardlinkの観測を注入します
+	if( activeMtdFiles->scenario == MtdFixtureScenario::HARDLINK_TARGET && isTarget) {
+		info->nNumberOfLinks = 2U ;
+	}
+
+	return TRUE ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有handleの型付き属性を返します
+ * @param[in] handle 同scopeのfileです
+ * @param[in] kind 元情報型です
+ * @param[out] output 呼出し元領域です
+ * @param[in] size 出力領域byte数です
+ * @return 所有handleの読取結果です
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureInfoEx( HANDLE handle, FILE_INFO_BY_HANDLE_CLASS kind, LPVOID output,
+							 DWORD size)
+{
+	return mtdFixtureHandle( handle) ? ::GetFileInformationByHandleEx( handle, kind, output, size)
+									: FALSE ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有handleの実pathを返します
+ * @param[in] handle 同scopeのfileです
+ * @param[out] output 呼出し元文字領域です
+ * @param[in] capacity 文字容量です
+ * @param[in] flags 元path flagsです
+ * @return 所有handleのWindows返却値です
+ */
+//------------------------------------------------------------------------------
+DWORD WINAPI mtdFixtureFinalPath( HANDLE handle, LPWSTR output, DWORD capacity, DWORD flags)
+{
+	// 所有していないhandleからpathを返しません
+	if( !mtdFixtureHandle( handle)) {
+		return 0U ;
+	}
+
+	// 実handleから返された最終path長です
+	auto length = ::GetFinalPathNameByHandleW( handle, output, capacity, flags) ;
+	// 所有volume内の実pathだけを人工Windows pathへ戻します
+	if( !activeMtdFiles->logicalVolume.empty() && length > 0U && length < capacity) {
+		// 実最終pathの借用viewです
+		std::wstring_view actual{output, length} ;
+		// 比較前にWindowsのDOS接頭辞を除きます
+		if( actual.starts_with( L"\\\\?\\")) {
+			actual.remove_prefix( 4U) ;
+		}
+
+		// 一意所有volumeの実pathです
+		const auto &physical = activeMtdFiles->physicalVolume ;
+		// 所有volumeの一致部分だけを論理volumeへ変換します
+		if( actual.size() >= physical.size() &&
+		   CompareStringOrdinal( actual.data(), static_cast<int>( physical.size()), physical.c_str(),
+								static_cast<int>( physical.size()), TRUE) == CSTR_EQUAL &&
+		   (actual.size() == physical.size() || actual[physical.size()] == L'\\')) {
+			// 比較へ戻す論理Windows pathです
+			std::wstring logical = L"\\\\?\\" + activeMtdFiles->logicalVolume ;
+			// volume以下の相対部分を論理pathへ復元します
+			if( actual.size() > physical.size()) {
+				logical += actual.substr( physical.size() + 1U) ;
+			}
+
+			// 出力容量不足をWindows ABIで返します
+			if( logical.size() + 1U > capacity) {
+				return static_cast<DWORD>( logical.size() + 1U) ;
+			}
+
+			std::copy( logical.begin(), logical.end(), output) ;
+			output[logical.size()] = L'\0' ;
+			length				   = static_cast<DWORD>( logical.size()) ;
+		}
+	}
+
+	// rename済みhandleに対応する元targetです
+	const auto found = activeMtdFiles->renamed.find( handle) ;
+	// 指定された負例でrename後のpath差を一回だけ注入します
+	if( found != activeMtdFiles->renamed.end() && length > 0U && length < capacity &&
+	   activeMtdFiles->scenario == MtdFixtureScenario::RENAME_VERIFY_FAILURE &&
+	   !activeMtdFiles->pathFaultInjected && found->second.ends_with( L"\\fixture-a.dll")) {
+		output[length - 1U]				  = L'x' ;
+		activeMtdFiles->pathFaultInjected = true ;
+	}
+
+	// rename後の実handle pathと元targetを独立観測します
+	if( found != activeMtdFiles->renamed.end() && length > 0U && length < capacity) {
+		// rename後に実APIが返したpathです
+		std::wstring_view observed{output, length} ;
+		// 観測pathからDOS接頭辞を除いて比較します
+		if( observed.starts_with( L"\\\\?\\")) {
+			observed.remove_prefix( 4U) ;
+		}
+
+		// 観測pathと期待pathのordinal比較です
+		const auto equals = [&]( std::wstring_view expected) {
+			return observed.size() == expected.size() &&
+				   CompareStringOrdinal( observed.data(), static_cast<int>( observed.size()),
+										expected.data(), static_cast<int>( expected.size()),
+										TRUE) == CSTR_EQUAL ;
+		} ;
+		std::cout << "MTD_RENAME_HANDLE_PATH target=" << equals( found->second)
+				  << " previous=" << equals( activeMtdFiles->handles.at( handle)) << " targetExists="
+				  << (::GetFileAttributesW( mtdFixturePhysical( found->second).c_str()) !=
+					  INVALID_FILE_ATTRIBUTES)
+				  << " observedLength=" << observed.size()
+				  << " expectedLength=" << found->second.size() << '\n' ;
+		// 最初に不一致となる文字位置です
+		std::size_t difference{} ;
+		// 最初に異なる位置まで比較を進めます
+		while( difference < observed.size() && difference < found->second.size() &&
+			  towlower( observed[difference]) == towlower( found->second[difference])) {
+			++difference ;
+		}
+
+		std::cout << "MTD_RENAME_PATH_DIFF index=" << difference ;
+		// 実際の差分付近だけを有限に出力します
+		for( std::size_t offset = 0U; offset < 6U && difference + offset < observed.size();
+			++offset) {
+			std::cout << " got" << offset << '='
+					  << static_cast<unsigned>( observed[difference + offset]) ;
+		}
+
+		// 期待pathの対応部分だけを有限に出力します
+		for( std::size_t offset = 0U; offset < 6U && difference + offset < found->second.size();
+			++offset) {
+			std::cout << " want" << offset << '='
+					  << static_cast<unsigned>( found->second[difference + offset]) ;
+		}
+
+		std::cout << '\n' ;
+		// 観測pathのleaf区切りです
+		const auto observedSlash = observed.find_last_of( L'\\') ;
+		// 期待pathのleaf区切りです
+		const auto expectedSlash = found->second.find_last_of( L'\\') ;
+		std::wcout << L"MTD_RENAME_SYNTHETIC_LEAF observed="
+				   << observed.substr( observedSlash == observed.npos ? 0U : observedSlash + 1U)
+				   << L" expected="
+				   << std::wstring_view{found->second}.substr(
+						  expectedSlash == found->second.npos ? 0U : expectedSlash + 1U)
+				   << L'\n' ;
+	}
+
+	return length ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有fixtureのtarget volumeだけの空き容量を照会します
+ * @param[in] path 所有target directoryです
+ * @param[out] available 呼出し主体へ利用可能なbyte数です
+ * @param[out] total volume容量です
+ * @param[out] freeBytes volume空きbyte数です
+ * @return 所有target volumeのWindows返却値です
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureFreeSpace( LPCWSTR path, PULARGE_INTEGER available, PULARGE_INTEGER total,
+								PULARGE_INTEGER freeBytes)
+{
+	// 所有領域以外の容量照会を拒否します
+	if( !path || !mtdFixturePath( path, true)) {
+		SetLastError( ERROR_ACCESS_DENIED) ;
+		return FALSE ;
+	}
+
+	// 容量照会に使う所有pathです
+	const auto physical = mtdFixturePhysical( path) ;
+	return ::GetDiskFreeSpaceExW( physical.c_str(), available, total, freeBytes) ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 保護principalを模した明示security descriptorを返します
+ * @param[in] handle 同scopeのfileです
+ * @param[in] kind 元object型です
+ * @param[in] info 要求security情報です
+ * @param[out] owner 生成descriptor内のownerです
+ * @param[out] group 使用しないgroupです
+ * @param[out] dacl 生成descriptor内のDACLです
+ * @param[out] sacl 使用しないSACLです
+ * @param[out] descriptor 呼出し元が解放するdescriptorです
+ * @return 生成成功0、対象外又は生成失敗はWindows errorです
+ */
+//------------------------------------------------------------------------------
+DWORD WINAPI mtdFixtureSecurity( HANDLE handle, SE_OBJECT_TYPE kind, SECURITY_INFORMATION info,
+								PSID *owner, PSID *group, PACL *dacl, PACL *sacl,
+								PSECURITY_DESCRIPTOR *descriptor)
+{
+	// 所有handleと要求したowner・DACL以外の照会を拒否します
+	if( !mtdFixtureHandle( handle) || kind != SE_FILE_OBJECT || !owner || !dacl || !descriptor ||
+	   info != (OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION)) {
+		return ERROR_INVALID_PARAMETER ;
+	}
+
+	// 要求されたgroup出力だけを空にします
+	if( group) {
+		*group = nullptr ;
+	}
+
+	// 要求されたSACL出力だけを空にします
+	if( sacl) {
+		*sacl = nullptr ;
+	}
+
+	// security観測対象の元Windows pathです
+	const auto &path = activeMtdFiles->handles.at( handle) ;
+	// 不正DACL負例の対象かの判定です
+	const bool	bad =
+		!activeMtdFiles->badSecurityTarget.empty() &&
+		CompareStringOrdinal( path.c_str(), -1, activeMtdFiles->badSecurityTarget.c_str(), -1,
+							 TRUE) == CSTR_EQUAL ;
+	// 不正owner負例に使う人工targetです
+	const auto badOwnerTarget = activeMtdFiles->windowsRoot + L"\\System32\\fixture-a.dll" ;
+	// 同targetへ不正ownerを注入する判定です
+	const bool badOwner =
+		activeMtdFiles->scenario == MtdFixtureScenario::BAD_OWNER &&
+		CompareStringOrdinal( path.c_str(), -1, badOwnerTarget.c_str(), -1, TRUE) == CSTR_EQUAL ;
+	// Windows pathの有限fakeだけで実観測した祖先ACLの形を再現します
+	const auto &files = *activeMtdFiles ;
+	// Windows pathの大文字小文字を区別せず同じ対象か照合します
+	const auto	samePath = []( const std::wstring &left, const std::wstring &right) {
+		 return CompareStringOrdinal( left.c_str(), -1, right.c_str(), -1, TRUE) == CSTR_EQUAL ;
+	} ;
+	// 通常の保護descriptorは祖先以外と単独fileの正例です
+	std::wstring	   sddl = L"O:BAG:BAD:P(A;;FA;;;BA)(A;;FA;;;SY)" ;
+	// 三親に共通する固定されたWindows保守主体です
+	const std::wstring maintainer =
+		L"S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464" ;
+	// 元hostと同じowner・group・保護DACL flagsです
+	const std::wstring hostPrefix = L"O:" + maintainer + L"G:" + maintainer + L"D:PAI" ;
+	// 写像対象のvolume rootだけを実観測に似せます
+	if( !files.logicalVolume.empty() && samePath( path, files.logicalVolume)) {
+		// 実観測のACE順・flags・権限を保ち、非公開SIDだけ既知の非信頼SIDへ写します
+		sddl = hostPrefix + L"(A;;LC;;;AU)(A;OICIIO;SDGXGWGR;;;AU)"
+							L"(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)"
+							L"(A;;0x1000a1;;;AC)" ;
+		// 禁止権の負例は同じ祖先に各権限を一つずつ加えます
+		switch( files.scenario) {
+			// 別主体による既存childの削除を拒否します
+			case MtdFixtureScenario::ANCESTOR_DELETE_CHILD:
+				sddl += L"(A;;0x00000040;;;AU)" ;
+				break ;
+
+			// 祖先自身の削除権を拒否します
+			case MtdFixtureScenario::ANCESTOR_DELETE:
+				sddl += L"(A;;0x00010000;;;AU)" ;
+				break ;
+
+			// 祖先のDACL変更権を拒否します
+			case MtdFixtureScenario::ANCESTOR_WRITE_DAC:
+				sddl += L"(A;;0x00040000;;;AU)" ;
+				break ;
+
+			// 祖先の所有者変更権を拒否します
+			case MtdFixtureScenario::ANCESTOR_WRITE_OWNER:
+				sddl += L"(A;;0x00080000;;;AU)" ;
+				break ;
+
+			// 祖先の新規file作成権を拒否します
+			case MtdFixtureScenario::ANCESTOR_WRITE_FILE:
+				sddl += L"(A;;0x00000002;;;AU)" ;
+				break ;
+
+			// 他条件は実観測に似た祖先だけを維持します
+			default:
+				break ;
+		}
+	}
+
+	// WindowsとSystem32は原観測の既知SIDと全ACEで保護状態を再現します
+	if( !files.logicalVolume.empty() &&
+	   (samePath( path, files.windowsRoot) || samePath( path, files.windowsRoot + L"\\System32"))) {
+		sddl = hostPrefix +
+			   L"(A;OICIIO;GA;;;CO)(A;OICIIO;GA;;;SY)(A;;0x1301bf;;;SY)"
+			   L"(A;OICIIO;GA;;;BA)(A;;0x1301bf;;;BA)(A;OICIIO;GXGR;;;BU)"
+			   L"(A;;0x1200a9;;;BU)(A;CIIO;GA;;;" +
+			   maintainer + L")(A;;FA;;;" + maintainer +
+			   L")(A;;0x1200a9;;;AC)(A;OICIIO;GXGR;;;AC)"
+			   L"(A;;0x1200a9;;;S-1-15-2-2)(A;OICIIO;GXGR;;;S-1-15-2-2)" ;
+	}
+
+	// volume rootから一つ下の実在childを個別に保護します
+	const auto slash = files.windowsRoot.find( L'\\', 3U) ;
+	// root直下の実在する最初のpathを示します
+	const auto firstChild = files.windowsRoot.substr( 0U, slash) ;
+	// 次childへの限定負例だけにdescriptor差を注入します
+	if( !files.logicalVolume.empty() && samePath( path, firstChild)) {
+		// 継承遮断のないchildは保護済みにしません
+		if( files.scenario == MtdFixtureScenario::ANCESTOR_UNPROTECTED_CHILD) {
+			sddl = L"O:BAG:BAD:(A;;FA;;;BA)(A;;FA;;;SY)" ;
+		} else {
+			// 保護付きでも非信頼の書込み権があれば拒否します
+			if( files.scenario == MtdFixtureScenario::ANCESTOR_CHILD_WRITE) {
+				sddl += L"(A;;0x00000002;;;AU)" ;
+			}
+		}
+	}
+
+	// 配置直親とStore source直親では同じ0x4も許しません
+	if( (files.scenario == MtdFixtureScenario::DESTINATION_PARENT_ADD_DIRECTORY &&
+		samePath( path, files.windowsRoot + L"\\System32")) ||
+	   (files.scenario == MtdFixtureScenario::STORE_PARENT_ADD_DIRECTORY &&
+		!files.storeDirectory.empty() && samePath( path, files.storeDirectory))) {
+		sddl += L"(A;;0x00000004;;;AU)" ;
+	}
+
+	// 他のtarget負例は既存のownerとDACLを独立に偽装します
+	if( badOwner) {
+		sddl = L"O:WDG:BAD:P(A;;FA;;;BA)(A;;FA;;;SY)" ;
+	} else {
+		// 不正ownerと不正DACLは同時に注入しません
+		if( bad) {
+			sddl = L"O:BAG:BAD:P(A;;FA;;;BA)(A;;FA;;;SY)(A;;FA;;;WD)" ;
+		}
+	}
+
+	// 選択条件に応じた人工owner・DACLを作成できなければ元errorを返します
+	if( !ConvertStringSecurityDescriptorToSecurityDescriptorW( sddl.c_str(), SDDL_REVISION_1,
+															 descriptor, nullptr)) {
+		return GetLastError() ;
+	}
+
+	// descriptorから返るdefaultとpresent flagsです
+	BOOL defaulted{}, present{} ;
+	// descriptorからownerとDACLを抽出できなければ所有bufferを解放します
+	if( !GetSecurityDescriptorOwner( *descriptor, owner, &defaulted) ||
+	   !GetSecurityDescriptorDacl( *descriptor, &present, dacl, &defaulted) || !present) {
+		// descriptor抽出直後の元errorです
+		const auto error = GetLastError() ;
+		::LocalFree( *descriptor) ;
+		*descriptor = nullptr ;
+		return error ;
+	}
+
+	return ERROR_SUCCESS ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief fakeが返したsecurity領域を解放します
+ * @param[in] value 同fakeが所有した領域です
+ * @return 元LocalFree結果です
+ */
+//------------------------------------------------------------------------------
+HLOCAL WINAPI mtdFixtureFree( HLOCAL value)
+{
+	return ::LocalFree( value) ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有handleから元byteを読みます
+ * @param[in] handle 同scopeのfileです
+ * @param[out] buffer 呼出し元領域です
+ * @param[in] count 要求byte数です
+ * @param[out] read 実読取byte数です
+ * @param[in,out] overlap 元同期条件です
+ * @return 所有handleのWindows読取結果です
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureRead( HANDLE handle, LPVOID buffer, DWORD count, LPDWORD read,
+						   LPOVERLAPPED overlap)
+{
+	// 所有handle以外へのreadを拒否します
+	if( !mtdFixtureHandle( handle)) {
+		return FALSE ;
+	}
+
+	// read失敗を注入する人工DLL targetです
+	const auto target = activeMtdFiles->windowsRoot + L"\\System32\\fixture-a.dll" ;
+	// 指定した原DLLだけでread失敗を注入します
+	if( activeMtdFiles->scenario == MtdFixtureScenario::READ_FAILURE &&
+	   CompareStringOrdinal( activeMtdFiles->handles.at( handle).c_str(), -1, target.c_str(), -1,
+							TRUE) == CSTR_EQUAL) {
+		SetLastError( ERROR_READ_FAULT) ;
+		return FALSE ;
+	}
+
+	return ::ReadFile( handle, buffer, count, read, overlap) ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有temp handleだけへbyteを書きます
+ * @param[in] handle 同scopeのfileです
+ * @param[in] buffer 元byteです
+ * @param[in] count 要求byte数です
+ * @param[out] written 実書込byte数です
+ * @param[in,out] overlap 元同期条件です
+ * @return 所有tempのWindows書込結果です
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureWrite( HANDLE handle, LPCVOID buffer, DWORD count, LPDWORD written,
+							LPOVERLAPPED overlap)
+{
+	// 所有範囲外へのwriteを拒否します
+	if( !mtdFixtureHandle( handle) || !mtdFixturePath( activeMtdFiles->handles.at( handle), true)) {
+		return FALSE ;
+	}
+
+	// 指定順のtemp writeだけを失敗させます
+	if( activeMtdFiles->failWriteOrdinal &&
+	   activeMtdFiles->writes++ == *activeMtdFiles->failWriteOrdinal) {
+		SetLastError( ERROR_WRITE_FAULT) ;
+		return FALSE ;
+	}
+
+	return ::WriteFile( handle, buffer, count, written, overlap) ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有tempの書込みをflushします
+ * @param[in] handle 同scopeのfileです
+ * @return 所有tempのWindows返却値です
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureFlush( HANDLE handle)
+{
+	// 所有handle以外のflushを拒否します
+	if( !mtdFixtureHandle( handle)) {
+		return FALSE ;
+	}
+
+	// 選択条件だけでflush失敗を注入します
+	if( activeMtdFiles->scenario == MtdFixtureScenario::FLUSH_FAILURE) {
+		SetLastError( ERROR_WRITE_FAULT) ;
+		return FALSE ;
+	}
+
+	// 所有handleの実flush結果です
+	const auto flushed = ::FlushFileBuffers( handle) ;
+	// 実際に成功した所有temp flushだけを数えます
+	if( flushed) {
+		++activeMtdFiles->flushes ;
+	}
+
+	return flushed ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有tempだけのrename又は削除指定を実行します
+ * @param[in] handle 同scopeのfileです
+ * @param[in] kind 元情報型です
+ * @param[in] data 元情報です
+ * @param[in] size 元情報byte数です
+ * @return 所有tempへのWindows返却値です
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureSetInfo( HANDLE handle, FILE_INFO_BY_HANDLE_CLASS kind, LPVOID data,
+							  DWORD size)
+{
+	// 所有外または未対応のfile情報変更を拒否します
+	if( !mtdFixtureHandle( handle) || !mtdFixturePath( activeMtdFiles->handles.at( handle), true) ||
+	   (kind != FileRenameInfo && kind != FileDispositionInfo)) {
+		SetLastError( ERROR_ACCESS_DENIED) ;
+		return FALSE ;
+	}
+
+	// rename情報は元Windows pathと所有先の対応を検証します
+	if( kind == FileRenameInfo) {
+		// 呼出し側から借用したrename構造です
+		const auto info = static_cast<const FILE_RENAME_INFO *>( data) ;
+		// FileNameまでの固定header byte数です
+		const auto prefix = offsetof( FILE_RENAME_INFO, FileName) ;
+		// 非置換・絶対target・文字数と終端の契約を検査します
+		if( !info || size < prefix + sizeof( wchar_t) ||
+		   info->FileNameLength % sizeof( wchar_t) != 0U ||
+		   info->FileNameLength > size - prefix - sizeof( wchar_t) ||
+		   info->FileName[info->FileNameLength / sizeof( wchar_t)] != L'\0' ||
+		   info->ReplaceIfExists != FALSE || info->RootDirectory != nullptr ||
+		   !mtdFixturePath(
+			   std::wstring_view{info->FileName, info->FileNameLength / sizeof( wchar_t)}, true)) {
+			SetLastError( ERROR_INVALID_PARAMETER) ;
+			return FALSE ;
+		}
+
+		// 元rename構造のWindows target文字列です
+		const std::wstring target{info->FileName, info->FileNameLength / sizeof( wchar_t)} ;
+		// そのtargetを写像した所有pathです
+		const auto		   physicalTarget = mtdFixturePhysical( target) ;
+		// rename失敗の固定負例を注入します
+		if( activeMtdFiles->scenario == MtdFixtureScenario::RENAME_FAILURE) {
+			SetLastError( ERROR_ACCESS_DENIED) ;
+			return FALSE ;
+		}
+
+		// 指定された競合先だけをrename直前に一度作ります
+		if( !activeMtdFiles->raceInjected && !activeMtdFiles->raceTarget.empty() &&
+		   CompareStringOrdinal( target.c_str(), -1, activeMtdFiles->raceTarget.c_str(), -1, TRUE) ==
+			   CSTR_EQUAL) {
+			// 競合条件だけで所有workspaceに作る他者役handleです
+			const HANDLE competitor =
+				::CreateFileW( physicalTarget.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr,
+							  CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr) ;
+			// 競合fileを作れない場合は成功を合成しません
+			if( competitor == INVALID_HANDLE_VALUE) {
+				return FALSE ;
+			}
+
+			// 競合fileへの書込byte数です
+			DWORD	   count{} ;
+			// 競合byteの実write成否です
+			const bool written = ::WriteFile( competitor, activeMtdFiles->raceBytes.data(),
+											 static_cast<DWORD>( activeMtdFiles->raceBytes.size()),
+											 &count, nullptr) != FALSE &&
+								 count == activeMtdFiles->raceBytes.size() ;
+			::CloseHandle( competitor) ;
+			// 競合byteのwrite失敗を保持します
+			if( !written) {
+				SetLastError( ERROR_WRITE_FAULT) ;
+				return FALSE ;
+			}
+
+			activeMtdFiles->raceInjected = true ;
+		}
+
+		// Windows表示targetを所有volumeへ変換してから実APIを呼びます
+		if( physicalTarget != target) {
+			// 写像後targetのUTF-16 byte数です
+			const auto			   bytes = physicalTarget.size() * sizeof( wchar_t) ;
+			// NULを含む写像済みrename構造bufferです
+			std::vector<std::byte> converted( prefix + bytes + sizeof( wchar_t), std::byte{}) ;
+			// 写像済みrename構造の借用viewです
+			auto translated				= reinterpret_cast<FILE_RENAME_INFO *>( converted.data()) ;
+			translated->ReplaceIfExists = FALSE ;
+			translated->RootDirectory	= nullptr ;
+			translated->FileNameLength	= static_cast<DWORD>( bytes) ;
+			std::memcpy( translated->FileName, physicalTarget.data(), bytes) ;
+			// 所有pathへ写像した実rename API結果です
+			const BOOL result = ::SetFileInformationByHandle( handle, kind, translated,
+															 static_cast<DWORD>( converted.size())) ;
+			// rename成功時だけ元handleとWindows targetを対応付けます
+			if( result) {
+				activeMtdFiles->renamed[handle] = target ;
+				++activeMtdFiles->successfulRenames ;
+			}
+
+			return result ;
+		}
+	}
+
+	// 所有handleに対する実file情報変更結果です
+	const BOOL result = ::SetFileInformationByHandle( handle, kind, data, size) ;
+	// 未変換pathのrename成功も観測に保持します
+	if( result && kind == FileRenameInfo && data && size >= sizeof( FILE_RENAME_INFO)) {
+		// 成功したrenameの元構造です
+		const auto info = static_cast<const FILE_RENAME_INFO *>( data) ;
+		activeMtdFiles->renamed[handle] =
+			std::wstring{info->FileName, info->FileNameLength / sizeof( wchar_t)} ;
+		++activeMtdFiles->successfulRenames ;
+	}
+
+	return result ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief fakeが開いたhandleだけを閉じます
+ * @param[in] handle 同scopeの所有handleです
+ * @return Windowsのclose結果です
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureClose( HANDLE handle)
+{
+	// 所有handle以外を閉じません
+	if( !mtdFixtureHandle( handle)) {
+		return FALSE ;
+	}
+
+	activeMtdFiles->handles.erase( handle) ;
+	activeMtdFiles->renamed.erase( handle) ;
+	return ::CloseHandle( handle) ;
+}
+/** @brief 対象付き候補の発行後に低位端末属性と登録時点の観測を切り替えます */
+struct CatalogInstallFixture {
+	/// 第一端末のHardwareIdsに返すNUL区切りのID列です。空なら元の属性です
+	std::wstring_view hardwareIds ;
+	/// 第一端末のCompatibleIdsへ返す単一IDです。空なら元の属性です
+	std::wstring_view compatibleId ;
+	/// 復元開始後かつ最初の登録前に、登録先のWindows rootを返した実回数です
+	unsigned		  registrationRootReads{} ;
+	/// 切り替えたHardwareIds全体を低位APIが返した回数です
+	unsigned		  changedHardwareReads{} ;
+	/// 元IDが移ったCompatibleIdsを低位APIが返した回数です
+	unsigned		  changedCompatibleReads{} ;
+	/// 人工配布物のHTTP送信回数です
+	unsigned		  sends{} ;
+	/// 一台目へ最初に返す元Hardware IDです。空なら既定の人工IDです
+	std::wstring_view originalHardwareId ;
+	/// trueの場合はID属性の変更を登録後から適用します
+	bool			  changeIdsAfterStage{} ;
+	/// trueの場合は復元APIを呼ばないServer経路でも元登録先の照会を計数します
+	bool			  observeRegistrationOnServer{} ;
+} ;
 /** @brief 成功DTOでなく低位APIの状態だけを有限所有します */
 struct NativeFixtureState {
+	/// 対象付き候補の試験workerが停止するまで借用する低位入力と実測です
+	CatalogInstallFixture				  *catalogInstall{} ;
+	/// 同worker内だけの非所有元Providerです。同期fakeがproofを観測します
+	DriverStoreProvider					  *bindingStore{} ;
+	/// 元子scopeの成立と各別条件の拒否を表す非機密bitです
+	std::uint32_t						   requiredChildProofChecks{} ;
+	/// 元子scope内で観測できた回数です
+	std::uint32_t						   requiredChildProofRuns{} ;
+	/// 初回子観測の後だけ与える低位の変化です
+	bool								   requiredChildEvidenceChanged{} ;
+	/// 他所有entryの衝突を人工mapへ追加できた場合trueです
+	bool								   requiredChildCollisionSeeded{} ;
+	/// 衝突entryの同worker内確認回数です
+	std::uint32_t						   requiredChildCollisionChecks{} ;
+	/// 最後の確認で元entryが保持された場合trueです
+	bool								   requiredChildCollisionPreserved{} ;
+	/// storageのstage/import/指定APIの低位順序だけです
+	std::vector<std::wstring>			   storageCalls ;
+	/// 元人工INFの正式storage Classへだけ同じ完全API表を結びます
+	bool								   storage{} ;
+	/// 復旧開始後、配置前の登録guardが行ったWindows root照会です
+	std::uint32_t						   declarativePreStageRootReads{} ;
+	/// 同じOEM INFから保持対象の人工Storeを照会した回数です
+	std::uint32_t						   declarativeStoreReads{} ;
+	/// MTDの原Classだけを既storage条件から区別します
+	bool								   mtd{} ;
+	/// 架空配布が正式メディアチェンジャーの場合に有効
+	bool								   mediumChanger{} ;
+	/// 架空配布がIDEコントローラー用の正式HDCクラスの場合に有効
+	bool								   hdc{} ;
+	/// 同MTD操作の所有fileとqueue fakeです
+	MtdFileFixture						   mtdFiles ;
+	/// 同MTD操作の有限条件です
+	MtdFixtureScenario					   mtdScenario{MtdFixtureScenario::BOTH_ABSENT} ;
+	/// 人工二DLLの元byteです
+	std::array<std::string, 2U>			   mtdDllBodies ;
+	/// 人工SYSの元byteです
+	std::string							   mtdSysBody ;
+	/// 人工登録INFの元byteです
+	std::string							   mtdInfBody ;
+	/// 旧指定APIのfake呼出し数です
+	std::uint32_t						   legacyInstalls{} ;
 	/// UIが元READY終端を受け取った後だけ注入する観測差です
-	std::atomic<bool>												  originalEvidenceChanged{} ;
+	std::atomic<bool>					   originalEvidenceChanged{} ;
 	/// 同workerの実NativeLoader終了再確認済み結果です
-	std::vector<InfDependencyNativeResult>							  originalEffects ;
+	std::vector<InfDependencyNativeResult> originalEffects ;
 	/// 同parserが読んだ原file hash/節名の私有集合です
-	std::set<std::wstring>											  originalSections ;
+	std::set<std::wstring>				   originalSections ;
 	/// Windows側のCompatible IDへだけ返すopaque literalです。署名record/INF/結果DTOは変更しません
-	std::wstring													  opaqueCompatibleId ;
+	std::wstring						   opaqueCompatibleId ;
+	/// 第二端末のHardwareIdsに追加する人工IDです。空の場合は元の単一IDです
+	std::wstring_view					   additionalSecondDeviceHardwareId ;
 	/// 混在条件の明示fake WUA導入数です。通常OSのAPI呼出しを含みません
-	std::uint32_t													  managedInstalls{} ;
+	std::uint32_t						   managedInstalls{} ;
 	/// 新producerの三deviceだけに使う、認証record由来の公開identityです。空は元fixtureです
-	std::vector<DistributionBindingDevice>							  distributionDevices ;
+	std::vector<DistributionBindingDevice> distributionDevices ;
 	/// 原三recordの完全INF tupleだけです
 	std::vector<driver_package_signature_detail::OriginalInfMetadata> originalInfs ;
 	/// 元Intel一件replayだけが実INF metadata読取と既存native署名adapterを使います
@@ -214,6 +1540,8 @@ struct NativeFixtureState {
 	unsigned									   mode{} ;
 	/// 一般NetまたはPortsの固定fixtureです
 	bool										   network{} ;
+	/// P4のnative隔離だけでlegacy dependency観測を完全client fakeへ固定します
+	bool										   p4ExplicitClientContext{} ;
 	/// 二つの独立recordに対応する人工present deviceを列挙する場合trueです
 	bool										   multiple{} ;
 	/// 復旧fakeの開始／終了回数です
@@ -266,6 +1594,49 @@ struct NativeFixtureState {
 	std::uint32_t								   dependencyRootSignerCalls{} ;
 } ;
 thread_local NativeFixtureState *activeNative = nullptr ;	// 一workerの固定低位状態です
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空のストレージ配布に対応する端末クラスを返す
+ * @return 現fixtureの正式クラスGUID
+ * @pre このスレッドで架空Windows応答が有効
+ */
+//------------------------------------------------------------------------------
+const GUID						&fixtureStorageClass() noexcept
+{
+	return activeNative->mtd			 ? MTD_CLASS
+		   : activeNative->mediumChanger ? MEDIUM_CHANGER_CLASS
+		   : activeNative->hdc			 ? HDC_CLASS
+										 : STORAGE_CLASS ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同workerが独自クラスの元INFとWindows API表を使うか確認します
+ * @return 独自クラスの有限ケースの場合trueです
+ */
+//------------------------------------------------------------------------------
+bool declarativeCase() noexcept
+{
+	return activeNative &&
+		   activeNative->nativeCase >= SignedIndexBindingNativeCase::DECLARATIVE_INITIAL &&
+		   activeNative->nativeCase <= SignedIndexBindingNativeCase::DECLARATIVE_OTHER_DRIVER ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元INFの導入先クラスが登録されている時点か確認します
+ * @return 既登録ケースまたは指定された配置後の変化ならtrueです
+ */
+//------------------------------------------------------------------------------
+bool declarativeRegistered() noexcept
+{
+	return declarativeCase() &&
+		   (activeNative->nativeCase == SignedIndexBindingNativeCase::DECLARATIVE_REGISTERED ||
+			(activeNative->nativeCase ==
+				 SignedIndexBindingNativeCase::DECLARATIVE_CLASS_AFTER_STAGE &&
+			 activeNative->stages != 0U)) ;
+}
 //------------------------------------------------------------------------------
 /**
  * @brief 第一の実fake指定成功後だけ、指定した第二の低位faultを有効にします
@@ -748,13 +2119,59 @@ bool observedClassChanged( const DEVINST instance = 1U) noexcept
  * @return 属性欠損とCode28を返す固定状態の場合trueです
  */
 //------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+/**
+ * @brief exact storage現serviceを持つ有限caseだけを識別します
+ * @return 実SCMへfallbackしない原証拠fixtureならtrueです
+ */
+//------------------------------------------------------------------------------
+bool storageServicePresent() noexcept
+{
+	return activeNative && activeNative->storage &&
+		   (activeNative->nativeCase == SignedIndexBindingNativeCase::STORAGE_EXISTING_SERVICE ||
+			activeNative->nativeCase == SignedIndexBindingNativeCase::STORAGE_SHARED_INITIAL ||
+			activeNative->nativeCase ==
+				SignedIndexBindingNativeCase::STORAGE_SHARED_WRONG_SERVICE ||
+			activeNative->nativeCase == SignedIndexBindingNativeCase::STORAGE_SHARED_INCOMPATIBLE ||
+			activeNative->nativeCase == SignedIndexBindingNativeCase::STORAGE_SHARED_AMBIGUOUS ||
+			activeNative->nativeCase == SignedIndexBindingNativeCase::STORAGE_SERVICE_CHANGED ||
+			activeNative->nativeCase ==
+				SignedIndexBindingNativeCase::STORAGE_SERVICE_CHANGED_AFTER_STAGE) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief CMのexact service照会だけが返す第二adapterを識別します
+ * @param[in] instance 完全低位表の元nodeです
+ * @return 元shared serviceを既使用の第二adapterならtrueです
+ */
+//------------------------------------------------------------------------------
+bool storageOwnerPeer( DEVINST instance) noexcept
+{
+	return storageServicePresent() && instance == 2U &&
+		   activeNative->nativeCase >= SignedIndexBindingNativeCase::STORAGE_SHARED_INITIAL &&
+		   activeNative->nativeCase <= SignedIndexBindingNativeCase::STORAGE_SHARED_AMBIGUOUS ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元Windows低位条件だけから人工NO_DRIVER状態を決めます
+ * @return 明示初回caseの未反映対象ならtrue、既知現在driver又は反映後ならfalseです
+ * @note 版の空文字だけで初回を作らず、実端末や成功DTOを参照しません
+ */
+//------------------------------------------------------------------------------
 bool initialState() noexcept
 {
 	return activeNative &&
-		   ((unknownClassScenario() &&
+		   ((declarativeCase() &&
+			 activeNative->nativeCase != SignedIndexBindingNativeCase::DECLARATIVE_REGISTERED) ||
+			(unknownClassScenario() &&
 			 !(activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_DRIVER_ADDED &&
 			   activeNative->changed)) ||
 			activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL ||
+			(storageServicePresent() &&
+			 activeNative->nativeCase >= SignedIndexBindingNativeCase::STORAGE_SHARED_INITIAL &&
+			 activeNative->nativeCase <= SignedIndexBindingNativeCase::STORAGE_SHARED_AMBIGUOUS) ||
 			activeNative->nativeCase == SignedIndexBindingNativeCase::CONTRADICTORY_NODE ||
 			activeNative->nativeCase == SignedIndexBindingNativeCase::DISAPPEARED ||
 			activeNative->nativeCase == SignedIndexBindingNativeCase::PROPERTY_FAILURE ||
@@ -893,6 +2310,13 @@ BOOL WINAPI closeInventory( HDEVINFO set)
 
 	activeNative->used[i] = false ;
 	++activeNative->closes ;
+	// 衝突後の各低位handle終端で、別所有entryが削除されていないか確認します
+	if( activeNative->requiredChildCollisionSeeded && activeNative->bindingStore) {
+		++activeNative->requiredChildCollisionChecks ;
+		activeNative->requiredChildCollisionPreserved =
+			RequiredChildBindingProbe::collisionIntact( *activeNative->bindingStore) ;
+	}
+
 	return TRUE ;
 }
 //------------------------------------------------------------------------------
@@ -919,6 +2343,15 @@ BOOL WINAPI enumInventory( [[maybe_unused]] HDEVINFO set, DWORD index, PSP_DEVIN
 		activeNative && activeNative->componentChild && activeNative->installs != 0U &&
 		activeNative->nativeCase !=
 			SignedIndexBindingNativeCase::REQUIRED_CHILD_PENDING ;	// 生成待ちを分離します
+	// 元base指定後・子列挙時だけ別所有identityを衝突させます
+	if( children && index >= parents && activeNative->bindingStore &&
+	   activeNative->nativeCase ==
+		   SignedIndexBindingNativeCase::REQUIRED_CHILD_IDENTITY_COLLISION &&
+	   !activeNative->requiredChildCollisionSeeded) {
+		activeNative->requiredChildCollisionSeeded =
+			RequiredChildBindingProbe::insertCollision( *activeNative->bindingStore) ;
+	}
+
 	// 親と実生成済みの必要子だけをpresent集合へ返します
 	const auto childCount =	// 同ID/同親の曖昧負例だけは二つの実present fake子です
 		children ? parents + (activeNative->nativeCase ==
@@ -946,8 +2379,14 @@ BOOL WINAPI enumInventory( [[maybe_unused]] HDEVINFO set, DWORD index, PSP_DEVIN
 			: (activeNative->nativeCase == SignedIndexBindingNativeCase::KNOWN_CLASS_MISMATCH &&
 					   activeNative->changed
 				   ? NET_CLASS
+			   : activeNative->storage ? fixtureStorageClass()
 			   : activeNative->network ? NET_CLASS
 									   : PORTS_CLASS) ;
+	// 初回端末のUnknownと既登録クラスを互換一覧構築前の元情報にします
+	if( declarativeCase()) {
+		device->ClassGuid = initialState() ? GUID_DEVCLASS_UNKNOWN : DECLARATIVE_CLASS ;
+	}
+
 	// 親と必要SWCの役割を異なるnative Classで返します
 	if( index >= parents) {
 		device->ClassGuid = COMPONENT_CLASS ;
@@ -985,6 +2424,14 @@ BOOL WINAPI enumInventory( [[maybe_unused]] HDEVINFO set, DWORD index, PSP_DEVIN
 BOOL WINAPI openDevice( HDEVINFO set, PCWSTR instance, [[maybe_unused]] HWND parent, DWORD flags,
 					   PSP_DEVINFO_DATA device)
 {
+	// exact service filterのpeerだけを開き、scanの全present列挙へ追加しません
+	if( activeNative && instance && flags == 0U && storageOwnerPeer( 2U) &&
+	   std::wstring_view{instance} == L"TESTBUS\\SYNTH_0002\\FIXTURE") {
+		device->DevInst	  = 2U ;
+		device->ClassGuid = STORAGE_CLASS ;
+		return TRUE ;
+	}
+
 	// 新producerの公開IDから作る架空instanceだけを同じ列挙nodeへ解決します
 	if( activeNative && !activeNative->distributionDevices.empty() && instance && flags == 0U) {
 		// 固定三nodeの全元identityを検査し、未知instanceを先頭へ補完しません
@@ -1106,7 +2553,7 @@ CONFIGRET WINAPI nodeStatus( PULONG status, PULONG problem, [[maybe_unused]] DEV
 	}
 
 	const bool initial =
-		initialState() &&
+		initialState() && !storageOwnerPeer( instance) &&
 		(instance <= 2U || (activeNative && !activeNative->distributionDevices.empty())) &&
 		!(activeNative && instance >= 1U && instance <= activeNative->deviceInstalls.size() &&
 		  ((activeNative->requiredRoles && activeNative->deviceInstalls[instance - 1U] != 0U) ||
@@ -1188,6 +2635,33 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 		return FALSE ;
 	}
 
+	// device co-installerの人工propertyを返します
+	if( activeMtdFiles && sameKey( *key, DEVPKEY_Device_DriverCoInstallers)) {
+		return mtdFixtureProperty( activeMtdFiles->deviceCoInstallers, type, buffer, capacity,
+								  required) ;
+	}
+
+	// stage後に変化したhardware属性の負例を注入します
+	if( activeNative->mtdScenario == MtdFixtureScenario::HW_AFTER_STAGE && activeNative->stages &&
+	   sameKey( *key, DEVPKEY_Device_DevType)) {
+		*type = DEVPROP_TYPE_UINT32 ;
+		// 要求された場合だけDWORD必要長を返します
+		if( required) {
+			*required = sizeof( std::uint32_t) ;
+		}
+
+		// hardware propertyの容量不足をWindows ABIで返します
+		if( !buffer || capacity < sizeof( std::uint32_t)) {
+			SetLastError( ERROR_INSUFFICIENT_BUFFER) ;
+			return FALSE ;
+		}
+
+		// hardware属性負例で返す人工DWORDです
+		const std::uint32_t value = 7U ;
+		std::memcpy( buffer, &value, sizeof( value)) ;
+		return TRUE ;
+	}
+
 	// 第一対象の成功後、完全rank監査の現在Class APIだけを元13で拒否します
 	if( activeNative->changed &&
 	   activeNative->nativeCase == SignedIndexBindingNativeCase::DIAG_CURRENT_PROPERTY &&
@@ -1260,8 +2734,16 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 		  activeNative->deviceInstalls[device->DevInst - 1U] != 0U) ||
 		 (activeNative->reflectOwnInstall &&
 		  activeNative->appliedDeviceInstalls[device->DevInst - 1U] != 0U)) ;	// 親個別API後だけです
+	// API後の現在版読取失敗を、未導入又は旧版の観測へ変換しません
+	if( updated &&
+	   activeNative->nativeCase == SignedIndexBindingNativeCase::STORAGE_POST_READ_FAILURE &&
+	   sameKey( *key, DEVPKEY_Device_DriverVersion)) {
+		SetLastError( ERROR_READ_FAULT) ;
+		return FALSE ;
+	}
+
 	// 初回の不存在とquery失敗を維持し、親API後とSWC子へ初回欠損を流用しません
-	if( (initialState() && !updated && !child &&
+	if( (initialState() && !storageOwnerPeer( device ? device->DevInst : 0U) && !updated && !child &&
 		((sameKey( *key, DEVPKEY_Device_Driver) &&
 		  !(activeNative->changed &&
 			activeNative->nativeCase ==
@@ -1293,8 +2775,14 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 					: (activeNative->nativeCase == SignedIndexBindingNativeCase::KNOWN_CLASS_MISMATCH &&
 					   activeNative->changed
 						   ? NET_CLASS
+					   : activeNative->storage ? fixtureStorageClass()
 					   : activeNative->network ? NET_CLASS
 											   : PORTS_CLASS) ;
+	// 端末のクラスはステージングで生じた対象クラス登録とは独立に保持します
+	if( declarativeCase()) {
+		guid = initialState() ? GUID_DEVCLASS_UNKNOWN : DECLARATIVE_CLASS ;
+	}
+
 	// 原公開Classを人工present deviceへだけ投影します
 	if( activeNative->originalIntelArchive && device && device->DevInst >= 1U &&
 	   device->DevInst <= activeNative->distributionDevices.size()) {
@@ -1316,16 +2804,24 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 	}
 
 	DEVPROP_BOOLEAN present =
-		(activeNative->nativeCase == SignedIndexBindingNativeCase::DISAPPEARED ||
-		 activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_DISAPPEARED) &&
-				activeNative->changed
+		((updated &&
+		  activeNative->nativeCase == SignedIndexBindingNativeCase::STORAGE_POST_ABSENT) ||
+		 ((activeNative->nativeCase == SignedIndexBindingNativeCase::DISAPPEARED ||
+		   activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_DISAPPEARED) &&
+		  activeNative->changed))
 			? DEVPROP_FALSE
-			: DEVPROP_TRUE ;	// 型付きの原present属性です
+			: DEVPROP_TRUE ;										// 型付きの原present属性です
+	const auto			   *scoped = activeNative->catalogInstall ;	// 対象付き試験の元端末属性です
 	const std::wstring_view hardware =
-		!activeNative->distributionDevices.empty() && device && device->DevInst > 0U &&
+		scoped && device && device->DevInst == 1U && !scoped->originalHardwareId.empty()
+			? scoped->originalHardwareId
+		: !activeNative->distributionDevices.empty() && device && device->DevInst > 0U &&
 				device->DevInst <= activeNative->distributionDevices.size()
 			? std::wstring_view{activeNative->distributionDevices[device->DevInst - 1U].hardwareId}
-		: child ? L"SWC\\SYNTH_COMPONENT"
+		: activeNative->nativeCase == SignedIndexBindingNativeCase::DECLARATIVE_NULL_ROW
+			? L"TESTBUS\\SYNTH_NULL"
+		: storageOwnerPeer( device ? device->DevInst : 0U) ? L"TESTBUS\\SYNTH_0001"
+		: child											  ? L"SWC\\SYNTH_COMPONENT"
 		: activeNative->changed &&
 				activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_PNP_CHANGED
 			? L"TESTBUS\\SYNTH_CHANGED"
@@ -1339,7 +2835,11 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 	// ClassGUID要求はSDK GUID型と実byte長で返します
 	// SoftwareComponentはbaseのClassへ偽装しません
 	if( child) {
-		guid = COMPONENT_CLASS ;
+		guid = activeNative->requiredChildEvidenceChanged &&
+					   activeNative->nativeCase ==
+						   SignedIndexBindingNativeCase::REQUIRED_CHILD_CLASS_CHANGED
+				   ? NET_CLASS
+				   : COMPONENT_CLASS ;
 	}
 
 	// 元propertyごとに型と値を固定し、未照会属性を推測しません
@@ -1377,15 +2877,50 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 
 			*type = DEVPROP_TYPE_STRING_LIST ;
 			text  = sameKey( *key, DEVPKEY_Device_CompatibleIds)
-						? (!activeNative->opaqueCompatibleId.empty()
+						? (child && activeNative->requiredChildEvidenceChanged &&
+								   activeNative->nativeCase ==
+									   SignedIndexBindingNativeCase::REQUIRED_CHILD_ID_CHANGED
+							   ? L"TESTBUS\\CHANGED_COMPAT"
+						   : activeNative->nativeCase ==
+								   SignedIndexBindingNativeCase::DECLARATIVE_NULL_ROW
+							   ? L"TESTBUS\\UNUSED_COMPAT"
+						   : !activeNative->opaqueCompatibleId.empty()
 							   ? std::wstring_view{activeNative->opaqueCompatibleId}
 							   : L"TESTBUS\\SYNTH_COMPAT")
 						: hardware ;
+			// 同一instanceの二つのID属性だけを候補発行後に変えます
+			if( auto *catalog = activeNative->catalogInstall ;
+			   catalog && device && device->DevInst == 1U) {
+				const bool isHardware =
+					// 照会された元属性です
+					sameKey( *key, DEVPKEY_Device_HardwareIds) ;
+				const auto replacement = isHardware ? catalog->hardwareIds
+													: catalog->compatibleId ;	// この属性の試験値です
+				// size queryと読取りで同じ型と値を返し、実際の読取りだけを数えます
+				if( !replacement.empty() &&
+				   (!catalog->changeIdsAfterStage || activeNative->stages != 0U)) {
+					text = replacement ;
+					// 型付きの全値を出力できた呼出しだけを変更後の観測に数えます
+					if( buffer && capacity >= (text.size() + 2U) * sizeof( wchar_t)) {
+						++(isHardware ? catalog->changedHardwareReads
+									  : catalog->changedCompatibleReads) ;
+					}
+				}
+			}
+
+			// 同じPnPインスタンスのHardwareIdsに二つ目のIDを独立したMULTI_SZ要素として返します
+			if( device && device->DevInst == 2U && sameKey( *key, DEVPKEY_Device_HardwareIds) &&
+			   !activeNative->additionalSecondDeviceHardwareId.empty()) {
+				text.push_back( L'\0') ;
+				text.append( activeNative->additionalSecondDeviceHardwareId) ;
+			}
+
 			text.push_back( L'\0') ;
 		}
 		// 現在INF要求だけへ固定人工公開名を返します
 		else if( sameKey( *key, DEVPKEY_Device_Driver)) {
-			text = L"{4d36e978-e325-11ce-bfc1-08002be10318}\\0001" ;
+			text = declarativeCase() ? L"{c054bd69-a76e-4caa-a915-e3ce9a285b62}\\0001"
+									 : L"{4d36e978-e325-11ce-bfc1-08002be10318}\\0001" ;
 		}
 		// 現在INF要求だけへ固定公開名を返します
 		else if( sameKey( *key, DEVPKEY_Device_DriverInfPath)) {
@@ -1428,14 +2963,19 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 		// Class要求へNetまたはPortsの固定classを返します
 		else if( sameKey( *key, DEVPKEY_Device_Class)) {
 			text =
-				child ? L"SoftwareComponent"
+				child				? L"SoftwareComponent"
+				: declarativeCase() ? (initialState() ? L"Unknown" : DECLARATIVE_NAME)
 				: activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_CLASS_UNKNOWN
 					? L"Unknown"
 				: activeNative->nativeCase == SignedIndexBindingNativeCase::KNOWN_CLASS_MISMATCH &&
 						activeNative->changed
 					? L"Net"
-				: activeNative->network ? L"Net"
-										: L"Ports" ;
+				: activeNative->mtd			  ? L"MTD"
+				: activeNative->mediumChanger ? L"MediumChanger"
+				: activeNative->hdc			  ? L"HDC"
+				: activeNative->storage		  ? L"SCSIAdapter"
+				: activeNative->network		  ? L"Net"
+											  : L"Ports" ;
 			// 固定した入力条件だけを分離し、他対象や期待へ流用しません
 			if( activeNative->originalIntelArchive && device &&
 			   device->DevInst >=
@@ -1465,6 +3005,22 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 			text = L"TESTBUS" ;
 		}
 		// service要求へ固定人工service名を返します
+		else if( sameKey( *key, DEVPKEY_Device_Service) && activeNative->storage) {
+			// 明示NO_DRIVERのservice不存在を照会失敗と区別します
+			if( initialState() && !storageOwnerPeer( device ? device->DevInst : 0U)) {
+				SetLastError( ERROR_NOT_FOUND) ;
+				return FALSE ;
+			}
+
+			text = storageServicePresent() || updated ? L"FixtureStorage" : L"FixtureOldStorage" ;
+			// 名前衝突のpeerを正当な同service所有へ補完しません
+			if( storageOwnerPeer( device ? device->DevInst : 0U) &&
+			   activeNative->nativeCase ==
+				   SignedIndexBindingNativeCase::STORAGE_SHARED_WRONG_SERVICE) {
+				text = L"UnrelatedService" ;
+			}
+		}
+		// 元SWC子の親だけを返し、別deviceへaliasしません
 		else if( sameKey( *key, DEVPKEY_Device_Parent) && child) {
 			text = activeNative->nativeCase == SignedIndexBindingNativeCase::REQUIRED_WRONG_PARENT
 					   ? L"TESTBUS\\WRONG_PARENT\\FIXTURE"
@@ -1550,6 +3106,14 @@ BOOL WINAPI setParameters( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA devic
 		return FALSE ;
 	}
 
+	// 最終parameter復旧失敗の固定負例を注入します
+	if( activeNative->mtdScenario == MtdFixtureScenario::PARAM_CLEANUP_FAILURE && activeMtdFiles &&
+	   activeMtdFiles->installDifs != 0U && activeMtdFiles->hasSelected[i] &&
+	   (params->Flags & DI_NOFILECOPY) == 0U) {
+		SetLastError( ERROR_ACCESS_DENIED) ;
+		return FALSE ;
+	}
+
 	activeNative->parameters[i] = *params ;
 	// 検証済みsource検索だけを同期中の保護byte差替え試験へ保持します
 	if( params->DriverPath[0] != L'\0' &&
@@ -1610,6 +3174,8 @@ BOOL WINAPI buildDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device
 		device->ClassGuid =
 			activeNative->nativeCase == SignedIndexBindingNativeCase::NATIVE_CLASS_MISMATCH
 				? NET_CLASS
+			: declarativeCase()		? DECLARATIVE_CLASS
+			: activeNative->storage ? fixtureStorageClass()
 			: activeNative->network ? NET_CLASS
 									: PORTS_CLASS ;
 		// 必要roleのnative Classは同実INF byteから返します
@@ -1722,7 +3288,14 @@ BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 							  batchFaultApplies( SignedIndexBindingBatchFault::SECOND_RANK_UNKNOWN,
 												device->DevInst) ;	// 第二の正式空終端です
 	const DWORD count =
-		batchUnknown																	   ? 0U
+		candidate && storageOwnerPeer( device ? device->DevInst : 0U) &&
+				activeNative->nativeCase ==
+					SignedIndexBindingNativeCase::STORAGE_SHARED_INCOMPATIBLE
+			? 0U
+		: candidate && storageOwnerPeer( device ? device->DevInst : 0U) &&
+				activeNative->nativeCase == SignedIndexBindingNativeCase::STORAGE_SHARED_AMBIGUOUS
+			? 2U
+		: batchUnknown																	   ? 0U
 		: batchTied																		   ? 2U
 		: !rankCase																		   ? 1U
 		: activeNative->nativeCase == SignedIndexBindingNativeCase::RANK_NO_CANDIDATE	   ? 0U
@@ -1755,7 +3328,7 @@ BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 	// 明示初回はinstalled-only構築の完全な空終端を必要とします
 	if( !candidate && !updated &&
 	   (!device || device->DevInst <= 2U || !activeNative->distributionDevices.empty()) &&
-	   initialState() &&
+	   initialState() && !storageOwnerPeer( device ? device->DevInst : 0U) &&
 	   activeNative->nativeCase != SignedIndexBindingNativeCase::CONTRADICTORY_NODE &&
 	   !(activeNative->changed &&
 		 activeNative->nativeCase == SignedIndexBindingNativeCase::INITIAL_INSTALLED_NODE)) {
@@ -1894,8 +3467,29 @@ BOOL WINAPI enumDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 BOOL WINAPI driverDetail( HDEVINFO set, PSP_DEVINFO_DATA device, PSP_DRVINFO_DATA_W driver,
 						 PSP_DRVINFO_DETAIL_DATA_W detail, DWORD capacity, PDWORD required)
 {
-	// 固定driver detail全体の必要byte長
-	constexpr DWORD bytes = sizeof( SP_DRVINFO_DETAIL_DATA_W) ;
+	const auto i	 = setIndex( set) ;	// この呼出しで選択した検索パラメーター
+	const bool model = declarativeCase() && i < 32U &&
+					   activeNative->parameters[i].DriverPath[0] ;	// 元行を持つ単一INFの照会
+	const bool nullRow =
+		model && activeNative->nativeCase ==
+					 SignedIndexBindingNativeCase::DECLARATIVE_NULL_ROW ;	// 無作用の元行
+	const bool reorder =
+		model &&
+		activeNative->nativeCase == SignedIndexBindingNativeCase::DECLARATIVE_ROW_AFTER_STAGE &&
+		std::wstring_view{activeNative->parameters[i].DriverPath} ==
+			activeNative->stagedPaths[0].data() ;	// 登録先nodeだけの順序差
+	constexpr wchar_t kernelIds[] =
+		L"TESTBUS\\SYNTH_0001\0TESTBUS\\SYNTH_COMPAT\0TESTBUS\\SYNTH_FALLBACK\0" ;	// 元行の二重終端
+	constexpr wchar_t reorderedIds[] =
+		L"TESTBUS\\SYNTH_0001\0TESTBUS\\SYNTH_FALLBACK\0TESTBUS\\SYNTH_COMPAT\0" ;	// 同じ文字数とID集合
+	constexpr wchar_t nullIds[] = L"TESTBUS\\SYNTH_NULL" ;							// 互換IDなしの一行
+	const auto		  ids		= nullRow	? std::span<const wchar_t>{nullIds}
+								  : reorder ? std::span<const wchar_t>{reorderedIds}
+											: std::span<const wchar_t>{kernelIds} ;	// APIで返す全可変領域
+	const DWORD		  bytes =
+		  model
+				  ? static_cast<DWORD>( offsetof( SP_DRVINFO_DETAIL_DATA_W, HardwareID) + ids.size_bytes())
+				  : sizeof( SP_DRVINFO_DETAIL_DATA_W) ;	// 二段階の両方で返す元byte長
 	// 必要detail byte長の出力先がある場合だけ値を返します
 	if( required) {
 		*required = bytes ;
@@ -1907,8 +3501,6 @@ BOOL WINAPI driverDetail( HDEVINFO set, PSP_DEVINFO_DATA device, PSP_DRVINFO_DAT
 		return FALSE ;
 	}
 
-	// 同検索条件へ結合するINF detailの有限slot
-	const auto i = setIndex( set) ;
 	// 無効handleへ人工INF detailを返しません
 	if( !activeNative || i == 32U) {
 		SetLastError( ERROR_INVALID_HANDLE) ;
@@ -1929,6 +3521,23 @@ BOOL WINAPI driverDetail( HDEVINFO set, PSP_DEVINFO_DATA device, PSP_DRVINFO_DAT
 									  ? activeNative->parameters[i].DriverPath
 									  : L"oemfixture.inf") ;
 	wcscpy_s( detail->SectionName, L"Install") ;
+	// 型の違う元Hardware IDと互換IDをWindowsの長さ・位置・二重終端で返します
+	if( model) {
+		detail->CompatIDsOffset = static_cast<DWORD>( std::wcslen( ids.data()) + 1U) ;
+		detail->CompatIDsLength = static_cast<DWORD>( ids.size()) - detail->CompatIDsOffset ;
+		std::memcpy( reinterpret_cast<std::byte *>( detail) +
+						offsetof( SP_DRVINFO_DETAIL_DATA_W, HardwareID),
+					ids.data(), ids.size_bytes()) ;
+		wcscpy_s( detail->SectionName, nullRow ? L"NoDriver" : L"Install") ;
+	}
+
+	// 子の元観測後だけ異なるnode節を返し、同tupleへ補完させません
+	if( device && device->DevInst >= 3U && activeNative->requiredChildEvidenceChanged &&
+	   activeNative->nativeCase == SignedIndexBindingNativeCase::REQUIRED_CHILD_NODE_CHANGED &&
+	   activeNative->parameters[i].DriverPath[0]) {
+		wcscpy_s( detail->SectionName, L"InstallChanged") ;
+	}
+
 	// 元Intelの人工nodeは同保護INFの元Models行から実install節を読みます
 	if( activeNative->originalIntelArchive && activeNative->parameters[i].DriverPath[0] != L'\0') {
 		// 別nodeを原公開tupleへ補完しません
@@ -2096,6 +3705,13 @@ BOOL WINAPI driverRank( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 	}
 
 	params->Rank = activeNative->parameters[i].DriverPath[0] ? 1U : 0xFFFU ;
+	// 子の元観測後だけ同候補nodeのWindows rankを変えます
+	if( device && device->DevInst >= 3U && activeNative->requiredChildEvidenceChanged &&
+	   activeNative->nativeCase == SignedIndexBindingNativeCase::REQUIRED_CHILD_RANK_CHANGED &&
+	   activeNative->parameters[i].DriverPath[0]) {
+		params->Rank = 2U ;
+	}
+
 	// 固定rank群はnodeの列挙順ではなく原低位identityへ結びます
 	if( activeNative->parameters[i].DriverPath[0] && driver &&
 	   activeNative->nativeCase >= SignedIndexBindingNativeCase::RANK_BEST_FIRST &&
@@ -2152,6 +3768,12 @@ BOOL WINAPI driverRank( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device,
 		params->Rank = 2U ;
 	}
 
+	// queue commit後だけrank変更を注入します
+	if( activeNative->mtdScenario == MtdFixtureScenario::RANK_AFTER_COMMIT &&
+	   activeNative->mtdFiles.commits != 0U) {
+		params->Rank = 2U ;
+	}
+
 	return TRUE ;
 }
 //------------------------------------------------------------------------------
@@ -2167,6 +3789,56 @@ BOOL WINAPI destroyDrivers( [[maybe_unused]] HDEVINFO set, [[maybe_unused]] PSP_
 						   DWORD type)
 {
 	return type == SPDIT_COMPATDRIVER ? TRUE : FALSE ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief fake stageが選択した三つの元ファイルを同workerの人工Storeへ配置します
+ * @param[in] source 署名索引から取得・展開した元INFの絶対パスです
+ * @return 三つの実ファイルを所有するStoreへ全byte配置した場合trueです
+ */
+//------------------------------------------------------------------------------
+bool stageDeclarativeStore( PCWSTR source)
+{
+	const auto parent = std::filesystem::path{source}.parent_path() ;	// 元INF閉包の親です
+	// 別CATと別SYSの負例でもINFを含む三つの位置と長さを同一にします
+	for( const std::wstring_view name : {L"fixture.inf", L"fixture.cat", L"fixture.sys"}) {
+		std::ifstream input{parent / name,
+							std::ios::binary | std::ios::ate} ;	// 元byteだけを借ります
+		const auto	  length = input.tellg() ;					// 確保前の元長です
+		// 元配布物の読み取りに失敗したfixtureは配置成功として返しません
+		if( !input || length <= 0 || length > 65536) {
+			return false ;
+		}
+
+		std::string bytes( static_cast<std::size_t>( length), '\0') ;	// このmemberの元byteです
+		input.seekg( 0) ;
+		input.read( bytes.data(), static_cast<std::streamsize>( bytes.size())) ;
+		// ひとつの配置ファイルだけを同長の別byteにする負例です
+		if( (activeNative->nativeCase == SignedIndexBindingNativeCase::DECLARATIVE_OTHER_CATALOG &&
+			name == L"fixture.cat") ||
+		   (activeNative->nativeCase == SignedIndexBindingNativeCase::DECLARATIVE_OTHER_DRIVER &&
+			name == L"fixture.sys")) {
+			bytes.front() ^= 1 ;
+		}
+
+		HANDLE file = INVALID_HANDLE_VALUE ;	// 本処理だけが書き込む新しいStore memberです
+		// 保護領域が新たに所有したfile以外へ書きません
+		if( !input || activeNative->registration.createFile(
+						 std::wstring{DECLARATIVE_STORE} + std::wstring{name}, file) != 0U) {
+			return false ;
+		}
+
+		const std::unique_ptr<void, decltype( &CloseHandle)> owner{
+			file, &CloseHandle} ;	// この反復で解放します
+		DWORD written{} ;			// 全長が配置されたことを確認する実byte数です
+		// 部分書き込みが起きたfixtureを元hashの不一致へ読み替えません
+		if( !WriteFile( file, bytes.data(), static_cast<DWORD>( bytes.size()), &written, nullptr) ||
+		   written != bytes.size()) {
+			return false ;
+		}
+	}
+
+	return true ;
 }
 //------------------------------------------------------------------------------
 /**
@@ -2200,6 +3872,12 @@ BOOL WINAPI stage( PCWSTR source, PCWSTR media, DWORD type, DWORD flags, PWSTR d
 
 	// 呼出しは一度だけ数え、実登録先とは独立の隔離fileを作ります
 	const auto ordinal = activeNative->stages++ ;
+	// 元stage順を秘密pathを含まない人工member名だけで保持します
+	if( activeNative->storage) {
+		activeNative->storageCalls.push_back( L"stage:" +
+											 std::filesystem::path{source}.filename().wstring()) ;
+	}
+
 	// 先行Extensionのguardがbase stage中にも生存することを実共有規則で確認します
 	if( ordinal == 1U) {
 		probeRegisteredExtension() ;
@@ -2281,6 +3959,29 @@ BOOL WINAPI stage( PCWSTR source, PCWSTR media, DWORD type, DWORD flags, PWSTR d
 	}
 
 	wcscpy_s( activeNative->stagedPaths[ordinal].data(), MAX_PATH, registered.c_str()) ;
+	// 同じOEM INFでも元CATとSYSの配置を独立に検査できるようStoreを作成します
+	if( declarativeCase() && !stageDeclarativeStore( source)) {
+		SetLastError( ERROR_WRITE_FAULT) ;
+		return FALSE ;
+	}
+
+	// stage後だけ未知class handlerを出現させます
+	if( activeNative->mtdScenario == MtdFixtureScenario::HANDLER_AFTER_STAGE && activeMtdFiles) {
+		// 未知handlerとして注入するNUL終端文字列です
+		const std::array<wchar_t, 2U> value{L'x', L'\0'} ;
+		// 変更する人工class installer propertyです
+		auto						 &property = activeMtdFiles->classInstaller ;
+		property.error						   = ERROR_SUCCESS ;
+		property.type						   = DEVPROP_TYPE_STRING ;
+		property.bytes.resize( sizeof( value)) ;
+		std::memcpy( property.bytes.data(), value.data(), sizeof( value)) ;
+	}
+
+	// 既登録の元byteにもreadbackを必要とするWindows応答です
+	if( activeNative->nativeCase == SignedIndexBindingNativeCase::STORAGE_STAGE_EXISTS) {
+		SetLastError( ERROR_FILE_EXISTS) ;
+		return FALSE ;
+	}
 
 	return TRUE ;
 }
@@ -2349,6 +4050,12 @@ BOOL WINAPI install( [[maybe_unused]] HWND parent, HDEVINFO set, PSP_DEVINFO_DAT
 	// 指定APIを呼ぶ時点まで同登録byteを固定する契約です
 	probeRegisteredExtension() ;
 	++activeNative->installs ;
+	++activeNative->legacyInstalls ;
+	// 非null/flags0はbindingMatches成立後の元API事実です
+	if( activeNative->storage) {
+		activeNative->storageCalls.push_back( L"install:nonnull:flags0") ;
+	}
+
 	// Baseと必要子を役割別に一回だけ記録します
 	if( child) {
 		++activeNative->childInstalls[device->DevInst - 3U] ;
@@ -2401,6 +4108,19 @@ BOOL WINAPI install( [[maybe_unused]] HWND parent, HDEVINFO set, PSP_DEVINFO_DAT
 //------------------------------------------------------------------------------
 void WINAPI architecture( LPSYSTEM_INFO system)
 {
+	// 元子bindingが実低位へ到達した同期中だけ同proofの拒否を試験します
+	if( activeNative && activeNative->bindingStore && activeNative->requiredChildProofRuns == 0U) {
+		// 同worker中に成立した元proofの正負観測です
+		const auto checks = RequiredChildBindingProbe::inspect( *activeNative->bindingStore) ;
+		// 元proofへの到達を観測できた場合だけ記録します
+		if( checks != 0U) {
+			activeNative->requiredChildProofChecks = checks ;
+			++activeNative->requiredChildProofRuns ;
+			// 最初の子観測が済んだ後だけ、一条件の低位変化を有効にします
+			activeNative->requiredChildEvidenceChanged = true ;
+		}
+	}
+
 	*system						   = {} ;
 	system->wProcessorArchitecture = PROCESSOR_ARCHITECTURE_AMD64 ;
 }
@@ -2429,6 +4149,18 @@ UINT WINAPI windowsDirectory( LPWSTR buffer, UINT capacity)
 	}
 
 	wcscpy_s( buffer, capacity, activeNative->windowsRoot.c_str()) ;
+	// 元同意の復旧後、登録より前にguardがWindows rootを確認した時点だけを記録します
+	if( declarativeCase() && activeNative->restoreBegins != 0U && activeNative->stages == 0U) {
+		++activeNative->declarativePreStageRootReads ;
+	}
+
+	// 対象付き候補の登録先が確定した時点を時計・機種照会と独立に記録します
+	if( activeNative->catalogInstall && activeNative->stages == 0U &&
+	   (activeNative->restoreBegins != 0U ||
+		activeNative->catalogInstall->observeRegistrationOnServer)) {
+		++activeNative->catalogInstall->registrationRootReads ;
+	}
+
 	return length ;
 }
 //------------------------------------------------------------------------------
@@ -2438,7 +4170,7 @@ UINT WINAPI windowsDirectory( LPWSTR buffer, UINT capacity)
  * @param[out] guid 成功時のClassGUIDです。nullは拒否します
  * @param[out] name capacity文字のClass名bufferです。成功時にNUL終端し、容量不足を拒否します
  * @param[in] capacity nameのUTF-16文字容量です
- * @param[out] required 必要なClass名文字容量の出力です。nullは拒否します
+ * @param[out] required 必要なClass名文字容量の任意出力です。独自クラスの元内容検査では省略できます
  * @return Class情報の取得/出力成功時TRUE、入力・file・容量の拒否時FALSEと元LastErrorです
  * @note 通常の人工scopeは1MiB以下の隔離INFだけを読みます。originalIntelArchiveの明示replayではSetupDiGetINFClassWへ委譲します
  *       driver導入は行いません
@@ -2453,7 +4185,7 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 	}
 
 	// 任意成功DTOを受けず、同scopeの実INF fileと完全出力を要求します
-	if( !activeNative || !path || !guid || !name || !required) {
+	if( !activeNative || !path || !guid || !name || (!required && !declarativeCase())) {
 		SetLastError( ERROR_INVALID_PARAMETER) ;
 		return FALSE ;
 	}
@@ -2477,12 +4209,45 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 	std::string bytes( static_cast<std::size_t>( length), '\0') ;	// 上限確認済みの原INFです
 	input.seekg( 0) ;
 	input.read( bytes.data(), static_cast<std::streamsize>( bytes.size())) ;
+	// 独自クラスは同じ保護INFの名前とGUIDの両宣言がある場合だけ応答します
+	if( declarativeCase()) {
+		// 想定の実byteを読み切れない場合はクラス名とGUIDを合成しません
+		if( !input || bytes.find( "\r\nClass=DCFixtureBridge\r\n") == bytes.npos ||
+		   bytes.find( "\r\nClassGuid={c054bd69-a76e-4caa-a915-e3ce9a285b62}\r\n") == bytes.npos) {
+			SetLastError( ERROR_INVALID_DATA) ;
+			return FALSE ;
+		}
+
+		// 実APIの任意出力と固定長バッファの契約を保ちます
+		if( required) {
+			*required = static_cast<DWORD>( std::size( DECLARATIVE_NAME)) ;
+		}
+
+		// 切り詰めたクラス名を成功として返しません
+		if( capacity < std::size( DECLARATIVE_NAME)) {
+			SetLastError( ERROR_INSUFFICIENT_BUFFER) ;
+			return FALSE ;
+		}
+
+		*guid = DECLARATIVE_CLASS ;
+		std::ranges::copy( DECLARATIVE_NAME, name) ;
+		return TRUE ;
+	}
+
 	const bool network =
 		// 元INF directiveだけです
 		bytes.find( "\nClass=Net\r\n") != std::string::npos ;
 	const bool ports =
 		// 元INF directiveだけです
 		bytes.find( "\nClass=Ports\r\n") != std::string::npos ;
+	// 同元用途が端末storage専用であるという非権限分類です
+	const bool storage = bytes.find( "\nClass=SCSIAdapter\r\n") != std::string::npos ;
+	// 人工INFの正式MTD classを識別します
+	const bool mtd = bytes.find( "\nClass=MTD\r\n") != std::string::npos ;
+	// 同じINFが宣言する正式メディアチェンジャーを照合する
+	const bool changer = bytes.find( "\nClass=MediumChanger\r\n") != std::string::npos ;
+	// 選択した元INFが宣言する正式IDEコントローラーを照合する
+	const bool hdc = bytes.find( "\nClass=HDC\r\n") != std::string::npos ;
 	const bool extension =
 		// 元役割Classの厳密行です
 		bytes.find( "\nClass=Extension\r\n") != std::string::npos ;
@@ -2490,7 +4255,11 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 		// 元SWC Classの厳密行です
 		bytes.find( "\nClass=SoftwareComponent\r\n") != std::string::npos ;
 	const std::string_view expectedGuid =
-		extension	? "ClassGuid={e2f84ce7-8efa-411c-aa69-97454ca4cb57}\r\n"
+		mtd			? "ClassGuid={4d36e970-e325-11ce-bfc1-08002be10318}\r\n"
+		: changer	? "ClassGuid={ce5939ae-ebde-11d0-b181-0000f8753ec4}\r\n"
+		: hdc		? "ClassGuid={4d36e96a-e325-11ce-bfc1-08002be10318}\r\n"
+		: storage	? "ClassGuid={4d36e97b-e325-11ce-bfc1-08002be10318}\r\n"
+		: extension ? "ClassGuid={e2f84ce7-8efa-411c-aa69-97454ca4cb57}\r\n"
 		: component ? "ClassGuid={5c4c3332-344d-483c-8739-259e934c9cc8}\r\n"
 		: network
 			? "ClassGuid={4d36e972-e325-11ce-bfc1-08002be10318}\r\n"
@@ -2498,7 +4267,9 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 	// 間違ったraw Class/GUIDや部分読取をClass成功へ補完しません
 	if( !input ||
 	   static_cast<unsigned>( network) + static_cast<unsigned>( ports) +
-			   static_cast<unsigned>( extension) + static_cast<unsigned>( component) !=
+			   static_cast<unsigned>( extension) + static_cast<unsigned>( component) +
+			   static_cast<unsigned>( storage) + static_cast<unsigned>( mtd) +
+			   static_cast<unsigned>( changer) + static_cast<unsigned>( hdc) !=
 		   1U ||
 	   bytes.find( expectedGuid) == std::string::npos) {
 		SetLastError( ERROR_INVALID_DATA) ;
@@ -2506,7 +4277,11 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 	}
 
 	const std::wstring_view value =
-		extension	? L"Extension"
+		mtd			? L"MTD"
+		: changer	? L"MediumChanger"
+		: hdc		? L"HDC"
+		: storage	? L"SCSIAdapter"
+		: extension ? L"Extension"
 		: component ? L"SoftwareComponent"
 		: activeNative->nativeCase == SignedIndexBindingNativeCase::INF_CLASS_MISMATCH ? L"Net"
 		: network																	   ? L"Net"
@@ -2518,7 +4293,11 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 		return FALSE ;
 	}
 
-	*guid = extension	? EXTENSION_CLASS
+	*guid = mtd			? MTD_CLASS
+			: changer	? MEDIUM_CHANGER_CLASS
+			: hdc		? HDC_CLASS
+			: storage	? STORAGE_CLASS
+			: extension ? EXTENSION_CLASS
 			: component ? COMPONENT_CLASS
 			: network	? NET_CLASS
 						: PORTS_CLASS ;
@@ -2535,29 +4314,1070 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全低位呼出しを同worker限定fixtureへ固定した完全tableを返します
- * @return Native fallbackを含まない借用callback tableの所有コピーです
- * @note 各callbackはScopedFixtureの有効期間に同workerのactiveNativeだけを借用します
+ * @brief exact serviceの有限所有adapter一覧に必要な文字容量を返します
+ * @param[out] size 非null時だけ二重NULを含むwchar_t数です
+ * @param[in] service FixtureStorageの正確な元名です
+ * @param[in] flags SERVICE/PRESENT/DONOTGENERATEの同組合せだけです
+ * @return 人工所有集合の確認時CR_SUCCESS、未知入力はCONFIGRET失敗です
+ * @note 実CMを呼ばず、非present一覧や全device探索へ補完しません
+ */
+//------------------------------------------------------------------------------
+CONFIGRET WINAPI serviceDeviceListSize( PULONG size, PCWSTR service, ULONG flags)
+{
+	// source fixtureでもexact serviceと副作用禁止flagsを必要とします
+	if( !activeNative || !size || !service ||
+	   flags != (CM_GETIDLIST_FILTER_SERVICE | CM_GETIDLIST_FILTER_PRESENT |
+				 CM_GETIDLIST_DONOTGENERATE)) {
+		return CR_INVALID_FLAG ;
+	}
+
+	// 元byte又は所有adapterの同期中の単独保持です
+	const std::wstring_view owner = storageServicePresent()
+										? (storageOwnerPeer( 2U) ? L"TESTBUS\\SYNTH_0002\\FIXTURE"
+																: L"TESTBUS\\SYNTH_0001\\FIXTURE")
+										: L"" ;
+	*size						  = owner.empty() ? 2U : static_cast<ULONG>( owner.size() + 2U) ;
+	return CR_SUCCESS ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief exact serviceの人工全所有adapterを二重NUL付きで返します
+ * @param[in] service 同元service名です。同期中だけ借用します
+ * @param[out] buffer size文字の出力です。不足/未知入力時は書込みません
+ * @param[in] size wchar_t容量です。終端二つを含みます
+ * @param[in] flags SERVICE/PRESENT/DONOTGENERATEだけです
+ * @return 全一覧返却時CR_SUCCESS、不足又は未知入力はCONFIGRET失敗です
+ * @note 実Windowsへfallbackせず、新device生成もしません
+ */
+//------------------------------------------------------------------------------
+CONFIGRET WINAPI serviceDeviceList( PCWSTR service, PZZWSTR buffer, ULONG size, ULONG flags)
+{
+	// 元APIが要求した終端込み容量です
+	ULONG	   required{} ;
+	// 下位検査の最初の診断を後続へ返す一時値です
+	const auto error = serviceDeviceListSize( &required, service, flags) ;
+	// 空の元所有集合を実Windowsから補完しません
+	if( error != CR_SUCCESS || !buffer || size < required) {
+		return error != CR_SUCCESS ? error : CR_BUFFER_SMALL ;
+	}
+
+	// 元byte又は所有adapterの同期中の単独保持です
+	const std::wstring_view owner = storageServicePresent()
+										? (storageOwnerPeer( 2U) ? L"TESTBUS\\SYNTH_0002\\FIXTURE"
+																: L"TESTBUS\\SYNTH_0001\\FIXTURE")
+										: L"" ;
+	std::copy( owner.begin(), owner.end(), buffer) ;
+	buffer[owner.size()]	  = L'\0' ;
+	buffer[owner.size() + 1U] = L'\0' ;
+	return CR_SUCCESS ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief MTD targetの元Windows文字列を返しsourceを同所有workspaceへ結びます
+ * @param[out] buffer 元rootを受ける領域です
+ * @param[in] capacity UTF-16文字容量です
+ * @return 元rootの文字数又は不足時の必要容量です
+ */
+//------------------------------------------------------------------------------
+UINT WINAPI mtdFixtureWindows( LPWSTR buffer, UINT capacity)
+{
+	// MTD fixtureが有効でなければWindows rootを返しません
+	if( !activeNative || !activeNative->mtd || !activeMtdFiles) {
+		SetLastError( ERROR_INVALID_STATE) ;
+		return 0U ;
+	}
+
+	// 復旧成立前の共有先接触を拒否し観測へ残します
+	if( activeNative->restoreBegins == 0U || activeNative->restoreFailure) {
+		activeMtdFiles->beforeRestoreAccess = true ;
+		SetLastError( ERROR_ACCESS_DENIED) ;
+		return 0U ;
+	}
+
+	++activeMtdFiles->windowsRootChecks ;
+	// 同fixtureの原INFからsource directoryを特定します
+	for( const auto &path : activeNative->sourceInfs) {
+		// 人工Windows root以外の同原fixture INFだけを選びます
+		if( path.ends_with( L"\\fixture.inf") && !path.starts_with( activeNative->windowsRoot)) {
+			activeMtdFiles->sourceRoot = path.substr( 0U, path.find_last_of( L'\\')) ;
+			break ;
+		}
+	}
+
+	// 同原INFが見つからない場合は架空sourceを補完しません
+	if( activeMtdFiles->sourceRoot.empty()) {
+		SetLastError( ERROR_NOT_FOUND) ;
+		return 0U ;
+	}
+
+	// fakeが返す論理Windows rootです
+	const auto &root = activeMtdFiles->windowsRoot ;
+	// Windows directory出力の必要容量を返します
+	if( !buffer || capacity <= root.size()) {
+		return static_cast<UINT>( root.size() + 1U) ;
+	}
+
+	std::copy( root.begin(), root.end(), buffer) ;
+	buffer[root.size()] = L'\0' ;
+	return static_cast<UINT>( root.size()) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief MTDの有界fake queue handleを同所有状態へ戻します
+ * @param[in] queue 同workerが作った架空handleです
+ * @return 同操作のqueue又は不正時nullptrです
+ */
+//------------------------------------------------------------------------------
+MtdFixtureQueue *mtdFixtureQueue( HSPFILEQ queue)
+{
+	// fake queue handleのslot番号を求める値です
+	const auto value = reinterpret_cast<std::uintptr_t>( queue) ;
+	// 所有していないfake queue handleを拒否します
+	if( !activeMtdFiles || value < 0x400U || value >= 0x404U ||
+	   !activeMtdFiles->queues[value - 0x400U].used) {
+		SetLastError( ERROR_INVALID_HANDLE) ;
+		return nullptr ;
+	}
+
+	return &activeMtdFiles->queues[value - 0x400U] ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 未使用のfake queueを一つだけ作ります
+ * @return 所有queue又は上限時INVALID_HANDLE_VALUEです
+ */
+//------------------------------------------------------------------------------
+HSPFILEQ WINAPI mtdFixtureOpenQueue()
+{
+	// 有効fixture内でだけqueueを割り当てます
+	if( activeMtdFiles) {
+		// 未使用の所有queue slotを探します
+		for( std::size_t i = 0U; i < activeMtdFiles->queues.size(); ++i) {
+			// 現在の所有queue slotです
+			auto &queue = activeMtdFiles->queues[i] ;
+			// 最初の未使用slotだけを初期化して返します
+			if( !queue.used) {
+				queue	   = {} ;
+				queue.used = true ;
+				return reinterpret_cast<HSPFILEQ>( 0x400U + i) ;
+			}
+		}
+	}
+
+	SetLastError( ERROR_NOT_ENOUGH_MEMORY) ;
+	return INVALID_HANDLE_VALUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同操作のfake queueだけを閉じます
+ * @param[in] handle 同fixtureのqueueです
+ * @return 所有queueを解放できた場合TRUEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureCloseQueue( HSPFILEQ handle)
+{
+	// close対象の所有queueです
+	auto *queue = mtdFixtureQueue( handle) ;
+	// 未知queueのcloseを拒否します
+	if( !queue) {
+		return FALSE ;
+	}
+
+	*queue = {} ;
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief queueのcopy/delete/rename件数を人工stateから返します
+ * @param[in] handle 同fixtureのqueueです
+ * @param[in] operation 元操作種別です
+ * @param[out] count 同種別の件数です
+ * @return 入力と所有queueが正しければTRUEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureQueueCount( HSPFILEQ handle, UINT operation, PUINT count)
+{
+	// 件数照会する所有queueです
+	const auto *queue = mtdFixtureQueue( handle) ;
+	// 未知queueや不正な操作種別・出力を拒否します
+	if( !queue || !count || operation > FILEOP_DELETE) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	*count = operation == FILEOP_COPY ? static_cast<UINT>( queue->copies.size()) : 0U ;
+	// 原queueにdeleteが混じる固定負例を注入します
+	if( queue->original && operation == FILEOP_DELETE && activeNative &&
+	   activeNative->mtdScenario == MtdFixtureScenario::QUEUE_DELETE) {
+		*count = 1U ;
+	}
+
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保持した各copyをWindowsと同じSCAN callbackへ渡します
+ * @param[in] handle 同fixtureのqueueです
+ * @param[in] flags 元scan flagsです
+ * @param[in] window 対話を行わないnullです
+ * @param[in] callback 製品の公開tuple照合です
+ * @param[in,out] context callbackが借用する元状態です
+ * @param[out] result 元scan結果です
+ * @return 全callback成立時TRUEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureScanQueue( HSPFILEQ handle, DWORD flags, HWND window,
+								PSP_FILE_CALLBACK_W callback, PVOID context, PDWORD result)
+{
+	// scan対象の所有queueです
+	const auto *queue = mtdFixtureQueue( handle) ;
+	// 公開scanのflags、callback、引数を正確に要求します
+	if( !queue || flags != SPQ_SCAN_USE_CALLBACKEX || window || !callback || !result) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	// fake queueの全copy tupleを原順でcallbackへ返します
+	for( const auto &copy : queue->copies) {
+		// scan callbackへ渡す原copy tupleです
+		FILEPATHS_W path{copy.target.c_str(), copy.source.c_str(), ERROR_FILE_NOT_FOUND,
+						 copy.flags} ;
+		// callbackが拒否した時点で元abortを返します
+		if( callback( context, SPFILENOTIFY_QUEUESCAN_EX, reinterpret_cast<UINT_PTR>( &path), 0U) !=
+		   NO_ERROR) {
+			SetLastError( ERROR_OPERATION_ABORTED) ;
+			return FALSE ;
+		}
+	}
+
+	*result = 0U ;
+	++activeMtdFiles->queueScans ;
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 所有sourceから既知人工INFを開く架空handleです
+ * @param[in] path 同原INFの完全pathです
+ * @param[in] cls 指定しないclassです
+ * @param[in] style 元INF読取flagsです
+ * @param[out] line 使用しないnullです
+ * @return 一致時の架空handle又はINVALID_HANDLE_VALUEです
+ */
+//------------------------------------------------------------------------------
+HINF WINAPI mtdFixtureOpenInf( PCWSTR path, PCWSTR cls, DWORD style, PUINT line)
+{
+	// 同人工INF以外や未知open flagsを拒否します
+	if( !activeMtdFiles || !path || cls || line ||
+	   style != (INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE) ||
+	   std::wstring_view{path} != activeMtdFiles->sourceRoot + L"\\fixture.inf") {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return INVALID_HANDLE_VALUE ;
+	}
+
+	return reinterpret_cast<HINF>( 0x500U) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同登録INFだけを隔離した人工Storeの原位置へ対応させます
+ * @param[in] registered 同登録INFです
+ * @param[in] alternate 指定しないplatformです
+ * @param[in] locale 指定しないlocaleです
+ * @param[out] buffer 正式位置の出力先です
+ * @param[in] capacity 出力先の文字容量です
+ * @param[out] required 必要な文字数です
+ * @return 同fixtureのStoreを照合できた場合TRUEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureStoreLocation( PCWSTR registered, PSP_ALTPLATFORM_INFO alternate,
+									PCWSTR locale, PWSTR buffer, DWORD capacity, PDWORD required)
+{
+	// 指定された人工Store source以外は不在を返します
+	if( !activeNative || !activeMtdFiles ||
+	   (activeNative->mtdScenario != MtdFixtureScenario::STORE_SOURCE &&
+		activeNative->mtdScenario != MtdFixtureScenario::STORE_PARENT_ADD_DIRECTORY) ||
+	   !registered || alternate || locale || !required ||
+	   std::ranges::none_of( activeNative->stagedPaths, [&]( const auto &path) {
+		   return path.front() && std::wstring_view{registered} == path.data() ;
+	   })) {
+		SetLastError( ERROR_NOT_FOUND) ;
+		return FALSE ;
+	}
+
+	// 人工Storeに置く登録INF pathです
+	const auto value = activeMtdFiles->storeDirectory + L"\\fixture.inf" ;
+	*required		 = static_cast<DWORD>( value.size() + 1U) ;
+	// Store位置出力の容量不足をWindows ABIで返します
+	if( !buffer || capacity < *required) {
+		SetLastError( ERROR_INSUFFICIENT_BUFFER) ;
+		return FALSE ;
+	}
+
+	std::copy( value.begin(), value.end(), buffer) ;
+	buffer[value.size()] = L'\0' ;
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空INF handleだけを閉じます
+ * @param[in] inf 同fixtureの架空handleです
+ * @return 戻り値はありません
+ */
+//------------------------------------------------------------------------------
+VOID WINAPI mtdFixtureCloseInf( [[maybe_unused]] HINF inf)
+{
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 原sectionとflagsからfake queueの完全copy tupleを構築します
+ * @param[in,out] queue 所有するqueueです
+ * @param[in] section 元INFのsectionです
+ * @param[in] flags 元API CopyStyleです
+ * @return 既知sectionだけを追加できた場合trueです
+ */
+//------------------------------------------------------------------------------
+bool mtdFixtureAddSection( MtdFixtureQueue &queue, std::wstring_view section, DWORD flags)
+{
+	// 所有fixtureがなければqueueへ追加しません
+	if( !activeMtdFiles) {
+		return false ;
+	}
+
+	// 原fixture packageの所有source rootです
+	const auto &source = activeMtdFiles->sourceRoot ;
+	// 表示する人工Windows rootです
+	const auto &root = activeMtdFiles->windowsRoot ;
+	// SYS sectionには元flags0のcopyを一件作ります
+	if( section == L"Files" && flags == 0U) {
+		queue.copies.push_back(
+			{source + L"\\fixture.sys", root + L"\\System32\\drivers\\fixture.sys", 0U}) ;
+		return true ;
+	}
+
+	// DLL sectionは元flags0または制御NOOVERWRITEに限定します
+	if( section == L"SharedDlls" && (flags == 0U || flags == SP_COPY_FORCE_NOOVERWRITE)) {
+		// 原二DLLそれぞれのcopy tupleを追加します
+		for( const auto leaf : {L"fixture-a.dll", L"fixture-b.dll"}) {
+			queue.copies.push_back( {source + L"\\" + leaf, root + L"\\System32\\" + leaf, flags}) ;
+		}
+
+		return true ;
+	}
+
+	return false ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同原INFの一sectionだけをfake制御queueへ加えます
+ * @param[in] handle 同fixtureのqueueです
+ * @param[in] root 同原source rootです
+ * @param[in] inf 同原INFの架空handleです
+ * @param[in] list 使用しないnullです
+ * @param[in] section 元sectionです
+ * @param[in] flags APIの追加copy flagsです
+ * @return 全引数と原sectionが一致した場合TRUEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureQueueSection( HSPFILEQ handle, PCWSTR root, HINF inf, HINF list,
+								   PCWSTR section, DWORD flags)
+{
+	// section追加先の所有queueです
+	auto *queue = mtdFixtureQueue( handle) ;
+	// 同原queue・INF・section・source以外の追加を拒否します
+	if( !queue || !root || !section || inf != reinterpret_cast<HINF>( 0x500U) || list ||
+	   std::wstring_view{root} != activeMtdFiles->sourceRoot ||
+	   !mtdFixtureAddSection( *queue, section, flags)) {
+		SetLastError( ERROR_INVALID_DATA) ;
+		return FALSE ;
+	}
+
+	// 制御DLLのflags差を負例として注入します
+	if( activeNative && activeNative->mtdScenario == MtdFixtureScenario::CONTROL_FLAGS &&
+	   std::wstring_view{section} == L"SharedDlls" && !queue->copies.empty()) {
+		queue->copies.back().flags = 0U ;
+	}
+
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同deviceの元selected nodeだけをfakeへ保存します
+ * @param[in] set 同fixtureのdevice集合です
+ * @param[in] device 同選択deviceです
+ * @param[in] driver 同選択nodeです
+ * @return 同所有範囲のnodeだけTRUEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureSetSelected( HDEVINFO set, PSP_DEVINFO_DATA device, PSP_DRVINFO_DATA_W driver)
+{
+	// 選択先deviceのfake集合indexです
+	const auto index = setIndex( set) ;
+	// deviceとdriver nodeの選択引数を完全fakeで検証します
+	if( !activeMtdFiles || index >= 32U || !device || !driver || driver->cbSize != sizeof( *driver)) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	activeMtdFiles->selected[index]	   = *driver ;
+	activeMtdFiles->hasSelected[index] = true ;
+	++activeMtdFiles->selectedSets ;
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同deviceのfake selected nodeをそのまま読み戻します
+ * @param[in] set 同fixtureのdevice集合です
+ * @param[in] device 同選択deviceです
+ * @param[out] driver 同選択nodeの出力です
+ * @return 元nodeを読み戻せた場合TRUEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureGetSelected( HDEVINFO set, PSP_DEVINFO_DATA device, PSP_DRVINFO_DATA_W driver)
+{
+	// 選択を読戻すdeviceのfake集合indexです
+	const auto index = setIndex( set) ;
+	// 以前に同deviceで選択したnodeだけを返します
+	if( !activeMtdFiles || index >= 32U || !device || !driver ||
+	   !activeMtdFiles->hasSelected[index]) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	*driver = activeMtdFiles->selected[index] ;
+	// 指定条件だけで選択nodeの変化を注入します
+	if( activeNative && activeNative->mtdScenario == MtdFixtureScenario::SELECTED_NODE_CHANGED) {
+		++driver->Reserved ;
+	}
+
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief fake queueの通知と所有workspaceのSYS copyだけを実行します
+ * @param[in] parent 元親windowです。操作には使用しません
+ * @param[in] handle 同fixtureの制御queueです
+ * @param[in] callback 製品の通知判定です
+ * @param[in,out] context callbackが借用する元状態です
+ * @return 全通知と所有領域内I/Oが成立した場合TRUEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureCommitQueue( [[maybe_unused]] HWND parent, HSPFILEQ handle,
+								  PSP_FILE_CALLBACK_W callback, PVOID context)
+{
+	// commit対象の所有queueです
+	const auto *queue = mtdFixtureQueue( handle) ;
+	// 所有queueとcallbackがなければcommitしません
+	if( !queue || !callback || !activeMtdFiles) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	++activeMtdFiles->commits ;
+	// Windows通知を同callbackへ送る関数です
+	const auto emit = [&]( UINT code, UINT_PTR first, UINT_PTR second) {
+		return callback( context, code, first, second) != 0U ;
+	} ;
+	// queue開始通知をcallbackが拒否すれば元abortを返します
+	if( !emit( SPFILENOTIFY_STARTQUEUE, 0U, 0U) ||
+	   !emit( SPFILENOTIFY_STARTSUBQUEUE, FILEOP_COPY, queue->copies.size())) {
+		SetLastError( ERROR_OPERATION_ABORTED) ;
+		return FALSE ;
+	}
+
+	// 所有queueの各原copyについてWindows通知を再現します
+	for( const auto &copy : queue->copies) {
+		// 元sourceのdirectoryとleafを分ける位置です
+		const auto slash = copy.source.find_last_of( L'\\') ;
+		// sourceを媒体directoryとleafに分けられなければ拒否します
+		if( slash == copy.source.npos) {
+			return FALSE ;
+		}
+
+		// 媒体通知のsource directoryです
+		const auto	   directory = copy.source.substr( 0U, slash) ;
+		// 媒体通知のsource leafです
+		const auto	   leaf = copy.source.substr( slash + 1U) ;
+		// callbackへ返す原媒体tupleです
+		SOURCE_MEDIA_W media{nullptr,			nullptr,	  L"fixture",
+							 directory.c_str(), leaf.c_str(), copy.flags} ;
+		// callbackへ返す原COPY tupleです
+		FILEPATHS_W	   path{copy.target.c_str(), copy.source.c_str(), 0U, copy.flags} ;
+		// 媒体要求またはcopy開始のcallback拒否をabortにします
+		if( !emit( SPFILENOTIFY_NEEDMEDIA, reinterpret_cast<UINT_PTR>( &media), 0U) ||
+		   !emit( SPFILENOTIFY_STARTCOPY, reinterpret_cast<UINT_PTR>( &path), 0U)) {
+			SetLastError( ERROR_OPERATION_ABORTED) ;
+			return FALSE ;
+		}
+
+		// sourceとtargetが所有範囲内でなければ実copyしません
+		if( !mtdFixturePath( copy.source, false) || !mtdFixturePath( copy.target, true)) {
+			activeMtdFiles->queueOutsideOwned = true ;
+			SetLastError( ERROR_ACCESS_DENIED) ;
+			return FALSE ;
+		}
+
+		// targetを写像した所有実pathです
+		const auto physical = mtdFixturePhysical( copy.target) ;
+		// SYS元flags0とDLLの非置換flagsを分けます
+		if( copy.flags == 0U) {
+			// SYS遅延の固定負例だけWindows遅延通知を送ります
+			if( activeNative->mtdScenario == MtdFixtureScenario::SYSTEM_DELAYED) {
+				// 遅延通知をcallbackが拒否すれば元abortを返します
+				if( !emit( SPFILENOTIFY_FILEOPDELAYED, reinterpret_cast<UINT_PTR>( &path), 0U)) {
+					SetLastError( ERROR_OPERATION_ABORTED) ;
+					return FALSE ;
+				}
+			}
+			// 所有workspace内SYS copyの実失敗を返します
+			else if( !::CopyFileW( copy.source.c_str(), physical.c_str(), FALSE)) {
+				return FALSE ;
+			}
+		}
+		// DLLの非置換flagsや先行配置が欠ければ失敗にします
+		else if( copy.flags != SP_COPY_FORCE_NOOVERWRITE ||
+				::GetFileAttributesW( physical.c_str()) == INVALID_FILE_ATTRIBUTES) {
+			SetLastError( ERROR_INVALID_DATA) ;
+			return FALSE ;
+		}
+
+		// 指定条件ではDLL遅延通知を送り拒否を確認します
+		if( copy.flags == SP_COPY_FORCE_NOOVERWRITE &&
+		   activeNative->mtdScenario == MtdFixtureScenario::DLL_DELAYED &&
+		   !emit( SPFILENOTIFY_FILEOPDELAYED, reinterpret_cast<UINT_PTR>( &path), 0U)) {
+			SetLastError( ERROR_OPERATION_ABORTED) ;
+			return FALSE ;
+		}
+
+		// copy終端通知を拒否された場合はqueueを中止します
+		if( !emit( SPFILENOTIFY_ENDCOPY, reinterpret_cast<UINT_PTR>( &path), 0U)) {
+			SetLastError( ERROR_OPERATION_ABORTED) ;
+			return FALSE ;
+		}
+
+		// SYS copy後の未知通知を固定負例として送ります
+		if( copy.flags == 0U && activeNative->mtdScenario == MtdFixtureScenario::UNKNOWN_CALLBACK &&
+		   !emit( 0xdeadU, 0U, 0U)) {
+			SetLastError( ERROR_OPERATION_ABORTED) ;
+			return FALSE ;
+		}
+	}
+
+	// subqueueとqueueの終端通知を確認します
+	if( !emit( SPFILENOTIFY_ENDSUBQUEUE, FILEOP_COPY, 0U) || !emit( SPFILENOTIFY_ENDQUEUE, TRUE, 0U)) {
+		SetLastError( ERROR_OPERATION_ABORTED) ;
+		return FALSE ;
+	}
+
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同選択nodeのDIFだけを完全fake stateへ投影します
+ * @param[in] code 同選択へのDIF種別です
+ * @param[in] set 同fixtureのdevice集合です
+ * @param[in] device 同選択deviceです
+ * @return 元paramsと対象が成立した場合TRUEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI mtdFixtureCallInstaller( DI_FUNCTION code, HDEVINFO set, PSP_DEVINFO_DATA device)
+{
+	// 同人工deviceの集合indexです
+	const auto index = setIndex( set) ;
+	// 同人工device・選択nodeがなければDIFを拒否します
+	if( !activeNative || !activeMtdFiles || index >= 32U || !device ||
+	   !activeMtdFiles->hasSelected[index]) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	// 同deviceの人工install parameterです
+	auto &params = activeNative->parameters[index] ;
+	// file DIFでは原queueとparameterを検査します
+	if( code == DIF_INSTALLDEVICEFILES) {
+		// file DIFが構成する所有原queueです
+		auto *queue = mtdFixtureQueue( params.FileQueue) ;
+		// NOVCPと原queueが成立しないfile DIFを拒否します
+		if( !queue || (params.Flags & (DI_NOVCP | DI_NOFILECOPY)) != DI_NOVCP ||
+		   !mtdFixtureAddSection( *queue, L"Files", 0U) ||
+		   !mtdFixtureAddSection( *queue, L"SharedDlls", 0U)) {
+			SetLastError( ERROR_INVALID_DATA) ;
+			return FALSE ;
+		}
+
+		queue->original = true ;
+		// 原queueの指定負例だけを注入します
+		switch( activeNative->mtdScenario) {
+			// 原queueのCOPY欠損を注入します
+			case MtdFixtureScenario::QUEUE_MISSING:
+				queue->copies.pop_back() ;
+				break ;
+
+			// 原COPYの重複を注入します
+			case MtdFixtureScenario::QUEUE_DUPLICATE:
+				queue->copies.back() = queue->copies[1] ;
+				break ;
+
+			// 元行にないCOPYを注入します
+			case MtdFixtureScenario::QUEUE_EXTRA:
+				queue->copies.push_back( queue->copies.back()) ;
+				break ;
+
+			// 原COPY flags差を注入します
+			case MtdFixtureScenario::QUEUE_FLAGS:
+				queue->copies.back().flags = SP_COPY_FORCE_NOOVERWRITE ;
+				break ;
+
+			// 原source差を注入します
+			case MtdFixtureScenario::QUEUE_SOURCE:
+				queue->copies.back().source += L".other" ;
+				break ;
+
+			// 同登録INFの人工Store sourceを返します
+			case MtdFixtureScenario::STORE_SOURCE:
+			case MtdFixtureScenario::STORE_PARENT_ADD_DIRECTORY:
+				// 同人工Store packageの対応sourceへ全行を写します
+				for( auto &copy : queue->copies) {
+					copy.source = activeMtdFiles->storeDirectory + L"\\" +
+								  std::filesystem::path{copy.source}.filename().wstring() ;
+				}
+
+				break ;
+
+			// 指定されたqueue変更がない場合は原行を保持します
+			default:
+				break ;
+		}
+
+		++activeMtdFiles->filesDifs ;
+		// file DIF後にparameterが変化する負例を注入します
+		if( activeNative->mtdScenario == MtdFixtureScenario::PARAMS_CHANGED_AFTER_FILES) {
+			params.Flags |= DI_NOFILECOPY ;
+		}
+
+		return TRUE ;
+	}
+
+	// copy充足後のNOFILECOPY指定DIFだけを評価します
+	if( code == DIF_INSTALLDEVICE && !params.FileQueue &&
+	   (params.Flags & (DI_NOVCP | DI_NOFILECOPY)) == DI_NOFILECOPY &&
+	   activeMtdFiles->commits == 1U && device->DevInst == 1U) {
+		// 同deviceで明示選択されたnodeです
+		const auto &selected = activeMtdFiles->selected[index] ;
+		// 同選択nodeと元INF tupleの一致です
+		const bool	matches =
+			selected.Reserved == 1U && selected.DriverVersion == (1ULL << 48U) &&
+			std::wstring_view{selected.ProviderName} == L"Fixture Vendor" &&
+			std::ranges::any_of( activeNative->stagedPaths, [&]( const auto &path) {
+				return path.front() && std::wstring_view{params.DriverPath} == path.data() ;
+			}) ;
+		activeNative->specifiedBindingMatches &= matches ;
+		// 元選択nodeのtupleが違えば指定DIFを拒否します
+		if( !matches) {
+			SetLastError( ERROR_INVALID_DATA) ;
+			return FALSE ;
+		}
+
+		++activeMtdFiles->installDifs ;
+		++activeNative->installs ;
+		++activeNative->deviceInstalls[0] ;
+		activeNative->storageCalls.push_back( L"mtd:dif-selected:nofilecopy") ;
+		// 選択DIF自体の失敗と再起動flagsを注入します
+		if( activeNative->mtdScenario == MtdFixtureScenario::INSTALL_FAILURE) {
+			// 負例が再起動を要求する場合だけWindows flagsを返します
+			if( !activeNative->noReboot) {
+				params.Flags |= DI_NEEDREBOOT ;
+			}
+
+			SetLastError( ERROR_ACCESS_DENIED) ;
+			return FALSE ;
+		}
+
+		// fake成功を同deviceの現在nodeへ反映する条件です
+		if( activeNative->reflectOwnInstall) {
+			++activeNative->appliedDeviceInstalls[0] ;
+			activeNative->appliedNodes[0] = selected ;
+			activeNative->appliedInfNames[0] =
+				std::filesystem::path( params.DriverPath).filename().wstring() ;
+		}
+
+		// 指定DIF後の保持再照合失敗を注入します
+		if( activeNative->mtdScenario == MtdFixtureScenario::POST_DIF_VERIFY_FAILURE) {
+			activeMtdFiles->badSecurityTarget =
+				activeMtdFiles->windowsRoot + L"\\System32\\fixture-a.dll" ;
+		}
+
+		// 指定DIFの再起動見込みをWindows flagsで返します
+		if( !activeNative->noReboot) {
+			params.Flags |= DI_NEEDREBOOT ;
+		}
+
+		return TRUE ;
+	}
+
+	SetLastError( ERROR_INVALID_DATA) ;
+	return FALSE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief ローカルの人工クラスGUIDを登録済みの名前へ解決します
+ * @param[in] guid 署名済みINFが宣言したGUIDです
+ * @param[out] buffer 終端付きの登録名を返す領域です
+ * @param[in] capacity 出力の文字数です
+ * @param[out] required 終端込み必要文字数の任意出力です
+ * @return 既登録で十分な容量があればTRUE、未登録ではERROR_INVALID_CLASSです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI declarativeClassName( const GUID *guid, PWSTR buffer, DWORD capacity, PDWORD required)
+{
+	// 違うGUIDや無効なworkerを元クラスの不存在に変えません
+	if( !declarativeCase() || !guid || !IsEqualGUID( *guid, DECLARATIVE_CLASS)) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	// 初回登録以前のWindowsの正式な不在を返します
+	if( !declarativeRegistered()) {
+		SetLastError( ERROR_INVALID_CLASS) ;
+		return FALSE ;
+	}
+
+	// 元内容の読取りでは必要文字数は省略されます
+	if( required) {
+		*required = static_cast<DWORD>( std::size( DECLARATIVE_NAME)) ;
+	}
+
+	// 名前の部分一致を許さず、出力は全長を要求します
+	if( !buffer || capacity < std::size( DECLARATIVE_NAME)) {
+		SetLastError( ERROR_INSUFFICIENT_BUFFER) ;
+		return FALSE ;
+	}
+
+	std::ranges::copy( DECLARATIVE_NAME, buffer) ;
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同名の人工クラス登録を逆引きします
+ * @param[in] name 元のクラス名です
+ * @param[out] buffer 一致する唯一のGUIDを受け取ります
+ * @param[in] capacity 呼出し側のGUID容量です
+ * @param[out] count 既登録は一件、未登録は零件です
+ * @return 正常列挙は零件でもTRUEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI declarativeClassGuids( PCWSTR name, LPGUID buffer, DWORD capacity, PDWORD count)
+{
+	// 人工登録と対応する元名だけを逆引きします
+	if( !declarativeCase() || !name || std::wstring_view{name} != DECLARATIVE_NAME || !count ||
+	   !buffer || capacity != 1U) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	*count = declarativeRegistered() ? 1U : 0U ;
+	// 初回登録でGUID出力へ架空の値を入れません
+	if( *count) {
+		*buffer = DECLARATIVE_CLASS ;
+	}
+
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 導入先クラスのローカル読取キーを模擬します
+ * @param[in] guid 対象の独自クラスです
+ * @param[in] access 値の読取り権限です
+ * @param[in] flags セットアップクラスの指定です
+ * @param[in] machine ローカルのためnullです
+ * @param[in] reserved 予約引数です
+ * @return 既登録は同workerの借用識別子、未登録はINVALID_HANDLE_VALUEです
+ */
+//------------------------------------------------------------------------------
+HKEY WINAPI declarativeOpenClassKey( const GUID *guid, REGSAM access, DWORD flags, PCWSTR machine,
+									PVOID reserved)
+{
+	// 実レジストリや書込み権限を必要とする要求は拒否します
+	if( !declarativeCase() || !guid || !IsEqualGUID( *guid, DECLARATIVE_CLASS) ||
+	   access != KEY_QUERY_VALUE || flags != DIOCR_INSTALLER || machine || reserved) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return static_cast<HKEY>( INVALID_HANDLE_VALUE) ;
+	}
+
+	// 登録名と逆引きに対応するキー不存在を独立に返します
+	if( !declarativeRegistered()) {
+		SetLastError( ERROR_FILE_NOT_FOUND) ;
+		return static_cast<HKEY>( INVALID_HANDLE_VALUE) ;
+	}
+
+	return reinterpret_cast<HKEY>( activeNative) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 人工クラスにハンドラーとフィルターが登録されていない応答を返します
+ * @param[in] guid 同workerが観測する対象クラスです
+ * @param[in] key 四つのクラスプロパティのいずれかです
+ * @param[out] type 要求する型の出力です
+ * @param[out] buffer 容量照会で省略される領域です
+ * @param[in] capacity byte単位の出力容量です
+ * @param[out] required 容量照会の必要byte数です
+ * @param[in] flags installerクラスの照会指定です
+ * @return 対象キーの容量照会だけが正式なERROR_NOT_FOUNDです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI declarativeClassProperty( const GUID *guid, const DEVPROPKEY *key, DEVPROPTYPE *type,
+									 PBYTE buffer, DWORD capacity, PDWORD required, DWORD flags)
+{
+	const bool valid = declarativeRegistered() && guid && IsEqualGUID( *guid, DECLARATIVE_CLASS) &&
+					   key &&
+					   (sameKey( *key, DEVPKEY_DeviceClass_ClassInstaller) ||
+						sameKey( *key, DEVPKEY_DeviceClass_PropPageProvider) ||
+						sameKey( *key, DEVPKEY_DeviceClass_UpperFilters) ||
+						sameKey( *key, DEVPKEY_DeviceClass_LowerFilters)) &&
+					   type && !buffer && capacity == 0U && required &&
+					   // 正式な読取り要求です
+					   flags == DICLASSPROP_INSTALLER ;
+	SetLastError( valid ? ERROR_NOT_FOUND : ERROR_INVALID_PARAMETER) ;
+	return FALSE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択した元端末に能動的な登録がない状態を返します
+ * @param[in] set 同workerの情報集合です
+ * @param[in] device 元のクラスを持つ端末です
+ * @param[in] key 端末の四つの作用プロパティのいずれかです
+ * @param[out] type 要求する型を受け取る出力です
+ * @param[out] buffer 容量照会時に省略される出力です
+ * @param[in] capacity byte単位の出力容量です
+ * @param[out] required 同じ照会の必要byte数です
+ * @param[in] flags ローカル照会の予約flagsです
+ * @return 元端末への完全な容量照会だけにERROR_NOT_FOUNDを返します
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI declarativeDeviceProperty( HDEVINFO set, PSP_DEVINFO_DATA device, const DEVPROPKEY *key,
+									  DEVPROPTYPE *type, PBYTE buffer, DWORD capacity,
+									  PDWORD required, DWORD flags)
+{
+	const bool valid =
+		declarativeCase() && setIndex( set) < 32U && device && device->DevInst == 1U &&
+		IsEqualGUID( device->ClassGuid,
+					initialState() ? GUID_DEVCLASS_UNKNOWN : DECLARATIVE_CLASS) &&
+		key &&
+		(sameKey( *key, DEVPKEY_Device_DriverCoInstallers) ||
+		 sameKey( *key, DEVPKEY_Device_DriverPropPageProvider) ||
+		 sameKey( *key, DEVPKEY_Device_UpperFilters) ||
+		 sameKey( *key, DEVPKEY_Device_LowerFilters)) &&
+		type && !buffer && capacity == 0U && required && flags == 0U ;	// 元端末の照会だけです
+	SetLastError( valid ? ERROR_NOT_FOUND : ERROR_INVALID_PARAMETER) ;
+	return FALSE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 共有コインストーラーキーの読取りを模擬します
+ * @param[in] root machineローカルの定数ハンドルです
+ * @param[in] path 共有キーの完全名です
+ * @param[in] options 予約値です
+ * @param[in] access 値を読むための権限です
+ * @param[out] key 同workerだけが解放できる人工ハンドルです
+ * @return 指定された読取りだけにERROR_SUCCESSを返します
+ */
+//------------------------------------------------------------------------------
+LSTATUS WINAPI declarativeOpenKey( HKEY root, PCWSTR path, DWORD options, REGSAM access, PHKEY key)
+{
+	// コインストーラーのGUID別の値を他のキーの不在で補いません
+	if( !declarativeCase() || root != HKEY_LOCAL_MACHINE || !path ||
+	   std::wstring_view{path} != L"SYSTEM\\CurrentControlSet\\Control\\CoDeviceInstallers" ||
+	   options != 0U || access != KEY_QUERY_VALUE || !key) {
+		return ERROR_INVALID_PARAMETER ;
+	}
+
+	*key = reinterpret_cast<HKEY>( &activeNative->nativeCase) ;
+	return ERROR_SUCCESS ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元対象クラスのコインストーラー値を明示的な不在として返します
+ * @param[in] key 同workerが開いた共有キーです
+ * @param[in] name 対象クラスのGUID文字列です
+ * @param[in] reserved 予約引数です
+ * @param[out] type レジストリ値の型出力です
+ * @param[out] data 容量照会時に省略される出力です
+ * @param[in,out] size 必要byte数の入出力です
+ * @return 正しいGUIDの初回容量照会だけにERROR_FILE_NOT_FOUNDを返します
+ */
+//------------------------------------------------------------------------------
+LSTATUS WINAPI declarativeReadValue( HKEY key, PCWSTR name, LPDWORD reserved, LPDWORD type,
+									LPBYTE data, LPDWORD size)
+{
+	GUID parsed{} ;	// この値が属するGUIDの全体
+	return declarativeCase() && key == reinterpret_cast<HKEY>( &activeNative->nativeCase) && name &&
+				   SUCCEEDED( IIDFromString( name, &parsed)) &&
+				   IsEqualGUID( parsed, DECLARATIVE_CLASS) && !reserved && type && !data && size &&
+				   *size == 0
+			   ? ERROR_FILE_NOT_FOUND
+			   : ERROR_INVALID_PARAMETER ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同workerの二種類の読取りキーだけを受け付けます
+ * @param[in] key 独自クラスまたは共有コインストーラーの人工ハンドルです
+ * @return 同workerが発行したキーはERROR_SUCCESSです
+ */
+//------------------------------------------------------------------------------
+LSTATUS WINAPI declarativeCloseKey( HKEY key)
+{
+	return declarativeCase() && (key == reinterpret_cast<HKEY>( activeNative) ||
+								 key == reinterpret_cast<HKEY>( &activeNative->nativeCase))
+			   ? ERROR_SUCCESS
+			   : ERROR_INVALID_HANDLE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief fake stageが返したOEM INFから同じ保護領域のFileRepositoryを解決します
+ * @param[in] inf ステージングが実際に返したINFの完全パスです
+ * @param[in] alternate 省略したプラットフォームです
+ * @param[in] locale 省略したロケールです
+ * @param[out] buffer 同じ所有領域に置いた元INFのパスを返します
+ * @param[in] capacity 文字単位の出力容量です
+ * @param[out] required 終端込み必要文字数の任意出力です
+ * @return 正規のOEM INFと全パスを確認できればTRUEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI declarativeStoreLocation( PCWSTR inf, PSP_ALTPLATFORM_INFO alternate, PCWSTR locale,
+									 PWSTR buffer, DWORD capacity, PDWORD required)
+{
+	// ほかの登録先や実Windowsから一致するINFを探しません
+	if( !declarativeCase() || !inf || activeNative->stages != 1U ||
+	   std::wstring_view{inf} != activeNative->stagedPaths[0].data() || alternate || locale) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	const auto path = activeNative->registration.path( std::wstring{DECLARATIVE_STORE} +
+													  L"fixture.inf") ;	// 所有Storeの元INF
+	// SDKの必要長出力は省略できます
+	if( required) {
+		*required = static_cast<DWORD>( path.size() + 1U) ;
+	}
+
+	// 空パスまたは部分パスを返しません
+	if( !buffer || path.empty() || capacity <= path.size()) {
+		SetLastError( ERROR_INSUFFICIENT_BUFFER) ;
+		return FALSE ;
+	}
+
+	++activeNative->declarativeStoreReads ;
+	wcscpy_s( buffer, capacity, path.c_str()) ;
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 独自クラスの読取り境界に同じworkerのfake群を割り当てます
+ * @return 実Windows関数を含まない名前・登録・全作用・配置先の完全表です
+ */
+//------------------------------------------------------------------------------
+driver_store_inf_detail::DeclarativeClassTransport declarativeCalls()
+{
+	return {{declarativeClassName, declarativeClassGuids, declarativeOpenClassKey,
+			 declarativeClassProperty, declarativeDeviceProperty, declarativeOpenKey,
+			 declarativeReadValue, declarativeCloseKey},
+			declarativeStoreLocation} ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 全native境界を同workerの完全fixture表へ固定します
+ * @return SetupAPI/CM/NewDevの実native pointerを含まない所有tableです
+ * @note 各callbackは有効scopeの同thread内でactiveNativeを同期借用し、実端末へ補完しません
  */
 //------------------------------------------------------------------------------
 driver_store_inf_detail::Transport calls()
 {
-	return {.inventory		  = {openInventory, enumInventory, property, instanceId, closeInventory,
-								 nodeStatus},
-			.create			  = createInventory,
-			.open			  = openDevice,
-			.build			  = buildDrivers,
-			.enumerate		  = enumDrivers,
-			.detail			  = driverDetail,
-			.getParameters	  = getParameters,
-			.setParameters	  = setParameters,
-			.rank			  = driverRank,
-			.destroyDrivers	  = destroyDrivers,
-			.stage			  = stage,
-			.install		  = install,
-			.architecture	  = architecture,
-			.windowsDirectory = windowsDirectory,
-			.infClass		  = infClass} ;
+	driver_store_inf_detail::Transport result{.inventory = {openInventory, enumInventory, property,
+															instanceId, closeInventory, nodeStatus},
+											  .create	 = createInventory,
+											  .open		 = openDevice,
+											  .build	 = buildDrivers,
+											  .enumerate = enumDrivers,
+											  .detail	 = driverDetail,
+											  .getParameters		 = getParameters,
+											  .setParameters		 = setParameters,
+											  .rank					 = driverRank,
+											  .destroyDrivers		 = destroyDrivers,
+											  .stage				 = stage,
+											  .install				 = install,
+											  .architecture			 = architecture,
+											  .windowsDirectory		 = windowsDirectory,
+											  .infClass				 = infClass,
+											  .serviceDeviceListSize = serviceDeviceListSize,
+											  .serviceDeviceList	 = serviceDeviceList} ;
+	// 独自クラスに限り、同じターゲットと隔離Storeにだけ応答する読取り表を使います
+	if( declarativeCase()) {
+		result.declarativeClass = declarativeCalls() ;
+	}
+
+	// MTD対象だけ完全低位fake表を有効にします
+	if( activeNative && activeNative->mtd &&
+	   activeNative->mtdScenario != MtdFixtureScenario::TABLE_EMPTY) {
+		// MTD専用slot群です
+		auto &mtd = result.mtd ;
+		mtd		  = {.setSelected	   = mtdFixtureSetSelected,
+					 .getSelected	   = mtdFixtureGetSelected,
+					 .callInstaller	   = mtdFixtureCallInstaller,
+					 .openQueue		   = mtdFixtureOpenQueue,
+					 .queueCount	   = mtdFixtureQueueCount,
+					 .scanQueue		   = mtdFixtureScanQueue,
+					 .queueSection	   = mtdFixtureQueueSection,
+					 .commitQueue	   = mtdFixtureCommitQueue,
+					 .closeQueue	   = mtdFixtureCloseQueue,
+					 .openInf		   = mtdFixtureOpenInf,
+					 .closeInf		   = mtdFixtureCloseInf,
+					 .storeLocation	   = mtdFixtureStoreLocation,
+					 .windowsDirectory = mtdFixtureWindows,
+					 .openClassKey	   = &UncalledMtdSlot<decltype( mtd.openClassKey)>::invoke,
+					 .openDeviceKey	   = &UncalledMtdSlot<decltype( mtd.openDeviceKey)>::invoke,
+					 .classProperty	   = mtdFixtureClassProperty,
+					 .queryRegistry	   = &UncalledMtdSlot<decltype( mtd.queryRegistry)>::invoke,
+					 .closeRegistry	   = &UncalledMtdSlot<decltype( mtd.closeRegistry)>::invoke,
+					 .createFile	   = mtdFixtureCreate,
+					 .fileInfo		   = mtdFixtureInfo,
+					 .fileInfoEx	   = mtdFixtureInfoEx,
+					 .finalPath		   = mtdFixtureFinalPath,
+					 .freeSpace		   = mtdFixtureFreeSpace,
+					 .securityInfo	   = mtdFixtureSecurity,
+					 .localFree		   = mtdFixtureFree,
+					 .readFile		   = mtdFixtureRead,
+					 .writeFile		   = mtdFixtureWrite,
+					 .flushFile		   = mtdFixtureFlush,
+					 .setFileInfo	   = mtdFixtureSetInfo,
+					 .closeHandle	   = mtdFixtureClose} ;
+	}
+
+	return result ;
 }
 /** @brief 既検証一候補を同scanへ発行し、元選択だけを実OS変更なしで導入するWUA fakeです */
 class MixedManagedProvider final : public IUpdateProvider {
@@ -2839,6 +5659,8 @@ std::vector<driver_package_signature_detail::FixtureFile> signatureFiles( std::s
 
 	// 全原memberの名前と実SHA-256を所有する固定期待値集合
 	std::vector<driver_package_signature_detail::FixtureFile> result ;
+	std::vector<std::pair<std::wstring, std::wstring>>
+		catalogOwners ;	// storage人工原INFの明示CATです
 	// 固定INF・SYS・CATの全実member hashを採取します
 	for( mz_uint index = 0U; index < mz_zip_reader_get_num_files( &archive); ++index) {
 		mz_zip_archive_file_stat stat{} ;	// 原ZIPのexact member名です
@@ -2894,11 +5716,43 @@ std::vector<driver_package_signature_detail::FixtureFile> signatureFiles( std::s
 
 		std::replace( wide.begin(), wide.end(), L'/',
 					 L'\\') ;	// 実ZIP位置を既存workspaceと同じ区切りへ保持します
+		// shared CATの関係も、同人工INFが明示する元byteから読みます
+		if( (zip.find( "Class=SCSIAdapter\r\n") != zip.npos ||
+			zip.find( "Class=MediumChanger\r\n") != zip.npos ||
+			zip.find( "Class=HDC\r\n") != zip.npos || zip.find( "Class=MTD\r\n") != zip.npos) &&
+		   wide.ends_with( L".inf")) {
+			// 同人工INFの全元byteを同期借用します
+			const std::string_view	   body{static_cast<const char *>( raw), bytes} ;
+			// 元節内の行位置/key/全fieldです
+			constexpr std::string_view directive = "\nCatalogFile=" ;
+			// 元field又は原sectionの開始位置です
+			const auto				   start = body.find( directive) ;
+			// 各人工INFが明示するCAT名だけを共有関係へ固定します
+			if( start != body.npos) {
+				// 元全byte又は文字列要素の先頭です
+				const auto	 first = start + directive.size() ;
+				// 元fieldの正式終端です
+				const auto	 last = body.find( "\r\n", first) ;
+				// 同原INFが明示するCAT名です
+				const auto	 declaredCatalog = body.substr( first, last - first) ;
+				// 同じ原CAT byteの所有位置又は名前です
+				std::wstring catalog ;
+				// 人工ASCIIの原CAT名だけをlosslessに変換します
+				for( const auto character : declaredCatalog) {
+					catalog.push_back( static_cast<wchar_t>( character)) ;
+				}
+
+				catalogOwners.emplace_back( std::move( catalog), wide) ;
+			}
+		}
 
 		const auto dot = wide.find_last_of( L'.') ;	// 各完全閉包のbasename境界です
 		const auto ownerName =
 			// EXEは同原サービスINFの固定ownerで、basenameから別INFを生成しません
-			wide == L"component_service.exe" || wide == L"extra.exe" ||
+			(zip.find( "Class=MTD\r\n") != zip.npos &&
+			 (wide == L"fixture-a.dll" || wide == L"fixture-b.dll"))
+				? std::wstring{L"fixture.inf"}
+			: wide == L"component_service.exe" || wide == L"extra.exe" ||
 					wide == L"service_bin\\component_service.exe" ||
 					wide == L"service_bin\\amd64\\component_service.exe" ||
 					wide == L"source_bin\\component_service.exe" ||
@@ -2934,6 +5788,18 @@ std::vector<driver_package_signature_detail::FixtureFile> signatureFiles( std::s
 		}
 	}
 
+	// 同CAT原byteを別ownerとして複製せず、各INFの明示した共有関係だけを保持します
+	for( const auto &[name, owner] : catalogOwners) {
+		// 元byteを同期中だけ保持する読取専用fileです
+		const auto file =
+			std::ranges::find( unique, name, &driver_package_signature_detail::FixtureFile::name) ;
+		// 同一CATの元owner以外だけを明示aliasへ追加します
+		if( file != unique.end() && file->infOwner != owner &&
+		   std::ranges::find( file->additionalInfOwners, owner) == file->additionalInfOwners.end()) {
+			file->additionalInfOwners.push_back( owner) ;
+		}
+	}
+
 	return unique ;
 }
 }
@@ -2958,6 +5824,7 @@ std::vector<driver_package_signature_detail::FixtureFile> signatureFiles( std::s
  * @param[in] noReboot この正常caseだけ再起動要求を返さない場合trueです
  * @param[in] opaqueCompatibleId 非空時はWindows側Compatible IDだけへ同じASCII literalを返します
  * @param[in] original 元公開record/原archiveの完全私有入力です。nullは既架空fixtureです
+ * @param[in] mtdScenario MTD同原copyにだけ与える低位fake条件です
  * @return 実workerと非機密call観測。Native成功fallbackはありません
  */
 //------------------------------------------------------------------------------
@@ -2968,10 +5835,61 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 	std::function<void()> observeWorkerStart, std::function<void()> beforeRestore,
 	const bool reflectOwnInstall, const SignedIndexBindingBatchFault batchFault,
 	const bool localDriverCandidates, const bool noReboot, std::wstring opaqueCompatibleId,
-	const OriginalSelectionBindingInput *original)
+	const OriginalSelectionBindingInput *original, const MtdFixtureScenario mtdScenario)
 {
 
-	auto native = std::make_shared<NativeFixtureState>() ;	// 同worker低位状態の共有所有です
+	auto native			= std::make_shared<NativeFixtureState>() ;	// 同worker低位状態の共有所有です
+	native->mtd			= zip.find( "Class=MTD\r\n") != std::string_view::npos ;
+	native->mtdScenario = mtdScenario ;
+	// MTD人工archiveから各元memberを一回固定します
+	if( native->mtd) {
+		mz_zip_archive archive{} ;
+		// 人工archiveを開けなければfixtureを中止します
+		if( !mz_zip_reader_init_mem( &archive, zip.data(), zip.size(), 0U)) {
+			throw std::runtime_error( "MTD fixture archive unavailable") ;
+		}
+
+		// 二DLL・SYS・INFを原順に人工archiveから読みます
+		for( std::size_t index = 0U; index < native->mtdDllBodies.size() + 2U; ++index) {
+			// 人工archiveから抽出したmemberのbyte数です
+			std::size_t bytes{} ;
+			// 原順の人工member名です
+			const char *name = index == 0U	 ? "fixture-a.dll"
+							   : index == 1U ? "fixture-b.dll"
+							   : index == 2U ? "fixture.sys"
+											 : "fixture.inf" ;
+			void	   *body = mz_zip_reader_extract_file_to_heap( &archive, name, &bytes, 0U) ;
+			// member欠損や予定外sizeをfixture成功にしません
+			if( !body || (index < 3U && bytes != 1024U) || bytes == 0U || bytes > 1048576U) {
+				// 抽出済みbufferだけを解放します
+				if( body) {
+					mz_free( body) ;
+				}
+
+				mz_zip_reader_end( &archive) ;
+				throw std::runtime_error( "MTD fixture member unavailable") ;
+			}
+
+			// 抽出した原member byteの保存先です
+			auto &destination = index < native->mtdDllBodies.size() ? native->mtdDllBodies[index]
+								: index == 2U						? native->mtdSysBody
+																	: native->mtdInfBody ;
+			destination.assign( static_cast<const char *>( body), bytes) ;
+			mz_free( body) ;
+		}
+
+		mz_zip_reader_end( &archive) ;
+	}
+
+	native->mediumChanger = zip.find( "Class=MediumChanger\r\n") != zip.npos ;
+	native->hdc			  = zip.find( "Class=HDC\r\n") != zip.npos ;
+	native->storage		  = native->mtd || native->mediumChanger || native->hdc ||
+					  zip.find( "Class=SCSIAdapter\r\n") != zip.npos ;
+	// storageだけ元native再起動値をTRUEにします。別FALSE caseはnoRebootへ結びます
+	if( native->storage) {
+		native->mode = 4U ;
+	}
+
 	native->opaqueCompatibleId = std::move( opaqueCompatibleId) ;
 	native->beforeRestore	   = std::move( beforeRestore) ;
 	// 固定した入力条件だけを分離し、他対象や期待へ流用しません
@@ -2998,6 +5916,39 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 	// 第一成功前は元UTC/byteを保ち、第二前だけ期限または実byteを一回変更します
 	services.utc = [native, originalUtc]() -> std::optional<std::chrono::sys_seconds> {
 		const auto now = originalUtc ? originalUtc() : std::nullopt ;	// 欠測は補完しません
+		// 最初の配置前、および元Storeを再確認した実適用直前のそれぞれで元recordを失効させます
+		if( now &&
+		   ((native->nativeCase == SignedIndexBindingNativeCase::DECLARATIVE_EXPIRED_BEFORE_STAGE &&
+			 native->declarativePreStageRootReads != 0U) ||
+			(native->nativeCase == SignedIndexBindingNativeCase::DECLARATIVE_EXPIRED_AFTER_STAGE &&
+			 native->declarativeStoreReads != 0U))) {
+			return *now + std::chrono::minutes{4} ;
+		}
+
+		// 指定した作用境界だけ同Clockを元期限後へ進めます
+		if( now && ((native->mtdScenario == MtdFixtureScenario::EXPIRED_BEFORE_STAGE &&
+					native->mtdFiles.windowsRootChecks != 0U && native->stages == 0U) ||
+				   (native->mtdScenario == MtdFixtureScenario::EXPIRED_BEFORE_FILE_DIF &&
+					native->mtdFiles.selectedSets != 0U && native->mtdFiles.filesDifs == 0U) ||
+				   (native->mtdScenario == MtdFixtureScenario::EXPIRED_BEFORE_SHARED &&
+					native->mtdFiles.queueScans >= 2U && native->mtdFiles.flushes == 0U) ||
+				   (native->mtdScenario == MtdFixtureScenario::EXPIRED_BEFORE_FIRST_RENAME &&
+					native->mtdFiles.flushes >= 1U && native->mtdFiles.successfulRenames == 0U) ||
+				   (native->mtdScenario == MtdFixtureScenario::EXPIRED_BEFORE_SECOND_RENAME &&
+					native->mtdFiles.flushes >= 2U && native->mtdFiles.successfulRenames == 1U) ||
+				   (native->mtdScenario == MtdFixtureScenario::EXPIRED_BEFORE_COMMIT &&
+					native->mtdFiles.successfulRenames >= 2U && native->mtdFiles.commits == 0U) ||
+				   (native->mtdScenario == MtdFixtureScenario::EXPIRED_AFTER_COMMIT &&
+					native->mtdFiles.commits != 0U))) {
+			return *now + std::chrono::days{3650} ;
+		}
+
+		// 元内容成功後のexpiryだけを変え、service/rank変化から分離します
+		if( now && native->changed &&
+		   native->nativeCase == SignedIndexBindingNativeCase::STORAGE_EXPIRED) {
+			return *now + std::chrono::days{3650} ;
+		}
+
 		// 実fake指定成功後だけ負例を発生させ、準備時の成功根拠は変更しません
 		if( native->reflectOwnInstall && native->appliedDeviceInstalls[0] != 0U) {
 			// 原期限を延長せず、後続の元期限切れ拒否を確認します
@@ -3061,8 +6012,14 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 		native->currentVersion = L"1.0.0.0" ;
 	}
 
+	// 版だけを理由に通常の旧版明示選択を拒否させません
+	if( nativeCase == SignedIndexBindingNativeCase::STORAGE_OLDER) {
+		native->currentVersion = L"2.0.0.0" ;
+	}
+
 	auto	   files = signatureFiles( zip) ;	// 全原memberを同じ実byte期待値へ固定します
 	const bool missingImportCatalog =
+		!native->storage &&
 		// 固定欠損CAT負例だけを完全低位期待表へ通します
 		std::ranges::any_of( files,
 							[]( const auto &file) { return file.name == L"importonly.inf" ; }) &&
@@ -3151,6 +6108,229 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 			return std::unique_ptr<driver_store_inf_detail::ScopedFixture>{} ;
 		}
 
+		// MTD fixtureだけ一意所有workspaceへWindows pathを写像します
+		if( native->mtd) {
+			// 論理Windows rootを受け取るbufferです
+			std::array<wchar_t, MAX_PATH> root{} ;
+			// Windows rootの返却文字数です
+			const auto length = ::GetWindowsDirectoryW( root.data(), static_cast<UINT>( root.size())) ;
+			// Windows rootの取得失敗や不正pathでfixtureを止めます
+			if( length < 3U || length >= root.size() || root[1] != L':' || root[2] != L'\\') {
+				return std::unique_ptr<driver_store_inf_detail::ScopedFixture>{} ;
+			}
+
+			// 同workerのMTD所有file状態です
+			auto &files	   = native->mtdFiles ;
+			files.scenario = native->mtdScenario ;
+			files.windowsRoot.assign( root.data(), length) ;
+			files.logicalVolume	 = files.windowsRoot.substr( 0U, 3U) ;
+			files.physicalVolume = native->registration.path( L"mtd-virtual") ;
+			// 所有System32の写像先を固定するmarker pathです
+			const auto markerPath = L"mtd-virtual\\" + files.windowsRoot.substr( 3U) +
+									L"\\System32\\drivers\\marker.tmp" ;
+			// 所有markerのfile handleです
+			HANDLE marker = INVALID_HANDLE_VALUE ;
+			// 所有volumeとmarkerを準備できなければfixtureを止めます
+			if( files.physicalVolume.empty() ||
+			   native->registration.createFile( markerPath, marker) != 0U) {
+				return std::unique_ptr<driver_store_inf_detail::ScopedFixture>{} ;
+			}
+
+			::CloseHandle( marker) ;
+			// 同登録INFの人工Store sourceを使う条件です
+			if( native->mtdScenario == MtdFixtureScenario::STORE_SOURCE ||
+			   native->mtdScenario == MtdFixtureScenario::STORE_PARENT_ADD_DIRECTORY) {
+				// 同原INFに結ぶ人工Store package名です
+				constexpr std::wstring_view package = L"fixture.inf_amd64_0000000000000000" ;
+				files.storeDirectory				= files.windowsRoot +
+									   L"\\System32\\DriverStore\\FileRepository\\" +
+									   std::wstring{package} ;
+				// 所有workspace内の人工Store package pathです
+				const auto prefix = L"mtd-virtual\\" + files.windowsRoot.substr( 3U) +
+									L"\\System32\\DriverStore\\FileRepository\\" +
+									std::wstring{package} + L"\\" ;
+				// 同原INF・SYS・二DLLの人工Store memberです
+				const std::array<std::pair<std::wstring_view, std::string_view>, 4U> members{
+					{{L"fixture.inf", native->mtdInfBody},
+					 {L"fixture.sys", native->mtdSysBody},
+					 {L"fixture-a.dll", native->mtdDllBodies[0]},
+					 {L"fixture-b.dll", native->mtdDllBodies[1]}}} ;
+				// 同原INFと全人工memberを所有Storeへ書きます
+				for( const auto &[name, body] : members) {
+					// 現在作る所有memberのhandleです
+					HANDLE file = INVALID_HANDLE_VALUE ;
+					// 所有memberを作れなければfixtureを成立させません
+					if( native->registration.createFile( prefix + std::wstring{name}, file) != 0U) {
+						return std::unique_ptr<driver_store_inf_detail::ScopedFixture>{} ;
+					}
+
+					// 人工memberへwriteしたbyte数です
+					DWORD	   written{} ;
+					// 人工memberの全write成否です
+					const auto ok = ::WriteFile( file, body.data(), static_cast<DWORD>( body.size()),
+												&written, nullptr) &&
+									written == body.size() ;
+					::CloseHandle( file) ;
+					// 人工Store memberの部分writeを成功にしません
+					if( !ok) {
+						return std::unique_ptr<driver_store_inf_detail::ScopedFixture>{} ;
+					}
+				}
+			}
+
+			// 人工SYSの所有pathです
+			const auto systemPath = L"mtd-virtual\\" + files.windowsRoot.substr( 3U) +
+									L"\\System32\\drivers\\fixture.sys" ;
+			// 初回device条件と旧SYS存在を分離します
+			if( native->nativeCase == SignedIndexBindingNativeCase::INITIAL) {
+				// 不在SYSを保持する外部file予約名です
+				std::wstring reserved ;
+				// 新規SYSの所有予約が失敗した場合は止めます
+				if( native->registration.prepareExternalFile( systemPath, reserved) != 0U) {
+					return std::unique_ptr<driver_store_inf_detail::ScopedFixture>{} ;
+				}
+			} else {
+				// 旧SYS fixtureの所有handleです
+				HANDLE old = INVALID_HANDLE_VALUE ;
+				// 旧SYS fixtureを作れなければ止めます
+				if( native->registration.createFile( systemPath, old) != 0U) {
+					return std::unique_ptr<driver_store_inf_detail::ScopedFixture>{} ;
+				}
+
+				// 旧SYSとして保存する識別用byteです
+				constexpr std::string_view previous = "owned previous system driver" ;
+				// 旧SYSへwriteしたbyte数です
+				DWORD					   written{} ;
+				// 旧SYSの全write成否です
+				const auto				   ok =
+					::WriteFile( old, previous.data(), static_cast<DWORD>( previous.size()), &written,
+								nullptr) &&
+					written == previous.size() ;
+				::CloseHandle( old) ;
+				// 旧SYSの部分writeを成功にしません
+				if( !ok) {
+					return std::unique_ptr<driver_store_inf_detail::ScopedFixture>{} ;
+				}
+			}
+
+			// 二DLLを各指定条件に従って用意します
+			for( std::size_t index = 0U; index < native->mtdDllBodies.size(); ++index) {
+				// 今回準備する人工DLL名です
+				const auto name = index == 0U ? L"fixture-a.dll" : L"fixture-b.dll" ;
+				// DLL targetを写像した所有相対pathです
+				const auto relative =
+					L"mtd-virtual\\" + files.windowsRoot.substr( 3U) + L"\\System32\\" + name ;
+				// 指定scenarioで同DLLを事前に作るかの判定です
+				const bool existing =
+					native->mtdScenario == MtdFixtureScenario::BOTH_EXIST ||
+					(native->mtdScenario == MtdFixtureScenario::MIXED && index == 0U) ||
+					((native->mtdScenario == MtdFixtureScenario::FOREIGN_EXISTING ||
+					  native->mtdScenario == MtdFixtureScenario::BAD_DACL ||
+					  native->mtdScenario == MtdFixtureScenario::BAD_OWNER ||
+					  native->mtdScenario == MtdFixtureScenario::EXISTING_WRITER ||
+					  native->mtdScenario == MtdFixtureScenario::REPARSE_TARGET ||
+					  native->mtdScenario == MtdFixtureScenario::HARDLINK_TARGET ||
+					  native->mtdScenario == MtdFixtureScenario::READ_FAILURE) &&
+					 index == 0U) ;
+				// 既存条件では同byteまたは指定した異byteを事前に作ります
+				if( existing) {
+					// 既存DLLの所有handleです
+					HANDLE handle = INVALID_HANDLE_VALUE ;
+					// 所有targetを作れなければfixtureを止めます
+					if( native->registration.createFile( relative, handle) != 0U) {
+						return std::unique_ptr<driver_store_inf_detail::ScopedFixture>{} ;
+					}
+
+					// 既存DLLへ書く元byteまたは異byte負例です
+					auto body = native->mtdDllBodies[index] ;
+					// 異byte既存の負例だけ原DLLの一byteを変えます
+					if( native->mtdScenario == MtdFixtureScenario::FOREIGN_EXISTING) {
+						body[0] ^= 1 ;
+					}
+
+					// 既存DLLへwriteしたbyte数です
+					DWORD	   written{} ;
+					// 既存DLLの全write成否です
+					const auto ok =
+						::WriteFile( handle, body.data(), static_cast<DWORD>( body.size()), &written,
+									nullptr) &&
+						written == body.size() ;
+					// 既存DLLの元file IDです
+					FILE_ID_INFO identity{} ;
+					// 既存DLL file IDの取得成否です
+					const bool	 hasIdentity =
+						::GetFileInformationByHandleEx( handle, FileIdInfo, &identity,
+													   sizeof( identity)) != FALSE ;
+					::CloseHandle( handle) ;
+					// 既存DLLの全writeとfile ID観測を要求します
+					if( !ok || !hasIdentity) {
+						return std::unique_ptr<driver_store_inf_detail::ScopedFixture>{} ;
+					}
+
+					files.initialTargetIds[index] = identity ;
+				} else {
+					// 不在DLLを保持する外部file予約名です
+					std::wstring reserved ;
+					// 不在targetの所有予約を作れなければ止めます
+					if( native->registration.prepareExternalFile( relative, reserved) != 0U) {
+						return std::unique_ptr<driver_store_inf_detail::ScopedFixture>{} ;
+					}
+				}
+			}
+
+			// 指定targetだけ不正DACLとして観測させます
+			if( native->mtdScenario == MtdFixtureScenario::BAD_DACL) {
+				files.badSecurityTarget = files.windowsRoot + L"\\System32\\fixture-a.dll" ;
+			}
+
+			// 既存writerの負例だけ所有writerを保持します
+			if( native->mtdScenario == MtdFixtureScenario::EXISTING_WRITER) {
+				// 競合writerが開く所有targetの相対pathです
+				const auto relative =
+					L"mtd-virtual\\" + files.windowsRoot.substr( 3U) + L"\\System32\\fixture-a.dll" ;
+				files.existingWriter =
+					::CreateFileW( native->registration.path( relative).c_str(), GENERIC_WRITE,
+								  FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+								  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr) ;
+				// 競合writerを開けなければ負例を実行しません
+				if( files.existingWriter == INVALID_HANDLE_VALUE) {
+					return std::unique_ptr<driver_store_inf_detail::ScopedFixture>{} ;
+				}
+			}
+
+			// 指定されたtemp write順で部分失敗を注入します
+			if( native->mtdScenario == MtdFixtureScenario::PARTIAL_WRITE) {
+				files.failWriteOrdinal = 1U ;
+			}
+
+			// rename直前に同byteまたは異byteの競合を用意します
+			if( native->mtdScenario == MtdFixtureScenario::RACE_DIFFERENT ||
+			   native->mtdScenario == MtdFixtureScenario::RACE_SAME) {
+				files.raceTarget = files.windowsRoot + L"\\System32\\fixture-a.dll" ;
+				files.raceBytes	 = native->mtdDllBodies[0] ;
+				// 異byte競合だけ一byteを変えます
+				if( native->mtdScenario == MtdFixtureScenario::RACE_DIFFERENT) {
+					files.raceBytes[0] ^= 1 ;
+				}
+			}
+
+			// 未知handler登録の固定負例を用意します
+			if( native->mtdScenario == MtdFixtureScenario::HANDLER_PRESENT) {
+				// 未知handlerとして返す人工文字列です
+				const std::array<wchar_t, 2U> value{L'x', L'\0'} ;
+				files.classInstaller.error = ERROR_SUCCESS ;
+				files.classInstaller.type  = DEVPROP_TYPE_STRING ;
+				files.classInstaller.bytes.resize( sizeof( value)) ;
+				std::memcpy( files.classInstaller.bytes.data(), value.data(), sizeof( value)) ;
+			}
+			// handler propertyの権限失敗を注入します
+			else if( native->mtdScenario == MtdFixtureScenario::HANDLER_DENIED) {
+				files.classInstaller.error = ERROR_ACCESS_DENIED ;
+			}
+
+			activeMtdFiles = &files ;
+		}
+
 		return driver_store_inf_detail::Access::create( calls()) ;
 	} ; // 一workerの同threadに完全な低位呼出し表を固定します
 	/** @brief 全原member hashへ結合したCAT検証scopeを開始します
@@ -3173,8 +6353,90 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 	 */
 	services.dependencyFixture = [native]() {
 		inf_dependency_native_detail::Api api ;	// 必須五APIを全て所有します
+		// 同NativeLoaderの全終了検査済みtupleだけを証拠へ借用します
+		if( native->storage) {
+			api.observedResult = [native]( const InfDependencyNativeResult &result) {
+				native->originalEffects.push_back( result) ;
+			} ;
+		}
+
+		// 登録後に元の起動順だけを変え、適用直前の再照合を検証する
+		if( (native->mediumChanger || native->hdc) &&
+		   native->nativeCase != SignedIndexBindingNativeCase::STORAGE_LOAD_ORDER_MISSING) {
+			api.storageLoadOrder = [native]( StorageLoadOrder &out) -> NativeError {
+				// 元観測の成立後、登録後の照合だけに変更した順序を返す
+				const bool moved = native->stages != 0U &&
+								   native->nativeCase ==
+									   SignedIndexBindingNativeCase::STORAGE_LOAD_ORDER_AFTER_STAGE ;
+				// IDEは対象の位置を保ったまま、先行する二グループの順序を入れ替える
+				if( native->hdc) {
+					constexpr wchar_t original[] =
+						L"Boot Bus Extender\0Boot File System\0System Bus Extender\0" ;	// 元の起動順
+					constexpr wchar_t reordered[] =
+						L"Boot File System\0Boot Bus Extender\0System Bus Extender\0" ;	// 登録後の起動順
+					return moved ? inspectStorageLoadOrder( reordered, out, true)
+								 : inspectStorageLoadOrder( original, out, true) ;
+				}
+
+				out = {5U, moved ? 9U : 8U, std::nullopt, {}} ;
+				return 0U ;
+			} ;
+		}
+
+		// exact新serviceの正式不存在だけを返し、実SCMへfallbackしません
+		api.storageService = [native]( std::wstring_view		 name,
+									  SystemServiceEvidence &out) -> NativeError {
+			out = {} ;
+			// 全graphの関連service宣言数です
+			const bool associated = name == L"FixtureStorage" && storageServicePresent() ;
+			// 現在serviceと区別する元Windows依存の分類です
+			const bool dependency = name == L"InboxFixture" || name == L"ExternalFixture" ;
+			// 正式不存在だけを返し、未設定/照会失敗とは区別します
+			if( !associated && !dependency) {
+				return HRESULT_FROM_WIN32( ERROR_SERVICE_DOES_NOT_EXIST) ;
+			}
+
+			out.name		 = name ;
+			out.type		 = SERVICE_KERNEL_DRIVER ;
+			out.start		 = associated ? SERVICE_SYSTEM_START : SERVICE_DEMAND_START ;
+			out.errorControl = SERVICE_ERROR_SEVERE ;
+			out.group =
+				associated ? (native->mediumChanger ? L"SCSI Class" : L"SCSI Miniport") : L"" ;
+			out.binary	= native->registration.path( name == L"InboxFixture"
+														? L"System32\\drivers\\dep.sys"
+														: L"System32\\drivers\\old_fixture.sys") ;
+			out.display = L"Old kernel configuration legitimately differs from new package" ;
+			// 元公開後又は必要null登録後のconfig差だけを与えます
+			if( (native->nativeCase == SignedIndexBindingNativeCase::STORAGE_SERVICE_CHANGED &&
+				native->changed) ||
+			   (native->nativeCase ==
+					SignedIndexBindingNativeCase::STORAGE_SERVICE_CHANGED_AFTER_STAGE &&
+				native->stages != 0U)) {
+				out.display += L" changed" ;
+			}
+
+			// 同原文又はSDの全byteを取得する一時所有です
+			PSECURITY_DESCRIPTOR raw{} ;
+			// 元read-only型validatorを通す人工保守主体SDをscope所有します
+			if( !ConvertStringSecurityDescriptorToSecurityDescriptorW(
+				   L"O:SYG:SYD:P(A;;GA;;;SY)(A;;GA;;;BA)", SDDL_REVISION_1, &raw, nullptr)) {
+				return HRESULT_FROM_WIN32( GetLastError()) ;
+			}
+
+			// 人工SDをscope終了で必ず解放する単独所有者です
+			const std::unique_ptr<void, decltype( &LocalFree)> security{raw, &LocalFree} ;
+			// 元全byte又は文字列要素の先頭です
+			const auto first = static_cast<const std::byte *>( security.get()) ;
+			out.security.assign( first, first + GetSecurityDescriptorLength( security.get())) ;
+			return 0U ;
+		} ;
+		// 欠落したstorage callbackから実SCMへ接続しません
+		if( native->nativeCase == SignedIndexBindingNativeCase::STORAGE_SERVICE_CALLBACK_MISSING) {
+			api.storageService = {} ;
+		}
+
 		// 同隔離Windows起点と対応Storeへ同byteで固定する人工SYSTEM INFです
-		std::string						  systemInf =
+		std::string systemInf =
 			"[Version]\r\nSignature=\"$WINDOWS NT$\"\r\nClass=System\r\n"
 			"ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}\r\n"
 			"Provider=Fixture\r\nDriverVer=01/01/2026,1.0.0.0\r\nCatalogFile=peer.cat\r\n"
@@ -3245,6 +6507,36 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 			return std::unique_ptr<inf_dependency_native_detail::ScopedFixture>{} ;
 		}
 
+		// associated vendor旧byteとWindows依存proofを別の元fileとして保持します
+		if( native->storage && (!write( L"System32\\drivers\\old_fixture.sys",
+									  "older protected synthetic kernel bytes") ||
+							   !write( L"System32\\IoLogMsg.dll", "fictional system helper"))) {
+			return std::unique_ptr<inf_dependency_native_detail::ScopedFixture>{} ;
+		}
+
+		// 実SYSTEMと同じ二段転送を、完全に人工のINBOX/Store/CATへ閉じます
+		if( native->storage) {
+			// 同OS/INFの元version文脈です
+			const std::string version =
+				"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=System\r\n"
+				"ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}\r\nProvider=Fixture Windows\r\n"
+				"DriverVer=01/01/2026,1.0.0.0\r\nCatalogFile=peer.cat\r\n" ;
+			// 同INBOX/Storeへ固定する人工pci.infの原本文です
+			const auto pci = version +
+							 "[PciIoSpaceNotRequired.HW]\r\nAddReg=NoIoSpace\r\n[NoIoSpace]\r\n"
+							 "HKR,e5b3b5ac-9725-4f78-963f-03dfb1d828c7,IoNotRequired,0x10001,1\r\n" ;
+			// 元転送又はarchitectureの独立した有限入力です
+			const auto machine =
+				version +
+				"[PciIoSpaceNotRequired.HW]\r\nInclude=pci.inf\r\nNeeds=PciIoSpaceNotRequired.HW\r\n" ;
+			// 二段転送用の全INBOX/Store人工byteを同じscopeへ閉じます
+			if( !write( L"INF\\pci.inf", pci) || !write( L"INF\\machine.inf", machine) ||
+			   !write( L"System32\\DriverStore\\FileRepository\\fixture\\pci.inf", pci) ||
+			   !write( L"System32\\DriverStore\\FileRepository\\fixture\\machine.inf", machine)) {
+				return std::unique_ptr<inf_dependency_native_detail::ScopedFixture>{} ;
+			}
+		}
+
 		// 新登録条件の二helperも同じ所有rootに非実行byteとして固定します
 		if( native->nativeCase == SignedIndexBindingNativeCase::NEEDS_SYSTEM_REGISTRATION &&
 		   (!write( L"System32\\rundll32.exe", "fictional system helper") ||
@@ -3259,15 +6551,38 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 			}) ; // 全原file期待だけです
 			// 別helper又は元hash差を人工trustで補完しません
 			if( (path != native->registration.path( L"System32\\rundll32.exe") &&
-				path != native->registration.path( L"System32\\streamci.dll")) ||
+				path != native->registration.path( L"System32\\streamci.dll") &&
+				!(native->storage &&
+				  (path == native->registration.path( L"System32\\IoLogMsg.dll") ||
+				   path == native->registration.path( L"System32\\drivers\\dep.sys")))) ||
 			   found == expected.end()) {
 				return E_INVALIDARG ;
 			}
 
-			proof.filePath	   = path ;
-			proof.fileBytes	   = std::string_view( "fictional system helper").size() ;
+			proof.filePath = path ;
+			// 同原fileの種別と全byte長を確認するWindows属性です
+			WIN32_FILE_ATTRIBUTE_DATA attributes{} ;
+			// 実fixture fileの全byte長を確認できなければtrustを生成しません
+			if( !GetFileAttributesExW( path.c_str(), GetFileExInfoStandard, &attributes)) {
+				return HRESULT_FROM_WIN32( GetLastError()) ;
+			}
+
+			proof.fileBytes = (static_cast<std::uint64_t>( attributes.nFileSizeHigh) << 32U) |
+							  attributes.nFileSizeLow ;
 			proof.fileSecurity = {std::byte{1U}} ;
-			const auto error   = computeFileSha256( path, proof.fileSha256) ;	// 元byteを再確認します
+			// 元helperのtrust拒否と登録後の原tuple差を分離します
+			if( native->nativeCase == SignedIndexBindingNativeCase::STORAGE_HELPER_REJECTED) {
+				return TRUST_E_SUBJECT_NOT_TRUSTED ;
+			}
+
+			// 必要null登録後だけ元helperの保護証拠を変えます
+			if( native->nativeCase ==
+				   SignedIndexBindingNativeCase::STORAGE_HELPER_CHANGED_AFTER_STAGE &&
+			   native->stages != 0U) {
+				proof.fileSecurity.push_back( std::byte{2U}) ;
+			}
+
+			const auto error = computeFileSha256( path, proof.fileSha256) ;	// 元byteを再確認します
 			return error != 0U ? error
 				   : proof.fileSha256 == found->second
 					   ? 0U
@@ -3283,6 +6598,31 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 		auto versions = std::make_shared<std::size_t>( 0U) ;	// 同runの開始終了を観測します
 		api.version	  = [native, versions]( OSVERSIONINFOEXW &version, SYSTEM_INFO &system) {
 			  ++native->dependencyVersionCalls ;
+			  // 新P4隔離fixtureの欠落から実host APIへfallbackしません
+			  if( native->p4ExplicitClientContext) {
+				  version.dwMajorVersion		= 10U ;
+				  version.dwMinorVersion		= 0U ;
+				  version.dwBuildNumber			= 26100U ;
+				  version.wProductType			= VER_NT_WORKSTATION ;
+				  version.wSuiteMask			= 0U ;
+				  system.wProcessorArchitecture = PROCESSOR_ARCHITECTURE_AMD64 ;
+				  return NativeError{} ;
+			  }
+
+			  // storage分母は固定したOS/architectureだけを完全tableから返します
+			  if( native->storage) {
+				  version.dwMajorVersion = 10U ;
+				  version.dwMinorVersion = 0U ;
+				  version.dwBuildNumber =
+					  native->nativeCase == SignedIndexBindingNativeCase::STORAGE_OLD_BOOT_FLAGS_OS
+						  ? 25397U
+						  : 26200U ;
+				  version.wProductType			= VER_NT_WORKSTATION ;
+				  system.wProcessorArchitecture = PROCESSOR_ARCHITECTURE_AMD64 ;
+				  ++*versions ;
+				  return static_cast<NativeError>( 0U) ;
+			  }
+
 			  // 未観測を成功文脈へ補正しません
 			  if( native->nativeCase == SignedIndexBindingNativeCase::DEPENDENCY_NOT_OBSERVED) {
 				  return static_cast<NativeError>( E_FAIL) ;
@@ -3436,6 +6776,15 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 		} ; // 全member原hashを保持します
 		api.driverStore = [native, storeRelative]( const std::wstring &path, std::wstring &store) {
 			++native->dependencyDriverStoreCalls ;
+			// exact人工INBOXの二つだけを独立Store原byteへ対応させます
+			if( native->storage && (path == native->registration.path( L"INF\\pci.inf") ||
+								   path == native->registration.path( L"INF\\machine.inf"))) {
+				store =
+					native->registration.path( L"System32\\DriverStore\\FileRepository\\fixture\\" +
+											  std::filesystem::path{path}.filename().wstring()) ;
+				return static_cast<NativeError>( 0U) ;
+			}
+
 			// 明示二SYSTEM起点だけを対応させます
 			if( path != native->registration.path( L"INF\\peer.inf") &&
 			   path != native->registration.path( L"System32\\peer.inf")) {
@@ -3912,6 +7261,7 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 	}
 
 	SignedIndexBindingWorker result ;	// 実workerと同終端後観測の所有返却です
+	result.observeStorageCalls	   = [native]() { return native->storageCalls ; } ;
 	result.observeOriginalSections = [native]() { return native->originalSections ; } ;
 	result.observeOriginalEffects  = [native]() { return native->originalEffects ; } ;
 	result.changeOriginalEvidence  = [native]() { native->originalEvidenceChanged.store( true) ; } ;
@@ -3927,6 +7277,9 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 	 */
 	const auto providerFactory = [native]() {
 		auto provider = std::make_unique<CompositeUpdateProvider>() ;	// 本物の元registryです
+		// Worker寿命内の既ownerを同threadの低位fakeだけで借用します
+		native->bindingStore =
+			&signed_index_candidate_binding_detail::Access::driverStoreFixture( *provider) ;
 		// 全test workerで実WUAへのfallbackを閉じ、設定で有効な場合も完全fakeだけを使用します
 		if( !signed_index_candidate_binding_detail::Access::setManagedFixture(
 			   *provider, std::make_shared<MixedManagedProvider>( native))) {
@@ -3939,13 +7292,18 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 	 * @return 開始・終了・原失敗を観測する復旧fixtureの所有権です
 	 */
 	const auto restoreFactory = []() { return std::make_unique<FakeRestore>() ; } ;
-	result.worker			  = provider_worker_index_detail::Access::createAcquisitionFixture(
-		providerFactory, restoreFactory, std::move( services)) ;
+	// 明示されたホスト取得判定は標準の許可用fixtureで上書きしません
+	result.worker = services.beginHostAcquisition
+						? provider_worker_index_detail::Access::create(
+							  providerFactory, restoreFactory, std::move( services))
+						: provider_worker_index_detail::Access::createAcquisitionFixture(
+							  providerFactory, restoreFactory, std::move( services)) ;
 	/** @brief 同期済みの低位counterだけをcopyし、署名scopeを参照しません
 	 * @return 同operation終端またはstop/join後だけ読む非機密観測です
 	 */
 	const auto nativeSnapshot = [native]() {
-		return SignedIndexBindingObservation{
+		// 同worker終端後に読む低位callと結果のsnapshotです
+		SignedIndexBindingObservation snapshot{
 			native->stages,
 			native->installs,
 			native->opens,
@@ -3973,7 +7331,81 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 			native->registeredExtensionError,
 			native->registeredExtensionBytesUnchanged,
 			native->currentVersion == L"1.0.0.0",
-			native->managedInstalls} ;
+			native->managedInstalls,
+			native->mtdFiles.filesDifs,
+			native->mtdFiles.commits,
+			native->mtdFiles.installDifs,
+			native->mtdFiles.queueOutsideOwned,
+			native->mtdFiles.beforeRestoreAccess,
+			native->legacyInstalls} ;
+		snapshot.declarativePreStageRootReads	 = native->declarativePreStageRootReads ;
+		snapshot.declarativeStoreReads			 = native->declarativeStoreReads ;
+		snapshot.requiredChildProofChecks		 = native->requiredChildProofChecks ;
+		snapshot.requiredChildProofRuns			 = native->requiredChildProofRuns ;
+		snapshot.requiredChildInstalls			 = native->childInstalls ;
+		snapshot.requiredChildCollisionChecks	 = native->requiredChildCollisionChecks ;
+		snapshot.requiredChildCollisionPreserved = native->requiredChildCollisionPreserved ;
+		// 所有workspaceに写像したMTD targetだけを実fileで観測します
+		if( native->mtd && !native->mtdFiles.windowsRoot.empty()) {
+			// 所有workspaceへ写像した人工System32相対pathです
+			const auto base =
+				L"mtd-virtual\\" + native->mtdFiles.windowsRoot.substr( 3U) + L"\\System32\\" ;
+			// 所有fileの全byteが期待値と一致するかを確認します
+			const auto matches = [&]( std::wstring_view relative, std::string_view expected) {
+				std::wstring actualHash, expectedHash ;
+				return computeFileSha256( native->registration.path( relative), actualHash) == 0U &&
+					   computeBytesSha256( expected, expectedHash) == 0U &&
+					   actualHash == expectedHash ;
+			} ;
+			// 二DLLの存在・原byte・元file IDを個別に確認します
+			for( std::size_t i = 0U; i < 2U; ++i) {
+				// 現在DLLの所有相対pathです
+				const auto relative = base + (i == 0U ? L"fixture-a.dll" : L"fixture-b.dll") ;
+				// 同DLLの所有実pathです
+				const auto path = native->registration.path( relative) ;
+				snapshot.mtdTargetExists[i] =
+					::GetFileAttributesW( path.c_str()) != INVALID_FILE_ATTRIBUTES ;
+				snapshot.mtdTargetMatches[i] = matches( relative, native->mtdDllBodies[i]) ;
+				// 既存targetだけについて元file IDの保持を確認します
+				if( native->mtdFiles.initialTargetIds[i]) {
+					// 既存targetの現在IDを読む所有handleです
+					const HANDLE handle = ::CreateFileW(
+						path.c_str(), FILE_READ_ATTRIBUTES,
+						FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+						OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr) ;
+					// 現在targetのfile IDです
+					FILE_ID_INFO current{} ;
+					// targetを開けた場合だけ現在IDを読みます
+					if( handle != INVALID_HANDLE_VALUE) {
+						// file IDの実読取成否です
+						const bool read =
+							::GetFileInformationByHandleEx( handle, FileIdInfo, &current,
+														   sizeof( current)) != FALSE ;
+						::CloseHandle( handle) ;
+						// preflight前に記録した元file IDです
+						const auto &old = *native->mtdFiles.initialTargetIds[i] ;
+						snapshot.mtdTargetPriorIdPreserved[i] =
+							read && current.VolumeSerialNumber == old.VolumeSerialNumber &&
+							std::memcmp( &current.FileId, &old.FileId, sizeof( current.FileId)) == 0 ;
+					}
+				}
+			}
+
+			// 異byte既存または競合のbyteを独立に再読取します
+			if( native->mtdScenario == MtdFixtureScenario::FOREIGN_EXISTING ||
+			   native->mtdScenario == MtdFixtureScenario::RACE_DIFFERENT) {
+				// 異byteが保持されたか比較する期待値です
+				auto foreign = native->mtdDllBodies[0] ;
+				foreign[0] ^= 1 ;
+				snapshot.mtdForeignPreserved = matches( base + L"fixture-a.dll", foreign) ;
+			}
+
+			snapshot.mtdSysMatches = matches( base + L"drivers\\fixture.sys", native->mtdSysBody) ;
+			snapshot.mtdSysOldMatches =
+				matches( base + L"drivers\\fixture.sys", "owned previous system driver") ;
+		}
+
+		return snapshot ;
 	} ; // 非atomic値は元終端の同期後またはstop/join後だけ読みます
 	result.observeAfterStop = nativeSnapshot ;
 	/** @brief 元終端後かつ署名scope生存中の観測へだけ署名receiptを加えます
@@ -4283,6 +7715,230 @@ void testAuthenticatedSameIdDevices( TestContext							  &context,
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 独自クラスの元署名recordから端末照合と明示した指定導入を検証します
+ * @param[in,out] context 各ケースの候補・同意・低位操作回数の集計先です
+ * @param[in] services RAM署名store・固定時計・完全HTTP fakeを持つworker入力です
+ * @param[in] zip 非実行の人工INF・CAT・SYSを含む元配布物です
+ */
+//------------------------------------------------------------------------------
+void runDeclarativeClassBindingCases( TestContext						   &context,
+									 provider_worker_index_detail::Services services,
+									 const std::string_view					zip)
+{
+	using Case = SignedIndexBindingNativeCase ;
+	using driver_store_inf_detail::Access ;
+	const auto firstFailure = context.failureCount() ;	// 本グループの開始時点です
+	auto	   transport	= calls() ;					// 既存の完全fakeにだけ独自クラス表を加えます
+	DRIVERCRATE_EXPECT( context,
+					   !transport.declarativeClass && Access::create( transport) != nullptr) ;
+	transport.declarativeClass.emplace() ;
+	DRIVERCRATE_EXPECT( context, !Access::create( transport)) ;
+	transport.declarativeClass = declarativeCalls() ;
+	DRIVERCRATE_EXPECT( context, Access::create( transport) != nullptr) ;
+	// 読取り表は全slotについて、欠落と同じ実Windows APIの混入を個別に拒否します
+	const auto rejectSlot = [&]( auto member, auto nativeApi) {
+		auto changedTable = transport ;	// 一項目だけを差し替える完全表の複写です
+		changedTable.declarativeClass->observation.*member = nullptr ;
+		DRIVERCRATE_EXPECT( context, !Access::create( changedTable)) ;
+		changedTable.declarativeClass->observation.*member = nativeApi ;
+		DRIVERCRATE_EXPECT( context, !Access::create( changedTable)) ;
+	} ;
+	rejectSlot( &SetupClassReadApi::className, &SetupDiClassNameFromGuidW) ;
+	rejectSlot( &SetupClassReadApi::classGuids, &SetupDiClassGuidsFromNameW) ;
+	rejectSlot( &SetupClassReadApi::openClassKey, &SetupDiOpenClassRegKeyExW) ;
+	rejectSlot( &SetupClassReadApi::classProperty, &SetupDiGetClassPropertyW) ;
+	rejectSlot( &SetupClassReadApi::deviceProperty, &SetupDiGetDevicePropertyW) ;
+	rejectSlot( &SetupClassReadApi::openKey, &RegOpenKeyExW) ;
+	rejectSlot( &SetupClassReadApi::readValue, &RegQueryValueExW) ;
+	rejectSlot( &SetupClassReadApi::closeKey, &RegCloseKey) ;
+	transport.declarativeClass				  = declarativeCalls() ;
+	transport.declarativeClass->storeLocation = nullptr ;
+	DRIVERCRATE_EXPECT( context, !Access::create( transport)) ;
+	transport.declarativeClass				  = declarativeCalls() ;
+	transport.declarativeClass->storeLocation = &SetupGetInfDriverStoreLocationW ;
+	DRIVERCRATE_EXPECT( context, !Access::create( transport)) ;
+
+	constexpr NativeError expired =
+		// 固定した元期限です
+		static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_TIMEOUT)) ;
+	constexpr NativeError changed =
+		// 元行またはクラスの差です
+		static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_RETRY)) ;
+	constexpr NativeError digest =
+		// 同長で別のCATまたはSYSです
+		static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+	const struct {
+		const char *name ;			// 集計で表示する人工入力です
+		Case		condition ;		// Windowsに与える端末・配置・時計の条件です
+		unsigned	candidates ;	// 元内容から発行されるべき候補数です
+		unsigned	stages ;		// fake SetupCopyOEMInfWの呼出し数です
+		unsigned	installs ;		// 非nullの指定nodeでのDiInstallDevice呼出し数です
+		NativeError error ;			// 実行結果に残すべき元診断です
+	} cases[]{
+		{"first-registration", Case::DECLARATIVE_INITIAL, 1U, 1U, 1U, 0U},
+		{"already-registered", Case::DECLARATIVE_REGISTERED, 1U, 1U, 1U, 0U},
+		{"null-service", Case::DECLARATIVE_NULL_ROW, 0U, 0U, 0U, 0U},
+		{"expired-before-stage", Case::DECLARATIVE_EXPIRED_BEFORE_STAGE, 1U, 0U, 0U, expired},
+		{"expired-before-apply", Case::DECLARATIVE_EXPIRED_AFTER_STAGE, 1U, 1U, 0U, expired},
+		{"registration-changed", Case::DECLARATIVE_CLASS_AFTER_STAGE, 1U, 1U, 0U, changed},
+		{"staged-row-reordered", Case::DECLARATIVE_ROW_AFTER_STAGE, 1U, 1U, 0U, changed},
+		{"same-inf-other-cat", Case::DECLARATIVE_OTHER_CATALOG, 1U, 1U, 0U, digest},
+		{"same-inf-other-sys", Case::DECLARATIVE_OTHER_DRIVER, 1U, 1U, 0U, digest},
+	} ;
+	static_assert( std::size( cases) == DECLARATIVE_BINDING_CASE_COUNT) ;
+	// 独立workerを使い、前のケースの登録状態や同意を次に引き継ぎません
+	for( const auto &example : cases) {
+		auto bound = makeSignedIndexBindingWorker(
+			services, zip, false, false, false, example.condition) ;	// 元storeとWindows低位fakeです
+		OperationController controller ;								// 本体と同じ操作ID・選択・明示同意の所有者です
+		ScanOptions			options ;									// Driver Storeと署名済み索引だけを有効にします
+		options.useDefaultProviders = false ;
+		options.enabledProviderIds	= {std::wstring{DRIVER_STORE_PROVIDER_ID},
+									   std::wstring{SIGNED_INDEX_PROVIDER_ID}} ;
+		const auto scan				= controller.beginScan() ;	// このケースの元検索です
+		DRIVERCRATE_EXPECT( context,
+						   scan.accepted && bound.worker->requestScan( scan.operationId, options)) ;
+		auto scanned = waitEvent( *bound.worker, WorkerEventKind::SCAN_COMPLETED,
+								 scan.operationId) ;	// 検索終端です
+		DRIVERCRATE_EXPECT( context, scanned && scanned->preparationPlan &&
+										scanned->preparationPlan->targets.size() == 1U) ;
+		// 取得計画の欠損を空サービスの正常な候補なしと数えません
+		if( !scanned || !scanned->preparationPlan ||
+		   scanned->preparationPlan->targets.size() != 1U) {
+			std::cout << "DECLARATIVE_BINDING case=" << example.name << " no request plan\n" ;
+			bound.worker->stop() ;
+			continue ;
+		}
+
+		const auto &plan = *scanned->preparationPlan ;	// 元一件の取得計画です
+		DRIVERCRATE_EXPECT( context,
+						   controller.completeScan( scan.operationId, scanned->scanResult) &&
+							   controller.setPreparationPlan( scan.operationId, plan)) ;
+		OfficialPreparationApproval approval{
+			0U, plan.scanSessionId, plan.planId, plan.limits, {}} ;	// 取得の同意です
+		approval.decisions.push_back( {plan.targets.front(), true, false, false, false}) ;
+		const auto request = controller.beginPreparation( approval) ;	// 本体が割り当てる取得操作です
+		DRIVERCRATE_EXPECT( context, request.accepted && bound.worker->requestPreparation( approval)) ;
+		auto prepared = waitEvent( *bound.worker, WorkerEventKind::PREPARATION_COMPLETED,
+								  approval.operationId) ;	// 内容・適合監査の終端です
+		DRIVERCRATE_EXPECT( context, prepared && prepared->indexPreparation.items.size() == 1U &&
+										prepared->preparationResult.auditReports.size() == 1U) ;
+		// 内容監査へ到達していない失敗を通常拒否の証拠にしません
+		if( !prepared || prepared->indexPreparation.items.size() != 1U ||
+		   prepared->preparationResult.auditReports.size() != 1U) {
+			std::cout << "DECLARATIVE_BINDING case=" << example.name << " missing content report\n" ;
+			bound.worker->stop() ;
+			continue ;
+		}
+
+		const auto &item =
+			// 同じ元参照の取得と検査結果です
+			prepared->indexPreparation.items.front() ;
+		const auto &report = prepared->preparationResult.auditReports.front() ;	// 同scanの元候補です
+		const auto &candidates = report.publishedCandidates ;					// 実際に発行した候補だけを確認します
+		const auto	beforeConsent = bound.observe() ;							// stage・復元・指定導入の開始前です
+		std::cout << "DECLARATIVE_BINDING case=" << example.name
+				  << " acquisition=" << item.acquisitionError << " content=" << item.contentError
+				  << " acceptedINF=" << item.acceptedInfCount
+				  << " examined=" << report.examinedPairCount
+				  << " applicable=" << report.applicablePairCount
+				  << " failedPairs=" << report.failedPairCount
+				  << " pairError=" << report.firstPairError
+				  << " publicationError=" << report.publication.firstError
+				  << " candidates=" << candidates.size() << '\n' ;
+		DRIVERCRATE_EXPECT( context,
+						   item.acquisitionError == 0U && item.contentError == 0U &&
+							   item.acceptedInfCount == 1U && report.examinedPairCount == 1U &&
+							   report.failedPairCount == 0U && report.firstPairError == 0U &&
+							   report.applicablePairCount == example.candidates &&
+							   candidates.size() == example.candidates) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			beforeConsent.signature.setupCalls > 0U && beforeConsent.signature.verifyCalls > 0U &&
+				beforeConsent.signature.rejectedCalls == 0U && beforeConsent.stages == 0U &&
+				beforeConsent.installs == 0U && beforeConsent.restoreBegins == 0U &&
+				beforeConsent.declarativePreStageRootReads == 0U) ;
+		DRIVERCRATE_EXPECT( context, controller.completePreparation( prepared->preparationResult,
+																   scanned->scanResult.candidates)) ;
+		// 空サービス行は取得と内容合格後も選択できる指定導入候補を発行しません
+		if( example.candidates == 0U || candidates.size() != 1U) {
+			bound.worker->stop() ;
+			DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
+			continue ;
+		}
+
+		const auto &candidate = candidates.front() ;	// 完全な所有経路で発行した一件です
+		DRIVERCRATE_EXPECT( context, candidate.assessment &&
+										isCandidateAssessmentReady( *candidate.assessment)) ;
+		const auto &registration =
+			candidate.setupClassRegistration ;	// 最終同意画面へ渡す初回登録の表示です
+		// 既登録クラスには新規登録の表示を発行せず、初回登録では元INFの全値を読みます
+		if( example.condition == Case::DECLARATIVE_REGISTERED) {
+			DRIVERCRATE_EXPECT( context, !registration) ;
+		} else {
+			DRIVERCRATE_EXPECT(
+				context, registration && registration->className == L"DCFixtureBridge" &&
+							 registration->classGuid == L"{c054bd69-a76e-4caa-a915-e3ce9a285b62}" &&
+							 registration->displayName == L"Fixture bridge devices" &&
+							 registration->builtInIcon == -10) ;
+		}
+
+		const std::array selected{candidate.identity} ;	// 元の一端末・一行だけを明示します
+		const auto		 refused = controller.beginInstall(
+			  plan.scanSessionId, selected, InstallConfirmation::NOT_CONFIRMED) ;	// 取消しの元結果です
+		DRIVERCRATE_EXPECT( context, !refused.accepted &&
+										refused.error == BeginError::CONFIRMATION_REQUIRED &&
+										bound.observe().restoreBegins == 0U) ;
+		const auto installRequest =
+			controller.beginInstall( plan.scanSessionId, selected,
+									InstallConfirmation::CONFIRMED) ;	// 同じ選択への明示同意です
+		DRIVERCRATE_EXPECT( context,
+						   installRequest.accepted &&
+							   bound.worker->requestInstall(
+								   installRequest.operationId, plan.scanSessionId, selected,
+								   nullptr, InstallProtectionMode::WINDOWS_RESTORE_POINT)) ;
+		auto	   installed = waitEvent( *bound.worker, WorkerEventKind::INSTALL_COMPLETED,
+										 installRequest.operationId) ;	// fake復元と実workerの終端です
+		const auto after	 = bound.observe() ;						// Windows ABIの実呼出し数です
+		DRIVERCRATE_EXPECT( context, installed && installed->installResult.updates.size() == 1U) ;
+		// 個別の元診断を集約だけの成功または保留へ読み替えません
+		if( installed && installed->installResult.updates.size() == 1U) {
+			const auto &update =
+				// 指定した候補一件の結果です
+				installed->installResult.updates.front() ;
+			std::cout << "DECLARATIVE_INSTALL case=" << example.name
+					  << " error=" << update.installError << " restore=" << after.restoreBegins
+					  << "/" << after.restoreCompletes
+					  << " preStageRoot=" << after.declarativePreStageRootReads
+					  << " storeLookup=" << after.declarativeStoreReads << " stage=" << after.stages
+					  << " apply=" << after.installs << '\n' ;
+			DRIVERCRATE_EXPECT( context,
+							   update.identity == candidate.identity &&
+								   update.installError == example.error &&
+								   update.installOutcome == (example.error ? OutcomeCode::FAILURE
+																		   : OutcomeCode::SUCCESS)) ;
+			DRIVERCRATE_EXPECT( context, controller.completeInstall( installRequest.operationId,
+																   installed->installResult)) ;
+		}
+
+		DRIVERCRATE_EXPECT( context,
+						   after.stages == example.stages && after.installs == example.installs &&
+							   after.deviceInstalls[0] == example.installs &&
+							   after.deviceInstalls[1] == 0U && after.specifiedBindingMatches &&
+							   after.restoreBegins == 1U && after.restoreCompletes == 1U) ;
+		DRIVERCRATE_EXPECT( context,
+						   after.declarativePreStageRootReads == (example.stages == 0U ? 1U : 2U) &&
+							   after.declarativeStoreReads >= example.stages) ;
+		bound.worker->stop() ;
+		DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
+	}
+
+	std::cout << "Declarative class binding cases=" << std::size( cases)
+			  << " failures=" << context.failureCount() - firstFailure << '\n' ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 元tuple内の唯一最小rankと全列挙・指定直前の変化を通常workerで確認します
  * @param[in,out] context 原assertionと失敗を保持する集計先です
  * @param[in] services 真署名隔離store、完全fake HTTP、固定UTCの所有callbackです
@@ -4474,6 +8130,139 @@ void testUniqueWindowsRankBinding( TestContext							&context,
 			  << ", real OS changes=0\n" ;
 }
 
+/** @brief 選択端末の上位フィルターの二段階読取りを模擬する元データです */
+struct WifiBusFilterReadCase {
+	/// 終端を含む原UTF-16データです
+	std::span<const wchar_t> value ;
+	/// 最初の容量照会の診断です
+	DWORD					 firstError{ERROR_INSUFFICIENT_BUFFER} ;
+	/// 本データ取得の診断です
+	DWORD					 secondError{ERROR_SUCCESS} ;
+	/// 容量照会が返す元型です
+	DEVPROPTYPE				 firstType{DEVPROP_TYPE_STRING_LIST} ;
+	/// 本データ取得が返す元型です
+	DEVPROPTYPE				 secondType{DEVPROP_TYPE_STRING_LIST} ;
+	/// 検査で期待する最終エラーです
+	DWORD					 expectedError{ERROR_SUCCESS} ;
+	/// 検査が返す元観測状態です
+	MtdHandlerState			 expectedState{MtdHandlerState::PRESENT} ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択した一端末の上位フィルターだけを架空の二段階観測へ結びます
+ * @param[in] set 元観測を保持する同期中の架空handleです
+ * @param[in] device 同じ固定devnodeです
+ * @param[in] key 上位フィルターの固定keyです
+ * @param[out] type 当該呼び出しの型です
+ * @param[out] buffer 容量照会ではnull、本取得では元バイトの出力です
+ * @param[in] capacity 出力容量のバイト数です
+ * @param[out] required 呼び出しが返す元容量です
+ * @param[in] flags 予約値0です
+ * @return 元結果成功でTRUE、容量照会と元失敗では診断を設定してFALSEです
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI wifiBusFilterFixtureProperty( HDEVINFO set, PSP_DEVINFO_DATA device,
+										 const DEVPROPKEY *key, DEVPROPTYPE *type, PBYTE buffer,
+										 DWORD capacity, PDWORD required, DWORD flags)
+{
+	// 別端末・別キーの読取りは元値を返さず失敗させます
+	if( !set || !device || device->DevInst != 42U || !key ||
+	   !sameKey( *key, DEVPKEY_Device_UpperFilters) || !type || !required || flags != 0U) {
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	const auto &fixture = *static_cast<const WifiBusFilterReadCase *>( set) ;	// 同期間だけ借用します
+	*required			= static_cast<DWORD>( fixture.value.size_bytes()) ;
+	// 最初の照会は元型と容量だけを観測します
+	if( !buffer) {
+		*type = fixture.firstType ;
+		SetLastError( fixture.firstError) ;
+		return FALSE ;
+	}
+
+	// 正しい容量でも二回目が独立に失敗し得ることを確認します
+	if( capacity != *required || fixture.secondError != ERROR_SUCCESS) {
+		SetLastError( capacity != *required ? ERROR_INSUFFICIENT_BUFFER : fixture.secondError) ;
+		return FALSE ;
+	}
+
+	*type = fixture.secondType ;
+	std::memcpy( buffer, fixture.value.data(), capacity) ;
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 上位フィルターの置換に必要な選択端末の読取りを正負対照で確認します
+ * @param[in,out] context 同processの有限な検査集計です
+ * @note 端末の列挙、フィルター変更や導入APIは呼びません
+ */
+//------------------------------------------------------------------------------
+void testWifiBusUpperFilters( TestContext &context)
+{
+	constexpr wchar_t	  EMPTY[]	   = L"" ;						// 単一終端で返る元の空値です
+	constexpr wchar_t	  EMPTY_PAIR[] = L"\0" ;					// 二重終端で返る元の空値です
+	constexpr wchar_t	  SINGLE[]	   = L"VWifiBus\0" ;			// 大小文字の異なる同じサービスです
+	constexpr wchar_t	  OTHER[]	   = L"fixture1\0" ;			// 同じ長さでも別のフィルターです
+	constexpr wchar_t	  MULTIPLE[]   = L"vwifibus\0fixture1\0" ;	// 置換で失われる別要素があります
+	constexpr wchar_t	  DUPLICATE[]  = L"vwifibus\0vwifibus\0" ;	// 単一に縮約できない元値です
+	constexpr wchar_t	  NO_TERMINATOR[] = L"vwifibus" ;			// 二重終端を欠いています
+	WifiBusFilterReadCase cases[]{
+		{{},
+		 ERROR_NOT_FOUND,
+		 ERROR_SUCCESS,
+		 DEVPROP_TYPE_EMPTY,
+		 DEVPROP_TYPE_EMPTY,
+		 ERROR_SUCCESS,
+		 MtdHandlerState::ABSENT},
+		{EMPTY, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, DEVPROP_TYPE_STRING_LIST,
+		 DEVPROP_TYPE_STRING_LIST, ERROR_SUCCESS, MtdHandlerState::EMPTY_LIST},
+		{EMPTY_PAIR, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, DEVPROP_TYPE_STRING_LIST,
+		 DEVPROP_TYPE_STRING_LIST, ERROR_SUCCESS, MtdHandlerState::EMPTY_LIST},
+		{SINGLE},
+		{OTHER, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, DEVPROP_TYPE_STRING_LIST,
+		 DEVPROP_TYPE_STRING_LIST, ERROR_NOT_SUPPORTED},
+		{MULTIPLE, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, DEVPROP_TYPE_STRING_LIST,
+		 DEVPROP_TYPE_STRING_LIST, ERROR_NOT_SUPPORTED},
+		{DUPLICATE, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, DEVPROP_TYPE_STRING_LIST,
+		 DEVPROP_TYPE_STRING_LIST, ERROR_NOT_SUPPORTED},
+		{NO_TERMINATOR, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, DEVPROP_TYPE_STRING_LIST,
+		 DEVPROP_TYPE_STRING_LIST, ERROR_INVALID_DATA},
+		{SINGLE, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, DEVPROP_TYPE_STRING_LIST,
+		 DEVPROP_TYPE_STRING, ERROR_INVALID_DATA},
+		{SINGLE, ERROR_INSUFFICIENT_BUFFER, ERROR_NOT_FOUND, DEVPROP_TYPE_STRING_LIST,
+		 DEVPROP_TYPE_STRING_LIST, ERROR_RETRY},
+		{{},
+		 ERROR_ACCESS_DENIED,
+		 ERROR_SUCCESS,
+		 DEVPROP_TYPE_EMPTY,
+		 DEVPROP_TYPE_EMPTY,
+		 ERROR_ACCESS_DENIED},
+	} ; // 同端末について確認する元観測と期待値です
+	SP_DEVINFO_DATA device{} ;	// 架空の選択端末です
+	device.cbSize  = sizeof( device) ;
+	device.DevInst = 42U ;
+	// 不在、空、単一、大きさや型の違いと読取り失敗を独立に照合します
+	for( auto &fixture : cases) {
+		MtdHandlerProperty observed ;	// 検査後の原値です
+		// 架空APIで返した型と元状態を実readerが採用した結果です
+		const auto		   error =
+			observeWifiBusUpperFilters( &fixture, device, wifiBusFilterFixtureProperty, observed) ;
+		DRIVERCRATE_EXPECT( context, error == HRESULT_FROM_WIN32( fixture.expectedError)) ;
+		// 成功した値は型と全byteが元のままであることも検査します
+		if( error == 0U) {
+			DRIVERCRATE_EXPECT( context, observed.state == fixture.expectedState) ;
+			DRIVERCRATE_EXPECT( context, observed.type == fixture.secondType) ;
+			DRIVERCRATE_EXPECT( context,
+							   std::ranges::equal( observed.bytes, std::as_bytes( fixture.value))) ;
+		} else {
+			DRIVERCRATE_EXPECT( context, observed.bytes.empty()) ;
+		}
+	}
+}
+
 //------------------------------------------------------------------------------
 /**
  * @brief 真署名reload・実HTTP fake・正常ZIPを通常本体へ接続します
@@ -4489,6 +8278,7 @@ void runSignedIndexCandidateBindingTests( TestContext						   &context,
 {
 	// 通常一recordのPorts fixtureだけで新private個別観測の三条件を一回確認します
 	if( !network) {
+		testWifiBusUpperFilters( context) ;
 		testAuthenticatedSameIdDevices( context, services, zip) ;
 		testUniqueWindowsRankBinding( context, services, zip) ;
 	}
@@ -5321,11 +9111,1531 @@ void runNativeIntelArchiveBindingCase( TestContext							&context,
 }
 //------------------------------------------------------------------------------
 /**
+ * @brief 同じ有効storage原byteから用途/collector内容だけの権限生成を拒否します
+ * @param[in,out] context 有限assertion集計です
+ * @param[in] zip 元正常caseの人工archive全byteです
+ * @note 完全fakeを使用し、Driver Store登録/実導入/実復旧を呼びません
+ */
+//------------------------------------------------------------------------------
+void runStorageAuthorizationBoundaryTests( TestContext &context, std::string_view zip)
+{
+	static_assert( !std::is_default_constructible_v<StorageInfQualification>) ;
+	static_assert( !std::is_constructible_v<StorageInfQualification, SelectedStorageServiceFacts>) ;
+	static_assert( !std::is_convertible_v<CollectorInfContentInspection, CommonInfInspection>) ;
+	auto native		= std::make_shared<NativeFixtureState>() ;	// このthreadだけの完全隔離Windowsです
+	native->storage = true ;
+	activeNative	= native.get() ;
+	DRIVERCRATE_EXPECT( context, initializeRegistration( *native)) ;
+	const auto table = calls() ;	// 欠損をnative補完しない低位表です
+	// 完全表の一callbackだけを欠損させる独立負例です
+	auto	   missing			  = table ;
+	missing.serviceDeviceListSize = nullptr ;
+	DRIVERCRATE_EXPECT( context, !driver_store_inf_detail::Access::create( missing)) ;
+	missing					  = table ;
+	missing.serviceDeviceList = nullptr ;
+	DRIVERCRATE_EXPECT( context, !driver_store_inf_detail::Access::create( missing)) ;
+	// MTD専用slotの部分表と実native混在は旧fakeへ補完しません
+	missing					= table ;
+	missing.mtd.setSelected = incompleteMtdSelected ;
+	DRIVERCRATE_EXPECT( context, !driver_store_inf_detail::Access::create( missing)) ;
+	missing.mtd.setSelected = SetupDiSetSelectedDriverW ;
+	DRIVERCRATE_EXPECT( context, !driver_store_inf_detail::Access::create( missing)) ;
+	// 未呼出しslotで全表の受理と各slot欠損を独立に検査します
+	auto complete = table ;
+	complete.mtd  = {.setSelected	= &UncalledMtdSlot<decltype( complete.mtd.setSelected)>::invoke,
+					 .getSelected	= &UncalledMtdSlot<decltype( complete.mtd.getSelected)>::invoke,
+					 .callInstaller = &UncalledMtdSlot<decltype( complete.mtd.callInstaller)>::invoke,
+					 .openQueue		= &UncalledMtdSlot<decltype( complete.mtd.openQueue)>::invoke,
+					 .queueCount	= &UncalledMtdSlot<decltype( complete.mtd.queueCount)>::invoke,
+					 .scanQueue		= &UncalledMtdSlot<decltype( complete.mtd.scanQueue)>::invoke,
+					 .queueSection	= &UncalledMtdSlot<decltype( complete.mtd.queueSection)>::invoke,
+					 .commitQueue	= &UncalledMtdSlot<decltype( complete.mtd.commitQueue)>::invoke,
+					 .closeQueue	= &UncalledMtdSlot<decltype( complete.mtd.closeQueue)>::invoke,
+					 .openInf		= &UncalledMtdSlot<decltype( complete.mtd.openInf)>::invoke,
+					 .closeInf		= &UncalledMtdSlot<decltype( complete.mtd.closeInf)>::invoke,
+					 .storeLocation = &UncalledMtdSlot<decltype( complete.mtd.storeLocation)>::invoke,
+					 .windowsDirectory =
+						 &UncalledMtdSlot<decltype( complete.mtd.windowsDirectory)>::invoke,
+					 .openClassKey	= &UncalledMtdSlot<decltype( complete.mtd.openClassKey)>::invoke,
+					 .openDeviceKey = &UncalledMtdSlot<decltype( complete.mtd.openDeviceKey)>::invoke,
+					 .classProperty = &UncalledMtdSlot<decltype( complete.mtd.classProperty)>::invoke,
+					 .queryRegistry = &UncalledMtdSlot<decltype( complete.mtd.queryRegistry)>::invoke,
+					 .closeRegistry = &UncalledMtdSlot<decltype( complete.mtd.closeRegistry)>::invoke,
+					 .createFile	= &UncalledMtdSlot<decltype( complete.mtd.createFile)>::invoke,
+					 .fileInfo		= &UncalledMtdSlot<decltype( complete.mtd.fileInfo)>::invoke,
+					 .fileInfoEx	= &UncalledMtdSlot<decltype( complete.mtd.fileInfoEx)>::invoke,
+					 .finalPath		= &UncalledMtdSlot<decltype( complete.mtd.finalPath)>::invoke,
+					 .freeSpace		= &UncalledMtdSlot<decltype( complete.mtd.freeSpace)>::invoke,
+					 .securityInfo	= &UncalledMtdSlot<decltype( complete.mtd.securityInfo)>::invoke,
+					 .localFree		= &UncalledMtdSlot<decltype( complete.mtd.localFree)>::invoke,
+					 .readFile		= &UncalledMtdSlot<decltype( complete.mtd.readFile)>::invoke,
+					 .writeFile		= &UncalledMtdSlot<decltype( complete.mtd.writeFile)>::invoke,
+					 .flushFile		= &UncalledMtdSlot<decltype( complete.mtd.flushFile)>::invoke,
+					 .setFileInfo	= &UncalledMtdSlot<decltype( complete.mtd.setFileInfo)>::invoke,
+					 .closeHandle	= &UncalledMtdSlot<decltype( complete.mtd.closeHandle)>::invoke} ;
+	// 全slotを備えた低位fake表のscopeです
+	auto completeScope = driver_store_inf_detail::Access::create( complete) ;
+	DRIVERCRATE_EXPECT( context, completeScope != nullptr) ;
+	completeScope.reset() ;
+	// 一slot欠損を作りnative混入拒否を確認する関数です
+	const auto rejectMissing = [&]( auto member) {
+		// 欠損を注入するfake表の複写です
+		auto broken		   = complete ;
+		broken.mtd.*member = nullptr ;
+		DRIVERCRATE_EXPECT( context, !driver_store_inf_detail::Access::create( broken)) ;
+	} ;
+	using Mtd = driver_store_inf_detail::MtdTransport ;
+	rejectMissing( &Mtd::setSelected) ;
+	rejectMissing( &Mtd::getSelected) ;
+	rejectMissing( &Mtd::callInstaller) ;
+	rejectMissing( &Mtd::openQueue) ;
+	rejectMissing( &Mtd::queueCount) ;
+	rejectMissing( &Mtd::scanQueue) ;
+	rejectMissing( &Mtd::queueSection) ;
+	rejectMissing( &Mtd::commitQueue) ;
+	rejectMissing( &Mtd::closeQueue) ;
+	rejectMissing( &Mtd::openInf) ;
+	rejectMissing( &Mtd::closeInf) ;
+	rejectMissing( &Mtd::storeLocation) ;
+	rejectMissing( &Mtd::windowsDirectory) ;
+	rejectMissing( &Mtd::openClassKey) ;
+	rejectMissing( &Mtd::openDeviceKey) ;
+	rejectMissing( &Mtd::classProperty) ;
+	rejectMissing( &Mtd::queryRegistry) ;
+	rejectMissing( &Mtd::closeRegistry) ;
+	rejectMissing( &Mtd::createFile) ;
+	rejectMissing( &Mtd::fileInfo) ;
+	rejectMissing( &Mtd::fileInfoEx) ;
+	rejectMissing( &Mtd::finalPath) ;
+	rejectMissing( &Mtd::freeSpace) ;
+	rejectMissing( &Mtd::securityInfo) ;
+	rejectMissing( &Mtd::localFree) ;
+	rejectMissing( &Mtd::readFile) ;
+	rejectMissing( &Mtd::writeFile) ;
+	rejectMissing( &Mtd::flushFile) ;
+	rejectMissing( &Mtd::setFileInfo) ;
+	rejectMissing( &Mtd::closeHandle) ;
+	complete.mtd.setSelected = SetupDiSetSelectedDriverW ;
+	DRIVERCRATE_EXPECT( context, !driver_store_inf_detail::Access::create( complete)) ;
+	// 実fileは一意に新規作成したfixture rootだけへ限定します
+	complete.mtd.setSelected	  = &UncalledMtdSlot<decltype( complete.mtd.setSelected)>::invoke ;
+	complete.mtd.classProperty	  = mtdFixtureClassProperty ;
+	complete.mtd.windowsDirectory = windowsDirectory ;
+	complete.mtd.openQueue		  = mtdFixtureOpenQueue ;
+	complete.mtd.queueCount		  = mtdFixtureQueueCount ;
+	complete.mtd.scanQueue		  = mtdFixtureScanQueue ;
+	complete.mtd.queueSection	  = mtdFixtureQueueSection ;
+	complete.mtd.commitQueue	  = mtdFixtureCommitQueue ;
+	complete.mtd.closeQueue		  = mtdFixtureCloseQueue ;
+	complete.mtd.openInf		  = mtdFixtureOpenInf ;
+	complete.mtd.closeInf		  = mtdFixtureCloseInf ;
+	complete.mtd.createFile		  = mtdFixtureCreate ;
+	complete.mtd.fileInfo		  = mtdFixtureInfo ;
+	complete.mtd.fileInfoEx		  = mtdFixtureInfoEx ;
+	complete.mtd.finalPath		  = mtdFixtureFinalPath ;
+	complete.mtd.freeSpace		  = mtdFixtureFreeSpace ;
+	complete.mtd.securityInfo	  = mtdFixtureSecurity ;
+	complete.mtd.localFree		  = mtdFixtureFree ;
+	complete.mtd.readFile		  = mtdFixtureRead ;
+	complete.mtd.writeFile		  = mtdFixtureWrite ;
+	complete.mtd.flushFile		  = mtdFixtureFlush ;
+	complete.mtd.setFileInfo	  = mtdFixtureSetInfo ;
+	complete.mtd.closeHandle	  = mtdFixtureClose ;
+	// 原DLLを置く一意所有source workspaceです
+	OfficialDownloadWorkspace mtdSource ;
+	DRIVERCRATE_EXPECT( context, mtdSource.initialize( L"mtd-io-fixture", 853U) == 0U) ;
+	// 独立に固定する二DLL名と元byteです
+	const std::array<std::pair<std::wstring, std::string>, 2U> originals{
+		std::pair{std::wstring{L"fixture-a.dll"}, std::string{"synthetic file A"}},
+		std::pair{std::wstring{L"fixture-b.dll"}, std::string{"synthetic file B"}}} ;
+	// 所有workspace内だけに全byteを書く関数です
+	const auto writeOwned = [&]( OfficialDownloadWorkspace &area, std::wstring_view name,
+								std::string_view bytes) {
+		// 新規所有fileのhandleです
+		HANDLE file = INVALID_HANDLE_VALUE ;
+		// 所有file作成に失敗すれば元byteを作ったことにしません
+		if( area.createFile( name, file) != 0U) {
+			return false ;
+		}
+
+		// 所有fileへwriteしたbyte数です
+		DWORD	   count{} ;
+		// 所有fileの全write成否です
+		const bool ok = ::WriteFile( file, bytes.data(), static_cast<DWORD>( bytes.size()), &count,
+									nullptr) != FALSE &&
+						count == bytes.size() ;
+		::CloseHandle( file) ;
+		return ok ;
+	} ;
+	// 原二DLLを独立した所有sourceに準備します
+	for( const auto &[name, body] : originals) {
+		DRIVERCRATE_EXPECT( context, writeOwned( mtdSource, name, body)) ;
+	}
+
+	DRIVERCRATE_EXPECT( context, writeOwned( mtdSource, L"fixture.sys", "synthetic SYS")) ;
+	DRIVERCRATE_EXPECT( context, writeOwned( mtdSource, L"fixture.inf", "synthetic original INF")) ;
+	// 人工SYSの原SHA-256です
+	std::wstring systemHash ;
+	DRIVERCRATE_EXPECT( context,
+					   computeFileSha256( mtdSource.path( L"fixture.sys"), systemHash) == 0U) ;
+	DRIVERCRATE_EXPECT( context,
+					   writeOwned( native->registration, L"System32\\mtd-marker.tmp", "owned")) ;
+	// 同内部試験の所有file fakeです
+	MtdFileFixture mtdFiles ;
+	mtdFiles.windowsRoot = native->windowsRoot ;
+	// 原DLLの所有source pathです
+	const auto sourcePath = mtdSource.path( originals.front().first) ;
+	mtdFiles.sourceRoot	  = sourcePath.substr( 0U, sourcePath.find_last_of( L'\\')) ;
+	activeMtdFiles		  = &mtdFiles ;
+	// handler propertyを照会する人工deviceです
+	SP_DEVINFO_DATA handlerDevice{} ;
+	handlerDevice.cbSize	= sizeof( handlerDevice) ;
+	handlerDevice.ClassGuid = MTD_CLASS ;
+	handlerDevice.DevInst	= 1U ;
+	{
+		// MTD slotなしの既fake表scopeです
+		auto				  emptyScope = driver_store_inf_detail::Access::create( table) ;
+		// 欠損slotを照会したhandler結果です
+		MtdHandlerObservation observation ;
+		DRIVERCRATE_EXPECT(
+			context, emptyScope &&
+						 inspectMtdHandlers( reinterpret_cast<HDEVINFO>( 0x100U), handlerDevice,
+											observation) ==
+							 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_PARAMETER))) ;
+	}
+	// 全MTD slotを備えたfile fake scopeです
+	auto fileScope = driver_store_inf_detail::Access::create( complete) ;
+	DRIVERCRATE_EXPECT( context, fileScope != nullptr) ;
+	// 型と原byteを持つ人工handler propertyを作ります
+	const auto handlerValue = []( DEVPROPTYPE type, const std::vector<wchar_t> &value) {
+		// 返却する人工handler propertyです
+		MtdFixtureProperty result ;
+		result.error = ERROR_SUCCESS ;
+		result.type	 = type ;
+		result.bytes.resize( value.size() * sizeof( wchar_t)) ;
+		std::memcpy( result.bytes.data(), value.data(), result.bytes.size()) ;
+		return result ;
+	} ;
+	// handler propertyの不在・空・登録・不正・権限失敗を別条件で確認します
+	for( unsigned scenario = 0U; scenario < 10U && fileScope; ++scenario) {
+		mtdFiles.classInstaller		= {} ;
+		mtdFiles.classCoInstallers	= {} ;
+		mtdFiles.deviceCoInstallers = {} ;
+		// 正規空listのclassとdevice co-installerを作ります
+		if( scenario == 1U) {
+			mtdFiles.classCoInstallers	= handlerValue( DEVPROP_TYPE_STRING_LIST, {L'\0', L'\0'}) ;
+			mtdFiles.deviceCoInstallers = handlerValue( DEVPROP_TYPE_STRING_LIST, {L'\0', L'\0'}) ;
+		}
+		// 非空class installerの登録を注入します
+		else if( scenario == 2U) {
+			mtdFiles.classInstaller = handlerValue( DEVPROP_TYPE_STRING, {L'x', L'\0'}) ;
+		}
+		// 非空class co-installerの登録を注入します
+		else if( scenario == 3U) {
+			mtdFiles.classCoInstallers =
+				handlerValue( DEVPROP_TYPE_STRING_LIST, {L'x', L'\0', L'\0'}) ;
+		}
+		// 非空device co-installerの登録を注入します
+		else if( scenario == 4U) {
+			mtdFiles.deviceCoInstallers =
+				handlerValue( DEVPROP_TYPE_STRING_LIST, {L'x', L'\0', L'\0'}) ;
+		}
+		// class installerの権限失敗を注入します
+		else if( scenario == 5U) {
+			mtdFiles.classInstaller.error = ERROR_ACCESS_DENIED ;
+		}
+		// device co-installerの権限失敗を注入します
+		else if( scenario == 6U) {
+			mtdFiles.deviceCoInstallers.error = ERROR_ACCESS_DENIED ;
+		}
+		// class listの型不一致を注入します
+		else if( scenario == 7U) {
+			mtdFiles.classCoInstallers = handlerValue( DEVPROP_TYPE_STRING, {L'x', L'\0'}) ;
+		}
+		// device listの終端欠損を注入します
+		else if( scenario == 8U) {
+			mtdFiles.deviceCoInstallers = handlerValue( DEVPROP_TYPE_STRING_LIST, {L'x', L'\0'}) ;
+		}
+		// 容量照会後のclass list消失を注入します
+		else if( scenario == 9U) {
+			mtdFiles.classCoInstallers =
+				handlerValue( DEVPROP_TYPE_STRING_LIST, {L'x', L'\0', L'\0'}) ;
+			mtdFiles.classCoInstallers.vanishAfterSizing = true ;
+		}
+
+		// scenarioごとの三handler観測です
+		MtdHandlerObservation observation ;
+		// handler検査の元診断です
+		const auto			  error =
+			inspectMtdHandlers( reinterpret_cast<HDEVINFO>( 0x100U), handlerDevice, observation) ;
+		// scenarioごとに固定した期待HRESULTです
+		const NativeError expected =
+			scenario < 2U	? static_cast<NativeError>( 0)
+			: scenario < 5U ? static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED))
+			: scenario < 7U ? static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_ACCESS_DENIED))
+			: scenario < 9U ? static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA))
+							: static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_RETRY)) ;
+		DRIVERCRATE_EXPECT( context, error == expected) ;
+		// 全property正式不在の観測を確認します
+		if( scenario == 0U) {
+			DRIVERCRATE_EXPECT( context,
+							   observation.classInstaller.state == MtdHandlerState::ABSENT &&
+								   observation.classCoInstallers.state == MtdHandlerState::ABSENT &&
+								   observation.deviceCoInstallers.state == MtdHandlerState::ABSENT) ;
+		}
+		// 正規空listを不在と分けて確認します
+		else if( scenario == 1U) {
+			DRIVERCRATE_EXPECT(
+				context, observation.classCoInstallers.state == MtdHandlerState::EMPTY_LIST &&
+							 observation.deviceCoInstallers.state == MtdHandlerState::EMPTY_LIST) ;
+		}
+
+		std::cout << "MTD_HANDLER_PROPERTY scenario=" << scenario << " error=" << error << '\n' ;
+	}
+
+	mtdFiles.classInstaller		= {} ;
+	mtdFiles.classCoInstallers	= {} ;
+	mtdFiles.deviceCoInstallers = {} ;
+	// 既存・不在・混在の共有fileを別scenarioで確認します
+	for( unsigned scenario = 0U; scenario < 3U && fileScope; ++scenario) {
+		// 正常file scenarioの原MTD serviceとCOPY集合です
+		SelectedStorageServiceFacts facts ;
+		facts.className		  = L"MTD" ;
+		facts.classGuid		  = L"{4d36e970-e325-11ce-bfc1-08002be10318}" ;
+		facts.infRelativePath = L"fixture.inf" ;
+		facts.binaryTarget	  = native->windowsRoot + L"\\System32\\drivers\\fixture.sys" ;
+		facts.binarySource	  = L"fixture.sys" ;
+		facts.binarySha256	  = systemHash ;
+		facts.binaryBytes	  = std::string_view{"synthetic SYS"}.size() ;
+		// 同fixtureのassociated SYS COPYです
+		SelectedStorageCopyFact system ;
+		system.section = L"Files" ;
+		system.dirid   = 12 ;
+		system.target  = facts.binaryTarget ;
+		system.source  = facts.binarySource ;
+		system.sha256  = facts.binarySha256 ;
+		system.bytes   = facts.binaryBytes ;
+		facts.mtdCopies.push_back( std::move( system)) ;
+		// 二DLLの所有target名です
+		std::array<std::wstring, 2U> names ;
+		// 各DLLに一意な所有targetと元COPYを割り当てます
+		for( std::size_t index = 0U; index < originals.size(); ++index) {
+			names[index] = L"System32\\mtd-" + std::to_wstring( scenario) + L"-" +
+						   std::to_wstring( index) + L".dll" ;
+			// 同targetを既存状態にするかの判定です
+			const bool exists = scenario == 0U || (scenario == 2U && index == 0U) ;
+			// 既存条件だけ所有targetへ原byteを書きます
+			if( exists) {
+				DRIVERCRATE_EXPECT( context, writeOwned( native->registration, names[index],
+													   originals[index].second)) ;
+			} else {
+				// 不在targetの外部file予約名です
+				std::wstring reserved ;
+				DRIVERCRATE_EXPECT( context, native->registration.prepareExternalFile(
+												names[index], reserved) == 0U) ;
+			}
+
+			// 同DLLの原COPYとCAT member factです
+			SelectedStorageCopyFact copy ;
+			copy.section = L"SharedDlls" ;
+			copy.ordinal = static_cast<std::uint32_t>( index) ;
+			copy.fields	 = {originals[index].first} ;
+			copy.source	 = originals[index].first ;
+			copy.target	 = native->registration.path( names[index]) ;
+			copy.dirid	 = 11 ;
+			copy.bytes	 = originals[index].second.size() ;
+			DRIVERCRATE_EXPECT( context,
+							   computeFileSha256( mtdSource.path( copy.source), copy.sha256) == 0U) ;
+			facts.mtdCopies.push_back( std::move( copy)) ;
+		}
+
+		// preflight成功時の共有file operationです
+		std::unique_ptr<MtdSharedFileOperation> operation ;
+		// 共有file preflightの元診断です
+		const auto prepared = MtdSharedFileOperation::prepare( mtdSource, facts, operation) ;
+		DRIVERCRATE_EXPECT( context, prepared == 0U && operation) ;
+		// preflight失敗時は元診断を出力して後続の成功と区別します
+		if( !operation) {
+			std::cout << "MTD_FILE_PREPARE scenario=" << scenario << " error=" << prepared << '\n' ;
+			continue ;
+		}
+
+		// 原順に固定するqueue sourceです
+		std::vector<std::wstring> queueSources ;
+		// 全原COPYに対応する所有sourceをqueueへ固定します
+		for( const auto &copy : facts.mtdCopies) {
+			queueSources.push_back( mtdSource.path( copy.source)) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, MtdSharedFileFixtureAccess::bind(
+										*operation, L"fixture-registered.inf", queueSources) == 0U) ;
+		// 共有充足の新規・再利用・失敗の結果です
+		MtdSharedFileResult result ;
+		// 共有充足の元診断です
+		const auto			satisfied = MtdSharedFileFixtureAccess::satisfy( *operation, {}, result) ;
+		std::cout << "MTD_FILE_OPERATION scenario=" << scenario << " error=" << satisfied
+				  << " renamed=" << result.renameSucceeded << " created=" << result.created
+				  << " reused=" << result.reused << " cleanupUncertain=" << result.cleanupUncertain
+				  << " stage=" << result.failureStage << '\n' ;
+		DRIVERCRATE_EXPECT( context, satisfied == 0U && !result.cleanupUncertain &&
+										result.renameSucceeded == (scenario == 0U	? 0U
+																   : scenario == 1U ? 2U
+																					: 1U) &&
+										result.created == (scenario == 0U	? 0U
+														   : scenario == 1U ? 2U
+																			: 1U) &&
+										result.reused == (scenario == 0U   ? 2U
+														  : scenario == 1U ? 0U
+																		   : 1U) &&
+										operation->verify() == 0U) ;
+		operation.reset() ;
+		// 新規配置したtargetの原byteを独立に検査します
+		for( std::size_t index = 0U; index < originals.size(); ++index) {
+			// 既存として再利用したtargetを新規配置に数えません
+			if( scenario == 0U || (scenario == 2U && index == 0U)) {
+				continue ;
+			}
+
+			DRIVERCRATE_EXPECT( context, native->registration.adoptFile(
+											names[index], originals[index].second.size()) == 0U) ;
+		}
+	}
+
+	// 衝突・既存異byte・権限・writer・途中失敗を独立した原操作で確認します
+	for( unsigned scenario = 0U; scenario < 7U && fileScope; ++scenario) {
+		// 負例用の原MTD serviceとCOPY集合です
+		SelectedStorageServiceFacts facts ;
+		facts.className		  = L"MTD" ;
+		facts.classGuid		  = L"{4d36e970-e325-11ce-bfc1-08002be10318}" ;
+		facts.infRelativePath = L"fixture.inf" ;
+		facts.binaryTarget	  = native->windowsRoot + L"\\System32\\drivers\\fixture.sys" ;
+		facts.binarySource	  = L"fixture.sys" ;
+		facts.binarySha256	  = systemHash ;
+		facts.binaryBytes	  = std::string_view{"synthetic SYS"}.size() ;
+		// 負例用のassociated SYS COPYです
+		SelectedStorageCopyFact system ;
+		system.section = L"Files" ;
+		system.dirid   = 12 ;
+		system.target  = facts.binaryTarget ;
+		system.source  = facts.binarySource ;
+		system.sha256  = facts.binarySha256 ;
+		system.bytes   = facts.binaryBytes ;
+		facts.mtdCopies.push_back( std::move( system)) ;
+		// 負例ごとの二DLL所有target名です
+		std::array<std::wstring, 2U> names ;
+		// 負例ごとに一意な所有targetを準備します
+		for( std::size_t index = 0U; index < originals.size(); ++index) {
+			names[index] = L"System32\\mtd-negative-" + std::to_wstring( scenario) + L"-" +
+						   std::to_wstring( index) + L".dll" ;
+			// 既存先を使う負例だけ事前にtargetを作ります
+			if( scenario < 3U) {
+				// 指定条件の既存同byteまたは異byteです
+				const auto body = scenario == 0U && index == 0U
+									  ? std::string_view{"foreign-byte-xxx"}
+									  : std::string_view{originals[index].second} ;
+				DRIVERCRATE_EXPECT( context, writeOwned( native->registration, names[index], body)) ;
+			} else {
+				// 不在targetの外部file予約名です
+				std::wstring reserved ;
+				DRIVERCRATE_EXPECT( context, native->registration.prepareExternalFile(
+												names[index], reserved) == 0U) ;
+			}
+
+			// 同DLLの原COPYとCAT member factです
+			SelectedStorageCopyFact copy ;
+			copy.section = L"SharedDlls" ;
+			copy.ordinal = static_cast<std::uint32_t>( index) ;
+			copy.fields	 = {originals[index].first} ;
+			copy.source	 = originals[index].first ;
+			copy.target	 = native->registration.path( names[index]) ;
+			copy.dirid	 = 11 ;
+			copy.bytes	 = originals[index].second.size() ;
+			DRIVERCRATE_EXPECT( context,
+							   computeFileSha256( mtdSource.path( copy.source), copy.sha256) == 0U) ;
+			facts.mtdCopies.push_back( std::move( copy)) ;
+		}
+
+		// 負例に使う最初のDLL targetです
+		const auto first		   = native->registration.path( names.front()) ;
+		mtdFiles.badSecurityTarget = scenario == 1U ? first : L"" ;
+		// 所有targetを占有する競合writerです
+		HANDLE writer = INVALID_HANDLE_VALUE ;
+		// 既存writer負例だけ同targetを占有します
+		if( scenario == 2U) {
+			writer = ::CreateFileW( first.c_str(), GENERIC_WRITE,
+								   FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+								   OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr) ;
+			DRIVERCRATE_EXPECT( context, writer != INVALID_HANDLE_VALUE) ;
+		}
+
+		mtdFiles.raceTarget	  = scenario == 3U || scenario == 4U ? first : L"" ;
+		mtdFiles.raceBytes	  = scenario == 3U ? "competitor-data!" : originals.front().second ;
+		mtdFiles.raceInjected = false ;
+		mtdFiles.writes		  = 0U ;
+		mtdFiles.failWriteOrdinal =
+			scenario == 5U ? std::optional<std::uint32_t>{1U} : std::nullopt ;
+		// 負例preflight成功時の共有file operationです
+		std::unique_ptr<MtdSharedFileOperation> operation ;
+		// 負例preflightの元診断です
+		const auto prepared = MtdSharedFileOperation::prepare( mtdSource, facts, operation) ;
+		// fixture所有writerだけを閉じます
+		if( writer != INVALID_HANDLE_VALUE) {
+			::CloseHandle( writer) ;
+		}
+
+		// 初期preflight拒否の各元errorを独立に確認します
+		if( scenario < 3U) {
+			// scenarioごとに固定したpreflightの期待Windows errorです
+			const auto expected = scenario == 0U   ? ERROR_CRC
+								  : scenario == 1U ? ERROR_ACCESS_DENIED
+												   : ERROR_SHARING_VIOLATION ;
+			DRIVERCRATE_EXPECT(
+				context,
+				!operation && prepared == static_cast<NativeError>( HRESULT_FROM_WIN32( expected))) ;
+			std::cout << "MTD_FILE_NEGATIVE scenario=" << scenario << " prepare=" << prepared
+					  << " expected=" << expected << '\n' ;
+		} else {
+			DRIVERCRATE_EXPECT( context, prepared == 0U && operation) ;
+			// preflight成功時だけsource bindingと後続作用を検査します
+			if( operation) {
+				// 全原COPYの所有sourceです
+				std::vector<std::wstring> queueSources ;
+				// 全原COPYのsourceを原順に固定します
+				for( const auto &copy : facts.mtdCopies) {
+					queueSources.push_back( mtdSource.path( copy.source)) ;
+				}
+
+				DRIVERCRATE_EXPECT(
+					context, MtdSharedFileFixtureAccess::bind( *operation, L"fixture-registered.inf",
+															  queueSources) == 0U) ;
+				// 共有充足の部分結果です
+				MtdSharedFileResult result ;
+				// 共有充足または内部取消しの元診断です
+				const auto			error = MtdSharedFileFixtureAccess::satisfy(
+					 *operation,
+					 scenario == 6U ? std::function<bool()>{[] { return true ; }}
+											: std::function<bool()>{},
+					 result) ;
+				std::cout << "MTD_FILE_NEGATIVE scenario=" << scenario << " error=" << error
+						  << " renamed=" << result.renameSucceeded << " created=" << result.created
+						  << " reused=" << result.reused << " stage=" << result.failureStage
+						  << " race=" << mtdFiles.raceInjected << '\n' ;
+				// 競合した異byte targetが保持されたことを確認します
+				if( scenario == 3U) {
+					std::wstring expectedHash, actualHash ;
+					DRIVERCRATE_EXPECT(
+						context, error != 0U && mtdFiles.raceInjected &&
+									 result.renameSucceeded == 0U && result.created == 0U &&
+									 !result.cleanupUncertain &&
+									 computeBytesSha256( mtdFiles.raceBytes, expectedHash) == 0U &&
+									 computeFileSha256( first, actualHash) == 0U &&
+									 expectedHash == actualHash) ;
+				}
+				// 同byte競合は再利用として分けて確認します
+				else if( scenario == 4U) {
+					DRIVERCRATE_EXPECT( context, error == 0U && mtdFiles.raceInjected &&
+													result.renameSucceeded == 1U &&
+													result.created == 1U && result.reused == 1U &&
+													!result.cleanupUncertain) ;
+				}
+				// 内部取消しの元errorと既部分作用を確認します
+				else if( scenario == 5U) {
+					DRIVERCRATE_EXPECT(
+						context,
+						error == static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_WRITE_FAULT)) &&
+							result.renameSucceeded == 1U && result.created == 1U &&
+							!result.cleanupUncertain) ;
+				} else {
+					DRIVERCRATE_EXPECT(
+						context,
+						error == static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED)) &&
+							result.renameSucceeded == 0U && result.created == 0U) ;
+				}
+
+				operation.reset() ;
+			}
+
+			// 存在する所有targetだけを部分作用として確認します
+			for( std::size_t index = 0U; index < names.size(); ++index) {
+				// 部分作用を確認する所有target pathです
+				const auto path = native->registration.path( names[index]) ;
+				// 未配置のtargetを存在済みとして数えません
+				if( ::GetFileAttributesW( path.c_str()) == INVALID_FILE_ATTRIBUTES) {
+					continue ;
+				}
+
+				// 同targetで期待するbyte数です
+				const auto size = scenario == 3U && index == 0U ? mtdFiles.raceBytes.size()
+																: originals[index].second.size() ;
+				DRIVERCRATE_EXPECT( context,
+								   native->registration.adoptFile( names[index], size) == 0U) ;
+			}
+		}
+
+		mtdFiles.badSecurityTarget.clear() ;
+		mtdFiles.raceTarget.clear() ;
+		mtdFiles.failWriteOrdinal.reset() ;
+	}
+
+	// 個別fileが成立した後、queue callbackの取消しでSYSと指定DIFへ進まないことを確認します
+	{
+		// 内部queue取消し用の原MTD serviceとCOPY集合です
+		SelectedStorageServiceFacts facts ;
+		facts.className		  = L"MTD" ;
+		facts.classGuid		  = L"{4d36e970-e325-11ce-bfc1-08002be10318}" ;
+		facts.infRelativePath = L"fixture.inf" ;
+		facts.binaryTarget	  = native->windowsRoot + L"\\System32\\drivers\\fixture.sys" ;
+		facts.binarySource	  = L"fixture.sys" ;
+		facts.binarySha256	  = systemHash ;
+		facts.binaryBytes	  = std::string_view{"synthetic SYS"}.size() ;
+		// 同取消しfixtureのassociated SYS COPYです
+		SelectedStorageCopyFact system ;
+		system.section = L"Files" ;
+		system.dirid   = 12 ;
+		system.target  = facts.binaryTarget ;
+		system.source  = facts.binarySource ;
+		system.sha256  = facts.binarySha256 ;
+		system.bytes   = facts.binaryBytes ;
+		facts.mtdCopies.push_back( std::move( system)) ;
+		// queue取消しfixtureの二DLLを不在targetとして用意します
+		for( std::size_t index = 0U; index < originals.size(); ++index) {
+			// 不在DLLの外部file予約名です
+			std::wstring reserved ;
+			DRIVERCRATE_EXPECT( context,
+							   native->registration.prepareExternalFile(
+								   L"System32\\" + originals[index].first, reserved) == 0U) ;
+			// 同DLLの原COPYとCAT member factです
+			SelectedStorageCopyFact copy ;
+			copy.section = L"SharedDlls" ;
+			copy.ordinal = static_cast<std::uint32_t>( index) ;
+			copy.fields	 = {originals[index].first} ;
+			copy.source	 = originals[index].first ;
+			copy.target	 = native->windowsRoot + L"\\System32\\" + originals[index].first ;
+			copy.dirid	 = 11 ;
+			copy.bytes	 = originals[index].second.size() ;
+			DRIVERCRATE_EXPECT( context,
+							   computeFileSha256( mtdSource.path( copy.source), copy.sha256) == 0U) ;
+			facts.mtdCopies.push_back( std::move( copy)) ;
+		}
+
+		// 所有する人工原queueです
+		const auto original = mtdFixtureOpenQueue() ;
+		// 同原queueの借用状態です
+		auto	  *rawQueue = mtdFixtureQueue( original) ;
+		DRIVERCRATE_EXPECT( context, rawQueue && mtdFixtureAddSection( *rawQueue, L"Files", 0U) &&
+										mtdFixtureAddSection( *rawQueue, L"SharedDlls", 0U)) ;
+		// 共有file preflightで作るoperationです
+		std::unique_ptr<MtdSharedFileOperation> files ;
+		// 共有file preflightの元診断です
+		const auto prepared = MtdSharedFileOperation::prepare( mtdSource, facts, files) ;
+		DRIVERCRATE_EXPECT( context, prepared == 0U && files) ;
+		// 原queue照合後に所有する制御queueです
+		std::unique_ptr<MtdQualifiedQueue> queue ;
+		// 共有preflight成功後だけ制御queueを構成します
+		if( files) {
+			// 元tuple照合の元診断です
+			const auto inspected = MtdQueueFixtureAccess::prepare(
+				original, L"fixture-registered.inf", mtdSource, facts, *files, queue) ;
+			DRIVERCRATE_EXPECT( context, inspected == 0U && queue) ;
+		}
+
+		// 制御queue成功後だけ内部取消しを送ります
+		if( queue) {
+			// 内部queue取消しの部分結果です
+			MtdQueueResult outcome ;
+			// 内部queue commitの元診断です
+			const auto	   error = MtdQueueFixtureAccess::commit(
+				*queue, [&] { return outcome.commitStarted ; }, outcome) ;
+			std::cout << "MTD_QUEUE_CANCEL error=" << error << " created=" << outcome.shared.created
+					  << " queue=" << outcome.commitStarted << '/' << outcome.commitCompleted
+					  << '\n' ;
+			DRIVERCRATE_EXPECT(
+				context, error == static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED)) &&
+							 outcome.shared.created == 2U && outcome.shared.renameSucceeded == 2U &&
+							 outcome.commitStarted && !outcome.commitCompleted &&
+							 mtdFiles.commits == 1U) ;
+		}
+
+		queue.reset() ;
+		files.reset() ;
+		// 所有する原fake queueだけを閉じます
+		if( rawQueue) {
+			DRIVERCRATE_EXPECT( context, mtdFixtureCloseQueue( original)) ;
+		}
+
+		// 内部取消し後の各所有targetを独立に検証します
+		for( const auto &[name, body] : originals) {
+			DRIVERCRATE_EXPECT(
+				context, native->registration.adoptFile( L"System32\\" + name, body.size()) == 0U) ;
+		}
+	}
+	DRIVERCRATE_EXPECT( context, mtdFiles.handles.empty()) ;
+	fileScope.reset() ;
+	activeMtdFiles = nullptr ;
+	// 同threadの完全低位fakeだけを所有するscopeです
+	auto transport = driver_store_inf_detail::Access::create( table) ;
+	// 全元INF/CAT/memberを実byteへ照合する人工署名scopeです
+	auto signature = driver_package_signature_detail::Access::create( signatureFiles( zip), 2U) ;
+	DRIVERCRATE_EXPECT( context, transport && signature) ;
+	OfficialDownloadWorkspace source ;	// 元ZIPをscope終了まで保持します
+	DRIVERCRATE_EXPECT( context, source.initialize( L"storage-boundary", 853U) == 0U) ;
+	// 同原文又はSDの全byteを取得する一時所有です
+	HANDLE raw = INVALID_HANDLE_VALUE ;
+	DRIVERCRATE_EXPECT( context, source.createFile( L"payload.zip", raw) == 0U) ;
+	// 原byteの完全copyを照合する実書込数です
+	DWORD	   written{} ;
+	// 隔離所有fileへ全原byteを書いたWindows結果です
+	const bool copied =
+		WriteFile( raw, zip.data(), static_cast<DWORD>( zip.size()), &written, nullptr) != FALSE ;
+	CloseHandle( raw) ;
+	DRIVERCRATE_EXPECT( context, copied && written == zip.size()) ;
+	std::wstring hash ;	// 全archive原byteへ固定します
+	DRIVERCRATE_EXPECT( context, computeFileSha256( source.path( L"payload.zip"), hash) == 0U) ;
+	// 原archiveの完全path/size/hashへ固定した内容入力です
+	const DriverArchiveInput input{853U, source.path( L"payload.zip"), zip.size(), hash} ;
+	// 同原byte又は同deviceに結ぶ元明示選択の閉集合です
+	const std::array<std::pair<std::wstring_view, std::wstring_view>, 1U> selected{
+		{{L"", L"fixture.inf"}}} ;
+	CommonDriverPackageInspection normal ;	// 旧通常Class policyの拒否を保持します
+	DRIVERCRATE_EXPECT(
+		context, inspectSelectedCommonDriverPackages( input, OfficialDriverArchiveFormat::ZIP,
+													 selected, normal) == 0U &&
+					 normal.infs.size() == 1U &&
+					 normal.infs.front().state == CommonInfInspectionState::CLOSURE_REJECTED &&
+					 normal.infs.front().error ==
+						 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_ACCESS_DENIED))) ;
+	CollectorDriverPackageContent collector ;	// 内容成功だけの独立型です
+	DRIVERCRATE_EXPECT( context,
+					   inspectCollectorDriverPackageContent( input, OfficialDriverArchiveFormat::ZIP,
+															selected, collector) == 0U &&
+						   collector.infs.size() == 1U &&
+						   collector.infs.front().state == CommonInfInspectionState::VERIFIED) ;
+	CommonDriverPackageInspection app ;	// 端末用独立再検査も単独ではgrantではありません
+	DRIVERCRATE_EXPECT( context, inspectSelectedDeviceDriverPackages(
+									input, OfficialDriverArchiveFormat::ZIP, selected, app) == 0U &&
+									app.infs.size() == 1U &&
+									app.infs.front().state == CommonInfInspectionState::VERIFIED) ;
+	// 全byteが有効な場合だけ、通常native入口の用途偽造拒否を確認します
+	if( app.infs.size() == 1U && app.infs.front().state == CommonInfInspectionState::VERIFIED &&
+	   collector.infs.size() == 1U &&
+	   collector.infs.front().state == CommonInfInspectionState::VERIFIED) {
+		DriverStoreProvider		  outsider ;	// 私有factoryが発行していないissuerです
+		OfficialDriverRankAudit	  audit ;		// permissionに使わず入口の拒否位置を確認します
+		// 私有factoryが発行していない元tokenの出力です
+		OfficialInfInstallBinding binding ;
+		// 全成功まで外へ発行しない原内容検査の所有結果です
+		const auto				 &inspected = app.infs.front() ;
+		// 同元storage原INFの独立内容です
+		const auto				 &root = inspected.closure.packages.front() ;
+		// 同じ有効raw byteの用途だけを変え、全入口拒否を確認します
+		for( const auto purpose : {OfficialInfInspectionPurpose::STANDARD_DRIVER,
+								  OfficialInfInspectionPurpose::COLLECTOR_CONTENT,
+								  OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE}) {
+			auto forged				 = root ;	// 同じ完全原byte/正式Classを保ち、用途だけを変えます
+			forged.inspectionPurpose = purpose ;
+			// 元拒否地点を非秘密数値だけで確認する任意出力です
+			RequiredInfBindingDiagnostic diagnostic ;
+			DRIVERCRATE_EXPECT(
+				context,
+				outsider.createOfficialInfInstallBinding(
+					853U, L"forged-device", *inspected.workspace, forged, L"Fixture Vendor",
+					L"0.9.0.0", L"2026/01/01", audit, binding, &diagnostic) ==
+						static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) &&
+					binding.token == 0U && diagnostic.rejection == InfBindingReject::INPUT &&
+					native->rankCalls == 0U) ;
+		}
+
+		auto forged =
+			inspected ;	// collector由来のraw PACKAGEを手製Common DTOへ移してもgrantしません
+		forged.closure			   = collector.infs.front().closure ;
+		forged.requiredInfPackages = collector.infs.front().requiredInfPackages ;
+		DRIVERCRATE_EXPECT( context, reverifyCommonDriverInf( forged) != 0U) ;
+		DRIVERCRATE_EXPECT(
+			context, outsider.createOfficialInfInstallBinding(
+						 853U, L"forged-device", *inspected.workspace,
+						 collector.infs.front().closure.packages.front(), L"Fixture Vendor",
+						 L"0.9.0.0", L"2026/01/01", audit, binding) ==
+							 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)) &&
+						 binding.token == 0U) ;
+	}
+
+	DRIVERCRATE_EXPECT( context,
+					   native->stages == 0U && native->installs == 0U && native->rankCalls == 0U) ;
+	signature.reset() ;
+	transport.reset() ;
+	activeNative = nullptr ;
+	std::cout
+		<< "STORAGE_AUTHORIZATION validSameBytes=1 normalRejected=1 collectorNonGrant=1 purposeNonGrant=1 missingApiFallback=0 stage=0 install=0\n" ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief storageを通常索引/同意/復旧/登録guard/flags0指定と元結果まで通します
+ * @param[in,out] context 有限assertion集計です
+ * @param[in] services 真署名隔離storeと完全HTTPです
+ * @param[in] zip 全原byteへ固定した人工driver archiveです
+ * @param[in] expected 低位注入と独立した期待呼出し/結果です
+ * @note 同deviceの元候補を使い、実driver install/復元/HTTPへfallbackしません
+ */
+//------------------------------------------------------------------------------
+void runStorageDriverBindingCase( TestContext						   &context,
+								 provider_worker_index_detail::Services services,
+								 std::string_view zip, const StorageBindingTestInput &expected)
+{
+	// 元の時刻は保持し、登録後の適用前だけ有効期限を越える状態を作る
+	if( expected.nativeCase == SignedIndexBindingNativeCase::STORAGE_RECORD_EXPIRES_AFTER_STAGE) {
+		services.utc = [read = std::move( services.utc)]() {
+			// 通常の時刻供給関数が返した元観測を使う
+			auto utc = read() ;
+			// 登録が実行済みの場合だけ同じ取得許可を失効させる
+			if( utc && activeNative && activeNative->stages != 0U) {
+				*utc += std::chrono::days{30} ;
+			}
+
+			return utc ;
+		} ;
+	}
+
+	// 変更前の元観測を後続比較まで保持します
+	const auto before = context.assertionCount() ;
+	// 当該case開始前の元失敗数です
+	const auto failures = context.failureCount() ;
+	// 同原索引と完全Windows表を所有する実workerです
+	auto	   bound =
+		makeSignedIndexBindingWorker( std::move( services), zip, false, expected.restoreFailure,
+									 expected.stagingFailure, expected.nativeCase, {}, {}, {},
+									 expected.reflectOwnInstall, SignedIndexBindingBatchFault::NONE,
+									 false, expected.noReboot, {}, nullptr, expected.mtdScenario) ;
+	// 元scan/選択/同意/失効を管理する製品状態機械です
+	OperationController controller ;
+	// 実WUA等を起動せず元二Providerだけを使用するscan条件です
+	ScanOptions			options ;
+	options.useDefaultProviders = false ;
+	options.enabledProviderIds	= {std::wstring{DRIVER_STORE_PROVIDER_ID},
+								   std::wstring{SIGNED_INDEX_PROVIDER_ID}} ;
+	// 元新scanのoperation識別と受付結果です
+	const auto scan = controller.beginScan() ;
+	DRIVERCRATE_EXPECT( context, scan.accepted && bound.worker &&
+									bound.worker->requestScan( scan.operationId, options)) ;
+	// 同workerの元scan終端と実取得計画です
+	auto scanned = waitEvent( *bound.worker, WorkerEventKind::SCAN_COMPLETED, scan.operationId) ;
+	// scan prerequisite不足を具体的に出力します
+	if( scanned && (!scanned->preparationPlan || scanned->preparationPlan->targets.size() != 1U)) {
+		std::cout << "STORAGE_SCAN_PREREQUISITE succeeded=" << scanned->scanResult.succeeded
+				  << " error=" << scanned->scanResult.error
+				  << " state=" << static_cast<unsigned>( scanned->scanResult.state)
+				  << " candidates=" << scanned->scanResult.candidates.size()
+				  << " plan=" << scanned->preparationPlan.has_value() << '\n' ;
+		// 各providerの元scan結果を確認します
+		for( const auto &report : scanned->scanResult.providerReports) {
+			std::cout << "STORAGE_SCAN_PROVIDER state=" << static_cast<unsigned>( report.state)
+					  << " error=" << report.error << " candidates=" << report.candidateCount
+					  << '\n' ;
+		}
+
+		// 実際に投影された各候補を確認します
+		for( const auto &candidate : scanned->scanResult.candidates) {
+			std::wcout << L"STORAGE_SCAN_CANDIDATE class=" << candidate.driverClass << L" guid="
+					   << candidate.deviceClassGuid << L" provider=" << candidate.providerId
+					   << L'\n' ;
+		}
+	}
+
+	DRIVERCRATE_EXPECT( context, scanned && scanned->preparationPlan &&
+									scanned->preparationPlan->targets.size() == 1U) ;
+	// 元scanの取得対象がない場合は材料不成立を負例成功へ数えません
+	if( !scanned || !scanned->preparationPlan || scanned->preparationPlan->targets.size() != 1U) {
+		bound.worker->stop() ;
+		throw std::runtime_error( "storage scan prerequisite failed") ;
+	}
+
+	// 元scanで発行された一取得計画です
+	const auto plan = *scanned->preparationPlan ;
+	// 手製candidateで補完しない元索引参照です
+	const auto reference =
+		std::ranges::find_if( scanned->scanResult.candidates, []( const auto &value) {
+			return !value.current && value.providerId == SIGNED_INDEX_PROVIDER_ID ;
+		}) ;
+	DRIVERCRATE_EXPECT( context,
+					   reference != scanned->scanResult.candidates.end() &&
+						   controller.completeScan( scan.operationId, scanned->scanResult) &&
+						   controller.setPreparationPlan( scan.operationId, plan)) ;
+	// 同scan/元選択/取得条件に結ぶ本人同意です
+	OfficialPreparationApproval approval{0U,
+										 plan.scanSessionId,
+										 plan.planId,
+										 plan.limits,
+										 {{plan.targets.front(), true, false, false, false}}} ;
+	// 手製候補ではなく通常scanで表示された元一候補を明示指定します
+	if( reference != scanned->scanResult.candidates.end()) {
+		approval.installIntentIdentities.push_back( reference->identity) ;
+	}
+
+	// 同元取得を開始するoperationの受付結果です
+	const auto preparation = controller.beginPreparation( approval) ;
+	DRIVERCRATE_EXPECT( context, preparation.accepted && bound.worker->requestPreparation( approval)) ;
+	// 元取得/内容/適用性を実処理した終端です
+	auto prepared =
+		waitEvent( *bound.worker, WorkerEventKind::PREPARATION_COMPLETED, approval.operationId) ;
+	DRIVERCRATE_EXPECT( context, prepared.has_value()) ;
+	// 元auditが実発行した候補だけを所有する集合です
+	std::vector<UpdateCandidate> candidates ;
+	// 同取得の元成功と拒否を別々に保存します
+	if( prepared) {
+		// 同取得の全auditを候補数/固定拒否/内容診断へ照合します
+		for( const auto &report : prepared->preparationResult.auditReports) {
+			candidates.insert( candidates.end(), report.publishedCandidates.begin(),
+							  report.publishedCandidates.end()) ;
+			std::cout << "STORAGE_BIND_AUDIT case=" << static_cast<unsigned>( expected.nativeCase)
+					  << " accepted=" << report.acceptedInfCount
+					  << " firstContent=" << report.firstContentRejection
+					  << " publication=" << report.publication.firstError
+					  << " stage=" << report.publication.bindingStage
+					  << " candidates=" << report.publishedCandidates.size() << '\n' ;
+			// 想定した原拒否地点/codeを別の素材失敗で救済しません
+			if( expected.rejectionError) {
+				DRIVERCRATE_EXPECT( context,
+								   report.publication.firstError == *expected.rejectionError) ;
+			}
+
+			// 元拒否地点を別の早期失敗で救済しません
+			if( expected.rejectionStage) {
+				DRIVERCRATE_EXPECT( context,
+								   report.publication.bindingStage == *expected.rejectionStage) ;
+			}
+
+			// 内容不成立を後段factory拒否と誤認しません
+			if( expected.contentError) {
+				DRIVERCRATE_EXPECT( context,
+								   report.firstContentRejection == *expected.contentError &&
+									   report.acceptedInfCount == 0U) ;
+			} else {
+				DRIVERCRATE_EXPECT( context, report.acceptedInfCount == 1U &&
+												report.firstContentRejection == 0U) ;
+			}
+		}
+	}
+
+	DRIVERCRATE_EXPECT( context, candidates.size() == (expected.qualified ? 1U : 0U)) ;
+	// 対象限定postcheckが全device再scanしないことを比較する基準です
+	const auto scansBefore = bound.observe().allPresentInventoryOpens ;
+	// 元全作用資格のない場合は復旧/登録/導入が全て未実行です
+	if( !expected.qualified || candidates.size() != 1U || !prepared) {
+		// 独立検査で得た現在又は元終端の観測です
+		const auto observed = bound.observe() ;
+		DRIVERCRATE_EXPECT( context, observed.stages == 0U && observed.installs == 0U &&
+										observed.restoreBegins == 0U) ;
+		// MTD人工INFだけ二DLLと型付き属性を確認します
+		if( zip.find( "Class=MTD\r\n") != zip.npos) {
+			DRIVERCRATE_EXPECT( context,
+							   observed.mtdFilesDifs == 0U && observed.mtdCommits == 0U &&
+								   observed.mtdInstallDifs == 0U && observed.legacyInstalls == 0U &&
+								   !observed.mtdOutsideOwned && !observed.mtdBeforeRestoreAccess) ;
+			std::cout << "MTD_FAKE_REJECT scenario=" << static_cast<unsigned>( expected.mtdScenario)
+					  << " nativeFallback=0 dif=0 restore=0\n" ;
+		}
+
+		bound.worker->stop() ;
+		DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
+		std::cout << "STORAGE_BIND_REJECT assertions=" << context.assertionCount() - before
+				  << " failures=" << context.failureCount() - failures << " stage=0 install=0\n" ;
+		return ;
+	}
+
+	// 同原record/deviceで実発行した唯一候補です
+	const auto &candidate = candidates.front() ;
+	DRIVERCRATE_EXPECT(
+		context, candidate.installable && candidate.storageChange &&
+					 candidate.requiredExtensionCount == 0U &&
+					 candidate.requiredDriverComponentCount == 0U &&
+					 candidate.storageChange->requiredImportCount == expected.imports &&
+					 candidate.assessment &&
+					 candidate.assessment->installMethod == CandidateInstallMethod::STANDARD_INF) ;
+	// MTD候補の表示用storage作用を検証します
+	if( zip.find( "Class=MTD\r\n") != zip.npos && candidate.storageChange) {
+		DRIVERCRATE_EXPECT( context,
+						   candidate.storageChange->sharedDllCount == 2U &&
+							   candidate.storageChange->mtdDeviceType == 7U &&
+							   candidate.storageChange->mtdDeviceCharacteristics == 0x101U) ;
+	}
+
+	DRIVERCRATE_EXPECT( context,
+					   prepared->preparationResult.installResolutions.size() == 1U &&
+						   prepared->preparationResult.installResolutions.front().state ==
+							   (expected.nativeCase == SignedIndexBindingNativeCase::STORAGE_OLDER
+									? PreparedInstallResolutionState::DOWNGRADE_REQUIRES_SELECTION
+									: PreparedInstallResolutionState::READY)) ;
+	DRIVERCRATE_EXPECT( context, controller.completePreparation( prepared->preparationResult,
+															   scanned->scanResult.candidates)) ;
+	// 同原byte又は同deviceに結ぶ元明示選択の閉集合です
+	const std::array selected{candidate.identity} ;
+	DRIVERCRATE_EXPECT(
+		context,
+		!controller.beginInstall( plan.scanSessionId, selected, InstallConfirmation::NOT_CONFIRMED)
+			 .accepted) ;
+	DRIVERCRATE_EXPECT(
+		context,
+		!controller.beginInstall( plan.scanSessionId + 1U, selected, InstallConfirmation::CONFIRMED)
+			 .accepted) ;
+	// 同意前に共有先へ触れていないことを確認します
+	if( zip.find( "Class=MTD\r\n") != zip.npos) {
+		// 同意前に独立読取した低位call観測です
+		const auto beforeConsent = bound.observe() ;
+		DRIVERCRATE_EXPECT( context,
+						   beforeConsent.restoreBegins == 0U && beforeConsent.stages == 0U &&
+							   beforeConsent.mtdFilesDifs == 0U && beforeConsent.mtdCommits == 0U &&
+							   beforeConsent.mtdInstallDifs == 0U &&
+							   !beforeConsent.mtdBeforeRestoreAccess) ;
+	}
+
+	// 正例の同byteを保持し、原低位の公開後変化だけを与えます
+	if( expected.changeNative) {
+		bound.changeNativeState() ;
+	}
+
+	// 同scanの明示選択に結ぶ今回の導入操作です
+	const auto install =
+		controller.beginInstall( plan.scanSessionId, selected, InstallConfirmation::CONFIRMED) ;
+	DRIVERCRATE_EXPECT( context, install.accepted &&
+									bound.worker->requestInstall(
+										install.operationId, plan.scanSessionId, selected, nullptr,
+										InstallProtectionMode::WINDOWS_RESTORE_POINT)) ;
+	// 実workerのfake指定導入と保護の全終端です
+	auto installed =
+		waitEvent( *bound.worker, WorkerEventKind::INSTALL_COMPLETED, install.operationId) ;
+	DRIVERCRATE_EXPECT( context, installed.has_value()) ;
+	// 独立検査で得た現在又は元終端の観測です
+	const auto observed = bound.observe() ;
+	// 人工INFがMTDかの判定です
+	const bool isMtd = zip.find( "Class=MTD\r\n") != zip.npos ;
+	// MTDの各低位DIFとcopy結果を独立観測します
+	if( isMtd) {
+		std::cout << "MTD_FAKE_CALLS scenario=" << static_cast<unsigned>( expected.mtdScenario)
+				  << " filesDif=" << observed.mtdFilesDifs << " commits=" << observed.mtdCommits
+				  << " installDif=" << observed.mtdInstallDifs
+				  << " legacy=" << observed.legacyInstalls
+				  << " outside=" << observed.mtdOutsideOwned
+				  << " preRestore=" << observed.mtdBeforeRestoreAccess
+				  << " sysNew=" << observed.mtdSysMatches << " sysOld=" << observed.mtdSysOldMatches
+				  << '\n' ;
+		DRIVERCRATE_EXPECT( context, observed.legacyInstalls == 0U && !observed.mtdOutsideOwned &&
+										!observed.mtdBeforeRestoreAccess) ;
+		// 成功条件では各DIFとcommitが一回であることを確認します
+		if( expected.succeeded) {
+			DRIVERCRATE_EXPECT( context, observed.mtdFilesDifs == 1U && observed.mtdCommits == 1U &&
+											observed.mtdInstallDifs == 1U) ;
+		}
+
+		// 成功条件では二DLLが元byteに一致することを確認します
+		if( expected.succeeded) {
+			DRIVERCRATE_EXPECT( context,
+							   observed.mtdTargetMatches[0] && observed.mtdTargetMatches[1]) ;
+			// 既存または混在条件では元file ID保持を確認します
+			if( expected.mtdScenario == MtdFixtureScenario::BOTH_EXIST ||
+			   expected.mtdScenario == MtdFixtureScenario::MIXED) {
+				DRIVERCRATE_EXPECT( context, observed.mtdTargetPriorIdPreserved[0]) ;
+			}
+
+			// 両既存条件では二件目のIDも保持されることを確認します
+			if( expected.mtdScenario == MtdFixtureScenario::BOTH_EXIST) {
+				DRIVERCRATE_EXPECT( context, observed.mtdTargetPriorIdPreserved[1]) ;
+			}
+
+			// SYS遅延時は通常copy済みと混同しません
+			if( expected.mtdScenario == MtdFixtureScenario::SYSTEM_DELAYED) {
+				DRIVERCRATE_EXPECT( context, !observed.mtdSysMatches && observed.mtdSysOldMatches) ;
+			} else {
+				DRIVERCRATE_EXPECT( context, observed.mtdSysMatches && !observed.mtdSysOldMatches) ;
+			}
+		}
+		// 異byte既存や競合の元byteが保持されたことを確認します
+		else if( expected.mtdScenario == MtdFixtureScenario::FOREIGN_EXISTING ||
+				expected.mtdScenario == MtdFixtureScenario::RACE_DIFFERENT) {
+			DRIVERCRATE_EXPECT( context, observed.mtdForeignPreserved &&
+											!observed.mtdTargetMatches[0] &&
+											observed.mtdSysOldMatches && !observed.mtdSysMatches) ;
+		}
+	}
+
+	DRIVERCRATE_EXPECT(
+		context, observed.stages == expected.stages && observed.installs == expected.installs &&
+					 observed.specifiedBindingMatches && observed.deviceInstalls[1] == 0U &&
+					 observed.dependencySystemStageCalls == 0U &&
+					 observed.allPresentInventoryOpens == scansBefore) ;
+	DRIVERCRATE_EXPECT( context,
+					   observed.restoreBegins == (expected.changeNative ? 0U : 1U) &&
+						   observed.restoreCompletes ==
+							   (expected.restoreFailure || expected.changeNative ? 0U : 1U)) ;
+	// API成否/原error/NeedReboot/対象限定read-only反映を別々に確認します
+	if( installed) {
+		// 成功確定まで部分値を外へ出さない当該結果です
+		const auto &result = installed->installResult ;
+		// 復旧拒否時にstageと共有作用がないことを確認します
+		if( isMtd && expected.restoreFailure) {
+			DRIVERCRATE_EXPECT( context,
+							   result.restoreStoppedBeforeProvider &&
+								   result.restorePointCreation.outcome == OutcomeCode::FAILURE &&
+								   result.restorePointCreation.error ==
+									   static_cast<NativeError>( E_ACCESSDENIED)) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, result.succeeded == expected.succeeded &&
+										controller.completeInstall( install.operationId, result)) ;
+		DRIVERCRATE_EXPECT( context, (expected.installs == 0U && !expected.executionError) ||
+										result.updates.size() == 1U) ;
+		// 元一候補の結果がある場合だけ個別native診断を照合します
+		if( !result.updates.empty()) {
+			// 当該候補のstage/API/原errorを分けた所有結果です
+			const auto &update = result.updates.front() ;
+			// MTD操作を開始した場合だけ共有結果を個別確認します
+			if( isMtd && !expected.restoreFailure && !expected.changeNative &&
+			   !update.requiredRoles.empty()) {
+				// 実行結果に結ばれた共有copy詳細です
+				const auto &shared = update.requiredRoles.front().sharedCopy ;
+				DRIVERCRATE_EXPECT( context, shared.has_value()) ;
+				// 共有結果がある場合はその部分状態を出力します
+				if( shared) {
+					std::cout << "MTD_FAKE_RESULT preflight="
+							  << static_cast<unsigned>( shared->preflightOutcome)
+							  << " copy=" << static_cast<unsigned>( shared->copyOutcome)
+							  << " copyError=" << shared->copyError
+							  << " renamed=" << shared->renameSucceeded
+							  << " created=" << shared->created << " reused=" << shared->reused
+							  << " queue=" << shared->queueStarted << '/' << shared->queueCompleted
+							  << " sysDelayed=" << shared->systemDelayed << '\n' ;
+					// 成功時の既存再利用数と新規配置数を独立に確認します
+					if( expected.succeeded) {
+						// scenarioごとに期待する既存DLL数です
+						const auto existing =
+							expected.mtdScenario == MtdFixtureScenario::BOTH_EXIST ? 2U
+							: expected.mtdScenario == MtdFixtureScenario::MIXED ||
+									expected.mtdScenario == MtdFixtureScenario::RACE_SAME
+								? 1U
+								: 0U ;
+						DRIVERCRATE_EXPECT(
+							context,
+							shared->preflightOutcome == OutcomeCode::SUCCESS &&
+								shared->copyOutcome == OutcomeCode::SUCCESS &&
+								shared->copyError == 0U && shared->created == 2U - existing &&
+								shared->renameSucceeded == shared->created &&
+								shared->reused == existing && shared->queueStarted &&
+								shared->queueCompleted && !shared->cleanupUncertain &&
+								!shared->parameterCleanupError &&
+								shared->systemDelayed ==
+									(expected.mtdScenario == MtdFixtureScenario::SYSTEM_DELAYED)) ;
+					}
+					// 異byte targetの事前拒否と元内容保持を確認します
+					else if( expected.mtdScenario == MtdFixtureScenario::FOREIGN_EXISTING ||
+							expected.mtdScenario == MtdFixtureScenario::BAD_DACL ||
+							expected.mtdScenario == MtdFixtureScenario::BAD_OWNER ||
+							expected.mtdScenario == MtdFixtureScenario::EXISTING_WRITER ||
+							expected.mtdScenario == MtdFixtureScenario::REPARSE_TARGET ||
+							expected.mtdScenario == MtdFixtureScenario::REPARSE_PARENT ||
+							expected.mtdScenario == MtdFixtureScenario::HARDLINK_TARGET ||
+							expected.mtdScenario == MtdFixtureScenario::READ_FAILURE) {
+						DRIVERCRATE_EXPECT(
+							context,
+							shared->preflightOutcome == OutcomeCode::FAILURE &&
+								shared->copyOutcome == OutcomeCode::NOT_STARTED &&
+								!shared->renameSucceeded && !shared->queueStarted &&
+								observed.mtdFilesDifs == 0U && observed.mtdCommits == 0U &&
+								(expected.mtdScenario == MtdFixtureScenario::REPARSE_PARENT ||
+								 observed.mtdTargetPriorIdPreserved[0]) &&
+								observed.mtdSysOldMatches) ;
+					}
+					// 祖先と配置直親の拒否はstage前に無作用で止まります
+					else if( expected.mtdScenario == MtdFixtureScenario::ANCESTOR_DELETE_CHILD ||
+							expected.mtdScenario == MtdFixtureScenario::ANCESTOR_DELETE ||
+							expected.mtdScenario == MtdFixtureScenario::ANCESTOR_WRITE_DAC ||
+							expected.mtdScenario == MtdFixtureScenario::ANCESTOR_WRITE_OWNER ||
+							expected.mtdScenario == MtdFixtureScenario::ANCESTOR_WRITE_FILE ||
+							expected.mtdScenario ==
+								MtdFixtureScenario::ANCESTOR_UNPROTECTED_CHILD ||
+							expected.mtdScenario == MtdFixtureScenario::ANCESTOR_CHILD_WRITE ||
+							expected.mtdScenario ==
+								MtdFixtureScenario::DESTINATION_PARENT_ADD_DIRECTORY) {
+						DRIVERCRATE_EXPECT(
+							context, shared->preflightOutcome == OutcomeCode::FAILURE &&
+										 shared->copyOutcome == OutcomeCode::NOT_STARTED &&
+										 !shared->renameSucceeded && !shared->queueStarted &&
+										 observed.mtdFilesDifs == 0U && observed.mtdCommits == 0U &&
+										 !observed.mtdTargetExists[0] &&
+										 !observed.mtdTargetExists[1] && observed.mtdSysOldMatches) ;
+					}
+					// Store直親の拒否は登録後であっても共有配置やcommitを行いません
+					else if( expected.mtdScenario ==
+							MtdFixtureScenario::STORE_PARENT_ADD_DIRECTORY) {
+						DRIVERCRATE_EXPECT(
+							context, !shared->renameSucceeded && !shared->queueStarted &&
+										 observed.mtdCommits == 0U &&
+										 !observed.mtdTargetExists[0] &&
+										 !observed.mtdTargetExists[1] && observed.mtdSysOldMatches) ;
+					}
+					// temp書込等の途中失敗をcopy失敗として確認します
+					else if( expected.mtdScenario == MtdFixtureScenario::PARTIAL_WRITE ||
+							expected.mtdScenario ==
+								MtdFixtureScenario::EXPIRED_BEFORE_SECOND_RENAME) {
+						DRIVERCRATE_EXPECT(
+							context, shared->copyOutcome == OutcomeCode::FAILURE &&
+										 shared->renameSucceeded == 1U && shared->created == 1U &&
+										 !shared->queueStarted && observed.mtdTargetMatches[0] &&
+										 !observed.mtdTargetExists[1] &&
+										 observed.mtdSysOldMatches && !shared->cleanupUncertain) ;
+					}
+					// rename成功後の確認失敗を配置未実施にしません
+					else if( expected.mtdScenario == MtdFixtureScenario::RENAME_VERIFY_FAILURE) {
+						DRIVERCRATE_EXPECT(
+							context, shared->copyOutcome == OutcomeCode::FAILURE &&
+										 shared->renameSucceeded == 1U && shared->created == 0U &&
+										 !shared->queueStarted && observed.mtdTargetMatches[0] &&
+										 !observed.mtdTargetExists[1] && observed.mtdSysOldMatches) ;
+					}
+					// stage後のhandler・属性変化による部分状態を確認します
+					else if( expected.mtdScenario == MtdFixtureScenario::HANDLER_AFTER_STAGE ||
+							expected.mtdScenario == MtdFixtureScenario::HW_AFTER_STAGE ||
+							expected.mtdScenario == MtdFixtureScenario::SELECTED_NODE_CHANGED ||
+							expected.mtdScenario == MtdFixtureScenario::EXPIRED_BEFORE_STAGE ||
+							expected.mtdScenario == MtdFixtureScenario::EXPIRED_BEFORE_FILE_DIF) {
+						DRIVERCRATE_EXPECT(
+							context, shared->copyOutcome == OutcomeCode::NOT_STARTED &&
+										 !shared->renameSucceeded && !shared->queueStarted &&
+										 observed.mtdFilesDifs == 0U && observed.mtdSysOldMatches &&
+										 shared->preflightOutcome == OutcomeCode::SUCCESS) ;
+					}
+					// 未知callbackやDLL遅延による部分作用を確認します
+					else if( expected.mtdScenario == MtdFixtureScenario::UNKNOWN_CALLBACK ||
+							expected.mtdScenario == MtdFixtureScenario::DLL_DELAYED) {
+						DRIVERCRATE_EXPECT(
+							context, shared->copyOutcome == OutcomeCode::FAILURE &&
+										 shared->created == 2U && shared->queueStarted &&
+										 !shared->queueCompleted && observed.mtdCommits == 1U &&
+										 observed.mtdInstallDifs == 0U &&
+										 observed.mtdTargetMatches[0] &&
+										 observed.mtdTargetMatches[1] && observed.mtdSysMatches) ;
+					}
+					// queue commit前失効では既配置だけを保持します
+					else if( expected.mtdScenario == MtdFixtureScenario::EXPIRED_BEFORE_COMMIT) {
+						DRIVERCRATE_EXPECT(
+							context,
+							shared->copyOutcome == OutcomeCode::FAILURE && shared->created == 2U &&
+								!shared->queueStarted && observed.mtdCommits == 0U &&
+								observed.mtdTargetMatches[0] && observed.mtdTargetMatches[1] &&
+								observed.mtdSysOldMatches &&
+								result.installOutcome == OutcomeCode::SUCCEEDED_WITH_ERRORS) ;
+					}
+					// queue commit後の失効等ではSYS作用を保持します
+					else if( expected.mtdScenario == MtdFixtureScenario::EXPIRED_AFTER_COMMIT ||
+							expected.mtdScenario == MtdFixtureScenario::RANK_AFTER_COMMIT) {
+						DRIVERCRATE_EXPECT(
+							context,
+							shared->copyOutcome == OutcomeCode::SUCCESS && shared->created == 2U &&
+								shared->queueCompleted && observed.mtdCommits == 1U &&
+								observed.mtdInstallDifs == 0U && observed.mtdSysMatches &&
+								update.requiredRoles.front().installOutcome ==
+									OutcomeCode::NOT_STARTED &&
+								result.installOutcome == OutcomeCode::SUCCEEDED_WITH_ERRORS) ;
+					}
+					// 選択DIF失敗や終了後検証失敗をcopy成功と区別します
+					else if( expected.mtdScenario == MtdFixtureScenario::INSTALL_FAILURE ||
+							expected.mtdScenario == MtdFixtureScenario::POST_DIF_VERIFY_FAILURE ||
+							expected.mtdScenario == MtdFixtureScenario::PARAM_CLEANUP_FAILURE) {
+						DRIVERCRATE_EXPECT(
+							context, shared->copyOutcome == OutcomeCode::SUCCESS &&
+										 shared->created == 2U && shared->queueStarted &&
+										 shared->queueCompleted && observed.mtdCommits == 1U &&
+										 observed.mtdInstallDifs == 1U && observed.mtdSysMatches) ;
+						// DIF自体が成功した条件の後続失敗を別に確認します
+						if( expected.mtdScenario != MtdFixtureScenario::INSTALL_FAILURE) {
+							DRIVERCRATE_EXPECT(
+								context,
+								update.requiredRoles.front().installOutcome ==
+										OutcomeCode::SUCCESS &&
+									update.requiredRoles.front().reflection ==
+										DriverPlanReflectionState::INSTALL_API_COMPLETED &&
+									result.installOutcome == OutcomeCode::SUCCEEDED_WITH_ERRORS &&
+									(expected.mtdScenario ==
+											 MtdFixtureScenario::POST_DIF_VERIFY_FAILURE
+										 ? shared->postVerifyError != 0U
+										 : shared->parameterCleanupError != 0U)) ;
+						}
+					} else {
+						DRIVERCRATE_EXPECT(
+							context, shared->copyOutcome == OutcomeCode::FAILURE &&
+										 shared->renameSucceeded == 0U && !shared->queueStarted &&
+										 observed.mtdFilesDifs == 1U && observed.mtdCommits == 0U &&
+										 observed.mtdInstallDifs == 0U &&
+										 observed.mtdSysOldMatches) ;
+					}
+				}
+			}
+
+			// 指定したstage/API失敗の元HRESULTをそのまま要求します
+			if( expected.executionError) {
+				DRIVERCRATE_EXPECT( context, update.installError == *expected.executionError) ;
+			}
+
+			DRIVERCRATE_EXPECT(
+				context,
+				update.requiredImports.size() ==
+					(expected.restoreFailure || expected.changeNative ? 0U : expected.imports)) ;
+			DRIVERCRATE_EXPECT( context, update.rebootRequired ==
+												(expected.installs != 0U && !expected.noReboot) &&
+											result.rebootRequired == update.rebootRequired) ;
+			// 全登録分母と原失敗を保持し、未実行baseをnull成功から補いません
+			if( expected.imports != 0U && !expected.restoreFailure && !expected.changeNative) {
+				// 必要null自身の登録guardで失敗する負例の期待分類です
+				const bool nullFailed =
+					expected.stagingFailure ||
+					expected.nativeCase == SignedIndexBindingNativeCase::STAGE_CHANGED ||
+					expected.nativeCase == SignedIndexBindingNativeCase::STAGE_EXTERNAL ||
+					expected.nativeCase == SignedIndexBindingNativeCase::STAGE_BAD_LENGTH ;
+				DRIVERCRATE_EXPECT(
+					context,
+					update.requiredRoles.size() == 1U &&
+						update.requiredRoles.front().role == DriverPlanRole::BASE_DRIVER &&
+						update.requiredImports.front().outcome ==
+							(nullFailed ? OutcomeCode::FAILURE : OutcomeCode::SUCCESS) &&
+						(nullFailed ? update.requiredImports.front().error == update.installError
+									: update.requiredImports.front().error == 0U)) ;
+				// 部分登録後の結果は登録済みの原証拠を残します
+				if( !expected.succeeded) {
+					DRIVERCRATE_EXPECT( context,
+									   result.installOutcome ==
+										   (nullFailed ? OutcomeCode::FAILURE
+													   : OutcomeCode::SUCCEEDED_WITH_ERRORS)) ;
+				}
+
+				// 未実行nativeと登録後の指定準備失敗を別々に確認します
+				if( expected.installs == 0U) {
+					const bool nodeGuardRejected =
+						expected.nativeCase == SignedIndexBindingNativeCase::STAGE_WRONG_NODE ||
+						expected.nativeCase == SignedIndexBindingNativeCase::STAGE_WRONG_RANK ||
+						expected.nativeCase == SignedIndexBindingNativeCase::
+												   RANK_STAGE_TIED ;	// base登録後の指定準備失敗です
+					DRIVERCRATE_EXPECT( context,
+									   update.requiredRoles.front().installOutcome ==
+											   (nodeGuardRejected ? OutcomeCode::FAILURE
+																  : OutcomeCode::NOT_STARTED) &&
+										   update.requiredRoles.front().stageOutcome ==
+											   (nodeGuardRejected ? OutcomeCode::SUCCESS
+												: nullFailed	  ? OutcomeCode::NOT_STARTED
+																  : OutcomeCode::FAILURE)) ;
+				}
+			}
+
+			DRIVERCRATE_EXPECT(
+				context,
+				!expected.succeeded ||
+					(update.installError == 0U && update.rebootRequired == !expected.noReboot &&
+					 std::ranges::all_of( update.requiredImports, []( const auto &item) {
+						 return item.outcome == OutcomeCode::SUCCESS && item.error == 0U ;
+					 }))) ;
+			// Windows指定APIの診断欠落を実ERROR_INVALID_DATAと区別します
+			if( expected.nativeCase ==
+			   SignedIndexBindingNativeCase::REQUIRED_BASE_DIAGNOSTIC_MISSING) {
+				DRIVERCRATE_EXPECT( context,
+								   !update.requiredRoles.empty() &&
+									   update.requiredRoles.front().installDiagnosticMissing &&
+									   update.installError != 0U) ;
+			}
+		}
+
+		// API成功の対象限定postcheckだけを現在反映へ比較します
+		if( expected.succeeded) {
+			DRIVERCRATE_EXPECT(
+				context,
+				result.currentDevices.size() == 1U &&
+					result.currentDevices.front().selectedTargetMatched ==
+						(expected.reflectOwnInstall &&
+						 expected.nativeCase != SignedIndexBindingNativeCase::STORAGE_POST_ABSENT &&
+						 expected.nativeCase !=
+							 SignedIndexBindingNativeCase::STORAGE_POST_READ_FAILURE)) ;
+			// 同成功API後の不在と原読取失敗を別の結果へ保持します
+			if( result.currentDevices.size() == 1U &&
+			   expected.nativeCase == SignedIndexBindingNativeCase::STORAGE_POST_ABSENT) {
+				DRIVERCRATE_EXPECT( context, result.currentDevices.front().error ==
+												static_cast<NativeError>(
+													HRESULT_FROM_WIN32( ERROR_NO_SUCH_DEVINST))) ;
+			}
+
+			// 現在版照会失敗を旧版や非presentの観測へ変換しません
+			if( result.currentDevices.size() == 1U &&
+			   expected.nativeCase == SignedIndexBindingNativeCase::STORAGE_POST_READ_FAILURE) {
+				DRIVERCRATE_EXPECT(
+					context,
+					result.currentDevices.front().observation.version.state ==
+							DevicePropertyReadState::FAILED &&
+						result.currentDevices.front().observation.version.diagnostic.code ==
+							ERROR_READ_FAULT) ;
+			}
+		}
+	}
+
+	// 同原選択の全作用と必要serviceの観測です
+	const auto effects = bound.observeOriginalEffects() ;
+	DRIVERCRATE_EXPECT( context, !effects.empty() && effects.front().storageEffects &&
+									effects.front().storageEffects->service.start ==
+										candidate.storageChange->startType) ;
+	// 原source literalから独立に、開始/errorの書換えとoptional省略の合成を検出します
+	if( !effects.empty() && effects.front().storageEffects) {
+		const auto &service =
+			// 完成した非権限raw factsだけを借用します
+			effects.front().storageEffects->service ;
+		const auto originalStart = zip.find( "StartType=0\r\n") != zip.npos ? 0U
+								   : zip.find( "StartType=1\r\n") != zip.npos
+									   ? 1U
+									   : 3U ;	// 元sourceの一意な開始方式です
+		const auto originalError = zip.find( "ErrorControl=0\r\n") != zip.npos	? 0U
+								   : zip.find( "ErrorControl=2\r\n") != zip.npos ? 2U
+								   : zip.find( "ErrorControl=3\r\n") != zip.npos
+									   ? 3U
+									   : 1U ;	// 元sourceの原数値です
+		DRIVERCRATE_EXPECT(
+			context, service.start == originalStart && service.errorControl == originalError &&
+						 service.type == 1U && service.flags == 2U &&
+						 service.binaryBytes == 1024U && service.binarySource == L"fixture.sys") ;
+		// MTDの全原COPYとhardware属性を結果へ保持します
+		if( isMtd) {
+			DRIVERCRATE_EXPECT( context,
+							   service.mtdCopies.size() == 3U &&
+								   std::ranges::count_if( service.mtdCopies, []( const auto &copy) {
+									   return copy.dirid == 11 && copy.fields.size() == 1U ;
+								   }) == 2) ;
+		}
+
+		DRIVERCRATE_EXPECT(
+			context,
+			service.group.has_value() == (zip.find( "LoadOrderGroup=") != zip.npos) &&
+				service.dependencies.has_value() == (zip.find( "Dependencies=") != zip.npos) &&
+				service.bootFlags.has_value() == (zip.find( "BootFlags=") != zip.npos)) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			std::ranges::count_if( service.directives,
+								  [&]( const auto &item) {
+									  return item.key == L"StartType" &&
+											 item.fields == std::vector<std::wstring>{
+																std::to_wstring( originalStart)} ;
+								  }) == 1 &&
+				std::ranges::count_if( service.directives, [&]( const auto &item) {
+					return item.key == L"ErrorControl" &&
+						   item.fields == std::vector<std::wstring>{std::to_wstring( originalError)} ;
+				}) == 1) ;
+	}
+
+	// 全原tupleを独立期待へ照合し、3fieldのflags/data補完を見逃しません
+	if( expected.arecaEquivalent && !effects.empty() && effects.front().storageEffects) {
+		// 同原文又はSDの全byteを取得する一時所有です
+		const auto &raw = *effects.front().storageEffects ;
+		DRIVERCRATE_EXPECT( context,
+						   raw.sharedDiskTimeout == 90U &&
+							   raw.service.addServiceFields ==
+								   std::vector<std::wstring>(
+									   {L"FixtureStorage", L"2", L"StorageService", L"EventLog"}) &&
+							   candidate.storageChange->sharedDiskTimeout == 90U) ;
+		const auto row = [&]( StorageInfAction action, SystemInfContext scope,
+							 std::wstring_view section, std::uint32_t ordinal,
+							 std::vector<std::wstring> fields) {
+			return std::ranges::count_if( raw.effects, [&]( const auto &item) {
+					   return item.action == action && item.original.source.scope == scope &&
+							  item.original.source.name == section &&
+							  item.original.row.ordinal == ordinal &&
+							  item.original.row.values == fields ;
+				   }) == 1 ;
+		} ; // 同期借用だけで元値/大小文字/順序/型を確認します
+		DRIVERCRATE_EXPECT(
+			context,
+			row( StorageInfAction::REGISTRY_VALUE, SystemInfContext::HARDWARE, L"HardwareSettings",
+				2U, {L"HKR", L"Interrupt Management", L"0x00000010"}) &&
+				row( StorageInfAction::REGISTRY_VALUE, SystemInfContext::HARDWARE,
+					L"HardwareSettings", 3U,
+					{L"HKR", L"Interrupt Management\\MessageSignaledInterruptProperties",
+					 L"0x00000010"})) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			row( StorageInfAction::REGISTRY_VALUE, SystemInfContext::DEVICE, L"SharedDisk", 1U,
+				{L"HKLM",
+				 L"SYSTEM\\CurrentControlSet\\Services\\FixtureStorage\\Parameters\\Device",
+				 L"MaximumSGList", L"0x10001", L"4096"}) &&
+				row( StorageInfAction::REGISTRY_VALUE, SystemInfContext::DEVICE, L"SharedDisk", 2U,
+					{L"HKLM",
+					 L"SYSTEM\\CurrentControlSet\\Services\\FixtureStorage\\Parameters\\Device",
+					 L"NumberOfRequests", L"0x10001", L"257"})) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			row( StorageInfAction::HARDWARE_VALUE_DELETE, SystemInfContext::HARDWARE,
+				L"LegacyScsiPort", 0U, {L"HKR", L"ScsiPort", L"BusNumber"}) &&
+				row( StorageInfAction::HARDWARE_VALUE_DELETE, SystemInfContext::HARDWARE,
+					L"LegacyScsiPort", 1U, {L"HKR", L"ScsiPort", L"LegacyInterfaceType"}) &&
+				row( StorageInfAction::HARDWARE_VALUE_DELETE, SystemInfContext::HARDWARE,
+					L"LegacyScsiPort", 2U, {L"HKR", L"ScsiPort", L"SlotNumber"})) ;
+		DRIVERCRATE_EXPECT( context, row( StorageInfAction::EVENT_RESOURCE,
+										SystemInfContext::EVENT_LOG, L"EventResources", 1U,
+										{L"HKR", L"", L"TypesSupported", L"0x10001", L"7"}) &&
+										!raw.service.dependencies && !raw.service.bootFlags) ;
+		DRIVERCRATE_EXPECT(
+			context, effects.front().systemEffects.size() >= 1U &&
+						 std::ranges::any_of( effects.front().systemEffects, []( const auto &item) {
+							 return item.source.name == L"NoIoSpace" &&
+									item.row.values == std::vector<std::wstring>{
+														   L"HKR",
+														   L"e5b3b5ac-9725-4f78-963f-03dfb1d828c7",
+														   L"IoNotRequired", L"0x10001", L"1"} ;
+						 })) ;
+	}
+
+	bound.worker->stop() ;
+	// 原fake stage/指定APIの実観測列です
+	const auto calls = bound.observeStorageCalls() ;
+	// 全stageだけを数え、必要nullを別device installへ変換しません
+	DRIVERCRATE_EXPECT( context, calls.size() == expected.stages + expected.installs &&
+									bound.allNativeHandlesClosed()) ;
+	// 元import→base→非null指定の順序を件数とは独立に確認します
+	if( !calls.empty()) {
+		DRIVERCRATE_EXPECT( context, calls.front() == (expected.imports ? L"stage:importonly.inf"
+																	   : L"stage:fixture.inf")) ;
+	}
+
+	// 必要nullの後に元baseだけが登録される順序を確認します
+	if( expected.stages > expected.imports && expected.imports != 0U) {
+		DRIVERCRATE_EXPECT( context, calls[expected.imports] == L"stage:fixture.inf") ;
+	}
+
+	// 指定APIが呼ばれた場合だけ末尾の非null/flags0を要求します
+	if( expected.installs != 0U) {
+		DRIVERCRATE_EXPECT( context, calls.back() == (zip.find( "Class=MTD\r\n") != zip.npos
+														 ? L"mtd:dif-selected:nofilecopy"
+														 : L"install:nonnull:flags0")) ;
+	}
+
+	DRIVERCRATE_EXPECT( context, std::ranges::none_of( calls, []( const auto &call) {
+						   return call == L"stage:unselected.inf" ;
+					   })) ;
+	std::cout << "STORAGE_BIND_NATIVE case=" << static_cast<unsigned>( expected.nativeCase)
+			  << " stage=" << observed.stages << " install=" << observed.installs
+			  << " restore=" << observed.restoreBegins << '/' << observed.restoreCompletes
+			  << " start=" << candidate.storageChange->startType << " imports=" << expected.imports
+			  << " assertions=" << context.assertionCount() - before
+			  << " failures=" << context.failureCount() - failures << " realInstall=0 sequence=" ;
+	// 人工member名だけを固定call列へ出します
+	for( const auto &call : calls) {
+		// 元の人工ASCII literalだけを診断列へ射影します
+		for( const auto character : call) {
+			std::cout << (character <= 0x7f ? static_cast<char>( character) : '?') ;
+		}
+
+		std::cout << ',' ;
+	}
+
+	std::cout << '\n' ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 同原人工ZIPから通常候補/明示選択/fakeNewDevと保護境界を検査します
- * @param[in,out] context 有限assertion集計先です
- * @param[in] services 真署名隔離storeと完全fake HTTP/costです
- * @param[in] zip 同取得と全内容期待hashへ固定する小さい原ZIPです
- * @note 実CAB検査とは別のB fixtureです。program実行や実Windows変更はありません
+ * @param[in,out] context 有限assertion集計です
+ * @param[in] services 真署名隔離storeと完全HTTPです
+ * @param[in] zip 同取得と全内容期待hashへ固定する原ZIPです
+ * @note 実driver/復旧/通信へfallbackしません
  */
 //------------------------------------------------------------------------------
 void runWindowsManagedDriverBindingTests( TestContext						   &context,
@@ -5483,5 +10793,4978 @@ void runWindowsManagedDriverBindingTests( TestContext						   &context,
 		DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
 	}
 }
+
+// UI試験はこの単体試験群が使うmetadata_inventory_testsのfixtureをリンクしません
+#if !defined( DRIVERCRATE_INTERNAL_UI_TESTS)
+//------------------------------------------------------------------------------
+/**
+ * @brief P4の同thread人工store/本文を既完全HTTP fakeへ結びます
+ * @param[in] store 元RAM署名codecで保存した隔離storeです
+ * @param[in] clock 元fixtureが所有する信頼UTCです
+ * @param[in] zip 非空人工driver又は明示空containerの原byteです
+ * @param[in] sent 元send回数だけを記録する非権限observerです
+ * @return 実HTTP/DNS/costへfallbackしない既通常serviceです
+ * @note 呼出threadだけで使い、host/native/signatureの完全表はcallerが別に所有します
+ */
+//------------------------------------------------------------------------------
+provider_worker_index_detail::Services makeServerP4PipelineServices(
+	std::shared_ptr<SignedIndexStore> store, std::shared_ptr<std::chrono::sys_seconds> clock,
+	std::string_view zip, std::function<void()> sent) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 規約と元ZIPを完全置換HTTPへ結びます
+ * @param[in] bodies 配布ページ、規約文書、ZIPの原バイトです
+ * @param[in] now 期限を検査する固定UTCです
+ * @param[in] changed trueは承認後の規約文書だけを変更します
+ * @param[in] retained 二つの独立対象が同じZIPを共有する試験です
+ * @param[out] sends 同じfixtureが記録する送信数の読取りです
+ * @return 実HTTPを呼ばない同期依存です
+ */
+//------------------------------------------------------------------------------
+std::function<OfficialHttpTransport()> archiveTermsConsumerTransport(
+	const std::array<std::string_view, 3> &bodies, std::chrono::sys_seconds now, bool changed,
+	bool retained, std::function<std::size_t()> &sends) ;
+
+/** @brief 実HINFのManufacturerだけへ応答するD16低位SDK状態です */
+struct ServerP4ModelsState {
+	/// 異ABI/不正引数を成功へ数えない持続flagです
+	bool	 contractValid{true} ;
+	/// 正候補後にだけ別の実在Models節を選びます
+	bool	 other{} ;
+	/// 有効なsize-queryの実回数です
+	unsigned queries{} ;
+	/// 有効なbuffer出力の実回数です
+	unsigned reads{} ;
+} ;
+thread_local ServerP4ModelsState *serverP4Models{} ;	// 一owner scope中だけ借用します
+//------------------------------------------------------------------------------
+/**
+ * @brief 実Manufacturerの一SDKへ固定節名だけを原ABIで返します
+ * @param[in] context 実HINFのManufacturer contextです
+ * @param[in] platform currentOS専用のnullptrです
+ * @param[out] buffer 同SDKの受信先です。size queryではnullptrです
+ * @param[in] capacity 元buffer文字数です
+ * @param[out] required NUL込み必要文字数です。null可です
+ * @param[in] reserved 予約nullptrです
+ * @return 原BOOLと直後のWin32 errorです。小bufferへ書込みません
+ */
+//------------------------------------------------------------------------------
+BOOL WINAPI serverP4ActualModels( PINFCONTEXT context, PSP_ALTPLATFORM_INFO platform, PWSTR buffer,
+								 const DWORD capacity, PDWORD required, PVOID reserved)
+{
+	// 偽HINF/非NULL platform/予約値を元SDKへfallbackしません
+	if( !serverP4Models || !context || !context->Inf || context->Inf == INVALID_HANDLE_VALUE ||
+	   platform || reserved || (!buffer && (capacity != 0U || !required))) {
+		// 実owner stateがある場合だけABI拒否の持続flagを残します
+		if( serverP4Models) {
+			serverP4Models->contractValid = false ;
+		}
+
+		SetLastError( ERROR_INVALID_PARAMETER) ;
+		return FALSE ;
+	}
+
+	std::array<wchar_t, 64U> base{} ;	// 実contextが原Manufacturerか確かめます
+	DWORD					 size{} ;	// 原SDK fieldの必要文字数です
+	// 実HINFの元Manufacturer field以外には応答しません
+	if( !SetupGetStringFieldW( context, 1U, base.data(), static_cast<DWORD>( base.size()), &size) ||
+	   std::wstring_view{base.data()} != L"Models") {
+		serverP4Models->contractValid = false ;
+		SetLastError( ERROR_INVALID_DATA) ;
+		return FALSE ;
+	}
+
+	const std::wstring_view section =
+		serverP4Models->other ? L"Models.Other" : L"Models.NTamd64" ;	// 同不変INFの二実節だけです
+	const auto needed = static_cast<DWORD>( section.size() + 1U) ;		// NUL込み文字数です
+	// 要求された必要文字数だけを元SDK出力へ返します
+	if( required) {
+		*required = needed ;
+	}
+
+	// 有効なsize queryは成功し、LastErrorを成功根拠に使いません
+	if( !buffer) {
+		++serverP4Models->queries ;
+		return TRUE ;
+	}
+
+	// 不足bufferは一文字も書換えません
+	if( capacity < needed) {
+		SetLastError( ERROR_INSUFFICIENT_BUFFER) ;
+		return FALSE ;
+	}
+
+	std::copy( section.begin(), section.end(), buffer) ;
+	buffer[section.size()] = L'\0' ;
+	++serverP4Models->reads ;
+	return TRUE ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief D16の同SDK scope/ABI/buffer/復元を独立literalへ照合します
+ * @param[in,out] context 共通assertionです
+ * @param[in] path 元正候補が所有する不変INFです
+ * @param[in,out] state 同thread SDK応答の所有状態です
+ * @note 成功identity DTO/候補/元byteを変更せず、scope外のnative表を復元します
+ */
+//------------------------------------------------------------------------------
+void serverP4ModelsContract( TestContext &context, const std::wstring &path,
+							ServerP4ModelsState &state)
+{
+	using namespace official_inf_models_native_detail ;
+	DRIVERCRATE_EXPECT( context, activeCalls() == nullptr && !Access::create( {}) &&
+									!Access::create( {&::SetupDiGetActualModelsSectionW})) ;
+	const HINF inf =
+		// 同実INFだけです
+		SetupOpenInfFileW( path.c_str(), nullptr, INF_STYLE_WIN4, nullptr) ;
+	DRIVERCRATE_EXPECT( context, inf != INVALID_HANDLE_VALUE) ;
+	// 実INF前提の欠損を低位fake成功へ数えません
+	if( inf == INVALID_HANDLE_VALUE) {
+		throw std::runtime_error( "P4 SDK contract INF missing") ;
+	}
+
+	INFCONTEXT line{} ;	// 同HINFの元Manufacturerです
+	const bool found =
+		// 実fieldです
+		SetupFindFirstLineW( inf, L"Manufacturer", nullptr, &line) != FALSE ;
+	DRIVERCRATE_EXPECT( context, found) ;
+	serverP4Models = &state ;
+	auto scope	   = Access::create( {&serverP4ActualModels}) ;	// 一APIだけの完全な低位表です
+	DRIVERCRATE_EXPECT( context, scope && activeCalls() && !Access::create( {&serverP4ActualModels})) ;
+	bool		otherThreadEmpty{} ;	// thread-local境界の実観測です
+	std::thread other(
+		[&]() { otherThreadEmpty = activeCalls() == nullptr ; }) ;	// 他threadへ同表を貸しません
+	other.join() ;
+	DRIVERCRATE_EXPECT( context, otherThreadEmpty) ;
+	DWORD required{} ;	// 独立literalの必要文字数です
+	DRIVERCRATE_EXPECT( context,
+					   actualModelsSection( &line, nullptr, nullptr, 0U, &required, nullptr) &&
+						   required == 15U) ;
+	std::array<wchar_t, 2U> smallBuffer{L'X', L'Y'} ;	// 小bufferの不変期待です
+	SetLastError( ERROR_SUCCESS) ;
+	const auto smallResult = actualModelsSection( &line, nullptr, smallBuffer.data(), 2U, &required,
+												 nullptr) ;	// 意図した不足だけです
+	const auto smallError  = GetLastError() ;				// FALSE直後の元codeです
+	DRIVERCRATE_EXPECT( context, !smallResult && smallError == ERROR_INSUFFICIENT_BUFFER &&
+									required == 15U && smallBuffer[0] == L'X' &&
+									smallBuffer[1] == L'Y') ;
+	std::array<wchar_t, 32U> section{} ;	// 十分な固定受信先です
+	DRIVERCRATE_EXPECT(
+		context, actualModelsSection( &line, nullptr, section.data(),
+									 static_cast<DWORD>( section.size()), nullptr, nullptr) &&
+					 std::wstring_view{section.data()} == L"Models.NTamd64" && state.contractValid) ;
+	DRIVERCRATE_EXPECT( context,
+					   !actualModelsSection( nullptr, nullptr, section.data(),
+											static_cast<DWORD>( section.size()), nullptr, nullptr) &&
+						   GetLastError() == ERROR_INVALID_PARAMETER && !state.contractValid) ;
+	// 意図した不正引数は上の独立assertionにだけ属します
+	state.contractValid = true ;
+	SP_ALTPLATFORM_INFO wrongPlatform{} ;	// NULL以外を明示拒否する独立入力です
+	DRIVERCRATE_EXPECT( context,
+					   !actualModelsSection( &line, &wrongPlatform, section.data(),
+											static_cast<DWORD>( section.size()), nullptr, nullptr) &&
+						   GetLastError() == ERROR_INVALID_PARAMETER && !state.contractValid) ;
+	state.contractValid = true ;
+	DRIVERCRATE_EXPECT( context, !actualModelsSection( &line, nullptr, section.data(),
+													 static_cast<DWORD>( section.size()), nullptr,
+													 reinterpret_cast<PVOID>( 1U)) &&
+									GetLastError() == ERROR_INVALID_PARAMETER &&
+									!state.contractValid) ;
+	state.contractValid = true ;
+	DRIVERCRATE_EXPECT( context,
+					   !actualModelsSection( &line, nullptr, nullptr, 1U, &required, nullptr) &&
+						   GetLastError() == ERROR_INVALID_PARAMETER && !state.contractValid) ;
+	state.contractValid = true ;
+	scope.reset() ;
+	serverP4Models = nullptr ;
+	SetupCloseInfFile( inf) ;
+	DRIVERCRATE_EXPECT( context, activeCalls() == nullptr) ;
+}
+
+/** @brief 期待値と別に入力phase/counterを保持する同thread低位状態です */
+struct ServerP4Observation {
+	/// 元matrixの一意IDです
+	std::string			id ;
+	/// 実初回と比較する独立literalです
+	WindowsHostPlatform platform ;
+	/// 0は取得、1はaudit、2は最終指定導入、3はretained入力です
+	unsigned			phase{} ;
+	/// 同phaseの実host callback数です
+	unsigned			phaseCalls{} ;
+	/// 全phaseの実host callback数です
+	unsigned			callbacks{} ;
+	/// 完全fake HTTPの実send数です
+	unsigned			sends{} ;
+	/// READY直前に実発行された未公開tokenの観測数です
+	unsigned			minted{} ;
+	/// 再現した拒否後の正当な新scanだけはfaultを解除します
+	bool				recover{} ;
+	/// Aの実候補commit後だけBのfaultを有効にします
+	bool				retainedTarget{} ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定phaseのliteral faultだけを元fullhost観測へ与えます
+ * @param[in,out] state 同threadの一case状態です
+ * @return 原domain/bits付き観測です。元scope/期待/recordは書換えません
+ * @throws std::runtime_error D11の明示observer例外だけです
+ */
+//------------------------------------------------------------------------------
+WindowsHostPlatformObservation serverP4Observe( ServerP4Observation &state)
+{
+	++state.callbacks ;
+	++state.phaseCalls ;
+	WindowsHostPlatformObservation value{
+		WindowsHostObservationState::OBSERVED, state.platform, WindowsHostErrorDomain::NTSTATUS,
+		WindowsHostObservationStage::VERSION, 0U} ;	// 成功原statusです
+	const auto &id = state.id ;						// 固定入力IDだけでfaultを選びます
+	const bool	auditFault =
+		state.phase == 1U &&
+		((state.phaseCalls == 1U &&
+		  (id == "P4_D01_AUDIT_CHANGED_BUILD" || id == "P4_D02_AUDIT_WIN32_FAILURE" ||
+		   id == "P4_D03_AUDIT_NTSTATUS_FAILURE" || id == "P4_D12_AUDIT_STALE_LATCH_SEQUENCE")) ||
+		 (state.phaseCalls == 2U && id == "P4_D04_AFTER_MODELS_CHANGED_PRODUCT") ||
+		 (state.phaseCalls == 3U && id == "P4_D05_BEFORE_TOKEN_CHANGED_SUITE") ||
+		 (state.phaseCalls == 4U && (id == "P4_D06_PREPUBLICATION_ARM64" ||
+									 (id == "P4_D18_RETAINED_MODELS_THEN_HOST_CHANGE" &&
+									  state.retainedTarget)))) ;	// 製品phaseと独立したliteral順です
+	const bool finalFault =
+		state.phase == 2U && state.phaseCalls == 3U &&
+		id != "P4_D16_FINAL_MODELS_MISMATCH" ;	// 最後のcurrentOS比較後だけhostを変更します
+	const bool retainedFault = state.phase == 3U && state.phaseCalls == 1U &&
+							   // 全A/B照合後だけです
+							   id == "P4_D17_RETAINED_FRESH_FAILURE" ;
+	// 未到達phaseや新正当scanへ旧faultを引き継ぎません
+	if( state.recover || (!auditFault && !finalFault && !retainedFault)) {
+		return value ;
+	}
+
+	// Win32 MODULE失敗の原domainと126を返します
+	if( id == "P4_D02_AUDIT_WIN32_FAILURE" || id == "P4_D08_FINAL_WIN32_FAILURE") {
+		return {WindowsHostObservationState::API_FAILED, std::nullopt,
+				WindowsHostErrorDomain::WIN32_CODE, WindowsHostObservationStage::MODULE, 126U} ;
+	}
+
+	// NTSTATUS失敗の原32bitを変換せず返します
+	if( id == "P4_D03_AUDIT_NTSTATUS_FAILURE" || id == "P4_D09_FINAL_NTSTATUS_FAILURE" ||
+	   id == "P4_D13_FINAL_UNKNOWN_LATCH_SEQUENCE" || retainedFault) {
+		return {WindowsHostObservationState::API_FAILED, std::nullopt,
+				WindowsHostErrorDomain::NTSTATUS, WindowsHostObservationStage::VERSION,
+				0xc0000001U} ;
+	}
+
+	// 未観測は成功tupleやnative errorを補完しません
+	if( id == "P4_D10_FINAL_UNOBSERVED") {
+		return {} ;
+	}
+
+	// 指定D11だけが所有observerの例外を送出します
+	if( id == "P4_D11_FINAL_OBSERVER_THROW") {
+		throw std::runtime_error( "P4 explicit observer fault") ;
+	}
+
+	// Models後のproduct一field差だけを与えます
+	if( id == "P4_D04_AFTER_MODELS_CHANGED_PRODUCT") {
+		value.value->productType = 2U ;
+	}
+	// suite差を未知へ丸めません
+	else if( id == "P4_D05_BEFORE_TOKEN_CHANGED_SUITE" ||
+			id == "P4_D18_RETAINED_MODELS_THEN_HOST_CHANGE") {
+		value.value->suiteMask = 0U ;
+	}
+	// 完全な新unsupported値もSTALEです
+	else if( id == "P4_D06_PREPUBLICATION_ARM64") {
+		value.value->nativeArchitecture = 12U ;
+	}
+	// productの既知差です
+	else if( id == "P4_D14_FINAL_KNOWN_PRODUCT4") {
+		value.value->productType = 4U ;
+	}
+	// 必要field欠損だけUNKNOWNです
+	else if( id == "P4_D15_FINAL_BUILD_UNKNOWN") {
+		value.value->buildNumber = 0U ;
+	} else { // 元matrixのbuild差だけです
+		value.value->buildNumber = 20348U ;
+	}
+
+	return value ;
+}
+
+/** @brief 正常DTOを注入せず、通常sessionと低位完全fakeだけを所有します */
+class ServerP4Harness final {
+public:
+	/// 期待値を生成しない実counterとphaseです
+	ServerP4Observation												state ;
+	/// 原clockを変える負例だけで共有するUTCです
+	std::shared_ptr<std::chrono::sys_seconds>						clock ;
+	/// 実低位Windows状態です。実端末のIDを使いません
+	NativeFixtureState												native ;
+	/// 低位表をproviderより長く所有します
+	std::unique_ptr<driver_store_inf_detail::ScopedFixture>			drivers ;
+	/// CAT/全memberの実人工hashを所有します
+	std::unique_ptr<driver_package_signature_detail::ScopedFixture> signatures ;
+	/// 完全な同collector文脈を所有します
+	std::unique_ptr<inf_dependency_native_detail::ScopedFixture>	dependencies ;
+	/// 原署名/raw/codec/storeと同fake HTTPです
+	provider_worker_index_detail::Services							services ;
+	/// 同threadの正常Compositeです
+	std::unique_ptr<CompositeUpdateProvider>						provider ;
+	/// 原scan/context/byte/ledgerの私有ownerです
+	SignedIndexScanSession											session ;
+	/// 初回認可後だけ借用し、新authorizerを作りません
+	SignedIndexAcquisitionAdapter								   *adapter{} ;
+	/// 元が非constである独立lookup copyです。負例はrelationだけを変えます
+	std::shared_ptr<SignedIndexRecordLookup>						lookup ;
+	/// 原三IDと初回hostは入替えません
+	IndexScanHostSnapshot											original ;
+	/// 通常validatorへ渡す元factory出力の所有copyです。内容や権限を補完しません
+	std::vector<UpdateCandidate>									displayedCandidates ;
+	/**
+	 * @brief 非空認証入力を同threadの既完全fakeへ結びます
+	 * @param[in] store 真署名codecの隔離storeです
+	 * @param[in] now 元fixture UTCです
+	 * @param[in] zip 同recordへ署名した原人工byteです
+	 * @param[in] id 元入力IDです
+	 * @param[in] platform 独立literalの原hostです
+	 * @param[in] roots 0は既caseのroot数、非0は新fixtureの明示owner root数です
+	 * @param[in] signatureZip 本文前で停止する保存原取得試験だけで使う人工署名用ZIPです
+	 * @param[in] originalInf 保存原INFの同名CATをWindowsのキャッシュ済み信頼で検査するための固定値です
+	 */
+	ServerP4Harness(
+		std::shared_ptr<SignedIndexStore> store, const std::chrono::sys_seconds now,
+		const std::string_view zip, const std::string_view id, const WindowsHostPlatform platform,
+		const unsigned roots = 0U, const std::string_view signatureZip = {},
+		std::optional<driver_package_signature_detail::OriginalInfMetadata> originalInf = {})
+		: state{std::string{id}, platform}, clock( std::make_shared<std::chrono::sys_seconds>( now))
+	{
+		activeNative			  = &native ;
+		native.opaqueCompatibleId = L"TESTBUS\\P4_COMPAT_0001" ;
+		native.currentProvider	  = L"Current Fixture Vendor" ;
+		// 自作登録rootの欠損を実Windowsへfallbackしません
+		if( !initializeRegistration( native)) {
+			throw std::runtime_error( "P4 owned native fixture initialization") ;
+		}
+
+		drivers = driver_store_inf_detail::Access::create( calls()) ;
+		auto files =
+			// 人工閉包の元hashです
+			signatureFiles( signatureZip.empty() ? zip : signatureZip) ;
+		// 原CAT/member検証だけの拒否条件を用意します
+		if( id == "P4_C06_CAT_REJECT") {
+			const auto file = std::ranges::find_if( files, []( const auto &value) {
+				return value.name == L"fixture.sys" ;
+			}) ; // 狙ったmemberだけです
+			// 狙ったSYSがないfixtureをCAT負例合格へ数えません
+			if( file == files.end()) {
+				throw std::runtime_error( "P4 CAT negative premise missing") ;
+			}
+
+			// CAT低位応答だけを拒否させます
+			file->sha256.assign( 64U, L'0') ;
+		}
+
+		const auto signatureRoots =
+			roots != 0U ? roots :
+						// 二回取得するcaseに限り、同原hash集合の二root-owner組を許します
+				id == "P4_C14_RETAINED_NONEMPTY_SUCCESS" ||
+					id == "P4_C15_RETAINED_BAD_TARGET_HASH" ||
+					id == "P4_C16_RETAINED_TARGET_EXPIRED" ||
+					id == "P4_D12_AUDIT_STALE_LATCH_SEQUENCE" ||
+					id == "P4_D13_FINAL_UNKNOWN_LATCH_SEQUENCE" ||
+					id == "P4_D17_RETAINED_FRESH_FAILURE" ||
+					id == "P4_D18_RETAINED_MODELS_THEN_HOST_CHANGE"
+				? 2U
+				: 1U ;
+		// 公式ZIPの対照では人工署名表を使わず、同じ原INF・CATと閉包の原バイトを検査します
+		if( originalInf) {
+			signatures = driver_package_signature_detail::Access::createOriginalAdapter(
+				{std::move( *originalInf)}) ;
+		} else {
+			signatures =
+				driver_package_signature_detail::Access::create( std::move( files), signatureRoots) ;
+		}
+
+		inf_dependency_native_detail::Api api ;	// 五APIの欠落から実Windowsへ進みません
+		api.version = []( OSVERSIONINFOEXW &version, SYSTEM_INFO &system) {
+			version.dwMajorVersion		  = 10U ;
+			version.dwMinorVersion		  = 0U ;
+			version.dwBuildNumber		  = 26100U ;
+			version.wProductType		  = VER_NT_WORKSTATION ;
+			version.wSuiteMask			  = 0U ;
+			system.wProcessorArchitecture = PROCESSOR_ARCHITECTURE_AMD64 ;
+			return NativeError{} ;
+		} ; // common closureの既collector client文脈です。Server実SDK資格ではありません
+		api.windowsDirectory = [this]( std::wstring &path) {
+			path = native.windowsRoot ;
+			return NativeError{} ;
+		} ;
+		api.infSignature = []( const std::wstring &path, SP_INF_SIGNER_INFO_W &signer) {
+			return driver_package_signature_detail::setupVerifyInf( path.c_str(), nullptr, &signer)
+					   ? NativeError{}
+					   : static_cast<NativeError>( HRESULT_FROM_WIN32( GetLastError())) ;
+		} ;
+		api.catalogSignature = []( const std::wstring				 &path,
+								  const std::span<const std::wstring> members) {
+			return verifyOfficialCatalogMembers( path, members) ;
+		} ;
+		api.driverStore = []( const std::wstring &, std::wstring &path) {
+			path.clear() ;
+			return static_cast<NativeError>( E_NOTIMPL) ;
+		} ;
+		dependencies = inf_dependency_native_detail::Access::create( std::move( api)) ;
+		// 一つでも欠ける低位表から実APIへfallbackしません
+		if( !drivers || !signatures || !dependencies) {
+			throw std::runtime_error( "P4 complete low-level fixture missing") ;
+		}
+
+		services =
+			makeServerP4PipelineServices( std::move( store), clock, zip, [this]() { ++state.sends ; }) ;
+		services.hostPlatform = [this]() { return serverP4Observe( state) ; } ;
+		services.beginHostAcquisition =
+			[this]( SignedIndexAcquisitionAdapter				 &issuer,
+				   std::shared_ptr<const SignedIndexRecordLookup> source,
+				   const IndexLookupContext context, IndexScanHostSnapshot host,
+				   WindowsHostPlatformObserver					 observer,
+				   const std::optional<std::chrono::sys_seconds> time) {
+				adapter	 = &issuer ;
+				lookup	 = std::make_shared<SignedIndexRecordLookup>( *source) ;
+				original = host ;
+				std::cout << "P4_SCAN_CONTEXT case=" << state.id
+						  << " operation=" << context.operationId
+						  << " scan=" << context.scanSessionId
+						  << " inventory=" << context.inventoryGeneration << '\n' ;
+				return signed_index_acquisition_detail::Access::beginHostFixture(
+					issuer, lookup, context, std::move( host), std::move( observer), time) ;
+			} ; // コピーは既native lease/原byteを保持し、無認証lookupを作りません
+		provider = std::make_unique<CompositeUpdateProvider>() ;
+	}
+	/**
+	 * @brief issuer生存中に全route/token/ledgerを失効してから低位借用を解除します
+	 */
+	~ServerP4Harness()
+	{
+		// 借用issuerが生存する間に全route/token/ledgerを失効します
+		session.invalidate() ;
+		// 失効後に所有providerを破棄します
+		provider.reset() ;
+		// 両cleanupの終端後だけ低位fakeの借用を解除します
+		activeNative = nullptr ;
+	}
+	/**
+	 * @brief 実capture→認証lookup→adapter計画→元参照行を接続します
+	 * @param[in,out] context 共通assertionです
+	 * @param[in] sessionId 新しい正のscan IDです
+	 * @param[in] planId 同じ準備管理で単調増加する取得計画IDです
+	 * @param[in] expectedStatus 索引スキャンの独立した期待結果です
+	 * @return 同ownerが実生成した取得計画です
+	 */
+	OfficialPreparationPlan plan( TestContext &context, const ScanSessionId sessionId,
+								 const std::uint64_t   planId		  = 1U,
+								 const IndexScanStatus expectedStatus = IndexScanStatus::COMPLETED)
+	{
+		signed_index_candidate_binding_detail::Access::bind( *provider, session, services,
+															sessionId + 100U) ;
+		ScanOptions options ;	// 公式HTTP/WUAを起動しません
+		options.useDefaultProviders = false ;
+		options.enabledProviderIds	= {std::wstring{DRIVER_STORE_PROVIDER_ID},
+									   std::wstring{SIGNED_INDEX_PROVIDER_ID}} ;
+		const auto callbacksBefore	= state.callbacks ;	// 元初回host観測の実差分だけです
+		auto	   scanned			= provider->scan( sessionId, options,
+													 []( const ProviderProgress &) {}) ;	// 完全低位captureです
+		const auto index = signed_index_candidate_binding_detail::Access::cachedSummaryForFixture(
+			*provider) ;	// registry内の原一回だけを使い、resolverを再発行しません
+		std::cout << "P4_SCAN case=" << state.id << " scanned=" << scanned.succeeded
+				  << " cachedStatus=" << static_cast<unsigned>( index.status)
+				  << " errorBits=" << static_cast<std::uint32_t>( index.error)
+				  << " resolverCalls=" << index.resolverCalls
+				  << " initialHostCalls=" << state.callbacks - callbacksBefore
+				  << " adapter=" << (adapter != nullptr) << " lookup=" << static_cast<bool>( lookup)
+				  << '\n' ;
+		DRIVERCRATE_EXPECT( context, scanned.succeeded && index.status == expectedStatus) ;
+		DRIVERCRATE_EXPECT( context, state.callbacks - callbacksBefore == 1U) ;
+		auto result = provider->preparationPlan( sessionId, planId)
+						  .value_or( OfficialPreparationPlan{sessionId,
+															planId,
+															DEFAULT_OFFICIAL_PREPARATION_LIMITS,
+															{}}) ;	// 通常owner計画です
+		IndexPreparationSummary summary ;							// 権限ではない元計画summaryです
+		DRIVERCRATE_EXPECT( context, session.augmentPreparationPlan( result, services, summary,
+																   scanned.candidates) == 0U) ;
+		signed_index_candidate_binding_detail::Access::publishReferences( *provider, result,
+																		 scanned) ;
+		displayedCandidates = scanned.candidates ;
+		return result ;
+	}
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元計画の一対象を明示承認し、通常取得と非実行検査の実結果を確認します
+ * @param[in,out] context 共通の試験集計です
+ * @param[in,out] run スキャンと完全な低位fakeを所有します
+ * @param[in,out] preparation 同計画の元承認・取得状態です
+ * @param[in] plan 通常スキャンが発行した元計画です
+ * @param[in] target 元計画から選んだ一対象です
+ * @param[in] operationId 取得操作に使う単調増加IDです
+ * @param[in] expectedBytes 成功時に受け取る原byte数です。0は送信前拒否です
+ * @param[in] scoped 機種別の取得成功時は元参照と同じ一端末の導入候補を検証します
+ * @param[in] cancelPublication 機種別取得の監査完了後、候補反映直前だけで取消します
+ */
+//------------------------------------------------------------------------------
+static void acquirePlatformConsumerTarget( TestContext &context, ServerP4Harness &run,
+										  OfficialPreparationSession	  &preparation,
+										  const OfficialPreparationPlan	  &plan,
+										  const OfficialPreparationTarget &target,
+										  const OperationId				   operationId,
+										  const std::size_t expectedBytes, const bool scoped,
+										  const bool cancelPublication = false)
+{
+	DRIVERCRATE_EXPECT( context, preparation.initialize( plan) == OfficialPreparationError::NONE) ;
+	OfficialPreparationApproval approval{operationId,
+										 plan.scanSessionId,
+										 plan.planId,
+										 plan.limits,
+										 {}} ;	// 他の対象へ選択を流用しません
+	// 一操作で選んだ一対象だけを承認します
+	for( const auto &item : plan.targets) {
+		approval.decisions.push_back( {item, item.identity == target.identity, false, false, false}) ;
+	}
+
+	const auto sendsBefore = run.state.sends ;	// この操作が発生させた送信だけを検査します
+	const auto acquired	   = executeOfficialPreparation(
+		   preparation, approval,
+		   [&]( const OfficialPreparationTask &task, const PreparationCancellation &cancel) {
+			   return run.session.acquireForInspection( preparation, task, run.services, cancel) ;
+		   },
+		   [] { return false ; }, []( const OfficialPreparationProgress &) {}) ;	// 通常取得入口です
+	const auto summary = run.session.preparationSummary( operationId) ;				// 実取得・内容検査の結果です
+	// 明示承認した取得対象に対応する元取得の個別結果
+	const auto transfer =
+		std::ranges::find( acquired.items, target.identity, &OfficialPreparationItem::identity) ;
+	const bool		  allowed		= expectedBytes != 0U ;				// 期待する原配布物の明示byte数です
+	const NativeError expectedError = allowed ? S_OK : E_ACCESSDENIED ;	// 元拒否HRESULTです
+	DRIVERCRATE_EXPECT( context, acquired.approvalError == OfficialPreparationError::NONE &&
+									acquired.controlError == 0U && summary.items.size() == 1U &&
+									transfer != acquired.items.end()) ;
+	// 期待した対象の終端を欠く試験を送信前拒否の成功に数えません
+	if( summary.items.size() == 1U && transfer != acquired.items.end()) {
+		const auto &item = summary.items.front() ;	// 元対象と共通検査の一致を確認します
+		DRIVERCRATE_EXPECT(
+			context, item.targetIdentity == target.identity &&
+						 item.acquisitionError == expectedError && item.inputBound == allowed &&
+						 item.acceptedInfCount == (allowed ? 1U : 0U) &&
+						 transfer->result.state ==
+							 (allowed ? OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION
+									  : OfficialPreparationItemState::REJECTED) &&
+						 transfer->result.error == expectedError &&
+						 transfer->result.byteCount == expectedBytes) ;
+	}
+
+	// 取消し用の独立した操作では候補を反映せず、一回の監査で終了します
+	if( allowed && scoped && cancelPublication) {
+		const auto rankBeforeCancellation = run.native.rankCalls ;	// 候補監査の到達を確認します
+		unsigned   cancellationCalls{} ;							// 複製routing反映の直前に受け取る照会数です
+		const auto cancelled = run.provider->preparationAuditReports( acquired, [&] {
+			++cancellationCalls ;
+			return true ;
+		}) ; // 同じ取得操作の保留候補だけを取り消します
+		DRIVERCRATE_EXPECT( context, cancellationCalls == 1U && cancelled.empty() &&
+										run.native.rankCalls > rankBeforeCancellation) ;
+	}
+	// 正規化後の型番と元HardwareIdsが同じ場合、一端末の候補だけを発行します
+	else if( allowed && scoped) {
+		const auto reports = run.provider->preparationAuditReports( acquired) ;	// 通常の候補監査です
+		// 通常画面で同じ取得対象を指す表示候補の位置
+		const auto reference = std::ranges::find( run.displayedCandidates, target.identity,
+												 &UpdateCandidate::preparationTargetIdentity) ;
+		DRIVERCRATE_EXPECT( context, reference != run.displayedCandidates.end() &&
+										!reference->installable && reports.size() == 1U &&
+										reports.front().publishedCandidates.size() == 1U) ;
+		// 元参照がない場合や複数候補の場合に別端末を成功へ換算しません
+		if( reference != run.displayedCandidates.end() && reports.size() == 1U &&
+		   reports.front().publishedCandidates.size() == 1U) {
+			const auto &candidate =
+				// 元参照の実候補です
+				reports.front().publishedCandidates.front() ;
+			DRIVERCRATE_EXPECT(
+				context,
+				candidate.installable && candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
+					candidate.deviceIdentity == reference->deviceIdentity &&
+					candidate.preparationTargetIdentity == target.identity &&
+					candidate.assessment && isCandidateAssessmentReady( *candidate.assessment)) ;
+		}
+	}
+
+	DRIVERCRATE_EXPECT( context, run.state.sends - sendsBefore == (allowed ? 1U : 0U) &&
+									run.native.stages == 0U && run.native.installs == 0U &&
+									run.native.opens == run.native.closes) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 機種別の元署名行を端末別の承認から通常workerの登録・指定適用へ通します
+ * @param[in,out] context 各操作の試験集計です
+ * @param[in] store 本文と機種別追加欄を再認証する隔離ストアです
+ * @param[in] nowUtc 両欄の有効時刻です
+ * @param[in] baseZip 本文の人工配布物です
+ * @param[in] scopedZip 機種別の人工配布物です
+ * @param[in] cases 同じ署名索引で試す端末条件と変更時点です
+ * @param[in] alternateId 公式の同じ群で適用を許す別の完全IDです。従来行では空です
+ * @param[in] conflictingId 元IDとの併存で群が競合する別の完全IDです。従来行では空です
+ * @note HTTP、復元、登録、指定適用は通常workerの完全な低位fakeで実行します
+ */
+//------------------------------------------------------------------------------
+static void testPlatformDeviceInstallBoundaries(
+	TestContext &context, const std::shared_ptr<SignedIndexStore> &store,
+	const std::chrono::sys_seconds nowUtc, const std::string_view baseZip,
+	const std::string_view scopedZip, const std::initializer_list<std::string_view> cases,
+	const std::wstring_view alternateId = {}, const std::wstring_view conflictingId = {})
+{
+	constexpr std::wstring_view HARDWARE =
+		L"PCI\\VEN_FFFF&DEV_0001&SUBSYS_1111FFFF" ;		// 元Models位置0です
+	const bool	 firmware = !conflictingId.empty() ;	// この索引では端末別の明示確認を求めます
+	std::wstring conflictingIds{HARDWARE} ;				// 元IDと別群IDの両方を一台から返すMULTI_SZの内容です
+	conflictingIds.push_back( L'\0') ;
+	conflictingIds.append( conflictingId) ;
+	const bool server = isWindowsServer() ;	// 試験機の種類に合わせて通常workerの復旧モードを選びます
+	// 試験のOSに対応する、実際の導入操作が要求する復旧方式
+	const auto protection = server ? InstallProtectionMode::SERVER_WITHOUT_RESTORE_POINT
+								   : InstallProtectionMode::WINDOWS_RESTORE_POINT ;
+	// 各操作で変える元観測と、到達を許す低位境界を独立して固定します
+	for( const auto id : cases) {
+		const bool baseline	  = id == "baseline" ;						// 同じ署名索引の本文を選びます
+		const bool unreadable = id == "unreadable-before-preflight" ;	// 型番観測の欠測です
+		// 導入前に端末観測が変化または失敗し、Providerへ進まない対照かを示します
+		const bool preflightMachineFault = id == "type-before-preflight" || unreadable ;
+		const bool beforeStage = id == "type-before-stage" ;	// 登録root読取後に型番を変えます
+		const bool beforeApply = id == "type-before-apply" ;	// 登録が一回済んでから型番を変えます
+		const bool groupBeforeStage =
+			// 登録直前だけ別群を加えます
+			id == "firmware-conflict-before-stage" ;
+		const bool groupBeforeApply =
+			// 指定適用直前だけ別群を加えます
+			id == "firmware-conflict-before-apply" ;
+		const bool expiresAtStage =
+			// 登録直前の機器観測中に失効します
+			id == "firmware-expires-during-stage-observation" ;
+		const bool expiresAtApply =
+			// 適用直前の機器観測中に失効します
+			id == "firmware-expires-during-apply-observation" ;
+		const bool alternate =
+			// 指定適用直前に同群の別IDだけを残します
+			id == "firmware-same-group-before-apply" ;
+		const bool removed = id == "hardware-removed" ;	// 候補発行後のHardwareIdsで一致しません
+		const bool moved =
+			// 登録後はCompatibleIdsだけに元IDがあります
+			id == "hardware-moved-after-stage" ;
+		const auto body = baseline ? baseZip : scopedZip ;	// 選んだ元レコードに署名した別ZIPです
+		auto	   state =
+			std::make_shared<CatalogInstallFixture>() ;	// Worker停止まで低位状態を所有します
+		state->originalHardwareId = baseline ? std::wstring_view{} : HARDWARE ;
+		bool	 afterCandidate{} ;				// 終端イベント間だけで元観測を切り替えます
+		unsigned installMachineReads{} ;		// 候補発行後に実際に観測された回数です
+		unsigned changedMachineReads{} ;		// 指定境界で変更後の型番を返した回数です
+		bool	 expiredDuringObservation{} ;	// 元機器の読取りを開始してから失効したことを保持します
+		auto	 clock =
+			std::make_shared<std::chrono::sys_seconds>( nowUtc) ;	// 失効と取り違えない一定時刻です
+		auto services =
+			// 同worker内の人工HTTPです
+			makeServerP4PipelineServices( store, clock, {}, {}) ;
+		services.hostPlatform = [] {
+			return WindowsHostPlatformObservation{WindowsHostObservationState::OBSERVED,
+												  WindowsHostPlatform{10U, 0U, 20348U, 9U, 3U, 0U},
+												  WindowsHostErrorDomain::NTSTATUS,
+												  WindowsHostObservationStage::VERSION, 0U} ;
+		} ; // 元レコードに一致する固定のWindows Server 2022 x64です
+		services.platformMachine = [&] {
+			// 候補発行後も指定の低位境界を観測するまでは元の型番を返します
+			if( afterCandidate) {
+				++installMachineReads ;
+				// 元機器・群は一致したまま、最後の観測途中で取得許可の上限へ進めます
+				if( (expiresAtStage && state->registrationRootReads != 0U) ||
+				   (expiresAtApply && activeNative && activeNative->stages != 0U)) {
+					*clock					 = nowUtc + std::chrono::minutes{15} ;
+					expiredDuringObservation = true ;
+				}
+
+				// 各境界で機種を読むまで通常の順位と端末属性を保ち、その後の群照合にだけ変更を渡します
+				if( (groupBeforeStage && state->registrationRootReads != 0U) ||
+				   ((groupBeforeApply || alternate) && activeNative &&
+					activeNative->stages != 0U)) {
+					state->hardwareIds =
+						alternate ? alternateId : std::wstring_view{conflictingIds} ;
+				}
+
+				// 同じ許可表の別型番と、型番を取得できない場合を元観測へ返します
+				if( preflightMachineFault || (beforeStage && state->registrationRootReads != 0U) ||
+				   (beforeApply && activeNative && activeNative->stages != 0U) || baseline) {
+					++changedMachineReads ;
+					return parseIndexPlatformMachine( L"Lenovo", unreadable ? L"" : L"Z9Z2") ;
+				}
+			}
+
+			return parseIndexPlatformMachine( L"Lenovo", L" z9z1cto1ww ") ;
+		} ; // 機種観測と登録境界だけを同workerの同期中に読みます
+		const auto start = [state, store, clock, body] {
+			// 低位fakeが未初期化なら登録や実適用へ進めません
+			if( !activeNative) {
+				throw std::runtime_error( "platform install native fixture missing") ;
+			}
+
+			activeNative->catalogInstall		  = state.get() ;
+			activeNative->p4ExplicitClientContext = true ;
+			activeNative->multiple				  = true ;
+			activeNative->noReboot				  = true ;
+			static_cast<void>(
+				makeServerP4PipelineServices( store, clock, body, [state] { ++state->sends ; })) ;
+		} ; // 二端末と元の一配布物をworkerの寿命内で所有します
+		auto bound = makeSignedIndexBindingWorker( std::move( services), body, false, false, false,
+												  SignedIndexBindingNativeCase::NORMAL, {},
+												  start) ;	// 低位変更はこの隔離fixtureに限定します
+		OperationController controller ;					// 通常の明示選択と同意を管理します
+		ScanOptions			options ;						// 人工Driver Storeと元署名索引の二経路だけです
+		options.useDefaultProviders = false ;
+		options.enabledProviderIds	= {std::wstring{DRIVER_STORE_PROVIDER_ID},
+									   std::wstring{SIGNED_INDEX_PROVIDER_ID}} ;
+		const auto scan				= controller.beginScan() ;	// 各例の新しい元スキャンです
+		DRIVERCRATE_EXPECT( context, bound.worker && scan.accepted &&
+										bound.worker->requestScan( scan.operationId, options)) ;
+		// 完全fakeを持たないworkerでは後続の操作を始めません
+		if( !bound.worker) {
+			continue ;
+		}
+
+		auto scanned = waitEvent( *bound.worker, WorkerEventKind::SCAN_COMPLETED,
+								 scan.operationId) ;	// 元の取得計画を持つイベントです
+		DRIVERCRATE_EXPECT(
+			context, scanned && scanned->scanResult.succeeded && scanned->preparationPlan &&
+						 scanned->preparationPlan->targets.size() == 1U && state->sends == 0U) ;
+		// 一件の元対象を特定できない例を候補発行後の確認へ進めません
+		if( !scanned || !scanned->preparationPlan ||
+		   scanned->preparationPlan->targets.size() != 1U) {
+			continue ;
+		}
+
+		const auto &plan	  = *scanned->preparationPlan ;	// 同じスキャンの元計画です
+		const auto &target	  = plan.targets.front() ;		// 指定した元IDで照合した一台の対象です
+		const auto	reference = std::ranges::find(
+			 scanned->scanResult.candidates, target.identity,
+			 &UpdateCandidate::preparationTargetIdentity) ;	// 内容検査前の同一対象です
+		DRIVERCRATE_EXPECT(
+			context,
+			target.deviceCount == 1U && reference != scanned->scanResult.candidates.end() &&
+				!reference->installable && target.firmwareCondition.has_value() == firmware &&
+				target.requiresPrerequisiteConfirmation == firmware &&
+				(!firmware ||
+				 (target.firmwareCondition->deviceIdentity == reference->deviceIdentity &&
+				  target.firmwareCondition->groupIndex == 0U &&
+				  target.firmwareCondition->versionLabel == L"R1.2_rc-1")) &&
+				target.eulaSourceSubject ==
+					(baseline ? L"fixture-source (https://vendor.example/)"
+							  : L"platform-scope-source (https://windows-server.lenovo.com/)") &&
+				controller.completeScan( scan.operationId, scanned->scanResult) &&
+				controller.setPreparationPlan( scan.operationId, plan)) ;
+		OfficialPreparationApproval approval{
+			0U,
+			plan.scanSessionId,
+			plan.planId,
+			plan.limits,
+			{{target, true, false, false,
+			  firmware}}} ;	// この端末の表示済み条件を確認して取得を承認します
+		const auto request =
+			// 元スキャンの内容検査へ進みます
+			controller.beginPreparation( approval) ;
+		DRIVERCRATE_EXPECT( context, request.accepted && bound.worker->requestPreparation( approval)) ;
+		auto prepared =
+			waitEvent( *bound.worker, WorkerEventKind::PREPARATION_COMPLETED,
+					  request.operationId) ;	// 元配布物の実取得・内容検査・候補発行の終端です
+		DRIVERCRATE_EXPECT(
+			context,
+			prepared && prepared->indexPreparation.items.size() == 1U &&
+				prepared->indexPreparation.items.front().inputBound &&
+				prepared->indexPreparation.items.front().acceptedInfCount == 1U &&
+				prepared->preparationResult.auditReports.size() == 1U &&
+				prepared->preparationResult.auditReports.front().publishedCandidates.size() == 1U) ;
+		// 実候補を得る前の失敗を導入拒否として扱いません
+		if( !prepared || prepared->preparationResult.auditReports.size() != 1U ||
+		   prepared->preparationResult.auditReports.front().publishedCandidates.size() != 1U ||
+		   reference == scanned->scanResult.candidates.end()) {
+			// 候補発行前に止まった理由を低位パスと元数値だけで表示します
+			if( prepared) {
+				// 元取得の終端に含まれる各結果を照合します
+				for( const auto &item : prepared->indexPreparation.items) {
+					std::cout << "PLATFORM_INSTALL_PREPARE case=" << id
+							  << " acquisition=" << item.acquisitionError
+							  << " input=" << item.inputBound << " content=" << item.contentError
+							  << " accepted=" << item.acceptedInfCount << '\n' ;
+				}
+
+				// 取得と候補監査の元診断を別々に保持します
+				for( const auto &report : prepared->preparationResult.auditReports) {
+					std::cout << "PLATFORM_INSTALL_AUDIT case=" << id
+							  << " content=" << report.contentError
+							  << " pair=" << report.firstPairError
+							  << " publish=" << report.publication.firstError
+							  << " candidates=" << report.publishedCandidates.size() << '\n' ;
+				}
+			}
+
+			continue ;
+		}
+
+		// 通常取得と検査を経て昇格した、元配布と同じ一候補
+		const auto &candidate =
+			prepared->preparationResult.auditReports.front().publishedCandidates.front() ;
+		DRIVERCRATE_EXPECT(
+			context,
+			candidate.installable && candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
+				candidate.preparationTargetIdentity == target.identity &&
+				candidate.deviceIdentity == reference->deviceIdentity && candidate.assessment &&
+				isCandidateAssessmentReady( *candidate.assessment) &&
+				candidate.assessment->installMethod == CandidateInstallMethod::STANDARD_INF &&
+				controller.completePreparation( prepared->preparationResult,
+											   scanned->scanResult.candidates)) ;
+		const auto before = bound.observe() ;	// 取得後も同意前は復元・登録・適用が0です
+		DRIVERCRATE_EXPECT( context, state->sends == 1U && before.stages == 0U &&
+										before.installs == 0U && before.restoreBegins == 0U &&
+										state->registrationRootReads == 0U) ;
+		afterCandidate					   = true ;
+		state->observeRegistrationOnServer = server ;
+		// 同一instanceの端末属性だけを変更します。登録後の場合は先に元IDで登録させます
+		if( removed || moved) {
+			state->hardwareIds		   = L"PCI\\VEN_FFFF&DEV_0001&SUBSYS_4444FFFF" ;
+			state->compatibleId		   = moved ? HARDWARE : std::wstring_view{} ;
+			state->changeIdsAfterStage = moved ;
+		}
+
+		const std::array selection{candidate.identity} ;	// 元候補一件だけへ明示導入します
+		// 実コントローラーで明示同意を適用して得た導入操作の開始結果
+		const auto		 operation =
+			controller.beginInstall( plan.scanSessionId, selection, InstallConfirmation::CONFIRMED) ;
+		DRIVERCRATE_EXPECT( context, operation.accepted &&
+										bound.worker->requestInstall( operation.operationId,
+																	 plan.scanSessionId, selection,
+																	 nullptr, protection)) ;
+		auto	   installed = waitEvent( *bound.worker, WorkerEventKind::INSTALL_COMPLETED,
+										 operation.operationId) ;	// 元の個別結果と選択保持の終端です
+		const auto observed	 = bound.observe() ;					// 登録・指定適用を独立に計数します
+		// Provider実行前に端末条件が崩れる対照の期待値
+		const bool preflightFailure = preflightMachineFault || removed ;
+		const bool success			= id == "stable" || id == "firmware-stable" || alternate ||
+							 baseline ;	// 適用を許す試験条件です
+		// クライアントで事前照合が成立した場合だけ期待する復元準備回数
+		const unsigned restores = server || preflightFailure ? 0U : 1U ;
+		const auto stages = (success || beforeApply || moved || groupBeforeApply || expiresAtApply)
+								? 1U
+								: 0U ;	// 登録に到達する回数です
+		DRIVERCRATE_EXPECT(
+			context,
+			observed.restoreBegins == restores && observed.restoreCompletes == restores &&
+				observed.stages == stages && observed.installs == (success ? 1U : 0U) &&
+				observed.deviceInstalls[0] == observed.installs &&
+				observed.deviceInstalls[1] == 0U && observed.specifiedBindingMatches &&
+				state->sends == 1U && (state->registrationRootReads != 0U) == !preflightFailure &&
+				(state->changedHardwareReads != 0U) ==
+					(removed || moved || groupBeforeStage || groupBeforeApply || alternate) &&
+				(state->changedCompatibleReads != 0U) == moved &&
+				expiredDuringObservation == (expiresAtStage || expiresAtApply) &&
+				(installMachineReads != 0U) == (!baseline && !removed) &&
+				(changedMachineReads != 0U) ==
+					(preflightMachineFault || beforeStage || beforeApply)) ;
+		DRIVERCRATE_EXPECT( context,
+						   installed && installed->installResult.updates.size() == 1U &&
+							   installed->installRetention &&
+							   installed->installRetention->providerEntered == !preflightFailure) ;
+		// 元個別結果と集計が同じ作用境界に元HRESULTを保持することを確認します
+		if( installed && installed->installResult.updates.size() == 1U) {
+			const auto		 &result = installed->installResult ;	// 操作全体の結果です
+			const auto		 &update = result.updates.front() ;		// 実際に選んだ一台の結果です
+			// 現在の対象又は群が元承認から変わればWindowsの再確認を求めます
+			const NativeError error = expiredDuringObservation ? HRESULT_FROM_WIN32( ERROR_TIMEOUT)
+									  : (removed || moved || groupBeforeStage || groupBeforeApply)
+										  ? HRESULT_FROM_WIN32( ERROR_RETRY)
+									  : success ? S_OK
+												: E_ACCESSDENIED ;
+			DRIVERCRATE_EXPECT(
+				context, result.succeeded == success && !result.rebootRequired &&
+							 update.identity == candidate.identity &&
+							 result.downloadError == (preflightFailure ? error : S_OK) &&
+							 result.installError == (preflightFailure ? S_OK : error) &&
+							 update.downloadError == result.downloadError &&
+							 update.installError == result.installError &&
+							 update.downloadOutcome ==
+								 (preflightFailure ? OutcomeCode::FAILURE : OutcomeCode::SUCCESS) &&
+							 update.installOutcome == (preflightFailure ? OutcomeCode::NOT_STARTED
+													   : success		? OutcomeCode::SUCCESS
+																		: OutcomeCode::FAILURE) &&
+							 controller.completeInstall( operation.operationId, result,
+														installed->installRetention
+															? &*installed->installRetention
+															: nullptr)) ;
+			std::cout << "PLATFORM_INSTALL case=" << id << " downloadError=" << result.downloadError
+					  << " installError=" << result.installError
+					  << " machine=" << installMachineReads << " changed=" << changedMachineReads
+					  << " root=" << state->registrationRootReads << " stage=" << observed.stages
+					  << " device1=" << observed.deviceInstalls[0]
+					  << " device2=" << observed.deviceInstalls[1] << '\n' ;
+		}
+
+		bound.worker->stop() ;
+		DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 機種別レコードを同じ端末の通常スキャンと取得計画へ渡します
+ * @param[in,out] context 共通の試験集計です
+ * @param[in] store 本文と機種別追加欄を再認証する隔離ストアです
+ * @param[in] unrecognizedStore 別の配布元が同じ型番を示す対照ストアです
+ * @param[in] nowUtc 両欄の有効時刻です
+ * @param[in] expiry 機種別追加欄の元期限です
+ * @param[in] baseZip 本文の元レコードが参照する人工ZIPです
+ * @param[in] scopedZip 機種別追加欄の元レコードが参照する別の人工ZIPです
+ */
+//------------------------------------------------------------------------------
+void runPlatformDeviceConsumerScan( TestContext &context, std::shared_ptr<SignedIndexStore> store,
+								   std::shared_ptr<SignedIndexStore> unrecognizedStore,
+								   const std::chrono::sys_seconds	 nowUtc,
+								   const std::chrono::sys_seconds	 expiry,
+								   const std::string_view baseZip, const std::string_view scopedZip)
+{
+	using State	 = IndexRecordMatchState ;
+	using Reason = IndexRecordMatchReason ;
+	using Vendor = IndexPlatformMachineVendor ;
+	constexpr WindowsHostPlatform HOST{10U, 0U, 20348U, 9U, 3U, 0U} ;	// Windows Server 2022 x64です
+	constexpr ScanSessionId		  SESSION	  = 853390U ;				// 各スキャン所有者の固定試験sessionです
+	constexpr OperationId		  ACQUISITION = 853391U ;				// 元計画から一対象を取得する操作です
+	constexpr std::wstring_view	  FIRST =
+		L"PCI\\VEN_FFFF&DEV_0001&SUBSYS_1111FFFF" ;	// 元Models位置0です
+	constexpr std::wstring_view LAST =
+		L"PCI\\VEN_FFFF&DEV_0001&SUBSYS_2222FFFF&REV_01" ;	// 元Models位置3です
+	constexpr std::wstring_view OTHER =
+		L"PCI\\VEN_FFFF&DEV_0001&SUBSYS_4444FFFF" ;					// 元Modelsにある対象外IDです
+	constexpr std::wstring_view BASELINE = L"TESTBUS\\SYNTH_0001" ;	// 本文専用のIDです
+	/** @brief 元スキャンで認められた機種別取得を評価する時点です */
+	enum class TransferCase {
+		NONE,				///< 取得を開始せず元計画だけを確認します
+		STABLE,				///< 許可された型番を同じ正規化表記で再確認します
+		CANCEL_PUBLICATION,	///< 適用性の監査後、候補の反映直前に取り消します
+		TYPE_CHANGED,		///< 計画後に許可表内の別型番へ変わります
+		UNAVAILABLE,		///< 計画後に型番が不明になります
+		LATE_CHANGE,		///< grant後に許可表内の別型番へ変わります
+		BASELINE,			///< 機種別拒否後に元本文を同じ計画から取得します
+	} ;
+	/** @brief 端末観測と追加レコードの独立した期待を持つ一例です */
+	struct Case {
+		std::string_view		   id ;								///< 診断用の人工入力名です
+		std::wstring_view		   manufacturer ;					///< 端末の製造元応答です
+		std::wstring_view		   product ;						///< 端末の型番応答です
+		std::wstring_view		   hardware ;						///< 第2端末のHardwareIdsです
+		std::optional<std::size_t> matchedIndex ;					///< 正常時だけ期待する対象IDの元位置です
+		std::optional<Reason>	   machineRejection ;				///< 個別IDへ進めないときの元理由です
+		TransferCase			   transfer{TransferCase::NONE} ;	///< 元計画後の取得動作です
+	} ;
+	// 採用・不一致・未判定を既知の元観測ごとに固定します
+	const std::array<Case, 13U> cases{{
+		{"first-hardware", L"Lenovo", L"z9z1", FIRST, 0U, std::nullopt, TransferCase::STABLE},
+		{"cancel-publication", L"Lenovo", L"z9z1", FIRST, 0U, std::nullopt,
+		 TransferCase::CANCEL_PUBLICATION},
+		{"last-hardware", L"Lenovo", L"Z9Z2CTO1WW", LAST, 3U, std::nullopt},
+		{"outside-scope", L"Lenovo", L"Z9Z1", OTHER, std::nullopt, std::nullopt},
+		{"compatible-only", L"Lenovo", L"Z9Z1", OTHER, std::nullopt, std::nullopt},
+		{"wrong-type", L"Lenovo", L"Z9Z3", FIRST, std::nullopt, Reason::PLATFORM_MACHINE_MISMATCH},
+		{"wrong-vendor", L"Synthetic Manufacturer", L"Z9Z1", FIRST, std::nullopt,
+		 Reason::PLATFORM_MACHINE_MISMATCH},
+		{"unknown-type", L"Lenovo", L"Z9Z1 suffix", FIRST, std::nullopt,
+		 Reason::PLATFORM_MACHINE_UNAVAILABLE},
+		{"unrecognized-authority", L"Lenovo", L"Z9Z1", FIRST, std::nullopt,
+		 Reason::PLATFORM_MACHINE_UNAVAILABLE},
+		{"changed-type-after-plan", L"Lenovo", L"Z9Z1", FIRST, 0U, std::nullopt,
+		 TransferCase::TYPE_CHANGED},
+		{"type-unavailable-after-plan", L"Lenovo", L"Z9Z1", FIRST, 0U, std::nullopt,
+		 TransferCase::UNAVAILABLE},
+		{"changed-type-before-dispatch", L"Lenovo", L"Z9Z1", FIRST, 0U, std::nullopt,
+		 TransferCase::LATE_CHANGE},
+		{"baseline-after-scoped-rejection", L"Lenovo", L"Z9Z1", FIRST, 0U, std::nullopt,
+		 TransferCase::BASELINE},
+	}} ;
+	// 各例を独立した同スキャン所有者に通し、別例のprivate証拠を流用しません
+	for( const auto &fixture : cases) {
+		const bool unrecognized =
+			// 似た文字列の別配布元です
+			fixture.id == "unrecognized-authority" ;
+		unsigned		machineCalls{} ;			// 端末機種情報を要求した回数です
+		unsigned		transports{} ;				// grant成立後に低位HTTP生成へ到達した回数です
+		auto			product = fixture.product ;	// 取得時の観測を制御する人工型番です
+		const auto		body	= fixture.transfer == TransferCase::BASELINE
+									  ? baseZip
+									  : scopedZip ;	// 選択を許可する原ZIPです
+		ServerP4Harness run{unrecognized ? unrecognizedStore : store, nowUtc, body, fixture.id,
+							HOST} ;	// 通常の端末列挙を完全な低位fakeで実行します
+		run.services.platformMachine = [&] {
+			++machineCalls ;
+			return parseIndexPlatformMachine( fixture.manufacturer, product) ;
+		} ;
+		// 本文の端末と機種別の端末は同じスキャンに含め、互いのIDを借りません
+		for( const auto hardware : {BASELINE, fixture.hardware}) {
+			run.native.distributionDevices.push_back(
+				{std::wstring{hardware}, L"fixture.inf", L"Models.NTamd64", L"1.0.0.0",
+				 L"{4d36e978-e325-11ce-bfc1-08002be10318}", L"Ports"}) ;
+		}
+
+		// 同じ対象IDを端末のCompatibleIdsだけへ載せ、種別の誤使用を検出します
+		if( fixture.id == "compatible-only") {
+			run.native.opaqueCompatibleId = FIRST ;
+		}
+
+		const auto status = fixture.machineRejection == Reason::PLATFORM_MACHINE_UNAVAILABLE
+								? IndexScanStatus::PARTIAL
+								: IndexScanStatus::COMPLETED ;		// 不明と確定不一致を区別します
+		const auto plan = run.plan( context, SESSION, 1U, status) ;	// 元端末関係から得た通常計画です
+		const std::size_t expectedTargets =
+			fixture.matchedIndex ? 2U : 1U ;	// 本文だけは全例で成立します
+		const auto scan = signed_index_candidate_binding_detail::Access::cachedSummaryForFixture(
+			*run.provider) ;	// 端末へ実際に問い合わせた件数と元Modelsの分母です
+		DRIVERCRATE_EXPECT( context,
+						   scan.totalRecords == 2U && scan.processedRecords == 2U &&
+							   scan.totalPublicIds == 5U && scan.processedPublicIds == 5U &&
+							   scan.resolverCalls == (fixture.machineRejection ? 1U : 3U) &&
+							   scan.matchedRelations == (fixture.matchedIndex ? 2U : 1U) &&
+							   machineCalls == (unrecognized ? 0U : 1U) && scan.error == 0U) ;
+		DRIVERCRATE_EXPECT( context, plan.targets.size() == expectedTargets && run.lookup &&
+										run.state.sends == 0U && run.native.stages == 0U &&
+										run.native.installs == 0U) ;
+		// スキャンの元lookupと本文対象が成立した例だけで原領域と証拠を検査します
+		if( !run.lookup || plan.targets.size() != expectedTargets) {
+			continue ;
+		}
+
+		const auto &snapshot = run.lookup->snapshot() ;		// スキャンが再認証した原保存値です
+		const auto	records	 = snapshot.consumerRecords() ;	// 本文と機種別の追加行です
+		DRIVERCRATE_EXPECT( context, records.size() == 2U && records[1U].platformDeviceScope &&
+										records[1U].publishedIdentityEvidence.pnpIds.size() == 4U &&
+										records[1U].platformDeviceScope->machineVendor ==
+											(unrecognized ? Vendor::UNKNOWN : Vendor::LENOVO) &&
+										snapshot.consumerRecordRegion( 1U).expiresAtUtc == expiry) ;
+		// 署名領域の前提が壊れた場合に別レコードで取得を試みません
+		if( records.size() != 2U) {
+			continue ;
+		}
+
+		std::wstring baselineHash ;	// 本文の原レコードを取得計画と照合するdigestです
+		std::wstring scopedHash ;	// 機種別の元レコードを取得計画と照合するdigestです
+		DRIVERCRATE_EXPECT( context,
+						   records[0U].recordId == "platform-baseline" &&
+							   computeBytesSha256( records[0U].originalBytes, baselineHash) == 0U &&
+							   computeBytesSha256( records[1U].originalBytes, scopedHash) == 0U &&
+							   baselineHash != scopedHash) ;
+		// 元の通常配布を識別するハッシュに対応する計画上の取得対象
+		const auto baselineTarget = std::ranges::find( plan.targets, baselineHash,
+													  &OfficialPreparationTarget::releaseIdentity) ;
+		// 公式Models配布を通常配布と区別する計画上の取得対象
+		const auto scopedTarget = std::ranges::find( plan.targets, scopedHash,
+													&OfficialPreparationTarget::releaseIdentity) ;
+		DRIVERCRATE_EXPECT(
+			context, baselineTarget != plan.targets.end() && baselineTarget->deviceCount == 1U &&
+						 (scopedTarget != plan.targets.end()) == fixture.matchedIndex.has_value()) ;
+		const auto relations = run.lookup->relations() ;	// 既native resolverだけが発行した関係です
+		// 本文とは別の機種条件付き元行の結果を確認します
+		const auto scoped = std::ranges::find( relations, 1U, &IndexRecordRelation::recordIndex) ;
+		// 機種が不明又は不一致ならID位置や端末証拠のないレコード単位の結果です
+		if( fixture.machineRejection) {
+			// 型番の不明を確認済みの不一致として扱いません
+			const auto state = *fixture.machineRejection == Reason::PLATFORM_MACHINE_UNAVAILABLE
+								   ? State::UNDETERMINED
+								   : State::UNMATCHED ;
+			DRIVERCRATE_EXPECT( context, scoped != relations.end() &&
+											scoped->reason == *fixture.machineRejection &&
+											scoped->state == state && !scoped->publicIdIndex &&
+											!scoped->deviceIdentity && !scoped->deviceProof) ;
+		}
+		// 対象のHardwareIdsが一意に一致した例では原位置と私有端末証拠を保持します
+		else if( fixture.matchedIndex) {
+			DRIVERCRATE_EXPECT( context, scoped != relations.end() &&
+											scoped->state == State::MATCHED &&
+											scoped->publicIdIndex == fixture.matchedIndex &&
+											scoped->deviceIdentity && scoped->deviceProof &&
+											scoped->context.scanSessionId == SESSION &&
+											scoped->context.operationId == SESSION + 100U) ;
+			DRIVERCRATE_EXPECT(
+				context,
+				scopedTarget != plan.targets.end() && scopedTarget->deviceCount == 1U &&
+					std::ranges::any_of( run.displayedCandidates, [&]( const auto &candidate) {
+						return !candidate.installable &&
+							   candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
+							   candidate.preparationTargetIdentity == scopedTarget->identity ;
+					})) ;
+			// 元recordと端末を参照できる場合だけHardwareIds専用の私有証拠を再照合します
+			if( scoped != relations.end() && scoped->deviceProof && scoped->deviceIdentity &&
+			   *fixture.matchedIndex < records[1U].publishedIdentityEvidence.pnpIds.size()) {
+				const auto &evidence =
+					records[1U].publishedIdentityEvidence ;	// 対象付きv4の元Modelsです
+				const auto &id =
+					evidence.pnpIds[*fixture.matchedIndex] ;	// 対象位置の原Hardware IDです
+				const auto *machine =
+					// 同じ列挙に結合した観測です
+					snapshot.platformMachine( scoped->context) ;
+				auto otherInventory = scoped->context ;	// 別の端末列挙から原観測を再利用できません
+				++otherInventory.inventoryGeneration ;
+				DRIVERCRATE_EXPECT( context,
+								   machine != nullptr && machine->vendor == Vendor::LENOVO &&
+									   machine->machineType ==
+										   (*fixture.matchedIndex == 0U ? "Z9Z1" : "Z9Z2") &&
+									   snapshot.platformMachine( otherInventory) == nullptr) ;
+				DRIVERCRATE_EXPECT( context,
+								   scoped->deviceProof->matches(
+									   scoped->context, id.kind, id.value, evidence.classGuid,
+									   GetCurrentThreadId(), scoped->relatedDevices, scoped->error,
+									   scoped->resolutionCompleted, *scoped->deviceIdentity, true)) ;
+			}
+		}
+		// 完了した不一致IDは既存の件数へ集約し、取得可能な関係として保持しません
+		else {
+			DRIVERCRATE_EXPECT( context,
+							   scoped == relations.end() && scan.definitiveNoRelationIds == 4U) ;
+		}
+
+		// 計画だけの入力、または正しい元対象を欠く入力では操作を作りません
+		if( fixture.transfer == TransferCase::NONE || baselineTarget == plan.targets.end() ||
+		   scopedTarget == plan.targets.end()) {
+			continue ;
+		}
+
+		const bool cancelPublication =
+			fixture.transfer ==
+			TransferCase::CANCEL_PUBLICATION ;	// 元の権限を維持して発行前だけ停止します
+		const bool stable = fixture.transfer == TransferCase::STABLE ||
+							cancelPublication ;								// 生の表示値だけは変えます
+		const bool late = fixture.transfer == TransferCase::LATE_CHANGE ;	// grantと送信を分離します
+		// grant成立後に初めてtransportを作る負例だけは、ここでは型番を変えません
+		if( !late) {
+			product = stable										  ? L" z9z1cto1ww "
+					  : fixture.transfer == TransferCase::UNAVAILABLE ? L""
+																	  : L"Z9Z2" ;
+		}
+
+		run.services.httpTransport = [&product, &transports, late,
+									  transport = run.services.httpTransport] {
+			++transports ;
+			// grant取得後・送信直前に同じ許可表の別型番へ変えます
+			if( late) {
+				product = L"Z9Z2" ;
+			}
+
+			return transport() ;
+		} ;
+		OfficialPreparationSession preparation ;	// 両対象の元計画へ同じ承認状態を保持します
+		acquirePlatformConsumerTarget( context, run, preparation, plan, *scopedTarget, ACQUISITION,
+									  stable ? scopedZip.size() : 0U, true, cancelPublication) ;
+		DRIVERCRATE_EXPECT( context, transports == (stable || late ? 1U : 0U) &&
+										machineCalls >= (stable || late ? 3U : 2U)) ;
+		// 拒否した機種別対象を選ばず、同じscanで元本文の別対象が取得できることを確認します
+		if( fixture.transfer == TransferCase::BASELINE) {
+			auto next = plan ;	// 同じscanから残した本文だけを新準備計画にします
+			++next.planId ;
+			next.targets = {*baselineTarget} ;
+			DRIVERCRATE_EXPECT( context, run.session.retainPreparationPlan( next, run.services) &&
+											next.targets.size() == 1U) ;
+			const auto previousCalls = machineCalls ;	// 機種条件を持たない本文には再観測不要です
+			acquirePlatformConsumerTarget( context, run, preparation, next, *baselineTarget,
+										  ACQUISITION + 1U, baseZip.size(), false) ;
+			DRIVERCRATE_EXPECT( context, transports == 1U && machineCalls == previousCalls) ;
+		}
+	}
+
+	ServerP4Harness afterExpiry{store, expiry, baseZip, "platform-expired-at-scan",
+								HOST} ;		// 期限ちょうどの新スキャンです
+	unsigned		expiredMachineCalls{} ;	// 期限切れの機種条件で余分な観測を要求しません
+	afterExpiry.services.platformMachine = [&] {
+		++expiredMachineCalls ;
+		return parseIndexPlatformMachine( L"Lenovo", L"Z9Z1") ;
+	} ;
+	const auto plan = afterExpiry.plan( context, SESSION) ;	// 追加欄期限ちょうどの通常スキャンです
+	const auto scan = signed_index_candidate_binding_detail::Access::cachedSummaryForFixture(
+		*afterExpiry.provider) ;	// 本文だけが照合され、その取得対象を残します
+	DRIVERCRATE_EXPECT( context, scan.supplementStatus == IndexAssetSupplementStatus::EXPIRED &&
+									scan.totalRecords == 1U && scan.totalPublicIds == 1U &&
+									scan.resolverCalls == 1U && plan.targets.size() == 1U &&
+									expiredMachineCalls == 0U && afterExpiry.state.sends == 0U) ;
+	testPlatformDeviceInstallBoundaries(
+		context, store, nowUtc, baseZip, scopedZip,
+		{"stable", "type-before-preflight", "unreadable-before-preflight", "type-before-stage",
+		 "type-before-apply", "hardware-removed", "hardware-moved-after-stage", "baseline"}) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 別々に承認した二台を一回の取得と端末ごとの独立した内容検査へ結びます
+ * @param[in,out] context 元操作の結果を集計します
+ * @param[in] store 同じ配布物を二群に指定した試験索引です
+ * @param[in] nowUtc 元署名と配布物が有効な時刻です
+ * @param[in] zip 取得元に結合した人工配布物です
+ * @param[in] host 配布条件に合う試験用Windowsです
+ * @param[in] firstGroupId 第一群に一意に該当する完全IDです
+ * @param[in] secondGroupId 第二群に一意に該当する完全IDです
+ */
+//------------------------------------------------------------------------------
+static void testPlatformFirmwareRetainedInspection( TestContext							   &context,
+												   const std::shared_ptr<SignedIndexStore> &store,
+												   const std::chrono::sys_seconds			nowUtc,
+												   const std::string_view					zip,
+												   const WindowsHostPlatform				host,
+												   const std::wstring_view firstGroupId,
+												   const std::wstring_view secondGroupId)
+{
+	constexpr ScanSessionId SESSION = 853536U ;	// 各試験の元スキャンです
+	constexpr NativeError	RETRY	= static_cast<NativeError>(
+		// 端末条件変更に対する元の拒否です
+		HRESULT_FROM_WIN32( ERROR_RETRY)) ;
+	// 一台分の承認から同じ端末の指定導入候補だけが発行されたかを照合します
+	const auto publishesTo = []( const std::vector<OfficialPreparationAuditReport> &reports,
+								const OfficialPreparationTarget					  &target) {
+		// 候補の重複や元の承認が異なる監査を、一件の成功として扱いません
+		if( reports.size() != 1U || reports.front().targetIdentity != target.identity ||
+		   reports.front().publishedCandidates.size() != 1U || !target.firmwareCondition) {
+			return false ;
+		}
+
+		const auto &candidate = reports.front().publishedCandidates.front() ;	// 元承認の一件です
+		return candidate.installable && candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
+			   candidate.preparationTargetIdentity == target.identity &&
+			   candidate.deviceIdentity == target.firmwareCondition->deviceIdentity &&
+			   candidate.assessment && isCandidateAssessmentReady( *candidate.assessment) ;
+	} ;
+	// 独立した元スキャンでBの安定時と別群追加時を比較します
+	for( const bool groupConflict : {false, true}) {
+		ServerP4Harness run{
+			store,
+			nowUtc,
+			zip,
+			groupConflict ? "platform-firmware-retained-conflict" : "platform-firmware-retained-stable",
+			host,
+			2U} ;	// 一回の取得と二台分の独立検査を許す署名試験です
+		run.services.platformMachine = [] { return parseIndexPlatformMachine( L"Lenovo", L"Z9Z1") ; } ;
+		// Bを第二端末に固定し、元IDを残したまま別群のIDを追加できるようにします
+		for( const auto hardware : {secondGroupId, firstGroupId}) {
+			run.native.distributionDevices.push_back(
+				{std::wstring{hardware}, L"fixture.inf", L"Models.NTamd64", L"1.0.0.0",
+				 L"{4d36e978-e325-11ce-bfc1-08002be10318}", L"Ports"}) ;
+		}
+
+		const auto plan	  = run.plan( context, SESSION) ;	// 通常スキャンが作った元計画です
+		const auto first  = std::ranges::find_if( plan.targets, []( const auto &target) {
+			 return target.firmwareCondition && target.firmwareCondition->groupIndex == 1U ;
+		 }) ; // 最初に取得するAです
+		const auto second = std::ranges::find_if( plan.targets, []( const auto &target) {
+			return target.firmwareCondition && target.firmwareCondition->groupIndex == 0U ;
+		}) ; // 次に独立承認するBです
+		DRIVERCRATE_EXPECT( context, plan.targets.size() == 2U && first != plan.targets.end() &&
+										second != plan.targets.end() && run.state.sends == 0U) ;
+		// 元確認対象が欠けたときは別端末で試験を続けません
+		if( first == plan.targets.end() || second == plan.targets.end()) {
+			continue ;
+		}
+
+		DRIVERCRATE_EXPECT( context, first->releaseIdentity == second->releaseIdentity &&
+										first->identity != second->identity &&
+										first->firmwareCondition->deviceIdentity !=
+											second->firmwareCondition->deviceIdentity) ;
+		OfficialPreparationSession preparation ;	// 同スキャン内で実承認と元予算を管理します
+		const auto				   execute = [&]( const OfficialPreparationPlan	 &activePlan,
+								 const OfficialPreparationTarget &selected,
+								 const OperationId				  operation) {
+			DRIVERCRATE_EXPECT( context, preparation.initialize( activePlan) ==
+															OfficialPreparationError::NONE) ;
+			// 明示確認を元スキャンとこの操作へ結びます
+			OfficialPreparationApproval approval{
+				operation, SESSION, activePlan.planId, activePlan.limits, {}} ;
+			// 選択した一台の元条件にだけ明示確認を付けます
+			for( const auto &target : activePlan.targets) {
+				const bool accepted =
+					// 選んだ元端末にだけ確認を付けます
+					target.identity == selected.identity ;
+				approval.decisions.push_back( {target, accepted, false, false, accepted}) ;
+			}
+
+			return executeOfficialPreparation(
+				preparation, approval,
+				[&]( const OfficialPreparationTask &task, const PreparationCancellation &cancel) {
+					return run.session.acquireForInspection( preparation, task, run.services,
+																			cancel) ;
+				},
+				[] { return false ; }, []( const OfficialPreparationProgress &) {}) ;
+		} ;
+		const auto acquired = execute( plan, *first, SESSION + 1U) ;	// Aが承認した実行結果です
+		const auto summary =
+			// Aの取得と独立内容検査です
+			run.session.preparationSummary( acquired.operationId) ;
+		const auto transfer =
+			std::ranges::find( acquired.items, first->identity,
+							  &OfficialPreparationItem::identity) ;	// Aの取得終端を借用します
+		DRIVERCRATE_EXPECT(
+			context,
+			acquired.approvalError == OfficialPreparationError::NONE &&
+				acquired.controlError == 0U && transfer != acquired.items.end() &&
+				transfer->result.state == OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION &&
+				transfer->result.error == 0U && transfer->result.byteCount == zip.size() &&
+				!transfer->result.localInspection && summary.items.size() == 1U &&
+				summary.items.front().targetIdentity == first->identity &&
+				!summary.items.front().reusedOwnedBody && summary.items.front().inputBound &&
+				summary.items.front().content ==
+					IndexedDriverInspectionState::INSPECTION_COMPLETED &&
+				summary.items.front().contentError == 0U &&
+				summary.items.front().acceptedInfCount == 1U && run.state.sends == 1U &&
+				run.signatures->receipt().inspectionRoots == 1U) ;
+		const auto transferReports =
+			// Aの取得後の候補発行を確認します
+			run.provider->preparationAuditReports( acquired) ;
+		DRIVERCRATE_EXPECT( context, publishesTo( transferReports, *first)) ;
+
+		auto next = plan ;	// Bは新計画で別の明示確認を受けます
+		++next.planId ;
+		next.targets = {*second} ;
+		const bool retained =
+			// 未選択だったBを維持します
+			run.session.retainPreparationPlan( next, run.services) ;
+		DRIVERCRATE_EXPECT( context, retained && next.targets.size() == 1U) ;
+		// 原計画から維持できたBだけを新しく承認します
+		if( !retained || next.targets.size() != 1U) {
+			continue ;
+		}
+
+		// 新計画の発行後にだけ元Bと競合するIDを追加します
+		if( groupConflict) {
+			run.native.additionalSecondDeviceHardwareId = secondGroupId ;
+		}
+
+		const auto local =
+			// Bの独立した承認結果です
+			execute( next, next.targets.front(), SESSION + 2U) ;
+		const auto localSummary =
+			// Bの再利用と検査結果を確認します
+			run.session.preparationSummary( local.operationId) ;
+		DRIVERCRATE_EXPECT( context, local.approvalError == OfficialPreparationError::NONE &&
+										local.controlError == 0U && local.items.size() == 1U &&
+										localSummary.items.size() == 1U && run.state.sends == 1U &&
+										run.native.stages == 0U && run.native.installs == 0U) ;
+		// Bの実終端と内容結果の両方がある場合だけ、再利用の成否を照合します
+		if( local.items.size() != 1U || localSummary.items.size() != 1U) {
+			continue ;
+		}
+
+		const auto &result = local.items.front().result ;	// 準備操作で確定したBの終端です
+		const auto &item   = localSummary.items.front() ;	// 取得と内容を分けたBの診断です
+		DRIVERCRATE_EXPECT( context, local.items.front().identity == second->identity &&
+										item.targetIdentity == second->identity &&
+										result.byteCount == 0U) ;
+		// Bの競合はLOCAL claimと独立署名検査へ進みません
+		if( groupConflict) {
+			DRIVERCRATE_EXPECT( context, result.state == OfficialPreparationItemState::REJECTED &&
+											result.error == RETRY && !result.localInspection &&
+											item.acquisitionError == RETRY &&
+											!item.reusedOwnedBody && !item.inputBound &&
+											item.acceptedInfCount == 0U &&
+											run.signatures->receipt().inspectionRoots == 1U) ;
+		} else {
+			DRIVERCRATE_EXPECT(
+				context, result.state == OfficialPreparationItemState::LOCAL_INSPECTION_COMPLETED &&
+							 result.error == 0U && result.localInspection && item.reusedOwnedBody &&
+							 item.inputBound &&
+							 item.content == IndexedDriverInspectionState::INSPECTION_COMPLETED &&
+							 item.contentError == 0U && item.acceptedInfCount == 1U &&
+							 run.signatures->receipt().inspectionRoots == 2U) ;
+		}
+
+		const auto localReports =
+			// B自身の確認が成立した場合だけ、その端末の導入候補を発行します
+			run.provider->preparationAuditReports( local) ;
+		DRIVERCRATE_EXPECT( context, groupConflict ? localReports.empty()
+												  : publishesTo( localReports, *second)) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常スキャンの端末別確認と、現在のファームウェア群に応じた取得・保留を検証します
+ * @param[in,out] context 元スキャンの確認結果を集計します
+ * @param[in] store RAM内の試験鍵で確定した本文と機器別追加行です
+ * @param[in] nowUtc 両領域が有効な試験時刻です
+ * @param[in] baseZip 同じ索引の従来行が参照する試験ZIPです
+ * @param[in] scopedZip ファームウェア条件がある元レコードに結合した試験ZIPです
+ * @note 端末と通信を試験用の応答へ置き換えます
+ */
+//------------------------------------------------------------------------------
+void runPlatformFirmwareConsumerHold( TestContext &context, std::shared_ptr<SignedIndexStore> store,
+									 const std::chrono::sys_seconds nowUtc,
+									 const std::string_view			baseZip,
+									 const std::string_view			scopedZip)
+{
+	using Match = IndexPlatformFirmwareMatchState ;
+	constexpr WindowsHostPlatform HOST{10U, 0U, 20348U, 9U, 3U, 0U} ;						// 配布条件のServerです
+	constexpr ScanSessionId		  SESSION  = 853532U ;										// 各独立workerの操作文脈です
+	constexpr std::wstring_view	  BASELINE = L"TESTBUS\\SYNTH_0001" ;						// 従来行の対照です
+	constexpr std::wstring_view	  PRIMARY  = L"PCI\\VEN_FFFF&DEV_0001&SUBSYS_1111FFFF" ;	// 第1群です
+	constexpr std::wstring_view	  SAME_GROUP =
+		L"pci\\ven_ffff&dev_0001&subsys_2222ffff&rev_01" ;	// 同じ群にある別の完全IDです
+	constexpr std::wstring_view OTHER_GROUP =
+		L"PCI\\VEN_FFFF&DEV_0001&SUBSYS_4444FFFF" ;			// 同一版の別群にある完全IDです
+	constexpr std::wstring_view VERSION = L"R1.2_rc-1" ;	// 人工署名行の二群が要求する元の表記です
+	// スキャン後の群競合で新たな確認を求める元エラーです
+	constexpr NativeError		FIRMWARE_GROUP_CHANGED =
+		static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_RETRY)) ;
+	constexpr NativeError AMBIGUOUS_GROUP =
+		// 群競合の元エラーです
+		static_cast<NativeError>( E_ACCESSDENIED) ;
+	// 同じ原レコードを、端末内二群と端末間で独立した二群の両方に照合します
+	for( const bool ambiguous : {false, true}) {
+		ServerP4Harness run{store, nowUtc, baseZip,
+							ambiguous ? "platform-firmware-conflict" : "platform-firmware-unique",
+							HOST} ;	// 例ごとに同じ署名索引を読む独立workerです
+		run.services.platformMachine = [] { return parseIndexPlatformMachine( L"Lenovo", L"Z9Z1") ; } ;
+		run.native.additionalSecondDeviceHardwareId = ambiguous ? OTHER_GROUP : SAME_GROUP ;
+		// 本文と機種別の端末を同じスキャンへ含めます
+		for( const auto hardware : {BASELINE, PRIMARY}) {
+			run.native.distributionDevices.push_back(
+				{std::wstring{hardware}, L"fixture.inf", L"Models.NTamd64", L"1.0.0.0",
+				 L"{4d36e978-e325-11ce-bfc1-08002be10318}", L"Ports"}) ;
+		}
+
+		// 別群IDは選択端末の互換属性と別端末のHardwareIdsへそれぞれ載せます
+		if( !ambiguous) {
+			run.native.opaqueCompatibleId = OTHER_GROUP ;
+			run.native.distributionDevices.push_back(
+				{std::wstring{OTHER_GROUP}, L"fixture.inf", L"Models.NTamd64", L"1.0.0.0",
+				 L"{4d36e978-e325-11ce-bfc1-08002be10318}", L"Ports"}) ;
+		}
+
+		const auto		  plan = run.plan( context, SESSION) ;		// 通常スキャンの取得計画です
+		const std::size_t expectedTargets = ambiguous ? 1U : 3U ;	// 従来行と独立した端末別対象です
+		DRIVERCRATE_EXPECT( context, run.lookup && run.adapter &&
+										plan.targets.size() == expectedTargets &&
+										run.state.sends == 0U) ;
+		// 元の照合結果を取得できた場合だけ同じスキャンの証拠を調べます
+		if( !run.lookup || !run.adapter || plan.targets.size() != expectedTargets) {
+			continue ;
+		}
+
+		const auto records = run.lookup->snapshot().consumerRecords() ;	// 認証済みの本文と追加行です
+		DRIVERCRATE_EXPECT( context, records.size() == 2U && records[1U].recordSchemaVersion == 5U &&
+										records[1U].platformFirmwareGroups.size() == 2U &&
+										records[1U].platformFirmwareGroups[0U].versionLabel ==
+											records[1U].platformFirmwareGroups[1U].versionLabel) ;
+		// 欠損した元行を別レコードで補いません
+		if( records.size() != 2U) {
+			continue ;
+		}
+
+		std::wstring firmwareDigest ;	// 二台の確認対象が共有する署名済み元行のハッシュです
+		DRIVERCRATE_EXPECT( context,
+						   computeBytesSha256( records[1U].originalBytes, firmwareDigest) == 0U) ;
+		const auto relations = run.lookup->relations() ;			// 通常の端末列挙に結合された関係です
+		const auto thread	 = GetCurrentThreadId() ;				// スキャンを実行した実所有スレッドです
+		std::array<std::optional<std::wstring_view>, 4U> devices ;	// 元Models位置別の端末です
+		std::array<const OfficialPreparationTarget *, 4U>
+			targets{} ;	// 元Models位置別に同じ計画から借用します
+		// 追加行の全関係で同一端末の判定と計画の対象を照合します
+		for( std::size_t index{}; index < relations.size(); ++index) {
+			const auto &relation = relations[index] ;	// adapterが受け取る元関係です
+			// 従来行の取得可否は同じ計画の対照で確認します
+			if( relation.recordIndex != 1U) {
+				continue ;
+			}
+
+			DRIVERCRATE_EXPECT( context, relation.state == IndexRecordMatchState::MATCHED &&
+											relation.publicIdIndex &&
+											*relation.publicIdIndex < devices.size() &&
+											relation.deviceProof && relation.deviceIdentity) ;
+			// 元関係が成立していない場合に擬似証拠で群を判定しません
+			if( !relation.publicIdIndex || *relation.publicIdIndex >= devices.size() ||
+			   !relation.deviceProof || !relation.deviceIdentity) {
+				continue ;
+			}
+
+			const auto publicId = *relation.publicIdIndex ;	// 署名済みModels上の位置です
+			DRIVERCRATE_EXPECT( context, !devices[publicId]) ;
+			devices[publicId] = *relation.deviceIdentity ;
+			const auto match  = relation.deviceProof->platformFirmwareMatch(
+				 records[1U], relation.context, thread,
+				 *relation.deviceIdentity) ;						// 元端末の判定です
+			const std::size_t group = publicId == 2U ? 1U : 0U ;	// 元公式群の順序です
+			DRIVERCRATE_EXPECT(
+				context, match.state == (ambiguous ? Match::AMBIGUOUS : Match::UNIQUE) &&
+							 match.groupIndex ==
+								 (ambiguous ? std::nullopt : std::optional<std::size_t>{group})) ;
+			SignedIndexPreparationDescription
+					   description ;	// 描画用の名前を再指定せず、同じ対象を再取得します
+			const auto result = run.adapter->describe( index, relation.context, nowUtc, plan.limits,
+													  description) ;	// 元の通常adapterで再照合します
+			// 同一端末で同じ版の別群が競合する場合は確認対象を発行しません
+			if( ambiguous) {
+				DRIVERCRATE_EXPECT( context,
+								   result == AMBIGUOUS_GROUP && !description.target &&
+									   description.reason == "PLATFORM_FIRMWARE_GROUP_AMBIGUOUS") ;
+				continue ;
+			}
+
+			DRIVERCRATE_EXPECT( context, result == 0U && description.target) ;
+			// 一意の関係を計画に収録された同じ完全対象へ結びます
+			if( description.target) {
+				const auto target = std::ranges::find(
+					plan.targets, *description.target) ;	// 同一の表示と承認の内容です
+				DRIVERCRATE_EXPECT( context, target != plan.targets.end()) ;
+				// 計画にある場合だけ元関係との結合を保持します
+				if( target != plan.targets.end()) {
+					targets[publicId] = &*target ;
+					DRIVERCRATE_EXPECT(
+						context,
+						target->deviceCount == 1U && target->releaseIdentity == firmwareDigest &&
+							target->firmwareCondition &&
+							target->firmwareCondition->deviceIdentity == *relation.deviceIdentity &&
+							target->firmwareCondition->groupIndex == group &&
+							target->firmwareCondition->versionLabel == VERSION) ;
+				}
+			}
+
+			// 一意の元証拠を別の列挙又は別スレッドで再利用しません
+			if( publicId == 0U) {
+				auto stale = relation.context ;	// 次の列挙世代を表す不一致文脈です
+				++stale.inventoryGeneration ;
+				const auto otherContext = relation.deviceProof->platformFirmwareMatch(
+					records[1U], stale, thread,
+					*relation.deviceIdentity) ;	// 元proofのまま文脈だけが異なります
+				const auto otherThread = relation.deviceProof->platformFirmwareMatch(
+					records[1U], relation.context, thread + 1U,
+					*relation.deviceIdentity) ;	// 元proofのままスレッドだけが異なります
+				DRIVERCRATE_EXPECT( context, otherContext.state == Match::UNAVAILABLE &&
+												!otherContext.groupIndex &&
+												otherThread.state == Match::UNAVAILABLE &&
+												!otherThread.groupIndex) ;
+			}
+		}
+
+		DRIVERCRATE_EXPECT(
+			context, devices[0U] && !devices[1U] && devices[2U] &&
+						 (ambiguous ? devices[0U] == devices[2U] && !devices[3U]
+									: devices[0U] == devices[3U] && devices[0U] != devices[2U])) ;
+		std::wstring digest ;	// 従来行の原ハッシュです
+		DRIVERCRATE_EXPECT( context, computeBytesSha256( records[0U].originalBytes, digest) == 0U) ;
+		const auto baseline =
+			std::ranges::find( plan.targets, digest,
+							  &OfficialPreparationTarget::releaseIdentity) ;	// 同じ索引の対照です
+		DRIVERCRATE_EXPECT( context, baseline != plan.targets.end() &&
+										!baseline->firmwareCondition && run.state.sends == 0U) ;
+		// 従来行を別対象で補わず、確認対象の公開を誤って導入へ進めません
+		if( baseline == plan.targets.end()) {
+			continue ;
+		}
+
+		OfficialPreparationSession preparation ;	// 同じスキャン内の承認と予約を維持します
+		auto baselinePlan = plan ;					// 確認後は未選択の従来行だけを残す次計画にします
+		// 一意の二台に独立した確認を提示し、群が競合するようになった一台の取得を保留します
+		if( !ambiguous) {
+			DRIVERCRATE_EXPECT( context, targets[0U] && !targets[1U] && targets[2U] &&
+											targets[0U] == targets[3U] &&
+											targets[0U]->identity != targets[2U]->identity) ;
+			// 元スキャンの機器が保持されている間の現在HardwareIdsを確認します
+			if( devices[0U] && devices[2U]) {
+				const auto &driverStore =
+					signed_index_candidate_binding_detail::Access::driverStoreFixture(
+						*run.provider) ;							// 同じ模擬端末とスキャンを所有します
+				const std::wstring selected{*devices[0U]} ;			// 第1群を確認した同じ端末です
+				const std::wstring peer{*devices[2U]} ;				// 同じ配布を使う別の端末です
+				const auto		   origin = run.original.context ;	// 同じスキャンの元観測です
+				DRIVERCRATE_EXPECT( context, driverStore.reobserveIndexFirmwareGroup(
+												origin, selected, records[1U], 0U) == 0U &&
+												driverStore.reobserveIndexFirmwareGroup(
+													origin, peer, records[1U], 1U) == 0U) ;
+				// 群が同じでも元の一件だけを完全照合し、互換属性と別端末を一致にしません
+				DRIVERCRATE_EXPECT(
+					context,
+					driverStore.reobserveIndexHardwareId( origin, selected, PRIMARY) == 0U &&
+						driverStore.reobserveIndexHardwareId( origin, selected, SAME_GROUP) == 0U &&
+						driverStore.reobserveIndexHardwareId( origin, selected, OTHER_GROUP) ==
+							FIRMWARE_GROUP_CHANGED &&
+						driverStore.reobserveIndexHardwareId( origin, peer, PRIMARY) ==
+							FIRMWARE_GROUP_CHANGED) ;
+				// 第1群の元IDが残っていても異なる公式群が追加されると再確認を求めます
+				run.native.additionalSecondDeviceHardwareId = OTHER_GROUP ;
+				DRIVERCRATE_EXPECT(
+					context,
+					driverStore.reobserveIndexFirmwareGroup( origin, selected, records[1U], 0U) ==
+						static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_RETRY))) ;
+				// 同じ群の別IDが消えても残りの完全IDで一意に照合できます
+				run.native.additionalSecondDeviceHardwareId = {} ;
+				// 元端末が維持されても選んだ完全値が消えた場合は再確認します
+				DRIVERCRATE_EXPECT(
+					context, driverStore.reobserveIndexHardwareId( origin, selected, SAME_GROUP) ==
+								 FIRMWARE_GROUP_CHANGED) ;
+				DRIVERCRATE_EXPECT(
+					context,
+					driverStore.reobserveIndexFirmwareGroup( origin, selected, records[1U], 0U) ==
+							0U &&
+						driverStore.reobserveIndexFirmwareGroup( origin, peer, records[1U], 0U) ==
+							static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_RETRY))) ;
+				// 重複した異常MULTI_SZの読取り失敗を別の公式群の一致に変換しません
+				run.native.additionalSecondDeviceHardwareId = PRIMARY ;
+				DRIVERCRATE_EXPECT(
+					context,
+					driverStore.reobserveIndexFirmwareGroup( origin, selected, records[1U], 0U) ==
+						static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_INVALID_DATA))) ;
+				auto stale = origin ;	// 現在の列挙とは異なる文脈です
+				++stale.inventoryGeneration ;
+				DRIVERCRATE_EXPECT( context, driverStore.reobserveIndexFirmwareGroup(
+												stale, selected, records[1U], 0U) ==
+												static_cast<NativeError>( E_ACCESSDENIED)) ;
+				DRIVERCRATE_EXPECT( context,
+								   driverStore.reobserveIndexHardwareId( stale, selected, PRIMARY) ==
+									   static_cast<NativeError>( E_ACCESSDENIED)) ;
+				run.native.additionalSecondDeviceHardwareId = SAME_GROUP ;
+				const auto previousCase	  = run.native.nativeCase ;	// 再観測条件を元に戻す値です
+				const bool previousChange = run.native.changed ;	// 変更を加える前の状態です
+				run.native.nativeCase	  = SignedIndexBindingNativeCase::DISAPPEARED ;
+				run.native.changed		  = true ;
+				// 元HardwareIdsが残っても取り外された端末を取得対象へ復活させません
+				DRIVERCRATE_EXPECT(
+					context, driverStore.reobserveIndexHardwareId( origin, selected, PRIMARY) != 0U) ;
+				run.native.nativeCase = previousCase ;
+				run.native.changed	  = previousChange ;
+			}
+
+			// 各端末の通常参照と確認対象を、同じスキャンの現在行へ照合します
+			for( const auto publicId : {0U, 2U}) {
+				const auto *target = targets[publicId] ;	// 同じ元行の一台だけに対応します
+				// 確認対象が欠損した端末を別端末の参照で補いません
+				if( !target || !devices[publicId]) {
+					continue ;
+				}
+
+				const auto current =
+					std::ranges::find_if( run.displayedCandidates, [&]( const auto &candidate) {
+						return candidate.current && candidate.deviceIdentity == *devices[publicId] ;
+					}) ; // 同じ端末の通常行の表示名です
+				const auto reference = std::ranges::find(
+					run.displayedCandidates, target->identity,
+					&UpdateCandidate::preparationTargetIdentity) ;	// 通常の取得前参照です
+				DRIVERCRATE_EXPECT(
+					context,
+					reference != run.displayedCandidates.end() && !reference->installable &&
+						reference->deviceIdentity == *devices[publicId] &&
+						std::ranges::count( run.displayedCandidates, target->identity,
+										   &UpdateCandidate::preparationTargetIdentity) == 1 &&
+						current != run.displayedCandidates.end()) ;
+				// 普通のデバイス表示名が取れた場合だけ必須バージョンとともに照合します
+				if( current != run.displayedCandidates.end()) {
+					const auto &name = current->model.empty()
+										   ? current->title
+										   : current->model ;	// 現在行の表示名です
+					DRIVERCRATE_EXPECT(
+						context,
+						!name.empty() && target->requiresPrerequisiteConfirmation &&
+							target->terms == OfficialPreparationTerms::CONFIRMED_NO_CONSENT &&
+							target->prerequisiteText.find( name) != std::wstring::npos &&
+							target->prerequisiteText.find( VERSION) != std::wstring::npos) ;
+				}
+			}
+
+			// 確認対象が生成されなければ元の取得入口へ進みません
+			if( !targets[0U]) {
+				continue ;
+			}
+
+			DRIVERCRATE_EXPECT( context,
+							   preparation.initialize( plan) == OfficialPreparationError::NONE) ;
+			OfficialPreparationApproval approval{
+				SESSION + 1U, SESSION, plan.planId, plan.limits, {}} ;	// 元の全対象を載せる承認です
+			// 本人が確認した同じ一台だけを承認します
+			for( const auto &target : plan.targets) {
+				const bool selected =
+					// 本人確認を一台へ限定します
+					target.identity == targets[0U]->identity ;
+				approval.decisions.push_back( {target, selected, false, false, selected}) ;
+			}
+
+			// 計画確定後に元IDを残したまま別群のIDを足し、grant発行前の競合をつくります
+			run.native.additionalSecondDeviceHardwareId = OTHER_GROUP ;
+			const auto acquired							= executeOfficialPreparation(
+				preparation, approval,
+				[&]( const OfficialPreparationTask &task, const PreparationCancellation &cancel) {
+					RecordScopedDownloadGrant grant ;	// 実claimに対しても未発行のままです
+					const auto				  now = static_cast<std::uint64_t>(
+						   // 元の試験時刻です
+						   nowUtc.time_since_epoch().count()) ;
+					DRIVERCRATE_EXPECT(
+						context,
+						run.adapter->claimApprovedRecord( preparation, task, run.original.context,
+																				 now, grant) == FIRMWARE_GROUP_CHANGED &&
+							grant.metadata().state == OfficialDownloadGrantState::NOT_REQUESTED &&
+							grant.metadata().grantId == 0U) ;
+					return run.session.acquireForInspection( preparation, task, run.services,
+																					cancel) ;
+				},
+				[] { return false ; },
+				[]( const OfficialPreparationProgress &) {}) ;	// 通常取得入口です
+			const auto transfer =
+				std::ranges::find( acquired.items, targets[0U]->identity,
+								  &OfficialPreparationItem::identity) ;	// 元対象の取得終端です
+			const auto summary =
+				// 元取得結果です
+				run.session.preparationSummary( approval.operationId) ;
+			DRIVERCRATE_EXPECT(
+				context, acquired.approvalError == OfficialPreparationError::NONE &&
+							 acquired.controlError == 0U && transfer != acquired.items.end() &&
+							 transfer->result.state == OfficialPreparationItemState::REJECTED &&
+							 transfer->result.error == FIRMWARE_GROUP_CHANGED &&
+							 transfer->result.byteCount == 0U && summary.items.size() == 1U &&
+							 !summary.items.front().inputBound &&
+							 summary.items.front().acquisitionError == FIRMWARE_GROUP_CHANGED &&
+							 run.state.sends == 0U && run.native.stages == 0U &&
+							 run.native.installs == 0U) ;
+
+			++baselinePlan.planId ;
+			baselinePlan.targets = {*baseline} ;
+			DRIVERCRATE_EXPECT( context,
+							   run.session.retainPreparationPlan( baselinePlan, run.services) &&
+								   baselinePlan.targets.size() == 1U) ;
+		}
+
+		acquirePlatformConsumerTarget( context, run, preparation, baselinePlan, *baseline,
+									  SESSION + 2U, baseZip.size(), false) ;
+		DRIVERCRATE_EXPECT( context, run.state.sends == 1U && run.native.stages == 0U &&
+										run.native.installs == 0U) ;
+	}
+
+	testPlatformFirmwareRetainedInspection( context, store, nowUtc, scopedZip, HOST, PRIMARY,
+										   OTHER_GROUP) ;
+	testPlatformDeviceInstallBoundaries(
+		context, store, nowUtc, baseZip, scopedZip,
+		{"firmware-stable", "firmware-conflict-before-stage", "firmware-conflict-before-apply",
+		 "firmware-same-group-before-apply", "firmware-expires-during-stage-observation",
+		 "firmware-expires-during-apply-observation"},
+		SAME_GROUP, OTHER_GROUP) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ署名索引の元候補を通常workerの復元・登録・指定適用で検証します
+ * @param[in,out] context 元候補と低位呼出しの試験集計です
+ * @param[in] store 本文とCatalog追加欄を再認証する隔離ストアです
+ * @param[in] nowUtc 取得前の信頼時刻です
+ * @param[in] expiry 追加欄全体の原期限です
+ * @param[in] baseZip 本文の元配布物です
+ * @param[in] catalogZip Catalogの人工配布物です
+ * @note Windows変更とHTTPは各workerの完全な低位fakeへ結合します
+ */
+//------------------------------------------------------------------------------
+static void testCatalogInstallBoundaries( TestContext							 &context,
+										 const std::shared_ptr<SignedIndexStore> &store,
+										 const std::chrono::sys_seconds			  nowUtc,
+										 const std::chrono::sys_seconds			  expiry,
+										 const std::string_view					  baseZip,
+										 const std::string_view					  catalogZip)
+{
+	// 短期限の別行が決めた境界と、同端末の属性変化を独立した操作で確認します
+	for( const std::string_view id :
+		{"hardware-match", "hardware-removed", "moved-to-compatible", "expires-before-registration",
+		 "expires-before-application", "base-after-supplement-expiry"}) {
+		const bool moved = id == "moved-to-compatible" ;				// 元Hardware IDを互換属性だけへ移します
+		const bool lostHardware = moved || id == "hardware-removed" ;	// 同じinstanceの属性変化です
+		const bool beforeRegistration =
+			// 登録root確認後の原期限です
+			id == "expires-before-registration" ;
+		const bool beforeApplication = id == "expires-before-application" ;	// 登録成功後の原期限です
+		const bool ordinary =
+			// 長い元期限を持つ本文の対照です
+			id == "base-after-supplement-expiry" ;
+		const auto body = ordinary ? baseZip : catalogZip ;	// 選択した一件の元ZIPです
+		auto	   state =
+			std::make_shared<CatalogInstallFixture>() ;	// worker停止まで低位入力を所有します
+		auto clock =
+			std::make_shared<std::chrono::sys_seconds>( nowUtc) ;	// 送信と署名条件が読む同じ時計です
+		auto services		  = makeServerP4PipelineServices( store, clock, {},
+															 {}) ;	// 完全なHTTP、費用、隔離索引の依存です
+		services.hostPlatform = [] {
+			return WindowsHostPlatformObservation{WindowsHostObservationState::OBSERVED,
+												  WindowsHostPlatform{10U, 0U, 26100U, 9U, 1U, 0U},
+												  WindowsHostErrorDomain::NTSTATUS,
+												  WindowsHostObservationStage::VERSION, 0U} ;
+		} ; // 同じWindows 11端末を列挙時から操作終了まで返します
+		services.utc = [clock, state, beforeRegistration, beforeApplication, expiry]() {
+			// 指定の低位境界へ到達した時だけ時計を進め、後続の保持候補でも時刻を戻しません
+			if( activeNative && ((beforeRegistration && state->registrationRootReads != 0U) ||
+								(beforeApplication && activeNative->stages != 0U))) {
+				*clock = expiry ;
+			}
+
+			return std::optional{*clock} ;
+		} ;
+		services.httpTransport = [transport = services.httpTransport, clock]() {
+			auto fake	= transport() ;	// 名前解決から本文まで人工HTTPです
+			fake.utcNow = [clock] {
+				return static_cast<std::uint64_t>( clock->time_since_epoch().count()) ;
+			} ;
+			return fake ;
+		} ;
+		// 各workerだけのHTTP本文と元端末を用意し、二台から一台だけを索引候補にします
+		const auto start = [state, store, clock, body] {
+			// 完全なDriver Store fakeを開始できなければ試験を中止します
+			if( !activeNative) {
+				throw std::runtime_error( "catalog install native fixture missing") ;
+			}
+
+			activeNative->catalogInstall		  = state.get() ;
+			activeNative->p4ExplicitClientContext = true ;
+			activeNative->multiple				  = true ;
+			activeNative->noReboot				  = true ;
+			static_cast<void>(
+				makeServerP4PipelineServices( store, clock, body, [state] { ++state->sends ; })) ;
+		} ;
+		auto bound = makeSignedIndexBindingWorker( std::move( services), body, false, false, false,
+												  SignedIndexBindingNativeCase::NORMAL, {},
+												  start) ;	// 各変更APIと復元は既存のfakeです
+		OperationController controller ;					// 通常画面の選択・承認の所有者です
+		ScanOptions			options ;						// 元索引と人工Driver Storeだけを検索します
+		options.useDefaultProviders = false ;
+		options.enabledProviderIds	= {std::wstring{DRIVER_STORE_PROVIDER_ID},
+									   std::wstring{SIGNED_INDEX_PROVIDER_ID}} ;
+		// 別端末の通常候補が期限到達後も同じscan内で保持される例です
+		if( beforeApplication) {
+			options.enabledProviderIds.emplace_back( WINDOWS_UPDATE_PROVIDER_ID) ;
+		}
+
+		const auto scan = controller.beginScan() ;	// 元の一回のscanです
+		DRIVERCRATE_EXPECT( context, bound.worker && scan.accepted &&
+										bound.worker->requestScan( scan.operationId, options)) ;
+		// 完全fakeを持つworker以外へ要求を送りません
+		if( !bound.worker) {
+			continue ;
+		}
+
+		auto scanned = waitEvent( *bound.worker, WorkerEventKind::SCAN_COMPLETED,
+								 scan.operationId) ;	// 元の取得計画です
+		DRIVERCRATE_EXPECT(
+			context, scanned && scanned->scanResult.succeeded && scanned->preparationPlan &&
+						 scanned->preparationPlan->targets.size() == 2U && state->sends == 0U) ;
+		// 元計画のないfixtureをID消失や期限切れとして扱いません
+		if( !scanned || !scanned->preparationPlan) {
+			continue ;
+		}
+
+		const auto &plan = *scanned->preparationPlan ;	// 本文と追加欄が独立した元対象です
+		const auto	source =
+			 ordinary
+				 ? L"fixture-source (https://vendor.example/)"
+				 : L"catalog-source (https://www.catalog.update.microsoft.com/)" ;	// 独立した取得元の識別です
+		const auto target = std::ranges::find(
+			plan.targets, source,
+			&OfficialPreparationTarget::eulaSourceSubject) ;	// 発行済みの選択対象です
+		DRIVERCRATE_EXPECT( context,
+						   target != plan.targets.end() && target->deviceCount == 1U &&
+							   controller.completeScan( scan.operationId, scanned->scanResult) &&
+							   controller.setPreparationPlan( scan.operationId, plan)) ;
+		// 一件の元選択を得られない場合は以後の準備を実行しません
+		if( target == plan.targets.end()) {
+			continue ;
+		}
+
+		OfficialPreparationApproval approval{
+			0U, plan.scanSessionId, plan.planId, plan.limits, {}} ;	// 一件への明示承認です
+		// 本文と追加欄を同じ承認で取得しません
+		for( const auto &item : plan.targets) {
+			approval.decisions.push_back(
+				{item, item.identity == target->identity, false, false, false}) ;
+		}
+
+		const auto request = controller.beginPreparation( approval) ;	// workerへ渡す元操作です
+		DRIVERCRATE_EXPECT( context, request.accepted && bound.worker->requestPreparation( approval)) ;
+		auto prepared = waitEvent( *bound.worker, WorkerEventKind::PREPARATION_COMPLETED,
+								  request.operationId) ;	// 内容検査後の実候補です
+		DRIVERCRATE_EXPECT(
+			context,
+			prepared && prepared->indexPreparation.items.size() == 1U &&
+				prepared->indexPreparation.items.front().inputBound &&
+				prepared->indexPreparation.items.front().acceptedInfCount == 1U &&
+				prepared->preparationResult.auditReports.size() == 1U &&
+				prepared->preparationResult.auditReports.front().publishedCandidates.size() == 1U) ;
+		// 候補発行前の失敗を導入境界での拒否に数えません
+		if( !prepared || prepared->preparationResult.auditReports.size() != 1U ||
+		   prepared->preparationResult.auditReports.front().publishedCandidates.size() != 1U) {
+			continue ;
+		}
+
+		const auto &candidate = prepared->preparationResult.auditReports.front()
+									.publishedCandidates.front() ;	// 実際に発行した一端末の候補です
+		DRIVERCRATE_EXPECT(
+			context,
+			candidate.providerId == SIGNED_INDEX_PROVIDER_ID && candidate.installable &&
+				candidate.preparationTargetIdentity == target->identity && candidate.assessment &&
+				isCandidateAssessmentReady( *candidate.assessment) &&
+				candidate.assessment->installMethod == CandidateInstallMethod::STANDARD_INF &&
+				controller.completePreparation( prepared->preparationResult,
+											   scanned->scanResult.candidates)) ;
+		const auto before = bound.observe() ;	// 作用開始前の低位呼出しです
+		DRIVERCRATE_EXPECT( context, state->sends == 1U && before.stages == 0U &&
+										before.installs == 0U && before.restoreBegins == 0U &&
+										state->registrationRootReads == 0U) ;
+		// 本文は追加欄の原期限でも有効です。他の例ではその一秒前に導入操作へ進みます
+		*clock = ordinary ? expiry : expiry - std::chrono::seconds{1} ;
+		// 実候補発行後もinstanceと現在driverのMatchingDeviceIdを保ち、二つの元propertyだけに変化を与えます
+		if( lostHardware) {
+			state->hardwareIds	= L"TESTBUS\\OTHER_HARDWARE" ;
+			state->compatibleId = moved ? L"TESTBUS\\SYNTH_0001" : L"" ;
+		}
+
+		// 同じworkerの復旧・指定適用・保持結果を通常controllerへ戻し、元選択だけを実行します
+		const auto install = [&]( const std::wstring &identity) {
+			const std::array selection{identity} ;	// 一操作一端末の元表示IDです
+			const auto		 operation = controller.beginInstall(
+				  plan.scanSessionId, selection, InstallConfirmation::CONFIRMED) ;	// 本人同意です
+			DRIVERCRATE_EXPECT( context,
+							   operation.accepted &&
+								   bound.worker->requestInstall(
+									   operation.operationId, plan.scanSessionId, selection,
+									   nullptr, InstallProtectionMode::WINDOWS_RESTORE_POINT)) ;
+			auto event = waitEvent( *bound.worker, WorkerEventKind::INSTALL_COMPLETED,
+								   operation.operationId) ;	// 保護付き操作の終端です
+			DRIVERCRATE_EXPECT(
+				context, event && event->installResult.updates.size() == 1U &&
+							 event->installResult.updates.front().identity == identity &&
+							 event->installRetention &&
+							 controller.completeInstall( operation.operationId, event->installResult,
+														&*event->installRetention)) ;
+			return event ;
+		} ;
+		const auto installed = install( candidate.identity) ;	// 元の署名済み候補への一回の操作です
+		const auto observed	 = bound.observe() ;				// 各Win32 fakeと復旧fakeの実回数です
+		const bool succeeds =
+			!lostHardware && !beforeRegistration && !beforeApplication ;	// 正常な二経路です
+		const unsigned stages =
+			lostHardware || beforeRegistration ? 0U : 1U ;	// 達するべき登録回数です
+		DRIVERCRATE_EXPECT(
+			context, observed.restoreBegins == (lostHardware ? 0U : 1U) &&
+						 observed.restoreCompletes == observed.restoreBegins &&
+						 observed.stages == stages && observed.installs == (succeeds ? 1U : 0U) &&
+						 observed.deviceInstalls[0] == observed.installs &&
+						 observed.deviceInstalls[1] == 0U && observed.specifiedBindingMatches &&
+						 (state->changedHardwareReads != 0U) == lostHardware &&
+						 (state->changedCompatibleReads != 0U) == moved &&
+						 (state->registrationRootReads != 0U) == !lostHardware &&
+						 state->sends == 1U) ;
+		// 初期や個別結果の欠損を元HRESULTでの停止と認定しません
+		if( installed && installed->installResult.updates.size() == 1U) {
+			const auto		 &result = installed->installResult ;	// 同じ元operationの集計です
+			const auto		 &update = result.updates.front() ;		// 指定した一件の端末結果です
+			const NativeError error =
+				lostHardware ? HRESULT_FROM_WIN32( ERROR_RETRY)
+				: succeeds	 ? S_OK
+							 : HRESULT_FROM_WIN32( ERROR_TIMEOUT) ;	// 束縛の変化と期限を区別します
+			DRIVERCRATE_EXPECT(
+				context, result.succeeded == succeeds && !result.rebootRequired &&
+							 result.downloadError == (lostHardware ? error : S_OK) &&
+							 update.downloadError == result.downloadError &&
+							 result.installError == (lostHardware ? S_OK : error) &&
+							 update.installError == result.installError &&
+							 update.downloadOutcome ==
+								 (lostHardware ? OutcomeCode::FAILURE : OutcomeCode::SUCCESS) &&
+							 update.installOutcome == (lostHardware ? OutcomeCode::NOT_STARTED
+													   : succeeds	? OutcomeCode::SUCCESS
+																	: OutcomeCode::FAILURE) &&
+							 installed->installRetention &&
+							 installed->installRetention->providerEntered == !lostHardware) ;
+			std::cout << "CATALOG_INSTALL case=" << id << " downloadError=" << result.downloadError
+					  << " installError=" << result.installError
+					  << " hardwareReads=" << state->changedHardwareReads
+					  << " compatibleReads=" << state->changedCompatibleReads
+					  << " restore=" << observed.restoreBegins << '/' << observed.restoreCompletes
+					  << " registrationRoot=" << state->registrationRootReads
+					  << " stage=" << observed.stages << " device1=" << observed.deviceInstalls[0]
+					  << " device2=" << observed.deviceInstalls[1] << '\n' ;
+		}
+
+		// 登録後にCatalogだけが失効した同じscanで、元の別端末に属するWUA候補を明示選択します
+		if( beforeApplication && installed && installed->installRetention) {
+			const auto managed =
+				std::ranges::find( scanned->scanResult.candidates, WINDOWS_UPDATE_PROVIDER_ID,
+								  &UpdateCandidate::providerId) ;	// 元scanの別経路です
+			DRIVERCRATE_EXPECT(
+				context, managed != scanned->scanResult.candidates.end() && managed->installable &&
+							 managed->deviceIdentity != candidate.deviceIdentity &&
+							 std::ranges::any_of(
+								 installed->installRetention->candidates, [&]( const auto &entry) {
+									 return entry.identity == managed->identity &&
+											entry.deviceIdentity == managed->deviceIdentity ;
+								 })) ;
+			// 実際に表示した別端末の元候補だけへ二回目の操作を渡します
+			if( managed != scanned->scanResult.candidates.end()) {
+				const auto other =
+					// 元期限を戻さず同scanの別操作を開始します
+					install( managed->identity) ;
+				const auto after =
+					// 登録済みINFに対する操作を繰り返していないことも確認します
+					bound.observe() ;
+				DRIVERCRATE_EXPECT( context,
+								   other && other->installResult.succeeded &&
+									   after.managedInstalls == 1U && after.restoreBegins == 2U &&
+									   after.restoreCompletes == 2U && after.stages == 1U &&
+									   after.installs == 0U && state->sends == 1U) ;
+				std::cout << "CATALOG_RETAINED managed=" << after.managedInstalls
+						  << " restore=" << after.restoreBegins << '/' << after.restoreCompletes
+						  << " stage=" << after.stages << " apply=" << after.installs << '\n' ;
+			}
+		}
+
+		DRIVERCRATE_EXPECT( context, *clock == (beforeRegistration || beforeApplication || ordinary
+												   ? expiry
+												   : expiry - std::chrono::seconds{1})) ;
+		bound.worker->stop() ;
+		DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 本文とCatalog追加欄を通常スキャンの端末照合・取得と期限境界で検証します
+ * @param[in,out] context 共通の試験集計です
+ * @param[in] store 両欄の署名済み原転送byteを再読できる隔離ストアです
+ * @param[in] nowUtc 両欄が使用できる開始時刻です
+ * @param[in] expiry 別行の期限で決まる追加欄全体の原期限です
+ * @param[in] baseZip 本文の元レコードが参照する人工ZIPです
+ * @param[in] catalogZip 対象付きレコードが参照する人工ZIPです
+ * @param[in] baseDigest 本文の展開前に用意した元JSONのSHA-256です
+ * @param[in] supplementDigest 追加欄の元JSON全体のSHA-256です
+ */
+//------------------------------------------------------------------------------
+void runCatalogSupplementConsumerScan( TestContext &context, std::shared_ptr<SignedIndexStore> store,
+									  const std::chrono::sys_seconds nowUtc,
+									  const std::chrono::sys_seconds expiry,
+									  const std::string_view		 baseZip,
+									  const std::string_view		 catalogZip,
+									  const IndexManifestSha256		&baseDigest,
+									  const IndexManifestSha256		&supplementDigest)
+{
+	constexpr WindowsHostPlatform host{10U, 0U, 26100U,
+									   9U,	1U, 0U} ;	// 全例で固定したWindows 11 x64です
+	// 同じ隔離ストアを、各例の独立したスキャンと列挙で再読します
+	for( const auto id : std::array<std::string_view, 4U>{"hardware", "compatible-only",
+														 "expired-at-scan", "expired-at-claim"}) {
+		const bool compatibleOnly = id == "compatible-only" ;	// 同じ公開IDを互換属性だけに返します
+		const bool expiredScan =
+			// 追加欄の期限ちょうどに新規スキャンします
+			id == "expired-at-scan" ;
+		const bool expiredClaim =
+			// スキャン後、承認済み取得の直前に時計を進めます
+			id == "expired-at-claim" ;
+		const auto		body = expiredScan ? baseZip : catalogZip ;	// 選択する一件の元配布物です
+		ServerP4Harness run{store, expiredScan ? expiry : nowUtc, body, id,
+							host} ;	// 完全な低位模擬端末です
+		// 通信境界の試験時計もスキャン・取得許可と同じ時刻を返します
+		run.services.httpTransport = [transport = run.services.httpTransport, clock = run.clock]() {
+			auto fake	= transport() ;	// 全てのHTTP・名前解決を既存の低位fakeに保持します
+			fake.utcNow = [clock] {
+				return static_cast<std::uint64_t>( clock->time_since_epoch().count()) ;
+			} ;
+			return fake ;
+		} ;
+		// 同じ一台からHardwareIdsだけの一致を除き、従来の本文はCompatibleIdsで照合できます
+		if( compatibleOnly) {
+			run.native.distributionDevices.push_back(
+				{L"TESTBUS\\OTHER_HARDWARE", L"fixture.inf", L"Models.NTamd64", L"1.0.0.0",
+				 L"{4d36e978-e325-11ce-bfc1-08002be10318}", L"Ports"}) ;
+			run.native.opaqueCompatibleId = L"TESTBUS\\SYNTH_0001" ;
+		}
+
+		const auto plan = run.plan( context, 853362U) ;	// 通常の列挙と認証lookupが用意する元計画です
+		const auto scan = signed_index_candidate_binding_detail::Access::cachedSummaryForFixture(
+			*run.provider) ;	// 同一スキャンの観測です
+		const std::size_t expectedRecords =
+			expiredScan ? 1U : 2U ;	// 短期限の非対象行は端末件数へ含めません
+		const std::size_t expectedTargets =
+			compatibleOnly || expiredScan ? 1U : 2U ;	// 本文は四例とも一件です
+		DRIVERCRATE_EXPECT(
+			context,
+			scan.status == IndexScanStatus::COMPLETED &&
+				scan.storeStatus == IndexStoreStatus::SNAPSHOT_READY &&
+				scan.totalRecords == expectedRecords && scan.processedRecords == expectedRecords &&
+				scan.remainingRecords == 0U && scan.resolverCalls == expectedRecords &&
+				scan.matchedRelations == expectedTargets &&
+				scan.definitiveNoRelationIds == (compatibleOnly ? 1U : 0U) && scan.error == 0U) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			scan.supplementStatus == (expiredScan ? IndexAssetSupplementStatus::EXPIRED
+												  : IndexAssetSupplementStatus::BYTE_VALIDATED) &&
+				(expiredScan
+					 ? !scan.supplementRecordsStatus
+					 : scan.supplementRecordsStatus == IndexRecordsStatus::SCHEMA_VALIDATED)) ;
+		const auto references =
+			std::ranges::count_if( run.displayedCandidates, []( const auto &item) {
+				return item.identity.starts_with( L"index-reference-") ;
+			}) ; // 端末ごとに通常表示が発行した未検査参照です
+		DRIVERCRATE_EXPECT( context, plan.targets.size() == expectedTargets &&
+										static_cast<std::size_t>( references) == expectedTargets &&
+										run.state.sends == 0U && run.native.stages == 0U &&
+										run.native.installs == 0U && run.lookup) ;
+		// 端末が作ったlookupを欠く場合は原領域も後続取得も認定しません
+		if( !run.lookup) {
+			continue ;
+		}
+
+		const auto &snapshot = run.lookup->snapshot() ;		// 署名再検証後の同一スキャン所有値です
+		const auto	records	 = snapshot.consumerRecords() ;	// 旧本文の直後に有効な対象行を借用します
+		DRIVERCRATE_EXPECT( context, snapshot.schemaReceipt().records().size() == 1U &&
+										snapshot.schemaReceipt().indexSha256() == baseDigest &&
+										baseDigest != supplementDigest &&
+										records.size() == expectedRecords) ;
+		// 欠損した位置を添字で参照しません
+		if( records.size() != expectedRecords || plan.targets.size() != expectedTargets) {
+			continue ;
+		}
+
+		const auto base = snapshot.consumerRecordRegion( 0U) ;	// 追加欄が失効しても有効な本文です
+		const auto manifestExpiry = std::chrono::sys_days{std::chrono::year{2026} / 10 / 25} +
+									std::chrono::hours{5} ;	// 署名manifestの原期限です
+		DRIVERCRATE_EXPECT(
+			context, records[0U].recordId == "fixture-base" &&
+						 records[0U].recordSchemaVersion == 2U && base.indexSha256 == baseDigest &&
+						 base.expiresAtUtc == manifestExpiry && base.sources.size() == 1U &&
+						 base.sources.front().sourceId == "fixture-source") ;
+		std::wstring baseRecordHash ;	// 展開済み本文の各行と計画を結ぶ元byteのhashです
+		DRIVERCRATE_EXPECT( context,
+						   computeBytesSha256( records[0U].originalBytes, baseRecordHash) == 0U) ;
+		const auto baseline = std::ranges::find(
+			plan.targets, baseRecordHash,
+			&OfficialPreparationTarget::releaseIdentity) ;	// 通常計画内の本文の位置です
+		DRIVERCRATE_EXPECT( context, baseline != plan.targets.end() && baseline->deviceCount == 1U &&
+										baseline->eulaSourceSubject ==
+											L"fixture-source (https://vendor.example/)") ;
+		auto selected = baseline ;	// 期限切れの新スキャンでは本文を明示選択します
+		// 同一署名・別の原取得元・別の領域期限を持つ行を、期限前のスキャンだけに要求します
+		if( !expiredScan) {
+			const auto region =
+				// 計算済みの追加欄全体の原hashと期限です
+				snapshot.consumerRecordRegion( 1U) ;
+			const auto &row = records[1U] ;	// このv3行の取得証拠は追加欄の原期限より長く有効です
+			DRIVERCRATE_EXPECT(
+				context, row.recordId == "fixture-catalog" && row.recordSchemaVersion == 3U &&
+							 row.catalogHardwareScope && region.indexSha256 == supplementDigest &&
+							 region.expiresAtUtc == expiry && region.sources.size() == 1U &&
+							 region.sources.front().sourceId == "catalog-source" &&
+							 row.acquisitionDescriptor && row.acquisitionDescriptor->attestation &&
+							 row.acquisitionDescriptor->attestation->validUntilUtc > expiry) ;
+			std::wstring catalogRecordHash ;	// 別領域の元行から得た計画のrelease identityです
+			DRIVERCRATE_EXPECT( context,
+							   computeBytesSha256( row.originalBytes, catalogRecordHash) == 0U &&
+								   catalogRecordHash != baseRecordHash) ;
+			selected = std::ranges::find( plan.targets, catalogRecordHash,
+										 &OfficialPreparationTarget::releaseIdentity) ;
+			const auto relation =
+				std::ranges::find_if( run.lookup->relations(), []( const auto &item) {
+					return item.recordIndex == 1U && item.state == IndexRecordMatchState::MATCHED ;
+				}) ; // 通常のnative resolverが発行した元端末への関係だけを探します
+			// CompatibleIdsだけの端末では元HardwareIdsの権限と取得対象を発行しません
+			if( compatibleOnly) {
+				DRIVERCRATE_EXPECT( context, selected == plan.targets.end() &&
+												relation == run.lookup->relations().end()) ;
+				std::cout << "CATALOG_CONSUMER_SCAN case=" << id << " records=" << scan.totalRecords
+						  << " targets=" << plan.targets.size() << " references=" << references
+						  << " noRelation=" << scan.definitiveNoRelationIds
+						  << " fakeSends=" << run.state.sends << '\n' ;
+				continue ;
+			}
+
+			DRIVERCRATE_EXPECT(
+				context, selected != plan.targets.end() && selected->deviceCount == 1U &&
+							 selected->eulaSourceSubject ==
+								 L"catalog-source (https://www.catalog.update.microsoft.com/)" &&
+							 relation != run.lookup->relations().end() &&
+							 relation->publicIdIndex == 0U && relation->deviceIdentity &&
+							 relation->deviceProof) ;
+		}
+
+		// 通常計画が選択可能にしなかった対象へ取得要求を作りません
+		if( selected == plan.targets.end()) {
+			continue ;
+		}
+
+		// 計画作成後に追加欄だけを失効させ、元レコードの個別期限内での拒否を測ります
+		if( expiredClaim) {
+			*run.clock = expiry ;
+		}
+
+		OfficialPreparationSession preparation ;	// このスキャンの明示承認を所有します
+		DRIVERCRATE_EXPECT( context, preparation.initialize( plan) == OfficialPreparationError::NONE) ;
+		OfficialPreparationApproval approval{853363U,
+											 plan.scanSessionId,
+											 plan.planId,
+											 plan.limits,
+											 {}} ;	// 元の各対象へ選択の有無を記録します
+		// 元計画内の一件だけを選択し、本文と追加欄をまとめて承認しません
+		for( const auto &target : plan.targets) {
+			approval.decisions.push_back(
+				{target, target.identity == selected->identity, false, false, false}) ;
+		}
+
+		const auto acquired = executeOfficialPreparation(
+			preparation, approval,
+			[&]( const OfficialPreparationTask &task, const PreparationCancellation &cancel) {
+				return run.session.acquireForInspection( preparation, task, run.services, cancel) ;
+			},
+			[] { return false ; },
+			[]( const OfficialPreparationProgress &) {}) ;	// 承認済みの一件だけを低位fakeへ渡します
+		const auto summary =
+			// 実際の取得と内容検査の終端です
+			run.session.preparationSummary( approval.operationId) ;
+		const auto reports =
+			// 通常の適用性検査と候補発行です
+			run.provider->preparationAuditReports( acquired) ;
+		std::size_t published{} ;	// 実際に発行された全候補を数えます
+		// 他の元レコードに対応する候補が紛れ込んでいないかも照合します
+		for( const auto &report : reports) {
+			published += report.publishedCandidates.size() ;
+			// 取得成功だけを選択された導入可能候補の発行へ換算しません
+			for( const auto &candidate : report.publishedCandidates) {
+				DRIVERCRATE_EXPECT( context,
+								   candidate.installable &&
+									   candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
+									   candidate.preparationTargetIdentity == selected->identity) ;
+			}
+		}
+
+		DRIVERCRATE_EXPECT( context, acquired.approvalError == OfficialPreparationError::NONE &&
+										acquired.controlError == 0U && summary.items.size() == 1U &&
+										summary.items.front().targetIdentity == selected->identity) ;
+		// 終端を欠く結果を期限切れによる拒否と見なしません
+		if( summary.items.size() == 1U) {
+			const auto		 &item = summary.items.front() ;	// 同じ選択に対する取得・内容の実測です
+			const NativeError expectedError = expiredClaim ? HRESULT_FROM_WIN32( ERROR_TIMEOUT)
+														   : S_OK ;	// 同じ符号付きの元HRESULTです
+			DRIVERCRATE_EXPECT( context, item.acquisitionError == expectedError &&
+											item.inputBound == !expiredClaim &&
+											item.acceptedInfCount == (expiredClaim ? 0U : 1U)) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, run.state.sends == (expiredClaim ? 0U : 1U) &&
+										published == (expiredClaim ? 0U : 1U) &&
+										run.native.stages == 0U && run.native.installs == 0U &&
+										run.native.opens == run.native.closes) ;
+		std::cout << "CATALOG_CONSUMER_SCAN case=" << id << " records=" << scan.totalRecords
+				  << " targets=" << plan.targets.size() << " references=" << references
+				  << " fakeSends=" << run.state.sends << " candidates=" << published
+				  << " stages=" << run.native.stages << " installs=" << run.native.installs << '\n' ;
+	}
+
+	testCatalogInstallBoundaries( context, store, nowUtc, expiry, baseZip, catalogZip) ;
+}
+
+/** @brief 模擬したページ・本体の応答と送信先の実測をworker内に保持します */
+struct WixWorkerHttp {
+	/// 公式ページに返す現時点のHTMLです
+	std::string_view								   page ;
+	/// CDNが返す元EXEに見立てた非実行の人工データです
+	std::string										   payload ;
+	/// 301に待機秒数を付ける場合trueです
+	bool											   retryAfter{} ;
+	/// 署名索引と異なるCDNパスを301に返す場合trueです
+	bool											   otherLocation{} ;
+	/// 実送信直前までに渡された模擬接続先です
+	std::wstring									   host ;
+	/// 実送信直前までに渡された模擬要求パスです
+	std::wstring									   path ;
+	/// fake sendが受け取った順序の全接続先とパスです
+	std::vector<std::pair<std::wstring, std::wstring>> sends ;
+	/// 現在の応答本文から渡し終えたバイト数です
+	std::size_t										   offset{} ;
+
+	/**
+	 * @brief 現在の要求に対応する本文を参照します
+	 * @return 同workerのfakeが保有するHTML、本体、または空の本文です
+	 */
+	[[nodiscard]] std::string_view					   body() const
+	{
+		return path == L"/support"			   ? page
+			   : host == L"cdn.vendor.example" ? std::string_view{payload}
+											   : std::string_view{} ;
+	}
+} ;
+
+thread_local WixWorkerHttp	*activeWixWorkerHttp{} ;	// 同workerだけが試験で借用する元応答です
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存の完全な偽WinHTTPを、元ページ・301・CDN各応答に接続します
+ * @param[in,out] transport 既存の完全な偽I/Oを所有し、応答側だけ置換します
+ * @param[in,out] fixture 終端までworker内でだけ借用する送信履歴と元応答です
+ * @return 元ネットワークAPIを呼ばない同じtransportです
+ */
+//------------------------------------------------------------------------------
+static OfficialHttpTransport wixWorkerTransport( OfficialHttpTransport transport,
+												WixWorkerHttp		 &fixture)
+{
+	activeWixWorkerHttp = &fixture ;
+	transport.connect	= []( HINTERNET, LPCWSTR host, INTERNET_PORT port, DWORD) -> HINTERNET {
+		  // 他のポートまたは未知の接続先にも実ネットワークを使いません
+		  if( !host || port != INTERNET_DEFAULT_HTTPS_PORT) {
+			  SetLastError( ERROR_INVALID_PARAMETER) ;
+			  return nullptr ;
+		  }
+
+		  activeWixWorkerHttp->host = host ;
+		  return activeWixWorkerHttp ;
+	} ; // 模擬接続はworker所有の応答表を参照します
+	transport.openRequest = []( HINTERNET, LPCWSTR method, LPCWSTR path, LPCWSTR, LPCWSTR, LPCWSTR *,
+							   DWORD flags) -> HINTERNET {
+		// HTTPSのGETを要求する通常入口だけが偽応答へ到達します
+		if( !method || std::wstring_view{method} != L"GET" || !path ||
+		   (flags & WINHTTP_FLAG_SECURE) == 0U) {
+			SetLastError( ERROR_INVALID_PARAMETER) ;
+			return nullptr ;
+		}
+
+		activeWixWorkerHttp->path = path ;
+		return activeWixWorkerHttp ;
+	} ; // 共通HTTPから受けたパスを次の送信に結びます
+	transport.sendRequest = []( HINTERNET, LPCWSTR, DWORD, LPVOID, DWORD, DWORD, DWORD_PTR) -> BOOL {
+		auto &http = *activeWixWorkerHttp ;	// 送信の呼出しごとに元宛先を保存します
+		http.sends.emplace_back( http.host, http.path) ;
+		http.offset = 0U ;
+		return TRUE ;
+	} ; // PAGE・元本体・CDNの順序を呼出し側で独立して照合します
+	transport.queryHeaders = []( HINTERNET, DWORD info, LPCWSTR, LPVOID output, LPDWORD size,
+								LPDWORD index) -> BOOL {
+		const auto &http	 = *activeWixWorkerHttp ;		// 一要求につき一つの元HTTP応答です
+		const bool	page	 = http.path == L"/support" ;	// メタデータ取得です
+		const bool	redirect = http.host == L"vendor.example" &&
+							  // 元アンカーの応答です
+							  http.path == L"/download/fixture.exe" ;
+		// StatusはWinHTTPの数値照会へ渡します
+		if( info == (WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER)) {
+			*static_cast<DWORD *>( output) = redirect ? 301U : 200U ;
+			*size						  = sizeof( DWORD) ;
+			return TRUE ;
+		}
+
+		// 同名ヘッダーの二行目を探す共通照会に偽の重複を返しません
+		if( index && *index != 0U) {
+			SetLastError( ERROR_WINHTTP_HEADER_NOT_FOUND) ;
+			return FALSE ;
+		}
+
+		std::wstring value ;	// 同じ応答に実在するヘッダーの値です
+		// 通信の段階ごとに、状態やContent-Typeなど問い合わせ対象の検査値を返します
+		switch( info) {
+			// Content-TypeはPAGEと本体で分けます
+			case WINHTTP_QUERY_CONTENT_TYPE:
+				value = page ? L"text/html; charset=utf-8" : L"application/octet-stream" ;
+				break ;
+
+			// 本文と同じバイト数を宣言します
+			case WINHTTP_QUERY_CONTENT_LENGTH:
+				value = std::to_wstring( http.body().size()) ;
+				break ;
+
+			// 固定の同パスCDNだけを転送先として返します
+			case WINHTTP_QUERY_LOCATION:
+				value = !redirect ? L""
+						: http.otherLocation
+							? L"https://cdn.vendor.example/download/replacement.exe"
+							: L"https://cdn.vendor.example/download/fixture.exe" ;
+				break ;
+
+			// 301に明示した待機は120秒間有効です
+			case WINHTTP_QUERY_RETRY_AFTER:
+				value = redirect && http.retryAfter ? L"120" : L"" ;
+				break ;
+
+			// その他のヘッダーを合成しません
+			default:
+				break ;
+		}
+
+		// 元応答に存在する値だけを返します
+		if( value.empty()) {
+			SetLastError( ERROR_WINHTTP_HEADER_NOT_FOUND) ;
+			return FALSE ;
+		}
+
+		const auto required =
+			// 終端を含む必要バイト数です
+			static_cast<DWORD>( (value.size() + 1U) * sizeof( wchar_t)) ;
+		// 容量照会を行位置の消費に換算しません
+		if( !output || *size < required) {
+			*size = required ;
+			SetLastError( ERROR_INSUFFICIENT_BUFFER) ;
+			return FALSE ;
+		}
+
+		std::memcpy( output, value.c_str(), required) ;
+		*size = required - static_cast<DWORD>( sizeof( wchar_t)) ;
+		// 同名値は本照会成功後だけ一行進めます
+		if( index) {
+			++*index ;
+		}
+
+		return TRUE ;
+	} ; // 現要求番号に対応する応答からだけ有限値を返します
+	transport.queryAvailable = []( HINTERNET, LPDWORD available) -> BOOL {
+		const auto &http = *activeWixWorkerHttp ;	// PAGEかCDNの有限応答です
+		*available		 = static_cast<DWORD>( http.body().size() - http.offset) ;
+		return TRUE ;
+	} ; // 同一本文で読み取れる残量だけを返します
+	transport.readData = []( HINTERNET, LPVOID output, DWORD requested, LPDWORD read) -> BOOL {
+		auto	  &http = *activeWixWorkerHttp ;	// 読取り位置を現在応答の本文内だけで進めます
+		const auto body = http.body() ;				// 今の応答本文だけを借用します
+		const auto count =
+			std::min<std::size_t>( requested, body.size() - http.offset) ;	// 返却可能なバイト数です
+		// 空本文を示す応答ではコピー元を参照しません
+		if( count != 0U) {
+			std::memcpy( output, body.data() + http.offset, count) ;
+		}
+
+		http.offset += count ;
+		*read = static_cast<DWORD>( count) ;
+		return TRUE ;
+	} ; // 原バイトを共通HTTPと保護workspaceに渡します
+	return transport ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常ワーカーに同じ署名索引の検査専用対象一つだけの明示取得を依頼します
+ * @param[in,out] context 共通の試験集計です
+ * @param[in,out] worker 隔離ストアと完全な低位fakeを使う実Workerです
+ * @param[in] operationId 検索に使う操作IDです。続く取得に次のIDを使います
+ * @param[in] beforePreparation 検索終端後、承認の直前に試験の低位入力だけを切り替えます
+ * @param[out] reference 検索が返した表示専用参照の写しです
+ * @param[out] sessionId 検索が返した元セッションです
+ * @return PREPARATION_COMPLETEDイベントです。元要求または終端を欠く場合は空です
+ */
+//------------------------------------------------------------------------------
+static std::optional<WorkerEvent> prepareWixWorkerTarget(
+	TestContext &context, ProviderWorker &worker, const OperationId operationId,
+	const std::function<void()> &beforePreparation, std::wstring &reference,
+	ScanSessionId &sessionId)
+{
+	ScanOptions options ;	// 端末内Driver Storeと署名索引の入口だけを使用します
+	options.useDefaultProviders = false ;
+	options.enabledProviderIds	= {std::wstring{DRIVER_STORE_PROVIDER_ID},
+								   std::wstring{SIGNED_INDEX_PROVIDER_ID}} ;
+	const bool queued			= worker.requestScan( operationId, options) ;	// 本物の検索キューです
+	DRIVERCRATE_EXPECT( context, queued) ;
+	// 受付を欠く場合は検索からの取得成立を認定しません
+	if( !queued) {
+		return std::nullopt ;
+	}
+
+	const auto scanned =
+		// 通常の検索終端です
+		waitEvent( worker, WorkerEventKind::SCAN_COMPLETED, operationId) ;
+	DRIVERCRATE_EXPECT( context, scanned && scanned->scanResult.succeeded &&
+									scanned->preparationPlan &&
+									scanned->preparationPlan->targets.size() == 2U) ;
+	// 元計画と照合済みの表示行からだけ次の操作を組み立てます
+	if( !scanned || !scanned->preparationPlan) {
+		return std::nullopt ;
+	}
+
+	const auto &plan = *scanned->preparationPlan ;	// 同じ検索で発行された元計画です
+	const auto	visible =
+		std::ranges::find_if( scanned->scanResult.candidates, []( const auto &candidate) {
+			return candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
+				   candidate.preparationTargetIdentity.empty() &&
+				   !candidate.inspectionTargetIdentity.empty() ;
+		}) ; // 本文の通常参照と異なる表示行だけを選びます
+	DRIVERCRATE_EXPECT( context,
+					   visible != scanned->scanResult.candidates.end() && !visible->installable) ;
+	// 検査専用の結合を持った元候補を確認できなければ承認へ進みません
+	if( visible == scanned->scanResult.candidates.end()) {
+		return std::nullopt ;
+	}
+
+	const auto target =
+		std::ranges::find( plan.targets, visible->inspectionTargetIdentity,
+						  &OfficialPreparationTarget::identity) ;	// 同じ行の元対象です
+	const bool boundTarget = target != plan.targets.end() &&
+							 target->terms == OfficialPreparationTerms::INSPECTION_ONLY &&
+							 target->providerId == visible->providerId &&
+							 // 元機器だけです
+							 target->deviceCount == 1U ;
+	DRIVERCRATE_EXPECT( context, boundTarget) ;
+	// 策定した計画と表示行が結合しない場合は取得の入力を作りません
+	if( !boundTarget) {
+		return std::nullopt ;
+	}
+
+	reference = visible->identity ;
+	sessionId = plan.scanSessionId ;
+	OfficialPreparationApproval approval{operationId + 1U,
+										 sessionId,
+										 plan.planId,
+										 plan.limits,
+										 {}} ;	// 規約・導入意思を含まない検査承認です
+	// 計画の全対象を保ちながら、元WiX一件だけを明示選択します
+	for( const auto &item : plan.targets) {
+		approval.decisions.push_back(
+			{item, item.identity == target->identity, false, false, false}) ;
+	}
+
+	beforePreparation() ;
+	const bool approved = worker.requestPreparation( approval) ;	// 承認を通常取得キューへ渡します
+	DRIVERCRATE_EXPECT( context, approved) ;
+	return approved
+			   ? waitEvent( worker, WorkerEventKind::PREPARATION_COMPLETED, approval.operationId)
+			   : std::nullopt ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ署名索引を通常ワーカーで取得し、元ページ・待機・期限・原本と導入の境界を検証します
+ * @param[in,out] context 共通の試験集計です
+ * @param[in] store 本文とWiXの追加欄の元バイトを持つ隔離ストアです
+ * @param[in] nowUtc 両領域の有効期間内に固定する時計です
+ * @param[in] expiry 追加欄の原期限です
+ * @param[in] baseZip 既存の低位署名fakeを初期化する本文用の人工ZIPです
+ * @param[in] payload 署名済みSHA-256に結び付けた実行不能の人工データです
+ */
+//------------------------------------------------------------------------------
+static void testWixWorkerPreparation( TestContext							 &context,
+									 const std::shared_ptr<SignedIndexStore> &store,
+									 const std::chrono::sys_seconds			  nowUtc,
+									 const std::chrono::sys_seconds			  expiry,
+									 const std::string_view baseZip, const std::string_view payload)
+{
+	constexpr std::string_view PAGE =
+		// 以前のページ内容を模倣せず、現在の元アンカーを返します
+		R"(<html><body><a href="https://vendor.example/download/fixture.exe">Current link</a></body></html>)" ;
+	constexpr std::string_view CHANGED_PAGE =
+		// 公式先の別リンクです
+		R"(<html><body><a href="https://vendor.example/download/replacement.exe">Replacement</a></body></html>)" ;
+	constexpr std::string_view MISSING_ANCHOR =
+		// コメント内の元文字列は実アンカーになりません
+		R"(<html><body><!-- <a href="https://vendor.example/download/fixture.exe">Old</a> --></body></html>)" ;
+	constexpr auto RETRY = static_cast<NativeError>(
+		// 同workerの待機中と端末変化の原診断です
+		HRESULT_FROM_WIN32( ERROR_RETRY)) ;
+	constexpr auto REDIRECT_FAILED = static_cast<NativeError>( HRESULT_FROM_WIN32(
+		ERROR_WINHTTP_REDIRECT_FAILED)) ;	// 301の待機または変更で転送を止めた診断です
+	constexpr auto BAD_FORMAT	   = static_cast<NativeError>(
+		 // 人工データのPE構造を拒否します
+		 HRESULT_FROM_WIN32( ERROR_BAD_FORMAT)) ;
+	using Destination =
+		std::pair<std::wstring, std::wstring> ;	// 人工HTTPに渡った接続先と要求パスです
+	const std::array sends{
+		Destination{L"vendor.example", L"/support"},
+		Destination{L"vendor.example", L"/download/fixture.exe"},
+		Destination{L"cdn.vendor.example", L"/download/fixture.exe"}} ;	// 独立した正規送信順です
+	/** @brief 通常ワーカーから独立して固定する各例の期待です */
+	struct Case {
+		/// 非機密の試験名です
+		std::string_view id ;
+		/// 今回の承認だけへ返す人工HTMLです
+		std::string_view page ;
+		/// 最初の承認での送信数です
+		std::size_t		 requests ;
+		/// ワーカーが通知する取得の元HRESULTです
+		NativeError		 acquisitionError ;
+		/// ワーカーが通知する別の内容HRESULTです
+		NativeError		 contentError{} ;
+	} ;
+	constexpr std::array cases{
+		Case{"exact-anchor", PAGE, 3U, 0U, BAD_FORMAT},
+		Case{"changed-anchor", CHANGED_PAGE, 1U, static_cast<NativeError>( E_ACCESSDENIED)},
+		Case{"missing-anchor", MISSING_ANCHOR, 1U, static_cast<NativeError>( E_ACCESSDENIED)},
+		Case{"different-location", PAGE, 2U, REDIRECT_FAILED},
+		Case{"retry-after", PAGE, 2U, REDIRECT_FAILED},
+		Case{"expired", PAGE, 0U, static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_TIMEOUT))},
+		Case{"expired-while-binding", PAGE, 3U, 0U,
+			 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_TIMEOUT))},
+		Case{"stale-host", PAGE, 0U,
+			 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH))},
+		Case{"stale-hardware", PAGE, 0U, RETRY},
+		Case{"different-raw-hash", PAGE, 3U, 0U,
+			 // 元応答や時計だけを変えます
+			 static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CRC))}} ;
+	// ケースごとに別のworkerを所有し、待機だけは同じworker内の再スキャンで確かめます
+	for( const auto &test : cases) {
+		auto http  = std::make_shared<WixWorkerHttp>() ;	// 送信と原応答をworker停止まで所有します
+		http->page = test.page ;
+		http->payload.assign( payload) ;
+		http->retryAfter	= test.id == "retry-after" ;
+		http->otherLocation = test.id == "different-location" ;
+		// 正常本体と同じ長さのまま一バイトだけ変え、署名済み原ハッシュを照合させます
+		if( test.id == "different-raw-hash") {
+			http->payload.back() ^= 1 ;
+		}
+
+		auto clock =
+			std::make_shared<std::chrono::sys_seconds>( nowUtc) ;	// HTTP・署名・待機に共通の時刻です
+		auto host = std::make_shared<WindowsHostPlatform>(
+			WindowsHostPlatform{10U, 0U, 26100U, 9U, 1U, 0U}) ;	// 元端末はWindows 11 x64です
+		auto native = std::make_shared<
+			CatalogInstallFixture>() ;	// 同じinstanceの元HardwareIdsだけを切り替えます
+		auto services = makeServerP4PipelineServices(
+			store, clock, {}, {}) ;	// 完全な偽HTTP、回線、時計、隔離署名ストアです
+		services.hostPlatform = [host, clock, http, &test, expiry] {
+			// 全応答の受信後に行う端末再照会まで元期限内だった場合も保持前に失効させます
+			if( test.id == "expired-while-binding" && http->sends.size() == 3U) {
+				*clock = expiry ;
+			}
+
+			return WindowsHostPlatformObservation{WindowsHostObservationState::OBSERVED, *host,
+												  WindowsHostErrorDomain::NTSTATUS,
+												  WindowsHostObservationStage::VERSION, 0U} ;
+		} ; // 同worker終端まで元時刻・応答・固定ケースを借用します
+		services.httpTransport = [base = services.httpTransport, clock, http] {
+			auto transport	 = wixWorkerTransport( base(), *http) ;	// 元の完全置換transportを使います
+			transport.utcNow = [clock] {
+				return static_cast<std::uint64_t>( clock->time_since_epoch().count()) ;
+			} ;
+			return transport ;
+		} ; // 返却する各関数ポインタはworker寿命内の人工応答を借用します
+		const auto start = [native] {
+			activeNative->catalogInstall		  = native.get() ;
+			activeNative->p4ExplicitClientContext = true ;
+		} ; // 端末を開く既存の低位fakeの初期化完了後、同じ端末の照会だけを切り替えます
+		auto bound = makeSignedIndexBindingWorker( std::move( services), baseZip, false, false, false,
+												  SignedIndexBindingNativeCase::NORMAL, {},
+												  start) ;	// 復元・登録・指定適用も完全なfakeです
+		DRIVERCRATE_EXPECT( context, bound.worker) ;
+		// 完全な低位表を得られなければ端末やHTTPを呼びません
+		if( !bound.worker) {
+			continue ;
+		}
+
+		const auto replaceObservation = [&] {
+			// 期限後には目的のページへ接続せず、失効した同scan承認を拒否します
+			if( test.id == "expired") {
+				*clock = expiry ;
+			}
+			// 署名索引で許すOSでもscan時の完全tupleから変わった場合は拒否します
+			else if( test.id == "stale-host") {
+				++host->buildNumber ;
+			}
+			// 同じinstanceの現在HardwareIdsだけから元一致を取り除きます
+			else if( test.id == "stale-hardware") {
+				native->hardwareIds = L"TESTBUS\\OTHER_HARDWARE" ;
+			}
+		} ; // SCAN_COMPLETEDから次の要求までだけ低位の人工状態を更新します
+		const auto check = [&]( const std::optional<WorkerEvent> &event,
+							   const NativeError acquisitionError, const NativeError contentError) {
+			DRIVERCRATE_EXPECT( context, event &&
+											event->preparationResult.approvalError ==
+												OfficialPreparationError::NONE &&
+											event->preparationResult.controlError == 0U &&
+											event->preparationResult.installResolutions.empty() &&
+											event->indexPreparation.items.size() == 1U) ;
+			// 取得終端のない例は、原アンカーや端末の意図した拒否として数えません
+			if( !event || event->indexPreparation.items.size() != 1U) {
+				return ;
+			}
+
+			const auto &item =
+				// 同操作の取得・内容の公開結果です
+				event->indexPreparation.items.front() ;
+			const auto transfer =
+				std::ranges::find( event->preparationResult.items, item.targetIdentity,
+								  &OfficialPreparationItem::identity) ;	// 選択した一件の実転送です
+			DRIVERCRATE_EXPECT( context, transfer != event->preparationResult.items.end() &&
+											transfer->result.error == acquisitionError &&
+											transfer->result.byteCount ==
+												(acquisitionError == 0U ? payload.size() : 0U)) ;
+			DRIVERCRATE_EXPECT(
+				context, item.acquisitionError == acquisitionError &&
+							 item.contentError == contentError && item.acceptedInfCount == 0U &&
+							 item.inputBound == (contentError == BAD_FORMAT) &&
+							 std::ranges::all_of( event->preparationResult.auditReports,
+												 []( const auto &report) {
+													 return report.publishedCandidates.empty() ;
+												 })) ;
+			// 受信完了は専用内容検査や原ハッシュの不一致とは独立した状態です
+			if( acquisitionError == 0U) {
+				DRIVERCRATE_EXPECT(
+					context,
+					transfer != event->preparationResult.items.end() &&
+						transfer->result.state ==
+							OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION &&
+						item.acquisition == OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION &&
+						item.content == (item.inputBound
+											 ? IndexedDriverInspectionState::INSPECTION_FAILED
+											 : IndexedDriverInspectionState::INPUT_REJECTED)) ;
+			}
+		} ; // 検索や取得と同じ元選択の公開結果だけを読みます
+		std::wstring		  reference ;				// 通常検索中の同じ端末の表示専用IDです
+		ScanSessionId		  sessionId{} ;				// 通常検索が発行する元セッションです
+		constexpr OperationId FIRST_SCAN = 853674U ;	// 同workerの要求は単調に進めます
+		const auto			  prepared =
+			prepareWixWorkerTarget( context, *bound.worker, FIRST_SCAN, replaceObservation,
+								   reference, sessionId) ;	// 本物の承認を通常ワーカーへ渡します
+		check( prepared, test.acquisitionError, test.contentError) ;
+		DRIVERCRATE_EXPECT( context,
+						   std::ranges::equal( http->sends, std::span{sends}.first( test.requests))) ;
+		// 新しい元計画を使っても元301の待機を越えるまではPAGEにも接続しません
+		if( http->retryAfter) {
+			http->retryAfter = false ;
+			*clock			 = nowUtc + std::chrono::seconds{119} ;
+			check( prepareWixWorkerTarget(
+					  context, *bound.worker, FIRST_SCAN + 2U, [] {}, reference, sessionId),
+				  RETRY, 0U) ;
+			DRIVERCRATE_EXPECT( context,
+							   std::ranges::equal( http->sends, std::span{sends}.first( 2U))) ;
+			*clock = nowUtc + std::chrono::seconds{120} ;
+			check( prepareWixWorkerTarget(
+					  context, *bound.worker, FIRST_SCAN + 4U, [] {}, reference, sessionId),
+				  0U, BAD_FORMAT) ;
+			DRIVERCRATE_EXPECT( context,
+							   http->sends.size() == 5U &&
+								   std::ranges::equal( std::span{http->sends}.subspan( 2U), sends)) ;
+		}
+
+		// 正常な原配布を取得した後も、元表示行を導入要求に渡すと実Workerが拒否します
+		if( test.id == "exact-anchor" && prepared && !reference.empty()) {
+			const std::array selection{reference} ;	// 元表示専用IDを明示して渡します
+			const bool		 queued = bound.worker->requestInstall(
+				  FIRST_SCAN + 2U, sessionId, selection, nullptr,
+				  InstallProtectionMode::WINDOWS_RESTORE_POINT) ;	// 通常の導入キューです
+			const auto rejected =
+				queued
+					? waitEvent( *bound.worker, WorkerEventKind::INSTALL_COMPLETED, FIRST_SCAN + 2U)
+					: std::nullopt ;	// 本物の操作終端です
+			DRIVERCRATE_EXPECT( context, rejected && !rejected->installResult.succeeded &&
+											rejected->installResult.downloadError ==
+												static_cast<NativeError>( E_INVALIDARG) &&
+											rejected->installResult.installOutcome ==
+												OutcomeCode::NOT_STARTED) ;
+		}
+
+		bound.worker->stop() ;
+		const auto nativeCalls = bound.observeAfterStop() ;	// 全worker停止後の実変更境界の呼出しです
+		DRIVERCRATE_EXPECT( context, nativeCalls.stages == 0U && nativeCalls.installs == 0U &&
+										nativeCalls.restoreBegins == 0U &&
+										bound.allNativeHandlesClosed()) ;
+		std::cout << "WIX_WORKER_PREPARATION case=" << test.id
+				  << " fakeSends=" << http->sends.size()
+				  << " changedHardwareReads=" << native->changedHardwareReads
+				  << " stages=" << nativeCalls.stages << " installs=" << nativeCalls.installs
+				  << '\n' ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ選択と取得後の元規約だけを導入同意と認めることを確認します
+ * @param[in,out] context 共通の試験集計です
+ */
+//------------------------------------------------------------------------------
+static void testWixInstallConsents( TestContext &context)
+{
+	using signed_index_candidate_binding_detail::Access ;
+	const auto terms = std::make_shared<const WixTermsPresentation>() ;			// 元操作の表示証拠です
+	const auto copy	 = std::make_shared<const WixTermsPresentation>( *terms) ;	// 同じ文言の別取得です
+	const std::array<std::wstring, 2U> selected{L"ordinary-fixture",
+												L"wix-consent-fixture"} ;	// 混在選択です
+	const std::array exact{WixInstallConsent{selected.back(), terms}} ;		// 同じ元規約を確認しました
+	const std::array changed{WixInstallConsent{selected.back(), copy}} ;	// 別の表示を引き継ぎました
+	const std::array duplicate{exact.front(), exact.front()} ;				// 一候補に同じ規約を重ねた要求です
+	const std::array extra{													// 通常候補にも同意を移しました
+						   exact.front(), WixInstallConsent{selected.front(), terms}} ;
+	const std::array wrong{WixInstallConsent{selected.front(), terms}} ;	// 別候補への付け替えです
+	DRIVERCRATE_EXPECT( context, Access::validateWixConsentsForFixture( terms, 83U, selected, exact)) ;
+	DRIVERCRATE_EXPECT( context, !Access::validateWixConsentsForFixture( terms, 83U, selected, {})) ;
+	DRIVERCRATE_EXPECT( context,
+					   !Access::validateWixConsentsForFixture( terms, 83U, selected, changed)) ;
+	DRIVERCRATE_EXPECT( context,
+					   !Access::validateWixConsentsForFixture( terms, 83U, selected, duplicate)) ;
+	DRIVERCRATE_EXPECT( context,
+					   !Access::validateWixConsentsForFixture( terms, 83U, selected, extra)) ;
+	DRIVERCRATE_EXPECT( context,
+					   !Access::validateWixConsentsForFixture( terms, 83U, selected, wrong)) ;
+	DRIVERCRATE_EXPECT( context,
+					   !Access::validateWixConsentsForFixture( terms, 84U, selected, exact)) ;
+	DRIVERCRATE_EXPECT( context,
+					   !Access::validateWixConsentsForFixture( nullptr, 83U, selected, exact)) ;
+	DRIVERCRATE_EXPECT( context, !Access::validateWixConsentsForFixture( terms, 83U, {}, exact)) ;
+	DRIVERCRATE_EXPECT( context, Access::validateWixConsentsForFixture( terms, 83U, {}, {})) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ署名索引から通常スキャンと承認済みWiX検査取得の境界を検証します
+ * @param[in,out] context 共通の試験集計です
+ * @param[in] store 本文とWiXの元追加欄を保持する隔離ストアです
+ * @param[in] nowUtc 両領域の有効期間内に固定する時計です
+ * @param[in] expiry 追加欄の原期限と同値の拒否を検査する時刻です
+ * @param[in] baseZip 既存の低位署名fakeを初期化する本文用の人工ZIPです
+ * @param[in] payload 追加欄の実SHA-256に結び、転送試験に使用する非実行の人工バイト列です
+ */
+//------------------------------------------------------------------------------
+void runWixSupplementConsumerScan( TestContext &context, std::shared_ptr<SignedIndexStore> store,
+								  const std::chrono::sys_seconds nowUtc,
+								  const std::chrono::sys_seconds expiry,
+								  const std::string_view baseZip, const std::string_view payload)
+{
+	testWixInstallConsents( context) ;
+	constexpr WindowsHostPlatform WIN11{10U, 0U, 26100U, 9U, 1U, 0U} ;	// 正常なWindows 11 x64です
+	constexpr WindowsHostPlatform WIN10{10U, 0U, 19045U, 9U, 1U, 0U} ;	// 同じ製品種別の別OSです
+	constexpr WindowsHostPlatform SERVER{10U, 0U, 26100U, 9U, 3U, 0U} ;	// 同じbuildの別製品種別です
+	constexpr WindowsHostPlatform ARM64{10U, 0U, 26100U, 12U, 1U, 0U} ;	// 同じOSの別native archです
+	/** @brief 元索引から推測しない端末観測と照合の期待です */
+	struct ScanCase {
+		/// 試験出力に使う固定名です
+		std::string_view	id ;
+		/// 模擬OS観測が返す元tupleです
+		WindowsHostPlatform host ;
+		/// 本文を含む実resolverの呼出し期待数です
+		std::size_t			resolverCalls ;
+		/// 本文を含む一意な端末関係の期待数です
+		std::size_t			matches ;
+	} ;
+	// 照合を行う四例と、WiX照合を開始しない六例の独立した分母です
+	constexpr std::array cases{ScanCase{"hardware", WIN11, 2U, 2U},
+							   ScanCase{"changed-inspection-target", WIN11, 2U, 2U},
+							   ScanCase{"compatible-only", WIN11, 2U, 1U},
+							   ScanCase{"wrong-os", WIN10, 1U, 1U},
+							   ScanCase{"wrong-product", SERVER, 1U, 1U},
+							   ScanCase{"wrong-architecture", ARM64, 1U, 1U},
+							   ScanCase{"missing-observer", WIN11, 1U, 1U},
+							   ScanCase{"failed-observation", WIN11, 1U, 1U},
+							   ScanCase{"expired", WIN11, 1U, 1U},
+							   ScanCase{"expired-before-publication", WIN11, 2U, 2U}} ;
+	const auto			 isReadOnlyReference = []( const UpdateCandidate &candidate) {
+		  return candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
+				 candidate.preparationTargetIdentity.empty() ;
+	} ; // 表示文言に依存せず、従来の取得対象と表示専用参照を識別します
+	// 各対照で同じ署名索引を再読し、前回スキャンの端末属性と観測を再利用しません
+	for( const auto &fixture : cases) {
+		const bool expired = fixture.id == "expired" ;	// 追加欄の原期限ちょうどです
+		const bool expiresBeforePublication =
+			// 照合と計画の生成時には元追加欄が有効です
+			fixture.id == "expired-before-publication" ;
+		const bool compatibleOnly =
+			// 端末側の互換属性だけに一致を置きます
+			fixture.id == "compatible-only" ;
+		const bool missingObserver = fixture.id == "missing-observer" ;	// 旧対象OSだけを渡します
+		const bool failedObservation =
+			// 元観測がAPI失敗を返します
+			fixture.id == "failed-observation" ;
+		ServerP4Harness run{store, expired ? expiry : nowUtc, baseZip, fixture.id,
+							fixture.host} ;	// 通常のDriver Store captureと完全な低位fakeです
+		// WiXの候補結合でも試験署名の固定policyは使い、元lookupだけは走査が凍結した値を渡します
+		run.services.beginHostAcquisition =
+			[]( SignedIndexAcquisitionAdapter				 &issuer,
+			   std::shared_ptr<const SignedIndexRecordLookup> source,
+			   const IndexLookupContext context, IndexScanHostSnapshot host,
+			   WindowsHostPlatformObserver					 observer,
+			   const std::optional<std::chrono::sys_seconds> time) {
+				return signed_index_acquisition_detail::Access::beginHostFixture(
+					issuer, std::move( source), context, std::move( host), std::move( observer), time) ;
+			} ; // 実際の外部policyや通信を呼ばず、人工署名を既存の有限資格へ照合します
+		// 旧OSのenumは欠測とAPI失敗の場合にも同じ値を返します
+		run.services.targetOs = [] { return std::optional{IndexTargetOs::WINDOWS_11} ; } ;
+		// 同じ公開IDを端末のHardwareIdsから取り除き、旧本文はCompatibleIdsで一致させます
+		if( compatibleOnly) {
+			run.native.distributionDevices.push_back(
+				{L"TESTBUS\\OTHER_HARDWARE", L"fixture.inf", L"Models.NTamd64", L"1.0.0.0",
+				 L"{4d36e978-e325-11ce-bfc1-08002be10318}", L"Ports"}) ;
+			run.native.opaqueCompatibleId = L"TESTBUS\\SYNTH_0001" ;
+		}
+
+		// 観測関数そのものを渡さず、同じWindows 11の旧enumだけで進まないことを検査します
+		if( missingObserver) {
+			run.services.hostPlatform = {} ;
+		}
+
+		// 観測関数が存在しても元APIの失敗を成功観測へ変更しません
+		if( failedObservation) {
+			run.services.hostPlatform = [&state = run.state] {
+				++state.callbacks ;
+				return WindowsHostPlatformObservation{
+					WindowsHostObservationState::API_FAILED, std::nullopt,
+					WindowsHostErrorDomain::NTSTATUS, WindowsHostObservationStage::VERSION,
+					0xc0000001U} ;
+			} ; // 同期スキャン中だけ元試行の呼出数を記録します
+		}
+
+		constexpr ScanSessionId SESSION_ID = 853572U ;	// 独立したProviderの同一スキャンを結びます
+		signed_index_candidate_binding_detail::Access::bind( *run.provider, run.session,
+															run.services, SESSION_ID + 100U) ;
+		ScanOptions options ;	// この二経路の同期スキャンだけを実行します
+		options.useDefaultProviders = false ;
+		options.enabledProviderIds	= {std::wstring{DRIVER_STORE_PROVIDER_ID},
+									   std::wstring{SIGNED_INDEX_PROVIDER_ID}} ;
+		auto scanned				= run.provider->scan(
+			   SESSION_ID, options, []( const ProviderProgress &) {}) ;	// 通常の一回の端末列挙です
+		const auto summary = signed_index_candidate_binding_detail::Access::cachedSummaryForFixture(
+			*run.provider) ;										// 同じスキャンが保持する実照合の件数です
+		const std::size_t expectedRecords	= expired ? 1U : 2U ;	// 元本文は全例に残ります
+		const std::size_t expectedPublicIds = expired ? 1U : 4U ;	// 有効な追加欄の全原IDを数えます
+		const bool		  hostUnavailable =
+			missingObserver || failedObservation ;	// 元端末観測を確定できない二例です
+		DRIVERCRATE_EXPECT(
+			context,
+			scanned.succeeded && summary.storeStatus == IndexStoreStatus::SNAPSHOT_READY &&
+				summary.lookupStatus == IndexRecordLookupStatus::LOOKUP_READY &&
+				summary.status ==
+					(hostUnavailable ? IndexScanStatus::PARTIAL : IndexScanStatus::COMPLETED) &&
+				summary.undeterminedRelations == (hostUnavailable ? 1U : 0U) &&
+				summary.totalRecords == expectedRecords &&
+				summary.processedRecords == expectedRecords && summary.remainingRecords == 0U &&
+				summary.totalPublicIds == expectedPublicIds &&
+				summary.processedPublicIds == expectedPublicIds) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			summary.supplementStatus == (expired ? IndexAssetSupplementStatus::EXPIRED
+												 : IndexAssetSupplementStatus::BYTE_VALIDATED) &&
+				(expired
+					 ? !summary.supplementRecordsStatus
+					 : summary.supplementRecordsStatus == IndexRecordsStatus::SCHEMA_VALIDATED)) ;
+		DRIVERCRATE_EXPECT( context, summary.resolverCalls == fixture.resolverCalls &&
+										summary.matchedRelations == fixture.matches &&
+										summary.relatedDeviceCount == fixture.matches) ;
+		// 正常hostでは元役割とワイルドカードの二件が照合されず、互換属性だけの場合は完全一致もありません
+		if( fixture.resolverCalls == 2U) {
+			DRIVERCRATE_EXPECT( context,
+							   summary.definitiveNoRelationIds == (compatibleOnly ? 3U : 2U)) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, run.state.callbacks == (missingObserver ? 0U : 1U) &&
+										!run.adapter && !run.lookup) ;
+		constexpr std::uint64_t PLAN_ID = 1U ;	// 新規Providerの最初の計画です
+		// 通常Providerの計画が空なら同じ上限の空計画を用意します
+		auto					plan = run.provider->preparationPlan( SESSION_ID, PLAN_ID)
+						.value_or( OfficialPreparationPlan{
+							SESSION_ID, PLAN_ID, DEFAULT_OFFICIAL_PREPARATION_LIMITS, {}}) ;
+		IndexPreparationSummary preparation ;	// 同一スキャンの取得診断を受け取ります
+		DRIVERCRATE_EXPECT( context, run.session.augmentPreparationPlan(
+										plan, run.services, preparation, scanned.candidates) == 0U) ;
+		const bool changedTarget =
+			// 元対象の一項目を変える対照です
+			fixture.id == "changed-inspection-target" ;
+		const bool expectReference =
+			// 端末の完全一致です
+			fixture.id == "hardware" || changedTarget ;
+		const std::size_t expectedInspectionTargets =
+			expectReference || expiresBeforePublication
+				? 1U
+				: 0U ;	// 計画の生成時に有効な完全一致だけです
+		// 正常hostの対照で従来本文と別の検査専用計画の件数を確認します
+		if( expectReference || expiresBeforePublication || expired) {
+			DRIVERCRATE_EXPECT( context, preparation.authorityError == 0U &&
+											plan.targets.size() == 1U + expectedInspectionTargets) ;
+		}
+
+		const auto inspectionTargets = std::ranges::count(
+			plan.targets, OfficialPreparationTerms::INSPECTION_ONLY,
+			&OfficialPreparationTarget::terms) ;	// 別の本文候補には適用されない元条件です
+		DRIVERCRATE_EXPECT( context, static_cast<std::size_t>( inspectionTargets) ==
+										expectedInspectionTargets) ;
+
+		// 照合済みの追加欄も時刻が元期限に達した場合は公開しません
+		if( expiresBeforePublication) {
+			*run.clock = expiry ;
+		}
+
+		const auto inspectionTarget = std::ranges::find(
+			plan.targets, OfficialPreparationTerms::INSPECTION_ONLY,
+			&OfficialPreparationTarget::terms) ;	// 取得issuerが元の条件で発行した対象です
+		// 表示用IDを維持したまま対象の完全値を変え、結合が失敗することを確認します
+		if( changedTarget && inspectionTarget != plan.targets.end()) {
+			++inspectionTarget->parserRevision ;
+		}
+
+		signed_index_candidate_binding_detail::Access::publishReferences( *run.provider, plan,
+																		 scanned) ;
+		const auto references =
+			std::ranges::count_if( scanned.candidates,
+								  isReadOnlyReference) ;	// 実際に表示へ発行された行を数えます
+		const auto current = std::ranges::find( scanned.candidates, true,
+											   &UpdateCandidate::current) ;	// 同一端末の現在行です
+		const auto indexCandidates =
+			std::ranges::count( scanned.candidates, std::wstring{SIGNED_INDEX_PROVIDER_ID},
+							   &UpdateCandidate::providerId) ;	// 全索引表示行です
+		DRIVERCRATE_EXPECT( context, references == (expectReference ? 1 : 0) &&
+										static_cast<std::size_t>( indexCandidates - references) ==
+											plan.targets.size() - expectedInspectionTargets) ;
+		// 取得対象に結び付く各行は、従来本文と同じ同意条件を持つ計画だけに対応します
+		for( const auto &target : plan.targets) {
+			// この取得対象を既存の通常導入行へ結ぶ表示候補を探します
+			const auto base = std::ranges::find( scanned.candidates, target.identity,
+												&UpdateCandidate::preparationTargetIdentity) ;
+			// WiXは明示された検査専用で、通常の導入候補と規約同意を発行しません
+			if( target.terms == OfficialPreparationTerms::INSPECTION_ONLY) {
+				const auto mapped = std::ranges::count(
+					scanned.candidates, target.identity,
+					&UpdateCandidate::inspectionTargetIdentity) ;	// 一件の検査専用結合です
+				DRIVERCRATE_EXPECT( context,
+								   target.providerId == SIGNED_INDEX_PROVIDER_ID &&
+									   base == scanned.candidates.end() &&
+									   mapped == (expectReference && !changedTarget ? 1 : 0)) ;
+				continue ;
+			}
+
+			DRIVERCRATE_EXPECT( context,
+							   target.providerId == SIGNED_INDEX_PROVIDER_ID &&
+								   target.terms == OfficialPreparationTerms::CONFIRMED_NO_CONSENT &&
+								   base != scanned.candidates.end() &&
+								   base->providerId == SIGNED_INDEX_PROVIDER_ID &&
+								   base->inspectionTargetIdentity.empty()) ;
+		}
+
+		const auto reference =
+			std::ranges::find_if( scanned.candidates,
+								 isReadOnlyReference) ;	// 同じスキャンで発行された索引行です
+		// 表示専用参照が発行された場合は元端末・元INF版と実行不可を検査します
+		if( reference != scanned.candidates.end()) {
+			// 同じ元取得との完全一致があった場合だけ、後続の検査に必要な元機器の関係を保持します
+			if( inspectionTarget != plan.targets.end()) {
+				DRIVERCRATE_EXPECT( context, signed_index_candidate_binding_detail::Access::
+													wixReferenceRelationCountForFixture(
+														run.session, *inspectionTarget,
+														*reference) == (changedTarget ? 0U : 1U)) ;
+			}
+
+			DRIVERCRATE_EXPECT(
+				context,
+				current != scanned.candidates.end() && !reference->deviceIdentity.empty() &&
+					reference->deviceIdentity == current->deviceIdentity &&
+					reference->version == L"1.2.3.4" && !reference->detailDisplayIdentity.empty() &&
+					reference->identity.starts_with( L"index-reference-") &&
+					reference->discoveryBasis ==
+						CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION) ;
+			DRIVERCRATE_EXPECT(
+				context, !reference->current && !reference->assessment && !reference->installable &&
+							 !reference->recommended && !reference->allContentCached &&
+							 reference->packageIdentity.empty() &&
+							 reference->action == DriverAction::NONE &&
+							 reference->defaultPreference == CandidateDefaultPreference::NONE) ;
+			DRIVERCRATE_EXPECT(
+				context,
+				reference->audit.sourceOrigin == CandidateAuditGateState::PASSED &&
+					reference->audit.inspectionDownload == CandidateAuditGateState::PENDING &&
+					reference->audit.contentIntegrity == CandidateAuditGateState::PENDING &&
+					reference->audit.systemApplicability == CandidateAuditGateState::PENDING) ;
+			const std::array selection{reference->identity} ;	// 表示行を選択として直接渡します
+			DRIVERCRATE_EXPECT(
+				context, !run.provider->isRetainedPreparationReference( reference->identity, plan) &&
+							 run.provider->beginInstallOperation( SESSION_ID + 101U, SESSION_ID,
+																 selection) == E_INVALIDARG) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, run.state.sends == 0U && run.native.stages == 0U &&
+										run.native.installs == 0U && run.native.opens != 0U &&
+										run.native.opens == run.native.closes) ;
+		std::cout << "WIX_CONSUMER_SCAN case=" << fixture.id << " records=" << summary.totalRecords
+				  << " resolverCalls=" << summary.resolverCalls
+				  << " matches=" << summary.matchedRelations << " targets=" << plan.targets.size()
+				  << " readOnlyReferences=" << references << '\n' ;
+	}
+
+	testWixWorkerPreparation( context, store, nowUtc, expiry, baseZip, payload) ;
+
+	// 本文の取得権限がない場合も、通常workerは同じ端末の表示専用参照を終了イベントへ渡します
+	auto clock = std::make_shared<std::chrono::sys_seconds>( nowUtc) ;	// 署名と照合に使う固定UTCです
+	unsigned sends{} ;													// Worker停止後だけ送信回数を読みます
+	auto	 services =
+		// 全通信を低位fakeに限定します
+		makeServerP4PipelineServices( store, clock, baseZip, {}) ;
+	services.hostPlatform = [platform = WIN11] {
+		return WindowsHostPlatformObservation{WindowsHostObservationState::OBSERVED, platform,
+											  WindowsHostErrorDomain::NTSTATUS,
+											  WindowsHostObservationStage::VERSION, 0U} ;
+	} ; // 完全一致時に使った元hostを同じ固定tupleで返します
+	services.beginHostAcquisition = []( auto &&...) {
+		return static_cast<NativeError>( E_ACCESSDENIED) ;
+	} ; // 元照合を変更せず、取得権限だけを拒否します
+	const auto start = [store, clock, baseZip, &sends] {
+		static_cast<void>(
+			makeServerP4PipelineServices( store, clock, baseZip, [&sends] { ++sends ; })) ;
+	} ; // Worker内に送信observerを設定します。停止までは元fixtureが借用先を所有します
+	// 実workerと同じCompositeを完全な低位fakeで動かします
+	auto bound = makeSignedIndexBindingWorker( std::move( services), baseZip, false, false, false,
+											  SignedIndexBindingNativeCase::NORMAL, {}, start) ;
+	ScanOptions options ;	// 端末内のDriver Storeと署名索引だけを検索します
+	options.useDefaultProviders		   = false ;
+	options.enabledProviderIds		   = {std::wstring{DRIVER_STORE_PROVIDER_ID},
+										  std::wstring{SIGNED_INDEX_PROVIDER_ID}} ;
+	constexpr OperationId OPERATION_ID = 853672U ;	// 通常workerで検索一回だけを依頼します
+	// Worker開始と検索の受付を同じ入力で確認します
+	const bool accepted = bound.worker && bound.worker->requestScan( OPERATION_ID, options) ;
+	DRIVERCRATE_EXPECT( context, accepted) ;
+	// 検索の受付が成立した場合だけ終端イベントを待ちます
+	if( !accepted) {
+		return ;
+	}
+
+	const auto scanned = waitEvent( *bound.worker, WorkerEventKind::SCAN_COMPLETED,
+								   OPERATION_ID) ;	// 空の取得計画を外部へ発行しない通常終端です
+	bound.worker->stop() ;
+	const auto native = bound.observeAfterStop() ;	// Workerと全低位borrowの終了後に読みます
+	DRIVERCRATE_EXPECT( context, scanned && scanned->scanResult.succeeded) ;
+	// 終端通知を受けた場合にだけ元照合結果・権限・表示を個別に確認します
+	if( scanned) {
+		const auto references = std::ranges::count_if(
+			scanned->scanResult.candidates, isReadOnlyReference) ;	// UIへ発行した元参照だけです
+		DRIVERCRATE_EXPECT( context, !scanned->preparationPlan && scanned->preparationError == 0U) ;
+		DRIVERCRATE_EXPECT( context, scanned->indexPreparation.authorityError == E_ACCESSDENIED &&
+										scanned->indexPreparation.plannedTargets == 0U) ;
+		DRIVERCRATE_EXPECT( context,
+						   scanned->indexSummary.matchedRelations == 2U && references == 1) ;
+		DRIVERCRATE_EXPECT(
+			context, std::ranges::all_of( scanned->scanResult.candidates, []( const auto &candidate) {
+				return candidate.inspectionTargetIdentity.empty() ;
+			})) ;
+		std::cout << "WIX_CONSUMER_SCAN case=worker-empty-plan matches="
+				  << scanned->indexSummary.matchedRelations
+				  << " targets=" << scanned->indexPreparation.plannedTargets
+				  << " readOnlyReferences=" << references << '\n' ;
+	}
+
+	DRIVERCRATE_EXPECT( context, sends == 0U && native.stages == 0U && native.installs == 0U) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存済みDMを通常スキャンと選択済み取得の境界へ渡します
+ * @param[in,out] context 共通の試験集計です
+ * @param[in] validStore 元証拠と投影が一致する署名済み索引です
+ * @param[in] invalidStore 元証拠を欠く追加欄と同じ本文を持つ署名済み索引です
+ * @param[in] nowUtc 両領域の有効期間内の試験時刻です
+ * @param[in] expiry DMだけが失効する試験時刻です
+ * @param[in] baseZip 本文の人工ZIPです。低位署名fakeにも同じbyteを使います
+ * @param[in] baseDigest 元本文全体の展開後hashです
+ * @param[in] modelsDigest 元DM全体の展開後hashです
+ */
+//------------------------------------------------------------------------------
+void runScopedModelsConsumerScan(
+	TestContext &context, const std::shared_ptr<SignedIndexStore> &validStore,
+	const std::shared_ptr<SignedIndexStore> &invalidStore, const std::chrono::sys_seconds nowUtc,
+	const std::chrono::sys_seconds expiry, const std::string_view baseZip,
+	const IndexManifestSha256 &baseDigest, const IndexManifestSha256 &modelsDigest)
+{
+	// 元署名証拠と同じWindows 10の正常観測点
+	constexpr WindowsHostPlatform WIN10{10U, 0U, 19045U, 9U, 1U, 0U} ;
+	// 同じOSでも元証拠のビルドに達しない対照
+	constexpr WindowsHostPlatform LOWER_BUILD{10U, 0U, 19044U, 9U, 1U, 0U} ;
+	// Windows 11で別のOS条件になる対照
+	constexpr WindowsHostPlatform WIN11{10U, 0U, 26100U, 9U, 1U, 0U} ;
+	// 取得承認後にのみ通信へ達したことを確認する偽接続エラー
+	constexpr NativeError		  CONNECT_FAILED =
+		static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_WINHTTP_CANNOT_CONNECT)) ;
+	// 承認から取得までに実環境が変わった場合の期待診断
+	constexpr NativeError STALE_HOST =
+		static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH)) ;
+	// 承認後に元の取得期限へ達した場合の期待診断
+	constexpr NativeError EXPIRED_CLAIM =
+		static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_TIMEOUT)) ;
+	static thread_local unsigned bodyReads ;	// WinHTTP ABIのfakeコールバックが同threadで加算します
+	/** @brief 原索引から導出しない端末と取得の対照です */
+	struct ScanCase {
+		/// ログに記録する固定入力名です
+		std::string_view		   name ;
+		/// スキャン開始時に観測する元tupleです
+		WindowsHostPlatform		   host ;
+		/// 旧本文とDMが通常取得計画に出る独立した期待値です
+		bool					   baseTarget ;
+		/// 同じ端末で公式Modelsの取得対象が成立することを期待する場合はtrue
+		bool					   modelsTarget ;
+		/// 選択済み取得まで試す場合の期待HRESULTです
+		std::optional<NativeError> acquisitionError{} ;
+	} ;
+	// 実索引の計算を使わず固定する、対象成立と取得拒否の対照
+	constexpr std::array cases{ScanCase{"hardware", WIN10, true, true, CONNECT_FAILED},
+							   ScanCase{"compatible-only", WIN10, true, false},
+							   ScanCase{"lower-build", LOWER_BUILD, true, false},
+							   ScanCase{"other-os", WIN11, false, false},
+							   ScanCase{"expired-at-scan", WIN10, true, false},
+							   ScanCase{"malformed-models", WIN10, true, false},
+							   ScanCase{"stale-at-claim", WIN10, true, true, STALE_HOST},
+							   ScanCase{"expired-at-claim", WIN10, true, true, EXPIRED_CLAIM}} ;
+	// 同じ元本文を各例の独立した端末スキャンで再認証します
+	for( const auto &test : cases) {
+		// 元証拠の期限ちょうどに検索する対照かを示します
+		const bool expiredScan = test.name == "expired-at-scan" ;
+		// 専用欄が壊れた署名済み圧縮物を読む対照かを示します
+		const bool malformed = test.name == "malformed-models" ;
+		// 完全Hardware ID欄に一致せずCompatible IDだけに現れる対照かを示します
+		const bool compatibleOnly = test.name == "compatible-only" ;
+		bodyReads				  = 0U ;
+		// 対象OSや現在時刻だけを変えて同じ実検索・取得判定を呼ぶ試験環境
+		ServerP4Harness run{malformed ? invalidStore : validStore, expiredScan ? expiry : nowUtc,
+							baseZip, test.name, test.host} ;
+		// 掲載されたNet ClassGUIDを列挙とpropertyの両方で観測します
+		run.native.network = true ;
+		run.native.distributionDevices.push_back(
+			{compatibleOnly ? L"TESTBUS\\UNRELATED_0001" : L"testbus\\synth_0001", L"fixture.inf",
+			 L"Models.NTamd64", L"1.0.0.0", L"{4d36e972-e325-11ce-bfc1-08002be10318}", L"Net"}) ;
+		// 公式IDを機器のCompatible IDにだけ置き、完全Hardware IDと区別されることを確認します
+		if( compatibleOnly) {
+			run.native.opaqueCompatibleId = L"TESTBUS\\SYNTH_0001" ;
+		}
+
+		// 取得権限を通った場合も、元CABの代わりに人工ZIP本文を渡さずレスポンス前で停止します
+		run.services.httpTransport = [transport = run.services.httpTransport, clock = run.clock]() {
+			// ページ・配布応答を本物の通信なしに観測する試験用トランスポート
+			auto fake	= transport() ;
+			fake.utcNow = [clock] {
+				return static_cast<std::uint64_t>( clock->time_since_epoch().count()) ;
+			} ;
+			fake.receiveResponse = []( HINTERNET, LPVOID) -> BOOL {
+				SetLastError( ERROR_WINHTTP_CANNOT_CONNECT) ;
+				return FALSE ;
+			} ;
+			fake.readData = []( HINTERNET, LPVOID, DWORD, LPDWORD) -> BOOL {
+				++bodyReads ;
+				SetLastError( ERROR_INVALID_FUNCTION) ;
+				return FALSE ;
+			} ;
+			return fake ;
+		} ;
+
+		const auto plan = run.plan( context, 853370U) ;	// 通常の端末列挙・参照行と取得計画です
+		// 実検索で保持した、索引読み取りと端末内照合の集計
+		const auto scan =
+			signed_index_candidate_binding_detail::Access::cachedSummaryForFixture( *run.provider) ;
+		// 専用欄の原証拠を有効と見なせるケースの独立期待値
+		const bool		  hasModels = !expiredScan && !malformed ;
+		// 旧本文の一行と有効な場合の専用行を合計した期待件数
+		const std::size_t expectedRecords = hasModels ? 2U : 1U ;
+		// 通常候補と公式Models候補の期待成立数
+		const std::size_t expectedTargets =
+			static_cast<std::size_t>( test.baseTarget) + static_cast<std::size_t>( test.modelsTarget) ;
+		DRIVERCRATE_EXPECT( context, scan.storeStatus == IndexStoreStatus::SNAPSHOT_READY &&
+										scan.totalRecords == expectedRecords &&
+										scan.processedRecords == expectedRecords &&
+										scan.resolverCalls == (hasModels ? 3U : 1U) &&
+										scan.error == 0U) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			scan.supplementStatus == (expiredScan ? IndexAssetSupplementStatus::EXPIRED
+												  : IndexAssetSupplementStatus::BYTE_VALIDATED) &&
+				(expiredScan ? !scan.supplementRecordsStatus
+							 : scan.supplementRecordsStatus ==
+								   (malformed ? IndexRecordsStatus::INVALID_EVIDENCE
+											  : IndexRecordsStatus::SCHEMA_VALIDATED))) ;
+		// 実画面の候補から索引の取得前参照だけを数えた件数
+		const auto references =
+			std::ranges::count_if( run.displayedCandidates, []( const auto &item) {
+				return item.identity.starts_with( L"index-reference-") ;
+			}) ;
+		DRIVERCRATE_EXPECT( context, plan.targets.size() == expectedTargets &&
+										static_cast<std::size_t>( references) == expectedTargets &&
+										run.lookup && run.state.sends == 0U && bodyReads == 0U &&
+										run.native.stages == 0U && run.native.installs == 0U) ;
+		// 実検索の照合結果が保持されなかった場合は、その詳細を参照しません
+		if( !run.lookup) {
+			continue ;
+		}
+
+		// 同じ検索で実候補照合に使った署名済みの索引スナップショット
+		const auto &snapshot = run.lookup->snapshot() ;
+		// 通常本文と専用欄から消費者向けに解決した実レコード列
+		const auto	records = snapshot.consumerRecords() ;
+		DRIVERCRATE_EXPECT( context, snapshot.schemaReceipt().records().size() == 1U &&
+										snapshot.schemaReceipt().indexSha256() == baseDigest &&
+										records.size() == expectedRecords) ;
+		// 期待分母と一致した場合だけ候補の添字へ進みます
+		if( records.size() != expectedRecords) {
+			continue ;
+		}
+
+		// 通常本文の原ハッシュを計画の取得対象と比較する格納先
+		std::wstring baseHash ;
+		DRIVERCRATE_EXPECT( context,
+						   records[0U].recordId == "unchanged-base" &&
+							   records[0U].recordSchemaVersion == 2U &&
+							   computeBytesSha256( records[0U].originalBytes, baseHash) == 0U) ;
+		// 実計画が同じ通常レコードを保持するか確認する位置
+		const auto base =
+			std::ranges::find( plan.targets, baseHash, &OfficialPreparationTarget::releaseIdentity) ;
+		DRIVERCRATE_EXPECT( context, (base != plan.targets.end()) == test.baseTarget) ;
+		// 専用行がない対照では通常本文の照合までで終了します
+		if( !hasModels) {
+			continue ;
+		}
+
+		// 公式範囲の証拠付きとして受理された二番目のレコード
+		const auto	&models = records[1U] ;
+		// 取得対象ハッシュの確認に使う、同じ元レコードのバイト範囲
+		const auto	 region = snapshot.consumerRecordRegion( 1U) ;
+		// 公式Modelsの元レコードの実SHA-256を受け取る文字列
+		std::wstring modelsHash ;
+		DRIVERCRATE_EXPECT( context,
+						   models.recordId == "scoped-models" && models.recordSchemaVersion == 6U &&
+							   models.scopedModelsEvidence && region.indexSha256 == modelsDigest &&
+							   region.indexSha256 != baseDigest && region.expiresAtUtc == expiry &&
+							   region.sources.size() == 1U &&
+							   region.sources.front().sourceId == "catalog-source" &&
+							   computeBytesSha256( models.originalBytes, modelsHash) == 0U) ;
+		// 同じ公式Models行のハッシュから署名済みの取得対象へ解決した位置
+		const auto scoped = std::ranges::find( plan.targets, modelsHash,
+											  &OfficialPreparationTarget::releaseIdentity) ;
+		// 実検索で得た公式Models行と端末の照合関係
+		const auto relation = std::ranges::find_if( run.lookup->relations(), []( const auto &item) {
+			return item.recordIndex == 1U && item.state == IndexRecordMatchState::MATCHED ;
+		}) ;
+		// 同じ二番目の掲載IDへの端末一致とhostによる取得許可を独立に確認します
+		DRIVERCRATE_EXPECT(
+			context, (scoped != plan.targets.end()) == test.modelsTarget &&
+						 (relation != run.lookup->relations().end()) == !compatibleOnly &&
+						 (compatibleOnly || (relation->publicIdIndex == 1U &&
+											 relation->deviceProof && relation->deviceIdentity))) ;
+		// 取得対象があり、かつ取得中の動作を検査するケースだけを次へ進めます
+		if( scoped == plan.targets.end() || !test.acquisitionError) {
+			continue ;
+		}
+
+		// 元取得対象を選ぶ候補が通常画面に表示された位置
+		const auto reference = std::ranges::find( run.displayedCandidates, scoped->identity,
+												 &UpdateCandidate::preparationTargetIdentity) ;
+		DRIVERCRATE_EXPECT(
+			context, scoped->deviceCount == 1U && reference != run.displayedCandidates.end() &&
+						 !reference->installable && relation != run.lookup->relations().end() &&
+						 relation->deviceIdentity &&
+						 reference->deviceIdentity == *relation->deviceIdentity) ;
+		// 選択は維持したまま、取得の直前に元host又は元時刻を変更します
+		if( test.acquisitionError == STALE_HOST) {
+			run.state.platform = LOWER_BUILD ;
+		}
+		// 元期限へ時刻を進めた後は選択済み取得も停止することを確認します
+		else if( test.acquisitionError == EXPIRED_CLAIM) {
+			*run.clock = expiry ;
+		}
+
+		// 実計画から承認と取得を開始する一操作の試験用状態
+		OfficialPreparationSession preparation ;
+		DRIVERCRATE_EXPECT( context, preparation.initialize( plan) == OfficialPreparationError::NONE) ;
+		// 同じscan・計画・制限値に結び付いた明示取得の承認
+		OfficialPreparationApproval approval{
+			853371U, plan.scanSessionId, plan.planId, plan.limits, {}} ;
+		// 計画上の全対象を走査し、選んだ公式Modelsだけに取得意思を付けます
+		for( const auto &target : plan.targets) {
+			approval.decisions.push_back(
+				{target, target.identity == scoped->identity, false, false, false}) ;
+		}
+
+		// 借用中の試験文脈で通常の取得入口を実行した結果
+		const auto acquired = executeOfficialPreparation(
+			preparation, approval,
+			[&]( const OfficialPreparationTask &task, const PreparationCancellation &cancel) {
+				return run.session.acquireForInspection( preparation, task, run.services, cancel) ;
+			},
+			[] { return false ; }, []( const OfficialPreparationProgress &) {}) ;
+		// 同じ承認済み操作について保持された項目ごとの診断
+		const auto summary = run.session.preparationSummary( approval.operationId) ;
+		DRIVERCRATE_EXPECT( context,
+						   acquired.approvalError == OfficialPreparationError::NONE &&
+							   acquired.controlError == 0U && summary.items.size() == 1U &&
+							   summary.items.front().targetIdentity == scoped->identity &&
+							   summary.items.front().acquisitionError == *test.acquisitionError &&
+							   !summary.items.front().inputBound &&
+							   summary.items.front().acceptedInfCount == 0U) ;
+		DRIVERCRATE_EXPECT( context,
+						   run.state.sends == (test.acquisitionError == CONNECT_FAILED ? 1U : 0U) &&
+							   bodyReads == 0U && run.native.stages == 0U &&
+							   run.native.installs == 0U && run.native.opens == run.native.closes) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 認証済みAWS原レコードを通常のscanと取得承認に渡します
+ * @param[in,out] context 共通試験集計です
+ * @param[in] store 原manifestと索引を保存した隔離storeです
+ * @param[in] nowUtc 原期限内に固定した試験時計です
+ * @param[in] zip hash照合済みの保存ZIPです
+ * @param[in] signatureZip 本文前停止を維持したまま既署名fakeを初期化する人工ZIPです
+ * @note 実取得先へ接続せず、確認後のfake応答は本文前で停止します
+ */
+//------------------------------------------------------------------------------
+void runSavedAwsConsumerPlan( TestContext &context, std::shared_ptr<SignedIndexStore> store,
+							 const std::chrono::sys_seconds nowUtc, const std::string_view zip,
+							 const std::string_view signatureZip)
+{
+	/** @brief 元recordと独立した期待値を持つ観測対照です */
+	struct HostCase {
+		/// ログに残す固定入力名です
+		std::string_view	name ;
+		/// 低位fakeが観測する完全OS tupleです
+		WindowsHostPlatform platform ;
+		/// 元recordを一件計画に出す条件です
+		bool				targetExpected ;
+	} ;
+	// 正常とOS・architectureの各対照です
+	constexpr std::array hosts{
+		HostCase{"server-2025-x64", {10U, 0U, 26100U, 9U, 3U, 0U}, true},
+		HostCase{"server-2022-x64", {10U, 0U, 20348U, 9U, 3U, 0U}, false},
+		HostCase{"client-26100-x64", {10U, 0U, 26100U, 9U, 1U, 0U}, false},
+		HostCase{"server-2025-arm64", {10U, 0U, 26100U, 12U, 3U, 0U}, false}} ;
+	// 元公式条件の完全表示文です。計画から期待値を生成しません
+	constexpr std::wstring_view prereq =
+		L"Confirm the device is an Amazon EC2 Nitro System EBS NVMe device and the official AWS "
+		L"driver applies to this instance.\r\n" ;
+	static thread_local unsigned bodyReads ;	// 低位関数ポインターが同threadで本文要求を数えます
+	// 同じ原索引を異なるhost観測へ独立して結びます
+	for( const auto &host : hosts) {
+		// 他のhostの観測を引き継ぎません
+		bodyReads = 0U ;
+		ServerP4Harness run{
+			store,		   nowUtc, zip,			host.name,
+			host.platform, 1U,	   signatureZip} ;	// 保存ZIPはHTTP本文、人工ZIPは未到達の署名用です
+		// 原配布key IDを製品の独立取得policyで検査します
+		run.services.beginHostAcquisition = {} ;
+		// 属性と列挙へ同じSCSIAdapter ClassGUIDを返します
+		run.native.storage = true ;
+		run.native.distributionDevices.push_back(
+			{L"PCI\\VEN_1D0F&DEV_0061", L"AWSNVMe.inf", L"AWSNVME.NTamd64.10.0", L"1.8.2.53",
+			 L"{4D36E97B-E325-11CE-BFC1-08002BE10318}", L"SCSIAdapter"}) ;
+		run.services.httpTransport = [transport = run.services.httpTransport, nowUtc]() {
+			auto fake	= transport() ;	// DNS、open、sendを含む既完全表です
+			fake.utcNow = [nowUtc]() {
+				return static_cast<std::uint64_t>( nowUtc.time_since_epoch().count()) ;
+			} ; // grant発行と同じ試験時計です
+			fake.receiveResponse = []( HINTERNET, LPVOID) -> BOOL {
+				SetLastError( ERROR_WINHTTP_CANNOT_CONNECT) ;
+				return FALSE ;
+			} ; // 確認済みでsendへ進んでも原ZIPを内容検査へ渡しません
+			fake.readData = []( HINTERNET, LPVOID, DWORD, LPDWORD) -> BOOL {
+				++bodyReads ;
+				SetLastError( ERROR_INVALID_FUNCTION) ;
+				return FALSE ;
+			} ;
+			return fake ;
+		} ;
+		const auto plan = run.plan( context, 853350U) ;	// 通常のscan、認証lookup、計画です
+		const auto references =
+			std::ranges::count_if( run.displayedCandidates, []( const auto &item) {
+				return item.identity.starts_with( L"index-reference-") ;
+			}) ; // 通常表示の未取得参照です
+		const std::size_t expectedTargets = host.targetExpected ? 1U : 0U ;	// 固定観測別の件数です
+		DRIVERCRATE_EXPECT( context, plan.targets.size() == expectedTargets &&
+										static_cast<std::size_t>( references) == expectedTargets &&
+										run.state.sends == 0U && bodyReads == 0U &&
+										run.native.stages == 0U && run.native.installs == 0U) ;
+		std::cout << "AWS_SAVED_PLAN host=" << host.name << " targets=" << plan.targets.size()
+				  << " references=" << references << " sends=" << run.state.sends << '\n' ;
+		// 計画のない観測やfixture失敗を承認試験へ渡しません
+		if( !host.targetExpected || plan.targets.size() != 1U) {
+			continue ;
+		}
+
+		const auto &target = plan.targets.front() ;	// 通常計画が組み立てた完全snapshotです
+		DRIVERCRATE_EXPECT(
+			context, target.providerId == SIGNED_INDEX_PROVIDER_ID &&
+						 target.releaseIdentity ==
+							 L"55ebc323f1f440bcef95d2985403460af31c4d593c9340b13c642ece84e4239c" &&
+						 target.terms == OfficialPreparationTerms::CONFIRMED_NO_CONSENT &&
+						 target.requiresPrerequisiteConfirmation &&
+						 target.prerequisiteText == prereq) ;
+		OfficialPreparationSession preparation ;	// 通常承認と取得予約の所有者です
+		DRIVERCRATE_EXPECT( context, preparation.initialize( plan) == OfficialPreparationError::NONE) ;
+		// 元planの選択だけを保持する本人承認です
+		OfficialPreparationApproval approval{853351U,
+											 plan.scanSessionId,
+											 plan.planId,
+											 plan.limits,
+											 {{target, true, false, false, false}}} ;
+		unsigned					dispatches{} ;	// 承認後にだけ呼ばれる取得入口を数えます
+		// 条件確認だけを変え、同じ通常承認入口を使います
+		const auto					execute = [&]() {
+			 return executeOfficialPreparation(
+				 preparation, approval,
+				 [&]( const OfficialPreparationTask &task, const PreparationCancellation &cancel) {
+					 ++dispatches ;
+					 return run.session.acquireForInspection( preparation, task, run.services,
+																			 cancel) ;
+				 },
+				 [] { return false ; }, []( const OfficialPreparationProgress &) {}) ;
+		} ;
+		const auto unconfirmed = execute() ;	// 同元選択でNitro確認だけがない操作です
+		DRIVERCRATE_EXPECT(
+			context, unconfirmed.approvalError == OfficialPreparationError::INVALID_APPROVAL &&
+						 dispatches == 0U && run.state.sends == 0U && bodyReads == 0U) ;
+		++approval.operationId ;
+		// 同元選択の新しい明示確認です
+		approval.decisions.front().prerequisitesConfirmed = true ;
+		const auto confirmed							  = execute() ;					// 同じ経路の確認済み結果です
+		const auto summary = run.session.preparationSummary( approval.operationId) ;	// 元取得結果です
+		// 期待する応答停止の元HRESULTです
+		const auto error =
+			summary.items.empty() ? NativeError{} : summary.items.front().acquisitionError ;
+		DRIVERCRATE_EXPECT( context, confirmed.approvalError == OfficialPreparationError::NONE &&
+										dispatches == 1U && run.state.sends == 1U &&
+										bodyReads == 0U && summary.items.size() == 1U &&
+										error == static_cast<NativeError>( HRESULT_FROM_WIN32(
+													 ERROR_WINHTTP_CANNOT_CONNECT)) &&
+										run.native.stages == 0U && run.native.installs == 0U) ;
+		std::cout << "AWS_SAVED_APPROVAL unconfirmed="
+				  << static_cast<unsigned>( unconfirmed.approvalError)
+				  << " confirmed=" << static_cast<unsigned>( confirmed.approvalError)
+				  << " dispatches=" << dispatches << " fakeSends=" << run.state.sends
+				  << " bodyReads=" << bodyReads << " acquisitionError=" << error << '\n' ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保存した公式応答を、端末の実照合・明示同意・取得検査へ渡します
+ * @param[in,out] context 有限assertionの集計です
+ * @param[in] store RAM鍵で認証した隔離索引です
+ * @param[in] now 元候補期限内の同じUTCです
+ * @param[in] bodies 元配布ページ、規約文書、ZIPです。HTTP代役だけへ渡します
+ * @param[in] device 認証済みINFに結ぶ架空端末です
+ * @param[in] retained 元ZIPを一件目で保護し二件目で再利用する独立計画です
+ */
+//------------------------------------------------------------------------------
+void runSavedArchiveTermsConsumer( TestContext &context, std::shared_ptr<SignedIndexStore> store,
+								  const std::chrono::sys_seconds		 now,
+								  const std::array<std::string_view, 3> &bodies,
+								  const DistributionBindingDevice &device, const bool retained)
+{
+	// 正常文書と承認後の差し替えを、独立した通常スキャンから確認します
+	for( const bool changed : {false, true}) {
+		const driver_package_signature_detail::OriginalInfMetadata originalInf{
+			L"ena.inf", L"c5621773ad2c97d1ae05190293df1a630142458f6e3e82c0627284c71894ed9c",
+			L"ena.cat"} ;	// 開発時にWindows署名と全依存を照合した元INFの固定値です
+		// 保存済みの偽応答と元INFを使い、実通信なしにServerの照合を実行する試験環境
+		ServerP4Harness run{
+			store, now, bodies[2],	"saved-archive-terms", {10U, 0U, 26100U, 9U, 3U, 0U},
+			1U,	   {},	originalInf} ;
+		run.services.beginHostAcquisition = {} ;
+		run.native.distributionDevices.push_back( device) ;
+		run.native.originalIntelArchive = true ;
+		run.native.originalInfs.push_back( originalInf) ;
+		std::function<std::size_t()> sends ;	// このケースの同じfake HTTPだけを数えます
+		run.services.httpTransport =
+			archiveTermsConsumerTransport( bodies, now, changed, retained, sends) ;
+		auto	   plan = run.plan( context, 853380U) ;	// 本体に先行する規約だけを表示へ結びます
+		const auto targetCount = retained ? 2U : 1U ;	// 原期限の異なる行は個別承認を必要とします
+		std::cout << "ARCHIVE_TERMS_PLAN targets=" << plan.targets.size() << " sends=" << sends()
+				  << '\n' ;
+		DRIVERCRATE_EXPECT( context,
+						   plan.targets.size() == targetCount && sends() == targetCount * 2U) ;
+		// 必要な元規約と対象が表示できたケースだけを承認します
+		if( plan.targets.size() != targetCount) {
+			continue ;
+		}
+
+		const auto target = plan.targets.front() ;	// 次計画から除外する元取得対象です
+		DRIVERCRATE_EXPECT( context, target.terms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED &&
+										!target.eulaText.empty() &&
+										target.eulaRevision == L"April 18, 2008") ;
+		OfficialPreparationSession preparation ;	// 同意を消費する同じ状態機械です
+		DRIVERCRATE_EXPECT( context, preparation.initialize( plan) == OfficialPreparationError::NONE) ;
+		OfficialPreparationApproval approval{
+			853381U,
+			plan.scanSessionId,
+			plan.planId,
+			plan.limits,
+			{{target, true, false, false, false}}} ;	// 元選択だけを持つ初回入力です
+		// 二対象の計画でも、初回は別対象を未選択として渡します
+		if( retained) {
+			approval.decisions.push_back( {plan.targets.back(), false, false, false, false}) ;
+		}
+
+		const auto execute = [&] {
+			return executeOfficialPreparation(
+				preparation, approval,
+				[&]( const OfficialPreparationTask &task, const PreparationCancellation &cancel) {
+					return run.session.acquireForInspection( preparation, task, run.services,
+															cancel) ;
+				},
+				[] { return false ; }, []( const OfficialPreparationProgress &) {}) ;
+		} ; // 同じfixtureを選択・同意の違いだけで同期実行します
+		const auto declined = execute() ;	// 同意がなければ追加の二応答も取得しません
+		DRIVERCRATE_EXPECT( context,
+						   declined.approvalError == OfficialPreparationError::INVALID_APPROVAL &&
+							   sends() == targetCount * 2U) ;
+		++approval.operationId ;
+		approval.decisions.front().eulaAccepted			  = true ;
+		approval.decisions.front().prerequisitesConfirmed = target.requiresPrerequisiteConfirmation ;
+		const auto accepted = execute() ;	// 元本文と元対象に対する明示同意です
+		const auto summary =
+			// 元取得とZIP検査を別に確認します
+			run.session.preparationSummary( approval.operationId) ;
+		const bool firstChanged = changed && !retained ;	// 再利用の対照では二件目だけを変えます
+		DRIVERCRATE_EXPECT( context, accepted.approvalError == OfficialPreparationError::NONE &&
+										summary.items.size() == 1U &&
+										sends() == targetCount * 2U + (firstChanged ? 2U : 3U) &&
+										run.native.installs == 0U) ;
+		// 規約ポリシーで停止した場合と、本体を実検査した場合を区別します
+		if( summary.items.size() != 1U) {
+			continue ;
+		}
+
+		const auto &item = summary.items.front() ;	// 同じ準備操作の非機密結果です
+		std::cout << "ARCHIVE_TERMS_CONSUMER changed=" << firstChanged << " sends=" << sends()
+				  << " acquisitionError=" << item.acquisitionError
+				  << " contentError=" << item.contentError << '\n' ;
+		DRIVERCRATE_EXPECT( context, firstChanged
+										? item.acquisitionError != 0U && !item.inputBound
+										: item.acquisitionError == 0U && item.contentError == 0U &&
+											  item.inputBound && item.acceptedInfCount == 1U &&
+											  !item.reusedOwnedBody) ;
+		// 一件目の元ZIPが確保された対照だけを、同scanの独立した次の承認へ進めます
+		if( !retained || !item.inputBound) {
+			continue ;
+		}
+
+		plan.targets.erase( plan.targets.begin()) ;
+		++plan.planId ;
+		// 次の同意を試せるよう、一対象の計画が保持され取得セッションが初期化されたことを示します
+		const bool nextReady = run.session.retainPreparationPlan( plan, run.services) &&
+							   plan.targets.size() == 1U &&
+							   preparation.initialize( plan) == OfficialPreparationError::NONE ;
+		DRIVERCRATE_EXPECT( context, nextReady) ;
+		// 元同意を再利用せず、確定した次計画だけを新しい操作へ渡します
+		if( !nextReady) {
+			continue ;
+		}
+
+		++approval.operationId ;
+		approval.planId	   = plan.planId ;
+		approval.decisions = {{plan.targets.front(), true, true, false,
+							   plan.targets.front().requiresPrerequisiteConfirmation}} ;
+		const auto local   = execute() ;	// 同じZIPを取得せずに別レコードで再検査します
+		// 既に取得した元配布の再検査で、無通信だったことを確認する個別結果
+		const auto localSummary = run.session.preparationSummary( approval.operationId) ;
+		DRIVERCRATE_EXPECT( context, local.approvalError == OfficialPreparationError::NONE &&
+										localSummary.items.size() == 1U && sends() == 9U &&
+										run.native.installs == 0U) ;
+		// 変更対照は再利用を承認せず、正常対照は元ZIPから独立の内容検査へ到達します
+		if( localSummary.items.size() == 1U) {
+			const auto &localItem = localSummary.items.front() ;	// 別承認に属する原結果です
+			std::cout << "ARCHIVE_TERMS_REUSE changed=" << changed << " sends=" << sends()
+					  << " acquisitionError=" << localItem.acquisitionError
+					  << " contentError=" << localItem.contentError
+					  << " reused=" << localItem.reusedOwnedBody << '\n' ;
+			DRIVERCRATE_EXPECT( context,
+							   changed ? localItem.acquisitionError != 0U &&
+											 !localItem.inputBound && !localItem.reusedOwnedBody
+									   : localItem.acquisitionError == 0U &&
+											 localItem.contentError == 0U && localItem.inputBound &&
+											 localItem.acceptedInfCount == 1U &&
+											 localItem.reusedOwnedBody) ;
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 正規Client最低build条件の実scan・取得と同context拒否を一入力ずつ確認します
+ * @param[in,out] context 独立期待のassertion集計先です
+ * @param[in] store RAM実署名・通常codecと隔離commitを通した索引です
+ * @param[in] nowUtc 原人工索引の有効時刻です
+ * @param[in] zip 選択recordのhash/sizeと一致する人工原archiveです
+ * @param[in] caseId 事前固定した一意入力IDです
+ * @param[in] platform 初回host六fieldの独立literalです
+ * @param[in] expectedTargets 事前固定した通常取得計画の件数です
+ * @param[in] changedBuild action時の一field差です。旧分母の既定26100を保持します
+ * @param[in] planOnly trueは通常計画までの対照で、取得到達へ換算しません
+ * @note 成功candidate/reference/lookupを合成せず、完全低位fakeだけを使います
+ */
+//------------------------------------------------------------------------------
+void runClientMinimumBuildConsumerCase( TestContext						&context,
+									   std::shared_ptr<SignedIndexStore> store,
+									   const std::chrono::sys_seconds	 nowUtc,
+									   const std::string_view zip, const std::string_view caseId,
+									   const WindowsHostPlatform platform,
+									   const std::size_t		 expectedTargets,
+									   const unsigned			 changedBuild = 26100U,
+									   const bool				 planOnly	  = false)
+{
+	const auto		beforeFailures = context.failureCount() ;	// 原失敗はcaseごとに消しません
+	// 取得前と同じ元候補を保持して再試行する対照かを示します
+	const bool		retained = caseId == "R01_RETAINED_CHANGED_HOST" ;
+	// 現在OSの個別対照と署名済み索引を接続する試験環境
+	ServerP4Harness run{std::move( store), nowUtc, zip, caseId, platform, retained ? 2U : 1U} ;
+	bool			action{} ;	// 初回原hostと取得以降のfaultを分離します
+	run.services.hostPlatform = [&]() {
+		++run.state.callbacks ;
+		++run.state.phaseCalls ;
+		// OS観測の成功を前提に、Windowsの元ビルドと診断を保持する初期値
+		WindowsHostPlatformObservation value{WindowsHostObservationState::OBSERVED, platform,
+											 WindowsHostErrorDomain::NTSTATUS,
+											 WindowsHostObservationStage::VERSION, 0U} ;
+		// 初回未観測からlegacy成功tupleを補完しません
+		if( caseId == "L04_FULLHOST_MISSING") {
+			return WindowsHostPlatformObservation{} ;
+		}
+
+		const bool freshFault =
+			action &&
+			(caseId == "A01_FRESH_BUILD" || caseId == "A02_FRESH_PRODUCT" ||
+			 caseId == "A03_FRESH_NATIVE_FAILURE" ||
+			 (caseId == "A05_DIRECT_AFTER_PAYLOAD" && run.state.sends != 0U) ||
+			 (caseId == "A06_AUDIT_CHANGED_HOST" && run.state.phase == 1U) ||
+			 (caseId == "A07_FINAL_PAIR_CHANGED_HOST" && run.state.phase == 2U &&
+			  run.state.phaseCalls == 3U) ||
+			 (retained && run.state.phase == 3U)) ;	// 固定phaseの観測だけに一faultを与えます
+		// 正例と未到達phaseは元literal値を返します
+		if( !freshFault) {
+			return value ;
+		}
+
+		// 原NTSTATUSのdomain/bitsをlocal HRESULTと分けます
+		if( caseId == "A03_FRESH_NATIVE_FAILURE") {
+			return WindowsHostPlatformObservation{WindowsHostObservationState::API_FAILED,
+												  std::nullopt, WindowsHostErrorDomain::NTSTATUS,
+												  WindowsHostObservationStage::VERSION,
+												  0xc0000001U} ;
+		}
+
+		// 同base buildのclient→Server差もSTALEとして扱います
+		if( caseId == "A02_FRESH_PRODUCT") {
+			value.value->productType = 3U ;
+		} else { // 他のhost負例は元build一fieldだけを変えます
+			value.value->buildNumber = changedBuild ;
+		}
+
+		return value ;
+	} ;
+	signed_index_candidate_binding_detail::Access::observePublication(
+		[]( const signed_index_candidate_binding_detail::PublicationDiagnostic &value,
+		   void																  *raw) noexcept {
+			// 実stage3通知だけをtoken発行として観測します
+			if( value.stage == 3U) {
+				++static_cast<ServerP4Observation *>( raw)->minted ;
+			}
+		},
+		&run.state) ;
+	const auto resetPublication = std::unique_ptr<void, void ( *)( void *)>{
+		&run.state, []( void *) {
+			signed_index_candidate_binding_detail::Access::observePublication( nullptr, nullptr) ;
+		}} ; // 全正常/例外経路で私有callback借用を解除します
+	auto	   plan = run.plan( context, 853341U) ;	// 通常native-owned scanと元factoryです
+	const auto referenceCount =
+		std::ranges::count_if( run.displayedCandidates, []( const auto &candidate) {
+			return candidate.identity.starts_with( L"index-reference-") ;
+		}) ; // 未取得の表示参照だけを数えます
+	DRIVERCRATE_EXPECT( context, plan.targets.size() == expectedTargets &&
+									static_cast<std::size_t>( referenceCount) == expectedTargets &&
+									run.state.sends == 0U && run.state.minted == 0U) ;
+	std::cout << "CLIENT_BUILD_SCAN case=" << caseId << " targets=" << plan.targets.size()
+			  << " references=" << referenceCount << " sends=" << run.state.sends
+			  << " callbacks=" << run.state.callbacks << '\n' ;
+	// 対象外でも他recordのindex/参照/計画は使用可能です
+	if( caseId.ends_with( "OTHER_NONE") && run.lookup && !plan.targets.empty()) {
+		// 最低ビルドの条件が異なる二つのレコードを読んだ索引の実内容
+		const auto records = run.lookup->snapshot().schemaReceipt().records() ;
+		DRIVERCRATE_EXPECT( context, records.size() == 2U) ;
+		std::wstring oldHash ;	// 実認証済み旧rawから得た独立SHAです
+		// 最低ビルドを持たない旧レコードが同じ索引に残ることを確認する位置
+		const auto	 old = std::ranges::find_if(
+			  records, []( const auto &record) { return record.recordId == "legacy-none" ; }) ;
+		DRIVERCRATE_EXPECT( context, old != records.end() &&
+										computeBytesSha256( old->originalBytes, oldHash) == 0U &&
+										plan.targets.front().releaseIdentity == oldHash &&
+										old->acquisitionDescriptor &&
+										old->acquisitionDescriptor->prerequisites.items.empty()) ;
+	}
+
+	// 計画不成立のcaseはterms/payload/input/token/Providerへ進めません
+	if( expectedTargets == 0U || plan.targets.size() != expectedTargets) {
+		DRIVERCRATE_EXPECT( context, run.native.installs == 0U && run.native.stages == 0U) ;
+		std::cout << "CLIENT_BUILD_CASE case=" << caseId
+				  << " acquired=0 input=0 token=" << run.state.minted
+				  << " provider=" << run.native.installs
+				  << " failures=" << context.failureCount() - beforeFailures << '\n' ;
+		return ;
+	}
+
+	// これらは通常表示/計画の対照に留め、取得成功へ換算しません
+	if( planOnly || caseId == "L03_ABOVE26201" || caseId == "L09_EXISTING_SERVER" ||
+	   caseId == "L05_MALFORMED_GUID_OTHER_NONE" || caseId == "L06_UNKNOWN_RESERVED_OTHER_NONE") {
+		std::cout << "CLIENT_BUILD_CASE case=" << caseId
+				  << " planOnly=1 sends=0 token=0 provider=0 failures="
+				  << context.failureCount() - beforeFailures << '\n' ;
+		return ;
+	}
+
+	DRIVERCRATE_EXPECT( context, run.adapter && run.lookup) ;
+	// 元lookup欠損を後段拒否の成功として数えません
+	if( !run.adapter || !run.lookup) {
+		throw std::runtime_error(
+			"Client minimum-build authenticated acquisition prerequisite missing") ;
+	}
+
+	// 承認前の通信呼出し回数。早期拒否による通信ゼロを差分で確認します
+	const auto beforeActionCallbacks = run.state.callbacks ;
+	// 元が非constの独立lookup copyだけへ一byteのrecord hash不一致を与えます
+	if( caseId == "A04_OWNER_HASH_FIRST") {
+		auto relations = run.lookup->relations() ;	// 元認証snapshotの原byteは変更しません
+		DRIVERCRATE_EXPECT( context, !relations.empty()) ;
+		// 有効な元relationがないfixtureは狙った拒否へ数えません
+		if( relations.empty()) {
+			throw std::runtime_error( "Client minimum-build owner hash premise missing") ;
+		}
+
+		const_cast<IndexRecordRelation &>( relations.front()).recordSha256[0] ^= 1U ;
+	}
+
+	action = true ;
+	OfficialPreparationSession preparation ;	// 実承認/予約/入力所有のownerです
+	const auto				   execute = [&]( const OfficialPreparationPlan &selectedPlan,
+							 const OperationId operation, const std::size_t selected) {
+		DRIVERCRATE_EXPECT( context,
+										   preparation.initialize( selectedPlan) == OfficialPreparationError::NONE) ;
+		// 選んだ操作と計画にだけ用いる一時的な明示取得承認
+		OfficialPreparationApproval approval{
+			operation, selectedPlan.scanSessionId, selectedPlan.planId, selectedPlan.limits, {}} ;
+		// 元計画の各選択/非選択を本人の明示承認へ結びます
+		for( std::size_t index = 0U; index < selectedPlan.targets.size(); ++index) {
+			approval.decisions.push_back(
+				{selectedPlan.targets[index], index == selected, false, false, false}) ;
+		}
+
+		return executeOfficialPreparation(
+			preparation, approval,
+			[&]( const OfficialPreparationTask &task, const PreparationCancellation &cancel) {
+				return run.session.acquireForInspection( preparation, task, run.services, cancel) ;
+			},
+			[] { return false ; }, []( const OfficialPreparationProgress &) {}) ;
+	} ;
+	// 同じ計画への最初の承認で通常の取得を実行した結果
+	const auto acquired = execute( plan, 3401U, 0U) ;
+	// 最初の操作の取得・検査診断を項目ごとに確認する要約
+	const auto summary = run.session.preparationSummary( 3401U) ;
+	// 取得後に検査へ引き継ぐ、元計画の取得対象と内容の結合
+	const auto input = signed_index_candidate_binding_detail::Access::inspectionInputForFixture(
+		run.session, plan.targets.front().identity) ;
+	DRIVERCRATE_EXPECT( context, acquired.approvalError == OfficialPreparationError::NONE &&
+									acquired.controlError == 0U && summary.items.size() == 1U) ;
+	// 最初の項目で実際に記録された取得側の診断値。結果なしは0
+	const auto acquisitionError =
+		summary.items.empty() ? 0U
+							  : static_cast<std::uint32_t>( summary.items.front().acquisitionError) ;
+	// 最初の項目で実際に記録された内容検査側の診断値。結果なしは0
+	const auto contentError =
+		summary.items.empty() ? 0U : static_cast<std::uint32_t>( summary.items.front().contentError) ;
+	std::cout << "CLIENT_BUILD_ACQUIRE case=" << caseId << " sends=" << run.state.sends
+			  << " input=" << static_cast<bool>( input) << " acquisitionError=" << acquisitionError
+			  << " contentError=" << contentError << " callbacks=" << run.state.callbacks << '\n' ;
+	// 元OSまたは承認の照合で、ファイル取得前に停止する対照かを示します
+	const bool earlyFault = caseId == "A01_FRESH_BUILD" || caseId == "A02_FRESH_PRODUCT" ||
+							caseId == "A03_FRESH_NATIVE_FAILURE" ||
+							caseId == "A04_OWNER_HASH_FIRST" ;
+	// 元純粋/host拒否をsend後の内容拒否へ読み替えません
+	if( earlyFault || caseId == "A05_DIRECT_AFTER_PAYLOAD") {
+		// 各早期拒否の原因が区別できることを照合する期待診断
+		const auto expected =
+			caseId == "A04_OWNER_HASH_FIRST" ? static_cast<NativeError>( E_ACCESSDENIED)
+			: caseId == "A03_FRESH_NATIVE_FAILURE"
+				? static_cast<NativeError>( E_NOTIMPL)
+				: static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH)) ;
+		DRIVERCRATE_EXPECT( context, !input && run.state.sends == (earlyFault ? 0U : 1U) &&
+										run.state.minted == 0U &&
+										(earlyFault ? acquisitionError : contentError) ==
+											static_cast<std::uint32_t>( expected)) ;
+		// 純粋record hash拒否はhost callbackを消費しません
+		if( caseId == "A04_OWNER_HASH_FIRST") {
+			DRIVERCRATE_EXPECT( context, run.state.callbacks == beforeActionCallbacks) ;
+		}
+	} else { // 正常取得の原byte/内容合格を確認してから監査します
+		DRIVERCRATE_EXPECT( context, input && input->byteCount == zip.size() &&
+										run.state.sends == 1U && acquisitionError == 0U &&
+										contentError == 0U &&
+										summary.items.front().acceptedInfCount == 1U) ;
+		run.state.phase		 = 1U ;
+		run.state.phaseCalls = 0U ;
+		// 取得結果から公式候補へ昇格させる実監査の報告
+		const auto					 reports = run.provider->preparationAuditReports( acquired) ;
+		std::vector<UpdateCandidate> candidates ;	// 実監査出力だけを保持します
+		// 実発行された候補以外を補完しません
+		for( const auto &report : reports) {
+			candidates.insert( candidates.end(), report.publishedCandidates.begin(),
+							  report.publishedCandidates.end()) ;
+		}
+
+		// 取得後の監査までにOS条件が変化する対照かを示します
+		const bool auditFault = caseId == "A06_AUDIT_CHANGED_HOST" ;
+		DRIVERCRATE_EXPECT( context, candidates.size() == (auditFault ? 0U : 1U) &&
+										run.state.minted == (auditFault ? 0U : 1U)) ;
+		std::cout << "CLIENT_BUILD_AUDIT case=" << caseId << " reports=" << reports.size()
+				  << " candidates=" << candidates.size() << " token=" << run.state.minted
+				  << " callbacks=" << run.state.callbacks << '\n' ;
+		// Bは全純粋関係確認後、同host再観測の拒否でinputを発行しません
+		if( retained && input && candidates.size() == 1U) {
+			// 後続操作で同じ配布を選び直す試験用の計画コピー
+			auto next = plan ;
+			next.targets.erase( next.targets.begin()) ;
+			++next.planId ;
+			DRIVERCRATE_EXPECT( context, run.session.retainPreparationPlan( next, run.services)) ;
+			run.state.phase		 = 3U ;
+			run.state.phaseCalls = 0U ;
+			// 別操作IDで保持候補の同じ取得を承認した結果
+			const auto second = execute( next, 3402U, 0U) ;
+			// 後続操作で通信や適用がどう扱われたかを確認する診断
+			const auto secondSummary = run.session.preparationSummary( 3402U) ;
+			// 別操作に引き継いだ元配布と検査結果の結合
+			const auto secondInput =
+				signed_index_candidate_binding_detail::Access::inspectionInputForFixture(
+					run.session, next.targets.front().identity) ;
+			DRIVERCRATE_EXPECT( context,
+							   second.approvalError == OfficialPreparationError::NONE &&
+								   second.controlError == 0U && secondSummary.items.size() == 1U &&
+								   secondSummary.items.front().reusedOwnedBody && !secondInput &&
+								   run.state.sends == 1U && run.state.phaseCalls == 1U &&
+								   secondSummary.items.front().contentError ==
+									   HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH)) ;
+			std::cout
+				<< "CLIENT_BUILD_RETAINED case=" << caseId
+				<< " items=" << secondSummary.items.size()
+				<< " input=" << static_cast<bool>( secondInput) << " sends=" << run.state.sends
+				<< " phaseCalls=" << run.state.phaseCalls
+				<< " approval=" << static_cast<unsigned>( second.approvalError)
+				<< " control=" << static_cast<std::uint32_t>( second.controlError) << " reused="
+				<< (!secondSummary.items.empty() && secondSummary.items.front().reusedOwnedBody)
+				<< " acquisitionError="
+				<< (secondSummary.items.empty()
+						? 0U
+						: static_cast<std::uint32_t>( secondSummary.items.front().acquisitionError))
+				<< " contentError="
+				<< (secondSummary.items.empty()
+						? 0U
+						: static_cast<std::uint32_t>( secondSummary.items.front().contentError))
+				<< '\n' ;
+		}
+
+		// 正候補成立後、最終pairの第三host境界だけを変化させます
+		if( caseId == "A07_FINAL_PAIR_CHANGED_HOST" && candidates.size() == 1U) {
+			run.state.phase		 = 2U ;
+			run.state.phaseCalls = 0U ;
+			// 監査で昇格した元配布一件だけを導入へ渡す選択集合
+			const std::array selected{candidates.front().identity} ;
+			DRIVERCRATE_EXPECT( context, run.provider->beginInstallOperation(
+											3403U, plan.scanSessionId, selected) == 0U) ;
+			// 偽Providerで同じscanの選択が適用直前まで通ったかを確認する結果
+			const auto installed = run.provider->install( plan.scanSessionId, selected, 0U,
+														 []( const ProviderProgress &) {}) ;
+			DRIVERCRATE_EXPECT( context, !installed.succeeded &&
+											installed.installError ==
+												HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH) &&
+											run.state.phaseCalls == 3U &&
+											run.native.installs == 0U) ;
+			std::cout << "CLIENT_BUILD_FINAL case=" << caseId
+					  << " error=" << static_cast<std::uint32_t>( installed.installError)
+					  << " phaseCalls=" << run.state.phaseCalls
+					  << " provider=" << run.native.installs << '\n' ;
+		}
+	}
+
+	// 純粋record不正を新global latchにせず、原host失敗だけを不可逆に保持します
+	if( caseId.starts_with( "A") || retained) {
+		// 最初の照合文脈に対する現在OSの導入可否
+		const auto gate = run.adapter->hostDecision( run.original.context) ;
+		// 同じ拒否状態を再現できるかを確認する対照ごとの期待区分
+		const auto expectedState =
+			caseId == "A04_OWNER_HASH_FIRST"	   ? IndexHostGateState::ALLOW_UNVERIFIED
+			: caseId == "A03_FRESH_NATIVE_FAILURE" ? IndexHostGateState::UNKNOWN
+												   : IndexHostGateState::STALE ;
+		DRIVERCRATE_EXPECT( context,
+						   gate && gate->state == expectedState &&
+							   gate->observation.domain == WindowsHostErrorDomain::NTSTATUS &&
+							   gate->observation.rawBits ==
+								   (caseId == "A03_FRESH_NATIVE_FAILURE" ? 0xc0000001U : 0U)) ;
+	}
+
+	DRIVERCRATE_EXPECT( context, run.native.installs == 0U && run.native.stages == 0U &&
+									run.native.opens == run.native.closes) ;
+	std::cout << "CLIENT_BUILD_CASE case=" << caseId << " sends=" << run.state.sends
+			  << " token=" << run.state.minted << " provider=" << run.native.installs
+			  << " failures=" << context.failureCount() - beforeFailures << '\n' ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 非空真正fixtureを元取得/監査/最終拒否へ通す一caseです
+ * @param[in,out] context 共通assertion集計です
+ * @param[in] store 元RAM署名codecで保存した隔離storeです
+ * @param[in] nowUtc 独立fixture UTCです
+ * @param[in] zip 原recordへhash/sizeを結んだ実人工archiveです
+ * @param[in] caseId 固定matrixの一意IDです
+ * @param[in] platform 元六fieldの独立literalです
+ * @note pure22とは別に通常所有経路を通し、候補/成功DTOを注入しません
+ */
+//------------------------------------------------------------------------------
+void runServerP4PipelineCase( TestContext &context, std::shared_ptr<SignedIndexStore> store,
+							 const std::chrono::sys_seconds nowUtc, const std::string_view zip,
+							 const std::string_view caseId, const WindowsHostPlatform platform)
+{
+	const auto		failures = context.failureCount() ;						// このcase以前の失敗を消しません
+	ServerP4Harness run{std::move( store), nowUtc, zip, caseId, platform} ;	// 同threadの真ownerです
+	// 公開Classが合う正常inventoryをClass負例の前提にします
+	if( caseId == "P4_C04_CLASS_PIPELINE") {
+		// 申告Netとnative inventoryだけを一致させ、実INFはPortsです
+		run.native.network = true ;
+	}
+
+	// 誤kindにも正当なnative positiveを与えて内容比較へ進めます
+	if( caseId == "P4_C02_WRONG_TYPED_KIND_PIPELINE") {
+		run.native.opaqueCompatibleId =
+			L"TESTBUS\\SYNTH_0001" ;	// 誤kindにも実native positiveを与えます
+	}
+
+	const bool retained = caseId == "P4_C14_RETAINED_NONEMPTY_SUCCESS" ||
+						  caseId == "P4_C15_RETAINED_BAD_TARGET_HASH" ||
+						  caseId == "P4_C16_RETAINED_TARGET_EXPIRED" ||
+						  caseId == "P4_D17_RETAINED_FRESH_FAILURE" ||
+						  // 別active Bです
+						  caseId == "P4_D18_RETAINED_MODELS_THEN_HOST_CHANGE" ;
+	const bool finalCase = caseId.starts_with( "P4_D07_") || caseId.starts_with( "P4_D08_") ||
+						   caseId.starts_with( "P4_D09_") || caseId.starts_with( "P4_D10_") ||
+						   caseId.starts_with( "P4_D11_") || caseId.starts_with( "P4_D13_") ||
+						   caseId.starts_with( "P4_D14_") || caseId.starts_with( "P4_D15_") ||
+						   // 正候補が必須の最終負例です
+						   caseId.starts_with( "P4_D16_") ;
+	const bool hostCase = caseId.starts_with( "P4_D") ;			// 分類期待は後段literal表へ固定します
+	std::optional<IndexHostGateResult> observedHostRefusal ;	// 原domain/bitsをrawへ分離保存します
+	std::size_t						   recoveredCandidates{} ;	// 正当な新scanの実候補だけです
+	const bool						   client =
+		// 元三条件不要です
+		caseId == "P4_C20_OLD_CLIENT10" || caseId == "P4_C21_OLD_CLIENT11" ;
+	signed_index_candidate_binding_detail::Access::observePublication(
+		[]( const signed_index_candidate_binding_detail::PublicationDiagnostic &value,
+		   void																  *raw) noexcept {
+			// READY前3という実通知だけを数え、候補結果を書き換えません
+			if( value.stage == 3U) {
+				++static_cast<ServerP4Observation *>( raw)->minted ;
+			}
+		},
+		&run.state) ;
+	OfficialPreparationSession preparation ;	// 同scanの複数操作でも原予約/高水位を保持します
+	std::optional<OfficialPreparationApproval>
+			   approvedSnapshot ;	// 実行へ渡した元承認だけを保持します
+	const auto execute = [&]( const OfficialPreparationPlan &plan, const OperationId operation,
+							 const bool onlyFirst) {
+		DRIVERCRATE_EXPECT( context, preparation.initialize( plan) == OfficialPreparationError::NONE) ;
+		OfficialPreparationApproval approval{operation,
+											 plan.scanSessionId,
+											 plan.planId,
+											 plan.limits,
+											 {}} ;	// 元全targetを表示済みとして明示します
+		// 全元targetの選択/非選択を明示します
+		for( std::size_t index = 0U; index < plan.targets.size(); ++index) {
+			approval.decisions.push_back(
+				{plan.targets[index], !onlyFirst || index == 0U, false, false, false}) ;
+		}
+
+		approvedSnapshot = approval ;
+		return executeOfficialPreparation(
+			preparation, approval,
+			[&]( const OfficialPreparationTask &task, const PreparationCancellation &cancel) {
+				// 既plan/承認/active task成立後だけB一faultを与えます
+				if( run.state.phase == 3U && caseId == "P4_C15_RETAINED_BAD_TARGET_HASH") {
+					auto relations = run.lookup->relations() ;	// 元が非constの独立copyだけです
+					// 新Bだけを独立lookup copy内から探します
+					for( const auto &relation : relations) {
+						// B以外の正常relationは変更しません
+						if( relation.recordId == "metadata-retained") {
+							const_cast<IndexRecordRelation &>( relation).recordSha256[0] ^= 1U ;
+						}
+					}
+				}
+
+				// B原expiryだけをactive task成立後に越えます
+				if( run.state.phase == 3U && caseId == "P4_C16_RETAINED_TARGET_EXPIRED") {
+					*run.clock = nowUtc + std::chrono::minutes{1} ;	// Bだけの原期限ちょうどです
+				}
+
+				return run.session.acquireForInspection( preparation, task, run.services, cancel) ;
+			},
+			[] { return false ; }, []( const OfficialPreparationProgress &) {}) ;
+	} ; // 戻り値は実sessionの原終端だけで、成功値を合成しません
+	const auto candidatesFrom = []( const std::vector<OfficialPreparationAuditReport> &reports) {
+		std::vector<UpdateCandidate> result ;	// 実監査が発行した候補だけです
+		// 実監査の発行集合だけを外へ複写します
+		for( const auto &report : reports) {
+			result.insert( result.end(), report.publishedCandidates.begin(),
+						  report.publishedCandidates.end()) ;
+		}
+
+		return result ;
+	} ;
+	OfficialPreparationPlan plan = run.plan( context, 85305U) ;	// 新native-owned三IDです
+	DRIVERCRATE_EXPECT( context, run.adapter && run.lookup) ;
+	// generic Serverは取得計画前の拒否だけを期待します
+	if( caseId == "P4_C17_GENERIC_SERVER") {
+		DRIVERCRATE_EXPECT( context, plan.targets.empty() && run.state.sends == 0U &&
+										run.state.callbacks == 1U && run.native.rankCalls == 0U &&
+										run.state.minted == 0U) ;
+		std::cout << "P4_PIPELINE case=" << caseId << " targets=0 sends=" << run.state.sends
+				  << " candidates=0 tokens=0 provider=" << run.native.installs << '\n' ;
+		signed_index_candidate_binding_detail::Access::observePublication( nullptr, nullptr) ;
+		return ;
+	}
+
+	DRIVERCRATE_EXPECT( context, plan.targets.size() == (retained ? 2U : 1U)) ;
+	// 正常認証/元計画がないcaseを後段拒否合格にしません
+	if( plan.targets.size() != (retained ? 2U : 1U) || !run.lookup || !run.adapter) {
+		throw std::runtime_error( "P4 authenticated pipeline prerequisite missing") ;
+	}
+
+	// 同一INFへ実positiveとなる二recordの前提を確認します
+	if( caseId == "P4_C12_SHARED_AMBIGUOUS_RECORDS") {
+		std::set<std::string> records ;	// 同native deviceへ実positiveとなった原二recordです
+		// 原lookupで実positiveとなったrecordだけを数えます
+		for( const auto &relation : run.lookup->relations()) {
+			// 未確認関係から二つの正常前提を合成しません
+			if( relation.deviceIdentity && (relation.positiveProof || relation.deviceProof ||
+										   relation.state == IndexRecordMatchState::MATCHED)) {
+				records.insert( relation.recordId) ;
+			}
+		}
+
+		const std::set<std::string> expectedRecords{"metadata",
+													"metadata-ambiguous"} ;	// 元二record literalです
+		DRIVERCRATE_EXPECT( context,
+						   records == expectedRecords && plan.targets.front().deviceCount == 1U) ;
+	}
+
+	// 同payloadの異productからhost3 recordだけが選ばれることを確認します
+	if( caseId == "P4_C13_SHARED_OTHER_PRODUCT") {
+		DRIVERCRATE_EXPECT( context, run.lookup->snapshot().schemaReceipt().records().size() == 2U &&
+										plan.targets.size() == 1U &&
+										plan.targets.front().deviceCount == 1U) ;
+		const auto &record = run.lookup->snapshot()
+								 .schemaReceipt()
+								 .records()
+								 .front() ;	// 第一recordだけがproduct3です
+		std::wstring hash ;					// 新scope helperと独立した原raw byteのSHAです
+		DRIVERCRATE_EXPECT( context,
+						   computeBytesSha256( record.originalBytes, hash) == 0U &&
+							   record.originalBytes.find( "target-product-type=3") !=
+								   record.originalBytes.npos &&
+							   plan.targets.front().releaseIdentity == hash &&
+							   run.lookup->snapshot().schemaReceipt().sources().size() == 1U) ;
+	}
+
+	const auto acquired = execute( plan, 1402U, retained) ;	// 実TRANSFER/実byte/原内容を通します
+	DRIVERCRATE_EXPECT( context, acquired.approvalError == OfficialPreparationError::NONE &&
+									acquired.controlError == 0U && run.state.sends == 1U) ;
+	const auto acquiredSummary =
+		// 原sealと内容の非機密結果です
+		run.session.preparationSummary( 1402U) ;
+	DRIVERCRATE_EXPECT( context, acquiredSummary.items.size() == 1U &&
+									acquiredSummary.items.front().acquisitionError == 0U &&
+									acquiredSummary.items.front().inputBound &&
+									acquiredSummary.items.front().infCount == 1U) ;
+	const auto input = signed_index_candidate_binding_detail::Access::inspectionInputForFixture(
+		run.session, plan.targets.front().identity) ;	// 既所有入力を読み取るだけです
+	DRIVERCRATE_EXPECT(
+		context, input && input->byteCount == zip.size() &&
+					 !signed_index_candidate_binding_detail::Access::inspectionInputForFixture(
+						 run.session, L"wrong-target")) ;
+	const auto beforeAuditCallbacks = run.state.callbacks ;	// 純粋拒否より前の独立基準です
+	std::vector<std::pair<std::string, IndexManifestSha256>>
+		originalRecordBytes ;	// 全原byte/hashを後続へ保持します
+	// 全原raw/hashを後続作用の前に保存します
+	for( const auto &record : run.lookup->snapshot().schemaReceipt().records()) {
+		originalRecordBytes.emplace_back( record.originalBytes, record.recordSha256) ;
+	}
+
+	const bool diagnostic =
+		caseId == "P4_C06_CAT_REJECT" || caseId == "P4_C08_CHANGED_SEALED_BYTE" ||
+		caseId == "P4_C10_EXPIRED_NATIVE_LEASE" || caseId == "P4_C12_SHARED_AMBIGUOUS_RECORDS" ||
+		caseId == "P4_C14_RETAINED_NONEMPTY_SUCCESS" ||
+		// 原不一致の六caseだけを数値観測します
+		caseId == "P4_D05_BEFORE_TOKEN_CHANGED_SUITE" ;
+	// 元summaryの所有copyだけを読み、対象名やhashは出さずA/B一致boolへ限定します
+	const auto emitSummary = [&]( const std::string_view			phaseLabel,
+								 const IndexPreparationSummary &summary) {
+		// 許可した六case以外へ診断出力を追加しません
+		if( !diagnostic) {
+			return ;
+		}
+
+		std::cout << "P4_DIAG_SUMMARY case=" << caseId << " phase=" << phaseLabel
+				  << " items=" << summary.items.size() << " callbacks=" << run.state.callbacks
+				  << " phaseCalls=" << run.state.phaseCalls << " minted=" << run.state.minted
+				  << " rank=" << run.native.rankCalls
+				  << " signatureRejectedCalls=" << run.signatures->receipt().rejectedCalls << '\n' ;
+		// 各既取得itemを原ordinalのまま読み、新しい取得やhost観測を呼びません
+		for( std::size_t ordinal = 0U; ordinal < summary.items.size(); ++ordinal) {
+			const auto &item = summary.items[ordinal] ;	// 同snapshot内だけの非所有参照です
+			std::cout << "P4_DIAG_ITEM case=" << caseId << " phase=" << phaseLabel
+					  << " item=" << ordinal
+					  << " targetA=" << (item.targetIdentity == plan.targets.front().identity)
+					  << " targetB="
+					  << (plan.targets.size() == 2U &&
+						  item.targetIdentity == plan.targets[1U].identity)
+					  << " acquisition=" << static_cast<unsigned>( item.acquisition)
+					  << " acquisitionError=" << static_cast<std::uint32_t>( item.acquisitionError)
+					  << " content=" << static_cast<unsigned>( item.content)
+					  << " contentError=" << static_cast<std::uint32_t>( item.contentError)
+					  << " firstInf=" << static_cast<std::uint32_t>( item.firstInfRejection)
+					  << " signatureRejected=" << item.signatureRejectedInfCount
+					  << " accepted=" << item.acceptedInfCount << " infCount=" << item.infCount
+					  << " inputBound=" << item.inputBound << " reused=" << item.reusedOwnedBody
+					  << '\n' ;
+		}
+	} ;
+	// 既reportと元拒否票をconstで読み、判定・callback・候補を変更しません
+	const auto emitReports = [&]( const std::string_view								   phaseLabel,
+								 const std::span<const OfficialPreparationAuditReport> values,
+								 const unsigned										   baseline) {
+		// 許可した六case以外の既処理を変えません
+		if( !diagnostic) {
+			return ;
+		}
+
+		const auto host =
+			// 再観測しない元拒否票です
+			run.adapter->hostDecision( run.original.context) ;
+		std::cout << "P4_DIAG_AUDIT case=" << caseId << " phase=" << phaseLabel
+				  << " reports=" << values.size() << " beforeCallbacks=" << baseline
+				  << " afterCallbacks=" << run.state.callbacks
+				  << " phaseCalls=" << run.state.phaseCalls << " minted=" << run.state.minted
+				  << " rank=" << run.native.rankCalls << " hostPresent=" << host.has_value()
+				  << " hostState=" << (host ? static_cast<unsigned>( host->state) : 0U)
+				  << " hostError=" << (host ? static_cast<std::uint32_t>( host->error) : 0U) << '\n' ;
+		// 各reportを元ordinalとA/B一致だけへ投影し、生identityを出しません
+		for( std::size_t ordinal = 0U; ordinal < values.size(); ++ordinal) {
+			const auto &value = values[ordinal] ;	// 今回返った非機密reportだけです
+			std::cout << "P4_DIAG_REPORT case=" << caseId << " phase=" << phaseLabel
+					  << " item=" << ordinal
+					  << " targetA=" << (value.targetIdentity == plan.targets.front().identity)
+					  << " targetB="
+					  << (plan.targets.size() == 2U &&
+						  value.targetIdentity == plan.targets[1U].identity)
+					  << " content=" << static_cast<unsigned>( value.content)
+					  << " contentError=" << static_cast<std::uint32_t>( value.contentError)
+					  << " firstContent=" << static_cast<std::uint32_t>( value.firstContentRejection)
+					  << " accepted=" << value.acceptedInfCount
+					  << " applicability=" << static_cast<unsigned>( value.applicability)
+					  << " applicabilityError="
+					  << static_cast<std::uint32_t>( value.applicabilityError)
+					  << " firstPair=" << static_cast<std::uint32_t>( value.firstPairError)
+					  << " applicablePairs=" << value.applicablePairCount
+					  << " publication=" << static_cast<unsigned>( value.publication.state)
+					  << " examined=" << value.publication.examinedPairCount
+					  << " excluded=" << value.publication.excludedPairCount << " publicationError="
+					  << static_cast<std::uint32_t>( value.publication.firstError)
+					  << " published=" << value.publishedCandidates.size() << '\n' ;
+		}
+	} ;
+	emitSummary( "acquired", acquiredSummary) ;
+
+	// 自作所有archiveの一byteだけをseal後に変更します
+	if( caseId == "P4_C08_CHANGED_SEALED_BYTE" && input) {
+		std::fstream file{std::filesystem::path{input->inspectionPath},
+						  std::ios::in | std::ios::out |
+							  std::ios::binary} ;	// 自作stageの同owned byteだけです
+		char		 byte{} ;						// 原一byteを変える負例です
+		file.read( &byte, 1) ;
+		const bool read = file.good() ;	// 保護拒否を破壊成功へ数えません
+		file.clear() ;
+		file.seekp( 0) ;
+		byte ^= 1 ;
+		file.write( &byte, 1) ;
+		file.flush() ;
+		DRIVERCRATE_EXPECT( context, read && file.good()) ;
+		// 所有保護のwrite拒否を変造成功へ数えません
+		if( !read || !file.good()) {
+			throw std::runtime_error(
+				"P4 sealed-byte mutation blocked; intended phase not demonstrated") ;
+		}
+	}
+
+	// 元が非constの負例copyだけでrecordIdを変えます
+	if( caseId == "P4_C09_WRONG_RECORD_ID") {
+		auto relations = run.lookup->relations() ;	// 元が非constの独立lookupだけです
+		DRIVERCRATE_EXPECT( context, !relations.empty()) ;
+		const_cast<IndexRecordRelation &>( relations.front()).recordId = "wrong-record" ;
+	}
+
+	// 実再列挙により原native leaseだけを失効させます
+	if( caseId == "P4_C10_EXPIRED_NATIVE_LEASE") {
+		const auto recaptured =
+			signed_index_candidate_binding_detail::Access::driverStoreFixture( *run.provider)
+				.scan( 85306U, {}, []( const ProviderProgress &) {}) ;	// 原leaseだけを失効します
+		DRIVERCRATE_EXPECT( context, recaptured.succeeded) ;
+	}
+
+	// 当該原attestation期限ちょうどで監査します
+	if( caseId == "P4_C11_EXPIRED_RECORD") {
+		*run.clock = nowUtc + std::chrono::minutes{1} ;	// 当該原attestation期限だけです
+	}
+
+	run.state.phase		 = 1U ;
+	run.state.phaseCalls = 0U ;
+	// 元auditを同じ位置で一回だけ呼び、例外時も同じ例外をそのまま再送します
+	auto reports = [&]() {
+		try {
+			return run.provider->preparationAuditReports( acquired) ;
+		} catch( ...) {
+			// D05の未返却reportを作らず、元local counterだけを例外の前に保存します
+			if( diagnostic) {
+				emitReports( "throw", {}, beforeAuditCallbacks) ;
+			}
+
+			throw ;
+		}
+	}() ;
+	auto candidates = candidatesFrom( reports) ;	// 同元tokenからの通常候補です
+	emitReports( "audit", reports, beforeAuditCallbacks) ;
+	// 元単一INF/deviceのrank合格と、host拒否後の無候補終端を独立に照合します
+	if( caseId == "P4_D05_BEFORE_TOKEN_CHANGED_SUITE" || caseId == "P4_D06_PREPUBLICATION_ARM64") {
+		DRIVERCRATE_EXPECT(
+			context,
+			reports.size() == 1U &&
+				reports.front().applicability == CandidateAuditGateState::PASSED &&
+				reports.front().applicabilityError == 0U &&
+				reports.front().examinedPairCount == 1U &&
+				reports.front().applicablePairCount == 1U &&
+				reports.front().failedPairCount == 0U &&
+				reports.front().publication.state ==
+					(caseId == "P4_D05_BEFORE_TOKEN_CHANGED_SUITE"
+						 ? OfficialPreparationCandidatePublicationState::NO_ELIGIBLE_CANDIDATES
+						 : OfficialPreparationCandidatePublicationState::FAILURE) &&
+				reports.front().publication.examinedPairCount == 1U &&
+				reports.front().publication.excludedPairCount == 1U &&
+				reports.front().publication.firstError ==
+					HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH) &&
+				reports.front().publication.publishedCount == 0U &&
+				reports.front().publishedCandidates.empty()) ;
+		auto audited = acquired ;	// 元操作結果を改変せず、実返却reportだけを通常通知へ結合します
+		audited.auditReports = reports ;
+		DRIVERCRATE_EXPECT( context, approvedSnapshot &&
+										validatePreparationAuditReports( audited, *approvedSnapshot,
+																		run.displayedCandidates)) ;
+	}
+
+	const bool pureRefusal = caseId == "P4_C08_CHANGED_SEALED_BYTE" ||
+							 caseId == "P4_C09_WRONG_RECORD_ID" ||
+							 caseId == "P4_C10_EXPIRED_NATIVE_LEASE" ||
+							 // 全て観測前の拒否です
+							 caseId == "P4_C11_EXPIRED_RECORD" ;
+	// 純粋拒否はhost callbackを消費せず原codeを返す必要があります
+	if( pureRefusal) {
+		const auto expected = caseId == "P4_C08_CHANGED_SEALED_BYTE" ? TRUST_E_BAD_DIGEST
+							  : caseId == "P4_C11_EXPIRED_RECORD"
+								  ? HRESULT_FROM_WIN32( ERROR_TIMEOUT)
+								  : E_ACCESSDENIED ;	// 元実装の固定codeです
+		DRIVERCRATE_EXPECT( context,
+						   run.state.callbacks == beforeAuditCallbacks && reports.size() == 1U &&
+							   reports.front().contentError == expected && candidates.empty() &&
+							   run.state.minted == 0U && run.native.rankCalls == 0U &&
+							   run.adapter->hostDecision( run.original.context)->state ==
+								   IndexHostGateState::ALLOW_UNVERIFIED) ;
+		// 取得旧contextを再開始しても所有元を新scanから補いません
+		if( caseId == "P4_C10_EXPIRED_NATIVE_LEASE") {
+			DRIVERCRATE_EXPECT(
+				context, signed_index_acquisition_detail::Access::beginHostFixture(
+							 *run.adapter, run.lookup, run.original.context, run.original,
+							 run.services.hostPlatform, nowUtc) == E_ACCESSDENIED &&
+							 run.state.callbacks == beforeAuditCallbacks && run.state.sends == 1U) ;
+		}
+	}
+
+	const bool contentMismatch = caseId.starts_with( "P4_C01_") || caseId.starts_with( "P4_C02_") ||
+								 caseId.starts_with( "P4_C03_") || caseId.starts_with( "P4_C04_") ||
+								 // 全元内容成立後のidentity比較です
+								 caseId.starts_with( "P4_C05_") ;
+	// 内容の正常前提と原identity不一致を独立に確認します
+	if( contentMismatch || caseId == "P4_C12_SHARED_AMBIGUOUS_RECORDS") {
+		DRIVERCRATE_EXPECT( context, reports.size() == 1U &&
+										reports.front().acceptedInfCount == 1U &&
+										reports.front().contentError == 0U && candidates.empty() &&
+										run.native.rankCalls == 0U && run.state.minted == 0U) ;
+		// 二つの完全一致を先頭へ丸めない元拒否を確認します
+		if( caseId == "P4_C12_SHARED_AMBIGUOUS_RECORDS") {
+			DRIVERCRATE_EXPECT( context,
+							   reports.size() == 1U && reports.front().firstPairError ==
+														   HRESULT_FROM_WIN32( ERROR_DUP_NAME)) ;
+		} else { // 別のreader失敗を内容不一致成功へ換算しません
+			DRIVERCRATE_EXPECT( context, reports.front().firstPairError == 0U &&
+											reports.front().applicablePairCount == 0U) ;
+		}
+	}
+
+	// 署名又はSYS欠損は候補/rank/tokenへ進めません
+	if( caseId == "P4_C06_CAT_REJECT" || caseId == "P4_C07_MISSING_SYS") {
+		DRIVERCRATE_EXPECT( context, candidates.empty() && run.state.minted == 0U &&
+										run.native.rankCalls == 0U &&
+										acquiredSummary.items.front().acceptedInfCount == 0U) ;
+		// 全member原hashを拒否する人工署名APIの元Win32 errorを保持します
+		if( caseId == "P4_C06_CAT_REJECT") {
+			DRIVERCRATE_EXPECT( context,
+							   acquiredSummary.items.front().signatureRejectedInfCount == 1U &&
+								   acquiredSummary.items.front().firstInfRejection ==
+									   HRESULT_FROM_WIN32( ERROR_ACCESS_DENIED) &&
+								   run.signatures->receipt().rejectedCalls != 0U) ;
+		} else { // 元referenced SYS欠損だけを拒否します
+			DRIVERCRATE_EXPECT( context, acquiredSummary.items.front().firstInfRejection ==
+											HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)) ;
+		}
+	}
+
+	const bool initiallyQualified = caseId.starts_with( "P4_A_") || client || retained ||
+									finalCase ||
+									// 独立matrixの正候補前提です
+									caseId == "P4_C13_SHARED_OTHER_PRODUCT" ;
+	// 最終負例又はretainedのAには実正候補が必要です
+	if( initiallyQualified) {
+		DRIVERCRATE_EXPECT( context, candidates.size() == 1U && candidates.front().installable &&
+										run.state.minted == 1U && run.native.rankCalls != 0U) ;
+	}
+
+	// 旧clientには新Server callback/三条件を追加しません
+	if( client) {
+		DRIVERCRATE_EXPECT( context, run.state.callbacks == beforeAuditCallbacks &&
+										run.lookup->snapshot()
+											.schemaReceipt()
+											.records()
+											.front()
+											.acquisitionDescriptor->prerequisites.items.empty()) ;
+	}
+
+	// Aのcommit後だけ新Bを原予算の次操作へ進めます
+	if( retained) {
+		const auto				history = candidates ;	// Aの既commit表示/履歴は元byteのまま残します
+		OfficialPreparationPlan next	= plan ;		// 原Bだけの新active operationです
+		next.targets.erase( next.targets.begin()) ;
+		++next.planId ;
+		DRIVERCRATE_EXPECT( context, run.session.retainPreparationPlan( next, run.services) &&
+										next.targets.size() == 1U) ;
+		run.state.phase			 = 3U ;
+		run.state.retainedTarget = true ;
+		run.state.phaseCalls	 = 0U ;
+		const auto beforeB		 = run.state.callbacks ;					// B純粋拒否はここからcallback0です
+		const auto local		 = execute( next, 1403U, false) ;			// 原A byteの再取得を行いません
+		const auto summary		 = run.session.preparationSummary( 1403U) ;	// Bの実通常内容です
+		emitSummary( "retained", summary) ;
+		// 元LOCAL操作の制御結果だけを数値表示し、taskやclaimを再発行しません
+		if( diagnostic) {
+			std::cout << "P4_DIAG_LOCAL case=" << caseId
+					  << " approval=" << static_cast<unsigned>( local.approvalError)
+					  << " control=" << static_cast<std::uint32_t>( local.controlError)
+					  << " items=" << local.items.size() << " history=" << history.size() << '\n' ;
+		}
+
+		DRIVERCRATE_EXPECT( context, run.state.sends == 1U && local.items.size() == 1U &&
+										summary.items.size() == 1U && history.size() == 1U) ;
+		// B固有のhash/期限拒否はLOCALとhostより先に成立します
+		if( caseId == "P4_C15_RETAINED_BAD_TARGET_HASH" ||
+		   caseId == "P4_C16_RETAINED_TARGET_EXPIRED") {
+			const auto expected = caseId == "P4_C15_RETAINED_BAD_TARGET_HASH"
+									  ? E_ACCESSDENIED
+									  : HRESULT_FROM_WIN32( ERROR_TIMEOUT) ;	// B原拒否です
+			DRIVERCRATE_EXPECT(
+				context,
+				run.state.callbacks == beforeB &&
+					summary.items.front().acquisitionError == expected &&
+					!summary.items.front().reusedOwnedBody && !summary.items.front().inputBound &&
+					!signed_index_candidate_binding_detail::Access::inspectionInputForFixture(
+						run.session, next.targets.front().identity)) ;
+			candidates.clear() ;
+		}
+		// LOCAL成功後/B bind前のhost拒否です
+		else if( caseId == "P4_D17_RETAINED_FRESH_FAILURE") {
+			DRIVERCRATE_EXPECT(
+				context,
+				run.state.phaseCalls == 1U && summary.items.front().reusedOwnedBody &&
+					!summary.items.front().inputBound &&
+					summary.items.front().contentError == E_NOTIMPL &&
+					!signed_index_candidate_binding_detail::Access::inspectionInputForFixture(
+						run.session, next.targets.front().identity)) ;
+			candidates.clear() ;
+		} else { // 正常BもAの内容合格やrecordShaを複写しません
+			DRIVERCRATE_EXPECT( context, summary.items.front().reusedOwnedBody &&
+											summary.items.front().inputBound &&
+											summary.items.front().acceptedInfCount == 1U &&
+											summary.items.front().contentError == 0U) ;
+			run.state.phase		 = 1U ;
+			run.state.phaseCalls = 0U ;
+			reports				 = run.provider->preparationAuditReports( local) ;
+			candidates			 = candidatesFrom( reports) ;
+			emitReports( "retained-audit", reports, beforeB) ;
+			DRIVERCRATE_EXPECT( context,
+							   candidates.size() ==
+								   (caseId == "P4_C14_RETAINED_NONEMPTY_SUCCESS" ? 1U : 0U)) ;
+		}
+
+		// 既A routeでも同contextのhost拒否を迂回できません
+		if( caseId == "P4_D17_RETAINED_FRESH_FAILURE" ||
+		   caseId == "P4_D18_RETAINED_MODELS_THEN_HOST_CHANGE") {
+			const std::array oldSelection{	// 元A履歴を再利用してもhost拒否を迂回しません
+										  history.front().identity} ;
+			DRIVERCRATE_EXPECT( context, run.provider->beginInstallOperation(
+											1501U, plan.scanSessionId, oldSelection) == 0U) ;
+			const auto oldAttempt =
+				run.provider->install( plan.scanSessionId, oldSelection, 0U,
+									  []( const ProviderProgress &) {}) ;	// 原routeも使用不能です
+			DRIVERCRATE_EXPECT( context,
+							   !oldAttempt.succeeded &&
+								   oldAttempt.installError ==
+									   (caseId == "P4_D17_RETAINED_FRESH_FAILURE"
+											? E_NOTIMPL
+											: HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH)) &&
+								   run.native.installs == 0U && history.front().installable) ;
+		}
+	}
+
+	// 最終負例は実正候補を得た後だけ実行します
+	if( finalCase && candidates.size() == 1U) {
+		ServerP4ModelsState sdk ;	// D16だけが低位SDK節選択を切替えます
+		std::unique_ptr<official_inf_models_native_detail::ScopedFixture>
+			modelScope ;	// scope外は元SDKです
+		// D16だけが不変INFのSDK Models応答を切替えます
+		if( caseId == "P4_D16_FINAL_MODELS_MISMATCH") {
+			DRIVERCRATE_EXPECT( context, !run.native.sourceInfs.empty()) ;
+			// 正候補の実INF path欠測を最終拒否合格にしません
+			if( run.native.sourceInfs.empty()) {
+				throw std::runtime_error( "P4 final Models positive premise missing") ;
+			}
+
+			serverP4ModelsContract( context, run.native.sourceInfs.front(), sdk) ;
+			sdk.other	   = true ;
+			serverP4Models = &sdk ;
+			modelScope = official_inf_models_native_detail::Access::create( {&serverP4ActualModels}) ;
+			DRIVERCRATE_EXPECT( context, modelScope != nullptr) ;
+		}
+
+		run.state.phase		 = 2U ;
+		run.state.phaseCalls = 0U ;
+		const std::array selected{candidates.front().identity} ;	// 実ownerの唯一候補だけです
+		DRIVERCRATE_EXPECT( context, run.provider->beginInstallOperation( 1500U, plan.scanSessionId,
+																		selected) == 0U) ;
+		const auto installed =
+			run.provider->install( plan.scanSessionId, selected, 0U,
+								  []( const ProviderProgress &) {}) ;	// 実最終指定入口です
+		const auto expected =
+			caseId == "P4_D16_FINAL_MODELS_MISMATCH" ? E_ACCESSDENIED
+			: caseId == "P4_D07_FINAL_CHANGED_BUILD" || caseId == "P4_D14_FINAL_KNOWN_PRODUCT4"
+				? HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH)
+				: E_NOTIMPL ;	// 独立原契約codeです
+		DRIVERCRATE_EXPECT( context, !installed.succeeded && installed.installError == expected &&
+										run.native.installs == 0U &&
+										run.state.phaseCalls ==
+											(caseId == "P4_D16_FINAL_MODELS_MISMATCH" ? 2U : 3U)) ;
+		// 最終の実SDK出力だけが局所内容拒否を起こしたことを確認します
+		if( modelScope) {
+			DRIVERCRATE_EXPECT( context,
+							   sdk.contractValid && sdk.queries > 0U && sdk.reads > 0U &&
+								   run.adapter->hostDecision( run.original.context)->state ==
+									   IndexHostGateState::ALLOW_UNVERIFIED) ;
+			modelScope.reset() ;
+			serverP4Models		= nullptr ;
+			observedHostRefusal = run.adapter->hostDecision(
+				run.original.context) ;	// 内容不一致はALLOW原hostを変えません
+		}
+
+		// 拒否したoperationに使用可能候補を返しません
+		candidates.clear() ;
+	}
+
+	// host拒否の分類/原domain/bitsを独立literalへ照合します
+	if( hostCase && caseId != "P4_D16_FINAL_MODELS_MISMATCH") {
+		const auto gate =
+			// 同contextの原拒否診断です
+			run.adapter->hostDecision( run.original.context) ;
+		observedHostRefusal = gate ;
+		const bool unknown =
+			caseId == "P4_D02_AUDIT_WIN32_FAILURE" || caseId == "P4_D03_AUDIT_NTSTATUS_FAILURE" ||
+			caseId == "P4_D08_FINAL_WIN32_FAILURE" || caseId == "P4_D09_FINAL_NTSTATUS_FAILURE" ||
+			caseId == "P4_D10_FINAL_UNOBSERVED" || caseId == "P4_D11_FINAL_OBSERVER_THROW" ||
+			caseId == "P4_D13_FINAL_UNKNOWN_LATCH_SEQUENCE" ||
+			caseId == "P4_D15_FINAL_BUILD_UNKNOWN" ||
+			// 新helperから期待を生成しません
+			caseId == "P4_D17_RETAINED_FRESH_FAILURE" ;
+		const auto domain =
+			caseId == "P4_D02_AUDIT_WIN32_FAILURE" || caseId == "P4_D08_FINAL_WIN32_FAILURE"
+				? WindowsHostErrorDomain::WIN32_CODE
+			: caseId == "P4_D10_FINAL_UNOBSERVED" || caseId == "P4_D11_FINAL_OBSERVER_THROW"
+				? WindowsHostErrorDomain::NONE
+				: WindowsHostErrorDomain::NTSTATUS ;	// 原code domainです
+		const std::uint32_t bits = domain == WindowsHostErrorDomain::WIN32_CODE ? 126U
+								   : caseId == "P4_D03_AUDIT_NTSTATUS_FAILURE" ||
+										   caseId == "P4_D09_FINAL_NTSTATUS_FAILURE" ||
+										   caseId == "P4_D13_FINAL_UNKNOWN_LATCH_SEQUENCE" ||
+										   caseId == "P4_D17_RETAINED_FRESH_FAILURE"
+									   ? 0xc0000001U
+									   : 0U ;	// 変換HRESULTを原statusと呼びません
+		DRIVERCRATE_EXPECT(
+			context, gate &&
+						 gate->state ==
+							 (unknown ? IndexHostGateState::UNKNOWN : IndexHostGateState::STALE) &&
+						 gate->error ==
+							 (unknown ? E_NOTIMPL : HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH)) &&
+						 gate->observation.domain == domain && gate->observation.rawBits == bits &&
+						 candidates.empty()) ;
+		// Models後/Windows rank前の到達を実counterで区別します
+		if( caseId == "P4_D04_AFTER_MODELS_CHANGED_PRODUCT") {
+			DRIVERCRATE_EXPECT( context, run.state.phaseCalls == 2U && run.native.rankCalls == 0U &&
+											run.state.minted == 0U) ;
+		}
+
+		// rank後/token前の到達を実counterで区別します
+		if( caseId == "P4_D05_BEFORE_TOKEN_CHANGED_SUITE") {
+			DRIVERCRATE_EXPECT( context, run.state.phaseCalls == 3U && run.native.rankCalls > 0U &&
+											run.state.minted == 0U) ;
+		}
+
+		// 新token発行後のrollbackを発行未試行と区別します
+		if( caseId == "P4_D06_PREPUBLICATION_ARM64") {
+			DRIVERCRATE_EXPECT( context, run.state.phaseCalls == 4U && run.state.minted == 1U &&
+											candidates.empty()) ;
+		}
+
+		const auto beforeLater = run.state.callbacks ;	// 後続matchingで原拒否を消しません
+		run.state.recover	   = true ;
+		run.adapter->invalidate() ;
+		DRIVERCRATE_EXPECT(
+			context, signed_index_acquisition_detail::Access::beginHostFixture(
+						 *run.adapter, run.lookup, run.original.context, run.original,
+						 run.services.hostPlatform, nowUtc) == gate->error &&
+						 run.adapter->begin( run.lookup, run.original.context,
+											IndexTargetOs::WINDOWS_SERVER, nowUtc) == gate->error &&
+						 run.state.callbacks == beforeLater &&
+						 run.adapter->hostDecision( run.original.context)->error == gate->error) ;
+		// 正当な新native-owned contextだけが候補へ回復します
+		if( caseId == "P4_D12_AUDIT_STALE_LATCH_SEQUENCE" ||
+		   caseId == "P4_D13_FINAL_UNKNOWN_LATCH_SEQUENCE") {
+			run.session.invalidate() ;
+			const auto freshPlan =
+				// 同管理で先行計画より大きいIDを発行します
+				run.plan( context, 85307U, 2U) ;
+			DRIVERCRATE_EXPECT( context, freshPlan.targets.size() == 1U &&
+											freshPlan.scanSessionId != plan.scanSessionId &&
+											freshPlan.planId > plan.planId) ;
+			run.state.phase					= 0U ;
+			run.state.phaseCalls			= 0U ;
+			const auto signatureBeforeFresh = run.signatures->receipt() ;	// 元展開rootと拒否件数です
+			const auto fresh =
+				// 元期限/同一payloadで新正当操作です
+				execute( freshPlan, 1600U, false) ;
+			const auto signatureAfterFresh = run.signatures->receipt() ;	// 新展開直後の照合件数です
+			DRIVERCRATE_EXPECT( context, signatureBeforeFresh.inspectionRoots == 1U &&
+											signatureAfterFresh.inspectionRoots == 2U &&
+											signatureAfterFresh.rejectedCalls ==
+												signatureBeforeFresh.rejectedCalls) ;
+			run.state.phase		 = 1U ;
+			run.state.phaseCalls = 0U ;
+			const auto recovered =
+				// 実新owner由来です
+				candidatesFrom( run.provider->preparationAuditReports( fresh)) ;
+			recoveredCandidates = recovered.size() ;
+			DRIVERCRATE_EXPECT( context, recovered.size() == 1U && recovered.front().installable &&
+											run.native.installs == 0U) ;
+		}
+	}
+
+	DRIVERCRATE_EXPECT( context, run.native.stages == 0U && run.native.installs == 0U &&
+									run.native.opens == run.native.closes) ;
+	const auto originals =
+		// 元wireをtyped scopeで書換えません
+		run.lookup->snapshot().schemaReceipt().records() ;
+	DRIVERCRATE_EXPECT( context, originals.size() == originalRecordBytes.size()) ;
+	// 新typed処理で元wire/raw/hashを変更していないことを確認します
+	for( std::size_t index = 0U; index < originals.size(); ++index) {
+		DRIVERCRATE_EXPECT( context,
+						   originals[index].originalBytes == originalRecordBytes[index].first &&
+							   originals[index].recordSha256 == originalRecordBytes[index].second) ;
+	}
+
+	std::cout << "P4_PIPELINE case=" << caseId << " sends=" << run.state.sends
+			  << " callbacks=" << run.state.callbacks << " phase=" << run.state.phase
+			  << " phaseCalls=" << run.state.phaseCalls << " minted=" << run.state.minted
+			  << " returnedCandidates=" << candidates.size()
+			  << " rankCalls=" << run.native.rankCalls << " provider=" << run.native.installs
+			  << " recoveredCandidates=" << recoveredCandidates << " hostState="
+			  << (observedHostRefusal ? static_cast<unsigned>( observedHostRefusal->state) : 0U)
+			  << " localErrorBits="
+			  << (observedHostRefusal ? static_cast<std::uint32_t>( observedHostRefusal->error) : 0U)
+			  << " nativeDomain="
+			  << (observedHostRefusal
+					  ? static_cast<unsigned>( observedHostRefusal->observation.domain)
+					  : 0U)
+			  << " nativeRawBits="
+			  << (observedHostRefusal ? observedHostRefusal->observation.rawBits : 0U)
+			  << " failures=" << context.failureCount() - failures << '\n' ;
+	signed_index_candidate_binding_detail::Access::observePublication( nullptr, nullptr) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 既WUA/Storeの保護/結果を新Server条件から隔離して確認します
+ * @param[in,out] context 共通assertionです
+ * @param[in] store 原client fixtureの隔離storeです
+ * @param[in] nowUtc 独立fixture UTCです
+ * @param[in] zip 原人工archiveです
+ * @note 両native専用scanではhost callback/三LOCALを要求せず完全fakeだけを実行します
+ */
+//------------------------------------------------------------------------------
+void runServerP4NativeIsolationCases( TestContext &context, std::shared_ptr<SignedIndexStore> store,
+									 const std::chrono::sys_seconds nowUtc,
+									 const std::string_view			zip)
+{
+	// 元matrix C22/C23だけを通常worker/同意/復旧境界へ結びます
+	for( const bool localStore : {false, true}) {
+		std::atomic<unsigned> hostCalls{} ;									// 新Server observerの不要な呼出しを検出します
+		auto clock = std::make_shared<std::chrono::sys_seconds>( nowUtc) ;	// 同fixtureだけのUTCです
+		auto services =
+			// 実HTTPには進みません
+			makeServerP4PipelineServices( store, clock, zip, [] {}) ;
+		services.hostPlatform = [&]() -> WindowsHostPlatformObservation {
+			++hostCalls ;
+			throw std::runtime_error( "P4 native-only path must not observe external index host") ;
+		} ;
+		auto borrowed =
+			std::make_shared<NativeFixtureState *>( nullptr) ;	// 同worker寿命だけの観測です
+		auto bound = makeSignedIndexBindingWorker(
+			services, zip, false, false, false, SignedIndexBindingNativeCase::NORMAL, {},
+			[borrowed]() {
+				*borrowed = activeNative ;
+				// このP4 fixtureだけ実OS依存観測を閉じます
+				if( activeNative) {
+					activeNative->p4ExplicitClientContext = true ;
+				}
+			},
+			{}, false, SignedIndexBindingBatchFault::NONE, localStore) ;	// 既完全表を使います
+		OperationController controller ;									// 元同意と保護を省略しません
+		ScanOptions			options ;										// 署名索引Providerは明示無効です
+		options.useDefaultProviders = false ;
+		options.enabledProviderIds	= {
+			 std::wstring{localStore ? DRIVER_STORE_PROVIDER_ID : WINDOWS_UPDATE_PROVIDER_ID}} ;
+		const auto started = controller.beginScan() ;	// 通常UIと同じ受付です
+		DRIVERCRATE_EXPECT( context, started.accepted &&
+										bound.worker->requestScan( started.operationId, options)) ;
+		const auto scanned = waitEvent( *bound.worker, WorkerEventKind::SCAN_COMPLETED,
+									   started.operationId) ;	// 真終端です
+		DRIVERCRATE_EXPECT( context, scanned && scanned->scanResult.succeeded && hostCalls == 0U) ;
+		// 元scan終端欠測をnative専用経路の成功へ数えません
+		if( !scanned) {
+			bound.worker->stop() ;
+			throw std::runtime_error( "P4 native isolation scan not observed") ;
+		}
+
+		const auto candidate =
+			std::ranges::find_if( scanned->scanResult.candidates, [&]( const auto &value) {
+				return value.installable && !value.current &&
+					   value.providerId ==
+						   (localStore ? DRIVER_STORE_PROVIDER_ID : WINDOWS_UPDATE_PROVIDER_ID) ;
+			}) ; // 手製の成功候補を追加しません
+		DRIVERCRATE_EXPECT( context,
+						   candidate != scanned->scanResult.candidates.end() &&
+							   controller.completeScan( started.operationId, scanned->scanResult)) ;
+		// 元native正候補がない場合は指定導入へ進めません
+		if( candidate == scanned->scanResult.candidates.end()) {
+			bound.worker->stop() ;
+			throw std::runtime_error( "P4 native isolation candidate missing") ;
+		}
+
+		const std::array selected{candidate->identity} ;	// 元正候補一件だけです
+		DRIVERCRATE_EXPECT( context,
+						   !controller
+								   .beginInstall( scanned->scanResult.scanSessionId, selected,
+												 InstallConfirmation::NOT_CONFIRMED)
+								   .accepted &&
+							   bound.observe().restoreBegins == 0U) ;
+		const auto install =
+			controller.beginInstall( scanned->scanResult.scanSessionId, selected,
+									InstallConfirmation::CONFIRMED) ;	// fake本人同意です
+		DRIVERCRATE_EXPECT( context,
+						   install.accepted &&
+							   bound.worker->requestInstall(
+								   install.operationId, scanned->scanResult.scanSessionId, selected,
+								   nullptr, InstallProtectionMode::WINDOWS_RESTORE_POINT)) ;
+		const auto completed = waitEvent( *bound.worker, WorkerEventKind::INSTALL_COMPLETED,
+										 install.operationId) ;	// fake保護/既executorです
+		DRIVERCRATE_EXPECT(
+			context,
+			completed && completed->installResult.succeeded && hostCalls == 0U &&
+				bound.observe().restoreBegins == 1U && bound.observe().restoreCompletes == 1U &&
+				*borrowed &&
+				(localStore ? (*borrowed)->installs == 1U && (*borrowed)->managedInstalls == 0U
+							: (*borrowed)->installs == 0U && (*borrowed)->managedInstalls == 1U)) ;
+		bound.worker->stop() ;
+		DRIVERCRATE_EXPECT( context, bound.allNativeHandlesClosed()) ;
+		std::cout << "P4_NATIVE case="
+				  << (localStore ? "P4_C23_DRIVER_STORE_PROTECTED" : "P4_C22_WUA_PROTECTED")
+				  << " hostCallbacks=" << hostCalls << " restore=" << bound.observe().restoreBegins
+				  << " provider="
+				  << (localStore ? (*borrowed)->installs : (*borrowed)->managedInstalls) << '\n' ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 認可を発行しない実identity比較へ二十二の独立literalを渡します
+ * @param[in,out] context 共通assertion集計です
+ * @note 認証/取得/候補/Provider到達の試験とは別の純粋比較分母です
+ */
+//------------------------------------------------------------------------------
+void runServerP4PureIdentityCases( TestContext &context)
+{
+	IndexDistributionRecord base ;	// 認証能力を持たない比較入力だけです
+	base.recordSha256.fill( 0xbbU) ;
+	base.packageEvidence.size.value = 1234U ;
+	IndexManifestSha256 outer ;	// outerとINFとrecordを異なるliteralへ固定します
+	outer.fill( 0xaaU) ;
+	base.packageEvidence.publishedHash.sha256  = outer ;
+	base.packageEvidence.calculatedHash.sha256 = outer ;
+	IndexManifestSha256 infHash ;	// 原INFの独立比較材料です
+	infHash.fill( 0xccU) ;
+	base.publishedIdentityEvidence.state				 = IndexEvidenceState::PUBLISHED ;
+	base.publishedIdentityEvidence.kind					 = IndexIdentityEvidenceKind::INF ;
+	base.publishedIdentityEvidence.classGuid			 = "{4d36e978-e325-11ce-bfc1-08002be10318}" ;
+	base.publishedIdentityEvidence.nestedArchiveIdentity = "nested/driver.zip" ;
+	base.publishedIdentityEvidence.infIdentity			 = "drivers/fixture.inf" ;
+	base.publishedIdentityEvidence.modelSection			 = "Models.NTamd64" ;
+	base.publishedIdentityEvidence.evidenceSha256		 = infHash ;
+	base.publishedIdentityEvidence.pnpIds				 = {
+		   {IndexPnpIdKind::HARDWARE, "TESTBUS\\SYNTH_0001"},
+		   {IndexPnpIdKind::COMPATIBLE, "TESTBUS\\P4_COMPAT_0001"}} ;
+	CommonDriverPackageInspection inspected ;	// 外側の所有結果を比較するだけです
+	inspected.archiveSha256 = std::wstring( 64U, L'a') ;
+	inspected.archiveBytes	= 1234U ;
+	IndexedDriverArchiveHint sealed{std::wstring( 64U, L'1'), std::wstring( 64U, L'b'),
+									std::wstring( 64U, L'a'),
+									1234U} ;	// 元sealの値比較だけでauthorityではありません
+	CommonInfInspection		 member ;			// 実fileを所有しない純粋比較用memberです
+	member.nestedArchivePath = L"nested\\driver.zip" ;
+	member.infRelativePath	 = L"drivers\\fixture.inf" ;
+	OfficialInfPublishedIdentity observed{std::wstring( 64U, L'c'),
+										  L"{4d36e978-e325-11ce-bfc1-08002be10318}",
+										  {{L"Models.NTamd64",
+											{L"TESTBUS\\SYNTH_0001"},
+											{L"TESTBUS\\P4_COMPAT_0001"}}}} ;	// SDK観測の値だけです
+	// 原matrixのB01..B22を毎回独立copyへ一faultだけ適用します
+	for( unsigned id = 1U; id <= 22U; ++id) {
+		auto record	 = base ;		// 認可を持たない独立入力です
+		auto archive = inspected ;	// 原outer期待です
+		auto hint	 = sealed ;		// 原record結合です
+		auto inf	 = member ;		// 同nested/INF位置です
+		auto actual	 = observed ;	// 同Models/全typed IDです
+		// case/順序の等値と原pathのslashだけを正例へ認めます
+		if( id == 2U) {
+			actual.classGuid						  = L"{4D36E978-E325-11CE-BFC1-08002BE10318}" ;
+			actual.models.front().modelSection		  = L"models.ntAMD64" ;
+			actual.models.front().hardwareIds.front() = L"testbus\\synth_0001" ;
+			std::ranges::reverse( record.publishedIdentityEvidence.pnpIds) ;
+		}
+		// native/public separator以外を正規化しません
+		else if( id == 3U) {
+			inf.nestedArchivePath = L"nested/driver.zip" ;
+			inf.infRelativePath	  = L"drivers/fixture.inf" ;
+		}
+		// 同文字列でも元kind違いを拒否します
+		else if( id == 4U) {
+			record.publishedIdentityEvidence.pnpIds.back().kind = IndexPnpIdKind::HARDWARE ;
+		}
+		// subsetを完全一致へしません
+		else if( id == 5U) {
+			actual.models.front().compatibleIds.clear() ;
+		}
+		// 追加IDも拒否します
+		else if( id == 6U) {
+			actual.models.front().compatibleIds.push_back( L"TESTBUS\\EXTRA") ;
+		}
+		// 同一IDの重複を除去して救済しません
+		else if( id == 7U) {
+			actual.models.front().hardwareIds.push_back( L"TESTBUS\\SYNTH_0001") ;
+		}
+		// 別Modelsをgenericへ読み替えません
+		else if( id == 8U) {
+			actual.models.front().modelSection = L"Models.Other" ;
+		}
+		// 同じ元節でも複数なら一意ではありません
+		else if( id == 9U) {
+			actual.models.push_back( actual.models.front()) ;
+		}
+		// 未観測は成功ではありません
+		else if( id == 10U) {
+			actual.models.clear() ;
+		}
+		// Classだけの差です
+		else if( id == 11U) {
+			actual.classGuid = L"{4d36e972-e325-11ce-bfc1-08002be10318}" ;
+		}
+		// INF原byte hashだけの差です
+		else if( id == 12U) {
+			actual.infSha256.assign( 64U, L'd') ;
+		}
+		// nested archiveだけの差です
+		else if( id == 13U) {
+			inf.nestedArchivePath = L"nested\\other.zip" ;
+		}
+		// INF memberだけの差です
+		else if( id == 14U) {
+			inf.infRelativePath = L"drivers\\other.inf" ;
+		}
+		// memberのcaseは原identityとして保持します
+		else if( id == 15U) {
+			inf.infRelativePath = L"drivers\\Fixture.inf" ;
+		}
+		// 同sealの外側hashとの差です
+		else if( id == 16U) {
+			archive.archiveSha256.assign( 64U, L'd') ;
+		}
+		// 同sealの外側sizeとの差です
+		else if( id == 17U) {
+			++archive.archiveBytes ;
+		}
+		// published outer hashだけの差です
+		else if( id == 18U) {
+			record.packageEvidence.publishedHash.sha256->fill( 0xddU) ;
+		}
+		// calculated outer hashだけの差です
+		else if( id == 19U) {
+			record.packageEvidence.calculatedHash.sha256->fill( 0xddU) ;
+		}
+		// UNKNOWN outerでは元record hashが必須です
+		else if( id == 20U) {
+			record.packageEvidence.size.value.reset() ;
+			record.packageEvidence.publishedHash.sha256.reset() ;
+			record.packageEvidence.calculatedHash.sha256.reset() ;
+			hint.recordSha256.assign( 64U, L'd') ;
+		}
+		// 未公表のidentityは適合ではありません
+		else if( id == 21U) {
+			record.publishedIdentityEvidence.state = IndexEvidenceState::UNKNOWN ;
+		}
+		// 同hashのCATALOG申告でもINF根拠とは別です
+		else if( id == 22U) {
+			record.publishedIdentityEvidence.kind = IndexIdentityEvidenceKind::CATALOG ;
+		}
+
+		const bool expected = id <= 3U ;	// 実helperと独立した固定真偽です
+		DRIVERCRATE_EXPECT( context, matchesIndexPublishedInf( record, archive, hint, inf, actual) ==
+										expected) ;
+		std::cout << "P4_PURE B" << id << " expected=" << expected << '\n' ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元二空ZIPが直接input/retained bind後に通常内容拒否となる期待を確認します
+ * @param[in,out] context 共通assertion集計先です
+ * @param[in] summary 完全fake通常scanが返した内容結果です
+ * @param[in] retained 二件目も新LOCAL/retained bindから通常INF0拒否へ到達する期待です
+ * @note 旧E_NOTIMPL fenceを合格へ残さず、非空の内容成功とは別に確認します
+ */
+//------------------------------------------------------------------------------
+void assertServerP3InspectionFence( TestContext &context, const IndexPreparationSummary &summary,
+								   const bool retained)
+{
+	DRIVERCRATE_EXPECT( context, summary.items.size() == (retained ? 2U : 1U)) ;
+	// 元取得/直接bindの到達を保ち、空containerを有効driverへ読み替えません
+	for( std::size_t index = 0U; index < summary.items.size(); ++index) {
+		const auto &item = summary.items[index] ;	// 各元結果を独立に照合します
+		DRIVERCRATE_EXPECT(
+			context, item.acquisitionError == 0U && item.inputBound &&
+						 item.contentError == HRESULT_FROM_WIN32( ERROR_TOO_MANY_OPEN_FILES) &&
+						 item.acceptedInfCount == 0U && item.parsedInfCount == 0U &&
+						 item.infCount == 0U && item.inventoryFileCount == 0U &&
+						 item.content == IndexedDriverInspectionState::INSPECTION_FAILED &&
+						 item.reusedOwnedBody == (retained && index + 1U == summary.items.size())) ;
+	}
+
+	// 最後の結果のrouteを原取得と区別します
+	if( !summary.items.empty()) {
+		DRIVERCRATE_EXPECT( context, summary.items.back().reusedOwnedBody == retained) ;
+	}
+}
+#endif
 
 } // namespace drivercrate::test

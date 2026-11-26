@@ -2,7 +2,7 @@
 /**
  * @file official_preparation_tests.cpp
  * @brief 取得承認と一度限りのtaskの内部試験
- * @version 01.02.03
+ * @version 01.04.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,8 @@
  * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.02.03 Shunji Ogawa  2026/11/13  847pの通常件数枠と原予算境界を整合
+ * Ver.01.03.00 Shunji Ogawa  2026/11/20  同一配布のファームウェア確認を端末別に検証
+ * Ver.01.04.00 Shunji Ogawa  2026/11/23  埋込み規約の検査専用承認と既存導入承認の境界を検証
  * </pre>
  *
  * @note 合成対象の状態だけを検証し、network・復元ポイント・導入を使用しません
@@ -44,9 +46,11 @@
 #include "test_framework.h"
 
 #include "core/official_preparation.h"
+#include "core/official_preparation_operation.h"
 #include "core/provider_registry.h"
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -125,6 +129,24 @@ OfficialPreparationApproval makeApproval( const OfficialPreparationPlan &plan,
 	}
 
 	return approval ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 従来の同意対象と署名索引の検査専用対象を同じ架空scanへ用意する
+ * @return 通常対象一件と、埋込み規約の検査専用対象一件を持つ計画
+ */
+//------------------------------------------------------------------------------
+OfficialPreparationPlan makeInspectionOnlyPlan()
+{
+	auto plan = makePlan() ;	// 既存の合成対象・容量を使う計画
+	plan.targets.resize( 2U) ;
+	auto &target			 = plan.targets[1] ;	// 未解決条件の対象を検査専用へ置き換える
+	target.providerId		 = SIGNED_INDEX_PROVIDER_ID ;
+	target.deviceCount		 = 1U ;
+	target.terms			 = OfficialPreparationTerms::INSPECTION_ONLY ;
+	target.eulaSourceSubject = L"index-fixture-source" ;
+	return plan ;
 }
 
 //------------------------------------------------------------------------------
@@ -1291,9 +1313,183 @@ void testPrerequisiteConfirmation( TestContext &context)
 	}
 }
 
-} // namespace
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ配布の必須条件を確認しても別の端末や条件へ転用できないことを検証します
+ * @param[in,out] context 元選択と承認の単体検証を集計します
+ */
+//------------------------------------------------------------------------------
+void testPerDeviceFirmwarePreparation( TestContext &context)
+{
+	OfficialPreparationPlan plan = makePlan() ;	// 架空の同一配布を二つの端末へ提示します
+	plan.targets.resize( 2U) ;
+	// 公式版表記が同じ二群を同一の配布ハッシュへ結びます
+	for( std::size_t index = 0U; index < plan.targets.size(); ++index) {
+		auto &target		   = plan.targets[index] ;	// 端末ごとの完全な取得対象です
+		target.providerId	   = SIGNED_INDEX_PROVIDER_ID ;
+		target.releaseIdentity = L"signed-record-hash" ;
+		target.deviceCount	   = 1U ;
+		target.terms		   = OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
+		target.eulaRevision.clear() ;
+		target.eulaText.clear() ;
+		target.prerequisiteText					= L"Firmware version required: R1" ;
+		target.requiresPrerequisiteConfirmation = true ;
+		target.firmwareCondition				= OfficialPlatformFirmwareCondition{
+			   L"device:10:" + std::to_wstring( index + 1U), index, L"R1"} ;
+	}
+
+	OfficialPreparationSession session ;	// 端末が異なる二つの対象を保持します
+	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
+	UpdateCandidate example ;	// 同じスキャンで先頭の端末を選びます
+	example.identity				  = L"candidate:1" ;
+	example.providerId				  = SIGNED_INDEX_PROVIDER_ID ;
+	example.deviceIdentity			  = plan.targets[0].firmwareCondition->deviceIdentity ;
+	example.preparationTargetIdentity = plan.targets[0].identity ;
+	example.discoveryBasis			  = CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
+	const std::size_t selected{} ;	// 一台だけを選んだ元位置です
+	auto			  approval =
+		makeInstallPreparationApproval( &plan, plan.scanSessionId, {&example, 1U},
+									   {&selected, 1U}) ;	// 通常UIが構築する承認の前段階です
+	DRIVERCRATE_EXPECT( context, approval && approval->decisions[0].acquire &&
+									!approval->decisions[1].acquire) ;
+	// 前提となる対象を作れなければ独立の成功値を作りません
+	if( !approval) {
+		return ;
+	}
+
+	approval->operationId = 1U ;
+	DRIVERCRATE_EXPECT( context,
+					   session.approve( *approval) == OfficialPreparationError::INVALID_APPROVAL &&
+						   !session.claimNext()) ;
+	approval->decisions[0].prerequisitesConfirmed = true ;
+	auto forged = *approval ;	// 版表記を維持したまま違う群へ変更します
+	++forged.decisions[0].target.firmwareCondition->groupIndex ;
+	DRIVERCRATE_EXPECT( context,
+					   session.approve( forged) == OfficialPreparationError::INVALID_APPROVAL &&
+						   !session.claimNext()) ;
+	DRIVERCRATE_EXPECT( context, session.approve( *approval) == OfficialPreparationError::NONE) ;
+	const auto task = session.claimNext() ;	// 実行可能なのは元操作の選択端末だけです
+	DRIVERCRATE_EXPECT( context,
+					   task && task->target == plan.targets[0] && session.ownsActiveTask( *task)) ;
+	// 同じ操作IDと同じ配布ハッシュでも別端末のtaskにはなりません
+	if( task) {
+		auto peerTask	= *task ;	// 承認を別端末へ移す試験入力です
+		peerTask.target = plan.targets[1] ;
+		DRIVERCRATE_EXPECT( context, !session.ownsActiveTask( peerTask)) ;
+	}
+
+	example.deviceIdentity = plan.targets[1].firmwareCondition->deviceIdentity ;
+	DRIVERCRATE_EXPECT(
+		context, !isInstallPreparationCandidateSelectable( example, &plan, plan.scanSessionId)) ;
+	plan.targets[1].firmwareCondition->deviceIdentity =
+		plan.targets[0].firmwareCondition->deviceIdentity ;
+	OfficialPreparationSession duplicate ;	// 同じ端末の二つの条件を同時に選ばせません
+	DRIVERCRATE_EXPECT( context,
+					   duplicate.initialize( plan) == OfficialPreparationError::INVALID_PLAN) ;
+}
 
 //------------------------------------------------------------------------------
+/**
+ * @brief 署名索引の一台に結ぶ検査専用対象について、出典・対象範囲・条件の誤指定を拒否する
+ * @param[in,out] context 計画検証の結果を集計する
+ */
+//------------------------------------------------------------------------------
+void testInspectionOnlyPlan( TestContext &context)
+{
+	auto plan = makeInspectionOnlyPlan() ;						// 正しい署名索引の検査対象を持つ基準計画
+	std::array<OfficialPreparationTarget, 8U> invalidTargets ;	// 各不整合を独立に作るcopy
+	invalidTargets.fill( plan.targets[1]) ;
+	invalidTargets[0].providerId					   = PROLIFIC_OFFICIAL_PROVIDER_ID ;
+	invalidTargets[1].deviceCount					   = 2U ;
+	invalidTargets[2].eulaRevision					   = L"terms:1" ;
+	invalidTargets[3].eulaText						   = L"Synthetic test terms" ;
+	invalidTargets[4].sharedEulaToken				   = 1U ;
+	invalidTargets[5].requiresPrerequisiteConfirmation = true ;
+	invalidTargets[6].prerequisiteText				   = L"Synthetic confirmation" ;
+	invalidTargets[7].firmwareCondition =
+		OfficialPlatformFirmwareCondition{L"device:10:1", 0U, L"R1"} ;
+
+	// 不正な対象を一つだけ差し替え、他の表示対象が正しくても計画を拒否する
+	for( const auto &target : invalidTargets) {
+		plan.targets[1] = target ;
+		OfficialPreparationSession session ;	// 各不整合を独立に検証する
+		DRIVERCRATE_EXPECT( context,
+						   session.initialize( plan) == OfficialPreparationError::INVALID_PLAN &&
+							   !session.claimNext()) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 検査専用と通常の取得を別々に選択でき、同じ承認から両方は取得できないことを検証する
+ * @param[in,out] context 取得承認とclaimの検証結果を集計する
+ */
+//------------------------------------------------------------------------------
+void testInspectionOnlyApproval( TestContext &context)
+{
+	const auto				   plan	 = makeInspectionOnlyPlan() ;	// 通常と検査専用の完全な元snapshot
+	const auto				   mixed = makeApproval( plan, 1U) ;	// 両方の取得を選んだ不正な承認
+	OfficialPreparationSession session ;							// 検査専用を取得する状態
+	DRIVERCRATE_EXPECT( context, session.initialize( plan) == OfficialPreparationError::NONE) ;
+	DRIVERCRATE_EXPECT( context,
+					   session.approve( mixed) == OfficialPreparationError::INVALID_APPROVAL) ;
+
+	auto inspection						 = mixed ;	// 通常対象の取得と同意を外した検査専用の判断
+	inspection.decisions[0]				 = {.target = plan.targets[0]} ;
+	inspection.decisions[1].eulaAccepted = true ;
+	DRIVERCRATE_EXPECT( context,
+					   session.approve( inspection) == OfficialPreparationError::INVALID_APPROVAL) ;
+	inspection.decisions[1].eulaAccepted		   = false ;
+	inspection.decisions[1].prerequisitesConfirmed = true ;
+	DRIVERCRATE_EXPECT( context,
+					   session.approve( inspection) == OfficialPreparationError::INVALID_APPROVAL) ;
+	inspection.decisions[1].prerequisitesConfirmed = false ;
+	inspection.installIntentIdentities			   = {L"candidate:inspection"} ;
+	DRIVERCRATE_EXPECT( context,
+					   session.approve( inspection) == OfficialPreparationError::INVALID_APPROVAL) ;
+	inspection.installIntentIdentities.clear() ;
+
+	auto forged = inspection ;	// 表示した出典または検査用途を変形した判断
+	forged.decisions[1].target.eulaSourceSubject = L"other-source" ;
+	DRIVERCRATE_EXPECT( context,
+					   session.approve( forged) == OfficialPreparationError::INVALID_APPROVAL) ;
+	forged.decisions[1].target		 = plan.targets[1] ;
+	forged.decisions[1].target.terms = OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
+	DRIVERCRATE_EXPECT( context,
+					   session.approve( forged) == OfficialPreparationError::INVALID_APPROVAL &&
+						   !session.claimNext()) ;
+
+	DRIVERCRATE_EXPECT( context, session.approve( inspection) == OfficialPreparationError::NONE) ;
+	const auto task = session.claimNext() ;	// 検査専用対象だけを許可した一度限りのtask
+	DRIVERCRATE_EXPECT( context,
+					   task && task->target == plan.targets[1] && session.ownsActiveTask( *task)) ;
+	DRIVERCRATE_EXPECT( context, session.progress().total == 1U && !session.claimNext()) ;
+
+	auto installation					 = mixed ;	// 検査専用対象を未選択のまま通常の取得を選ぶ判断
+	installation.decisions[1]			 = {.target = plan.targets[1]} ;
+	installation.installIntentIdentities = {L"candidate:ordinary"} ;
+	OfficialPreparationSession regular ;	// 通常操作の許可条件を独立に検証する
+	DRIVERCRATE_EXPECT( context, regular.initialize( plan) == OfficialPreparationError::NONE) ;
+	DRIVERCRATE_EXPECT( context, regular.approve( installation) == OfficialPreparationError::NONE) ;
+	const auto ordinaryTask = regular.claimNext() ;	// 既存の同意必須対象です
+	DRIVERCRATE_EXPECT( context, ordinaryTask && ordinaryTask->target == plan.targets[0] &&
+									regular.ownsActiveTask( *ordinaryTask) &&
+									regular.progress().total == 1U) ;
+
+	UpdateCandidate candidate ;	// 検査専用対象へ結ぶ同scanの導入前参照
+	candidate.identity					= L"candidate:inspection" ;
+	candidate.providerId				= SIGNED_INDEX_PROVIDER_ID ;
+	candidate.deviceIdentity			= L"device:10:1" ;
+	candidate.preparationTargetIdentity = plan.targets[1].identity ;
+	candidate.discoveryBasis = CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
+	const std::size_t selected{} ;	// 検査専用参照を指定した架空の導入選択位置
+	DRIVERCRATE_EXPECT(
+		context, !isInstallPreparationCandidateSelectable( candidate, &plan, plan.scanSessionId) &&
+					 !makeInstallPreparationApproval( &plan, plan.scanSessionId, {&candidate, 1U},
+													 {&selected, 1U})) ;
+}
+
+} // namespace
 
 //------------------------------------------------------------------------------
 /**
@@ -1334,7 +1530,10 @@ void testUnclaimedLocalInspection( TestContext &context)
 //------------------------------------------------------------------------------
 void runOfficialPreparationTests( TestContext &context)
 {
+	testInspectionOnlyApproval( context) ;
+	testInspectionOnlyPlan( context) ;
 	testUnclaimedLocalInspection( context) ;
+	testPerDeviceFirmwarePreparation( context) ;
 	testPrerequisiteConfirmation( context) ;
 	testEulaTextValidation( context) ;
 	testEulaBodyBoundApproval( context) ;

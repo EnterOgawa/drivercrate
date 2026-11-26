@@ -2,7 +2,7 @@
 /**
  * @file operation_controller.h
  * @brief 操作状態管理定義
- * @version 01.02.04
+ * @version 01.03.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -41,6 +41,7 @@
  * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.02.03 Shunji Ogawa  2026/11/12  外側tupleの取得予約と開始拒否の原理由を接続
  * Ver.01.02.04 Shunji Ogawa  2026/11/12  導入前保護失敗に結合した一回の明示復元なし続行を接続
+ * Ver.01.03.00 Shunji Ogawa  2026/11/23  現計画に残る検査専用対象の機器を独立して保持
  * </pre>
  *
  * @note UI操作とProvider resultの順序を検証する状態機械を定義します。本classはUI thread専用であり、内部lockingを行いません
@@ -436,17 +437,19 @@ private:
 	std::optional<OfficialPreparationPlan>		   originalPreparationPlan_ ;
 	/// 元参照identityからdevice/targetへの表示結合です
 	std::unordered_map<std::wstring, std::pair<std::wstring, std::wstring>> scanReferenceScopes_ ;
+	/// 検査専用の対象IDから元機器への一意な結合です。通常の導入選択には使いません
+	std::unordered_map<std::wstring, std::wstring> inspectionTargetDevices_ ;
 	/// 現planに残る元参照だけです
-	std::unordered_set<std::wstring> retainedReferenceIdentities_ ;
+	std::unordered_set<std::wstring>			   retainedReferenceIdentities_ ;
 	/// UI threadだけが所有する一回の元保護失敗です
-	RestoreContinuation				 restoreContinuation_ ;
+	RestoreContinuation							   restoreContinuation_ ;
 	/// 当該続行が一回消費した元失敗操作です。通常は0です
-	OperationId						 activeRestoreFailureOperationId_{} ;
+	OperationId									   activeRestoreFailureOperationId_{} ;
 	/// 当該続行の原保護errorです
-	NativeError						 activeRestoreFailureError_{} ;
+	NativeError									   activeRestoreFailureError_{} ;
 	/// 現在のinstall開始時に固定し、worker結果との一致を検証する回復保護方針
-	InstallProtectionMode			 activeInstallProtectionMode_{
-		   InstallProtectionMode::WINDOWS_RESTORE_POINT} ;
+	InstallProtectionMode						   activeInstallProtectionMode_{
+		 InstallProtectionMode::WINDOWS_RESTORE_POINT} ;
 } ;
 
 } // namespace drivercrate

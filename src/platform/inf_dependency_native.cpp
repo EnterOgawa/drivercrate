@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native.cpp
  * @brief 実path・署名・OSを固定する非実行INF依存adapterの実装
- * @version 01.07.05
+ * @version 01.51.01
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,51 @@
  * Ver.01.07.03 Shunji Ogawa  2026/11/13  Needs AddRegの元拒否leafを既匿名診断へ接続
  * Ver.01.07.04 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
  * Ver.01.07.05 Shunji Ogawa  2026/11/13  847p9の型付きSYSTEM全作用と全選択資格を接続
+ * Ver.01.08.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.09.00 Shunji Ogawa  2026/11/20  収集原閉包と全一覧からWindows同梱INFの選択依存と作用を検査
+ * Ver.01.10.00 Shunji Ogawa  2026/11/20  SDHost収集の標準サービスを元INFと同CATのコピーへ結合
+ * Ver.01.11.00 Shunji Ogawa  2026/11/20  標準Portsの実サービスと元所有ページを非実行で照合
+ * Ver.01.12.00 Shunji Ogawa  2026/11/20  標準NVMeとPCIの元文書・空リスト・保護コピーを照合
+ * Ver.01.13.00 Shunji Ogawa  2026/11/21  標準AHCIの元文書と保護コピーを収集で照合
+ * Ver.01.14.00 Shunji Ogawa  2026/11/21  選択メディアチェンジャーの起動グループを終端まで照合
+ * Ver.01.15.00 Shunji Ogawa  2026/11/21  HDCの元SYSと共有作用を収集の固定ファイル検査へ接続
+ * Ver.01.16.00 Shunji Ogawa  2026/11/21  元HDCの端末選択に型付き作用と現在サービスを結合
+ * Ver.01.17.00 Shunji Ogawa  2026/11/21  HDCの既存SYSを同名と完全SHA-256で再照合
+ * Ver.01.18.00 Shunji Ogawa  2026/11/21  HDCの修飾なし元基本節を同じAMD64選択に結合
+ * Ver.01.19.00 Shunji Ogawa  2026/11/21  収集と端末でWindows標準シリアルページを検査
+ * Ver.01.20.00 Shunji Ogawa  2026/11/22  仮想Wi-FiバスのSYSを元Driver StoreとCATに照合
+ * Ver.01.21.00 Shunji Ogawa  2026/11/22  仮想Wi-Fiバスの元コピーと端末照合の必要性を検査
+ * Ver.01.22.00 Shunji Ogawa  2026/11/22  元フィルター置換を端末照合に必要な作用として保持
+ * Ver.01.23.00 Shunji Ogawa  2026/11/22  公式収集の同梱仮想Wi-Fiバスを独立した元作用へ照合
+ * Ver.01.24.00 Shunji Ogawa  2026/11/22  公式選択の同梱辺を双方向に照合し現状態の証拠を返す
+ * Ver.01.25.00 Shunji Ogawa  2026/11/22  保護された同梱仮想Wi-Fi INFの署名と内容を同期確認
+ * Ver.01.26.00 Shunji Ogawa  2026/11/22  補助サービスの元コピー行と再起動後の置換指定を照合
+ * Ver.01.27.00 Shunji Ogawa  2026/11/22  端末計画に補助サービスの読み取りと再観測を接続
+ * Ver.01.28.00 Shunji Ogawa  2026/11/23  自動起動ストレージの署名付き元電源設定を読取り検査へ接続
+ * Ver.01.29.00 Shunji Ogawa  2026/11/23  自動起動ストレージの署名付き元AutoLoggerを読取り検査へ接続
+ * Ver.01.30.00 Shunji Ogawa  2026/11/23  元ACPI・DMA・イベントを既存のストレージ作用グラフへ接続
+ * Ver.01.31.00 Shunji Ogawa  2026/11/23  正規ACPIとAutoLoggerの現在保護を元のストレージ選択に結合
+ * Ver.01.32.00 Shunji Ogawa  2026/11/23  六欄で明示したSystemイベントの現在登録を選択へ結合
+ * Ver.01.33.00 Shunji Ogawa  2026/11/23  元自動起動補助に現在のSCMとDriver Storeファイルを結合
+ * Ver.01.34.00 Shunji Ogawa  2026/11/23  自動起動作用を選択機器の現用登録読取りへ接続
+ * Ver.01.35.00 Shunji Ogawa  2026/11/23  自動起動の現用登録・共通イベント・共有設定を再観測
+ * Ver.01.36.00 Shunji Ogawa  2026/11/23  現用電源設定を元選択と共有先の再観測に保持
+ * Ver.01.37.00 Shunji Ogawa  2026/11/23  署名付き現用登録の電源定義との照合を通常計画へ接続
+ * Ver.01.38.00 Shunji Ogawa  2026/11/23  自動起動補助とSystemイベントの共有先を端末で比較
+ * Ver.01.39.00 Shunji Ogawa  2026/11/23  起動サービスとSYSを候補の保護付き観測へ接続
+ * Ver.01.40.00 Shunji Ogawa  2026/11/23  自動起動型の元コピーと端末観測を私有計画へ接続
+ * Ver.01.41.00 Shunji Ogawa  2026/11/23  名前付きイベントDLLを元CATへ再照合し現用確認まで保留
+ * Ver.01.42.00 Shunji Ogawa  2026/11/23  イベントDLLのCAT確認後に配置と現用登録を照合
+ * Ver.01.43.00 Shunji Ogawa  2026/11/23  Windowsの選択節から単一起動ストレージの元作用を検査
+ * Ver.01.44.00 Shunji Ogawa  2026/11/24  元選択と同梱Wi-Fiバスの旧名転送をそれぞれ照合
+ * Ver.01.45.00 Shunji Ogawa  2026/11/24  USB Bluetoothの同梱INFへの全参照を収集で確認
+ * Ver.01.46.00 Shunji Ogawa  2026/11/24  USB Bluetoothの同梱SYSの元コピーとWindows署名を照合
+ * Ver.01.47.00 Shunji Ogawa  2026/11/24  USB Bluetoothの機器キー追加・削除と同梱PCIの元電源設定を照合
+ * Ver.01.48.00 Shunji Ogawa  2026/11/24  USB Bluetoothの共有登録と保護Windows資源を元作用に照合
+ * Ver.01.49.00 Shunji Ogawa  2026/11/24  USB Bluetoothの全同梱作用を公式選択の収集証拠へ結合
+ * Ver.01.50.00 Shunji Ogawa  2026/11/24  混在シリアルの元参照を同梱Serenumの実体へ照合
+ * Ver.01.51.00 Shunji Ogawa  2026/11/24  同梱WinUSBの元文書と保護SYSと機器登録を照合
+ * Ver.01.51.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * </pre>
  *
  * @note 共通内容factoryの私有選択節へ接続します。旧引数経路のpackage由来は未検査を維持します
@@ -47,10 +92,14 @@
 #include "platform/inf_dependency_native_internal.h"
 #include "platform/system_inf_effects_internal.h"
 #include "platform/common_driver_package.h"
+#include "platform/collector_property_page_export_internal.h"
 #include "platform/driver_package_signature_internal.h"
 #include "platform/official_download_workspace.h"
+#include "platform/official_driver_closure.h"
+#include "platform/official_driver_package.h"
 #include "platform/official_file_verifier.h"
 #include "platform/official_inf_archive_binding.h"
+#include "platform/official_zip.h"
 #ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
 #include "support/inf_dependency_native_test_api.h"
 #endif
@@ -61,9 +110,11 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <new>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -151,6 +202,23 @@ bool					equalName( std::wstring_view left, std::wstring_view right)
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 元一覧から大小文字を除いて同じ完全相対位置のentryを得る
+ * @param[in] entries 同じ容器又は抽出閉包の安全な一意entry一覧
+ * @param[in] name 元INFまたはCATが指定する完全相対位置
+ * @return 一致した元entryの同期借用値。見つからなければnull
+ */
+//------------------------------------------------------------------------------
+const OfficialZipEntry *dependencyEntry( std::span<const OfficialZipEntry> entries,
+										std::wstring_view				  name)
+{
+	const auto match = std::ranges::find_if( entries, [name]( const auto &entry) {
+		return equalName( entry.relativePath, name) ;
+	}) ; // basenameだけの一致は同じ所有元へ結びません
+	return match == entries.end() ? nullptr : &*match ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 一相対componentのdevice aliasを拒否する
  * @param[in] part 末尾正規化を含まない一component
  * @return 予約device名の場合true
@@ -165,6 +233,24 @@ bool reservedName( std::wstring_view part)
 			((base[3] >= L'1' && base[3] <= L'9') || base[3] == L'\u00b9' || base[3] == L'\u00b2' ||
 			 base[3] == L'\u00b3') &&
 			(equalName( base.substr( 0U, 3U), L"COM") || equalName( base.substr( 0U, 3U), L"LPT"))) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同期中のCommon閉包の再検査を製品の署名境界または専用試験の原本へ結ぶ
+ * @param[in] content 端末の選択検査が保持する元のCommon閉包
+ * @return 全byteと署名の再検査に成功すれば0、失敗時は元HRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError recheckCommonContent( const CommonInfInspection &content)
+{
+#ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
+	// この試験呼出しで明示した元内容を検査する場合だけ、専用fixtureの再検証を使います
+	if( testApi != nullptr && testApi->reverifyCommonInf != nullptr) {
+		return testApi->reverifyCommonInf( content) ;
+	}
+#endif
+	return reverifyCommonDriverInf( content) ;
 }
 
 //------------------------------------------------------------------------------
@@ -1240,10 +1326,26 @@ struct NativeDocument {
 	std::size_t				   catalogIndex{MAX_FILES} ;
 	/// 未取得ならMAX_FILESの対応Driver Store INF位置
 	std::size_t				   storeIndex{MAX_FILES} ;
+	/// 同一CATで開始時と終了時に検査するINF自身と収集原本の全参照file
+	std::vector<std::wstring>  catalogMembers ;
 	/// SetupAPIが返した元署名分類。maskしない
 	DWORD					   signerScore{SIGNERSCORE_UNKNOWN} ;
 	/// 元診断を保持する独立finding
 	InfDependencyNativeFinding finding ;
+} ;
+
+/** @brief 一回の収集内容検査に限って借用する原閉包、全アーカイブ一覧と実選択です */
+struct CollectorDependencySource {
+	/// 抽出時に原size/hashと各INFのCAT・参照fileを固定した閉包です
+	const OfficialDriverClosure		 &closure ;
+	/// 同じ容器に元から存在した全通常fileです。未展開のINFも含みます
+	std::span<const OfficialZipEntry> archiveEntries ;
+	/// AMD64 Modelsから選択した正確な基本節名です
+	std::wstring_view				  selectedBase ;
+	/// 公式Netの元Modelsが選んだ仮想Wi-Fiバスの依存だけを検査する場合trueです
+	bool							  scopedWifiBus{} ;
+	/// 公式USB Bluetoothの空媒体と三つの元委譲節を検査した場合true
+	bool							  scopedBluetoothUsb{} ;
 } ;
 
 /** @brief 一同期runのfile固定・OS根拠とcallbackを所有する */
@@ -1260,18 +1362,31 @@ public:
 	 * @param[in] content 元Common検査の所有結果。旧経路ではnullptr
 	 * @param[out] diagnostic 元HRESULTを変更しない任意の数値診断です
 	 * @param[in] selectedBase 元Commonの正規選択基本節です。旧入口は空です
+	 * @param[in] storageFacts 同原選択を独立readerで確認した非権限値です。同期終了まで借用し、通常入口はnullです
+	 * @param[in] collector 収集専用の原閉包と全一覧です。端末と観測入口はnullです
+	 * @param[in] registeredDeviceRead 自動起動補助と同じ選択機器を読取する同期操作。指定しない入口はnull
 	 */
 	NativeLoader( const OfficialDownloadWorkspace			&workspace,
 				 std::span<const InfDependencyPackageMember> members,
 				 const InfDependencyContext &context, const OfficialInfArchiveBinding *binding,
-				 const OfficialAcquisitionSession *session,
-				 const OfficialDownloadWorkspace  *archiveWorkspace,
-				 const CommonInfInspection		  *content		= nullptr,
-				 RequiredInfBindingDiagnostic	  *diagnostic	= nullptr,
-				 std::wstring_view				   selectedBase = {})
+				 const OfficialAcquisitionSession  *session,
+				 const OfficialDownloadWorkspace   *archiveWorkspace,
+				 const CommonInfInspection		   *content				 = nullptr,
+				 RequiredInfBindingDiagnostic	   *diagnostic			 = nullptr,
+				 std::wstring_view					selectedBase		 = {},
+				 const SelectedStorageServiceFacts *storageFacts		 = nullptr,
+				 const CollectorDependencySource   *collector			 = nullptr,
+				 const StorageRegisteredDeviceRead *registeredDeviceRead = nullptr)
 		: workspace_( workspace), members_( members), context_( context), binding_( binding),
 		  session_( session), archiveWorkspace_( archiveWorkspace), content_( content),
-		  diagnostic_( diagnostic), selectedBase_( selectedBase)
+		  collector_( collector),
+		  collectorHdc_( collector &&
+						!collector->closure.packages.front().nativeHdcInstallGroups.empty()),
+		  nativeHdc_( collectorHdc_ || (storageFacts && equalName( storageFacts->className, L"HDC"))),
+		  effectClosure_( collector ? &collector->closure : (content ? &content->closure : nullptr)),
+		  diagnostic_( diagnostic),
+		  selectedBase_( collector ? collector->selectedBase : selectedBase),
+		  storageFacts_( storageFacts), registeredDeviceRead_( registeredDeviceRead)
 	{
 	}
 	/**
@@ -1283,6 +1398,22 @@ public:
 	 */
 	NativeError run( std::size_t rootIndex, std::span<const std::wstring> seeds,
 					InfDependencyNativeResult &result) ;
+	//------------------------------------------------------------------------------
+	/**
+	 * @brief 標準シリアルページの署名とexportを固定して再照合する
+	 * @param[out] proof 現Windowsの固定DLLと保護の証拠。失敗時は空
+	 * @return 元署名と同じexportが確認できた場合0、その他は原診断
+	 */
+	//------------------------------------------------------------------------------
+	NativeError inspectSerialPropertyPage( WindowsSystemFileTrust &proof) ;
+	/**
+	 * @brief 固定した正規の仮想無線バスINFの内容証明を同期で照会します
+	 * @param[in] inspect 署名済み同梱INFと対応Storeの絶対パス及び同元バイトを借用します
+	 * @return 元署名と内容検査の前後確認が成立した場合0です
+	 */
+	NativeError inspectProtectedWifiBusInf(
+		const std::function<NativeError( const std::wstring &, std::wstring_view,
+										std::span<const std::byte>)> &inspect) ;
 
 private:
 	/// 呼出し終了まで有効なpackage所有者
@@ -1299,30 +1430,124 @@ private:
 	const OfficialDownloadWorkspace			   *archiveWorkspace_ ;
 	/// 私有factoryだけが渡す、全byteとCATを前後確認する元内容です
 	const CommonInfInspection				   *content_ ;
+	/// 収集内容の元選択と抽出前一覧です。従来入口ではnullです
+	const CollectorDependencySource			   *collector_ ;
+	/// 署名付き元SYSを持つHDCの収集検査を実行する場合true
+	const bool									collectorHdc_ ;
+	/// 収集または端末の同梱SYS形式にHDCの作用検査を使う場合true
+	const bool									nativeHdc_ ;
+	/// 作用検査で照合する同じ署名閉包です。旧観測と取得由来だけの入口ではnullです
+	const OfficialDriverClosure				   *effectClosure_ ;
 	/// 同期callだけが所有する任意の非機密診断先です。実行可否へ読み込みません
 	RequiredInfBindingDiagnostic			   *diagnostic_ ;
 	/// 既Common選択の元基本名です。旧read-only/Acquired入口は空です
 	std::wstring								selectedBase_ ;
+	/// 同期中の同元選択から実readerが固定したstorage factsです
+	const SelectedStorageServiceFacts		   *storageFacts_{} ;
+	/// 元選択機器の現用登録を確定する同期操作。収集と機器未指定の読取ではnullptr
+	const StorageRegisteredDeviceRead		   *registeredDeviceRead_ ;
+	/// 全PACKAGE作用とexact現serviceを検査した原値です
+	std::optional<StorageInfEffects>			storageEffects_ ;
+	/**
+	 * @brief 同じ同期バックエンドで指定されたカーネルサービスの現在構成と保護を読む
+	 * @param[in] name 正確なサービス名
+	 * @param[out] evidence 構成と保護が検証できた場合だけ格納する元観測
+	 * @return 成立時0、正式の不在・読取・保護に問題があればHRESULT
+	 * @note 現在ファイルを開かず、試験用バックエンドの不足を実SCMへ補完しない
+	 */
+	NativeError readStorageServiceConfiguration( std::wstring_view	   name,
+												SystemServiceEvidence &evidence) ;
+	/**
+	 * @brief 自動起動補助の元効果と現在のWindows共有設定を読み取り専用で照合する
+	 * @param[in] effects 署名付き選択の検証済みACPIとAutoLogger作用
+	 * @param[out] shared 現在サービスと二つの共有先の完全な観測。失敗時は空
+	 * @param[out] stage 手順の固定診断番号。成功時は0
+	 * @return 同じ制御セットと許容された現在値が成立すれば0、それ以外はHRESULT
+	 * @note 同じ値が既存提供元を示すとは判定しない。サービス、設定、導入資格は変更しない
+	 */
+	NativeError readStorageSharedSettings( const StorageInfEffects	&effects,
+										  StorageSharedHostSnapshot &shared, std::uint32_t &stage) ;
+	/**
+	 * @brief 元選択が変更する起動サービスと現在SYSを同じ端末から読む
+	 * @param[in] selected 署名と元作用を検査した候補
+	 * @param[in] device 同じ選択に関係する全現用登録
+	 * @param[out] boot 構成と元署名への照合結果。失敗時は空
+	 * @return 読取り成立0、照会・保護・位置の不成立はHRESULT
+	 * @note 保護付き配置とSCMを読み取る。サービスを起動、登録、変更しない
+	 */
+	NativeError readStorageAutomaticBoot( const SelectedStorageServiceFacts	  &selected,
+										 const StorageAutomaticDeviceSnapshot &device,
+										 StorageAutomaticBootSnapshot		  &boot) ;
+	/**
+	 * @brief 自動起動補助の現用機器と候補に関係する現在値を一組として読み取る
+	 * @param[in] effects 候補の署名付き元作用
+	 * @param[in] sourceIdentity 同じ候補を検証した元文書の内部識別
+	 * @param[out] host 各署名元を照合した現在値。失敗時は空
+	 * @param[out] stage 元診断の固定段階
+	 * @return 現用機器と共有先が同じ状態として読めた場合0、失敗はHRESULT
+	 */
+	NativeError readStorageAutomaticHost( const StorageInfEffects	  &effects,
+										 std::uint64_t				   sourceIdentity,
+										 StorageAutomaticHostSnapshot &host, std::uint32_t &stage) ;
+	/**
+	 * @brief 署名付き自動起動候補の現在共有先を読み、変更可否を分類する
+	 * @param[in,out] storage 元作用を照合済みの候補。成功時だけ現用観測と起動サービスを保持する
+	 * @param[in] sourceIdentity 同じ候補を保持する元文書の内部識別
+	 * @param[out] stage 最初の読取り不成立または所有が未確認の共有先を示す固定診断
+	 * @return 安定した現用観測と変更範囲が成立する場合0、それ以外はHRESULT
+	 * @note 現在状態を変更せず、適用資格は発行しない
+	 */
+	NativeError verifyStorageAutomaticHost( StorageInfEffects &storage, std::uint64_t sourceIdentity,
+										   std::uint32_t &stage) ;
+	/**
+	 * @brief exact storage現serviceと元binaryを読取専用で固定します
+	 * @param[in] name 同原選択又はDependenciesのservice名です
+	 * @param[out] evidence 全原config/SD成立時だけの元値です
+	 * @param[out] binarySha256 現在SYSのSHA-256が必要な場合の出力。nullptr可
+	 * @return 明示不存在又は元read/型/path/byte固定のHRESULTです
+	 * @note 内部表の欠損をnativeへ補完せず、提案新版と現在旧binaryを一致させません
+	 */
+	NativeError readStorageService( std::wstring_view name, SystemServiceEvidence &evidence,
+								   std::wstring *binarySha256 = nullptr) ;
+	/**
+	 * @brief 現在のWindowsの起動グループ順序を取得する
+	 * @param[out] order 正しい順序の元位置。失敗時は空の値
+	 * @return 順序が正しければ0、読取や元配置に問題があればHRESULT
+	 * @note 試験用APIに欠落があっても実際のレジストリを読み取らない
+	 */
+	NativeError readStorageBootLoadOrder( StorageLoadOrder &order) ;
 	/// run中保持するINF・CAT・対応Store file。最大256
-	std::vector<std::unique_ptr<PinnedFile>>	files_ ;
+	std::vector<std::unique_ptr<PinnedFile>> files_ ;
 	/// 共通核と同じ一意document。最大64
-	std::vector<NativeDocument>					documents_ ;
+	std::vector<NativeDocument>				 documents_ ;
 	/// 全固定fileの累積実byte。最大128 MiB
-	std::uint64_t								totalBytes_{} ;
+	std::uint64_t							 totalBytes_{} ;
 	/// APIで取得した現在Windows directory
-	std::wstring								windows_ ;
+	std::wstring							 windows_ ;
 	/// Workspace内のroot基準位置
-	std::wstring								packageRoot_ ;
+	std::wstring							 packageRoot_ ;
 	/// 同runで原helper/CAT/trust/権限を独立検証した完全tupleです
-	std::vector<WindowsSystemFileTrust>			systemFiles_ ;
+	std::vector<WindowsSystemFileTrust>		 systemFiles_ ;
 	/// 二相検査で全消費した同原文の作用tupleです
-	SystemInfEffects							typedEffects_ ;
+	SystemInfEffects						 typedEffects_ ;
+	/// 収集選択から到達した署名済みWindows同梱sdbus.infの正確な文書IDです
+	std::uint64_t							 sdBusInboxDocument_{} ;
+	/// 唯一の元ページを持つPortsから到達したWindows同梱msports.infの文書IDです
+	std::uint64_t							 msPortsInboxDocument_{} ;
+	/// 収集元のNVMe委譲で正規Windows INFに到達したときの文書識別子です
+	std::uint64_t							 storNvmeInboxDocument_{} ;
+	/// 元HDCの委譲で署名・Storeを照合した標準AHCIの原文書
+	std::uint64_t							 storAhciInboxDocument_{} ;
+	/// 正規WindowsとDriver Storeが一致した収集専用同梱WinUSB文書。適用なしの場合0
+	std::uint64_t							 winUsbInboxDocument_{} ;
+	/// 元NVMeのHW節が参照する正規PCI INFの文書識別子です
+	std::uint64_t							 pciNvmeInboxDocument_{} ;
 	/// 固定RunOnceだけが発行する遅延登録factです
-	bool										delayedRegistration_{} ;
+	bool									 delayedRegistration_{} ;
 	/// 元用途観測と新型が共有する実際の節/行予算です
-	std::vector<InfDependencyVisitedSection>	observedSections_ ;
+	std::vector<InfDependencyVisitedSection> observedSections_ ;
 	/// 元用途観測で既に消費した全行です
-	std::size_t									observedRows_{} ;
+	std::size_t								 observedRows_{} ;
 
 	/**
 	 * @brief fileと全祖先を安全に固定し実hashを計算する
@@ -1408,21 +1633,48 @@ private:
 	 */
 	NativeError		verifySystemFile( const std::wstring &path, bool recheck = false) ;
 	/**
+	 * @brief 確認済み同梱INFのサービス実体を同じStore原媒体とCATへ結ぶ
+	 * @param[in] document INBOX署名とStoreを確認済みの同文書です
+	 * @param[in] path 元サービスが指定する正規System32又は同じStore上の位置です
+	 * @return 原媒体・配備先・CATが一致した場合0、失敗時は元HRESULTです
+	 */
+	NativeError verifyInboxServiceModule( const NativeDocument &document, const std::wstring &path) ;
+	/**
+	 * @brief 仮想Wi-Fiバスの元コピーが元Store内の同名ファイルだけを指すことを確認する
+	 * @param[in] document 元作用と同一Storeの署名・SYSが検査済みの文書です
+	 * @return コピーの元指定が一致して0、別宛先・追加作用・API失敗のHRESULTです
+	 */
+	NativeError verifyWifiBusStoreCopy( const NativeDocument &document) const ;
+	/**
+	 * @brief USB Bluetoothの機器設定、共有登録、保護ファイルを同梱文書と現在のWindowsに結ぶ
+	 * @param[in] result 同期中に解決した同じ依存グラフ
+	 * @param[in] seeds 公式USB選択の元基本節、HW節、Services節をこの順に保持する一覧
+	 * @return 機器と共有設定の元宣言、資源の署名・バイトが一致して0、失敗時は元HRESULT
+	 * @note 読取り専用。機器および共有レジストリの現在値と導入資格は確定しない
+	 */
+	NativeError verifyBluetoothUsbActions( const InfDependencyNativeResult &result,
+										  std::span<const std::wstring>	   seeds) ;
+	/**
+	 * @brief 元Ports基本節の一つの登録をSystem32の署名と同一バイトのAMD64 exportに結ぶ
+	 * @return 原DLLの署名・権限・hash・export検査成功時0、その他は元HRESULTです
+	 */
+	NativeError verifySerialPropertyPage() ;
+	/**
 	 * @brief 元SYSTEM選択Needsの全型を二相列挙/実体/関係へ接続します
 	 * @param[in] result 同原graphと全document証拠です
 	 * @param[in] seeds 元正規DDInstallと実在付随節です
 	 * @param[in,out] rows 元AddRegの共同累積行数です
 	 * @return 全作用成立0、元API又は限定型の拒否HRESULTです
 	 */
-	NativeError		verifyTypedEffects( const InfDependencyNativeResult &result,
-									   std::span<const std::wstring> seeds, std::size_t &rows) ;
+	NativeError verifyTypedEffects( const InfDependencyNativeResult &result,
+								   std::span<const std::wstring> seeds, std::size_t &rows) ;
 	/**
 	 * @brief 全到達節とVersion／sourceのfile用途を非実行で観測する
 	 * @param[in,out] result 全体成功前のgraphと有限用途観測
 	 * @return 全行観測成功0、入力・読取・容量・元byte差のHRESULT
 	 * @note payload位置と全member署名は解決せず、実SYSTEM fileを複写しない
 	 */
-	NativeError		observeFileUses( InfDependencyNativeResult &result) ;
+	NativeError observeFileUses( InfDependencyNativeResult &result) ;
 } ;
 
 } // namespace
@@ -1666,7 +1918,7 @@ NativeError NativeLoader::observe( const std::wstring			   &path,
 		// 物理identityは開いた実handleから比較する
 		if( sameFile( files_[prior.fileIndex]->information, files_[file]->information)) {
 			// 別の由来へ同identityを持ち替えない
-			if( prior.value.origin != origin) {
+			if( prior.value.origin != origin || (collector_ && member && prior.fileIndex != file)) {
 				return HRESULT_FROM_WIN32( ERROR_FILE_INVALID) ;
 			}
 
@@ -1695,8 +1947,20 @@ NativeError NativeLoader::observe( const std::wstring			   &path,
 		return error ;
 	}
 
-	// 封印経路の全集合固定はrun前後に再確認し、署名の成否から由来を推測しない
-	if( member != nullptr && (binding_ != nullptr || content_ != nullptr)) {
+	// 収集は観測用の未確認・失敗findingを内容成功へ変換せず、元署名・Storeの失敗を返します
+	if( collector_ && observed.value.signature != InfDependencyEvidence::VERIFIED) {
+		return observed.finding.signatureError != 0U ? observed.finding.signatureError
+													 : HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// Windows同梱INFは正規位置、完全INBOX score、同byteのStoreをすべて必要とします
+	if( collector_ && !member && observed.value.provenance != InfDependencyEvidence::VERIFIED) {
+		return observed.finding.provenanceError != 0U ? observed.finding.provenanceError
+													  : HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// 原取得または署名閉包への所属だけを示し、裸の観測一覧から由来を推測しません
+	if( member != nullptr && (binding_ != nullptr || effectClosure_ != nullptr)) {
 		observed.value.provenance = InfDependencyEvidence::VERIFIED ;
 	}
 
@@ -1754,20 +2018,60 @@ NativeError NativeLoader::trust( NativeDocument &document)
 	}
 
 	const OfficialZipEntry *sealedCatalog = nullptr ;	// 封印経路の原CAT metadataの同期借用
-	// 共通内容経路も同保護閉包に元CATがある場合だけ使用します
-	if( document.value.origin == InfDependencyOrigin::PACKAGE && content_ != nullptr) {
+	// 全経路で署名を照合したINF自身を終了再確認まで保持します
+	document.catalogMembers.push_back( path) ;
+	// 署名閉包に元CATがある場合だけ元packageの署名と全memberを検査します
+	if( document.value.origin == InfDependencyOrigin::PACKAGE && effectClosure_ != nullptr) {
 		const auto relative =
 			// 元CAT相対位置です
 			std::wstring_view( catalog).substr( packageRoot_.size()) ;
-		const auto found = std::ranges::find_if( content_->closure.entries, [&]( const auto &entry) {
-			return equalName( entry.relativePath, relative) ;
-		}) ; // 元の閉じた一覧です
+		sealedCatalog = dependencyEntry( effectClosure_->entries, relative) ;
 		// 後付けCATを元署名根拠へ昇格しません
-		if( found == content_->closure.entries.end()) {
+		if( sealedCatalog == nullptr) {
 			return HRESULT_FROM_WIN32( ERROR_ACCESS_DENIED) ;
 		}
 
-		sealedCatalog = &*found ;
+		// 収集は各INFに宣言されたCATを照合し、同じ閉包内でも別INFのCATを流用しません
+		if( collector_) {
+			const auto package =
+				std::ranges::find_if( effectClosure_->packages, [&]( const auto &item) {
+					return equalName( workspace_.path( item.infRelativePath), path) ;
+				}) ; // この固定INFを原本として検査した一件です
+			// 署名者の返したCATが元INFの宣言と異なる場合はmember検査へ進みません
+			if( package == effectClosure_->packages.end() ||
+			   !equalName( package->catalogRelativePath, relative)) {
+				return HRESULT_FROM_WIN32( ERROR_INVALID_NAME) ;
+			}
+
+			// 同原INFの全参照fileを開始時・終了時の同じCATmember照合へ結びます
+			for( const auto &source : package->sourceFiles) {
+				const auto fixed =
+					// 原hash付きの閉包memberです
+					dependencyEntry( effectClosure_->entries, source) ;
+				// 実byteを固定していないfileは、CATだけ合格しても内容検査へ使いません
+				if( !fixed) {
+					return HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND) ;
+				}
+
+				const auto memberPath =
+					// 取得元と同じ保護領域の位置
+					workspace_.path( fixed->relativePath) ;
+				// 混在媒体は同梱検査の間もメーカー側SYSとDLLを元のまま固定する
+				if( package->collectorSerialMedia) {
+					std::size_t memberIndex{} ;	// 原閉包に属する実ファイルの固定位置
+					const auto	error =
+						// 読み取り固定結果
+						pin( memberPath, MAX_TOTAL_BYTES, memberIndex) ;
+					// 署名が通る別の元ファイルへ取り替えない
+					if( error != 0U || files_[memberIndex]->sha256 != fixed->sha256 ||
+					   files_[memberIndex]->bytes != fixed->uncompressedSize) {
+						return error != 0U ? error : static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+					}
+				}
+
+				document.catalogMembers.push_back( memberPath) ;
+			}
+		}
 	}
 
 	// package CATを原container由来の固定一覧へ限定し、後から追加したCATを使わない
@@ -1803,8 +2107,7 @@ NativeError NativeLoader::trust( NativeDocument &document)
 		return TRUST_E_BAD_DIGEST ;
 	}
 
-	const std::array<std::wstring, 1U> memberPaths{path} ;	// INF自身だけのmember確認
-	error = nativeCatalogSignature( catalog, memberPaths) ;
+	error = nativeCatalogSignature( catalog, document.catalogMembers) ;
 	document.value.signature =
 		error == 0 ? InfDependencyEvidence::VERIFIED : InfDependencyEvidence::FAILED ;
 	document.finding.signatureError = error ;
@@ -1901,8 +2204,7 @@ NativeError NativeLoader::recheckTrust( const NativeDocument &document)
 		return HRESULT_FROM_WIN32( ERROR_FILE_INVALID) ;
 	}
 
-	const std::array<std::wstring, 1U> memberPaths{path} ;	// 同じINF自身だけを再確認する
-	return nativeCatalogSignature( files_[document.catalogIndex]->path, memberPaths) ;
+	return nativeCatalogSignature( files_[document.catalogIndex]->path, document.catalogMembers) ;
 }
 
 //------------------------------------------------------------------------------
@@ -1934,6 +2236,40 @@ NativeError NativeLoader::lookup( const InfDependencyDocument &source, std::wstr
 	const std::wstring parent =
 		// 元directory
 		sourcePath.substr( 0U, sourcePath.find_last_of( L'\\') + 1U) ;
+	std::wstring sibling ;	// 元親がpackage内のときだけ、その親に対するInclude位置です
+	// Windows側の親directoryをパッケージの同名directoryに読み替えません
+	if( parent.size() >= packageRoot_.size() &&
+	   equalName( std::wstring_view( parent).substr( 0U, packageRoot_.size()), packageRoot_)) {
+		sibling = parent.substr( packageRoot_.size()) + std::wstring( target) ;
+	}
+
+	const auto matches = [&]( std::wstring_view relative) {
+		return equalName( relative, target) || (!sibling.empty() && equalName( relative, sibling)) ;
+	} ; // 元一覧と固定memberの双方で同じ親またはrootの候補だけを扱います
+	// 収集では部分抽出したmemberにない同名ファイルも原アーカイブ一覧で確認します
+	if( collector_) {
+		std::size_t candidates{} ;	// 元親・rootに実在する異なる原entryの数です
+		// 一件でも未固定、または二箇所に競合する候補があればWindows探索へ進みません
+		for( const auto &entry : collector_->archiveEntries) {
+			// 無関係なdirectoryにある同じbasenameは元候補に含めません
+			if( !matches( entry.relativePath)) {
+				continue ;
+			}
+
+			// 異なる原位置の同名候補を、同じbyteや署名で一件にまとめません
+			if( ++candidates > 1U) {
+				return HRESULT_FROM_WIN32( ERROR_DUP_NAME) ;
+			}
+
+			// 元閉包の独立したINF/CATとして検査できない同名アーカイブ内INFを優先も無視もしません
+			if( std::ranges::none_of( members_, [&]( const auto &member) {
+				   return equalName( member.relativePath, entry.relativePath) ;
+			   })) {
+				return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+			}
+		}
+	}
+
 	InfDependencyLookup found ;	// 全照会成功時だけ移す一時結果
 	found.checked	  = true ;
 	const auto append = [&found]( const InfDependencyDocument &document) {
@@ -1947,12 +2283,9 @@ NativeError NativeLoader::lookup( const InfDependencyDocument &source, std::wstr
 	} ; // この照会結果だけへ同期追加する借用callback
 	// 閉じたpackage一覧から、元親またはrootに明示された候補だけを調べる
 	for( const auto &member : members_) {
-		const std::wstring path =
-			// 認証済み相対memberからの固定位置
-			workspace_.path( member.relativePath) ;
+		const auto path = workspace_.path( member.relativePath) ;	// 認証済みmemberからの固定位置です
 		// 全directoryのbasename探索で無関係INFを混入させない
-		if( !equalName( path, parent + std::wstring( target)) &&
-		   !equalName( path, packageRoot_ + std::wstring( target))) {
+		if( path.empty() || !matches( member.relativePath)) {
 			continue ;
 		}
 
@@ -2388,11 +2721,845 @@ NativeError NativeLoader::verifySystemFile( const std::wstring &path, const bool
 
 //------------------------------------------------------------------------------
 /**
- * @brief 元SYSTEM選択Needsの全型を二相列挙/実体/関係へ接続します
+ * @brief 元Windows INFが宣言したサービス実体を同じ署名付きStore原媒体に照合する
+ * @param[in] document 固定した正規Windows INF、原CATと対応Storeの同期文書です
+ * @param[in] path 元作用から解決した正規System32又は同じStore上の位置です
+ * @return 原位置、配備先、同CATと全バイトの成立時0、失敗時は元HRESULTです
+ * @note 終了時には同じ二つのファイルを元CATで再確認します
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::verifyInboxServiceModule( const NativeDocument &document,
+												   const std::wstring	&path)
+{
+	const auto leaf =
+		// 元作用が指定した実ファイル名です
+		path.substr( path.find_last_of( L'\\') + 1U) ;
+	const bool wifiBusModule =
+		equalName( files_[document.fileIndex]->path, windows_ + L"\\INF\\netvwifibus.inf") &&
+		// 正規同梱INFに属する唯一の役割です
+		equalName( leaf, L"vwifibus.sys") ;
+	const bool bluetoothUsbModule =
+		collector_ && collector_->scopedBluetoothUsb &&
+		equalName( files_[document.fileIndex]->path, windows_ + L"\\INF\\bth.inf") &&
+		(equalName( leaf, L"bthusb.sys") || equalName( leaf, L"bthport.sys")) &&
+		equalName( path,
+				  windows_ + L"\\System32\\drivers\\" + leaf) ;	// 同じ公式USB選択に属する配備先
+	const bool namedModule =
+		(document.value.identity == msPortsInboxDocument_ &&
+		 (equalName( leaf, L"serial.sys") || equalName( leaf, L"serenum.sys"))) ||
+		(document.value.identity == storNvmeInboxDocument_ &&
+		 // 元INFに属する登録済み役割だけです
+		 equalName( leaf, L"stornvme.sys")) ||
+		(document.value.identity == storAhciInboxDocument_ && equalName( leaf, L"storahci.sys")) ||
+		(document.value.identity == winUsbInboxDocument_ && equalName( leaf, L"winusb.sys") &&
+		 equalName( path, windows_ + L"\\System32\\drivers\\winusb.sys")) ||
+		wifiBusModule || bluetoothUsbModule ;
+	// 他のWindows INFに属するファイルや別の提供役割と入れ替えません
+	if( document.storeIndex == MAX_FILES || !namedModule) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	const auto &store =
+		files_[document.storeIndex]->path ;	// 同Windows INFが実際に対応するStore位置です
+	const InfHandle inf{SetupOpenInfFileW( store.c_str(), nullptr,
+										  INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE,
+										  nullptr)} ;	// Storeの元INFです
+	// 原媒体を確認できなければ、同名ファイルを初期位置から推定しません
+	if( inf.get() == INVALID_HANDLE_VALUE) {
+		return winError( GetLastError()) ;
+	}
+
+	std::wstring source ;	// 元媒体内のファイル位置です
+	std::wstring media ;	// 元媒体の相対位置です
+	auto		 error = readOfficialInfSourceDirectories( inf.get(), leaf, source,
+														  media) ;	// 同INFの元指定を読み取ります
+	// 曖昧な位置や読取エラーを正規ファイルへ補いません
+	if( error != 0 || (!source.empty() && !validInfDependencyPath( source, false)) ||
+	   (!media.empty() && !validInfDependencyPath( media, false))) {
+		return error != 0 ? error : static_cast<NativeError>( E_INVALIDARG) ;
+	}
+
+	const auto original = store.substr( 0U, store.find_last_of( L'\\') + 1U) +
+						  (media.empty() ? media : media + L"\\") +
+						  (source.empty() ? source : source + L"\\") + leaf ;	// 原配布元です
+	// ストアから実行されるWi-Fiバスの実体は同じ配布元の同一パスに限定します
+	if( wifiBusModule && (!source.empty() || !media.empty() || !equalName( original, path))) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	std::size_t storeFile{} ;		// Store原本の固定位置です
+	std::size_t installedFile{} ;	// 同作用が参照する実配備バイトです
+	error = pin( original, MAX_TOTAL_BYTES, storeFile) ;
+	// 原本の失敗を配備物の合格で隠しません
+	if( error != 0) {
+		return error ;
+	}
+
+	error = pin( path, MAX_TOTAL_BYTES, installedFile) ;
+	// 配備実体の取得失敗と全バイトの不一致を区別します
+	if( error != 0 || files_[storeFile]->sha256 != files_[installedFile]->sha256 ||
+	   files_[storeFile]->bytes != files_[installedFile]->bytes) {
+		return error != 0 ? error : static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+	}
+
+	const std::array members{wifiBusModule ? store : original,
+							 path} ;	// 同元CATへ結ぶ二つの固定ファイルです
+	error = nativeCatalogSignature( files_[document.catalogIndex]->path, members) ;
+	// 原CATに属さない同名実体は採用しません
+	if( error != 0) {
+		return error ;
+	}
+
+	auto &verified = documents_[static_cast<std::size_t>( &document - documents_.data())]
+						 .catalogMembers ;	// 同文書の終了時再照合集合です
+	// 別の作用ですでに確認した位置は再照合集合に一度だけ含めます
+	for( const auto &member : members) {
+		// 元の位置を重複させません
+		if( std::ranges::none_of( verified,
+								[&]( const auto &prior) { return equalName( prior, member) ; })) {
+			verified.push_back( member) ;
+		}
+	}
+
+	return 0 ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Windows標準PortsのページDLLをロードせずに署名と実exportを照合する
+ * @return 保護System32と元Windows署名、AMD64の名前付きexportが成立すれば0、その他は元HRESULTです
+ * @note 検査したバイトのハッシュを元保護ファイルの検証値と照合します
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::verifySerialPropertyPage()
+{
+	const auto path =
+		windows_ + L"\\System32\\MsPorts.dll" ;	// Windows APIで確定した同OSの正規DLLだけです
+	auto error = verifySystemFile( path) ;		// 元署名・権限・バイトを固定します
+	// 別位置や署名だけの値からexport検査の対象を作りません
+	if( error != 0) {
+		return error ;
+	}
+
+	const auto	proof = std::ranges::find_if( systemFiles_, [&]( const auto &file) {
+		 return equalName( file.filePath, path) ;
+	 }) ;					 // 同じファイルを署名した原証拠です
+	std::size_t fileIndex{} ;	// 元署名照合に使ったfile handleの保持位置です
+	error = pin( path, MAXIMUM_PROPERTY_PAGE_DLL_BYTES, fileIndex) ;
+	// 未確認の位置・長さから同じDLLだと推定しません
+	if( error != 0 || proof == systemFiles_.end() || files_[fileIndex]->bytes != proof->fileBytes) {
+		return error != 0 ? error : static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+	}
+
+	const auto	handle = files_[fileIndex]->file.get() ;					// 検証中の保護済みWindowsファイルです
+	std::string bytes( static_cast<std::size_t>( proof->fileBytes), '\0') ;	// 検査対象の有限バイトです
+	DWORD		readBytes{} ;												// 固定handleから実際に読み取ったバイト数です
+	// WinSxSと共有する正規DLLも、署名照合済みの同じhandleから読み取ります
+	if( !SetFilePointerEx( handle, LARGE_INTEGER{}, nullptr, FILE_BEGIN) ||
+	   !ReadFile( handle, bytes.data(), static_cast<DWORD>( bytes.size()), &readBytes, nullptr)) {
+		return winError( GetLastError()) ;
+	}
+
+	// 短い読取結果を元DLLとみなしません
+	if( readBytes != bytes.size()) {
+		return HRESULT_FROM_WIN32( ERROR_HANDLE_EOF) ;
+	}
+
+	std::wstring sha256 ;	// 固定handleから読んだバイトのハッシュです
+	error = computeDriverContainerSha256( bytes, sha256) ;
+	// 原署名のハッシュと異なるバイトへexport検査を適用しません
+	if( error != 0 || sha256 != proof->fileSha256) {
+		return error != 0 ? error : static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+	}
+
+	return inspectCollectorPropertyPageExport( std::as_bytes( std::span{bytes}),
+											  L"SerialPortPropPageProvider") ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現Windowsの標準シリアルページの固定証拠を取得する
+ * @param[out] proof 両照合で一致した署名、位置、バイト、権限の証拠
+ * @return 非ロードの署名と実exportの照合が成立した場合0、その他は原診断
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::inspectSerialPropertyPage( WindowsSystemFileTrust &proof)
+{
+	proof	   = {} ;
+	auto error = nativeWindowsDirectory( windows_) ;	// 現Windows APIの起点
+	// OSの起点を取得できない場合は他のDLLを探さない
+	if( error != 0U) {
+		return error ;
+	}
+
+	error = verifySerialPropertyPage() ;
+	// 署名と固定ハッシュ、exportの全検査が必要
+	if( error != 0U || systemFiles_.size() != 1U) {
+		return error != 0U ? error : HRESULT_FROM_WIN32( ERROR_INVALID_DATA) ;
+	}
+
+	error = verifySystemFile( systemFiles_.front().filePath, true) ;
+	// 同じハンドルを保持した終端の再照合で差があれば保留する
+	if( error == 0U) {
+		proof = std::move( systemFiles_.front()) ;
+	}
+
+	return error ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Windows同梱の仮想無線バスINFを既存のINF・CAT・Store照合で固定します
+ * @param[in] inspect 生存するleaseの間だけ同梱INFと対応Storeの絶対パス及び全バイトを借用します
+ * @return 由来と同一バイトの確認および内容確認が成立した場合0です。最初の失敗はHRESULTです
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::inspectProtectedWifiBusInf(
+	const std::function<NativeError( const std::wstring &, std::wstring_view,
+									std::span<const std::byte>)> &inspect)
+{
+	auto error = nativeWindowsDirectory( windows_) ;	// 現Windowsの元起点です
+	// 起点や読取り処理がない場合は同梱ファイルを推定しません
+	if( error != 0 || !inspect) {
+		return error != 0 ? error : E_INVALIDARG ;
+	}
+
+	InfDependencyDocument info ;	// 同署名INFとStore一致の観測です
+	error = observe( windows_ + L"\\INF\\netvwifibus.inf", nullptr, info) ;
+	// 原署名・同Windows Store由来をすべて確認した場合だけ読取りを渡します
+	if( error != 0 || info.signature != InfDependencyEvidence::VERIFIED ||
+	   info.provenance != InfDependencyEvidence::VERIFIED) {
+		return error != 0 ? error : HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	const auto *document = find( info.identity) ;	// 同元署名に使った固定ファイルです
+	// 読取り時に別の署名INFや対応Storeへ切り替えません
+	if( !document || document->fileIndex == MAX_FILES || document->catalogIndex == MAX_FILES ||
+	   document->storeIndex == MAX_FILES) {
+		return E_UNEXPECTED ;
+	}
+
+	const auto &original = *files_[document->fileIndex] ;	// 署名から終端まで保持する同じ実体です
+	std::string bytes( static_cast<std::size_t>( original.bytes),
+					  '\0') ;	// MAX_INF_BYTES以内の元バイトです
+	DWORD		read{} ;		// この保持HANDLEから読み取った長さです
+	// にせの別名やhardlinkの再openを行わず、署名に使ったHANDLEからだけ読みます
+	if( !SetFilePointerEx( original.file.get(), LARGE_INTEGER{}, nullptr, FILE_BEGIN) ||
+	   !ReadFile( original.file.get(), bytes.data(), static_cast<DWORD>( bytes.size()), &read,
+				 nullptr)) {
+		return winError( GetLastError()) ;
+	}
+
+	std::wstring digest ;	// 署名と同じ元バイトであるか照合するSHA-256です
+	error = computeDriverContainerSha256( bytes, digest) ;
+	// 読取shorteningや異なる実体の値を署名文書へ結びません
+	if( error != 0 || read != bytes.size() || digest != original.sha256) {
+		return error != 0 ? error : static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+	}
+
+	error =
+		inspect( original.path, files_[document->storeIndex]->path, std::as_bytes( std::span{bytes})) ;
+	// 内容が確定しなければ元署名だけで合格を返しません
+	if( error != 0) {
+		return error ;
+	}
+
+	// 同じleaseの三ファイルと元署名を終端でも照合します
+	for( const auto index : {document->fileIndex, document->catalogIndex, document->storeIndex}) {
+		error = recheckFile( index) ;
+		// 同一文書の変更を後続ファイルの成功で隠しません
+		if( error != 0) {
+			return error ;
+		}
+	}
+
+	return recheckTrust( *document) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択したストレージデバイスに結び付く現在の起動順を調べる
+ * @param[out] order 読み取りに成功したWindows起動グループの位置
+ * @return 元API成功かつ順序が成立した場合0、それ以外はHRESULT
+ * @note 架空の完全APIがある場合はこの観測にも同じAPIを使う
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::readStorageBootLoadOrder( StorageLoadOrder &order)
+{
+	order				 = {} ;
+	const bool legacyIde = nativeHdc_ && storageFacts_ && storageFacts_->group &&
+						   // 元サービスの必要な起動グループ
+						   equalName( *storageFacts_->group, L"System Bus Extender") ;
+	const auto read = [&]() -> NativeError {
+#ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
+		// 専用の完全APIがある場合は欠落を実Windowsで補わない
+		if( testApi) {
+			return testApi->storageLoadOrder ? testApi->storageLoadOrder( order) : E_NOTIMPL ;
+		}
+#endif
+		// 呼び出し側の架空APIから現在のWindows設定を混在させない
+		if( const auto api = inf_dependency_native_detail::activeApi()) {
+			return api->storageLoadOrder ? api->storageLoadOrder( order) : E_NOTIMPL ;
+		}
+
+		return readStorageLoadOrder( order, legacyIde) ;
+	} ;
+	// 同じAPIが返した起動順の元診断
+	const auto error = read() ;
+	const bool valid =
+		legacyIde ? order.systemBusExtender && *order.systemBusExtender < 16384U &&
+						order.precedingGroups.size() < 16384U && order.miniport == 0U &&
+						order.deviceClass == 0U &&
+						(order.precedingGroups.empty() || order.precedingGroups.back() == L'\0') &&
+						std::ranges::count( order.precedingGroups, L'\0') ==
+							static_cast<std::ptrdiff_t>( *order.systemBusExtender)
+				  : !order.systemBusExtender && order.precedingGroups.empty() &&
+						order.miniport < order.deviceClass &&
+						order.deviceClass < 16384U ;	// 元用途に対応する位置の整合
+	// 元診断または不整合を返し、部分的な位置を持ち出さない
+	if( error != 0U || !valid) {
+		order = {} ;
+		return error != 0U ? error : HRESULT_FROM_WIN32( ERROR_INVALID_DATA) ;
+	}
+
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ同期バックエンドで指定されたカーネルサービスの現在構成と保護を読む
+ * @param[in] name 正確なサービス名
+ * @param[out] evidence 構成と保護が検証できた場合だけ格納する元観測
+ * @return 成立時0、正式の不在・読取・保護に問題があればHRESULT
+ * @note 現在ファイルを開かず、試験用バックエンドの不足を実SCMへ補完しない
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::readStorageServiceConfiguration( std::wstring_view		 name,
+														  SystemServiceEvidence &evidence)
+{
+	evidence = {} ;
+	SystemServiceEvidence made ;	// 保護構成を検証してから渡す
+	const auto			  read = [&]() -> NativeError {
+#ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
+		// 専用内部表の不足を実SCMへ補完しません
+		if( testApi) {
+			return testApi->storageService ? testApi->storageService( name, made) : E_NOTIMPL ;
+		}
+#endif
+		// 所有完全表のstorage操作も欠落時fail-closedです
+		if( const auto api = inf_dependency_native_detail::activeApi()) {
+			return api->storageService ? api->storageService( name, made) : E_NOTIMPL ;
+		}
+
+		return readStorageServiceEvidence( name, made) ;
+	} ;
+	// 下位検査の最初の診断を後続へ返す一時値です
+	auto error = read() ;
+	// 明示不存在と元照会失敗は別の原HRESULTのまま返します
+	if( error != 0U) {
+		return error ;
+	}
+
+	error = validateStorageServiceEvidence( made) ;
+	// 元の保護または構成が認められない場合は読めた一部を採用しない
+	if( error != 0U) {
+		return error ;
+	}
+
+	evidence = std::move( made) ;
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元完全backendから正確なstorage kernelの現在config/SD/旧byteを固定します
+ * @param[in] name 原associated又は依存の正確なservice名です。同期中だけ借用します
+ * @param[out] evidence 全成立時だけ現configと完全SDです。失敗時は空です
+ * @param[out] binarySha256 現在SYSのSHA-256。失敗時は空。不要ならnullptr
+ * @return 正式不存在はSERVICE_DOES_NOT_EXIST、読取/保護/旧byte成立0、その他は原HRESULTです
+ * @note 既存vendorの旧byteと提案新版を同一にせず、read-onlyで安定性だけを検査します。fixture欠損を実SCMへ補完しません
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::readStorageService( std::wstring_view		name,
+											 SystemServiceEvidence &evidence,
+											 std::wstring		   *binarySha256)
+{
+	// 現在SYSの読取に入る前に元出力のハッシュを初期化する
+	if( binarySha256) {
+		binarySha256->clear() ;
+	}
+
+	auto error = readStorageServiceConfiguration( name, evidence) ;	// 既存の元SCM構成と保護
+	// 明示不存在と照会失敗は、パスを解決する前に元診断のまま返す
+	if( error != 0U) {
+		return error ;
+	}
+
+	std::wstring binary = evidence.binary ;	// 現旧binaryの全値を別の原観測として固定します
+	// 同OSのSystemRootとして解釈する既知表記だけです
+	const std::array<std::pair<std::wstring_view, std::wstring>, 2U> prefixes{
+		{{L"\\SystemRoot\\", windows_ + L"\\"}, {L"%SystemRoot%\\", windows_ + L"\\"}}} ;
+	// 明示Windows起点だけを同OSへ解決し、任意環境変数を展開しません
+	for( const auto &[prefix, target] : prefixes) {
+		// 既知のSystemRoot表記だけを同OSの完全pathへ展開します
+		if( binary.size() >= prefix.size() &&
+		   equalName( std::wstring_view{binary}.substr( 0U, prefix.size()), prefix)) {
+			binary = target + binary.substr( prefix.size()) ;
+			break ;
+		}
+	}
+
+	// 同OSのSystem32ドライバー配置起点です
+	const auto system = windows_ + L"\\System32\\drivers\\" ;
+	// 同OSのDriver Store配置起点です
+	const auto store = windows_ + L"\\System32\\DriverStore\\FileRepository\\" ;
+	// 元完全pathが許可起点の直下又は下位であるという確認値です
+	const auto within = [&]( std::wstring_view prefix) {
+		return binary.size() > prefix.size() &&
+			   equalName( std::wstring_view{binary}.substr( 0U, prefix.size()), prefix) ;
+	} ;
+	// exact所有serviceの現binaryはWindows配置/単一SYSだけです。新版のhashとの一致は要求しません
+	if( !validInfDependencyPath( binary, true) || (!within( system) && !within( store)) ||
+	   binary.size() < 5U ||
+	   !equalName( std::wstring_view{binary}.substr( binary.size() - 4U), L".sys")) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	std::size_t index{} ;	// 同runの旧fileを新packageとは独立にpinします
+	error = pin( binary, MAX_TOTAL_BYTES, index) ;
+	// 固定できた現在のSYSのハッシュだけを返す
+	if( error == 0U && binarySha256) {
+		*binarySha256 = files_[index]->sha256 ;
+	}
+
+	return error ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 自動起動補助の元効果と現在のWindows共有設定を読み取り専用で照合する
+ * @param[in] effects 署名付き選択の検証済みACPIとAutoLogger作用
+ * @param[out] shared 現在サービスと二つの共有先の完全な観測。失敗時は空
+ * @param[out] stage 手順の固定診断番号。成功時は0
+ * @return 同じ制御セットと許容された現在値が成立すれば0、それ以外はHRESULT
+ * @note 同じ値が既存提供元を示すとは判定しない。サービス、設定、導入資格は変更しない
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::readStorageSharedSettings( const StorageInfEffects	  &effects,
+													StorageSharedHostSnapshot &shared,
+													std::uint32_t			  &stage)
+{
+	shared = {} ;
+	stage  = 14020U ;
+	// 元選択が両方の共有先を明示した場合に限って同じ端末を観測する
+	if( !effects.sharedAcpiStorageFeatures || !effects.autoLogger) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+#ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
+	// 架空端末の操作を実ACPIまたはレジストリの照会へ補完しない
+	if( testApi) {
+		return E_NOTIMPL ;
+	}
+#endif
+	// 完全な内部API表の読取りでも欠落した共有レジストリは補完しない
+	if( inf_dependency_native_detail::activeApi()) {
+		return E_NOTIMPL ;
+	}
+
+	StorageSharedHostSnapshot made ;	// 両方の現在値と同じACPI構成が成立するまで公開しない
+	auto					  error =
+		// Windows固定サービスの構成
+		readStorageServiceConfiguration( L"ACPI", made.acpiService) ;
+	// 不在や構成保護のエラーを無名の共有先で補完しない
+	if( error != 0U) {
+		return error ;
+	}
+
+	constexpr std::wstring_view relativeAcpi{
+		L"System32\\drivers\\ACPI.sys"} ;	// Windows同梱の固定相対位置
+	const auto full =
+		windows_ + L"\\" + std::wstring{relativeAcpi} ;	// 同じWindowsから解決した正式ファイル
+	const auto &config = made.acpiService ;				// 現在のSCMが返した元構成
+	// 元構成がブートカーネル用のACPI.sysだけを指すことを確認してからファイルを読む
+	if( !equalName( config.name, L"ACPI") || config.type != SERVICE_KERNEL_DRIVER ||
+	   config.start != SERVICE_BOOT_START ||
+	   (!equalName( config.binary, relativeAcpi) && !equalName( config.binary, full) &&
+		!equalName( config.binary, L"\\SystemRoot\\" + std::wstring{relativeAcpi}) &&
+		!equalName( config.binary, L"%SystemRoot%\\" + std::wstring{relativeAcpi}))) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	error = verifySystemFile( full) ;
+	// ファイルの保護とWindows署名が不成立なら共有値を読み取らない
+	if( error != 0U) {
+		return error ;
+	}
+
+	error = readStorageAcpiSnapshot( made.acpi) ;
+	// 読めない現在値・保護を許容された不在として扱わない
+	if( error != 0U) {
+		return error ;
+	}
+
+	// 既存の機能ビットを失う変更は署名された選択の同じDWORDだけで許可しない
+	if( made.acpi.storageSupportedFeatures &&
+	   (*made.acpi.storageSupportedFeatures & ~*effects.sharedAcpiStorageFeatures) != 0U) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	stage = 14021U ;
+	error = readStorageAutoLoggerSnapshot( *effects.autoLogger, made.autoLogger,
+										  StorageAutoLoggerProfile::TRIAGE_BUFFER) ;
+	// 既存セッションの別設定または読取り不能は新規作成にしない
+	if( error != 0U) {
+		return error ;
+	}
+
+	stage = 14020U ;
+	StorageAcpiSnapshot freshAcpi ;	// AutoLoggerを読んだ後に同じ共有ACPIを再観測する
+	error = readStorageAcpiSnapshot( freshAcpi) ;
+	// 二つの観測の間で変わった現在制御セットやACPIの保護と元値は使わない
+	if( error != 0U || freshAcpi != made.acpi ||
+	   made.acpi.controlSet != made.autoLogger.controlSet) {
+		return error != 0U ? error : HRESULT_FROM_WIN32( ERROR_RETRY) ;
+	}
+
+	SystemServiceEvidence freshService ;	// 共有先を読んだ後のACPIの元SCM構成
+	error = readStorageServiceConfiguration( L"ACPI", freshService) ;
+	// 読み取った最初の構成へ確認なしに結び直さない
+	if( error != 0U || freshService != made.acpiService) {
+		return error != 0U ? error : HRESULT_FROM_WIN32( ERROR_RETRY) ;
+	}
+
+	error = verifySystemFile( full, true) ;
+	// 途中でWindows由来のファイルや保護が変化した場合も観測を採用しない
+	if( error != 0U) {
+		return error ;
+	}
+
+	shared = std::move( made) ;
+	stage  = 0U ;
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 候補と同名の起動サービスの現在構成とSYS配置先を読取り照合する
+ * @param[in] selected 同じ元選択の関連サービスと正規SYSのコピー先
+ * @param[in] device 選択機器と共有機器の署名付き元登録
+ * @param[out] boot 名前、現在構成、保護と分類。失敗時は空
+ * @return 読取り成功0、位置、権限、構成照会が不成立ならHRESULT
+ * @note SCMにサービスがない場合も、候補の正規SYS配置先の現在状態を読む
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::readStorageAutomaticBoot( const SelectedStorageServiceFacts	&selected,
+												   const StorageAutomaticDeviceSnapshot &device,
+												   StorageAutomaticBootSnapshot			&boot)
+{
+	boot = {} ;
+	StorageAutomaticBootSnapshot made ;	// 固定した候補から保護と配置先を全て確認する
+	made.related.name = selected.name ;
+	SystemServiceEvidence observed ;											// 元の現在SCM構成と保護
+	auto error = readStorageServiceConfiguration( selected.name, observed) ;	// 対象SCMの診断
+	// 正常構成とWindowsが返す正式な不在だけを配置照会へ進める
+	if( error == 0U) {
+		made.related.evidence = std::move( observed) ;
+	}
+	// アクセス拒否、構成不明と一時停止を新規配置へ置き換えない
+	else if( error != HRESULT_FROM_WIN32( ERROR_SERVICE_DOES_NOT_EXIST)) {
+		return error ;
+	}
+
+	error = readSystem32StorageDriverSnapshot( selected.binaryTarget, made.destination) ;
+	// SCMの正式不在でも権限や別配置のエラーを無視しない
+	if( error != 0U) {
+		return error ;
+	}
+
+	made.change = classifyStorageAutomaticBoot( selected, device, made) ;
+	boot		= std::move( made) ;
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 自動起動補助の現用機器と候補に関係する現在値を同じ制御セットで読み取る
+ * @param[in] effects 候補の署名付き元作用
+ * @param[in] sourceIdentity 同じ選択の元文書と元CATを保持する内部識別
+ * @param[out] host 現用機器、電源を含む共有設定、候補のイベントと補助の現在値。失敗時は空
+ * @param[out] stage 元診断の固定段階
+ * @return 現用機器と共有先の読取りが成立すれば0、失敗はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::readStorageAutomaticHost( const StorageInfEffects		&effects,
+												   std::uint64_t				 sourceIdentity,
+												   StorageAutomaticHostSnapshot &host,
+												   std::uint32_t				&stage)
+{
+	host = {} ;
+	StorageAutomaticHostSnapshot made ;	// 全読取と共通箇所の一致まで公開しない
+	// 通常の機器選択でだけ、同じ機器に現在登録された元配布から観測する
+	if( registeredDeviceRead_) {
+		stage = 14024U ;
+		// 現用の元署名、関連イベントと補助の観測を同じ選択機器へ結合する
+		const auto error = (*registeredDeviceRead_)( effects.service, made.device.emplace()) ;
+		// 現用登録の失敗を候補の同名サービスで補わない
+		if( error != 0U) {
+			return error ;
+		}
+	}
+
+	// 候補が実際に更新する共有先の現在状態を独立に読み取る
+	auto error = readStorageSharedSettings( effects, made.shared, stage) ;
+	// 同じ候補が変更する電源設定と既定値を保護付きの現在観測へ含める
+	if( error == 0U) {
+		stage = 14026U ;
+		error = readStoragePowerSettingsSnapshot( effects.powerSettings, made.power) ;
+		// 別の制御セットへ変わった後の電源観測を以前の構成と混ぜない
+		if( error == 0U && made.power.controlSet != made.shared.acpi.controlSet) {
+			return HRESULT_FROM_WIN32( ERROR_RETRY) ;
+		}
+	}
+
+	// 先に読んだ現用のイベントと別の制御セットを使わない
+	if( error == 0U) {
+		stage = 14022U ;
+		error = readNamedStorageEventSnapshot( effects.service, made.events) ;
+	}
+
+	// 明示したDLLの正規配置をイベント登録とは独立に読み、既存ファイルの有無を確定する
+	if( error == 0U && effects.service.auxiliary && effects.service.auxiliary->eventMessageCopy) {
+		stage = 14032U ;
+		error = readStorageAutomaticEventResource( effects.service, made.eventResource) ;
+	}
+
+	// 現用登録と別名の場合も候補の変更先の正式不在・現在構成を区別する
+	if( error == 0U) {
+		stage = 14023U ;
+		error = readAutoStartStorageAuxiliarySnapshot( effects.service, made.auxiliary) ;
+	}
+
+	// 現用と候補が両方触れる現在のイベントと補助を、取得した別観測間で照合する
+	if( error == 0U) {
+		stage = 14025U ;
+		error = verifyStorageAutomaticHostCoherence( effects.service, made) ;
+	}
+
+	// 正式な現用機器一覧を照合できた場合だけ、候補の電源定義との差を分類する
+	if( error == 0U && made.device) {
+		stage = 14027U ;
+		error = classifyStoragePowerChanges( effects.powerSettings, made.power, *made.device,
+											made.powerChanges) ;
+	}
+
+	// 固定した同じ候補の元INFとCATから、現在の補助とイベントへ書く影響を照合する
+	if( error == 0U && made.device) {
+		stage			   = 14028U ;
+		const auto *source = find( sourceIdentity) ;	// 保護して読んだ候補文書とCAT
+		// 別の文書や元CATが確認できない候補を現用と同一にしない
+		if( !source || source->value.signature != InfDependencyEvidence::VERIFIED ||
+		   source->catalogIndex >= files_.size()) {
+			return HRESULT_FROM_WIN32( ERROR_INVALID_DATA) ;
+		}
+
+		error = classifyStorageAutomaticServiceChanges( effects.service, source->value.sha256,
+													   files_[source->catalogIndex]->sha256, made) ;
+		// 実在する共有ログの所有は、同じ署名付き元INF・CATと実選択から確定する
+		if( error == 0U && made.shared.autoLogger.existing) {
+			const auto matches = [&]( const StorageAutomaticRegistrationSnapshot &current) {
+				return current.package && current.package->infSha256 == source->value.sha256 &&
+					   current.package->catalogSha256 == files_[source->catalogIndex]->sha256 &&
+					   equalName( current.package->installedSection,
+								 effects.service.selectedInstallSection) ;
+			} ; // 同じ元グラフを検査済みの署名元だけを借用する
+			// 名前や構成値が同じだけの既存ログを同じ署名元へ帰属させない
+			if( !matches( made.device->selected) &&
+			   std::ranges::none_of( made.device->owners,
+									[&]( const auto &owner) { return matches( owner.registered) ; })) {
+				stage = 14030U ;
+				return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+			}
+		}
+	}
+
+	// 現用元を確認できた機器について、候補が更新する起動サービスとSYSを合わせて読む
+	if( error == 0U && made.device) {
+		stage = 14029U ;
+		error = readStorageAutomaticBoot( effects.service, *made.device, made.boot.emplace()) ;
+	}
+
+	// レジストリの現在値だけで実動作中の同名ETWセッションがないと判断しない
+	if( error == 0U && made.device) {
+		stage = 14030U ;
+		error = readStorageAutoLoggerRuntimePresence( *effects.autoLogger,
+													 made.autoLoggerRuntimePresent.emplace()) ;
+	}
+
+	// 保護と共通箇所が同じ観測だけを再比較へ渡す
+	if( error == 0U) {
+		host  = std::move( made) ;
+		stage = 0U ;
+	}
+
+	return error ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 署名付き自動起動候補の現在共有先を読み、変更可否を分類する
+ * @param[in,out] storage 元作用を照合済みの候補。成功時だけ現用観測と起動サービスを保持する
+ * @param[in] sourceIdentity 同じ候補を保持する元文書の内部識別
+ * @param[out] stage 最初の読取り不成立または所有が未確認の共有先を示す固定診断
+ * @return 安定した現用観測と変更範囲が成立する場合0、それ以外はHRESULT
+ * @note 現在状態を変更せず、適用資格は発行しない
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::verifyStorageAutomaticHost( StorageInfEffects &storage,
+													 std::uint64_t		sourceIdentity,
+													 std::uint32_t	   &stage)
+{
+	StorageAutomaticHostSnapshot host ;	// 分類を終えるまで候補へ公開しない現在観測
+	// ストレージの現在の共有先を取得した元の診断値
+	auto error = readStorageAutomaticHost( storage, sourceIdentity, host, stage) ;
+	// 同一機器の元登録と配置をもう一度照合してから変更範囲を決める
+	if( error == 0U && registeredDeviceRead_) {
+		StorageAutomaticHostSnapshot fresh ;	// 独立した現用登録、共有先と保護の観測
+		error = readStorageAutomaticHost( storage, sourceIdentity, fresh, stage) ;
+		// 途中で置換された元ファイルや登録の新しい値を前回観測へ合成しない
+		if( error == 0U && fresh != host) {
+			stage = 14025U ;
+			return HRESULT_FROM_WIN32( ERROR_RETRY) ;
+		}
+	}
+
+	// 下位読取りの元エラーを共有先の分類で上書きしない
+	if( error != 0U) {
+		return error ;
+	}
+
+	// 他機器が使用する配置や所有不明の設定を上書きできる候補にしない
+	const auto unresolved = []( StorageServiceChange change) {
+		return change == StorageServiceChange::UPDATE_SHARED ||
+			   change == StorageServiceChange::UNVERIFIED ;
+	} ;
+	const bool	powerConflict = std::ranges::any_of( host.powerChanges, []( auto change) {
+		 return change == StoragePowerChange::UPDATE_SHARED ||
+				change == StoragePowerChange::UNVERIFIED ;
+	 }) ;												   // 現用未確認または他機器が使う電源設定
+	const auto &helper		  = storage.service.auxiliary ;	// 候補が触れる元補助とイベント資源
+	// 内容検査だけで端末への導入用の観測を作ったことにしない
+	if( !host.device || !host.serviceChanges || !host.boot || !host.autoLoggerRuntimePresent ||
+	   !helper || helper->eventMessageCopy.has_value() != host.eventResource.has_value() ||
+	   host.powerChanges.size() != storage.powerSettings.size()) {
+		stage = 14001U ;
+	}
+	// 共有作用の拒否は元の固定診断で返す
+	else if( powerConflict) {
+		stage = 14027U ;
+	}
+	// 変更可否が未確定のサービスが一つでもあれば適用判定を止めます
+	else if( std::ranges::any_of( *host.serviceChanges, unresolved)) {
+		stage = 14028U ;
+	}
+	// イベント資源の置換可否を確認できないときは固有の拒否位置を残します
+	else if( host.eventResource && unresolved( host.eventResource->change)) {
+		stage = 14032U ;
+	}
+	// 起動設定の現在値を照合できない場合は、適用可能と判定しません
+	else if( host.boot->change == StorageServiceChange::UNVERIFIED) {
+		stage = 14029U ;
+	}
+	// AutoLoggerが現在利用中のときは、動作中の構成を対象にしません
+	else if( *host.autoLoggerRuntimePresent) {
+		stage = 14030U ;
+	} else {
+		storage.services.push_back( host.boot->related) ;
+		storage.automaticHost = std::move( host) ;
+		stage				  = 0U ;
+	}
+
+	return stage == 0U ? 0U : HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 仮想Wi-Fiバスが空リストと同じStoreの同名コピーだけを指定することを確認する
+ * @param[in] document 元作用と同一Storeの署名・SYSが検査済みの文書です
+ * @return 全コピー指定が成立して0、欠損・別ファイル・別位置・API失敗のHRESULTです
+ * @note CopyFilesの二参照は型付き作用検査が照合済みです。コピーは実行しません
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::verifyWifiBusStoreCopy( const NativeDocument &document) const
+{
+	const InfHandle inf{SetupOpenInfFileW( files_[document.fileIndex]->path.c_str(), nullptr,
+										  INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE,
+										  nullptr)} ;	// 固定した元同梱INFです
+	// 読取失敗からコピーの作用を推定しません
+	if( inf.get() == INVALID_HANDLE_VALUE) {
+		return winError( GetLastError()) ;
+	}
+
+	static constexpr wchar_t EMPTY_COPY[]  = L"VWiFiBus.CopyFilesInternal" ;	// 元の空リストです
+	static constexpr wchar_t STORE_COPY[]  = L"CopyKMDriver" ;					// 元SYSを一つ指定するリストです
+	static constexpr wchar_t DESTINATION[] = L"DestinationDirs" ;				// 同INFの明示宛先表です
+	// 空リストの実在、同名コピー一件と二つの明示宛先を必要とします
+	if( SetupGetLineCountW( inf.get(), EMPTY_COPY) != 0L ||
+	   SetupGetLineCountW( inf.get(), STORE_COPY) != 1L ||
+	   SetupGetLineCountW( inf.get(), DESTINATION) != 2L) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// 両方のリストに対して追加のファイル保護指定を拒否し、元Storeの保護を維持します
+	for( const auto *list : {EMPTY_COPY, STORE_COPY}) {
+		const auto security = std::wstring{list} + L".security" ;	// 同じリストへの元権限指定です
+		SetLastError( ERROR_SUCCESS) ;
+		const auto count	 = SetupGetLineCountW( inf.get(), security.c_str()) ;	// 権限節の有無です
+		const auto readError = GetLastError() ;										// 読取直後の元エラーです
+		// 追加の権限変更または不明な読取エラーを許容しません
+		if( count >= 0 || (readError != ERROR_SUCCESS && readError != ERROR_SECTION_NOT_FOUND)) {
+			return count >= 0 ? HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) : winError( readError) ;
+		}
+
+		INFCONTEXT destination{} ;	// 元コピーリストそれぞれの宛先行です
+		int		   dirId{} ;		// 完全な一つのDIRIDです
+		// 既定の宛先、サブディレクトリ追加、別DIRIDへの書込みを許可しません
+		if( !SetupFindFirstLineW( inf.get(), DESTINATION, list, &destination) ||
+		   SetupGetFieldCount( &destination) != 1U || !SetupGetIntField( &destination, 1U, &dirId) ||
+		   dirId != 13) {
+			return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+		}
+	}
+
+	INFCONTEXT copy{} ;	// 同じ原Storeを参照する未加工のコピー指定です
+	// 元文書の唯一のコピー行だけを読み直します
+	if( !SetupGetLineByIndexW( inf.get(), STORE_COPY, 0U, &copy)) {
+		return winError( GetLastError()) ;
+	}
+
+	std::wstring name ;	// SetupAPIが先頭キーと単一値に返す同じSYS名です
+	// 同名の元ファイル一つに限り、改名、代替元、テンポラリ名、フラグは許可しません
+	if( SetupGetFieldCount( &copy) != 1U || field( copy, 0U, name) != 0U ||
+	   !equalName( name, L"vwifibus.sys")) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	const auto error = field( copy, 1U, name) ;	// 元文書の唯一の値の読取結果です
+	// 既存サービスのモジュール検査で元StoreとCATに結んだ同名ファイルだけを認めます
+	if( error != 0U || !equalName( name, L"vwifibus.sys")) {
+		return error != 0U ? error : HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元選択NeedsのSYSTEM全型とstorage PACKAGE全型を各由来のまま検査します
  * @param[in] result 同原graphと全document証拠です
  * @param[in] seeds 元正規DDInstallと実在付随節です
- * @param[in,out] rows 元AddRegの共同累積行数です
- * @return 全作用成立0、元API又は限定型の拒否HRESULTです
+ * @param[in,out] rows 全registryの共同累積行数です
+ * @return 全作用成立0、元API又は型/scopeの拒否HRESULTです
  */
 //------------------------------------------------------------------------------
 NativeError NativeLoader::verifyTypedEffects( const InfDependencyNativeResult &result,
@@ -2434,6 +3601,11 @@ NativeError NativeLoader::verifyTypedEffects( const InfDependencyNativeResult &r
 						  base + L".Wdf")) {	// 不明/不一致の元値を成功や別scopeへ補完しません
 			context = SystemInfContext::FRAMEWORK ;
 		} else {
+			// storageの全選択作用は未知付随節の存在を省略しません
+			if( storageFacts_) {
+				return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+			}
+
 			continue ;
 		}
 
@@ -2473,7 +3645,32 @@ NativeError NativeLoader::verifyTypedEffects( const InfDependencyNativeResult &r
 		}
 	}
 
-	std::vector<SystemInfSection> typed ;	// SYSTEM証拠が全成立したものだけです
+	std::vector<SystemInfSection> typed ;					// SYSTEM証拠が全成立したものだけです
+	std::uint64_t				  wifiBusInboxDocument{} ;	// 到達と署名を確認した正規の単一文書です
+	const bool					  sdHostCollector =
+		collector_ && equalName( collector_->closure.packages.front().className, L"SDHost") &&
+		equalName(
+			collector_->closure.packages.front().classGuid,
+			L"{a0a588a4-c46f-4b37-b7ea-c82fe89870c6}") ;	// 元署名と構造検査を通った収集rootが対象です
+	const bool portsCollector =
+		collector_ &&
+		!collector_->closure.packages.front()
+			 .collectorInboxPropertyPageSection.empty() ;	// 元Portsの単独登録が成立しています
+	const bool serialEnumeratorOnly =
+		collector_ && collector_->closure.packages.front()
+						  .collectorSerialMedia.has_value() ;	// 自前媒体がある二つの元選択
+	const bool nvmeCollector =
+		collector_ && collector_->closure.packages.front()
+						  .collectorInboxNvmeLists.has_value() ;	// 元NVMeの空二節が成立しています
+	const bool ahciCollector =
+		collector_ && !collector_->closure.packages.front().collectorInboxInstallGroups.empty() &&
+		equalName( collector_->closure.packages.front().className, L"HDC") &&
+		equalName( collector_->closure.packages.front().classGuid,
+				  L"{4d36e96a-e325-11ce-bfc1-08002be10318}") ;	// 元HDCで検証した委譲形式
+	const bool winUsbCollector =
+		collector_ &&
+		!collector_->closure.packages.front()
+			 .collectorInboxWinUsbRegistrySection.empty() ;	// 公式直CABの元機器登録を確認済み
 	// PACKAGEのglobal作用をSYSTEM署名で救済しません
 	for( const auto &section : reached) {
 		const auto document = find( section.document) ;	// 同原文/操作へ結ぶ検査又は結果の所有値です
@@ -2488,140 +3685,301 @@ NativeError NativeLoader::verifyTypedEffects( const InfDependencyNativeResult &r
 				return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
 			}
 
+			// 同じWindowsの正規INFを、原署名と一致するStoreの検査後にだけ型へ結びます
+			if( sdHostCollector &&
+			   equalName( files_[document->fileIndex]->path, windows_ + L"\\INF\\sdbus.inf")) {
+				sdBusInboxDocument_ = document->value.identity ;
+			}
+
+			// 元PortsページとWindows同梱msports.infの同じ選択文書だけを結びます
+			if( (portsCollector || serialEnumeratorOnly) &&
+			   equalName( files_[document->fileIndex]->path, windows_ + L"\\INF\\msports.inf")) {
+				msPortsInboxDocument_ = document->value.identity ;
+			}
+			// 混在媒体のWindows同梱側を別の同梱文書へ広げない
+			else if( serialEnumeratorOnly) {
+				return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+			}
+
+			// 元NVMe参照の同正規INFだけに専用の型を結びます
+			if( nvmeCollector &&
+			   equalName( files_[document->fileIndex]->path, windows_ + L"\\INF\\stornvme.inf")) {
+				storNvmeInboxDocument_ = document->value.identity ;
+			}
+			// NVMeのHWから到達したPCI作用の所有元を区別します
+			else if( nvmeCollector &&
+					equalName( files_[document->fileIndex]->path, windows_ + L"\\INF\\pci.inf")) {
+				pciNvmeInboxDocument_ = document->value.identity ;
+			}
+			// 他のSYSTEM INFが必要な配布を現NVMe構造の成功に含めません
+			else if( nvmeCollector) {
+				return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+			}
+
+			// 元HDCの三参照は署名済みの正規mshdc.inf一つに限定する
+			if( ahciCollector) {
+				// AHCIの三節は正規Windowsのmshdc.infで確認する
+				if( !equalName( files_[document->fileIndex]->path, windows_ + L"\\INF\\mshdc.inf")) {
+					return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+				}
+
+				storAhciInboxDocument_ = document->value.identity ;
+			}
+
+			// 公式の三委譲節が正規Windowsの同じ文書を選んだ場合だけWinUSBの型を渡す
+			if( winUsbCollector) {
+				// 別の同梱INFで不足する作用を補わない
+				if( !equalName( files_[document->fileIndex]->path, windows_ + L"\\INF\\winusb.inf") ||
+				   (winUsbInboxDocument_ != 0U &&
+					winUsbInboxDocument_ != document->value.identity)) {
+					return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+				}
+
+				winUsbInboxDocument_ = document->value.identity ;
+			}
+
+			// 到達したサービス節を元INBOX文書と一致する場合にだけ専用検査へ渡します
+			if( section.context == SystemInfContext::SERVICES &&
+			   equalName( section.name, L"VWiFiBus.Services") &&
+			   equalName( files_[document->fileIndex]->path, windows_ + L"\\INF\\netvwifibus.inf")) {
+				wifiBusInboxDocument = document->value.identity ;
+			}
+
 			typed.push_back( section) ;
 		}
 	}
 
+	// ページを持つ元Portsに、別のWindows INFによる代替証拠を認めません
+	if( (portsCollector || serialEnumeratorOnly) && msPortsInboxDocument_ == 0U) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// NVMeとPCIの元署名付き文書が二つとも選択されている場合に限ります
+	if( nvmeCollector && (storNvmeInboxDocument_ == 0U || pciNvmeInboxDocument_ == 0U)) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// 標準AHCIの原文書を解決できない場合は空の作用結果を成功にしない
+	if( ahciCollector && storAhciInboxDocument_ == 0U) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// 元INFの委譲が正本に解決しない場合は検査を完了しない
+	if( winUsbCollector && winUsbInboxDocument_ == 0U) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
 	// 型追加が無い既経路を別policyへ移しません
-	if( typed.empty()) {
+	if( typed.empty() && !storageFacts_ && !collectorHdc_) {
 		return 0U ;
 	}
 
 	SystemInfEffectApi api ;	// 同同期の元NativeLoaderだけを借用します
-	api.registryRows	= &rows ;
-	api.graphReferences = result.dependency.edges.size() ;
-	api.read			= [this]( const SystemInfSection	   &section,
-						 std::vector<SystemInfRow> &out) -> NativeError {
-		   out.clear() ;
-		   const auto document = find( section.document) ;	// 同原文/操作へ結ぶ検査又は結果の所有値です
-		   // 同署名原文だけを読み、PACKAGE転送は後でSYSTEM全tupleへ比較します
-		   if( !document || document->value.signature != InfDependencyEvidence::VERIFIED ||
-			  document->value.provenance != InfDependencyEvidence::VERIFIED) {
-			   return E_INVALIDARG ;
-		   }
+	api.registryRows		  = &rows ;
+	api.graphReferences		  = result.dependency.edges.size() ;
+	api.sdBusInboxDocument	  = sdBusInboxDocument_ ;
+	api.msPortsInboxDocument  = msPortsInboxDocument_ ;
+	api.serialEnumeratorOnly  = serialEnumeratorOnly ;
+	api.storNvmeInboxDocument = storNvmeInboxDocument_ ;
+	api.pciNvmeInboxDocument  = pciNvmeInboxDocument_ ;
+	api.storAhciInboxDocument = storAhciInboxDocument_ ;
+	api.winUsbInboxDocument	  = winUsbInboxDocument_ ;
+	api.wifiBusInboxDocument  = wifiBusInboxDocument ;
+	// 同じ保護閉包の元Modelsから得た照合IDをAHCIの除外条件に渡す
+	if( ahciCollector) {
+		api.ahciHardwareIds = collector_->closure.packages.front().hardwareIds ;
+	}
 
-		   InfHandle inf{SetupOpenInfFileW( files_[document->fileIndex]->path.c_str(),
-												   nullptr,	// この同期/fixtureが所有する資源又は原状態です
-												   INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE, nullptr)} ;
-		   // 読取不能を空節へ変換しません
-		   if( inf.get() == INVALID_HANDLE_VALUE) {
-			   return winError( GetLastError()) ;
-		   }
+	// 同じ署名付き選択の補助サービスがDriver Store配置と自動起動を宣言した状態です
+	const bool autoStartStorage = storageFacts_ && storageFacts_->auxiliary &&
+								  storageFacts_->auxiliary->start == SERVICE_AUTO_START &&
+								  storageFacts_->auxiliary->copy.dirid == 13 ;
+	const bool eventMessageCopy = autoStartStorage &&
+								  // 現用資源の所有を別途確認する型
+								  storageFacts_->auxiliary->eventMessageCopy.has_value() ;
+	bool singleBootStorage{} ;	// 同じ署名付き基本節がAddPowerSettingを明示した場合だけtrue
+	// 読み取り中は元文書を変更せず、自動起動補助のレジストリ元行も確認します
+	api.read = [this, wifiBusInboxDocument, autoStartStorage, &singleBootStorage](
+				   const SystemInfSection &section, std::vector<SystemInfRow> &out) -> NativeError {
+		out.clear() ;
+		const auto document = find( section.document) ;	// 同原文/操作へ結ぶ検査又は結果の所有値です
+		// 同署名原文だけを読み、PACKAGE転送は後でSYSTEM全tupleへ比較します
+		if( !document || document->value.signature != InfDependencyEvidence::VERIFIED ||
+		   document->value.provenance != InfDependencyEvidence::VERIFIED) {
+			return E_INVALIDARG ;
+		}
 
-		   const auto security = section.name + L".security" ;	// 元権限/署名の照合中だけ使う証拠です
-		   SetLastError( ERROR_SUCCESS) ;
-		   const auto securityRows = SetupGetLineCountW(
-			   // この同期だけで保持する元値です。許可の代用にしません
-			   inf.get(), security.c_str()) ;
-		   const auto securityError = GetLastError() ;	// 直後に保持した元API又は検査errorです
-		   // 空security宣言も一般dataへ移しません
-		   if( securityRows >= 0 ||
-			  (securityError != ERROR_SUCCESS && securityError != ERROR_SECTION_NOT_FOUND)) {
-			   return securityRows >= 0 ? HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)
-												: winError( securityError) ;
-		   }
+		InfHandle inf{SetupOpenInfFileW( files_[document->fileIndex]->path.c_str(),
+										nullptr,	// この同期/fixtureが所有する資源又は原状態です
+										INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE, nullptr)} ;
+		// 読取不能を空節へ変換しません
+		if( inf.get() == INVALID_HANDLE_VALUE) {
+			return winError( GetLastError()) ;
+		}
 
-		   const auto count =
-			   // 元全長又は共同予算の有限件数です
-			   SetupGetLineCountW( inf.get(), section.name.c_str()) ;
-		   // 元行上限と実在を必要とします
-		   if( count < 0 || count > 4096) {
-			   return count < 0 ? HRESULT_FROM_WIN32( ERROR_SECTION_NOT_FOUND)
-										: HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
-		   }
+		const auto security = section.name + L".security" ;	// 元権限/署名の照合中だけ使う証拠です
+		SetLastError( ERROR_SUCCESS) ;
+		const auto securityRows = SetupGetLineCountW(
+			// この同期だけで保持する元値です。許可の代用にしません
+			inf.get(), security.c_str()) ;
+		const auto securityError = GetLastError() ;	// 直後に保持した元API又は検査errorです
+		// 空security宣言も一般dataへ移しません
+		if( securityRows >= 0 ||
+		   (securityError != ERROR_SUCCESS && securityError != ERROR_SECTION_NOT_FOUND)) {
+			return securityRows >= 0 ? HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED)
+									 : winError( securityError) ;
+		}
 
-		   const bool newSection = std::ranges::none_of(
-			   observedSections_,
-			   [&]( const auto &old) {	// この同期だけで保持する元値です。許可の代用にしません
-				   return old.identity == section.document && equalName( old.section, section.name) ;
-			   }) ;
-		   // 元用途観測の消費も含む一つの1024節/4096行上限です
-		   if( newSection) {
-			   // 元の不正/不一致又は不足を成功へ補完しません
-			   if( observedSections_.size() >= 1024U ||
-				  observedRows_ > 4096U ||	// 不明/不一致の元値を成功や別scopeへ補完しません
-				  static_cast<std::size_t>( count) > 4096U - observedRows_) {
-				   return HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
-			   }
+		const auto count =
+			// 元全長又は共同予算の有限件数です
+			SetupGetLineCountW( inf.get(), section.name.c_str()) ;
+		// 元行上限と実在を必要とします
+		if( count < 0 || count > 4096) {
+			return count < 0 ? HRESULT_FROM_WIN32( ERROR_SECTION_NOT_FOUND)
+							 : HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
+		}
 
-			   observedSections_.push_back(
-				   {section.document, section.name, InfDependencyReadState::PRESENT}) ;
-			   observedRows_ += static_cast<std::size_t>( count) ;
-		   }
+		const bool newSection = std::ranges::none_of(
+			observedSections_,
+			[&]( const auto &old) {	// この同期だけで保持する元値です。許可の代用にしません
+				return old.identity == section.document && equalName( old.section, section.name) ;
+			}) ;
+		// 元用途観測の消費も含む一つの1024節/4096行上限です
+		if( newSection) {
+			// 元の不正/不一致又は不足を成功へ補完しません
+			if( observedSections_.size() >= 1024U ||
+			   observedRows_ > 4096U ||	// 不明/不一致の元値を成功や別scopeへ補完しません
+			   static_cast<std::size_t>( count) > 4096U - observedRows_) {
+				return HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
+			}
 
-		   // 全行と全fieldを元順で保持します
-		   for( LONG ordinal = 0; ordinal < count; ++ordinal) {
-			   INFCONTEXT line{} ;	// この同期だけで保持する元値です。許可の代用にしません
-			   // 元の不正/不一致又は不足を成功へ補完しません
-			   if( !SetupGetLineByIndexW(
-					  inf.get(), section.name.c_str(),
-					  static_cast<DWORD>( ordinal),	// 不明/不一致の元値を成功や別scopeへ補完しません
-					  &line)) {
-				   return winError( GetLastError()) ;
-			   }
+			observedSections_.push_back(
+				{section.document, section.name, InfDependencyReadState::PRESENT}) ;
+			observedRows_ += static_cast<std::size_t>( count) ;
+		}
 
-			   SystemInfRow row ;	// 同期借用又は所有する元入力の全値です。先頭値へ縮約しません
-			   row.ordinal = static_cast<std::uint32_t>( ordinal) ;
-			   // 無keyのdata行をkey読取の失敗で置換しません
-			   if( section.context != SystemInfContext::REGISTRY &&
-				  section.context != SystemInfContext::PROPERTY) {
-				   const auto error = field( line, 0U, row.key) ;	// 直後に保持した元API又は検査errorです
-				   // 元の不正/不一致又は不足を成功へ補完しません
-				   if( error != 0U) {	// 不明/不一致の元値を成功や別scopeへ補完しません
-					   return error ;
-				   }
-			   }
+		// 全行と全fieldを元順で保持します
+		for( LONG ordinal = 0; ordinal < count; ++ordinal) {
+			INFCONTEXT line{} ;	// この同期だけで保持する元値です。許可の代用にしません
+			// 元の不正/不一致又は不足を成功へ補完しません
+			if( !SetupGetLineByIndexW(
+				   inf.get(), section.name.c_str(),
+				   static_cast<DWORD>( ordinal),	// 不明/不一致の元値を成功や別scopeへ補完しません
+				   &line)) {
+				return winError( GetLastError()) ;
+			}
 
-			   const auto fields = SetupGetFieldCount(
-				   &line) ;	// 同期借用又は所有する元入力の全値です。先頭値へ縮約しません
-			   // 元の不正/不一致又は不足を成功へ補完しません
-			   if( fields > 64U) {	// 不明/不一致の元値を成功や別scopeへ補完しません
-				   return HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
-			   }
+			SystemInfRow row ;	// 同期借用又は所有する元入力の全値です。先頭値へ縮約しません
+			row.ordinal = static_cast<std::uint32_t>( ordinal) ;
+			// 無keyのdata行をkey読取の失敗で置換しません
+			if( section.context != SystemInfContext::REGISTRY &&
+			   section.context != SystemInfContext::PROPERTY) {
+				const auto error = field( line, 0U, row.key) ;	// 直後に保持した元API又は検査errorです
+				// 元の不正/不一致又は不足を成功へ補完しません
+				if( error != 0U) {	// 不明/不一致の元値を成功や別scopeへ補完しません
+					return error ;
+				}
+			}
+			// 既知の同梱作用と選択ストレージの登録データでは、空名を含むkey指定も区別する
+			else if( section.context == SystemInfContext::REGISTRY &&
+					(section.document == msPortsInboxDocument_ ||
+					 section.document == storNvmeInboxDocument_ ||
+					 section.document == pciNvmeInboxDocument_ ||
+					 section.document == storAhciInboxDocument_ ||
+					 section.document == winUsbInboxDocument_ ||
+					 section.document == wifiBusInboxDocument ||
+					 ((nativeHdc_ || autoStartStorage || singleBootStorage) &&
+					  document->value.origin == InfDependencyOrigin::PACKAGE))) {
+				const auto error =
+					// 無名行は元APIがERROR_INVALID_PARAMETERを返します
+					field( line, 0U, row.key) ;
+				// 他の読取失敗や名前付きdirectiveを無名データ行にしません
+				if( error != HRESULT_FROM_WIN32( ERROR_INVALID_PARAMETER)) {
+					return error != 0U ? error : HRESULT_FROM_WIN32( ERROR_INVALID_DATA) ;
+				}
+			}
 
-			   // 空fieldも省略せず全消費します
-			   for( DWORD index = 1U; index <= fields; ++index) {
-				   std::wstring value ;	// 同期借用又は所有する元入力の全値です。先頭値へ縮約しません
-				   const auto	error =
-					   // 直後に保持した元API又は検査errorです
-					   field( line, index, value) ;
-				   // 元の不正/不一致又は不足を成功へ補完しません
-				   if( error != 0U) {	// 不明/不一致の元値を成功や別scopeへ補完しません
-					   return error ;
-				   }
+			const auto fields = SetupGetFieldCount(
+				&line) ;	// 同期借用又は所有する元入力の全値です。先頭値へ縮約しません
+			// 元の不正/不一致又は不足を成功へ補完しません
+			if( fields > 64U) {	// 不明/不一致の元値を成功や別scopeへ補完しません
+				return HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
+			}
 
-				   row.values.push_back( std::move( value)) ;
-			   }
+			// 空fieldも省略せず全消費します
+			for( DWORD index = 1U; index <= fields; ++index) {
+				std::wstring value ;	// 同期借用又は所有する元入力の全値です。先頭値へ縮約しません
+				const auto	 error =
+					// 直後に保持した元API又は検査errorです
+					field( line, index, value) ;
+				// 元の不正/不一致又は不足を成功へ補完しません
+				if( error != 0U) {	// 不明/不一致の元値を成功や別scopeへ補完しません
+					return error ;
+				}
 
-			   out.push_back( std::move( row)) ;
-		   }
+				row.values.push_back( std::move( value)) ;
+			}
 
-		   // 元の不正/不一致又は不足を成功へ補完しません
-		   if( const auto observer = inf_dependency_native_detail::
-				  // 不明/不一致の元値を成功や別scopeへ補完しません
-			  activeApi() ;
-			  observer && observer->observedSection) {
-			   observer->observedSection( files_[document->fileIndex]->path, section.name) ;
-		   }
+			out.push_back( std::move( row)) ;
+		}
 
-		   return recheckFile( document->fileIndex) ;
+		// 元の不正/不一致又は不足を成功へ補完しません
+		if( const auto observer = inf_dependency_native_detail::
+			   // 不明/不一致の元値を成功や別scopeへ補完しません
+		   activeApi() ;
+		   observer && observer->observedSection) {
+			observer->observedSection( files_[document->fileIndex]->path, section.name) ;
+		}
+
+		return recheckFile( document->fileIndex) ;
 	} ;
-	api.module = [this]( std::uint64_t identity, std::wstring_view value) -> NativeError {
+	api.module = [this, wifiBusInboxDocument, serialEnumeratorOnly](
+					 std::uint64_t identity, std::wstring_view value) -> NativeError {
 		const auto document = find( identity) ;	// 同原文/操作へ結ぶ検査又は結果の所有値です
 		// 同SYSTEM原文と全原値からだけ提供位置を決めます
-		if( !document || document->value.origin != InfDependencyOrigin::SYSTEM || value.empty() ||
-		   value.find( L'\0') != value.npos) {
+		if( !document ||
+		   (document->value.origin != InfDependencyOrigin::SYSTEM &&
+			!((storageFacts_ || collectorHdc_) &&
+			  document->value.origin == InfDependencyOrigin::PACKAGE)) ||
+		   value.empty() || value.find( L'\0') != value.npos) {
 			return E_INVALIDARG ;
+		}
+
+		// DIRID 13は正規の元INFが対応する一つのStoreパッケージにだけ解決します
+		if( wifiBusInboxDocument != 0U && identity == wifiBusInboxDocument) {
+			const auto &store =
+				files_[document->storeIndex]->path ;	// 元SetupAPIで固定したStore INFです
+			const auto module = store.substr( 0U, store.find_last_of( L'\\') + 1U) +
+								L"vwifibus.sys" ;		// 元INFと同じ配布に含まれる唯一のサービスSYSです
+			const auto systemRoot = windows_ + L"\\" ;	// Windows APIで取得した正規の起点です
+			// SystemRootを展開した場合にも同じ正規起点へ到達する位置だけを比較します
+			const bool inSystem =
+				module.size() > systemRoot.size() &&
+				equalName( std::wstring_view{module}.substr( 0U, systemRoot.size()), systemRoot) ;
+			// 元INFの未展開指示か、同じ実ファイルを指す完全なSCM表記だけを受け入れます
+			if( !equalName( value, L"%13%\\vwifibus.sys") && !equalName( value, module) &&
+			   !(inSystem &&
+				 equalName( value, L"\\SystemRoot\\" + module.substr( systemRoot.size())))) {
+				return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+			}
+
+			const auto error = verifySystemFile( module) ;	// 実体の保護とWindows署名を固定します
+			return error != 0U ? error : verifyInboxServiceModule( *document, module) ;
+		}
+
+		// この選択は元宣言と現在のSCMの正規位置を同じSerenumだけへ解決する
+		if( serialEnumeratorOnly && identity == msPortsInboxDocument_) {
+			const auto module =
+				windows_ + L"\\System32\\drivers\\serenum.sys" ;	// 実Windowsの正規配備先
+			// 正規ドライバー位置の元DIRIDまたは完全な同等表記だけを認める
+			if( !equalName( value, module) && !equalName( value, L"%12%\\serenum.sys") &&
+			   !equalName( value, L"\\SystemRoot\\System32\\drivers\\serenum.sys") &&
+			   !equalName( value, L"%SystemRoot%\\System32\\drivers\\serenum.sys")) {
+				return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+			}
+
+			const auto error = verifySystemFile( module) ;	// 実配置の保護とWindows署名
+			return error != 0U ? error : verifyInboxServiceModule( *document, module) ;
 		}
 
 		std::wstring path{value} ;	// 元所有scopeへ結ぶ位置です。任意探索へ使いません
@@ -2681,7 +4039,16 @@ NativeError NativeLoader::verifyTypedEffects( const InfDependencyNativeResult &r
 			return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
 		}
 
-		return verifySystemFile( path) ;
+		const auto error = verifySystemFile( path) ;	// 元System32モジュールの署名と保護を確認します
+		// 元標準SYSには、一般のWindows署名に加えて同じ元INFのCATを要求します
+		if( error == 0 &&
+		   (identity == msPortsInboxDocument_ || identity == storNvmeInboxDocument_ ||
+			identity == storAhciInboxDocument_ || identity == winUsbInboxDocument_) &&
+		   equalName( extension, L".sys")) {
+			return verifyInboxServiceModule( *document, path) ;
+		}
+
+		return error ;
 	} ;
 	api.legacyRegistry = [this, &rows]( const SystemInfEffect &effect, bool media) -> NativeError {
 		const auto document =
@@ -2723,7 +4090,8 @@ NativeError NativeLoader::verifyTypedEffects( const InfDependencyNativeResult &r
 											  static_cast<DWORD>( effect.row.values.size()),
 											  diagnostic_) ;
 	} ;
-	api.service = []( std::wstring_view name, SystemServiceEvidence &evidence) -> NativeError {
+	api.service = [wifiBusInboxDocument]( std::wstring_view		name,
+										 SystemServiceEvidence &evidence) -> NativeError {
 #ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
 		// 専用fixtureの不足操作は実SCMへfallbackしません
 		if( testApi) {
@@ -2735,13 +4103,167 @@ NativeError NativeLoader::verifyTypedEffects( const InfDependencyNativeResult &r
 			return active->systemService ? active->systemService( name, evidence) : E_NOTIMPL ;
 		}
 
+		// 同じ署名文書の仮想Wi-Fiバスだけは表示文字列と元登録値も確認します
+		if( wifiBusInboxDocument != 0U && equalName( name, L"vwifibus")) {
+			return readWifiBusServiceEvidence( evidence) ;
+		}
+
 		return readSystemServiceEvidence( name, evidence) ;
 	} ;
-	std::uint32_t				 stage{} ;		// 同原文/操作へ結ぶ検査又は結果の所有値です
-	std::uint32_t				 observed{} ;	// 同原文/操作へ結ぶ検査又は結果の所有値です
-	auto						 error = inspectSystemInfEffects( typed, api, typedEffects_, stage,
-																 observed) ;	// 直後に保持した元API又は検査errorです
-	std::vector<SystemInfEffect> forwarders ;									// PACKAGE自身をSYSTEM許可へ昇格させない原tupleです
+	std::uint32_t stage{} ;		// 同原文/操作へ結ぶ検査又は結果の所有値です
+	std::uint32_t observed{} ;	// 同原文/操作へ結ぶ検査又は結果の所有値です
+	// 同じ元選択節から単一起動の電源作用を確認し、専用検査で全体を確認する
+	if( storageFacts_ && !storageFacts_->auxiliary &&
+	   equalName( storageFacts_->className, L"SCSIAdapter")) {
+		const SystemInfSection	  selected{root,
+										   storageFacts_->selectedInstallSection,
+										   SystemInfContext::DEVICE,
+										   SystemInfContext::DEVICE,
+										   {}} ;			// 同じWindows互換ノードが解決した元基本節
+		std::vector<SystemInfRow> original ;				// 元選択を限定する署名付きの全行
+		const auto read = api.read( selected, original) ;	// 共同上限と元内容を使う同じ読取り
+		// 読取りが不成立の場合は元作用を別経路で許可しない
+		if( read != 0U) {
+			return read ;
+		}
+
+		singleBootStorage = std::ranges::any_of(
+			original, []( const auto &row) { return equalName( row.key, L"AddPowerSetting") ; }) ;
+	}
+
+	// 下位検査の最初の診断を後続へ返す一時値です
+	NativeError error =
+		typed.empty() ? 0 : inspectSystemInfEffects( typed, api, typedEffects_, stage, observed) ;
+	// 同じ原CABから固定したINFとSYSでHDCの全作用を確認する
+	if( error == 0U && collectorHdc_) {
+		constexpr std::wstring_view decoration = L".ntamd64" ;	// 今回検査する元AMD64の導入節の修飾
+		const bool					decorated  = selectedBase_.size() > decoration.size() &&
+							   equalName( std::wstring_view{selectedBase_}.substr(
+											 selectedBase_.size() - decoration.size()),
+										 decoration) ;			// 原AMD64修飾の有無
+		auto selected = collector_->closure.packages.front() ;	// 元CATと全ファイルを固定した基本INF
+		selected.selectedInstallSection = selectedBase_ ;
+		// 元グループで固定した修飾なし節は同じ原名をWindowsの再選択に渡す
+		selected.selectedBasicSection =
+			decorated ? selectedBase_.substr( 0U, selectedBase_.size() - decoration.size())
+					  : selectedBase_ ;
+		SelectedStorageServiceFacts service ;	// 署名済みの原SYSと選択されたサービスの結合
+		error = readSelectedStorageServiceFacts( workspace_, collector_->closure.entries, selected,
+												service) ;
+		// 一意のサービスとSYSを確認してからその作用の元フィールドを読む
+		if( error == 0U) {
+			StorageInfEffects storage ;	// 端末の既存サービスを読み取らずに得る元作用
+			error =
+				inspectHdcInfContentEffects( reached, api, service, context_.build, storage, stage) ;
+			// 全作用を評価した結果だけを終了時の同一性検査へ渡す
+			if( error == 0U) {
+				storageEffects_ = std::move( storage) ;
+			}
+		}
+	}
+
+	// PACKAGE storageは別validatorで元由来/全tuple/全原値のまま評価します
+	if( error == 0U && storageFacts_) {
+		// PACKAGE由来を保つ全storage作用の開始節です
+		std::vector<SystemInfSection> packageSeeds ;
+		// SYSTEM由来をstorage PACKAGEへ偽装しません
+		for( const auto &section : reached) {
+			// 元NativeLoaderだけが保持する由来/署名/全byteのdocumentです
+			const auto document = find( section.document) ;
+			// PACKAGEの到達節はstorage専用validatorへ由来を保って渡します
+			if( document && document->value.origin == InfDependencyOrigin::PACKAGE) {
+				packageSeeds.push_back( section) ;
+			}
+		}
+
+		// 同元用途が端末storage専用であるという非権限分類です
+		StorageInfEffects storage ;
+		// HDCの元作用を評価し、端末の正確な既存サービスを別に観測する
+		if( nativeHdc_) {
+			error = inspectHdcInfContentEffects( packageSeeds, api, *storageFacts_, context_.build,
+												storage, stage) ;
+			// 署名された元INFの作用を確認してから現在サービスを調べる
+			if( error == 0U) {
+				SystemServiceEvidence existing ;	// 現在のサービス構成と保護
+				error = readStorageService( storage.service.name, existing,
+										   &storage.currentHdcBinarySha256) ;
+				// サービスの正式不存在を導入前の観測として保持する
+				if( error ==
+				   static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_SERVICE_DOES_NOT_EXIST))) {
+					storage.services.push_back( {storage.service.name, std::nullopt}) ;
+					error = 0U ;
+				}
+				// 現在サービスがある場合は元ドライバーの作用との対応を確かめる
+				else if( error == 0U) {
+					// 現在SYSの完全パスからファイル名を切り出す区切り
+					const auto separator = existing.binary.rfind( L'\\') ;
+					// 同梱SYSの相対位置からファイル名を切り出す区切り
+					const auto sourceSeparator = storage.service.binarySource.rfind( L'\\') ;
+					// 同梱SYSの展開階層を除いた元ファイル名
+					const auto sourceName = std::wstring_view{storage.service.binarySource}.substr(
+						sourceSeparator == std::wstring::npos ? 0U : sourceSeparator + 1U) ;
+					// 名前以外にカーネル種別、開始方式、起動グループを照合する
+					if( separator == std::wstring::npos || !storage.service.group ||
+					   existing.type != SERVICE_KERNEL_DRIVER ||
+					   existing.start != SERVICE_BOOT_START ||
+					   !equalName( existing.group, *storage.service.group) ||
+					   !equalName( std::wstring_view{existing.binary}.substr( separator + 1U),
+								  sourceName)) {
+						error = HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+					} else {
+						storage.services.push_back( {storage.service.name, std::move( existing)}) ;
+					}
+				}
+
+				stage = error == 0U ? 0U : 14010U ;
+			}
+		}
+		// 元基本節が電源作用を持つ単一起動は、全原作用を同じ署名付き元から検査する
+		else if( singleBootStorage) {
+			error = inspectSingleBootStorageInfContentEffects( packageSeeds, api, *storageFacts_,
+															  storage, stage) ;
+		} else {
+			// 自動起動補助の元内容は、現在のサービスや共有設定を読む前に確認する
+			if( autoStartStorage) {
+				error = inspectAutoStartStorageInfContentEffects( packageSeeds, api, *storageFacts_,
+																 storage, stage) ;
+				// DLLを配置しない従来形では既存の現用・共有先照合を行う
+				if( error == 0U && !eventMessageCopy) {
+					error =
+						verifyStorageAutomaticHost( storage, packageSeeds.front().document, stage) ;
+				}
+			} else {
+				error = inspectStorageInfEffects(
+					packageSeeds, api, *storageFacts_,
+					[this]( std::wstring_view name, SystemServiceEvidence &evidence) {
+						return readStorageService( name, evidence) ;
+					},
+					context_.build, storage, stage) ;
+			}
+		}
+
+		// 起動時の関連サービスを現在のWindowsの順序に結び付ける
+		if( error == 0U &&
+		   (nativeHdc_ || singleBootStorage || (autoStartStorage && !eventMessageCopy) ||
+			equalName( storage.service.className, L"MediumChanger"))) {
+			error = readStorageBootLoadOrder( storage.loadOrder.emplace()) ;
+			stage = error == 0U ? 0U : 14011U ;
+		}
+
+		// 検証済み補助サービスが変更する元の現在状態だけを読み取る
+		if( error == 0U && storage.service.auxiliary && !autoStartStorage) {
+			error =
+				readStorageAuxiliaryHostSnapshot( storage.service, storage.auxiliaryHost.emplace()) ;
+			stage = error == 0U ? 0U : 14017U ;
+		}
+
+		// 全原作用の成立時だけ同期結果へ保持します
+		if( error == 0U) {
+			storageEffects_ = std::move( storage) ;
+		}
+	}
+
+	std::vector<SystemInfEffect> forwarders ;	// PACKAGE自身をSYSTEM許可へ昇格させない原tupleです
 	// 元rootのframework転送宣言だけを同到達SYSTEM作用へ完全一致させます
 	for( const auto &section : reached) {
 		const auto document = find( section.document) ;	// 同原文/操作へ結ぶ検査又は結果の所有値です
@@ -2878,6 +4400,704 @@ NativeError NativeLoader::verifyTypedEffects( const InfDependencyNativeResult &r
 	return error ;
 }
 
+/** @brief 公式USB Bluetoothの選択に必要な同梱文書二つの識別子 */
+struct BluetoothUsbInboxDocuments {
+	/// 元三節の依存先として解決したBluetoothの同梱文書
+	std::uint64_t bluetooth{} ;
+	/// 同梱BluetoothのHW節から解決したPCIの同梱文書
+	std::uint64_t pci{} ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式USB Bluetoothの元三節と正規同梱INF間の全参照を照合する
+ * @param[in] edges 同じ読み取りで解決した全参照辺
+ * @param[in] seeds 認証した元基本節、HW節、Services節をこの順に保持する一覧
+ * @param[in] root 元INFの元観測内識別子。非零
+ * @return 両同梱INFと八参照が一意に一致した場合は両文書の識別子、それ以外は空
+ * @note この照合だけでは参照先の作用や端末の導入資格を確認しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] static std::optional<BluetoothUsbInboxDocuments> matchScopedBluetoothUsbReferences(
+	std::span<const InfDependencyEdge> edges, std::span<const std::wstring> seeds,
+	std::uint64_t root)
+{
+	// 元文書の三対と同梱間の一対だけを照合する
+	if( root == 0U || edges.size() != 8U || seeds.size() != 3U) {
+		return std::nullopt ;
+	}
+
+	const auto resolve = [edges]( std::uint64_t source, std::wstring_view section,
+								 InfDependencyDirective directive, std::wstring_view target) {
+		const auto found = std::ranges::find_if( edges, [&]( const auto &edge) {
+			return edge.sourceIdentity == source && equalName( edge.sourceSection, section) &&
+				   edge.directive == directive && equalName( edge.target, target) &&
+				   edge.state == InfDependencyState::RESOLVED_SYSTEM ;
+		}) ; // 指定した文書と節から実際に解決した一辺
+		return found == edges.end() ? 0U : found->targetIdentity ;
+	} ; // 現観測中だけ同じ全辺を借用して照合する処理
+
+	const auto bluetooth = resolve( root, seeds.front(), InfDependencyDirective::INCLUDE,
+								   L"bth.inf") ;	// 元基本節が参照した同梱Bluetoothの識別子
+	// 元パッケージや同梱文書に解決しなかった名前を採用しない
+	if( bluetooth == 0U || bluetooth == root) {
+		return std::nullopt ;
+	}
+
+	constexpr std::array targets{L"BthUsb.NT", L"BthUsb.NT.HW",
+								 L"BthUsb.NT.Services"} ;	// 用途ごとの同梱節
+	// 元三節ごとに同じ同梱文書と正確な参照先を確認する
+	for( std::size_t index = 0U; index < seeds.size(); ++index) {
+		// 同名INFの別文書や別の作用節を正規参照に読み替えない
+		if( resolve( root, seeds[index], InfDependencyDirective::INCLUDE, L"bth.inf") != bluetooth ||
+		   resolve( root, seeds[index], InfDependencyDirective::NEEDS, targets[index]) !=
+			   bluetooth) {
+			return std::nullopt ;
+		}
+	}
+
+	const auto pci		= resolve( bluetooth, targets[1], InfDependencyDirective::INCLUDE,
+								  L"pci.inf") ;	// 同梱BluetoothのHWが参照した別の同梱INF
+	const bool pciBound = pci != 0U && pci != root && pci != bluetooth &&
+						  resolve( bluetooth, targets[1], InfDependencyDirective::NEEDS,
+								  L"PciD3ColdSupported.HW") == pci ;	// HWだけが参照する同梱PCI文書
+	return pciBound ? std::optional{BluetoothUsbInboxDocuments{bluetooth, pci}} : std::nullopt ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Bluetooth機器設定の検査節に所定行数があり、ACLの付随宣言がないことを確認する
+ * @param[in] inf 同期中だけ借用する元INF
+ * @param[in] section 元参照先の正確な節名
+ * @param[in] expected 完全な元行数
+ * @return 正常に読み取った元節が期待に合う場合true
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] static bool bluetoothSectionHasExpectedRows( HINF inf, const wchar_t *section,
+														  LONG expected)
+{
+	const auto security = std::wstring{section} + L".Security" ;	// 同じ元節のACL宣言位置
+	SetLastError( ERROR_SUCCESS) ;
+	const auto securityRows = SetupGetLineCountW( inf, security.c_str()) ;	// ACLの付随宣言の有無
+	const auto error		= GetLastError() ;								// 一般の読み取り失敗と節不在を分ける元診断
+	return securityRows < 0L && (error == ERROR_SUCCESS || error == ERROR_SECTION_NOT_FOUND) &&
+		   SetupGetLineCountW( inf, section) == expected ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 機器のHW節に一値の元参照が所定の順序で存在することを確認する
+ * @param[in] inf 同じ署名済み元INF
+ * @param[in] section 同じ選択から到達したHW節
+ * @param[in] rows 各行のディレクティブと参照先の組を元順で保持する有限一覧
+ * @return 全行と元参照が一致した場合true
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] static bool verifyBluetoothHwDirectives(
+	HINF inf, const wchar_t *section,
+	std::span<const std::pair<const wchar_t *, const wchar_t *>> rows)
+{
+	// 追加の設定や不明な権限操作を既知の元参照から除外しない
+	if( !bluetoothSectionHasExpectedRows( inf, section, static_cast<LONG>( rows.size()))) {
+		return false ;
+	}
+
+	// 元の全行を読み、作用の種類と参照先を同じ順序で照合する
+	for( DWORD index = 0U; index < rows.size(); ++index) {
+		INFCONTEXT	 line{} ;	// 同じ元節の一行
+		std::wstring value ;	// 元キーと展開済みの参照先
+		// 別の参照や複数フィールドを一つの期待値に縮約しない
+		if( !SetupGetLineByIndexW( inf, section, index, &line) || SetupGetFieldCount( &line) != 1U ||
+		   field( line, 0U, value) != 0U || !equalName( value, rows[index].first) ||
+		   field( line, 1U, value) != 0U || !equalName( value, rows[index].second)) {
+			return false ;
+		}
+	}
+
+	return true ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 機器キー相対の値操作から名前、相対位置、型・操作フラグを厳密に確認する
+ * @param[in,out] line 正確な元節と行から取得したSetupAPIコンテキスト
+ * @param[in] fields 元行の全フィールド数
+ * @param[in] subkey 機器キー相対の元位置。直下を要求する場合は空
+ * @param[in] name 元の値名
+ * @param[in] flags AddReg又はDelRegの元フラグ
+ * @return 全フィールド構造と指定値が一致した場合true
+ * @note 値データとAddReg・DelRegの種類は参照元を保持する呼出し側が検査する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] static bool verifyBluetoothDeviceValueHeader( INFCONTEXT &line, DWORD fields,
+														   std::wstring_view subkey,
+														   std::wstring_view name, int flags)
+{
+	std::wstring value ;			// SetupAPIから順に読む元のプリアンブル
+	int			 observedFlags{} ;	// この行に記載された元の型と操作
+	return SetupGetFieldCount( &line) == fields &&
+		   field( line, 0U, value) == HRESULT_FROM_WIN32( ERROR_INVALID_PARAMETER) &&
+		   field( line, 1U, value) == 0U && equalName( value, L"HKR") &&
+		   field( line, 2U, value) == 0U &&
+		   (subkey.empty() ? value.empty() : equalName( value, subkey)) &&
+		   field( line, 3U, value) == 0U && equalName( value, name) && field( line, 4U, value) == 0U &&
+		   !value.empty() && SetupGetIntField( &line, 4U, &observedFlags) && observedFlags == flags ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Bluetooth機器キーの追加と削除、同梱PCIの電源設定の元宣言を確認する
+ * @param[in] bluetooth 公式対象から参照して署名と由来を確認済みの同梱Bluetooth INF
+ * @param[in] pci 同じHW参照から解決し署名と由来を確認済みの同梱PCI INF
+ * @return 両文書の機器相対作用が全件一致して0、読取・構造・型の不一致時はHRESULT
+ * @note 元宣言の順序と型を検査する。OS処理順や対象機器での結果を推定しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] static NativeError verifyBluetoothUsbHardwareDeclarations( HINF bluetooth, HINF pci)
+{
+	static constexpr wchar_t ADD[]	  = L"BthPort.NT.HW.AddReg" ;	// 同梱Bluetoothの機器設定追加節
+	static constexpr wchar_t REMOVE[] = L"BthPort.NT.HW.DelReg" ;	// 同じ選択の旧機器設定削除節
+	static constexpr wchar_t PCI_REGISTRY[] =
+		L"PciD3ColdSupported.RegHW" ;												// 同梱PCIの機器電源設定節
+	constexpr NativeError UNSUPPORTED = HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;	// 未確認の機器作用
+	constexpr std::array  BLUETOOTH_REFS{
+		 std::pair{L"AddReg", ADD}, std::pair{L"DelReg", REMOVE}, std::pair{L"Include", L"pci.inf"},
+		 std::pair{L"Needs", L"PciD3ColdSupported.HW"}} ;				// HWの全参照
+	constexpr std::array PCI_REFS{std::pair{L"AddReg", PCI_REGISTRY}} ;	// PCI電源節の全参照
+	// 操作を宣言した側の文書と選択HW節を先に結び、同名の別節を参照しない
+	if( !verifyBluetoothHwDirectives( bluetooth, L"BthUsb.NT.HW", BLUETOOTH_REFS) ||
+	   !verifyBluetoothHwDirectives( pci, L"PciD3ColdSupported.HW", PCI_REFS) ||
+	   !bluetoothSectionHasExpectedRows( bluetooth, ADD, 3L) ||
+	   !bluetoothSectionHasExpectedRows( bluetooth, REMOVE, 4L) ||
+	   !bluetoothSectionHasExpectedRows( pci, PCI_REGISTRY, 1L)) {
+		return UNSUPPORTED ;
+	}
+
+	constexpr std::array VALUE_NAMES{L"Scans Before Out of Range", L"SCO Max Channels",
+									 L"Store Link Key COD Masks",
+									 L"SCO Support Level"} ;	// 機器相対の値名
+	// 削除の全行を独立に読み、名前のないキー削除や他の削除フラグを認めない
+	for( DWORD index = 0U; index < VALUE_NAMES.size(); ++index) {
+		INFCONTEXT row{} ;	// この削除だけの元行
+		// 値の追加行や別のサブキーを同じ削除作用へ読み替えない
+		if( !SetupGetLineByIndexW( bluetooth, REMOVE, index, &row) ||
+		   !verifyBluetoothDeviceValueHeader( row, 4U, {}, VALUE_NAMES[index], 0)) {
+			return UNSUPPORTED ;
+		}
+	}
+
+	constexpr std::array DWORD_FLAGS{FLG_ADDREG_TYPE_DWORD | FLG_ADDREG_NOCLOBBER,
+									 FLG_ADDREG_TYPE_DWORD} ;	// 元のDWORDフラグ
+	constexpr std::array DWORD_VALUES{8, 2} ;					// それぞれの元DWORD値
+	// 値の追加は同名を削除する宣言とは独立に、型・上書き方針とデータを確認する
+	for( DWORD index = 0U; index < DWORD_VALUES.size(); ++index) {
+		INFCONTEXT row{} ;		// このDWORDの元追加行
+		int		   value{} ;	// SetupAPIが展開した数値
+		// 型やNOCLOBBERの違いを同じ値として受理しない
+		if( !SetupGetLineByIndexW( bluetooth, ADD, index, &row) ||
+		   !verifyBluetoothDeviceValueHeader( row, 5U, {}, VALUE_NAMES[index], DWORD_FLAGS[index]) ||
+		   !SetupGetIntField( &row, 5U, &value) || value != DWORD_VALUES[index]) {
+			return UNSUPPORTED ;
+		}
+	}
+
+	constexpr std::array<BYTE, 16U>	   COD_MASKS{0x00U, 0x00U, 0x1fU, 0x43U, 0x00U, 0x00U,
+												 0x05U, 0x40U, 0x00U, 0x00U, 0x1fU, 0x83U,
+												 0x00U, 0x00U, 0x05U, 0x80U} ;	// 元REG_BINARY
+	std::array<BYTE, COD_MASKS.size()> binary{} ;								// 元行から読んだ実バイト
+	INFCONTEXT						   maskRow{} ;								// 機器のマスク値の元追加行
+	DWORD							   required{} ;								// SetupAPIが返す実バイト数
+	// 全16バイトを正しいREG_BINARY形式で一致させる
+	if( !SetupGetLineByIndexW( bluetooth, ADD, 2U, &maskRow) ||
+	   !verifyBluetoothDeviceValueHeader( maskRow, 4U + static_cast<DWORD>( COD_MASKS.size()), {},
+										 VALUE_NAMES[2], FLG_ADDREG_TYPE_BINARY) ||
+	   !SetupGetBinaryField( &maskRow, 5U, binary.data(), static_cast<DWORD>( binary.size()),
+							&required) ||
+	   required != binary.size() || binary != COD_MASKS) {
+		return UNSUPPORTED ;
+	}
+
+	// 空の元フィールドを明示的なゼロバイトへ補完しない
+	for( DWORD index = 5U; index < 5U + COD_MASKS.size(); ++index) {
+		std::wstring octet ;	// 元REG_BINARYの一つの明示フィールド
+		// データ長とは独立に各元フィールドが指定されていることを要求する
+		if( field( maskRow, index, octet) != 0U || octet.empty()) {
+			return UNSUPPORTED ;
+		}
+	}
+
+	INFCONTEXT pciRow{} ;	// 署名済みPCI文書内の元電源設定
+	int		   enabled{} ;	// 固定の電源設定値
+	// PCI由来の固定位置、型、設定値を一組として保持する
+	return SetupGetLineByIndexW( pci, PCI_REGISTRY, 0U, &pciRow) &&
+				   verifyBluetoothDeviceValueHeader( pciRow, 5U,
+													L"e5b3b5ac-9725-4f78-963f-03dfb1d828c7",
+													L"D3ColdSupported", FLG_ADDREG_TYPE_DWORD) &&
+				   SetupGetIntField( &pciRow, 5U, &enabled) && enabled == 1
+			   ? 0U
+			   : UNSUPPORTED ;
+}
+
+// BthUsbの基本節が順番に参照する二つの保護コピーリスト
+constexpr std::array BLUETOOTH_USB_COPY_LISTS{L"BthUsb.NT.Copy", L"BthPort.NT.CopyFiles"} ;
+// 各コピーリストが所有する同名の元ファイルと宛先ファイル
+constexpr std::array BLUETOOTH_USB_COPY_FILES{L"bthusb.sys", L"bthport.sys"} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同梱Bluetoothの元コピー宣言とSetupAPIが展開した配備先を確認する
+ * @param[in] inf 同期中だけ借用する同梱INFの読み取り用ハンドル
+ * @param[in] driversDirectory 現在のWindowsから確定した標準driversの絶対位置
+ * @return 二つのリストが標準driversへ期待する保護コピーを行う場合0、構造・読取・位置の失敗はHRESULT
+ * @note ファイルの信頼と元CATへの所属は呼出し側で確認する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] static NativeError verifyBluetoothUsbCopyDeclaration(
+	HINF inf, std::wstring_view driversDirectory)
+{
+	constexpr wchar_t	  INSTALL[]		 = L"BthUsb.NT" ;		// 選択内でコピーを所有する元基本節
+	constexpr wchar_t	  DESTINATIONS[] = L"DestinationDirs" ;	// 同梱INFのリスト別の明示宛先
+	constexpr NativeError UNSUPPORTED =
+		// 元のコピー形式との不一致
+		HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	INFCONTEXT	 copy{} ;		// 基本節の唯一のCopyFiles
+	INFCONTEXT	 registry{} ;	// 同じ基本節が参照する登録一件
+	std::wstring value ;		// SetupAPIが展開した現在の値
+	// コピー以外のファイル操作や追加のコピーリストをこの元選択に含めない
+	if( SetupGetLineCountW( inf, INSTALL) != 2L ||
+	   !SetupFindFirstLineW( inf, INSTALL, L"CopyFiles", &copy) ||
+	   SetupGetFieldCount( &copy) != BLUETOOTH_USB_COPY_LISTS.size() ||
+	   !SetupFindFirstLineW( inf, INSTALL, L"AddReg", &registry) ||
+	   SetupGetFieldCount( &registry) != 1U || field( registry, 1U, value) != 0U ||
+	   !equalName( value, L"Fsquirt.NT.AddReg")) {
+		return UNSUPPORTED ;
+	}
+
+	// 参照された両リストについて元順序、コピー行と宛先を確認する
+	for( DWORD index = 0U; index < BLUETOOTH_USB_COPY_LISTS.size(); ++index) {
+		const auto *list = BLUETOOTH_USB_COPY_LISTS[index] ;	// 元基本節と対応するコピーリスト
+		INFCONTEXT	row{} ;										// リストの唯一の元コピー行
+		int			flags{} ;									// 元コピー行の完全な保護フラグ
+		// 同じ元ファイル名と保護フラグで、改名・一時名の指定がないことを要求する
+		if( field( copy, index + 1U, value) != 0U || !equalName( value, list) ||
+		   SetupGetLineCountW( inf, list) != 1L || !SetupGetLineByIndexW( inf, list, 0U, &row) ||
+		   SetupGetFieldCount( &row) != 4U || field( row, 1U, value) != 0U ||
+		   !equalName( value, BLUETOOTH_USB_COPY_FILES[index]) || field( row, 2U, value) != 0U ||
+		   !value.empty() || field( row, 3U, value) != 0U || !value.empty() ||
+		   !SetupGetIntField( &row, 4U, &flags) || flags != COPYFLG_PROTECTED_WINDOWS_DRIVER_FILE) {
+			return UNSUPPORTED ;
+		}
+
+		const auto security = std::wstring{list} + L".Security" ;	// 同リストに付随し得る保護設定
+		SetLastError( ERROR_SUCCESS) ;
+		const auto securityCount = SetupGetLineCountW( inf, security.c_str()) ;	// 付随節の存在観測
+		const auto securityError = GetLastError() ;								// 不在と読取失敗を分ける元診断
+		// コピーから別のACLを適用する指定があれば、この形式では成立しない
+		if( securityCount >= 0L ||
+		   (securityError != ERROR_SUCCESS && securityError != ERROR_SECTION_NOT_FOUND)) {
+			return securityCount >= 0L ? UNSUPPORTED : winError( securityError) ;
+		}
+
+		INFCONTEXT destination{} ;	// 同リストだけの明示宛先
+		INFCONTEXT duplicate{} ;	// 同じリストの二つ目の宛先を検出する
+		int		   dirId{} ;		// SetupAPIが展開した単独のDIRID
+		// サブディレクトリや既定値への置換を許容せず、12を一意な明示値に要求する
+		if( !SetupFindFirstLineW( inf, DESTINATIONS, list, &destination) ||
+		   SetupGetFieldCount( &destination) != 1U || !SetupGetIntField( &destination, 1U, &dirId) ||
+		   dirId != 12 || SetupFindNextMatchLineW( &destination, list, &duplicate)) {
+			return UNSUPPORTED ;
+		}
+
+		std::array<wchar_t, MAX_PATH> path{} ;		// 実SetupAPIから得た現Windowsの配備ディレクトリ
+		DWORD						  required{} ;	// NULを含むSetupAPI応答の必要文字数
+		// 実際に展開される位置を照合し、DIRIDの数値だけで配備先を推測しない
+		if( !SetupGetTargetPathW( inf, nullptr, list, path.data(), static_cast<DWORD>( path.size()),
+								&required)) {
+			return winError( GetLastError()) ;
+		}
+
+		// 過長や別の場所に展開される同名コピーを拒否する
+		if( required == 0U || required > path.size() || path[required - 1U] != L'\0' ||
+		   !equalName( std::wstring_view{path.data(), required - 1U}, driversDirectory)) {
+			return UNSUPPORTED ;
+		}
+	}
+
+	return 0U ;
+}
+
+/** @brief 署名済みBluetooth同梱文書内の一つの共有作用節 */
+struct BluetoothSharedSectionRule {
+	/// 元参照が指定した正確な節名
+	const wchar_t	 *name ;
+	/// 全元行数
+	LONG			  rows ;
+	/// SetupAPIが返した全行のキー・欄数・各フィールドを長さ付きUTF-16LEにしたハッシュ
+	std::wstring_view fieldsSha256 ;
+	/// サービス実体を宣言する節だけに指定する既知のSYS名
+	std::wstring_view serviceModule{} ;
+	/// 同じ文書で別に検査対象とした .Security 節を持つか
+	bool			  hasSecurity{} ;
+} ;
+
+// 既知Windowsで確認したBTHUSB・BTHPORT、イベント、ACL、COMの到達節。非選択節の更新は対象外
+constexpr BluetoothSharedSectionRule BLUETOOTH_SHARED_SECTIONS[]{
+	{L"BthUsb.NT.Services", 2L,
+	 L"4ae5df21ecede11d1b641272b0dc2df5bb9c37f448e69b747536553069d1a3dd"},
+	{L"BthUsb_Service_Inst", 7L,
+	 L"df55ac4fbea60c6b72935ac42be4c891ca52d94990d81cd1a7051b91665652b1", L"bthusb.sys"},
+	{L"BthUsb_Service_Inst.AddReg", 1L,
+	 L"37e3d8ad3e819b9da767c388821e55813dce7118f6d5ab1285c311cb76e77b65"},
+	{L"BthUsb_EventLog_Inst", 1L,
+	 L"eeeb535001cadb1dfb602b07eef4ac75a38c4adeacc3c7fb8940133d0cbeedf3"},
+	{L"BthUsb_EventLog_Inst.AddReg", 2L,
+	 L"0f3c6a989c07f642a1334fdbab031767c30a03ad047dfed26d832127f2d4e1fa"},
+	{L"BthUsb_ETW.AddReg", 20L,
+	 L"28bf5ccc287b7fcebcd4edf5d65ae6b3c784036789924d9685357cb089069665"},
+	{L"BthPort_Service_Inst", 7L,
+	 L"ace926907a59d3cec3cd4694abc0182ff08dc97128ffddd4a393a1adaa1cb7de", L"bthport.sys"},
+	{L"BthPort_Service_Inst.AddReg", 98L,
+	 L"fcb1cfa851f6ff742406e232e31ac4f1669f623aae87e38412c961ea0c647e31"},
+	{L"BthPort_Service_Inst.Setup.AddReg",
+	 3L,
+	 L"849b92757dc326b8126fc01668a8fb7ef2303914e6b269444b755a527995530b",
+	 {},
+	 true},
+	{L"BthPort_Service_Inst.Setup.AddReg.Security", 1L,
+	 L"c674c73b5f414625f39e7c11925f9b7295133775f07090aa71f2cc605156901f"},
+	{L"BthPort_Service_Inst.System.AddReg",
+	 1L,
+	 L"fbf23ddf64e1c4da21e036108033bbe0cf5268a5365d1dc461054a2c6e1f0bbb",
+	 {},
+	 true},
+	{L"BthPort_Service_Inst.System.AddReg.Security", 1L,
+	 L"9e7a32db369d8a9fdc73c0ab2047e2a2dce5be3fb650ade7d5ec81fda26e355c"},
+	{L"BthPort_EventLog_Inst", 1L,
+	 L"b6a7b098fec70c09c823a8b4b25a3fc0b814bf4637d44b32f63164989bf54c9c"},
+	{L"BthPort_EventLog_Inst.AddReg", 2L,
+	 L"6a77f51f5eff4a4560c0061fc63ca8a60befe02c493313792ec30eb1f016a582"},
+	{L"BthPort_ETW.AddReg", 32L,
+	 L"08d355963fd8297155029b432620cd7c5d41e4823aee4d98ab342c57633868e1"},
+	{L"Fsquirt.NT.AddReg", 3L, L"38d3a401da67ce7b562ade70faf8d1d801879e4b1c88c8f5239bc88bf70aec83"},
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元サービス節の表示名と現在OSの展開に限って、共有作用の比較形式へ写す
+ * @param[in] key 元行のキー
+ * @param[in] count 元行のフィールド数
+ * @param[in] module 元サービスの固定SYS名。別の作用節では空
+ * @param[in] driversDirectory 正規のWindows drivers絶対ディレクトリ
+ * @param[in,out] value SetupAPIが返した元フィールド。比較形式へ変換する場合だけ更新する
+ * @return すべての比較前提を確認できた場合true
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] static bool normalizeBluetoothSharedField( const std::wstring &key, DWORD count,
+														std::wstring_view	module,
+														const std::wstring &driversDirectory,
+														std::wstring	   &value)
+{
+	// サービス節以外では空欄を含むすべての元フィールドをそのまま比較する
+	if( module.empty() || key.empty()) {
+		return true ;
+	}
+
+	// OS言語で変化する単独の表示名を確認し、他のサービス設定と区別する
+	if( equalName( key, L"DisplayName")) {
+		// 表示文字列だけを許容し、間接指定や制御文字は比較値に写さない
+		if( count != 1U || value.empty() || value.front() == L'@' ||
+		   std::ranges::any_of( value, []( wchar_t ch) { return ch < L' ' || ch == 0x7f ; })) {
+			return false ;
+		}
+
+		value = L"<display>" ;
+	}
+
+	// SetupAPIが展開した実体は確認済みWindows driversの完全パスに結ぶ
+	if( equalName( key, L"ServiceBinary")) {
+		// 別パスや引数付きのサービス実体を同じ役割に変換しない
+		if( count != 1U || !equalName( value, driversDirectory + L"\\" + std::wstring{module})) {
+			return false ;
+		}
+
+		value = L"<drivers>\\" + std::wstring{module} ;
+	}
+
+	return true ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 共有作用の元節から全行・全フィールドを固定し、確認した署名付き文書の宣言と照合する
+ * @param[in] inf 同期中に借用する署名と同梱由来を確認済みの元INF
+ * @param[in] rule 対象となる一つの共有登録と全行の比較条件
+ * @param[in] driversDirectory 正規のWindows drivers絶対ディレクトリ
+ * @return 全フィールドが所定の節・順序・値で一致して0、読取失敗、追加登録、内容差はHRESULT
+ * @note ここでは元宣言を照合する。共有キーを開かず、変更しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] static NativeError verifyBluetoothSharedSection(
+	HINF inf, const BluetoothSharedSectionRule &rule, const std::wstring &driversDirectory)
+{
+	constexpr NativeError UNSUPPORTED = HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;	// 未確認の共有宣言
+	// 照合対象外のACLが付随した節や、欠落・追加された行を拒否する
+	if( !(rule.hasSecurity ? SetupGetLineCountW( inf, rule.name) == rule.rows
+						  : bluetoothSectionHasExpectedRows( inf, rule.name, rule.rows))) {
+		return UNSUPPORTED ;
+	}
+
+	static_assert( sizeof( wchar_t) == 2U) ;
+	std::wstring material ;	// 各フィールドを長さ付きUTF-16LEとして順に保持した比較入力
+	const auto	 append = [&material]( std::wstring_view value) {
+		  material.push_back( static_cast<wchar_t>( value.size())) ;
+		  material.append( value) ;
+	} ; // 有限なSetupAPI読取りの呼出し中だけ比較入力を借用する
+	// 元行を順番に読み、キー・欄数・すべての元フィールドを結ぶ
+	for( LONG index = 0; index < rule.rows; ++index) {
+		INFCONTEXT row{} ;	// 現在の元行
+		// 欠けた元行を空の設定とみなさない
+		if( !SetupGetLineByIndexW( inf, rule.name, static_cast<DWORD>( index), &row)) {
+			return winError( GetLastError()) ;
+		}
+
+		const auto count = SetupGetFieldCount( &row) ;	// 省略欄を含む元欄数
+		// 元欄数を有界の比較入力に限定する
+		if( count == 0U || count > 64U) {
+			return UNSUPPORTED ;
+		}
+
+		std::wstring key ;							// 無名の元データ行だけ空
+		auto		 error = field( row, 0U, key) ;	// 元ディレクティブ名の有無
+		// 無名データ行と不正な名前付き行、別の読取り異常を区別する
+		if( error == 0U ? key.empty() : error != HRESULT_FROM_WIN32( ERROR_INVALID_PARAMETER)) {
+			return error != 0U ? error : UNSUPPORTED ;
+		}
+
+		append( key) ;
+		material.push_back( static_cast<wchar_t>( count)) ;
+		// 既知サービスの二つの表示・パス欄を除き、空欄を含む全元値を保持する
+		for( DWORD position = 1U; position <= count; ++position) {
+			std::wstring value ;	// 現在の元フィールド
+			error = field( row, position, value) ;
+			// 切り詰めや未知のパス・表示指定を元値として証明しない
+			if( error != 0U || !normalizeBluetoothSharedField( key, count, rule.serviceModule,
+															 driversDirectory, value)) {
+				return error != 0U ? error : UNSUPPORTED ;
+			}
+
+			append( value) ;
+		}
+	}
+
+	const auto	source = std::as_bytes( std::span{material}) ;	// Windows上のUTF-16LEコード単位
+	std::string bytes( source.size(), '\0') ;					// 共通SHA-256入口が同期借用する同じバイト列
+	std::memcpy( bytes.data(), source.data(), source.size()) ;
+	std::wstring digest ;	// 元列挙の順序と全値に対するSHA-256
+	// 元文書のハッシュを計算した際の診断値。成功まで出力を照合しない
+	const auto	 error = computeBytesSha256( bytes, digest) ;
+	// 既知の作用と異なる元節を個数だけで合格させない
+	return error != 0U ? error : (digest == rule.fieldsSha256 ? 0U : UNSUPPORTED) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択した同梱Bluetoothが持つ共有設定の全到達先を検査する
+ * @param[in] inf 同期中に借用する固定済み同梱Bluetooth INF
+ * @param[in] driversDirectory Windowsが展開する正規driversディレクトリ
+ * @return 既知の全作用と一致して0、別の付随節または元読取・値の不一致はHRESULT
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] static NativeError verifyBluetoothSharedDeclarations(
+	HINF inf, const std::wstring &driversDirectory)
+{
+	constexpr std::wstring_view PREFIX = L"BthUsb.NT." ;	// 公式選択から到達する同梱の実節の接頭辞
+	// 新しい付随作用の混入を検出し、上限に達した場合は遅れて現れる宣言を見落とさない
+	for( UINT index = 0U; index < 4096U; ++index) {
+		std::array<wchar_t, MAX_PATH> name{} ;	// 現在列挙した完全な節名
+		// 正規の列挙終端まで確認する
+		if( !SetupEnumInfSectionsW( inf, index, name.data(), static_cast<UINT>( name.size()),
+								  nullptr)) {
+			const auto error = GetLastError() ;	// 元の列挙診断
+			// 上限、読み取り不能などを正常終端にしない
+			if( error != ERROR_NO_MORE_ITEMS) {
+				return winError( error) ;
+			}
+
+			// 列挙が正常に終わった元文書の全共有節を同じ署名・元バイトに結ぶ
+			for( const auto &rule : BLUETOOTH_SHARED_SECTIONS) {
+				const auto result =
+					// 元節単位の結果
+					verifyBluetoothSharedSection( inf, rule, driversDirectory) ;
+				// 一つの不明な作用も他の成功で補わない
+				if( result != 0U) {
+					return result ;
+				}
+			}
+
+			return 0U ;
+		}
+
+		const std::wstring_view section{name.data()} ;	// より長い別名を元節に短縮しない
+		// 既知のコピー・HW・Services以外へ選択の作用を広げない
+		if( equalName( section.substr( 0U, PREFIX.size()), PREFIX) &&
+		   !equalName( section, L"BthUsb.NT.Copy") && !equalName( section, L"BthUsb.NT.HW") &&
+		   !equalName( section, L"BthUsb.NT.Services")) {
+			return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+		}
+	}
+
+	return HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief USB Bluetoothの機器設定、共有登録、保護ファイルを同梱文書と現在のWindowsに結ぶ
+ * @param[in] result 同期中に解決した同じ依存グラフ
+ * @param[in] seeds 公式USB選択の元基本節、HW節、Services節をこの順に保持する一覧
+ * @return 機器と共有設定の元宣言、資源の署名・バイトが一致して0、失敗時は元HRESULT
+ * @note 読取り専用。機器および共有レジストリの現在値と導入資格は確定しない
+ */
+//------------------------------------------------------------------------------
+NativeError NativeLoader::verifyBluetoothUsbActions( const InfDependencyNativeResult &result,
+													std::span<const std::wstring>	 seeds)
+{
+	// 署名と参照の元証拠が欠けた場合はファイル名から同梱元を補わない
+	if( !result.dependency.plan.referencesResolved || !result.dependency.plan.rootEvidenceVerified) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	const auto documents = matchScopedBluetoothUsbReferences( result.dependency.edges, seeds,
+															 // 全辺から特定した同梱文書
+															 documents_.front().value.identity) ;
+	// 元参照の所有文書を一意に結べた場合だけ同梱の作用を読む
+	if( !documents) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	const auto findInbox = [this]( std::uint64_t identity, const wchar_t *leaf) -> NativeDocument * {
+		auto *document = find( identity) ;	// 同じrunでバイトを固定した依存先
+		// 他の由来・署名・位置の文書を同梱INFとして扱わない
+		if( !document || document->value.origin != InfDependencyOrigin::SYSTEM ||
+		   document->value.signature != InfDependencyEvidence::VERIFIED ||
+		   document->value.provenance != InfDependencyEvidence::VERIFIED ||
+		   document->signerScore != SIGNERSCORE_INBOX || document->storeIndex == MAX_FILES ||
+		   document->catalogIndex == MAX_FILES ||
+		   !equalName( files_[document->fileIndex]->path, windows_ + L"\\INF\\" + leaf)) {
+			return nullptr ;
+		}
+
+		return document ;
+	} ; // この同期だけ現在の固定文書集合を借用する
+	const auto *document =
+		// Bluetoothの全作用を所有するINF
+		findInbox( documents->bluetooth, L"bth.inf") ;
+	const auto *pci = findInbox( documents->pci, L"pci.inf") ;	// PCIの電源設定を所有するINF
+	// 片方の正規性から他方の確認を省略しない
+	if( !document || !pci) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	const InfHandle inf{SetupOpenInfFileW( files_[document->fileIndex]->path.c_str(), nullptr,
+										  INF_STYLE_WIN4 | INF_STYLE_CACHE_IGNORE,
+										  nullptr)} ;	// 固定済みの同梱INF
+	// 元文書を読み取れない場合は現在のモジュールの存在だけで成功にしない
+	if( inf.get() == INVALID_HANDLE_VALUE) {
+		return winError( GetLastError()) ;
+	}
+
+	const InfHandle pciInf{SetupOpenInfFileW( files_[pci->fileIndex]->path.c_str(), nullptr,
+											 INF_STYLE_WIN4 | INF_STYLE_CACHE_IGNORE,
+											 nullptr)} ;	// 固定済みPCI INF
+	// 同梱Bluetoothの身元とは別にPCIの元読取り診断を保持する
+	if( pciInf.get() == INVALID_HANDLE_VALUE) {
+		return winError( GetLastError()) ;
+	}
+
+	auto error =
+		// 両文書の機器設定
+		verifyBluetoothUsbHardwareDeclarations( inf.get(), pciInf.get()) ;
+	// 設定の別作用や型の差があればコピー検査の成功を使わない
+	if( error != 0U) {
+		return error ;
+	}
+
+	const auto driversDirectory = windows_ + L"\\System32\\drivers" ;	// 同OSの標準の配備先
+	error						= verifyBluetoothSharedDeclarations( inf.get(), driversDirectory) ;
+	// 共有登録が不明な場合はファイルだけで作用全体を認定しない
+	if( error != 0U) {
+		return error ;
+	}
+
+	error =
+		// 元宣言と実宛先の診断
+		verifyBluetoothUsbCopyDeclaration( inf.get(), driversDirectory) ;
+	// 元コピーに不一致があれば署名済みの同名バイトがあっても失敗する
+	if( error != 0U) {
+		return error ;
+	}
+
+	// 二つの実配置をWindows署名・保護と同じDriver Store原本へ結ぶ
+	for( const auto *name : BLUETOOTH_USB_COPY_FILES) {
+		const auto path = driversDirectory + L"\\" + name ;	// 直前に確認した同名ファイルの配備先
+		error			= verifySystemFile( path) ;
+		// 先行するWindows署名と保護の失敗を元CATが成功しても上書きしない
+		if( error == 0U) {
+			error = verifyInboxServiceModule( *document, path) ;
+		}
+
+		// 片方の検査成功で他方の不足を補わない
+		if( error != 0U) {
+			return error ;
+		}
+	}
+
+	// COMとイベントが指定したWindowsの固定資源を非実行で保護・署名確認する
+	for( const auto *name : {L"fsquirt.exe", L"IoLogMsg.dll"}) {
+		error = verifySystemFile( windows_ + L"\\System32\\" + name) ;
+		// 元の資源と実バイトの検査に失敗した場合は観測を保留する
+		if( error != 0U) {
+			return error ;
+		}
+	}
+
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 混在媒体の元基本節とServices節が同じ同梱文書だけを参照することを確認する
+ * @param[in] edges 同じ署名確認済みの元選択に結ぶ全参照
+ * @param[in] seeds 実DDInstall、HW、Servicesの元選択順
+ * @param[in] root 元パッケージ文書の識別子。非零
+ * @param[in] inbox 認証済みmsports.infの識別子。非零
+ * @return 四つの参照全てが指定の元節と同梱先に一意に一致する場合true
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] static bool matchesSerialEnumeratorReferences(
+	std::span<const InfDependencyEdge> edges, std::span<const std::wstring> seeds,
+	std::uint64_t root, std::uint64_t inbox)
+{
+	// 自前HW節から追加の同梱作用が来た場合も全参照数で拒否する
+	if( edges.size() != 4U || seeds.size() != 3U || root == 0U || inbox == 0U || root == inbox) {
+		return false ;
+	}
+
+	const auto one = [edges, root, inbox]( std::wstring_view		 section,
+										  InfDependencyDirective directive,
+										  std::wstring_view		 target) {
+		return std::ranges::count_if( edges, [&]( const auto &edge) {
+				   return edge.sourceIdentity == root && edge.targetIdentity == inbox &&
+						  edge.state == InfDependencyState::RESOLVED_SYSTEM &&
+						  edge.directive == directive && equalName( edge.sourceSection, section) &&
+						  equalName( edge.target, target) ;
+			   }) == 1 ;
+	} ; // 同じ同期中だけ固定元の参照一覧と識別子を借用する
+	return one( seeds[0], InfDependencyDirective::INCLUDE, L"msports.inf") &&
+		   one( seeds[0], InfDependencyDirective::NEEDS, L"SerialEnumerator.NT") &&
+		   one( seeds[2], InfDependencyDirective::INCLUDE, L"msports.inf") &&
+		   one( seeds[2], InfDependencyDirective::NEEDS, L"SerialEnumerator.NT.Services") ;
+}
+
 //------------------------------------------------------------------------------
 /**
  * @brief 正確なNeeds先の全作用を検証済み原documentと実copyへ結びます
@@ -2889,7 +5109,28 @@ NativeError NativeLoader::verifyTypedEffects( const InfDependencyNativeResult &r
 NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&result,
 											 const std::span<const std::wstring> seeds)
 {
-	std::size_t registryRows{} ;	// 全Needsの元累積予算です
+	const bool scopedWifiBus =
+		collector_ && collector_->scopedWifiBus ;	// 公式Netの元依存に限る検査です
+	const bool serialEnumeratorOnly =
+		collector_ && collector_->closure.packages.front()
+						  .collectorSerialMedia.has_value() ;	// 自前媒体を保持する収集選択
+	std::size_t			 registryRows{} ;						// 全Needsの元累積予算です
+	constexpr std::array SD_BUS_COPY_NAMES{
+		std::wstring_view{L"sdbus.sys"},
+		std::wstring_view{L"dumpsd.sys"}} ;	// この収集型で選択されるWindows提供のSYSです
+	std::array<bool, SD_BUS_COPY_NAMES.size()>
+		 sdBusCopies{} ;			// 原媒体と配備先を同CATに結んだ位置です
+	bool serialCopy{} ;				// 標準Portsの元選択が実際にコピーするSYSです
+	bool portsPage{} ;				// 元基本節の単独AddRegが実System32 exportと一致したことを示します
+	bool nvmeCopy{} ;				// NVMeの保護コピーが原CATと同一バイトに結び付いたかを記録します
+	bool nvmeEmptyCopy{} ;			// 元基本節の空CopyFilesを再読したかを記録します
+	bool nvmeEmptyRemove{} ;		// 元基本節の空DelFilesを再読したかを記録します
+	bool ahciCopy{} ;				// AHCIの同CATに結ぶ保護コピーの成立を保持する
+	bool ahciScore{} ;				// AHCIの元基本節から順位を再読した場合に立てる
+	bool winUsbCopy{} ;				// 同梱WinUSBの元SYSと配備先を同じCATへ照合した場合true
+	bool winUsbRegistry{} ;			// 同じ元INFで検査済みの機器相対登録先を再読した場合true
+	bool auxiliaryCopySeen{} ;		// 補助サービスの一意の元EXEを同じCATへ照合した証拠
+	bool eventMessageCopySeen{} ;	// 名前付きイベントの一意の元DLLを同じCATへ照合した証拠
 	// 私有診断へ元graphの数値だけを写し、未解決と未検証rootを分離します
 	if( diagnostic_) {
 		diagnostic_->stage				  = 100U ;
@@ -2929,6 +5170,39 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
 	}
 
+	// 元ブートSYSを持つHDCの内容検査は同じパッケージ内の作用に限定する
+	if( nativeHdc_ && !result.dependency.edges.empty()) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// Windows同梱への委譲では各節が実際にWindows提供先の作用を必要とすることを確認する
+	if( collector_ && !collectorHdc_ && !scopedWifiBus && !serialEnumeratorOnly) {
+		// 一つの選択節の成功で他の節のpackage内参照やWindows側の不足を補いません
+		for( const auto &seed : seeds) {
+			bool systemNeeds{} ;	// この原節がWindowsの作用を一件以上参照する場合だけtrueです
+			// 他のdocument・節からの参照を元選択に数えず、同節の全辺を確認します
+			for( const auto &edge : result.dependency.edges) {
+				// 他の選択節とWindows側の後続参照にはそれぞれの所有元を維持します
+				if( edge.sourceIdentity != documents_.front().value.identity ||
+				   !equalName( edge.sourceSection, seed)) {
+					continue ;
+				}
+
+				// パッケージが一意に所有する参照もWindows同梱提供の代用にしません
+				if( edge.state != InfDependencyState::RESOLVED_SYSTEM) {
+					return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+				}
+
+				systemNeeds = systemNeeds || edge.directive == InfDependencyDirective::NEEDS ;
+			}
+
+			// Includeだけで実際の選択作用へ到達していない場合は空媒体を許可しません
+			if( !systemNeeds) {
+				return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+			}
+		}
+	}
+
 	// 元選択からの設置文脈を全正確なNeeds辺へ結合します
 	const auto registryContexts =
 		needsRegistryContexts( result, seeds, documents_.front().value.identity) ;
@@ -2941,8 +5215,43 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 	}
 
 	// 元の不正/不一致又は不足を成功へ補完しません
-	if( typedError != 0U) {	// 不明/不一致の元値を成功や別scopeへ補完しません
+	// 元SYSのHDCは型付き検査と元コピーの照合で全選択を検査済み
+	if( typedError != 0U || nativeHdc_) {
 		return typedError ;
+	}
+
+	// 混在媒体の元基本節とServices節だけが同じ同梱文書へ続くことを全辺で確認する
+	if( serialEnumeratorOnly && !matchesSerialEnumeratorReferences( result.dependency.edges, seeds,
+																  documents_.front().value.identity,
+																  msPortsInboxDocument_)) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// 公式Netのこの接続は、同じ署名済みWindows文書へ実解決した元辺だけを検査します
+	if( scopedWifiBus && (typedEffects_.wifiBusFilterDocument == 0U ||
+						 std::ranges::any_of( result.dependency.edges, [this]( const auto &edge) {
+							 return edge.targetIdentity != typedEffects_.wifiBusFilterDocument ||
+									edge.state != InfDependencyState::RESOLVED_SYSTEM ;
+						 }))) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// 元同梱INFのコピーを元Storeの同名ファイルに結ぶまで他文書の作用へ進みません
+	if( typedEffects_.wifiBusFilterDocument != 0U) {
+		const auto document = find( typedEffects_.wifiBusFilterDocument) ;	// 同期中の同じ元文書です
+		const auto copyError =
+			document ? verifyWifiBusStoreCopy( *document)
+					 : static_cast<NativeError>( E_UNEXPECTED) ;	// 実コピー境界の結果です
+		// 元コピーが成立しない文書を、端末で照合可能な作用へ変換しません
+		if( copyError != 0U) {
+			// コピーの元診断を文書の検証段階として維持します
+			if( diagnostic_) {
+				diagnostic_->stage =
+					static_cast<std::uint32_t>( SystemInfDiagnosticStage::COPY_REFERENCE) ;
+			}
+
+			return copyError ;
+		}
 	}
 
 	std::vector<InfDependencyVisitedSection> effectSections =
@@ -2962,13 +5271,31 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 	// Needsで要求された正確な節だけを作用検査します
 	for( std::size_t ordinal = 0U; ordinal < effectSections.size(); ++ordinal) {
 		const auto &visited = effectSections[ordinal] ;	// 同元graphの正確な節です
-		const bool	needed	= std::ranges::any_of( result.dependency.edges, [&]( const auto &edge) {
-			  return edge.directive == InfDependencyDirective::NEEDS &&
-					 edge.targetIdentity == visited.identity &&
-					 equalName( edge.target, visited.section) ;
-		  }) ; // 非選択節を混入しません
-		// seedの既存base効果は元内容検査を維持します
-		if( !needed && std::ranges::none_of( typedEffects_.copySections, [&]( const auto &copy) {
+		// 同じ仮想Wi-Fiバス文書の全節は専用の全作用検査と同Storeコピーで確認済みです
+		if( typedEffects_.wifiBusFilterDocument != 0U &&
+		   visited.identity == typedEffects_.wifiBusFilterDocument) {
+			continue ;
+		}
+
+		const bool needed = std::ranges::any_of( result.dependency.edges, [&]( const auto &edge) {
+			return edge.directive == InfDependencyDirective::NEEDS &&
+				   edge.targetIdentity == visited.identity &&
+				   equalName( edge.target, visited.section) ;
+		}) ; // 非選択節を混入しません
+		// 混在媒体の元選択側は同じ固定INFで全作用を検査済みで、ここでは同梱側を照合する
+		const bool collectorSeed = collector_ && !scopedWifiBus && !serialEnumeratorOnly &&
+								   visited.identity == documents_.front().value.identity &&
+								   std::ranges::any_of( seeds, [&]( const auto &seed) {
+									   return equalName( seed, visited.section) ;
+								   }) ; // 収集rootで実選択した節です
+		// 補助サービスを持つ元基本節は端末側でもコピーを独立に再照合する
+		const bool auxiliarySeed =
+			storageFacts_ && storageFacts_->auxiliary &&
+			visited.identity == documents_.front().value.identity &&
+			equalName( visited.section, storageFacts_->selectedInstallSection) ;
+		// 通常の端末baseは元内容検査を使用し、そのほかの到達先は個別に確認する
+		if( !collectorSeed && !auxiliarySeed && !needed &&
+		   std::ranges::none_of( typedEffects_.copySections, [&]( const auto &copy) {
 			   return copy.document == visited.identity && equalName( copy.name, visited.section) ;
 		   })) {
 			continue ;
@@ -2991,9 +5318,27 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 			// 同所有vectorの位置です
 			static_cast<std::size_t>( document - documents_.data()) ;
 		const auto fileIndex = document->fileIndex ;	// vector再配置から独立した位置です
-		const HINF opened	 = SetupOpenInfFileW( files_[fileIndex]->path.c_str(), nullptr,
-												 INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE,
-												 nullptr) ;	// 同固定INFだけです
+		const bool sdBusCopySection =
+			// 型付きSDHostの参照先だけです
+			visited.identity == sdBusInboxDocument_ ;
+		const bool portsCopySection =
+			// 標準Portsの元選択です
+			visited.identity == msPortsInboxDocument_ ;
+		const bool nvmeCopySection =
+			// 標準NVMeの選択だけが使う保護コピーです
+			visited.identity == storNvmeInboxDocument_ ;
+		const bool ahciCopySection =
+			// AHCIの元選択の保護コピー
+			visited.identity == storAhciInboxDocument_ ;
+		const bool winUsbCopySection =
+			// 同梱WinUSBの選択コピーだけ
+			visited.identity == winUsbInboxDocument_ ;
+		const bool protectedInboxCopy = sdBusCopySection || portsCopySection || nvmeCopySection ||
+										ahciCopySection ||
+										winUsbCopySection ;	// 型付き標準作用の元保護コピーだけです
+		const HINF opened = SetupOpenInfFileW( files_[fileIndex]->path.c_str(), nullptr,
+											  INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE,
+											  nullptr) ;	// 同固定INFだけです
 		// 不正INFを無作用へ変換しません
 		if( opened == INVALID_HANDLE_VALUE) {
 			return winError( GetLastError()) ;
@@ -3029,6 +5374,82 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 				continue ;
 			}
 
+			// NVMe元基本節は、元構造で確認した空リストの存在を署名済みINFから再読します
+			if( collectorSeed && storNvmeInboxDocument_ != 0U) {
+				const bool	isCopy = equalName( key, L"CopyFiles") ;	// 元のコピーと削除を区別します
+				const auto &lists  = *collector_->closure.packages.front()
+										 .collectorInboxNvmeLists ;	// 同じ元基本節のリストです
+				auto &seen =
+					isCopy ? nvmeEmptyCopy : nvmeEmptyRemove ;	// 同じ作用は一回だけ検査します
+				std::wstring name ;								// 元署名付きINFから再読したリスト名です
+				// 元の空リスト以外に同じ媒体例外を適用しません
+				if( (!isCopy && !equalName( key, L"DelFiles")) || seen ||
+				   !equalName( visited.section, selectedBase_) || SetupGetFieldCount( &line) != 1U ||
+				   field( line, 1U, name) != 0 ||
+				   !equalName( name, isCopy ? lists.copy : lists.remove) ||
+				   SetupGetLineCountW( inf.get(), name.c_str()) != 0L) {
+					return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+				}
+
+				seen = true ;
+				continue ;
+			}
+
+			// AHCI元配布の基本節に属する正確な順位宣言のみを署名済み元文書から再読する
+			if( collectorSeed && storAhciInboxDocument_ != 0U) {
+				std::wstring score ;	// 先に構造検査した元順位
+				// 採用したAHCI選択と異なる節や二重の順位判定を拒否する
+				if( ahciScore || !equalName( visited.section, selectedBase_) ||
+				   !equalName( key, L"FeatureScore") || SetupGetFieldCount( &line) != 1U ||
+				   field( line, 1U, score) != 0 || score != L"80") {
+					return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+				}
+
+				ahciScore = true ;
+				continue ;
+			}
+
+			// 元CABの同一ハッシュとHW節に結び、検査済みの単一GUID登録先を再観測する
+			if( collectorSeed && winUsbInboxDocument_ != 0U) {
+				std::wstring registry ;	// 同じ署名付きHW節に明記された登録先
+				// 追加の登録、名前差替え、HW以外の作用には同梱検査の成功を使わない
+				if( winUsbRegistry ||
+				   !equalName( visited.section, std::wstring( selectedBase_) + L".HW") ||
+				   !equalName( key, L"AddReg") || SetupGetFieldCount( &line) != 1U ||
+				   field( line, 1U, registry) != 0U ||
+				   !equalName(
+					   registry,
+					   collector_->closure.packages.front().collectorInboxWinUsbRegistrySection)) {
+					return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+				}
+
+				winUsbRegistry = true ;
+				continue ;
+			}
+
+			// 元基本節が一意に所有する標準Portsページを独立して処理する
+			if( collectorSeed) {
+				std::wstring registry ;	// この元基本節の直接AddRegだけです
+				// 別の節・複数行・別のスコープをページの成功へ変換しません
+				if( msPortsInboxDocument_ == 0U || portsPage ||
+				   !equalName( visited.section, selectedBase_) || !equalName( key, L"AddReg") ||
+				   SetupGetFieldCount( &line) != 1U || field( line, 1U, registry) != 0 ||
+				   !equalName(
+					   registry,
+					   collector_->closure.packages.front().collectorInboxPropertyPageSection)) {
+					return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+				}
+
+				error = verifySerialPropertyPage() ;
+				// 署名・同一バイト・名前付きexportの失敗を維持します
+				if( error != 0) {
+					return error ;
+				}
+
+				portsPage = true ;
+				continue ;
+			}
+
 			// 同SYSTEM全作用は二相validatorが全field/関係を既に確認しました
 			if( document->value.origin == InfDependencyOrigin::SYSTEM &&
 			   std::ranges::any_of( typedEffects_.effects,
@@ -3037,6 +5458,17 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 											  equalName( effect.source.name, visited.section) ;
 								   }) &&
 			   !equalName( key, L"CopyFiles")) {
+				continue ;
+			}
+
+			// 同PACKAGE全行validatorの成立した作用を旧SYSTEM policyへ通し直しません
+			if( document->value.origin == InfDependencyOrigin::PACKAGE && storageEffects_ &&
+			   !equalName( key, L"CopyFiles") &&
+			   std::ranges::any_of( storageEffects_->effects, [&]( const auto &effect) {
+				   return effect.original.source.document == visited.identity &&
+						  equalName( effect.original.source.name, visited.section) &&
+						  effect.original.row.ordinal == static_cast<std::uint32_t>( row) ;
+			   })) {
 				continue ;
 			}
 
@@ -3103,9 +5535,50 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 					return error != 0 ? error : static_cast<NativeError>( E_INVALIDARG) ;
 				}
 
-				std::vector<std::wstring> names ;	// 最大4096の全非rename copyです
+				// 同じ元選択のコピー情報に限定し、直接コピーと名前付き節を別々に照合する
+				const auto *auxiliaryClaim =
+					storageFacts_ && storageFacts_->auxiliary && documentIndex == 0U &&
+							documents_[documentIndex].value.origin ==
+								InfDependencyOrigin::PACKAGE &&
+							equalName( visited.section, storageFacts_->selectedInstallSection)
+						? &storageFacts_->auxiliary->copy
+						: nullptr ;
+				const bool directAuxiliary = auxiliaryClaim && list.front() == L'@' &&
+											 auxiliaryClaim->dirid == 13 &&
+											 equalName( visited.section, auxiliaryClaim->section) &&
+											 auxiliaryClaim->fields.size() == 1U &&
+											 // 元DDInstallの直接行
+											 list == auxiliaryClaim->fields.front() ;
+				const auto *auxiliaryCopy =
+					(directAuxiliary ||
+					 (auxiliaryClaim && list.front() != L'@' && auxiliaryClaim->dirid == 11 &&
+					  equalName( list, auxiliaryClaim->section)))
+						? auxiliaryClaim
+						: nullptr ;	// 元閉包に照合する一つの補助コピー
+				const auto *eventCopy =
+					auxiliaryClaim && storageFacts_->auxiliary->eventMessageCopy &&
+							equalName( list, storageFacts_->auxiliary->eventMessageCopy->section)
+						? &*storageFacts_->auxiliary->eventMessageCopy
+						: nullptr ;	// 同じ元基本節のメッセージDLL
+				// DLLのコピー先を同元INFの明示宛先から再確認する
+				if( eventCopy && (eventMessageCopySeen || eventCopy->dirid != 11 ||
+								 !hasExplicitStorageEventCopyDestination( inf.get(), list))) {
+					return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+				}
+
+				const auto *copyClaim =
+					eventCopy ? eventCopy : auxiliaryCopy ;	// 元行と実バイトを照合する証拠
+				std::vector<std::wstring> names ;			// 最大4096の全非rename copyです
 				// 直接copyでは単一basenameだけを保持します
 				if( list.front() == L'@') {
+					// 標準コピーは各原行の保護フラグを確認できる名前付き節を使います
+					if( protectedInboxCopy ||
+					   (directAuxiliary &&
+						(auxiliaryCopySeen || fields != 1U ||
+						 auxiliaryCopy->ordinal != static_cast<std::uint32_t>( row)))) {
+						return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+					}
+
 					names.push_back( list.substr( 1U)) ;
 				} else {
 					const auto security = list + L".security" ;	// 未確認ACL作用を別に拒否します
@@ -3129,6 +5602,19 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 						return E_INVALIDARG ;
 					}
 
+					// 補助EXEのコピーは同じ基本節から到達する一行を一度だけ照合する
+					if( auxiliaryCopy &&
+					   (auxiliaryCopySeen || rows != 1 || auxiliaryCopy->ordinal != 0U ||
+						auxiliaryCopy->fields.size() != 4U)) {
+						return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+					}
+
+					// 元DLLコピーには改名や任意の追加欄を認めない
+					if( eventCopy &&
+					   (rows != 1 || eventCopy->ordinal != 0U || eventCopy->fields.size() != 1U)) {
+						return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+					}
+
 					// rename/tmp/flagsを全行で確認します
 					for( LONG position = 0; position < rows; ++position) {
 						INFCONTEXT copy{} ;	// 元copy data行です
@@ -3144,11 +5630,25 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 							return E_INVALIDARG ;
 						}
 
+						int sdBusFlags{} ;	// 保護フラグを含む元の整数を完全に読みます
+						// 元標準コピーの単独Windows保護フラグを確認します
+						if( protectedInboxCopy &&
+						   (values != 4U || !SetupGetIntField( &copy, 4U, &sdBusFlags) ||
+							sdBusFlags != COPYFLG_PROTECTED_WINDOWS_DRIVER_FILE)) {
+							return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+						}
+
 						std::wstring name ;	// 宛先basenameです
 						error = field( copy, 1U, name) ;
 						// 読取失敗を空fileへ変換しません
 						if( error != 0) {
 							return error ;
+						}
+
+						// 型付き元行と現在読んだコピーのファイル名・欄数が一致することを要求する
+						if( copyClaim && (values != copyClaim->fields.size() ||
+										 name != copyClaim->fields.front())) {
+							return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
 						}
 
 						const bool systemProtected =
@@ -3167,11 +5667,19 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 								systemProtected && SetupGetIntField( &copy, 4U, &copyFlags) &&
 								copyFlags ==
 									COPYFLG_PROTECTED_WINDOWS_DRIVER_FILE ;	// 他bit/comboへ広げません
-							// 非rename・非一時名、0又は検証済みSYSTEM単独0x100だけの有限policyです
+							// 確認済みの補助EXEの元行だけ、使用中ファイルの置換をWindowsへ委ねる
+							const bool deferredFlag = error == 0U && value == 4U && auxiliaryCopy &&
+													  SetupGetIntField( &copy, 4U, &copyFlags) &&
+													  copyFlags == COPYFLG_FORCE_FILE_IN_USE ;
+							// 既存のコピー条件を維持し、補助サービスの全欄も元証拠に照合する
 							if( error != 0 ||
+							   (auxiliaryCopy && option != auxiliaryCopy->fields[value - 1U]) ||
+							   (serialEnumeratorOnly && portsCopySection && value < 4U &&
+								!option.empty()) ||
 							   (!option.empty() &&
 								!((value == 2U && equalName( option, name)) ||
-								  (value == 4U && (option == L"0" || protectedFlag))))) {
+								  (value == 4U &&
+								   (option == L"0" || protectedFlag || deferredFlag))))) {
 								return error != 0 ? error : HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
 							}
 						}
@@ -3229,19 +5737,26 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 					}
 
 					std::vector<std::wstring> members{path} ;	// 同CATで検査する実memberです
+					std::size_t				  sdBusCopyIndex =
+						// SDHostの元コピー以外は記録しません
+						sdBusCopies.size() ;
 					// PACKAGEは元保護閉包の全byte検査へ結合します
 					if( !system) {
 						const auto relative = std::wstring_view( path).substr(
 							// 同保護root相対位置です
 							packageRoot_.size()) ;
-						const auto expected =
-							std::ranges::find_if( content_->closure.entries, [&]( const auto &entry) {
-								return equalName( entry.relativePath, relative) ;
-							}) ; // 元閉包にないpayloadを足しません
+						const auto expected = dependencyEntry(
+							effectClosure_->entries, relative) ;	// 元閉包にないpayloadを足しません
 						// 元size/hashの両方を一致させます
-						if( expected == content_->closure.entries.end() ||
-						   expected->sha256 != files_[payload]->sha256 ||
+						if( expected == nullptr || expected->sha256 != files_[payload]->sha256 ||
 						   expected->uncompressedSize != files_[payload]->bytes) {
+							return TRUST_E_BAD_DIGEST ;
+						}
+
+						// 補助EXEまたはイベントDLLを元の相対位置と完全なファイル証拠に結ぶ
+						if( copyClaim && (!equalName( relative, copyClaim->source) ||
+										 copyClaim->sha256 != expected->sha256 ||
+										 copyClaim->bytes != expected->uncompressedSize)) {
 							return TRUST_E_BAD_DIGEST ;
 						}
 					} else {
@@ -3249,12 +5764,22 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 						const auto destinationKey = list.front() == L'@'
 														? L"DefaultDestDir"
 														: list.c_str() ;	// 元copyの宛先keyです
+						const bool explicitDestination =
+							SetupFindFirstLineW( inf.get(), L"DestinationDirs", destinationKey,
+												&destination) != FALSE ;	// 元リスト固有の宛先です
 						// 明示list宛先、次に同INF既定だけを使います
-						if( !SetupFindFirstLineW( inf.get(), L"DestinationDirs", destinationKey,
-												&destination) &&
-						   !SetupFindFirstLineW( inf.get(), L"DestinationDirs", L"DefaultDestDir",
-												&destination)) {
+						if( !explicitDestination &&
+						   (protectedInboxCopy ||
+							!SetupFindFirstLineW( inf.get(), L"DestinationDirs", L"DefaultDestDir",
+												 &destination))) {
 							return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+						}
+
+						INFCONTEXT duplicate{} ;	// 元ファイルの設置先を別の同名行で上書きさせません
+						// 元標準リストには一意の明示宛先が必要です
+						if( protectedInboxCopy &&
+						   SetupFindNextMatchLineW( &destination, destinationKey, &duplicate)) {
+							return HRESULT_FROM_WIN32( ERROR_DUP_NAME) ;
 						}
 
 						int dirId{} ;	// Windowsの明示DIRIDです
@@ -3284,6 +5809,57 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 						}
 
 						installed += name ;
+						// 元選択で使う一件の保護コピーだけを、drivers直下の同一ファイルに結ぶ
+						if( portsCopySection &&
+						   (serialCopy ||
+							!equalName( name,
+									   serialEnumeratorOnly ? L"serenum.sys" : L"serial.sys") ||
+							(serialEnumeratorOnly &&
+							 !equalName( list, L"SerialEnumerator.NT.Copy")) ||
+							dirId != 12 || !subdir.empty())) {
+							return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+						}
+
+						// NVMeの元選択ではstornvme.sysだけを正規drivers直下へ結びます
+						if( nvmeCopySection && (nvmeCopy || !equalName( name, L"stornvme.sys") ||
+											   dirId != 12 || !subdir.empty())) {
+							return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+						}
+
+						// AHCIは正規drivers直下への一つの標準SYSを同CATへ結ぶ
+						if( ahciCopySection && (ahciCopy || !equalName( name, L"storahci.sys") ||
+											   !equalName( list, L"storahci_copyfiles") ||
+											   dirId != 12 || !subdir.empty())) {
+							return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+						}
+
+						// 同梱WinUSBの唯一の保護コピーを元リストとdrivers直下へ限定する
+						if( winUsbCopySection && (winUsbCopy || !equalName( name, L"winusb.sys") ||
+												 !equalName( list, L"WINUSB.CopyFiles") ||
+												 dirId != 12 || !subdir.empty())) {
+							return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+						}
+
+						// SDHostでは同じ原INFの二つのSYSを正規のdrivers直下に限定する
+						if( sdBusCopySection) {
+							const auto expected =
+								std::ranges::find_if( SD_BUS_COPY_NAMES, [&]( const auto target) {
+									return equalName( target, name) ;
+								}) ; // 同じ元名です
+							// 追加のSYS、別ディレクトリ、重複行を完全な照合として扱いません
+							if( expected == SD_BUS_COPY_NAMES.end() || dirId != 12 ||
+							   !subdir.empty()) {
+								return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+							}
+
+							sdBusCopyIndex =
+								static_cast<std::size_t>( expected - SD_BUS_COPY_NAMES.begin()) ;
+							// 設置先が同じになる重複コピーも別の元行として拒否します
+							if( sdBusCopies[sdBusCopyIndex]) {
+								return HRESULT_FROM_WIN32( ERROR_DUP_NAME) ;
+							}
+						}
+
 						std::size_t existing{} ;	// Windows既存fileです。コピーしません
 						error = pin( installed, MAX_TOTAL_BYTES, existing) ;
 						// 同byteの既提供が確認できなければSYSTEM効果未充足です
@@ -3303,6 +5879,34 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 						return error ;
 					}
 
+					auxiliaryCopySeen	 = auxiliaryCopySeen || auxiliaryCopy != nullptr ;
+					eventMessageCopySeen = eventMessageCopySeen || eventCopy != nullptr ;
+
+					// 元媒体と同じ配備済みバイトの両方が同CATに属した場合だけ記録します
+					if( sdBusCopyIndex < sdBusCopies.size()) {
+						sdBusCopies[sdBusCopyIndex] = true ;
+					}
+
+					serialCopy = serialCopy || portsCopySection ;
+					nvmeCopy   = nvmeCopy || nvmeCopySection ;
+					ahciCopy   = ahciCopy || ahciCopySection ;
+					winUsbCopy = winUsbCopy || winUsbCopySection ;
+
+					// 収集時に確認した実sourceと配備済み同byteも終了時に元CATへ再照合します
+					if( collector_) {
+						auto &checked =
+							documents_[documentIndex].catalogMembers ;	// このdocumentの元CAT用です
+						// 同じfileの複数用途で再確認集合を水増ししません
+						for( const auto &member : members) {
+							// 同じ元CATへ初めて照合した完全位置だけを保持します
+							if( std::ranges::none_of( checked, [&]( const auto &prior) {
+								   return equalName( prior, member) ;
+							   })) {
+								checked.push_back( member) ;
+							}
+						}
+					}
+
 					// 元の不正/不一致又は不足を成功へ補完しません
 					if( list.front() != L'@') {	// 不明/不一致の元値を成功や別scopeへ補完しません
 						// 元の不正/不一致又は不足を成功へ補完しません
@@ -3316,6 +5920,63 @@ NativeError NativeLoader::verifyNeedsEffects( const InfDependencyNativeResult	&r
 				}
 			}
 		}
+	}
+
+	// 二つの元コピーと同じ配備済みバイトを確認した場合だけ、SDHostの作用を成功とします
+	if( sdBusInboxDocument_ != 0U &&
+	   !std::ranges::all_of( sdBusCopies, []( bool checked) { return checked ; })) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// 混在媒体ではSerenumの実コピーとSCM、従来の元選択ではページと実コピーを確かめる
+	if( msPortsInboxDocument_ != 0U &&
+	   (!serialCopy || (serialEnumeratorOnly ? typedEffects_.services.size() != 1U : !portsPage))) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// NVMeは二つの空リストと標準SYSの保護コピーがそろった場合だけ確定します
+	if( storNvmeInboxDocument_ != 0U && (!nvmeEmptyCopy || !nvmeEmptyRemove || !nvmeCopy)) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// AHCIの順位と同じ元CATの保護コピーを両方検査した場合だけ確定する
+	if( storAhciInboxDocument_ != 0U && (!ahciScore || !ahciCopy)) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// 元HW登録とWindows側の唯一のコピーをともに確認した場合だけ成立する
+	if( winUsbInboxDocument_ != 0U && (!winUsbRegistry || !winUsbCopy)) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// 補助サービス宣言は対応する原EXEの全照合と一緒に成立させる
+	if( storageFacts_ && storageFacts_->auxiliary && !auxiliaryCopySeen) {
+		return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	// イベントDLLを使う場合は元CATを再確認してから同じ端末の共有先を読む
+	if( storageFacts_ && storageFacts_->auxiliary && storageFacts_->auxiliary->eventMessageCopy) {
+		// 元CATか元作用のいずれかが不成立なら現用照会を始めない
+		if( !eventMessageCopySeen || !storageEffects_) {
+			return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+		}
+
+		std::uint32_t stage{} ;	// 元の現用・共有変更の判定を保持する固定番号
+		// 選択した自動起動の作用と現在の共有先を確認した結果
+		auto		  hostError =
+			verifyStorageAutomaticHost( *storageEffects_, documents_.front().value.identity, stage) ;
+		// 同じ現用と配置が成立した場合だけ、起動グループも同じ選択へ固定する
+		if( hostError == 0U) {
+			hostError = readStorageBootLoadOrder( storageEffects_->loadOrder.emplace()) ;
+			stage	  = hostError == 0U ? 0U : 14011U ;
+		}
+
+		// 最初の読取りまたは所有の診断を終端の署名照合まで保持する
+		if( diagnostic_ && hostError != 0U) {
+			diagnostic_->stage = stage ;
+		}
+
+		return hostError ;
 	}
 
 	return 0 ;
@@ -3335,7 +5996,7 @@ NativeError NativeLoader::run( std::size_t rootIndex, std::span<const std::wstri
 {
 	// 元全byte/metadata/CATの成功をenumだけから作りません
 	if( content_ != nullptr) {
-		const auto error = reverifyCommonDriverInf( *content_) ;	// 元内容の再検査結果です
+		const auto error = recheckCommonContent( *content_) ;	// 元内容の再検査結果です
 		// 独立した元検査が失敗した場合はnative graphを作りません
 		if( error != 0) {
 			return error ;
@@ -3369,6 +6030,21 @@ NativeError NativeLoader::run( std::size_t rootIndex, std::span<const std::wstri
 	}
 
 	packageRoot_ = first.substr( 0U, first.size() - members_.front().relativePath.size()) ;
+	// 収集原閉包の全fileを元size/hashで固定し、CAT・graphと終了再確認までhandleを保持します
+	if( collector_) {
+		// 原INF、CAT、同原INFの参照sourceを既存の累積byte/file予算内で固定します
+		for( const auto &entry : collector_->closure.entries) {
+			std::size_t fixed{} ;	// 終了時の同一性・実hash再検査に使う位置です
+			const auto	error = pin( workspace_.path( entry.relativePath), MAX_TOTAL_BYTES,
+									fixed) ;	// 原fileの固定結果です
+			// 署名済みの同名fileでも、元アーカイブから抽出したbyteと一致する必要があります
+			if( error != 0U || files_[fixed]->bytes != entry.uncompressedSize ||
+			   files_[fixed]->sha256 != entry.sha256) {
+				return error != 0U ? error : static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+			}
+		}
+	}
+
 	InfDependencyDocument root ;	// 固定済み開始snapshot
 	// 最初の失敗を保持して終了まで上書きしない診断値
 	NativeError			  error =
@@ -3376,6 +6052,24 @@ NativeError NativeLoader::run( std::size_t rootIndex, std::span<const std::wstri
 	// Root固定失敗ではcallbackを作成しない
 	if( error != 0) {
 		return error ;
+	}
+
+	// 収集原本は、選択rootの後にすべてのpackage所有INFと固有のCAT・memberを照合します
+	if( collector_) {
+		// 閉包の各importも独立に元署名を確認し、異なるCATの元成功を継承しません
+		for( std::size_t index = 0U; index < members_.size(); ++index) {
+			// rootの署名と元fileは直前に固定済みです
+			if( index != rootIndex) {
+				InfDependencyDocument
+					imported ;	// graphで到達した場合は同じ固定documentを再利用します
+				error = observe( workspace_.path( members_[index].relativePath), &members_[index],
+								imported) ;
+				// 未検査のimportを含む閉包を収集成功へ送らないよう元HRESULTを返します
+				if( error != 0U) {
+					return error ;
+				}
+			}
+		}
 	}
 
 	InfDependencyOperations operations ;	// この同期loaderだけを借用するcallback
@@ -3407,8 +6101,8 @@ NativeError NativeLoader::run( std::size_t rootIndex, std::span<const std::wstri
 	InfDependencySelectedContext selectedContext{
 		root, selectedBase_, {}} ;								// 観測済みrootの原証拠へ結合します
 	const InfDependencySelectedContext *selected = nullptr ;	// 旧入口の共有範囲は拡張しません
-	// 元Commonと既確定基本がそろうときだけ、同じ実在seedを明示付属へ渡します
-	if( content_ != nullptr && !selectedBase_.empty()) {
+	// 署名閉包と既確定基本がそろうときだけ、同じ実在seedを明示付属へ渡します
+	if( effectClosure_ != nullptr && !selectedBase_.empty()) {
 		// 順序や部分文字列から親を推定せず、明示された基本を除く実在seedだけです
 		for( const auto &seed : seeds) {
 			// 同じ基本を付属へ重複登録しません
@@ -3432,9 +6126,13 @@ NativeError NativeLoader::run( std::size_t rootIndex, std::span<const std::wstri
 		return error ;
 	}
 
-	// 旧read-only観測は昇格せず、私有共通経路だけで独立効果を全検査します
-	if( content_ != nullptr) {
-		error = verifyNeedsEffects( observed, seeds) ;
+	const bool scopedBluetoothUsb =
+		collector_ &&
+		collector_->scopedBluetoothUsb ;	// 同梱の保護コピーと残りの作用を個別に検査する形
+	// 収集内容と端末の元選択は到達作用を独立検査し、従来の観測入口は従来どおりの結果を返します
+	if( effectClosure_ != nullptr) {
+		error = scopedBluetoothUsb ? verifyBluetoothUsbActions( observed, seeds)
+								   : verifyNeedsEffects( observed, seeds) ;
 		// 辺解決だけで未検査の効果を成功にしません
 		if( error != 0) {
 			return error ;
@@ -3496,7 +6194,7 @@ NativeError NativeLoader::run( std::size_t rootIndex, std::span<const std::wstri
 	observed.fixedFileCount = files_.size() ;
 	// 全SYSTEM根拠の再確認後にも元保護閉包を再検査します
 	if( content_ != nullptr) {
-		error = reverifyCommonDriverInf( *content_) ;
+		error = recheckCommonContent( *content_) ;
 		// 途中改変を開始時の成功で隠しません
 		if( error != 0) {
 			return error ;
@@ -3537,6 +6235,11 @@ NativeError NativeLoader::run( std::size_t rootIndex, std::span<const std::wstri
 				return api->systemService ? api->systemService( original.name, fresh) : E_NOTIMPL ;
 			}
 
+			// 元の仮想Wi-Fiバスに必要なSCM表示・説明と元登録値を同じ方式で再読します
+			if( typedEffects_.wifiBusFilterDocument != 0U && equalName( original.name, L"vwifibus")) {
+				return readWifiBusServiceEvidence( fresh) ;
+			}
+
 			return readSystemServiceEvidence( original.name, fresh) ;
 		} ; // 同元serviceだけのreadonly再観測です
 		error = read() ;
@@ -3547,9 +6250,77 @@ NativeError NativeLoader::run( std::size_t rootIndex, std::span<const std::wstri
 		}
 	}
 
-	observed.systemFiles		 = systemFiles_ ;
-	observed.systemEffects		 = typedEffects_.effects ;
-	observed.systemServices		 = typedEffects_.services ;
+	observed.systemFiles = systemFiles_ ;
+	// 現serviceの明示不存在と全config/SDも終了時に再観測します
+	if( storageEffects_) {
+		// 署名・参照の終端照合後も、同じ端末の全作用とETW観測が変わっていないことを確認する
+		if( storageEffects_->automaticHost) {
+			StorageAutomaticHostSnapshot fresh ;	// 私有計画へ渡す直前の現在端末
+			std::uint32_t				 stage{} ;	// 元読取りの固定診断
+			error = readStorageAutomaticHost( *storageEffects_, root.identity, fresh, stage) ;
+			// 途中変化や読取りの元失敗では古い端末観測を返さない
+			if( error != 0U || fresh != *storageEffects_->automaticHost) {
+				// 元診断があれば保持し、安定性の差は再観測の固定診断を使う
+				if( diagnostic_) {
+					diagnostic_->stage = stage != 0U ? stage : 14025U ;
+				}
+
+				return error != 0U ? error : HRESULT_FROM_WIN32( ERROR_RETRY) ;
+			}
+		}
+
+		// 同期中の設定または存在の変化を初回に観測した証拠へ上書きしない
+		if( storageEffects_->auxiliaryHost) {
+			StorageAuxiliaryHostSnapshot fresh ;	// 同じ端末構成の独立した再観測
+			error = readStorageAuxiliaryHostSnapshot( storageEffects_->service, fresh) ;
+			// 同じ元サービスとファイル・イベントの全状態を確認する
+			if( error != 0U || fresh != *storageEffects_->auxiliaryHost) {
+				return error != 0U ? error
+								   : static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_RETRY)) ;
+			}
+		}
+
+		// 初回に確認した起動グループが終端まで同じ位置にあることを確認する
+		if( storageEffects_->loadOrder) {
+			// 元の起動順との比較に使う終端の観測
+			StorageLoadOrder observedOrder ;
+			error = readStorageBootLoadOrder( observedOrder) ;
+			// 順序が変わった場合は元観測を引き継がない
+			if( error != 0U || observedOrder != *storageEffects_->loadOrder) {
+				return error != 0U ? error : HRESULT_FROM_WIN32( ERROR_RETRY) ;
+			}
+		}
+
+		// 必要なexact serviceだけを同backendで終端再観測します
+		for( const auto &original : storageEffects_->services) {
+			// 自動起動型では保護付きのSYS・名前・SCMを上の全観測で照合済み
+			if( storageEffects_->automaticHost) {
+				break ;
+			}
+
+			// 同元入力から独立に再構築する比較値です
+			SystemServiceEvidence fresh ;
+			std::wstring		  binarySha256 ;	// 元HDCサービスの現在SYSとの比較値
+			error = readStorageService( original.name, fresh, nativeHdc_ ? &binarySha256 : nullptr) ;
+			// 正式不存在を照会失敗と分ける元HRESULTです
+			const auto absent =
+				static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_SERVICE_DOES_NOT_EXIST)) ;
+			// 正式不存在/全現configの途中変化を元観測で補完しません
+			if( original.evidence ? error != 0U || fresh != *original.evidence ||
+									   binarySha256 != storageEffects_->currentHdcBinarySha256
+								 : error != absent) {
+				return error != 0U && error != absent
+						   ? error
+						   : static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_RETRY)) ;
+			}
+		}
+
+		observed.storageEffects = storageEffects_ ;
+	}
+
+	observed.systemEffects				 = typedEffects_.effects ;
+	observed.systemServices				 = typedEffects_.services ;
+	observed.replacesWifiBusUpperFilters = typedEffects_.wifiBusFilterDocument != 0U ;
 	observed.delayedRegistration = delayedRegistration_ || typedEffects_.delayedRegistration ;
 	// 非公開fixtureの資格観測は全検査後だけで、許可入力や製品fallbackを持ちません
 	if( const auto api = inf_dependency_native_detail::activeApi() ; api && api->observedResult) {
@@ -3575,6 +6346,7 @@ namespace {
  * @param[in] binding 封印所有者。旧経路ではnullptr
  * @param[in] session 生存issuer。bindingと同時にだけ指定する
  * @param[in] archiveWorkspace 元領域。bindingと同時にだけ指定する
+ * @param[in] collector 元収集の署名閉包と全一覧。収集専用入口以外ではnull
  * @return 観測完了0、不正入力・path・byte・OS・例外のHRESULT
  */
 //------------------------------------------------------------------------------
@@ -3582,7 +6354,8 @@ NativeError inspectNativeInfDependenciesImpl(
 	const OfficialDownloadWorkspace &workspace, std::span<const InfDependencyPackageMember> members,
 	std::size_t rootIndex, std::span<const std::wstring> seeds, std::uint64_t observationId,
 	InfDependencyNativeResult &result, const OfficialInfArchiveBinding *binding,
-	const OfficialAcquisitionSession *session, const OfficialDownloadWorkspace *archiveWorkspace)
+	const OfficialAcquisitionSession *session, const OfficialDownloadWorkspace *archiveWorkspace,
+	const CollectorDependencySource *collector = nullptr)
 {
 	result = {} ;
 	try {
@@ -3626,8 +6399,8 @@ NativeError inspectNativeInfDependenciesImpl(
 			return error ;
 		}
 
-		NativeLoader loader( workspace, members, context, binding, session,
-							archiveWorkspace) ;	// 全native根拠の単独所有者
+		NativeLoader loader( workspace, members, context, binding, session, archiveWorkspace,
+							nullptr, nullptr, {}, nullptr, collector) ;	// 全native根拠の単独所有者
 		return loader.run( rootIndex, seeds, result) ;
 	} catch( const std::bad_alloc &) {
 		return E_OUTOFMEMORY ;
@@ -3660,6 +6433,541 @@ NativeError inspectNativeInfDependencies( const OfficialDownloadWorkspace			&wor
 {
 	return inspectNativeInfDependenciesImpl( workspace, members, rootIndex, seeds, observationId,
 											result, nullptr, nullptr, nullptr) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現Windowsの正規System32にある標準シリアルページDLLを固定して検査する
+ * @param[in] workspace 元配布物を所有する保護領域
+ * @param[out] proof 固定DLLとWindows署名、バイト、保護の一致証拠。失敗時は空
+ * @return キャッシュ内の署名と実AMD64 exportが成立した場合0、それ以外は元診断
+ * @note DLLはロードしない。元選択と実端末の導入資格は別に照合する
+ */
+//------------------------------------------------------------------------------
+NativeError inspectWindowsSerialPropertyPage( const OfficialDownloadWorkspace &workspace,
+											 WindowsSystemFileTrust			 &proof)
+{
+	proof = {} ;
+	try {
+		NativeLoader loader( workspace, {}, {}, nullptr, nullptr,
+							nullptr) ;	// 同じ固定ファイルと署名確認を使う
+		return loader.inspectSerialPropertyPage( proof) ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	} catch( ...) {
+		return E_FAIL ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Windows正規の仮想無線バスINFの信用と内容を同じ固定文書に照会します
+ * @param[in] workspace 同じ収集操作の保護workspaceを同期中だけ借用します
+ * @param[in] inspect 同梱INFと対応Storeの絶対パス及び署名時と一致する全バイトを同期で借用します
+ * @return 同梱由来と内容の前後確認が成立して0、失敗はHRESULTです
+ */
+//------------------------------------------------------------------------------
+NativeError inf_dependency_native_detail::inspectProtectedWifiBusInf(
+	const OfficialDownloadWorkspace								 &workspace,
+	const std::function<NativeError( const std::wstring &, std::wstring_view,
+									std::span<const std::byte>)> &inspect)
+{
+	try {
+		NativeLoader loader( workspace, {}, {}, nullptr, nullptr,
+							nullptr) ;	// 既署名と元ファイルを固定します
+		return loader.inspectProtectedWifiBusInf( inspect) ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元基本INFと同梱Wi-Fiバスへの全参照を署名と作用を確認したgraphへ結ぶ
+ * @param[in] selected 元選択の同一基本INFで読んだ参照台帳
+ * @param[in] rootIdentity 元基本INFのgraph内の非零識別子
+ * @param[in] edges 署名と型付き作用を照合済みの全解決辺
+ * @return 双方向の対応と旧名転送が完全かつ一意な場合true
+ * @pre graphの各参照先は同じ署名済みWindows同梱文書です
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] static bool matchScopedWifiBusReferences( const OfficialInfInstallInventory &selected,
+													   std::uint64_t rootIdentity,
+													   std::span<const InfDependencyEdge> edges)
+{
+	constexpr std::wstring_view LEGACY = L"VWiFiBus.PnPFilterRegistration" ;	// 旧名の同梱節
+	constexpr std::wstring_view LEGACY_HW =
+		L"VWiFiBus.PnPFilterRegistration.HW" ;							// 元転送が指す同梱節
+	const auto hardware = selected.selectedInstallSection + L".HW" ;	// 元の選択が所有するHW節
+	const auto external = []( const auto &reference) {
+		return reference.kind == OfficialInfInstallReferenceKind::INCLUDE_INF ||
+			   (reference.kind == OfficialInfInstallReferenceKind::LOCAL_SECTION &&
+				!reference.targetPresent) ;
+	} ; // 元基本から出る外部参照だけを照合する
+	const auto matches = [rootIdentity, &external]( const auto &reference, const auto &edge) {
+		const bool include =
+			// 元参照の種類
+			reference.kind == OfficialInfInstallReferenceKind::INCLUDE_INF ;
+		const auto target = include ? std::wstring_view{reference.target}.substr(
+										  reference.target.find_last_of( L'\\') + 1U)
+									: std::wstring_view{reference.target} ;	// 元の直接参照名
+		return external( reference) &&
+			   equalName( reference.directive, include ? L"Include" : L"Needs") &&
+			   edge.sourceIdentity == rootIdentity &&
+			   edge.state == InfDependencyState::RESOLVED_SYSTEM &&
+			   edge.directive ==
+				   (include ? InfDependencyDirective::INCLUDE : InfDependencyDirective::NEEDS) &&
+			   equalName( edge.sourceSection, reference.section) && equalName( edge.target, target) ;
+	} ; // 元選択の節と種類まで一致した一辺に結ぶ
+	// 外部へ出る元参照の全件を一つずつ実解決の辺へ結ぶ
+	for( const auto &reference : selected.references) {
+		// 複数候補や元graphで不在の参照を先頭の解決済み辺へ縮約しない
+		if( external( reference) &&
+		   ((equalName( reference.directive, L"Needs") && equalName( reference.target, LEGACY) &&
+			 !equalName( reference.section, hardware)) ||
+			std::ranges::count_if(
+				edges, [&]( const auto &edge) { return matches( reference, edge) ; }) != 1)) {
+			return false ;
+		}
+	}
+
+	const auto legacyOrigin = [&]( const auto &edge) {
+		return edge.sourceIdentity == rootIdentity && edge.targetIdentity != 0U &&
+			   edge.targetIdentity != rootIdentity &&
+			   edge.state == InfDependencyState::RESOLVED_SYSTEM &&
+			   edge.directive == InfDependencyDirective::NEEDS &&
+			   equalName( edge.sourceSection, hardware) && equalName( edge.target, LEGACY) ;
+	} ; // 元のHW節が同梱旧名を要求した辺
+	const auto origin = std::ranges::find_if( edges, legacyOrigin) ;	// 同じ同梱文書への元Needsです
+	bool	   forwarded{} ;											// 元文書内の正規旧名転送を一度確認したこと
+	// 実解決した逆向き照合も全件行い、同梱文書内の旧名転送を区別する
+	for( const auto &edge : edges) {
+		// 同じ署名済み文書内の規定一辺だけを元基本INFの照合対象から区別する
+		if( origin != edges.end() && edge.sourceIdentity == origin->targetIdentity &&
+		   edge.targetIdentity == edge.sourceIdentity &&
+		   edge.state == InfDependencyState::RESOLVED_SYSTEM &&
+		   edge.directive == InfDependencyDirective::NEEDS &&
+		   equalName( edge.sourceSection, LEGACY) && equalName( edge.target, LEGACY_HW) &&
+		   !std::exchange( forwarded, true)) {
+			continue ;
+		}
+
+		// 元照合の一意性を緩めず、他の文書内の辺や重複した転送も拒否する
+		if( std::ranges::count_if( selected.references, [&]( const auto &reference) {
+			   return matches( reference, edge) ;
+		   }) != 1) {
+			return false ;
+		}
+	}
+
+	return std::ranges::count_if( edges, legacyOrigin) == (forwarded ? 1 : 0) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 収集原本の選択節からWindows同梱の依存またはHDCの元SYSと全作用を検査する
+ * @param[in] workspace 収集した原閉包の実ファイルを同期呼出し中所有する領域
+ * @param[in] closure 元アーカイブから抽出し、各INFと宣言CATの内容検査を終えた閉包
+ * @param[in] archiveEntries 抽出前に確認した同じアーカイブ階層の全通常ファイル一覧
+ * @param[in] seeds AMD64 Modelsで選択した実基本節と実在する同名のHW・Services節
+ * @param[in] selectedBase 元選択の実基本節名。seedsの先頭と一致する
+ * @param[in] observationId 原収集の非零scan session ID
+ * @param[in] scopedSelection 公式NetまたはUSB Bluetoothの元Modelsから選んだ棚卸し。従来型はnull
+ * @param[out] evidence 公式Netの比較用証拠です。非nullの場合に全確認後だけ返します
+ * @param[in] bluetoothSelection 同じ元INFのUSB Bluetooth棚卸しを検査する場合true
+ * @param[out] serialObserved 混在シリアルの比較用証拠。両選択を検査する入口からだけ指定する
+ * @return 全参照の所有元、署名、作用と同OSでの終了再検査が成立すれば0、失敗はHRESULT
+ * @note 元アーカイブと現在状態の読取りです。端末の選択や導入許可を発行しません
+ */
+//------------------------------------------------------------------------------
+static NativeError inspectArchiveInfDependencies(
+	const OfficialDownloadWorkspace &workspace, const OfficialDriverClosure &closure,
+	std::span<const OfficialZipEntry> archiveEntries, std::span<const std::wstring> seeds,
+	std::wstring_view selectedBase, std::uint64_t observationId,
+	const OfficialInfInstallInventory *scopedSelection, ScopedWifiBusDependencyEvidence *evidence,
+	bool bluetoothSelection = false, InfDependencyNativeResult *serialObserved = nullptr)
+{
+	const bool scopedWifiBus =
+		scopedSelection != nullptr && !bluetoothSelection ;	// 公式Netの同梱依存
+	// 原INFの選択、全一覧、有限の閉包を持たない引数から収集成功を発行しません
+	if( archiveEntries.empty() || closure.entries.empty() || closure.entries.size() > MAX_FILES ||
+	   closure.packages.empty() || closure.packages.size() > 64U || observationId == 0U ||
+	   seeds.empty() || seeds.size() > (scopedWifiBus ? 10U : 3U) ||
+	   !equalName( seeds.front(), selectedBase) ||
+	   (bluetoothSelection && (!scopedSelection || evidence))) {
+		return E_INVALIDARG ;
+	}
+
+	try {
+		const auto &source = closure.packages.front() ;	// 同じ収集rootの構造検査結果です
+		const auto &groups = source.collectorSerialMedia ? source.collectorSerialMedia->groups
+							 : source.nativeHdcInstallGroups.empty()
+								 ? source.collectorInboxInstallGroups
+								 : source.nativeHdcInstallGroups ;	// 原基本INFから解決した全選択節
+		const bool	scopedBluetoothUsb =
+			source.scopedModels && equalName( source.className, L"Bluetooth") &&
+			!source.collectorInboxInstallGroups.empty() ;	// 空媒体として検査した元選択
+		// 元WinUSBの作用は、公式Modelsが結ぶ同じ二ファイルだけの保護閉包に限る
+		if( !source.collectorInboxWinUsbRegistrySection.empty()) {
+			const auto *inf =
+				// 実署名した同じ元INF
+				dependencyEntry( closure.entries, source.infRelativePath) ;
+			// 他のCAB構造や機器の元ハッシュでWinUSBの検査を有効にしない
+			if( scopedSelection || !source.scopedModels || closure.packages.size() != 1U ||
+			   archiveEntries.size() != 2U || closure.entries.size() != 2U ||
+			   !source.sourceFiles.empty() || groups.size() != 1U || seeds.size() != 3U || !inf ||
+			   inf->sha256 != source.scopedModels->infSha256 ||
+			   workspace.protectionMode() != OfficialWorkspaceMode::CURRENT_USER_INSPECTION) {
+				return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+			}
+		}
+
+		// 混在媒体は二つの元選択を比較する入口だけで扱う
+		if( source.collectorSerialMedia.has_value() != (serialObserved != nullptr)) {
+			return E_INVALIDARG ;
+		}
+
+		// 混在媒体には同じ公式ZIPから得たINF・CAT・SYS・DLLの確定済み閉包を必須とする
+		if( source.collectorSerialMedia &&
+		   (scopedSelection != nullptr || closure.packages.size() != 1U ||
+			closure.entries.size() != 4U || archiveEntries.size() != 4U ||
+			source.sourceFiles.size() != 2U || groups.size() != 2U ||
+			!source.collectorPropertyPage || !equalName( source.className, L"Ports") ||
+			!equalName( source.classGuid, L"{4d36e978-e325-11ce-bfc1-08002be10318}") ||
+			!source.collectorInboxInstallGroups.empty() || source.nativePortsPage ||
+			workspace.protectionMode() != OfficialWorkspaceMode::CURRENT_USER_INSPECTION ||
+			std::ranges::any_of( closure.entries, [&]( const auto &entry) {
+				const auto *original =
+					// 取得済み同元項目
+					dependencyEntry( archiveEntries, entry.relativePath) ;
+				return original == nullptr || original->relativePath != entry.relativePath ||
+					   original->uncompressedSize != entry.uncompressedSize ||
+					   original->sha256.size() != 64U || original->sha256 != entry.sha256 ;
+			}))) {
+			return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+		}
+
+		// 指定した公式選択がなく、または別のCAB形である場合はBluetoothの検査を完了させない
+		if( scopedBluetoothUsb != bluetoothSelection ||
+		   (scopedBluetoothUsb &&
+			(archiveEntries.size() != 2U || closure.entries.size() != 2U ||
+			 closure.packages.size() != 1U || !source.sourceFiles.empty() ||
+			 !equalName( source.classGuid, L"{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}")))) {
+			return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+		}
+
+		// 公式範囲の元Modelsから選択したNet基本だけに専用の同梱依存検査を使います
+		const bool selectedScopedRoot =
+			scopedWifiBus && closure.packages.size() == 1U && source.scopedModels &&
+			equalName( scopedSelection->infRelativePath, source.infRelativePath) &&
+			scopedSelection->infSha256 == source.scopedModels->infSha256 &&
+			equalName( scopedSelection->selectedInstallSection, selectedBase) &&
+			scopedSelection->references.size() <= 4096U && equalName( source.className, L"Net") &&
+			equalName( source.classGuid, L"{4d36e972-e325-11ce-bfc1-08002be10318}") &&
+			std::ranges::any_of( source.scopedModels->sections, [&]( const auto &section) {
+				return std::ranges::any_of( section.matches, [&]( const auto &match) {
+					return equalName( match.installBase, scopedSelection->baseInstallSection) ;
+				}) ;
+			}) ;
+		// 異なる用途や別のModels選択の節を同じrootの署名で検査しません
+		if( source.inspectionPurpose != OfficialInfInspectionPurpose::COLLECTOR_CONTENT ||
+		   (scopedWifiBus ? !selectedScopedRoot
+						  : std::ranges::none_of( groups, [&]( const auto &group) {
+								return std::ranges::equal( group, seeds) ;
+							}))) {
+			return E_INVALIDARG ;
+		}
+
+		std::vector<InfDependencyPackageMember>
+			members ;	// 元CATと一組で検査する実package INFだけです
+		// source fileとして含まれただけのINFを検査済みの所有元に変換しません
+		for( const auto &package : closure.packages) {
+			const auto *inf =
+				// 元閉包のINFです
+				dependencyEntry( closure.entries, package.infRelativePath) ;
+			const auto *catalog = dependencyEntry(
+				closure.entries, package.catalogRelativePath) ;	// 宣言された同CATです
+			// 同じ容器に元からあるINFとCATの双方を抽出結果に結びます
+			for( const auto *entry : {inf, catalog}) {
+				// 元閉包に存在しない署名資料をパスだけから生成しません
+				if( !entry) {
+					return HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND) ;
+				}
+
+				const auto *original =
+					// 抽出前の同原位置です
+					dependencyEntry( archiveEntries, entry->relativePath) ;
+				// 元一覧の実sizeと既知の原hashを維持し、署名済み別原本への切替えを拒否します
+				if( !original || original->uncompressedSize != entry->uncompressedSize ||
+				   (!original->sha256.empty() && original->sha256 != entry->sha256)) {
+					return TRUST_E_BAD_DIGEST ;
+				}
+			}
+
+			members.push_back( {inf->relativePath, inf->sha256, inf->uncompressedSize}) ;
+		}
+
+		const CollectorDependencySource collector{closure, archiveEntries, selectedBase,
+												  scopedWifiBus,
+												  scopedBluetoothUsb} ;	// 同期呼出し中だけ借用します
+		InfDependencyNativeResult		observed ;						// graph・原file・作用は外部に引き渡しません
+		const auto						error = inspectNativeInfDependenciesImpl(
+			 workspace, members, 0U, seeds, observationId, observed, nullptr, nullptr, nullptr,
+			 &collector) ;	// 同梱文書と参照の再観測結果です
+		// 比較用証拠は一選択の終端再確認まで成功した場合だけ取り出す
+		if( error == 0U && serialObserved != nullptr) {
+			*serialObserved = std::move( observed) ;
+		}
+
+		// 従来の収集型と元診断はそのまま呼出し元へ返します
+		if( error != 0U || !scopedWifiBus) {
+			return error ;
+		}
+
+		const auto &plan = observed.dependency.plan.entries ;	// 元基本INFを指す項目です
+		const auto	root = std::ranges::find_if(
+			 plan, &InfDependencyPlanEntry::baseDriver) ;	// 検査済み元基本INFのgraph内位置です
+		// 実選択の元基本と同梱フィルター作用を証明できなければ充足させません
+		if( root == plan.end() || !observed.replacesWifiBusUpperFilters ||
+		   observed.delayedRegistration) {
+			return E_UNEXPECTED ;
+		}
+
+		// 型付きの同梱作用まで通過したgraphだけを元選択と双方向照合する
+		if( !matchScopedWifiBusReferences( *scopedSelection, root->identity,
+										 observed.dependency.edges)) {
+			return HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;
+		}
+
+		// 同じ元選択の全照合と現在状態を確認した場合だけ比較資料を返します
+		if( evidence) {
+			*evidence = {std::move( observed.fixedFiles), std::move( observed.systemFiles),
+						 std::move( observed.systemEffects), std::move( observed.systemServices)} ;
+		}
+
+		return 0U ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	} catch( ...) {
+		return E_FAIL ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 収集原本の選択節からWindows同梱の依存またはHDCの元SYSと全作用を検査する
+ * @param[in] workspace 収集した原閉包の実ファイルを同期呼出し中所有する領域
+ * @param[in] closure 元アーカイブから抽出し、各INFと宣言CATの内容検査を終えた閉包
+ * @param[in] archiveEntries 抽出前に確認した同じアーカイブ階層の全通常ファイル一覧
+ * @param[in] seeds AMD64 Modelsで選択した実基本節と実在する同名のHW・Services節
+ * @param[in] selectedBase 元選択の実基本節名。seedsの先頭と一致する
+ * @param[in] observationId 原収集の非零scan session ID
+ * @return 全参照の所有元、署名、作用と同OSでの終了再検査が成立すれば0、失敗はHRESULT
+ * @note 同期結果は収集内容だけに適用し、端末の選択や導入許可を発行しない
+ */
+//------------------------------------------------------------------------------
+NativeError inspectCollectorInfDependencies( const OfficialDownloadWorkspace	 &workspace,
+											const OfficialDriverClosure		 &closure,
+											std::span<const OfficialZipEntry> archiveEntries,
+											std::span<const std::wstring>	  seeds,
+											std::wstring_view				  selectedBase,
+											std::uint64_t					  observationId)
+{
+	return inspectArchiveInfDependencies( workspace, closure, archiveEntries, seeds, selectedBase,
+										 observationId, nullptr, nullptr) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 混在シリアルの両選択で同じ元同梱ファイルとサービスが成立することを照合する
+ * @param[in] workspace 取得済み元四ファイルを保持する私有保護領域
+ * @param[in] closure 構造・署名・元DLLのexportを確認した一基本INFの閉包
+ * @param[in] archiveEntries 同じ元ZIPの審査済み全項目とハッシュ
+ * @param[in] observationId 同じ収集取得を示す非零の観測ID
+ * @return 両方の元参照、Windows実ファイルとSCMが一致すれば0、失敗・途中変化はHRESULT
+ * @note 読取り専用で同梱証拠を比較する。デバイス選択や導入は行わない
+ */
+//------------------------------------------------------------------------------
+NativeError inspectCollectorSerialEnumeratorDependencies(
+	const OfficialDownloadWorkspace &workspace, const OfficialDriverClosure &closure,
+	std::span<const OfficialZipEntry> archiveEntries, std::uint64_t observationId)
+{
+	// 検査済みの混在媒体に属する異なる二つの選択をそろえる
+	if( closure.packages.size() != 1U || !closure.packages.front().collectorSerialMedia) {
+		return E_INVALIDARG ;
+	}
+
+	const auto &groups =
+		// 元INFから解決した両選択
+		closure.packages.front().collectorSerialMedia->groups ;
+	// 基本、HW、Servicesの組が欠けた場合や同一選択の重複は受理しない
+	if( groups.size() != 2U || groups[0].size() != 3U || groups[1].size() != 3U ||
+	   equalName( groups[0].front(), groups[1].front())) {
+		return E_INVALIDARG ;
+	}
+
+	std::array<InfDependencyNativeResult, 2U>
+		observed ;	// それぞれの終端で同じ元参照を再確認した証拠
+	// 両選択を個別に調べ、一方の失敗も元診断値を返す
+	for( std::size_t index = 0U; index < observed.size(); ++index) {
+		const auto &group = groups[index] ;	// 検査する一つの原選択
+		const auto	error = inspectArchiveInfDependencies(
+			 workspace, closure, archiveEntries, group, group.front(), observationId, nullptr,
+			 nullptr, false, &observed[index]) ;	// 同梱依存の元診断
+		// 片方でも根拠を確認できない場合は同梱の成功を返さない
+		if( error != 0U) {
+			return error ;
+		}
+	}
+
+	// 二つの観測間でWindowsの元INF、CAT、配備ファイルやSCM設定が変わった場合は保留する
+	return sameContext( observed[0].dependency.context, observed[1].dependency.context) &&
+				   std::ranges::is_permutation( observed[0].fixedFiles, observed[1].fixedFiles) &&
+				   observed[0].systemServices == observed[1].systemServices
+			   ? 0U
+			   : static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_RETRY)) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ元CABで確認した公式USB Bluetoothの選択を全参照と終端再検査へ結ぶ
+ * @param[in] workspace 同期中に元CABの展開データを所有する領域
+ * @param[in] closure 元INFとCATを検査済みの一つのBluetooth閉包
+ * @param[in] archiveEntries 同じ元CABの全通常ファイル
+ * @param[in] selected 元INFから同じ公式Models範囲を読んだ一つの選択棚卸し
+ * @param[in] observationId 収集処理の非零の観測世代
+ * @return 元選択とすべての参照・作用が終端まで一致して0、読取や不一致はHRESULT
+ * @note 同じCABから得た署名証拠を前提に、収集内容だけを検査する
+ */
+//------------------------------------------------------------------------------
+NativeError inspectScopedBluetoothUsbDependencies( const OfficialDownloadWorkspace	&workspace,
+												  const OfficialDriverClosure		&closure,
+												  std::span<const OfficialZipEntry>	 archiveEntries,
+												  const OfficialInfInstallInventory &selected,
+												  std::uint64_t						 observationId)
+{
+	constexpr NativeError UNSUPPORTED = HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) ;	// 未証明の収集作用
+	// 公式選択の根を他の元パッケージから補わない
+	if( closure.packages.size() != 1U) {
+		return UNSUPPORTED ;
+	}
+
+	const auto &source = closure.packages.front() ;				// 先に元署名と公式Modelsを確認した基本INF
+	const auto &groups = source.collectorInboxInstallGroups ;	// 同じ元バイトから確認した三つの選択節
+	// 元のINF、ハッシュ、公式範囲の実選択、参照と節の全集合を結ぶ
+	if( !source.scopedModels || !equalName( source.className, L"Bluetooth") ||
+	   !equalName( source.infRelativePath, selected.infRelativePath) ||
+	   selected.infSha256 != source.scopedModels->infSha256 || groups.size() != 1U ||
+	   groups.front().size() != 3U ||
+	   !equalName( groups.front().front(), selected.selectedInstallSection) ||
+	   selected.references.size() != 7U || selected.visitedSections.size() != 4U ||
+	   selected.coverageGaps.size() != 1U || selected.scannedLines != 9U) {
+		return UNSUPPORTED ;
+	}
+
+	const auto &seeds	 = groups.front() ;					// 検査済みの元三節
+	const auto &sections = source.scopedModels->sections ;	// 元署名と結んだ公式Models
+	// 異なる元Modelsの導入名を同じ署名済みINFの別選択として取り込まない
+	if( sections.size() != 1U || sections.front().matches.empty() ||
+	   !equalName( sections.front().matches.front().installBase, selected.baseInstallSection)) {
+		return UNSUPPORTED ;
+	}
+
+	constexpr std::array TARGETS{L"BthUsb.NT", L"BthUsb.NT.HW",
+								 L"BthUsb.NT.Services"} ;	// 元節別の同梱Needs
+	const auto			 count = [&]( std::wstring_view section, std::wstring_view directive,
+							 std::wstring_view target, OfficialInfInstallReferenceKind kind) {
+		  return std::ranges::count_if( selected.references, [&]( const auto &reference) {
+			  return equalName( reference.section, section) &&
+					 equalName( reference.directive, directive) &&
+					 equalName( reference.target, target) && reference.kind == kind &&
+					 !reference.targetPresent ;
+		  }) ;
+	} ; // 同じ元棚卸しから指定した外部辺だけを数える
+	// 同じ元三節の外部参照が先行した署名付き元形と一対一に一致することを確認する
+	for( std::size_t index = 0U; index < seeds.size(); ++index) {
+		// IncludeとNeedsを別文書や別用途の参照で補わない
+		if( count( seeds[index], L"Include", L"bth.inf",
+				 OfficialInfInstallReferenceKind::INCLUDE_INF) != 1 ||
+		   count( seeds[index], L"Needs", TARGETS[index],
+				 OfficialInfInstallReferenceKind::LOCAL_SECTION) != 1) {
+			return UNSUPPORTED ;
+		}
+	}
+
+	const auto &gap =
+		// 一般棚卸しが値まで判断しない唯一の局所機器設定
+		selected.coverageGaps.front() ;
+	const auto registry = std::ranges::find_if( selected.references, [&]( const auto &reference) {
+		return equalName( reference.section, seeds[1]) &&
+			   equalName( reference.directive, L"AddReg") &&
+			   equalName( reference.target, gap.section) &&
+			   reference.kind == OfficialInfInstallReferenceKind::LOCAL_SECTION &&
+			   reference.targetPresent ;
+	}) ; // 同じ署名と元節の検査で確認された機器DWORDの参照
+	// 解釈されていない範囲は元署名で値まで確認済みの当該機器設定一件だけ
+	if( registry == selected.references.end() ||
+	   gap.kind != OfficialInfInstallCoverageKind::REGISTRY_SCOPE_NOT_ASSESSED ||
+	   !gap.directive.empty()) {
+		return UNSUPPORTED ;
+	}
+
+	return inspectArchiveInfDependencies( workspace, closure, archiveEntries, seeds,
+										 selected.selectedInstallSection, observationId, &selected,
+										 nullptr, true) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 一つの公式Net選択から実解決した全仮想Wi-Fiバス参照と現状態を確認する
+ * @param[in] workspace 同じ原アーカイブから展開した保護閉包の領域
+ * @param[in] closure 原CATと全参照を確認した一つの公式Net基本INF
+ * @param[in] archiveEntries 元CABの同じ容器内の全通常ファイル。部分展開一覧は不可
+ * @param[in] selected 同じ元INFバイトから読んだ実導入節と付随節の棚卸し
+ * @param[in] observationId 現workerの非零の観測世代
+ * @param[out] evidence 非nullの場合、全確認後だけ元観測を返す。失敗時は空
+ * @return 全元参照、同梱署名・Storeと現サービスが一致すれば0、失敗はHRESULT
+ * @pre 端末側では呼出し側が公式レコードと現在の実選択を確定する
+ * @note 読取り専用。元端末と導入資格は発行しない
+ */
+//------------------------------------------------------------------------------
+NativeError inspectScopedWifiBusDependencies( const OfficialDownloadWorkspace   &workspace,
+											 const OfficialDriverClosure	   &closure,
+											 std::span<const OfficialZipEntry>	archiveEntries,
+											 const OfficialInfInstallInventory &selected,
+											 std::uint64_t						observationId,
+											 ScopedWifiBusDependencyEvidence   *evidence)
+{
+	// 先行観測を不成立の元アーカイブへ流用しません
+	if( evidence) {
+		*evidence = {} ;
+	}
+
+	// 一つの元アーカイブの全通常ファイルを有限な一覧で受け取ります
+	if( archiveEntries.empty() || archiveEntries.size() > 32'768U) {
+		return E_INVALIDARG ;
+	}
+
+	try {
+		std::vector<std::wstring> seeds{selected.selectedInstallSection} ;	// 同じ実基本節です
+		// 元棚卸しで実在した同じ基本節の付随節だけを追加します
+		for( const auto suffix :
+			{L".HW", L".Services", L".CoInstallers", L".Interfaces", L".Components", L".Software",
+			 L".Wdf", L".Events", L".LogConfigOverride"}) {
+			auto section = selected.selectedInstallSection + suffix ;	// 同じ元起点の付随節です
+			// 別起点や元にない付随節から依存を取得しません
+			if( std::ranges::find( selected.visitedSections, section) !=
+			   selected.visitedSections.end()) {
+				seeds.push_back( std::move( section)) ;
+			}
+		}
+
+		return inspectArchiveInfDependencies( workspace, closure, archiveEntries, seeds,
+											 selected.selectedInstallSection, observationId,
+											 &selected, evidence) ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
 }
 
 //------------------------------------------------------------------------------
@@ -3702,16 +7010,18 @@ NativeError AcquiredInfNativeAccess::inspect( const OfficialInfArchiveBinding  &
  * @param[in] selected 同元packageの私有node選択copyです
  * @param[out] result 非実行graphです。効果は独立に検査します
  * @param[out] diagnostic 任意の非機密数値です。合否を変更する入力ではありません
+ * @param[in] registeredDeviceRead 同じ選択機器の現用登録を読取する同期操作。指定しない場合はnull
  * @return 全依存と有限効果の充足0、未観測・未知・不合格のHRESULTです
  */
 //------------------------------------------------------------------------------
-NativeError CommonInfNativeAccess::inspect( const CommonInfInspection	&inspected,
-										   const OfficialInfPackage		&selected,
-										   InfDependencyNativeResult	&result,
-										   RequiredInfBindingDiagnostic *diagnostic)
+NativeError CommonInfNativeAccess::inspect( const CommonInfInspection		 &inspected,
+										   const OfficialInfPackage			 &selected,
+										   InfDependencyNativeResult		 &result,
+										   RequiredInfBindingDiagnostic		 *diagnostic,
+										   const StorageRegisteredDeviceRead *registeredDeviceRead)
 {
 	result					= {} ;
-	const auto contentError = reverifyCommonDriverInf( inspected) ;	// 全元byteと署名です
+	const auto contentError = recheckCommonContent( inspected) ;	// 全元byteと署名です
 	// 私有元所有者なしで由来を作りません
 	if( contentError != 0 || inspected.workspace == nullptr ||
 	   selected.selectedBasicSection.empty()) {
@@ -3810,9 +7120,24 @@ NativeError CommonInfNativeAccess::inspect( const CommonInfInspection	&inspected
 			return error ;
 		}
 
+		SelectedStorageServiceFacts storageFacts ;	// 同原byteから独立に読み直す非権限factsです
+		// 同元用途が端末storage専用であるという非権限分類です
+		const bool					storage =
+			selected.inspectionPurpose == OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE ;
+		// storageはInclude/Needs flagの有無に関係なく全serviceとSYSを固定します
+		if( storage) {
+			error = readSelectedStorageServiceFacts( *inspected.workspace, inspected.closure.entries,
+													current, storageFacts) ;
+			// 原storage factsを独立読取できない場合はnative資格へ進めません
+			if( error != 0U) {
+				return error ;
+			}
+		}
+
+		// 元の検査済み閉包と現在構成を借用し、指定したNeedsの選択節を照合する読込み器
 		NativeLoader loader( *inspected.workspace, members, context, nullptr, nullptr, nullptr,
-							&inspected, diagnostic,
-							selected.selectedInstallSection) ;	// 正規選択と全byteを同期固定します
+							&inspected, diagnostic, selected.selectedInstallSection,
+							storage ? &storageFacts : nullptr, nullptr, registeredDeviceRead) ;
 		return loader.run( root, seeds, result) ;
 	} catch( const std::bad_alloc &) {
 		return E_OUTOFMEMORY ;
@@ -3822,6 +7147,116 @@ NativeError CommonInfNativeAccess::inspect( const CommonInfInspection	&inspected
 }
 #ifdef DRIVERCRATE_INF_DEPENDENCY_TESTING
 namespace test {
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空の元選択と解決済み依存辺で旧名転送の双方向照合を検証する
+ * @param[in] selected 架空の元基本INFの選択と参照
+ * @param[in] rootIdentity 架空の元基本INFの識別子
+ * @param[in] edges 事前に解決済みの状態を試験入力とした架空graph
+ * @return 元参照と旧名転送を一意に照合できた場合true
+ * @note 署名とWindows由来はこの架空graph検査では認定しない
+ */
+//------------------------------------------------------------------------------
+bool matchScopedWifiBusReferencesForTest( const OfficialInfInstallInventory &selected,
+										 std::uint64_t						rootIdentity,
+										 std::span<const InfDependencyEdge> edges)
+{
+	return matchScopedWifiBusReferences( selected, rootIdentity, edges) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief USB Bluetoothの同梱INF間の参照を試験用の依存グラフで照合する
+ * @param[in] edges 解決状態を与えた架空の全参照辺
+ * @param[in] seeds 架空の元基本節、HW節、Services節をこの順に保持する一覧
+ * @param[in] rootIdentity 架空の元INF識別子
+ * @return 両同梱INFと用途ごとの八参照が一意に一致した場合true
+ * @note 署名、Windows由来、参照先の作用はこの試験の対象外
+ */
+//------------------------------------------------------------------------------
+bool matchScopedBluetoothUsbReferencesForTest( std::span<const InfDependencyEdge> edges,
+											  std::span<const std::wstring>		 seeds,
+											  std::uint64_t						 rootIdentity)
+{
+	return matchScopedBluetoothUsbReferences( edges, seeds, rootIdentity).has_value() ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空のUSB Bluetooth INFから保護コピーとSetupAPIの配備先を読み取る
+ * @param[in] path 試験用領域内に作成済みの元INF
+ * @param[in] driversDirectory SetupAPIの読み取り結果に要求する絶対ディレクトリ
+ * @return コピー行と配備先が期待に一致して0、読取または構造不一致はHRESULT
+ * @note INFを書き換えず、読み取ったコピーも実行しない
+ */
+//------------------------------------------------------------------------------
+NativeError verifyBluetoothUsbCopyDeclarationForTest( const std::wstring &path,
+													 std::wstring_view	 driversDirectory)
+{
+	const InfHandle inf{SetupOpenInfFileW(
+		// 架空元INF
+		path.c_str(), nullptr, INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE, nullptr)} ;
+	return inf.get() == INVALID_HANDLE_VALUE
+			   ? winError( GetLastError())
+			   : verifyBluetoothUsbCopyDeclaration( inf.get(), driversDirectory) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 架空のBluetoothとPCI INFから機器設定の元宣言を読み取る
+ * @param[in] bluetoothPath 試験用領域内のBluetooth INF
+ * @param[in] pciPath 試験用領域内のPCI INF
+ * @return 両文書の機器相対作用が一致して0、読取・構造・型の不一致はHRESULT
+ * @note 架空宣言だけを読む。署名、端末の現在値と導入時の処理順は検査しない
+ */
+//------------------------------------------------------------------------------
+NativeError verifyBluetoothUsbHardwareDeclarationsForTest( const std::wstring &bluetoothPath,
+														  const std::wstring &pciPath)
+{
+	constexpr DWORD STYLE = INF_STYLE_WIN4 | INF_STYLE_CACHE_IGNORE ;	// 元バイトを直接読む設定
+	const InfHandle bluetooth{											// 架空Bluetooth文書
+							  SetupOpenInfFileW( bluetoothPath.c_str(), nullptr, STYLE, nullptr)} ;
+	// 先に開く元文書の読取失敗を後続APIで上書きしない
+	if( bluetooth.get() == INVALID_HANDLE_VALUE) {
+		return winError( GetLastError()) ;
+	}
+
+	const InfHandle pci{SetupOpenInfFileW( pciPath.c_str(), nullptr, STYLE, nullptr)} ;	// 架空PCI文書
+	return pci.get() == INVALID_HANDLE_VALUE
+			   ? winError( GetLastError())
+			   : verifyBluetoothUsbHardwareDeclarations( bluetooth.get(), pci.get()) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 指定した試験用INFを同梱Bluetoothの共有作用比較に通す
+ * @param[in] path 呼出し元が選んだ読取り専用の試験用INF
+ * @return 元宣言の全件が一致して0、読取りや既知作用との不一致はHRESULT
+ * @note これだけでは署名を確認しない。INFの内容やWindowsの設定を書き換えない
+ */
+//------------------------------------------------------------------------------
+NativeError verifyBluetoothUsbSharedDeclarationsForTest( const std::wstring &path)
+{
+	std::array<wchar_t, MAX_PATH> windows{} ;	// SetupAPIと同じ現在OSのルート
+	// 試験で照合するWindowsディレクトリの取得結果。単位は文字
+	const auto length = GetWindowsDirectoryW( windows.data(), static_cast<UINT>( windows.size())) ;
+	// OSの位置が読み取れないときは試験用の代替ルートを推定しない
+	if( length == 0U || length >= windows.size()) {
+		return HRESULT_FROM_WIN32( ERROR_PATH_NOT_FOUND) ;
+	}
+
+	const InfHandle inf{SetupOpenInfFileW(
+		// 試験用INF
+		path.c_str(), nullptr, INF_STYLE_WIN4 | INF_STYLE_CACHE_IGNORE, nullptr)} ;
+	// 元のファイルを読めなかったケースを不一致と区別する
+	if( inf.get() == INVALID_HANDLE_VALUE) {
+		return winError( GetLastError()) ;
+	}
+
+	return verifyBluetoothSharedDeclarations( inf.get(), std::wstring{windows.data(), length} +
+															L"\\System32\\drivers") ;
+}
+
 //------------------------------------------------------------------------------
 /**
  * @brief 元選択からの正確なNeeds文脈伝播を架空graphで確認します

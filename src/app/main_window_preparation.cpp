@@ -2,7 +2,7 @@
 /**
  * @file main_window_preparation.cpp
  * @brief 公式配布物の取得確認と結果表示
- * @version 01.13.03
+ * @version 01.16.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -52,6 +52,10 @@
  * Ver.01.13.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.13.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.13.03 Shunji Ogawa  2026/11/12  外側tupleの取得予約と開始拒否の原理由を接続
+ * Ver.01.14.00 Shunji Ogawa  2026/11/23  一候補の検査専用承認と同じ行への結果表示を接続
+ * Ver.01.14.01 Shunji Ogawa  2026/11/23  元配布の検査完了、失敗と取消しを区別
+ * Ver.01.15.00 Shunji Ogawa  2026/11/23  同じ検査用取得と候補へ表示用規約を結ぶ
+ * Ver.01.16.00 Shunji Ogawa  2026/11/23  元規約を同じ選択と取得後の導入確認へ引き継ぐ
  * </pre>
  *
  * @note UI thread専用です。Payload URL・端末識別子は非表示で、EULA内のURLは文字列に限ります
@@ -74,6 +78,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -173,10 +178,12 @@ struct ReviewedPreparationEula {
 /**
  * @brief 索引workerが実際に返す取得stateの変換だけを元transferへ対応させます
  * @param[in] state 独立summaryが申告した取得終端
+ * @param[in] inspectionOnly 回線の同意不足を独立して返す検査専用の元対象です
  * @return 現workerと同じ元transfer状態。未開始・定義外は値なしです
  */
 //------------------------------------------------------------------------------
-std::optional<OfficialPreparationItemState> indexTransferState( const OfficialAcquisitionState state)
+std::optional<OfficialPreparationItemState> indexTransferState( const OfficialAcquisitionState state,
+															   const bool inspectionOnly)
 {
 	// 取得成功・取消し・拒否を同名終端へ、その他の実失敗をFAILUREへ対応させます
 	switch( state) {
@@ -189,8 +196,10 @@ std::optional<OfficialPreparationItemState> indexTransferState( const OfficialAc
 		// 元拒否を実行失敗へ改変しません
 		case OfficialAcquisitionState::REJECTED:
 			return OfficialPreparationItemState::REJECTED ;
-		// 現索引workerはnetwork同意待ちも共通executorのFAILUREへ変換します
+		// 検査専用取得だけは回線同意不足を独立した終端として返します
 		case OfficialAcquisitionState::AWAITING_NETWORK_CONSENT:
+			return inspectionOnly ? OfficialPreparationItemState::AWAITING_NETWORK_CONSENT
+								  : OfficialPreparationItemState::FAILURE ;
 		// 実取得失敗も同じ共通executor終端へ対応させます
 		case OfficialAcquisitionState::FAILURE:
 			return OfficialPreparationItemState::FAILURE ;
@@ -314,6 +323,52 @@ bool MainWindow::matchesPresentedInstallTerms(
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 同じ選択から検査済みWiX候補と閲覧できる元規約を取得します
+ * @param[in] indexes 現在表示の候補位置です
+ * @return WiX候補と同じ元規約。規約の不足・失効、不正な位置ではnulloptです
+ * @note UIスレッド専用です。文書の閲覧と同じ時計で可否を確認し、同意は発行しません
+ */
+//------------------------------------------------------------------------------
+std::optional<std::vector<WixInstallConsent>> MainWindow::selectedWixTerms(
+	const std::span<const std::size_t> indexes) const
+{
+	const auto now = std::chrono::floor<std::chrono::seconds>(
+		// 規約表示の有効時間を毎回確認します
+		std::chrono::system_clock::now()) ;
+	std::vector<WixInstallConsent> selected ;	// 通常候補には追加の規約表示がありません
+	// 選択した全WiX候補を、元機器と同じ規約全文に戻します
+	for( const auto index : indexes) {
+		// 通常の候補集合と一致しない位置から表示を作りません
+		if( index >= candidates_.size()) {
+			return std::nullopt ;
+		}
+
+		const auto &candidate = candidates_[index] ;	// 明示選択の元候補です
+		// 通常の候補と検査専用行には導入同意を結びません
+		if( candidate.wixInspectionSourceIdentity.empty()) {
+			continue ;
+		}
+
+		const auto shown =
+			// 元表示です
+			wixTermsByCandidate_.find( candidate.wixInspectionSourceIdentity) ;
+		// 期限内の同じ機器の元表示に限り最終確認へ渡します
+		if( selected.size() >= MAXIMUM_WIX_INSTALL_CONSENTS || !candidate.installable ||
+		   shown == wixTermsByCandidate_.end() ||
+		   shown->second.deviceIdentity != candidate.deviceIdentity || !shown->second.terms ||
+		   shown->second.terms->documents.empty() || now < shown->second.terms->confirmedAtUtc ||
+		   now >= shown->second.terms->expiresAtUtc) {
+			return std::nullopt ;
+		}
+
+		selected.push_back( {candidate.identity, shown->second.terms}) ;
+	}
+
+	return selected ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 現選択の規約案内と任意閲覧入口を更新します。同意は発行しません
  * @return 必要な案内を表示できた場合trueです。失敗時はsnapshotを破棄します
  * @note UI thread専用です。例外を外へ漏らさずInstallを無効にします
@@ -324,17 +379,36 @@ bool MainWindow::updateInstallTermsPresentation() noexcept
 	const bool wasVisible = (GetWindowLongPtrW( installTermsNote_, GWL_STYLE) & WS_VISIBLE) !=
 							0 ;	// 親の可視性と独立した案内状態です
 	presentedInstallTerms_.reset() ;
-	bool visible{} ;	// 選択した未取得配布物がある間だけ案内帯を表示します
-	bool accepted{} ;	// 案内の表示可否であり規約の受諾ではありません
+	bool visible{} ;			// 選択した未取得配布物またはWiX規約があれば案内を表示します
+	bool accepted{} ;			// 案内の表示可否であり規約の受諾ではありません
+	bool showTermsButton{} ;	// 未取得対象を案内する既存ボタンの表示です
+	bool allowTermsButton{} ;	// 専用の詳細を持たない従来の規約だけをこのボタンで開きます
 	try {
 		const auto indexes = checkedCandidateIndexes() ;	// 現在表示中の実check集合です
-		visible			   = controller_.state() == ApplicationState::SCAN_READY &&
-				  std::ranges::any_of(
-					  indexes, [&]( const auto index) { return !candidates_[index].installable ; }) ;
+		const bool ready =
+			// 選択が有効な画面です
+			controller_.state() == ApplicationState::SCAN_READY ;
+		showTermsButton = ready && std::ranges::any_of( indexes, [&]( const auto index) {
+							  return !candidates_[index].installable ;
+						  }) ;
+		const auto wix =
+			ready
+				? selectedWixTerms( indexes)
+				: std::optional<std::vector<WixInstallConsent>>{std::in_place} ;	// 現在の元規約です
+		const bool showWix = !wix || !wix->empty() ;								// 期限切れのときにも次に取る操作を表示します
+		visible			   = showTermsButton || showWix ;
 		// 未取得対象を選んでいない場合に過去の規約案内を残しません
-		if( !visible) {
+		if( !showTermsButton) {
 			accepted =
 				SetWindowTextW( installButton_, loadString( IDS_INSTALL_BUTTON).c_str()) != FALSE ;
+			// 元規約の閲覧場所を確認前に示し、期限切れは実行を無効にします
+			if( showWix) {
+				const auto text =
+					loadString( wix ? IDS_WIX_INSTALL_TERMS_NOTICE
+								   : IDS_WIX_INSTALL_TERMS_EXPIRED) ;	// 対象の状態に合わせた案内です
+				accepted = SetWindowTextW( installTermsNote_, text.c_str()) != FALSE && accepted &&
+						   wix.has_value() ;
+			}
 		} else {
 			auto snapshot =
 				// 同意flagを持たない提示値です
@@ -344,19 +418,25 @@ bool MainWindow::updateInstallTermsPresentation() noexcept
 					return decision.acquire &&
 						   decision.target.terms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED ;
 				}) ; // 既存計画だけから文言を決めます
-			const auto note =
+			auto note =
 				snapshot
 					? formatResource( needsTerms ? IDS_INSTALL_TERMS_NOTICE
 												: IDS_INSTALL_SELECTION_NOTICE,
 									 std::to_wstring( indexes.size()))
 					: loadString( IDS_INSTALL_TERMS_UNAVAILABLE) ;	// 欠落条件は同意不要へ変換しません
+			// 通常取得の案内と同時に、ストレージ側の元規約を読む場所を示します
+			if( showWix) {
+				note += L"\r\n" + loadString( wix ? IDS_WIX_INSTALL_TERMS_NOTICE
+												 : IDS_WIX_INSTALL_TERMS_EXPIRED) ;
+			}
+
 			const auto caption = loadString( needsTerms ? IDS_INSTALL_TERMS_BUTTON
 													   : IDS_INSTALL_BUTTON) ;	// 明示操作の意味です
 			accepted		   = SetWindowTextW( installTermsNote_, note.c_str()) != FALSE &&
 					   GetWindowTextLengthW( installTermsNote_) == static_cast<int>( note.size()) &&
 					   SetWindowTextW( installButton_, caption.c_str()) != FALSE &&
-					   snapshot.has_value() ;
-			EnableWindow( installTermsButton_, accepted && needsTerms) ;
+					   snapshot.has_value() && wix.has_value() ;
+			allowTermsButton = needsTerms ;
 			// 案内controlへ表示できた同じ値だけをInstall時の比較へ保持します
 			if( accepted) {
 				presentedInstallTerms_ = std::move( snapshot) ;
@@ -369,7 +449,8 @@ bool MainWindow::updateInstallTermsPresentation() noexcept
 	}
 
 	ShowWindow( installTermsNote_, visible ? SW_SHOW : SW_HIDE) ;
-	ShowWindow( installTermsButton_, visible ? SW_SHOW : SW_HIDE) ;
+	EnableWindow( installTermsButton_, accepted && allowTermsButton) ;
+	ShowWindow( installTermsButton_, showTermsButton ? SW_SHOW : SW_HIDE) ;
 	// 案内の出現・消失時だけ一覧とfooterの高さを再配分します
 	if( wasVisible != visible) {
 		layoutControls() ;
@@ -614,6 +695,9 @@ void MainWindow::failPreparedInstall( const OfficialPreparationOperationResult &
 //------------------------------------------------------------------------------
 void MainWindow::continuePreparedInstall( const OfficialPreparationOperationResult &result)
 {
+	const auto originalWixTerms =
+		// 元規約を一度だけ継続します
+		std::exchange( wixTermsBeforePreparation_, {}) ;
 	const auto &intent = preparationApproval_.installIntentIdentities ;	// 元選択だけです
 	std::vector<std::size_t>	  resolved ;							// 全件照合後だけ実行checkへ反映します
 	// 全件照合前は件数不一致を既定の停止理由とします
@@ -714,7 +798,7 @@ void MainWindow::continuePreparedInstall( const OfficialPreparationOperationResu
 		}
 	}
 
-	beginInstall() ;
+	beginInstall( std::span<const WixInstallConsent>{originalWixTerms}) ;
 }
 
 //------------------------------------------------------------------------------
@@ -871,11 +955,12 @@ std::wstring MainWindow::formatPreparationTarget( const OfficialPreparationTarge
 	}
 
 	// 取得許可の理由、または未確定／本文未提示の拒否理由を示すresource
-	const UINT terms = target.terms == OfficialPreparationTerms::CONFIRMED_NO_CONSENT
-						   ? IDS_PREPARATION_ELIGIBLE
-						   : (target.terms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED
-								  ? IDS_PREPARATION_EULA_READY
-								  : IDS_PREPARATION_UNRESOLVED) ;
+	const UINT terms =
+		target.terms == OfficialPreparationTerms::CONFIRMED_NO_CONSENT	? IDS_PREPARATION_ELIGIBLE
+		: target.terms == OfficialPreparationTerms::ACCEPTANCE_REQUIRED ? IDS_PREPARATION_EULA_READY
+		: target.terms == OfficialPreparationTerms::INSPECTION_ONLY
+			? IDS_DETAIL_INSPECTION_AVAILABLE
+			: IDS_PREPARATION_UNRESOLVED ;
 	// 条件説明は取得許可の根拠ではなく、拒否理由を含む表示である
 	return formatResource( IDS_PREPARATION_TARGET, std::to_wstring( index + 1U)) + L": " + provider +
 		   L"\r\n" + formatResource( IDS_PREPARATION_REFERENCE, target.releaseIdentity) + L"\r\n" +
@@ -956,6 +1041,7 @@ void MainWindow::handlePreparationCommand()
 
 	// 明示取消しや検査単独要求へ、以前のInstall継続意図を流用しません
 	continueInstallAfterPreparation_ = false ;
+	wixTermsBeforePreparation_.clear() ;
 
 	// 取得中の再操作は新規取得ではなく現在処理への取消要求とする
 	if( controller_.state() == ApplicationState::PREPARING) {
@@ -1143,6 +1229,68 @@ void MainWindow::beginPreparationReview()
 				   MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2) != IDYES) {
 		setStatus( loadString( IDS_PREPARATION_REVIEW_CANCELLED), false) ;
 		return ;
+	}
+
+	startPreparation( std::move( approval), false) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元候補と同じ通常検索に属する検査専用計画を照合します
+ * @param[in] candidate 現在の一覧から呼出し中だけ借用する一候補です
+ * @return 現計画の一件です。処理中、失効、別の取得方式はnullptrです
+ * @note 計画を入れ替える処理やダイアログを越えて戻り値を保持しません
+ */
+//------------------------------------------------------------------------------
+const OfficialPreparationTarget *MainWindow::inspectionTargetFor(
+	const UpdateCandidate &candidate) const noexcept
+{
+	const auto *plan = controller_.preparationPlan() ;	// 現在表示している通常検索の元計画です
+	// 取得前の一候補だけから参加を許し、現在のドライバーや通常導入の選択と混ぜません
+	if( !plan || controller_.state() != ApplicationState::SCAN_READY ||
+	   controller_.scanPurpose() != ScanPurpose::STANDARD || plan->scanSessionId == 0U ||
+	   plan->scanSessionId != controller_.scanSessionId() || plan->planId == 0U ||
+	   candidate.current || candidate.installable || candidate.action != DriverAction::NONE ||
+	   candidate.providerId != SIGNED_INDEX_PROVIDER_ID || candidate.deviceIdentity.empty() ||
+	   candidate.inspectionTargetIdentity.empty() || !candidate.preparationTargetIdentity.empty()) {
+		return nullptr ;
+	}
+
+	const auto target = std::ranges::find(
+		plan->targets, candidate.inspectionTargetIdentity,
+		&OfficialPreparationTarget::identity) ;	// 表示名でなく署名索引workerが結んだIDです
+	return target != plan->targets.end() && target->providerId == SIGNED_INDEX_PROVIDER_ID &&
+				   target->terms == OfficialPreparationTerms::INSPECTION_ONLY &&
+				   target->deviceCount == 1U
+			   ? &*target
+			   : nullptr ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元候補で明示した検査専用取得を一件だけ既存workerに依頼します
+ * @param[in] candidate ダイアログ終了後に照合した現在一覧の一候補です
+ * @note ここでは規約、従量回線又は導入の同意を発行しません
+ */
+//------------------------------------------------------------------------------
+void MainWindow::beginInspectionPreparation( const UpdateCandidate &candidate)
+{
+	const auto *target = inspectionTargetFor( candidate) ;	// 押された一候補の現在の取得対象です
+	const auto *plan   = controller_.preparationPlan() ;	// 取消しまで保持する承認へ内容を複写します
+	// 処理開始前に同じ候補・計画を再照合し、他の対象を自動選択しません
+	if( closing_ || !target || !plan) {
+		setStatus( loadString( IDS_DETAIL_TIP_STALE), false) ;
+		return ;
+	}
+
+	OfficialPreparationApproval approval ;	// 既存の元計画全体への一件だけの取得選択です
+	approval.scanSessionId = plan->scanSessionId ;
+	approval.planId		   = plan->planId ;
+	approval.limits		   = plan->limits ;
+	approval.decisions.reserve( plan->targets.size()) ;
+	// 他の元対象は明示的に未選択とし、次の操作に必要な元条件を保持します
+	for( const auto &entry : plan->targets) {
+		approval.decisions.push_back( {.target = entry, .acquire = &entry == target}) ;
 	}
 
 	startPreparation( std::move( approval), false) ;
@@ -1352,8 +1500,23 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 			continue ;
 		}
 
-		const auto expectedTransfer = indexTransferState( item.acquisition) ;	// 現workerの確定変換
+		const auto expectedTransfer = indexTransferState(
+			item.acquisition, decision->target.terms ==
+								  OfficialPreparationTerms::INSPECTION_ONLY) ;	// 元方式の確定変換
 		indexBound &= decision->acquire && item.acquisitionError == transfer->result.error ;
+		// 閲覧用の本文を通常取得や検査失敗の結果へ結びません
+		if( item.wixTerms) {
+			const auto &terms = *item.wixTerms ;	// 元と同じ検査完了の通知からだけ借用します
+			indexBound &= decision->target.terms == OfficialPreparationTerms::INSPECTION_ONLY &&
+						  !item.reusedOwnedBody &&
+						  item.acquisition == OfficialAcquisitionState::ACQUIRED_FOR_INSPECTION &&
+						  item.content == IndexedDriverInspectionState::INSPECTION_COMPLETED &&
+						  item.acceptedInfCount == 1U && item.contentError == 0U &&
+						  terms.confirmedAtUtc > std::chrono::sys_seconds{} &&
+						  terms.expiresAtUtc > terms.confirmedAtUtc && !terms.documents.empty() &&
+						  terms.documents.size() <= 16U ;
+		}
+
 		// LOCALは同active taskの照合票と実検査事実を併せて要求します
 		if( item.reusedOwnedBody) {
 			const OfficialPreparationTask task{
@@ -1395,6 +1558,8 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 	} else {
 		indexPreparationSummary_ = {} ;
 	}
+
+	finishInspectionPreparation( result, cancelled) ;
 
 	recordPreparationResultDiagnostics( preparationApproval_, result,
 									   indexBound ? &indexPreparationSummary_ : nullptr) ;
@@ -1670,6 +1835,85 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 	}
 
 	// 長い技術reportは保持し、利用者が開くdevice詳細から閲覧する
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 検査専用の結果は元候補だけへ戻し、使用できない取得対象を除きます
+ * @param[in] result 同operationへ受理済みの終端です
+ * @param[in] cancelled 終端受理前に利用者が取得を取り消した場合trueです
+ * @note 受理した内容summaryを使い、現在のバージョンや導入選択は変更しません
+ */
+//------------------------------------------------------------------------------
+void MainWindow::finishInspectionPreparation( const OfficialPreparationOperationResult &result,
+											 const bool								   cancelled)
+{
+	// 元候補と全結果は同じ走査の識別子で結び、表示名から結果を推測しません
+	for( std::size_t index = 0U; index < candidates_.size(); ++index) {
+		auto &candidate = candidates_[index] ;	// 第三者へ渡さない元候補です
+		// 通常の導入候補・現在構成の実行結果を変更しません
+		if( candidate.inspectionTargetIdentity.empty()) {
+			continue ;
+		}
+
+		const auto decision =
+			std::ranges::find( preparationApproval_.decisions, candidate.inspectionTargetIdentity,
+							  []( const auto &entry) {
+								  return entry.target.identity ;
+							  }) ; // 元承認にあるときだけ照合します
+		// 選択されていた検査対象だけに受理した結果を戻します
+		if( decision != preparationApproval_.decisions.end() && decision->acquire &&
+		   decision->target.terms == OfficialPreparationTerms::INSPECTION_ONLY) {
+			const auto transfer =
+				std::ranges::find( result.items, decision->target.identity,
+								  &OfficialPreparationItem::identity) ;	// 受理済みの元操作結果です
+			const auto item = std::ranges::find(
+				indexPreparationSummary_.items, decision->target.identity,
+				&IndexPreparationItemSummary::targetIdentity) ;	// 取得とは別に確認した内容状態です
+			UINT resource =
+				transfer == result.items.end()
+					? IDS_PREPARATION_FAILED
+					: preparationStateResource( transfer->result.state) ;	// 元の取得・取消し状態です
+			NativeError error = transfer == result.items.end()
+									? result.controlError
+									: transfer->result.error ;	// 元数値のみです
+			// 完全受信後は内容未確認・内容拒否・検査完了を別々に表示します
+			if( transfer != result.items.end() &&
+			   transfer->result.state == OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION) {
+				const bool observed =
+					item != indexPreparationSummary_.items.end() ;	// 受理した内容通知だけを使います
+				resource = !observed ? IDS_DETAIL_INSPECTION_PENDING
+						   : item->content == IndexedDriverInspectionState::INSPECTION_COMPLETED
+							   ? IDS_DETAIL_INSPECTION_VERIFIED
+						   : item->content == IndexedDriverInspectionState::CANCELLED
+							   ? IDS_PREPARATION_CANCELLED
+							   : IDS_DETAIL_INSPECTION_FAILED ;
+				error	 = observed ? item->contentError : 0U ;
+				// 全言語の照合を通過した同候補の閲覧値だけを、新たな取得の結果から独立に残します
+				if( !cancelled && observed && item->wixTerms &&
+				   resource == IDS_DETAIL_INSPECTION_VERIFIED &&
+				   result.approvalError == OfficialPreparationError::NONE &&
+				   result.controlError == 0U &&
+				   controller_.state() == ApplicationState::SCAN_READY) {
+					wixTermsByCandidate_.insert_or_assign(
+						candidate.identity,
+						WixTermsDisplay{candidate.deviceIdentity, item->wixTerms}) ;
+				}
+			}
+
+			candidateResultTexts_.resize( candidates_.size()) ;
+			candidateResultTexts_[index] = loadString( resource) ;
+			// 内容未確認や利用者の取消しに不要な診断番号を追加しません
+			if( error != 0U && resource != IDS_PREPARATION_CANCELLED) {
+				candidateResultTexts_[index] += L" / " + formatNativeError( error) ;
+			}
+		}
+
+		// 終端操作で消費済み又は失効した取得用IDを、候補を残したまま破棄します
+		if( !inspectionTargetFor( candidate)) {
+			candidate.inspectionTargetIdentity.clear() ;
+		}
+	}
 }
 
 } // namespace drivercrate

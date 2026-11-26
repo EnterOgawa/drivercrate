@@ -1,8 +1,8 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_msi_tests.cpp
- * @brief 公式MSI stream選択取得単体試験実装
- * @version 01.00.02
+ * @brief 公式MSIのTemplate照合とstream選択取得の単体試験実装
+ * @version 01.01.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,10 +29,10 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/23  架空MSIのTemplate照合試験を追加
  * </pre>
  *
- * @note 小さい架空MSIとbinary streamだけを作成し、network、実driver、MSI install、custom actionへ依存せず選択取得と失敗cleanupを検
- *       証します
+ * @note 架空MSIを作成し、選択取得と失敗cleanup、およびTemplateのplatformと言語の厳密な照合を検証します
  */
 //------------------------------------------------------------------------------
 
@@ -44,8 +44,10 @@
 #include "test_framework.h"
 
 #include <Msi.h>
+#include <MsiDefs.h>
 #include <MsiQuery.h>
 #include <Windows.h>
+#include <wtypes.h>
 
 #include <array>
 #include <cstddef>
@@ -146,16 +148,18 @@ struct MsiFixture {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 架空MSIへ一つのbinary streamを登録する
+ * @brief 架空MSIへ一つのbinary streamと任意のTemplateを登録する
  *
  * Windows Installer databaseを書込むのはtest setupだけとし、production取得APIはread-onlyのまま検証する
  *
  * @param[in,out] workspace 元fileとMSIを所有する保護領域
  * @param[out] fixture 成功時のMSI identityとstream hash
+ * @param[in] templateValue 設定するTemplateのnull終端値。nullならTemplateを追加しない
  * @return MSI作成、stream登録、commit、identity取得成功時は`true`
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] bool createMsiFixture( OfficialDownloadWorkspace &workspace, MsiFixture &fixture)
+[[nodiscard]] bool createMsiFixture( OfficialDownloadWorkspace &workspace, MsiFixture &fixture,
+									const wchar_t *const templateValue = nullptr)
 {
 	fixture = {} ;
 	std::wstring sourcePath ;	// MsiRecordSetStreamWへ渡す架空binary絶対path
@@ -207,16 +211,32 @@ struct MsiFixture {
 				if( result == ERROR_SUCCESS) {
 					result = MsiViewClose( view) ;
 				}
-
-				// 先行段階が成功した場合だけ次の処理へ進み、最初の失敗原因を後続の結果で上書きしない
-				if( result == ERROR_SUCCESS) {
-					result = MsiDatabaseCommit( database) ;
-				}
 			}
 			// 先行処理の失敗がない場合はrecord未取得を確保失敗として残す
 			else if( result == ERROR_SUCCESS) {
 				result = ERROR_OUTOFMEMORY ;
 			}
+		}
+
+		// 指定のあるfixtureだけにTemplateを設定し、先行処理の失敗を保持する
+		if( result == ERROR_SUCCESS && templateValue != nullptr) {
+			PMSIHANDLE summary ;	// 設定一件を書き込むfixture用Summary stream
+			result = MsiGetSummaryInformationW( database, nullptr, 1U, &summary) ;
+			// Summary streamを作成できた場合にだけ指定Templateを設定する
+			if( result == ERROR_SUCCESS) {
+				result = MsiSummaryInfoSetPropertyW( summary, PID_TEMPLATE, VT_LPSTR, 0, nullptr,
+													templateValue) ;
+			}
+
+			// 設定に成功したTemplateだけをSummary streamへ保存する
+			if( result == ERROR_SUCCESS) {
+				result = MsiSummaryInfoPersist( summary) ;
+			}
+		}
+
+		// 必要なstreamの作成が済んだ場合だけMSIを確定する
+		if( result == ERROR_SUCCESS) {
+			result = MsiDatabaseCommit( database) ;
 		}
 
 		databaseSucceeded = result == ERROR_SUCCESS ;
@@ -338,7 +358,7 @@ void testStreamSelectionRejection( TestContext &context)
 /**
  * @brief 入力identity差替えと既存出力を拒否する
  *
- * 誤SHA-256をopen前に拒否し、CREATE_NEWで既存fileを守る
+ * 誤SHA-256をopen前に拒否し、Template照合に正しい入力identityを要求する。CREATE_NEWで既存fileを守る
  *
  * @param[in,out] context Assertion集計先
  */
@@ -348,9 +368,17 @@ void testIdentityAndOutputRejection( TestContext &context)
 	OfficialDownloadWorkspace workspace ;	// Identityと上書き拒否用の保護領域
 	DRIVERCRATE_EXPECT( context, workspace.initialize( L"msi-test", 3U) == 0) ;
 	MsiFixture fixture ;	// 拒否試験で共有する架空MSI identity
-	DRIVERCRATE_EXPECT( context, createMsiFixture( workspace, fixture)) ;
+	DRIVERCRATE_EXPECT( context, createMsiFixture( workspace, fixture, L"x64;1033")) ;
 	constexpr std::wstring_view WRONG_SHA256 =
 		L"0000000000000000000000000000000000000000000000000000000000000000" ;	// 不一致hash
+	DRIVERCRATE_EXPECT( context,
+					   verifyOfficialMsiTemplate( fixture.databasePath, fixture.databaseSize,
+												 WRONG_SHA256, POLICY.maximumDatabaseBytes,
+												 OfficialMsiPlatform::AMD64, 1033U) != 0) ;
+	DRIVERCRATE_EXPECT(
+		context, verifyOfficialMsiTemplate( fixture.databasePath, fixture.databaseSize - 1U,
+										   fixture.databaseSha256, POLICY.maximumDatabaseBytes,
+										   OfficialMsiPlatform::AMD64, 1033U) != 0) ;
 	const OfficialMsiStreamExtractionRequest changedRequest{
 		fixture.databasePath, fixture.databaseSize, WRONG_SHA256, STREAM_NAME,
 		L"changed.cab"} ;			// 誤identity要求
@@ -376,11 +404,61 @@ void testIdentityAndOutputRejection( TestContext &context)
 	DRIVERCRATE_EXPECT( context, hashAfter == hashBefore) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief MSIのTemplateへ明示されたplatformと言語一件の完全一致だけを受理する
+ *
+ * @param[in,out] context Assertion件数と失敗内容の集計先
+ */
+//------------------------------------------------------------------------------
+void testMsiTemplateVerification( TestContext &context)
+{
+	/**
+	 * @brief 架空MSIに設定するTemplateと一件の照合結果を表す
+	 */
+	struct TemplateCase {
+		/// Fixtureのnull終端Template。nullはpropertyなし
+		const wchar_t	   *value ;
+		/// 照合で期待する明示platform
+		OfficialMsiPlatform platform ;
+		/// 照合で期待する言語ID
+		std::uint16_t		language ;
+		/// この組合せを受理する場合true
+		bool				expected ;
+	} ;
+
+	constexpr std::array TEMPLATE_CASES{
+		TemplateCase{L"x64;1033", OfficialMsiPlatform::AMD64, 1033U, true},
+		TemplateCase{L"Intel;1041", OfficialMsiPlatform::X86, 1041U, true},
+		TemplateCase{L"x64;1033", OfficialMsiPlatform::X86, 1033U, false},
+		TemplateCase{L"Intel;1033", OfficialMsiPlatform::X86, 1041U, false},
+		TemplateCase{L";1033", OfficialMsiPlatform::X86, 1033U, false},
+		TemplateCase{L"x64;0", OfficialMsiPlatform::AMD64, 0U, false},
+		TemplateCase{L"x64;01033", OfficialMsiPlatform::AMD64, 1033U, false},
+		TemplateCase{L"x64;1033,1041", OfficialMsiPlatform::AMD64, 1033U, false},
+		TemplateCase{nullptr, OfficialMsiPlatform::AMD64, 1033U, false},
+	} ; // 完全一致、相違、暗黙値、長さ超過、欠落を含む有限fixture集合
+
+	std::uint64_t operationId = 4U ;	// Fixtureごとに割り当てるworkspace識別子
+	// 全fixtureを個別workspaceに作成し、対応する期待結果と照合する
+	for( const auto &templateCase : TEMPLATE_CASES) {
+		OfficialDownloadWorkspace workspace ;	// 一件の架空MSIを所有する保護領域
+		DRIVERCRATE_EXPECT( context, workspace.initialize( L"msi-test", operationId) == 0) ;
+		++operationId ;
+		MsiFixture fixture ;	// 照会に使用するMSI identity
+		DRIVERCRATE_EXPECT( context, createMsiFixture( workspace, fixture, templateCase.value)) ;
+		const NativeError result = verifyOfficialMsiTemplate(
+			fixture.databasePath, fixture.databaseSize, fixture.databaseSha256,
+			POLICY.maximumDatabaseBytes, templateCase.platform, templateCase.language) ;	// 照合結果
+		DRIVERCRATE_EXPECT( context, (result == 0) == templateCase.expected) ;
+	}
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
 /**
- * @brief 公式MSI streamのread-only取得と拒否境界を検証する。正常取得と全fail-closed MSI fixtureを順に実行する
+ * @brief 公式MSI streamのread-only取得、Template照合と拒否境界を検証する
  * @param[in,out] context Assertion件数と失敗内容の集計先
  */
 //------------------------------------------------------------------------------
@@ -389,6 +467,7 @@ void runOfficialMsiTests( TestContext &context)
 	testValidStreamExtraction( context) ;
 	testStreamSelectionRejection( context) ;
 	testIdentityAndOutputRejection( context) ;
+	testMsiTemplateVerification( context) ;
 }
 
 } // namespace drivercrate::test

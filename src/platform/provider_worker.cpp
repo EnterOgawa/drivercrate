@@ -2,7 +2,7 @@
 /**
  * @file provider_worker.cpp
  * @brief Provider worker実装
- * @version 01.12.03
+ * @version 01.19.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -55,6 +55,14 @@
  * Ver.01.12.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.12.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.12.03 Shunji Ogawa  2026/11/12  導入前保護失敗に結合した一回の明示復元なし続行を接続
+ * Ver.01.13.00 Shunji Ogawa  2026/11/18  P3同scan fullhost観測と取得直前拒否を接続
+ * Ver.01.14.00 Shunji Ogawa  2026/11/20  機種条件付き索引の端末型番読取りを接続
+ * Ver.01.15.00 Shunji Ogawa  2026/11/20  機器別の取得確認へ同じスキャンの表示を渡す
+ * Ver.01.15.01 Shunji Ogawa  2026/11/21  workerの操作分岐が値を返さないことを明示
+ * Ver.01.16.00 Shunji Ogawa  2026/11/23  閲覧専用の索引候補を取得計画の有無と分離して発行
+ * Ver.01.17.00 Shunji Ogawa  2026/11/23  検査専用候補を終端後に残る元計画へ限定
+ * Ver.01.18.00 Shunji Ogawa  2026/11/23  検査終了時の取消しを監査と候補発行へ渡す
+ * Ver.01.19.00 Shunji Ogawa  2026/11/23  WiXの元規約同意を導入と一回の復元なし続行へ渡す
  * </pre>
  *
  * @note COM MTA worker threadと有限command/result queueを実装します。UIへの通知はPostMessageを使用し、COM objectをUI
@@ -78,6 +86,7 @@
 #include "platform/com_raii.h"
 #include "platform/composite_update_provider.h"
 #include "platform/official_acquisition.h"
+#include "platform/signed_index_candidate_binding.h"
 #include "platform/windows_product_type.h"
 #include "platform/windows_restore_point_service.h"
 
@@ -255,11 +264,13 @@ void bindPublishedScanMeasurement( const OperationId operationId, const ScanSess
 						: build >= 22000U ? IndexTargetOs::WINDOWS_11
 										  : IndexTargetOs::WINDOWS_10 ;
 			},
+			.hostPlatform = []() { return observeWindowsHostPlatform() ; },
 			.refresh =
 				[]( const ProviderScanCancellation &cancel) {
 					return refreshFixedSignedIndex( cancel) ;
 				}}) ; // 従来の索引依存を維持します
 	services->hardwareRefresh = std::move( hardwareRefresh) ;
+	services->platformMachine = provider_worker_index_detail::observeIndexPlatformMachine ;
 	return services ;
 }
 
@@ -377,15 +388,16 @@ bool ProviderWorker::requestScanCancel( const OperationId operationId)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 選択 update の download/install を command queue へ登録する。選択 update の download/install を command
- *        queueへ登録する
+ * @brief 選択 update の download/install を command queue へ登録する
  * @param[in] operationId UI state machine が割り当てた operation ID
  * @param[in] scanSessionId 選択元 scan session ID
  * @param[in] identities UI に提示済みの opaque identity 群
  * @param[in] parentWindow WUA dialog の親 Window
  * @param[in] protectionMode OSと利用者確認に対応するinstall保護方針
  * @param[in] failedRestoreOperationId 明示続行だけが指定する原失敗操作です。通常は0です
- * @return 登録できた場合は `true`
+ * @param[in] wixConsents 今回の元選択で明示同意した候補とWiX規約の不変参照です。受付中だけ借用します
+ * @return 有界な新操作を登録した場合はtrueです
+ * @note 元規約同意をコピーし、実行可否は同じworkerが元候補と照合します
  */
 //------------------------------------------------------------------------------
 bool ProviderWorker::requestInstall( const OperationId					operationId,
@@ -393,12 +405,15 @@ bool ProviderWorker::requestInstall( const OperationId					operationId,
 									const std::span<const std::wstring> identities,
 									const HWND							parentWindow,
 									const InstallProtectionMode			protectionMode,
-									const OperationId					failedRestoreOperationId)
+									const OperationId					failedRestoreOperationId,
+									const std::span<const WixInstallConsent> wixConsents)
 {
 	std::scoped_lock lock( commandMutex_) ;	// Queue検査と追加を直列化するlock
-	// 空 selection は Provider へ渡さず、queue resource も消費しない
+	// 空選択、過大な同意集合、停止中や古い要求をqueueへ入れません
 	if( stopping_ || identities.empty() || commands_.size() >= MAXIMUM_QUEUED_COMMANDS ||
-	   operationId == 0U || operationId <= latestRequestedOperationId_) {
+	   operationId == 0U || operationId <= latestRequestedOperationId_ ||
+	   wixConsents.size() > MAXIMUM_WIX_INSTALL_CONSENTS ||
+	   wixConsents.size() > identities.size()) {
 		return false ;
 	}
 
@@ -406,6 +421,7 @@ bool ProviderWorker::requestInstall( const OperationId					operationId,
 	command.operationId	  = operationId ;
 	command.scanSessionId = scanSessionId ;
 	command.identities.assign( identities.begin(), identities.end()) ;
+	command.wixConsents.assign( wixConsents.begin(), wixConsents.end()) ;
 	command.parentWindow			 = parentWindow ;
 	command.protectionMode			 = protectionMode ;
 	command.failedRestoreOperationId = failedRestoreOperationId ;
@@ -512,12 +528,13 @@ void ProviderWorker::run() noexcept
 	std::unique_ptr<driver_package_signature_detail::ScopedAuthenticodeFixture>
 		authenticodeFixture ;	// 同MTAの完全Authenticode表です
 	std::unique_ptr<signed_index_candidate_binding_detail::ScopedInstallerFixture>
-									 installerFixture ;		// 同MTAの完全launch表です
-	std::unique_ptr<IUpdateProvider> provider ;				// Worker threadだけが所有するprovider
-	RestoreContinuation				 restoreContinuation ;	// 同workerが所有する一回の原保護失敗です
-	OfficialPreparationSession		 preparation ;			// 固定計画とscan全体の予約をworkerだけが所有する
-	ScanPurpose	  scanPurpose = ScanPurpose::STANDARD ;		// 候補の自己申告とは独立した実行用途
-	ScanSessionId installSession{} ;						// 成功した通常scanだけから得る導入元session
+									 installerFixture ;				// 同MTAの完全launch表です
+	std::unique_ptr<IUpdateProvider> provider ;						// Worker threadだけが所有するprovider
+	RestoreContinuation				 restoreContinuation ;			// 同workerが所有する一回の原保護失敗です
+	std::vector<WixInstallConsent> restoreContinuationConsents ;	// 元提示の本人同意だけを保持します
+	OfficialPreparationSession	   preparation ;					// 固定計画とscan全体の予約をworkerだけが所有する
+	ScanPurpose	  scanPurpose = ScanPurpose::STANDARD ;				// 候補の自己申告とは独立した実行用途
+	ScanSessionId installSession{} ;								// 成功した通常scanだけから得る導入元session
 	// Worker threadだけが所有するWindows復元ポイントservice
 	std::unique_ptr<IRestorePointService> restorePointService ;
 
@@ -608,14 +625,16 @@ void ProviderWorker::run() noexcept
 		}
 
 		try {
-			std::visit(
+			std::visit<void>(
 				[this, &provider, &restorePointService, &apartment, &preparation, &scanPurpose,
-				 &installSession, &indexSession, &restoreContinuation]( auto &&typedCommand) {
+				 &installSession, &indexSession, &restoreContinuation,
+				 &restoreContinuationConsents]( auto &&typedCommand) {
 					// Variantからdispatchしたcommandの実型
 					using CommandType = std::decay_t<decltype( typedCommand)> ;
 					// 別操作を受けた時点で旧本人判断を待つ能力を破棄します
 					if constexpr( !std::is_same_v<CommandType, InstallCommand>) {
 						restoreContinuation.reset() ;
+						restoreContinuationConsents.clear() ;
 					}
 
 					// Scan command では旧準備を失効させ、新しい scan session を割り当てる
@@ -802,8 +821,8 @@ void ProviderWorker::run() noexcept
 									}
 
 									const auto indexError = indexSession.augmentPreparationPlan(
-										*plan, *indexServices_,
-										event.indexPreparation) ;	// 同認証原lookupだけを結合します
+										*plan, *indexServices_, event.indexPreparation,
+										event.scanResult.candidates) ;	// 元索引と同じ端末の名前です
 									// 取得計画の衝突や不整合では全準備を失効し、正常scanとは分離します
 									if( indexError != 0U) {
 										event.preparationError = indexError ;
@@ -811,14 +830,14 @@ void ProviderWorker::run() noexcept
 										plan.reset() ;
 									}
 
-									// Provider が準備計画を返した場合だけ、その ID と内部契約を検証する
-									if( plan && !plan->targets.empty()) {
-										// 元targetを索引参照へ一対一結合し、通常treeと同じ候補snapshotへ発行します
-										if( composite) {
-											composite->finishSignedIndexScanPublication(
-												*plan, event.scanResult) ;
-										}
+									// 取得対象の有無にかかわらず、照合済みの索引行を候補表示へ渡します
+									if( plan && composite) {
+										composite->finishSignedIndexScanPublication(
+											*plan, event.scanResult) ;
+									}
 
+									// 取得対象のある計画だけを実行用に初期化します
+									if( plan && !plan->targets.empty()) {
 										// 要求 session・plan ID と異なる計画および初期化に失敗する計画を拒否する
 										if( plan->scanSessionId != scanSessionId ||
 										   plan->planId != planId ||
@@ -837,6 +856,15 @@ void ProviderWorker::run() noexcept
 								static_cast<void>( preparation.invalidate()) ;
 								indexSession.invalidate() ;
 								event.preparationError = static_cast<NativeError>( E_UNEXPECTED) ;
+							}
+
+							// 計画が成立しなかった走査では検査用IDを消し、閲覧専用の元候補を残します
+							if( composite && !event.preparationPlan) {
+								composite->retainActiveInspectionTargets( nullptr) ;
+								// 画面へ返す候補の複製でも、未成立の取得IDだけを除きます
+								for( auto &candidate : event.scanResult.candidates) {
+									candidate.inspectionTargetIdentity.clear() ;
+								}
 							}
 						}
 
@@ -974,23 +1002,41 @@ void ProviderWorker::run() noexcept
 							typedCommand.failedRestoreOperationId, typedCommand.scanSessionId,
 							typedCommand.identities) ;	// 成否にかかわらず一回だけです
 						const bool continuationValid =
-							explicitContinuation ? continuationError.has_value() &&
-													   discardedRestoreOperation_.load() !=
-														   typedCommand.failedRestoreOperationId
-												 : typedCommand.failedRestoreOperationId == 0U ;
+							explicitContinuation
+								? continuationError.has_value() &&
+									  discardedRestoreOperation_.load() !=
+										  typedCommand.failedRestoreOperationId &&
+									  std::ranges::equal( restoreContinuationConsents,
+														 typedCommand.wixConsents)
+								: typedCommand.failedRestoreOperationId == 0U ;
+						// 一致しない要求や通常の新操作も、前回の候補と元同意を消費します
+						restoreContinuationConsents.clear() ;
+						auto *const composite = dynamic_cast<CompositeUpdateProvider *>(
+							// 同意付き導入を照合する元Providerです
+							provider.get()) ;
 						bool		ownerBound{} ;		// 当該begin成功後だけfinishを呼びます
 						NativeError operationError{} ;	// 操作予約の原診断です
-						const bool	restorePointServiceRequired =
+						// 元規約を確認できないProviderに同意を渡して導入しません
+						if( !composite && !typedCommand.wixConsents.empty()) {
+							operationError = static_cast<NativeError>( E_ACCESSDENIED) ;
+						}
+
+						const bool restorePointServiceRequired =
 							typedCommand.protectionMode ==
 							InstallProtectionMode::WINDOWS_RESTORE_POINT ;
-						// Provider または必要な復元ポイント service がない場合は導入を呼ばない
+						// 元操作・選択・同意と必要な保護serviceがそろった場合だけ導入の予約を試みます
 						if( !continuationValid || scanPurpose != ScanPurpose::STANDARD ||
 						   installSession == 0U || typedCommand.scanSessionId != installSession ||
-						   provider == nullptr ||
+						   provider == nullptr || operationError != 0U ||
 						   (restorePointServiceRequired && restorePointService == nullptr) ||
-						   (operationError = provider->beginInstallOperation(
-								typedCommand.operationId, typedCommand.scanSessionId,
-								typedCommand.identities)) != 0U) {
+						   (operationError =
+								composite
+									? composite->beginInstallOperation(
+										  typedCommand.operationId, typedCommand.scanSessionId,
+										  typedCommand.identities, typedCommand.wixConsents)
+									: provider->beginInstallOperation(
+										  typedCommand.operationId, typedCommand.scanSessionId,
+										  typedCommand.identities)) != 0U) {
 							installResult = makeFailedInstall(
 								typedCommand.identities,
 								operationError != 0U
@@ -1013,8 +1059,6 @@ void ProviderWorker::run() noexcept
 							const bool windowsServer =
 								// Worker境界で再確認する実OS種別
 								isWindowsServer() ;
-							const auto *composite =
-								dynamic_cast<CompositeUpdateProvider *>( provider.get()) ;
 							const NativeError requiredPreflight =
 								composite ? composite->preflightRequiredSignedIndexInstall(
 												typedCommand.scanSessionId,
@@ -1079,6 +1123,11 @@ void ProviderWorker::run() noexcept
 													  typedCommand.scanSessionId,
 													  typedCommand.identities, installResult,
 													  retention ? &*retention : nullptr) ;
+						// 実際に発行した一回の続行と同じ元規約だけを所有権ごと残します
+						if( restoreOffer) {
+							restoreContinuationConsents.swap( typedCommand.wixConsents) ;
+						}
+
 						// 続行拒否も固定段階/原数値で残し、診断保存失敗は導入へ作用しません
 						if( explicitContinuation) {
 							recordRestoreContinuationDiagnostics(
@@ -1123,6 +1172,13 @@ void ProviderWorker::run() noexcept
 							}
 						}
 
+						// 所有継続した場合も、実際に残る検査対象だけを次の操作に引き継ぎます
+						if( retention && composite) {
+							composite->retainActiveInspectionTargets(
+								retention->preparationPlan ? &*retention->preparationPlan
+														   : nullptr) ;
+						}
+
 						// 所有継続が証明されない経路では元安全境界を維持します
 						if( !retention && operationError == 0U &&
 						   typedCommand.scanSessionId == installSession) {
@@ -1143,7 +1199,7 @@ void ProviderWorker::run() noexcept
 					}
 					// 準備 command は操作専用の取消し signal と取得境界で処理する
 					else if constexpr( std::is_same_v<CommandType, PreparationCommand>) {
-						const auto *intentProvider = dynamic_cast<CompositeUpdateProvider *>(
+						auto *intentProvider = dynamic_cast<CompositeUpdateProvider *>(
 							// 同scanの私有参照ownerです
 							provider.get()) ;
 						// Install意図を伴う取得は元選択device/recordと完全照合し、任意target追加を拒否します
@@ -1222,7 +1278,10 @@ void ProviderWorker::run() noexcept
 						   result.approvalError == OfficialPreparationError::NONE &&
 						   result.controlError == 0) {
 							try {
-								result.auditReports = provider->preparationAuditReports( result) ;
+								result.auditReports =
+									intentProvider ? intentProvider->preparationAuditReports(
+														 result, cancellation)
+												   : provider->preparationAuditReports( result) ;
 							} catch( ...) {
 								// 表示集約の失敗は取得成功と分離し、部分reportを表示しない
 								result.auditReports.clear() ;
@@ -1276,6 +1335,13 @@ void ProviderWorker::run() noexcept
 							}
 						}
 
+						// 受理済み承認だけを消費し、元検索から同じ対象を次の導入後へ引き継ぎません
+						if( intentProvider &&
+						   result.approvalError == OfficialPreparationError::NONE) {
+							intentProvider->retainActiveInspectionTargets(
+								remainingPlan ? &*remainingPlan : nullptr) ;
+						}
+
 						// URLも実device IDも含まない確定結果だけをUIへ渡す
 						publishEvent( {.indexPreparation	 = std::move( indexResult),
 									  .kind				 = WorkerEventKind::PREPARATION_COMPLETED,
@@ -1287,6 +1353,7 @@ void ProviderWorker::run() noexcept
 				command) ;
 		} catch( ...) {
 			restoreContinuation.reset() ;
+			restoreContinuationConsents.clear() ;
 			// allocation 等の予期しない例外でも worker process を終了させず、現在操作を失敗にする
 			indexSession.invalidate() ;
 			std::visit(
@@ -1587,7 +1654,8 @@ std::unique_ptr<ProviderWorker> provider_worker_index_detail::Access::createAcqu
 	ProviderFactory providerFactory, RestorePointFactory restoreFactory, Services services)
 {
 	// 内部取得fixtureでも完全fake依存を必須にし、製品APIへfallbackしません
-	if( !services.httpTransport || !services.costReader || !services.targetOs) {
+	if( !services.httpTransport || !services.costReader ||
+	   (!services.targetOs && !services.hostPlatform)) {
 		return nullptr ;
 	}
 
@@ -1598,6 +1666,14 @@ std::unique_ptr<ProviderWorker> provider_worker_index_detail::Access::createAcqu
 		return signed_index_acquisition_detail::Access::beginFixture( adapter, std::move( lookup),
 																	 context, os, now) ;
 	} ; // 固定fixture-main／revision1だけの既存private policyです。外部鍵・許可boolを受けません
+	services.beginHostAcquisition = []( SignedIndexAcquisitionAdapter				 &adapter,
+									   std::shared_ptr<const SignedIndexRecordLookup> lookup,
+									   IndexLookupContext context, IndexScanHostSnapshot host,
+									   WindowsHostPlatformObserver			   observer,
+									   std::optional<std::chrono::sys_seconds> now) {
+		return signed_index_acquisition_detail::Access::beginHostFixture(
+			adapter, std::move( lookup), context, std::move( host), std::move( observer), now) ;
+	} ; // 新host入口も既fixture-main以外の権限を作りません
 	return create( std::move( providerFactory), std::move( restoreFactory), std::move( services)) ;
 }
 

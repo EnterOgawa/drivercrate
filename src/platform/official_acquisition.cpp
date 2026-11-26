@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition.cpp
  * @brief 公式fileの検査用取得境界実装
- * @version 01.06.02
+ * @version 01.07.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,7 @@
  * Ver.01.06.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続
  * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.06.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.07.00 Shunji Ogawa  2026/11/23  取得の成否と独立してpayloadの元待機を保持
  * </pre>
  *
  * @note Provider worker threadで公式fileを直列取得し、成功fileだけをsession容量へ計上します。取得物を実行、候補化またはUIへ公開しません
@@ -862,6 +863,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 	}
 
 	result.auxiliaryHttp = delegatedRequest.auxiliaryObservation() ;
+	result.payloadRetry	 = delegatedRequest.payloadRetryObservation() ;
 	// 仮差替えtransportからも補助枠超過の成功を作らない
 	if( result.auxiliaryHttp.requests > (anonymousResolution ? 1U : 0U) ||
 	   result.auxiliaryHttp.bodyBytes > auxiliaryMaximum) {
@@ -990,6 +992,7 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		completed.inspectionPath		  = inspectionPath ;
 		completed.byteCount				  = actualBytes ;
 		completed.auxiliaryHttp			  = result.auxiliaryHttp ;
+		completed.payloadRetry			  = result.payloadRetry ;
 		completed.sha256				  = std::move( actualSha256) ;
 		completed.publishedSizeVerified	  = publishedSize.has_value() ;
 		completed.publishedSha256Verified = !publishedSha256.empty() ;
@@ -1036,11 +1039,13 @@ NativeError OfficialAcquisitionSession::acquireCore(
 		++nextAcquisitionId_ ;
 	} catch( const std::bad_alloc &) {
 		const auto auxiliary = result.auxiliaryHttp ;	// 数値観測は結果文字列の確保失敗でも失わない
-		result				 = {} ;
-		result.auxiliaryHttp = auxiliary ;
-		result.state		 = OfficialAcquisitionState::FAILURE ;
-		result.error		 = discardFailedFile( workspace, request.workspaceFileName,
-												 static_cast<NativeError>( E_OUTOFMEMORY)) ;
+		const auto payloadRetry = result.payloadRetry ;	// 元の待機時刻と要確認です
+		result					= {} ;
+		result.auxiliaryHttp	= auxiliary ;
+		result.payloadRetry		= payloadRetry ;
+		result.state			= OfficialAcquisitionState::FAILURE ;
+		result.error			= discardFailedFile( workspace, request.workspaceFileName,
+													static_cast<NativeError>( E_OUTOFMEMORY)) ;
 		return result.error ;
 	}
 

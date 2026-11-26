@@ -2,7 +2,7 @@
 /**
  * @file common_inf_batch_tests.cpp
  * @brief 共通選択adapterの全件停止・直前照合・個別結果と失効を非導入で検証する
- * @version 01.01.03
+ * @version 01.01.04
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.01.01 Shunji Ogawa  2026/10/24  必須解析に合わせ試験の所有・型・失敗制御を明示
  * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.03 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.04 Shunji Ogawa  2026/11/21  共通計画から呼ぶ試験用の内容検査名を製品と分離
  * </pre>
  *
  * @note 実封印／file固定だけを使い、内容・rank・binding・導入は試験EXEだけのfakeとする
@@ -188,10 +189,10 @@ public:
  * @note 実CAT・INF合格の測定ではない
  */
 //------------------------------------------------------------------------------
-NativeError inspectCommonDriverPackage( const DriverArchiveInput		 &input,
-									   OfficialDriverArchiveFormat	  format,
-									   CommonDriverPackageInspection &inspection,
-									   const std::function<bool()>	 &cancellation)
+NativeError inspectFixtureCommonDriverPackage( const DriverArchiveInput		&input,
+											  OfficialDriverArchiveFormat	 format,
+											  CommonDriverPackageInspection &inspection,
+											  const std::function<bool()>	&cancellation)
 {
 	static_cast<void>( format) ;
 	static_cast<void>( cancellation) ;
@@ -252,7 +253,7 @@ NativeError inspectCommonDriverPackage( const DriverArchiveInput		 &input,
  * @return 指定拒否E_FAIL、固定なしE_ACCESSDENIED、それ以外はhash照合結果
  */
 //------------------------------------------------------------------------------
-NativeError reverifyCommonDriverInf( const CommonInfInspection &inspected)
+NativeError reverifyFixtureCommonDriverInf( const CommonInfInspection &inspected)
 {
 	++contentChecks ;
 	// 決めた位置の検査を拒否してpreflightと直前検査を分ける

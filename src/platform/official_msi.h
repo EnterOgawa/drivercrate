@@ -1,8 +1,8 @@
 //------------------------------------------------------------------------------
 /**
  * @file official_msi.h
- * @brief 公式MSI stream取得・cabinet mapping定義
- * @version 01.00.02
+ * @brief 公式MSIのTemplate照合・stream取得・cabinet mapping定義
+ * @version 01.01.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,10 +30,10 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/23  公式MSIのTemplate照合を追加
  * </pre>
  *
- * @note 取得済みMSIをWindows Installerのread-only databaseとして開き、固定名streamの保存とMedia／File mappingの照会だけを行います
- *       。MSIやcustom actionは実行しません
+ * @note 取得済みMSIをWindows Installerのread-only databaseとして開き、Template照合、固定名streamの保存、Media／File mappingの照会を行います
  */
 //------------------------------------------------------------------------------
 
@@ -49,6 +49,16 @@
 namespace drivercrate {
 
 class OfficialDownloadWorkspace ;
+
+/**
+ * @brief MSIのTemplateに明示される照合対象のplatformを表す
+ */
+enum class OfficialMsiPlatform {
+	/// AMD64向けの明示platform値「x64」
+	AMD64,
+	/// 32-bit x86向けの明示platform値「Intel」
+	X86,
+} ;
 
 /**
  * @brief MSI databaseと選択streamへ適用する有限上限を表す
@@ -141,6 +151,26 @@ struct OfficialMsiCabinetInventory {
 	/// Sequence昇順のfile mapping
 	std::vector<OfficialMsiCabinetFileEntry> files ;
 } ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 取得済みMSIのTemplateに指定platformと言語一件が明示されていることを確認する
+ * @param[in] databasePath 保護workspace内のlocal絶対MSI path
+ * @param[in] expectedDatabaseSize 取得元で固定したMSI byte数
+ * @param[in] expectedDatabaseSha256 取得元で固定したMSI SHA-256
+ * @param[in] maximumDatabaseBytes 入力MSI全体の最大byte数
+ * @param[in] platform Templateへ完全一致させる明示platform
+ * @param[in] language Templateへ10進表記で完全一致させる0以外の言語ID
+ * @return 前後の入力identityとTemplateが一致する場合は0、拒否またはAPI失敗時はHRESULT
+ * @note Windows Installer databaseをread-onlyで開き、install sequenceやcustom actionを実行しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyOfficialMsiTemplate( std::wstring_view	databasePath,
+													std::uint64_t		expectedDatabaseSize,
+													std::wstring_view	expectedDatabaseSha256,
+													std::uint64_t		maximumDatabaseBytes,
+													OfficialMsiPlatform platform,
+													std::uint16_t		language) ;
 
 //------------------------------------------------------------------------------
 /**

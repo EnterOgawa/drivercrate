@@ -2,7 +2,7 @@
 /**
  * @file indexed_driver_package_inspection.h
  * @brief 索引hintと固定済みarchiveの通常共通検査を結合する
- * @version 01.04.02
+ * @version 01.06.00
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,8 @@
  * Ver.01.04.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続
  * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.04.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.05.00 Shunji Ogawa  2026/11/22  公式範囲の元CABと現在Modelsを端末で独立照合
+ * Ver.01.06.00 Shunji Ogawa  2026/11/22  公式範囲の保持閉包を元署名と再照合
  * </pre>
  *
  * @note Worker内だけで使用する。Hintはmetadata参照であり、索引署名、公式由来、取得許可、
@@ -44,6 +46,9 @@
 #include <vector>
 
 namespace drivercrate {
+namespace signed_index_detail {
+struct CollectorScopedModelsEvidence ;
+}
 
 /** @brief 原recordが指定する一INFと一段nestedの非実行selectorです */
 struct IndexedDriverInfSelector {
@@ -137,5 +142,41 @@ struct IndexedDriverPackageInspection {
 	ScanSessionId activeScanSessionId, const IndexedDriverArchiveHint &hint,
 	const DriverArchiveInput &input, OfficialDriverArchiveFormat format,
 	IndexedDriverPackageInspection &result, const std::function<bool()> &cancellation = {}) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ元CABから公式範囲と現在Windowsの全Modelsを再照合する
+ * @param[in] activeScanSessionId 現在の0ではないworker scan sessionです
+ * @param[in] hint 元取得物と一つの選択INFへの期待値です
+ * @param[in] input 管理者領域に固定した元CABです
+ * @param[in] proof 元索引に結び付ける受領済み範囲証拠です
+ * @param[out] content 全照合成功時だけ元の署名付き非実行検査結果を保持します
+ * @param[in] cancellation 共通取得中の非blocking取消しです
+ * @return 内容一致時0、取消しまたは検査拒否の元HRESULTです
+ * @note 索引認証、端末適合性、Windowsの選択行および導入許可は別に確認します
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectIndexedScopedDriverPackage(
+	ScanSessionId activeScanSessionId, const IndexedDriverArchiveHint &hint,
+	const DriverArchiveInput								 &input,
+	const signed_index_detail::CollectorScopedModelsEvidence &proof,
+	CollectorDriverPackageContent &content, const std::function<bool()> &cancellation = {}) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保持した公式範囲の基本INFと必須INFの閉包を元署名で再検査します
+ * @param[in] activeScanSessionId 同じ取得を保持するworker scanです
+ * @param[in] hint 元配布物と一つの選択INFを固定する取得時の値です
+ * @param[in] proof 同じ署名レコードの元INF・CATと公式対象の証拠です
+ * @param[in] content 同じ取得が管理者領域に保持した内容検査結果です
+ * @return 閉包の全ファイル・全CATが元内容と一致した場合0、それ以外はHRESULTです
+ * @pre 呼出し側は署名レコードの有効性と同じ元CABの取得許可・実バイトを確認します
+ * @note 端末の選択行、導入作用と権限は別に確認します
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError reverifyIndexedScopedDriverPackage(
+	ScanSessionId activeScanSessionId, const IndexedDriverArchiveHint &hint,
+	const signed_index_detail::CollectorScopedModelsEvidence &proof,
+	const CollectorDriverPackageContent						 &content) ;
 
 } // namespace drivercrate

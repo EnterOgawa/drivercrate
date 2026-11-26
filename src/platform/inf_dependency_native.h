@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native.h
  * @brief 実INFの非実行依存観測と個別署名診断の定義
- * @version 01.05.05
+ * @version 01.16.00
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,17 @@
  * Ver.01.05.03 Shunji Ogawa  2026/11/13  Needs AddRegの元拒否leafを既匿名診断へ接続
  * Ver.01.05.04 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
  * Ver.01.05.05 Shunji Ogawa  2026/11/13  847p9の型付きSYSTEM全作用と全選択資格を接続
+ * Ver.01.06.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.07.00 Shunji Ogawa  2026/11/20  収集原本とWindows同梱INFの選択依存検査を追加
+ * Ver.01.08.00 Shunji Ogawa  2026/11/21  元SYSを持つHDCを収集の全選択検査に追加
+ * Ver.01.09.00 Shunji Ogawa  2026/11/21  Windows標準シリアルページの固定証拠を共有
+ * Ver.01.10.00 Shunji Ogawa  2026/11/22  仮想Wi-Fiバスの端末フィルター置換を非実行観測へ保持
+ * Ver.01.11.00 Shunji Ogawa  2026/11/22  公式Net選択の同梱仮想Wi-Fiバスを収集から検査
+ * Ver.01.12.00 Shunji Ogawa  2026/11/22  公式Netの同梱依存の比較用証拠を追加
+ * Ver.01.13.00 Shunji Ogawa  2026/11/23  自動起動ストレージの現用機器読取りを接続
+ * Ver.01.14.00 Shunji Ogawa  2026/11/23  現用署名元と現在構成の再観測結果を比較
+ * Ver.01.15.00 Shunji Ogawa  2026/11/24  公式USB Bluetoothの元選択と収集依存の検査入口を追加
+ * Ver.01.16.00 Shunji Ogawa  2026/11/24  混在シリアルの二選択を同じ同梱観測へ結ぶ
  * </pre>
  *
  * @note Workerで同期借用し、実device、実行command、導入許可を扱わない
@@ -42,6 +53,8 @@
 #include "platform/inf_dependency_plan.h"
 #include "platform/official_file_verifier.h"
 #include "platform/system_inf_effects_internal.h"
+#include "platform/storage_inf_effects_internal.h"
+#include <functional>
 
 #include <cstddef>
 #include <cstdint>
@@ -56,9 +69,28 @@ class OfficialDownloadWorkspace ;
 class OfficialAcquisitionSession ;
 class OfficialInfArchiveBinding ;
 struct CommonInfInspection ;
+struct OfficialDriverClosure ;
+struct OfficialInfInstallInventory ;
 struct OfficialInfPackage ;
+struct OfficialZipEntry ;
+
+/** @brief 元作用の検査後に同じ選択機器の現用登録・現在構成を保持する同期操作 */
+using StorageRegisteredDeviceRead = std::function<NativeError( const SelectedStorageServiceFacts &,
+															  StorageAutomaticDeviceSnapshot &)> ;
 class RequiredDriverComponentPlan ;
 struct RequiredInfBindingDiagnostic ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現Windowsの標準シリアルページDLLをロードせず検査する
+ * @param[in] workspace 元配布物を所有する保護領域
+ * @param[out] proof 固定DLLとWindows署名、保護の全証拠。失敗時は空
+ * @return 正規System32、Windows署名、同じバイトのAMD64 exportが成立すれば0
+ * @note 固定DLLだけを検査する。元INFの選択や導入可否は呼び出し元で確認する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectWindowsSerialPropertyPage(
+	const OfficialDownloadWorkspace &workspace, WindowsSystemFileTrust &proof) ;
 
 /** @brief Needs/AddRegの最初の拒否地点です。既binding stageへだけ投影します */
 enum class NeedsAddRegDiagnosticStage : std::uint32_t {
@@ -164,6 +196,8 @@ struct InfDependencyFixedFile {
 
 /** @brief 実byteへ結合した非実行観測。型は導入用計画と互換でない */
 struct InfDependencyNativeResult {
+	/// appの同原storage全作用だけです。内容/通常DTOから資格には変換しません
+	std::optional<StorageInfEffects>		storageEffects ;
 	/// 同OS・同runへ結合した共通依存graph
 	InfDependencyResult						dependency ;
 	/// 全発見documentの署名／由来診断
@@ -182,6 +216,8 @@ struct InfDependencyNativeResult {
 	std::vector<SystemInfEffect>			systemEffects ;
 	/// 必要だった既存serviceの安定config/元SDです
 	std::vector<SystemServiceEvidence>		systemServices ;
+	/// 元選択が端末の上位フィルターを単一の仮想Wi-Fiバスへ置換する場合trueです
+	bool									replacesWifiBusUpperFilters{} ;
 	/// 固定SWENUM登録が実際に成立した場合だけtrueです
 	bool									delayedRegistration{} ;
 } ;
@@ -215,6 +251,93 @@ struct InfDependencyNativeResult {
 	const OfficialDownloadWorkspace &workspace, std::span<const InfDependencyPackageMember> members,
 	std::size_t rootIndex, std::span<const std::wstring> seeds, std::uint64_t observationId,
 	InfDependencyNativeResult &result) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 収集原本の選択節からWindows同梱の依存またはHDCの元SYSと全作用を検査する
+ * @param[in] workspace 収集した原閉包の実ファイルを同期呼出し中所有する領域
+ * @param[in] closure 元アーカイブから抽出し、各INFと宣言CATの内容検査を終えた閉包
+ * @param[in] archiveEntries 抽出前に確認した同じアーカイブ階層の全通常ファイル一覧
+ * @param[in] seeds AMD64 Modelsで選択した実基本節と実在する同名のHW・Services節
+ * @param[in] selectedBase 元選択の実基本節名。seedsの先頭と一致する
+ * @param[in] observationId 原収集の非零scan session ID
+ * @return 全参照の所有元、署名、作用と同OSでの終了再検査が成立すれば0、失敗はHRESULT
+ * @note 同期結果は収集内容だけに適用し、端末の選択や導入許可を発行しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectCollectorInfDependencies(
+	const OfficialDownloadWorkspace &workspace, const OfficialDriverClosure &closure,
+	std::span<const OfficialZipEntry> archiveEntries, std::span<const std::wstring> seeds,
+	std::wstring_view selectedBase, std::uint64_t observationId) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 混在シリアル媒体の二つの元選択で、同じ同梱ファイルとサービスの成立を確認する
+ * @param[in] workspace 元INF、CAT、SYSとDLLを保持する現在userの私有検査領域
+ * @param[in] closure 元媒体の全構造と署名、元DLLのexportを確認した一基本INFの閉包
+ * @param[in] archiveEntries 審査済み元書庫の同じ四項目とそれぞれのSHA-256
+ * @param[in] observationId 原収集の非零scan session ID
+ * @return 両選択で元配布と同じ同梱根拠が成立した場合0、読取りや途中変化はHRESULT
+ * @note Windows側の読取り専用検査。現在のデバイス選択や導入許可は扱わない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectCollectorSerialEnumeratorDependencies(
+	const OfficialDownloadWorkspace &workspace, const OfficialDriverClosure &closure,
+	std::span<const OfficialZipEntry> archiveEntries, std::uint64_t observationId) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ元CABで確認した公式USB Bluetoothの選択を全参照と終端再検査へ結ぶ
+ * @param[in] workspace 同期中に元CABの展開データを所有する領域
+ * @param[in] closure 元INFとCATを検査済みの一つのBluetooth閉包
+ * @param[in] archiveEntries 同じ元CABの全通常ファイル
+ * @param[in] selected 元INFから同じ公式Models範囲を読んだ一つの選択棚卸し
+ * @param[in] observationId 収集処理の非零の観測世代
+ * @return 元選択とすべての参照・作用が終端まで一致して0、読取や不一致はHRESULT
+ * @note 同じCABから得た署名証拠を前提に、収集内容だけを検査する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectScopedBluetoothUsbDependencies(
+	const OfficialDownloadWorkspace &workspace, const OfficialDriverClosure &closure,
+	std::span<const OfficialZipEntry> archiveEntries, const OfficialInfInstallInventory &selected,
+	std::uint64_t observationId) ;
+
+/** @brief 公式Netの一選択で確認した仮想Wi-Fiバスの比較用証拠 */
+struct ScopedWifiBusDependencyEvidence {
+	/// 同じ元INF・CAT・Storeに固定した全ファイルの位置と元バイト
+	std::vector<InfDependencyFixedFile> fixedFiles ;
+	/// 正規Windowsファイルと元署名・保護の一致証拠
+	std::vector<WindowsSystemFileTrust> systemFiles ;
+	/// 同梱文書から到達した元作用の文脈と全フィールド
+	std::vector<SystemInfEffect>		systemEffects ;
+	/// 現在の同梱サービスの全設定とアクセス制御
+	std::vector<SystemServiceEvidence>	systemServices ;
+	/**
+	 * @brief 同じ公式選択の同梱ファイル・作用・現サービスを全値で比較する
+	 * @param[in] other 独立に取得し直した同梱依存の証拠
+	 * @return 全値が一致する場合true
+	 */
+	[[nodiscard]] bool operator==( const ScopedWifiBusDependencyEvidence &other) const = default ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 一つの公式Net選択から実解決した全仮想Wi-Fiバス参照と現状態を確認する
+ * @param[in] workspace 同じ原アーカイブから展開した保護閉包の領域
+ * @param[in] closure 原CATと全参照を確認した一つの公式Net基本INF
+ * @param[in] archiveEntries 元CABの同じ容器内の全通常ファイル。部分展開一覧は不可
+ * @param[in] selected 同じ元INFバイトから読んだ実導入節と付随節の棚卸し
+ * @param[in] observationId 現workerの非零の観測世代
+ * @param[out] evidence 非nullの場合、全確認後だけ元観測を返す。失敗時は空
+ * @return 全元参照、同梱署名・Storeと現サービスが一致すれば0、失敗はHRESULT
+ * @pre 端末側では呼出し側が公式レコードと現在の実選択を確定する
+ * @note 読取り専用。元端末と導入資格は発行しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectScopedWifiBusDependencies(
+	const OfficialDownloadWorkspace &workspace, const OfficialDriverClosure &closure,
+	std::span<const OfficialZipEntry> archiveEntries, const OfficialInfInstallInventory &selected,
+	std::uint64_t observationId, ScopedWifiBusDependencyEvidence *evidence = nullptr) ;
 
 /** @brief 封印所有者だけが呼べるnative接続。公開boolや任意callbackを認証にしない */
 class AcquiredInfNativeAccess final {
@@ -289,23 +412,26 @@ private:
 	 * @note 第3引数（std :: shared_ptr < const RequiredDriverComponentPlan > &、out）はこの宣言では無名です。成功時だけ元閉包
 	 *       へ結合した不変計画です。失敗時は空です
 	 * @note 第4引数（RequiredInfBindingDiagnostic *、out）はこの宣言では無名です。任意の数値診断です。nullなら採取せず合否へ使用しません
+	 * @note 第5引数（const StorageRegisteredDeviceRead *、in）はこの宣言では無名です。nullまたは同じ選択機器の読取操作です
 	 * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです
 	 * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません
 	 */
 	friend NativeError makeRequiredDriverComponentPlan(
 		const CommonInfInspection &, std::span<const OfficialInfPackage>,
-		std::shared_ptr<const RequiredDriverComponentPlan> &, RequiredInfBindingDiagnostic *) ;
+		std::shared_ptr<const RequiredDriverComponentPlan> &, RequiredInfBindingDiagnostic *,
+		const StorageRegisteredDeviceRead *) ;
 	/**
 	 * @brief 元内容を前後確認し、選択節の全Needs効果を検査します
 	 * @param[in] inspected 元保護byteと全署名を所有する内容です
 	 * @param[in] selected 同元packageの私有node選択copyです
 	 * @param[out] result 非実行graphです。効果は独立に検査します
 	 * @param[out] diagnostic 任意の非機密数値です。合否を変更する入力ではありません
+	 * @param[in] registeredDeviceRead 同じ選択機器の現用登録を読取する同期操作。指定しない場合はnull
 	 * @return 全依存と有限効果の充足0、未観測・未知・不合格のHRESULTです
 	 */
-	[[nodiscard]] static NativeError inspect( const CommonInfInspection	  &inspected,
-											 const OfficialInfPackage	  &selected,
-											 InfDependencyNativeResult	  &result,
-											 RequiredInfBindingDiagnostic *diagnostic) ;
+	[[nodiscard]] static NativeError inspect(
+		const CommonInfInspection &inspected, const OfficialInfPackage &selected,
+		InfDependencyNativeResult &result, RequiredInfBindingDiagnostic *diagnostic,
+		const StorageRegisteredDeviceRead *registeredDeviceRead = nullptr) ;
 } ;
 } // namespace drivercrate

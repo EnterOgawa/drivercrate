@@ -2,7 +2,7 @@
 /**
  * @file update_types.h
  * @brief Driver update共通値型定義
- * @version 01.16.05
+ * @version 01.28.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -82,6 +82,18 @@
  * Ver.01.16.03 Shunji Ogawa  2026/11/12  導入前保護失敗に結合した一回の明示復元なし続行を接続
  * Ver.01.16.04 Shunji Ogawa  2026/11/13  847kの検証済みSYSTEM媒体作用と限定資格を接続
  * Ver.01.16.05 Shunji Ogawa  2026/11/13  847pの通常件数枠と原予算境界を整合
+ * Ver.01.17.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.18.00 Shunji Ogawa  2026/11/17  MTD共有copyと選択device属性の結果を保持
+ * Ver.01.19.00 Shunji Ogawa  2026/11/19  初回セットアップクラス登録の確認用情報を保持
+ * Ver.01.20.00 Shunji Ogawa  2026/11/21  共有起動ログ設定を既存のストレージ作用表示に追加
+ * Ver.01.21.00 Shunji Ogawa  2026/11/22  共有補助サービスの変更をストレージ作用表示に追加
+ * Ver.01.22.00 Shunji Ogawa  2026/11/22  共有補助サービスの反映確認結果を追加
+ * Ver.01.23.00 Shunji Ogawa  2026/11/23  自動起動補助とACPI・電源設定の共有作用を表示値へ追加
+ * Ver.01.24.00 Shunji Ogawa  2026/11/23  同梱INFの空ドライバー委譲を表示状態へ追加
+ * Ver.01.25.00 Shunji Ogawa  2026/11/23  単一ブートの変更予定を選択候補の表示値へ追加
+ * Ver.01.26.00 Shunji Ogawa  2026/11/23  単一起動の反映結果を必要役割に保持
+ * Ver.01.27.00 Shunji Ogawa  2026/11/23  同じ候補行の検査専用取得対象を追加
+ * Ver.01.28.00 Shunji Ogawa  2026/11/23  WiX候補の規約を同じ元の検査行に結ぶ
  * </pre>
  *
  * @note Provider、状態管理、およびUI間で交換する値型を定義します。Windows固有型を公開せず、unit testからも利用できる構成とします
@@ -360,6 +372,8 @@ enum class CandidateAuditGateState {
 	REJECTED,
 	/// 通信、I/OまたはOS API失敗により判定できなかった
 	FAILURE,
+	/// 署名索引の元選択がWindows同梱INFの空導入へ委譲することを確認した
+	INBOX_NULL_DRIVER,
 } ;
 
 /**
@@ -643,6 +657,94 @@ struct LocalCoverageEntry {
 } ;
 
 /**
+ * @brief 検査済みの現在構成に対する導入予定の変更区分
+ */
+enum class StoragePlannedChange {
+	/// 正式な不在を確認した対象を新規作成する
+	CREATE,
+	/// 既存対象を現在の内容で維持する
+	KEEP,
+	/// 変更可能と確認した既存対象を更新する
+	UPDATE,
+} ;
+
+/**
+ * @brief 選択した単一ブートの導入計画から得た表示専用の変更範囲
+ * @note 項目の有無や値は導入の許可に使用しない
+ */
+struct SingleBootStorageChangeSummary {
+	/// 関連する起動サービスと配置SYSに共通する変更区分
+	StoragePlannedChange boot{} ;
+	/// 関連サービスのSystemイベント登録の変更区分
+	StoragePlannedChange event{} ;
+	/// 新規作成または更新する電源設定数
+	std::uint32_t		 powerSettingCount{} ;
+	/// 新規作成または更新する選択機器の設定値数
+	std::uint32_t		 deviceValueCount{} ;
+	/// 新規作成または更新する関連サービスの設定値数
+	std::uint32_t		 serviceValueCount{} ;
+	/**
+	 * @brief 単一ブートの表示内容が同じか比較する
+	 * @param[in] other 比較する変更範囲。呼出し中だけ借用する
+	 * @return 両変更区分と三つの件数のすべてが一致する場合true
+	 */
+	bool				 operator==( const SingleBootStorageChangeSummary &other) const = default ;
+} ;
+
+/** @brief 原storage作用を既詳細へ表示する非権限summaryです */
+struct StorageChangeSummary {
+	/// 元StartTypeです。0/1/3だけを保持し、開始方式を変更しません
+	std::uint32_t								  startType{} ;
+	/// 原明示BootFlagsです。省略と0を区別します
+	std::optional<std::uint32_t>				  bootFlags ;
+	/// 元共有disk timeout DWORDです。他diskにも作用し得ます
+	std::optional<std::uint32_t>				  sharedDiskTimeout ;
+	/// 機能roleへ変換しない必要INF登録数です
+	std::uint32_t								  requiredImportCount{} ;
+	/// 同名現serviceを観測した場合trueです。他adapterも使う可能性を表示します
+	bool										  existingService{} ;
+	/// 原copyに含まれる共有DLLの件数です
+	std::uint32_t								  sharedDllCount{} ;
+	/// 選択deviceの原MTD hardware propertyです。未宣言は空です
+	std::optional<std::uint32_t>				  mtdDeviceType ;
+	/// 選択deviceの原MTD characteristicsです。未宣言は空です
+	std::optional<std::uint32_t>				  mtdDeviceCharacteristics ;
+	/// 元INFが共有の起動ログ設定を指定する場合true
+	bool										  configuresAutoLogger{} ;
+	/// 検査済みの元選択が補助サービスを指定する場合true
+	bool										  configuresAuxiliaryService{} ;
+	/// 元選択が自動起動補助、Systemイベント、共有ACPIと電源設定を指定する場合true
+	bool										  configuresAutomaticStorageSettings{} ;
+
+	/// 同じ元選択が単一ブートの導入計画を持つ場合だけ設定する表示情報
+	std::optional<SingleBootStorageChangeSummary> singleBoot{} ;
+	/**
+	 * @brief 同原値の全fieldをfresh再構築値へ比較します
+	 * @param[in] other 同用途の独立した比較元です。同期中だけ借用します
+	 * @return 省略状態/全値/順序が一致する場合trueです
+	 */
+	bool operator==( const StorageChangeSummary &other) const = default ;
+} ;
+
+/** @brief 選択した元INFが初めて登録するセットアップクラスの表示情報です */
+struct SetupClassRegistrationSummary {
+	/// 元INFのクラス名です
+	std::wstring	   className ;
+	/// 元INFのクラスGUIDです。波括弧付きのGUIDを保持します
+	std::wstring	   classGuid ;
+	/// 元INFから解決したクラスの表示名です
+	std::wstring	   displayName ;
+	/// Windows内蔵アイコン番号です。元INFの省略時は空です
+	std::optional<int> builtInIcon ;
+	/**
+	 * @brief 初回登録の表示内容が同じか比較します
+	 * @param[in] other 比較するクラス登録情報です。呼出し中だけ借用します
+	 * @return アイコンの有無を含む全項目が一致する場合trueです
+	 */
+	bool			   operator==( const SetupClassRegistrationSummary &other) const = default ;
+} ;
+
+/**
  * @brief UI に表示できる一件の driver update 候補を表す
  *
  * @note `identity` と `deviceIdentity` は現在の scan session 内で Provider が発行した opaque
@@ -698,41 +800,49 @@ struct UpdateCandidate {
 	/// 由来、取得、内容、system適用性とinstall準備状態を独立して保持する
 	CandidateAuditStatus	   audit ;
 	/// 公式metadata候補だけが持つ前回観測との差。取得・監査・導入の許可ではない
-	std::optional<ReleaseObservationDifference> releaseObservationDifference ;
+	std::optional<ReleaseObservationDifference>	 releaseObservationDifference ;
 	/// trueの場合は現在device構成の代表行である。Driver存在は観測で別確認する
-	bool										current{} ;
+	bool										 current{} ;
 	/// trueの場合はProviderが初期選択を許可する候補である
-	bool										recommended{} ;
+	bool										 recommended{} ;
 	/// trueの場合だけ明示選択後のinstall workflowを開始できる。監査完了とは限らない
-	bool										installable{} ;
+	bool										 installable{} ;
 	/// trueの場合は候補発行前に対象EULAを受諾済みである
-	bool										eulaAccepted{} ;
+	bool										 eulaAccepted{} ;
 	/// trueの場合はProviderが全contentを保持済み
-	bool										allContentCached{} ;
+	bool										 allContentCached{} ;
 	/// trueの場合はinstall後に再起動する可能性がある
-	bool										rebootMayBeRequired{} ;
+	bool										 rebootMayBeRequired{} ;
 	/// trueの場合はWindows Update上のoptional候補である
-	bool										browseOnly{} ;
+	bool										 browseOnly{} ;
 	/// 同一device／同一版にある取得元候補数
-	std::uint32_t								equivalentSourceCount{1} ;
+	std::uint32_t								 equivalentSourceCount{1} ;
 	/// trueの場合は同一版内の既定取得元である
-	bool										preferredSource{true} ;
+	bool										 preferredSource{true} ;
 	/// 情報検索だけの配布版と許諾表示。通常scan／現在属性行では値なし
-	std::optional<MetadataDistributionDetails>	metadataDistribution ;
+	std::optional<MetadataDistributionDetails>	 metadataDistribution ;
 	/// Local現在構成行だけが持つsession結合済み観測。生IDや導入許可を含まない
-	std::optional<DeviceObservation>			deviceObservation ;
+	std::optional<DeviceObservation>			 deviceObservation ;
 	/// Local現在構成から元enumerator文字列を破棄して得た有限bus分類
-	OfficialDiscoveryDeviceBus					discoveryBus{OfficialDiscoveryDeviceBus::UNKNOWN} ;
+	OfficialDiscoveryDeviceBus					 discoveryBus{OfficialDiscoveryDeviceBus::UNKNOWN} ;
 	/// 個別検査の詳細。未収集の旧Providerでは値なしとし、合格を推測しない
-	std::optional<CandidateAssessment>			assessment ;
+	std::optional<CandidateAssessment>			 assessment ;
 	/// 同byteから確認した必要Extension件数です。表示専用で導入権限を持ちません
-	std::uint32_t								requiredExtensionCount{} ;
+	std::uint32_t								 requiredExtensionCount{} ;
 	/// 元AddComponentへ結合した必要driver-only SWC件数です
-	std::uint32_t								requiredDriverComponentCount{} ;
+	std::uint32_t								 requiredDriverComponentCount{} ;
+	/// private storage資格で確認した原変更範囲です。表示値から資格を作りません
+	std::optional<StorageChangeSummary>			 storageChange ;
+	/// 取得済み元INFの初回クラス登録を確認する表示情報です。既登録の場合は空です
+	std::optional<SetupClassRegistrationSummary> setupClassRegistration ;
 	/// 同scanの取得targetへの選択用結合。非空でも実導入を許可せず、workerの元参照で再照合します
-	std::wstring								preparationTargetIdentity ;
+	std::wstring								 preparationTargetIdentity ;
 	/// 同scan/provider/deviceの同内容表示だけをまとめるopaque値。取得・導入権限ではありません
-	std::wstring								detailDisplayIdentity ;
+	std::wstring								 detailDisplayIdentity ;
+	/// 同じスキャンの検査専用取得対象です。空なら操作不可で、非空でも規約同意や導入を許可しません
+	std::wstring								 inspectionTargetIdentity ;
+	/// 原規約を要する発行済みWiX候補に対応する同スキャンの元検査行です。同意を表しません
+	std::wstring								 wixInspectionSourceIdentity ;
 } ;
 
 /**
@@ -789,24 +899,85 @@ enum class DriverPlanReflectionState {
 	FAILED,
 } ;
 
+/** @brief MTD共有copyの非機密な部分作用と元診断です */
+struct DriverSharedCopyExecutionResult {
+	/// 共有先と原sourceの変更前検査です
+	OutcomeCode	  preflightOutcome{OutcomeCode::NOT_STARTED} ;
+	/// 検査に失敗した場合の元HRESULTです
+	NativeError	  preflightError{} ;
+	/// 共有fileと制御queueの成立結果です
+	OutcomeCode	  copyOutcome{OutcomeCode::NOT_STARTED} ;
+	/// 元queue/copy/commitの失敗HRESULTです
+	NativeError	  copyError{} ;
+	/// 一時的なdevice set parameterの解除に失敗した元HRESULTです
+	NativeError	  parameterCleanupError{} ;
+	/// 指定DIF後の共有file再照合に失敗した元HRESULTです
+	NativeError	  postVerifyError{} ;
+	/// renameが成功を返した数です。正規先確認とは別です
+	std::uint32_t renameSucceeded{} ;
+	/// 正規target/file ID/hashまで確認した新規配置数です
+	std::uint32_t created{} ;
+	/// 保護済み同byteを再利用した数です
+	std::uint32_t reused{} ;
+	/// 所有tempの後片付けが確認できない場合trueです
+	bool		  cleanupUncertain{} ;
+	/// Windows制御queueを開始した場合trueです
+	bool		  queueStarted{} ;
+	/// Windows制御queueを確認済みの場合trueです
+	bool		  queueCompleted{} ;
+	/// WindowsがSYS更新の遅延を通知した場合trueです
+	bool		  systemDelayed{} ;
+	/// 共有file操作の最初の固定失敗段階です
+	std::uint32_t failureStage{} ;
+} ;
+
+/** @brief 指定したストレージ作用の導入後の確認状態 */
+enum class DriverStorageReflectionState {
+	/// 必要な構成とファイルの反映を確認した
+	CONFIRMED,
+	/// Windowsの再起動後に反映を確認する必要がある
+	RESTART_CHECK,
+	/// 指定した構成の反映を確認できなかった
+	UNCONFIRMED,
+} ;
+
+/** @brief ストレージ作用の反映と読取り診断を運ぶ非機密結果 */
+struct DriverStorageReflectionResult {
+	/// 指定導入APIの成否とは別の反映確認状態です
+	DriverStorageReflectionState state{DriverStorageReflectionState::UNCONFIRMED} ;
+	/// 反映確認の元診断です。診断がなければ0です
+	NativeError					 verificationError{} ;
+} ;
+
+/** @brief 共有補助サービスで使う共通の反映確認状態 */
+using DriverAuxiliaryReflectionState = DriverStorageReflectionState ;
+/** @brief 共有補助サービスで使う共通の反映確認結果 */
+using DriverAuxiliaryExecutionResult = DriverStorageReflectionResult ;
+
 /** @brief 必要構成一件の非機密実行事実です。INF名・ID・pathを公開しません */
 struct DriverPlanRoleExecutionResult {
 	/// 計画内の役割です
-	DriverPlanRole			  role{DriverPlanRole::BASE_DRIVER} ;
+	DriverPlanRole								   role{DriverPlanRole::BASE_DRIVER} ;
 	/// 当該役割の1起点の計画内連番です
-	std::uint32_t			  ordinal{} ;
+	std::uint32_t								   ordinal{} ;
 	/// package登録処理の結果です
-	OutcomeCode				  stageOutcome{OutcomeCode::NOT_STARTED} ;
+	OutcomeCode									   stageOutcome{OutcomeCode::NOT_STARTED} ;
 	/// 元stage HRESULTです
-	NativeError				  stageError{} ;
+	NativeError									   stageError{} ;
 	/// 指定導入APIの結果です。Extension stageだけならNOT_STARTEDです
-	OutcomeCode				  installOutcome{OutcomeCode::NOT_STARTED} ;
+	OutcomeCode									   installOutcome{OutcomeCode::NOT_STARTED} ;
 	/// 元指定導入または反映待ち診断です
-	NativeError				  installError{} ;
+	NativeError									   installError{} ;
 	/// 指定APIのFALSEとLastError0を観測した場合trueです。installErrorは内部補完値です
-	bool					  installDiagnosticMissing{} ;
+	bool										   installDiagnosticMissing{} ;
+	/// 同MTD操作だけの共有fileとqueue部分作用です
+	std::optional<DriverSharedCopyExecutionResult> sharedCopy ;
 	/// 観測した事実の段階です
 	DriverPlanReflectionState reflection{DriverPlanReflectionState::NOT_STARTED} ;
+	/// 同roleの共有補助サービスの確認結果です。当該作用の結果がなければ空です
+	std::optional<DriverAuxiliaryExecutionResult> auxiliaryService ;
+	/// 同roleの単一起動サービスと局所・電源設定の反映確認結果
+	std::optional<DriverStorageReflectionResult>  singleBootStorage{} ;
 } ;
 
 /** @brief WUA取得の元API又は固定検査段階であり、実行許可ではありません */
@@ -907,6 +1078,16 @@ struct WuaDownloadDiagnostic {
 } ;
 
 /** @brief 一候補の取得・指定導入と必要役割の個別事実を保持します */
+/** @brief 機能roleとは別の必要INF登録だけの実結果です */
+struct RequiredInfStageResult {
+	/// 元内容計画の0起点import位置です。独立deviceや候補を表しません
+	std::uint32_t packageOrdinal{} ;
+	/// 未実行/登録完了/失敗です。device適用成功を合成しません
+	OutcomeCode	  outcome{OutcomeCode::NOT_STARTED} ;
+	/// 元stage/readbackのHRESULTです
+	NativeError	  error{} ;
+} ;
+
 struct UpdateExecutionResult {
 	/// Scan結果と対応付けるopaque candidate identity
 	std::wstring							   identity ;
@@ -930,6 +1111,8 @@ struct UpdateExecutionResult {
 	std::optional<std::uint32_t>			   installerExitCode ;
 	/// 元一候補の必要構成順の個別結果です。空は従来単一方式です
 	std::vector<DriverPlanRoleExecutionResult> requiredRoles ;
+	/// 必要null importの登録結果です。部分成功と未実行も分母へ残します
+	std::vector<RequiredInfStageResult>		   requiredImports ;
 	/// 取得APIの元固定診断です。適用性や結果の成否を変更しません
 	WuaDownloadDiagnostic					   wuaDownloadDiagnostic ;
 	/// 元私有計画が標準Windows登録を要求した事実です。登録完了/導入許可を意味しません

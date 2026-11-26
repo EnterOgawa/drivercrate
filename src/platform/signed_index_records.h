@@ -2,7 +2,7 @@
 /**
  * @file signed_index_records.h
  * @brief 署名済み展開byteから読む配布record schema receiptを定義します
- * @version 01.10.02
+ * @version 01.25.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,23 @@
  * Ver.01.10.00 Shunji Ogawa  2026/11/07  全公開ID入力総数と用途別共通容量の拒否を追加
  * Ver.01.10.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.10.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.11.00 Shunji Ogawa  2026/11/19  追加索引の独立した検査結果を定義
+ * Ver.01.11.01 Shunji Ogawa  2026/11/19  追加欄と未署名候補の期限不一致の診断を明示
+ * Ver.01.12.00 Shunji Ogawa  2026/11/19  追加欄の取得元を原byteで保持
+ * Ver.01.13.00 Shunji Ogawa  2026/11/20  私有追加欄のCatalog対象条件を型付きで保持
+ * Ver.01.14.00 Shunji Ogawa  2026/11/20  同じ元配布物とINFのCatalog対象競合を明示
+ * Ver.01.15.00 Shunji Ogawa  2026/11/20  Catalog対象に対応する元ModelsのID位置を保持
+ * Ver.01.16.00 Shunji Ogawa  2026/11/20  端末用追加欄の元領域と行を取得する読取契約を追加
+ * Ver.01.17.00 Shunji Ogawa  2026/11/20  私有索引の機種別対象と元配布表を型付きで保持
+ * Ver.01.18.00 Shunji Ogawa  2026/11/20  署名済み取得元から導出する機種型番の発行元を追加
+ * Ver.01.19.00 Shunji Ogawa  2026/11/20  機種別配布表の必須ファームウェア群を型付きで保持
+ * Ver.01.20.00 Shunji Ogawa  2026/11/20  同一端末の必須ファームウェア群の判定を追加
+ * Ver.01.21.00 Shunji Ogawa  2026/11/22  専用欄の配布レコードに公式Modelsの元証拠を結合
+ * Ver.01.22.00 Shunji Ogawa  2026/11/22  私有追加欄の規約メンバー証拠を型付きで保持
+ * Ver.01.23.00 Shunji Ogawa  2026/11/22  公式配布ZIPの完全Hardware IDと確認条件を追加
+ * Ver.01.24.00 Shunji Ogawa  2026/11/23  私有追加欄の署名付きWiX配布・規約証拠を型付きで保持
+ * Ver.01.25.00 Shunji Ogawa  2026/11/23  WiXレコードに完全Hardware IDの端末照合を要求
+ * Ver.01.25.01 Shunji Ogawa  2026/11/26  追加レコード検査の各戻り値を前置契約で説明
  * </pre>
  *
  * @note 保存前のschema receiptです。公式性・端末適合・導入許可を成立させません
@@ -49,6 +66,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -56,10 +74,14 @@
 
 namespace drivercrate {
 
+namespace signed_index_detail {
+struct CollectorScopedModelsEvidence ;
+}
+
 // 保護headの保存wire互換識別値。原byteは常に現readerで再認証し、この値を現reader版にしない
 inline constexpr std::uint32_t	   INDEX_RECORD_SCHEMA_POLICY_VERSION = 1U ;
 // 現codecの読取りpolicy版。保存head互換識別値やwire record v1／v2とは別です
-inline constexpr std::uint32_t	   INDEX_RECORD_READER_POLICY_VERSION = 6U ;
+inline constexpr std::uint32_t	   INDEX_RECORD_READER_POLICY_VERSION = 7U ;
 // 新規recordの週次7日と発行fresh窓24hを合わせた上限。原期限を延長しません
 inline constexpr std::chrono::days INDEX_ACQUISITION_MAX_VALIDITY{8} ;
 // 一index内の有限source枠。製品全体の対応数ではありません
@@ -149,6 +171,12 @@ struct IndexOfficialEvidence {
 	std::optional<IndexManifestSha256> evidenceSha256 ;
 	/// UNKNOWNの非空理由。PUBLISHEDでは空です
 	std::string						   reason ;
+	/**
+	 * @brief 同じsourceの元申告全体を比較します
+	 * @param[in] other 比較先の元根拠です
+	 * @return 全元項目が同じ場合trueです
+	 */
+	bool operator==( const IndexOfficialEvidence &other) const = default ;
 } ;
 
 /** @brief Index内で参照される公開sourceの申告です */
@@ -161,6 +189,19 @@ struct IndexRecordSource {
 	std::string			  distributionPage ;
 	/// 公式性についての元申告。URLや索引署名だけでは公式性を実証しません
 	IndexOfficialEvidence officialEvidence ;
+	/// 追加欄で保持する取得元JSONの原UTF-8です
+	std::string			  originalBytes ;
+	/**
+	 * @brief 旧索引と追加欄に共通するsourceの元申告を比較します
+	 * @param[in] other 比較先の型付き元sourceです
+	 * @return 全元項目が同じ場合trueです
+	 */
+	bool				  operator==( const IndexRecordSource &other) const
+	{
+		return sourceId == other.sourceId && officialOrigin == other.officialOrigin &&
+			   distributionPage == other.distributionPage &&
+			   officialEvidence == other.officialEvidence ;
+	}
 } ;
 
 /** @brief Hash値とその元申告の出典を別々に保持します */
@@ -268,7 +309,9 @@ enum class IndexPayloadFormat {
 	/// 非実行で標準INFだけを選択するPE/7z SFXという申告です
 	SEVEN_ZIP_SFX,
 	/// 非実行で親hash結合したresource範囲を読む形式
-	PE_RESOURCE_CONTAINER
+	PE_RESOURCE_CONTAINER,
+	/// 署名済みWiX配布からINFと規約を非実行で検査する形式です
+	WIX_BURN_V3
 } ;
 
 /** @brief 取得routeの元申告根拠を区別します */
@@ -310,7 +353,9 @@ enum class IndexTermsRevisionKind {
 	/// 原公開revisionを保持します
 	VENDOR_LITERAL,
 	/// 本文取得後に算出します。Wire revisionは空です
-	COMPUTED_UTF8_SHA256
+	COMPUTED_UTF8_SHA256,
+	/// 同じWiX配布にある言語別の元RTFハッシュで識別します
+	WIX_RTF_SHA256
 } ;
 
 /** @brief 一つの静的HTML要素へ完全一致させる共通selectorです */
@@ -365,22 +410,50 @@ struct IndexTermsTextDocument {
 	std::optional<IndexHtmlTermsExtraction> htmlExtraction ;
 } ;
 
+/** @brief 取得済みZIPと審査済みの規約メンバーを結ぶ私有追加欄の原申告です */
+struct IndexArchiveTermsNotice {
+	/// 取得した元ZIPのbyte数です
+	std::uint64_t		archiveSizeBytes{} ;
+	/// 取得した元ZIP全体のSHA-256です
+	IndexManifestSha256 archiveSha256{} ;
+	/// 大文字小文字を保持した正規Windows相対名です
+	std::string			memberPath ;
+	/// 規約メンバーの展開後byte数です
+	std::uint64_t		memberSizeBytes{} ;
+	/// 文字変換する前の規約メンバー全体のSHA-256です
+	IndexManifestSha256 memberSha256{} ;
+	/// 原メンバーの先頭から規約指定文までのbyte位置です
+	std::uint64_t		statementOffset{} ;
+	/// 指定位置にある原ASCII規約指定文です
+	std::string			statement ;
+	/// 指定文中の原URLです。送信先としては使いません
+	std::string			originalDocumentUrl ;
+	/**
+	 * @brief 共有・再利用時に入力の証拠全項目を比較します
+	 * @param[in] other 同じ候補配布物と比較する規約証拠です
+	 * @return 全項目が原値で一致した場合trueです
+	 */
+	[[nodiscard]] bool	operator==( const IndexArchiveTermsNotice &other) const = default ;
+} ;
+
 /** @brief 規約の根拠と本文取得情報だけを保持します */
 struct IndexAcquisitionTerms {
 	/// 元申告状態。UNKNOWNを同意不要へ補完しません
-	IndexTermsState						  state{IndexTermsState::UNKNOWN} ;
+	IndexTermsState						   state{IndexTermsState::UNKNOWN} ;
 	/// UNKNOWNの非空理由。既知では空です
-	std::string							  reason ;
+	std::string							   reason ;
 	/// 元規約根拠URL
-	std::string							  evidenceUrl ;
+	std::string							   evidenceUrl ;
 	/// 既知根拠の原bytehash
-	std::optional<IndexManifestSha256>	  evidenceSha256 ;
+	std::optional<IndexManifestSha256>	   evidenceSha256 ;
 	/// 公開revisionと算出予定を区別する元申告
-	IndexTermsRevisionKind				  revisionKind{IndexTermsRevisionKind::NONE} ;
+	IndexTermsRevisionKind				   revisionKind{IndexTermsRevisionKind::NONE} ;
 	/// 原公開revision。算出方式では空です
-	std::string							  revision ;
+	std::string							   revision ;
 	/// 同意必須だけに存在する固定全文取得情報
-	std::optional<IndexTermsTextDocument> textDocument ;
+	std::optional<IndexTermsTextDocument>  textDocument ;
+	/// 私有追加欄のZIP規約だけに存在する同じ原配布の証拠です
+	std::optional<IndexArchiveTermsNotice> archiveNotice ;
 } ;
 
 /** @brief 必須条件の申告種別です。確認やcommand実行はしません */
@@ -475,12 +548,186 @@ struct IndexAcquisitionDescriptor {
 	std::optional<OfficialAnonymousCdnPlan>	   anonymousCdn ;
 } ;
 
+/** @brief 同じCatalog詳細で確認した、元Modelsの範囲内の配布対象です */
+struct IndexCatalogHardwareScope {
+	/// 更新GUIDを含む固定の公式詳細URLです
+	std::string				 detailsUrl ;
+	/// 同詳細の原応答本文のSHA-256です
+	IndexManifestSha256		 detailsSha256{} ;
+	/// 配布対象を再確認した原応答のUTCです
+	std::chrono::sys_seconds observedAtUtc{} ;
+	/// 配布物全体の対象を公式表の表記と順序で保持します
+	std::vector<std::string> packageHardwareIds ;
+	/// 全対象のうち、この行の元Modelsに一致したHardware IDです
+	std::vector<std::string> hardwareIds ;
+	/// 行の照合対象に対応する元ModelsのID位置。昇順で保持する
+	std::vector<std::size_t> hardwareIdIndices ;
+} ;
+
+/**
+ * @brief 同じ公式配布ZIPの元ページで確認し、同じ元Modelsに結合した対象です
+ */
+struct IndexArchiveHardwareScope {
+	/// 公式ZIPへの元リンクと導入前確認を示す配布ページです
+	std::string				 pageUrl ;
+	/// 元配布ページの原応答本文のSHA-256です
+	IndexManifestSha256		 pageSha256{} ;
+	/// 元配布ページの観測UTCです
+	std::chrono::sys_seconds observedAtUtc{} ;
+	/// 同じ元Modelsにある対象の完全Hardware IDを元表記と順序で保持します
+	std::vector<std::string> hardwareIds ;
+	/// 照合で導いた元ModelsのID位置です。昇順で保持します
+	std::vector<std::size_t> hardwareIdIndices ;
+} ;
+
+/** @brief 同じ署名済みWiXマニフェストの元役割を保持します */
+struct IndexWixMember {
+	/// 元Payloadの識別子です
+	std::string id ;
+	/// 明示した元CAB内メンバー名です
+	std::string cabinetMember ;
+	/// マニフェストの相対名です。任意の保存先には使用しません
+	std::string filePath ;
+} ;
+
+/** @brief 全MSIを元順で再照合するための一役割です */
+struct IndexWixMsi {
+	/// 元添付CABのMSIです
+	IndexWixMember member ;
+	/// 原Chain条件です。式を評価しません
+	std::string	   installCondition ;
+	/// AMD64の期待値です。falseは宣言済みX86です
+	bool		   amd64{} ;
+	/// MSIの非ゼロ言語番号です
+	std::uint16_t  language{} ;
+} ;
+
+/** @brief 元規約ファイルを同じWiX配布と表示言語に結ぶ証拠です */
+struct IndexWixLicense {
+	/// 元起動用CABにあるRTFです
+	IndexWixMember		member ;
+	/// 元定義の言語・地域です
+	std::string			locale ;
+	/// 変換前のRTF全byte数です
+	std::uint64_t		sizeBytes{} ;
+	/// 変換前のRTF全体のSHA-256です
+	IndexManifestSha256 sha256{} ;
+} ;
+
+/** @brief 内側CABから選んだ全ドライバーファイルの一件です */
+struct IndexWixDriverFile {
+	/// MSIのFileキーと同じ元CAB内名です
+	std::string			cabinetMember ;
+	/// 元内容検査で対応を確認した論理basenameです
+	std::string			targetName ;
+	/// 選択ファイルの実byte数です
+	std::uint64_t		sizeBytes{} ;
+	/// 選択ファイル全体のSHA-256です
+	IndexManifestSha256 sha256{} ;
+} ;
+
+/** @brief 私有追加欄のWiX配布と元規約を結ぶ型付き申告です */
+struct IndexWixContentEvidence {
+	/// 元アンカーを掲載した公式ページです
+	std::string						pageUrl ;
+	/// 収集時に見た元ページのSHA-256です
+	IndexManifestSha256				pageSha256{} ;
+	/// 発行時刻に置き換えない元ページの観測UTCです
+	std::chrono::sys_seconds		observedAtUtc{} ;
+	/// 同じパスの一回の301で検証する元転送先です
+	std::string						downloadUrl ;
+	/// 元EXE検査の許可署名者です
+	std::vector<std::string>		acceptedPublishers ;
+	/// マニフェストと同じ順序の全MSI役割です
+	std::vector<IndexWixMsi>		packages ;
+	/// 元RTFの言語別の元証拠です
+	std::vector<IndexWixLicense>	licenses ;
+	/// 各AMD64 MSIにある内側CABの元ストリーム名です
+	std::string						streamName ;
+	/// 全AMD64で照合したドライバー閉包です
+	std::vector<IndexWixDriverFile> driverFiles ;
+} ;
+
+/** @brief 署名済み配布元と端末の型番を結ぶ製造元の区分です */
+enum class IndexPlatformMachineVendor {
+	/// 型番の発行元または端末の製造元を確認できません
+	UNKNOWN,
+	/// 端末の製造元は確認できましたが、Lenovoではありません
+	OTHER,
+	/// Lenovoが発行する型番です
+	LENOVO
+} ;
+
+/** @brief 同じ公式配布表で確認した機種、型番と元INFの対象条件です */
+struct IndexPlatformDeviceScope {
+	/// 同じ取得記述がZIPを結ぶ公式配布表のURLです
+	std::string				   pageUrl ;
+	/// 元配布表の原応答本文のSHA-256です
+	IndexManifestSha256		   pageSha256{} ;
+	/// 配布表の原観測UTCです
+	std::chrono::sys_seconds   observedAtUtc{} ;
+	/// 公式配布表と索引で一致した機種名です
+	std::string				   model ;
+	/// 公式配布表の全型番です
+	std::vector<std::string>   machineTypes ;
+	/// 同じZIPを指す元配布表とINFに結び付けた完全なHardware IDです
+	std::vector<std::string>   packageHardwareIds ;
+	/// 元Modelsの位置です。照合時だけ導出し昇順で保持します
+	std::vector<std::size_t>   hardwareIdIndices ;
+	/// 認証した同じ取得元から導出する型番の発行元です。元JSONには含みません
+	IndexPlatformMachineVendor machineVendor{IndexPlatformMachineVendor::UNKNOWN} ;
+} ;
+
+/** @brief 同じ配布表が対象機器群に要求するファームウェアです */
+struct IndexPlatformFirmwareGroup {
+	/// 配布表の対象を示す8桁のPCI subsystemです
+	std::vector<std::string> subsystemIds ;
+	/// 公式配布表が指定する必須バージョンの元表記です
+	std::string				 versionLabel ;
+	/// 公式表が参照する元根拠です。取得経路には使用しません
+	std::string				 evidenceUrl ;
+} ;
+
+/** @brief 同一端末のHardwareIdsが示す公式必須群の状態です */
+enum class IndexPlatformFirmwareMatchState {
+	/// 同じ端末の完全な観測又は元の対象条件を確認できません
+	UNAVAILABLE,
+	/// 元レコードが指定する完全なHardware IDがありません
+	NO_MATCH,
+	/// 一つの公式群に属する対象IDを一件以上確認しました
+	UNIQUE,
+	/// 異なる公式群に属する対象IDを確認しました
+	AMBIGUOUS
+} ;
+
+/** @brief 同じ元レコード内で評価したファームウェア条件です */
+struct IndexPlatformFirmwareMatch {
+	/// 元対象との一致状態です
+	IndexPlatformFirmwareMatchState state{IndexPlatformFirmwareMatchState::UNAVAILABLE} ;
+	/// 一意の場合の元レコード内の群位置です
+	std::optional<std::size_t>		groupIndex ;
+} ;
+
 /** @brief 原byteとhashに結合して読んだ一配布recordです */
 struct IndexDistributionRecord {
 	/// 読み取ったwire record版。現在のreader policy版とは別です
-	std::uint32_t								 recordSchemaVersion{1U} ;
-	/// v2だけに存在する取得情報。v1から暗黙補完しません
-	std::optional<IndexAcquisitionDescriptor>	 acquisitionDescriptor ;
+	std::uint32_t							  recordSchemaVersion{1U} ;
+	/// v2以降の取得情報。v1から暗黙補完しません
+	std::optional<IndexAcquisitionDescriptor> acquisitionDescriptor ;
+	/// 私有追加欄v3又は公式Models専用欄v6のCatalog対象条件です
+	std::optional<IndexCatalogHardwareScope>  catalogHardwareScope ;
+	/// v6原レコードが署名範囲内で指定した元証拠のSHA-256です
+	std::optional<IndexManifestSha256>		  scopedModelsEvidenceSha256 ;
+	/// v6で原レコードと配布物・INF・元Modelsの全結合を照合した元証拠です
+	std::shared_ptr<const signed_index_detail::CollectorScopedModelsEvidence> scopedModelsEvidence ;
+	/// 私有追加欄のv4とv5にある機種・型番別の対象条件です
+	std::optional<IndexPlatformDeviceScope>									  platformDeviceScope ;
+	/// 私有追加欄のv5で保持する配布表の全必須条件です
+	std::vector<IndexPlatformFirmwareGroup>		 platformFirmwareGroups ;
+	/// 私有追加欄v7で保持する公式配布ZIPの機器別対象条件です
+	std::optional<IndexArchiveHardwareScope>	 archiveHardwareScope ;
+	/// 私有DCのv8で保持する元WiX配布と規約です
+	std::optional<IndexWixContentEvidence>		 wixContentEvidence ;
 	/// v1の取得情報不在の固定理由。v2では空です
 	std::string									 acquisitionDescriptorUnavailableReason ;
 	/// Decodeした原UTF-8 byte。空白・field順を保持します
@@ -514,6 +761,47 @@ struct IndexDistributionRecord {
 	/// 公開identityの元申告、または保持したUNKNOWN理由
 	IndexPublishedIdentityEvidence				 publishedIdentityEvidence ;
 } ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ元Modelsの一部に対象を限定する原レコードか判定します
+ * @param[in] record 借用する型付き元レコードです
+ * @return Catalog、機種別又は公式配布ZIPの対象条件がある場合trueです
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool isIndexHardwareScoped( const IndexDistributionRecord &record) noexcept ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 端末のHardwareIdsだけを照合する必要があるレコードを判定します
+ * @param[in] record 認証済みの配布条件を保持する借用レコードです
+ * @return 元Modelsの対象条件又は私有WiXの配布証拠がある場合trueです
+ * @note 署名の確認や照合結果の発行は行いません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool requiresExactIndexHardwareMatch( const IndexDistributionRecord &record) noexcept ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元ModelsのIDがWiX配布の完全Hardware IDとして照合対象になるか判定します
+ * @param[in] id 共通codecで構造を確認した元ModelsのIDです
+ * @return Hardware ID種別であり、ワイルドカードのない場合trueです
+ * @note 端末IDや接続機器は読み取りません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool isExactWixHardwareId( const IndexPublishedPnpId &id) noexcept ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ端末の全HardwareIdsから元レコードの必須群を判定します
+ * @param[in] record 署名と元Modelsの検査を通過した配布レコードです
+ * @param[in] hardwareIds 同一PnPインスタンスの検証済みで大文字に正規化した全HardwareIdsです
+ * @return 同一群の複数IDを一つの一致とし、異なる群の一致を競合とする判定です
+ * @note 公式の完全対象IDだけを使います。互換属性や必須版の文字列で群を選びません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] IndexPlatformFirmwareMatch classifyIndexPlatformFirmwareGroup(
+	const IndexDistributionRecord &record, std::span<const std::wstring> hardwareIds) noexcept ;
 
 struct IndexRecordsResult ;
 
@@ -637,7 +925,17 @@ enum class IndexRecordsStatus {
 	/// 型不明の内部障害です。成功へ読み替えません
 	INTERNAL_FAILURE,
 	/// 全recordの公開ID入力総数が共通枠を超えています
-	INPUT_COUNT_LIMIT
+	INPUT_COUNT_LIMIT,
+	/// 追加欄又は対応する旧索引が現行の取得用途の前提を満たしません
+	INVALID_SUPPLEMENT_PURPOSE,
+	/// 追加欄又は候補manifestの期限が対象レコードの最短期限に一致しません
+	SUPPLEMENT_EXPIRY_MISMATCH,
+	/// 同じ元配布物・INF・適用OSに異なる対象条件やModelsの並びがあります
+	CATALOG_SCOPE_CONFLICT,
+	/// 同じ元配布物・INF・適用OSに異なる機種条件又は対象なしの行があります
+	PLATFORM_DEVICE_SCOPE_CONFLICT,
+	/// 同じ元配布物・INF・適用OSに異なるZIP対象条件又は対象なしの行があります
+	ARCHIVE_HARDWARE_SCOPE_CONFLICT
 } ;
 
 /** @brief 全読取り成功時だけ保存前の不変receiptを持ちます */
@@ -662,5 +960,66 @@ struct IndexRecordsResult {
 [[nodiscard]] IndexRecordsResult readSignedIndexRecords(
 	const AuthenticatedIndexAssetBytes	   &asset,
 	std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
+
+/** @brief 検査済み追加レコードの値です。保存・推薦・取得を許可する型ではありません */
+struct IndexSupplementRecordsResult {
+	/// 追加欄の運搬結果です
+	IndexAssetSupplementStatus			 transportStatus{IndexAssetSupplementStatus::ABSENT} ;
+	/// 構造と元根拠の結果です
+	IndexRecordsStatus					 status{IndexRecordsStatus::INVALID_INDEX} ;
+	/// 元APIの診断です
+	NativeError							 error{} ;
+	/// 全検査成功時の追加欄の取得元です
+	std::vector<IndexRecordSource>		 sources ;
+	/// 全検査成功時の元型付きレコードです
+	std::vector<IndexDistributionRecord> records ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ署名済みassetから追加欄のレコードと旧索引との共通枠を検査します
+ * @param[in] base 同assetの旧索引を検査した不変receiptです
+ * @param[in] nowUtc 確認済み現在UTCです
+ * @return 現公開形式の追加欄の検査結果です。私有Catalog条件又は他の失敗では取得元と行を返しません
+ * @pre Windows最低buildの根拠を含む追加欄は呼出しworkerのMTAで検査します
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] IndexSupplementRecordsResult readSignedIndexSupplementRecords(
+	const IndexRecordsSchemaReceipt &base, std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
+
+/** @brief 認証済み追加欄から端末照合に引き継ぐ原レコードとその領域です */
+struct IndexConsumerSupplementResult {
+	/// 運搬・構造検査の結果と元取得元・原レコードです
+	IndexSupplementRecordsResult contents ;
+	/// 全検査成功時の元追加欄の展開SHA-256です
+	IndexManifestSha256			 expandedSha256{} ;
+	/// 全検査成功時の元追加欄の最短期限です
+	std::chrono::sys_seconds	 expiresAtUtc{} ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ署名済みassetの追加欄を端末向けに検査し、元領域とレコードを取得します
+ * @param[in] base 同じassetの旧本文を検査した不変receiptです
+ * @param[in] nowUtc 確認済み現在UTCです
+ * @return 両領域の参照・対象・上限と期限を満たした追加欄の元値、又は理由付きの空結果です
+ * @pre Windows最低buildの根拠を含む追加欄は呼出しworkerのMTAで検査します
+ * @note Catalog対象付き行も原領域に結合します。端末適合、取得、導入を許可する処理ではありません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] IndexConsumerSupplementResult readSignedIndexConsumerSupplement(
+	const IndexRecordsSchemaReceipt &base, std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ署名済みassetのDM欄から元配布行と公式Models証拠を読み取ります
+ * @param[in] base 同じassetの旧本文を検査した不変receiptです
+ * @param[in] nowUtc 確認済みの現在UTCです
+ * @return 旧本文との共通枠と結合を検査した元行・証拠又は理由付きの空結果です
+ * @note 本文と独立に検査し、端末への適用や取得の権限は発行しません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] IndexConsumerSupplementResult readSignedIndexScopedModels(
+	const IndexRecordsSchemaReceipt &base, std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
 
 } // namespace drivercrate

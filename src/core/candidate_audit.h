@@ -2,7 +2,7 @@
 /**
  * @file candidate_audit.h
  * @brief Driver候補監査状態の生成と整合性検証
- * @version 01.01.02
+ * @version 01.01.03
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  詳細assessmentと代表行の整合性検証を追加
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.03 Shunji Ogawa  2026/11/19  初回セットアップクラス登録の表示境界を明記
  * </pre>
  *
  * @note 候補の取得経路ごとに監査状態を生成し、scan session登録前にinstall可否との矛盾をfail-closedで拒否します
@@ -103,7 +104,7 @@ namespace drivercrate {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 観測・詳細assessment・初回actionを既存候補へ照合する
+ * @brief 観測・詳細assessment・初回action・初回クラス登録を既存候補へ照合する
  * @param[in] candidate 同じscanの候補
  * @param[in] scanSessionId 現在session。0は候補自身との内部結合だけを検証する
  * @return 新詳細の結合・集約auditとの整合性・表示専用条件を満たせばtrue

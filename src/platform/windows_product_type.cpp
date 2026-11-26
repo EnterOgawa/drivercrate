@@ -2,7 +2,7 @@
 /**
  * @file windows_product_type.cpp
  * @brief Windows client／server種別判定実装
- * @version 01.00.02
+ * @version 01.01.00
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -19,9 +19,9 @@
  * @par 移行前更新履歴（製品版）
  * <pre>
  * VerNo.       author        update      comment
+ * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成
  * Ver.0.1.0    Shunji Ogawa  2026/09/06  実OS build番号取得を追加
  * Ver.0.1.0    Shunji Ogawa  2026/09/07  Product SKU取得を追加
- * Ver.0.1.0    Shunji Ogawa  2026/09/02  新規作成
  * Ver.0.1.0    Shunji Ogawa  2026/09/10  承認済みコーディング書式へ統一
  * </pre>
  *
@@ -31,6 +31,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/18  P3同scan fullhost観測と取得直前拒否を接続
  * </pre>
  *
  * @note Version Helper、RtlGetVersion、GetProductInfoで実OS条件を判定します。判定不能時は復元保護、公式検索、前回観測の条件を緩和しません
@@ -38,6 +39,7 @@
 //------------------------------------------------------------------------------
 
 #include "platform/windows_product_type.h"
+#include "platform/windows_product_type_internal.h"
 
 #include <Windows.h>
 
@@ -49,10 +51,9 @@ namespace drivercrate {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 実行中OSがWindows Server productかを判定する。Version Helperのproduct type判定を使用する。Serverと確認できない結果では復元ポ
- *        イントなしinstallを許可しない
- * @return Windows Serverの場合は`true`。Clientまたは判定不能の場合は`false`。 Windows Serverの場合は`true`。その他は`false`
- * @note Server専用の復元ポイントなしinstallを許可するworker境界でも再確認する
+ * @brief 既復旧modeと互換のVersion Helper boolをそのまま返します
+ * @return IsWindowsServerの非FALSEでtrueです。VerifyVersionInfoWの拒否理由を分離しません
+ * @note 既復旧意味を保持します。false/trueから新fullhostの成功や六fieldを合成しません
  */
 //------------------------------------------------------------------------------
 bool isWindowsServer() noexcept
@@ -115,4 +116,85 @@ std::uint32_t currentWindowsProductSku() noexcept
 	return static_cast<std::uint32_t>( productSku) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示した完全SDK依存だけで一回のhost観測を行います
+ * @param[in] api 呼出し中だけ借用する全関数です。欠落をnativeへ補完しません
+ * @return 元code/domainと成功fieldです。依存欠落/例外はUNOBSERVEDです
+ * @note GetNativeSystemInfoはvoidです。未知architectureは後段のローカル判定へ渡します
+ */
+//------------------------------------------------------------------------------
+WindowsHostPlatformObservation observeWindowsHostPlatform(
+	const WindowsHostPlatformApi &api) noexcept
+{
+	WindowsHostPlatformObservation result ;	// 元観測を成功へ補完しない初期値です
+	result.stage = WindowsHostObservationStage::DEPENDENCY ;
+	// 完全fake依存の欠落を実APIへ切り替えません
+	if( !api.module || !api.entry || !api.lastError || !api.architecture) {
+		return result ;
+	}
+
+	try {
+		const auto module = api.module( L"ntdll.dll") ;	// 元の非所有handleです
+		// NULLという失敗と元error0も独立に保持します
+		if( !module) {
+			result.rawBits = api.lastError() ;
+			result.state   = WindowsHostObservationState::API_FAILED ;
+			result.domain  = WindowsHostErrorDomain::WIN32_CODE ;
+			result.stage   = WindowsHostObservationStage::MODULE ;
+			return result ;
+		}
+
+		const auto address = api.entry( module, "RtlGetVersion") ;	// SDK ABIへ変換する元addressです
+		// 解決失敗直後のWin32 bit patternを変換しません
+		if( !address) {
+			result.rawBits = api.lastError() ;
+			result.state   = WindowsHostObservationState::API_FAILED ;
+			result.domain  = WindowsHostErrorDomain::WIN32_CODE ;
+			result.stage   = WindowsHostObservationStage::ENTRY ;
+			return result ;
+		}
+
+		using VersionFunction = LONG( WINAPI *)( PRTL_OSVERSIONINFOW) ;	// 元SDKのRtl署名です
+		const auto versionFunction =
+			reinterpret_cast<VersionFunction>( address) ;	// 公式ABIの境界だけです
+		OSVERSIONINFOEXW version{} ;						// product/suiteまで元APIから取得します
+		version.dwOSVersionInfoSize = sizeof( version) ;
+		const auto status =
+			// 原NTSTATUSです
+			versionFunction( reinterpret_cast<PRTL_OSVERSIONINFOW>( &version)) ;
+		result.rawBits = static_cast<std::uint32_t>( status) ;
+		result.domain  = WindowsHostErrorDomain::NTSTATUS ;
+		result.stage   = WindowsHostObservationStage::VERSION ;
+		// 非0の元statusをHRESULTや別のversion成功へ変更しません
+		if( status != 0) {
+			result.state = WindowsHostObservationState::API_FAILED ;
+			return result ;
+		}
+
+		SYSTEM_INFO information{} ;	// compile architectureでなく実native情報です
+		api.architecture( &information) ;
+		result.value =
+			WindowsHostPlatform{version.dwMajorVersion, version.dwMinorVersion,
+								version.dwBuildNumber,	information.wProcessorArchitecture,
+								version.wProductType,	version.wSuiteMask} ;
+		result.state = WindowsHostObservationState::OBSERVED ;
+		return result ;
+	} catch( ...) {
+		// 依存例外はnative errorを捏造せず、ローカルUNKNOWNへ渡します
+		return {} ;
+	}
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 一回のSDK version/architecture観測を返します
+ * @return 元status/domain/bitsと六fieldです。API失敗/例外は成功へ補完しません
+ * @note legacy bool/build/SKUの実行bodyや復旧意味を変更しません
+ */
+//------------------------------------------------------------------------------
+WindowsHostPlatformObservation observeWindowsHostPlatform() noexcept
+{
+	return observeWindowsHostPlatform( WindowsHostPlatformApi{
+		&::GetModuleHandleW, &::GetProcAddress, &::GetLastError, &::GetNativeSystemInfo}) ;
+}
 } // namespace drivercrate

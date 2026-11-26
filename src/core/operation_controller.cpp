@@ -2,7 +2,7 @@
 /**
  * @file operation_controller.cpp
  * @brief 操作状態管理実装
- * @version 01.05.04
+ * @version 01.06.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -48,6 +48,7 @@
  * Ver.01.05.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.05.03 Shunji Ogawa  2026/11/12  外側tupleの取得予約と開始拒否の原理由を接続
  * Ver.01.05.04 Shunji Ogawa  2026/11/12  導入前保護失敗に結合した一回の明示復元なし続行を接続
+ * Ver.01.06.00 Shunji Ogawa  2026/11/23  未選択の検査専用対象を同一機器と元計画へ結合
  * </pre>
  *
  * @note Operationの状態遷移と候補identityのfail-closed検証を実装します
@@ -210,6 +211,7 @@ BeginResult OperationController::beginScan()
 	preparationPlan_.reset() ;
 	originalPreparationPlan_.reset() ;
 	scanReferenceScopes_.clear() ;
+	inspectionTargetDevices_.clear() ;
 	retainedReferenceIdentities_.clear() ;
 	candidateIdentities_.clear() ;
 	candidateDevices_.clear() ;
@@ -318,6 +320,7 @@ bool OperationController::completeScan( const OperationId operationId, const Sca
 	}
 
 	scanReferenceScopes_.clear() ;
+	inspectionTargetDevices_.clear() ;
 	retainedReferenceIdentities_.clear() ;
 	originalPreparationPlan_.reset() ;
 	// 元scan参照は実行permitと分離してscopeだけを凍結します
@@ -327,6 +330,20 @@ bool OperationController::completeScan( const OperationId operationId, const Sca
 			scanReferenceScopes_.emplace(
 				candidate.identity,
 				std::pair{candidate.deviceIdentity, candidate.preparationTargetIdentity}) ;
+		}
+
+		// 一意の非導入行だけを検査専用対象として記録し、導入参照には加えません
+		if( !candidate.current && !candidate.installable && candidate.action == DriverAction::NONE &&
+		   candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
+		   candidate.preparationTargetIdentity.empty() &&
+		   !candidate.inspectionTargetIdentity.empty()) {
+			const auto [target, inserted] = inspectionTargetDevices_.try_emplace(
+				candidate.inspectionTargetIdentity,
+				candidate.deviceIdentity) ;	// 元の一候補に結ぶ機器です
+			// 複数行が同じ取得対象を申告した場合は、その対象を保持しません
+			if( !inserted) {
+				target->second.clear() ;
+			}
 		}
 	}
 
@@ -657,10 +674,22 @@ bool OperationController::completeInstall( const OperationId					   operationId,
 
 	state_ = retained ? ApplicationState::SCAN_READY
 					  : (succeeded ? ApplicationState::COMPLETED : ApplicationState::FAILURE) ;
+	// 実導入を試みた機器の検査対象は、元機器情報の再検索まで保持しません
+	if( retained && retention->providerEntered) {
+		std::erase_if( inspectionTargetDevices_, [&selectedDevices]( const auto &entry) {
+			return selectedDevices.contains( entry.second) ;
+		}) ;
+	}
+
 	// 原plan/予算/scope検証に失敗した参照だけを保留し、原導入結果は保ちます
 	if( retained && retention->preparationPlan &&
 	   !setRemainingPreparationPlan( operationId, scanSessionId_, *retention->preparationPlan)) {
 		retainedReferenceIdentities_.clear() ;
+	}
+
+	// 次に使用する検査計画がなければ元表示の候補から再承認しません
+	if( !preparationPlan_) {
+		inspectionTargetDevices_.clear() ;
 	}
 
 	return true ;
@@ -712,6 +741,20 @@ bool OperationController::setRemainingPreparationPlan( const OperationId				 ope
 			return false ;
 		}
 
+		// 検査専用対象は通常の導入参照の残数ではなく、元の一機器を照合します
+		if( target.terms == OfficialPreparationTerms::INSPECTION_ONLY) {
+			const auto device =
+				// 同じ対象の元機器です
+				inspectionTargetDevices_.find( target.identity) ;
+			// 消費済み・削除・曖昧・別Providerの対象を元計画から復活させません
+			if( target.providerId != SIGNED_INDEX_PROVIDER_ID || target.deviceCount != 1U ||
+			   device == inspectionTargetDevices_.end() || device->second.empty()) {
+				return false ;
+			}
+
+			continue ;
+		}
+
 		std::unordered_set<std::wstring> devices ;	// 元参照からのscopeです
 		// 元集合の各要素を同じscopeへ一度ずつ照合します
 		for( const auto &identity : retainedReferenceIdentities_) {
@@ -734,6 +777,8 @@ bool OperationController::setRemainingPreparationPlan( const OperationId				 ope
 	}
 
 	preparationPlan_ = plan ;
+	std::erase_if( inspectionTargetDevices_,
+				  [&targets]( const auto &entry) { return !targets.contains( entry.first) ; }) ;
 	return true ;
 }
 
@@ -999,6 +1044,11 @@ bool OperationController::completePreparation( const OfficialPreparationOperatio
 		retainedReferenceIdentities_.clear() ;
 	}
 
+	// 次回に継続できる検査計画がなければ、元の機器との対応も解放します
+	if( !preparationPlan_) {
+		inspectionTargetDevices_.clear() ;
+	}
+
 	return true ;
 }
 
@@ -1016,6 +1066,7 @@ void OperationController::stop() noexcept
 	preparationPlan_.reset() ;
 	originalPreparationPlan_.reset() ;
 	scanReferenceScopes_.clear() ;
+	inspectionTargetDevices_.clear() ;
 	retainedReferenceIdentities_.clear() ;
 	activePreparation_ = {} ;
 	candidateIdentities_.clear() ;

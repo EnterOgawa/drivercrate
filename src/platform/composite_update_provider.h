@@ -2,7 +2,7 @@
 /**
  * @file composite_update_provider.h
  * @brief 複合update provider定義
- * @version 01.13.02
+ * @version 01.17.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -87,6 +87,10 @@
  * Ver.01.13.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
  * Ver.01.13.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.13.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.14.00 Shunji Ogawa  2026/11/23  取得計画が空でも署名索引の閲覧専用行を表示
+ * Ver.01.15.00 Shunji Ogawa  2026/11/23  現行計画へ残る署名索引の検査専用対象を保持
+ * Ver.01.16.00 Shunji Ogawa  2026/11/23  取得操作の取消しを候補発行の確定まで結ぶ
+ * Ver.01.17.00 Shunji Ogawa  2026/11/23  明示同意したWiX規約を同じ導入操作内だけに保持
  * </pre>
  *
  * @note 組み込みProviderの検索・取得・導入を同じregistryで管理し、旧sessionを拒否します
@@ -113,6 +117,7 @@
 #include "core/official_preparation_operation.h"
 #include "core/official_discovery.h"
 #include "core/provider_registry.h"
+#include "platform/signed_index_candidate_binding.h"
 #include "platform/signed_index_scan.h"
 #include "core/scan_measurement.h"
 #include "core/update_provider.h"
@@ -164,8 +169,20 @@ public:
 		OperationId operationId, ScanSessionId session,
 		std::span<const std::wstring> identities) override ;
 	/**
-	 * @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます
+	 * @brief 元選択とそのWiX規約同意を当該操作へ結びます
 	 * @param[in] operationId 当該新操作です
+	 * @param[in] session 未失効の元scanです
+	 * @param[in] identities 元表示の選択candidate subsetです
+	 * @param[in] wixConsents 当該選択のWiX候補について明示同意した元規約です
+	 * @return 元選択と同意の構造照合および予約が成功すると0、拒否はHRESULTです
+	 * @note 同意をコピーします。元取得証拠との照合は復旧前と導入時に行います
+	 */
+	[[nodiscard]] NativeError beginInstallOperation( OperationId operationId, ScanSessionId session,
+													std::span<const std::wstring>	   identities,
+													std::span<const WixInstallConsent> wixConsents) ;
+	/**
+	 * @brief 当該操作を終了し、同意を解放して未処理の候補を返します
+	 * @param[in] operationId 終了する当該操作です
 	 * @param[in] session 未失効の元scanです
 	 * @return 当該操作の原未消費subsetです。不明な操作は空です
 	 */
@@ -179,6 +196,12 @@ public:
 	 */
 	[[nodiscard]] bool isRetainedPreparationReference( std::wstring_view				 identity,
 													  const OfficialPreparationPlan &plan) const ;
+	/**
+	 * @brief 現行計画で未消費の検査専用対象だけを元候補に保持します
+	 * @param[in] plan 同じworkerが照合した現行計画です。nullptrの場合は検査対象をすべて失効します
+	 * @note 同期中だけ借用します。署名索引の検査対象と候補の結合を狭め、通常の準備対象や表示行を保持します
+	 */
+	void			   retainActiveInspectionTargets( const OfficialPreparationPlan *plan) noexcept ;
 	/**
 	 * @brief 同じComposite inventory scanの秘密resolverをworkerへ貸します
 	 * @param[in] operationId 正のworker operation
@@ -228,6 +251,15 @@ public:
 	 */
 	[[nodiscard]] std::vector<OfficialPreparationAuditReport> preparationAuditReports(
 		const OfficialPreparationOperationResult &result) override ;
+	/**
+	 * @brief 同じ取得操作の監査を集約し、全件検証と取消し確認後だけ候補を確定します
+	 * @param[in] result 取得を終えた同じ操作です
+	 * @param[in] cancellation 同じ取得操作の停止照会です
+	 * @return 監査結果とその候補です。取消しでは新規発行を破棄し空を返します
+	 */
+	[[nodiscard]] std::vector<OfficialPreparationAuditReport> preparationAuditReports(
+		const OfficialPreparationOperationResult &result,
+		const PreparationCancellation			 &cancellation) ;
 
 	/**
 	 * @brief 既存installの候補routingを保ち、取得準備用の保持情報だけを失効させる
@@ -337,10 +369,10 @@ private:
 	[[nodiscard]] std::vector<PreparedInstallResolution> resolvePreparationInstallIntent(
 		const OfficialPreparationApproval &approval) const ;
 	/**
-	 * @brief 元選択の導入可否と必要roleを復旧開始前にread-onlyで一括確認します
+	 * @brief 元選択の導入可否、必要roleと同じ操作のWiX規約同意を復旧開始前に確認します
 	 * @param[in] session 元通常scanです
 	 * @param[in] identities 通常画面の明示選択です
-	 * @return 元全byte/期限/状態一致0、不足はHRESULTです
+	 * @return 元全byte/期限/状態とWiX規約同意の一致0、不足はHRESULTです
 	 */
 	[[nodiscard]] NativeError preflightRequiredSignedIndexInstall(
 		ScanSessionId session, std::span<const std::wstring> identities) const ;
@@ -357,9 +389,10 @@ private:
 								OperationId									  operationId,
 								ProviderScanCancellation cancellation) noexcept ;
 	/**
-	 * @brief 元索引targetへ非導入参照を結合して通常候補routingへ原子的に加えます
-	 * @param[in] plan 同lookupから発行した準備計画
+	 * @brief 同じ端末へ照合した署名索引参照を通常の候補表示へ加えます
+	 * @param[in] plan 同じスキャンの準備計画です。取得対象なしの場合は空です
 	 * @param[in,out] result 同scanでUIへ発行する結果
+	 * @note 取得対象がある参照だけ既存の準備経路へ結合します
 	 */
 	void finishSignedIndexScanPublication( const OfficialPreparationPlan &plan, ScanResult &result) ;
 	/// Workerが終端まで所有する同sessionへの借用
@@ -419,8 +452,8 @@ private:
 		/// 承認済み対象の取得。未対応は空
 		PreparationAcquireFunction acquireForInspection ;
 		/// 同じ取得対象の監査表示。未接続は空callback
-		std::function<std::optional<OfficialPreparationAuditReport>( ScanSessionId,
-																	std::wstring_view)>
+		std::function<std::optional<OfficialPreparationAuditReport>(
+			ScanSessionId, std::wstring_view, const PreparationCancellation &)>
 			preparationAuditReport ;
 		/// 前回観測と現在環境のworker内設定
 		std::function<void( std::span<const LocalOfficialReleaseObservation>,
@@ -603,6 +636,8 @@ private:
 	OperationId									   activeInstallOperation_{} ;
 	/// 今回の元選択deviceだけです
 	std::vector<std::wstring>					   activeInstallDevices_ ;
+	/// 当該workerで現在の操作に限定して保持するWiXの明示同意です
+	std::vector<WixInstallConsent>				   activeInstallWixConsents_ ;
 	/// 復旧後に実Provider入口へ渡した場合trueです
 	bool										   installEntered_{} ;
 	/// 最初のplanの不変記述です。同意/実行権限へ流用しません

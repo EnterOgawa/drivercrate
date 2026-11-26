@@ -14,7 +14,8 @@ import audit_source_contracts
 from audit_source_contracts import pair_contract_errors
 from source_comments import SEPARATOR, doxy_entries, render_doxygen
 from source_method_contracts import (
-    method_contract_nodes, meaningless_reference_summary, rename_parameter_text, signature,
+    declaration_signatures, method_contract_nodes, meaningless_reference_summary,
+    rename_parameter_text, signature,
 )
 
 
@@ -185,6 +186,121 @@ class MethodContractTests(unittest.TestCase):
         source = 'constexpr int VALUE = std::bit_cast<int>(1U);\nconst std::wstring HASH(64U, L\'a\');\n'
         source += documented('A::A() try {} catch(...) {}', ('@brief ', '所有物を初期化します。'))
         self.assertEqual(errors(source), [])
+
+    # constructor initializerを本bodyまで走査し、後続methodと拒否境界を保つ回帰
+    def test_constructor_brace_then_paren_initializers_keep_one_node(self):
+        source = 'struct Harness { State state; Clock clock;\n'
+        source += documented(
+            'Harness(Store &store, Seconds now, const Zip &zip, '
+            'std::string_view id, Platform platform)\n'
+            '    : state{std::string{id}, platform}, '
+            'clock(std::make_shared<Seconds>(now)) { store.prepare(zip); }',
+            ('@brief ', '所有stateとclockを初期化する'),
+            ('@param[in] store ', '初期化中だけ借用するstore'),
+            ('@param[in] now ', '初期時刻'),
+            ('@param[in] zip ', '初期化中だけ借用するpackage'),
+            ('@param[in] id ', '所有copyを作る識別子'),
+            ('@param[in] platform ', 'stateのplatform'), framed=False)
+        source += documented('void advance() {}', ('@brief ', '次の状態へ進む'), framed=False)
+        source += '};\n'
+        source += documented('int clock(int tick) { return tick; }',
+                             ('@brief ', '時刻を返す'), ('@param[in] tick ', '今回の時刻'),
+                             ('@return ', '渡された時刻'))
+        declarations = declaration_signatures(source)
+        self.assertEqual([node['name'] for node in declarations], ['Harness', 'advance', 'clock'])
+        self.assertEqual([p['name'] for p in declarations[0]['params']],
+                         ['store', 'now', 'zip', 'id', 'platform'])
+        self.assertEqual([node['return'] for node in declarations], ['', 'void', 'int'])
+        self.assertEqual(errors(source), [])
+
+    def test_nested_initializers_and_lambdas_do_not_hide_following_methods(self):
+        initializers = (
+            'state{Pair{value, value + 1}}, clock(makeClock(value))',
+            'clock(makeClock(value)), state{Pair{value, value + 1}}, count(value)',
+            'state{Pair{value, [] { return 4; }()}}, '
+            'clock([](int x) { return Clock{x}; }(value)), count{value}',
+            'state{[] { struct Local { int field; }; return Local{1}; }()}, '
+            'clock(([](int x) { return x; })(value))',
+        )
+        for initializer in initializers:
+            with self.subTest(initializer=initializer):
+                source = 'struct Owner {\n' + documented(
+                    'Owner(int value) noexcept : ' + initializer + ' { consume(value); }',
+                    ('@brief ', '所有物を初期化する'), ('@param[in] value ', '初期値'),
+                    framed=False)
+                source += 'void later();\n};\nint clock(int tick);\n'
+                self.assertEqual([node['name'] for node in declaration_signatures(source)],
+                                 ['Owner', 'later', 'clock'])
+                nodes = method_contract_nodes(source)
+                self.assertEqual([node['signature']['name'] for node in nodes],
+                                 ['Owner', 'later', 'clock'])
+                self.assertEqual([node['errors'] for node in nodes],
+                                 [[], ['method has no independent Doxygen contract'],
+                                  ['method has no independent Doxygen contract']])
+
+    def test_constructor_template_base_initializer_keeps_following_method(self):
+        source = 'struct Owner : Base<Pair<int, int>> {\n' + documented(
+            'Owner(int value) : Base<Pair<int, int>>{value}, count(value) {}',
+            ('@brief ', '基底とcountを初期化する'), ('@param[in] value ', '初期値'),
+            framed=False)
+        source += 'void later();\n};\n'
+        self.assertEqual([node['name'] for node in declaration_signatures(source)],
+                         ['Owner', 'later'])
+        self.assertEqual(errors(source), ['method has no independent Doxygen contract'])
+
+    def test_constructor_function_try_initializers_and_handlers_are_one_definition(self):
+        source = documented(
+            'Owner::Owner(int value) try : state{Pair{value, value}}, clock(value)\n'
+            '{ use(value); } catch (const Error &) { recover(); } catch (...) { finish(); }',
+            ('@brief ', '初期化し例外を処理する'), ('@param[in] value ', '初期値'))
+        source += documented('int clock(int tick) { return tick; }',
+                             ('@brief ', '時刻を返す'), ('@param[in] tick ', '今回の時刻'),
+                             ('@return ', '渡された時刻'))
+        self.assertEqual([node['name'] for node in declaration_signatures(source)],
+                         ['Owner', 'clock'])
+        self.assertEqual(errors(source), [])
+
+    def test_constructor_and_following_clock_missing_contracts_are_both_reported(self):
+        source = ('struct Owner { Owner(int value) : state{value}, clock(value) {} };\n'
+                  'int clock(int tick);\n')
+        nodes = method_contract_nodes(source)
+        self.assertEqual([node['signature']['name'] for node in nodes], ['Owner', 'clock'])
+        self.assertEqual([node['errors'] for node in nodes],
+                         [['method has no independent Doxygen contract'],
+                          ['method has no independent Doxygen contract']])
+
+    def test_constructor_parameter_contract_is_checked_after_initializer_scan(self):
+        source = 'struct Owner {\n' + documented(
+            'Owner(int value) : state{value}, clock(value) {}',
+            ('@brief ', '所有物を初期化する'), framed=False) + '};\n'
+        nodes = method_contract_nodes(source)
+        self.assertEqual([node['signature']['name'] for node in nodes], ['Owner'])
+        self.assertEqual(errors(source),
+                         ["@param names/order differ from this signature: expected ['value'], got []"])
+
+    def test_unknown_signature_after_constructor_is_not_hidden(self):
+        source = 'struct Owner {\n' + documented(
+            'Owner() : state{1}, clock(2) {}', ('@brief ', '所有物を初期化する'),
+            framed=False) + '};\n'
+        source += documented('int specialized<T>(int value);',
+                             ('@brief ', '値を検査する'), ('@param[in] value ', '入力値'),
+                             ('@return ', '判定値'))
+        self.assertEqual([node['kind'] for node in declaration_signatures(source)],
+                         ['method', 'unknown'])
+        self.assertEqual(errors(source),
+                         ['unsupported method signature: specialized function name'])
+
+    def test_constructor_initializer_delimiters_and_boundaries_fail_closed(self):
+        invalid = (
+            'Owner(int value) : state{value], clock(value) {}',
+            'Owner(int value) : state{value}, clock(value) {',
+            'Owner(int value) : state{value} clock(value) {}',
+            'Owner(int value) : state{value}, clock(value);',
+            'Owner(int value) : {}',
+        )
+        for declaration in invalid:
+            with self.subTest(declaration=declaration), self.assertRaises(ValueError):
+                method_contract_nodes('struct Owner { ' + declaration + ' };')
 
     def test_immediate_lambda_call_is_one_initializer_but_next_function_needs_comment(self):
         source = 'constexpr auto POLICY = [] { return 1; }();\n'

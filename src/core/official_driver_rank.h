@@ -2,7 +2,7 @@
 /**
  * @file official_driver_rank.h
  * @brief 公式driverのPnP具体性およびrank非退行判定定義
- * @version 01.02.03
+ * @version 01.02.05
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,8 @@
  * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.02.03 Shunji Ogawa  2026/11/13  元適用性errorへ固定失敗leafとcode由来だけを接続
+ * Ver.01.02.04 Shunji Ogawa  2026/11/19  独自クラスの登録読取り失敗を専用段階へ追加
+ * Ver.01.02.05 Shunji Ogawa  2026/11/23  同梱INF委譲の読取り失敗を診断段階へ追加
  * </pre>
  *
  * @note SetupAPIが算出したrankと端末内PnP IDだけを比較し、versionや日付で適用性を補完しません。実PnP IDを結果へ複写しません
@@ -166,6 +168,10 @@ enum class InfDiagnosticStage {
 	INF_ATTRIBUTES,
 	/// 完全rank前の同INF内容再検証です
 	CONTENT_REVERIFY,
+	/// 独自クラスの登録と元端末の作用の読取りです
+	DECLARATIVE_CLASS_EFFECTS,
+	/// ストレージの実選択・元ID・Windows同梱INFの委譲照合です
+	INBOX_NULL_DRIVER,
 } ;
 
 /** @brief 最初の同pair errorへだけ結ぶ匿名診断です。許可/判定を持ちません */

@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition.h
  * @brief 公式fileの検査用取得境界定義
- * @version 01.06.02
+ * @version 01.07.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,7 @@
  * Ver.01.06.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続
  * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.06.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.07.00 Shunji Ogawa  2026/11/23  公式payloadの待機を取得結果へ保持
  * </pre>
  *
  * @note 公式由来を確認したfileを候補化せず保護workspaceへ取得し、容量予算、network cost、取消し、size、SHA-256をfail-closedで検証します
@@ -199,6 +200,8 @@ struct OfficialAcquisitionResult {
 	bool						destinationLocallyResolved{} ;
 	/// 匿名解決の実補助要求数/本文bytes/status。秘密値を含まない
 	OfficialAuxiliaryHttpObservation auxiliaryHttp ;
+	/// 元payload応答の待機下限と要確認です。URLとヘッダー原文を含みません
+	OfficialPayloadRetryObservation	 payloadRetry ;
 } ;
 
 /**

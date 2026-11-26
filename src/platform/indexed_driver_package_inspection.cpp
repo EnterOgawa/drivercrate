@@ -2,7 +2,7 @@
 /**
  * @file indexed_driver_package_inspection.cpp
  * @brief 索引hintから通常共通検査への非導入結合を実装する
- * @version 01.03.02
+ * @version 01.07.01
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,11 @@
  * Ver.01.03.00 Shunji Ogawa  2026/11/03  署名原範囲の非実行resource内容を接続
  * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.03.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.04.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.05.00 Shunji Ogawa  2026/11/19  独自クラスの再検証を内容専用入口へ接続
+ * Ver.01.06.00 Shunji Ogawa  2026/11/22  公式範囲の元署名と現在Windowsの全行を比較
+ * Ver.01.07.00 Shunji Ogawa  2026/11/22  保持した元閉包の全ファイルとCATを再検査
+ * Ver.01.07.01 Shunji Ogawa  2026/11/22  INFの媒体宣言を一意な元展開位置へ照合
  * </pre>
  *
  * @note File検査は既存共通層へ委譲する。全体失敗時は部分閉包を保持せず、外部取得・
@@ -36,11 +41,14 @@
 #include "platform/official_file_verifier.h"
 #include "platform/official_resource_content.h"
 #include "platform/official_download_workspace.h"
+#include "platform/signed_index_codec_internal.h"
 
 #include <Windows.h>
 #include <algorithm>
+#include <array>
 
 #include <new>
+#include <span>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -109,6 +117,180 @@ NativeError fail( IndexedDriverPackageInspection &result, const IndexedDriverIns
 	result.state	  = state ;
 	result.error	  = error ;
 	return error ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定32byteハッシュをWindowsファイル検査の小文字hexへ変換します
+ * @param[in] digest 元SHA-256です
+ * @return 全64桁の元値です
+ */
+//------------------------------------------------------------------------------
+std::wstring scopedHashText( const IndexManifestSha256 &digest)
+{
+	constexpr std::wstring_view digits = L"0123456789abcdef" ;	// 4bitから一桁の小文字hexへの対応表
+	std::wstring				value ;							// 元バイト順のハッシュ文字列
+	value.reserve( 64U) ;
+	// 元の32バイトを順に上位・下位の二桁へ変換する
+	for( const auto byte : digest) {
+		value.push_back( digits[byte >> 4U]) ;
+		value.push_back( digits[byte & 15U]) ;
+	}
+
+	return value ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元Models全節の順序、ダイジェストと元Hardware欄の位置を比較します
+ * @param[in] expected 元証拠で固定した節と位置です
+ * @param[in] actual 同元INFからWindowsが選択した節と位置です
+ * @return 全節と全一致行が同じ場合trueです
+ * @note 実行中Windowsの観測と比較する場合も元節の比較を省略しません
+ */
+//------------------------------------------------------------------------------
+bool sameScopedModels( const OfficialInfScopedModelsEvidence &expected,
+					  const OfficialInfScopedModelsEvidence &actual)
+{
+	return expected.infSha256 == actual.infSha256 &&
+		   std::ranges::equal(
+			   expected.sections, actual.sections, []( const auto &left, const auto &right) {
+				   return left.modelSection == right.modelSection &&
+						  left.modelRows == right.modelRows && left.idFields == right.idFields &&
+						  left.orderedRowsSha256 == right.orderedRowsSha256 &&
+						  std::ranges::equal( left.matches, right.matches,
+											 []( const auto &first, const auto &second) {
+												 return first.modelRow == second.modelRow &&
+														first.hardwareId == second.hardwareId &&
+														first.installBase == second.installBase ;
+											 }) ;
+			   }) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 原証拠の相対位置を既存のWindows member表記に直します
+ * @param[in] value 元codecが検証した配布内の相対位置です
+ * @return Windows区切り文字を使う相対位置です
+ */
+//------------------------------------------------------------------------------
+std::wstring scopedMemberPath( const std::string_view value)
+{
+	std::wstring path( value.begin(), value.end()) ;	// 区切りだけを変える元相対位置のコピー
+	std::ranges::replace( path, L'/', L'\\') ;
+	return path ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief INFの媒体宣言をWindowsの比較規則で同じ閉包の元エントリへ解決する
+ * @param[in] entries 検査した元ファイルの相対位置とハッシュ。戻り値の使用中は変更しない
+ * @param[in] path INFが指定した閉包内の全相対位置
+ * @return 一意に一致した元エントリの借用ポインター。欠落・曖昧・範囲外ではnullptr
+ * @note 元エントリの表記を保持し、索引の署名済み相対位置を正規化しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] const OfficialZipEntry *findScopedArchiveMember(
+	const std::span<const OfficialZipEntry> entries, const std::wstring_view path) noexcept
+{
+	// 空の名前やWindowsの有限パス長を超える宣言を照合しない
+	if( path.empty() || path.size() > 32767U) {
+		return nullptr ;
+	}
+
+	const int length = static_cast<int>( path.size()) ;	// Windowsのordinal比較に渡す文字数
+	const OfficialZipEntry *match{} ;					// 一致した唯一の元エントリを借用
+	// 不一致の媒体を飛ばし、大小文字を区別しない全位置の一致が一つだけ存在するか検査する
+	for( const auto &entry : entries) {
+		// 別位置のファイルを同名候補へ加えず、明示長で比較して途中の終端を採用しない
+		if( entry.relativePath.size() != path.size() ||
+		   CompareStringOrdinal( entry.relativePath.data(), length, path.data(), length, TRUE) !=
+			   CSTR_EQUAL) {
+			continue ;
+		}
+
+		// 大小文字違いを含む複数一致を任意の先頭へ縮約しない
+		if( match != nullptr) {
+			return nullptr ;
+		}
+
+		match = &entry ;
+	}
+
+	return match ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ原証拠が指す選択基本INFと保持閉包の元用途を照合します
+ * @param[in] session 同じ配布物を所有するworker scanです
+ * @param[in] hint 取得時に固定した配布物と選択INFです
+ * @param[in] proof 同じ署名レコードから得た配布と全Modelsの元証拠です
+ * @param[in] content 基本INFと全必須INFを保持する元内容検査です
+ * @return 同じ配布物、保護閉包、基本INFと同じ元範囲の場合0です
+ * @note 元ファイルの実バイトとCATは呼出し側が別に検査します
+ */
+//------------------------------------------------------------------------------
+NativeError matchIndexedScopedContent(
+	const ScanSessionId session, const IndexedDriverArchiveHint &hint,
+	const signed_index_detail::CollectorScopedModelsEvidence &proof,
+	const CollectorDriverPackageContent						 &content)
+{
+	// 元内容の失敗を索引の不一致として上書きしない
+	if( content.error != 0) {
+		return content.error ;
+	}
+
+	// 取得時のsessionと元CABの同一性、単一の公式Models範囲を求める
+	if( session == 0U || content.scanSessionId != session || hint.selectedInfs.size() != 1U ||
+	   hint.archiveBytes != proof.archiveBytes ||
+	   hint.archiveSha256 != scopedHashText( proof.archiveSha256) ||
+	   content.archiveBytes != hint.archiveBytes || content.archiveSha256 != hint.archiveSha256 ||
+	   content.infs.size() != 1U || !proof.models.platform || proof.models.sections.empty()) {
+		return static_cast<NativeError>( E_ACCESSDENIED) ;
+	}
+
+	const auto &inf		 = content.infs.front() ;		// 元CABから検査した基本INFの内容
+	const auto &selector = hint.selectedInfs.front() ;	// 取得時に指定した唯一の相対位置
+	// 内容と作用参照の失敗を後段の拒否で隠さない
+	if( inf.error != 0 || inf.effectInventoryError != 0) {
+		return inf.error != 0 ? inf.error : inf.effectInventoryError ;
+	}
+
+	// 同じ保護領域にある元INFと全必須INFの参照を閉包として要求する
+	if( inf.scanSessionId != session || inf.state != CommonInfInspectionState::VERIFIED ||
+	   !inf.workspace || inf.workspace->protectionMode() != OfficialWorkspaceMode::ADMINISTRATOR ||
+	   inf.infRelativePath != selector.infIdentity ||
+	   inf.infRelativePath != scopedMemberPath( proof.infIdentity) ||
+	   inf.nestedArchivePath != selector.nestedArchive ||
+	   inf.nestedArchivePath != scopedMemberPath( proof.nestedArchiveIdentity) ||
+	   inf.closure.packages.size() != 1U || inf.closure.entries.empty() ||
+	   inf.effects.size() != inf.requiredInfPackages.size() + 1U ||
+	   !std::ranges::all_of( inf.effects, []( const auto &effect) {
+		   return effect.referenceCoverage == MaintenanceInfReferenceCoverage::COMPLETE ;
+	   })) {
+		return static_cast<NativeError>( E_ACCESSDENIED) ;
+	}
+
+	const auto		  &package = inf.closure.packages.front() ;	// 検査済みの基本INF構造
+	// 元索引のクラスをWindows APIへ渡すための文字列
+	const std::wstring expectedClass( proof.classGuid.begin(), proof.classGuid.end()) ;
+	// INFの媒体宣言に一意に対応する閉包内の元CAT
+	const auto *catalog = findScopedArchiveMember( inf.closure.entries, package.catalogRelativePath) ;
+	// INFの宣言に対応する元CATを署名索引の正確な相対位置とハッシュへ結ぶ
+	if( package.role != DriverPlanRole::BASE_DRIVER ||
+	   package.inspectionPurpose != OfficialInfInspectionPurpose::COLLECTOR_CONTENT ||
+	   package.infRelativePath != inf.infRelativePath || catalog == nullptr ||
+	   catalog->relativePath != scopedMemberPath( proof.catalogIdentity) ||
+	   catalog->sha256 != scopedHashText( proof.catalogSha256) ||
+	   CompareStringOrdinal( package.classGuid.c_str(), -1, expectedClass.c_str(), -1, TRUE) !=
+		   CSTR_EQUAL ||
+	   !package.scopedModels || package.scopedModels->platform != proof.models.platform ||
+	   !sameScopedModels( proof.models, *package.scopedModels)) {
+		return static_cast<NativeError>( E_ACCESSDENIED) ;
+	}
+
+	return 0 ;
 }
 
 } // namespace
@@ -218,7 +400,7 @@ NativeError inspectIndexedDriverPackage( const ScanSessionId				  activeScanSess
 				selected.emplace_back( selector.nestedArchive, selector.infIdentity) ;
 			}
 
-			inspectionError = inspectSelectedCommonDriverPackages( input, format, selected,
+			inspectionError = inspectSelectedDeviceDriverPackages( input, format, selected,
 																  inspection, cancellation) ;
 		}
 
@@ -245,7 +427,9 @@ NativeError inspectIndexedDriverPackage( const ScanSessionId				  activeScanSess
 							static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))) ;
 			}
 
-			const NativeError error = reverifyCommonDriverInf( inf) ;	// 旧内容合格を再利用しない
+			const NativeError error =
+				// 元用途と署名を再確認する
+				reverifyCommonDriverInfContent( inf) ;
 			// 参照や署名の変更は検査結果全体を失効させる
 			if( error != 0) {
 				return fail( result, IndexedDriverInspectionState::INSPECTION_FAILED, error) ;
@@ -278,6 +462,198 @@ NativeError inspectIndexedDriverPackage( const ScanSessionId				  activeScanSess
 		// 外部callback例外をworker外へ漏らさず、部分結果も残さない
 		return fail( result, IndexedDriverInspectionState::INSPECTION_FAILED,
 					static_cast<NativeError>( E_UNEXPECTED)) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 管理者領域の元CABと記録時および実OSのModels全行を照合します
+ * @param[in] activeScanSessionId 同取得を所有するworkerのscanです
+ * @param[in] hint 同索引行に結び付く元CABと唯一の選択INFです
+ * @param[in] input 取得層が管理者領域に固定した元CABです
+ * @param[in] proof 原INF・CAT・公式対象・全Modelsの元証拠です
+ * @param[out] content 一致した元署名と全参照を持つ非実行検査結果です
+ * @param[in] cancellation 同workerの協調取消しです
+ * @return 成功時0です。全体又は個別の原診断を保持し、失敗時は出力を空にします
+ * @note 本検査は内容の同一性だけを確認します。機器観測と導入許可には別の検証が必要です
+ */
+//------------------------------------------------------------------------------
+NativeError inspectIndexedScopedDriverPackage(
+	const ScanSessionId activeScanSessionId, const IndexedDriverArchiveHint &hint,
+	const DriverArchiveInput								 &input,
+	const signed_index_detail::CollectorScopedModelsEvidence &proof,
+	CollectorDriverPackageContent &content, const std::function<bool()> &cancellation)
+{
+	content				  = {} ;
+	constexpr auto format = OfficialDriverArchiveFormat::CABINET ;	// 公式Models照合で受理する元容器
+	// 一つの保護済みCAB選択と有界な公式範囲だけを内容検査へ渡す
+	if( !matchesIndexedDriverArchiveHint( activeScanSessionId, hint, input, format) ||
+	   hint.selectedInfs.size() != 1U ||
+	   input.workspaceMode != OfficialWorkspaceMode::ADMINISTRATOR || !proof.models.platform ||
+	   proof.models.sections.empty() ||
+	   proof.models.sections.size() > OFFICIAL_SCOPED_MODELS_MAX_SECTIONS ||
+	   proof.catalog.packageHardwareIds.empty() ||
+	   proof.catalog.packageHardwareIds.size() > OFFICIAL_SCOPED_MODELS_MAX_TARGETS) {
+		return static_cast<NativeError>( E_INVALIDARG) ;
+	}
+
+	try {
+		const auto &selector = hint.selectedInfs.front() ;	// 取得時に固定した一件のINF指定
+		// 元SHA-256、容量、相対位置が署名索引から変わった場合は展開しない
+		if( input.byteCount != proof.archiveBytes ||
+		   input.sha256 != scopedHashText( proof.archiveSha256) ||
+		   selector.nestedArchive != scopedMemberPath( proof.nestedArchiveIdentity) ||
+		   selector.infIdentity != scopedMemberPath( proof.infIdentity)) {
+			return static_cast<NativeError>( E_ACCESSDENIED) ;
+		}
+
+		std::vector<std::wstring> hardwareIds ;	// 同じ元公式明細をWindows文字形式で保持
+		hardwareIds.reserve( proof.catalog.packageHardwareIds.size()) ;
+		// 公式に掲載された完全IDを欠落や並べ替えなしで渡す
+		for( const auto &id : proof.catalog.packageHardwareIds) {
+			hardwareIds.emplace_back( id.begin(), id.end()) ;
+		}
+
+		const auto catalogHash = scopedHashText( proof.catalogSha256) ;	// 同じ選択の元CATの全SHA-256
+		// 元CATとINFのダイジェストで一意なModels読取りに結ぶ要求
+		const OfficialInfScopedModelsRequest request{.platform		= &*proof.models.platform,
+													 .hardwareIds	= hardwareIds,
+													 .infSha256		= proof.models.infSha256,
+													 .cancellation	= &cancellation,
+													 .catalogSha256 = catalogHash} ;
+		// 同期中だけ借用する元アーカイブとINFの一組の位置
+		const std::array			  selected{std::pair<std::wstring_view, std::wstring_view>{
+			 selector.nestedArchive, selector.infIdentity}} ;
+		CollectorDriverPackageContent inspected ;	// 全検査に成功するまで公開しない仮の保護閉包
+		// 元内容検査から順に結果を保持し、最初の失敗を返す
+		auto error = inspectCollectorDriverPackageContent( input, format, selected, inspected,
+														  cancellation, &request) ;
+		// 元内容検査に失敗した閉包へ索引の資格を与えない
+		if( error != 0) {
+			return error ;
+		}
+
+		error = matchIndexedScopedContent( activeScanSessionId, hint, proof, inspected) ;
+		// 元索引が示す同じ閉包だけを現在Windowsの観測へ進める
+		if( error != 0) {
+			return error ;
+		}
+
+		// 配布側の明示観測が揃っても、現在Windowsによる元節の選択を省略しません
+		const auto					   &inf = inspected.infs.front() ;
+		OfficialInfScopedModelsEvidence current ;	// 現在Windowsが選択した同じ元INFの全Models節
+		error =
+			readOfficialInfScopedModels( *inf.workspace, inf.infRelativePath, proof.models.infSha256,
+										nullptr, hardwareIds, current, cancellation) ;
+		// 現在Windowsが選ぶ節と元索引の証拠が異なる場合は閉包を破棄する
+		if( error != 0 || !sameScopedModels( proof.models, current)) {
+			return error != 0 ? error : static_cast<NativeError>( E_ACCESSDENIED) ;
+		}
+
+		// 検査後の取消しも結果の引渡しを止める
+		if( cancellation && cancellation()) {
+			return static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED)) ;
+		}
+
+		error = verifyOfficialFileMetadata( input.inspectionPath,
+										   {hint.archiveBytes, hint.archiveSha256}) ;
+		// 検査中に元CABが変わった場合は部分結果を引き渡さない
+		if( error != 0) {
+			return error ;
+		}
+
+		content = std::move( inspected) ;
+		return 0 ;
+	} catch( const std::bad_alloc &) {
+		return static_cast<NativeError>( E_OUTOFMEMORY) ;
+	} catch( ...) {
+		return static_cast<NativeError>( E_UNEXPECTED) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ公式範囲の保護閉包を元ファイルとCAT所属から再検査します
+ * @param[in] activeScanSessionId 元CABの取得を所有するworker scanです
+ * @param[in] hint 元取得時のCABと選択INFです
+ * @param[in] proof 認証済み元レコードに結び付く元INFとCATの証拠です
+ * @param[in] content 同取得が保持した全参照付きの検査結果です
+ * @return 同じ保護閉包、全ファイルの長さとhash、全CATの署名と所属の再確認に成功した場合0です
+ * @pre 呼出し側が同じ元CABと有効な元署名レコードを再確認します
+ * @note この関数はファイルの読取りだけを行い、端末適用性や導入資格を作りません
+ */
+//------------------------------------------------------------------------------
+NativeError reverifyIndexedScopedDriverPackage(
+	const ScanSessionId activeScanSessionId, const IndexedDriverArchiveHint &hint,
+	const signed_index_detail::CollectorScopedModelsEvidence &proof,
+	const CollectorDriverPackageContent						 &content)
+{
+	try {
+		// 保護済み閉包と元索引の同一性を先に照合した結果
+		const auto matched = matchIndexedScopedContent( activeScanSessionId, hint, proof, content) ;
+		// 元の内容・選択が変わった閉包のファイルは開かない
+		if( matched != 0) {
+			return matched ;
+		}
+
+		const auto &inf	 = content.infs.front() ;			// 照合済みの選択INFと保護閉包
+		const auto &root = inf.closure.packages.front() ;	// 署名索引が指定した基本INFの構造
+		// 署名索引の一意な元選択と同じ表記で保持したINFの実エントリ
+		const auto	originalInf = std::ranges::find( inf.closure.entries, root.infRelativePath,
+													&OfficialZipEntry::relativePath) ;
+		// 選択INFの元表記と実ファイルのハッシュを署名索引へ結ぶ
+		if( originalInf == inf.closure.entries.end() ||
+		   originalInf->sha256 != proof.models.infSha256) {
+			return static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+		}
+
+		// 保護閉包の全エントリを元長さと元SHA-256へ再照合する
+		for( const auto &entry : inf.closure.entries) {
+			// 完全ハッシュがない場合は実ファイル照合の根拠がない
+			if( !isLowerHash( entry.sha256)) {
+				return static_cast<NativeError>( E_ACCESSDENIED) ;
+			}
+
+			// エントリ自身の元表記で開いたファイルの再検査結果
+			const auto error = verifyOfficialFileMetadata( inf.workspace->path( entry.relativePath),
+														  {entry.uncompressedSize, entry.sha256}) ;
+			// 一件でも不一致なら、その元HRESULTで全閉包の署名再検査を止める
+			if( error != 0) {
+				return error ;
+			}
+		}
+
+		// 同期中の保護閉包を借用し、各INF宣言が指す全元エントリの存在と署名・所属を確認する
+		const auto verifyPackage = [&inf]( const OfficialInfPackage &package) -> NativeError {
+			const auto missing = [&inf]( const std::wstring_view path) {
+				return findScopedArchiveMember( inf.closure.entries, path) == nullptr ;
+			} ; // 同じ閉包内で一意に解決できない宣言を検出する
+			// 参照の欠落や曖昧な位置をWindowsの署名検査へ渡さない
+			if( missing( package.infRelativePath) || missing( package.catalogRelativePath) ||
+			   std::ranges::any_of( package.sourceFiles, missing)) {
+				return static_cast<NativeError>( E_ACCESSDENIED) ;
+			}
+
+			return verifyWindowsInfPackageIntegrity( *inf.workspace, package) ;
+		} ;
+		auto error = verifyPackage( root) ;	// 基本INFと必須INFの最初の検査失敗を保持する値
+		// 基本INFの署名と所属が成立した場合だけ必須INFへ進む
+		if( error != 0) {
+			return error ;
+		}
+
+		// 元参照で到達した全必須INFの署名と所属を一件ずつ検査する
+		for( const auto &required : inf.requiredInfPackages) {
+			error = verifyPackage( required) ;
+			// 閉包を構成する必須INFの失敗も基本INFと同じ条件で拒否する
+			if( error != 0) {
+				return error ;
+			}
+		}
+
+		return 0 ;
+	} catch( const std::bad_alloc &) {
+		return static_cast<NativeError>( E_OUTOFMEMORY) ;
 	}
 }
 

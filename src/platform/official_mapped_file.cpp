@@ -2,7 +2,7 @@
 /**
  * @file official_mapped_file.cpp
  * @brief 固定入力と私有file-backed mappingを実装する
- * @version 01.00.02
+ * @version 01.01.00
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/11/03  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/23  同一入力を固定した読取り専用handleを借用可能にする
  * </pre>
  *
  * @note 入力のwrite/deleteを許可せず、出力はCREATE_NEWされた自身のfileだけを後始末する
@@ -308,6 +309,18 @@ std::span<const std::byte> OfficialMappedFile::bytes() const noexcept
 	return state_ ? std::span<const std::byte>{static_cast<const std::byte *>( state_->view),
 											   state_->length}
 				  : std::span<const std::byte>{} ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 読取り専用mappingと同じ元ファイルを固定しているhandleを借用する
+ * @return open成功後からcloseまで有効な非所有handle。空または出力mappingならINVALID_HANDLE_VALUE
+ * @note 呼出し側はhandleを閉じず、ownerと同期して使う
+ */
+//------------------------------------------------------------------------------
+HANDLE OfficialMappedFile::readOnlyHandle() const noexcept
+{
+	return state_ && state_->workspace == nullptr ? state_->file : INVALID_HANDLE_VALUE ;
 }
 //------------------------------------------------------------------------------
 /**

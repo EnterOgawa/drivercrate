@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_tests.h
  * @brief 通常本体の真署名索引候補とfake指定導入試験を宣言します
- * @version 01.26.08
+ * @version 01.31.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -55,6 +55,11 @@
  * Ver.01.26.06 Shunji Ogawa  2026/11/13  Needs AddRegの元拒否leafを既匿名診断へ接続
  * Ver.01.26.07 Shunji Ogawa  2026/11/13  SYSTEM標準媒体登録の実parser正負経路を接続
  * Ver.01.26.08 Shunji Ogawa  2026/11/13  847p9の型付きSYSTEM全作用と全選択資格を接続
+ * Ver.01.27.00 Shunji Ogawa  2026/11/16  storage通常選択と完全native表の正負・原結果を検証
+ * Ver.01.28.00 Shunji Ogawa  2026/11/17  MTDの完全fake条件と部分観測を宣言
+ * Ver.01.29.00 Shunji Ogawa  2026/11/17  必要子と祖先ACLの完全fake条件を宣言
+ * Ver.01.30.00 Shunji Ogawa  2026/11/19  独自クラスの元行・登録状態・配置後の確認を通常workerで検証
+ * Ver.01.31.00 Shunji Ogawa  2026/11/21  起動グループの欠落と登録後の変化を試験条件に追加
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません
@@ -78,6 +83,122 @@
 #include <vector>
 namespace drivercrate::test {
 struct OriginalSelectionBindingInput ;
+
+/** @brief MTD同原物の低位fakeだけに与える独立条件です */
+enum class MtdFixtureScenario {
+	/// 共有DLLが両方不在です
+	BOTH_ABSENT,
+	/// 共有DLLが両方同byteで存在します
+	BOTH_EXIST,
+	/// 共有DLLが一方だけ同byteで存在します
+	MIXED,
+	/// 同登録INFの人工Store sourceです
+	STORE_SOURCE,
+	/// Store直親に非信頼のdirectory作成権があります
+	STORE_PARENT_ADD_DIRECTORY,
+	/// 祖先に非信頼のDELETE_CHILD権があります
+	ANCESTOR_DELETE_CHILD,
+	/// 祖先に非信頼のDELETE権があります
+	ANCESTOR_DELETE,
+	/// 祖先に非信頼のWRITE_DAC権があります
+	ANCESTOR_WRITE_DAC,
+	/// 祖先に非信頼のWRITE_OWNER権があります
+	ANCESTOR_WRITE_OWNER,
+	/// 祖先に非信頼のfile作成権があります
+	ANCESTOR_WRITE_FILE,
+	/// 限定許可の直後の既存childが未保護です
+	ANCESTOR_UNPROTECTED_CHILD,
+	/// 限定許可の直後の既存childに非信頼の書込権があります
+	ANCESTOR_CHILD_WRITE,
+	/// 配置直親に非信頼のdirectory作成権があります
+	DESTINATION_PARENT_ADD_DIRECTORY,
+	/// 共有targetに異byteが存在します
+	FOREIGN_EXISTING,
+	/// 競合側が異byteを先に作ります
+	RACE_DIFFERENT,
+	/// 競合側が同byteを先に作ります
+	RACE_SAME,
+	/// tempへのwriteが途中で失敗します
+	PARTIAL_WRITE,
+	/// targetの人工DACLを拒否します
+	BAD_DACL,
+	/// targetの人工ownerを拒否します
+	BAD_OWNER,
+	/// 既存writerがtargetを保持します
+	EXISTING_WRITER,
+	/// targetをreparseと観測します
+	REPARSE_TARGET,
+	/// 親をreparseと観測します
+	REPARSE_PARENT,
+	/// targetを複数linkと観測します
+	HARDLINK_TARGET,
+	/// 元fileの読取を失敗させます
+	READ_FAILURE,
+	/// temp作成を失敗させます
+	TEMP_CREATE_FAILURE,
+	/// temp flushを失敗させます
+	FLUSH_FAILURE,
+	/// 非置換renameを失敗させます
+	RENAME_FAILURE,
+	/// rename後の確認を失敗させます
+	RENAME_VERIFY_FAILURE,
+	/// 原queueからcopyを欠落させます
+	QUEUE_MISSING,
+	/// 原queueのcopyを重複させます
+	QUEUE_DUPLICATE,
+	/// 原queueへ未知copyを加えます
+	QUEUE_EXTRA,
+	/// 原queueへdeleteを加えます
+	QUEUE_DELETE,
+	/// 原queueのflagsを変えます
+	QUEUE_FLAGS,
+	/// 原queueのsourceを変えます
+	QUEUE_SOURCE,
+	/// 制御queueのflagsを変えます
+	CONTROL_FLAGS,
+	/// 未知handlerの存在を返します
+	HANDLER_PRESENT,
+	/// handler propertyの読取を拒否します
+	HANDLER_DENIED,
+	/// MTD専用低位表を空にします
+	TABLE_EMPTY,
+	/// stage後のhandler観測を変えます
+	HANDLER_AFTER_STAGE,
+	/// stage後のHW属性を変えます
+	HW_AFTER_STAGE,
+	/// 選択nodeを変えます
+	SELECTED_NODE_CHANGED,
+	/// file DIF後のparameterを変えます
+	PARAMS_CHANGED_AFTER_FILES,
+	/// commit後のrankを変えます
+	RANK_AFTER_COMMIT,
+	/// stage前に元recordを失効させます
+	EXPIRED_BEFORE_STAGE,
+	/// file DIF前に元recordを失効させます
+	EXPIRED_BEFORE_FILE_DIF,
+	/// 共有先充足前に元recordを失効させます
+	EXPIRED_BEFORE_SHARED,
+	/// 一件目rename前に元recordを失効させます
+	EXPIRED_BEFORE_FIRST_RENAME,
+	/// 二件目rename前に元recordを失効させます
+	EXPIRED_BEFORE_SECOND_RENAME,
+	/// commit前に元recordを失効させます
+	EXPIRED_BEFORE_COMMIT,
+	/// commit後の選択DIF前に元recordを失効させます
+	EXPIRED_AFTER_COMMIT,
+	/// 未知queue通知を返します
+	UNKNOWN_CALLBACK,
+	/// DLLの遅延通知を返します
+	DLL_DELAYED,
+	/// 選択DIFを失敗させます
+	INSTALL_FAILURE,
+	/// 選択DIF後の確認を失敗させます
+	POST_DIF_VERIFY_FAILURE,
+	/// parameter復旧を失敗させます
+	PARAM_CLEANUP_FAILURE,
+	/// SYSの遅延と再起動を返します
+	SYSTEM_DELAYED,
+} ;
 
 //------------------------------------------------------------------------------
 /**
@@ -135,6 +256,44 @@ enum class SignedIndexBindingNativeCase {
 	MIXED_READY,
 	/// 既知現在driverの通常指定導入です
 	NORMAL,
+	/// storageの原旧版を明示選択する現在新版です
+	STORAGE_OLDER,
+	/// 同名protected kernelが現在adapterに使われています
+	STORAGE_EXISTING_SERVICE,
+	/// 同kernelを別adapterが使う第二adapterの初回です
+	STORAGE_SHARED_INITIAL,
+	/// exact service listのpeerが別serviceを返します
+	STORAGE_SHARED_WRONG_SERVICE,
+	/// 同serviceのpeerに同原packageのcompatible nodeがありません
+	STORAGE_SHARED_INCOMPATIBLE,
+	/// 同peerの最良native nodeが同点です
+	STORAGE_SHARED_AMBIGUOUS,
+	/// 元公開後のservice configだけを変えます
+	STORAGE_SERVICE_CHANGED,
+	/// 必要null登録後のservice configだけを変えます
+	STORAGE_SERVICE_CHANGED_AFTER_STAGE,
+	/// storage exact SCM callbackだけが欠ける完全表です
+	STORAGE_SERVICE_CALLBACK_MISSING,
+	/// メディアチェンジャー用の起動順APIが存在しない条件
+	STORAGE_LOAD_ORDER_MISSING,
+	/// 登録が完了した直後に起動グループの順序が変わる条件
+	STORAGE_LOAD_ORDER_AFTER_STAGE,
+	/// 登録後に署名索引の取得記録が失効する条件
+	STORAGE_RECORD_EXPIRES_AFTER_STAGE,
+	/// Windowsが既存INF登録を返す同byte正例です
+	STORAGE_STAGE_EXISTS,
+	/// modern BootFlagsが非対応の原OS buildです
+	STORAGE_OLD_BOOT_FLAGS_OS,
+	/// 元helperのtrustだけを拒否します
+	STORAGE_HELPER_REJECTED,
+	/// 元helper proofを必要null登録後だけ変えます
+	STORAGE_HELPER_CHANGED_AFTER_STAGE,
+	/// API成功後の対象だけを非presentとして観測します
+	STORAGE_POST_ABSENT,
+	/// API成功後の版property照会だけを拒否します
+	STORAGE_POST_READ_FAILURE,
+	/// 公表後に元期限だけを超過させます
+	STORAGE_EXPIRED,
 	/// 必要roleの二番目stageだけを拒否します
 	REQUIRED_STAGE_PARTIAL,
 	/// 必要roleの選択base APIだけを拒否します
@@ -149,6 +308,16 @@ enum class SignedIndexBindingNativeCase {
 	REQUIRED_WRONG_PARENT,
 	/// 同ID/同親のpresent必要子を二つ返し、一意選択を拒否します
 	REQUIRED_CHILD_AMBIGUOUS,
+	/// 必要子のClass GUIDを最初の観測後だけ変化させます
+	REQUIRED_CHILD_CLASS_CHANGED,
+	/// 必要子のCompatible IDを最初の観測後だけ変化させます
+	REQUIRED_CHILD_ID_CHANGED,
+	/// 必要子の選択節を最初の観測後だけ変化させます
+	REQUIRED_CHILD_NODE_CHANGED,
+	/// 必要子の候補rankを最初の観測後だけ変化させます
+	REQUIRED_CHILD_RANK_CHANGED,
+	/// 導出子identityと同名の既所有entryを一つ先に置きます
+	REQUIRED_CHILD_IDENTITY_COLLISION,
 	/// 基本指定API後の元親でDN_STARTEDだけを欠かします
 	REQUIRED_PARENT_NOT_STARTED,
 	/// 原サービスEXE byteを変えず完全署名期待hashだけを不一致にします
@@ -333,6 +502,24 @@ enum class SignedIndexBindingNativeCase {
 	NEEDS_SYSTEM_MEDIA,
 	/// 同原SYSTEMの固定Windows登録を実parser/私有計画へ通します
 	NEEDS_SYSTEM_REGISTRATION,
+	/// 未登録の独自クラスをCode 28の元端末へ初回指定します
+	DECLARATIVE_INITIAL,
+	/// 同じ独自クラスを持つ既存端末で作用がない登録を確認します
+	DECLARATIVE_REGISTERED,
+	/// 同一INFの空サービス行だけに一致する端末です
+	DECLARATIVE_NULL_ROW,
+	/// 復旧後の最初の配置権限照合で元署名recordを失効させます
+	DECLARATIVE_EXPIRED_BEFORE_STAGE,
+	/// 配置後の指定導入権限照合で元署名recordを失効させます
+	DECLARATIVE_EXPIRED_AFTER_STAGE,
+	/// 配置中に対象の独自クラスが登録されます
+	DECLARATIVE_CLASS_AFTER_STAGE,
+	/// 登録先nodeだけが元行のCompatible ID順を逆に返します
+	DECLARATIVE_ROW_AFTER_STAGE,
+	/// 同じ登録INFとSYSに対してCATだけが別byteです
+	DECLARATIVE_OTHER_CATALOG,
+	/// 同じ登録INFとCATに対してSYSだけが別byteです
+	DECLARATIVE_OTHER_DRIVER,
 } ;
 /** @brief 第一指定成功後だけ第二の元低位条件を変える有限なbatch拒否入力です */
 enum class SignedIndexBindingBatchFault {
@@ -409,6 +596,44 @@ struct SignedIndexBindingObservation {
 	bool									 baseInitiallySameVersion{} ;
 	/// 混在条件だけの明示fake WUA導入数です。実WUA APIは呼びません
 	std::uint32_t							 managedInstalls{} ;
+	/// MTDだけの元copy DIF、制御commit、選択DIFです
+	std::uint32_t							 mtdFilesDifs{} ;
+	/// MTD制御queueのcommit数です
+	std::uint32_t							 mtdCommits{} ;
+	/// MTD選択DIFの呼出し数です
+	std::uint32_t							 mtdInstallDifs{} ;
+	/// 低位fakeが所有領域外への操作を拒否した場合trueです
+	bool									 mtdOutsideOwned{} ;
+	/// 復旧成立前に共有先へ到達した場合trueです
+	bool									 mtdBeforeRestoreAccess{} ;
+	/// 旧DiInstallDevice fakeに到達した回数です
+	std::uint32_t							 legacyInstalls{} ;
+	/// 所有workspace内だけで独立に読んだtargetの存在と原byte一致です
+	std::array<bool, 2U>					 mtdTargetExists{} ;
+	/// 共有targetと原byteの一致です
+	std::array<bool, 2U>					 mtdTargetMatches{} ;
+	/// 既存共有targetの元file ID保持です
+	std::array<bool, 2U>					 mtdTargetPriorIdPreserved{} ;
+	/// 競合または既存の異byteが保持された場合trueです
+	bool									 mtdForeignPreserved{} ;
+	/// 所有workspace内SYSの新byte又は旧byteの観測です
+	bool									 mtdSysMatches{} ;
+	/// SYSが旧byteのままである観測です
+	bool									 mtdSysOldMatches{} ;
+	/// 実fake子scope中の元proofと独立拒否が成立したbit集合です
+	std::uint32_t							 requiredChildProofChecks{} ;
+	/// 同元proofを完全fake低位から観測した回数です
+	std::uint32_t							 requiredChildProofRuns{} ;
+	/// 必要SWC子に指定された個別fake API回数です
+	std::array<std::uint32_t, 2U>			 requiredChildInstalls{} ;
+	/// 衝突entryを同worker低位から再確認した回数です
+	std::uint32_t							 requiredChildCollisionChecks{} ;
+	/// 最後の確認で既存entryのidentityと内容が保持された場合trueです
+	bool									 requiredChildCollisionPreserved{} ;
+	/// 復旧成立後、最初のstageより前に登録guardがWindows rootを取得した回数です
+	std::uint32_t							 declarativePreStageRootReads{} ;
+	/// 元OEM INFとFileRepositoryの対応を照会した回数です
+	std::uint32_t							 declarativeStoreReads{} ;
 } ;
 /** @brief 完全installer低位表の非機密観測です */
 struct SignedIndexInstallerObservation {
@@ -421,6 +646,8 @@ struct SignedIndexInstallerObservation {
 } ;
 /** @brief 完全低位fakeと実command queueを所有する内部fixtureです */
 struct SignedIndexBindingWorker {
+	/// stage-only import→base→flags0指定の元呼出し列です。stop/join後だけ読みます
+	std::function<std::vector<std::wstring>()>				observeStorageCalls ;
 	/// 同workerの元file hash/節読取をstop/join後だけ参照します
 	std::function<std::set<std::wstring>()>					observeOriginalSections ;
 	/// 同期済みの実NativeLoader全成功結果だけを私有資格へcopyします
@@ -462,6 +689,7 @@ struct SignedIndexBindingWorker {
  * @param[in] noReboot この正常caseだけ再起動要求を返さない場合trueです
  * @param[in] opaqueCompatibleId 非空時はWindows側Compatible IDだけへ同じASCII literalを返します
  * @param[in] original 元公開record/原archiveの完全私有入力です。nullは既架空fixtureです
+ * @param[in] mtdScenario MTD同原copyにだけ与える低位fake条件です
  * @return 実workerと非機密call観測。Native成功fallbackはありません
  */
 //------------------------------------------------------------------------------
@@ -473,7 +701,8 @@ struct SignedIndexBindingWorker {
 	std::function<void()> beforeRestore = {}, bool reflectOwnInstall = false,
 	SignedIndexBindingBatchFault batchFault = SignedIndexBindingBatchFault::NONE,
 	bool localDriverCandidates = false, bool noReboot = false, std::wstring opaqueCompatibleId = {},
-	const OriginalSelectionBindingInput *original = nullptr) ;
+	const OriginalSelectionBindingInput *original	 = nullptr,
+	MtdFixtureScenario					 mtdScenario = MtdFixtureScenario::BOTH_ABSENT) ;
 //------------------------------------------------------------------------------
 /**
  * @brief 真署名reload・実HTTP fake・正常ZIPを通常本体へ接続します
@@ -483,9 +712,100 @@ struct SignedIndexBindingWorker {
  * @param[in] network Net classの固定fixtureならtrueです
  */
 //------------------------------------------------------------------------------
-void runSignedIndexCandidateBindingTests( TestContext						   &context,
-										 provider_worker_index_detail::Services services,
-										 std::string_view zip, bool network = false) ;
+void						 runSignedIndexCandidateBindingTests( TestContext						   &context,
+																 provider_worker_index_detail::Services services,
+																 std::string_view zip, bool network = false) ;
+
+// 同じ署名済み配布物を一度ずつ取得する独自クラス試験の分母です
+inline constexpr std::size_t DECLARATIVE_BINDING_CASE_COUNT = 9U ;
+//------------------------------------------------------------------------------
+/**
+ * @brief 独自クラスの元署名recordから端末照合と明示した指定導入を検証します
+ * @param[in,out] context 各ケースの候補・同意・低位操作回数の集計先です
+ * @param[in] services RAM署名store・固定時計・完全HTTP fakeを持つworker入力です
+ * @param[in] zip 非実行の人工INF・CAT・SYSを含む元配布物です
+ */
+//------------------------------------------------------------------------------
+void						 runDeclarativeClassBindingCases( TestContext						   &context,
+															 provider_worker_index_detail::Services services,
+															 std::string_view						zip) ;
+
+/** @brief storage全native fakeの期待値だけです。製品の入力や許可へ渡しません */
+struct StorageBindingTestInput {
+	/// 低位Windows表へだけ注入する原状態です
+	SignedIndexBindingNativeCase nativeCase{SignedIndexBindingNativeCase::NORMAL} ;
+	/// 元通常publicationに期待する唯一候補です
+	bool						 qualified{true} ;
+	/// 既復旧開始だけを拒否する負例です
+	bool						 restoreFailure{} ;
+	/// 全stageを元ACCESS_DENIEDで拒否します
+	bool						 stagingFailure{} ;
+	/// 取得後に原低位状態だけを変更します
+	bool						 changeNative{} ;
+	/// 指定API成功後の自deviceだけを反映します
+	bool						 reflectOwnInstall{true} ;
+	/// 元native再起動値をFALSEへ固定します
+	bool						 noReboot{} ;
+	/// 元stageの期待呼出し数です
+	std::size_t					 stages{1U} ;
+	/// 元native指定導入の期待呼出し数です
+	std::size_t					 installs{1U} ;
+	/// 元選択で必要なstage-only import件数です
+	std::size_t					 imports{} ;
+	/// 元API/復旧を含む最終期待結果です
+	bool						 succeeded{true} ;
+	/// 拒否が別の早期素材失敗でないことを確認する元code/固定段階です
+	std::optional<NativeError>	 rejectionError ;
+	/// 元publicationの固定拒否段階です
+	std::optional<std::uint32_t> rejectionStage ;
+	/// 指定したstage/API失敗の元HRESULTです
+	std::optional<NativeError>	 executionError ;
+	/// 元Areca相当の全raw行と型を独立literalへ照合します
+	bool						 arecaEquivalent{} ;
+	/// MTDだけの独立した低位I/Oとqueue条件です
+	MtdFixtureScenario			 mtdScenario{MtdFixtureScenario::BOTH_ABSENT} ;
+	/// 内容検査の元失敗をpublication拒否と分けます
+	std::optional<NativeError>	 contentError ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief storageを通常索引/同意/復旧/登録guard/flags0指定と元結果まで通します
+ * @param[in,out] context 有限assertion集計です
+ * @param[in] services 真署名隔離storeと完全HTTPです
+ * @param[in] zip 全原byteへ固定した人工driver archiveです
+ * @param[in] expected 低位注入と独立した期待呼出し/結果です
+ * @note 同deviceの元候補を使い、実driver install/復元/HTTPへfallbackしません
+ */
+//------------------------------------------------------------------------------
+void runStorageDriverBindingCase( TestContext						   &context,
+								 provider_worker_index_detail::Services services,
+								 std::string_view zip, const StorageBindingTestInput &expected) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同原storage archiveを完全fake HTTPと通常workerへ接続します
+ * @param[in,out] context 元assertion集計です
+ * @param[in] store RAM署名/隔離保存済み元索引です
+ * @param[in] nowUtc 元索引と同じ信頼時刻です
+ * @param[in] zip 元期待hashと同じ人工原archiveです
+ * @param[in] expected 低位注入と独立した期待値です
+ * @note 製品authority、実通信、実導入を使いません
+ */
+//------------------------------------------------------------------------------
+void runNormalStorageDriverBindingCase( TestContext						&context,
+									   std::shared_ptr<SignedIndexStore> store,
+									   std::chrono::sys_seconds nowUtc, const std::string &zip,
+									   const StorageBindingTestInput &expected) ;
+//------------------------------------------------------------------------------
+/**
+ * @brief 有効な同一storage原byteの内容型/用途偽造から導入資格が生じないことを検査します
+ * @param[in,out] context 原assertion集計です
+ * @param[in] zip 通常storage正例と同じ全原byteです
+ * @note 隔離ADMIN内容と完全低位表だけを使い、登録/導入は常に0です
+ */
+//------------------------------------------------------------------------------
+void runStorageAuthorizationBoundaryTests( TestContext &context, std::string_view zip) ;
 //------------------------------------------------------------------------------
 /**
  * @brief 既存完全fake HTTPを新正常候補fixtureへ結合します
@@ -494,12 +814,14 @@ void runSignedIndexCandidateBindingTests( TestContext						   &context,
  * @param[in] nowUtc 固定信頼UTCです
  * @param[in] zip 実原containerです
  * @param[in] network Net classの固定fixtureならtrueです
+ * @param[in] declarative 独自クラスの実行行と空サービスを持つfixtureならtrueです
  */
 //------------------------------------------------------------------------------
 void runNormalSignedIndexCandidateBindingTests( TestContext						&context,
 											   std::shared_ptr<SignedIndexStore> store,
 											   std::chrono::sys_seconds			 nowUtc,
-											   const std::string &zip, bool network = false) ;
+											   const std::string &zip, bool network = false,
+											   bool declarative = false) ;
 
 //------------------------------------------------------------------------------
 /**

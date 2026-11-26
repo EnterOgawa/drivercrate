@@ -2,7 +2,7 @@
 /**
  * @file candidate_audit_tests.cpp
  * @brief Driver候補監査状態単体試験実装
- * @version 01.02.02
+ * @version 01.04.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,8 @@
  * Ver.01.02.00 Shunji Ogawa  2026/09/15  公式installer実行範囲未確認の保留試験を追加
  * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.03.00 Shunji Ogawa  2026/11/19  初回セットアップクラス登録の表示境界を検証
+ * Ver.01.04.00 Shunji Ogawa  2026/11/23  未同意のWiX候補の発行元と機器の完全一致を検証
  * </pre>
  *
  * @note 取得経路別の監査状態とinstall準備状態の矛盾を決定的に検証します
@@ -47,6 +49,8 @@
 #include "core/candidate_audit.h"
 #include "core/candidate_assessment.h"
 #include "core/candidate_selection.h"
+#include "core/official_preparation_operation.h"
+#include "core/provider_registry.h"
 
 #include <array>
 #include <utility>
@@ -617,6 +621,72 @@ void testDetailsPublication( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 初回クラス登録の表示が取得済みかつ選択済みの署名索引候補にだけ結合することを検証します
+ * @param[in,out] context Assertion件数と失敗内容の記録先です
+ */
+//------------------------------------------------------------------------------
+void testSetupClassRegistrationDetails( TestContext &context)
+{
+	UpdateCandidate candidate ;	// Windowsや実INFを呼ばない詳細契約の候補です
+	candidate.assessment					  = makeDetailedAssessment() ;
+	candidate.assessment->origin.evidenceKind = CandidateEvidenceKind::COLLECTOR_ATTESTATION ;
+	candidate.identity						  = candidate.assessment->candidateIdentity ;
+	candidate.deviceIdentity				  = candidate.assessment->deviceIdentity ;
+	candidate.packageIdentity				  = candidate.assessment->packageIdentity ;
+	candidate.providerId					  = SIGNED_INDEX_PROVIDER_ID ;
+	candidate.discoveryBasis		 = CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
+	candidate.audit					 = makeOfficialReadyCandidateAudit() ;
+	candidate.action				 = DriverAction::UPDATE ;
+	candidate.installable			 = true ;
+	candidate.allContentCached		 = true ;
+	candidate.setupClassRegistration = SetupClassRegistrationSummary{
+		L"FixtureClass", L"{E870815A-9F25-4CE6-B790-23AE6522F46C}", L"試験クラス", -10} ;
+	DRIVERCRATE_EXPECT( context, isCandidateDetailsValid( candidate, 83U)) ;
+	DRIVERCRATE_EXPECT( context, !isCandidateDetailsValid( candidate, 84U)) ;
+
+	auto changed = candidate ;	// 各表示・経路条件を独立に変更する候補です
+	changed.setupClassRegistration->builtInIcon.reset() ;
+	DRIVERCRATE_EXPECT( context, isCandidateDetailsValid( changed, 83U)) ;
+	DRIVERCRATE_EXPECT( context, changed.setupClassRegistration != candidate.setupClassRegistration) ;
+	changed.setupClassRegistration.reset() ;
+	DRIVERCRATE_EXPECT( context, isCandidateDetailsValid( changed, 83U)) ;
+
+	// 明示された値を内蔵アイコンの番号範囲に照合します
+	for( const auto icon : {0, 1, -65536}) {
+		changed										= candidate ;
+		changed.setupClassRegistration->builtInIcon = icon ;
+		DRIVERCRATE_EXPECT( context, !isCandidateDetailsValid( changed, 83U)) ;
+	}
+
+	// 文字列が同意本文の改行・順序または表示出典を変更できないことを確認します
+	for( const auto *name : {L"", L" ", L"名前\r\n追加", L"名前\u202E", L" @resource"}) {
+		changed										= candidate ;
+		changed.setupClassRegistration->displayName = name ;
+		DRIVERCRATE_EXPECT( context, !isCandidateDetailsValid( changed, 83U)) ;
+	}
+
+	changed = candidate ;
+	changed.setupClassRegistration->displayName.assign( 257U, L'x') ;
+	DRIVERCRATE_EXPECT( context, !isCandidateDetailsValid( changed, 83U)) ;
+	changed											 = candidate ;
+	changed.setupClassRegistration->classGuid.back() = L'x' ;
+	DRIVERCRATE_EXPECT( context, !isCandidateDetailsValid( changed, 83U)) ;
+	changed					 = candidate ;
+	changed.allContentCached = false ;
+	DRIVERCRATE_EXPECT( context, !isCandidateDetailsValid( changed, 83U)) ;
+	changed			   = candidate ;
+	changed.providerId = DRIVER_STORE_PROVIDER_ID ;
+	DRIVERCRATE_EXPECT( context, !isCandidateDetailsValid( changed, 83U)) ;
+	changed							  = candidate ;
+	changed.assessment->installMethod = CandidateInstallMethod::OFFICIAL_INSTALLER ;
+	DRIVERCRATE_EXPECT( context, !isCandidateDetailsValid( changed, 83U)) ;
+	changed								 = candidate ;
+	changed.assessment->windowsSelection = {} ;
+	DRIVERCRATE_EXPECT( context, !isCandidateDetailsValid( changed, 83U)) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 全有限理由の正例と異なる成否への改変を決定的に照合する
  * @param[in,out] context Assertion集計先
  */
@@ -824,6 +894,106 @@ void testAllAssessmentReasons( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ検査結果からのWiX候補だけを未同意のまま発行できることを検査します
+ * @param[in,out] context 架空の候補と報告についての試験集計です
+ */
+//------------------------------------------------------------------------------
+void testWixPublication( TestContext &context)
+{
+	UpdateCandidate source ;	// 元の取得前表示行で、導入可能性を持ちません
+	source.identity					= L"wix-83-reference" ;
+	source.deviceIdentity			= L"device:83:0" ;
+	source.providerId				= SIGNED_INDEX_PROVIDER_ID ;
+	source.discoveryBasis			= CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
+	source.inspectionTargetIdentity = L"wix-83-target" ;
+	source.audit   = {CandidateAuditGateState::PASSED, CandidateAuditGateState::PENDING,
+					  CandidateAuditGateState::PENDING, CandidateAuditGateState::PENDING,
+					  CandidateInstallReadiness::BLOCKED} ;
+	auto other	   = source ;	// 同じ機器を対象にする別の元配布物です
+	other.identity = L"wix-83-peer" ;
+	other.inspectionTargetIdentity = L"wix-83-peer-target" ;
+	const std::array sources{source, other} ;	// 同一機器だけでは同じ対象になりません
+	auto detail = makeDetailedAssessment() ;	// 選んだ一行と結合する架空のネイティブ結果です
+	detail.origin.evidenceKind = CandidateEvidenceKind::COLLECTOR_ATTESTATION ;
+	detail.method.evidenceId   = detail.windowsSelection.evidenceId ;
+	UpdateCandidate published ;	// 元の検査行と別の選択候補です
+	published.identity		   = detail.candidateIdentity ;
+	published.deviceIdentity   = detail.deviceIdentity ;
+	published.packageIdentity  = detail.packageIdentity ;
+	published.providerId	   = SIGNED_INDEX_PROVIDER_ID ;
+	published.discoveryBasis   = CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
+	published.version		   = L"2.3.4.5" ;
+	published.action		   = DriverAction::UPDATE ;
+	published.installable	   = true ;
+	published.allContentCached = true ;
+	published.audit			   = {CandidateAuditGateState::PASSED, CandidateAuditGateState::PASSED,
+								  CandidateAuditGateState::PASSED, CandidateAuditGateState::PASSED,
+								  CandidateInstallReadiness::READY} ;
+	published.assessment	   = std::move( detail) ;
+	published.storageChange.emplace().singleBoot.emplace() ;
+	published.wixInspectionSourceIdentity = source.identity ;
+
+	OfficialPreparationTarget target ;	// 実ファイルを持たない一台分の検査専用対象です
+	target.identity		= source.inspectionTargetIdentity ;
+	target.providerId	= SIGNED_INDEX_PROVIDER_ID ;
+	target.deviceCount	= 1U ;
+	target.maximumBytes = 100U ;
+	target.terms		= OfficialPreparationTerms::INSPECTION_ONLY ;
+	OfficialPreparationApproval approval ;	// 通常導入の意思を含まない検査用承認です
+	approval.operationId   = 2U ;
+	approval.scanSessionId = 83U ;
+	approval.planId		   = 3U ;
+	approval.decisions.push_back( {.target = target, .acquire = true}) ;
+	OfficialPreparationOperationResult operation ;	// 同じ取得に限定した監査対象です
+	operation.operationId	= approval.operationId ;
+	operation.scanSessionId = approval.scanSessionId ;
+	operation.planId		= approval.planId ;
+	operation.approvalError = OfficialPreparationError::NONE ;
+	operation.items.push_back(
+		{target.identity, {OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION, 0U, 70U}}) ;
+	auto &report = operation.auditReports.emplace_back() ;	// 元検査行と新しい候補の対応を保持します
+	report.targetIdentity = target.identity ;
+	report.providerId	  = SIGNED_INDEX_PROVIDER_ID ;
+	report.content = report.applicability = CandidateAuditGateState::PASSED ;
+	report.infCount = report.acceptedInfCount = report.examinedPairCount =
+		report.applicablePairCount			  = 1U ;
+	report.candidatePublicationAttempted	  = true ;
+	report.publication.state = OfficialPreparationCandidatePublicationState::CANDIDATES_PUBLISHED ;
+	report.publication.examinedPairCount = report.publication.publishedCount = 1U ;
+	report.candidates.push_back( {source.identity,
+								 {CandidateAuditGateState::PASSED, CandidateAuditGateState::PASSED,
+								  CandidateAuditGateState::PASSED, CandidateAuditGateState::PASSED,
+								  CandidateInstallReadiness::BLOCKED}}) ;
+	auto &candidate =
+		// 各拒否例を同じ基準から作ります
+		report.publishedCandidates.emplace_back( published) ;
+	DRIVERCRATE_EXPECT( context, validatePreparationAuditReports( operation, approval, sources)) ;
+	approval.decisions.front().eulaAccepted = true ;
+	DRIVERCRATE_EXPECT( context, !validatePreparationAuditReports( operation, approval, sources)) ;
+	approval.decisions.front().eulaAccepted		  = false ;
+	approval.decisions.front().target.deviceCount = 2U ;
+	DRIVERCRATE_EXPECT( context, !validatePreparationAuditReports( operation, approval, sources)) ;
+	approval.decisions.front().target.deviceCount = 1U ;
+	candidate.eulaAccepted						  = true ;
+	DRIVERCRATE_EXPECT( context, !validatePreparationAuditReports( operation, approval, sources)) ;
+	candidate = published ;
+	candidate.storageChange->singleBoot.reset() ;
+	DRIVERCRATE_EXPECT( context, !validatePreparationAuditReports( operation, approval, sources)) ;
+	candidate = published ;
+	candidate.wixInspectionSourceIdentity.clear() ;
+	DRIVERCRATE_EXPECT( context, !validatePreparationAuditReports( operation, approval, sources)) ;
+	candidate							  = published ;
+	candidate.wixInspectionSourceIdentity = other.identity ;
+	report.candidates.front().identity	  = other.identity ;
+	DRIVERCRATE_EXPECT( context, !validatePreparationAuditReports( operation, approval, sources)) ;
+	candidate								= published ;
+	report.candidates.front().identity		= source.identity ;
+	approval.decisions.front().target.terms = OfficialPreparationTerms::CONFIRMED_NO_CONSENT ;
+	DRIVERCRATE_EXPECT( context, !validatePreparationAuditReports( operation, approval, sources)) ;
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -840,7 +1010,9 @@ void runCandidateAuditTests( TestContext &context)
 	testUnknownStates( context) ;
 	testDetailedAssessments( context) ;
 	testDetailsPublication( context) ;
+	testSetupClassRegistrationDetails( context) ;
 	testAllAssessmentReasons( context) ;
+	testWixPublication( context) ;
 }
 
 } // namespace drivercrate::test

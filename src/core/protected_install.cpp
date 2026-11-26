@@ -2,7 +2,7 @@
 /**
  * @file protected_install.cpp
  * @brief OS別回復保護付きinstall処理実装
- * @version 01.01.04
+ * @version 01.02.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.01.03 Shunji Ogawa  2026/11/12  取得APIと復元最終判定の匿名診断を補完
  * Ver.01.01.04 Shunji Ogawa  2026/11/12  導入前保護失敗に結合した一回の明示復元なし続行を接続
+ * Ver.01.02.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
  * </pre>
  *
  * @note Clientの復元ポイント保護とServerの明示同意済み経路を実装します。Server専用経路の利用可否はworkerが実OSを再検証します
@@ -580,7 +581,8 @@ bool RestoreContinuation::offer( const OperationId operationId, const ScanSessio
 		if( update.downloadOutcome != OutcomeCode::NOT_STARTED || update.downloadError != 0U ||
 		   update.installOutcome != OutcomeCode::NOT_STARTED || update.installError != 0U ||
 		   update.installerHandoff || update.handoffOutcome != OutcomeCode::NOT_STARTED ||
-		   update.handoffError != 0U || update.installerExitCode || !update.requiredRoles.empty()) {
+		   update.handoffError != 0U || update.installerExitCode || !update.requiredRoles.empty() ||
+		   !update.requiredImports.empty()) {
 			return false ;
 		}
 	}

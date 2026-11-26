@@ -2,7 +2,7 @@
 /**
  * @file composite_update_provider.cpp
  * @brief 複合update provider実装
- * @version 01.19.02
+ * @version 01.23.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -108,6 +108,10 @@
  * Ver.01.19.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
  * Ver.01.19.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.19.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.20.00 Shunji Ogawa  2026/11/23  閲覧専用の索引行を取得・導入の経路から分離
+ * Ver.01.21.00 Shunji Ogawa  2026/11/23  現行計画へ残る検査専用対象を候補に維持
+ * Ver.01.22.00 Shunji Ogawa  2026/11/23  取得操作の取消し時に新候補を確定しない
+ * Ver.01.23.00 Shunji Ogawa  2026/11/23  当該操作のWiX規約同意を復元前の照合と指定導入へ渡す
  * </pre>
  *
  * @note 既存registryで検索・選択取得・導入を振り分け、sessionとProviderの一致を維持します
@@ -132,6 +136,7 @@
 #include "platform/silicon_labs_serial_package.h"
 #include "platform/wch_serial_package.h"
 #include "platform/windows_product_type.h"
+#include "platform/signed_index_candidate_binding.h"
 
 #include "core/candidate_source_group.h"
 
@@ -146,6 +151,7 @@
 #include <optional>
 #include <ranges>
 #include <stdexcept>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -1221,7 +1227,8 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 				 return broadcomUpdateProvider_.acquireForInspection( task, cancellation) ;
 			 },
 		 .preparationAuditReport =
-			 [this]( const ScanSessionId session, const std::wstring_view target) {
+			 [this]( const ScanSessionId session, const std::wstring_view target,
+					const PreparationCancellation &) {
 				 return broadcomUpdateProvider_.preparationAuditReport( session, target) ;
 			 },
 		 .configureReleaseObservations =
@@ -1296,7 +1303,8 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 																				  cancellation) ;
 			 },
 		 .preparationAuditReport =
-			 [this]( const ScanSessionId session, const std::wstring_view target) {
+			 [this]( const ScanSessionId session, const std::wstring_view target,
+					const PreparationCancellation &) {
 				 return intelEthernetServerOfficialProvider_.preparationAuditReport( session,
 																					target) ;
 			 },
@@ -1371,7 +1379,8 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 				 return asixUpdateProvider_.acquireForInspection( task, cancellation) ;
 			 },
 		 .preparationAuditReport =
-			 [this]( const ScanSessionId session, const std::wstring_view target) {
+			 [this]( const ScanSessionId session, const std::wstring_view target,
+					const PreparationCancellation &) {
 				 return asixUpdateProvider_.preparationAuditReport( session, target) ;
 			 },
 		 .configureReleaseObservations =
@@ -1520,7 +1529,7 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 
 				 return signedIndexSession_->binding_.executeBoundInstall(
 					 *signedIndexSession_, driverStoreProvider_, *signedIndexServices_, session,
-					 ids, parent, progress) ;
+					 ids, parent, progress, activeInstallWixConsents_) ;
 			 },
 		 .invalidatePreparation =
 			 [this]() noexcept {
@@ -1530,7 +1539,8 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 				 }
 			 },
 		 .preparationAuditReport =
-			 [this]( ScanSessionId session, std::wstring_view target) {
+			 [this]( ScanSessionId session, std::wstring_view target,
+					const PreparationCancellation &cancellation) {
 				 // 同workerの私有元取得recordだけを監査し、公開DTOを権限にしません
 				 if( !signedIndexSession_ || !signedIndexServices_ || session != scanSessionId_) {
 					 return std::optional<OfficialPreparationAuditReport>{} ;
@@ -1538,7 +1548,7 @@ CompositeUpdateProvider::CompositeUpdateProvider()
 
 				 return signedIndexSession_->binding_.auditPreparedRecord(
 					 *signedIndexSession_, driverStoreProvider_, *signedIndexServices_, target,
-					 displayedCandidates_) ;
+					 displayedCandidates_, cancellation) ;
 			 }}) ;
 
 	const OfficialDiscoveryFixedRootResolver intelWindows11Resolver =
@@ -3094,6 +3104,47 @@ bool CompositeUpdateProvider::isRetainedPreparationReference(
 }
 //------------------------------------------------------------------------------
 /**
+ * @brief 現行計画で未消費の検査専用対象だけを元候補に保持します
+ * @param[in] plan 同じworkerが照合した現行計画です。nullptrの場合は検査対象をすべて失効します
+ * @note 同期中だけ借用します。署名索引の検査対象と候補の結合を狭め、通常の準備対象や表示行を保持します
+ */
+//------------------------------------------------------------------------------
+void CompositeUpdateProvider::retainActiveInspectionTargets(
+	const OfficialPreparationPlan *const plan) noexcept
+{
+	// 初回計画の不在から検査対象を作成しません
+	if( retainedPreparationPlan_) {
+		const bool sameScan = plan && plan->scanSessionId == scanSessionId_ && plan->planId != 0U &&
+							  // 元スキャンと予算です
+							  plan->limits == retainedPreparationPlan_->limits ;
+		// 現行計画から外れた署名索引の検査専用対象だけを除きます
+		std::erase_if( retainedPreparationPlan_->targets, [&]( const auto &target) {
+			return target.providerId == SIGNED_INDEX_PROVIDER_ID &&
+				   target.terms == OfficialPreparationTerms::INSPECTION_ONLY &&
+				   (!sameScan || std::ranges::find( plan->targets, target) == plan->targets.end()) ;
+		}) ; // 元計画と現行計画は同期中だけ借用します
+	}
+
+	// 元表示を残したまま、現行計画に一致しない検査操作だけを取り除きます
+	for( auto &candidate : displayedCandidates_) {
+		// 検査専用操作が未割当ての行は検査対象を照会しません
+		if( candidate.inspectionTargetIdentity.empty()) {
+			continue ;
+		}
+
+		// 失効した結合を次の操作や別の対象から復活させません
+		if( !retainedPreparationPlan_ ||
+		   std::ranges::none_of( retainedPreparationPlan_->targets, [&]( const auto &target) {
+			   return target.providerId == candidate.providerId &&
+					  target.terms == OfficialPreparationTerms::INSPECTION_ONLY &&
+					  target.identity == candidate.inspectionTargetIdentity ;
+		   })) {
+			candidate.inspectionTargetIdentity.clear() ;
+		}
+	}
+}
+//------------------------------------------------------------------------------
+/**
  * @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます
  * @param[in] operationId 当該新操作です
  * @param[in] session 未失効の元scanです
@@ -3105,10 +3156,34 @@ NativeError CompositeUpdateProvider::beginInstallOperation(
 	const OperationId operationId, const ScanSessionId session,
 	const std::span<const std::wstring> identities)
 {
-	// 元scan/所有routeのない選択から継続予約を作りません
+	return beginInstallOperation( operationId, session, identities, {}) ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 元選択とそのWiX規約同意を当該操作へ結びます
+ * @param[in] operationId 当該新操作です
+ * @param[in] session 未失効の元scanです
+ * @param[in] identities 元表示の選択candidate subsetです
+ * @param[in] wixConsents 当該選択のWiX候補について明示同意した元規約です
+ * @return 元選択と同意の構造照合および予約が成功すると0、拒否はHRESULTです
+ * @note 同意をコピーします。元取得証拠との照合は復旧前と導入時に行います
+ */
+//------------------------------------------------------------------------------
+NativeError CompositeUpdateProvider::beginInstallOperation(
+	const OperationId operationId, const ScanSessionId session,
+	const std::span<const std::wstring>		 identities,
+	const std::span<const WixInstallConsent> wixConsents)
+{
+	// 元scanや所有routeのない選択と過大な同意集合から継続予約を作りません
 	if( session == 0U || session != scanSessionId_ || activeInstallOperation_ != 0U ||
-	   identities.empty()) {
+	   identities.empty() || wixConsents.size() > MAXIMUM_WIX_INSTALL_CONSENTS ||
+	   wixConsents.size() > identities.size()) {
 		return E_INVALIDARG ;
+	}
+
+	// 元規約を照合する所有者がいない場合は同意付き操作を開始しません
+	if( !wixConsents.empty() && (!signedIndexSession_ || !signedIndexServices_)) {
+		return E_ACCESSDENIED ;
 	}
 
 	std::vector<std::wstring>		 devices ;	// 原deviceの一意subsetです
@@ -3126,7 +3201,21 @@ NativeError CompositeUpdateProvider::beginInstallOperation(
 		devices.push_back( device->second) ;
 	}
 
-	std::vector<std::wstring> nativeDevices ;	// 元DS ownerの対象だけです
+	std::unordered_set<std::wstring_view> consentIdentities ;	// 受付中にだけ借用する同意済みIDです
+	// この操作で選択した署名索引の候補だけに規約を一件ずつ割り当てます
+	for( const auto &consent : wixConsents) {
+		const auto route = identityProviders_.find( consent.candidateIdentity) ;	// 元経路です
+		// 別の選択、別Provider、元参照の欠損と重複をnative予約の前に拒否します
+		if( !consent.terms || !selected.contains( consent.candidateIdentity) ||
+		   route == identityProviders_.end() || route->second != SIGNED_INDEX_PROVIDER_ID ||
+		   !consentIdentities.insert( consent.candidateIdentity).second) {
+			return E_ACCESSDENIED ;
+		}
+	}
+
+	// 借用した同意を当該操作内にだけ保持するコピーです
+	std::vector<WixInstallConsent> consents( wixConsents.begin(), wixConsents.end()) ;
+	std::vector<std::wstring>	   nativeDevices ;	// 元DS ownerの対象だけです
 	// WUAのみの未対応deviceを別のnative IDへ推測接続しません
 	for( const auto &device : devices) {
 		// 原DS inventoryへ存在したdeviceだけがnative leaseを借用します
@@ -3151,15 +3240,17 @@ NativeError CompositeUpdateProvider::beginInstallOperation(
 		return error ;
 	}
 
+	// native予約後に追加の割り当てをせず、当該操作の所有へ移します
 	activeInstallDevices_.swap( devices) ;
+	activeInstallWixConsents_.swap( consents) ;
 	activeInstallOperation_ = operationId ;
 	installEntered_			= false ;
 	return 0 ;
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 元同scanの選択scopeと未処理所有を当該操作へ結びます
- * @param[in] operationId 当該新操作です
+ * @brief 当該操作を終了し、同意を解放して未処理の候補を返します
+ * @param[in] operationId 終了する当該操作です
  * @param[in] session 未失効の元scanです
  * @return 当該操作の原未消費subsetです。不明な操作は空です
  */
@@ -3172,6 +3263,7 @@ std::optional<InstallRetentionSummary> CompositeUpdateProvider::finishInstallOpe
 		return std::nullopt ;
 	}
 
+	activeInstallWixConsents_.clear() ;
 	const auto native =
 		// 実ownerの終了です
 		driverStoreProvider_.finishInstallOperation( operationId, session) ;
@@ -3227,6 +3319,10 @@ std::optional<InstallRetentionSummary> CompositeUpdateProvider::finishInstallOpe
 	if( retainedPreparationPlan_) {
 		auto plan = *retainedPreparationPlan_ ;	// 原予算/規約/scopeを変更しません
 		std::erase_if( plan.targets, [&]( const auto &target) {
+			const bool inspection =
+				target.providerId == SIGNED_INDEX_PROVIDER_ID &&
+				target.terms ==
+					OfficialPreparationTerms::INSPECTION_ONLY ;	// 検査専用の結合を使う対象です
 			const bool prepared =
 				signedIndexSession_ &&
 				std::ranges::any_of( signedIndexSession_->binding_.records_,
@@ -3235,8 +3331,11 @@ std::optional<InstallRetentionSummary> CompositeUpdateProvider::finishInstallOpe
 									}) ; // 元owned内容です
 			return prepared ||
 				   !std::ranges::any_of( displayedCandidates_, [&]( const auto &candidate) {
-					   return !candidate.installable &&
-							  candidate.preparationTargetIdentity == target.identity &&
+					   const auto &targetIdentity =
+						   inspection ? candidate.inspectionTargetIdentity
+									  : candidate.preparationTargetIdentity ;	// 同用途の元対象です
+					   return !candidate.installable && targetIdentity == target.identity &&
+							  (!inspection || candidate.providerId == target.providerId) &&
 							  identityDevices_.contains( candidate.identity) ;
 				   }) ;
 		}) ;
@@ -3597,6 +3696,7 @@ std::optional<OfficialPreparationPlan> CompositeUpdateProvider::preparationPlan(
 //------------------------------------------------------------------------------
 void CompositeUpdateProvider::invalidatePreparation() noexcept
 {
+	activeInstallWixConsents_.clear() ;
 	// 内容検査結果を先に解放してから外側取得fileの保護workspaceを破棄する
 	officialDiscoveryPreparedPayloads_.clear() ;
 	officialDiscoveryAcquisitionSession_.reset() ;
@@ -3931,6 +4031,20 @@ OfficialPreparationTransferResult CompositeUpdateProvider::acquireForInspection(
 std::vector<OfficialPreparationAuditReport> CompositeUpdateProvider::preparationAuditReports(
 	const OfficialPreparationOperationResult &result)
 {
+	return preparationAuditReports( result, {}) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ取得操作の監査を集約し、全件検証と取消し確認後だけ候補を確定します
+ * @param[in] result 取得を終えた同じ操作です
+ * @param[in] cancellation 同じ取得操作の停止照会です
+ * @return 監査結果とその候補です。取消しでは新規発行を破棄し空を返します
+ */
+//------------------------------------------------------------------------------
+std::vector<OfficialPreparationAuditReport> CompositeUpdateProvider::preparationAuditReports(
+	const OfficialPreparationOperationResult &result, const PreparationCancellation &cancellation)
+{
 	std::vector<OfficialPreparationAuditReport> reports ;	// 最大256対象の表示結果
 	// 別sessionと未承認操作へ保持監査を結び付けない
 	if( scanPurpose_ != ScanPurpose::STANDARD || result.scanSessionId == 0U ||
@@ -4026,7 +4140,7 @@ std::vector<OfficialPreparationAuditReport> CompositeUpdateProvider::preparation
 				}
 
 				auto report = provider.preparationAuditReport(
-					result.scanSessionId, item.identity) ;	// 非機密値の所有snapshot
+					result.scanSessionId, item.identity, cancellation) ;	// 非機密値の所有snapshot
 				// reportが得られた場合にだけその結合と追加候補を検証する
 				if( report) {
 					// reportのProvider・対象identity不一致と上限超過を全件拒否する
@@ -4058,6 +4172,16 @@ std::vector<OfficialPreparationAuditReport> CompositeUpdateProvider::preparation
 					reports.push_back( std::move( *report)) ;
 				}
 			}
+		}
+
+		// 取消しが届いた取得から未確定の経路を反映せず、先に確定した候補を保持します
+		if( cancellation && cancellation()) {
+			// 索引側に未確定のトークンがあれば同じ所有者へ返します
+			if( signedIndexSession_ && signedIndexSession_->binding_.pending_) {
+				signedIndexSession_->binding_.rollback( driverStoreProvider_) ;
+			}
+
+			return {} ;
 		}
 
 		// 全report成功後の原子的な反映
@@ -4104,24 +4228,43 @@ void CompositeUpdateProvider::bindSignedIndexSession(
 }
 //------------------------------------------------------------------------------
 /**
- * @brief 元索引targetへ非導入参照を結合して通常候補routingへ原子的に加えます
- * @param[in] plan 同lookupから発行した準備計画
+ * @brief 同じ端末へ照合した署名索引参照を通常の候補表示へ加えます
+ * @param[in] plan 同じスキャンの準備計画です。取得対象なしの場合は空です
  * @param[in,out] result 同scanでUIへ発行する結果
+ * @note 通常取得参照だけ既存の準備経路へ結合し、検査専用のWiX行には実行経路を登録しません
  */
 //------------------------------------------------------------------------------
 void CompositeUpdateProvider::finishSignedIndexScanPublication( const OfficialPreparationPlan &plan,
 															   ScanResult &result)
 {
-	retainedPreparationPlan_ = plan ;
+	// 現在の集約スキャンに結合した計画だけを候補表示に使います
+	if( plan.scanSessionId != scanSessionId_ || result.scanSessionId != plan.scanSessionId ||
+	   plan.planId == 0U) {
+		throw std::logic_error( "index reference publication context mismatch") ;
+	}
+
+	// 取得可能な元集合だけを後続操作へ保持します
+	if( !plan.targets.empty()) {
+		retainedPreparationPlan_ = plan ;
+	}
+
 	// 署名索引が未成立・未有効なら通常Provider候補をそのまま維持します
 	if( !signedIndexSession_ || !signedIndexSession_->acquisitionLookup_) {
 		return ;
 	}
 
+	const auto nowUtc = signedIndexServices_ && signedIndexServices_->utc
+							? signedIndexServices_->utc()
+							: std::nullopt ;	// 同じworkerの信頼UTCです
 	// 同snapshotと原計画から発行する非導入参照の所有copy。全検証後だけcommitする
-	auto references = signedIndexSession_->binding_.makeReferences(
-		signedIndexSession_->acquisitionLookup_, signedIndexSession_->adapter_, plan,
-		displayedCandidates_, officialDiscoveryHints_) ;
+	auto	   references = signedIndexSession_->binding_.makeReferences(
+		  signedIndexSession_->acquisitionLookup_, signedIndexSession_->adapter_, plan,
+		  displayedCandidates_, officialDiscoveryHints_, nowUtc) ;
+	// 新しい参照も取得対象もなければ空計画を発行しません
+	if( references.empty() && plan.targets.empty()) {
+		return ;
+	}
+
 	auto providers	 = identityProviders_ ;		// 全検証後にだけswapするrouting
 	auto devices	 = identityDevices_ ;		// 全検証後にだけswapするdevice対応
 	auto candidates	 = displayedCandidates_ ;	// 他Providerを保持した所有snapshot
@@ -4130,22 +4273,32 @@ void CompositeUpdateProvider::finishSignedIndexScanPublication( const OfficialPr
 	for( const auto &candidate : references) {
 		// 索引参照の監査または一意IDが不整合なら公開前に全体を拒否します
 		if( !isCandidateAuditValid( candidate, descriptorFor( SIGNED_INDEX_PROVIDER_ID)) ||
-		   !providers.emplace( candidate.identity, candidate.providerId).second ||
 		   !devices.emplace( candidate.identity, candidate.deviceIdentity).second) {
 			throw std::logic_error( "index reference publication mismatch") ;
+		}
+
+		// 検査専用のWiX行は独立した対象を表示し、実行経路を登録しません
+		if( !candidate.preparationTargetIdentity.empty() &&
+		   !providers.emplace( candidate.identity, candidate.providerId).second) {
+			throw std::logic_error( "index reference provider mismatch") ;
 		}
 
 		candidates.push_back( candidate) ;
 		publication.push_back( candidate) ;
 	}
 
+	// 初回lookupの再factoryと全体再列挙を閉じてから表示を確定します
+	if( !driverStoreProvider_.sealIndexLookup( signedIndexSession_->context_)) {
+		throw std::logic_error( "index lookup sealing failed") ;
+	}
+
 	identityProviders_.swap( providers) ;
 	identityDevices_.swap( devices) ;
 	displayedCandidates_.swap( candidates) ;
 	result.candidates.swap( publication) ;
-	// 初回lookupの再factory/全体再列挙だけを閉じ、未処理leaseは保持します
-	if( !driverStoreProvider_.sealIndexLookup( signedIndexSession_->context_)) {
-		throw std::logic_error( "index lookup sealing failed") ;
+	// 閲覧専用行でも現在行とは別の配布情報として表示候補の存在を記録します
+	if( !references.empty()) {
+		result.state = ProviderScanState::CANDIDATES_AVAILABLE ;
 	}
 }
 
@@ -4286,32 +4439,50 @@ std::vector<PreparedInstallResolution> CompositeUpdateProvider::resolvePreparati
 
 //------------------------------------------------------------------------------
 /**
- * @brief 元選択の導入可否と必要roleを復旧開始前にread-onlyで一括確認します
+ * @brief 元選択の導入可否、必要roleと同じ操作のWiX規約同意を復旧開始前に確認します
  * @param[in] session 元通常scanです
  * @param[in] identities 通常画面の明示選択です
- * @return 元全byte/期限/状態一致0、不足はHRESULTです
+ * @return 元全byte/期限/状態とWiX規約同意の一致0、不足はHRESULTです
  */
 //------------------------------------------------------------------------------
 NativeError CompositeUpdateProvider::preflightRequiredSignedIndexInstall(
 	const ScanSessionId session, const std::span<const std::wstring> identities) const
 {
-	// UI/controllerを迂回した未検査refも、workerの元表示snapshotで復旧前に拒否します
-	if( session == 0U || session != scanSessionId_ || identities.empty() ||
-	   std::ranges::any_of( identities, [&]( const auto &identity) {
-		   return std::ranges::none_of( displayedCandidates_, [&]( const auto &candidate) {
-			   return candidate.identity == identity && candidate.installable && !candidate.current ;
-		   }) ;
-	   })) {
+	// 失効した元scanと空選択から保護を開始しません
+	if( session == 0U || session != scanSessionId_ || identities.empty()) {
 		return static_cast<NativeError>( E_ACCESSDENIED) ;
 	}
 
-	// 元workerの索引owner未結合では必要計画を発行していません
+	// 私有経路を照合する前に、元表示の全選択と規約同意の対応を確認します
+	for( const auto &identity : identities) {
+		const auto candidate = std::ranges::find( displayedCandidates_, identity,
+												 &UpdateCandidate::identity) ;	// 元候補です
+		// UIを迂回した未検査参照や端末の現在行は復元開始前に拒否します
+		if( candidate == displayedCandidates_.end() || !candidate->installable ||
+		   candidate->current) {
+			return static_cast<NativeError>( E_ACCESSDENIED) ;
+		}
+
+		const bool wixCandidate =
+			!candidate->wixInspectionSourceIdentity.empty() ;	// 検査から発行した候補です
+		const bool consentProvided = std::ranges::find( activeInstallWixConsents_, identity,
+													   &WixInstallConsent::candidateIdentity) !=
+									 // 当該操作が受領した同意です
+									 activeInstallWixConsents_.end() ;
+		// 同意の欠落や別用途の候補への規約同意を受け入れません
+		if( wixCandidate != consentProvided) {
+			return static_cast<NativeError>( E_ACCESSDENIED) ;
+		}
+	}
+
+	// 照合する私有所有者がいない場合はWiXの同意と導入を受理しません
 	if( !signedIndexSession_ || !signedIndexServices_) {
-		return 0 ;
+		return activeInstallWixConsents_.empty() ? 0U : static_cast<NativeError>( E_ACCESSDENIED) ;
 	}
 
 	return signedIndexSession_->binding_.preflightRequiredInstall(
-		*signedIndexSession_, driverStoreProvider_, *signedIndexServices_, session, identities) ;
+		*signedIndexSession_, driverStoreProvider_, *signedIndexServices_, session, identities,
+		activeInstallWixConsents_) ;
 }
 
 } // namespace drivercrate

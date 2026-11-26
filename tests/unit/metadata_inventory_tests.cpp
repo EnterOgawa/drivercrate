@@ -2,7 +2,7 @@
 /**
  * @file metadata_inventory_tests.cpp
  * @brief 現在属性列挙の上限・欠損・停止境界の決定的試験
- * @version 01.12.02
+ * @version 01.17.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -38,6 +38,17 @@
  * Ver.01.12.00 Shunji Ogawa  2026/11/10  最新実確認の選択表示と日内復元保護の実在再利用を接続
  * Ver.01.12.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.12.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.13.00 Shunji Ogawa  2026/11/18  P3同scan fullhost観測と取得直前拒否を接続
+ * Ver.01.13.01 Shunji Ogawa  2026/11/18  retained要求の元Server拒否と新LOCAL未到達を説明
+ * Ver.01.13.02 Shunji Ogawa  2026/11/18  WinHTTP fake第六引数をSDKのpointer型へ整合
+ * Ver.01.13.03 Shunji Ogawa  2026/11/18  P3二scanの原結果と非機密summaryを数値観測
+ * Ver.01.13.04 Shunji Ogawa  2026/11/18  WinHTTP fakeの同名header列挙位置を成功時だけ更新
+ * Ver.01.14.00 Shunji Ogawa  2026/11/18  空ZIP二caseを直接bind後の通常内容拒否へ移行
+ * Ver.01.14.01 Shunji Ogawa  2026/11/18  空ZIP二caseを元現在行の正規hintと参照factoryへ接続
+ * Ver.01.15.00 Shunji Ogawa  2026/11/19  GUIDと裸IDを含む元文字列の端末内照合を検証
+ * Ver.01.16.00 Shunji Ogawa  2026/11/20  Catalog対象のHardwareIds限定照合と個別証拠を検証
+ * Ver.01.17.00 Shunji Ogawa  2026/11/20  規約取得のUTC再確認へ元fixture時計を接続
+ * Ver.01.17.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * </pre>
  *
  * @note 現在属性とdevnodeの六APIを全てfakeへ置換し、実device列挙と導入を行わない
@@ -55,6 +66,10 @@
 #include "platform/provider_worker_index_internal.h"
 #include "platform/signed_index_store_internal.h"
 #include "platform/signed_index_acquisition_adapter_internal.h"
+#include "platform/signed_index_candidate_binding_internal.h"
+#include "platform/official_discovery_inventory.h"
+#include "platform/server_index_scope.h"
+#include "platform/official_http_transport.h"
 #include "test_framework.h"
 
 #include <devpkey.h>
@@ -78,6 +93,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 #include <utility>
 
@@ -1294,9 +1310,12 @@ public:
 	/**
 	 * @brief Worker thread内で完全fake transportを所有します
 	 * @param[in] state 非通信試験信号
+	 * @param[in] retainReferenceRows 旧二空ZIPだけが同captureの実現在行を私有保持します
 	 */
-	explicit WorkerIndexProvider( std::shared_ptr<WorkerIndexState> state)
-		: state_( std::move( state)), inventory_( inventoryTransport())
+	explicit WorkerIndexProvider( std::shared_ptr<WorkerIndexState> state,
+								 const bool						   retainReferenceRows = false)
+		: state_( std::move( state)), inventory_( inventoryTransport()),
+		  retainReferenceRows_( retainReferenceRows)
 	{
 		activeInventoryFixture = &fixture_ ;
 	}
@@ -1377,6 +1396,14 @@ public:
 			inventory_.scanCurrentIndexInventory( sessionId, execution,
 												 progress) ;	// 同workerの有効callbackを借用します
 		result.purpose = ScanPurpose::STANDARD ;
+		// 旧二空ZIPだけが同じ実captureの現在行と完全性をclear前に保持します
+		if( retainReferenceRows_) {
+			referenceRows_		  = result.candidates ;
+			referenceScanSession_ = result.scanSessionId ;
+			referenceInventoryComplete_ =
+				inventory_.inventoryMeasurement().detailedEnumerationComplete ;
+		}
+
 		// 通常の既存索引fixtureは候補を持たず、新条件だけが現在観測を返します
 		if( !state_->hardwareScenario) {
 			result.candidates.clear() ;
@@ -1418,6 +1445,88 @@ public:
 		}
 
 		return std::make_unique<WorkerIndexStoppingResolver>( std::move( resolver), state_) ;
+	}
+	/**
+	 * @brief 旧二空ZIPの同captureから正規hintと非導入参照を発行します
+	 * @param[in,out] context 共通assertionです
+	 * @param[in,out] session 同captureからresolverを一度発行した原ownerです
+	 * @param[in] plan augment済みの原全targetです
+	 * @param[in] caseId 非機密な固定case名です
+	 * @return 全元targetへのfactory参照と同inventory sealが成立した場合だけtrueです
+	 * @note 欠損を補完せず、claim/取得/導入より前の前提失敗として残します
+	 */
+	[[nodiscard]] bool publishReferencesForFixture( TestContext					 &context,
+												   SignedIndexScanSession		 &session,
+												   const OfficialPreparationPlan &plan,
+												   const std::string_view		  caseId)
+	{
+		const bool captured = retainReferenceRows_ && referenceInventoryComplete_ &&
+							  referenceScanSession_ == plan.scanSessionId &&
+							  !referenceRows_.empty() ;	// 元capture前提です
+		DRIVERCRATE_EXPECT( context, captured) ;
+		// 実captureが不足する場合は手製の行や完全性で埋めません
+		if( !captured) {
+			return false ;
+		}
+
+		std::vector<OfficialCatalogDevice> devices ;	// 通常Compositeと同じ現在行投影だけです
+		std::unordered_set<std::wstring>   identities ;	// 同じdeviceを二度投影しません
+		// 通常callerと同じく実現在行だけを公式catalog snapshotへ移します
+		for( const auto &candidate : referenceRows_) {
+			// 現在行以外と重複deviceを正規hintへ昇格しません
+			if( !candidate.current || !identities.insert( candidate.deviceIdentity).second) {
+				continue ;
+			}
+
+			devices.push_back( {.deviceIdentity	  = candidate.deviceIdentity,
+							   .model			  = candidate.model,
+							   .manufacturer	  = candidate.manufacturer,
+							   .driverClass		  = candidate.driverClass,
+							   .deviceClassGuid	  = candidate.deviceClassGuid,
+							   .currentProvider	  = candidate.provider,
+							   .currentVersion	  = candidate.version,
+							   .currentDate		  = candidate.driverDate,
+							   .deviceObservation = candidate.deviceObservation,
+							   .discoveryBus	  = candidate.discoveryBus}) ;
+		}
+
+		const auto hints = makeOfficialDiscoveryDeviceHints(
+			plan.scanSessionId, referenceInventoryComplete_, devices) ;	// 偽完全性を渡しません
+		DRIVERCRATE_EXPECT( context, devices.size() == 1U && hints && hints->size() == 1U) ;
+		// 正規factoryが拒否した入力から参照を合成しません
+		if( devices.size() != 1U || !hints || hints->size() != 1U) {
+			return false ;
+		}
+
+		const auto references =
+			signed_index_candidate_binding_detail::Access::makeReferencesForFixture(
+				session, plan, referenceRows_, *hints) ;	// 元lookup/adapterの既factoryだけです
+		std::size_t matchedTargets{} ;						// claim前に元A/Bの両targetを一件ずつ確認します
+		// 元target以外の参照を正常なB所有へ数えません
+		for( const auto &target : plan.targets) {
+			const auto count =
+				std::count_if( references.begin(), references.end(), [&]( const auto &reference) {
+					return reference.preparationTargetIdentity == target.identity &&
+						   !reference.current && !reference.installable &&
+						   reference.action == DriverAction::NONE ;
+				}) ; // 返却行は既factoryが原ordinalを検証済みです
+			DRIVERCRATE_EXPECT( context, count == 1) ;
+			matchedTargets += count == 1 ? 1U : 0U ;
+		}
+
+		const bool complete = references.size() == plan.targets.size() &&
+							  // 片方だけの参照を全成立にしません
+							  matchedTargets == plan.targets.size() ;
+		DRIVERCRATE_EXPECT( context, complete) ;
+		const bool sealed =
+			complete && DriverStoreBindingProbe::seal( inventory_) ;	// 同ownerだけを凍結します
+		DRIVERCRATE_EXPECT( context, sealed) ;
+		std::cout << "P3_REFERENCE_PREMISE case=" << caseId
+				  << " complete=" << referenceInventoryComplete_ << " current=" << devices.size()
+				  << " hints=" << hints->size() << " targets=" << plan.targets.size()
+				  << " references=" << references.size() << " matchedTargets=" << matchedTargets
+				  << " sealed=" << sealed << '\n' ;
+		return complete && sealed ;
 	}
 	/**
 	 * @brief 索引後の最終取消しを試す有限計画待機です
@@ -1466,6 +1575,14 @@ private:
 	InventoryFixture				  fixture_ ;
 	/// 通常scan／install禁止を維持する完全fake Providerです
 	DriverStoreProvider				  inventory_ ;
+	/// 旧二空ZIPだけが元現在行を私有保持する固定選択です
+	const bool						  retainReferenceRows_ ;
+	/// 同inventory captureが返した実現在行だけです
+	std::vector<UpdateCandidate>	  referenceRows_ ;
+	/// 元現在行を取得した実scan IDです
+	ScanSessionId					  referenceScanSession_{} ;
+	/// 同captureの実列挙完全性であり、人工trueへ補完しません
+	bool							  referenceInventoryComplete_{} ;
 } ;
 
 /** @brief 実復旧APIへ入らない拒否専用fakeです */
@@ -2308,7 +2425,7 @@ void runMetadataInventoryTests( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 全fake現在属性scanの秘密stateを真の保存snapshotへ結びます
+ * @brief 全fake現在属性scanの秘密stateで従来照合とHardwareIds限定照合を確認します
  * @param[in,out] context 共通assertion集計先
  * @param[in] snapshot 実commit／reload済みconst原snapshot
  * @param[in] nowUtc Fixtureの信頼UTC
@@ -2410,18 +2527,21 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 		context,
 		resolver->resolve( IndexPnpIdKind::HARDWARE, PUBLISHED_ID, PUBLISHED_CLASS, active, reversed)
 			.completed) ;
-	// 元四入力を保持し、case差の合法IDと不正文法を区別します
-	for( const std::string_view invalid :
-		{"", "TESTBUS\\bad", "TESTBUS\\BAD\\TAIL", "TESTBUS\\\xff"}) {
-		const auto rejected = resolver->resolve( IndexPnpIdKind::HARDWARE, invalid, PUBLISHED_CLASS,
-												active, present) ;	// 元公開grammarの拒否
-		// 小文字は合法な原公開IDであり、不一致を入力失敗やdriverなしへ変換しません
-		if( invalid == "TESTBUS\\bad") {
-			DRIVERCRATE_EXPECT( context, rejected.completed && rejected.error == 0U &&
-											rejected.devices.empty()) ;
-		} else {
-			DRIVERCRATE_EXPECT( context, !rejected.completed && rejected.error != 0U) ;
-		}
+	// 区切りや大小文字を解釈せず、端末にない完全値を照会します
+	for( const std::string_view id : {"TESTBUS\\bad", "TESTBUS\\BAD\\TAIL"}) {
+		const auto missing = resolver->resolve( IndexPnpIdKind::HARDWARE, id, PUBLISHED_CLASS,
+											   active, present) ;	// 元の端末一覧にない二つの値です
+		DRIVERCRATE_EXPECT( context,
+						   missing.completed && missing.error == 0U && missing.devices.empty()) ;
+	}
+
+	// 空・非ASCII・上限超過の問い合わせには照合結果を発行しません
+	for( const auto &id : {std::string{}, std::string{"TESTBUS\\\xff"}, std::string( 513U, 'A')}) {
+		const auto rejected = resolver->resolve( IndexPnpIdKind::HARDWARE, id, PUBLISHED_CLASS,
+												active, present) ;	// 照合用の値の検査です
+		DRIVERCRATE_EXPECT( context, !rejected.completed &&
+										rejected.error == static_cast<NativeError>( E_INVALIDARG) &&
+										rejected.devices.empty()) ;
 	}
 
 	const auto badKind = resolver->resolve( static_cast<IndexPnpIdKind>( 99), PUBLISHED_ID,
@@ -2635,11 +2755,14 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 				  << " related=" << result.devices.size() << '\n' ;
 	}
 
+	constexpr std::string_view CATALOG_HARDWARE_ID =
+		"PCI\\VEN_FFFE&DEV_0001&SUBSYS_0001FFFE" ;	// 架空の配布対象です
 	// 公表INF側二役割とnative側二種別を独立に選び、四組合せ全てを実resolverで照合します
 	for( unsigned combination = 0U; combination < 4U; ++combination) {
 		const auto runOwner =
-			std::make_unique<InventoryCase>() ;				// 同じscopeだけで大きなfixtureを所有する
-		auto &run							= *runOwner ;	// 通信・実端末を使わない完全captureです
+			std::make_unique<InventoryCase>() ;	// 同じscopeだけで大きなfixtureを所有する
+		auto &run = *runOwner ;					// 通信・実端末を使わない完全captureです
+		run.fixture.indexId.assign( CATALOG_HARDWARE_ID.begin(), CATALOG_HARDWARE_ID.end()) ;
 		run.fixture.publishedIdInCompatible = combination >= 2U ;
 		static_cast<void>( run.scanForIndex()) ;
 		IndexLookupContext		  issued ;	// 組合せごとの元contextです
@@ -2648,16 +2771,58 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 		auto callback = run.provider.makeIndexPublicIdResolver( 880U + combination, issued, nodes) ;
 		DRIVERCRATE_EXPECT( context, callback && nodes.size() == 2U) ;
 		// 発行失敗を四組合せ合格へ変換しません
-		if( callback && nodes.size() == 2U) {
-			const auto kind = combination % 2U == 0U
-								  ? IndexPnpIdKind::HARDWARE
-								  : IndexPnpIdKind::COMPATIBLE ;	// 元INF側の役割です
-			// 同じ有限fixtureから得た結果を所有し、実deviceやnetworkを呼びません
-			const auto result =
-				callback->resolve( kind, PUBLISHED_ID, PUBLISHED_CLASS, issued, nodes) ;
-			DRIVERCRATE_EXPECT( context, result.completed && result.error == 0U &&
-											result.devices == std::vector<std::wstring>{nodes[0]}) ;
+		if( !callback || nodes.size() != 2U) {
+			continue ;
 		}
+
+		const auto kind	  = combination % 2U == 0U ? IndexPnpIdKind::HARDWARE
+												   : IndexPnpIdKind::COMPATIBLE ;	// 元INF側の役割です
+		const auto result = callback->resolve( kind, CATALOG_HARDWARE_ID, PUBLISHED_CLASS, issued,
+											  nodes) ;	// 従来照合です
+		DRIVERCRATE_EXPECT( context, result.completed && result.error == 0U &&
+										result.devices == std::vector<std::wstring>{nodes[0]}) ;
+		// 配布対象は元INFのHardware役割だけを使うため、対応する二組だけを比較します
+		if( kind != IndexPnpIdKind::HARDWARE) {
+			continue ;
+		}
+
+		const auto scoped =
+			callback->resolveHardwareId( CATALOG_HARDWARE_ID, PUBLISHED_CLASS, issued,
+										nodes) ;	// HardwareIds限定の結果です
+		DRIVERCRATE_EXPECT( context,
+						   scoped.context == issued && scoped.completed && scoped.error == 0U) ;
+		// 同じ完全値がCompatibleIdsにだけある場合は個別証拠も発行しません
+		if( run.fixture.publishedIdInCompatible) {
+			DRIVERCRATE_EXPECT( context, scoped.devices.empty() && scoped.deviceProofs.empty()) ;
+			continue ;
+		}
+
+		DRIVERCRATE_EXPECT( context, scoped.devices == result.devices &&
+										scoped.deviceProofs.size() == 1U && scoped.deviceProofs[0]) ;
+		// 同scanの元公開値と端末に結ぶ証拠を従来の照合区分へ転用できないことを確認します
+		if( scoped.deviceProofs.size() == 1U && scoped.deviceProofs[0]) {
+			const auto &proof = *scoped.deviceProofs[0] ;	// Driver Storeが発行した当該端末の証拠です
+			DRIVERCRATE_EXPECT( context,
+							   proof.matches( issued, kind, CATALOG_HARDWARE_ID, PUBLISHED_CLASS,
+											 GetCurrentThreadId(), scoped.devices, scoped.error,
+											 scoped.completed, nodes[0], true)) ;
+			DRIVERCRATE_EXPECT( context,
+							   !proof.matches( issued, kind, CATALOG_HARDWARE_ID, PUBLISHED_CLASS,
+											  GetCurrentThreadId(), scoped.devices, scoped.error,
+											  scoped.completed, nodes[0], false)) ;
+		}
+
+		// 大小文字だけが異なる入力でも同じ端末に照合します
+		const auto lowerScoped = callback->resolveHardwareId(
+			"pci\\ven_fffe&dev_0001&subsys_0001fffe", PUBLISHED_CLASS, issued, nodes) ;
+		DRIVERCRATE_EXPECT( context, lowerScoped.completed && lowerScoped.error == 0U &&
+										lowerScoped.devices == scoped.devices) ;
+		// SUBSYSだけが異なる公開値からは関係や証拠を生成しません
+		const auto otherSubsystem = callback->resolveHardwareId(
+			"PCI\\VEN_FFFE&DEV_0001&SUBSYS_0002FFFE", PUBLISHED_CLASS, issued, nodes) ;
+		DRIVERCRATE_EXPECT( context, otherSubsystem.completed && otherSubsystem.error == 0U &&
+										otherSubsystem.devices.empty() &&
+										otherSubsystem.deviceProofs.empty()) ;
 	}
 
 	// 同nodeの両集合重複は一device、旧逆node fixtureは二deviceの非一意として残します
@@ -2824,6 +2989,58 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 										result.devices[0] == nativePresent[0]) ;
 	}
 
+	// 元の表記のまま照合し、GUIDや特殊文字を区切りとして解釈しません
+	const std::array opaqueIds{
+		std::pair{"{54cb850d-a731-8590-0628-1992592bd448}\\rcbottom", IndexPnpIdKind::HARDWARE},
+		std::pair{"TESTBUS\\DEVICE+EXAMPLE", IndexPnpIdKind::HARDWARE},
+		std::pair{"TEST+CMP", IndexPnpIdKind::COMPATIBLE},
+		std::pair{"*PNP0F01", IndexPnpIdKind::HARDWARE}} ;	// 元の両種別を使う決定的な入力です
+	// 元ID種別ごとに独立した端末を作り、同種別の公式IDだけが照合されることを確認します
+	for( const auto &[observedId, kind] : opaqueIds) {
+		const auto opaqueRun = std::make_unique<InventoryCase>() ;	// 試験用の端末属性です
+		const std::string_view observed{observedId} ;				// 可視ASCIIの固定試験入力です
+		opaqueRun->fixture.indexId.assign( observed.begin(), observed.end()) ;
+		opaqueRun->fixture.publishedIdInCompatible = kind == IndexPnpIdKind::COMPATIBLE ;
+		DRIVERCRATE_EXPECT( context, opaqueRun->scanForIndex().succeeded) ;
+		IndexLookupContext		  issued ;		// 同scanの発行値です
+		std::vector<std::wstring> presentIds ;	// 元の全端末slotです
+		// 同じ試験scanの現在デバイスへ照合を限定するresolver
+		const auto				  opaqueResolver =
+			opaqueRun->provider.makeIndexPublicIdResolver( 891U, issued, presentIds) ;
+		DRIVERCRATE_EXPECT( context, opaqueResolver && !presentIds.empty()) ;
+		// 照合可能な現在デバイスが取得できない場合は個別の検証を省きます
+		if( !opaqueResolver || presentIds.empty()) {
+			continue ;
+		}
+
+		std::string published{observed} ;	// 同じIDの公表値を表します
+		std::ranges::transform( published, published.begin(), []( const char ch) {
+			return ch >= 'a' && ch <= 'z' ? static_cast<char>( ch + ('A' - 'a')) : ch ;
+		}) ;
+		// 完全な公開IDと同じクラスで実デバイスを照合した結果
+		const auto match =
+			opaqueResolver->resolve( kind, published, PUBLISHED_CLASS, issued, presentIds) ;
+		DRIVERCRATE_EXPECT( context,
+						   match.completed && match.error == 0U &&
+							   match.devices == std::vector<std::wstring>{presentIds.front()}) ;
+		// 完全一致したIDにワイルドカードを足した場合の拒否結果
+		const auto wildcard =
+			opaqueResolver->resolve( kind, published + "*", PUBLISHED_CLASS, issued, presentIds) ;
+		DRIVERCRATE_EXPECT( context,
+						   wildcard.completed && wildcard.error == 0U && wildcard.devices.empty()) ;
+		// 元IDが同じでも別のクラスへ対応しないことを確認する結果
+		const auto otherClass = opaqueResolver->resolve(
+			kind, published, "{4d36e972-e325-11ce-bfc1-08002be10318}", issued, presentIds) ;
+		DRIVERCRATE_EXPECT( context, otherClass.completed && otherClass.error == 0U &&
+										otherClass.devices.empty()) ;
+		// 完全IDへ制御文字を混ぜた不正な入力の検証結果
+		const auto invalid =
+			opaqueResolver->resolve( kind, published + '\x01', PUBLISHED_CLASS, issued, presentIds) ;
+		DRIVERCRATE_EXPECT( context, !invalid.completed &&
+										invalid.error == static_cast<NativeError>( E_INVALIDARG) &&
+										invalid.devices.empty()) ;
+	}
+
 	// 不正Native byteや制御文字を正常不一致へ分類しません
 	for( const std::wstring_view invalid : {L"TESTBUS\\BAD\x01", L"TESTBUS\\\xd800"}) {
 		const auto runOwner =
@@ -2893,9 +3110,46 @@ void runDriverStoreIndexResolverTests( TestContext									   &context,
 										 ->resolve( IndexPnpIdKind::COMPATIBLE, PUBLISHED_ID,
 												   PUBLISHED_CLASS, issued, nodes)
 										 .completed) ;
+		const auto scoped = callback->resolveHardwareId( PUBLISHED_ID, PUBLISHED_CLASS, issued,
+														nodes) ;	// 同じHardware属性の失敗です
+		DRIVERCRATE_EXPECT( context, scoped.context == issued && !scoped.completed &&
+										scoped.error == result.error && scoped.devices.empty() &&
+										scoped.deviceProofs.empty()) ;
 		// アクセス拒否は元HRESULTのまま保持します
 		if( fault == PropertyFault::ACCESS_DENIED) {
 			DRIVERCRATE_EXPECT( context, result.error == static_cast<NativeError>( E_ACCESSDENIED)) ;
+		}
+	}
+
+	// 既知Classの端末でCompatibleIdsだけの読取失敗を再現します
+	{
+		const auto runOwner	  = std::make_unique<InventoryCase>() ;	// 同scanのfixtureを保持します
+		auto	  &run		  = *runOwner ;							// 属性の読取診断を設定します
+		run.fixture.faultKey  = DEVPKEY_Device_CompatibleIds ;
+		run.fixture.faultNode = 0U ;
+		run.fixture.propertyFault = PropertyFault::ACCESS_DENIED ;
+		static_cast<void>( run.scanForIndex()) ;
+		IndexLookupContext		  issued ;	// 同scanで発行したcontextです
+		std::vector<std::wstring> nodes ;	// 元の全presentです
+		const auto				  callback =
+			// 同scanの能力
+			run.provider.makeIndexPublicIdResolver( 902U, issued, nodes) ;
+		DRIVERCRATE_EXPECT( context, callback && nodes.size() == 2U) ;
+		// 既知ClassではHardwareIds限定照合だけがCompatibleIdsの読取診断に影響されません
+		if( callback && nodes.size() == 2U) {
+			const auto result =
+				callback->resolve( IndexPnpIdKind::HARDWARE, PUBLISHED_ID, PUBLISHED_CLASS, issued,
+								  nodes) ;	// 両属性を必要とする従来照合です
+			const auto scoped = callback->resolveHardwareId( PUBLISHED_ID, PUBLISHED_CLASS, issued,
+															nodes) ;	// Hardwareは正常です
+			DRIVERCRATE_EXPECT( context,
+							   !result.completed &&
+								   result.error == static_cast<NativeError>( E_ACCESSDENIED) &&
+								   result.devices.empty()) ;
+			DRIVERCRATE_EXPECT( context,
+							   scoped.context == issued && scoped.completed && scoped.error == 0U &&
+								   scoped.devices == std::vector<std::wstring>{nodes[0]} &&
+								   scoped.deviceProofs.size() == 1U && scoped.deviceProofs[0]) ;
 		}
 	}
 
@@ -3308,6 +3562,703 @@ void runNativePartialIndexPreparationTests(
 	std::cout << "Native partial index preparation assertions: "
 			  << context.assertionCount() - firstAssertions
 			  << ", failures: " << context.failureCount() - firstFailures << '\n' ;
+}
+
+/** @brief 人工22byte本文と実fake send回数だけを同期所有します */
+struct P3HttpState {
+	/// driverではない空ZIPの全byteです
+	std::string			  body{std::string{"PK\x05\x06", 4U} + std::string( 18U, '\0')} ;
+	/// read済みのoffsetです
+	std::size_t			  offset{} ;
+	/// fake send境界の実呼出し数です
+	unsigned			  sends{} ;
+	/// 同threadのP4 fixtureだけが元sendを非権限counterへ通知します
+	std::function<void()> sentObserver ;
+} ;
+thread_local P3HttpState p3Http ;	// RAMだけのHTTP backendです
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 全WinHTTP/DNS境界を非通信fakeで置き換えます
+ * @return 元SDK署名の完全なtransportです。実API pointerを残しません
+ * @note headerの次位置は成功読取りだけで進め、長さprobe/不足buffer/欠損は消費しません
+ */
+//------------------------------------------------------------------------------
+OfficialHttpTransport	 p3HttpTransport()
+{
+	OfficialHttpTransport transport ;	// 下記で全境界を明示置換します
+	transport.open = []( LPCWSTR, DWORD, LPCWSTR, LPCWSTR, DWORD) -> HINTERNET {
+		return reinterpret_cast<HINTERNET>( 1U) ;
+	} ;
+	transport.connect = []( HINTERNET, LPCWSTR, INTERNET_PORT, DWORD) -> HINTERNET {
+		return reinterpret_cast<HINTERNET>( 2U) ;
+	} ;
+	transport.openRequest = []( HINTERNET, LPCWSTR, LPCWSTR, LPCWSTR, LPCWSTR, LPCWSTR *,
+							   DWORD) -> HINTERNET {
+		p3Http.offset = 0U ;
+		return reinterpret_cast<HINTERNET>( 3U) ;
+	} ;
+	transport.setTimeouts = []( HINTERNET, int, int, int, int) -> BOOL { return TRUE ; } ;
+	transport.setOption	  = []( HINTERNET, DWORD, LPVOID, DWORD) -> BOOL { return TRUE ; } ;
+	transport.addHeaders  = []( HINTERNET, LPCWSTR, DWORD, DWORD) -> BOOL { return TRUE ; } ;
+	transport.sendRequest = []( HINTERNET, LPCWSTR, DWORD, LPVOID, DWORD, DWORD, DWORD_PTR) -> BOOL {
+		++p3Http.sends ;
+		// 元送信結果を変更せず、同fixtureの観測先だけへ通知します
+		if( p3Http.sentObserver) {
+			p3Http.sentObserver() ;
+		}
+
+		return TRUE ;
+	} ;
+	transport.receiveResponse = []( HINTERNET, LPVOID) -> BOOL { return TRUE ; } ;
+	transport.queryHeaders	  = []( HINTERNET, DWORD info, LPCWSTR, LPVOID output, LPDWORD size,
+								   LPDWORD index) -> BOOL {
+		   // 同名headerは一件だけで、次位置は本文/長さを消費せず終端にします
+		   if( index && *index > 0U) {
+			   SetLastError( ERROR_WINHTTP_HEADER_NOT_FOUND) ;
+			   return FALSE ;
+		   }
+
+		   const auto key = info & 0xFFFFU ;	// SDK flagとheader IDを分けます
+		   // 数値statusを同SDK型へ返します
+		   if( key == WINHTTP_QUERY_STATUS_CODE && (info & WINHTTP_QUERY_FLAG_NUMBER) != 0U) {
+			   // 元固定faultだけを設定し、他caseの成功や分類を借りません
+			   if( !output || *size < sizeof( DWORD)) {
+				   *size = sizeof( DWORD) ;
+				   SetLastError( ERROR_INSUFFICIENT_BUFFER) ;
+				   return FALSE ;
+			   }
+
+			   *static_cast<DWORD *>( output) = 200U ;
+			   *size						 = sizeof( DWORD) ;
+			   // probe/不足buffer/欠損では進めず、成功した一件だけを消費します
+			   if( index) {
+				   ++*index ;
+			   }
+
+			   return TRUE ;
+		   }
+
+		   const auto value = key == WINHTTP_QUERY_CONTENT_TYPE ? std::wstring{L"application/zip"}
+							  : key == WINHTTP_QUERY_CONTENT_LENGTH
+								  ? std::to_wstring( p3Http.body.size())
+								  : std::wstring{} ;	// 原byte数だけです
+		   // 予定外headerは空成功にしません
+		   if( value.empty()) {
+			   SetLastError( ERROR_WINHTTP_HEADER_NOT_FOUND) ;
+			   return FALSE ;
+		   }
+
+		   const auto required =
+			   // SDK buffer byte数です
+			   static_cast<DWORD>( (value.size() + 1U) * sizeof( wchar_t)) ;
+		   // 二段照会の必要長と成功返却長を分けます
+		   if( !output || *size < required) {
+			   *size = required ;
+			   SetLastError( ERROR_INSUFFICIENT_BUFFER) ;
+			   return FALSE ;
+		   }
+
+		   std::memcpy( output, value.c_str(), required) ;
+		   *size = required - sizeof( wchar_t) ;
+		   // probe/不足buffer/欠損では進めず、成功した一件だけを消費します
+		   if( index) {
+			   ++*index ;
+		   }
+
+		   return TRUE ;
+	} ;
+	transport.queryAvailable = []( HINTERNET, LPDWORD size) -> BOOL {
+		*size = static_cast<DWORD>( p3Http.body.size() - p3Http.offset) ;
+		return TRUE ;
+	} ;
+	transport.readData = []( HINTERNET, LPVOID output, DWORD requested, LPDWORD read) -> BOOL {
+		const auto count = std::min<std::size_t>(
+			requested, p3Http.body.size() - p3Http.offset) ;	// 有限本文だけを読みます
+		std::memcpy( output, p3Http.body.data() + p3Http.offset, count) ;
+		p3Http.offset += count ;
+		*read = static_cast<DWORD>( count) ;
+		return TRUE ;
+	} ;
+	transport.closeHandle = []( HINTERNET) -> BOOL { return TRUE ; } ;
+	transport.resolveDestination =
+		[]( std::wstring_view,
+		   std::vector<OfficialResolvedNetworkAddress> &addresses) -> NativeError {
+		OfficialResolvedNetworkAddress address ;	// 文書用でない人工public IPv4をRAMだけで返します
+		address.bytes[0] = std::byte{8U} ;
+		address.bytes[1] = std::byte{8U} ;
+		address.bytes[2] = std::byte{8U} ;
+		address.bytes[3] = std::byte{8U} ;
+		addresses		 = {address} ;
+		return 0 ;
+	} ;
+	transport.utcNow = []() {
+		return std::uint64_t{1791698400U} ;
+	} ; // 2026-10-11 06:00:00Zの独立fixture時刻です
+	return transport ;
+}
+/** @brief 回線分類だけの完全非通信fakeです */
+class P3Cost final : public IOfficialNetworkCostReader {
+public:
+	/**
+	 * @brief 人工unrestricted値だけを返します
+	 * @param[out] cost 元fakeの回線分類です
+	 * @return 成功0です。Windows APIを呼びません
+	 */
+	NativeError read( OfficialNetworkCostKind &cost) noexcept override
+	{
+		cost = OfficialNetworkCostKind::UNRESTRICTED ;
+		return 0 ;
+	}
+} ;
+//------------------------------------------------------------------------------
+/**
+ * @brief P4の同thread人工store/本文を既完全HTTP fakeへ結びます
+ * @param[in] store 元RAM署名codecで保存した隔離storeです
+ * @param[in] clock 元fixtureが所有する信頼UTCです
+ * @param[in] zip 非空人工driver又は明示空containerの原byteです
+ * @param[in] sent 元send回数だけを記録する非権限observerです
+ * @return 実HTTP/DNS/costへfallbackしない既通常serviceです
+ * @note 呼出threadだけで使い、host/native/signatureの完全表はcallerが別に所有します
+ */
+//------------------------------------------------------------------------------
+provider_worker_index_detail::Services makeServerP4PipelineServices(
+	std::shared_ptr<SignedIndexStore> store, std::shared_ptr<std::chrono::sys_seconds> clock,
+	const std::string_view zip, std::function<void()> sent)
+{
+	p3Http = {} ;
+	p3Http.body.assign( zip) ;
+	p3Http.sentObserver = std::move( sent) ;
+	provider_worker_index_detail::Services services ;	// 既完全fixtureだけです
+	services.load		   = [store]( const auto now) { return store->reload( now) ; } ;
+	services.utc		   = [clock]() { return std::optional{*clock} ; } ;
+	services.monotonic	   = []() { return std::chrono::steady_clock::time_point{} ; } ;
+	services.httpTransport = []() { return p3HttpTransport() ; } ;
+	services.costReader	   = []() { return std::make_unique<P3Cost>() ; } ;
+	return services ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元二空ZIPが直接input/retained bind後に通常内容拒否となる期待を確認します
+ * @param[in,out] context 共通assertionです
+ * @param[in] summary 実scanの非機密内容結果です
+ * @param[in] retained 二件目も新LOCAL/retained bindから通常INF0拒否へ到達する期待です
+ * @note 旧E_NOTIMPL fenceを合格へ残さず、非空の内容成功とは別に確認します
+ */
+//------------------------------------------------------------------------------
+void assertServerP3InspectionFence( TestContext &context, const IndexPreparationSummary &summary,
+								   bool retained) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 通常scanの初回/claim/dispatchとdownload/retained fenceを完全fakeで確認します
+ * @param[in,out] context 共通assertionです
+ * @param[in] store 一又は二recordの真正人工storeです
+ * @param[in] nowUtc 原fixtureのUTCです
+ * @param[in] caseId 四つの固定入力のIDです
+ * @note 元二scanの取得直後に非機密の数値だけを読み、期待や取得/検査状態を変更しません
+ */
+//------------------------------------------------------------------------------
+void runServerHostScanFixtureCase( TestContext &context, std::shared_ptr<SignedIndexStore> store,
+								  const std::chrono::sys_seconds nowUtc,
+								  const std::string_view		 caseId)
+{
+	// 別入力の送信/本文状態を借りません
+	p3Http					 = {} ;
+	auto native				 = std::make_shared<WorkerIndexState>() ;	// 既完全fakeの所有stateです
+	native->capacityNodes	 = 1U ;
+	const bool referenceCase = caseId == "DOWNLOADED_SERVER_P4_PENDING" ||
+							   // 旧二空ZIPだけが現在行を保持します
+							   caseId == "RETAINED_SERVER_P4_PENDING" ;
+	WorkerIndexProvider inventory{native, referenceCase} ;	// 元capture ownerを保持します
+	const auto			captured =
+		// 同threadで原captureを作ります
+		inventory.scan( 83U, {}, []( const ProviderProgress &) {}) ;
+	DRIVERCRATE_EXPECT( context, captured.succeeded) ;
+	unsigned							 callbacks{} ;	// 一度の初回と二作用境界を実counterへ結びます
+	const WindowsHostPlatformObservation original{
+		WindowsHostObservationState::OBSERVED, WindowsHostPlatform{10U, 0U, 26100U, 9U, 3U, 256U},
+		WindowsHostErrorDomain::NTSTATUS, WindowsHostObservationStage::VERSION,
+		0U} ;											// 独立literalです
+	provider_worker_index_detail::Services services ;	// 完全fake以外へ補完しません
+	services.load = [store]( std::optional<std::chrono::sys_seconds> now) {
+		return store->reload( now) ;
+	} ;
+	services.utc		  = [nowUtc]() { return std::optional{nowUtc} ; } ;
+	services.monotonic	  = []() { return std::chrono::steady_clock::time_point{} ; } ;
+	services.hostPlatform = [&]() {
+		++callbacks ;
+		auto value = original ;	// 初回とclaimでは同じ原値です
+		// 三回目だけdispatch直前の変化又は観測失敗です
+		if( callbacks == 3U && caseId == "HOST_CHANGE_AFTER_CLAIM_BEFORE_DISPATCH") {
+			value.value->buildNumber = 20348U ;
+		}
+		// 元固定faultだけを設定し、他caseの成功や分類を借りません
+		else if( callbacks == 3U && caseId == "OBSERVER_FAILURE_BEFORE_DISPATCH") {
+			value = {WindowsHostObservationState::API_FAILED, std::nullopt,
+					 WindowsHostErrorDomain::NTSTATUS, WindowsHostObservationStage::VERSION,
+					 0xC0000001U} ;
+		}
+
+		return value ;
+	} ;
+	services.beginHostAcquisition = []( SignedIndexAcquisitionAdapter				 &adapter,
+									   std::shared_ptr<const SignedIndexRecordLookup> lookup,
+									   IndexLookupContext current, IndexScanHostSnapshot host,
+									   WindowsHostPlatformObserver			   observer,
+									   std::optional<std::chrono::sys_seconds> now) {
+		return signed_index_acquisition_detail::Access::beginHostFixture(
+			adapter, std::move( lookup), current, std::move( host), std::move( observer), now) ;
+	} ;
+	services.httpTransport = []() { return p3HttpTransport() ; } ;
+	services.costReader	   = []() { return std::make_unique<P3Cost>() ; } ;
+	SignedIndexScanSession session ;	// 原scanの所有snapshot/adapter/ledgerです
+	const auto			   scanned = session.scan( inventory, 1401U, 83U, services,
+												  [] { return false ; }) ;	// 元fake捕捉を借用します
+	DRIVERCRATE_EXPECT( context, scanned.status == IndexScanStatus::COMPLETED && callbacks == 1U &&
+									p3Http.sends == 0U) ;
+	OfficialPreparationPlan plan{83U, 1U, {64U, 128U, 256U, 4U, 8U}, {}} ;	// 二recordも同有限枠です
+	IndexPreparationSummary summary ;										// 計画だけの非機密結果です
+	DRIVERCRATE_EXPECT( context, session.augmentPreparationPlan( plan, services, summary) == 0 &&
+									plan.targets.size() ==
+										(caseId == "RETAINED_SERVER_P4_PENDING" ? 2U : 1U) &&
+									callbacks == 1U) ;
+	// 旧二空ZIPだけがaugment後/claim前に同ownerの本物の参照を公開します
+	if( referenceCase) {
+		const bool references =
+			// 元A/Bだけです
+			inventory.publishReferencesForFixture( context, session, plan, caseId) ;
+		DRIVERCRATE_EXPECT( context, references && callbacks == 1U && p3Http.sends == 0U) ;
+		// 前提不足を後段の通常内容拒否合格へ数えません
+		if( !references) {
+			return ;
+		}
+	}
+
+	OfficialPreparationSession	preparation ;	// 承認と所有claimを通常入口で作ります
+	OfficialPreparationApproval approval{
+		1402U, 83U, 1U, plan.limits, {}} ;	// 原plan全体を明示承認します
+	// 全対象の元snapshotを省略しません
+	for( const auto &target : plan.targets) {
+		approval.decisions.push_back( {target, true, false, false, false}) ;
+	}
+
+	DRIVERCRATE_EXPECT( context,
+					   preparation.initialize( plan) == OfficialPreparationError::NONE &&
+						   preparation.approve( approval) == OfficialPreparationError::NONE) ;
+	const auto task = preparation.claimNext() ;	// 元taskなしに取得を呼びません
+	DRIVERCRATE_EXPECT( context, task.has_value()) ;
+	// 前提不成立を後段の拒否合格にしません
+	if( !task) {
+		return ;
+	}
+
+	const auto acquired = session.acquireForInspection( preparation, *task, services,
+													   [] { return false ; }) ;	// 実scan入口です
+	// P3 acquired numeric observation begins
+	// 失敗中の二つの固定scanだけから取得直後の値を複写します
+	if( caseId == "DOWNLOADED_SERVER_P4_PENDING" || caseId == "RETAINED_SERVER_P4_PENDING") {
+		const auto diagnosticSummary =
+			// 既非機密summaryの複写だけです
+			session.preparationSummary( 1402U) ;
+		std::cout << "P3_DIAG case=" << caseId << " phase=acquired state="
+				  << std::to_string( static_cast<std::uint32_t>( acquired.state))
+				  << " errorBits=" << std::to_string( static_cast<std::uint32_t>( acquired.error))
+				  << " byteCount=" << std::to_string( acquired.byteCount)
+				  << " bodyOffset=" << std::to_string( p3Http.offset)
+				  << " bodySize=" << std::to_string( p3Http.body.size())
+				  << " fakeSends=" << std::to_string( p3Http.sends)
+				  << " items=" << std::to_string( diagnosticSummary.items.size()) << '\n' ;
+		// 元順の各itemを非機密の数値だけで区別し、識別子/本文を出力しません
+		for( std::size_t itemIndex = 0U; itemIndex < diagnosticSummary.items.size(); ++itemIndex) {
+			const auto &item = diagnosticSummary.items[itemIndex] ;	// 読取り専用の一itemです
+			std::cout << "P3_DIAG_ITEM case=" << caseId
+					  << " phase=acquired item=" << std::to_string( itemIndex) << " acquisition="
+					  << std::to_string( static_cast<std::uint32_t>( item.acquisition))
+					  << " acquisitionErrorBits="
+					  << std::to_string( static_cast<std::uint32_t>( item.acquisitionError))
+					  << " content=" << std::to_string( static_cast<std::uint32_t>( item.content))
+					  << " contentErrorBits="
+					  << std::to_string( static_cast<std::uint32_t>( item.contentError))
+					  << " inputBound=" << std::to_string( static_cast<unsigned>( item.inputBound))
+					  << " acceptedInfCount=" << std::to_string( item.acceptedInfCount)
+					  << " parsedInfCount=" << std::to_string( item.parsedInfCount)
+					  << " infCount=" << std::to_string( item.infCount)
+					  << " inventoryFileCount=" << std::to_string( item.inventoryFileCount) << '\n' ;
+		}
+	}
+
+	// P3 acquired numeric observation ends
+	const bool refusal = caseId == "HOST_CHANGE_AFTER_CLAIM_BEFORE_DISPATCH" ||
+						 // 独立期待です
+						 caseId == "OBSERVER_FAILURE_BEFORE_DISPATCH" ;
+	// dispatchで拒否する二例はpayload send0、候補/内容0です
+	if( refusal) {
+		DRIVERCRATE_EXPECT( context, callbacks == 3U && p3Http.sends == 0U &&
+										acquired.state == OfficialPreparationItemState::REJECTED &&
+										acquired.byteCount == 0U) ;
+		const auto result = session.preparationSummary( 1402U) ;	// 元local errorを別確認します
+		DRIVERCRATE_EXPECT( context, result.items.size() == 1U &&
+										result.items[0].acquisitionError ==
+											(caseId == "HOST_CHANGE_AFTER_CLAIM_BEFORE_DISPATCH"
+												 ? HRESULT_FROM_WIN32( ERROR_REVISION_MISMATCH)
+												 : E_NOTIMPL) &&
+										!result.items[0].inputBound &&
+										result.items[0].acceptedInfCount == 0U) ;
+	} else { // byte取得成功をServer内容成功へ換算しません
+		DRIVERCRATE_EXPECT( context, callbacks == 3U && p3Http.sends == 1U &&
+										acquired.state ==
+											OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION &&
+										acquired.byteCount == 22U) ;
+		const auto input = signed_index_candidate_binding_detail::Access::inspectionInputForFixture(
+			session, task->target.identity) ;	// 元直接bindの実入力です
+		DRIVERCRATE_EXPECT( context,
+						   input && input->byteCount == 22U && !input->inspectionPath.empty()) ;
+		assertServerP3InspectionFence( context, session.preparationSummary( 1402U), false) ;
+		// 別recordの期限だけ異なる同owned本文は再取得せず新LOCALへ進みます
+		if( caseId == "RETAINED_SERVER_P4_PENDING") {
+			DRIVERCRATE_EXPECT( context, preparation.complete( *task, acquired)) ;
+			const auto next = preparation.claimNext() ;	// 第二の原taskです
+			DRIVERCRATE_EXPECT( context, next.has_value()) ;
+			// 第二taskが実在する場合だけretained入口へ渡します
+			if( next) {
+				const auto retained = session.acquireForInspection(
+					preparation, *next, services, [] { return false ; }) ;	// 原owned fileだけです
+				// P3 retained numeric observation begins
+				const auto diagnosticSummary =
+					// 既非機密summaryの複写だけです
+					session.preparationSummary( 1402U) ;
+				std::cout << "P3_DIAG case=" << caseId << " phase=retained state="
+						  << std::to_string( static_cast<std::uint32_t>( retained.state))
+						  << " errorBits="
+						  << std::to_string( static_cast<std::uint32_t>( retained.error))
+						  << " byteCount=" << std::to_string( retained.byteCount)
+						  << " bodyOffset=" << std::to_string( p3Http.offset)
+						  << " bodySize=" << std::to_string( p3Http.body.size())
+						  << " fakeSends=" << std::to_string( p3Http.sends)
+						  << " items=" << std::to_string( diagnosticSummary.items.size()) << '\n' ;
+				// 元順の各itemを非機密の数値だけで区別し、識別子/本文を出力しません
+				for( std::size_t itemIndex = 0U; itemIndex < diagnosticSummary.items.size();
+					++itemIndex) {
+					const auto &item = diagnosticSummary.items[itemIndex] ;	// 読取り専用の一itemです
+					std::cout << "P3_DIAG_ITEM case=" << caseId
+							  << " phase=retained item=" << std::to_string( itemIndex)
+							  << " acquisition="
+							  << std::to_string( static_cast<std::uint32_t>( item.acquisition))
+							  << " acquisitionErrorBits="
+							  << std::to_string( static_cast<std::uint32_t>( item.acquisitionError))
+							  << " content="
+							  << std::to_string( static_cast<std::uint32_t>( item.content))
+							  << " contentErrorBits="
+							  << std::to_string( static_cast<std::uint32_t>( item.contentError))
+							  << " inputBound="
+							  << std::to_string( static_cast<unsigned>( item.inputBound))
+							  << " acceptedInfCount=" << std::to_string( item.acceptedInfCount)
+							  << " parsedInfCount=" << std::to_string( item.parsedInfCount)
+							  << " infCount=" << std::to_string( item.infCount)
+							  << " inventoryFileCount=" << std::to_string( item.inventoryFileCount)
+							  << '\n' ;
+				}
+
+				// P3 retained numeric observation ends
+				DRIVERCRATE_EXPECT(
+					context,
+					retained.state == OfficialPreparationItemState::REJECTED &&
+						retained.error == HRESULT_FROM_WIN32( ERROR_TOO_MANY_OPEN_FILES) &&
+						retained.byteCount == 0U && p3Http.sends == 1U && callbacks == 4U &&
+						signed_index_candidate_binding_detail::Access::inspectionInputForFixture(
+							session, next->target.identity)) ;
+				assertServerP3InspectionFence( context, session.preparationSummary( 1402U), true) ;
+			}
+		}
+	}
+
+	std::cout << "P3 scan " << caseId << " hostObservations=" << callbacks
+			  << " fakeSends=" << p3Http.sends << '\n' ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 再署名された人工recordを実native所有lookupとfullhost取得境界へ渡します
+ * @param[in,out] context 共通assertion集計先です
+ * @param[in] snapshot 既RAM鍵で再署名・保存・reloadした原snapshotです
+ * @param[in] nowUtc 人工の信頼UTCです
+ * @param[in] caseId 固定分母の一意IDです
+ * @param[in] platform helperから生成しない六fieldのliteralです
+ * @param[in] initialExpected 初回の独立分類期待です
+ * @param[in] targetExpected 当該recordを未検査取得計画へ記述できる期待です
+ * @param[in] legacyEnum fullhostなしの旧Server入口を試す場合trueです
+ * @note 実OS/HTTP/driver/導入を呼びません。API/domain原値はRAMの独立入力です
+ */
+//------------------------------------------------------------------------------
+void runServerHostIndexFixtureCase( TestContext										&context,
+								   std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot,
+								   const std::chrono::sys_seconds					 nowUtc,
+								   const std::string_view							 caseId,
+								   const WindowsHostPlatform						 platform,
+								   const IndexHostGateState initialExpected,
+								   const bool targetExpected, const bool legacyEnum)
+{
+	InventoryCase inventory ;	// 元完全fakeだけがnative lease/proofを発行します
+	inventory.fixture.nodes = 1U ;
+	static_cast<void>( inventory.scanForIndex()) ;
+	IndexLookupContext		  issued ;	// 原operation/scan/inventoryです
+	std::vector<std::wstring> present ;	// 生IDをログへ出しません
+	auto					  resolver =
+		// 実所有factoryです
+		inventory.provider.makeIndexPublicIdResolver( 1201U, issued, present) ;
+	auto read = lookupSignedIndexRecords( snapshot, issued, issued, present, {}, nowUtc,
+										 // 原署名/IDを保持します
+										 resolver.get()) ;
+	DRIVERCRATE_EXPECT( context, resolver && read.lookup && !read.lookup->relations().empty()) ;
+	// 前提不成立を負例の合格にしません
+	if( !resolver || !read.lookup || read.lookup->relations().empty()) {
+		return ;
+	}
+
+	auto owned = std::make_shared<SignedIndexRecordLookup>(
+		*read.lookup) ;	// hash故障だけに非const所有を使います
+	const auto original = WindowsHostPlatformObservation{
+		WindowsHostObservationState::OBSERVED, platform, WindowsHostErrorDomain::NTSTATUS,
+		WindowsHostObservationStage::VERSION, 0U} ;	// 成功と原status0の独立入力です
+	auto	 fresh = original ;						// 同observerにだけ所有して後から有限変更します
+	unsigned callbacks{} ;							// 旧guardはobserverを消費しない期待です
+	const WindowsHostPlatformObserver observer = [&]() {
+		++callbacks ;
+		return fresh ;
+	} ; // native補完はありません
+	SignedIndexAcquisitionAdapter adapter ;	// このcaseだけのowned issuerです
+	const auto					  begin =
+		   legacyEnum
+							   ? signed_index_acquisition_detail::Access::beginFixture(
+					 adapter, owned, issued, IndexTargetOs::WINDOWS_SERVER, nowUtc)
+							   : signed_index_acquisition_detail::Access::beginHostFixture(
+					 adapter, owned, issued, {issued, original}, observer, nowUtc) ;	// 同原scanです
+	// 初回の未知/未対応と旧enum拒否は取得対象を発行しません
+	if( legacyEnum || initialExpected != IndexHostGateState::ALLOW_UNVERIFIED) {
+		DRIVERCRATE_EXPECT( context, begin != 0 && callbacks == 0U) ;
+		// 旧enumはfullhost成功へ読み替えません
+		if( !legacyEnum) {
+			const auto decision = adapter.hostDecision( issued) ;	// 元分類の読み取りだけです
+			DRIVERCRATE_EXPECT( context, decision && decision->state == initialExpected &&
+											decision->observation.value == original.value &&
+											decision->observation.rawBits == 0U) ;
+		}
+
+		std::cout << "P3 record " << caseId << '\n' ;
+		return ;
+	}
+
+	DRIVERCRATE_EXPECT( context, begin == 0 && callbacks == 0U) ;
+	const OfficialPreparationLimits limits{64U, 128U, 256U, 2U, 4U} ;	// 人工22byteだけの有限枠です
+	// 不正context/hashはhost observerを呼ばず、正しいcontextを置換しません
+	if( caseId == "WRONG_OPERATION" || caseId == "WRONG_SCAN" || caseId == "WRONG_INVENTORY") {
+		auto wrong = issued ;	// 三IDの一つだけを変更します
+		// 元固定faultだけを設定し、他caseの成功や分類を借りません
+		if( caseId == "WRONG_OPERATION") {
+			++wrong.operationId ;
+		}
+		// 元固定faultだけを設定し、他caseの成功や分類を借りません
+		else if( caseId == "WRONG_SCAN") {
+			++wrong.scanSessionId ;
+		} else {
+			++wrong.inventoryGeneration ;
+		}
+
+		SignedIndexPreparationDescription rejected ;	// 不正入力からtargetを作りません
+		DRIVERCRATE_EXPECT( context, adapter.describe( 0U, wrong, nowUtc, limits, rejected) != 0 &&
+										!rejected.target && callbacks == 0U) ;
+		DRIVERCRATE_EXPECT( context,
+						   signed_index_acquisition_detail::Access::beginHostFixture(
+							   adapter, owned, wrong, {wrong, original}, observer, nowUtc) != 0 &&
+							   callbacks == 0U) ;
+	}
+
+	// 同snapshotのrelation hashだけの故障を原署名成功へ混ぜません
+	if( caseId == "CHANGED_RECORD_HASH") {
+		auto &relation = const_cast<IndexRecordRelation &>(
+			// このcase所有copyだけです
+			owned->relations().front()) ;
+		relation.recordSha256[0] ^= 1U ;
+		SignedIndexPreparationDescription rejected ;	// hash故障でtargetなしです
+		DRIVERCRATE_EXPECT( context, adapter.describe( 0U, issued, nowUtc, limits, rejected) != 0 &&
+										!rejected.target && callbacks == 0U) ;
+		std::cout << "P3 action " << caseId << '\n' ;
+		return ;
+	}
+
+	// Termsの実GET直前には完全fakeへも送らず変化を拒否します
+	if( caseId == "TERMS_HOST_CHANGE_BEFORE_GET") {
+		fresh.value->buildNumber = 20348U ;
+		// 完全fakeでも実send0を独立に確認します
+		p3Http = {} ;
+		OfficialHttpClient client{p3HttpTransport()} ;	// GET前の拒否を直接検査します
+		DRIVERCRATE_EXPECT( context, adapter.readTermsText(
+										0U, issued, [nowUtc] { return nowUtc ; }, client,
+										[] { return false ; }) != 0 &&
+										callbacks == 1U && p3Http.sends == 0U) ;
+		DRIVERCRATE_EXPECT( context,
+						   adapter.hostDecision( issued)->state == IndexHostGateState::STALE) ;
+		std::cout << "P3 action " << caseId << '\n' ;
+		return ;
+	}
+
+	SignedIndexPreparationDescription description ;	// 非導入の取得対象だけです
+	const auto						  error =
+		// 実recordと全条件の再確認です
+		adapter.describe( 0U, issued, nowUtc, limits, description) ;
+	DRIVERCRATE_EXPECT( context, (error == 0 && description.target.has_value()) == targetExpected &&
+									callbacks == 0U) ;
+	// 拒否recordからtask/grantを捏造しません
+	if( !targetExpected || error != 0 || !description.target) {
+		std::cout << "P3 record " << caseId << '\n' ;
+		return ;
+	}
+
+	OfficialPreparationSession	  preparation ;	// 実approve/claim状態機械です
+	const OfficialPreparationPlan plan{
+		issued.scanSessionId, 1U, limits, {*description.target}} ;	// 元targetを一件保持します
+	const OfficialPreparationApproval approval{
+		1301U,
+		issued.scanSessionId,
+		1U,
+		limits,
+		{{*description.target, true, false, false, false}}} ;	// 人工同意不要fixtureです
+	DRIVERCRATE_EXPECT( context,
+					   preparation.initialize( plan) == OfficialPreparationError::NONE &&
+						   preparation.approve( approval) == OfficialPreparationError::NONE) ;
+	const auto task = preparation.claimNext() ;	// DTOから権限を作らず実claimを使用します
+	DRIVERCRATE_EXPECT( context, task.has_value()) ;
+	// 初期fixtureの不成立を後段拒否へ読み替えません
+	if( !task) {
+		return ;
+	}
+
+	IndexHostGateState expected =
+		IndexHostGateState::ALLOW_UNVERIFIED ;	// 以下は原IDごとの独立分類literalです
+	// 各fieldの変化は新値がunsupportedでもSTALEです
+	if( caseId == "CHANGED_MAJOR") {
+		fresh.value->majorVersion = 6U ;
+		expected				  = IndexHostGateState::STALE ;
+	}
+	// 元固定faultだけを設定し、他caseの成功や分類を借りません
+	else if( caseId == "CHANGED_MINOR") {
+		fresh.value->minorVersion = 1U ;
+		expected				  = IndexHostGateState::STALE ;
+	}
+	// 元固定faultだけを設定し、他caseの成功や分類を借りません
+	else if( caseId == "CHANGED_BUILD" ||
+			caseId == "STALE_CONTEXT_CANNOT_REAUTHORIZE_AFTER_MATCHING_OBSERVATION" ||
+			caseId == "SAME_CONTEXT_INITIAL_SNAPSHOT_REPLACEMENT_REJECTED") {
+		fresh.value->buildNumber = 20348U ;
+		expected				 = IndexHostGateState::STALE ;
+	}
+	// 元固定faultだけを設定し、他caseの成功や分類を借りません
+	else if( caseId == "CHANGED_ARCH") {
+		fresh.value->nativeArchitecture = 12U ;
+		expected						= IndexHostGateState::STALE ;
+	}
+	// 元固定faultだけを設定し、他caseの成功や分類を借りません
+	else if( caseId == "CHANGED_PRODUCT") {
+		fresh.value->productType = 2U ;
+		expected				 = IndexHostGateState::STALE ;
+	}
+	// 元固定faultだけを設定し、他caseの成功や分類を借りません
+	else if( caseId == "CHANGED_ACTUAL_SUITE") {
+		fresh.value->suiteMask = 0U ;
+		expected			   = IndexHostGateState::STALE ;
+	}
+	// 元固定faultだけを設定し、他caseの成功や分類を借りません
+	else if( caseId == "FRESH_WIN32_FAILURE") {
+		fresh	 = {WindowsHostObservationState::API_FAILED, std::nullopt,
+					WindowsHostErrorDomain::WIN32_CODE, WindowsHostObservationStage::MODULE, 126U} ;
+		expected = IndexHostGateState::UNKNOWN ;
+	}
+	// 元固定faultだけを設定し、他caseの成功や分類を借りません
+	else if( caseId == "FRESH_NTSTATUS_FAILURE" ||
+			caseId == "UNKNOWN_CONTEXT_CANNOT_REAUTHORIZE_AFTER_MATCHING_OBSERVATION") {
+		fresh	 = {WindowsHostObservationState::API_FAILED, std::nullopt,
+					WindowsHostErrorDomain::NTSTATUS, WindowsHostObservationStage::VERSION,
+					0xC0000001U} ;
+		expected = IndexHostGateState::UNKNOWN ;
+	}
+
+	RecordScopedDownloadGrant grant ;	// 失敗時にはNOT_REQUESTEDのままです
+	const auto actionTime = caseId == "EXPIRED_ISSUER_OR_RECORD" ? nowUtc + std::chrono::days{10}
+																 : nowUtc ;	// 原期限を延長しません
+	const auto claim	  = caseId == "SAME_CONTEXT_INITIAL_SNAPSHOT_REPLACEMENT_REJECTED"
+								? signed_index_acquisition_detail::Access::beginHostFixture(
+								  adapter, owned, issued, {issued, fresh}, observer, nowUtc)
+								: adapter.claimApprovedRecord(
+								  preparation, *task, issued,
+								  static_cast<std::uint64_t>( actionTime.time_since_epoch().count()),
+								  grant) ;	// 元全binding後の再観測です
+	// 期限拒否はhost callbackや原許可を消費しません
+	if( caseId == "EXPIRED_ISSUER_OR_RECORD") {
+		DRIVERCRATE_EXPECT( context,
+						   claim != 0 && callbacks == 0U &&
+							   grant.metadata().state == OfficialDownloadGrantState::NOT_REQUESTED) ;
+	}
+	// 元固定faultだけを設定し、他caseの成功や分類を借りません
+	else if( expected == IndexHostGateState::ALLOW_UNVERIFIED) {
+		DRIVERCRATE_EXPECT( context,
+						   claim == 0 && callbacks == 1U &&
+							   grant.metadata().state == OfficialDownloadGrantState::GRANT_ISSUED) ;
+	} else { // 原native codeとローカル拒否を別々に固定します
+		const auto decision = adapter.hostDecision( issued) ;	// 最初の拒否診断だけです
+		DRIVERCRATE_EXPECT( context,
+						   claim != 0 && decision && decision->state == expected &&
+							   decision->observation.domain == fresh.domain &&
+							   decision->observation.rawBits == fresh.rawBits &&
+							   grant.metadata().state == OfficialDownloadGrantState::NOT_REQUESTED) ;
+		// 拒否後のmatching観測、invalidate/rebegin、legacy迂回を全て同contextで拒否します
+		if( caseId == "STALE_CONTEXT_CANNOT_REAUTHORIZE_AFTER_MATCHING_OBSERVATION" ||
+		   caseId == "UNKNOWN_CONTEXT_CANNOT_REAUTHORIZE_AFTER_MATCHING_OBSERVATION" ||
+		   caseId == "SAME_CONTEXT_INITIAL_SNAPSHOT_REPLACEMENT_REJECTED") {
+			const auto first  = *decision ;	// 原codeを後の成功で上書きしません
+			const auto before = callbacks ;	// 再許可にfakeを呼ばせません
+			fresh			  = original ;
+			adapter.invalidate() ;
+			DRIVERCRATE_EXPECT(
+				context, signed_index_acquisition_detail::Access::beginHostFixture(
+							 adapter, owned, issued, {issued, original}, observer, nowUtc) != 0 &&
+							 callbacks == before) ;
+			DRIVERCRATE_EXPECT(
+				context, signed_index_acquisition_detail::Access::beginFixture(
+							 adapter, owned, issued, IndexTargetOs::WINDOWS_11, nowUtc) != 0 &&
+							 callbacks == before) ;
+			const auto retained = adapter.hostDecision( issued) ;	// 最初の診断です
+			DRIVERCRATE_EXPECT( context,
+							   retained && retained->state == first.state &&
+								   retained->observation.rawBits == first.observation.rawBits &&
+								   retained->observation.domain == first.observation.domain) ;
+			// 既完全fakeの二巡観測を新capture用に戻します
+			inventory.fixture.counting = true ;
+			static_cast<void>( inventory.scanForIndex()) ;
+			IndexLookupContext		  renewed ;			// 新しい正当な元captureだけで復帰します
+			std::vector<std::wstring> renewedPresent ;	// 元opaqueを借りません
+			auto renewedResolver = inventory.provider.makeIndexPublicIdResolver(
+				1202U, renewed, renewedPresent) ;	// 原native factoryです
+			auto renewedRead =
+				lookupSignedIndexRecords( snapshot, renewed, renewed, renewedPresent, {}, nowUtc,
+										 // 新所有lookupです
+										 renewedResolver.get()) ;
+			DRIVERCRATE_EXPECT( context, renewed != issued && renewedRead.lookup) ;
+			// 新lookupが実在する場合だけ復帰を確認します
+			if( renewedRead.lookup) {
+				const auto renewedOwned = std::make_shared<const SignedIndexRecordLookup>(
+					*renewedRead.lookup) ;	// 元新contextです
+				DRIVERCRATE_EXPECT( context,
+								   signed_index_acquisition_detail::Access::beginHostFixture(
+									   adapter, renewedOwned, renewed, {renewed, original},
+									   observer, nowUtc) == 0 &&
+									   callbacks == before) ;
+			}
+		}
+	}
+
+	std::cout << "P3 action " << caseId << '\n' ;
 }
 
 } // namespace drivercrate::test

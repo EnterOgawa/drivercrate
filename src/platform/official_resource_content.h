@@ -2,7 +2,7 @@
 /**
  * @file official_resource_content.h
  * @brief 署名された親byte範囲と非実行resource内容選択を定義する
- * @version 01.00.02
+ * @version 01.01.00
  * @date 2026/11/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -21,6 +21,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/11/03  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/23  イベントメッセージDLLの非実行検査を追加
  * </pre>
  * @note 構造・原byte結合だけを扱い、由来・適合・導入権限を発行しない
  * @see docs/adr/0430-signed-resource-ranges-for-driver-content.md
@@ -166,6 +167,15 @@ struct OfficialResourceContentPlan {
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError collectOfficialPeResourceRanges(
 	std::span<const std::byte> executable, std::vector<OfficialResourceSlice> &resources) ;
+//------------------------------------------------------------------------------
+/**
+ * @brief 固定されたPEがデータ専用のAMD64イベントメッセージDLLの形を満たすか調べる
+ * @param[in] image 元PE全byteの借用範囲。同期中は同じ内容を保持する
+ * @return DLLの形式と原メッセージ資源が成立すれば0、その他は元HRESULT
+ * @note ファイルを開かず、ロードや実行も行わない。元CATと配布byteの照合は呼出側の責務
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyOfficialEventMessageResourceDll( std::span<const std::byte> image) ;
 //------------------------------------------------------------------------------
 /**
  * @brief collector専用に親identityと既知leaf hashから正式範囲を解決する

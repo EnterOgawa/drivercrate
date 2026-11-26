@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package_tests.cpp
  * @brief 公式標準INF driver package単体試験実装
- * @version 01.16.03
+ * @version 01.42.02
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -60,6 +60,38 @@
  * Ver.01.16.01 Shunji Ogawa  2026/11/07  現非実行policyと旧fixture期待を照合
  * Ver.01.16.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.16.03 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.17.00 Shunji Ogawa  2026/11/15  storage内容専用・全潜在null import・opaque Modelsと導入非互換を回帰
+ * Ver.01.18.00 Shunji Ogawa  2026/11/16  MTDの正式対と内容用途の分離を検証
+ * Ver.01.19.00 Shunji Ogawa  2026/11/17  MTD serviceと型付きHW属性の正負を検証
+ * Ver.01.20.00 Shunji Ogawa  2026/11/17  標準TapeDriveの正式対・元拒否・共通署名境界を検証
+ * Ver.01.21.00 Shunji Ogawa  2026/11/17  宣言Server scopeとpolicy・Models・identityを分離接続
+ * Ver.01.21.01 Shunji Ogawa  2026/11/18  正規空Strings値とrequired nullの明示空source境界を回帰
+ * Ver.01.22.00 Shunji Ogawa  2026/11/18  限定registry-onlyの実reader/閉包と導入拒否を有限回帰
+ * Ver.01.22.01 Shunji Ogawa  2026/11/18  単独1-byteコメントとinline/設定/controlのraw proof境界を回帰
+ * Ver.01.23.00 Shunji Ogawa  2026/11/20  収集専用の節訪問とHKRバイナリ値の有限枠を検証
+ * Ver.01.24.00 Shunji Ogawa  2026/11/21  収集の一意行と延べ行の境界および従来上限を検証
+ * Ver.01.25.00 Shunji Ogawa  2026/11/21  メディアチェンジャーの端末選択用途と保護条件を検証
+ * Ver.01.26.00 Shunji Ogawa  2026/11/21  HDCの全選択と共有AutoLoggerの収集検査を検証
+ * Ver.01.27.00 Shunji Ogawa  2026/11/21  元HDCの管理者領域の選択構造と用途境界を検証
+ * Ver.01.28.00 Shunji Ogawa  2026/11/21  関連サービスの既存値保持付き文字列と負例を検証
+ * Ver.01.29.00 Shunji Ogawa  2026/11/21  IDEブートの元作用と起動グループの境界を検証
+ * Ver.01.30.00 Shunji Ogawa  2026/11/21  CopyINFの末尾空欄と不正な空参照を検証
+ * Ver.01.31.00 Shunji Ogawa  2026/11/22  選択SCSI基本節の順位と元フィールドを検証
+ * Ver.01.32.00 Shunji Ogawa  2026/11/22  Modelsの型別原順と一意ID上限を検証
+ * Ver.01.33.00 Shunji Ogawa  2026/11/22  公式対象と元Models全行の有限読取りを検証
+ * Ver.01.34.00 Shunji Ogawa  2026/11/22  公式対象の導入節と兼用・欠損の拒否を検証
+ * Ver.01.35.00 Shunji Ogawa  2026/11/22  物理PCI Ethernet属性の一意性と値を対照検証
+ * Ver.01.36.00 Shunji Ogawa  2026/11/22  公式範囲の共有レジストリ節と起点別の観測を検証
+ * Ver.01.36.01 Shunji Ogawa  2026/11/22  無線設定の表示ラベルと実ファイル用途を対照
+ * Ver.01.37.00 Shunji Ogawa  2026/11/22  ストレージ補助サービスの権限とイベントの拒否を検証
+ * Ver.01.38.00 Shunji Ogawa  2026/11/23  自動起動補助サービスの元情報と端末作用の分離を検証
+ * Ver.01.39.00 Shunji Ogawa  2026/11/23  トリアージAutoLoggerの元モードと選択範囲を対照検証
+ * Ver.01.40.00 Shunji Ogawa  2026/11/23  Driver Storeの補助EXEの構文と別配置の拒否を検証
+ * Ver.01.41.00 Shunji Ogawa  2026/11/23  イベント用DLLの元コピー先の正例と誤指定を検証
+ * Ver.01.41.01 Shunji Ogawa  2026/11/23  必須System補助INFのドット区切り文字列名を検証
+ * Ver.01.42.00 Shunji Ogawa  2026/11/24  収集Systemの全サービス走査と実行参照上限を検証
+ * Ver.01.42.01 Shunji Ogawa  2026/11/24  空の旧媒体を持つ必須null補助を確認
+ * Ver.01.42.02 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * </pre>
  *
  * @note 実在するhardware IDや署名packageを使用せず、SetupAPIのINF構文とfail-closed条件を架空fixtureで検証します
@@ -70,9 +102,11 @@
 
 #include "platform/common_driver_package.h"
 #include "platform/generic_inf_package.h"
+#include "platform/inf_dependency_native_internal.h"
 #include "platform/official_download_workspace.h"
 #include "platform/official_driver_package.h"
 #include "platform/official_file_verifier.h"
+#include "platform/storage_inf_effects_internal.h"
 #include "test_framework.h"
 
 #include <Windows.h>
@@ -108,6 +142,10 @@ static_assert( !std::is_convertible_v<MaintenanceDriverClosure, OfficialDriverCl
 static_assert( !std::is_constructible_v<CommonInfInspection, MaintenanceInfInspection>) ;
 static_assert(
 	!std::is_convertible_v<MaintenanceDriverPackageInspection, CommonDriverPackageInspection>) ;
+// collector内容を通常導入の型や必要構成計画へ暗黙昇格させません
+static_assert( !std::is_constructible_v<CommonInfInspection, CollectorInfContentInspection>) ;
+static_assert( !std::is_convertible_v<CollectorInfContentInspection, CommonInfInspection>) ;
+static_assert( !std::is_convertible_v<CollectorDriverPackageContent, CommonDriverPackageInspection>) ;
 
 //------------------------------------------------------------------------------
 // 定数定義
@@ -1104,7 +1142,7 @@ void testMaintenanceInfReferences( TestContext &context)
 	const std::size_t source = inf.find( "sample.sys=1") ;	// source節へ追加する位置
 	inf.insert( source, "helper.exe=1\r\ndata.bin=1\r\n") ;
 	inf.append(
-		"\r\n[SourceDisksFiles]\r\ncommon.dll=1\r\n[Other]\r\nCopyINF=child\\peer.inf,child\\peer.inf\r\nInclude=machine.inf\r\n") ;
+		"\r\n[SourceDisksFiles]\r\ncommon.dll=1\r\n[Other]\r\nCopyINF=child\\peer.inf,child\\peer.inf,\r\nInclude=machine.inf\r\n") ;
 	inf.append( "\r\n[Anonymous]\r\n,sample.sys\r\n") ;
 	DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"test\\sample.inf", inf)) ;
 	const std::array entries{
@@ -1120,8 +1158,8 @@ void testMaintenanceInfReferences( TestContext &context)
 		context, inspectOfficialInfReferences( workspace, entries, L"test\\sample.inf", facts) == 0) ;
 	DRIVERCRATE_EXPECT( context, facts.stage == OfficialInfReferenceStage::INVENTORIED) ;
 	DRIVERCRATE_EXPECT( context, facts.sourceFiles.size() == 4U) ;
-	DRIVERCRATE_EXPECT( context, facts.copyInfPaths.size() == 1U) ;
-	DRIVERCRATE_EXPECT( context, facts.copyInfPaths.front() == L"test\\child\\peer.inf") ;
+	DRIVERCRATE_EXPECT( context,
+					   facts.copyInfPaths == std::vector<std::wstring>{L"test\\child\\peer.inf"}) ;
 	DRIVERCRATE_EXPECT( context, facts.hasExternalDependencies) ;
 	DRIVERCRATE_EXPECT( context, facts.installActionsError != 0) ;
 	OfficialInfInspectionPolicy installPolicy = POLICY ;	// 既存の導入拒否境界
@@ -1162,6 +1200,10 @@ void testMaintenanceInfReferences( TestContext &context)
 		std::string_view( "peer.inf:"),
 		std::string_view( "peer.inf."),
 		std::string_view( "\"\""),
+		std::string_view( "peer.inf,,"),
+		std::string_view( ",peer.inf"),
+		std::string_view( "peer.inf,,second.inf"),
+		std::string_view( "..\\peer.inf,"),
 		std::string_view( ".\\..\\peer.inf"),
 		std::string_view( ".\\C:\\peer.inf"),
 		std::string_view( ".\\\\peer.inf"),
@@ -1363,14 +1405,17 @@ void testInfOnlyIntegrityBoundary( TestContext &context)
  * @param[out] structure 保守構造。署名結果は未検査のまま
  * @param[in] payloadPresent 架空SYSを固定entryへ含める場合true
  * @param[in] checkIntField flags 2正例についてWindows整数APIも比較する場合true
+ * @param[in] policy 架空入力に適用する検査用途と件数上限
+ * @param[in] scopedIds 非空なら元Modelsから照合する架空の公式範囲
  * @return 保守APIの元HRESULT。読取失敗は構造を空にする
  * @throws std::runtime_error 架空workspace初期化に失敗した場合
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] NativeError inspectMaintenanceFixture( TestContext &context, std::string_view inf,
-													MaintenanceInfStructure &structure,
-													bool					 payloadPresent = false,
-													bool					 checkIntField	= false)
+[[nodiscard]] NativeError inspectMaintenanceFixture(
+	TestContext &context, std::string_view inf, MaintenanceInfStructure &structure,
+	bool payloadPresent = false, bool checkIntField = false,
+	const OfficialInfInspectionPolicy &policy	 = MAINTENANCE_POLICY,
+	std::span<const std::wstring>	   scopedIds = {})
 {
 	OfficialDownloadWorkspace workspace ;	// 同期観測完了まで架空byteを所有する
 	const NativeError		  initialized =
@@ -1410,8 +1455,329 @@ void testInfOnlyIntegrityBoundary( TestContext &context)
 		}
 	}
 
-	return inspectMaintenanceInfStructure( workspace, entries, L"test\\sample.inf",
-										  MAINTENANCE_POLICY, structure) ;
+	OfficialInfScopedModelsEvidence scoped ;	// 元Modelsを照合した架空範囲です
+	// 公式範囲の試験では同じ元INFから独立にハッシュとModelsを読み取ります
+	if( !scopedIds.empty()) {
+		structure		= {} ;
+		auto	  &hash = entries.front().sha256 ;	// 同じ固定元INFに結ぶハッシュです
+		// 試験INFの内容を同じ作業領域に結び付けるハッシュ計算結果
+		const auto hashError = computeFileSha256( workspace.path( L"test\\sample.inf"), hash) ;
+		// 元INF読み取りの失敗から試験用の範囲証拠を作りません
+		if( hashError != 0U) {
+			return hashError ;
+		}
+
+		const auto scopeError = readOfficialInfScopedModels(
+			workspace, L"test\\sample.inf", hash, nullptr, scopedIds, scoped) ;	// 元Modelsの診断です
+		// 架空の公式IDでも同じ節内の実行行に結び付くことを必要とします
+		if( scopeError != 0U) {
+			return scopeError ;
+		}
+	}
+
+	return inspectMaintenanceInfStructure( workspace, entries, L"test\\sample.inf", policy,
+										  structure, scopedIds.empty() ? nullptr : &scoped) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 収集の長いレジストリ行と共有節だけが追加枠を使うことを確認する
+ * @param[in,out] context 架空入力と戻り値の比較を集計する試験状態
+ * @note 署名や作用の安全性を認定せず、別起点の共有節を省略しない
+ */
+//------------------------------------------------------------------------------
+void testCollectionInventoryBudget( TestContext &context)
+{
+	auto standard				= MAINTENANCE_POLICY ;	// 多起点fixtureを元ID上限の先で検査する
+	standard.maximumHardwareIds = 256U ;
+	auto collector				= standard ;	// 同じID上限で調査用途だけを変える
+	collector.purpose			= OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+	// 上限超過に対する期待診断
+	const auto overflow = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
+	MaintenanceInfStructure structure ;	// 成功時の作用と失敗時の空状態
+	std::string				binary ;	// 上限64を超える元バイナリの全値
+	// 同じ長さの節を作り一意な行数を境界へ近づける
+	for( std::size_t i = 0U; i < 80U; ++i) {
+		binary += ",aF" ;
+	}
+
+	// 指定の登録行を共通試験素材へ組み込む
+	const auto makeRegistry = [&]( const std::string &row) {
+		return makeMaintenanceInf( {}, "AddReg=Config\r\n", "[Config]\r\n" + row + "\r\n") ;
+	} ;
+	const auto plain = makeRegistry( "HKR,Device,Sample,1" + binary) ;	// 84フィールド
+	DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, plain, structure) == overflow) ;
+	DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, plain, structure, false, false,
+														  collector) == 0) ;
+	DRIVERCRATE_EXPECT(
+		context, std::ranges::any_of( structure.installs, []( const auto &install) {
+			return std::ranges::any_of( install.inventory.coverageGaps, []( const auto &gap) {
+				return gap.kind == OfficialInfInstallCoverageKind::REGISTRY_SCOPE_NOT_ASSESSED ;
+			}) ;
+		})) ;
+	// 境界付近の登録行を独立に比較する
+	for( const auto &row :
+		{"HKLM,Device,Sample,1" + binary, "HKR,Device,Sample,0" + binary,
+		 "HKR,Device,Sample,1" + binary + ",XX", "HKR,Device,Sample,1" + binary + binary}) {
+		DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, makeRegistry( row), structure,
+															  false, false, collector) == overflow) ;
+		DRIVERCRATE_EXPECT( context, structure.installs.empty()) ;
+	}
+
+	std::string models ;				// 90の異なる導入起点に対応する架空機器
+	std::string installs ;				// 全起点が同じ11レジストリ節へ到達する
+	std::string addReg = "AddReg=" ;	// 各起点で記録される元の参照
+	// 導入節を増やし同じ行への再到達を発生させる
+	for( std::size_t i = 0U; i < 11U; ++i) {
+		const auto name = "Shared" + std::to_string( i) ;	// 全起点で共有する節
+		addReg += name + (i == 10U ? "\r\n" : ",") ;
+		installs += "[" + name + "]\r\nHKR,,Marker,1,00\r\n" ;
+	}
+
+	// 共有行を追加し延べ上限だけを変化させる
+	for( std::size_t i = 0U; i < 90U; ++i) {
+		const auto name = "Root" + std::to_string( i) ;	// 当該Models行だけの導入名
+		models += name + "=" + name + ",ROOT\\FICTIONAL_COLLECTION_" + std::to_string( i) + "\r\n" ;
+		installs += "[" + name + ".NT]\r\n" + addReg ;
+	}
+
+	// すべての共有節を使う元INF
+	const auto shared = makeMaintenanceInf( {}, {}, installs, models) ;
+	DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, shared, structure, false, false,
+														  standard) == overflow) ;
+	DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, shared, structure, false, false,
+														  collector) == 0) ;
+	DRIVERCRATE_EXPECT( context, structure.installs.size() == 91U) ;
+	DRIVERCRATE_EXPECT( context, std::ranges::count_if( structure.installs, []( const auto &install) {
+									return install.inventory.coverageGaps.size() == 11U ;
+								}) == 90) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 共通宣言と単独・共有レジストリ節から行数境界用の架空INFを作る
+ * @param[in] uniqueRows 最初の導入起点だけが読むレジストリ行数
+ * @param[in] sharedRows 三つの導入起点がそれぞれ読むレジストリ行数。0なら追加の起点と共有節を省く
+ * @return 元共通宣言、全起点と各行を持つ架空INF
+ * @note レジストリ値に実ファイルを参照させず、個別保持項目の上限から行の上限を分離する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] std::string makeMaintenanceLineBudgetInf( std::size_t uniqueRows,
+													   std::size_t sharedRows)
+{
+	// 共通宣言一行と最初の起点だけが参照する単独節から始める
+	std::string sections = "[SourceDisksFiles.amd64]\r\nsample.sys=1\r\n[UniqueRegistry]\r\n" ;
+	std::string models ;							// 共有節を再訪する追加の架空ROOT ID
+	std::string install = "AddReg=UniqueRegistry" ;	// 最初の起点だけが単独節を参照する
+	// 単独節に異なる値名を一行ずつ定義して、一意行予算を満たす
+	for( std::size_t row = 0U; row < uniqueRows; ++row) {
+		sections += "HKR,,Unique" + std::to_string( row) + ",1,00\r\n" ;
+	}
+
+	// 共有節のある例では同じ一節を別の二起点でも読ませる
+	if( sharedRows != 0U) {
+		install += ",SharedRegistry" ;
+		models = "Second=SecondInstall,ROOT\\FICTIONAL_SHARED_0002\r\n"
+				 "Third=ThirdInstall,ROOT\\FICTIONAL_SHARED_0003\r\n" ;
+		sections += "[SecondInstall.NT]\r\nAddReg=SharedRegistry\r\n"
+					"[ThirdInstall.NT]\r\nAddReg=SharedRegistry\r\n[SharedRegistry]\r\n" ;
+		// 同じ共有節の各行を三起点から調査できるようにする
+		for( std::size_t row = 0U; row < sharedRows; ++row) {
+			sections += "HKR,,Shared" + std::to_string( row) + ",1,00\r\n" ;
+		}
+	}
+
+	return makeMaintenanceInf( {}, install, sections, models) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 収集の一意4,096行と延べ8,192行および従来の4,096行上限を確認する
+ * @param[in,out] context 境界の成否と元起点ごとの観測を集計する試験状態
+ * @note 非実行の元構造だけを比較し、両上限の超過では共通宣言と個別観測を破棄する
+ * @see docs/adr/0551-bounded-shared-inf-inventory-lines.md
+ */
+//------------------------------------------------------------------------------
+void testCollectionInventoryLineBudget( TestContext &context)
+{
+	const auto standard	 = MAINTENANCE_POLICY ;	// 従来の構造調査用途
+	auto	   collector = standard ;			// 同じpolicyで調査用途だけを変える
+	collector.purpose	 = OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+	// 元行上限のWin32エラーをHRESULTへ変換した期待値
+	const auto overflow = static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
+	MaintenanceInfStructure structure ;	// 成功後に同じ結果を再利用し、失敗時の消去も確認する
+	// 試験scope内の結果と集計先を借用して、失敗時に元宣言も個別観測も残らないことを確認する
+	const auto				expectEmpty = [&] {
+		 DRIVERCRATE_EXPECT( context, structure.infRelativePath.empty() &&
+													 structure.infSha256.empty() &&
+													 structure.catalogRelativePath.empty()) ;
+		 DRIVERCRATE_EXPECT( context, structure.hardwareIds.empty() && structure.installs.empty() &&
+													 structure.fileUses.empty() &&
+													 structure.sourceFileNames.empty() &&
+													 !structure.sourceSectionPresent) ;
+	} ;
+
+	// 共通11行と3起点の宣言に単独2,034行、共有2,048行を足すと一意4,096行、延べ8,192行になる
+	const auto shared = makeMaintenanceLineBudgetInf( 2034U, 2048U) ;	// 両上限を同時に満たす元INF
+	DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, shared, structure, false, false,
+														  collector) == 0) ;
+	const std::vector<std::wstring> sharedIds{
+		L"ROOT\\FICTIONAL_STRUCTURE_0001", L"ROOT\\FICTIONAL_SHARED_0002",
+		L"ROOT\\FICTIONAL_SHARED_0003"} ;	// 現OSの全起点に結ぶ元ID
+	DRIVERCRATE_EXPECT( context, structure.hardwareIds == sharedIds) ;
+	DRIVERCRATE_EXPECT( context,
+					   structure.sourceFileNames == std::vector<std::wstring>{L"sample.sys"}) ;
+	DRIVERCRATE_EXPECT( context, structure.installs.size() == sharedIds.size()) ;
+	// 全起点の観測が揃った場合にだけ、各起点で共有節の全行を読んだことを照合する
+	if( structure.installs.size() == sharedIds.size()) {
+		DRIVERCRATE_EXPECT( context, structure.installs[0].inventory.scannedLines == 4083U &&
+										structure.installs[1].inventory.scannedLines == 2049U &&
+										structure.installs[2].inventory.scannedLines == 2049U) ;
+		// 三起点のいずれにも共有節の訪問と原作用の未評価を一件ずつ保持する
+		for( const auto &install : structure.installs) {
+			DRIVERCRATE_EXPECT( context, std::ranges::count( install.inventory.visitedSections,
+														   L"SharedRegistry") == 1) ;
+			DRIVERCRATE_EXPECT(
+				context, std::ranges::count_if( install.inventory.coverageGaps, []( const auto &gap) {
+							 return gap.section == L"SharedRegistry" &&
+									gap.kind ==
+										OfficialInfInstallCoverageKind::REGISTRY_SCOPE_NOT_ASSESSED ;
+						 }) == 1) ;
+		}
+	}
+
+	// 一意4,095行で延べ8,193行に達する入力は延べ上限だけで拒否する
+	const auto tooManyVisits = makeMaintenanceLineBudgetInf( 2032U, 2049U) ;	// 延べ行だけ超過
+	DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, tooManyVisits, structure, false,
+														  false, collector) == overflow) ;
+	expectEmpty() ;
+
+	// 公式範囲では固有行が上限内の共有節を再利用し、各起点に作用と元用途を残す
+	const auto scopedShared =
+		makeMaintenanceLineBudgetInf( 2030U, 2049U) +
+		"HKR,,CoInstallers32,0x00010000,helper.dll,helper.dll\r\n"
+		"HKR,,FileUse,0,extra.sys\r\n" ;	// 同じ値の重複とその後続を持つ架空節です
+	DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, scopedShared, structure, false,
+														  false, collector, sharedIds) == 0U) ;
+	DRIVERCRATE_EXPECT( context, structure.officialHardwareScope && structure.installs.size() == 3U) ;
+	// 各起点で読み取った構造の意味と順序を再利用の有無にかかわらず照合します
+	for( const auto &install : structure.installs) {
+		const auto &inventory = install.inventory ;							// 同じ起点への全観測だけです
+		const bool	first = inventory.baseInstallSection == L"Install" ;	// 単独節も訪問する起点です
+		DRIVERCRATE_EXPECT( context, inventory.scannedLines == (first ? 4082U : 2052U)) ;
+		DRIVERCRATE_EXPECT( context,
+						   std::ranges::count_if( inventory.effects, []( const auto &effect) {
+							   return effect.section == L"SharedRegistry" &&
+									  effect.kind == OfficialInfInstallEffectKind::COINSTALLER ;
+						   }) == 1) ;
+		const std::array<std::wstring_view, 3U> files{L"helper.dll", L"helper.dll",
+													  L"extra.sys"} ;	// 元値と重複を含む期待順です
+		DRIVERCRATE_EXPECT( context, std::ranges::equal( install.fileUses, files, {},
+													   &MaintenanceInfFileUse::target)) ;
+		DRIVERCRATE_EXPECT(
+			context, std::ranges::count_if( inventory.coverageGaps, []( const auto &gap) {
+						 return gap.section == L"SharedRegistry" &&
+								gap.kind ==
+									OfficialInfInstallCoverageKind::REGISTRY_SCOPE_NOT_ASSESSED ;
+					 }) == 1) ;
+	}
+
+	// 公式範囲の再利用で、元の固有行上限を越える入力を救済しません
+	const auto scopedTooMany =
+		makeMaintenanceLineBudgetInf( 2038U, 2049U) +
+		"HKR,,DistinctA,1,00\r\nHKR,,DistinctB,1,00\r\n" ;	// 共通宣言を含めて固有4,096行を越えます
+	DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, scopedTooMany, structure, false,
+														  false, collector, sharedIds) == overflow) ;
+	expectEmpty() ;
+
+	// 同じ共有正例でも従来の調査は延べ4,096行を超えた時点で拒否する
+	DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, shared, structure, false, false,
+														  standard) == overflow) ;
+	expectEmpty() ;
+
+	// 一起点の共通9行と導入宣言1行に単独節を加え、一意行だけの境界を作る
+	const auto distinct		   = makeMaintenanceLineBudgetInf( 4086U, 0U) ;	// 一意・延べとも4,096行
+	const auto tooManyDistinct = makeMaintenanceLineBudgetInf( 4087U, 0U) ;	// 一意・延べとも4,097行
+	// 共有のない上限と超過は両用途でそれぞれ元HRESULTと出力を確認する
+	for( const auto &policy : {standard, collector}) {
+		DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, distinct, structure, false,
+															  false, policy) == 0) ;
+		DRIVERCRATE_EXPECT( context,
+						   structure.hardwareIds ==
+							   std::vector<std::wstring>{L"ROOT\\FICTIONAL_STRUCTURE_0001"}) ;
+		DRIVERCRATE_EXPECT( context, structure.installs.size() == 1U &&
+										structure.installs.front().inventory.scannedLines == 4087U) ;
+		DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, tooManyDistinct, structure,
+															  false, false, policy) == overflow) ;
+		expectEmpty() ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式無線設定の一部だけを元行の型と表示値で認識することを確認する
+ * @param[in,out] context 架空の元INFと全ファイル観測の成否を集計する試験状態
+ */
+//------------------------------------------------------------------------------
+void testScopedWirelessParameterLabels( TestContext &context)
+{
+	constexpr std::string_view inf =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=Net\r\n"
+		"ClassGuid={4d36e972-e325-11ce-bfc1-08002be10318}\r\n"
+		"Provider=Fictional Wireless Corporation\r\nDriverVer=10/07/2026,1.0.0.1\r\n"
+		"CatalogFile=sample.cat\r\n[Manufacturer]\r\nFictional=Models,NTamd64\r\n"
+		"[Models.NTamd64]\r\nFirst=Install,PCI\\VEN_FFFF&DEV_FFFE\r\n"
+		"Second=SecondInstall,PCI\\VEN_FFFF&DEV_FFFD\r\n"
+		"[Install.NT]\r\nCharacteristics=0x84\r\nBusType=5\r\n"
+		"*IfType=71\r\n*MediaType=16\r\n*PhysicalMediaType=9\r\n"
+		"AddReg=Settings\r\n[SecondInstall.NT]\r\nCharacteristics=0x84\r\nBusType=5\r\n"
+		"*IfType=71\r\n*MediaType=16\r\n*PhysicalMediaType=9\r\n"
+		"AddReg=Settings\r\n[Settings]\r\n"
+		"HKR,Ndi\\Params\\Mode,ParamDesc,0,802.11a/b/g mode\r\n"
+		"HKR,Ndi\\Params\\Mode\\enum,1,0x0,RTS/CTS enabled\r\n"
+		"HKR,Ndi\\Params\\Mode,ParamDesc,0,program/loader.dll\r\n"
+		"HKLM,Ndi\\Params\\Mode,ParamDesc,0,802.11a/g mode\r\n"
+		"HKR,Ndi\\Params\\Mode,ParamDesc,0x20000,802.11b/g mode\r\n"
+		"HKR,Ndi\\Params\\Mode\\enum,Name,0,802.11n/ac mode\r\n"
+		"HKR,Ndi\\Params\\Mode,OtherValue,0,802.11a/g other\r\n" ;	// 表示ラベルと同形の負例を含む架空INF
+	const std::array<std::wstring, 2U> ids{L"PCI\\VEN_FFFF&DEV_FFFE",
+										   L"PCI\\VEN_FFFF&DEV_FFFD"} ;	// 二起点の架空の公式ID
+	auto policy			   = MAINTENANCE_POLICY ;						// 実pkg署名や端末を使用しない保守用の試験policy
+	policy.acceptedClasses = ACCEPTED_CLASSES ;
+	policy.purpose		   = OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+	MaintenanceInfStructure structure ;	// 同じ元構造の公式範囲と通常の結果
+	DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, inf, structure, false, false,
+														  policy, ids) == 0U) ;
+	DRIVERCRATE_EXPECT( context, structure.installs.size() == ids.size()) ;
+	// 両起点で共有節の用途型をそのまま保持することを照合する
+	for( const auto &install : structure.installs) {
+		const auto &uses = install.fileUses ;	// 公式範囲で元にあった全用途
+		DRIVERCRATE_EXPECT( context, install.parser.state == MaintenanceInspectionState::PASSED) ;
+		DRIVERCRATE_EXPECT( context, uses.size() == 7U) ;
+		DRIVERCRATE_EXPECT( context, std::ranges::count( uses, L"WirelessParameterLabel",
+													   &MaintenanceInfFileUse::directive) == 2) ;
+		DRIVERCRATE_EXPECT( context, std::ranges::count( uses, L"RegistryFileUseNotAssessed",
+													   &MaintenanceInfFileUse::directive) == 5) ;
+	}
+
+	DRIVERCRATE_EXPECT(
+		context, inspectMaintenanceFixture( context, inf, structure, false, false, policy) == 0U) ;
+	DRIVERCRATE_EXPECT( context, structure.installs.size() == ids.size()) ;
+	// 公式の元選択がない保守経路では元の未検査用途のまま保持する
+	for( const auto &install : structure.installs) {
+		const auto &uses = install.fileUses ;	// 公式範囲のない同じ元用途
+		DRIVERCRATE_EXPECT( context, std::ranges::count( uses, L"RegistryFileUseNotAssessed",
+													   &MaintenanceInfFileUse::directive) == 7) ;
+	}
+
+	auto mixed = std::string{inf} ;	// 無線とEthernetの属性を混ぜた架空元INF
+	mixed.replace( mixed.find( "*MediaType=16"), std::string_view{"*MediaType=16"}.size(),
+				  "*MediaType=0") ;
+	DRIVERCRATE_EXPECT( context, inspectMaintenanceFixture( context, mixed, structure, false, false,
+														  policy, ids) == 0U) ;
+	DRIVERCRATE_EXPECT( context, structure.installs.size() == ids.size() &&
+									structure.installs.front().parser.state ==
+										MaintenanceInspectionState::UNSUPPORTED) ;
 }
 
 /** @brief 一数値fixtureと期待する個別診断 */
@@ -3514,6 +3880,96 @@ void testStandardComponentActions( TestContext &context)
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 全てのSystemサービス宣言の検査と実行ファイル用の上限を確認します
+ * @param[in,out] context 収集用途と通常用途の構造検査を集計します
+ * @note 架空INFを読み取るだけで署名や導入許可を生成しません
+ */
+//------------------------------------------------------------------------------
+void testCollectorSystemServiceBudget( TestContext &context)
+{
+	constexpr std::string_view INF =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=System\r\n"
+		"ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}\r\nProvider=Fixture\r\n"
+		"DriverVer=11/03/2026,2.0.0.0\r\nCatalogFile=sample.cat\r\n"
+		"[DestinationDirs]\r\nDefaultDestDir=13\r\n[SourceDisksNames]\r\n1=fixture,,,\r\n"
+		// 全33機器に共通の架空カーネルサービスです
+		"[Kernel]\r\nServiceType=1\r\nStartType=3\r\nErrorControl=1\r\nServiceBinary=%13%\\kernel.sys\r\n" ;
+	// 正式Systemだけを対象にします
+	const std::array classes{std::wstring_view{L"System"}} ;
+	// 構文識別です
+	const std::array signatures{std::wstring_view{L"$Windows NT$"}} ;
+	// 正常収集、通常用途、最後の不正宣言、33件の実行ファイル参照、管理者領域を確認します
+	for( unsigned scenario = 0U; scenario < 5U; ++scenario) {
+		const bool	withPrograms = scenario == 3U ;	// 複数節に同じEXEを宣言する対照です
+		std::string body{INF} ;						// 試行ごとの架空INFです
+		std::string sections ;						// 各機器が所有する導入節とサービス節です
+		body += "[SourceDisksFiles]\r\nkernel.sys=1\r\n" ;
+		body += withPrograms ? "helper.exe=1\r\n[Files]\r\nkernel.sys\r\nhelper.exe\r\n"
+							   "[Helper]\r\nServiceType=0x10\r\nStartType=2\r\nErrorControl=1\r\n"
+							   "ServiceBinary=%13%\\helper.exe\r\n"
+							 : "[Files]\r\nkernel.sys\r\n" ;
+		body += "[Manufacturer]\r\nFixture=Models,NTamd64\r\n[Models.NTamd64]\r\n" ;
+		// 一つのバイナリを正規の33機器が別々の節から参照します
+		for( unsigned index = 0U; index < 33U; ++index) {
+			const auto suffix  = std::to_string( index) ;	// 架空IDと元節の対応番号です
+			const auto install = "Install" + suffix ;		// 同じ機器の選択節です
+			body += "Device=" + install + ",ACPI\\SYNTHETIC_SERVICE_" + suffix + "\r\n" ;
+			sections +=
+				"[" + install + ".NT]\r\nCopyFiles=Files\r\n[" + install + ".NT.Services]\r\n" ;
+			sections += scenario == 2U && index == 32U
+							? "AddService=FixtureKernel,2,MissingService\r\n"
+							: "AddService=FixtureKernel,2,Kernel\r\n" ;
+			// 実行ファイルの重複は宣言数の計数から除きません
+			if( withPrograms) {
+				sections += "AddService=FixtureHelper,0,Helper\r\n" ;
+			}
+		}
+
+		body += sections ;
+
+		OfficialDownloadWorkspace workspace ;	// 当該対照だけが所有するローカル入力です
+		const auto				  mode =
+			   scenario == 4U
+							   ? OfficialWorkspaceMode::ADMINISTRATOR
+							   : OfficialWorkspaceMode::CURRENT_USER_INSPECTION ;	// 端末側と同じ領域を対照にします
+		DRIVERCRATE_EXPECT(
+			context, workspace.initialize( L"system-service-budget", 9870U + scenario, mode) == 0) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", body)) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "synthetic")) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"kernel.sys", "synthetic")) ;
+		std::vector<OfficialZipEntry> entries{
+			OfficialZipEntry{L"sample.inf", body.size()}, OfficialZipEntry{L"sample.cat", 9U},
+			OfficialZipEntry{L"kernel.sys", 9U}} ;	// 元配布の閉じた一覧です
+		// 実行ファイル付き条件では同じ一つのファイルに全宣言を結びます
+		if( withPrograms) {
+			DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"helper.exe", "synthetic")) ;
+			entries.push_back( OfficialZipEntry{L"helper.exe", 9U}) ;
+		}
+
+		OfficialInfInspectionPolicy policy{
+			64U, 32U, classes, {}, signatures} ;	// 機器数は全33件を受け取ります
+		policy.acceptAnyProvider					= true ;
+		policy.allowRequiredDriverComponents		= true ;
+		policy.rejectInstallActions					= true ;
+		policy.allowReferencedExecutablesForContent = true ;
+		policy.rejectUnreferencedPrograms			= false ;
+		policy.purpose = scenario == 1U ? OfficialInfInspectionPurpose::STANDARD_DRIVER
+										: OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+		OfficialInfPackage package ;	// 読取り専用の結果です
+		const auto error = inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy,
+													 package) ;	// 元の診断です
+		const std::array<HRESULT, 5U> expected{0, HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW),
+											   HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED),
+											   HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW),
+											   // 各条件の期待値です
+											   HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)} ;
+		DRIVERCRATE_EXPECT( context, error == expected[scenario]) ;
+		DRIVERCRATE_EXPECT( context, package.hardwareIds.size() == (scenario == 0U ? 33U : 0U)) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 原Systemのfileなし継承と、宣言file/作用の欠損を区別します
  * @param[in,out] context 架空INFだけの構造境界を集計します
  */
@@ -3594,6 +4050,2405 @@ void testInheritedSystemContent( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 元Modelsのbare/GUID/asteriskと順序・kindを保持し、不正文字/用途超過を拒否します
+ * @param[in,out] context 実INF readerの結果を集計します
+ * @note 256文字は容器上限の試験であり、Windows hardware IDの200文字未満という適合保証ではありません
+ */
+//------------------------------------------------------------------------------
+void testOpaqueNativeModels( TestContext &context)
+{
+	const std::vector<std::pair<std::string, bool>> cases{
+		{"FictionalEnclosure", true},
+		{"{11111111-2222-3333-4444-555555555555}", true},
+		{"*FictionalDevice", true},
+		{"FiCtIoNaL\\A\\B", true},
+		{std::string( 256U, 'F'), true},
+		{"", false},
+		{"Fictional Device", false},
+		{"Fictional,Device", false},
+		{std::string{"Fictional\x01"}, false},
+		{std::string{"Fictional\x7f"}, false},
+		{std::string{"Fictional\xc3\xa9"}, false},
+		{std::string( 257U, 'F'), false},
+		{std::string{"Fictional\0Tail", 14U}, false},
+	} ; // 原fieldを補完しない有限正負集合です
+	// 全caseを原INFへ独立に保存し、旧backslash必須の拒否を正例で回帰します
+	for( std::size_t index = 0U; index < cases.size(); ++index) {
+		const auto &[id, accepted] = cases[index] ;					// 元文字列と独立期待です
+		std::string			   body{VALID_INF} ;					// 架空Netの既存copy/source条件を維持します
+		const std::string_view original{"PCI\\VEN_1234&DEV_5678"} ;	// 置換する第2 fieldだけです
+		body.replace( body.find( original), original.size(), "\"" + id + "\"") ;
+		OfficialDownloadWorkspace workspace ;	// 元byteの独立ownerです
+		DRIVERCRATE_EXPECT( context,
+						   workspace.initialize( L"opaque-models-test", 3530U + index) == 0) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", body)) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "not-signed")) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.sys", "driver")) ;
+		const std::array   entries{OfficialZipEntry{L"sample.inf", body.size()},
+								   OfficialZipEntry{L"sample.cat", 10U},
+								   OfficialZipEntry{L"sample.sys", 6U}} ;	// 全元fileです
+		OfficialInfPackage package ;										// 原順の一意ID列です
+		const auto error = inspectOfficialInfPackage( workspace, entries, L"sample.inf", POLICY,
+													 package) ;	// 元native結果です
+		DRIVERCRATE_EXPECT( context, (error == 0) == accepted) ;
+		// 正例のcase/kind/順序を公開metadataの同readerでも確認します
+		if( accepted && error == 0) {
+			const std::wstring expected{id.begin(), id.end()} ;	// ASCIIの元code unitだけです
+			OfficialInfPublishedIdentity identity ;				// 導入権限を持たない型です
+			DRIVERCRATE_EXPECT( context, package.hardwareIds == std::vector<std::wstring>(
+																   {expected, L"PCI\\VEN_1234"})) ;
+			DRIVERCRATE_EXPECT( context,
+							   readOfficialInfPublishedIdentity( workspace, package, identity) == 0) ;
+			DRIVERCRATE_EXPECT( context, identity.models.size() == 1U) ;
+			// 元Modelsが読めた場合だけ元field種別と順序を比較します
+			if( identity.models.size() == 1U) {
+				DRIVERCRATE_EXPECT( context, identity.models.front().hardwareIds ==
+												std::vector<std::wstring>{expected}) ;
+				DRIVERCRATE_EXPECT( context, identity.models.front().compatibleIds ==
+												std::vector<std::wstring>{L"PCI\\VEN_1234"}) ;
+			}
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 大小文字を無視する重複検査と型別の元順・表記を確かめます
+ * @param[in,out] context 元順、型と独立した一意ID上限の検査結果を集計します
+ */
+//------------------------------------------------------------------------------
+void testModelIdDeduplication( TestContext &context)
+{
+	// 複数のID欄を含む、人工の元Models行と差し替える位置
+	constexpr std::string_view original{
+		"%DeviceName%=Install,PCI\\VEN_1234&DEV_5678,PCI\\VEN_1234\r\n"} ;
+	// 大小文字の異なる重複、種別と元の行順を確認する対照のModels行
+	constexpr std::string_view models{"Example=Install,TestBus\\Zulu,TestBus\\Shared\r\n"
+									  "Other=Install,testbus\\zulu,TESTBUS\\SHARED\r\n"
+									  "Third=Install,TestBus\\Alpha,testbus\\ZUlu\r\n"
+									  "Fourth=Install,testbus\\shared,testbus\\alpha\r\n"} ;
+	std::string				   body{VALID_INF} ;	// 旧正常構造のModels行だけを置き換えます
+	body.replace( body.find( original), original.size(), models) ;
+	OfficialDownloadWorkspace workspace ;	// 同じ元byteで上限内と上限超過を検査します
+	DRIVERCRATE_EXPECT( context, workspace.initialize( L"model-id-deduplication", 3560U) == 0) ;
+	DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", body)) ;
+	DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "not-signed")) ;
+	DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.sys", "driver")) ;
+	// 同じ試験INFに対応するCATとSYSを含む展開メンバー表
+	const std::array entries{OfficialZipEntry{L"sample.inf", body.size()},
+							 OfficialZipEntry{L"sample.cat", 10U},
+							 OfficialZipEntry{L"sample.sys", 6U}} ;
+	auto			 policy	  = POLICY ;	// 一意な値3件までを許す検査条件です
+	policy.maximumHardwareIds = 3U ;
+	OfficialInfPackage package ;	// 大小文字違いをまとめた元順ID列です
+	DRIVERCRATE_EXPECT( context, inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy,
+														  package) == 0) ;
+	DRIVERCRATE_EXPECT( context, package.hardwareIds ==
+									std::vector<std::wstring>(
+										{L"TestBus\\Zulu", L"TestBus\\Shared", L"TestBus\\Alpha"})) ;
+	OfficialInfPublishedIdentity identity ;	// 型付きの原順と各型の最初の表記を確認します
+	DRIVERCRATE_EXPECT( context,
+					   readOfficialInfPublishedIdentity( workspace, package, identity) == 0) ;
+	DRIVERCRATE_EXPECT( context, identity.models.size() == 1U) ;
+	// 期待した唯一のModels節が得られた場合だけ、元の順序と表記を参照します
+	if( identity.models.size() == 1U) {
+		DRIVERCRATE_EXPECT( context,
+						   identity.models.front().hardwareIds ==
+							   std::vector<std::wstring>(
+								   {L"TestBus\\Zulu", L"TestBus\\Alpha", L"testbus\\shared"})) ;
+		DRIVERCRATE_EXPECT( context,
+						   identity.models.front().compatibleIds ==
+							   std::vector<std::wstring>(
+								   {L"TestBus\\Shared", L"testbus\\ZUlu", L"testbus\\alpha"})) ;
+	}
+
+	// 元の一意上限エラーを確認します
+	policy.maximumHardwareIds = 2U ;
+	DRIVERCRATE_EXPECT(
+		context, inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy, package) ==
+					 HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
+	DRIVERCRATE_EXPECT( context, package.hardwareIds.empty()) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元行の証拠と、公式Hardware欄の位置、容量、拒否時の出力を確認します
+ * @param[in,out] context 元INF読取りの各対照を集計します
+ */
+//------------------------------------------------------------------------------
+void testScopedModelsEvidence( TestContext &context)
+{
+	// 現Windows側の実選択節と元行を再現する人工INFの先頭
+	constexpr std::string_view header{"[Version]\r\nSignature=\"$Windows NT$\"\r\n"
+									  "[Manufacturer]\r\nFictional=Rows,NTamd64.10.0\r\n"
+									  "[Rows.NTamd64.10.0]\r\n"} ;
+	// 最初はCompatible IDだけ、次はHardware ID欄に一致する対照行
+	constexpr std::string_view firstRows{"First=Install,TestBus\\Other,TESTBUS\\Target\r\n"
+										 "Second=Install2,TestBus\\Target\r\n"} ;
+	// 行数の境界を確認するため繰り返す非対象の元行
+	constexpr std::string_view tail{"Tail=Install,TestBus\\Tail\r\n"} ;
+	const std::wstring		   target{L"testbus\\target"} ;	// 公式の大小文字を変更した完全値です
+	// 同じ配布元のHardware欄に載る唯一の公式対象
+	const std::array		   scope{target} ;
+	// 架空INFの装飾済み節を選ぶための明示クライアント観測点
+	const OfficialInfModelsPlatform platform{.buildNumber = 19045U} ;
+	OfficialDownloadWorkspace		workspace ;	// 各対照は別名の元INFを使います
+	DRIVERCRATE_EXPECT( context, workspace.initialize( L"scoped-model-evidence", 3561U) == 0) ;
+
+	// この試験内だけで元workspace、明示OS、観測出力を同期使用します
+	const auto check = [&]( const std::wstring_view name, const std::string_view rows,
+						   const std::span<const std::wstring> ids, const NativeError expected,
+						   const std::function<bool()> &cancellation = {},
+						   bool							alteredHash	 = false) {
+		std::string body{header} ;	// 各原対照の完全なUTF-8 INFです
+		body += rows ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, name, body)) ;
+		std::wstring hash ;	// 所有ファイルの元ハッシュを独立に求めます
+		DRIVERCRATE_EXPECT( context, computeFileSha256( workspace.path( name), hash) == 0) ;
+		// 元INFのSHA-256だけを変え、内容証拠との不一致を試します
+		if( alteredHash && !hash.empty()) {
+			hash.front() = hash.front() == L'0' ? L'1' : L'0' ;
+		}
+
+		OfficialInfScopedModelsEvidence evidence ;	// 失敗時に前回値を返さないことも確認します
+		evidence.infSha256 = L"old" ;
+		// 同じ作業領域の元ファイルから公式Modelsを読んだ診断値
+		const auto error = readOfficialInfScopedModels( workspace, name, hash, &platform, ids,
+													   evidence, cancellation) ;
+		DRIVERCRATE_EXPECT( context, error == expected) ;
+		// 拒否した入力から元ハッシュや部分節を発行していないことを確認します
+		if( expected != 0) {
+			DRIVERCRATE_EXPECT( context, evidence.infSha256.empty() && evidence.sections.empty()) ;
+		}
+
+		return evidence ;
+	} ;
+
+	// 二つの対象行と一つの非対象行を含む、正常入力の元証拠
+	const auto good = check( L"good.inf", std::string{firstRows} + std::string{tail}, scope, 0) ;
+	DRIVERCRATE_EXPECT( context, good.infSha256.size() == 64U && good.sections.size() == 1U) ;
+	// 一つの実選択節が得られた場合にだけ行要約と一致位置を確認します
+	if( good.sections.size() == 1U) {
+		const auto &section = good.sections.front() ;	// 元3行の独立期待値です
+		DRIVERCRATE_EXPECT(
+			context, section.modelSection == L"Rows.NTamd64.10.0" && section.modelRows == 3U &&
+						 section.idFields == 4U &&
+						 section.orderedRowsSha256 ==
+							 L"01c3466f0fda9aad36856fa67891973046d7f7e4d2b5cd36e3cc522a0fa713ab") ;
+		DRIVERCRATE_EXPECT( context, section.matches.size() == 1U &&
+										section.matches.front().modelRow == 2U &&
+										section.matches.front().hardwareId == L"TestBus\\Target" &&
+										section.matches.front().installBase == L"Install2") ;
+	}
+
+	check( L"compatible.inf", "First=Install,TestBus\\Other,TESTBUS\\Target\r\n", scope,
+		  HRESULT_FROM_WIN32( ERROR_NOT_FOUND)) ;
+	check( L"duplicate.inf", std::string{firstRows} + "Third=Install,testbus\\target\r\n", scope,
+		  HRESULT_FROM_WIN32( ERROR_DUP_NAME)) ;
+	check( L"late-inf.inf", std::string{firstRows} + "Tail=Install\r\n", scope,
+		  HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
+	check( L"hash.inf", firstRows, scope, TRUST_E_BAD_DIGEST, {}, true) ;
+	check( L"duplicate-scope.inf", firstRows, std::array{target, std::wstring{L"TESTBUS\\TARGET"}},
+		  E_INVALIDARG) ;
+	unsigned calls{} ;	// 元行を読み始めた後の取消しです
+	check( L"cancel.inf", firstRows, scope, HRESULT_FROM_WIN32( ERROR_CANCELLED),
+		  [&calls] { return ++calls >= 4U ; }) ;
+
+	std::string manyRows ;	// 最終行にだけ公式Hardware IDがあります
+	// 同じ非対象行を規定行数まで追加し、等号の上限を試します
+	for( std::size_t index = 1U; index < 16'384U; ++index) {
+		manyRows += tail ;
+	}
+
+	manyRows += "Last=Install2,TestBus\\Target\r\n" ;
+	// 共通の行数上限ちょうどまで非対象行を含む入力の検証結果
+	const auto atLimit = check( L"row-limit.inf", manyRows, scope, 0) ;
+	DRIVERCRATE_EXPECT( context, atLimit.sections.size() == 1U &&
+									atLimit.sections.front().matches.size() == 1U &&
+									atLimit.sections.front().matches.front().modelRow == 16'384U) ;
+	check( L"row-over.inf", manyRows + std::string{tail}, scope,
+		  HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
+
+	std::string extraIds ;	// 同じIDでも元フィールドとして上限に加えます
+	// 一行で消費するCompatible IDの件数を増やす対照を構築します
+	for( unsigned index = 0U; index < 15U; ++index) {
+		extraIds += ",TestBus\\Compat" ;
+	}
+
+	std::string wideRows ;	// 4,096行に各16 IDです
+	// 非対象の幅広いModels行を追加してIDの全件上限まで増やします
+	for( unsigned index = 1U; index < 4'096U; ++index) {
+		wideRows += "Wide=Install,TestBus\\Other" + extraIds + "\r\n" ;
+	}
+
+	wideRows += "Last=Install2,TestBus\\Target" + extraIds + "\r\n" ;
+	// 共通のIDフィールド上限と同じ件数で得た元証拠
+	const auto atIdLimit = check( L"id-limit.inf", wideRows, scope, 0) ;
+	DRIVERCRATE_EXPECT( context, atIdLimit.sections.size() == 1U &&
+									atIdLimit.sections.front().idFields == 65'536U) ;
+	check( L"id-over.inf", wideRows + std::string{tail}, scope,
+		  HRESULT_FROM_WIN32( ERROR_BUFFER_OVERFLOW)) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元Modelsを検証した公式対象の導入節、節兼用、欠損、取消しを確認する
+ * @param[in,out] context 架空INFの非実行棚卸しと各拒否を集計する
+ */
+//------------------------------------------------------------------------------
+void testScopedModelsInventory( TestContext &context)
+{
+	// 元INFのModels観測を固定する明示OS。試験中の端末ビルドには依存しない
+	const OfficialInfModelsPlatform platform{.buildNumber = 19045U} ;
+	OfficialDownloadWorkspace		workspace ;	// 同じ元ファイルを証拠と棚卸しへ結ぶ
+	DRIVERCRATE_EXPECT( context, workspace.initialize( L"scoped-model-inventory", 3562U) == 0) ;
+	DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "unsigned")) ;
+	auto policy	   = POLICY ;	// 同じ有限構造条件で対象だけ変える
+	policy.purpose = OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+	// 正常な元選択の基本導入節へ結び付ける架空Hardware ID
+	const std::wstring			firstId{L"PCI\\VEN_1234&DEV_5678"} ;
+	// 追加の元選択にだけ対応する二番目の架空Hardware ID
+	const std::wstring			secondId{L"TESTBUS\\SECOND"} ;
+	// 条件確認の時点ですでに取消し済みとする同期コールバック
+	const std::function<bool()> cancel = [] { return true ; } ;
+	const auto check = [&]( std::wstring_view name, std::string_view directive, bool secondRoot,
+						   NativeError expected, std::optional<std::ptrdiff_t> unknown = {}) {
+		// ケースごとに差分を加える前の正常な元INF
+		std::string body{VALID_INF} ;
+		std::string extraRows ;	// 範囲外の基本節は元Modelsの全行証拠にだけ含める
+		// 目的外の節を十分に増やし、元Modelsの範囲が解析予算と区別されることを確認します
+		for( std::size_t row = 0U; row < 4096U; ++row) {
+			extraRows += "Other=Outside,TESTBUS\\OTHER\r\n" ;
+		}
+
+		// 二つ目の対象を使うケースでは、その元行も公式範囲へ含めます
+		if( secondRoot) {
+			extraRows += "Second=SecondInstall,TESTBUS\\SECOND\r\n" ;
+			body += "[SecondInstall.NT]\r\nAddReg=DriverCopy\r\n" ;
+		}
+
+		body.insert( body.find( "\r\n[SourceDisksNames.amd64]"), extraRows) ;
+		body.replace( body.find( "CopyFiles=DriverCopy"),
+					 std::string_view{"CopyFiles=DriverCopy"}.size(), directive) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, name, body)) ;
+		// 試験INFの内容をModelsの証拠へ固定する元ハッシュ
+		std::wstring hash ;
+		DRIVERCRATE_EXPECT( context, computeFileSha256( workspace.path( name), hash) == 0) ;
+		// 同じ元INFから完全一致を探す二つの架空の公式対象
+		const std::array				ids{firstId, secondId} ;
+		// 元INF、明示OSと元行の一致位置を保持する検査結果
+		OfficialInfScopedModelsEvidence evidence ;
+		DRIVERCRATE_EXPECT( context, readOfficialInfScopedModels(
+										workspace, name, hash, &platform,
+										std::span( ids).first( secondRoot ? 2U : 1U), evidence) == 0) ;
+		DRIVERCRATE_EXPECT( context, evidence.platform == platform) ;
+		// 検査すべき元INFと同じ閉包のCATを結ぶメンバー表
+		const std::array		entries{OfficialZipEntry{std::wstring{name}, body.size(), hash},
+									OfficialZipEntry{L"sample.cat", 8U}} ;
+		// 公式範囲と実際の導入作用を双方確認する格納先
+		MaintenanceInfStructure structure ;
+		// 元Modelsの証拠を使って同じINFの導入構造を検査した診断値
+		const auto				result =
+			inspectMaintenanceInfStructure( workspace, entries, name, policy, structure, &evidence) ;
+		DRIVERCRATE_EXPECT( context, result == expected) ;
+		// 成功を期待するケースでは元選択と別の節が混ざらないことを確認します
+		if( expected == 0) {
+			DRIVERCRATE_EXPECT(
+				context,
+				structure.officialHardwareScope &&
+					structure.hardwareIds == std::vector<std::wstring>{firstId} &&
+					structure.installs.size() == 1U &&
+					structure.installs.front().inventory.selectedInstallSection == L"Install.NT" &&
+					structure.referenceCoverage == MaintenanceInfReferenceCoverage::NOT_CHECKED) ;
+			// 未知の作用を観測させる対照では、内容が得られた場合にだけ実観測を照合します
+			if( unknown && !structure.installs.empty()) {
+				// 指定作用の関連属性を比較する一番目の選択構造
+				const auto &observed = structure.installs.front() ;
+				DRIVERCRATE_EXPECT(
+					context,
+					std::ranges::count_if( observed.inventory.effects, []( const auto &effect) {
+						return effect.kind == OfficialInfInstallEffectKind::UNKNOWN_DIRECTIVE ;
+					}) == *unknown) ;
+			}
+
+			DRIVERCRATE_EXPECT( context, inspectMaintenanceInfStructure(
+											workspace, entries, name, policy, structure, &evidence,
+											&cancel) == HRESULT_FROM_WIN32( ERROR_CANCELLED)) ;
+			DRIVERCRATE_EXPECT( context, inspectMaintenanceInfStructure( workspace, entries, name,
+																	   policy, structure) != 0) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, structure.installs.empty() && !structure.officialHardwareScope) ;
+	} ;
+
+	check( L"scope.inf", "CopyFiles=DriverCopy", false, 0) ;
+	check( L"missing.inf", "CopyFiles=Missing", false, HRESULT_FROM_WIN32( ERROR_SECTION_NOT_FOUND)) ;
+	check( L"model-role.inf", "CopyFiles=Models.NTamd64", false,
+		  HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
+	check( L"shared-role.inf", "CopyFiles=DriverCopy", true, HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
+	// 物理ネットワークの候補として許可する作用を記述した正常な元節
+	const std::string physical{"CopyFiles=DriverCopy\r\nCharacteristics=0x84\r\nBusType=5\r\n"
+							   "*IfType=6\r\n*MediaType=0\r\n*PhysicalMediaType=14"} ;
+	check( L"physical-ethernet.inf", physical, false, 0, 0) ;
+	check( L"duplicate-bus.inf", physical + "\r\nBusType=5", false, 0, 6) ;
+	// 同じ媒体で属性だけ異なるように変更する対照の元節
+	auto mismatched = physical ;
+	mismatched.replace( mismatched.find( "*PhysicalMediaType=14"),
+					   std::string_view{"*PhysicalMediaType=14"}.size(), "*PhysicalMediaType=9") ;
+	check( L"mismatched-medium.inf", mismatched, false, 0, 5) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元MTDとSCSIのservice/HW作用を正負別に検査します
+ * @param[in,out] context 原行を使った作用検査の結果を集計します
+ */
+//------------------------------------------------------------------------------
+void testMtdStorageEffects( TestContext &context)
+{
+	// 原service/属性だけを与え、結果DTOやOS実体を偽の成功で置換しません
+	for( unsigned scenario = 0U; scenario < 12U; ++scenario) {
+		// 人工MTD serviceの元flags・開始方式・directiveです
+		SelectedStorageServiceFacts service ;
+		service.className		 = scenario == 11U ? L"SCSIAdapter" : L"MTD" ;
+		service.classGuid		 = scenario == 11U ? L"{4d36e97b-e325-11ce-bfc1-08002be10318}"
+												   : L"{4d36e970-e325-11ce-bfc1-08002be10318}" ;
+		service.servicesSection	 = L"Install.Services" ;
+		service.addServiceFields = {L"FixtureStorage", L"2", L"StorageService"} ;
+		service.name			 = L"FixtureStorage" ;
+		service.installSection	 = L"StorageService" ;
+		service.flags			 = 2U ;
+		service.type			 = 1U ;
+		service.start			 = 3U ;
+		service.errorControl	 = 1U ;
+		service.binary			 = L"%12%\\fixture.sys" ;
+		service.group			 = scenario == 11U ? L"SCSI Miniport" : L"SD / MMC" ;
+		// MTDで許可しない開始方式を注入します
+		if( scenario == 1U) {
+			service.start = 1U ;
+		}
+
+		// MTDで許可しないSCSI groupを注入します
+		if( scenario == 2U) {
+			service.group = L"SCSI Miniport" ;
+		}
+
+		// kernel以外のservice typeを注入します
+		if( scenario == 3U) {
+			service.type = 16U ;
+		}
+
+		// 元AddService flagsの不一致を注入します
+		if( scenario == 4U) {
+			service.flags = 0U ;
+		}
+
+		// class名とGUIDの偽装を注入します
+		if( scenario == 5U) {
+			service.classGuid = L"{4d36e97b-e325-11ce-bfc1-08002be10318}" ;
+		}
+
+		service.directives = {{0U, L"ServiceType", {L"1"}},
+							  {1U, L"StartType", {L"3"}},
+							  {2U, L"ErrorControl", {L"1"}},
+							  {3U, L"ServiceBinary", {L"%12%\\fixture.sys"}},
+							  {4U, L"LoadOrderGroup", {*service.group}}} ;
+		// 人工registry行の読取回数です
+		std::size_t		   registryRows{} ;
+		// 人工INF作用readerの完全API表です
+		SystemInfEffectApi api ;
+		api.registryRows = &registryRows ;
+		api.read		 = [&]( const SystemInfSection &section, std::vector<SystemInfRow> &rows) {
+			// 選択Services節の元AddService行を返します
+			if( section.name == L"Install.Services") {
+				rows = {{0U, L"AddService", service.addServiceFields}} ;
+			}
+			// service節の全directiveを原順に返します
+			else if( section.name == L"StorageService") {
+				// 元service directiveの各fieldを保持します
+				for( const auto &directive : service.directives) {
+					rows.push_back( {directive.ordinal, directive.key, directive.fields}) ;
+				}
+			}
+			// 選択HW節のAddRegを返します
+			else if( section.name == L"Install.HW") {
+				rows = {{0U, L"AddReg", {L"HardwareValues"}}} ;
+			}
+			// MTDの二つの型付きhardware属性を返します
+			else if( section.name == L"HardwareValues") {
+				rows = {{0U, L"", {L"HKR", L"", L"DeviceType", L"0x10001", L"7"}},
+						{1U, L"", {L"HKR", L"", L"DeviceCharacteristics", L"0x10001", L"0x101"}}} ;
+				// DeviceTypeの不正値を注入します
+				if( scenario == 6U) {
+					rows[0].values[4] = L"8" ;
+				}
+
+				// Characteristicsの不正なregistry型を注入します
+				if( scenario == 7U) {
+					rows[1].values[3] = L"0" ;
+				}
+
+				// hardware属性の不正なsubkeyを注入します
+				if( scenario == 8U) {
+					rows[0].values[1] = L"Parameters" ;
+				}
+
+				// 同hardware属性の重複行を注入します
+				if( scenario == 9U) {
+					rows.push_back( {2U, L"", rows[0].values}) ;
+				}
+
+				// Characteristicsの不正値を注入します
+				if( scenario == 10U) {
+					rows[1].values[4] = L"0x100" ;
+				}
+			} else {
+				return static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)) ;
+			}
+
+			return NativeError{} ;
+		} ;
+		// 人工ServicesとHWの原選択節です
+		const std::array seeds{
+			SystemInfSection{1U,
+							 L"Install.Services",
+							 SystemInfContext::SERVICES,
+							 SystemInfContext::SERVICES,
+							 {}},
+			SystemInfSection{
+				1U, L"Install.HW", SystemInfContext::HARDWARE, SystemInfContext::HARDWARE, {}}} ;
+		// native作用readerの結果です
+		StorageInfEffects result ;
+		// 作用readerが返す診断stageです
+		std::uint32_t	  stage{} ;
+		// 作用readerの原HRESULTです
+		const auto		  error = inspectStorageInfEffects(
+			   seeds, api, service,
+			   []( std::wstring_view, SystemServiceEvidence &) {
+				   return static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_SERVICE_DOES_NOT_EXIST)) ;
+			   },
+			   26100U, result, stage) ;
+		DRIVERCRATE_EXPECT( context, (error == 0U) == (scenario == 0U || scenario == 11U)) ;
+		// 正常例の型付き二属性と元作用を確認します
+		if( scenario == 0U && error == 0U) {
+			DRIVERCRATE_EXPECT( context, result.mtdDeviceType == 7U &&
+											result.mtdDeviceCharacteristics == 0x101U) ;
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 関連サービスの既存値保持付き文字列を元の命令と所有範囲で確認する
+ * @param[in,out] context 読み取り専用の作用検査を集計する試験コンテキスト
+ */
+//------------------------------------------------------------------------------
+void testStorageServicePreserveString( TestContext &context)
+{
+	// 各ケースは架空の関連サービスを使用し、レジストリとSCMへ書き込まない
+	for( unsigned scenario = 0U; scenario < 9U; ++scenario) {
+		SelectedStorageServiceFacts service ;	// 元の選択済みサービスを模した事実
+		service.className		 = scenario == 7U ? L"MTD" : L"SCSIAdapter" ;
+		service.classGuid		 = scenario == 7U ? L"{4d36e970-e325-11ce-bfc1-08002be10318}"
+												  : L"{4d36e97b-e325-11ce-bfc1-08002be10318}" ;
+		service.servicesSection	 = L"Install.Services" ;
+		service.addServiceFields = {L"FixtureStorage", L"2", L"StorageService"} ;
+		service.name			 = L"FixtureStorage" ;
+		service.installSection	 = L"StorageService" ;
+		service.flags			 = 2U ;
+		service.type			 = 1U ;
+		service.start			 = scenario == 7U ? 3U : 0U ;
+		service.errorControl	 = 1U ;
+		service.group			 = scenario == 7U ? L"SD / MMC" : L"SCSI Miniport" ;
+
+		std::vector<std::wstring> fields{
+			L"HKLM", L"SYSTEM\\CurrentControlSet\\Services\\FixtureStorage\\Parameters\\Device",
+			L"FixtureParameter", L"0x00000002",
+			L"FixtureValue=0;"} ;	// 元のAddReg行を模した全フィールド
+		// 正常例に対し、所有範囲、型、値の境界を一つずつ変える
+		switch( scenario) {
+			// 別サービスのParametersを指定
+			case 1U:
+				fields[1] = L"SYSTEM\\CurrentControlSet\\Services\\OtherStorage\\Parameters" ;
+				break ;
+
+			// 関連サービスの本体を指定
+			case 2U:
+				fields[1] = L"SYSTEM\\CurrentControlSet\\Services\\FixtureStorage" ;
+				break ;
+
+			// 名前のない値を指定
+			case 3U:
+				fields[2].clear() ;
+				break ;
+
+			// DWORDと既存値保持を組み合わせる
+			case 4U:
+				fields[3] = L"0x00010003" ;
+				break ;
+
+			// 実行コマンドを値に指定
+			case 5U:
+				fields[4] = L"powershell -NoProfile" ;
+				break ;
+
+			// 機器相対のルートへ変更
+			case 6U:
+				fields[0] = L"HKR" ;
+				fields[1] = L"Parameters\\Device" ;
+				break ;
+
+			// クラスと節の負例では元の行を保持
+			default:
+				break ;
+		}
+
+		const auto scope =
+			// 元の参照文脈
+			scenario == 8U ? SystemInfContext::HARDWARE : SystemInfContext::DEVICE ;
+		std::size_t		   registryRows{} ;	// 元レジストリ行の読取回数
+		SystemInfEffectApi api ;			// 人工INFを同期で読む試験API
+		api.registryRows = &registryRows ;
+		api.read		 = [&]( const SystemInfSection &section, std::vector<SystemInfRow> &rows) {
+			// 元の節名ごとに選択された参照と書込みを読み取る
+			if( section.name == L"Install.Services") {
+				rows = {{0U, L"AddService", service.addServiceFields}} ;
+			}
+			// 選択された機器節が参照する登録先
+			else if( section.name == L"Install") {
+				rows = {{0U, L"AddReg", {L"SelectedValues"}}} ;
+			}
+			// 指定フラグと値を含む全フィールド
+			else if( section.name == L"SelectedValues") {
+				rows = {{0U, L"", fields}} ;
+			}
+
+			return NativeError{} ;
+		} ;
+		const std::array  seeds{SystemInfSection{1U, L"Install", scope, scope, {}},
+								SystemInfSection{1U,
+												 L"Install.Services",
+												 SystemInfContext::SERVICES,
+												 SystemInfContext::SERVICES,
+												 {}}} ;	// 原の機器節と関連サービス宣言
+		StorageInfEffects result ;						// 検査が成立した場合だけ返された作用
+		std::uint32_t	  stage{} ;						// 失敗箇所を識別する固定診断
+		const auto		  error = inspectStorageInfEffects(
+			   seeds, api, service,
+			   []( std::wstring_view, SystemServiceEvidence &) {
+				   return static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_SERVICE_DOES_NOT_EXIST)) ;
+			   },
+			   26100U, result, stage) ;			// 元の作用検査とサービス不存在の結果
+		const bool accepted = scenario == 0U ;	// 正式SCSIの対象と値だけを許可
+		DRIVERCRATE_EXPECT( context, (error == 0U) == accepted) ;
+		DRIVERCRATE_EXPECT( context, accepted || (stage == 14004U && result.effects.empty())) ;
+		DRIVERCRATE_EXPECT(
+			context, !accepted || std::ranges::any_of( result.effects, [&]( const auto &effect) {
+				return effect.action == StorageInfAction::REGISTRY_VALUE &&
+					   effect.original.row.values == fields ;
+			})) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief SCSIの順位が元の選択基本節に一度だけ現れる場合を検査する
+ * @param[in,out] context 作用検査の結果を集計する試験コンテキスト
+ */
+//------------------------------------------------------------------------------
+void testSelectedScsiFeatureScore( TestContext &context)
+{
+	// FeatureScoreの記載を許す、現在の選択基本節
+	const SystemInfSection base{
+		1U, L"Install", SystemInfContext::DEVICE, SystemInfContext::DEVICE, {}} ;
+	// 起動サービスの元設定を持つ、同じ選択の付随節
+	const SystemInfSection services{
+		1U, L"Install.Services", SystemInfContext::SERVICES, SystemInfContext::SERVICES, {}} ;
+	// FeatureScoreを別用途で宣言する対照のハードウェア節
+	const SystemInfSection hardware{
+		1U, L"Install.HW", SystemInfContext::HARDWARE, SystemInfContext::HARDWARE, {}} ;
+	// 同じFeatureScoreが元の選択基本節以外に現れる負例の一覧
+	const std::array invalidLocations{
+		hardware,
+		SystemInfSection{
+			1U, L"OtherInstall", SystemInfContext::DEVICE, SystemInfContext::DEVICE, {}},
+		SystemInfSection{2U, L"Install", SystemInfContext::DEVICE, SystemInfContext::DEVICE, {}}} ;
+	// 元の基本節だけに一度現れる場合に確認する順位指定行
+	const SystemInfRow			score{0U, L"FeatureScore", {L"0x80"}} ;
+	// 実照合へ渡す、架空の選択済みストレージサービスの情報
+	SelectedStorageServiceFacts service ;
+	service.className			   = L"SCSIAdapter" ;
+	service.classGuid			   = L"{4d36e97b-e325-11ce-bfc1-08002be10318}" ;
+	service.selectedInstallSection = base.name ;
+	service.servicesSection		   = services.name ;
+	service.addServiceFields	   = {L"FixtureStorage", L"2", L"StorageService"} ;
+	service.name				   = L"FixtureStorage" ;
+	service.installSection		   = L"StorageService" ;
+	service.flags				   = 2U ;
+	service.type				   = 1U ;
+	service.start				   = 0U ;
+	service.errorControl		   = 1U ;
+	service.group				   = L"SCSI Miniport" ;
+
+	// 借用中の試験用サービスと与えた節に対して順位の拒否・受理を照合する同期処理
+	const auto check = [&]( const SystemInfSection &location, const std::vector<SystemInfRow> &rows,
+						   const bool expected) {
+		// 基本とサービスの必須二節。別位置の対照を検査する場合は該当節も加えます
+		std::vector<SystemInfSection> seeds{base, services} ;
+		// 正常な基本節に加え、意図した別の節を解析対象へ明示します
+		if( location != base) {
+			seeds.push_back( location) ;
+		}
+
+		// 試験用のレジストリ行の読取り量。実機のレジストリは使用しない
+		std::size_t		   registryRows{} ;
+		// 与えた元設定と期待動作だけを返す試験用の作用照合API
+		SystemInfEffectApi api ;
+		api.registryRows = &registryRows ;
+		api.read = [&]( const SystemInfSection &section, std::vector<SystemInfRow> &document) {
+			// サービス節を読む際は同じ選択の元AddService設定を返します
+			if( section == services) {
+				document = {{0U, L"AddService", service.addServiceFields}} ;
+			}
+			// 対照の節を読む際は、試験が指定した順位行とその位置を返します
+			else if( section == location) {
+				document = rows ;
+			}
+
+			return NativeError{} ;
+		} ;
+		// 同じSCSI選択の実検査から得る導入作用の格納先
+		StorageInfEffects result ;
+		// 検査の進行または拒否位置を区別する試験診断
+		std::uint32_t	  stage{} ;
+		// 架空の元行と未登録サービスを使ったストレージ作用の検査結果
+		const auto		  error = inspectStorageInfEffects(
+			   seeds, api, service,
+			   []( std::wstring_view, SystemServiceEvidence &) {
+				   return static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_SERVICE_DOES_NOT_EXIST)) ;
+			   },
+			   26100U, result, stage) ;
+		DRIVERCRATE_EXPECT( context, (error == 0U) == expected) ;
+		DRIVERCRATE_EXPECT( context, expected || (stage == 14003U && result.effects.empty())) ;
+		// 正常例が保持すべき、同じ基本節と元FeatureScore行の組
+		const SystemInfEffect expectedScore{base, score} ;
+		DRIVERCRATE_EXPECT( context,
+						   !expected ||
+							   (result.featureScore == 0x80U && !result.effects.empty() &&
+								result.effects.front().action == StorageInfAction::FEATURE_SCORE &&
+								result.effects.front().original == expectedScore)) ;
+	} ;
+
+	check( base, {score}, true) ;
+	// 所有しない位置の対照をすべて走査し、同じ順位値でも適用できないことを確認します
+	for( const auto &location : invalidLocations) {
+		check( location, {score}, false) ;
+	}
+
+	check( base, {{0U, score.key, {L"0x00"}}}, false) ;
+	check( base, {{0U, score.key, {L"0x80", L"0x80"}}}, false) ;
+	check( base, {score, {1U, score.key, score.values}}, false) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 自動起動補助の元コマンドを切り詰めたり別位置へ展開したりしないことを検査する
+ * @param[in,out] context 元構文を変更した対照の検査結果
+ * @note 無効な位置だけを渡すため、レジストリや実ファイルを読み書きしない
+ */
+//------------------------------------------------------------------------------
+void testDriverStoreAuxiliaryCommandSyntax( TestContext &context)
+{
+	constexpr std::wstring_view file{L"fixture.exe"} ;	// 署名済み選択を模した同一ファイル名
+	// Driver Store内部の同じ元ファイルを示す人工の環境変数付きパス
+	const std::wstring			folder{
+		 L"%SystemRoot%\\System32\\DriverStore\\FileRepository\\fixture.inf_amd64_123\\"} ;
+	const auto		 path = folder + std::wstring{file} ;	// 架空の配置先。対照ではそのまま使用しない
+	const std::array commands{
+		L"\"" + path + L"\" /option",
+		path + L" /option.exe",
+		path + L":stream",
+		std::wstring{L"%SystemRoot%\\System32\\fixture.exe"},
+		folder + L"..\\fixture.exe",
+		folder + L"sub\\fixture.exe",
+		folder + L"other.exe",
+		std::wstring{
+			L"%windir%\\System32\\DriverStore\\FileRepository\\fixture.inf_amd64_123\\fixture.exe"},
+		path + L" ",
+		path + L'\0' + L".exe",
+		std::wstring{
+			L"\\SystemRoot\\System32\\DriverStore\\FileRepository\\fixture.inf_amd64_123\\fixture.exe"},
+	} ; // 余分なコマンド、別パス、曖昧な末尾とNULを対照する
+	// それぞれの元候補を拒否し、先行観測の値も残さない
+	for( const auto &command : commands) {
+		ProtectedExecutableSnapshot result ;	// すでに他の構成を読んだと仮定した出力
+		result.existing.emplace().sha256 = L"fixture" ;
+		std::wstring resolved{L"previous.exe"} ;	// 失敗時に空になる配置先
+		// 元実行コマンドから元パス以外を採用しないことを比較する結果
+		const auto	 error = readDriverStoreExecutableSnapshot( command, file, resolved, result) ;
+		DRIVERCRATE_EXPECT( context, error == HRESULT_FROM_WIN32( ERROR_INVALID_NAME) &&
+										resolved.empty() && !result.existing &&
+										result.repositorySecurity.empty()) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 名前付きイベント用DLLには明示で一意なSystem32直下の宛先を要求する
+ * @param[in,out] context 架空INFの元DestinationDirsを照合する集計先
+ * @note SetupAPIで元INFだけを開き、端末へのコピーは行わない
+ */
+//------------------------------------------------------------------------------
+void testStorageEventCopyDestination( TestContext &context)
+{
+	constexpr std::string_view body =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\n"
+		"[DestinationDirs]\r\nDefaultDestDir=11\r\nExact=11\r\n"
+		"Drivers=12\r\nStore=13\r\nSubdir=11,Child\r\nEmptySubdir=11,\r\n"
+		"Duplicate=11\r\nDuplicate=11\r\n" ;	// 元節ごとに一つだけ異なる架空宛先
+	OfficialDownloadWorkspace workspace ;		// 端末への反映を伴わない人工INFの保護領域
+	// 署名情報やコピー先を照合するため、人工INFを所有作業領域に準備できたかを示します
+	const bool				  ready = workspace.initialize( L"storage-event-copy", 4212U,
+														   OfficialWorkspaceMode::CURRENT_USER_INSPECTION) == 0U &&
+					   writeWorkspaceFile( workspace, L"event-copy.inf", body) ;
+	DRIVERCRATE_EXPECT( context, ready) ;
+	// 準備後だけ元の実HINFを同期借用する
+	if( !ready) {
+		return ;
+	}
+
+	const HINF inf = SetupOpenInfFileW( workspace.path( L"event-copy.inf").c_str(), nullptr,
+									   INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE,
+									   nullptr) ;	// 元INFのキャッシュを作らない
+	DRIVERCRATE_EXPECT( context, inf != INVALID_HANDLE_VALUE) ;
+	// 無効ハンドルから読み取り成功を作らない
+	if( inf == INVALID_HANDLE_VALUE) {
+		return ;
+	}
+
+	DRIVERCRATE_EXPECT( context, hasExplicitStorageEventCopyDestination( inf, L"Exact")) ;
+	// 欠損時の既定先、重複、別DIRID、空を含む追加欄を個別に拒否する
+	for( const auto name : {L"", L"Absent", L"DefaultDestDir", L"Drivers", L"Store", L"Subdir",
+						   L"EmptySubdir", L"Duplicate"}) {
+		DRIVERCRATE_EXPECT( context, !hasExplicitStorageEventCopyDestination( inf, name)) ;
+	}
+
+	SetupCloseInfFile( inf) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 要求時の補助サービスと元イベント所有を照合し、未評価の自動起動を端末読取前に拒否する
+ * @param[in,out] context 架空INFの全宣言と計画境界を確認する試験コンテキスト
+ */
+//------------------------------------------------------------------------------
+void testStorageAuxiliaryServiceEffects( TestContext &context)
+{
+	// 許可の範囲、順序、失敗監査を元サービスの形式へ合わせた架空の保護記述子
+	constexpr std::wstring_view protection{
+		L"D:AR(A;;0xF01FF;;;BA)(A;;0xF01FF;;;SY)(A;;0x2018D;;;IU)S:(AU;FA;0xF01FF;;;WD)"} ;
+	// 権限・イベント資源と、自動起動・配置・元イベント欄の影響を個別に検査する
+	for( unsigned scenario = 0U; scenario < 8U; ++scenario) {
+		SelectedStorageServiceFacts service ;	// 架空の関連ブートサービス
+		service.className			   = L"SCSIAdapter" ;
+		service.classGuid			   = L"{4d36e97b-e325-11ce-bfc1-08002be10318}" ;
+		service.selectedInstallSection = L"Install" ;
+		service.servicesSection		   = L"Install.Services" ;
+		service.name				   = L"FixtureKernel" ;
+		service.installSection		   = L"KernelInstall" ;
+		service.addServiceFields	   = {service.name, L"2", service.installSection, L"Events"} ;
+		service.flags				   = SPSVCINST_ASSOCSERVICE ;
+		service.type				   = SERVICE_KERNEL_DRIVER ;
+		service.start				   = SERVICE_BOOT_START ;
+		service.errorControl		   = SERVICE_ERROR_NORMAL ;
+		service.group				   = L"SCSI Miniport" ;
+		service.binaryTarget		   = L"C:\\Windows\\System32\\drivers\\fixture.sys" ;
+		service.directives			   = {{0U, L"ServiceType", {L"1"}}} ;
+
+		auto &helper = service.auxiliary.emplace() ;	// 架空の同INFから読み取った補助サービス
+		helper.addServiceOrdinal = 1U ;
+		helper.name				 = L"FixtureHelper" ;
+		helper.installSection	 = L"HelperInstall" ;
+		helper.addServiceFields	 = {helper.name, L"0", helper.installSection, L"Events"} ;
+		helper.type				 = SERVICE_WIN32_OWN_PROCESS ;
+		helper.start = scenario == 4U || scenario == 7U ? SERVICE_AUTO_START : SERVICE_DEMAND_START ;
+		helper.errorControl = SERVICE_ERROR_NORMAL ;
+		helper.copy.dirid	= scenario == 5U || scenario == 7U ? 13 : 11 ;
+		helper.security		= scenario == 1U ? L"D:(A;;GA;;;WD)" : std::wstring{protection} ;
+		helper.directives	= {{0U, L"ServiceType", {L"16"}},
+							   {1U, L"StartType", {L"3"}},
+							   {2U, L"ErrorControl", {L"1"}},
+							   {3U, L"ServiceBinary", {L"C:\\Windows\\System32\\fixture.exe"}},
+							   {4U, L"Security", {helper.security}}} ;
+		// 保持済みの行に含まれても、別アカウントを設定する作用を拒否する
+		if( scenario == 2U) {
+			helper.directives.push_back( {5U, L"StartName", {L"LocalService"}}) ;
+		}
+
+		// 名前付きSystemイベントを含む六欄も、元事実だけでは端末作用を認めません
+		if( scenario == 6U || scenario == 7U) {
+			helper.addServiceFields.push_back( L"System") ;
+			helper.addServiceFields.push_back( L"Fixture Middleware") ;
+		}
+
+		std::size_t		   graphReads{} ;	// 元INF内の作用節を読み始めた回数
+		std::size_t		   serviceReads{} ;	// 端末SCMに相当する試験backendを照会した回数
+		std::size_t		   registryRows{} ;	// 元グラフの共同レジストリ行数
+		SystemInfEffectApi api ;			// 同じ架空documentの読み取りだけを返すbackend
+		api.registryRows = &registryRows ;
+		// 固定した架空の二サービスと各ケースの値を呼出し中だけ借用する
+		api.read = [&]( const SystemInfSection &section, std::vector<SystemInfRow> &rows) {
+			++graphReads ;
+			// 同じ選択の元二宣言を原順で返す
+			if( section.name == service.servicesSection) {
+				rows = {{0U, L"AddService", service.addServiceFields},
+						{1U, L"AddService", helper.addServiceFields}} ;
+			}
+			// 二つのサービス設定はそれぞれの元節から区別する
+			else if( section.context == SystemInfContext::SERVICE) {
+				// 元のサービス所有者に対応する設定行の借用
+				const auto &directives =
+					section.owner == helper.name ? helper.directives : service.directives ;
+				// 元位置と値を保った一節を返す
+				for( const auto &directive : directives) {
+					rows.push_back( {directive.ordinal, directive.key, directive.fields}) ;
+				}
+			}
+			// 同じ節から別々の所有者に同じ資源を登録する
+			else if( section.context == SystemInfContext::EVENT_LOG) {
+				rows = {{0U, L"AddReg", {L"EventValues"}}} ;
+			}
+			// 補助役の一方だけを欠損する場合も、関連役の成功で成立にしない
+			else if( section.name == L"EventValues" &&
+					(scenario != 3U || section.owner != helper.name)) {
+				rows = {
+					{0U,
+					 L"",
+					 {L"HKR", L"", L"EventMessageFile", L"0x20000",
+					  L"%SystemRoot%\\System32\\IoLogMsg.dll;%SystemRoot%\\System32\\drivers\\fixture.sys"}},
+					{1U, L"", {L"HKR", L"", L"TypesSupported", L"0x10001", L"7"}}} ;
+			}
+
+			return NativeError{} ;
+		} ;
+		api.module = []( std::uint64_t document, std::wstring_view value) -> NativeError {
+			return document == 1U && value == L"%SystemRoot%\\System32\\IoLogMsg.dll" ? 0U : E_FAIL ;
+		} ; // 試験の正規Windows資源だけを照合する
+		// 同一INFから二つのサービス設定へ到達する起点
+		const std::array  seeds{SystemInfSection{1U,
+												 service.servicesSection,
+												 SystemInfContext::SERVICES,
+												 SystemInfContext::SERVICES,
+												 {}}} ;
+		StorageInfEffects result ;	// 合格時の非権限作用計画
+		std::uint32_t	  stage{} ;	// 試験の数値診断
+		// 端末の実サービスを開かず、架空の関連サービスの不存在だけを返す
+		const auto		  error = inspectStorageInfEffects(
+			   seeds, api, service,
+			   [&]( std::wstring_view name, SystemServiceEvidence &) -> NativeError {
+				   ++serviceReads ;
+				   return name == service.name ? HRESULT_FROM_WIN32( ERROR_SERVICE_DOES_NOT_EXIST)
+												   : E_FAIL ;
+			   },
+			   26100U, result, stage) ;
+		DRIVERCRATE_EXPECT( context, (error == 0U) == (scenario == 0U)) ;
+		DRIVERCRATE_EXPECT( context, scenario == 0U
+										? result.service.auxiliary == service.auxiliary &&
+											  registryRows == 4U && result.services.size() == 1U
+										: result.effects.empty()) ;
+		// 保留になった自動起動等の元値から作用解析や現在サービスの照会へ進まないことを確認します
+		if( scenario >= 4U) {
+			DRIVERCRATE_EXPECT( context, error == HRESULT_FROM_WIN32( ERROR_NOT_SUPPORTED) &&
+											stage == 14001U && graphReads == 0U &&
+											serviceReads == 0U) ;
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 正式MTD対と内容用途だけを許し偽装や必須importを拒否します
+ * @param[in,out] context 架空INFごとの実検査結果を集計します
+ */
+//------------------------------------------------------------------------------
+void testCollectorMtdStructure( TestContext &context)
+{
+	// MTDと通常Netの比較class集合です
+	const std::array classes{std::wstring_view{L"MTD"}, std::wstring_view{L"Net"}} ;
+	// 各用途と原Class/GUIDの組を独立の実INFとして評価します
+	for( unsigned scenario = 0U; scenario < 12U; ++scenario) {
+		// scenarioごとに変える人工INF本文です
+		std::string body{VALID_INF} ;
+		body.replace( body.find( "Class=Net"), 9U, "Class=MTD") ;
+		body.replace( body.find( "4d36e972"), 8U, "4d36e970") ;
+		// scenarioごとの内容inspection purposeです
+		auto policy			   = POLICY ;
+		policy.acceptedClasses = classes ;
+		policy.purpose		   = OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+		// MTD private storage candidate目的を個別に確認します
+		if( scenario == 1U) {
+			policy.purpose = OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE ;
+		}
+		// 通常STANDARD目的の拒否を確認します
+		else if( scenario == 2U) {
+			policy.purpose = OfficialInfInspectionPurpose::STANDARD_DRIVER ;
+		}
+		// required collector目的の拒否を確認します
+		else if( scenario == 3U) {
+			policy.purpose = OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT ;
+		}
+		// required storage目的の拒否を確認します
+		else if( scenario == 4U) {
+			policy.purpose = OfficialInfInspectionPurpose::REQUIRED_STORAGE_IMPORT ;
+		}
+		// MTD class GUIDの不一致を注入します
+		else if( scenario == 5U) {
+			body.replace( body.find( "4d36e970"), 8U, "4d36e972") ;
+		}
+		// MTD GUIDを別class名で偽装します
+		else if( scenario == 6U) {
+			body.replace( body.find( "Class=MTD"), 9U, "Class=Net") ;
+		}
+		// ClassGUID欠損を注入します
+		else if( scenario == 7U) {
+			body.replace(
+				body.find( "ClassGuid="),
+				std::string_view{"ClassGuid={4d36e970-e325-11ce-bfc1-08002be10318}\r\n"}.size(),
+				"") ;
+		}
+		// ClassGUID重複を注入します
+		else if( scenario == 8U) {
+			body += "[Version]\r\nClassGuid={4d36e970-e325-11ce-bfc1-08002be10318}\r\n" ;
+		}
+		// Class名重複を注入します
+		else if( scenario == 9U) {
+			body += "[Version]\r\nClass=MTD\r\n" ;
+		}
+		// 通常Net classとのGUID不一致を注入します
+		else if( scenario == 10U) {
+			body.replace( body.find( "Class=MTD"), 9U, "Class=Net") ;
+			policy.purpose = OfficialInfInspectionPurpose::STANDARD_DRIVER ;
+		}
+		// 通常Net classの比較controlを固定します
+		else if( scenario == 11U) {
+			body.replace( body.find( "Class=MTD"), 9U, "Class=Net") ;
+			body.replace( body.find( "4d36e970"), 8U, "4d36e972") ;
+			body += "[Version]\r\nClassGuid={4d36e970-e325-11ce-bfc1-08002be10318}\r\n" ;
+			policy.purpose = OfficialInfInspectionPurpose::STANDARD_DRIVER ;
+		}
+
+		// 人工INFとCATを置く所有workspaceです
+		OfficialDownloadWorkspace workspace ;
+		DRIVERCRATE_EXPECT( context,
+						   workspace.initialize( L"mtd-structure-test", 3590U + scenario) == 0) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", body)) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "not-signed")) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.sys", "driver")) ;
+		// 人工archive memberと元sizeです
+		const std::array   entries{OfficialZipEntry{L"sample.inf", body.size()},
+								   OfficialZipEntry{L"sample.cat", 10U},
+								   OfficialZipEntry{L"sample.sys", 6U}} ;
+		// 内容検査が返す人工package結果です
+		OfficialInfPackage package ;
+		// 内容検査の元診断です
+		const auto		   error =
+			inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy, package) ;
+		DRIVERCRATE_EXPECT( context, (error == 0) == (scenario < 2U)) ;
+		// 許可目的での正式MTD classとGUIDを確認します
+		if( scenario < 2U && error == 0) {
+			DRIVERCRATE_EXPECT( context, package.className == L"MTD" &&
+											package.inspectionPurpose == policy.purpose &&
+											!package.requiredNullCompanion) ;
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 正式SCSIAdapterの内容だけを受理しClass/GUID対と通常拒否を確認します
+ * @param[in,out] context 架空storage packageだけの結果を集計します
+ */
+//------------------------------------------------------------------------------
+void testCollectorStorageStructure( TestContext &context)
+{
+	const std::array classes{std::wstring_view{L"SCSIAdapter"},
+							 std::wstring_view{L"Net"}} ;	// 通常Classの追加許可ではありません
+	auto			 policy = POLICY ;						// 同参照/件数を維持する内容用途です
+	policy.acceptedClasses	= classes ;
+	policy.purpose			= OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+	// 正式対と両向きの不一致・欠測・重複・元source欠損を独立に比較します
+	for( unsigned scenario = 0U; scenario < 7U; ++scenario) {
+		std::string body{VALID_INF} ;	// 元copy/sourceは常に同じです
+		body.replace( body.find( "Class=Net"), 9U, "Class=SCSIAdapter") ;
+		body.replace( body.find( "4d36e972"), 8U, "4d36e97b") ;
+		// 変更条件を一つずつ固定し、正常対で欠測を補完しません
+		switch( scenario) {
+			case 0U:	// 正式storage内容の正例です
+				break ;
+
+			case 1U:	// storage名に別ClassGUIDを結びません
+				body.replace( body.find( "4d36e97b"), 8U, "4d36e972") ;
+				break ;
+
+			case 2U:	// 別Class名にstorage GUIDを結びません
+				body.replace( body.find( "Class=SCSIAdapter"), 17U, "Class=Net") ;
+				break ;
+
+			case 3U:	// GUIDの欠測を正式名で補完しません
+				body.replace(
+					body.find( "ClassGuid="),
+					std::string_view{"ClassGuid={4d36e97b-e325-11ce-bfc1-08002be10318}\r\n"}.size(),
+					"") ;
+				break ;
+
+			case 4U:	// 二重GUIDを先頭一値だけで採用しません
+				body += "[Version]\r\nClassGuid={4d36e97b-e325-11ce-bfc1-08002be10318}\r\n" ;
+				break ;
+
+			case 5U:	// 必須SYS欠損をnull形式へ読み替えません
+				break ;
+
+			default:	// 二重Classも正式対の一意性を満たしません
+				body += "[Version]\r\nClass=SCSIAdapter\r\n" ;
+				break ;
+		}
+
+		OfficialDownloadWorkspace workspace ;	// 各条件の独立元byteです
+		DRIVERCRATE_EXPECT( context,
+						   workspace.initialize( L"storage-structure-test", 3550U + scenario) == 0) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", body)) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "not-signed")) ;
+		std::vector<OfficialZipEntry> entries{{L"sample.inf", body.size()},
+											  {L"sample.cat", 10U}} ;	// 元CATを省略しません
+		// 欠損条件だけは原SYSを作成しません
+		if( scenario != 5U) {
+			DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.sys", "driver")) ;
+			entries.push_back( {L"sample.sys", 6U}) ;
+		}
+
+		OfficialInfPackage package ;	// 内容用途の実構造です
+		const auto error = inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy,
+													 package) ;	// 実native parserです
+		DRIVERCRATE_EXPECT( context, (error == 0) == (scenario == 0U)) ;
+		// 内容成功でも元用途と未署名拒否を維持します
+		if( error == 0) {
+			DRIVERCRATE_EXPECT( context, package.inspectionPurpose ==
+												OfficialInfInspectionPurpose::COLLECTOR_CONTENT &&
+											!package.requiredNullCompanion) ;
+			DRIVERCRATE_EXPECT( context, verifyWindowsInfPackageIntegrity( workspace, package) != 0) ;
+			auto standard	 = policy ;	// Class表を渡しても通常用途へstorageを許可しません
+			standard.purpose = OfficialInfInspectionPurpose::STANDARD_DRIVER ;
+			OfficialInfPackage refused ;	// 旧通常入口の拒否出力です
+			DRIVERCRATE_EXPECT( context, inspectOfficialInfPackage( workspace, entries, L"sample.inf",
+																  standard, refused) != 0) ;
+			DRIVERCRATE_EXPECT( context, refused.infRelativePath.empty()) ;
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 標準TapeDriveの正式対と共通内容・必要構成・署名・適用性の境界を検証する
+ * @param[in,out] context 架空INFだけの正負結果を集計する
+ * @note 元CATは未署名であり、Classの構造成功から公式性・導入可能性を発行しない
+ */
+//------------------------------------------------------------------------------
+void testStandardTapeDriveStructure( TestContext &context)
+{
+	constexpr std::string_view TAPE_GUID =
+		"{6d807884-7d21-11cf-801c-08002be10318}" ;										// 正式setup GUID
+	constexpr std::string_view NET_GUID = "{4d36e972-e325-11ce-bfc1-08002be10318}" ;	// 既存Net正例
+	const std::array		   classes{std::wstring_view{L"TapeDrive"},
+							   std::wstring_view{L"Net"}} ;	// 一般Class解放をしない
+	// 正式対と旧Class control、取り違え、欠損、既存作用の拒否を独立した元byteで比較する
+	for( unsigned scenario = 0U; scenario < 29U; ++scenario) {
+		std::string body{VALID_INF} ;	// 実inventoryを含まない元の架空driver
+		body.replace( body.find( "Class=Net"), 9U, "Class=TapeDrive") ;
+		body.replace( body.find( NET_GUID), NET_GUID.size(), TAPE_GUID) ;
+		body += "[Install.NT.Services]\r\nAddService=FixtureTape,2,TapeService\r\n"
+				"[TapeService]\r\nServiceType=1\r\nStartType=3\r\nErrorControl=1\r\n"
+				"ServiceBinary=%12%\\sample.sys\r\n" ;
+		auto policy							 = POLICY ;	// 既存作用/件数上限を維持する用途別copy
+		policy.acceptedClasses				 = classes ;
+		policy.allowRequiredDriverComponents = true ;
+		policy.rejectUnreferencedPrograms	 = false ;
+		policy.rejectInstallActions			 = true ;
+		policy.allowReferencedExecutablesForContent = true ;
+		// 一条件ずつ変更し、正常なClass名だけで他の欠損を補完しない
+		switch( scenario) {
+			case 0U:	// 通常用途の正式対
+				break ;
+
+			case 1U:	// 正当なClass/GUIDの大文字小文字差
+				body.replace( body.find( "Class=TapeDrive"), 15U, "Class=tapedrive") ;
+				body.replace( body.find( TAPE_GUID), TAPE_GUID.size(),
+							 "{6D807884-7D21-11CF-801C-08002BE10318}") ;
+				break ;
+
+			case 2U:	// 内容用途でも同じ正式対を要求
+				policy.purpose = OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+				break ;
+
+			case 3U:	// 端末の共有入口では通常Class用途へ戻る
+				policy.purpose = OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE ;
+				break ;
+
+			case 4U:	// 必要INF内容の役割からも同じ正式対を検査
+				policy.purpose = OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT ;
+				break ;
+
+			case 5U:	// 端末の必要INF役割でも同じ通常Class
+				policy.purpose = OfficialInfInspectionPurpose::REQUIRED_STORAGE_IMPORT ;
+				break ;
+
+			case 6U:	// 正式GUIDの欠測をClass名で補完しない
+				body.erase( body.find( "ClassGuid="), 10U + TAPE_GUID.size() + 2U) ;
+				break ;
+
+			case 7U:	// 別ClassのGUIDとの取り違え
+				body.replace( body.find( TAPE_GUID), TAPE_GUID.size(), NET_GUID) ;
+				break ;
+
+			case 8U:	// device interface GUIDをsetup GUIDに流用しない
+				body.replace( body.find( TAPE_GUID), TAPE_GUID.size(),
+							 "{53f5630b-b6bf-11d0-94f2-00a0c91efb8b}") ;
+				break ;
+
+			case 9U:	// 許可済みNet名へのTapeDrive GUID偽装
+				body.replace( body.find( "Class=TapeDrive"), 15U, "Class=Net") ;
+				break ;
+
+			case 10U:	// 後置したTapeDrive GUIDも省略しない
+				body.replace( body.find( "Class=TapeDrive"), 15U, "Class=Net") ;
+				body.replace( body.find( TAPE_GUID), TAPE_GUID.size(), NET_GUID) ;
+				body += "[Version]\r\nClassGUID=" + std::string( TAPE_GUID) + "\r\n" ;
+				break ;
+
+			case 11U:	// 後置したTapeDrive名も先頭Netで隠さない
+				body.replace( body.find( "Class=TapeDrive"), 15U, "Class=Net") ;
+				body.replace( body.find( TAPE_GUID), TAPE_GUID.size(), NET_GUID) ;
+				body += "[Version]\r\nClass=TapeDrive\r\n" ;
+				break ;
+
+			case 12U:	// 同一GUIDの二重宣言も一意でない
+				body += "[Version]\r\nClassGUID=" + std::string( TAPE_GUID) + "\r\n" ;
+				break ;
+
+			case 13U:	// 同一Classの二重宣言を拒否
+				body += "[Version]\r\nClass=TapeDrive\r\n" ;
+				break ;
+
+			case 14U:	// Class行の余分fieldを省略しない
+				body.replace( body.find( "Class=TapeDrive"), 15U, "Class=TapeDrive,Net") ;
+				break ;
+
+			case 15U:	// GUID行の余分fieldを省略しない
+				body.replace( body.find( TAPE_GUID), TAPE_GUID.size(),
+							 std::string( TAPE_GUID) + ",extra") ;
+				break ;
+
+			case 16U:	// 不許可Classを正式GUIDから採用しない
+				body.replace( body.find( "Class=TapeDrive"), 15U, "Class=FictionalTape") ;
+				break ;
+
+			case 17U:	// 必須SYSの元file欠損
+				break ;
+
+			case 18U:	// 原CATの元file欠損
+				break ;
+
+			case 19U:	// 既知Run登録を新Classで許可しない
+				body +=
+					"[RunRegistry]\r\nHKLM,Software\\Microsoft\\Windows\\CurrentVersion\\Run,Fixture,0,app.exe\r\n" ;
+				break ;
+
+			case 20U:	// 任意DLL登録commandは従来どおり拒否
+				body += "[Install.NT]\r\nRegisterDlls=Registration\r\n" ;
+				break ;
+
+			case 21U:	// CoInstallerの必要DLL欠損を無作用へしない
+				body += "[Install.NT.CoInstallers]\r\nAddReg=CoReg\r\nCopyFiles=CoCopy\r\n"
+						"[CoReg]\r\nHKR,,CoInstallers32,0x10000,\"missing.dll,Entry\"\r\n"
+						"[CoCopy]\r\nmissing.dll\r\n[DestinationDirs]\r\nCoCopy=11\r\n" ;
+				break ;
+
+			case 22U:	// 導入構造用の元policyで未充足Win32 serviceを拒否
+				body.replace( body.find( "ServiceType=1"), 13U, "ServiceType=16") ;
+				policy.allowReferencedExecutablesForContent = false ;
+				break ;
+
+			case 23U:	// 同INFで参照する追加fileの欠損を省略しない
+				body += "[SourceDisksFiles.amd64]\r\nmissing.dll=1\r\n" ;
+				break ;
+
+			case 24U:	// x86専用Modelsをx64対象へ流用しない
+				body.replace( body.find( "Models,NTamd64"), 14U, "Models,NTx86") ;
+				body.replace( body.find( "[Models.NTamd64]"), 16U, "[Models.NTx86]") ;
+				break ;
+
+			case 25U:	// 導入構造用の元policyで未知ServiceTypeを拒否
+				body.replace( body.find( "ServiceType=1"), 13U, "ServiceType=128") ;
+				policy.allowReferencedExecutablesForContent = false ;
+				break ;
+
+			case 26U:	// 必要構成modeでも無関係Classを解放しない
+				body.replace( body.find( "Class=TapeDrive"), 15U, "Class=MediumChanger") ;
+				policy.purpose = OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+				break ;
+
+			case 27U:	// 旧Net正式対の独立した正例を保持
+				body.replace( body.find( "Class=TapeDrive"), 15U, "Class=Net") ;
+				body.replace( body.find( TAPE_GUID), TAPE_GUID.size(), NET_GUID) ;
+				break ;
+
+			default:	// 大文字小文字差でも取り違えは拒否
+				body.replace( body.find( "Class=TapeDrive"), 15U, "Class=net") ;
+				body.replace( body.find( TAPE_GUID), TAPE_GUID.size(),
+							 "{6D807884-7D21-11CF-801C-08002BE10318}") ;
+				break ;
+		}
+
+		OfficialDownloadWorkspace workspace ;	// このcaseだけの所有fixture
+		DRIVERCRATE_EXPECT( context,
+						   workspace.initialize( L"tape-class-test", 3660U + scenario) == 0) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", body)) ;
+		std::vector<OfficialZipEntry> entries{{L"sample.inf", body.size()}} ;	// 実在fileだけを渡す
+		// 欠損CAT条件を他のcaseのfileで補完しない
+		if( scenario != 18U) {
+			DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "unsigned")) ;
+			entries.push_back( {L"sample.cat", 8U}) ;
+		}
+
+		// 欠損SYS条件を他のcaseのfileで補完しない
+		if( scenario != 17U) {
+			DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.sys", "driver")) ;
+			entries.push_back( {L"sample.sys", 6U}) ;
+		}
+
+		OfficialInfPackage package ;	// 構造成功時だけ保持する通常package
+		const auto error	= inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy,
+														package) ;	// 元parserの結果
+		const bool expected = scenario < 6U || scenario == 27U ;	// 正例七件を固定
+		std::cout << "TAPE_CLASS_STRUCTURE scenario=" << scenario << " error=" << error << '\n' ;
+		DRIVERCRATE_EXPECT( context, (error == 0) == expected) ;
+		// 内容成功から署名や実device適用性の成功を合成しない
+		if( error == 0) {
+			DRIVERCRATE_EXPECT( context,
+							   !package.sourceFiles.empty() && !package.requiredNullCompanion) ;
+			DRIVERCRATE_EXPECT( context, verifyWindowsInfPackageIntegrity( workspace, package) != 0) ;
+			const std::array matching{std::wstring_view{L"PCI\\VEN_1234&DEV_5678"}} ;	// 元の架空ID
+			const std::array unrelated{
+				std::wstring_view{L"PCI\\VEN_9999&DEV_9999"}} ;	// 不適合架空ID
+			DRIVERCRATE_EXPECT( context, matchOfficialInfToDevice( package, matching, {}) ==
+											OfficialInfDeviceMatch::HARDWARE_ID) ;
+			DRIVERCRATE_EXPECT( context, matchOfficialInfToDevice( package, unrelated, {}) ==
+											OfficialInfDeviceMatch::NONE) ;
+		}
+
+		// 正式Tapeと旧Netだけで実共通Class集合を通し、未署名拒否と必要INF不足を比較する
+		if( scenario == 0U || scenario == 27U) {
+			std::string archive ;	// 原架空INF/CAT/SYSの非実行ZIP
+			DRIVERCRATE_EXPECT( context, makeMaintenanceClassArchive( body, archive)) ;
+			DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"payload.zip", archive)) ;
+			std::wstring hash ;	// 原ZIP byteの実hash
+			DRIVERCRATE_EXPECT( context,
+							   computeFileSha256( workspace.path( L"payload.zip"), hash) == 0) ;
+			const DriverArchiveInput input{3760U + scenario, workspace.path( L"payload.zip"),
+										   // 元入力
+										   archive.size(), hash} ;
+			const std::array		 selectors{
+				std::pair{std::wstring_view{}, std::wstring_view{L"sample.inf"}}} ;	// 明示一INF
+			CommonDriverPackageInspection normal ;									// 通常経路の元署名拒否
+			CollectorDriverPackageContent content ;									// 非互換collector内容の元署名拒否
+			DRIVERCRATE_EXPECT(
+				context, inspectSelectedCommonDriverPackages(
+							 input, OfficialDriverArchiveFormat::ZIP, selectors, normal) == 0) ;
+			DRIVERCRATE_EXPECT( context, normal.infs.size() == 1U &&
+											normal.infs.front().state ==
+												CommonInfInspectionState::SIGNATURE_REJECTED) ;
+			DRIVERCRATE_EXPECT(
+				context, inspectCollectorDriverPackageContent(
+							 input, OfficialDriverArchiveFormat::ZIP, selectors, content) == 0) ;
+			DRIVERCRATE_EXPECT( context, content.infs.size() == 1U &&
+											content.infs.front().state ==
+												CommonInfInspectionState::SIGNATURE_REJECTED) ;
+			DRIVERCRATE_EXPECT(
+				context, inspectSelectedDeviceDriverPackages(
+							 input, OfficialDriverArchiveFormat::ZIP, selectors, normal) == 0) ;
+			DRIVERCRATE_EXPECT( context, normal.infs.size() == 1U &&
+											normal.infs.front().state ==
+												CommonInfInspectionState::SIGNATURE_REJECTED) ;
+
+			body += "[Install.NT]\r\nCopyINF=missing.inf\r\n" ;
+			DRIVERCRATE_EXPECT( context, makeMaintenanceClassArchive( body, archive)) ;
+			DRIVERCRATE_EXPECT( context,
+							   writeWorkspaceFile( workspace, L"missing-import.zip", archive)) ;
+			DRIVERCRATE_EXPECT( context,
+							   computeFileSha256( workspace.path( L"missing-import.zip"), hash) == 0) ;
+			const DriverArchiveInput missing{3860U + scenario,
+											 workspace.path( L"missing-import.zip"), archive.size(),
+											 hash} ;	// 必須import欠損
+			DRIVERCRATE_EXPECT(
+				context, inspectCollectorDriverPackageContent(
+							 missing, OfficialDriverArchiveFormat::ZIP, selectors, content) == 0) ;
+			DRIVERCRATE_EXPECT( context, content.infs.size() == 1U &&
+											content.infs.front().state ==
+												CommonInfInspectionState::CLOSURE_REJECTED &&
+											content.infs.front().error != 0) ;
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 正式メディアチェンジャーの端末選択構造と用途の境界を確認する
+ * @param[in,out] context 架空パッケージの検査結果を集計する
+ * @note 架空CATから署名や導入の成功を生成しない
+ */
+//------------------------------------------------------------------------------
+void testSelectedMediumChangerStructure( TestContext &context)
+{
+	// 端末と収集の両用途で使う架空の完全なINF
+	constexpr std::string_view sample =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=MediumChanger\r\n"
+		"ClassGuid={ce5939ae-ebde-11d0-b181-0000f8753ec4}\r\n"
+		"Provider=\"Fictional Wireless Corporation\"\r\nDriverVer=09/03/2026,1.2.3.4\r\n"
+		"CatalogFile=sample.cat\r\n[ControlFlags]\r\nExcludeFromSelect=*\r\n"
+		"[Manufacturer]\r\nManufacturer=Models,NTamd64\r\n"
+		"[Models.NTamd64]\r\nChanger=Install,SCSI\\ChangerTEST____Sample_Changer___\r\n"
+		"[SourceDisksNames.amd64]\r\n1=\"Sample disk\",,,\r\n"
+		"[SourceDisksFiles.amd64]\r\nsample.sys=1\r\n"
+		"[DestinationDirs]\r\nDefaultDestDir=12\r\n[Install]\r\nCopyFiles=@sample.sys\r\n"
+		"[Install.Services]\r\nAddService=sample,2,Service,Event\r\n"
+		"[Service]\r\nServiceType=1\r\nStartType=1\r\nErrorControl=1\r\n"
+		"ServiceBinary=%12%\\sample.sys\r\nLoadOrderGroup=SCSI Class\r\nDependencies=+SCSI Miniport\r\n"
+		"[Event]\r\nAddReg=EventRegistry\r\n[EventRegistry]\r\n"
+		"HKR,,EventMessageFile,0x00020000,\"%%SystemRoot%%\\System32\\IoLogMsg.dll;"
+		"%%SystemRoot%%\\System32\\drivers\\sample.sys\"\r\nHKR,,TypesSupported,0x00010001,7\r\n" ;
+	// 同じ構造で比較する収集・端末選択・通常・必要構成の用途
+	const std::array purposes{OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE,
+							  OfficialInfInspectionPurpose::COLLECTOR_CONTENT,
+							  OfficialInfInspectionPurpose::STANDARD_DRIVER,
+							  OfficialInfInspectionPurpose::REQUIRED_STORAGE_IMPORT,
+							  OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE,
+							  OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE} ;
+	// 同じ元構造の用途、所有領域と依存を個別に変えて比較する
+	for( std::size_t index = 0U; index < purposes.size(); ++index) {
+		auto policy					= POLICY ;	// 輸送や展開の上限を変えない架空policy
+		policy.purpose				= purposes[index] ;
+		policy.rejectInstallActions = true ;
+		std::string body{sample} ;	// この条件だけが所有する元INF
+		// 最後の条件だけは名前付き依存に変更する
+		if( index == 5U) {
+			body.erase( body.find( "+SCSI Miniport"), 1U) ;
+		}
+
+		OfficialDownloadWorkspace workspace ;	// 同じ元用途に対応する保護領域
+		// この条件で使う保護領域の種類
+		const auto				  mode = index == 1U || index == 4U
+											 ? OfficialWorkspaceMode::CURRENT_USER_INSPECTION
+											 : OfficialWorkspaceMode::ADMINISTRATOR ;
+		DRIVERCRATE_EXPECT(
+			context, workspace.initialize( L"changer-structure-test", 3960U + index, mode) == 0) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", body)) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "unsigned")) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.sys", "driver")) ;
+		// 架空INFとCATとSYSの元一覧
+		const std::array<OfficialZipEntry, 3U> entries{
+			{{L"sample.inf", body.size()}, {L"sample.cat", 8U}, {L"sample.sys", 6U}}} ;
+		OfficialInfPackage package ;	// 構造成功時だけ保持する元結果
+		// この用途で同じ元構造を検査した結果
+		const auto		   error =
+			inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy, package) ;
+		DRIVERCRATE_EXPECT( context, (error == 0) == (index < 2U)) ;
+		// 構造成功でも固有の用途を保持し、架空署名は拒否する
+		if( error == 0) {
+			DRIVERCRATE_EXPECT( context, package.inspectionPurpose == purposes[index]) ;
+			DRIVERCRATE_EXPECT( context, package.className == L"MediumChanger") ;
+			DRIVERCRATE_EXPECT( context, verifyWindowsInfPackageIntegrity( workspace, package) != 0) ;
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元SYSを持つHDCの収集用途と全AMD64の導入節を検証する
+ * @param[in,out] context 架空INFに対する構造検査結果
+ * @note 架空CATに署名資格を与えず、端末の導入は呼び出さない
+ */
+//------------------------------------------------------------------------------
+void testCollectorHdcStorageStructure( TestContext &context)
+{
+	constexpr std::string_view sample =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=HDC\r\n"
+		"ClassGuid={4d36e96a-e325-11ce-bfc1-08002be10318}\r\n"
+		"Provider=\"Fictional Wireless Corporation\"\r\nDriverVer=09/03/2026,1.2.3.4\r\n"
+		"CatalogFile=sample.cat\r\n[ControlFlags]\r\nExcludeFromSelect=*\r\n"
+		"[Manufacturer]\r\nManufacturer=Models,NTamd64.6.2,NTamd64.10.0\r\n"
+		"[Models.NTamd64.6.2]\r\nController=Install,PCI\\VEN_1234&DEV_0001&CC_0106\r\n"
+		"[Models.NTamd64.10.0]\r\nController=Install2,PCI\\VEN_1234&DEV_0002&CC_0106\r\n"
+		"[SourceDisksNames]\r\n1=\"Sample disk\"\r\n"
+		"[SourceDisksFiles.amd64]\r\nsample.sys=1\r\n"
+		"[DestinationDirs]\r\nDefaultDestDir=12\r\n"
+		"[Install.NTamd64]\r\nCopyFiles=@sample.sys\r\nFeatureScore=0x80\r\n"
+		"[Install.NTamd64.HW]\r\nAddReg=DeviceParameters\r\n"
+		"[Install.NTamd64.Services]\r\nAddService=sample,2,Service,Event\r\n"
+		"[Install2.NTamd64]\r\nCopyFiles=@sample.sys\r\nFeatureScore=0x80\r\n"
+		"[Install2.NTamd64.HW]\r\nAddReg=DeviceParameters\r\n"
+		"[Install2.NTamd64.Services]\r\nAddService=sample,2,Service,Event\r\n"
+		"[Service]\r\nServiceType=1\r\nStartType=0\r\nErrorControl=1\r\n"
+		"ServiceBinary=%12%\\sample.sys\r\nLoadOrderGroup=SCSI Miniport\r\n"
+		"[Event]\r\nAddReg=EventRegistry\r\n[EventRegistry]\r\n"
+		"HKR,,EventMessageFile,0x00020000,\"%%SystemRoot%%\\System32\\IoLogMsg.dll;"
+		"%%SystemRoot%%\\System32\\drivers\\sample.sys\"\r\nHKR,,TypesSupported,0x00010001,7\r\n"
+		"[DeviceParameters]\r\nHKR,,Sample,0x00010001,1\r\n" ;	// 二つの元Modelsを持つ架空HDC
+	// 収集と端末の正例、付随作用、追加サービス、保護領域と用途の違いを比較する
+	for( std::size_t index = 0U; index < 6U; ++index) {
+		auto policy	   = POLICY ;	// 既存の構造検査と同じ有限上限
+		policy.purpose = index < 3U ? OfficialInfInspectionPurpose::COLLECTOR_CONTENT
+									: OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE ;
+		// 共通の通常用途だけを指定しHDCの追加選択から除く
+		if( index == 5U) {
+			policy.purpose = OfficialInfInspectionPurpose::STANDARD_DRIVER ;
+		}
+
+		policy.rejectInstallActions = true ;
+		std::string body{sample} ;	// 一つの条件で検査する元INF
+		// 選ばれる二つ目のAMD64 Modelsにだけ未検査の付随節を置く
+		if( index == 1U) {
+			constexpr std::string_view hardware =
+				"[Install2.NTamd64.HW]" ;	// 二つ目の候補だけを変更する
+			body.replace( body.find( hardware), hardware.size(), "[Install2.NTamd64.Other]") ;
+		}
+		// 二つ目のAMD64選択のサービス追加を検査する
+		else if( index == 2U) {
+			body.insert( body.find( "[Service]"), "AddService=Auxiliary,0,Service\r\n") ;
+		}
+
+		OfficialDownloadWorkspace workspace ;	// 架空INF、CAT、SYSだけの保護領域
+		// 管理者保護領域と現在利用者の検査領域を比較する条件
+		const auto mode = index == 4U ? OfficialWorkspaceMode::CURRENT_USER_INSPECTION
+									  : OfficialWorkspaceMode::ADMINISTRATOR ;
+		DRIVERCRATE_EXPECT( context,
+						   workspace.initialize( L"hdc-structure-test", 4050U + index, mode) == 0) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", body)) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "unsigned")) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.sys", "driver")) ;
+		const std::array<OfficialZipEntry, 3U> entries{
+			{{L"sample.inf", body.size()}, {L"sample.cat", 8U}, {L"sample.sys", 6U}}} ;	// 元の全項目
+		OfficialInfPackage package ;													// 構造検査に成功した場合だけ元を保持する
+		// 架空INFがこの用途の元節をすべて持つかの結果
+		const auto		   error =
+			inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy, package) ;
+		DRIVERCRATE_EXPECT( context, (error == 0U) == (index == 0U || index == 3U)) ;
+		// 構造が成立した場合も原CATの検査が別に必要であることを確認する
+		if( error == 0U) {
+			DRIVERCRATE_EXPECT( context, package.inspectionPurpose == policy.purpose) ;
+			DRIVERCRATE_EXPECT( context, package.collectorInboxInstallGroups.empty()) ;
+			DRIVERCRATE_EXPECT( context, package.nativeHdcInstallGroups.size() == 2U) ;
+			DRIVERCRATE_EXPECT( context,
+							   package.sourceFiles == std::vector<std::wstring>{L"sample.sys"}) ;
+			DRIVERCRATE_EXPECT( context, verifyWindowsInfPackageIntegrity( workspace, package) != 0U) ;
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief HDCの共有AutoLoggerとイベント資源を原行の型と順序で検証する
+ * @param[in,out] context 架空作用の検査結果
+ * @note 現在のサービスやレジストリには接続しない
+ */
+//------------------------------------------------------------------------------
+void testCollectorHdcStorageEffects( TestContext &context)
+{
+	SelectedStorageServiceFacts service ;	// 一つの署名済みSYSに結ぶ構造を模した原事実
+	service.className			   = L"HDC" ;
+	service.classGuid			   = L"{4d36e96a-e325-11ce-bfc1-08002be10318}" ;
+	service.selectedInstallSection = L"Install.NTamd64" ;
+	service.servicesSection		   = L"Install.NTamd64.Services" ;
+	service.name				   = L"FixtureStorage" ;
+	service.installSection		   = L"Service" ;
+	service.addServiceFields	   = {service.name, L"2", service.installSection, L"Event"} ;
+	service.flags				   = 2U ;
+	service.type				   = SERVICE_KERNEL_DRIVER ;
+	service.start				   = SERVICE_BOOT_START ;
+	service.errorControl		   = SERVICE_ERROR_NORMAL ;
+	service.group				   = L"SCSI Miniport" ;
+	service.binarySource		   = L"sample.sys" ;
+	service.binaryTarget		   = L"C:\\Windows\\System32\\drivers\\sample.sys" ;
+	service.binary				   = service.binaryTarget ;
+	service.directives			   = {{0U, L"ServiceType", {L"1"}},
+									  {1U, L"StartType", {L"0"}},
+									  {2U, L"ErrorControl", {L"1"}},
+									  {3U, L"ServiceBinary", {service.binary}},
+									  {4U, L"LoadOrderGroup", {*service.group}}} ;
+	const std::array seeds{
+		SystemInfSection{1U,
+						 service.selectedInstallSection,
+						 SystemInfContext::DEVICE,
+						 SystemInfContext::DEVICE,
+						 {}},
+		SystemInfSection{
+			1U, L"Install.NTamd64.HW", SystemInfContext::HARDWARE, SystemInfContext::HARDWARE, {}},
+		SystemInfSection{1U,
+						 service.servicesSection,
+						 SystemInfContext::SERVICES,
+						 SystemInfContext::SERVICES,
+						 {}}} ;	// 同じ元選択の基本節と付随節
+	const std::wstring session =
+		L"SYSTEM\\CurrentControlSet\\Control\\WMI\\Autologger\\FixtureStorage" ;	// 架空の共有セッション
+	const std::wstring provider =
+		session + L"\\{22222222-2222-2222-2222-222222222222}" ;	// 架空提供者
+	using Rows = std::vector<SystemInfRow> ;
+	const std::array<std::pair<std::wstring_view, Rows>, 7U> original{{
+		{service.selectedInstallSection,
+		 {{0U, L"CopyFiles", {L"@sample.sys"}}, {1U, L"FeatureScore", {L"0x80"}}}},
+		{L"Install.NTamd64.HW", {{0U, L"AddReg", {L"AutoLogger"}}}},
+		{service.servicesSection, {{0U, L"AddService", service.addServiceFields}}},
+		{service.installSection,
+		 {{0U, L"ServiceType", {L"1"}},
+		  {1U, L"StartType", {L"0"}},
+		  {2U, L"ErrorControl", {L"1"}},
+		  {3U, L"ServiceBinary", {service.binary}},
+		  {4U, L"LoadOrderGroup", {*service.group}}}},
+		{L"Event", {{0U, L"AddReg", {L"EventValues"}}}},
+		{L"EventValues",
+		 {{0U,
+		   L"",
+		   {L"HKR", L"", L"EventMessageFile", L"0x20000",
+			L"%SystemRoot%\\System32\\IoLogMsg.dll;%SystemRoot%\\System32\\drivers\\sample.sys"}},
+		  {1U, L"", {L"HKR", L"", L"TypesSupported", L"0x10001", L"7"}}}},
+		{L"AutoLogger",
+		 {{0U, L"", {L"HKLM", session, L"LogFileMode", L"0x10001", L"0x400"}},
+		  {1U, L"", {L"HKLM", session, L"FileName"}},
+		  {2U, L"", {L"HKLM", session, L"Guid", L"0", L"{11111111-1111-1111-1111-111111111111}"}},
+		  {3U, L"", {L"HKLM", session, L"Start", L"0x10001", L"1"}},
+		  {4U, L"", {L"HKLM", session, L"BufferSize", L"0x10001", L"999"}},
+		  {5U, L"", {L"HKLM", provider, L"EnableProperty", L"0x10001", L"0"}},
+		  {6U, L"", {L"HKLM", provider, L"Enabled", L"0x10001", L"1"}},
+		  {7U, L"", {L"HKLM", provider, L"EnableLevel", L"0x10001", L"4"}},
+		  {8U, L"", {L"HKLM", provider, L"EnableFlags", L"0x10001", L"0xffff"}}}},
+	}} ; // 作用readerが受け取る架空の原節と全フィールド
+	// 原行、ファイル出力、別プロバイダー、保護資源の失敗の四つを比較する
+	for( unsigned scenario = 0U; scenario < 4U; ++scenario) {
+		std::size_t		   registryRows{} ;	// 共有するregistry行予算
+		SystemInfEffectApi api ;			// この試験の原行と保護資源だけに結ぶ操作
+		api.registryRows = &registryRows ;
+		api.read		 = [&]( const SystemInfSection &section, Rows &rows) -> NativeError {
+			const auto source = std::ranges::find_if( original, [&]( const auto &entry) {
+				return entry.first == section.name ;
+			}) ; // 元の節名に完全一致する架空の読み取り位置
+			// 指定外の節を読んだ場合は架空成功を返さない
+			if( source == original.end()) {
+				return HRESULT_FROM_WIN32( ERROR_SECTION_NOT_FOUND) ;
+			}
+
+			rows = source->second ;
+			// 名前だけの宣言に外部ファイル出力を混ぜた対照
+			if( section.name == L"AutoLogger" && scenario == 1U) {
+				rows[1].values.insert( rows[1].values.end(), {L"0", L"C:\\fixture.etl"}) ;
+			}
+			// 一つのプロバイダーに閉じない登録先を含めた対照
+			else if( section.name == L"AutoLogger" && scenario == 2U) {
+				rows.back().values[1] = session + L"\\{33333333-3333-3333-3333-333333333333}" ;
+			}
+
+			return 0U ;
+		} ;
+		api.module = [&]( std::uint64_t document, std::wstring_view path) -> NativeError {
+			return scenario != 3U && document == 1U &&
+						   path == L"%SystemRoot%\\System32\\IoLogMsg.dll"
+					   ? 0U
+					   : E_ACCESSDENIED ;
+		} ;
+		StorageInfEffects result ;	// 正常な原作用だけを保持する検査結果
+		std::uint32_t	  stage{} ;	// 一つ目の診断段階
+		// 同一の元選択に対する作用検査の成否
+		const auto error = inspectHdcInfContentEffects( seeds, api, service, 26100U, result, stage) ;
+		DRIVERCRATE_EXPECT( context, (error == 0U) == (scenario == 0U)) ;
+		DRIVERCRATE_EXPECT( context, result.services.empty()) ;
+		DRIVERCRATE_EXPECT( context, result.autoLogger.has_value() == (scenario == 0U)) ;
+		// 正常な原作用から得た順位と型付き共有設定を確認する
+		if( result.autoLogger) {
+			DRIVERCRATE_EXPECT( context, result.featureScore == 0x80U) ;
+			DRIVERCRATE_EXPECT( context, result.autoLogger->providerPath == provider) ;
+			DRIVERCRATE_EXPECT( context, result.autoLogger->bufferSize == 999U) ;
+		}
+	}
+
+	// トリアージ指定、既存HDC値との混在、共有節の逸脱と予算を同じ架空INFで比較する
+	for( unsigned scenario = 0U; scenario < 8U; ++scenario) {
+		std::size_t		   registryRows = scenario == 7U ? 4090U : 0U ;	// 元グラフが先に消費した行数
+		SystemInfEffectApi api ;										// 元HW節と直接参照にだけ結ぶ読取操作
+		api.registryRows = &registryRows ;
+		api.read		 = [&]( const SystemInfSection &section, Rows &rows) -> NativeError {
+			// 元読み取りの文書と所有範囲が変わっていないことを確認する
+			if( section.document != 1U || section.scope != SystemInfContext::HARDWARE ||
+			   !section.owner.empty()) {
+				return E_INVALIDARG ;
+			}
+
+			// 元機器節から直接参照するAddRegだけを試験へ渡す
+			if( section == seeds[1]) {
+				rows = original[1].second ;
+				// 同一節の再参照と別節の共有セッション重複を対照する
+				if( scenario == 4U || scenario == 5U) {
+					rows.front().values.push_back( scenario == 4U ? L"AUTOLOGGER"
+																		 : L"AnotherLogger") ;
+				}
+
+				return 0U ;
+			}
+
+			// 不明な外側の参照文脈を共有設定へ救済しない
+			if( section.context != SystemInfContext::REGISTRY ||
+			   (section.name != L"AutoLogger" && section.name != L"AnotherLogger")) {
+				return E_INVALIDARG ;
+			}
+
+			rows			  = original.back().second ;
+			rows[0].values[4] = scenario == 2U ? L"0x400" : L"0x90000400" ;
+			rows[4].values[4] = scenario == 1U ? L"999" : L"5000" ;
+			// 共有の正規セッションに相対行が混ざるケースを作る
+			if( scenario == 3U) {
+				rows.back().values.front() = L"HKR" ;
+			}
+
+			// 値が同じでもDWORD以外の型指定は受け入れない
+			if( scenario == 6U) {
+				rows[4].values[3] = L"0" ;
+			}
+
+			return 0U ;
+		} ;
+		std::optional<StorageAutoLoggerEffects> triage ;	// 照合した完全な共有設定
+		triage.emplace() ;
+		const auto error = readStorageTriageAutoLogger( seeds[1], api, triage) ;	// 元範囲の検査結果
+		DRIVERCRATE_EXPECT( context, (error == 0U) == (scenario == 0U)) ;
+		DRIVERCRATE_EXPECT( context, triage.has_value() == (scenario == 0U)) ;
+		// 完全に成立した場合だけ元モードと元バッファー、所有先を保持する
+		if( triage) {
+			DRIVERCRATE_EXPECT( context,
+							   triage->sessionPath == session && triage->providerPath == provider) ;
+			DRIVERCRATE_EXPECT( context,
+							   triage->logFileMode == 0x90000400U && triage->bufferSize == 5000U) ;
+			DRIVERCRATE_EXPECT( context, registryRows == 9U) ;
+		}
+	}
+
+	service.selectedInstallSection	 = L"IdeInstall" ;
+	service.servicesSection			 = L"IdeInstall.Services" ;
+	service.group					 = L"System Bus Extender" ;
+	service.directives.back().fields = {*service.group} ;
+	service.addServiceFields.pop_back() ;
+	const std::array ideSeeds{SystemInfSection{1U,
+											   service.selectedInstallSection,
+											   SystemInfContext::DEVICE,
+											   SystemInfContext::DEVICE,
+											   {}},
+							  SystemInfSection{1U,
+											   service.servicesSection,
+											   SystemInfContext::SERVICES,
+											   SystemInfContext::SERVICES,
+											   {}}} ;	// IDEの元二節
+	// 元SYSのみ、別コピー、余分な順位、余分なサービス作用を比較する
+	for( unsigned scenario = 0U; scenario < 4U; ++scenario) {
+		std::size_t		   registryRows{} ;	// 読み取った追加登録の行数
+		SystemInfEffectApi api ;			// IDEの元節だけを読む試験API
+		api.registryRows = &registryRows ;
+		api.read		 = [&]( const SystemInfSection &section, Rows &rows) -> NativeError {
+			// 基本節の元SYSコピーを確認する
+			if( section.name == service.selectedInstallSection) {
+				rows = {{0U, L"CopyFiles", {scenario == 1U ? L"@other.sys" : L"@sample.sys"}}} ;
+				// 元二節の構成に存在しない順位を追加する対照
+				if( scenario == 2U) {
+					rows.push_back( {1U, L"FeatureScore", {L"0x80"}}) ;
+				}
+			}
+			// 関連サービスの参照行を元のフィールド数で返す
+			else if( section.name == service.servicesSection) {
+				rows = {{0U, L"AddService", service.addServiceFields}} ;
+			}
+			// 実行形式と起動グループの元設定を全行で返す
+			else if( section.name == service.installSection) {
+				// 読み取り前に構築した元サービス設定を使う
+				for( const auto &directive : service.directives) {
+					rows.push_back( {directive.ordinal, directive.key, directive.fields}) ;
+				}
+			}
+			// 到達しない節を空の正常結果で補完しない
+			else {
+				return HRESULT_FROM_WIN32( ERROR_SECTION_NOT_FOUND) ;
+			}
+
+			return 0U ;
+		} ;
+		// サービス宣言自体に登録作用を足した場合も許可しない
+		if( scenario == 3U) {
+			service.directives.push_back( {5U, L"AddReg", {L"RegistryValues"}}) ;
+		}
+
+		StorageInfEffects result ;	// 全検査を通過した作用だけを保持する
+		std::uint32_t	  stage{} ;	// 最初に失敗した検査の番号
+		const auto error = inspectHdcInfContentEffects( ideSeeds, api, service, 19045U, result,
+													   stage) ;	// 架空の元節の検査結果
+		DRIVERCRATE_EXPECT( context, (error == 0U) == (scenario == 0U)) ;
+		DRIVERCRATE_EXPECT( context, result.effects.size() == (scenario == 0U ? 7U : 0U)) ;
+		DRIVERCRATE_EXPECT( context,
+						   registryRows == 0U && !result.autoLogger && !result.featureScore) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Windowsのグループ順序の終端、一意性、前後関係を検証する
+ * @param[in,out] context 架空の複数文字列に対する検査結果
+ */
+//------------------------------------------------------------------------------
+void testStorageLoadOrder( TestContext &context)
+{
+	// 正しい順序で終端する元文字列
+	constexpr wchar_t valid[] = L"Boot Bus Extender\0SCSI miniport\0SCSI Class\0" ;
+	// 二つのグループが逆順の元文字列
+	constexpr wchar_t reversed[] = L"SCSI Class\0SCSI Miniport\0" ;
+	// 大文字小文字が異なる同名グループを持つ元文字列
+	constexpr wchar_t duplicate[] = L"SCSI Miniport\0SCSI Class\0scsi MINIPORT\0" ;
+	// 必要なクラスグループがない元文字列
+	constexpr wchar_t missing[] = L"SCSI Miniport\0File System\0" ;
+	// 最終NULが一つだけの元文字列
+	constexpr wchar_t missingEnd[] = L"SCSI Miniport\0SCSI Class" ;
+	// 途中の空文字列の後に別項目を持つ元文字列
+	constexpr wchar_t badTail[] = L"SCSI Miniport\0SCSI Class\0\0Other\0" ;
+	// 検査に成功したグループ位置の出力
+	StorageLoadOrder  order ;
+	DRIVERCRATE_EXPECT( context, inspectStorageLoadOrder( valid, order) == 0U) ;
+	DRIVERCRATE_EXPECT( context, order.miniport == 1U && order.deviceClass == 2U) ;
+	// 誤った順序、欠落、重複、終端不良と末尾の余分な値を拒否する
+	for( const auto groups :
+		{std::span<const wchar_t>{reversed}, std::span<const wchar_t>{duplicate},
+		 std::span<const wchar_t>{missing}, std::span<const wchar_t>{missingEnd},
+		 std::span<const wchar_t>{badTail}}) {
+		order = {1U, 2U} ;
+		DRIVERCRATE_EXPECT( context, inspectStorageLoadOrder( groups, order) != 0U) ;
+		DRIVERCRATE_EXPECT( context, order == StorageLoadOrder{}) ;
+	}
+
+	// IDEで元位置が変わると同一の観測値にならない
+	constexpr wchar_t ide[] = L"Boot Bus Extender\0System Bus Extender\0SCSI Miniport\0" ;
+	// 順序が入れ替わった二回目の観測
+	constexpr wchar_t ideMoved[] = L"System Bus Extender\0Boot Bus Extender\0" ;
+	// 大文字小文字が異なる同名グループを二つ含む一覧
+	constexpr wchar_t ideDuplicate[] = L"System Bus Extender\0SYSTEM BUS EXTENDER\0" ;
+	// 同じ位置の前後を別の起動グループが横切る場合
+	constexpr wchar_t ideCrossed[] = L"SCSI Miniport\0System Bus Extender\0Boot Bus Extender\0" ;
+	StorageLoadOrder  before ;	// 最初に読み取ったグループ位置
+	DRIVERCRATE_EXPECT( context, inspectStorageLoadOrder( ide, before, true) == 0U &&
+									before.systemBusExtender == 1U) ;
+	DRIVERCRATE_EXPECT( context, inspectStorageLoadOrder( ideMoved, order, true) == 0U &&
+									order.systemBusExtender == 0U && order != before) ;
+	DRIVERCRATE_EXPECT( context, inspectStorageLoadOrder( ideCrossed, order, true) == 0U &&
+									order.systemBusExtender == before.systemBusExtender &&
+									order != before) ;
+	// 欠落と重複から部分的な順位を返さない
+	for( auto groups : {std::span<const wchar_t>{valid}, std::span<const wchar_t>{ideDuplicate}}) {
+		order = before ;
+		DRIVERCRATE_EXPECT( context, inspectStorageLoadOrder( groups, order, true) != 0U &&
+										order == StorageLoadOrder{}) ;
+	}
+}
+
+/** @brief 独立literalで固定した限定registry-only構造の一変異です */
+struct RegistryOnlyStructureCase {
+	/// 実出力へ結ぶ固定case IDです
+	std::string_view			 id ;
+	/// helper出力から生成しない構造成功期待です
+	bool						 accepted{} ;
+	/// 元literal内の一意な置換対象です。空なら末尾追記です
+	std::string_view			 from ;
+	/// 当該一変異の元byteです
+	std::string_view			 to ;
+	/// 同じ人工INFへ明示する非権限用途です
+	OfficialInfInspectionPurpose purpose{OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT} ;
+	/// 必要構成flagの独立入力です
+	bool						 required{true} ;
+	/// Windows管理DATA flagの独立入力です
+	bool						 managed{true} ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 限定registry-onlyのA6/B34を実SetupAPIと元byteへ接続します
+ * @param[in,out] context 全literal期待と実到達結果の集計先です
+ * @note Fake CATの拒否は実署名成功ではありません。実device/registry書込/導入は行いません
+ */
+//------------------------------------------------------------------------------
+void testRequiredRegistryOnlyStructure( TestContext &context)
+{
+	constexpr std::string_view INF =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=System\r\n"
+		"ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}\r\nProvider=Fixture\r\n"
+		"DriverVer=11/18/2026,1.2.3.4\r\nCatalogFile=sample.cat\r\n"
+		"[Manufacturer]\r\n%Maker%=Models,NTx86,NTamd64\r\n"
+		"[Models.NTx86]\r\n%Device32%=Install32,TESTBUS\\Registry32\r\n"
+		"[Models.NTamd64]\r\n%Device64%=Install64,TESTBUS\\Registry64,*FixtureCompatible\r\n"
+		"[Install32.NTx86]\r\nAddReg=Reg\r\n[Install32.NTx86.Services]\r\nAddService=,2\r\n"
+		"[Install64.NTamd64]\r\nAddReg=Reg\r\n[Install64.NTamd64.Services]\r\nAddService=,2\r\n"
+		"[Reg]\r\nHKR,Parameters\\Fixture,Level,%DwordFlags%,1\r\n"
+		// 全ID/本文は架空です
+		"[Strings]\r\nMaker=Fixture\r\nDevice32=Fictional32\r\nDevice64=Fictional64\r\nDwordFlags=65537\r\n" ;
+	// DWORDの参照と同じStrings定義を一組で差し替える範囲です
+	constexpr std::string_view FLAT_DWORD =
+		"%DwordFlags%,1\r\n[Strings]\r\nMaker=Fixture\r\nDevice32=Fictional32\r\n"
+		"Device64=Fictional64\r\nDwordFlags=65537\r\n" ;
+	// 元行とSetupAPIの展開を比較するドット付きの同じ値です
+	constexpr std::string_view DOTTED_DWORD =
+		"%Dword.Flags%,1\r\n[Strings]\r\nMaker=Fixture\r\nDevice32=Fictional32\r\n"
+		"Device64=Fictional64\r\nDword.Flags=65537\r\n" ;
+	// 許容する元レジストリ行と作用を変えた拒否対照を独立に列挙した表
+	const auto cases = std::to_array<RegistryOnlyStructureCase>(
+		{{"A01", true, {}, {}},
+		 {"A02", true, "DwordFlags=65537", "DwordFlags=0x00010001"},
+		 {"A03",
+		  true,
+		  {},
+		  "[SourceDisksFiles]\r\n[SourceDisksFiles.amd64]\r\n[SourceDisksNames]\r\n[SourceDisksNames.amd64]\r\n"},
+		 {"A04", true, "HKR,", "hkr,"},
+		 {"A05", true, "%DwordFlags%,1", "%DwordFlags%,0"},
+		 {"A06", true, "%DwordFlags%,1", "%DwordFlags%,0xFFFFFFFF"},
+		 {"B01", false, {}, {}, OfficialInfInspectionPurpose::STANDARD_DRIVER},
+		 {"B02", false, {}, {}, OfficialInfInspectionPurpose::COLLECTOR_CONTENT},
+		 {"B03", false, {}, {}, OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE},
+		 {"B04", false, {}, {}, OfficialInfInspectionPurpose::REQUIRED_STORAGE_IMPORT},
+		 {"B05", false, "4d36e97d", "4d36e972"},
+		 {"B06", false, "Provider=Fixture",
+		  "ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}\r\nProvider=Fixture"},
+		 {"B07", false, "%Maker%=Models,NTx86,NTamd64\r\n", ""},
+		 {"B08", false, "[Models.NTx86]\r\n%Device32%=Install32,TESTBUS\\Registry32\r\n", ""},
+		 {"B09", false, "TESTBUS\\Registry32", "TESTBUS\\Invalid ID"},
+		 {"B10", false, "[Install32.NTx86]\r\nAddReg=Reg",
+		  "[Install32.NTx86]\r\nAddReg=Reg\r\nCopyFiles=@hidden.sys"},
+		 {"B11", false, {}, "[Orphan]\r\nAddReg=Reg\r\n"},
+		 {"B12", false, "[Install32.NTx86]\r\nAddReg=Reg",
+		  "[Install32.NTx86]\r\nAddReg=Reg\r\nInclude=machine.inf\r\nNeeds=Fixture\r\n"},
+		 {"B13", false, "[Install32.NTx86]\r\nAddReg=Reg",
+		  "[Install32.NTx86]\r\nAddReg=Reg\r\nAddReg=Reg"},
+		 {"B14", false, "[Reg]\r\nHKR,Parameters\\Fixture,Level,%DwordFlags%,1\r\n", ""},
+		 {"B15", false, "AddReg=Reg\r\n[Install32", "AddReg=Reg,Reg\r\n[Install32"},
+		 {"B16", false, "HKR,", "HKLM,"},
+		 {"B17", false, "Parameters\\Fixture", "Other\\Fixture"},
+		 {"B18", false, ",Level,", ",,"},
+		 {"B19", false, "Parameters\\Fixture", "Parameters\\..\\Fixture"},
+		 {"B20", false, "DwordFlags=65537", "DwordFlags=65539"},
+		 {"B21", false, "DwordFlags=65537", "DwordFlags=0"},
+		 {"B22", false, "%DwordFlags%,1", "%DwordFlags%,0x100000000"},
+		 {"B23", false, "%DwordFlags%,1", "%DwordFlags%,1,0"},
+		 {"B24", false, "AddService=,2", "AddService=Named,2"},
+		 {"B25", false, "AddService=,2", "AddService=,0"},
+		 {"B26", false, "AddService=,2", "AddService=,2,"},
+		 {"B27", false, {}, "[SourceDisksFiles]\r\nmissing.sys=1\r\n"},
+		 {"B28", false, {}, "[SourceDisksFiles.unknown]\r\n"},
+		 {"B29", false, {}, "[HiddenReg.NTx86]\r\nHKLM,Parameters\\Fixture,Level,65537,1\r\n"},
+		 {"B30", false, "Provider=Fixture", "Provider=Fixture\r\nUnknownKey=1"},
+		 {"B31", false, "HKR,Parameters\\Fixture,Level,%DwordFlags%,1",
+		  "HKR,Parameters\\Fixture,Level,%DwordFlags%,1\r\nHKR,Parameters\\Fixture,Level,%DwordFlags%,1"},
+		 {"B32", false, "%DwordFlags%,1", "%DwordFlags%,%MissingDword%"},
+		 {"B33", false, {}, {}, OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT, false},
+		 {"B34",
+		  false,
+		  {},
+		  {},
+		  OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT,
+		  true,
+		  false},
+		 {"E01", true, {}, "; Copyright \xA9\r\n"},
+		 {"E02", true, {}, " \t; Copyright \xA9\r\n"},
+		 {"E03", true, {}, "; Copyright \xA9"},
+		 {"E04", false, "DwordFlags=65537", "DwordFlags=65537 ; \xA9"},
+		 {"E05", false, "Maker=Fixture",
+		  "Maker=Fix\xA9"
+		  "ture"},
+		 {"E06", false, "Maker=Fixture", "Maker=\"Fixture;\xA9\""},
+		 {"E07", false, {}, std::string_view{"; \xA9\0\r\n", sizeof( "; \xA9\0\r\n") - 1U}},
+		 {"E08", false, {}, "; \xA9\x01\r\n"},
+		 {"E09", false, {}, "; \xA9\x7F\r\n"},
+		 {"E10", false, "DwordFlags=65537", "; \xA9\nDwordFlags=65537 ; \xA9"},
+		 {"E11", false, "DwordFlags=65537", "; \xA9\rDwordFlags=65537 ; \xA9"},
+		 {"E12", false, {}, "; \xA9\x1F\r\n"},
+		 {"F01", true, FLAT_DWORD, DOTTED_DWORD},
+		 {"F02", true, {}, "Spare.DeviceDesc=Fictional\r\n"},
+		 {"F03", false, "%DwordFlags%,1", "%Dword.Flags%,1"},
+		 {"F04", false, {}, ".DeviceDesc=Fictional\r\n"},
+		 {"F05", false, {}, "Device..Desc=Fictional\r\n"},
+		 {"F06", false, {}, "DeviceDesc.=Fictional\r\n"},
+		 {"F07", false, FLAT_DWORD, DOTTED_DWORD, OfficialInfInspectionPurpose::STANDARD_DRIVER}}) ;
+	const std::array classes{std::wstring_view{L"System"}} ;	// 用途とは別の正式Classです
+	std::uint64_t	 ordinal{} ;								// 同一caseの所有workspaceだけへ結びます
+	// 元の回帰と単独コメント、ドット付き文字列の拒否まで検証します
+	for( const auto &test : cases) {
+		const int	failures = context.failureCount() ;	// 当該caseの実assertion差分だけです
+		std::string body{INF} ;							// 他caseの変異を継承しません
+		// 追記と元literal置換を区別し、誤ったfixtureを成功に数えません
+		if( test.from.empty()) {
+			body += test.to ;
+		} else {
+			const auto position = body.find( test.from) ;	// 正確な元変異位置です
+			DRIVERCRATE_EXPECT( context, position != body.npos) ;
+			// 未到達の変異を無変更negativeへしません
+			if( position == body.npos) {
+				throw std::runtime_error( "registry structure mutation prerequisite") ;
+			}
+
+			body.replace( position, test.from.size(), test.to) ;
+		}
+
+		auto policy							 = POLICY ;	// 旧正常policyから必要入力だけを変更します
+		policy.acceptedClasses				 = classes ;
+		policy.acceptAnyProvider			 = true ;
+		policy.acceptedProviders			 = {} ;
+		policy.requireDriverBinary			 = false ;
+		policy.rejectUnreferencedPrograms	 = false ;
+		policy.rejectInstallActions			 = true ;
+		policy.allowRequiredDriverComponents = test.required ;
+		policy.allowWindowsManagedDriverDataForContent = test.managed ;
+		policy.purpose								   = test.purpose ;
+		OfficialDownloadWorkspace workspace ;	// 実INF readerへ渡す新所有元byteです
+		// この試験だけの保護領域を作った結果
+		const auto				  initialized =
+			workspace.initialize( L"registry-only-structure", 3900U + ordinal++) ;
+		DRIVERCRATE_EXPECT( context, initialized == 0) ;
+		const bool wrote = initialized == 0 && writeWorkspaceFile( workspace, L"sample.inf", body) &&
+						   // CAT成功は注入しません
+						   writeWorkspaceFile( workspace, L"sample.cat", "not-signed") ;
+		DRIVERCRATE_EXPECT( context, wrote) ;
+		// 所有/保存失敗を目的phaseの拒否として数えません
+		if( !wrote) {
+			throw std::runtime_error( "registry structure workspace prerequisite") ;
+		}
+
+		const std::array   entries{OfficialZipEntry{L"sample.inf", body.size()},
+								   OfficialZipEntry{L"sample.cat", 10U}} ;	// 自身sourceを追加しません
+		OfficialInfPackage package ;										// 元readerの全出力だけです
+		// 試験対象の同梱構造を読み取った結果
+		const auto		   error =
+			inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy, package) ;
+		DRIVERCRATE_EXPECT( context, (error == 0) == test.accepted) ;
+		// 正例もID/hash/CATを別に確認し、形式だけの成功へ縮約しません
+		if( test.accepted && error == 0) {
+			const std::vector<std::wstring> expectedIds{
+				L"TESTBUS\\Registry64", L"*FixtureCompatible"} ;	// 独立した元二fieldです
+			DRIVERCRATE_EXPECT( context,
+							   package.requiredRegistryOnlyCompanion &&
+								   !package.requiredNullCompanion && package.sourceFiles.empty() &&
+								   package.inspectionPurpose ==
+									   OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT &&
+								   package.hardwareIds == expectedIds) ;
+			OfficialInfPublishedIdentity identity ;	// 同元byteからの独立ID区分です
+			// 同じ保護INFに対する識別の診断
+			const auto					 identityError =
+				readOfficialInfPublishedIdentity( workspace, package, identity) ;
+			std::wstring expectedHash ;	// 固定入力bodyの既SHAを使い、parserからexpectedを作りません
+			DRIVERCRATE_EXPECT( context, computeBytesSha256( body, expectedHash) == 0) ;
+			DRIVERCRATE_EXPECT( context, identityError == 0 && identity.infSha256 == expectedHash &&
+											identity.models.size() == 1U) ;
+			// 全Models一件という正常前提後だけ全ordered typed IDを比較します
+			if( identity.models.size() == 1U) {
+				DRIVERCRATE_EXPECT( context,
+								   identity.models[0].modelSection == L"Models.NTamd64" &&
+									   identity.models[0].hardwareIds ==
+										   std::vector<std::wstring>{L"TESTBUS\\Registry64"} &&
+									   identity.models[0].compatibleIds ==
+										   std::vector<std::wstring>{L"*FixtureCompatible"}) ;
+			}
+
+			DRIVERCRATE_EXPECT( context, verifyWindowsInfPackageIntegrity( workspace, package) != 0) ;
+		}
+		// negativeは構造入口の拒否と空出力を独立に確認します
+		else if( !test.accepted) {
+			// 上流構造拒否とmarker不成立を観測し、任意の後段errorで代用しません
+			DRIVERCRATE_EXPECT( context, !package.requiredRegistryOnlyCompanion &&
+											!package.requiredNullCompanion &&
+											package.infRelativePath.empty()) ;
+			// コメント/表示値以外の正常前提を保持した追補負例はsource例外不成立の原phaseで拒否します
+			if( test.id.starts_with( "E")) {
+				DRIVERCRATE_EXPECT( context, error == static_cast<NativeError>( 0xE0000102U)) ;
+			}
+		}
+
+		std::cout << "RRS_STRUCTURE id=" << test.id
+				  << " errorBits=" << static_cast<std::uint32_t>( error)
+				  << " registry=" << package.requiredRegistryOnlyCompanion
+				  << " null=" << package.requiredNullCompanion
+				  << " caseFailures=" << context.failureCount() - failures << " install=0\n" ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 必須System null importだけを全潜在architecture/作用の閉集合で受理します
+ * @param[in,out] context 元Models/空DDInstall/正確なnull serviceの正負結果を集計します
+ */
+//------------------------------------------------------------------------------
+void testRequiredNullCollectorImport( TestContext &context)
+{
+	constexpr std::string_view INF =
+		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=System\r\n"
+		"ClassGuid={4d36e97d-e325-11ce-bfc1-08002be10318}\r\nProvider=Fixture\r\n"
+		"DriverVer=11/15/2026,1.2.3.4\r\nCatalogFile=sample.cat\r\n"
+		"[Manufacturer]\r\nFixture=Models,NTx86,NTamd64\r\n"
+		"[Models.NTx86]\r\nDevice=Null,FictionalEnclosure\r\n"
+		"[Models.NTamd64]\r\nDevice=Null,FictionalEnclosure,*FictionalCompatible\r\n"
+		"[Null.NTx86]\r\n[Null.NTx86.Services]\r\nAddService=,2\r\n"
+		"[Null.NTamd64]\r\n[Null.NTamd64.Services]\r\nAddService=,%Flags%\r\n"
+		"[Strings]\r\nFlags=0x00000002\r\n" ;					// 全IDは架空で、x86内容も検査します
+	const std::array classes{std::wstring_view{L"System"}} ;	// 正式GUIDを別途要求します
+	auto			 policy				 = POLICY ;				// 元件数/構文境界を保持します
+	policy.acceptedClasses				 = classes ;
+	policy.acceptAnyProvider			 = true ;
+	policy.acceptedProviders			 = {} ;
+	policy.requireDriverBinary			 = false ;
+	policy.rejectUnreferencedPrograms	 = false ;
+	policy.rejectInstallActions			 = true ;
+	policy.allowRequiredDriverComponents = true ;
+	policy.purpose						 = OfficialInfInspectionPurpose::REQUIRED_COLLECTOR_IMPORT ;
+	// 正例とroot用途・非空・隠れた作用・不正flagsを一度ずつ独立検査します
+	for( unsigned scenario = 0U; scenario < 32U; ++scenario) {
+		std::string body{INF} ;			// 一caseだけの原変更です
+		auto		current = policy ;	// 他caseへ用途を持ち越しません
+		// 見えない別architectureと未参照節も空成功へ変換しません
+		switch( scenario) {
+			case 0U:	// required importだけの正例です
+				break ;
+
+			case 1U:	// 通常導入構造でnull例外を借用しません
+				current.purpose = OfficialInfInspectionPurpose::STANDARD_DRIVER ;
+				break ;
+
+			case 2U:	// 明示rootへ必要importの資格を渡しません
+				current.purpose = OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+				break ;
+
+			case 3U:	// named serviceをnullへ読み替えません
+				body.replace( body.find( "AddService=,2"), 13U, "AddService=Named,2,Service") ;
+				break ;
+
+			case 4U:	// ASSOCSERVICE以外のflagsを拒否します
+				body.replace( body.find( "Flags=0x00000002"), 16U, "Flags=0") ;
+				break ;
+
+			case 5U:	// extra fieldを無視しません
+				body.replace( body.find( "AddService=,2"), 13U, "AddService=,2,") ;
+				break ;
+
+			case 6U:	// 選択外x86の非空DDInstallも拒否します
+				body += "[Null.NTx86]\r\nAddReg=Hidden\r\n[Hidden]\r\nHKLM,Fixture,Value,0,1\r\n" ;
+				break ;
+
+			case 7U:	// hidden sourceを自身fileなしへ変換しません
+				body += "[SourceDisksFiles.x86]\r\nhidden.sys=1\r\n" ;
+				break ;
+
+			case 8U:	// 未参照のコピー節も無作用へしません
+				body += "[Hidden]\r\nCopyFiles=@hidden.sys\r\n" ;
+				break ;
+
+			case 9U:	// 未参照のSYS作用も省略しません
+				body += "[Hidden]\r\nServiceBinary=%12%\\hidden.sys\r\n" ;
+				break ;
+
+			case 10U:	// 未参照のregistry作用も省略しません
+				body += "[Hidden]\r\nAddReg=Registry\r\n[Registry]\r\nHKLM,Fixture,Value,0,1\r\n" ;
+				break ;
+
+			case 11U:	// 正式System以外を必要nullへ認定しません
+				body.replace( body.find( "4d36e97d"), 8U, "4d36e972") ;
+				break ;
+
+			case 12U:	// hidden Modelsの未実在DDInstallを他baseで救済しません
+				body.replace( body.find( "Device=Null,FictionalEnclosure"), 11U, "Device=Missing") ;
+				break ;
+
+			case 13U:	// hidden Servicesの二重宣言を先頭で認定しません
+				body += "[Null.NTx86.Services]\r\nAddService=,2\r\n" ;
+				break ;
+
+			case 14U:	// 余分な未知Version keyをmetadataへ読み替えません
+				body += "[Version]\r\nLayoutFile=hidden.inf\r\n" ;
+				break ;
+
+			case 15U:	// 実在する空x64 source宣言はfileを追加しません
+				body += "[SourceDisksFiles.amd64]\r\n" ;
+				break ;
+
+			case 16U:	// 共通source宣言も明示0行だけを扱います
+				body += "[SourceDisksFiles]\r\n" ;
+				break ;
+
+			case 17U:	// 明示空の共通媒体宣言を架空のfileへ変えません
+				body += "[SourceDisksNames]\r\n" ;
+				break ;
+
+			case 18U:	// 正規x64媒体宣言も空であることを要求します
+				body += "[SourceDisksNames.amd64]\r\n" ;
+				break ;
+
+			case 19U:	// 四標準節の同時宣言でも全節が明示空です
+				body += "[SourceDisksFiles]\r\n[SourceDisksFiles.amd64]\r\n"
+						"[SourceDisksNames]\r\n[SourceDisksNames.amd64]\r\n" ;
+				break ;
+
+			case 20U:	// 非空sourceをnullの自身fileなしへ変換しません
+				body += "[SourceDisksFiles.amd64]\r\nhidden.sys=1\r\n" ;
+				break ;
+
+			case 21U:	// 媒体の非空宣言もnull閉集合から除外します
+				body += "[SourceDisksNames]\r\n1=Fixture\r\n" ;
+				break ;
+
+			case 22U:	// 旧媒体節の元行数がどちらも0の必須補助です
+				body += "[SourceDisksFiles.x86]\r\n[SourceDisksFiles.ia64]\r\n" ;
+				break ;
+
+			case 23U:	// ARM64の全Modelsが空導入を参照する必須補助INFです
+				body.insert( body.find( "\r\n[Models.NTx86]"), ",NTarm64") ;
+				body += "[Models.NTarm64]\r\nDevice=Null,FictionalEnclosure\r\n"
+						"[SourceDisksFiles.arm64]\r\n" ;
+				break ;
+
+			case 24U:	// 未知装飾は空でも標準宣言と推定しません
+				body += "[SourceDisksNames.unknown]\r\n" ;
+				break ;
+
+			case 25U:	// 通常rootは明示空でもrequired importではありません
+				body += "[SourceDisksFiles.amd64]\r\n[SourceDisksNames]\r\n" ;
+				current.purpose = OfficialInfInspectionPurpose::STANDARD_DRIVER ;
+				break ;
+
+			case 26U:	// collector rootへrequired importの資格を移しません
+				body += "[SourceDisksFiles.amd64]\r\n[SourceDisksNames]\r\n" ;
+				current.purpose = OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+				break ;
+
+			case 27U:	// 既required storage用途も同じ閉じたnullを要求します
+				body += "[SourceDisksFiles.amd64]\r\n[SourceDisksNames]\r\n" ;
+				current.purpose = OfficialInfInspectionPurpose::REQUIRED_STORAGE_IMPORT ;
+				break ;
+
+			case 28U:	// 空sourceで選択外architectureの作用を隠しません
+				body += "[SourceDisksFiles.amd64]\r\n[Null.NTx86]\r\nCopyFiles=@hidden.sys\r\n" ;
+				break ;
+
+			case 30U:	// ARM64媒体の実ファイルを空として扱いません
+				body += "[SourceDisksFiles.arm64]\r\nhidden.sys=1\r\n" ;
+				break ;
+
+			case 31U:	// 空のARM64媒体が元導入節のコピーを隠さないことを確認します
+				body.insert( body.find( "\r\n[Models.NTx86]"), ",NTarm64") ;
+				body += "[Models.NTarm64]\r\nDevice=Null,FictionalEnclosure\r\n"
+						"[SourceDisksFiles.arm64]\r\n"
+						"[Null.NTarm64]\r\nCopyFiles=@hidden.sys\r\n"
+						"[Null.NTarm64.Services]\r\nAddService=,2\r\n" ;
+				break ;
+
+			default:	// 必要構成を許可しないpolicyへ空source例外を渡しません
+				body += "[SourceDisksFiles.amd64]\r\n[SourceDisksNames]\r\n" ;
+				current.allowRequiredDriverComponents = false ;
+				break ;
+		}
+
+		OfficialDownloadWorkspace workspace ;	// INF/CAT以外を持たないownerです
+		DRIVERCRATE_EXPECT( context,
+						   workspace.initialize( L"required-null-test", 3570U + scenario) == 0) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", body)) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "not-signed")) ;
+		const std::array   entries{OfficialZipEntry{L"sample.inf", body.size()},
+								   OfficialZipEntry{L"sample.cat", 10U}} ;	// 欠損SYSは補完しません
+		OfficialInfPackage package ;										// 必須importだけの出力です
+		const auto error = inspectOfficialInfPackage( workspace, entries, L"sample.inf", current,
+													 package) ;	// 実readerです
+		DRIVERCRATE_EXPECT( context, (error == 0) ==
+										(scenario == 0U || (scenario >= 15U && scenario <= 19U) ||
+										 scenario == 22U || scenario == 23U || scenario == 27U)) ;
+		// 正例でも元ID/kindの読取とCAT検査を省略しません
+		if( error == 0) {
+			DRIVERCRATE_EXPECT( context, package.requiredNullCompanion &&
+											package.sourceFiles.empty() &&
+											package.inspectionPurpose == current.purpose) ;
+			OfficialInfPublishedIdentity identity ;	// 原field由来の区分だけです
+			DRIVERCRATE_EXPECT( context,
+							   readOfficialInfPublishedIdentity( workspace, package, identity) == 0) ;
+			DRIVERCRATE_EXPECT( context, identity.models.size() == 1U) ;
+			// 原bare第一IDをCOMPATIBLEへ変更しません
+			if( identity.models.size() == 1U) {
+				DRIVERCRATE_EXPECT( context,
+								   identity.models.front().hardwareIds ==
+										   std::vector<std::wstring>{L"FictionalEnclosure"} &&
+									   identity.models.front().compatibleIds ==
+										   std::vector<std::wstring>{L"*FictionalCompatible"}) ;
+			}
+
+			DRIVERCRATE_EXPECT( context, verifyWindowsInfPackageIntegrity( workspace, package) != 0) ;
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 正規Stringsの実空valueだけを許し空作用・不正locale・非空禁止作用を拒否します
+ * @param[in,out] context 実SetupAPIと通常package検査の正負結果を集計します
+ */
+//------------------------------------------------------------------------------
+void testEmptyStringsMetadata( TestContext &context)
+{
+	auto policy					= POLICY ;	// 元通常構造に実作用検査を必ず加えます
+	policy.rejectInstallActions = true ;
+	constexpr std::array<std::string_view, 14U> DECLARATIONS{
+		"[Strings]\r\nClassName=\"\"\r\n",
+		"[Strings.0411]\r\nClassName=\"\"\r\n",
+		"[sTrInGs.0409]\r\nClassName=\"\"\r\n",
+		"[Strings.0a0F]\r\nClassName=\"\"\r\n",
+		"[Strings.041]\r\nClassName=\"\"\r\n",
+		"[Strings.GGGG]\r\nClassName=\"\"\r\n",
+		"[Strings.04110]\r\nClassName=\"\"\r\n",
+		"[Strings.0411.Extra]\r\nClassName=\"\"\r\n",
+		"[Install.NT]\r\nEmpty=\"\"\r\n",
+		"[Version]\r\nEmpty=\"\"\r\n",
+		"[Strings]\r\nRunPreSetupCommands=\"\"\r\n",
+		"[Strings.0411]\r\nMetadata=coinstallers32\r\n",
+		"[SourceDisksNames]\r\nEmpty=\"\"\r\n",
+		"[Strings.]\r\nClassName=\"\"\r\n"} ;	// 期待は節の役割と元literalから固定します
+	// 各caseを同じ正常packageへ一つずつ追加し、他caseの結果を引き継ぎません
+	for( std::size_t scenario = 0U; scenario < DECLARATIONS.size(); ++scenario) {
+		const std::string body =
+			std::string{VALID_INF} + std::string{DECLARATIONS[scenario]} ;	// 独立INFです
+		OfficialDownloadWorkspace workspace ;								// 架空fileだけの所有領域です
+		DRIVERCRATE_EXPECT( context,
+						   workspace.initialize( L"empty-strings-test", 3990U + scenario) == 0) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", body)) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "not-signed")) ;
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.sys", "driver")) ;
+		const std::array   entries{OfficialZipEntry{L"sample.inf", body.size()},
+								   OfficialZipEntry{L"sample.cat", 10U},
+								   OfficialZipEntry{L"sample.sys", 6U}} ;	// 全必要memberです
+		OfficialInfPackage package ;										// 署名資格を持たない構造結果です
+		const auto error = inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy,
+													 package) ;	// 実装を通します
+		DRIVERCRATE_EXPECT( context, (error == 0) == (scenario < 4U)) ;
+		// 正例の空metadataから偽CATの署名成功を作りません
+		if( error == 0) {
+			DRIVERCRATE_EXPECT( context, verifyWindowsInfPackageIntegrity( workspace, package) != 0) ;
+		}
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 人工generic INFでrequested V3の八Server tupleと既client二点を実readerへ渡します
+ * @param[in,out] context 同hash/原節/全ID順序とguard拒否を集計する結果です
+ * @note 一つのgeneric節はproduct/build弁別や実Server/署名/現在OS閉包の一般対応を証明しません
+ */
+//------------------------------------------------------------------------------
+void testRequestedServerModels( TestContext &context)
+{
+	OfficialDownloadWorkspace workspace ;	// 試験新所有の人工INFだけを持ちます
+	DRIVERCRATE_EXPECT( context, workspace.initialize( L"requested-server-models", 3891U) == 0) ;
+	DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", VALID_INF)) ;
+	DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.cat", "not-signed")) ;
+	DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.sys", "driver")) ;
+	const std::array   entries{OfficialZipEntry{L"sample.inf", VALID_INF.size()},
+							   OfficialZipEntry{L"sample.cat", 10U},
+							   OfficialZipEntry{L"sample.sys", 6U}} ;	// 元閉fileです
+	OfficialInfPackage package ;										// 前段の現在OS guardを維持した構造結果です
+	DRIVERCRATE_EXPECT( context, inspectOfficialInfPackage( workspace, entries, L"sample.inf", POLICY,
+														  package) == 0) ;
+	std::wstring digest ;	// 期待hashは人工原byteから直接計算します
+	DRIVERCRATE_EXPECT( context, computeDriverContainerSha256( VALID_INF, digest) == 0) ;
+	// 四版とDC/Serverを独立に実Windowsへ渡し、V2/currentOS fallbackを使いません
+	for( const auto build : {14393U, 17763U, 20348U, 26100U}) {
+		// 同buildでもproduct1をServerと分類しません
+		for( const auto product : {2U, 3U}) {
+			OfficialInfModelsPlatform platform ;	// 全六fieldを明示します
+			platform.majorVersion		   = 10U ;
+			platform.minorVersion		   = 0U ;
+			platform.buildNumber		   = build ;
+			platform.processorArchitecture = PROCESSOR_ARCHITECTURE_AMD64 ;
+			platform.productType		   = static_cast<std::uint8_t>( product) ;
+			platform.suiteMask			   = 0U ;
+			OfficialInfPublishedIdentity identity ;	// 導入資格を持たない公開metadataです
+			DRIVERCRATE_EXPECT( context, readOfficialInfPublishedIdentityForPlatform(
+											workspace, package, platform, digest, identity) == 0) ;
+			DRIVERCRATE_EXPECT( context, identity.infSha256 == digest &&
+											identity.classGuid ==
+												L"{4d36e972-e325-11ce-bfc1-08002be10318}" &&
+											identity.models.size() == 1U) ;
+			// 一節内の原kind/case/orderを固定literal期待へ照合します
+			if( identity.models.size() == 1U) {
+				DRIVERCRATE_EXPECT( context,
+								   identity.models.front().modelSection == L"Models.NTamd64" &&
+									   identity.models.front().hardwareIds ==
+										   std::vector<std::wstring>{L"PCI\\VEN_1234&DEV_5678"} &&
+									   identity.models.front().compatibleIds ==
+										   std::vector<std::wstring>{L"PCI\\VEN_1234"}) ;
+			}
+		}
+	}
+
+	// 既client二点の成功をServer tupleの拡張で失いません
+	for( const auto build : {19045U, 26100U}) {
+		OfficialInfModelsPlatform platform ;	// 明示workstation入力です
+		platform.buildNumber = build ;
+		platform.productType = VER_NT_WORKSTATION ;
+		OfficialInfPublishedIdentity identity ;	// generic同節です
+		DRIVERCRATE_EXPECT( context,
+						   readOfficialInfPublishedIdentityForPlatform( workspace, package, platform,
+																	   digest, identity) == 0 &&
+							   identity.infSha256 == digest && identity.models.size() == 1U) ;
+	}
+
+	// 一条件だけを変えた未対応tuple/別hashは実metadataを成功へ補完しません
+	for( unsigned mode = 0U; mode < 6U; ++mode) {
+		OfficialInfModelsPlatform platform ;	// Server正例からの独立負例です
+		platform.buildNumber = 26100U ;
+		platform.productType = VER_NT_SERVER ;
+		// 未知productをhost!=1のshortcutで通しません
+		if( mode == 0U) {
+			platform.productType = 4U ;
+		}
+
+		// suite0観測を非0へ拡張しません
+		if( mode == 1U) {
+			platform.suiteMask = 2U ;
+		}
+
+		// 未列挙buildを推測しません
+		if( mode == 2U) {
+			platform.buildNumber = 26200U ;
+		}
+
+		// major/minorを省略しません
+		if( mode == 3U) {
+			platform.minorVersion = 1U ;
+		}
+
+		// ARM64成功を作りません
+		if( mode == 4U) {
+			platform.processorArchitecture = PROCESSOR_ARCHITECTURE_ARM64 ;
+		}
+
+		OfficialInfPublishedIdentity identity ;	// 拒否時空です
+		DRIVERCRATE_EXPECT( context,
+						   readOfficialInfPublishedIdentityForPlatform(
+							   workspace, package, platform,
+							   mode == 5U ? std::wstring( 64U, L'0') : digest, identity) != 0 &&
+							   identity.models.empty()) ;
+	}
+
+	DRIVERCRATE_EXPECT( context, verifyOfficialFileMetadata( workspace.path( L"sample.inf"),
+														   {VALID_INF.size(), digest}) == 0) ;
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -3605,7 +6460,29 @@ void testInheritedSystemContent( TestContext &context)
 //------------------------------------------------------------------------------
 void runOfficialDriverPackageTests( TestContext &context)
 {
+	testRequiredRegistryOnlyStructure( context) ;
+	testRequestedServerModels( context) ;
+	testOpaqueNativeModels( context) ;
+	testModelIdDeduplication( context) ;
+	testScopedModelsEvidence( context) ;
+	testScopedModelsInventory( context) ;
+	testMtdStorageEffects( context) ;
+	testStorageServicePreserveString( context) ;
+	testDriverStoreAuxiliaryCommandSyntax( context) ;
+	testStorageEventCopyDestination( context) ;
+	testStorageAuxiliaryServiceEffects( context) ;
+	testSelectedScsiFeatureScore( context) ;
+	testCollectorMtdStructure( context) ;
+	testCollectorStorageStructure( context) ;
+	testSelectedMediumChangerStructure( context) ;
+	testCollectorHdcStorageStructure( context) ;
+	testCollectorHdcStorageEffects( context) ;
+	testStorageLoadOrder( context) ;
+	testStandardTapeDriveStructure( context) ;
+	testRequiredNullCollectorImport( context) ;
+	testEmptyStringsMetadata( context) ;
 	testStandardComponentActions( context) ;
+	testCollectorSystemServiceBudget( context) ;
 	testInheritedSystemContent( context) ;
 	testValidInfPackage( context) ;
 	testPrinterInfWithoutSys( context) ;
@@ -3624,6 +6501,9 @@ void runOfficialDriverPackageTests( TestContext &context)
 	testInfOnlyIntegrityBoundary( context) ;
 	testMaintenanceNullFlags( context) ;
 	testMaintenanceStructureBoundaries( context) ;
+	testCollectionInventoryBudget( context) ;
+	testCollectionInventoryLineBudget( context) ;
+	testScopedWirelessParameterLabels( context) ;
 	testMaintenanceNamedServices( context) ;
 	testMaintenanceClassSeparation( context) ;
 	testMaintenanceStructureInputFailures( context) ;

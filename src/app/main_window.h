@@ -2,7 +2,7 @@
 /**
  * @file main_window.h
  * @brief DriverCrateメインウィンドウ定義
- * @version 01.21.05
+ * @version 01.26.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -85,6 +85,11 @@
  * Ver.01.21.03 Shunji Ogawa  2026/11/13  有効表示対象の初期意図と明示DPIのcheck画像を接続
  * Ver.01.21.04 Shunji Ogawa  2026/11/14  導入後の推奨表示から処理済み対象だけを除外
  * Ver.01.21.05 Shunji Ogawa  2026/11/14  所有した導入終端結果のfilter閲覧判定を宣言
+ * Ver.01.22.00 Shunji Ogawa  2026/11/19  初回セットアップクラス登録の表示を共用
+ * Ver.01.23.00 Shunji Ogawa  2026/11/23  単一ブートの変更予定の表示を共用
+ * Ver.01.24.00 Shunji Ogawa  2026/11/23  選択行の検査用取得と同じ行への結果表示を追加
+ * Ver.01.25.00 Shunji Ogawa  2026/11/23  元候補へ結ぶ検査済み規約の表示値を保持
+ * Ver.01.26.00 Shunji Ogawa  2026/11/23  取得継続まで同じWiX規約を保持する契約を追加
  * </pre>
  *
  * @note Top-level Win32 Window、TreeTable、およびUI stateを定義します。全member functionは、worker notificationを除き
@@ -689,11 +694,21 @@ private:
 														LPARAM longParameter) noexcept ;
 
 	/**
-	 * @brief checked candidate を確認して download/install を開始する
-	 * Provider registryから注意種別を検証し、device、現在版から候補版への操作、取得元、およびOS別の復旧条件を表示する。不明なProvider、操作、Server条件で
-	 * はworkerを呼ばない
+	 * @brief 選択候補を確認して取得と導入を開始する
+	 * Provider registryの注意種別、機器、現在版と候補版、取得元、OS別の復旧条件を確認する
+	 * 単一ブートの変更予定は当該候補の直後に表示し、同じ最終確認で明示同意を求める
+	 * @param[in] preparedWixTerms 自動継続だけに渡す取得前の元規約。直接操作では空です
+	 * @note 不明なProvider、操作、Server条件や矛盾のある変更予定ではworkerを呼ばない
 	 */
-	void					   beginInstall() ;
+	void beginInstall( std::optional<std::span<const WixInstallConsent>> preparedWixTerms = {}) ;
+	/**
+	 * @brief 同じ選択から検査済みWiX候補と閲覧できる元規約を取得します
+	 * @param[in] indexes 現在表示の候補位置です
+	 * @return WiX候補と同じ元規約。規約の不足・失効、不正な位置ではnulloptです
+	 * @note UIスレッド専用です。文書の閲覧と同じ時計で可否を確認し、同意は発行しません
+	 */
+	[[nodiscard]] std::optional<std::vector<WixInstallConsent>> selectedWixTerms(
+		std::span<const std::size_t> indexes) const ;
 	/**
 	 * @brief 同scanの未取得参照を含めて明示選択できるかを判定します
 	 * @param[in] candidate 現在表示中の元候補です
@@ -755,6 +770,28 @@ private:
 	 * @param[in] indexes 現在表示中で明示checkした有限index集合です
 	 */
 	void					beginInstallPreparation( std::span<const std::size_t> indexes) ;
+	/**
+	 * @brief 元候補と同じ通常検索に属する検査専用計画を照合します
+	 * @param[in] candidate 現在の一覧から呼出し中だけ借用する一候補です
+	 * @return 現計画の一件です。処理中、失効、別の取得方式はnullptrです
+	 * @note 計画を入れ替える処理やダイアログを越えて戻り値を保持しません
+	 */
+	[[nodiscard]] const OfficialPreparationTarget *inspectionTargetFor(
+		const UpdateCandidate &candidate) const noexcept ;
+	/**
+	 * @brief 元候補で明示した検査専用取得を一件だけ既存workerに依頼します
+	 * @param[in] candidate ダイアログ終了後に照合した現在一覧の一候補です
+	 * @note ここでは規約、従量回線又は導入の同意を発行しません
+	 */
+	void beginInspectionPreparation( const UpdateCandidate &candidate) ;
+	/**
+	 * @brief 検査専用の結果は元候補だけへ戻し、使用できない取得対象を除きます
+	 * @param[in] result 同operationへ受理済みの終端です
+	 * @param[in] cancelled 終端受理前に利用者が取得を取り消した場合trueです
+	 * @note 受理した内容summaryを使い、現在のバージョンや導入選択は変更しません
+	 */
+	void finishInspectionPreparation( const OfficialPreparationOperationResult &result,
+									 bool									   cancelled) ;
 	/**
 	 * @brief 全snapshot照合を経て既存workerへ取得を一回だけ登録します
 	 * @param[in] approval 対象別判断と任意の元Install選択を持つ所有値です
@@ -1082,6 +1119,22 @@ private:
 	[[nodiscard]] std::wstring formatCandidateDetails( const UpdateCandidate &candidate) const ;
 
 	/**
+	 * @brief 候補詳細と最終同意に共通する初回セットアップクラス登録の説明を整形します
+	 * @param[in] registration 候補と結合し、表示検証を通過した登録情報です。呼出し中だけ借用します
+	 * @return クラス名、GUID、表示名、宣言された場合だけ内蔵アイコン番号を含む説明です
+	 */
+	[[nodiscard]] std::wstring formatSetupClassRegistration(
+		const SetupClassRegistrationSummary &registration) const ;
+
+	/**
+	 * @brief 候補詳細と最終確認に共通する単一ブートの変更予定を整形する
+	 * @param[in] change 同じ選択の導入計画に結び付いた表示情報。呼出し中だけ借用する
+	 * @return 起動サービスとSYS、イベントの変更区分、三種類の追加・変更件数。変更区分が未定義なら空
+	 */
+	[[nodiscard]] std::optional<std::wstring> formatSingleBootStorageChange(
+		const SingleBootStorageChangeSummary &change) const ;
+
+	/**
 	 * @brief 候補の方式と最初の未確認・拒否理由を一覧用に整形する
 	 * @param[in] candidate 表示する候補
 	 * @return 詳細未収集または方式と主理由。全軸は詳細画面に保持する
@@ -1220,6 +1273,8 @@ private:
 	bool									   closeAfterPreparation_{} ;
 	/// 同Install操作に結合した取得だけを終端で一回継続します。取消し・新検索・closeで破棄します
 	bool									   continueInstallAfterPreparation_{} ;
+	/// 混在選択の取得を始めるときのWiX規約です。自動継続時に同じ表示だけを受理します
+	std::vector<WixInstallConsent>			   wixTermsBeforePreparation_ ;
 	/// 主画面で案内した未承認snapshotです。選択更新と処理開始で置換・破棄します
 	std::optional<OfficialPreparationApproval> presentedInstallTerms_ ;
 	/// 結果表示用の対象snapshot
@@ -1234,50 +1289,59 @@ private:
 	IndexScanSummary						   indexScanSummary_ ;
 	/// 同operationで照合した非機密の取得・内容結果。新scan時に破棄します
 	IndexPreparationSummary					   indexPreparationSummary_ ;
+	/** @brief 同じ候補と機器に対する閲覧専用の結合です */
+	struct WixTermsDisplay {
+		/// 元候補に対応する同じスキャンのopaque機器IDです
+		std::wstring								deviceIdentity ;
+		/// 元期限と全言語の表示用本文を所有します
+		std::shared_ptr<const WixTermsPresentation> terms ;
+	} ;
+	/// 現スキャンで検査した候補IDから元機器と閲覧用規約を引きます
+	std::unordered_map<std::wstring, WixTermsDisplay> wixTermsByCandidate_ ;
 	/// 今回取得を選択した対象数
-	std::uint32_t							   preparationTotal_{} ;
+	std::uint32_t									  preparationTotal_{} ;
 	/// 最後に受理した確定件数
-	std::uint32_t							   preparationCompleted_{} ;
+	std::uint32_t									  preparationCompleted_{} ;
 	/// UI operationの状態とidentityを検証する状態機械
-	OperationController						   controller_ ;
+	OperationController								  controller_ ;
 	/// Blocking処理を所有するworker
-	std::unique_ptr<ProviderWorker>			   worker_ ;
+	std::unique_ptr<ProviderWorker>					  worker_ ;
 	/// 最後に成功したscanの結果分類
-	OutcomeCode								   scanOutcome_{OutcomeCode::NOT_STARTED} ;
+	OutcomeCode										  scanOutcome_{OutcomeCode::NOT_STARTED} ;
 	/// 現在のscan sessionで表示中の候補
-	std::vector<UpdateCandidate>			   candidates_ ;
+	std::vector<UpdateCandidate>					  candidates_ ;
 	/// 次回scanで有効にするProvider ID集合
-	std::vector<std::wstring>				   enabledProviderIds_ ;
+	std::vector<std::wstring>						  enabledProviderIds_ ;
 	/// 利用者が明示選択したIntel Wireless ZIP path。Process終了時またはProvider無効化時に破棄する
-	std::wstring							   selectedIntelWirelessPackagePath_ ;
+	std::wstring									  selectedIntelWirelessPackagePath_ ;
 	/// 利用者が明示選択したProlific DCHU ZIP path。Provider無効化時に破棄する
-	std::wstring							   selectedProlificSerialPackagePath_ ;
+	std::wstring									  selectedProlificSerialPackagePath_ ;
 	/// 利用者が明示選択したSilicon Labs CP210x ZIP path。Provider無効化時に破棄する
-	std::wstring							   selectedSiliconLabsSerialPackagePath_ ;
+	std::wstring									  selectedSiliconLabsSerialPackagePath_ ;
 	/// 利用者が明示選択したWCH CH341SER ZIP path。Provider無効化時に破棄する
-	std::wstring							   selectedWchSerialPackagePath_ ;
+	std::wstring									  selectedWchSerialPackagePath_ ;
 	/// 利用者が明示選択したWCH CH343SER ZIP path。Provider無効化時に破棄する
-	std::wstring							   selectedWchMultiSerialPackagePath_ ;
+	std::wstring									  selectedWchMultiSerialPackagePath_ ;
 	/// 利用者が明示選択した取得元未証明driver-only ZIP path。Provider無効化時に破棄する
-	std::wstring							   selectedGenericInfPackagePath_ ;
+	std::wstring									  selectedGenericInfPackagePath_ ;
 	/// 前回scanの取得元別状態
-	std::vector<ProviderScanReport>			   providerReports_ ;
+	std::vector<ProviderScanReport>					  providerReports_ ;
 	/// 前回scanから端末内だけで保持するmanufacturer／setup class別候補到達件数
-	std::vector<LocalCoverageEntry>			   localCoverage_ ;
+	std::vector<LocalCoverageEntry>					  localCoverage_ ;
 	/// Candidate index別に保持する利用者の選択状態
-	std::vector<bool>						   candidateSelected_ ;
+	std::vector<bool>								  candidateSelected_ ;
 	/// Candidate indexに対応する非所有device item。同deviceの全候補は同じhandleを参照する
-	std::vector<HTREEITEM>					   candidateItems_ ;
+	std::vector<HTREEITEM>							  candidateItems_ ;
 	/// Candidate indexに対応するdevice row index。同deviceの全候補は同じ行を参照する
-	std::vector<std::size_t>				   candidateRowIndexes_ ;
+	std::vector<std::size_t>						  candidateRowIndexes_ ;
 	/// TreeView item parameterから参照する安定した表示行集合
-	std::vector<TreeRow>					   treeRows_ ;
+	std::vector<TreeRow>							  treeRows_ ;
 	/// このWindowだけが所有する通常/readonlyの五state画像です
-	HIMAGELIST								   checkboxImages_{} ;
+	HIMAGELIST										  checkboxImages_{} ;
 	/// 同scanで一時的に非表示となった分類も含めた正規keyの開閉です
-	std::unordered_map<std::wstring, bool>	   treeClassExpansion_ ;
+	std::unordered_map<std::wstring, bool>			  treeClassExpansion_ ;
 	/// 所有candidateの元indexへidentity照合で保持する個別実行履歴。新scanで破棄する
-	std::vector<std::wstring>				   candidateResultTexts_ ;
+	std::vector<std::wstring>						  candidateResultTexts_ ;
 } ;
 
 } // namespace drivercrate

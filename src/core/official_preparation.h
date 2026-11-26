@@ -2,7 +2,7 @@
 /**
  * @file official_preparation.h
  * @brief 配布物単位の検査用取得承認と予算管理
- * @version 01.06.02
+ * @version 01.08.00
  * @date 2026/09/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,8 @@
  * Ver.01.06.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
  * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.06.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.07.00 Shunji Ogawa  2026/11/20  必須ファームウェアの確認を端末別の取得対象へ結合
+ * Ver.01.08.00 Shunji Ogawa  2026/11/23  署名索引の埋込み規約を検査する取得承認を追加
  * </pre>
  *
  * @note 一objectは同一threadだけで使用し、取得taskを導入許可として扱いません
@@ -80,7 +82,9 @@ enum class OfficialPreparationTerms {
 	/// Download前の同意が不要とProviderが確認した
 	CONFIRMED_NO_CONSENT,
 	/// 指定revisionの条件への明示同意を必要とする
-	ACCEPTANCE_REQUIRED
+	ACCEPTANCE_REQUIRED,
+	/// 署名索引が指定した一台の配布物を取得し、埋込み規約を検査する操作に限る
+	INSPECTION_ONLY
 } ;
 
 /** @brief 一scan内の計画をまたいで維持する予約予算 */
@@ -104,43 +108,62 @@ struct OfficialPreparationLimits {
 	bool		  operator==( const OfficialPreparationLimits &other) const = default ;
 } ;
 
+/** @brief 同じ元配布行が一台の端末に要求するファームウェアの本人確認条件です */
+struct OfficialPlatformFirmwareCondition {
+	/// 同じスキャンの端末行に結ぶ匿名識別子です
+	std::wstring deviceIdentity ;
+	/// 同じ元署名レコード内の群位置です
+	std::size_t	 groupIndex{} ;
+	/// 公式表の元の必須バージョンです
+	std::wstring versionLabel ;
+
+	/**
+	 * @brief 元配布行に対する端末と公式群の条件を比較します
+	 * @param[in] other 同じ配布行に結ぶ比較対象の条件です
+	 * @return 端末識別子と公式群・元の必須バージョンがすべて一致する場合trueです
+	 */
+	bool		 operator==( const OfficialPlatformFirmwareCondition &other) const = default ;
+} ;
+
 /** @brief Payload URLや実device IDを含まない固定snapshot。EULA内のURLは文字列に限る */
 struct OfficialPreparationTarget {
 	/// 計画内で一意のopaque対象ID
-	std::wstring			 identity ;
+	std::wstring									 identity ;
 	/// Registryにある公式network Provider ID
-	std::wstring			 providerId ;
+	std::wstring									 providerId ;
 	/// 後続adapterが照合するpayload resource ID
-	std::wstring			 resourceId ;
+	std::wstring									 resourceId ;
 	/// workerが保存した配布情報のopaque ID
-	std::wstring			 releaseIdentity ;
+	std::wstring									 releaseIdentity ;
 	/// 保存した配布情報のparser revision。0は無効
-	std::uint32_t			 parserRevision{} ;
+	std::uint32_t									 parserRevision{} ;
 	/// 同意を求める転送上限。公開sizeの推定値ではない
-	std::uint64_t			 maximumBytes{} ;
+	std::uint64_t									 maximumBytes{} ;
 	/// 関連device数。適用性判定済み件数ではない
-	std::uint32_t			 deviceCount{} ;
+	std::uint32_t									 deviceCount{} ;
 	/// Download条件
-	OfficialPreparationTerms terms{OfficialPreparationTerms::UNRESOLVED} ;
-	/// 明示同意対象のrevision。条件不明／同意不要なら空
-	std::wstring			 eulaRevision ;
+	OfficialPreparationTerms						 terms{OfficialPreparationTerms::UNRESOLVED} ;
+	/// 明示同意対象のrevision。条件不明／同意不要／検査専用なら空
+	std::wstring									 eulaRevision ;
 	/// 同意対象の全文。外部送信・永続保存せず、snapshot全体で照合する
-	std::wstring			 eulaText ;
+	std::wstring									 eulaText ;
 	/// 元sourceIdと公式起点に結合した規約出典主体です。通常logへ出しません
-	std::wstring			 eulaSourceSubject ;
+	std::wstring									 eulaSourceSubject ;
 	/// EULAと独立した具体的取得条件の全文です。元target承認へ結合します
-	std::wstring			 prerequisiteText ;
+	std::wstring									 prerequisiteText ;
 	/// 同一scan内の完全一致EULAを一度だけ表示するopaque group token。従来対象は0
-	std::uint64_t			 sharedEulaToken{} ;
+	std::uint64_t									 sharedEulaToken{} ;
 	/// 既存契約・権限・用途等の確認が必要ならtrue
-	bool					 requiresPrerequisiteConfirmation{} ;
+	bool											 requiresPrerequisiteConfirmation{} ;
+	/// 一台・元配布行・公式群への本人確認です。取得対象のreleaseIdentityは元行のハッシュです
+	std::optional<OfficialPlatformFirmwareCondition> firmwareCondition ;
 
 	/**
      * @brief 表示済みsnapshotと承認対象の全fieldを完全一致で比較する
      * @param[in] other 比較対象の配布物snapshot
      * @return 全field一致時true
      */
-	bool					 operator==( const OfficialPreparationTarget &other) const = default ;
+	bool operator==( const OfficialPreparationTarget &other) const = default ;
 } ;
 
 /** @brief 一scanに属する有限な取得計画 */
@@ -181,7 +204,8 @@ struct OfficialPreparationApproval {
 	OfficialPreparationLimits				 limits ;
 	/// 全対象の可否。順序は任意
 	std::vector<OfficialPreparationDecision> decisions ;
-	/// Install操作で明示選択した元候補集合。空は従来の検査単独要求で、未取得参照は導入許可ではありません
+	/// Install操作で明示選択した元候補集合。検査専用の取得を選択した操作では空にする
+	/// 未取得参照を含む選択意図から導入許可を発行しない
 	std::vector<std::wstring>				 installIntentIdentities ;
 } ;
 
@@ -380,6 +404,7 @@ public:
 
 	/**
 	 * @brief 全対象の判断を照合し、選択分の最大容量を一度だけ予約する
+	 * 検査専用対象を取得する操作では、規約同意・導入意思・通常対象の取得を拒否する
 	 * 失敗時に一部だけ同意・予約しない。受理後の同じ計画は再使用できない
 	 * @param[in] approval 利用者が明示した計画全体への判断。 全対象の取得可否と提示時のsnapshot
 	 * @return 受理時None。それ以外はtaskを生成せず予算も変更しない。 全件照合と予約に成功した場合None

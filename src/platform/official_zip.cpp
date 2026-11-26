@@ -2,7 +2,7 @@
 /**
  * @file official_zip.cpp
  * @brief 公式ZIP package安全展開実装
- * @version 01.01.02
+ * @version 01.02.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -35,6 +35,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/11/05  共通検査・CRC展開を有限memory出力でも再利用
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.00 Shunji Ogawa  2026/11/22  規約メンバーの一件展開と原バイト照合を追加
  * </pre>
  *
  * @note ZIP metadataを全件検証してから、CRC検証付きstream展開を行います。Archive名を絶対pathへ直接連結せず、保護workspace境界を再検証します
@@ -69,12 +70,14 @@ namespace {
 // 定数定義
 //------------------------------------------------------------------------------
 
-constexpr std::size_t MAXIMUM_ARCHIVE_PATH_BYTES   = 160 ;		// 受理するentry相対pathの最大byte数
-constexpr std::size_t MAXIMUM_PATH_COMPONENT_BYTES = 96 ;		// 一path要素の最大byte数
-constexpr mz_uint16	  UNIX_HOST_SYSTEM			   = 3 ;		// ZIP made-byのUnix識別値
-constexpr mz_uint32	  UNIX_FILE_TYPE_MASK		   = 0170000U ;	// Unix modeのfile type mask
-constexpr mz_uint32	  UNIX_REGULAR_FILE			   = 0100000U ;	// Unix modeの通常file type
-constexpr mz_uint32	  UNIX_DIRECTORY			   = 0040000U ;	// Unix modeのdirectory type
+constexpr std::size_t MAXIMUM_ARCHIVE_PATH_BYTES	 = 160 ;			// 受理するentry相対pathの最大byte数
+constexpr std::size_t MAXIMUM_PATH_COMPONENT_BYTES	 = 96 ;				// 一path要素の最大byte数
+constexpr std::size_t MAXIMUM_NOTICE_BYTES			 = 64U * 1024U ;	// 規約メンバー一件の展開上限
+constexpr std::size_t MAXIMUM_NOTICE_STATEMENT_BYTES = 512U ;			// 規約指定文の原ASCII最大byte数
+constexpr mz_uint16	  UNIX_HOST_SYSTEM				 = 3 ;				// ZIP made-byのUnix識別値
+constexpr mz_uint32	  UNIX_FILE_TYPE_MASK			 = 0170000U ;		// Unix modeのfile type mask
+constexpr mz_uint32	  UNIX_REGULAR_FILE				 = 0100000U ;		// Unix modeの通常file type
+constexpr mz_uint32	  UNIX_DIRECTORY				 = 0040000U ;		// Unix modeのdirectory type
 
 //------------------------------------------------------------------------------
 // 内部型定義
@@ -1051,6 +1054,115 @@ NativeError readOfficialZip( const std::span<const std::byte>   archive,
 	}
 
 	return 0 ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 全ZIPエントリーを事前検査し、正規相対名が一致する一件の規約メンバーを照合します
+ * @param[in] archive 呼出し中だけ借用する取得済みZIPの原byteです
+ * @param[in] policy 選択外を含むZIP全体の固定展開上限です
+ * @param[in] expected 固定の相対名、原サイズ、SHA-256と指定文のbyte位置および内容です
+ * @return 全照合が成立すれば0、不正入力・形式・不一致はHRESULTです
+ * @note CRCと原byteを照合しても展開ファイルを作成せず、ZIP全体の出典や権限を確定しません
+ */
+//------------------------------------------------------------------------------
+NativeError verifyOfficialZipNotice( const std::span<const std::byte>	archive,
+									const OfficialZipExtractionPolicy  &policy,
+									const OfficialZipNoticeExpectation &expected)
+{
+	// 確保や展開前に、審査済み指定の原範囲と字句を確認します
+	if( archive.empty() || expected.relativePath.size() > MAXIMUM_ARCHIVE_PATH_BYTES ||
+	   expected.byteCount == 0U || expected.byteCount > MAXIMUM_NOTICE_BYTES ||
+	   expected.sha256.size() != 64U ||
+	   !std::ranges::all_of( expected.sha256,
+							[]( const wchar_t digit) {
+								// 呼出側が保有する原照合値に小文字hexだけを許可します
+								return (digit >= L'0' && digit <= L'9') ||
+									   (digit >= L'a' && digit <= L'f') ;
+							}) ||
+	   expected.statement.empty() || expected.statement.size() > MAXIMUM_NOTICE_STATEMENT_BYTES ||
+	   expected.statementOffset > expected.byteCount ||
+	   expected.statement.size() > expected.byteCount - expected.statementOffset ||
+	   !std::ranges::all_of( expected.statement, []( const char character) {
+		   // 指定文だけをASCIIへ限定し、ファイル全体は原byteで扱います
+		   return character >= ' ' && character <= '~' ;
+	   })) {
+		return static_cast<NativeError>( E_INVALIDARG) ;
+	}
+
+	// 全体の取得上限を超えるZIPは中央ディレクトリを読みません
+	if( archive.size() > policy.maximumArchiveBytes) {
+		return nativeErrorFromWin32( ERROR_FILE_TOO_LARGE) ;
+	}
+
+	const std::array paths{expected.relativePath} ;					// 規約照合で指定する一件だけの相対名です
+	const auto		 pathError = validateSelectedFiles( paths) ;	// 既存の選択path構文を適用します
+	// 正規化で別の相対名に変わる入力を検索しません
+	if( pathError != 0) {
+		return pathError ;
+	}
+
+	ZipReader					reader( archive) ;									// 同じ原ZIPを借用するreaderです
+	std::vector<ParsedZipEntry> entries ;											// 規約名の検索に使う全件検証済みの通常ファイルです
+	const auto parseError = parseZipEntries( archive, policy, reader, entries) ;	// 共通事前検査です
+	// 選択外のパス・種別・衝突・展開量も既存規則で拒否します
+	if( parseError != 0) {
+		return parseError ;
+	}
+
+	const auto entry =
+		std::ranges::find( entries, expected.relativePath, []( const ParsedZipEntry &item) {
+			// 大文字小文字を保持した正規相対名を検索中だけ借用します
+			return std::wstring_view{item.publicEntry.relativePath} ;
+		}) ; // 選択先は審査済みと同じ相対名を持つ一件です
+	// 大文字小文字の差、別階層、欠落は同じ規約として扱いません
+	if( entry == entries.end()) {
+		return nativeErrorFromWin32( ERROR_FILE_NOT_FOUND) ;
+	}
+
+	// 事前確認したサイズと異なるメンバーをメモリーに展開しません
+	if( entry->publicEntry.uncompressedSize != expected.byteCount) {
+		return nativeErrorFromWin32( ERROR_BAD_LENGTH) ;
+	}
+
+	mz_zip_archive_file_stat status{} ;	// 選択した一件の追加ヘッダー検査に使う中央情報です
+	// 空圧縮データの早期成功を防ぎ、同じ元名のローカルヘッダーを展開前に検査します
+	if( !mz_zip_reader_file_stat( &reader.get(), entry->archiveIndex, &status) ||
+	   status.m_comp_size == 0U ||
+	   !mz_zip_validate_file( &reader.get(), entry->archiveIndex,
+							 MZ_ZIP_FLAG_VALIDATE_HEADERS_ONLY)) {
+		return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+	}
+
+	try {
+		std::string notice( static_cast<std::size_t>( expected.byteCount),
+						   '\0') ;	// 選択一件だけの原byteです
+		// Minizで展開サイズとCRCを照合し、原データの破損を拒否します
+		if( !mz_zip_reader_extract_to_mem( &reader.get(), entry->archiveIndex, notice.data(),
+										 notice.size(), 0)) {
+			return nativeErrorFromWin32( ERROR_CRC) ;
+		}
+
+		std::wstring actualSha256 ;											// 選択した原byte全体のSHA-256です
+		const auto hashError = computeBytesSha256( notice, actualSha256) ;	// 文字変換なしで検査します
+		// 原ハッシュを確定できなければ指定文が見えても一致扱いにしません
+		if( hashError != 0) {
+			return hashError ;
+		}
+
+		// 指定文が同じでも、原規約の別部分が変わった場合は審査済みと扱いません
+		if( actualSha256 != expected.sha256) {
+			return nativeErrorFromWin32( ERROR_CRC) ;
+		}
+
+		const auto statement =
+			std::string_view{notice}.substr( static_cast<std::size_t>( expected.statementOffset),
+											// 元の指定位置です
+											expected.statement.size()) ;
+		return statement == expected.statement ? 0 : nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+	} catch( const std::bad_alloc &) {
+		return static_cast<NativeError>( E_OUTOFMEMORY) ;
+	}
 }
 
 //------------------------------------------------------------------------------

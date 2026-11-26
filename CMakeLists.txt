@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(
     DriverCrate
-    VERSION 1.0.7
+    VERSION 1.0.12
     DESCRIPTION "Torrent-free Windows driver update manager"
     LANGUAGES C CXX RC
 )
@@ -247,6 +247,7 @@ add_library(drivercrate_platform STATIC
     src/platform/asus_update_provider.cpp
     src/platform/composite_update_provider.cpp
     src/platform/common_driver_package.cpp
+    src/platform/collector_property_page_export_internal.cpp
     src/platform/common_inf_plan.cpp
     src/platform/indexed_driver_package_inspection.cpp
     src/platform/metadata_search_runner.cpp
@@ -300,6 +301,11 @@ add_library(drivercrate_platform STATIC
     src/platform/inf_dependency_plan.cpp
     src/platform/inf_dependency_native.cpp
     src/platform/system_inf_effects_internal.cpp
+    src/platform/storage_inf_effects_internal.cpp
+    src/platform/mtd_shared_file_internal.cpp
+    src/platform/registered_driver_store_package_internal.cpp
+    src/platform/mtd_handler_internal.cpp
+    src/platform/mtd_queue_internal.cpp
     src/platform/official_download_workspace.cpp
     src/platform/official_acquisition.cpp
     src/platform/nvidia_collector_metadata.cpp
@@ -324,12 +330,15 @@ add_library(drivercrate_platform STATIC
     src/platform/official_gzip.cpp
     src/platform/official_http_client.cpp
     src/platform/official_html_terms.cpp
+    src/platform/official_rtf_terms.cpp
     src/platform/openpgp_signature_verifier.cpp
     src/platform/signed_index_manifest.cpp
     src/platform/signed_index_refresh.cpp
     src/platform/public_index_readback.cpp
     src/platform/signed_index_asset_bytes.cpp
     src/platform/signed_index_records.cpp
+    src/platform/server_index_scope.cpp
+    src/platform/client_min_build_scope.cpp
     src/platform/unsigned_index_candidate.cpp
     src/platform/signed_index_acquisition_adapter.cpp
     src/platform/signed_index_acquisition_descriptor_internal.cpp
@@ -337,12 +346,15 @@ add_library(drivercrate_platform STATIC
     src/platform/signed_index_record_lookup.cpp
     src/platform/signed_index_scan.cpp
     src/platform/signed_index_candidate_binding.cpp
+    src/platform/signed_index_wix_content.cpp
     src/platform/official_msi.cpp
     src/platform/official_pe_resource.cpp
     src/platform/official_resource_content.cpp
     src/platform/signed_index_resource_plan.cpp
     src/platform/official_seven_zip.cpp
     src/platform/official_sfx.cpp
+    src/platform/official_wix_manifest.cpp
+    src/platform/official_wix_package.cpp
     src/platform/maintenance_embedded_file_table.cpp
     src/platform/official_zip.cpp
     src/platform/official_inf_archive_binding.cpp
@@ -374,6 +386,7 @@ target_link_libraries(drivercrate_platform
         drivercrate_miniz
         msxml6
         msi
+        powrprof
         shell32
         shlwapi
         userenv
@@ -476,6 +489,7 @@ if(BUILD_TESTING)
     drivercrate_apply_linker_options(drivercrate_pending_reference_tests)
     add_test(NAME drivercrate_pending_reference_tests COMMAND drivercrate_pending_reference_tests)
     add_executable(drivercrate_local_diagnostic_log_tests tests/unit/local_diagnostic_log_tests.cpp)
+    target_include_directories(drivercrate_local_diagnostic_log_tests PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
     target_link_libraries(drivercrate_local_diagnostic_log_tests PRIVATE drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_local_diagnostic_log_tests)
     drivercrate_apply_linker_options(drivercrate_local_diagnostic_log_tests)
@@ -653,6 +667,23 @@ if(BUILD_TESTING)
         drivercrate_miniz drivercrate_platform bcrypt crypt32 msi)
     drivercrate_apply_compiler_options(drivercrate_index_binding_tests)
     add_test(NAME drivercrate_index_binding_tests COMMAND drivercrate_index_binding_tests)
+    # 署名レコードと通常workerの機器別経路は専用の入口で実行する
+    add_test(NAME drivercrate_signed_index_records_tests
+        COMMAND drivercrate_index_binding_tests --signed-index-records)
+    set_tests_properties(drivercrate_signed_index_records_tests PROPERTIES
+        LABELS "index;nonnetwork" TIMEOUT 180 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME drivercrate_storage_qualification_tests
+        COMMAND drivercrate_index_binding_tests --storage-qualification)
+    set_tests_properties(drivercrate_storage_qualification_tests PROPERTIES
+        LABELS "storage;nonnetwork" TIMEOUT 180 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME drivercrate_mtd_operation_tests
+        COMMAND drivercrate_index_binding_tests --mtd-operation)
+    add_test(NAME drivercrate_mtd_file_io_tests
+        COMMAND drivercrate_index_binding_tests --mtd-file-io)
+    set_tests_properties(drivercrate_mtd_operation_tests drivercrate_mtd_file_io_tests PROPERTIES
+        LABELS "storage;nonnetwork" TIMEOUT 180 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+
+    # 既存架空INFと保守構造だけの有限回帰。実device・通信・導入を呼ばない。
     add_executable(drivercrate_maintenance_inf_structure_tests
         tests/unit/maintenance_inf_structure_main.cpp
         tests/unit/official_driver_package_tests.cpp)
@@ -703,28 +734,38 @@ if(BUILD_TESTING)
     drivercrate_apply_linker_options(drivercrate_resource_content_tests)
     add_test(NAME drivercrate_resource_content_tests COMMAND drivercrate_resource_content_tests
         vectors "${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/pe-resource")
+    # 4試験だけで共通計画を再コンパイルし、内容検査を各EXEのfixtureへ結ぶ。
+    # 製品ライブラリが他経路の内容検査を解決する場合も、fixtureの関数名と衝突しない。
+    add_library(drivercrate_common_inf_fixture_plan OBJECT src/platform/common_inf_plan.cpp)
+    target_include_directories(drivercrate_common_inf_fixture_plan PRIVATE src)
+    target_compile_definitions(drivercrate_common_inf_fixture_plan PRIVATE
+        inspectCommonDriverPackage=inspectFixtureCommonDriverPackage
+        reverifyCommonDriverInf=reverifyFixtureCommonDriverInf)
+    drivercrate_apply_compiler_options(drivercrate_common_inf_fixture_plan)
+
+    # 共通計画の独立fake内容境界。
     add_executable(drivercrate_common_inf_plan_tests tests/unit/common_inf_plan_tests.cpp)
     target_include_directories(drivercrate_common_inf_plan_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_common_inf_plan_tests PRIVATE drivercrate_platform)
+    target_link_libraries(drivercrate_common_inf_plan_tests PRIVATE drivercrate_common_inf_fixture_plan drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_common_inf_plan_tests)
     drivercrate_apply_linker_options(drivercrate_common_inf_plan_tests)
     add_test(NAME drivercrate_common_inf_plan_tests COMMAND drivercrate_common_inf_plan_tests)
     add_executable(drivercrate_common_inf_batch_tests tests/unit/common_inf_batch_tests.cpp)
     target_include_directories(drivercrate_common_inf_batch_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_common_inf_batch_tests PRIVATE drivercrate_platform)
+    target_link_libraries(drivercrate_common_inf_batch_tests PRIVATE drivercrate_common_inf_fixture_plan drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_common_inf_batch_tests)
     drivercrate_apply_linker_options(drivercrate_common_inf_batch_tests)
     add_test(NAME drivercrate_common_inf_batch_tests COMMAND drivercrate_common_inf_batch_tests)
     add_executable(drivercrate_common_inf_factory_regression_tests tests/unit/common_inf_plan_tests.cpp)
     target_include_directories(drivercrate_common_inf_factory_regression_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_common_inf_factory_regression_tests PRIVATE drivercrate_platform)
+    target_link_libraries(drivercrate_common_inf_factory_regression_tests PRIVATE drivercrate_common_inf_fixture_plan drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_common_inf_factory_regression_tests)
     drivercrate_apply_linker_options(drivercrate_common_inf_factory_regression_tests)
     add_test(NAME drivercrate_common_inf_factory_regression_tests COMMAND drivercrate_common_inf_factory_regression_tests)
     add_executable(drivercrate_common_inf_contract_tests tests/unit/common_inf_batch_tests.cpp)
     target_compile_definitions(drivercrate_common_inf_contract_tests PRIVATE DRIVERCRATE_COMMON_INF_CONTRACT_TESTS=1)
     target_include_directories(drivercrate_common_inf_contract_tests PRIVATE src tests/unit)
-    target_link_libraries(drivercrate_common_inf_contract_tests PRIVATE drivercrate_platform)
+    target_link_libraries(drivercrate_common_inf_contract_tests PRIVATE drivercrate_common_inf_fixture_plan drivercrate_platform)
     drivercrate_apply_compiler_options(drivercrate_common_inf_contract_tests)
     drivercrate_apply_linker_options(drivercrate_common_inf_contract_tests)
     add_test(NAME drivercrate_common_inf_contract_tests COMMAND drivercrate_common_inf_contract_tests)
@@ -757,6 +798,15 @@ if(BUILD_TESTING)
     drivercrate_apply_compiler_options(drivercrate_collector_inspection_tests)
     drivercrate_apply_linker_options(drivercrate_collector_inspection_tests)
     add_test(NAME drivercrate_collector_inspection_tests COMMAND drivercrate_collector_inspection_tests)
+    # Server scopeの非権限DTO/三条件を独立targetで確認する
+    add_executable(drivercrate_server_index_scope_tests tests/unit/server_index_scope_tests.cpp)
+    target_include_directories(drivercrate_server_index_scope_tests PRIVATE src)
+    target_link_libraries(drivercrate_server_index_scope_tests PRIVATE drivercrate_platform)
+    drivercrate_apply_compiler_options(drivercrate_server_index_scope_tests)
+    drivercrate_apply_linker_options(drivercrate_server_index_scope_tests)
+    add_test(NAME drivercrate_server_index_scope_tests COMMAND drivercrate_server_index_scope_tests)
+
+    # 通常binaryへ成功検査の試験seamを含めず、独立TUだけに限定する。
     add_executable(drivercrate_inf_dependency_native_tests tests/unit/inf_dependency_native_tests.cpp)
     target_include_directories(drivercrate_inf_dependency_native_tests PRIVATE src tests/unit)
     target_link_libraries(drivercrate_inf_dependency_native_tests PRIVATE drivercrate_platform)
@@ -789,7 +839,7 @@ if(BUILD_TESTING)
     drivercrate_apply_linker_options(drivercrate_common_driver_content_tests)
     add_test(NAME drivercrate_common_driver_content_tests COMMAND drivercrate_common_driver_content_tests)
     foreach(drivercrate_ui_mode IN ITEMS close queue index binding multi unknown
-            components needs extension formats preparation refresh)
+            components component-scope needs extension formats preparation refresh)
         add_test(NAME drivercrate_metadata_ui_${drivercrate_ui_mode}_tests
             COMMAND drivercrate_metadata_ui_tests --run-ui-tests ${drivercrate_ui_mode})
         set_tests_properties(drivercrate_metadata_ui_${drivercrate_ui_mode}_tests PROPERTIES

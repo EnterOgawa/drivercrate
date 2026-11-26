@@ -2,7 +2,7 @@
 /**
  * @file main_window.cpp
  * @brief DriverCrateメインウィンドウ実装
- * @version 01.31.09
+ * @version 01.44.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -121,6 +121,19 @@
  * Ver.01.31.07 Shunji Ogawa  2026/11/14  導入後の推奨表示から処理済み対象だけを除外
  * Ver.01.31.08 Shunji Ogawa  2026/11/14  下部の正常検索案内を短縮し失敗表示を保持
  * Ver.01.31.09 Shunji Ogawa  2026/11/14  導入全件終端後も所有結果の全候補閲覧を実handlerで許可
+ * Ver.01.32.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.33.00 Shunji Ogawa  2026/11/17  MTD共有作用の確認と部分結果を表示
+ * Ver.01.34.00 Shunji Ogawa  2026/11/19  初回セットアップクラス登録を既存の最終確認へ接続
+ * Ver.01.35.00 Shunji Ogawa  2026/11/21  共有起動ログ作用への最終確認を追加
+ * Ver.01.36.00 Shunji Ogawa  2026/11/22  共有補助サービスの変更を既存の最終確認に追加
+ * Ver.01.37.00 Shunji Ogawa  2026/11/22  共有補助サービスの反映確認と診断を個別結果に追加
+ * Ver.01.38.00 Shunji Ogawa  2026/11/23  自動起動型の共有作用を既存の最終確認に表示
+ * Ver.01.39.00 Shunji Ogawa  2026/11/23  同梱INFで処理される候補の監査理由を表示
+ * Ver.01.40.00 Shunji Ogawa  2026/11/23  イベント用DLLの配置を同じ選択の最終確認に表示
+ * Ver.01.41.00 Shunji Ogawa  2026/11/23  単一ブートの変更予定を同じ選択の最終確認へ追加
+ * Ver.01.42.00 Shunji Ogawa  2026/11/23  単一起動の反映と再起動確認を同じ結果へ表示
+ * Ver.01.43.00 Shunji Ogawa  2026/11/23  新スキャン開始時に旧規約の表示値を破棄
+ * Ver.01.44.00 Shunji Ogawa  2026/11/23  WiXの元規約と単一起動の変更内容を最終確認へ結合
  * </pre>
  *
  * @note Win32 TreeTable、候補選択、およびworker eventの表示を実装します。全UI操作はUI threadで実行します
@@ -229,7 +242,7 @@ constexpr int		  DEFAULT_WINDOW_WIDTH	= 1280 ;	// 初回Window幅（logical pixe
 constexpr int		  DEFAULT_WINDOW_HEIGHT = 720 ;		// 初回Window高さ（logical pixel）
 constexpr int		  MINIMUM_WINDOW_WIDTH	= 960 ;		// 利用者が縮小できる最小幅（logical pixel）
 constexpr int		  MINIMUM_WINDOW_HEIGHT = 560 ;		// 利用者が縮小できる最小高さ（logical pixel）
-constexpr std::size_t MAXIMUM_CONFIRMATION_TITLES = 5 ;	// 確認dialogへ列挙する候補数の上限
+constexpr std::size_t MAXIMUM_CONFIRMATION_TITLES = 5 ;	// 確認dialogに通常列挙する候補数の上限
 // TreeTable column titleを左から定義するresource ID群
 constexpr std::array<UINT, 3> TREE_COLUMN_RESOURCE_IDS{
 	IDS_COLUMN_DEVICE_DRIVER, IDS_COLUMN_CURRENT_VERSION, IDS_COLUMN_CANDIDATE_VERSION} ;
@@ -461,6 +474,26 @@ constexpr std::size_t MAXIMUM_COVERAGE_LABEL_CHARACTERS = 128U ;
 	return left.compare( right) < 0 ? -1 : 1 ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 元候補で必要な登録専用INFの全結果を確認します
+ * @param[in] candidate 同scanで明示選択した候補です
+ * @param[in] result 同候補の所有結果です
+ * @return 元件数と一意ordinalが一致し、全登録成功ならtrueです
+ * @note 登録成功を別deviceへの適用成功へ変換しません
+ */
+//------------------------------------------------------------------------------
+bool storageImportsComplete( const UpdateCandidate &candidate, const UpdateExecutionResult &result)
+{
+	const auto count = candidate.storageChange ? candidate.storageChange->requiredImportCount
+											   : 0U ;	// 元必要件数です
+	std::unordered_set<std::uint32_t> ordinals ;		// 元package ordinalの重複を拒否します
+	return result.requiredImports.size() == count &&
+		   std::ranges::all_of( result.requiredImports, [&]( const auto &item) {
+			   return item.outcome == OutcomeCode::SUCCESS && item.error == 0U &&
+					  ordinals.insert( item.packageOrdinal).second ;
+		   }) ;
+}
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -2219,7 +2252,8 @@ bool MainWindow::visibleInRecommendedFilter( const UpdateCandidate &candidate) c
 	const bool indexedUpdate =
 		candidate.providerId == SIGNED_INDEX_PROVIDER_ID &&
 		candidate.discoveryBasis == CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION &&
-		!candidate.preparationTargetIdentity.empty() &&
+		(!candidate.preparationTargetIdentity.empty() ||
+		 !candidate.wixInspectionSourceIdentity.empty()) &&
 		isCandidateDetailsValid( candidate,
 								// 元検査済み候補の分類です
 								controller_.scanSessionId()) ;
@@ -3390,6 +3424,8 @@ void MainWindow::beginScan()
 	preparationResultText_.clear() ;
 	indexScanSummary_		 = {} ;
 	indexPreparationSummary_ = {} ;
+	wixTermsByCandidate_.clear() ;
+	wixTermsBeforePreparation_.clear() ;
 	providerReports_.clear() ;
 	updateMetadataSearchColumns() ;
 	updateProviderSourcesCaption() ;
@@ -3486,11 +3522,15 @@ void MainWindow::cancelScan()
 
 //------------------------------------------------------------------------------
 /**
- * @brief checked candidate を確認して download/install を開始する。Provider registryから注意種別を検証し、device、現在版から候補版
- *        への操作、取得元、およびOS別の復旧条件を表示する。不明なProvider、操作、Server条件ではworkerを呼ばない
+ * @brief 選択候補を確認して取得と導入を開始する
+ * Provider registryの注意種別、機器、現在版と候補版、取得元、OS別の復旧条件を確認する
+ * 単一ブートの変更予定は当該候補の直後に表示し、同じ最終確認で明示同意を求める
+ * @param[in] preparedWixTerms 自動継続だけに渡す取得前の元規約。直接操作では空です
+ * @note 不明なProvider、操作、Server条件や矛盾のある変更予定ではworkerを呼ばない
  */
 //------------------------------------------------------------------------------
-void MainWindow::beginInstall()
+void MainWindow::beginInstall(
+	const std::optional<std::span<const WixInstallConsent>> preparedWixTerms)
 {
 	// 処理中・modal中・終了中に別のInstall意図を重ねません
 	if( closing_ || preparationReviewOpen_ || metadataReviewOpen_ ||
@@ -3525,16 +3565,28 @@ void MainWindow::beginInstall()
 
 	// 新たなInstall操作で以前の継続意図を再利用しません
 	continueInstallAfterPreparation_ = false ;
+	wixTermsBeforePreparation_.clear() ;
+	auto wixTerms = selectedWixTerms( checkedIndexes) ;	// まだ同意していない同じ選択と元規約です
+	// 自動継続では取得開始時に案内したWiX候補の規約を変更・追加しません
+	if( !wixTerms ||
+	   (preparedWixTerms && !std::ranges::is_permutation( *preparedWixTerms, *wixTerms))) {
+		setStatus( loadString( IDS_WIX_INSTALL_TERMS_EXPIRED), false) ;
+		return ;
+	}
 
 	// 未取得を含む選択は実導入APIへ直接渡さず、元targetの取得・検査へ進めます
 	if( std::ranges::any_of( checkedIndexes,
 						   [&]( const auto index) { return !candidates_[index].installable ; })) {
+		wixTermsBeforePreparation_.swap( *wixTerms) ;
 		beginInstallPreparation( checkedIndexes) ;
 		return ;
 	}
 
 	std::vector<std::wstring> identities ;	// Providerへ渡す選択済みopaque identity群
 	identities.reserve( checkedIndexes.size()) ;
+	const ScanSessionId scanSessionId =
+		// 確認対象を取得した元sessionです
+		controller_.scanSessionId() ;
 	std::unordered_map<std::wstring, std::wstring> currentVersions ;	// Device別の現在版
 
 	// 現在使用中の行だけをdeviceへ対応付け、確認画面で推測せず版遷移を表示する
@@ -3556,14 +3608,27 @@ void MainWindow::beginInstall()
 	bool includesOfficialInstaller{} ;			// driver導入完了とは異なる対話引継ぎの警告です
 	bool invalidConfirmation{} ;				// trueの場合はProviderまたは操作を安全に説明できない
 
-	bool includesUnacceptedEula{} ;		// 既存Providerの未受諾規約には明示判断を保持します
-	bool includesRequiredComponents{} ;	// 新しい必要構成の説明を一度だけ行います
+	bool includesUnacceptedEula{} ;				// 既存Providerの未受諾規約には明示判断を保持します
+	bool includesRequiredComponents{} ;			// 新しい必要構成の説明を一度だけ行います
+	bool includesSetupClassRegistration{} ;		// 初回クラス登録があれば明示判断を求めます
+	bool includesStorageAutoLogger{} ;			// 共有起動ログの設定に明示同意が必要か
+	bool includesStorageAuxiliaryService{} ;	// 要求時起動の補助サービスの変更に明示同意が必要か
+	bool includesAutomaticStorageSettings{} ;	// 自動起動の補助とACPI・電源設定に明示同意が必要か
+	bool includesStorageEventResource{} ;		// 同じ自動起動選択でイベントDLLの配置を指定したか
+	bool includesStorageSingleBoot{} ;			// 単一ブートの変更予定に明示同意が必要か
+	bool omittedConfirmationTitles{} ;			// 通常候補のうち列挙から省いたものがあればtrueです
 
-	// Index順に全選択を検証し、先頭上限件だけを確認dialogへ列挙する
+	// 全選択を検証し、先頭候補と初回クラス登録・単一ブートを伴う各候補を確認dialogへ列挙する
 	for( std::size_t displayIndex = 0; displayIndex < checkedIndexes.size(); ++displayIndex) {
 		// 現在確認文へ追加している選択候補
 		const UpdateCandidate &candidate = candidates_[checkedIndexes[displayIndex]] ;
-		UINT				   actionResourceId{} ;	// 検証済みDriverActionに対応する表示resource ID
+		// 初回登録の表示と元選択が矛盾する場合は導入を開始しません
+		if( candidate.setupClassRegistration && !isCandidateDetailsValid( candidate, scanSessionId)) {
+			invalidConfirmation = true ;
+			break ;
+		}
+
+		UINT actionResourceId{} ;	// 検証済みDriverActionに対応する表示resource ID
 		// 候補の操作種別を確認文へ変換し、未定義の操作は拒否対象にする
 		switch( candidate.action) {
 			// 通常更新の確認には更新用の操作名称を使用する
@@ -3653,6 +3718,50 @@ void MainWindow::beginInstall()
 							std::to_wstring( candidate.requiredDriverComponentCount) + L"\r\n" ;
 		}
 
+		// 同じ既同意表示へ原storage変更範囲を加え、専用確認flowを作りません
+		if( candidate.storageChange) {
+			// 既詳細へ表示する元storage変更範囲です
+			const auto &scope = *candidate.storageChange ;
+			includesStorageAutoLogger |= scope.configuresAutoLogger ;
+			includesStorageAuxiliaryService |=
+				scope.configuresAuxiliaryService && !scope.configuresAutomaticStorageSettings ;
+			includesAutomaticStorageSettings |= scope.configuresAutomaticStorageSettings ;
+			includesStorageEventResource |=
+				scope.configuresAutomaticStorageSettings && scope.sharedDllCount != 0U ;
+			confirmation += loadString( IDS_STORAGE_CHANGE_SCOPE) + L": " +
+							loadString( scope.startType == 0U   ? IDS_STORAGE_START_BOOT
+									   : scope.startType == 1U ? IDS_STORAGE_START_SYSTEM
+															   : IDS_STORAGE_START_DEMAND) +
+							L"\r\n" ;
+			// 原INFで実際に宣言した共有値だけを同じ確認へ追加します
+			if( scope.sharedDiskTimeout) {
+				confirmation += loadString( IDS_STORAGE_SHARED_TIMEOUT) +
+								std::to_wstring( *scope.sharedDiskTimeout) + L"\r\n" ;
+			}
+
+			// 共有DLLの件数を導入同意前に表示します
+			if( scope.sharedDllCount && !scope.configuresAutomaticStorageSettings) {
+				confirmation += loadString( IDS_MTD_SHARED_DLLS) +
+								std::to_wstring( scope.sharedDllCount) + L"\r\n" ;
+			}
+
+			// 明示されたMTD hardware属性を同意前に表示します
+			if( scope.mtdDeviceType || scope.mtdDeviceCharacteristics) {
+				confirmation +=
+					loadString( IDS_MTD_HARDWARE_PROPERTIES) +
+					(scope.mtdDeviceType ? std::to_wstring( *scope.mtdDeviceType) : L"-") + L" / " +
+					(scope.mtdDeviceCharacteristics
+						 ? std::to_wstring( *scope.mtdDeviceCharacteristics)
+						 : L"-") +
+					L"\r\n" ;
+			}
+
+			confirmation += loadString( IDS_STORAGE_REQUIRED_IMPORTS) +
+							std::to_wstring( scope.requiredImportCount) + L"\r\n" +
+							loadString( IDS_STORAGE_SHARED_EFFECT_NOTE) + L"\r\n" +
+							loadString( IDS_STORAGE_BOOT_NOTE) + L"\r\n" ;
+		}
+
 		includesOfficialInstaller =
 			includesOfficialInstaller ||
 			(candidate.assessment &&
@@ -3666,8 +3775,13 @@ void MainWindow::beginInstall()
 			candidate.discoveryBasis == CandidateDiscoveryBasis::OFFICIAL_WEB_PAGE ||
 			candidate.discoveryBasis == CandidateDiscoveryBasis::USER_IMPORTED_PACKAGE ||
 			candidate.discoveryBasis == CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ;
-		// 確認対象の詳細表示を上限件数に制限し、過大なdialogを作らない
-		if( displayIndex < MAXIMUM_CONFIRMATION_TITLES) {
+		// 当該候補を表示する間だけ借用する単一ブートの計画。該当しなければnull
+		const auto *singleBoot = candidate.storageChange && candidate.storageChange->singleBoot
+									 ? &*candidate.storageChange->singleBoot
+									 : nullptr ;
+		// 通常の列挙上限を超えても、明示同意を要する変更の対象と取得元を表示する
+		if( displayIndex < MAXIMUM_CONFIRMATION_TITLES || candidate.setupClassRegistration ||
+		   singleBoot != nullptr) {
 			const std::wstring unknown = loadString( IDS_VALUE_UNKNOWN) ;	// 欠損値の代替表示
 			// 同じopaque deviceに現在行がない場合は未照合と明示し、版を推測しない
 			const auto		   currentVersion = currentVersions.find( candidate.deviceIdentity) ;
@@ -3694,6 +3808,28 @@ void MainWindow::beginInstall()
 				L" | " + loadString( IDS_CONFIRM_ACTION_LABEL) + L": " +
 				loadString( actionResourceId) + L" | " + loadString( IDS_SOURCE_LABEL) + L": " +
 				source + L"\r\n" ;
+			// 当該候補の直後に、今回Windowsへ登録される値を示します
+			if( candidate.setupClassRegistration) {
+				confirmation +=
+					formatSetupClassRegistration( *candidate.setupClassRegistration) + L"\r\n" ;
+				includesSetupClassRegistration = true ;
+			}
+
+			// 単一ブートの変更予定を対象名に結び、同じ確認で同意を求める
+			if( singleBoot != nullptr) {
+				// 明示同意前に示す変更予定。未定義の区分は空になる
+				const auto change = formatSingleBootStorageChange( *singleBoot) ;
+				// 未定義の変更区分があれば、説明が欠けたまま選択の導入を始めない
+				if( !change) {
+					invalidConfirmation = true ;
+					break ;
+				}
+
+				confirmation += *change + L"\r\n" ;
+				includesStorageSingleBoot = true ;
+			}
+		} else {
+			omittedConfirmationTitles = true ;
 		}
 	}
 
@@ -3708,7 +3844,7 @@ void MainWindow::beginInstall()
 	}
 
 	// 詳細表示を省いた対象があることを確認文の末尾へ示す
-	if( checkedIndexes.size() > MAXIMUM_CONFIRMATION_TITLES) {
+	if( omittedConfirmationTitles) {
 		confirmation += L"…\r\n" ;
 	}
 
@@ -3747,10 +3883,37 @@ void MainWindow::beginInstall()
 		confirmation += L"\r\n" + loadString( IDS_INDEX_INSTALLER_WARNING) ;
 	}
 
+	// 取得後に判明した共有設定を他の最終確認と同時に表示する
+	if( includesStorageAutoLogger) {
+		confirmation += L"\r\n" + loadString( IDS_STORAGE_AUTOLOGGER_NOTICE) ;
+	}
+
+	// 共有補助サービスと実行ファイルの置換時期を同じ最終確認に示す
+	if( includesStorageAuxiliaryService) {
+		confirmation += L"\r\n" + loadString( IDS_STORAGE_AUXILIARY_SERVICE_NOTICE) ;
+	}
+
+	// 自動起動の補助と共有設定も同じ選択に対する最終確認に示す
+	if( includesAutomaticStorageSettings) {
+		confirmation += L"\r\n" + loadString( IDS_STORAGE_AUTOMATIC_SETTINGS_NOTICE) ;
+	}
+
+	// 同じ最終確認に元候補が指定したイベント用DLLのコピー先を示す
+	if( includesStorageEventResource) {
+		confirmation += L"\r\n" + loadString( IDS_STORAGE_EVENT_RESOURCE_NOTICE) ;
+	}
+
+	// 最終確認は選択したストレージの変更内容と同じ元規約への同意を求めます
+	if( !wixTerms->empty()) {
+		confirmation += L"\r\n" + loadString( IDS_WIX_INSTALL_TERMS_CONSENT) ;
+	}
+
 	// 通常Client標準INFはInstall clickを実行意思とし、同じ件数確認を重ねません
-	const bool requiresNewConsent = windowsServer || includesDowngrade ||
-									includesOfficialInstaller || includesUnacceptedEula ||
-									includesRequiredComponents ;	// 新たな条件だけを明示確認します
+	const bool requiresNewConsent =
+		windowsServer || includesDowngrade || includesOfficialInstaller || includesUnacceptedEula ||
+		includesRequiredComponents || includesSetupClassRegistration || includesStorageAutoLogger ||
+		includesStorageAuxiliaryService || includesAutomaticStorageSettings ||
+		includesStorageSingleBoot || !wixTerms->empty() ;
 	// Install clickと必要な新条件への明示判断だけを今回の実行意思へ結合します
 	const InstallConfirmation installConfirmation =
 		!requiresNewConsent ||
@@ -3758,10 +3921,17 @@ void MainWindow::beginInstall()
 							MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDYES
 			? InstallConfirmation::CONFIRMED
 			: InstallConfirmation::NOT_CONFIRMED ;
+	// 最終確認で同意した後にも、同じスキャン・元選択・規約だけをworkerへ渡します
+	if( !wixTerms->empty() && installConfirmation == InstallConfirmation::CONFIRMED &&
+	   (closing_ || controller_.scanSessionId() != scanSessionId ||
+		checkedCandidateIndexes() != checkedIndexes ||
+		selectedWixTerms( checkedIndexes) != wixTerms)) {
+		setStatus( loadString( IDS_WIX_INSTALL_TERMS_EXPIRED), false) ;
+		return ;
+	}
 
-	const ScanSessionId scanSessionId = controller_.scanSessionId() ;	// 選択元session ID
 	// Install開始のidentityと状態検証結果
-	const BeginResult	begin =
+	const BeginResult begin =
 		controller_.beginInstall( scanSessionId, identities, installConfirmation, protectionMode) ;
 	// 状態機械が拒否したinstall要求をworkerへ送らない
 	if( !begin.accepted) {
@@ -3776,7 +3946,7 @@ void MainWindow::beginInstall()
 	updateCommandState() ;
 	// worker登録に失敗した要求をUI上で処理中のまま残さない
 	if( worker_ == nullptr || !worker_->requestInstall( begin.operationId, scanSessionId, identities,
-													  window_, protectionMode)) {
+													  window_, protectionMode, 0U, *wixTerms)) {
 		InstallResult failure ;	// Queue登録失敗を表す既定失敗結果
 		failure.protectionMode = protectionMode ;
 		static_cast<void>( controller_.completeInstall( begin.operationId, failure)) ;
@@ -4245,7 +4415,7 @@ void MainWindow::processInstallCompleted( const WorkerEvent &event)
 				   role.reflection == DriverPlanReflectionState::INSTALL_API_COMPLETED ;
 		}) ; // 必要roleの未完了をbase成功から補いません
 		// 完了した元一候補だけを表示上解除します
-		if( rolesComplete) {
+		if( rolesComplete && storageImportsComplete( *original, *result)) {
 			binding.checked = false ;
 		}
 	}
@@ -4421,7 +4591,8 @@ void MainWindow::processInstallCompleted( const WorkerEvent &event)
 											 event.operationId, originalError,
 											 failedSelection.size()) ;
 		std::vector<std::wstring> currentSelection ;		// Dialog後の現選択を独立再読します
-		const auto indexes = checkedCandidateIndexes() ;	// 別選択や不足を旧同意へ追加しません
+		const auto indexes	= checkedCandidateIndexes() ;	// 別選択や不足を旧同意へ追加しません
+		const auto wixTerms = selectedWixTerms( indexes) ;	// Workerが元同意との完全一致を再確認します
 		// 現選択全件だけを新operationへ渡します
 		for( const auto index : indexes) {
 			currentSelection.push_back( candidates_[index].identity) ;
@@ -4432,10 +4603,10 @@ void MainWindow::processInstallCompleted( const WorkerEvent &event)
 			InstallProtectionMode::CLIENT_EXPLICIT_WITHOUT_RESTORE_POINT,
 			event.operationId) ;	// 同じ原失敗の一回消費をcontrollerが再検証します
 		// 拒否/queue失敗を処理中や保護成功へ見せません
-		if( !begin.accepted || !worker_ ||
+		if( !begin.accepted || !worker_ || !wixTerms ||
 		   !worker_->requestInstall( begin.operationId, scanSessionId, currentSelection, window_,
 									InstallProtectionMode::CLIENT_EXPLICIT_WITHOUT_RESTORE_POINT,
-									event.operationId)) {
+									event.operationId, *wixTerms)) {
 			controller_.discardRestoreContinuation() ;
 			// Queue受理前の失敗も同workerの元提示を破棄します
 			if( worker_) {
@@ -5450,6 +5621,7 @@ void MainWindow::recordResolvedInstallDevices( const InstallResult &result,
 											original->deviceIdentity ;
 								 }) != 1 ||
 		   !observed->selectedTargetMatched || observed->error != 0 ||
+		   !storageImportsComplete( *original, update) ||
 		   !isDeviceObservationBound( observed->observation, session, original->deviceIdentity) ||
 		   observed->observation.driverPresence != DeviceDriverPresence::REGISTERED ||
 		   observed->observation.node.read.state != DevicePropertyReadState::VALUE ||
@@ -5557,7 +5729,7 @@ void MainWindow::recordCompletedInstallCandidates( const InstallResult &result,
 				   role.reflection == DriverPlanReflectionState::INSTALL_API_COMPLETED ;
 		}) ;
 		// 元候補の必須role数を省略した結果を完了扱いにしません
-		if( !rolesComplete ||
+		if( !rolesComplete || !storageImportsComplete( *original, update) ||
 		   std::ranges::count( update.requiredRoles, DriverPlanRole::EXTENSION,
 							  &DriverPlanRoleExecutionResult::role) !=
 			   original->requiredExtensionCount ||
@@ -5915,7 +6087,12 @@ void MainWindow::displayInstallResult( const InstallResult &result,
 					case DriverPlanReflectionState::FAILED:
 						fact = loadString( IDS_INSTALL_FAILED) +
 							   formatOperationError( role.installError ? role.installError
-																	  : role.stageError,
+													: role.stageError ? role.stageError
+													: role.sharedCopy
+														? (role.sharedCopy->preflightError
+															   ? role.sharedCopy->preflightError
+															   : role.sharedCopy->copyError)
+														: 0U,
 													OutcomeCode::FAILURE) ;
 						break ;
 
@@ -5928,6 +6105,83 @@ void MainWindow::displayInstallResult( const InstallResult &result,
 				// 内部補完HRESULTをWindowsが実際に返した診断として表示しません
 				if( role.installDiagnosticMissing) {
 					fact += loadString( IDS_INDEX_ROLE_DIAGNOSTIC_MISSING) ;
+				}
+
+				// ストレージ作用を観測した場合は指定APIとは別の反映結果を表示する
+				if( role.auxiliaryService || role.singleBootStorage) {
+					const bool singleBoot =
+						// 関連起動サービスだけの確認
+						role.singleBootStorage.has_value() ;
+					const auto &reflected = singleBoot ? *role.singleBootStorage
+													   : *role.auxiliaryService ;	// 同roleの反映結果
+					UINT		reflectionStatus =
+						   singleBoot
+								   ? IDS_STORAGE_SINGLE_BOOT_UNCONFIRMED
+								   : IDS_STORAGE_AUXILIARY_UNCONFIRMED ;	// 同じ方式に対応する確認不能の表示
+					// 反映確認と再起動後の確認を別の結果として扱います
+					switch( reflected.state) {
+						// 必要な共有構成の反映を確認しました
+						case DriverStorageReflectionState::CONFIRMED:
+							reflectionStatus = singleBoot ? IDS_STORAGE_SINGLE_BOOT_CONFIRMED
+														  : IDS_STORAGE_AUXILIARY_CONFIRMED ;
+							break ;
+
+						// Windowsを再起動した後に同じ元作用の反映を確認する
+						case DriverStorageReflectionState::RESTART_CHECK:
+							reflectionStatus = singleBoot ? IDS_STORAGE_SINGLE_BOOT_RESTART_CHECK
+														  : IDS_STORAGE_AUXILIARY_RESTART_CHECK ;
+							break ;
+
+						// 未確認や範囲外の値には未確認の表示を使います
+						default:
+							break ;
+					}
+
+					fact += L" / " + loadString( reflectionStatus) ;
+					// 反映確認の元診断がある場合だけ同じ結果に添える
+					if( reflected.verificationError != 0) {
+						fact += L" (" + formatNativeError( reflected.verificationError) + L")" ;
+					}
+				}
+
+				// 共有copy結果があるroleだけ詳細へ追加します
+				if( role.sharedCopy) {
+					// 同roleに対応する共有copyの部分結果です
+					const auto &copy = *role.sharedCopy ;
+					// rename成功または既存再利用の件数を表示します
+					if( copy.renameSucceeded || copy.reused) {
+						fact += L" " + loadString( IDS_MTD_COPY_RESULT) +
+								std::to_wstring( copy.created) + L" / " +
+								std::to_wstring( copy.reused) ;
+					}
+
+					// rename後の確認失敗を新規配置成功と区別します
+					if( copy.renameSucceeded > copy.created) {
+						fact += L" " + loadString( IDS_MTD_RENAME_PARTIAL) ;
+					}
+
+					// 所有temp cleanup不確定を結果へ残します
+					if( copy.cleanupUncertain) {
+						fact += L" " + loadString( IDS_MTD_CLEANUP_UNCERTAIN) ;
+					}
+
+					// 元parameter復旧失敗とその診断を表示します
+					if( copy.parameterCleanupError) {
+						fact +=
+							L" " + loadString( IDS_MTD_PARAMS_CLEANUP) +
+							formatOperationError( copy.parameterCleanupError, OutcomeCode::FAILURE) ;
+					}
+
+					// DIF後の保持再検証失敗と診断を表示します
+					if( copy.postVerifyError) {
+						fact += L" " + loadString( IDS_MTD_POST_VERIFY) +
+								formatOperationError( copy.postVerifyError, OutcomeCode::FAILURE) ;
+					}
+
+					// Windowsが報告したSYS遅延を表示します
+					if( copy.systemDelayed) {
+						fact += L" " + loadString( IDS_MTD_SYS_DELAYED) ;
+					}
 				}
 
 				statusText += L" | " + roleName + L": " + fact ;
@@ -5945,6 +6199,20 @@ void MainWindow::displayInstallResult( const InstallResult &result,
 			statusText =
 				loadString( IDS_INSTALL_FAILED) +
 				formatOperationError( updateResult->installError, updateResult->installOutcome) ;
+		}
+
+		// 必要nullはdevice/roleへ変えず、登録済み/未実行/失敗を元順に表示します
+		for( const auto &import : updateResult->requiredImports) {
+			statusText +=
+				L"\r\n" + loadString( IDS_STORAGE_IMPORT_RESULT) + L" #" +
+				std::to_wstring( import.packageOrdinal + 1U) + L": " +
+				loadString( import.outcome == OutcomeCode::SUCCESS		? IDS_INDEX_ROLE_STAGED
+						   : import.outcome == OutcomeCode::NOT_STARTED ? IDS_NOT_INSTALLED
+																		: IDS_INSTALL_FAILED) ;
+			// 登録失敗の元数値を未実行や成功と分けて表示します
+			if( import.error != 0U) {
+				statusText += formatOperationError( import.error, import.outcome) ;
+			}
 		}
 
 		// native driverの成功を、遅延するWindows登録の完了へ読み替えません
@@ -6239,6 +6507,9 @@ std::wstring MainWindow::formatCandidateAuditGate( const CandidateAuditGateState
 		// 監査実行の失敗を不適合の拒否と区別する
 		case CandidateAuditGateState::FAILURE:
 			return loadString( IDS_AUDIT_FAILED) ;
+		// 現在のWindowsに委譲が確認され、別途ドライバーを導入しない行を表示する
+		case CandidateAuditGateState::INBOX_NULL_DRIVER:
+			return loadString( IDS_AUDIT_INBOX_NULL_DRIVER) ;
 	}
 
 	return loadString( IDS_AUDIT_FAILED) ;

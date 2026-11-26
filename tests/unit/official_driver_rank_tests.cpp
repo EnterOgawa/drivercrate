@@ -2,7 +2,7 @@
 /**
  * @file official_driver_rank_tests.cpp
  * @brief 公式driver rank監査単体試験実装
- * @version 01.01.03
+ * @version 01.01.04
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.01.03 Shunji Ogawa  2026/11/13  bounded opaque PnP IDのrank照合と限定回帰を接続
+ * Ver.01.01.04 Shunji Ogawa  2026/11/19  元Models全IDと選択一行の順位評価の差を確認
  * </pre>
  *
  * @note 架空PnP IDとrankを使用し、実deviceまたはSetupAPIへ依存しません
@@ -182,6 +183,10 @@ void runOfficialDriverRankTests( TestContext &context)
 		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
 		DRIVERCRATE_EXPECT( context, audit.decision ==
 										OfficialDriverRankDecision::IDENTIFIER_POSITION_REGRESSION) ;
+		// 空サービス等の別Models行のHardware IDを混ぜると退行が隠れることを確認する
+		fixture.candidateIds.push_back( fixture.hardwareIds.front()) ;
+		DRIVERCRATE_EXPECT( context, evaluateOfficialDriverRank( makeEvidence( fixture), audit)) ;
+		DRIVERCRATE_EXPECT( context, audit.decision == OfficialDriverRankDecision::APPLICABLE) ;
 	}
 	{
 		RankFixture fixture ;	// 同じID位置でidentifier scoreだけが悪化する拒否fixture

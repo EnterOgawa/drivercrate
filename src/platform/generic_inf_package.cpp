@@ -2,7 +2,7 @@
 /**
  * @file generic_inf_package.cpp
  * @brief 汎用署名済みINF ZIP検証実装
- * @version 01.03.02
+ * @version 01.04.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -42,6 +42,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続
  * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.03.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.04.00 Shunji Ogawa  2026/11/22  公式対象を限定した収集結果を汎用導入対象から除外
  * </pre>
  *
  * @note Provider名を入手元の証明に使用せず、現在Windows x64用の非boot-critical INF、WHCP署名、CAT SHA-256 member、現在deviceと
@@ -350,9 +351,9 @@ constexpr OfficialInfInspectionPolicy INF_POLICY{
 [[nodiscard]] bool isGenericInfPackage( const OfficialInfPackage &package)
 {
 	// 必須metadataの欠落、禁止payload、software列挙packageを汎用経路から除外する
-	if( package.hasUnassessedProgramReferences || package.providerName.empty() ||
-	   !isFourPartVersion( package.driverVersion) || package.hardwareIds.empty() ||
-	   package.sourceFiles.empty() ||
+	if( package.scopedModels || package.hasUnassessedProgramReferences ||
+	   package.providerName.empty() || !isFourPartVersion( package.driverVersion) ||
+	   package.hardwareIds.empty() || package.sourceFiles.empty() ||
 	   std::ranges::any_of( package.hardwareIds,
 						   []( const std::wstring &hardwareId) { return hardwareId.empty() ; }) ||
 	   std::ranges::any_of(

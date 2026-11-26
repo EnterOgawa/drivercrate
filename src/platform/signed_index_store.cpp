@@ -2,7 +2,7 @@
 /**
  * @file signed_index_store.cpp
  * @brief 署名索引の原入力と最大世代を一つのDPAPI headへ原子保存します
- * @version 01.03.02
+ * @version 01.04.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/27  履歴下限の原byte認証と現在schema復元を分離
  * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.03.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.04.00 Shunji Ogawa  2026/11/20  端末用レコード位置と元領域の証拠を接続
  * </pre>
  *
  * @note 製品rootは固定です。実lockと保持directory handleを用い、mutexを保持しません
@@ -1232,6 +1233,61 @@ AuthenticatedIndexSnapshot::AuthenticatedIndexSnapshot( IndexRecordsSchemaReceip
 const IndexRecordsSchemaReceipt &AuthenticatedIndexSnapshot::schemaReceipt() const noexcept
 {
 	return receipt_ ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 端末用レコードの両領域を同時に参照できる件数を返します
+ * @return 同じ認証済み索引の本文と追加欄にある行数の合計です
+ */
+//------------------------------------------------------------------------------
+std::size_t IndexConsumerRecordView::size() const noexcept
+{
+	return base.size() + supplement.size() ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 連続した端末用位置から片方の元領域の不変レコードを借用します
+ * @param[in] index 本文から始まる0起点の位置です
+ * @pre indexはsize()未満です
+ * @return 元領域が所有するレコードの参照です
+ */
+//------------------------------------------------------------------------------
+const IndexDistributionRecord &IndexConsumerRecordView::operator[](
+	const std::size_t index) const noexcept
+{
+	return index < base.size() ? base[index] : supplement[index - base.size()] ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ署名済み索引の本文と端末用追加欄を一緒に借用します
+ * @return 本文と追加欄を変更できない参照で保持する値です
+ */
+//------------------------------------------------------------------------------
+IndexConsumerRecordView AuthenticatedIndexSnapshot::consumerRecords() const noexcept
+{
+	return {receipt_.records(), consumerSupplement_.contents.records} ;
+}
+//------------------------------------------------------------------------------
+/**
+ * @brief 端末用レコードを所属領域の取得元・元hash・期限に戻します
+ * @param[in] index 端末用レコード参照の元位置です
+ * @pre indexはconsumerRecords().size()未満です
+ * @return 所属領域の原証拠です。期限は署名manifestの期限を超えません
+ */
+//------------------------------------------------------------------------------
+IndexConsumerRecordRegion AuthenticatedIndexSnapshot::consumerRecordRegion(
+	const std::size_t index) const noexcept
+{
+	const auto manifestExpiry =
+		// 両領域の署名期限です
+		receipt_.assetBytes().manifest().data().expiresAtUtc ;
+	// 元本文の参照に追加欄のhashや期限を適用しません
+	if( index < receipt_.records().size()) {
+		return {receipt_.sources(), receipt_.indexSha256(), manifestExpiry} ;
+	}
+
+	return {consumerSupplement_.contents.sources, consumerSupplement_.expandedSha256,
+			std::min( manifestExpiry, consumerSupplement_.expiresAtUtc)} ;
 }
 //------------------------------------------------------------------------------
 /**

@@ -2,7 +2,7 @@
 /**
  * @file official_html_terms.h
  * @brief 静的HTML許諾の一意な公開selectorと全文の共通検査を宣言します
- * @version 01.01.02
+ * @version 01.02.00
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/11/05  独立静的規約の原文書・公式リンクと既存同意を共通接続
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.00 Shunji Ogawa  2026/11/19  公開配布表用に既HTML字句検査を共通利用
  * </pre>
  *
  * @note 通信、script/CSS評価、同意、取得grantを発行しません
@@ -33,11 +34,40 @@
 
 #include <string>
 #include <cstddef>
+#include <functional>
 #include <string_view>
 #include "core/update_types.h"
 #include "platform/signed_index_records.h"
 
 namespace drivercrate {
+
+/** @brief 外部配布表で検査した一つの実HTML要素です */
+struct PublicHtmlTag {
+	/// 照合用のASCII小文字名です。visitor呼出中だけ借用します
+	std::wstring_view name ;
+	/// 一意の原href属性値です。未指定は空です
+	std::wstring_view href ;
+	/// 原tagの開始文字位置です
+	std::size_t		  begin ;
+	/// 非表示raw要素も含めた次の原走査位置です
+	std::size_t		  next ;
+	/// 要素の閉じtagの場合trueです
+	bool			  closing ;
+	/// 明示self-closingの場合trueです
+	bool			  selfClosing ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 公開配布表の閉形式について実要素を順に渡します
+ * @param[in] page 最大2MiB相当の原HTMLです
+ * @param[in] visitor 実要素を借用する同期関数です。falseで全体を拒否します
+ * @return 原字句と全visitorが成立した場合trueです
+ * @note CSSやscriptを実行せず、非対応の可視性指定やbaseを拒否します
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool visitPublicHtmlTags( std::wstring_view								 page,
+									   const std::function<bool( const PublicHtmlTag &)> &visitor) ;
 
 /** @brief 一つの原文書とtitle付き全文を呼出し中のRAMへ保持します */
 struct HtmlTermsTextObservation {

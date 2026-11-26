@@ -2,7 +2,7 @@
 /**
  * @file candidate_audit.cpp
  * @brief Driver候補監査状態の生成と整合性検証
- * @version 01.05.02
+ * @version 01.07.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,8 @@
  * Ver.01.05.00 Shunji Ogawa  2026/10/12  元署名索引の同意・追加形式の安全境界を接続
  * Ver.01.05.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.05.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.06.00 Shunji Ogawa  2026/11/19  初回セットアップクラス登録の候補表示を検証
+ * Ver.01.07.00 Shunji Ogawa  2026/11/23  同梱INFの空ドライバー委譲を閲覧専用に限定
  * </pre>
  *
  * @note 監査状態からURL、端末識別子、local pathを推測せず、Providerが明示した取得経路とinstall可否の関係だけを決定的に検証します
@@ -46,13 +48,64 @@
 //------------------------------------------------------------------------------
 
 #include "core/candidate_audit.h"
+#include "core/official_preparation.h"
 #include "core/provider_registry.h"
 
 #include <optional>
+#include <string_view>
 #include <unordered_set>
 
 namespace drivercrate {
 namespace {
+
+//------------------------------------------------------------------------------
+/**
+ * @brief セットアップクラス登録の表示名を一行の同意表示に使えるか確認します
+ * @param[in] text 呼出し中だけ借用する元クラス名または表示名です
+ * @param[in] maximumLength 終端を含まないUTF-16単位の上限です
+ * @return 可視文字を含む上限内の一行で、間接参照と表示を変える制御がない場合trueです
+ */
+//------------------------------------------------------------------------------
+bool isSetupClassDisplayTextValid( const std::wstring_view text,
+								  const std::size_t		  maximumLength) noexcept
+{
+	const auto first = text.find_first_not_of( L' ') ;	// 間接参照を隠す先頭空白を飛ばします
+	return text.size() <= maximumLength && first != text.npos && text[first] != L'@' &&
+		   text.find_first_of( L"\r\n\t\u2028\u2029") == text.npos && validPreparationEulaText( text) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 初回登録の表示に使う波括弧付きのクラスGUIDを検証します
+ * @param[in] value 呼出し中だけ借用する元INFのGUID文字列です
+ * @return 固定位置の区切りと全16進桁が成立し、GUID_NULLでない場合trueです
+ */
+//------------------------------------------------------------------------------
+bool isSetupClassRegistrationGuidValid( const std::wstring_view value) noexcept
+{
+	// GUID_NULLや形の異なる文字列を表示用のクラス識別子にしません
+	if( value.size() != 38U || value.front() != L'{' || value.back() != L'}' ||
+	   value == L"{00000000-0000-0000-0000-000000000000}") {
+		return false ;
+	}
+
+	// WindowsのGUID表記について区切りとASCIIの16進文字を一度ずつ検証します
+	for( std::size_t index = 1U; index + 1U < value.size(); ++index) {
+		const wchar_t character = value[index] ;	// 現在の元表記一文字です
+		const bool	  separator =
+			// GUID内の区切り位置です
+			index == 9U || index == 14U || index == 19U || index == 24U ;
+		// 区切りと数値を別の位置へ移した表記を拒否します
+		if( separator ? character != L'-'
+					 : !((character >= L'0' && character <= L'9') ||
+						 (character >= L'A' && character <= L'F') ||
+						 (character >= L'a' && character <= L'f'))) {
+			return false ;
+		}
+	}
+
+	return true ;
+}
 
 //------------------------------------------------------------------------------
 /**
@@ -82,6 +135,8 @@ bool isKnownGateState( const CandidateAuditGateState state) noexcept
 		case CandidateAuditGateState::REJECTED:
 		// 実行失敗を含む既知 gate の値を形式上有効と認める
 		case CandidateAuditGateState::FAILURE:
+		// 同梱INFへの委譲確認は後段で署名索引の閲覧専用に限る
+		case CandidateAuditGateState::INBOX_NULL_DRIVER:
 			return true ;
 	}
 
@@ -496,6 +551,20 @@ bool isCandidateAuditValid( const UpdateCandidate	&candidate,
 		return false ;
 	}
 
+	// 同梱委譲は内容検査済みの同じ署名索引の閲覧用で、取得や適用の権限にならない
+	if( audit.sourceOrigin == CandidateAuditGateState::INBOX_NULL_DRIVER ||
+	   audit.inspectionDownload == CandidateAuditGateState::INBOX_NULL_DRIVER ||
+	   audit.contentIntegrity == CandidateAuditGateState::INBOX_NULL_DRIVER ||
+	   (audit.systemApplicability == CandidateAuditGateState::INBOX_NULL_DRIVER &&
+		(candidate.providerId != SIGNED_INDEX_PROVIDER_ID ||
+		 candidate.discoveryBasis != CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ||
+		 candidate.current || candidate.installable || candidate.action != DriverAction::NONE ||
+		 audit.inspectionDownload != CandidateAuditGateState::PASSED ||
+		 audit.contentIntegrity != CandidateAuditGateState::PASSED ||
+		 audit.installReadiness != CandidateInstallReadiness::BLOCKED))) {
+		return false ;
+	}
+
 	// 現在構成の代表行はdriver存在を保証せず、操作候補とは別の表示制約を確認する
 	if( candidate.current) {
 		// 現在構成行を更新推奨や再導入可能とする矛盾、および非localの探索根拠を拒否する
@@ -585,7 +654,7 @@ bool isCandidateAuditValid( const UpdateCandidate	&candidate,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 観測・詳細assessment・初回actionを既存候補へ照合する
+ * @brief 観測・詳細assessment・初回action・初回クラス登録を既存候補へ照合する
  * @param[in] candidate 同じscanの候補
  * @param[in] scanSessionId 現在session。0は候補自身との内部結合だけを検証する
  * @return 新詳細の結合・集約auditとの整合性・表示専用条件を満たせばtrue
@@ -595,6 +664,36 @@ bool isCandidateAuditValid( const UpdateCandidate	&candidate,
 bool isCandidateDetailsValid( const UpdateCandidate &candidate,
 							 const ScanSessionId	scanSessionId) noexcept
 {
+	// 初回クラス登録の表示は、取得済みの署名索引から実INFを選択した候補だけに結びます
+	if( candidate.setupClassRegistration) {
+		const auto &registration = *candidate.setupClassRegistration ;	// 検証する元表示情報です
+		// 内容やWindows選択が未確認の候補と、同意を誤読させる表示値を拒否します
+		if( candidate.current || !candidate.installable || !candidate.allContentCached ||
+		   candidate.providerId != SIGNED_INDEX_PROVIDER_ID ||
+		   candidate.discoveryBasis !=
+			   CandidateDiscoveryBasis::SIGNED_INDEX_COLLECTOR_ATTESTATION ||
+		   candidate.action == DriverAction::NONE || !isKnownDriverAction( candidate.action) ||
+		   candidate.audit.sourceOrigin != CandidateAuditGateState::PASSED ||
+		   candidate.audit.inspectionDownload != CandidateAuditGateState::PASSED ||
+		   candidate.audit.contentIntegrity != CandidateAuditGateState::PASSED ||
+		   candidate.audit.systemApplicability != CandidateAuditGateState::PASSED ||
+		   candidate.audit.installReadiness != CandidateInstallReadiness::READY ||
+		   !candidate.assessment ||
+		   candidate.assessment->installMethod != CandidateInstallMethod::STANDARD_INF ||
+		   candidate.assessment->origin.evidenceKind !=
+			   CandidateEvidenceKind::COLLECTOR_ATTESTATION ||
+		   candidate.assessment->windowsSelection.state != CandidateAssessmentState::PASSED ||
+		   candidate.assessment->windowsSelection.evidenceKind !=
+			   CandidateEvidenceKind::WINDOWS_API ||
+		   !isSetupClassDisplayTextValid( registration.className, 31U) ||
+		   !isSetupClassRegistrationGuidValid( registration.classGuid) ||
+		   !isSetupClassDisplayTextValid( registration.displayName, 256U) ||
+		   (registration.builtInIcon &&
+			(*registration.builtInIcon < -65535 || *registration.builtInIcon >= 0))) {
+			return false ;
+		}
+	}
+
 	// 観測はlocal代表行だけに所有させ、他候補・他sessionからの複製を拒否する
 	if( candidate.deviceObservation &&
 	   (!candidate.current ||

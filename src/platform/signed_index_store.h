@@ -2,7 +2,7 @@
 /**
  * @file signed_index_store.h
  * @brief 保護headの原子保存後だけ発行する署名索引snapshotを定義します
- * @version 01.03.02
+ * @version 01.06.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,10 @@
  * Ver.01.03.00 Shunji Ogawa  2026/10/27  Openの履歴下限と現在snapshotの能力を区別
  * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.03.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.04.00 Shunji Ogawa  2026/11/20  端末用レコード位置と元領域の参照を追加
+ * Ver.01.05.00 Shunji Ogawa  2026/11/20  同スキャンの端末機種型番を不変snapshotに保持
+ * Ver.01.06.00 Shunji Ogawa  2026/11/23  同スキャンのWindows観測を不変snapshotに保持
+ * Ver.01.06.01 Shunji Ogawa  2026/11/26  端末照合に借りる二領域の値を前置契約で説明
  * </pre>
  *
  * @note Workerで同期I/Oします。通常UI・通信・端末照合・導入許可を実装しません
@@ -35,6 +39,7 @@
 #pragma once
 
 #include "platform/signed_index_records.h"
+#include "platform/windows_product_type.h"
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -55,6 +60,61 @@ struct Access ;
 enum class Fault ;
 }
 class SignedIndexStore ;
+class SignedIndexScanSession ;
+
+/** @brief スキャンが保持する本文と追加欄を元の順序で借用するレコード参照です */
+struct IndexConsumerRecordView {
+	/// 署名済み本文の元レコードです
+	std::span<const IndexDistributionRecord>	 base ;
+	/// 同じassetの確認済み追加レコードです
+	std::span<const IndexDistributionRecord>	 supplement ;
+	/**
+	 * @brief 同じ索引の両領域にある端末用レコードの合計件数を返します
+	 * @return 本文と追加欄を合わせた件数です
+	 */
+	[[nodiscard]] std::size_t					 size() const noexcept ;
+	/**
+	 * @brief 本文の直後に追加欄を並べた位置から元レコードを借用します
+	 * @param[in] index 両領域に連続する0起点の位置です
+	 * @pre indexはsize()未満です
+	 * @return 元領域が所有する不変レコードです
+	 */
+	[[nodiscard]] const IndexDistributionRecord &operator[]( std::size_t index) const noexcept ;
+} ;
+
+/** @brief 端末用レコードに対応する元本文又は追加欄の不変証拠です */
+struct IndexConsumerRecordRegion {
+	/// 同じ元領域の取得元です
+	std::span<const IndexRecordSource> sources ;
+	/// 同じ元領域の展開原byteのSHA-256です
+	const IndexManifestSha256		  &indexSha256 ;
+	/// 領域を使用できる信頼UTCの上限です
+	std::chrono::sys_seconds		   expiresAtUtc ;
+} ;
+
+/** @brief 同workerのoperation・scan・inventoryの結合contextです */
+struct IndexLookupContext {
+	/// 正のoperation identity
+	std::uint64_t	   operationId{} ;
+	/// 正のscan session identity
+	std::uint64_t	   scanSessionId{} ;
+	/// 正のinventory世代
+	std::uint64_t	   inventoryGeneration{} ;
+	/**
+	 * @brief 全context fieldの完全一致を比較します
+	 * @param[in] other 比較対象
+	 * @return 全field一致の場合だけtrue
+	 */
+	[[nodiscard]] bool operator==( const IndexLookupContext &other) const noexcept = default ;
+} ;
+
+/** @brief 同一スキャンで確認した端末の製造元と型番です */
+struct IndexPlatformMachineIdentity {
+	/// 端末で観測した製造元の区分です。生の値は保持しません
+	IndexPlatformMachineVendor vendor{IndexPlatformMachineVendor::UNKNOWN} ;
+	/// 確認できた型番です。読み取り不能又は未対応の場合は空です
+	std::string				   machineType ;
+} ;
 
 /** @brief 全再認証と保存確認後だけ構築するworker所有の不変snapshotです */
 class AuthenticatedIndexSnapshot final {
@@ -65,20 +125,54 @@ public:
 	 */
 	[[nodiscard]] const IndexRecordsSchemaReceipt &schemaReceipt() const noexcept ;
 	/**
+	 * @brief 同じ署名済み索引の端末用レコードを借用します
+	 * @return 本文とスキャンが確認済みの追加欄を同じ順序で参照する値です
+	 */
+	[[nodiscard]] IndexConsumerRecordView		   consumerRecords() const noexcept ;
+	/**
+	 * @brief 同じ元位置に対応する取得元・展開hashと期限を借用します
+	 * @param[in] index 端末用レコード参照の0起点位置です
+	 * @pre indexはconsumerRecords().size()未満です
+	 * @return 元領域の参照です。追加欄にもmanifestの最短期限を適用します
+	 */
+	[[nodiscard]] IndexConsumerRecordRegion consumerRecordRegion( std::size_t index) const noexcept ;
+	/**
+	 * @brief 同じスキャンで確認した端末内の型番を借用します
+	 * @param[in] context 端末の観測を利用する同じ操作、スキャン、inventory世代です
+	 * @return 元操作が一致する端末情報です。観測未実施又は別スキャンならnullです
+	 */
+	[[nodiscard]] const IndexPlatformMachineIdentity *platformMachine(
+		const IndexLookupContext &context) const noexcept
+	{
+		return platformMachineContext_ && *platformMachineContext_ == context ? &platformMachine_
+																			  : nullptr ;
+	}
+	/**
+	 * @brief 同じスキャンで取得したWindowsの観測を借用します
+	 * @param[in] context 観測を取得した操作・スキャン・インベントリ世代を識別する値です
+	 * @return 同じ文脈の元観測です。未実施と別スキャンではnullです
+	 * @note 観測の失敗も元の状態で返します。借用はこのsnapshotの寿命内に限ります
+	 */
+	[[nodiscard]] const WindowsHostPlatformObservation *windowsHost(
+		const IndexLookupContext &context) const noexcept
+	{
+		return windowsHostContext_ && *windowsHostContext_ == context ? &windowsHost_ : nullptr ;
+	}
+	/**
 	 * @brief 再読取りで実署名を確認した原envelopeを借用します
 	 * @return Snapshotの寿命まで有効な原UTF-8 byte
 	 */
-	[[nodiscard]] std::string_view				   originalEnvelope() const noexcept ;
+	[[nodiscard]] std::string_view			 originalEnvelope() const noexcept ;
 	/**
 	 * @brief 実hash／GZip検査を確認した原gzipを借用します
 	 * @return Snapshotの寿命まで有効な圧縮byte
 	 */
-	[[nodiscard]] std::span<const std::byte>	   originalGzip() const noexcept ;
+	[[nodiscard]] std::span<const std::byte> originalGzip() const noexcept ;
 	/**
 	 * @brief Snapshotを発行した索引保存policy版を返します
 	 * @return Store policy v1
 	 */
-	[[nodiscard]] std::uint32_t					   storePolicyVersion() const noexcept ;
+	[[nodiscard]] std::uint32_t				 storePolicyVersion() const noexcept ;
 
 private:
 	/**
@@ -90,12 +184,23 @@ private:
 	AuthenticatedIndexSnapshot( IndexRecordsSchemaReceipt receipt, std::string envelope,
 							   std::vector<std::byte> gzip) noexcept ;
 	friend class SignedIndexStore ;
+	friend class SignedIndexScanSession ;
 	/// 原manifest・asset・index／record hashと型付き元申告の所有receipt
-	IndexRecordsSchemaReceipt receipt_ ;
+	IndexRecordsSchemaReceipt		  receipt_ ;
 	/// Crypto再認証へ使った原envelope byte
-	std::string				  envelope_ ;
+	std::string						  envelope_ ;
 	/// Hash／単一GZip再認証へ使った原圧縮byte
-	std::vector<std::byte>	  gzip_ ;
+	std::vector<std::byte>			  gzip_ ;
+	/// 通常スキャンが同じ原byteから検証した端末用追加欄です
+	IndexConsumerSupplementResult	  consumerSupplement_ ;
+	/// 通常スキャンが同じinventory contextで観測した端末情報です
+	IndexPlatformMachineIdentity	  platformMachine_ ;
+	/// 端末型番を採った元のinventory contextです
+	std::optional<IndexLookupContext> platformMachineContext_ ;
+	/// 通常スキャンが同じインベントリで取得したWindowsの元観測です
+	WindowsHostPlatformObservation	  windowsHost_ ;
+	/// Windowsの元観測を取得した操作・スキャン・インベントリ世代です
+	std::optional<IndexLookupContext> windowsHostContext_ ;
 } ;
 
 /** @brief Snapshot発行と拒否・保存障害を区別します */

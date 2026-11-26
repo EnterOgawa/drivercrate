@@ -2,7 +2,7 @@
 /**
  * @file official_zip_tests.cpp
  * @brief 公式ZIP package安全展開単体試験実装
- * @version 01.00.03
+ * @version 01.01.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.00.01 Shunji Ogawa  2026/09/15  逆slash ZIPの正規化と危険path・衝突の回帰試験
  * Ver.01.00.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.03 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/22  規約メンバーの原バイト・指定文・ヘッダー不一致を回帰
  * </pre>
  *
  * @note Minizでmemory上に架空ZIPを生成し、networkや実driverへ依存せず検証します。保護workspace外のpathは作成しません
@@ -42,6 +43,7 @@
 #include "official_zip_tests.h"
 
 #include "platform/official_download_workspace.h"
+#include "platform/official_file_verifier.h"
 #include "platform/official_zip.h"
 #include "test_framework.h"
 
@@ -438,6 +440,106 @@ void testZipLimitsAndIntegrity( TestContext &context)
 	DRIVERCRATE_EXPECT( context, extracted.empty()) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief ZIP内の同じ規約メンバーだけを選び、原バイトと指定文を照合する境界を確認します
+ * @param[in,out] context Assertion件数と失敗内容の集計先です
+ */
+//------------------------------------------------------------------------------
+void testOfficialZipNotice( TestContext &context)
+{
+	constexpr std::string_view PREFIX = "Sample package\r\n" ;	// 指定文直前の架空データです
+	constexpr std::string_view STATEMENT =
+		"Terms for this package: http://example.test/terms." ;	// 審査済みの架空指定文です
+	const auto noticeBytes = std::string{PREFIX} + std::string{STATEMENT} +
+							 "\r\nLegacy note: \x93"
+							 "example\x94" ;				// UTF-8でない末尾を含む同じ原バイトです
+	const std::string	  otherFile( 70U * 1024U, 'x') ;	// 規約固有上限を超える選択外の通常fileです
+	const ZipFixtureEntry entries[]{
+		{"license.txt", noticeBytes},
+		{"driver.sys", otherFile}} ;	// 有限方針内の展開量を持つ架空配布です
+	std::vector<std::byte> archive ;	// 選択した規約の正例に使う完成ZIPです
+	DRIVERCRATE_EXPECT( context, createZipFixture( entries, archive)) ;
+	std::wstring noticeSha256 ;	// 文字変換する前のメンバー全体の照合値です
+	DRIVERCRATE_EXPECT( context, computeBytesSha256( noticeBytes, noticeSha256) == 0U) ;
+	const OfficialZipNoticeExpectation expected{L"license.txt", noticeBytes.size(), noticeSha256,
+												PREFIX.size(),
+												STATEMENT} ;	// 一件の規約ファイルに求める元の組です
+	DRIVERCRATE_EXPECT( context, verifyOfficialZipNotice( archive, DEFAULT_POLICY, expected) == 0U) ;
+
+	auto other		   = expected ;	// 各拒否では一項目だけを置き換えます
+	other.relativePath = L"LICENSE.txt" ;
+	DRIVERCRATE_EXPECT( context, verifyOfficialZipNotice( archive, DEFAULT_POLICY, other) ==
+									HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)) ;
+	other.relativePath = L"docs\\license.txt" ;
+	DRIVERCRATE_EXPECT( context, verifyOfficialZipNotice( archive, DEFAULT_POLICY, other) ==
+									HRESULT_FROM_WIN32( ERROR_FILE_NOT_FOUND)) ;
+	other.relativePath = L"..\\license.txt" ;
+	DRIVERCRATE_EXPECT( context, verifyOfficialZipNotice( archive, DEFAULT_POLICY, other) != 0U) ;
+	other = expected ;
+	++other.byteCount ;
+	DRIVERCRATE_EXPECT( context, verifyOfficialZipNotice( archive, DEFAULT_POLICY, other) ==
+									HRESULT_FROM_WIN32( ERROR_BAD_LENGTH)) ;
+	other.byteCount = 64U * 1024U + 1U ;
+	DRIVERCRATE_EXPECT( context, verifyOfficialZipNotice( archive, DEFAULT_POLICY, other) ==
+									static_cast<NativeError>( E_INVALIDARG)) ;
+	other = expected ;
+	++other.statementOffset ;
+	DRIVERCRATE_EXPECT( context, verifyOfficialZipNotice( archive, DEFAULT_POLICY, other) ==
+									HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
+	other			= expected ;
+	other.statement = "Different statement." ;
+	DRIVERCRATE_EXPECT( context, verifyOfficialZipNotice( archive, DEFAULT_POLICY, other) ==
+									HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
+	other.statement = "Unreviewed\r\nline" ;
+	DRIVERCRATE_EXPECT( context, verifyOfficialZipNotice( archive, DEFAULT_POLICY, other) ==
+									static_cast<NativeError>( E_INVALIDARG)) ;
+
+	auto changedNotice	 = noticeBytes ;	// 指定文の後ろだけを同じ長さの別byteに置換します
+	changedNotice.back() = 'x' ;
+	const ZipFixtureEntry changedEntries[]{
+		{"license.txt", changedNotice}} ;	// 新しいCRCで再梱包した架空の改変規約です
+	std::vector<std::byte> changedArchive ;	// 元とは別の検証対象ZIPです
+	DRIVERCRATE_EXPECT( context, createZipFixture( changedEntries, changedArchive)) ;
+	DRIVERCRATE_EXPECT( context, verifyOfficialZipNotice( changedArchive, DEFAULT_POLICY, expected) ==
+									HRESULT_FROM_WIN32( ERROR_CRC)) ;
+
+	const ZipFixtureEntry duplicate[]{
+		{"license.txt", noticeBytes},
+		{"License.txt", noticeBytes}} ;	// Windows上で同名になる対照です
+	const ZipFixtureEntry traversal[]{{"license.txt", noticeBytes},
+									  {"../outside.sys", otherFile}} ;	// 選択外の危険pathです
+	// 正しい規約を含んでいても、全件事前検査に違反するZIPは拒否します
+	for( const auto invalid : {std::span<const ZipFixtureEntry>{duplicate},
+							  std::span<const ZipFixtureEntry>{traversal}}) {
+		DRIVERCRATE_EXPECT( context, createZipFixture( invalid, changedArchive)) ;
+		DRIVERCRATE_EXPECT( context,
+						   verifyOfficialZipNotice( changedArchive, DEFAULT_POLICY, expected) != 0U) ;
+	}
+
+	constexpr std::size_t LOCAL_NAME_OFFSET = 30U ;	// 架空ZIP先頭のローカルファイル名位置です
+	const auto			  dataOffset =
+		LOCAL_NAME_OFFSET + expected.relativePath.size() ;	// extra fieldなしのデータ位置です
+	const bool fixtureLayout = archive.size() > dataOffset && archive[26] == std::byte{11} &&
+							   archive[27] == std::byte{0} && archive[28] == std::byte{0} &&
+							   // 改変位置を確認した場合だけ試験します
+							   archive[29] == std::byte{0} ;
+	DRIVERCRATE_EXPECT( context, fixtureLayout) ;
+	// 中央情報を残し、ローカル名不一致と本文CRC不一致を別々に再現します
+	if( fixtureLayout) {
+		changedArchive					  = archive ;
+		changedArchive[LOCAL_NAME_OFFSET] = std::byte{'x'} ;
+		DRIVERCRATE_EXPECT( context,
+						   verifyOfficialZipNotice( changedArchive, DEFAULT_POLICY, expected) ==
+							   HRESULT_FROM_WIN32( ERROR_INVALID_DATA)) ;
+		changedArchive = archive ;
+		changedArchive[dataOffset] ^= std::byte{1} ;
+		DRIVERCRATE_EXPECT( context,
+						   verifyOfficialZipNotice( changedArchive, DEFAULT_POLICY, expected) ==
+							   HRESULT_FROM_WIN32( ERROR_CRC)) ;
+	}
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -454,6 +556,7 @@ void runOfficialZipTests( TestContext &context)
 	testUnsafeZipPaths( context) ;
 	testWindowsZipSeparators( context) ;
 	testZipLimitsAndIntegrity( context) ;
+	testOfficialZipNotice( context) ;
 }
 
 } // namespace drivercrate::test

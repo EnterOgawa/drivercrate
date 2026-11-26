@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_adapter_internal.h
  * @brief 製品設定へ注入できない固定RAM fixture取得policyを宣言します
- * @version 01.01.02
+ * @version 01.02.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/12  私有構築済みbatchの同snapshot集約fixtureを追加
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.00 Shunji Ogawa  2026/11/18  P3同scan fullhost観測と取得直前拒否を接続
  * </pre>
  *
  * @note 固定fixture-mainの隔離署名snapshotだけを扱います。任意鍵・host・bool設定を受けません
@@ -36,6 +37,21 @@
 namespace drivercrate::signed_index_acquisition_detail {
 /** @brief 固定RAM fixture policyだけを有効にする内部friendです */
 struct Access {
+	/**
+	 * @brief 同じfullhost検査へ既fixture-main profileだけを渡します
+	 * @param[in,out] adapter 同workerのadapterです
+	 * @param[in] lookup 真署名・隔離reload済みlookupです
+	 * @param[in] current 全contextです
+	 * @param[in] host 同scanの原観測です
+	 * @param[in] observer 明示fakeだけの再観測です
+	 * @param[in] nowUtc 原期限UTCです
+	 * @return 全開始成立0、その他は元拒否です
+	 */
+	[[nodiscard]] static NativeError beginHostFixture(
+		SignedIndexAcquisitionAdapter				  &adapter,
+		std::shared_ptr<const SignedIndexRecordLookup> lookup, IndexLookupContext current,
+		IndexScanHostSnapshot host, WindowsHostPlatformObserver observer,
+		std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
 	/**
 	 * @brief 同じ実開始検査へ固定fixture-main／revision1だけを渡します
 	 * @param[in,out] adapter 未開始adapter

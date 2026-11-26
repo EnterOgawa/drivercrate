@@ -2,7 +2,7 @@
 /**
  * @file test_main.cpp
  * @brief DriverCrate単体試験エントリーポイント
- * @version 01.44.04
+ * @version 01.57.00
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -88,6 +88,19 @@
  * Ver.01.44.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.44.03 Shunji Ogawa  2026/11/12  外側tupleの取得予約と開始拒否の原理由を接続
  * Ver.01.44.04 Shunji Ogawa  2026/11/13  bounded opaque PnP IDのrank照合と限定回帰を接続
+ * Ver.01.45.00 Shunji Ogawa  2026/11/16  storage通常選択と完全native表の正負・原結果を検証
+ * Ver.01.46.00 Shunji Ogawa  2026/11/17  所有workspace限定のMTD file I/Oを個別に実行
+ * Ver.01.47.00 Shunji Ogawa  2026/11/17  MTD完全操作と旧通常controlを個別に実行
+ * Ver.01.48.00 Shunji Ogawa  2026/11/18  限定registry-onlyの実reader/閉包と導入拒否を有限回帰
+ * Ver.01.49.00 Shunji Ogawa  2026/11/19  正規Client26200条件の限定consumer selectorを追加
+ * Ver.01.50.00 Shunji Ogawa  2026/11/19  24H2最低26100の独立回帰と旧条件を接続
+ * Ver.01.51.00 Shunji Ogawa  2026/11/19  収集プロパティページの独立回帰を通常unitから実行
+ * Ver.01.52.00 Shunji Ogawa  2026/11/19  索引追加欄の署名済み運搬試験を個別実行
+ * Ver.01.53.00 Shunji Ogawa  2026/11/19  索引の原レコード検査を両試験targetから個別実行
+ * Ver.01.54.00 Shunji Ogawa  2026/11/19  既存本文と追加索引を照合する私有試験入口を追加
+ * Ver.01.55.00 Shunji Ogawa  2026/11/19  保存AWS原索引の通常取得計画を個別実行
+ * Ver.01.56.00 Shunji Ogawa  2026/11/19  独自クラスの元署名・通常worker試験を個別実行
+ * Ver.01.57.00 Shunji Ogawa  2026/11/22  保存した私有ZIP規約の通常取得試験を個別実行
  * </pre>
  *
  * @note 全unit test groupを順に実行し、process終了codeを返します
@@ -211,6 +224,15 @@ int main( const int argc, const char *const argv[])
 	}
 
 	try {
+#if !defined( DRIVERCRATE_INDEX_BINDING_STANDALONE)
+		// 新形式の実閉包だけを有限に実行し、default/旧別suiteへ進みません
+		if( argc == 2 && std::string_view{argv[1]} == "--required-registry-system-content") {
+			drivercrate::test::runRequiredRegistrySystemContentTests( context) ;
+			std::cout << "RRS_CLOSURE_TOTAL assertions=" << context.assertionCount()
+					  << " failures=" << context.failureCount() << " realInstall=0\n" ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+#endif
 		// record数の独立境界だけを値codecへ渡し、実inventoryを起動しません
 		if( argc == 2 && std::string_view{argv[1]} == "--index-capacity-records") {
 			drivercrate::test::runIndexCapacityRecordCountTests( context) ;
@@ -316,8 +338,108 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0U ? 0 : 1 ;
 		}
 
+		// 保存原取得に基づく追加索引だけを読み取る試験入口です
+		if( argc == 5 && std::string_view{argv[1]} == "--signed-index-supplement-fixture") {
+			drivercrate::test::runSignedIndexSupplementFixtureTests( context, argv[2], argv[3],
+																	argv[4]) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
+		// 保存AWS原索引と取得計画を通常の実端末から隔離する試験入口です
+		if( argc == 5 && std::string_view{argv[1]} == "--saved-aws-consumer-plan") {
+			drivercrate::test::runSavedAwsConsumerPlanTests( context, argv[2], argv[3], argv[4]) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 共通record/descriptorの既存全条件と追加欄だけを実行します
+		if( argc == 7 && std::string_view{argv[1]} == "--saved-archive-terms-consumer") {
+			drivercrate::test::runSavedArchiveTermsConsumerTests( context, argv[2], argv[3], argv[4],
+																 argv[5], argv[6]) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 共通record/descriptorの既存全条件と追加欄だけを実行します
+		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-records") {
+			drivercrate::test::runSignedIndexRecordsTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
 		// 独立targetは変更moduleだけを固定順に実行し、通常aggregateと分離します
 #if defined( DRIVERCRATE_INDEX_BINDING_STANDALONE)
+		// 実署名とGZipを使用する既存のbyte検査だけを実行します
+		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-asset-bytes") {
+			drivercrate::test::runSignedIndexAssetBytesTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
+		// 二十の26100入口と、製品変更前の旧項目拒否は別の閉modeです
+		if( argc == 2 && (std::string_view{argv[1]} == "--client-24h2-consumer" ||
+						 std::string_view{argv[1]} == "--client-24h2-old-consumer")) {
+			drivercrate::test::runClientMinimumBuildConsumerTests(
+				context, 26100U, std::string_view{argv[1]} == "--client-24h2-old-consumer") ;
+			std::cout << "CLIENT24H2_CONSUMER assertions=" << context.assertionCount()
+					  << " failures=" << context.failureCount() << " realInstall=0\n" ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 正規min-build条件だけを既知の別suiteから独立して実行します
+		if( argc == 2 && std::string_view{argv[1]} == "--client-min-build-consumer") {
+			drivercrate::test::runClientMinimumBuildConsumerTests( context) ;
+			std::cout << "CLIENT_BUILD_CONSUMER assertions=" << context.assertionCount()
+					  << " failures=" << context.failureCount() << " realInstall=0\n" ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 独自クラスの元署名から指定導入までを完全fakeで限定実行します
+		if( argc == 2 && std::string_view{argv[1]} == "--declarative-class-binding") {
+			drivercrate::test::runSignedIndexDeclarativeClassBindingTests( context) ;
+			std::cout << "Declarative class binding assertions=" << context.assertionCount()
+					  << " failures=" << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
+		// 旧通常bindingのcontrolだけを明示的に実行します
+		if( argc == 2 && std::string_view{argv[1]} == "--normal-binding-control") {
+			drivercrate::test::runSignedIndexNormalBindingControl( context) ;
+			std::cout << "NORMAL_BINDING_CONTROL assertions=" << context.assertionCount()
+					  << " failures=" << context.failureCount() << " realInstall=0\n" ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// MTDの署名経路と低位操作fakeを独立して実行します
+		if( argc == 2 && std::string_view{argv[1]} == "--mtd-operation") {
+			drivercrate::test::runSignedIndexStorageQualificationTests( context, false, true) ;
+			std::cout << "MTD_OPERATION assertions=" << context.assertionCount()
+					  << " failures=" << context.failureCount() << '\n' ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 所有workspaceのfile操作fixtureを独立して実行します
+		if( argc == 2 && std::string_view{argv[1]} == "--mtd-file-io") {
+			drivercrate::test::runSignedIndexStorageQualificationTests( context, true) ;
+			std::cout << "MTD_FILE_IO assertions=" << context.assertionCount()
+					  << " failures=" << context.failureCount() << " realInstall=0\n" ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// storageの通常入口だけを明示selectorで有限実行します
+		if( argc == 2 && std::string_view{argv[1]} == "--storage-qualification") {
+			drivercrate::test::runSignedIndexStorageQualificationTests( context) ;
+			std::cout << "STORAGE_QUALIFICATION assertions=" << context.assertionCount()
+					  << " failures=" << context.failureCount() << " realInstall=0\n" ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
 		// 同じproduction評価器のopaque IDと既rank拒否だけを有限確認します
 		if( argc == 2 && std::string_view{argv[1]} == "--opaque-rank") {
 			drivercrate::test::runOfficialDriverRankTests( context) ;
@@ -427,6 +549,14 @@ int main( const int argc, const char *const argv[])
 			return context.failureCount() == 0 ? 0 : 1 ;
 		}
 
+		// 二つの元所有者と署名・exportの非実行境界だけを回帰します
+		if( argc == 2 && std::string_view{argv[1]} == "--collector-property-pages") {
+			drivercrate::test::runCollectorPropertyPageTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0 ? 0 : 1 ;
+		}
+
 		// INF/SFX/閉包だけを実行し、署名索引のRAM署名fixtureを起動しません
 		if( argc == 2 && std::string_view{argv[1]} == "--official-package-content") {
 			drivercrate::test::runOfficialDriverPackageTests( context) ;
@@ -434,14 +564,6 @@ int main( const int argc, const char *const argv[])
 			drivercrate::test::runOfficialSfxTests( context) ;
 			drivercrate::test::runOfficialSevenZipTests( context) ;
 			drivercrate::test::runIndexedDriverPackageInspectionTests( context) ;
-			std::cout << "Assertions: " << context.assertionCount()
-					  << ", failures: " << context.failureCount() << '\n' ;
-			return context.failureCount() == 0 ? 0 : 1 ;
-		}
-
-		// 共通record/descriptorの既存全条件だけを実行し、保存/実機groupへ進みません
-		if( argc == 2 && std::string_view{argv[1]} == "--signed-index-records") {
-			drivercrate::test::runSignedIndexRecordsTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
 					  << ", failures: " << context.failureCount() << '\n' ;
 			return context.failureCount() == 0 ? 0 : 1 ;

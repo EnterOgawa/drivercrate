@@ -1,10 +1,14 @@
 # セキュリティ設計
 
+## 索引条件とストレージ候補の確認
+
+署名索引のWindowsビルドや機器条件は、端末の情報を外部へ送らず照合します。対応するストレージ候補では原署名とINFの参照を再確認し、導入前に共有設定や必要なINFなどの変更範囲を表示します。Windowsの再起動や後から反映される登録が必要な場合は、導入結果に確認状態を表示します。
+
 ## SYSTEM Needsの型付き構成（ADR0489/0491）
 
-現sourceの診断revision11は、同選択から到達する検証済みSYSTEM/INBOX原文と対応Store/CATを根拠に、型付き媒体データと固定Windows標準登録だけを検査します。原INF内interface、元CopyFilesの完全hash/CAT、固定System32二実体の署名形式別cache-only trustと防改変権限を要求し、導入直前にも元tupleを再確認します。未知root/型/flag、任意command/ACL/autorun、PACKAGEのglobal設定を一律許可しません。CATや署名方式のtrust失敗を別方式/通信で救済しません。
+SYSTEM Needsの読取りでは、同選択から到達する検証済みSYSTEM/INBOX原文と対応Store/CATを根拠に、型付き媒体データと固定Windows標準登録だけを検査します。原INF内interface、元CopyFilesの完全hash/CAT、固定System32二実体の署名形式別cache-only trustと防改変権限を要求し、導入直前にも元tupleを再確認します。未知root/型/flag、任意command/ACL/autorun、PACKAGEのglobal設定を一律許可しません。CATや署名方式のtrust失敗を別方式/通信で救済しません。
 
-Windows標準登録はOS側の遅延処理です。native導入成功をその登録完了へ読み替えず、該当する元私有計画の証拠がある結果だけに未確認を表示します。現outputは診断revision10のままであり、新byteの梱包・実TestPC確認は親の受入後です。
+Windows標準登録はOS側の遅延処理です。native導入成功をその登録完了へ読み替えず、該当する元私有計画の証拠がある結果だけに未確認を表示します。この機能の実機での適用と反映は、公開配布物の検証とは別に確認します。
 
 ADR0491では、同検証済みSYSTEM原文の選択文脈に限り、SYS/service/copy、相対HKR、媒体COM/VfW、property、interface、WDF/companion、同serviceの閉じたETW関係を二相で列挙/解決します。全field/参照/共有上限と元file/CAT/防改変権限・必要な安定service config/SDを私有計画へ保持し、導入直前にfresh値と完全比較します。PACKAGEのglobalroot、任意COM/program/filter/ACL/未知作用を署名だけで許可しません。通常SYSTEM fileの検査と、実際の固定RunOnceから得る遅延登録factを分けます。
 
@@ -71,7 +75,7 @@ Release操作だけは同tag／同原byteのGETで実作用を確定した場合
 通常uninstallの標準確認・停止と排他成功後は公開同意もfalseにし、pending／claim／資格／鍵は保持します。
 設定、EXE署名、実収集／実公開の受入はsource・人工fixture・未署名配布候補と分けます。
 
-[ADR0454](adr/0454-manual-saved-candidate-publication.md)に従う開発sourceの「今すぐ公開」は同READY所有rootの
+ADR0454に従う開発sourceの「今すぐ公開」は同READY所有rootの
 明示一回の操作です。保存済みauthority・資格・鍵だけを使い、自動公開enabledを変更しません。
 最新準備headと元run/report・三原file hash・原期限を照合し、最新収集が全待機でも原成功を利用できます。
 任意indexやbootstrap、破損候補から古いrunへの代替は許可しません。同control/writer/pipeline排他、
@@ -90,7 +94,7 @@ B1再reviewを検査し、親/固定子は同じactive原byteを使用します�
 DriverCrateは公式性、実取得byte、driver内容、現在端末への適用性、選択と同意、復旧準備を独立して検証します。
 署名や公式配布元であることだけでは導入を許可しません。操作は[利用ガイド](user-guide.md)を参照してください。
 
-開発sourceの[ADR0450](adr/0450-windows-managed-driver-package-scope.md)では、標準INFがコピーする
+開発sourceのADR0450では、標準INFがコピーする
 driver付属program/scriptも受動DATAとして元全SDF・到達CopyINF・実hash・全CAT/member/publisherを
 検査します。内容検査と独立したprogram起動許可を分け、元の未評価作用情報を保持します。
 同deviceのWindows native選択、実DDInstallの全コピー/source/Windows宛先、関連kernel/service/softwareを
@@ -114,7 +118,7 @@ asInvoker/InteractiveToken/LUAと保護root、current user/SYSTEM/Administrators
 通常uninstallは所有・定義・非実行を照合し、両所有Taskの正常不存在を確認後に管理programを削除します。
 旧admin receipt混在・所有不明・running/queued・不正XML/SDDLは保持して拒否します。
 設定・seed・収集データ・待機履歴を保持し、copy/importからTask所有や通信許可を発行しません。
-実測と未確認は[リリースノート](release-notes-0.1.1.md)に分けます。
+実測と未確認はリリースノートに分けます。
 
 WUAは`ssDefault`でWindows Update／Microsoft Update／WSUSと管理policyを尊重します。
 非適用、導入済み、非表示、置換済みupdateを独自判断で候補へ戻しません。
@@ -176,7 +180,7 @@ ADR0423により、公式取得は選択時の画面内規約案内と任意全�
 原全文・revision・出典・tokenが完全一致する「同意してインストール」だけを明示同意へ結合します。
 独立EULA dialogを開かず、検索・選択・閲覧だけでは同意を発行しません。欠落・差替え・旧選択・staleは停止し、
 同意を永続保存しません。具体的前提の確認とWUAの既存条件は維持します。
-取消し・新scan・close・失効で継続意図を破棄します。[ADR 0422](adr/0422-search-select-install-intent.md)を正本とします。
+取消し・新scan・close・失効で継続意図を破棄します。ADR 0422を正本とします。
 
 現実装のclientはWindows一覧によるpoint実在確認を必須とし、local暦日初回の保護準備と同日再利用を区別します。
 既存sequenceを新規作成と表示せず、実BEGINを所有するscopeだけが失敗・例外でもENDを一回通知します。
@@ -202,7 +206,7 @@ serial、credentialをvendorや検索serviceへ送りません。契約で認め
 保護cacheは管理者保護store、端末binding、公式起点・record・hash・parser版・時刻へ結合します。
 cacheは高速化用で、探索対象や恒久的な導入許可にせず、構成・OS・parser・policy・期限等で失効します。
 
-通常索引の本体GET省略は、新しく認証したcurrentと、既存保護headを署名・gzip/hash・schema・現在期限・attestationまで再確認した原envelopeの完全一致だけで許可します。世代だけで省略せず、原headのgeneration/hashを共通highwater verifierへ渡してrollback・同世代異manifestを拒否します。外側だけの再署名差は従来取得へ進み、破損/失効/未知rootを修復・adopt・resetせず、原期限を延長しません。HTTP中にstore排他を保持せず、同じ90秒期限と取消しを維持します。[ADR0467](adr/0467-authenticated-unchanged-index-cache-reuse.md)を参照してください。
+通常索引の本体GET省略は、新しく認証したcurrentと、既存保護headを署名・gzip/hash・schema・現在期限・attestationまで再確認した原envelopeの完全一致だけで許可します。世代だけで省略せず、原headのgeneration/hashを共通highwater verifierへ渡してrollback・同世代異manifestを拒否します。外側だけの再署名差は従来取得へ進み、破損/失効/未知rootを修復・adopt・resetせず、原期限を延長しません。HTTP中にstore排他を保持せず、同じ90秒期限と取消しを維持します。ADR0467を参照してください。
 
 ## Collectorと配布運用
 
@@ -232,7 +236,7 @@ ZIPはローカル専用で、credential/鍵/owner/state/driver本体を含め�
 研究台帳、保護state、公開JSON索引を分けます。研究seedのhashは署名ではありません。
 driver本体、実inventory、cookie／token、秘密鍵、保護descriptorを公開索引や可搬snapshotへ含めません。
 snapshot配置だけでTask・収集を開始せず、停止export／検証／import／明示再開と元の待機・予算を維持します。
-[Collectorセットアップ](collector-setup-guide.md)と[台帳説明](../data/collector-registry/README.md)を参照してください。
+Collectorセットアップと台帳説明を参照してください。
 
 日次receiptは元200本文、hash、request／record／fetchを保護storeへ結合します。304再確認、未通信再利用、
 期限前HOLDを分けます。配布pipelineは専用鍵profileと再投影した二assetを扱い、固定repositoryへのreadbackと
@@ -272,21 +276,21 @@ asset型や取得permitを構築する入口はありません。候補headの�
 人工試験、元packageの実内容検査、実端末適合、実導入を別の資格として扱います。
 最終公開sourceからのfresh buildと最終配布物の確認は、その具体的なbyteへ結合する必要があります。
 過去版の成功や署名検証だけを、全機器への適合・導入成功・復旧保証へ読み替えません。
-実driver導入と各OS/機器の実測範囲は[リリースノート](release-notes-0.1.1.md)、
+実driver導入と各OS/機器の実測範囲はリリースノート、
 再現方法は[テスト方針](testing.md)を参照してください。
 
 ## 認証済み個別device投影（ADR 0413）
 
 個別device投影は公開DTOだけから発行できない。未知Classは完全なNoDriver/属性/全ID同時観測と当該Hardware exact一致が必要で、他node不足は元completed/errorへ残す。同cohort内の他deviceへの証拠転用も拒否する。標準INF検査だけに限定し、実rank/全INF-CAT/期限/同意/復元と直前再検証は維持する。
 
-詳細は[ADR 0413](adr/0413-authenticated-per-device-index-projection.md)を参照する。
+詳細はADR 0413を参照する。
 
 ## 唯一最小full-rankの固定（ADR 0414）
 
 同INF metadataに複数Windows nodeがあっても、元完全tuple内の実最小full rankが一件なら固定できる。
 先頭採用やrank推測は行わず、全有限列挙・全必要読取と正常終端を要求する。同最良同点、
 直前winner/section/rankの変化は拒否する。Class、署名/hash/全INF-CAT閉包、期限/世代、同意・復元と
-一device指定の境界は維持する。[ADR 0414](adr/0414-unique-minimum-windows-rank-binding.md)を参照する。
+一device指定の境界は維持する。ADR 0414を参照する。
 
 ## 選択batch内のproof寿命（ADR 0418）
 
@@ -294,7 +298,7 @@ asset型や取得permitを構築する入口はありません。候補headの�
 新取得は既存の不可逆閉鎖を保ち、旧resolverも新callback生成も閉じる。scopeは新scanや
 明示失効を妨げず、終端・例外で元proofを解放する。過去のrecord関係を現在状態の証拠へ
 昇格させず、第二自身の変化、rankの未知・曖昧性、原byte/署名/期限の失効は拒否する。
-詳細は[ADR 0418](adr/0418-signed-index-batch-proof-lifetime.md)を参照する。
+詳細はADR 0418を参照する。
 
 
 833の収集setup専用起動は、標準完了画面で起動を選んだFull callerからだけ、既所有READYの自己閉programを

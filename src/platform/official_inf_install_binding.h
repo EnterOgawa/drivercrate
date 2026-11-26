@@ -2,7 +2,7 @@
 /**
  * @file official_inf_install_binding.h
  * @brief 公式INFとDriver Storeの一scan限定binding契約
- * @version 01.00.01
+ * @version 01.01.00
  * @date 2026/09/07
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * VerNo.       author        update      comment
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/19  初回クラス登録の確認用情報を追加
  * </pre>
  *
  * @note 生のPnP ID、device instance ID、INF pathおよびsectionはDriver Store内で所有し、本契約からUI、log、networkまたは永続保存
@@ -59,21 +60,23 @@ struct OfficialInfPackage ;
  */
 struct OfficialInfInstallBinding {
 	/// Driver Store内の秘密記録を参照するopaque token
-	std::uint64_t			token{} ;
+	std::uint64_t								 token{} ;
 	/// 発行時に固定した現在driverのProvider表示名
-	std::wstring			currentProvider ;
+	std::wstring								 currentProvider ;
 	/// 発行時に固定した現在driverの原文version
-	std::wstring			currentVersion ;
+	std::wstring								 currentVersion ;
 	/// 発行時に固定した現在driverのYYYY/MM/DD日付
-	std::wstring			currentDate ;
+	std::wstring								 currentDate ;
 	/// Windows nodeで固定した候補Provider表示名
-	std::wstring			candidateProvider ;
+	std::wstring								 candidateProvider ;
 	/// Windows nodeで固定した候補version
-	std::wstring			candidateVersion ;
+	std::wstring								 candidateVersion ;
 	/// Windows nodeで固定した候補のYYYY/MM/DD日付
-	std::wstring			candidateDate ;
+	std::wstring								 candidateDate ;
 	/// 発行時に固定したPnP具体性とWindows rank監査
-	OfficialDriverRankAudit rankAudit ;
+	OfficialDriverRankAudit						 rankAudit ;
+	/// 初回クラス登録に関する同意画面の表示値
+	std::optional<SetupClassRegistrationSummary> setupClassRegistration ;
 } ;
 
 /**

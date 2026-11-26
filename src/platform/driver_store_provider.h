@@ -2,7 +2,7 @@
 /**
  * @file driver_store_provider.h
  * @brief Driver Store provider定義
- * @version 01.13.03
+ * @version 01.37.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -54,6 +54,31 @@
  * Ver.01.13.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.13.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.13.03 Shunji Ogawa  2026/11/13  元適用性errorへ固定失敗leafとcode由来だけを接続
+ * Ver.01.14.00 Shunji Ogawa  2026/11/16  選択storageの原全作用・私有資格と通常導入経路を接続
+ * Ver.01.15.00 Shunji Ogawa  2026/11/17  MTD同operationと原期限再照合を宣言
+ * Ver.01.16.00 Shunji Ogawa  2026/11/17  必要子の同親operationに限定した所有観測を宣言
+ * Ver.01.17.00 Shunji Ogawa  2026/11/19  独自クラスの一意な互換nodeを読み取りで元Models行へ照合
+ * Ver.01.18.00 Shunji Ogawa  2026/11/19  実ドライバー行のクラス登録読取りと診断を追加
+ * Ver.01.19.00 Shunji Ogawa  2026/11/19  独自クラスの選択行専用の順位監査結果を保持
+ * Ver.01.20.00 Shunji Ogawa  2026/11/19  独自クラスの配置先照合に元共通閉包を渡す
+ * Ver.01.21.00 Shunji Ogawa  2026/11/19  独自クラスの元選択と導入直前の再検証を結合
+ * Ver.01.22.00 Shunji Ogawa  2026/11/20  公式索引が指定するHardware IDを導入時の端末再観測へ結合
+ * Ver.01.23.00 Shunji Ogawa  2026/11/20  公式索引の元権限を登録と指定導入の直前に確認
+ * Ver.01.24.00 Shunji Ogawa  2026/11/20  公式ファームウェア群を同じ端末の現在属性から再観測
+ * Ver.01.25.00 Shunji Ogawa  2026/11/20  元の群を登録と指定適用の直前に確認する資格を保持
+ * Ver.01.26.00 Shunji Ogawa  2026/11/21  標準シリアルページの固定証拠を端末の元選択に保持
+ * Ver.01.27.00 Shunji Ogawa  2026/11/22  公式Models専用行のWindows選択と現在HardwareIdsを読取
+ * Ver.01.28.00 Shunji Ogawa  2026/11/22  公式Modelsの一意な選択行と元閉包の必要関係を返す
+ * Ver.01.29.00 Shunji Ogawa  2026/11/22  公式Modelsの取得物・選択行と実作用を私有計画へ結合
+ * Ver.01.30.00 Shunji Ogawa  2026/11/22  公式Modelsの私有計画を既存トークンに固定して再照合
+ * Ver.01.31.00 Shunji Ogawa  2026/11/22  公式Modelsの登録前承認と登録済み閉包の再照合を接続
+ * Ver.01.32.00 Shunji Ogawa  2026/11/22  仮想Wi-Fiバスの上位フィルター元値を端末資格へ結合
+ * Ver.01.33.00 Shunji Ogawa  2026/11/22  元端末の現在状態と完全Hardware IDを配布前に再照合
+ * Ver.01.33.01 Shunji Ogawa  2026/11/22  指定適用と補助サービスの反映確認の契約を明記
+ * Ver.01.34.00 Shunji Ogawa  2026/11/23  指定適用から自動起動型の事後観測を返す経路を追加
+ * Ver.01.35.00 Shunji Ogawa  2026/11/23  同一Windows互換ノードの同梱INF委譲を読取り確認
+ * Ver.01.36.00 Shunji Ogawa  2026/11/23  起動サービスと設定の独立確認を指定適用から返す
+ * Ver.01.37.00 Shunji Ogawa  2026/11/23  WiXの署名付きModels対象を単一起動の選択に結合
  * </pre>
  *
  * @note 現在のPnP deviceとlocal Driver Storeの互換driver providerを定義します。Hardware IDとdevice instance IDは
@@ -68,10 +93,13 @@
 #include "core/scan_measurement_types.h"
 #include "core/update_provider.h"
 #include "platform/official_catalog_device.h"
+#include "platform/official_file_verifier.h"
 #include "platform/official_inf_install_binding.h"
 #include "platform/driver_store_inventory_transport.h"
+#include "platform/mtd_handler_internal.h"
 #include "platform/signed_index_record_lookup.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -87,11 +115,33 @@
 namespace drivercrate {
 
 class OfficialDownloadWorkspace ;
+struct OfficialDriverClosure ;
 struct OfficialInfPackage ;
+struct OfficialInfScopedModelMatch ;
+enum class OfficialInfSelectedModelRole ;
 struct CommonInfInspection ;
+struct CollectorDriverPackageContent ;
+struct IndexDistributionRecord ;
+struct IndexedDriverArchiveHint ;
 struct RequiredInfBindingDiagnostic ;
 class RequiredDriverComponentPlan ;
+struct DeclarativeInfInstallQualification ;
+struct ScopedInfInstallQualification ;
+class StorageInfQualification ;
+class MtdSharedFileOperation ;
+struct MtdQueueResult ;
 class SignedIndexCandidateBindingSession ;
+
+/**
+ * @brief 署名付きWiXレコードと同じ機器の照合で許可された元Models範囲です
+ * @note 呼出し中だけ元値を借用します。構築だけでは資格を発行しません
+ */
+struct OfficialStorageInfModelScope {
+	/// 署名レコードが指定する現在OSの元Models節です
+	std::wstring_view			  modelsSection ;
+	/// 同節の元レコードと同じ選択機器が共有する完全Hardware IDです
+	std::span<const std::wstring> hardwareIds ;
+} ;
 
 //------------------------------------------------------------------------------
 // Provider class定義
@@ -224,6 +274,32 @@ public:
 		std::vector<std::wstring> &present) const ;
 
 	/**
+	 * @brief 同じスキャンの対象一台が現在も同じ公式ファームウェア群に属するか調べます
+	 * @param[in] origin 凍結した元索引照合の操作・スキャン・インベントリ世代です
+	 * @param[in] deviceIdentity 元スキャンが保持する端末の匿名識別子です
+	 * @param[in] record 同じ選択に結ぶ認証済みの公式配布レコードです
+	 * @param[in] expectedGroup 元の確認対象になった公式群の位置です
+	 * @return 同じ群が一意なら0、変化・競合なら再確認を表すHRESULT、観測失敗なら元のエラーです
+	 * @note 所有workerから同期で読み取ります。生ID、承認、取得や導入の権限は返しません
+	 */
+	[[nodiscard]] NativeError reobserveIndexFirmwareGroup( IndexLookupContext  origin,
+														  const std::wstring &deviceIdentity,
+														  const IndexDistributionRecord &record,
+														  std::size_t expectedGroup) const ;
+
+	/**
+	 * @brief 選んだ元端末が現在も存在し、同じ完全Hardware IDを持つかを調べる
+	 * @param[in] origin 凍結済みの元照合と操作・スキャン・インベントリの文脈です
+	 * @param[in] deviceIdentity 元スキャンの端末一台を指す匿名識別子です
+	 * @param[in] requiredHardwareId 元署名の選択行にある完全Hardware IDです
+	 * @return 現在の同一端末に完全一致した場合は0、元観測の失敗又は不一致はHRESULTです
+	 * @note 所有workerで同期して読み取り、比較値を外部に返しません
+	 */
+	[[nodiscard]] NativeError reobserveIndexHardwareId( IndexLookupContext  origin,
+													   const std::wstring &deviceIdentity,
+													   std::wstring_view requiredHardwareId) const ;
+
+	/**
 	 * @brief 直前のscanで実際に観測したlocal inventory計測を取得する
 	 * @return Providerが所有する計測値への参照。次のscan、installまたは失効まで有効である
 	 * @note 生のdevice識別子を含まず、呼出し元はworker thread内でだけ参照する
@@ -318,6 +394,66 @@ public:
 		InfFailureDiagnostic		 *diagnostic = nullptr) const ;
 
 	/**
+	 * @brief 同じ署名付きストレージ候補の一意な選択から、同梱INFへの空導入を確認する
+	 * @param[in] scanSessionId 元の検索セッション
+	 * @param[in] deviceIdentity 同セッションが所有する端末の不透明ID
+	 * @param[in] inspection 元CAT署名と閉包を確認したストレージINFの検査結果
+	 * @param[in] modelsSection 同じ署名レコードの現在OS用Models節
+	 * @param[in] requiredHardwareId 同じ元レコードに結ぶ完全Hardware ID
+	 * @param[in] observedRank 同じ元INFについて直前に観測したWindowsの順位
+	 * @param[out] delegated 委譲宣言、実選択、同梱署名がすべて一致した場合true。失敗と通常選択はfalse
+	 * @return 読取り成功0、元閉包、端末選択、同梱INFの不一致または読取り失敗はHRESULT
+	 * @note 読取り専用。元端末の識別情報や導入資格を渡さない
+	 */
+	[[nodiscard]] NativeError observeStorageInboxNullDriver(
+		ScanSessionId scanSessionId, std::wstring_view deviceIdentity,
+		const CommonInfInspection &inspection, const std::wstring &modelsSection,
+		std::wstring_view requiredHardwareId, std::uint32_t observedRank, bool &delegated) const ;
+
+	/**
+	 * @brief 端末の一意な互換nodeを元Models行に照合し、実ドライバーのクラス作用と順位を確認する
+	 * @param[in] scanSessionId 端末の現在の検索セッション
+	 * @param[in] deviceIdentity 同セッションに属する非公開端末識別子
+	 * @param[in] workspace 端末内容検査の保護領域
+	 * @param[in] package 同領域で確認した独自クラスの元INF
+	 * @param[in] expectedSha256 元Modelsの全IDと照合済みのINFハッシュ
+	 * @param[in] modelsSection 照合済みの現在OS用Models節
+	 * @param[out] role Windowsが選んだ元行の作用。失敗時は未評価
+	 * @param[out] rankAudit 実ドライバーの元行と端末の順位証拠。空サービスまたは失敗では空
+	 * @param[in,out] diagnostic 指定導入の作用照会の失敗段階を保持する任意の診断
+	 * @param[out] qualification 任意の出力先。評価済みの実ドライバーの元選択だけを保持する
+	 * @return 一意な選択と作用を確認した場合0、対象なし・曖昧・変更・入力不正はHRESULT
+	 * @note 元nodeと生IDは内部だけに保持する。導入用の資格や操作は伴わない
+	 */
+	[[nodiscard]] NativeError observeDeclarativeInfModelRole(
+		ScanSessionId scanSessionId, std::wstring_view deviceIdentity,
+		const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
+		std::wstring_view expectedSha256, const std::wstring &modelsSection,
+		OfficialInfSelectedModelRole &role, std::optional<OfficialDriverRankAudit> &rankAudit,
+		InfFailureDiagnostic									  *diagnostic,
+		std::shared_ptr<const DeclarativeInfInstallQualification> *qualification = nullptr) const ;
+
+	/**
+	 * @brief 一意のWindows選択行、保護INFと現在HardwareIdsが同じ公式対象を示すか確認します
+	 * @param[in] scanSessionId 現在のスキャンです
+	 * @param[in] deviceIdentity 同スキャンが所有する端末の不透明IDです
+	 * @param[in] workspace 元配布物のINFを保持する保護領域です
+	 * @param[in] closure 公式Modelsの証拠付き基本INFと全参照を保持した内容検査結果です
+	 * @param[in] modelsSection 同署名レコードが使用する元Models節です
+	 * @param[out] selected 確認した公式ID・元行番号・基本導入節です
+	 * @param[out] selectedRelations 同じ選択の実導入節と必要関係です
+	 * @param[out] rankAudit 同じnodeと端末の状態から確認した順位です
+	 * @return 全読取りが成立した場合0、変更・不一致・API失敗は元HRESULTです
+	 * @note 失敗時は全出力を空にします。登録、導入、導入資格の発行は行いません
+	 */
+	[[nodiscard]] NativeError observeScopedInfModel(
+		ScanSessionId scanSessionId, std::wstring_view deviceIdentity,
+		const OfficialDownloadWorkspace &workspace, const OfficialDriverClosure &closure,
+		std::wstring_view modelsSection, OfficialInfScopedModelMatch &selected,
+		OfficialInfPackage					   &selectedRelations,
+		std::optional<OfficialDriverRankAudit> &rankAudit) const ;
+
+	/**
 	 * @brief 監査済み公式INFを現在device状態と一意なWindows nodeへ拘束する
 	 * 監査済み公式INFを現在状態と一意なWindows nodeへ拘束する
 	 * 現在状態と候補nodeを再取得し、全照合成功後だけ単調増加tokenへ秘密metadataをcommitする。OS状態は変更しない
@@ -331,6 +467,8 @@ public:
 	 * @param[in] expectedRankAudit 発行前に合格したPnP具体性とrank監査結果。 直前に合格したrank監査結果
 	 * @param[out] binding 成功時の一scan限定opaque binding。失敗時は空値。 成功時の非機密opaque binding
 	 * @param[out] diagnostic 任意の元拒否位置です。実行判定に使用しません
+	 * @param[in] requiredHardwareId 再観測した端末のHardwareIdsに必要な元公開ID。空は追加条件なし
+	 * @param[in] requiresFirmwareAuthorization 公式群への元承認をWindows変更直前に再確認する場合trueです
 	 * @return 発行成功時は0、入力、状態変更、一意性またはSetupAPI失敗時はHRESULT。 Binding発行時は0、状態変更、曖昧性またはSetupAPI失敗時は
 	 *         HRESULT
 	 * @note 生のinstance ID、PnP ID、INF path、sectionはDriver Store内だけに保持する
@@ -340,7 +478,8 @@ public:
 		const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 		std::wstring_view expectedCurrentProvider, std::wstring_view expectedCurrentVersion,
 		std::wstring_view expectedCurrentDate, const OfficialDriverRankAudit &expectedRankAudit,
-		OfficialInfInstallBinding &binding, RequiredInfBindingDiagnostic *diagnostic = nullptr) ;
+		OfficialInfInstallBinding &binding, RequiredInfBindingDiagnostic *diagnostic = nullptr,
+		std::wstring_view requiredHardwareId = {}, bool requiresFirmwareAuthorization = false) ;
 
 	/**
 	 * @brief 公式INF導入bindingと現在のdeviceおよびWindows nodeを再照合する
@@ -472,6 +611,92 @@ private:
 	friend class SignedIndexCandidateBindingSession ;
 	friend class CompositeUpdateProvider ;
 	friend class DriverStoreBindingProbe ;
+	friend class RequiredChildBindingProbe ;
+	friend class ScopedInfQualificationProbe ;
+	struct ScopedInfObservation ;
+	/**
+	 * @brief 公式Modelsで実選択を確認した端末状態を内部結果として保持します
+	 * @param[in] session 現在のworkerのスキャンです
+	 * @param[in] device 元のスキャンに属する端末の不透明IDです
+	 * @param[in] workspace 元INFを保持する管理者保護領域です
+	 * @param[in] closure 同じ元INFとModels証拠を含む全閉包です
+	 * @param[in] modelsSection 署名済み元レコードのModels節です
+	 * @param[out] observed 同じ端末の完全観測と元行・実選択の関係です。失敗時は空です
+	 * @return 同じ端末と実選択が成立した場合0、その他はHRESULTです
+	 */
+	[[nodiscard]] NativeError observeScopedInfModelState( ScanSessionId					  session,
+														 std::wstring_view				  device,
+														 const OfficialDownloadWorkspace &workspace,
+														 const OfficialDriverClosure	 &closure,
+														 std::wstring_view	   modelsSection,
+														 ScopedInfObservation &observed) const ;
+	/**
+	 * @brief 同じ署名レコードと取得物・端末・元選択から不変の私有計画を作ります
+	 * @param[in] session 同じ索引取得のスキャンです
+	 * @param[in] device 元の承認が指定した端末の不透明IDです
+	 * @param[in] content 元取得と全検査に結び付いた閉包の不変所有者です
+	 * @param[in] hint 取得側が認証して固定した索引、元レコード、元配布物の値です
+	 * @param[in] original 同じ索引領域に含まれる署名済み原レコードです
+	 * @param[out] qualification 全検査成功時だけ元選択と作用を保持する私有計画です
+	 * @return 同じ端末と元選択・作用の確認に成功した場合0です
+	 * @pre 呼出し側で同じ元索引の認証、元取得許可、期限と元CABを確認します
+	 * @note 読取り専用です。Driver Storeの登録や導入トークン発行は行いません
+	 */
+	[[nodiscard]] NativeError buildScopedInfInstallQualification(
+		ScanSessionId session, std::wstring_view device,
+		const std::shared_ptr<const CollectorDriverPackageContent> &content,
+		const IndexedDriverArchiveHint &hint, const IndexDistributionRecord &original,
+		std::shared_ptr<const ScopedInfInstallQualification> &qualification) const ;
+	/**
+	 * @brief 元の私有計画を同じ所有者、現端末の選択、元ファイルと作用へ照合します
+	 * @param[in] session 元計画を発行した現在のスキャンです
+	 * @param[in] device 同じ承認済み端末の不透明IDです
+	 * @param[in] content 元取得結果の不変所有者です
+	 * @param[in] hint 元署名領域と同じレコード・配布物の値です
+	 * @param[in] original 現在も同じ索引に含まれる認証済み元レコードです
+	 * @param[in] qualification 元選択を確認して発行した私有計画です
+	 * @return 所有者・元記録・現端末・実選択作用が一致した場合0です
+	 * @pre 呼出し側で同じ元索引の認証、元取得許可、期限と元CABを確認します
+	 */
+	[[nodiscard]] NativeError revalidateScopedInfInstallQualification(
+		ScanSessionId session, std::wstring_view device,
+		const std::shared_ptr<const CollectorDriverPackageContent> &content,
+		const IndexedDriverArchiveHint &hint, const IndexDistributionRecord &original,
+		const std::shared_ptr<const ScopedInfInstallQualification> &qualification) const ;
+	/**
+	 * @brief 私有計画と同じ端末の元観測とファイル作用が生きているかを確かめます
+	 * @param[in] qualification この発行元が保持した元計画です
+	 * @param[out] current 一致時だけ元計画と同じ現観測です
+	 * @return 現在の端末・元行・選択作用が変化していない場合0です
+	 * @note 元署名領域・取得許可・期限の有効性は別に確認します
+	 */
+	[[nodiscard]] NativeError reobserveScopedInfInstallQualification(
+		const ScopedInfInstallQualification &qualification, ScopedInfObservation &current) const ;
+	/**
+	 * @brief 同じ公式Modelsの計画と現在状態から既存の一scanトークンを発行します
+	 * @param[in] session 元計画を発行したスキャンです
+	 * @param[in] device 同じ端末の不透明IDです
+	 * @param[in] qualification 同じ元署名・端末・ファイル作用を確認した私有計画です
+	 * @param[in] expectedCurrentProvider 固定した現在の提供元です
+	 * @param[in] expectedCurrentVersion 固定した現在のバージョンです
+	 * @param[in] expectedCurrentDate 固定した現在の日付です
+	 * @param[out] binding 同じ計画のトークンです。失敗時は空です
+	 * @return 同じ端末・選択・作用が成立したとき0です
+	 * @pre 呼出し側で同じ元署名領域・取得許可と期限を確認します
+	 */
+	[[nodiscard]] NativeError createScopedInfInstallBinding(
+		ScanSessionId session, std::wstring_view device,
+		const std::shared_ptr<const ScopedInfInstallQualification> &qualification,
+		std::wstring_view expectedCurrentProvider, std::wstring_view expectedCurrentVersion,
+		std::wstring_view expectedCurrentDate, OfficialInfInstallBinding &binding) ;
+	/**
+	 * @brief 元トークンの端末が現在の導入操作の元索引選択に予約済みか確認します
+	 * @param[in] qualification トークンに保持した公式範囲の元計画です
+	 * @return 同じ所有者、スキャン、実操作、選択済み端末の場合trueです
+	 */
+	[[nodiscard]] bool ownsActiveScopedInfInstall(
+		const ScopedInfInstallQualification &qualification) const noexcept ;
+	friend struct ScopedInfInstallQualification ;
 	/** @brief 一つの選択subsetだけを借用し、終了時も未処理ownerを保持します
 	 * @note Snapshotを強所有せず、新scan/明示失効を妨げません。同workerのstack上だけで使用します
 	 */
@@ -537,6 +762,18 @@ private:
 	 */
 	[[nodiscard]] bool		  sealIndexLookup( IndexLookupContext origin) noexcept ;
 	/**
+	 * @brief 元スキャンの未処理又は実行中の端末一台から現在のHardwareIdsを読み取る
+	 * @param[in] origin 凍結済みの元照合の文脈です
+	 * @param[in] deviceIdentity 元スキャンの端末一台を指す匿名識別子です
+	 * @param[in] requirePresent Windowsの現在present属性を必須にする場合trueです
+	 * @param[out] hardwareIds 比較用に正規化した現在の完全値です。失敗時は空です
+	 * @return 全値の読取りに成功した場合0、所有・状態又は読取りの不成立はHRESULTです
+	 * @note 所有workerで同期し、現端末の生属性を公開DTOに渡しません
+	 */
+	[[nodiscard]] NativeError readRetainedIndexHardwareIds(
+		IndexLookupContext origin, const std::wstring &deviceIdentity, bool requirePresent,
+		std::vector<std::wstring> &hardwareIds) const ;
+	/**
 	 * @brief 未処理または当該実行中subsetへの結合を検証します
 	 * @param[in] origin 元contextです
 	 * @param[in] operation 明示操作です
@@ -568,14 +805,41 @@ private:
 	 * @param[in] audit 元baseのWindows rank監査です
 	 * @param[out] binding 全照合成功時だけ発行する元親bindingです
 	 * @param[out] diagnosticStage 任意の非所有数値診断先です。nullなら採取せず権限判定へ使いません
+	 * @param[in] requiredHardwareId 元親の再観測HardwareIdsに必要な公開ID。空は追加条件なし
+	 * @param[in] requiresFirmwareAuthorization 親端末の公式群を各登録と適用の直前に再確認する場合trueです
 	 * @return 成功0、関係/適用性/元状態の拒否はHRESULTです
 	 */
 	[[nodiscard]] NativeError createRequiredInfInstallBinding(
 		ScanSessionId session, std::wstring_view identity, const CommonInfInspection &inspection,
 		std::shared_ptr<const RequiredDriverComponentPlan> &plan, std::wstring_view provider,
 		std::wstring_view version, std::wstring_view date, const OfficialDriverRankAudit &audit,
-		OfficialInfInstallBinding	 &binding,
-		RequiredInfBindingDiagnostic *diagnosticStage = nullptr) ;
+		OfficialInfInstallBinding &binding, RequiredInfBindingDiagnostic *diagnosticStage = nullptr,
+		std::wstring_view requiredHardwareId = {}, bool requiresFirmwareAuthorization = false) ;
+	/**
+	 * @brief app独立検査と私有native選択の全storage作用を同issuerへ資格化します
+	 * @param[in] session 元scanです
+	 * @param[in] identity 元選択deviceのopaqueです
+	 * @param[in] inspection ADMIN原archiveの独立内容検査です
+	 * @param[out] plan 全作用と必要importを固定した不変計画です。失敗時空です
+	 * @param[in] provider 元現在providerです
+	 * @param[in] version 元現在versionです
+	 * @param[in] date 元現在日付です
+	 * @param[in] audit 元全Windows rankです
+	 * @param[out] binding 全原値/元選択成立時だけの同issuer tokenです
+	 * @param[out] diagnostic 任意の非秘密な最初の固定拒否です
+	 * @param[in] requiredHardwareId 元ストレージ端末の再観測HardwareIdsに必要な公開ID。空は追加条件なし
+	 * @param[in] requiresFirmwareAuthorization 端末の公式群をストレージの変更直前に再確認する場合trueです
+	 * @param[in] modelScope 私有WiXの元Modelsと同機器の完全ID範囲。通常のストレージはnullです
+	 * @return 全storage資格/現在state/一意node成立0、その他は原HRESULTです
+	 * @note 署名索引の内部選択経路だけが呼び、公開bool/JSON/collectorから資格を作りません
+	 */
+	[[nodiscard]] NativeError createStorageInfInstallBinding(
+		ScanSessionId session, std::wstring_view identity, const CommonInfInspection &inspection,
+		std::shared_ptr<const RequiredDriverComponentPlan> &plan, std::wstring_view provider,
+		std::wstring_view version, std::wstring_view date, const OfficialDriverRankAudit &audit,
+		OfficialInfInstallBinding &binding, RequiredInfBindingDiagnostic *diagnostic = nullptr,
+		std::wstring_view requiredHardwareId = {}, bool requiresFirmwareAuthorization = false,
+		const OfficialStorageInfModelScope *modelScope = nullptr) ;
 	/**
 	 * @brief 元親と全必要役割を変更前にread-onlyで再検証します
 	 * @param[in] session 元scanです
@@ -599,17 +863,21 @@ private:
 	 * @param[in] plan 元私有関係です
 	 * @param[in] binding 元親bindingです
 	 * @param[in] parentWindowNative 明示操作の親windowです
-	 * @param[out] roles 実際のstage/指定導入/Windows反映待ちを役割別に保持します
+	 * @param[out] roles 登録と指定導入の実結果、必要な補助サービスの反映確認を役割別に保持します
+	 * @param[out] imports 必要nullの原ordinal/登録結果です。部分失敗と未実行を保持します
 	 * @param[out] rebootRequired 実APIが返した再起動要否です
-	 * @return 全指定API完了0、反映待ちS_FALSE、部分失敗はHRESULTです
+	 * @param[in] authorizationCheck 同原署名recordと実UTCを同期再検証する。HDC、MTD、メディアチェンジャー、共有補助サービスとCatalog対象では必須
+	 * @return 指定API完了かつ必須作用の未確認なしは0、未反映または未確認はS_FALSE、API失敗はHRESULTです
 	 * @note 必要roleの元/登録INF/rootを変更非共有で計画終端まで保持します。Extension反映をbase API成功から推測しません。全device導入APIを呼びません
-	 *
 	 */
 	[[nodiscard]] NativeError installBoundRequiredInfPlan(
 		ScanSessionId session, std::wstring_view identity, const CommonInfInspection &inspection,
 		const std::shared_ptr<const RequiredDriverComponentPlan> &plan,
 		const OfficialInfInstallBinding &binding, std::uintptr_t parentWindowNative,
-		std::vector<DriverPlanRoleExecutionResult> &roles, bool &rebootRequired) ;
+		std::vector<DriverPlanRoleExecutionResult> &roles,
+		std::vector<RequiredInfStageResult> &imports, bool &rebootRequired,
+		const std::function<NativeError()> &authorizationCheck = {}) ;
+	struct OfficialCandidateNodeState ;
 	/**
 	 * @brief 標準入口または私有計画入口で確認したbase nodeを発行します
 	 * @param[in] scanSessionId 元scanです
@@ -622,6 +890,12 @@ private:
 	 * @param[in] expectedRankAudit 元Windows rankです
 	 * @param[out] binding 同状態の一意nodeだけです
 	 * @param[out] diagnostic 任意の元拒否位置です。実行判定に使用しません
+	 * @param[in] storageQualification 同issuerの全原作用資格です。通常入口はnullで、用途だけでは発行しません
+	 * @param[in] declarativeQualification 独自クラスの実選択とクラス状態を固定した私有観測
+	 * @param[in] requiredHardwareId 発行時の端末HardwareIdsに必要な元公開ID。空は追加条件なし
+	 * @param[in] requiresFirmwareAuthorization 同端末と元承認の現在群を直前に再確認する場合trueです
+	 * @param[in] scopedQualification 公式Modelsの同じ元選択・端末・作用を保持する私有計画です
+	 * @param[in] storageModel WiX用に同じ元Modelsで確認した候補節と全ID。通常のストレージはnullです
 	 * @return 一意性/全状態一致0、それ以外はHRESULTです
 	 */
 	[[nodiscard]] NativeError createOfficialInfInstallBindingImpl(
@@ -629,17 +903,29 @@ private:
 		const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 		std::wstring_view expectedCurrentProvider, std::wstring_view expectedCurrentVersion,
 		std::wstring_view expectedCurrentDate, const OfficialDriverRankAudit &expectedRankAudit,
-		OfficialInfInstallBinding &binding, RequiredInfBindingDiagnostic *diagnostic = nullptr) ;
+		OfficialInfInstallBinding &binding, RequiredInfBindingDiagnostic *diagnostic = nullptr,
+		const StorageInfQualification							 *storageQualification = nullptr,
+		std::shared_ptr<const DeclarativeInfInstallQualification> declarativeQualification = {},
+		std::wstring_view requiredHardwareId = {}, bool requiresFirmwareAuthorization = false,
+		std::shared_ptr<const ScopedInfInstallQualification> scopedQualification = {},
+		const OfficialCandidateNodeState					*storageModel		 = nullptr) ;
 	/**
 	 * @brief 同保護INFのbyteを再確認して一度だけstoreへimportします
 	 * @param[in] workspace 元保護領域です
 	 * @param[in] package 同byte検証済みINFです
 	 * @param[out] stagedInfPath 検証済み登録root直下の秘密pathです
+	 * @param[in] storageQualification 同原workspace/全作用に結ぶ私有資格です。nullは既通常policyだけです
+	 * @param[in] declarativeQualification 独自クラスの元選択に結ぶ私有資格
+	 * @param[in] authorizationCheck 登録前に実UTCと元選択を再検証する任意の同期処理
+	 * @param[in] scopedQualification 公式Modelsの専用トークンに保持した元計画です
 	 * @return stageと元/登録byte一致0、それ以外はHRESULTです
 	 */
-	[[nodiscard]] NativeError stageOfficialInfPackage( const OfficialDownloadWorkspace &workspace,
-													  const OfficialInfPackage		  &package,
-													  std::wstring &stagedInfPath) const ;
+	[[nodiscard]] NativeError stageOfficialInfPackage(
+		const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
+		std::wstring &stagedInfPath, const StorageInfQualification *storageQualification = nullptr,
+		const DeclarativeInfInstallQualification *declarativeQualification = nullptr,
+		const std::function<NativeError()>		 *authorizationCheck	   = nullptr,
+		const ScopedInfInstallQualification		 *scopedQualification	   = nullptr) const ;
 	/**
 	 * @brief 私有前提を満たした指定一deviceの元実装を実行します
 	 * @param[in] scanSessionId 元scanです
@@ -650,6 +936,12 @@ private:
 	 * @param[in] parentWindowNative 明示操作の親windowです
 	 * @param[out] rebootRequired 実APIの再起動値です
 	 * @param[out] diagnosticMissing 非nullは同期中だけ借用する出力です。FALSE/LastError0の観測だけtrueです
+	 * @param[in,out] mtdFiles 同意/復旧後かつstage前に準備したMTD共有先です。旧経路はnullです
+	 * @param[out] mtdResult MTDのcopy部分作用です。旧経路はnullです
+	 * @param[in] authorizationCheck 同原署名recordと実UTCの同期再検証です。MTD・Catalog対象・独自クラスで必須です
+	 * @param[in] declarativeSource 独自クラスの署名確認済み元閉包です。従来経路はnullです
+	 * @param[in] wifiSource 同じ選択端末へフィルター置換を要求した元内容です。この経路以外はnullです
+	 * @param[out] storageReflection 自動起動補助または単一起動の事後観測。指定適用成功時に記録し、他の経路はnull
 	 * @return stage/指定API完了0、それ以外はHRESULTです
 	 * @note FALSE/LastError0では内部ERROR_INVALID_DATAを返し、実Windowsの同error観測と区別します
 	 */
@@ -657,7 +949,12 @@ private:
 		ScanSessionId scanSessionId, std::wstring_view deviceIdentity,
 		const OfficialDownloadWorkspace &workspace, const OfficialInfPackage &package,
 		const OfficialInfInstallBinding &binding, std::uintptr_t parentWindowNative,
-		bool &rebootRequired, bool *diagnosticMissing = nullptr) const ;
+		bool &rebootRequired, bool *diagnosticMissing = nullptr,
+		MtdSharedFileOperation *mtdFiles = nullptr, MtdQueueResult *mtdResult = nullptr,
+		const std::function<NativeError()> *authorizationCheck = nullptr,
+		const CommonInfInspection		   *declarativeSource  = nullptr,
+		const CommonInfInspection		   *wifiSource		   = nullptr,
+		DriverStorageReflectionResult	   *storageReflection  = nullptr) const ;
 	/**
 	 * @brief 通常scanと現在属性専用scanが共有する有界present列挙
 	 * @param[in] scanSessionId 呼出側が発行した非ゼロsession
@@ -758,25 +1055,29 @@ private:
      */
 	struct OfficialCandidateNodeState {
 		/// 保護workspace内の秘密INF絶対path
-		std::wstring  infPath ;
+		std::wstring			  infPath ;
 		/// Windows nodeが選択した秘密install section名
-		std::wstring  sectionName ;
+		std::wstring			  sectionName ;
+		/// 単一起動のWiX選択が一致した元の現在OS用Models節
+		std::wstring			  modelsSection ;
+		/// 上記元行と同じWindowsノードのHardware IDと元順の全Compatible ID
+		std::vector<std::wstring> modelIds ;
 		/// Windows nodeのProvider表示名
-		std::wstring  provider ;
+		std::wstring			  provider ;
 		/// Windows nodeの4要素version
-		std::wstring  version ;
+		std::wstring			  version ;
 		/// Windows nodeのYYYY/MM/DD日付
-		std::wstring  date ;
+		std::wstring			  date ;
 		/// Windows nodeのpacked version
-		std::uint64_t packedVersion{} ;
+		std::uint64_t			  packedVersion{} ;
 		/// Windows nodeのFILETIME日付
-		std::uint64_t dateTicks{} ;
+		std::uint64_t			  dateTicks{} ;
 		/// Windows nodeのfull rank
-		std::uint32_t rank{} ;
+		std::uint32_t			  rank{} ;
 		/// 同じ検査済みINFのWindows ClassGUIDです
-		std::wstring  infClassGuid ;
+		std::wstring			  infClassGuid ;
 		/// Windowsの単一INF一覧が返した候補ClassGUIDです
-		std::wstring  classGuid ;
+		std::wstring			  classGuid ;
 	} ;
 
 	/**
@@ -784,20 +1085,74 @@ private:
      */
 	struct OfficialInfInstallBindingRecord {
 		/// 記録を有効とするscan session ID
-		ScanSessionId									   scanSessionId{} ;
+		ScanSessionId											  scanSessionId{} ;
 		/// Provider間照合用のopaque device identity
-		std::wstring									   deviceIdentity ;
+		std::wstring											  deviceIdentity ;
 		/// 発行時の秘密device状態
-		OfficialDeviceState								   device ;
+		OfficialDeviceState										  device ;
 		/// 発行時の一意なcandidate node
-		OfficialCandidateNodeState						   candidate ;
+		OfficialCandidateNodeState								  candidate ;
 		/// 発行時の具体性とrank監査結果
-		OfficialDriverRankAudit							   rankAudit ;
+		OfficialDriverRankAudit									  rankAudit ;
+		/// 自己媒体Portsの端末選択に結ぶWindows標準ページの元証拠
+		std::optional<WindowsSystemFileTrust>					  serialPropertyPage ;
 		/// 同byte関係を同issuer tokenへ固定します。公開metadataは導入権限になりません
-		std::shared_ptr<const RequiredDriverComponentPlan> requiredPlan ;
+		std::shared_ptr<const RequiredDriverComponentPlan>		  requiredPlan ;
+		/// 仮想Wi-Fiバスへ置換する元選択でだけ保持する同端末の型・状態・全バイトです
+		std::optional<MtdHandlerProperty>						  wifiBusUpperFilters ;
+		/// 同issuerが同原archive/全作用/元deviceへ結んだprivate storage資格です
+		std::shared_ptr<const StorageInfQualification>			  storageQualification ;
+		/// 元署名Modelsの実選択と端末・クラスの原観測
+		std::shared_ptr<const DeclarativeInfInstallQualification> declarativeQualification ;
+		/// 公式範囲に対する同端末・元署名・用途確認済みの元計画です
+		std::shared_ptr<const ScopedInfInstallQualification>	  scopedQualification ;
 		/// 必要SWCだけの元選択親instanceです。指定子の直前にread-onlyで再照合します
-		std::wstring									   requiredParentInstance ;
+		std::wstring											  requiredParentInstance ;
+		/// 公式対象がある場合に現在端末のHardwareIdsへ要求する元IDです
+		std::wstring											  requiredHardwareId ;
+		/// 元承認のファームウェア群を登録・適用に入る直前にも再確認します
+		bool													  requiresFirmwareAuthorization{} ;
 	} ;
+	/** @brief base後に実取得した子自身の同期観測です */
+	struct RequiredChildObservation ;
+	/** @brief 同じ元計画から実列挙した一子だけの同期中proofです */
+	struct RequiredChildProof {
+		/// 元scanと同じsessionです
+		ScanSessionId					   session{} ;
+		/// 同期操作中だけ有効な元operationです
+		OperationId						   operation{} ;
+		/// 同issuerが保持する元親bindingです
+		std::uint64_t					   parentBindingToken{} ;
+		/// 元不変計画内のcomponent位置です
+		std::size_t						   roleIndex{} ;
+		/// 同同期scope内で借用する元内容検査です
+		const CommonInfInspection		  *inspection{} ;
+		/// 同issuer親bindingが保持する不変計画です
+		const RequiredDriverComponentPlan *plan{} ;
+		/// 元内容検査の当該component packageです
+		const OfficialInfPackage		  *package{} ;
+		/// 同実子の全native状態と一意node/rankを借用します
+		const RequiredChildObservation	  *observation{} ;
+		/// 元選択親のopaque identityです
+		std::wstring_view				   parentIdentity ;
+		/// 同scopeだけの導出子identityです
+		std::wstring_view				   childIdentity ;
+		/// 実列挙で確認した元親instanceです
+		std::wstring_view				   parentInstance ;
+		/// 実列挙で確認した一意な子instanceです
+		std::wstring_view				   childInstance ;
+	} ;
+	/**
+	 * @brief 元deviceまたは同active親に結ぶ一時的な必要子を照合します
+	 * @param[in] device 同bindingのopaque identityです
+	 * @param[in] workspace 元byteを所有する同じ保護領域です
+	 * @param[in] package 元計画で選択された同じpackageです
+	 * @return 元deviceまたは同scopeで全項一致した必要子ならtrueです
+	 * @note 新しいscan候補や外部から指定可能な子権限を発行しません
+	 */
+	[[nodiscard]] bool		  ownsBindingDevice( std::wstring_view				 device,
+												const OfficialDownloadWorkspace &workspace,
+												const OfficialInfPackage		&package) const noexcept ;
 	/**
 	 * @brief 同issuer元記録から全import内容とdevice別選択関係を再構築します
 	 * @param[in] inspection 同保護元byteと全CAT/memberの検査所有者です
@@ -811,6 +1166,19 @@ private:
 		const CommonInfInspection &inspection, const OfficialInfInstallBindingRecord &record,
 		std::shared_ptr<const RequiredDriverComponentPlan> &plan,
 		RequiredInfBindingDiagnostic					   *diagnosticStage = nullptr) const ;
+	/**
+	 * @brief 同原計画と元deviceのService propertyをprivate storage資格へ結びます
+	 * @param[in] inspection 元ADMIN保護archiveの内容です
+	 * @param[in] record 実測した同issuerの元device/native選択です
+	 * @param[in] plan 全作用/依存/必要importの元不変計画です
+	 * @param[out] qualification 全原値成立時だけの同device資格です。失敗時空です
+	 * @return 全型/元所有/現service観測成立0、その他は原HRESULTです
+	 * @note 旧serviceのbinary/hash/configと提案新値との一致を要求しません
+	 */
+	[[nodiscard]] NativeError buildStorageInfQualification(
+		const CommonInfInspection &inspection, const OfficialInfInstallBindingRecord &record,
+		const RequiredDriverComponentPlan			   &plan,
+		std::shared_ptr<const StorageInfQualification> &qualification) const ;
 	/** @brief 標準INF rankと別に保存する公式installerの元秘密device guardです */
 	struct OfficialInstallerDeviceBindingRecord {
 		/// Guardを発行した元scanです
@@ -855,6 +1223,8 @@ private:
 	std::unordered_map<std::wstring, std::wstring>	deviceInstances_ ;
 	/// Opaque tokenから秘密device状態とcandidate nodeへ解決する一scan限定表
 	std::unordered_map<std::uint64_t, OfficialInfInstallBindingRecord> officialInfInstallBindings_ ;
+	/// 元親の同期中だけ借用する一子proofです。外部へ公開しません
+	const RequiredChildProof										  *activeRequiredChild_{} ;
 	/// 同issuerの単調tokenへ結合した最大4096のinstaller専用guardです
 	std::unordered_map<std::uint64_t, OfficialInstallerDeviceBindingRecord>
 																officialInstallerBindings_ ;

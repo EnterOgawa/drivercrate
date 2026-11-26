@@ -247,6 +247,10 @@ def references(owner: str, text: str, files: set[str], generated: dict) -> list[
             if target in generated:
                 edges.append((generated[target], "generated-template"))
                 continue
+            if owner == "src/platform/official_sfx.cpp" and target == "miniz.h":
+                # CMake pins the external miniz archive and links its include directory.
+                edges.append(("CMakeLists.txt", "pinned-external-include"))
+                continue
             # tests/liveはCMakeのDRIVERCRATE_REACHED_REFERENCE_RESEARCH用明示include rootである。
             candidates = [normalize_reference(owner, target, base) for base in (parent, "src", "tests", "tests/unit", "tests/live")]
             found = [candidate for candidate in candidates if candidate in files]

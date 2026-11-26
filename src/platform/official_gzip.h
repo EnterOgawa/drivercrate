@@ -2,7 +2,7 @@
 /**
  * @file official_gzip.h
  * @brief 公式GZip catalog展開定義
- * @version 01.00.02
+ * @version 01.01.00
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/19  検査した追加欄の任意借用を提供
  * </pre>
  *
  * @note 署名検証済みGZipを固定上限内で展開し、header、CRC32、ISIZEを検証します。Deflate処理は静的linkしたminizを使用し、外部runtimeを要求しません
@@ -56,13 +57,15 @@ namespace drivercrate {
  * @param[in] compressed GZip container全体。有効期間は本呼出し中に限る
  * @param[in] maximumExpandedBytes 展開を許可する最大byte数
  * @param[out] expanded 成功時の展開済みbyte列。失敗時は空にする。 成功時の展開結果。失敗時は空
+ * @param[out] extra 任意の追加欄。成功時は同じ圧縮入力から借用し、失敗時は空にする
  * @return 成功時は0、形式不正、上限超過、展開失敗時はHRESULT bit pattern
  * @note Concatenated member、予約flag、壊れたCRC32またはISIZEを拒否する
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] NativeError decompressOfficialGzip( std::span<const std::byte> compressed,
-												 std::uint64_t				maximumExpandedBytes,
-												 std::vector<std::byte>	   &expanded) ;
+[[nodiscard]] NativeError decompressOfficialGzip( std::span<const std::byte>	 compressed,
+												 std::uint64_t				 maximumExpandedBytes,
+												 std::vector<std::byte>		&expanded,
+												 std::span<const std::byte> *extra = nullptr) ;
 
 //------------------------------------------------------------------------------
 /**

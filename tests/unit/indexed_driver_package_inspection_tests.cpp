@@ -2,7 +2,7 @@
 /**
  * @file indexed_driver_package_inspection_tests.cpp
  * @brief 索引hint結合と通常検査の拒否境界を検証する
- * @version 01.02.02
+ * @version 01.02.03
  * @date 2026/10/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/11/03  有界large archiveと共有内容保持・標準serviceを接続
  * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.03 Shunji Ogawa  2026/11/22  公式範囲の元CAT表記・ハッシュ・曖昧名の拒否を確認
  * </pre>
  *
  * @note 小さい架空fileだけを保護workspaceへ置き、実device・導入APIを呼ばない
@@ -37,12 +38,14 @@
 #include "platform/indexed_driver_package_inspection.h"
 #include "platform/official_download_workspace.h"
 #include "platform/signed_index_acquisition_descriptor_internal.h"
+#include "platform/signed_index_codec_internal.h"
 
 #include <Windows.h>
 
 #include <array>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -308,6 +311,69 @@ void testActualFixtureBytes( TestContext &context)
 									result.state == IndexedDriverInspectionState::INPUT_REJECTED) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief INFのCAT宣言と署名索引の元CATの結合をファイル検査の前段で確認する
+ * @param[in,out] context 試験結果を集計する所有者
+ * @note 元INFのハッシュ境界で止める架空閉包を使い、実ファイルを開かない
+ */
+//------------------------------------------------------------------------------
+void testScopedCatalogArchiveIdentity( TestContext &context)
+{
+	auto hint		   = hintFixture() ;	// 同じ元CABの長さと選択を保持する入力
+	hint.archiveSha256 = std::wstring( 64U, L'0') ;
+	hint.selectedInfs  = {{L"", L"driver\\sample.inf"}} ;
+	signed_index_detail::CollectorScopedModelsEvidence proof ;	// 署名解析後を模した架空証拠
+	proof.archiveBytes	  = hint.archiveBytes ;
+	proof.infIdentity	  = "driver/sample.inf" ;
+	proof.catalogIdentity = "driver/source.cat" ;
+	proof.classGuid		  = "{4d36e972-e325-11ce-bfc1-08002be10318}" ;
+	proof.models.platform.emplace() ;
+	proof.models.sections.resize( 1U) ;
+	proof.models.infSha256 = FIXTURE_HASH ;
+
+	CollectorDriverPackageContent content ;	// 同じ元CABの架空保護閉包
+	content.scanSessionId = SESSION ;
+	content.archiveSha256 = hint.archiveSha256 ;
+	content.archiveBytes  = hint.archiveBytes ;
+	auto &inf			  = content.infs.emplace_back() ;	// 一件だけの選択INF
+	inf.scanSessionId	  = SESSION ;
+	inf.state			  = CommonInfInspectionState::VERIFIED ;
+	inf.infRelativePath	  = hint.selectedInfs.front().infIdentity ;
+	inf.workspace		  = std::make_shared<OfficialDownloadWorkspace>() ;
+	inf.effects.resize( 1U) ;
+	inf.effects.front().referenceCoverage = MaintenanceInfReferenceCoverage::COMPLETE ;
+	auto &package = inf.closure.packages.emplace_back() ;	// INFによる宣言は元CATと大小文字だけ異なる
+	package.role  = DriverPlanRole::BASE_DRIVER ;
+	package.inspectionPurpose	= OfficialInfInspectionPurpose::COLLECTOR_CONTENT ;
+	package.infRelativePath		= inf.infRelativePath ;
+	package.catalogRelativePath = L"driver\\Source.cat" ;
+	package.classGuid.assign( proof.classGuid.begin(), proof.classGuid.end()) ;
+	package.scopedModels = proof.models ;
+	inf.closure.entries	 = {{L"driver\\source.cat", 3U, hint.archiveSha256}} ;
+
+	// CATが成立した時点の次段階は、実I/Oより前に欠落した架空INFのダイジェスト拒否です
+	const auto missingInf  = static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+	const auto rejectedCat = static_cast<NativeError>( E_ACCESSDENIED) ;	// 署名索引とCATの結合拒否
+	DRIVERCRATE_EXPECT( context, reverifyIndexedScopedDriverPackage( SESSION, hint, proof, content) ==
+									missingInf) ;
+	proof.catalogIdentity = "driver/Source.cat" ;
+	DRIVERCRATE_EXPECT( context, reverifyIndexedScopedDriverPackage( SESSION, hint, proof, content) ==
+									rejectedCat) ;
+	proof.catalogIdentity			   = "driver/source.cat" ;
+	inf.closure.entries.front().sha256 = FIXTURE_HASH ;
+	DRIVERCRATE_EXPECT( context, reverifyIndexedScopedDriverPackage( SESSION, hint, proof, content) ==
+									rejectedCat) ;
+	inf.closure.entries.front().sha256 = hint.archiveSha256 ;
+	package.catalogRelativePath		   = L"other\\Source.cat" ;
+	DRIVERCRATE_EXPECT( context, reverifyIndexedScopedDriverPackage( SESSION, hint, proof, content) ==
+									rejectedCat) ;
+	package.catalogRelativePath = L"driver\\Source.cat" ;
+	inf.closure.entries.push_back( {L"driver\\SOURCE.cat", 3U, hint.archiveSha256}) ;
+	DRIVERCRATE_EXPECT( context, reverifyIndexedScopedDriverPackage( SESSION, hint, proof, content) ==
+									rejectedCat) ;
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -341,6 +407,7 @@ void runIndexedDriverPackageInspectionTests( TestContext &context)
 	testHintIdentity( context) ;
 	testEarlyTermination( context) ;
 	testActualFixtureBytes( context) ;
+	testScopedCatalogArchiveIdentity( context) ;
 }
 
 } // namespace drivercrate::test

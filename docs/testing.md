@@ -1,5 +1,9 @@
 # テスト方針
 
+## 1.0.12の確認範囲
+
+公開ソースのビルドでは、署名索引の条件、候補詳細での配布物検査、ストレージの作用と事後確認を人工データで検査します。実機でのドライバー導入、再起動後の起動、全機器の組み合わせは別の確認です。配布物の検証結果はリリース本文を参照してください。
+
 ## 型付きSYSTEM Needsと同七選択（ADR0491）
 
 限定内部UIの`original-selection`は、明示した私有原公開record/原三CABを既Common/archive/INF/CAT/全rank/Needs検査へ通し、同controller/workerの7 READYからfresh再検証とstrict fake native3/managed4・fake復元へ接続します。Windows INF/CAB本文はrepo fixtureへ複写しません。原公開署名/原byteと実cache-only CAT/member/file/権限検査、人工issuer/PnP/rank/時計/Store・提供先投影を別の資格として記録します。明示5 SYSTEM INFのSetupVerifyInfFile実scoreも独立したreadonly観測であり、人工INBOXへ合算しません。
@@ -260,7 +264,7 @@ OS時計・実端末・実通信・永続鍵・本番署名・導入・公開を
 元Intel archiveのhistorical検査は保存済み原manifest/GZipを明示します。
 旧六入力を新policyで再投影せず、元期限での現在拒否を維持します。
 
-## 現行0.1.1の確認状態
+## 0.1.1の確認履歴
 
 最終公開snapshotのfresh全target/静的解析と最終配布物は未受入です。過去の成功を最新byteへ継承しません。
 10月24日のv7中間成果物では、現在userのnative15時Taskと別同意distribution17時Taskの有効readback、
@@ -386,7 +390,7 @@ integration内のnative子streamはdecoded textです。追加Task変更・再in
 新user fake32、旧cleanup26case/71assertion、transport4case/20check、admission8group/88checkを区別します。
 変更2fileのformat差0・規約98control/error0、正式Doxygen7file/63member/error0を確認しました。
 
-保持workspace容量の回帰は[ADR 0401](adr/0401-retained-workspace-capacity-preflight.md)へ対応します。
+保持workspace容量の回帰はADR 0401へ対応します。
 `test_collector_distribution_data.py`は原byteへbindingした有効data三世代の実合計72MiB超をimport/検証し、
 256MiBの保存中ピーク境界と一byte超過、8192entry、既存世代増分0とactive pending、初期scaffolding、
 一file超過/hardlinkと可搬inputの従来16MiB/64MiBを検査します。容量拒否時はactive/全世代と全file指紋の
@@ -440,7 +444,7 @@ test子processのstreamはdecoded textであり、原byteとは主張しませ�
 
 ## 2026-10-23の新user日次Task sourceと有限な確認（工程342時点）
 
-[ADR0394](adr/0394-collector-user-task-install-lifecycle.md)の最新v6通常installは実Taskの有効登録まで
+ADR0394の最新v6通常installは実Taskの有効登録まで
 接続するため、従来v6正常install/uninstallをTask0のdefault試験として実行しません。
 `test-collector-installer.ps1`/`test-seeded-collector-package.ps1`のdefaultは検査だけで、
 v6正常系をNOT_RUNと記録します。製品入口にtest bypassやno-op Actionを加えていません。
@@ -616,7 +620,7 @@ XMLへ現れないlocal型／fieldのsource契約の確認を含みます。こ�
 | x64 build | 既存の通常Debug／Release全targetと、後続の対象buildを現source・70 PE・123 compiler依存・786 build入力へ結合。31観測入力のmanifest一件は許可文書追加前のpinで、追加後は817候補の現pinへ別結合しています。全31不変とは扱いません。新しい独立export checkoutのbuildは未実施。 |
 | 公開候補 | ADR 0372を含む817 path。静的source依存の確認対象であり、`finalAllowlist=false`の候補。公開承認やfresh buildの代用ではない。 |
 
-[ADR 0372](adr/0372-test-only-private-desktop-lifecycle.md)の自己supervisionはUI試験専用です。
+ADR 0372の自己supervisionはUI試験専用です。
 同じ試験EXEの子を起動時にprivateな非入力desktopへ所属させ、元のargv・作業directory・600秒property・
 453の元期待を保持します。実MainWindow・workerの所属と、同作成handleのPID／作成時刻／終端を確認し、
 所有job・handle・desktopを回収します。環境markerのkeyは完全一致・大文字小文字非依存で処理し、
@@ -696,18 +700,14 @@ Uninstall.cmdの11 fileを保持しました。元ZIP、元package、展開元�
 ## 開発環境と再現
 
 Windows x64、Visual Studio Build ToolsとWindows SDK、Ninja、CMake 3.30以降を使用します。
-通常アプリの実行時にPythonや外部frameworkは必要ありません。開発用Pythonは3.10以降、
-collector保守・固定runtimeの検証にはPython 3.13を使います。Doxygenは1.10.0です。
+通常アプリの実行時にPythonや外部frameworkは必要ありません。開発用Pythonは3.10以降です。
+Doxygenは1.10.0を使用します。
 repository rootをcurrent directoryにし、x64のVisual Studio developer shellで実行してください。
 
 G13-I7r255h0dでは、保存済みIntel Ethernet本文を非通信で同じparserへ通し、
 SHA-512単独掲載の解析と共通record/grantへの保持を確認する。関連unitの
 `drivercrate_unit_tests --intel-ethernet-metadata`は、両hash掲載・欠損・改変・重複と
 誤製品/OS/hostの拒否を合成HTMLで確認する。これは実取得や内容検査の成功ではない。
-`drivercrate_collector_campaign_tests --intel-metadata-fingerprint-only`は、改訂した通常/収集の
-指紋同値と公開hash/codec/faultだけを再確認する内部試験入口である。
-現行の明示取得要求、fresh wrapper、projectorに残る旧SHA-256/旧配布物の固定条件は
-G13-I7r255h0eで別途更新する。原notBeforeと失敗の分母を維持する。
 
 ```powershell
 cmake --preset windows-x64
@@ -726,7 +726,7 @@ live testと解析optionは通常OFFです。通常buildへ受入用公開pin・
 
 ## 必須source gate
 
-G13-I7r263 / [ADR 0416](adr/0416-simple-device-manager-tree.md)では、既存の非通信MainWindow UI試験を
+G13-I7r263 / ADR 0416では、既存の非通信MainWindow UI試験を
 カテゴリ→deviceの二階層・一device一行・四列へ更新する。同名の別device、現在属性優先、
 metadataと検査後候補、複数候補の明示指定、一device一計画、推奨filter/全解除、失効後の個別結果を
 確認対象とする。詳細の実combobox・選択button、閲覧時の選択不変、現在構成の選択拒否も確認する。
@@ -754,25 +754,20 @@ XML抽出集合を確認します。Doxygenの近傍コメント数だけではm
 
 ## Python、CLI、setupの試験
 
-各`test_*.py`の対象moduleと入力契約を確認して、必要な試験fileを明示実行します。例えば次は非通信の
-source閉包、台帳、日次pipelineの人工試験です。これら三入口だけで過去に集計した1,181固有caseを再実行したとはしません。
+各`test_*.py`の対象と入力条件を確認し、必要な試験ファイルを明示して実行します。次は公開用ソースの閉包を確認する非通信試験です。
 
 ```powershell
 py -3 -X utf8 -B scripts/test_public_source_closure.py
-py -3 -X utf8 -B scripts/test_collector_registry.py
-py -3 -X utf8 -B scripts/test_daily_index_pipeline.py
 ```
 
 `scripts/check_public_source_closure.py`は候補一覧の静的なsource／fixture／import／固定payload依存を
 確認するtoolです。動的pathの完全証明やnative buildではありません。
-現在のsource候補は914 fileで、`finalAllowlist=false`です。
-初回公開822 fileへADR 0380と移行専用header／CLIの三件を加えた825 file、および後続845 fileは履歴上の集合です。
-過去の受入を現在の914 fileへ自動適用しません。これらはsource file数で、device／driverの対応数ではありません。
-最終allowlistではなく、除外された私有履歴を追加して閉包を成立させません。
+現在の候補ファイル一覧と検証条件は `scripts/public_source_export_manifest.json` で確認できます。
+各リリースは、その時点の公開対象を使って検証します。
 
 ## 公開snapshotのローカル事前確認
 
-[ADR 0379](adr/0379-local-prepublication-verification-without-actions.md)に従い、公開前の確認をローカルで行います。
+ADR 0379に従い、公開前の確認をローカルで行います。
 Private working treeの既存build・増分試験の合格と、公開snapshotからの新しい検証は別に記録します。
 初回公開822 fileはDebug全72件の結合受入（元68件と条件変更後の直列4件）、Release全72件、
 Python43入口と必要source／PowerShell gateを確認済みです。Debugの元並列8による3 FAIL／1 TIMEOUTは
@@ -799,8 +794,6 @@ Python43入口と必要source／PowerShell gateを確認済みです。Debugの�
    初回公開ではこの切替・clean・復帰を実行しました。後続もその時点の入力と構成を固定して行います。
 4. 同じsnapshotで「必須source gate」の全commandと、変更範囲に必要なPython／PowerShell・UI試験を
    明示実行します。native／UI試験の実行場所は前項の唯一buildと確認済み手順へ結合します。
-   `scripts/test-non-ai-build.ps1`は廃止AI option拒否の補助試験であり、
-   アプリ全体のbuild／testを代行する入口ではありません。
 5. 実command、対象集合、tool版、終了値、実時間、未実行項目をローカル記録へ残し、
    [Release checklist](release-checklist.md)のpackage・権利・秘密情報確認と合わせてレビューします。
    不合格・未確認を成功へ数えず、公開するbyteが変わった場合は影響する確認をやり直します。
@@ -810,13 +803,13 @@ Python43入口と必要source／PowerShell gateを確認済みです。Debugの�
 各明示承認の対象とします。現在の開発PrivateとPublicは双方Actions無効です。
 workflow削除だけをremote停止の証拠にせず、remote反映時には実設定も別途照合します。
 
-日次pipelineの[ADR 0373](adr/0373-acquisition-digest-and-legacy-day-entry.md)回帰は、実失敗経路の
+日次pipelineのADR 0373回帰は、実失敗経路の
 原JSON pinを保持したSHA-256値照合と、旧startのexact検証・取得用途の開始記録／公開出力の分離を
 人工保護入力で確認します。receipt／terminal／lockと元の日次予算は共有します。
 旧metadata成功は取得用途成功へ数えません。この内部試験は保護配備、実収集・内容検査・署名配布、
 通常アプリの実端末候補表示の成功を示しません。
 
-[ADR 0374](adr/0374-receipt-anchor-and-code-only-continuation.md)の限定回帰は、
+ADR 0374の限定回帰は、
 `ReceiptAnchorAndRepairTests`で実`protected_path`／`check_acl`へ人工の継承ACL snapshotを接続し、
 専用rootとoperation包含の両方を検証します。一段だけの修復継承は前config/start/receiptの
 原byteと現code/native pin、不変意味入力、現receiptのFRESH_INPUT、旧署名historyへ拘束します。
@@ -826,7 +819,7 @@ workflow削除だけをremote停止の証拠にせず、remote反映時には実
 今回の有限な直接回帰は、新規12caseと既存42caseが合格しました。全Python／全nativeの再実行ではありません。
 実保護配備・実preparer・実内容検査・署名・Private登録・通常アプリ実正常例は今回未実施です。
 
-[ADR 0375](adr/0375-explicit-presign-checkpoint-continuation.md)の直接回帰は、
+ADR 0375の直接回帰は、
 `PreSignCheckpointContinuationTests`で一回だけの明示署名前継承を実loader/preparer/mainへ接続します。
 旧四moduleの実byteと旧修復marker、原process証拠、body/releaseの二artifactを認証し、
 欠損inspection/script/reviewだけを作成します。元codeRepair/初期inheritの既定拒否は維持します。
@@ -839,7 +832,7 @@ claim-before-signと既使用予算を維持します。marker前の署名前状
 p05と追加p14を直接確認しました。現configの全byte結合はp01/p13/p15の直接tailで確認し、
 全suiteや既に合格した旧classを再実行した結果としては扱いません。
 
-[ADR 0376](adr/0376-verified-unsigned-presign-caller-refresh.md)の直接回帰対象は
+ADR 0376の直接回帰対象は
 `VerifiedUnsignedRefreshTests`です。既存の明示preSign入口だけで、旧全config/四module/nativeと
 元marker/receipt/四raw/FAILED terminal/保守carryを拘束した一回caller更新を扱います。
 旧二原file開始の既定拒否を維持し、native再解析・再検査・script再取得をせず、唯一欠損のreviewを
@@ -856,7 +849,7 @@ pipeline/preparer/直接testを含まず、本変更だけを理由に再生成�
 元128methodのAST bodyと期待値は不変です。観測helperの人工4例、静的閉包、実原入力の読取り認証は
 unitとは別の証拠であり、実native/有効署名/配布成功へ換算しません。
 
-[ADR 0377](adr/0377-asset-upload-length-and-pinned-draft-recovery.md) の upload 回帰は
+ADR 0377 の upload 回帰は
 `AssetUploadLengthTests`、検証 closure の同等性は `AcquisitionVerifierFactoryTests` で確認します。
 3352/1493 byte、非 ASCII byte 長、長さ header 一件、原 byte、通常 GET/JSON、
 不正 upload の子起動前拒否を試験します。factory は元 closure と同じ native argv / 保存 byte /
@@ -883,7 +876,7 @@ package作成・配置・解除の試験は通常unitと異なりfileを変更�
 
 ## collectorの長いlegacy子pathの回帰履歴
 
-[ADR 0371](adr/0371-collector-legacy-store-extended-paths.md)は、検査済みabsolute DOS pathの
+ADR 0371は、検査済みabsolute DOS pathの
 内部Win32表記だけを統一します。長い未存在JSONの`read`が成功0・`found=false`・空出力となり、
 fileを作らないことと、同じ本文の保存・列挙・再開、ACL・同時writer拒否を既存state試験へ追加します。
 不正相対名、reparse、hardlink、広いACL、collection／historyの旧入口拒否は維持します。
@@ -957,7 +950,7 @@ prepare/once各一回が成功しました。固定Intel metadata一対象のNEW
 旧二失敗はそれぞれの分母へ保持し、修正後の正常例と混ぜていません。旧配置は二backupへ保持しました。
 TaskはDisabledのまま、署名・公開・driver本体取得／導入0。全suite/全対象/別PC/日次七回の合格ではありません。
 
-[ADR0390](adr/0390-local-daily-task-and-public-package-readiness.md)のTask薄入口は既存local15件を保持し、
+ADR0390のTask薄入口は既存local15件を保持し、
 追加16件を含む31件の有限fakeで確認します。NEW_200/304/FRESH_INPUTと同一operation、HOLD/NO_NEW、
 固定argv/root/Task名、owner/write/DACL、全74payload pinとtargets、余分code、hardlink/reparse、
 origin/config拒否、timeout/例外/部分保存/結果保存失敗とpythonw標準stream欠損を区別します。
@@ -982,7 +975,7 @@ MachinePolicy/UserPolicy/CurrentUser/LocalMachineは変更せず、子終了後�
 
 ## local-only Taskの現在地と公開候補の変更回帰
 
-2026-10-21の所有Task解除変更（[ADR0392](adr/0392-collector-owned-task-uninstall.md)）は、
+2026-10-21の所有Task解除変更（ADR0392）は、
 解除policy fake26case/71assertions、登録guard/所有pin fake143case、関連native四testをDebug／Releaseで
 各全成功、Release native setupの不正receipt拒否・file/data保持を含む79checksで確認しました。
 変更五sourceのformat差分0、既存規約gate0error、変更四C++ sourceのDoxygen member22/22を照合しました。
@@ -1069,7 +1062,7 @@ prerelease方針を維持します。実currentの失効はhistory/floorと現�
 
 認証済み個別device投影は、生MULTIPLEの非一意負例を維持して、二present/未知Class完全初回・第三node不足・record/source/hash/publicId/device/context/cohort/error/owner/lease改変を分離する。共有一取得、選択一件だけのfake導入と非選択0、通常準備UIも検査する。実機READY/実導入/署名/公開の実績は分けて記録する。
 
-詳細は[ADR 0413](adr/0413-authenticated-per-device-index-projection.md)を参照する。
+詳細はADR 0413を参照する。
 
 ## 唯一最小Windows full-rank（ADR 0414）
 
@@ -1077,7 +1070,7 @@ prerelease方針を維持します。実currentの失効はhistory/floorと現�
 後続rank/detail/API失敗、正常終端不足・上限・候補無し、導入前winner変化/同点化と登録先だけの
 低rank追加/同点化、完了後の旧scan失効を完全低位fakeで確認する。完全初回/未知Class、
 共有一取得/選択一件/非選択0の既存回帰を維持する。fixture成功と新signed appの通常READY、
-実導入の実績を分ける。[ADR 0414](adr/0414-unique-minimum-windows-rank-binding.md)を参照する。
+実導入の実績を分ける。ADR 0414を参照する。
 
 ## 同ID二件の選択batch（ADR 0418）
 
@@ -1087,7 +1080,7 @@ prerelease方針を維持します。実currentの失効はhistory/floorと現�
 単独第二選択では未選択第一のAPI呼出し0を維持する。proof寿命は通常終端・例外・新scan・
 明示失効と旧resolver/新callback閉鎖を別に確認する。既存の偽binding・別device・stale・
 署名hash期限拒否とpartial結果表示を保持する。内部成功は実機二件の解消確認ではない。
-詳細は[ADR 0418](adr/0418-signed-index-batch-proof-lifetime.md)を参照する。
+詳細はADR 0418を参照する。
 
 ## 収集stepの複数HTTP完了と固定診断（ADR 0443）
 
@@ -1107,7 +1100,7 @@ Managerは`--collection-only`で各構成191条件を確認しました。元負
 変更7sourceの書式差0、規約319control/0error、Doxygen28/28/0を確認しました。
 必要targetと直接header依存をfresh compileし、通常Appと署名済み配布物は保持します。
 実HTTP、稼働data、Startup/Task、鍵、署名、公開、package更新は本確認に含めません。
-契約は[ADR 0443](adr/0443-collector-transfer-completion-and-safe-diagnostics.md)を参照してください。
+契約はADR 0443を参照してください。
 
 
 833では`drivercrate_collection_setup_launch_tests`が、閉program/所有rootに無害なasInvoker子だけを配置し、

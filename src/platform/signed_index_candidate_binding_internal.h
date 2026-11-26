@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_internal.h
  * @brief 私有索引候補sessionの内部固定fixture接続を定義します
- * @version 01.03.03
+ * @version 01.06.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -26,6 +26,11 @@
  * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.03.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.03.03 Shunji Ogawa  2026/11/12  WUA検索終端の状態契約と診断改訂値を整合
+ * Ver.01.03.04 Shunji Ogawa  2026/11/17  内部試験だけに必要子の限定観測を接続
+ * Ver.01.04.00 Shunji Ogawa  2026/11/18  同所有targetの既入力だけを読むunit getterを追加
+ * Ver.01.04.01 Shunji Ogawa  2026/11/18  元参照factory転送と同owner cached summary読取りを追加
+ * Ver.01.05.00 Shunji Ogawa  2026/11/23  WiX表示行から保持した元照合数の読み取りを追加
+ * Ver.01.06.00 Shunji Ogawa  2026/11/23  元規約への同意だけを照合する隔離試験入口を追加
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません
@@ -35,10 +40,16 @@
 #pragma once
 #include "platform/composite_update_provider.h"
 #include "core/provider_registry.h"
+#include "platform/common_driver_package.h"
+#include "platform/official_driver_closure.h"
 #include <Windows.h>
 #include <cstddef>
 #include <memory>
+#include <optional>
+#include <span>
+#include <string_view>
 #include <utility>
+#include <vector>
 namespace drivercrate::provider_worker_index_detail {
 struct Services ;
 }
@@ -126,6 +137,90 @@ struct PublicationDiagnostic {
 using PublicationObserver = void ( *)( const PublicationDiagnostic &, void *) noexcept ;
 /** @brief 通常workerと同じprivate本体接続の内部試験入口です */
 struct Access {
+	/**
+	 * @brief 固定した一件の候補の同意照合だけを、実機や取得内容なしで試験します
+	 * @param[in] originalTerms 同スキャン83の候補wix-consent-fixtureが保持する元表示です
+	 * @param[in] session 選択に指定するスキャンです
+	 * @param[in] identities 今回の選択です
+	 * @param[in] consents 選択に渡す試験用の同意です
+	 * @return 元表示の純粋な照合結果です
+	 * @note 導入トークン、取得証拠、復元操作は作りません
+	 */
+	[[nodiscard]] static bool validateWixConsentsForFixture(
+		const std::shared_ptr<const WixTermsPresentation> &originalTerms,
+		const ScanSessionId session, std::span<const std::wstring> identities,
+		std::span<const WixInstallConsent> consents)
+	{
+		SignedIndexCandidateBindingSession binding ;		// 読取り専用の照合だけを呼びます
+		auto &record = binding.records_.emplace_back() ;	// 取得操作から発行された表示を模します
+		record.task.scanSessionId = 83U ;
+		record.task.target.terms  = OfficialPreparationTerms::INSPECTION_ONLY ;
+		record.wixTerms			  = originalTerms ;
+		auto &route		  = binding.routes_.emplace_back() ;	// 同じ候補と規約の結合を固定します
+		route.recordIndex = 0U ;
+		route.candidate.identity					= L"wix-consent-fixture" ;
+		route.candidate.wixInspectionSourceIdentity = L"wix-inspected-fixture" ;
+		route.candidate.storageChange.emplace().singleBoot.emplace() ;
+		route.requiredPlan = std::make_shared<const RequiredDriverComponentPlan>() ;
+		return binding.validateWixInstallConsents( session, identities, consents) ;
+	}
+	/**
+	 * @brief 同sessionの元lookupとissuerから既参照factoryだけを呼びます
+	 * @param[in,out] session 同threadの原scan ownerです
+	 * @param[in] plan 同ownerの元未検査取得計画です
+	 * @param[in] candidates 同captureの実現在行です
+	 * @param[in] hints 同現在行から正規factoryで作ったhintです
+	 * @return 元factoryが検証して発行した非導入参照行です
+	 * @note claim/grant/token/recordを新しく作らず、元guardとordinal検査を維持します
+	 */
+	[[nodiscard]] static std::vector<UpdateCandidate> makeReferencesForFixture(
+		SignedIndexScanSession &session, const OfficialPreparationPlan &plan,
+		std::span<const UpdateCandidate>			 candidates,
+		std::span<const OfficialDiscoveryDeviceHint> hints)
+	{
+		return session.binding_.makeReferences( session.acquisitionLookup_, session.adapter_, plan,
+											   candidates, hints) ;
+	}
+	/**
+	 * @brief Composite registryが一度実行した元索引summaryを読取りcopyします
+	 * @param[in] provider 同threadの元Composite ownerです
+	 * @return 元cached statusと非機密counterだけのcopyです
+	 * @note scan/resolver発行/lookupの失効やownerの変更を行いません
+	 */
+	[[nodiscard]] static IndexScanSummary cachedSummaryForFixture(
+		const CompositeUpdateProvider &provider)
+	{
+		return provider.signedIndexSummary_ ;
+	}
+	/**
+	 * @brief 試験用の同じWiX対象と表示行が保持した元照合数を返します
+	 * @param[in] session 同じスキャンと署名索引を保持する所有者です
+	 * @param[in] target 取得用の元対象です
+	 * @param[in] candidate 同スキャンの閲覧専用行です
+	 * @return 保存した照合数です。完全一致がなければ0です
+	 * @note 参照、取得票、追加の導入許可は発行しません
+	 */
+	[[nodiscard]] static std::size_t wixReferenceRelationCountForFixture(
+		const SignedIndexScanSession &session, const OfficialPreparationTarget &target,
+		const UpdateCandidate &candidate) ;
+	/**
+	 * @brief 同所有targetの既検査入力だけをunitへ読取りcopyします
+	 * @param[in] session 同threadの原scan ownerです
+	 * @param[in] target 元target identityです
+	 * @return 唯一の正常所有入力、欠損/別target/不正ordinalでは空です
+	 * @note 原const object/claim/grant/token/observerを変更しません
+	 */
+	[[nodiscard]] static std::optional<DriverArchiveInput> inspectionInputForFixture(
+		const SignedIndexScanSession &session, std::wstring_view target) ;
+	/**
+	 * @brief 完全fake操作中に限り既存Driver Store ownerを試験へ借用します
+	 * @param[in,out] provider 同workerが所有する通常Compositeです
+	 * @return 同Compositeの非所有参照です。scanや導入権限を発行しません
+	 */
+	[[nodiscard]] static DriverStoreProvider &driverStoreFixture( CompositeUpdateProvider &provider)
+	{
+		return provider.driverStoreProvider_ ;
+	}
 	/**
 	 * @brief 非通信の検索終端試験へ既inventory slotのscanだけを接続します
 	 * @param[in,out] provider 同threadが所有する本物Compositeです

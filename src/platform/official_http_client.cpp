@@ -2,7 +2,7 @@
 /**
  * @file official_http_client.cpp
  * @brief 公式配布元限定HTTP client実装
- * @version 01.23.02
+ * @version 01.34.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -71,6 +71,17 @@
  * Ver.01.23.00 Shunji Ogawa  2026/11/11  App専用の通知付き更新とInno引継ぎを接続
  * Ver.01.23.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.23.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.24.00 Shunji Ogawa  2026/11/19  三頁形式の指定時は収集頁のredirectを拒否
+ * Ver.01.25.00 Shunji Ogawa  2026/11/21  最終保存応答の汎用バイナリ媒体型を観測
+ * Ver.01.26.00 Shunji Ogawa  2026/11/22  保存応答の二つのバイナリ媒体型を区別
+ * Ver.01.27.00 Shunji Ogawa  2026/11/22  ZIP媒体型の保存観測を元バイナリ媒体型と分離
+ * Ver.01.28.00 Shunji Ogawa  2026/11/23  収集配布の元パスを保つ一回の301を検証
+ * Ver.01.29.00 Shunji Ogawa  2026/11/23  収集配布の元301で残る待機と要確認を判定
+ * Ver.01.30.00 Shunji Ogawa  2026/11/23  署名索引のWiX配布を単独Locationの元301へ結合
+ * Ver.01.31.00 Shunji Ogawa  2026/11/23  WiXの元301・429・503の待機を結果まで保持
+ * Ver.01.32.00 Shunji Ogawa  2026/11/23  固定GooGet索引だけを転送なしの収集用JSON取得へ追加
+ * Ver.01.33.00 Shunji Ogawa  2026/11/24  WCHの固定公開APIを転送なしの収集用JSON取得へ追加
+ * Ver.01.34.00 Shunji Ogawa  2026/11/24  公開ファイル識別子と指定ZIPの一段転送を照合
  * </pre>
  *
  * @note WinHTTP handleは本file内のRAII wrapperが所有します。Catalog cacheが破損した場合は破棄し、stale fallbackを行わず公式
@@ -88,6 +99,7 @@
 #include "core/official_source_policy.h"
 #include "platform/official_catalog_cache.h"
 #include "platform/official_file_verifier.h"
+#include "platform/wch_catalog_parser.h"
 
 #include <Windows.h>
 #include <winhttp.h>
@@ -146,10 +158,16 @@ public:
 	}
 	/**
 	 * @brief 全受信・宣言長・保存・取消し確認後だけ完了を確定します
+	 * @param[in] payloadOctetStream 同じ最終PAYLOAD応答で確認した固定媒体型。PAGEではNONEです
+	 * @param[in] payloadZipContentType 同じ応答が単一のZIP媒体型を明示した場合だけtrueです
 	 */
-	void complete() noexcept
+	void complete(
+		const CollectorPayloadOctetStream payloadOctetStream	= CollectorPayloadOctetStream::NONE,
+		const bool						  payloadZipContentType = false) noexcept
 	{
-		observation_.completion_ = CollectorHttpTransferCompletion::COMPLETE ;
+		observation_.completion_			= CollectorHttpTransferCompletion::COMPLETE ;
+		observation_.payloadOctetStream_	= payloadOctetStream ;
+		observation_.payloadZipContentType_ = payloadZipContentType ;
 	}
 
 private:
@@ -1056,7 +1074,7 @@ struct EmptyJsonPostContext {
  * @param[in] collectorCancellation 収集専用の送信直前取消しです
  * @param[in] jsonPost 非null時だけfactory生成済みの空JSON/query文脈を使います
  * @param[in] delegatedCheckpoint 非null時はDNS後・実send直前にも同grantを検査します
- * @param[in] appObserver App更新だけでHTTP拒否前の待機headerを観測します。通常はNullです
+ * @param[in] responseObserver HTTP拒否前に元待機を観測する同期関数です。未指定ならnullです
  * @return 検査対象status受信時は0、失敗時はHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
@@ -1071,7 +1089,7 @@ struct EmptyJsonPostContext {
 	const HttpCancellationCallback				*collectorCancellation = nullptr,
 	const EmptyJsonPostContext					*jsonPost			   = nullptr,
 	const std::function<NativeError()>			*delegatedCheckpoint   = nullptr,
-	const std::function<void( HINTERNET, DWORD)> *appObserver		   = nullptr)
+	const std::function<void( HINTERNET, DWORD)> *responseObserver	   = nullptr)
 {
 	status = 0 ;
 	// 新POSTは完全なfactory文脈と同grant制御が揃う場合だけ許す
@@ -1304,9 +1322,9 @@ struct EmptyJsonPostContext {
 		return nativeErrorFromWin32( GetLastError()) ;
 	}
 
-	// Appの元待機をHTTP失敗より前に保持します。既Providerの観測は変更しません
-	if( appObserver != nullptr) {
-		(*appObserver)( createdRequest.get(), status) ;
+	// 観測を指定した用途だけ、HTTP失敗より先に同じ応答の元待機を保持します
+	if( responseObserver != nullptr) {
+		(*responseObserver)( createdRequest.get(), status) ;
 	}
 
 	const NativeError statusError =	// 拒否statusを本文取得前に元の数値付きで返す
@@ -1459,6 +1477,21 @@ struct EmptyJsonPostContext {
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 公式配布の301と単独の元Locationを指定先に照合する
+ * @param[in] request 元配布先の応答を保持する借用handle
+ * @param[in] status 同じ応答のHTTP status
+ * @param[in] destination 元配布と照合済みの正規HTTPS別originにある完全転送先
+ * @param[in] transport 同じhandleの完全なI/O表
+ * @param[in] observedWait 同じ応答で観測済みの待機です。nullの場合だけ応答から読み取ります
+ * @return 単独の一致したLocationがあり未到来の待機や要確認がなければ0、それ以外はHRESULT
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyExactPayloadRedirect(
+	HINTERNET request, DWORD status, std::wstring_view destination,
+	const OfficialHttpTransport &transport, const CollectorRedirectWait *observedWait = nullptr) ;
+
+//------------------------------------------------------------------------------
+/**
  * @brief 公式origin間の有限redirectを手動追跡する
  *
  * WinHTTPの自動redirectを使用せず、全Locationを通信前にHTTPS、port、credential、host、回数、循環で検証する
@@ -1475,11 +1508,12 @@ struct EmptyJsonPostContext {
  * @param[out] originPolicyIndices 起点から最終originのindex列
  * @param[in,out] execution 新modeの送信予算・cost・期限。Nullは従来の通常GET
  * @param[in] transport 各hopに共通のI/O表。生成したhandleへclose関数をcopyする
- * @param[in] requirePublicSameOrigin trueなら各hopの全DNS宛先と起点originを検証する
+ * @param[in] requirePublicSameOrigin trueなら各hopの全DNS宛先と起点originを検証する。明示配布の一回の転送は例外
  * @param[out] finalUrl 非nullなら成功した最終response URL。失敗時は空
  * @param[in] collectorMetadata 収集専用のcookie無効化と失敗status観測
  * @param[in,out] collectorTransfer 収集専用の実send/status記録先です
  * @param[in] checkpoint 非null時は各hopの元session期限を再検査します
+ * @param[in] collectorRedirectUrl 空または元配布と照合済みの別originにある一転送先
  * @return 最終response確定時は0、不正遷移または失敗時はHRESULT
  */
 //------------------------------------------------------------------------------
@@ -1492,9 +1526,10 @@ struct EmptyJsonPostContext {
 	MetadataSearchExecutionContext *execution = nullptr,
 	const OfficialHttpTransport	   &transport = NATIVE_HTTP_TRANSPORT,
 	const bool requirePublicSameOrigin = false, std::wstring *finalUrl = nullptr,
-	const bool							collectorMetadata = false,
-	CollectorHttpTransferRecorder	   *collectorTransfer = nullptr,
-	const std::function<NativeError()> *checkpoint		  = nullptr)
+	const bool							collectorMetadata	 = false,
+	CollectorHttpTransferRecorder	   *collectorTransfer	 = nullptr,
+	const std::function<NativeError()> *checkpoint			 = nullptr,
+	const std::wstring_view				collectorRedirectUrl = {})
 {
 	status = 0U ;
 	originPolicyIndices.clear() ;
@@ -1539,8 +1574,10 @@ struct EmptyJsonPostContext {
 			firstPort = parsed.port ;
 		}
 
-		// 別originへのredirectは許可host内でも通信前に止める
-		if( requirePublicSameOrigin && (parsed.host != firstHost || parsed.port != firstPort)) {
+		// 明示配布の一回の指定先だけを同一origin制約の例外にする
+		if( requirePublicSameOrigin && (parsed.host != firstHost || parsed.port != firstPort) &&
+		   (collectorRedirectUrl.empty() || currentUrl != collectorRedirectUrl ||
+			originPolicyIndices.size() != 2U)) {
 			return static_cast<NativeError>( E_ACCESSDENIED) ;
 		}
 
@@ -1601,6 +1638,20 @@ struct EmptyJsonPostContext {
 			return postResponseCancellation ;
 		}
 
+		// 元配布の指定された301以外では別originへ進まない
+		if( !collectorRedirectUrl.empty() && originPolicyIndices.size() == 1U) {
+			// 指定301の形式と転送先の検査結果を保持する
+			const auto redirectError = verifyExactPayloadRedirect(
+				currentRequest.get(), currentStatus, collectorRedirectUrl, transport) ;
+			// 元200への変更や待機付き転送も同じ配布証拠として保存しない
+			if( redirectError != 0) {
+				return redirectError ;
+			}
+
+			currentUrl = collectorRedirectUrl ;
+			continue ;
+		}
+
 		// Redirect 以外の応答に到達したら handle 群と status の所有権を返す
 		if( !isRedirectStatus( currentStatus)) {
 			session	   = std::move( currentSession) ;
@@ -1641,7 +1692,7 @@ struct EmptyJsonPostContext {
  * @param[in] transport Handleと同じ低位I/O表
  * @param[in] script 非実行script用MIMEとcharset省略を認める場合true
  * @param[in] collectorHtml 収集検査HTMLだけでcharset省略を認める場合true。既定はfalse
- * @param[in] collectorJson 閉model APIのJSON用途だけを厳密に区別します
+ * @param[in] collectorJson 許可された収集専用のJSON用途だけを厳密に区別します
  * @return HTMLは明示UTF-8または明示収集の省略、scriptは既知MIMEと省略またはUTF-8宣言なら0
  * @note 不明charset、重複charset、MIME欠損、制御文字、過大headerを拒否します
  */
@@ -2945,12 +2996,15 @@ private:
  * @param[in] transport Handleを生成した完全I/O表
  * @param[out] present 非nullならheader存在を返します
  * @param[in,out] controlled 新modeの制御。Nullは旧callerと同じ照会です
+ * @param[in] requireSingle 同名headerの複数行を拒否する場合trueです
  * @return 正常な有限文字列、欠損は空文字、不正または失敗はnullopt
+ * @note 単独指定では同名headerが2件以上あればnulloptです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::wstring> collectorHeader(
 	const HINTERNET request, const DWORD query, const OfficialHttpTransport &transport,
-	bool *present = nullptr, ControlledCollectorRequest *controlled = nullptr)
+	bool *present = nullptr, ControlledCollectorRequest *controlled = nullptr,
+	const bool requireSingle = false)
 {
 	// 欠損と存在する空headerを呼出し元が区別できるようにする
 	if( present != nullptr) {
@@ -2975,6 +3029,11 @@ private:
 		// 欠損は空、または全同名header読取り完了を意味する
 		if( error == ERROR_WINHTTP_HEADER_NOT_FOUND) {
 			return combined ;
+		}
+
+		// 単独値の用途では複数行を連結して一つの値を合成しません
+		if( requireSingle && count != 0U) {
+			return std::nullopt ;
 		}
 
 		// 不正長や不明な応答を再検証へ使用しない
@@ -3027,8 +3086,48 @@ private:
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 公式配布の301と単独の元Locationを指定先に照合する
+ * @param[in] request 元配布先の応答を保持する借用handle
+ * @param[in] status 同じ応答のHTTP status
+ * @param[in] destination 元配布と照合済みの正規HTTPS別originにある完全転送先
+ * @param[in] transport 同じhandleの完全なI/O表
+ * @param[in] observedWait 同じ応答で観測済みの待機です。nullの場合だけ応答から読み取ります
+ * @return 単独の一致したLocationがあり未到来の待機や要確認がなければ0、それ以外はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError verifyExactPayloadRedirect( const HINTERNET request, const DWORD status,
+									   const std::wstring_view			  destination,
+									   const OfficialHttpTransport		 &transport,
+									   const CollectorRedirectWait *const observedWait)
+{
+	// HTTPの元失敗を前段へ伝え、直接200や異なる転送方式は取得を保留する
+	if( status != HTTP_STATUS_MOVED) {
+		const auto statusError =
+			// 元HTTP状態の拒否理由
+			validateOfficialHttpResponseStatus( status, false, false) ;
+		return statusError != 0 ? statusError : nativeErrorFromWin32( ERROR_WINHTTP_REDIRECT_FAILED) ;
+	}
+
+	// 元応答に結び付いた待機の観測を優先する
+	const auto retry =
+		observedWait != nullptr ? *observedWait : readCollectorRedirectWait( request, transport) ;
+	// 元待機を無視した送信と、不明な待機応答からの送信を許さない
+	if( retry.seconds != 0U || retry.needsReview) {
+		return nativeErrorFromWin32( ERROR_WINHTTP_REDIRECT_FAILED) ;
+	}
+
+	const auto location = collectorHeader( request, WINHTTP_QUERY_LOCATION, transport, nullptr,
+										  nullptr, true) ;	// 応答に含まれる単独のLocationだけです
+	// 同じ公式起点へ結合済みの指定先だけを許します
+	return location && *location == destination
+			   ? 0
+			   : nativeErrorFromWin32( ERROR_WINHTTP_REDIRECT_FAILED) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 秘密を保存せずRetry-Afterを有限の秒数またはUTCへ変換します
- * @param[in] request HTTP 429／503の応答handle
+ * @param[in] request HTTP 301／429／503の応答handle
  * @param[in] transport 同じhandleを所有するI/O
  * @param[out] observation 形式不明は要確認、欠損は追加指定なし
  * @param[in,out] controlled 新modeだけの所有request制御。Nullは旧callerです
@@ -3044,8 +3143,8 @@ void collectorRetryAfter( HINTERNET request, const OfficialHttpTransport &transp
 {
 	bool	   present{} ;	// 空値を欠損と区別する存在flag
 	const auto header =
-		// 有限同名header
-		collectorHeader( request, WINHTTP_QUERY_RETRY_AFTER, transport, &present, controlled) ;
+		// 日付の一部を別のheaderから連結して一つの待機指定を作りません
+		collectorHeader( request, WINHTTP_QUERY_RETRY_AFTER, transport, &present, controlled, true) ;
 	// 読取り不能を待機なしへ変換しない
 	if( !header) {
 		observation.retryAfterNeedsReview = true ;
@@ -3172,7 +3271,97 @@ void collectorRetryAfter( HINTERNET request, const OfficialHttpTransport &transp
 	return true ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 元queryと最終ZIPの親ディレクトリに同じ公開ファイル識別子があるか確認します
+ * @param[in] source 公式起点の解析済みpathとqueryを呼出し中だけ借用します
+ * @param[in] destination 審査済み転送先の解析済みpathとqueryを呼出し中だけ借用します
+ * @return 元の単一queryと完全一致する親識別子を持つ同じ配布の静的ZIPならtrueです
+ * @note URLのhostと完全表記は呼出し元で確認します。通信と動的メモリ確保を行いません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool validCollectorZipRedirectPaths( const std::wstring_view source,
+												  const std::wstring_view destination) noexcept
+{
+	constexpr std::wstring_view tokens =
+		L"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-" ;	// 元queryの許可字句です
+	constexpr std::wstring_view pathCharacters =
+		L"/ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-" ;	// 静的パスの許可字句です
+	// 代替表記やブラウザーの解決が関係しないパスだけを検査するlambdaは固定字句だけを借用します
+	const auto plainPath = [pathCharacters]( const std::wstring_view path) {
+		return path.size() > 1U && path.starts_with( L'/') &&
+			   path.find_first_not_of( pathCharacters) == path.npos &&
+			   path.find( L"//") == path.npos && path.find( L"/./") == path.npos &&
+			   path.find( L"/../") == path.npos && !path.ends_with( L"/.") &&
+			   !path.ends_with( L"/..") && !path.ends_with( L'/') ;
+	} ;
+	const auto question = source.find( L'?') ;	// 元URLの単一queryの境界です
+	// 両URLを直接照合できる場合だけ、識別子の抽出へ進みます
+	if( question == source.npos || !plainPath( source.substr( 0U, question)) ||
+	   !plainPath( destination) || !destination.ends_with( L".zip")) {
+		return false ;
+	}
+
+	const auto query = source.substr( question + 1U) ;	// 元queryの未分割範囲です
+	const auto equal = query.find( L'=') ;				// キーと公開識別子の境界です
+	// 空キーと複数指定から一つを選ばず、元識別子の表記を固定します
+	if( equal == query.npos || equal == 0U || equal > 64U ||
+	   query.substr( 0U, equal).find_first_not_of( tokens) != query.npos) {
+		return false ;
+	}
+
+	const auto id	 = query.substr( equal + 1U) ;			// 元リンクの公開ファイル識別子です
+	const auto slash = destination.find_last_of( L'/') ;	// ZIP basename直前の境界です
+	// 元IDが最終パスで独立した親要素として存在できる形に限定します
+	if( id.empty() || id.size() > 128U || id.find_first_not_of( tokens) != id.npos || slash == 0U ||
+	   destination.size() - slash <= std::wstring_view{L"/.zip"}.size()) {
+		return false ;
+	}
+
+	const auto parent	   = destination.substr( 0U, slash) ;	// 元ZIPを保持する最終ディレクトリです
+	const auto parentSlash = parent.find_last_of( L'/') ;		// 直前の完全な親要素の境界です
+	return parent.substr( parentSlash + 1U) == id ;
+}
+
 } // namespace
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式配布の301、429又は503の元Retry-Afterだけを非通信で読む
+ * @param[in] response 同じ元応答を保持した借用requestです
+ * @param[in] transport 応答のheaderと任意のUTC時計に使う完全I/O表です
+ * @return 元UTC下限、残り待機の秒数と確認の要否です
+ * @note Header本文やLocationを結果に保持しません。新しい送信は行いません
+ */
+//------------------------------------------------------------------------------
+CollectorRedirectWait readCollectorRedirectWait( const HINTERNET				 response,
+												const OfficialHttpTransport &transport)
+{
+	CollectorHttpObservation observation ;	// 他の収集GETと同じ原header文法を使用します
+	collectorRetryAfter( response, transport, observation) ;
+	CollectorRedirectWait wait{
+		observation.retryAfterDelaySeconds, observation.retryAfterNeedsReview,
+		observation.retryAfterUtcSeconds} ;	// 元の秒指定、確認要否と日時指定を保持します
+	// 待機のある応答だけ同じ受信時点のUTCへ結びます
+	if( observation.retryAfterUtcSeconds != 0U || wait.seconds != 0U) {
+		const auto now =
+			transport.utcNow ? transport.utcNow() : currentUtcSeconds() ;	// 同じ応答の観測時計です
+		// 不明の時計や表現できない秒指定は、後続操作へ要確認を返します
+		if( now == 0U || wait.seconds > (std::numeric_limits<std::uint64_t>::max)() - now) {
+			wait.needsReview = true ;
+		}
+		// 日時指定は変換後の原UTCを保持し、時計から待機下限を作り直しません
+		else if( observation.retryAfterUtcSeconds != 0U) {
+			wait.seconds = wait.notBeforeUtcSeconds > now ? wait.notBeforeUtcSeconds - now : 0U ;
+		} else {
+			wait.notBeforeUtcSeconds = now + wait.seconds ;
+		}
+	}
+
+	// 既存の定義収集と同じ七日超の要確認を適用する
+	wait.needsReview = wait.needsReview || wait.seconds > 604800U ;
+	return wait ;
+}
 
 //------------------------------------------------------------------------------
 /**
@@ -4756,6 +4945,7 @@ NativeError OfficialHttpClient::postEmptyJsonQuery(
  * @note Dynamic同一originは2回、固定payload hostへの一方向移行だけを許可します。System・per-user proxy設定を尊重し、serverの既定
  *       credential、Cookie、Referer、root固有header、bodyを送信しません。索引attestation出自だけは同grantの私有封印exact route・失効
  *       leaseを再照合します。一般のhost追加や公開DTO自己申告ではこのbranchを作れません。毎hopの公開DNSと実byte検査を維持します
+ *       WiXでは元アンカーの単独Location付き301と所定の最終200を順に要求します
  */
 //------------------------------------------------------------------------------
 NativeError OfficialHttpClient::downloadDelegatedGet(
@@ -4873,6 +5063,14 @@ NativeError OfficialHttpClient::downloadDelegatedGet(
 								 static_cast<NativeError>( E_ACCESSDENIED)) ;
 		}
 
+		const auto wixDestination =
+			// 元索引に封印した転送先です
+			request.signedWixRedirectDestination() ;
+		// WiX対象の転送封印が不成立なら、別方式のGETやDNSへ進みません
+		if( wixDestination && wixDestination->empty()) {
+			return finishFailure( OfficialDownloadGrantState::TARGET_REJECTED, E_ACCESSDENIED) ;
+		}
+
 		InternetHandle				   session( nullptr) ;		// 最終responseのsystem proxy session
 		InternetHandle				   connection( nullptr) ;	// 最終responseのconnection handle
 		InternetHandle				   response( nullptr) ;		// 本文を受信する最終response handle
@@ -4884,9 +5082,20 @@ NativeError OfficialHttpClient::downloadDelegatedGet(
 		std::uint32_t dynamicRedirectCount{} ;	// 未登録originから発生したredirect数
 		std::uint32_t fixedRedirectCount{} ;	// 固定payload originから発生したredirect数
 		std::uint32_t validatedAddressCount{
-			auxiliaryAddresses} ;	// 全hopでpublicと確定したaddress合計
-		bool  fixedRoute{} ;		// 固定payload allowlistへ移行済みの場合true
-		DWORD finalStatus{} ;		// 本文を読む最終HTTP status
+			auxiliaryAddresses} ;				// 全hopでpublicと確定したaddress合計
+		bool				  fixedRoute{} ;	// 固定payload allowlistへ移行済みの場合true
+		DWORD				  finalStatus{} ;	// 本文を読む最終HTTP status
+		CollectorRedirectWait wixWait ;			// 別の送信へ渡さず、同じ301の判定に使う待機です
+		const std::function<void( HINTERNET, DWORD)> observeWixRetry =
+			[&request, &transport, &wixWait, &redirectCount]( HINTERNET response, DWORD status) {
+				// 元アンカーの301と、いずれかの配布元からの混雑応答だけを対象とします
+				if( (status == HTTP_STATUS_MOVED && redirectCount == 0U) || status == 429U ||
+				   status == 503U) {
+					wixWait				  = readCollectorRedirectWait( response, transport) ;
+					request.payloadRetry_ = {wixWait.notBeforeUtcSeconds, status,
+											 wixWait.needsReview} ;
+				}
+			} ; // 同じ要求中だけ受信handleと数値の所有先を借用します
 
 		// Exact targetと最大5回のLocationを順に検証し、最終responseで終了する
 		while( true) {
@@ -4994,10 +5203,27 @@ NativeError OfficialHttpClient::downloadDelegatedGet(
 			const NativeError requestError = openGetRequest(
 				parsed, currentSession, currentConnection, currentResponse, {}, currentStatus,
 				nullptr, transport, WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH, false, nullptr, nullptr,
-				nullptr, nullptr, &checkpoint) ;	// 既定credentialを使わないGET結果
+				nullptr, nullptr, &checkpoint,
+				wixDestination ? &observeWixRetry : nullptr) ;	// 既定credentialを使わないGET結果
 			// HTTP API失敗で部分fileを成功として閉じない
 			if( requestError != 0) {
 				return finishFailure( OfficialDownloadGrantState::FAILED, requestError) ;
+			}
+
+			// WiXは同じ元アンカーが指定先を単独の301で返した場合だけ二件目へ進みます
+			if( wixDestination && redirectCount == 0U) {
+				const auto redirectError = verifyExactPayloadRedirect(
+					currentResponse.get(), currentStatus, *wixDestination, transport,
+					&wixWait) ;	// 同じ応答で既に観測した待機を使います
+				// 待機、元200への変更や別の転送では次の接続を行いません
+				if( redirectError != 0) {
+					return finishFailure( OfficialDownloadGrantState::TARGET_REJECTED,
+										 redirectError) ;
+				}
+
+				redirectTarget.replace( std::wstring{*wixDestination}) ;
+				++redirectCount ;
+				continue ;
 			}
 
 			// Redirect以外のresponseに到達したら所有handleとstatusを本文受信へ移す
@@ -5007,6 +5233,12 @@ NativeError OfficialHttpClient::downloadDelegatedGet(
 				response	= std::move( currentResponse) ;
 				finalStatus = currentStatus ;
 				break ;
+			}
+
+			// 指定先の再転送を読まず、WiXを従来の有限転送方式へ切り替えません
+			if( wixDestination) {
+				return finishFailure( OfficialDownloadGrantState::TARGET_REJECTED,
+									 nativeErrorFromWin32( ERROR_WINHTTP_REDIRECT_FAILED)) ;
 			}
 
 			// Application全体の5 redirect上限を超えるLocationは読み取らない
@@ -5260,6 +5492,8 @@ NativeError OfficialHttpClient::downloadCatalogToFile(
  * @param[in] collectorInspection 収集検査だけでpublic同一origin・cookie／credential無効を追加する
  * @param[out] transfer 収集専用だけの実転送観測です。他用途では拒否します
  * @param[in] checkpoint 非null時は収集専用の同session期限を実send直前にも検査します
+ * @param[in] collectorRedirectUrl 空または収集専用の審査済み転送先です。非空時は二つのexact hostと最大一回を要求します
+ * @param[in] redirectShape 明示転送の元パスと最終配布の対応です。ZIPでは転送先が必須です
  * @return 保存とflush成功時は0、失敗時はHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
@@ -5269,8 +5503,9 @@ NativeError OfficialHttpClient::downloadToFile(
 	const HttpDownloadProgressCallback &progressCallback,
 	const HttpCancellationCallback	   &cancellationCallback,
 	std::vector<std::uint32_t> &originPolicyIndices, const bool collectorInspection,
-	CollectorHttpTransferObservation   *transfer,
-	const std::function<NativeError()> *checkpoint) const
+	CollectorHttpTransferObservation *transfer, const std::function<NativeError()> *checkpoint,
+	const std::wstring_view				collectorRedirectUrl,
+	const CollectorPayloadRedirectShape redirectShape) const
 {
 	originPolicyIndices.clear() ;
 	CollectorHttpTransferObservation ignored ;	// 観測不要の旧callerにも同じ保存処理を使います
@@ -5282,8 +5517,44 @@ NativeError OfficialHttpClient::downloadToFile(
 	   outputFile == INVALID_HANDLE_VALUE || !progressCallback ||
 	   (transfer != nullptr && !collectorInspection) ||
 	   (collectorInspection && maximumRedirects > 2U) ||
-	   (checkpoint != nullptr && (!collectorInspection || !*checkpoint))) {
+	   (checkpoint != nullptr && (!collectorInspection || !*checkpoint)) ||
+	   (redirectShape != CollectorPayloadRedirectShape::SAME_EXE_PATH &&
+		(redirectShape != CollectorPayloadRedirectShape::FILE_ID_ZIP ||
+		 collectorRedirectUrl.empty()))) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
+	}
+
+	// 明示転送を審査した元配布と、起点・転送先の順で固定した二つのoriginへ限定します
+	if( !collectorRedirectUrl.empty()) {
+		ParsedUrl original ;	// 元配布の検証済みcomponent
+		ParsedUrl delegated ;	// 同じ取得でだけ許す転送先component
+		// Hostの部分一致や代替URL表記を転送条件へ入れません
+		if( !collectorInspection || maximumRedirects != 1U || allowedHosts.size() != 2U ||
+		   parseHttpsUrl( url, allowedHosts, original) != 0 ||
+		   parseHttpsUrl( collectorRedirectUrl, allowedHosts, delegated) != 0 ||
+		   original.host != allowedHosts[0] || delegated.host != allowedHosts[1] ||
+		   original.host == delegated.host ||
+		   url != L"https://" + original.host + original.pathQuery ||
+		   collectorRedirectUrl != L"https://" + delegated.host + delegated.pathQuery) {
+			return static_cast<NativeError>( E_INVALIDARG) ;
+		}
+
+		const bool validPaths =
+			// EXEとZIPは各形式で閉じたパスの対応を要求します
+			redirectShape == CollectorPayloadRedirectShape::FILE_ID_ZIP
+				? validCollectorZipRedirectPaths( original.pathQuery, delegated.pathQuery)
+				: original.pathQuery == delegated.pathQuery &&
+					  original.pathQuery.find_first_not_of(
+						  L"/ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-") ==
+						  std::wstring::npos &&
+					  original.pathQuery.find( L"//") == std::wstring::npos &&
+					  original.pathQuery.find( L"/./") == std::wstring::npos &&
+					  original.pathQuery.find( L"/../") == std::wstring::npos &&
+					  original.pathQuery.ends_with( L".exe") ;
+		// 元リンクと転送先を同じ公式配布へ結べる場合だけ要求を開始します
+		if( !validPaths) {
+			return static_cast<NativeError>( E_INVALIDARG) ;
+		}
 	}
 
 	const NativeError cancellationError =
@@ -5304,8 +5575,8 @@ NativeError OfficialHttpClient::downloadToFile(
 	const NativeError requestError = openGetRequestFollowingRedirects(
 		url, allowedHosts, maximumRedirects, {}, cancellationCallback, session, connection, request,
 		status, originPolicyIndices, nullptr, transport, collectorInspection, nullptr,
-		collectorInspection, collectorInspection ? &recorder : nullptr,
-		checkpoint) ;	// 新収集検査だけの観測
+		collectorInspection, collectorInspection ? &recorder : nullptr, checkpoint,
+		collectorRedirectUrl) ;	// 新収集検査だけの観測
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 	if( requestError != 0) {
 		return requestError ;
@@ -5365,13 +5636,27 @@ NativeError OfficialHttpClient::downloadToFile(
 
 	// Flush待機中の取消しを完全精算へ進めません
 	if( collectorInspection) {
+		const auto contentType =
+			// 同じ最終応答だけを読み、生ヘッダーを結果へ残さない
+			collectorHeader( request.get(), WINHTTP_QUERY_CONTENT_TYPE, transport) ;
 		const auto cancelled = checkCancellation( cancellationCallback) ;	// 終端の同じ停止です
 		// 停止診断を成功に上書きしません
 		if( cancelled != 0) {
 			return cancelled ;
 		}
 
-		recorder.complete() ;
+		auto payloadOctetStream =
+			CollectorPayloadOctetStream::NONE ;	// 単独の実応答値だけを保持します
+		// 従来の汎用媒体型を現応答から確認します
+		if( contentType && *contentType == L"application/octet-stream") {
+			payloadOctetStream = CollectorPayloadOctetStream::APPLICATION ;
+		}
+		// 別名を従来値に置き換えず、同じ最終応答の実値を保持します
+		else if( contentType && *contentType == L"binary/octet-stream") {
+			payloadOctetStream = CollectorPayloadOctetStream::BINARY ;
+		}
+
+		recorder.complete( payloadOctetStream, contentType && *contentType == L"application/zip") ;
 	}
 
 	return 0 ;
@@ -5379,7 +5664,7 @@ NativeError OfficialHttpClient::downloadToFile(
 
 //------------------------------------------------------------------------------
 /**
- * @brief 収集adapterの実HTMLをpublic宛先・同一originで有限取得する
+ * @brief 収集adapterの実HTMLまたは指定公開JSONを同一originで有限取得する
  * @param[in] url 検査済み起点URL
  * @param[in] host 小文字exact host
  * @param[in] cancellation 同じ取消し
@@ -5388,14 +5673,16 @@ NativeError OfficialHttpClient::downloadToFile(
  * @param[out] observation 任意の同原byte観測です。Nullなら追加hashを計算せず、失敗時は空です
  * @param[out] transfer 任意の私有転送観測です。失敗時も実数とUNKNOWNを保持します
  * @param[out] raw 任意の同原本文です。成功時だけ所有権を渡し、失敗時空です
- * @param[in] modelJson 閉model APIのJSONを読む場合だけtrue。旧HTMLのMIME条件は変更しません
+ * @param[in] collectorJson 閉model API、固定GooGet索引またはWCH固定APIをJSONで読む場合true
+ * @param[in] allowRedirects 許可された旧形式だけ同一origin二回まで追随します。WCHとGooGetは常に転送なしです
  * @return 全受信成功0、拒否HRESULT。組み込みledgerを発行しない
  */
 //------------------------------------------------------------------------------
 NativeError OfficialHttpClient::getCollectorInspectionPage(
 	std::wstring_view url, std::wstring_view host, const HttpCancellationCallback &cancellation,
 	std::wstring &text, std::wstring &finalUrl, CollectorInspectionPageObservation *observation,
-	CollectorHttpTransferObservation *transfer, std::vector<std::byte> *raw, const bool modelJson)
+	CollectorHttpTransferObservation *transfer, std::vector<std::byte> *raw,
+	const bool collectorJson, const bool allowRedirects)
 {
 	text.clear() ;
 	finalUrl.clear() ;
@@ -5413,14 +5700,41 @@ NativeError OfficialHttpClient::getCollectorInspectionPage(
 		*observation = {} ;
 	}
 
-	const std::array<std::wstring_view, 1U> hosts{host} ;	// 外部定義のexact一hostだけ
-	// Cache・metadata専用・旧ledger付きclientを収集scopeへ流用しない
-	if( useCatalogCache_ || metadataExecution_ != nullptr || sourceScanSessionId_ != 0U ||
-	   validateOfficialHttpsUrl( url, hosts) != 0 ||
-	   (modelJson &&
-		(host != L"www.asus.com" ||
-		 !url.starts_with(
-			 L"https://www.asus.com/support/webapi/ProductV2/GetPDBIOS?website=global&model=")))) {
+	const std::array<std::wstring_view, 1U> hosts{host} ;	// 外部定義の一hostです
+	ParsedUrl parsed ;										// 共通照合で確定した接続先を用途の判定にも使います
+	try {
+		// Cache・metadata専用・旧ledger付きclientや共通HTTPS検証の失敗を接続前に拒否する
+		if( useCatalogCache_ || metadataExecution_ != nullptr || sourceScanSessionId_ != 0U ||
+		   parseHttpsUrl( url, hosts, parsed) != 0) {
+			return E_ACCESSDENIED ;
+		}
+	} catch( ...) {
+		// 共通URL検証中の例外も取得開始前の拒否として扱う
+		return E_ACCESSDENIED ;
+	}
+
+	const bool wchMetadata = parsed.host == WCH_PUBLIC_METADATA_HOST ;	// WCHの公開API専用originです
+	// 接続先で専用originを判定し、別表記のhost指定やHTML用途から固定経路を迂回させない
+	if( wchMetadata &&
+	   (host != WCH_PUBLIC_METADATA_HOST || !collectorJson || !isWchPublicMetadataUrl( url))) {
+		return E_ACCESSDENIED ;
+	}
+
+	constexpr std::wstring_view REPO_PREFIX =
+		L"https://packages.cloud.google.com/yuck/repos/" ;	// 固定の公式GooGetリポジトリ配下です
+	constexpr std::wstring_view INDEX_SUFFIX = L"/index" ;	// 索引取得を許可する固定末尾です
+	const bool					gooGetIndex =
+		collectorJson && host == L"packages.cloud.google.com" && url.starts_with( REPO_PREFIX) &&
+		url.ends_with( INDEX_SUFFIX) && url.size() > REPO_PREFIX.size() + INDEX_SUFFIX.size() &&
+		url.size() <= REPO_PREFIX.size() + 96U + INDEX_SUFFIX.size() &&
+		url.substr( REPO_PREFIX.size(), url.size() - REPO_PREFIX.size() - INDEX_SUFFIX.size())
+				.find_first_not_of( L"abcdefghijklmnopqrstuvwxyz0123456789-_") ==
+			url.npos ;	// 単一のリポジトリの索引です
+	// JSON用途を固定WCH API、GooGet索引、閉model APIに限定する
+	if( collectorJson && !wchMetadata && !gooGetIndex &&
+	   (host != L"www.asus.com" ||
+		!url.starts_with(
+			L"https://www.asus.com/support/webapi/ProductV2/GetPDBIOS?website=global&model="))) {
 		return E_ACCESSDENIED ;
 	}
 
@@ -5439,16 +5753,20 @@ NativeError OfficialHttpClient::getCollectorInspectionPage(
 	DWORD					   status{} ;				// 成功200だけを本文へ渡す
 	std::vector<std::uint32_t> origins ;				// 非永続の最大三hop
 	std::wstring			   receivedUrl ;			// 同じ応答の相対link base
-	auto					   error = openGetRequestFollowingRedirects(
-		  url, hosts, 2U, {}, cancellation, session, connection, request, status, origins, nullptr,
-		  transport, true, &receivedUrl, true, &recorder) ;	// 共通GET
+	const std::uint32_t		   redirectLimit =
+		   allowRedirects && !gooGetIndex && !wchMetadata ? 2U : 0U ;	// 固定索引と固定APIは転送しません
+	auto error = openGetRequestFollowingRedirects( url, hosts, redirectLimit, {}, cancellation,
+												  session, connection, request, status, origins,
+												  nullptr, transport, true, &receivedUrl, true,
+												  &recorder) ;	// 共通GET
 	// 同一origin・全public・HTTP200確認前に本文を認定しない
 	if( error != 0 || status != HTTP_STATUS_OK) {
 		return error != 0 ? error : HRESULT_FROM_WIN32( ERROR_WINHTTP_INVALID_SERVER_RESPONSE) ;
 	}
 
-	error = validateLiveHtmlContentType( request.get(), transport, false, !modelJson, modelJson) ;
-	// HTML以外・不正charsetは有限受信前に拒否する
+	error =
+		validateLiveHtmlContentType( request.get(), transport, false, !collectorJson, collectorJson) ;
+	// 用途外の媒体型と不正charsetを有限受信前に拒否する
 	if( error != 0) {
 		return error ;
 	}

@@ -2,7 +2,7 @@
 /**
  * @file official_download_workspace.cpp
  * @brief 公式配布file用保護一時領域実装
- * @version 01.02.01
+ * @version 01.03.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,8 @@
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.02.00 Shunji Ogawa  2026/11/12  本人検査領域とsetup限定の公開親metadata権限へ整合
  * Ver.01.02.01 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.02 Shunji Ogawa  2026/11/20  本人CAB展開の元ファイル照合を追加
+ * Ver.01.03.00 Shunji Ogawa  2026/11/23  本人検査領域の原スナップショット照合を追加
  * </pre>
  *
  * @note OS由来のWindows Tempまたは本人LocalAppDataへ保護領域を新規作成し、CREATE_NEWまたは同期外部writerの検証済みfileだけを追跡します
@@ -64,14 +66,22 @@ namespace {
 //------------------------------------------------------------------------------
 
 constexpr std::wstring_view WORKSPACE_DACL =
-	L"O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)" ;						// 子へ継承する保護DACL
-constexpr std::uint32_t			  MAXIMUM_CREATION_ATTEMPTS = 32 ;			// 名前衝突時の有限な再試行上限
-constexpr std::size_t			  MAXIMUM_RELATIVE_PATH_CHARACTERS = 160 ;	// 相対pathの文字数上限
-constexpr std::size_t			  MAXIMUM_COMPONENT_CHARACTERS	   = 96 ;	// 一path要素の文字数上限
+	L"O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)" ;				// 子へ継承する保護DACL
+constexpr std::uint32_t MAXIMUM_CREATION_ATTEMPTS		 = 32 ;		// 名前衝突時の有限な再試行上限
+constexpr std::size_t	MAXIMUM_RELATIVE_PATH_CHARACTERS = 160 ;	// 相対pathの文字数上限
+constexpr std::size_t	MAXIMUM_COMPONENT_CHARACTERS	 = 96 ;		// 一path要素の文字数上限
 
 //------------------------------------------------------------------------------
 // 内部型定義
 //------------------------------------------------------------------------------
+
+/** @brief 本人検査用の元handleから照会したファイルの識別情報です */
+struct InspectionFileIdentity {
+	/// ボリュームと128bitファイルIDです
+	FILE_ID_INFO   file{} ;
+	/// 読取りと照合の対象となるファイル全体の長さです
+	ULARGE_INTEGER size{} ;
+} ;
 
 /**
  * @brief Workspace要素へ同一の保護DACLを渡すSECURITY_ATTRIBUTES所有者である
@@ -211,10 +221,12 @@ public:
 	 * @param[in] path 既知の絶対pathです
 	 * @param[in] directory directoryならtrueです
 	 * @param[in] inherited 同期外部writer直後の継承DACLだけを許可する場合trueです
+	 * @param[in] expectedFile 元handleで照会したファイルの完全IDと長さです。比較しない場合はnullptrです
 	 * @return 同本人/SYSTEMの二ACEだけなら0、OS失敗または不正はHRESULTです
 	 */
 	[[nodiscard]] NativeError verifyPath( const std::wstring &path, const bool directory,
-										 const bool inherited = false) const
+										 const bool					   inherited	= false,
+										 const InspectionFileIdentity *expectedFile = nullptr) const
 	{
 		const std::unique_ptr<void, decltype( &CloseHandle)> file(
 			CreateFileW( path.c_str(), READ_CONTROL | FILE_READ_ATTRIBUTES,
@@ -231,6 +243,23 @@ public:
 		if( (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
 		   ((info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) != directory) {
 			return E_ACCESSDENIED ;
+		}
+
+		// 既知pathを元handleが指す一リンクのファイルへ結びます
+		if( expectedFile != nullptr) {
+			FILE_ID_INFO id{} ;	// 現在の同名ファイルの完全IDです
+			// 完全IDを読み取れないファイルシステムでは元ファイルとの一致を確認できません
+			if( !GetFileInformationByHandleEx( file.get(), FileIdInfo, &id, sizeof( id))) {
+				return HRESULT_FROM_WIN32( GetLastError()) ;
+			}
+
+			// 元と異なるファイル、複数リンク、元handleの照会後に長さが変わったファイルを拒否します
+			if( id.VolumeSerialNumber != expectedFile->file.VolumeSerialNumber ||
+			   !std::ranges::equal( id.FileId.Identifier, expectedFile->file.FileId.Identifier) ||
+			   info.nNumberOfLinks != 1 || info.nFileSizeHigh != expectedFile->size.HighPart ||
+			   info.nFileSizeLow != expectedFile->size.LowPart) {
+				return E_ACCESSDENIED ;
+			}
 		}
 
 		PSECURITY_DESCRIPTOR raw{} ;	// GetSecurityInfoの一括返却領域です
@@ -723,6 +752,25 @@ NativeError OfficialDownloadWorkspace::verifyDirectories() const
 //------------------------------------------------------------------------------
 NativeError OfficialDownloadWorkspace::createFile( const std::wstring_view name, HANDLE &handle)
 {
+	return createFile( name, handle, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ,
+					  FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_SEQUENTIAL_SCAN) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 既存の保護DACLで、今回作成するファイルだけを所有記録へ追加します
+ * @param[in] name 領域内の検証済み相対path
+ * @param[out] handle 新規ファイルの所有handle
+ * @param[in] access 新規handleの要求アクセス
+ * @param[in] sharing 新規handleの共有条件
+ * @param[in] attributes 新規ファイルの属性と作成フラグ
+ * @return 成功時は0、既存ファイルや作成失敗はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError OfficialDownloadWorkspace::createFile( const std::wstring_view name, HANDLE &handle,
+												  const DWORD access, const DWORD sharing,
+												  const DWORD attributes)
+{
 	handle = INVALID_HANDLE_VALUE ;
 	// workspace未初期化や不正な相対名ではfileを作らない
 	if( directory_.empty() || !isSafeOfficialArchiveMember( name, L'\\')) {
@@ -780,8 +828,7 @@ NativeError OfficialDownloadWorkspace::createFile( const std::wstring_view name,
 	}
 
 	handle =
-		CreateFileW( file.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, security.get(),
-					CREATE_NEW, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_SEQUENTIAL_SCAN, nullptr) ;
+		CreateFileW( file.c_str(), access, sharing, security.get(), CREATE_NEW, attributes, nullptr) ;
 	// 新規fileを作れなければhandleを返さず診断値を保持する
 	if( handle == INVALID_HANDLE_VALUE) {
 		return nativeErrorFromWin32( GetLastError()) ;
@@ -798,6 +845,118 @@ NativeError OfficialDownloadWorkspace::createFile( const std::wstring_view name,
 	}
 
 	return 0 ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 本人検査領域のCAB出力を排他的に新規作成します
+ * @param[in] name 検証済み相対path
+ * @param[out] handle 展開中にファイルの削除を拒否する読取りhandle
+ * @return 本人所有の新規ファイル作成に成功すれば0、既存ファイルやOS失敗はHRESULT
+ * @note SetupAPIの書込みを共有し、展開後の同一性照合までhandleを保持します
+ */
+//------------------------------------------------------------------------------
+NativeError OfficialDownloadWorkspace::createCabinetOutput( const std::wstring_view name,
+														   HANDLE				  &handle)
+{
+	handle = INVALID_HANDLE_VALUE ;
+	// 本人検査だけが元の所有者を明示したCAB出力を使います
+	if( mode_ != OfficialWorkspaceMode::CURRENT_USER_INSPECTION) {
+		return E_INVALIDARG ;
+	}
+
+	// ファイルデータの読取り権限で削除共有の制限を有効にします
+	return createFile( name, handle, READ_CONTROL | FILE_READ_ATTRIBUTES | FILE_READ_DATA,
+					  FILE_SHARE_READ | FILE_SHARE_WRITE,
+					  FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_OPEN_REPARSE_POINT) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief CAB展開完了時のファイルを作成時の所有とidentityへ照合します
+ * @param[in] name 元の検証済み相対path
+ * @param[in] handle 削除共有を外して保持する元の読取りhandle
+ * @param[in] expectedBytes 元CAB entryが宣言する正確な展開後サイズ
+ * @return 同一ファイルの保護とサイズを確認した場合は0、それ以外はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError OfficialDownloadWorkspace::verifyCabinetOutput( const std::wstring_view name,
+														   const HANDLE			   handle,
+														   const std::uint64_t expectedBytes) const
+{
+	return verifyTrackedInspectionFile( name, handle, expectedBytes) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 本人検査領域で追跡済みの元ファイルが読取りスナップショットと一致するか照合します
+ * 現在の有効user、既知rootと子directoryの保護、対象の非再解析・一リンク・完全ID・長さ・保護DACLを確認します
+ * @param[in] name 元ファイルを登録した安全な相対pathです
+ * @param[in] handle 最終pathを照合済みで、FILE_SHARE_READだけを許す読取りhandleです。呼出し側から借用します
+ * @param[in] expectedBytes 元スナップショットの正確な非零byte数です
+ * @return 一致時は0、別用途・不正入力・照合失敗時は対応するHRESULTです。Win32 APIの失敗は元の診断値を保持します
+ * @pre 呼出し側が対象と全親の通常種別・最終pathを確認し、各handleを検査完了まで保持します
+ * @note 所有worker内で直列に呼びます。handleの読取り位置、所有追跡、ファイルとACLは変更しません
+ */
+//------------------------------------------------------------------------------
+NativeError OfficialDownloadWorkspace::verifyInspectionSnapshot(
+	const std::wstring_view name, const HANDLE handle, const std::uint64_t expectedBytes) const
+{
+	// 空ファイルからは原バイトの検査証拠を作りません
+	if( expectedBytes == 0U) {
+		return E_INVALIDARG ;
+	}
+
+	return verifyTrackedInspectionFile( name, handle, expectedBytes) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 本人検査領域の追跡済みfileを借用handleの完全IDと保護に照合します
+ * @param[in] name 追跡済みfileの安全な相対pathです
+ * @param[in] handle 削除共有を外して保持している照合元handleです
+ * @param[in] expectedBytes 期待する正確なbyte数です。CAB出力の空ファイルを含みます
+ * @return 元の有効user、既知親、対象の一リンク・ID・長さ・所有と保護が一致すれば0、それ以外はHRESULTです
+ * @note 借用handleの状態や追跡・保護を変更せず、同一worker内で呼びます
+ */
+//------------------------------------------------------------------------------
+NativeError OfficialDownloadWorkspace::verifyTrackedInspectionFile(
+	const std::wstring_view name, const HANDLE handle, const std::uint64_t expectedBytes) const
+{
+	const auto target = path( name) ;	// 追跡済み対象と照合する絶対pathです
+	// 他用途や元領域に記録されていないファイルは照合対象にしません
+	if( mode_ != OfficialWorkspaceMode::CURRENT_USER_INSPECTION || !handle ||
+	   handle == INVALID_HANDLE_VALUE || !containsPath( files_, target)) {
+		return E_INVALIDARG ;
+	}
+
+	BY_HANDLE_FILE_INFORMATION info{} ;		// 呼出し側が保持する元ファイルの情報です
+	InspectionFileIdentity	   original{} ;	// 元ファイルの完全IDと長さです
+	// 元handleを照会できない場合はWin32の失敗を保持して拒否します
+	if( !GetFileInformationByHandle( handle, &info) ||
+	   !GetFileInformationByHandleEx( handle, FileIdInfo, &original.file, sizeof( original.file))) {
+		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	original.size.LowPart  = info.nFileSizeLow ;
+	original.size.HighPart = info.nFileSizeHigh ;
+	// リンク、異種ファイル、長さの不一致、無効なファイルIDを拒否します
+	if( (info.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) ||
+	   info.nNumberOfLinks != 1 || original.size.QuadPart != expectedBytes ||
+	   std::ranges::all_of( original.file.FileId.Identifier,
+						   []( BYTE value) { return value == 0U ; })) {
+		return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+	}
+
+	const auto directoryError = verifyDirectories() ;	// 元の親と有効userを再照合します
+	// 元の親を確認できなければ対象ファイルを受理しません
+	if( directoryError != 0) {
+		return directoryError ;
+	}
+
+	WorkspaceSecurityAttributes security ;						// 元本人用の保護照合descriptorです
+	const auto error = security.initialize( mode_, userSid_) ;	// 元token userへの結合結果です
+	return error != 0 ? error : security.verifyPath( target, false, false, &original) ;
 }
 
 //------------------------------------------------------------------------------

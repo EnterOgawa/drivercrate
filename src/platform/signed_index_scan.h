@@ -2,7 +2,7 @@
 /**
  * @file signed_index_scan.h
  * @brief 通常worker scanに結合する署名索引の秘密sessionを定義します
- * @version 01.08.02
+ * @version 01.15.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,13 @@
  * Ver.01.08.00 Shunji Ogawa  2026/11/10  対象限定の完了更新と未処理所有・本体再検証を接続
  * Ver.01.08.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.08.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.09.00 Shunji Ogawa  2026/11/18  P3同scan fullhost観測と取得直前拒否を接続
+ * Ver.01.10.00 Shunji Ogawa  2026/11/20  署名済み追加欄の検査と元診断を通常検索へ接続
+ * Ver.01.11.00 Shunji Ogawa  2026/11/20  取得計画へ同一スキャンの現在デバイス表示を渡す
+ * Ver.01.12.00 Shunji Ogawa  2026/11/22  元Modelsの専用欄で同取得の内容を検査する
+ * Ver.01.13.00 Shunji Ogawa  2026/11/23  検査専用取得の配布元待機を同じworkerで保持する
+ * Ver.01.14.00 Shunji Ogawa  2026/11/23  封印済みWiXの内容検査と規約原文保持を接続
+ * Ver.01.15.00 Shunji Ogawa  2026/11/23  閲覧用に限定した規約通知を同取得結果へ追加
  * </pre>
  *
  * @note 全秘密所有はworker限定です。索引一致は導入権限を作りません
@@ -44,12 +51,19 @@
 #include "platform/signed_index_refresh.h"
 #include "platform/signed_index_acquisition_adapter.h"
 #include "platform/signed_index_candidate_binding.h"
+#include "platform/signed_index_wix_content.h"
 #include "core/official_preparation_operation.h"
+#include "platform/official_delegated_http_request.h"
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
+#include <span>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace drivercrate {
@@ -127,77 +141,93 @@ enum class IndexScanStatus {
 /** @brief 通常eventへ渡せる文字列・byte・identityを持たない値です */
 struct IndexScanSummary {
 	/// 独立した索引段階の区分
-	IndexScanStatus						   status{IndexScanStatus::NOT_RUN} ;
+	IndexScanStatus							  status{IndexScanStatus::NOT_RUN} ;
 	/// Storeの元拒否区分。Load前はnulloptです
-	std::optional<IndexStoreStatus>		   storeStatus ;
+	std::optional<IndexStoreStatus>			  storeStatus ;
 	/// Lookupの元拒否区分。Lookup前はnulloptです
-	std::optional<IndexRecordLookupStatus> lookupStatus ;
+	std::optional<IndexRecordLookupStatus>	  lookupStatus ;
 	/// 元HRESULTまたはWin32診断。未発生時0です
-	NativeError							   error{} ;
+	NativeError								  error{} ;
 	/// 保存snapshotのrecord総数。未取得時0です
-	std::size_t							   totalRecords{} ;
+	std::size_t								  totalRecords{} ;
 	/// 関係を保持できたrecord数
-	std::size_t							   processedRecords{} ;
+	std::size_t								  processedRecords{} ;
 	/// 未実行record数。適合なしへ換算しません
-	std::size_t							   remainingRecords{} ;
+	std::size_t								  remainingRecords{} ;
 	/// 全原recordに含まれる公開ID入力数です
-	std::size_t							   totalPublicIds{} ;
+	std::size_t								  totalPublicIds{} ;
 	/// 完全recordとしてcommitした公開ID数です
-	std::size_t							   processedPublicIds{} ;
+	std::size_t								  processedPublicIds{} ;
 	/// 元完全観測で確定した不一致ID数です。未実行/失敗を含めません
-	std::size_t							   definitiveNoRelationIds{} ;
+	std::size_t								  definitiveNoRelationIds{} ;
 	/// 保持した関係tuple数
-	std::size_t							   relationCount{} ;
+	std::size_t								  relationCount{} ;
 	/// 全batchで保持したopaque関係数。最大32,768です
-	std::size_t							   relatedDeviceCount{} ;
+	std::size_t								  relatedDeviceCount{} ;
 	/// 一意な公開ID関係数。driver適合数ではありません
-	std::size_t							   matchedRelations{} ;
+	std::size_t								  matchedRelations{} ;
 	/// 完了した非一意関係数
-	std::size_t							   nonUniqueRelations{} ;
+	std::size_t								  nonUniqueRelations{} ;
 	/// 未判定関係数。残record数とは別です
-	std::size_t							   undeterminedRelations{} ;
+	std::size_t								  undeterminedRelations{} ;
 	/// 未判定総数に含む私有証拠付き部分positive関係数。完全MATCHEDとは別です
-	std::size_t							   verifiedPartialRelations{} ;
+	std::size_t								  verifiedPartialRelations{} ;
 	/// 全operationの実resolver呼出し数
-	std::size_t							   resolverCalls{} ;
+	std::size_t								  resolverCalls{} ;
 	/// 一batchで実行したresolver数の最大値です
-	std::size_t							   maximumBatchResolverCalls{} ;
+	std::size_t								  maximumBatchResolverCalls{} ;
 	/// 協調時計で観測した一batch時間の最大millisecond値です
-	std::size_t							   maximumBatchMilliseconds{} ;
+	std::size_t								  maximumBatchMilliseconds{} ;
 	/// 通信を試みた場合だけ元失敗・明示cache・commit事実を保持します。秘密能力を含みません
-	std::optional<IndexRefreshSummary>	   refresh ;
+	std::optional<IndexRefreshSummary>		  refresh ;
+	/// 追加欄の検査結果です。原byteの読取り前はnulloptです
+	std::optional<IndexAssetSupplementStatus> supplementStatus ;
+	/// 展開済み追加欄の構造検査結果です。展開できない場合はnulloptです
+	std::optional<IndexRecordsStatus>		  supplementRecordsStatus ;
+} ;
+
+/** @brief 一取得で確認した言語別規約の閲覧専用スナップショットです */
+struct WixTermsPresentation {
+	/// 元機器と元期限を最後に確認したUTCです
+	std::chrono::sys_seconds	  confirmedAtUtc ;
+	/// 元manifest、索引領域、個別取得証拠の最短期限です
+	std::chrono::sys_seconds	  expiresAtUtc ;
+	/// 各原バイトを再照合して変換した元順の全文です
+	std::vector<WixTermsDocument> documents ;
 } ;
 
 /** @brief 原ID・URL・hash・pathを持たない一取得対象の確定内容結果です */
 struct IndexPreparationItemSummary {
 	/// 同計画内だけで意味を持つopaque取得対象ID
-	std::wstring					 targetIdentity ;
+	std::wstring								targetIdentity ;
 	/// 実byte取得の確定状態。内容合格とは独立です
-	OfficialAcquisitionState		 acquisition{OfficialAcquisitionState::NOT_STARTED} ;
+	OfficialAcquisitionState					acquisition{OfficialAcquisitionState::NOT_STARTED} ;
 	/// 同owned byteをこのtaskで独立検査した場合trueです。成功許可ではありません
-	bool							 reusedOwnedBody{} ;
+	bool										reusedOwnedBody{} ;
 	/// 実byte取得の元HRESULT。未実行は0です
-	NativeError						 acquisitionError{} ;
+	NativeError									acquisitionError{} ;
 	/// 共通内容検査の到達段階。Windows適合を示しません
-	IndexedDriverInspectionState	 content{IndexedDriverInspectionState::NOT_STARTED} ;
+	IndexedDriverInspectionState				content{IndexedDriverInspectionState::NOT_STARTED} ;
 	/// 入力結合または全体内容検査の元HRESULT
-	NativeError						 contentError{} ;
+	NativeError									contentError{} ;
 	/// 個別INFの最初の拒否診断。全体成功でも保持します
-	NativeError						 firstInfRejection{} ;
+	NativeError									firstInfRejection{} ;
 	/// 実file hash/sizeを元hintへ結合した場合だけtrueです
-	bool							 inputBound{} ;
+	bool										inputBound{} ;
 	/// 共通検査で確定した通常file数
-	std::size_t						 inventoryFileCount{} ;
+	std::size_t									inventoryFileCount{} ;
 	/// 共通検査で発見したINF数。候補数ではありません
-	std::size_t						 infCount{} ;
+	std::size_t									infCount{} ;
 	/// 共通閉包の構造・INF解析を通過した数。署名合格ではありません
-	std::size_t						 parsedInfCount{} ;
+	std::size_t									parsedInfCount{} ;
 	/// 構造解析後に通常Windows署名policyで拒否したINF数
-	std::size_t						 signatureRejectedInfCount{} ;
+	std::size_t									signatureRejectedInfCount{} ;
 	/// 通常署名・内容policyを通過したINF数。Windows適合ではありません
-	std::size_t						 acceptedInfCount{} ;
+	std::size_t									acceptedInfCount{} ;
 	/// 実補助要求数/本文量/statusだけの診断。token/URLはない
-	OfficialAuxiliaryHttpObservation auxiliaryHttp ;
+	OfficialAuxiliaryHttpObservation			auxiliaryHttp ;
+	/// 検査済みの全言語が読取り可能な場合だけ含む表示専用本文です。診断へ出しません
+	std::shared_ptr<const WixTermsPresentation> wixTerms ;
 } ;
 
 /** @brief 同operation・scan・planへ結合する有限な索引取得結果です */
@@ -248,11 +278,12 @@ public:
 	 * @param[in,out] plan Providerの元計画または同じ有限上限の空計画
 	 * @param[in] services Worker開始前に固定した依存。任意公開鍵を受けません
 	 * @param[out] summary 非機密の件数と未接続診断。原UNKNOWNは元snapshotへ保持します
+	 * @param[in] currentCandidates 同じスキャンで発行する現在デバイス表示です。機器別のみ使用します
 	 * @return 計画の結合成立0。取得能力不足はsummaryへ独立保持して元Provider計画を維持します
 	 */
 	[[nodiscard]] NativeError augmentPreparationPlan(
 		OfficialPreparationPlan &plan, const provider_worker_index_detail::Services &services,
-		IndexPreparationSummary &summary) ;
+		IndexPreparationSummary &summary, std::span<const UpdateCandidate> currentCandidates = {}) ;
 	/**
 	 * @brief 同active taskだけを共通grant・取得seal・通常内容検査へ接続します
 	 * @param[in,out] preparation 実approve／claimNextしたworker session
@@ -295,6 +326,44 @@ public:
 
 private:
 	/**
+	 * @brief 同taskに結合した元ファイルを所属領域の証拠で内容検査します
+	 * @param[in] original 同taskの元認証レコードです
+	 * @param[in] format 同取得の元archive形式です
+	 * @param[in,out] record 元sealと入力に結んだ内容結果の所有者です
+	 * @param[in] cancellation 同検査の取消しです
+	 * @return 検査完了時0、拒否時は元HRESULTです
+	 * @pre 元task、取得seal、元レコード、端末の再照合が成立済みです
+	 */
+	[[nodiscard]] NativeError inspectBoundArchive(
+		const IndexDistributionRecord &original, OfficialDriverArchiveFormat format,
+		SignedIndexCandidateBindingSession::PreparedRecord &record,
+		const PreparationCancellation					   &cancellation) ;
+	/**
+	 * @brief 元WiXの内容を検査し、規約とドライバー閉包を同じprivate recordにだけ保持します
+	 * @param[in] original 同じ元取得に結んだ認証済みv8レコードです
+	 * @param[in] termsExpiry 同じ元索引と取得証拠から決まる最短の規約閲覧期限です
+	 * @param[in,out] record 元sealと入力を所有します。成功時は保持枠と共にworkerへ所有を移します
+	 * @param[in,out] item 元取得とは独立した検査結果です。内容が成立した場合だけ件数を設定します
+	 * @param[in] services 元期限を最後に照合するworkerの依存です
+	 * @param[in] cancellation 同取得の停止・時刻再照会です
+	 * @pre 入力sealと元機器を同操作で再照合済みです
+	 */
+	void					  inspectBoundWix( const IndexDistributionRecord						 &original,
+											  std::chrono::sys_seconds							  termsExpiry,
+											  SignedIndexCandidateBindingSession::PreparedRecord &record,
+											  IndexPreparationItemSummary						 &item,
+											  const provider_worker_index_detail::Services		 &services,
+											  const PreparationCancellation						 &cancellation) ;
+	/**
+	 * @brief 内容診断を計数し、同スキャンの閉包保持枠へ加算します
+	 * @param[in,out] record 同taskの内容結果です。枠超過なら閉包を解放します
+	 * @param[in,out] item 同taskの準備側表示用の結果です
+	 * @return 保持成立0、枠超過は元HRESULTです
+	 */
+	[[nodiscard]] NativeError retainInspection(
+		SignedIndexCandidateBindingSession::PreparedRecord &record,
+		IndexPreparationItemSummary						   &item) ;
+	/**
 	 * @brief 元owned bodyを新active taskで非通信再検査します
 	 * @param[in,out] preparation 当該active taskの所有者です
 	 * @param[in] task 新しい明示承認taskです
@@ -310,6 +379,24 @@ private:
 	friend class CompositeUpdateProvider ;
 	friend class SignedIndexCandidateBindingSession ;
 	friend struct signed_index_candidate_binding_detail::Access ;
+	/**
+	 * @brief 同じ公式配布の二つの通信先について送信前に原待機を確認します
+	 * @param[in] hosts 認証済み元アンカーと転送先の小文字DNSホストです
+	 * @param[in] now 同workerが送信チェック時に観測したUTCです
+	 * @return 送信可能なら0、時刻不明・逆行・要確認・待機中なら元の拒否HRESULTです
+	 * @note UTC確認は同workerの有効な最大値を保持します。再走査で原待機を解放しません
+	 */
+	[[nodiscard]] NativeError checkWixPayloadWait(
+		const std::array<std::string_view, 2U> &hosts,
+		std::optional<std::chrono::sys_seconds> now) noexcept ;
+	/**
+	 * @brief 同じ配布の原HTTP応答から両ホストの待機下限と要確認状態を保持します
+	 * @param[in] hosts 認証済み元アンカーと転送先の小文字DNSホストです
+	 * @param[in] observation 共通HTTPの数値・UTC・要確認だけを持つ応答観測です
+	 * @note 同workerで元下限を短縮しません。保持枠又は割当の失敗後は新しいWiX送信を拒否します
+	 */
+	void rememberWixPayloadWait( const std::array<std::string_view, 2U> &hosts,
+								const OfficialPayloadRetryObservation  &observation) ;
 	/// 原byteを複製せず共有するconst保存snapshot
 	std::shared_ptr<const AuthenticatedIndexSnapshot> snapshot_ ;
 	/// 同scan秘密inventoryをweak所有するcallback
@@ -318,6 +405,8 @@ private:
 	std::vector<SignedIndexRecordLookup>			  batches_ ;
 	/// 元scanの全context。取得operationへ変更しません
 	IndexLookupContext								  context_ ;
+	/// 同contextへ一度結んだ原host観測です。失敗を後の正常値へ置換しません
+	std::optional<IndexScanHostSnapshot>			  host_ ;
 	/// 全batchを一度だけ凍結した元lookup。global relation位置を使用します
 	std::shared_ptr<const SignedIndexRecordLookup>	  acquisitionLookup_ ;
 	/// 同scanだけの共通adapter。失効issuerをsnapshot寿命とは独立に保持します
@@ -336,5 +425,11 @@ private:
 	DriverStoreProvider								 *bindingStore_{} ;
 	/// 同scanで保護file名を再使用しない単調ordinalです
 	std::uint64_t									  nextOwnedPayloadOrdinal_{1U} ;
+	/// 共通取得の元HTTP待機を小文字DNSホスト別に同workerの寿命まで保持します
+	std::map<std::string, OfficialPayloadRetryObservation, std::less<>> wixPayloadWaits_ ;
+	/// 送信前に確認した最大UTC Unix秒です。時計の逆行を送信許可へ使いません
+	std::uint64_t														wixLatestUtcSeconds_{} ;
+	/// 保持枠を確保できない場合に後続のWiX送信を停止するフラグです
+	bool																wixWaitCapacityClosed_{} ;
 } ;
 } // namespace drivercrate

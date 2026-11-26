@@ -2,7 +2,7 @@
 /**
  * @file official_sfx_tests.h
  * @brief 公式自己解凍形式の静的識別単体試験定義
- * @version 01.00.02
+ * @version 01.00.04
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,9 +30,11 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.00.03 Shunji Ogawa  2026/11/23  WiX v3の試験契約を追記
+ * Ver.01.00.04 Shunji Ogawa  2026/11/23  WiX v3マニフェストの内容選択試験を追記
  * </pre>
  *
- * @note 架空の小さいPE／7z byte列を使用し、必要最小限のzero alignmentを含む静的構造試験を定義します。実EXE、network、driver導入へ依存しません
+ * @note 架空のPEを使い、7zとWiX v3の元範囲と整列を非実行で試験する
  */
 //------------------------------------------------------------------------------
 
@@ -44,7 +46,7 @@ class TestContext ;
 
 //------------------------------------------------------------------------------
 /**
- * @brief PE末尾7z形式、Certificate直前padding、fail-closed境界を検証する。正常構造と全fail-closed fixtureを順に実行する
+ * @brief PE末尾7zとWiX v3の境界、元マニフェストの内容選択、破損時の拒否を検証する
  * @param[in,out] context Assertion件数と失敗内容の集計先
  */
 //------------------------------------------------------------------------------
