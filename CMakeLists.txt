@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(
     DriverCrate
-    VERSION 1.0.12
+    VERSION 1.0.13
     DESCRIPTION "Torrent-free Windows driver update manager"
     LANGUAGES C CXX RC
 )

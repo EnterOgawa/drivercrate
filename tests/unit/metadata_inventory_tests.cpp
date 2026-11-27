@@ -2,7 +2,7 @@
 /**
  * @file metadata_inventory_tests.cpp
  * @brief 現在属性列挙の上限・欠損・停止境界の決定的試験
- * @version 01.17.01
+ * @version 01.17.02
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -49,6 +49,7 @@
  * Ver.01.16.00 Shunji Ogawa  2026/11/20  Catalog対象のHardwareIds限定照合と個別証拠を検証
  * Ver.01.17.00 Shunji Ogawa  2026/11/20  規約取得のUTC再確認へ元fixture時計を接続
  * Ver.01.17.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
+ * Ver.01.17.02 Shunji Ogawa  2026/11/27  ホスト観測付きの部分一致集約と個別取得準備を検証
  * </pre>
  *
  * @note 現在属性とdevnodeの六APIを全てfakeへ置換し、実device列挙と導入を行わない
@@ -3547,6 +3548,51 @@ void runNativePartialIndexPreparationTests(
 														 SIGNED_INDEX_PROVIDER_ID &&
 													 description.target->deviceCount == 1U
 											   : error != 0U && !description.target) ;
+		// 複数一致の集約があってもホスト観測付き開始で個別証拠を検査できることを確認します
+		if( mode == 1U) {
+			// 同じスキャンで観測したWindows 11 x64の人工ホストです
+			const WindowsHostPlatformObservation host{
+				WindowsHostObservationState::OBSERVED,
+				WindowsHostPlatform{10U, 0U, 26100U, 9U, 1U, 0U}, WindowsHostErrorDomain::NTSTATUS,
+				WindowsHostObservationStage::VERSION, 0U} ;
+			SignedIndexAcquisitionAdapter hosted ;	// 製品と同じホスト検査を別の取得管理に適用します
+			DRIVERCRATE_EXPECT( context, !relation.deviceIdentity) ;
+			// 個別の証拠を検査する前に、ホストを含む開始条件を確認した結果です
+			const auto beginError = signed_index_acquisition_detail::Access::beginHostFixture(
+				hosted, lookup, issued, {issued, host}, [host] { return host ; }, nowUtc) ;
+			DRIVERCRATE_EXPECT( context, beginError == 0U) ;
+			SignedIndexPreparationDescription
+				aggregate ;	// 単一対象のない集約からは取得対象を作りません
+			DRIVERCRATE_EXPECT( context, hosted.describe( 0U, issued, nowUtc, limits, aggregate) ==
+												static_cast<NativeError>( E_ACCESSDENIED) &&
+											!aggregate.target) ;
+			std::unordered_set<std::wstring>
+				describedDevices ;	// 一つの公開IDから個別に準備できた機器です
+			// 元の公開IDと結合した個別行だけを照合して二台を確認します
+			for( std::size_t index = 1U; index < lookup->relations().size(); ++index) {
+				const auto &projected =
+					// 元集約から発行した個別証拠です
+					lookup->relations()[index] ;
+				// 別の公開IDや対象のない行はこの二台の分母に含めません
+				if( projected.state != IndexRecordMatchState::VERIFIED_DEVICE ||
+				   projected.publicIdIndex != relation.publicIdIndex || !projected.deviceIdentity) {
+					continue ;
+				}
+
+				SignedIndexPreparationDescription individual ;	// 個別の取得準備と元機器を照合します
+				// 実際にこの一台の取得準備まで進んだ結果です
+				const auto						  individualError =
+					hosted.describe( index, issued, nowUtc, limits, individual) ;
+				DRIVERCRATE_EXPECT( context, individualError == 0U && individual.target) ;
+				// 準備対象を得た個別証拠だけを二台の成功件数に数えます
+				if( individualError == 0U && individual.target) {
+					describedDevices.insert( *projected.deviceIdentity) ;
+				}
+			}
+
+			DRIVERCRATE_EXPECT( context, describedDevices.size() == 2U) ;
+		}
+
 		auto stale = issued ;	// 一世代だけ変えた公開入力です
 		++stale.inventoryGeneration ;
 		SignedIndexPreparationDescription refused ;	// 失敗時はtargetを持ちません

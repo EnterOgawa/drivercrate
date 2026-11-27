@@ -31,6 +31,7 @@
     "docs/release-checklist.md",
     "docs/release-notes-1.0.1.md",
     "docs/release-notes-1.0.12.md",
+    "docs/release-notes-1.0.13.md",
     "docs/release-notes-1.0.6.md",
     "docs/release-notes-1.0.7.md",
     "docs/security.md",
@@ -11962,12 +11963,12 @@
     },
     {
       "owner": "README.md",
-      "input": "docs/release-notes-1.0.12.md",
+      "input": "docs/release-notes-1.0.13.md",
       "kind": "release-document"
     },
     {
       "owner": "docs/release-checklist.md",
-      "input": "docs/release-notes-1.0.12.md",
+      "input": "docs/release-notes-1.0.13.md",
       "kind": "release-document"
     }
   ],
@@ -11984,6 +11985,6 @@
     "finalAllowlist=false; this static manifest is not release approval or a fresh build result.",
     "Native Debug/Release, required tests, quality and static analysis of the frozen snapshot remain separate.",
     "Previous results and signatures do not establish acceptance of new source or executable bytes.",
-    "CMakeLists.txt is the existing Public consumer projection with 1.0.12 and explicit consumer-source/test additions. Producer options are OFF. Static closure is separate from the snapshot build, tests and signed assets."
+    "CMakeLists.txt is the existing Public consumer projection with version 1.0.13. Producer options are OFF. Static closure is separate from the snapshot build, tests and signed assets."
   ]
 }

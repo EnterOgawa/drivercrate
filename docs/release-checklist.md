@@ -1,10 +1,10 @@
-# Release checklist — DriverCrate 1.0.12 App
+# Release checklist — DriverCrate 1.0.13 App
 
 対象は利用者向けAppとApp用Setupだけです。私有Collector/収集用Setup/定義/registry、driver本体や実端末情報は公開しません。
 この一覧は工程条件であり、未完了項目を過去版の成功で埋めません。最新のrelease指示は必要なsource push/tag/Release登録を含み、
 既存Publicへの反映のための汎用再承認flowは追加しません。新たなvisibility変更は別判断です。
 
-変更点は[1.0.12のリリースノート](release-notes-1.0.12.md)に記載します。
+変更点は[1.0.13のリリースノート](release-notes-1.0.13.md)に記載します。
 
 ## 今回の順序
 
@@ -12,9 +12,9 @@
 
 ## Sourceと検証
 
-既存Public mainのconsumer構成を正本とし、1.0.12の共通処理と必要なconsumer試験を明示して含めます。私有の収集製品や研究用ソースを依存解決のために一括追加しません。静的閉包、開発中の試験、公開snapshot自身のfresh buildと試験を区別します。
+既存Public mainのconsumer構成を正本とし、署名付き索引の候補表示修正と回帰試験を含めます。静的閉包、開発中の試験、公開snapshot自身のfresh buildと試験を区別します。
 
-- [ ] CMake正本、VERSIONINFO、package、Release title、tag v1.0.12を一致させる。
+- [ ] CMake正本、VERSIONINFO、package、Release title、tag v1.0.13を一致させる。
 - [ ] consumerの明示集合についてpath/mode/checkout byte/SHA-256、include/fixture/文書link、license/noticeを固定する。
 - [ ] 私有source/registry/定義、work、鍵、credential、inventory、driver、build/PDB、個人絶対pathを除外する。
 - [ ] 公開mainの既履歴を親として保持する。Private履歴の混入・force・root作り直しをしない。

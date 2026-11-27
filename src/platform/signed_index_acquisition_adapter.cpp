@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_adapter.cpp
  * @brief 同snapshotの取得能力とtaskを封印し、既存grantと検査入力へ接続します
- * @version 01.39.01
+ * @version 01.39.02
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -64,6 +64,7 @@
  * Ver.01.38.00 Shunji Ogawa  2026/11/23  WiXの検査専用取得を元機器と実公式アンカーへ結合
  * Ver.01.39.00 Shunji Ogawa  2026/11/23  同じWiX取得票の照合と端末の再観測を分ける
  * Ver.01.39.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
+ * Ver.01.39.02 Shunji Ogawa  2026/11/27  複数機器の部分一致集約と個別取得準備の所有検査を分離
  * </pre>
  *
  * @note 同workerの直列処理です。監視PCの申告と端末実byteを分け、live根拠を合成しません
@@ -550,6 +551,14 @@ NativeError SignedIndexAcquisitionAdapter::beginImpl(
 				// 別context混入を正常batchへ変換しません
 				if( relation.context != current) {
 					return E_ACCESSDENIED ;
+				}
+
+				// 複数機器の部分一致集約は未判定として保持し、対象を持つ個別の証拠を次の行で検査します
+				if( relation.state == IndexRecordMatchState::VERIFIED_PARTIAL &&
+				   relation.reason == IndexRecordMatchReason::VERIFIED_POSITIVE_PARTIAL &&
+				   relation.positiveProof && !relation.deviceIdentity &&
+				   relation.relatedDevices.size() > 1U) {
+					continue ;
 				}
 
 				// 未解決行は後段の個別HOLDへ残します

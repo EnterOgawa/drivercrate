@@ -110,7 +110,7 @@ Windowsのドライバークラスと配布情報をもとに、デバイスの�
 
 ## 📚 もっと詳しく
 
-- [1.0.12の変更点](docs/release-notes-1.0.12.md)
+- [1.0.13の変更点](docs/release-notes-1.0.13.md)
 - [詳しい使い方](docs/user-guide.md)
 - [ビルドと試験](docs/testing.md)
 
