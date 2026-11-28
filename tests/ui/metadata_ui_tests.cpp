@@ -2,7 +2,7 @@
 /**
  * @file metadata_ui_tests.cpp
  * @brief 製品と同じWin32画面の情報検索専用内部試験
- * @version 01.68.01
+ * @version 01.68.02
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -128,6 +128,7 @@
  * Ver.01.67.00 Shunji Ogawa  2026/11/23  同じ候補にだけ表示する英日規約の閲覧を確認
  * Ver.01.68.00 Shunji Ogawa  2026/11/23  WiX規約の最終確認取消しと失効時の不実行を検証
  * Ver.01.68.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
+ * Ver.01.68.02 Shunji Ogawa  2026/11/27  取得結果でリンク切れだけに再検索の案内が出ることを確認
  * </pre>
  *
  * @note 明示optionでのみ起動し、実device・network・取得・復旧・導入へ接続しない
@@ -4043,7 +4044,9 @@ struct MainWindowMetadataTestAccess {
 		const bool		  acquired = variant >= 1U && variant <= 3U ;	// 内容以降の三ケースだけです
 		const NativeError failure =
 			variant == 6U ? static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_CANCELLED))
-						  : static_cast<NativeError>( E_ACCESSDENIED) ;	// 元段階の人工codeです
+			: variant == 0U
+				? static_cast<NativeError>( MAKE_HRESULT( SEVERITY_ERROR, FACILITY_HTTP, 404U))
+				: static_cast<NativeError>( E_ACCESSDENIED) ;	// 元段階の人工codeです
 		result.items.push_back( {plan.targets.front().identity,
 								{acquired ? OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION
 								 : variant == 6U ? OfficialPreparationItemState::CANCELLED
@@ -4188,6 +4191,9 @@ struct MainWindowMetadataTestAccess {
 								  : IDS_INSTALL_PREPARATION_NOT_READY ;	// 原未成立を優先します
 		DRIVERCRATE_EXPECT( context, window.preparationResultText_.find(
 										window.loadString( expected)) != std::wstring::npos) ;
+		DRIVERCRATE_EXPECT( context, (window.preparationResultText_.find(
+										 window.loadString( IDS_PREPARATION_TRANSFER_MISSING)) !=
+									 std::wstring::npos) == (variant == 0U)) ;
 	}
 	/**
 	 * @brief 元checkbox枠/意図を実行権限から分離し入力拒否を確認します

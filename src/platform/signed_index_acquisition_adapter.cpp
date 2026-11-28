@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_adapter.cpp
  * @brief 同snapshotの取得能力とtaskを封印し、既存grantと検査入力へ接続します
- * @version 01.39.02
+ * @version 01.41.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -65,6 +65,8 @@
  * Ver.01.39.00 Shunji Ogawa  2026/11/23  同じWiX取得票の照合と端末の再観測を分ける
  * Ver.01.39.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * Ver.01.39.02 Shunji Ogawa  2026/11/27  複数機器の部分一致集約と個別取得準備の所有検査を分離
+ * Ver.01.40.00 Shunji Ogawa  2026/11/27  同じ署名元ページと同意を確認してAMD取得許可へ結合
+ * Ver.01.41.00 Shunji Ogawa  2026/11/27  二段の公式規約を表示と承認後の取得許可へ結合
  * </pre>
  *
  * @note 同workerの直列処理です。監視PCの申告と端末実byteを分け、live根拠を合成しません
@@ -76,6 +78,7 @@
 #include "platform/signed_index_acquisition_adapter_internal.h"
 #include "platform/signed_index_codec_internal.h"
 #include "core/provider_registry.h"
+#include "core/official_source_policy.h"
 #include "platform/driver_store_provider.h"
 #include "platform/official_download_workspace.h"
 #include "platform/official_http_client.h"
@@ -401,7 +404,10 @@ constexpr std::span<const std::string_view> PRODUCT_ACQUISITION_KEYS =
 			   a->textSizeBytes != b->textSizeBytes ||
 			   a->bindingEvidenceUrl != b->bindingEvidenceUrl ||
 			   a->bindingEvidenceSha256 != b->bindingEvidenceSha256 ||
-			   a->bindingEvidenceSizeBytes != b->bindingEvidenceSizeBytes) {
+			   a->bindingEvidenceSizeBytes != b->bindingEvidenceSizeBytes ||
+			   a->bindingDirectoryUrl != b->bindingDirectoryUrl ||
+			   a->bindingDirectorySha256 != b->bindingDirectorySha256 ||
+			   a->bindingDirectorySizeBytes != b->bindingDirectorySizeBytes) {
 				return false ;
 			}
 		}
@@ -1090,7 +1096,7 @@ NativeError SignedIndexAcquisitionAdapter::readTermsTextImpl(
 	const auto displayed = std::ranges::find(
 		terms_, recordIndex, &TermsSnapshot::recordIndex) ;	// 初回表示に結んだ元本文です
 	// 同意のない別レコードや空の表示から取得前の再確認を始めません
-	if( recheck && (!terms.archiveNotice || displayed == terms_.end())) {
+	if( recheck && (!requiresApprovedTermsRecheck( terms) || displayed == terms_.end())) {
 		return E_ACCESSDENIED ;
 	}
 
@@ -1119,19 +1125,38 @@ NativeError SignedIndexAcquisitionAdapter::readTermsTextImpl(
 
 	const auto	 source = std::ranges::find_if( region.sources, [&record]( const auto &value) {
 		  return value.sourceId == record.sourceId ;
-	  }) ;					 // 原sourceです
-	std::wstring sourceHost ;	// 公式起点の元hostです
-	std::wstring textHost ;		// 本文の同origin hostです
-	const bool	 staticSection = terms.textDocument->htmlExtraction &&
-							   terms.textDocument->htmlExtraction->profile ==
-								   "STATIC_HTML_SECTION_V1" ;	// 明示した独立規約だけです
+	  }) ;														  // 原sourceです
+	std::wstring sourceHost ;										// 公式起点の元hostです
+	std::wstring textHost ;											// 本文の同origin hostです
+	const auto	&extraction = terms.textDocument->htmlExtraction ;	// 認証済みの元抽出宣言
+	const bool	 linked =
+		extraction && extraction->profile == LINKED_STATIC_TERMS_PROFILE ;	// 二段リンク用
+	const bool staticSection =
+		linked ||
+		(extraction && extraction->profile == "STATIC_HTML_SECTION_V1") ;	// 独立規約の固定二形式
 	// 旧契約の同origin条件を維持し、独立profileだけ実公式リンクを後段で確認します
 	if( source == region.sources.end() || !exactHttpsHost( source->officialOrigin, sourceHost) ||
 	   !exactHttpsHost( terms.textDocument->url, textHost) ||
-	   (!staticSection && sourceHost != textHost) ||
+	   ((!staticSection || linked) && sourceHost != textHost) ||
 	   terms.textDocument->url.find( '?') != std::string::npos) {
 		return E_NOTIMPL ;
 	}
+
+	auto	   lastChecked	   = *nowUtc ;	// 各GET前後で増加を確認する信頼UTC
+	const auto confirmNextPage = [&]() -> NativeError {
+		const auto next = utc() ;	// 次のGET前の信頼UTC
+		const auto status =
+			// 同じ署名元の原期限
+			validateRecord( relationIndex, current, next, reason, purpose) ;
+		// 元期限と同じ操作の時系列を満たす場合だけ次の取得へ進める
+		if( status != 0U || !next || *next < lastChecked) {
+			return status != 0U ? status
+								: static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_TIMEOUT)) ;
+		}
+
+		lastChecked = *next ;
+		return 0U ;
+	} ; // worker内の元選択と最後のUTCだけを同期中に借用
 
 	// 独立規約は署名sourceの公式配布pageと実anchorにだけ由来させ、任意originへfallbackしません
 	if( staticSection) {
@@ -1162,29 +1187,60 @@ NativeError SignedIndexAcquisitionAdapter::readTermsTextImpl(
 		const auto linkError = client.getSignedIndexTermsDocument(
 			indexUtf8Text( binding.bindingEvidenceUrl), bindingHost,
 			binding.bindingEvidenceSizeBytes, true, cancellation, linkRaw, linkHtml, true) ;
-		// ZIP規約では公式ページが同じ配布を指すことを確認し、従来規約では規約文書のリンクを確認します
-		const auto &linkedUrl = terms.archiveNotice
-									? record.acquisitionDescriptor->payloadUrl
-									: terms.textDocument->url ;	// 署名済みの元配布又は規約のURLです
+		const auto &payloadUrl =
+			record.acquisitionDescriptor->payloadUrl ;	// 同じ署名レコードの配布本体
+		const auto &linkedUrl = (terms.archiveNotice || linked)
+									? payloadUrl
+									: terms.textDocument->url ;	// 公式ページで直接確認する元リンク
 		// 公式配布ページが取得できない場合や、リンクが消えた場合は同意を発行しません
 		if( linkError != 0U || !hasStaticHtmlDocumentLink( linkHtml, linkedUrl)) {
 			return linkError != 0U ? linkError : static_cast<NativeError>( E_ACCESSDENIED) ;
 		}
+
+		// 署名レコードで指定した同一HTTPS起点の一覧だけを一度調べる
+		if( linked) {
+			const auto	&directory = binding.bindingDirectoryUrl ;	// 同一配布の明示中間一覧
+			std::wstring directoryHost ;							// 一覧送信の固定HTTPSホスト
+			// 別origin、または公式製品ページに無い一覧を参照しない
+			if( !exactHttpsHost( directory, directoryHost) || directoryHost != sourceHost ||
+			   !hasSameOriginStaticHtmlDocumentLink( linkHtml, binding.bindingEvidenceUrl,
+													directory)) {
+				return E_ACCESSDENIED ;
+			}
+
+			auto status = confirmNextPage() ;	// 一覧送信直前の同じ元期限
+			// 元回線と端末を一つの許可から二段目に流用しない
+			if( status == 0U) {
+				status = reobserveHost( current) ;
+			}
+
+			// 型番条件も元レコードに結び直す
+			if( status == 0U) {
+				status = reobservePlatformMachine( record, current) ;
+			}
+
+			// 一覧の本文は正式な送信前検査が成立した場合だけ取得する
+			if( status == 0U) {
+				status = client.getSignedIndexTermsDocument( indexUtf8Text( directory), directoryHost,
+															binding.bindingDirectorySizeBytes, true,
+															cancellation, linkRaw, linkHtml, true) ;
+			}
+
+			// 一覧が署名レコードの同じ全文を指さない場合は連鎖をここで終える
+			if( status != 0U ||
+			   !hasSameOriginStaticHtmlDocumentLink( linkHtml, directory, terms.textDocument->url)) {
+				return status != 0U ? status : static_cast<NativeError>( E_ACCESSDENIED) ;
+			}
+		}
 	}
 
-	auto lastChecked = *nowUtc ;	// 規約GETまでに最後に検証したUTCです
-	// ZIPの配布ページを受信している間に失効した場合は、規約文書へ送信しません
-	if( terms.archiveNotice) {
-		const auto beforeDocument = utc() ;	// 二つ目のGET直前の信頼UTCです
-		// 規約や個別導線の取得に進む前に、元レコードの用途と鮮度を照合した結果
-		const auto error = validateRecord( relationIndex, current, beforeDocument, reason, purpose) ;
-		// 原配布の失効又は時計逆行からは、既取得ページで送信許可を作りません
-		if( error != 0U || !beforeDocument || *beforeDocument < lastChecked) {
-			return error != 0U ? error
-							   : static_cast<NativeError>( HRESULT_FROM_WIN32( ERROR_TIMEOUT)) ;
+	// 配布ページまたは一覧を読み終えた時点で元配布の期限を再検証する
+	if( requiresApprovedTermsRecheck( terms)) {
+		const auto status = confirmNextPage() ;	// 全文を送信する直前の確認
+		// 失効・時刻逆行では既取得の導線から本文送信を認めない
+		if( status != 0U) {
+			return status ;
 		}
-
-		lastChecked = *beforeDocument ;
 	}
 
 	std::string	 raw ;	// 全原byteをhash確認までRAMへだけ所有します
@@ -1286,6 +1342,21 @@ NativeError SignedIndexAcquisitionAdapter::readTermsTextImpl(
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 承認済み操作で再確認が必要な規約の形式を判定する
+ * @param[in] terms 同じ署名記述子の元規約
+ * @return ZIP内の明示規約または二段リンク用の場合true
+ */
+//------------------------------------------------------------------------------
+bool SignedIndexAcquisitionAdapter::requiresApprovedTermsRecheck(
+	const IndexAcquisitionTerms &terms) noexcept
+{
+	return terms.archiveNotice ||
+		   (terms.textDocument && terms.textDocument->htmlExtraction &&
+			terms.textDocument->htmlExtraction->profile == LINKED_STATIC_TERMS_PROFILE) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 端末の承認済みtask用に公式導線と元規約を再取得して、同じ操作だけへ照合を結びます
  * @param[in,out] preparation 実active taskの所有者です。承認やclaim自体は変更しません
  * @param[in] task 利用者の同意を消費した元taskです
@@ -1296,7 +1367,7 @@ NativeError SignedIndexAcquisitionAdapter::readTermsTextImpl(
  * @return 元承認と再取得した規約の照合成立0、変更や不成立は元HRESULTです
  */
 //------------------------------------------------------------------------------
-NativeError SignedIndexAcquisitionAdapter::recheckApprovedArchiveTerms(
+NativeError SignedIndexAcquisitionAdapter::recheckApprovedTerms(
 	OfficialPreparationSession &preparation, const OfficialPreparationTask &task,
 	const IndexLookupContext										current,
 	const std::function<std::optional<std::chrono::sys_seconds>()> &utc, OfficialHttpClient &client,
@@ -1311,8 +1382,8 @@ NativeError SignedIndexAcquisitionAdapter::recheckApprovedArchiveTerms(
 		return E_ACCESSDENIED ;
 	}
 
-	binding->archiveTermsOperation = 0U ;
-	binding->archiveTermsPlan	   = 0U ;
+	binding->recheckedTermsOperation = 0U ;
+	binding->recheckedTermsPlan		 = 0U ;
 	std::string reason ;			// 認証済み原関係の固定診断です
 	const auto	initial = utc() ;	// 再取得開始前の信頼時刻です
 	const auto	validation =
@@ -1332,8 +1403,9 @@ NativeError SignedIndexAcquisitionAdapter::recheckApprovedArchiveTerms(
 	const auto displayed = std::ranges::find(
 		terms_, recordIndex, &TermsSnapshot::recordIndex) ;	// 画面に結んだ固定文書です
 	// 画面の本文・改訂を別規約の同意へ流用しません
-	if( !record.acquisitionDescriptor->terms.archiveNotice || displayed == terms_.end() ||
-	   displayed->text != task.target.eulaText || displayed->revision != task.target.eulaRevision) {
+	if( !requiresApprovedTermsRecheck( record.acquisitionDescriptor->terms) ||
+	   displayed == terms_.end() || displayed->text != task.target.eulaText ||
+	   displayed->revision != task.target.eulaRevision) {
 		return E_ACCESSDENIED ;
 	}
 
@@ -1359,8 +1431,8 @@ NativeError SignedIndexAcquisitionAdapter::recheckApprovedArchiveTerms(
 	error = validateBinding( *binding, current, completed, reason) ;
 	// 同じ操作と計画にだけ規約照合を結び、別操作では再利用しません
 	if( error == 0U) {
-		binding->archiveTermsOperation = task.operationId ;
-		binding->archiveTermsPlan	   = task.planId ;
+		binding->recheckedTermsOperation = task.operationId ;
+		binding->recheckedTermsPlan		 = task.planId ;
 	}
 
 	return error ;
@@ -1626,14 +1698,14 @@ NativeError SignedIndexAcquisitionAdapter::describe(
 		for( const auto &binding : bindings_) {
 			const auto &otherRecord = records[lookup_->relations()[binding.relationIndex]
 												  .recordIndex] ;	// 保存済み別候補です
-			// 対応するいずれかの公式配布レコードがアーカイブ規約を要求するかを保持します
-			const bool	includesArchiveTerms =
-				descriptor.terms.archiveNotice ||
+			// いずれかが承認後の再確認を要求する場合に異なる配布へ同意を共有しない
+			const bool	recheckedTerms =
+				requiresApprovedTermsRecheck( descriptor.terms) ||
 				(otherRecord.acquisitionDescriptor &&
-				 otherRecord.acquisitionDescriptor->terms.archiveNotice) ;
+				 requiresApprovedTermsRecheck( otherRecord.acquisitionDescriptor->terms)) ;
 			// 出典と全文が完全一致する先行groupだけを再利用します
 			if( binding.target.terms == target.terms &&
-			   (!includesArchiveTerms || sameSharedPayloadEvidence( record, otherRecord)) &&
+			   (!recheckedTerms || sameSharedPayloadEvidence( record, otherRecord)) &&
 			   binding.target.eulaSourceSubject == target.eulaSourceSubject &&
 			   binding.target.eulaRevision == target.eulaRevision &&
 			   binding.target.eulaText == target.eulaText) {
@@ -1970,9 +2042,9 @@ NativeError RecordScopedDownloadGrant::issueSignedIndex( SignedIndexAcquisitionA
 
 	const auto &descriptor = *record.acquisitionDescriptor ;	// 型認証済みexact route
 	// 本体の許可を発行するのは、同じ承認済み操作で規約を再取得して照合した場合だけです
-	if( descriptor.terms.archiveNotice &&
-	   (binding->archiveTermsOperation != task.operationId ||
-		binding->archiveTermsPlan != task.planId || binding->archiveTermsOperation == 0U)) {
+	if( SignedIndexAcquisitionAdapter::requiresApprovedTermsRecheck( descriptor.terms) &&
+	   (binding->recheckedTermsOperation != task.operationId ||
+		binding->recheckedTermsPlan != task.planId || binding->recheckedTermsOperation == 0U)) {
 		return E_ACCESSDENIED ;
 	}
 
@@ -2039,6 +2111,34 @@ NativeError RecordScopedDownloadGrant::issueSignedIndex( SignedIndexAcquisitionA
 
 	pending.targetUrl_ =
 		SecretOfficialUrl{std::wstring{descriptor.payloadUrl.begin(), descriptor.payloadUrl.end()}} ;
+	const auto region = lookup.snapshot().consumerRecordRegion(
+		// この配布と同じ署名領域
+		lookup.relations()[binding->relationIndex].recordIndex) ;
+	const auto source = std::ranges::find( region.sources, record.sourceId,
+										  &IndexRecordSource::sourceId) ;	// 同じ元の公開起点
+	// 元の公式ページ証拠を持つ直接AMD配布だけへ参照元を結合します
+	if( source != region.sources.end() &&
+	   source->officialEvidence.state == IndexEvidenceState::PUBLISHED &&
+	   source->officialEvidence.kind == IndexOfficialEvidenceKind::OFFICIAL_PAGE &&
+	   source->officialEvidence.evidenceSha256 &&
+	   source->officialEvidence.evidenceUrl == source->distributionPage &&
+	   (source->officialOrigin == "https://www.amd.com" ||
+		source->officialOrigin == "https://www.amd.com/")) {
+		auto page = indexUtf8Text( source->distributionPage) ;	// 公開された元製品ページ
+		// 参照元が必要な配布を、別経路や利用条件の確認なしに取得させません
+		if( isAmdProductDownloadRoute( page, pending.targetUrl_.view())) {
+			// 順序を持つ転送や同意のない収集設定を直接配布へ読み替えません
+			if( descriptor.route.size() != 1U || descriptor.anonymousCdn ||
+			   record.wixContentEvidence ||
+			   descriptor.terms.state != IndexTermsState::ACCEPTANCE_REQUIRED ||
+			   !descriptor.terms.textDocument) {
+				return E_ACCESSDENIED ;
+			}
+
+			pending.signedAmdProductPage_ = std::move( page) ;
+		}
+	}
+
 	// Codecで公式導線・一方向CDN・有限回数を検査済みのexact順を全hop封印します
 	for( const auto &hop : descriptor.route) {
 		pending.signedIndexRoute_.emplace_back( std::wstring{hop.url.begin(), hop.url.end()}) ;

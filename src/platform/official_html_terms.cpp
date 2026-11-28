@@ -2,7 +2,7 @@
 /**
  * @file official_html_terms.cpp
  * @brief 静的HTML許諾の原要素・原文書・全文をメーカー非依存で検査します
- * @version 01.03.00
+ * @version 01.07.00
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,10 @@
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.02.00 Shunji Ogawa  2026/11/19  公開配布表用に既HTML字句検査を共通利用
  * Ver.01.03.00 Shunji Ogawa  2026/11/22  独立規約のCSP宣言と表示属性を有限に解析
+ * Ver.01.04.00 Shunji Ogawa  2026/11/27  同じ正規HTTPS起点の明示規約リンクを照合
+ * Ver.01.05.00 Shunji Ogawa  2026/11/27  独立規約の斜体と非実行の参照表記を表示
+ * Ver.01.06.00 Shunji Ogawa  2026/11/27  二段リンク用の全文へ順序付き項番を保持
+ * Ver.01.07.00 Shunji Ogawa  2026/11/27  二段リンクの正規HTTPS URLを原アンカーと共通の文法で照合
  * </pre>
  *
  * @note Script/CSSを取得・評価せず、同意や取得能力を生成しません
@@ -47,6 +51,7 @@
 
 #include "core/official_preparation.h"
 #include "platform/official_file_verifier.h"
+#include "platform/official_http_client.h"
 
 namespace drivercrate {
 namespace {
@@ -54,15 +59,16 @@ namespace {
 // 原pageと選択文書の独立した有限文字上限です
 constexpr std::size_t MAX_PAGE_CHARACTERS = 256U * 1024U ;
 constexpr std::size_t STATIC_PAGE_CHARACTERS =
-	2U * 1024U * 1024U ;	// 独立sectionとリンク根拠だけの上限です
+	2U * 1024U * 1024U ;									// 独立sectionとリンク根拠だけの上限です
+constexpr std::size_t STATIC_LINK_URL_CHARACTERS = 2048U ;	// 署名recordと同じ元URL上限です
 // 属性を含む一tagの走査上限です
-constexpr std::size_t						 MAX_TAG_CHARACTERS = 4096U ;
+constexpr std::size_t MAX_TAG_CHARACTERS = 4096U ;
 // 独立規約の外側で確認したCSP宣言のみの文字上限です
-constexpr std::size_t						 MAX_STATIC_CSP_TAG_CHARACTERS = 16U * 1024U ;
+constexpr std::size_t MAX_STATIC_CSP_TAG_CHARACTERS = 16U * 1024U ;
 // 表示コンポーネントの識別子には短いASCII値だけを認めます
-constexpr std::size_t						 MAX_LAYOUT_ATTRIBUTE_CHARACTERS = 64U ;
+constexpr std::size_t MAX_LAYOUT_ATTRIBUTE_CHARACTERS = 64U ;
 // 入れ子と一tagの属性数の上限です
-constexpr std::size_t						 MAX_DEPTH = 64U ;
+constexpr std::size_t MAX_DEPTH = 64U ;
 // 認識した本文tagだけを全文へ写します
 constexpr std::array<std::wstring_view, 11U> BODY_TAGS{
 	L"b", L"br", L"div", L"p", L"table", L"tbody", L"td", L"tr", L"ul", L"li", L"a"} ;
@@ -360,6 +366,7 @@ struct HtmlTag {
  * @param[in] staticSection 独立profileの外page属性を認識する場合だけtrueです
  * @param[in] releasePage 配布表の外要素ではtitleの内側もrawとして消費します
  * @param[in] allowExtendedCsp 独立規約文書の明示headで長いCSP用metaを認識する場合だけtrueです
+ * @param[in] linkedDocument 同一originの規約リンク照合では、追加の非表示raw要素を消費します
  * @return 文法とvisitorが全て成立する場合trueです
  * @note Script/style/textareaの原内側は外page要素へ数えません
  */
@@ -368,7 +375,8 @@ template <class Visitor>
 [[nodiscard]] bool visitOuterTags( const std::wstring_view page, Visitor visitor,
 								  std::size_t *rejectedOffset = nullptr,
 								  const bool staticSection = false, const bool releasePage = false,
-								  const bool allowExtendedCsp = false)
+								  const bool allowExtendedCsp = false,
+								  const bool linkedDocument	  = false)
 {
 	std::size_t cursor{} ;							// 全反復で前進する元page位置です
 	bool		mayOpenCspHead = allowExtendedCsp ;	// 対応する最初の明示headだけを待ちます
@@ -434,14 +442,26 @@ template <class Visitor>
 
 		std::size_t contentEnd = tag.end + 1U ;	// 通常tagでは空の内側です
 		std::size_t next	   = contentEnd ;	// 次に走査する原位置です
+		constexpr std::array<std::wstring_view, 6U> LINK_RAW_TAGS{
+			L"title",	L"iframe",	 L"noscript",
+			L"noembed", L"noframes", L"xmp"} ;	// 規約への実リンクとして数えない字句内容です
 		// Raw-text要素内部を外pageの実要素として再解釈しません
 		if( !tag.closing &&
 		   (tag.name == L"script" || tag.name == L"style" || tag.name == L"textarea" ||
-			((releasePage || inCspHead) && tag.name == L"title"))) {
+			((releasePage || inCspHead) && tag.name == L"title") ||
+			(linkedDocument && std::ranges::any_of( LINK_RAW_TAGS, [&tag]( const auto name) {
+				 return name == tag.name ;
+			 })))) {
 			const std::wstring close = L"</" + tag.name + L">" ;	// Profileの明示終端です
 			contentEnd				 = page.find( close, next) ;
 			// 未終端raw要素を選択可能にしません
 			if( contentEnd == page.npos) {
+				return false ;
+			}
+
+			// HTMLのescape状態を持つscriptで最初の終端候補を外要素の根拠にしません
+			if( linkedDocument && tag.name == L"script" &&
+			   page.substr( next, contentEnd - next).find( L"<!--") != page.npos) {
 				return false ;
 			}
 
@@ -457,6 +477,75 @@ template <class Visitor>
 	}
 
 	return true ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 公式本文で原文字列として扱う正規ルート相対パスを確認します
+ * @param[in] path 呼出し中だけ借用するURLのパスまたはhrefです
+ * @return URL追加情報や別authorityを含まない有限のASCIIパスならtrueです
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool validStaticRootPath( const std::wstring_view path)
+{
+	return path.starts_with( L"/") && path.size() <= STATIC_LINK_URL_CHARACTERS &&
+		   path.find_first_not_of(
+			   L"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._~-") ==
+			   path.npos &&
+		   path.find( L"//") == path.npos && path.find( L"/./") == path.npos &&
+		   path.find( L"/../") == path.npos && !path.ends_with( L"/.") && !path.ends_with( L"/..") ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同一originで照合するHTTPS URLから原ルート相対パスだけを借用します
+ * @param[in] url 明示されたHTTPS原URLです。呼出し中だけ借用します
+ * @return 正規元URLの場合は先頭slashを含むパス、その他は空です
+ * @note 共通HTTPS parserを通信せず利用し、URLの正規化や公式性の付与は行いません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] std::string_view canonicalStaticLinkPath( const std::string_view url)
+{
+	constexpr std::string_view SCHEME = "https://" ;	// 正規HTTPS schemeの原表記です
+	// Schemeと署名recordの有限上限を満たす場合にだけauthorityを分けます
+	if( !url.starts_with( SCHEME) || url.size() > STATIC_LINK_URL_CHARACTERS) {
+		return {} ;
+	}
+
+	const auto pathOffset = url.find( '/', SCHEME.size()) ;	// 最初の原パス区切りです
+	// 省略されたrootや空authorityへ補完しません
+	if( pathOffset == url.npos || pathOffset == SCHEME.size()) {
+		return {} ;
+	}
+
+	const auto host = url.substr( SCHEME.size(), pathOffset - SCHEME.size()) ;	// 正規authorityです
+	const auto path = url.substr( pathOffset) ;									// 入力を借りる原パスです
+	// Alias表記やASCII DNS名以外を明示されたoriginへ変換しません
+	if( host.find( '.') == host.npos || host.back() < 'a' || host.back() > 'z' ||
+	   host.find_first_not_of( "abcdefghijklmnopqrstuvwxyz0123456789.-") != host.npos) {
+		return {} ;
+	}
+
+	const std::wstring wideUrl( url.begin(), url.end()) ;		// 共通HTTPS parser用の原ASCIIです
+	const std::wstring wideHost( host.begin(), host.end()) ;	// 構文照合だけの原hostです
+	const std::array<std::wstring_view, 1U> hosts{wideHost} ;	// 同じ元hostの一時照合範囲です
+	return validStaticRootPath( std::wstring_view{wideUrl}.substr( pathOffset)) &&
+				   validateOfficialHttpsUrl( wideUrl, hosts) == 0U
+			   ? path
+			   : std::string_view{} ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 正規HTTPS URLから変更せずにoriginだけを借用します
+ * @param[in] url 呼出し中だけ借用するURLです
+ * @return 正規URLなら原schemeとauthority、その他は空です
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] std::string_view canonicalStaticLinkOrigin( const std::string_view url)
+{
+	const auto path = canonicalStaticLinkPath( url) ;	// 正規URLだけに存在する原パスです
+	return path.empty() ? std::string_view{} : url.substr( 0U, url.size() - path.size()) ;
 }
 
 //------------------------------------------------------------------------------
@@ -532,21 +621,30 @@ template <class Visitor>
 	return true ;
 }
 
+/** @brief 静的な規約本文で開始した要素と、その要素が所有する項番 */
+struct TermsBodyElement {
+	/// 完全な閉じ要素の照合に使うASCII小文字名
+	std::wstring name ;
+	/// 項番を表示する順序付きリストの次の番号。その他は0
+	std::size_t	 nextOrdinal{} ;
+} ;
+
 //------------------------------------------------------------------------------
 /**
  * @brief 許可本文の全tagと文字を既存の表示規則へ写します
  * @param[in] body 原body内部です
  * @param[in,out] text Title付きの一時全文です。失敗時は呼出し側が破棄します
  * @param[in] section 独立sectionの表示要素と非実行連絡先だけを追加で認識します
+ * @param[in] numbered 二段リンク用の本文で明示した順序付きリストの項番を残します
  * @return 本文を切り詰めず全て写せた場合trueです
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool renderBody( const std::wstring_view body, std::wstring &text,
-							  const bool section = false)
+							  const bool section = false, const bool numbered = false)
 {
-	std::vector<std::wstring> stack ;		// 64段以内の対応tag名です
-	bool					  tail{} ;		// 空外部script参照以降は表示本文を許可しません
-	bool					  hasText{} ;	// Title以外に非空本文を確認した場合trueです
+	std::vector<TermsBodyElement> stack ;		// 64段以内の対応tag名と同じリストの番号
+	bool						  tail{} ;		// 空外部script参照以降は表示本文を許可しません
+	bool						  hasText{} ;	// Title以外に非空本文を確認した場合trueです
 	// 各反復で原位置を前進させ、本文を途中で切り詰めません
 	for( std::size_t cursor{}; cursor < body.size();) {
 		// 実tagを本文文字から分けます
@@ -576,39 +674,66 @@ template <class Visitor>
 			}
 
 			// Tail後の表示要素や未知tagを全文から除外しません
-			constexpr std::array<std::wstring_view, 10U> SECTION_TAGS{
-				L"h1", L"h2",	  L"h3", L"h4",	  L"h5",
-				L"h6", L"strong", L"em", L"span", L"ol"} ;	// 独立法的文書の追加表示要素です
+			// 独立法的文書は段落内の斜体も改行せず文字へ写します
+			constexpr std::array<std::wstring_view, 11U> SECTION_TAGS{
+				L"h1", L"h2", L"h3", L"h4", L"h5", L"h6", L"strong", L"em", L"span", L"ol", L"i"} ;
 			// 旧表示集合と独立sectionで明示した追加要素以外は拒否します
-			if( tail ||
-			   (std::ranges::find( BODY_TAGS, tag.name) == BODY_TAGS.end() &&
-				(!section || std::ranges::find( SECTION_TAGS, tag.name) == SECTION_TAGS.end()))) {
+			if( tail || (std::ranges::find( BODY_TAGS, tag.name) == BODY_TAGS.end() &&
+						(!section || !std::ranges::any_of( SECTION_TAGS, [&tag]( const auto name) {
+							// 当該要素の名前を照合中だけ借用します
+							return name == tag.name ;
+						})))) {
 				return false ;
 			}
 
+			std::size_t ordinal{} ;	// 項目開始でだけ表示する番号
 			// 閉じtagは対応stackを一段だけ戻します
 			if( tag.closing) {
 				// 間違った入れ子や余剰終端を許諾全文として採用しません
-				if( stack.empty() || stack.back() != tag.name) {
+				if( stack.empty() || stack.back().name != tag.name) {
 					return false ;
 				}
 
 				stack.pop_back() ;
 			} else {
+				// 項番の上書きや表示変更のあるリストを標準の10進番号へ変換しない
+				if( numbered && !tag.attributes.empty() &&
+				   (tag.name == L"ol" || tag.name == L"li")) {
+					return false ;
+				}
+
+				// 同じ順序付きリストの直接の項目だけを次の番号へ結び付ける
+				if( numbered && !stack.empty() && stack.back().nextOrdinal != 0U) {
+					// 項目以外の要素を挟んだリストを番号付き本文へ補完しない
+					if( tag.name != L"li") {
+						return false ;
+					}
+
+					ordinal = stack.back().nextOrdinal++ ;
+				}
+
 				// 明示リンクもURLを表示へ残し、外部参照は実行しません
 				if( tag.name == L"a") {
 					const auto href	  = attribute( tag, L"href") ;		// 元許諾の公開参照です
 					const auto target = attribute( tag, L"target") ;	// 既知の非実行補足です
+					const auto rel	  = attribute( tag, L"rel") ;		// 外部参照の非実行補足です
+					// 本文に原表記を残せる既存の外部参照schemeです
+					const bool external =
+						href.starts_with( L"http://") || href.starts_with( L"https://") ;
+					// 独立本文の相対参照は原パスを表示し、通信に使用しません
+					const bool local = section && validStaticRootPath( href) ;
+					// 元外部参照のこの属性だけを全属性数の確認に含めます
+					const bool safeRel =
+						section && external && target == L"_blank" && rel == L"noopener noreferrer" ;
 					const bool contact =
 						section && href.starts_with( L"mailto:") && href.size() > 7U &&
 						href.find_first_of( L"?#%") ==
 							href.npos ;	// 独立法的文書の連絡先を文字列表示だけで保持します
 					// Script URLや曖昧な追加属性を本文へ混入させません
-					if( (!href.starts_with( L"http://") && !href.starts_with( L"https://") &&
-						!contact) ||
-					   href.size() > 2048U || href.find_first_of( L" \t\r\n<>&\"") != href.npos ||
+					if( (!external && !contact && !local) || href.size() > 2048U ||
+					   href.find_first_of( L" \t\r\n<>&\"") != href.npos ||
 					   (target != L"" && target != L"_blank") ||
-					   tag.attributes.size() != (target.empty() ? 1U : 2U)) {
+					   tag.attributes.size() != (target.empty() ? 1U : 2U) + (safeRel ? 1U : 0U)) {
 						return false ;
 					}
 
@@ -653,18 +778,29 @@ template <class Visitor>
 						return false ;
 					}
 
-					stack.push_back( tag.name) ;
+					stack.push_back( {tag.name, numbered && tag.name == L"ol" ? 1U : 0U}) ;
 				}
 			}
 
 			// 既存rendererと同じ段落/表境界を保持します
-			if( tag.name != L"b" &&
-			   (!section || (tag.name != L"strong" && tag.name != L"em" && tag.name != L"span"))) {
+			if( tag.name != L"b" && (!section || (tag.name != L"strong" && tag.name != L"em" &&
+												 tag.name != L"span" && tag.name != L"i"))) {
 				text += L"\r\n" ;
+			}
+
+			// 表示する原項目の冒頭に同じリスト内の番号を付ける
+			if( ordinal != 0U) {
+				text += std::to_wstring( ordinal) + L". " ;
 			}
 
 			cursor = tag.end + 1U ;
 		} else {
+			// 項目に所属しない有意の文字を項番から外さない
+			if( numbered && !stack.empty() && stack.back().nextOrdinal != 0U &&
+			   !space( body[cursor])) {
+				return false ;
+			}
+
 			// 外部script以降の表示textを捨てて成功にしません
 			if( tail && !space( body[cursor])) {
 				return false ;
@@ -915,9 +1051,10 @@ NativeError extractSection( const std::wstring_view page, const IndexHtmlTermsEx
 {
 	observation			   = {} ;
 	observation.checkStage = 5U ;
-	// 独立profileだけ2MiBを認め、空revisionやNULの不確定文書を拒否します
+	const bool linked = extraction.profile == LINKED_STATIC_TERMS_PROFILE ;	// 計算版の番号付き原節
+	// 既存の静的全文は原公開版、二段リンク用の全文は空の原公開版を要求する
 	if( page.empty() || page.size() > STATIC_PAGE_CHARACTERS || page.find( L'\0') != page.npos ||
-	   revision.empty()) {
+	   revision.empty() != linked) {
 		return E_INVALIDARG ;
 	}
 
@@ -951,8 +1088,8 @@ NativeError extractSection( const std::wstring_view page, const IndexHtmlTermsEx
 					  // 選択sectionの外を可読全文へ取り込みません
 					  if( depth == 0U) {
 						  result.document = page.substr( begin, tag.end + 1U - begin) ;
-						  return renderBody( page.substr( content, offset - content), result.text,
-														true) ;
+						  return renderBody( page.substr( content, offset - content), result.text, true,
+														linked) ;
 					  }
 				  }
 				  // 同じroot tagの開始だけを対応終端まで数えます
@@ -964,9 +1101,9 @@ NativeError extractSection( const std::wstring_view page, const IndexHtmlTermsEx
 			  return true ;
 		  },
 		  &observation.checkOffset, true, false, true) ;	// 独立規約の外側だけCSPを認識します
-	// 原section/公開revisionを確認できない本文を同意可能へ変えません
+	// 同じ原節と既存の元公開版を確認する。計算版は全文照合後に呼出し側で算出する
 	if( !valid || count != 1U || depth || result.document.empty() ||
-	   result.text.find( revision) == result.text.npos) {
+	   (!linked && result.text.find( revision) == result.text.npos)) {
 		return HRESULT_FROM_WIN32( ERROR_INVALID_DATA) ;
 	}
 
@@ -1050,7 +1187,7 @@ bool visitPublicHtmlTags( const std::wstring_view						   page,
  * @param[in] page 厳密UTF-8復号pageです。旧profileは256KiB、新sectionだけ2MiB相当以内です
  * @param[in] extraction 認証前producerまたは認証後adapterが持つ元selectorです
  * @param[in] payloadUrl 元descriptorの完全ASCII HTTPS URLです
- * @param[in] revision 原公開titleです。空の場合だけ原titleを保持し比較しません
+ * @param[in] revision 原公開titleです。二段リンク用では空とし、元節と全文を後で照合します
  * @param[out] observation 全成功時だけ原文書と全文です。失敗時は本文空と数値診断だけです
  * @return 全構造成功0、未対応/不一致は元HRESULTです
  * @note 所有権を借用し、メーカー別parser、ネットワーク、許可状態は使用しません
@@ -1065,7 +1202,8 @@ NativeError extractStaticHtmlTerms( const std::wstring_view		   page,
 	observation			   = {} ;
 	observation.checkStage = 1U ;
 	// 独立文書だけ明示した新profileを使い、旧textareaの構造条件を変更しません
-	if( extraction.profile == "STATIC_HTML_SECTION_V1") {
+	if( extraction.profile == "STATIC_HTML_SECTION_V1" ||
+	   extraction.profile == LINKED_STATIC_TERMS_PROFILE) {
 		return extractSection( page, extraction, revision, observation) ;
 	}
 
@@ -1285,6 +1423,119 @@ bool hasStaticHtmlDocumentLink( const std::wstring_view page, const std::string_
 		},
 		rejectedOffset, true) ;	// 独立profileだけのHTML属性を認識します
 	return valid && count > 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 二段リンクに指定した三つの正規HTTPS URLを照合します
+ * @param[in] productUrl 配布物と規約一覧を案内する元ページのURLです
+ * @param[in] directoryUrl 規約一覧のURLです
+ * @param[in] documentUrl 規約全文を含む文書のURLです
+ * @return 三つが互いに異なる正規URLで同じoriginの場合trueです
+ * @note 実アンカーと同じURL文法で検査し、通信や公式性の確認は行いません
+ */
+//------------------------------------------------------------------------------
+bool hasSameOriginStaticHtmlDocumentUrls( const std::string_view productUrl,
+										 const std::string_view directoryUrl,
+										 const std::string_view documentUrl)
+{
+	const auto origin = canonicalStaticLinkOrigin( productUrl) ;	// 元配布ページの正規HTTPS起点です
+	return !origin.empty() && productUrl != directoryUrl && productUrl != documentUrl &&
+		   directoryUrl != documentUrl && origin == canonicalStaticLinkOrigin( directoryUrl) &&
+		   origin == canonicalStaticLinkOrigin( documentUrl) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ正規HTTPS originの実anchorが明示済み規約URLを参照するか確認します
+ * @param[in] page 最大2MiB相当の厳密UTF-8復号HTMLです
+ * @param[in] pageUrl 呼出し側が公式性と実取得先を照合済みの正規HTTPS元URLです
+ * @param[in] documentUrl 同じoriginに事前固定した正規HTTPS規約URLです
+ * @param[out] rejectedOffset 非null時は原tagの走査位置です。走査前の拒否は0です
+ * @return 元絶対URLか同じ原ルート相対パスに有効な実anchorが一つ以上あればtrueです
+ * @note URLは2048文字以内の小文字DNS起点と無変換のASCIIパスに限定します。通信と取得許可は行いません
+ */
+//------------------------------------------------------------------------------
+bool hasSameOriginStaticHtmlDocumentLink( const std::wstring_view page,
+										 const std::string_view	 pageUrl,
+										 const std::string_view	 documentUrl,
+										 std::size_t			*rejectedOffset)
+{
+	// 走査開始前の拒否では過去の原位置を返しません
+	if( rejectedOffset != nullptr) {
+		*rejectedOffset = 0U ;
+	}
+
+	// 未復号値や過大入力を一部だけ解釈しません
+	if( page.empty() || page.size() > STATIC_PAGE_CHARACTERS || page.find( L'\0') != page.npos) {
+		return false ;
+	}
+
+	try {
+		const auto pageOrigin	= canonicalStaticLinkOrigin( pageUrl) ;		// 元pageの正規HTTPS起点です
+		const auto documentPath = canonicalStaticLinkPath( documentUrl) ;	// 元文書の原パスです
+		// 原authorityの全体が一致する場合に限って同じoriginとして扱います
+		if( pageOrigin.empty() || documentPath.empty() ||
+		   pageOrigin != documentUrl.substr( 0U, documentUrl.size() - documentPath.size())) {
+			return false ;
+		}
+
+		const std::wstring absolute( documentUrl.begin(), documentUrl.end()) ;		// 元絶対URLです
+		const std::wstring relative( documentPath.begin(), documentPath.end()) ;	// 同URLの元パスです
+		std::array<std::wstring_view, MAX_DEPTH> excluded{} ;						// 原終端と照合するコンテナ名です
+		std::size_t excludedDepth{} ;												// 走査位置を覆うコンテナの有限入れ子数です
+		bool		matched{} ;														// 許可した実anchorを確認した場合trueです
+		const auto	valid = visitOuterTags(
+			 page,
+			 [&]( const HtmlTag &tag, std::size_t, std::size_t) {
+				 // 基準URLや後続の要素解釈を変更する構文を部分成功へ変えません
+				 if( tag.name == L"base" || tag.name == L"plaintext") {
+					 return false ;
+				 }
+
+				 const auto container =
+					 tag.name == L"template" ? std::wstring_view{L"template"}
+					 : tag.name == L"select"
+						 ? std::wstring_view{L"select"}
+						 : std::wstring_view{} ;	// 根拠から除く既知の原コンテナです
+				 // 終端まで外pageの規約anchorとして扱えないコンテナを追跡します
+				 if( !container.empty()) {
+					 // 壊れた境界や過大入れ子の後に見えたanchorを認定しません
+					 if( tag.selfClosing ||
+						(tag.closing &&
+						 (excludedDepth == 0U || excluded[excludedDepth - 1U] != container)) ||
+						(!tag.closing && excludedDepth == excluded.size())) {
+						 return false ;
+					 }
+
+					 // 対応する原終端だけで外側のコンテナへ戻ります
+					 if( tag.closing) {
+						 --excludedDepth ;
+					 } else {
+						 excluded[excludedDepth++] = container ;
+					 }
+
+					 return true ;
+				 }
+
+				 // 内側の元属性を外pageのanchorには数えません
+				 if( excludedDepth != 0U) {
+					 return true ;
+				 }
+
+				 // 元のhrefだけを比較し、別リンクへの探索や正規化を行いません
+				 if( !tag.closing && !tag.selfClosing && tag.name == L"a") {
+					 const auto href = attribute( tag, L"href") ;	// 原属性の借用範囲です
+					 matched		 = matched || href == absolute || href == relative ;
+				 }
+
+				 return true ;
+			 },
+			 rejectedOffset, true, false, true, true) ;	// 同期で原HTMLと照合値を借用します
+		return valid && excludedDepth == 0U && matched ;
+	} catch( const std::bad_alloc &) {
+		return false ;
+	}
 }
 
 } // namespace drivercrate

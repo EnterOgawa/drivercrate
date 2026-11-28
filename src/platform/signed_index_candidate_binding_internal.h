@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_internal.h
  * @brief 私有索引候補sessionの内部固定fixture接続を定義します
- * @version 01.06.00
+ * @version 01.07.01
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,8 @@
  * Ver.01.04.01 Shunji Ogawa  2026/11/18  元参照factory転送と同owner cached summary読取りを追加
  * Ver.01.05.00 Shunji Ogawa  2026/11/23  WiX表示行から保持した元照合数の読み取りを追加
  * Ver.01.06.00 Shunji Ogawa  2026/11/23  元規約への同意だけを照合する隔離試験入口を追加
+ * Ver.01.07.00 Shunji Ogawa  2026/11/27  同一の署名配布形式で再照合する試験入口を追加
+ * Ver.01.07.01 Shunji Ogawa  2026/11/28  取得前参照に同scanの表示時刻を渡す
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません
@@ -43,6 +45,7 @@
 #include "platform/common_driver_package.h"
 #include "platform/official_driver_closure.h"
 #include <Windows.h>
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -138,6 +141,21 @@ using PublicationObserver = void ( *)( const PublicationDiagnostic &, void *) no
 /** @brief 通常workerと同じprivate本体接続の内部試験入口です */
 struct Access {
 	/**
+	 * @brief 隔離試験の消費済み取得を本体と同じ形式選択へ渡す
+	 * @param[in] acquisition 架空だが元ledgerへ結んだ実取得結果
+	 * @param[in] grant 同じ操作の消費済み権限
+	 * @param[in] hint 封印に結ぶ元署名とバイトの照合値
+	 * @param[in] format 試験の署名済み配布形式
+	 * @param[out] input 検査入力。拒否時は空
+	 * @return 検査入力の照合が成立した場合0
+	 * @note 定義は試験targetのみ。取得権限を発行しない
+	 */
+	[[nodiscard]] static NativeError bindDelegatedInputForFixture(
+		const OfficialAcquisitionResult &acquisition, const RecordScopedDownloadGrant &grant,
+		const IndexedDriverArchiveHint &hint, IndexPayloadFormat format,
+		DelegatedOfficialPackageInput &input) noexcept ;
+
+	/**
 	 * @brief 固定した一件の候補の同意照合だけを、実機や取得内容なしで試験します
 	 * @param[in] originalTerms 同スキャン83の候補wix-consent-fixtureが保持する元表示です
 	 * @param[in] session 選択に指定するスキャンです
@@ -170,16 +188,17 @@ struct Access {
 	 * @param[in] plan 同ownerの元未検査取得計画です
 	 * @param[in] candidates 同captureの実現在行です
 	 * @param[in] hints 同現在行から正規factoryで作ったhintです
+	 * @param[in] nowUtc 同scanの表示に使う固定試験時刻です
 	 * @return 元factoryが検証して発行した非導入参照行です
 	 * @note claim/grant/token/recordを新しく作らず、元guardとordinal検査を維持します
 	 */
 	[[nodiscard]] static std::vector<UpdateCandidate> makeReferencesForFixture(
 		SignedIndexScanSession &session, const OfficialPreparationPlan &plan,
 		std::span<const UpdateCandidate>			 candidates,
-		std::span<const OfficialDiscoveryDeviceHint> hints)
+		std::span<const OfficialDiscoveryDeviceHint> hints, std::chrono::sys_seconds nowUtc)
 	{
 		return session.binding_.makeReferences( session.acquisitionLookup_, session.adapter_, plan,
-											   candidates, hints) ;
+											   candidates, hints, nowUtc) ;
 	}
 	/**
 	 * @brief Composite registryが一度実行した元索引summaryを読取りcopyします

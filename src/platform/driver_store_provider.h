@@ -2,7 +2,7 @@
 /**
  * @file driver_store_provider.h
  * @brief Driver Store provider定義
- * @version 01.37.00
+ * @version 01.39.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -79,6 +79,8 @@
  * Ver.01.35.00 Shunji Ogawa  2026/11/23  同一Windows互換ノードの同梱INF委譲を読取り確認
  * Ver.01.36.00 Shunji Ogawa  2026/11/23  起動サービスと設定の独立確認を指定適用から返す
  * Ver.01.37.00 Shunji Ogawa  2026/11/23  WiXの署名付きModels対象を単一起動の選択に結合
+ * Ver.01.38.00 Shunji Ogawa  2026/11/27  指定適用に基本パッケージの登録先照合を接続
+ * Ver.01.39.00 Shunji Ogawa  2026/11/27  Displayの登録と指定適用直前の再照合を追加
  * </pre>
  *
  * @note 現在のPnP deviceとlocal Driver Storeの互換driver providerを定義します。Hardware IDとdevice instance IDは
@@ -856,6 +858,22 @@ private:
 		const OfficialInfInstallBinding							 &binding,
 		RequiredInfBindingDiagnostic							 *diagnosticStage = nullptr) const ;
 	/**
+	 * @brief 実登録又は親指定適用の直前に同じDisplay所有と索引操作を再照合する
+	 * @param[in] session 元スキャン
+	 * @param[in] identity 同じ親のopaque ID
+	 * @param[in] inspection 同じ元署名閉包
+	 * @param[in] plan 現用所有を読取済みの同じ親計画
+	 * @param[in] binding 同じ一台の私有binding
+	 * @param[in] operation 登録開始時の実行操作ID
+	 * @param[in] authorize 同じ署名元と実UTCの最終確認
+	 * @return 全照合成立で0、それ以外はHRESULT
+	 */
+	[[nodiscard]] NativeError authorizeDisplayInfMutation(
+		ScanSessionId session, std::wstring_view identity, const CommonInfInspection &inspection,
+		const std::shared_ptr<const RequiredDriverComponentPlan> &plan,
+		const OfficialInfInstallBinding &binding, OperationId operation,
+		const std::function<NativeError()> &authorize) const ;
+	/**
 	 * @brief 必要役割をstageし指定親と一意な必要SWC子だけを導入します
 	 * @param[in] session 元scanです
 	 * @param[in] identity 元選択親です
@@ -942,6 +960,8 @@ private:
 	 * @param[in] declarativeSource 独自クラスの署名確認済み元閉包です。従来経路はnullです
 	 * @param[in] wifiSource 同じ選択端末へフィルター置換を要求した元内容です。この経路以外はnullです
 	 * @param[out] storageReflection 自動起動補助または単一起動の事後観測。指定適用成功時に記録し、他の経路はnull
+	 * @param[in] copyInfSource 付随INFの不在を照合したDisplay基本INFの元閉包。他の経路はnull
+	 * @param[in] displaySource 現用所有を照合する同じDisplay基本INFの元閉包。他の経路ではnull
 	 * @return stage/指定API完了0、それ以外はHRESULTです
 	 * @note FALSE/LastError0では内部ERROR_INVALID_DATAを返し、実Windowsの同error観測と区別します
 	 */
@@ -954,7 +974,9 @@ private:
 		const std::function<NativeError()> *authorizationCheck = nullptr,
 		const CommonInfInspection		   *declarativeSource  = nullptr,
 		const CommonInfInspection		   *wifiSource		   = nullptr,
-		DriverStorageReflectionResult	   *storageReflection  = nullptr) const ;
+		DriverStorageReflectionResult	   *storageReflection  = nullptr,
+		const CommonInfInspection		   *copyInfSource	   = nullptr,
+		const CommonInfInspection		   *displaySource	   = nullptr) const ;
 	/**
 	 * @brief 通常scanと現在属性専用scanが共有する有界present列挙
 	 * @param[in] scanSessionId 呼出側が発行した非ゼロsession

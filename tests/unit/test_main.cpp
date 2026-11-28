@@ -2,7 +2,7 @@
 /**
  * @file test_main.cpp
  * @brief DriverCrate単体試験エントリーポイント
- * @version 01.57.00
+ * @version 01.58.00
  * @date 2026/11/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -101,6 +101,7 @@
  * Ver.01.55.00 Shunji Ogawa  2026/11/19  保存AWS原索引の通常取得計画を個別実行
  * Ver.01.56.00 Shunji Ogawa  2026/11/19  独自クラスの元署名・通常worker試験を個別実行
  * Ver.01.57.00 Shunji Ogawa  2026/11/22  保存した私有ZIP規約の通常取得試験を個別実行
+ * Ver.01.58.00 Shunji Ogawa  2026/11/27  付随INF付きDisplay更新の個別回帰試験を追加
  * </pre>
  *
  * @note 全unit test groupを順に実行し、process終了codeを返します
@@ -289,6 +290,14 @@ int main( const int argc, const char *const argv[])
 		// 本変更の有限通常経路だけを既存全suiteから分離します
 		if( argc == 2 && std::string_view( argv[1]) == "--windows-managed-driver-package") {
 			drivercrate::test::runWindowsManagedDriverPackageFixtureTests( context) ;
+			std::cout << "Assertions: " << context.assertionCount()
+					  << ", failures: " << context.failureCount() << '\n' ;
+			return context.failureCount() == 0U ? 0 : 1 ;
+		}
+
+		// 付随INFを持つ通常Display更新の受入を独立に実行します
+		if( argc == 2 && std::string_view( argv[1]) == "--display-copyinf-binding") {
+			drivercrate::test::runDisplayCopyInfBindingTests( context) ;
 			std::cout << "Assertions: " << context.assertionCount()
 					  << ", failures: " << context.failureCount() << '\n' ;
 			return context.failureCount() == 0U ? 0 : 1 ;

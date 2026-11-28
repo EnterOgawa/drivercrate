@@ -2,7 +2,7 @@
 /**
  * @file storage_inf_effects_internal.cpp
  * @brief 元storage全作用を型/所有scopeと安定service観測へ結びます
- * @version 01.37.00
+ * @version 01.41.00
  * @date 2026/11/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -59,6 +59,10 @@
  * Ver.01.35.00 Shunji Ogawa  2026/11/23  新規作成と既存電源定義の変更を同じ元候補で判定
  * Ver.01.36.00 Shunji Ogawa  2026/11/23  単一ブートの配置・イベント・局所値の変更範囲を判定
  * Ver.01.37.00 Shunji Ogawa  2026/11/23  単一起動の適用後の元署名と実作用を照合
+ * Ver.01.38.00 Shunji Ogawa  2026/11/27  DisplayのApplicationイベント源を元宣言へ照合
+ * Ver.01.39.00 Shunji Ogawa  2026/11/27  Display補助の現用SCM構成を保護付き実EXEへ照合
+ * Ver.01.40.00 Shunji Ogawa  2026/11/27  Display登録処理が読むSoftwareComponentクラスを観測
+ * Ver.01.41.00 Shunji Ogawa  2026/11/27  選択DisplayのOpenCL登録値と共有の旧マーカーを観測
  * </pre>
  *
  * @note 既SYSTEM policyを変更せず、PACKAGEは同由来のまま扱います。実registry/SCM変更はありません
@@ -67,6 +71,7 @@
 #include "platform/storage_inf_effects_internal.h"
 
 #include "platform/official_download_workspace.h"
+#include "platform/official_driver_package.h"
 #include "platform/registered_driver_store_package_internal.h"
 #include <Windows.h>
 #include <evntrace.h>
@@ -2353,20 +2358,24 @@ namespace {
 /**
  * @brief 要求時起動と自動起動の補助に共通する現在の実行条件を照合する
  * @param[in] actual 同じサービスの構成、状態、追加設定と保護の安定した観測
- * @param[in] declared 同じ補助サービスの署名付き登録から確認した元構成
+ * @param[in] name 同じ補助サービスの署名付き登録から確認した元名
+ * @param[in] start 同じ元宣言の開始方式
+ * @param[in] errorControl 同じ元宣言の障害時制御
+ * @param[in] group 元の起動順グループ。未指定は空
  * @return 共通の実行条件が成立すれば0、設定や状態が不一致ならHRESULT
  * @note 実行ファイルとセキュリティ記述子は各配置経路で別に検査する
  */
 //------------------------------------------------------------------------------
-NativeError matchStorageAuxiliaryServiceExecution( const AuxiliaryStorageServiceSnapshot &actual,
-												  const RegisteredStorageHelperEvidence &declared)
+NativeError matchAuxiliaryServiceExecution( const AuxiliaryStorageServiceSnapshot &actual,
+										   std::wstring_view name, std::uint32_t start,
+										   std::uint32_t errorControl, std::wstring_view group)
 {
 	const auto &config = actual.config ;	// SCMの基本構成を全項目のまま同期借用する
 	// 一つのWin32サービスで元構成と同じ開始方式・エラー制御・依存の不存在を要求する
-	if( declared.name.empty() || !same( config.name, declared.name) ||
-	   declared.type != SERVICE_WIN32_OWN_PROCESS || config.type != declared.type ||
-	   config.start != declared.start || config.errorControl != declared.errorControl ||
-	   config.tag != 0U || !config.group.empty() || !config.dependencies.empty()) {
+	if( name.empty() || !same( config.name, name) || config.type != SERVICE_WIN32_OWN_PROCESS ||
+	   config.start != start || config.errorControl != errorControl || config.tag != 0U ||
+	   (group.empty() ? !config.group.empty() : !same( config.group, group)) ||
+	   !config.dependencies.empty()) {
 		return UNSUPPORTED ;
 	}
 
@@ -2385,7 +2394,7 @@ NativeError matchStorageAuxiliaryServiceExecution( const AuxiliaryStorageService
 	}
 
 	// 同じ型が安定して停止中又は実行中である場合だけ既存所有の照合へ進む
-	if( status.type != declared.type ||
+	if( status.type != SERVICE_WIN32_OWN_PROCESS ||
 	   (status.state != SERVICE_STOPPED && status.state != SERVICE_RUNNING)) {
 		return UNSUPPORTED ;
 	}
@@ -2408,7 +2417,114 @@ NativeError matchStorageAuxiliaryServiceExecution( const AuxiliaryStorageService
 
 	return 0U ;
 }
+
+//------------------------------------------------------------------------------
+/**
+ * @brief ストレージ補助が指定した実行条件を元のグループなしで確認する
+ * @param[in] actual 同じサービスの完全なSCM観測
+ * @param[in] declared 同じ現用署名元に結び付いた補助サービス
+ * @return 元実行条件が成立して0、それ以外はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError matchStorageAuxiliaryServiceExecution( const AuxiliaryStorageServiceSnapshot &actual,
+												  const RegisteredStorageHelperEvidence &declared)
+{
+	return declared.type == SERVICE_WIN32_OWN_PROCESS
+			   ? matchAuxiliaryServiceExecution( actual, declared.name, declared.start,
+												declared.errorControl, {})
+			   : UNSUPPORTED ;
+}
 } // namespace
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在のDisplay補助サービスの実行条件を署名付き現用INFの宣言へ照合する
+ * @param[in] declaration 現用サービスのクラス、開始指定とグループまで照合済みの元宣言
+ * @param[in] actual 同じSCMサービスの元構成と保護付き観測
+ * @return 宣言の実行条件と現在構成が同じ場合0、失敗はHRESULT
+ * @note SCMコマンドに対応するファイルとCATは呼出側が照合する
+ */
+//------------------------------------------------------------------------------
+NativeError matchDisplayAuxiliaryServiceExecution(
+	const OfficialDisplayAuxiliaryService &declaration,
+	const AuxiliaryStorageServiceSnapshot &actual)
+{
+	// 元が省略した表示設定は現用名を用いる既知のSCM状態だけに結び付ける
+	if( !same( actual.config.display, declaration.serviceName) ||
+	   !actual.config.description.empty() || actual.config.security.empty() ||
+	   (!declaration.loadOrderGroup.empty() && !same( declaration.loadOrderGroup, L"Event log"))) {
+		return UNSUPPORTED ;
+	}
+
+	return matchAuxiliaryServiceExecution( actual, declaration.serviceName, SERVICE_AUTO_START,
+										  SERVICE_ERROR_NORMAL, declaration.loadOrderGroup) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用署名パッケージの実行ファイルと同じ補助サービスのSCM構成を照合する
+ * @param[in] registered 同じ選択の公開名・実節・元署名を確認した現用パッケージ
+ * @param[out] observation 同じ構成と実EXEの二度の完全観測。失敗時は空
+ * @return 現用の元実行条件と正規ファイルが一致して0、それ以外はHRESULT
+ * @note 読取専用。端末上の他デバイスとの共用や導入許可はここでは決めない
+ */
+//------------------------------------------------------------------------------
+NativeError readRegisteredDisplayAuxiliaryService(
+	const RegisteredDisplayAuxiliaryPackage &registered,
+	DisplayAuxiliaryServiceObservation		&observation)
+{
+	observation = {} ;
+	// 同じ現用元INFとCATが確認されていない実行パスを使わない
+	if( !registered.storeFile.existing || !registered.catalogFile.existing ||
+	   registered.executablePath.empty() || registered.executableSha256.size() != 64U) {
+		return E_INVALIDARG ;
+	}
+
+	try {
+		const auto read = [&registered]( DisplayAuxiliaryServiceObservation &result) {
+			// 元INFと同じ名前のSCM登録を一件だけ照会する
+			auto error =
+				readDisplayAuxiliaryScmSnapshot( registered.declaration.serviceName, result.service) ;
+			// 同名でも元の実行範囲や起動指定が異なる状態は選択外として扱う
+			if( error == 0U) {
+				error =
+					matchDisplayAuxiliaryServiceExecution( registered.declaration, result.service) ;
+			}
+
+			// SCMが署名検査済みの完全位置を指定する場合だけ実ファイルを読む
+			if( error == 0U) {
+				error = readRegisteredDriverStoreExecutableSnapshot(
+					result.service.config.binary, registered.executablePath, result.executable) ;
+			}
+
+			// 元CAT比較時の実バイトとの完全一致を要求する
+			if( error == 0U && (!result.executable.existing ||
+							   result.executable.existing->sha256 != registered.executableSha256)) {
+				return static_cast<NativeError>( TRUST_E_BAD_DIGEST) ;
+			}
+
+			return error ;
+		} ; // 元署名の証拠を二度の同期読取の間だけ借用する
+
+		DisplayAuxiliaryServiceObservation made ;					// 全照合前は外へ渡さない一回目の観測
+		DisplayAuxiliaryServiceObservation fresh ;					// 設定と実体の入れ替わりを調べる二回目の観測
+		auto							   error = read( made) ;	// 同じSCMと実ファイルの元診断
+		// 一回目の失敗は別時点の成功で補完しない
+		if( error == 0U) {
+			error = read( fresh) ;
+		}
+
+		// 状態、構成、権限、実ファイル識別子と元byteを全て再比較する
+		if( error != 0U || made != fresh) {
+			return error != 0U ? error : HRESULT_FROM_WIN32( ERROR_RETRY) ;
+		}
+
+		observation = std::move( made) ;
+		return 0U ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
 
 //------------------------------------------------------------------------------
 /**
@@ -3411,40 +3527,43 @@ NativeError readStorageEventSourceValues( HKEY key, StorageEventSourceSnapshot &
 
 //------------------------------------------------------------------------------
 /**
- * @brief 正式なSystemログ親と元選択から渡した一つまたは二つのイベント登録を読む
+ * @brief 正式なWindowsログ親と元選択から渡した一つまたは二つのイベント登録を読む
+ * @tparam Source 葉名、実在、保護、時刻を保持する観測型
+ * @tparam ReadValues 保護葉が開いた間だけ実行する値照合関数の型
  * @param[out] controlSet 成功時は同じWindowsが示す正式ControlSet名
- * @param[out] eventParents Systemログまでの親の元保護
+ * @param[out] eventParents 同じWindowsログまでの親の元保護
  * @param[in,out] sources 検査済みの一つまたは二つの葉名と作業中の現在値
- * @param[in] namedSource 補助サービスが明示した二番目のイベントのカテゴリ値も読む場合true
+ * @param[in] logName 呼出側が用途別に固定したSystemまたはApplicationの終端付き親名
+ * @param[in] readValues 同じ葉と位置を同期中だけ借用する型別値照合関数
  * @return 全読取り成功0、変更、型、保護またはWindowsの元エラーはHRESULT
  * @note 観測の作業値を失敗時に利用者や所有判定へ渡してはならない
  */
 //------------------------------------------------------------------------------
-NativeError readStorageEventSources( std::wstring						 &controlSet,
-									std::span<std::vector<std::byte>, 6U> eventParents,
-									std::span<StorageEventSourceSnapshot> sources, bool namedSource)
+template <class Source, class ReadValues>
+NativeError readProtectedDriverEventSources( std::wstring						 &controlSet,
+											std::span<std::vector<std::byte>, 6U> eventParents,
+											std::span<Source> sources, const wchar_t *logName,
+											ReadValues readValues)
 {
 	constexpr std::size_t MAX_EVENT_SOURCES = 2U ;	// 関連名と別の明示名まで
 	// 元選択の宣言数だけを受理し、空の部分観測を返さない
-	if( sources.empty() || sources.size() > MAX_EVENT_SOURCES ||
-	   (namedSource && sources.size() != MAX_EVENT_SOURCES)) {
+	if( sources.empty() || sources.size() > MAX_EVENT_SOURCES) {
 		return E_INVALIDARG ;
 	}
 
 	constexpr std::size_t CURRENT_LINK = 1U ;	// 正式なCurrentControlSetリンク
 	constexpr std::size_t CONTROL_SET  = 2U ;	// リンクが指す同じSYSTEM直下の実キー
-	// 元制御セットとSystemイベントへ向かう各キー名
-	constexpr std::array  names{L"SYSTEM",	 L"CurrentControlSet", L"",
-								L"Services", L"EventLog",		   L"System"} ;
-	constexpr std::array  roles{
-		 StorageRegistryReadRole::ORDINARY,
-		 StorageRegistryReadRole::CURRENT_CONTROL_SET,
-		 StorageRegistryReadRole::ORDINARY,
-		 StorageRegistryReadRole::ORDINARY,
-		 StorageRegistryReadRole::WINDOWS_EVENT_PARENT,
-		 StorageRegistryReadRole::WINDOWS_EVENT_PARENT,
-	 } ; // Windows EventLogの標準権限は専用親でだけ引き継ぐ
-	std::array<StorageRegistryChangeEvent, names.size() + MAX_EVENT_SOURCES>
+	// 元制御セットと用途別の固定ログへ向かう各キー名
+	const std::array names{L"SYSTEM", L"CurrentControlSet", L"", L"Services", L"EventLog", logName} ;
+	constexpr std::array roles{
+		StorageRegistryReadRole::ORDINARY,
+		StorageRegistryReadRole::CURRENT_CONTROL_SET,
+		StorageRegistryReadRole::ORDINARY,
+		StorageRegistryReadRole::ORDINARY,
+		StorageRegistryReadRole::WINDOWS_EVENT_PARENT,
+		StorageRegistryReadRole::WINDOWS_EVENT_PARENT,
+	} ; // Windows EventLogの標準権限は専用親でだけ引き継ぐ
+	std::array<StorageRegistryChangeEvent, roles.size() + MAX_EVENT_SOURCES>
 			   changes ;															// 各親と葉に別の通知を保持する
 	const auto watched = std::span{changes}.first( names.size() + sources.size()) ;	// 監視数
 	// 後の通知登録で先の通知が消えないよう、実際に開く親と葉に別イベントを割り当てる
@@ -3456,9 +3575,9 @@ NativeError readStorageEventSources( std::wstring						 &controlSet,
 		}
 	}
 
-	std::array<AutoLoggerRegistryKey, names.size()> parents ;	// 変更確認まで各正式親を保持する
+	std::array<AutoLoggerRegistryKey, roles.size()> parents ;	// 変更確認まで各正式親を保持する
 	StorageRegistryReadState state{nullptr, {}, 0U} ;			// 共通の正式制御セットと継承権限
-	// 従来と同じSystemログ親を一つずつ保護付きで読む
+	// 同じWindowsログの親を一つずつ保護付きで読む
 	for( std::size_t index = 0U; index < parents.size(); ++index) {
 		const HKEY	   parent = index == 0U ? HKEY_LOCAL_MACHINE
 											: parents[index == CONTROL_SET ? 0U : index - 1U]
@@ -3480,7 +3599,7 @@ NativeError readStorageEventSources( std::wstring						 &controlSet,
 	}
 
 	std::array<AutoLoggerRegistryKey, MAX_EVENT_SOURCES> leaves ;	// 各葉を変更確認まで保持する
-	// 署名付き元選択が指定した葉だけを同じSystemログ親から読む
+	// 署名付き元選択が指定した葉だけを同じWindowsログ親から読む
 	for( std::size_t index = 0U; index < sources.size(); ++index) {
 		auto &source	  = sources[index] ;	// この登録の名前と現在値
 		auto  leafState	  = state ;				// 同じ標準親から各葉に独立して継承する権限と通知
@@ -3500,7 +3619,7 @@ NativeError readStorageEventSources( std::wstring						 &controlSet,
 		}
 
 		const auto key = leaves[index].get() ;	// 保護を確認して保持した通常キー
-		error		   = readStorageEventSourceValues( key, source, namedSource && index == 1U) ;
+		error		   = readValues( key, source, index) ;
 		// 一方の元診断を別ソースの成功で上書きしない
 		if( error != 0U) {
 			return error ;
@@ -3535,6 +3654,32 @@ NativeError readStorageEventSources( std::wstring						 &controlSet,
 
 //------------------------------------------------------------------------------
 /**
+ * @brief ストレージの元選択が参照するSystemイベントを既存値規則で読む
+ * @param[out] controlSet 成功時は同じWindowsが示す正式ControlSet名
+ * @param[out] eventParents Systemログまでの親の元保護
+ * @param[in,out] sources 検査済みの一つまたは二つの葉名と作業中の現在値
+ * @param[in] namedSource 補助サービスが明示した二番目のイベントのカテゴリ値も読む場合true
+ * @return 全読取り成功0、変更、型、保護またはWindowsの元エラーはHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError readStorageEventSources( std::wstring						 &controlSet,
+									std::span<std::vector<std::byte>, 6U> eventParents,
+									std::span<StorageEventSourceSnapshot> sources, bool namedSource)
+{
+	// 従来の明示名では元の二件の宣言を維持する
+	if( namedSource && sources.size() != 2U) {
+		return E_INVALIDARG ;
+	}
+
+	return readProtectedDriverEventSources(
+		controlSet, eventParents, sources, L"System",
+		[namedSource]( HKEY key, StorageEventSourceSnapshot &source, std::size_t index) {
+			return readStorageEventSourceValues( key, source, namedSource && index == 1U) ;
+		}) ; // 読取中だけ元設定を値で保持する
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief Systemログ直下で解釈できる一つのイベント名を判定する
  * @param[in] name 同じ元INFの関連名または明示イベント名
  * @return 有限で相対の直接子名だけならtrue
@@ -3544,6 +3689,88 @@ bool isStorageEventSourceName( std::wstring_view name)
 {
 	return !name.empty() && name.size() <= 256U && relative( name) && name != L"." &&
 		   name.find( L'\\') == name.npos ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保護葉の展開前メッセージ型と元値を一件照合する
+ * @param[in] key 変更通知中の同じApplicationイベント葉
+ * @param[in] name 終端付きの固定EventMessageFileまたはCategoryMessageFile名
+ * @param[in] expected 署名INFの展開前元値。空は同じ値の正式な不在を要求する
+ * @return 同じ型と値または正式不在で0、その他は元診断または不一致のHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError matchDisplayEventString( HKEY key, const wchar_t *name, std::wstring_view expected)
+{
+	std::optional<std::wstring> actual ;										// Windowsから取得した展開前の値
+	std::uint32_t				type{} ;										// 展開前のREG_EXPAND_SZまたは不在の型
+	const auto error = readOptionalStorageString( key, name, actual, type) ;	// 元の型と値を読む
+	// 不正な型や不完全な元文字列を比較前に拒否する
+	if( error != 0U) {
+		return error ;
+	}
+
+	const bool matches = expected.empty() ? !actual && type == REG_NONE
+										  : actual && type == REG_EXPAND_SZ &&
+												// 原表記のまま照合する
+												same( *actual, expected) ;
+	return matches ? 0U : INVALID ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Applicationイベント源が現用INFの値だけを持つことを確認する
+ * @param[in] key 元イベント源を保護付きで開いた通常キー
+ * @param[in] declaration 現用署名元の一意な値名と型別の元値
+ * @return 全値・子キー数が一致する場合0、読取または照合不成立はHRESULT
+ * @note 読取り中の変更通知は呼出側の共通処理が確認する
+ */
+//------------------------------------------------------------------------------
+NativeError matchDisplayApplicationEventValues( HKEY									  key,
+											   const OfficialDisplayAuxiliaryService &declaration)
+{
+	DWORD	   subkeys{} ;	// 既存イベント源は直接の値だけを持つ
+	DWORD	   values{} ;	// 追加や隠れた値を判定する既存件数
+	const auto queried =
+		RegQueryInfoKeyW( key, nullptr, nullptr, nullptr, &subkeys, nullptr, nullptr, &values,
+						 nullptr, nullptr, nullptr, nullptr) ;	// 全キーと値を数える
+	// 取得失敗を子キーや値がない状態へ読み替えない
+	if( queried != ERROR_SUCCESS) {
+		return HRESULT_FROM_WIN32( queried) ;
+	}
+
+	const auto expected = 1U + (declaration.categoryMessageFile.empty() ? 0U : 1U) +
+						  // 現用INFが宣言した全型付きの値数
+						  declaration.eventValues.size() ;
+	// 追加の値・子キーを同じ元宣言の登録として扱わない
+	if( subkeys != 0U || values != expected) {
+		return INVALID ;
+	}
+
+	// 元イベント説明の診断を先に保持し、後続値の診断で上書きしない
+	auto error = matchDisplayEventString( key, L"EventMessageFile", declaration.messageFile) ;
+	// 同じイベント説明ファイルへ結合した場合だけカテゴリ宣言も照合する
+	if( error == 0U) {
+		error =
+			matchDisplayEventString( key, L"CategoryMessageFile", declaration.categoryMessageFile) ;
+	}
+
+	// 二つの説明先が一致しなければ数値だけの照合へ進めない
+	if( error != 0U) {
+		return error ;
+	}
+
+	// 元署名INFが明示した各DWORDについて型と全32bitの値を照合する
+	for( const auto &[name, value] : declaration.eventValues) {
+		std::optional<std::uint32_t> actual ;	// 取得した同名の元DWORD
+		error = readOptionalStorageDword( key, name.c_str(), actual) ;
+		// 読取の異常を不在や別の値へ置き換えない
+		if( error != 0U || actual != value) {
+			return error != 0U ? error : INVALID ;
+		}
+	}
+
+	return 0U ;
 }
 
 //------------------------------------------------------------------------------
@@ -3581,6 +3808,453 @@ NativeError readNamedStorageEventSources( std::wstring_view			 relatedService,
 	return 0U ;
 }
 } // namespace
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保護された既存Applicationイベント源の全値を現用INFの宣言へ照合する
+ * @param[in] declaration 現用署名済みDisplay INFが指定した同名イベント源と元値
+ * @param[out] snapshot 全値・型・保護と安定性が確認できた場合だけ保持。失敗時は空
+ * @return 既存の名前と全登録が一致して0、不在・不一致・読取エラーはHRESULT
+ * @note リソースDLLを読み込まず、登録を変更しない。デバイス所有の判定は呼出側で行う
+ */
+//------------------------------------------------------------------------------
+NativeError readDisplayApplicationEventSnapshot( const OfficialDisplayAuxiliaryService &declaration,
+												DisplayApplicationEventSnapshot		  &snapshot)
+{
+	snapshot = {} ;
+	// 同一イベント源の一意な名前と有限の値集合に限定する
+	if( !isStorageEventSourceName( declaration.eventSource) || declaration.messageFile.empty() ||
+	   declaration.eventValues.size() > 8U) {
+		return E_INVALIDARG ;
+	}
+
+	// 元DWORD名の重複を値件数に混ぜず、同じ名前を二重に比較しない
+	for( const auto &entry : declaration.eventValues) {
+		// 展開名や複数の同名値を有効なWindows値の集合に変えない
+		if( entry.first.empty() || entry.first.size() > 64U ||
+		   entry.first.find( L'\0') != entry.first.npos ||
+		   std::ranges::count_if( declaration.eventValues, [&entry]( const auto &other) {
+			   return same( entry.first, other.first) ;
+		   }) != 1) {
+			return E_INVALIDARG ;
+		}
+	}
+
+	try {
+		DisplayApplicationEventSnapshot made ;	// 検査と安定性が揃うまで非公開の観測
+		made.name		 = declaration.eventSource ;
+		const auto error = readProtectedDriverEventSources(
+			made.controlSet, made.eventParents, std::span{&made, 1U}, L"Application",
+			[&declaration]( HKEY key, const DisplayApplicationEventSnapshot &, std::size_t) {
+				return matchDisplayApplicationEventValues( key, declaration) ;
+			}) ; // 固定した元宣言を値検査の同期中だけ借用する
+		// 現用の署名宣言に値があっても、イベント源の実在がなければ所有証拠にしない
+		if( error != 0U || !made.present) {
+			return error != 0U ? error : HRESULT_FROM_WIN32( ERROR_NOT_FOUND) ;
+		}
+
+		snapshot = std::move( made) ;
+		return 0U ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief SoftwareComponentクラスの名前と値の安定した母集合を保護付きで取得する
+ * @param[out] snapshot 全登録、元制御セットと保護。読取失敗時は空
+ * @return 有界の登録を確定した場合0、それ以外はHRESULT
+ * @note 同じクラスの元状態のみを読む。現在機器や署名の照合は呼出し側で行う
+ */
+//------------------------------------------------------------------------------
+NativeError readDisplayType1ClassSnapshot( DisplayType1ClassSnapshot &snapshot)
+{
+	snapshot					   = {} ;
+	constexpr std::size_t LINK	   = 1U ;		// 現行Windowsの正式なCurrentControlSetリンク
+	constexpr std::size_t REAL	   = 2U ;		// 同じSYSTEM直下の実制御セット
+	constexpr DWORD		  MAX_KEYS = 4096U ;	// 番号以外も含めた直接子上限
+	constexpr std::array  names{
+		 L"SYSTEM", L"CurrentControlSet",
+		 L"",		L"Control",
+		 L"Class",	L"{5c4c3332-344d-483c-8739-259e934c9cc8}"} ;	// Windowsの正式クラスまでの階層
+	try {
+		DisplayType1ClassSnapshot made ;							// 完全な母集合と変更なしの確認後だけ外へ渡す値
+		std::array<AutoLoggerRegistryKey, names.size()> parents ;	// 元親を読取りの終端まで保持する
+		std::array<StorageRegistryChangeEvent, names.size()>
+										 watches ;			// 各元親とクラス配下の独立通知
+		std::array<HANDLE, names.size()> events{} ;			// 観測完了時にまとめて照会する借用ハンドル
+		StorageRegistryReadState state{nullptr, {}, 0U} ;	// 正式リンクとキーの保護を確認する一時状態
+		// 元のリンクを確定してから同じ実制御セットにあるクラスを開く
+		for( std::size_t index = 0U; index < names.size(); ++index) {
+			watches[index].reset( CreateEventW( nullptr, TRUE, FALSE, nullptr)) ;
+			// 変更を追えない読取りを安定した現在登録へ変換しない
+			if( !watches[index]) {
+				return HRESULT_FROM_WIN32( GetLastError()) ;
+			}
+
+			events[index] = watches[index].get() ;
+			state.changed = events[index] ;
+			const HKEY parent =
+				index == 0U ? HKEY_LOCAL_MACHINE
+							: parents[index == REAL ? 0U : index - 1U].get() ;	// 同じWindowsの正規親
+			const auto *name =
+				// 元の直接子名
+				index == REAL ? state.controlSet.c_str() : names[index] ;
+			const auto role =
+				index == LINK
+					? StorageRegistryReadRole::CURRENT_CONTROL_SET
+					: StorageRegistryReadRole::ORDINARY ;	// 正式リンク以外の再解決を認めない
+			const bool watchSubtree =
+				index + 1U == names.size() ;	// 最下層では各登録の変更も観測する
+			const DWORD notify = REG_NOTIFY_CHANGE_SECURITY | REG_NOTIFY_CHANGE_NAME |
+								 ((index == LINK || watchSubtree) ? REG_NOTIFY_CHANGE_LAST_SET
+																  : 0U) ;	// 層ごとの観測範囲
+			const auto error = readProtectedStorageKey( parent, name, role, state, parents[index],
+													   made.parents[index], notify,
+													   watchSubtree) ;	// 現用Windowsの親と元保護
+			// 読めない親を空のクラスと判断しない
+			if( error != 0U) {
+				return error ;
+			}
+		}
+
+		// 数え落としを防ぐため、対象外の名前も上限と列挙終端の確認に含める
+		for( DWORD index = 0U; index <= MAX_KEYS; ++index) {
+			std::array<wchar_t, 256U> name{} ;										// 直接子名と終端の上限
+			auto					  length = static_cast<DWORD>( name.size()) ;	// 入力容量と実名長
+			const auto				  listed =
+				RegEnumKeyExW( parents.back().get(), index, name.data(), &length, nullptr, nullptr,
+							  nullptr, nullptr) ;	// 同じクラスでの列挙診断
+			// 正式な列挙終端を確認してから現在登録を確定する
+			if( listed == ERROR_NO_MORE_ITEMS) {
+				break ;
+			}
+
+			// 列挙失敗や上限到達を部分成功として返さない
+			if( listed != ERROR_SUCCESS || index == MAX_KEYS || length == 0U ||
+			   length >= name.size()) {
+				return HRESULT_FROM_WIN32( listed != ERROR_SUCCESS ? listed : ERROR_BUFFER_OVERFLOW) ;
+			}
+
+			const std::wstring_view slot( name.data(), length) ;	// 実際に列挙した同じ子名
+			// Windowsの番号付き登録だけを収める。クラス共通の子キーは登録と区別する
+			if( slot.size() != 4U || !std::ranges::all_of( slot, []( const wchar_t digit) {
+				   return digit >= L'0' && digit <= L'9' ;
+			   })) {
+				continue ;
+			}
+
+			DisplayType1ClassRegistration row ;	// 値と保護の確認が完了するまで保留する一登録
+			row.slot = slot ;
+			HKEY	   raw{} ;	// 既に配下を監視中のクラスにある直接子
+			const auto opened =
+				RegOpenKeyExW( parents.back().get(), row.slot.c_str(), REG_OPTION_OPEN_LINK,
+							  KEY_READ | KEY_WOW64_64KEY, &raw) ;	// リンクを辿らず一件だけ開く
+			// クラスが開けても各元登録の読取不能を不在にしない
+			if( opened != ERROR_SUCCESS) {
+				return HRESULT_FROM_WIN32( opened) ;
+			}
+
+			AutoLoggerRegistryKey child ;	// 同じクラス配下の元キーの保持
+			child.reset( raw) ;
+			auto error = requireOrdinaryAutoLoggerKey( parents.back().get(), row.slot.c_str(),
+													  // 別のレジストリ位置へ転送するキーを拒否する
+													  child.get()) ;
+			// 通常の直接子だけで元のアクセス権を読む
+			if( error == 0U) {
+				error = readAutoLoggerSecurity( child.get(), false, state.eventLogInheritance,
+											   row.security) ;
+			}
+
+			// 同じ登録の保護を確認できなければ元値を採用しない
+			if( error != 0U) {
+				return error ;
+			}
+
+			std::uint32_t idType{} ;	// MatchingDeviceIdの実型または不在
+			std::uint32_t pathType{} ;	// DriverStorePathの実型または不在
+			error =
+				readOptionalStorageString( child.get(), L"MatchingDeviceId", row.matchingId, idType) ;
+			// 同じ登録の元一致IDが読めた場合だけ実パスの型を確認する
+			if( error == 0U) {
+				error = readOptionalStorageString( child.get(), L"DriverStorePath", row.storePath,
+												  pathType) ;
+			}
+
+			// 型が異なる元値や曖昧な展開を既知の登録へ変換しない
+			if( error != 0U || (row.matchingId && idType != REG_SZ) ||
+			   (row.storePath && pathType != REG_SZ)) {
+				return error ? error : INVALID ;
+			}
+
+			made.registrations.push_back( std::move( row)) ;
+		}
+
+		const auto changed = WaitForMultipleObjects(
+			// 全観測中に起きた変更
+			static_cast<DWORD>( events.size()), events.data(), FALSE, 0U) ;
+		// 途中変更や通知失敗から同一時点のクラス登録を発行しない
+		if( changed != WAIT_TIMEOUT) {
+			return HRESULT_FROM_WIN32( changed == WAIT_FAILED ? GetLastError() : ERROR_RETRY) ;
+		}
+
+		std::ranges::sort( made.registrations, {}, &DisplayType1ClassRegistration::slot) ;
+		made.controlSet = std::move( state.controlSet) ;
+		snapshot		= std::move( made) ;
+		return 0U ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+
+namespace {
+// 選択された親に要求するWindowsのDisplayクラスGUID
+constexpr GUID DISPLAY_TYPE1_REGISTRY_CLASS{
+	0x4d36e968, 0xe325, 0x11ce, {0xbf, 0xc1, 0x08, 0x00, 0x2b, 0xe1, 0x03, 0x18}} ;
+// 同じDisplayクラスGUIDを表すWindowsのレジストリキー名
+constexpr std::wstring_view DISPLAY_TYPE1_REGISTRY_CLASS_NAME{
+	L"{4d36e968-e325-11ce-bfc1-08002be10318}"} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ選択Displayに設定されたWindowsの相対Driverキー名を取得する
+ * @param[in] devices 選択親を開いたWindowsデバイス情報集合
+ * @param[in,out] parent 同じ集合に属する選択親をWindowsの照会へ同期で渡す
+ * @param[out] driverKey 正式Displayクラスと4桁の直接子。失敗時は更新しない
+ * @return 元Display登録の明示値で0、型・構文・読取りの不成立はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError readDisplayType1DriverKey( HDEVINFO devices, SP_DEVINFO_DATA &parent,
+									  std::wstring &driverKey)
+{
+	constexpr std::wstring_view CLASS_NAME{
+		DISPLAY_TYPE1_REGISTRY_CLASS_NAME} ;	// 相対パスの固定クラス部分
+	constexpr std::size_t SLOT_LENGTH = 4U ;	// Windowsのクラス登録番号の十進桁数
+	std::array<wchar_t, CLASS_NAME.size() + 1U + SLOT_LENGTH + 1U>
+		  value{} ;	// 区切りと終端を含む元領域
+	DWORD type{} ;	// SetupAPIが返すレジストリの元型
+	DWORD bytes{} ;	// SetupAPIが実際に返した元全長
+	// Windowsのプロパティ照会にUTF-16の領域をbyte列として渡す
+	if( !SetupDiGetDeviceRegistryPropertyW( devices, &parent, SPDRP_DRIVER, &type,
+										  reinterpret_cast<PBYTE>( value.data()),
+										  static_cast<DWORD>( sizeof( value)), &bytes)) {
+		return HRESULT_FROM_WIN32( GetLastError()) ;
+	}
+
+	const std::wstring_view relative{value.data(), value.size() - 1U} ;	// 終端を除く元照会値
+	const auto slot = relative.substr( CLASS_NAME.size() + 1U) ;		// 直接の登録番号だけを検証する
+	// 別クラス、埋込み終端、追加の階層、文字や長さの違う登録番号を拒否する
+	if( type != REG_SZ || bytes != sizeof( value) || value.back() != L'\0' ||
+	   !same( relative.substr( 0U, CLASS_NAME.size()), CLASS_NAME) ||
+	   relative[CLASS_NAME.size()] != L'\\' || !std::ranges::all_of( slot, []( const wchar_t digit) {
+		   return digit >= L'0' && digit <= L'9' ;
+	   })) {
+		return INVALID ;
+	}
+
+	driverKey = relative ;
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保護の確認済みキーで一つの固定値の実型と原バイトを読み取る
+ * @param[in] key 同じ観測で保持した通常キー。正式に不在ならnull
+ * @param[in] name 確認済み実行物が参照する一つの固定値名
+ * @param[out] result 実在時は元型と全バイト。正式不在と失敗時は空
+ * @return 正式不在または全元値で0、型や長さの途中変更・読取失敗はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError readDisplayType1RegistryValue( HKEY key, const wchar_t *name,
+										  std::optional<DisplayType1RegistryValue> &result)
+{
+	result.reset() ;
+	// 正式不在のキーに別の場所からの値を補完しない
+	if( !key) {
+		return 0U ;
+	}
+
+	constexpr DWORD MAX_BYTES = 8192U ;	// 型を問わず保持する元値の上限byte数
+	DWORD			type{} ;			// 初回照会時にWindowsが返す保存型
+	DWORD			required{} ;		// 変換前の元値の全byte数
+	// 最初の照会で元型と長さ又は正式な不在を得る
+	const auto		sized = RegQueryValueExW( key, name, nullptr, &type, nullptr, &required) ;
+	// 直接値の正式不在だけを空の成功へ含める
+	if( sized == ERROR_FILE_NOT_FOUND) {
+		return 0U ;
+	}
+
+	// 失敗や上限超過を空の値へ変換しない
+	if( sized != ERROR_SUCCESS || required > MAX_BYTES) {
+		return HRESULT_FROM_WIN32( sized == ERROR_SUCCESS ? ERROR_BUFFER_OVERFLOW : sized) ;
+	}
+
+	DisplayType1RegistryValue made ;	// 型と全長を再確認してから返す元値
+	made.bytes.resize( required) ;
+	BYTE	   empty{} ;			// 元値がゼロ長でも二回目を長さ専用照会にしないための領域
+	DWORD	   bytes = required ;	// APIの入力容量と実際に読んだbyte数
+	DWORD	   currentType{} ;		// 再照会時のWindows保存型
+	// Win32へbyte列の可変領域を渡し、値の全体を読取る
+	const auto read = RegQueryValueExW(
+		key, name, nullptr, &currentType,
+		required == 0U ? &empty : reinterpret_cast<PBYTE>( made.bytes.data()), &bytes) ;
+	// 照会途中の削除・変更を最初からの不在や整合済みの元値へ変換しない
+	if( read != ERROR_SUCCESS || currentType != type || bytes != required) {
+		return read == ERROR_SUCCESS ? HRESULT_FROM_WIN32( ERROR_RETRY) : HRESULT_FROM_WIN32( read) ;
+	}
+
+	made.type = type ;
+	result	  = std::move( made) ;
+	return 0U ;
+}
+
+/** @brief Type 1の固定の直接親と各キーに許す読取り条件 */
+struct DisplayType1RegistryPath {
+	/// 固定の直接子名。実制御セットと選択番号だけは観測時の元名を使う
+	const wchar_t		   *name ;
+	/// 同じ表の既読の親。ルートではHKLMを使う
+	std::size_t				parent ;
+	/// 正式なリンク又は正式不在を許す位置を別に指定する
+	StorageRegistryReadRole role = StorageRegistryReadRole::ORDINARY ;
+	/// 当該キーの直接値の変更も監視する場合true
+	bool					watchValues{} ;
+} ;
+} // namespace
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択Displayの実Driverキーと共有二箇所のOpenCL Type 1対象値を読取る
+ * @param[in] devices 選択親を開いたWindowsのデバイス情報集合。同期中だけ借用する
+ * @param[in,out] parent 同じ情報集合に属する選択Displayのデバイス情報
+ * @param[out] snapshot 保護、元型、元値と正式な不在。失敗時は空
+ * @return 現在の相対Driverキーと各作用先を安定して読めた場合0、その他は元HRESULT
+ * @note レジストリは読取り専用。元実行物、親子関係、他の作用、導入可否は確定しない
+ */
+//------------------------------------------------------------------------------
+NativeError readDisplayType1RegistrySnapshot( HDEVINFO devices, SP_DEVINFO_DATA &parent,
+											 DisplayType1RegistrySnapshot &snapshot)
+{
+	snapshot = {} ;
+	// Windowsが選択親として扱う同じDisplayクラス以外からは観測しない
+	if( !devices || devices == INVALID_HANDLE_VALUE || parent.cbSize != sizeof( parent) ||
+	   !IsEqualGUID( parent.ClassGuid, DISPLAY_TYPE1_REGISTRY_CLASS)) {
+		return E_INVALIDARG ;
+	}
+
+	try {
+		DisplayType1RegistrySnapshot made ;	// 全キーと値を確認してから公開する作業結果
+		auto						 error =
+			// 実際の親から読む元結合
+			readDisplayType1DriverKey( devices, parent, made.driverKey) ;
+		// 現用の相対キーが不明なら別のDisplay登録番号を探索しない
+		if( error != 0U) {
+			return error ;
+		}
+
+		constexpr std::size_t ROOT = std::tuple_size_v<decltype( made.keySecurity)> ;	// HKLMの親指定
+		constexpr std::size_t CONTROL_SET = 2U ;										// 正式リンクから読み取る同じ制御セット
+		constexpr std::size_t SLOT		  = 6U ;										// 選択親のWindows相対Driverキーの登録番号
+		constexpr auto		  OPTIONAL_KEY =
+			StorageRegistryReadRole::ABSENCE_ALLOWED ;	// 正式不在も観測する枝
+		const auto *slot =
+			// 元番号
+			made.driverKey.c_str() + DISPLAY_TYPE1_REGISTRY_CLASS_NAME.size() + 1U ;
+		const std::array paths{
+			DisplayType1RegistryPath{L"SYSTEM", ROOT},
+			DisplayType1RegistryPath{L"CurrentControlSet", 0U,
+									 StorageRegistryReadRole::CURRENT_CONTROL_SET, true},
+			DisplayType1RegistryPath{nullptr, 0U},
+			DisplayType1RegistryPath{L"Control", CONTROL_SET},
+			DisplayType1RegistryPath{L"Class", 3U},
+			DisplayType1RegistryPath{DISPLAY_TYPE1_REGISTRY_CLASS_NAME.data(), 4U},
+			DisplayType1RegistryPath{slot, 5U, StorageRegistryReadRole::ORDINARY, true},
+			DisplayType1RegistryPath{L"CopyToVMOverwrite", SLOT, OPTIONAL_KEY, true},
+			DisplayType1RegistryPath{L"CopyToVMOverwriteWow64", SLOT, OPTIONAL_KEY, true},
+			DisplayType1RegistryPath{L"Services", CONTROL_SET},
+			DisplayType1RegistryPath{L"AMD External Events Utility", 9U, OPTIONAL_KEY, true},
+			DisplayType1RegistryPath{L"SOFTWARE", ROOT},
+			DisplayType1RegistryPath{L"AMD", 11U, OPTIONAL_KEY},
+			DisplayType1RegistryPath{L"EEU", 12U, OPTIONAL_KEY, true},
+		} ; // 元実行物が参照する直接階層とその保護を固定順で観測する
+		static_assert( std::tuple_size_v<decltype( paths)> == ROOT) ;
+		std::array<StorageRegistryChangeEvent, ROOT>
+			watches ;	// 各キーへの独立した変更通知を所有する
+		std::array<AutoLoggerRegistryKey, ROOT>
+								 keys ;						// 通知確認まで元の全親と葉を開いたまま保持する
+		std::array<HANDLE, ROOT> events{} ;					// 最後に一度に確認する作成済み通知
+		std::size_t				 count{} ;					// 途中で親が正式不在の枝を除いた通知数
+		StorageRegistryReadState state{nullptr, {}, 0U} ;	// 同じ正式リンクを解決する元状態
+		// 各位置で監視を開始し、同じ固定木の保護と正式な葉の不在を確認する
+		for( std::size_t index = 0U; index < paths.size(); ++index) {
+			const auto &path	  = paths[index] ;	// 確認する一枝と許可した直下名
+			const HKEY	keyParent = path.parent == ROOT ? HKEY_LOCAL_MACHINE
+														: keys[path.parent].get() ;	// 保持した正規親
+			// 保護を確認して正式に不在だった親の配下には別の位置を使わない
+			if( !keyParent) {
+				continue ;
+			}
+
+			watches[index].reset( CreateEventW( nullptr, TRUE, FALSE, nullptr)) ;
+			// 途中変更を検出できない範囲を同じ観測として扱わない
+			if( !watches[index]) {
+				return HRESULT_FROM_WIN32( GetLastError()) ;
+			}
+
+			state.changed	 = watches[index].get() ;
+			events[count++]	 = state.changed ;
+			const auto *name = index == CONTROL_SET ? state.controlSet.c_str()
+													: path.name ;	// 同じリンクで解決した一名
+			const DWORD filter =
+				REG_NOTIFY_CHANGE_NAME | REG_NOTIFY_CHANGE_SECURITY |
+				(path.watchValues ? REG_NOTIFY_CHANGE_LAST_SET : 0U) ;	// 直接キーの監視範囲
+			error = readProtectedStorageKey( keyParent, name, path.role, state, keys[index],
+											made.keySecurity[index], filter) ;
+			// 保護・解決・通知の異常を構成要素の不存在へ読み替えない
+			if( error != 0U) {
+				return error ;
+			}
+		}
+
+		const std::array values{
+			std::tuple{SLOT, L"OpenCLDriverName", &made.openClDriverName},
+			std::tuple{SLOT, L"OpenCLDriverNameWow", &made.openClDriverNameWow},
+			std::tuple{SLOT, L"CheckRegistration", &made.parentCheckRegistration},
+			std::tuple{std::size_t{7U}, L"AMDOpenCL", &made.copyToVmOverwrite},
+			std::tuple{std::size_t{8U}, L"AMDOpenCL", &made.copyToVmOverwriteWow64},
+			std::tuple{std::size_t{10U}, L"CheckRegistration", &made.serviceCheckRegistration},
+			std::tuple{std::size_t{13U}, L"CheckRegistration", &made.softwareCheckRegistration},
+		} ; // 選択親と共有二箇所で実行物が対象とする元値だけを読む
+		// 全位置の変更監視が有効な間に各値の元型と全byteを確認する
+		for( const auto &[index, name, value] : values) {
+			error = readDisplayType1RegistryValue( keys[index].get(), name, *value) ;
+			// 一部の観測失敗を正式不在として返さない
+			if( error != 0U) {
+				return error ;
+			}
+		}
+
+		std::wstring currentDriverKey ;	// 同じWindows機器から再取得する元結合
+		error = readDisplayType1DriverKey( devices, parent, currentDriverKey) ;
+		// 読取りの両端で親の登録位置が一致した場合だけ保持する
+		if( error != 0U || !same( made.driverKey, currentDriverKey)) {
+			return error != 0U ? error : HRESULT_FROM_WIN32( ERROR_RETRY) ;
+		}
+
+		const auto changed = WaitForMultipleObjects( static_cast<DWORD>( count), events.data(), FALSE,
+													0U) ;	// 全元キーの読取り途中の変更
+		// 通知の変化や照会失敗を安定した現在レジストリ値へ変換しない
+		if( changed != WAIT_TIMEOUT) {
+			return HRESULT_FROM_WIN32( changed == WAIT_FAILED ? GetLastError() : ERROR_RETRY) ;
+		}
+
+		made.controlSet = std::move( state.controlSet) ;
+		snapshot		= std::move( made) ;
+		return 0U ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
 
 //------------------------------------------------------------------------------
 /**

@@ -2,7 +2,7 @@
 /**
  * @file main_window.cpp
  * @brief DriverCrateメインウィンドウ実装
- * @version 01.44.00
+ * @version 01.46.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -134,6 +134,8 @@
  * Ver.01.42.00 Shunji Ogawa  2026/11/23  単一起動の反映と再起動確認を同じ結果へ表示
  * Ver.01.43.00 Shunji Ogawa  2026/11/23  新スキャン開始時に旧規約の表示値を破棄
  * Ver.01.44.00 Shunji Ogawa  2026/11/23  WiXの元規約と単一起動の変更内容を最終確認へ結合
+ * Ver.01.45.00 Shunji Ogawa  2026/11/27  付随INF付き更新の表示除外を基本バージョンの事後観測へ結合
+ * Ver.01.46.00 Shunji Ogawa  2026/11/27  混在GPU構成でディスクリートGPUの自動チェックを優先
  * </pre>
  *
  * @note Win32 TreeTable、候補選択、およびworker eventの表示を実装します。全UI操作はUI threadで実行します
@@ -4643,8 +4645,8 @@ void MainWindow::processInstallCompleted( const WorkerEvent &event)
 
 //------------------------------------------------------------------------------
 /**
- * @brief 既defaultへ有効な表示対象を補い、一device一候補の初期selectionを作成する。既defaultと元plan/scanへ結ぶ表示eligibleの一意な更新/初回選択意図を一device一件作成する。矛盾した候補は
- *        fail-closedで全て未選択にする
+ * @brief 既定選択へ有効な表示候補を補い、一デバイス一候補の初期選択を作成する
+ * @note 既知の混在GPU構成の内蔵GPUは自動チェックを外す。候補の表示と明示選択は別に扱う
  */
 //------------------------------------------------------------------------------
 void MainWindow::initializeCandidateSelection()
@@ -4663,12 +4665,20 @@ void MainWindow::initializeCandidateSelection()
 		return ;
 	}
 
-	std::unordered_set<std::wstring> chosen ;	// 既defaultの一device choiceは上書きしません
+	const auto deferredGpu = deferredIntegratedGpuSelections(
+		candidates_, controller_.scanSessionId()) ;	// 現在の物理GPU観測に結び付く保留位置
+	std::unordered_set<std::wstring> chosen ;		// 既defaultの一device choiceは上書きしません
 	std::unordered_map<std::wstring, std::vector<std::size_t>>
 		eligible ;	// 同deviceの有効な表示候補だけです
 	// 既defaultを保持し、取得前/検査済み初回の同じ手動選択guardを使います
 	for( std::size_t index{}; index < candidates_.size(); ++index) {
 		const auto &candidate = candidates_[index] ;	// 同scanの元候補です
+		// 混在構成で内蔵GPUの明示操作を待つため、自動の二つの入口から外す
+		if( deferredGpu[index]) {
+			candidateSelected_[index] = false ;
+			continue ;
+		}
+
 		// 版欠損を含む旧管理service選択を維持します
 		if( candidateSelected_[index]) {
 			chosen.insert( candidate.deviceIdentity) ;
@@ -5713,6 +5723,12 @@ void MainWindow::recordCompletedInstallCandidates( const InstallResult &result,
 		if( !uniqueDevice || update.downloadOutcome != OutcomeCode::SUCCESS ||
 		   update.downloadError != 0U || update.installOutcome != OutcomeCode::SUCCESS ||
 		   update.installError != 0U || update.rebootRequired || update.installerHandoff) {
+			continue ;
+		}
+
+		// 付随INFが未解決の場合は、基本ドライバーの対象バージョンを実際に観測できた場合だけ一覧から外す
+		if( original->unresolvedCopyInfCount != 0U &&
+		   !resolvedInstallDevices_.contains( original->deviceIdentity)) {
 			continue ;
 		}
 

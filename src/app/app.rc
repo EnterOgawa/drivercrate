@@ -2,7 +2,7 @@
 /**
  * @file app.rc
  * @brief DriverCrate Windows resource定義
- * @version 01.46.00
+ * @version 01.48.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -129,6 +129,8 @@
  * Ver.01.44.01 Shunji Ogawa  2026/11/23  検査専用候補の内容結果を短文で表示
  * Ver.01.45.00 Shunji Ogawa  2026/11/23  候補詳細に検査済み規約の閲覧画面を追加
  * Ver.01.46.00 Shunji Ogawa  2026/11/23  ストレージの利用規約案内と同意文を追加
+ * Ver.01.47.00 Shunji Ogawa  2026/11/27  配布物取得時のタイムアウト・リンク切れ・制限の案内を追加
+ * Ver.01.48.00 Shunji Ogawa  2026/11/27  未解決の付随INFについて候補詳細の案内を追加
  * </pre>
  *
  * @note Application icon、executable version、manifest、および日本語UI文字列を定義します
@@ -654,6 +656,7 @@ BEGIN
 	IDS_PREPARATION_LIMITS "予約上限（byte: 1ファイル / 取得元 / 検索全体）: %1"
 	IDS_PREPARATION_FILES "予約件数上限（取得元 / 検索全体）: %1"
 	IDS_PREPARATION_UNRESOLVED "取得不可: 利用条件・EULAが未確定です。"
+	IDS_INDEX_COPYINF_UNRESOLVED "一部の付随INFを確認できませんでした。基本ドライバーの更新はWindowsで確認して続けます。"
 	IDS_PREPARATION_EULA_BLOCKED "取得不可: EULA全文が確認できません。revisionだけでは同意できません。"
 	IDS_PREPARATION_EULA_READY "取得前にEULA全文と改訂識別子の確認・明示同意が必要です。"
 	IDS_PREPARATION_ELIGIBLE "Provider確認済み: 取得前のEULA同意は不要。取得するか個別に選択できます。"
@@ -676,6 +679,10 @@ BEGIN
 	IDS_PREPARATION_CANCELLED "取消し"
 	IDS_PREPARATION_REJECTED "取得拒否"
 	IDS_PREPARATION_ITEM_FAILED "取得失敗"
+	IDS_PREPARATION_TRANSFER_TIMEOUT "配布元との通信がタイムアウトしました。時間をおいて「更新を検索」からお試しください。"
+	IDS_PREPARATION_TRANSFER_ACCESS "配布元がアクセスを拒否しました。「更新を検索」で配布情報をご確認ください。"
+	IDS_PREPARATION_TRANSFER_MISSING "配布先にファイルが見つかりません。「更新を検索」で配布情報をご確認ください。"
+	IDS_PREPARATION_TRANSFER_WAIT "配布元が混雑しているか、取得回数を制限しています。時間をおいて「更新を検索」からお試しください。"
 	IDS_PREPARATION_ERROR "承認エラー番号 / 制御エラー: %1"
 	IDS_PREPARATION_ACTUAL "取得byte数: %1"
 	IDS_PREPARATION_PLAN_ERROR "取得計画を作成できませんでした。ドライバー検索結果とは別のエラーです。\n%1"

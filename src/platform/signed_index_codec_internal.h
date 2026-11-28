@@ -2,7 +2,7 @@
 /**
  * @file signed_index_codec_internal.h
  * @brief 署名wrapperと未署名候補が共有する値codecを定義します
- * @version 01.10.01
+ * @version 01.11.00
  * @date 2026/10/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.09.00 Shunji Ogawa  2026/11/22  専用候補の局所読戻しに同じ値検査を使用
  * Ver.01.10.00 Shunji Ogawa  2026/11/25  本文と私有追加欄の共通検査を宣言
  * Ver.01.10.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
+ * Ver.01.11.00 Shunji Ogawa  2026/11/27  私有添付欄に限る規約の判定を共有
  * </pre>
  * @note 値の検査だけです。認証receipt、信頼鍵、通信能力を作りません
  * @see docs/adr/0396-collector-distribution-pipeline-connection.md
@@ -291,9 +292,18 @@ struct DecodedCollectorScopedModelsEvidence {
 
 //------------------------------------------------------------------------------
 /**
- * @brief 検査済みレコードの元ID又はModels節名に追加欄が必要か判定します
+ * @brief 現公開本文から分離する規約契約を同じ記述子から判定する
+ * @param[in] record 取得条件を解決した元レコード
+ * @return ZIP内の元規約または二段リンク用を持つ場合true
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool indexRecordHasPrivateTerms( const IndexDistributionRecord &record) noexcept ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 対象条件と原表記を保って旧索引本文へ記録できるか検査する
  * @param[in] record 共通codecで構造・元証拠を検査したレコードです
- * @return 元表記が旧文法の範囲を超える場合trueです
+ * @return 元表記や取得規約が旧文法の範囲を超える場合true
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool indexRecordNeedsSupplement( const IndexDistributionRecord &record) noexcept ;

@@ -2,7 +2,7 @@
 /**
  * @file official_download_grant.h
  * @brief 型付き公式配布recordの検証と短命download grantを定義します
- * @version 01.12.00
+ * @version 01.13.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,7 @@
  * Ver.01.11.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.11.03 Shunji Ogawa  2026/11/19  署名索引grantの元native列挙照合を明記
  * Ver.01.12.00 Shunji Ogawa  2026/11/23  WiX配布の元アンカーと指定転送先を取得許可へ結合
+ * Ver.01.13.00 Shunji Ogawa  2026/11/27  元配布に結ぶAMD公式ページを取得許可に保持
  * </pre>
  *
  * @note Provider worker threadだけで直列使用します。Recordは検査用取得の入口であり、内容、適用性、
@@ -616,6 +617,8 @@ private:
 	std::size_t									   signedIndexRelationIndex_{} ;
 	/// 認証済み一payloadのexact URL順。終端で消去します
 	std::vector<SecretOfficialUrl>				   signedIndexRoute_ ;
+	/// 同一の元署名配布に結ぶ公開AMD製品ページです。非対象は空です
+	std::wstring								   signedAmdProductPage_ ;
 	/**
 	 * @brief 終端結果を検証済みとして保持し、秘密URLを消去します
 	 * @param[in] outcome 保持する終端結果

@@ -2,7 +2,7 @@
 /**
  * @file inf_dependency_native.h
  * @brief 実INFの非実行依存観測と個別署名診断の定義
- * @version 01.16.00
+ * @version 01.18.00
  * @date 2026/10/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -41,6 +41,8 @@
  * Ver.01.14.00 Shunji Ogawa  2026/11/23  現用署名元と現在構成の再観測結果を比較
  * Ver.01.15.00 Shunji Ogawa  2026/11/24  公式USB Bluetoothの元選択と収集依存の検査入口を追加
  * Ver.01.16.00 Shunji Ogawa  2026/11/24  混在シリアルの二選択を同じ同梱観測へ結ぶ
+ * Ver.01.17.00 Shunji Ogawa  2026/11/27  内容計画のDisplay現用所有照会を宣言
+ * Ver.01.18.00 Shunji Ogawa  2026/11/27  同じDisplay必要子の元宣言だけを借用する契約を追加
  * </pre>
  *
  * @note Workerで同期借用し、実device、実行command、導入許可を扱わない
@@ -73,10 +75,30 @@ struct OfficialDriverClosure ;
 struct OfficialInfInstallInventory ;
 struct OfficialInfPackage ;
 struct OfficialZipEntry ;
+struct OfficialDisplayAuxiliaryService ;
+struct OfficialType1Registration ;
+struct DisplayAuxiliaryOwnershipProof ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択Displayの必須子と同じ元宣言だけを内容範囲の再照合へ渡す
+ * @param[in] proof 同じ親と現用所有・到達先を確認した証拠
+ * @param[in] selected 再照合する同じ元選択の必須子
+ * @return 同じ元INFと選択節を持つ既知の宣言への借用。別の選択ではnullptr
+ * @note 参照は証拠の所有者より長く保持できない。実行許可を発行しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] const OfficialType1Registration *reviewedDisplayType1Registration(
+	const DisplayAuxiliaryOwnershipProof &proof, const OfficialInfPackage &selected) noexcept ;
 
 /** @brief 元作用の検査後に同じ選択機器の現用登録・現在構成を保持する同期操作 */
 using StorageRegisteredDeviceRead = std::function<NativeError( const SelectedStorageServiceFacts &,
 															  StorageAutomaticDeviceSnapshot &)> ;
+
+/** @brief 元Display補助宣言に対して現在の所有関係を同期確認する操作 */
+using DisplayRegisteredDeviceRead =
+	std::function<NativeError( const OfficialDisplayAuxiliaryService &,
+							  std::shared_ptr<const DisplayAuxiliaryOwnershipProof> &)> ;
 class RequiredDriverComponentPlan ;
 struct RequiredInfBindingDiagnostic ;
 
@@ -413,13 +435,14 @@ private:
 	 *       へ結合した不変計画です。失敗時は空です
 	 * @note 第4引数（RequiredInfBindingDiagnostic *、out）はこの宣言では無名です。任意の数値診断です。nullなら採取せず合否へ使用しません
 	 * @note 第5引数（const StorageRegisteredDeviceRead *、in）はこの宣言では無名です。nullまたは同じ選択機器の読取操作です
+	 * @note 第6引数（const DisplayRegisteredDeviceRead *、in）はこの宣言では無名。nullまたは同じ選択Displayの所有読取り
 	 * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです
 	 * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません
 	 */
 	friend NativeError makeRequiredDriverComponentPlan(
 		const CommonInfInspection &, std::span<const OfficialInfPackage>,
 		std::shared_ptr<const RequiredDriverComponentPlan> &, RequiredInfBindingDiagnostic *,
-		const StorageRegisteredDeviceRead *) ;
+		const StorageRegisteredDeviceRead *, const DisplayRegisteredDeviceRead *) ;
 	/**
 	 * @brief 元内容を前後確認し、選択節の全Needs効果を検査します
 	 * @param[in] inspected 元保護byteと全署名を所有する内容です

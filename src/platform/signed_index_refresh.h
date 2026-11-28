@@ -2,7 +2,7 @@
 /**
  * @file signed_index_refresh.h
  * @brief 固定署名索引のrefreshと非機密な保存観測を定義します
- * @version 01.01.02
+ * @version 01.02.00
  * @date 2026/10/16
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/11/08  同一currentの保護cache再認証と通信省略を追加
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.00 Shunji Ogawa  2026/11/28  固定入口と署名スキーマを照合する内部依存を追加
  * </pre>
  * @note URL・snapshot・候補・grantを通常summaryへ保持しません
  */
@@ -140,6 +141,8 @@ struct Services {
 	std::function<IndexRefreshStoreObservation( std::optional<std::chrono::sys_seconds>)> reload ;
 	/// RAM public keyだけを呼出し中借用します
 	std::span<const signed_index_detail::TrustKey> fixtureTrust ;
+	/// 要求する固定配信の署名スキーマ。認証後の実版と完全一致が必要です
+	std::uint32_t								   manifestSchemaVersion{1U} ;
 } ;
 /** @brief 製品固定入口と完全fixtureを分ける内部接続です */
 struct Access {

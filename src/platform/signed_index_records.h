@@ -2,7 +2,7 @@
 /**
  * @file signed_index_records.h
  * @brief 署名済み展開byteから読む配布record schema receiptを定義します
- * @version 01.25.01
+ * @version 01.26.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -51,6 +51,7 @@
  * Ver.01.24.00 Shunji Ogawa  2026/11/23  私有追加欄の署名付きWiX配布・規約証拠を型付きで保持
  * Ver.01.25.00 Shunji Ogawa  2026/11/23  WiXレコードに完全Hardware IDの端末照合を要求
  * Ver.01.25.01 Shunji Ogawa  2026/11/26  追加レコード検査の各戻り値を前置契約で説明
+ * Ver.01.26.00 Shunji Ogawa  2026/11/27  二段リンクの規約一覧を元URLとハッシュとサイズで保持
  * </pre>
  *
  * @note 保存前のschema receiptです。公式性・端末適合・導入許可を成立させません
@@ -394,6 +395,12 @@ struct IndexHtmlTermsExtraction {
 	IndexManifestSha256	   bindingEvidenceSha256{} ;
 	/// 独立静的sectionだけの公式リンク根拠原byte数です。旧textareaでは0です
 	std::uint64_t		   bindingEvidenceSizeBytes{} ;
+	/// 二段リンクで配布ページと全文の間に置く規約一覧の正規HTTPS URLです
+	std::string			   bindingDirectoryUrl ;
+	/// 二段リンクの中間一覧を照合する原応答全体のSHA-256です
+	IndexManifestSha256	   bindingDirectorySha256{} ;
+	/// 二段リンクの中間一覧を照合する原応答の正のexact byte数です
+	std::uint64_t		   bindingDirectorySizeBytes{} ;
 } ;
 
 /** @brief 原UTF-8規約の固定取得情報です。Codecは本文を取得しません */
@@ -402,7 +409,7 @@ struct IndexTermsTextDocument {
 	std::string								url ;
 	/// Plainは使用時のexact原全文、HTMLは監視側原pageのprovenance hashです
 	IndexManifestSha256						sha256{} ;
-	/// 原wire byte数です。旧契約は256KiB、新static sectionだけ2MiB以内です
+	/// 原wire byte数です。静的sectionでは2MiB、旧textareaとplainでは256KiB以内です
 	std::uint64_t							sizeBytes{} ;
 	/// UTF-8 plainまたは明示HTMLの固定申告形式です
 	std::string								contentType ;

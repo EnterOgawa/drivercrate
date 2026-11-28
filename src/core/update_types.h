@@ -2,7 +2,7 @@
 /**
  * @file update_types.h
  * @brief Driver update共通値型定義
- * @version 01.28.00
+ * @version 01.29.00
  * @date 2026/09/01
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -94,6 +94,7 @@
  * Ver.01.26.00 Shunji Ogawa  2026/11/23  単一起動の反映結果を必要役割に保持
  * Ver.01.27.00 Shunji Ogawa  2026/11/23  同じ候補行の検査専用取得対象を追加
  * Ver.01.28.00 Shunji Ogawa  2026/11/23  WiX候補の規約を同じ元の検査行に結ぶ
+ * Ver.01.29.00 Shunji Ogawa  2026/11/27  基本更新と別に表示する付随INFの件数を追加
  * </pre>
  *
  * @note Provider、状態管理、およびUI間で交換する値型を定義します。Windows固有型を公開せず、unit testからも利用できる構成とします
@@ -829,6 +830,8 @@ struct UpdateCandidate {
 	std::optional<CandidateAssessment>			 assessment ;
 	/// 同byteから確認した必要Extension件数です。表示専用で導入権限を持ちません
 	std::uint32_t								 requiredExtensionCount{} ;
+	/// 基本パッケージの判定と区別して表示する未解決の付随INF数。通常は0
+	std::uint32_t								 unresolvedCopyInfCount{} ;
 	/// 元AddComponentへ結合した必要driver-only SWC件数です
 	std::uint32_t								 requiredDriverComponentCount{} ;
 	/// private storage資格で確認した原変更範囲です。表示値から資格を作りません

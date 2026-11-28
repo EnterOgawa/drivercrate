@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest_tests.cpp
  * @brief 非永続CNG RSA鍵の実署名でmanifest認証の拒否境界を検査します
- * @version 01.65.01
+ * @version 01.67.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -103,6 +103,8 @@
  * Ver.01.64.00 Shunji Ogawa  2026/11/23  署名済みWiX行と端末の完全Hardware IDを通常スキャンで検証
  * Ver.01.65.00 Shunji Ogawa  2026/11/23  署名済みWiXの原配布ハッシュを通常ワーカーの取得試験へ接続
  * Ver.01.65.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
+ * Ver.01.66.00 Shunji Ogawa  2026/11/27  Display付随INFの不在・別配置と同版を元配布物に固定
+ * Ver.01.67.00 Shunji Ogawa  2026/11/27  二段規約の署名付き原項目と従来二形式の互換を回帰
  * </pre>
  *
  * @note 秘密鍵はCNG handleのRAM内だけにあり、public blob以外をexportしません
@@ -150,6 +152,7 @@
 #include <winioctl.h>
 #include <bcrypt.h>
 #include <miniz.h>
+#include <winrt/base.h>
 
 #include "platform/signed_index_asset_bytes.h"
 #include "platform/signed_index_codec_internal.h"
@@ -162,8 +165,45 @@
 #include "platform/signed_index_acquisition_adapter.h"
 #include "platform/signed_index_acquisition_adapter_internal.h"
 #include "platform/index_distribution_trust.h"
+#include "platform/official_html_terms.h"
 #include "local_index_acceptance.h"
 #include "test_framework.h"
+
+namespace drivercrate::signed_index_store_detail {
+//------------------------------------------------------------------------------
+/**
+ * @brief 隔離ストアの署名済み本文と追加欄を再読し、両方を同じsnapshotへ結びます
+ * @param[in,out] store 再読する試験プロセスの隔離ストアです
+ * @param[in] nowUtc 再読と追加欄の検査に使う同じ信頼時刻です
+ * @return 両領域の実検査が成立した所有値です。製品ストア、拒否、期限切れでは空です
+ * @note 定義は試験targetにだけあり、原証拠やレコードを注入できません
+ */
+//------------------------------------------------------------------------------
+std::optional<AuthenticatedIndexSnapshot> Access::reloadWithConsumerSupplementForFixture(
+	SignedIndexStore &store, const std::chrono::sys_seconds nowUtc)
+{
+	// 自作隔離ストアでだけ通常取得adapter用の再読を許可します
+	if( isolatedRoot( store).empty()) {
+		return std::nullopt ;
+	}
+
+	auto loaded = store.reload( nowUtc) ;	// 同じ隔離ストアの実署名と本文を認証した結果です
+	// 本文の認証が成立した場合だけ、同じ署名と元転送byteの追加欄を読みます
+	if( !loaded.snapshot) {
+		return std::nullopt ;
+	}
+
+	// 再認証した同じ資産の端末用追加欄を検査した値です
+	auto supplement = readSignedIndexConsumerSupplement( loaded.snapshot->schemaReceipt(), nowUtc) ;
+	// 端末用追加欄も全検査済みの場合だけ、その検査結果を同じsnapshotに保持します
+	if( supplement.contents.status != IndexRecordsStatus::SCHEMA_VALIDATED) {
+		return std::nullopt ;
+	}
+
+	loaded.snapshot->consumerSupplement_ = std::move( supplement) ;
+	return std::move( loaded.snapshot) ;
+}
+} // namespace drivercrate::signed_index_store_detail
 
 namespace drivercrate::test {
 //------------------------------------------------------------------------------
@@ -178,6 +218,20 @@ namespace drivercrate::test {
 void runMetadataBoundAdapterFixtureTests( TestContext								   &context,
 										 std::shared_ptr<const SignedIndexRecordLookup> lookup,
 										 std::chrono::sys_seconds nowUtc, const std::string &body) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 二段規約の同じ署名レコードを通常取得候補と架空HTTP応答へ結びます
+ * @param[in,out] context 共通試験集計です
+ * @param[in] lookup 隔離署名ストアから照合したレコードです
+ * @param[in] nowUtc 規約を確認する固定信頼時刻です
+ * @param[in] bodies 配布、一覧、全文の順に固定した架空の元HTMLです
+ */
+//------------------------------------------------------------------------------
+void runLinkedTermsAdapterFixtureTests( TestContext									 &context,
+									   std::shared_ptr<const SignedIndexRecordLookup> lookup,
+									   std::chrono::sys_seconds						  nowUtc,
+									   const std::array<std::string, 3U>			 &bodies) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -2311,12 +2365,14 @@ void		testCatalogSupplementConsumer( TestContext &context, const RamKey &key) ;
  * @param[in] managed 人工INFの特定内容を選択します
  * @param[in] models 人工INFのModels装飾を選択します
  * @param[in] originalInf 非空時は指定した人工INFへ置換します
+ * @param[in] alternateInf 非空時は付随INFの別位置を検査するmemberを追加します
  * @return Minizで生成した原ZIPです
  */
 //------------------------------------------------------------------------------
 std::string normalWorkerDriverZip( bool network, std::string *infBytes,
 								  std::span<const std::string_view> nestedMembers, bool includeFlat,
-								  unsigned managed, unsigned models, std::string_view originalInf) ;
+								  unsigned managed, unsigned models, std::string_view originalInf,
+								  std::string_view alternateInf = {}) ;
 
 //------------------------------------------------------------------------------
 /**
@@ -4367,6 +4423,278 @@ void testPlatformDeviceSupplement( TestContext &context, const RamKey &key)
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 隔離署名ストアの元レコードを架空端末で照合して規約取得試験に渡します
+ * @param[in,out] context 共通試験集計です
+ * @param[in] snapshot 同じ署名と元配布物を検査して再読したsnapshotです
+ * @param[in] bodies 配布、一覧、全文の順に固定した架空の元HTMLです
+ */
+//------------------------------------------------------------------------------
+void runLinkedTermsLookupFixture( TestContext &context, AuthenticatedIndexSnapshot snapshot,
+								 const std::array<std::string, 3U> &bodies) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 実署名索引で二段規約を読み、従来のHTML申告と不正な結合を回帰します
+ * @param[in,out] context 共通試験集計です
+ * @param[in] key テスト用のRAM内署名鍵です
+ * @note 架空のURLだけを読み取り、規約の取得や同意は行いません
+ */
+//------------------------------------------------------------------------------
+void runLinkedStaticTermsCodecChecks( TestContext &context, const RamKey &key)
+{
+	using Status = IndexRecordsStatus ;
+	const std::array<std::string, 3U> bodies{
+		R"(<a href="https://vendor.example/fixture.zip">Driver</a><a href="/directory">List</a>)",
+		R"(<a href="/license">License</a>)",
+		// 架空の配布・一覧・全文です
+		R"(<html><body><div id="license"><p>Fixture license</p><ol><li>First term</li><li>Second term</li></ol></div></body></html>)"} ;
+	// 元配布ページの原ハッシュです
+	const auto pageHash = recordDigest( key, bodies[0]) ;
+	const auto source =
+		// 同じ元配布元です
+		replaced( recordSource(), RECORD_EVIDENCE_HASH, pageHash) ;
+	auto descriptor = descriptorFixture() ;	// 一つの配布に必要な原記述子です
+	// 架空の全原参照を配布ページの同じ原ハッシュへ結びます
+	while( descriptor.find( RECORD_EVIDENCE_HASH) != std::string::npos) {
+		descriptor = replaced( std::move( descriptor), RECORD_EVIDENCE_HASH, pageHash) ;
+	}
+
+	const auto termsBegin = descriptor.find( "\"terms\":") ;			// 元規約欄の開始です
+	const auto termsEnd	  = descriptor.find( ",\"prerequisites\"") ;	// 次の元項目です
+	const auto priorTerms =
+		std::string_view{descriptor}.substr( termsBegin, termsEnd - termsBegin) ;	// 元の規約欄です
+	// 原取得記述子と架空の署名対象IDに指定規約を同期で組み込みます
+	const auto row = [&]( const std::string_view terms, const std::string_view id,
+						 const bool inspected = false) {
+		return descriptorRecord(
+			replaced( descriptor, priorTerms, terms),
+			distributionRecord( id, true, inspected ? "CONTENT_INSPECTED" : "METADATA_ONLY")) ;
+	} ;
+	const std::string documentHash( 64U, 'c') ;						// 別に保持する規約全文ページの架空ハッシュです
+	const auto directoryHash = recordDigest( key, "directory") ;	// 中間一覧を識別する架空ハッシュです
+	const std::string textHash( 64U, 'e') ;							// 表示全文を識別する架空ハッシュです
+	const std::string direct =
+		// 従来の直接形式は公式製品ページとは異なる規約originを許容します
+		R"json("terms":{"state":"ACCEPTANCE_REQUIRED","reason":"","evidenceUrl":"https://terms.example/license","evidenceSha256":")json" +
+		documentHash +
+		R"json(","revisionKind":"VENDOR_LITERAL","revision":"Original 1.0","textDocument":{"url":"https://terms.example/license","sha256":")json" +
+		documentHash +
+		R"json(","sizeBytes":512,"contentType":"text/html; charset=utf-8","htmlExtraction":{"profile":"STATIC_HTML_SECTION_V1","selector":{"tag":"div","attribute":"id","value":"license"},"documentSha256":")json" +
+		pageHash + R"json(","documentSizeBytes":349,"textSha256":")json" + textHash +
+		R"json(","textSizeBytes":128,"bindingEvidenceUrl":"https://vendor.example/support","bindingEvidenceSha256":")json" +
+		pageHash + R"json(","bindingEvidenceSizeBytes":256}}})json" ;
+	auto textarea = replaced( direct, "https://terms.example/license",
+							 "https://vendor.example/support") ;	// 元配布ページ内のtextarea方式です
+	textarea	  = replaced( std::move( textarea), "https://terms.example/license",
+							 "https://vendor.example/support") ;
+	textarea	  = replaced( std::move( textarea), documentHash, pageHash) ;
+	textarea	  = replaced( std::move( textarea), documentHash, pageHash) ;
+	textarea = replaced( std::move( textarea), "STATIC_HTML_SECTION_V1", "TEXTAREA_HTML_DOCUMENT_V1") ;
+	textarea = replaced(
+		std::move( textarea), R"json("tag":"div","attribute":"id","value":"license"},)json",
+		R"json("tag":"textarea","attribute":"id","value":"license"},"containerSelector":{"tag":"div","attribute":"id","value":"panel"},"linkSelector":{"tag":"a","attribute":"id","value":"download"},"payloadAttribute":"href",)json") ;
+	textarea = replaced( std::move( textarea), ",\"bindingEvidenceSizeBytes\":256", "") ;
+	const std::string directoryUrl = "https://vendor.example/directory" ;	// 指定する中間一覧です
+	const std::string directoryFields =
+		",\"bindingDirectoryUrl\":\"" + directoryUrl + "\",\"bindingDirectorySha256\":\"" +
+		directoryHash +
+		"\",\"bindingDirectorySizeBytes\":384" ;	// 二段形式だけに必要な完全な原三項目です
+	auto linked = replaced( direct, "https://terms.example/license",
+						   "https://vendor.example/license") ;	// 二段方式の同一originを指定します
+	linked		= replaced( std::move( linked), "https://terms.example/license",
+						   "https://vendor.example/license") ;
+	linked = replaced( std::move( linked), "STATIC_HTML_SECTION_V1", "LINKED_STATIC_HTML_SECTION_V1") ;
+	linked = replaced( std::move( linked), R"("VENDOR_LITERAL","revision":"Original 1.0")",
+					  R"("COMPUTED_UTF8_SHA256","revision":"")") ;
+	linked = replaced( std::move( linked), "}}}", directoryFields + "}}}") ;
+	const auto oldDirect   = row( direct, "direct") ;		// 元の直接リンク方式です
+	const auto oldTextarea = row( textarea, "textarea") ;	// 元のtextarea方式です
+	const auto linkedRow   = row( linked, "linked", true) ;	// 配布・一覧・本文の原三URLを含む方式です
+	// 追加欄から独立する旧本文二件の原包みです
+	const auto baseEntries = recordEntry( key, oldDirect) + "," + recordEntry( key, oldTextarea) ;
+	const auto baseIndex   = descriptorIndex( source, baseEntries) ;	// 従来形式二件の固定本文です
+	const IndexManifestQuality baseQuality{1U, 2U, 2U, 0U, 0U} ;		// 追加欄を含めない署名用件数です
+	const auto				   expiry = std::chrono::sys_days{std::chrono::year{2026} / 10 / 12} +
+						std::chrono::hours{3} ;	// 二段方式の元記述子の期限です
+	// 通常の本文と異なる追加欄を同じ署名・圧縮資産へ同期で結びます
+	const auto withSupplement = [&]( const std::string_view additionalRow,
+									const bool			   observe = false) {
+		// 一つの元行を持つ追加欄だけの原展開byteです
+		const auto index =
+			replaced( descriptorIndex( source, recordEntry( key, additionalRow)),
+					 "driver-index-records-v2", "driver-index-records-supplement-v1") ;
+		// 元本文と追加欄を含む同じ署名対象の圧縮byteです
+		const auto gzip = assetWithExtra(
+			assetGzip( baseIndex), assetSupplementFrame( key, baseIndex, assetGzip( index), expiry)) ;
+		std::string outer ;	// 通常の隔離ストアを使う正例にだけ渡す署名原byteです
+		const auto	manifest =
+			// 元圧縮byteと本文二件だけの集計を含む署名摘要です
+			assetManifest( key, gzip, false, recordQuality( baseQuality), observe ? &outer : nullptr) ;
+		const auto bytes =
+			// 元圧縮資産の認証結果です
+			authenticateIndexAssetBytes( manifest, gzip, NOW) ;
+		// 追加欄の検査前に署名・元圧縮資産を確認します
+		if( !bytes.receipt) {
+			throw std::runtime_error( "linked terms fixture asset rejected") ;
+		}
+
+		auto base =
+			// 同じ資産内にある旧本文の検査結果です
+			readSignedIndexRecords( *bytes.receipt, NOW) ;
+		// 不正な追加欄を含む場合も従来二件の元本文が取得できます
+		if( !base.receipt || base.receipt->records().size() != 2U ||
+		   base.receipt->records()[0].originalBytes != oldDirect ||
+		   base.receipt->records()[1].originalBytes != oldTextarea) {
+			throw std::runtime_error( "linked terms fixture changed original base records") ;
+		}
+
+		// 原HTML付きの正例だけを隔離ストアに保存し、再読した本文と追加欄を取得入口へ渡します
+		if( observe) {
+			const std::array<signed_index_detail::TrustKey, 1U> trust{
+				{{"fixture-main", key.publicBlob}}} ;	// RAM試験鍵専用の隔離trustです
+			auto opened =
+				// 試験所有storeです
+				signed_index_store_detail::Access::createIsolated( trust) ;
+			// 認証・保存失敗を回帰成功として扱いません
+			if( !opened.store || !opened.store->commit( *base.receipt, outer, gzip, NOW).snapshot) {
+				throw std::runtime_error( "linked terms fixture isolated commit failed") ;
+			}
+
+			auto reload = signed_index_store_detail::Access::reloadWithConsumerSupplementForFixture(
+				*opened.store, NOW) ;	// 保存済みの同じ署名索引とその追加欄です
+			// 再認証済みの実snapshotだけを架空端末の照合に渡します
+			if( !reload || reload->originalEnvelope() != outer ||
+			   !std::ranges::equal( reload->originalGzip(), gzip)) {
+				throw std::runtime_error( "linked terms fixture isolated reload failed") ;
+			}
+
+			runLinkedTermsLookupFixture( context, std::move( *reload), bodies) ;
+		}
+
+		return std::move( *base.receipt) ;
+	} ;
+	const auto base		= withSupplement( linkedRow) ;						// 二段方式の追加欄を持つ署名本文です
+	const auto accepted = readSignedIndexConsumerSupplement( base, NOW) ;	// 端末の追加欄入口です
+	DRIVERCRATE_EXPECT( context, accepted.contents.status == Status::SCHEMA_VALIDATED &&
+									accepted.contents.records.size() == 1U &&
+									accepted.expiresAtUtc == expiry) ;
+	// 読み取れた追加欄だけを元バイトと型付きの中間一覧へ照合します
+	if( accepted.contents.records.size() == 1U) {
+		const auto &record	   = accepted.contents.records.front() ;	// 二段の検査済みレコードです
+		const auto &terms	   = record.acquisitionDescriptor->terms ;	// 二段の生の規約申告です
+		const auto &extraction = *terms.textDocument->htmlExtraction ;	// 二段の独立原フィールドです
+		DRIVERCRATE_EXPECT( context, record.originalBytes == linkedRow &&
+										record.recordSha256 == key.digest( linkedRow) &&
+										signed_index_detail::indexRecordNeedsSupplement( record)) ;
+		DRIVERCRATE_EXPECT( context,
+						   terms.revisionKind == IndexTermsRevisionKind::COMPUTED_UTF8_SHA256 &&
+							   terms.revision.empty() && !terms.archiveNotice &&
+							   extraction.bindingDirectoryUrl == directoryUrl &&
+							   extraction.bindingDirectorySha256 == key.digest( "directory") &&
+							   extraction.bindingDirectorySizeBytes == 384U) ;
+	}
+
+	const auto publicExtra = readSignedIndexSupplementRecords( base, NOW) ;	// 旧公開用入口です
+	DRIVERCRATE_EXPECT( context, publicExtra.status == Status::INVALID_SUPPLEMENT_PURPOSE &&
+									publicExtra.records.empty()) ;
+	rejectRecordIndex( context, key,
+					  descriptorIndex( source, baseEntries + "," + recordEntry( key, linkedRow)),
+					  Status::INVALID_EVIDENCE, {1U, 3U, 2U, 1U, 0U}) ;
+
+	// 署名を作り直した異常行だけを拒否し、同じ索引の従来二件を残します
+	const auto reject = [&]( const std::string_view terms, const Status expected) {
+		const auto result = readSignedIndexConsumerSupplement(
+			// 異常な追加欄の独立結果です
+			withSupplement( row( terms, "altered", true)), NOW) ;
+		DRIVERCRATE_EXPECT( context, result.contents.status == expected &&
+										result.contents.error == 0 &&
+										result.contents.records.empty()) ;
+	} ;
+	reject( replaced( direct, "}}}", directoryFields + "}}}"), Status::INVALID_RECORD) ;
+	reject( replaced( textarea, "}}}", directoryFields + "}}}"), Status::INVALID_RECORD) ;
+	reject( replaced( linked, directoryFields, ""), Status::INVALID_EVIDENCE) ;
+	reject( replaced( linked, ",\"bindingDirectorySizeBytes\":384", ""), Status::INVALID_EVIDENCE) ;
+	reject( replaced( linked, ",\"bindingDirectorySizeBytes\":384",
+					",\"bindingDirectorySizeBytes\":384,\"bindingDirectorySizeBytes\":384"),
+		   Status::INVALID_RECORD) ;
+	reject( replaced( linked, ",\"bindingDirectorySizeBytes\":384",
+					",\"bindingDirectorySizeBytes\":\"384\""),
+		   Status::INVALID_RECORD) ;
+	reject( replaced( linked, directoryHash, "not-a-digest"), Status::INVALID_EVIDENCE) ;
+	// 一件だけを置き換える原構造と不正値の組です
+	const std::array mutations{
+		std::pair{"\"bindingDirectorySizeBytes\":384", "\"bindingDirectorySizeBytes\":0"},
+		std::pair{"\"bindingDirectorySizeBytes\":384", "\"bindingDirectorySizeBytes\":2097153"},
+		std::pair{"\"bindingEvidenceSizeBytes\":256", "\"bindingEvidenceSizeBytes\":0"},
+		std::pair{"\"sizeBytes\":512", "\"sizeBytes\":2097153"},
+		std::pair{"\"documentSizeBytes\":349", "\"documentSizeBytes\":2097153"},
+		std::pair{"\"textSizeBytes\":128", "\"textSizeBytes\":2097153"},
+		std::pair{"https://vendor.example/directory", "https://other.example/directory"},
+		std::pair{"https://vendor.example/directory", "https://vendor.example:443/directory"},
+		std::pair{"https://vendor.example/directory", "https://vendor.example/./directory"},
+		std::pair{"https://vendor.example/directory", "https://vendor.example/%64irectory"},
+		std::pair{"https://vendor.example/directory", "https://vendor.example/support"},
+		std::pair{"https://vendor.example/directory", "https://vendor.example/license"},
+		std::pair{"\"bindingEvidenceUrl\":\"https://vendor.example/support",
+				  "\"bindingEvidenceUrl\":\"https://vendor.example/another"},
+		std::pair{"\"evidenceUrl\":\"https://vendor.example/license",
+				  "\"evidenceUrl\":\"https://vendor.example/another"},
+		std::pair{R"("COMPUTED_UTF8_SHA256","revision":"")", R"("VENDOR_LITERAL","revision":"v1")"},
+		std::pair{R"("COMPUTED_UTF8_SHA256","revision":"")",
+				  R"("COMPUTED_UTF8_SHA256","revision":"v1")"}} ;
+	// 原数値上限、同一originと原配布の結合、算出版の違反を一件ずつ検査します
+	for( const auto &change : mutations) {
+		reject( replaced( linked, change.first, change.second), Status::INVALID_EVIDENCE) ;
+	}
+
+	reject( replaced( linked, directoryUrl, directoryUrl + "?id=7"), Status::INVALID_URL) ;
+	reject( replaced( linked, documentHash, textHash), Status::INVALID_EVIDENCE) ;
+	reject( replaced( linked, "\"bindingEvidenceSha256\":\"" + pageHash,
+					"\"bindingEvidenceSha256\":\"" + documentHash),
+		   Status::INVALID_EVIDENCE) ;
+	const auto archiveNotice =
+		// 二段方式で併用を認めない、単独の文法には適合する別方式の規約証拠です
+		R"json(}},"archiveNotice":{"memberPath":"license.txt","memberSha256":")json" + textHash +
+		R"json(","statement":"License applies at https://vendor.example/license.","originalDocumentUrl":"https://vendor.example/license","archiveSha256":")json" +
+		pageHash +
+		R"json(","memberSizeBytes":100,"statementOffset":6,"archiveSizeBytes":1234}})json" ;
+	reject( replaced( linked, "}}}", archiveNotice), Status::INVALID_EVIDENCE) ;
+
+	IndexHtmlTermsExtraction selection ;	// 通常の規約抽出で使う同じ元selectorです
+	selection.profile  = LINKED_STATIC_TERMS_PROFILE ;
+	selection.selector = {"div", "id", "license"} ;
+	HtmlTermsTextObservation observation ;									// 同じ架空の文書から原節と表示全文を取得します
+	const std::wstring		 html( bodies[2].begin(), bodies[2].end()) ;	// ASCIIだけの架空文書です
+	// 原節と表示全文を取得できた場合だけ同じ元HTMLを署名対象にします
+	if( extractStaticHtmlTerms( html, selection, "https://vendor.example/fixture.zip", {},
+							  observation) != 0U) {
+		throw std::runtime_error( "linked terms fixture extraction rejected") ;
+	}
+
+	const auto selected = winrt::to_string( observation.document) ;	// 元節の完全UTF-8です
+	const auto fullText = winrt::to_string( observation.text) ;		// 順序付きリストを含む完全UTF-8です
+	const auto wireHash = recordDigest( key, bodies[2]) ;			// 全文ページ全体の原応答ハッシュです
+	auto actual = replaced( linked, documentHash, wireHash) ;		// 実際に使う原HTMLを別の正例に結びます
+	actual		= replaced( std::move( actual), documentHash, wireHash) ;
+	actual		= replaced( std::move( actual), directoryHash, recordDigest( key, bodies[1])) ;
+	actual		= replaced( std::move( actual), "\"documentSha256\":\"" + pageHash,
+						   "\"documentSha256\":\"" + recordDigest( key, selected)) ;
+	actual		= replaced( std::move( actual), textHash, recordDigest( key, fullText)) ;
+	actual		= replaced( std::move( actual), "\"sizeBytes\":512",
+						   "\"sizeBytes\":" + std::to_string( bodies[2].size())) ;
+	actual		= replaced( std::move( actual), "\"bindingEvidenceSizeBytes\":256",
+						   "\"bindingEvidenceSizeBytes\":" + std::to_string( bodies[0].size())) ;
+	actual		= replaced( std::move( actual), "\"bindingDirectorySizeBytes\":384",
+						   "\"bindingDirectorySizeBytes\":" + std::to_string( bodies[1].size())) ;
+	actual		= replaced( std::move( actual), "\"documentSizeBytes\":349",
+						   "\"documentSizeBytes\":" + std::to_string( selected.size())) ;
+	actual		= replaced( std::move( actual), "\"textSizeBytes\":128",
+						   "\"textSizeBytes\":" + std::to_string( fullText.size())) ;
+	static_cast<void>( withSupplement( row( actual, "linked", true), true)) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 真RAM署名と原GZipからv2 codecの正例・拒否・旧v1互換を検査します
  * @param[in,out] context 旧record groupと別の集計先
  * @note 実HTTP・EULA全文取得・grant・実device・導入は実行しません
@@ -4378,6 +4706,7 @@ void runDescriptorCodecChecks( TestContext &context)
 	const int firstFailure	 = context.failureCount() ;		// 新codec groupだけの開始失敗
 	RamKey	  key ;											// 既存CNG helperの秘密鍵はRAMだけに保持する
 	key.generate( 3072U) ;
+	runLinkedStaticTermsCodecChecks( context, key) ;
 	const std::string descriptor = descriptorFixture() ;			// 一payloadの完全元申告
 	const std::string raw		 = descriptorRecord( descriptor) ;	// Descriptorがschemaより先の原byte
 	const std::string index =
@@ -6876,6 +7205,7 @@ namespace {
  * @param[in] managed 0は旧fixture、1はdriver DATA、2..7はforeign/app/MSI/選択自動起動のscope負例です
  * @param[in] models 0は旧単一Models、1は二OS装飾、2は別Manufacturer行で両装飾が実選択されます
  * @param[in] originalInf 非空なら同じ三memberのZIPへ指定した人工INFの全byteを入れます
+ * @param[in] alternateInf 非空ならCopyINFの代替位置を示す追加memberを置きます
  * @return Minizが生成した有限原byte。CAT拒否を正常署名へ変更しません
  */
 //------------------------------------------------------------------------------
@@ -6883,7 +7213,8 @@ std::string normalWorkerDriverZip( const bool network = false, std::string *cons
 								  const std::span<const std::string_view> nestedMembers = {},
 								  const bool includeFlat = true, const unsigned managed = 0U,
 								  const unsigned		 models		 = 0U,
-								  const std::string_view originalInf = {})
+								  const std::string_view originalInf = {},
+								  const std::string_view alternateInf)
 {
 	std::string inf =
 		"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=Ports\r\n"
@@ -7032,6 +7363,13 @@ std::string normalWorkerDriverZip( const bool network = false, std::string *cons
 											  MZ_NO_COMPRESSION))) {
 		mz_zip_writer_end( &archive) ;
 		throw std::runtime_error( "worker ZIP members failed") ;
+	}
+
+	// 別位置の同名INFまたは圧縮名を原配布に含め、単純な欠落として扱わせません
+	if( !alternateInf.empty() && !mz_zip_writer_add_mem( &archive, std::string{alternateInf}.c_str(),
+													   inf.data(), inf.size(), MZ_NO_COMPRESSION)) {
+		mz_zip_writer_end( &archive) ;
+		throw std::runtime_error( "worker ZIP alternate INF failed") ;
 	}
 
 	// 各innerは同じ完全原INF閉包を持ち、member名だけを変えた取り違え回帰です
@@ -8037,6 +8375,35 @@ public:
 		return result ;
 	}
 } ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 隔離署名ストアの元レコードを架空端末で照合して規約取得試験に渡します
+ * @param[in,out] context 共通試験集計です
+ * @param[in] snapshot 同じ署名と元配布物を検査して再読したsnapshotです
+ * @param[in] bodies 配布、一覧、全文の順に固定した架空の元HTMLです
+ */
+//------------------------------------------------------------------------------
+void runLinkedTermsLookupFixture( TestContext &context, AuthenticatedIndexSnapshot snapshot,
+								 const std::array<std::string, 3U> &bodies)
+{
+	// 再読に成功した元snapshotの所有を照合へ移します
+	const auto shared = std::make_shared<const AuthenticatedIndexSnapshot>( std::move( snapshot)) ;
+	const IndexLookupContext current{301U, 302U, 303U} ;	// 規約取得試験と同じ架空のscanです
+	// 署名済みの公開IDを結び付ける架空端末です
+	const std::array<std::wstring, 2U> present{L"artificial-device-a", L"artificial-device-b"} ;
+	LookupResolver					   resolver ;	// 実端末を呼ばない既存の架空照合です
+	// 同じ索引の本文と追加欄を対象に照合します
+	auto matched = lookupSignedIndexRecords( shared, current, current, present, {}, NOW, &resolver) ;
+	// 架空端末の照合に成功した同じ原索引だけを通常の規約取得adapterへ渡します
+	if( !matched.lookup || matched.lookup->relations().empty()) {
+		throw std::runtime_error( "linked terms fixture lookup failed") ;
+	}
+
+	runLinkedTermsAdapterFixtureTests(
+		context, std::make_shared<const SignedIndexRecordLookup>( std::move( *matched.lookup)), NOW,
+		bodies) ;
+}
 
 //------------------------------------------------------------------------------
 /**
@@ -9900,6 +10267,76 @@ void runWindowsManagedDriverPackageFixtureTests( TestContext &context)
 		static_cast<void>( lookupSnapshot( key, raw, 1U, &store)) ;
 		std::cout << "WINDOWS_MANAGED_SOURCE mode=" << mode << " payloadBytes=" << zip.size()
 				  << " actualVendorPackage=0\n" ;
+		runNormalSignedIndexCandidateBindingTests( context, std::move( store), NOW, zip) ;
+	}
+
+	runDisplayCopyInfBindingTests( context) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 付随INFを伴うDisplay更新を署名索引から通常の指定導入まで検証する
+ * @param[in,out] context 正例と個別拒否を記録する試験集計です
+ * @note 取得、復元、登録、指定適用は隔離fixture内で行います
+ */
+//------------------------------------------------------------------------------
+void runDisplayCopyInfBindingTests( TestContext &context)
+{
+	RamKey key ;	// Display fixtureだけの非永続署名鍵です
+	key.generate( 3072U) ;
+	// 同一の基本Displayを用い、原配布内の場所と現在版だけを一件ずつ変えます
+	for( unsigned mode = 0U; mode < 4U; ++mode) {
+		std::string inf =
+			"[Version]\r\nSignature=\"$Windows NT$\"\r\nClass=Display\r\n"
+			"ClassGuid={4d36e968-e325-11ce-bfc1-08002be10318}\r\nProvider=Fixture Vendor\r\n"
+			"DriverVer=10/11/2026,1.0.0.0\r\nCatalogFile=fixture.cat\r\n"
+			"[Manufacturer]\r\nVendor=Models,NTamd64\r\n[Models.NTamd64]\r\n"
+			"Device=Install,TESTBUS\\SYNTH_0001\r\n[Install]\r\n"
+			"CopyFiles=Files\r\nCopyINF=optional.inf\r\n"
+			"[Install.Services]\r\nAddService=FixtureKernel,2,KernelService\r\n"
+			"[KernelService]\r\nServiceType=1\r\nStartType=3\r\nErrorControl=1\r\n"
+			"ServiceBinary=%12%\\fixture.sys\r\n"
+			"[Files]\r\nfixture.sys\r\n[DestinationDirs]\r\nFiles=12\r\n"
+			"[SourceDisksNames]\r\n1=\"fixture\"\r\n[SourceDisksFiles]\r\nfixture.sys=1\r\n"
+			"; windows-managed-scope-fixture\r\n" ;	// 原端末と必要ファイルは全条件で同じです
+		// 別配置、圧縮名、同版をそれぞれ同じ段階で拒否する期待です
+		if( mode != 0U) {
+			inf += "; scope-fixture-reject\r\n" ;
+		}
+
+		// 同版条件だけは署名済みの版と端末の現在観測を等しくします
+		if( mode == 3U) {
+			inf += "; copyinf-same-version\r\n" ;
+		}
+
+		const std::string_view alternate = mode == 1U	? "alternate/optional.inf"
+										   : mode == 2U ? "alternate/optional.in_"
+														: "" ;	// 同名を別位置に置く二つの負例です
+		const auto			   zip = normalWorkerDriverZip( false, nullptr, {}, true, 0U, 0U, inf,
+														   alternate) ;	// 同じ通常取得で返す実原ZIPです
+		const auto hash			   = recordDigest( key, zip) ;			// 配布物の全byteを元recordに固定します
+		auto	   raw = descriptorRecord( descriptorFixture()) ;		// 元契約に従う署名対象です
+		raw			   = replaced( std::move( raw), RECORD_CLAIM_HASH, hash) ;
+		raw			   = replaced( std::move( raw), RECORD_CLAIM_HASH, hash) ;
+		raw			   = replaced( std::move( raw), "\"valueBytes\":1234",
+								  "\"valueBytes\":" + std::to_string( zip.size())) ;
+		raw			   = replaced( std::move( raw), "{11111111-2222-3333-4444-555555555555}",
+								  "{4d36e968-e325-11ce-bfc1-08002be10318}") ;
+		raw			   = replaced( std::move( raw), "drivers/fixture.inf", "fixture.inf") ;
+		raw			   = replaced( std::move( raw), "Fixture.NTamd64", "Models.NTamd64") ;
+		raw			   = replaced( std::move( raw), "\"version\":" + recordKnown( "1.2.3.4"),
+								  "\"version\":" + recordKnown( "1.0.0.0")) ;
+		raw			   = replaced(
+			   std::move( raw),
+			   "\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
+				   std::string{RECORD_EVIDENCE_HASH},
+			   "\"evidenceUrl\":\"https://vendor.example/fixture.inf\",\"evidenceSha256\":\"" +
+				   recordDigest( key, inf)) ;
+		raw = replaced( std::move( raw), "\"inspectionStage\":\"METADATA_ONLY\"",
+					   "\"inspectionStage\":\"CONTENT_INSPECTED\"") ;
+		std::shared_ptr<SignedIndexStore> store ;	// 原ZIPとINFを結ぶ人工署名を隔離保存します
+		static_cast<void>( lookupSnapshot( key, raw, 1U, &store)) ;
+		std::cout << "DISPLAY_COPYINF_SOURCE mode=" << mode << '\n' ;
 		runNormalSignedIndexCandidateBindingTests( context, std::move( store), NOW, zip) ;
 	}
 }

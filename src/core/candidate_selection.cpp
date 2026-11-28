@@ -2,7 +2,7 @@
 /**
  * @file candidate_selection.cpp
  * @brief Driver候補の既定選択実装
- * @version 01.02.02
+ * @version 01.03.00
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -33,6 +33,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/10/12  同署名索引候補の所有・表示・指定導入境界を接続
  * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.03.00 Shunji Ogawa  2026/11/27  ディスクリートGPUがある場合の自動選択を制御
  * </pre>
  *
  * @note 候補順に依存して取得元が入れ替わらないよう、候補ごとの検証根拠を比較します。不明なProviderまたは矛盾した根拠はfail-closedで拒否します
@@ -41,6 +42,7 @@
 
 #include "core/candidate_selection.h"
 #include "core/candidate_audit.h"
+#include "core/device_observation.h"
 
 #include <cstdint>
 #include <limits>
@@ -339,6 +341,50 @@ std::optional<std::vector<bool>> buildDefaultCandidateSelection(
 	}
 
 	return selection ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief ディスクリートGPUを確認した検索で既知の内蔵GPUだけに自動選択の保留を付ける
+ * @param[in] candidates 同じ検索の現在のデバイスと更新候補
+ * @param[in] session 現在属性の元検索ID
+ * @return 各入力位置の自動選択を控える場合true
+ * @note 未分類や古い観測は保留条件へ追加しない。手動操作の可否へ使わない
+ */
+//------------------------------------------------------------------------------
+std::vector<bool> deferredIntegratedGpuSelections( std::span<const UpdateCandidate> candidates,
+												  ScanSessionId					   session)
+{
+	bool haveDiscrete{} ;							// 同検索の現在のディスクリートGPUを確認した場合true
+	std::unordered_set<std::wstring> integrated ;	// 同検索の内蔵GPUのopaque ID
+	// 現在の機器の観測だけをGPUの区分に使い、配布元の更新行は照合先として扱う
+	for( const auto &candidate : candidates) {
+		// 別の機器又は検索の観測は既定の動作へ戻す
+		if( !candidate.current || !candidate.deviceObservation ||
+		   !isDeviceObservationBound( *candidate.deviceObservation, session,
+									 candidate.deviceIdentity)) {
+			continue ;
+		}
+
+		const auto kind = candidate.deviceObservation->graphicsAdapter ;	// OSの同じ現在観測
+		haveDiscrete	= haveDiscrete || kind == GraphicsAdapterKind::DISCRETE ;
+		// 未確認のGPUで自動選択を変えない
+		if( kind == GraphicsAdapterKind::INTEGRATED) {
+			integrated.insert( candidate.deviceIdentity) ;
+		}
+	}
+
+	std::vector<bool> deferred( candidates.size(), false) ;	// 表示候補の各位置に一致させる
+	// ディスクリートGPUが見つからないPCでは既定選択を維持する
+	if( haveDiscrete) {
+		// 元の観測と同じ機器を指す更新候補だけを自動チェックから外す
+		for( std::size_t i = 0; i < candidates.size(); ++i) {
+			deferred[i] =
+				!candidates[i].current && integrated.contains( candidates[i].deviceIdentity) ;
+		}
+	}
+
+	return deferred ;
 }
 
 } // namespace drivercrate

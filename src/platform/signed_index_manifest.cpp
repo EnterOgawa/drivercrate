@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest.cpp
  * @brief 原UTF-8 manifestをRSA-PSSで認証し、固定schema・期限・世代を検査します
- * @version 01.04.02
+ * @version 01.05.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,6 +28,7 @@
  * Ver.01.04.00 Shunji Ogawa  2026/10/23  認証型を発行しない共通manifest値codecを公開
  * Ver.01.04.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.04.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.05.00 Shunji Ogawa  2026/11/28  個別期限スキーマと同世代の旧manifest参照を閉集合で検証
  * </pre>
  *
  * @note 内部固定trustだけを使用します。Asset実byte、保護cache、導入許可へ昇格しません
@@ -267,8 +268,9 @@ void requireCrypto( const NTSTATUS status)
 				asset.sizeBytes <= INDEX_ASSET_MAX_BYTES,
 			FAILURE) ;
 	asset.sha256 = decodeHash( hash, FAILURE) ;
-	require( asset.tag.size() == 82U && asset.tag.starts_with( "index-v1-") && asset.tag[17] == '-' &&
-				asset.tag.substr( 18U) == hash,
+	require( asset.tag.size() == 82U &&
+				(asset.tag.starts_with( "index-v1-") || asset.tag.starts_with( "index-v2-")) &&
+				asset.tag[17] == '-' && asset.tag.substr( 18U) == hash,
 			FAILURE) ;
 	const unsigned year =
 		// 固定tagの暦年
@@ -327,71 +329,90 @@ void requireCrypto( const NTSTATUS status)
 											 const std::optional<std::chrono::sys_seconds> nowUtc)
 {
 	Reader reader( bytes, SignedIndexManifestStatus::INVALID_MANIFEST) ;	// 原byteの有限reader
-	constexpr std::array<std::string_view, 10U> FIELDS{
-		"schema",		   "repository",	 "channel",		 "keyId", "generation",
-		"assetGeneration", "publishedAtUtc", "expiresAtUtc", "asset", "quality"} ;	// 全必須field
-	IndexManifestData data ;														// 全検査成功前には認証wrapperを生成しない値
+	constexpr std::array<std::string_view, 11U> FIELDS{
+		"schema",		  "repository",			 "channel",
+		"keyId",		  "generation",			 "assetGeneration",
+		"publishedAtUtc", "expiresAtUtc",		 "asset",
+		"quality",		  "legacyManifestSha256"} ;	// 版を確定してから必須集合を照合します
+	IndexManifestData data ;						// 全検査成功前には認証wrapperを生成しない値
 	// Readerと所有出力だけを呼出し期間内で借用する型付きhandler
-	reader.object( FIELDS, [&]( const std::size_t field) {
-		// Field番号は固定集合に由来し、各値をその型だけで読む
-		switch( field) {
-			// 配布manifest v1だけを認める。研究schemaを昇格しない
-			case 0U:
-				require( reader.text( 64U) == "driver-index-manifest-v1",
-						SignedIndexManifestStatus::INVALID_MANIFEST) ;
-				break ;
+	const auto		  seen = reader.objectWithPresence( FIELDS, [&]( const std::size_t field) {
+		   // Field番号は固定集合に由来し、各値をその型だけで読む
+		   switch( field) {
+			   // 旧配信と独立期限の署名スキーマだけを認めます
+			   case 0U: {
+				   const auto schema = reader.text( 64U) ;	// 原署名に含まれる版名です
+				   require( schema == "driver-index-manifest-v1" ||
+								   schema == "driver-index-manifest-v2",
+							   SignedIndexManifestStatus::INVALID_MANIFEST) ;
+				   data.schemaVersion = schema == "driver-index-manifest-v2" ? 2U : 1U ;
+				   break ;
+			   }
 
-			// 固定repository
-			case 1U:
-				data.repository = reader.text( 64U) ;
-				break ;
+			   // 固定repository
+			   case 1U:
+				   data.repository = reader.text( 64U) ;
+				   break ;
 
-			// 固定channel
-			case 2U:
-				data.channel = reader.text( 64U) ;
-				break ;
+			   // 固定channel
+			   case 2U:
+				   data.channel = reader.text( 64U) ;
+				   break ;
 
-			// 外側と同じ固定key ID
-			case 3U:
-				data.keyId = reader.text( 64U) ;
-				break ;
+			   // 外側と同じ固定key ID
+			   case 3U:
+				   data.keyId = reader.text( 64U) ;
+				   break ;
 
-			// 正のmanifest世代
-			case 4U:
-				data.generation = reader.number() ;
-				break ;
+			   // 正のmanifest世代
+			   case 4U:
+				   data.generation = reader.number() ;
+				   break ;
 
-			// 復帰用に独立したasset世代
-			case 5U:
-				data.assetGeneration = reader.number() ;
-				break ;
+			   // 復帰用に独立したasset世代
+			   case 5U:
+				   data.assetGeneration = reader.number() ;
+				   break ;
 
-			// 補正しない発行UTC
-			case 6U:
-				data.publishedAtUtc = utc( reader.text( 20U)) ;
-				break ;
+			   // 補正しない発行UTC
+			   case 6U:
+				   data.publishedAtUtc = utc( reader.text( 20U)) ;
+				   break ;
 
-			// 補正しない期限UTC
-			case 7U:
-				data.expiresAtUtc = utc( reader.text( 20U)) ;
-				break ;
+			   // 補正しない期限UTC
+			   case 7U:
+				   data.expiresAtUtc = utc( reader.text( 20U)) ;
+				   break ;
 
-			// 固定assetの型付き値
-			case 8U:
-				data.asset = readAsset( reader) ;
-				break ;
+			   // 固定assetの型付き値
+			   case 8U:
+				   data.asset = readAsset( reader) ;
+				   break ;
 
-			// 発行側の検査段階集計
-			case 9U:
-				data.quality = readQuality( reader) ;
-				break ;
+			   // 発行側の検査段階集計
+			   case 9U:
+				   data.quality = readQuality( reader) ;
+				   break ;
 
-			// Schema外番号を受理しない
-			default:
-				throw Failure{SignedIndexManifestStatus::INVALID_MANIFEST} ;
-		}
-	}) ;
+			   // 同じ公開世代の旧署名対象へ結ぶ原hashです
+			   case 10U:
+				   data.legacyManifestSha256 =
+					   decodeHash( reader.text( 64U), SignedIndexManifestStatus::INVALID_MANIFEST) ;
+				   break ;
+
+			   // Schema外番号を受理しない
+			   default:
+				   throw Failure{SignedIndexManifestStatus::INVALID_MANIFEST} ;
+		   }
+	   }) ;
 	reader.finish() ;
+	const bool perRecordExpiry = data.schemaVersion == 2U ;						// 署名本文が指定する期限の意味です
+	constexpr std::uint32_t LEGACY_FIELDS = (1U << 10U) - 1U ;					// 旧版は旧manifest hashを持ちません
+	constexpr std::uint32_t INDEPENDENT_FIELDS = (1U << FIELDS.size()) - 1U ;	// 版2の全必須集合
+	require( seen == (perRecordExpiry ? INDEPENDENT_FIELDS : LEGACY_FIELDS),
+			SignedIndexManifestStatus::INVALID_MANIFEST) ;
+	require( data.asset.tag.starts_with( perRecordExpiry ? "index-v2-" : "index-v1-"),
+			SignedIndexManifestStatus::INVALID_ASSET) ;
 	require( data.repository == "EnterOgawa/drivercrate",
 			SignedIndexManifestStatus::REPOSITORY_MISMATCH) ;
 	require( data.channel == "driver-index", SignedIndexManifestStatus::CHANNEL_MISMATCH) ;
@@ -625,15 +646,23 @@ SignedIndexManifestResult authenticateWithTrustKeys(
 		IndexManifestData data = readManifest( raw, keyId, nowUtc) ;	// 実署名検証後の型付き意味層
 		// 保護storeの不正stateを初回扱いへ暗黙に変更しない
 		if( highWater.has_value()) {
-			require( highWater->generation > 0U && std::ranges::any_of( highWater->manifestSha256,
-																	  []( const std::uint8_t byte) {
-																		  // 固定hashが空sentinelでないことだけを検査する
-																		  return byte != 0U ;
-																	  }),
+			require( highWater->generation > 0U &&
+						(highWater->schemaVersion == 1U || highWater->schemaVersion == 2U) &&
+						std::ranges::any_of( highWater->manifestSha256,
+											[]( const std::uint8_t byte) {
+												// 固定hashが空sentinelでないことだけを検査する
+												return byte != 0U ;
+											}),
 					SignedIndexManifestStatus::INVALID_HIGH_WATER) ;
-			require( data.generation >= highWater->generation,
+			require( data.generation >= highWater->generation &&
+						data.schemaVersion >= highWater->schemaVersion,
 					SignedIndexManifestStatus::GENERATION_ROLLBACK) ;
-			require( data.generation != highWater->generation || hash == highWater->manifestSha256,
+			const bool sameGenerationUpgrade =
+				highWater->schemaVersion == 1U && data.schemaVersion == 2U &&
+				data.legacyManifestSha256 ==
+					highWater->manifestSha256 ;	// 同世代に署名した一対だけを移行します
+			require( data.generation != highWater->generation || hash == highWater->manifestSha256 ||
+						sameGenerationUpgrade,
 					SignedIndexManifestStatus::GENERATION_CONFLICT) ;
 		}
 

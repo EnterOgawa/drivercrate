@@ -2,7 +2,7 @@
 /**
  * @file metadata_inventory_tests.cpp
  * @brief 現在属性列挙の上限・欠損・停止境界の決定的試験
- * @version 01.17.02
+ * @version 01.17.03
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -50,6 +50,7 @@
  * Ver.01.17.00 Shunji Ogawa  2026/11/20  規約取得のUTC再確認へ元fixture時計を接続
  * Ver.01.17.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * Ver.01.17.02 Shunji Ogawa  2026/11/27  ホスト観測付きの部分一致集約と個別取得準備を検証
+ * Ver.01.17.03 Shunji Ogawa  2026/11/28  元scanと同じ時刻を取得前表示試験へ渡す
  * </pre>
  *
  * @note 現在属性とdevnodeの六APIを全てfakeへ置換し、実device列挙と導入を行わない
@@ -81,6 +82,7 @@
 #include <semaphore>
 #include <optional>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -1452,6 +1454,7 @@ public:
 	 * @param[in,out] context 共通assertionです
 	 * @param[in,out] session 同captureからresolverを一度発行した原ownerです
 	 * @param[in] plan augment済みの原全targetです
+	 * @param[in] nowUtc 元scanと同じ固定試験時刻です
 	 * @param[in] caseId 非機密な固定case名です
 	 * @return 全元targetへのfactory参照と同inventory sealが成立した場合だけtrueです
 	 * @note 欠損を補完せず、claim/取得/導入より前の前提失敗として残します
@@ -1459,6 +1462,7 @@ public:
 	[[nodiscard]] bool publishReferencesForFixture( TestContext					 &context,
 												   SignedIndexScanSession		 &session,
 												   const OfficialPreparationPlan &plan,
+												   const std::chrono::sys_seconds nowUtc,
 												   const std::string_view		  caseId)
 	{
 		const bool captured = retainReferenceRows_ && referenceInventoryComplete_ &&
@@ -1501,8 +1505,9 @@ public:
 
 		const auto references =
 			signed_index_candidate_binding_detail::Access::makeReferencesForFixture(
-				session, plan, referenceRows_, *hints) ;	// 元lookup/adapterの既factoryだけです
-		std::size_t matchedTargets{} ;						// claim前に元A/Bの両targetを一件ずつ確認します
+				session, plan, referenceRows_, *hints,
+				nowUtc) ;				// 元lookup/adapterの既factoryだけです
+		std::size_t matchedTargets{} ;	// claim前に元A/Bの両targetを一件ずつ確認します
 		// 元target以外の参照を正常なB所有へ数えません
 		for( const auto &target : plan.targets) {
 			const auto count =
@@ -3874,7 +3879,7 @@ void runServerHostScanFixtureCase( TestContext &context, std::shared_ptr<SignedI
 	if( referenceCase) {
 		const bool references =
 			// 元A/Bだけです
-			inventory.publishReferencesForFixture( context, session, plan, caseId) ;
+			inventory.publishReferencesForFixture( context, session, plan, nowUtc, caseId) ;
 		DRIVERCRATE_EXPECT( context, references && callbacks == 1U && p3Http.sends == 0U) ;
 		// 前提不足を後段の通常内容拒否合格へ数えません
 		if( !references) {

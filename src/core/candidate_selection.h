@@ -2,7 +2,7 @@
 /**
  * @file candidate_selection.h
  * @brief Driver候補の既定選択定義
- * @version 01.00.02
+ * @version 01.01.00
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/27  既知ディスクリートGPUを優先する自動選択条件を追加
  * </pre>
  *
  * @note Providerが明示した検証根拠から一device一候補の初期選択を作成します。Version、日付、titleを取得元間の優先順位へ使用しません
@@ -94,5 +95,17 @@ namespace drivercrate {
 //------------------------------------------------------------------------------
 [[nodiscard]] std::optional<std::vector<bool>> buildDefaultCandidateSelection(
 	std::span<const UpdateCandidate> candidates, std::span<const ProviderDescriptor> providers) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief ディスクリートGPUの存在が確認できる場合に内蔵GPUを自動選択から外す
+ * @param[in] candidates 同じ検索の現在のデバイスと更新候補
+ * @param[in] session 現在のデバイスの観測が属する検索ID
+ * @return 入力の各位置で自動選択を控える場合true
+ * @note 表示、手動の選択、導入可否は変更しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] std::vector<bool> deferredIntegratedGpuSelections(
+	std::span<const UpdateCandidate> candidates, ScanSessionId session) ;
 
 } // namespace drivercrate

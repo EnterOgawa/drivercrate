@@ -2,7 +2,7 @@
 /**
  * @file official_file_verifier.h
  * @brief 公式配布file共通検証定義
- * @version 01.18.00
+ * @version 01.20.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -50,6 +50,8 @@
  * Ver.01.16.00 Shunji Ogawa  2026/11/23  公開INFとStoreの同梱署名の共通読取りを追加
  * Ver.01.17.00 Shunji Ogawa  2026/11/23  署名INFの同一バイトを保持する一時解析を共用
  * Ver.01.18.00 Shunji Ogawa  2026/11/23  選択済み登録配布のINF・CAT・SYSを保護付きで読取る
+ * Ver.01.19.00 Shunji Ogawa  2026/11/27  登録補助EXEを同パッケージのサブディレクトリまで照合
+ * Ver.01.20.00 Shunji Ogawa  2026/11/27  Windowsの共有ドライバーファイル配置を保護付きで読む
  * </pre>
  *
  * @note 公式catalogとpayloadのsize、SHA-256、Authenticode publisherを共通のfail-closed規則で検証します。URLや端末識別情報は保持し
@@ -117,6 +119,8 @@ struct ProtectedExecutableSnapshot {
 	std::vector<std::byte>					   directorySecurity ;
 	/// FileRepositoryを使う場合の元保護。System32内の読取りでは空
 	std::vector<std::byte>					   repositorySecurity ;
+	/// FileRepositoryと直接親の間の元保護。通常の直下配置では空
+	std::vector<std::vector<std::byte>>		   intermediateSecurity ;
 	/// 保護された正規親で正式な不在を確認した場合のみ空
 	std::optional<ProtectedExecutableEvidence> existing ;
 	/**
@@ -148,6 +152,20 @@ using System32ExecutableSnapshot = ProtectedExecutableSnapshot ;
 
 //------------------------------------------------------------------------------
 /**
+ * @brief SCMの補助EXEが登録済みパッケージで確認した完全位置にあるか読む
+ * @param[in] command SCMの原文字列。全体引用符または正規Windows起点を許す
+ * @param[in] expectedPath 現用元INFと同じCATへ照合した元EXEのDriver Store絶対位置
+ * @param[out] snapshot 全親の保護と実EXEの同一性・ハッシュ。失敗時は空
+ * @return 同じ実体を保護付きで取得して0、別位置、余分な引数、変更、I/O失敗はHRESULT
+ * @note 補助EXEは実行しない。署名確認済み元ハッシュとの照合は呼出側で行う
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readRegisteredDriverStoreExecutableSnapshot(
+	std::wstring_view command, std::wstring_view expectedPath,
+	ProtectedExecutableSnapshot &snapshot) ;
+
+//------------------------------------------------------------------------------
+/**
  * @brief 選択した補助EXEの同じSystem32直下位置を読み取る
  * @param[in] path 元INFが指定した正確なSystem32直下のEXE絶対位置
  * @param[out] snapshot 正規親の保護と現在ファイル。失敗時は空
@@ -157,6 +175,19 @@ using System32ExecutableSnapshot = ProtectedExecutableSnapshot ;
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError readSystem32ExecutableSnapshot( std::wstring_view			 path,
 														 System32ExecutableSnapshot &snapshot) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択INFが解決した共有ファイルの正規配置、保護と完全内容を読む
+ * @param[in] path 同じINFからWindowsが解決した共有ファイルの完全宛先
+ * @param[in] wow64 trueはSysWOW64、falseはSystem32の直接の子を要求
+ * @param[out] snapshot 保護、完全ハッシュと正式な不在。失敗時は空
+ * @return 正規位置の観測に成功して0、不正な位置、保護、ファイル照会の失敗はHRESULT
+ * @note ファイルはロードせず変更しない。署名元と同一バイトかは呼出側で照合する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readWindowsSharedDriverFileSnapshot(
+	std::wstring_view path, bool wow64, ProtectedExecutableSnapshot &snapshot) ;
 
 //------------------------------------------------------------------------------
 /**

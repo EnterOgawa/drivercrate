@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_adapter.h
  * @brief 保存署名索引を既存取得承認・一回grantと内容検査入力へ結びます
- * @version 01.18.00
+ * @version 01.19.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -41,6 +41,7 @@
  * Ver.01.16.00 Shunji Ogawa  2026/11/22  承認済み取得対象を同じ端末の現在HardwareIdsへ再照合
  * Ver.01.17.00 Shunji Ogawa  2026/11/23  WiXの検査専用取得を元機器と実公式アンカーへ結合
  * Ver.01.18.00 Shunji Ogawa  2026/11/23  同じWiX取得票の照合と端末の再観測を分ける
+ * Ver.01.19.00 Shunji Ogawa  2026/11/27  二段の公式規約を取得前の同意へ結ぶ
  * </pre>
  *
  * @note 同workerで直列使用します。通常profileは配布鍵のrevision1取得認可を別登録します
@@ -353,10 +354,10 @@ private:
 		std::vector<std::size_t>			   relationIndices ;
 		/// 新LOCAL taskから検査した場合だけtrueです。grant発行と排他です
 		bool								   localInspectionClaimed{} ;
-		/// ZIP規約を取得前に照合した元操作と計画です。未照合は両方0です
-		OperationId							   archiveTermsOperation{} ;
+		/// 再確認対象の規約を取得前に照合した元操作です。未照合は0です
+		OperationId							   recheckedTermsOperation{} ;
 		/// 同時に照合済みの元計画IDです
-		std::uint64_t						   archiveTermsPlan{} ;
+		std::uint64_t						   recheckedTermsPlan{} ;
 		/// WiXの公式アンカーを同じ検査専用taskで確認した場合だけ保持します
 		std::optional<WixPageVerification>	   wixPageVerification ;
 	} ;
@@ -425,7 +426,7 @@ private:
 	 * @param[in] utc 送信と検査前後に使う信頼UTCです
 	 * @param[in,out] client 元公式URLだけを取得する共通HTTPです
 	 * @param[in] cancellation 同処理の停止照会です
-	 * @param[in] recheck trueはZIP規約の取得前検査です。既表示の本文と改訂を変更しません
+	 * @param[in] recheck trueはZIPまたは二段リンク規約の取得前検査です。既表示の本文と改訂を変更しません
 	 * @return 同じ原証拠と規約の照合が成立した場合0です
 	 */
 	[[nodiscard]] NativeError readTermsTextImpl(
@@ -433,16 +434,23 @@ private:
 		const std::function<std::optional<std::chrono::sys_seconds>()> &utc,
 		OfficialHttpClient &client, const HttpCancellationCallback &cancellation, bool recheck) ;
 	/**
-	 * @brief 所有中の承認済み操作へZIP規約の再確認を結びます
+	 * @brief 承認済み操作で再確認が必要な規約の形式を判定する
+	 * @param[in] terms 同じ署名記述子の元規約
+	 * @return ZIP内の明示規約または二段リンク用の場合true
+	 */
+	[[nodiscard]] static bool requiresApprovedTermsRecheck(
+		const IndexAcquisitionTerms &terms) noexcept ;
+	/**
+	 * @brief 所有中の承認済み操作へ規約の再確認を結びます
 	 * @param[in,out] preparation 元承認状態を所有するsessionです。新しい承認は発行しません
 	 * @param[in] task 実active taskです
 	 * @param[in] current 現スキャンの全contextです
 	 * @param[in] utc 前後の期限を検査する信頼時計です
 	 * @param[in,out] client 同じ元公式URLを再確認する共通HTTPです
 	 * @param[in] cancellation 停止又は回線条件の失効を検査します
-	 * @return ZIP規約の再確認に成功した場合0です
+	 * @return 元規約の再確認に成功した場合0です
 	 */
-	[[nodiscard]] NativeError recheckApprovedArchiveTerms(
+	[[nodiscard]] NativeError recheckApprovedTerms(
 		OfficialPreparationSession &preparation, const OfficialPreparationTask &task,
 		IndexLookupContext												current,
 		const std::function<std::optional<std::chrono::sys_seconds>()> &utc,

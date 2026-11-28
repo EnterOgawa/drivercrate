@@ -2,7 +2,7 @@
 /**
  * @file resource.h
  * @brief DriverCrateリソースID定義
- * @version 01.46.00
+ * @version 01.48.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -123,6 +123,8 @@
  * Ver.01.44.01 Shunji Ogawa  2026/11/23  検査専用候補の内容結果を短文で表示
  * Ver.01.45.00 Shunji Ogawa  2026/11/23  候補詳細からの検査済み規約閲覧を追加
  * Ver.01.46.00 Shunji Ogawa  2026/11/23  選択したストレージの元規約への確認案内を追加
+ * Ver.01.47.00 Shunji Ogawa  2026/11/27  配布物取得の通信失敗と回復案内の識別子を追加
+ * Ver.01.48.00 Shunji Ogawa  2026/11/27  基本更新と付随INFを区別する候補詳細の識別子を追加
  * </pre>
  *
  * @note Win32 control、icon、および日本語文字列のresource IDを定義します
@@ -583,6 +585,11 @@
 #define IDS_PREPARATION_CANCELLED 1187					// 取消し結果
 #define IDS_PREPARATION_REJECTED 1188					// 取得拒否結果
 #define IDS_PREPARATION_ITEM_FAILED 1189				// 取得失敗結果
+#define IDS_PREPARATION_TRANSFER_TIMEOUT 1562			// 配布元との通信タイムアウトの案内
+#define IDS_PREPARATION_TRANSFER_ACCESS 1563			// 配布元からアクセスを拒否された場合の案内
+#define IDS_PREPARATION_TRANSFER_MISSING 1564			// 配布先にファイルがない場合の案内
+#define IDS_PREPARATION_TRANSFER_WAIT 1565				// 配布元の混雑や利用制限がある場合の案内
+#define IDS_INDEX_COPYINF_UNRESOLVED 1566				// 基本更新と付随INFの個別所見
 #define IDS_PREPARATION_ERROR 1190						// 承認と制御異常の診断
 #define IDS_PREPARATION_ACTUAL 1191						// 実取得容量
 #define IDS_PREPARATION_PLAN_ERROR 1192					// 正常scanと独立した計画異常

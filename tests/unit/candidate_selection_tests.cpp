@@ -2,7 +2,7 @@
 /**
  * @file candidate_selection_tests.cpp
  * @brief Driver候補の既定選択単体試験実装
- * @version 01.00.02
+ * @version 01.01.00
  * @date 2026/09/02
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -31,6 +31,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/11  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/27  混在GPU構成での初期選択の条件を回帰検証
  * </pre>
  *
  * @note 取得元間でversionや日付を比較せず、Providerが明示した根拠だけを初期選択へ使用することを検証します
@@ -40,11 +41,13 @@
 #include "candidate_selection_tests.h"
 
 #include "core/candidate_selection.h"
+#include "core/device_observation.h"
 #include "test_framework.h"
 
 #include <array>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace drivercrate::test {
 namespace {
@@ -376,6 +379,50 @@ void testInvalidSelectionInput( TestContext &context)
 		context, !buildDefaultCandidateSelection( validCandidate, duplicateProviders).has_value()) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ検索でディスクリートGPUが存在する場合だけ内蔵GPUの自動選択を外す
+ * @param[in,out] context 試験結果の集計先
+ */
+//------------------------------------------------------------------------------
+void testDiscreteGpuPreference( TestContext &context)
+{
+	constexpr ScanSessionId SESSION = 21U ;	// この検索の現在観測に使うID
+	const auto				current = []( const wchar_t *device, GraphicsAdapterKind kind) {
+		 UpdateCandidate row ;	// 同じ検索の現在のデバイス行
+		 row.current		= true ;
+		 row.deviceIdentity = device ;
+		 row.deviceObservation.emplace() ;
+		 row.deviceObservation->scanSessionId	= SESSION ;
+		 row.deviceObservation->deviceIdentity	= device ;
+		 row.deviceObservation->graphicsAdapter = kind ;
+		 return row ;
+	} ; // 種別以外の見かけで優先が決まらない観測を作る
+	std::array				candidates{current( L"integrated", GraphicsAdapterKind::INTEGRATED),
+						   makeCandidate( L"gpu-update", L"integrated", L"managed",
+													 CandidateDefaultPreference::MANAGED_APPLICABLE, true),
+						   current( L"unknown", GraphicsAdapterKind::UNKNOWN),
+						   makeCandidate( L"unknown-update", L"unknown", L"managed",
+													 CandidateDefaultPreference::MANAGED_APPLICABLE, true),
+						   // 別GPUに更新候補がない混在構成
+						   current( L"discrete", GraphicsAdapterKind::DISCRETE)} ;
+
+	const std::vector<bool> mixed{false, true, false, false, false} ;	// 既知の内蔵GPUだけを外す
+	const std::vector<bool> unchanged( candidates.size(), false) ;		// 従来の自動選択から除く候補なし
+	DRIVERCRATE_EXPECT( context, deferredIntegratedGpuSelections( candidates, SESSION) == mixed) ;
+	DRIVERCRATE_EXPECT( context, candidates[1].installable && candidates[1].recommended) ;
+	DRIVERCRATE_EXPECT( context,
+					   deferredIntegratedGpuSelections( candidates, SESSION + 1U) == unchanged) ;
+
+	candidates.back().deviceObservation->deviceIdentity = L"other" ;
+	DRIVERCRATE_EXPECT( context, deferredIntegratedGpuSelections( candidates, SESSION) == unchanged) ;
+	candidates.back() = current( L"discrete", GraphicsAdapterKind::UNKNOWN) ;
+	DRIVERCRATE_EXPECT( context, deferredIntegratedGpuSelections( candidates, SESSION) == unchanged) ;
+	candidates.back() = current( L"discrete", GraphicsAdapterKind::DISCRETE) ;
+	candidates.front().deviceObservation->graphicsAdapter = GraphicsAdapterKind::UNKNOWN ;
+	DRIVERCRATE_EXPECT( context, deferredIntegratedGpuSelections( candidates, SESSION) == unchanged) ;
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -391,6 +438,7 @@ void runCandidateSelectionTests( TestContext &context)
 	testSelectionExclusions( context) ;
 	testDiscoveryBasisBoundaries( context) ;
 	testInvalidSelectionInput( context) ;
+	testDiscreteGpuPreference( context) ;
 }
 
 } // namespace drivercrate::test

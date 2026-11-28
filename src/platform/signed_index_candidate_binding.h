@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding.h
  * @brief 元認証recordと実取得閉包から候補と指定導入routeを私有保持します
- * @version 01.20.00
+ * @version 01.21.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -44,6 +44,8 @@
  * Ver.01.18.00 Shunji Ogawa  2026/11/23  同じ機器とWiX取得の私有参照を再照合
  * Ver.01.19.00 Shunji Ogawa  2026/11/23  WiXの単一起動候補を元規約の確認待ちで発行
  * Ver.01.20.00 Shunji Ogawa  2026/11/23  元規約に結ぶ導入同意と再検証の契約を追加
+ * Ver.01.20.01 Shunji Ogawa  2026/11/27  初回検査と再照合で署名済み配布形式を共有
+ * Ver.01.21.00 Shunji Ogawa  2026/11/28  全取得前参照に表示直前の個別期限を適用
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません
@@ -58,6 +60,7 @@
 #include "platform/indexed_driver_package_inspection.h"
 #include "platform/official_wix_package.h"
 #include "platform/signed_index_record_lookup.h"
+#include "platform/signed_index_records.h"
 #include <chrono>
 #include <cstddef>
 #include <memory>
@@ -227,6 +230,21 @@ private:
 		 */
 		PreparedRecord &operator=( PreparedRecord &&other) noexcept = default ;
 	} ;
+	/**
+	 * @brief 元署名の配布形式と消費済みgrantを共通検査へ結ぶ
+	 * @param[in] acquisition 元取得の確定結果
+	 * @param[in] grant 同じ元取得で消費した権限
+	 * @param[in] hint 封印から確認した元レコードと配布バイト
+	 * @param[in] format 元署名レコードが指定した配布形式
+	 * @param[out] input 成功時だけ共通検査入力。失敗時は空
+	 * @return 元配布の照合成立で0、拒否時は元HRESULT
+	 * @note 非実行形式の確定に実行ファイルの拡張子を使わない
+	 */
+	[[nodiscard]] static NativeError bindDelegatedInput(
+		const OfficialAcquisitionResult &acquisition, const RecordScopedDownloadGrant &grant,
+		const IndexedDriverArchiveHint &hint, IndexPayloadFormat format,
+		DelegatedOfficialPackageInput &input) noexcept ;
+
 	/** @brief 一INF-deviceの元HRESULT、rank、bindingとrouteを保持します */
 	struct Pair {
 		/// 動的配列pointerへ依存しない私有record位置
@@ -301,7 +319,7 @@ private:
 	 * @param[in] plan 同scanの未変更取得計画
 	 * @param[in] candidates 同scanの既表示現在行
 	 * @param[in] hints 同deviceの検証済みopaque hint
-	 * @param[in] nowUtc 表示直前の信頼UTCです。未確認の場合はWiX候補を発行しません
+	 * @param[in] nowUtc 表示直前の信頼UTCです。未確認の場合は索引の参照を発行しません
 	 * @return 元recordと同deviceへ結合した非導入参照行
 	 * @note WiX候補は元計画と同じ端末への私有参照を保持し、検査専用の表示を返します
 	 */
@@ -310,7 +328,7 @@ private:
 		const SignedIndexAcquisitionAdapter &adapter, const OfficialPreparationPlan &plan,
 		std::span<const UpdateCandidate>			 candidates,
 		std::span<const OfficialDiscoveryDeviceHint> hints,
-		std::optional<std::chrono::sys_seconds>		 nowUtc = std::nullopt) ;
+		std::optional<std::chrono::sys_seconds>		 nowUtc) ;
 	/**
 	 * @brief 元取得と実sealを再確認して内容・rank・bindingをpendingへ監査します
 	 * @param[in,out] owner 元scan/取得の私有owner

@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_http_request.h
  * @brief Record限定grantから一回のGETだけを作る秘密requestを定義します
- * @version 01.07.00
+ * @version 01.08.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,7 @@
  * Ver.01.05.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.06.00 Shunji Ogawa  2026/11/23  元要求のWiX指定転送先を共通HTTPへ渡す
  * Ver.01.07.00 Shunji Ogawa  2026/11/23  取得要求に元HTTP待機の数値を保持
+ * Ver.01.08.00 Shunji Ogawa  2026/11/27  同じ取得許可に結ぶAMD公式参照元を初回要求へ渡す
  * </pre>
  *
  * @note Provider worker threadで直列使用します。完全URLはHTTP送信境界だけへ貸し出し、
@@ -75,7 +76,7 @@ struct OfficialPayloadRetryObservation {
 
 /**
  * @brief Claim済みrecord grantから一回のGETだけを所有します
- * @note 本型はmethod選択、任意header、credential、Referer、Cookie、bodyのfieldを持ちません
+ * @note 固定の公式起点以外のReferer、任意header、credential、Cookie、bodyを受け付けません
  * @warning `prepare`へ渡したgrantはrequestより長生きさせてください
  */
 class OfficialDelegatedGetRequest final {
@@ -224,6 +225,12 @@ public:
 
 private:
 	friend class OfficialHttpClient ;
+	/**
+	 * @brief 元署名配布に結合したAMD製品ページを初回送信に貸す
+	 * @return 同じ取得の公開ページ。対象外または未開始はnull
+	 * @note 呼出し中だけの寿命です。別の送信へ持ち越しません
+	 */
+	[[nodiscard]] const wchar_t					  *signedAmdProductReferer() const noexcept ;
 	/**
 	 * @brief 同じ取得要求のWiX証拠に結んだ一回の301転送先を借用します
 	 * @return WiX対象外はnullopt、対象の封印不成立は空のview、成立時は指定先です

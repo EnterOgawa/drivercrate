@@ -2,7 +2,7 @@
 /**
  * @file device_observation.cpp
  * @brief Device観測の有限検証と登録状態の純粋分類
- * @version 01.00.02
+ * @version 01.01.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/27  現在機器に結合するGPU種別の範囲を検証
  * </pre>
  *
  * @note OS・network・導入APIを呼ばず、欠損を成功へ補完しない
@@ -177,7 +178,10 @@ bool isDeviceObservationValid( const DeviceObservation &observation) noexcept
 	if( observation.scanSessionId == 0U || observation.deviceIdentity.empty() ||
 	   observation.deviceIdentity.size() > MAXIMUM_OPAQUE_DEVICE_CHARACTERS ||
 	   observation.deviceIdentity.find( L'\0') != std::wstring::npos ||
-	   !isDeviceNodeObservationValid( observation.node)) {
+	   !isDeviceNodeObservationValid( observation.node) ||
+	   (observation.graphicsAdapter != GraphicsAdapterKind::UNKNOWN &&
+		observation.graphicsAdapter != GraphicsAdapterKind::INTEGRATED &&
+		observation.graphicsAdapter != GraphicsAdapterKind::DISCRETE)) {
 		return false ;
 	}
 

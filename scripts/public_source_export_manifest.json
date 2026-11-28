@@ -23,6 +23,8 @@
     "docs/adr/0481-app-inno-setup-and-update-checks.md",
     "docs/adr/0482-independent-function-contracts.md",
     "docs/adr/0493-version-compatible-diagnostic-log.md",
+    "docs/adr/0605-validate-selected-display-auxiliary-service-declaration.md",
+    "docs/adr/0607-independent-signed-index-record-expiry.md",
     "docs/architecture.md",
     "docs/c_cpp_coding_standard.md",
     "docs/examples/c_cpp_coding_standard_sample.cpp",
@@ -32,6 +34,7 @@
     "docs/release-notes-1.0.1.md",
     "docs/release-notes-1.0.12.md",
     "docs/release-notes-1.0.13.md",
+    "docs/release-notes-1.0.14.md",
     "docs/release-notes-1.0.6.md",
     "docs/release-notes-1.0.7.md",
     "docs/security.md",
@@ -200,6 +203,10 @@
     "src/platform/dell_server_update_provider.h",
     "src/platform/dell_update_provider.cpp",
     "src/platform/dell_update_provider.h",
+    "src/platform/display_inf_scope_internal.cpp",
+    "src/platform/display_inf_scope_internal.h",
+    "src/platform/display_type1_event_log_internal.cpp",
+    "src/platform/display_type1_event_log_internal.h",
     "src/platform/driver_package_signature_internal.h",
     "src/platform/driver_store_inf_transport_internal.h",
     "src/platform/driver_store_inventory_transport.h",
@@ -11970,6 +11977,41 @@
       "owner": "docs/release-checklist.md",
       "input": "docs/release-notes-1.0.13.md",
       "kind": "release-document"
+    },
+    {
+      "owner": "README.md",
+      "input": "docs/release-notes-1.0.14.md",
+      "kind": "release-document"
+    },
+    {
+      "owner": "docs/release-checklist.md",
+      "input": "docs/release-notes-1.0.14.md",
+      "kind": "release-document"
+    },
+    {
+      "owner": "docs/architecture.md",
+      "input": "docs/adr/0607-independent-signed-index-record-expiry.md",
+      "kind": "release-document"
+    },
+    {
+      "owner": "docs/security.md",
+      "input": "docs/adr/0607-independent-signed-index-record-expiry.md",
+      "kind": "release-document"
+    },
+    {
+      "owner": "docs/testing.md",
+      "input": "docs/adr/0607-independent-signed-index-record-expiry.md",
+      "kind": "release-document"
+    },
+    {
+      "owner": "docs/release-checklist.md",
+      "input": "docs/adr/0607-independent-signed-index-record-expiry.md",
+      "kind": "release-document"
+    },
+    {
+      "owner": "docs/release-notes-1.0.14.md",
+      "input": "docs/adr/0607-independent-signed-index-record-expiry.md",
+      "kind": "release-document"
     }
   ],
   "externalInputs": [
@@ -11985,6 +12027,6 @@
     "finalAllowlist=false; this static manifest is not release approval or a fresh build result.",
     "Native Debug/Release, required tests, quality and static analysis of the frozen snapshot remain separate.",
     "Previous results and signatures do not establish acceptance of new source or executable bytes.",
-    "CMakeLists.txt is the existing Public consumer projection with version 1.0.13. Producer options are OFF. Static closure is separate from the snapshot build, tests and signed assets."
+    "CMakeLists.txt is the existing Public consumer projection with version 1.0.14. Producer options are OFF. Static closure is separate from the snapshot build, tests and signed assets."
   ]
 }

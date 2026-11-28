@@ -2,7 +2,7 @@
 /**
  * @file signed_index_store_internal.h
  * @brief 自作の隔離fixture rootだけへ保存障害診断を限定します
- * @version 01.01.03
+ * @version 01.02.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.01.01 Shunji Ogawa  2026/10/24 現行仕様へ限定し旧版専用の入口・移動を整理
  * Ver.01.01.02 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.03 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.00 Shunji Ogawa  2026/11/27  実署名と追加欄を同時に再読する隔離試験入口を宣言
  * </pre>
  *
  * @note 製品rootへ使えず、成功や署名を注入しません。任意pathを受理しません
@@ -153,6 +154,16 @@ struct Access {
 	 */
 	[[nodiscard]] static IndexStoreOpenResult reopenIsolated(
 		const SignedIndexStore &store) noexcept ;
+	/**
+	 * @brief 隔離ストアの署名済み本文と追加欄を再読し、両方を同じsnapshotへ結びます
+	 * @param[in,out] store 再読する試験プロセスの隔離ストアです
+	 * @param[in] nowUtc 再読と追加欄の検査に使う同じ信頼時刻です
+	 * @return 両領域の実検査が成立した所有値です。製品ストア、拒否、期限切れでは空です
+	 * @note 定義は試験targetにだけあり、原証拠やレコードを注入できません
+	 */
+	[[nodiscard]] static std::optional<AuthenticatedIndexSnapshot>
+	reloadWithConsumerSupplementForFixture( SignedIndexStore		   &store,
+										   std::chrono::sys_seconds nowUtc) ;
 	/**
 	 * @brief 自作isolated rootのpathだけをtestへ開示します
 	 * @param[in] store Isolated能力を持つstore

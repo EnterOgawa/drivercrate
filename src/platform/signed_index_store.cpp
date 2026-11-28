@@ -2,7 +2,7 @@
 /**
  * @file signed_index_store.cpp
  * @brief 署名索引の原入力と最大世代を一つのDPAPI headへ原子保存します
- * @version 01.04.00
+ * @version 01.05.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.03.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.04.00 Shunji Ogawa  2026/11/20  端末用レコード位置と元領域の証拠を接続
+ * Ver.01.05.00 Shunji Ogawa  2026/11/28  元領域の証拠と同じ行の確認期限を端末照合へ返す
  * </pre>
  *
  * @note 製品rootは固定です。実lockと保持directory handleを用い、mutexを保持しません
@@ -164,7 +165,9 @@ struct Wire {
 /** @brief 原byteの履歴認証だけを通った下限です。候補や導入能力を持ちません */
 struct AuthenticatedHistoryFloor {
 	/// Genesisまたは署名・asset・展開hashに結合した原wireだけです
-	Wire wire ;
+	Wire		  wire ;
+	/// 原署名の版。Genesisでは下限に使わない既定値です
+	std::uint32_t schemaVersion{1U} ;
 } ;
 
 /** @brief 実headからの原入力と完全な現在schema再認証結果を保持します */
@@ -1055,8 +1058,8 @@ struct SignedIndexStore::State {
 			std::chrono::seconds{	// 履歴authority回収だけの時刻です
 								 static_cast<std::int64_t>( wire.publishedSeconds)}} ;
 		try {
-			static_cast<void>( verifyAsset( wire, publication, std::nullopt)) ;
-			return {std::move( wire)} ;
+			const auto asset = verifyAsset( wire, publication, std::nullopt) ;	// 同じ原署名の下限です
+			return {std::move( wire), asset.manifest().data().schemaVersion} ;
 		} catch( Failure &failure) {
 			failure.status =
 				IndexStoreStatus::STATE_REJECTED ;	// Historical拒否をfirst-useへ変換しません
@@ -1272,22 +1275,28 @@ IndexConsumerRecordView AuthenticatedIndexSnapshot::consumerRecords() const noex
  * @brief 端末用レコードを所属領域の取得元・元hash・期限に戻します
  * @param[in] index 端末用レコード参照の元位置です
  * @pre indexはconsumerRecords().size()未満です
- * @return 所属領域の原証拠です。期限は署名manifestの期限を超えません
+ * @return 所属領域の原証拠と、manifest・領域・同じレコードの元確認に基づく最短期限です
  */
 //------------------------------------------------------------------------------
 IndexConsumerRecordRegion AuthenticatedIndexSnapshot::consumerRecordRegion(
 	const std::size_t index) const noexcept
 {
-	const auto manifestExpiry =
+	auto expiry =
 		// 両領域の署名期限です
 		receipt_.assetBytes().manifest().data().expiresAtUtc ;
+	const auto &acquisition = consumerRecords()[index].acquisitionDescriptor ;	// 同じ行の元取得条件
+	// 実証済み取得経路は、署名付き索引の有効期間中でも元確認の期限を越えて許可しません
+	if( acquisition && acquisition->attestation) {
+		expiry = std::min( expiry, acquisition->attestation->validUntilUtc) ;
+	}
+
 	// 元本文の参照に追加欄のhashや期限を適用しません
 	if( index < receipt_.records().size()) {
-		return {receipt_.sources(), receipt_.indexSha256(), manifestExpiry} ;
+		return {receipt_.sources(), receipt_.indexSha256(), expiry} ;
 	}
 
 	return {consumerSupplement_.contents.sources, consumerSupplement_.expandedSha256,
-			std::min( manifestExpiry, consumerSupplement_.expiresAtUtc)} ;
+			std::min( expiry, consumerSupplement_.expiresAtUtc)} ;
 }
 //------------------------------------------------------------------------------
 /**
@@ -1515,8 +1524,8 @@ IndexStoreResult SignedIndexStore::commitImpl( const IndexRecordsSchemaReceipt &
 		std::optional<IndexManifestHighWater> highWater ;	// 最新保護state以外から構成しません
 		// Genesisの0を既存manifest highwater APIへ流し込みません
 		if( previous.wire.generation != 0U) {
-			highWater =
-				IndexManifestHighWater{previous.wire.generation, previous.wire.manifestHash} ;
+			highWater = IndexManifestHighWater{previous.wire.generation, previous.wire.manifestHash,
+											   previous.schemaVersion} ;
 		}
 
 		Wire candidate ;	// 原入力は一headへ所有copyし、commit後に未確保としません
@@ -1529,10 +1538,10 @@ IndexStoreResult SignedIndexStore::commitImpl( const IndexRecordsSchemaReceipt &
 		candidate.gzip.assign( gzip.begin(), gzip.end()) ;
 		auto verified = state_->verify( std::move( candidate), nowUtc,
 									   highWater) ;	// 全原byteを実verifierへ通します
-		// 同世代の同原manifest／固定assetはheadを変えず保存済み値だけ再利用します
-		if( verified.wire.generation == previous.wire.generation) {
-			require( verified.wire.manifestHash == previous.wire.manifestHash &&
-						verified.wire.indexHash == previous.wire.indexHash &&
+		// 同原署名は保持したまま再利用し、検証済みの同世代版移行だけは新headへ保存します
+		if( verified.wire.generation == previous.wire.generation &&
+		   verified.wire.manifestHash == previous.wire.manifestHash) {
+			require( verified.wire.indexHash == previous.wire.indexHash &&
 						verified.wire.gzip == previous.wire.gzip,
 					IndexStoreStatus::STATE_REJECTED) ;
 			auto			 current = state_->hydrateHistory( std::move( previous),

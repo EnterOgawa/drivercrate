@@ -2,7 +2,7 @@
 /**
  * @file signed_index_store.h
  * @brief 保護headの原子保存後だけ発行する署名索引snapshotを定義します
- * @version 01.06.01
+ * @version 01.08.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -30,6 +30,8 @@
  * Ver.01.05.00 Shunji Ogawa  2026/11/20  同スキャンの端末機種型番を不変snapshotに保持
  * Ver.01.06.00 Shunji Ogawa  2026/11/23  同スキャンのWindows観測を不変snapshotに保持
  * Ver.01.06.01 Shunji Ogawa  2026/11/26  端末照合に借りる二領域の値を前置契約で説明
+ * Ver.01.07.00 Shunji Ogawa  2026/11/27  隔離ストアの追加欄再読試験へ同じsnapshotを許可
+ * Ver.01.08.00 Shunji Ogawa  2026/11/28  端末用レコードの使用期限を同じ行の確認期限へ結合
  * </pre>
  *
  * @note Workerで同期I/Oします。通常UI・通信・端末照合・導入許可を実装しません
@@ -88,7 +90,7 @@ struct IndexConsumerRecordRegion {
 	std::span<const IndexRecordSource> sources ;
 	/// 同じ元領域の展開原byteのSHA-256です
 	const IndexManifestSha256		  &indexSha256 ;
-	/// 領域を使用できる信頼UTCの上限です
+	/// このレコードに適用するmanifest・領域・元確認の最短期限です
 	std::chrono::sys_seconds		   expiresAtUtc ;
 } ;
 
@@ -133,7 +135,7 @@ public:
 	 * @brief 同じ元位置に対応する取得元・展開hashと期限を借用します
 	 * @param[in] index 端末用レコード参照の0起点位置です
 	 * @pre indexはconsumerRecords().size()未満です
-	 * @return 元領域の参照です。追加欄にもmanifestの最短期限を適用します
+	 * @return 元領域の参照と、manifest・領域・同じレコードの元確認に基づく最短期限です
 	 */
 	[[nodiscard]] IndexConsumerRecordRegion consumerRecordRegion( std::size_t index) const noexcept ;
 	/**
@@ -185,6 +187,7 @@ private:
 							   std::vector<std::byte> gzip) noexcept ;
 	friend class SignedIndexStore ;
 	friend class SignedIndexScanSession ;
+	friend struct signed_index_store_detail::Access ;
 	/// 原manifest・asset・index／record hashと型付き元申告の所有receipt
 	IndexRecordsSchemaReceipt		  receipt_ ;
 	/// Crypto再認証へ使った原envelope byte

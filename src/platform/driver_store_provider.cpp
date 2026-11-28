@@ -2,7 +2,7 @@
 /**
  * @file driver_store_provider.cpp
  * @brief Driver Store provider実装
- * @version 01.81.06
+ * @version 01.94.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -141,6 +141,20 @@
  * Ver.01.81.04 Shunji Ogawa  2026/11/26  限定導入の証拠を個別に説明し再起動後の元結果を同型で比較
  * Ver.01.81.05 Shunji Ogawa  2026/11/26  ストレージ資格が所有する観測領域へ直接読み込む
  * Ver.01.81.06 Shunji Ogawa  2026/11/26  初回クラス登録の表示を元資格の存在へ直接結合
+ * Ver.01.82.00 Shunji Ogawa  2026/11/27  付随INFを伴う候補の登録済み基本パッケージを検証
+ * Ver.01.83.00 Shunji Ogawa  2026/11/27  未評価作用を持つ必須SoftwareComponentを親の選択節へ結合
+ * Ver.01.84.00 Shunji Ogawa  2026/11/27  元選択の登録と適用前に付随INFの不在を再確認
+ * Ver.01.85.00 Shunji Ogawa  2026/11/27  Displayの共用判定用に全現在機器の登録と子属性を読取
+ * Ver.01.86.00 Shunji Ogawa  2026/11/27  現用Displayの署名、実親子と共用判定を候補の導入計画へ結合
+ * Ver.01.87.00 Shunji Ogawa  2026/11/27  Displayの登録と親指定適用の直前に元所有と元承認を再照合
+ * Ver.01.88.00 Shunji Ogawa  2026/11/27  現用Displayの列挙と同名補助の共用照合を分離
+ * Ver.01.89.00 Shunji Ogawa  2026/11/27  元Type 1実行物の到達先を署名付き現用子と一台の親に照合
+ * Ver.01.90.00 Shunji Ogawa  2026/11/27  到達先を確認した必要子のType 1元宣言を保持
+ * Ver.01.91.00 Shunji Ogawa  2026/11/27  選択した必要子の実行記録を同じ導入操作へ接続
+ * Ver.01.92.00 Shunji Ogawa  2026/11/27  親のOpenCL登録を今回の署名付き子の保持ファイルへ照合
+ * Ver.01.93.00 Shunji Ogawa  2026/11/27  同じ子の実行完了後に共有コピー全件の反映を再確認
+ * Ver.01.94.00 Shunji Ogawa  2026/11/27  同じPnPデバイスに結び付く物理GPU種別を読取り
+ * Ver.01.94.01 Shunji Ogawa  2026/11/28  必須子の新しい選択節検査をDisplayの親に限定
  * </pre>
  *
  * @note SetupAPIによるPnP deviceとDriver Store履歴の列挙を実装します。選択された指定版は実行直前に再照合します。Native device identityと
@@ -173,6 +187,9 @@
 #include "platform/mtd_handler_internal.h"
 #include "platform/system_inf_effects_internal.h"
 #include "platform/registered_driver_store_package_internal.h"
+#include "platform/display_inf_scope_internal.h"
+#include "platform/display_type1_event_log_internal.h"
+#include "platform/storage_inf_effects_internal.h"
 #include "platform/mtd_queue_internal.h"
 // Windows.h は SetupAPI の基本型より先、initguid.h は DEVPROPKEY 定義より先に必要である
 // clang-format off
@@ -182,12 +199,19 @@
 #include <initguid.h>
 #include <devpkey.h>
 #include <devguid.h>
+#include <ntddvdeo.h>
 #include <newdev.h>
 #include <cfg.h>
+#include <cfgmgr32.h>
+#include <winternl.h>
+#include <d3dkmthk.h>
+#include <dxcore.h>
+#include <wrl/client.h>
 // clang-format on
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cwchar>
 #include <cstddef>
 #include <cwctype>
@@ -197,15 +221,18 @@
 #endif
 #include <iterator>
 #include <limits>
+#include <map>
 #include <memory>
 #include <new>
 #include <optional>
+#include <set>
 #include <span>
 #include <string>
 #include <unordered_map>
 #include <tuple>
 #include <unordered_set>
 #include <utility>
+#include <type_traits>
 #include <vector>
 
 namespace drivercrate {
@@ -1014,6 +1041,80 @@ private:
 		normalized.begin(), normalized.end(), normalized.begin(),
 		[]( const wchar_t character) { return static_cast<wchar_t>( std::towupper( character)) ; }) ;
 	return normalized ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 一台のDisplayデバイスに対応する物理GPUの種別をWindowsから取得する
+ * @param[in] instanceId 同じ検索で読んだDisplayデバイスの生ID。Windowsの宣言に従い書込み可能バッファを渡す
+ * @return 一台の内蔵又はディスクリートGPUを確認した種別。不明・未対応・曖昧な場合はUNKNOWN
+ * @note 読取り専用。元IDとLUIDは同期中だけ使い、種別は自動選択にだけ渡す
+ */
+//------------------------------------------------------------------------------
+GraphicsAdapterKind readGraphicsAdapterKind( std::wstring &instanceId)
+{
+	const std::unique_ptr<std::remove_pointer_t<HMODULE>, decltype( &FreeLibrary)> module(
+		LoadLibraryExW( L"dxcore.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32),
+		&FreeLibrary) ;	// OS機能の同期所有
+	// DXCoreがないWindowsでも通常の端末検索を継続する
+	if( !module || instanceId.empty()) {
+		return GraphicsAdapterKind::UNKNOWN ;
+	}
+
+	using CreateFactory = HRESULT( WINAPI *)( REFIID, void **) ;	// 公開関数のWindows ABI
+	const auto create	= std::bit_cast<CreateFactory>( GetProcAddress(
+		  // 同じABIとしてシステム関数を借用
+		  module.get(), "DXCoreCreateAdapterFactory")) ;
+	Microsoft::WRL::ComPtr<IDXCoreAdapterFactory> factory ;	// システムモジュール内の照会元
+	// 未対応の関数又はファクトリ作成失敗に推定を加えない
+	if( !create || FAILED( create( IID_PPV_ARGS( factory.GetAddressOf())))) {
+		return GraphicsAdapterKind::UNKNOWN ;
+	}
+
+	GUID arrival = GUID_DISPLAY_DEVICE_ARRIVAL ;	// 同じデバイスのWDDMインターフェイス
+	std::array<wchar_t, 4096U> interfaces{} ;		// デバイス限定の現在のパスを満たす有限領域
+	const auto				   listed = CM_Get_Device_Interface_ListW(
+		&arrival, instanceId.data(), interfaces.data(), static_cast<ULONG>( interfaces.size()),
+		CM_GET_DEVICE_INTERFACE_LIST_PRESENT) ;					// 元OS結果
+	const auto end = std::ranges::find( interfaces, L'\0') ;	// 先頭インターフェイスの終端
+	// 対応なし、複数候補又は上限を超える結果は一台へ分類しない
+	if( listed != CR_SUCCESS || end == interfaces.begin() || end == interfaces.end() ||
+	   end + 1 == interfaces.end() || *(end + 1) != L'\0') {
+		return GraphicsAdapterKind::UNKNOWN ;
+	}
+
+	D3DKMT_OPENADAPTERFROMDEVICENAME opened{} ;	// 同じデバイスのLUIDを読む
+	opened.pDeviceName = interfaces.data() ;
+	// 同じインターフェイスで開けるデバイスだけをDXCoreへ結び付ける
+	if( D3DKMTOpenAdapterFromDeviceName( &opened) != 0) {
+		return GraphicsAdapterKind::UNKNOWN ;
+	}
+
+	Microsoft::WRL::ComPtr<IDXCoreAdapter> adapter ;	// 開いたLUIDに対応するDXCoreアダプター
+	const auto							   matched = factory->GetAdapterByLuid( opened.AdapterLuid,
+																			   // LUIDの照合結果
+																			   IID_PPV_ARGS( adapter.GetAddressOf())) ;
+	const D3DKMT_CLOSEADAPTER close{opened.hAdapter} ;					// 登録や変更を伴わない照会ハンドル
+	const auto				  closed = D3DKMTCloseAdapter( &close) ;	// 照会元への参照解放の診断
+	// 同一の有効なグラフィックスアダプターを確認できる場合だけ種別を調べる
+	if( FAILED( matched) || closed != 0 || !adapter || !adapter->IsValid() ||
+	   !adapter->IsAttributeSupported( DXCORE_ADAPTER_ATTRIBUTE_D3D11_GRAPHICS)) {
+		return GraphicsAdapterKind::UNKNOWN ;
+	}
+
+	bool hardware{} ;		// DXCoreの物理GPU確認
+	UINT physicalCount{} ;	// 同じ論理アダプターの物理台数
+	bool integrated{} ;		// Windowsが報告する内蔵GPUの真偽
+	// ソフトウェアアダプターと複数の物理GPUを一台として数えない
+	if( FAILED( adapter->GetProperty( DXCoreAdapterProperty::IsHardware, &hardware)) || !hardware ||
+	   FAILED( adapter->GetProperty( DXCoreAdapterProperty::PhysicalAdapterCount, &physicalCount)) ||
+	   physicalCount != 1U ||
+	   FAILED( adapter->GetProperty( DXCoreAdapterProperty::IsIntegrated, &integrated)) ||
+	   !adapter->IsValid()) {
+		return GraphicsAdapterKind::UNKNOWN ;
+	}
+
+	return integrated ? GraphicsAdapterKind::INTEGRATED : GraphicsAdapterKind::DISCRETE ;
 }
 
 //------------------------------------------------------------------------------
@@ -4211,37 +4312,109 @@ NativeError readStorageRelatedDeviceIds( const std::wstring		  &service,
 	return 0U ;
 }
 
+/** @brief 同じ全現在機器のうち調べる元登録属性の範囲 */
+enum class PresentDevicePeerMode {
+	/// 非空の元サービスと現在INFが必要な従来ストレージ照合
+	STORAGE_POWER,
+	/// INFのある機器では元サービスの正式不在または正規空値も扱うDisplay照合
+	DISPLAY,
+} ;
+
+/** @brief SoftwareComponentを現在の親と完全Hardware IDで照合する内部値 */
+struct DisplayPeerComponentProperties {
+	/// 正規化した現在の完全親インスタンスID。値が確認できなければ空
+	std::wstring			  parent ;
+	/// 親の非空値・空値・正式不在・照会失敗の区分
+	DevicePropertyReadState	  parentState{DevicePropertyReadState::NOT_READ} ;
+	/// 親属性の元診断に対応するHRESULT。正常な読取りは0
+	NativeError				  parentDiagnostic{} ;
+	/// Windowsの順序を保った正規化済みHardware ID。失敗時は空
+	std::vector<std::wstring> hardwareIds ;
+	/// 正常な読取りは0、正式不在はERROR_NOT_FOUND、その他は元診断に対応するHRESULT
+	NativeError				  hardwareIdsDiagnostic{} ;
+	/**
+	 * @brief 同じSoftwareComponentから独立に読み取った関係属性を照合する
+	 * @param[in] other 同じ機器の親とHardware IDの元観測
+	 * @return 値と各属性の診断が等しい場合true
+	 */
+	bool operator==( const DisplayPeerComponentProperties &other) const = default ;
+} ;
+
 /** @brief present機器の登録情報を元署名確認の前後で比較する内部値 */
-struct StoragePowerPeerRegistration {
+struct PresentDevicePeerRegistration {
 	/// 同じWindows内でのみ使う正規化した機器識別
-	std::wstring					   instance ;
+	std::wstring								  instance ;
 	/// 同じ現在機器が持つ署名確認前の登録属性
-	AutomaticStorageDeviceRegistration registration ;
+	AutomaticStorageDeviceRegistration			  registration ;
 	/// 両属性の正式不在を観測すればtrue
-	bool							   noDriver{} ;
-	/// 関連サービスの値または正式不在が読み取れた場合true
-	bool							   serviceKnown{} ;
+	bool										  noDriver{} ;
+	/// 関連サービスの値・正式不在、またはDisplayの正規空値を読めればtrue
+	bool										  serviceKnown{} ;
 	/// 単一ブートの元署名を読む既存処理の対象クラス
-	bool							   storageClass{} ;
+	bool										  storageClass{} ;
 	/// 正式不在または元登録の読取成功は0、その他は元診断
-	NativeError						   diagnostic{} ;
+	NativeError									  diagnostic{} ;
+	/// Displayでの関連サービス属性の到達区分。ストレージ照合では未照会区分を保持
+	DevicePropertyReadState						  serviceState{DevicePropertyReadState::NOT_READ} ;
+	/// DisplayでSetupAPIがSoftwareComponentクラスを示した機器だけが持つ追加属性
+	std::optional<DisplayPeerComponentProperties> softwareComponent ;
 	/**
 	 * @brief 全present機器の同じ機器を読み直した結果と比較する
 	 * @param[in] other 同じ機器の元属性と診断
 	 * @return 元属性と診断が同じ場合true
 	 */
-	bool operator==( const StoragePowerPeerRegistration &other) const = default ;
+	bool operator==( const PresentDevicePeerRegistration &other) const = default ;
 } ;
+
+/** @brief 従来のストレージ照合で使う全現在機器の元登録属性 */
+using StoragePowerPeerRegistration = PresentDevicePeerRegistration ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在のSoftwareComponentから親インスタンスとHardware IDを独立に取得する
+ * @param[in] devices 同じ現在機器を含む借用情報集合
+ * @param[in,out] node SetupAPIがSoftwareComponentクラスを返した機器の元情報
+ * @param[in] api 同じ情報集合の型付き属性照会
+ * @return 元の親とHardware IDの値または個別の診断
+ * @note 全現在機器の登録状態を判定する際の診断とは別に保持する
+ */
+//------------------------------------------------------------------------------
+DisplayPeerComponentProperties readDisplayPeerComponentProperties(
+	const HDEVINFO devices, SP_DEVINFO_DATA &node, const DriverStoreInventoryTransport &api)
+{
+	DisplayPeerComponentProperties result ;	// 同じSoftwareComponentの端末内限定属性
+	auto parent = readObservedDeviceString( devices, node, DEVPKEY_Device_Parent, result.parent,
+										   api) ;	// 同じ機器の型付き親関係
+	// 列挙した完全インスタンスIDと同じ有限の長さで照合する
+	if( parent.state == DevicePropertyReadState::VALUE) {
+		// 親の長さ不整合を既知の別親に置き換えない
+		if( result.parent.size() >= MAXIMUM_DEVICE_INSTANCE_CHARACTERS) {
+			parent = propertyFailure( ERROR_INVALID_DATA) ;
+			result.parent.clear() ;
+		} else {
+			result.parent = normalizeIdentifier( result.parent) ;
+		}
+	}
+
+	result.parentState		= parent.state ;
+	result.parentDiagnostic = nativeErrorFromWin32( parent.diagnostic.code) ;
+	// 正規の空リスト、正式不在と取得失敗を区別したまま、元の順序でIDを保持する
+	result.hardwareIdsDiagnostic =
+		readIndexIds( devices, node, DEVPKEY_Device_HardwareIds, api, result.hardwareIds) ;
+	return result ;
+}
 
 //------------------------------------------------------------------------------
 /**
  * @brief 全セットアップクラスの現在機器から元登録属性を有界に読み取る
+ * @param[in] mode ストレージまたはDisplayの元登録条件と取得する追加属性の範囲
  * @param[out] result 全present機器の属性と個別の未確認理由。列挙失敗時は空
  * @return IDと列挙終端が確認できた場合0、母集合の不明や途中失敗はHRESULT
  * @note 個別のINFまたはサービス属性の失敗は機器自体を分母から除かない
  */
 //------------------------------------------------------------------------------
-NativeError readStoragePowerPeerRegistrations( std::vector<StoragePowerPeerRegistration> &result)
+NativeError readPresentDevicePeerRegistrations( const PresentDevicePeerMode				   mode,
+											   std::vector<PresentDevicePeerRegistration> &result)
 {
 	result.clear() ;
 	const auto	 &api = driver_store_inf_detail::transport().inventory ;	// 同一workerの元属性照会
@@ -4256,7 +4429,8 @@ NativeError readStoragePowerPeerRegistrations( std::vector<StoragePowerPeerRegis
 	// 既存の単一ブート署名検査が扱うWindowsセットアップクラス
 	constexpr GUID SCSI_ADAPTER{
 		0x4d36e97b, 0xe325, 0x11ce, {0xbf, 0xc1, 0x08, 0x00, 0x2b, 0xe1, 0x03, 0x18}} ;
-	std::vector<StoragePowerPeerRegistration> made ;	// 末尾の完全性を確認するまで保持
+	const bool display = mode == PresentDevicePeerMode::DISPLAY ;	// Display専用の読取を行う有効範囲
+	std::vector<PresentDevicePeerRegistration> made ;				// 末尾の完全性を確認するまで保持
 	// 既存機器列挙と同じ上限を使い、上限ちょうどでも終端を確認する
 	for( DWORD index = 0U; index <= MAXIMUM_DEVICES; ++index) {
 		SP_DEVINFO_DATA node{} ;	// 同じ情報集合の一機器
@@ -4286,8 +4460,13 @@ NativeError readStoragePowerPeerRegistrations( std::vector<StoragePowerPeerRegis
 																 : ERROR_NO_SUCH_DEVINST) ;
 		}
 
-		entry.instance		  = normalizeIdentifier( entry.instance) ;
-		entry.storageClass	  = IsEqualGUID( node.ClassGuid, SCSI_ADAPTER) != FALSE ;
+		entry.instance	   = normalizeIdentifier( entry.instance) ;
+		entry.storageClass = IsEqualGUID( node.ClassGuid, SCSI_ADAPTER) != FALSE ;
+		// SoftwareComponentの親関係とIDの不明を全機器の登録失敗とは別に保持する
+		if( display && IsEqualGUID( node.ClassGuid, GUID_DEVCLASS_SOFTWARECOMPONENT)) {
+			entry.softwareComponent = readDisplayPeerComponentProperties( devices.get(), node, api) ;
+		}
+
 		auto	  &registered = entry.registration ;	// このノードが示す現在の元属性
 		// 同じ現用機器に属する関連サービスの属性
 		const auto service = readObservedDeviceString( devices.get(), node, DEVPKEY_Device_Service,
@@ -4296,16 +4475,25 @@ NativeError readStoragePowerPeerRegistrations( std::vector<StoragePowerPeerRegis
 		const auto inf = readObservedDeviceString( devices.get(), node, DEVPKEY_Device_DriverInfPath,
 												  registered.selection.publishedInf, api) ;
 		entry.serviceKnown = service.state == DevicePropertyReadState::VALUE ||
-							 service.state == DevicePropertyReadState::NOT_PRESENT ;
+							 service.state == DevicePropertyReadState::NOT_PRESENT ||
+							 (display && service.state == DevicePropertyReadState::EMPTY) ;
+		// Displayでは型付き空値と正式不在を再観測時にも区別する
+		if( display) {
+			entry.serviceState = service.state ;
+		}
+
 		entry.noDriver = service.state == DevicePropertyReadState::NOT_PRESENT &&
 						 inf.state == DevicePropertyReadState::NOT_PRESENT ;
-		// 関連サービスかINFの片方だけが不明なら正式未導入に含めない
-		if( !entry.noDriver && (service.state != DevicePropertyReadState::VALUE ||
-							   inf.state != DevicePropertyReadState::VALUE)) {
-			// 先に読んだサービスの元診断があればそのまま返す
-			const auto reason =
-				service.diagnostic.code ? service.diagnostic.code : inf.diagnostic.code ;
-			entry.diagnostic = nativeErrorFromWin32( reason ? reason : ERROR_NOT_FOUND) ;
+		const bool acceptedService =
+			service.state == DevicePropertyReadState::VALUE ||
+			(display && entry.serviceKnown) ;	// 元登録に使える関連サービス属性
+		// 正式未導入以外では確認できたINFと現在の実節を必要とする
+		if( !entry.noDriver && (!acceptedService || inf.state != DevicePropertyReadState::VALUE)) {
+			// Displayで受理したサービスの正式不在はINFの読取失敗を隠さない
+			const auto reason = (!display || !acceptedService) && service.diagnostic.code
+									? service.diagnostic.code
+									: inf.diagnostic.code ;
+			entry.diagnostic  = nativeErrorFromWin32( reason ? reason : ERROR_NOT_FOUND) ;
 		}
 		// 一意な現在登録がある場合にだけWindowsの実節と装飾を取得する
 		else if( !entry.noDriver) {
@@ -4324,15 +4512,762 @@ NativeError readStoragePowerPeerRegistrations( std::vector<StoragePowerPeerRegis
 		}
 	}
 
-	std::ranges::sort( made, {}, &StoragePowerPeerRegistration::instance) ;
+	std::ranges::sort( made, {}, &PresentDevicePeerRegistration::instance) ;
 	// 同じ識別子を二件の互いに独立な証拠として数えない
-	if( std::ranges::adjacent_find( made, {}, &StoragePowerPeerRegistration::instance) !=
+	if( std::ranges::adjacent_find( made, {}, &PresentDevicePeerRegistration::instance) !=
 	   made.end()) {
 		return nativeErrorFromWin32( ERROR_DUP_NAME) ;
 	}
 
 	result = std::move( made) ;
 	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 従来のストレージ照合に使う全現在機器の元登録を読み取る
+ * @param[out] result 全present機器の属性と個別の未確認理由。列挙失敗時は空
+ * @return 全識別子と列挙終端が確認できた場合0、母集合の不明や途中失敗はHRESULT
+ * @note 現在INFのある機器では関連サービスの非空値を要求する
+ */
+//------------------------------------------------------------------------------
+NativeError readStoragePowerPeerRegistrations( std::vector<StoragePowerPeerRegistration> &result)
+{
+	return readPresentDevicePeerRegistrations( PresentDevicePeerMode::STORAGE_POWER, result) ;
+}
+
+/** @brief 現用または依存INFの指定実節を読んだ結果 */
+struct DisplayPeerInfRead {
+	/// 同じ元ファイルの正式位置、保護及び全ハッシュ
+	ProtectedExecutableSnapshot file ;
+	/// 同じ元INFの選択節または全節の読取り結果
+	DisplayInfUse				scope ;
+	/**
+	 * @brief 別の読み取りでINFの元ファイルと作用が同じか確認する
+	 * @param[in] other 元の実節または依存INFの独立観測
+	 * @return ファイルと作用が一致した場合true
+	 */
+	bool						operator==( const DisplayPeerInfRead &other) const = default ;
+} ;
+} // namespace
+
+/** @brief 検査済みType 1の同じクラスとPnP到達先を二度読んだ証拠 */
+struct DisplayType1Reachability {
+	/// 同じ元制御セットと保護された元クラス登録
+	DisplayType1ClassSnapshot				 classes ;
+	/// 同じ元実行物の検索条件で現在機器から確認した親子
+	DisplayType1Topology					 topology ;
+	/// 同じDisplayの保護された親レジストリを読むWindows Driver属性
+	std::wstring							 parentDriver ;
+	/// 同じ親と共有箇所にある元の作用対象値と保護
+	DisplayType1RegistrySnapshot			 registry ;
+	/// 選択した同じ署名付き子INFの元宣言と非Storeの全コピー指定
+	OfficialType1Registration				 registration ;
+	/// 同じ順の正規共有先と実ファイルの保護、元内容または正式不在
+	std::vector<ProtectedExecutableSnapshot> sharedFiles ;
+	/// 旧登録値が現用子を参照し、元旧マーカーも不在の場合true
+	bool									 currentChildReferencesMatch{} ;
+	/**
+	 * @brief 同じ選択の到達先を別の観測と比較する
+	 * @param[in] other 同じ選択について独立に再読取りした証拠
+	 * @return 元クラス、到達先、元親と保護された作用対象値・共有ファイルが一致する場合true
+	 */
+	bool operator==( const DisplayType1Reachability &other) const = default ;
+} ;
+
+/** @brief 一つの署名候補に対する現用Display補助サービスの所有と共用の証拠 */
+struct DisplayAuxiliaryOwnershipProof {
+	/// 同じ現用親の正規公開INF、Store元INF、CATの保護順
+	std::array<ProtectedExecutableSnapshot, 3U>							parentFiles ;
+	/// Windowsの現用補助サービスの設定、保護、同じ署名配布に属する実行先
+	DisplayAuxiliaryServiceObservation									service ;
+	/// 同じ現用宣言によるApplicationイベント源の保護と観測
+	DisplayApplicationEventSnapshot										event ;
+	/// 対象の子が存在する場合の公開INF、Store元INF、CATの保護順
+	std::optional<std::array<ProtectedExecutableSnapshot, 3U>>			childFiles ;
+	/// 元実行物の検査が一致した場合のクラスと到達先。通常は空
+	std::optional<DisplayType1Reachability>								type1 ;
+	/// 同じ対象と共用可能性を照合した現在機器の母集合。worker内限定
+	std::vector<PresentDevicePeerRegistration>							devices ;
+	/// 正規公開INF葉と実節で一意な保護と作用。依存と拡張の全節は実節なし
+	std::map<std::pair<std::wstring, std::wstring>, DisplayPeerInfRead> infs ;
+	/**
+	 * @brief 同じ候補について読み直した現在所有を比較する
+	 * @param[in] other 同じ選択の独立観測
+	 * @return 全ての機器・INF・共有先と変更対象の状態に差がなければtrue
+	 */
+	bool operator==( const DisplayAuxiliaryOwnershipProof &other) const = default ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択Displayの必須子と同じ元宣言だけを内容範囲の再照合へ渡す
+ * @param[in] proof 同じ親と現用所有・到達先を確認した証拠
+ * @param[in] selected 再照合する同じ元選択の必須子
+ * @return 同じ元INFと選択節を持つ既知の宣言への借用。別の選択ではnullptr
+ * @note 参照は証拠の所有者より長く保持できない。実行許可を発行しない
+ */
+//------------------------------------------------------------------------------
+const OfficialType1Registration *reviewedDisplayType1Registration(
+	const DisplayAuxiliaryOwnershipProof &proof, const OfficialInfPackage &selected) noexcept
+{
+	// 所有の読取りだけでは、補助実行物の到達先を確認した証拠にならない
+	if( !proof.type1) {
+		return nullptr ;
+	}
+
+	const auto &registration = proof.type1->registration ;	// この親に結合した同じ選択子の元宣言
+	return registration.infRelativePath == selected.infRelativePath &&
+				   registration.basicSection == selected.selectedBasicSection &&
+				   registration.installSection == selected.selectedInstallSection
+			   ? &registration
+			   : nullptr ;
+}
+
+namespace {
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用Displayの所有確認で止まった箇所を示す非機密の診断
+ */
+//------------------------------------------------------------------------------
+enum class DisplayOwnershipObservation : std::uint32_t {
+	/// 現在機器の母集合
+	PRESENT = 1,
+	/// 現用親の選択と署名
+	PARENT,
+	/// 同じWin32サービスを使う現在機器の所属
+	ASSOCIATED,
+	/// 現用INFの読取りと作用の共用
+	PEER_INF,
+	/// 現用子の親関係、主ID、署名または候補子との結合
+	CHILD,
+	/// 公開領域の拡張INFの列挙
+	EXTENSIONS,
+	/// 依存と拡張の全節
+	DEPENDENCIES,
+	/// SCMと実行ファイルの所有
+	SCM,
+	/// 現用Applicationイベント源
+	EVENT,
+	/// 照合後の現在機器の再読取り
+	PRESENT_AGAIN,
+	/// 候補子の直接関係、実選択と限定作用
+	CANDIDATE_CHILD,
+	/// 検査済みType 1のクラスと現在の全到達先
+	TYPE1_PATH,
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 実行物と既知の探索条件に照合し、署名付き現用子と一台の親への到達を観測する
+ * @param[in] inspection 同じ公式元配布の保護領域と署名閉包
+ * @param[in] candidate 同じ候補の選択済み子INF
+ * @param[in] device 同じ現用子のWindows属性
+ * @param[in] parentInstance 同じ候補の選択親の正規化済みWindows ID
+ * @param[in] current 同じ現用子の保護付き元署名パッケージ
+ * @param[out] reachability 既知の構文と現在の範囲が成立した場合だけ保持する
+ * @return 既知の観測成功か未分類で0、既知実行物の元条件又は範囲が不成立ならHRESULT
+ * @note 未分類時は証拠を付与しない。配布元、共有値、共有ファイルと実行確認は別途必要
+ */
+//------------------------------------------------------------------------------
+NativeError readDisplayType1Reachability( const CommonInfInspection				  &inspection,
+										 const OfficialInfPackage				  &candidate,
+										 const PresentDevicePeerRegistration	  &device,
+										 const std::wstring						  &parentInstance,
+										 const RegisteredSoftwareComponentPackage &current,
+										 std::optional<DisplayType1Reachability>  &reachability)
+{
+	reachability.reset() ;
+	constexpr std::wstring_view REVIEWED_SHA256 =
+		L"D340C0A33BFC06C8B52B46A49EDC37E116379E05AADC6394233BD3347ED828B4" ;	// 公式26.11.2で内容を検査した実行物
+	constexpr std::array families{
+		std::wstring_view{L"SWC\\AMDOCL"}, std::wstring_view{L"SWC\\AMDOGL"},
+		std::wstring_view{L"SWC\\AMDVLK"}} ;	// 同じ実行物が走査する条件の閉集合
+	OfficialType1Registration program ;			// 同じ子INFと完全バイトを照合した元実行物
+	const auto				  read = readSelectedOfficialType1Registration(
+		   *inspection.workspace, inspection.closure.entries, candidate,
+		   program) ;	// 同じ保護領域と実節からの読み取り
+	// 未分類の内容にはこの観測を付与せず、後段の既存判定に委ねる
+	if( read != 0U || normalizeIdentifier( program.binarySha256) != REVIEWED_SHA256) {
+		return 0U ;
+	}
+
+	// 同じ実行物でも、静的に確認した引数と子単位指定を別構成へ読み替えない
+	if( !program.perDevice || program.softwareName != L"AMDOCLComponent" ||
+	   program.softwareVersion != L"25.10.243.11107" || program.arguments.size() != 1U ||
+	   program.arguments.front() != L"x") {
+		return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	DisplayType1Reachability observed ;										// 二度の読み取りが揃うまで返さない範囲
+	DisplayType1Reachability fresh ;										// 途中変更を確認する独立した読み取り
+	const auto				&api = driver_store_inf_detail::transport() ;	// 同じworkerの端末照会
+	DeviceInfoSet devices( api.create( nullptr, nullptr)) ;					// 同一の選択親だけを開く情報集合
+	// 正式なWindows選択親から作用先を取得できない場合は範囲未確認とする
+	if( !devices.valid()) {
+		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	SP_DEVINFO_DATA parent{} ;	// 選択親のSetupAPI属性
+	parent.cbSize = sizeof( parent) ;
+	// 固定クラス番号を仮定せず同じ機器を開き直す
+	if( !api.open( devices.get(), parentInstance.c_str(), nullptr, 0U, &parent)) {
+		return nativeErrorFromWin32( GetLastError()) ;
+	}
+
+	// クラス、PnP、親と共有先の値を順に読み、同じ状態を二度照合する
+	for( auto *proof : {&observed, &fresh}) {
+		auto error = readDisplayType1ClassSnapshot( proof->classes) ;	// 同じWindowsの正式クラス登録
+		// 全クラスの母集合が分かった場合だけ現在の到達先を読む
+		if( error == 0U) {
+			error = readDisplayType1Topology( families, proof->topology) ;
+		}
+
+		// 両方の観測から同じ現用子・親へ一意に結ぶ
+		if( error == 0U) {
+			error = verifyDisplayType1ParentBinding( proof->classes, proof->topology, families,
+													parentInstance, device.instance,
+													device.softwareComponent->hardwareIds.front(),
+													current.storeInf, proof->parentDriver) ;
+		}
+
+		// 正式な親と同じ制御セットで保護された値と正式不在を確認する
+		if( error == 0U) {
+			error = readDisplayType1RegistrySnapshot( devices.get(), parent, proof->registry) ;
+		}
+
+		// 読み取り失敗や共有を一台の選択へ補わない
+		if( error != 0U) {
+			return error ;
+		}
+
+		// 制御セット、Driver属性又は保護の結合が変わった観測は保存しない
+		if( proof->registry.controlSet != proof->classes.controlSet ||
+		   normalizeIdentifier( proof->registry.driverKey) !=
+			   normalizeIdentifier( proof->parentDriver)) {
+			return nativeErrorFromWin32( ERROR_RETRY) ;
+		}
+
+		// 共有先は署名が示す元コピー位置からだけ解決し、全宛先を保護付きで読む
+		for( const auto &copy : program.sharedCopies) {
+			// 既知のWindows共有配置を他のDIRIDや任意フォルダへ広げない
+			if( copy.dirid != 11 && copy.dirid != 10) {
+				return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+			}
+
+			ProtectedExecutableSnapshot file ;	// 同じ宛先の保護と現在の全ハッシュ
+			error = readWindowsSharedDriverFileSnapshot( copy.target, copy.dirid == 10, file) ;
+			// 正式不在と読めない宛先を混同しない
+			if( error != 0U) {
+				return error ;
+			}
+
+			proof->sharedFiles.push_back( std::move( file)) ;
+		}
+	}
+
+	// 途中で別の到達先や登録に変わった場合は所有を引き継がない
+	if( observed != fresh) {
+		return nativeErrorFromWin32( ERROR_RETRY) ;
+	}
+
+	const auto childDirectory			 = current.storeInf.substr( 0U,
+																   // 署名と照合した現用子の正規Storeの親
+																   current.storeInf.rfind( L'\\') + 1U) ;
+	observed.currentChildReferencesMatch = matchesDisplayType1ReflectedRegistry(
+		observed.registry, childDirectory + L"amdocl64.dll", childDirectory + L"amdocl32.dll") ;
+	observed.registration = std::move( program) ;
+	reachability		  = std::move( observed) ;
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 指定適用後の同じ署名付き必須子を元操作のWindows実行記録へ結ぶ
+ * @param[in] before 同じ導入操作の最初の変更より前に確認したイベント境界
+ * @param[in] reviewed 同じ親子の元Type 1宣言と導入前の制御セット・共有配置
+ * @param[in] selected 同じ導入が選んだ子の実節と署名済みファイルの構成
+ * @param[in] entries 同じ公式配布の署名確認済み元閉包
+ * @param[in] registeredInf 同じ導入が変更非共有で保持する選択子の登録INF
+ * @param[in] parentInstance 今回指定した親の完全ID
+ * @param[in] parentBeforeChild 親の指定導入後かつ子の指定導入前の現在観測
+ * @param[in] childInstance 同じ親の必須子として一意に選んだ完全ID
+ * @param[in] hardwareIds 署名済みの親が要求する同じ子のHardware ID
+ * @return 同じ操作へ照合した実行と反映状態。元署名、親子またはログを取得できない場合は未確認
+ * @note 読取り専用。実行完了を確認してから親の登録と共有先の結果を照合する
+ */
+//------------------------------------------------------------------------------
+DisplayType1InstallResult observeAppliedDisplayType1(
+	const DisplayType1EventBoundary &before, const DisplayType1Reachability &reviewed,
+	const OfficialInfPackage &selected, std::span<const OfficialZipEntry> entries,
+	const std::wstring &registeredInf, const std::wstring &parentInstance,
+	const DeviceRankSnapshot &parentBeforeChild, const std::wstring &childInstance,
+	const std::span<const std::wstring> hardwareIds)
+{
+	try {
+		const auto	   &registration = reviewed.registration ;			// この導入が選んだ同じ実行物と元宣言
+		const auto	   &api = driver_store_inf_detail::transport() ;	// 同じworkerのWindows照会
+		DeviceInfoSet	devices( api.create( nullptr, nullptr)) ;		// 現在の同じ子だけを開く集合
+		SP_DEVINFO_DATA child{} ;										// 同じWindows子の読み取り属性
+		child.cbSize = sizeof( child) ;
+		// 開けない子を導入済みの子の代わりに使わない
+		if( !devices.valid() ||
+		   !api.open( devices.get(), childInstance.c_str(), nullptr, 0U, &child)) {
+			return {DisplayType1InstallState::UNCONFIRMED, nativeErrorFromWin32( GetLastError())} ;
+		}
+
+		std::vector<std::byte> present ;	// Windowsが現在も存在すると示す型付き値
+		// 同じ子の現在存在を示す元属性の読み取り結果
+		const auto presence = readObservedProperty( devices.get(), child, DEVPKEY_Device_IsPresent,
+												   DEVPROP_TYPE_BOOLEAN, present, api.inventory) ;
+		// 取り外し後に残った登録を今回の現用子として扱わない
+		if( presence.state != DevicePropertyReadState::VALUE ||
+		   present.size() != sizeof( DEVPROP_BOOLEAN) ||
+		   present.front() != static_cast<std::byte>( DEVPROP_TRUE)) {
+			return {DisplayType1InstallState::UNCONFIRMED,
+					nativeErrorFromWin32( presence.diagnostic.code ? presence.diagnostic.code
+																  : ERROR_NO_SUCH_DEVINST)} ;
+		}
+
+		std::wstring parent ;	// 子の現在の親属性
+		const auto	 parentRead = readObservedDeviceString(
+			  // 現在の型付き属性
+			  devices.get(), child, DEVPKEY_Device_Parent, parent, api.inventory) ;
+		const auto ids = readDeviceStringList(
+			// 同じ子の現在のHardware ID
+			devices.get(), child, DEVPKEY_Device_HardwareIds) ;
+		// 前の親子を保証済みと扱わず、現在も選択した親の元IDに対応する場合だけ進む
+		if( parentRead.state != DevicePropertyReadState::VALUE ||
+		   normalizeIdentifier( parent) != normalizeIdentifier( parentInstance) || ids.size() != 1U ||
+		   std::ranges::none_of( hardwareIds, [&]( const auto &id) {
+			   return normalizeIdentifier( id) == normalizeIdentifier( ids.front()) ;
+		   })) {
+			return {DisplayType1InstallState::UNCONFIRMED, nativeErrorFromWin32( ERROR_RETRY)} ;
+		}
+
+		InstalledStorageInfSelection selection ;	// 現在の子の公開INFと実節
+		auto error = readInstalledStorageInfSelection( devices.get(), child, api.inventory,
+													  selection) ;	// Windowsが現に使用する元位置
+		// 今回登録した公開名と異なる同版・旧子を今回の導入へ結び付けない
+		if( error != 0U || registeredInf.empty() ||
+		   normalizedFileName( registeredInf) != normalizeIdentifier( selection.publishedInf)) {
+			return {DisplayType1InstallState::UNCONFIRMED,
+					error != 0U ? error : nativeErrorFromWin32( ERROR_RETRY)} ;
+		}
+
+		RegisteredSoftwareComponentPackage applied ;	// 署名済みのStore元INFと実節
+		error = readRegisteredSoftwareComponentPackage(
+			selection.publishedInf, selection.basicSection,
+			selection.sectionExtension.value_or( L""), ids.front(), applied) ;
+
+		const auto separator = applied.storeInf.rfind( L'\\') ;	// 正規Store元INFの親
+		const auto catalog	 = std::ranges::find_if( entries, [&]( const auto &entry) {
+			  return CompareStringOrdinal( entry.relativePath.c_str(), -1,
+										  selected.catalogRelativePath.c_str(), -1,
+										  TRUE) == CSTR_EQUAL ;
+		  }) ; // 選択した子が所有する元CATと完全バイトの証拠
+		// 旧INFや別の元CATの現在子を今回の実行物に付け替えない
+		if( error != 0U || catalog == entries.end() || separator == std::wstring::npos ||
+		   normalizeIdentifier( applied.installedSection) !=
+			   normalizeIdentifier( registration.installSection) ||
+		   !applied.storeFile.existing || !applied.catalogFile.existing ||
+		   normalizeIdentifier( applied.storeFile.existing->sha256) !=
+			   normalizeIdentifier( registration.infSha256) ||
+		   applied.catalogFile.existing->bytes != catalog->uncompressedSize ||
+		   normalizeIdentifier( applied.catalogFile.existing->sha256) !=
+			   normalizeIdentifier( catalog->sha256)) {
+			return {DisplayType1InstallState::UNCONFIRMED,
+					error != 0U ? error : nativeErrorFromWin32( ERROR_RETRY)} ;
+		}
+
+		const auto directory =
+			// 同じ署名付き子の登録先
+			applied.storeInf.substr( 0U, separator + 1U) ;
+		const auto binary = directory + registration.softwareBinary ;	// 元宣言の正規Store完全位置
+		ProtectedExecutableSnapshot executable ;						// 同じ正規Store内の保護された実行物
+		error = readRegisteredDriverStoreExecutableSnapshot( binary, binary, executable) ;
+		// 元署名で確認したファイルと異なる実体をコマンド照合に使わない
+		if( error != 0U || !executable.existing ||
+		   executable.existing->bytes != registration.binaryBytes ||
+		   normalizeIdentifier( executable.existing->sha256) !=
+			   normalizeIdentifier( registration.binarySha256)) {
+			return {DisplayType1InstallState::UNCONFIRMED,
+					error != 0U ? error : nativeErrorFromWin32( ERROR_CRC)} ;
+		}
+
+		auto observed = observeDisplayType1InstallEvents(
+			before, {0U, false, registration.softwareName, binary, registration.arguments,
+					 childInstance, true, false, false}) ;	// 同じ実行の終了と元失敗の確認
+		// 照合済みの完了より前の共有ファイルや親の登録を反映証拠にしない
+		if( observed.state != DisplayType1InstallState::REFLECTION_PENDING) {
+			return observed ;
+		}
+
+		const auto shared = verifyDisplayType1SharedCopies(
+			registration.sharedCopies, reviewed.sharedFiles,
+			readWindowsSharedDriverFileSnapshot) ;	// 実行終了を観測した後の共有コピー
+
+		RegisteredDriverStorePackage   pinned ;	// 親の値を照合する間、子の署名閉包を読取り保持する
+		const DriverStorePackageLookup lookup{api.windowsDirectory,
+											  api.storageStoreLocation} ;	// 同じ登録先の照会
+		const auto		 native = directory + L"amdocl64.dll" ;				// 64ビット実装の元実行物による登録先
+		const auto		 wow	= directory + L"amdocl32.dll" ;				// 32ビット実装の元実行物による登録先
+		const std::array members{native, wow, binary} ;						// 保持を要求する元閉包内の三点
+		SP_DEVINFO_DATA	 selectedParent{} ;									// 同じ選択親の読み取り属性
+		selectedParent.cbSize = sizeof( selectedParent) ;
+		const auto parentOpen = api.open( devices.get(), parentInstance.c_str(), nullptr, 0U,
+										 &selectedParent) ;	// 別の親や登録番号を探索しない
+		std::vector<std::byte>		 parentPresent ;		// 親の型付き現在存在属性
+		DisplayType1RegistrySnapshot registry ;				// 同じ親の現用キーから得た実値と旧値
+		DeviceRankSnapshot			 parentAfter ;			// 値の照合後も同じ親の登録であるかの観測
+		const bool					 registryReflected =
+			parentOpen &&
+			readObservedProperty( devices.get(), selectedParent, DEVPKEY_Device_IsPresent,
+								 DEVPROP_TYPE_BOOLEAN, parentPresent, api.inventory)
+					.state == DevicePropertyReadState::VALUE &&
+			parentPresent.size() == sizeof( DEVPROP_BOOLEAN) &&
+			parentPresent.front() == static_cast<std::byte>( DEVPROP_TRUE) &&
+			pinned.pinFromClosure( registeredInf, selected, entries, lookup) == 0U &&
+			pinned.containsPinnedMembers( applied.storeInf, members) &&
+			readDisplayType1RegistrySnapshot( devices.get(), selectedParent, registry) == 0U &&
+			registry.controlSet == reviewed.registry.controlSet &&
+			matchesDisplayType1ReflectedRegistry( registry, native, wow) &&
+			readDeviceRankSnapshot( parentInstance, parentAfter) == 0U &&
+			parentAfter.driverKeyRead.state == DevicePropertyReadState::VALUE &&
+			normalizeIdentifier( parentAfter.driverKey) == normalizeIdentifier( registry.driverKey) &&
+			deviceRankSnapshotsEqual( parentBeforeChild, parentAfter) &&
+			// 欠落・未知・元親の変更は反映待ちのままにする
+			pinned.verify() == 0U ;
+
+		InstalledStorageInfSelection fresh ;	// 値と元ファイルの照合後の同じ子の現用登録
+		const auto					 freshParent = readObservedDeviceString(
+			  // 親子の現在結合
+			  devices.get(), child, DEVPKEY_Device_Parent, parent, api.inventory) ;
+		const auto freshPresence = readObservedProperty(
+			devices.get(), child, DEVPKEY_Device_IsPresent, DEVPROP_TYPE_BOOLEAN, present,
+			api.inventory) ;	// 途中の取り外しを確認
+		// 読取り中の親子の変更や他のINFへの切替を反映証拠にしない
+		if( freshParent.state != DevicePropertyReadState::VALUE ||
+		   normalizeIdentifier( parent) != normalizeIdentifier( parentInstance) ||
+		   freshPresence.state != DevicePropertyReadState::VALUE ||
+		   present.size() != sizeof( DEVPROP_BOOLEAN) ||
+		   present.front() != static_cast<std::byte>( DEVPROP_TRUE) ||
+		   readInstalledStorageInfSelection( devices.get(), child, api.inventory, fresh) != 0U ||
+		   fresh != selection) {
+			return {DisplayType1InstallState::UNCONFIRMED, nativeErrorFromWin32( ERROR_RETRY)} ;
+		}
+
+		// 実行完了後の一台の必須子、親と共有先が全て確定した場合だけ反映済みとする
+		if( registryReflected && shared == S_OK) {
+			observed.state = DisplayType1InstallState::REFLECTED ;
+		}
+
+		// 事後の読取失敗は元診断として返し、指定導入APIやWindows実行の失敗に置き換えない
+		if( FAILED( shared)) {
+			observed.error = shared ;
+		}
+
+		return observed ;
+	} catch( const std::bad_alloc &) {
+		return {DisplayType1InstallState::UNCONFIRMED, E_OUTOFMEMORY} ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用の共用候補一件を同じ署名計画の直接必須子として検査する
+ * @param[in] inspection 候補の署名検査済みINFを所有する保護領域と閉包
+ * @param[in] packages 候補の選択済み親子
+ * @param[in] parent 現用親の署名付き元選択
+ * @param[in] parentInstance 同じ現用親の正規化済みWindowsインスタンスID
+ * @param[in] device 共用候補の現在の読取り情報
+ * @param[in] target 同じ候補Displayが宣言する補助サービス
+ * @param[out] files 成功時の公開INF、Store元INF、CATの保護と全ハッシュ。失敗時は空
+ * @param[out] type1 既知Type 1実行物の到達先の観測。未分類または失敗時は空
+ * @param[in,out] observation 候補側の照合開始時に更新する非機密の段階
+ * @return 現用子と候補子が一意で署名元が確認できた場合0、その他はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError readDisplayPeerChild(
+	const CommonInfInspection &inspection, std::span<const OfficialInfPackage> packages,
+	const RegisteredDisplayAuxiliaryPackage &parent, const std::wstring &parentInstance,
+	const PresentDevicePeerRegistration &device, const OfficialDisplayAuxiliaryService &target,
+	std::optional<std::array<ProtectedExecutableSnapshot, 3U>> &files,
+	std::optional<DisplayType1Reachability> &type1, DisplayOwnershipObservation &observation)
+{
+	// 既に一件を確認した場合と別の機器の共有は同じ作用に含めない
+	if( files || !device.softwareComponent) {
+		return nativeErrorFromWin32( ERROR_SHARING_VIOLATION) ;
+	}
+
+	const auto &relation = *device.softwareComponent ;	// 型付きWindows親と主IDの元属性
+	// 同じ親の一つの現在子であることをWindowsの属性で確認する
+	if( relation.parentState != DevicePropertyReadState::VALUE ||
+	   relation.parent != parentInstance || relation.hardwareIdsDiagnostic != 0U ||
+	   relation.hardwareIds.size() != 1U) {
+		return nativeErrorFromWin32( ERROR_SHARING_VIOLATION) ;
+	}
+
+	const auto &id		 = relation.hardwareIds.front() ;	// 現用子の一意な主ID
+	const auto &selected = device.registration.selection ;	// 現用子の署名照合に使うWindowsの実節
+	RegisteredSoftwareComponentPackage child ;				// 現用子の正規登録と同じCAT
+	auto							   error = readRegisteredSoftwareComponentPackage(
+		  selected.publishedInf, selected.basicSection, selected.sectionExtension.value_or( L""), id,
+		  child) ;									// 同じ子の署名と実選択の診断
+	const OfficialInfPackage *candidate = nullptr ;	// 同じ現用子に結び付いた選択済み候補
+	// 現用子が署名・主IDへ結び付いた場合だけ候補の同じ子を照合する
+	if( error == 0U) {
+		observation = DisplayOwnershipObservation::CANDIDATE_CHILD ;
+		error = verifyDisplayPeerCandidateChild( *inspection.workspace, parent.components, packages,
+												id, target, &candidate) ;
+	}
+
+	// 元宣言と現在署名の成立後だけ、既知実行物が実際に探索する範囲へ結ぶ
+	if( error == 0U) {
+		// 一意な候補の返却を確認してから署名実行物の観測に渡す
+		if( !candidate) {
+			return E_UNEXPECTED ;
+		}
+
+		observation = DisplayOwnershipObservation::TYPE1_PATH ;
+		error = readDisplayType1Reachability( inspection, *candidate, device, parentInstance, child,
+											 type1) ;
+	}
+
+	// 両方の子の元情報が確認できた場合だけ証拠を保存する
+	if( error == 0U) {
+		files.emplace( std::array{std::move( child.publishedFile), std::move( child.storeFile),
+								 std::move( child.catalogFile)}) ;
+	}
+
+	return error ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 列挙した全現在機器から同じ現用Displayの補助サービスの所有と共用を確かめる
+ * @param[in] inspection 選択元の署名と元ファイルを保持する検査結果
+ * @param[in] packages 同じ選択の親と全必要INF。先頭は選択親
+ * @param[in] instanceId 同じ候補が適合した現在の選択親
+ * @param[in] expectedInf 元の候補適合性で観測した現用親の公開INF
+ * @param[in] target 候補の選択節から確認した同名サービスとイベント源
+ * @param[in] devices 同じWindowsの全現在機器の取得済み属性。この照会が所有する
+ * @param[out] result 現用の署名・全現在機器と作用の証拠。失敗時は空
+ * @param[out] observation 元デバイス情報を含まない現在の照合段階
+ * @return 所有と対象範囲の確認成功で0、その他HRESULT
+ * @note 読取専用。候補の必要ソフトウェアの実行範囲は別途確認が必要
+ */
+//------------------------------------------------------------------------------
+NativeError inspectDisplayAuxiliaryOwnership(
+	const CommonInfInspection &inspection, std::span<const OfficialInfPackage> packages,
+	const std::wstring &instanceId, std::wstring_view expectedInf,
+	const OfficialDisplayAuxiliaryService				  &target,
+	std::vector<PresentDevicePeerRegistration>			   devices,
+	std::shared_ptr<const DisplayAuxiliaryOwnershipProof> &result,
+	DisplayOwnershipObservation							  &observation)
+{
+	result.reset() ;
+	observation			= DisplayOwnershipObservation::PARENT ;
+	const auto parentId = normalizeIdentifier( instanceId) ;			// 同じ候補で固定された秘密PnP親
+	auto made = std::make_shared<DisplayAuxiliaryOwnershipProof>() ;	// 全照合まで外に渡さない証拠
+	made->devices = std::move( devices) ;
+	const auto selected =
+		std::ranges::lower_bound( made->devices, parentId, {},
+								 &PresentDevicePeerRegistration::instance) ;	// 現在観測での選択親
+	// 不明な親、新規登録または選択後に現用INFが変化した機器は同じ更新として扱わない
+	if( selected == made->devices.end() || selected->instance != parentId || selected->noDriver ||
+	   selected->diagnostic != 0U ||
+	   normalizeIdentifier( selected->registration.selection.publishedInf) !=
+		   normalizeIdentifier( expectedInf)) {
+		return nativeErrorFromWin32( ERROR_RETRY) ;
+	}
+
+	const auto &registration = selected->registration ;	// 選択親の現用INF、実節とカーネル関連名
+	const auto &inf			 = registration.selection ;	// 同じ元の公開INFと実節
+	RegisteredDisplayAuxiliaryPackage parent ;			// 保護位置の現用親、CATと元宣言
+	auto							  error = readRegisteredDisplayAuxiliaryPackage(
+		 inf.publishedInf, inf.basicSection, inf.sectionExtension.value_or( L""),
+		 registration.service, target, parent) ;	// 現用親の元照合結果
+	// 現用親の実署名と元宣言が成立しないときは共有先の変更を許可しない
+	if( error != 0U) {
+		return error ;
+	}
+
+	observation = DisplayOwnershipObservation::ASSOCIATED ;
+	std::vector<std::wstring> members ;	// Windowsが同じ名前に直接関係付けた現在機器
+	error = readStorageRelatedDeviceIds( target.serviceName, members) ;
+	// 補助Win32サービスを現在機器の関連サービスとしても使うケースは別用途になる
+	if( error != 0U || !members.empty()) {
+		return error ? error : nativeErrorFromWin32( ERROR_SHARING_VIOLATION) ;
+	}
+
+	std::set<std::wstring> dependencies ;	// 同じWindowsの全参照先を重複なく検証する待ち集合
+	// 同一INFの別個体も共用主体として別々に確認し、構文の読取だけを共有する
+	for( const auto &device : made->devices) {
+		observation = DisplayOwnershipObservation::PEER_INF ;
+		// 明示的な未登録だけを対象INFなしと判断する
+		if( device.noDriver) {
+			continue ;
+		}
+
+		// 未確認の現用INFや同じサービスへの直接関連を共有なしに変換しない
+		if( device.diagnostic != 0U || normalizeIdentifier( device.registration.service) ==
+										  normalizeIdentifier( target.serviceName)) {
+			return device.diagnostic ? device.diagnostic
+									 : nativeErrorFromWin32( ERROR_SHARING_VIOLATION) ;
+		}
+
+		const auto &location = device.registration.selection ;	// 同じ現在機器のWindows登録
+		const auto	key		 = std::pair{normalizeIdentifier( location.publishedInf),
+									 normalizeIdentifier( location.basicSection +
+															 // 同じ元INFと実節
+															 location.sectionExtension.value_or( L""))} ;
+		const auto [position, inserted] =
+			// 同じ実節への初回か再利用位置
+			made->infs.try_emplace( key) ;
+		auto &observed = position->second ;	// 選択節と同じ元バイトの保護観測
+		// 新しく見つけた実節だけを読み取り、次の依存先を集める
+		if( inserted) {
+			error = readPublishedDisplayInfUse( key.first, key.second, target, observed.scope,
+											   observed.file) ;
+			// 現在機器の未読の宣言を共用なしと判断しない
+			if( error != 0U) {
+				return error ;
+			}
+
+			dependencies.insert( observed.scope.includeFiles.begin(),
+								observed.scope.includeFiles.end()) ;
+		}
+
+		const auto &scope = observed.scope ;	// 機器に帰属させる同じ選択節の作用
+		// 現用親の公開INFで同じ補助・イベントおよび元バイトを再確認する
+		if( device.instance == parentId) {
+			// 現用親の未知レジストリ作用と、公開INFの途中変更を受理しない
+			if( !scope.serviceDeclaration || !scope.applicationEvent || scope.serviceRegistry ||
+			   observed.file != parent.publishedFile) {
+				return nativeErrorFromWin32( ERROR_RETRY) ;
+			}
+
+			continue ;
+		}
+
+		// 別宣言とイベント源の共有は親子関係であってもこの作用に含めない
+		if( scope.serviceDeclaration || scope.applicationEvent ||
+		   (scope.serviceRegistry && !scope.scopedChildRegistration)) {
+			return nativeErrorFromWin32( ERROR_SHARING_VIOLATION) ;
+		}
+
+		// 同じ親の必要子として署名と作用の一意性を確認できた場合だけ限定一値を扱う
+		if( scope.scopedChildRegistration) {
+			observation = DisplayOwnershipObservation::CHILD ;
+			error = readDisplayPeerChild( inspection, packages, parent, parentId, device, target,
+										 made->childFiles, made->type1, observation) ;
+			// 子の元署名否認と途中での公開側の差を正常な親子へ置き換えない
+			if( error != 0U || !made->childFiles || observed.file != made->childFiles->front()) {
+				return error ? error : nativeErrorFromWin32( ERROR_RETRY) ;
+			}
+		}
+	}
+
+	observation = DisplayOwnershipObservation::EXTENSIONS ;
+	std::vector<std::wstring> extensions ;	// Windows登録済みの同梱およびOEM拡張INF葉
+	error = listPublishedExtensionInfs( extensions) ;
+	// 読めない拡張集合を現在作用なしへ変えない
+	if( error != 0U) {
+		return error ;
+	}
+
+	dependencies.insert( extensions.begin(), extensions.end()) ;
+	observation = DisplayOwnershipObservation::DEPENDENCIES ;
+	// 依存と拡張の全節を有界に辿る。同じファイルへ戻っても読み直さない
+	while( !dependencies.empty()) {
+		const auto leaf = normalizeIdentifier( *dependencies.begin()) ;	// Windows配下の同じ公開INF葉
+		dependencies.erase( dependencies.begin()) ;
+		// 母集合と依存を合わせた上限に達したら部分結果を公開しない
+		if( made->infs.size() >= MAXIMUM_DEVICES || dependencies.size() >= MAXIMUM_DEVICES) {
+			return nativeErrorFromWin32( ERROR_BUFFER_OVERFLOW) ;
+		}
+
+		const auto [position, inserted] =
+			// 全節を読む元ファイル
+			made->infs.try_emplace( std::pair{leaf, std::wstring{}}) ;
+		// 循環または既処理の参照から追加の読み取りは行わない
+		if( !inserted) {
+			continue ;
+		}
+
+		auto &observed = position->second ;	// 同じ依存INFの全節と保護
+		error = readPublishedDisplayInfUse( leaf, {}, target, observed.scope, observed.file) ;
+		// 選択元の分からない依存と拡張には親子の限定一値を適用しない
+		if( error != 0U || observed.scope.serviceDeclaration || observed.scope.applicationEvent ||
+		   observed.scope.serviceRegistry) {
+			return error ? error : nativeErrorFromWin32( ERROR_SHARING_VIOLATION) ;
+		}
+
+		dependencies.insert( observed.scope.includeFiles.begin(), observed.scope.includeFiles.end()) ;
+	}
+
+	observation = DisplayOwnershipObservation::SCM ;
+	error		= readRegisteredDisplayAuxiliaryService( parent, made->service) ;
+	// SCMと元実行位置の所有が同じ場合にApplicationの現用登録も照合する
+	if( error == 0U) {
+		observation = DisplayOwnershipObservation::EVENT ;
+		error		= readDisplayApplicationEventSnapshot( parent.declaration, made->event) ;
+	}
+
+	// 同じ全現在機器を再読取し、途中着脱と選択・親子の変化を拒否する
+	if( error == 0U) {
+		observation = DisplayOwnershipObservation::PRESENT_AGAIN ;
+		std::vector<PresentDevicePeerRegistration> fresh ;	// 元観測の終端照合
+		error = readPresentDevicePeerRegistrations( PresentDevicePeerMode::DISPLAY, fresh) ;
+		// 元の読み取りと異なる場合に証拠を発行しない
+		if( error == 0U && fresh != made->devices) {
+			error = nativeErrorFromWin32( ERROR_RETRY) ;
+		}
+	}
+
+	// 現用署名、全作用と現在機器が同じ候補に結び付いた場合だけ保持する
+	if( error == 0U) {
+		made->parentFiles = {std::move( parent.publishedFile), std::move( parent.storeFile),
+							 std::move( parent.catalogFile)} ;
+		result			  = std::move( made) ;
+	}
+
+	return error ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 全現在機器を読み取り、同じ現用Displayの補助サービスの所有を確かめる
+ * @param[in] inspection 選択元の署名付き閉包
+ * @param[in] packages 同じ選択済み親と全必要INF
+ * @param[in] instanceId 同じ候補が適合した現在の選択親
+ * @param[in] expectedInf 元の適合性観測で固定した現用親の公開INF
+ * @param[in] target 候補の実節から取得した補助サービスとイベント源
+ * @param[out] result 成功した同じ現用所有の証拠。失敗時は空
+ * @param[out] observation 非機密な照合段階
+ * @return 列挙と所有の全成立で0、失敗はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError readDisplayAuxiliaryOwnership(
+	const CommonInfInspection &inspection, std::span<const OfficialInfPackage> packages,
+	const std::wstring &instanceId, std::wstring_view expectedInf,
+	const OfficialDisplayAuxiliaryService				  &target,
+	std::shared_ptr<const DisplayAuxiliaryOwnershipProof> &result,
+	DisplayOwnershipObservation							  &observation)
+{
+	result.reset() ;
+	observation = DisplayOwnershipObservation::PRESENT ;
+	std::vector<PresentDevicePeerRegistration> devices ;	// 終端を確認した全現在機器
+	const auto error = readPresentDevicePeerRegistrations( PresentDevicePeerMode::DISPLAY,
+														  devices) ;	// 全現在機器の取得診断
+	// 列挙失敗から元選択の共用なしを導かない
+	if( error != 0U) {
+		return error ;
+	}
+
+	return inspectDisplayAuxiliaryOwnership( inspection, packages, instanceId, expectedInf, target,
+											std::move( devices), result, observation) ;
 }
 
 //------------------------------------------------------------------------------
@@ -6426,6 +7361,13 @@ ScanResult DriverStoreProvider::scanInventory( const ScanSessionId			  scanSessi
 		std::wstring instanceId ;	// 有効時だけ秘密mapへ登録するworker内ID
 		observation.instanceIdentity =
 			readObservedInstanceId( devices.get(), device, instanceId, transport) ;
+		// 通常検索の同じDisplay機器にだけ、OSが明示した物理GPU種別を結び付ける
+		if( execution == nullptr &&
+		   observation.instanceIdentity.state == DevicePropertyReadState::VALUE &&
+		   IsEqualGUID( device.ClassGuid, GUID_DEVCLASS_DISPLAY)) {
+			observation.graphicsAdapter = readGraphicsAdapterKind( instanceId) ;
+		}
+
 		// Worker内instance IDを分類後に破棄し、候補へは有限busだけを渡す
 		const OfficialDiscoveryDeviceBus discoveryBus =
 			classifyOfficialDiscoveryDeviceBus( instanceId) ;
@@ -8568,7 +9510,7 @@ NativeError DriverStoreProvider::createOfficialInfInstallBinding(
 	}
 
 	// 基礎node適合だけで未確認の明示依存を実行可能な標準INFへ補完しません
-	if( package.hasExternalDependencies) {
+	if( package.hasExternalDependencies || !package.unresolvedCopyInfPaths.empty()) {
 		return bindingFailure( diagnostic, nativeErrorFromWin32( ERROR_NOT_SUPPORTED),
 							  InfBindingReject::SINGLE_DEPENDENCY) ;
 	}
@@ -9019,6 +9961,8 @@ NativeError DriverStoreProvider::buildRequiredInfComponentPlan(
 
 		selectedBase.selectedNativeRank = record.candidate.rank ;
 		selections.front()				= std::move( selectedBase) ;
+		const bool displayParent		= normalizeIdentifier( selections.front().className) ==
+								   L"DISPLAY" ;	// Display必須子は作用分類に依存せず選択する
 		std::vector<bool> visited(
 			// 八package以内で各active roleを一度だけ解析します
 			selections.size()) ;
@@ -9034,6 +9978,11 @@ NativeError DriverStoreProvider::buildRequiredInfComponentPlan(
 				}) ; // 元内容copyだけを同期借用します
 				// 原importの欠損を基本INFだけの成功へ変換しません
 				if( found == selections.end()) {
+					// 元配布で不在を確かめた基本INFの付随参照は必須構成の照合と分けます
+					if( canDeferMissingRootCopyInf( inspection, index, path)) {
+						continue ;
+					}
+
 					// 同じHRESULTになる二つの拒否を数値だけで区別します
 					if( diagnosticStage) {
 						diagnosticStage->stage = found == selections.end() ? 5U : 6U ;
@@ -9096,6 +10045,49 @@ NativeError DriverStoreProvider::buildRequiredInfComponentPlan(
 					selected.selectedNativeRank = node.rank ;
 					*found						= std::move( selected) ;
 				}
+				// Displayの必須子だけを同じ親のAddComponentで解決し、他クラスの未評価作用は従来の拒否を維持する
+				else if( displayParent && found->role == DriverPlanRole::DRIVER_COMPONENT) {
+					const OfficialInfComponentReference *required = nullptr ;	// 借用する親の元宣言
+					// 同親が指定する全必須子を確認し、同じINFへの複数の関係を先頭一件へ絞りません
+					for( const auto &reference : selections[index].requiredComponents) {
+						const bool matches =
+							std::ranges::any_of( reference.hardwareIds, [&found]( const auto &id) {
+								return containsScopedHardwareId( found->hardwareIds, id) ;
+							}) ; // 元子INFとの関係候補です。主IDと節は後段で確認します
+						// 同じ親の別の子宣言を、このINFの作用へ結び付けない
+						if( !matches) {
+							continue ;
+						}
+
+						// 曖昧な必須関係を同じ子と判断しない
+						if( required != nullptr) {
+							return bindingFailure( diagnosticStage,
+												  nativeErrorFromWin32( ERROR_DUP_NAME),
+												  InfBindingReject::SELECTED_RELATIONS, 8U) ;
+						}
+
+						required = &reference ;
+					}
+
+					// 付随媒体にあるだけの子へ作用の選択を発行しない
+					if( required == nullptr) {
+						return bindingFailure( diagnosticStage,
+											  nativeErrorFromWin32( ERROR_NOT_FOUND),
+											  InfBindingReject::SELECTED_RELATIONS, 8U) ;
+					}
+
+					OfficialInfPackage selected ;	// 現OSの元Modelsで照合される子の導入節
+					const auto		   relationError = inspectRequiredOfficialInfComponentSelection(
+						*inspection.workspace, inspection.closure.entries, *found,
+						required->hardwareIds, selected) ;	// 子未生成時もrankの代用は発行しない
+					// 子への明示関係と元節が確定した場合だけ作用検査へ渡す
+					if( relationError != 0) {
+						return bindingFailure( diagnosticStage, relationError,
+											  InfBindingReject::SELECTED_RELATIONS, 8U) ;
+					}
+
+					*found = std::move( selected) ;
+				}
 
 				queue.push_back( ordinal) ;
 			}
@@ -9117,8 +10109,32 @@ NativeError DriverStoreProvider::buildRequiredInfComponentPlan(
 					record.device.deviceInstanceId, record.device.noDriver,
 					record.device.currentInfFileName, candidate, intended, snapshot) ;
 			} ;
-		return makeRequiredDriverComponentPlan( inspection, selections, plan, diagnosticStage,
-											   &registeredDeviceRead) ;
+		// 選択された元署名と同じ現在機器だけに補助サービスの所有照会を結び付ける
+		const DisplayRegisteredDeviceRead displayDeviceRead =
+			[&inspection, &record, diagnosticStage,
+			 &selections]( const OfficialDisplayAuxiliaryService					&target,
+						  std::shared_ptr<const DisplayAuxiliaryOwnershipProof> &proof) {
+				DisplayOwnershipObservation observation ;	// 元個体名を含まない照合の到達段階
+				// 現用署名と全現在機器の読取結果。拒否時には到達段階も保持する
+				const auto					ownership = readDisplayAuxiliaryOwnership(
+					 inspection, selections, record.device.deviceInstanceId,
+					 record.device.currentInfFileName, target, proof, observation) ;
+				return diagnosticStage
+						   ? diagnosticStage->reject( ownership, InfBindingReject::DISPLAY_OWNERSHIP,
+													 static_cast<std::uint32_t>( observation))
+						   : ownership ;
+			} ;
+		const auto prepared = makeRequiredDriverComponentPlan(
+			inspection, selections, plan, diagnosticStage, &registeredDeviceRead,
+			&displayDeviceRead) ;	// 実選択と現在作用の読取結果
+		// 適用後の所有と必要子の確認が未接続の間は、元候補を導入準備成功へ変えない
+		if( prepared == 0U && plan && plan->displayOwnership_) {
+			plan.reset() ;
+			return bindingFailure( diagnosticStage, nativeErrorFromWin32( ERROR_NOT_SUPPORTED),
+								  InfBindingReject::DISPLAY_REFLECTION_PENDING) ;
+		}
+
+		return prepared ;
 	} catch( const std::bad_alloc &) {
 		return static_cast<NativeError>( E_OUTOFMEMORY) ;
 	}
@@ -9724,6 +10740,7 @@ NativeError DriverStoreProvider::revalidateRequiredInfInstallBinding(
 	error = buildRequiredInfComponentPlan( inspection, stored->second, fresh, diagnosticStage) ;
 	// 元必要関係の全memberを現在byteへ再照合します
 	if( error != 0U || !fresh || fresh->members_.size() != plan->members_.size() ||
+	   fresh->defersRootCopyInf_ != plan->defersRootCopyInf_ ||
 	   fresh->verifiedNeedsEdgeCount_ != plan->verifiedNeedsEdgeCount_ ||
 	   fresh->dependencyFiles_ != plan->dependencyFiles_ ||
 	   fresh->systemFiles_ != plan->systemFiles_ || fresh->systemEffects_ != plan->systemEffects_ ||
@@ -9734,6 +10751,12 @@ NativeError DriverStoreProvider::revalidateRequiredInfInstallBinding(
 	   fresh->stageOnlyImportOrdinals_ != plan->stageOnlyImportOrdinals_ ||
 	   fresh->delayedRegistration_ != plan->delayedRegistration_) {
 		return error ? error : nativeErrorFromWin32( ERROR_RETRY) ;
+	}
+
+	// 現用親子と全作用の差があれば同じ補助サービスの所有を引き継がない
+	if( static_cast<bool>( fresh->displayOwnership_) != static_cast<bool>( plan->displayOwnership_) ||
+	   (fresh->displayOwnership_ && *fresh->displayOwnership_ != *plan->displayOwnership_)) {
+		return nativeErrorFromWin32( ERROR_RETRY) ;
 	}
 
 	// 同一の端末と元バイトを資格の発行時と変更の直前で独立に観測します
@@ -9813,6 +10836,7 @@ NativeError DriverStoreProvider::revalidateRequiredInfInstallBinding(
 		   before.selectedInstallSection != after.selectedInstallSection ||
 		   before.selectedNativeRank != after.selectedNativeRank ||
 		   before.activeRequiredInfPaths != after.activeRequiredInfPaths ||
+		   before.unresolvedCopyInfPaths != after.unresolvedCopyInfPaths ||
 		   before.requiredComponents != after.requiredComponents) {
 			return nativeErrorFromWin32( ERROR_RETRY) ;
 		}
@@ -9881,6 +10905,51 @@ static bool requiresSignedStorageAuthorization( const StorageInfEffects &effects
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 実登録又は親指定適用の直前に同じDisplay所有と索引操作を再照合する
+ * @param[in] session 元スキャン
+ * @param[in] identity 同じ親のopaque ID
+ * @param[in] inspection 同じ元署名閉包
+ * @param[in] plan 現用所有を読取済みの同じ親計画
+ * @param[in] binding 同じ一台の私有binding
+ * @param[in] operation 登録開始時の実行操作ID
+ * @param[in] authorize 同じ署名元と実UTCの最終確認
+ * @return 全照合成立で0、それ以外はHRESULT
+ * @note 現用の再観測中または元承認の確認中に操作が変わった場合は登録・適用へ進めない
+ */
+//------------------------------------------------------------------------------
+NativeError DriverStoreProvider::authorizeDisplayInfMutation(
+	ScanSessionId session, std::wstring_view identity, const CommonInfInspection &inspection,
+	const std::shared_ptr<const RequiredDriverComponentPlan> &plan,
+	const OfficialInfInstallBinding &binding, OperationId operation,
+	const std::function<NativeError()> &authorize) const
+{
+	// 同じworkerの実行中索引と親選択を、再照合するたびに確認する
+	const auto ownsOperation = [this, session, identity, operation] {
+		return session != 0U && session == scanSessionId_ &&
+			   GetCurrentThreadId() == ownerThreadId_ && operation != 0U &&
+			   operation == activeInstallOperation_ && installEntered_ && indexInventory_ &&
+			   installProofInventory_ == indexInventory_ &&
+			   std::ranges::find( activeIndexDevices_, identity) != activeIndexDevices_.end() ;
+	} ;
+	// 同じ保護済み候補、現用親と全共用先、元登録位置を同期して読み直す
+	const auto reobserve = [&] {
+		const auto fresh =
+			revalidateRequiredInfInstallBinding( session, identity, inspection, plan,
+												binding) ;	// 元所有・候補と計画の一致を確認する
+		// 先の照会失敗を保持し、対象外の不在検査を追加しない
+		if( fresh != 0U || !plan->defersRootCopyInf_ ||
+		   inspection.closure.unresolvedRootCopyInfAbsence !=
+			   OfficialRootCopyInfAbsence::NATIVE_SOURCE) {
+			return fresh ;
+		}
+
+		return verifyPreparedNativeCopyInfAbsence( inspection) ;
+	} ;
+	return verifyDisplayMutationBoundary( ownsOperation, reobserve, authorize) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 必要役割をstageし指定親と一意な必要SWC子だけを導入します
  * @param[in] session 元scanです
  * @param[in] identity 元選択親です
@@ -9934,15 +11003,23 @@ NativeError DriverStoreProvider::installBoundRequiredInfPlan(
 	const bool singleBootStorage =
 		qualification && qualification->singleBoot_.has_value() ;	// 関連起動サービスだけを持つ元選択
 	const bool checkStorageReflection =
-		automaticStorage || singleBootStorage ;			// 指定適用中に同じ登録の反映を読む場合
-	DriverStorageReflectionResult storageReflection ;	// 同じOEM閉包を保持した指定適用直後の読取り
-	// 対象付き配布、ストレージ又は仮想Wi-Fiバスの元署名と期限を再検証します
-	if( (hardwareScoped || signedStorage || wifiBus) && !authorizationCheck) {
+		automaticStorage || singleBootStorage ;	// 指定適用中に同じ登録の反映を読む場合
+	const bool deferredCopyInf =
+		plan->defersRootCopyInf_ ;								// 基本閉包の登録後照合を要する通常更新です
+	const bool display = plan->displayOwnership_ != nullptr ;	// 現用補助の所有を確かめる指定Display
+	const auto displayOperation =
+		display ? activeInstallOperation_ : 0U ;			// 同じDisplay変更が属する実操作
+	DisplayType1EventBoundary	  displayEventBoundary ;	// 最初の変更前だけに取得する同操作の境界
+	NativeError					  displayEventError{} ;		// イベント取得不能は導入APIの元結果と分ける
+	DriverStorageReflectionResult storageReflection ;		// 同じOEM閉包を保持した指定適用直後の読取り
+	// 登録後に基本閉包を確認する場合も、元署名と期限を各変更の前に再検証します
+	if( (hardwareScoped || signedStorage || wifiBus || deferredCopyInf || display) &&
+	   !authorizationCheck) {
 		return static_cast<NativeError>( E_ACCESSDENIED) ;
 	}
 
-	// 起動に作用する方式は元索引の実行中対象を登録し、登録先の閉包を読める場合に限る
-	if( checkStorageReflection) {
+	// 登録先の閉包を読む方式は元索引で実行中の対象だけに限定する
+	if( checkStorageReflection || deferredCopyInf || display) {
 		// 保留中の候補や別操作の対象から共有サービスの変更を始めない
 		if( !installProofInventory_ || activeInstallOperation_ == 0U ||
 		   std::ranges::find( activeIndexDevices_, identity) == activeIndexDevices_.end()) {
@@ -9959,10 +11036,11 @@ NativeError DriverStoreProvider::installBoundRequiredInfPlan(
 		return authorizeScopedHardwareDevice( bound.device.deviceInstanceId,
 											 bound.requiredHardwareId, authorizationCheck) ;
 	} ; // 必要roleの変更前にも同じ元親と期限を再確認します
-	const auto						  *hardwareBoundary = singleHardwareId ? &hardwareAuthorization
-														  : (bound.requiresFirmwareAuthorization || signedStorage)
-															  ? &authorizationCheck
-															  : nullptr ;	// 各役割の変更前に同じ端末と群を照合します
+	const auto *hardwareBoundary =
+		singleHardwareId ? &hardwareAuthorization
+		: (bound.requiresFirmwareAuthorization || signedStorage || deferredCopyInf || display)
+			? &authorizationCheck
+			: nullptr ;	// 各役割の変更前に同じ端末と群を照合します
 	const std::function<NativeError()> wifiStageAuthorization = [&]() {
 		const auto authorized = hardwareBoundary
 									? (*hardwareBoundary)()
@@ -9976,8 +11054,15 @@ NativeError DriverStoreProvider::installBoundRequiredInfPlan(
 			session, identity, inspection, plan, binding) ;	// 現在の共有所有と選択の再照合
 		return fresh != 0U ? fresh : (*hardwareBoundary)() ;
 	} ; // 共有設定の再観測後に元署名と実UTCを確認してから登録する
-	const auto *stageBoundary = (auxiliaryStorage || singleBootStorage) ? &storageStageAuthorization
-								: wifiBus								? &wifiStageAuthorization
+	// 同じ計画と現在所有を実登録の直前に再観測し、最後に元承認を確認する
+	const std::function<NativeError()> displayStageAuthorization = [&] {
+		return authorizeDisplayInfMutation( session, identity, inspection, plan, binding,
+										   displayOperation, *hardwareBoundary) ;
+	} ;
+	const auto *stageBoundary = display ? &displayStageAuthorization
+								: (auxiliaryStorage || singleBootStorage)
+									? &storageStageAuthorization
+								: wifiBus ? &wifiStageAuthorization
 										  : hardwareBoundary ;	// base適用前の各登録にだけ渡します
 	roles.resize( plan->members_.size() + 1U) ;
 	roles.front().role	  = DriverPlanRole::BASE_DRIVER ;
@@ -10016,6 +11101,11 @@ NativeError DriverStoreProvider::installBoundRequiredInfPlan(
 		}
 	}
 
+	// 親の適用から子が動く場合も読むため、既知Type 1の境界を最初の登録前に一度だけ採取する
+	if( display && plan->displayOwnership_->type1) {
+		displayEventError = captureDisplayType1EventBoundary( displayEventBoundary) ;
+	}
+
 	imports.resize( plan->stageOnlyImportOrdinals_.size()) ;
 	// 必要nullの元/登録byte guardを計画終端まで所有します
 	std::vector<std::unique_ptr<RegisteredInfGuard>> importRegistrations( imports.size()) ;
@@ -10032,8 +11122,8 @@ NativeError DriverStoreProvider::installBoundRequiredInfPlan(
 		// 同選択の原root又は必要importです
 		const auto &package = inspection.requiredInfPackages.at( result.packageOrdinal) ;
 		error				= mtd && !hardwareScoped ? authorizationCheck() : 0U ;
-		// 期限再検証後に同選択bindingを再照合します
-		if( error == 0U) {
+		// Displayでは下位の変更直前で同選択を確認する。他は従来の位置で照合する
+		if( error == 0U && !display) {
 			error =
 				revalidateRequiredInfInstallBinding( session, identity, inspection, plan, binding) ;
 		}
@@ -10069,6 +11159,7 @@ NativeError DriverStoreProvider::installBoundRequiredInfPlan(
 	std::vector<std::unique_ptr<RegisteredInfGuard>> registrations(
 		// 計画終端まで全登録INFをpinします
 		roles.size()) ;
+	std::wstring type1RegisteredInf ;	// 同じ導入が保持する審査済みType 1子の登録先
 
 	// Windows CopyINFの再帰import前に全必要INFを同境界でstageします
 	for( std::size_t order = 0; order < roles.size(); ++order) {
@@ -10080,8 +11171,8 @@ NativeError DriverStoreProvider::installBoundRequiredInfPlan(
 		registrations[i] =
 			std::make_unique<RegisteredInfGuard>() ;	// 各roleの元/root/登録を単独所有します
 		error = mtd && !hardwareScoped ? authorizationCheck() : 0U ;
-		// stage前に同record・選択bindingを再照合します
-		if( error == 0U) {
+		// Displayでは下位の変更直前で同選択を確認する。他は従来の位置で照合する
+		if( error == 0U && !display) {
 			error =
 				revalidateRequiredInfInstallBinding( session, identity, inspection, plan, binding) ;
 		}
@@ -10111,14 +11202,26 @@ NativeError DriverStoreProvider::installBoundRequiredInfPlan(
 		if( error != 0U) {
 			return error ;
 		}
+
+		// 審査済みType 1子だけの登録先を現用子の事後照合へ引き継ぐ
+		if( i != 0U && display &&
+		   reviewedDisplayType1Registration(
+			   *plan->displayOwnership_,
+			   plan->selectedPackages_.at( plan->members_[i - 1U].packageOrdinal + 1U))) {
+			type1RegisteredInf = std::move( staged) ;
+		}
 	}
 
 	error = installBoundOfficialInfImpl(
 		session, identity, *inspection.workspace, inspection.closure.packages.front(), binding,
 		parentWindowNative, rebootRequired, &roles.front().installDiagnosticMissing, mtdFiles.get(),
 		mtd ? &mtdResult : nullptr,
-		mtd || hardwareScoped || signedStorage || wifiBus ? &authorizationCheck : nullptr, nullptr,
-		wifiBus ? &inspection : nullptr, checkStorageReflection ? &storageReflection : nullptr) ;
+		mtd || hardwareScoped || signedStorage || wifiBus || deferredCopyInf || display
+			? &authorizationCheck
+			: nullptr,
+		nullptr, wifiBus ? &inspection : nullptr,
+		checkStorageReflection ? &storageReflection : nullptr,
+		deferredCopyInf ? &inspection : nullptr, display ? &inspection : nullptr) ;
 	// MTDの部分copy結果を既詳細へ反映します
 	if( mtd) {
 		// copy開始後の原失敗を空のcopy成功へ変換しません
@@ -10382,6 +11485,30 @@ NativeError DriverStoreProvider::installBoundRequiredInfPlan(
 		// 変更済みbaseと未実行残memberを保持して部分失敗を返します
 		if( error != 0U) {
 			return error ;
+		}
+
+		const auto *selected = display ? &plan->selectedPackages_.at( member.packageOrdinal + 1U)
+									   : nullptr ;	// 同じ親の実選択節を保持した審査済み必要子に限る
+		// 子の指定APIが成功した後は、登録処理の実行と反映を同じ前後の観測で判定する
+		if( selected && reviewedDisplayType1Registration( *plan->displayOwnership_, *selected)) {
+			DisplayType1InstallResult observed{
+				DisplayType1InstallState::UNCONFIRMED,
+				displayEventError} ;	// 元境界の取得エラーは実APIの失敗へ変えない
+			// 元の導入操作が維持される場合だけ同じ子の実行記録と反映内容を読む
+			if( displayEventError == 0U && activeInstallOperation_ == displayOperation) {
+				observed = observeAppliedDisplayType1(
+					displayEventBoundary, *plan->displayOwnership_->type1, *selected,
+					inspection.closure.entries, type1RegisteredInf, parentInstance, beforeChild,
+					childInstance, member.componentHardwareIds) ;
+			}
+
+			role.installError = observed.error ;
+			// 同じ実行と結合したWindowsの失敗だけを原HRESULT付きの部分失敗にする
+			if( observed.state == DisplayType1InstallState::FAILED) {
+				return observed.error != 0U ? observed.error : static_cast<NativeError>( E_FAIL) ;
+			}
+
+			pending = pending || observed.state != DisplayType1InstallState::REFLECTED ;
 		}
 	}
 
@@ -10943,7 +12070,7 @@ NativeError DriverStoreProvider::installBoundOfficialInf( const ScanSessionId	 s
 {
 	const auto stored = officialInfInstallBindings_.find( binding.token) ;	// 私有権限の境界です
 	// 公開single-INF入口から必要役割計画のtokenを部分導入しません
-	if( package.hasExternalDependencies ||
+	if( package.hasExternalDependencies || !package.unresolvedCopyInfPaths.empty() ||
 	   (stored != officialInfInstallBindings_.end() &&
 		(stored->second.requiredPlan || stored->second.scopedQualification))) {
 		return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
@@ -10970,6 +12097,8 @@ NativeError DriverStoreProvider::installBoundOfficialInf( const ScanSessionId	 s
  * @param[in] declarativeSource 独自クラスの署名確認済み元閉包です。従来経路はnullです
  * @param[in] wifiSource この端末のフィルターを置換する元内容の同期中の借用です。それ以外はnullです
  * @param[out] storageReflection 自動起動補助または単一起動の事後観測。指定適用成功時に記録し、他の経路はnull
+ * @param[in] copyInfSource 付随INFの不在を確認した基本INFと元CAT・必須ファイル。他の経路はnull
+ * @param[in] displaySource 現用所有を照合する同じDisplay基本INFの元閉包。他の経路ではnull
  * @return stage/指定API完了0、それ以外はHRESULTです
  * @note FALSE/LastError0では内部ERROR_INVALID_DATAを返し、実Windowsの同error観測と区別します
  */
@@ -10981,7 +12110,8 @@ NativeError DriverStoreProvider::installBoundOfficialInfImpl(
 	bool &rebootRequired, bool *diagnosticMissing, MtdSharedFileOperation *mtdFiles,
 	MtdQueueResult *mtdResult, const std::function<NativeError()> *authorizationCheck,
 	const CommonInfInspection *declarativeSource, const CommonInfInspection *wifiSource,
-	DriverStorageReflectionResult *storageReflection) const
+	DriverStorageReflectionResult *storageReflection, const CommonInfInspection *copyInfSource,
+	const CommonInfInspection *displaySource) const
 {
 	// 未到達・他の拒否を指定APIの診断欠落へ読み替えません
 	if( diagnosticMissing) {
@@ -11024,6 +12154,41 @@ NativeError DriverStoreProvider::installBoundOfficialInfImpl(
 	}
 
 	const OfficialInfInstallBindingRecord &record = stored->second ;	// 固定済み秘密binding記録
+	const bool							   display =
+		record.requiredPlan &&
+		record.requiredPlan->displayOwnership_ ;	// 同じDisplayの現用所有を要求する計画
+	const auto displayOperation =
+		display ? activeInstallOperation_ : 0U ;	// 下位境界を通る同じ実操作
+	// 別元閉包、別方式または元承認のない入力へDisplayの変更効果を渡さない
+	if( display != (displaySource != nullptr) ||
+	   (displaySource &&
+		(!authorizationCheck || !driverStore.storageStoreLocation || displayOperation == 0U ||
+		 displaySource->scanSessionId != scanSessionId ||
+		 displaySource->workspace.get() != &workspace ||
+		 displaySource->closure.packages.size() != 1U ||
+		 &displaySource->closure.packages.front() != &package ||
+		 (copyInfSource && copyInfSource != displaySource) || wifiSource || declarativeSource ||
+		 record.storageQualification || record.scopedQualification))) {
+		return static_cast<NativeError>( E_ACCESSDENIED) ;
+	}
+
+	// 未解決参照を扱う場合は、実行中の署名索引操作・計画・同じ基本閉包を照合する
+	if( (record.requiredPlan && record.requiredPlan->defersRootCopyInf_) !=
+		   (copyInfSource != nullptr) ||
+	   (copyInfSource &&
+		(!authorizationCheck || !driverStore.storageStoreLocation || !installProofInventory_ ||
+		 activeInstallOperation_ == 0U ||
+		 std::ranges::find( activeIndexDevices_, deviceIdentity) == activeIndexDevices_.end() ||
+		 copyInfSource->scanSessionId != scanSessionId ||
+		 copyInfSource->workspace.get() != &workspace ||
+		 copyInfSource->closure.packages.size() != 1U ||
+		 &copyInfSource->closure.packages.front() != &package ||
+		 package.unresolvedCopyInfPaths.empty() ||
+		 !canDeferMissingRootCopyInf( *copyInfSource, 0U,
+									 package.unresolvedCopyInfPaths.front())))) {
+		return static_cast<NativeError>( E_ACCESSDENIED) ;
+	}
+
 	// 元選択と同じ仮想Wi-Fiバスの元内容でだけ専用の再照合を行います
 	if( record.wifiBusUpperFilters.has_value() != (wifiSource != nullptr) ||
 	   (wifiSource &&
@@ -11098,6 +12263,14 @@ NativeError DriverStoreProvider::installBoundOfficialInfImpl(
 				   : revalidateRequiredInfInstallBinding( scanSessionId, deviceIdentity, *wifiSource,
 														 record.requiredPlan, binding) ;
 	} ; // 元署名と内容のほか、同じサービスと端末の原値を再検査します
+	const bool nativeSourceCopyInf =
+		copyInfSource &&
+		copyInfSource->closure.unresolvedRootCopyInfAbsence ==
+			OfficialRootCopyInfAbsence::NATIVE_SOURCE ;	// 保護された登録元の不在を再確認する方式
+	const std::function<NativeError()> copyInfAuthorization = [&]() {
+		const auto authorized = (*baseAuthorization)() ;	// 同じ元レコードの現時刻と承認を確認
+		return authorized != 0U ? authorized : verifyPreparedNativeCopyInfAbsence( *copyInfSource) ;
+	} ; // 元保護領域と元選択を同期呼出し中だけ借用する
 	const std::function<NativeError()> storageAuthorization = [&]() {
 		const auto &qualification = *record.storageQualification ;	// 同一issuerの元資格
 		// 元選択を同じ端末の最新観測に照合した診断
@@ -11106,10 +12279,18 @@ NativeError DriverStoreProvider::installBoundOfficialInfImpl(
 																record.requiredPlan, binding) ;
 		return fresh != 0U ? fresh : (*baseAuthorization)() ;
 	} ; // 現在の共有所有と端末を読み直した後で元署名・期限を確認する
+	// DisplayではCopyINFの不在も含めて現用所有を読み直し、元承認を最後に確かめる
+	const std::function<NativeError()> displayAuthorization = [&] {
+		return authorizeDisplayInfMutation( scanSessionId, deviceIdentity, *displaySource,
+										   record.requiredPlan, binding, displayOperation,
+										   *baseAuthorization) ;
+	} ;
 	const auto *boundaryAuthorization =
-		(auxiliaryStorage || singleBootStorage) ? &storageAuthorization
-		: wifiSource							? &wifiAuthorization
-					 : baseAuthorization ;	// 登録と適用が共有する同期検査です
+		display									  ? &displayAuthorization
+		: (auxiliaryStorage || singleBootStorage) ? &storageAuthorization
+		: wifiSource							  ? &wifiAuthorization
+		: nativeSourceCopyInf					  ? &copyInfAuthorization
+							  : baseAuthorization ;	// 登録と適用が共有する同期検査です
 	// 同recordがMTD指定経路を要求するかの判定です
 	const bool mtd =
 		record.storageQualification &&
@@ -11191,11 +12372,25 @@ NativeError DriverStoreProvider::installBoundOfficialInfImpl(
 		return nativeError ;
 	}
 
+	const auto *requiredBaseSource =
+		displaySource ? displaySource : copyInfSource ;	// 同じ基本INFだけを保持する元閉包
 	// 元閉包からファイルを使う導入方式の保持条件
-	const bool verifyStorePackage = verifyStorageClosure || declarativeSource || scoped ;
+	const bool verifyStorePackage =
+		verifyStorageClosure || declarativeSource || scoped || requiredBaseSource ;
 	RegisteredDriverStorePackage storePackage ;	// 配置された元閉包を実適用の完了まで保持する
 	// 同じINFの別パッケージを元選択の実閉包へ結びません
-	if( verifyStorePackage) {
+	if( requiredBaseSource) {
+		const DriverStorePackageLookup lookup{driverStore.windowsDirectory,
+											  driverStore.storageStoreLocation} ;	// 正規の登録先照会
+		nativeError = storePackage.pinFromClosure( stagedInfPath, package,
+												  requiredBaseSource->closure.entries, lookup) ;
+		// 登録だけの成功では同じ内容の指定適用へ進めない
+		if( nativeError != 0U) {
+			return nativeError ;
+		}
+	}
+	// 既存の用途はそれぞれの元閉包を同じ登録へ結合する
+	else if( verifyStorePackage) {
 		// 同じ資格が保持する元閉包のファイル一覧
 		const auto					  &entries = verifyStorageClosure
 													 ? record.storageQualification->inspection_->closure.entries

@@ -2,7 +2,7 @@
 /**
  * @file official_html_terms.h
  * @brief 静的HTML許諾の一意な公開selectorと全文の共通検査を宣言します
- * @version 01.02.00
+ * @version 01.05.00
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,9 @@
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.02.00 Shunji Ogawa  2026/11/19  公開配布表用に既HTML字句検査を共通利用
+ * Ver.01.03.00 Shunji Ogawa  2026/11/27  同じ正規HTTPS起点の明示規約リンクを照合
+ * Ver.01.04.00 Shunji Ogawa  2026/11/27  二段リンク用の原節と番号付き全文の抽出を定義
+ * Ver.01.05.00 Shunji Ogawa  2026/11/27  二段リンクの正規HTTPS URLを照合する共通入口を追加
  * </pre>
  *
  * @note 通信、script/CSS評価、同意、取得grantを発行しません
@@ -40,6 +43,9 @@
 #include "platform/signed_index_records.h"
 
 namespace drivercrate {
+
+// 二段リンクと計算版の規約に使う番号付きの静的全文形式
+inline constexpr std::string_view LINKED_STATIC_TERMS_PROFILE = "LINKED_STATIC_HTML_SECTION_V1" ;
 
 /** @brief 外部配布表で検査した一つの実HTML要素です */
 struct PublicHtmlTag {
@@ -87,7 +93,7 @@ struct HtmlTermsTextObservation {
  * @param[in] page 厳密UTF-8復号pageです。旧profileは256KiB、新sectionだけ2MiB相当以内です
  * @param[in] extraction 認証前producerまたは認証後adapterが持つ元selectorです
  * @param[in] payloadUrl 元descriptorの完全ASCII HTTPS URLです
- * @param[in] revision 原公開titleです。空の場合だけ原titleを保持し比較しません
+ * @param[in] revision 原公開titleです。二段リンク用では空とし、元節と全文を後で照合します
  * @param[out] observation 全成功時だけ原文書と全文です。失敗時は本文空と数値診断だけです
  * @return 全構造成功0、未対応/不一致は元HRESULTです
  * @note 所有権を借用し、メーカー別parser、ネットワーク、許可状態は使用しません
@@ -140,5 +146,35 @@ struct HtmlTermsTextObservation {
 //------------------------------------------------------------------------------
 [[nodiscard]] bool hasStaticHtmlDocumentLink( std::wstring_view page, std::string_view documentUrl,
 											 std::size_t *rejectedOffset = nullptr) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 二段リンクに指定した三つの正規HTTPS URLを照合します
+ * @param[in] productUrl 配布物と規約一覧を案内する元ページのURLです
+ * @param[in] directoryUrl 規約一覧のURLです
+ * @param[in] documentUrl 規約全文を含む文書のURLです
+ * @return 三つが互いに異なる正規URLで同じoriginの場合trueです
+ * @note 実アンカーと同じURL文法で検査し、通信や公式性の確認は行いません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool hasSameOriginStaticHtmlDocumentUrls( std::string_view productUrl,
+													   std::string_view directoryUrl,
+													   std::string_view documentUrl) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じ正規HTTPS originの実anchorが明示済み規約URLを参照するか確認します
+ * @param[in] page 最大2MiB相当の厳密UTF-8復号HTMLです
+ * @param[in] pageUrl 呼出し側が公式性と実取得先を照合済みの正規HTTPS元URLです
+ * @param[in] documentUrl 同じoriginに事前固定した正規HTTPS規約URLです
+ * @param[out] rejectedOffset 非null時は原tagの走査位置です。走査前の拒否は0です
+ * @return 元絶対URLか同じ原ルート相対パスに有効な実anchorが一つ以上あればtrueです
+ * @note URLは2048文字以内の小文字DNS起点と無変換のASCIIパスに限定します。通信と取得許可は行いません
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool hasSameOriginStaticHtmlDocumentLink( std::wstring_view page,
+													   std::string_view	 pageUrl,
+													   std::string_view	 documentUrl,
+													   std::size_t		*rejectedOffset = nullptr) ;
 
 } // namespace drivercrate

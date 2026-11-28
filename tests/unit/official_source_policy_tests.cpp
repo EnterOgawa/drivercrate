@@ -2,7 +2,7 @@
 /**
  * @file official_source_policy_tests.cpp
  * @brief 公式取得元policy registry単体試験実装
- * @version 01.01.02
+ * @version 01.02.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -52,6 +52,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/10/15  Payload媒体型と単一UTF-8 charsetの正負を追加
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.00 Shunji Ogawa  2026/11/27  AMD公式参照元の正規URLと不正な参照元を検証
  * </pre>
  *
  * @note 公式originをruntime入力から追加せず、用途別hostとProviderを完全一致で解決する境界をnetworkへ接続せず検証します
@@ -622,6 +623,38 @@ void testCatalogCacheModes( TestContext &context)
 //------------------------------------------------------------------------------
 void runOfficialSourcePolicyTests( TestContext &context)
 {
+	constexpr std::wstring_view amdPage =
+		L"https://www.amd.com/fr/support/downloads/drivers.html/processors/example.html" ;	// 公式製品位置の構文
+	constexpr std::wstring_view amdPayload =
+		L"https://drivers.amd.com/drivers/fixture-26.11.2.exe" ;	// 参照元付き直接配布の対照
+	DRIVERCRATE_EXPECT( context, isAmdProductDownloadRoute( amdPage, amdPayload)) ;
+	DRIVERCRATE_EXPECT(
+		context, isAmdProductDownloadRoute(
+					 L"https://www.amd.com/support/downloads/drivers.html/graphics/example.html",
+					 amdPayload)) ;
+	DRIVERCRATE_EXPECT(
+		context,
+		!isAmdProductDownloadRoute(
+			L"https://www.amd.com.other.example/fr/support/downloads/drivers.html/example.html",
+			amdPayload)) ;
+	DRIVERCRATE_EXPECT(
+		context,
+		!isAmdProductDownloadRoute(
+			L"https://www.amd.com/fr/support/downloads/drivers.html/../example.html", amdPayload)) ;
+	DRIVERCRATE_EXPECT(
+		context,
+		!isAmdProductDownloadRoute(
+			L"https://www.amd.com/fr/support/downloads/drivers.html/example.html?cookie=fixture",
+			amdPayload)) ;
+	DRIVERCRATE_EXPECT( context,
+					   !isAmdProductDownloadRoute(
+						   amdPage, L"https://drivers.amd.com/drivers/fixture.exe?token=fixture")) ;
+	DRIVERCRATE_EXPECT( context, !isAmdProductDownloadRoute(
+									amdPage, L"https://drivers.amd.com/drivers/../fixture.exe")) ;
+	DRIVERCRATE_EXPECT( context,
+					   !isAmdProductDownloadRoute(
+						   amdPage, L"https://drivers.amd.com.example/drivers/fixture.exe")) ;
+
 	// 公式ZIPに付く単一UTF-8 charsetを本文非変換で受理し、型・構文の不一致を拒否します
 	DRIVERCRATE_EXPECT( context,
 					   matchesOfficialPayloadContentType( L"application/zip", L"application/zip")) ;

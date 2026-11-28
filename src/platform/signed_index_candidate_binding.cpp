@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding.cpp
  * @brief 索引の私有取得根拠とWindows指定bindingを原子的候補へ接続します
- * @version 01.49.01
+ * @version 01.51.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -85,6 +85,9 @@
  * Ver.01.48.00 Shunji Ogawa  2026/11/23  WiXの単一起動候補を元規約の確認待ちで発行
  * Ver.01.49.00 Shunji Ogawa  2026/11/23  同じ取得の元規約への同意を復元と指定導入へ接続
  * Ver.01.49.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
+ * Ver.01.50.00 Shunji Ogawa  2026/11/27  付随INFの不在を確認した標準Display更新を通常候補へ接続
+ * Ver.01.50.01 Shunji Ogawa  2026/11/27  非実行配布形式を取得後監査と導入前の再照合で維持
+ * Ver.01.51.00 Shunji Ogawa  2026/11/28  全取得前参照に表示直前の個別期限を適用
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません
@@ -1114,7 +1117,7 @@ std::optional<std::size_t> SignedIndexCandidateBindingSession::findWixInspection
  * @param[in] plan 同scanの未変更取得計画
  * @param[in] candidates 同scanの既表示現在行
  * @param[in] hints 同deviceの検証済みopaque hint
- * @param[in] nowUtc 表示直前の信頼UTCです。未確認の場合はWiX候補を発行しません
+ * @param[in] nowUtc 表示直前の信頼UTCです。未確認の場合は索引の参照を発行しません
  * @return 元recordと同deviceへ結合した非導入参照行
  * @note WiX候補は元計画と同じ端末への私有参照を保持し、検査専用の表示を返します
  */
@@ -1139,6 +1142,11 @@ std::vector<UpdateCandidate> SignedIndexCandidateBindingSession::makeReferences(
 	const auto	publishedAt =
 		// 時計が署名済みの発行時刻より前に戻った場合も表示しません
 		snapshot.schemaReceipt().assetBytes().manifest().data().publishedAtUtc ;
+	// 時刻未確認や時計の巻き戻りから選択可能な参照を作りません
+	if( !nowUtc || *nowUtc < publishedAt) {
+		return result ;
+	}
+
 	std::set<std::pair<std::size_t, std::wstring_view>>
 		displayedWix ;	// 元recordと端末の表示重複を防ぎます
 	// 元の凍結関係から閲覧専用行と取得計画付きの参照を発行します
@@ -1146,12 +1154,15 @@ std::vector<UpdateCandidate> SignedIndexCandidateBindingSession::makeReferences(
 		++relationIndex) {
 		const auto &relation = lookup->relations()[relationIndex] ;	// 同lookupの原関係
 		const auto &original = records[relation.recordIndex] ;		// 同じ関係が参照する原証拠です
+		// 照合や取得計画の生成後に期限を迎えた行だけを表示から外します
+		if( *nowUtc >= snapshot.consumerRecordRegion( relation.recordIndex).expiresAtUtc) {
+			continue ;
+		}
+
 		// WiXの表示行は取得issuerの有無と独立し、同じ端末の照合証拠を使います
 		if( original.wixContentEvidence) {
-			// 表示直前に原領域の期限と同一端末の完全Hardware ID証拠を確認します
-			if( !nowUtc || *nowUtc < publishedAt ||
-			   *nowUtc >= snapshot.consumerRecordRegion( relation.recordIndex).expiresAtUtc ||
-			   relation.context.scanSessionId != plan.scanSessionId || !relation.deviceIdentity ||
+			// 同一端末の完全Hardware ID証拠を確認します
+			if( relation.context.scanSessionId != plan.scanSessionId || !relation.deviceIdentity ||
 			   !relation.deviceProof ||
 			   (relation.state != IndexRecordMatchState::MATCHED &&
 				relation.state != IndexRecordMatchState::VERIFIED_DEVICE)) {
@@ -1301,6 +1312,37 @@ std::vector<UpdateCandidate> SignedIndexCandidateBindingSession::makeReferences(
 	references_.swap( pending) ;
 	return result ;
 }
+//------------------------------------------------------------------------------
+/**
+ * @brief 元署名の配布形式と消費済みgrantを共通検査へ結ぶ
+ * @param[in] acquisition 元取得の確定結果
+ * @param[in] grant 同じ元取得で消費した権限
+ * @param[in] hint 封印から確認した元レコードと配布バイト
+ * @param[in] format 元署名レコードが指定した配布形式
+ * @param[out] input 成功時だけ共通検査入力。失敗時は空
+ * @return 元配布の照合成立で0、拒否時は元HRESULT
+ * @note 非実行形式の確定に実行ファイルの拡張子を使わない
+ */
+//------------------------------------------------------------------------------
+NativeError SignedIndexCandidateBindingSession::bindDelegatedInput(
+	const OfficialAcquisitionResult &acquisition, const RecordScopedDownloadGrant &grant,
+	const IndexedDriverArchiveHint &hint, const IndexPayloadFormat format,
+	DelegatedOfficialPackageInput &input) noexcept
+{
+	// 署名が指定した非実行解析の形式と元レコードの照合を初回・再読取りで揃える
+	if( format == IndexPayloadFormat::PE_RESOURCE_CONTAINER ||
+	   format == IndexPayloadFormat::SEVEN_ZIP_SFX) {
+		return makeDelegatedOfficialPackageInput(
+			acquisition, grant, hint,
+			format == IndexPayloadFormat::PE_RESOURCE_CONTAINER
+				? OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER
+				: OfficialDriverArchiveFormat::SEVEN_ZIP_SFX,
+			input) ;
+	}
+
+	return makeDelegatedOfficialPackageInput( acquisition, grant, input) ;
+}
+
 //------------------------------------------------------------------------------
 /**
  * @brief 元task・grant・期限・封印・全参照と実byteを再照合します
@@ -1567,17 +1609,23 @@ NativeError SignedIndexCandidateBindingSession::reverifyRecordBinding(
 		return verifyAuthenticodePublisher( input.inspectionPath, publishers) ;
 	}
 
+	const auto &original = originals[relations[primary.relationIndex].recordIndex] ;	// 元署名の代表
+	// 元署名の形式が得られない場合は保管した入力の形式から補完しない
+	if( !original.acquisitionDescriptor) {
+		return E_ACCESSDENIED ;
+	}
+
 	DelegatedOfficialPackageInput delegated ;	// 元成功grantの同ledger再結合
 	// 同消費済みgrantと実取得ledgerを再照合した元HRESULT
-	const auto					  delegatedError =
-		makeDelegatedOfficialPackageInput( record.acquisition, record.grant, delegated) ;
+	const auto					  delegatedError = bindDelegatedInput(
+		   record.acquisition, record.grant, hint, original.acquisitionDescriptor->format, delegated) ;
 	// 全元hash/size/pathと同grantを再結合し、公開DTOを権限へ昇格しません
 	if( delegatedError != 0U || hint.indexSha256 != record.hint.indexSha256 ||
 	   hint.recordSha256 != record.hint.recordSha256 ||
 	   hint.archiveSha256 != record.hint.archiveSha256 ||
 	   hint.archiveBytes != record.hint.archiveBytes ||
 	   input.inspectionPath != record.input.inspectionPath || input.sha256 != record.input.sha256 ||
-	   input.byteCount != record.input.byteCount ||
+	   input.byteCount != record.input.byteCount || delegated.format != record.delegated.format ||
 	   delegated.provenance.downloadGrantId != record.delegated.provenance.downloadGrantId ||
 	   delegated.provenance.acquisitionId != record.delegated.provenance.acquisitionId) {
 		return delegatedError != 0U ? delegatedError
@@ -2992,7 +3040,7 @@ std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession
 			}
 			// 通常非storageの既必要構成だけを従来のprivate factoryへ渡します
 			else if( package.hasExternalDependencies || package.hasUnassessedProgramReferences ||
-					!inf.requiredInfPackages.empty()) {
+					!inf.requiredInfPackages.empty() || !package.unresolvedCopyInfPaths.empty()) {
 				pair.bindingError = store.createRequiredInfInstallBinding(
 					record.task.scanSessionId, pair.deviceIdentity, inf, pair.requiredPlan,
 					pairReference.current.provider, pairReference.current.version,
@@ -3040,6 +3088,18 @@ std::optional<OfficialPreparationAuditReport> SignedIndexCandidateBindingSession
 			UpdateCandidate candidate = makeBoundInfCandidate(
 				pairReference.candidate, pair.binding, contentOwner.acquisition.acquisitionId,
 				pair.infOrdinal, pair.referenceIndex, record.task.target.terms) ;
+			// 元配布内で不在を確認した付随INFを伴う場合は、現在使用中の基本ドライバーの更新に限ります
+			if( pair.requiredPlan && pair.requiredPlan->defersRootCopyInf_) {
+				// 在庫の初回導入、同バージョン、旧バージョンにこの判断を継承しません
+				if( candidate.action != DriverAction::UPDATE) {
+					++report.publication.excludedPairCount ;
+					continue ;
+				}
+
+				candidate.unresolvedCopyInfCount =
+					static_cast<std::uint32_t>( package.unresolvedCopyInfPaths.size()) ;
+			}
+
 			CandidateAssessment assessment ;	// 元実byteと同tokenへ結合した八軸
 			const auto			evidenceId =
 				contentOwner.acquisition.acquisitionId ;	// 同実ledgerのopaque証拠

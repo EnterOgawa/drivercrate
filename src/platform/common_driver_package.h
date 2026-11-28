@@ -2,7 +2,7 @@
 /**
  * @file common_driver_package.h
  * @brief 由来と独立したdriver packageの共通検査定義
- * @version 01.23.00
+ * @version 01.26.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -50,6 +50,9 @@
  * Ver.01.21.00 Shunji Ogawa  2026/11/23  審査済みの必須System補助INFを私有収集へ接続
  * Ver.01.22.00 Shunji Ogawa  2026/11/24  混在シリアルの審査済みZIPを私有収集内容へ接続
  * Ver.01.23.00 Shunji Ogawa  2026/11/24  署名付きPEで確認する必須補助INFの種類を定義
+ * Ver.01.24.00 Shunji Ogawa  2026/11/27  基本INFに結合した付随参照の判定を定義
+ * Ver.01.25.00 Shunji Ogawa  2026/11/27  登録元での付随INF不在の再確認契約を追加
+ * Ver.01.26.00 Shunji Ogawa  2026/11/27  選択Displayの補助サービス所有を内容計画へ結合
  * </pre>
  *
  * @note Path、hash、INF内IDはworker専用です。署名と静的内容の合格を実device適合と混同しません
@@ -222,6 +225,10 @@ enum class InfBindingReject : std::uint32_t {
 	DIRID13_SOURCE,
 	/// 実選択scopeの先頭の固定拒否位置です。続く値は同関数の原拒否順です
 	WINDOWS_SCOPE_FIRST = 200,
+	/// 候補の補助サービスと現在の所有・共用の照合が成立しなかった
+	DISPLAY_OWNERSHIP = 208,
+	/// Displayの指定適用と必要子の反映を確認する経路がまだ接続されていない
+	DISPLAY_REFLECTION_PENDING = 209,
 } ;
 /** @brief 必要INF bindingの拒否を元の数値だけで保持する任意診断です。権限を持ちません */
 struct RequiredInfBindingDiagnostic {
@@ -277,6 +284,7 @@ struct RequiredInfBindingDiagnostic {
  * @param[out] plan 成功時だけ元閉包へ結合した不変計画です。失敗時は空です
  * @param[out] diagnostic 任意の数値診断です。nullなら採取せず合否へ使用しません
  * @param[in] registeredDeviceRead 自動起動ストレージの同じ選択機器を同期読取する操作。指定しない場合はnull
+ * @param[in] displayDeviceRead Display補助の現在所有を同じ選択機器で読む操作。未指定ならnull
  * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです
  * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません
  */
@@ -285,7 +293,31 @@ struct RequiredInfBindingDiagnostic {
 	const CommonInfInspection &inspected, std::span<const OfficialInfPackage> selectedPackages,
 	std::shared_ptr<const RequiredDriverComponentPlan> &plan,
 	RequiredInfBindingDiagnostic					   *diagnostic			 = nullptr,
-	const StorageRegisteredDeviceRead				   *registeredDeviceRead = nullptr) ;
+	const StorageRegisteredDeviceRead				   *registeredDeviceRead = nullptr,
+	const DisplayRegisteredDeviceRead				   *displayDeviceRead	 = nullptr) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Windowsに渡す保護された登録元で付随INFの不在を再確認する
+ * @param[in] inspected 登録元限定の不在を保持する検査済み単一基本INFの閉包
+ * @return 同じ元親で通常名と圧縮名の両方が不在なら0、読取り失敗・変更・別用途はHRESULT
+ * @note 同じ元親を固定して読取る。署名や作用に対する導入許可を発行しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyPreparedNativeCopyInfAbsence( const CommonInfInspection &inspected) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 検査した基本INFの未解決CopyINFを付随参照として保持できるか判定する
+ * @param[in] inspected 元配布の全内容検査と基本INFを保持する検査結果
+ * @param[in] packageOrdinal 元順の位置。基本INFは0
+ * @param[in] path 原INFから解決した相対参照
+ * @return 同じ基本INFからの不在確認済み参照だけtrue
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool		  canDeferMissingRootCopyInf( const CommonInfInspection &inspected,
+													 std::size_t				packageOrdinal,
+													 const std::wstring		   &path) noexcept ;
 
 /** @brief 公開index/DTOから必要memberを追加できない不変内容計画です。導入能力を持ちません */
 class RequiredDriverComponentPlan final {
@@ -311,13 +343,14 @@ private:
 	 * @param[out] plan 成功時だけ元閉包へ結合した不変計画です。失敗時は空です
 	 * @note 第4引数（RequiredInfBindingDiagnostic *、out）はこの宣言では無名です。任意の数値診断です。nullなら採取せず合否へ使用しません
 	 * @note 第5引数（const StorageRegisteredDeviceRead *、in）はこの宣言では無名です。nullまたは同じ選択機器の同期読取りです
+	 * @note 第6引数（const DisplayRegisteredDeviceRead *、in）はこの宣言では無名。nullまたは同じ選択Displayの所有読取り
 	 * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです
 	 * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません
 	 */
 	friend NativeError makeRequiredDriverComponentPlan(
 		const CommonInfInspection &inspected, std::span<const OfficialInfPackage> selectedPackages,
 		std::shared_ptr<const RequiredDriverComponentPlan> &plan, RequiredInfBindingDiagnostic *,
-		const StorageRegisteredDeviceRead *) ;
+		const StorageRegisteredDeviceRead *, const DisplayRegisteredDeviceRead *) ;
 	/** @brief 元CopyINFとAddComponentに一意に結合した役割memberです */
 	struct Member {
 		/// 同CommonInfInspection.requiredInfPackagesの0起点位置です
@@ -330,31 +363,35 @@ private:
 		std::vector<std::wstring> componentHardwareIds ;
 	} ;
 	/// 内容検査の非零scan sessionです
-	ScanSessionId						session_{} ;
+	ScanSessionId										  session_{} ;
 	/// 元基本INFの相対pathです。worker内だけで保持します
-	std::wstring						basePath_ ;
+	std::wstring										  basePath_ ;
 	/// 元AddComponentの子、次に元閉包のExtensionを置く不変集合です。適用順の保証ではありません
-	std::vector<Member>					members_ ;
+	std::vector<Member>									  members_ ;
 	/// 元順の全import copyです。selectedInstallSectionとactive関係は私有nodeへ結合します
-	std::vector<OfficialInfPackage>		selectedPackages_ ;
+	std::vector<OfficialInfPackage>						  selectedPackages_ ;
+	/// 不在を確認した元基本INFの付随参照の扱い。Windows登録後の内容照合が必要です
+	bool												  defersRootCopyInf_{} ;
 	/// 実選択節のnative依存・全効果を検証したNeeds辺数です。八graphの累積最大32768です
-	std::size_t							verifiedNeedsEdgeCount_{} ;
+	std::size_t											  verifiedNeedsEdgeCount_{} ;
 	/// 元選択NeedsのINF/Store/CAT/固定helper全fileの不変tupleです
-	std::vector<InfDependencyFixedFile> dependencyFiles_ ;
+	std::vector<InfDependencyFixedFile>					  dependencyFiles_ ;
 	/// 同選択の標準Windows登録helper/CAT/権限をnative直前に完全比較します
-	std::vector<WindowsSystemFileTrust> systemFiles_ ;
+	std::vector<WindowsSystemFileTrust>					  systemFiles_ ;
 	/// 同原文/文脈/所有者/全fieldの作用をfresh再構築へ比較します
-	std::vector<SystemInfEffect>		systemEffects_ ;
+	std::vector<SystemInfEffect>						  systemEffects_ ;
 	/// 必要な既存serviceの安定configと元SDです
-	std::vector<SystemServiceEvidence>	systemServices_ ;
+	std::vector<SystemServiceEvidence>					  systemServices_ ;
 	/// 元基本ドライバーが上位フィルターを仮想Wi-Fiバスへ置換する場合trueです
-	bool								replacesWifiBusUpperFilters_{} ;
+	bool												  replacesWifiBusUpperFilters_{} ;
 	/// storage PACKAGEの元全作用と必要な現serviceです。単独では導入許可ではありません
-	std::optional<StorageInfEffects>	storageEffects_ ;
+	std::optional<StorageInfEffects>					  storageEffects_ ;
+	/// 元Display補助サービスの現在所有と共用の読取り。通常の候補にはない
+	std::shared_ptr<const DisplayAuxiliaryOwnershipProof> displayOwnership_ ;
 	/// 元内容で限定nullと確定した、機能roleを持たない0起点importです
-	std::vector<std::size_t>			stageOnlyImportOrdinals_ ;
+	std::vector<std::size_t>							  stageOnlyImportOrdinals_ ;
 	/// 固定RunOnceの成立からだけ発行する遅延factです
-	bool								delayedRegistration_{} ;
+	bool												  delayedRegistration_{} ;
 } ;
 
 /** @brief 全INF検査の結果。全体失敗と個別INF拒否を分離する */

@@ -2,7 +2,7 @@
 /**
  * @file registered_driver_store_package_internal.cpp
  * @brief 現用INFに対応するDriver Store内の元パッケージを固定する
- * @version 01.12.00
+ * @version 01.16.00
  * @date 2026/11/19
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,6 +32,10 @@
  * Ver.01.10.00 Shunji Ogawa  2026/11/23  OEM登録の正逆対応と単一ブートの元署名を照合
  * Ver.01.11.00 Shunji Ogawa  2026/11/23  読取り未対応の現用INFを未導入と区別
  * Ver.01.12.00 Shunji Ogawa  2026/11/23  元の署名付き関連サービス値をOEM登録の証拠に含める
+ * Ver.01.13.00 Shunji Ogawa  2026/11/27  現用Displayの公開INFと補助EXEの署名を照合
+ * Ver.01.14.00 Shunji Ogawa  2026/11/27  現用SoftwareComponentの署名と主IDの実節を照合
+ * Ver.01.15.00 Shunji Ogawa  2026/11/27  元の複数INFから指定した登録の実ファイルを確認
+ * Ver.01.16.00 Shunji Ogawa  2026/11/27  同じStore元INFの保持済みファイル位置を照合
  * </pre>
  * @note 保持中の登録INFとファイルだけを同期照合し、対応先の変更を検出した場合は証拠を返さない
  */
@@ -39,6 +43,7 @@
 #include "platform/registered_driver_store_package_internal.h"
 #include "platform/inf_dependency_native_internal.h"
 #include "platform/official_download_workspace.h"
+#include "platform/display_inf_scope_internal.h"
 #include "platform/official_driver_package.h"
 #include "platform/official_file_verifier.h"
 #include "platform/official_mapped_file.h"
@@ -46,6 +51,7 @@
 #include "platform/official_zip.h"
 #include "platform/storage_inf_effects_internal.h"
 #include "platform/system_inf_effects_internal.h"
+#include <cfgmgr32.h>
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -2079,24 +2085,26 @@ NativeError inspectPinnedOemFile( const std::wstring &windows, const std::wstrin
 /**
  * @brief Windowsが同じOEM INFから選ぶ実DDInstallを元の登録属性に照合する
  * @param[in] inf 元バイトと完全一致する保護付きINFの解析ハンドル
- * @param[in] package Windowsが記録した元基本節・装飾・実選択節
+ * @param[in] basicSection Windowsが記録した元基本節
+ * @param[in] installedSection 同じデバイスの元装飾を結合した実選択節
  * @return OSの選択と元節の実在が一致して0、別選択や読取り失敗はHRESULT
  */
 //------------------------------------------------------------------------------
-NativeError confirmRegisteredOemSection( HINF inf, const RegisteredStoragePackageEvidence &package)
+NativeError confirmRegisteredOemSection( HINF inf, const std::wstring &basicSection,
+										const std::wstring &installedSection)
 {
 	std::array<wchar_t, MAX_PATH> actual{} ;	// Windowsが読む実選択節と終端
 	DWORD						  required{} ;	// 終端を含んだWindowsの応答長
 	// 自前の装飾優先順で他の機器向けの節を採用しない
-	if( !SetupDiGetActualSectionToInstallW( inf, package.installedBasicSection.c_str(), actual.data(),
+	if( !SetupDiGetActualSectionToInstallW( inf, basicSection.c_str(), actual.data(),
 										  static_cast<DWORD>( actual.size()), &required, nullptr)) {
 		return storeError( GetLastError()) ;
 	}
 
 	// 元基本節の返答だけでは実際にその節が存在することを証明できない
 	if( required <= 1U || required > actual.size() || actual[required - 1U] != L'\0' ||
-	   !sameStorePath( {actual.data(), required - 1U}, package.installedSection) ||
-	   SetupGetLineCountW( inf, package.installedSection.c_str()) <= 0L) {
+	   !sameStorePath( {actual.data(), required - 1U}, installedSection) ||
+	   SetupGetLineCountW( inf, installedSection.c_str()) <= 0L) {
 		return storeError( ERROR_NOT_SUPPORTED) ;
 	}
 
@@ -2222,8 +2230,10 @@ NativeError readRegisteredOemBootPackage( HINF inf, const std::wstring &windows,
 										 std::vector<StoreFile>				 &files,
 										 RegisteredSingleBootStorageEvidence &made, bool current)
 {
-	auto &package = made.package ;									// 元INFと実選択の作業値
-	auto  error	  = confirmRegisteredOemSection( inf, package) ;	// 記録された節とOS実選択の一致
+	auto &package = made.package ;	// 元INFと実選択の作業値
+	auto  error =
+		confirmRegisteredOemSection( inf, package.installedBasicSection,
+									package.installedSection) ;	// 記録された節とOS実選択の一致
 	// 別の実選択を配布元の署名だけで採用しない
 	if( error != 0U) {
 		return error ;
@@ -2670,6 +2680,495 @@ NativeError readRegisteredOemSingleBootStorageEvidence(
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 同じ現用機器の公開INFと元Store INFを固定する読み取り所有者
+ */
+//------------------------------------------------------------------------------
+struct PinnedRegisteredInfPair {
+	/// 同じWindowsの正規ルート
+	std::wstring				windows ;
+	/// 公開OEM INFの完全位置
+	std::wstring				published ;
+	/// その公開INFに対応する唯一のDriver Store内の完全位置
+	std::wstring				storeInf ;
+	/// 公開INFの保護と全ハッシュ
+	ProtectedExecutableSnapshot publishedFile ;
+	/// 元Store INFの保護と全ハッシュ
+	ProtectedExecutableSnapshot storeFile ;
+	/// 同じWindowsで保持する親ハンドル群
+	std::vector<StoreFile>		directories ;
+	/// 検査中に読み取りで固定する元ファイル群
+	std::vector<StoreFile>		files ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Windowsの公開名とStore内の元INFを双方向・内容一致で固定する
+ * @param[in] lookup 同じWindowsのルート、Store位置、公開名を得る正規API
+ * @param[in] publishedInf 元現用デバイスから読んだ検査済み公開OEM INF名
+ * @param[out] source 成功まで非公開の元ファイル保護と保持ハンドル
+ * @return 両位置と同一元バイトが成立して0、失敗、不一致はHRESULT
+ */
+//------------------------------------------------------------------------------
+static NativeError pinRegisteredOemInfPair( const DriverStorePackageLookup &lookup,
+										   std::wstring_view			   publishedInf,
+										   PinnedRegisteredInfPair		  &source)
+{
+	auto error =
+		// 同じWindowsの元ルートを確定する
+		readStoreWindowsDirectory( lookup, source.windows) ;
+	// 不明なWindowsの位置を推測して元配布を読み取らない
+	if( error != 0U) {
+		return error ;
+	}
+
+	source.published = source.windows + L"\\INF\\" + std::wstring{publishedInf} ;
+	error = inspectPinnedOemFile( source.windows, source.published, false, source.directories,
+								 source.files, source.publishedFile) ;
+	// 公開側が保護されている場合だけWindowsでStore側を解決する
+	if( error == 0U) {
+		error = lookupStoreInf( lookup, source.published, source.storeInf) ;
+	}
+
+	// 同じWindowsのFileRepository内の一パッケージ直下INFにだけ進む
+	if( error != 0U || !isRegisteredStoreInf( source.windows, source.storeInf)) {
+		return error != 0U ? error : storeError( ERROR_INVALID_NAME) ;
+	}
+
+	error = inspectPinnedOemFile( source.windows, source.storeInf, true, source.directories,
+								 source.files, source.storeFile) ;
+	// 同じ公開OEM名への逆対応も必要とする
+	if( error == 0U) {
+		error = checkOemPublishedName( lookup, source.storeInf, source.published, publishedInf) ;
+	}
+
+	// 公開側を元パッケージと同じ内容に両方結び付ける
+	if( error != 0U || source.publishedFile.existing->sha256 != source.storeFile.existing->sha256 ||
+	   source.publishedFile.existing->bytes != source.storeFile.existing->bytes) {
+		return error != 0U ? error : TRUST_E_BAD_DIGEST ;
+	}
+
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用INFと同じ元ハンドルが保持されたまま公開名の正逆を再照合する
+ * @param[in] lookup 元のWindows位置照会API
+ * @param[in] publishedInf 元現用機器の公開INF名
+ * @param[in] source 固定した元INFとStoreの関係・ハンドル
+ * @return 同じ正逆対応の場合0、変化またはWindowsの元エラーはHRESULT
+ */
+//------------------------------------------------------------------------------
+static NativeError recheckPinnedRegisteredOemInfPair( const DriverStorePackageLookup &lookup,
+													 std::wstring_view				 publishedInf,
+													 const PinnedRegisteredInfPair	&source)
+{
+	std::wstring freshStore ;													// 全ファイルを保持したまま再照会する正引き結果
+	const auto error = lookupStoreInf( lookup, source.published, freshStore) ;	// 同じ元公開名の再解決
+	// 別Storeへ変化した場合に元署名を新しい登録へ継承しない
+	if( error != 0U || !sameStorePath( freshStore, source.storeInf)) {
+		return error != 0U ? error : storeError( ERROR_RETRY) ;
+	}
+
+	return checkOemPublishedName( lookup, freshStore, source.published, publishedInf) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用Displayの登録INFと同じ署名配布にある補助EXEを確認する
+ * @param[in] publishedInf 当該現用デバイスから読んだ公開OEM INF名
+ * @param[in] basicSection 同じデバイスの元基本節名
+ * @param[in] extension 同じデバイスの実装飾。Windowsで未指定のとき空
+ * @param[in] associatedService 同じデバイスの関連サービス名
+ * @param[in] intended 署名候補から確認した更新対象の同名補助とイベント源
+ * @param[out] evidence 成功時の元登録・同一CAT・完全ハッシュ。失敗時は空
+ * @return 公開名の正逆・元byte・実選択・CATメンバー照合の成立で0、それ以外はHRESULT
+ * @note 通信や登録を行わない。現SCM・イベント源と他デバイスの所有は後段で確認する
+ */
+//------------------------------------------------------------------------------
+NativeError readRegisteredDisplayAuxiliaryPackage( const std::wstring_view publishedInf,
+												  const std::wstring_view basicSection,
+												  const std::wstring_view extension,
+												  const std::wstring_view associatedService,
+												  const OfficialDisplayAuxiliaryService &intended,
+												  RegisteredDisplayAuxiliaryPackage		&evidence)
+{
+	// 現用の作業値と元候補を同じ格納へ重ねない
+	if( &intended == &evidence.declaration) {
+		return E_INVALIDARG ;
+	}
+
+	evidence = {} ;
+	// 同じ現用機器の明確な公開名と実装飾だけを受ける
+	if( !isPublishedOemInf( publishedInf) || !isRegisteredSection( basicSection) ||
+	   !isRegisteredSection( associatedService) ||
+	   (!extension.empty() &&
+		(!extension.starts_with( L'.') || !isRegisteredSection( extension.substr( 1U))))) {
+		return E_INVALIDARG ;
+	}
+
+	try {
+		RegisteredDisplayAuxiliaryPackage made ;	// 全照合まで呼出し側へ出さない証拠
+		made.publishedInf	   = publishedInf ;
+		made.installedSection  = std::wstring{basicSection} + std::wstring{extension} ;
+		made.associatedService = associatedService ;
+		const DriverStorePackageLookup lookup{	// 正規Windowsルートと元登録の正逆対応にだけ使用する
+											  &GetSystemWindowsDirectoryW,
+											  &SetupGetInfDriverStoreLocationW,
+											  &SetupGetInfPublishedNameW} ;
+		// 連結後の実節もWindowsの元節名に限定する
+		if( !isRegisteredSection( made.installedSection)) {
+			return E_INVALIDARG ;
+		}
+
+		PinnedRegisteredInfPair source ;										// 公開名とStoreの元実体を保持する
+		auto error = pinRegisteredOemInfPair( lookup, publishedInf, source) ;	// 同元の正逆照合診断
+		// 他のINFから同じサービス名を推測して補わない
+		if( error != 0U) {
+			return error ;
+		}
+
+		made.storeInf = source.storeInf ;
+
+		const auto handle = SetupOpenInfFileW( made.storeInf.c_str(), nullptr,
+											  INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE,
+											  nullptr) ;	// 同元byteの読取専用照会
+		// 固定した元INFを開けない場合にPNFや別配布を使わない
+		if( handle == INVALID_HANDLE_VALUE) {
+			return storeError( GetLastError()) ;
+		}
+
+		const std::unique_ptr<void, CloseRegisteredInf> inf{handle} ;	// 元INFの解析所有者
+		error = confirmRegisteredOemSection( inf.get(), std::wstring{basicSection},
+											made.installedSection) ;
+		std::wstring catalog ;	// 現用元INFが指定するAMD64用CATの一葉
+		// 同じ実節のクラスと元CATを確認する
+		if( error == 0U) {
+			error = readRegisteredVersion( inf.get(), L"Display",
+										  L"{4d36e968-e325-11ce-bfc1-08002be10318}", catalog) ;
+		}
+
+		// 既存側が同じ補助サービスとイベント源の両方を実選択節で宣言することを確認する
+		if( error == 0U) {
+			error = readRegisteredDisplayAuxiliaryDeclaration( made.storeInf, made.installedSection,
+															  made.associatedService, intended,
+															  made.declaration, &made.components) ;
+		}
+
+		// 選択にない補助や別ファイルを元CATで検査しない
+		if( error != 0U) {
+			return error ;
+		}
+
+		const auto parent =
+			// 同パッケージの親
+			made.storeInf.substr( 0U, made.storeInf.rfind( L'\\') + 1U) ;
+		const auto catalogPath = parent + catalog ;	// 元CATに結合する完全位置
+		made.executablePath	   = parent + made.declaration.binarySource ;
+		error = inspectPinnedOemFile( source.windows, catalogPath, true, source.directories,
+									 source.files, made.catalogFile) ;
+		// 同じパッケージのサブディレクトリまで保持し、代替の実行ファイルを検査しない
+		if( error == 0U) {
+			error = pinAndHashStoreEvidence( source.windows, made.executablePath, source.directories,
+											source.files, made.executableSha256) ;
+		}
+
+		// 元INFと補助EXEの両方を同じ信頼済みCATに結び、個別の署名結果で補完しない
+		if( error == 0U) {
+			const std::array members{made.storeInf,
+									 made.executablePath} ;	// 同じ元CATの必須二メンバー
+			error = verifyOfficialCatalogMembersCachedOnly( catalogPath, members) ;
+		}
+
+		// 検査中の元公開対応の差し替えを新しい所有と扱わない
+		if( error == 0U) {
+			error = recheckPinnedRegisteredOemInfPair( lookup, publishedInf, source) ;
+		}
+
+		// すべて同じパッケージへ結び付いた場合だけ後段の所有検査へ渡す
+		if( error == 0U) {
+			made.publishedFile = std::move( source.publishedFile) ;
+			made.storeFile	   = std::move( source.storeFile) ;
+			evidence		   = std::move( made) ;
+		}
+
+		return error ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用SWCの主ID・実DDInstall・署名配布をWindows登録から照合する
+ * @param[in] publishedInf 当該present子の公開OEM INF名
+ * @param[in] basicSection 当該present子のDriverInfSection。記録によっては装飾込み
+ * @param[in] extension 当該現用の装飾。未指定は空
+ * @param[in] hardwareId 現用子から観測した唯一の主Hardware ID
+ * @param[out] evidence 全照合に成功した元署名・実節。失敗時は空
+ * @return 公開名の正逆、同じバイト、現在Modelsと署名の照合成功で0、その他HRESULT
+ * @note 読取専用。候補との共用判定、ソフトウェア実行、導入は行わない
+ */
+//------------------------------------------------------------------------------
+NativeError readRegisteredSoftwareComponentPackage( std::wstring_view				   publishedInf,
+												   std::wstring_view				   basicSection,
+												   std::wstring_view				   extension,
+												   std::wstring_view				   hardwareId,
+												   RegisteredSoftwareComponentPackage &evidence)
+{
+	evidence = {} ;
+	// 現用子の一意な公開名と基本節、実装飾が確定している場合にだけ照合する
+	if( !isPublishedOemInf( publishedInf) || !isRegisteredSection( basicSection) ||
+	   (!extension.empty() &&
+		(!extension.starts_with( L'.') || !isRegisteredSection( extension.substr( 1U))))) {
+		return E_INVALIDARG ;
+	}
+
+	try {
+		RegisteredSoftwareComponentPackage made ;	// 署名元と現用選択を全て読むまで非公開
+		made.installedSection = std::wstring{basicSection} + std::wstring{extension} ;
+		const DriverStorePackageLookup lookup{
+			&GetSystemWindowsDirectoryW, &SetupGetInfDriverStoreLocationW,
+			&SetupGetInfPublishedNameW} ;										// 同じWindowsでの登録元の正逆対応
+		PinnedRegisteredInfPair source ;										// 保護した公開とStoreの同じ元INFを保持する
+		auto error = pinRegisteredOemInfPair( lookup, publishedInf, source) ;	// 同じ元INFの診断
+		// 未確認または変更された公開名から別の子を採用しない
+		if( error != 0U) {
+			return error ;
+		}
+
+		error = verifyRegisteredSoftwareComponentModel( source.storeInf, hardwareId, basicSection,
+													   made.installedSection) ;
+		// 現用子の主Modelsと実選択に結合しない元INFは署名だけで採用しない
+		if( error != 0U) {
+			return error ;
+		}
+
+		const auto handle = SetupOpenInfFileW( source.storeInf.c_str(), nullptr,
+											  INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE,
+											  nullptr) ;	// 元CAT宣言を読む元実体
+		// 既に固定したStore元INF以外を使わない
+		if( handle == INVALID_HANDLE_VALUE) {
+			return storeError( GetLastError()) ;
+		}
+
+		const std::unique_ptr<void, CloseRegisteredInf> inf{handle} ;	// 元INFのSetupAPI所有者
+		std::wstring									catalog ;		// 同じ元INFが指定する一点のCAT
+		error = readRegisteredVersion( inf.get(), L"SoftwareComponent",
+									  L"{5c4c3332-344d-483c-8739-259e934c9cc8}", catalog) ;
+		// 現用クラスの元CATが不成立なら個別の元ファイル信頼で代用しない
+		if( error != 0U) {
+			return error ;
+		}
+
+		const auto catalogPath = source.storeInf.substr( 0U, source.storeInf.rfind( L'\\') + 1U) +
+								 catalog ;	// 同じ元パッケージのCAT完全位置
+		error = inspectPinnedOemFile( source.windows, catalogPath, true, source.directories,
+									 source.files, made.catalogFile) ;
+		// 所有と保護が確認された元CATだけで現用子のINFを照合する
+		if( error == 0U) {
+			error = verifyOfficialCatalogMembersCachedOnly( catalogPath,
+														   std::span{&source.storeInf, 1U}) ;
+		}
+
+		// 位置と元CATの照合後にWindowsの正逆対応も再確認する
+		if( error == 0U) {
+			error = recheckPinnedRegisteredOemInfPair( lookup, publishedInf, source) ;
+		}
+
+		// 保護、元署名、現在節が揃った場合だけ全証拠を渡す
+		if( error == 0U) {
+			made.publishedFile = std::move( source.publishedFile) ;
+			made.storeFile	   = std::move( source.storeFile) ;
+			made.storeInf	   = std::move( source.storeInf) ;
+			evidence		   = std::move( made) ;
+		}
+
+		return error ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じWindowsの保護された公開INFを読み、対象Displayの作用との重複を調べる
+ * @param[in] leaf 今のWindowsから得た公開INFまたはInclude INFの単独名
+ * @param[in] installedSection 現用機器の実DDInstall。空なら依存側と拡張の全節を保守的に調べる
+ * @param[in] target 同じ選択のサービス名とApplicationイベント源
+ * @param[out] result 読取り成功時の作用と外部依存。失敗時は空
+ * @param[out] file 同じ読取り中に固定した公開INFの保護・同一性。失敗時は空
+ * @return 元領域と全作用の読取り成功で0、その他HRESULT
+ * @note 通常のWindows INFだけを読む。未知のパスや他のファイルを読み直さず、導入しない
+ */
+//------------------------------------------------------------------------------
+NativeError readPublishedDisplayInfUse( std::wstring_view leaf, std::wstring_view installedSection,
+									   const OfficialDisplayAuxiliaryService &target,
+									   DisplayInfUse &result, ProtectedExecutableSnapshot &file)
+{
+	result = {} ;
+	file   = {} ;
+	// 型が決まった公開INF葉だけを扱い、任意パス指定を受けない
+	if( !isRegisteredFileLeaf( leaf, L".inf") ||
+	   (!installedSection.empty() && !isRegisteredSection( installedSection))) {
+		return E_INVALIDARG ;
+	}
+
+	try {
+		const DriverStorePackageLookup lookup{&GetSystemWindowsDirectoryW, nullptr,
+											  nullptr} ;			// 固定ルートだけの正規照会
+		std::wstring				   windows ;					// 指定元のWindowsルートを推測しない
+		auto error = readStoreWindowsDirectory( lookup, windows) ;	// 同一Windowsのルート診断
+		// Windowsルートが不明なら依存ファイルから補わない
+		if( error != 0U) {
+			return error ;
+		}
+
+		const auto path = windows + L"\\INF\\" + std::wstring{leaf} ;	// 規定公開位置の実INF
+		std::vector<StoreFile>		directories ;						// 解析した公開INFの全祖先を保持
+		std::vector<StoreFile>		files ;								// 解析終端まで元INFを変更非共有で保持
+		ProtectedExecutableSnapshot held ;								// 同じ元INF実体の保護と全ハッシュ
+		error = inspectPinnedOemFile( windows, path, false, directories, files, held) ;
+		// Windows内の実ファイルを固定した場合だけSetupAPIの展開済み宣言を使う
+		if( error != 0U) {
+			return error ;
+		}
+
+		DisplayInfUse inspected ;	// 解析が不完全な場合に部分結果を公開しない
+		error = inspectRegisteredDisplayInfUse( path, installedSection, target, inspected) ;
+		// 同じ固定実体と解析結果の両方が揃った場合だけ返す
+		if( error == 0U) {
+			file   = std::move( held) ;
+			result = std::move( inspected) ;
+		}
+
+		return error ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Windows公開領域にある標準形式の拡張INFの母集合を列挙する
+ * @param[out] leaves 大小無視で一意な拡張INF単独名の昇順集合。失敗時は空
+ * @return 全件のクラスを確認して0。不明または容量・列挙失敗はHRESULT
+ * @note 適用関係不明時の保守的な読取対象であり、各拡張が現在導入済みとは判定しない
+ */
+//------------------------------------------------------------------------------
+NativeError listPublishedExtensionInfs( std::vector<std::wstring> &leaves)
+{
+	leaves.clear() ;
+	try {
+		const DriverStorePackageLookup lookup{&GetSystemWindowsDirectoryW, nullptr,
+											  nullptr} ;						// 固定ルートだけの正規照会
+		std::wstring				   windows ;								// OS自身のINF領域を確定する
+		const auto windowsError = readStoreWindowsDirectory( lookup, windows) ;	// 元Windows位置の診断
+		// 環境変数から代替ルートを採用しない
+		if( windowsError != 0U) {
+			return windowsError ;
+		}
+
+		const auto directory = windows + L"\\INF" ;	// 同じWindowsの公開領域
+		DWORD	   capacity{} ;						// APIが返す二重終端込み文字数
+		// 列挙失敗を拡張の不存在へ変換しない
+		if( !SetupGetInfFileListW( directory.c_str(), INF_STYLE_WIN4, nullptr, 0U, &capacity)) {
+			return storeError( GetLastError()) ;
+		}
+
+		// 全INFの有限取得量に収まることを要求する
+		if( capacity == 0U || capacity > 1U * 1024U * 1024U) {
+			return storeError( ERROR_BUFFER_OVERFLOW) ;
+		}
+
+		std::vector<wchar_t> names( capacity, L'\xffff') ;	// 未書込みと正式終端を区別する
+		DWORD				 actual{} ;						// 今回の全取得長
+		// 途中失敗や容量増を部分的に成功として処理しない
+		if( !SetupGetInfFileListW( directory.c_str(), INF_STYLE_WIN4, names.data(), capacity,
+								 &actual)) {
+			return storeError( GetLastError()) ;
+		}
+
+		// 列挙中のファイル集合の変化を成功としない
+		if( actual != capacity || names.back() != L'\0') {
+			return storeError( ERROR_RETRY) ;
+		}
+
+		constexpr GUID EXTENSION{
+			0xe2f84ce7,
+			0x8efa,
+			0x411c,
+			{0xaa, 0x69, 0x97, 0x45, 0x4c, 0xa4, 0xcb, 0x57}} ;	// Windowsの拡張セットアップクラス
+		std::vector<std::wstring> found ;						// 全クラスを確定するまで公開しない
+		auto					  cursor = names.cbegin() ;		// 次の完全な葉名の開始
+		// Windowsが返した全件をクラス判定し、OEM・同梱を同じ母集合へ含める
+		while( cursor != names.cend() && *cursor != L'\0') {
+			const auto end = std::find( cursor, names.cend(), L'\0') ;	// 現在葉の完全な終端
+			// 一件の未終端も部分列挙に変えない
+			if( end == names.cend()) {
+				return storeError( ERROR_INVALID_DATA) ;
+			}
+
+			const std::wstring leaf{cursor, end} ;	// Windowsが返した単独の元INF名
+			cursor = end + 1U ;
+			// 出力にあっても別ディレクトリへ誘導しない
+			if( !isRegisteredFileLeaf( leaf, L".inf")) {
+				return storeError( ERROR_INVALID_NAME) ;
+			}
+
+			const auto path = directory + L"\\" + leaf ;		// Windowsの公開INF完全位置
+			GUID	   guid{} ;									// 元INFのクラスGUID
+			std::array<wchar_t, MAX_CLASS_NAME_LEN> name{} ;	// 同じクラスの正式名
+			// 明示クラスなしは元Windowsが示す非Extensionとして扱い、他の不明は維持する
+			if( !SetupDiGetINFClassW( path.c_str(), &guid, name.data(),
+									static_cast<DWORD>( name.size()), nullptr)) {
+				const auto native = GetLastError() ;	// クラス照会が失敗した正式な理由
+				// 内容破損または読取不能を正式なクラスなしに読み替えない
+				if( native != ERROR_NO_ASSOCIATED_CLASS) {
+					return storeError( native) ;
+				}
+
+				continue ;
+			}
+
+			const auto last	 = std::find( name.begin(), name.end(), L'\0') ;		// クラス完全名の終端
+			const bool named = sameStorePath( {name.begin(), last}, L"Extension") ;	// 公式クラス名
+			const bool typed = IsEqualGUID( guid, EXTENSION) != FALSE ;				// 公式クラスGUID
+			// 不完全なクラスと矛盾するGUIDを母集合の確定から除外しない
+			if( last == name.end() || typed != named) {
+				return storeError( ERROR_INVALID_DATA) ;
+			}
+
+			// 公式クラス両方が確認できたINFだけを保守的な全拡張に含める
+			if( typed) {
+				std::wstring key = leaf ;	// Windowsの大小無視で一意化する照合用位置
+				std::ranges::transform( key, key.begin(), []( wchar_t c) {
+					return c >= L'A' && c <= L'Z' ? static_cast<wchar_t>( c + (L'a' - L'A')) : c ;
+				}) ; // 許容葉はASCIIであり言語依存変換をしない
+				found.push_back( std::move( key)) ;
+			}
+		}
+
+		// 葉集合の最終終端の不足や余分なデータを拒否する
+		if( cursor == names.cend() || cursor + 1U != names.cend()) {
+			return storeError( ERROR_INVALID_DATA) ;
+		}
+
+		std::ranges::sort( found) ;
+		// 同じ元INFの別表記を別の拡張としない
+		if( std::ranges::adjacent_find( found) != found.end()) {
+			return storeError( ERROR_DUP_NAME) ;
+		}
+
+		leaves = std::move( found) ;
+		return 0U ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 選択デバイスの公開OEM INFとSystem32補助の元署名を読取り照合する
  * @param[in] publishedInf 同じデバイスの公開OEM INF名
  * @param[in] installedBasicSection 同じデバイスの元基本節名
@@ -3033,6 +3532,44 @@ NativeError RegisteredDriverStorePackage::pin( const std::wstring			   &register
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 全閉包から指定INFのCATと必須ファイルを選び、その正規登録内容を保持する
+ * @param[in] registeredInf 適用前のWindows INF直下のOEM INF
+ * @param[in] original 同じ元署名のINF、CATと必須ファイル
+ * @param[in] entries 元の複数INFを含む署名確認済み媒体の長さとSHA-256
+ * @param[in] lookup 同じWindowsの登録先と元ルートの照会表
+ * @return 指定INFの全必須ファイルと登録先の照合成功で0、その他はHRESULT
+ * @note INFごとの保護付き検査を行う。未完了状態を次に持ち越さない
+ */
+//------------------------------------------------------------------------------
+NativeError RegisteredDriverStorePackage::pinFromClosure( const std::wstring		  &registeredInf,
+														 const OfficialInfPackage &original,
+														 std::span<const OfficialZipEntry> entries,
+														 const DriverStorePackageLookup	  &lookup)
+{
+	state_.reset() ;
+	try {
+		std::vector<OfficialZipEntry> selected ;	// 指定INFが所有する元ファイルだけを保持する
+		selected.reserve( original.sourceFiles.size() + 2U) ;
+		// 複数INFを含む元の順序を維持して指定INFのファイルを選ぶ
+		for( const auto &entry : entries) {
+			const auto matches = [&entry]( const std::wstring &path) {
+				return sameStorePath( entry.relativePath, path) ;
+			} ; // 元のWindowsパスを大文字・小文字だけ無視して照合する
+			// 同じINFのCATと必須ファイルを拾い、別INFのファイルを登録先の比較に加えない
+			if( matches( original.infRelativePath) || matches( original.catalogRelativePath) ||
+			   std::ranges::any_of( original.sourceFiles, matches)) {
+				selected.push_back( entry) ;
+			}
+		}
+
+		return pin( registeredInf, original, selected, lookup) ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief OEM INFの照会先と保持した実ファイルを導入直前に再確認する
  * @return 保持した同一ファイルと登録先が成立する場合0、未保持・不一致・失敗はHRESULT
  */
@@ -3070,5 +3607,24 @@ NativeError RegisteredDriverStorePackage::verify() const
 	} catch( const std::bad_alloc &) {
 		return E_OUTOFMEMORY ;
 	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 確認済みの同じStore元INFが指定された全ファイルを保持しているか照合する
+ * @param[in] storeInf 独立に読んだ現在のStore元INF完全位置
+ * @param[in] paths 元INFのパッケージ内にある必要ファイルの完全位置
+ * @return 同一の元INFと空でない全ファイルが保持済みの場合true
+ * @note 再読取りは行わない。保持の有効性はverifyで確認する
+ */
+//------------------------------------------------------------------------------
+bool RegisteredDriverStorePackage::containsPinnedMembers(
+	std::wstring_view storeInf, std::span<const std::wstring> paths) const noexcept
+{
+	return state_ && sameStorePath( state_->storeInf, storeInf) && !paths.empty() &&
+		   std::ranges::all_of( paths, [&]( const auto &path) {
+			   return std::ranges::any_of(
+				   state_->files, [&]( const auto &file) { return sameStorePath( file.path, path) ; }) ;
+		   }) ; // 保持中の元位置だけを新たなI/Oなしで比較する
 }
 } // namespace drivercrate

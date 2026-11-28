@@ -2,7 +2,7 @@
 /**
  * @file metadata_search_http_tests.cpp
  * @brief 共通HTTPの非通信backendによる情報検索境界試験
- * @version 01.01.02
+ * @version 01.01.03
  * @date 2026/09/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/09/15  透明な共通User-Agentの完全一致検証を追加
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.03 Shunji Ogawa  2026/11/27  AMD通常検索の受信待ちと切り分けを非通信で照合
  * </pre>
  *
  * @note 全I/Oをfixtureへ置換し、実通信・既存cache変更を行わない
@@ -81,6 +82,10 @@ struct HttpFixture {
 	unsigned							  availableCalls{} ;
 	/// 四phaseが全て正の有限値ならtrue
 	bool								  finiteTimeouts{true} ;
+	/// 直近の受信待ち設定。単位はmillisecond
+	int									  receiveTimeoutMilliseconds{} ;
+	/// 応答待ちで返すWin32診断。0なら応答する
+	DWORD								  receiveError{} ;
 	/// HTTPS・GET・default proxy等の必須optionに違反がない場合true
 	bool								  safeOptions{true} ;
 	/// 自動redirect禁止を確認した場合true
@@ -183,6 +188,7 @@ OfficialHttpTransport	  fakeTransport()
 		fixture.finiteTimeouts &= resolve > 0 && connect > 0 && send > 0 && receive > 0 &&
 								  resolve <= 60000 && connect <= 60000 && send <= 60000 &&
 								  receive <= 60000 ;
+		fixture.receiveTimeoutMilliseconds = receive ;
 		fixture.visit( "timeouts") ;
 		return TRUE ;
 	} ;
@@ -222,7 +228,14 @@ OfficialHttpTransport	  fakeTransport()
 	} ;
 	// 同期待機復帰点で取消し・期限を注入する
 	transport.receiveResponse = []( HINTERNET handle, LPVOID) -> BOOL {
-		static_cast<HttpFixture *>( handle)->visit( "receive") ;
+		auto &fixture = *static_cast<HttpFixture *>( handle) ;	// 応答待ちを注入する要求
+		fixture.visit( "receive") ;
+		// 指定された通信失敗はHTTP statusや本文を合成せずそのまま返す
+		if( fixture.receiveError != ERROR_SUCCESS) {
+			SetLastError( fixture.receiveError) ;
+			return FALSE ;
+		}
+
 		return TRUE ;
 	} ;
 	// Statusと有限文字列headerのWinHTTP二段階照会を再現する
@@ -724,6 +737,36 @@ void testParserBoundaries( TestContext &context)
 	}
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief AMD通常検索の受信待ちだけを短縮し、通信失敗を元値で残す
+ * @param[in,out] context Assertion集計先
+ */
+//------------------------------------------------------------------------------
+void testAmdMetadataReceiveTimeout( TestContext &context)
+{
+	// 同じ通信失敗をAMDと別の通常経路へ適用し、受信待ちだけを比較する
+	for( const auto provider : {AMD_PROVIDER_ID, PROLIFIC_OFFICIAL_PROVIDER_ID}) {
+		const bool	amd		 = provider == AMD_PROVIDER_ID ;	// 短い待ちを使用する提供元
+		const auto	resource = amd ? OFFICIAL_PRIMARY_METADATA_RESOURCE_ID
+								   : OFFICIAL_LANDING_RESOURCE_ID ;	// 正本のmetadata用途
+		const auto	url		 = amd ? L"https://www.amd.com/en/support/download/drivers.html"
+								   : officialMetadataEndpoint( provider, resource) ;	// 送信しない固定起点
+		HttpFixture fixture ;															// 応答前に時間切れとなる非通信fixture
+		fixture.receiveError = ERROR_WINHTTP_TIMEOUT ;
+		activeHttpFixture	 = &fixture ;
+		OfficialHttpClient client( fakeTransport()) ;	// 通常のcacheなしGET
+		std::wstring	   body{L"previous"} ;			// 失敗時に消去する出力
+		DRIVERCRATE_EXPECT( context, client.beginSourceSession( 80U, provider) == 0) ;
+		DRIVERCRATE_EXPECT( context, client.getUtf8TextForSource( url, resource, 1024U, body) ==
+										HRESULT_FROM_WIN32( ERROR_WINHTTP_TIMEOUT)) ;
+		DRIVERCRATE_EXPECT( context, fixture.receiveTimeoutMilliseconds == (amd ? 20'000 : 60'000)) ;
+		DRIVERCRATE_EXPECT( context, fixture.sends == 1U && fixture.reads == 0U) ;
+		DRIVERCRATE_EXPECT( context, fixture.opened == fixture.closed && body.empty()) ;
+		activeHttpFixture = nullptr ;
+	}
+}
+
 } // namespace
 
 //------------------------------------------------------------------------------
@@ -737,6 +780,7 @@ void runMetadataSearchHttpTests( TestContext &context)
 	testFixedEndpoints( context) ;
 	testBodyBoundaries( context) ;
 	testCacheAndStatus( context) ;
+	testAmdMetadataReceiveTimeout( context) ;
 	testCancellation( context) ;
 	testParserBoundaries( context) ;
 }

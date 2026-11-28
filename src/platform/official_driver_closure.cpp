@@ -2,7 +2,7 @@
 /**
  * @file official_driver_closure.cpp
  * @brief 公式archiveの選択的driver閉包抽出実装
- * @version 01.19.01
+ * @version 01.21.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -51,6 +51,8 @@
  * Ver.01.18.00 Shunji Ogawa  2026/11/23  私有収集の固定元memberを選択抽出へ接続
  * Ver.01.19.00 Shunji Ogawa  2026/11/24  収集専用クラス検査を元展開INFのハッシュに結合
  * Ver.01.19.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
+ * Ver.01.20.00 Shunji Ogawa  2026/11/27  端末用Displayの付随INFを元配布の全相対名と照合
+ * Ver.01.21.00 Shunji Ogawa  2026/11/27  SFXの付随INF不在をWindows登録元に限定して分類
  * </pre>
  *
  * @note 全entryを有限に事前検証し、INFから参照閉包を確定します。公式Models範囲付き収集は選択INFとCATを先に展開します
@@ -312,6 +314,94 @@ struct ArchiveSource {
 				   : character ;
 	}) ;
 	return extension ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 付随INFを解決できない元媒体の範囲を分類する
+ * @param[in] entries 固定archiveの全通常file名を含む一覧
+ * @param[in] packages 元基本INFと到達した全importの内容検査結果
+ * @param[in] format 静的に展開した元archiveの形式
+ * @return 未確認、元archive全体の不在、Windows登録元に限定した不在のいずれか
+ * @pre 呼出し側が端末用の非scoped単一rootと外側archiveを照合済み
+ * @note 登録直前の物理不在、基本ファイル、署名、必須機能、展開・起動作用は別に確認する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] OfficialRootCopyInfAbsence classifyAbsentRootCopyInf(
+	std::span<const OfficialZipEntry> entries, std::span<const OfficialInfPackage> packages,
+	const OfficialDriverArchiveFormat format)
+{
+	// 検査する実INFの上限を保持し、元root以外から不在の候補を作らない
+	if( packages.empty() || packages.size() > 8U ||
+	   packages.front().unresolvedCopyInfPaths.empty()) {
+		return OfficialRootCopyInfAbsence::UNCONFIRMED ;
+	}
+
+	const auto &root = packages.front() ;	// 判定対象の元基本候補です
+	// プラットフォームで確認したDisplayの基本クラスと通常用途だけを通す
+	if( root.role != DriverPlanRole::BASE_DRIVER ||
+	   root.inspectionPurpose != OfficialInfInspectionPurpose::STANDARD_DRIVER ||
+	   !stringsEqual( root.className, L"Display") ||
+	   !stringsEqual( root.classGuid, L"{4d36e968-e325-11ce-bfc1-08002be10318}") ||
+	   std::ranges::any_of( packages.subspan( 1U), []( const auto &child) {
+		   return !child.unresolvedCopyInfPaths.empty() ;
+	   })) {
+		return OfficialRootCopyInfAbsence::UNCONFIRMED ;
+	}
+
+	constexpr std::array<std::wstring_view, 11U> opaqueExtensions{
+		L".zip", L".cab", L".7z",	L".rar",  L".msi", L".msp",
+		L".exe", L".wim", L".msix", L".appx", L".iso"} ;	// 内容を別解析する可能性のある元配布形式
+	const bool hasOpaqueMembers = std::ranges::any_of( entries, [&]( const auto &entry) {
+		const auto extension = lowerExtension( entry.relativePath) ;	// 元memberの形式です
+		return std::ranges::any_of( opaqueExtensions,
+								   [&]( const auto candidate) { return extension == candidate ; }) ;
+	}) ; // 内側全体まで不在とは扱えない元媒体を区別する
+	const bool entireArchive	= !hasOpaqueMembers &&
+							   // 従来の元配布全体の確認範囲
+							   root.unresolvedCopyInfPaths.size() <= 8U - packages.size() ;
+	// 元配布全体を確認できない場合は、直接SFXの登録元に限定した一件だけを対象にする
+	if( !entireArchive && (format != OfficialDriverArchiveFormat::SEVEN_ZIP_SFX ||
+						  root.unresolvedCopyInfPaths.size() != 1U)) {
+		return OfficialRootCopyInfAbsence::UNCONFIRMED ;
+	}
+
+	const auto leaf = []( const std::wstring_view path) {
+		const auto separator = path.find_last_of( L'\\') ;	// 元の相対ディレクトリの終端
+		return separator == std::wstring_view::npos ? path : path.substr( separator + 1U) ;
+	} ; // 検査済み相対pathから同名検索に使う末尾名を借用する
+	// 全未解決参照について通常INFとWindows圧縮名の別配置がないことを確かめる
+	for( const auto &path : root.unresolvedCopyInfPaths) {
+		// 置換結果が確定しない参照を静的な不在へ変換しない
+		if( path.find( L'%') != std::wstring::npos) {
+			return OfficialRootCopyInfAbsence::UNCONFIRMED ;
+		}
+
+		const auto name			  = leaf( path) ;				// 元参照の末尾INF名です
+		const auto parentSize	  = path.size() - name.size() ;	// 末尾名に先行する元ディレクトリ部分
+		const auto rootParentSize = root.infRelativePath.size() -
+									// Windowsに渡す元INFと同じディレクトリの境界
+									leaf( root.infRelativePath).size() ;
+		// 登録元の不在は同じディレクトリ内だけを対象とし、絶対・別位置の探索を許さない
+		if( !entireArchive &&
+		   !stringsEqual( std::wstring_view( path).substr( 0U, parentSize),
+						 std::wstring_view( root.infRelativePath).substr( 0U, rootParentSize))) {
+			return OfficialRootCopyInfAbsence::UNCONFIRMED ;
+		}
+
+		std::wstring compressed( name) ;	// Windows圧縮名の照合用copyです
+		compressed.back() = L'_' ;
+		// 別位置と圧縮名の候補を欠落扱いせず、正常な展開範囲の調査へ残す
+		if( std::ranges::any_of( entries, [&]( const auto &entry) {
+			   return stringsEqual( leaf( entry.relativePath), name) ||
+					  stringsEqual( leaf( entry.relativePath), compressed) ;
+		   })) {
+			return OfficialRootCopyInfAbsence::UNCONFIRMED ;
+		}
+	}
+
+	return entireArchive ? OfficialRootCopyInfAbsence::ARCHIVE
+						 : OfficialRootCopyInfAbsence::NATIVE_SOURCE ;
 }
 
 //------------------------------------------------------------------------------
@@ -2192,6 +2282,15 @@ static NativeError extractDriverClosureImpl(
 		// 元byteの検査が完了しても取消し済みの閉包証拠を渡さない
 		if( scopedCancellation && scopedCancellation()) {
 			return nativeErrorFromWin32( ERROR_CANCELLED) ;
+		}
+
+		// 元索引用の直接配布で、選択が単一のときだけ付随INFの不在を記録する
+		if( initialInfCount == 1U && archiveDepth == 0U && !collectorMembers &&
+		   !request.scopedModels &&
+		   source.format != OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER &&
+		   infPolicy.purpose == OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE) {
+			closure.unresolvedRootCopyInfAbsence =
+				classifyAbsentRootCopyInf( sourceEntries, packages, source.format) ;
 		}
 
 		closure.entries			  = std::move( closureEntries) ;

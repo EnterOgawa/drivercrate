@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package.h
  * @brief 公式標準INF driver package検証定義
- * @version 01.65.00
+ * @version 01.72.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -109,6 +109,13 @@
  * Ver.01.63.00 Shunji Ogawa  2026/11/24  同梱WinUSBの選択に属する元機器登録節を保持
  * Ver.01.64.00 Shunji Ogawa  2026/11/24  収集専用の共有Ports標準ページと元媒体を保持
  * Ver.01.65.00 Shunji Ogawa  2026/11/24  独自クラスの単一KMDF元媒体の収集用照合を追加
+ * Ver.01.66.00 Shunji Ogawa  2026/11/27  必須SoftwareComponentの元Models選択契約を追加
+ * Ver.01.67.00 Shunji Ogawa  2026/11/27  Display補助サービスの原構文証拠と読取契約を追加
+ * Ver.01.68.00 Shunji Ogawa  2026/11/27  現用Displayの補助宣言と全イベント値を読取
+ * Ver.01.69.00 Shunji Ogawa  2026/11/27  現用親の子宣言と子の実Models選択を照合
+ * Ver.01.70.00 Shunji Ogawa  2026/11/27  必須SoftwareComponentのType 1元宣言と元実行物を保持
+ * Ver.01.71.00 Shunji Ogawa  2026/11/27  必須SoftwareComponentの共有コピー元と指定先を保持
+ * Ver.01.72.00 Shunji Ogawa  2026/11/27  Type 1の独立版を確認済みの元選択と再照合
  * </pre>
  *
  * @note 保護workspaceへ展開済みの標準INF packageを、現在のWindows x64に対する構造、適用ID、参照fileおよびcatalog署名の境界で検証します
@@ -130,6 +137,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace drivercrate {
@@ -727,11 +735,157 @@ struct SelectedStorageServiceFacts {
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 親の必須SoftwareComponentを現OSの元Modelsが示す一つの導入節へ結ぶ
+ * @param[in] workspace 検査済みの元INFを所有する保護領域
+ * @param[in] entries 元の署名済み閉包に属するファイル一覧
+ * @param[in] original 内容検査済みの子INF。実deviceの観測値ではない
+ * @param[in] componentIds 元親の選択節が宣言したSWCのHardware ID
+ * @param[out] selected 一意な節の関係を持つ元metadata。失敗時は空
+ * @return 一つの基本節を確認した場合0、選択不能・曖昧・元読取失敗はHRESULT
+ * @pre originalとselectedは別object。呼出し側が親のCopyINF、元byte、CATを検証する
+ * @note 未作成の子にWindows rankや導入資格を発行しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError inspectRequiredOfficialInfComponentSelection(
+	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
+	const OfficialInfPackage &original, std::span<const std::wstring> componentIds,
+	OfficialInfPackage &selected) ;
+
+/** @brief 元Displayの選択節から確認した補助サービス。端末の所有や導入許可を含まない */
+struct OfficialDisplayAuxiliaryService {
+	/// 元AddServiceが指定したサービス名
+	std::wstring										serviceName ;
+	/// 同じ選択節がコピーするEXEの保護領域相対名
+	std::wstring										binarySource ;
+	/// 元INFが指定したApplicationイベント源
+	std::wstring										eventSource ;
+	/// 同じイベント源の表示用リソースに限った元DLL参照
+	std::wstring										messageFile ;
+	/// 元イベントで明示されたカテゴリ表示用DLL参照。未指定は空
+	std::wstring										categoryMessageFile ;
+	/// 元イベントで指定された一意な名前とDWORD値
+	std::vector<std::pair<std::wstring, std::uint32_t>> eventValues ;
+	/// 元Win32補助の起動順グループ。未指定は空
+	std::wstring										loadOrderGroup ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用Displayの実選択節で同名補助サービスとイベント源の元宣言を読む
+ * @param[in] storeInf 既存の公開INFと同一原byteを確認し、読取期間中に固定したStore INFの絶対位置
+ * @param[in] installedSection 現用デバイスから得た実DDInstall節。装飾があれば含む
+ * @param[in] associatedService 同じ現用デバイスのWindows関連サービス名
+ * @param[in] intended 候補が更新する補助サービス名とイベント源を保持する同選択の構文証拠
+ * @param[out] declaration 成功時の現用構成。binarySourceには同じStoreパッケージ内のDIRID 13相対位置を保持。失敗時は空
+ * @param[out] components 指定時は同じ現用親が宣言する子の集合。失敗時は空
+ * @return 同一の現用関連サービスと同名補助・イベント源を確認して0、欠損・未知・不一致はHRESULT
+ * @note 読み取った現用宣言とSCM、イベント源、ファイル署名、他デバイスの所有関係は後段で照合する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readRegisteredDisplayAuxiliaryDeclaration(
+	const std::wstring &storeInf, std::wstring_view installedSection,
+	std::wstring_view associatedService, const OfficialDisplayAuxiliaryService &intended,
+	OfficialDisplayAuxiliaryService			   &declaration,
+	std::vector<OfficialInfComponentReference> *components = nullptr) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用SoftwareComponentが主Hardware IDで記録済みの実節を選ぶか確認する
+ * @param[in] storeInf 同時読取で固定した現用SoftwareComponentのStore INF絶対位置
+ * @param[in] hardwareId 同じpresent子から正式に観測した唯一のSWC Hardware ID
+ * @param[in] basicSection 現用デバイスのDriverInfSection。記録によっては装飾込み
+ * @param[in] installedSection 現用デバイスが保持する装飾込みの実節
+ * @return 署名元候補の正式クラス、現在OSの主Modelsと現用実節が一致して0、その他はHRESULT
+ * @note 互換IDだけで結び付けない。INFの元署名と現在属性の前後一致は呼出側で確認する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError verifyRegisteredSoftwareComponentModel(
+	const std::wstring &storeInf, std::wstring_view hardwareId, std::wstring_view basicSection,
+	std::wstring_view installedSection) ;
+
+/** @brief 元SoftwareComponentがWindows共有ディレクトリに配置する1ファイル */
+struct OfficialSoftwareComponentSharedCopy {
+	/// 署名閉包内の同じ元相対位置
+	std::wstring  source ;
+	/// Windowsが同じINFの宛先節から解決した絶対位置
+	std::wstring  target ;
+	/// 元DestinationDirsの識別子
+	int			  dirid{} ;
+	/// 元CopyFiles行の指定を省略時の0も含めて保持
+	std::uint32_t flags{} ;
+	/// 元閉包のファイル全体のバイト数
+	std::uint64_t bytes{} ;
+	/// 元閉包のファイル全体のSHA-256
+	std::wstring  sha256 ;
+	/**
+	 * @brief 同じ署名選択から読み直した一コピーを比較する
+	 * @param[in] other 別の読取りで得た元コピー
+	 * @return 元位置、宛先、フラグと元内容が同じ場合true
+	 */
+	bool		  operator==( const OfficialSoftwareComponentSharedCopy &other) const = default ;
+} ;
+
+/** @brief 選択したSoftwareComponentのType 1構文と同じ元EXEの読取り証拠 */
+struct OfficialType1Registration {
+	/// 選択した同じ元INFの閉包内相対位置
+	std::wstring									 infRelativePath ;
+	/// 同じ元INF全体のSHA-256
+	std::wstring									 infSha256 ;
+	/// 同じ元Modelsから特定した装飾前の選択節
+	std::wstring									 basicSection ;
+	/// Windowsが選択した装飾付きのDDInstall節
+	std::wstring									 installSection ;
+	/// Windowsが元AddSoftwareから展開した固有ソフトウェア名
+	std::wstring									 softwareName ;
+	/// 元フラグが1ならtrue。Windowsの処理単位を示し、EXEの作用範囲は表さない
+	bool											 perDevice{} ;
+	/// DriverVerから独立した元SoftwareVersionの表記
+	std::wstring									 softwareVersion ;
+	/// 元SoftwareBinaryのINF相対位置
+	std::wstring									 softwareBinary ;
+	/// 同一選択がDIRID 13へコピーするEXEの保護領域相対位置
+	std::wstring									 binarySource ;
+	/// 元閉包と同じEXE全体のSHA-256
+	std::wstring									 binarySha256 ;
+	/// 元閉包と同じEXEのバイト数
+	std::uint64_t									 binaryBytes{} ;
+	/// WindowsがINFから展開した元の引数値を順に保持。実行時変数は未展開
+	std::vector<std::wstring>						 arguments ;
+	/// 同じ選択がDriver Store以外のWindows位置へコピーする元ファイル
+	std::vector<OfficialSoftwareComponentSharedCopy> sharedCopies ;
+	/**
+	 * @brief 読み直した元宣言と全関連バイトを比較する
+	 * @param[in] other 別の読取りで得た元選択の証拠
+	 * @return 元INFと選択節、宣言、元実行物、共有コピーが等しい場合true
+	 */
+	bool operator==( const OfficialType1Registration &other) const = default ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元の選択済みSoftwareComponentから一つのType 1 EXE宣言を読み取る
+ * @param[in] workspace 同期読取り中に元ファイルを保持する保護領域
+ * @param[in] entries 元INFとEXE・共有コピー元のサイズとSHA-256を含む検査済み閉包
+ * @param[in] selected 同元INFから検査済みの実DDInstallと必要関係
+ * @param[out] registration 一意な宣言、元EXEと共有コピーの証拠。失敗時は空
+ * @return 一意な元宣言と同名DIRID 13コピー、元INFとEXEの照合が成立すれば0、その他はHRESULT
+ * @pre 呼出側が元閉包のCATと親子の選択関係を確認する
+ * @note この証拠は宣言されたWindowsの処理単位と引数を示す。内部動作、端末上の所有、実行資格は別に検査する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readSelectedOfficialType1Registration(
+	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
+	const OfficialInfPackage &selected, OfficialType1Registration &registration) ;
+
+//------------------------------------------------------------------------------
+/**
  * @brief 選択元INFのWindows管理driver package範囲を非実行で再検査します
  * @param[in] workspace 全内容検査済み元fileを所有する保護領域です
  * @param[in] entries 全原参照のsize/hash付き閉包です。CAT検証は呼出側が別に要求します
  * @param[in] selected native compatible nodeから選んだ原DDInstall関係です
  * @param[out] diagnostic 任意の最初の固定拒否です。合否に使いません
+ * @param[out] displayService 必要なDisplay補助サービスの構文証拠。nullptrの場合は当該形式を拒否。失敗時は空
+ * @param[in] reviewedDisplayChild 同じ選択Displayの所有と作用先が確認済みの必須子の元宣言。通常はnullptr
  * @return 選択copy/source/Windows宛先/関連service/softwareの結合成功0、それ以外はHRESULTです
  * @note 本関数は実行能力を持ちません。元byte/CAT再検証後の私有factoryから使用します。vendor内部作用やDisplay Type1のWindows実行対応を証明せず、元未評
  *       価flagも変更しません
@@ -739,7 +893,9 @@ struct SelectedStorageServiceFacts {
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError inspectSelectedWindowsDriverPackageScope(
 	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
-	const OfficialInfPackage &selected, RequiredInfBindingDiagnostic *diagnostic = nullptr) ;
+	const OfficialInfPackage &selected, RequiredInfBindingDiagnostic *diagnostic = nullptr,
+	std::optional<OfficialDisplayAuxiliaryService> *displayService		 = nullptr,
+	const OfficialType1Registration				   *reviewedDisplayChild = nullptr) ;
 
 /**
  * @brief INFのPnP IDと現在deviceのPnP IDとの照合結果を表す

@@ -2,7 +2,7 @@
 /**
  * @file signed_index_candidate_binding_tests.cpp
  * @brief 真署名索引から通常候補とfake指定導入へ接続する有限fixtureを検証します
- * @version 01.64.01
+ * @version 01.65.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -110,6 +110,8 @@
  * Ver.01.63.02 Shunji Ogawa  2026/11/23  元対象が一致するWiX表示行だけの私有機器参照を検証
  * Ver.01.64.00 Shunji Ogawa  2026/11/23  元規約の差し替え、欠損、重複とスキャンの違いを検証
  * Ver.01.64.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
+ * Ver.01.65.00 Shunji Ogawa  2026/11/27  署名索引のDisplay更新で付随INF欠落と登録後の検証を確認
+ * Ver.01.65.01 Shunji Ogawa  2026/11/28  署名の原本文と追加欄に固有の期限を検査
  * </pre>
  *
  * @note Worker内だけで直列使用し、公開設定から取得権限を生成しません
@@ -386,6 +388,9 @@ constexpr GUID PORTS_CLASS{
 // Net一種へ処理を限定していないことを確認する別の通常class
 constexpr GUID NET_CLASS{
 	0x4d36e972, 0xe325, 0x11ce, {0xbf, 0xc1, 0x08, 0x00, 0x2b, 0xe1, 0x03, 0x18}} ;
+// 架空の表示アダプターと元INFを結ぶ正式クラスです
+constexpr GUID DISPLAY_CLASS{
+	0x4d36e968, 0xe325, 0x11ce, {0xbf, 0xc1, 0x08, 0x00, 0x2b, 0xe1, 0x03, 0x18}} ;
 // 実在端末や元メーカーの登録と独立した人工クラスです
 constexpr GUID DECLARATIVE_CLASS{
 	0xc054bd69, 0xa76e, 0x4caa, {0xa9, 0x15, 0xe3, 0xce, 0x9a, 0x28, 0x5b, 0x62}} ;
@@ -1434,6 +1439,8 @@ struct NativeFixtureState {
 	std::vector<std::wstring>			   storageCalls ;
 	/// 元人工INFの正式storage Classへだけ同じ完全API表を結びます
 	bool								   storage{} ;
+	/// 人工Display配布の登録先と適用を同じ呼出し列で観測します
+	bool								   display{} ;
 	/// 復旧開始後、配置前の登録guardが行ったWindows root照会です
 	std::uint32_t						   declarativePreStageRootReads{} ;
 	/// 同じOEM INFから保持対象の人工Storeを照会した回数です
@@ -2380,6 +2387,7 @@ BOOL WINAPI enumInventory( [[maybe_unused]] HDEVINFO set, DWORD index, PSP_DEVIN
 					   activeNative->changed
 				   ? NET_CLASS
 			   : activeNative->storage ? fixtureStorageClass()
+			   : activeNative->display ? DISPLAY_CLASS
 			   : activeNative->network ? NET_CLASS
 									   : PORTS_CLASS) ;
 	// 初回端末のUnknownと既登録クラスを互換一覧構築前の元情報にします
@@ -2776,6 +2784,7 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 					   activeNative->changed
 						   ? NET_CLASS
 					   : activeNative->storage ? fixtureStorageClass()
+					   : activeNative->display ? DISPLAY_CLASS
 					   : activeNative->network ? NET_CLASS
 											   : PORTS_CLASS) ;
 	// 端末のクラスはステージングで生じた対象クラス登録とは独立に保持します
@@ -2919,8 +2928,9 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 		}
 		// 現在INF要求だけへ固定人工公開名を返します
 		else if( sameKey( *key, DEVPKEY_Device_Driver)) {
-			text = declarativeCase() ? L"{c054bd69-a76e-4caa-a915-e3ce9a285b62}\\0001"
-									 : L"{4d36e978-e325-11ce-bfc1-08002be10318}\\0001" ;
+			text = declarativeCase()	   ? L"{c054bd69-a76e-4caa-a915-e3ce9a285b62}\\0001"
+				   : activeNative->display ? L"{4d36e968-e325-11ce-bfc1-08002be10318}\\0001"
+										   : L"{4d36e978-e325-11ce-bfc1-08002be10318}\\0001" ;
 		}
 		// 現在INF要求だけへ固定公開名を返します
 		else if( sameKey( *key, DEVPKEY_Device_DriverInfPath)) {
@@ -2974,6 +2984,7 @@ BOOL WINAPI property( [[maybe_unused]] HDEVINFO set, PSP_DEVINFO_DATA device, co
 				: activeNative->mediumChanger ? L"MediumChanger"
 				: activeNative->hdc			  ? L"HDC"
 				: activeNative->storage		  ? L"SCSIAdapter"
+				: activeNative->display		  ? L"Display"
 				: activeNative->network		  ? L"Net"
 											  : L"Ports" ;
 			// 固定した入力条件だけを分離し、他対象や期待へ流用しません
@@ -3176,6 +3187,7 @@ BOOL WINAPI buildDrivers( HDEVINFO set, [[maybe_unused]] PSP_DEVINFO_DATA device
 				? NET_CLASS
 			: declarativeCase()		? DECLARATIVE_CLASS
 			: activeNative->storage ? fixtureStorageClass()
+			: activeNative->display ? DISPLAY_CLASS
 			: activeNative->network ? NET_CLASS
 									: PORTS_CLASS ;
 		// 必要roleのnative Classは同実INF byteから返します
@@ -3797,7 +3809,7 @@ BOOL WINAPI destroyDrivers( [[maybe_unused]] HDEVINFO set, [[maybe_unused]] PSP_
  * @return 三つの実ファイルを所有するStoreへ全byte配置した場合trueです
  */
 //------------------------------------------------------------------------------
-bool stageDeclarativeStore( PCWSTR source)
+bool stageFixtureStore( PCWSTR source)
 {
 	const auto parent = std::filesystem::path{source}.parent_path() ;	// 元INF閉包の親です
 	// 別CATと別SYSの負例でもINFを含む三つの位置と長さを同一にします
@@ -3816,7 +3828,9 @@ bool stageDeclarativeStore( PCWSTR source)
 		// ひとつの配置ファイルだけを同長の別byteにする負例です
 		if( (activeNative->nativeCase == SignedIndexBindingNativeCase::DECLARATIVE_OTHER_CATALOG &&
 			name == L"fixture.cat") ||
-		   (activeNative->nativeCase == SignedIndexBindingNativeCase::DECLARATIVE_OTHER_DRIVER &&
+		   ((activeNative->nativeCase == SignedIndexBindingNativeCase::DECLARATIVE_OTHER_DRIVER ||
+			 (activeNative->display &&
+			  activeNative->nativeCase == SignedIndexBindingNativeCase::IMPORT_HASH_CHANGED)) &&
 			name == L"fixture.sys")) {
 			bytes.front() ^= 1 ;
 		}
@@ -3873,7 +3887,7 @@ BOOL WINAPI stage( PCWSTR source, PCWSTR media, DWORD type, DWORD flags, PWSTR d
 	// 呼出しは一度だけ数え、実登録先とは独立の隔離fileを作ります
 	const auto ordinal = activeNative->stages++ ;
 	// 元stage順を秘密pathを含まない人工member名だけで保持します
-	if( activeNative->storage) {
+	if( activeNative->storage || activeNative->display) {
 		activeNative->storageCalls.push_back( L"stage:" +
 											 std::filesystem::path{source}.filename().wstring()) ;
 	}
@@ -3960,7 +3974,7 @@ BOOL WINAPI stage( PCWSTR source, PCWSTR media, DWORD type, DWORD flags, PWSTR d
 
 	wcscpy_s( activeNative->stagedPaths[ordinal].data(), MAX_PATH, registered.c_str()) ;
 	// 同じOEM INFでも元CATとSYSの配置を独立に検査できるようStoreを作成します
-	if( declarativeCase() && !stageDeclarativeStore( source)) {
+	if( (declarativeCase() || activeNative->display) && !stageFixtureStore( source)) {
 		SetLastError( ERROR_WRITE_FAULT) ;
 		return FALSE ;
 	}
@@ -4052,7 +4066,7 @@ BOOL WINAPI install( [[maybe_unused]] HWND parent, HDEVINFO set, PSP_DEVINFO_DAT
 	++activeNative->installs ;
 	++activeNative->legacyInstalls ;
 	// 非null/flags0はbindingMatches成立後の元API事実です
-	if( activeNative->storage) {
+	if( activeNative->storage || activeNative->display) {
 		activeNative->storageCalls.push_back( L"install:nonnull:flags0") ;
 	}
 
@@ -4240,6 +4254,9 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 	const bool ports =
 		// 元INF directiveだけです
 		bytes.find( "\nClass=Ports\r\n") != std::string::npos ;
+	const bool display =
+		// 展開した元INFが正式クラスを宣言する場合だけ検証します
+		bytes.find( "\nClass=Display\r\n") != std::string::npos ;
 	// 同元用途が端末storage専用であるという非権限分類です
 	const bool storage = bytes.find( "\nClass=SCSIAdapter\r\n") != std::string::npos ;
 	// 人工INFの正式MTD classを識別します
@@ -4261,6 +4278,7 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 		: storage	? "ClassGuid={4d36e97b-e325-11ce-bfc1-08002be10318}\r\n"
 		: extension ? "ClassGuid={e2f84ce7-8efa-411c-aa69-97454ca4cb57}\r\n"
 		: component ? "ClassGuid={5c4c3332-344d-483c-8739-259e934c9cc8}\r\n"
+		: display	? "ClassGuid={4d36e968-e325-11ce-bfc1-08002be10318}\r\n"
 		: network
 			? "ClassGuid={4d36e972-e325-11ce-bfc1-08002be10318}\r\n"
 			: "ClassGuid={4d36e978-e325-11ce-bfc1-08002be10318}\r\n" ;	// 固定実INFの完全GUIDです
@@ -4269,7 +4287,8 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 	   static_cast<unsigned>( network) + static_cast<unsigned>( ports) +
 			   static_cast<unsigned>( extension) + static_cast<unsigned>( component) +
 			   static_cast<unsigned>( storage) + static_cast<unsigned>( mtd) +
-			   static_cast<unsigned>( changer) + static_cast<unsigned>( hdc) !=
+			   static_cast<unsigned>( changer) + static_cast<unsigned>( hdc) +
+			   static_cast<unsigned>( display) !=
 		   1U ||
 	   bytes.find( expectedGuid) == std::string::npos) {
 		SetLastError( ERROR_INVALID_DATA) ;
@@ -4283,6 +4302,7 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 		: storage	? L"SCSIAdapter"
 		: extension ? L"Extension"
 		: component ? L"SoftwareComponent"
+		: display	? L"Display"
 		: activeNative->nativeCase == SignedIndexBindingNativeCase::INF_CLASS_MISMATCH ? L"Net"
 		: network																	   ? L"Net"
 				  : L"Ports" ;	// Class不一致は原API返却だけを変更します
@@ -4299,6 +4319,7 @@ BOOL WINAPI infClass( PCWSTR path, LPGUID guid, PWSTR name, DWORD capacity, PDWO
 			: storage	? STORAGE_CLASS
 			: extension ? EXTENSION_CLASS
 			: component ? COMPONENT_CLASS
+			: display	? DISPLAY_CLASS
 			: network	? NET_CLASS
 						: PORTS_CLASS ;
 	std::copy( value.begin(), value.end(), name) ;
@@ -5266,11 +5287,12 @@ LSTATUS WINAPI declarativeCloseKey( HKEY key)
  * @return 正規のOEM INFと全パスを確認できればTRUEです
  */
 //------------------------------------------------------------------------------
-BOOL WINAPI declarativeStoreLocation( PCWSTR inf, PSP_ALTPLATFORM_INFO alternate, PCWSTR locale,
-									 PWSTR buffer, DWORD capacity, PDWORD required)
+BOOL WINAPI fixtureStoreLocation( PCWSTR inf, PSP_ALTPLATFORM_INFO alternate, PCWSTR locale,
+								 PWSTR buffer, DWORD capacity, PDWORD required)
 {
 	// ほかの登録先や実Windowsから一致するINFを探しません
-	if( !declarativeCase() || !inf || activeNative->stages != 1U ||
+	if( !activeNative || (!declarativeCase() && !activeNative->display) || !inf ||
+	   activeNative->stages != 1U ||
 	   std::wstring_view{inf} != activeNative->stagedPaths[0].data() || alternate || locale) {
 		SetLastError( ERROR_INVALID_PARAMETER) ;
 		return FALSE ;
@@ -5290,6 +5312,11 @@ BOOL WINAPI declarativeStoreLocation( PCWSTR inf, PSP_ALTPLATFORM_INFO alternate
 	}
 
 	++activeNative->declarativeStoreReads ;
+	// Displayの指定適用より前に人工Storeの全ファイルが配置されたことを観測します
+	if( activeNative->display) {
+		activeNative->storageCalls.push_back( L"store:fixture.inf") ;
+	}
+
 	wcscpy_s( buffer, capacity, path.c_str()) ;
 	return TRUE ;
 }
@@ -5305,7 +5332,7 @@ driver_store_inf_detail::DeclarativeClassTransport declarativeCalls()
 	return {{declarativeClassName, declarativeClassGuids, declarativeOpenClassKey,
 			 declarativeClassProperty, declarativeDeviceProperty, declarativeOpenKey,
 			 declarativeReadValue, declarativeCloseKey},
-			declarativeStoreLocation} ;
+			fixtureStoreLocation} ;
 }
 
 //------------------------------------------------------------------------------
@@ -5338,6 +5365,11 @@ driver_store_inf_detail::Transport calls()
 	// 独自クラスに限り、同じターゲットと隔離Storeにだけ応答する読取り表を使います
 	if( declarativeCase()) {
 		result.declarativeClass = declarativeCalls() ;
+	}
+
+	// Displayの元基本閉包だけを隔離Storeの登録先照会へ接続します
+	if( activeNative && activeNative->display) {
+		result.storageStoreLocation = fixtureStoreLocation ;
 	}
 
 	// MTD対象だけ完全低位fake表を有効にします
@@ -5883,6 +5915,7 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 
 	native->mediumChanger = zip.find( "Class=MediumChanger\r\n") != zip.npos ;
 	native->hdc			  = zip.find( "Class=HDC\r\n") != zip.npos ;
+	native->display		  = zip.find( "Class=Display\r\n") != zip.npos ;
 	native->storage		  = native->mtd || native->mediumChanger || native->hdc ||
 					  zip.find( "Class=SCSIAdapter\r\n") != zip.npos ;
 	// storageだけ元native再起動値をTRUEにします。別FALSE caseはnoRebootへ結びます
@@ -6017,7 +6050,15 @@ SignedIndexBindingWorker makeSignedIndexBindingWorker(
 		native->currentVersion = L"2.0.0.0" ;
 	}
 
-	auto	   files = signatureFiles( zip) ;	// 全原memberを同じ実byte期待値へ固定します
+	auto files = signatureFiles( zip) ;	// 全原memberを同じ実byte期待値へ固定します
+	// 参照先と異なる位置の人工memberはZIPの検索対象だけに残し、基本のCAT期待集合には入れない
+	if( native->display) {
+		std::erase_if( files, []( const auto &file) {
+			return file.name == L"alternate\\optional.inf" ||
+				   file.name == L"alternate\\optional.in_" ;
+		}) ;
+	}
+
 	const bool missingImportCatalog =
 		!native->storage &&
 		// 固定欠損CAT負例だけを完全低位期待表へ通します
@@ -10645,17 +10686,24 @@ void runWindowsManagedDriverBindingTests( TestContext						   &context,
 	const bool badScope =
 		// 元INFからの固定負例だけです
 		zip.find( "scope-fixture-reject") != zip.npos ;
+	const bool display = zip.find( "Class=Display\r\n") != zip.npos ;	// 元Display INFです
+	const bool sameVersion =
+		// 端末の現在版だけを変える負例です
+		zip.find( "copyinf-same-version") != zip.npos ;
 	const unsigned modes = badScope ? 1U : 5U ;	// 通常/復旧失敗/原hash差/CAT拒否/staleを分離します
 	// 同元取得ごとに新scan/新native低位表を所有し、成功状態を持ち越しません
 	for( unsigned mode = 0U; mode < modes; ++mode) {
-		const auto nativeCase = mode == 2U ? SignedIndexBindingNativeCase::IMPORT_HASH_CHANGED
-								: mode == 3U
-									? SignedIndexBindingNativeCase::IMPORT_MEMBER_FAILURE
-									: SignedIndexBindingNativeCase::NORMAL ;	// 元低位条件だけです
-		auto	   bound = makeSignedIndexBindingWorker( services, zip, false, mode == 1U, false,
-														nativeCase) ;	// 完全fake native/復旧です
-		OperationController controller ;								// 通常本体と同じ選択/同意/session状態機械です
-		ScanOptions			options ;									// 実WUA/公式HTTPを開始しません
+		const auto nativeCase =	// 元署名・登録後の内容差・実指定APIの戻り値を独立に変えます
+			sameVersion				? SignedIndexBindingNativeCase::NORMAL_SAME_VERSION
+			: mode == 2U			? SignedIndexBindingNativeCase::IMPORT_HASH_CHANGED
+			: mode == 3U			? (display ? SignedIndexBindingNativeCase::CAB_MEMBER_FAILURE
+											   : SignedIndexBindingNativeCase::IMPORT_MEMBER_FAILURE)
+			: mode == 4U && display ? SignedIndexBindingNativeCase::REQUIRED_BASE_FAILURE
+									: SignedIndexBindingNativeCase::NORMAL ;
+		auto bound = makeSignedIndexBindingWorker( services, zip, false, mode == 1U, false,
+												  nativeCase, {}, {}, {}, display) ;	// 完全fakeです
+		OperationController controller ;												// 通常本体と同じ選択/同意/session状態機械です
+		ScanOptions			options ;													// 実WUA/公式HTTPを開始しません
 		options.useDefaultProviders = false ;
 		options.enabledProviderIds	= {std::wstring( DRIVER_STORE_PROVIDER_ID),
 									   std::wstring( SIGNED_INDEX_PROVIDER_ID)} ;
@@ -10698,6 +10746,14 @@ void runWindowsManagedDriverBindingTests( TestContext						   &context,
 			for( const auto &report : prepared->preparationResult.auditReports) {
 				candidates.insert( candidates.end(), report.publishedCandidates.begin(),
 								  report.publishedCandidates.end()) ;
+				// 別位置は元閉包の内容検査後、必要計画のCopyINF判定まで到達させます
+				if( display && badScope && !sameVersion) {
+					DRIVERCRATE_EXPECT( context, report.firstContentRejection == 0U &&
+													report.publication.bindingRejection ==
+														static_cast<std::uint32_t>(
+															InfBindingReject::COPY_INF_MISSING)) ;
+				}
+
 				std::cout << "WINDOWS_MANAGED_AUDIT mode=" << mode << " badScope=" << badScope
 						  << " content=" << report.contentError
 						  << " rejected=" << report.firstContentRejection
@@ -10724,6 +10780,7 @@ void runWindowsManagedDriverBindingTests( TestContext						   &context,
 										candidate.action == DriverAction::UPDATE &&
 										candidate.requiredExtensionCount == 0U &&
 										candidate.requiredDriverComponentCount == 0U) ;
+		DRIVERCRATE_EXPECT( context, candidate.unresolvedCopyInfCount == (display ? 1U : 0U)) ;
 		DRIVERCRATE_EXPECT( context, controller.completePreparation( prepared->preparationResult,
 																   scanned->scanResult.candidates)) ;
 		const std::array selected{candidate.identity} ;	// 一deviceを明示選択します
@@ -10739,7 +10796,7 @@ void runWindowsManagedDriverBindingTests( TestContext						   &context,
 										bound.observe().installs == 0U &&
 										bound.observe().restoreBegins == 0U) ;
 		// staleはworkerでも旧sessionの元guardを確認し、正しいsessionへ補完しません
-		if( mode == 4U) {
+		if( mode == 4U && !display) {
 			const bool queued = bound.worker->requestInstall(
 				900U, plan.scanSessionId + 1U, selected, nullptr,
 				InstallProtectionMode::WINDOWS_RESTORE_POINT) ;	// 全変更APIはfakeです
@@ -10758,7 +10815,7 @@ void runWindowsManagedDriverBindingTests( TestContext						   &context,
 		}
 
 		// 同保護importの元byteだけを変更し、成功候補や私有計画は書換えません
-		if( mode == 2U) {
+		if( mode == 2U && !display) {
 			bound.changeNativeState() ;
 		}
 
@@ -10773,15 +10830,48 @@ void runWindowsManagedDriverBindingTests( TestContext						   &context,
 		DRIVERCRATE_EXPECT( context, installed.has_value()) ;
 		const auto observation = bound.observe() ;	// 同終端同期後だけの元counterです
 		const bool success	   = mode == 0U ;		// 復旧/原hash負例を成功へ補正しません
-		DRIVERCRATE_EXPECT( context, observation.stages == (success ? 1U : 0U) &&
-										observation.installs == (success ? 1U : 0U)) ;
-		DRIVERCRATE_EXPECT( context, observation.restoreBegins == (mode == 2U ? 0U : 1U) &&
-										observation.restoreCompletes == (success ? 1U : 0U)) ;
+		const bool staged =
+			success || (display && (mode == 2U || mode == 4U)) ;	// OEM登録の実到達です
+		const bool attempted = success || (display && mode == 4U) ;	// 指定APIを呼んだ事実です
+		DRIVERCRATE_EXPECT( context, observation.stages == (staged ? 1U : 0U) &&
+										observation.installs == (attempted ? 1U : 0U)) ;
+		DRIVERCRATE_EXPECT( context,
+						   observation.restoreBegins == (!display && mode == 2U ? 0U : 1U) &&
+							   observation.restoreCompletes == (staged ? 1U : 0U)) ;
 		// 復旧結果と各対象の元結果を通常controllerへ保持します
 		if( installed) {
 			DRIVERCRATE_EXPECT( context, installed->installResult.succeeded == success &&
 											controller.completeInstall( install.operationId,
 																	   installed->installResult)) ;
+		}
+
+		// Display経路の登録途中失敗と適用API失敗を区別するため、元呼出し順と個別結果を検査します
+		if( display && staged && installed) {
+			const auto calls =
+				// 人工登録・確認・指定適用の元呼出し順です
+				bound.observeStorageCalls() ;
+			DRIVERCRATE_EXPECT( context, calls.size() >= 2U && calls[0] == L"stage:fixture.inf" &&
+											calls[1] == L"store:fixture.inf" &&
+											calls.back() == (attempted ? L"install:nonnull:flags0"
+																	   : L"store:fixture.inf")) ;
+			DRIVERCRATE_EXPECT( context,
+							   observation.specifiedBindingMatches &&
+								   observation.deviceInstalls[0] == (attempted ? 1U : 0U) &&
+								   observation.deviceInstalls[1] == 0U) ;
+			const auto &result =
+				installed->installResult ;	// 通常UIが受け取る個別エラーと現在状態です
+			DRIVERCRATE_EXPECT( context,
+							   result.updates.size() == 1U &&
+								   result.updates.front().identity == candidate.identity &&
+								   result.updates.front().installOutcome ==
+									   (success ? OutcomeCode::SUCCESS : OutcomeCode::FAILURE)) ;
+			// 成功時には指定APIの戻り値とは別に、再読取りした対象の現在版と原INFを検査します
+			if( success) {
+				DRIVERCRATE_EXPECT( context,
+								   result.currentDevices.size() == 1U &&
+									   result.currentDevices.front().selectedTargetMatched &&
+									   result.currentDevices.front().version == L"1.0.0.0") ;
+			}
 		}
 
 		std::cout << "WINDOWS_MANAGED_NATIVE mode=" << mode << " stage=" << observation.stages
@@ -12924,11 +13014,14 @@ void runCatalogSupplementConsumerScan( TestContext &context, std::shared_ptr<Sig
 
 		const auto base = snapshot.consumerRecordRegion( 0U) ;	// 追加欄が失効しても有効な本文です
 		const auto manifestExpiry = std::chrono::sys_days{std::chrono::year{2026} / 10 / 25} +
-									std::chrono::hours{5} ;	// 署名manifestの原期限です
+									std::chrono::hours{5} ;				// 署名manifestの原期限です
+		const auto &acquisition = records[0U].acquisitionDescriptor ;	// 本文レコードの元配布証拠です
 		DRIVERCRATE_EXPECT(
 			context, records[0U].recordId == "fixture-base" &&
 						 records[0U].recordSchemaVersion == 2U && base.indexSha256 == baseDigest &&
-						 base.expiresAtUtc == manifestExpiry && base.sources.size() == 1U &&
+						 acquisition && acquisition->attestation &&
+						 base.expiresAtUtc == acquisition->attestation->validUntilUtc &&
+						 base.expiresAtUtc < manifestExpiry && base.sources.size() == 1U &&
 						 base.sources.front().sourceId == "fixture-source") ;
 		std::wstring baseRecordHash ;	// 展開済み本文の各行と計画を結ぶ元byteのhashです
 		DRIVERCRATE_EXPECT( context,

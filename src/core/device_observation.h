@@ -2,7 +2,7 @@
 /**
  * @file device_observation.h
  * @brief Deviceの登録状態・属性読取り・問題状態の有限な観測契約
- * @version 01.00.02
+ * @version 01.01.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/09/15  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/27  Windowsが報告するGPU種別を観測に追加
  * </pre>
  *
  * @note Windows型・生ID・pathを保持せず、導入許可を発行しない
@@ -104,6 +105,16 @@ enum class DeviceDriverPresence {
 	NOT_INSTALLED,
 } ;
 
+/** @brief Windowsが同じ物理ディスプレイデバイスについて報告したGPU種別 */
+enum class GraphicsAdapterKind {
+	/// 種別を確認できない、又は対象の物理GPUではない
+	UNKNOWN,
+	/// Windowsが内蔵GPUとして報告
+	INTEGRATED,
+	/// WindowsがディスクリートGPUとして報告
+	DISCRETE,
+} ;
+
 /** @brief 一つのscanとopaque deviceへ結合したimmutable表示用観測 */
 struct DeviceObservation {
 	/// 観測元の0ではないscan session
@@ -134,6 +145,8 @@ struct DeviceObservation {
 	DevicePropertyReadStatus date ;
 	/// Worker内instance IDの解決状態。値は持たない
 	DevicePropertyReadStatus instanceIdentity ;
+	/// 同じPnPデバイスに結び付いたGPU種別。自動選択だけに使用する
+	GraphicsAdapterKind		 graphicsAdapter{GraphicsAdapterKind::UNKNOWN} ;
 } ;
 
 //------------------------------------------------------------------------------

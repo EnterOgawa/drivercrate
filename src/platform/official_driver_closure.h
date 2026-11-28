@@ -2,7 +2,7 @@
 /**
  * @file official_driver_closure.h
  * @brief 公式archiveの選択的driver閉包抽出定義
- * @version 01.11.00
+ * @version 01.13.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -40,6 +40,8 @@
  * Ver.01.09.00 Shunji Ogawa  2026/11/22  選択した収集rootの公式Models範囲を原INFとCATへ結合
  * Ver.01.10.00 Shunji Ogawa  2026/11/23  私有収集の検査済み元memberから選択閉包へ接続
  * Ver.01.11.00 Shunji Ogawa  2026/11/24  元ZIPに結んだ混在シリアル媒体を私有閉包へ接続
+ * Ver.01.12.00 Shunji Ogawa  2026/11/27  基本Displayの付随INFに元配布で確認した不在を保持
+ * Ver.01.13.00 Shunji Ogawa  2026/11/27  付随INFの不在を確認した元媒体の範囲を保持
  * </pre>
  *
  * @note G11-Bで固定した公式ZIP／CABから、選択INF、CATおよびINFが参照するfileだけを保護workspaceへ分離し、任意codeは実行しません
@@ -311,6 +313,16 @@ struct OfficialCompressedDriverSource {
 	std::uint32_t	 compressionType{} ;
 } ;
 
+/** @brief 基本INFの未解決CopyINFについて、どの元媒体で不在を確認したか */
+enum class OfficialRootCopyInfAbsence {
+	/// 解決先がないことを確認していない
+	UNCONFIRMED,
+	/// 付随配布物を含まない元アーカイブ全体で不在
+	ARCHIVE,
+	/// Windowsへ直接渡す登録元で不在。内包媒体全体の不在を意味しない
+	NATIVE_SOURCE
+} ;
+
 /** @brief 元INF全参照と全圧縮元/展開先を保持する内容閉包です。導入能力を持ちません */
 struct OfficialDriverClosure {
 	/// INF、CAT、展開済み全参照fileの実hash付き一覧です。圧縮元tupleは別保持し、導入許可ではありません
@@ -323,6 +335,9 @@ struct OfficialDriverClosure {
 	std::uint64_t								expandedBytes{} ;
 	/// 全参照sourceで必要になった同位置の標準圧縮fileの原/展開来歴です
 	std::vector<OfficialCompressedDriverSource> compressedSources ;
+	/// 端末用Displayの基本INFが参照する未解決CopyINFの元媒体での観測範囲
+	OfficialRootCopyInfAbsence					unresolvedRootCopyInfAbsence{
+		 OfficialRootCopyInfAbsence::UNCONFIRMED} ;
 } ;
 
 /** @brief 導入作用を許可しない保守専用の内容閉包。導入用型へ暗黙変換しない */

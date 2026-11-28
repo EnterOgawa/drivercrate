@@ -2,7 +2,7 @@
 /**
  * @file main_window_assessment.cpp
  * @brief Device観測と全候補の詳細表示・一候補の明示選択
- * @version 01.22.01
+ * @version 01.23.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -47,6 +47,7 @@
  * Ver.01.21.00 Shunji Ogawa  2026/11/23  同じ候補の有効な確認済み規約を表示
  * Ver.01.22.00 Shunji Ogawa  2026/11/23  WiXの候補が発行された後も同じ元規約を表示
  * Ver.01.22.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
+ * Ver.01.23.00 Shunji Ogawa  2026/11/27  付随INFの所見を候補詳細へ追加
  * </pre>
  *
  * @note UI thread限定。固定理由と診断だけを表示し、取得・導入・同意を実行しない
@@ -1416,6 +1417,11 @@ bool MainWindow::showSelectedCandidateDetails()
 		}
 
 		std::wstring explanation = loadString( stateResource) ;	// Snapshotの短い説明だけです
+		// 付随INFの所見は状態のセルを指したときにも表示する
+		if( candidate.unresolvedCopyInfCount != 0U) {
+			explanation += L" " + loadString( IDS_INDEX_COPYINF_UNRESOLVED) ;
+		}
+
 		// 推奨filterの影響は元の選択条件と区別して付記します
 		if( !candidate.current && showRecommendedOnly_ && isSelectableCandidate( candidate) &&
 		   !visibleInRecommendedFilter( candidate)) {
@@ -1470,6 +1476,7 @@ bool MainWindow::showSelectedCandidateDetails()
 					  candidate.installable == original.installable &&
 					  candidate.allContentCached == original.allContentCached &&
 					  candidate.requiredExtensionCount == original.requiredExtensionCount &&
+					  candidate.unresolvedCopyInfCount == original.unresolvedCopyInfCount &&
 					  candidate.requiredDriverComponentCount ==
 						  original.requiredDriverComponentCount &&
 					  candidate.storageChange == original.storageChange &&

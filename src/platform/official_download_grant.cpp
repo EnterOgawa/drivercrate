@@ -2,7 +2,7 @@
 /**
  * @file official_download_grant.cpp
  * @brief 型付き公式配布recordの検証と短命download grantを実装します
- * @version 01.13.02
+ * @version 01.14.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,7 @@
  * Ver.01.13.00 Shunji Ogawa  2026/11/03  匿名CDNの同record二要求と有限予約を接続
  * Ver.01.13.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.13.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.14.00 Shunji Ogawa  2026/11/27  署名索引が結合した公開AMD製品ページの所有権を移動
  * </pre>
  *
  * @note URLは正規形と非機密metadataへ含めず、grantの秘密所有領域だけへ移動します
@@ -1761,6 +1762,7 @@ void RecordScopedDownloadGrant::moveFrom( RecordScopedDownloadGrant &other) noex
 	publishedSha512_			= std::move( other.publishedSha512_) ;
 	publisher_					= std::move( other.publisher_) ;
 	expectedContentType_		= std::move( other.expectedContentType_) ;
+	signedAmdProductPage_		= std::move( other.signedAmdProductPage_) ;
 	targetFingerprint_			= other.targetFingerprint_ ;
 	targetFingerprintPresent_	= std::exchange( other.targetFingerprintPresent_, false) ;
 	SecureZeroMemory( other.targetFingerprint_.bytes.data(), other.targetFingerprint_.bytes.size()) ;

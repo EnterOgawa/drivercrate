@@ -2,7 +2,7 @@
 /**
  * @file unsigned_index_candidate.h
  * @brief 共通codecを使う未署名配布候補の検査receiptを定義します
- * @version 01.00.02
+ * @version 01.01.00
  * @date 2026/10/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -22,6 +22,7 @@
  * Ver.01.00.00 Shunji Ogawa  2026/10/23  新規作成
  * Ver.01.00.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.01.00 Shunji Ogawa  2026/11/28  公開方式を明示した未署名候補の期限検査を追加
  * </pre>
  * @note 鍵照会・署名・通信・high-water変更を行いません
  * @see docs/adr/0396-collector-distribution-pipeline-connection.md
@@ -48,17 +49,21 @@ enum class UnsignedIndexCandidateStatus {
 	/// 内容検査済み取得用途の必要値が欠損しています
 	ACQUISITION_PURPOSE_REJECTED,
 	/// Manifest期限が全recordの原期限の最小値と一致しません
-	MINIMUM_EXPIRY_MISMATCH
+	MINIMUM_EXPIRY_MISMATCH,
+	/// 版2の全体期限が最長の元期限と発行期間上限から定めた期限と一致しません
+	INDEPENDENT_EXPIRY_MISMATCH
 } ;
 
 /** @brief 候補の値検査実績だけです。認証済み型への変換はありません */
 struct UnsignedIndexCandidateReceipt {
 	/// 原manifestの未認証値です
-	IndexManifestData	 manifest ;
+	IndexManifestData		 manifest ;
 	/// 共通codecで照合した実qualityです
-	IndexManifestQuality quality ;
+	IndexManifestQuality	 quality ;
 	/// 原GZipを展開したbyteの実hashです
-	IndexManifestSha256	 expandedSha256{} ;
+	IndexManifestSha256		 expandedSha256{} ;
+	/// 全有効レコードのうち最も遅い元確認期限です
+	std::chrono::sys_seconds latestRecordExpiryUtc{} ;
 } ;
 
 /** @brief 全検査成功時だけ未署名receiptを持つ結果です */
@@ -84,11 +89,12 @@ struct UnsignedIndexCandidateResult {
  * @param[in] manifest 原UTF-8 manifestです。最大64KiBです
  * @param[in] gzip 原GZipです。最大32MiBです
  * @param[in] nowUtc 確認済みUTCです。欠損時は拒否します
+ * @param[in] schemaVersion 検査する署名スキーマ。既定は旧配信用の版1です
  * @return 元codec診断と、全成功時だけ未署名receiptを返します
  * @note 配布channelの固定公開key IDだけを照合します。鍵storeは開きません
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] UnsignedIndexCandidateResult validateUnsignedIndexCandidate(
 	std::string_view manifest, std::span<const std::byte> gzip,
-	std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
+	std::optional<std::chrono::sys_seconds> nowUtc, std::uint32_t schemaVersion = 1U) noexcept ;
 } // namespace drivercrate

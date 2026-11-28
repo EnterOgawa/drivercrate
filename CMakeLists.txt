@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.28)
 
 project(
     DriverCrate
-    VERSION 1.0.13
+    VERSION 1.0.14
     DESCRIPTION "Torrent-free Windows driver update manager"
     LANGUAGES C CXX RC
 )
@@ -304,6 +304,8 @@ add_library(drivercrate_platform STATIC
     src/platform/storage_inf_effects_internal.cpp
     src/platform/mtd_shared_file_internal.cpp
     src/platform/registered_driver_store_package_internal.cpp
+    src/platform/display_inf_scope_internal.cpp
+    src/platform/display_type1_event_log_internal.cpp
     src/platform/mtd_handler_internal.cpp
     src/platform/mtd_queue_internal.cpp
     src/platform/official_download_workspace.cpp
@@ -390,6 +392,7 @@ target_link_libraries(drivercrate_platform
         shell32
         shlwapi
         userenv
+        wevtapi
         windowsapp
         winhttp
         wintrust
@@ -644,6 +647,11 @@ if(BUILD_TESTING)
     drivercrate_apply_compiler_options(drivercrate_unit_tests)
     target_include_directories(drivercrate_unit_tests PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
     add_test(NAME drivercrate_unit_tests COMMAND drivercrate_unit_tests)
+    add_test(NAME drivercrate_display_copyinf_binding_tests
+        COMMAND drivercrate_unit_tests --display-copyinf-binding)
+    set_tests_properties(drivercrate_display_copyinf_binding_tests PROPERTIES LABELS "nonnetwork")
+    set_property(SOURCE tests/unit/signed_index_manifest_tests.cpp APPEND PROPERTY OBJECT_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/index_capacity_tests.cpp")
     set_property(SOURCE tests/unit/metadata_inventory_tests.cpp APPEND PROPERTY OBJECT_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/index_capacity_inventory_tests.cpp")
     add_executable(drivercrate_index_binding_tests

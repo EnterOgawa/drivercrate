@@ -2,7 +2,7 @@
 /**
  * @file system_inf_effects_internal.h
  * @brief 同選択SYSTEM原文の型付き作用と不変tupleの内部契約です
- * @version 01.13.00
+ * @version 01.14.00
  * @date 2026/11/13
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.11.00 Shunji Ogawa  2026/11/23  現用同梱NVMeとPCIの原作用と電源宣言を照合
  * Ver.01.12.00 Shunji Ogawa  2026/11/24  自前媒体を使う収集選択のSerenumの型を追加
  * Ver.01.13.00 Shunji Ogawa  2026/11/24  収集で同一性を確認した正規WinUSB文書の識別を追加
+ * Ver.01.14.00 Shunji Ogawa  2026/11/27  Display補助サービスの有効名とSCM保護の読取を追加
  * </pre>
  *
  * @note NativeLoaderが検証済みSYSTEM/INBOX/Storeの正確な選択だけを渡します。公開許可DTOではありません
@@ -511,6 +512,18 @@ struct SystemInfEffects {
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError readAuxiliaryStorageServiceSnapshot(
 	std::wstring_view name, std::optional<AuxiliaryStorageServiceSnapshot> &snapshot) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用INFが指定するDisplayの補助サービスを保護付きで照会する
+ * @param[in] name 元INFのサービス名。区切りを含まないASCII名と内部空白を許す
+ * @param[out] snapshot 現用SCMの構成と保護。失敗時は空
+ * @return 実在と保守主体だけの構成変更権を確認して0、失敗や不在はHRESULT
+ * @note 現用サービスを起動、停止、変更しない。監査記述子の読取に既存の一時特権を使う
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readDisplayAuxiliaryScmSnapshot(
+	std::wstring_view name, AuxiliaryStorageServiceSnapshot &snapshot) ;
 
 //------------------------------------------------------------------------------
 /**

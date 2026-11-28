@@ -2,7 +2,7 @@
 /**
  * @file signed_index_scan.cpp
  * @brief 通常worker scanの全batchと協調期限を管理します
- * @version 01.33.01
+ * @version 01.34.01
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -59,6 +59,8 @@
  * Ver.01.32.00 Shunji Ogawa  2026/11/23  検査済みWiXの同じ保護領域を端末用に再検査
  * Ver.01.33.00 Shunji Ogawa  2026/11/23  検査で発行した同じ規約表示を取得の元証拠に保持
  * Ver.01.33.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
+ * Ver.01.34.00 Shunji Ogawa  2026/11/27  二段の公式規約を取得・再検査前の同一操作へ結合
+ * Ver.01.34.01 Shunji Ogawa  2026/11/27  取得直後と再照合で同じ元配布形式を使用
  * </pre>
  *
  * @note Crypto・schema・端末照合は既存の共通実装へ委譲します
@@ -521,10 +523,12 @@ IndexScanSummary SignedIndexScanSession::scan(
 
 		// 追加欄の認証と全検査が通った場合だけ、端末が扱える証拠付きの候補を使用します
 		if( supplemental.contents.status == IndexRecordsStatus::SCHEMA_VALIDATED) {
+			// 元の規約を再確認できる行と完全ID照合の行を通常の候補へ渡します
 			std::erase_if( supplemental.contents.records, []( const IndexDistributionRecord &record) {
 				return !requiresExactIndexHardwareMatch( record) &&
 					   (!record.acquisitionDescriptor ||
-						!record.acquisitionDescriptor->terms.archiveNotice) ;
+						!SignedIndexAcquisitionAdapter::requiresApprovedTermsRecheck(
+							record.acquisitionDescriptor->terms)) ;
 			}) ;
 			loaded.snapshot->consumerSupplement_ = std::move( supplemental) ;
 		}
@@ -853,8 +857,9 @@ NativeError SignedIndexScanSession::augmentPreparationPlan(
 		// 埋込み規約は明示した検査用取得の後に扱い、通常検索で配布物を読みません
 		if( !original.wixContentEvidence && original.acquisitionDescriptor &&
 		   original.acquisitionDescriptor->terms.state == IndexTermsState::ACCEPTANCE_REQUIRED) {
-			// ZIP規約の追加通信は、明示同意前に通常回線と確認できた場合だけ行います
-			if( original.acquisitionDescriptor->terms.archiveNotice) {
+			// ZIP規約と二段リンクの追加通信は、同意前に通常回線と確認できた場合だけ行います
+			if( SignedIndexAcquisitionAdapter::requiresApprovedTermsRecheck(
+				   original.acquisitionDescriptor->terms)) {
 				auto cost =
 					services.costReader
 						? services.costReader()
@@ -1118,7 +1123,7 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 		}
 	}
 
-	// 有効な参照のZIP規約だけを、新規転送とローカル検査へ分ける前に確認します
+	// 再確認が必要な規約を新規転送とローカル検査へ分ける前に確認する
 	if( !inspectWix && approved != adapter_.bindings_.end() &&
 	   approved->relationIndex < acquisitionLookup_->relations().size()) {
 		const auto index =
@@ -1127,9 +1132,10 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 		const auto records =
 			// 署名済みの元候補だけです
 			acquisitionLookup_->snapshot().consumerRecords() ;
-		// アーカイブ内に規約の証拠を持つ元レコードだけを追加の照合へ進めます
+		// ZIP内と二段リンク用の元レコードだけを承認済みの再照合へ進める
 		if( index < records.size() && records[index].acquisitionDescriptor &&
-		   records[index].acquisitionDescriptor->terms.archiveNotice) {
+		   SignedIndexAcquisitionAdapter::requiresApprovedTermsRecheck(
+			   records[index].acquisitionDescriptor->terms)) {
 			auto termsCost =
 				services.costReader
 					? services.costReader()
@@ -1144,7 +1150,7 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 					services.httpTransport
 						? std::make_unique<OfficialHttpClient>( services.httpTransport())
 						: std::make_unique<OfficialHttpClient>( false) ;	// 公式規約だけの低位HTTPです
-				termsError = adapter_.recheckApprovedArchiveTerms(
+				termsError = adapter_.recheckApprovedTerms(
 					preparation, task, context_, services.utc, *termsClient, cancellation) ;
 			}
 
@@ -1382,16 +1388,8 @@ OfficialPreparationTransferResult SignedIndexScanSession::acquireForInspection(
 		// 同消費済みgrantと実ledgerを結合し、DTOから権限を生成しません
 		if( item.contentError == 0U &&
 		   *distribution.acquisition.value == IndexAcquisitionKind::STANDARD_INF_ARCHIVE) {
-			item.contentError =
-				(payloadFormat == IndexPayloadFormat::PE_RESOURCE_CONTAINER ||
-				 payloadFormat == IndexPayloadFormat::SEVEN_ZIP_SFX)
-					? makeDelegatedOfficialPackageInput(
-						  acquired, grant, hint,
-						  payloadFormat == IndexPayloadFormat::PE_RESOURCE_CONTAINER
-							  ? OfficialDriverArchiveFormat::PE_RESOURCE_CONTAINER
-							  : OfficialDriverArchiveFormat::SEVEN_ZIP_SFX,
-						  record.delegated)
-					: makeDelegatedOfficialPackageInput( acquired, grant, record.delegated) ;
+			item.contentError = SignedIndexCandidateBindingSession::bindDelegatedInput(
+				acquired, grant, hint, payloadFormat, record.delegated) ;
 		}
 
 		// 実byteと元record結合が成立した対象だけ通常policyで内容検査します
@@ -1768,16 +1766,18 @@ OfficialPreparationTransferResult SignedIndexScanSession::inspectRetainedBody(
 			error = adapter_.validateBinding( *binding, context_, now, reason) ;
 		}
 
-		// ZIP規約は新LOCAL claimでも、実行中の元計画に結ぶ照合済み状態を要求します
+		// 新LOCAL claimでも指定された元規約を同じ実行計画で再確認する
 		if( error == 0U) {
 			const auto &original =
 				acquisitionLookup_->snapshot()
 					.consumerRecords()[acquisitionLookup_->relations()[binding->relationIndex]
 										   .recordIndex] ;	// 新Bの認証済み元行です
 			// 別操作又は旧計画の規約照合で、再利用に対する同意を代用しません
-			if( original.acquisitionDescriptor->terms.archiveNotice &&
-			   (binding->archiveTermsOperation != task.operationId ||
-				binding->archiveTermsPlan != task.planId || binding->archiveTermsOperation == 0U)) {
+			if( SignedIndexAcquisitionAdapter::requiresApprovedTermsRecheck(
+				   original.acquisitionDescriptor->terms) &&
+			   (binding->recheckedTermsOperation != task.operationId ||
+				binding->recheckedTermsPlan != task.planId ||
+				binding->recheckedTermsOperation == 0U)) {
 				error = E_ACCESSDENIED ;
 			}
 		}

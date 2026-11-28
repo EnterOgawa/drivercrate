@@ -2,7 +2,7 @@
 /**
  * @file signed_index_refresh.cpp
  * @brief 固定currentの検証と既存原子storeをlock外通信で接続します
- * @version 01.01.02
+ * @version 01.02.00
  * @date 2026/10/16
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -23,6 +23,7 @@
  * Ver.01.01.00 Shunji Ogawa  2026/11/08  認証した同一currentでは保存本体を全検査して再利用
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.02.00 Shunji Ogawa  2026/11/28  版2索引の個別期限を全体の再認証から分離
  * </pre>
  */
 //------------------------------------------------------------------------------
@@ -36,18 +37,24 @@ namespace drivercrate {
 namespace {
 //------------------------------------------------------------------------------
 /**
- * @brief 既知取得recordの元attestationを現在UTCへ再照合します
+ * @brief 署名済みの期限方式に応じて保護snapshotの時刻を再照合します
  * @param[in] receipt 不変の全schema検査結果です
  * @param[in] now 現在の信頼UTCです
- * @return 既知attestationが全て有効ならtrueです。UNKNOWNを既知化しません
+ * @return 全体期限内で、版1の場合は既知attestationが全て有効ならtrueです
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] bool attestationsCurrent( const IndexRecordsSchemaReceipt				&receipt,
-									   const std::optional<std::chrono::sys_seconds> now) noexcept
+[[nodiscard]] bool usableIndexTime( const IndexRecordsSchemaReceipt				&receipt,
+								   const std::optional<std::chrono::sys_seconds> now) noexcept
 {
-	// 時刻不明を既知の鮮度へ推測しません
-	if( !now) {
+	const auto &manifest = receipt.assetBytes().manifest().data() ;	// 同じ原署名の期限と方式です
+	// 暗号・構造確認後に時刻が変化しても、全体が有効な場合だけ利用します
+	if( !now || *now < manifest.publishedAtUtc || *now >= manifest.expiresAtUtc) {
 		return false ;
+	}
+
+	// 版2では元確認の現在期限を端末照合と後続の取得・導入で個別に確認します
+	if( manifest.schemaVersion == 2U) {
+		return true ;
 	}
 
 	// 全recordを確認し、先頭一件だけで後続を許可しません
@@ -71,11 +78,13 @@ namespace {
  * @brief 実storeのstatusとsnapshot有無を非機密値へ要約します
  * @param[in] result 同呼出し中だけ借用する実store結果です。外へ能力を渡しません
  * @param[in] now 使用時の信頼UTCです
+ * @param[in] schemaVersion 要求した固定配信に対応する署名スキーマです
  * @return 元commit事実と現在有効なsnapshot観測だけです
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] IndexRefreshStoreObservation observe(
-	const IndexStoreResult &result, std::optional<std::chrono::sys_seconds> now) noexcept
+[[nodiscard]] IndexRefreshStoreObservation observe( const IndexStoreResult				  &result,
+												   std::optional<std::chrono::sys_seconds> now,
+												   const std::uint32_t schemaVersion) noexcept
 {
 	return {result.status,
 			result.commit,
@@ -83,7 +92,9 @@ namespace {
 			result.manifestStatus,
 			result.persistedGeneration,
 			result.status == IndexStoreStatus::SNAPSHOT_READY && result.snapshot.has_value() &&
-				attestationsCurrent( result.snapshot->schemaReceipt(), now)} ;
+				result.snapshot->schemaReceipt().assetBytes().manifest().data().schemaVersion ==
+					schemaVersion &&
+				usableIndexTime( result.snapshot->schemaReceipt(), now)} ;
 }
 //------------------------------------------------------------------------------
 /**
@@ -228,9 +239,10 @@ IndexRefreshSummary signed_index_refresh_detail::Access::execute(
 
 		std::vector<std::byte> envelope ;	// 原currentだけの有限所有byteです
 		std::vector<std::byte> gzip ;		// 署名された元gzipだけです
-		auto				   error	   = client.getSignedIndexCurrent( control, envelope,
-																		  result.httpStatus) ;	// 固定用途の共通HTTPです
-		const auto			   httpFailure = [&]( const NativeError failure) {
+		auto				   error =
+			client.getSignedIndexCurrent( control, envelope, result.httpStatus,
+										 services.manifestSchemaVersion) ;	// 固定用途の共通HTTPです
+		const auto httpFailure = [&]( const NativeError failure) {
 			result.status	 = IndexRefreshStatus::HTTP_FAILED ;
 			result.error	 = failure ;
 			result.httpError = failure ;
@@ -240,7 +252,7 @@ IndexRefreshSummary signed_index_refresh_detail::Access::execute(
 				// 署名済みの現在有効snapshot観測だけを明示cache利用にします
 				if( result.cache->status == IndexStoreStatus::SNAPSHOT_READY &&
 				   result.cache->usableSnapshot) {
-					result.status = IndexRefreshStatus::AUTHENTICATED_CACHE ;
+					result.status				  = IndexRefreshStatus::AUTHENTICATED_CACHE ;
 					result.usedAuthenticatedCache = true ;
 				}
 			}
@@ -268,6 +280,13 @@ IndexRefreshSummary signed_index_refresh_detail::Access::execute(
 			return finish() ;
 		}
 
+		// 同じ鍵で署名済みでも、別の配信入口へ結ばれた版を代用しません
+		if( manifest.manifest->data().schemaVersion != services.manifestSchemaVersion) {
+			result.status		  = IndexRefreshStatus::MANIFEST_REJECTED ;
+			result.manifestStatus = SignedIndexManifestStatus::INVALID_MANIFEST ;
+			return finish() ;
+		}
+
 		result.attemptedGeneration = manifest.manifest->data().generation ;
 		// 認証段階間の停止をasset送信より先に確認します
 		if( control.checkpoint() != 0) {
@@ -281,15 +300,15 @@ IndexRefreshSummary signed_index_refresh_detail::Access::execute(
 		}
 
 		const auto useNow = services.utcNow() ;	// Reload後の元期限とattestationを照合するUTCです
-		result.cache	  = observe( cached, useNow) ;
+		result.cache	  = observe( cached, useNow, services.manifestSchemaVersion) ;
 		// 全再認証済みheadだけをremote世代の照合元にし、scalarだけで省略しません
 		if( cached.status == IndexStoreStatus::SNAPSHOT_READY && cached.snapshot) {
 			const auto &data = cached.snapshot->schemaReceipt()
 								   .assetBytes()
 								   .manifest()
 								   .data() ;	// 原headの署名値です
-			const IndexManifestHighWater highWater{data.generation,
-												   data.manifestSha256} ;	// 原headの下限です
+			const IndexManifestHighWater highWater{data.generation, data.manifestSha256,
+												   data.schemaVersion} ;	// 原headの下限です
 			auto						 checked = services.fixtureTrust.empty()
 													   ? authenticateSignedIndexManifest( raw, useNow, highWater)
 													   : signed_index_detail::authenticateWithTrustKeys(
@@ -345,8 +364,8 @@ IndexRefreshSummary signed_index_refresh_detail::Access::execute(
 		auto records =
 			// 実record/schema検査です
 			readSignedIndexRecords( *asset.receipt, services.utcNow()) ;
-		// Schemaと元個別期限の拒否を有効取得recordへ昇格しません
-		if( !records.receipt || !attestationsCurrent( *records.receipt, services.utcNow())) {
+		// Schemaと署名本文の時刻方式の両方を保存前に照合します
+		if( !records.receipt || !usableIndexTime( *records.receipt, services.utcNow())) {
 			result.status		 = IndexRefreshStatus::RECORDS_REJECTED ;
 			result.error		 = records.error ;
 			result.recordsStatus = records.receipt ? IndexRecordsStatus::EXPIRED : records.status ;
@@ -408,6 +427,8 @@ IndexRefreshSummary signed_index_refresh_detail::Access::forTest(
 //------------------------------------------------------------------------------
 IndexRefreshSummary refreshFixedSignedIndex( const HttpCancellationCallback &cancellation) noexcept
 {
+	constexpr std::uint32_t PRODUCT_INDEX_SCHEMA =
+		2U ;	// 新製品は個別期限用の固定入口だけを利用します
 	try {
 		signed_index_refresh_detail::Services services ;	// 製品固定の依存だけです
 		services.utcNow = []() {
@@ -432,11 +453,13 @@ IndexRefreshSummary refreshFixedSignedIndex( const HttpCancellationCallback &can
 				return result ;
 			}
 
-			return observe( opened.store->commit( receipt, envelope, gzip, now), now) ;
+			return observe( opened.store->commit( receipt, envelope, gzip, now), now,
+						   PRODUCT_INDEX_SCHEMA) ;
 		} ;
 		services.reload = []( const std::optional<std::chrono::sys_seconds> now) {
-			return observe( SignedIndexStore::reloadFixedExisting( now), now) ;
+			return observe( SignedIndexStore::reloadFixedExisting( now), now, PRODUCT_INDEX_SCHEMA) ;
 		} ;
+		services.manifestSchemaVersion = PRODUCT_INDEX_SCHEMA ;
 		OfficialHttpClient client( false) ;	// 通常metadata cacheとsource ledgerを使用しません
 		return signed_index_refresh_detail::Access::execute( client, services, cancellation) ;
 	} catch( ...) {

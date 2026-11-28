@@ -2,7 +2,7 @@
 /**
  * @file official_source_policy.cpp
  * @brief 公式取得元policy registry実装
- * @version 01.03.02
+ * @version 01.04.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -53,6 +53,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/09/23  製品一覧外の取得専用開発policyを独立検証・解決
  * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.03.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.04.00 Shunji Ogawa  2026/11/27  AMDの公式配布と製品ページの正規HTTPS経路を照合
  * </pre>
  *
  * @note 公式Providerの用途別hostとredirect方針を一元管理し、内容・導入監査とは分離します
@@ -1214,6 +1215,55 @@ bool isValidOfficialSourceEvidence( const OfficialSourceEvidence &evidence) noex
 	}
 
 	return true ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 指定された参照元と配布先をAMDの公開された固定用途へ限定する
+ * @param[in] page 別途掲載を確認した元製品ページ
+ * @param[in] payload 同じ掲載から確認したEXEの直接配布先
+ * @return 資格情報や可変queryを含まない固定形式の組だけtrue
+ */
+//------------------------------------------------------------------------------
+bool isAmdProductDownloadRoute( const std::wstring_view page,
+							   const std::wstring_view payload) noexcept
+{
+	constexpr std::wstring_view origin = L"https://www.amd.com/" ;	// 公式ページの固定起点
+	constexpr std::wstring_view downloads =
+		L"support/downloads/drivers.html/" ;								// 製品別ページの固定経路
+	constexpr std::wstring_view cdn = L"https://drivers.amd.com/drivers/" ;	// AMDの直接EXE配布先
+	constexpr std::wstring_view pathCharacters =
+		L"abcdefghijklmnopqrstuvwxyz0123456789-_/" ;	// 元ページのlocaleと製品位置に使う文字
+	// 資格情報、別host、非HTTPSや長い値から参照元を作らない
+	if( page.size() > 512U || payload.size() > 512U || !page.starts_with( origin) ||
+	   !payload.starts_with( cdn)) {
+		return false ;
+	}
+
+	const auto path	  = page.substr( origin.size()) ;	// 公式起点内の正規経路
+	const auto prefix = path.find( downloads) ;			// localeの後か直下だけにある固定経路
+	const auto locale = path.substr( 0U, prefix) ;		// localeがあるときは末尾slash付き
+	// 固定経路より前を単一のlocale位置に限定する
+	if( prefix == path.npos ||
+	   (!locale.empty() &&
+		(locale.size() < 3U || locale.size() > 6U || locale.find( L'/') != locale.size() - 1U ||
+		 locale.find_first_not_of( L"abcdefghijklmnopqrstuvwxyz-/") != locale.npos))) {
+		return false ;
+	}
+
+	auto product = path.substr( prefix + downloads.size()) ;	// 公式製品階層とページの拡張子
+	// ディレクトリ指定や別種類のファイルを製品ページとして使いません
+	if( !product.ends_with( L".html")) {
+		return false ;
+	}
+
+	product.remove_suffix( 5U) ;
+	const auto file = payload.substr( cdn.size()) ;	// 転送を要さない元EXE名
+	return !product.empty() && product.front() != L'/' && product.back() != L'/' &&
+		   product.find( L"//") == product.npos &&
+		   product.find_first_not_of( pathCharacters) == product.npos && file.size() > 4U &&
+		   file.front() != L'.' && file.ends_with( L".exe") && file.find( L"..") == file.npos &&
+		   file.find_first_not_of( L"abcdefghijklmnopqrstuvwxyz0123456789-_.") == file.npos ;
 }
 
 } // namespace drivercrate

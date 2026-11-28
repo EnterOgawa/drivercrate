@@ -2,7 +2,7 @@
 /**
  * @file official_file_verifier.cpp
  * @brief 公式配布file共通検証実装
- * @version 01.26.00
+ * @version 01.28.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -62,6 +62,8 @@
  * Ver.01.24.00 Shunji Ogawa  2026/11/23  公開INFとStoreの同梱署名の共通読取りを追加
  * Ver.01.25.00 Shunji Ogawa  2026/11/23  署名INFの同一バイトを保持する一時解析を共用
  * Ver.01.26.00 Shunji Ogawa  2026/11/23  選択済み登録配布のINF・CAT・SYSを保護付きで読取る
+ * Ver.01.27.00 Shunji Ogawa  2026/11/27  現用登録の補助EXEを正確な元位置と全親の保護へ結合
+ * Ver.01.28.00 Shunji Ogawa  2026/11/27  System32とSysWOW64の共有ドライバーファイルを保護付きで観測
  * </pre>
  *
  * @note Windows CNGとWinTrustを使用し、Provider固有値をpolicyとして受け取ります
@@ -2317,12 +2319,17 @@ NativeError pinSystemCatalogParents( const std::wstring									   &path,
 		return systemVerificationError( ERROR_INVALID_NAME) ;
 	}
 
-	const auto	last		   = path.rfind( L'\\') ;	// ファイルの直接親の終端
-	const auto	firstProtected = protectedParentCount == 0U ? path.size()
-								 : protectedParentCount == 1U
-									 ? last
-									 : path.rfind( L'\\', last - 1U) ;	// 保護を読む既知祖先の開始位置
-	std::size_t begin		   = 3U ;									// drive以降の元component起点です
+	auto firstProtected = path.size() ;	// 葉から数えた保護確認対象の最初の親境界
+	// 指定数の保護親を葉から逆に数え、足りないときは補わない
+	for( std::size_t index{}; index < protectedParentCount; ++index) {
+		firstProtected = path.rfind( L'\\', firstProtected - 1U) ;
+		// drive以外に必要な通常の保護親が存在する条件だけを採用する
+		if( firstProtected == path.npos || firstProtected < 3U) {
+			return systemVerificationError( ERROR_INVALID_NAME) ;
+		}
+	}
+
+	std::size_t begin = 3U ;	// drive以降の元component起点です
 	// 全componentと祖先を順に確認し、途中のreparseを追跡しません
 	for( std::size_t end = 3U; end <= path.size(); ++end) {
 		// 元pathのcomponent境界だけを扱います
@@ -2414,20 +2421,22 @@ NativeError checkProtectedExecutableLocation( HANDLE handle, std::wstring_view p
  * @param[out] snapshot 全条件が成立した元ファイルと親の観測
  * @param[in] maximumBytes ハッシュ読取りより前に確認するファイル全体の上限
  * @param[in] requireAmd64 Storeの実ファイルにAMD64形式を要求する場合true
+ * @param[in] storeParentCount Storeの場合は直接親からFileRepositoryまでの親数です
  * @return 成立時0、Windowsの元エラー又は保護・位置・種別の不成立はHRESULT
  */
 //------------------------------------------------------------------------------
 NativeError readProtectedExecutableAtPath( std::wstring_view path, bool driverStore,
 										  ProtectedExecutableSnapshot &snapshot,
 										  std::uint64_t maximumBytes = 2ULL * 1024U * 1024U * 1024U,
-										  bool			requireAmd64 = true)
+										  bool			requireAmd64 = true,
+										  std::size_t	storeParentCount = 2U)
 {
 	const std::wstring name{path} ;	// 同期のWindows照会に渡す終端付き位置
 	std::vector<std::unique_ptr<ReadOnlyVerificationFile>>
 		 parents ;	// 再解析点でない同じ全祖先を保持
 	auto error =
 		// 直近親の保護も取得する
-		pinSystemCatalogParents( name, parents, driverStore ? 2U : 1U) ;
+		pinSystemCatalogParents( name, parents, driverStore ? storeParentCount : 1U) ;
 	// 別名・再解析点・読取り拒否を正式な不在としない
 	if( error != 0U || parents.empty()) {
 		return error != 0U ? error : E_UNEXPECTED ;
@@ -2441,33 +2450,32 @@ NativeError readProtectedExecutableAtPath( std::wstring_view path, bool driverSt
 		return error ;
 	}
 
-	// Driver StoreではパッケージとFileRepositoryの両方に別名がなく、元保護が成立する必要があります
+	// Driver Storeでは直接親からFileRepositoryまでの全保護を保持します
 	if( driverStore) {
-		const auto package	  = path.substr( 0U, path.rfind( L'\\')) ;			// 一つの直接パッケージ
-		const auto repository = package.substr( 0U, package.rfind( L'\\')) ;	// その正式FileRepository
-		// 正式FileRepositoryとその直接子を両方保持している必要がある
-		if( parents.size() < 2U) {
+		// 一パッケージと正式FileRepositoryを必須の二親として扱う
+		if( storeParentCount < 2U || parents.size() < storeParentCount) {
 			return systemVerificationError( ERROR_ACCESS_DENIED) ;
 		}
 
-		const auto &repositoryHandle =
-			parents[parents.size() - 2U] ;	// FileRepository自身の保持ハンドル
-		error = checkProtectedExecutableLocation( parents.back()->get(), package) ;
-		// 実パッケージの別名をFileRepository読み取りで補わない
-		if( error == 0U) {
-			error = checkProtectedExecutableLocation( repositoryHandle->get(), repository) ;
-		}
+		auto parentPath = path.substr( 0U, path.rfind( L'\\')) ;	// 最初に確認する直接親の完全位置
+		// 実ファイルから順に別名を拒否し、中間親の保護も省かない
+		for( std::size_t depth{}; depth < storeParentCount; ++depth) {
+			const auto handle = parents[parents.size() - 1U - depth]->get() ;	// 同じ親の保持ハンドル
+			error			  = checkProtectedExecutableLocation( handle, parentPath) ;
+			// 途中の親又はFileRepository自身の元保護を取得する
+			if( error == 0U && depth != 0U) {
+				auto &security = depth + 1U == storeParentCount
+									 ? made.repositorySecurity
+									 : made.intermediateSecurity.emplace_back() ;	// 同じ実親の保護
+				error		   = verifySystemFilePermissions( handle, security, nullptr, true) ;
+			}
 
-		// 最終位置の不一致と元エラーを保護付き親として扱わない
-		if( error != 0U) {
-			return error ;
-		}
+			// 別名や弱い権限の親を同じ登録済みファイルへ結び付けない
+			if( error != 0U) {
+				return error ;
+			}
 
-		error = verifySystemFilePermissions( repositoryHandle->get(), made.repositorySecurity,
-											nullptr, true) ;
-		// 保護のないFileRepository配下を署名元候補へ渡しません
-		if( error != 0U) {
-			return error ;
+			parentPath = parentPath.substr( 0U, parentPath.rfind( L'\\')) ;
 		}
 	}
 
@@ -2703,6 +2711,42 @@ NativeError readProtectedRegisteredPackageSnapshot( std::wstring_view path, bool
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 選択INFが解決した共有ファイルの正規配置、保護と完全内容を読む
+ * @param[in] path 同じINFからWindowsが解決した共有ファイルの完全宛先
+ * @param[in] wow64 trueはSysWOW64、falseはSystem32の直接の子を要求
+ * @param[out] snapshot 保護、完全ハッシュと正式な不在。失敗時は空
+ * @return 正規位置の観測に成功して0、不正な位置、保護、ファイル照会の失敗はHRESULT
+ * @note ファイルはロードせず変更しない。署名元と同一バイトかは呼出側で照合する
+ */
+//------------------------------------------------------------------------------
+NativeError readWindowsSharedDriverFileSnapshot( std::wstring_view path, bool wow64,
+												ProtectedExecutableSnapshot &snapshot)
+{
+	snapshot = {} ;
+	std::array<wchar_t, MAX_PATH> directory{} ;	// Windowsが認識するアーキテクチャ別の正規親
+	const auto					  length =
+		   wow64 ? GetSystemWow64DirectoryW( directory.data(), static_cast<UINT>( directory.size()))
+								 : GetSystemDirectoryW( directory.data(),
+													   // 元絶対位置の長さ
+													   static_cast<UINT>( directory.size())) ;
+	// 同じWindowsのシステム親を取得できない場合は別の場所を検索しない
+	if( length == 0U || length >= directory.size()) {
+		return systemVerificationError( length == 0U ? GetLastError() : ERROR_INSUFFICIENT_BUFFER) ;
+	}
+
+	const auto separator = path.rfind( L'\\') ;	// 元絶対宛先から取り出す直接親
+	// 他のアーキテクチャ、下位ディレクトリと通常ファイル名でない葉を拒否する
+	if( separator != length ||
+	   !publisherNamesEqual( path.substr( 0U, separator), {directory.data(), length}) ||
+	   !isSafeOfficialArchiveMember( path.substr( separator + 1U), L'\\')) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	return readProtectedExecutableAtPath( path, false, snapshot) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 正規System32の直接の子であるストレージ用イベント資源DLLの現在値を読む
  * @param[in] path 元INFが指定したSystem32直下のDLL絶対位置
  * @param[out] snapshot 親の保護と実ファイルの同一性・保護・全ハッシュ、または葉の正式な不在。失敗時は空
@@ -2742,26 +2786,22 @@ NativeError readSystem32StorageEventResourceSnapshot( std::wstring_view			  path
 
 //------------------------------------------------------------------------------
 /**
- * @brief SCMの元コマンドを固定Driver Store内の実ファイルへ解決して保護付きで読み取る
+ * @brief SCMの元コマンドを引数のないDriver Store内の正規位置へ解決する
  * @param[in] command SCMの原文字列。全体を囲む引用符だけを許容する
- * @param[in] sourceFile 署名済みの選択が宣言した一つのEXEファイル名
- * @param[out] resolved 同じWindowsのFileRepository内の絶対位置。失敗時は空
- * @param[out] snapshot ファイルと二つの親の同一性・保護とハッシュ。失敗時は空
- * @return 保護された実ファイルの読取り成功0、構文・位置・種別・読取の不成立はHRESULT
- * @note 現在ファイルの署名元や登録済みパッケージの所有は別に確認する。実行しない
+ * @param[out] path 同じWindowsのFileRepository内の絶対位置。失敗時は空
+ * @param[out] relativeOffset 成功時はパッケージ相対位置の先頭、失敗時は0
+ * @return 同じWindowsの固定ルートへ解決して0、原構文又は読取りエラーはHRESULT
+ * @note ファイルの実体と署名は確認せず、引数の切捨てや任意環境展開を行わない
  */
 //------------------------------------------------------------------------------
-NativeError readDriverStoreExecutableSnapshot( std::wstring_view command,
-											  std::wstring_view sourceFile, std::wstring &resolved,
-											  ProtectedExecutableSnapshot &snapshot)
+static NativeError resolveDriverStoreExecutableCommand( std::wstring_view command,
+													   std::wstring		&path,
+													   std::size_t		&relativeOffset)
 {
-	resolved.clear() ;
-	snapshot = {} ;
-	// 元のコピーと同じ一つのEXE名だけを許す
-	if( command.empty() || command.size() > 4096U || sourceFile.size() <= 4U ||
-	   sourceFile.find( L'\\') != sourceFile.npos ||
-	   !isSafeOfficialArchiveMember( sourceFile, L'\\') ||
-	   !publisherNamesEqual( sourceFile.substr( sourceFile.size() - 4U), L".exe")) {
+	path.clear() ;
+	relativeOffset = 0U ;
+	// 元のコマンドを切り詰めず、全量照合できるものだけを許す
+	if( command.empty() || command.size() > 4096U) {
 		return systemVerificationError( ERROR_INVALID_NAME) ;
 	}
 
@@ -2790,29 +2830,69 @@ NativeError readDriverStoreExecutableSnapshot( std::wstring_view command,
 	const std::wstring_view		system32{system.data(), length} ;		// 同Windowsから得た完全親
 	const auto					systemLeaf = system32.rfind( L'\\') ;	// 正規Windowsルートとの境界
 	constexpr std::wstring_view root{L"%SystemRoot%\\"} ;				// 許容する元変数名一つ
-	std::wstring				path{command} ;							// 既知パスとして照合する作業値
+	std::wstring				candidate{command} ;					// 既知パスとして照合する作業値
 	// 変数展開はSCMの一つのWindows起点を完全一致させた場合だけ行う
 	if( systemLeaf != system32.npos && command.size() > root.size() &&
 	   publisherNamesEqual( command.substr( 0U, root.size()), root)) {
-		path = std::wstring{system32.substr( 0U, systemLeaf + 1U)} +
-			   std::wstring{command.substr( root.size())} ;
+		candidate = std::wstring{system32.substr( 0U, systemLeaf + 1U)} +
+					std::wstring{command.substr( root.size())} ;
 	}
 
 	const auto repository =
 		std::wstring{system32} + L"\\DriverStore\\FileRepository\\" ;	// 正式親と末尾区切り
 	// 別のWindows、別の配布ルート、未展開変数や引用なしの曖昧な実行先は使わない
-	if( path.size() <= repository.size() || path.find( L'%') != path.npos ||
-	   (!quoted && path.find( L' ') != path.npos) ||
-	   !publisherNamesEqual( std::wstring_view{path}.substr( 0U, repository.size()), repository)) {
+	if( candidate.size() <= repository.size() || candidate.find( L'%') != candidate.npos ||
+	   (!quoted && candidate.find( L' ') != candidate.npos) ||
+	   !publisherNamesEqual( std::wstring_view{candidate}.substr( 0U, repository.size()),
+							repository) ||
+	   !isSafeOfficialArchiveMember( std::wstring_view{candidate}.substr( repository.size()),
+									L'\\')) {
 		return systemVerificationError( ERROR_INVALID_NAME) ;
 	}
 
+	relativeOffset = repository.size() ;
+	path		   = std::move( candidate) ;
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief SCMの元コマンドを固定Driver Store内の実ファイルへ解決して保護付きで読み取る
+ * @param[in] command SCMの原文字列。全体を囲む引用符だけを許容する
+ * @param[in] sourceFile 署名済みの選択が宣言した一つのEXEファイル名
+ * @param[out] resolved 同じWindowsのFileRepository内の絶対位置。失敗時は空
+ * @param[out] snapshot ファイルと二つの親の同一性・保護とハッシュ。失敗時は空
+ * @return 保護された実ファイルの読取り成功0、構文・位置・種別・読取の不成立はHRESULT
+ * @note 現在ファイルの署名元や登録済みパッケージの所有は別に確認する。実行しない
+ */
+//------------------------------------------------------------------------------
+NativeError readDriverStoreExecutableSnapshot( std::wstring_view command,
+											  std::wstring_view sourceFile, std::wstring &resolved,
+											  ProtectedExecutableSnapshot &snapshot)
+{
+	resolved.clear() ;
+	snapshot = {} ;
+	// 既存経路は同じ一つのEXE葉だけを選択から受ける
+	if( sourceFile.size() <= 4U || sourceFile.find( L'\\') != sourceFile.npos ||
+	   !isSafeOfficialArchiveMember( sourceFile, L'\\') ||
+	   !publisherNamesEqual( sourceFile.substr( sourceFile.size() - 4U), L".exe")) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	std::wstring path ;				// SCMから得た完全位置
+	std::size_t	 relativeOffset{} ;	// 同じWindowsのFileRepository境界
+	// 元SCM文字列を同じWindowsの登録位置へ解決した結果
+	const auto	 resolvedError = resolveDriverStoreExecutableCommand( command, path, relativeOffset) ;
+	// 解決不能なら他の既知位置へ置き換えない
+	if( resolvedError != 0U) {
+		return resolvedError ;
+	}
+
 	const auto relative =
-		std::wstring_view{path}.substr( repository.size()) ;	// パッケージと元EXEの相対位置
-	const auto separator = relative.find( L'\\') ;				// 直下の一つのパッケージの終端
+		std::wstring_view{path}.substr( relativeOffset) ;	// パッケージと元EXEの相対位置
+	const auto separator = relative.find( L'\\') ;			// 直下の一つのパッケージの終端
 	// パッケージ名は固定せず、一つの親と元EXE名への完全一致を確認する
 	if( separator == relative.npos || separator != relative.rfind( L'\\') ||
-	   !isSafeOfficialArchiveMember( relative, L'\\') ||
 	   !publisherNamesEqual( relative.substr( separator + 1U), sourceFile)) {
 		return systemVerificationError( ERROR_INVALID_NAME) ;
 	}
@@ -2825,6 +2905,43 @@ NativeError readDriverStoreExecutableSnapshot( std::wstring_view command,
 	}
 
 	return error ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief SCMの補助EXEが登録済みパッケージで確認した完全位置にあるか読む
+ * @param[in] command SCMの原文字列。全体引用符または正規Windows起点を許す
+ * @param[in] expectedPath 現用元INFと同じCATへ照合した元EXEのDriver Store絶対位置
+ * @param[out] snapshot 全親の保護と実EXEの同一性・ハッシュ。失敗時は空
+ * @return 同じ実体を保護付きで取得して0、別位置、余分な引数、変更、I/O失敗はHRESULT
+ * @note 補助EXEは実行しない。署名確認済み元ハッシュとの照合は呼出側で行う
+ */
+//------------------------------------------------------------------------------
+NativeError readRegisteredDriverStoreExecutableSnapshot( std::wstring_view			 command,
+														std::wstring_view			 expectedPath,
+														ProtectedExecutableSnapshot &snapshot)
+{
+	snapshot = {} ;
+	std::wstring path ;				// SCMが指定する正式な絶対位置
+	std::size_t	 relativeOffset{} ;	// 同じFileRepositoryの直下境界
+	// 元コマンドの字句とWindowsルート照合の診断
+	const auto	 error = resolveDriverStoreExecutableCommand( command, path, relativeOffset) ;
+	// 同名で同じ内容の別配布又は別位置でも元登録の実行先として受けない
+	if( error != 0U || path.size() < 5U || path.size() >= MAX_PATH ||
+	   !publisherNamesEqual( path, expectedPath) ||
+	   !publisherNamesEqual( std::wstring_view{path}.substr( path.size() - 4U), L".exe")) {
+		return error != 0U ? error : systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	const auto relative	  = std::wstring_view{path}.substr( relativeOffset) ;	// 同じ元配布内の位置
+	const auto separators = std::ranges::count( relative, L'\\') ;				// パッケージと葉の間の親数
+	// FileRepository直下の単独実行ファイルは登録パッケージではない
+	if( separators == 0) {
+		return systemVerificationError( ERROR_INVALID_NAME) ;
+	}
+
+	return readProtectedExecutableAtPath( path, true, snapshot, 2ULL * 1024U * 1024U * 1024U, true,
+										 static_cast<std::size_t>( separators) + 1U) ;
 }
 
 //------------------------------------------------------------------------------

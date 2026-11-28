@@ -2,7 +2,7 @@
 /**
  * @file official_driver_package.cpp
  * @brief 公式標準INF driver package検証実装
- * @version 02.09.03
+ * @version 02.18.00
  * @date 2026/09/03
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -164,6 +164,15 @@
  * Ver.02.09.01 Shunji Ogawa  2026/11/26  前方宣言の関数契約と外部Needsの引数説明を補完
  * Ver.02.09.02 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * Ver.02.09.03 Shunji Ogawa  2026/11/26  同梱INFの列挙値ごとに前置契約を記載
+ * Ver.02.10.00 Shunji Ogawa  2026/11/27  端末用Displayの未解決CopyINFを原配布の判定へ渡す
+ * Ver.02.11.00 Shunji Ogawa  2026/11/27  元媒体とWindowsが解決したDIRID13の相対配置を照合
+ * Ver.02.12.00 Shunji Ogawa  2026/11/27  必須SoftwareComponentの元導入節と空サービスを検査
+ * Ver.02.13.00 Shunji Ogawa  2026/11/27  選択Displayの補助サービスと元イベント登録を限定検査
+ * Ver.02.14.00 Shunji Ogawa  2026/11/27  現用Displayの補助宣言と全イベント値を読取
+ * Ver.02.15.00 Shunji Ogawa  2026/11/27  現用親と子を既存のComponentIDsと主Modelsで照合
+ * Ver.02.16.00 Shunji Ogawa  2026/11/27  必須SoftwareComponentのType 1元宣言と元実行物を読取り照合
+ * Ver.02.17.00 Shunji Ogawa  2026/11/27  選択SoftwareComponentの共有コピーを元のWindows解決と署名閉包に結合
+ * Ver.02.18.00 Shunji Ogawa  2026/11/27  確認済みDisplayの必須子に独立したソフトウェア版を接続
  * </pre>
  *
  * @note SetupAPIをINF構文と現在platformの選択規則の正本とし、外部文字列からpathを直接生成せず、ZIP検証済みentryとの完全一致だけを受理します
@@ -5951,6 +5960,9 @@ constexpr std::array<std::pair<const wchar_t *, std::uint32_t>, 6U>
 // Windowsが定義するテープドライブの正式クラスとGUID
 constexpr std::array<std::wstring_view, 2U> TAPE_DRIVE_CLASS{
 	L"TapeDrive", L"{6d807884-7d21-11cf-801c-08002be10318}"} ;
+// Windowsが定義する画面アダプターの正式クラスとGUID
+constexpr std::array<std::wstring_view, 2U> DISPLAY_CLASS{
+	L"Display", L"{4d36e968-e325-11ce-bfc1-08002be10318}"} ;
 // Windowsが定義するメディアチェンジャーの正式クラスとGUID
 constexpr std::array<std::wstring_view, 2U> MEDIUM_CHANGER_CLASS{
 	L"MediumChanger", L"{ce5939ae-ebde-11d0-b181-0000f8753ec4}"} ;
@@ -7152,7 +7164,7 @@ NativeError readRequiredServiceScalar( HINF inf, const std::wstring &section, co
  * @param[out] mediaDirectory 成功時だけ同元source IDの安全な媒体相対pathです。失敗時は空です
  * @return 完全取得成功0、欠損・過長・重複・安全相対path逸脱のHRESULTです
  * @pre 出力二つは別の格納先であり、executableともaliasしないこと
- * @note DIRID13一致用subdirに媒体pathを混ぜません。実byteは既存内容検査が照合します
+ * @note 先頭の現在ディレクトリ表記を除き、媒体とfile subdirは別々に検証します
  */
 //------------------------------------------------------------------------------
 NativeError readRequiredServiceSourceDirectory( HINF inf, const std::wstring &executable,
@@ -7168,6 +7180,11 @@ NativeError readRequiredServiceSourceDirectory( HINF inf, const std::wstring &ex
 	// 共通位置取得失敗の部分値をservice許可集合へ追加しません
 	if( error != 0) {
 		return error ;
+	}
+
+	// SetupAPIが返した先頭の現在ディレクトリ表記だけを同じ相対位置へ直します
+	if( media.size() > 2U && media.starts_with( L".\\")) {
+		media.erase( 0U, 2U) ;
 	}
 
 	// 既存serviceのASCII相対segment境界を媒体とfile subdirの両方へ適用します
@@ -10324,6 +10341,77 @@ enum class CollectorInboxKind {
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 元の実DDInstallに含まれるAddComponentとWindowsのSWC IDを一意に読む
+ * @param[in] inf 同期中だけ借用する元INF
+ * @param[in] installSection 既にWindowsが選んだ実DDInstall名
+ * @param[in,out] components 呼出し側の新しい出力候補。失敗時は破棄する
+ * @return 採用した子の集合を読めば0、欠損、曖昧、元読取失敗はHRESULT
+ * @note 同じ署名元と読取結果の関係は呼出側で確認し、端末の親子を推測しない
+ */
+//------------------------------------------------------------------------------
+NativeError readDeclaredRequiredComponents( HINF inf, std::wstring_view installSection,
+										   std::vector<OfficialInfComponentReference> &components)
+{
+	const auto componentsSection =
+		std::wstring{installSection} + L".Components" ;	// 選択元の子宣言です
+	INFCONTEXT component{} ;							// AddComponentだけを有限に読みます
+	// 元宣言がある場合だけ必要子を作り、同梱名から必要性を作りません
+	if( SetupFindFirstLineW( inf, componentsSection.c_str(), L"AddComponent", &component)) {
+		// 元AddComponentを全件保持し、一意名とSWC IDを結びます
+		do {
+			OfficialInfComponentReference reference ;					// 一つの元子宣言です
+			std::wstring				  section ;						// ComponentIDsを持つ元sectionです
+			auto error = readInfField( component, 1U, reference.name) ;	// 元子宣言の開始項目
+			// 元name/sectionと予約flags以外を受理しません
+			if( error != 0 || SetupGetFieldCount( &component) != 3U ||
+			   readInfField( component, 3U, section) != 0 ||
+			   !validInstallInventorySectionName( section)) {
+				return error != 0 ? error : nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+			}
+
+			std::array<wchar_t, 32U> flags{} ;	// 空または0だけの予約fieldです
+			// 将来flagsを既知の0へ補正しません
+			if( !SetupGetStringFieldW( &component, 2U, flags.data(), static_cast<DWORD>( flags.size()),
+									 nullptr) ||
+			   (flags[0] != L'\0' && std::wstring_view( flags.data()) != L"0")) {
+				return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+			}
+
+			INFCONTEXT ids{} ;	// 元必須ComponentIDsです
+			// 必須IDを名称から補完しません
+			if( !SetupFindFirstLineW( inf, section.c_str(), L"ComponentIDs", &ids) ||
+			   SetupGetFieldCount( &ids) == 0U || SetupGetFieldCount( &ids) > 32U) {
+				return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+			}
+
+			// 原文の各ComponentIDにWindowsのSWC接頭辞を結合します
+			for( DWORD field = 1U; field <= SetupGetFieldCount( &ids); ++field) {
+				std::wstring id ;	// 元ComponentIDです。端末IDの外部送信は行いません
+				error = readInfField( ids, field, id) ;
+				// 空・過大・既接頭辞・異なるbusのIDを推測変換しません
+				if( error != 0 || id.size() > 192U || id.find( L'\\') != std::wstring::npos) {
+					return error != 0 ? error : nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+				}
+
+				static_cast<void>( appendUnique( reference.hardwareIds, L"SWC\\" + id)) ;
+			}
+
+			// 一意名・有限数を守り、曖昧な子の全導入をしません
+			if( components.size() >= 8U || std::ranges::any_of( components, [&]( const auto &value) {
+				   return stringsEqual( value.name, reference.name) ;
+			   })) {
+				return nativeErrorFromWin32( ERROR_DUP_NAME) ;
+			}
+
+			components.push_back( std::move( reference)) ;
+		} while( SetupFindNextMatchLineW( &component, L"AddComponent", &component)) ;
+	}
+
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 元現在OS選択からCopyINFと必要SWC関係を有限に解析します
  * @param[in] inf 呼出し終了まで生存する読取専用Windows INFです
  * @param[in] workspace 安全な相対pathだけを解決する保護所有者です
@@ -10661,60 +10749,11 @@ NativeError inspectRequiredDriverRelations( HINF inf, const OfficialDownloadWork
 		return 0 ;
 	}
 
-	const auto componentsSection =
-		package.selectedInstallSection + L".Components" ;	// 選択元の子宣言です
-	INFCONTEXT component{} ;								// AddComponentだけを有限に読みます
-	// 元宣言がある場合だけ必要子を作り、同梱名から必要性を作りません
-	if( SetupFindFirstLineW( inf, componentsSection.c_str(), L"AddComponent", &component)) {
-		// 元AddComponentを全件保持し、一意名とSWC IDを結びます
-		do {
-			OfficialInfComponentReference reference ;	// 一つの元子宣言です
-			std::wstring				  section ;		// ComponentIDsを持つ元sectionです
-			error = readInfField( component, 1U, reference.name) ;
-			// 元name/sectionと予約flags以外を受理しません
-			if( error != 0 || SetupGetFieldCount( &component) != 3U ||
-			   readInfField( component, 3U, section) != 0 ||
-			   !validInstallInventorySectionName( section)) {
-				return error != 0 ? error : nativeErrorFromWin32( ERROR_INVALID_DATA) ;
-			}
-
-			std::array<wchar_t, 32U> flags{} ;	// 空または0だけの予約fieldです
-			// 将来flagsを既知の0へ補正しません
-			if( !SetupGetStringFieldW( &component, 2U, flags.data(), static_cast<DWORD>( flags.size()),
-									 nullptr) ||
-			   (flags[0] != L'\0' && std::wstring_view( flags.data()) != L"0")) {
-				return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
-			}
-
-			INFCONTEXT ids{} ;	// 元必須ComponentIDsです
-			// 必須IDを名称から補完しません
-			if( !SetupFindFirstLineW( inf, section.c_str(), L"ComponentIDs", &ids) ||
-			   SetupGetFieldCount( &ids) == 0U || SetupGetFieldCount( &ids) > 32U) {
-				return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
-			}
-
-			// 原文の各ComponentIDにWindowsのSWC接頭辞を結合します
-			for( DWORD field = 1U; field <= SetupGetFieldCount( &ids); ++field) {
-				std::wstring id ;	// 元ComponentIDです。端末IDの外部送信は行いません
-				error = readInfField( ids, field, id) ;
-				// 空・過大・既接頭辞・異なるbusのIDを推測変換しません
-				if( error != 0 || id.size() > 192U || id.find( L'\\') != std::wstring::npos) {
-					return error != 0 ? error : nativeErrorFromWin32( ERROR_INVALID_DATA) ;
-				}
-
-				static_cast<void>( appendUnique( reference.hardwareIds, L"SWC\\" + id)) ;
-			}
-
-			// 一意名・有限数を守り、曖昧な子の全導入をしません
-			if( package.requiredComponents.size() >= 8U ||
-			   std::ranges::any_of( package.requiredComponents, [&]( const auto &value) {
-				   return stringsEqual( value.name, reference.name) ;
-			   })) {
-				return nativeErrorFromWin32( ERROR_DUP_NAME) ;
-			}
-
-			package.requiredComponents.push_back( std::move( reference)) ;
-		} while( SetupFindNextMatchLineW( &component, L"AddComponent", &component)) ;
+	error = readDeclaredRequiredComponents( inf, package.selectedInstallSection,
+										   package.requiredComponents) ;
+	// 子名や元IDの欠損を、元親の有効な必要関係へ変換しない
+	if( error != 0U) {
+		return error ;
 	}
 
 	// SWCにfunction serviceは必須でありません。ある場合だけ具体的作用を検査します
@@ -10960,15 +10999,149 @@ NativeError inspectSelectedOfficialInfRelations( const OfficialDownloadWorkspace
 									nullptr, selected) ;
 }
 
+//------------------------------------------------------------------------------
+/**
+ * @brief 必須SWCの主IDに対する現在OSのModelsから基本節を一意に読む
+ * @param[in] inf 同一元INFのSetupAPI読取ハンドル
+ * @param[in] models 同じ元INFでWindowsが選んだ現在OS用のModels節
+ * @param[in] componentIds 同じ元親か現用子が提示する有限のHardware ID集合
+ * @param[out] basicSection 成功時は同一の基本節。失敗時は呼出側が破棄する
+ * @return 主IDと基本節の一意な関係を確認して0、その他はHRESULT
+ */
+//------------------------------------------------------------------------------
+static NativeError readRequiredComponentBasicSection(
+	HINF inf, std::span<const OfficialInfPublishedModelSection> models,
+	std::span<const std::wstring> componentIds, std::wstring &basicSection)
+{
+	basicSection.clear() ;
+	std::size_t rows{} ;	// 全対象節合計の走査数
+	// Windowsが採用した節だけを調べ、他OS向けの子を追加しない
+	for( const auto &model : models) {
+		INFCONTEXT row{} ;	// 同じ元Modelsの現在行
+		// 直前に選んだ節が読めない場合は部分的な一致を使わない
+		if( !SetupFindFirstLineW( inf, model.modelSection.c_str(), nullptr, &row)) {
+			return nativeErrorFromWin32( GetLastError()) ;
+		}
+
+		// すべての行の主Hardware IDを読み、追加のCompatible IDで選ばない
+		do {
+			std::wstring hardwareId ;	// 元行の第二欄に明示された主ID
+			// 読取り失敗又は過大な元行集合から選択を作らない
+			if( ++rows > MAXIMUM_INSTALL_INVENTORY_LINES || readInfField( row, 2U, hardwareId) != 0) {
+				return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+			}
+
+			// 親が必要とするIDに限って、同じ元行の基本節を採用する
+			if( std::ranges::any_of( componentIds,
+								   [&]( const auto &id) { return stringsEqual( hardwareId, id) ; })) {
+				std::wstring section ;	// 元行にある未修飾の導入節名
+				// 未定義を同じ節に読み替えず、候補が複数なら先頭に絞らない
+				if( readInfField( row, 1U, section) != 0 ||
+				   !validInstallInventorySectionName( section)) {
+					return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+				}
+
+				// 同じID群で異なる導入作用が生じ得る場合は現在観測なしで選ばない
+				if( !basicSection.empty() && !stringsEqual( basicSection, section)) {
+					return nativeErrorFromWin32( ERROR_DUP_NAME) ;
+				}
+
+				basicSection = std::move( section) ;
+			}
+		} while( SetupFindNextLine( &row, &row)) ;
+	}
+
+	// 対象の主Hardware IDが見つからなければ名前から元節を推測しない
+	if( basicSection.empty()) {
+		return nativeErrorFromWin32( ERROR_NOT_FOUND) ;
+	}
+
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 親が宣言したSWCのHardware IDを子の現在OS向け元導入節へ限定する
+ * @param[in] workspace 検査済み元INFの保護領域
+ * @param[in] entries 同元CATで確認する閉包のファイル一覧
+ * @param[in] original 検査済みのSoftwareComponent INFの元metadata
+ * @param[in] componentIds 親の選択節で必須とされたSWC Hardware IDの一覧
+ * @param[out] selected 一つの元導入節へ結合したmetadata。失敗時は空
+ * @return 現在OS向けの一致が一つの基本節に限られる場合0、その他はHRESULT
+ * @pre originalとselectedは別object。呼出し側が親子関係、元byte、CATを確認する
+ * @note 未作成の子のrankや導入資格を発行しない
+ */
+//------------------------------------------------------------------------------
+NativeError inspectRequiredOfficialInfComponentSelection( const OfficialDownloadWorkspace &workspace,
+														 std::span<const OfficialZipEntry> entries,
+														 const OfficialInfPackage		  &original,
+														 std::span<const std::wstring> componentIds,
+														 OfficialInfPackage			  &selected)
+{
+	selected = {} ;
+	// 正式SWCと元の必須IDだけを子のModels照合に使用する
+	if( original.role != DriverPlanRole::DRIVER_COMPONENT ||
+	   !stringsEqual( original.className, L"SoftwareComponent") ||
+	   !stringsEqual( original.classGuid, L"{5c4c3332-344d-483c-8739-259e934c9cc8}") ||
+	   original.inspectionPurpose != OfficialInfInspectionPurpose::STANDARD_DRIVER ||
+	   componentIds.empty() || componentIds.size() > 32U ||
+	   !std::ranges::all_of(
+		   componentIds,
+		   []( const auto &id) { return id.starts_with( L"SWC\\") && validNativeModelsId( id) ; }) ||
+	   !containsEntry( entries, original.infRelativePath)) {
+		return static_cast<NativeError>( E_INVALIDARG) ;
+	}
+
+	try {
+		const auto path = workspace.path( original.infRelativePath) ;	// 元の保護領域内の子INF
+		// 保護領域と結び付かない名前をSetupAPIへ渡さない
+		if( path.empty()) {
+			return static_cast<NativeError>( E_INVALIDARG) ;
+		}
+
+		const UniqueInf inf( SetupOpenInfFileW( path.c_str(), nullptr,
+											  INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE,
+											  nullptr)) ;	// 元ファイルだけを開く読取り専用handle
+		// 同じ閉包の子INFが読める場合だけWindowsにModelsを照会する
+		if( inf.get() == INVALID_HANDLE_VALUE) {
+			return nativeErrorFromWin32( GetLastError()) ;
+		}
+
+		std::vector<std::wstring> ids ;												// 現在OS向けの元IDを読取り前の同子識別と比較する
+		std::vector<OfficialInfPublishedModelSection> models ;						// Windowsが選択する現在OS用の節
+		const auto error = collectHardwareIds( inf.get(), 4096U, ids, &models) ;	// 元読取診断
+		// 内容検査と同じModels集合が存続する場合だけ個別行を選ぶ
+		if( error != 0 || ids != original.hardwareIds) {
+			return error != 0 ? error : nativeErrorFromWin32( ERROR_RETRY) ;
+		}
+
+		std::wstring basicSection ;	// 必須Hardware ID群に対して一意な元基本節
+		// 同じ現在OS用Modelsで主IDと導入名を解決する
+		const auto	 selectedError =
+			readRequiredComponentBasicSection( inf.get(), models, componentIds, basicSection) ;
+		// 基本節が一つに決まらない場合に他の選択を補わない
+		if( selectedError != 0U) {
+			return selectedError ;
+		}
+
+		return readSelectedInfRelations( inf.get(), workspace, entries, original, basicSection,
+										nullptr, selected) ;
+	} catch( const std::bad_alloc &) {
+		return static_cast<NativeError>( E_OUTOFMEMORY) ;
+	}
+}
+
 namespace {
 /** @brief 同元sourceとWindows解決済みの一コピー先です。実行stepではありません */
 struct WindowsDriverCopy {
 	/// 全内容/CATへ結合する元source相対位置です
-	std::wstring source ;
+	std::wstring  source ;
 	/// Windowsが同元DestinationDirsから解決した完全コピー先です
-	std::wstring target ;
+	std::wstring  target ;
 	/// 元DestinationDirsのDIRIDです
-	int			 dirid{} ;
+	int			  dirid{} ;
+	/// 作用観測で必要な元CopyFilesフラグ。通常の範囲検査では0
+	std::uint32_t flags{} ;
 } ;
 
 //------------------------------------------------------------------------------
@@ -11164,17 +11337,22 @@ NativeError resolveWindowsDriverCopy( HINF inf, std::wstring_view parent, const 
 		error = readRequiredServiceSourceDirectory( inf, sourceName, sourceDirectory, medium) ;
 	}
 
-	// DIRID13は元source相対位置を保持するWindows driver store契約です
-	if( error != 0 || (made.dirid == 13 && !stringsEqual( subdirectory, sourceDirectory))) {
-		return diagnostic ? diagnostic->reject(
-								error != 0 ? error : nativeErrorFromWin32( ERROR_NOT_SUPPORTED),
-								error != 0 ? InfBindingReject::WINDOWS_COPY
-										   : InfBindingReject::DIRID13_SOURCE)
-						  : (error != 0 ? error : nativeErrorFromWin32( ERROR_NOT_SUPPORTED)) ;
+	// 元媒体またはWindowsの解決に失敗した場合は、ファイル位置を合成しません
+	if( error != 0U) {
+		return diagnostic ? diagnostic->reject( error, InfBindingReject::WINDOWS_COPY) : error ;
 	}
 
-	made.source = joinRelativePath(
-		parent, joinRelativePath( joinRelativePath( medium, sourceDirectory), sourceName)) ;
+	const auto relativeSource = joinRelativePath( medium, sourceDirectory) ;	// INFから見た実媒体位置
+	// DIRID13で媒体まで含む場合は、同名ファイルとSetupAPIの同じ相対宛先を要求します
+	if( made.dirid == 13 && !stringsEqual( subdirectory, sourceDirectory) &&
+	   (medium.empty() || !stringsEqual( subdirectory, relativeSource) ||
+		!stringsEqual( targetName, sourceName) ||
+		!stringsEqual( destination, L".\\" + subdirectory))) {
+		error = nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+		return diagnostic ? diagnostic->reject( error, InfBindingReject::DIRID13_SOURCE) : error ;
+	}
+
+	made.source = joinRelativePath( parent, joinRelativePath( relativeSource, sourceName)) ;
 	made.target = joinRelativePath( destination, targetName) ;
 	return 0 ;
 }
@@ -11191,6 +11369,7 @@ NativeError resolveWindowsDriverCopy( HINF inf, std::wstring_view parent, const 
  * @param[in] sourceName 原source leafです。renameを保持します
  * @param[in,out] copies 同操作の最大4096コピーです
  * @param[in,out] diagnostic null可の最初の固定拒否段階です
+ * @param[in] flags 共有コピーの観測時は元のフラグ。通常の範囲検査では0
  * @return 同元位置/安全なWindows配置成功0、それ以外はHRESULTです
  */
 //------------------------------------------------------------------------------
@@ -11199,16 +11378,18 @@ NativeError bindWindowsDriverCopy( HINF inf, const OfficialDownloadWorkspace &wo
 								  const OfficialInfPackage &package, const std::wstring &list,
 								  const std::wstring &targetName, const std::wstring &sourceName,
 								  std::vector<WindowsDriverCopy> &copies,
-								  RequiredInfBindingDiagnostic	 *diagnostic = nullptr)
+								  RequiredInfBindingDiagnostic	 *diagnostic = nullptr,
+								  std::uint32_t					  flags		 = 0U)
 {
-	WindowsDriverCopy made ;														// 完全な元sourceとWindows宛先
-	const auto		  separator = package.infRelativePath.find_last_of( L'\\') ;	// 元INF親位置
-	const auto		  parent	= separator == package.infRelativePath.npos
-									  ? std::wstring_view{}
-									  : std::wstring_view( package.infRelativePath)
-									.substr( 0U, separator) ;	// 同containerだけを解決する
-	const auto error = resolveWindowsDriverCopy( inf, parent, list, targetName, sourceName, made,
-												diagnostic) ;	// 原コピー宣言の解決結果
+	WindowsDriverCopy made ;	// 完全な元sourceとWindows宛先
+	made.flags			 = flags ;
+	const auto separator = package.infRelativePath.find_last_of( L'\\') ;	// 元INF親位置
+	const auto parent	 = separator == package.infRelativePath.npos
+							   ? std::wstring_view{}
+							   : std::wstring_view( package.infRelativePath)
+									 .substr( 0U, separator) ;	// 同containerだけを解決する
+	const auto error	 = resolveWindowsDriverCopy( inf, parent, list, targetName, sourceName, made,
+													diagnostic) ;	// 原コピー宣言の解決結果
 	// 元コピー方向と宛先の解決失敗を伝える
 	if( error != 0) {
 		return error ;
@@ -11226,7 +11407,9 @@ NativeError bindWindowsDriverCopy( HINF inf, const OfficialDownloadWorkspace &wo
 	}) ; // 同宛先の衝突です
 	// 同じbyteの共有コピーだけを再利用します
 	if( prior != copies.end()) {
-		return stringsEqual( prior->source, made.source) ? 0 : nativeErrorFromWin32( ERROR_DUP_NAME) ;
+		return stringsEqual( prior->source, made.source) && prior->flags == made.flags
+				   ? 0U
+				   : nativeErrorFromWin32( ERROR_DUP_NAME) ;
 	}
 
 	// 選択graphの既存行予算をコピー保持にも維持します
@@ -11236,6 +11419,106 @@ NativeError bindWindowsDriverCopy( HINF inf, const OfficialDownloadWorkspace &wo
 
 	copies.push_back( std::move( made)) ;
 	return 0 ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Windowsの実選択にある全CopyFilesを元ソースと正規宛先へ解決する
+ * @param[in] inf 同じ元の読取専用HINF
+ * @param[in] workspace 元閉包を保持する保護領域
+ * @param[in] entries 同じ元サイズと完全ハッシュを保持する閉包
+ * @param[in] selected 同じ実選択の元INF
+ * @param[in] inventory 同選択から読み取ったWindowsの関係
+ * @param[out] copies 同じ元ファイルと宛先の一覧。失敗時は呼出側で破棄する
+ * @param[in,out] diagnostic 任意の最初の固定診断
+ * @param[in] captureFlags 作用を再観測する場合は元のコピー条件も読み取る
+ * @return 全コピーを解決して0。不正な元行、外部位置、曖昧な宛先はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError collectWindowsDriverScopeCopies( HINF inf, const OfficialDownloadWorkspace &workspace,
+											std::span<const OfficialZipEntry>  entries,
+											const OfficialInfPackage		  &selected,
+											const OfficialInfInstallInventory &inventory,
+											std::vector<WindowsDriverCopy>	  &copies,
+											RequiredInfBindingDiagnostic	  *diagnostic,
+											bool							   captureFlags)
+{
+	NativeError error{} ;	// Windowsの最初のコピー元又は宛先の失敗
+	// 実選択graphの全CopyFilesを読み、非選択全sourceの内容検査とは分けます
+	for( const auto &reference : inventory.references) {
+		// 外部依存の効果充足は既存Needs検査で扱います
+		if( !stringsEqual( reference.directive, L"CopyFiles")) {
+			continue ;
+		}
+
+		// 欠損listを空コピー成功へ変換しません
+		if( !reference.targetPresent) {
+			return nativeErrorFromWin32( ERROR_FILE_NOT_FOUND) ;
+		}
+
+		// 直接コピーも原source/既定宛先へ結びます
+		if( reference.kind == OfficialInfInstallReferenceKind::DIRECT_FILE) {
+			const auto separator =
+				// 元参照のleaf境界です
+				reference.target.find_last_of( L'\\') ;
+			const auto name = reference.target.substr(
+				// 元file名です
+				separator == reference.target.npos ? 0U : separator + 1U) ;
+			error = bindWindowsDriverCopy( inf, workspace, entries, selected, L"", name, name,
+										  copies, diagnostic) ;
+		} else {
+			const auto count =
+				// 空と不在を分けます
+				SetupGetLineCountW( inf, reference.target.c_str()) ;
+			// 不在や過大listを部分コピー成功へ変換しません
+			if( count < 0L || count > static_cast<LONG>( MAXIMUM_INSTALL_INVENTORY_LINES)) {
+				return nativeErrorFromWin32( ERROR_SECTION_NOT_FOUND) ;
+			}
+
+			// 同listの全行をWindowsの原rename/sourceのまま読みます
+			for( LONG row = 0L; row < count; ++row) {
+				INFCONTEXT	 line{} ;		// 同原CopyFilesの一行です
+				std::wstring target ;		// 元コピー先leafです
+				std::wstring source ;		// 元source leafです。空は元同名です
+				std::wstring temporary ;	// 元temporary leafを外部pathへ拡張しません
+				// 明示fieldの欠損/外部temporary/過大構文を先頭値で通しません
+				if( !SetupGetLineByIndexW( inf, reference.target.c_str(), static_cast<DWORD>( row),
+										 &line) ||
+				   SetupGetFieldCount( &line) > 4U || readInfField( line, 1U, target) != 0 ||
+				   (SetupGetFieldCount( &line) > 1U &&
+					readInstallInventoryField( line, 2U, source) != 0) ||
+				   (SetupGetFieldCount( &line) > 2U &&
+					(readInstallInventoryField( line, 3U, temporary) != 0 ||
+					 !validRequiredServiceSubdirectory( temporary) ||
+					 temporary.find( L'\\') != temporary.npos))) {
+					return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+				}
+
+				int flags{} ;	// Windowsが元行から読むコピー指定。正式な省略は0
+				// 元条件が不明な共有コピーを通常の上書きとして扱わない
+				if( captureFlags &&
+				   (!temporary.empty() || (SetupGetFieldCount( &line) == 4U &&
+										   (!SetupGetIntField( &line, 4U, &flags) || flags < 0)))) {
+					return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+				}
+
+				error = bindWindowsDriverCopy( inf, workspace, entries, selected, reference.target,
+											  target, source.empty() ? target : source, copies,
+											  diagnostic, static_cast<std::uint32_t>( flags)) ;
+				// 一原コピーの不成立で通常scope全体を拒否します
+				if( error != 0) {
+					return error ;
+				}
+			}
+		}
+
+		// 直接コピーの原診断も保持します
+		if( error != 0) {
+			return error ;
+		}
+	}
+
+	return 0U ;
 }
 
 //------------------------------------------------------------------------------
@@ -11313,6 +11596,155 @@ bool validNamedStorageSystemEvent( HINF inf, const std::wstring &section, std::w
 	return validInstallInventorySectionName( section) &&
 		   SetupGetLineCountW( inf, section.c_str()) > 0 && stringsEqual( logName, L"System") &&
 		   validInstallInventorySectionName( sourceName) && sourceName.find( L'%') == sourceName.npos ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 開始対象の補助サービス節を基本スカラーとEvent logグループに限定する
+ * @param[in] inf 同じ元INFの読取専用handle
+ * @param[in] section 選択AddServiceが指定した元節
+ * @param[out] loadOrderGroup 元節が指定するグループ。未指定は空、失敗時は破棄する
+ * @return 追加のアカウント・依存・コマンドを持たない一意な宣言ならtrue
+ * @pre 呼出し側が型・開始値・エラー値と元EXEを検査済み
+ */
+//------------------------------------------------------------------------------
+bool readDisplayAuxiliaryServiceSection( HINF inf, const std::wstring &section,
+										std::wstring &loadOrderGroup)
+{
+	loadOrderGroup.clear() ;
+	constexpr std::array<std::wstring_view, 5U> keys{L"ServiceType", L"StartType", L"ErrorControl",
+													 L"ServiceBinary",
+													 L"LoadOrderGroup"} ;	// 同じ形式で読む五つの作用
+	INFCONTEXT									row{} ;						// 元節のすべての指示を読むWindows cursor
+	// 必須サービス宣言がある同じ節だけを検査する
+	if( !SetupFindFirstLineW( inf, section.c_str(), nullptr, &row)) {
+		return false ;
+	}
+
+	std::array<bool, keys.size()> seen{} ;	// 重複、未知、余分な指示を拒否する記録
+	// すべての元行を検査し、開始アカウントや追加の登録作用を隠さない
+	do {
+		std::wstring key ;	// 元サービス宣言の名前
+		// 既確認のスカラーを複数値として上書きしない
+		if( SetupGetFieldCount( &row) != 1U || readInfField( row, 0U, key) != 0) {
+			return false ;
+		}
+
+		const auto known = std::ranges::find_if( keys, [&key]( const auto candidate) {
+			return stringsEqual( candidate, key) ;
+		}) ; // 同期中だけ元指示名を借用する
+		// 明示された一つの役割以外のキーをサービス開始に含めない
+		if( known == keys.end()) {
+			return false ;
+		}
+
+		const auto index = static_cast<std::size_t>( known - keys.begin()) ;	// 固定キーの位置
+		// 同じ意味の複数宣言を先頭一件だけで解釈しない
+		if( std::exchange( seen[index], true)) {
+			return false ;
+		}
+
+		// 任意の順序グループや起動依存を元サービスへ追加しない
+		if( stringsEqual( key, L"LoadOrderGroup")) {
+			// 元実配布と同じイベントサービス文脈だけを許す
+			if( readInfField( row, 1U, loadOrderGroup) != 0 ||
+			   !stringsEqual( loadOrderGroup, L"Event log")) {
+				return false ;
+			}
+		}
+	} while( SetupFindNextLine( &row, &row)) ;
+
+	return seen[0] && seen[1] && seen[2] && seen[3] ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Display補助サービスが登録するApplicationイベントの元値を限定する
+ * @param[in] inf 元の選択INFを読む借用handle
+ * @param[in] section 同じAddServiceが参照するイベント登録節
+ * @param[in,out] declaration 成功時に原メッセージ、カテゴリと全DWORDを設定する。失敗時は破棄する
+ * @return 同じイベント源内の一段のAddRegと安全な表示用参照だけがある場合true
+ * @note DLLを読み込み、ファイルに作用し、又は端末のイベント源の所有を判断する操作ではない
+ */
+//------------------------------------------------------------------------------
+bool readDisplayAuxiliaryEventRegistration( HINF inf, const std::wstring &section,
+										   OfficialDisplayAuxiliaryService &declaration)
+{
+	INFCONTEXT	 reg{} ;	// 同一イベント節の単一AddReg行
+	std::wstring values ;	// 一段だけ参照する相対レジストリ節
+	// 値更新の方法を単一の元AddRegに限定する
+	if( !validInstallInventorySectionName( section) ||
+	   SetupGetLineCountW( inf, section.c_str()) != 1 ||
+	   !SetupFindFirstLineW( inf, section.c_str(), L"AddReg", &reg) ||
+	   SetupGetFieldCount( &reg) != 1U || readInfField( reg, 1U, values) != 0 ||
+	   !validInstallInventorySectionName( values) ||
+	   !SetupFindFirstLineW( inf, values.c_str(), nullptr, &reg)) {
+		return false ;
+	}
+
+	constexpr std::wstring_view systemDrivers =
+		L"%SystemRoot%\\System32\\drivers\\" ;	// リソースの保護元位置
+	std::vector<std::wstring> seen ;			// 同一イベント源で照合する有限の値名
+	// すべての元行を読み、他のキーや実行用の値へ範囲を広げない
+	do {
+		std::wstring root ;		// レジストリの元相対root
+		std::wstring subkey ;	// イベント源自身のみに限定するため空を要求
+		std::wstring key ;		// 元のイベント値名
+		int			 flags{} ;	// Windowsが読む元の型と動作フラグ
+		// 別の登録先、量、重複を同じイベント源内データとして認めない
+		if( seen.size() >= 8U || SetupGetFieldCount( &reg) != 5U ||
+		   readInfField( reg, 1U, root) != 0 || !stringsEqual( root, L"HKR") ||
+		   readInstallInventoryField( reg, 2U, subkey) != 0 || !subkey.empty() ||
+		   readInfField( reg, 3U, key) != 0 || key.size() > 64U ||
+		   key.find_first_not_of(
+			   L"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_") != key.npos ||
+		   !SetupGetIntField( &reg, 4U, &flags) ||
+		   std::ranges::any_of(
+			   seen, [&key]( const auto &candidate) { return stringsEqual( key, candidate) ; })) {
+			return false ;
+		}
+
+		seen.push_back( key) ;
+		const bool eventMessage = stringsEqual( key, L"EventMessageFile") ;	// 標準イベント説明の値
+		// メッセージ用途の名前だけに単一の固定DLL参照を認める
+		if( eventMessage || stringsEqual( key, L"CategoryMessageFile")) {
+			std::wstring value ;	// 間接実行形式や複数パスを含まない元表示用参照
+			// 既知のシステムドライバーディレクトリが明示された一値に限定する
+			if( flags != 0x00020000 || readInfField( reg, 5U, value) != 0 ||
+			   value.size() <= systemDrivers.size() ||
+			   !stringsEqual( std::wstring_view( value).substr( 0U, systemDrivers.size()),
+							 systemDrivers)) {
+				return false ;
+			}
+
+			const auto leaf =
+				// 同じ保護位置の末尾名
+				std::wstring_view( value).substr( systemDrivers.size()) ;
+			// サブディレクトリ、区切り、引数や別のパスを表示用DLLに含めない
+			if( leaf.size() > 128U || leaf.front() == L'.' || leaf.find( L"..") != leaf.npos ||
+			   leaf.find_first_not_of(
+				   L"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.") !=
+				   leaf.npos ||
+			   lowerExtension( leaf) != L".dll") {
+				return false ;
+			}
+
+			(eventMessage ? declaration.messageFile : declaration.categoryMessageFile) =
+				std::move( value) ;
+		} else {
+			int value{} ;	// 同じイベント源の非パス設定だけを読む
+			// 余分なパスや権限指定を任意の文字列値に代替しない
+			if( flags != 0x00010001 || !SetupGetIntField( &reg, 5U, &value)) {
+				return false ;
+			}
+
+			declaration.eventValues.emplace_back( std::move( key), static_cast<std::uint32_t>( value)) ;
+		}
+	} while( SetupFindNextLine( &reg, &reg)) ;
+
+	return !declaration.messageFile.empty() &&
+		   (declaration.categoryMessageFile.empty() ||
+			stringsEqual( declaration.categoryMessageFile, declaration.messageFile)) ;
 }
 
 //------------------------------------------------------------------------------
@@ -15701,23 +16133,576 @@ NativeError inspectOfficialInfSelectedModelRole(
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 現用Displayの実選択節で同名補助サービスとイベント源の元宣言を読む
+ * @param[in] storeInf 既存の公開INFと同一原byteを確認し、読取期間中に固定したStore INFの絶対位置
+ * @param[in] installedSection 現用デバイスから得た実DDInstall節。装飾があれば含む
+ * @param[in] associatedService 同じ現用デバイスのWindows関連サービス名
+ * @param[in] intended 候補が更新する補助サービス名とイベント源を保持する同選択の構文証拠
+ * @param[out] declaration 成功時の現用構成。binarySourceには同じStoreパッケージ内のDIRID 13相対位置を保持。失敗時は空
+ * @param[out] components 指定時は同じ現用親が宣言する子の集合。失敗時は空
+ * @return 同一の現用関連サービスと同名補助・イベント源を確認して0、欠損・未知・不一致はHRESULT
+ * @note 読み取った現用宣言とSCM、イベント源、ファイル署名、他デバイスの所有関係は後段で照合する
+ */
+//------------------------------------------------------------------------------
+NativeError readRegisteredDisplayAuxiliaryDeclaration(
+	const std::wstring &storeInf, const std::wstring_view installedSection,
+	const std::wstring_view associatedService, const OfficialDisplayAuxiliaryService &intended,
+	OfficialDisplayAuxiliaryService			   &declaration,
+	std::vector<OfficialInfComponentReference> *components)
+{
+	// 候補の構文証拠を現用宣言の出力で消さない
+	if( &declaration == &intended) {
+		return E_INVALIDARG ;
+	}
+
+	declaration = {} ;
+	// 元親の子は同じ元宣言が成立するまで公開しない
+	if( components) {
+		components->clear() ;
+	}
+
+	// Windowsが記録した現用DDInstallとその関連サービスに限って読む
+	if( storeInf.size() < 8U || storeInf[1U] != L':' || storeInf[2U] != L'\\' ||
+	   storeInf.find( L'\0') != storeInf.npos || lowerExtension( storeInf) != L".inf" ||
+	   !validInstallInventorySectionName( installedSection) ||
+	   !validInstallInventorySectionName( associatedService) ||
+	   !validInstallInventorySectionName( intended.serviceName) ||
+	   !validInstallInventorySectionName( intended.eventSource) ||
+	   stringsEqual( associatedService, intended.serviceName)) {
+		return E_INVALIDARG ;
+	}
+
+	try {
+		const UniqueInf inf( SetupOpenInfFileW( storeInf.c_str(), nullptr,
+											  INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE,
+											  nullptr)) ;	// 呼出し側が固定した元登録
+		// 読取不能を別表示デバイスの登録で補わない
+		if( inf.get() == INVALID_HANDLE_VALUE) {
+			return nativeErrorFromWin32( GetLastError()) ;
+		}
+
+		const std::wstring currentSection{installedSection} ;						// 元実選択の終端付き表記
+		const auto		   services = currentSection + L".Services" ;				// 実選択の付随節だけを読む
+		const auto unsupported		= nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;	// 曖昧な登録の診断
+		// 現用Displayの実在節と直接の二サービスだけを照合対象とする
+		if( validateSetupClassPair( inf.get(), DISPLAY_CLASS) != 0U ||
+		   SetupGetLineCountW( inf.get(), currentSection.c_str()) <= 0L ||
+		   SetupGetLineCountW( inf.get(), services.c_str()) != 2L) {
+			return unsupported ;
+		}
+
+		OfficialDisplayAuxiliaryService made ;	// 全宣言の確認前は外に出さない現用側の値
+		bool associatedFound{} ;				// デバイス属性と同名の関連カーネルを確認した場合true
+		// 直接のAddService二行を確認し、IncludeやNeedsの別所有関係を採用しない
+		for( DWORD index{}; index < 2U; ++index) {
+			INFCONTEXT	  row{} ;		// 現用サービス節の原行
+			std::wstring  directive ;	// AddServiceを照合する元フィールド
+			std::wstring  name ;		// 現用の完全なサービス名
+			std::wstring  install ;		// 同じ現用INF内の設定節
+			int			  flags{} ;		// 同じ行の元フラグ
+			std::uint32_t type{} ;		// 必須の元サービス型
+			// 不明な行や不完全な設定節を、別登録から補完しない
+			if( !SetupGetLineByIndexW( inf.get(), services.c_str(), index, &row) ||
+			   readInfField( row, 0U, directive) != 0U || !stringsEqual( directive, L"AddService") ||
+			   readInfField( row, 1U, name) != 0U || !SetupGetIntField( &row, 2U, &flags) ||
+			   readInfField( row, 3U, install) != 0U || !validInstallInventorySectionName( install) ||
+			   readRequiredServiceScalar( inf.get(), install, L"ServiceType", type) != 0U) {
+				return unsupported ;
+			}
+
+			const auto fields = SetupGetFieldCount( &row) ;	// Windowsが数えた全欄数
+			// PnPの関連サービスを元選択節の一意なカーネル宣言へ結ぶ
+			if( stringsEqual( name, associatedService)) {
+				// 補助の開始指定や別ログ指定を関連カーネルと誤認しない
+				if( associatedFound || type != SERVICE_KERNEL_DRIVER ||
+				   flags != SPSVCINST_ASSOCSERVICE || (fields != 3U && fields != 4U)) {
+					return unsupported ;
+				}
+
+				associatedFound = true ;
+				continue ;
+			}
+
+			std::wstring  eventInstall ;	// 補助サービスが指定するイベントの元設定節
+			std::wstring  log ;				// 元のイベントログ名
+			std::wstring  binary ;			// SetupAPIが展開した現用ServiceBinary全値
+			std::uint32_t start{} ;			// 元開始設定
+			std::uint32_t control{} ;		// 元エラー制御
+			// 現用側でも同名補助、開始型、イベント源の一意な結合だけを認める
+			if( !made.serviceName.empty() || !stringsEqual( name, intended.serviceName) ||
+			   flags != SPSVCINST_STARTSERVICE || type != SERVICE_WIN32_OWN_PROCESS ||
+			   fields != 6U || readInfField( row, 4U, eventInstall) != 0U ||
+			   readInfField( row, 5U, log) != 0U || !stringsEqual( log, L"Application") ||
+			   readInfField( row, 6U, made.eventSource) != 0U ||
+			   !stringsEqual( made.eventSource, intended.eventSource) ||
+			   readRequiredServiceScalar( inf.get(), install, L"StartType", start) != 0U ||
+			   start != SERVICE_AUTO_START ||
+			   readRequiredServiceScalar( inf.get(), install, L"ErrorControl", control) != 0U ||
+			   control != 1U ||
+			   readRequiredServiceField( inf.get(), install, L"ServiceBinary", binary) != 0U ||
+			   !readDisplayAuxiliaryServiceSection( inf.get(), install, made.loadOrderGroup) ||
+			   !readDisplayAuxiliaryEventRegistration( inf.get(), eventInstall, made)) {
+				return unsupported ;
+			}
+
+			const auto parent = std::wstring_view( storeInf).substr(
+				0U, storeInf.find_last_of( L'\\') + 1U) ;	// 固定した元登録の親だけに解決する
+			std::wstring_view relative{binary} ;			// 同元の実行ファイル一件を借用する
+			// SetupAPIが返すStore相対位置と同じ親の完全位置だけを採用する
+			if( relative.starts_with( L".\\")) {
+				relative.remove_prefix( 2U) ;
+			} else {
+				// 別のパッケージ又はシステム側のEXEへ解決しない
+				if( !stringsEqual( relative.substr( 0U, parent.size()), parent)) {
+					return unsupported ;
+				}
+
+				relative.remove_prefix( parent.size()) ;
+			}
+
+			// 実行引数、代替名前空間、親への移動を同一元EXEとして扱わない
+			if( !isSafeOfficialArchiveMember( relative, L'\\') ||
+			   lowerExtension( relative) != L".exe" || !validRequiredServiceSubdirectory( relative)) {
+				return unsupported ;
+			}
+
+			made.serviceName  = std::move( name) ;
+			made.binarySource = relative ;
+		}
+
+		// 二つの役割が同時に確定するまで現用証拠を公開しない
+		if( !associatedFound || made.serviceName.empty()) {
+			return unsupported ;
+		}
+
+		// 指定時は現用親の厳密なAddComponentを同じ元INFのまま読む
+		if( components) {
+			std::vector<OfficialInfComponentReference> observed ;	// 全宣言成立までは非公開の子集合
+			// 同じ元親に選択された子宣言の完全読取結果
+			const auto read = readDeclaredRequiredComponents( inf.get(), installedSection, observed) ;
+			// 未読の子集合を他の機器の所有判定へ渡さない
+			if( read != 0U) {
+				return read ;
+			}
+
+			*components = std::move( observed) ;
+		}
+
+		declaration = std::move( made) ;
+		return 0U ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用SoftwareComponentが主Hardware IDで記録済みの実節を選ぶか確認する
+ * @param[in] storeInf 同時読取で固定した現用SoftwareComponentのStore INF絶対位置
+ * @param[in] hardwareId 同じpresent子から正式に観測した唯一のSWC Hardware ID
+ * @param[in] basicSection 現用デバイスのDriverInfSection。記録によっては装飾込み
+ * @param[in] installedSection 現用デバイスが保持する装飾込みの実節
+ * @return 署名元候補の正式クラス、現在OSの主Modelsと現用実節が一致して0、その他はHRESULT
+ * @note 互換IDだけで結び付けない。INFの元署名と現在属性の前後一致は呼出側で確認する
+ */
+//------------------------------------------------------------------------------
+NativeError verifyRegisteredSoftwareComponentModel( const std::wstring	  &storeInf,
+												   const std::wstring_view hardwareId,
+												   const std::wstring_view basicSection,
+												   const std::wstring_view installedSection)
+{
+	// 公式SWCの同じ元IDと現在節だけを照合し、相対位置で別INFを開かない
+	if( storeInf.size() < 8U || storeInf[1U] != L':' || storeInf[2U] != L'\\' ||
+	   storeInf.find( L'\0') != storeInf.npos || lowerExtension( storeInf) != L".inf" ||
+	   !validInstallInventorySectionName( basicSection) ||
+	   !validInstallInventorySectionName( installedSection) || hardwareId.size() <= 4U ||
+	   !stringsEqual( hardwareId.substr( 0U, 4U), L"SWC\\") || !validNativeModelsId( hardwareId)) {
+		return E_INVALIDARG ;
+	}
+
+	try {
+		const UniqueInf inf( SetupOpenInfFileW( storeInf.c_str(), nullptr,
+											  INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE,
+											  nullptr)) ;	// 同じ保護元INFの所有読取ハンドル
+		// 不明な元INFを別の同期位置から開き直さない
+		if( inf.get() == INVALID_HANDLE_VALUE) {
+			return nativeErrorFromWin32( GetLastError()) ;
+		}
+
+		constexpr std::array<std::wstring_view, 2U> SOFTWARE_COMPONENT{
+			L"SoftwareComponent", L"{5c4c3332-344d-483c-8739-259e934c9cc8}"} ;	// 正式な役割クラス
+		auto error = validateSetupClassPair( inf.get(), SOFTWARE_COMPONENT) ;	// 同じ元INFの正式クラス
+		// 元クラスが異なる登録から候補の子関係を借りない
+		if( error != 0U) {
+			return error ;
+		}
+
+		std::vector<std::wstring> ids ;							// 既存Models readerが検証する純粋な元表示ID集合
+		std::vector<OfficialInfPublishedModelSection> models ;	// 現在OSの正式なModels節
+		error = collectHardwareIds( inf.get(), 4096U, ids, &models) ;
+		// Modelsが欠損した場合は別のCompatible IDを採用しない
+		if( error != 0U) {
+			return error ;
+		}
+
+		const std::array selectedId{std::wstring{hardwareId}} ;	// Windowsが現在示す主ID一つ
+		std::wstring	 selectedBasic ;						// 主IDに対応する元基本節の照合結果
+		error = readRequiredComponentBasicSection( inf.get(), models, selectedId, selectedBasic) ;
+		// 主Modelsがない、又は曖昧な子を実節の名前だけで採用しない
+		if( error != 0U) {
+			return error ;
+		}
+
+		std::wstring actual ;	// Windowsの実際の装飾込み選択
+		error = resolveActualInstallInventorySection( inf.get(), selectedBasic, actual, nullptr) ;
+		// WindowsがDriverInfSectionに実節そのものを記録する場合も同じModels実節へ結ぶ
+		if( error != 0U || !stringsEqual( actual, installedSection) ||
+		   (!stringsEqual( selectedBasic, basicSection) && !stringsEqual( actual, basicSection))) {
+			return error != 0U ? error : nativeErrorFromWin32( ERROR_RETRY) ;
+		}
+
+		return 0U ;
+	} catch( const std::bad_alloc &) {
+		return E_OUTOFMEMORY ;
+	}
+}
+
+namespace {
+//------------------------------------------------------------------------------
+/**
+ * @brief 元閉包の一意なファイルを保護領域で固定し、サイズとSHA-256を照合する
+ * @param[in] workspace 元閉包を保持する保護領域
+ * @param[in] entries 読取り中だけ借用する元閉包
+ * @param[in] relativePath 元閉包にある完全相対位置
+ * @param[in] maximumBytes 用途別の読取り上限バイト数
+ * @param[in,out] pinned 空の読取り所有者。成功後から解放まで元ファイルと親を固定する
+ * @param[out] member 成功時だけ元閉包を指す非所有ポインタ。失敗時はnullptr
+ * @return 元ファイルの固定と全バイト照合が成功すれば0、その他はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError pinType1RegistrationMember( const OfficialDownloadWorkspace	&workspace,
+									   std::span<const OfficialZipEntry> entries,
+									   std::wstring_view relativePath, std::uint64_t maximumBytes,
+									   OfficialMappedFile &pinned, const OfficialZipEntry *&member)
+{
+	member				= nullptr ;
+	const auto path		= workspace.path( relativePath) ;	// 保護領域で解決した元ファイル位置
+	const auto samePath = [relativePath]( const OfficialZipEntry &entry) {
+		return stringsEqual( entry.relativePath, relativePath) ;
+	} ; // 同期中だけ元相対位置を借用する
+	const auto entry = std::ranges::find_if( entries, samePath) ;	// 同じ元閉包の期待値
+	// 同じ閉包に一意なサイズ・ハッシュがある場合だけ元ファイルを開く
+	if( path.empty() || entry == entries.end() || std::ranges::count_if( entries, samePath) != 1 ||
+	   entry->uncompressedSize == 0U || entry->uncompressedSize > maximumBytes ||
+	   entry->sha256.size() != 64U) {
+		return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+	}
+
+	auto error = pinned.open( path, maximumBytes) ;	// 検査中の元ファイル置換を防ぐ
+	// 元ファイルを固定したまま取得済みのサイズと全ハッシュを照合する
+	if( error == 0U) {
+		error = verifyOfficialFileMetadata( path, {entry->uncompressedSize, entry->sha256}) ;
+	}
+
+	// 部分的な元ファイル証拠は呼出側へ渡さない
+	if( error == 0U) {
+		member = &*entry ;
+	}
+
+	return error ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 実選択のSoftware節と一意なType 1宣言をWindowsの値として読む
+ * @param[in] inf 固定した元INFの読取りハンドル
+ * @param[in] selected 同元INFの実DDInstallを確認したメタデータ
+ * @param[out] registration 元の名前、フラグ、独立版、INF相対実行物と全引数。失敗時の部分値は呼出側で破棄する
+ * @return 規定のType 1 EXE宣言が一意なら0、元の読取り失敗や不正な宣言はHRESULT
+ */
+//------------------------------------------------------------------------------
+NativeError readType1RegistrationDeclaration( HINF inf, const OfficialInfPackage &selected,
+											 OfficialType1Registration &registration)
+{
+	OfficialInfInstallInventory inventory ;	// 同じ実選択と付随節の元関係
+	const auto					inventoryError =
+		// 元関係の読取り結果
+		readWindowsDriverScopeReferences( inf, selected, inventory) ;
+	// 別の基本節や不完全な元関係へ選択を補完しない
+	if( inventoryError != 0U) {
+		return inventoryError ;
+	}
+
+	const auto software		 = selected.selectedInstallSection + L".Software" ;	// 実選択の元付随節
+	const auto isAddSoftware = []( const auto &effect) {
+		return stringsEqual( effect.directive, L"AddSoftware") ;
+	} ; // 元選択の各節からAddSoftware行だけを抽出する
+	const auto observed =
+		// 元選択で先に現れるAddSoftware行
+		std::ranges::find_if( inventory.effects, isAddSoftware) ;
+	INFCONTEXT	 add{} ;	// 同じSoftware節の唯一の宣言
+	std::wstring flags ;	// 省略または元Windowsフラグの完全値
+	std::wstring install ;	// 元行から指定されたsoftware-install節
+	// 付随節の取り違え、重複、追加directiveを一つの宣言へ縮めない
+	if( observed == inventory.effects.end() || !stringsEqual( observed->section, software) ||
+	   std::ranges::count_if( inventory.effects, isAddSoftware) != 1 ||
+	   SetupGetLineCountW( inf, software.c_str()) != 1L ||
+	   !SetupFindFirstLineW( inf, software.c_str(), L"AddSoftware", &add) ||
+	   SetupGetFieldCount( &add) != 3U || readInfField( add, 1U, registration.softwareName) != 0U ||
+	   readInstallInventoryField( add, 2U, flags) != 0U || readInfField( add, 3U, install) != 0U ||
+	   !validInstallInventorySectionName( install)) {
+		return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	std::uint32_t				  parsedFlags{} ;	// Windowsでの処理単位を決める0または1
+	MaintenanceInfStructureReason reason{} ;		// 共通数値readerの診断
+	// 明示フラグの未知ビットや部分数値を処理単位へ縮めない
+	if( !flags.empty() && (parseMaintenanceFlags( flags, parsedFlags, reason).state !=
+							  MaintenanceInspectionState::PASSED ||
+						  parsedFlags > 1U)) {
+		return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	std::uint32_t type{} ;		// 元SoftwareType
+	INFCONTEXT	  arguments{} ;	// 元SoftwareArgumentsの順序付き全値
+	INFCONTEXT	  duplicate{} ;	// 重複引数行の検出用
+	// 四つの元キーに限定し、独立版をDriverVerと比較せず、引数や外部位置をbinaryに混ぜない
+	if( SetupGetLineCountW( inf, install.c_str()) != 4L ||
+	   readRequiredServiceScalar( inf, install, L"SoftwareType", type) != 0U || type != 1U ||
+	   readRequiredServiceField( inf, install, L"SoftwareVersion", registration.softwareVersion) !=
+		   0U ||
+	   !parseFourPartDriverVersion( registration.softwareVersion).has_value() ||
+	   readRequiredServiceField( inf, install, L"SoftwareBinary", registration.softwareBinary) !=
+		   0U ||
+	   !validRequiredServiceSubdirectory( registration.softwareBinary) ||
+	   lowerExtension( registration.softwareBinary) != L".exe" ||
+	   !SetupFindFirstLineW( inf, install.c_str(), L"SoftwareArguments", &arguments) ||
+	   SetupFindNextMatchLineW( &arguments, L"SoftwareArguments", &duplicate)) {
+		return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+	}
+
+	const auto count = SetupGetFieldCount( &arguments) ;	// 全引数欄数
+	// 引数を省略した形式と過大な元宣言は、この証拠の対象に含めない
+	if( count == 0U || count > 32U) {
+		return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+	}
+
+	std::size_t characters{} ;	// 複数引数で共同消費する文字数上限
+	// 元引数を連結せずに原順で全欄を読み、実行時変数を展開しない
+	for( DWORD field = 1U; field <= count; ++field) {
+		std::wstring value ;											// 一つの元SoftwareArguments値
+		const auto	 error = readInfField( arguments, field, value) ;	// 空、不正、切捨てを拒む
+		// 大き過ぎる宣言から先頭引数だけを残さない
+		if( error != 0U || value.size() > MAXIMUM_INF_FIELD_CHARACTERS - characters) {
+			return error != 0U ? error : nativeErrorFromWin32( ERROR_BUFFER_OVERFLOW) ;
+		}
+
+		characters += value.size() ;
+		registration.arguments.push_back( std::move( value)) ;
+	}
+
+	registration.perDevice = parsedFlags == 1U ;
+	return 0U ;
+}
+} // namespace
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元の選択済みSoftwareComponentから一つのType 1 EXE宣言を読み取る
+ * @param[in] workspace 同期読取り中に元ファイルを保持する保護領域
+ * @param[in] entries 元INFとEXE・共有コピー元のサイズとSHA-256を含む検査済み閉包
+ * @param[in] selected 同元INFから検査済みの実DDInstallと必要関係
+ * @param[out] registration 一意な宣言、元EXEと共有コピーの証拠。失敗時は空
+ * @return 一意な元宣言と同名DIRID 13コピー、元INFとEXEの照合が成立すれば0、その他はHRESULT
+ * @pre 呼出側が元閉包のCATと親子の選択関係を確認する
+ * @note この証拠は宣言されたWindowsの処理単位と引数を示す。内部動作、端末上の所有、実行資格は別に検査する
+ */
+//------------------------------------------------------------------------------
+NativeError readSelectedOfficialType1Registration( const OfficialDownloadWorkspace  &workspace,
+												  std::span<const OfficialZipEntry> entries,
+												  const OfficialInfPackage		   &selected,
+												  OfficialType1Registration		   &registration)
+{
+	registration						   = {} ;
+	constexpr std::wstring_view CLASS_NAME = L"SoftwareComponent" ;	// 正式な元クラス名
+	constexpr std::wstring_view CLASS_GUID =
+		L"{5c4c3332-344d-483c-8739-259e934c9cc8}" ;						// 正式な元クラスGUID
+	constexpr std::uint64_t MAXIMUM_INF_BYTES = 4U * 1024U * 1024U ;	// 元INFの既存読取り上限
+	constexpr std::uint64_t MAXIMUM_EXE_BYTES = 128U * 1024U * 1024U ;	// 補助EXEと同じ元バイト上限
+	// 未選択の元INF、別クラス、非導入用の元メタデータを対象に混ぜない
+	if( selected.role != DriverPlanRole::DRIVER_COMPONENT ||
+	   selected.inspectionPurpose != OfficialInfInspectionPurpose::STANDARD_DRIVER ||
+	   selected.requiredNullCompanion || selected.requiredRegistryOnlyCompanion ||
+	   !stringsEqual( selected.className, CLASS_NAME) ||
+	   !stringsEqual( selected.classGuid, CLASS_GUID) ||
+	   !validInstallInventorySectionName( selected.selectedBasicSection) ||
+	   !validInstallInventorySectionName( selected.selectedInstallSection)) {
+		return static_cast<NativeError>( E_INVALIDARG) ;
+	}
+
+	try {
+		OfficialMappedFile		pinnedInf ;		// 元INFを読み終わるまで変更や置換を防ぐ
+		const OfficialZipEntry *infMember{} ;	// 元INFの閉包メンバー
+		auto					error =
+			pinType1RegistrationMember( workspace, entries, selected.infRelativePath,
+									   MAXIMUM_INF_BYTES, pinnedInf, infMember) ;	// 元INFの固定診断
+		// 元INFの完全バイトが閉包と一致してからSetupAPIで開く
+		if( error != 0U) {
+			return error ;
+		}
+
+		const UniqueInf inf( SetupOpenInfFileW( workspace.path( infMember->relativePath).c_str(),
+											  nullptr, INF_STYLE_WIN4 | INF_STYLE_CACHE_DISABLE,
+											  nullptr)) ;	// 同じ元INFの読取りハンドル
+		// 原APIの失敗を選択の成功へ変換しない
+		if( inf.get() == INVALID_HANDLE_VALUE) {
+			return nativeErrorFromWin32( GetLastError()) ;
+		}
+
+		std::wstring classValue ;	// 同じ元INFが宣言する正式クラスの値
+		// DTOのクラスだけに依存せず、元Versionの重複・取り違えを拒否する
+		if( readRequiredServiceField( inf.get(), L"Version", L"Class", classValue) != 0U ||
+		   !stringsEqual( classValue, CLASS_NAME) ||
+		   readRequiredServiceField( inf.get(), L"Version", L"ClassGUID", classValue) != 0U ||
+		   !stringsEqual( classValue, CLASS_GUID)) {
+			return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
+		}
+
+		OfficialInfPackage actual ;	// 同じ固定元バイトから再検査した選択関係
+		error = readSelectedInfRelations( inf.get(), workspace, entries, selected,
+										 selected.selectedBasicSection, nullptr, actual) ;
+		// 未確認の元選択や必要関係の差し替えを認めない
+		if( error != 0U ||
+		   !stringsEqual( actual.selectedInstallSection, selected.selectedInstallSection) ||
+		   actual.activeRequiredInfPaths != selected.activeRequiredInfPaths ||
+		   actual.requiredComponents != selected.requiredComponents) {
+			return error != 0U ? error : nativeErrorFromWin32( ERROR_RETRY) ;
+		}
+
+		OfficialType1Registration made ;	// 全確認が済むまで公開しない元宣言
+		error = readType1RegistrationDeclaration( inf.get(), actual, made) ;
+		// 唯一の元宣言が読めない場合はファイル名だけで候補を探さない
+		if( error != 0U) {
+			return error ;
+		}
+
+		made.infRelativePath = infMember->relativePath ;
+		made.infSha256		 = infMember->sha256 ;
+		made.basicSection	 = actual.selectedBasicSection ;
+		made.installSection	 = actual.selectedInstallSection ;
+
+		const auto separator = made.softwareBinary.find_last_of( L'\\') ;	// 元binary内の親との境界
+		const auto leaf		 = made.softwareBinary.substr(
+			 // 元binaryのleaf
+			 separator == made.softwareBinary.npos ? 0U : separator + 1U) ;
+		std::wstring source ;	// 元INFの媒体位置から見た同名DIRID 13の相対コピー元
+		error = inspectRequiredServiceCopy( inf.get(), actual.selectedInstallSection, leaf,
+										   L".\\" + made.softwareBinary, source, true) ;
+		// 選択節が指定した一意な同名コピーだけを元実行物へ結ぶ
+		if( error != 0U) {
+			return error ;
+		}
+
+		const auto parent = selected.infRelativePath.find_last_of( L'\\') ;	// 元INFの保護領域内の親
+		made.binarySource =
+			joinRelativePath( parent == selected.infRelativePath.npos
+								 ? std::wstring_view{}
+								 : std::wstring_view( selected.infRelativePath).substr( 0U, parent),
+							 source) ;
+		// 他のINFだけが所有する同名ファイルを元EXEの証拠に使わない
+		if( std::ranges::count_if( selected.sourceFiles, [&]( const auto &path) {
+			   return stringsEqual( path, made.binarySource) ;
+		   }) != 1) {
+			return nativeErrorFromWin32( ERROR_FILE_NOT_FOUND) ;
+		}
+
+		OfficialMappedFile		pinnedBinary ;		// 元EXEの全バイトを固定したまま照合する
+		const OfficialZipEntry *binaryMember{} ;	// 同元CAT閉包の元EXEメンバー
+		error = pinType1RegistrationMember( workspace, entries, made.binarySource, MAXIMUM_EXE_BYTES,
+										   pinnedBinary, binaryMember) ;
+		// 元EXEのサイズ又はSHA-256に差があれば部分証拠を残さない
+		if( error != 0U) {
+			return error ;
+		}
+
+		made.binarySource = binaryMember->relativePath ;
+		made.binarySha256 = binaryMember->sha256 ;
+		made.binaryBytes  = binaryMember->uncompressedSize ;
+
+		OfficialInfInstallInventory inventory ;	// 同じ固定INFの実選択が参照する元コピー
+		error = readWindowsDriverScopeReferences( inf.get(), actual, inventory) ;
+		// 同じ実選択から読めた参照だけをコピー元と宛先へ解決する
+		if( error != 0U) {
+			return error ;
+		}
+
+		std::vector<WindowsDriverCopy> copies ;	// Windowsの実選択から解決した全コピー
+		error = collectWindowsDriverScopeCopies( inf.get(), workspace, entries, actual, inventory,
+												copies, nullptr, true) ;
+		// 未解決のコピーや元フラグを正式な共有先へ変換しない
+		if( error != 0U) {
+			return error ;
+		}
+
+		constexpr std::uint64_t MAXIMUM_SHARED_FILE_BYTES =
+			2ULL * 1024U * 1024U * 1024U ;	// 配布本体の上限
+		// 非Storeのコピーすべてを元閉包の完全バイトへ結ぶ
+		for( auto &copy : copies) {
+			// 保護付きStore配下は既存の登録後閉包で確認する
+			if( copy.dirid == 13) {
+				continue ;
+			}
+
+			OfficialMappedFile		pinnedShared ;		// 照合中だけ保持する同じ元ファイル
+			const OfficialZipEntry *sharedMember{} ;	// 同じ閉包にある一意な元メンバー
+			error =
+				pinType1RegistrationMember( workspace, entries, copy.source,
+										   MAXIMUM_SHARED_FILE_BYTES, pinnedShared, sharedMember) ;
+			// 別元ファイルや部分読取りを共有配置の証拠に混ぜない
+			if( error != 0U) {
+				return error ;
+			}
+
+			made.sharedCopies.push_back( {sharedMember->relativePath, std::move( copy.target),
+										 copy.dirid, copy.flags, sharedMember->uncompressedSize,
+										 sharedMember->sha256}) ;
+		}
+
+		registration = std::move( made) ;
+		return 0U ;
+	} catch( const std::bad_alloc &) {
+		return static_cast<NativeError>( E_OUTOFMEMORY) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 選択元INFのWindows管理driver package範囲を非実行で再検査します
  * @param[in] workspace 全内容検査済み元fileを所有する保護領域です
  * @param[in] entries 全原参照のsize/hash付き閉包です。CAT検証は呼出側が別に要求します
  * @param[in] selected native compatible nodeから選んだ原DDInstall関係です
  * @param[out] diagnostic 任意の最初の固定拒否です。合否に使いません
+ * @param[out] displayService 元Display補助サービスの構文証拠。nullptrなら当該形式を拒否し、失敗時は空
+ * @param[in] reviewedDisplayChild 同じ選択Displayの所有と作用先が確認済みの必須子の元宣言。通常はnullptr
  * @return 選択copy/source/Windows宛先/関連service/softwareの結合成功0、それ以外はHRESULTです
  * @note 本関数は実行能力を持ちません。元byte/CAT再検証後の私有factoryから使用します。vendor内部作用やDisplay Type1のWindows実行対応を証明せず、元未評
  *       価flagも変更しません
  */
 //------------------------------------------------------------------------------
-NativeError inspectSelectedWindowsDriverPackageScope( const OfficialDownloadWorkspace  &workspace,
-													 std::span<const OfficialZipEntry> entries,
-													 const OfficialInfPackage		  &selected,
-													 RequiredInfBindingDiagnostic	  *diagnostic)
+NativeError inspectSelectedWindowsDriverPackageScope(
+	const OfficialDownloadWorkspace &workspace, std::span<const OfficialZipEntry> entries,
+	const OfficialInfPackage &selected, RequiredInfBindingDiagnostic *diagnostic,
+	std::optional<OfficialDisplayAuxiliaryService> *displayService,
+	const OfficialType1Registration				   *reviewedDisplayChild)
 {
+	// 新しい構文証拠は全範囲の検査が成立するまで公開しない
+	if( displayService != nullptr) {
+		displayService->reset() ;
+	}
+
 	try {
-		OfficialInfPackage actual ;	// 同元実DDInstallの関係を公開DTOと独立して読み直します
+		std::optional<OfficialDisplayAuxiliaryService> observedDisplay ;	// 元サービスの同期読取結果
+		OfficialInfPackage actual ;											// 同元実DDInstallの関係を公開DTOと独立して読み直します
 		auto			   error = inspectSelectedOfficialInfRelations( workspace, entries, selected,
 																	   selected.selectedBasicSection,
 																	   actual) ;	// 同native基本名の実関係診断です
@@ -15744,70 +16729,11 @@ NativeError inspectSelectedWindowsDriverPackageScope( const OfficialDownloadWork
 		}
 
 		std::vector<WindowsDriverCopy> copies ;	// DATAコピーと実行操作を分離する元位置証拠です
-		// 実選択graphの全CopyFilesを読み、非選択全sourceの内容検査とは分けます
-		for( const auto &reference : inventory.references) {
-			// 外部依存の効果充足は既存Needs検査で扱います
-			if( !stringsEqual( reference.directive, L"CopyFiles")) {
-				continue ;
-			}
-
-			// 欠損listを空コピー成功へ変換しません
-			if( !reference.targetPresent) {
-				return nativeErrorFromWin32( ERROR_FILE_NOT_FOUND) ;
-			}
-
-			// 直接コピーも原source/既定宛先へ結びます
-			if( reference.kind == OfficialInfInstallReferenceKind::DIRECT_FILE) {
-				const auto separator =
-					// 元参照のleaf境界です
-					reference.target.find_last_of( L'\\') ;
-				const auto name = reference.target.substr(
-					// 元file名です
-					separator == reference.target.npos ? 0U : separator + 1U) ;
-				error = bindWindowsDriverCopy( inf.get(), workspace, entries, selected, L"", name,
-											  name, copies, diagnostic) ;
-			} else {
-				const auto count =
-					// 空と不在を分けます
-					SetupGetLineCountW( inf.get(), reference.target.c_str()) ;
-				// 不在や過大listを部分コピー成功へ変換しません
-				if( count < 0L || count > static_cast<LONG>( MAXIMUM_INSTALL_INVENTORY_LINES)) {
-					return nativeErrorFromWin32( ERROR_SECTION_NOT_FOUND) ;
-				}
-
-				// 同listの全行をWindowsの原rename/sourceのまま読みます
-				for( LONG row = 0L; row < count; ++row) {
-					INFCONTEXT	 line{} ;		// 同原CopyFilesの一行です
-					std::wstring target ;		// 元コピー先leafです
-					std::wstring source ;		// 元source leafです。空は元同名です
-					std::wstring temporary ;	// 元temporary leafを外部pathへ拡張しません
-					// 明示fieldの欠損/外部temporary/過大構文を先頭値で通しません
-					if( !SetupGetLineByIndexW( inf.get(), reference.target.c_str(),
-											 static_cast<DWORD>( row), &line) ||
-					   SetupGetFieldCount( &line) > 4U || readInfField( line, 1U, target) != 0 ||
-					   (SetupGetFieldCount( &line) > 1U &&
-						readInstallInventoryField( line, 2U, source) != 0) ||
-					   (SetupGetFieldCount( &line) > 2U &&
-						(readInstallInventoryField( line, 3U, temporary) != 0 ||
-						 !validRequiredServiceSubdirectory( temporary) ||
-						 temporary.find( L'\\') != temporary.npos))) {
-						return nativeErrorFromWin32( ERROR_INVALID_DATA) ;
-					}
-
-					error = bindWindowsDriverCopy(
-						inf.get(), workspace, entries, selected, reference.target, target,
-						source.empty() ? target : source, copies, diagnostic) ;
-					// 一原コピーの不成立で通常scope全体を拒否します
-					if( error != 0) {
-						return error ;
-					}
-				}
-			}
-
-			// 直接コピーの原診断も保持します
-			if( error != 0) {
-				return error ;
-			}
+		error = collectWindowsDriverScopeCopies( inf.get(), workspace, entries, selected, inventory,
+												copies, diagnostic, false) ;
+		// 元のコピー範囲が読めない場合は後続のサービスや実行物の検査へ進めない
+		if( error != 0U) {
+			return error ;
 		}
 
 		std::vector<std::wstring> serviceSections ;		// 同graphの元AddService宣言節だけです
@@ -15834,10 +16760,11 @@ NativeError inspectSelectedWindowsDriverPackageScope( const OfficialDownloadWork
 			}
 		}
 
-		std::size_t associatedKernels{} ;	// 同選択の原関連SYSだけです
-		std::size_t win32Services{} ;		// 原コピーへ結合したWindows-managed service数です
-		std::size_t services{} ;			// 全named serviceの有限数です
-		bool		namedStorageEvent{} ;	// Systemのイベント源を明示する補助サービスを読んだか
+		std::size_t associatedKernels{} ;		// 同選択の原関連SYSだけです
+		std::size_t win32Services{} ;			// 原コピーへ結合したWindows-managed service数です
+		std::size_t services{} ;				// 全named serviceの有限数です
+		bool		namedStorageEvent{} ;		// Systemのイベント源を明示する補助サービスを読んだか
+		bool		componentNullService{} ;	// 選択した子が単独の空サービスを宣言したか
 		// 原selected graphの全serviceを同元source/完全宛先へ結びます
 		for( const auto &section : serviceSections) {
 			INFCONTEXT line{} ;	// 同節の全元AddService行です
@@ -15851,17 +16778,30 @@ NativeError inspectSelectedWindowsDriverPackageScope( const OfficialDownloadWork
 				const auto fields =
 					// Windowsが解析した元AddServiceの欄数
 					SetupGetFieldCount( &line) ;
-				std::wstring name ;		// 元service名です。外部へ出しません
-				std::wstring install ;	// 同HINFの原service-install節です
-				int			 flags{} ;	// Windowsが解析した原AddService flagsです
-				// Null serviceは既存検査に委ね、未評価packageの認定根拠へ使いません
-				if( ++services > 32U || fields < 3U || (fields > 4U && fields != 6U) ||
-				   readInfField( line, 1U, name) != 0 || !SetupGetIntField( &line, 2U, &flags) ||
-				   readInfField( line, 3U, install) != 0 ||
+				std::wstring name ;													// 元service名です。外部へ出しません
+				std::wstring install ;												// 同HINFの原service-install節です
+				int			 flags{} ;												// Windowsが解析した原AddService flagsです
+				std::wstring executable ;											// 既存の関係検査に渡す空サービス用の出力
+				const auto nameError = readInstallInventoryField( line, 1U, name) ;	// 空名も区別する
+				// 正式SWCの二欄の空サービスだけを、実サービスを導入しない元宣言として扱います
+				if( nameError == 0 && name.empty() && services == 0U &&
+				   selected.role == DriverPlanRole::DRIVER_COMPONENT &&
+				   stringsEqual( section, selected.selectedInstallSection + L".Services") &&
+				   inspectRequiredServiceDeclaration( inf.get(), section, line, selected.role,
+													 executable) == 0) {
+					++services ;
+					componentNullService = true ;
+					continue ;
+				}
+
+				// 空サービスとnamed serviceの混在や余分な空宣言を別処理へ回しません
+				if( ++services > 32U || componentNullService || nameError != 0 || name.empty() ||
+				   fields < 3U || (fields > 4U && fields != 6U) ||
+				   !SetupGetIntField( &line, 2U, &flags) || readInfField( line, 3U, install) != 0 ||
 				   !validInstallInventorySectionName( install)) {
 					return diagnostic
 							   ? diagnostic->reject( nativeErrorFromWin32( ERROR_NOT_SUPPORTED),
-													static_cast<InfBindingReject>( 200U + 1U))
+													static_cast<InfBindingReject>( 200U + 1U), 1U)
 							   : nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
 				}
 
@@ -15880,49 +16820,92 @@ NativeError inspectSelectedWindowsDriverPackageScope( const OfficialDownloadWork
 				}
 
 				const bool kernel = type == 1U || type == 2U ;	// 元kernel/file-system serviceです
-				// 6欄の選択範囲は同じSCSIAdapterの自動起動補助サービスとSystemイベントに限定します
+				// 六欄の選択範囲は対応する元補助サービスとイベント源に限定する
 				if( fields == 6U) {
 					std::wstring eventInstall ;	// 同一INFに書かれたイベント登録節
 					std::wstring eventLog ;		// 元宣言が明示したWindowsログ名
 					std::wstring eventSource ;	// 同じログ内の単一イベント源名
 					// 引数なし・改名なしの元Driver Storeコピーだけを数えます
-					const auto	 matchingCopies =
-						std::ranges::count_if( copies, [&]( const auto &copy) {
-							const auto source = std::wstring_view( copy.source) ;	// 元媒体の相対位置
-							const auto separator = source.find_last_of( L'\\') ;	// 元leafの直前
-							// 元と宛先のleafを比較し、Driver Storeへの改名コピーを拒む
-							const auto leaf =
-								source.substr( separator == source.npos ? 0U : separator + 1U) ;
-							const auto target =
-								// Windowsが解決した宛先
-								std::wstring_view( copy.target) ;
-							const auto targetSeparator =
-								// 宛先leafの直前
-								target.find_last_of( L'\\') ;
-							return copy.dirid == 13 && lowerExtension( target) == L".exe" &&
-								   targetSeparator != target.npos && stringsEqual( binary, target) &&
-								   stringsEqual( leaf, target.substr( targetSeparator + 1U)) ;
-						}) ;
+					const auto	 matchesCopy = [&binary]( const auto &copy) {
+						  const auto source	   = std::wstring_view( copy.source) ;	// 元媒体の相対位置
+						  const auto separator = source.find_last_of( L'\\') ;		// 元leafの直前
+						  // 元と宛先のleafを比較し、Driver Storeへの改名コピーを拒む
+						  const auto leaf =
+							  source.substr( separator == source.npos ? 0U : separator + 1U) ;
+						  const auto target =
+							  // Windowsが解決した宛先
+							  std::wstring_view( copy.target) ;
+						  const auto targetSeparator =
+							  // 宛先leafの直前
+							  target.find_last_of( L'\\') ;
+						  return copy.dirid == 13 && lowerExtension( target) == L".exe" &&
+								 targetSeparator != target.npos && stringsEqual( binary, target) &&
+								 stringsEqual( leaf, target.substr( targetSeparator + 1U)) ;
+					} ; // 同期中だけ元ServiceBinaryを借用する
+					const auto matchingCopies =
+						// 一意な元コピー数
+						std::ranges::count_if( copies, matchesCopy) ;
 
 					// 別のサービス種別・ログ・節や他者のコピーを元関係の成立へ変換しません
-					if( namedStorageEvent || selected.role != DriverPlanRole::BASE_DRIVER ||
-					   !stringsEqual( selected.className, L"SCSIAdapter") ||
-					   !stringsEqual( selected.classGuid,
-									 L"{4d36e97b-e325-11ce-bfc1-08002be10318}") ||
+					if( namedStorageEvent || observedDisplay ||
+					   selected.role != DriverPlanRole::BASE_DRIVER ||
 					   !stringsEqual( section, selected.selectedInstallSection + L".Services") ||
-					   flags != 0 || type != 0x10U || start != 2U || control != 1U ||
-					   readInfField( line, 4U, eventInstall) != 0 ||
+					   type != SERVICE_WIN32_OWN_PROCESS || start != SERVICE_AUTO_START ||
+					   control != 1U || readInfField( line, 4U, eventInstall) != 0 ||
 					   readInfField( line, 5U, eventLog) != 0 ||
-					   readInfField( line, 6U, eventSource) != 0 || matchingCopies != 1 ||
-					   !validNamedStorageSystemEvent( inf.get(), eventInstall, eventLog,
-													 eventSource)) {
+					   readInfField( line, 6U, eventSource) != 0 || matchingCopies != 1) {
 						return diagnostic
 								   ? diagnostic->reject( nativeErrorFromWin32( ERROR_NOT_SUPPORTED),
 														static_cast<InfBindingReject>( 200U + 1U))
 								   : nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
 					}
 
-					namedStorageEvent = true ;
+					// 従来のストレージはSystemイベントと開始フラグなしを維持する
+					if( flags == 0 && stringsEqual( selected.className, L"SCSIAdapter") &&
+					   stringsEqual( selected.classGuid,
+									L"{4d36e97b-e325-11ce-bfc1-08002be10318}") &&
+					   validNamedStorageSystemEvent( inf.get(), eventInstall, eventLog,
+													eventSource)) {
+						namedStorageEvent = true ;
+					} else {
+						// 構文証拠を明示して受ける呼出しだけに選択Displayの六欄形式を返す
+						if( displayService == nullptr || flags != SPSVCINST_STARTSERVICE ||
+						   !stringsEqual( selected.className, DISPLAY_CLASS.front()) ||
+						   validateSetupClassPair( inf.get(), DISPLAY_CLASS) != 0U ||
+						   !stringsEqual( eventLog, L"Application") ||
+						   !validInstallInventorySectionName( name) ||
+						   name.find( L'%') != name.npos ||
+						   !validInstallInventorySectionName( eventSource) ||
+						   eventSource.find( L'%') != eventSource.npos) {
+							return diagnostic ? diagnostic->reject(
+													nativeErrorFromWin32( ERROR_NOT_SUPPORTED),
+													static_cast<InfBindingReject>( 200U + 1U), 2U)
+											  : nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+						}
+
+						OfficialDisplayAuxiliaryService
+								   declaration ;	// 元サービスと全イベント値の確認結果
+						const bool validService = readDisplayAuxiliaryServiceSection(
+							// 元サービス節の許可範囲
+							inf.get(), install, declaration.loadOrderGroup) ;
+						// 所有検査へ渡す前に補助サービス節とイベント元値を確定する
+						if( !validService || !readDisplayAuxiliaryEventRegistration(
+												inf.get(), eventInstall, declaration)) {
+							return diagnostic ? diagnostic->reject(
+													nativeErrorFromWin32( ERROR_NOT_SUPPORTED),
+													static_cast<InfBindingReject>( 200U + 1U),
+													validService ? 4U : 3U)
+											  : nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+						}
+
+						const auto copy =
+							// 同じ一意な元コピー
+							std::ranges::find_if( copies, matchesCopy) ;
+						declaration.serviceName	 = std::move( name) ;
+						declaration.binarySource = copy->source ;
+						declaration.eventSource	 = std::move( eventSource) ;
+						observedDisplay			 = std::move( declaration) ;
+					}
 				}
 
 				// 外部system launcherや別packageのbinaryへserviceを結びません
@@ -15942,10 +16925,32 @@ NativeError inspectSelectedWindowsDriverPackageScope( const OfficialDownloadWork
 		// 通常deviceの付属programを独立appとして認定せず、原関連kernelとの結合を要求します
 		if( (selected.role == DriverPlanRole::BASE_DRIVER &&
 			(win32Services != 0U || !softwareSections.empty()) && associatedKernels != 1U) ||
-		   (namedStorageEvent && (services != 2U || win32Services != 1U))) {
+		   ((namedStorageEvent || observedDisplay) && (services != 2U || win32Services != 1U))) {
 			return diagnostic ? diagnostic->reject( nativeErrorFromWin32( ERROR_NOT_SUPPORTED),
 												   static_cast<InfBindingReject>( 200U + 3U))
 							  : nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+		}
+
+		// 所有と到達先を検査した必須子の宣言は、同じINF・実行物と作用先のバイトを再読取して比較する
+		if( reviewedDisplayChild != nullptr) {
+			// 一件の機器単位Type 1証拠を複数のソフトウェアか別の補助サービスへ流用しない
+			if( displayService != nullptr || softwareSections.size() != 1U ||
+			   !reviewedDisplayChild->perDevice) {
+				return nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
+			}
+
+			OfficialType1Registration current ;	// 同じ選択INFと元バイトからの独立した読取り
+			error = readSelectedOfficialType1Registration( workspace, entries, selected, current) ;
+			// 独立版・原引数・一意なDIRID 13コピーを含む全宣言が合うときだけ範囲を確認済みとする
+			if( error != 0U || current != *reviewedDisplayChild) {
+				const auto rejected =
+					error != 0U ? error : nativeErrorFromWin32( ERROR_RETRY) ;	// 元拒否を保持
+				return diagnostic
+						   ? diagnostic->reject( rejected, static_cast<InfBindingReject>( 200U + 4U))
+						   : rejected ;
+			}
+
+			return 0U ;
 		}
 
 		// 元選択DDInstallの全softwareを検査し、他ModelsのType2を当該計画へ追加しません
@@ -16025,6 +17030,11 @@ NativeError inspectSelectedWindowsDriverPackageScope( const OfficialDownloadWork
 							   : nativeErrorFromWin32( ERROR_NOT_SUPPORTED) ;
 				}
 			} while( SetupFindNextMatchLineW( &line, L"AddSoftware", &line)) ;
+		}
+
+		// 他の構文や関連処理が拒否されなかった場合だけ後段へ元証拠を渡す
+		if( displayService != nullptr) {
+			*displayService = std::move( observedDisplay) ;
 		}
 
 		return 0 ;
@@ -19662,10 +20672,26 @@ NativeError inspectOfficialInfPackage( const OfficialDownloadWorkspace		 &worksp
 				return result ;
 			}
 
-			// 未検査CopyINFを内容合格の閉集合へ昇格しません
-			if( policy.purpose != OfficialInfInspectionPurpose::STANDARD_DRIVER &&
-			   !inspected.unresolvedCopyInfPaths.empty()) {
-				return nativeErrorFromWin32( ERROR_FILE_NOT_FOUND) ;
+			// 端末の内容検査と再読取りで、付随参照を持つDisplayの元クラスを同じ値へ固定します
+			if( !inspected.unresolvedCopyInfPaths.empty()) {
+				const bool ordinaryDisplay =
+					inspected.inspectionPurpose == OfficialInfInspectionPurpose::STANDARD_DRIVER &&
+					inspected.role == DriverPlanRole::BASE_DRIVER && !scopedModels &&
+					// 元の基本クラスです
+					stringsEqual( inspected.className, DISPLAY_CLASS.front()) ;
+				// 同じ名前でクラスを偽装したINFや複数のクラス宣言を例外へ通しません
+				if( ordinaryDisplay && validateSetupClassPair( inf.get(), DISPLAY_CLASS) == 0U) {
+					inspected.classGuid = DISPLAY_CLASS.back() ;
+				}
+
+				const bool deviceDisplay =
+					policy.purpose == OfficialInfInspectionPurpose::DEVICE_STORAGE_CANDIDATE &&
+					ordinaryDisplay && !inspected.classGuid.empty() ;	// 元一覧の判定に進む端末用です
+				// 収集、起動用、個別対象の検査は従来どおり未解決CopyINFを拒否します
+				if( !deviceDisplay &&
+				   policy.purpose != OfficialInfInspectionPurpose::STANDARD_DRIVER) {
+					return nativeErrorFromWin32( ERROR_FILE_NOT_FOUND) ;
+				}
 			}
 		}
 

@@ -2,7 +2,7 @@
 /**
  * @file official_http_client.cpp
  * @brief 公式配布元限定HTTP client実装
- * @version 01.34.00
+ * @version 01.37.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -82,6 +82,9 @@
  * Ver.01.32.00 Shunji Ogawa  2026/11/23  固定GooGet索引だけを転送なしの収集用JSON取得へ追加
  * Ver.01.33.00 Shunji Ogawa  2026/11/24  WCHの固定公開APIを転送なしの収集用JSON取得へ追加
  * Ver.01.34.00 Shunji Ogawa  2026/11/24  公開ファイル識別子と指定ZIPの一段転送を照合
+ * Ver.01.35.00 Shunji Ogawa  2026/11/27  AMD検索の受信待ちと期限付き公式起点の失効判定を修正
+ * Ver.01.36.00 Shunji Ogawa  2026/11/27  同元AMD配布への初回要求に公式参照元を送信
+ * Ver.01.37.00 Shunji Ogawa  2026/11/28  固定した旧索引と個別期限索引の入口を区別
  * </pre>
  *
  * @note WinHTTP handleは本file内のRAII wrapperが所有します。Catalog cacheが破損した場合は破棄し、stale fallbackを行わず公式
@@ -97,6 +100,7 @@
 
 #include "core/metadata_search_budget.h"
 #include "core/official_source_policy.h"
+#include "core/provider_registry.h"
 #include "platform/official_catalog_cache.h"
 #include "platform/official_file_verifier.h"
 #include "platform/wch_catalog_parser.h"
@@ -188,10 +192,12 @@ namespace {
 // 本番の不変I/O表。Test用依存がない経路だけが参照する
 const OfficialHttpTransport NATIVE_HTTP_TRANSPORT{} ;
 
-constexpr DWORD			RESOLVE_TIMEOUT_MILLISECONDS = 15'000 ;						// DNS名前解決timeout（millisecond）
-constexpr DWORD			CONNECT_TIMEOUT_MILLISECONDS = 30'000 ;						// TCP/TLS接続timeout（millisecond）
-constexpr DWORD			SEND_TIMEOUT_MILLISECONDS	 = 30'000 ;						// Request送信timeout（millisecond）
-constexpr DWORD			RECEIVE_TIMEOUT_MILLISECONDS = 60'000 ;						// Response受信timeout（millisecond）
+constexpr DWORD RESOLVE_TIMEOUT_MILLISECONDS = 15'000 ;	// DNS名前解決timeout（millisecond）
+constexpr DWORD CONNECT_TIMEOUT_MILLISECONDS = 30'000 ;	// TCP/TLS接続timeout（millisecond）
+constexpr DWORD SEND_TIMEOUT_MILLISECONDS	 = 30'000 ;	// Request送信timeout（millisecond）
+constexpr DWORD RECEIVE_TIMEOUT_MILLISECONDS = 60'000 ;	// Response受信timeout（millisecond）
+constexpr int	AMD_METADATA_RECEIVE_MILLISECONDS =
+	20'000 ;																		// AMD通常検索の一応答受信上限（millisecond）
 constexpr DWORD			READ_BUFFER_BYTES = 64U * 1024U ;							// 一回のWinHTTP読取りbuffer byte数
 constexpr std::uint64_t CATALOG_MAXIMUM_AGE_SECONDS		= 6ULL * 60ULL * 60ULL ;	// Fresh期限6時間
 constexpr std::size_t	MAXIMUM_SOURCE_EVIDENCE_ENTRIES = 4096U ;					// 一Provider sessionの取得上限
@@ -459,13 +465,15 @@ private:
  * @param[in] initial trueなら通常経路にも従来timeoutを初期設定する
  * @param[in] transport Handleを生成したI/O表。本呼出し中だけ借用する
  * @param[in,out] indexControl 非null時だけ固定索引の残期限も適用します
+ * @param[in] receiveTimeoutMilliseconds 当該用途の最大受信待ち。正のmillisecond
  * @return 設定成功0、取消し・期限・API失敗は元診断
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] NativeError setRequestTimeouts(
 	HINTERNET handle, MetadataSearchExecutionContext *execution, const bool initial = false,
 	const OfficialHttpTransport &transport	  = NATIVE_HTTP_TRANSPORT,
-	SignedIndexHttpControl		*indexControl = nullptr) noexcept
+	SignedIndexHttpControl		*indexControl = nullptr,
+	const int receiveTimeoutMilliseconds = static_cast<int>( RECEIVE_TIMEOUT_MILLISECONDS)) noexcept
 {
 	// 従来経路へchunkごとの追加APIを持ち込まない
 	if( execution == nullptr && !initial && indexControl == nullptr) {
@@ -499,11 +507,11 @@ private:
 	}
 
 	// 四つのphaseを各従来値と残期限の小さい方へ制限する
-	if( transport.setTimeouts(
-		   handle, std::min( remaining, static_cast<int>( RESOLVE_TIMEOUT_MILLISECONDS)),
-		   std::min( remaining, static_cast<int>( CONNECT_TIMEOUT_MILLISECONDS)),
-		   std::min( remaining, static_cast<int>( SEND_TIMEOUT_MILLISECONDS)),
-		   std::min( remaining, static_cast<int>( RECEIVE_TIMEOUT_MILLISECONDS))) == FALSE) {
+	if( transport.setTimeouts( handle,
+							 std::min( remaining, static_cast<int>( RESOLVE_TIMEOUT_MILLISECONDS)),
+							 std::min( remaining, static_cast<int>( CONNECT_TIMEOUT_MILLISECONDS)),
+							 std::min( remaining, static_cast<int>( SEND_TIMEOUT_MILLISECONDS)),
+							 std::min( remaining, receiveTimeoutMilliseconds)) == FALSE) {
 		return nativeErrorFromWin32( GetLastError()) ;
 	}
 
@@ -1075,6 +1083,8 @@ struct EmptyJsonPostContext {
  * @param[in] jsonPost 非null時だけfactory生成済みの空JSON/query文脈を使います
  * @param[in] delegatedCheckpoint 非null時はDNS後・実send直前にも同grantを検査します
  * @param[in] responseObserver HTTP拒否前に元待機を観測する同期関数です。未指定ならnullです
+ * @param[in] receiveTimeoutMilliseconds 当該用途の最大受信待ち。正のmillisecond
+ * @param[in] productReferer 公式製品起点に結合済みの同一配布用参照元。nullは送信しない
  * @return 検査対象status受信時は0、失敗時はHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
@@ -1089,7 +1099,9 @@ struct EmptyJsonPostContext {
 	const HttpCancellationCallback				*collectorCancellation = nullptr,
 	const EmptyJsonPostContext					*jsonPost			   = nullptr,
 	const std::function<NativeError()>			*delegatedCheckpoint   = nullptr,
-	const std::function<void( HINTERNET, DWORD)> *responseObserver	   = nullptr)
+	const std::function<void( HINTERNET, DWORD)> *responseObserver	   = nullptr,
+	const int	   receiveTimeoutMilliseconds = static_cast<int>( RECEIVE_TIMEOUT_MILLISECONDS),
+	const wchar_t *productReferer			  = nullptr)
 {
 	status = 0 ;
 	// 新POSTは完全なfactory文脈と同grant制御が揃う場合だけ許す
@@ -1124,8 +1136,8 @@ struct EmptyJsonPostContext {
 	}
 
 	// 有限 timeout を設定できなければ通信を開始しない
-	const NativeError timeoutError =
-		setRequestTimeouts( createdSession.get(), execution, true, transport, indexControl) ;
+	const NativeError timeoutError = setRequestTimeouts(
+		createdSession.get(), execution, true, transport, indexControl, receiveTimeoutMilliseconds) ;
 	// 有限timeoutを設定できないhandleから通信を始めない
 	if( timeoutError != 0) {
 		return timeoutError ;
@@ -1141,7 +1153,7 @@ struct EmptyJsonPostContext {
 	InternetHandle createdRequest(	// HTTPS GET request handle
 		transport.openRequest( createdConnection.get(), jsonPost ? L"POST" : L"GET",
 							  parsed.pathQuery.c_str(), nullptr,
-							  jsonPost ? jsonPost->post->referer().data() : WINHTTP_NO_REFERER,
+							  jsonPost ? jsonPost->post->referer().data() : productReferer,
 							  WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE),
 		transport) ;
 	// GET request handle を作成できなければ送信しない
@@ -1514,6 +1526,8 @@ struct EmptyJsonPostContext {
  * @param[in,out] collectorTransfer 収集専用の実send/status記録先です
  * @param[in] checkpoint 非null時は各hopの元session期限を再検査します
  * @param[in] collectorRedirectUrl 空または元配布と照合済みの別originにある一転送先
+ * @param[in] receiveTimeoutMilliseconds 各hopの最大受信待ち。正のmillisecond
+ * @param[in] productReferer 最初の元配布だけに結合した公式ページ。nullは送信しない
  * @return 最終response確定時は0、不正遷移または失敗時はHRESULT
  */
 //------------------------------------------------------------------------------
@@ -1529,7 +1543,9 @@ struct EmptyJsonPostContext {
 	const bool							collectorMetadata	 = false,
 	CollectorHttpTransferRecorder	   *collectorTransfer	 = nullptr,
 	const std::function<NativeError()> *checkpoint			 = nullptr,
-	const std::wstring_view				collectorRedirectUrl = {})
+	const std::wstring_view				collectorRedirectUrl = {},
+	const int	   receiveTimeoutMilliseconds = static_cast<int>( RECEIVE_TIMEOUT_MILLISECONDS),
+	const wchar_t *productReferer			  = nullptr)
 {
 	status = 0U ;
 	originPolicyIndices.clear() ;
@@ -1613,7 +1629,9 @@ struct EmptyJsonPostContext {
 						   requirePublicSameOrigin ? WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH
 												   : WINHTTP_AUTOLOGON_SECURITY_LEVEL_MEDIUM,
 						   collectorMetadata, nullptr, collectorTransfer, &cancellationCallback,
-						   nullptr, checkpoint) ;	// 現在hop受信結果
+						   nullptr, checkpoint, nullptr, receiveTimeoutMilliseconds,
+						   // 現在hop受信結果
+						   originPolicyIndices.size() == 1U ? productReferer : nullptr) ;
 		// 元のHTTP失敗と未通信を収集台帳で区別する
 		if( collectorMetadata) {
 			status = currentStatus ;
@@ -2342,6 +2360,7 @@ template <typename Consumer>
  * @param[in,out] execution 新modeの返却しない本文・送信予算。Nullは従来経路
  * @param[in] transport 同期HTTP処理中に借用する生成元I/O表
  * @param[in] cacheAccess Null以外ではcache処理を全て注入先へ委譲し、既定cacheと混用しない
+ * @param[in] receiveTimeoutMilliseconds 通信が必要な場合に設定する最大受信待ち。正のmillisecond
  * @return 取得成功時は0、URL、HTTP、size失敗時はHRESULT
  */
 //------------------------------------------------------------------------------
@@ -2353,7 +2372,8 @@ template <typename Consumer>
 	OfficialHttpAcquisitionObservation &observation,
 	MetadataSearchExecutionContext	   *execution	= nullptr,
 	const OfficialHttpTransport		   &transport	= NATIVE_HTTP_TRANSPORT,
-	const OfficialHttpCacheAccess	   *cacheAccess = nullptr)
+	const OfficialHttpCacheAccess	   *cacheAccess = nullptr,
+	const int receiveTimeoutMilliseconds = static_cast<int>( RECEIVE_TIMEOUT_MILLISECONDS))
 {
 	content.clear() ;
 	originPolicyIndices.clear() ;
@@ -2415,7 +2435,8 @@ template <typename Consumer>
 	const NativeError requestError =			// 条件付きまたは通常GETとredirect追跡結果
 		openGetRequestFollowingRedirects( url, allowedHosts, maximumRedirects, conditionalEtag, {},
 										 session, connection, request, status, originPolicyIndices,
-										 execution, transport) ;
+										 execution, transport, false, nullptr, false, nullptr,
+										 nullptr, {}, receiveTimeoutMilliseconds) ;
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 	if( requestError != 0) {
 		return requestError ;
@@ -4943,7 +4964,7 @@ NativeError OfficialHttpClient::postEmptyJsonQuery(
  * @param[out] destinationEvidence 成功時にだけURL非保持の宛先検証結果
  * @return 全hop検証・HTTP 200・有限受信・flush・grant終端の全成功時は0、それ以外はHRESULT bit pattern
  * @note Dynamic同一originは2回、固定payload hostへの一方向移行だけを許可します。System・per-user proxy設定を尊重し、serverの既定
- *       credential、Cookie、Referer、root固有header、bodyを送信しません。索引attestation出自だけは同grantの私有封印exact route・失効
+ *       credential、Cookie、任意header、bodyを送信しません。AMDの同元公式ページだけ初回の参照元に使います。索引attestation出自だけは同grantの私有封印exact route・失効
  *       leaseを再照合します。一般のhost追加や公開DTO自己申告ではこのbranchを作れません。毎hopの公開DNSと実byte検査を維持します
  *       WiXでは元アンカーの単独Location付き301と所定の最終200を順に要求します
  */
@@ -5203,11 +5224,21 @@ NativeError OfficialHttpClient::downloadDelegatedGet(
 			const NativeError requestError = openGetRequest(
 				parsed, currentSession, currentConnection, currentResponse, {}, currentStatus,
 				nullptr, transport, WINHTTP_AUTOLOGON_SECURITY_LEVEL_HIGH, false, nullptr, nullptr,
-				nullptr, nullptr, &checkpoint,
-				wixDestination ? &observeWixRetry : nullptr) ;	// 既定credentialを使わないGET結果
+				nullptr, nullptr, &checkpoint, wixDestination ? &observeWixRetry : nullptr,
+				static_cast<int>( RECEIVE_TIMEOUT_MILLISECONDS),
+				redirectCount == 0U ? request.signedAmdProductReferer()
+									: nullptr) ;	// 初回だけ同元ページを渡す
 			// HTTP API失敗で部分fileを成功として閉じない
 			if( requestError != 0) {
-				return finishFailure( OfficialDownloadGrantState::FAILED, requestError) ;
+				const bool expiredTarget =
+					// 再解決を許す最初の期限付き公式GETの応答だけを失効とする
+					redirectCount == 0U && request.canReresolveExpiringTarget() &&
+					(currentStatus == HTTP_STATUS_DENIED ||
+					 currentStatus == HTTP_STATUS_FORBIDDEN) &&
+					requestError == validateOfficialHttpResponseStatus( currentStatus, false, true) ;
+				return finishFailure( expiredTarget ? OfficialDownloadGrantState::GRANT_EXPIRED
+												   : OfficialDownloadGrantState::FAILED,
+									 requestError) ;
 			}
 
 			// WiXは同じ元アンカーが指定先を単独の301で返した場合だけ二件目へ進みます
@@ -5284,16 +5315,9 @@ NativeError OfficialHttpClient::downloadDelegatedGet(
 
 		const NativeError statusError = validateOfficialHttpResponseStatus(
 			finalStatus, false, false) ;	// Redirect以外の最終200限定結果
-		// 401／403を含む拒否statusの本文をpayloadとして保存しない
+		// 最終200以外の本文をpayloadとして保存しない
 		if( statusError != 0) {
-			const bool refreshableStatus = redirectCount == 0U &&
-										   request.canReresolveExpiringTarget() &&
-										   (finalStatus == HTTP_STATUS_DENIED ||
-											// 最初のexpiring GETだけ再解決候補
-											finalStatus == HTTP_STATUS_FORBIDDEN) ;
-			return finishFailure( refreshableStatus ? OfficialDownloadGrantState::GRANT_EXPIRED
-												   : OfficialDownloadGrantState::FAILED,
-								 statusError) ;
+			return finishFailure( OfficialDownloadGrantState::FAILED, statusError) ;
 		}
 
 		// 索引routeの途中に200を返す応答を別の最終payloadへ読み替えない
@@ -5398,12 +5422,18 @@ NativeError OfficialHttpClient::getUtf8Text( const std::wstring_view					 url,
 	const std::uint64_t	   effectiveLimit =
 		   metadataExecution_ != nullptr ? std::min( maximumBytes, MetadataSearchLimits{}.resourceBytes)
 										 : maximumBytes ;	// Cache読取りも固定上限以内
-	const NativeError fetchError =							// Cacheを含むcatalog取得結果
+	const int receiveTimeoutMilliseconds =
+		// 通常のAMD公式検索だけに短い受信待ちを使用する
+		metadataExecution_ == nullptr && sourceProviderId_ == AMD_PROVIDER_ID
+			? AMD_METADATA_RECEIVE_MILLISECONDS
+			: static_cast<int>( RECEIVE_TIMEOUT_MILLISECONDS) ;
+	const NativeError fetchError =	// Cacheを含むcatalog取得結果
 		fetchCatalogResource(
 			useCatalogCache_, url, allowedHosts, maximumRedirects, effectiveLimit,
 			[]( const std::uint64_t, const std::uint64_t) {}, bytes, originPolicyIndices,
 			observation, metadataExecution_,
-			testTransport_ ? *testTransport_ : NATIVE_HTTP_TRANSPORT, testCacheAccess_) ;
+			testTransport_ ? *testTransport_ : NATIVE_HTTP_TRANSPORT, testCacheAccess_,
+			receiveTimeoutMilliseconds) ;
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 	if( fetchError != 0) {
 		return fetchError ;
@@ -5494,6 +5524,7 @@ NativeError OfficialHttpClient::downloadCatalogToFile(
  * @param[in] checkpoint 非null時は収集専用の同session期限を実send直前にも検査します
  * @param[in] collectorRedirectUrl 空または収集専用の審査済み転送先です。非空時は二つのexact hostと最大一回を要求します
  * @param[in] redirectShape 明示転送の元パスと最終配布の対応です。ZIPでは転送先が必須です
+ * @param[in] productPage 同一のAMD配布を掲載した確認済み公式ページ。空は参照元なし
  * @return 保存とflush成功時は0、失敗時はHRESULT bit pattern
  */
 //------------------------------------------------------------------------------
@@ -5504,8 +5535,8 @@ NativeError OfficialHttpClient::downloadToFile(
 	const HttpCancellationCallback	   &cancellationCallback,
 	std::vector<std::uint32_t> &originPolicyIndices, const bool collectorInspection,
 	CollectorHttpTransferObservation *transfer, const std::function<NativeError()> *checkpoint,
-	const std::wstring_view				collectorRedirectUrl,
-	const CollectorPayloadRedirectShape redirectShape) const
+	const std::wstring_view collectorRedirectUrl, const CollectorPayloadRedirectShape redirectShape,
+	const std::wstring_view productPage) const
 {
 	originPolicyIndices.clear() ;
 	CollectorHttpTransferObservation ignored ;	// 観測不要の旧callerにも同じ保存処理を使います
@@ -5522,6 +5553,13 @@ NativeError OfficialHttpClient::downloadToFile(
 		(redirectShape != CollectorPayloadRedirectShape::FILE_ID_ZIP ||
 		 collectorRedirectUrl.empty()))) {
 		return static_cast<NativeError>( E_INVALIDARG) ;
+	}
+
+	// 収集で掲載を照合した公式AMD直接EXEだけに参照元を送ります
+	if( !productPage.empty() &&
+	   (!collectorInspection || maximumRedirects != 0U || !collectorRedirectUrl.empty() ||
+		!isAmdProductDownloadRoute( productPage, url))) {
+		return E_ACCESSDENIED ;
 	}
 
 	// 明示転送を審査した元配布と、起点・転送先の順で固定した二つのoriginへ限定します
@@ -5565,18 +5603,21 @@ NativeError OfficialHttpClient::downloadToFile(
 		return cancellationError ;
 	}
 
-	InternetHandle	  session( nullptr) ;		// Requestと同じ期間保持するsession handle
-	InternetHandle	  connection( nullptr) ;	// Requestと同じ期間保持するconnection handle
-	InternetHandle	  request( nullptr) ;		// Response bodyを読み取るrequest handle
-	DWORD			  status{} ;				// Payload requestで許可するHTTP 200 status
-	const auto		 &transport	   = collectorInspection && testTransport_
-										 ? *testTransport_
-										 : NATIVE_HTTP_TRANSPORT ;	// 旧経路へ試験表を流用しない
-	const NativeError requestError = openGetRequestFollowingRedirects(
-		url, allowedHosts, maximumRedirects, {}, cancellationCallback, session, connection, request,
-		status, originPolicyIndices, nullptr, transport, collectorInspection, nullptr,
-		collectorInspection, collectorInspection ? &recorder : nullptr, checkpoint,
-		collectorRedirectUrl) ;	// 新収集検査だけの観測
+	InternetHandle	   session( nullptr) ;		// Requestと同じ期間保持するsession handle
+	InternetHandle	   connection( nullptr) ;	// Requestと同じ期間保持するconnection handle
+	InternetHandle	   request( nullptr) ;		// Response bodyを読み取るrequest handle
+	DWORD			   status{} ;				// Payload requestで許可するHTTP 200 status
+	const auto		  &transport = collectorInspection && testTransport_
+									   ? *testTransport_
+									   : NATIVE_HTTP_TRANSPORT ;	// 旧経路へ試験表を流用しない
+	const std::wstring referer( productPage) ;						// WinHTTP呼出しの間だけ使う終端付き公開ページ
+	const NativeError  requestError = openGetRequestFollowingRedirects(
+		 url, allowedHosts, maximumRedirects, {}, cancellationCallback, session, connection, request,
+		 status, originPolicyIndices, nullptr, transport, collectorInspection, nullptr,
+		 collectorInspection, collectorInspection ? &recorder : nullptr, checkpoint,
+		 collectorRedirectUrl, static_cast<int>( RECEIVE_TIMEOUT_MILLISECONDS),
+		 // 転送なしの同一配布へだけ送る
+		 referer.empty() ? nullptr : referer.c_str()) ;
 	// 検出した失敗を後続処理で上書きせず、同じ診断値を呼出し元へ返す
 	if( requestError != 0) {
 		return requestError ;
@@ -5932,16 +5973,29 @@ NativeError OfficialHttpClient::getSignedIndexTermsDocument(
  * @param[in,out] control 同refreshの共有停止・送信・受信状態です
  * @param[out] raw 成功時だけ原byteです。失敗時空です
  * @param[out] status 失敗時も実観測HTTP statusを保持します
+ * @param[in] schemaVersion 固定入口を選びます。1は旧配信、2は個別期限の配信です
  * @return 全HTTP検査成功0、拒否時は元HRESULTです
  */
 //------------------------------------------------------------------------------
 NativeError OfficialHttpClient::getSignedIndexCurrent( SignedIndexHttpControl &control,
 													  std::vector<std::byte> &raw,
-													  std::uint32_t			 &status)
+													  std::uint32_t			 &status,
+													  const std::uint32_t	  schemaVersion)
 {
-	return getSignedIndexBytes(
-		L"https://raw.githubusercontent.com/EnterOgawa/drivercrate/driver-index/index/current.json",
-		SignedIndexRole::CURRENT, INDEX_ENVELOPE_MAX_BYTES, control, raw, status) ;
+	// 知らない版を既存の公開入口へ自動で結びません
+	if( schemaVersion != 1U && schemaVersion != 2U) {
+		raw.clear() ;
+		status = 0U ;
+		return E_INVALIDARG ;
+	}
+
+	// 指定した署名版に対応する固定配布入口です
+	const std::wstring_view url =
+		schemaVersion == 1U
+			? L"https://raw.githubusercontent.com/EnterOgawa/drivercrate/driver-index/index/current.json"
+			: L"https://raw.githubusercontent.com/EnterOgawa/drivercrate/driver-index/index/current-v2.json" ;
+	return getSignedIndexBytes( url, SignedIndexRole::CURRENT, INDEX_ENVELOPE_MAX_BYTES, control,
+							   raw, status) ;
 }
 //------------------------------------------------------------------------------
 /**

@@ -2,7 +2,7 @@
 /**
  * @file common_driver_content_tests.cpp
  * @brief 同INF付属内容の必要参照と未評価作用を局所検証します
- * @version 01.16.01
+ * @version 01.32.00
  * @date 2026/11/05
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -39,6 +39,22 @@
  * Ver.01.15.00 Shunji Ogawa  2026/11/24  収集用クラスの旧登録節と別の導入役割からの参照を検証
  * Ver.01.16.00 Shunji Ogawa  2026/11/24  表示クラスの単一KMDF収集で元参照の正負を確認
  * Ver.01.16.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
+ * Ver.01.17.00 Shunji Ogawa  2026/11/27  媒体の相対ディレクトリに一致するDIRID13を検証
+ * Ver.01.18.00 Shunji Ogawa  2026/11/27  必須子の元節と空サービスの作用範囲を回帰検証
+ * Ver.01.19.00 Shunji Ogawa  2026/11/27  付随INFと圧縮名の途中追加を登録前の不在照合で拒否
+ * Ver.01.20.00 Shunji Ogawa  2026/11/27  Displayのイベント付き補助サービスの元宣言を回帰検証
+ * Ver.01.21.00 Shunji Ogawa  2026/11/27  現用Displayの実選択と候補と異なる旧媒体を回帰
+ * Ver.01.22.00 Shunji Ogawa  2026/11/27  Display補助の起動順と追加実行条件を回帰検証
+ * Ver.01.23.00 Shunji Ogawa  2026/11/27  現用子の主Modelsと補助サービス共用範囲を回帰検証
+ * Ver.01.24.00 Shunji Ogawa  2026/11/27  候補が同じ直接必須子と限定作用を持つ条件を回帰検証
+ * Ver.01.25.00 Shunji Ogawa  2026/11/27  Display変更直前の状態と署名再照合の失敗を回帰検証
+ * Ver.01.26.00 Shunji Ogawa  2026/11/27  選択した子の独立ソフトウェア版と元実行物を回帰検証
+ * Ver.01.27.00 Shunji Ogawa  2026/11/27  登録と現在のPnPからType 1の到達親を照合する条件を回帰検証
+ * Ver.01.28.00 Shunji Ogawa  2026/11/27  Type 1の実行記録と事後状態の組合せを回帰検証
+ * Ver.01.29.00 Shunji Ogawa  2026/11/27  同じDisplayの必須子だけに独立版の判定を回帰検証
+ * Ver.01.30.00 Shunji Ogawa  2026/11/27  変更前の元境界と事後の読取り拒否を照合
+ * Ver.01.31.00 Shunji Ogawa  2026/11/27  現用元INFと両方の保持ファイルに結合する条件を確認
+ * Ver.01.32.00 Shunji Ogawa  2026/11/27  共有コピーの反映待ちと読取変化を回帰検証
  * </pre>
  *
  * @note 共通実装を専用compileし、製品へ診断入口を追加しません。署名や導入成功を偽装しません
@@ -47,9 +63,13 @@
 //------------------------------------------------------------------------------
 
 #include "platform/official_driver_package.cpp"
+#include "platform/display_inf_scope_internal.h"
+#include "platform/display_type1_event_log_internal.h"
 #include "platform/driver_store_inf_transport_internal.h"
 #include "platform/mtd_handler_internal.h"
+#include "platform/official_file_verifier.h"
 #include "platform/registered_driver_store_package_internal.h"
+#include "platform/storage_inf_effects_internal.h"
 #include "official_driver_package_tests.cpp"
 
 #include <algorithm>
@@ -290,9 +310,23 @@ void registeredDriverStorePackageMatrix( TestContext &context)
 	registeredStoreFixture.storeInf = selectedInf ;
 	{
 		RegisteredDriverStorePackage pinned ;	// 破棄まで選択した実ファイルを保持する
+		const std::array			 references{workspace.path( selected + MEMBERS[SYS].data()),
+									// 親が参照する保持対象二点
+									workspace.path( selected + MEMBERS.back().data())} ;
+		const auto					 alternateInf =
+			// 同バイトでも現在の別Store元INF
+			workspace.path( alternate + MEMBERS.front().data()) ;
+		const std::array substituted{references.front(),
+									 // 別の元にある同名参照
+									 workspace.path( alternate + MEMBERS.back().data())} ;
 		DRIVERCRATE_EXPECT( context, pinned.verify() != 0) ;
-		DRIVERCRATE_EXPECT( context, pinned.pin( registeredStoreFixture.registeredInf, original,
-											   entries, LOOKUP) == 0) ;
+		DRIVERCRATE_EXPECT( context, !pinned.containsPinnedMembers( selectedInf, references)) ;
+		DRIVERCRATE_EXPECT( context, pinned.pinFromClosure( registeredStoreFixture.registeredInf,
+														  original, entries, LOOKUP) == 0) ;
+		DRIVERCRATE_EXPECT( context, pinned.containsPinnedMembers( selectedInf, references)) ;
+		DRIVERCRATE_EXPECT( context, !pinned.containsPinnedMembers( selectedInf, {})) ;
+		DRIVERCRATE_EXPECT( context, !pinned.containsPinnedMembers( alternateInf, references)) ;
+		DRIVERCRATE_EXPECT( context, !pinned.containsPinnedMembers( selectedInf, substituted)) ;
 		// INFだけでなくCATと両方のSYSへの書込みと削除を保持中だけ排除する
 		for( const auto member : MEMBERS) {
 			const auto path =
@@ -2111,11 +2145,14 @@ void attachedCase( TestContext &context, std::string_view suffix, std::string_vi
  * @param[in] identity 条件ごとの保護workspace番号です
  * @param[in] contentRejected trueは既知autorunが全内容の既存guardで先に拒否される条件です
  * @param[in] storageEvent trueは選択SCSIAdapterのSystemイベント付き補助サービスを使います
+ * @param[in] mediaDirectory trueは受動データを媒体の相対ディレクトリとDIRID13に結びます
+ * @param[in] displayEvent trueは開始指定とApplicationイベントを持つDisplay補助サービスです
  */
 //------------------------------------------------------------------------------
 void windowsScopeCase( TestContext &context, std::string_view before, std::string_view after,
 					  bool accepted, std::uint64_t identity, bool contentRejected = false,
-					  bool storageEvent = false)
+					  bool storageEvent = false, bool mediaDirectory = false,
+					  bool displayEvent = false)
 {
 	std::string body( ATTACHED_INF) ;	// 原一般deviceの同INF関係です
 	body.replace( body.find( "CopyFiles=DriverFiles,ProgramFiles"),
@@ -2130,7 +2167,7 @@ void windowsScopeCase( TestContext &context, std::string_view before, std::strin
 		"[SourceDisksFiles]\r\nrecovery.bat=1\r\n"
 		"[HelperService]\r\nServiceType=16\r\nStartType=2\r\nErrorControl=1\r\nServiceBinary=%13%\\helper.exe --data recovery.bat\r\n" ;
 	// 一般クラスでだけ既存のSoftware関係を組み合わせて検証します
-	if( !storageEvent) {
+	if( !storageEvent && !displayEvent) {
 		body +=
 			"[Install.NT.Software]\r\nAddSoftware=RelatedDeviceProgram,0,RelatedSoftware\r\n"
 			"[RelatedSoftware]\r\nSoftwareType=1\r\nSoftwareVersion=2.0.0.0\r\nSoftwareBinary=%13%\\helper.exe\r\n"
@@ -2144,6 +2181,16 @@ void windowsScopeCase( TestContext &context, std::string_view before, std::strin
 	}
 
 	body += "\r\n" ;
+	// 実媒体を持つ対照では、別ディスク番号の相対位置から一つのデータを読みます
+	if( mediaDirectory) {
+		constexpr std::string_view disk	  = "1=fixture,,,\r\n" ;	// 元の媒体無し対照です
+		constexpr std::string_view dest	  = "DataFiles=13" ;		// 対象のコピー先だけを変えます
+		constexpr std::string_view source = "recovery.bat=1" ;		// 対象データの元ディスクIDです
+		body.insert( body.find( disk) + disk.size(), "2=fixture,,,.\\FixtureMedia\r\n") ;
+		body.replace( body.find( dest), dest.size(), "DataFiles=13,FixtureMedia") ;
+		body.replace( body.find( source), source.size(), "recovery.bat=2") ;
+	}
+
 	// 元の構造を共有し、ストレージのfixtureだけを名前付きSystemイベントと引数なしに変更します
 	if( storageEvent) {
 		constexpr std::string_view displayClass{"Class=Display"} ;							// 原Display宣言
@@ -2157,6 +2204,22 @@ void windowsScopeCase( TestContext &context, std::string_view before, std::strin
 		body.insert( body.find( service) + service.size(), ",HelperEvent,System,Fixture Middleware") ;
 		body += "[HelperEvent]\r\nAddReg=HelperEventReg\r\n"
 				"[HelperEventReg]\r\nHKR,,TypesSupported,0x00010001,0x1F\r\n" ;
+	}
+
+	// Displayでは強制開始する元補助サービスと固有Applicationイベントを照合する
+	if( displayEvent) {
+		constexpr std::string_view arguments = " --data recovery.bat" ;						// 既存fixtureの補助引数
+		constexpr std::string_view service = "AddService=FixtureHelper,0,HelperService" ;	// 元補助行
+		body.erase( body.find( arguments), arguments.size()) ;
+		body.replace(
+			body.find( service), service.size(),
+			"AddService=FixtureHelper,0x800,HelperService,HelperEvent,Application,Fixture Display") ;
+		body +=
+			"[HelperEvent]\r\nAddReg=HelperEventReg\r\n"
+			"[HelperEventReg]\r\n"
+			"HKR,,EventMessageFile,0x20000,%%SystemRoot%%\\System32\\drivers\\display-events.dll\r\n"
+			"HKR,,CategoryMessageFile,0x20000,%%SystemRoot%%\\System32\\drivers\\display-events.dll\r\n"
+			"HKR,,TypesSupported,0x10001,7\r\n" ;
 	}
 
 	// 原既知禁止位置を負例だけへ置き、無関係な正例の内容前提を汚染しません
@@ -2180,8 +2243,13 @@ void windowsScopeCase( TestContext &context, std::string_view before, std::strin
 
 	OfficialDownloadWorkspace workspace ;	// 同元byteだけの保護ownerです
 	DRIVERCRATE_EXPECT( context, workspace.initialize( L"windows-scope-fixture", identity) == 0) ;
-	const std::array					   names{L"sample.inf", L"sample.cat", L"sample.sys",
-							 L"helper.exe", L"helper.dll", L"recovery.bat"} ;	// 同元全参照です
+	const std::array names{
+		L"sample.inf",
+		L"sample.cat",
+		L"sample.sys",
+		L"helper.exe",
+		L"helper.dll",
+		mediaDirectory ? L"FixtureMedia\\recovery.bat" : L"recovery.bat"} ;	// 同元全参照です
 	const std::array<std::string_view, 6U> payloads{
 		body,	   "unsigned", "driver",
 		"program", "library",  "opaque recovery data"} ;	// 実行しないfixtureです
@@ -2227,12 +2295,76 @@ void windowsScopeCase( TestContext &context, std::string_view before, std::strin
 	DRIVERCRATE_EXPECT( context, inspectSelectedOfficialInfRelations( workspace, entries, package,
 																	L"Install", selected) == 0) ;
 	RequiredInfBindingDiagnostic diagnostic ;	// 選択scopeの最初の固定理由です
-	diagnostic.path	 = 2U ;
-	const auto scope = inspectSelectedWindowsDriverPackageScope(
-		workspace, entries, selected, &diagnostic) ;	// 内容と実行能力は別です
+	diagnostic.path = 2U ;
+	std::optional<OfficialDisplayAuxiliaryService> auxiliary ;	// 当該形式だけが返す元構文証拠
+	// 当該導入節の作用範囲と形式ごとの出力制約を確認する結果です
+	const auto									   scope = inspectSelectedWindowsDriverPackageScope(
+		workspace, entries, selected, &diagnostic, displayEvent ? &auxiliary : nullptr) ;
 	context.expect( (scope == 0) == accepted,
-				   "Windows scope " + std::to_string( identity) + " error " + std::to_string( scope),
+				   "Windows scope " + std::to_string( identity) + " error " + std::to_string( scope) +
+					   " reason " + std::to_string( static_cast<unsigned>( diagnostic.rejection)) +
+					   " observed " + std::to_string( diagnostic.observed),
 				   __FILE__, __LINE__) ;
+	// Displayの構文証拠は全条件に成功した場合だけ独立の所有検査へ渡る
+	if( displayEvent) {
+		DRIVERCRATE_EXPECT( context, auxiliary.has_value() == accepted) ;
+		DRIVERCRATE_EXPECT(
+			context, !auxiliary || (auxiliary->serviceName == L"FixtureHelper" &&
+									auxiliary->binarySource == L"helper.exe" &&
+									auxiliary->eventSource == L"Fixture Display" &&
+									auxiliary->messageFile ==
+										L"%SystemRoot%\\System32\\drivers\\display-events.dll")) ;
+		DRIVERCRATE_EXPECT(
+			context, inspectSelectedWindowsDriverPackageScope( workspace, entries, selected) != 0U) ;
+		// 通常候補の構文が成立したときだけ旧配布との照合を検証する
+		if( auxiliary) {
+			constexpr std::string_view binary =
+				"ServiceBinary=%13%\\helper.exe" ;	// 元候補の補助媒体です
+			std::string registered = body ;			// 現用側の独立INFを構築する
+			registered.replace(
+				registered.find( binary), binary.size(),
+				"ServiceBinary=%13%\\OldMedia\\helper.exe\r\nLoadOrderGroup=Event log") ;
+			DRIVERCRATE_EXPECT( context,
+							   writeWorkspaceFile( workspace, L"registered.inf", registered)) ;
+			const auto current =
+				// テスト内で固定した旧INFの絶対位置
+				workspace.path( L"registered.inf") ;
+			OfficialDisplayAuxiliaryService declaration ;	// 現用だけの構文証拠
+			DRIVERCRATE_EXPECT( context, readRegisteredDisplayAuxiliaryDeclaration(
+											current, selected.selectedInstallSection,
+											L"FixtureKernel", *auxiliary, declaration) == 0U) ;
+			DRIVERCRATE_EXPECT( context,
+							   declaration.serviceName == auxiliary->serviceName &&
+								   declaration.binarySource == L"OldMedia\\helper.exe" &&
+								   declaration.loadOrderGroup == L"Event log" &&
+								   declaration.categoryMessageFile == auxiliary->messageFile &&
+								   declaration.eventValues.size() == 1U &&
+								   declaration.eventValues.front().first == L"TypesSupported" &&
+								   declaration.eventValues.front().second == 7U) ;
+			DRIVERCRATE_EXPECT( context, readRegisteredDisplayAuxiliaryDeclaration(
+											current, selected.selectedInstallSection,
+											L"ForeignKernel", *auxiliary, declaration) != 0U &&
+											declaration.serviceName.empty()) ;
+			DRIVERCRATE_EXPECT( context, readRegisteredDisplayAuxiliaryDeclaration(
+											current, L"OtherInstall", L"FixtureKernel", *auxiliary,
+											declaration) != 0U) ;
+			auto foreign		= *auxiliary ;	// 現用側の別イベントへの紐付けを拒む対照
+			foreign.eventSource = L"Foreign Event" ;
+			DRIVERCRATE_EXPECT( context, readRegisteredDisplayAuxiliaryDeclaration(
+											current, selected.selectedInstallSection,
+											L"FixtureKernel", foreign, declaration) != 0U) ;
+			constexpr std::string_view oldBinary =
+				"ServiceBinary=%13%\\OldMedia\\helper.exe" ;	// 旧媒体の負例置換位置
+			registered.replace( registered.find( oldBinary), oldBinary.size(),
+							   "ServiceBinary=%13%\\..\\helper.exe") ;
+			DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"foreign.inf", registered)) ;
+			DRIVERCRATE_EXPECT( context,
+							   readRegisteredDisplayAuxiliaryDeclaration(
+								   workspace.path( L"foreign.inf"), selected.selectedInstallSection,
+								   L"FixtureKernel", *auxiliary, declaration) != 0U) ;
+		}
+	}
+
 	DRIVERCRATE_EXPECT( context, selected.hasUnassessedProgramReferences) ;
 	DRIVERCRATE_EXPECT( context, diagnostic.path == 2U &&
 									(accepted ? diagnostic.rejection == InfBindingReject::NONE
@@ -2253,12 +2385,937 @@ void windowsScopeCase( TestContext &context, std::string_view before, std::strin
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 親の必須IDから現在OSの子の節を選び、空サービスを厳密に検査する
+ * @param[in,out] context このprocessの有限集計先
+ */
+//------------------------------------------------------------------------------
+void requiredSoftwareComponentScope( TestContext &context)
+{
+	constexpr std::string_view fixture = R"inf([Version]
+Signature="$Windows NT$"
+Class=SoftwareComponent
+ClassGuid={5c4c3332-344d-483c-8739-259e934c9cc8}
+Provider=Fixture
+DriverVer=10/01/2026,1.2.3.4
+CatalogFile=sample.cat
+[Manufacturer]
+Fixture=Models,NTamd64
+[Models.NTamd64]
+FixtureOne=Selected,SWC\FixtureMain,SWC\FixtureCompatible
+FixtureTwo=Other,SWC\FixtureOther
+[Selected.NT]
+CopyFiles=Files
+[Selected.NT.Services]
+AddService=,2
+[Other.NT]
+CopyFiles=Files
+[Other.NT.Services]
+AddService=,2
+[DestinationDirs]
+Files=13
+[Files]
+helper.dll
+[SourceDisksNames]
+1=Fixture
+[SourceDisksFiles]
+helper.dll=1
+)inf" ;																			// 端末の実IDを含まない純粋な元INFです
+	constexpr std::array classes{std::wstring_view( L"SoftwareComponent")} ;	// 正式な子のクラスです
+	constexpr std::array signatures{std::wstring_view( L"$Windows NT$")} ;		// Windows INFの元形式です
+	OfficialInfInspectionPolicy policy{32U, 32U, classes, {}, signatures} ;		// 同じ子の通常内容検査
+	policy.acceptAnyProvider					   = true ;
+	policy.requireDriverBinary					   = false ;
+	policy.rejectInstallActions					   = true ;
+	policy.allowRequiredDriverComponents		   = true ;
+	policy.allowWindowsManagedDriverDataForContent = true ;
+	const std::array mainIds{std::wstring( L"SWC\\FixtureMain")} ;				// 一つの正しい親の元IDです
+	const std::array compatibleIds{std::wstring( L"SWC\\FixtureCompatible")} ;	// 主IDでない元欄
+	const std::array ambiguousIds{std::wstring( L"SWC\\FixtureMain"),
+								  // 異なる作用に到達する元IDです
+								  std::wstring( L"SWC\\FixtureOther")} ;
+	// 同じ元INFの単独空サービスと、同節内で重複する空サービスを別の保護領域で確かめる
+	for( const bool duplicate : {false, true}) {
+		OfficialDownloadWorkspace workspace ;	// 架空の閉包を同ケースだけ所有する領域
+		DRIVERCRATE_EXPECT( context, workspace.initialize( L"required-swc-fixture",
+														 duplicate ? 71232U : 71231U) == 0) ;
+		std::string body( fixture) ;	// 一つの条件だけを変える元バイト
+		// 選択節の最初の空サービスを重複させる
+		if( duplicate) {
+			body.insert( body.find( "AddService="), "AddService=,2\n") ;
+		}
+
+		constexpr std::array names{L"sample.inf", L"sample.cat", L"helper.dll"} ;	// 全参照
+		const std::array<std::string_view, 3U> payloads{body, "unsigned",
+														"driver data"} ;	// 内容のみの試験
+		std::vector<OfficialZipEntry>		   entries ;					// 実バイトのサイズとSHA-256を保持する閉包
+		// Windowsが開く元実ファイルと全ファイルのハッシュを用意する
+		for( std::size_t index = 0U; index < names.size(); ++index) {
+			DRIVERCRATE_EXPECT( context,
+							   writeWorkspaceFile( workspace, names[index], payloads[index])) ;
+			OfficialZipEntry entry{names[index], payloads[index].size()} ;	// 同元ファイルの記録
+			DRIVERCRATE_EXPECT( context,
+							   computeFileSha256( workspace.path( names[index]), entry.sha256) == 0) ;
+			entries.push_back( std::move( entry)) ;
+		}
+
+		OfficialInfPackage original ;	// 同じ子の内容検査結果です。導入権限を持ちません
+		const auto		   error =
+			inspectOfficialInfPackage( workspace, entries, L"sample.inf", policy,
+									  original) ;	// 子の内容を先に検査したときの元HRESULT
+		context.expect( error == 0U, "Required SWC fixture content " + std::to_string( error),
+					   __FILE__, __LINE__) ;
+		// 元内容が成立しなければ以降の選択と作用検査へ進めない
+		if( error != 0U) {
+			continue ;
+		}
+
+		OfficialInfPackage selected ;	// 同じ子の一意な導入節に結ぶ読取り結果です
+		DRIVERCRATE_EXPECT( context, inspectRequiredOfficialInfComponentSelection(
+										workspace, entries, original, mainIds, selected) == 0U) ;
+		DRIVERCRATE_EXPECT( context, selected.selectedBasicSection == L"Selected" &&
+										selected.selectedInstallSection == L"Selected.NT" &&
+										!selected.selectedNativeRank) ;
+		DRIVERCRATE_EXPECT( context, (inspectSelectedWindowsDriverPackageScope(
+										 workspace, entries, selected) == 0U) != duplicate) ;
+		const auto installed = workspace.path( L"sample.inf") ;	// 同じ署名試験用の元子INF
+		DRIVERCRATE_EXPECT(
+			context, verifyRegisteredSoftwareComponentModel( installed, mainIds.front(), L"Selected",
+															L"Selected.NT") == 0U) ;
+		DRIVERCRATE_EXPECT(
+			context, verifyRegisteredSoftwareComponentModel( installed, mainIds.front(),
+															L"Selected.NT", L"Selected.NT") == 0U) ;
+		DRIVERCRATE_EXPECT( context, verifyRegisteredSoftwareComponentModel(
+										installed, compatibleIds.front(), L"Selected",
+										L"Selected.NT") == nativeErrorFromWin32( ERROR_NOT_FOUND)) ;
+		DRIVERCRATE_EXPECT( context, verifyRegisteredSoftwareComponentModel(
+										installed, mainIds.front(), L"Other", L"Other.NT") != 0U) ;
+		DRIVERCRATE_EXPECT( context,
+						   verifyRegisteredSoftwareComponentModel( installed, mainIds.front(),
+																  L"Selected", L"Selected") != 0U) ;
+		DRIVERCRATE_EXPECT( context, inspectRequiredOfficialInfComponentSelection(
+										workspace, entries, original, compatibleIds, selected) ==
+											nativeErrorFromWin32( ERROR_NOT_FOUND) &&
+										selected.selectedInstallSection.empty()) ;
+		DRIVERCRATE_EXPECT( context, inspectRequiredOfficialInfComponentSelection(
+										workspace, entries, original, ambiguousIds, selected) ==
+											nativeErrorFromWin32( ERROR_DUP_NAME) &&
+										selected.selectedInstallSection.empty()) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用INFの共用宣言と対象の子だけが行う有限レジストリ登録を区別する
+ * @param[in,out] context このprocessの有限集計先
+ */
+//------------------------------------------------------------------------------
+void verifyDisplayPeerInfUse( TestContext &context)
+{
+	constexpr std::string_view registered = R"inf([Version]
+Signature="$Windows NT$"
+[Install.NT]
+AddReg=WriteRegistration
+[Install.NT.Services]
+AddService=,2,
+[WriteRegistration]
+HKLM,System\CurrentControlSet\Services\Fixture Auxiliary,CheckRegistration,0x00000000,%13%
+[Other.NT]
+Include=dependency.inf
+[Other.NT.HW]
+Needs=OtherDevice
+[Other.NT.Services]
+AddService=Elsewhere,0,OtherService,EventInstall,Application,Fixture Event
+[OtherService]
+ServiceType=16
+[EventInstall]
+AddReg=EventRows
+[EventRows]
+HKR,,TypesSupported,0x00010001,7
+[Unreachable]
+AddService=Fixture Auxiliary,0,OtherService
+)inf" ;										// 現用子・別イベント・非選択サービスを含む原構造
+	OfficialDownloadWorkspace workspace ;	// 架空の読取り元を同ケース内で保持する
+	DRIVERCRATE_EXPECT( context, workspace.initialize( L"display-peer-scope", 71246U) == 0U) ;
+	DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"sample.inf", registered)) ;
+	OfficialDisplayAuxiliaryService target ;	// 変更先の元サービスとApplication源を分ける
+	target.serviceName = L"Fixture Auxiliary" ;
+	target.eventSource = L"Fixture Event" ;
+	const auto	  path = workspace.path( L"sample.inf") ;	// 選択と全節で同じ元INFを読む
+	DisplayInfUse use ;										// 選択関係と重複の観測
+	DRIVERCRATE_EXPECT( context,
+					   inspectRegisteredDisplayInfUse( path, L"Install.NT", target, use) == 0U &&
+						   use.serviceRegistry && use.scopedChildRegistration &&
+						   !use.serviceDeclaration && !use.applicationEvent) ;
+	DRIVERCRATE_EXPECT( context,
+					   inspectRegisteredDisplayInfUse( path, L"Other.NT", target, use) == 0U &&
+						   use.applicationEvent && !use.serviceDeclaration &&
+						   !use.scopedChildRegistration && use.includeFiles.size() == 1U &&
+						   use.includeFiles.front() == L"dependency.inf") ;
+	DRIVERCRATE_EXPECT( context, inspectRegisteredDisplayInfUse( path, {}, target, use) == 0U &&
+									use.serviceRegistry && use.applicationEvent &&
+									use.serviceDeclaration && !use.scopedChildRegistration) ;
+	DRIVERCRATE_EXPECT(
+		context, inspectRegisteredDisplayInfUse( path, L"Missing.NT", target, use) != 0U &&
+					 !use.serviceRegistry && !use.applicationEvent && !use.serviceDeclaration) ;
+	std::string literalDot{registered} ;	// SetupAPI展開後が等しくても元DIRIDのない対照
+	literalDot.replace( literalDot.find( "%13%"), 4U, ".") ;
+	DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, L"literal.inf", literalDot)) ;
+	DRIVERCRATE_EXPECT( context, inspectRegisteredDisplayInfUse( workspace.path( L"literal.inf"),
+															   L"Install.NT", target, use) == 0U &&
+									use.serviceRegistry && !use.scopedChildRegistration) ;
+
+	const std::wstring id = L"SWC\\FixtureChild" ;	// 架空の現用子で確認した唯一の主ID
+	std::vector<OfficialInfComponentReference> installed{
+		{L"FixtureComponent", {id}}} ;				// 署名元を想定した旧親の宣言
+	std::vector<OfficialInfPackage> packages( 2U) ;	// 選択親を先頭にした新署名候補の模擬入力
+	packages[0].requiredComponents	   = installed ;
+	packages[0].activeRequiredInfPaths = {L"SAMPLE.INF"} ;
+	packages[1].role				   = DriverPlanRole::DRIVER_COMPONENT ;
+	packages[1].hardwareIds			   = {id} ;
+	packages[1].selectedInstallSection = L"Install.NT" ;
+	packages[1].infRelativePath		   = L"sample.inf" ;
+	// 元の大文字小文字が異なる同じCopyINFは、Windowsの同じ元参照として扱う
+	DRIVERCRATE_EXPECT(
+		context, verifyDisplayPeerCandidateChild( workspace, installed, packages, id, target) == 0U) ;
+	DRIVERCRATE_EXPECT( context,
+					   verifyDisplayPeerCandidateChild( workspace, installed, packages,
+													   L"SWC\\ForeignChild", target) != 0U) ;
+	installed.push_back( {L"DuplicateComponent", {id}}) ;
+	DRIVERCRATE_EXPECT(
+		context, verifyDisplayPeerCandidateChild( workspace, installed, packages, id, target) != 0U) ;
+	installed.pop_back() ;
+	packages[0].requiredComponents.front().name = L"ChangedComponent" ;
+	DRIVERCRATE_EXPECT(
+		context, verifyDisplayPeerCandidateChild( workspace, installed, packages, id, target) != 0U) ;
+	packages[0].requiredComponents = installed ;
+	packages.push_back( OfficialInfPackage{packages[1]}) ;
+	DRIVERCRATE_EXPECT(
+		context, verifyDisplayPeerCandidateChild( workspace, installed, packages, id, target) != 0U) ;
+	packages.pop_back() ;
+	packages[0].activeRequiredInfPaths.clear() ;
+	DRIVERCRATE_EXPECT(
+		context, verifyDisplayPeerCandidateChild( workspace, installed, packages, id, target) != 0U) ;
+	packages[0].activeRequiredInfPaths = {L"sample.inf"} ;
+	packages[1].selectedInstallSection = L"Other.NT" ;
+	DRIVERCRATE_EXPECT(
+		context, verifyDisplayPeerCandidateChild( workspace, installed, packages, id, target) != 0U) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元Type 1の独立版、引数と選択元バイトの確認を回帰検証する
+ * @param[in,out] context このprocessの有限集計先
+ */
+//------------------------------------------------------------------------------
+void verifySelectedType1Registration( TestContext &context)
+{
+	constexpr std::string_view fixture = R"inf([Version]
+Signature="$Windows NT$"
+Class=SoftwareComponent
+ClassGuid={5c4c3332-344d-483c-8739-259e934c9cc8}
+Provider=Fixture
+DriverVer=10/01/2026,1.2.3.4
+CatalogFile=sample.cat
+[Manufacturer]
+Fixture=Models,NTamd64
+[Models.NTamd64]
+Fixture=Selected,SWC\FixtureComponent
+[Selected.NT]
+CopyFiles=Files,NativeCopy,WowCopy
+[Selected.NT.Services]
+AddService=,2
+[Selected.NT.Software]
+AddSoftware=FixtureRegistration,1,Registration
+[Registration]
+SoftwareType=1
+SoftwareVersion=5.6.7.8
+SoftwareBinary=fixture.exe
+SoftwareArguments=x,fixture-extra
+[DestinationDirs]
+Files=13
+NativeCopy=11
+WowCopy=10,SysWOW64
+[Files]
+fixture.exe
+[NativeCopy]
+fixture-shared.dll,fixture-native.dll,,0x00004020
+[WowCopy]
+fixture-shared.dll,fixture-wow.dll,,0x00004040
+[SourceDisksNames]
+1=Fixture
+[SourceDisksFiles]
+fixture.exe=1
+fixture-native.dll=1
+fixture-wow.dll=1
+)inf" ;										// 署名と実行を伴わない架空のWindows宣言
+	OfficialDownloadWorkspace  workspace ;	// 試験用元ファイルを同期中だけ所有する
+	DRIVERCRATE_EXPECT( context, workspace.initialize( L"selected-type1-fixture", 71253U) == 0U) ;
+	constexpr std::array names{L"sample.inf", L"sample.cat", L"fixture.exe", L"fixture-native.dll",
+							   L"fixture-wow.dll"} ;	// 架空の元閉包の全ファイル
+	constexpr std::array<std::string_view, 5U> payloads{fixture, "sample catalog",
+														"opaque sample binary", "native payload",
+														"wow64 payload"} ;	// 実行しない固定バイト
+	std::vector<OfficialZipEntry>			   entries ;					// 同じ試験用の元サイズとハッシュ
+	// 元INFと実行物の全バイトを同じ試験領域に結ぶ
+	for( std::size_t index = 0U; index < names.size(); ++index) {
+		DRIVERCRATE_EXPECT( context, writeWorkspaceFile( workspace, names[index], payloads[index])) ;
+		OfficialZipEntry entry{names[index], payloads[index].size()} ;	// 元の長さと媒体の位置
+		DRIVERCRATE_EXPECT( context,
+						   computeFileSha256( workspace.path( names[index]), entry.sha256) == 0U) ;
+		entries.push_back( std::move( entry)) ;
+	}
+
+	constexpr std::array classes{
+		std::wstring_view{L"SoftwareComponent"}} ;									// 読み取る署名パッケージの想定クラス
+	constexpr std::array		signatures{std::wstring_view{L"$Windows NT$"}} ;	// 元のINF形式
+	OfficialInfInspectionPolicy policy{32U, 32U, classes, {}, signatures} ;			// 非実行の元構造検査
+	policy.acceptAnyProvider					   = true ;
+	policy.requireDriverBinary					   = false ;
+	policy.rejectInstallActions					   = true ;
+	policy.rejectUnreferencedPrograms			   = false ;
+	policy.allowReferencedExecutablesForContent	   = true ;
+	policy.allowRequiredDriverComponents		   = true ;
+	policy.allowWindowsManagedDriverDataForContent = true ;
+	OfficialInfPackage original ;	// 元子の内容検査を通った値
+	const auto		   parsed =
+		// 元構造の結果
+		inspectOfficialInfPackage( workspace, entries, names[0], policy, original) ;
+	context.expect( parsed == 0U, "Type 1 fixture content error " + std::to_string( parsed), __FILE__,
+				   __LINE__) ;
+	// 元内容が成立しなければ選択済みの正例に数えない
+	if( parsed != 0U) {
+		return ;
+	}
+
+	const std::array ids{std::wstring{L"SWC\\FixtureComponent"}} ;	// 同じ親が指定する架空の子の主ID
+	OfficialInfPackage selected ;									// 同じ元INFで選んだ実導入節
+	DRIVERCRATE_EXPECT( context, inspectRequiredOfficialInfComponentSelection(
+									workspace, entries, original, ids, selected) == 0U) ;
+	OfficialType1Registration registration ;	// 同じ元宣言とハッシュの読取り結果
+	DRIVERCRATE_EXPECT( context, readSelectedOfficialType1Registration( workspace, entries, selected,
+																	  registration) == 0U) ;
+	DRIVERCRATE_EXPECT(
+		context, registration.softwareName == L"FixtureRegistration" && registration.perDevice &&
+					 registration.softwareVersion == L"5.6.7.8" &&
+					 registration.softwareBinary == names[2] &&
+					 registration.binarySource == names[2] &&
+					 registration.binarySha256 == entries[2].sha256 &&
+					 registration.binaryBytes == payloads[2].size() &&
+					 registration.arguments == std::vector<std::wstring>( {L"x", L"fixture-extra"})) ;
+	DRIVERCRATE_EXPECT( context, registration.sharedCopies.size() == 2U) ;
+	// アーキテクチャの異なる同名宛先が別の元フラグと全バイトに結び付くことを確認する
+	if( registration.sharedCopies.size() == 2U) {
+		const auto &native = registration.sharedCopies[0] ;	// 正規System32宛先
+		const auto &wow	   = registration.sharedCopies[1] ;	// 正規SysWOW64宛先
+		DRIVERCRATE_EXPECT(
+			context, native.dirid == 11 && native.flags == 0x4020U && native.source == names[3] &&
+						 native.sha256 == entries[3].sha256 && native.bytes == payloads[3].size() &&
+						 native.target.ends_with( L"\\fixture-shared.dll")) ;
+		DRIVERCRATE_EXPECT( context, wow.dirid == 10 && wow.flags == 0x4040U &&
+										wow.source == names[4] && wow.sha256 == entries[4].sha256 &&
+										wow.bytes == payloads[4].size() &&
+										wow.target.ends_with( L"\\fixture-shared.dll") &&
+										wow.target != native.target) ;
+		ProtectedExecutableSnapshot misplaced ;	// 別の正規親を指定して拒否と空結果を確認
+		DRIVERCRATE_EXPECT( context,
+						   readWindowsSharedDriverFileSnapshot( wow.target, false, misplaced) ==
+								   nativeErrorFromWin32( ERROR_INVALID_NAME) &&
+							   misplaced.directorySecurity.empty()) ;
+	}
+
+	RequiredInfBindingDiagnostic diagnostic ;	// 読取りで一般の実行範囲制約を変更しないことを観測する
+	DRIVERCRATE_EXPECT( context, inspectSelectedWindowsDriverPackageScope(
+									workspace, entries, selected, &diagnostic) != 0U &&
+									static_cast<std::uint32_t>( diagnostic.rejection) == 204U) ;
+	const auto reviewed = registration ;	// 到達先の確認へ渡した同じ元INF・実行物と宣言を模擬
+	DRIVERCRATE_EXPECT( context, reviewed.infRelativePath == selected.infRelativePath &&
+									reviewed.infSha256 == entries[0].sha256 &&
+									reviewed.basicSection == selected.selectedBasicSection &&
+									reviewed.installSection == selected.selectedInstallSection &&
+									reviewed.softwareVersion != selected.driverVersion) ;
+	DRIVERCRATE_EXPECT( context,
+					   inspectSelectedWindowsDriverPackageScope( workspace, entries, selected,
+																nullptr, nullptr, &reviewed) == 0U) ;
+
+	auto changed			= reviewed ;	// 観測済み宣言の一部だけを入れ替えた退行対照
+	changed.softwareVersion = selected.driverVersion ;
+	DRIVERCRATE_EXPECT( context,
+					   inspectSelectedWindowsDriverPackageScope( workspace, entries, selected,
+																nullptr, nullptr, &changed) != 0U) ;
+	changed = reviewed ;
+	std::ranges::reverse( changed.arguments) ;
+	DRIVERCRATE_EXPECT( context,
+					   inspectSelectedWindowsDriverPackageScope( workspace, entries, selected,
+																nullptr, nullptr, &changed) != 0U) ;
+	changed = reviewed ;
+	changed.installSection += L".FixtureOther" ;
+	DRIVERCRATE_EXPECT( context,
+					   inspectSelectedWindowsDriverPackageScope( workspace, entries, selected,
+																nullptr, nullptr, &changed) != 0U) ;
+	changed			  = reviewed ;
+	changed.infSha256 = std::wstring( 64U, L'a') ;
+	DRIVERCRATE_EXPECT( context,
+					   inspectSelectedWindowsDriverPackageScope( workspace, entries, selected,
+																nullptr, nullptr, &changed) != 0U) ;
+	changed			  = reviewed ;
+	changed.perDevice = false ;
+	DRIVERCRATE_EXPECT( context,
+					   inspectSelectedWindowsDriverPackageScope( workspace, entries, selected,
+																nullptr, nullptr, &changed) != 0U) ;
+
+	entries[2].sha256.front() = entries[2].sha256.front() == L'0' ? L'1' : L'0' ;
+	DRIVERCRATE_EXPECT( context,
+					   inspectSelectedWindowsDriverPackageScope( workspace, entries, selected,
+																nullptr, nullptr, &reviewed) != 0U) ;
+	DRIVERCRATE_EXPECT( context, readSelectedOfficialType1Registration( workspace, entries, selected,
+																	  registration) != 0U &&
+									registration.softwareName.empty()) ;
+	DRIVERCRATE_EXPECT( context,
+					   computeFileSha256( workspace.path( names[2]), entries[2].sha256) == 0U) ;
+	entries[3].sha256.front() = entries[3].sha256.front() == L'0' ? L'1' : L'0' ;
+	DRIVERCRATE_EXPECT( context,
+					   inspectSelectedWindowsDriverPackageScope( workspace, entries, selected,
+																nullptr, nullptr, &reviewed) != 0U) ;
+	DRIVERCRATE_EXPECT( context, readSelectedOfficialType1Registration( workspace, entries, selected,
+																	  registration) != 0U &&
+									registration.softwareName.empty() &&
+									registration.sharedCopies.empty()) ;
+	DRIVERCRATE_EXPECT( context,
+					   computeFileSha256( workspace.path( names[3]), entries[3].sha256) == 0U) ;
+	entries.pop_back() ;
+	DRIVERCRATE_EXPECT( context, readSelectedOfficialType1Registration( workspace, entries, selected,
+																	  registration) != 0U &&
+									registration.binarySource.empty()) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Type 1のクラス登録と現在のPnPが同じ署名済み親子への一経路を示す条件を回帰確認する
+ * @param[in,out] context このprocessの有限集計先
+ */
+//------------------------------------------------------------------------------
+void verifyDisplayType1Binding( TestContext &context)
+{
+	constexpr std::wstring_view parent	= L"FIXTURE\\PARENT" ;		// 選択した架空Display
+	constexpr std::wstring_view child	= L"FIXTURE\\CHILD" ;		// 同じDisplay直下の架空必須子
+	constexpr std::wstring_view childId = L"SWC\\FixtureCL_child" ;	// 子の署名元と一致する一意な主ID
+	// 正規登録先と照合する架空の署名元INF
+	constexpr std::wstring_view storeInf = L"C:\\Fixture\\FileRepository\\child_amd64\\child.inf" ;
+	constexpr std::array		families{
+		   std::wstring_view{L"SWC\\FixtureCL"},
+		   std::wstring_view{L"SWC\\FixtureGL"}} ;	// 同じ実行物が走査する架空接頭辞
+	const DisplayType1ClassSnapshot originalClasses{
+		L"ControlSet001",
+		{},
+		{{L"0007", std::wstring{childId}, L"C:\\Fixture\\FileRepository\\child_amd64\\", {}},
+		 {L"0009", L"SWC\\UNRELATED_CHILD", std::nullopt, {}}}} ;	// 一件だけが対象となる全クラス登録
+	const DisplayType1Topology originalTopology{
+		3U,
+		{{std::wstring{child}, std::wstring{childId},
+		  L"{5c4c3332-344d-483c-8739-259e934c9cc8}\\0007", std::wstring{parent},
+		  L"{4d36e968-e325-11ce-bfc1-08002be10318}\\0002"}}} ;	// 同じ現在PnPの経路
+	auto		 classes  = originalClasses ;					// ケースごとに差し替える架空クラス登録
+	auto		 topology = originalTopology ;					// ケースごとに差し替える架空PnP経路
+	std::wstring parentDriver ;									// 成立時だけ返される相対Display登録キー
+	const auto	 verify = [&] {
+		  return verifyDisplayType1ParentBinding( classes, topology, families, parent, child, childId,
+												 storeInf, parentDriver) ;
+	} ; // この試験中だけ比較対象と観測結果を借用する
+
+	DRIVERCRATE_EXPECT( context,
+					   verify() == 0U && parentDriver == topology.paths.front().parentDriver) ;
+	classes.registrations.front().matchingId = L"swc\\fixturecl_CHILD" ;
+	DRIVERCRATE_EXPECT( context, verify() == 0U && !parentDriver.empty()) ;
+	topology.paths.push_back( topology.paths.front()) ;
+	DRIVERCRATE_EXPECT( context, verify() == nativeErrorFromWin32( ERROR_SHARING_VIOLATION) &&
+									parentDriver.empty()) ;
+	topology								= originalTopology ;
+	classes.registrations.back().matchingId = L"SWC\\FixtureGL_stale" ;
+	DRIVERCRATE_EXPECT( context, verify() == nativeErrorFromWin32( ERROR_SHARING_VIOLATION) &&
+									parentDriver.empty()) ;
+	classes								  = originalClasses ;
+	topology.paths.front().parentInstance = L"FIXTURE\\UNSELECTED_PARENT" ;
+	DRIVERCRATE_EXPECT( context,
+					   verify() == nativeErrorFromWin32( ERROR_RETRY) && parentDriver.empty()) ;
+	topology								  = originalTopology ;
+	topology.paths.front().childDriver.back() = L'9' ;
+	DRIVERCRATE_EXPECT( context, verify() == nativeErrorFromWin32( ERROR_SHARING_VIOLATION) &&
+									parentDriver.empty()) ;
+	topology							   = originalTopology ;
+	topology.paths.front().firstHardwareId = L"SWC\\FixtureCL_other" ;
+	DRIVERCRATE_EXPECT( context,
+					   verify() == nativeErrorFromWin32( ERROR_RETRY) && parentDriver.empty()) ;
+	topology								= originalTopology ;
+	classes.registrations.front().storePath = L"C:\\Fixture\\FileRepository\\old_amd64\\" ;
+	DRIVERCRATE_EXPECT( context,
+					   verify() == nativeErrorFromWin32( ERROR_RETRY) && parentDriver.empty()) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Type 1の参照先、元REG_SZの境界と旧マーカーを決定的に検証する
+ * @param[in,out] context このprocessの有限集計先
+ */
+//------------------------------------------------------------------------------
+void verifyDisplayType1ReflectedRegistry( TestContext &context)
+{
+	constexpr wchar_t native[] =
+		L"C:\\Fixture\\FileRepository\\new_child\\native.dll" ;	// 新しい64ビット元
+	constexpr wchar_t wow[] =
+		L"C:\\Fixture\\FileRepository\\new_child\\wow.dll" ;	// 新しい32ビット元
+	constexpr wchar_t old[] =
+		L"C:\\Fixture\\FileRepository\\old_child\\native.dll" ;	// 同じ葉を持つ旧元
+	const auto makeValue = []( std::span<const wchar_t> value) {
+		const auto bytes = std::as_bytes( value) ;	// コピーする架空のUTF-16全バイト
+		return DisplayType1RegistryValue{REG_SZ, {bytes.begin(), bytes.end()}} ;
+	} ; // 終端の違いを保持した型付き値を作る
+	const auto originalNative =
+		// 元EXEと同じ終端なし
+		makeValue( std::span{native}.first( std::size( native) - 1U)) ;
+	const auto originalWow = makeValue( wow) ;	// Windowsから終端付きで返された場合の値
+	DisplayType1RegistrySnapshot registry ;		// ケースごとに差し替える架空親の観測
+	registry.openClDriverName	 = originalNative ;
+	registry.openClDriverNameWow = originalWow ;
+	DRIVERCRATE_EXPECT( context, matchesDisplayType1ReflectedRegistry( registry, native, wow)) ;
+	registry.openClDriverName = makeValue( old) ;
+	DRIVERCRATE_EXPECT( context, !matchesDisplayType1ReflectedRegistry( registry, native, wow)) ;
+	registry.openClDriverName		   = originalNative ;
+	registry.openClDriverNameWow->type = REG_EXPAND_SZ ;
+	DRIVERCRATE_EXPECT( context, !matchesDisplayType1ReflectedRegistry( registry, native, wow)) ;
+	registry.openClDriverNameWow = originalWow ;
+	registry.openClDriverNameWow->bytes.push_back( std::byte{}) ;
+	DRIVERCRATE_EXPECT( context, !matchesDisplayType1ReflectedRegistry( registry, native, wow)) ;
+	registry.openClDriverNameWow = originalWow ;
+	registry.openClDriverName->bytes.push_back( std::byte{1U}) ;
+	registry.openClDriverName->bytes.push_back( std::byte{}) ;
+	DRIVERCRATE_EXPECT( context, !matchesDisplayType1ReflectedRegistry( registry, native, wow)) ;
+	registry.openClDriverName = originalNative ;
+	registry.serviceCheckRegistration.emplace() ;
+	DRIVERCRATE_EXPECT( context, !matchesDisplayType1ReflectedRegistry( registry, native, wow)) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 共有先の内容、保護と二回の事後照合を宛先ごとに回帰検証する
+ * @param[in,out] context 同じ試験process内の集計先
+ */
+//------------------------------------------------------------------------------
+void verifyDisplayType1SharedCopyObservations( TestContext &context)
+{
+	std::array copies{OfficialSoftwareComponentSharedCopy{L"fixture-native.dll",
+														  LR"(C:\Fixture\Native\shared.dll)", 11,
+														  0x4020U, 24U, std::wstring( 64U, L'1')},
+					  OfficialSoftwareComponentSharedCopy{
+						  L"fixture-wow.dll", LR"(C:\Fixture\Wow\shared.dll)", 10, 0x4020U, 27U,
+						  // 同じ葉の別宛先
+						  std::wstring( 64U, L'a')}} ;
+	std::array<ProtectedExecutableSnapshot, 2U> before ;	// 保護された旧配置の事前証拠
+	// 両方の旧配置を元と違う同サイズの内容にし、各宛先の元保護を保持する
+	for( std::size_t i = 0U; i < copies.size(); ++i) {
+		auto &file			   = before[i] ;	// この宛先のコピー前の型付き証拠
+		file.directorySecurity = {std::byte{1U}} ;
+		file.existing.emplace() ;
+		file.existing->bytes = copies[i].bytes ;
+		file.existing->sha256.assign( 64U, L'B') ;
+		file.existing->fileId[0] = 1U ;
+	}
+
+	auto applied				= before ;	// 所有者が異なる旧ファイルから正規の置換を再現する
+	applied[0].existing->sha256 = copies[0].sha256 ;
+	applied[1].existing->sha256.assign( 64U, L'A') ;
+	applied[0].existing->fileId[0] = 2U ;
+	applied[1].existing->fileId[0] = 3U ;
+	auto		rounds = std::array{applied, applied} ;	// 同じ全順序で返す二回の完了後観測
+	std::size_t calls{} ;								// ネイティブ読取りの呼出し順と有限上限を記録する
+	bool		failFinal{} ;							// 二回目の末尾の元I/Oエラーを注入する
+	const DisplayType1SharedFileRead read = [&]( std::wstring_view path, bool wow,
+												ProtectedExecutableSnapshot &snapshot) {
+		const auto round = calls / copies.size() ;	// 各全件読取りの回数
+		const auto slot	 = calls % copies.size() ;	// この回に読む署名済みの宛先の順序
+		++calls ;
+		// 正しい順序とアーキテクチャを使わない読取りを試験成功にしない
+		if( round >= rounds.size() || path != copies[slot].target || wow != (slot == 1U)) {
+			return static_cast<NativeError>( E_INVALIDARG) ;
+		}
+
+		// 最後の読みで元の拒否コードを失わないことを確認する
+		if( failFinal && round == 1U && slot == 1U) {
+			return static_cast<NativeError>( E_ACCESSDENIED) ;
+		}
+
+		snapshot = rounds[round][slot] ;
+		return 0 ;
+	} ; // 同期検証中だけ各対照の証拠と回数を借用する
+	const auto verify = [&] {
+		calls = 0U ;
+		return verifyDisplayType1SharedCopies( copies, before, read) ;
+	} ; // 対照ごとの読み順を同じ初期状態にする
+
+	DRIVERCRATE_EXPECT( context, verify() == S_OK && calls == 4U) ;
+	rounds = {before, before} ;
+	DRIVERCRATE_EXPECT( context, verify() == S_FALSE && calls == 4U) ;
+	rounds = {applied, applied} ;
+	rounds[0][1].existing.reset() ;
+	rounds[1][1].existing.reset() ;
+	DRIVERCRATE_EXPECT( context, verify() == S_FALSE && calls == 4U) ;
+	rounds = {applied, applied} ;
+	++rounds[0][1].existing->bytes ;
+	++rounds[1][1].existing->bytes ;
+	DRIVERCRATE_EXPECT( context, verify() == S_FALSE && calls == 4U) ;
+	rounds = {applied, applied} ;
+	++rounds[1][1].existing->fileId[0] ;
+	DRIVERCRATE_EXPECT( context, verify() == nativeErrorFromWin32( ERROR_RETRY) && calls == 4U) ;
+	rounds								   = {applied, applied} ;
+	rounds[0][0].directorySecurity.front() = std::byte{4U} ;
+	DRIVERCRATE_EXPECT( context, verify() == nativeErrorFromWin32( ERROR_RETRY) && calls == 1U) ;
+	rounds	  = {applied, applied} ;
+	failFinal = true ;
+	DRIVERCRATE_EXPECT( context, verify() == E_ACCESSDENIED && calls == 4U) ;
+	calls = 0U ;
+	DRIVERCRATE_EXPECT( context, verifyDisplayType1SharedCopies( {}, {}, read) == E_INVALIDARG) ;
+	DRIVERCRATE_EXPECT( context, verifyDisplayType1SharedCopies( copies, std::span{before}.first( 1U),
+															   read) == E_INVALIDARG &&
+									calls == 0U) ;
+	copies[1].dirid = 13 ;
+	DRIVERCRATE_EXPECT( context, verify() == E_INVALIDARG && calls == 1U) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 過去のイベント、別対象、実行失敗と反映待ちを同じ成功にしないことを確認する
+ * @param[in,out] context このprocessの有限集計先
+ */
+//------------------------------------------------------------------------------
+void verifyDisplayType1InstallEvents( TestContext &context)
+{
+	const std::wstring_view name  = L"FixtureRegistration" ;	// 架空の元ソフトウェア名
+	const std::wstring_view child = L"FIXTURE\\CHILD\\1" ;		// 元候補の架空の対象子
+	const std::wstring_view binary =
+		L"C:\\Fixture Windows\\System32\\DriverStore\\FileRepository\\fixture_amd64\\helper.exe" ;	// 元子の完全位置
+	const std::array   arguments{std::wstring{L"x"}} ;												// 元INFが指定した一引数
+	const std::wstring command =
+		L"\"" + std::wstring{binary} + L"\" x" ;	// Windowsの元コマンドと同じ書式の架空値
+	const DisplayType1InstallEvent start{
+		101U, 3U,	   4U, DisplayType1EventKind::STARTED, std::wstring{name},
+		{},	  command, 0U} ;	// 対象の開始
+	const DisplayType1InstallEvent finished{
+		102U, 3U, 4U, DisplayType1EventKind::COMPLETED, std::wstring{name}, std::wstring{child},
+		{},	  0U} ;	// 同じ実行コンテキストの終了
+	DisplayType1InstallObservation observation{100U,  true, name, binary, arguments,
+											   child, true, true, true} ;	// 元変更以降の反映済み事実
+	auto events = std::array{start, finished} ;								// ケースに応じて差し替える固定順の記録
+	DisplayType1EventBoundary before ;										// 最初の変更前に採取した架空の元境界
+	before.record	   = 100U ;
+	before.bookmarkXml = L"Fixture bookmark" ;
+	const auto readWindow =
+		+[]( const DisplayType1EventBoundary		  &bound,
+			std::vector<DisplayType1InstallEvent> &output) noexcept -> NativeError {
+		// 同じ元境界だけを使い、子指定より先に発生した開始とその完了を返す
+		if( bound.record != 100U || bound.bookmarkXml != L"Fixture bookmark") {
+			return E_ACCESSDENIED ;
+		}
+
+		try {
+			output = {
+				{101U,
+				 3U,
+				 4U,
+				 DisplayType1EventKind::STARTED,
+				 L"FixtureRegistration",
+				 {},
+				 LR"("C:\Fixture Windows\System32\DriverStore\FileRepository\fixture_amd64\helper.exe" x)",
+				 0U},
+				{102U,
+				 3U,
+				 4U,
+				 DisplayType1EventKind::COMPLETED,
+				 L"FixtureRegistration",
+				 L"FIXTURE\\CHILD\\1",
+				 {},
+				 0U}} ;
+			return 0U ;
+		} catch( const std::bad_alloc &) {
+			return E_OUTOFMEMORY ;
+		}
+	} ; // 元操作の架空応答。Windowsログは開かない
+	auto post				 = observation ;	// 事後の元条件と読み取り前の未確定な時刻
+	post.afterRecord		 = 102U ;
+	post.streamIntact		 = false ;
+	post.registryReflected	 = false ;
+	post.sharedFilesVerified = false ;
+	DRIVERCRATE_EXPECT( context, observeDisplayType1InstallEvents( before, post, readWindow).state ==
+									DisplayType1InstallState::REFLECTION_PENDING) ;
+	auto staleBoundary	 = before ;	// 別操作の元記録からは完了の証拠を作らない
+	staleBoundary.record = 102U ;
+	const auto stale =
+		// 取得拒否
+		observeDisplayType1InstallEvents( staleBoundary, post, readWindow) ;
+	DRIVERCRATE_EXPECT( context, stale.state == DisplayType1InstallState::UNCONFIRMED &&
+									stale.error == E_ACCESSDENIED) ;
+	const auto missing = observeDisplayType1InstallEvents( {}, post, readWindow) ;	// 実在境界なし
+	DRIVERCRATE_EXPECT( context, missing.state == DisplayType1InstallState::UNCONFIRMED &&
+									missing.error == E_INVALIDARG) ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::REFLECTED) ;
+	DRIVERCRATE_EXPECT(
+		context, classifyDisplayType1Install( observation, std::span{events}.first( 1U)).state ==
+					 DisplayType1InstallState::WAITING) ;
+	DRIVERCRATE_EXPECT( context,
+					   classifyDisplayType1Install( observation, std::span{events}.last( 1U)).state ==
+						   DisplayType1InstallState::UNCONFIRMED) ;
+	observation.afterRecord = finished.record ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::WAITING) ;
+	observation.afterRecord	 = 100U ;
+	observation.streamIntact = false ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::UNCONFIRMED) ;
+	observation.streamIntact = true ;
+	observation.childApplied = false ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::REFLECTION_PENDING) ;
+	observation.childApplied	  = true ;
+	observation.registryReflected = false ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::REFLECTION_PENDING) ;
+	observation.registryReflected	= true ;
+	observation.sharedFilesVerified = false ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::REFLECTION_PENDING) ;
+	observation.sharedFilesVerified = true ;
+	events[1].childInstance += L"0" ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::UNCONFIRMED) ;
+	events[1] = finished ;
+	++events[1].thread ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::UNCONFIRMED) ;
+	events[1] = finished ;
+	events[0].command += L" another" ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::UNCONFIRMED) ;
+	events[0]				 = start ;
+	events[0].command.back() = L'X' ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::UNCONFIRMED) ;
+	events[0] = start ;
+	events[1] = start ;
+	++events[1].record ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::UNCONFIRMED) ;
+	events = {finished, start} ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::UNCONFIRMED) ;
+	events			   = {start, finished} ;
+	events[1].kind	   = DisplayType1EventKind::FAILED ;
+	events[1].error	   = nativeErrorFromWin32( ERROR_ACCESS_DENIED) ;
+	const auto failure = classifyDisplayType1Install( observation, events) ;	// Windowsの原失敗
+	DRIVERCRATE_EXPECT( context, failure.state == DisplayType1InstallState::FAILED &&
+									failure.error == events[1].error) ;
+	events[1].kind	 = DisplayType1EventKind::RETRY_PENDING ;
+	const auto retry = classifyDisplayType1Install( observation, events) ;	// Windowsの原再試行通知
+	DRIVERCRATE_EXPECT( context, retry.state == DisplayType1InstallState::RETRY_PENDING &&
+									retry.error == events[1].error) ;
+	events[1].childInstance.clear() ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::UNCONFIRMED) ;
+	events[1].kind	= DisplayType1EventKind::NOT_CONFIGURED ;
+	events[1].error = 0U ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::UNCONFIRMED) ;
+	events[1].software = L"OtherComponent" ;
+	DRIVERCRATE_EXPECT( context, classifyDisplayType1Install( observation, events).state ==
+									DisplayType1InstallState::WAITING) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 変更直前に状態と同期の元承認を合わせるDisplay境界を回帰確認する
+ * @param[in,out] context このprocessの有限集計先
+ */
+//------------------------------------------------------------------------------
+void verifyDisplayMutationChecks( TestContext &context)
+{
+	std::string order ;			// 現用再観測と署名の照会を呼んだ順序
+	bool		active = true ;	// 同じ実行中の索引操作である場合true
+	const auto	owns   = [&] {
+		   order.push_back( 'O') ;
+		   return active ;
+	} ; // 呼出し間で変わる元操作の模擬
+	const auto current = [&] {
+		order.push_back( 'R') ;
+		return NativeError{} ;
+	} ; // 意図しない共用や変更がない元観測の模擬
+	const auto authorize = [&] {
+		order.push_back( 'A') ;
+		return NativeError{} ;
+	} ; // 有効な元署名レコードの模擬
+	DRIVERCRATE_EXPECT( context, verifyDisplayMutationBoundary( owns, current, authorize) == 0U &&
+									order == "OROAO") ;
+
+	order.clear() ;
+	const auto sharing = [&] {
+		order.push_back( 'R') ;
+		return nativeErrorFromWin32( ERROR_SHARING_VIOLATION) ;
+	} ; // 共用機器が増えたときの元診断
+	DRIVERCRATE_EXPECT( context, verifyDisplayMutationBoundary( owns, sharing, authorize) ==
+										nativeErrorFromWin32( ERROR_SHARING_VIOLATION) &&
+									order == "OR") ;
+
+	order.clear() ;
+	const auto changedSource = [&] {
+		order.push_back( 'R') ;
+		return nativeErrorFromWin32( ERROR_RETRY) ;
+	} ; // 元byte又は登録元の不在が変化したときの診断
+	DRIVERCRATE_EXPECT( context, verifyDisplayMutationBoundary( owns, changedSource, authorize) ==
+										nativeErrorFromWin32( ERROR_RETRY) &&
+									order == "OR") ;
+
+	order.clear() ;
+	const auto expired = [&] {
+		order.push_back( 'A') ;
+		return static_cast<NativeError>( TRUST_E_TIME_STAMP) ;
+	} ; // 読み直し後の元承認の失敗
+	DRIVERCRATE_EXPECT( context, verifyDisplayMutationBoundary( owns, current, expired) ==
+										static_cast<NativeError>( TRUST_E_TIME_STAMP) &&
+									order == "OROA") ;
+
+	order.clear() ;
+	const auto replacedWhileReading = [&] {
+		active = false ;
+		return current() ;
+	} ; // 現用再確認中に元操作が終了した場合
+	DRIVERCRATE_EXPECT( context,
+					   verifyDisplayMutationBoundary( owns, replacedWhileReading, authorize) ==
+							   static_cast<NativeError>( E_ACCESSDENIED) &&
+						   order == "ORO") ;
+
+	order.clear() ;
+	active								= true ;
+	const auto replacedWhileAuthorizing = [&] {
+		active = false ;
+		return authorize() ;
+	} ; // 署名確認中に元操作が終了した場合
+	DRIVERCRATE_EXPECT( context,
+					   verifyDisplayMutationBoundary( owns, current, replacedWhileAuthorizing) ==
+							   static_cast<NativeError>( E_ACCESSDENIED) &&
+						   order == "OROAO") ;
+
+	order.clear() ;
+	DRIVERCRATE_EXPECT( context, verifyDisplayMutationBoundary( owns, current, authorize) ==
+										static_cast<NativeError>( E_ACCESSDENIED) &&
+									order == "O") ;
+	order.clear() ;
+	DRIVERCRATE_EXPECT( context, verifyDisplayMutationBoundary( owns, current, {}) ==
+										static_cast<NativeError>( E_ACCESSDENIED) &&
+									order.empty()) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用Display補助の正当な起動順と無関係なSCM構成を区別する
+ * @param[in,out] context このprocessの有限集計先
+ */
+//------------------------------------------------------------------------------
+void verifyDisplayAuxiliaryScmExecution( TestContext &context)
+{
+	OfficialDisplayAuxiliaryService declaration ;	// 架空元INFの固定宣言
+	declaration.serviceName	   = L"Fixture Display Service" ;
+	declaration.loadOrderGroup = L"Event log" ;
+	AuxiliaryStorageServiceSnapshot current ;	// SCMに接続しない人工の構成観測
+	current.config.name			= declaration.serviceName ;
+	current.config.display		= declaration.serviceName ;
+	current.config.group		= declaration.loadOrderGroup ;
+	current.config.account		= L"LocalSystem" ;
+	current.config.type			= SERVICE_WIN32_OWN_PROCESS ;
+	current.config.start		= SERVICE_AUTO_START ;
+	current.config.errorControl = SERVICE_ERROR_NORMAL ;
+	current.config.security		= {std::byte{1U}} ;
+	current.status.type			= SERVICE_WIN32_OWN_PROCESS ;
+	current.status.state		= SERVICE_RUNNING ;
+	DRIVERCRATE_EXPECT( context, matchDisplayAuxiliaryServiceExecution( declaration, current) == 0U) ;
+
+	auto changed = current ;	// 各負例で一つの実行条件だけを変える
+	changed.config.group.clear() ;
+	DRIVERCRATE_EXPECT( context, matchDisplayAuxiliaryServiceExecution( declaration, changed) != 0U) ;
+	changed				   = current ;
+	changed.config.account = L"ForeignAccount" ;
+	DRIVERCRATE_EXPECT( context, matchDisplayAuxiliaryServiceExecution( declaration, changed) != 0U) ;
+	changed						= current ;
+	changed.config.dependencies = {L"ForeignService"} ;
+	DRIVERCRATE_EXPECT( context, matchDisplayAuxiliaryServiceExecution( declaration, changed) != 0U) ;
+	changed					 = current ;
+	changed.delayedAutoStart = true ;
+	DRIVERCRATE_EXPECT( context, matchDisplayAuxiliaryServiceExecution( declaration, changed) != 0U) ;
+	changed				   = current ;
+	changed.failureCommand = L"extra.exe" ;
+	DRIVERCRATE_EXPECT( context, matchDisplayAuxiliaryServiceExecution( declaration, changed) != 0U) ;
+	changed				 = current ;
+	changed.status.state = SERVICE_START_PENDING ;
+	DRIVERCRATE_EXPECT( context, matchDisplayAuxiliaryServiceExecution( declaration, changed) ==
+									nativeErrorFromWin32( ERROR_RETRY)) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保護されたWindows登録元の付随INF不在を確認し、後から現れた元名と圧縮名を拒否する
+ * @param[in,out] context このprocessの有限集計先
+ */
+//------------------------------------------------------------------------------
+void verifyNativeCopyInfSource( TestContext &context)
+{
+	CommonInfInspection inspected ;	// 実署名とは独立して登録元の不在境界だけを試す入力
+	inspected.workspace = std::make_shared<OfficialDownloadWorkspace>() ;
+	DRIVERCRATE_EXPECT( context,
+					   inspected.workspace->initialize( L"native-copyinf-fixture", 71233U) == 0) ;
+	inspected.state								   = CommonInfInspectionState::VERIFIED ;
+	inspected.closure.unresolvedRootCopyInfAbsence = OfficialRootCopyInfAbsence::NATIVE_SOURCE ;
+	OfficialInfPackage base ;	// 基本INFと同じ親からだけ付随INFを検索させる
+	base.infRelativePath		= L"Media\\primary.inf" ;
+	base.unresolvedCopyInfPaths = {L"Media\\missing.inf"} ;
+	inspected.closure.packages.push_back( base) ;
+	DRIVERCRATE_EXPECT( context, writeWorkspaceFile( *inspected.workspace, base.infRelativePath,
+												   "inert root fixture")) ;
+	DRIVERCRATE_EXPECT( context, verifyPreparedNativeCopyInfAbsence( inspected) == 0U) ;
+
+	// Windowsが読み得る元名と圧縮名を一件ずつ追加し、不在の観測を使い回せないことを確かめる
+	for( const auto name : {L"Media\\missing.in_", L"Media\\MISSING.INF"}) {
+		DRIVERCRATE_EXPECT( context,
+						   writeWorkspaceFile( *inspected.workspace, name, "inert fixture")) ;
+		DRIVERCRATE_EXPECT( context, verifyPreparedNativeCopyInfAbsence( inspected) ==
+										nativeErrorFromWin32( ERROR_FILE_EXISTS)) ;
+		DRIVERCRATE_EXPECT( context, inspected.workspace->discardFile( name) == 0U) ;
+	}
+
+	inspected.closure.packages.front().unresolvedCopyInfPaths.front() = L"Other\\missing.inf" ;
+	DRIVERCRATE_EXPECT( context, verifyPreparedNativeCopyInfAbsence( inspected) == E_INVALIDARG) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 受動コピーと既知外部操作を異なる原条件で局所検証します
  * @param[in,out] context このprocessの有限集計先です
  */
 //------------------------------------------------------------------------------
 void windowsScopeMatrix( TestContext &context)
 {
+	windowsScopeCase( context, {}, {}, true, 71240U, false, false, false, true) ;
+	windowsScopeCase( context, ",0x800,HelperService", ",0x802,HelperService", false, 71241U, false,
+					 false, false, true) ;
+	windowsScopeCase( context, ",Application,Fixture Display", ",System,Fixture Display", false,
+					 71242U, false, false, false, true) ;
+	windowsScopeCase( context, "HKR,,EventMessageFile", "HKLM,,EventMessageFile", false, 71243U,
+					 false, false, false, true) ;
+	windowsScopeCase( context, "drivers\\display-events.dll", "drivers\\..\\display-events.dll",
+					 false, 71244U, false, false, false, true) ;
+	windowsScopeCase( context, "[HelperService]\r\nServiceType=16",
+					 "[HelperService]\r\nServiceType=16\r\nStartName=LocalSystem", false, 71245U,
+					 false, false, false, true) ;
+	windowsScopeCase( context, {}, {}, true, 71226U, false, false, true) ;
+	windowsScopeCase( context, "DataFiles=13,FixtureMedia", "DataFiles=13,OtherMedia", false, 71227U,
+					 false, false, true) ;
+	windowsScopeCase( context, "[DataFiles]\r\nrecovery.bat",
+					 "[DataFiles]\r\nother.bat,recovery.bat", false, 71228U, false, false, true) ;
 	windowsScopeCase( context, {}, {}, true, 71220U, false, true) ;
 	windowsScopeCase( context, ",System,Fixture Middleware", ",Application,Fixture Middleware",
 					 false, 71221U, false, true) ;
@@ -3153,6 +4210,16 @@ int wmain( const int count, wchar_t *arguments[])
 		drivercrate::test::testStandardComponentActions( context) ;
 		drivercrate::test::attachedMatrix( context) ;
 		drivercrate::test::windowsScopeMatrix( context) ;
+		drivercrate::test::verifyDisplayAuxiliaryScmExecution( context) ;
+		drivercrate::test::verifyDisplayPeerInfUse( context) ;
+		drivercrate::test::verifyDisplayMutationChecks( context) ;
+		drivercrate::test::verifySelectedType1Registration( context) ;
+		drivercrate::test::verifyDisplayType1Binding( context) ;
+		drivercrate::test::verifyDisplayType1ReflectedRegistry( context) ;
+		drivercrate::test::verifyDisplayType1SharedCopyObservations( context) ;
+		drivercrate::test::verifyDisplayType1InstallEvents( context) ;
+		drivercrate::test::requiredSoftwareComponentScope( context) ;
+		drivercrate::test::verifyNativeCopyInfSource( context) ;
 		drivercrate::test::inboxSdHostRootMatrix( context) ;
 		drivercrate::test::inboxPortsRootMatrix( context) ;
 		drivercrate::test::nativePortsPropertyPageMatrix( context) ;

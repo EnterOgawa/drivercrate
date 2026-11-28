@@ -2,7 +2,7 @@
 /**
  * @file storage_inf_effects_internal.h
  * @brief PACKAGE由来の選択storage作用と現service観測を有限に検査します
- * @version 01.36.00
+ * @version 01.40.00
  * @date 2026/11/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -56,6 +56,10 @@
  * Ver.01.34.00 Shunji Ogawa  2026/11/23  単一起動サービスと局所設定の変更種別を保持
  * Ver.01.35.00 Shunji Ogawa  2026/11/23  単一起動の元観測と変更種別を同じ選択の資格へ保持
  * Ver.01.36.00 Shunji Ogawa  2026/11/23  単一起動の適用後の元署名と実作用を照合
+ * Ver.01.37.00 Shunji Ogawa  2026/11/27  DisplayのApplicationイベント源と保護の証拠を追加
+ * Ver.01.38.00 Shunji Ogawa  2026/11/27  Display補助の現用SCM構成と署名実体を照合
+ * Ver.01.39.00 Shunji Ogawa  2026/11/27  Display登録処理が読むSoftwareComponentクラスを観測
+ * Ver.01.40.00 Shunji Ogawa  2026/11/27  選択DisplayのOpenCL登録値と共有の旧マーカーを観測
  * </pre>
  *
  * @note ここで返す値は非権限です。ADMIN原byteと一意native nodeを持つprivate factoryだけが資格化します
@@ -506,6 +510,183 @@ struct StorageSingleBootEventSnapshot {
 	 */
 	bool operator==( const StorageSingleBootEventSnapshot &other) const = default ;
 } ;
+
+/** @brief 元Display宣言と型・値が一致した一つのApplicationイベント源の保護観測 */
+struct DisplayApplicationEventSnapshot {
+	/// Windowsが示す正式制御セット名
+	std::wstring						   controlSet ;
+	/// SYSTEMからApplicationログまでの各元親の保護
+	std::array<std::vector<std::byte>, 6U> eventParents ;
+	/// 署名宣言に結び付く直接子のイベント源名
+	std::wstring						   name ;
+	/// 保護された通常キーの実在を確認したときtrue
+	bool								   present{} ;
+	/// 葉から取得した元owner、groupとDACL
+	std::vector<std::byte>				   security ;
+	/// 同じ葉の最終書込時刻を100ns単位のWindows元値で保持する
+	std::uint64_t						   lastWrite{} ;
+	/**
+	 * @brief 同じ宣言への独立した再照合の保護観測を比較する
+	 * @param[in] other 同じ元宣言と全値が一致した再読取観測
+	 * @return 制御セット、親と葉の保護と位置・時刻が等しい場合true
+	 */
+	bool operator==( const DisplayApplicationEventSnapshot &other) const = default ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保護された既存Applicationイベント源の全値を現用INFの宣言へ照合する
+ * @param[in] declaration 現用署名済みDisplay INFが指定した同名イベント源と元値
+ * @param[out] snapshot 全値・型・保護と安定性が確認できた場合だけ保持。失敗時は空
+ * @return 既存の名前と全登録が一致して0、不在・不一致・読取エラーはHRESULT
+ * @note リソースDLLを読み込まず、登録を変更しない。デバイス所有の判定は呼出側で行う
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readDisplayApplicationEventSnapshot(
+	const OfficialDisplayAuxiliaryService &declaration, DisplayApplicationEventSnapshot &snapshot) ;
+
+/** @brief 現在のSoftwareComponentクラスにある一つの保護付き登録 */
+struct DisplayType1ClassRegistration {
+	/// クラスキー内の4桁の登録名
+	std::wstring				slot ;
+	/// Windowsが登録した元MatchingDeviceId。正式不在は空のoptional
+	std::optional<std::wstring> matchingId ;
+	/// Windowsが登録した元DriverStorePath。正式不在は空のoptional
+	std::optional<std::wstring> storePath ;
+	/// 同じ登録キーのowner、groupとDACL
+	std::vector<std::byte>		security ;
+	/**
+	 * @brief 同じ登録の独立した読み取りを比較する
+	 * @param[in] other 比較するクラス登録
+	 * @return 元値と保護が一致する場合true
+	 */
+	bool operator==( const DisplayType1ClassRegistration &other) const = default ;
+} ;
+
+/** @brief SoftwareComponentの全番号付きクラス登録と確認したWindowsの元制御セット */
+struct DisplayType1ClassSnapshot {
+	/// 現行Windowsが使う元制御セット名
+	std::wstring							   controlSet ;
+	/// SYSTEMからSoftwareComponentクラスまでの元保護
+	std::array<std::vector<std::byte>, 6U>	   parents ;
+	/// 署名検査や現在機器への対応付け前のクラス登録の名前順
+	std::vector<DisplayType1ClassRegistration> registrations ;
+	/**
+	 * @brief 別時点に読んだ同じ母集合と保護を比較する
+	 * @param[in] other 同じWindowsから独立に読み取った値
+	 * @return 現元制御セット、親の保護と全登録が同じ場合true
+	 */
+	bool operator==( const DisplayType1ClassSnapshot &other) const = default ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じWindowsのSoftwareComponentクラスの全番号付き登録を保護付きで読む
+ * @param[out] snapshot 登録と通知の一貫性の確認が完了した場合だけ返す。失敗時は空
+ * @return 読取り成功で0、読取・保護・途中変更の失敗はHRESULT
+ * @note 現用かどうか、元署名や実行範囲はこの観測だけで確定しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readDisplayType1ClassSnapshot( DisplayType1ClassSnapshot &snapshot) ;
+
+/** @brief 保護されたレジストリに実在するType 1の作用対象一値 */
+struct DisplayType1RegistryValue {
+	/// Windowsが保持する元のREG_*型
+	std::uint32_t		   type{} ;
+	/// 展開や終端補完を行う前の全バイト。ゼロ長も実在値の一つ
+	std::vector<std::byte> bytes ;
+	/**
+	 * @brief 同じ値の元型と全バイトを比較する
+	 * @param[in] other 同じ作用先の独立した読取り
+	 * @return 元型と全バイトが等しい場合true
+	 */
+	bool				   operator==( const DisplayType1RegistryValue &other) const = default ;
+} ;
+
+/** @brief 選択DisplayのOpenCL Type 1が触れるレジストリの非権限観測 */
+struct DisplayType1RegistrySnapshot {
+	/// Windowsが選択親に割り当てたDisplayクラスの相対Driverキー名
+	std::wstring							 driverKey ;
+	/// 正式リンクで解決した現在の制御セット名
+	std::wstring							 controlSet ;
+	/// SYSTEM、リンク、実制御セット、Control、Class、Display、選択slot、VM二種、Services、
+	/// 共有サービス、SOFTWARE、AMD、EEUの順の元owner、groupとDACL。正式不在だけ空
+	std::array<std::vector<std::byte>, 14U>	 keySecurity ;
+	/// 選択slotのOpenCLDriverName。正式不在は空のoptional
+	std::optional<DisplayType1RegistryValue> openClDriverName ;
+	/// 選択slotのOpenCLDriverNameWow。正式不在は空のoptional
+	std::optional<DisplayType1RegistryValue> openClDriverNameWow ;
+	/// 選択slotの旧CheckRegistration。正式不在は空のoptional
+	std::optional<DisplayType1RegistryValue> parentCheckRegistration ;
+	/// 選択slotのCopyToVMOverwriteにあるAMDOpenCL。正式不在は空のoptional
+	std::optional<DisplayType1RegistryValue> copyToVmOverwrite ;
+	/// 選択slotのCopyToVMOverwriteWow64にあるAMDOpenCL。正式不在は空のoptional
+	std::optional<DisplayType1RegistryValue> copyToVmOverwriteWow64 ;
+	/// AMD External Events Utilityサービスの旧CheckRegistration。正式不在は空のoptional
+	std::optional<DisplayType1RegistryValue> serviceCheckRegistration ;
+	/// SOFTWAREのAMD EEUにある旧CheckRegistration。正式不在は空のoptional
+	std::optional<DisplayType1RegistryValue> softwareCheckRegistration ;
+	/**
+	 * @brief 同じ端末での独立した現在値と保護の読取りを比較する
+	 * @param[in] other 同じ選択Displayの別読取り
+	 * @return 選択親のDriverキー、制御セット、各保護と元値が一致すればtrue
+	 */
+	bool operator==( const DisplayType1RegistrySnapshot &other) const = default ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 選択Displayの実Driverキーと二つの共有先からOpenCL Type 1の対象値を読み取る
+ * @param[in] devices 選択親を開いたWindowsのデバイス情報集合。同期中だけ借用する
+ * @param[in,out] parent 同じ情報集合に属する選択Displayのデバイス情報
+ * @param[out] snapshot 保護、元型、元値と正式な不在。失敗時は空
+ * @return 現在の相対Driverキーと各作用先を安定して読めた場合0、その他は元HRESULT
+ * @note レジストリは読取り専用。元実行物、親子関係、他の作用、導入可否は確定しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readDisplayType1RegistrySnapshot( HDEVINFO						 devices,
+														   SP_DEVINFO_DATA				&parent,
+														   DisplayType1RegistrySnapshot &snapshot) ;
+
+/** @brief 現用の補助サービスとその署名パッケージの実行ファイルについて確認した現在状態 */
+struct DisplayAuxiliaryServiceObservation {
+	/// 現用SCMの構成、状態、元保護
+	AuxiliaryStorageServiceSnapshot service ;
+	/// 同じCATメンバーと照合した実EXEと全保護親
+	ProtectedExecutableSnapshot		executable ;
+	/**
+	 * @brief 同じ対象の独立した再観測を比較する
+	 * @param[in] other 同じ現用構成と物理実ファイルの再観測
+	 * @return 全観測が一致すればtrue
+	 */
+	bool operator==( const DisplayAuxiliaryServiceObservation &other) const = default ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現在のDisplay補助サービスの実行条件を署名付き現用INFの宣言へ照合する
+ * @param[in] declaration 現用サービスのクラス、開始指定とグループまで照合済みの元宣言
+ * @param[in] actual 同じSCMサービスの元構成と保護付き観測
+ * @return 宣言の実行条件と現在構成が同じ場合0、失敗はHRESULT
+ * @note SCMコマンドに対応するファイルとCATは呼出側が照合する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError matchDisplayAuxiliaryServiceExecution(
+	const OfficialDisplayAuxiliaryService &declaration,
+	const AuxiliaryStorageServiceSnapshot &actual) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用署名パッケージの実行ファイルと同じ補助サービスのSCM構成を照合する
+ * @param[in] registered 同じ選択の公開名・実節・元署名を確認した現用パッケージ
+ * @param[out] observation 同じ構成と実EXEの二度の完全観測。失敗時は空
+ * @return 現用の元実行条件と正規ファイルが一致して0、それ以外はHRESULT
+ * @note 読取専用。端末上の他デバイスとの共用や導入許可はここでは決めない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readRegisteredDisplayAuxiliaryService(
+	const RegisteredDisplayAuxiliaryPackage &registered,
+	DisplayAuxiliaryServiceObservation		&observation) ;
 
 //------------------------------------------------------------------------------
 /**

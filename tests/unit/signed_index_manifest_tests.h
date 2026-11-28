@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest_tests.h
  * @brief RAM内RSA署名によるmanifest認証試験を宣言します
- * @version 01.20.00
+ * @version 01.21.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -45,6 +45,7 @@
  * Ver.01.18.00 Shunji Ogawa  2026/11/19  保存AWS原索引の通常取得計画試験を宣言
  * Ver.01.19.00 Shunji Ogawa  2026/11/19  独自クラスの元署名recordを使う通常worker試験を宣言
  * Ver.01.20.00 Shunji Ogawa  2026/11/22  私有ZIP規約の保存原本を使う通常取得試験を宣言
+ * Ver.01.21.00 Shunji Ogawa  2026/11/27  付随INF付きDisplay更新の個別回帰試験を追加
  * </pre>
  *
  * @note Test target専用です。秘密鍵をexport・保存・log出力せず、実deviceや通信を使いません
@@ -65,6 +66,15 @@ class TestContext ;
  */
 //------------------------------------------------------------------------------
 void runWindowsManagedDriverPackageFixtureTests( TestContext &context) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 付随INFの通常導入と別配置や同バージョンの拒否を検証する
+ * @param[in,out] context 正例と個別拒否の検査結果を保持します
+ * @note 人工署名索引と隔離fileを使い、実際のドライバーを変更しません
+ */
+//------------------------------------------------------------------------------
+void runDisplayCopyInfBindingTests( TestContext &context) ;
 
 //------------------------------------------------------------------------------
 /**

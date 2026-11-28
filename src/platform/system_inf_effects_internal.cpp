@@ -2,7 +2,7 @@
 /**
  * @file system_inf_effects_internal.cpp
  * @brief 選択SYSTEM原文の閉じた作用を二相で検査します
- * @version 01.13.00
+ * @version 01.14.00
  * @date 2026/11/13
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -34,6 +34,7 @@
  * Ver.01.11.00 Shunji Ogawa  2026/11/23  現用同梱NVMeとPCIの原作用と電源宣言を照合
  * Ver.01.12.00 Shunji Ogawa  2026/11/24  Serenumの元作用と現在の要求時サービス設定を照合
  * Ver.01.13.00 Shunji Ogawa  2026/11/24  正規WinUSBの元作用と要求時サービス実体を照合
+ * Ver.01.14.00 Shunji Ogawa  2026/11/27  空白付きDisplay補助サービスの構成と変更権限を照合
  * </pre>
  *
  * @note 全原文/参照/実file確認後だけ私有tupleを返し、導入/registry/SCM変更を行いません
@@ -4418,21 +4419,23 @@ static NativeError openAuxiliaryStorageServiceSecurity( SC_HANDLE manager, const
  * @brief 同じ補助サービスの所有者、グループ、DACL及び監査SACLを取得します
  * @param[in] service 監査を含む保護照会権を確認した同一サービスです
  * @param[out] security 元自己相対形式の記述子です。失敗時は作業値を破棄します
+ * @param[in] includeAudit 監査SACLを含める場合true、変更権限の照合用に除く場合false
  * @return 完全な記述子の読取時0、元診断又は不正記述子のHRESULTです
  */
 //------------------------------------------------------------------------------
 static NativeError readAuxiliaryStorageServiceSecurity( SC_HANDLE			   service,
-													   std::vector<std::byte> &security)
+													   std::vector<std::byte> &security,
+													   bool					   includeAudit)
 {
 	alignas( SECURITY_DESCRIPTOR_RELATIVE) std::array<std::byte, 8192U>
-				   buffer{} ;	// SCMの保護読取上限です
-	DWORD		   required{} ;	// 容量不足時にSCMが返すサイズです
-	constexpr auto SECURITY_PARTS = OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION |
-									DACL_SECURITY_INFORMATION |
-									SACL_SECURITY_INFORMATION ;	// 取得する元記述子の部分です
+							   buffer{} ;	// SCMの保護読取上限です
+	DWORD					   required{} ;	// 容量不足時にSCMが返すサイズです
+	const SECURITY_INFORMATION parts =
+		OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION |
+		(includeAudit ? SACL_SECURITY_INFORMATION : 0U) ;	// 元記述子の部分
 	// 監査照会の失敗を元SACLの不存在へ変換しません
-	if( !QueryServiceObjectSecurity( service, SECURITY_PARTS, buffer.data(),
-								   static_cast<DWORD>( buffer.size()), &required)) {
+	if( !QueryServiceObjectSecurity( service, parts, buffer.data(), static_cast<DWORD>( buffer.size()),
+								   &required)) {
 		const auto error = GetLastError() ;	// 失敗直後の元診断です
 		return HRESULT_FROM_WIN32( error ? error : ERROR_INVALID_SECURITY_DESCR) ;
 	}
@@ -4458,23 +4461,28 @@ static NativeError readAuxiliaryStorageServiceSecurity( SC_HANDLE			   service,
 
 //------------------------------------------------------------------------------
 /**
- * @brief 元選択の正確な補助サービスについてSCMの構成・状態・保護を読取ります
- * @param[in] name 同選択が指定する最大256文字のサービス名です
- * @param[out] snapshot 全読取時の私有観測です。明示不存在又はエラー時は空です
- * @return 完全な読取又はSCMの明示不存在で0、その他は元診断又は不正応答のHRESULTです
- * @note 同期処理です。監査読取のハンドル取得だけで保持特権を一時使用します
- * @see docs/adr/0569-selected-storage-auxiliary-services.md
+ * @brief 保守主体だけがSCMの構成や保護を変更できる記述子か照合する
+ * @param[in] security 元の所有者、グループとDACLを含む自己相対記述子
+ * @return 保持範囲と変更権限が成立して0、それ以外はHRESULT
  */
 //------------------------------------------------------------------------------
-NativeError readAuxiliaryStorageServiceSnapshot(
-	std::wstring_view name, std::optional<AuxiliaryStorageServiceSnapshot> &snapshot)
+static NativeError validateServiceWriteProtection( std::span<const std::byte> security) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示された一つの補助サービスのSCM構成・状態・保護を読み取る
+ * @param[in] name 用途別の名前検査を終えた同一サービス
+ * @param[out] snapshot 全読取時の観測。明示不存在又はエラー時は空
+ * @param[in] checkProtection 構成変更権も同じハンドルで検査する用途の場合true
+ * @return 完全な読取又はSCMの明示不存在で0、その他はHRESULT
+ * @note 監査付き元記述子を保持する。サービス構成・実行状態は変更しない
+ */
+//------------------------------------------------------------------------------
+static NativeError readAuxiliaryScmSnapshot(
+	std::wstring_view name, std::optional<AuxiliaryStorageServiceSnapshot> &snapshot,
+	bool checkProtection)
 {
 	snapshot.reset() ;
-	// 正確な元名以外のサービス、パス又は表示名を探索しません
-	if( !simpleName( name, 256U)) {
-		return E_INVALIDARG ;
-	}
-
 	AuxiliaryStorageServiceSnapshot result ;	// 全読取を確認するまで非公開の作業値です
 	result.config.name = name ;
 	const ScopedServiceHandle manager{OpenSCManagerW( nullptr, nullptr, SC_MANAGER_CONNECT),
@@ -4516,7 +4524,18 @@ NativeError readAuxiliaryStorageServiceSnapshot(
 													security) ;
 		// 監査照会権を得て、元の権限へ復帰した場合だけ記述子を読みます
 		if( error == 0U) {
-			error = readAuxiliaryStorageServiceSecurity( security.get(), result.config.security) ;
+			error =
+				readAuxiliaryStorageServiceSecurity( security.get(), result.config.security, true) ;
+		}
+
+		// 現用Displayでは監査付きの観測に加え、同じSCMの書換権限を確認する
+		if( error == 0U && checkProtection) {
+			std::vector<std::byte> discretionary ;	// 所有者とDACLの同じ保護観測
+			error = readAuxiliaryStorageServiceSecurity( security.get(), discretionary, false) ;
+			// 監査を取るための権限を別のサービス設定権に読み替えない
+			if( error == 0U) {
+				error = validateServiceWriteProtection( discretionary) ;
+			}
 		}
 	}
 
@@ -4533,6 +4552,61 @@ NativeError readAuxiliaryStorageServiceSnapshot(
 	}
 
 	snapshot = std::move( result) ;
+	return 0U ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 元選択の正確な補助サービスについてSCMの構成・状態・保護を読取ります
+ * @param[in] name 同選択が指定する最大256文字のサービス名です
+ * @param[out] snapshot 全読取時の私有観測です。明示不存在又はエラー時は空です
+ * @return 完全な読取又はSCMの明示不存在で0、その他は元診断又は不正応答のHRESULTです
+ * @note 同期処理です。監査読取のハンドル取得だけで保持特権を一時使用します
+ * @see docs/adr/0569-selected-storage-auxiliary-services.md
+ */
+//------------------------------------------------------------------------------
+NativeError readAuxiliaryStorageServiceSnapshot(
+	std::wstring_view name, std::optional<AuxiliaryStorageServiceSnapshot> &snapshot)
+{
+	snapshot.reset() ;
+	// 既存ストレージの名前を元宣言の単独名に限定する
+	if( !simpleName( name, 256U)) {
+		return E_INVALIDARG ;
+	}
+
+	return readAuxiliaryScmSnapshot( name, snapshot, false) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用INFが指定するDisplayの補助サービスを保護付きで照会する
+ * @param[in] name 元INFのサービス名。区切りを含まないASCII名と内部空白を許す
+ * @param[out] snapshot 現用SCMの構成と保護。失敗時は空
+ * @return 実在と保守主体だけの構成変更権を確認して0、失敗や不在はHRESULT
+ * @note 現用サービスを起動、停止、変更しない。監査記述子の読取に既存の一時特権を使う
+ */
+//------------------------------------------------------------------------------
+NativeError readDisplayAuxiliaryScmSnapshot( std::wstring_view				 name,
+											AuxiliaryStorageServiceSnapshot &snapshot)
+{
+	snapshot = {} ;
+	// 未検証の区切りや空の表示名を正確なサービス名として開かない
+	if( name.empty() || name.size() > 256U || name.front() == L' ' || name.back() == L' ' ||
+	   name == L"." || name == L".." ||
+	   name.find_first_not_of(
+		   L"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ._-") != name.npos) {
+		return E_INVALIDARG ;
+	}
+
+	std::optional<AuxiliaryStorageServiceSnapshot> current ;	// 正式な不存在も区別するSCM観測
+	// 同じ実在と保護の読取結果
+	const auto error = readAuxiliaryScmSnapshot( name, current, true) ;
+	// 現用登録の所有には既存サービスの完全な観測が必要
+	if( error != 0U || !current) {
+		return error != 0U ? error : HRESULT_FROM_WIN32( ERROR_SERVICE_DOES_NOT_EXIST) ;
+	}
+
+	snapshot = std::move( *current) ;
 	return 0U ;
 }
 
@@ -4577,9 +4651,26 @@ static NativeError validateServiceEvidence( const SystemServiceEvidence &evidenc
 		return HRESULT_FROM_WIN32( ERROR_INVALID_DATA) ;
 	}
 
+	return validateServiceWriteProtection( evidence.security) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 保守主体だけがSCMの構成や保護を変更できる記述子か照合する
+ * @param[in] security 元の所有者、グループとDACLを含む自己相対記述子
+ * @return 保持範囲と変更権限が成立して0、それ以外はHRESULT
+ */
+//------------------------------------------------------------------------------
+static NativeError validateServiceWriteProtection( std::span<const std::byte> security)
+{
+	// 記述子の元byte範囲を確認してからWindowsの形式へ解釈する
+	if( security.size() < sizeof( SECURITY_DESCRIPTOR_RELATIVE) || security.size() > 65536U) {
+		return HRESULT_FROM_WIN32( ERROR_INVALID_SECURITY_DESCR) ;
+	}
+
 	const auto raw = const_cast<std::byte *>(
-		// この同期だけで保持する元値です。許可の代用にしません
-		evidence.security.data()) ;
+		// WindowsのSD検査ABIへ読み取り専用で渡す元値です
+		security.data()) ;
 	const auto relative = reinterpret_cast<const SECURITY_DESCRIPTOR_RELATIVE *>(
 		raw) ;	// 元権限/署名の照合中だけ使う証拠です
 	// 未検証offsetをWindowsのpointer ABIへ渡しません
@@ -4596,7 +4687,7 @@ static NativeError validateServiceEvidence( const SystemServiceEvidence &evidenc
 	const auto boundedSid = [&]( DWORD offset) -> PSID {
 		// SID headerと全SubAuthorityが元vector内にある場合だけ借用します
 		if( offset < sizeof( SECURITY_DESCRIPTOR_RELATIVE) || offset % 4U != 0U ||
-		   offset > evidence.security.size() - 8U) {
+		   offset > security.size() - 8U) {
 			return nullptr ;
 		}
 
@@ -4604,7 +4695,7 @@ static NativeError validateServiceEvidence( const SystemServiceEvidence &evidenc
 		const auto count = reinterpret_cast<const SID *>( sid)
 							   ->SubAuthorityCount ;	// 元全長又は共同予算の有限件数です
 		// IsValidSidより先に全長を確認します
-		if( count > SID_MAX_SUB_AUTHORITIES || 8U + 4U * count > evidence.security.size() - offset ||
+		if( count > SID_MAX_SUB_AUTHORITIES || 8U + 4U * count > security.size() - offset ||
 		   !IsValidSid( sid)) {
 			return nullptr ;
 		}
@@ -4615,16 +4706,16 @@ static NativeError validateServiceEvidence( const SystemServiceEvidence &evidenc
 	PSID group = boundedSid( relative->Group) ;	// 元権限/署名の照合中だけ使う証拠です
 	// null owner/group/DACLを既定主体へ補完しません
 	if( !owner || !group || relative->Dacl < sizeof( SECURITY_DESCRIPTOR_RELATIVE) ||
-	   relative->Dacl % 4U != 0U || relative->Dacl > evidence.security.size() - sizeof( ACL)) {
+	   relative->Dacl % 4U != 0U || relative->Dacl > security.size() - sizeof( ACL)) {
 		return HRESULT_FROM_WIN32( ERROR_INVALID_SECURITY_DESCR) ;
 	}
 
 	const auto acl =
 		reinterpret_cast<const ACL *>( raw + relative->Dacl) ;	// 元権限/署名の照合中だけ使う証拠です
 	// 元ACL全体の境界を確認してからWindows validatorへ渡します
-	if( acl->AclSize < sizeof( ACL) || acl->AclSize > evidence.security.size() - relative->Dacl ||
+	if( acl->AclSize < sizeof( ACL) || acl->AclSize > security.size() - relative->Dacl ||
 	   !IsValidAcl( const_cast<ACL *>( acl)) || !IsValidSecurityDescriptor( raw) ||
-	   GetSecurityDescriptorLength( raw) != evidence.security.size()) {
+	   GetSecurityDescriptorLength( raw) != security.size()) {
 		return HRESULT_FROM_WIN32( ERROR_INVALID_SECURITY_DESCR) ;
 	}
 

@@ -2,7 +2,7 @@
 /**
  * @file registered_driver_store_package_internal.h
  * @brief 現用INFに対応するDriver Store内の元パッケージを固定する
- * @version 01.12.00
+ * @version 01.16.00
  * @date 2026/11/19
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -32,12 +32,17 @@
  * Ver.01.10.00 Shunji Ogawa  2026/11/23  OEM登録の正逆対応と単一ブートの元署名を照合
  * Ver.01.11.00 Shunji Ogawa  2026/11/23  単一ブートの元署名を同じ現用機器の登録属性に結合
  * Ver.01.12.00 Shunji Ogawa  2026/11/23  同一サービスの署名付き局所設定を元登録に保持
+ * Ver.01.13.00 Shunji Ogawa  2026/11/27  現用Displayの公開INFと補助EXEの署名証拠を保持
+ * Ver.01.14.00 Shunji Ogawa  2026/11/27  現用親の必要子と署名付き子登録を照合
+ * Ver.01.15.00 Shunji Ogawa  2026/11/27  複数INFの閉包から指定INFの登録内容を確認
+ * Ver.01.16.00 Shunji Ogawa  2026/11/27  同じStore元INFの保持済みファイル位置を照合
  * </pre>
  * @note 証拠の読取りはworker内で同期実行し、導入許可や共有構成の所有は呼出し側で別に判断する
  */
 //------------------------------------------------------------------------------
 #pragma once
 #include "core/update_types.h"
+#include "platform/official_driver_package.h"
 #include "platform/official_file_verifier.h"
 #include "platform/system_inf_effects_internal.h"
 #include <Windows.h>
@@ -54,6 +59,7 @@
 namespace drivercrate {
 struct OfficialInfPackage ;
 struct OfficialZipEntry ;
+struct DisplayInfUse ;
 struct SelectedStorageServiceFacts ;
 struct StorageAutoStartAuxiliarySnapshot ;
 struct StorageAuxiliaryHostSnapshot ;
@@ -69,6 +75,108 @@ struct DriverStorePackageLookup {
 	/// Driver Storeの元INFに対応するWindowsの公開INFを取得する
 	decltype( &SetupGetInfPublishedNameW)	   publishedName{} ;
 } ;
+
+/** @brief 現用Displayの一つの登録パッケージと同じCATで確認した補助宣言 */
+struct RegisteredDisplayAuxiliaryPackage {
+	/// 同じ現用デバイスから観測した公開OEM INF名
+	std::wstring							   publishedInf ;
+	/// 実際にそのデバイスへ適用されているDDInstall節
+	std::wstring							   installedSection ;
+	/// 同じ選択のWindows関連サービス名
+	std::wstring							   associatedService ;
+	/// 公開名の正逆対応で確認したStore元INFの完全位置
+	std::wstring							   storeInf ;
+	/// 公開INFと元INFの両方で一致した保護付き観測のうち、公開側の元属性と全ハッシュ
+	ProtectedExecutableSnapshot				   publishedFile ;
+	/// Store元INFの独立した保護付き観測
+	ProtectedExecutableSnapshot				   storeFile ;
+	/// 元INFが選んだ同一パッケージのCATの保護付き観測
+	ProtectedExecutableSnapshot				   catalogFile ;
+	/// 選択された補助サービスの現用EXEの完全位置
+	std::wstring							   executablePath ;
+	/// 保持した補助EXE全体のSHA-256
+	std::wstring							   executableSha256 ;
+	/// 同じ保護元INFから読んだ補助サービスとイベントの全宣言
+	OfficialDisplayAuxiliaryService			   declaration ;
+	/// 同じ元親の実導入節が宣言するSWC IDと子名の集合
+	std::vector<OfficialInfComponentReference> components ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用Displayの登録INFと同じ署名配布にある補助EXEを確認する
+ * @param[in] publishedInf 当該現用デバイスから読んだ公開OEM INF名
+ * @param[in] basicSection 同じデバイスの元基本節名
+ * @param[in] extension 同じデバイスの実装飾。Windowsで未指定のとき空
+ * @param[in] associatedService 同じデバイスの関連サービス名
+ * @param[in] intended 署名候補から確認した更新対象の同名補助とイベント源
+ * @param[out] evidence 成功時の元登録・同一CAT・完全ハッシュ。失敗時は空
+ * @return 公開名の正逆・元byte・実選択・CATメンバー照合の成立で0、それ以外はHRESULT
+ * @note 通信や登録を行わない。現SCM・イベント源と他デバイスの所有は後段で確認する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readRegisteredDisplayAuxiliaryPackage(
+	std::wstring_view publishedInf, std::wstring_view basicSection, std::wstring_view extension,
+	std::wstring_view associatedService, const OfficialDisplayAuxiliaryService &intended,
+	RegisteredDisplayAuxiliaryPackage &evidence) ;
+
+/** @brief 現用SoftwareComponentの主IDと実選択を確認した署名元 */
+struct RegisteredSoftwareComponentPackage {
+	/// 公開INFの正逆対応と同一ハッシュを確認したStore INF
+	std::wstring				storeInf ;
+	/// 現用デバイスがWindowsから得た実DDInstall節
+	std::wstring				installedSection ;
+	/// 正規公開INFの全ハッシュと保護
+	ProtectedExecutableSnapshot publishedFile ;
+	/// 同じStoreの署名済みINF実体の全ハッシュと保護
+	ProtectedExecutableSnapshot storeFile ;
+	/// 元INFに結び付いたCATの全ハッシュと保護
+	ProtectedExecutableSnapshot catalogFile ;
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 現用SWCの主ID・実DDInstall・署名配布をWindows登録から照合する
+ * @param[in] publishedInf 当該present子の公開OEM INF名
+ * @param[in] basicSection 当該present子のDriverInfSection。記録によっては装飾込み
+ * @param[in] extension 当該現用の装飾。未指定は空
+ * @param[in] hardwareId 現用子から観測した唯一の主Hardware ID
+ * @param[out] evidence 全照合に成功した元署名・実節。失敗時は空
+ * @return 公開名の正逆、同じバイト、現在Modelsと署名の照合成功で0、その他HRESULT
+ * @note 読取専用。候補との共用判定、ソフトウェア実行、導入は行わない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readRegisteredSoftwareComponentPackage(
+	std::wstring_view publishedInf, std::wstring_view basicSection, std::wstring_view extension,
+	std::wstring_view hardwareId, RegisteredSoftwareComponentPackage &evidence) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 同じWindowsの保護された公開INFを読み、対象Displayの作用との重複を調べる
+ * @param[in] leaf 今のWindowsから得た公開INFまたはInclude INFの単独名
+ * @param[in] installedSection 現用機器の実DDInstall。空なら依存側と拡張の全節を保守的に調べる
+ * @param[in] target 同じ選択のサービス名とApplicationイベント源
+ * @param[out] result 読取り成功時の作用と外部依存。失敗時は空
+ * @param[out] file 同じ読取り中に固定した公開INFの保護・同一性。失敗時は空
+ * @return 元領域と全作用の読取り成功で0、その他HRESULT
+ * @note 通常のWindows INFだけを読む。未知のパスや他のファイルを読み直さず、導入しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError readPublishedDisplayInfUse( std::wstring_view leaf,
+													 std::wstring_view installedSection,
+													 const OfficialDisplayAuxiliaryService &target,
+													 DisplayInfUse						   &result,
+													 ProtectedExecutableSnapshot		   &file) ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Windows公開領域にある標準形式の拡張INFの母集合を列挙する
+ * @param[out] leaves 大小無視で一意な拡張INF単独名の昇順集合。失敗時は空
+ * @return 全件のクラスを確認して0。不明または容量・列挙失敗はHRESULT
+ * @note 適用関係不明時の保守的な読取対象であり、各拡張が現在導入済みとは判定しない
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] NativeError listPublishedExtensionInfs( std::vector<std::wstring> &leaves) ;
 
 /** @brief 登録済みの選択節が明示した一つのSystemイベント登録 */
 struct RegisteredStorageEventReference {
@@ -441,12 +549,35 @@ public:
 								  const OfficialInfPackage		   &original,
 								  std::span<const OfficialZipEntry> entries,
 								  const DriverStorePackageLookup   &lookup) ;
+	/**
+	 * @brief 複数INFの閉包から同じ登録パッケージが所有する元ファイルを選んで保持する
+	 * @param[in] registeredInf 登録結果で確認したWindows INF直下のOEM INF
+	 * @param[in] original 同じ署名パッケージが指定したINF、CAT、全必須ファイル
+	 * @param[in] entries 選択元を含む全署名確認済み閉包の元ファイルと長さ、SHA-256
+	 * @param[in] lookup 同じWindowsの登録先を照会するAPI表
+	 * @return 指定INFの全ファイルと正規位置が一致した場合0、その他はHRESULT
+	 * @note 別INFが所有するファイルの検査は各選択の呼出し側で行う
+	 */
+	[[nodiscard]] NativeError pinFromClosure( const std::wstring				  &registeredInf,
+											 const OfficialInfPackage		  &original,
+											 std::span<const OfficialZipEntry> entries,
+											 const DriverStorePackageLookup	  &lookup) ;
 
 	/**
 	 * @brief OEM INFの照会先と保持した実ファイルを導入直前に再確認する
 	 * @return 保持した同一ファイルと登録先が成立する場合0、未保持・不一致・失敗はHRESULT
 	 */
 	[[nodiscard]] NativeError verify() const ;
+
+	/**
+	 * @brief 確認済みの同じStore元INFが指定された全ファイルを保持しているか照合する
+	 * @param[in] storeInf 独立に読んだ現在のStore元INF完全位置
+	 * @param[in] paths 元INFのパッケージ内にある必要ファイルの完全位置
+	 * @return 同一の元INFと空でない全ファイルが保持済みの場合true
+	 * @note 位置の前後確認と呼出側の端末適用性判定は別途必要
+	 */
+	[[nodiscard]] bool		  containsPinnedMembers( std::wstring_view			  storeInf,
+													std::span<const std::wstring> paths) const noexcept ;
 
 private:
 	struct State ;

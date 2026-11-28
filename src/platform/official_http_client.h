@@ -2,7 +2,7 @@
 /**
  * @file official_http_client.h
  * @brief 公式配布元限定HTTP client定義
- * @version 01.33.00
+ * @version 01.35.00
  * @date 2026/09/23
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -77,6 +77,8 @@
  * Ver.01.31.00 Shunji Ogawa  2026/11/23  固定GooGet索引を収集用JSON取得へ追加
  * Ver.01.32.00 Shunji Ogawa  2026/11/24  WCH固定APIの収集用JSON取得と転送禁止を明示
  * Ver.01.33.00 Shunji Ogawa  2026/11/24  公開ファイル識別子で結ぶ収集用ZIP転送契約を追加
+ * Ver.01.34.00 Shunji Ogawa  2026/11/27  取得処理に同掲載を確認したAMD公式参照元を結合
+ * Ver.01.35.00 Shunji Ogawa  2026/11/28  署名スキーマを二つの固定索引入口に接続
  * </pre>
  *
  * @note HTTPS、host allowlist、応答上限を強制して公式metadataとpayloadを取得します。Catalogだけを期限とETag付きでcacheし、payloadは保
@@ -698,7 +700,7 @@ public:
 	 * @param[in] cancellationCallback 空または取消し状態を返す非blocking関数
 	 * @param[out] destinationEvidence 成功時にだけURL非保持の宛先検証結果
 	 * @return 全hop検証・HTTP 200・有限受信・flush・grant終端の全成功時は0、それ以外はHRESULT bit pattern
-	 * @note Dynamic同一originは2回、固定payload hostへの一方向移行だけを許可します。System・per-user proxy設定を尊重し、serverの既定credential、Cookie、Referer、root固有header、bodyを送信しません
+	 * @note Dynamic同一originは2回、固定payload hostへの一方向移行だけを許可します。System・per-user proxy設定を尊重し、既定credential、Cookie、任意header、bodyを送信しません。初回の同じAMD配布へは検証済みの公式ページを参照元に使用します
 	 * 索引attestation出自だけは同grantの私有封印exact route・失効leaseを再照合します
 	 * 一般のhost追加や公開DTO自己申告ではこのbranchを作れません。毎hopの公開DNSと実byte検査を維持します
 	 */
@@ -753,11 +755,13 @@ private:
 	 * @param[in,out] control 同refreshの共有停止・送信・受信状態です
 	 * @param[out] raw 成功時だけ原byteです。失敗時空です
 	 * @param[out] status 失敗時も実観測HTTP statusを保持します
+	 * @param[in] schemaVersion 固定入口を選びます。1は旧配信、2は個別期限の配信です
 	 * @return 全HTTP検査成功0、拒否時は元HRESULTです
 	 */
 	[[nodiscard]] NativeError getSignedIndexCurrent( SignedIndexHttpControl &control,
 													std::vector<std::byte> &raw,
-													std::uint32_t		   &status) ;
+													std::uint32_t		   &status,
+													std::uint32_t			schemaVersion = 1U) ;
 	/**
 	 * @brief 認証済みmanifest由来の固定immutable assetだけを取得します
 	 * @param[in] manifest 製品または内部RAM検証が発行した不変receiptです
@@ -936,6 +940,7 @@ private:
 	 * @param[in] checkpoint 非null時は収集専用の同session期限を実send直前にも検査します
 	 * @param[in] collectorRedirectUrl 空または収集専用の審査済み転送先です。非空時は二つのexact hostと最大一回を要求します
 	 * @param[in] redirectShape 明示転送の元パスと最終配布の対応です。ZIPでは転送先が必須です
+	 * @param[in] productPage 同一のAMD配布を掲載した確認済み公式ページ。空は参照元なし
 	 * @return 保存とflush成功時は0、失敗時はHRESULT bit pattern
 	 */
 	[[nodiscard]] NativeError downloadToFile(
@@ -947,8 +952,8 @@ private:
 		CollectorHttpTransferObservation   *transfer			 = nullptr,
 		const std::function<NativeError()> *checkpoint			 = nullptr,
 		std::wstring_view					collectorRedirectUrl = {},
-		CollectorPayloadRedirectShape		redirectShape =
-			CollectorPayloadRedirectShape::SAME_EXE_PATH) const ;
+		CollectorPayloadRedirectShape redirectShape = CollectorPayloadRedirectShape::SAME_EXE_PATH,
+		std::wstring_view			  productPage	= {}) const ;
 
 #ifdef DRIVERCRATE_REGISTRY_JOB_TESTING
 	friend class CollectorRegistryJobTestAccess ;

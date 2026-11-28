@@ -2,7 +2,7 @@
 /**
  * @file common_driver_package.cpp
  * @brief 由来と独立したdriver packageの保護取込みと個別検査
- * @version 01.49.01
+ * @version 01.53.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -74,6 +74,10 @@
  * Ver.01.48.00 Shunji Ogawa  2026/11/24  共有Portsの元AMD64 SYSとWindows標準ページを収集で結合
  * Ver.01.49.00 Shunji Ogawa  2026/11/24  公式CABの独自クラスとKMDF元参照を収集の棚卸しへ結合
  * Ver.01.49.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
+ * Ver.01.50.00 Shunji Ogawa  2026/11/27  不在を確認した基本INFの付随参照を必須依存と分離
+ * Ver.01.51.00 Shunji Ogawa  2026/11/27  Windows登録元の付随INFと圧縮名の不在を再確認
+ * Ver.01.52.00 Shunji Ogawa  2026/11/27  元Display補助宣言を同じ現用機器の所有と照合
+ * Ver.01.53.00 Shunji Ogawa  2026/11/27  現用所有から同じ必須子の元宣言を選択範囲の再照合へ接続
  * </pre>
  *
  * @note 入力と閉包をworker内だけで保持し、取得元証明や導入許可を発行しません
@@ -2572,12 +2576,109 @@ std::size_t RequiredDriverComponentPlan::count( const DriverPlanRole role) const
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 検査済み相対参照が元基本INFの不在確認集合に含まれるか照合する
+ * @param[in] inspected 元配布の全内容検査と基本INFを保持する検査結果
+ * @param[in] packageOrdinal 元順の位置。基本INFは0
+ * @param[in] path 原INFから解決した相対参照
+ * @return 内容確認済みの基本INFに結合した付随参照だけtrue
+ */
+//------------------------------------------------------------------------------
+bool canDeferMissingRootCopyInf( const CommonInfInspection &inspected,
+								const std::size_t packageOrdinal, const std::wstring &path) noexcept
+{
+	// 別packageや内容未確認の結果に欠落の扱いを継承しない
+	if( packageOrdinal != 0U || inspected.state != CommonInfInspectionState::VERIFIED ||
+	   inspected.error != 0U ||
+	   inspected.closure.unresolvedRootCopyInfAbsence == OfficialRootCopyInfAbsence::UNCONFIRMED ||
+	   inspected.closure.packages.size() != 1U) {
+		return false ;
+	}
+
+	const auto &missing = inspected.closure.packages.front().unresolvedCopyInfPaths ;	// 元参照集合
+	return std::ranges::any_of( missing, [&]( const auto &original) {
+		return CompareStringOrdinal( original.c_str(), -1, path.c_str(), -1, TRUE) == CSTR_EQUAL ;
+	}) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief Windowsが使う保護登録元で、元INFと同じ位置の不在を再確認する
+ * @param[in] inspected 実登録へ渡す保護領域と、同じ閉包から得た基本INF
+ * @return 元と圧縮名の不在だけを確認した場合0、元位置の変更やWindows読取失敗はHRESULT
+ * @note 同じ親を固定したまま読取り、未解決参照や関連部品を変更しない
+ */
+//------------------------------------------------------------------------------
+NativeError verifyPreparedNativeCopyInfAbsence( const CommonInfInspection &inspected)
+{
+	try {
+		// 元索引用に確認した、管理者保護の単一基本INFだけの不在を照会する
+		if( inspected.state != CommonInfInspectionState::VERIFIED || inspected.error != 0U ||
+		   !inspected.workspace ||
+		   inspected.workspace->protectionMode() != OfficialWorkspaceMode::ADMINISTRATOR ||
+		   inspected.closure.unresolvedRootCopyInfAbsence !=
+			   OfficialRootCopyInfAbsence::NATIVE_SOURCE ||
+		   inspected.closure.packages.size() != 1U ||
+		   inspected.closure.packages.front().unresolvedCopyInfPaths.size() != 1U) {
+			return static_cast<NativeError>( E_INVALIDARG) ;
+		}
+
+		const auto &workspace = *inspected.workspace ;					// 同じ元登録計画が所有する保護領域
+		const auto &base = inspected.closure.packages.front() ;			// 分割されている子を含まない基本INF
+		const auto	source = workspace.path( base.infRelativePath) ;	// 固定する同じ元INF
+		const auto	missing =
+			// Windowsが探す元の場所
+			workspace.path( base.unresolvedCopyInfPaths.front()) ;
+		const auto sourceParent	 = source.find_last_of( L'\\') ;	// 同じ元親までの境界
+		const auto missingParent = missing.find_last_of( L'\\') ;	// 未解決名の元親までの境界
+		// 原相対名から同一の親を確認し、別親の不在や不正パスを成功にしない
+		if( sourceParent == source.npos || missingParent == missing.npos ||
+		   sourceParent != missingParent || missing.size() <= 4U ||
+		   CompareStringOrdinal( missing.data() + missing.size() - 4U, 4, L".inf", 4, TRUE) !=
+			   CSTR_EQUAL ||
+		   CompareStringOrdinal( source.data(), static_cast<int>( sourceParent), missing.data(),
+								static_cast<int>( missingParent), TRUE) != CSTR_EQUAL) {
+			return static_cast<NativeError>( E_INVALIDARG) ;
+		}
+
+		OfficialMappedFile pinned ;											// 調査中の非reparse元INFと、その親全体を保持する
+		const auto openError = pinned.open( source, 4U * 1024U * 1024U) ;	// 固定元の読取り診断
+		// 実在する元親を保持できない場合は、不在を確認できたと見なさない
+		if( openError != 0U) {
+			return openError ;
+		}
+
+		auto compressed	  = missing ;	// 元のWindows圧縮相対名に対応する完全パス
+		compressed.back() = L'_' ;
+		const std::array<const std::wstring *, 2U> names{&missing, &compressed} ;	// 照会する元の二名
+		// Windowsが使う二つの名前を同じ親で個別に照会する
+		for( const auto *name : names) {
+			// ファイル、ディレクトリ、再解析点のいずれも新たな作用元として許可しない
+			if( GetFileAttributesW( name->c_str()) != INVALID_FILE_ATTRIBUTES) {
+				return fromWin32( ERROR_FILE_EXISTS) ;
+			}
+
+			const auto error = GetLastError() ;	// 不在とアクセス失敗を区別する元Windows診断
+			// 既に確認した元親内でファイル名が不在の場合だけ先へ進む
+			if( error != ERROR_FILE_NOT_FOUND) {
+				return fromWin32( error != ERROR_SUCCESS ? error : ERROR_INVALID_DATA) ;
+			}
+		}
+
+		return 0U ;
+	} catch( const std::bad_alloc &) {
+		return static_cast<NativeError>( E_OUTOFMEMORY) ;
+	}
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 実検査した元基本INF閉包から必要役割の関係を構築します
  * @param[in] inspected 元保護byteと全署名を保持する同workerの内容検査です
  * @param[in] selectedPackages baseと全importの元順copyです。選択機能関係は私有native nodeから解析します
  * @param[out] plan 成功時だけ元閉包へ結合した不変計画です。失敗時は空です
  * @param[out] diagnostic 任意の数値診断です。nullなら採取せず合否へ使用しません
  * @param[in] registeredDeviceRead 自動起動ストレージの同じ選択機器を同期読取する操作。指定しない場合はnull
+ * @param[in] displayDeviceRead Display補助の現在所有を同じ選択機器で読む操作。未指定ならnull
  * @return 内容と関係の一意な確認0、未対応・欠損・曖昧・循環は元HRESULTです
  * @note 計画は内容関係だけで、同意・復旧・PnP・私有install bindingを代替しません
  */
@@ -2586,7 +2687,8 @@ NativeError makeRequiredDriverComponentPlan(
 	const CommonInfInspection &inspected, std::span<const OfficialInfPackage> selectedPackages,
 	std::shared_ptr<const RequiredDriverComponentPlan> &plan,
 	RequiredInfBindingDiagnostic					   *diagnostic,
-	const StorageRegisteredDeviceRead				   *registeredDeviceRead)
+	const StorageRegisteredDeviceRead				   *registeredDeviceRead,
+	const DisplayRegisteredDeviceRead				   *displayDeviceRead)
 {
 	const auto rejected = [diagnostic]( const NativeError error, const InfBindingReject reason,
 									   const std::uint32_t observed = 0U) {
@@ -2621,6 +2723,19 @@ NativeError makeRequiredDriverComponentPlan(
 		made->session_	= inspected.scanSessionId ;
 		made->basePath_ = base.infRelativePath ;
 		made->selectedPackages_.assign( selectedPackages.begin(), selectedPackages.end()) ;
+		made->defersRootCopyInf_ =
+			!base.unresolvedCopyInfPaths.empty() &&
+			canDeferMissingRootCopyInf( inspected, 0U, base.unresolvedCopyInfPaths.front()) ;
+		// 登録元限定の分類では、計画の組立てと再検証のたびに同じ場所の不在を読む
+		if( made->defersRootCopyInf_ && inspected.closure.unresolvedRootCopyInfAbsence ==
+										   OfficialRootCopyInfAbsence::NATIVE_SOURCE) {
+			const auto error = verifyPreparedNativeCopyInfAbsence( inspected) ;	// 元親の再照合
+			// 既存ファイル、元親の変更や観測不能を登録成功へ変換しない
+			if( error != 0U) {
+				return rejected( error, InfBindingReject::COPY_INF_MISSING) ;
+			}
+		}
+
 		std::vector<const OfficialInfPackage *> packages ;	// 同同期選択copyだけを借用します
 		// 全importの元順を維持し、必要機能と元内容identityを別に照合します
 		for( std::size_t index = 0U; index < selectedPackages.size(); ++index) {
@@ -2670,6 +2785,11 @@ NativeError makeRequiredDriverComponentPlan(
 				}) ; // 同保護閉包だけを借用します
 				// 原importの不在を選択基本INFだけの成功へ変換しません
 				if( found == packages.end()) {
+					// 元配布内の不在を確認した基本INFの付随参照だけを結果へ残します
+					if( canDeferMissingRootCopyInf( inspected, index, path)) {
+						continue ;
+					}
+
 					return rejected( fromWin32( ERROR_NOT_SUPPORTED),
 									InfBindingReject::COPY_INF_MISSING) ;
 				}
@@ -2726,15 +2846,35 @@ NativeError makeRequiredDriverComponentPlan(
 								static_cast<std::uint32_t>( package.role)) ;
 			}
 
+			// Displayの必須子は既存の作用分類に関わらず実選択の範囲を確認する
+			const bool displayChild =
+				made->displayOwnership_ && package.role == DriverPlanRole::DRIVER_COMPONENT ;
 			// 元未評価作用flagは保持し、Windows-only計画の実選択scopeを別に検査します
-			if( functional[index] &&
-			   (package.hasUnassessedProgramReferences || (storage && index == 0U))) {
+			if( functional[index] && (displayChild || package.hasUnassessedProgramReferences ||
+									 (storage && index == 0U))) {
+				std::optional<OfficialDisplayAuxiliaryService> display ;	// 同じ選択Displayの補助宣言
+				const auto									  *reviewed =
+					   displayChild
+														   ? reviewedDisplayType1Registration( *made->displayOwnership_, package)
+														   : nullptr ;	// 所有に結合した当該子の元宣言だけを省略せずに確認
 				const auto scopeError = inspectSelectedWindowsDriverPackageScope(
-					*inspected.workspace, inspected.closure.entries, package,
-					diagnostic) ;	// 全内容再検証後の原scopeです
+					*inspected.workspace, inspected.closure.entries, package, diagnostic,
+					index == 0U && displayDeviceRead && *displayDeviceRead ? &display : nullptr,
+					reviewed) ;	// 同じ基本選択とその必要子だけを対象にする
 				// 同元コピー/service/softwareへ結合しないprogramを通常driverへ追加しません
 				if( scopeError != 0) {
 					return rejected( scopeError, InfBindingReject::WINDOWS_COPY) ;
+				}
+
+				// 同名のサービスを更新する場合は、元構文を現在の対象と共用の観測に結ぶ
+				if( display) {
+					const auto ownership = (*displayDeviceRead)(
+						*display, made->displayOwnership_) ;	// 同じ私有選択の現在観測
+					// 読取エラーまたは不完全な証拠を同名サービスの正常更新へ読み替えない
+					if( ownership != 0U || !made->displayOwnership_) {
+						return rejected( ownership ? ownership : fromWin32( ERROR_INVALID_DATA),
+										InfBindingReject::DISPLAY_OWNERSHIP) ;
+					}
 				}
 			}
 
@@ -2842,6 +2982,11 @@ NativeError makeRequiredDriverComponentPlan(
 				}) ; // 同実閉包だけの参照です
 				// 未解決参照を一基本INFの成功へ換算しません
 				if( found == packages.end()) {
+					// 非選択節の付随参照も、基本INFの原不在一覧にある場合だけ先へ進みます
+					if( canDeferMissingRootCopyInf( inspected, index, path)) {
+						continue ;
+					}
+
 					return fromWin32( ERROR_FILE_NOT_FOUND) ;
 				}
 

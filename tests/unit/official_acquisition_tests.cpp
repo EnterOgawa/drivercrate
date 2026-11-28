@@ -2,7 +2,7 @@
 /**
  * @file official_acquisition_tests.cpp
  * @brief 公式file検査用取得境界単体試験実装
- * @version 01.32.00
+ * @version 01.34.01
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -70,6 +70,10 @@
  * Ver.01.30.00 Shunji Ogawa  2026/11/19  独自クラスの人工索引を通常取得し元送信件数を確認
  * Ver.01.31.00 Shunji Ogawa  2026/11/20  規約を受信した時点で期限に達した索引を拒否する試験を追加
  * Ver.01.32.00 Shunji Ogawa  2026/11/22  ZIP規約の初回表示・承認後・本体の五応答を固定する試験表を追加
+ * Ver.01.32.01 Shunji Ogawa  2026/11/27  期限付き配布先のHTTP拒否と元診断の保持を照合
+ * Ver.01.33.00 Shunji Ogawa  2026/11/27  署名した二段規約の送信順と失効分岐を回帰
+ * Ver.01.34.00 Shunji Ogawa  2026/11/27  非実行配布の共通形式選択と再照合を回帰
+ * Ver.01.34.01 Shunji Ogawa  2026/11/28  内部候補fixtureを通常unitの構成へ限定
  * </pre>
  *
  * @note Fake transportとcost readerを使用し、実network、実driver、実installへ依存せず検査用取得状態を検証します
@@ -91,8 +95,10 @@
 #include "platform/official_delegated_package_inspection.h"
 #include "platform/official_download_grant.h"
 #include "platform/official_download_workspace.h"
+#include "platform/official_html_terms.h"
 #include "platform/secret_official_url.h"
 #include "platform/signed_index_acquisition_adapter_internal.h"
+#include "platform/signed_index_candidate_binding_internal.h"
 #include "platform/provider_worker_index_internal.h"
 #include "platform/signed_index_store.h"
 #include "core/official_preparation_operation.h"
@@ -124,6 +130,64 @@
 #include <chrono>
 #include <semaphore>
 #include <thread>
+
+namespace drivercrate::signed_index_acquisition_detail {
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示承認済みの架空操作を規約再照合の正規入口へ渡す
+ * @param[in,out] adapter 固定RAM署名で開始済みの取得adapter
+ * @param[in] current 同じ元スキャン文脈
+ * @param[in,out] preparation 架空操作と元同意を所有する準備session
+ * @param[in] task 準備sessionが実claimした元task
+ * @param[in,out] client 架空HTTP応答だけを返すclient
+ * @param[in] nowUtc 応答前後に固定した試験時刻
+ * @return 元規約の再照合成立時は0、それ以外は元拒否HRESULT
+ * @note 定義は試験targetのみ。元承認や取得許可の注入は行わない
+ */
+//------------------------------------------------------------------------------
+NativeError Access::recheckTermsFixture( SignedIndexAcquisitionAdapter &adapter,
+										const IndexLookupContext	   current,
+										OfficialPreparationSession	  &preparation,
+										const OfficialPreparationTask &task,
+										OfficialHttpClient			  &client,
+										const std::chrono::sys_seconds nowUtc)
+{
+	// 架空の時刻を所有し、元sessionの検査をそのまま呼び出す
+	return adapter.recheckApprovedTerms(
+		preparation, task, current, [nowUtc] { return nowUtc ; }, client, [] { return false ; }) ;
+}
+
+} // namespace drivercrate::signed_index_acquisition_detail
+
+// 内部候補テストの入口は、そのfixtureを持つ構成だけに公開されます
+#if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
+namespace drivercrate::signed_index_candidate_binding_detail {
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 隔離試験の消費済み取得を本体と同じ形式選択へ渡す
+ * @param[in] acquisition 架空だが元ledgerへ結んだ実取得結果
+ * @param[in] grant 同じ操作の消費済み権限
+ * @param[in] hint 封印に結ぶ元署名とバイトの照合値
+ * @param[in] format 試験の署名済み配布形式
+ * @param[out] input 検査入力。拒否時は空
+ * @return 検査入力の照合が成立した場合0
+ * @note 定義は試験targetのみ。取得権限を発行しない
+ */
+//------------------------------------------------------------------------------
+NativeError Access::bindDelegatedInputForFixture( const OfficialAcquisitionResult &acquisition,
+												 const RecordScopedDownloadGrant &grant,
+												 const IndexedDriverArchiveHint	 &hint,
+												 const IndexPayloadFormat		  format,
+												 DelegatedOfficialPackageInput	 &input) noexcept
+{
+	return SignedIndexCandidateBindingSession::bindDelegatedInput( acquisition, grant, hint, format,
+																  input) ;
+}
+
+} // namespace drivercrate::signed_index_candidate_binding_detail
+#endif
 
 namespace drivercrate::test {
 namespace {
@@ -957,6 +1021,7 @@ NativeError FakeNetworkCostReader::read( OfficialNetworkCostKind &cost) noexcept
  * @param[out] result AcquisitionのURL非保持結果
  * @param[in] publishedSha256 空なら`abc`のSHA-256、非空ならrecordへ固定する公開値
  * @param[in] publishedSizeBytes Recordが公開するexact byte数
+ * @param[in] expiry 認識済み外部期限のUTC秒。期限がない場合はnullopt
  * @return 初期化、grant発行、取得の最初の失敗、または全成功時0
  */
 //------------------------------------------------------------------------------
@@ -965,7 +1030,8 @@ NativeError FakeNetworkCostReader::read( OfficialNetworkCostKind &cost) noexcept
 	const std::uint64_t recordEvidenceId, const std::wstring_view fileName, std::wstring targetUrl,
 	OfficialDownloadWorkspace &workspace, OfficialAcquisitionSession &session,
 	RecordScopedDownloadGrant &grant, OfficialAcquisitionResult &result,
-	std::wstring publishedSha256 = {}, const std::uint64_t publishedSizeBytes = 3U)
+	std::wstring publishedSha256 = {}, const std::uint64_t publishedSizeBytes = 3U,
+	const std::optional<std::uint64_t> expiry = std::nullopt)
 {
 	const NativeError workspaceError =	// 一件のHTTP fixture専用workspace開始結果
 		workspace.initialize( L"delegated-http-test", sessionId) ;
@@ -989,7 +1055,7 @@ NativeError FakeNetworkCostReader::read( OfficialNetworkCostKind &cost) noexcept
 
 	const NativeError issueError =	// 架空recordから一回grantを発行した結果
 		issueDelegatedGrant( grant, sessionId, grantId, recordEvidenceId, std::move( publishedSha256),
-							std::move( targetUrl), std::nullopt, publishedSizeBytes) ;
+							std::move( targetUrl), expiry, publishedSizeBytes) ;
 	// Recordまたはgrant検証が失敗した場合はHTTP clientを作らない
 	if( issueError != 0) {
 		return issueError ;
@@ -1704,6 +1770,56 @@ void testDelegatedHttpFailureCleanup( TestContext &context)
 	DRIVERCRATE_EXPECT( context, cancellationResult.state == OfficialAcquisitionState::CANCELLED) ;
 	DRIVERCRATE_EXPECT( context, cancellationGrant.metadata().outcome ==
 									OfficialDownloadGrantState::CANCELLED) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 最初の期限付きURLの拒否と、通常のHTTP取得失敗を区別する
+ * @param[in,out] context Assertion集計先
+ */
+//------------------------------------------------------------------------------
+void testDelegatedHttpResponseRejections( TestContext &context)
+{
+	constexpr std::array statuses{401U, 403U, 404U, 410U, 429U, 503U, 403U, 403U} ;	// HTTP試験順序
+	// 期限付きの起点、期限なし、転送後の応答を同じ取得入口で確認する
+	for( std::size_t index = 0U; index < statuses.size(); ++index) {
+		const auto			 status		= statuses[index] ;	// 配布元の元HTTP応答
+		const auto			 expiry		= index == 6U
+											  ? std::nullopt
+											  : std::optional<std::uint64_t>{20'600U} ;	// 元配布に結合する秒
+		const bool			 redirected = index == 7U ;									// 同じ許可origin内の次hopで拒否する
+		DelegatedHttpFixture fixture ;													// 拒否本文を読み取らせない人工応答
+		fixture.responses.front().status = status ;
+		// 転送先の403を起点失効へ変換しないことを確認する
+		if( redirected) {
+			fixture.responses.insert(
+				fixture.responses.begin(),
+				DelegatedHttpResponse{.status	= HTTP_STATUS_REDIRECT,
+									  .location = L"https://temporary.fixture.invalid/next",
+									  .body		= {},
+									  .declared = std::nullopt}) ;
+		}
+
+		OfficialDownloadWorkspace  workspace ;	// 失敗ファイルの後始末を照合する領域
+		OfficialAcquisitionSession session ;	// 取得失敗を保持するledger
+		RecordScopedDownloadGrant  grant ;		// 起点失効または失敗で閉じる一回権限
+		OfficialAcquisitionResult  result ;		// 選択した本体の取得結果
+		const auto				   expectedError = static_cast<NativeError>(
+			// 元HTTP応答の診断
+			MAKE_HRESULT( SEVERITY_ERROR, FACILITY_HTTP, status)) ;
+		const auto expectedOutcome = index < 2U ? OfficialDownloadGrantState::GRANT_EXPIRED
+												: OfficialDownloadGrantState::FAILED ;	// 権限終端
+		DRIVERCRATE_EXPECT( context,
+						   runDelegatedHttpAcquisition(
+							   fixture, 360U + index, 660U + index, 1'060U + index, L"refused.bin",
+							   L"https://temporary.fixture.invalid/start", workspace, session,
+							   grant, result, {}, 3U, expiry) == expectedError) ;
+		DRIVERCRATE_EXPECT( context, grant.metadata().outcome == expectedOutcome) ;
+		DRIVERCRATE_EXPECT( context, result.error == expectedError) ;
+		DRIVERCRATE_EXPECT( context, fixture.sends == (redirected ? 2U : 1U) && fixture.reads == 0U) ;
+		DRIVERCRATE_EXPECT( context, fixture.opened == fixture.closed) ;
+		DRIVERCRATE_EXPECT( context, !fileExists( workspace.path( L"refused.bin"))) ;
+	}
 }
 
 //------------------------------------------------------------------------------
@@ -2716,6 +2832,7 @@ void runOfficialAcquisitionTests( TestContext &context)
 	testDelegatedBindingAndMetadataRejection( context) ;
 	testOf05DelegatedHttpSuccessfulRoutes( context) ;
 	testDelegatedHttpFailureCleanup( context) ;
+	testDelegatedHttpResponseRejections( context) ;
 	testOf09DelegatedMetadataAndBodyRejection( context) ;
 	testAsusPackageAcquisition( context) ;
 	testMetadataAndEvidenceRejection( context) ;
@@ -3050,67 +3167,90 @@ void runSignedIndexAcquisitionAdapterTests( TestContext									 &context,
 																						 delegated) == 0 &&
 									   delegated.format == format &&
 									   delegated.archive.resourceContent == hint.resourceContent) ;
-					  auto changed = hint ;	// 元record以外のhintを拒否する
-					  changed.recordSha256[0] = changed.recordSha256[0] == L'0' ? L'1' : L'0' ;
-					  DRIVERCRATE_EXPECT( context,
-															 makeDelegatedOfficialPackageInput( acquired, grant, changed,
-																							   format, delegated) != 0 &&
-																 delegated.archive.scanSessionId == 0U) ;
-					  changed = hint ;
-					  ++changed.archiveBytes ;
-					  DRIVERCRATE_EXPECT( context,
-															 makeDelegatedOfficialPackageInput( acquired, grant, changed,
-																							   format, delegated) != 0) ;
-					  DRIVERCRATE_EXPECT( context, makeDelegatedOfficialPackageInput(
-													  acquired, grant, hint,
-													  static_cast<OfficialDriverArchiveFormat>( 99),
-													  delegated) != 0) ;
-					  return OfficialPreparationTransferResult{
-						  OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION, 0,
-						  acquired.byteCount} ;
-				  }
+					  // 内部候補テストを持つ構成では、本番の形式選択も直接照合します
+#if defined( DRIVERCRATE_INTERNAL_INDEX_TESTS)
+					const auto signedFormat =
+						scenario == 7U
+							? IndexPayloadFormat::SEVEN_ZIP_SFX
+							: IndexPayloadFormat::PE_RESOURCE_CONTAINER ;	// 元署名の形式です
+					DelegatedOfficialPackageInput rebound ;					// 監査で同じ取得を再照合する入力
+					DRIVERCRATE_EXPECT(
+						context,
+						signed_index_candidate_binding_detail::Access::bindDelegatedInputForFixture(
+							acquired, grant, hint, signedFormat, rebound) == 0U &&
+							rebound.format == delegated.format &&
+							rebound.provenance.acquisitionId == delegated.provenance.acquisitionId) ;
+					const auto differentFormat =
+						scenario == 7U
+							? IndexPayloadFormat::PE_RESOURCE_CONTAINER
+							: IndexPayloadFormat::SEVEN_ZIP_SFX ;	// 同じ元証拠に使えない形式
+					DRIVERCRATE_EXPECT(
+						context,
+						signed_index_candidate_binding_detail::Access::bindDelegatedInputForFixture(
+							acquired, grant, hint, differentFormat, rebound) != 0U &&
+							rebound.archive.scanSessionId == 0U) ;
+#endif
+					auto changed			= hint ;	// 元record以外のhintを拒否する
+					changed.recordSha256[0] = changed.recordSha256[0] == L'0' ? L'1' : L'0' ;
+					DRIVERCRATE_EXPECT( context,
+									   makeDelegatedOfficialPackageInput( acquired, grant, changed,
+																		 format, delegated) != 0 &&
+										   delegated.archive.scanSessionId == 0U) ;
+					changed = hint ;
+					++changed.archiveBytes ;
+					DRIVERCRATE_EXPECT( context,
+									   makeDelegatedOfficialPackageInput( acquired, grant, changed,
+																		 format, delegated) != 0) ;
+					DRIVERCRATE_EXPECT( context, makeDelegatedOfficialPackageInput(
+													acquired, grant, hint,
+													static_cast<OfficialDriverArchiveFormat>( 99),
+													delegated) != 0) ;
+					return OfficialPreparationTransferResult{
+						OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION, 0,
+						acquired.byteCount} ;
+				}
 
-				  DRIVERCRATE_EXPECT(
-					  context, inputError == 0 &&
-								   matchesIndexedDriverArchiveHint( current.scanSessionId, hint, input,
-																					   OfficialDriverArchiveFormat::ZIP)) ;
-				  IndexedDriverPackageInspection
-					  inspected ;	// 通常のINF／CAT検査結果。空ZIPは候補合格ではありません
-				  const NativeError inspectionError = inspectIndexedDriverPackage(
-					  current.scanSessionId, hint, input, OfficialDriverArchiveFormat::ZIP,
-					  inspected) ;	// 原byte再検査後の空ZIPはdriver候補ではありません
-				  DRIVERCRATE_EXPECT(
-					  context,
-					  inspected.inputBound &&
-						  inspectionError == static_cast<drivercrate::NativeError>(
-												 HRESULT_FROM_WIN32( ERROR_TOO_MANY_OPEN_FILES)) &&
-						  inspected.state == IndexedDriverInspectionState::INSPECTION_FAILED &&
-						  inspected.inspection.infs.empty()) ;
-				  std::cout << "Signed index empty ZIP inspection error: " << inspectionError << '\n' ;
-				  DRIVERCRATE_EXPECT(
-					  context,
-					  acquired.recordOrigin ==
-							  OfficialDownloadGrantOrigin::SIGNED_INDEX_COLLECTOR_ATTESTATION &&
-						  !acquired.publishedSizeVerified &&
-						  acquired.publishedSha256Verified == (scenario != 6U) &&
-						  acquired.byteCount == 22U && acquired.destinationLocallyResolved) ;
-				  return OfficialPreparationTransferResult{
-					  OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION, 0, acquired.byteCount} ;
-			  }
+				DRIVERCRATE_EXPECT(
+					context, inputError == 0 &&
+								 matchesIndexedDriverArchiveHint( current.scanSessionId, hint, input,
+																 OfficialDriverArchiveFormat::ZIP)) ;
+				IndexedDriverPackageInspection
+					inspected ;	// 通常のINF／CAT検査結果。空ZIPは候補合格ではありません
+				const NativeError inspectionError = inspectIndexedDriverPackage(
+					current.scanSessionId, hint, input, OfficialDriverArchiveFormat::ZIP,
+					inspected) ;	// 原byte再検査後の空ZIPはdriver候補ではありません
+				DRIVERCRATE_EXPECT(
+					context,
+					inspected.inputBound &&
+						inspectionError == static_cast<drivercrate::NativeError>(
+											   HRESULT_FROM_WIN32( ERROR_TOO_MANY_OPEN_FILES)) &&
+						inspected.state == IndexedDriverInspectionState::INSPECTION_FAILED &&
+						inspected.inspection.infs.empty()) ;
+				std::cout << "Signed index empty ZIP inspection error: " << inspectionError << '\n' ;
+				DRIVERCRATE_EXPECT(
+					context,
+					acquired.recordOrigin ==
+							OfficialDownloadGrantOrigin::SIGNED_INDEX_COLLECTOR_ATTESTATION &&
+						!acquired.publishedSizeVerified &&
+						acquired.publishedSha256Verified == (scenario != 6U) &&
+						acquired.byteCount == 22U && acquired.destinationLocallyResolved) ;
+				return OfficialPreparationTransferResult{
+					OfficialPreparationItemState::ACQUIRED_FOR_INSPECTION, 0, acquired.byteCount} ;
+			}
 
-			  // 元WinHTTP診断の保持を確認します
-			  if( mode == 8U) {
-				  DRIVERCRATE_EXPECT( context,
-														 acquireError ==
-															 static_cast<drivercrate::NativeError>(
-											 HRESULT_FROM_WIN32( ERROR_WINHTTP_CONNECTION_ERROR))) ;
-			  }
+			// 元WinHTTP診断の保持を確認します
+			if( mode == 8U) {
+				DRIVERCRATE_EXPECT( context,
+								   acquireError ==
+									   static_cast<drivercrate::NativeError>(
+										   HRESULT_FROM_WIN32( ERROR_WINHTTP_CONNECTION_ERROR))) ;
+			}
 
-			  return OfficialPreparationTransferResult{acquired.state ==
-															   OfficialAcquisitionState::CANCELLED
-																			   ? OfficialPreparationItemState::CANCELLED
-																			   : OfficialPreparationItemState::REJECTED,
-													   acquireError, 0U} ;
+			return OfficialPreparationTransferResult{acquired.state ==
+															 OfficialAcquisitionState::CANCELLED
+														 ? OfficialPreparationItemState::CANCELLED
+														 : OfficialPreparationItemState::REJECTED,
+													 acquireError, 0U} ;
 		} ;
 		const auto executed = executeOfficialPreparation(
 			preparation, approval, acquire, {}, []( const OfficialPreparationProgress &) {
@@ -4204,6 +4344,204 @@ void runNormalSignedIndexCandidateBindingTests( TestContext						&context,
 								   : (network ? 1U : 6U + 17U + 12U) ;	// 元実dispatch数だけです
 	DRIVERCRATE_EXPECT( context, fixture->safeRequest && fixture->opened == fixture->closed &&
 									fixture->sends == expectedSends) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 認証した二段規約を通常取得adapterの有限HTTPへ接続して順序と拒否を確認する
+ * @param[in,out] context このprocessの有限試験集計
+ * @param[in] lookup 架空の署名済み追加欄から端末照合した元索引
+ * @param[in] nowUtc 署名済み元索引の検査に使った信頼UTC
+ * @param[in] bodies 架空の製品ページ、規約一覧、規約全文の順の元本文
+ */
+//------------------------------------------------------------------------------
+void runLinkedTermsAdapterFixtureTests( TestContext									 &context,
+									   std::shared_ptr<const SignedIndexRecordLookup> lookup,
+									   const std::chrono::sys_seconds				  nowUtc,
+									   const std::array<std::string, 3U>			 &bodies)
+{
+	const auto records	 = lookup->snapshot().consumerRecords() ;	// 認証済み本文と私有追加欄
+	const auto relations = lookup->relations() ;					// 架空機器に照合した元関係
+	const auto linked	 = std::ranges::find_if( relations, [&]( const auto &relation) {
+		   const auto &descriptor =
+			   records[relation.recordIndex].acquisitionDescriptor ;	// 同期中だけ借用する元記述子
+		   return descriptor && descriptor->terms.textDocument &&
+				  descriptor->terms.textDocument->htmlExtraction &&
+				  descriptor->terms.textDocument->htmlExtraction->profile ==
+					  LINKED_STATIC_TERMS_PROFILE ;
+	   }) ; // 同意を求める今回の元レコードを個別に選ぶ
+	DRIVERCRATE_EXPECT( context, linked != relations.end()) ;
+	// 元署名から照合できない場合は候補を補わない
+	if( linked == relations.end()) {
+		return ;
+	}
+
+	const auto ordinal = static_cast<std::size_t>( linked - relations.begin()) ;	// 元の機器・配布関係
+	const IndexLookupContext			  current{301U, 302U, 303U} ;				// 同じ架空機器のスキャン文脈
+	const std::array<std::wstring, 3U>	  paths{L"/support", L"/directory",
+												L"/license"} ;	// 署名した送信順
+	constexpr std::array<std::size_t, 8U> counts{3U, 1U, 2U, 3U,
+												 1U, 2U, 2U, 3U} ;	// 初回の各拒否位置までの要求数
+	// 初回の各拒否と、正常表示後に一覧の条件が変わる場合まで確認する
+	for( std::size_t mode{}; mode < counts.size(); ++mode) {
+		SignedIndexAcquisitionAdapter adapter ;	// 同じ署名索引から初める独立の確認
+		DRIVERCRATE_EXPECT( context,
+						   signed_index_acquisition_detail::Access::beginFixture(
+							   adapter, lookup, current, IndexTargetOs::WINDOWS_11, nowUtc) == 0U) ;
+		DelegatedHttpFixture fixture ;	// 全通信と時計を代替する一ケースの状態
+		fixture.signedTermsDocument = true ;
+		fixture.responses.resize( paths.size()) ;
+		fixture.utcSeconds.assign( 64U,
+								  static_cast<std::uint64_t>( nowUtc.time_since_epoch().count())) ;
+		// 三つの元URLだけに対応する応答を順序通り組み立てる
+		for( std::size_t index{}; index < bodies.size(); ++index) {
+			auto &response		 = fixture.responses[index] ;	// 該当URLの架空HTTP応答
+			response.body		 = bodies[index] ;
+			response.contentType = L"text/html; charset=utf-8" ;
+		}
+
+		// 一つの前提だけが変わる場合の送信先と途中終了を分けて確認する
+		switch( mode) {
+			// 初回は三段すべての元条件を使う
+			case 0U:
+			// 同意後の変更を試す例でも初回は同じ三段で提示する
+			case 7U:
+				break ;
+
+			// 製品ページから一覧が見つからない
+			case 1U:
+				fixture.responses[0].body =
+					"<html><body><a href=\"https://vendor.example/fixture.zip\">Payload</a></body></html>" ;
+				break ;
+
+			// 一覧から指定全文が見つからない
+			case 2U:
+				fixture.responses[1].body = "<html><body>missing document</body></html>" ;
+				break ;
+
+			// 選択した規約全文または範囲が変わる
+			case 3U:
+				fixture.responses[2].body = "<html><body>changed terms</body></html>" ;
+				break ;
+
+			// 製品から一覧へ進む前に失効する
+			case 4U:
+				break ;
+
+			// 一覧から全文へ進む前に失効する
+			case 5U:
+				break ;
+
+			// 同じ起点であっても元一覧の転送は許可しない
+			case 6U:
+				fixture.responses[1].status	  = HTTP_STATUS_REDIRECT ;
+				fixture.responses[1].location = L"https://vendor.example/unapproved" ;
+				break ;
+
+			// 固定ケース以外の応答を作らない
+			default:
+				return ;
+		}
+
+		// 改変後の実応答長を元I/Oへ返す
+		for( auto &response : fixture.responses) {
+			response.declared = std::to_wstring( response.body.size()) ;
+		}
+
+		activeDelegatedHttpFixture = &fixture ;
+		OfficialHttpClient client( makeDelegatedHttpTransport()) ;	// 実通信へ出ない同じadapterのI/O
+		const auto		   error = adapter.readTermsText(
+			ordinal, current,
+			[&] {
+				// 最後に送信した元応答の直後だけ期限へ達する
+				return ((mode == 4U && fixture.sends == 1U) || (mode == 5U && fixture.sends == 2U))
+								   ? nowUtc + std::chrono::hours{24 * 9}
+								   : nowUtc ;
+			},
+			client, [] { return false ; }) ;				// 明示した同じ元関係だけから規約へ進む
+		const bool displayed = mode == 0U || mode == 7U ;	// 初回に同じ全文を提示できる条件
+		DRIVERCRATE_EXPECT( context, (error == 0U) == displayed && fixture.sends == counts[mode] &&
+										fixture.safeRequest && fixture.opened == fixture.closed &&
+										std::ranges::equal( fixture.requestedPaths,
+														   std::span{paths}.first( counts[mode]))) ;
+		const OfficialPreparationLimits	  limits{134217728U, 134217728U, 134217728U, 1U,
+												 1U} ;	// 架空の一file枠
+		SignedIndexPreparationDescription description ;	// 検証済み全文だけを持つ同意対象
+		const auto						  described =
+			// 通常の候補作成
+			adapter.describe( ordinal, current, nowUtc, limits, description) ;
+		// 成功時だけ同意に使う番号付き全文と算出版を作成する
+		if( displayed) {
+			DRIVERCRATE_EXPECT( context,
+							   described == 0U && description.target &&
+								   description.target->terms ==
+									   OfficialPreparationTerms::ACCEPTANCE_REQUIRED &&
+								   description.target->eulaRevision.starts_with(
+									   L"DriverCrate content SHA-256: ") &&
+								   description.target->eulaText.find( L"1. ") != std::wstring::npos) ;
+		} else {
+			DRIVERCRATE_EXPECT( context, described != 0U && !description.target) ;
+		}
+
+		activeDelegatedHttpFixture = nullptr ;
+
+		// 初回表示に成功した例だけ、明示同意を実際の準備sessionへ結ぶ
+		if( !displayed || !description.target) {
+			continue ;
+		}
+
+		const auto				  &target	 = *description.target ;	// 同じ元全文を含む選択
+		constexpr OperationId	   operation = 304U ;					// 認証済みスキャン後に承認した架空操作
+		constexpr std::uint64_t	   planId	 = 1U ;						// 同意を照合する元計画
+		OfficialPreparationSession preparation ;						// 元同意と実claimを持つ架空操作のowner
+		DRIVERCRATE_EXPECT(
+			context, preparation.initialize( {current.scanSessionId, planId, limits, {target}}) ==
+						 OfficialPreparationError::NONE) ;
+		DRIVERCRATE_EXPECT( context, preparation.approve( {operation,
+														 current.scanSessionId,
+														 planId,
+														 limits,
+														 {{target, true, true, false, false}}}) ==
+										OfficialPreparationError::NONE) ;
+		const auto task = preparation.claimNext() ;	// 明示同意と全fieldが一致した場合だけ存在する
+		DRIVERCRATE_EXPECT( context, task.has_value()) ;
+		// 元同意が成立しないfixtureで本体の権限を試さない
+		if( !task) {
+			continue ;
+		}
+
+		RecordScopedDownloadGrant grant ;	// 同じ架空本体へ送信前に要求する権限
+		const auto				  seconds =
+			// 元の信頼UTC秒
+			static_cast<std::uint64_t>( nowUtc.time_since_epoch().count()) ;
+		DRIVERCRATE_EXPECT( context, adapter.claimApprovedRecord( preparation, *task, current,
+																seconds, grant) != 0U) ;
+
+		DelegatedHttpFixture renewed ;	// 元文書の再確認だけを行う独立の架空I/O
+		renewed.signedTermsDocument = true ;
+		renewed.responses			= fixture.responses ;
+		renewed.utcSeconds.assign( 64U, seconds) ;
+		// 明示同意後に一覧から対象文書へのリンクが消えた場合を表す
+		if( mode == 7U) {
+			auto &directory	   = renewed.responses[1] ;	// 改変したのは中間応答のみ
+			directory.body	   = "<html><body>withdrawn document</body></html>" ;
+			directory.declared = std::to_wstring( directory.body.size()) ;
+		}
+
+		activeDelegatedHttpFixture = &renewed ;
+		OfficialHttpClient recheckClient( makeDelegatedHttpTransport()) ;	// 実送信のない元取得順
+		const auto		   rechecked = signed_index_acquisition_detail::Access::recheckTermsFixture(
+			adapter, current, preparation, *task, recheckClient,
+			nowUtc) ;	// 固定信頼時刻で元文書を確認
+		activeDelegatedHttpFixture = nullptr ;
+		const bool confirmed	   = mode == 0U ;	// 元の全リンクが再確認できる場合だけ本体を許可する
+		DRIVERCRATE_EXPECT( context, (rechecked == 0U) == confirmed &&
+										renewed.sends == (confirmed ? 3U : 2U) &&
+										renewed.opened == renewed.closed) ;
+		DRIVERCRATE_EXPECT( context,
+						   (adapter.claimApprovedRecord( preparation, *task, current, seconds,
+														grant) == 0U) == confirmed) ;
+	}
 }
 
 //------------------------------------------------------------------------------

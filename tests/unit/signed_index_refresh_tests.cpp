@@ -2,7 +2,7 @@
 /**
  * @file signed_index_refresh_tests.cpp
  * @brief 実HTTP検証/codecと完全fake保存のrefresh回帰です
- * @version 01.06.02
+ * @version 01.07.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -28,13 +28,15 @@
  * Ver.01.06.00 Shunji Ogawa  2026/11/11  人工破損署名のRSA範囲とcache拒否の元数値を固定
  * Ver.01.06.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.06.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.07.00 Shunji Ogawa  2026/11/28  個別期限と同世代の署名移行を隔離ストアで回帰
  * </pre>
  * @note 暗号/HTTP policy/codecは製品実装、低位I/Oとstore観測はRAM fakeです
- * 同一索引の追加群だけ実隔離storeを使います。製品鍵/実HTTP/実deviceは使いません
+ * 再利用と個別期限の試験群では実隔離storeを使います。製品鍵/実HTTP/実deviceは使いません
  */
 //------------------------------------------------------------------------------
 #include "signed_index_refresh_tests.h"
 #include "test_framework.h"
+#include "platform/signed_index_record_lookup.h"
 #include "platform/signed_index_refresh.h"
 #include "platform/signed_index_store_internal.h"
 #include "platform/public_index_readback.h"
@@ -245,15 +247,19 @@ struct RamKey {
 //------------------------------------------------------------------------------
 /**
  * @brief 既知取得申告を持つ一件の完全人工v2 recordを返します
- * @param[in] expired 元attestationだけが期限切れの負例です
+ * @param[in] expired 元attestationが基準UTCより前に切れる場合trueです
+ * @param[in] recordId 同じ配布物に結ぶ元レコードの識別子です
  * @return 実driver検査を証明しない人工wireです
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] std::string record( const bool expired)
+[[nodiscard]] std::string record( const bool				expired,
+								 const std::string_view recordId = "artificial-acquisition")
 {
 	const std::string a( 64U, 'a') ;	// 架空公式出典digestです
 	const std::string b( 64U, 'b') ;	// 架空packageの申告digestです
-	return R"({"schema":"driver-index-record-v2","sourceId":"artificial-source","recordId":"artificial-acquisition","product":"Artificial acquisition purpose","targetOs":{"state":"KNOWN","value":"WINDOWS_11","reason":""},"architecture":{"state":"KNOWN","value":"X64","reason":""},"driverKind":{"state":"KNOWN","value":"NORMAL_DRIVER","reason":""},"version":{"state":"KNOWN","value":"1.2.3.4","reason":""},"publishedDate":{"state":"UNKNOWN","value":"","reason":"artificial date absent"},"acquisition":{"state":"KNOWN","value":"STANDARD_INF_ARCHIVE","reason":""},"packageEvidence":{"publishedHash":{"state":"UNKNOWN","sha256":"","evidenceUrl":"","evidenceSha256":"","reason":"artificial published hash absent"},"calculatedHash":{"state":"KNOWN","sha256":")" +
+	return R"({"schema":"driver-index-record-v2","sourceId":"artificial-source","recordId":")" +
+		   std::string{recordId} +
+		   R"(","product":"Artificial acquisition purpose","targetOs":{"state":"KNOWN","value":"WINDOWS_11","reason":""},"architecture":{"state":"KNOWN","value":"X64","reason":""},"driverKind":{"state":"KNOWN","value":"NORMAL_DRIVER","reason":""},"version":{"state":"KNOWN","value":"1.2.3.4","reason":""},"publishedDate":{"state":"UNKNOWN","value":"","reason":"artificial date absent"},"acquisition":{"state":"KNOWN","value":"STANDARD_INF_ARCHIVE","reason":""},"packageEvidence":{"publishedHash":{"state":"UNKNOWN","sha256":"","evidenceUrl":"","evidenceSha256":"","reason":"artificial published hash absent"},"calculatedHash":{"state":"KNOWN","sha256":")" +
 		   b + R"(","evidenceUrl":"https://vendor.example/package.zip","evidenceSha256":")" + b +
 		   R"(","reason":""},"size":{"state":"KNOWN","valueBytes":22,"reason":""}},"lastSuccessfulObservationUtc":{"state":"KNOWN","value":"2026-10-13T12:00:00Z","reason":""},"inspectionStage":"CONTENT_INSPECTED","publishedIdentityEvidence":{"state":"PUBLISHED","kind":"INF","pnpIds":[{"kind":"HARDWARE","value":"PCI\\VEN_1234&DEV_5678"}],"classGuid":"{4D36E972-E325-11CE-BFC1-08002BE10318}","nestedArchiveIdentity":"","infIdentity":"driver/sample.inf","modelSection":"Models.NTamd64","evidenceUrl":"https://vendor.example/package.zip","evidenceSha256":")" +
 		   b +
@@ -271,19 +277,30 @@ struct RamKey {
  * @brief 人工recordを原hashへ結ぶv2 indexを構成します
  * @param[in] key RAM hash helperです
  * @param[in] generation Asset世代です
- * @param[in] expired 元attestationの負例です
- * @return 一source/一recordの原indexです
+ * @param[in] expired 一件目の元attestationが基準UTCより前に切れる場合trueです
+ * @param[in] appendLater 同一配布物で期限が遅い独立レコードも含める場合trueです
+ * @return 一取得元と一件または二件の原レコードを持つ索引です
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] std::string index( const RamKey &key, const unsigned generation, const bool expired)
+[[nodiscard]] std::string index( const RamKey &key, const unsigned generation, const bool expired,
+								const bool appendLater = false)
 {
-	const auto		  raw = record( expired) ;	// 原recordを再整形しません
-	const std::string a( 64U, 'a') ;			// 架空source出典digestです
+	// 同期呼出し内でRAM鍵を借用し、一つの原レコードを再整形せずにハッシュへ結びます
+	const auto row = [&key]( const std::string_view raw) {
+		return R"({"recordBytesBase64":")" + base64( raw) + R"(","recordSha256":")" +
+			   hex( key.digest( raw)) + R"("})" ;
+	} ;
+	auto entries = row( record( expired)) ;	// 元索引の先頭レコードです
+	// 同じ配布物に結ぶ元行が一方だけ失効する対照を作ります
+	if( appendLater) {
+		entries += ',' + row( record( false, "artificial-acquisition-later")) ;
+	}
+
+	const std::string a( 64U, 'a') ;	// 架空source出典digestです
 	return "{\"schema\":\"driver-index-records-v2\",\"assetGeneration\":" +
 		   std::to_string( generation) +
 		   R"(,"sources":[{"sourceId":"artificial-source","officialOrigin":"https://vendor.example/","distributionPage":"https://vendor.example/support","officialEvidence":{"state":"PUBLISHED","kind":"OFFICIAL_PAGE","evidenceUrl":"https://vendor.example/support","evidenceSha256":")" +
-		   a + R"(","reason":""}}],"records":[{"recordBytesBase64":")" + base64( raw) +
-		   R"(","recordSha256":")" + hex( key.digest( raw)) + R"("}]})" ;
+		   a + R"(","reason":""}}],"records":[)" + entries + "]}" ;
 }
 /** @brief 一つの完全fake HTTP応答を所有します */
 struct Hop {
@@ -566,12 +583,15 @@ thread_local Fixture			   *ACTIVE{} ;
  * @param[in] generation Manifest世代です
  * @param[in] assetGeneration 参照asset世代です
  * @param[in] mode 固定caseの番号です
+ * @param[in] recordCount 検査済みの原レコード件数です
+ * @param[in] legacyManifestHash 版2に署名する旧manifest原byteのハッシュです。空なら版1です
  * @return 再serializationしない署名envelopeです
  */
 //------------------------------------------------------------------------------
-[[nodiscard]] std::string envelope( const RamKey &key, const std::string &packed,
-								   const unsigned generation, const unsigned assetGeneration,
-								   const unsigned mode)
+[[nodiscard]] std::string envelope(
+	const RamKey &key, const std::string &packed, const unsigned generation,
+	const unsigned assetGeneration, const unsigned mode, const unsigned recordCount = 1U,
+	const std::optional<IndexManifestSha256> legacyManifestHash = std::nullopt)
 {
 	const std::string keyId =
 		// 実製品鍵と分離します
@@ -583,16 +603,26 @@ thread_local Fixture			   *ACTIVE{} ;
 	const std::string expires =
 		// 期限切れ負例です
 		mode == 9U ? "2026-10-13T17:00:00Z" : "2026-10-14T12:00:00Z" ;
-	const std::string raw =
-		"{\"schema\":\"driver-index-manifest-v1\",\"repository\":\"EnterOgawa/drivercrate\",\"channel\":\"driver-index\",\"keyId\":\"" +
+	const std::string version = legacyManifestHash ? "v2" : "v1" ;	// 原署名と資産名で同じ版です
+	// 発行条件と集計を署名へ渡す原JSONです
+	std::string		  raw =
+		"{\"schema\":\"driver-index-manifest-" + version +
+		"\",\"repository\":\"EnterOgawa/drivercrate\",\"channel\":\"driver-index\",\"keyId\":\"" +
 		keyId + "\",\"generation\":" + std::to_string( generation) +
 		",\"assetGeneration\":" + std::to_string( assetGeneration) + ",\"publishedAtUtc\":\"" +
-		published + "\",\"expiresAtUtc\":\"" + expires +
-		"\",\"asset\":{\"tag\":\"index-v1-20261013-" + digest +
+		published + "\",\"expiresAtUtc\":\"" + expires + "\",\"asset\":{\"tag\":\"index-" +
+		version + "-20261013-" + digest +
 		"\",\"name\":\"index.json.gz\",\"compression\":\"gzip\",\"sizeBytes\":" +
 		std::to_string( packed.size()) + ",\"sha256\":\"" + digest +
-		// 既知一件の人工申告です
-		"\"},\"quality\":{\"sourceCount\":1,\"recordCount\":1,\"metadataOnlyCount\":0,\"contentInspectedCount\":1,\"unconfirmedCount\":0}}" ;
+		"\"},\"quality\":{\"sourceCount\":1,\"recordCount\":" + std::to_string( recordCount) +
+		",\"metadataOnlyCount\":0,\"contentInspectedCount\":" + std::to_string( recordCount) +
+		",\"unconfirmedCount\":0}" ;
+	// 版2の署名対象へ同世代の旧原manifestを結びます
+	if( legacyManifestHash) {
+		raw += ",\"legacyManifestSha256\":\"" + hex( *legacyManifestHash) + '"' ;
+	}
+
+	raw += '}' ;
 	// PSS salt32の実原署名です
 	auto signature = key.sign( raw) ;
 	// 人工RSA値をmodulus未満に保ち、元と異なる署名を暗号拒否まで到達させます
@@ -1202,6 +1232,276 @@ void runCacheReuseFixtures( TestContext &context, const RamKey &key,
 	std::cout << "INDEX_CACHE_END cases=14 assertions=" << context.assertionCount() - firstAssertion
 			  << " failures=" << context.failureCount() - firstFailure << '\n' ;
 }
+
+/** @brief 二つの原レコードを同じ架空の機器へ照合します */
+class ExpiryFixtureResolver final : public IndexPublicIdResolver {
+public:
+	/**
+	 * @brief 同じ原Hardware IDとクラスを持つ架空機器一台を返します
+	 * @param[in] kind 架空レコードの元ID種別です
+	 * @param[in] publishedId 署名済みレコードの原公開IDです
+	 * @param[in] classGuid 署名済みレコードの原クラスです
+	 * @param[in] context 同じ試験スキャンの文脈です
+	 * @param[in] present この照合だけで借用する架空機器の集合です
+	 * @return 固定の元証拠が一致した場合だけ架空機器へ結ぶ完了結果です
+	 */
+	[[nodiscard]] IndexPublicIdResolution resolve(
+		const IndexPnpIdKind kind, const std::string_view publishedId,
+		const std::string_view classGuid, const IndexLookupContext context,
+		const std::span<const std::wstring> present) const override
+	{
+		IndexPublicIdResolution result{context, true, 0, {}} ;	// この照合の架空完了結果です
+		// 二行が共有する元公開tupleだけを一台の架空機器へ結びます
+		if( kind == IndexPnpIdKind::HARDWARE && publishedId == "PCI\\VEN_1234&DEV_5678" &&
+		   classGuid == "{4D36E972-E325-11CE-BFC1-08002BE10318}" && present.size() == 1U) {
+			result.devices.push_back( present.front()) ;
+		}
+
+		return result ;
+	}
+} ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 旧版から独立期限版への移行、再読、照合と期限境界を確認します
+ * @param[in,out] context 共通のassertion集計です
+ * @param[in] key 同じ試験だけの非永続署名鍵です
+ * @param[in] trust 同じ鍵を認証する人工公開鍵の借用集合です
+ * @note 完全fake HTTPと自作の隔離保護ストアだけを使用します
+ */
+//------------------------------------------------------------------------------
+void runIndependentExpiryFixtures( TestContext &context, const RamKey &key,
+								  const std::span<const signed_index_detail::TrustKey> trust)
+{
+	using StoreAccess		  = signed_index_store_detail::Access ;
+	const auto firstAssertion = context.assertionCount() ;					// 個別期限の試験分母です
+	const auto firstFailure	  = context.failureCount() ;					// 他の試験群と失敗数を区別します
+	const auto recordExpiry	  = NOW - std::chrono::hours{1} ;				// 一件目の元確認期限です
+	const auto beforeExpiry	  = recordExpiry - std::chrono::seconds{1} ;	// 境界直前の信頼UTCです
+	const auto manifestExpiry = NOW + std::chrono::hours{18} ;				// 署名全体と二件目の期限です
+	const auto legacyPacked	  = gzip( index( key, 2U, false)) ;				// 旧版向けの有効な一件です
+	const auto legacyWire	  = envelope( key, legacyPacked, 2U, 2U, 0U) ;	// 同世代の旧配信です
+	const auto legacy		  = signed_index_detail::authenticateWithTrustKeys(
+		legacyWire, beforeExpiry, std::nullopt, trust) ;	// 外側でなく実署名対象のハッシュを得ます
+	require( legacy.manifest.has_value()) ;
+	const auto legacyHash =
+		// 同世代の正規移行を証明する元値です
+		legacy.manifest->data().manifestSha256 ;
+	const auto mixedPacked =
+		// 配布物は同じで期限だけが異なる二件です
+		gzip( index( key, 2U, true, true)) ;
+	const auto mixedLegacy =
+		// 旧期限方式での混在対照です
+		envelope( key, mixedPacked, 2U, 2U, 0U, 2U) ;
+	const auto pairedWire = envelope( key, mixedPacked, 2U, 2U, 0U, 2U, legacyHash) ;	// 正規の版2です
+	const auto wrongPair  = envelope( key, mixedPacked, 2U, 2U, 0U, 2U,
+									 // 署名は正当で結合先だけが異なります
+									 key.digest( "different legacy projection")) ;
+	const auto olderPacked = gzip( index( key, 1U, false)) ;	// 世代巻き戻しの対照です
+	const auto olderWire =
+		// 正当な旧世代署名です
+		envelope( key, olderPacked, 1U, 1U, 0U, 1U, legacyHash) ;
+	const auto newerLegacy =
+		// 世代が進んでも旧方式へ戻せません
+		envelope( key, legacyPacked, 3U, 2U, 0U) ;
+	auto chain = StoreAccess::createIsolated( trust) ;	// 世代移行を保存する実隔離ストアです
+	auto fresh = StoreAccess::createIsolated( trust) ;	// 個別期限後に初めて受信する別ストアです
+	require( chain.store && fresh.store) ;
+
+	// 同期呼出し内だけで試験集計と鍵を借用し、HTTPを隔離ストアの実入出力へつなぎます
+	const auto refresh = [&]( SignedIndexStore &store, const std::chrono::sys_seconds now,
+							 const std::uint32_t version, const std::string &wire,
+							 const std::string &packed, const unsigned sends) {
+		Fixture fixture ;	// この呼出しの通信観測を所有します
+		fixture.hops = {{wire, 200U, L"application/json"}, {packed, 200U, L"application/gzip"}} ;
+		// 実ストアから得た同じ処理の結果だけをrefresh用の観測へ写します
+		const auto observe = []( const IndexStoreResult &result) {
+			return IndexRefreshStoreObservation{result.status,
+												result.commit,
+												result.error,
+												result.manifestStatus,
+												result.persistedGeneration,
+												result.snapshot.has_value()} ;
+		} ;
+		signed_index_refresh_detail::Services services ;	// 製品I/Oへ補完しない完全表です
+		services.transport			   = transport() ;
+		services.fixtureTrust		   = trust ;
+		services.manifestSchemaVersion = version ;
+		// 実時刻を使わず、同じ呼出しが所有する固定UTCと単調時計を返します
+		services.utcNow		  = [now]() { return std::optional{now} ; } ;
+		services.monotonicNow = [&fixture]() { return fixture.monotonic ; } ;
+		// 隔離ストアの借用は同期refresh中に限り、実再認証と保存の結果だけを返します
+		services.loadExisting = [&store]( const auto time) { return store.reload( time) ; } ;
+		services.reload		  = [&]( const auto time) { return observe( store.reload( time)) ; } ;
+		services.commit = [&]( const IndexRecordsSchemaReceipt &receipt, const std::string_view raw,
+							  const std::span<const std::byte> bytes, const auto time) {
+			++fixture.commits ;
+			return observe( store.commit( receipt, raw, bytes, time)) ;
+		} ;
+		ACTIVE = &fixture ;
+		const auto result =
+			// 実refresh入口です
+			signed_index_refresh_detail::Access::forTest( services) ;
+		ACTIVE = nullptr ;
+		const std::wstring_view current =
+			version == 2U
+				? L"/EnterOgawa/drivercrate/driver-index/index/current-v2.json"
+				: L"/EnterOgawa/drivercrate/driver-index/index/current.json" ;	// 版ごとの固定配信入口です
+		DRIVERCRATE_EXPECT( context, result.sends == sends && fixture.paths.size() == sends &&
+										fixture.paths.front() == current) ;
+		// 本体を要求する対照は認証した版の固定リリースを参照します
+		if( sends == 2U && fixture.paths.size() == 2U) {
+			const std::wstring_view release =
+				version == 2U
+					? L"/EnterOgawa/drivercrate/releases/download/index-v2-"
+					: L"/EnterOgawa/drivercrate/releases/download/index-v1-" ;	// 署名方式と一致する資産名です
+			DRIVERCRATE_EXPECT( context, fixture.paths[1].starts_with( release) &&
+											fixture.paths[1].ends_with( L"/index.json.gz")) ;
+		}
+
+		DRIVERCRATE_EXPECT( context, fixture.commits ==
+										(result.status == IndexRefreshStatus::REFRESHED ? 1U : 0U)) ;
+		return result ;
+	} ;
+
+	// 再読した元署名と二つの元レコードを、その時点の架空端末との通常照合に渡します
+	const auto expectLookup = [&]( SignedIndexStore &store, const std::chrono::sys_seconds now,
+								  const bool shortExpired) {
+		auto loaded = store.reload( now) ;	// 保護済みの元byteを実再認証します
+		DRIVERCRATE_EXPECT( context, loaded.status == IndexStoreStatus::SNAPSHOT_READY &&
+										loaded.persistedGeneration == 2U && loaded.snapshot &&
+										loaded.snapshot->originalEnvelope() == pairedWire) ;
+		// 再認証が成立した場合だけ同じ原snapshotを照合へ移します
+		if( !loaded.snapshot) {
+			return ;
+		}
+
+		const auto snapshot = std::make_shared<const AuthenticatedIndexSnapshot>(
+			// 同じ署名と全原レコードを所有します
+			std::move( *loaded.snapshot)) ;
+		const auto &manifest =
+			// 版2の原宣言です
+			snapshot->schemaReceipt().assetBytes().manifest().data() ;
+		DRIVERCRATE_EXPECT( context, manifest.schemaVersion == 2U &&
+										manifest.expiresAtUtc == manifestExpiry &&
+										manifest.legacyManifestSha256 == legacyHash) ;
+		DRIVERCRATE_EXPECT( context,
+						   snapshot->consumerRecords().size() == 2U &&
+							   snapshot->consumerRecordRegion( 0U).expiresAtUtc == recordExpiry &&
+							   snapshot->consumerRecordRegion( 1U).expiresAtUtc == manifestExpiry) ;
+		const ExpiryFixtureResolver		   resolver ;						// 元公開値だけを使う架空端末照合です
+		const IndexLookupContext		   scan{1U, 2U, 3U} ;				// 同じ照合を結合する架空scanです
+		const std::array<std::wstring, 1U> present{L"artificial-opaque"} ;	// 唯一の架空機器です
+		const auto matched = lookupSignedIndexRecords( snapshot, scan, scan, present, {}, now,
+													  &resolver) ;	// 期限を含む通常照合です
+		DRIVERCRATE_EXPECT( context, matched.status == IndexRecordLookupStatus::LOOKUP_READY &&
+										matched.lookup && matched.lookup->relations().size() == 2U) ;
+		// 二つの元レコードの関係がそろった場合だけ各結果を確認します
+		if( !matched.lookup || matched.lookup->relations().size() != 2U) {
+			return ;
+		}
+
+		const auto relations = matched.lookup->relations() ;	// 原順序の二件です
+		DRIVERCRATE_EXPECT( context,
+						   matched.lookup->progress().resolverCalls == (shortExpired ? 1U : 2U)) ;
+		DRIVERCRATE_EXPECT(
+			context,
+			relations[0].recordId == "artificial-acquisition" &&
+				(shortExpired
+					 ? relations[0].state == IndexRecordMatchState::UNDETERMINED &&
+						   relations[0].reason == IndexRecordMatchReason::RECORD_REGION_EXPIRED &&
+						   !relations[0].deviceIdentity
+					 : relations[0].state == IndexRecordMatchState::MATCHED)) ;
+		DRIVERCRATE_EXPECT( context, relations[1].recordId == "artificial-acquisition-later" &&
+										relations[1].state == IndexRecordMatchState::MATCHED &&
+										relations[1].deviceIdentity == present.front()) ;
+	} ;
+
+	// 同世代の旧版を先に保存し、誤った署名対を拒否してから正規の対で移行します
+	const auto initial =
+		// 旧headです
+		refresh( *chain.store, beforeExpiry, 1U, legacyWire, legacyPacked, 2U) ;
+	DRIVERCRATE_EXPECT( context, initial.status == IndexRefreshStatus::REFRESHED) ;
+	const auto mismatch =
+		// 誤った結合です
+		refresh( *chain.store, beforeExpiry, 2U, wrongPair, mixedPacked, 1U) ;
+	DRIVERCRATE_EXPECT( context, mismatch.status == IndexRefreshStatus::MANIFEST_REJECTED &&
+									mismatch.manifestStatus ==
+										SignedIndexManifestStatus::GENERATION_CONFLICT) ;
+	const auto upgraded =
+		// 正規対です
+		refresh( *chain.store, beforeExpiry, 2U, pairedWire, mixedPacked, 2U) ;
+	DRIVERCRATE_EXPECT( context,
+					   upgraded.status == IndexRefreshStatus::REFRESHED &&
+						   upgraded.store.commit == IndexStoreCommitDisposition::COMMITTED) ;
+	expectLookup( *chain.store, beforeExpiry, false) ;
+
+	// 新しいストア所有者で同じ保護headを開き、境界時刻の同一currentを確認します
+	auto reopened = StoreAccess::reopenIsolated( *chain.store) ;	// 同じ永続headの再openです
+	require( reopened.store != nullptr) ;
+	const auto unchanged =
+		// 同原byteです
+		refresh( *reopened.store, recordExpiry, 2U, pairedWire, mixedPacked, 1U) ;
+	DRIVERCRATE_EXPECT( context, unchanged.status == IndexRefreshStatus::UNCHANGED &&
+									unchanged.usedAuthenticatedCache &&
+									unchanged.store.usableSnapshot) ;
+	expectLookup( *reopened.store, recordExpiry, true) ;
+
+	// 同世代の別内容と巻き戻し、配信入口の誤りを再openした保護headに対して検査します
+	const auto collision =
+		// 同世代の衝突です
+		refresh( *reopened.store, recordExpiry, 2U, wrongPair, mixedPacked, 1U) ;
+	DRIVERCRATE_EXPECT( context, collision.status == IndexRefreshStatus::MANIFEST_REJECTED &&
+									collision.manifestStatus ==
+										SignedIndexManifestStatus::GENERATION_CONFLICT) ;
+	const auto rollback =
+		// 旧世代です
+		refresh( *reopened.store, recordExpiry, 2U, olderWire, olderPacked, 1U) ;
+	DRIVERCRATE_EXPECT( context, rollback.status == IndexRefreshStatus::MANIFEST_REJECTED &&
+									rollback.manifestStatus ==
+										SignedIndexManifestStatus::GENERATION_ROLLBACK) ;
+	const auto downgrade =
+		// 旧方式です
+		refresh( *reopened.store, recordExpiry, 1U, newerLegacy, legacyPacked, 1U) ;
+	DRIVERCRATE_EXPECT( context, downgrade.status == IndexRefreshStatus::MANIFEST_REJECTED &&
+									downgrade.manifestStatus ==
+										SignedIndexManifestStatus::GENERATION_ROLLBACK) ;
+	const auto wrongSchema =
+		// 入口違いです
+		refresh( *reopened.store, recordExpiry, 2U, newerLegacy, legacyPacked, 1U) ;
+	DRIVERCRATE_EXPECT( context, wrongSchema.status == IndexRefreshStatus::MANIFEST_REJECTED &&
+									wrongSchema.manifestStatus ==
+										SignedIndexManifestStatus::INVALID_MANIFEST) ;
+
+	// 同じ二行は期限切れ時に版1で拒否され、版2では初回取得でも有効な行を使えます
+	const auto rejected =
+		// 旧方式の失効です
+		refresh( *fresh.store, recordExpiry, 1U, mixedLegacy, mixedPacked, 2U) ;
+	DRIVERCRATE_EXPECT( context, rejected.status == IndexRefreshStatus::RECORDS_REJECTED &&
+									rejected.recordsStatus == IndexRecordsStatus::EXPIRED) ;
+	const auto newlyLoaded =
+		// 版2の初回です
+		refresh( *fresh.store, recordExpiry, 2U, pairedWire, mixedPacked, 2U) ;
+	DRIVERCRATE_EXPECT( context, newlyLoaded.status == IndexRefreshStatus::REFRESHED) ;
+	expectLookup( *fresh.store, recordExpiry, true) ;
+
+	// 全体の期限に達した時刻では元署名から新しい参照を発行しません
+	const auto expired =
+		// 全体失効です
+		refresh( *reopened.store, manifestExpiry, 2U, pairedWire, mixedPacked, 1U) ;
+	DRIVERCRATE_EXPECT( context,
+					   expired.status == IndexRefreshStatus::MANIFEST_REJECTED &&
+						   expired.manifestStatus == SignedIndexManifestStatus::INVALID_TIME &&
+						   !expired.usedAuthenticatedCache) ;
+	const auto expiredCache =
+		// 保護headの全体期限も同値で切れます
+		reopened.store->reload( manifestExpiry) ;
+	DRIVERCRATE_EXPECT( context, expiredCache.status == IndexStoreStatus::EXPIRED &&
+									expiredCache.persistedGeneration == 2U &&
+									!expiredCache.snapshot) ;
+	std::cout << "INDEX_INDEPENDENT_EXPIRY assertions=" << context.assertionCount() - firstAssertion
+			  << " failures=" << context.failureCount() - firstFailure << '\n' ;
+}
 }
 
 //------------------------------------------------------------------------------
@@ -1703,5 +2003,6 @@ void runSignedIndexRefreshTests( TestContext &context)
 			  << context.assertionCount() - pairFirst
 			  << ", failures: " << context.failureCount() - pairFailures << '\n' ;
 	runCacheReuseFixtures( context, key, trust) ;
+	runIndependentExpiryFixtures( context, key, trust) ;
 }
 } // namespace drivercrate::test

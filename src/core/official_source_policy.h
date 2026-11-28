@@ -2,7 +2,7 @@
 /**
  * @file official_source_policy.h
  * @brief 公式取得元policy registry定義
- * @version 01.02.02
+ * @version 01.03.00
  * @date 2026/09/04
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -50,6 +50,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/09/23  製品registryと独立した取得専用開発sourceを追加
  * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.03.00 Shunji Ogawa  2026/11/27  公式AMD配布用の参照元照合を定義
  * </pre>
  *
  * @note 公式取得元の用途別policyを宣言します。登録だけを取得同意・導入許可とはしません
@@ -286,5 +287,17 @@ struct OfficialSourcePolicy {
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] bool isValidOfficialSourceEvidence( const OfficialSourceEvidence &evidence) noexcept ;
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 参照元付き取得で使えるAMD公式製品ページと配布URLの構文を確認する
+ * @param[in] page 元配布を掲載した公式製品ページ
+ * @param[in] payload 同じ元ページに結合した配布先
+ * @return 正規HTTPSのAMD製品ページと直接EXE配布先である場合true
+ * @note 実ページの証拠、元配布との一致と同意は呼出し側で確認する
+ */
+//------------------------------------------------------------------------------
+[[nodiscard]] bool isAmdProductDownloadRoute( std::wstring_view page,
+											 std::wstring_view payload) noexcept ;
 
 } // namespace drivercrate

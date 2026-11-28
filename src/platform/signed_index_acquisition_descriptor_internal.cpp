@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_descriptor_internal.cpp
  * @brief 全メーカー共通の取得descriptor元申告を有限な文法とbindingで検査します
- * @version 01.10.00
+ * @version 01.11.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -36,6 +36,7 @@
  * Ver.01.08.00 Shunji Ogawa  2026/11/22  私有規約を元ZIPと公式規約文書へ結合
  * Ver.01.09.00 Shunji Ogawa  2026/11/22  私有収集に必須のZIP規約だけを読み取る入口を追加
  * Ver.01.10.00 Shunji Ogawa  2026/11/23  私有WiXの非実行取得形式と埋込み規約の元申告を検査
+ * Ver.01.11.00 Shunji Ogawa  2026/11/27  二段の公式規約と算出版に限った署名記述子を検査
  * </pre>
  *
  * @note 索引発行者の申告を読むだけで、公式性・vendor署名・実byte・端末適合を実証しません
@@ -55,6 +56,7 @@
 #include <utility>
 #include <windows.h>
 
+#include "platform/official_html_terms.h"
 #include "platform/official_http_client.h"
 
 namespace drivercrate::signed_index_acquisition {
@@ -397,12 +399,12 @@ template <class Value, std::size_t Count>
 /**
  * @brief 原選択文書と抽出全文の独立digestを持つHTML申告を読みます
  * @param[in,out] reader 有限readerです
- * @return profile別の原11fieldまたは9fieldです。本文や同意は生成しません
+ * @return profileごとの閉じた原項目です。元文書や同意は生成しません
  */
 //------------------------------------------------------------------------------
 [[nodiscard]] IndexHtmlTermsExtraction readHtmlExtraction( DescriptorReader &reader)
 {
-	constexpr std::array<std::string_view, 12U> FIELDS{
+	constexpr std::array<std::string_view, 15U> FIELDS{
 		"profile",
 		"selector",
 		"containerSelector",
@@ -414,7 +416,10 @@ template <class Value, std::size_t Count>
 		"textSizeBytes",
 		"bindingEvidenceUrl",
 		"bindingEvidenceSha256",
-		"bindingEvidenceSizeBytes"} ;	// profile別の閉集合です
+		"bindingEvidenceSizeBytes",
+		"bindingDirectoryUrl",
+		"bindingDirectorySha256",
+		"bindingDirectorySizeBytes"} ;	// profile別の閉集合です
 	IndexHtmlTermsExtraction value ;	// 全成功前には公開しない元値です
 	// 全入れ子を要求型だけで読み、未知fieldや重複を拒否します
 	const auto presence = reader.objectWithPresence( FIELDS, [&]( const std::size_t field) {
@@ -424,69 +429,96 @@ template <class Value, std::size_t Count>
 				&value.selector, &value.containerSelector, &value.linkSelector} ;	// 元出力先です
 			*selectors[field - 1U] = readHtmlSelector( reader) ;
 		} else {
-			// Exact sizeだけを整数型で読みます
-			if( field == 6U || field == 8U || field == 11U) {
-				(field == 6U ? value.documentSizeBytes
-							 : (field == 8U ? value.textSizeBytes
-											: value.bindingEvidenceSizeBytes)) = reader.number() ;
-			} else {
-				const auto text = reader.text( field == 9U ? URL_LIMIT : TEXT_LIMIT) ;	// 原textです
-				// 元field番号へ要求型だけを結合します
-				switch( field) {
-					case 0U:
-						// 閉じた共通profileを保持します
-						value.profile = text ;
-						// 閉じたprofileです
-						break ;
+			// 元項目ごとの上限と型で同期して読み取ります
+			switch( field) {
+				// 閉じた共通profileです
+				case 0U:
+					value.profile = reader.text( TEXT_LIMIT) ;
+					break ;
 
-					case 4U:
-						// 配布linkの実payload属性名を保持します
-						value.payloadAttribute = text ;
-						// 実payload属性名です
-						break ;
+				// 配布linkの実payload属性名です
+				case 4U:
+					value.payloadAttribute = reader.text( TEXT_LIMIT) ;
+					break ;
 
-					case 5U:
-						// 選択原文書の完全hashを読みます
-						value.documentSha256 =
-							decodeHash( text, IndexRecordsStatus::INVALID_EVIDENCE) ;
-						// 原文書です
-						break ;
+				// 選択原文書の完全hashです
+				case 5U:
+					value.documentSha256 =
+						decodeHash( reader.text( TEXT_LIMIT), IndexRecordsStatus::INVALID_EVIDENCE) ;
+					break ;
 
-					case 7U:
-						// 抽出全文の完全hashを読みます
-						value.textSha256 = decodeHash( text, IndexRecordsStatus::INVALID_EVIDENCE) ;
-						// 全文です
-						break ;
+				// 選択原文書のbyte数です
+				case 6U:
+					value.documentSizeBytes = reader.number() ;
+					break ;
 
-					case 9U:
-						// 監視側許諾導線の原根拠URLを保持します
-						value.bindingEvidenceUrl = text ;
-						// 監視側関連根拠です
-						break ;
+				// 抽出全文の完全hashです
+				case 7U:
+					value.textSha256 =
+						decodeHash( reader.text( TEXT_LIMIT), IndexRecordsStatus::INVALID_EVIDENCE) ;
+					break ;
 
-					case 10U:
-						// 同原根拠byteのhashを読みます
-						value.bindingEvidenceSha256 =
-							decodeHash( text, IndexRecordsStatus::INVALID_EVIDENCE) ;
-						// 原根拠です
-						break ;
+				// 抽出全文のbyte数です
+				case 8U:
+					value.textSizeBytes = reader.number() ;
+					break ;
 
-					default:
-						// 不明番号です
-						throw Failure{IndexRecordsStatus::INVALID_EVIDENCE} ;
-				}
+				// 監視側許諾導線の原根拠URLです
+				case 9U:
+					value.bindingEvidenceUrl = reader.text( URL_LIMIT) ;
+					break ;
+
+				// 同原根拠byteのhashです
+				case 10U:
+					value.bindingEvidenceSha256 =
+						decodeHash( reader.text( TEXT_LIMIT), IndexRecordsStatus::INVALID_EVIDENCE) ;
+					break ;
+
+				// 同原根拠のbyte数です
+				case 11U:
+					value.bindingEvidenceSizeBytes = reader.number() ;
+					break ;
+
+				// 二段リンクの中間一覧の元URLです
+				case 12U:
+					value.bindingDirectoryUrl = reader.text( URL_LIMIT) ;
+					break ;
+
+				// 中間一覧の原応答全体のhashです
+				case 13U:
+					value.bindingDirectorySha256 =
+						decodeHash( reader.text( TEXT_LIMIT), IndexRecordsStatus::INVALID_EVIDENCE) ;
+					break ;
+
+				// 中間一覧の原応答のbyte数です
+				case 14U:
+					value.bindingDirectorySizeBytes = reader.number() ;
+					break ;
+
+				// 不明番号は補完しません
+				default:
+					throw Failure{IndexRecordsStatus::INVALID_EVIDENCE} ;
 			}
 		}
 	}) ;
-	// 独立sectionは不要なtextarea fieldを受理せず、原9fieldだけに限定します
-	if( value.profile == "STATIC_HTML_SECTION_V1") {
+	constexpr std::uint32_t DIRECTORY_FIELDS =
+		(1U << 12U) | (1U << 13U) | (1U << 14U) ;						// 規約一覧の元応答を指定する必須集合です
+	const bool linked = value.profile == LINKED_STATIC_TERMS_PROFILE ;	// 二段リンク専用形式です
+	// 中間一覧の項目は従来形式では未知の項目として拒否します
+	require( linked || (presence & DIRECTORY_FIELDS) == 0U, IndexRecordsStatus::INVALID_RECORD) ;
+	// 独立sectionで使う原項目は閉集合に限定し、二段の場合だけ中間一覧を要求します
+	if( linked || value.profile == "STATIC_HTML_SECTION_V1") {
 		constexpr std::uint64_t STATIC_FIELDS = (1U << 0U) | (1U << 1U) | (1U << 5U) | (1U << 6U) |
 												(1U << 7U) | (1U << 8U) | (1U << 9U) | (1U << 10U) |
 												(1U << 11U) ;	// 独立sectionの必須集合です
-		require( presence == STATIC_FIELDS && value.documentSizeBytes > 0U &&
-					value.documentSizeBytes <= STATIC_TERMS_LIMIT && value.textSizeBytes > 0U &&
-					value.textSizeBytes <= TERMS_LIMIT && value.bindingEvidenceSizeBytes > 0U &&
-					value.bindingEvidenceSizeBytes <= STATIC_TERMS_LIMIT,
+		require( presence == (STATIC_FIELDS | (linked ? DIRECTORY_FIELDS : 0U)) &&
+					value.documentSizeBytes > 0U && value.documentSizeBytes <= STATIC_TERMS_LIMIT &&
+					value.textSizeBytes > 0U &&
+					value.textSizeBytes <= (linked ? STATIC_TERMS_LIMIT : TERMS_LIMIT) &&
+					value.bindingEvidenceSizeBytes > 0U &&
+					value.bindingEvidenceSizeBytes <= STATIC_TERMS_LIMIT &&
+					(!linked || (value.bindingDirectorySizeBytes > 0U &&
+								 value.bindingDirectorySizeBytes <= STATIC_TERMS_LIMIT)),
 				IndexRecordsStatus::INVALID_EVIDENCE) ;
 	} else {
 		require( presence == 2047U && value.profile == "TEXTAREA_HTML_DOCUMENT_V1" &&
@@ -499,6 +531,11 @@ template <class Value, std::size_t Count>
 	}
 
 	requireUrl( value.bindingEvidenceUrl, false) ;
+	// 二段形式だけ中間一覧を静的な元URLとして検査します
+	if( linked) {
+		requireUrl( value.bindingDirectoryUrl, false) ;
+	}
+
 	return value ;
 }
 
@@ -537,15 +574,26 @@ template <class Value, std::size_t Count>
 	// 共通4fieldの欠損を空のURL値へ読み替えず、従来の構造拒否を維持します
 	require( (presence & 15U) == 15U, IndexRecordsStatus::INVALID_RECORD) ;
 	requireUrl( value.url, false) ;
-	const bool html = value.contentType == "text/html; charset=utf-8" ;	// 明示別契約です
+	const bool html	  = value.contentType == "text/html; charset=utf-8" ;	// 明示別契約です
+	const bool linked = value.htmlExtraction && value.htmlExtraction->profile ==
+													LINKED_STATIC_TERMS_PROFILE ;	// 二段リンク用です
+	const bool staticSection =
+		linked || (value.htmlExtraction &&
+				   // 独立文書です
+				   value.htmlExtraction->profile == "STATIC_HTML_SECTION_V1") ;
 	require( presence == (html ? 31U : 15U) && value.sizeBytes > 0U &&
-				value.sizeBytes <= (value.htmlExtraction && value.htmlExtraction->profile ==
-																"STATIC_HTML_SECTION_V1"
-										? STATIC_TERMS_LIMIT
-										: TERMS_LIMIT) &&
+				value.sizeBytes <= (staticSection ? STATIC_TERMS_LIMIT : TERMS_LIMIT) &&
 				(html || value.contentType == "text/plain; charset=utf-8") &&
 				(value.htmlExtraction.has_value() == html),
 			IndexRecordsStatus::INVALID_EVIDENCE) ;
+	// 二段の各元ページを、共通アンカー検査が扱う互いに異なる正規URLへ限定します
+	if( linked) {
+		const auto &extraction = *value.htmlExtraction ;	// 既に構造を検査した二段の元URLです
+		require( hasSameOriginStaticHtmlDocumentUrls( extraction.bindingEvidenceUrl,
+													extraction.bindingDirectoryUrl, value.url),
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+	}
+
 	value.sha256 = decodeHash( hash, IndexRecordsStatus::INVALID_EVIDENCE) ;
 	return value ;
 }
@@ -717,6 +765,15 @@ template <class Value, std::size_t Count>
 					  validText( value.revision) && value.revision.size() <= 128U) ||
 					 (value.revisionKind == IndexTermsRevisionKind::COMPUTED_UTF8_SHA256 &&
 					  value.revision.empty())),
+				IndexRecordsStatus::INVALID_EVIDENCE) ;
+	}
+
+	// 二段規約の版は、同じ規約文書から表示する完全UTF-8本文だけで算出します
+	if( value.textDocument && value.textDocument->htmlExtraction &&
+	   value.textDocument->htmlExtraction->profile == LINKED_STATIC_TERMS_PROFILE) {
+		require( value.revisionKind == IndexTermsRevisionKind::COMPUTED_UTF8_SHA256 &&
+					value.evidenceUrl == value.textDocument->url &&
+					value.evidenceSha256 == value.textDocument->sha256,
 				IndexRecordsStatus::INVALID_EVIDENCE) ;
 	}
 
@@ -1195,10 +1252,13 @@ IndexAcquisitionDescriptor readDescriptor( DescriptorReader &reader, const TextV
 			IndexRecordsStatus::INVALID_EVIDENCE) ;
 	// 未知の取得情報をURLやattestationの存在で暗黙に既知へ補完しない
 	if( value.state == IndexDescriptorState::UNKNOWN) {
+		const auto &document = value.terms.textDocument ;	// 同じ配布物へ結ぶ規約の原申告です
 		require( validText( value.reason) && value.payloadUrl.empty() && value.fileName.empty() &&
 					value.format == IndexPayloadFormat::UNKNOWN &&
 					value.expectedContentType.empty() && value.maximumBytes == 0U &&
-					value.route.empty() && !value.attestation,
+					value.route.empty() && !value.attestation &&
+					(!document || !document->htmlExtraction ||
+					 document->htmlExtraction->profile != LINKED_STATIC_TERMS_PROFILE),
 				IndexRecordsStatus::INVALID_EVIDENCE) ;
 		return value ;
 	}
@@ -1316,16 +1376,19 @@ void validateBinding( const IndexDistributionRecord &record, const IndexRecordSo
 			IndexRecordsStatus::INVALID_EVIDENCE) ;
 	// HTMLの原page provenanceと監視側関連根拠を同じ配布recordへ完全結合します
 	if( value.terms.textDocument && value.terms.textDocument->htmlExtraction) {
-		const auto &document = *value.terms.textDocument ;	// 原page観測です
-		const auto &html	 = *document.htmlExtraction ;	// 選択文書と公開関連根拠です
+		const auto &document = *value.terms.textDocument ;						// 原page観測です
+		const auto &html	 = *document.htmlExtraction ;						// 選択文書と公開関連根拠です
+		const bool	linked	 = html.profile == LINKED_STATIC_TERMS_PROFILE ;	// 算出版の二段形式です
 		require( value.terms.state == IndexTermsState::ACCEPTANCE_REQUIRED &&
-					value.terms.revisionKind == IndexTermsRevisionKind::VENDOR_LITERAL &&
+					value.terms.revisionKind == (linked
+													 ? IndexTermsRevisionKind::COMPUTED_UTF8_SHA256
+													 : IndexTermsRevisionKind::VENDOR_LITERAL) &&
 					value.terms.evidenceUrl == document.url &&
 					value.terms.evidenceSha256 == document.sha256 &&
 					sameOrigin( html.bindingEvidenceUrl, source.officialOrigin),
 				IndexRecordsStatus::INVALID_EVIDENCE) ;
 		// 独立文書だけは公式配布pageの実リンク根拠へ別に結び、規約hashを配布pageへ偽装しません
-		if( html.profile == "STATIC_HTML_SECTION_V1") {
+		if( linked || html.profile == "STATIC_HTML_SECTION_V1") {
 			require( html.bindingEvidenceUrl == source.distributionPage &&
 						source.officialEvidence.evidenceSha256 == html.bindingEvidenceSha256 &&
 						value.route.front().evidenceSha256 == html.bindingEvidenceSha256,

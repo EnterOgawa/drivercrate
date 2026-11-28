@@ -2,7 +2,7 @@
 /**
  * @file signed_index_manifest.h
  * @brief 署名manifestの認証結果と有限な世代・期限契約を定義します
- * @version 01.02.02
+ * @version 01.03.00
  * @date 2026/10/11
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.02.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合
  * Ver.01.02.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.02.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.03.00 Shunji Ogawa  2026/11/28  独立期限の署名スキーマと旧配信の原manifest hashを追加
  * </pre>
  *
  * @note 通信・asset取得・保存・端末照合・導入を行いません。失敗時は認証出力を生成しません
@@ -91,30 +92,32 @@ struct IndexManifestQuality {
 
 /** @brief Manifestの型付き値です。このDTOだけでは認証結果になりません */
 struct IndexManifestData {
-	/// 固定manifest schemaの版。受理する値は1だけです
-	std::uint32_t			 schemaVersion{1U} ;
+	/// 署名manifestの版です。1は旧配信、2は個別期限を持つ配信です
+	std::uint32_t					   schemaVersion{1U} ;
 	/// 固定repository EnterOgawa/drivercrate
-	std::string				 repository ;
+	std::string						   repository ;
 	/// 固定channel driver-index
-	std::string				 channel ;
+	std::string						   channel ;
 	/// 内部の信頼公開鍵へ解決した固定key ID
-	std::string				 keyId ;
+	std::string						   keyId ;
 	/// 正のmanifest世代
-	std::uint64_t			 generation{} ;
+	std::uint64_t					   generation{} ;
 	/// 参照asset世代。正かつmanifest世代以下
-	std::uint64_t			 assetGeneration{} ;
+	std::uint64_t					   assetGeneration{} ;
 	/// 署名された発行UTC
-	std::chrono::sys_seconds publishedAtUtc{} ;
+	std::chrono::sys_seconds		   publishedAtUtc{} ;
 	/// 署名された期限UTC。発行から正の期間、最大14日
-	std::chrono::sys_seconds expiresAtUtc{} ;
+	std::chrono::sys_seconds		   expiresAtUtc{} ;
+	/// 版2と同じ公開世代の署名付き旧manifest原byteのSHA-256。版1では空です
+	std::optional<IndexManifestSha256> legacyManifestSha256 ;
 	/// 固定assetに対する署名された値
-	IndexManifestAsset		 asset ;
+	IndexManifestAsset				   asset ;
 	/// 発行側の集計。実recordとの照合は後続工程です
-	IndexManifestQuality	 quality ;
+	IndexManifestQuality			   quality ;
 	/// 再serializationしない、decodeした署名対象の原byte
-	std::string				 manifestBytes ;
+	std::string						   manifestBytes ;
 	/// manifestBytesだけの実CNG SHA-256
-	IndexManifestSha256		 manifestSha256{} ;
+	IndexManifestSha256				   manifestSha256{} ;
 } ;
 
 namespace signed_index_detail {
@@ -150,6 +153,8 @@ struct IndexManifestHighWater {
 	std::uint64_t		generation{} ;
 	/// 同世代再利用に要求するmanifest原byte SHA-256
 	IndexManifestSha256 manifestSha256{} ;
+	/// 保護済みの原署名スキーマ。版2を一度受理した場合は版1へ戻しません
+	std::uint32_t		schemaVersion{1U} ;
 } ;
 
 /** @brief 認証成功、入力拒否、CNG障害を区別する結果です */

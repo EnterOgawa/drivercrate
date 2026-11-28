@@ -2,7 +2,7 @@
 /**
  * @file official_html_terms_tests.cpp
  * @brief 公式規約の全文変換、改変と書式の拒否を架空入力で検査します
- * @version 01.02.00
+ * @version 01.05.00
  * @date 2026/10/14
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,9 @@
  * Ver.01.00.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.01.00 Shunji Ogawa  2026/11/22  独立規約の限定CSPと表示属性の境界を回帰
  * Ver.01.02.00 Shunji Ogawa  2026/11/23  RTFのUnicodeと非実行の拒否境界を検査
+ * Ver.01.03.00 Shunji Ogawa  2026/11/27  同一HTTPS起点の静的規約リンクを回帰
+ * Ver.01.04.00 Shunji Ogawa  2026/11/27  独立本文の斜体と非実行の参照表記を回帰
+ * Ver.01.05.00 Shunji Ogawa  2026/11/27  二段リンク用の順序付き項番と元全文の照合を回帰
  * </pre>
  *
  * @note 架空原byteだけをRAMで確認します。実device/HTTP/署名鍵/store/導入は使用しません
@@ -326,6 +329,33 @@ void runStaticSectionLayout()
 	expect( drivercrate::verifyStaticHtmlTerms( altered, binding, PAYLOAD, REVISION, verified) !=
 			   0U &&
 		   verified.empty()) ;
+	// 斜体の前後を切らず、参考先を非実行の原文字列として表示します
+	const auto formatted =
+		replace( extended, std::wstring{L"<p>Full terms.</p>"},
+				std::wstring{L"<p>Full <i>terms</i>. <a href=\"/legal/privacy.html\">Privacy</a> "
+							 L"<a href=\"https://example.com/export/\" target=\"_blank\" "
+							 L"rel=\"noopener noreferrer\">Export</a></p>"}) ;
+	expect( drivercrate::extractStaticHtmlTerms( formatted, binding, PAYLOAD, REVISION,
+											   observation) == 0U &&
+		   observation.text.find( L"Full terms.") != observation.text.npos &&
+		   observation.text.find( L"[/legal/privacy.html]") != observation.text.npos &&
+		   observation.text.find( L"[https://example.com/export/]") != observation.text.npos) ;
+	// 同じ選択原文書内の不正参照・作用属性は全文を拒否します
+	const std::array<std::pair<std::wstring, std::wstring>, 7U> FORMATTED_REJECTIONS{
+		std::pair{L"/legal/privacy.html", L"//example.com/privacy.html"},
+		std::pair{L"/legal/privacy.html", L"/legal/../privacy.html"},
+		std::pair{L"/legal/privacy.html", L"/legal/%2e/privacy.html"},
+		std::pair{L"/legal/privacy.html", L"/legal/privacy.html?other"},
+		std::pair{L"rel=\"noopener noreferrer\"", L"rel=\"opener\""},
+		std::pair{L"rel=\"noopener noreferrer\"", L"onclick=\"x()\""},
+		std::pair{L"<i>", L"<i hidden=\"hidden\">"}} ;
+	// 各対照で失敗時に表示全文が部分公開されないことを確認します
+	for( const auto &rejection : FORMATTED_REJECTIONS) {
+		expect( drivercrate::extractStaticHtmlTerms(
+				   replace( formatted, rejection.first, rejection.second), binding, PAYLOAD,
+				   REVISION, observation) != 0U &&
+			   observation.document.empty() && observation.text.empty()) ;
+	}
 
 	const auto longCsp = csp( 9762U) ;	// 拒否対照に共通する外枠の長い宣言です
 	// title中の非要素を独立規約の二つ目の選択先として扱いません
@@ -374,6 +404,114 @@ void runStaticSectionLayout()
 	expect( !drivercrate::visitPublicHtmlTags( withLink, []( const auto &) { return true ; })) ;
 	expect( drivercrate::extractStaticHtmlTerms( longCsp + page( section), extraction(), PAYLOAD,
 											   REVISION, observation) != 0U) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 明示URLに対する同一originの静的リンクと旧直接リンクの境界を確認します
+ */
+//------------------------------------------------------------------------------
+void runSameOriginStaticLinks()
+{
+	constexpr std::string_view PAGE_URL =
+		"https://example.com/drivers/current.html" ;	// 架空元pageです
+	constexpr std::string_view DOCUMENT_URL =
+		"https://example.com/legal/Terms.html" ;	// 同じ元起点です
+	constexpr std::wstring_view RELATIVE_ANCHOR =
+		L"<a href=\"/legal/Terms.html\">Terms</a>" ;	// 元起点でのみ一致するanchorです
+	constexpr std::wstring_view ABSOLUTE_ANCHOR =
+		L"<a href=\"https://example.com/legal/Terms.html\">Terms</a>" ;	// 原完全URLのanchorです
+
+	expect(
+		drivercrate::hasSameOriginStaticHtmlDocumentLink( RELATIVE_ANCHOR, PAGE_URL, DOCUMENT_URL)) ;
+	expect(
+		drivercrate::hasSameOriginStaticHtmlDocumentLink( ABSOLUTE_ANCHOR, PAGE_URL, DOCUMENT_URL)) ;
+	expect( drivercrate::hasSameOriginStaticHtmlDocumentLink( L"<a href='/'>Terms</a>", PAGE_URL,
+															"https://example.com/")) ;
+	expect( drivercrate::hasSameOriginStaticHtmlDocumentLink(
+		L"<template><a href='/ignored'>Other</a></template><A HREF='/legal/Terms.html'>Terms</A>",
+		PAGE_URL, DOCUMENT_URL)) ;
+	expect( drivercrate::hasStaticHtmlDocumentLink( ABSOLUTE_ANCHOR, DOCUMENT_URL)) ;
+	expect( !drivercrate::hasStaticHtmlDocumentLink( RELATIVE_ANCHOR, DOCUMENT_URL)) ;
+	expect( drivercrate::hasStaticHtmlDocumentLink(
+		L"<a href='https://legal.example.net/legal/Terms.html'>Terms</a>",
+		"https://legal.example.net/legal/Terms.html")) ;
+
+	constexpr std::array<std::wstring_view, 23U> INVALID_HTML{
+		L"<a href='//example.com/legal/Terms.html'>Terms</a>",
+		L"<a href='https://legal.example.net/legal/Terms.html'>Terms</a>",
+		L"<a href='https://example.com:443/legal/Terms.html'>Terms</a>",
+		L"<a href='legal/Terms.html'>Terms</a>",
+		L"<a href='/legal/Terms.html?query=1'>Terms</a>",
+		L"<a href='/legal/Terms.html#section'>Terms</a>",
+		L"<a href='/legal/Terms.html/'>Terms</a>",
+		L"<a href='/legal/terms.html'>Terms</a>",
+		L"<a href='/legal/./Terms.html'>Terms</a>",
+		L"<a href='/other/../legal/Terms.html'>Terms</a>",
+		L"<a href='/legal/%54erms.html'>Terms</a>",
+		L"<a href='/legal/%2e/Terms.html'>Terms</a>",
+		L"<a href='&#47;legal/Terms.html'>Terms</a>",
+		L"<a href='/legal\\Terms.html'>Terms</a>",
+		L"<base href='https://other.example.com/'><a href='/legal/Terms.html'>Terms</a>",
+		L"<a href='/legal/Terms.html'>Terms</a><base href='https://other.example.com/'>",
+		L"<!--<a href='/legal/Terms.html'>Terms</a>-->",
+		L"<script>const link = \"<a href='/legal/Terms.html'>Terms</a>\";</script>",
+		L"<script><!--<script></script><a href='/legal/Terms.html'>Terms</a>--></script>",
+		L"<template><template></template><a href='/legal/Terms.html'>Terms</a></template>",
+		L"<noscript><a href='/legal/Terms.html'>Terms</a></noscript>",
+		L"<select><!--</select>--><a href='/legal/Terms.html'>Terms</a></select>",
+		L"<a href='/legal/Terms.html' HREF='/other'>Terms</a>"} ;	// 見かけの一致と不正原字句です
+	// 原hrefの書換えや異なるHTML解釈、明示起点の変更から一致を作らないことを確認します
+	for( const auto page : INVALID_HTML) {
+		expect( !drivercrate::hasSameOriginStaticHtmlDocumentLink( page, PAGE_URL, DOCUMENT_URL)) ;
+	}
+
+	constexpr std::array<std::string_view, 7U> INVALID_PAGE_URLS{
+		"https://other.example.com/drivers/current.html",
+		"http://example.com/drivers/current.html",
+		"https://example.com:443/drivers/current.html",
+		"https://EXAMPLE.com/drivers/current.html",
+		"https://user@example.com/drivers/current.html",
+		"https://example.com/drivers/current.html?query=1",
+		"https://example.com/drivers/current.html#section"} ;	// 同じ正規originを確定できない元指定です
+	// hrefが相対でも絶対でも、許可された同じ元起点の原指定を必須にします
+	for( const auto pageUrl : INVALID_PAGE_URLS) {
+		expect( !drivercrate::hasSameOriginStaticHtmlDocumentLink( RELATIVE_ANCHOR, pageUrl,
+																 DOCUMENT_URL)) ;
+		expect( !drivercrate::hasSameOriginStaticHtmlDocumentLink( ABSOLUTE_ANCHOR, pageUrl,
+																 DOCUMENT_URL)) ;
+	}
+
+	constexpr std::array<std::string_view, 8U> INVALID_PATHS{
+		"//legal/Terms.html",		 "/legal//Terms.html",		 "/legal/./Terms.html",
+		"/legal/Terms.html/..",		 "/legal/%2e%2e/Terms.html", "/legal/%54erms.html",
+		"/legal/Terms.html?query=1", "/legal/Terms.html#section"} ;	// 原固定URL自体の不正表記です
+	// 明示URLとhrefの原文字列が同じでも、不正なパスは相対・絶対とも認定しません
+	for( const auto path : INVALID_PATHS) {
+		const std::string url =
+			"https://example.com" + std::string( path) ;		// 不正パスの明示元URLです
+		const std::wstring href( path.begin(), path.end()) ;	// 同じ不正パスを持つ元href候補です
+		expect( !drivercrate::hasSameOriginStaticHtmlDocumentLink(
+			L"<a href='" + href + L"'>Terms</a>", PAGE_URL, url)) ;
+		expect( !drivercrate::hasSameOriginStaticHtmlDocumentLink(
+			L"<a href='https://example.com" + href + L"'>Terms</a>", PAGE_URL, url)) ;
+	}
+
+	const std::wstring oversized( 2U * 1024U * 1024U + 1U, L'x') ;	// 許可を1文字超える原HTMLです
+	const std::string  oversizedUrl = "https://example.com/" +
+									 // URLの署名recordと同じ上限を超える対照です
+									 std::string( 2048U, 'a') ;
+	std::size_t offset = 99U ;	// 走査前に原位置が初期化されたことを確認します
+	expect( !drivercrate::hasSameOriginStaticHtmlDocumentLink( oversized, PAGE_URL, DOCUMENT_URL,
+															 &offset) &&
+		   offset == 0U) ;
+	expect(
+		!drivercrate::hasSameOriginStaticHtmlDocumentLink( ABSOLUTE_ANCHOR, PAGE_URL, oversizedUrl)) ;
+	expect( !drivercrate::hasSameOriginStaticHtmlDocumentLink( std::wstring( RELATIVE_ANCHOR) + L'\0',
+															 PAGE_URL, DOCUMENT_URL)) ;
+	expect( !drivercrate::hasSameOriginStaticHtmlDocumentLink(
+			   std::wstring( RELATIVE_ANCHOR) + L"<a href='", PAGE_URL, DOCUMENT_URL, &offset) &&
+		   offset == RELATIVE_ANCHOR.size()) ;
 }
 
 //------------------------------------------------------------------------------
@@ -559,6 +697,62 @@ void runRtf()
 
 //------------------------------------------------------------------------------
 /**
+ * @brief 同じ規約本文の項番、別リストのリセット、原節と表示全文のハッシュを検査する
+ */
+//------------------------------------------------------------------------------
+void runLinkedStaticTermsNumbering()
+{
+	drivercrate::IndexHtmlTermsExtraction binding ;	// 架空の二段リンク用の元節だけを選ぶ
+	binding.profile	 = drivercrate::LINKED_STATIC_TERMS_PROFILE ;
+	binding.selector = {"div", "id", "fixture-license"} ;
+	const std::wstring section =
+		L"<div id=\"fixture-license\"><h2>Fixture</h2>"
+		L"<ol><li>First<ol><li>Nested</li></ol></li><li>Second</li></ol>"
+		L"<ol><li>Restarts</li></ol></div>" ;	// 公開版の記載がない架空の原節
+	const auto original = L"<html><body><p>Outside the terms.</p>" + section +
+						  L"</body></html>" ;			// 元節の外にある文字を含む試験文書
+	drivercrate::HtmlTermsTextObservation observed ;	// 同じ原節と表示全文を検査
+	expect( drivercrate::extractStaticHtmlTerms( original, binding, PAYLOAD, L"", observed) == 0U) ;
+	expect( observed.document == section &&
+		   observed.text.find( L"1. First") < observed.text.find( L"1. Nested") &&
+		   observed.text.find( L"1. Nested") < observed.text.find( L"2. Second") &&
+		   observed.text.find( L"2. Second") < observed.text.find( L"1. Restarts") &&
+		   observed.text.find( L"1. Restarts") != observed.text.npos) ;
+	const auto sourceBytes	  = bytes( observed.document) ;	// 署名レコードに結ぶ元節バイト
+	const auto textBytes	  = bytes( observed.text) ;		// 項番を含む表示用UTF-8全文
+	binding.documentSha256	  = digest( sourceBytes) ;
+	binding.documentSizeBytes = sourceBytes.size() ;
+	binding.textSha256		  = digest( textBytes) ;
+	binding.textSizeBytes	  = textBytes.size() ;
+	std::wstring verified ;	// 元節と全文が一致した場合だけ表示に使う値
+	expect( drivercrate::verifyStaticHtmlTerms( original, binding, PAYLOAD, L"", verified) == 0U &&
+		   verified == observed.text) ;
+	expect( drivercrate::verifyStaticHtmlTerms( original, binding, PAYLOAD, L"Fixture", verified) !=
+			   0U &&
+		   verified.empty()) ;
+	// 標準10進以外になり得る元項番を黙って表示しないことを確認する
+	const auto changedOrdinal =
+		replace( original, std::wstring{L"<ol>"}, std::wstring{L"<ol start=\"8\">"}) ;
+	expect( drivercrate::verifyStaticHtmlTerms( changedOrdinal, binding, PAYLOAD, L"", verified) !=
+			   0U &&
+		   verified.empty()) ;
+	// 個別項目で上書きした元番号を既定値にしないことを確認する
+	const auto changedValue =
+		replace( original, std::wstring{L"<li>First"}, std::wstring{L"<li value=\"8\">First"}) ;
+	expect( drivercrate::verifyStaticHtmlTerms( changedValue, binding, PAYLOAD, L"", verified) !=
+			   0U &&
+		   verified.empty()) ;
+	binding.textSha256.front() ^= 1U ;
+	expect( drivercrate::verifyStaticHtmlTerms( original, binding, PAYLOAD, L"", verified) != 0U &&
+		   verified.empty()) ;
+	binding.profile = "STATIC_HTML_SECTION_V1" ;
+	expect( drivercrate::extractStaticHtmlTerms( original, binding, PAYLOAD, L"Fixture", observed) ==
+			   0U &&
+		   observed.text.find( L"1. First") == observed.text.npos) ;
+}
+
+//------------------------------------------------------------------------------
+/**
  * @brief 固定した公式規約のHTML、RTF、schemaと一INFの拒否条件を検査します
  * @return 全期待成功0、原失敗が一件以上あれば1です
  */
@@ -568,6 +762,8 @@ int main()
 	runHtml() ;
 	runRtf() ;
 	runStaticSectionLayout() ;
+	runLinkedStaticTermsNumbering() ;
+	runSameOriginStaticLinks() ;
 	runSchema() ;
 	runSelectedInfRejection() ;
 	std::printf( "HTML_TERMS assertions=%u failures=%u realHttp=0 realDevice=0 realInstall=0\n",

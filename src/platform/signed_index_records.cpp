@@ -2,7 +2,7 @@
 /**
  * @file signed_index_records.cpp
  * @brief 共通strict文法で署名済み配布recordの原byteと元申告を検査します
- * @version 01.26.02
+ * @version 01.27.00
  * @date 2026/10/24
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -51,6 +51,7 @@
  * Ver.01.26.00 Shunji Ogawa  2026/11/23  WiXレコードに完全Hardware IDの端末照合を要求
  * Ver.01.26.01 Shunji Ogawa  2026/11/26  宣言・分岐・反復のコメントの意図を補足
  * Ver.01.26.02 Shunji Ogawa  2026/11/26  元配布条件と追加欄の各要素を前置契約で説明
+ * Ver.01.27.00 Shunji Ogawa  2026/11/27  二段リンク規約を旧公開本文と分離
  * </pre>
  *
  * @note 元申告を型付きで保持するだけで、公式性・適合・取得・導入を実証しません
@@ -77,6 +78,7 @@
 
 #include "platform/official_file_verifier.h"
 #include "platform/official_http_client.h"
+#include "platform/official_html_terms.h"
 #include "platform/signed_index_json_internal.h"
 #include "platform/signed_index_acquisition_descriptor_internal.h"
 
@@ -1951,8 +1953,7 @@ enum class RecordArea {
 	}) ;
 	reader.finish() ;
 	// 旧本文と専用Models領域に私有の規約証拠を混在させません
-	require( supplement || !value.acquisitionDescriptor ||
-				!value.acquisitionDescriptor->terms.archiveNotice,
+	require( supplement || !signed_index_detail::indexRecordHasPrivateTerms( value),
 			IndexRecordsStatus::INVALID_EVIDENCE) ;
 	// 追加欄の有無と必須欄の集合を含めて照合する従来レコード形式
 	const bool legacySchema =
@@ -3468,16 +3469,36 @@ signed_index_detail::DecodedCollectorScopedModelsEvidence signed_index_detail::
 
 //------------------------------------------------------------------------------
 /**
- * @brief 対象条件と原表記を保って旧索引本文へ記録できるか検査します
+ * @brief 現公開本文から分離する規約契約を同じ記述子から判定する
+ * @param[in] record 取得条件を解決した元レコード
+ * @return ZIP内の元規約または二段リンク用を持つ場合true
+ */
+//------------------------------------------------------------------------------
+bool signed_index_detail::indexRecordHasPrivateTerms( const IndexDistributionRecord &record) noexcept
+{
+	// 取得条件が未確認の行へ規約を補わない
+	if( !record.acquisitionDescriptor) {
+		return false ;
+	}
+
+	const auto &terms = record.acquisitionDescriptor->terms ;	// 元署名記述子の規約
+	return terms.archiveNotice ||
+		   (terms.textDocument && terms.textDocument->htmlExtraction &&
+			terms.textDocument->htmlExtraction->profile == LINKED_STATIC_TERMS_PROFILE) ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 対象条件と原表記を保って旧索引本文へ記録できるか検査する
  * @param[in] record 共通codecを通過した原証拠付きレコードです
- * @return 旧文法で元の条件又は識別表記を保持できない場合trueです
+ * @return 元表記や取得規約が旧文法の範囲を超える場合true
  */
 //------------------------------------------------------------------------------
 bool signed_index_detail::indexRecordNeedsSupplement( const IndexDistributionRecord &record) noexcept
 {
 	const auto &identity = record.publishedIdentityEvidence ;	// 型と元表記を検査済みの識別証拠です
 	return record.wixContentEvidence || isIndexHardwareScoped( record) ||
-		   (record.acquisitionDescriptor && record.acquisitionDescriptor->terms.archiveNotice) ||
+		   indexRecordHasPrivateTerms( record) ||
 		   (identity.state == IndexEvidenceState::PUBLISHED &&
 			(!validIdentity( identity.modelSection, LEGACY_MODEL_SECTION_BYTES) ||
 			 std::ranges::any_of( identity.pnpIds, []( const IndexPublishedPnpId &id) {
@@ -3546,8 +3567,7 @@ IndexSupplementRecordsResult readSignedIndexSupplementRecords(
 	// 旧公開用の読取り入口では対象付き行を拒否します
 	if( std::ranges::any_of( result.records, []( const IndexDistributionRecord &record) {
 		   return record.wixContentEvidence || isIndexHardwareScoped( record) ||
-				  (record.acquisitionDescriptor &&
-				   record.acquisitionDescriptor->terms.archiveNotice) ;
+				  signed_index_detail::indexRecordHasPrivateTerms( record) ;
 	   })) {
 		return {result.transportStatus, IndexRecordsStatus::INVALID_SUPPLEMENT_PURPOSE, 0, {}, {}} ;
 	}

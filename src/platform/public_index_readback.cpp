@@ -2,7 +2,7 @@
 /**
  * @file public_index_readback.cpp
  * @brief 固定公開索引の原byte匿名照合を既存HTTPとnative codecへ接続します
- * @version 01.03.02
+ * @version 01.04.00
  * @date 2026/10/20
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -25,6 +25,7 @@
  * Ver.01.03.00 Shunji Ogawa  2026/11/07  全体容量・所有stateと有限進行の契約へ整合
  * Ver.01.03.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.03.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
+ * Ver.01.04.00 Shunji Ogawa  2026/11/28  版ごとの固定索引入口を原署名に結合
  * </pre>
  * @note 全取得byteと期限付きCDN URLはRAMだけに保持し、永続storeを開きません
  * @see docs/adr/0385-public-anonymous-index-readback.md
@@ -356,7 +357,8 @@ PublicIndexReadbackReport public_index_readback_detail::Access::execute(
 														: PublicIndexFailureStage::GZIP_ASSET) ;
 			const auto error =
 				index == 0U
-					? client.getSignedIndexCurrent( control, raw, resource.httpStatus)
+					? client.getSignedIndexCurrent( control, raw, resource.httpStatus,
+												   expected.manifest->data().schemaVersion)
 					: (index == 1U ? client.getSignedIndexManifestAsset( *expected.manifest, control,
 																		raw, resource.httpStatus)
 								   : client.getSignedIndexAsset(

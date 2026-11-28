@@ -2,7 +2,7 @@
 /**
  * @file official_delegated_http_request.cpp
  * @brief Record限定grantから一回のGETだけを作る秘密requestを実装します
- * @version 01.07.00
+ * @version 01.08.00
  * @date 2026/09/15
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -29,6 +29,7 @@
  * Ver.01.05.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.06.00 Shunji Ogawa  2026/11/23  元要求のWiX指定転送先を共通HTTPへ渡す
  * Ver.01.07.00 Shunji Ogawa  2026/11/23  要求移動時に元応答の待機観測を引き継ぐ
+ * Ver.01.08.00 Shunji Ogawa  2026/11/27  有効な元取得許可の公式AMD参照元を同期借用
  * </pre>
  *
  * @note 例外をworker境界へ漏らさず、放棄時もgrantを失敗終端してURLを消去します
@@ -337,6 +338,20 @@ std::optional<std::wstring_view> OfficialDelegatedGetRequest::signedWixRedirectD
 	const noexcept
 {
 	return grant_ == nullptr ? std::nullopt : grant_->signedWixRedirectDestination() ;
+}
+
+//------------------------------------------------------------------------------
+/**
+ * @brief 生存する元取得のAMD公式製品ページを借用する
+ * @return 初回送信まで有効な公開参照元。未開始・対象外はnull
+ */
+//------------------------------------------------------------------------------
+const wchar_t *OfficialDelegatedGetRequest::signedAmdProductReferer() const noexcept
+{
+	return state_ == OfficialDelegatedGetState::STARTED && grant_ &&
+				   !grant_->signedAmdProductPage_.empty()
+			   ? grant_->signedAmdProductPage_.c_str()
+			   : nullptr ;
 }
 
 //------------------------------------------------------------------------------

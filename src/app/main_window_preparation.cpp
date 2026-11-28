@@ -2,7 +2,7 @@
 /**
  * @file main_window_preparation.cpp
  * @brief 公式配布物の取得確認と結果表示
- * @version 01.16.00
+ * @version 01.17.00
  * @date 2026/09/06
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -56,6 +56,7 @@
  * Ver.01.14.01 Shunji Ogawa  2026/11/23  元配布の検査完了、失敗と取消しを区別
  * Ver.01.15.00 Shunji Ogawa  2026/11/23  同じ検査用取得と候補へ表示用規約を結ぶ
  * Ver.01.16.00 Shunji Ogawa  2026/11/23  元規約を同じ選択と取得後の導入確認へ引き継ぐ
+ * Ver.01.17.00 Shunji Ogawa  2026/11/27  選択した配布物のHTTP失敗に応じた案内を追加
  * </pre>
  *
  * @note UI thread専用です。Payload URL・端末識別子は非表示で、EULA内のURLは文字列に限ります
@@ -75,6 +76,7 @@
 
 #include <CommCtrl.h>
 #include <Windows.h>
+#include <winhttp.h>
 
 #include <algorithm>
 #include <array>
@@ -92,6 +94,49 @@
 
 namespace drivercrate {
 namespace {
+//------------------------------------------------------------------------------
+/**
+ * @brief 取得の元診断に応じて利用者が取れる操作を選ぶ
+ * @param[in] error 対象の取得経路が返したNativeError
+ * @return 案内の文字列resource ID。対象外の診断は0
+ */
+//------------------------------------------------------------------------------
+UINT preparationTransferHintResource( const NativeError error) noexcept
+{
+	const auto result = static_cast<HRESULT>( error) ;	// Facilityと元codeを照合するHRESULT
+	// WinHTTPの応答待ちを操作全体の期限や回線同意の失敗と区別する
+	if( result == HRESULT_FROM_WIN32( ERROR_WINHTTP_TIMEOUT)) {
+		return IDS_PREPARATION_TRANSFER_TIMEOUT ;
+	}
+
+	// 同じ数値の他facilityをHTTP応答の証拠として使用しない
+	if( !FAILED( result) || HRESULT_FACILITY( result) != FACILITY_HTTP) {
+		return 0U ;
+	}
+
+	// 同じ元HTTP応答の理由に応じた案内だけを出す
+	switch( HRESULT_CODE( result)) {
+		// 配布元が認証または許可を要求した
+		case HTTP_STATUS_DENIED:
+		// 配布元が当該要求を拒否した
+		case HTTP_STATUS_FORBIDDEN:
+			return IDS_PREPARATION_TRANSFER_ACCESS ;
+		// 配布元が元リンクを見つけられなかった
+		case HTTP_STATUS_NOT_FOUND:
+		// 配布元が元リンクの消滅を示した
+		case HTTP_STATUS_GONE:
+			return IDS_PREPARATION_TRANSFER_MISSING ;
+		// 配布元が要求回数を制限している
+		case 429U:
+		// 配布元のサービスが一時的に利用できない
+		case HTTP_STATUS_SERVICE_UNAVAIL:
+			return IDS_PREPARATION_TRANSFER_WAIT ;
+		// ほかの応答は既存診断を表示する
+		default:
+			return 0U ;
+	}
+}
+
 //------------------------------------------------------------------------------
 /**
  * @brief 未知状態を成功へ変換せず、取得失敗として表示する
@@ -1593,12 +1638,15 @@ void MainWindow::processPreparationCompleted( const OfficialPreparationOperation
 				continue ;
 			}
 
+			const UINT hint =
+				// 元診断に該当する案内
+				preparationTransferHintResource( item->result.error) ;
 			preparationResultText_ +=
 				formatPreparationTarget( decision.target, index) + L"\r\n" +
 				loadString( preparationStateResource( item->result.state)) + L"\r\n" +
 				formatResource( IDS_PREPARATION_ACTUAL, std::to_wstring( item->result.byteCount)) +
 				(item->result.error != 0 ? L"\r\n" + formatNativeError( item->result.error) : L"") +
-				L"\r\n\r\n" ;
+				(hint != 0U ? L"\r\n" + loadString( hint) : L"") + L"\r\n\r\n" ;
 			// 同じ対象だけの監査結果を取得結果の直後へ表示する
 			for( const OfficialPreparationAuditReport &report : result.auditReports) {
 				// 別対象の監査結果を現在の対象説明へ混在させない

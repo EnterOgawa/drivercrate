@@ -2,7 +2,7 @@
 /**
  * @file signed_index_acquisition_adapter_internal.h
  * @brief 製品設定へ注入できない固定RAM fixture取得policyを宣言します
- * @version 01.02.00
+ * @version 01.03.00
  * @date 2026/10/12
  * @author Shunji Ogawa
  * @copyright Copyright (c) 2026 EnterSystem CO.,LTD.
@@ -24,6 +24,7 @@
  * Ver.01.01.01 Shunji Ogawa  2026/11/11  宣言・定義の独立契約と参照省略禁止へコメントを整合
  * Ver.01.01.02 Shunji Ogawa  2026/11/12  コメント末尾と初回履歴の表記を統一
  * Ver.01.02.00 Shunji Ogawa  2026/11/18  P3同scan fullhost観測と取得直前拒否を接続
+ * Ver.01.03.00 Shunji Ogawa  2026/11/27  署名済み試験の規約再照合入口を宣言
  * </pre>
  *
  * @note 固定fixture-mainの隔離署名snapshotだけを扱います。任意鍵・host・bool設定を受けません
@@ -32,6 +33,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 #include "platform/signed_index_acquisition_adapter.h"
+#include <chrono>
 #include <span>
 #include <utility>
 namespace drivercrate::signed_index_acquisition_detail {
@@ -65,6 +67,23 @@ struct Access {
 		SignedIndexAcquisitionAdapter				  &adapter,
 		std::shared_ptr<const SignedIndexRecordLookup> lookup, IndexLookupContext current,
 		IndexTargetOs targetOs, std::optional<std::chrono::sys_seconds> nowUtc) noexcept ;
+	/**
+	 * @brief 明示承認済みの架空操作を規約再照合の正規入口へ渡す
+	 * @param[in,out] adapter 固定RAM署名で開始済みの取得adapter
+	 * @param[in] current 同じ元スキャン文脈
+	 * @param[in,out] preparation 架空操作と元同意を所有する準備session
+	 * @param[in] task 準備sessionが実claimした元task
+	 * @param[in,out] client 架空HTTP応答だけを返すclient
+	 * @param[in] nowUtc 応答前後に固定した試験時刻
+	 * @return 元規約の再照合成立時は0、それ以外は元拒否HRESULT
+	 * @note 定義は試験targetのみ。元承認や取得許可の注入は行わない
+	 */
+	[[nodiscard]] static NativeError recheckTermsFixture( SignedIndexAcquisitionAdapter &adapter,
+														 IndexLookupContext				current,
+														 OfficialPreparationSession	   &preparation,
+														 const OfficialPreparationTask &task,
+														 OfficialHttpClient			   &client,
+														 std::chrono::sys_seconds		nowUtc) ;
 	/**
 	 * @brief 公開relationでなく実lookupだけを私有集約入口へ渡します
 	 * @param[in] snapshot 真署名・隔離保存の同じ原snapshot
